@@ -23,6 +23,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -34,6 +35,7 @@ import com.gatcha.log.data.GameData
 import com.gatcha.log.data.HoyolabConfig
 import com.gatcha.log.data.LiveNote
 import com.gatcha.log.data.Spending
+import com.gatcha.log.data.api.UpdateInfo
 import com.gatcha.log.ui.game.GameInfoScreen
 import com.gatcha.log.ui.profile.MyPageScreen
 import com.gatcha.log.ui.spending.AddSpendingModal
@@ -65,9 +67,14 @@ fun HomeScreen(viewModel: SpendingViewModel = viewModel()) {
         showAddSpendingSheet.value = true
     }
 
-    // 앱 시작 시 1회 API 새로고침 (ennead 배너·이벤트 + HoYoLAB 노트).
+    // 앱 시작 시 1회 API 새로고침 (ennead 배너·이벤트 + HoYoLAB 노트) + 업데이트 확인.
     // ViewModel init 에서 호출하면 프로퍼티 초기화 순서 문제로 NPE 가 나므로 UI 에서 트리거.
-    LaunchedEffect(Unit) { viewModel.refreshGameInfo() }
+    LaunchedEffect(Unit) {
+        viewModel.refreshGameInfo()
+        viewModel.checkForUpdate()
+    }
+    val updateInfo by viewModel.updateInfo.collectAsState()
+    val uriHandler = LocalUriHandler.current
 
     Scaffold(
         containerColor = Color.Transparent,
@@ -105,6 +112,14 @@ fun HomeScreen(viewModel: SpendingViewModel = viewModel()) {
                                 showAddSpendingSheet.value = false
                                 spendingToEdit.value = null
                             },
+                        )
+                    }
+
+                    updateInfo?.let { info ->
+                        UpdateDialog(
+                            info = info,
+                            onDownload = { uriHandler.openUri(info.url); viewModel.dismissUpdate() },
+                            onDismiss = { viewModel.dismissUpdate() },
                         )
                     }
                 }
@@ -556,6 +571,30 @@ private fun BudgetDialog(current: Long, onDismiss: () -> Unit, onConfirm: (Long)
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
             modifier = Modifier.fillMaxWidth(),
         )
+    }
+}
+
+@Composable
+private fun UpdateDialog(info: UpdateInfo, onDownload: () -> Unit, onDismiss: () -> Unit) {
+    GlgDialog(
+        title = "업데이트 있어요" + if (info.versionName.isNotBlank()) " (v${info.versionName})" else "",
+        onDismiss = onDismiss,
+        confirmText = "다운로드",
+        onConfirm = onDownload,
+        dismissText = "나중에",
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("새 버전이 출시되었어요. 다운로드 후 설치하세요.", fontSize = 13.sp, color = TextSecondary)
+            if (info.notes.isNotEmpty()) {
+                Spacer(Modifier.height(2.dp))
+                info.notes.forEach { n ->
+                    Row {
+                        Text("· ", fontSize = 13.sp, color = TextSecondary)
+                        Text(n, fontSize = 13.sp, color = TextSecondary)
+                    }
+                }
+            }
+        }
     }
 }
 

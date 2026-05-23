@@ -29,6 +29,8 @@ import com.gatcha.log.data.api.EnkaApi
 import com.gatcha.log.data.api.EnkaResult
 import com.gatcha.log.data.api.EnneadApi
 import com.gatcha.log.data.api.HoyolabApi
+import com.gatcha.log.data.api.UpdateChecker
+import com.gatcha.log.data.api.UpdateInfo
 import com.google.android.gms.common.api.ApiException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -401,6 +403,21 @@ class SpendingViewModel(app: Application) : AndroidViewModel(app) {
 
     fun clearStatus() { _statusMessage.value = null }
     private fun emitStatus(msg: String) { _statusMessage.value = msg }
+
+    // ----------------------------------------------------------------- 인앱 업데이트 확인
+    private val _updateInfo = MutableStateFlow<UpdateInfo?>(null)
+    val updateInfo: StateFlow<UpdateInfo?> = _updateInfo.asStateFlow()
+
+    /** 원격 version.json 과 현재 버전 비교. [manual] 이면 최신일 때 토스트로 알림. */
+    fun checkForUpdate(manual: Boolean = false) {
+        viewModelScope.launch {
+            val info = UpdateChecker.check(getApplication())
+            if (info != null) _updateInfo.value = info
+            else if (manual) emitStatus("이미 최신 버전이에요")
+        }
+    }
+
+    fun dismissUpdate() { _updateInfo.value = null }
 
     /** 현재 출석 처리 중인 게임 키 (버튼 진행 표시용). null 이면 진행 중 아님. */
     private val _checkingIn = MutableStateFlow<String?>(null)

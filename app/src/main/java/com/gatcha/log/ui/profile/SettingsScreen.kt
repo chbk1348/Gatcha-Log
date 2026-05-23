@@ -44,6 +44,15 @@ fun SettingsScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
     val hoyolab by viewModel.hoyolabConfig.collectAsState()
     val gachaStats by viewModel.gachaStats.collectAsState()
     val spendings by viewModel.spendings.collectAsState()
+    val statusMessage by viewModel.statusMessage.collectAsState()
+
+    // 업데이트 확인 등 일회성 메시지 → 토스트
+    LaunchedEffect(statusMessage) {
+        statusMessage?.let {
+            android.widget.Toast.makeText(context, it, android.widget.Toast.LENGTH_SHORT).show()
+            viewModel.clearStatus()
+        }
+    }
 
     val signInLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) {
         viewModel.onGoogleSignInResult(it.data)
@@ -150,6 +159,8 @@ fun SettingsScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
         item {
             GlassCard(shape = RoundedCornerShape(24.dp), modifier = Modifier.fillMaxWidth()) {
                 Column {
+                    SettingsItem("업데이트 확인", Icons.Default.SystemUpdate) { viewModel.checkForUpdate(manual = true) }
+                    HorizontalDivider(color = DividerColor, modifier = Modifier.padding(horizontal = 16.dp))
                     SettingsItem("업데이트 로그", Icons.Default.NewReleases) { showUplog.value = true }
                     HorizontalDivider(color = DividerColor, modifier = Modifier.padding(horizontal = 16.dp))
                     SettingsItem("앱 버전", Icons.Default.Info, value = "v1.0") {}
