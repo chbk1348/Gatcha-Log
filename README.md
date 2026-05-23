@@ -7,11 +7,16 @@
 원신 · 붕괴: 스타레일 · 젠레스 존 제로의 **지출 관리 · 실시간 노트 · 출석 · 가챠 분석**을 한 앱에서.
 기존 Google Apps Script 웹앱을 **Kotlin + Jetpack Compose**로 네이티브 포팅한 프로젝트입니다.
 
+[![Release](https://img.shields.io/github/v/release/chbk1348/Gatcha-Log-Android?label=release&color=3DDC84)](https://github.com/chbk1348/Gatcha-Log-Android/releases/latest)
+[![Downloads](https://img.shields.io/github/downloads/chbk1348/Gatcha-Log-Android/total?label=downloads&color=4285F4)](https://github.com/chbk1348/Gatcha-Log-Android/releases)
 ![Platform](https://img.shields.io/badge/Platform-Android-3DDC84?logo=android&logoColor=white)
 ![Kotlin](https://img.shields.io/badge/Kotlin-2.3.21-7F52FF?logo=kotlin&logoColor=white)
 ![Compose](https://img.shields.io/badge/Jetpack%20Compose-Material3-4285F4?logo=jetpackcompose&logoColor=white)
 ![Firebase](https://img.shields.io/badge/Firebase-Auth%20%2B%20Firestore-FFCA28?logo=firebase&logoColor=black)
-![minSdk](https://img.shields.io/badge/minSdk-24-blue)
+
+<br/>
+
+[![Download APK](https://img.shields.io/badge/⬇️%20APK%20다운로드-3DDC84?style=for-the-badge&logo=android&logoColor=white)](https://github.com/chbk1348/Gatcha-Log-Android/releases/latest)
 
 </div>
 
