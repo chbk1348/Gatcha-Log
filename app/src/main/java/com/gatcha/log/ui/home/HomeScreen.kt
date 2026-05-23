@@ -1,5 +1,7 @@
 package com.gatcha.log.ui.home
 
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -19,6 +21,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -28,6 +31,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.gatcha.log.data.DateUtil
 import com.gatcha.log.data.Game
 import com.gatcha.log.data.GameData
+import com.gatcha.log.data.HoyolabConfig
 import com.gatcha.log.data.LiveNote
 import com.gatcha.log.data.Spending
 import com.gatcha.log.ui.game.GameInfoScreen
@@ -37,13 +41,13 @@ import com.gatcha.log.ui.spending.SpendingScreen
 import com.gatcha.log.ui.spending.SpendingViewModel
 import com.gatcha.log.ui.components.GlassBackground
 import com.gatcha.log.ui.components.GlassCard
+import com.gatcha.log.ui.components.GlgButton
 import com.gatcha.log.ui.components.GlgDialog
 import com.gatcha.log.ui.components.GlgTextField
 import com.gatcha.log.ui.components.LocalHazeState
-import com.gatcha.log.ui.components.glassPanel
+import com.gatcha.log.ui.components.NoteSkeletonRow
 import com.gatcha.log.ui.theme.*
 import dev.chrisbanes.haze.HazeState
-import dev.chrisbanes.haze.haze
 
 @Composable
 fun HomeScreen(viewModel: SpendingViewModel = viewModel()) {
@@ -52,9 +56,8 @@ fun HomeScreen(viewModel: SpendingViewModel = viewModel()) {
     val spendingToEdit = remember { mutableStateOf<Spending?>(null) }
     val accent = LocalAccent.current
 
-    // 두 개의 Haze 소스: bgHaze = 배경 블롭(카드가 블러), contentHaze = 스크롤 콘텐츠(내비가 블러)
+    // 배경 Haze 소스(정적 그라데이션). 카드/내비는 더 이상 라이브 블러를 쓰지 않아 스크롤이 가볍다.
     val bgHaze = remember { HazeState() }
-    val contentHaze = remember { HazeState() }
 
     val openEditor: (Spending?) -> Unit = { target ->
         spendingToEdit.value = target
@@ -73,16 +76,16 @@ fun HomeScreen(viewModel: SpendingViewModel = viewModel()) {
                 onTabSelected = { selectedTab = it },
                 onAddClick = { openEditor(null) },
                 accent = accent,
-                hazeState = contentHaze,
+                showFab = selectedTab <= 1, // 홈·지출 탭에서만 FAB 노출
             )
         },
     ) { paddingValues ->
         CompositionLocalProvider(LocalHazeState provides bgHaze) {
             GlassBackground(hazeState = bgHaze, modifier = Modifier.fillMaxSize()) {
                 // 콘텐츠는 하단바 아래까지 확장(상단 인셋만 적용) → 글래스 내비가 실제 콘텐츠를 블러
-                Box(modifier = Modifier.fillMaxSize().padding(top = paddingValues.calculateTopPadding()).haze(contentHaze)) {
+                Box(modifier = Modifier.fillMaxSize().padding(top = paddingValues.calculateTopPadding())) {
                     when (selectedTab) {
-                        0 -> HomeContent(viewModel)
+                        0 -> HomeContent(viewModel, onNavigateToGameInfo = { selectedTab = 2 })
                         1 -> SpendingScreen(viewModel, onEditSpending = { openEditor(it) })
                         2 -> GameInfoScreen(viewModel)
                         3 -> MyPageScreen(viewModel)
@@ -110,13 +113,17 @@ fun HomeScreen(viewModel: SpendingViewModel = viewModel()) {
 }
 
 @Composable
-fun HomeContent(viewModel: SpendingViewModel) {
+fun HomeContent(viewModel: SpendingViewModel, onNavigateToGameInfo: () -> Unit) {
     val spendings by viewModel.spendings.collectAsState()
     val budget by viewModel.budget.collectAsState()
     val profile by viewModel.profile.collectAsState()
     val attendanceToday by viewModel.attendanceToday.collectAsState()
     val banners by viewModel.activeBanners.collectAsState()
     val liveNotes by viewModel.liveNotes.collectAsState()
+    val hoyolab by viewModel.hoyolabConfig.collectAsState()
+    val checkingIn by viewModel.checkingIn.collectAsState()
+    val isRefreshing by viewModel.isRefreshing.collectAsState()
+    val attendanceStreak by viewModel.attendanceStreak.collectAsState()
 
     val monthlyTotal = remember(spendings) { viewModel.monthlyTotal() }
     val gachaCount = remember(spendings) {
@@ -135,9 +142,14 @@ fun HomeContent(viewModel: SpendingViewModel) {
         item { Spacer(Modifier.height(24.dp)) }
         item {
             GameStatusSection(
+                hoyolab = hoyolab,
                 attendanceToday = attendanceToday,
                 liveNotes = liveNotes,
-                onToggleAttendance = viewModel::toggleAttendance,
+                checkingIn = checkingIn,
+                isRefreshing = isRefreshing,
+                streak = attendanceStreak,
+                onCheckIn = viewModel::attemptCheckIn,
+                onConfigClick = onNavigateToGameInfo,
             )
         }
         item { Spacer(Modifier.height(24.dp)) }
@@ -260,9 +272,14 @@ fun TagIndicator(color: Color, label: String) {
 
 @Composable
 fun GameStatusSection(
+    hoyolab: HoyolabConfig,
     attendanceToday: Set<String>,
     liveNotes: List<LiveNote>,
-    onToggleAttendance: (String) -> Unit,
+    checkingIn: String?,
+    isRefreshing: Boolean,
+    streak: Int,
+    onCheckIn: (String) -> Unit,
+    onConfigClick: () -> Unit,
 ) {
     val accent = LocalAccent.current
     GlassCard(
@@ -276,37 +293,72 @@ fun GameStatusSection(
                 Text("게임 현황", fontWeight = FontWeight.Bold, color = accent)
             }
             Spacer(Modifier.height(16.dp))
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text("오늘의 출석", fontSize = 12.sp, color = TextSecondary)
-                Text(DateUtil.shortLabelWithWeekday(System.currentTimeMillis()), fontSize = 12.sp, color = TextSecondary)
-            }
-            Spacer(Modifier.height(12.dp))
-            GameData.attendanceGames.forEach { game ->
-                AttendanceRow(
-                    game = game,
-                    done = game.key in attendanceToday,
-                    onClick = { onToggleAttendance(game.key) },
-                )
-            }
 
-            Spacer(Modifier.height(20.dp))
-            Text("실시간 노트", fontSize = 12.sp, color = TextSecondary)
-            Spacer(Modifier.height(12.dp))
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                items(liveNotes) { note -> HomeNoteCard(note) }
+            if (!hoyolab.isLinked) {
+                // 미연동 — 출석/노트 숨기고 연동 유도
+                Column(
+                    Modifier.fillMaxWidth().padding(vertical = 6.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    Box(
+                        Modifier.size(48.dp).clip(CircleShape).background(accent.copy(alpha = 0.12f)),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(Icons.Default.Link, null, tint = accent, modifier = Modifier.size(24.dp))
+                    }
+                    Spacer(Modifier.height(10.dp))
+                    Text("HoYoLAB 연동이 필요해요", fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                    Spacer(Modifier.height(4.dp))
+                    Text("실시간 노트·출석체크를 보려면 연동하세요", fontSize = 12.sp, color = TextSecondary)
+                    Spacer(Modifier.height(14.dp))
+                    GlgButton("HoYoLAB 연동하러 가기", onClick = onConfigClick, modifier = Modifier.fillMaxWidth())
+                }
+            } else {
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("오늘의 출석", fontSize = 12.sp, color = TextSecondary)
+                        if (streak > 0) {
+                            Spacer(Modifier.width(6.dp))
+                            Surface(color = accent.copy(alpha = 0.12f), shape = RoundedCornerShape(8.dp)) {
+                                Text("🔥 ${streak}일 연속", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = accent, modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
+                            }
+                        }
+                    }
+                    Text(DateUtil.shortLabelWithWeekday(System.currentTimeMillis()), fontSize = 12.sp, color = TextSecondary)
+                }
+                Spacer(Modifier.height(12.dp))
+                GameData.attendanceGames.forEach { game ->
+                    AttendanceRow(
+                        game = game,
+                        done = game.key in attendanceToday,
+                        inProgress = checkingIn == game.key,
+                        onClick = { onCheckIn(game.key) },
+                    )
+                }
+
+                Spacer(Modifier.height(20.dp))
+                Text("실시간 노트", fontSize = 12.sp, color = TextSecondary)
+                Spacer(Modifier.height(12.dp))
+                when {
+                    liveNotes.isNotEmpty() -> LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        items(liveNotes) { note -> HomeNoteCard(note) }
+                    }
+                    isRefreshing -> NoteSkeletonRow()
+                    else -> Text("UID를 확인해주세요", fontSize = 11.sp, color = TextSecondary)
+                }
             }
         }
     }
 }
 
 @Composable
-fun AttendanceRow(game: Game, done: Boolean, onClick: () -> Unit) {
+fun AttendanceRow(game: Game, done: Boolean, inProgress: Boolean, onClick: () -> Unit) {
     val accent = LocalAccent.current
     Surface(
         shape = RoundedCornerShape(12.dp),
         color = if (done) accent.copy(alpha = 0.06f) else Color.White,
         border = BorderStroke(1.dp, if (done) accent.copy(alpha = 0.4f) else DividerColor),
-        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp).clickable(enabled = true) { onClick() },
+        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp).clickable(enabled = !done && !inProgress) { onClick() },
     ) {
         Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
             Surface(color = game.color.copy(alpha = 0.15f), shape = RoundedCornerShape(8.dp), modifier = Modifier.size(40.dp)) {
@@ -318,17 +370,20 @@ fun AttendanceRow(game: Game, done: Boolean, onClick: () -> Unit) {
             Column(Modifier.weight(1f)) {
                 Text(game.displayName, fontSize = 14.sp, fontWeight = FontWeight.Bold)
                 Text(
-                    if (done) "✓ ${game.attendanceReward}" else "탭하여 출석체크",
+                    when {
+                        inProgress -> "출석 처리 중…"
+                        done -> "✓ ${game.attendanceReward}"
+                        else -> "탭하여 출석체크"
+                    },
                     fontSize = 11.sp,
                     color = if (done) accent else TextSecondary,
                 )
             }
-            Icon(
-                if (done) Icons.Default.CheckCircle else Icons.Default.CheckCircleOutline,
-                contentDescription = null,
-                tint = if (done) accent else Color.LightGray,
-                modifier = Modifier.size(24.dp),
-            )
+            when {
+                inProgress -> CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp, color = accent)
+                done -> Icon(Icons.Default.CheckCircle, contentDescription = null, tint = accent, modifier = Modifier.size(24.dp))
+                else -> Icon(Icons.Default.CheckCircleOutline, contentDescription = null, tint = Color.LightGray, modifier = Modifier.size(24.dp))
+            }
         }
     }
 }
@@ -397,41 +452,56 @@ fun SpendingSection(
             Text("₩%,d".format(monthlyTotal), fontSize = 32.sp, fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(20.dp))
 
-            Box(modifier = Modifier.fillMaxWidth().height(8.dp).clip(CircleShape).background(ProgressEmpty)) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth(ratio)
-                        .fillMaxHeight()
-                        .clip(CircleShape)
-                        .background(
-                            if (over) Brush.horizontalGradient(listOf(Color(0xFFFF6B6B), DangerText))
-                            else Brush.horizontalGradient(listOf(LocalAccentSecondary.current, accent))
-                        ),
-                )
-            }
-            Spacer(Modifier.height(8.dp))
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text(
-                    if (over) "₩%,d 초과".format(-remaining) else "₩%,d 남음".format(remaining),
-                    fontSize = 11.sp, color = if (over) DangerText else TextSecondary,
-                )
-                Text("예산 ${pct}% 사용", fontSize = 11.sp, color = TextSecondary)
-            }
+            if (budget > 0) {
+                Box(modifier = Modifier.fillMaxWidth().height(8.dp).clip(CircleShape).background(ProgressEmpty)) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth(ratio)
+                            .fillMaxHeight()
+                            .clip(CircleShape)
+                            .background(
+                                if (over) Brush.horizontalGradient(listOf(Color(0xFFFF6B6B), DangerText))
+                                else Brush.horizontalGradient(listOf(LocalAccentSecondary.current, accent))
+                            ),
+                    )
+                }
+                Spacer(Modifier.height(8.dp))
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text(
+                        if (over) "₩%,d 초과".format(-remaining) else "₩%,d 남음".format(remaining),
+                        fontSize = 11.sp, color = if (over) DangerText else TextSecondary,
+                    )
+                    Text("예산 ${pct}% 사용", fontSize = 11.sp, color = TextSecondary)
+                }
 
-            if (pct >= 90) {
-                Spacer(Modifier.height(16.dp))
+                if (pct >= 90) {
+                    Spacer(Modifier.height(16.dp))
+                    Surface(
+                        color = if (over) DangerBackground else WarningBackground,
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.Warning, null, tint = if (over) DangerText else Color(0xFFFFA500), modifier = Modifier.size(16.dp))
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                if (over) "이번 달 예산을 초과했어요" else "이번 달 예산의 ${pct}%를 사용했어요",
+                                color = if (over) DangerText else WarningText, fontSize = 12.sp, fontWeight = FontWeight.Bold,
+                            )
+                        }
+                    }
+                }
+            } else {
+                // 예산 미설정 — 사용자가 지정하기 전까지 사용률/초과 표시 안 함
                 Surface(
-                    color = if (over) DangerBackground else WarningBackground,
+                    color = accent.copy(alpha = 0.06f),
                     shape = RoundedCornerShape(12.dp),
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth().clickable { onEditBudget() },
                 ) {
                     Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.Warning, null, tint = if (over) DangerText else Color(0xFFFFA500), modifier = Modifier.size(16.dp))
+                        Icon(Icons.Default.Savings, null, tint = accent, modifier = Modifier.size(16.dp))
                         Spacer(Modifier.width(8.dp))
-                        Text(
-                            if (over) "이번 달 예산을 초과했어요" else "이번 달 예산의 ${pct}%를 사용했어요",
-                            color = if (over) DangerText else WarningText, fontSize = 12.sp, fontWeight = FontWeight.Bold,
-                        )
+                        Text("월 예산 미설정 — 탭하여 설정하면 사용률이 표시돼요", fontSize = 12.sp, color = TextSecondary)
                     }
                 }
             }
@@ -501,7 +571,13 @@ private fun BudgetDialog(current: Long, onDismiss: () -> Unit, onConfirm: (Long)
 }
 
 @Composable
-fun BottomNavBar(selectedTab: Int, onTabSelected: (Int) -> Unit, onAddClick: () -> Unit, accent: Color, hazeState: HazeState) {
+fun BottomNavBar(selectedTab: Int, onTabSelected: (Int) -> Unit, onAddClick: () -> Unit, accent: Color, showFab: Boolean) {
+    // 단일 진행값으로 FAB 와 하단바(알약)를 함께 확장/축소 애니메이션
+    val fab by animateFloatAsState(
+        targetValue = if (showFab) 1f else 0f,
+        animationSpec = tween(durationMillis = 320),
+        label = "fab",
+    )
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -511,14 +587,14 @@ fun BottomNavBar(selectedTab: Int, onTabSelected: (Int) -> Unit, onAddClick: () 
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            horizontalArrangement = Arrangement.spacedBy((12 * fab).dp),
         ) {
             Surface(
-                color = Color.Transparent,
+                color = Color(0xF7FFFFFF),
                 shape = RoundedCornerShape(40.dp),
                 shadowElevation = 0.dp,
                 border = BorderStroke(1.dp, DividerColor),
-                modifier = Modifier.weight(1f).glassPanel(hazeState, RoundedCornerShape(40.dp), tintAlpha = 0.55f, blur = 28.dp),
+                modifier = Modifier.weight(1f), // FAB 폭이 줄면 가중치로 자연스럽게 확장
             ) {
                 Row(
                     modifier = Modifier.fillMaxWidth().height(72.dp).padding(horizontal = 8.dp),
@@ -532,15 +608,31 @@ fun BottomNavBar(selectedTab: Int, onTabSelected: (Int) -> Unit, onAddClick: () 
                 }
             }
 
-            FloatingActionButton(
-                onClick = onAddClick,
-                containerColor = accent,
-                contentColor = Color.White,
-                shape = CircleShape,
-                modifier = Modifier.size(64.dp),
-                elevation = FloatingActionButtonDefaults.elevation(8.dp),
+            // FAB: 폭(64*fab)·스케일·투명도를 같은 진행값으로 줄여 하단바와 동시에 사라짐/등장
+            Box(
+                modifier = Modifier
+                    .width((64 * fab).dp)
+                    .graphicsLayer { alpha = fab; scaleX = fab; scaleY = fab },
+                contentAlignment = Alignment.Center,
             ) {
-                Icon(Icons.Default.Add, contentDescription = "지출 추가", modifier = Modifier.size(32.dp))
+                if (fab > 0.01f) {
+                    FloatingActionButton(
+                        onClick = onAddClick,
+                        containerColor = accent,
+                        contentColor = Color.White,
+                        shape = CircleShape,
+                        modifier = Modifier.requiredSize(64.dp),
+                        // 그림자 제거 — 애니메이션 중 그림자 깜빡임 방지 + 플랫 일관성
+                        elevation = FloatingActionButtonDefaults.elevation(
+                            defaultElevation = 0.dp,
+                            pressedElevation = 0.dp,
+                            focusedElevation = 0.dp,
+                            hoveredElevation = 0.dp,
+                        ),
+                    ) {
+                        Icon(Icons.Default.Add, contentDescription = "지출 추가", modifier = Modifier.size(32.dp))
+                    }
+                }
             }
         }
     }

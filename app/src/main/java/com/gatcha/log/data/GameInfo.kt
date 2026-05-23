@@ -15,8 +15,8 @@ data class HoyolabConfig(
 
 /** 사용자 프로필 (로컬 저장) */
 data class UserProfile(
-    val name: String = "유키냥",
-    val email: String = "yukinyang@example.com",
+    val name: String = "게스트",
+    val email: String = "",
 )
 
 /** 픽업 배너 */
@@ -119,7 +119,7 @@ data class LiveNote(
     /** 게임별 재화 명칭 */
     val resinLabel: String
         get() = when (GameData.byNameOrNull(game)) {
-            Game.GENSHIN -> "수지"
+            Game.GENSHIN -> "레진"
             Game.HSR -> "개척력"
             Game.ZZZ -> "배터리"
             else -> "재화"

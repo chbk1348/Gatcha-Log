@@ -3,6 +3,11 @@ plugins {
     id("org.jetbrains.kotlin.plugin.compose")
 }
 
+// google-services.json 이 있을 때만 Firebase 플러그인 적용 → json 없이도 빌드 가능(로컬 모드).
+if (file("google-services.json").exists()) {
+    apply(plugin = "com.google.gms.google-services")
+}
+
 android {
     namespace = "com.gatcha.log"
     compileSdk = 34
@@ -58,6 +63,13 @@ dependencies {
     // 진짜 backdrop-blur 글래스모피즘 (Compose 1.7+)
     implementation("dev.chrisbanes.haze:haze:1.0.0")
 
-    // 구글 로그인 (Google Sign-In — 백엔드 없이 계정 식별만 사용 → 콘솔 OAuth 설정 불필요)
+    // 구글 로그인 (Google Sign-In)
     implementation("com.google.android.gms:play-services-auth:21.2.0")
+
+    // Firebase — 구글 계정 귀속 클라우드 저장(Firestore) + 인증.
+    // google-services.json 이 없으면 런타임에 비활성(앱은 로컬로 동작).
+    implementation(platform("com.google.firebase:firebase-bom:33.7.0"))
+    implementation("com.google.firebase:firebase-auth")
+    implementation("com.google.firebase:firebase-firestore")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.8.1")
 }

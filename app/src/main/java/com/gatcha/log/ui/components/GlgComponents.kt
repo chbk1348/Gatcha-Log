@@ -2,12 +2,15 @@ package com.gatcha.log.ui.components
 
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsFocusedAsState
+import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -109,6 +112,7 @@ fun GlgTextField(
                     BasicTextField(
                         value = value,
                         onValueChange = onValueChange,
+                        modifier = Modifier.fillMaxWidth(),
                         enabled = enabled && onClick == null,
                         readOnly = readOnly,
                         singleLine = singleLine,
@@ -140,6 +144,9 @@ fun GlgButton(
     height: androidx.compose.ui.unit.Dp = 50.dp,
 ) {
     val accent = LocalAccent.current
+    val interaction = remember { MutableInteractionSource() }
+    val pressed by interaction.collectIsPressedAsState()
+    val scale by animateFloatAsState(if (pressed && enabled) 0.96f else 1f, label = "btnScale")
     val brush = if (enabled) {
         Brush.horizontalGradient(listOf(accent, lerp(accent, Color.Black, 0.18f)))
     } else {
@@ -148,9 +155,10 @@ fun GlgButton(
     Box(
         modifier = modifier
             .height(height)
+            .graphicsLayer { scaleX = scale; scaleY = scale }
             .clip(RoundedCornerShape(14.dp))
             .background(brush)
-            .then(if (enabled) Modifier.clickable { onClick() } else Modifier),
+            .then(if (enabled) Modifier.clickable(interactionSource = interaction, indication = null) { onClick() } else Modifier),
         contentAlignment = Alignment.Center,
     ) {
         Text(text, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 15.sp)
@@ -165,12 +173,16 @@ fun GlgOutlineButton(
     modifier: Modifier = Modifier,
     height: androidx.compose.ui.unit.Dp = 50.dp,
 ) {
+    val interaction = remember { MutableInteractionSource() }
+    val pressed by interaction.collectIsPressedAsState()
+    val scale by animateFloatAsState(if (pressed) 0.96f else 1f, label = "outBtnScale")
     Box(
         modifier = modifier
             .height(height)
+            .graphicsLayer { scaleX = scale; scaleY = scale }
             .clip(RoundedCornerShape(14.dp))
             .border(1.dp, GhostBorder, RoundedCornerShape(14.dp))
-            .clickable { onClick() },
+            .clickable(interactionSource = interaction, indication = null) { onClick() },
         contentAlignment = Alignment.Center,
     ) {
         Text(text, color = GhostText, fontWeight = FontWeight.Medium, fontSize = 15.sp)

@@ -14,5 +14,8 @@ local.properties
 .DS_Store
 Thumbs.db
 
+# Firebase config (개발자별로 직접 추가 — 커밋 금지)
+app/google-services.json
+
 # Claude / local agent config
 .claude/

@@ -18,19 +18,19 @@ object Net {
 
     private const val TIMEOUT_MS = 12_000
 
-    suspend fun get(url: String, headers: Map<String, String> = emptyMap()): NetResult =
-        withContext(Dispatchers.IO) { request("GET", url, headers, null) }
+    suspend fun get(url: String, headers: Map<String, String> = emptyMap(), timeoutMs: Int = TIMEOUT_MS): NetResult =
+        withContext(Dispatchers.IO) { request("GET", url, headers, null, timeoutMs) }
 
-    suspend fun post(url: String, headers: Map<String, String> = emptyMap(), body: String = "{}"): NetResult =
-        withContext(Dispatchers.IO) { request("POST", url, headers, body) }
+    suspend fun post(url: String, headers: Map<String, String> = emptyMap(), body: String = "{}", timeoutMs: Int = TIMEOUT_MS): NetResult =
+        withContext(Dispatchers.IO) { request("POST", url, headers, body, timeoutMs) }
 
-    private fun request(method: String, url: String, headers: Map<String, String>, body: String?): NetResult {
+    private fun request(method: String, url: String, headers: Map<String, String>, body: String?, timeoutMs: Int): NetResult {
         var conn: HttpURLConnection? = null
         return try {
             conn = (URL(url).openConnection() as HttpURLConnection).apply {
                 requestMethod = method
-                connectTimeout = TIMEOUT_MS
-                readTimeout = TIMEOUT_MS
+                connectTimeout = timeoutMs
+                readTimeout = timeoutMs
                 instanceFollowRedirects = true
                 setRequestProperty("Accept", "application/json")
                 headers.forEach { (k, v) -> setRequestProperty(k, v) }

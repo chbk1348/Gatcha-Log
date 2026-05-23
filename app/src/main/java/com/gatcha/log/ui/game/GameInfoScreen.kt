@@ -16,6 +16,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -31,6 +32,8 @@ import com.gatcha.log.data.HoyolabConfig
 import com.gatcha.log.data.LiveNote
 import com.gatcha.log.data.PatchInfo
 import com.gatcha.log.data.PityState
+import com.gatcha.log.ui.components.BannerSkeleton
+import com.gatcha.log.ui.components.ListSkeleton
 import com.gatcha.log.ui.components.GlassCard
 import com.gatcha.log.ui.components.GlgButton
 import com.gatcha.log.ui.components.GlgDialog
@@ -53,7 +56,29 @@ fun GameInfoScreen(viewModel: SpendingViewModel) {
     val wishlist by viewModel.wishlist.collectAsState()
     val pity by viewModel.pity.collectAsState()
     val eventChecks by viewModel.eventChecks.collectAsState()
+    val checkingIn by viewModel.checkingIn.collectAsState()
+    val attendanceStreak by viewModel.attendanceStreak.collectAsState()
+    val enkaGiUid by viewModel.enkaGiUid.collectAsState()
+    val enkaHsrUid by viewModel.enkaHsrUid.collectAsState()
+    val enkaResult by viewModel.enkaResult.collectAsState()
+    val enkaLoading by viewModel.enkaLoading.collectAsState()
+    val gachaStats by viewModel.gachaStats.collectAsState()
+    val spendings by viewModel.spendings.collectAsState()
+    val gachaSpendByGame = remember(spendings) {
+        val m = mutableMapOf<String, Long>()
+        spendings.filter { !it.isSubscription }.forEach { sp ->
+            val key = when (sp.gameName) {
+                "원신" -> "genshin"
+                "붕괴: 스타레일" -> "starrail"
+                "젠레스 존 제로" -> "zzz"
+                else -> null
+            }
+            if (key != null) m[key] = (m[key] ?: 0L) + sp.amount
+        }
+        m
+    }
     val showHoyolabDialog = remember { mutableStateOf(false) }
+    val showRateDialog = remember { mutableStateOf(false) }
 
     // 일회성 상태 메시지 → 토스트
     LaunchedEffect(statusMessage) {
@@ -78,27 +103,42 @@ fun GameInfoScreen(viewModel: SpendingViewModel) {
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text("게임 정보", fontSize = 24.sp, fontWeight = FontWeight.Bold)
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        IconButton(onClick = { viewModel.refreshGameInfo() }, enabled = !isRefreshing) {
-                            if (isRefreshing) {
-                                CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp, color = accent)
-                            } else {
-                                Icon(Icons.Default.Refresh, contentDescription = "새로고침")
-                            }
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        GachaRateButton { showRateDialog.value = true }
+                        CircleIconButton(Icons.Default.Refresh, "새로고침", loading = isRefreshing, enabled = !isRefreshing) {
+                            viewModel.refreshGameInfo()
                         }
-                        IconButton(onClick = { showHoyolabDialog.value = true }) {
-                            Icon(Icons.Default.Settings, contentDescription = "HoYoLAB 설정")
+                        CircleIconButton(Icons.Default.Settings, "HoYoLAB 설정") {
+                            showHoyolabDialog.value = true
                         }
                     }
                 }
             }
 
-            item { HoyolabStatusBadge(hoyolab) { showHoyolabDialog.value = true } }
+            // 최상단 히어로 — 실시간 노트 + 출석체크 통합
+            item {
+                DailyHeroSection(
+                    notes = notes,
+                    attendanceToday = attendanceToday,
+                    hoyolab = hoyolab,
+                    checkingIn = checkingIn,
+                    streak = attendanceStreak,
+                    onCheckIn = { viewModel.attemptCheckIn(it) },
+                    onConfigClick = { showHoyolabDialog.value = true },
+                )
+            }
             item { Spacer(Modifier.height(20.dp)) }
-            item { BannerSection(banners) }
-            item { Spacer(Modifier.height(20.dp)) }
-            item { PatchSection(banners) }
-            item { Spacer(Modifier.height(20.dp)) }
+            if (banners.isEmpty() && isRefreshing) {
+                item { BannerSkeleton() }
+                item { Spacer(Modifier.height(20.dp)) }
+                item { ListSkeleton(rows = 2, titleWidth = 80.dp) }
+                item { Spacer(Modifier.height(20.dp)) }
+            } else {
+                item { BannerSection(banners) }
+                item { Spacer(Modifier.height(20.dp)) }
+                item { PatchSection(banners) }
+                item { Spacer(Modifier.height(20.dp)) }
+            }
             item {
                 WishlistSection(
                     wishlist = wishlist,
@@ -116,18 +156,42 @@ fun GameInfoScreen(viewModel: SpendingViewModel) {
                 )
             }
             item { Spacer(Modifier.height(20.dp)) }
-            item { LiveNoteSection(notes, hoyolab.isLinked) }
+            item { GachaCalculatorSection(pity) }
             item { Spacer(Modifier.height(20.dp)) }
-            item { AttendanceSection(attendanceToday) { viewModel.attemptCheckIn(it) } }
-            item { Spacer(Modifier.height(20.dp)) }
-            if (challenges.isNotEmpty()) {
-                item { ChallengeSection(challenges) }
-                item { Spacer(Modifier.height(20.dp)) }
+            item {
+                ProfileShowcaseSection(
+                    giUid = enkaGiUid,
+                    hsrUid = enkaHsrUid,
+                    result = enkaResult,
+                    loading = enkaLoading,
+                    onLoad = { game, uid -> viewModel.loadEnkaProfile(game, uid) },
+                    onGameChange = { viewModel.clearEnkaResult() },
+                )
             }
-            if (events.isNotEmpty()) {
-                item { EventSection(events) }
+            item { Spacer(Modifier.height(20.dp)) }
+            item {
+                GachaReportSection(
+                    stats = gachaStats,
+                    spendByGameKey = gachaSpendByGame,
+                    onImport = { uris -> viewModel.importGachaFromUris(uris) },
+                    onClear = { viewModel.clearGachaRecords() },
+                )
+            }
+            item { Spacer(Modifier.height(20.dp)) }
+            if (banners.isEmpty() && isRefreshing) {
+                item { ListSkeleton(rows = 3) }
                 item { Spacer(Modifier.height(20.dp)) }
-                item { EventChecklistSection(events, eventChecks) { viewModel.toggleEventCheck(it) } }
+                item { ListSkeleton(rows = 4) }
+            } else {
+                if (challenges.isNotEmpty()) {
+                    item { ChallengeSection(challenges) }
+                    item { Spacer(Modifier.height(20.dp)) }
+                }
+                if (events.isNotEmpty()) {
+                    item { EventSection(events) }
+                    item { Spacer(Modifier.height(20.dp)) }
+                    item { EventChecklistSection(events, eventChecks) { viewModel.toggleEventCheck(it) } }
+                }
             }
         }
     }
@@ -142,6 +206,51 @@ fun GameInfoScreen(viewModel: SpendingViewModel) {
                 viewModel.refreshGameInfo()
             },
         )
+    }
+
+    if (showRateDialog.value) {
+        GachaRateDialog(onDismiss = { showRateDialog.value = false })
+    }
+}
+
+/** 헤더 "가챠 확률표" 알약 버튼 (웹앱 gi-rate-btn 이식) */
+@Composable
+private fun GachaRateButton(onClick: () -> Unit) {
+    val accent = LocalAccent.current
+    Surface(
+        modifier = Modifier.clickable { onClick() },
+        shape = RoundedCornerShape(11.dp),
+        color = accent.copy(alpha = 0.10f),
+        border = BorderStroke(1.5.dp, accent.copy(alpha = 0.30f)),
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(Icons.Default.Percent, contentDescription = null, tint = accent, modifier = Modifier.size(14.dp))
+            Spacer(Modifier.width(5.dp))
+            Text("확률표", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = accent)
+        }
+    }
+}
+
+/** 헤더용 커스텀 원형 아이콘 버튼 (강조색 틴트, 눌림 효과 포함). */
+@Composable
+private fun CircleIconButton(icon: ImageVector, desc: String, loading: Boolean = false, enabled: Boolean = true, onClick: () -> Unit) {
+    val accent = LocalAccent.current
+    Box(
+        modifier = Modifier
+            .size(40.dp)
+            .clip(CircleShape)
+            .background(accent.copy(alpha = 0.10f))
+            .then(if (enabled) Modifier.clickable { onClick() } else Modifier),
+        contentAlignment = Alignment.Center,
+    ) {
+        if (loading) {
+            CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp, color = accent)
+        } else {
+            Icon(icon, contentDescription = desc, tint = accent, modifier = Modifier.size(18.dp))
+        }
     }
 }
 
@@ -179,26 +288,164 @@ fun EventSection(events: List<GameEvent>) {
     }
 }
 
+// ============================================================ 데일리 히어로 (실시간 노트 + 출석체크 통합)
+/**
+ * 최상단 히어로 카드. HoYoLAB 미연동 시에는 출석·실시간 노트를 숨기고 연동을 유도하고,
+ * 연동되면 게임별 실시간 노트(레진/개척력/배터리)와 출석체크를 한 카드에 통합해 보여준다.
+ */
 @Composable
-private fun HoyolabStatusBadge(config: HoyolabConfig, onClick: () -> Unit) {
+private fun DailyHeroSection(
+    notes: List<LiveNote>,
+    attendanceToday: Set<String>,
+    hoyolab: HoyolabConfig,
+    checkingIn: String?,
+    streak: Int,
+    onCheckIn: (String) -> Unit,
+    onConfigClick: () -> Unit,
+) {
     val accent = LocalAccent.current
-    val linked = config.isLinked
-    Surface(
-        shape = RoundedCornerShape(16.dp),
-        color = if (linked) accent.copy(alpha = 0.08f) else WarningBackground,
-        modifier = Modifier.fillMaxWidth().clickable { onClick() },
-    ) {
-        Row(modifier = Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
-            Icon(
-                if (linked) Icons.Default.CheckCircle else Icons.Default.Link,
-                null, tint = if (linked) accent else WarningText, modifier = Modifier.size(20.dp),
-            )
-            Spacer(Modifier.width(10.dp))
-            Column(Modifier.weight(1f)) {
-                Text(if (linked) "HoYoLAB 연동됨" else "HoYoLAB 연동 필요", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = if (linked) accent else WarningText)
-                Text(if (linked) "실시간 노트·출석 동기화 가능" else "탭하여 쿠키·UID를 등록하세요", fontSize = 11.sp, color = TextSecondary)
+
+    if (!hoyolab.isLinked) {
+        GlassCard(shape = RoundedCornerShape(24.dp), modifier = Modifier.fillMaxWidth()) {
+            Column(
+                Modifier.fillMaxWidth().padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Box(
+                    Modifier.size(56.dp).clip(CircleShape).background(accent.copy(alpha = 0.12f)),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(Icons.Default.Link, null, tint = accent, modifier = Modifier.size(28.dp))
+                }
+                Spacer(Modifier.height(12.dp))
+                Text("HoYoLAB 연동이 필요해요", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    "연동하면 실시간 노트(레진·개척력·배터리)와\n출석체크를 한곳에서 관리할 수 있어요.",
+                    fontSize = 12.sp, color = TextSecondary,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                    lineHeight = 17.sp,
+                )
+                Spacer(Modifier.height(18.dp))
+                GlgButton("HoYoLAB 연동하기", onClick = onConfigClick, modifier = Modifier.fillMaxWidth())
             }
-            Icon(Icons.Default.ChevronRight, null, tint = Color.LightGray, modifier = Modifier.size(18.dp))
+        }
+        return
+    }
+
+    GlassCard(shape = RoundedCornerShape(24.dp), modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(16.dp)) {
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.Bolt, null, tint = accent, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text("오늘의 데일리", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                    if (streak > 0) {
+                        Spacer(Modifier.width(8.dp))
+                        StreakChip(streak)
+                    }
+                }
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.clickable { onConfigClick() }.padding(4.dp),
+                ) {
+                    Icon(Icons.Default.CheckCircle, null, tint = accent, modifier = Modifier.size(14.dp))
+                    Spacer(Modifier.width(4.dp))
+                    Text("연동됨", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = accent)
+                }
+            }
+            Spacer(Modifier.height(8.dp))
+            GameData.attendanceGames.forEachIndexed { i, game ->
+                val note = notes.firstOrNull { GameData.byNameOrNull(it.game)?.key == game.key }
+                val uid = when (game.key) {
+                    "genshin" -> hoyolab.genshinUid
+                    "hsr" -> hoyolab.hsrUid
+                    "zzz" -> hoyolab.zzzUid
+                    else -> ""
+                }
+                DailyGameRow(game, note, uid, game.key in attendanceToday, checkingIn == game.key) { onCheckIn(game.key) }
+                if (i < GameData.attendanceGames.lastIndex) HorizontalDivider(color = DividerColor)
+            }
+        }
+    }
+}
+
+@Composable
+private fun StreakChip(streak: Int) {
+    val accent = LocalAccent.current
+    Surface(color = accent.copy(alpha = 0.12f), shape = RoundedCornerShape(8.dp)) {
+        Text(
+            "🔥 ${streak}일 연속",
+            fontSize = 11.sp, fontWeight = FontWeight.Bold, color = accent,
+            modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp),
+        )
+    }
+}
+
+@Composable
+private fun DailyGameRow(game: Game, note: LiveNote?, uid: String, checked: Boolean, inProgress: Boolean, onCheckIn: () -> Unit) {
+    val accent = LocalAccent.current
+    Column(Modifier.padding(vertical = 10.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Surface(color = game.color.copy(alpha = 0.15f), shape = RoundedCornerShape(10.dp), modifier = Modifier.size(40.dp)) {
+                Box(contentAlignment = Alignment.Center) {
+                    Text(game.abbr, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = game.color)
+                }
+            }
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+                Text(game.shortName, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                if (note != null && note.maxResin > 0) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.Bolt, null, tint = accent, modifier = Modifier.size(13.dp))
+                        Spacer(Modifier.width(3.dp))
+                        Text("${note.resinLabel} ${note.currentResin}/${note.maxResin}", fontSize = 12.sp, color = TextSecondary)
+                        if (note.resinRecoveryTime.isNotBlank()) {
+                            Text(" · ${note.resinRecoveryTime}", fontSize = 11.sp, color = Color.LightGray, maxLines = 1)
+                        }
+                    }
+                } else {
+                    Text(
+                        if (uid.isBlank()) "UID 미등록 — 설정에서 등록하세요" else "실시간 노트 동기화 중…",
+                        fontSize = 11.sp, color = TextSecondary,
+                    )
+                }
+            }
+            Spacer(Modifier.width(8.dp))
+            when {
+                inProgress -> Row(verticalAlignment = Alignment.CenterVertically) {
+                    CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp, color = accent)
+                    Spacer(Modifier.width(6.dp))
+                    Text("처리 중", fontSize = 11.sp, color = TextSecondary, fontWeight = FontWeight.Bold)
+                }
+                checked -> Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.CheckCircle, contentDescription = "완료", tint = accent, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(4.dp))
+                    Text("완료", fontSize = 12.sp, color = accent, fontWeight = FontWeight.Bold)
+                }
+                else -> Box(
+                    Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(accent.copy(alpha = 0.12f))
+                        .clickable { onCheckIn() }
+                        .padding(horizontal = 16.dp, vertical = 7.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text("출석", fontSize = 11.sp, color = accent, fontWeight = FontWeight.Bold)
+                }
+            }
+        }
+        if (note != null && note.maxResin > 0) {
+            Spacer(Modifier.height(8.dp))
+            LinearProgressIndicator(
+                progress = { note.resinRatio },
+                color = accent, trackColor = ProgressEmpty,
+                modifier = Modifier.fillMaxWidth().height(4.dp).clip(CircleShape),
+            )
         }
     }
 }
@@ -311,108 +558,6 @@ private fun PhaseBlock(phase: String, banners: List<GachaBanner>, gameColor: Col
         Text(title, fontWeight = FontWeight.Bold, fontSize = 14.sp)
         Spacer(Modifier.height(2.dp))
         Text(period, fontSize = 11.sp, color = TextSecondary)
-    }
-}
-
-@Composable
-fun LiveNoteSection(notes: List<LiveNote>, linked: Boolean) {
-    Text("실시간 노트", fontSize = 16.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 12.dp))
-    if (notes.isEmpty()) {
-        GlassCard(shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth()) {
-            Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.Bolt, null, tint = TextSecondary, modifier = Modifier.size(20.dp))
-                Spacer(Modifier.width(10.dp))
-                Text(
-                    if (linked) "실시간 노트를 불러오는 중이거나 UID를 확인해주세요"
-                    else "HoYoLAB 연동 시 레진·개척력·배터리가 표시됩니다",
-                    fontSize = 12.sp, color = TextSecondary,
-                )
-            }
-        }
-    } else {
-        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            notes.forEach { note -> NoteCard(note) }
-        }
-    }
-}
-
-@Composable
-fun NoteCard(note: LiveNote) {
-    val accent = LocalAccent.current
-    GlassCard(
-        shape = RoundedCornerShape(20.dp),
-        modifier = Modifier.fillMaxWidth(),
-    ) {
-        Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-            Surface(color = note.gameColor.copy(alpha = 0.15f), shape = RoundedCornerShape(10.dp), modifier = Modifier.size(44.dp)) {
-                Box(contentAlignment = Alignment.Center) {
-                    Text(GameData.byName(note.game).abbr, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = note.gameColor)
-                }
-            }
-            Spacer(Modifier.width(12.dp))
-            Column(Modifier.weight(1f)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.Bolt, null, tint = accent, modifier = Modifier.size(16.dp))
-                    Spacer(Modifier.width(4.dp))
-                    Text("${note.resinLabel} ${note.currentResin}/${note.maxResin}", fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                }
-                Text(note.resinRecoveryTime, fontSize = 11.sp, color = TextSecondary)
-                Spacer(Modifier.height(6.dp))
-                LinearProgressIndicator(
-                    progress = { note.resinRatio },
-                    color = accent,
-                    trackColor = ProgressEmpty,
-                    modifier = Modifier.fillMaxWidth().height(5.dp).clip(CircleShape),
-                )
-            }
-        }
-    }
-}
-
-@Composable
-fun AttendanceSection(attendanceToday: Set<String>, onToggle: (String) -> Unit) {
-    Text("출석체크", fontSize = 16.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 12.dp))
-    GlassCard(
-        shape = RoundedCornerShape(24.dp),
-        modifier = Modifier.fillMaxWidth(),
-    ) {
-        Column(Modifier.padding(16.dp)) {
-            GameData.attendanceGames.forEachIndexed { index, game ->
-                AttendanceItem(game, game.key in attendanceToday) { onToggle(game.key) }
-                if (index < GameData.attendanceGames.lastIndex) HorizontalDivider(color = DividerColor)
-            }
-        }
-    }
-}
-
-@Composable
-fun AttendanceItem(game: Game, checked: Boolean, onToggle: () -> Unit) {
-    val accent = LocalAccent.current
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Column {
-            Text(game.displayName, fontWeight = FontWeight.Medium)
-            Text(game.attendanceReward, fontSize = 11.sp, color = TextSecondary)
-        }
-        if (checked) {
-            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.clickable { onToggle() }) {
-                Icon(Icons.Default.CheckCircle, contentDescription = "완료", tint = accent)
-                Spacer(Modifier.width(4.dp))
-                Text("완료", fontSize = 12.sp, color = accent, fontWeight = FontWeight.Bold)
-            }
-        } else {
-            Button(
-                onClick = onToggle,
-                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 4.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = accent.copy(alpha = 0.12f)),
-                shape = RoundedCornerShape(8.dp),
-            ) {
-                Text("출석하기", fontSize = 11.sp, color = accent, fontWeight = FontWeight.Bold)
-            }
-        }
     }
 }
 

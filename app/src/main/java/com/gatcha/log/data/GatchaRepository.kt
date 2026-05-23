@@ -18,6 +18,10 @@ class GatchaRepository(context: Context, accountId: String = "guest") {
     private val prefs = context.applicationContext
         .getSharedPreferences("gatcha_log_$safeId", Context.MODE_PRIVATE)
 
+    /** 데이터가 저장될 때마다 호출(클라우드 동기화 트리거용). 스냅샷 import 시에는 호출되지 않는다. */
+    var onChange: (() -> Unit)? = null
+    private fun changed() = onChange?.invoke()
+
     // ---------------------------------------------------------------- 지출
     fun loadSpendings(): List<Spending> {
         val raw = prefs.getString(KEY_SPENDINGS, null) ?: return emptyList()
@@ -31,6 +35,7 @@ class GatchaRepository(context: Context, accountId: String = "guest") {
         val arr = JSONArray()
         list.forEach { arr.put(it.toJson()) }
         prefs.edit().putString(KEY_SPENDINGS, arr.toString()).apply()
+        changed()
     }
 
     private fun Spending.toJson(): JSONObject = JSONObject().apply {
@@ -66,19 +71,22 @@ class GatchaRepository(context: Context, accountId: String = "guest") {
     }
 
     // ---------------------------------------------------------------- 예산
-    fun loadBudget(): Long = prefs.getLong(KEY_BUDGET, 300_000L)
-    fun saveBudget(value: Long) = prefs.edit().putLong(KEY_BUDGET, value).apply()
+    fun loadBudget(): Long = prefs.getLong(KEY_BUDGET, 0L) // 0 = 미설정(사용자가 지정해야 함)
+    fun saveBudget(value: Long) { prefs.edit().putLong(KEY_BUDGET, value).apply(); changed() }
 
     // ---------------------------------------------------------------- 프로필
     fun loadProfile(): UserProfile = UserProfile(
-        name = prefs.getString(KEY_PROFILE_NAME, "유키냥") ?: "유키냥",
-        email = prefs.getString(KEY_PROFILE_EMAIL, "yukinyang@example.com") ?: "yukinyang@example.com",
+        name = prefs.getString(KEY_PROFILE_NAME, "게스트") ?: "게스트",
+        email = prefs.getString(KEY_PROFILE_EMAIL, "") ?: "",
     )
 
-    fun saveProfile(profile: UserProfile) = prefs.edit()
-        .putString(KEY_PROFILE_NAME, profile.name)
-        .putString(KEY_PROFILE_EMAIL, profile.email)
-        .apply()
+    fun saveProfile(profile: UserProfile) {
+        prefs.edit()
+            .putString(KEY_PROFILE_NAME, profile.name)
+            .putString(KEY_PROFILE_EMAIL, profile.email)
+            .apply()
+        changed()
+    }
 
     // ---------------------------------------------------------------- HoYoLAB
     fun loadHoyolab(): HoyolabConfig = HoyolabConfig(
@@ -89,17 +97,28 @@ class GatchaRepository(context: Context, accountId: String = "guest") {
         zzzUid = prefs.getString(KEY_HOYO_ZZZ, "") ?: "",
     )
 
-    fun saveHoyolab(config: HoyolabConfig) = prefs.edit()
-        .putString(KEY_HOYO_LTUID, config.ltuid)
-        .putString(KEY_HOYO_LTOKEN, config.ltoken)
-        .putString(KEY_HOYO_GI, config.genshinUid)
-        .putString(KEY_HOYO_HSR, config.hsrUid)
-        .putString(KEY_HOYO_ZZZ, config.zzzUid)
-        .apply()
+    fun saveHoyolab(config: HoyolabConfig) {
+        prefs.edit()
+            .putString(KEY_HOYO_LTUID, config.ltuid)
+            .putString(KEY_HOYO_LTOKEN, config.ltoken)
+            .putString(KEY_HOYO_GI, config.genshinUid)
+            .putString(KEY_HOYO_HSR, config.hsrUid)
+            .putString(KEY_HOYO_ZZZ, config.zzzUid)
+            .apply()
+        changed()
+    }
 
     // ---------------------------------------------------------------- 테마 강조색
     fun loadAccentIndex(): Int = prefs.getInt(KEY_ACCENT, 0)
-    fun saveAccentIndex(index: Int) = prefs.edit().putInt(KEY_ACCENT, index).apply()
+    fun saveAccentIndex(index: Int) { prefs.edit().putInt(KEY_ACCENT, index).apply(); changed() }
+
+    // ---------------------------------------------------------------- Enka 프로필 UID (게임별)
+    fun loadEnkaGiUid(): String = prefs.getString(KEY_ENKA_GI, "") ?: ""
+    fun loadEnkaHsrUid(): String = prefs.getString(KEY_ENKA_HSR, "") ?: ""
+    fun saveEnkaUids(gi: String, hsr: String) {
+        prefs.edit().putString(KEY_ENKA_GI, gi).putString(KEY_ENKA_HSR, hsr).apply()
+        changed()
+    }
 
     // ---------------------------------------------------------------- 출석 (dayKey -> set<gameKey>)
     fun loadAttendance(): Map<String, Set<String>> {
@@ -119,6 +138,7 @@ class GatchaRepository(context: Context, accountId: String = "guest") {
         val obj = JSONObject()
         map.forEach { (day, set) -> obj.put(day, JSONArray(set.toList())) }
         prefs.edit().putString(KEY_ATTENDANCE, obj.toString()).apply()
+        changed()
     }
 
     // ---------------------------------------------------------------- 위시리스트 (gameKey -> names)
@@ -139,6 +159,7 @@ class GatchaRepository(context: Context, accountId: String = "guest") {
         val obj = JSONObject()
         map.forEach { (g, list) -> obj.put(g, JSONArray(list)) }
         prefs.edit().putString(KEY_WISHLIST, obj.toString()).apply()
+        changed()
     }
 
     // ---------------------------------------------------------------- 천장 카운터 (gameKey -> PityState)
@@ -159,6 +180,7 @@ class GatchaRepository(context: Context, accountId: String = "guest") {
         val obj = JSONObject()
         map.forEach { (g, s) -> obj.put(g, JSONObject().put("count", s.count).put("guaranteed", s.guaranteed)) }
         prefs.edit().putString(KEY_PITY, obj.toString()).apply()
+        changed()
     }
 
     // ---------------------------------------------------------------- 이벤트 체크리스트
@@ -172,6 +194,68 @@ class GatchaRepository(context: Context, accountId: String = "guest") {
 
     fun saveEventChecks(checks: Set<String>) {
         prefs.edit().putString(KEY_EVENT_CHECKS, JSONArray(checks.toList()).toString()).apply()
+        changed()
+    }
+
+    // ---------------------------------------------------------------- 구독 관리 (정기결제)
+    fun loadSubscriptions(): List<Subscription> = Subscriptions.fromJsonArray(prefs.getString(KEY_SUBS, null))
+    fun saveSubscriptions(list: List<Subscription>) {
+        prefs.edit().putString(KEY_SUBS, Subscriptions.toJsonArray(list)).apply()
+        changed()
+    }
+
+    // ---------------------------------------------------------------- 가챠 기록 (UIGF/SRGF) — 로컬 전용(용량상 클라우드 스냅샷 제외)
+    fun loadGachaRecords(): List<GachaRecord> = GachaReport.fromJsonArray(prefs.getString(KEY_GACHA, null))
+    fun saveGachaRecords(records: List<GachaRecord>) {
+        prefs.edit().putString(KEY_GACHA, GachaReport.toJsonArray(records)).apply()
+    }
+
+    // ---------------------------------------------------------------- 클라우드 스냅샷 (전체 데이터 직렬화)
+    /** 계정의 모든 데이터를 단일 JSON 으로 직렬화(Firestore 저장용). */
+    fun exportSnapshotJson(): String {
+        val o = JSONObject()
+        prefs.getString(KEY_SPENDINGS, null)?.let { o.put(KEY_SPENDINGS, JSONArray(it)) }
+        o.put(KEY_BUDGET, loadBudget())
+        prefs.getString(KEY_PROFILE_NAME, null)?.let { o.put(KEY_PROFILE_NAME, it) }
+        prefs.getString(KEY_PROFILE_EMAIL, null)?.let { o.put(KEY_PROFILE_EMAIL, it) }
+        prefs.getString(KEY_HOYO_LTUID, null)?.let { o.put(KEY_HOYO_LTUID, it) }
+        prefs.getString(KEY_HOYO_LTOKEN, null)?.let { o.put(KEY_HOYO_LTOKEN, it) }
+        prefs.getString(KEY_HOYO_GI, null)?.let { o.put(KEY_HOYO_GI, it) }
+        prefs.getString(KEY_HOYO_HSR, null)?.let { o.put(KEY_HOYO_HSR, it) }
+        prefs.getString(KEY_HOYO_ZZZ, null)?.let { o.put(KEY_HOYO_ZZZ, it) }
+        o.put(KEY_ACCENT, loadAccentIndex())
+        prefs.getString(KEY_ENKA_GI, null)?.let { o.put(KEY_ENKA_GI, it) }
+        prefs.getString(KEY_ENKA_HSR, null)?.let { o.put(KEY_ENKA_HSR, it) }
+        prefs.getString(KEY_ATTENDANCE, null)?.let { o.put(KEY_ATTENDANCE, JSONObject(it)) }
+        prefs.getString(KEY_WISHLIST, null)?.let { o.put(KEY_WISHLIST, JSONObject(it)) }
+        prefs.getString(KEY_PITY, null)?.let { o.put(KEY_PITY, JSONObject(it)) }
+        prefs.getString(KEY_EVENT_CHECKS, null)?.let { o.put(KEY_EVENT_CHECKS, JSONArray(it)) }
+        prefs.getString(KEY_SUBS, null)?.let { o.put(KEY_SUBS, JSONArray(it)) }
+        return o.toString()
+    }
+
+    /** Firestore 등에서 받은 스냅샷 JSON 을 로컬에 반영. (onChange 미발생 → 푸시 루프 방지) */
+    fun importSnapshotJson(json: String) {
+        val o = runCatching { JSONObject(json) }.getOrNull() ?: return
+        prefs.edit().apply {
+            if (o.has(KEY_SPENDINGS)) putString(KEY_SPENDINGS, o.getJSONArray(KEY_SPENDINGS).toString())
+            if (o.has(KEY_BUDGET)) putLong(KEY_BUDGET, o.getLong(KEY_BUDGET))
+            if (o.has(KEY_PROFILE_NAME)) putString(KEY_PROFILE_NAME, o.getString(KEY_PROFILE_NAME))
+            if (o.has(KEY_PROFILE_EMAIL)) putString(KEY_PROFILE_EMAIL, o.getString(KEY_PROFILE_EMAIL))
+            if (o.has(KEY_HOYO_LTUID)) putString(KEY_HOYO_LTUID, o.getString(KEY_HOYO_LTUID))
+            if (o.has(KEY_HOYO_LTOKEN)) putString(KEY_HOYO_LTOKEN, o.getString(KEY_HOYO_LTOKEN))
+            if (o.has(KEY_HOYO_GI)) putString(KEY_HOYO_GI, o.getString(KEY_HOYO_GI))
+            if (o.has(KEY_HOYO_HSR)) putString(KEY_HOYO_HSR, o.getString(KEY_HOYO_HSR))
+            if (o.has(KEY_HOYO_ZZZ)) putString(KEY_HOYO_ZZZ, o.getString(KEY_HOYO_ZZZ))
+            if (o.has(KEY_ACCENT)) putInt(KEY_ACCENT, o.getInt(KEY_ACCENT))
+            if (o.has(KEY_ENKA_GI)) putString(KEY_ENKA_GI, o.getString(KEY_ENKA_GI))
+            if (o.has(KEY_ENKA_HSR)) putString(KEY_ENKA_HSR, o.getString(KEY_ENKA_HSR))
+            if (o.has(KEY_ATTENDANCE)) putString(KEY_ATTENDANCE, o.getJSONObject(KEY_ATTENDANCE).toString())
+            if (o.has(KEY_WISHLIST)) putString(KEY_WISHLIST, o.getJSONObject(KEY_WISHLIST).toString())
+            if (o.has(KEY_PITY)) putString(KEY_PITY, o.getJSONObject(KEY_PITY).toString())
+            if (o.has(KEY_EVENT_CHECKS)) putString(KEY_EVENT_CHECKS, o.getJSONArray(KEY_EVENT_CHECKS).toString())
+            if (o.has(KEY_SUBS)) putString(KEY_SUBS, o.getJSONArray(KEY_SUBS).toString())
+        }.apply()
     }
 
     private companion object {
@@ -189,5 +273,9 @@ class GatchaRepository(context: Context, accountId: String = "guest") {
         const val KEY_HOYO_ZZZ = "hoyo_zzz"
         const val KEY_ACCENT = "accent_index"
         const val KEY_ATTENDANCE = "attendance"
+        const val KEY_ENKA_GI = "enka_gi"
+        const val KEY_ENKA_HSR = "enka_hsr"
+        const val KEY_GACHA = "gacha_records"
+        const val KEY_SUBS = "subscriptions"
     }
 }

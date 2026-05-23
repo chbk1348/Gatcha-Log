@@ -116,7 +116,8 @@ object HoyolabApi {
             "Content-Type" to "application/json",
         )
 
-        val res = Net.post(url, headers, "{}")
+        // HoYoLAB sign 응답은 느릴 수 있어 30초까지 대기 (웹앱 GAS 와 동일)
+        val res = Net.post(url, headers, "{}", timeoutMs = 30_000)
         if (res.code == -1) return CheckInResult(false, false, "네트워크 오류")
         return runCatching {
             val json = JSONObject(res.body)

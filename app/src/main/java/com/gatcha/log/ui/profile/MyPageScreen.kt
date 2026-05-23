@@ -36,22 +36,17 @@ import com.gatcha.log.ui.theme.*
 
 @Composable
 fun MyPageScreen(viewModel: SpendingViewModel) {
-    val context = LocalContext.current
     val spendings by viewModel.spendings.collectAsState()
     val profile by viewModel.profile.collectAsState()
-    val budget by viewModel.budget.collectAsState()
-    val accentIndex by viewModel.accentIndex.collectAsState()
-    val hoyolab by viewModel.hoyolabConfig.collectAsState()
     val account by viewModel.account.collectAsState()
 
-    // 구글 로그인 결과를 받는 ActivityResult 런처
-    val signInLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.StartActivityForResult(),
-    ) { result -> viewModel.onGoogleSignInResult(result.data) }
-
     val showNameDialog = remember { mutableStateOf(false) }
-    val showBudgetDialog = remember { mutableStateOf(false) }
-    val showHoyolabDialog = remember { mutableStateOf(false) }
+    val showSettings = remember { mutableStateOf(false) }
+
+    if (showSettings.value) {
+        SettingsScreen(viewModel) { showSettings.value = false }
+        return
+    }
 
     Box(
         modifier = Modifier
@@ -62,53 +57,32 @@ fun MyPageScreen(viewModel: SpendingViewModel) {
             contentPadding = PaddingValues(bottom = 120.dp),
         ) {
             item {
-                Text("마이페이지", fontSize = 24.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 24.dp, bottom = 16.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(top = 24.dp, bottom = 16.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text("마이페이지", fontSize = 24.sp, fontWeight = FontWeight.Bold)
+                    IconButton(onClick = { showSettings.value = true }) {
+                        Icon(Icons.Default.Settings, contentDescription = "설정", tint = TextSecondary)
+                    }
+                }
             }
             item {
                 UserProfileHeader(
                     name = if (account.isGuest) "게스트" else profile.name,
-                    email = if (account.isGuest) "로그인하면 계정별로 분리 저장돼요" else profile.email,
+                    email = if (account.isGuest) "로그인하면 계정별로 분리 저장돼요 (설정 ⚙️)" else profile.email,
                     showEdit = !account.isGuest,
                 ) { showNameDialog.value = true }
             }
-            item { Spacer(Modifier.height(12.dp)) }
-            item {
-                if (account.isGuest) {
-                    GlgButton("Google로 로그인", onClick = { signInLauncher.launch(viewModel.googleSignInIntent(context)) }, modifier = Modifier.fillMaxWidth())
-                } else {
-                    GlgOutlineButton("로그아웃", onClick = { viewModel.signOut() }, modifier = Modifier.fillMaxWidth())
-                }
-            }
             item { Spacer(Modifier.height(24.dp)) }
             item { SummaryStatsSection(spendings) }
-            item { Spacer(Modifier.height(24.dp)) }
-            item { ThemeSection(accentIndex) { viewModel.setAccentIndex(it) } }
-            item { Spacer(Modifier.height(24.dp)) }
-            item {
-                SettingsSection(
-                    budget = budget,
-                    hoyolabLinked = hoyolab.isLinked,
-                    onBudget = { showBudgetDialog.value = true },
-                    onHoyolab = { showHoyolabDialog.value = true },
-                    onExport = { shareCsv(context, viewModel.buildCsv()) },
-                )
-            }
         }
     }
 
     if (showNameDialog.value) {
         NameDialog(profile.name, onDismiss = { showNameDialog.value = false }) {
             viewModel.setProfileName(it); showNameDialog.value = false
-        }
-    }
-    if (showBudgetDialog.value) {
-        BudgetDialog(budget, onDismiss = { showBudgetDialog.value = false }) {
-            viewModel.setBudget(it); showBudgetDialog.value = false
-        }
-    }
-    if (showHoyolabDialog.value) {
-        HoyolabConfigDialog(hoyolab, onDismiss = { showHoyolabDialog.value = false }) {
-            viewModel.updateHoyolabConfig(it); showHoyolabDialog.value = false
         }
     }
 }

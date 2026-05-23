@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- 메인 스파클 (✨) — 안전영역 안쪽으로 작게 -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M54,30 L58.5,49.5 L78,54 L58.5,58.5 L54,78 L49.5,58.5 L30,54 L49.5,49.5 Z" />
+    <!-- 작은 액센트 스파클 -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:fillAlpha="0.9"
+        android:pathData="M73,33 L74.3,36.7 L78,38 L74.3,39.3 L73,43 L71.7,39.3 L68,38 L71.7,36.7 Z" />
+</vector>

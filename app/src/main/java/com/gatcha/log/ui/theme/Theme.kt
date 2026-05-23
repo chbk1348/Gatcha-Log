@@ -1,8 +1,11 @@
 package com.gatcha.log.ui.theme
 
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.IndicationNodeFactory
 import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.interaction.InteractionSource
+import androidx.compose.foundation.interaction.PressInteraction
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.LocalRippleConfiguration
 import androidx.compose.material3.MaterialTheme
@@ -12,7 +15,11 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.ContentDrawScope
+import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.node.DelegatableNode
+import androidx.compose.ui.node.DrawModifierNode
+import kotlinx.coroutines.launch
 
 /**
  * 앱 전체 강조색. MyPage 테마 선택에 따라 바뀌며, 화면들은 [LocalAccent] 를 통해 읽는다.
@@ -20,11 +27,50 @@ import androidx.compose.ui.node.DelegatableNode
 val LocalAccent = staticCompositionLocalOf { MintPrimary }
 val LocalAccentSecondary = staticCompositionLocalOf { MintSecondary }
 
-/** 클릭 시 나타나는 기본 회색 인디케이션(회색 박스)을 제거하는 no-op indication. */
-object NoIndication : IndicationNodeFactory {
-    override fun create(interactionSource: InteractionSource): DelegatableNode = object : Modifier.Node() {}
+/**
+ * 회색 박스/리플 대신, 누르는 동안 콘텐츠가 살짝 작아졌다(0.95) 떼면 돌아오는 "눌린 느낌" 인디케이션.
+ * 모든 `Modifier.clickable` 에 전역 적용된다.
+ */
+object PressScaleIndication : IndicationNodeFactory {
+    override fun create(interactionSource: InteractionSource): DelegatableNode = PressScaleNode(interactionSource)
     override fun equals(other: Any?): Boolean = other === this
-    override fun hashCode(): Int = -1
+    override fun hashCode(): Int = -2
+}
+
+private const val PRESSED_SCALE = 0.95f
+
+private class PressScaleNode(
+    private val interactionSource: InteractionSource,
+) : Modifier.Node(), DrawModifierNode {
+
+    private val scaleAnim = Animatable(1f)
+
+    override fun onAttach() {
+        coroutineScope.launch {
+            val presses = mutableListOf<PressInteraction.Press>()
+            interactionSource.interactions.collect { interaction ->
+                when (interaction) {
+                    is PressInteraction.Press -> presses.add(interaction)
+                    is PressInteraction.Release -> presses.remove(interaction.press)
+                    is PressInteraction.Cancel -> presses.remove(interaction.press)
+                }
+                val target = if (presses.isNotEmpty()) PRESSED_SCALE else 1f
+                launch {
+                    scaleAnim.animateTo(target, tween(durationMillis = if (target < 1f) 70 else 140))
+                }
+            }
+        }
+    }
+
+    override fun ContentDrawScope.draw() {
+        val s = scaleAnim.value
+        if (s >= 0.999f) {
+            drawContent()
+        } else {
+            val content = this
+            scale(s, s) { content.drawContent() }
+        }
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -49,8 +95,8 @@ fun GatchaLogTheme(
     CompositionLocalProvider(
         LocalAccent provides accent.color,
         LocalAccentSecondary provides accent.secondary,
-        // 모든 화면에서 클릭 시 회색 박스/리플 제거
-        LocalIndication provides NoIndication,
+        // 회색 박스/리플 대신 "눌린 느낌"(축소) 인디케이션을 전역 적용
+        LocalIndication provides PressScaleIndication,
         LocalRippleConfiguration provides null,
     ) {
         MaterialTheme(

@@ -1,7 +1,10 @@
 package com.gatcha.log.ui.spending
 
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -14,10 +17,14 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -36,7 +43,12 @@ import com.gatcha.log.ui.components.GlgSwitch
 import com.gatcha.log.ui.components.GlgTextField
 import com.gatcha.log.ui.theme.DividerColor
 import com.gatcha.log.ui.theme.LocalAccent
+import com.gatcha.log.ui.theme.TextPrimary
 import com.gatcha.log.ui.theme.TextSecondary
+
+private val SheetBg = Color(0xFFF2F2F7)   // iOS 인셋-그룹 회색 배경
+private val CardBg = Color.White
+private val ChipIdleBg = Color(0xFFF2F2F7)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -45,7 +57,6 @@ fun AddSpendingModal(
     onDismiss: () -> Unit,
     onSave: (Spending) -> Unit,
 ) {
-    val accent = LocalAccent.current
     val editing = spendingToEdit != null
 
     var game by remember { mutableStateOf(GameData.byName(spendingToEdit?.gameName ?: "원신")) }
@@ -61,6 +72,7 @@ fun AddSpendingModal(
     var isSubscription by remember { mutableStateOf(spendingToEdit?.isSubscription ?: false) }
     var selectedPackage by remember { mutableStateOf<GamePackage?>(null) }
     val showDatePicker = remember { mutableStateOf(false) }
+    val gameExpanded = remember { mutableStateOf(false) }
 
     fun applyPackage(pkg: GamePackage) {
         selectedPackage = pkg
@@ -72,7 +84,8 @@ fun AddSpendingModal(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-        containerColor = Color.White,
+        containerColor = SheetBg,
+        contentWindowInsets = { WindowInsets(0, 0, 0, 0) },
         dragHandle = {
             Box(Modifier.fillMaxWidth().padding(top = 12.dp), contentAlignment = Alignment.Center) {
                 Box(Modifier.size(width = 40.dp, height = 4.dp).background(Color(0x22000000), RoundedCornerShape(2.dp)))
@@ -83,82 +96,99 @@ fun AddSpendingModal(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .fillMaxHeight(0.92f)
-                .padding(bottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()),
+                .fillMaxHeight(0.92f),
         ) {
             // Header
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 20.dp, vertical = 8.dp),
+                modifier = Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 8.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(if (editing) "지출 수정" else "지출 추가", fontSize = 20.sp, fontWeight = FontWeight.Bold)
-                IconButton(
-                    onClick = onDismiss,
-                    modifier = Modifier.size(32.dp).background(Color(0xFFF5F5F5), CircleShape),
+                Text(if (editing) "지출 수정" else "지출 추가", fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                Box(
+                    Modifier.size(32.dp).clip(CircleShape).background(Color(0xFFE6E6EB)).clickable { onDismiss() },
+                    contentAlignment = Alignment.Center,
                 ) {
-                    Icon(Icons.Default.Close, contentDescription = "닫기", modifier = Modifier.size(16.dp))
+                    Icon(Icons.Default.Close, contentDescription = "닫기", modifier = Modifier.size(16.dp), tint = TextSecondary)
                 }
             }
 
             LazyColumn(
                 modifier = Modifier.weight(1f).fillMaxWidth(),
-                contentPadding = PaddingValues(20.dp),
+                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp),
             ) {
-                // 게임 선택
+                // ── 게임 (접이식) ──
                 item {
-                    SectionLabel("게임 선택")
-                    Spacer(Modifier.height(12.dp))
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        items(GameData.games) { g ->
-                            GameSelectItem(
-                                game = g,
-                                isSelected = game == g,
-                            ) {
-                                game = g
-                                selectedPackage = null
-                            }
-                        }
-                    }
-                    Spacer(Modifier.height(20.dp))
-                }
-
-                // 상품 선택
-                item {
-                    SectionLabel("상품 선택")
-                    Text(
-                        "패키지를 선택하면 금액·재화명이 자동 입력돼요",
-                        fontSize = 11.sp,
-                        color = Color.LightGray,
-                        modifier = Modifier.padding(vertical = 4.dp),
-                    )
-                    Spacer(Modifier.height(12.dp))
-                    GameData.packagesFor(game).chunked(3).forEach { rowItems ->
+                    SectionCard {
                         Row(
-                            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier.fillMaxWidth().clickable { gameExpanded.value = !gameExpanded.value },
+                            verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            rowItems.forEach { pkg ->
-                                Box(Modifier.weight(1f)) {
-                                    PackageCard(
-                                        pkg = pkg,
-                                        isSelected = selectedPackage == pkg,
-                                        accent = accent,
-                                        onClick = { applyPackage(pkg) },
-                                    )
+                            Text("게임", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextSecondary)
+                            Spacer(Modifier.weight(1f))
+                            Box(Modifier.size(8.dp).clip(CircleShape).background(game.color))
+                            Spacer(Modifier.width(8.dp))
+                            Text(game.displayName, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+                            Spacer(Modifier.width(4.dp))
+                            val rot by animateFloatAsState(if (gameExpanded.value) 180f else 0f, label = "chev")
+                            Icon(
+                                Icons.Default.KeyboardArrowDown, contentDescription = null,
+                                tint = Color.LightGray, modifier = Modifier.size(20.dp).rotate(rot),
+                            )
+                        }
+                        if (gameExpanded.value) {
+                            Spacer(Modifier.height(12.dp))
+                            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                items(GameData.games) { g ->
+                                    GameSelectItem(game = g, isSelected = game == g) {
+                                        game = g
+                                        selectedPackage = null
+                                        gameExpanded.value = false
+                                    }
                                 }
                             }
-                            repeat(3 - rowItems.size) { Spacer(Modifier.weight(1f)) }
                         }
                     }
-                    Spacer(Modifier.height(20.dp))
                 }
 
-                // 날짜 + 금액
+                // ── 금액 + 상품 ──
                 item {
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    SectionCard {
+                        GlgTextField(
+                            value = amount,
+                            onValueChange = { input -> amount = input.filter { it.isDigit() } },
+                            label = "금액 (원)",
+                            placeholder = "0",
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                        Spacer(Modifier.height(14.dp))
+                        SectionRowLabel("빠른 상품 선택")
+                        Text("선택하면 금액·재화명이 자동 입력돼요", fontSize = 11.sp, color = Color.LightGray, modifier = Modifier.padding(top = 2.dp, bottom = 8.dp))
+                        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            items(GameData.packagesFor(game)) { pkg ->
+                                PackageCard(
+                                    pkg = pkg,
+                                    isSelected = selectedPackage == pkg,
+                                    modifier = Modifier.width(108.dp),
+                                ) { applyPackage(pkg) }
+                            }
+                        }
+                        Spacer(Modifier.height(12.dp))
+                        GlgTextField(
+                            value = itemName,
+                            onValueChange = { itemName = it },
+                            label = "재화명",
+                            placeholder = "결정석 60",
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    }
+                }
+
+                // ── 날짜 + 결제수단 ──
+                item {
+                    SectionCard {
                         GlgTextField(
                             value = DateUtil.labelWithWeekday(dateMillis),
                             onValueChange = {},
@@ -166,105 +196,66 @@ fun AddSpendingModal(
                             readOnly = true,
                             trailingIcon = Icons.Default.CalendarToday,
                             onClick = { showDatePicker.value = true },
-                            modifier = Modifier.weight(1.3f),
+                            modifier = Modifier.fillMaxWidth(),
                         )
-                        GlgTextField(
-                            value = amount,
-                            onValueChange = { input -> amount = input.filter { it.isDigit() } },
-                            label = "금액 (원)",
-                            placeholder = "0",
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                            modifier = Modifier.weight(0.9f),
-                        )
-                    }
-                    Spacer(Modifier.height(16.dp))
-                }
-
-                // 결제 수단
-                item {
-                    GlgFieldLabel("결제 수단")
-                    Spacer(Modifier.height(8.dp))
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        items(GameData.paymentMethods) { method ->
-                            ChoiceChip(
-                                label = method,
-                                selected = paymentMethod == method,
-                                accent = accent,
-                                onClick = { paymentMethod = method },
-                            )
+                        Spacer(Modifier.height(14.dp))
+                        SectionRowLabel("결제 수단")
+                        Spacer(Modifier.height(8.dp))
+                        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            items(GameData.paymentMethods) { method ->
+                                ChoiceChip(label = method, selected = paymentMethod == method) { paymentMethod = method }
+                            }
                         }
                     }
-                    Spacer(Modifier.height(16.dp))
                 }
 
-                // 재화명 + 메모
+                // ── 태그 + 메모 + 구독 ──
                 item {
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    SectionCard {
+                        SectionRowLabel("태그")
+                        Spacer(Modifier.height(8.dp))
+                        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            items(GameData.suggestedTags) { tag ->
+                                ChoiceChip(label = tag, selected = tag in selectedTags) {
+                                    if (tag in selectedTags) selectedTags.remove(tag) else selectedTags.add(tag)
+                                }
+                            }
+                        }
+                        Spacer(Modifier.height(10.dp))
                         GlgTextField(
-                            value = itemName,
-                            onValueChange = { itemName = it },
-                            label = "재화명",
-                            placeholder = "결정석 60",
-                            modifier = Modifier.weight(1f),
+                            value = customTags,
+                            onValueChange = { customTags = it },
+                            placeholder = "직접 입력 (쉼표로 구분)",
+                            modifier = Modifier.fillMaxWidth(),
                         )
+                        Spacer(Modifier.height(14.dp))
                         GlgTextField(
                             value = memo,
                             onValueChange = { memo = it },
                             label = "메모",
                             placeholder = "이벤트 구입",
-                            modifier = Modifier.weight(1f),
+                            modifier = Modifier.fillMaxWidth(),
                         )
-                    }
-                    Spacer(Modifier.height(16.dp))
-                }
-
-                // 태그
-                item {
-                    GlgFieldLabel("태그")
-                    Spacer(Modifier.height(2.dp))
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        items(GameData.suggestedTags) { tag ->
-                            ChoiceChip(
-                                label = tag,
-                                selected = tag in selectedTags,
-                                accent = accent,
-                                onClick = {
-                                    if (tag in selectedTags) selectedTags.remove(tag) else selectedTags.add(tag)
-                                },
-                            )
+                        Spacer(Modifier.height(16.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Column(Modifier.weight(1f)) {
+                                Text("구독(월정액·패스)으로 기록", fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                                Text("정기 결제 항목으로 분류됩니다", fontSize = 11.sp, color = TextSecondary)
+                            }
+                            GlgSwitch(checked = isSubscription, onCheckedChange = { isSubscription = it })
                         }
                     }
-                    Spacer(Modifier.height(10.dp))
-                    GlgTextField(
-                        value = customTags,
-                        onValueChange = { customTags = it },
-                        placeholder = "직접 입력 (쉼표로 구분)",
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                    Spacer(Modifier.height(16.dp))
-                }
-
-                // 구독 토글
-                item {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Column {
-                            Text("구독(월정액·패스)으로 기록", fontSize = 14.sp, fontWeight = FontWeight.Medium)
-                            Text("정기 결제 항목으로 분류됩니다", fontSize = 11.sp, color = TextSecondary)
-                        }
-                        GlgSwitch(checked = isSubscription, onCheckedChange = { isSubscription = it })
-                    }
-                    Spacer(Modifier.height(8.dp))
                 }
             }
 
-            // Bottom Actions
-            Surface(color = Color.White, shadowElevation = 8.dp, modifier = Modifier.fillMaxWidth()) {
+            // Bottom Actions — 시트 하단(내비 영역까지 흰 띠), 버튼은 내비 위로
+            Surface(color = CardBg, shadowElevation = 10.dp, modifier = Modifier.fillMaxWidth()) {
                 Row(
-                    modifier = Modifier.fillMaxWidth().padding(20.dp),
+                    modifier = Modifier.fillMaxWidth().navigationBarsPadding().padding(20.dp),
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
                     val amountValid = (amount.toLongOrNull() ?: 0L) > 0
@@ -310,29 +301,44 @@ fun AddSpendingModal(
     }
 }
 
+/** 흰색 그룹 섹션 카드 (회색 시트 위, 소프트 섀도). */
 @Composable
-private fun SectionLabel(text: String) {
-    Text(text, fontSize = 13.sp, color = Color.Gray, fontWeight = FontWeight.Bold)
+private fun SectionCard(content: @Composable ColumnScope.() -> Unit) {
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .shadow(1.dp, RoundedCornerShape(18.dp), clip = false, ambientColor = Color(0x12000000), spotColor = Color(0x12000000))
+            .clip(RoundedCornerShape(18.dp))
+            .background(CardBg)
+            .animateContentSize()
+            .padding(16.dp),
+        content = content,
+    )
+}
+
+@Composable
+private fun SectionRowLabel(text: String) {
+    Text(text, fontSize = 13.sp, color = TextSecondary, fontWeight = FontWeight.Bold)
 }
 
 @Composable
 private fun GameSelectItem(game: Game, isSelected: Boolean, onClick: () -> Unit) {
     Surface(
         modifier = Modifier.clickable { onClick() },
-        shape = RoundedCornerShape(10.dp),
-        color = if (isSelected) game.color else Color.Transparent,
-        border = if (isSelected) null else BorderStroke(1.dp, game.color.copy(alpha = 0.5f)),
+        shape = RoundedCornerShape(12.dp),
+        color = if (isSelected) game.color else ChipIdleBg,
+        border = if (isSelected) null else BorderStroke(1.dp, DividerColor),
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 9.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Box(Modifier.size(6.dp).background(if (isSelected) Color.White else game.color, CircleShape))
+            Box(Modifier.size(7.dp).clip(CircleShape).background(if (isSelected) Color.White else game.color))
             Spacer(Modifier.width(8.dp))
             Text(
                 game.shortName,
                 fontSize = 12.sp,
-                color = if (isSelected) Color.White else game.color,
+                color = if (isSelected) Color.White else TextPrimary,
                 fontWeight = FontWeight.Bold,
             )
         }
@@ -340,31 +346,33 @@ private fun GameSelectItem(game: Game, isSelected: Boolean, onClick: () -> Unit)
 }
 
 @Composable
-private fun PackageCard(pkg: GamePackage, isSelected: Boolean, accent: Color, onClick: () -> Unit) {
+private fun PackageCard(pkg: GamePackage, isSelected: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    val accent = LocalAccent.current
     Surface(
-        modifier = Modifier.fillMaxWidth().clickable { onClick() },
-        shape = RoundedCornerShape(12.dp),
-        color = if (isSelected) accent.copy(alpha = 0.1f) else Color.White,
+        modifier = modifier.clickable { onClick() },
+        shape = RoundedCornerShape(14.dp),
+        color = if (isSelected) accent.copy(alpha = 0.1f) else ChipIdleBg,
         border = BorderStroke(1.dp, if (isSelected) accent else DividerColor),
     ) {
         Column(
-            modifier = Modifier.padding(8.dp).heightIn(min = 56.dp),
+            modifier = Modifier.padding(10.dp).heightIn(min = 58.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center,
         ) {
-            Text(pkg.name, fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+            Text(pkg.name, fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1, color = TextPrimary)
             pkg.bonus?.let { Text(it, fontSize = 9.sp, color = accent, fontWeight = FontWeight.Bold) }
-            Text("₩%,d".format(pkg.price), fontSize = 10.sp, color = Color.Gray)
+            Text("₩%,d".format(pkg.price), fontSize = 10.sp, color = TextSecondary)
         }
     }
 }
 
 @Composable
-private fun ChoiceChip(label: String, selected: Boolean, accent: Color, onClick: () -> Unit) {
+private fun ChoiceChip(label: String, selected: Boolean, onClick: () -> Unit) {
+    val accent = LocalAccent.current
     Surface(
         modifier = Modifier.clickable { onClick() },
         shape = RoundedCornerShape(20.dp),
-        color = if (selected) accent else Color.White,
+        color = if (selected) accent else ChipIdleBg,
         border = BorderStroke(1.dp, if (selected) accent else DividerColor),
     ) {
         Row(
@@ -375,7 +383,7 @@ private fun ChoiceChip(label: String, selected: Boolean, accent: Color, onClick:
                 Icon(Icons.Default.Check, null, tint = Color.White, modifier = Modifier.size(14.dp))
                 Spacer(Modifier.width(4.dp))
             }
-            Text(label, fontSize = 12.sp, color = if (selected) Color.White else Color.DarkGray, fontWeight = FontWeight.Medium)
+            Text(label, fontSize = 12.sp, color = if (selected) Color.White else TextPrimary, fontWeight = FontWeight.Medium)
         }
     }
 }

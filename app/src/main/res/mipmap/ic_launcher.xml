@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- 라운드 사각형 배경 (그라데이션) -->
+    <path android:pathData="M24,4 L84,4 A20,20 0 0 1 104,24 L104,84 A20,20 0 0 1 84,104 L24,104 A20,20 0 0 1 4,84 L4,24 A20,20 0 0 1 24,4 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:type="linear"
+                android:startX="4" android:startY="4"
+                android:endX="104" android:endY="104"
+                android:startColor="#FF34D1B6"
+                android:endColor="#FF179C84" />
+        </aapt:attr>
+    </path>
+    <path android:fillColor="#FFFFFFFF"
+        android:pathData="M54,32 L58.5,49.5 L76,54 L58.5,58.5 L54,76 L49.5,58.5 L32,54 L49.5,49.5 Z" />
+    <path android:fillColor="#FFFFFFFF" android:fillAlpha="0.9"
+        android:pathData="M73,35 L74.3,38.7 L78,40 L74.3,41.3 L73,45 L71.7,41.3 L68,40 L71.7,38.7 Z" />
+</vector>

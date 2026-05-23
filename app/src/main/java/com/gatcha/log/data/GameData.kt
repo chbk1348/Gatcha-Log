@@ -16,8 +16,8 @@ enum class Game(
     /** ennead.cc 캘린더 API 게임 키 (배너·이벤트 지원 게임만). 미지원이면 null */
     val enneadKey: String? = null,
 ) {
-    GENSHIN("genshin", "원신", "원신", "GI", Color(0xFF4F8EF7), "프리모젬 +60", enneadKey = "genshin"),
-    HSR("hsr", "붕괴: 스타레일", "스타레일", "HSR", Color(0xFFB06BFF), "붕괴 동력 +60", enneadKey = "starrail"),
+    GENSHIN("genshin", "원신", "원신", "GI", Color(0xFF4F8EF7), "원석 +60", enneadKey = "genshin"),
+    HSR("hsr", "붕괴: 스타레일", "스타레일", "HSR", Color(0xFFB06BFF), "성옥 +60", enneadKey = "starrail"),
     ZZZ("zzz", "젠레스 존 제로", "젠레스", "ZZZ", Color(0xFFF5A623), "폴리크롬 +60"),
     WUWA("wuwa", "명조", "명조", "WW", Color(0xFFE5007F), ""),
     AK("ak", "명일방주", "명일방주", "AK", Color(0xFF00B2A9), "");
@@ -59,25 +59,25 @@ object GameData {
         Game.GENSHIN -> listOf(
             GamePackage("공월의 축복", "월정액", 4_900),
             GamePackage("기행", "패스", 12_000),
-            GamePackage("창월 60", null, 1_200),
-            GamePackage("창월 300", "+30", 6_500),
-            GamePackage("창월 980", "+110", 19_000),
-            GamePackage("창월 1980", "+260", 37_000),
-            GamePackage("창월 3280", "+600", 61_000),
-            GamePackage("창월 6480", "+1600", 119_000),
+            GamePackage("창세결정 60", null, 1_200),
+            GamePackage("창세결정 300", "+30", 6_500),
+            GamePackage("창세결정 980", "+110", 19_000),
+            GamePackage("창세결정 1980", "+260", 37_000),
+            GamePackage("창세결정 3280", "+600", 61_000),
+            GamePackage("창세결정 6480", "+1600", 119_000),
         )
         Game.HSR -> listOf(
-            GamePackage("차원여행자의 향응", "월정액", 4_900),
+            GamePackage("특급 보급 허가증", "월정액", 4_900),
             GamePackage("무명의 영광", "패스", 12_000),
-            GamePackage("성옥 60", null, 1_200),
-            GamePackage("성옥 300", "+30", 6_500),
-            GamePackage("성옥 980", "+110", 19_000),
-            GamePackage("성옥 1980", "+260", 37_000),
-            GamePackage("성옥 3280", "+600", 61_000),
-            GamePackage("성옥 6480", "+1600", 119_000),
+            GamePackage("오래된 꿈 60", null, 1_200),
+            GamePackage("오래된 꿈 300", "+30", 6_500),
+            GamePackage("오래된 꿈 980", "+110", 19_000),
+            GamePackage("오래된 꿈 1980", "+260", 37_000),
+            GamePackage("오래된 꿈 3280", "+600", 61_000),
+            GamePackage("오래된 꿈 6480", "+1600", 119_000),
         )
         Game.ZZZ -> listOf(
-            GamePackage("인터나이트 특전", "월정액", 4_900),
+            GamePackage("인터노트 멤버십", "월정액", 4_900),
             GamePackage("정시 보너스", "패스", 12_000),
             GamePackage("모노크롬 60", null, 1_200),
             GamePackage("모노크롬 300", "+30", 6_500),
