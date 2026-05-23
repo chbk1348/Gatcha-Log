@@ -27,6 +27,7 @@ import com.gatcha.log.ui.components.GlassCard
 import com.gatcha.log.ui.components.GlgButton
 import com.gatcha.log.ui.components.GlgDialog
 import com.gatcha.log.ui.components.GlgOutlineButton
+import com.gatcha.log.ui.components.ProfileAvatar
 import com.gatcha.log.ui.game.HoyolabConfigDialog
 import com.gatcha.log.ui.spending.SpendingViewModel
 import com.gatcha.log.ui.theme.DangerText
@@ -83,9 +84,7 @@ fun SettingsScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
             GlassCard(shape = RoundedCornerShape(24.dp), modifier = Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(Modifier.size(44.dp).clip(CircleShape).background(accent), contentAlignment = Alignment.Center) {
-                            Icon(Icons.Default.Person, null, tint = Color.White, modifier = Modifier.size(24.dp))
-                        }
+                        ProfileAvatar(photoUrl = if (account.isGuest) null else account.photoUrl, size = 44.dp)
                         Spacer(Modifier.width(12.dp))
                         Column(Modifier.weight(1f)) {
                             Text(if (account.isGuest) "게스트" else account.name, fontSize = 15.sp, fontWeight = FontWeight.Bold)

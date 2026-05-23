@@ -31,6 +31,7 @@ import com.gatcha.log.ui.components.GlgCircleIconButton
 import com.gatcha.log.ui.components.GlgDialog
 import com.gatcha.log.ui.components.GlgOutlineButton
 import com.gatcha.log.ui.components.GlgTextField
+import com.gatcha.log.ui.components.ProfileAvatar
 import com.gatcha.log.ui.game.HoyolabConfigDialog
 import com.gatcha.log.ui.spending.SpendingViewModel
 import com.gatcha.log.ui.theme.*
@@ -41,7 +42,6 @@ fun MyPageScreen(viewModel: SpendingViewModel) {
     val profile by viewModel.profile.collectAsState()
     val account by viewModel.account.collectAsState()
 
-    val showNameDialog = remember { mutableStateOf(false) }
     val showSettings = remember { mutableStateOf(false) }
 
     if (showSettings.value) {
@@ -71,17 +71,11 @@ fun MyPageScreen(viewModel: SpendingViewModel) {
                 UserProfileHeader(
                     name = if (account.isGuest) "게스트" else profile.name,
                     email = if (account.isGuest) "로그인하면 계정별로 분리 저장돼요 (설정 ⚙️)" else profile.email,
-                    showEdit = !account.isGuest,
-                ) { showNameDialog.value = true }
+                    photoUrl = if (account.isGuest) null else account.photoUrl,
+                )
             }
             item { Spacer(Modifier.height(24.dp)) }
             item { SummaryStatsSection(spendings) }
-        }
-    }
-
-    if (showNameDialog.value) {
-        NameDialog(profile.name, onDismiss = { showNameDialog.value = false }) {
-            viewModel.setProfileName(it); showNameDialog.value = false
         }
     }
 }
@@ -96,28 +90,17 @@ private fun shareCsv(context: android.content.Context, csv: String) {
 }
 
 @Composable
-fun UserProfileHeader(name: String, email: String, showEdit: Boolean = true, onEdit: () -> Unit) {
-    val accent = LocalAccent.current
+fun UserProfileHeader(name: String, email: String, photoUrl: String?) {
     GlassCard(
         shape = RoundedCornerShape(24.dp),
         modifier = Modifier.fillMaxWidth(),
     ) {
         Row(modifier = Modifier.padding(20.dp), verticalAlignment = Alignment.CenterVertically) {
-            Box(
-                modifier = Modifier.size(60.dp).clip(CircleShape).background(accent),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(Icons.Default.Person, null, tint = Color.White, modifier = Modifier.size(32.dp))
-            }
+            ProfileAvatar(photoUrl = photoUrl, size = 60.dp)
             Spacer(Modifier.width(16.dp))
             Column(Modifier.weight(1f)) {
                 Text(name, fontSize = 18.sp, fontWeight = FontWeight.Bold)
                 Text(email, fontSize = 12.sp, color = TextSecondary)
-            }
-            if (showEdit) {
-                IconButton(onClick = onEdit) {
-                    Icon(Icons.Default.Edit, contentDescription = "이름 변경", tint = TextSecondary, modifier = Modifier.size(18.dp))
-                }
             }
         }
     }
@@ -223,26 +206,6 @@ fun SettingsItem(label: String, icon: ImageVector, value: String? = null, onClic
             Spacer(Modifier.width(4.dp))
             Icon(Icons.Default.ChevronRight, null, tint = Color.LightGray, modifier = Modifier.size(16.dp))
         }
-    }
-}
-
-@Composable
-private fun NameDialog(current: String, onDismiss: () -> Unit, onConfirm: (String) -> Unit) {
-    var text by remember { mutableStateOf(current) }
-    GlgDialog(
-        title = "이름 변경",
-        onDismiss = onDismiss,
-        confirmText = "저장",
-        onConfirm = { if (text.isNotBlank()) onConfirm(text.trim()) },
-        confirmEnabled = text.isNotBlank(),
-    ) {
-        GlgTextField(
-            value = text,
-            onValueChange = { text = it },
-            label = "닉네임",
-            placeholder = "닉네임을 입력하세요",
-            modifier = Modifier.fillMaxWidth(),
-        )
     }
 }
 

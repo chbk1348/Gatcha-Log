@@ -16,8 +16,8 @@ android {
         applicationId = "com.gatcha.log"
         minSdk = 24
         targetSdk = 34
-        versionCode = 270100 // 27.1.0 (major*10000 + minor*100 + patch)
-        versionName = "27.1.0"
+        versionCode = 270101 // 27.1.01
+        versionName = "27.1.01"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -62,6 +62,9 @@ dependencies {
 
     // 진짜 backdrop-blur 글래스모피즘 (Compose 1.7+)
     implementation("dev.chrisbanes.haze:haze:1.0.0")
+
+    // 네트워크 이미지 로딩(구글 프로필 사진 등)
+    implementation("io.coil-kt:coil-compose:2.7.0")
 
     // 구글 로그인 (Google Sign-In)
     implementation("com.google.android.gms:play-services-auth:21.2.0")

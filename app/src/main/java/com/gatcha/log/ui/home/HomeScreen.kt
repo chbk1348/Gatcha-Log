@@ -47,6 +47,7 @@ import com.gatcha.log.ui.components.GlgButton
 import com.gatcha.log.ui.components.GlgCircleIconButton
 import com.gatcha.log.ui.components.GlgDialog
 import com.gatcha.log.ui.components.GlgStatusToast
+import com.gatcha.log.ui.components.ProfileAvatar
 import com.gatcha.log.ui.components.GlgTextField
 import com.gatcha.log.ui.components.LocalHazeState
 import com.gatcha.log.ui.components.NoteSkeletonRow
@@ -152,6 +153,7 @@ fun HomeContent(viewModel: SpendingViewModel, onNavigateToGameInfo: () -> Unit) 
     val checkingIn by viewModel.checkingIn.collectAsState()
     val isRefreshing by viewModel.isRefreshing.collectAsState()
     val attendanceStreak by viewModel.attendanceStreak.collectAsState()
+    val account by viewModel.account.collectAsState()
 
     val monthlyTotal = remember(spendings) { viewModel.monthlyTotal() }
     val gachaCount = remember(spendings) {
@@ -166,7 +168,7 @@ fun HomeContent(viewModel: SpendingViewModel, onNavigateToGameInfo: () -> Unit) 
     val showBudgetDialog = remember { mutableStateOf(false) }
 
     LazyColumn(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
-        item { TopHeader(profile.name, alerts.size) { showNotifications.value = true } }
+        item { TopHeader(profile.name, account.photoUrl, alerts.size) { showNotifications.value = true } }
         item { Spacer(Modifier.height(24.dp)) }
         item {
             GameStatusSection(
@@ -224,7 +226,7 @@ private fun buildAlerts(
 }
 
 @Composable
-fun TopHeader(userName: String, alertCount: Int, onBellClick: () -> Unit) {
+fun TopHeader(userName: String, photoUrl: String?, alertCount: Int, onBellClick: () -> Unit) {
     val accent = LocalAccent.current
     Row(
         modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
@@ -248,22 +250,19 @@ fun TopHeader(userName: String, alertCount: Int, onBellClick: () -> Unit) {
                 onClick = onBellClick,
             )
             Spacer(Modifier.width(8.dp))
-            UserProfileCard(userName)
+            UserProfileCard(userName, photoUrl)
         }
     }
 }
 
 @Composable
-fun UserProfileCard(userName: String) {
-    val accent = LocalAccent.current
+fun UserProfileCard(userName: String, photoUrl: String?) {
     Surface(color = Color.White.copy(alpha = 0.7f), shape = RoundedCornerShape(20.dp), modifier = Modifier.height(48.dp)) {
         Row(
             modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Surface(color = accent, shape = CircleShape, modifier = Modifier.size(32.dp)) {
-                Icon(Icons.Default.Person, null, tint = Color.White, modifier = Modifier.padding(4.dp))
-            }
+            ProfileAvatar(photoUrl = photoUrl, size = 32.dp)
             Spacer(Modifier.width(8.dp))
             Column {
                 Text(userName, fontSize = 14.sp, fontWeight = FontWeight.Bold)
