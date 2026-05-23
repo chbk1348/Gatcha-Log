@@ -46,6 +46,7 @@ import com.gatcha.log.ui.components.GlassCard
 import com.gatcha.log.ui.components.GlgButton
 import com.gatcha.log.ui.components.GlgCircleIconButton
 import com.gatcha.log.ui.components.GlgDialog
+import com.gatcha.log.ui.components.GlgStatusToast
 import com.gatcha.log.ui.components.GlgTextField
 import com.gatcha.log.ui.components.LocalHazeState
 import com.gatcha.log.ui.components.NoteSkeletonRow
@@ -74,6 +75,7 @@ fun HomeScreen(viewModel: SpendingViewModel = viewModel()) {
         viewModel.checkForUpdate()
     }
     val updateInfo by viewModel.updateInfo.collectAsState()
+    val statusMessage by viewModel.statusMessage.collectAsState()
     val uriHandler = LocalUriHandler.current
 
     Scaffold(
@@ -122,6 +124,16 @@ fun HomeScreen(viewModel: SpendingViewModel = viewModel()) {
                             onDismiss = { viewModel.dismissUpdate() },
                         )
                     }
+
+                    // 전역 커스텀 토스트 (모든 탭 위에 표시)
+                    GlgStatusToast(
+                        message = statusMessage,
+                        onConsumed = { viewModel.clearStatus() },
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .navigationBarsPadding()
+                            .padding(bottom = 100.dp),
+                    )
                 }
             }
         }

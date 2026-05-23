@@ -44,15 +44,8 @@ fun SettingsScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
     val hoyolab by viewModel.hoyolabConfig.collectAsState()
     val gachaStats by viewModel.gachaStats.collectAsState()
     val spendings by viewModel.spendings.collectAsState()
-    val statusMessage by viewModel.statusMessage.collectAsState()
-
-    // 업데이트 확인 등 일회성 메시지 → 토스트
-    LaunchedEffect(statusMessage) {
-        statusMessage?.let {
-            android.widget.Toast.makeText(context, it, android.widget.Toast.LENGTH_SHORT).show()
-            viewModel.clearStatus()
-        }
-    }
+    val versionName = remember { com.gatcha.log.data.api.UpdateChecker.currentVersionName(context) }
+    // 상태 메시지 토스트는 상위 HomeScreen 의 전역 GlgStatusToast 가 처리
 
     val signInLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) {
         viewModel.onGoogleSignInResult(it.data)
@@ -163,7 +156,7 @@ fun SettingsScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
                     HorizontalDivider(color = DividerColor, modifier = Modifier.padding(horizontal = 16.dp))
                     SettingsItem("업데이트 로그", Icons.Default.NewReleases) { showUplog.value = true }
                     HorizontalDivider(color = DividerColor, modifier = Modifier.padding(horizontal = 16.dp))
-                    SettingsItem("앱 버전", Icons.Default.Info, value = "v1.0") {}
+                    SettingsItem("앱 버전", Icons.Default.Info, value = "v$versionName") {}
                 }
             }
         }
@@ -176,7 +169,7 @@ fun SettingsScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
         HoyolabConfigDialog(hoyolab, onDismiss = { showHoyolab.value = false }) { viewModel.updateHoyolabConfig(it); showHoyolab.value = false }
     }
     if (showUplog.value) {
-        UplogDialog { showUplog.value = false }
+        UplogDialog(versionName) { showUplog.value = false }
     }
     if (showClearGacha.value) {
         GlgDialog(
@@ -235,7 +228,7 @@ private fun BudgetSettingDialog(current: Long, onDismiss: () -> Unit, onConfirm:
 }
 
 @Composable
-private fun UplogDialog(onDismiss: () -> Unit) {
+private fun UplogDialog(versionName: String, onDismiss: () -> Unit) {
     GlgDialog(
         title = "업데이트 로그",
         onDismiss = onDismiss,
@@ -245,7 +238,7 @@ private fun UplogDialog(onDismiss: () -> Unit) {
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             UplogEntry(
-                "v1.0",
+                "v${versionName.ifBlank { "27.1.0" }}",
                 listOf(
                     "지출·예산·연간 리포트, 구독 관리",
                     "게임 정보: 배너·이벤트·실시간 노트·출석",

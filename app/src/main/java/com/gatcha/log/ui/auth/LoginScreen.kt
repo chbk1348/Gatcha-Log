@@ -1,6 +1,5 @@
 package com.gatcha.log.ui.auth
 
-import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.animateFloatAsState
@@ -30,6 +29,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.gatcha.log.ui.components.GlgButton
 import com.gatcha.log.ui.components.GlgOutlineButton
+import com.gatcha.log.ui.components.GlgStatusToast
 import com.gatcha.log.ui.spending.SpendingViewModel
 import com.gatcha.log.ui.theme.LocalAccent
 import com.gatcha.log.ui.theme.LocalAccentSecondary
@@ -48,13 +48,6 @@ fun LoginScreen(viewModel: SpendingViewModel) {
         contract = ActivityResultContracts.StartActivityForResult(),
     ) { result -> viewModel.onGoogleSignInResult(result.data) }
 
-    LaunchedEffect(statusMessage) {
-        statusMessage?.let {
-            Toast.makeText(context, it, Toast.LENGTH_SHORT).show()
-            viewModel.clearStatus()
-        }
-    }
-
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -67,6 +60,11 @@ fun LoginScreen(viewModel: SpendingViewModel) {
             .padding(horizontal = 28.dp),
         contentAlignment = Alignment.Center,
     ) {
+        GlgStatusToast(
+            message = statusMessage,
+            onConsumed = { viewModel.clearStatus() },
+            modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 28.dp),
+        )
         Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
             Box(
                 Modifier.size(84.dp).clip(CircleShape).background(accent.copy(alpha = 0.14f)),

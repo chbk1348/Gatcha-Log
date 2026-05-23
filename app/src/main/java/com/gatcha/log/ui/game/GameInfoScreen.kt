@@ -11,12 +11,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import android.widget.Toast
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -44,20 +42,19 @@ import com.gatcha.log.ui.theme.*
 @Composable
 fun GameInfoScreen(viewModel: SpendingViewModel) {
     val accent = LocalAccent.current
-    val context = LocalContext.current
     val banners by viewModel.activeBanners.collectAsState()
     val events by viewModel.gameEvents.collectAsState()
     val notes by viewModel.liveNotes.collectAsState()
     val attendanceToday by viewModel.attendanceToday.collectAsState()
     val hoyolab by viewModel.hoyolabConfig.collectAsState()
     val isRefreshing by viewModel.isRefreshing.collectAsState()
-    val statusMessage by viewModel.statusMessage.collectAsState()
     val challenges by viewModel.challenges.collectAsState()
     val wishlist by viewModel.wishlist.collectAsState()
     val pity by viewModel.pity.collectAsState()
     val eventChecks by viewModel.eventChecks.collectAsState()
     val checkingIn by viewModel.checkingIn.collectAsState()
     val attendanceStreak by viewModel.attendanceStreak.collectAsState()
+    // statusMessage 토스트는 상위 HomeScreen 의 전역 GlgStatusToast 가 처리
     val enkaGiUid by viewModel.enkaGiUid.collectAsState()
     val enkaHsrUid by viewModel.enkaHsrUid.collectAsState()
     val enkaResult by viewModel.enkaResult.collectAsState()
@@ -79,14 +76,6 @@ fun GameInfoScreen(viewModel: SpendingViewModel) {
     }
     val showHoyolabDialog = remember { mutableStateOf(false) }
     val showRateDialog = remember { mutableStateOf(false) }
-
-    // 일회성 상태 메시지 → 토스트
-    LaunchedEffect(statusMessage) {
-        statusMessage?.let {
-            Toast.makeText(context, it, Toast.LENGTH_SHORT).show()
-            viewModel.clearStatus()
-        }
-    }
 
     Box(
         modifier = Modifier

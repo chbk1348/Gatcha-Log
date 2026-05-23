@@ -35,6 +35,10 @@ object UpdateChecker {
         else @Suppress("DEPRECATION") p.versionCode.toLong()
     }.getOrDefault(0L)
 
+    fun currentVersionName(context: Context): String = runCatching {
+        context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: ""
+    }.getOrDefault("")
+
     /** 새 버전이 있으면 [UpdateInfo], 없거나 실패 시 null. */
     suspend fun check(context: Context): UpdateInfo? {
         val res = Net.get(MANIFEST_URL)
