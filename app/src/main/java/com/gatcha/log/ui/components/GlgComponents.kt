@@ -16,7 +16,10 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalTextStyle
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -30,6 +33,7 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -226,6 +230,53 @@ fun GlgDialog(
                         }
                     }
                 }
+            }
+        }
+    }
+}
+
+/**
+ * 헤더용 공통 커스텀 원형 아이콘 버튼 — 강조색 틴트 + 눌림 효과(전역 인디케이션).
+ * [loading] 시 스피너, [badgeCount] > 0 이면 우상단 배지.
+ */
+@Composable
+fun GlgCircleIconButton(
+    icon: ImageVector,
+    contentDescription: String,
+    modifier: Modifier = Modifier,
+    size: Dp = 40.dp,
+    loading: Boolean = false,
+    enabled: Boolean = true,
+    badgeCount: Int = 0,
+    onClick: () -> Unit,
+) {
+    val accent = LocalAccent.current
+    Box(modifier) {
+        Box(
+            modifier = Modifier
+                .size(size)
+                .clip(CircleShape)
+                .background(accent.copy(alpha = 0.10f))
+                .then(if (enabled) Modifier.clickable { onClick() } else Modifier),
+            contentAlignment = Alignment.Center,
+        ) {
+            if (loading) {
+                CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp, color = accent)
+            } else {
+                Icon(icon, contentDescription = contentDescription, tint = accent, modifier = Modifier.size(18.dp))
+            }
+        }
+        if (badgeCount > 0) {
+            Surface(
+                color = Color(0xFFFFA500),
+                shape = CircleShape,
+                modifier = Modifier.size(16.dp).align(Alignment.TopEnd).offset(x = 2.dp, y = (-2).dp),
+            ) {
+                Text(
+                    if (badgeCount > 9) "9+" else "$badgeCount",
+                    color = Color.White, fontSize = 9.sp, fontWeight = FontWeight.Bold,
+                    modifier = Modifier.wrapContentSize(Alignment.Center),
+                )
             }
         }
     }

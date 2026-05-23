@@ -27,6 +27,7 @@ import androidx.compose.ui.unit.sp
 import com.gatcha.log.data.Spending
 import com.gatcha.log.ui.components.GlassCard
 import com.gatcha.log.ui.components.GlgButton
+import com.gatcha.log.ui.components.GlgCircleIconButton
 import com.gatcha.log.ui.components.GlgDialog
 import com.gatcha.log.ui.components.GlgOutlineButton
 import com.gatcha.log.ui.components.GlgTextField
@@ -63,9 +64,7 @@ fun MyPageScreen(viewModel: SpendingViewModel) {
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text("마이페이지", fontSize = 24.sp, fontWeight = FontWeight.Bold)
-                    IconButton(onClick = { showSettings.value = true }) {
-                        Icon(Icons.Default.Settings, contentDescription = "설정", tint = TextSecondary)
-                    }
+                    GlgCircleIconButton(Icons.Default.Settings, "설정") { showSettings.value = true }
                 }
             }
             item {

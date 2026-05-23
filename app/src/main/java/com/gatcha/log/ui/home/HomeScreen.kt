@@ -42,6 +42,7 @@ import com.gatcha.log.ui.spending.SpendingViewModel
 import com.gatcha.log.ui.components.GlassBackground
 import com.gatcha.log.ui.components.GlassCard
 import com.gatcha.log.ui.components.GlgButton
+import com.gatcha.log.ui.components.GlgCircleIconButton
 import com.gatcha.log.ui.components.GlgDialog
 import com.gatcha.log.ui.components.GlgTextField
 import com.gatcha.log.ui.components.LocalHazeState
@@ -213,24 +214,12 @@ fun TopHeader(userName: String, alertCount: Int, onBellClick: () -> Unit) {
         }
 
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Box {
-                IconButton(onClick = onBellClick) {
-                    Icon(Icons.Default.NotificationsNone, contentDescription = "알림")
-                }
-                if (alertCount > 0) {
-                    Surface(
-                        color = Color(0xFFFFA500),
-                        shape = CircleShape,
-                        modifier = Modifier.size(16.dp).align(Alignment.TopEnd).offset(x = (-4).dp, y = 4.dp),
-                    ) {
-                        Text(
-                            alertCount.toString(),
-                            color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold,
-                            modifier = Modifier.wrapContentSize(Alignment.Center),
-                        )
-                    }
-                }
-            }
+            GlgCircleIconButton(
+                Icons.Default.NotificationsNone,
+                contentDescription = "알림",
+                badgeCount = alertCount,
+                onClick = onBellClick,
+            )
             Spacer(Modifier.width(8.dp))
             UserProfileCard(userName)
         }

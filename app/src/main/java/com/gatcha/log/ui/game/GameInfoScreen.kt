@@ -16,7 +16,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -36,6 +35,7 @@ import com.gatcha.log.ui.components.BannerSkeleton
 import com.gatcha.log.ui.components.ListSkeleton
 import com.gatcha.log.ui.components.GlassCard
 import com.gatcha.log.ui.components.GlgButton
+import com.gatcha.log.ui.components.GlgCircleIconButton
 import com.gatcha.log.ui.components.GlgDialog
 import com.gatcha.log.ui.components.GlgTextField
 import com.gatcha.log.ui.spending.SpendingViewModel
@@ -105,10 +105,10 @@ fun GameInfoScreen(viewModel: SpendingViewModel) {
                     Text("게임 정보", fontSize = 24.sp, fontWeight = FontWeight.Bold)
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         GachaRateButton { showRateDialog.value = true }
-                        CircleIconButton(Icons.Default.Refresh, "새로고침", loading = isRefreshing, enabled = !isRefreshing) {
+                        GlgCircleIconButton(Icons.Default.Refresh, "새로고침", loading = isRefreshing, enabled = !isRefreshing) {
                             viewModel.refreshGameInfo()
                         }
-                        CircleIconButton(Icons.Default.Settings, "HoYoLAB 설정") {
+                        GlgCircleIconButton(Icons.Default.Settings, "HoYoLAB 설정") {
                             showHoyolabDialog.value = true
                         }
                     }
@@ -230,26 +230,6 @@ private fun GachaRateButton(onClick: () -> Unit) {
             Icon(Icons.Default.Percent, contentDescription = null, tint = accent, modifier = Modifier.size(14.dp))
             Spacer(Modifier.width(5.dp))
             Text("확률표", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = accent)
-        }
-    }
-}
-
-/** 헤더용 커스텀 원형 아이콘 버튼 (강조색 틴트, 눌림 효과 포함). */
-@Composable
-private fun CircleIconButton(icon: ImageVector, desc: String, loading: Boolean = false, enabled: Boolean = true, onClick: () -> Unit) {
-    val accent = LocalAccent.current
-    Box(
-        modifier = Modifier
-            .size(40.dp)
-            .clip(CircleShape)
-            .background(accent.copy(alpha = 0.10f))
-            .then(if (enabled) Modifier.clickable { onClick() } else Modifier),
-        contentAlignment = Alignment.Center,
-    ) {
-        if (loading) {
-            CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp, color = accent)
-        } else {
-            Icon(icon, contentDescription = desc, tint = accent, modifier = Modifier.size(18.dp))
         }
     }
 }
