@@ -61,7 +61,7 @@ fun GlgStatusToast(message: String?, onConsumed: () -> Unit, modifier: Modifier 
         Surface(
             color = Color(0xF22A2C32),
             shape = RoundedCornerShape(22.dp),
-            shadowElevation = 10.dp,
+            shadowElevation = 0.dp,
         ) {
             Row(
                 modifier = Modifier.padding(horizontal = 18.dp, vertical = 13.dp),
