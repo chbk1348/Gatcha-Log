@@ -1,5 +1,6 @@
 package com.gatcha.log.ui.spending
 
+import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -12,6 +13,8 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Autorenew
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -45,44 +48,56 @@ fun SubscriptionSection(
     val accent = LocalAccent.current
     var showAdd by remember { mutableStateOf(false) }
     var editTarget by remember { mutableStateOf<Subscription?>(null) }
+    var expanded by remember { mutableStateOf(false) }
     val monthlyTotal = subscriptions.sumOf { it.amount }
 
     GlassCard(shape = RoundedCornerShape(24.dp), modifier = Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp)) {
+        Column(Modifier.padding(16.dp).animateContentSize()) {
+            // 헤더(클릭 시 펼침/접힘) — 접힌 상태에선 개수·월 합계 요약만 노출
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().clickable { expanded = !expanded },
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
                     Icon(Icons.Default.Autorenew, null, tint = accent, modifier = Modifier.size(20.dp))
                     Spacer(Modifier.width(8.dp))
                     Text("구독 관리", fontWeight = FontWeight.Bold)
-                }
-                Surface(
-                    color = accent.copy(alpha = 0.12f),
-                    shape = RoundedCornerShape(10.dp),
-                    modifier = Modifier.clickable { showAdd = true },
-                ) {
-                    Row(Modifier.padding(horizontal = 10.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.Add, null, tint = accent, modifier = Modifier.size(14.dp))
-                        Spacer(Modifier.width(4.dp))
-                        Text("추가", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = accent)
+                    if (subscriptions.isNotEmpty()) {
+                        Spacer(Modifier.width(8.dp))
+                        Text("${subscriptions.size}개 · 월 ₩%,d".format(monthlyTotal), fontSize = 12.sp, color = TextSecondary, maxLines = 1)
                     }
                 }
+                Icon(
+                    if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                    contentDescription = if (expanded) "접기" else "펼치기",
+                    tint = Color.LightGray,
+                )
             }
 
-            if (subscriptions.isEmpty()) {
+            if (expanded) {
                 Spacer(Modifier.height(12.dp))
-                Text("월정액·패스 등 정기결제를 등록하면 월 합계와 다음 결제일을 관리해요.", fontSize = 12.sp, color = TextSecondary)
-            } else {
-                Spacer(Modifier.height(6.dp))
-                Text("월 합계 ₩%,d".format(monthlyTotal), fontSize = 12.sp, color = TextSecondary)
-                Spacer(Modifier.height(10.dp))
-                subscriptions.forEachIndexed { i, sub ->
-                    SubscriptionRow(sub) { editTarget = sub }
-                    if (i < subscriptions.lastIndex) {
-                        Box(Modifier.fillMaxWidth().height(1.dp).background(DividerColor))
+                Surface(
+                    color = accent.copy(alpha = 0.12f),
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.fillMaxWidth().clickable { showAdd = true },
+                ) {
+                    Row(Modifier.fillMaxWidth().padding(vertical = 10.dp), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.Add, null, tint = accent, modifier = Modifier.size(16.dp))
+                        Spacer(Modifier.width(4.dp))
+                        Text("구독 추가", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = accent)
+                    }
+                }
+                if (subscriptions.isEmpty()) {
+                    Spacer(Modifier.height(12.dp))
+                    Text("월정액·패스 등 정기결제를 등록하면 월 합계와 다음 결제일을 관리해요.", fontSize = 12.sp, color = TextSecondary)
+                } else {
+                    Spacer(Modifier.height(8.dp))
+                    subscriptions.forEachIndexed { i, sub ->
+                        SubscriptionRow(sub) { editTarget = sub }
+                        if (i < subscriptions.lastIndex) {
+                            Box(Modifier.fillMaxWidth().height(1.dp).background(DividerColor))
+                        }
                     }
                 }
             }

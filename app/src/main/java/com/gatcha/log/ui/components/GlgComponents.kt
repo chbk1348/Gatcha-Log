@@ -267,15 +267,21 @@ fun GlgCircleIconButton(
             }
         }
         if (badgeCount > 0) {
-            Surface(
-                color = Color(0xFFFFA500),
-                shape = CircleShape,
-                modifier = Modifier.size(16.dp).align(Alignment.TopEnd).offset(x = 2.dp, y = (-2).dp),
+            Box(
+                modifier = Modifier
+                    .size(16.dp)
+                    .align(Alignment.TopEnd)
+                    .offset(x = 3.dp, y = (-3).dp)
+                    .clip(CircleShape)
+                    .background(Color(0xFFFFA500)),
+                contentAlignment = Alignment.Center,
             ) {
                 Text(
                     if (badgeCount > 9) "9+" else "$badgeCount",
-                    color = Color.White, fontSize = 9.sp, fontWeight = FontWeight.Bold,
-                    modifier = Modifier.wrapContentSize(Alignment.Center),
+                    color = Color.White,
+                    fontSize = 9.sp,
+                    lineHeight = 9.sp,
+                    fontWeight = FontWeight.Bold,
                 )
             }
         }

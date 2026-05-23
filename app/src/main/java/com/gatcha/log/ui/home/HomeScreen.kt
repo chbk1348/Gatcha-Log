@@ -15,6 +15,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -96,7 +97,11 @@ fun HomeScreen(viewModel: SpendingViewModel = viewModel()) {
                 // 콘텐츠는 하단바 아래까지 확장(상단 인셋만 적용) → 글래스 내비가 실제 콘텐츠를 블러
                 Box(modifier = Modifier.fillMaxSize().padding(top = paddingValues.calculateTopPadding())) {
                     when (selectedTab) {
-                        0 -> HomeContent(viewModel, onNavigateToGameInfo = { selectedTab = 2 })
+                        0 -> HomeContent(
+                            viewModel,
+                            onNavigateToGameInfo = { selectedTab = 2 },
+                            onNavigateToMyPage = { selectedTab = 3 },
+                        )
                         1 -> SpendingScreen(viewModel, onEditSpending = { openEditor(it) })
                         2 -> GameInfoScreen(viewModel)
                         3 -> MyPageScreen(viewModel)
@@ -141,8 +146,9 @@ fun HomeScreen(viewModel: SpendingViewModel = viewModel()) {
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun HomeContent(viewModel: SpendingViewModel, onNavigateToGameInfo: () -> Unit) {
+fun HomeContent(viewModel: SpendingViewModel, onNavigateToGameInfo: () -> Unit, onNavigateToMyPage: () -> Unit) {
     val spendings by viewModel.spendings.collectAsState()
     val budget by viewModel.budget.collectAsState()
     val profile by viewModel.profile.collectAsState()
@@ -167,8 +173,24 @@ fun HomeContent(viewModel: SpendingViewModel, onNavigateToGameInfo: () -> Unit) 
     val showNotifications = remember { mutableStateOf(false) }
     val showBudgetDialog = remember { mutableStateOf(false) }
 
+    PullToRefreshBox(
+        isRefreshing = isRefreshing,
+        onRefresh = { viewModel.refreshGameInfo() },
+        modifier = Modifier.fillMaxSize(),
+    ) {
     LazyColumn(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
-        item { TopHeader(profile.name, account.photoUrl, alerts.size) { showNotifications.value = true } }
+        item {
+            TopHeader(
+                userName = profile.name,
+                photoUrl = account.photoUrl,
+                isGuest = account.isGuest,
+                streak = attendanceStreak,
+                monthlyTotal = monthlyTotal,
+                alertCount = alerts.size,
+                onBellClick = { showNotifications.value = true },
+                onSettingsClick = onNavigateToMyPage,
+            )
+        }
         item { Spacer(Modifier.height(24.dp)) }
         item {
             GameStatusSection(
@@ -193,6 +215,7 @@ fun HomeContent(viewModel: SpendingViewModel, onNavigateToGameInfo: () -> Unit) 
             )
         }
         item { Spacer(Modifier.height(120.dp)) }
+    }
     }
 
     if (showNotifications.value) {
@@ -225,63 +248,71 @@ private fun buildAlerts(
     if (pending > 0) add("오늘 출석체크가 ${pending}개 남아있어요")
 }
 
-@Composable
-fun TopHeader(userName: String, photoUrl: String?, alertCount: Int, onBellClick: () -> Unit) {
-    val accent = LocalAccent.current
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Column {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.AutoAwesome, null, tint = accent, modifier = Modifier.size(24.dp))
-                Spacer(Modifier.width(8.dp))
-                Text("Gatcha LOG", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Color.Black)
-            }
-            Text("가챠 지출 트래커", fontSize = 12.sp, color = TextSecondary)
-        }
+/** 시간대별 인사말 */
+private fun greetingForNow(): String =
+    when (java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)) {
+        in 5..10 -> "좋은 아침이에요"
+        in 11..16 -> "좋은 오후예요"
+        in 17..21 -> "좋은 저녁이에요"
+        else -> "오늘도 수고했어요"
+    }
 
-        Row(verticalAlignment = Alignment.CenterVertically) {
+@Composable
+fun TopHeader(
+    userName: String,
+    photoUrl: String?,
+    isGuest: Boolean,
+    streak: Int,
+    monthlyTotal: Long,
+    alertCount: Int,
+    onBellClick: () -> Unit,
+    onSettingsClick: () -> Unit,
+) {
+    val accent = LocalAccent.current
+    val greeting = remember { greetingForNow() }
+    GlassCard(
+        shape = RoundedCornerShape(28.dp),
+        modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+    ) {
+        Row(
+            modifier = Modifier.padding(start = 16.dp, end = 12.dp, top = 14.dp, bottom = 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            ProfileAvatar(photoUrl = photoUrl, size = 56.dp)
+            Spacer(Modifier.width(14.dp))
+            Column(Modifier.weight(1f)) {
+                Text("$greeting 👋", fontSize = 12.sp, color = TextSecondary)
+                Spacer(Modifier.height(1.dp))
+                Text(
+                    if (isGuest) "게스트" else "$userName 님",
+                    fontSize = 19.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.Black,
+                    maxLines = 1,
+                )
+                Spacer(Modifier.height(5.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (streak > 0) {
+                        Text("🔥 ${streak}일 연속", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = accent, maxLines = 1)
+                        Text("  ·  ", fontSize = 12.sp, color = Color.LightGray)
+                    }
+                    Text("₩%,d".format(monthlyTotal), fontSize = 12.sp, fontWeight = FontWeight.Medium, color = TextSecondary, maxLines = 1)
+                }
+            }
+            Spacer(Modifier.width(8.dp))
             GlgCircleIconButton(
                 Icons.Default.NotificationsNone,
                 contentDescription = "알림",
                 badgeCount = alertCount,
                 onClick = onBellClick,
             )
-            Spacer(Modifier.width(8.dp))
-            UserProfileCard(userName, photoUrl)
+            Spacer(Modifier.width(6.dp))
+            GlgCircleIconButton(
+                Icons.Default.Settings,
+                contentDescription = "설정",
+                onClick = onSettingsClick,
+            )
         }
-    }
-}
-
-@Composable
-fun UserProfileCard(userName: String, photoUrl: String?) {
-    Surface(color = Color.White.copy(alpha = 0.7f), shape = RoundedCornerShape(20.dp), modifier = Modifier.height(48.dp)) {
-        Row(
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            ProfileAvatar(photoUrl = photoUrl, size = 32.dp)
-            Spacer(Modifier.width(8.dp))
-            Column {
-                Text(userName, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                Row {
-                    TagIndicator(GIColor, "GI")
-                    TagIndicator(HSRColor, "HSR")
-                    TagIndicator(ZZZColor, "ZZZ")
-                }
-            }
-        }
-    }
-}
-
-@Composable
-fun TagIndicator(color: Color, label: String) {
-    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(end = 4.dp)) {
-        Box(Modifier.size(6.dp).clip(CircleShape).background(color))
-        Spacer(Modifier.width(2.dp))
-        Text(label, fontSize = 8.sp, color = TextSecondary)
     }
 }
 
@@ -636,7 +667,7 @@ fun BottomNavBar(selectedTab: Int, onTabSelected: (Int) -> Unit, onAddClick: () 
                 modifier = Modifier.weight(1f), // FAB 폭이 줄면 가중치로 자연스럽게 확장
             ) {
                 Row(
-                    modifier = Modifier.fillMaxWidth().height(72.dp).padding(horizontal = 8.dp),
+                    modifier = Modifier.fillMaxWidth().height(64.dp).padding(horizontal = 8.dp),
                     horizontalArrangement = Arrangement.SpaceEvenly,
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
@@ -679,27 +710,30 @@ fun BottomNavBar(selectedTab: Int, onTabSelected: (Int) -> Unit, onAddClick: () 
 
 @Composable
 fun NavItem(icon: ImageVector, label: String, isSelected: Boolean, accent: Color, onClick: () -> Unit) {
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center,
-        modifier = Modifier.clickable { onClick() }.padding(vertical = 4.dp),
+    // 선택 시: 아이콘 + 텍스트가 함께 들어간 가로 알약. 미선택: 아이콘만.
+    Row(
+        modifier = Modifier
+            .clip(RoundedCornerShape(percent = 50))
+            .background(if (isSelected) accent.copy(alpha = 0.15f) else Color.Transparent)
+            .clickable { onClick() }
+            .padding(horizontal = if (isSelected) 14.dp else 10.dp, vertical = 9.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        // 선택 시 아이콘 뒤에 알약(캡슐) 인디케이터
-        Box(
-            modifier = Modifier
-                .clip(RoundedCornerShape(percent = 50))
-                .background(if (isSelected) accent.copy(alpha = 0.15f) else Color.Transparent)
-                .padding(horizontal = 16.dp, vertical = 5.dp),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(icon, contentDescription = label, tint = if (isSelected) accent else NavUnselected, modifier = Modifier.size(22.dp))
-        }
-        Spacer(Modifier.height(4.dp))
-        Text(
-            label,
-            fontSize = 10.sp,
-            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-            color = if (isSelected) accent else NavUnselected,
+        Icon(
+            icon,
+            contentDescription = label,
+            tint = if (isSelected) accent else NavUnselected,
+            modifier = Modifier.size(22.dp),
         )
+        if (isSelected) {
+            Spacer(Modifier.width(6.dp))
+            Text(
+                label,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Bold,
+                color = accent,
+                maxLines = 1,
+            )
+        }
     }
 }

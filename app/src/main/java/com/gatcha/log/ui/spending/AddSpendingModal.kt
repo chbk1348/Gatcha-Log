@@ -59,20 +59,20 @@ fun AddSpendingModal(
 ) {
     val editing = spendingToEdit != null
 
-    var game by remember { mutableStateOf(GameData.byName(spendingToEdit?.gameName ?: "원신")) }
-    var amount by remember { mutableStateOf(spendingToEdit?.amount?.takeIf { it > 0 }?.toString() ?: "") }
-    var dateMillis by remember { mutableLongStateOf(spendingToEdit?.dateMillis ?: System.currentTimeMillis()) }
-    var paymentMethod by remember { mutableStateOf(spendingToEdit?.paymentMethod ?: "신용카드") }
-    var itemName by remember { mutableStateOf(spendingToEdit?.itemName ?: "") }
-    var memo by remember { mutableStateOf(spendingToEdit?.memo ?: "") }
-    var customTags by remember { mutableStateOf("") }
-    val selectedTags = remember {
+    // spendingToEdit 가 바뀌면(수정 진입/대상 변경) 상태를 다시 채운다.
+    var game by remember(spendingToEdit) { mutableStateOf(GameData.byName(spendingToEdit?.gameName ?: "원신")) }
+    var amount by remember(spendingToEdit) { mutableStateOf(spendingToEdit?.amount?.takeIf { it > 0 }?.toString() ?: "") }
+    var dateMillis by remember(spendingToEdit) { mutableLongStateOf(spendingToEdit?.dateMillis ?: System.currentTimeMillis()) }
+    var paymentMethod by remember(spendingToEdit) { mutableStateOf(spendingToEdit?.paymentMethod ?: "신용카드") }
+    var itemName by remember(spendingToEdit) { mutableStateOf(spendingToEdit?.itemName ?: "") }
+    var memo by remember(spendingToEdit) { mutableStateOf(spendingToEdit?.memo ?: "") }
+    var customTags by remember(spendingToEdit) { mutableStateOf("") }
+    val selectedTags = remember(spendingToEdit) {
         mutableStateListOf<String>().apply { spendingToEdit?.tags?.let { addAll(it) } }
     }
-    var isSubscription by remember { mutableStateOf(spendingToEdit?.isSubscription ?: false) }
-    var selectedPackage by remember { mutableStateOf<GamePackage?>(null) }
+    var isSubscription by remember(spendingToEdit) { mutableStateOf(spendingToEdit?.isSubscription ?: false) }
+    var selectedPackage by remember(spendingToEdit) { mutableStateOf<GamePackage?>(null) }
     val showDatePicker = remember { mutableStateOf(false) }
-    val gameExpanded = remember { mutableStateOf(false) }
 
     fun applyPackage(pkg: GamePackage) {
         selectedPackage = pkg
@@ -118,34 +118,16 @@ fun AddSpendingModal(
                 contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(14.dp),
             ) {
-                // ── 게임 (접이식) ──
+                // ── 게임 (항상 노출) ──
                 item {
                     SectionCard {
-                        Row(
-                            modifier = Modifier.fillMaxWidth().clickable { gameExpanded.value = !gameExpanded.value },
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Text("게임", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextSecondary)
-                            Spacer(Modifier.weight(1f))
-                            Box(Modifier.size(8.dp).clip(CircleShape).background(game.color))
-                            Spacer(Modifier.width(8.dp))
-                            Text(game.displayName, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
-                            Spacer(Modifier.width(4.dp))
-                            val rot by animateFloatAsState(if (gameExpanded.value) 180f else 0f, label = "chev")
-                            Icon(
-                                Icons.Default.KeyboardArrowDown, contentDescription = null,
-                                tint = Color.LightGray, modifier = Modifier.size(20.dp).rotate(rot),
-                            )
-                        }
-                        if (gameExpanded.value) {
-                            Spacer(Modifier.height(12.dp))
-                            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                items(GameData.games) { g ->
-                                    GameSelectItem(game = g, isSelected = game == g) {
-                                        game = g
-                                        selectedPackage = null
-                                        gameExpanded.value = false
-                                    }
+                        SectionRowLabel("게임")
+                        Spacer(Modifier.height(10.dp))
+                        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            items(GameData.games) { g ->
+                                GameSelectItem(game = g, isSelected = game == g) {
+                                    game = g
+                                    selectedPackage = null
                                 }
                             }
                         }
@@ -166,13 +148,23 @@ fun AddSpendingModal(
                         Spacer(Modifier.height(14.dp))
                         SectionRowLabel("빠른 상품 선택")
                         Text("선택하면 금액·재화명이 자동 입력돼요", fontSize = 11.sp, color = Color.LightGray, modifier = Modifier.padding(top = 2.dp, bottom = 8.dp))
-                        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            items(GameData.packagesFor(game)) { pkg ->
-                                PackageCard(
-                                    pkg = pkg,
-                                    isSelected = selectedPackage == pkg,
-                                    modifier = Modifier.width(108.dp),
-                                ) { applyPackage(pkg) }
+                        val packages = GameData.packagesFor(game)
+                        val cols = 3
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            packages.chunked(cols).forEach { rowItems ->
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                ) {
+                                    rowItems.forEach { pkg ->
+                                        PackageCard(
+                                            pkg = pkg,
+                                            isSelected = selectedPackage == pkg,
+                                            modifier = Modifier.weight(1f),
+                                        ) { applyPackage(pkg) }
+                                    }
+                                    repeat(cols - rowItems.size) { Spacer(Modifier.weight(1f)) }
+                                }
                             }
                         }
                         Spacer(Modifier.height(12.dp))

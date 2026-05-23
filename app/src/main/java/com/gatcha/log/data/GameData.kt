@@ -57,17 +57,17 @@ object GameData {
     /** 게임별 충전 패키지. 미지원 게임은 generic 사용. */
     fun packagesFor(game: Game): List<GamePackage> = when (game) {
         Game.GENSHIN -> listOf(
-            GamePackage("공월의 축복", "월정액", 4_900),
+            GamePackage("공월의 축복", "월정액", 5_900),
             GamePackage("기행", "패스", 12_000),
-            GamePackage("창세결정 60", null, 1_200),
-            GamePackage("창세결정 300", "+30", 6_500),
-            GamePackage("창세결정 980", "+110", 19_000),
-            GamePackage("창세결정 1980", "+260", 37_000),
-            GamePackage("창세결정 3280", "+600", 61_000),
-            GamePackage("창세결정 6480", "+1600", 119_000),
+            GamePackage("창세의 결정 60", null, 1_200),
+            GamePackage("창세의 결정 300", "+30", 6_500),
+            GamePackage("창세의 결정 980", "+110", 19_000),
+            GamePackage("창세의 결정 1980", "+260", 37_000),
+            GamePackage("창세의 결정 3280", "+600", 61_000),
+            GamePackage("창세의 결정 6480", "+1600", 119_000),
         )
         Game.HSR -> listOf(
-            GamePackage("특급 보급 허가증", "월정액", 4_900),
+            GamePackage("열차 보급 허가증", "월정액", 5_900),
             GamePackage("무명의 영광", "패스", 12_000),
             GamePackage("오래된 꿈 60", null, 1_200),
             GamePackage("오래된 꿈 300", "+30", 6_500),
@@ -77,7 +77,7 @@ object GameData {
             GamePackage("오래된 꿈 6480", "+1600", 119_000),
         )
         Game.ZZZ -> listOf(
-            GamePackage("인터노트 멤버십", "월정액", 4_900),
+            GamePackage("인터노트 멤버십", "월정액", 5_900),
             GamePackage("정시 보너스", "패스", 12_000),
             GamePackage("모노크롬 60", null, 1_200),
             GamePackage("모노크롬 300", "+30", 6_500),
@@ -87,7 +87,7 @@ object GameData {
             GamePackage("모노크롬 6480", "+1600", 119_000),
         )
         else -> listOf(
-            GamePackage("월정액", "월정액", 4_900),
+            GamePackage("월정액", "월정액", 5_900),
             GamePackage("배틀패스", "패스", 12_000),
             GamePackage("소액 패키지", null, 1_200),
             GamePackage("중형 패키지", null, 19_000),

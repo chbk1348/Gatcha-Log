@@ -12,6 +12,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -19,6 +20,8 @@ import androidx.compose.ui.graphics.drawscope.ContentDrawScope
 import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.node.DelegatableNode
 import androidx.compose.ui.node.DrawModifierNode
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Density
 import kotlinx.coroutines.launch
 
 /**
@@ -92,12 +95,18 @@ fun GatchaLogTheme(
         onSurface = TextPrimary,
     )
 
+    // 기기 글꼴 크기(접근성 폰트 스케일)와 무관하게 앱 자체 크기를 유지 → 모든 화면 레이아웃 일관성 확보.
+    val systemDensity = LocalDensity.current
+    val fixedDensity = remember(systemDensity.density) { Density(systemDensity.density, fontScale = 1f) }
+
     CompositionLocalProvider(
         LocalAccent provides accent.color,
         LocalAccentSecondary provides accent.secondary,
         // 회색 박스/리플 대신 "눌린 느낌"(축소) 인디케이션을 전역 적용
         LocalIndication provides PressScaleIndication,
         LocalRippleConfiguration provides null,
+        // 기기 폰트 크기 영향 제거(고정 1.0)
+        LocalDensity provides fixedDensity,
     ) {
         MaterialTheme(
             colorScheme = colorScheme,

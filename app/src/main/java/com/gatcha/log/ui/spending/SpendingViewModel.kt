@@ -173,14 +173,20 @@ class SpendingViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     // ----------------------------------------------------------------- 지출
-    fun addSpending(spending: Spending) = _spendings.update { current ->
-        (listOf(spending) + current).sortedByDescending { it.dateMillis }.also(repo::saveSpendings)
+    fun addSpending(spending: Spending) {
+        _spendings.update { current ->
+            (listOf(spending) + current).sortedByDescending { it.dateMillis }.also(repo::saveSpendings)
+        }
+        emitStatus("지출이 저장되었어요")
     }
 
-    fun updateSpending(updated: Spending) = _spendings.update { current ->
-        current.map { if (it.id == updated.id) updated else it }
-            .sortedByDescending { it.dateMillis }
-            .also(repo::saveSpendings)
+    fun updateSpending(updated: Spending) {
+        _spendings.update { current ->
+            current.map { if (it.id == updated.id) updated else it }
+                .sortedByDescending { it.dateMillis }
+                .also(repo::saveSpendings)
+        }
+        emitStatus("지출이 수정되었어요")
     }
 
     fun deleteSpending(id: String) = _spendings.update { current ->
@@ -456,6 +462,20 @@ class SpendingViewModel(app: Application) : AndroidViewModel(app) {
                 if (notes.isNotEmpty()) _liveNotes.value = notes
             }
 
+            _isRefreshing.value = false
+        }
+    }
+
+    /** 지출 탭 당겨서 새로고침: 로그인 상태면 클라우드에서 끌어와 병합, 항상 로컬 재로딩. */
+    fun refreshSpending() {
+        viewModelScope.launch {
+            _isRefreshing.value = true
+            if (cloudConfigured) {
+                CloudSync.currentUid()?.let { uid ->
+                    CloudSync.pull(uid)?.let { repo.importSnapshotJson(it) }
+                }
+            }
+            loadAll()
             _isRefreshing.value = false
         }
     }

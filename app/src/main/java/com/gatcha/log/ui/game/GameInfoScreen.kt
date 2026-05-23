@@ -10,6 +10,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -39,6 +40,7 @@ import com.gatcha.log.ui.components.GlgTextField
 import com.gatcha.log.ui.spending.SpendingViewModel
 import com.gatcha.log.ui.theme.*
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun GameInfoScreen(viewModel: SpendingViewModel) {
     val accent = LocalAccent.current
@@ -77,9 +79,10 @@ fun GameInfoScreen(viewModel: SpendingViewModel) {
     val showHoyolabDialog = remember { mutableStateOf(false) }
     val showRateDialog = remember { mutableStateOf(false) }
 
-    Box(
-        modifier = Modifier
-            .fillMaxSize(),
+    PullToRefreshBox(
+        isRefreshing = isRefreshing,
+        onRefresh = { viewModel.refreshGameInfo() },
+        modifier = Modifier.fillMaxSize(),
     ) {
         LazyColumn(
             modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
