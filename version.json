@@ -1,18 +1,9 @@
 {
-  "versionCode": 270300,
-  "versionName": "27.3.0",
+  "versionCode": 270301,
+  "versionName": "27.3.1",
   "url": "https://github.com/chbk1348/Gatcha-Log-Android/releases/latest",
   "apkUrl": "https://github.com/chbk1348/Gatcha-Log-Android/releases/latest/download/app-release.apk",
   "notes": [
-    "지출 내역에 실제 인게임 재화 아이콘 표시 + 상세 버튼/페이지",
-    "HoYoLAB 연동 정보 구글 계정 동기화 안정화 (다른 기기에서 토큰 복원·자가 복구)",
-    "출석 기준 시간 베이징 표준시(UTC+8)로 정정 — 자정 직후 오출석 방지",
-    "출석 최근 7일 스트립 + 월간 달력 현황",
-    "인앱 자동 업데이트 (다운로드 → 설치 → 임시파일 자동 삭제)",
-    "HoYoLAB 선물코드 교환 지원",
-    "젠레스 존 제로 픽업 배너 표시",
-    "데일리 인게임 용어·재화 명칭 정정 (선계 화폐 등)",
-    "하단 탭 다시 누르면 최상단으로 이동",
-    "출처·저작권 고지 추가"
+    "[핫픽스] 연동·예산 등 다이얼로그가 화면 짧은 단말에서 잘려 취소·저장 버튼이 안 보이던 문제 수정 (본문 스크롤)"
   ]
 }

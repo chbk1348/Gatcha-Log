@@ -229,7 +229,13 @@ private fun UplogDialog(versionName: String, onDismiss: () -> Unit) {
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
             UplogEntry(
-                "v${versionName.ifBlank { "27.3.0" }}",
+                "v${versionName.ifBlank { "27.3.1" }}",
+                listOf(
+                    "[핫픽스] 화면이 짧은 단말에서 연동·예산 등 다이얼로그가 잘려 취소·저장 버튼이 안 보이던 문제 수정 (본문 스크롤)",
+                ),
+            )
+            UplogEntry(
+                "v27.3.0",
                 listOf(
                     "지출 내역 실제 인게임 재화 아이콘 + 상세 버튼/페이지",
                     "HoYoLAB 연동 정보 구글 계정 동기화 안정화 (다른 기기 토큰 복원·자가 복구)",
