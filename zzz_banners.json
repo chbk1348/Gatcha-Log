@@ -1,9 +1,9 @@
 {
-  "_note": "ZZZ 픽업 배너 수동 관리 (공개 API 부재). 패치마다 이 파일만 갱신하면 앱 업데이트 없이 반영됩니다. start/end = KST(Asia/Seoul) 'yyyy-MM-dd HH:mm', type = character | weapon. 종료(end<지금)된 항목은 앱이 자동으로 숨깁니다. 출처: 공식 일정 교차검증(game8/icy-veins). 캐릭터 한글명은 추정이므로 필요 시 수정.",
+  "_note": "ZZZ 픽업 배너 수동 관리 (공개 API 부재). 패치마다 이 파일만 갱신하면 앱 업데이트 없이 반영됩니다. start/end = KST(Asia/Seoul) 'yyyy-MM-dd HH:mm', type = character | weapon. 종료(end<지금)된 항목은 앱이 자동으로 숨깁니다. 캐릭터명은 나무위키 표기 기준.",
   "banners": [
     { "name": "프로미아", "type": "character", "version": "2.8", "start": "2026-05-06 11:00", "end": "2026-05-27 11:00" },
     { "name": "루시아 (복각)", "type": "character", "version": "2.8", "start": "2026-05-06 11:00", "end": "2026-05-27 11:00" },
-    { "name": "스타라이트 빌리", "type": "character", "version": "2.8", "start": "2026-05-27 11:00", "end": "2026-06-16 11:00" },
-    { "name": "오르피·매거스 (복각)", "type": "character", "version": "2.8", "start": "2026-05-27 11:00", "end": "2026-06-16 11:00" }
+    { "name": "스타라이트·빌리", "type": "character", "version": "2.8", "start": "2026-05-27 11:00", "end": "2026-06-16 11:00" },
+    { "name": "오피·마그누손 (복각)", "type": "character", "version": "2.8", "start": "2026-05-27 11:00", "end": "2026-06-16 11:00" }
   ]
 }
