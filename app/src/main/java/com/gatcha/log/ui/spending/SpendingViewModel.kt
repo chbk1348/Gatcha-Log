@@ -546,13 +546,20 @@ class SpendingViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    /** 지출 탭 당겨서 새로고침: 로그인 상태면 클라우드에서 끌어와 병합, 항상 로컬 재로딩. */
+    /**
+     * 지출 탭 당겨서 새로고침: 로그인 상태면 클라우드에서 끌어와 병합 후 다시 업로드(양방향 자가 복구),
+     * 항상 로컬 재로딩. 한쪽 기기에서 새로고침하면 유실된 호요랩 토큰을 클라우드에 되살리거나 복원할 수 있다.
+     */
     fun refreshSpending() {
         viewModelScope.launch {
             _isRefreshing.value = true
             if (cloudConfigured) {
                 CloudSync.currentUid()?.let { uid ->
+                    syncJob?.cancel()
                     CloudSync.pull(uid)?.let { repo.importSnapshotJson(it) }
+                    carryOverGuestHoyolab()
+                    loadAll()
+                    CloudSync.push(uid, repo.exportSnapshotJson())
                 }
             }
             loadAll()
@@ -679,19 +686,47 @@ class SpendingViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    /** 로그인/시작 시 클라우드에서 끌어와 로컬에 병합. 원격이 비어 있으면 현재 로컬을 업로드. */
+    /**
+     * 게스트 상태에서 연동해둔 HoYoLAB 정보를 계정으로 승계.
+     * 신규 계정(클라우드 비어 있음 + 계정에 연동 없음)일 때만, 게스트 연동이 있으면 채운다.
+     * 기존 계정 데이터를 덮어쓰지 않으므로 안전. enka 프로필 UID 도 함께 승계.
+     */
+    private fun carryOverGuestHoyolab() {
+        if (repo.loadHoyolab().isLinked) return
+        val guest = GatchaRepository(getApplication(), Account.GUEST.id)
+        val guestCfg = guest.loadHoyolab()
+        if (!guestCfg.isLinked) return
+        repo.saveHoyolab(guestCfg)
+        _hoyolabConfig.value = guestCfg
+        val gi = guest.loadEnkaGiUid()
+        val hsr = guest.loadEnkaHsrUid()
+        if (gi.isNotBlank() || hsr.isNotBlank()) {
+            repo.saveEnkaUids(gi.ifBlank { repo.loadEnkaGiUid() }, hsr.ifBlank { repo.loadEnkaHsrUid() })
+            _enkaGiUid.value = repo.loadEnkaGiUid()
+            _enkaHsrUid.value = repo.loadEnkaHsrUid()
+        }
+    }
+
+    /**
+     * 로그인/시작 시 클라우드에서 끌어와 로컬에 병합한 뒤, 병합 결과를 다시 업로드해 일관 상태로 자가 복구.
+     *
+     * - 레이스 방지: 로그인 직후 예약된 디바운스 푸시가 pull 완료 전에 빈 스냅샷으로 클라우드를 덮어쓰지 않도록 취소.
+     * - 자가 복구: import 는 원격에 있는 키만 덮어쓰므로(로컬 전용 키는 보존), 원격에서 빠진 호요랩 토큰이
+     *   로컬에 남아 있으면 그대로 보존 → 재업로드 시 클라우드에 복구된다.
+     */
     private suspend fun cloudSyncPullOrSeed() {
         if (!cloudConfigured) { _initialSyncing.value = false; return }
         val uid = CloudSync.currentUid() ?: run { _initialSyncing.value = false; return }
         _initialSyncing.value = true
+        syncJob?.cancel()
         try {
             val remote = CloudSync.pull(uid)
-            if (remote != null) {
-                repo.importSnapshotJson(remote)
-                loadAll()
-            } else {
-                CloudSync.push(uid, repo.exportSnapshotJson())
-            }
+            if (remote != null) repo.importSnapshotJson(remote)
+            // 원격/계정에 호요랩 연동이 없고 게스트에 있으면 계정으로 승계(귀속 누락 복구)
+            carryOverGuestHoyolab()
+            loadAll()
+            // 병합 결과를 다시 업로드 → 유실됐던 호요랩 토큰 등을 클라우드에 자가 복구
+            CloudSync.push(uid, repo.exportSnapshotJson())
         } finally {
             _initialSyncing.value = false
         }

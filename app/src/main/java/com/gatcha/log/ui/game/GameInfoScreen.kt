@@ -1041,6 +1041,10 @@ fun HoyolabConfigDialog(config: HoyolabConfig, onDismiss: () -> Unit, onSave: (H
             GlgTextField(gi, { gi = it }, label = "원신 UID", modifier = Modifier.fillMaxWidth())
             GlgTextField(hsr, { hsr = it }, label = "스타레일 UID", modifier = Modifier.fillMaxWidth())
             GlgTextField(zzz, { zzz = it }, label = "젠레스 UID", modifier = Modifier.fillMaxWidth())
+            Text(
+                "구글 로그인 시 연동 정보가 계정에 함께 동기화되어 다른 기기에서도 그대로 사용돼요.",
+                fontSize = 11.sp, color = TextSecondary,
+            )
         }
     }
 }
