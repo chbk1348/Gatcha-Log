@@ -18,7 +18,8 @@ object ZzzBannerApi {
         "https://raw.githubusercontent.com/chbk1348/Gatcha-Log-Android/main/zzz_banners.json"
 
     suspend fun fetch(): List<GachaBanner> {
-        val res = Net.get(URL)
+        // ?t= 로 CDN(raw.githubusercontent) 캐시 우회 → JSON 수정 즉시 반영
+        val res = Net.get("$URL?t=${System.currentTimeMillis()}")
         if (!res.isOk) return emptyList()
         return runCatching {
             val arr = JSONObject(res.body).optJSONArray("banners") ?: return emptyList()
