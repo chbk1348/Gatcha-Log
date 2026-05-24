@@ -125,14 +125,14 @@ object HoyolabApi {
         }
         d.optJSONObject("transformer")?.takeIf { it.optBoolean("obtained") }?.optJSONObject("recovery_time")?.let { rt ->
             if (rt.optBoolean("reached")) {
-                add(NoteStat("변환기", "사용 가능", highlight = true))
+                add(NoteStat("매개 변환기", "사용 가능", highlight = true))
             } else {
                 val label = when {
                     rt.optInt("Day") > 0 -> "${rt.optInt("Day")}일"
                     rt.optInt("Hour") > 0 -> "${rt.optInt("Hour")}시간"
                     else -> "곧"
                 }
-                add(NoteStat("변환기", label))
+                add(NoteStat("매개 변환기", label))
             }
         }
     }
@@ -142,23 +142,23 @@ object HoyolabApi {
             add(NoteStat("예비 개척력", "$it"))
         }
         d.optInt("total_expedition_num").takeIf { it > 0 }?.let {
-            add(NoteStat("파견", "${d.optInt("accepted_epedition_num")}/$it"))
+            add(NoteStat("위탁", "${d.optInt("accepted_epedition_num")}/$it"))
         }
         d.optInt("max_rogue_score").takeIf { it > 0 }?.let {
-            add(NoteStat("모의 우주", "${d.optInt("current_rogue_score")}/$it"))
+            add(NoteStat("시뮬레이션 우주", "${d.optInt("current_rogue_score")}/$it"))
         }
     }
 
     private fun zzzExtras(d: JSONObject): List<NoteStat> = buildList {
         d.optJSONObject("bounty_commission")?.let { b ->
-            b.optInt("total").takeIf { it > 0 }?.let { add(NoteStat("현상수배", "${b.optInt("num")}/$it")) }
+            b.optInt("total").takeIf { it > 0 }?.let { add(NoteStat("현상 의뢰", "${b.optInt("num")}/$it")) }
         }
         d.optJSONObject("weekly_task")?.let { w ->
             w.optInt("max_point").takeIf { it > 0 }?.let { add(NoteStat("주간 임무", "${w.optInt("cur_point")}/$it")) }
         }
         d.optString("card_sign").takeIf { it.isNotBlank() }?.let { sign ->
             val done = sign.equals("CardSignDone", ignoreCase = true)
-            add(NoteStat("스크래치", if (done) "완료" else "미완료", highlight = !done))
+            add(NoteStat("스크래치 카드", if (done) "완료" else "미완료", highlight = !done))
         }
     }
 

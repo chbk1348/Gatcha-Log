@@ -1,7 +1,15 @@
 package com.gatcha.log.ui.profile
 
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -47,15 +55,34 @@ fun MyPageScreen(
         viewModel.onGoogleSignInResult(it.data)
     }
 
-    if (showSettings.value) {
-        SettingsScreen(viewModel) { showSettings.value = false }
-        return
-    }
+    // 설정 페이지에서 시스템/제스처 뒤로가기 시 홈이 아니라 마이페이지로 복귀
+    BackHandler(enabled = showSettings.value) { showSettings.value = false }
 
     val monthlyTotal = remember(spendings) { viewModel.monthlyTotal() }
     val total = remember(spendings) { spendings.sumOf { it.amount } }
     val games = remember(spendings) { spendings.map { it.gameName }.distinct().size }
     val gachaTotal = gachaStats?.total ?: 0
+
+    AnimatedContent(
+        targetState = showSettings.value,
+        modifier = Modifier.fillMaxSize(),
+        transitionSpec = {
+            if (targetState) {
+                // 설정 열기: 오른쪽에서 슬라이드 인 (push)
+                (slideInHorizontally(tween(300)) { w -> w } + fadeIn(tween(300))) togetherWith
+                    (slideOutHorizontally(tween(300)) { w -> -w / 4 } + fadeOut(tween(220)))
+            } else {
+                // 마이페이지 복귀: 오른쪽으로 슬라이드 아웃 (pop)
+                (slideInHorizontally(tween(300)) { w -> -w / 4 } + fadeIn(tween(300))) togetherWith
+                    (slideOutHorizontally(tween(300)) { w -> w } + fadeOut(tween(220)))
+            }
+        },
+        label = "mypageSettings",
+    ) { settings ->
+        if (settings) {
+            SettingsScreen(viewModel) { showSettings.value = false }
+            return@AnimatedContent
+        }
 
     LazyColumn(
         state = listState,
@@ -102,6 +129,7 @@ fun MyPageScreen(
 
         item { SectionLabel("게임별 지출 TOP") }
         item { TopGamesCard(spendings) }
+    }
     }
 }
 
