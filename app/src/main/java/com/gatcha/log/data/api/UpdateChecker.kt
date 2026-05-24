@@ -8,7 +8,10 @@ import org.json.JSONObject
 data class UpdateInfo(
     val versionCode: Long,
     val versionName: String,
+    /** 릴리스 페이지(웹). 인앱 설치 실패 시 폴백용. */
     val url: String,
+    /** 직접 다운로드용 APK URL(인앱 다운로드·설치). */
+    val apkUrl: String,
     val notes: List<String>,
 )
 
@@ -49,10 +52,15 @@ object UpdateChecker {
             if (latest <= currentVersionCode(context)) return null
             val notesArr = o.optJSONArray("notes")
             val notes = if (notesArr != null) (0 until notesArr.length()).map { notesArr.getString(it) } else emptyList()
+            // apkUrl 미지정 시 최신 릴리스 에셋(고정 경로)으로 폴백
+            val apkUrl = o.optString("apkUrl", "").ifBlank {
+                "https://github.com/chbk1348/Gatcha-Log-Android/releases/latest/download/app-release.apk"
+            }
             UpdateInfo(
                 versionCode = latest,
                 versionName = o.optString("versionName", ""),
                 url = o.optString("url", ""),
+                apkUrl = apkUrl,
                 notes = notes,
             )
         }.getOrNull()

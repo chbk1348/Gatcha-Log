@@ -444,6 +444,45 @@ class SpendingViewModel(app: Application) : AndroidViewModel(app) {
 
     fun dismissUpdate() { _updateInfo.value = null }
 
+    /** 인앱 업데이트 다운로드 진행률(0~1). null = 진행 중 아님. */
+    private val _updateProgress = MutableStateFlow<Float?>(null)
+    val updateProgress: StateFlow<Float?> = _updateProgress.asStateFlow()
+
+    /**
+     * 인앱 업데이트: APK 다운로드 → 설치 요청. 다운로드 파일은 자동 삭제(잔여 없음).
+     * "이 출처 설치 허용" 미허용 시 설정 화면으로 보내고 중단.
+     */
+    fun startInAppUpdate() {
+        val info = _updateInfo.value ?: return
+        val ctx = getApplication<Application>()
+        // Android 8.0+ : 알 수 없는 출처 설치 허용 여부 확인
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O &&
+            !ctx.packageManager.canRequestPackageInstalls()
+        ) {
+            emitStatus("'이 출처 설치 허용'을 켠 뒤 다시 시도해주세요")
+            runCatching {
+                ctx.startActivity(
+                    Intent(android.provider.Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:${ctx.packageName}"))
+                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                )
+            }
+            return
+        }
+        _updateInfo.value = null // 다이얼로그 닫고 진행률 오버레이로 전환
+        viewModelScope.launch {
+            _updateProgress.value = 0f
+            val r = runCatching {
+                withContext(Dispatchers.IO) {
+                    com.gatcha.log.data.api.AppUpdater.downloadAndInstall(ctx, info.apkUrl) { p ->
+                        _updateProgress.value = p
+                    }
+                }
+            }
+            _updateProgress.value = null
+            if (r.isFailure) emitStatus("업데이트 다운로드 실패 — 잠시 후 다시 시도해주세요")
+        }
+    }
+
     /** 현재 출석 처리 중인 게임 키 (버튼 진행 표시용). null 이면 진행 중 아님. */
     private val _checkingIn = MutableStateFlow<String?>(null)
     val checkingIn: StateFlow<String?> = _checkingIn.asStateFlow()

@@ -2,6 +2,7 @@
   "versionCode": 270200,
   "versionName": "27.2.0",
   "url": "https://github.com/chbk1348/Gatcha-Log-Android/releases/latest",
+  "apkUrl": "https://github.com/chbk1348/Gatcha-Log-Android/releases/latest/download/app-release.apk",
   "notes": [
     "마이페이지 프로필 대시보드로 대개편",
     "지출 상세 · 연간 리포트 · 알림 상세 페이지 추가",

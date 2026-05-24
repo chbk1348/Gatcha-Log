@@ -33,7 +33,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -83,8 +82,8 @@ fun HomeScreen(viewModel: SpendingViewModel = viewModel()) {
         viewModel.checkForUpdate()
     }
     val updateInfo by viewModel.updateInfo.collectAsState()
+    val updateProgress by viewModel.updateProgress.collectAsState()
     val statusMessage by viewModel.statusMessage.collectAsState()
-    val uriHandler = LocalUriHandler.current
 
     // 루트 뒤로가기 방어 로직 (시스템/제스처 back):
     //  ① 하위 페이지(알림·연간리포트·지출상세)는 각자의 BackHandler 가 더 깊게 구성돼 먼저 처리
@@ -159,10 +158,13 @@ fun HomeScreen(viewModel: SpendingViewModel = viewModel()) {
                     updateInfo?.let { info ->
                         UpdateDialog(
                             info = info,
-                            onDownload = { uriHandler.openUri(info.url); viewModel.dismissUpdate() },
+                            onDownload = { viewModel.startInAppUpdate() },
                             onDismiss = { viewModel.dismissUpdate() },
                         )
                     }
+
+                    // 인앱 업데이트 다운로드 진행 오버레이
+                    updateProgress?.let { p -> UpdateProgressOverlay(p) }
 
                     // 전역 커스텀 토스트 (모든 탭 위에 표시)
                     GlgStatusToast(
@@ -719,12 +721,12 @@ private fun UpdateDialog(info: UpdateInfo, onDownload: () -> Unit, onDismiss: ()
     GlgDialog(
         title = "업데이트 있어요" + if (info.versionName.isNotBlank()) " (v${info.versionName})" else "",
         onDismiss = onDismiss,
-        confirmText = "다운로드",
+        confirmText = "다운로드 후 설치",
         onConfirm = onDownload,
         dismissText = "나중에",
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("새 버전이 출시되었어요. 다운로드 후 설치하세요.", fontSize = 13.sp, color = TextSecondary)
+            Text("앱에서 바로 받아 설치할 수 있어요. (설치 후 임시 파일은 자동 삭제)", fontSize = 13.sp, color = TextSecondary)
             if (info.notes.isNotEmpty()) {
                 Spacer(Modifier.height(2.dp))
                 info.notes.forEach { n ->
@@ -733,6 +735,35 @@ private fun UpdateDialog(info: UpdateInfo, onDownload: () -> Unit, onDismiss: ()
                         Text(n, fontSize = 13.sp, color = TextSecondary)
                     }
                 }
+            }
+        }
+    }
+}
+
+/** 인앱 업데이트 다운로드 진행 오버레이 (완료되면 시스템 설치 화면으로 이어짐). */
+@Composable
+private fun UpdateProgressOverlay(progress: Float) {
+    Box(
+        modifier = Modifier.fillMaxSize().background(Color(0x66000000)),
+        contentAlignment = Alignment.Center,
+    ) {
+        GlassCard(shape = RoundedCornerShape(24.dp), modifier = Modifier.fillMaxWidth().padding(40.dp)) {
+            Column(
+                modifier = Modifier.fillMaxWidth().padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Text("업데이트 다운로드 중", fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.height(4.dp))
+                Text("${(progress * 100).toInt()}%", fontSize = 13.sp, color = TextSecondary)
+                Spacer(Modifier.height(14.dp))
+                LinearProgressIndicator(
+                    progress = { progress },
+                    color = LocalAccent.current,
+                    trackColor = ProgressEmpty,
+                    modifier = Modifier.fillMaxWidth().height(6.dp).clip(CircleShape),
+                )
+                Spacer(Modifier.height(10.dp))
+                Text("완료되면 설치 화면이 떠요", fontSize = 11.sp, color = Color.LightGray)
             }
         }
     }
