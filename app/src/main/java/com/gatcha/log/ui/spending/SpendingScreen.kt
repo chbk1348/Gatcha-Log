@@ -8,6 +8,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -30,12 +31,13 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.gatcha.log.data.DateUtil
 import com.gatcha.log.data.GameData
 import com.gatcha.log.data.Spending
+import com.gatcha.log.ui.components.CurrencyIcon
+import com.gatcha.log.ui.components.GameCurrency
 import com.gatcha.log.ui.components.GlassCard
 import com.gatcha.log.ui.components.GlgButton
 import com.gatcha.log.ui.components.GlgScreenHeader
@@ -179,8 +181,6 @@ fun SpendingScreen(
                     HistoryItem(
                         spending = spending,
                         onClick = { nav = SpendingScreenNav.Detail(spending) },
-                        onEdit = { onEditSpending(spending) },
-                        onDelete = { viewModel.deleteSpending(spending.id) },
                     )
                 }
             } else {
@@ -193,8 +193,6 @@ fun SpendingScreen(
                         HistoryItem(
                             spending = spending,
                             onClick = { nav = SpendingScreenNav.Detail(spending) },
-                            onEdit = { onEditSpending(spending) },
-                            onDelete = { viewModel.deleteSpending(spending.id) },
                         )
                     }
                 }
@@ -372,13 +370,21 @@ fun SpendingDetailScreen(
             GlassCard(shape = RoundedCornerShape(24.dp), modifier = Modifier.fillMaxWidth()) {
                 Column(Modifier.fillMaxWidth().padding(20.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(Modifier.size(10.dp).clip(CircleShape).background(spending.gameColor))
-                        Spacer(Modifier.width(8.dp))
-                        Text(spending.gameName, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                        if (spending.isSubscription) {
-                            Spacer(Modifier.width(8.dp))
-                            Surface(color = spending.gameColor.copy(alpha = 0.12f), shape = RoundedCornerShape(6.dp)) {
-                                Text("정기", fontSize = 10.sp, color = spending.gameColor, modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
+                        CurrencyIcon(spending.gameName, size = 44.dp)
+                        Spacer(Modifier.width(12.dp))
+                        Column(Modifier.weight(1f)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(spending.gameName, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                                if (spending.isSubscription) {
+                                    Spacer(Modifier.width(8.dp))
+                                    Surface(color = spending.gameColor.copy(alpha = 0.12f), shape = RoundedCornerShape(6.dp)) {
+                                        Text("정기", fontSize = 10.sp, color = spending.gameColor, modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
+                                    }
+                                }
+                            }
+                            GameCurrency.forGame(spending.gameName)?.let {
+                                Spacer(Modifier.height(2.dp))
+                                Text(it.label, fontSize = 12.sp, color = TextSecondary)
                             }
                         }
                     }
@@ -540,8 +546,8 @@ fun DateHeader(date: String, total: Long) {
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun HistoryItem(spending: Spending, onClick: () -> Unit, onEdit: () -> Unit, onDelete: () -> Unit) {
-    val showMenu = remember { mutableStateOf(false) }
+fun HistoryItem(spending: Spending, onClick: () -> Unit) {
+    val accent = LocalAccent.current
 
     GlassCard(
         shape = RoundedCornerShape(18.dp),
@@ -551,7 +557,7 @@ fun HistoryItem(spending: Spending, onClick: () -> Unit, onEdit: () -> Unit, onD
             modifier = Modifier.fillMaxWidth().clickable { onClick() }.padding(16.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Box(Modifier.size(8.dp).background(spending.gameColor, CircleShape))
+            CurrencyIcon(spending.gameName, size = 30.dp)
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -578,19 +584,21 @@ fun HistoryItem(spending: Spending, onClick: () -> Unit, onEdit: () -> Unit, onD
                 }
             }
             Text("₩%,d".format(spending.amount), fontSize = 14.sp, fontWeight = FontWeight.Bold)
-            Box {
-                Box(
-                    Modifier.size(30.dp).clip(CircleShape).clickable { showMenu.value = true },
-                    contentAlignment = Alignment.Center,
+            Spacer(Modifier.width(10.dp))
+            // 3점 메뉴 대신 명시적 [상세] 버튼 (수정·삭제는 상세 페이지에서)
+            Surface(
+                color = accent.copy(alpha = 0.10f),
+                shape = RoundedCornerShape(10.dp),
+                border = BorderStroke(1.dp, accent.copy(alpha = 0.30f)),
+                modifier = Modifier.clip(RoundedCornerShape(10.dp)).clickable { onClick() },
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.padding(start = 10.dp, end = 6.dp, top = 6.dp, bottom = 6.dp),
                 ) {
-                    Icon(Icons.Default.MoreVert, contentDescription = "메뉴", tint = Color.LightGray, modifier = Modifier.size(18.dp))
+                    Text("상세", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = accent)
+                    Icon(Icons.Default.ChevronRight, contentDescription = null, tint = accent, modifier = Modifier.size(15.dp))
                 }
-                ItemActionMenu(
-                    expanded = showMenu.value,
-                    onDismiss = { showMenu.value = false },
-                    onEdit = { showMenu.value = false; onEdit() },
-                    onDelete = { showMenu.value = false; onDelete() },
-                )
             }
         }
     }
@@ -612,36 +620,6 @@ private fun TagChip(tag: String) {
             modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp),
         )
     }
-}
-
-/** 지출 내역 항목의 커스텀 액션 메뉴 (둥근 카드 · 아이콘 · 색상 강조). */
-@Composable
-private fun ItemActionMenu(expanded: Boolean, onDismiss: () -> Unit, onEdit: () -> Unit, onDelete: () -> Unit) {
-    DropdownMenu(
-        expanded = expanded,
-        onDismissRequest = onDismiss,
-        shape = RoundedCornerShape(12.dp),
-        containerColor = Color.White,
-        shadowElevation = 3.dp,
-        tonalElevation = 0.dp,
-        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFE2E2E8)),
-        offset = DpOffset(x = (-4).dp, y = 2.dp),
-        modifier = Modifier.width(116.dp),
-    ) {
-        ActionMenuRow(Icons.Default.Edit, "수정", TextPrimary, onEdit)
-        ActionMenuRow(Icons.Default.DeleteOutline, "삭제", DangerText, onDelete)
-    }
-}
-
-@Composable
-private fun ActionMenuRow(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, tint: Color, onClick: () -> Unit) {
-    DropdownMenuItem(
-        text = { Text(label, fontSize = 13.sp, fontWeight = FontWeight.Medium, color = tint) },
-        leadingIcon = { Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(16.dp)) },
-        onClick = onClick,
-        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
-        modifier = Modifier.height(38.dp),
-    )
 }
 
 @Composable

@@ -57,6 +57,7 @@ fun SettingsScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
     val showUplog = remember { mutableStateOf(false) }
     val showClearGacha = remember { mutableStateOf(false) }
     val showClearSpend = remember { mutableStateOf(false) }
+    val showCredits = remember { mutableStateOf(false) }
 
     LazyColumn(
         modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
@@ -141,6 +142,8 @@ fun SettingsScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
                     HorizontalDivider(color = DividerColor, modifier = Modifier.padding(horizontal = 16.dp))
                     SettingsItem("업데이트 로그", Icons.Default.NewReleases) { showUplog.value = true }
                     HorizontalDivider(color = DividerColor, modifier = Modifier.padding(horizontal = 16.dp))
+                    SettingsItem("출처 · 저작권", Icons.Default.Copyright) { showCredits.value = true }
+                    HorizontalDivider(color = DividerColor, modifier = Modifier.padding(horizontal = 16.dp))
                     SettingsItem("앱 버전", Icons.Default.Info, value = "v$versionName") {}
                 }
             }
@@ -155,6 +158,9 @@ fun SettingsScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
     }
     if (showUplog.value) {
         UplogDialog(versionName) { showUplog.value = false }
+    }
+    if (showCredits.value) {
+        CreditsDialog { showCredits.value = false }
     }
     if (showClearGacha.value) {
         GlgDialog(
@@ -242,6 +248,41 @@ private fun UplogDialog(versionName: String, onDismiss: () -> Unit) {
                 ),
             )
         }
+    }
+}
+
+/** 출처·저작권 고지 — 비상업 팬 프로젝트, 게임 자료의 권리자 명시. */
+@Composable
+private fun CreditsDialog(onDismiss: () -> Unit) {
+    GlgDialog(
+        title = "출처 · 저작권",
+        onDismiss = onDismiss,
+        confirmText = "확인",
+        onConfirm = onDismiss,
+        dismissText = null,
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Text(
+                "Gatcha LOG는 개인이 만든 비상업 팬 프로젝트입니다. HoYoverse와 무관하며 공식 서비스가 아닙니다.",
+                fontSize = 13.sp, color = TextSecondary,
+            )
+            CreditRow("게임·재화 아이콘 저작권", "© HoYoverse (miHoYo / Cognosphere)\n원신 · 붕괴: 스타레일 · 젠레스 존 제로")
+            CreditRow("데이터 · 에셋 제공", "enka.network · Project Amber(yatta.moe) · HoYoLAB · Fandom")
+            Text(
+                "모든 게임 콘텐츠의 권리는 각 권리자에게 있으며, 권리자의 요청이 있을 경우 즉시 해당 자료를 삭제합니다.",
+                fontSize = 12.sp, color = TextSecondary,
+            )
+        }
+    }
+}
+
+@Composable
+private fun CreditRow(label: String, value: String) {
+    val accent = LocalAccent.current
+    Column {
+        Text(label, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = accent)
+        Spacer(Modifier.height(3.dp))
+        Text(value, fontSize = 12.sp, color = TextSecondary)
     }
 }
 

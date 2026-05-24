@@ -85,6 +85,16 @@ cd Gatcha-Log-Android
 - iOS풍 글래스모피즘 디자인 적용
 - 커스텀 입력, 버튼 UI 및 로딩 애니메이션 제공
 
+---
+
+## ⚖️ 출처 · 저작권
+
+본 앱은 **개인이 만든 비상업 팬 프로젝트**이며, HoYoverse와 무관한 비공식 앱입니다.
+
+- 게임 콘텐츠 및 재화·캐릭터 아이콘의 저작권은 **© HoYoverse (miHoYo / Cognosphere)** 에 있습니다. (원신 · 붕괴: 스타레일 · 젠레스 존 제로)
+- 데이터·에셋 제공: [enka.network](https://enka.network) · [Project Amber (yatta.moe)](https://ambr.top) · HoYoLAB · Fandom
+- 모든 게임 콘텐츠의 권리는 각 권리자에게 있으며, **권리자의 요청이 있을 경우 즉시 해당 자료를 삭제**합니다.
+
 <div align="center">
-<sub>호요버스 게임 트래커 · 개인 프로젝트 · Kotlin & Jetpack Compose</sub>
+<sub>호요버스 게임 트래커 · 비상업 개인 팬 프로젝트 · Kotlin & Jetpack Compose</sub>
 </div>
