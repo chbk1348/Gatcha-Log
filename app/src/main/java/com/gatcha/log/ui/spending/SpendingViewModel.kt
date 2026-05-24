@@ -89,6 +89,10 @@ class SpendingViewModel(app: Application) : AndroidViewModel(app) {
     private val _attendanceToday = MutableStateFlow<Set<String>>(emptySet())
     val attendanceToday: StateFlow<Set<String>> = _attendanceToday.asStateFlow()
 
+    /** 날짜별 출석 이력(dayKey "yyyy-MM-dd" → 출석한 게임키 집합) — 7일 스트립·월간 달력용. */
+    private val _attendanceHistory = MutableStateFlow<Map<String, Set<String>>>(emptyMap())
+    val attendanceHistory: StateFlow<Map<String, Set<String>>> = _attendanceHistory.asStateFlow()
+
     /** 연속 출석 일수(오늘 미출석이면 어제 기준으로 유지). */
     private val _attendanceStreak = MutableStateFlow(0)
     val attendanceStreak: StateFlow<Int> = _attendanceStreak.asStateFlow()
@@ -115,6 +119,7 @@ class SpendingViewModel(app: Application) : AndroidViewModel(app) {
         _hoyolabConfig.value = repo.loadHoyolab()
         _accentIndex.value = repo.loadAccentIndex()
         attendanceMap = repo.loadAttendance()
+        _attendanceHistory.value = attendanceMap
         _attendanceToday.value = attendanceMap[todayKey()] ?: emptySet()
         _attendanceStreak.value = computeAttendanceStreak()
         _wishlist.value = repo.loadWishlist()
@@ -242,6 +247,7 @@ class SpendingViewModel(app: Application) : AndroidViewModel(app) {
         if (gameKey in current) current.remove(gameKey) else current.add(gameKey)
         attendanceMap = attendanceMap.toMutableMap().apply { put(today, current) }
         repo.saveAttendance(attendanceMap)
+        _attendanceHistory.value = attendanceMap
         _attendanceToday.value = current
         _attendanceStreak.value = computeAttendanceStreak()
     }
@@ -604,6 +610,7 @@ class SpendingViewModel(app: Application) : AndroidViewModel(app) {
         val current = (attendanceMap[today] ?: emptySet()) + gameKey
         attendanceMap = attendanceMap.toMutableMap().apply { put(today, current) }
         repo.saveAttendance(attendanceMap)
+        _attendanceHistory.value = attendanceMap
         _attendanceToday.value = current
         _attendanceStreak.value = computeAttendanceStreak()
     }

@@ -2,6 +2,7 @@ package com.gatcha.log.ui.game
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -58,6 +59,7 @@ fun GameInfoScreen(
     val ledgers by viewModel.ledgers.collectAsState()
     val combat by viewModel.combat.collectAsState()
     val attendanceToday by viewModel.attendanceToday.collectAsState()
+    val attendanceHistory by viewModel.attendanceHistory.collectAsState()
     val hoyolab by viewModel.hoyolabConfig.collectAsState()
     val isRefreshing by viewModel.isRefreshing.collectAsState()
     val challenges by viewModel.challenges.collectAsState()
@@ -127,6 +129,7 @@ fun GameInfoScreen(
                 DailyHeroSection(
                     notes = notes,
                     attendanceToday = attendanceToday,
+                    attendanceHistory = attendanceHistory,
                     hoyolab = hoyolab,
                     checkingIn = checkingIn,
                     streak = attendanceStreak,
@@ -379,6 +382,7 @@ private fun ScheduleRow(name: String, sub: String, endMillis: Long, dDayLabel: S
 private fun DailyHeroSection(
     notes: List<LiveNote>,
     attendanceToday: Set<String>,
+    attendanceHistory: Map<String, Set<String>>,
     hoyolab: HoyolabConfig,
     checkingIn: String?,
     streak: Int,
@@ -386,6 +390,7 @@ private fun DailyHeroSection(
     onConfigClick: () -> Unit,
 ) {
     val accent = LocalAccent.current
+    var showCalendar by remember { mutableStateOf(false) }
 
     if (!hoyolab.isLinked) {
         GlassCard(shape = RoundedCornerShape(24.dp), modifier = Modifier.fillMaxWidth()) {
@@ -431,16 +436,30 @@ private fun DailyHeroSection(
                         StreakChip(streak)
                     }
                 }
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.clickable { onConfigClick() }.padding(4.dp),
-                ) {
-                    Icon(Icons.Default.CheckCircle, null, tint = accent, modifier = Modifier.size(14.dp))
-                    Spacer(Modifier.width(4.dp))
-                    Text("연동됨", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = accent)
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Box(
+                        Modifier.size(28.dp).clip(CircleShape).background(accent.copy(alpha = 0.10f))
+                            .clickable { showCalendar = true },
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(Icons.Default.CalendarMonth, "출석 달력", tint = accent, modifier = Modifier.size(16.dp))
+                    }
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.clickable { onConfigClick() },
+                    ) {
+                        Icon(Icons.Default.CheckCircle, null, tint = accent, modifier = Modifier.size(14.dp))
+                        Spacer(Modifier.width(4.dp))
+                        Text("연동됨", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = accent)
+                    }
                 }
             }
-            Spacer(Modifier.height(8.dp))
+            // 최근 7일 출석 스트립
+            Spacer(Modifier.height(14.dp))
+            WeekAttendanceStrip(attendanceHistory)
+            Spacer(Modifier.height(12.dp))
+            HorizontalDivider(color = DividerColor)
+            Spacer(Modifier.height(4.dp))
             GameData.attendanceGames.forEachIndexed { i, game ->
                 val note = notes.firstOrNull { GameData.byNameOrNull(it.game)?.key == game.key }
                 val uid = when (game.key) {
@@ -453,6 +472,167 @@ private fun DailyHeroSection(
                 if (i < GameData.attendanceGames.lastIndex) HorizontalDivider(color = DividerColor)
             }
         }
+    }
+
+    if (showCalendar) {
+        MonthAttendanceDialog(attendanceHistory) { showCalendar = false }
+    }
+}
+
+/** 출석 완료도: 모든 게임 출석=full, 일부=partial, 없음=none */
+private enum class AttendLevel { NONE, PARTIAL, FULL }
+
+private fun attendLevel(count: Int): AttendLevel = when {
+    count <= 0 -> AttendLevel.NONE
+    count >= GameData.attendanceGames.size -> AttendLevel.FULL
+    else -> AttendLevel.PARTIAL
+}
+
+private fun dowKo(cal: java.util.Calendar): String =
+    arrayOf("일", "월", "화", "수", "목", "금", "토")[cal.get(java.util.Calendar.DAY_OF_WEEK) - 1]
+
+/** 최근 7일 출석 스트립 (오늘 = 맨 오른쪽). */
+@Composable
+private fun WeekAttendanceStrip(history: Map<String, Set<String>>) {
+    val accent = LocalAccent.current
+    val days = remember(history) {
+        (6 downTo 0).map { offset ->
+            val cal = java.util.Calendar.getInstance().apply { add(java.util.Calendar.DAY_OF_YEAR, -offset) }
+            Triple(cal.get(java.util.Calendar.DAY_OF_MONTH), dowKo(cal), history[DateUtil.dayKey(cal.timeInMillis)]?.size ?: 0)
+        }
+    }
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+        days.forEachIndexed { i, (dayNum, dow, count) ->
+            val isToday = i == 6
+            val level = attendLevel(count)
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(dow, fontSize = 10.sp, color = if (isToday) accent else TextSecondary, fontWeight = if (isToday) FontWeight.Bold else FontWeight.Normal)
+                Spacer(Modifier.height(5.dp))
+                Box(
+                    Modifier
+                        .size(34.dp)
+                        .clip(CircleShape)
+                        .background(
+                            when (level) {
+                                AttendLevel.FULL -> accent
+                                AttendLevel.PARTIAL -> accent.copy(alpha = 0.30f)
+                                AttendLevel.NONE -> Color(0xFFF0F0F4)
+                            },
+                        )
+                        .then(if (isToday) Modifier.border(2.dp, accent, CircleShape) else Modifier),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    if (level == AttendLevel.FULL) {
+                        Icon(Icons.Default.Check, null, tint = Color.White, modifier = Modifier.size(16.dp))
+                    } else {
+                        Text(
+                            "$dayNum",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = if (level == AttendLevel.PARTIAL) accent else TextSecondary,
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** 월간 출석 달력 다이얼로그. 일자별 출석 완료도 표시 + 이전/이번 달 이동. */
+@Composable
+private fun MonthAttendanceDialog(history: Map<String, Set<String>>, onDismiss: () -> Unit) {
+    val accent = LocalAccent.current
+    var monthOffset by remember { mutableIntStateOf(0) } // 0 = 이번 달
+    val base = remember(monthOffset) {
+        java.util.Calendar.getInstance().apply { add(java.util.Calendar.MONTH, monthOffset); set(java.util.Calendar.DAY_OF_MONTH, 1) }
+    }
+    val year = base.get(java.util.Calendar.YEAR)
+    val month = base.get(java.util.Calendar.MONTH) // 0-based
+    val firstDow = base.get(java.util.Calendar.DAY_OF_WEEK) // 1=일
+    val daysInMonth = base.getActualMaximum(java.util.Calendar.DAY_OF_MONTH)
+    val todayKey = DateUtil.dayKey(System.currentTimeMillis())
+
+    GlgDialog(title = "출석 현황", onDismiss = onDismiss, confirmText = "확인", onConfirm = onDismiss, dismissText = null) {
+        Column {
+            // 월 이동
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.size(32.dp).clip(CircleShape).clickable { monthOffset-- }, contentAlignment = Alignment.Center) {
+                    Icon(Icons.Default.ChevronLeft, "이전 달", tint = TextSecondary, modifier = Modifier.size(20.dp))
+                }
+                Text("${year}년 ${month + 1}월", fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                Box(
+                    Modifier.size(32.dp).clip(CircleShape).then(if (monthOffset < 0) Modifier.clickable { monthOffset++ } else Modifier),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(Icons.Default.ChevronRight, "다음 달", tint = if (monthOffset < 0) TextSecondary else Color.LightGray, modifier = Modifier.size(20.dp))
+                }
+            }
+            Spacer(Modifier.height(12.dp))
+            // 요일 헤더
+            Row(Modifier.fillMaxWidth()) {
+                listOf("일", "월", "화", "수", "목", "금", "토").forEach {
+                    Text(it, modifier = Modifier.weight(1f), textAlign = TextAlign.Center, fontSize = 11.sp, color = TextSecondary)
+                }
+            }
+            Spacer(Modifier.height(6.dp))
+            // 날짜 그리드 (선행 빈칸 + 1..말일)
+            val cells: List<Int?> = List(firstDow - 1) { null } + (1..daysInMonth).toList()
+            cells.chunked(7).forEach { week ->
+                Row(Modifier.fillMaxWidth()) {
+                    week.forEach { day ->
+                        Box(Modifier.weight(1f).padding(2.dp), contentAlignment = Alignment.Center) {
+                            if (day != null) {
+                                val key = "%04d-%02d-%02d".format(year, month + 1, day)
+                                val level = attendLevel(history[key]?.size ?: 0)
+                                val isToday = key == todayKey
+                                Box(
+                                    Modifier
+                                        .size(32.dp)
+                                        .clip(CircleShape)
+                                        .background(
+                                            when (level) {
+                                                AttendLevel.FULL -> accent
+                                                AttendLevel.PARTIAL -> accent.copy(alpha = 0.30f)
+                                                AttendLevel.NONE -> Color.Transparent
+                                            },
+                                        )
+                                        .then(if (isToday) Modifier.border(1.5.dp, accent, CircleShape) else Modifier),
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    Text(
+                                        "$day",
+                                        fontSize = 12.sp,
+                                        fontWeight = if (level != AttendLevel.NONE || isToday) FontWeight.Bold else FontWeight.Normal,
+                                        color = when {
+                                            level == AttendLevel.FULL -> Color.White
+                                            level == AttendLevel.PARTIAL -> accent
+                                            isToday -> accent
+                                            else -> TextSecondary
+                                        },
+                                    )
+                                }
+                            }
+                        }
+                    }
+                    repeat(7 - week.size) { Spacer(Modifier.weight(1f)) }
+                }
+            }
+            Spacer(Modifier.height(12.dp))
+            // 범례
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                LegendDot(accent, "전체 출석")
+                LegendDot(accent.copy(alpha = 0.30f), "일부")
+            }
+        }
+    }
+}
+
+@Composable
+private fun LegendDot(color: Color, label: String) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Box(Modifier.size(12.dp).clip(CircleShape).background(color))
+        Spacer(Modifier.width(5.dp))
+        Text(label, fontSize = 11.sp, color = TextSecondary)
     }
 }
 
