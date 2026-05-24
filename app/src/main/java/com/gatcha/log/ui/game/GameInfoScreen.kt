@@ -497,8 +497,8 @@ private fun WeekAttendanceStrip(history: Map<String, Set<String>>) {
     val accent = LocalAccent.current
     val days = remember(history) {
         (6 downTo 0).map { offset ->
-            val cal = java.util.Calendar.getInstance().apply { add(java.util.Calendar.DAY_OF_YEAR, -offset) }
-            Triple(cal.get(java.util.Calendar.DAY_OF_MONTH), dowKo(cal), history[DateUtil.dayKey(cal.timeInMillis)]?.size ?: 0)
+            val cal = DateUtil.hoyoCalendar().apply { add(java.util.Calendar.DAY_OF_YEAR, -offset) }
+            Triple(cal.get(java.util.Calendar.DAY_OF_MONTH), dowKo(cal), history[DateUtil.hoyoDayKey(cal.timeInMillis)]?.size ?: 0)
         }
     }
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
@@ -544,13 +544,13 @@ private fun MonthAttendanceDialog(history: Map<String, Set<String>>, onDismiss: 
     val accent = LocalAccent.current
     var monthOffset by remember { mutableIntStateOf(0) } // 0 = 이번 달
     val base = remember(monthOffset) {
-        java.util.Calendar.getInstance().apply { add(java.util.Calendar.MONTH, monthOffset); set(java.util.Calendar.DAY_OF_MONTH, 1) }
+        DateUtil.hoyoCalendar().apply { add(java.util.Calendar.MONTH, monthOffset); set(java.util.Calendar.DAY_OF_MONTH, 1) }
     }
     val year = base.get(java.util.Calendar.YEAR)
     val month = base.get(java.util.Calendar.MONTH) // 0-based
     val firstDow = base.get(java.util.Calendar.DAY_OF_WEEK) // 1=일
     val daysInMonth = base.getActualMaximum(java.util.Calendar.DAY_OF_MONTH)
-    val todayKey = DateUtil.dayKey(System.currentTimeMillis())
+    val todayKey = DateUtil.hoyoDayKey()
 
     GlgDialog(title = "출석 현황", onDismiss = onDismiss, confirmText = "확인", onConfirm = onDismiss, dismissText = null) {
         Column {

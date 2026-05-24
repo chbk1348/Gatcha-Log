@@ -98,13 +98,13 @@ class SpendingViewModel(app: Application) : AndroidViewModel(app) {
     val attendanceStreak: StateFlow<Int> = _attendanceStreak.asStateFlow()
 
     private fun computeAttendanceStreak(): Int {
-        val cal = Calendar.getInstance()
+        val cal = DateUtil.hoyoCalendar()
         // 오늘 아직 출석 전이면 어제부터 카운트(낮 동안 streak 유지)
-        if (attendanceMap[DateUtil.dayKey(cal.timeInMillis)].isNullOrEmpty()) {
+        if (attendanceMap[DateUtil.hoyoDayKey(cal.timeInMillis)].isNullOrEmpty()) {
             cal.add(Calendar.DAY_OF_YEAR, -1)
         }
         var streak = 0
-        while (!attendanceMap[DateUtil.dayKey(cal.timeInMillis)].isNullOrEmpty()) {
+        while (!attendanceMap[DateUtil.hoyoDayKey(cal.timeInMillis)].isNullOrEmpty()) {
             streak++
             cal.add(Calendar.DAY_OF_YEAR, -1)
         }
@@ -651,7 +651,8 @@ class SpendingViewModel(app: Application) : AndroidViewModel(app) {
             "\"" + value.replace("\"", "\"\"") + "\""
         } else value
 
-    private fun todayKey() = DateUtil.dayKey(System.currentTimeMillis())
+    // 출석 "오늘" = HoYoLAB 초기화 기준(베이징 UTC+8). 로컬 자정~01시(KST) 사이엔 아직 전날로 취급되어 오출석 방지.
+    private fun todayKey() = DateUtil.hoyoDayKey()
 
     private val currentYear get() = DateUtil.year(System.currentTimeMillis())
     private val currentMonth get() = DateUtil.month(System.currentTimeMillis())

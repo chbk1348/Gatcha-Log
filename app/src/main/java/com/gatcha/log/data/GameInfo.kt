@@ -120,7 +120,7 @@ data class LiveNote(
     val resinRecoveryTime: String = "",
     val dailyTaskCount: Int = 0,
     val maxDailyTaskCount: Int = 0,
-    /** 게임별 부가 통계(탐사 파견·주간 보스 잔여·티팟 세진·예비 개척력·현상수배 등) */
+    /** 게임별 부가 통계(탐사 파견·주간 보스 잔여·선계 화폐·예비 개척력·현상 의뢰 등) */
     val extras: List<NoteStat> = emptyList(),
 ) {
     val gameColor: Color get() = GameData.colorFor(game)

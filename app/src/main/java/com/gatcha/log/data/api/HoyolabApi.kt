@@ -121,7 +121,7 @@ object HoyolabApi {
             add(NoteStat("주간 보스", "${d.optInt("remain_resin_discount_num")}/$it"))
         }
         d.optInt("max_home_coin").takeIf { it > 0 }?.let {
-            add(NoteStat("세진", "${d.optInt("current_home_coin")}/$it"))
+            add(NoteStat("선계 화폐", "${d.optInt("current_home_coin")}/$it"))
         }
         d.optJSONObject("transformer")?.takeIf { it.optBoolean("obtained") }?.optJSONObject("recovery_time")?.let { rt ->
             if (rt.optBoolean("reached")) {

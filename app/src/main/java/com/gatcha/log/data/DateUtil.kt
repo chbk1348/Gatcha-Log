@@ -4,6 +4,7 @@ import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
+import java.util.TimeZone
 
 /**
  * 날짜 포맷/그룹핑 유틸. minSdk 24 호환을 위해 java.time 대신 Calendar/SimpleDateFormat 사용.
@@ -26,6 +27,16 @@ object DateUtil {
     /** 그룹핑 키 "2026-05-20" */
     fun dayKey(millis: Long): String =
         SimpleDateFormat("yyyy-MM-dd", ko).format(Date(millis))
+
+    // HoYoLAB 출석은 베이징 표준시(UTC+8) 자정에 초기화됨 → 출석 날짜는 로컬이 아닌 베이징 기준으로 계산.
+    private val hoyoTz: TimeZone = TimeZone.getTimeZone("GMT+8")
+
+    /** 출석 기준(베이징 UTC+8) 날짜 키 "2026-05-20" */
+    fun hoyoDayKey(millis: Long = System.currentTimeMillis()): String =
+        SimpleDateFormat("yyyy-MM-dd", ko).apply { timeZone = hoyoTz }.format(Date(millis))
+
+    /** 출석 기준(베이징 UTC+8) Calendar (전/후 일자 가감용) */
+    fun hoyoCalendar(): Calendar = Calendar.getInstance(hoyoTz, ko)
 
     /** "5/20 09:00" (배너 기간 표시용) */
     fun shortDateTime(millis: Long): String =
