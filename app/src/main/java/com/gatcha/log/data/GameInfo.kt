@@ -9,6 +9,8 @@ data class HoyolabConfig(
     val genshinUid: String = "",
     val hsrUid: String = "",
     val zzzUid: String = "",
+    /** 선물코드 교환(webExchangeCdkey) 전용 — ltoken 으론 인증 안 돼 cookie_token 필요. 만료 주기적. */
+    val cookieToken: String = "",
 ) {
     val isLinked: Boolean get() = ltuid.isNotBlank() && ltoken.isNotBlank()
 }

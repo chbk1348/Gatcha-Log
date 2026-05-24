@@ -45,6 +45,13 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.util.Calendar
 
+/** 선물코드 교환 UI 상태 */
+sealed interface RedeemState {
+    data object Idle : RedeemState
+    data object Loading : RedeemState
+    data class Done(val success: Boolean, val message: String) : RedeemState
+}
+
 /**
  * 모든 화면이 공유하는 단일 ViewModel.
  * 로그인 계정(AuthManager)별로 분리된 로컬 저장소(GatchaRepository)와 동기화된다.
@@ -501,6 +508,8 @@ class SpendingViewModel(app: Application) : AndroidViewModel(app) {
                 events += r.events
                 challenges += r.challenges
             }
+            // ZZZ 픽업 배너는 공개 API 부재 → 레포 수동 JSON(zzz_banners.json)에서 병합
+            banners += com.gatcha.log.data.api.ZzzBannerApi.fetch()
             if (banners.isNotEmpty()) _activeBanners.value = banners.sortedBy { it.dDay() }
             _gameEvents.value = events.sortedBy { it.endMillis }
             _challenges.value = challenges.sortedBy { it.endMillis }
@@ -561,6 +570,34 @@ class SpendingViewModel(app: Application) : AndroidViewModel(app) {
             _checkingIn.value = null
         }
     }
+
+    // ----------------------------------------------------------------- 선물코드 교환
+    private val _redeemState = MutableStateFlow<RedeemState>(RedeemState.Idle)
+    val redeemState: StateFlow<RedeemState> = _redeemState.asStateFlow()
+
+    /** HoYoLAB 선물코드 교환. 결과는 [redeemState] 로 노출. */
+    fun redeemGiftCode(gameKey: String, code: String) {
+        val cfg = _hoyolabConfig.value
+        if (!cfg.isLinked) { _redeemState.value = RedeemState.Done(false, "HoYoLAB 연동이 필요해요"); return }
+        val uid = when (gameKey) {
+            "genshin" -> cfg.genshinUid
+            "hsr" -> cfg.hsrUid
+            "zzz" -> cfg.zzzUid
+            else -> ""
+        }
+        if (uid.isBlank()) { _redeemState.value = RedeemState.Done(false, "이 게임 UID가 없어요"); return }
+        if (cfg.cookieToken.isBlank()) {
+            _redeemState.value = RedeemState.Done(false, "연동 설정에서 cookie_token을 입력해주세요 (교환 전용)")
+            return
+        }
+        viewModelScope.launch {
+            _redeemState.value = RedeemState.Loading
+            val r = HoyolabApi.redeemCode(cfg.ltuid, cfg.ltoken, cfg.cookieToken, gameKey, uid, code)
+            _redeemState.value = RedeemState.Done(r.success, r.message)
+        }
+    }
+
+    fun resetRedeem() { _redeemState.value = RedeemState.Idle }
 
     private fun markCheckedIn(gameKey: String) {
         val today = todayKey()

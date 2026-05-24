@@ -31,7 +31,10 @@ import com.gatcha.log.ui.spending.SpendingViewModel
 import com.gatcha.log.ui.theme.*
 
 @Composable
-fun MyPageScreen(viewModel: SpendingViewModel) {
+fun MyPageScreen(
+    viewModel: SpendingViewModel,
+    listState: androidx.compose.foundation.lazy.LazyListState = androidx.compose.foundation.lazy.rememberLazyListState(),
+) {
     val spendings by viewModel.spendings.collectAsState()
     val profile by viewModel.profile.collectAsState()
     val account by viewModel.account.collectAsState()
@@ -55,6 +58,7 @@ fun MyPageScreen(viewModel: SpendingViewModel) {
     val gachaTotal = gachaStats?.total ?: 0
 
     LazyColumn(
+        state = listState,
         modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
         contentPadding = PaddingValues(bottom = 120.dp),
     ) {

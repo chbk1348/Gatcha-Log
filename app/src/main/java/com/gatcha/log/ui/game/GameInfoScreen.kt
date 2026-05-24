@@ -41,12 +41,16 @@ import com.gatcha.log.ui.components.GlgButton
 import com.gatcha.log.ui.components.GlgCircleIconButton
 import com.gatcha.log.ui.components.GlgDialog
 import com.gatcha.log.ui.components.GlgTextField
+import com.gatcha.log.ui.spending.RedeemState
 import com.gatcha.log.ui.spending.SpendingViewModel
 import com.gatcha.log.ui.theme.*
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun GameInfoScreen(viewModel: SpendingViewModel) {
+fun GameInfoScreen(
+    viewModel: SpendingViewModel,
+    listState: androidx.compose.foundation.lazy.LazyListState = androidx.compose.foundation.lazy.rememberLazyListState(),
+) {
     val accent = LocalAccent.current
     val banners by viewModel.activeBanners.collectAsState()
     val events by viewModel.gameEvents.collectAsState()
@@ -83,6 +87,8 @@ fun GameInfoScreen(viewModel: SpendingViewModel) {
     }
     val showHoyolabDialog = remember { mutableStateOf(false) }
     val showRateDialog = remember { mutableStateOf(false) }
+    val showGiftDialog = remember { mutableStateOf(false) }
+    val redeemState by viewModel.redeemState.collectAsState()
 
     GlgPullToRefreshBox(
         isRefreshing = isRefreshing,
@@ -90,6 +96,7 @@ fun GameInfoScreen(viewModel: SpendingViewModel) {
         modifier = Modifier.fillMaxSize(),
     ) {
         LazyColumn(
+            state = listState,
             modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
             contentPadding = PaddingValues(bottom = 120.dp),
         ) {
@@ -102,6 +109,9 @@ fun GameInfoScreen(viewModel: SpendingViewModel) {
                     Text("게임 정보", fontSize = 24.sp, fontWeight = FontWeight.Bold)
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         GachaRateButton { showRateDialog.value = true }
+                        if (hoyolab.isLinked) {
+                            GlgCircleIconButton(Icons.Default.Redeem, "선물코드", outlined = true) { showGiftDialog.value = true }
+                        }
                         GlgCircleIconButton(Icons.Default.Refresh, "새로고침", loading = isRefreshing, enabled = !isRefreshing, outlined = true) {
                             viewModel.refreshGameInfo()
                         }
@@ -208,6 +218,85 @@ fun GameInfoScreen(viewModel: SpendingViewModel) {
 
     if (showRateDialog.value) {
         GachaRateDialog(onDismiss = { showRateDialog.value = false })
+    }
+
+    if (showGiftDialog.value) {
+        GiftCodeDialog(
+            hoyolab = hoyolab,
+            state = redeemState,
+            onRedeem = { key, code -> viewModel.redeemGiftCode(key, code) },
+            onDismiss = { showGiftDialog.value = false; viewModel.resetRedeem() },
+        )
+    }
+}
+
+/** HoYoLAB 선물코드 교환 다이얼로그 — 게임 선택 + 코드 입력 + 결과. */
+@Composable
+private fun GiftCodeDialog(
+    hoyolab: HoyolabConfig,
+    state: RedeemState,
+    onRedeem: (String, String) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val accent = LocalAccent.current
+    val games = remember(hoyolab) {
+        buildList {
+            if (hoyolab.genshinUid.isNotBlank()) add("genshin" to "원신")
+            if (hoyolab.hsrUid.isNotBlank()) add("hsr" to "스타레일")
+            if (hoyolab.zzzUid.isNotBlank()) add("zzz" to "젠레스")
+        }
+    }
+    var selected by remember { mutableStateOf(games.firstOrNull()?.first ?: "genshin") }
+    var code by remember { mutableStateOf("") }
+    val loading = state is RedeemState.Loading
+    GlgDialog(
+        title = "선물코드 교환",
+        onDismiss = onDismiss,
+        confirmText = if (loading) "교환 중…" else "교환",
+        confirmEnabled = code.isNotBlank() && !loading && games.isNotEmpty(),
+        onConfirm = { onRedeem(selected, code.trim()) },
+        dismissText = "닫기",
+    ) {
+        Column {
+            if (games.isEmpty()) {
+                Text("HoYoLAB 연동 후 UID가 있어야 교환할 수 있어요", fontSize = 13.sp, color = TextSecondary)
+            } else {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    games.forEach { (key, label) ->
+                        val sel = key == selected
+                        Surface(
+                            modifier = Modifier.clickable { selected = key },
+                            shape = RoundedCornerShape(20.dp),
+                            color = if (sel) accent else Color(0xFFF2F2F6),
+                        ) {
+                            Text(
+                                label,
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                                fontSize = 12.sp, fontWeight = FontWeight.Bold,
+                                color = if (sel) Color.White else TextSecondary,
+                            )
+                        }
+                    }
+                }
+                Spacer(Modifier.height(12.dp))
+                GlgTextField(
+                    value = code,
+                    onValueChange = { v -> code = v.uppercase().filter { it.isLetterOrDigit() } },
+                    label = "선물코드",
+                    placeholder = "예: GENSHINGIFT",
+                )
+                Spacer(Modifier.height(10.dp))
+                when (state) {
+                    is RedeemState.Loading -> Text("교환 중…", fontSize = 12.sp, color = TextSecondary)
+                    is RedeemState.Done -> Text(
+                        state.message,
+                        fontSize = 12.sp, fontWeight = FontWeight.Medium,
+                        color = if (state.success) accent else DangerText,
+                    )
+                    else -> Text("코드를 입력하고 교환을 누르세요. 보상은 게임 우편함으로 와요.", fontSize = 11.sp, color = Color.LightGray)
+                }
+            }
+        }
     }
 }
 
@@ -745,6 +834,7 @@ private fun PhaseBlock(phase: String, banners: List<GachaBanner>, gameColor: Col
 fun HoyolabConfigDialog(config: HoyolabConfig, onDismiss: () -> Unit, onSave: (HoyolabConfig) -> Unit) {
     var ltuid by remember { mutableStateOf(config.ltuid) }
     var ltoken by remember { mutableStateOf(config.ltoken) }
+    var cookieToken by remember { mutableStateOf(config.cookieToken) }
     var gi by remember { mutableStateOf(config.genshinUid) }
     var hsr by remember { mutableStateOf(config.hsrUid) }
     var zzz by remember { mutableStateOf(config.zzzUid) }
@@ -753,12 +843,21 @@ fun HoyolabConfigDialog(config: HoyolabConfig, onDismiss: () -> Unit, onSave: (H
         title = "HoYoLAB 계정 연동",
         onDismiss = onDismiss,
         confirmText = "저장",
-        onConfirm = { onSave(HoyolabConfig(ltuid.trim(), ltoken.trim(), gi.trim(), hsr.trim(), zzz.trim())) },
+        onConfirm = {
+            onSave(
+                HoyolabConfig(
+                    ltuid = ltuid.trim(), ltoken = ltoken.trim(),
+                    genshinUid = gi.trim(), hsrUid = hsr.trim(), zzzUid = zzz.trim(),
+                    cookieToken = cookieToken.trim(),
+                ),
+            )
+        },
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Text("쿠키(ltuid·ltoken)는 개인 정보입니다. 타인과 공유하지 마세요.", fontSize = 11.sp, color = TextSecondary)
             GlgTextField(ltuid, { ltuid = it }, label = "ltuid", modifier = Modifier.fillMaxWidth())
             GlgTextField(ltoken, { ltoken = it }, label = "ltoken", modifier = Modifier.fillMaxWidth())
+            GlgTextField(cookieToken, { cookieToken = it }, label = "cookie_token (선물코드 교환용·선택)", modifier = Modifier.fillMaxWidth())
             GlgTextField(gi, { gi = it }, label = "원신 UID", modifier = Modifier.fillMaxWidth())
             GlgTextField(hsr, { hsr = it }, label = "스타레일 UID", modifier = Modifier.fillMaxWidth())
             GlgTextField(zzz, { zzz = it }, label = "젠레스 UID", modifier = Modifier.fillMaxWidth())

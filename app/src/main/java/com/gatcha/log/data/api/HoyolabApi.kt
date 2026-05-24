@@ -13,6 +13,7 @@ import kotlin.random.Random
 
 data class NoteResult(val note: LiveNote?, val error: String?)
 data class CheckInResult(val success: Boolean, val already: Boolean, val message: String)
+data class CodeResult(val success: Boolean, val message: String)
 
 /**
  * HoYoLAB(OS) 실시간 노트 + 출석체크.
@@ -187,6 +188,60 @@ object HoyolabApi {
                 else -> CheckInResult(false, false, json.optString("message").ifBlank { "출석 실패 ($retcode)" })
             }
         }.getOrElse { CheckInResult(false, false, "응답 파싱 실패") }
+    }
+
+    // ----------------------------------------------------------------- 선물코드 교환
+    private data class RedeemSpec(val endpoint: String, val gameBiz: String)
+
+    private val REDEEM = mapOf(
+        "genshin" to RedeemSpec("https://sg-hk4e-api.hoyolab.com/common/apicdkey/api/webExchangeCdkey", "hk4e_global"),
+        "hsr" to RedeemSpec("https://sg-hkrpg-api.hoyolab.com/common/apicdkey/api/webExchangeCdkey", "hkrpg_global"),
+        "zzz" to RedeemSpec("https://public-operation-nap.hoyolab.com/common/apicdkey/api/webExchangeCdkey", "nap_global"),
+    )
+
+    /**
+     * HoYoLAB 선물코드 교환(webExchangeCdkey). 보상은 게임 내 우편함으로 지급.
+     * 보유한 ltuid/ltoken 쿠키로 인증. 일부 계정/엔드포인트는 cookie_token 을 요구할 수 있어
+     * 그 경우 인증 오류 retcode 를 안내 메시지로 변환한다.
+     */
+    suspend fun redeemCode(ltuid: String, ltoken: String, cookieToken: String, gameKey: String, uid: String, code: String): CodeResult {
+        val spec = REDEEM[gameKey] ?: return CodeResult(false, "지원하지 않는 게임")
+        if (ltuid.isBlank() || ltoken.isBlank()) return CodeResult(false, "HoYoLAB 쿠키 미설정")
+        if (uid.isBlank()) return CodeResult(false, "UID 미설정")
+        val c = code.trim().uppercase()
+        if (c.isBlank()) return CodeResult(false, "코드를 입력하세요")
+
+        val region = inferServer(gameKey, uid)
+        val t = System.currentTimeMillis()
+        val query = "t=$t&lang=ko-kr&game_biz=${spec.gameBiz}&uid=$uid&region=$region&cdkey=$c"
+        // 교환 인증의 핵심은 account_id + cookie_token. (ltoken 만으론 -1071 거부)
+        val cookie = buildString {
+            append("ltuid_v2=$ltuid; ltoken_v2=$ltoken; account_id=$ltuid;")
+            if (cookieToken.isNotBlank()) append(" cookie_token=$cookieToken; cookie_token_v2=$cookieToken;")
+        }
+        val headers = mapOf(
+            "Cookie" to cookie,
+            "User-Agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "Origin" to "https://act.hoyolab.com",
+            "Referer" to "https://act.hoyolab.com/",
+        )
+
+        val res = Net.get("${spec.endpoint}?$query", headers)
+        if (res.code == -1) return CodeResult(false, "네트워크 오류")
+        return runCatching {
+            val json = JSONObject(res.body)
+            val retcode = json.optInt("retcode", -1)
+            val msg = json.optString("message")
+            when (retcode) {
+                0 -> CodeResult(true, "교환 완료! 게임 우편함을 확인하세요")
+                -2017, -2018 -> CodeResult(false, "이미 사용한 코드예요")
+                -2001 -> CodeResult(false, "만료된 코드예요")
+                -2003, -2004, -2014 -> CodeResult(false, "유효하지 않은 코드예요")
+                -2016 -> CodeResult(false, "교환이 너무 잦아요. 잠시 후 다시 시도하세요")
+                -1071, -100 -> CodeResult(false, "쿠키 인증 필요 — HoYoLAB 재연동(쿠키 갱신)")
+                else -> CodeResult(false, msg.ifBlank { "교환 실패 ($retcode)" })
+            }
+        }.getOrElse { CodeResult(false, "응답 파싱 실패") }
     }
 
     // ----------------------------------------------------------------- 월간 수입 일지

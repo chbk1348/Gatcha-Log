@@ -15,8 +15,10 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -38,6 +40,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import kotlinx.coroutines.launch
 import com.gatcha.log.data.DateUtil
 import com.gatcha.log.data.Game
 import com.gatcha.log.data.GameData
@@ -68,6 +71,22 @@ fun HomeScreen(viewModel: SpendingViewModel = viewModel()) {
     val showAddSpendingSheet = remember { mutableStateOf(false) }
     val spendingToEdit = remember { mutableStateOf<Spending?>(null) }
     val accent = LocalAccent.current
+
+    // 탭별 스크롤 상태를 끌어올려, 하단바 탭 클릭 시 해당 페이지를 최상단으로 이동.
+    val tabListStates = listOf(
+        rememberLazyListState(), rememberLazyListState(),
+        rememberLazyListState(), rememberLazyListState(),
+    )
+    val tabScope = rememberCoroutineScope()
+    val onTabClick: (Int) -> Unit = { tab ->
+        val sameTab = tab == selectedTab
+        selectedTab = tab
+        tabScope.launch {
+            // 같은 탭 재탭 = 애니메이션 스크롤, 탭 전환 = 즉시 최상단
+            if (sameTab) tabListStates[tab].animateScrollToItem(0)
+            else tabListStates[tab].scrollToItem(0)
+        }
+    }
 
 
     val openEditor: (Spending?) -> Unit = { target ->
@@ -107,7 +126,7 @@ fun HomeScreen(viewModel: SpendingViewModel = viewModel()) {
         bottomBar = {
             BottomNavBar(
                 selectedTab = selectedTab,
-                onTabSelected = { selectedTab = it },
+                onTabSelected = onTabClick,
                 onAddClick = { openEditor(null) },
                 accent = accent,
                 showFab = selectedTab <= 1, // 홈·지출 탭에서만 FAB 노출
@@ -131,11 +150,12 @@ fun HomeScreen(viewModel: SpendingViewModel = viewModel()) {
                         when (tab) {
                             0 -> HomeContent(
                                 viewModel,
-                                onNavigateToGameInfo = { selectedTab = 2 },
+                                onNavigateToGameInfo = { onTabClick(2) },
+                                listState = tabListStates[0],
                             )
-                            1 -> SpendingScreen(viewModel, onEditSpending = { openEditor(it) })
-                            2 -> GameInfoScreen(viewModel)
-                            3 -> MyPageScreen(viewModel)
+                            1 -> SpendingScreen(viewModel, onEditSpending = { openEditor(it) }, listState = tabListStates[1])
+                            2 -> GameInfoScreen(viewModel, listState = tabListStates[2])
+                            3 -> MyPageScreen(viewModel, listState = tabListStates[3])
                         }
                     }
 
@@ -182,7 +202,7 @@ fun HomeScreen(viewModel: SpendingViewModel = viewModel()) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun HomeContent(viewModel: SpendingViewModel, onNavigateToGameInfo: () -> Unit) {
+fun HomeContent(viewModel: SpendingViewModel, onNavigateToGameInfo: () -> Unit, listState: LazyListState = rememberLazyListState()) {
     val spendings by viewModel.spendings.collectAsState()
     val budget by viewModel.budget.collectAsState()
     val profile by viewModel.profile.collectAsState()
@@ -243,7 +263,7 @@ fun HomeContent(viewModel: SpendingViewModel, onNavigateToGameInfo: () -> Unit) 
         onRefresh = { viewModel.refreshGameInfo() },
         modifier = Modifier.fillMaxSize(),
     ) {
-    LazyColumn(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
+    LazyColumn(state = listState, modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
         item {
             ProfileGameSection(
                 userName = profile.name,

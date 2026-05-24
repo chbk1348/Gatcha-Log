@@ -57,7 +57,11 @@ private sealed interface SpendingScreenNav {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SpendingScreen(viewModel: SpendingViewModel, onEditSpending: (Spending) -> Unit) {
+fun SpendingScreen(
+    viewModel: SpendingViewModel,
+    onEditSpending: (Spending) -> Unit,
+    listState: androidx.compose.foundation.lazy.LazyListState = androidx.compose.foundation.lazy.rememberLazyListState(),
+) {
     val spendings by viewModel.spendings.collectAsState()
     val isRefreshing by viewModel.isRefreshing.collectAsState()
     var selectedGameFilter by remember { mutableStateOf<String?>(null) }
@@ -126,7 +130,7 @@ fun SpendingScreen(viewModel: SpendingViewModel, onEditSpending: (Spending) -> U
         onRefresh = { viewModel.refreshSpending() },
         modifier = Modifier.fillMaxSize(),
     ) {
-        LazyColumn(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
+        LazyColumn(state = listState, modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
             item {
                 Row(
                     modifier = Modifier.fillMaxWidth().padding(top = 16.dp, bottom = 10.dp),
