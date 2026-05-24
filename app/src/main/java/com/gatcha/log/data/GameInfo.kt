@@ -102,6 +102,14 @@ data class PatchInfo(val game: String, val version: String, val targetMillis: Lo
         Math.ceil((targetMillis - nowMillis) / (1000.0 * 60 * 60 * 24)).toInt()
 }
 
+/** 실시간 노트의 부가 통계 한 칸 (탐사 파견·주간 보스·티팟 세진 등 게임별 항목) */
+data class NoteStat(
+    val label: String,
+    val value: String,
+    /** 행동이 필요한 항목(예: 변환기 사용 가능, 스크래치 미완료)이면 강조색으로 표시 */
+    val highlight: Boolean = false,
+)
+
 /** HoYoLAB 실시간 노트 (레진/개척력/배터리 등) */
 data class LiveNote(
     val game: String,
@@ -110,8 +118,8 @@ data class LiveNote(
     val resinRecoveryTime: String = "",
     val dailyTaskCount: Int = 0,
     val maxDailyTaskCount: Int = 0,
-    val expeditionCount: Int = 0,
-    val maxExpeditionCount: Int = 0,
+    /** 게임별 부가 통계(탐사 파견·주간 보스 잔여·티팟 세진·예비 개척력·현상수배 등) */
+    val extras: List<NoteStat> = emptyList(),
 ) {
     val gameColor: Color get() = GameData.colorFor(game)
     val resinRatio: Float get() = if (maxResin == 0) 0f else currentResin.toFloat() / maxResin
@@ -124,4 +132,54 @@ data class LiveNote(
             Game.ZZZ -> "배터리"
             else -> "재화"
         }
+}
+
+/**
+ * 전투 콘텐츠 진행도. (나선 비경·현실 속 환상극 / 혼돈의 기억·허구 이야기·종말의 환영)
+ * 모드 명칭은 인게임 공식 KR (API는 시즌명만 주므로 앱에서 검증 명칭 하드코딩).
+ */
+data class CombatMode(
+    val game: String,
+    val name: String,         // 모드 공식 KR 명칭
+    val stars: Int = 0,       // 현재 별/메달/점수
+    val maxStars: Int = 0,    // 만점 (0이면 진행바 숨김)
+    val detail: String = "",  // 최고 기록·시즌·보스 등 보조 표시
+    val endMillis: Long = 0,  // 시즌 종료 (0이면 D-day 미표시)
+    val hasData: Boolean = true,
+) {
+    val gameColor: Color get() = GameData.colorFor(game)
+    val ratio: Float get() = if (maxStars <= 0) 0f else (stars.toFloat() / maxStars).coerceIn(0f, 1f)
+    fun dDay(now: Long = System.currentTimeMillis()): Int? =
+        if (endMillis <= 0) null else Math.ceil((endMillis - now) / (1000.0 * 60 * 60 * 24)).toInt()
+}
+
+/** 월간 수입 일지의 수입원 한 줄 (퀘스트·일일 임무·심연 등 획득 경로별 비중) */
+data class LedgerEntry(val action: String, val num: Long, val percent: Int)
+
+/**
+ * HoYoLAB 월간 재화 수입 일지.
+ * 원신 "여행자의 일지"(원석/모라) · 스타레일 "개척의 길"(별옥) 의 이번 달 수입 통계.
+ */
+data class MonthlyLedger(
+    val game: String,
+    /** 데이터 기준 월 (1~12). 0 이면 미상. */
+    val month: Int = 0,
+    /** 유료성 재화 이번 달 수입 (원석·별옥 등) */
+    val premium: Long = 0,
+    val premiumLabel: String = "",
+    /** 지난달 같은 재화 수입 (증감 비교용). 0 이면 비교 안 함. */
+    val premiumLastMonth: Long = 0,
+    /** 골드 재화 이번 달 수입 (모라 등). 0 이면 표시 안 함. */
+    val gold: Long = 0,
+    val goldLabel: String = "",
+    /** 수입원별 비중 */
+    val breakdown: List<LedgerEntry> = emptyList(),
+) {
+    val gameColor: Color get() = GameData.colorFor(game)
+
+    /** 데이터가 비어 있으면(수입·내역 모두 0) 카드를 숨기기 위한 판정 */
+    val hasData: Boolean get() = premium > 0 || gold > 0 || breakdown.isNotEmpty()
+
+    /** 지난달 대비 증감(+N / -N). 비교 불가 시 null */
+    val premiumDelta: Long? get() = if (premiumLastMonth > 0) premium - premiumLastMonth else null
 }

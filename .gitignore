@@ -19,3 +19,7 @@ app/google-services.json
 
 # Claude / local agent config
 .claude/
+
+# 프로젝트 문서·장애 리포트 (로컬 참고용 — 커밋 금지, iCloud 원본 별도)
+GatchaLOG_MD/
+GatchaLOG_Error Report/

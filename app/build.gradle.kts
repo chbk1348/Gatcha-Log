@@ -25,9 +25,21 @@ android {
         }
     }
 
+    signingConfigs {
+        create("release") {
+            // 로컬 성능 검증용: 디버그 키스토어 재사용. 스토어 배포 시 실제 릴리스 키로 교체할 것.
+            storeFile = file("${System.getProperty("user.home")}/.android/debug.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
+    }
+
     buildTypes {
         release {
-            isMinifyEnabled = false
+            // R8 최적화·축소 활성 → 스크롤 등 런타임 성능 향상(디버그 대비). 라인정보는 proguard 룰에서 보존.
+            isMinifyEnabled = true
+            signingConfig = signingConfigs.getByName("release")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -60,8 +72,8 @@ dependencies {
     implementation("androidx.compose.material3:material3")
     implementation("androidx.compose.material:material-icons-extended")
 
-    // 진짜 backdrop-blur 글래스모피즘 (Compose 1.7+)
-    implementation("dev.chrisbanes.haze:haze:1.0.0")
+    // Baseline Profile 설치기 — release APK 에 동봉된 프로파일을 기기에 적용해 핫패스 AOT 컴파일.
+    implementation("androidx.profileinstaller:profileinstaller:1.4.1")
 
     // 네트워크 이미지 로딩(구글 프로필 사진 등)
     implementation("io.coil-kt:coil-compose:2.7.0")

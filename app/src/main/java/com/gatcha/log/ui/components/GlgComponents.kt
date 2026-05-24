@@ -248,6 +248,8 @@ fun GlgCircleIconButton(
     loading: Boolean = false,
     enabled: Boolean = true,
     badgeCount: Int = 0,
+    /** true 면 강조색 아웃라인(테두리)을 그린다 — 확률표 알약 버튼과 동일한 톤 */
+    outlined: Boolean = false,
     onClick: () -> Unit,
 ) {
     val accent = LocalAccent.current
@@ -257,6 +259,7 @@ fun GlgCircleIconButton(
                 .size(size)
                 .clip(CircleShape)
                 .background(accent.copy(alpha = 0.10f))
+                .then(if (outlined) Modifier.border(1.5.dp, accent.copy(alpha = 0.30f), CircleShape) else Modifier)
                 .then(if (enabled) Modifier.clickable { onClick() } else Modifier),
             contentAlignment = Alignment.Center,
         ) {

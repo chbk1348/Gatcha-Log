@@ -31,6 +31,10 @@ object DateUtil {
     fun shortDateTime(millis: Long): String =
         SimpleDateFormat("M/dd HH:mm", ko).format(Date(millis))
 
+    /** "6/8" (이벤트·정기콘텐츠 종료일 표시용) */
+    fun shortDate(millis: Long): String =
+        SimpleDateFormat("M/d", ko).format(Date(millis))
+
     fun year(millis: Long): Int = cal(millis).get(Calendar.YEAR)
 
     /** Calendar.MONTH 는 0-base 이므로 +1 */

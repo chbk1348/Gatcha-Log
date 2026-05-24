@@ -20,7 +20,7 @@ enum class Game(
     HSR("hsr", "붕괴: 스타레일", "스타레일", "HSR", Color(0xFFB06BFF), "성옥 +60", enneadKey = "starrail"),
     ZZZ("zzz", "젠레스 존 제로", "젠레스", "ZZZ", Color(0xFFF5A623), "폴리크롬 +60"),
     WUWA("wuwa", "명조", "명조", "WW", Color(0xFFE5007F), ""),
-    AK("ak", "명일방주", "명일방주", "AK", Color(0xFF00B2A9), "");
+    ENDFIELD("endfield", "명일방주: 엔드필드", "엔드필드", "EF", Color(0xFF1CB8A8), "");
 
     /** 출석체크가 지원되는 게임(원신·스타레일·젠레스) */
     val supportsAttendance: Boolean get() = attendanceReward.isNotEmpty()

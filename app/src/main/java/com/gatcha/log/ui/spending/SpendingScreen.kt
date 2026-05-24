@@ -13,7 +13,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ReceiptLong
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
-import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import com.gatcha.log.ui.components.GlgPullToRefreshBox
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -64,7 +64,7 @@ fun SpendingScreen(viewModel: SpendingViewModel, onEditSpending: (Spending) -> U
         sortOrder != SortOrder.DATE_DESC,
     ).count { it }
 
-    PullToRefreshBox(
+    GlgPullToRefreshBox(
         isRefreshing = isRefreshing,
         onRefresh = { viewModel.refreshSpending() },
         modifier = Modifier.fillMaxSize(),
@@ -75,13 +75,13 @@ fun SpendingScreen(viewModel: SpendingViewModel, onEditSpending: (Spending) -> U
                     "지출 분석",
                     fontSize = 24.sp,
                     fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(top = 24.dp, bottom = 16.dp),
+                    modifier = Modifier.padding(top = 16.dp, bottom = 10.dp),
                 )
             }
             item { MonthlySummaryCard(viewModel.displayMonth, monthlyTotal, prevMonthTotal) }
-            item { Spacer(Modifier.height(14.dp)) }
+            item { Spacer(Modifier.height(10.dp)) }
             item { AnnualReportSection(viewModel) }
-            item { Spacer(Modifier.height(14.dp)) }
+            item { Spacer(Modifier.height(10.dp)) }
             item {
                 val subs by viewModel.subscriptions.collectAsState()
                 SubscriptionSection(
@@ -91,7 +91,7 @@ fun SpendingScreen(viewModel: SpendingViewModel, onEditSpending: (Spending) -> U
                     onDelete = viewModel::deleteSubscription,
                 )
             }
-            item { Spacer(Modifier.height(14.dp)) }
+            item { Spacer(Modifier.height(10.dp)) }
             item {
                 Row(
                     modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
@@ -181,29 +181,28 @@ fun MonthlySummaryCard(month: Int, total: Long, prevTotal: Long) {
         modifier = Modifier.fillMaxWidth(),
     ) {
         Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 16.dp),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Column {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.PieChart, null, tint = accent, modifier = Modifier.size(16.dp))
-                    Spacer(Modifier.width(6.dp))
-                    Text("${month}월 총 지출", fontSize = 12.sp, fontWeight = FontWeight.Medium, color = TextSecondary)
-                }
-                Spacer(Modifier.height(4.dp))
-                Text("₩%,d".format(total), fontSize = 26.sp, fontWeight = FontWeight.Bold)
+            // 좌: 이번 달 총 지출 (1줄 컴팩트, 가운데 정렬)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.PieChart, null, tint = accent, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(6.dp))
+                Text("${month}월", fontSize = 12.sp, fontWeight = FontWeight.Medium, color = TextSecondary)
+                Spacer(Modifier.width(8.dp))
+                Text("₩%,d".format(total), fontSize = 21.sp, fontWeight = FontWeight.Bold)
             }
-            Column(horizontalAlignment = Alignment.End) {
-                Text("지난 달 대비", fontSize = 11.sp, color = TextSecondary)
-                Spacer(Modifier.height(2.dp))
+            // 우: 지난달 대비 증감
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("지난달", fontSize = 11.sp, color = TextSecondary)
+                Spacer(Modifier.width(6.dp))
                 Text(
                     (if (diff >= 0) "+" else "-") + "₩%,d".format(kotlin.math.abs(diff)),
-                    fontSize = 14.sp,
+                    fontSize = 13.sp,
                     fontWeight = FontWeight.Bold,
                     color = if (diff > 0) DangerText else accent,
                 )
-                Text("지난 달 ₩%,d".format(prevTotal), fontSize = 10.sp, color = Color.LightGray)
             }
         }
     }
@@ -246,7 +245,7 @@ fun AnnualReportSection(viewModel: SpendingViewModel) {
                 horizontalArrangement = Arrangement.SpaceBetween,
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.Assessment, null, tint = accent)
+                    Icon(Icons.Default.Assessment, null, tint = accent, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.width(8.dp))
                     Text("${selectedYear}년 연간 리포트", fontWeight = FontWeight.Bold)
                 }

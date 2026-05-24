@@ -1,7 +1,11 @@
 package com.gatcha.log.data.api
 
+import com.gatcha.log.data.CombatMode
 import com.gatcha.log.data.Game
+import com.gatcha.log.data.LedgerEntry
 import com.gatcha.log.data.LiveNote
+import com.gatcha.log.data.MonthlyLedger
+import com.gatcha.log.data.NoteStat
 import org.json.JSONObject
 import java.security.MessageDigest
 import kotlin.math.ceil
@@ -76,6 +80,7 @@ object HoyolabApi {
                 resinRecoveryTime = formatRecovery(data.optString("resin_recovery_time").toLongOrNull() ?: 0),
                 dailyTaskCount = data.optInt("finished_task_num"),
                 maxDailyTaskCount = data.optInt("total_task_num"),
+                extras = genshinExtras(data),
             )
             "hsr" -> LiveNote(
                 game = game.displayName,
@@ -84,6 +89,7 @@ object HoyolabApi {
                 resinRecoveryTime = formatRecovery(data.optLong("stamina_recover_time")),
                 dailyTaskCount = data.optInt("current_train_score"),
                 maxDailyTaskCount = data.optInt("max_train_score"),
+                extras = hsrExtras(data),
             )
             else -> { // zzz
                 val energy = data.optJSONObject("energy")
@@ -96,8 +102,62 @@ object HoyolabApi {
                     resinRecoveryTime = formatRecovery(energy?.optLong("restore") ?: 0),
                     dailyTaskCount = vitality?.optInt("current") ?: 0,
                     maxDailyTaskCount = vitality?.optInt("max") ?: 0,
+                    extras = zzzExtras(data),
                 )
             }
+        }
+    }
+
+    /**
+     * 게임별 부가 통계. 이미 호출 중인 dailyNote/note 응답에 들어있지만 그동안 버려지던 필드들.
+     * 알 수 없는/없는 필드는 max(또는 키)가 비면 칸을 추가하지 않으므로 응답이 바뀌어도 안전하다.
+     */
+    private fun genshinExtras(d: JSONObject): List<NoteStat> = buildList {
+        d.optInt("max_expedition_num").takeIf { it > 0 }?.let {
+            add(NoteStat("파견", "${d.optInt("current_expedition_num")}/$it"))
+        }
+        d.optInt("resin_discount_num_limit").takeIf { it > 0 }?.let {
+            add(NoteStat("주간 보스", "${d.optInt("remain_resin_discount_num")}/$it"))
+        }
+        d.optInt("max_home_coin").takeIf { it > 0 }?.let {
+            add(NoteStat("세진", "${d.optInt("current_home_coin")}/$it"))
+        }
+        d.optJSONObject("transformer")?.takeIf { it.optBoolean("obtained") }?.optJSONObject("recovery_time")?.let { rt ->
+            if (rt.optBoolean("reached")) {
+                add(NoteStat("변환기", "사용 가능", highlight = true))
+            } else {
+                val label = when {
+                    rt.optInt("Day") > 0 -> "${rt.optInt("Day")}일"
+                    rt.optInt("Hour") > 0 -> "${rt.optInt("Hour")}시간"
+                    else -> "곧"
+                }
+                add(NoteStat("변환기", label))
+            }
+        }
+    }
+
+    private fun hsrExtras(d: JSONObject): List<NoteStat> = buildList {
+        d.optInt("current_reserve_stamina").takeIf { it > 0 }?.let {
+            add(NoteStat("예비 개척력", "$it"))
+        }
+        d.optInt("total_expedition_num").takeIf { it > 0 }?.let {
+            add(NoteStat("파견", "${d.optInt("accepted_epedition_num")}/$it"))
+        }
+        d.optInt("max_rogue_score").takeIf { it > 0 }?.let {
+            add(NoteStat("모의 우주", "${d.optInt("current_rogue_score")}/$it"))
+        }
+    }
+
+    private fun zzzExtras(d: JSONObject): List<NoteStat> = buildList {
+        d.optJSONObject("bounty_commission")?.let { b ->
+            b.optInt("total").takeIf { it > 0 }?.let { add(NoteStat("현상수배", "${b.optInt("num")}/$it")) }
+        }
+        d.optJSONObject("weekly_task")?.let { w ->
+            w.optInt("max_point").takeIf { it > 0 }?.let { add(NoteStat("주간 임무", "${w.optInt("cur_point")}/$it")) }
+        }
+        d.optString("card_sign").takeIf { it.isNotBlank() }?.let { sign ->
+            val done = sign.equals("CardSignDone", ignoreCase = true)
+            add(NoteStat("스크래치", if (done) "완료" else "미완료", highlight = !done))
         }
     }
 
@@ -128,6 +188,206 @@ object HoyolabApi {
             }
         }.getOrElse { CheckInResult(false, false, "응답 파싱 실패") }
     }
+
+    // ----------------------------------------------------------------- 월간 수입 일지
+    /** 게임별 일지 엔드포인트 + 재화 필드. 동일 응답 구조(month_data.current_*)를 공유하는 게임만. */
+    private data class LedgerSpec(
+        val endpoint: String,
+        val premiumField: String,   // 예: "current_primogems"
+        val premiumLabel: String,
+        val goldField: String?,     // null 이면 골드 없음
+        val goldLabel: String,
+    )
+
+    // 원신 여행자의 일지만 spec 기반(month_data.current_*). HSR srledger 는 ltoken 인증 거부(-100)라 제외.
+    private val LEDGER = mapOf(
+        "genshin" to LedgerSpec(
+            "https://sg-hk4e-api.hoyolab.com/event/ysledgeros/month_info",
+            "current_primogems", "원석", "current_mora", "모라",
+        ),
+    )
+
+    /**
+     * 이번 달 재화 수입 통계. 원신=여행자의 일지(spec), 젠레스=폴리크롬 일지(별도 shape).
+     * 이미 보유한 ltuid/ltoken 쿠키로 인증한다. 응답이 비거나 오류면 null → 호출부에서 무시.
+     */
+    suspend fun getMonthlyLedger(ltuid: String, ltoken: String, gameKey: String, uid: String): MonthlyLedger? {
+        if (gameKey == "zzz") return getZzzLedger(ltuid, ltoken, uid)
+        val spec = LEDGER[gameKey] ?: return null
+        if (ltuid.isBlank() || ltoken.isBlank() || uid.isBlank()) return null
+
+        val region = inferServer(gameKey, uid)
+        val query = "month=&lang=ko-kr&region=$region&uid=$uid" // month 비우면 이번 달
+        val headers = mapOf(
+            "Cookie" to "ltuid=$ltuid; ltoken=$ltoken; ltuid_v2=$ltuid; ltoken_v2=$ltoken;",
+            "DS" to makeDS(query),
+            "x-rpc-app_version" to "2.55.0",
+            "x-rpc-client_type" to "5",
+            "x-rpc-language" to "ko-kr",
+            "User-Agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        )
+
+        val res = Net.get("${spec.endpoint}?$query", headers)
+        if (res.code == -1) return null
+        return runCatching {
+            val json = JSONObject(res.body)
+            if (json.optInt("retcode", -1) != 0) return null
+            val data = json.getJSONObject("data")
+            val md = data.optJSONObject("month_data") ?: return null
+
+            val lastField = "last_" + spec.premiumField.removePrefix("current_")
+            val breakdown = md.optJSONArray("group_by")?.let { arr ->
+                (0 until arr.length()).mapNotNull { i ->
+                    val o = arr.optJSONObject(i) ?: return@mapNotNull null
+                    LedgerEntry(o.optString("action"), o.optLong("num"), o.optInt("percent"))
+                }
+            }.orEmpty()
+
+            MonthlyLedger(
+                game = gameFor(gameKey).displayName,
+                month = data.optInt("data_month"),
+                premium = md.optLong(spec.premiumField),
+                premiumLabel = spec.premiumLabel,
+                premiumLastMonth = md.optLong(lastField),
+                gold = spec.goldField?.let { md.optLong(it) } ?: 0L,
+                goldLabel = spec.goldLabel,
+                breakdown = breakdown.sortedByDescending { it.num },
+            )
+        }.getOrNull()
+    }
+
+    /** 젠레스 폴리크롬 일지 (nap_ledger). month_data.list[] + income_components[] 의 별도 shape. */
+    private suspend fun getZzzLedger(ltuid: String, ltoken: String, uid: String): MonthlyLedger? {
+        if (ltuid.isBlank() || ltoken.isBlank() || uid.isBlank()) return null
+        val region = inferServer("zzz", uid)
+        val query = "lang=ko-kr&month=&region=$region&uid=$uid"
+        val headers = mapOf(
+            "Cookie" to "ltuid=$ltuid; ltoken=$ltoken; ltuid_v2=$ltuid; ltoken_v2=$ltoken;",
+            "DS" to makeDS(query),
+            "x-rpc-app_version" to "2.55.0",
+            "x-rpc-client_type" to "2",
+            "x-rpc-language" to "ko-kr",
+            "User-Agent" to "Mozilla/5.0 (iPhone; CPU iPhone OS 17_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) miHoYoBBS/2.55.0",
+        )
+        val res = Net.get("https://sg-public-api.hoyolab.com/event/nap_ledger/month_info?$query", headers)
+        if (res.code == -1) return null
+        return runCatching {
+            val json = JSONObject(res.body)
+            if (json.optInt("retcode", -1) != 0) return null
+            val data = json.getJSONObject("data")
+            val md = data.optJSONObject("month_data") ?: return null
+
+            var premium = 0L
+            var premiumLabel = "폴리크롬"
+            md.optJSONArray("list")?.let { arr ->
+                for (i in 0 until arr.length()) {
+                    val o = arr.optJSONObject(i) ?: continue
+                    if (o.optString("data_type") == "PolychromesData") {
+                        premium = o.optLong("count")
+                        premiumLabel = o.optString("data_name").ifBlank { "폴리크롬" }
+                    }
+                }
+            }
+            val breakdown = md.optJSONArray("income_components")?.let { arr ->
+                (0 until arr.length()).mapNotNull { i ->
+                    val o = arr.optJSONObject(i) ?: return@mapNotNull null
+                    LedgerEntry(zzzIncomeLabel(o.optString("action")), o.optLong("num"), o.optInt("percent"))
+                }
+            }.orEmpty()
+            MonthlyLedger(
+                game = gameFor("zzz").displayName,
+                month = data.optString("data_month").takeLast(2).toIntOrNull() ?: 0, // "202605" → 5
+                premium = premium,
+                premiumLabel = premiumLabel,
+                breakdown = breakdown.sortedByDescending { it.num },
+            )
+        }.getOrNull()
+    }
+
+    /** nap_ledger income_components 액션 키 → KR 라벨 (API가 키만 줘서 앱 매핑). */
+    private fun zzzIncomeLabel(action: String): String = when (action) {
+        "shiyu_rewards" -> "시들지 않는 전쟁"
+        "daily_activity_rewards" -> "일일 활동"
+        "mail_rewards" -> "우편"
+        "hollow_rewards" -> "공동 작전"
+        "event_rewards" -> "이벤트"
+        "growth_rewards" -> "성장 보상"
+        "other_rewards" -> "기타"
+        else -> action
+    }
+
+    // ----------------------------------------------------------------- 전투 콘텐츠 진행도
+    /**
+     * 전투 콘텐츠 진행도. game_record 계열은 x-rpc-client_type=2 필수(5는 HSR/ZZZ 거부).
+     * 모드 명칭은 인게임 공식 KR (API는 시즌명만 줌). ZZZ 전투는 엔드포인트 미해결 → 제외.
+     */
+    suspend fun getCombat(ltuid: String, ltoken: String, gameKey: String, uid: String): List<CombatMode> {
+        if (ltuid.isBlank() || ltoken.isBlank() || uid.isBlank()) return emptyList()
+        val server = inferServer(gameKey, uid)
+        val cookie = "ltuid_v2=$ltuid; ltoken_v2=$ltoken; ltuid=$ltuid; ltoken=$ltoken;"
+        suspend fun fetch(base: String, query: String): JSONObject? {
+            val headers = mapOf(
+                "Cookie" to cookie,
+                "DS" to makeDS(query),
+                "x-rpc-app_version" to "2.55.0",
+                "x-rpc-client_type" to "2",
+                "x-rpc-language" to "ko-kr",
+                "User-Agent" to "Mozilla/5.0 (iPhone; CPU iPhone OS 17_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) miHoYoBBS/2.55.0",
+            )
+            val res = Net.get("$base?$query", headers)
+            return runCatching {
+                JSONObject(res.body).takeIf { it.optInt("retcode", -1) == 0 }?.optJSONObject("data")
+            }.getOrNull()
+        }
+        val game = gameFor(gameKey).displayName
+        return when (gameKey) {
+            "genshin" -> buildList {
+                fetch("https://bbs-api-os.hoyolab.com/game_record/app/genshin/api/spiralAbyss", "role_id=$uid&schedule_type=1&server=$server")?.let { d ->
+                    var stars = 0
+                    d.optJSONArray("floors")?.let { f -> for (i in 0 until f.length()) stars += f.optJSONObject(i)?.optInt("star") ?: 0 }
+                    val battles = d.optInt("total_battle_times")
+                    add(CombatMode(game, "나선 비경", stars, 36,
+                        detail = "최고 ${d.optString("max_floor").ifBlank { "-" }} · 승 ${d.optInt("total_win_times")}/$battles",
+                        endMillis = d.optString("end_time").toLongOrNull()?.times(1000) ?: 0L,
+                        hasData = battles > 0))
+                }
+                fetch("https://bbs-api-os.hoyolab.com/game_record/app/genshin/api/role_combat", "need_detail=true&role_id=$uid&server=$server")?.let { d ->
+                    // data[0] = 현재 기간 (미도전이면 has_data=false)
+                    val cur = d.optJSONArray("data")?.optJSONObject(0)
+                    val has = cur?.optBoolean("has_data") == true
+                    val stat = cur?.optJSONObject("stat")
+                    add(CombatMode(game, "현실 속 환상극",
+                        stars = if (has) stat?.optInt("medal_num") ?: 0 else 0, maxStars = 0,
+                        detail = if (has) "최고 ${stat?.optInt("max_round_id")}막" else "이번 기간 미도전",
+                        endMillis = cur?.optJSONObject("schedule")?.optString("end_time")?.toLongOrNull()?.times(1000) ?: 0L,
+                        hasData = has))
+                }
+            }
+            "hsr" -> buildList {
+                fetch("https://bbs-api-os.hoyolab.com/game_record/app/hkrpg/api/challenge", "role_id=$uid&schedule_type=1&server=$server")?.let { add(hsrMode(game, "혼돈의 기억", it, 36)) }
+                fetch("https://bbs-api-os.hoyolab.com/game_record/app/hkrpg/api/challenge_story", "need_all=true&role_id=$uid&schedule_type=1&server=$server")?.let { add(hsrMode(game, "허구 이야기", it, 12)) }
+                fetch("https://bbs-api-os.hoyolab.com/game_record/app/hkrpg/api/challenge_boss", "need_all=true&role_id=$uid&schedule_type=1&server=$server")?.let { add(hsrMode(game, "종말의 환영", it, 12)) }
+            }
+            else -> emptyList()
+        }
+    }
+
+    private fun hsrMode(game: String, name: String, d: JSONObject, max: Int): CombatMode {
+        val group = d.optJSONArray("groups")?.let { g ->
+            val list = (0 until g.length()).mapNotNull { g.optJSONObject(it) }
+            list.firstOrNull { it.optString("status") == "Running" } ?: list.firstOrNull()
+        }
+        val season = group?.optString("name_mi18n").orEmpty()
+        val end = group?.optJSONObject("end_time")?.let { hsrTimeMillis(it) } ?: 0L
+        // max_floor 가 시즌명을 이미 포함("연극의 종결•12")하므로 시즌명 중복 표시 안 함
+        val detail = d.optString("max_floor").takeIf { it.isNotBlank() }?.let { "최고 $it" }
+            ?: season.ifBlank { "기록 없음" }
+        return CombatMode(game, name, d.optInt("star_num"), max, detail, end, d.optBoolean("has_data", d.optInt("star_num") > 0))
+    }
+
+    private fun hsrTimeMillis(t: JSONObject): Long = java.util.Calendar.getInstance().apply {
+        set(t.optInt("year"), t.optInt("month") - 1, t.optInt("day"), t.optInt("hour"), t.optInt("minute"), 0)
+    }.timeInMillis
 
     // ----------------------------------------------------------------- 헬퍼
     private fun gameFor(key: String): Game =

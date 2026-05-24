@@ -10,7 +10,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
-import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import com.gatcha.log.ui.components.GlgPullToRefreshBox
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -19,15 +19,19 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import com.gatcha.log.data.DateUtil
 import com.gatcha.log.data.GachaBanner
 import com.gatcha.log.data.Game
 import com.gatcha.log.data.GameChallenge
+import com.gatcha.log.data.CombatMode
 import com.gatcha.log.data.GameData
 import com.gatcha.log.data.GameEvent
 import com.gatcha.log.data.HoyolabConfig
 import com.gatcha.log.data.LiveNote
+import com.gatcha.log.data.MonthlyLedger
+import com.gatcha.log.data.NoteStat
 import com.gatcha.log.data.PatchInfo
 import com.gatcha.log.data.PityState
 import com.gatcha.log.ui.components.BannerSkeleton
@@ -47,13 +51,14 @@ fun GameInfoScreen(viewModel: SpendingViewModel) {
     val banners by viewModel.activeBanners.collectAsState()
     val events by viewModel.gameEvents.collectAsState()
     val notes by viewModel.liveNotes.collectAsState()
+    val ledgers by viewModel.ledgers.collectAsState()
+    val combat by viewModel.combat.collectAsState()
     val attendanceToday by viewModel.attendanceToday.collectAsState()
     val hoyolab by viewModel.hoyolabConfig.collectAsState()
     val isRefreshing by viewModel.isRefreshing.collectAsState()
     val challenges by viewModel.challenges.collectAsState()
     val wishlist by viewModel.wishlist.collectAsState()
     val pity by viewModel.pity.collectAsState()
-    val eventChecks by viewModel.eventChecks.collectAsState()
     val checkingIn by viewModel.checkingIn.collectAsState()
     val attendanceStreak by viewModel.attendanceStreak.collectAsState()
     // statusMessage 토스트는 상위 HomeScreen 의 전역 GlgStatusToast 가 처리
@@ -79,7 +84,7 @@ fun GameInfoScreen(viewModel: SpendingViewModel) {
     val showHoyolabDialog = remember { mutableStateOf(false) }
     val showRateDialog = remember { mutableStateOf(false) }
 
-    PullToRefreshBox(
+    GlgPullToRefreshBox(
         isRefreshing = isRefreshing,
         onRefresh = { viewModel.refreshGameInfo() },
         modifier = Modifier.fillMaxSize(),
@@ -97,10 +102,10 @@ fun GameInfoScreen(viewModel: SpendingViewModel) {
                     Text("게임 정보", fontSize = 24.sp, fontWeight = FontWeight.Bold)
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         GachaRateButton { showRateDialog.value = true }
-                        GlgCircleIconButton(Icons.Default.Refresh, "새로고침", loading = isRefreshing, enabled = !isRefreshing) {
+                        GlgCircleIconButton(Icons.Default.Refresh, "새로고침", loading = isRefreshing, enabled = !isRefreshing, outlined = true) {
                             viewModel.refreshGameInfo()
                         }
-                        GlgCircleIconButton(Icons.Default.Settings, "HoYoLAB 설정") {
+                        GlgCircleIconButton(Icons.Default.Settings, "HoYoLAB 설정", outlined = true) {
                             showHoyolabDialog.value = true
                         }
                     }
@@ -119,15 +124,18 @@ fun GameInfoScreen(viewModel: SpendingViewModel) {
                     onConfigClick = { showHoyolabDialog.value = true },
                 )
             }
+            // 배너·전투 진행도·수입 일지를 게임 칩으로 번갈아 보는 통합 섹션
             item { Spacer(Modifier.height(20.dp)) }
-            if (banners.isEmpty() && isRefreshing) {
-                item { BannerSkeleton() }
-                item { Spacer(Modifier.height(20.dp)) }
-                item { ListSkeleton(rows = 2, titleWidth = 80.dp) }
-                item { Spacer(Modifier.height(20.dp)) }
-            } else {
-                item { BannerSection(banners) }
-                item { Spacer(Modifier.height(20.dp)) }
+            item {
+                GameTabbedSection(
+                    banners = banners,
+                    combat = combat,
+                    ledgers = ledgers,
+                    isRefreshing = isRefreshing,
+                )
+            }
+            item { Spacer(Modifier.height(20.dp)) }
+            if (!(banners.isEmpty() && isRefreshing)) {
                 item { PatchSection(banners) }
                 item { Spacer(Modifier.height(20.dp)) }
             }
@@ -181,8 +189,6 @@ fun GameInfoScreen(viewModel: SpendingViewModel) {
                 }
                 if (events.isNotEmpty()) {
                     item { EventSection(events) }
-                    item { Spacer(Modifier.height(20.dp)) }
-                    item { EventChecklistSection(events, eventChecks) { viewModel.toggleEventCheck(it) } }
                 }
             }
         }
@@ -228,34 +234,49 @@ private fun GachaRateButton(onClick: () -> Unit) {
 
 @Composable
 fun EventSection(events: List<GameEvent>) {
-    val accent = LocalAccent.current
     Text("진행 중인 이벤트", fontSize = 16.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 12.dp))
-    GlassCard(
-        shape = RoundedCornerShape(24.dp),
-        modifier = Modifier.fillMaxWidth(),
-    ) {
+    val byGame = events.groupBy { it.game }
+    GlassCard(shape = RoundedCornerShape(24.dp), modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp)) {
-            events.take(8).forEachIndexed { index, event ->
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
-                        Box(Modifier.size(8.dp).background(event.gameColor, CircleShape))
-                        Spacer(Modifier.width(8.dp))
-                        Column(Modifier.weight(1f)) {
-                            Text(event.name, fontWeight = FontWeight.Medium, fontSize = 13.sp, maxLines = 1)
-                            if (event.reward.isNotBlank()) {
-                                Text(event.reward, fontSize = 11.sp, color = TextSecondary, maxLines = 1)
-                            }
-                        }
-                    }
-                    Spacer(Modifier.width(8.dp))
-                    Text(event.dDayLabel(), color = accent, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+            val gamesWithData = GameData.games.filter { byGame.containsKey(it.displayName) }
+            gamesWithData.forEachIndexed { gi, game ->
+                if (gi > 0) { Spacer(Modifier.height(14.dp)); HorizontalDivider(color = DividerColor); Spacer(Modifier.height(10.dp)) }
+                GameSubHeader(game)
+                byGame[game.displayName].orEmpty().sortedBy { it.endMillis }.take(6).forEach { ev ->
+                    ScheduleRow(ev.name, ev.reward, ev.endMillis, ev.dDayLabel())
                 }
-                if (index < events.take(8).lastIndex) HorizontalDivider(color = DividerColor)
             }
+        }
+    }
+}
+
+/** 게임별 그룹 헤더 (컬러 점 + 게임 약칭). 이벤트·정기콘텐츠 섹션 공용. */
+@Composable
+private fun GameSubHeader(game: Game) {
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 2.dp, bottom = 4.dp)) {
+        Box(Modifier.size(8.dp).background(game.color, CircleShape))
+        Spacer(Modifier.width(7.dp))
+        Text(game.shortName, fontWeight = FontWeight.Bold, fontSize = 13.sp, color = game.color)
+    }
+}
+
+/** 이벤트·정기콘텐츠 한 줄 (이름 + 보조설명 / 종료일 ~M/d + D-day). */
+@Composable
+private fun ScheduleRow(name: String, sub: String, endMillis: Long, dDayLabel: String) {
+    val accent = LocalAccent.current
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 9.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(name, fontWeight = FontWeight.Medium, fontSize = 13.sp, maxLines = 1)
+            if (sub.isNotBlank()) Text(sub, fontSize = 11.sp, color = TextSecondary, maxLines = 1)
+        }
+        Spacer(Modifier.width(10.dp))
+        Column(horizontalAlignment = Alignment.End) {
+            Text("~ ${DateUtil.shortDate(endMillis)}", fontSize = 11.sp, color = TextSecondary)
+            Text(dDayLabel, color = accent, fontWeight = FontWeight.Bold, fontSize = 13.sp)
         }
     }
 }
@@ -358,6 +379,7 @@ private fun StreakChip(streak: Int) {
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun DailyGameRow(game: Game, note: LiveNote?, uid: String, checked: Boolean, inProgress: Boolean, onCheckIn: () -> Unit) {
     val accent = LocalAccent.current
@@ -419,19 +441,205 @@ private fun DailyGameRow(game: Game, note: LiveNote?, uid: String, checked: Bool
                 modifier = Modifier.fillMaxWidth().height(4.dp).clip(CircleShape),
             )
         }
+        if (note != null && note.extras.isNotEmpty()) {
+            Spacer(Modifier.height(8.dp))
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                note.extras.forEach { NoteStatChip(it) }
+            }
+        }
+    }
+}
+
+/** 실시간 노트 부가 통계 칩 (탐사 파견·주간 보스·세진 등). highlight 항목은 강조색으로 채운다. */
+@Composable
+private fun NoteStatChip(stat: NoteStat) {
+    val accent = LocalAccent.current
+    val bg = if (stat.highlight) accent.copy(alpha = 0.14f) else Color(0xFFF2F2F6)
+    Surface(color = bg, shape = RoundedCornerShape(8.dp)) {
+        Row(
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(stat.label, fontSize = 10.sp, color = TextSecondary)
+            Spacer(Modifier.width(4.dp))
+            Text(
+                stat.value,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold,
+                color = if (stat.highlight) accent else TextPrimary,
+            )
+        }
+    }
+}
+
+// ============================================================ 전투 콘텐츠 진행도 (게임별 카드)
+/** 게임별 전투 콘텐츠 진행도 카드 (나선 비경·현실 속 환상극 / 혼돈의 기억·허구 이야기·종말의 환영). */
+@Composable
+private fun CombatGameCard(game: Game, modes: List<CombatMode>) {
+    GlassCard(shape = RoundedCornerShape(24.dp), modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 2.dp)) {
+                Box(Modifier.size(10.dp).background(game.color, CircleShape))
+                Spacer(Modifier.width(8.dp))
+                Text(game.shortName, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+            }
+            modes.forEachIndexed { i, m ->
+                CombatRow(m)
+                if (i < modes.lastIndex) HorizontalDivider(color = DividerColor)
+            }
+        }
     }
 }
 
 @Composable
-fun BannerSection(banners: List<GachaBanner>) {
-    Text("픽업 배너 D-Day", fontSize = 16.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 12.dp))
-    val byGame = banners.groupBy { it.game }
-    // 게임별 카드 하나로 통합 (원신 → 스타레일 순)
-    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        GameData.games.forEach { game ->
-            val list = byGame[game.displayName].orEmpty()
-            if (list.isNotEmpty()) GameBannerCard(game, list)
+private fun CombatRow(m: CombatMode) {
+    val accent = LocalAccent.current
+    Column(Modifier.padding(vertical = 10.dp)) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Top) {
+            Column(Modifier.weight(1f)) {
+                Text(m.name, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                Text(m.detail, fontSize = 11.sp, color = TextSecondary, maxLines = 1)
+            }
+            Spacer(Modifier.width(8.dp))
+            Column(horizontalAlignment = Alignment.End) {
+                when {
+                    m.maxStars > 0 -> Text("⭐ ${m.stars}/${m.maxStars}", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = m.gameColor)
+                    m.hasData -> Text("메달 ${m.stars}", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = m.gameColor)
+                }
+                val d = m.dDay()
+                if (d != null && d >= 0) Text("D-$d", fontSize = 11.sp, color = accent, fontWeight = FontWeight.Bold)
+            }
         }
+        if (m.hasData && m.maxStars > 0) {
+            Spacer(Modifier.height(8.dp))
+            LinearProgressIndicator(
+                progress = { m.ratio },
+                color = m.gameColor, trackColor = ProgressEmpty,
+                modifier = Modifier.fillMaxWidth().height(4.dp).clip(CircleShape),
+            )
+        }
+    }
+}
+
+// ============================================================ 월간 수입 일지 (게임별 카드)
+/** 게임별 이번 달 재화 수입 카드 (여행자의 일지 / 폴리크롬 일지). */
+@Composable
+private fun LedgerCard(ledger: MonthlyLedger) {
+    val accent = LocalAccent.current
+    GlassCard(shape = RoundedCornerShape(24.dp), modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.size(10.dp).background(ledger.gameColor, CircleShape))
+                Spacer(Modifier.width(8.dp))
+                Text(GameData.byName(ledger.game).shortName, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                if (ledger.month > 0) {
+                    Spacer(Modifier.width(6.dp))
+                    Text("${ledger.month}월", fontSize = 12.sp, color = TextSecondary)
+                }
+            }
+            Spacer(Modifier.height(12.dp))
+            Row(verticalAlignment = Alignment.Bottom) {
+                Text("%,d".format(ledger.premium), fontSize = 28.sp, fontWeight = FontWeight.Bold, color = accent)
+                Spacer(Modifier.width(6.dp))
+                Text(ledger.premiumLabel, fontSize = 13.sp, color = TextSecondary, modifier = Modifier.padding(bottom = 4.dp))
+                ledger.premiumDelta?.let { d ->
+                    Spacer(Modifier.width(10.dp))
+                    val up = d >= 0
+                    Text(
+                        (if (up) "▲ " else "▼ ") + "%,d".format(kotlin.math.abs(d)),
+                        fontSize = 12.sp, fontWeight = FontWeight.Bold,
+                        color = if (up) Color(0xFF1FB16B) else Color(0xFFE5484D),
+                        modifier = Modifier.padding(bottom = 5.dp),
+                    )
+                }
+            }
+            if (ledger.gold > 0) {
+                Spacer(Modifier.height(2.dp))
+                Text("${ledger.goldLabel} ${"%,d".format(ledger.gold)}", fontSize = 12.sp, color = TextSecondary)
+            }
+            if (ledger.breakdown.isNotEmpty()) {
+                Spacer(Modifier.height(14.dp))
+                ledger.breakdown.take(5).forEach { e ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(e.action, fontSize = 12.sp, modifier = Modifier.weight(1f), maxLines = 1)
+                        Text("%,d".format(e.num), fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                        Spacer(Modifier.width(8.dp))
+                        Text("${e.percent}%", fontSize = 11.sp, color = TextSecondary, modifier = Modifier.width(36.dp), textAlign = TextAlign.End)
+                    }
+                    LinearProgressIndicator(
+                        progress = { (e.percent / 100f).coerceIn(0f, 1f) },
+                        color = ledger.gameColor, trackColor = ProgressEmpty,
+                        modifier = Modifier.fillMaxWidth().height(3.dp).clip(CircleShape),
+                    )
+                }
+            }
+        }
+    }
+}
+
+// ============================================================ 통합 게임 탭 (배너·전투·일지)
+/** 게임 칩으로 선택 게임의 픽업 배너·전투 진행도·수입 일지를 번갈아 표시 (세로 스크롤 단축). */
+@Composable
+fun GameTabbedSection(
+    banners: List<GachaBanner>,
+    combat: List<CombatMode>,
+    ledgers: List<MonthlyLedger>,
+    isRefreshing: Boolean,
+) {
+    val games = GameData.attendanceGames // 원신·스타레일·젠레스
+    var selectedKey by remember { mutableStateOf("genshin") }
+    val sel = games.firstOrNull { it.key == selectedKey } ?: games.first()
+    val selBanners = banners.filter { it.game == sel.displayName }
+    val selCombat = combat.filter { it.game == sel.displayName }
+    val selLedger = ledgers.firstOrNull { it.game == sel.displayName }
+    val empty = selBanners.isEmpty() && selCombat.isEmpty() && selLedger == null
+
+    Column {
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            games.forEach { g -> GameTabChip(g, g.key == selectedKey) { selectedKey = g.key } }
+        }
+        Spacer(Modifier.height(16.dp))
+        when {
+            empty && isRefreshing -> BannerSkeleton()
+            empty -> GlassCard(shape = RoundedCornerShape(24.dp), modifier = Modifier.fillMaxWidth()) {
+                Box(Modifier.fillMaxWidth().padding(28.dp), contentAlignment = Alignment.Center) {
+                    Text("${sel.shortName} 정보가 아직 없어요", fontSize = 13.sp, color = TextSecondary)
+                }
+            }
+            else -> Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                if (selBanners.isNotEmpty()) GameContentBlock("픽업 배너 D-Day") { GameBannerCard(sel, selBanners) }
+                if (selCombat.isNotEmpty()) GameContentBlock("전투 콘텐츠 진행도") { CombatGameCard(sel, selCombat) }
+                if (selLedger != null) GameContentBlock("이번 달 수입 일지") { LedgerCard(selLedger) }
+            }
+        }
+    }
+}
+
+@Composable
+private fun GameContentBlock(label: String, content: @Composable () -> Unit) {
+    Column {
+        Text(label, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextSecondary, modifier = Modifier.padding(start = 2.dp, bottom = 8.dp))
+        content()
+    }
+}
+
+@Composable
+private fun GameTabChip(game: Game, selected: Boolean, onClick: () -> Unit) {
+    Surface(
+        modifier = Modifier.clickable { onClick() },
+        shape = RoundedCornerShape(20.dp),
+        color = if (selected) game.color else Color.White,
+        border = BorderStroke(1.5.dp, if (selected) game.color else DividerColor),
+    ) {
+        Text(
+            game.shortName,
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+            fontSize = 13.sp, fontWeight = FontWeight.Bold,
+            color = if (selected) Color.White else game.color,
+        )
     }
 }
 
@@ -742,82 +950,18 @@ private fun PityBtn(label: String, onClick: () -> Unit) {
 // ============================================================ 정기 콘텐츠
 @Composable
 fun ChallengeSection(challenges: List<GameChallenge>) {
-    val accent = LocalAccent.current
     Text("정기 콘텐츠", fontSize = 16.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 12.dp))
+    val byGame = challenges.groupBy { it.game }
     GlassCard(shape = RoundedCornerShape(24.dp), modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp)) {
-            val list = challenges.take(8)
-            list.forEachIndexed { i, ch ->
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
-                        Box(Modifier.size(8.dp).background(ch.gameColor, CircleShape))
-                        Spacer(Modifier.width(8.dp))
-                        Column(Modifier.weight(1f)) {
-                            Text(ch.name, fontWeight = FontWeight.Bold, fontSize = 13.sp, maxLines = 1)
-                            Text(
-                                listOfNotNull(
-                                    GameData.byName(ch.game).shortName,
-                                    ch.typeName.removePrefix("ChallengeType").removePrefix("ActType").trim().ifBlank { null },
-                                    ch.reward.ifBlank { null },
-                                ).joinToString(" · "),
-                                fontSize = 11.sp, color = TextSecondary, maxLines = 1,
-                            )
-                        }
-                    }
-                    Spacer(Modifier.width(8.dp))
-                    Text(ch.dDayLabel(), color = accent, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+            val gamesWithData = GameData.games.filter { byGame.containsKey(it.displayName) }
+            gamesWithData.forEachIndexed { gi, game ->
+                if (gi > 0) { Spacer(Modifier.height(14.dp)); HorizontalDivider(color = DividerColor); Spacer(Modifier.height(10.dp)) }
+                GameSubHeader(game)
+                byGame[game.displayName].orEmpty().sortedBy { it.endMillis }.take(6).forEach { ch ->
+                    // 보조설명은 보상만 — ennead type_name(RoleCombat/Tower 등 영문 코드)은 가독성 떨어져 제외
+                    ScheduleRow(ch.name, ch.reward, ch.endMillis, ch.dDayLabel())
                 }
-                if (i < list.lastIndex) HorizontalDivider(color = DividerColor)
-            }
-        }
-    }
-}
-
-// ============================================================ 이벤트 체크리스트
-@Composable
-fun EventChecklistSection(events: List<GameEvent>, checks: Set<String>, onToggle: (String) -> Unit) {
-    val accent = LocalAccent.current
-    val list = events.take(12)
-    val done = list.count { "${it.name}_${it.endMillis}" in checks }
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text("이벤트 체크리스트", fontSize = 16.sp, fontWeight = FontWeight.Bold)
-        Text("$done / ${list.size}", fontSize = 12.sp, color = TextSecondary, fontWeight = FontWeight.Bold)
-    }
-    GlassCard(shape = RoundedCornerShape(24.dp), modifier = Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp)) {
-            list.forEachIndexed { i, ev ->
-                val key = "${ev.name}_${ev.endMillis}"
-                val checked = key in checks
-                Row(
-                    modifier = Modifier.fillMaxWidth().clickable { onToggle(key) }.padding(vertical = 10.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Icon(
-                        if (checked) Icons.Default.CheckCircle else Icons.Default.CheckCircleOutline,
-                        contentDescription = null,
-                        tint = if (checked) accent else Color.LightGray,
-                        modifier = Modifier.size(22.dp),
-                    )
-                    Spacer(Modifier.width(10.dp))
-                    Text(
-                        ev.name,
-                        fontSize = 14.sp,
-                        color = if (checked) TextSecondary else TextPrimary,
-                        textDecoration = if (checked) TextDecoration.LineThrough else null,
-                        modifier = Modifier.weight(1f),
-                        maxLines = 1,
-                    )
-                    Text(ev.dDayLabel(), fontSize = 11.sp, color = TextSecondary)
-                }
-                if (i < list.lastIndex) HorizontalDivider(color = DividerColor)
             }
         }
     }

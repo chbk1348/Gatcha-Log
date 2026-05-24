@@ -15,6 +15,7 @@ import com.gatcha.log.data.Game
 import com.gatcha.log.data.GameChallenge
 import com.gatcha.log.data.GachaRecord
 import com.gatcha.log.data.GachaReport
+import com.gatcha.log.data.CombatMode
 import com.gatcha.log.data.GachaStats
 import com.gatcha.log.data.GameData
 import com.gatcha.log.data.GameEvent
@@ -22,6 +23,7 @@ import com.gatcha.log.data.PityState
 import com.gatcha.log.data.GatchaRepository
 import com.gatcha.log.data.HoyolabConfig
 import com.gatcha.log.data.LiveNote
+import com.gatcha.log.data.MonthlyLedger
 import com.gatcha.log.data.Spending
 import com.gatcha.log.data.Subscription
 import com.gatcha.log.data.UserProfile
@@ -248,6 +250,14 @@ class SpendingViewModel(app: Application) : AndroidViewModel(app) {
     private val _liveNotes = MutableStateFlow<List<LiveNote>>(emptyList())
     val liveNotes: StateFlow<List<LiveNote>> = _liveNotes.asStateFlow()
 
+    // 월간 수입 일지(여행자의 일지·개척의 길). HoYoLAB 연동 시에만 채워진다.
+    private val _ledgers = MutableStateFlow<List<MonthlyLedger>>(emptyList())
+    val ledgers: StateFlow<List<MonthlyLedger>> = _ledgers.asStateFlow()
+
+    // 전투 콘텐츠 진행도(나선 비경·현실 속 환상극·혼돈의 기억·허구 이야기·종말의 환영).
+    private val _combat = MutableStateFlow<List<CombatMode>>(emptyList())
+    val combat: StateFlow<List<CombatMode>> = _combat.asStateFlow()
+
     private val _gameEvents = MutableStateFlow<List<GameEvent>>(emptyList())
     val gameEvents: StateFlow<List<GameEvent>> = _gameEvents.asStateFlow()
 
@@ -455,11 +465,18 @@ class SpendingViewModel(app: Application) : AndroidViewModel(app) {
                     "zzz" to cfg.zzzUid,
                 )
                 val notes = mutableListOf<LiveNote>()
+                val ledgers = mutableListOf<MonthlyLedger>()
+                val combats = mutableListOf<CombatMode>()
                 uids.filterValues { it.isNotBlank() }.forEach { (key, uid) ->
                     val res = HoyolabApi.getLiveNote(cfg.ltuid, cfg.ltoken, key, uid)
                     res.note?.let { notes += it }
+                    HoyolabApi.getMonthlyLedger(cfg.ltuid, cfg.ltoken, key, uid)
+                        ?.takeIf { it.hasData }?.let { ledgers += it }
+                    combats += HoyolabApi.getCombat(cfg.ltuid, cfg.ltoken, key, uid)
                 }
                 if (notes.isNotEmpty()) _liveNotes.value = notes
+                if (ledgers.isNotEmpty()) _ledgers.value = ledgers
+                if (combats.isNotEmpty()) _combat.value = combats
             }
 
             _isRefreshing.value = false

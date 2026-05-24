@@ -15,7 +15,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
-import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import com.gatcha.log.ui.components.GlgPullToRefreshBox
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -50,10 +50,8 @@ import com.gatcha.log.ui.components.GlgDialog
 import com.gatcha.log.ui.components.GlgStatusToast
 import com.gatcha.log.ui.components.ProfileAvatar
 import com.gatcha.log.ui.components.GlgTextField
-import com.gatcha.log.ui.components.LocalHazeState
 import com.gatcha.log.ui.components.NoteSkeletonRow
 import com.gatcha.log.ui.theme.*
-import dev.chrisbanes.haze.HazeState
 
 @Composable
 fun HomeScreen(viewModel: SpendingViewModel = viewModel()) {
@@ -62,8 +60,6 @@ fun HomeScreen(viewModel: SpendingViewModel = viewModel()) {
     val spendingToEdit = remember { mutableStateOf<Spending?>(null) }
     val accent = LocalAccent.current
 
-    // 배경 Haze 소스(정적 그라데이션). 카드/내비는 더 이상 라이브 블러를 쓰지 않아 스크롤이 가볍다.
-    val bgHaze = remember { HazeState() }
 
     val openEditor: (Spending?) -> Unit = { target ->
         spendingToEdit.value = target
@@ -92,10 +88,9 @@ fun HomeScreen(viewModel: SpendingViewModel = viewModel()) {
             )
         },
     ) { paddingValues ->
-        CompositionLocalProvider(LocalHazeState provides bgHaze) {
-            GlassBackground(hazeState = bgHaze, modifier = Modifier.fillMaxSize()) {
-                // 콘텐츠는 하단바 아래까지 확장(상단 인셋만 적용) → 글래스 내비가 실제 콘텐츠를 블러
-                Box(modifier = Modifier.fillMaxSize().padding(top = paddingValues.calculateTopPadding())) {
+        GlassBackground(modifier = Modifier.fillMaxSize()) {
+            // 콘텐츠는 하단바 아래까지 확장(상단 인셋만 적용)
+            Box(modifier = Modifier.fillMaxSize().padding(top = paddingValues.calculateTopPadding())) {
                     when (selectedTab) {
                         0 -> HomeContent(
                             viewModel,
@@ -142,7 +137,6 @@ fun HomeScreen(viewModel: SpendingViewModel = viewModel()) {
                     )
                 }
             }
-        }
     }
 }
 
@@ -173,7 +167,7 @@ fun HomeContent(viewModel: SpendingViewModel, onNavigateToGameInfo: () -> Unit, 
     val showNotifications = remember { mutableStateOf(false) }
     val showBudgetDialog = remember { mutableStateOf(false) }
 
-    PullToRefreshBox(
+    GlgPullToRefreshBox(
         isRefreshing = isRefreshing,
         onRefresh = { viewModel.refreshGameInfo() },
         modifier = Modifier.fillMaxSize(),

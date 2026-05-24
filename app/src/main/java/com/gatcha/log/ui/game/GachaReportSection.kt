@@ -46,7 +46,8 @@ fun GachaReportSection(
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
         if (uris.isNotEmpty()) onImport(uris)
     }
-    val openPicker = { picker.launch(arrayOf("application/json", "application/octet-stream", "text/plain")) }
+    // MIME 필터를 좁히면 일부 제공자(삼성 SAF·클라우드)가 JSON 을 회색 처리해 선택 불가 → */* 로 전부 허용
+    val openPicker = { picker.launch(arrayOf("*/*")) }
 
     Row(
         modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),

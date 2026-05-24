@@ -54,7 +54,7 @@
 |---|---|
 | 언어 / UI | Kotlin 2.3.21, Jetpack Compose (Material 3, BOM 2024.09.00) |
 | 빌드 | AGP 9.2.1, Gradle Wrapper 9.x |
-| 디자인 | 글래스모피즘 — [Haze](https://github.com/chrisbanes/haze) 1.0, 커스텀 컴포넌트(`Glg*`), 테마 강조색 |
+| 디자인 | 솔리드 글래스 카드 + 테마 그라데이션 배경(스크롤 성능 위해 라이브 블러 제거), 커스텀 컴포넌트(`Glg*`), 테마 강조색 |
 | 로컬 저장 | SharedPreferences + `org.json` (Room/KSP 미사용 → 추가 플러그인 0) |
 | 클라우드 | Firebase Auth(Google) + Cloud Firestore (계정별 스냅샷 동기화) |
 | 외부 API | ennead.cc(배너/캘린더) · HoYoLAB(노트/출석) · Enka.Network(프로필) · Yatta(캐릭터명) |
@@ -126,7 +126,7 @@ app/src/main/java/com/gatcha/log/
 
 ## 🎨 디자인
 
-- iOS풍 **글래스모피즘** 배경 + 프로스티드 하단 내비(Haze backdrop blur)
+- iOS풍 **글래스모피즘** — 솔리드 카드 + 테마 그라데이션 배경(스크롤 성능 위해 라이브 backdrop blur 제거)
 - 회색 리플 대신 **눌림(스케일) 인디케이션** 전역 적용
 - 커스텀 입력/버튼/다이얼로그/날짜선택기 + 시머 **스켈레톤 로딩**
 - 런처 아이콘: 민트 그라데이션 + ✨ 스파클(어댑티브/모노크롬)
