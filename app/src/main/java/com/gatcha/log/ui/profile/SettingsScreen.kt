@@ -11,7 +11,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -25,6 +24,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.gatcha.log.ui.components.GlassCard
 import com.gatcha.log.ui.components.GlgButton
+import com.gatcha.log.ui.components.GlgScreenHeader
 import com.gatcha.log.ui.components.GlgDialog
 import com.gatcha.log.ui.components.GlgOutlineButton
 import com.gatcha.log.ui.components.ProfileAvatar
@@ -62,21 +62,7 @@ fun SettingsScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
         modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
         contentPadding = PaddingValues(bottom = 120.dp),
     ) {
-        item {
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(top = 16.dp, bottom = 16.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Box(
-                    Modifier.size(36.dp).clip(CircleShape).background(Color(0xFFF2F2F6)).clickable { onBack() },
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Icon(Icons.AutoMirrored.Filled.ArrowBack, "뒤로", tint = TextSecondary, modifier = Modifier.size(20.dp))
-                }
-                Spacer(Modifier.width(12.dp))
-                Text("설정", fontSize = 22.sp, fontWeight = FontWeight.Bold)
-            }
-        }
+        item { GlgScreenHeader("설정", onBack) }
 
         // 계정
         item { SectionTitle("계정") }
@@ -235,15 +221,24 @@ private fun UplogDialog(versionName: String, onDismiss: () -> Unit) {
         onConfirm = onDismiss,
         dismissText = null,
     ) {
-        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
             UplogEntry(
-                "v${versionName.ifBlank { "27.1.0" }}",
+                "v${versionName.ifBlank { "27.2.0" }}",
                 listOf(
-                    "지출·예산·연간 리포트, 구독 관리",
-                    "게임 정보: 배너·이벤트·실시간 노트·출석",
-                    "가챠 확률표·통합 계산기·천장 카운터",
-                    "프로필 쇼케이스(Enka)·가챠 효율 리포트(UIGF/SRGF)",
-                    "구글 계정 클라우드 동기화",
+                    "마이페이지 프로필 대시보드로 대개편",
+                    "지출 상세 · 연간 리포트 · 알림 상세 페이지 추가",
+                    "알림 읽음 처리 + 바로가기(액션형 알림)",
+                    "프로필 쇼케이스 캐릭터 아이콘·원소 표시",
+                    "화면 전환 애니메이션, 버튼·뒤로가기 디자인 통일",
+                    "시스템 뒤로가기 종료 오발 방지",
+                ),
+            )
+            UplogEntry(
+                "v27.1.1",
+                listOf(
+                    "홈 프로필 영역 개편, 당겨서 새로고침",
+                    "지출 필터·상단 정리, 카드·태그 디자인 개선",
+                    "구글 프로필 사진 표시",
                 ),
             )
         }

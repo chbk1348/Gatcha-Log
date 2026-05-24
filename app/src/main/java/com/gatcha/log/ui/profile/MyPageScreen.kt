@@ -1,6 +1,5 @@
 package com.gatcha.log.ui.profile
 
-import android.content.Intent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -9,7 +8,6 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -17,22 +15,18 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.gatcha.log.data.Spending
 import com.gatcha.log.ui.components.GlassCard
-import com.gatcha.log.ui.components.GlgButton
 import com.gatcha.log.ui.components.GlgCircleIconButton
-import com.gatcha.log.ui.components.GlgDialog
-import com.gatcha.log.ui.components.GlgOutlineButton
-import com.gatcha.log.ui.components.GlgTextField
 import com.gatcha.log.ui.components.ProfileAvatar
-import com.gatcha.log.ui.game.HoyolabConfigDialog
 import com.gatcha.log.ui.spending.SpendingViewModel
 import com.gatcha.log.ui.theme.*
 
@@ -41,98 +35,209 @@ fun MyPageScreen(viewModel: SpendingViewModel) {
     val spendings by viewModel.spendings.collectAsState()
     val profile by viewModel.profile.collectAsState()
     val account by viewModel.account.collectAsState()
+    val attendanceStreak by viewModel.attendanceStreak.collectAsState()
+    val gachaStats by viewModel.gachaStats.collectAsState()
+    val context = LocalContext.current
 
     val showSettings = remember { mutableStateOf(false) }
+    val signInLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) {
+        viewModel.onGoogleSignInResult(it.data)
+    }
 
     if (showSettings.value) {
         SettingsScreen(viewModel) { showSettings.value = false }
         return
     }
 
+    val monthlyTotal = remember(spendings) { viewModel.monthlyTotal() }
+    val total = remember(spendings) { spendings.sumOf { it.amount } }
+    val games = remember(spendings) { spendings.map { it.gameName }.distinct().size }
+    val gachaTotal = gachaStats?.total ?: 0
+
+    LazyColumn(
+        modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
+        contentPadding = PaddingValues(bottom = 120.dp),
+    ) {
+        item {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(top = 24.dp, bottom = 16.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text("마이페이지", fontSize = 24.sp, fontWeight = FontWeight.Bold)
+                GlgCircleIconButton(Icons.Default.Settings, "설정", outlined = true) { showSettings.value = true }
+            }
+        }
+        item {
+            ProfileHeroCard(
+                name = if (account.isGuest) "게스트" else profile.name,
+                email = if (account.isGuest) "" else profile.email,
+                photoUrl = if (account.isGuest) null else account.photoUrl,
+                isGuest = account.isGuest,
+                onLogin = { signInLauncher.launch(viewModel.googleSignInIntent(context)) },
+            )
+        }
+        item { Spacer(Modifier.height(22.dp)) }
+
+        item { SectionLabel("활동 통계") }
+        item {
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                StatTile(Icons.Default.LocalFireDepartment, "${attendanceStreak}일", "연속 출석", Modifier.weight(1f), tint = Color(0xFFFF7A45))
+                StatTile(Icons.Default.CalendarMonth, "₩%,d".format(monthlyTotal), "이번 달 지출", Modifier.weight(1f))
+            }
+        }
+        item { Spacer(Modifier.height(12.dp)) }
+        item {
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                StatTile(Icons.Default.Payments, "₩%,d".format(total), "총 지출", Modifier.weight(1f))
+                StatTile(Icons.Default.Casino, "${gachaTotal}회", "가챠 기록", Modifier.weight(1f))
+                StatTile(Icons.Default.Games, "${games}개", "게임 수", Modifier.weight(1f))
+            }
+        }
+        item { Spacer(Modifier.height(24.dp)) }
+
+        item { SectionLabel("게임별 지출 TOP") }
+        item { TopGamesCard(spendings) }
+    }
+}
+
+@Composable
+private fun SectionLabel(text: String) {
+    Text(text, fontSize = 16.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 12.dp))
+}
+
+/** 강조색 그라데이션 프로필 히어로 — 아바타·이름·동기화 상태(+게스트 로그인). */
+@Composable
+private fun ProfileHeroCard(
+    name: String,
+    email: String,
+    photoUrl: String?,
+    isGuest: Boolean,
+    onLogin: () -> Unit,
+) {
+    val accent = LocalAccent.current
     Box(
         modifier = Modifier
-            .fillMaxSize(),
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(28.dp))
+            .background(Brush.linearGradient(listOf(accent, lerp(accent, Color.Black, 0.22f))))
+            .padding(20.dp),
     ) {
-        LazyColumn(
-            modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
-            contentPadding = PaddingValues(bottom = 120.dp),
-        ) {
-            item {
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(top = 24.dp, bottom = 16.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically,
+        Column {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                // 흰색 링 안에 아바타
+                Box(
+                    Modifier.size(70.dp).clip(CircleShape).background(Color.White),
+                    contentAlignment = Alignment.Center,
                 ) {
-                    Text("마이페이지", fontSize = 24.sp, fontWeight = FontWeight.Bold)
-                    GlgCircleIconButton(Icons.Default.Settings, "설정") { showSettings.value = true }
+                    ProfileAvatar(photoUrl = photoUrl, size = 64.dp)
+                }
+                Spacer(Modifier.width(16.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(name, fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Color.White, maxLines = 1)
+                    Spacer(Modifier.height(6.dp))
+                    Surface(color = Color.White.copy(alpha = 0.22f), shape = RoundedCornerShape(20.dp)) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Icon(
+                                if (isGuest) Icons.Default.CloudOff else Icons.Default.CloudDone,
+                                null, tint = Color.White, modifier = Modifier.size(13.dp),
+                            )
+                            Spacer(Modifier.width(4.dp))
+                            Text(
+                                if (isGuest) "게스트 · 동기화 꺼짐" else "구글 계정 동기화",
+                                fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = Color.White,
+                            )
+                        }
+                    }
                 }
             }
-            item {
-                UserProfileHeader(
-                    name = if (account.isGuest) "게스트" else profile.name,
-                    email = if (account.isGuest) "로그인하면 계정별로 분리 저장돼요 (설정 ⚙️)" else profile.email,
-                    photoUrl = if (account.isGuest) null else account.photoUrl,
-                )
-            }
-            item { Spacer(Modifier.height(24.dp)) }
-            item { SummaryStatsSection(spendings) }
-        }
-    }
-}
-
-private fun shareCsv(context: android.content.Context, csv: String) {
-    val intent = Intent(Intent.ACTION_SEND).apply {
-        type = "text/plain"
-        putExtra(Intent.EXTRA_SUBJECT, "Gatcha LOG 지출 내역")
-        putExtra(Intent.EXTRA_TEXT, csv)
-    }
-    context.startActivity(Intent.createChooser(intent, "지출 내역 내보내기"))
-}
-
-@Composable
-fun UserProfileHeader(name: String, email: String, photoUrl: String?) {
-    GlassCard(
-        shape = RoundedCornerShape(24.dp),
-        modifier = Modifier.fillMaxWidth(),
-    ) {
-        Row(modifier = Modifier.padding(20.dp), verticalAlignment = Alignment.CenterVertically) {
-            ProfileAvatar(photoUrl = photoUrl, size = 60.dp)
-            Spacer(Modifier.width(16.dp))
-            Column(Modifier.weight(1f)) {
-                Text(name, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-                Text(email, fontSize = 12.sp, color = TextSecondary)
+            if (isGuest) {
+                Spacer(Modifier.height(16.dp))
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(Color.White)
+                        .clickable { onLogin() }
+                        .padding(vertical = 12.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text("Google로 로그인", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = accent)
+                }
+            } else if (email.isNotBlank()) {
+                Spacer(Modifier.height(12.dp))
+                Text(email, fontSize = 12.sp, color = Color.White.copy(alpha = 0.85f), maxLines = 1)
             }
         }
     }
 }
 
+/** 아이콘 + 값 + 라벨 통계 타일. */
 @Composable
-fun SummaryStatsSection(spendings: List<Spending>) {
-    val total = spendings.sumOf { it.amount }
-    val count = spendings.size
-    val games = spendings.map { it.gameName }.distinct().size
-
-    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        StatCard("총 지출", "₩%,d".format(total), Modifier.weight(1f))
-        StatCard("기록 횟수", "${count}회", Modifier.weight(1f))
-        StatCard("게임 수", "${games}개", Modifier.weight(1f))
-    }
-}
-
-@Composable
-fun StatCard(label: String, value: String, modifier: Modifier) {
+private fun StatTile(icon: ImageVector, value: String, label: String, modifier: Modifier, tint: Color? = null) {
     val accent = LocalAccent.current
-    GlassCard(
-        shape = RoundedCornerShape(20.dp),
-        modifier = modifier,
-    ) {
-        Column(modifier = Modifier.padding(16.dp).fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(label, fontSize = 10.sp, color = TextSecondary)
-            Spacer(Modifier.height(4.dp))
-            Text(value, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = accent, maxLines = 1)
+    val c = tint ?: accent
+    GlassCard(shape = RoundedCornerShape(20.dp), modifier = modifier) {
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp, horizontal = 10.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Box(
+                Modifier.size(34.dp).clip(CircleShape).background(c.copy(alpha = 0.12f)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(icon, null, tint = c, modifier = Modifier.size(18.dp))
+            }
+            Spacer(Modifier.height(8.dp))
+            Text(value, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TextPrimary, maxLines = 1)
+            Spacer(Modifier.height(2.dp))
+            Text(label, fontSize = 10.sp, color = TextSecondary, maxLines = 1)
         }
     }
 }
+
+/** 게임별 지출 랭킹 (상위 5) — 색 점 + 금액 + % 바. */
+@Composable
+private fun TopGamesCard(spendings: List<Spending>) {
+    val byGame = remember(spendings) {
+        spendings.groupBy { it.gameName }
+            .map { (g, list) -> Triple(g, list.sumOf { s -> s.amount }, list.first().gameColor) }
+            .sortedByDescending { it.second }
+            .take(5)
+    }
+    val total = remember(spendings) { spendings.sumOf { it.amount }.coerceAtLeast(1L) }
+    GlassCard(shape = RoundedCornerShape(24.dp), modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(20.dp)) {
+            if (byGame.isEmpty()) {
+                Text("아직 지출 기록이 없어요", fontSize = 13.sp, color = TextSecondary)
+            } else {
+                byGame.forEachIndexed { i, (game, amt, color) ->
+                    if (i > 0) Spacer(Modifier.height(14.dp))
+                    val frac = (amt.toFloat() / total).coerceIn(0f, 1f)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(Modifier.size(8.dp).clip(CircleShape).background(color))
+                        Spacer(Modifier.width(8.dp))
+                        Text(game, fontSize = 13.sp, fontWeight = FontWeight.Medium, maxLines = 1, modifier = Modifier.weight(1f))
+                        Text("₩%,d".format(amt), fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                        Spacer(Modifier.width(8.dp))
+                        Text("${(frac * 100).toInt()}%", fontSize = 11.sp, color = TextSecondary)
+                    }
+                    Spacer(Modifier.height(6.dp))
+                    Box(Modifier.fillMaxWidth().height(6.dp).clip(CircleShape).background(ProgressEmpty)) {
+                        Box(Modifier.fillMaxWidth(frac).fillMaxHeight().clip(CircleShape).background(color))
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ============================================================
+//  설정 화면(SettingsScreen)에서도 재사용하는 공용 컴포넌트 — 유지
+// ============================================================
 
 @Composable
 fun ThemeSection(selectedIndex: Int, onSelect: (Int) -> Unit) {
@@ -164,31 +269,6 @@ fun ThemeSection(selectedIndex: Int, onSelect: (Int) -> Unit) {
 }
 
 @Composable
-fun SettingsSection(
-    budget: Long,
-    hoyolabLinked: Boolean,
-    onBudget: () -> Unit,
-    onHoyolab: () -> Unit,
-    onExport: () -> Unit,
-) {
-    Text("설정", fontSize = 16.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 12.dp))
-    GlassCard(
-        shape = RoundedCornerShape(24.dp),
-        modifier = Modifier.fillMaxWidth(),
-    ) {
-        Column {
-            SettingsItem("월 예산", Icons.Default.Savings, value = "₩%,d".format(budget), onClick = onBudget)
-            HorizontalDivider(color = DividerColor, modifier = Modifier.padding(horizontal = 16.dp))
-            SettingsItem("HoYoLAB 계정 연동", Icons.Default.Link, value = if (hoyolabLinked) "연동됨" else "미연동", onClick = onHoyolab)
-            HorizontalDivider(color = DividerColor, modifier = Modifier.padding(horizontal = 16.dp))
-            SettingsItem("데이터 내보내기 (CSV)", Icons.Default.Download, onClick = onExport)
-            HorizontalDivider(color = DividerColor, modifier = Modifier.padding(horizontal = 16.dp))
-            SettingsItem("앱 정보", Icons.Default.Info, value = "v1.0", onClick = {})
-        }
-    }
-}
-
-@Composable
 fun SettingsItem(label: String, icon: ImageVector, value: String? = null, onClick: () -> Unit) {
     val accent = LocalAccent.current
     Row(
@@ -206,25 +286,5 @@ fun SettingsItem(label: String, icon: ImageVector, value: String? = null, onClic
             Spacer(Modifier.width(4.dp))
             Icon(Icons.Default.ChevronRight, null, tint = Color.LightGray, modifier = Modifier.size(16.dp))
         }
-    }
-}
-
-@Composable
-private fun BudgetDialog(current: Long, onDismiss: () -> Unit, onConfirm: (Long) -> Unit) {
-    var text by remember { mutableStateOf(if (current > 0) current.toString() else "") }
-    GlgDialog(
-        title = "월 예산 설정",
-        onDismiss = onDismiss,
-        confirmText = "저장",
-        onConfirm = { onConfirm(text.toLongOrNull() ?: 0L) },
-    ) {
-        GlgTextField(
-            value = text,
-            onValueChange = { v -> text = v.filter { it.isDigit() } },
-            label = "예산 (원)",
-            placeholder = "0",
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-            modifier = Modifier.fillMaxWidth(),
-        )
     }
 }

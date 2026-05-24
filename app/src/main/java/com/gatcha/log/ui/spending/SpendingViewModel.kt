@@ -419,6 +419,15 @@ class SpendingViewModel(app: Application) : AndroidViewModel(app) {
 
     fun clearStatus() { _statusMessage.value = null }
     private fun emitStatus(msg: String) { _statusMessage.value = msg }
+    /** UI 에서 직접 토스트를 띄울 때 (예: 뒤로가기 종료 안내) */
+    fun showStatus(msg: String) = emitStatus(msg)
+
+    /** 읽은 알림 키(메시지) 집합 — 벨 배지(넛징)는 안 읽은 알림 수만 카운트. */
+    private val _readAlerts = MutableStateFlow<Set<String>>(emptySet())
+    val readAlerts: StateFlow<Set<String>> = _readAlerts.asStateFlow()
+    fun markAlertsRead(keys: Collection<String>) {
+        if (keys.isNotEmpty()) _readAlerts.value = _readAlerts.value + keys
+    }
 
     // ----------------------------------------------------------------- 인앱 업데이트 확인
     private val _updateInfo = MutableStateFlow<UpdateInfo?>(null)

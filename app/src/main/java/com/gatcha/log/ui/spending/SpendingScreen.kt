@@ -1,14 +1,23 @@
 package com.gatcha.log.ui.spending
 
-import androidx.compose.animation.AnimatedVisibility
+import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ReceiptLong
 import androidx.compose.material.icons.filled.*
@@ -20,6 +29,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -28,6 +38,8 @@ import com.gatcha.log.data.GameData
 import com.gatcha.log.data.Spending
 import com.gatcha.log.ui.components.GlassCard
 import com.gatcha.log.ui.components.GlgButton
+import com.gatcha.log.ui.components.GlgScreenHeader
+import com.gatcha.log.ui.components.GlgDialog
 import com.gatcha.log.ui.components.GlgOutlineButton
 import com.gatcha.log.ui.theme.*
 import java.util.Calendar
@@ -35,6 +47,13 @@ import java.util.Calendar
 private enum class PeriodFilter(val label: String) { ALL("전체"), THIS_MONTH("이번 달"), LAST_MONTH("지난 달"), THIS_YEAR("올해") }
 private enum class TypeFilter(val label: String) { ALL("전체"), NORMAL("일반"), SUBSCRIPTION("구독") }
 private enum class SortOrder(val label: String) { DATE_DESC("최신순"), DATE_ASC("오래된순"), AMOUNT_DESC("금액 높은순") }
+
+/** 지출 탭 내 하위 페이지 네비게이션 상태 (List=목록, Annual=연간 리포트, Detail=지출 상세). */
+private sealed interface SpendingScreenNav {
+    data object List : SpendingScreenNav
+    data object Annual : SpendingScreenNav
+    data class Detail(val spending: Spending) : SpendingScreenNav
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -47,6 +66,9 @@ fun SpendingScreen(viewModel: SpendingViewModel, onEditSpending: (Spending) -> U
     var typeFilter by remember { mutableStateOf(TypeFilter.ALL) }
     var sortOrder by remember { mutableStateOf(SortOrder.DATE_DESC) }
     val showFilterSheet = remember { mutableStateOf(false) }
+    var nav by remember { mutableStateOf<SpendingScreenNav>(SpendingScreenNav.List) }
+    // 하위 페이지(연간 리포트·지출 상세)에서 시스템 뒤로가기 시 앱 종료가 아니라 목록으로 복귀
+    BackHandler(enabled = nav != SpendingScreenNav.List) { nav = SpendingScreenNav.List }
 
     val monthlyTotal = remember(spendings) { viewModel.monthlyTotal() }
     val prevMonthTotal = remember(spendings) { previousMonthTotal(spendings) }
@@ -64,6 +86,41 @@ fun SpendingScreen(viewModel: SpendingViewModel, onEditSpending: (Spending) -> U
         sortOrder != SortOrder.DATE_DESC,
     ).count { it }
 
+    AnimatedContent(
+        targetState = nav,
+        modifier = Modifier.fillMaxSize(),
+        transitionSpec = {
+            if (targetState !is SpendingScreenNav.List) {
+                // 하위 페이지 열기: 오른쪽에서 슬라이드 인 (push)
+                (slideInHorizontally(tween(300)) { w -> w } + fadeIn(tween(300))) togetherWith
+                    (slideOutHorizontally(tween(300)) { w -> -w / 4 } + fadeOut(tween(220)))
+            } else {
+                // 목록으로 복귀: 오른쪽으로 슬라이드 아웃 (pop)
+                (slideInHorizontally(tween(300)) { w -> -w / 4 } + fadeIn(tween(300))) togetherWith
+                    (slideOutHorizontally(tween(300)) { w -> w } + fadeOut(tween(220)))
+            }
+        },
+        label = "spendingNav",
+    ) { navState ->
+        when (navState) {
+            is SpendingScreenNav.Annual -> {
+                AnnualReportScreen(viewModel, onBack = { nav = SpendingScreenNav.List })
+                return@AnimatedContent
+            }
+            is SpendingScreenNav.Detail -> {
+                // 편집 반영을 위해 라이브 목록에서 재조회(삭제됐으면 스냅샷으로 폴백 → 종료 애니 동안 표시 유지)
+                val live = spendings.firstOrNull { it.id == navState.spending.id } ?: navState.spending
+                SpendingDetailScreen(
+                    spending = live,
+                    onBack = { nav = SpendingScreenNav.List },
+                    onEdit = { onEditSpending(live) },
+                    onDelete = { viewModel.deleteSpending(live.id); nav = SpendingScreenNav.List },
+                )
+                return@AnimatedContent
+            }
+            SpendingScreenNav.List -> Unit
+        }
+
     GlgPullToRefreshBox(
         isRefreshing = isRefreshing,
         onRefresh = { viewModel.refreshSpending() },
@@ -71,26 +128,16 @@ fun SpendingScreen(viewModel: SpendingViewModel, onEditSpending: (Spending) -> U
     ) {
         LazyColumn(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
             item {
-                Text(
-                    "지출 분석",
-                    fontSize = 24.sp,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(top = 16.dp, bottom = 10.dp),
-                )
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(top = 16.dp, bottom = 10.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text("지출 분석", fontSize = 24.sp, fontWeight = FontWeight.Bold)
+                    AnnualReportButton { nav = SpendingScreenNav.Annual }
+                }
             }
             item { MonthlySummaryCard(viewModel.displayMonth, monthlyTotal, prevMonthTotal) }
-            item { Spacer(Modifier.height(10.dp)) }
-            item { AnnualReportSection(viewModel) }
-            item { Spacer(Modifier.height(10.dp)) }
-            item {
-                val subs by viewModel.subscriptions.collectAsState()
-                SubscriptionSection(
-                    subscriptions = subs,
-                    onAdd = viewModel::addSubscription,
-                    onUpdate = viewModel::updateSubscription,
-                    onDelete = viewModel::deleteSubscription,
-                )
-            }
             item { Spacer(Modifier.height(10.dp)) }
             item {
                 Row(
@@ -127,6 +174,7 @@ fun SpendingScreen(viewModel: SpendingViewModel, onEditSpending: (Spending) -> U
                 items(filtered.sortedByDescending { it.amount }, key = { it.id }) { spending ->
                     HistoryItem(
                         spending = spending,
+                        onClick = { nav = SpendingScreenNav.Detail(spending) },
                         onEdit = { onEditSpending(spending) },
                         onDelete = { viewModel.deleteSpending(spending.id) },
                     )
@@ -140,6 +188,7 @@ fun SpendingScreen(viewModel: SpendingViewModel, onEditSpending: (Spending) -> U
                     items(items, key = { it.id }) { spending ->
                         HistoryItem(
                             spending = spending,
+                            onClick = { nav = SpendingScreenNav.Detail(spending) },
                             onEdit = { onEditSpending(spending) },
                             onDelete = { viewModel.deleteSpending(spending.id) },
                         )
@@ -148,6 +197,7 @@ fun SpendingScreen(viewModel: SpendingViewModel, onEditSpending: (Spending) -> U
             }
             item { Spacer(Modifier.height(120.dp)) }
         }
+    }
     }
 
     if (showFilterSheet.value) {
@@ -216,11 +266,32 @@ fun SummaryItem(label: String, value: String, valueColor: Color) {
     }
 }
 
+/** 지출 분석 헤더 우측의 연간 리포트 진입 버튼 — 강조색 옅은 알약. */
 @Composable
-fun AnnualReportSection(viewModel: SpendingViewModel) {
+private fun AnnualReportButton(onClick: () -> Unit) {
+    val accent = LocalAccent.current
+    Surface(
+        shape = RoundedCornerShape(11.dp),
+        color = accent.copy(alpha = 0.10f),
+        border = androidx.compose.foundation.BorderStroke(1.5.dp, accent.copy(alpha = 0.30f)),
+        modifier = Modifier.clickable { onClick() },
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(Icons.Default.Assessment, null, tint = accent, modifier = Modifier.size(14.dp))
+            Spacer(Modifier.width(5.dp))
+            Text("연간 리포트", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = accent)
+        }
+    }
+}
+
+/** 연간 리포트 전체 페이지 — 뒤로가기 헤더 + 연도 선택 + 월별/게임별 분석. */
+@Composable
+fun AnnualReportScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
     val accent = LocalAccent.current
     val spendings by viewModel.spendings.collectAsState()
-    var expanded by remember { mutableStateOf(false) }
 
     val years = remember(spendings) {
         (spendings.map { DateUtil.year(it.dateMillis) } + viewModel.displayYear).distinct().sortedDescending()
@@ -237,28 +308,19 @@ fun AnnualReportSection(viewModel: SpendingViewModel) {
     val months = if (selectedYear == viewModel.displayYear) viewModel.displayMonth else monthly.count { it > 0 }.coerceAtLeast(1)
     val avg = if (months > 0) total / months else 0L
 
-    GlassCard(shape = RoundedCornerShape(24.dp), modifier = Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth().clickable { expanded = !expanded },
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween,
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.Assessment, null, tint = accent, modifier = Modifier.size(18.dp))
-                    Spacer(Modifier.width(8.dp))
-                    Text("${selectedYear}년 연간 리포트", fontWeight = FontWeight.Bold)
+    Column(Modifier.fillMaxSize()) {
+        GlgScreenHeader("연간 리포트", onBack, Modifier.padding(horizontal = 16.dp))
+        Column(
+            Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 8.dp),
+        ) {
+            if (years.size > 1) {
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    items(years) { y -> FilterPill("${y}년", y == selectedYear, accent) { selectedYear = y } }
                 }
-                Icon(if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore, null)
+                Spacer(Modifier.height(14.dp))
             }
-            AnimatedVisibility(visible = expanded) {
-                Column(Modifier.padding(top = 16.dp)) {
-                    if (years.size > 1) {
-                        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            items(years) { y -> FilterPill("${y}년", y == selectedYear, accent) { selectedYear = y } }
-                        }
-                        Spacer(Modifier.height(16.dp))
-                    }
+            GlassCard(shape = RoundedCornerShape(24.dp), modifier = Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(16.dp)) {
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                         InfoColumn("₩%,d".format(total), "총 지출", Modifier.weight(1f))
                         InfoColumn("₩%,d".format(avg), "월 평균", Modifier.weight(1f))
@@ -281,7 +343,107 @@ fun AnnualReportSection(viewModel: SpendingViewModel) {
                     }
                 }
             }
+            Spacer(Modifier.height(120.dp))
         }
+    }
+}
+
+/** 지출 상세 페이지 — 전체 정보 + 수정/삭제(확인 다이얼로그). */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+fun SpendingDetailScreen(
+    spending: Spending,
+    onBack: () -> Unit,
+    onEdit: () -> Unit,
+    onDelete: () -> Unit,
+) {
+    var confirmDelete by remember { mutableStateOf(false) }
+
+    Column(Modifier.fillMaxSize()) {
+        GlgScreenHeader("지출 상세", onBack, Modifier.padding(horizontal = 16.dp))
+        Column(
+            Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 8.dp),
+        ) {
+            // 요약 카드 (게임·금액·날짜)
+            GlassCard(shape = RoundedCornerShape(24.dp), modifier = Modifier.fillMaxWidth()) {
+                Column(Modifier.fillMaxWidth().padding(20.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(Modifier.size(10.dp).clip(CircleShape).background(spending.gameColor))
+                        Spacer(Modifier.width(8.dp))
+                        Text(spending.gameName, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                        if (spending.isSubscription) {
+                            Spacer(Modifier.width(8.dp))
+                            Surface(color = spending.gameColor.copy(alpha = 0.12f), shape = RoundedCornerShape(6.dp)) {
+                                Text("정기", fontSize = 10.sp, color = spending.gameColor, modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
+                            }
+                        }
+                    }
+                    Spacer(Modifier.height(14.dp))
+                    Text("₩%,d".format(spending.amount), fontSize = 32.sp, fontWeight = FontWeight.Bold)
+                    Spacer(Modifier.height(6.dp))
+                    Text(spending.dateLabel, fontSize = 13.sp, color = TextSecondary)
+                }
+            }
+            Spacer(Modifier.height(12.dp))
+            // 상세 정보 카드
+            GlassCard(shape = RoundedCornerShape(24.dp), modifier = Modifier.fillMaxWidth()) {
+                Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 6.dp)) {
+                    DetailRow("항목", spending.itemName.ifBlank { "—" })
+                    HorizontalDivider(color = DividerColor)
+                    DetailRow("결제 수단", spending.paymentMethod.ifBlank { "—" })
+                    HorizontalDivider(color = DividerColor)
+                    DetailRow("구분", if (spending.isSubscription) "정기 결제" else "일반")
+                    if (spending.memo.isNotBlank()) {
+                        HorizontalDivider(color = DividerColor)
+                        DetailRow("메모", spending.memo)
+                    }
+                    if (spending.tags.isNotEmpty()) {
+                        HorizontalDivider(color = DividerColor)
+                        Column(Modifier.fillMaxWidth().padding(vertical = 12.dp)) {
+                            Text("태그", fontSize = 13.sp, color = TextSecondary)
+                            Spacer(Modifier.height(8.dp))
+                            FlowRow(
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                verticalArrangement = Arrangement.spacedBy(6.dp),
+                            ) {
+                                spending.tags.forEach { tag -> TagChip(tag) }
+                            }
+                        }
+                    }
+                }
+            }
+            Spacer(Modifier.height(16.dp))
+            // 액션 (삭제 / 수정)
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                GlgOutlineButton("삭제", onClick = { confirmDelete = true }, modifier = Modifier.weight(1f))
+                GlgButton("수정", onClick = onEdit, modifier = Modifier.weight(1.4f))
+            }
+            Spacer(Modifier.height(40.dp))
+        }
+    }
+
+    if (confirmDelete) {
+        GlgDialog(
+            title = "이 지출을 삭제할까요?",
+            onDismiss = { confirmDelete = false },
+            confirmText = "삭제",
+            onConfirm = { confirmDelete = false; onDelete() },
+            dismissText = "취소",
+        ) {
+            Text("삭제하면 되돌릴 수 없어요.", fontSize = 13.sp, color = TextSecondary)
+        }
+    }
+}
+
+@Composable
+private fun DetailRow(label: String, value: String) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp),
+        verticalAlignment = Alignment.Top,
+    ) {
+        Text(label, fontSize = 13.sp, color = TextSecondary, modifier = Modifier.width(80.dp))
+        Spacer(Modifier.width(12.dp))
+        Text(value, fontSize = 14.sp, fontWeight = FontWeight.Medium, textAlign = TextAlign.End, modifier = Modifier.weight(1f))
     }
 }
 
@@ -374,7 +536,7 @@ fun DateHeader(date: String, total: Long) {
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun HistoryItem(spending: Spending, onEdit: () -> Unit, onDelete: () -> Unit) {
+fun HistoryItem(spending: Spending, onClick: () -> Unit, onEdit: () -> Unit, onDelete: () -> Unit) {
     val showMenu = remember { mutableStateOf(false) }
 
     GlassCard(
@@ -382,7 +544,7 @@ fun HistoryItem(spending: Spending, onEdit: () -> Unit, onDelete: () -> Unit) {
         modifier = Modifier.fillMaxWidth().padding(vertical = 5.dp),
     ) {
         Row(
-            modifier = Modifier.fillMaxWidth().clickable { onEdit() }.padding(16.dp),
+            modifier = Modifier.fillMaxWidth().clickable { onClick() }.padding(16.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Box(Modifier.size(8.dp).background(spending.gameColor, CircleShape))

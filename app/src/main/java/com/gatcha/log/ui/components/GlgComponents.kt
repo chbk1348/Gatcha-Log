@@ -2,7 +2,6 @@ package com.gatcha.log.ui.components
 
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateDpAsState
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -10,12 +9,13 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.interaction.collectIsPressedAsState
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalTextStyle
@@ -138,7 +138,7 @@ fun GlgTextField(
     }
 }
 
-/** 주요 액션 버튼 — 강조색 그라데이션 */
+/** 주요 액션 버튼 — 강조색 그라데이션 + 누르면 밝아지는 호버 오버레이(플랫) */
 @Composable
 fun GlgButton(
     text: String,
@@ -150,26 +150,70 @@ fun GlgButton(
     val accent = LocalAccent.current
     val interaction = remember { MutableInteractionSource() }
     val pressed by interaction.collectIsPressedAsState()
-    val scale by animateFloatAsState(if (pressed && enabled) 0.96f else 1f, label = "btnScale")
+    val hovering = pressed && enabled
+    // 호버풍(플랫): 누르면 반투명 흰 오버레이가 얹혀 버튼이 '밝아진다'. 그림자/이동 없음.
+    val overlay by animateColorAsState(
+        if (hovering) Color.White.copy(alpha = 0.18f) else Color.Transparent,
+        label = "btnHover",
+    )
     val brush = if (enabled) {
         Brush.horizontalGradient(listOf(accent, lerp(accent, Color.Black, 0.18f)))
     } else {
         SolidColor(Color(0xFFD8D8DE))
     }
+    val shape = RoundedCornerShape(14.dp)
     Box(
         modifier = modifier
             .height(height)
-            .graphicsLayer { scaleX = scale; scaleY = scale }
-            .clip(RoundedCornerShape(14.dp))
+            .clip(shape)
             .background(brush)
             .then(if (enabled) Modifier.clickable(interactionSource = interaction, indication = null) { onClick() } else Modifier),
         contentAlignment = Alignment.Center,
     ) {
+        Box(Modifier.matchParentSize().background(overlay))
         Text(text, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 15.sp)
     }
 }
 
-/** 보조/취소 버튼 — 고스트 스타일 */
+/** 하위 페이지 공통 뒤로가기 버튼 — 회색 배경 + 아웃라인(고스트 톤). */
+@Composable
+fun GlgBackButton(onClick: () -> Unit, modifier: Modifier = Modifier, size: Dp = 40.dp) {
+    Box(
+        modifier = modifier
+            .size(size)
+            .clip(CircleShape)
+            .background(Color(0xFFF2F2F6))
+            .border(1.dp, GhostBorder, CircleShape)
+            .clickable { onClick() },
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            Icons.AutoMirrored.Filled.ArrowBack,
+            contentDescription = "뒤로",
+            tint = GhostText,
+            modifier = Modifier.size(20.dp),
+        )
+    }
+}
+
+/**
+ * 하위 페이지 공통 헤더 — 뒤로가기 버튼 + 제목. 모든 화면에서 위치·간격을 통일한다.
+ * 가로 16dp 여백이 없는 컨테이너(전체화면 Column 등)에선 [modifier] 로 `padding(horizontal = 16.dp)` 를 넘긴다.
+ * 이미 가로 16dp 패딩된 컨테이너(LazyColumn 등) 안에선 [modifier] 없이 사용.
+ */
+@Composable
+fun GlgScreenHeader(title: String, onBack: () -> Unit, modifier: Modifier = Modifier) {
+    Row(
+        modifier = modifier.fillMaxWidth().padding(top = 12.dp, bottom = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        GlgBackButton(onBack)
+        Spacer(Modifier.width(10.dp))
+        Text(title, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+    }
+}
+
+/** 보조/취소 버튼 — 고스트 스타일 + 누르면 옅은 강조색 호버(플랫) */
 @Composable
 fun GlgOutlineButton(
     text: String,
@@ -177,19 +221,24 @@ fun GlgOutlineButton(
     modifier: Modifier = Modifier,
     height: androidx.compose.ui.unit.Dp = 50.dp,
 ) {
+    val accent = LocalAccent.current
     val interaction = remember { MutableInteractionSource() }
     val pressed by interaction.collectIsPressedAsState()
-    val scale by animateFloatAsState(if (pressed) 0.96f else 1f, label = "outBtnScale")
+    // 호버풍(플랫): 누르면 옅은 강조색 배경 + 강조색 테두리/글자. 그림자/이동 없음.
+    val borderColor by animateColorAsState(if (pressed) accent.copy(alpha = 0.5f) else GhostBorder, label = "outBtnBorder")
+    val bg by animateColorAsState(if (pressed) accent.copy(alpha = 0.08f) else Color.Transparent, label = "outBtnBg")
+    val textColor by animateColorAsState(if (pressed) accent else GhostText, label = "outBtnText")
+    val shape = RoundedCornerShape(14.dp)
     Box(
         modifier = modifier
             .height(height)
-            .graphicsLayer { scaleX = scale; scaleY = scale }
-            .clip(RoundedCornerShape(14.dp))
-            .border(1.dp, GhostBorder, RoundedCornerShape(14.dp))
+            .clip(shape)
+            .background(bg)
+            .border(1.dp, borderColor, shape)
             .clickable(interactionSource = interaction, indication = null) { onClick() },
         contentAlignment = Alignment.Center,
     ) {
-        Text(text, color = GhostText, fontWeight = FontWeight.Medium, fontSize = 15.sp)
+        Text(text, color = textColor, fontWeight = FontWeight.Medium, fontSize = 15.sp)
     }
 }
 

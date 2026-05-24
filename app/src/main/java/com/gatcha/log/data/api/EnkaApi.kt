@@ -3,14 +3,19 @@ package com.gatcha.log.data.api
 import org.json.JSONArray
 import org.json.JSONObject
 
-/** 쇼케이스 캐릭터 (id, 한글명, 레벨, 명좌/성혼 rank, 희귀도) */
+/** 쇼케이스 캐릭터 (id, 한글명, 레벨, 명좌/성혼 rank, 희귀도, 아이콘 URL, 한글 원소) */
 data class EnkaChar(
     val id: Int,
     val name: String,
     val level: Int,
     val rank: Int,
     val rarity: Int,
+    val iconUrl: String? = null,
+    val element: String = "",
 )
+
+/** Yatta 아바타 메타(한글명·희귀도·아이콘 URL·한글 원소). id 매핑용 캐시 값. */
+private data class AvatarMeta(val name: String, val rarity: Int, val iconUrl: String, val element: String)
 
 /** Enka 프로필 (닉네임/모험/세계 레벨/서명 + 쇼케이스 캐릭터) */
 data class EnkaProfile(
@@ -33,9 +38,9 @@ object EnkaApi {
     private const val UA = "Gatcha-LOG-Android/1.0"
     private val headers = mapOf("User-Agent" to UA, "Accept" to "application/json")
 
-    // id -> (한글명, 희귀도). 최초 1회 로드 후 캐시.
-    private var giNames: Map<Int, Pair<String, Int>>? = null
-    private var hsrNames: Map<Int, Pair<String, Int>>? = null
+    // id -> 아바타 메타. 최초 1회 로드 후 캐시.
+    private var giMeta: Map<Int, AvatarMeta>? = null
+    private var hsrMeta: Map<Int, AvatarMeta>? = null
 
     suspend fun fetchProfile(game: String, uid: String): EnkaResult {
         val u = uid.trim()
@@ -60,13 +65,21 @@ object EnkaApi {
                     rankById[a.optInt("avatarId")] = a.optJSONArray("talentIdList")?.length() ?: 0
                 }
             }
-            val names = names(false)
+            val meta = avatarMeta(false)
             val chars = (0 until show.length()).map { i ->
                 val a = show.getJSONObject(i)
                 val id = a.optInt("avatarId")
-                val nm = names[id]?.first ?: "#$id"
-                val rar = names[id]?.second ?: 5
-                EnkaChar(id, nm, a.optInt("level"), rankById[id] ?: 0, rar)
+                val m = meta[id]
+                EnkaChar(
+                    id = id,
+                    name = m?.name ?: "#$id",
+                    level = a.optInt("level"),
+                    // 상세 공개 시 명좌수(0=명함 ~ 6), 비공개면 -1(미상 → 배지 숨김)
+                    rank = rankById[id] ?: -1,
+                    rarity = m?.rarity ?: 5,
+                    iconUrl = m?.iconUrl?.ifBlank { null },
+                    element = m?.element ?: "",
+                )
             }
             EnkaResult(
                 EnkaProfile(
@@ -89,13 +102,21 @@ object EnkaApi {
             val json = JSONObject(res.body)
             val d = json.getJSONObject("detailInfo")
             val list = d.optJSONArray("avatarDetailList") ?: JSONArray()
-            val names = names(true)
+            val meta = avatarMeta(true)
             val chars = (0 until list.length()).map { i ->
                 val a = list.getJSONObject(i)
                 val id = a.optInt("avatarId")
-                val nm = names[id]?.first ?: "#$id"
-                val rar = names[id]?.second ?: a.optInt("rarity").takeIf { it in 4..5 } ?: 5
-                EnkaChar(id, nm, a.optInt("level"), a.optInt("rank"), rar)
+                val m = meta[id]
+                val rar = m?.rarity ?: a.optInt("rarity").takeIf { it in 4..5 } ?: 5
+                EnkaChar(
+                    id = id,
+                    name = m?.name ?: "#$id",
+                    level = a.optInt("level"),
+                    rank = a.optInt("rank"),
+                    rarity = rar,
+                    iconUrl = m?.iconUrl?.ifBlank { null },
+                    element = m?.element ?: "",
+                )
             }
             EnkaResult(
                 EnkaProfile(
@@ -110,23 +131,62 @@ object EnkaApi {
         }.getOrElse { EnkaResult(null, "응답을 해석하지 못했어요") }
     }
 
-    // ----------------------------------------------------------------- 이름 매핑 (Yatta)
-    private suspend fun names(hsr: Boolean): Map<Int, Pair<String, Int>> {
-        (if (hsr) hsrNames else giNames)?.let { return it }
+    // ----------------------------------------------------------------- 메타 매핑 (Yatta: 한글명·희귀도·아이콘·원소)
+    private suspend fun avatarMeta(hsr: Boolean): Map<Int, AvatarMeta> {
+        (if (hsr) hsrMeta else giMeta)?.let { return it }
         val url = if (hsr) "https://sr.yatta.moe/api/v2/kr/avatar" else "https://gi.yatta.moe/api/v2/kr/avatar"
         val res = Net.get(url, headers)
         val map = runCatching {
             val items = JSONObject(res.body).getJSONObject("data").getJSONObject("items")
-            buildMap {
+            buildMap<Int, AvatarMeta> {
                 items.keys().forEach { k ->
                     val o = items.getJSONObject(k)
                     val id = k.toIntOrNull() ?: o.optInt("id")
-                    put(id, o.optString("name", "#$id") to o.optInt("rank", 5))
+                    val iconRaw = o.optString("icon", "")
+                    // 원신: gi.yatta UI 카드 아이콘 / 스타레일: sr.yatta 아바타 아이콘
+                    val iconUrl = when {
+                        iconRaw.isBlank() -> ""
+                        hsr -> "https://sr.yatta.moe/hsr/assets/UI/avatar/$iconRaw.png"
+                        else -> "https://gi.yatta.moe/assets/UI/$iconRaw.png"
+                    }
+                    val element = if (hsr) hsrElementKo(o.optJSONObject("types")?.optString("combatType").orEmpty())
+                    else giElementKo(o.optString("element", ""))
+                    // Yatta 일부 이름에 <unbreak>…</unbreak> 등 마크업이 섞여 들어옴(예: 은랑) → 제거
+                    val name = cleanName(o.optString("name", "")).ifBlank { "#$id" }
+                    put(id, AvatarMeta(name, o.optInt("rank", 5), iconUrl, element))
                 }
             }
         }.getOrDefault(emptyMap())
-        if (map.isNotEmpty()) { if (hsr) hsrNames = map else giNames = map }
+        if (map.isNotEmpty()) { if (hsr) hsrMeta = map else giMeta = map }
         return map
+    }
+
+    /** Yatta 이름의 마크업 태그(<unbreak> 등) 제거 + 공백 정리 */
+    private fun cleanName(raw: String): String =
+        raw.replace(Regex("<[^>]*>"), "").replace(Regex("\\s+"), " ").trim()
+
+    /** Yatta 원신 원소 영문 → 한글 */
+    private fun giElementKo(e: String): String = when (e) {
+        "Fire" -> "불"
+        "Water" -> "물"
+        "Electric" -> "번개"
+        "Ice" -> "얼음"
+        "Wind" -> "바람"
+        "Rock" -> "바위"
+        "Grass" -> "풀"
+        else -> ""
+    }
+
+    /** Yatta 스타레일 전투속성 영문 → 한글 */
+    private fun hsrElementKo(e: String): String = when (e) {
+        "Fire" -> "화염"
+        "Ice" -> "얼음"
+        "Thunder" -> "번개"
+        "Wind" -> "바람"
+        "Physical" -> "물리"
+        "Quantum" -> "양자"
+        "Imaginary" -> "허수"
+        else -> ""
     }
 
     private fun errorFor(code: Int): String? = when (code) {

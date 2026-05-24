@@ -12,11 +12,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil.compose.AsyncImage
 import com.gatcha.log.data.api.EnkaChar
 import com.gatcha.log.data.api.EnkaResult
 import com.gatcha.log.ui.components.GlassCard
@@ -131,26 +133,68 @@ private fun GameTab(label: String, selected: Boolean, color: Color, onClick: () 
 @Composable
 private fun CharCard(c: EnkaChar, game: String) {
     val color = if (c.rarity >= 5) Gold else Purple
-    val rankLabel = if (c.rank > 0) (if (game == "genshin") "${c.rank}명" else "${c.rank}성혼") else null
+    // 원신: 0=명함, 1~6=N돌, 음수=상세 비공개(숨김) / 스타레일: N성혼
+    val rankLabel = if (game == "genshin") {
+        when {
+            c.rank < 0 -> null
+            c.rank == 0 -> "명함"
+            else -> "${c.rank}돌"
+        }
+    } else {
+        if (c.rank > 0) "${c.rank}성혼" else null
+    }
     Column(
         Modifier
-            .clip(RoundedCornerShape(12.dp))
+            .clip(RoundedCornerShape(14.dp))
             .background(color.copy(alpha = 0.10f))
-            .padding(horizontal = 10.dp, vertical = 10.dp),
+            .padding(8.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        // 희귀도 별 표시
-        Text("★".repeat(c.rarity.coerceIn(1, 5)), fontSize = 10.sp, color = color, maxLines = 1)
-        Spacer(Modifier.height(4.dp))
-        Text(c.name, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextPrimary, maxLines = 1)
-        Spacer(Modifier.height(2.dp))
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("Lv.${c.level}", fontSize = 11.sp, color = TextSecondary)
+        // 캐릭터 아이콘 + 레벨/명좌(성혼) 오버레이
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .aspectRatio(1f)
+                .clip(RoundedCornerShape(12.dp))
+                .background(color.copy(alpha = 0.18f)),
+            contentAlignment = Alignment.Center,
+        ) {
+            if (c.iconUrl != null) {
+                AsyncImage(
+                    model = c.iconUrl,
+                    contentDescription = c.name,
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop,
+                )
+            } else {
+                Text(c.name.take(1), fontSize = 22.sp, fontWeight = FontWeight.Bold, color = color)
+            }
+            // 명좌/성혼 배지 (우상단)
             if (rankLabel != null) {
-                Spacer(Modifier.width(5.dp))
-                Surface(color = color, shape = RoundedCornerShape(5.dp)) {
+                Surface(
+                    color = color,
+                    shape = RoundedCornerShape(bottomStart = 8.dp, topEnd = 12.dp),
+                    modifier = Modifier.align(Alignment.TopEnd),
+                ) {
                     Text(rankLabel, fontSize = 9.sp, fontWeight = FontWeight.Bold, color = Color.White, modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp))
                 }
+            }
+            // 레벨 (좌하단)
+            Surface(
+                color = Color(0xCC000000),
+                shape = RoundedCornerShape(topEnd = 8.dp, bottomStart = 12.dp),
+                modifier = Modifier.align(Alignment.BottomStart),
+            ) {
+                Text("Lv.${c.level}", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = Color.White, modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp))
+            }
+        }
+        Spacer(Modifier.height(6.dp))
+        Text(c.name, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextPrimary, maxLines = 1)
+        Spacer(Modifier.height(1.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("★".repeat(c.rarity.coerceIn(1, 5)), fontSize = 9.sp, color = color, maxLines = 1)
+            if (c.element.isNotBlank()) {
+                Text(" · ${c.element}", fontSize = 10.sp, color = TextSecondary, maxLines = 1)
             }
         }
     }
