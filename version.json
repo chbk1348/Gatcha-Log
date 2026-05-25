@@ -1,12 +1,10 @@
 {
-  "versionCode": 270401,
-  "versionName": "27.4.1",
+  "versionCode": 270402,
+  "versionName": "27.4.2",
   "url": "https://github.com/chbk1348/Gatcha-Log-Android/releases/latest",
   "apkUrl": "https://github.com/chbk1348/Gatcha-Log-Android/releases/latest/download/app-release.apk",
   "notes": [
-    "업데이트 확인이 잘 되지 않던 문제 수정 (버전 정보 캐시 우회)",
-    "지출 추가 모달 글씨 크기·가독성 개선",
-    "빠른 상품 선택에 분류 칩(월정액·패스·재화) 추가",
-    "명조·엔드필드·이환 정확한 가격 + 게임별 재화 아이콘 (이환 신규 추가)"
+    "[핫픽스] 지출 저장·삭제·수정 직후 당겨서 새로고침하면 변경이 사라지던 문제 수정",
+    "오프라인에서 당겨서 새로고침이 멈추지 않도록 보강"
   ]
 }
