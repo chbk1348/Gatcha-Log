@@ -273,7 +273,16 @@ private fun UplogDialog(versionName: String, onDismiss: () -> Unit) {
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
             UplogEntry(
-                "v${versionName.ifBlank { "27.4.0" }}",
+                "v${versionName.ifBlank { "27.4.1" }}",
+                listOf(
+                    "업데이트 확인이 잘 되지 않던 문제 수정 (버전 정보 캐시 우회)",
+                    "지출 추가 모달 글씨 크기·가독성 개선",
+                    "빠른 상품 선택에 분류 칩(월정액·패스·재화) 추가",
+                    "명조·엔드필드·이환 정확한 가격 반영 + 게임별 재화 아이콘 (이환 신규 추가)",
+                ),
+            )
+            UplogEntry(
+                "v27.4.0",
                 listOf(
                     "재설치·기기 변경 후 데이터 복원 안정화 — 같은 구글 계정으로 로그인하면 가챠 기록까지 복원",
                     "백업 파일 내보내기/복원 추가 (설정 ▸ 백업·복원) — 로그인 없이도 전체 데이터 보관",

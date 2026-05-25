@@ -44,7 +44,8 @@ object UpdateChecker {
 
     /** 새 버전이 있으면 [UpdateInfo], 없거나 실패 시 null. */
     suspend fun check(context: Context): UpdateInfo? {
-        val res = Net.get(MANIFEST_URL)
+        // ?t= 로 raw.githubusercontent CDN 캐시 우회 → 새 version.json 즉시 반영(업데이트 미감지 방지)
+        val res = Net.get("$MANIFEST_URL?t=${System.currentTimeMillis()}")
         if (!res.isOk) return null
         return runCatching {
             val o = JSONObject(res.body)
