@@ -3,8 +3,11 @@ package com.gatcha.log.data.api
 import android.util.Log
 import org.json.JSONObject
 
-/** 자동 수집된 활성 리딤코드. rewards 는 한국어로 정규화돼 저장된다(영어 미노출). */
-data class GiftCode(val code: String, val rewards: String)
+/**
+ * 자동 수집된 활성 리딤코드. rewards 는 한국어로 정규화돼 저장된다(영어 미노출).
+ * highlight=true → 공식방송(공방) 추정 코드(프리미엄 재화 100개 이상) — UI 에서 강조.
+ */
+data class GiftCode(val code: String, val rewards: String, val highlight: Boolean = false)
 
 /**
  * 활성 리딤코드 자동 수집.
@@ -29,7 +32,10 @@ object GiftCodeApi {
                 val o = arr.optJSONObject(i) ?: return@mapNotNull null
                 val code = o.optString("code").trim().uppercase()
                 if (code.isBlank()) null
-                else GiftCode(code, localizeRewards(o.optString("rewards").trim()))
+                else {
+                    val items = parseItems(o.optString("rewards").trim())
+                    GiftCode(code, formatItems(items), isLivestream(items))
+                }
             }.distinctBy { it.code }
         }.onFailure { Log.e(TAG, "parse failed", it) }.getOrDefault(emptyList())
     }
@@ -40,11 +46,14 @@ object GiftCodeApi {
      *  - 산문 "60 primogems and five adventurer's experience" → "원석 ×60, 모험가의 경험 ×5"
      *  - 인게임 공식 한국어 명칭을 알 수 없는 이벤트 아이템은 (오역 대신) "외 N종"으로 요약.
      */
-    fun localizeRewards(raw: String): String {
-        if (raw.isBlank()) return ""
-        val items: List<Pair<String, String?>> =
-            if (raw.contains("*")) parseStructured(raw) else parseProse(raw)
+    fun localizeRewards(raw: String): String = formatItems(parseItems(raw))
 
+    private fun parseItems(raw: String): List<Pair<String, String?>> {
+        if (raw.isBlank()) return emptyList()
+        return if (raw.contains("*")) parseStructured(raw) else parseProse(raw)
+    }
+
+    private fun formatItems(items: List<Pair<String, String?>>): String {
         val known = ArrayList<String>()
         var unknown = 0
         for ((nameEn, qty) in items) {
@@ -60,6 +69,11 @@ object GiftCodeApi {
             }
         }
     }
+
+    /** 공식방송(공방) 코드 추정 — 프리미엄 재화(원석·성옥·폴리크롬)를 100개 이상 주는 코드. */
+    private val PREMIUM = setOf("원석", "성옥", "폴리크롬")
+    private fun isLivestream(items: List<Pair<String, String?>>): Boolean =
+        items.any { (name, qty) -> lookupKo(name) in PREMIUM && (qty?.toIntOrNull() ?: 0) >= 100 }
 
     /** "Item*Qty;Item*Qty" → [(이름, 수량)] */
     private fun parseStructured(raw: String): List<Pair<String, String?>> =

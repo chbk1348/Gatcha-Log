@@ -299,6 +299,7 @@ private fun GiftCodeDialog(
     }
     var selected by remember { mutableStateOf(games.firstOrNull()?.first ?: "genshin") }
     var code by remember { mutableStateOf("") }
+    var showRedeemed by remember { mutableStateOf(false) }
     val loading = state is RedeemState.Loading
     // 선택 게임 바뀌면(최초 포함) 활성 코드 자동 수집
     LaunchedEffect(selected) { if (games.isNotEmpty()) onLoadCodes(selected) }
@@ -334,13 +335,45 @@ private fun GiftCodeDialog(
                     }
                 }
                 Spacer(Modifier.height(12.dp))
-                Text("활성 코드 (자동 수집)", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextSecondary)
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                    Text("활성 코드 (자동 수집)", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextSecondary)
+                    Box(
+                        Modifier.size(28.dp).clip(CircleShape).clickable(enabled = !codesLoading) { onLoadCodes(selected) },
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        if (codesLoading) CircularProgressIndicator(Modifier.size(15.dp), strokeWidth = 2.dp, color = accent)
+                        else Icon(Icons.Default.Refresh, "새 코드 새로고침", tint = accent, modifier = Modifier.size(16.dp))
+                    }
+                }
                 Spacer(Modifier.height(6.dp))
                 when {
-                    codesLoading -> Text("코드 불러오는 중…", fontSize = 12.sp, color = TextSecondary, modifier = Modifier.padding(vertical = 6.dp))
+                    codesLoading && activeCodes.isEmpty() -> Text("코드 불러오는 중…", fontSize = 12.sp, color = TextSecondary, modifier = Modifier.padding(vertical = 6.dp))
                     activeCodes.isEmpty() -> Text("지금은 활성 코드가 없어요", fontSize = 12.sp, color = TextSecondary, modifier = Modifier.padding(vertical = 6.dp))
-                    else -> activeCodes.forEach { c ->
-                        CodeRow(c, redeemed = c.code in redeemedCodes, accent = accent, enabled = !loading) { onRedeem(selected, c.code) }
+                    else -> {
+                        // 미수령 코드(공방 우선) 노출 + 이미 받은 코드는 접기
+                        val unredeemed = activeCodes.filter { it.code !in redeemedCodes }.sortedByDescending { it.highlight }
+                        val redeemed = activeCodes.filter { it.code in redeemedCodes }
+                        if (unredeemed.isEmpty()) {
+                            Text("받을 수 있는 새 코드가 없어요", fontSize = 12.sp, color = TextSecondary, modifier = Modifier.padding(vertical = 6.dp))
+                        } else {
+                            unredeemed.forEach { c ->
+                                CodeRow(c, redeemed = false, accent = accent, enabled = !loading) { onRedeem(selected, c.code) }
+                            }
+                        }
+                        if (redeemed.isNotEmpty()) {
+                            Spacer(Modifier.height(4.dp))
+                            Row(
+                                modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).clickable { showRedeemed = !showRedeemed }.padding(vertical = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Icon(if (showRedeemed) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown, null, tint = TextSecondary, modifier = Modifier.size(18.dp))
+                                Spacer(Modifier.width(4.dp))
+                                Text("이미 받은 코드 ${redeemed.size}개", fontSize = 12.sp, color = TextSecondary, fontWeight = FontWeight.Medium)
+                            }
+                            if (showRedeemed) redeemed.forEach { c ->
+                                CodeRow(c, redeemed = true, accent = accent, enabled = false) {}
+                            }
+                        }
                     }
                 }
                 Spacer(Modifier.height(14.dp))
@@ -380,39 +413,64 @@ private fun GiftCodeDialog(
     }
 }
 
-/** 활성 코드 한 줄 — 코드 + 보상 + (교환/받음). */
+/** 활성 코드 한 줄 — 코드 + 보상 + (교환/받음). 공방(공식방송) 코드는 강조 카드로 꾸민다. */
 @Composable
 private fun CodeRow(c: GiftCode, redeemed: Boolean, accent: Color, enabled: Boolean, onRedeem: () -> Unit) {
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier.fillMaxWidth().padding(vertical = 5.dp),
-    ) {
-        Column(Modifier.weight(1f)) {
-            Text(
-                c.code,
-                fontSize = 14.sp, fontWeight = FontWeight.Bold,
-                color = if (redeemed) TextSecondary else TextPrimary,
-                textDecoration = if (redeemed) TextDecoration.LineThrough else null,
-            )
-            if (c.rewards.isNotBlank()) Text(c.rewards, fontSize = 11.sp, color = TextSecondary, maxLines = 2)
-        }
-        Spacer(Modifier.width(8.dp))
-        if (redeemed) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.Check, null, tint = accent, modifier = Modifier.size(16.dp))
-                Spacer(Modifier.width(3.dp))
-                Text("받음", fontSize = 11.sp, color = accent, fontWeight = FontWeight.Bold)
+    val highlight = c.highlight && !redeemed
+    val inner: @Composable () -> Unit = {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.fillMaxWidth().padding(vertical = if (highlight) 8.dp else 5.dp, horizontal = if (highlight) 10.dp else 0.dp),
+        ) {
+            Column(Modifier.weight(1f)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (highlight) {
+                        Surface(color = accent, shape = RoundedCornerShape(6.dp)) {
+                            Row(modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.Campaign, null, tint = Color.White, modifier = Modifier.size(11.dp))
+                                Spacer(Modifier.width(3.dp))
+                                Text("공방", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                            }
+                        }
+                        Spacer(Modifier.width(6.dp))
+                    }
+                    Text(
+                        c.code,
+                        fontSize = 14.sp, fontWeight = FontWeight.Bold,
+                        color = if (redeemed) TextSecondary else TextPrimary,
+                        textDecoration = if (redeemed) TextDecoration.LineThrough else null,
+                    )
+                }
+                if (c.rewards.isNotBlank()) Text(c.rewards, fontSize = 11.sp, color = TextSecondary, maxLines = 2)
             }
-        } else {
-            Surface(
-                modifier = Modifier.clickable(enabled = enabled) { onRedeem() },
-                shape = RoundedCornerShape(16.dp),
-                color = accent.copy(alpha = 0.12f),
-                border = BorderStroke(1.dp, accent.copy(alpha = 0.4f)),
-            ) {
-                Text("교환", modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp), fontSize = 12.sp, color = accent, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.width(8.dp))
+            if (redeemed) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.Check, null, tint = accent, modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.width(3.dp))
+                    Text("받음", fontSize = 11.sp, color = accent, fontWeight = FontWeight.Bold)
+                }
+            } else {
+                Surface(
+                    modifier = Modifier.clickable(enabled = enabled) { onRedeem() },
+                    shape = RoundedCornerShape(16.dp),
+                    color = if (highlight) accent else accent.copy(alpha = 0.12f),
+                    border = if (highlight) null else BorderStroke(1.dp, accent.copy(alpha = 0.4f)),
+                ) {
+                    Text("교환", modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp), fontSize = 12.sp, color = if (highlight) Color.White else accent, fontWeight = FontWeight.Bold)
+                }
             }
         }
+    }
+    if (highlight) {
+        Surface(
+            shape = RoundedCornerShape(14.dp),
+            color = accent.copy(alpha = 0.10f),
+            border = BorderStroke(1.5.dp, accent.copy(alpha = 0.45f)),
+            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+        ) { inner() }
+    } else {
+        inner()
     }
 }
 
