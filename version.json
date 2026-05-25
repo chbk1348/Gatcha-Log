@@ -1,13 +1,12 @@
 {
-  "versionCode": 270400,
-  "versionName": "27.4.0",
+  "versionCode": 270401,
+  "versionName": "27.4.1",
   "url": "https://github.com/chbk1348/Gatcha-Log-Android/releases/latest",
   "apkUrl": "https://github.com/chbk1348/Gatcha-Log-Android/releases/latest/download/app-release.apk",
   "notes": [
-    "재설치·기기 변경 후 데이터 복원 안정화 — 같은 구글 계정으로 로그인하면 가챠 기록까지 복원",
-    "백업 파일 내보내기/복원 추가 (설정 ▸ 백업·복원) — 로그인 없이도 전체 데이터 보관",
-    "로그인 방식 개선 (Credential Manager) — 더 매끄러운 계정 선택",
-    "오프라인에서 앱이 로딩 화면에 멈추던 문제 수정",
-    "버전 호환성 개선으로 클라우드 데이터 보호 강화"
+    "업데이트 확인이 잘 되지 않던 문제 수정 (버전 정보 캐시 우회)",
+    "지출 추가 모달 글씨 크기·가독성 개선",
+    "빠른 상품 선택에 분류 칩(월정액·패스·재화) 추가",
+    "명조·엔드필드·이환 정확한 가격 + 게임별 재화 아이콘 (이환 신규 추가)"
   ]
 }
