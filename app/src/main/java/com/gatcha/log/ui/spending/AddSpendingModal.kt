@@ -34,6 +34,8 @@ import com.gatcha.log.data.DateUtil
 import com.gatcha.log.data.Game
 import com.gatcha.log.data.GameData
 import com.gatcha.log.data.GamePackage
+import com.gatcha.log.data.PkgCategory
+import com.gatcha.log.data.category
 import com.gatcha.log.data.Spending
 import com.gatcha.log.ui.components.GlgButton
 import com.gatcha.log.ui.components.GlgDatePickerDialog
@@ -147,8 +149,25 @@ fun AddSpendingModal(
                         )
                         Spacer(Modifier.height(14.dp))
                         SectionRowLabel("빠른 상품 선택")
-                        Text("선택하면 금액·재화명이 자동 입력돼요", fontSize = 11.sp, color = Color.LightGray, modifier = Modifier.padding(top = 2.dp, bottom = 8.dp))
-                        val packages = GameData.packagesFor(game)
+                        Text("선택하면 금액·재화명이 자동 입력돼요", fontSize = 12.sp, color = TextSecondary, modifier = Modifier.padding(top = 2.dp, bottom = 8.dp))
+                        val allPackages = GameData.packagesFor(game)
+                        // 카테고리 칩(월정액/패스/재화) — 게임이 가진 분류만 노출, 게임 바뀌면 전체로 리셋
+                        var pkgFilter by remember(game) { mutableStateOf(PkgCategory.ALL) }
+                        val pkgCategories = listOf(PkgCategory.ALL) +
+                            listOf(PkgCategory.MONTHLY, PkgCategory.PASS, PkgCategory.CURRENCY)
+                                .filter { c -> allPackages.any { it.category == c } }
+                        if (pkgCategories.size > 2) {
+                            LazyRow(
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                modifier = Modifier.padding(bottom = 10.dp),
+                            ) {
+                                items(pkgCategories) { cat ->
+                                    ChoiceChip(label = cat.label, selected = pkgFilter == cat) { pkgFilter = cat }
+                                }
+                            }
+                        }
+                        val packages = if (pkgFilter == PkgCategory.ALL) allPackages
+                            else allPackages.filter { it.category == pkgFilter }
                         val cols = 3
                         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             packages.chunked(cols).forEach { rowItems ->
@@ -235,8 +254,8 @@ fun AddSpendingModal(
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             Column(Modifier.weight(1f)) {
-                                Text("구독(월정액·패스)으로 기록", fontSize = 14.sp, fontWeight = FontWeight.Medium)
-                                Text("정기 결제 항목으로 분류됩니다", fontSize = 11.sp, color = TextSecondary)
+                                Text("구독(월정액·패스)으로 기록", fontSize = 15.sp, fontWeight = FontWeight.Medium)
+                                Text("정기 결제 항목으로 분류됩니다", fontSize = 12.sp, color = TextSecondary)
                             }
                             GlgSwitch(checked = isSubscription, onCheckedChange = { isSubscription = it })
                         }
@@ -310,7 +329,7 @@ private fun SectionCard(content: @Composable ColumnScope.() -> Unit) {
 
 @Composable
 private fun SectionRowLabel(text: String) {
-    Text(text, fontSize = 13.sp, color = TextSecondary, fontWeight = FontWeight.Bold)
+    Text(text, fontSize = 14.sp, color = TextSecondary, fontWeight = FontWeight.Bold)
 }
 
 @Composable
@@ -329,7 +348,7 @@ private fun GameSelectItem(game: Game, isSelected: Boolean, onClick: () -> Unit)
             Spacer(Modifier.width(8.dp))
             Text(
                 game.shortName,
-                fontSize = 12.sp,
+                fontSize = 13.sp,
                 color = if (isSelected) Color.White else TextPrimary,
                 fontWeight = FontWeight.Bold,
             )
@@ -347,13 +366,13 @@ private fun PackageCard(pkg: GamePackage, isSelected: Boolean, modifier: Modifie
         border = BorderStroke(1.dp, if (isSelected) accent else DividerColor),
     ) {
         Column(
-            modifier = Modifier.padding(10.dp).heightIn(min = 58.dp),
+            modifier = Modifier.padding(10.dp).heightIn(min = 64.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center,
         ) {
-            Text(pkg.name, fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1, color = TextPrimary)
-            pkg.bonus?.let { Text(it, fontSize = 9.sp, color = accent, fontWeight = FontWeight.Bold) }
-            Text("₩%,d".format(pkg.price), fontSize = 10.sp, color = TextSecondary)
+            Text(pkg.name, fontSize = 13.sp, fontWeight = FontWeight.Bold, maxLines = 1, color = TextPrimary)
+            pkg.bonus?.let { Text(it, fontSize = 10.sp, color = accent, fontWeight = FontWeight.Bold) }
+            Text("₩%,d".format(pkg.price), fontSize = 11.sp, color = TextSecondary)
         }
     }
 }
@@ -375,7 +394,7 @@ private fun ChoiceChip(label: String, selected: Boolean, onClick: () -> Unit) {
                 Icon(Icons.Default.Check, null, tint = Color.White, modifier = Modifier.size(14.dp))
                 Spacer(Modifier.width(4.dp))
             }
-            Text(label, fontSize = 12.sp, color = if (selected) Color.White else TextPrimary, fontWeight = FontWeight.Medium)
+            Text(label, fontSize = 14.sp, color = if (selected) Color.White else TextPrimary, fontWeight = FontWeight.Medium)
         }
     }
 }

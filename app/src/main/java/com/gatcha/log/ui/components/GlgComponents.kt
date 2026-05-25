@@ -61,7 +61,7 @@ private val GhostText = Color(0xFF6C727A)
 fun GlgFieldLabel(text: String, modifier: Modifier = Modifier) {
     Text(
         text = text,
-        fontSize = 11.sp,
+        fontSize = 13.sp,
         fontWeight = FontWeight.SemiBold,
         color = LabelColor,
         modifier = modifier.padding(bottom = 6.dp),
@@ -114,7 +114,7 @@ fun GlgTextField(
             Row(verticalAlignment = Alignment.CenterVertically, modifier = fieldModifier) {
                 Box(Modifier.weight(1f)) {
                     if (value.isEmpty() && placeholder.isNotEmpty()) {
-                        Text(placeholder, color = FieldPlaceholder, fontSize = 15.sp)
+                        Text(placeholder, color = FieldPlaceholder, fontSize = 16.sp)
                     }
                     BasicTextField(
                         value = value,
@@ -124,7 +124,7 @@ fun GlgTextField(
                         readOnly = readOnly,
                         singleLine = singleLine,
                         keyboardOptions = keyboardOptions,
-                        textStyle = LocalTextStyle.current.copy(color = FieldText, fontSize = 15.sp),
+                        textStyle = LocalTextStyle.current.copy(color = FieldText, fontSize = 16.sp),
                         cursorBrush = SolidColor(accent),
                         interactionSource = interactionSource,
                     )
