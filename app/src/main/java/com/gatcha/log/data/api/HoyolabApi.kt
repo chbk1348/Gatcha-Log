@@ -269,13 +269,24 @@ object HoyolabApi {
             )
             val res = Net.get("https://api-account-os.hoyoverse.com/account/binding/api/getUserGameRolesByLtoken?game_biz=", h)
             JSONObject(res.body).optJSONObject("data")?.optJSONArray("list")?.let { list ->
+                // 한 게임에 여러 역할(지역/부계정)이 올 수 있다 → 게임별 후보를 모은 뒤 대표 1개만 선택
+                data class Role(val uid: String, val chosen: Boolean, val level: Int)
+                val byKey = linkedMapOf<String, MutableList<Role>>()
                 for (i in 0 until list.length()) {
                     val o = list.optJSONObject(i) ?: continue
                     val key = when (o.optString("game_biz")) {
                         "hk4e_global" -> "genshin"; "hkrpg_global" -> "hsr"; "nap_global" -> "zzz"; else -> null
                     } ?: continue
                     val uid = o.optString("game_uid")
-                    if (uid.isNotBlank()) out[key] = uid
+                    if (uid.isBlank()) continue
+                    byKey.getOrPut(key) { mutableListOf() }
+                        .add(Role(uid, o.optBoolean("is_chosen"), o.optInt("level")))
+                }
+                // HoYoLAB 대표 계정(is_chosen) 우선, 그다음 레벨 높은 순으로 대표 UID 결정
+                byKey.forEach { (key, roles) ->
+                    out[key] = roles.sortedWith(
+                        compareByDescending<Role> { it.chosen }.thenByDescending { it.level },
+                    ).first().uid
                 }
             }
         }

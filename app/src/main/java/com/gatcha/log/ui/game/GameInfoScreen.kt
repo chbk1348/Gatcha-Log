@@ -1,5 +1,12 @@
 package com.gatcha.log.ui.game
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -96,30 +103,40 @@ fun GameInfoScreen(
     val codesLoading by viewModel.codesLoading.collectAsState()
     val redeemedCodes by viewModel.redeemedCodes.collectAsState()
 
-    // HoYoLAB 연동은 모달이 아닌 별도 페이지로 표시
-    if (showHoyolabDialog.value) {
-        HoyolabLinkScreen(
-            config = hoyolab,
-            onSave = {
-                viewModel.updateHoyolabConfig(it)
-                showHoyolabDialog.value = false
-                viewModel.refreshGameInfo()
-            },
-            onBack = { showHoyolabDialog.value = false },
-        )
-        return
-    }
-
-    GlgPullToRefreshBox(
-        isRefreshing = isRefreshing,
-        onRefresh = { viewModel.refreshGameInfo() },
-        modifier = Modifier.fillMaxSize(),
-    ) {
-        LazyColumn(
-            state = listState,
-            modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
-            contentPadding = PaddingValues(bottom = 120.dp),
+    // HoYoLAB 연동 페이지 — 화면 스왑(게임정보 ↔ 연동) 슬라이드 push/pop
+    AnimatedContent(
+        targetState = showHoyolabDialog.value,
+        transitionSpec = {
+            if (targetState) {
+                (slideInHorizontally(tween(300)) { it } + fadeIn(tween(300))) togetherWith
+                    (slideOutHorizontally(tween(300)) { -it / 4 } + fadeOut(tween(220)))
+            } else {
+                (slideInHorizontally(tween(300)) { -it / 4 } + fadeIn(tween(300))) togetherWith
+                    (slideOutHorizontally(tween(300)) { it } + fadeOut(tween(220)))
+            }
+        },
+        label = "hoyoLink",
+    ) { link ->
+        if (link) {
+            HoyolabLinkScreen(
+                config = hoyolab,
+                onSave = {
+                    viewModel.updateHoyolabConfig(it)
+                    showHoyolabDialog.value = false
+                    viewModel.refreshGameInfo()
+                },
+                onBack = { showHoyolabDialog.value = false },
+            )
+        } else GlgPullToRefreshBox(
+            isRefreshing = isRefreshing,
+            onRefresh = { viewModel.refreshGameInfo() },
+            modifier = Modifier.fillMaxSize(),
         ) {
+            LazyColumn(
+                state = listState,
+                modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
+                contentPadding = PaddingValues(bottom = 120.dp),
+            ) {
             item {
                 Row(
                     modifier = Modifier.fillMaxWidth().padding(top = 24.dp, bottom = 16.dp),
@@ -223,6 +240,7 @@ fun GameInfoScreen(
                 }
             }
         }
+    }
     }
 
     if (showRateDialog.value) {

@@ -4,6 +4,13 @@ import android.content.Context
 import android.content.Intent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -64,21 +71,31 @@ fun SettingsScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
     val showImportBackup = remember { mutableStateOf(false) }
     val showCredits = remember { mutableStateOf(false) }
 
-    // HoYoLAB 연동은 모달이 아닌 별도 페이지로 표시
-    if (showHoyolab.value) {
-        HoyolabLinkScreen(
-            config = hoyolab,
-            onSave = { viewModel.updateHoyolabConfig(it); showHoyolab.value = false },
-            onBack = { showHoyolab.value = false },
-        )
-        return
-    }
-
-    LazyColumn(
-        modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
-        contentPadding = PaddingValues(bottom = 120.dp),
-    ) {
-        item { GlgScreenHeader("설정", onBack) }
+    // HoYoLAB 연동 페이지 — 화면 스왑(설정 ↔ 연동) 슬라이드 push/pop
+    AnimatedContent(
+        targetState = showHoyolab.value,
+        transitionSpec = {
+            if (targetState) {
+                (slideInHorizontally(tween(300)) { it } + fadeIn(tween(300))) togetherWith
+                    (slideOutHorizontally(tween(300)) { -it / 4 } + fadeOut(tween(220)))
+            } else {
+                (slideInHorizontally(tween(300)) { -it / 4 } + fadeIn(tween(300))) togetherWith
+                    (slideOutHorizontally(tween(300)) { it } + fadeOut(tween(220)))
+            }
+        },
+        label = "hoyoLink",
+    ) { link ->
+        if (link) {
+            HoyolabLinkScreen(
+                config = hoyolab,
+                onSave = { viewModel.updateHoyolabConfig(it); showHoyolab.value = false },
+                onBack = { showHoyolab.value = false },
+            )
+        } else LazyColumn(
+            modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
+            contentPadding = PaddingValues(bottom = 120.dp),
+        ) {
+            item { GlgScreenHeader("설정", onBack) }
 
         // 계정
         item { SectionTitle("계정") }
@@ -186,6 +203,7 @@ fun SettingsScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
                 }
             }
         }
+        }
     }
 
     if (showBudget.value) {
@@ -280,7 +298,16 @@ private fun UplogDialog(versionName: String, onDismiss: () -> Unit) {
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
             UplogEntry(
-                "v${versionName.ifBlank { "27.4.2" }}",
+                "v${versionName.ifBlank { "27.5.0" }}",
+                listOf(
+                    "HoYoLAB 로그인 한 번으로 토큰·게임 UID 자동 입력 (수동 복사 불필요)",
+                    "HoYoLAB 선물코드 자동 수집 + 한 번에 교환",
+                    "HoYoLAB 계정 연동을 전용 페이지로 개편 (전환 애니메이션·연동 안내)",
+                    "스타레일 등 UID가 부계정으로 잘못 채워지던 문제 수정 (대표 계정 우선)",
+                ),
+            )
+            UplogEntry(
+                "v27.4.2",
                 listOf(
                     "[핫픽스] 지출 저장·삭제·수정 직후 당겨서 새로고침하면 변경이 사라지던 문제 수정",
                 ),
