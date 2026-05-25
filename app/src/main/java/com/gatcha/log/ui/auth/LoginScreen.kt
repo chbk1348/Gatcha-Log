@@ -1,7 +1,6 @@
 package com.gatcha.log.ui.auth
 
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
+import android.app.Activity
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
@@ -44,10 +43,6 @@ fun LoginScreen(viewModel: SpendingViewModel) {
     val context = LocalContext.current
     val statusMessage by viewModel.statusMessage.collectAsState()
 
-    val signInLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.StartActivityForResult(),
-    ) { result -> viewModel.onGoogleSignInResult(result.data) }
-
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -87,7 +82,7 @@ fun LoginScreen(viewModel: SpendingViewModel) {
             Spacer(Modifier.height(40.dp))
             GlgButton(
                 "Google로 로그인",
-                onClick = { signInLauncher.launch(viewModel.googleSignInIntent(context)) },
+                onClick = { (context as? Activity)?.let { viewModel.signIn(it) } },
                 modifier = Modifier.fillMaxWidth(),
                 height = 54.dp,
             )
@@ -102,6 +97,12 @@ fun LoginScreen(viewModel: SpendingViewModel) {
             Text(
                 "로그인하면 데이터가 구글 계정에 안전하게 저장·동기화됩니다.\n게스트는 이 기기에만 저장돼요.",
                 fontSize = 11.sp, color = Color.Gray,
+                textAlign = TextAlign.Center, lineHeight = 16.sp,
+            )
+            Spacer(Modifier.height(10.dp))
+            Text(
+                "앱을 다시 설치했나요? 이전에 쓰던 구글 계정으로 로그인하면 클라우드에 저장된 데이터가 복원돼요.",
+                fontSize = 11.sp, color = accent,
                 textAlign = TextAlign.Center, lineHeight = 16.sp,
             )
         }

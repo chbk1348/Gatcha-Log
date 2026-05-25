@@ -16,8 +16,8 @@ android {
         applicationId = "com.gatcha.log"
         minSdk = 24
         targetSdk = 34
-        versionCode = 270301 // 27.3.1
-        versionName = "27.3.1"
+        versionCode = 270400 // 27.4.0
+        versionName = "27.4.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -78,8 +78,10 @@ dependencies {
     // 네트워크 이미지 로딩(구글 프로필 사진 등)
     implementation("io.coil-kt:coil-compose:2.7.0")
 
-    // 구글 로그인 (Google Sign-In)
-    implementation("com.google.android.gms:play-services-auth:21.2.0")
+    // 구글 로그인 — Credential Manager(원탭/자동선택). 구식 GoogleSignIn 대체.
+    implementation("androidx.credentials:credentials:1.3.0")
+    implementation("androidx.credentials:credentials-play-services-auth:1.3.0")
+    implementation("com.google.android.libraries.identity.googleid:googleid:1.1.1")
 
     // Firebase — 구글 계정 귀속 클라우드 저장(Firestore) + 인증.
     // google-services.json 이 없으면 런타임에 비활성(앱은 로컬로 동작).

@@ -17,3 +17,10 @@
 # 코틀린 메타데이터/인트린식(예방적).
 -keepattributes RuntimeVisibleAnnotations,AnnotationDefault
 -dontwarn kotlinx.**
+
+# ── 구글 로그인 (Credential Manager + Google ID) ─────────────────────
+# androidx.credentials 는 자체 consumer 룰을 동봉하나, googleid 자격증명 타입은
+# Bundle 키 기반으로 createFrom() 처리되므로 보존(R8 축소로 누락 시 로그인 실패 예방).
+-keep class com.google.android.libraries.identity.googleid.** { *; }
+-keep class androidx.credentials.playservices.** { *; }
+-dontwarn com.google.android.libraries.identity.googleid.**

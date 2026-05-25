@@ -8,6 +8,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.gatcha.log.data.Account
 import com.gatcha.log.data.AuthManager
+import com.gatcha.log.data.SignInOutcome
 import com.gatcha.log.data.CloudSync
 import com.gatcha.log.data.DateUtil
 import com.gatcha.log.data.GachaBanner
@@ -33,11 +34,11 @@ import com.gatcha.log.data.api.EnneadApi
 import com.gatcha.log.data.api.HoyolabApi
 import com.gatcha.log.data.api.UpdateChecker
 import com.gatcha.log.data.api.UpdateInfo
-import com.google.android.gms.common.api.ApiException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -133,44 +134,57 @@ class SpendingViewModel(app: Application) : AndroidViewModel(app) {
         _subscriptions.value = repo.loadSubscriptions()
     }
 
-    // ----------------------------------------------------------------- 계정 (구글 로그인)
-    /** UI에서 ActivityResultLauncher로 실행할 로그인 인텐트. */
-    fun googleSignInIntent(context: Context): Intent = authManager.signInIntent(context)
-
-    /** 로그인 ActivityResult 처리. */
-    fun onGoogleSignInResult(data: Intent?) {
-        authManager.handleSignInResult(data)
-            .onSuccess { acc ->
-                viewModelScope.launch {
-                    if (cloudConfigured) _initialSyncing.value = true
-                    // Firebase 설정 시: Google ID 토큰으로 Firebase 인증 → uid 를 계정 식별자로 사용
-                    val finalAcc = if (cloudConfigured) {
-                        val uid = authManager.lastIdToken?.let { CloudSync.signInWithGoogle(it) }
-                        if (uid != null) acc.copy(id = uid) else acc
-                    } else acc
-                    // 로컬/클라우드 키를 uid 로 통일(영속) — 재실행 시에도 동일 계정 파일 사용
-                    authManager.setAccount(finalAcc)
-                    switchAccount(finalAcc)
-                    cloudSyncPullOrSeed()
-                    emitStatus("${finalAcc.name}님으로 로그인되었어요")
-                }
-            }
-            .onFailure { e ->
-                val code = (e as? ApiException)?.statusCode
-                emitStatus(
-                    when (code) {
-                        12501 -> "로그인이 취소되었어요"          // SIGN_IN_CANCELLED
-                        7 -> "네트워크 오류로 로그인에 실패했어요"   // NETWORK_ERROR
-                        else -> "로그인 실패" + (code?.let { " (코드 $it)" } ?: "")
+    // ----------------------------------------------------------------- 계정 (구글 로그인 — Credential Manager)
+    /**
+     * 구글 로그인(원탭). UI 에서 **Activity 컨텍스트**로 호출한다.
+     * 계정 선택 시트를 띄워 한 번 탭하면 로그인 → Firebase 인증 → 클라우드 복원까지 진행.
+     */
+    fun signIn(activityContext: Context) {
+        viewModelScope.launch {
+            if (cloudConfigured) _initialSyncing.value = true
+            when (val outcome = authManager.signIn(activityContext, autoSelectOnly = false)) {
+                is SignInOutcome.Success -> {
+                    if (!completeSignIn(outcome.account)) {
+                        _initialSyncing.value = false
+                        emitStatus("네트워크 오류로 로그인에 실패했어요")
                     }
-                )
+                }
+                SignInOutcome.NoCredential -> { _initialSyncing.value = false; emitStatus("기기에 로그인된 구글 계정이 없어요") }
+                is SignInOutcome.Error -> { _initialSyncing.value = false; emitStatus(outcome.message) }
             }
+        }
+    }
+
+    /**
+     * 로그인 성공 공통 처리: Firebase 인증 → uid 로 계정 식별자 통일 → 계정 전환 → 클라우드 복원.
+     *
+     * E13 방어: Firebase 설정 환경에서 인증이 실패(오프라인 등으로 uid 못 받음)하면 **email 키 계정으로
+     * 전환하지 않고** 게스트로 롤백 후 false 를 반환한다. (email 키 ↔ uid 키 불일치로 "로그인됐는데
+     * 동기화 안 됨" 상태가 영속되는 것을 방지.) 반환값: 로그인 확정 성공 여부.
+     */
+    private suspend fun completeSignIn(acc: Account): Boolean {
+        val finalAcc = if (cloudConfigured) {
+            val uid = authManager.lastIdToken?.let { CloudSync.signInWithGoogle(it) }
+            if (uid == null) {
+                // Firebase 인증 실패 → 방금 영속된 email 계정을 롤백(게스트로 복귀)
+                authManager.signOut()
+                return false
+            }
+            acc.copy(id = uid)
+        } else acc
+        authManager.setAccount(finalAcc)
+        switchAccount(finalAcc)
+        cloudSyncPullOrSeed()
+        emitStatus("${finalAcc.name}님으로 로그인되었어요")
+        return true
     }
 
     fun signOut() {
-        authManager.signOut()
-        switchAccount(Account.GUEST)
-        emitStatus("로그아웃되었어요")
+        viewModelScope.launch {
+            authManager.signOut()
+            switchAccount(Account.GUEST)
+            emitStatus("로그아웃되었어요")
+        }
     }
 
     private fun switchAccount(acc: Account) {
@@ -393,6 +407,51 @@ class SpendingViewModel(app: Application) : AndroidViewModel(app) {
         repo.saveGachaRecords(emptyList())
         _gachaStats.value = null
         emitStatus("가챠 기록을 초기화했어요")
+    }
+
+    // ----------------------------------------------------------------- 백업 파일 내보내기/가져오기 (SAF)
+    /**
+     * 전체 데이터(가챠 포함) 스냅샷 JSON 을 [uri] 파일로 내보낸다.
+     * 게스트·로그인 무관하게 동작하는 기기 독립 백업 — 재설치·기기 변경 후 [importBackupFromUri] 로 복원.
+     */
+    fun exportBackupToUri(uri: Uri) {
+        viewModelScope.launch {
+            val json = repo.exportSnapshotJson()
+            val ok = withContext(Dispatchers.IO) {
+                runCatching {
+                    getApplication<Application>().contentResolver.openOutputStream(uri)?.use {
+                        it.write(json.toByteArray(Charsets.UTF_8))
+                    } ?: error("출력 스트림 없음")
+                    true
+                }.getOrDefault(false)
+            }
+            emitStatus(if (ok) "백업을 파일로 내보냈어요" else "백업 내보내기에 실패했어요")
+        }
+    }
+
+    /**
+     * 백업 파일([uri])의 스냅샷 JSON 을 읽어 현재 계정에 복원한다.
+     * 스냅샷에 있는 키만 덮어쓰며(로컬 전용 값 보존), 로그인 상태면 복원 결과를 클라우드에도 반영한다.
+     */
+    fun importBackupFromUri(uri: Uri) {
+        viewModelScope.launch {
+            val json = withContext(Dispatchers.IO) {
+                runCatching {
+                    getApplication<Application>().contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() }
+                }.getOrNull()
+            }
+            if (json.isNullOrBlank() || runCatching { org.json.JSONObject(json) }.isFailure) {
+                emitStatus("백업 파일을 읽지 못했어요 (형식 확인)")
+                return@launch
+            }
+            repo.importSnapshotJson(json)
+            loadAll()
+            // 로그인 상태면 복원 결과를 클라우드에도 업로드(다른 기기와 일치)
+            if (cloudConfigured) CloudSync.currentUid()?.let { uid ->
+                withContext(Dispatchers.IO) { CloudSync.push(uid, repo.exportSnapshotJson()) }
+            }
+            emitStatus("백업을 복원했어요")
+        }
     }
 
     // ----- 구독 관리 -----
@@ -720,15 +779,32 @@ class SpendingViewModel(app: Application) : AndroidViewModel(app) {
         _initialSyncing.value = true
         syncJob?.cancel()
         try {
-            val remote = CloudSync.pull(uid)
+            // 오프라인 안전장치: 응답 없으면 타임아웃 후 로컬로 진행(로딩 90% 갇힘 방지)
+            val remote = withTimeoutOrNull(SYNC_TIMEOUT_MS) { CloudSync.pull(uid) }
             if (remote != null) repo.importSnapshotJson(remote)
             // 원격/계정에 호요랩 연동이 없고 게스트에 있으면 계정으로 승계(귀속 누락 복구)
             carryOverGuestHoyolab()
             loadAll()
             // 병합 결과를 다시 업로드 → 유실됐던 호요랩 토큰 등을 클라우드에 자가 복구
-            CloudSync.push(uid, repo.exportSnapshotJson())
+            withTimeoutOrNull(SYNC_TIMEOUT_MS) { CloudSync.push(uid, repo.exportSnapshotJson()) }
         } finally {
             _initialSyncing.value = false
+        }
+    }
+
+    private companion object {
+        /** 클라우드 pull/push 최대 대기(ms). 오프라인 등으로 응답 없을 때 로딩 화면 갇힘 방지. */
+        const val SYNC_TIMEOUT_MS = 8_000L
+    }
+
+    /**
+     * 콜드 스타트 부트스트랩: 이미 Firebase 세션이 살아있으면(앱 재실행) 바로 클라우드 동기화.
+     * 세션이 없으면(재설치/데이터삭제/로그아웃) 자동 로그인하지 않고 온보딩(LoginScreen)에서
+     * 사용자가 직접 'Google 로그인' 또는 '게스트'를 선택한다. 로그인 시 [signIn] → [completeSignIn] 으로 복원.
+     */
+    private fun bootstrapAuthAndSync() {
+        if (cloudConfigured && CloudSync.currentUid() != null) {
+            viewModelScope.launch { cloudSyncPullOrSeed() }
         }
     }
 
@@ -736,9 +812,6 @@ class SpendingViewModel(app: Application) : AndroidViewModel(app) {
     init {
         repo.onChange = { scheduleCloudSync() }
         loadAll()
-        // 이미 Firebase 로그인된 상태(앱 재실행)면 시작 시 클라우드 동기화
-        if (cloudConfigured && CloudSync.currentUid() != null) {
-            viewModelScope.launch { cloudSyncPullOrSeed() }
-        }
+        bootstrapAuthAndSync()
     }
 }

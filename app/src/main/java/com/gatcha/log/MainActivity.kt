@@ -29,7 +29,7 @@ class MainActivity : ComponentActivity() {
             var loadingDone by rememberSaveable { mutableStateOf(false) }
             GatchaLogTheme(accentIndex = accentIndex) {
                 when {
-                    // 첫 진입(로그인/게스트 미선택) → 온보딩
+                    // 첫 진입(로그인/게스트 미선택) → 온보딩에서 사용자가 직접 선택(자동 로그인 안 함)
                     account.isGuest && !guestChosen -> LoginScreen(viewModel)
                     // 로그인 유저 → 계정 데이터 불러오는 중(0~100% 프로그레스)
                     !account.isGuest && !loadingDone ->

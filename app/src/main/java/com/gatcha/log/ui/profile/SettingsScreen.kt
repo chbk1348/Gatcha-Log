@@ -48,8 +48,12 @@ fun SettingsScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
     val versionName = remember { com.gatcha.log.data.api.UpdateChecker.currentVersionName(context) }
     // 상태 메시지 토스트는 상위 HomeScreen 의 전역 GlgStatusToast 가 처리
 
-    val signInLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) {
-        viewModel.onGoogleSignInResult(it.data)
+    // 백업 파일 내보내기/가져오기 (SAF)
+    val exportBackupLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
+        uri?.let { viewModel.exportBackupToUri(it) }
+    }
+    val importBackupLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        uri?.let { viewModel.importBackupFromUri(it) }
     }
 
     val showBudget = remember { mutableStateOf(false) }
@@ -57,6 +61,7 @@ fun SettingsScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
     val showUplog = remember { mutableStateOf(false) }
     val showClearGacha = remember { mutableStateOf(false) }
     val showClearSpend = remember { mutableStateOf(false) }
+    val showImportBackup = remember { mutableStateOf(false) }
     val showCredits = remember { mutableStateOf(false) }
 
     LazyColumn(
@@ -84,7 +89,7 @@ fun SettingsScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
                     }
                     Spacer(Modifier.height(14.dp))
                     if (account.isGuest) {
-                        GlgButton("Google로 로그인", onClick = { signInLauncher.launch(viewModel.googleSignInIntent(context)) }, modifier = Modifier.fillMaxWidth())
+                        GlgButton("Google로 로그인", onClick = { (context as? android.app.Activity)?.let { viewModel.signIn(it) } }, modifier = Modifier.fillMaxWidth())
                     } else {
                         GlgOutlineButton("로그아웃", onClick = { viewModel.signOut() }, modifier = Modifier.fillMaxWidth())
                     }
@@ -130,6 +135,29 @@ fun SettingsScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
                     ) { if (spendings.isNotEmpty()) showClearSpend.value = true }
                 }
             }
+        }
+
+        // 백업·복원 (재설치·기기 변경 대비)
+        item { Spacer(Modifier.height(20.dp)) }
+        item { SectionTitle("백업·복원") }
+        item {
+            GlassCard(shape = RoundedCornerShape(24.dp), modifier = Modifier.fillMaxWidth()) {
+                Column {
+                    SettingsItem("백업 파일 내보내기", Icons.Default.Backup, value = "전체 데이터") {
+                        val date = java.text.SimpleDateFormat("yyyyMMdd", java.util.Locale.US).format(java.util.Date())
+                        exportBackupLauncher.launch("gatchalog-backup-$date.json")
+                    }
+                    HorizontalDivider(color = DividerColor, modifier = Modifier.padding(horizontal = 16.dp))
+                    SettingsItem("백업 파일에서 복원", Icons.Default.Restore) { showImportBackup.value = true }
+                }
+            }
+        }
+        item {
+            Text(
+                "구글 로그인 없이도 전체 데이터(가챠 기록 포함)를 파일로 저장해 두면, 앱을 재설치하거나 기기를 바꿔도 복원할 수 있어요.",
+                fontSize = 11.sp, color = TextSecondary,
+                modifier = Modifier.padding(top = 8.dp, start = 4.dp, end = 4.dp),
+            )
         }
 
         // 정보
@@ -182,6 +210,22 @@ fun SettingsScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
             Text("모든 지출 기록(${spendings.size}건)을 삭제할까요? 이 작업은 되돌릴 수 없어요.", fontSize = 13.sp, color = TextSecondary)
         }
     }
+    if (showImportBackup.value) {
+        GlgDialog(
+            title = "백업 파일에서 복원",
+            onDismiss = { showImportBackup.value = false },
+            confirmText = "파일 선택",
+            onConfirm = {
+                showImportBackup.value = false
+                importBackupLauncher.launch(arrayOf("application/json", "application/octet-stream", "text/plain"))
+            },
+        ) {
+            Text(
+                "백업 파일을 선택해 복원할까요? 백업에 들어 있는 항목은 현재 데이터를 덮어씁니다.",
+                fontSize = 13.sp, color = TextSecondary,
+            )
+        }
+    }
 }
 
 @Composable
@@ -229,7 +273,17 @@ private fun UplogDialog(versionName: String, onDismiss: () -> Unit) {
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
             UplogEntry(
-                "v${versionName.ifBlank { "27.3.1" }}",
+                "v${versionName.ifBlank { "27.4.0" }}",
+                listOf(
+                    "재설치·기기 변경 후 데이터 복원 안정화 — 같은 구글 계정으로 로그인하면 가챠 기록까지 복원",
+                    "백업 파일 내보내기/복원 추가 (설정 ▸ 백업·복원) — 로그인 없이도 전체 데이터 보관",
+                    "로그인 방식 개선 (Credential Manager) — 더 매끄러운 계정 선택",
+                    "오프라인에서 앱이 로딩 화면에 멈추던 문제 수정",
+                    "버전 호환성 개선으로 클라우드 데이터 보호 강화",
+                ),
+            )
+            UplogEntry(
+                "v27.3.1",
                 listOf(
                     "[핫픽스] 화면이 짧은 단말에서 연동·예산 등 다이얼로그가 잘려 취소·저장 버튼이 안 보이던 문제 수정 (본문 스크롤)",
                 ),

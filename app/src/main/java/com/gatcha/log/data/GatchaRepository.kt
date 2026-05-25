@@ -206,14 +206,15 @@ class GatchaRepository(context: Context, accountId: String = "guest") {
         changed()
     }
 
-    // ---------------------------------------------------------------- 가챠 기록 (UIGF/SRGF) — 로컬 전용(용량상 클라우드 스냅샷 제외)
+    // ---------------------------------------------------------------- 가챠 기록 (UIGF/SRGF)
     fun loadGachaRecords(): List<GachaRecord> = GachaReport.fromJsonArray(prefs.getString(KEY_GACHA, null))
     fun saveGachaRecords(records: List<GachaRecord>) {
         prefs.edit().putString(KEY_GACHA, GachaReport.toJsonArray(records)).apply()
+        changed() // 스냅샷(클라우드/파일 백업)에 포함되므로 변경 시 동기화 트리거
     }
 
-    // ---------------------------------------------------------------- 클라우드 스냅샷 (전체 데이터 직렬화)
-    /** 계정의 모든 데이터를 단일 JSON 으로 직렬화(Firestore 저장용). */
+    // ---------------------------------------------------------------- 스냅샷 (전체 데이터 직렬화 — 클라우드/파일 백업 공용)
+    /** 계정의 모든 데이터를 단일 JSON 으로 직렬화(Firestore 저장·파일 백업용). */
     fun exportSnapshotJson(): String {
         val o = JSONObject()
         prefs.getString(KEY_SPENDINGS, null)?.let { o.put(KEY_SPENDINGS, JSONArray(it)) }
@@ -234,10 +235,11 @@ class GatchaRepository(context: Context, accountId: String = "guest") {
         prefs.getString(KEY_PITY, null)?.let { o.put(KEY_PITY, JSONObject(it)) }
         prefs.getString(KEY_EVENT_CHECKS, null)?.let { o.put(KEY_EVENT_CHECKS, JSONArray(it)) }
         prefs.getString(KEY_SUBS, null)?.let { o.put(KEY_SUBS, JSONArray(it)) }
+        prefs.getString(KEY_GACHA, null)?.let { o.put(KEY_GACHA, JSONArray(it)) }
         return o.toString()
     }
 
-    /** Firestore 등에서 받은 스냅샷 JSON 을 로컬에 반영. (onChange 미발생 → 푸시 루프 방지) */
+    /** Firestore/백업 파일에서 받은 스냅샷 JSON 을 로컬에 반영. (onChange 미발생 → 푸시 루프 방지) */
     fun importSnapshotJson(json: String) {
         val o = runCatching { JSONObject(json) }.getOrNull() ?: return
         prefs.edit().apply {
@@ -259,6 +261,7 @@ class GatchaRepository(context: Context, accountId: String = "guest") {
             if (o.has(KEY_PITY)) putString(KEY_PITY, o.getJSONObject(KEY_PITY).toString())
             if (o.has(KEY_EVENT_CHECKS)) putString(KEY_EVENT_CHECKS, o.getJSONArray(KEY_EVENT_CHECKS).toString())
             if (o.has(KEY_SUBS)) putString(KEY_SUBS, o.getJSONArray(KEY_SUBS).toString())
+            if (o.has(KEY_GACHA)) putString(KEY_GACHA, o.getJSONArray(KEY_GACHA).toString())
         }.apply()
     }
 

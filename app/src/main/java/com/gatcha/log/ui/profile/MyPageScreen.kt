@@ -51,9 +51,6 @@ fun MyPageScreen(
     val context = LocalContext.current
 
     val showSettings = remember { mutableStateOf(false) }
-    val signInLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) {
-        viewModel.onGoogleSignInResult(it.data)
-    }
 
     // 설정 페이지에서 시스템/제스처 뒤로가기 시 홈이 아니라 마이페이지로 복귀
     BackHandler(enabled = showSettings.value) { showSettings.value = false }
@@ -105,7 +102,7 @@ fun MyPageScreen(
                 email = if (account.isGuest) "" else profile.email,
                 photoUrl = if (account.isGuest) null else account.photoUrl,
                 isGuest = account.isGuest,
-                onLogin = { signInLauncher.launch(viewModel.googleSignInIntent(context)) },
+                onLogin = { (context as? android.app.Activity)?.let { viewModel.signIn(it) } },
             )
         }
         item { Spacer(Modifier.height(22.dp)) }
