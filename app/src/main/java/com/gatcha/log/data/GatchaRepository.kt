@@ -2,7 +2,6 @@ package com.gatcha.log.data
 
 import android.content.Context
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.toArgb
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -47,7 +46,7 @@ class GatchaRepository(context: Context, accountId: String = "guest") {
         put("itemName", itemName)
         put("memo", memo)
         put("isSubscription", isSubscription)
-        put("gameColor", gameColor.toArgb())
+        // gameColor 는 gameName 으로 항상 재계산 가능 → 저장 안 함(용량 절감, 로드 시 복원)
         put("tags", JSONArray(tags))
     }
 

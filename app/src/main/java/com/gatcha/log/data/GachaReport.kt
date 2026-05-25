@@ -255,9 +255,9 @@ object GachaReport {
         val arr = JSONArray()
         records.forEach { r ->
             arr.put(
+                // 파생(pool)·미사용(itemId·itemType) 필드는 저장하지 않아 용량 절감
                 JSONObject()
-                    .put("game", r.game).put("pool", r.pool).put("gachaType", r.gachaType)
-                    .put("itemId", r.itemId).put("name", r.name).put("itemType", r.itemType)
+                    .put("game", r.game).put("gachaType", r.gachaType).put("name", r.name)
                     .put("rarity", r.rarity).put("time", r.time).put("uid", r.uid).put("id", r.id),
             )
         }
@@ -270,9 +270,16 @@ object GachaReport {
             val arr = JSONArray(jsonStr)
             (0 until arr.length()).map { i ->
                 val o = arr.getJSONObject(i)
+                val game = o.optString("game")
+                val gachaType = o.optString("gachaType")
                 GachaRecord(
-                    game = o.optString("game"), pool = o.optString("pool"), gachaType = o.optString("gachaType"),
-                    itemId = o.optString("itemId"), name = o.optString("name"), itemType = o.optString("itemType"),
+                    game = game,
+                    // pool 은 저장 안 함 — 옛 데이터에 있으면 그대로, 없으면 game+gachaType 로 재계산
+                    pool = o.optString("pool").ifBlank { poolKey(game, gachaType) },
+                    gachaType = gachaType,
+                    itemId = o.optString("itemId"),
+                    name = o.optString("name"),
+                    itemType = o.optString("itemType"),
                     rarity = o.optInt("rarity"), time = o.optString("time"), uid = o.optString("uid"), id = o.optString("id"),
                 )
             }
