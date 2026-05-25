@@ -273,7 +273,13 @@ private fun UplogDialog(versionName: String, onDismiss: () -> Unit) {
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
             UplogEntry(
-                "v${versionName.ifBlank { "27.4.1" }}",
+                "v${versionName.ifBlank { "27.4.2" }}",
+                listOf(
+                    "[핫픽스] 지출 저장·삭제·수정 직후 당겨서 새로고침하면 변경이 사라지던 문제 수정",
+                ),
+            )
+            UplogEntry(
+                "v27.4.1",
                 listOf(
                     "업데이트 확인이 잘 되지 않던 문제 수정 (버전 정보 캐시 우회)",
                     "지출 추가 모달 글씨 크기·가독성 개선",

@@ -606,19 +606,30 @@ class SpendingViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /**
-     * 지출 탭 당겨서 새로고침: 로그인 상태면 클라우드에서 끌어와 병합 후 다시 업로드(양방향 자가 복구),
-     * 항상 로컬 재로딩. 한쪽 기기에서 새로고침하면 유실된 호요랩 토큰을 클라우드에 되살리거나 복원할 수 있다.
+     * 지출 탭 당겨서 새로고침.
+     *
+     * ⚠️ 블로커 수정: 저장/삭제/수정 직후(디바운스 푸시 대기 중) PTR 하면, pull→import 가 아직 클라우드에
+     * 반영 안 된 로컬 변경을 옛 스냅샷으로 덮어써 변경이 사라지던 문제. → **미반영 로컬 변경이 있으면
+     * pull 로 덮어쓰지 않고 먼저 push(flush)** 하고, 없을 때만 pull+병합(호요랩 토큰 등 자가복구) 후 재업로드.
+     * pull/push 는 오프라인 멈춤 방지를 위해 타임아웃으로 감싼다.
      */
     fun refreshSpending() {
         viewModelScope.launch {
             _isRefreshing.value = true
             if (cloudConfigured) {
                 CloudSync.currentUid()?.let { uid ->
+                    val hasPendingLocal = syncJob?.isActive == true // 디바운스 푸시 대기 = 미반영 로컬 변경
                     syncJob?.cancel()
-                    CloudSync.pull(uid)?.let { repo.importSnapshotJson(it) }
-                    carryOverGuestHoyolab()
-                    loadAll()
-                    CloudSync.push(uid, repo.exportSnapshotJson())
+                    if (hasPendingLocal) {
+                        // 로컬 변경을 먼저 클라우드에 반영(PTR 이 옛 클라우드로 덮어쓰지 않게)
+                        withTimeoutOrNull(SYNC_TIMEOUT_MS) { CloudSync.push(uid, repo.exportSnapshotJson()) }
+                    } else {
+                        val remote = withTimeoutOrNull(SYNC_TIMEOUT_MS) { CloudSync.pull(uid) }
+                        if (remote != null) repo.importSnapshotJson(remote)
+                        carryOverGuestHoyolab()
+                        loadAll()
+                        withTimeoutOrNull(SYNC_TIMEOUT_MS) { CloudSync.push(uid, repo.exportSnapshotJson()) }
+                    }
                 }
             }
             loadAll()
