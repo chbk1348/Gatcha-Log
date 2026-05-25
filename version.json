@@ -1,10 +1,12 @@
 {
-  "versionCode": 270402,
-  "versionName": "27.4.2",
+  "versionCode": 270500,
+  "versionName": "27.5.0",
   "url": "https://github.com/chbk1348/Gatcha-Log-Android/releases/latest",
   "apkUrl": "https://github.com/chbk1348/Gatcha-Log-Android/releases/latest/download/app-release.apk",
   "notes": [
-    "[핫픽스] 지출 저장·삭제·수정 직후 당겨서 새로고침하면 변경이 사라지던 문제 수정",
-    "오프라인에서 당겨서 새로고침이 멈추지 않도록 보강"
+    "HoYoLAB 로그인 한 번으로 토큰·게임 UID 자동 입력",
+    "선물코드 자동 수집 + 한 번에 교환",
+    "계정 연동 전용 페이지 개편 (전환 애니메이션·연동 안내)",
+    "스타레일 등 UID가 부계정으로 잘못 채워지던 문제 수정"
   ]
 }
