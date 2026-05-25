@@ -32,6 +32,9 @@ import com.gatcha.log.data.api.EnkaApi
 import com.gatcha.log.data.api.EnkaResult
 import com.gatcha.log.data.api.EnneadApi
 import com.gatcha.log.data.api.HoyolabApi
+import com.gatcha.log.data.api.CodeResult
+import com.gatcha.log.data.api.GiftCode
+import com.gatcha.log.data.api.GiftCodeApi
 import com.gatcha.log.data.api.UpdateChecker
 import com.gatcha.log.data.api.UpdateInfo
 import kotlinx.coroutines.Dispatchers
@@ -132,6 +135,7 @@ class SpendingViewModel(app: Application) : AndroidViewModel(app) {
         gachaRecords = repo.loadGachaRecords()
         _gachaStats.value = GachaReport.computeStats(gachaRecords)
         _subscriptions.value = repo.loadSubscriptions()
+        _redeemedCodes.value = repo.loadRedeemedCodes()
     }
 
     // ----------------------------------------------------------------- 계정 (구글 로그인 — Credential Manager)
@@ -654,29 +658,73 @@ class SpendingViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    // ----------------------------------------------------------------- 선물코드 교환
+    // ----------------------------------------------------------------- 선물코드 (자동 수집 + 교환)
     private val _redeemState = MutableStateFlow<RedeemState>(RedeemState.Idle)
     val redeemState: StateFlow<RedeemState> = _redeemState.asStateFlow()
 
-    /** HoYoLAB 선물코드 교환. 결과는 [redeemState] 로 노출. */
-    fun redeemGiftCode(gameKey: String, code: String) {
+    /** 자동 수집된 활성 코드. */
+    private val _activeCodes = MutableStateFlow<List<GiftCode>>(emptyList())
+    val activeCodes: StateFlow<List<GiftCode>> = _activeCodes.asStateFlow()
+    private val _codesLoading = MutableStateFlow(false)
+    val codesLoading: StateFlow<Boolean> = _codesLoading.asStateFlow()
+    /** 이미 교환한 코드(목록에서 사용 표시). */
+    private val _redeemedCodes = MutableStateFlow<Set<String>>(emptySet())
+    val redeemedCodes: StateFlow<Set<String>> = _redeemedCodes.asStateFlow()
+
+    /** 게임의 현재 활성 선물코드를 자동 수집해 [activeCodes] 로 노출. */
+    fun loadActiveCodes(gameKey: String) {
+        viewModelScope.launch {
+            _codesLoading.value = true
+            _activeCodes.value = withContext(Dispatchers.IO) { GiftCodeApi.activeCodes(gameKey) }
+            _codesLoading.value = false
+        }
+    }
+
+    private fun markRedeemed(code: String) {
+        val s = _redeemedCodes.value + code.uppercase()
+        _redeemedCodes.value = s
+        repo.saveRedeemedCodes(s)
+    }
+
+    /** 교환 실행(검증 포함). 성공/이미사용이면 사용 표시. */
+    private suspend fun doRedeem(gameKey: String, code: String): CodeResult {
         val cfg = _hoyolabConfig.value
-        if (!cfg.isLinked) { _redeemState.value = RedeemState.Done(false, "HoYoLAB 연동이 필요해요"); return }
+        if (!cfg.isLinked) return CodeResult(false, "HoYoLAB 연동이 필요해요")
         val uid = when (gameKey) {
             "genshin" -> cfg.genshinUid
             "hsr" -> cfg.hsrUid
             "zzz" -> cfg.zzzUid
             else -> ""
         }
-        if (uid.isBlank()) { _redeemState.value = RedeemState.Done(false, "이 게임 UID가 없어요"); return }
-        if (cfg.cookieToken.isBlank()) {
-            _redeemState.value = RedeemState.Done(false, "연동 설정에서 cookie_token을 입력해주세요 (교환 전용)")
-            return
-        }
+        if (uid.isBlank()) return CodeResult(false, "이 게임 UID가 없어요")
+        if (cfg.cookieToken.isBlank()) return CodeResult(false, "연동 설정에서 cookie_token을 입력해주세요 (교환 전용)")
+        val r = HoyolabApi.redeemCode(cfg.ltuid, cfg.ltoken, cfg.cookieToken, gameKey, uid, code)
+        if (r.success || r.message.contains("이미 사용")) markRedeemed(code)
+        return r
+    }
+
+    /** HoYoLAB 선물코드 교환(단건). 결과는 [redeemState] 로 노출. */
+    fun redeemGiftCode(gameKey: String, code: String) {
         viewModelScope.launch {
             _redeemState.value = RedeemState.Loading
-            val r = HoyolabApi.redeemCode(cfg.ltuid, cfg.ltoken, cfg.cookieToken, gameKey, uid, code)
+            val r = doRedeem(gameKey, code.trim().uppercase())
             _redeemState.value = RedeemState.Done(r.success, r.message)
+        }
+    }
+
+    /** 수집된 활성 코드 중 미교환분을 순차 교환(레이트리밋 대비 지연). */
+    fun redeemAllCodes(gameKey: String) {
+        val targets = _activeCodes.value.map { it.code }.filter { it !in _redeemedCodes.value }
+        if (targets.isEmpty()) { _redeemState.value = RedeemState.Done(true, "교환할 새 코드가 없어요"); return }
+        viewModelScope.launch {
+            var ok = 0; var fail = 0
+            targets.forEachIndexed { i, code ->
+                _redeemState.value = RedeemState.Loading
+                val r = doRedeem(gameKey, code)
+                if (r.success || r.message.contains("이미 사용")) ok++ else fail++
+                if (i < targets.lastIndex) delay(5500) // 교환 레이트리밋(-2016) 회피
+            }
+            _redeemState.value = RedeemState.Done(fail == 0, "교환 ${ok}건 완료${if (fail > 0) " · 실패 $fail" else ""} (우편함 확인)")
         }
     }
 

@@ -199,6 +199,20 @@ class GatchaRepository(context: Context, accountId: String = "guest") {
         changed()
     }
 
+    // ---------------------------------------------------------------- 교환한 선물코드 (자동수집 목록에서 사용 표시) — 로컬 전용
+    fun loadRedeemedCodes(): Set<String> {
+        val raw = prefs.getString(KEY_REDEEMED, null) ?: return emptySet()
+        return runCatching {
+            val arr = JSONArray(raw)
+            (0 until arr.length()).map { arr.getString(it) }.toSet()
+        }.getOrDefault(emptySet())
+    }
+
+    fun saveRedeemedCodes(codes: Set<String>) {
+        // 스냅샷 미포함(로컬 전용) → changed() 미호출
+        prefs.edit().putString(KEY_REDEEMED, JSONArray(codes.toList()).toString()).apply()
+    }
+
     // ---------------------------------------------------------------- 구독 관리 (정기결제)
     fun loadSubscriptions(): List<Subscription> = Subscriptions.fromJsonArray(prefs.getString(KEY_SUBS, null))
     fun saveSubscriptions(list: List<Subscription>) {
@@ -269,6 +283,7 @@ class GatchaRepository(context: Context, accountId: String = "guest") {
         const val KEY_WISHLIST = "wishlist"
         const val KEY_PITY = "pity"
         const val KEY_EVENT_CHECKS = "event_checks"
+        const val KEY_REDEEMED = "redeemed_codes"
         const val KEY_SPENDINGS = "spendings"
         const val KEY_BUDGET = "budget"
         const val KEY_PROFILE_NAME = "profile_name"

@@ -28,7 +28,7 @@ import com.gatcha.log.ui.components.GlgScreenHeader
 import com.gatcha.log.ui.components.GlgDialog
 import com.gatcha.log.ui.components.GlgOutlineButton
 import com.gatcha.log.ui.components.ProfileAvatar
-import com.gatcha.log.ui.game.HoyolabConfigDialog
+import com.gatcha.log.ui.game.HoyolabLinkScreen
 import com.gatcha.log.ui.spending.SpendingViewModel
 import com.gatcha.log.ui.theme.DangerText
 import com.gatcha.log.ui.theme.DividerColor
@@ -63,6 +63,16 @@ fun SettingsScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
     val showClearSpend = remember { mutableStateOf(false) }
     val showImportBackup = remember { mutableStateOf(false) }
     val showCredits = remember { mutableStateOf(false) }
+
+    // HoYoLAB 연동은 모달이 아닌 별도 페이지로 표시
+    if (showHoyolab.value) {
+        HoyolabLinkScreen(
+            config = hoyolab,
+            onSave = { viewModel.updateHoyolabConfig(it); showHoyolab.value = false },
+            onBack = { showHoyolab.value = false },
+        )
+        return
+    }
 
     LazyColumn(
         modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
@@ -180,9 +190,6 @@ fun SettingsScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
 
     if (showBudget.value) {
         BudgetSettingDialog(budget, onDismiss = { showBudget.value = false }) { viewModel.setBudget(it); showBudget.value = false }
-    }
-    if (showHoyolab.value) {
-        HoyolabConfigDialog(hoyolab, onDismiss = { showHoyolab.value = false }) { viewModel.updateHoyolabConfig(it); showHoyolab.value = false }
     }
     if (showUplog.value) {
         UplogDialog(versionName) { showUplog.value = false }
