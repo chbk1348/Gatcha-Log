@@ -51,6 +51,9 @@ fun HoyolabLoginDialog(onCollected: (String, String, String) -> Unit, onDismiss:
                 factory = { ctx ->
                     val cm = CookieManager.getInstance()
                     cm.setAcceptCookie(true)
+                    // 재연동: 기존 세션 쿠키 제거 → 항상 새로 로그인하게 함
+                    cm.removeAllCookies(null)
+                    cm.flush()
                     WebView(ctx).apply {
                         cm.setAcceptThirdPartyCookies(this, true)
                         settings.javaScriptEnabled = true

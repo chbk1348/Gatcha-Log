@@ -250,6 +250,20 @@ class SpendingViewModel(app: Application) : AndroidViewModel(app) {
     fun updateHoyolabConfig(config: HoyolabConfig) {
         _hoyolabConfig.value = config
         repo.saveHoyolab(config)
+        // 연동 성공/실패 넛징(전역 토스트). 토큰이 있으면 실제 유효성 검증 후 안내.
+        if (!config.isLinked) {
+            emitStatus("연동되지 않았어요 — ltuid·ltoken을 입력하거나 로그인으로 가져오세요")
+            return
+        }
+        viewModelScope.launch {
+            val ok = withContext(Dispatchers.IO) {
+                HoyolabApi.fetchGameUids(config.ltuid, config.ltoken).isNotEmpty()
+            }
+            emitStatus(
+                if (ok) "HoYoLAB 계정이 연동되었어요 ✓"
+                else "연동 실패 — 토큰이 만료됐을 수 있어요. 다시 로그인해 가져와주세요",
+            )
+        }
     }
 
     // ----------------------------------------------------------------- 테마 강조색

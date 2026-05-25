@@ -244,6 +244,68 @@ object HoyolabApi {
         }.getOrElse { CodeResult(false, "응답 파싱 실패") }
     }
 
+    // ----------------------------------------------------------------- 게임 UID 자동 조회
+    /**
+     * ltuid/ltoken 으로 계정에 연결된 게임 UID 를 가져온다.
+     * 반환: gameKey(genshin/hsr/zzz) → UID. 실패 시 빈 맵.
+     *
+     * 1순위 바인딩 API(getUserGameRolesByLtoken) — 모든 게임 역할(ZZZ=nap_global 포함)을 나열.
+     * 2순위 getGameRecordCard — 바인딩에서 빠진 게임 보강(ZZZ 는 record card 에 없을 수 있음).
+     */
+    suspend fun fetchGameUids(ltuid: String, ltoken: String): Map<String, String> {
+        if (ltuid.isBlank() || ltoken.isBlank()) return emptyMap()
+        val cookie = "ltuid=$ltuid; ltoken=$ltoken; ltuid_v2=$ltuid; ltoken_v2=$ltoken; account_id=$ltuid; account_id_v2=$ltuid;"
+        val out = linkedMapOf<String, String>()
+
+        // 1) 바인딩 API — game_biz 로 모든 게임 역할(ZZZ 포함)
+        runCatching {
+            val h = mapOf(
+                "Cookie" to cookie,
+                "x-rpc-app_version" to "2.55.0",
+                "x-rpc-client_type" to "2",
+                "x-rpc-language" to "ko-kr",
+                "User-Agent" to "Mozilla/5.0 (iPhone; CPU iPhone OS 17_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) miHoYoBBS/2.55.0",
+                "Referer" to "https://act.hoyolab.com/",
+            )
+            val res = Net.get("https://api-account-os.hoyoverse.com/account/binding/api/getUserGameRolesByLtoken?game_biz=", h)
+            JSONObject(res.body).optJSONObject("data")?.optJSONArray("list")?.let { list ->
+                for (i in 0 until list.length()) {
+                    val o = list.optJSONObject(i) ?: continue
+                    val key = when (o.optString("game_biz")) {
+                        "hk4e_global" -> "genshin"; "hkrpg_global" -> "hsr"; "nap_global" -> "zzz"; else -> null
+                    } ?: continue
+                    val uid = o.optString("game_uid")
+                    if (uid.isNotBlank()) out[key] = uid
+                }
+            }
+        }
+
+        // 2) getGameRecordCard — 바인딩에 없는 게임 보강
+        if (out.size < 3) runCatching {
+            val query = "uid=$ltuid"
+            val h = mapOf(
+                "Cookie" to cookie,
+                "DS" to makeDS(query),
+                "x-rpc-app_version" to "2.55.0",
+                "x-rpc-client_type" to "2",
+                "x-rpc-language" to "ko-kr",
+                "User-Agent" to "Mozilla/5.0 (iPhone; CPU iPhone OS 17_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) miHoYoBBS/2.55.0",
+            )
+            val res = Net.get("https://bbs-api-os.hoyolab.com/game_record/card/wapi/getGameRecordCard?$query", h)
+            JSONObject(res.body).optJSONObject("data")?.optJSONArray("list")?.let { list ->
+                for (i in 0 until list.length()) {
+                    val o = list.optJSONObject(i) ?: continue
+                    val key = when (o.optInt("game_id")) {
+                        2 -> "genshin"; 6 -> "hsr"; 8 -> "zzz"; else -> null
+                    } ?: continue
+                    val roleId = o.optString("game_role_id")
+                    if (roleId.isNotBlank()) out.putIfAbsent(key, roleId)
+                }
+            }
+        }
+        return out
+    }
+
     // ----------------------------------------------------------------- 월간 수입 일지
     /** 게임별 일지 엔드포인트 + 재화 필드. 동일 응답 구조(month_data.current_*)를 공유하는 게임만. */
     private data class LedgerSpec(
