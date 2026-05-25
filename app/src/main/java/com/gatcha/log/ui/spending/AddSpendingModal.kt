@@ -368,7 +368,8 @@ private fun PackageCard(pkg: GamePackage, isSelected: Boolean, modifier: Modifie
         border = BorderStroke(1.dp, if (isSelected) accent else DividerColor),
     ) {
         Column(
-            modifier = Modifier.fillMaxWidth().padding(10.dp).heightIn(min = 64.dp),
+            // 모든 카드 동일 높이로 통일(이름 2줄+보너스+가격 최악 케이스까지 안 잘리게) — 내용 가운데 정렬
+            modifier = Modifier.fillMaxWidth().height(100.dp).padding(horizontal = 8.dp, vertical = 8.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center,
         ) {
