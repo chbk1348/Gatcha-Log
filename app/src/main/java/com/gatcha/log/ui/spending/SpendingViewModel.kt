@@ -21,6 +21,8 @@ import com.gatcha.log.data.GachaStats
 import com.gatcha.log.data.GachaDashboard
 import com.gatcha.log.data.HomeCardItem
 import com.gatcha.log.data.HomeCards
+import com.gatcha.log.data.AppSettings
+import com.gatcha.log.data.work.NativeScheduler
 import com.gatcha.log.data.GameData
 import com.gatcha.log.data.GameEvent
 import com.gatcha.log.data.PityState
@@ -92,6 +94,39 @@ class SpendingViewModel(app: Application) : AndroidViewModel(app) {
     private val _homeCards = MutableStateFlow(HomeCards.default)
     val homeCards: StateFlow<List<HomeCardItem>> = _homeCards.asStateFlow()
     fun setHomeCards(list: List<HomeCardItem>) { _homeCards.value = list; repo.saveHomeCards(list) }
+
+    // 네이티브 설정(자동 출석체크 등) — 기기 단위, 계정 무관
+    private val appSettings = AppSettings(app)
+    private val _autoCheckIn = MutableStateFlow(appSettings.autoCheckIn)
+    val autoCheckIn: StateFlow<Boolean> = _autoCheckIn.asStateFlow()
+    fun setAutoCheckIn(enabled: Boolean) {
+        appSettings.autoCheckIn = enabled
+        _autoCheckIn.value = enabled
+        NativeScheduler.apply(getApplication())
+        if (enabled) {
+            NativeScheduler.runNow(getApplication())
+            emitStatus("자동 출석체크를 켰어요 — 지금 한 번 시도해요")
+        } else {
+            emitStatus("자동 출석체크를 껐어요")
+        }
+    }
+
+    // 로컬 알림 토글 (예산·출석·재화)
+    private val _notifyBudget = MutableStateFlow(appSettings.notifyBudget)
+    val notifyBudget: StateFlow<Boolean> = _notifyBudget.asStateFlow()
+    private val _notifyAttendance = MutableStateFlow(appSettings.notifyAttendance)
+    val notifyAttendance: StateFlow<Boolean> = _notifyAttendance.asStateFlow()
+    private val _notifyResin = MutableStateFlow(appSettings.notifyResin)
+    val notifyResin: StateFlow<Boolean> = _notifyResin.asStateFlow()
+
+    fun setNotifyBudget(v: Boolean) { appSettings.notifyBudget = v; _notifyBudget.value = v; applyNativeAfterNotifyChange(v) }
+    fun setNotifyAttendance(v: Boolean) { appSettings.notifyAttendance = v; _notifyAttendance.value = v; applyNativeAfterNotifyChange(v) }
+    fun setNotifyResin(v: Boolean) { appSettings.notifyResin = v; _notifyResin.value = v; applyNativeAfterNotifyChange(v) }
+
+    private fun applyNativeAfterNotifyChange(enabled: Boolean) {
+        NativeScheduler.apply(getApplication())
+        if (enabled) NativeScheduler.runNow(getApplication())
+    }
 
     private val _accentIndex = MutableStateFlow(0)
     val accentIndex: StateFlow<Int> = _accentIndex.asStateFlow()

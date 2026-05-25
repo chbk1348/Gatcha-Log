@@ -15,11 +15,14 @@ import com.gatcha.log.ui.auth.LoginScreen
 import com.gatcha.log.ui.home.HomeScreen
 import com.gatcha.log.ui.spending.SpendingViewModel
 import com.gatcha.log.ui.theme.GatchaLogTheme
+import com.gatcha.log.data.work.NativeScheduler
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        // 자동 출석·알림 주기 작업을 설정 상태에 맞춰 동기화(재부팅·재설치 후 복구 포함)
+        runCatching { NativeScheduler.apply(applicationContext) }
         setContent {
             val viewModel: SpendingViewModel = viewModel()
             val accentIndex by viewModel.accentIndex.collectAsState()

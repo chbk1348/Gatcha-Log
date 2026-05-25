@@ -25,16 +25,19 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import android.os.Build
 import com.gatcha.log.BuildConfig
 import com.gatcha.log.ui.components.GlassCard
 import com.gatcha.log.ui.components.GlgButton
 import com.gatcha.log.ui.components.GlgScreenHeader
 import com.gatcha.log.ui.components.GlgDialog
 import com.gatcha.log.ui.components.GlgOutlineButton
+import com.gatcha.log.ui.components.GlgSwitch
 import com.gatcha.log.ui.components.ProfileAvatar
 import com.gatcha.log.ui.game.HoyolabLinkScreen
 import com.gatcha.log.ui.spending.SpendingViewModel
@@ -51,6 +54,10 @@ fun SettingsScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
     val budget by viewModel.budget.collectAsState()
     val accentIndex by viewModel.accentIndex.collectAsState()
     val hoyolab by viewModel.hoyolabConfig.collectAsState()
+    val autoCheckIn by viewModel.autoCheckIn.collectAsState()
+    val notifyBudget by viewModel.notifyBudget.collectAsState()
+    val notifyAttendance by viewModel.notifyAttendance.collectAsState()
+    val notifyResin by viewModel.notifyResin.collectAsState()
     val gachaStats by viewModel.gachaStats.collectAsState()
     val spendings by viewModel.spendings.collectAsState()
     val versionName = remember { com.gatcha.log.data.api.UpdateChecker.currentVersionName(context) }
@@ -62,6 +69,11 @@ fun SettingsScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
     }
     val importBackupLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         uri?.let { viewModel.importBackupFromUri(it) }
+    }
+    // 알림 권한(Android 13+) — 알림 토글 켤 때 요청
+    val notifPermLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
+    val ensureNotifPerm: () -> Unit = {
+        if (Build.VERSION.SDK_INT >= 33) notifPermLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
     }
 
     val showBudget = remember { mutableStateOf(false) }
@@ -139,6 +151,56 @@ fun SettingsScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
                     SettingsItem("월 예산", Icons.Default.Savings, value = if (budget > 0) "₩%,d".format(budget) else "미설정") { showBudget.value = true }
                     HorizontalDivider(color = DividerColor, modifier = Modifier.padding(horizontal = 16.dp))
                     SettingsItem("HoYoLAB 계정 연동", Icons.Default.Link, value = if (hoyolab.isLinked) "연동됨" else "미연동") { showHoyolab.value = true }
+                }
+            }
+        }
+
+        // 자동화
+        item { Spacer(Modifier.height(20.dp)) }
+        item { SectionTitle("자동화") }
+        item {
+            GlassCard(shape = RoundedCornerShape(24.dp), modifier = Modifier.fillMaxWidth()) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(Icons.Default.EventAvailable, null, tint = accent, modifier = Modifier.size(20.dp))
+                    Spacer(Modifier.width(12.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text("자동 출석체크", fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                        Text(
+                            if (hoyolab.isLinked) "매일 베이징 자정 이후 자동으로 출석해요 (켜면 지금 한 번 시도)"
+                            else "HoYoLAB 연동 후 사용할 수 있어요",
+                            fontSize = 11.sp, color = TextSecondary,
+                        )
+                    }
+                    Spacer(Modifier.width(8.dp))
+                    if (hoyolab.isLinked) {
+                        GlgSwitch(autoCheckIn) { viewModel.setAutoCheckIn(it) }
+                    } else {
+                        GlgSwitch(false) { showHoyolab.value = true }
+                    }
+                }
+            }
+        }
+
+        // 알림
+        item { Spacer(Modifier.height(20.dp)) }
+        item { SectionTitle("알림") }
+        item {
+            GlassCard(shape = RoundedCornerShape(24.dp), modifier = Modifier.fillMaxWidth()) {
+                Column {
+                    SettingsToggleRow(Icons.Default.Savings, "예산 알림", "이번 달 예산 90%·초과 시 알려줘요", notifyBudget) { on ->
+                        if (on) ensureNotifPerm(); viewModel.setNotifyBudget(on)
+                    }
+                    HorizontalDivider(color = DividerColor, modifier = Modifier.padding(horizontal = 16.dp))
+                    SettingsToggleRow(Icons.Default.EventAvailable, "출석 리마인더", "저녁까지 미출석이면 알려줘요", notifyAttendance) { on ->
+                        if (on) ensureNotifPerm(); viewModel.setNotifyAttendance(on)
+                    }
+                    HorizontalDivider(color = DividerColor, modifier = Modifier.padding(horizontal = 16.dp))
+                    SettingsToggleRow(Icons.Default.Bolt, "재화 가득참 알림", "레진·개척력·배터리가 가득 차면 알려줘요", notifyResin) { on ->
+                        if (on) ensureNotifPerm(); viewModel.setNotifyResin(on)
+                    }
                 }
             }
         }
@@ -258,6 +320,25 @@ fun SettingsScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
 @Composable
 private fun SectionTitle(text: String) {
     Text(text, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextSecondary, modifier = Modifier.padding(bottom = 10.dp, start = 4.dp))
+}
+
+/** 아이콘 + 제목/설명 + 스위치 한 줄 (설정 토글 항목). */
+@Composable
+private fun SettingsToggleRow(icon: ImageVector, title: String, subtitle: String, checked: Boolean, onToggle: (Boolean) -> Unit) {
+    val accent = LocalAccent.current
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(icon, null, tint = accent, modifier = Modifier.size(20.dp))
+        Spacer(Modifier.width(12.dp))
+        Column(Modifier.weight(1f)) {
+            Text(title, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+            Text(subtitle, fontSize = 11.sp, color = TextSecondary)
+        }
+        Spacer(Modifier.width(8.dp))
+        GlgSwitch(checked, onToggle)
+    }
 }
 
 private fun shareCsvFile(context: Context, csv: String) {

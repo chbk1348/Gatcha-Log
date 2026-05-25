@@ -5,6 +5,8 @@
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <!-- 인앱 업데이트: APK 다운로드 후 설치 요청 -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <!-- 로컬 알림(출석·예산·재화) — Android 13+ 런타임 권한 -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <application
         android:allowBackup="true"
@@ -28,6 +30,18 @@
         <receiver
             android:name=".data.api.InstallResultReceiver"
             android:exported="false" />
+
+        <!-- 홈 위젯 (Glance) — 이번 달 지출·예산·출석 -->
+        <receiver
+            android:name=".ui.widget.GatchaWidgetReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/gatcha_widget_info" />
+        </receiver>
     </application>
 
 </manifest>

@@ -79,6 +79,12 @@ dependencies {
     // 네트워크 이미지 로딩(구글 프로필 사진 등)
     implementation("io.coil-kt:coil-compose:2.7.0")
 
+    // 백그라운드 작업 — 자동 출석체크·알림 점검(WorkManager)
+    implementation("androidx.work:work-runtime-ktx:2.9.1")
+
+    // 홈 위젯 — Jetpack Glance(Compose 스타일 위젯)
+    implementation("androidx.glance:glance-appwidget:1.1.0")
+
     // 구글 로그인 — Credential Manager(원탭/자동선택). 구식 GoogleSignIn 대체.
     implementation("androidx.credentials:credentials:1.3.0")
     implementation("androidx.credentials:credentials-play-services-auth:1.3.0")
