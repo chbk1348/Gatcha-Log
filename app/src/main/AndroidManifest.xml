@@ -30,18 +30,6 @@
         <receiver
             android:name=".data.api.InstallResultReceiver"
             android:exported="false" />
-
-        <!-- 홈 위젯 (Glance) — 이번 달 지출·예산·출석 -->
-        <receiver
-            android:name=".ui.widget.GatchaWidgetReceiver"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-            </intent-filter>
-            <meta-data
-                android:name="android.appwidget.provider"
-                android:resource="@xml/gatcha_widget_info" />
-        </receiver>
     </application>
 
 </manifest>
