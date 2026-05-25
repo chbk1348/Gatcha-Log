@@ -687,7 +687,8 @@ private fun NotificationDetailScreen(
             }
         } else {
             LazyColumn(
-                modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp, vertical = 8.dp),
+                // 하단바 미노출 페이지 — 시스템 네비 인셋만 확보
+                modifier = Modifier.fillMaxSize().navigationBarsPadding().padding(horizontal = 16.dp, vertical = 8.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 items(alerts) { alert ->
@@ -698,7 +699,7 @@ private fun NotificationDetailScreen(
                         }
                     }
                 }
-                item { Spacer(Modifier.height(40.dp)) }
+                item { Spacer(Modifier.height(24.dp)) }
             }
         }
     }

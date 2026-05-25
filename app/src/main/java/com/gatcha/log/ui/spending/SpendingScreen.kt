@@ -316,7 +316,8 @@ fun AnnualReportScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
     Column(Modifier.fillMaxSize()) {
         GlgScreenHeader("연간 리포트", onBack, Modifier.padding(horizontal = 16.dp))
         Column(
-            Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 8.dp),
+            // 하단바 미노출 페이지 — 바 높이 여백 대신 시스템 네비 인셋만 확보
+            Modifier.fillMaxSize().navigationBarsPadding().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 8.dp),
         ) {
             if (years.size > 1) {
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -348,7 +349,7 @@ fun AnnualReportScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
                     }
                 }
             }
-            Spacer(Modifier.height(120.dp))
+            Spacer(Modifier.height(24.dp))
         }
     }
 }
@@ -367,7 +368,8 @@ fun SpendingDetailScreen(
     Column(Modifier.fillMaxSize()) {
         GlgScreenHeader("지출 상세", onBack, Modifier.padding(horizontal = 16.dp))
         Column(
-            Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 8.dp),
+            // 하단바 미노출 페이지 — 바 높이 여백 대신 시스템 네비 인셋만 확보
+            Modifier.fillMaxSize().navigationBarsPadding().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 8.dp),
         ) {
             // 요약 카드 (게임·금액·날짜)
             GlassCard(shape = RoundedCornerShape(24.dp), modifier = Modifier.fillMaxWidth()) {
@@ -431,7 +433,7 @@ fun SpendingDetailScreen(
                 GlgOutlineButton("삭제", onClick = { confirmDelete = true }, modifier = Modifier.weight(1f))
                 GlgButton("수정", onClick = onEdit, modifier = Modifier.weight(1.4f))
             }
-            Spacer(Modifier.height(40.dp))
+            Spacer(Modifier.height(24.dp))
         }
     }
 

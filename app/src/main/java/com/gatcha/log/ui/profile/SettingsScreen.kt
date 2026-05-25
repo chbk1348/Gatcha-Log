@@ -92,8 +92,9 @@ fun SettingsScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
                 onBack = { showHoyolab.value = false },
             )
         } else LazyColumn(
-            modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
-            contentPadding = PaddingValues(bottom = 120.dp),
+            // 하단바 미노출 페이지 — 바 높이 여백 대신 시스템 네비 인셋만 확보
+            modifier = Modifier.fillMaxSize().navigationBarsPadding().padding(horizontal = 16.dp),
+            contentPadding = PaddingValues(bottom = 24.dp),
         ) {
             item { GlgScreenHeader("설정", onBack) }
 

@@ -94,8 +94,8 @@ fun HoyolabLinkScreen(config: HoyolabConfig, onSave: (HoyolabConfig) -> Unit, on
                     ),
                 )
             },
-            // 하단 내비바(시스템 네비 + 알약 ~88dp) 위로 띄워 겹침 방지
-            modifier = Modifier.fillMaxWidth().navigationBarsPadding().padding(top = 12.dp, bottom = 96.dp),
+            // 하단바 미노출 페이지 — 시스템 네비 인셋 위에 여백만 확보
+            modifier = Modifier.fillMaxWidth().navigationBarsPadding().padding(top = 12.dp, bottom = 24.dp),
             height = 54.dp,
         )
     }
