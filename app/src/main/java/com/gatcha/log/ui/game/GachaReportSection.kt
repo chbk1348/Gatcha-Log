@@ -27,6 +27,7 @@ import com.gatcha.log.data.GachaReport
 import com.gatcha.log.data.GachaStats
 import com.gatcha.log.ui.components.GlassCard
 import com.gatcha.log.ui.components.GlgButton
+import com.gatcha.log.ui.components.GlgOutlineButton
 import com.gatcha.log.ui.theme.DividerColor
 import com.gatcha.log.ui.theme.LocalAccent
 import com.gatcha.log.ui.theme.TextPrimary
@@ -41,6 +42,7 @@ fun GachaReportSection(
     spendByGameKey: Map<String, Long>,
     onImport: (List<Uri>) -> Unit,
     onClear: () -> Unit,
+    onOpenDashboard: () -> Unit = {},
 ) {
     val accent = LocalAccent.current
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
@@ -71,7 +73,7 @@ fun GachaReportSection(
             if (stats == null) {
                 EmptyState(onImport = openPicker)
             } else {
-                ReportContent(stats, spendByGameKey, onImport = openPicker)
+                ReportContent(stats, spendByGameKey, onImport = openPicker, onOpenDashboard = onOpenDashboard)
             }
         }
     }
@@ -104,7 +106,7 @@ private fun EmptyState(onImport: () -> Unit) {
 }
 
 @Composable
-private fun ReportContent(stats: GachaStats, spendByGameKey: Map<String, Long>, onImport: () -> Unit) {
+private fun ReportContent(stats: GachaStats, spendByGameKey: Map<String, Long>, onImport: () -> Unit, onOpenDashboard: () -> Unit) {
     val accent = LocalAccent.current
     var totalPulls = 0; var totalFive = 0; var totalFour = 0
     var totalSpend = 0L; var totalFiveForCost = 0
@@ -183,6 +185,8 @@ private fun ReportContent(stats: GachaStats, spendByGameKey: Map<String, Long>, 
     }
 
     Spacer(Modifier.height(14.dp))
+    GlgOutlineButton("📊 통계 대시보드 열기", onClick = onOpenDashboard, modifier = Modifier.fillMaxWidth(), height = 46.dp)
+    Spacer(Modifier.height(10.dp))
     GlgButton("기록 추가 가져오기", onClick = onImport, modifier = Modifier.fillMaxWidth(), height = 46.dp)
 }
 

@@ -47,6 +47,10 @@ import kotlinx.coroutines.launch
 import com.gatcha.log.data.DateUtil
 import com.gatcha.log.data.Game
 import com.gatcha.log.data.GameData
+import com.gatcha.log.data.GachaReport
+import com.gatcha.log.data.GachaStats
+import com.gatcha.log.data.HomeCardItem
+import com.gatcha.log.data.HomeCards
 import com.gatcha.log.data.HoyolabConfig
 import com.gatcha.log.data.LiveNote
 import com.gatcha.log.data.Spending
@@ -58,6 +62,8 @@ import com.gatcha.log.ui.spending.SpendingScreen
 import com.gatcha.log.ui.spending.SpendingViewModel
 import com.gatcha.log.ui.components.GlassBackground
 import com.gatcha.log.ui.components.GlassCard
+import com.gatcha.log.ui.components.GlgDialog
+import com.gatcha.log.ui.components.GlgSwitch
 import com.gatcha.log.ui.components.GlgButton
 import com.gatcha.log.ui.components.GlgCircleIconButton
 import com.gatcha.log.ui.components.GlgScreenHeader
@@ -234,6 +240,8 @@ fun HomeContent(
     val isRefreshing by viewModel.isRefreshing.collectAsState()
     val attendanceStreak by viewModel.attendanceStreak.collectAsState()
     val account by viewModel.account.collectAsState()
+    val gachaStats by viewModel.gachaStats.collectAsState()
+    val homeCards by viewModel.homeCards.collectAsState()
 
     val monthlyTotal = remember(spendings) { viewModel.monthlyTotal() }
     val gachaCount = remember(spendings) {
@@ -248,6 +256,7 @@ fun HomeContent(
 
     val showNotifications = remember { mutableStateOf(false) }
     val showBudgetDialog = remember { mutableStateOf(false) }
+    val showHomeEdit = remember { mutableStateOf(false) }
 
     // 알림 상세 페이지에서 시스템 뒤로가기 시 홈으로 복귀
     BackHandler(enabled = showNotifications.value) { showNotifications.value = false }
@@ -305,15 +314,23 @@ fun HomeContent(
             )
         }
         item { Spacer(Modifier.height(24.dp)) }
-        item {
-            SpendingSection(
-                monthlyTotal = monthlyTotal,
-                budget = budget,
-                gachaCount = gachaCount,
-                topGame = topGame,
-                onEditBudget = { showBudgetDialog.value = true },
-            )
+        // 사용자 구성(표시·순서)대로 본문 카드 렌더 — 프로필·게임 현황은 위에 고정
+        homeCards.filter { it.visible }.forEach { card ->
+            item(key = card.id) {
+                when (card.id) {
+                    HomeCards.SPENDING -> SpendingSection(
+                        monthlyTotal = monthlyTotal,
+                        budget = budget,
+                        gachaCount = gachaCount,
+                        topGame = topGame,
+                        onEditBudget = { showBudgetDialog.value = true },
+                    )
+                    HomeCards.GACHA -> GachaSummarySection(stats = gachaStats, onOpen = onNavigateToGameInfo)
+                }
+                Spacer(Modifier.height(24.dp))
+            }
         }
+        item { HomeEditButton { showHomeEdit.value = true } }
         item { Spacer(Modifier.height(120.dp)) }
     }
     }
@@ -324,6 +341,14 @@ fun HomeContent(
             current = budget,
             onDismiss = { showBudgetDialog.value = false },
             onConfirm = { viewModel.setBudget(it); showBudgetDialog.value = false },
+        )
+    }
+
+    if (showHomeEdit.value) {
+        HomeCardEditDialog(
+            cards = homeCards,
+            onDismiss = { showHomeEdit.value = false },
+            onSave = { viewModel.setHomeCards(it); showHomeEdit.value = false },
         )
     }
 }
@@ -661,6 +686,91 @@ fun InfoColumn(value: String, label: String, modifier: Modifier) {
     Column(modifier = modifier, horizontalAlignment = Alignment.CenterHorizontally) {
         Text(value, fontSize = 14.sp, fontWeight = FontWeight.Bold, maxLines = 1)
         Text(label, fontSize = 11.sp, color = TextSecondary)
+    }
+}
+
+/** 홈 가챠 요약 카드 — 탭하면 게임 정보(가챠 통계 대시보드)로 이동. */
+@Composable
+fun GachaSummarySection(stats: GachaStats?, onOpen: () -> Unit) {
+    val accent = LocalAccent.current
+    GlassCard(shape = RoundedCornerShape(24.dp), modifier = Modifier.fillMaxWidth().clickable { onOpen() }) {
+        Column(Modifier.padding(20.dp)) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.Casino, null, tint = accent, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text("가챠 요약", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                }
+                Icon(Icons.Default.ChevronRight, "가챠 통계 보기", tint = TextSecondary, modifier = Modifier.size(20.dp))
+            }
+            Spacer(Modifier.height(16.dp))
+            if (stats == null) {
+                Text("가챠 기록을 가져오면 요약이 표시돼요", fontSize = 12.sp, color = TextSecondary)
+            } else {
+                val totalFive = stats.byGame.values.sumOf { it.five }
+                Row(Modifier.fillMaxWidth()) {
+                    InfoColumn("%,d".format(stats.total), "총 뽑기", Modifier.weight(1f))
+                    InfoColumn("%,d".format(totalFive), "획득 5성", Modifier.weight(1f))
+                    InfoColumn("${stats.byGame.size}", "게임", Modifier.weight(1f))
+                }
+                val games = stats.byGame.keys.sortedBy { GachaReport.gameOrder.indexOf(it).let { i -> if (i < 0) 99 else i } }
+                games.forEach { gk ->
+                    val g = stats.byGame[gk] ?: return@forEach
+                    val (shortName, _, color) = GachaReport.gameInfo[gk] ?: Triple(gk, gk, accent)
+                    Spacer(Modifier.height(10.dp))
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        Box(Modifier.size(8.dp).clip(CircleShape).background(color))
+                        Spacer(Modifier.width(8.dp))
+                        Text(shortName, fontSize = 13.sp, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f))
+                        Text(
+                            "${"%,d".format(g.total)}뽑 · 5성 ${g.five}" + if (g.avgPity > 0) " · 평균천장 ${g.avgPity}" else "",
+                            fontSize = 11.sp, color = TextSecondary,
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** 홈 카드 편집 진입 — 리스트 하단의 잔잔한 텍스트 버튼. */
+@Composable
+private fun HomeEditButton(onClick: () -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).clickable { onClick() }.padding(vertical = 12.dp),
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(Icons.Default.Tune, null, tint = TextSecondary, modifier = Modifier.size(16.dp))
+        Spacer(Modifier.width(6.dp))
+        Text("홈 카드 편집", fontSize = 13.sp, fontWeight = FontWeight.Medium, color = TextSecondary)
+    }
+}
+
+/** 홈 카드 표시·순서 편집 다이얼로그 — 토글 스위치 + 위/아래 정렬. */
+@Composable
+private fun HomeCardEditDialog(cards: List<HomeCardItem>, onDismiss: () -> Unit, onSave: (List<HomeCardItem>) -> Unit) {
+    var list by remember { mutableStateOf(cards) }
+    GlgDialog(title = "홈 카드 편집", onDismiss = onDismiss, confirmText = "저장", onConfirm = { onSave(list) }) {
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            list.forEachIndexed { i, c ->
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Text(HomeCards.labels[c.id] ?: c.id, fontSize = 14.sp, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f))
+                    IconButton(
+                        onClick = { if (i > 0) list = list.toMutableList().also { it.add(i - 1, it.removeAt(i)) } },
+                        enabled = i > 0, modifier = Modifier.size(34.dp),
+                    ) { Icon(Icons.Default.KeyboardArrowUp, "위로", tint = if (i > 0) TextPrimary else Color.LightGray, modifier = Modifier.size(20.dp)) }
+                    IconButton(
+                        onClick = { if (i < list.size - 1) list = list.toMutableList().also { it.add(i + 1, it.removeAt(i)) } },
+                        enabled = i < list.size - 1, modifier = Modifier.size(34.dp),
+                    ) { Icon(Icons.Default.KeyboardArrowDown, "아래로", tint = if (i < list.size - 1) TextPrimary else Color.LightGray, modifier = Modifier.size(20.dp)) }
+                    Spacer(Modifier.width(8.dp))
+                    GlgSwitch(c.visible) { v -> list = list.toMutableList().also { it[i] = c.copy(visible = v) } }
+                }
+            }
+            Spacer(Modifier.height(6.dp))
+            Text("프로필·게임 현황 카드는 항상 표시돼요.", fontSize = 11.sp, color = TextSecondary)
+        }
     }
 }
 

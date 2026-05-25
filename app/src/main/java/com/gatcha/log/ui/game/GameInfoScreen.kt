@@ -54,6 +54,9 @@ import com.gatcha.log.ui.spending.RedeemState
 import com.gatcha.log.ui.spending.SpendingViewModel
 import com.gatcha.log.ui.theme.*
 
+/** 게임정보 탭의 풀스크린 하위 페이지 (열리면 하단바·FAB 숨김) */
+private enum class GiSub { Main, HoyoLink, Dashboard }
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun GameInfoScreen(
@@ -82,6 +85,7 @@ fun GameInfoScreen(
     val enkaResult by viewModel.enkaResult.collectAsState()
     val enkaLoading by viewModel.enkaLoading.collectAsState()
     val gachaStats by viewModel.gachaStats.collectAsState()
+    val gachaDashboard by viewModel.gachaDashboard.collectAsState()
     val spendings by viewModel.spendings.collectAsState()
     val gachaSpendByGame = remember(spendings) {
         val m = mutableMapOf<String, Long>()
@@ -96,9 +100,9 @@ fun GameInfoScreen(
         }
         m
     }
-    val showHoyolabDialog = remember { mutableStateOf(false) }
-    // HoYoLAB 연동 페이지(풀스크린)가 열리면 상위(Scaffold)에 알려 하단바·FAB를 숨김
-    LaunchedEffect(showHoyolabDialog.value) { onSubPageChange(showHoyolabDialog.value) }
+    // 게임정보 하위 풀스크린 페이지(연동 / 가챠 통계) — 열리면 상위(Scaffold)에 알려 하단바·FAB 숨김
+    var subPage by remember { mutableStateOf(GiSub.Main) }
+    LaunchedEffect(subPage) { onSubPageChange(subPage != GiSub.Main) }
     val showRateDialog = remember { mutableStateOf(false) }
     val showGiftDialog = remember { mutableStateOf(false) }
     val redeemState by viewModel.redeemState.collectAsState()
@@ -108,9 +112,9 @@ fun GameInfoScreen(
 
     // HoYoLAB 연동 페이지 — 화면 스왑(게임정보 ↔ 연동) 슬라이드 push/pop
     AnimatedContent(
-        targetState = showHoyolabDialog.value,
+        targetState = subPage,
         transitionSpec = {
-            if (targetState) {
+            if (targetState != GiSub.Main) {
                 (slideInHorizontally(tween(300)) { it } + fadeIn(tween(300))) togetherWith
                     (slideOutHorizontally(tween(300)) { -it / 4 } + fadeOut(tween(220)))
             } else {
@@ -118,19 +122,24 @@ fun GameInfoScreen(
                     (slideOutHorizontally(tween(300)) { it } + fadeOut(tween(220)))
             }
         },
-        label = "hoyoLink",
-    ) { link ->
-        if (link) {
-            HoyolabLinkScreen(
+        label = "giSubPage",
+    ) { page ->
+        when (page) {
+            GiSub.HoyoLink -> HoyolabLinkScreen(
                 config = hoyolab,
                 onSave = {
                     viewModel.updateHoyolabConfig(it)
-                    showHoyolabDialog.value = false
+                    subPage = GiSub.Main
                     viewModel.refreshGameInfo()
                 },
-                onBack = { showHoyolabDialog.value = false },
+                onBack = { subPage = GiSub.Main },
             )
-        } else GlgPullToRefreshBox(
+            GiSub.Dashboard -> GachaDashboardScreen(
+                dashboard = gachaDashboard,
+                spendByGameKey = gachaSpendByGame,
+                onBack = { subPage = GiSub.Main },
+            )
+            GiSub.Main -> GlgPullToRefreshBox(
             isRefreshing = isRefreshing,
             onRefresh = { viewModel.refreshGameInfo() },
             modifier = Modifier.fillMaxSize(),
@@ -156,7 +165,7 @@ fun GameInfoScreen(
                             viewModel.refreshGameInfo()
                         }
                         GlgCircleIconButton(Icons.Default.Settings, "HoYoLAB 설정", outlined = true) {
-                            showHoyolabDialog.value = true
+                            subPage = GiSub.HoyoLink
                         }
                     }
                 }
@@ -172,7 +181,7 @@ fun GameInfoScreen(
                     checkingIn = checkingIn,
                     streak = attendanceStreak,
                     onCheckIn = { viewModel.attemptCheckIn(it) },
-                    onConfigClick = { showHoyolabDialog.value = true },
+                    onConfigClick = { subPage = GiSub.HoyoLink },
                 )
             }
             // 배너·전투 진행도·수입 일지를 게임 칩으로 번갈아 보는 통합 섹션
@@ -226,6 +235,7 @@ fun GameInfoScreen(
                     spendByGameKey = gachaSpendByGame,
                     onImport = { uris -> viewModel.importGachaFromUris(uris) },
                     onClear = { viewModel.clearGachaRecords() },
+                    onOpenDashboard = { subPage = GiSub.Dashboard },
                 )
             }
             item { Spacer(Modifier.height(20.dp)) }
@@ -244,6 +254,7 @@ fun GameInfoScreen(
             }
         }
     }
+        }
     }
 
     if (showRateDialog.value) {

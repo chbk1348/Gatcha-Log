@@ -116,6 +116,22 @@ class GatchaRepository(context: Context, accountId: String = "guest") {
     fun loadAccentIndex(): Int = prefs.getInt(KEY_ACCENT, 0)
     fun saveAccentIndex(index: Int) { prefs.edit().putInt(KEY_ACCENT, index).apply(); changed() }
 
+    // ---------------------------------------------------------------- 홈 카드 구성(표시·순서)
+    fun loadHomeCards(): List<HomeCardItem> {
+        val s = prefs.getString(KEY_HOME_CARDS, null) ?: return HomeCards.default
+        val parsed = runCatching {
+            val arr = JSONArray(s)
+            (0 until arr.length()).map { val o = arr.getJSONObject(it); HomeCardItem(o.optString("id"), o.optBoolean("v", true)) }
+        }.getOrDefault(HomeCards.default)
+        return HomeCards.normalize(parsed)
+    }
+    fun saveHomeCards(list: List<HomeCardItem>) {
+        val arr = JSONArray()
+        list.forEach { arr.put(JSONObject().put("id", it.id).put("v", it.visible)) }
+        prefs.edit().putString(KEY_HOME_CARDS, arr.toString()).apply()
+        changed()
+    }
+
     // ---------------------------------------------------------------- Enka 프로필 UID (게임별)
     fun loadEnkaGiUid(): String = prefs.getString(KEY_ENKA_GI, "") ?: ""
     fun loadEnkaHsrUid(): String = prefs.getString(KEY_ENKA_HSR, "") ?: ""
@@ -253,6 +269,7 @@ class GatchaRepository(context: Context, accountId: String = "guest") {
         prefs.getString(KEY_EVENT_CHECKS, null)?.let { o.put(KEY_EVENT_CHECKS, JSONArray(it)) }
         prefs.getString(KEY_SUBS, null)?.let { o.put(KEY_SUBS, JSONArray(it)) }
         prefs.getString(KEY_GACHA, null)?.let { o.put(KEY_GACHA, JSONArray(it)) }
+        prefs.getString(KEY_HOME_CARDS, null)?.let { o.put(KEY_HOME_CARDS, JSONArray(it)) }
         return o.toString()
     }
 
@@ -280,6 +297,7 @@ class GatchaRepository(context: Context, accountId: String = "guest") {
             if (o.has(KEY_EVENT_CHECKS)) putString(KEY_EVENT_CHECKS, o.getJSONArray(KEY_EVENT_CHECKS).toString())
             if (o.has(KEY_SUBS)) putString(KEY_SUBS, o.getJSONArray(KEY_SUBS).toString())
             if (o.has(KEY_GACHA)) putString(KEY_GACHA, o.getJSONArray(KEY_GACHA).toString())
+            if (o.has(KEY_HOME_CARDS)) putString(KEY_HOME_CARDS, o.getJSONArray(KEY_HOME_CARDS).toString())
         }.apply()
     }
 
@@ -305,5 +323,6 @@ class GatchaRepository(context: Context, accountId: String = "guest") {
         const val KEY_ENKA_HSR = "enka_hsr"
         const val KEY_GACHA = "gacha_records"
         const val KEY_SUBS = "subscriptions"
+        const val KEY_HOME_CARDS = "home_cards"
     }
 }

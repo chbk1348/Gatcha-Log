@@ -18,6 +18,9 @@ import com.gatcha.log.data.GachaRecord
 import com.gatcha.log.data.GachaReport
 import com.gatcha.log.data.CombatMode
 import com.gatcha.log.data.GachaStats
+import com.gatcha.log.data.GachaDashboard
+import com.gatcha.log.data.HomeCardItem
+import com.gatcha.log.data.HomeCards
 import com.gatcha.log.data.GameData
 import com.gatcha.log.data.GameEvent
 import com.gatcha.log.data.PityState
@@ -86,6 +89,10 @@ class SpendingViewModel(app: Application) : AndroidViewModel(app) {
     private val _hoyolabConfig = MutableStateFlow(HoyolabConfig())
     val hoyolabConfig: StateFlow<HoyolabConfig> = _hoyolabConfig.asStateFlow()
 
+    private val _homeCards = MutableStateFlow(HomeCards.default)
+    val homeCards: StateFlow<List<HomeCardItem>> = _homeCards.asStateFlow()
+    fun setHomeCards(list: List<HomeCardItem>) { _homeCards.value = list; repo.saveHomeCards(list) }
+
     private val _accentIndex = MutableStateFlow(0)
     val accentIndex: StateFlow<Int> = _accentIndex.asStateFlow()
 
@@ -134,8 +141,10 @@ class SpendingViewModel(app: Application) : AndroidViewModel(app) {
         _enkaResult.value = null
         gachaRecords = repo.loadGachaRecords()
         _gachaStats.value = GachaReport.computeStats(gachaRecords)
+        _gachaDashboard.value = GachaReport.computeDashboard(gachaRecords)
         _subscriptions.value = repo.loadSubscriptions()
         _redeemedCodes.value = repo.loadRedeemedCodes()
+        _homeCards.value = repo.loadHomeCards()
     }
 
     // ----------------------------------------------------------------- 계정 (구글 로그인 — Credential Manager)
@@ -387,6 +396,8 @@ class SpendingViewModel(app: Application) : AndroidViewModel(app) {
     private var gachaRecords: List<GachaRecord> = emptyList()
     private val _gachaStats = MutableStateFlow<GachaStats?>(null)
     val gachaStats: StateFlow<GachaStats?> = _gachaStats.asStateFlow()
+    private val _gachaDashboard = MutableStateFlow<GachaDashboard?>(null)
+    val gachaDashboard: StateFlow<GachaDashboard?> = _gachaDashboard.asStateFlow()
 
     /** 선택한 JSON 파일들(UIGF/SRGF)을 읽어 파싱·중복제거·병합 후 저장. */
     fun importGachaFromUris(uris: List<Uri>) {
@@ -416,6 +427,7 @@ class SpendingViewModel(app: Application) : AndroidViewModel(app) {
             gachaRecords = merged
             withContext(Dispatchers.IO) { repo.saveGachaRecords(merged) }
             _gachaStats.value = GachaReport.computeStats(merged)
+            _gachaDashboard.value = GachaReport.computeDashboard(merged)
             emitStatus("가챠 기록 ${added}건 추가 (중복 ${skipped} 제외)")
         }
     }
@@ -424,6 +436,7 @@ class SpendingViewModel(app: Application) : AndroidViewModel(app) {
         gachaRecords = emptyList()
         repo.saveGachaRecords(emptyList())
         _gachaStats.value = null
+        _gachaDashboard.value = null
         emitStatus("가챠 기록을 초기화했어요")
     }
 

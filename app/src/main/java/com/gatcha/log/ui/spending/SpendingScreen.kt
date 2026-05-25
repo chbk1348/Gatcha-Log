@@ -54,6 +54,7 @@ private enum class SortOrder(val label: String) { DATE_DESC("최신순"), DATE_A
 private sealed interface SpendingScreenNav {
     data object List : SpendingScreenNav
     data object Annual : SpendingScreenNav
+    data object Insight : SpendingScreenNav
     data class Detail(val spending: Spending) : SpendingScreenNav
 }
 
@@ -116,6 +117,10 @@ fun SpendingScreen(
                 AnnualReportScreen(viewModel, onBack = { nav = SpendingScreenNav.List })
                 return@AnimatedContent
             }
+            is SpendingScreenNav.Insight -> {
+                SpendingInsightScreen(viewModel, onBack = { nav = SpendingScreenNav.List })
+                return@AnimatedContent
+            }
             is SpendingScreenNav.Detail -> {
                 // 편집 반영을 위해 라이브 목록에서 재조회(삭제됐으면 스냅샷으로 폴백 → 종료 애니 동안 표시 유지)
                 val live = spendings.firstOrNull { it.id == navState.spending.id } ?: navState.spending
@@ -143,7 +148,10 @@ fun SpendingScreen(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text("지출 분석", fontSize = 24.sp, fontWeight = FontWeight.Bold)
-                    AnnualReportButton { nav = SpendingScreenNav.Annual }
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                        InsightButton { nav = SpendingScreenNav.Insight }
+                        AnnualReportButton { nav = SpendingScreenNav.Annual }
+                    }
                 }
             }
             item { MonthlySummaryCard(viewModel.displayMonth, monthlyTotal, prevMonthTotal) }
@@ -288,6 +296,27 @@ private fun AnnualReportButton(onClick: () -> Unit) {
             Icon(Icons.Default.Assessment, null, tint = accent, modifier = Modifier.size(14.dp))
             Spacer(Modifier.width(5.dp))
             Text("연간 리포트", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = accent)
+        }
+    }
+}
+
+/** 지출 분석 헤더 우측의 인사이트 진입 버튼 — 강조색 옅은 알약. */
+@Composable
+private fun InsightButton(onClick: () -> Unit) {
+    val accent = LocalAccent.current
+    Surface(
+        shape = RoundedCornerShape(11.dp),
+        color = accent.copy(alpha = 0.10f),
+        border = androidx.compose.foundation.BorderStroke(1.5.dp, accent.copy(alpha = 0.30f)),
+        modifier = Modifier.clickable { onClick() },
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(Icons.Default.Insights, null, tint = accent, modifier = Modifier.size(14.dp))
+            Spacer(Modifier.width(5.dp))
+            Text("인사이트", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = accent)
         }
     }
 }
