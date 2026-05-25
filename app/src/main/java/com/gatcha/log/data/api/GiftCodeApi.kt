@@ -3,13 +3,13 @@ package com.gatcha.log.data.api
 import android.util.Log
 import org.json.JSONObject
 
-/** 자동 수집된 활성 리딤코드. rewards 는 한국어 명칭으로 정규화돼 저장된다. */
+/** 자동 수집된 활성 리딤코드. rewards 는 한국어로 정규화돼 저장된다(영어 미노출). */
 data class GiftCode(val code: String, val rewards: String)
 
 /**
  * 활성 리딤코드 자동 수집.
  *
- * 커뮤니티에서 유지하는 공개 API(hoyo-codes)를 사용한다. HoYoverse 3게임만 지원
+ * 커뮤니티 공개 API(hoyo-codes)를 사용한다. HoYoverse 3게임만 지원
  * (genshin / hkrpg=스타레일 / nap=젠레스). 실패 시 빈 목록 → 기존 수동 입력으로 폴백.
  * 보상 문자열은 영문(구조화 "Item*Qty;..." 또는 산문)으로 와서 [localizeRewards] 로 한국어화한다.
  */
@@ -35,58 +35,99 @@ object GiftCodeApi {
     }
 
     /**
-     * 보상명 한국어화. 인게임 공식 명칭으로 매핑하고, 매핑에 없는(이벤트 음식 등) 항목은
-     * 잘못된 번역 대신 원문을 유지한다.
-     *  - 구조화 "Primogem*30;Mora*20000" → "원석 ×30 · 모라 ×20000"
-     *  - 산문 "60 primogems and five adventurer's experience" → 알려진 아이템명만 치환
+     * 보상명 한국어화 — 영어가 보이지 않도록 처리한다.
+     *  - 구조화 "Primogem*30;Mora*20000" → "원석 ×30, 모라 ×20000"
+     *  - 산문 "60 primogems and five adventurer's experience" → "원석 ×60, 모험가의 경험 ×5"
+     *  - 인게임 공식 한국어 명칭을 알 수 없는 이벤트 아이템은 (오역 대신) "외 N종"으로 요약.
      */
     fun localizeRewards(raw: String): String {
         if (raw.isBlank()) return ""
-        // 구조화 포맷(별표 포함): 항목별로 이름·수량 분리해 깔끔히 표기
-        if (raw.contains("*")) {
-            return raw.split(';', ',')
-                .mapNotNull { part ->
-                    val seg = part.trim()
-                    if (seg.isEmpty()) return@mapNotNull null
-                    val star = seg.lastIndexOf('*')
-                    if (star < 0) return@mapNotNull ko(seg)
-                    val name = seg.substring(0, star).trim()
-                    val qty = seg.substring(star + 1).trim()
-                    if (qty.isNotEmpty()) "${ko(name)} ×$qty" else ko(name)
-                }
-                .joinToString(" · ")
+        val items: List<Pair<String, String?>> =
+            if (raw.contains("*")) parseStructured(raw) else parseProse(raw)
+
+        val known = ArrayList<String>()
+        var unknown = 0
+        for ((nameEn, qty) in items) {
+            val kr = lookupKo(nameEn)
+            if (kr == null) unknown++
+            else known.add(if (qty.isNullOrBlank()) kr else "$kr ×$qty")
         }
-        // 산문 포맷: 알려진 아이템 영문명만 한국어로 치환(수량 단어는 그대로 유지)
-        var s = raw
-        ITEM_KO.keys.sortedByDescending { it.length }.forEach { en ->
-            s = s.replace(Regex("(?i)\\b${Regex.escape(en)}\\b"), ITEM_KO.getValue(en))
+        return buildString {
+            append(known.joinToString(", "))
+            if (unknown > 0) {
+                if (known.isNotEmpty()) append(", ")
+                append("외 ${unknown}종")
+            }
         }
-        return s
     }
 
-    private fun ko(name: String): String = ITEM_KO[name.lowercase().trim()] ?: name
+    /** "Item*Qty;Item*Qty" → [(이름, 수량)] */
+    private fun parseStructured(raw: String): List<Pair<String, String?>> =
+        raw.split(';', ',').mapNotNull { part ->
+            val s = part.trim()
+            if (s.isEmpty()) return@mapNotNull null
+            val star = s.lastIndexOf('*')
+            if (star < 0) s to null else s.substring(0, star).trim() to s.substring(star + 1).trim()
+        }
 
-    /** 영문 보상명 → 인게임 공식 한국어 명칭(고빈도·확실한 항목만). 단·복수 모두 등록. */
+    /** "60 primogems and five adventurer's experience, ..." → [(이름, 수량)] */
+    private fun parseProse(raw: String): List<Pair<String, String?>> {
+        val flattened = raw.replace(Regex("(?i)\\band\\b"), ",")
+        return flattened.split(',').mapNotNull { seg ->
+            val s = seg.trim().trimEnd('.')
+            if (s.isEmpty()) return@mapNotNull null
+            // 선두 수량(숫자/단어, 20k·20,000 포함) + 나머지 이름
+            val m = Regex("^([0-9][0-9,]*k?|[a-zA-Z]+)\\s+(.+)$").find(s)
+            if (m == null) s to null else m.groupValues[2].trim() to parseQty(m.groupValues[1])
+        }
+    }
+
+    /** "20k"→"20000", "20,000"→"20000", "five"→"5". 알 수 없으면 원문 유지. */
+    private fun parseQty(tok: String): String {
+        val t = tok.lowercase().trim().replace(",", "")
+        return when {
+            t.matches(Regex("\\d+k")) -> (t.dropLast(1).toLong() * 1000).toString()
+            t.matches(Regex("\\d+")) -> t
+            else -> WORD_NUM[t]?.toString() ?: tok
+        }
+    }
+
+    /** 영문 보상명 → 인게임 공식 한국어. 단/복수·소유격 표기 차이를 흡수해 조회. */
+    private fun lookupKo(nameEn: String): String? {
+        val n = nameEn.lowercase().replace("'", "").replace("’", "").replace(".", "").trim()
+        ITEM_KO[n]?.let { return it }
+        if (n.endsWith("s")) ITEM_KO[n.dropLast(1)]?.let { return it }
+        return null
+    }
+
+    private val WORD_NUM: Map<String, Int> = mapOf(
+        "a" to 1, "an" to 1, "one" to 1, "two" to 2, "three" to 3, "four" to 4, "five" to 5,
+        "six" to 6, "seven" to 7, "eight" to 8, "nine" to 9, "ten" to 10, "eleven" to 11,
+        "twelve" to 12, "thirteen" to 13, "fourteen" to 14, "fifteen" to 15, "twenty" to 20,
+        "thirty" to 30, "forty" to 40, "fifty" to 50, "sixty" to 60,
+    )
+
+    /** 영문 보상명(소유격·아포스트로피 제거, 소문자) → 인게임 공식 한국어. 고빈도·확실한 항목만. */
     private val ITEM_KO: Map<String, String> = mapOf(
         // 원신
-        "primogem" to "원석", "primogems" to "원석",
+        "primogem" to "원석",
         "mora" to "모라",
-        "hero's wit" to "영웅의 경험", "heros wit" to "영웅의 경험",
-        "adventurer's experience" to "모험가의 경험", "adventurers experience" to "모험가의 경험",
-        "wanderer's advice" to "유랑자의 경험", "wanderers advice" to "유랑자의 경험",
+        "heros wit" to "영웅의 경험",
+        "adventurers experience" to "모험가의 경험",
+        "wanderers advice" to "유랑자의 경험",
         "mystic enhancement ore" to "정제된 마법 광석",
         "fine enhancement ore" to "정련용 광석",
         "enhancement ore" to "강화용 광석",
         // 스타레일
         "stellar jade" to "성옥",
-        "credit" to "신용 포인트", "credits" to "신용 포인트",
-        "traveler's guide" to "여행자 안내서", "travelers guide" to "여행자 안내서",
-        "traveler's guides" to "여행자 안내서", "travelers guides" to "여행자 안내서",
+        "credit" to "신용 포인트",
+        "travelers guide" to "여행자 안내서",
         "refined aether" to "정제된 에테르",
+        "condensed aether" to "응축된 에테르",
         "fuel" to "연료",
         // 젠레스
-        "polychrome" to "폴리크롬", "polychromes" to "폴리크롬",
-        "denny" to "데니", "dennies" to "데니",
-        "master tape" to "마스터 테이프", "master tapes" to "마스터 테이프",
+        "polychrome" to "폴리크롬",
+        "denny" to "데니", "dennie" to "데니",
+        "master tape" to "마스터 테이프",
     )
 }
