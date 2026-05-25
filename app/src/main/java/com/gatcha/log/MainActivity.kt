@@ -1,5 +1,7 @@
 package com.gatcha.log
 
+import android.content.Context
+import android.content.res.Configuration
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -18,6 +20,17 @@ import com.gatcha.log.ui.theme.GatchaLogTheme
 import com.gatcha.log.data.work.NativeScheduler
 
 class MainActivity : ComponentActivity() {
+
+    /**
+     * 기기 글꼴 크기(접근성 폰트 스케일)와 무관하게 앱 전체를 고정 크기로 렌더한다.
+     * base context 의 fontScale 을 1.0 으로 고정하면, 메인 화면은 물론 거기서 파생되는
+     * 모든 다이얼로그·바텀시트·팝업(별도 윈도우)까지 시스템 글꼴 크기 영향을 받지 않는다.
+     */
+    override fun attachBaseContext(newBase: Context) {
+        val config = Configuration(newBase.resources.configuration).apply { fontScale = 1.0f }
+        super.attachBaseContext(newBase.createConfigurationContext(config))
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
