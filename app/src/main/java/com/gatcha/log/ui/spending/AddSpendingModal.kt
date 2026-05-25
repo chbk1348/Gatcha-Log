@@ -170,7 +170,8 @@ fun AddSpendingModal(
                         }
                         val packages = if (pkgFilter == PkgCategory.ALL) allPackages
                             else allPackages.filter { it.category == pkgFilter }
-                        val cols = 3
+                        // 2열 — 카드를 넓혀 긴 상품명도 한 줄에 들어가고 가격이 안 잘리게
+                        val cols = 2
                         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             packages.chunked(cols).forEach { rowItems ->
                                 Row(
@@ -367,23 +368,28 @@ private fun PackageCard(pkg: GamePackage, isSelected: Boolean, modifier: Modifie
         color = if (isSelected) accent.copy(alpha = 0.1f) else ChipIdleBg,
         border = BorderStroke(1.dp, if (isSelected) accent else DividerColor),
     ) {
+        // 컴팩트·깔끔 — 내용에 딱 맞는 높이(2열이라 이름 1줄, 모든 카드 구조 동일 → 자동 통일)
         Column(
-            // 모든 카드 동일 높이로 통일(이름 2줄+보너스+가격 최악 케이스까지 안 잘리게) — 내용 가운데 정렬
-            modifier = Modifier.fillMaxWidth().height(100.dp).padding(horizontal = 8.dp, vertical = 8.dp),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 9.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center,
         ) {
             Text(
                 pkg.name,
                 fontSize = 13.sp,
                 fontWeight = FontWeight.Bold,
-                maxLines = 2,
+                maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 textAlign = TextAlign.Center,
                 color = TextPrimary,
             )
-            pkg.bonus?.let { Text(it, fontSize = 10.sp, color = accent, fontWeight = FontWeight.Bold, maxLines = 1) }
-            Text("₩%,d".format(pkg.price), fontSize = 11.sp, color = TextSecondary, maxLines = 1)
+            Spacer(Modifier.height(3.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                pkg.bonus?.let {
+                    Text(it, fontSize = 10.sp, color = accent, fontWeight = FontWeight.Bold, maxLines = 1)
+                    Spacer(Modifier.width(5.dp))
+                }
+                Text("₩%,d".format(pkg.price), fontSize = 11.sp, color = TextSecondary, fontWeight = FontWeight.Medium, maxLines = 1)
+            }
         }
     }
 }
