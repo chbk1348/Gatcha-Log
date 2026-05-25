@@ -1,9 +1,13 @@
 {
-  "versionCode": 270301,
-  "versionName": "27.3.1",
+  "versionCode": 270400,
+  "versionName": "27.4.0",
   "url": "https://github.com/chbk1348/Gatcha-Log-Android/releases/latest",
   "apkUrl": "https://github.com/chbk1348/Gatcha-Log-Android/releases/latest/download/app-release.apk",
   "notes": [
-    "[핫픽스] 연동·예산 등 다이얼로그가 화면 짧은 단말에서 잘려 취소·저장 버튼이 안 보이던 문제 수정 (본문 스크롤)"
+    "재설치·기기 변경 후 데이터 복원 안정화 — 같은 구글 계정으로 로그인하면 가챠 기록까지 복원",
+    "백업 파일 내보내기/복원 추가 (설정 ▸ 백업·복원) — 로그인 없이도 전체 데이터 보관",
+    "로그인 방식 개선 (Credential Manager) — 더 매끄러운 계정 선택",
+    "오프라인에서 앱이 로딩 화면에 멈추던 문제 수정",
+    "버전 호환성 개선으로 클라우드 데이터 보호 강화"
   ]
 }
