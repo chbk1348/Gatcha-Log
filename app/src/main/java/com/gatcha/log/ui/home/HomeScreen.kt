@@ -3,12 +3,15 @@ package com.gatcha.log.ui.home
 import android.app.Activity
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -72,6 +75,10 @@ fun HomeScreen(viewModel: SpendingViewModel = viewModel()) {
     val spendingToEdit = remember { mutableStateOf<Spending?>(null) }
     val accent = LocalAccent.current
 
+    // 풀스크린 하위 페이지(알림 상세·연간 리포트·지출 상세·HoYoLAB 연동·설정)가 열렸는지.
+    // 열려 있으면 하단바와 FAB를 숨긴다. 각 탭 콘텐츠가 자신의 하위 페이지 상태를 보고한다.
+    var subPageActive by remember { mutableStateOf(false) }
+
     // 탭별 스크롤 상태를 끌어올려, 하단바 탭 클릭 시 해당 페이지를 최상단으로 이동.
     val tabListStates = listOf(
         rememberLazyListState(), rememberLazyListState(),
@@ -124,13 +131,20 @@ fun HomeScreen(viewModel: SpendingViewModel = viewModel()) {
     Scaffold(
         containerColor = Color.Transparent,
         bottomBar = {
-            BottomNavBar(
-                selectedTab = selectedTab,
-                onTabSelected = onTabClick,
-                onAddClick = { openEditor(null) },
-                accent = accent,
-                showFab = selectedTab <= 1, // 홈·지출 탭에서만 FAB 노출
-            )
+            // 하위 페이지(연간 리포트·알림 상세 등)에서는 하단바·FAB를 아래로 슬라이드해 숨김
+            AnimatedVisibility(
+                visible = !subPageActive,
+                enter = slideInVertically(tween(280)) { it } + fadeIn(tween(280)),
+                exit = slideOutVertically(tween(280)) { it } + fadeOut(tween(220)),
+            ) {
+                BottomNavBar(
+                    selectedTab = selectedTab,
+                    onTabSelected = onTabClick,
+                    onAddClick = { openEditor(null) },
+                    accent = accent,
+                    showFab = selectedTab <= 1, // 홈·지출 탭에서만 FAB 노출
+                )
+            }
         },
     ) { paddingValues ->
         GlassBackground(modifier = Modifier.fillMaxSize()) {
@@ -152,10 +166,11 @@ fun HomeScreen(viewModel: SpendingViewModel = viewModel()) {
                                 viewModel,
                                 onNavigateToGameInfo = { onTabClick(2) },
                                 listState = tabListStates[0],
+                                onSubPageChange = { subPageActive = it },
                             )
-                            1 -> SpendingScreen(viewModel, onEditSpending = { openEditor(it) }, listState = tabListStates[1])
-                            2 -> GameInfoScreen(viewModel, listState = tabListStates[2])
-                            3 -> MyPageScreen(viewModel, listState = tabListStates[3])
+                            1 -> SpendingScreen(viewModel, onEditSpending = { openEditor(it) }, listState = tabListStates[1], onSubPageChange = { subPageActive = it })
+                            2 -> GameInfoScreen(viewModel, listState = tabListStates[2], onSubPageChange = { subPageActive = it })
+                            3 -> MyPageScreen(viewModel, listState = tabListStates[3], onSubPageChange = { subPageActive = it })
                         }
                     }
 
@@ -202,7 +217,12 @@ fun HomeScreen(viewModel: SpendingViewModel = viewModel()) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun HomeContent(viewModel: SpendingViewModel, onNavigateToGameInfo: () -> Unit, listState: LazyListState = rememberLazyListState()) {
+fun HomeContent(
+    viewModel: SpendingViewModel,
+    onNavigateToGameInfo: () -> Unit,
+    listState: LazyListState = rememberLazyListState(),
+    onSubPageChange: (Boolean) -> Unit = {},
+) {
     val spendings by viewModel.spendings.collectAsState()
     val budget by viewModel.budget.collectAsState()
     val profile by viewModel.profile.collectAsState()
@@ -231,6 +251,8 @@ fun HomeContent(viewModel: SpendingViewModel, onNavigateToGameInfo: () -> Unit, 
 
     // 알림 상세 페이지에서 시스템 뒤로가기 시 홈으로 복귀
     BackHandler(enabled = showNotifications.value) { showNotifications.value = false }
+    // 알림 상세가 열리면 상위(Scaffold)에 알려 하단바·FAB를 숨김
+    LaunchedEffect(showNotifications.value) { onSubPageChange(showNotifications.value) }
 
     AnimatedContent(
         targetState = showNotifications.value,

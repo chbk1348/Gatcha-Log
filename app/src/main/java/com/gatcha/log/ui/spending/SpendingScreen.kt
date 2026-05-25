@@ -63,6 +63,7 @@ fun SpendingScreen(
     viewModel: SpendingViewModel,
     onEditSpending: (Spending) -> Unit,
     listState: androidx.compose.foundation.lazy.LazyListState = androidx.compose.foundation.lazy.rememberLazyListState(),
+    onSubPageChange: (Boolean) -> Unit = {},
 ) {
     val spendings by viewModel.spendings.collectAsState()
     val isRefreshing by viewModel.isRefreshing.collectAsState()
@@ -75,6 +76,8 @@ fun SpendingScreen(
     var nav by remember { mutableStateOf<SpendingScreenNav>(SpendingScreenNav.List) }
     // 하위 페이지(연간 리포트·지출 상세)에서 시스템 뒤로가기 시 앱 종료가 아니라 목록으로 복귀
     BackHandler(enabled = nav != SpendingScreenNav.List) { nav = SpendingScreenNav.List }
+    // 하위 페이지가 열리면 상위(Scaffold)에 알려 하단바·FAB를 숨김
+    LaunchedEffect(nav) { onSubPageChange(nav != SpendingScreenNav.List) }
 
     val monthlyTotal = remember(spendings) { viewModel.monthlyTotal() }
     val prevMonthTotal = remember(spendings) { previousMonthTotal(spendings) }

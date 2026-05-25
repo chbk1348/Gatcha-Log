@@ -42,6 +42,7 @@ import com.gatcha.log.ui.theme.*
 fun MyPageScreen(
     viewModel: SpendingViewModel,
     listState: androidx.compose.foundation.lazy.LazyListState = androidx.compose.foundation.lazy.rememberLazyListState(),
+    onSubPageChange: (Boolean) -> Unit = {},
 ) {
     val spendings by viewModel.spendings.collectAsState()
     val profile by viewModel.profile.collectAsState()
@@ -54,6 +55,8 @@ fun MyPageScreen(
 
     // 설정 페이지에서 시스템/제스처 뒤로가기 시 홈이 아니라 마이페이지로 복귀
     BackHandler(enabled = showSettings.value) { showSettings.value = false }
+    // 설정 페이지가 열리면 상위(Scaffold)에 알려 하단바·FAB를 숨김
+    LaunchedEffect(showSettings.value) { onSubPageChange(showSettings.value) }
 
     val monthlyTotal = remember(spendings) { viewModel.monthlyTotal() }
     val total = remember(spendings) { spendings.sumOf { it.amount } }

@@ -59,6 +59,7 @@ import com.gatcha.log.ui.theme.*
 fun GameInfoScreen(
     viewModel: SpendingViewModel,
     listState: androidx.compose.foundation.lazy.LazyListState = androidx.compose.foundation.lazy.rememberLazyListState(),
+    onSubPageChange: (Boolean) -> Unit = {},
 ) {
     val accent = LocalAccent.current
     val banners by viewModel.activeBanners.collectAsState()
@@ -96,6 +97,8 @@ fun GameInfoScreen(
         m
     }
     val showHoyolabDialog = remember { mutableStateOf(false) }
+    // HoYoLAB 연동 페이지(풀스크린)가 열리면 상위(Scaffold)에 알려 하단바·FAB를 숨김
+    LaunchedEffect(showHoyolabDialog.value) { onSubPageChange(showHoyolabDialog.value) }
     val showRateDialog = remember { mutableStateOf(false) }
     val showGiftDialog = remember { mutableStateOf(false) }
     val redeemState by viewModel.redeemState.collectAsState()
