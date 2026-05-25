@@ -208,13 +208,14 @@ fun HomeScreen(viewModel: SpendingViewModel = viewModel()) {
                     updateProgress?.let { p -> UpdateProgressOverlay(p) }
 
                     // 전역 커스텀 토스트 (모든 탭 위에 표시)
+                    // 하단바가 있을 땐 바 높이(100dp)만큼 띄우고, 하단바 없는 하위 페이지에선 24dp만 띄움
                     GlgStatusToast(
                         message = statusMessage,
                         onConsumed = { viewModel.clearStatus() },
                         modifier = Modifier
                             .align(Alignment.BottomCenter)
                             .navigationBarsPadding()
-                            .padding(bottom = 100.dp),
+                            .padding(bottom = if (subPageActive) 24.dp else 100.dp),
                     )
                 }
             }
