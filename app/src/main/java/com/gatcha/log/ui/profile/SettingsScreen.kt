@@ -169,8 +169,8 @@ fun SettingsScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
                     Column(Modifier.weight(1f)) {
                         Text("자동 출석체크", fontSize = 14.sp, fontWeight = FontWeight.Medium)
                         Text(
-                            if (hoyolab.isLinked) "매일 베이징 자정 이후 자동으로 출석해요 (켜면 지금 한 번 시도)"
-                            else "HoYoLAB 연동 후 사용할 수 있어요",
+                            if (hoyolab.isLinked) "켜두면 매일 잊지 않고 자동으로 출석을 챙겨드려요 (지금 한 번 바로 시도)"
+                            else "HoYoLAB을 연동하면 사용할 수 있어요",
                             fontSize = 11.sp, color = TextSecondary,
                         )
                     }
