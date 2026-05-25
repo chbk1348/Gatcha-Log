@@ -52,6 +52,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true // BuildConfig.DEBUG 로 빌드 타입(디버그/릴리스) 구분칩 표시
     }
     packaging {
         resources {

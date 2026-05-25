@@ -301,7 +301,13 @@ fun ThemeSection(selectedIndex: Int, onSelect: (Int) -> Unit) {
 }
 
 @Composable
-fun SettingsItem(label: String, icon: ImageVector, value: String? = null, onClick: () -> Unit) {
+fun SettingsItem(
+    label: String,
+    icon: ImageVector,
+    value: String? = null,
+    trailing: (@Composable () -> Unit)? = null,
+    onClick: () -> Unit,
+) {
     val accent = LocalAccent.current
     Row(
         modifier = Modifier.fillMaxWidth().clickable { onClick() }.padding(16.dp),
@@ -315,6 +321,7 @@ fun SettingsItem(label: String, icon: ImageVector, value: String? = null, onClic
         }
         Row(verticalAlignment = Alignment.CenterVertically) {
             value?.let { Text(it, fontSize = 12.sp, color = TextSecondary) }
+            trailing?.let { Spacer(Modifier.width(6.dp)); it() }
             Spacer(Modifier.width(4.dp))
             Icon(Icons.Default.ChevronRight, null, tint = Color.LightGray, modifier = Modifier.size(16.dp))
         }

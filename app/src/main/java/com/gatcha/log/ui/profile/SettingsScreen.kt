@@ -29,6 +29,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.gatcha.log.BuildConfig
 import com.gatcha.log.ui.components.GlassCard
 import com.gatcha.log.ui.components.GlgButton
 import com.gatcha.log.ui.components.GlgScreenHeader
@@ -200,7 +201,7 @@ fun SettingsScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
                     HorizontalDivider(color = DividerColor, modifier = Modifier.padding(horizontal = 16.dp))
                     SettingsItem("출처 · 저작권", Icons.Default.Copyright) { showCredits.value = true }
                     HorizontalDivider(color = DividerColor, modifier = Modifier.padding(horizontal = 16.dp))
-                    SettingsItem("앱 버전", Icons.Default.Info, value = "v$versionName") {}
+                    SettingsItem("앱 버전", Icons.Default.Info, value = "v$versionName", trailing = { BuildVariantChip() }) {}
                 }
             }
         }
@@ -288,6 +289,23 @@ private fun BudgetSettingDialog(current: Long, onDismiss: () -> Unit, onConfirm:
     }
 }
 
+/** 빌드 타입(디버그/릴리스) 구분칩 — 어떤 빌드가 설치됐는지 한눈에. */
+@Composable
+private fun BuildVariantChip() {
+    val isDebug = BuildConfig.DEBUG
+    val label = if (isDebug) "DEBUG" else "RELEASE"
+    val color = if (isDebug) Color(0xFFFF7A45) else LocalAccent.current
+    Surface(color = color.copy(alpha = 0.15f), shape = RoundedCornerShape(6.dp)) {
+        Text(
+            label,
+            fontSize = 10.sp,
+            fontWeight = FontWeight.Bold,
+            color = color,
+            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+        )
+    }
+}
+
 @Composable
 private fun UplogDialog(versionName: String, onDismiss: () -> Unit) {
     GlgDialog(
@@ -299,7 +317,14 @@ private fun UplogDialog(versionName: String, onDismiss: () -> Unit) {
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
             UplogEntry(
-                "v${versionName.ifBlank { "27.5.1" }}",
+                "v${versionName.ifBlank { "27.5.2" }}",
+                listOf(
+                    "연간 리포트·알림 상세 등 전체 화면 페이지에서 하단바와 + 버튼 자동 숨김",
+                    "하단바가 차지하던 빈 여백 정리 — 콘텐츠를 더 넓게",
+                ),
+            )
+            UplogEntry(
+                "v27.5.1",
                 listOf(
                     "[핫픽스] 선물코드 교환 시 '쿠키 인증 필요' 오류 수정 — HoYoLAB 재연동(이메일 로그인) 후 정상 교환",
                 ),
