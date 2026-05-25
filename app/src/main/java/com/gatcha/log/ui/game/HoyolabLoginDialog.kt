@@ -31,7 +31,7 @@ import com.gatcha.log.ui.theme.TextSecondary
  */
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
-fun HoyolabLoginDialog(onCollected: (String, String, String) -> Unit, onDismiss: () -> Unit) {
+fun HoyolabLoginDialog(onCollected: (String, String, String, String) -> Unit, onDismiss: () -> Unit) {
     val collectedCb = rememberUpdatedState(onCollected)
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Column(Modifier.fillMaxSize().background(Color.White)) {
@@ -72,7 +72,8 @@ fun HoyolabLoginDialog(onCollected: (String, String, String) -> Unit, onDismiss:
                                 val cookieToken = map["cookie_token_v2"] ?: map["cookie_token"].orEmpty()
                                 if (ltoken.isNotBlank() && ltuid.isNotBlank()) {
                                     collected = true
-                                    collectedCb.value(ltuid, ltoken, cookieToken)
+                                    // raw = 전체 쿠키 문자열(account_mid_v2 등 포함) → 교환 인증에 그대로 사용
+                                    collectedCb.value(ltuid, ltoken, cookieToken, raw)
                                 }
                             }
                         }

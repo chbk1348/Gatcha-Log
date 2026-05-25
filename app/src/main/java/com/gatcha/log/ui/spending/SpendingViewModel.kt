@@ -711,8 +711,10 @@ class SpendingViewModel(app: Application) : AndroidViewModel(app) {
             else -> ""
         }
         if (uid.isBlank()) return CodeResult(false, "이 게임 UID가 없어요")
-        if (cfg.cookieToken.isBlank()) return CodeResult(false, "연동 설정에서 cookie_token을 입력해주세요 (교환 전용)")
-        val r = HoyolabApi.redeemCode(cfg.ltuid, cfg.ltoken, cfg.cookieToken, gameKey, uid, code)
+        if (cfg.cookieToken.isBlank() && cfg.webCookie.isBlank()) {
+            return CodeResult(false, "HoYoLAB 재연동이 필요해요 (교환 인증 쿠키 없음)")
+        }
+        val r = HoyolabApi.redeemCode(cfg.ltuid, cfg.ltoken, cfg.cookieToken, cfg.webCookie, gameKey, uid, code)
         if (r.success || r.message.contains("이미 사용")) markRedeemed(code)
         return r
     }

@@ -39,6 +39,7 @@ fun HoyolabLinkScreen(config: HoyolabConfig, onSave: (HoyolabConfig) -> Unit, on
     var ltuid by remember { mutableStateOf(config.ltuid) }
     var ltoken by remember { mutableStateOf(config.ltoken) }
     var cookieToken by remember { mutableStateOf(config.cookieToken) }
+    var webCookie by remember { mutableStateOf(config.webCookie) }
     var gi by remember { mutableStateOf(config.genshinUid) }
     var hsr by remember { mutableStateOf(config.hsrUid) }
     var zzz by remember { mutableStateOf(config.zzzUid) }
@@ -89,7 +90,7 @@ fun HoyolabLinkScreen(config: HoyolabConfig, onSave: (HoyolabConfig) -> Unit, on
                     HoyolabConfig(
                         ltuid = ltuid.trim(), ltoken = ltoken.trim(),
                         genshinUid = gi.trim(), hsrUid = hsr.trim(), zzzUid = zzz.trim(),
-                        cookieToken = cookieToken.trim(),
+                        cookieToken = cookieToken.trim(), webCookie = webCookie,
                     ),
                 )
             },
@@ -101,9 +102,10 @@ fun HoyolabLinkScreen(config: HoyolabConfig, onSave: (HoyolabConfig) -> Unit, on
 
     if (showLogin) {
         HoyolabLoginDialog(
-            onCollected = { u, t, c ->
+            onCollected = { u, t, c, raw ->
                 ltuid = u; ltoken = t
                 if (c.isNotBlank()) cookieToken = c
+                webCookie = raw // 전체 쿠키 보존 → 교환 인증에 그대로 사용
                 showLogin = false
                 collectedMsg = "토큰을 가져왔어요. 게임 UID 확인 중…"
                 // 토큰으로 게임 UID 자동 조회(getGameRecordCard)

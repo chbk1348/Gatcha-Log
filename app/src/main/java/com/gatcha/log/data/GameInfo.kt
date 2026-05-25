@@ -11,6 +11,11 @@ data class HoyolabConfig(
     val zzzUid: String = "",
     /** 선물코드 교환(webExchangeCdkey) 전용 — ltoken 으론 인증 안 돼 cookie_token 필요. 만료 주기적. */
     val cookieToken: String = "",
+    /**
+     * 로그인 WebView 에서 캡처한 **전체 hoyolab 쿠키 문자열**(account_id_v2·account_mid_v2·cookie_token_v2 등 포함).
+     * 선물코드 교환을 브라우저와 동일하게 인증 — 재구성 쿠키로는 v2 신원 누락(-1071/-100)이 나서 원문을 보존한다.
+     */
+    val webCookie: String = "",
 ) {
     val isLinked: Boolean get() = ltuid.isNotBlank() && ltoken.isNotBlank()
 }

@@ -204,7 +204,7 @@ object HoyolabApi {
      * 보유한 ltuid/ltoken 쿠키로 인증. 일부 계정/엔드포인트는 cookie_token 을 요구할 수 있어
      * 그 경우 인증 오류 retcode 를 안내 메시지로 변환한다.
      */
-    suspend fun redeemCode(ltuid: String, ltoken: String, cookieToken: String, gameKey: String, uid: String, code: String): CodeResult {
+    suspend fun redeemCode(ltuid: String, ltoken: String, cookieToken: String, webCookie: String, gameKey: String, uid: String, code: String): CodeResult {
         val spec = REDEEM[gameKey] ?: return CodeResult(false, "지원하지 않는 게임")
         if (ltuid.isBlank() || ltoken.isBlank()) return CodeResult(false, "HoYoLAB 쿠키 미설정")
         if (uid.isBlank()) return CodeResult(false, "UID 미설정")
@@ -214,10 +214,14 @@ object HoyolabApi {
         val region = inferServer(gameKey, uid)
         val t = System.currentTimeMillis()
         val query = "t=$t&lang=ko-kr&game_biz=${spec.gameBiz}&uid=$uid&region=$region&cdkey=$c"
-        // 교환 인증의 핵심은 account_id + cookie_token. (ltoken 만으론 -1071 거부)
-        val cookie = buildString {
-            append("ltuid_v2=$ltuid; ltoken_v2=$ltoken; account_id=$ltuid;")
-            if (cookieToken.isNotBlank()) append(" cookie_token=$cookieToken; cookie_token_v2=$cookieToken;")
+        // 교환 인증: 1순위 = 로그인 시 캡처한 전체 쿠키(account_mid_v2 등 포함 → 브라우저와 동일).
+        // 없으면(구버전 연동) 재구성 — account_id_v2 까지 넣어 v2 인증 누락(-1071/-100) 최소화.
+        val cookie = webCookie.ifBlank {
+            buildString {
+                append("ltuid=$ltuid; ltuid_v2=$ltuid; account_id=$ltuid; account_id_v2=$ltuid; ")
+                append("ltoken=$ltoken; ltoken_v2=$ltoken;")
+                if (cookieToken.isNotBlank()) append(" cookie_token=$cookieToken; cookie_token_v2=$cookieToken;")
+            }
         }
         val headers = mapOf(
             "Cookie" to cookie,

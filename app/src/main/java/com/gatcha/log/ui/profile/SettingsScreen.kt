@@ -298,7 +298,13 @@ private fun UplogDialog(versionName: String, onDismiss: () -> Unit) {
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
             UplogEntry(
-                "v${versionName.ifBlank { "27.5.0" }}",
+                "v${versionName.ifBlank { "27.5.1" }}",
+                listOf(
+                    "[핫픽스] 선물코드 교환 시 '쿠키 인증 필요' 오류 수정 — HoYoLAB 재연동(이메일 로그인) 후 정상 교환",
+                ),
+            )
+            UplogEntry(
+                "v27.5.0",
                 listOf(
                     "HoYoLAB 로그인 한 번으로 토큰·게임 UID 자동 입력 (수동 복사 불필요)",
                     "HoYoLAB 선물코드 자동 수집 + 한 번에 교환",

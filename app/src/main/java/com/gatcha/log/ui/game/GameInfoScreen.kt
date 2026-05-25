@@ -356,7 +356,7 @@ private fun GiftCodeDialog(
                         color = if (state.success) accent else DangerText,
                     )
                     else -> Text(
-                        if (hoyolab.cookieToken.isBlank()) "교환하려면 연동 설정에 cookie_token이 필요해요. 보상은 게임 우편함으로 와요."
+                        if (hoyolab.cookieToken.isBlank() && hoyolab.webCookie.isBlank()) "교환하려면 HoYoLAB 재연동(이메일 로그인)이 필요해요. 보상은 게임 우편함으로 와요."
                         else "코드를 눌러 교환하거나 '모두 교환'을 누르세요. 보상은 게임 우편함으로 와요.",
                         fontSize = 11.sp, color = TextSecondary,
                     )

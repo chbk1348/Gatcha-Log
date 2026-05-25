@@ -96,6 +96,7 @@ class GatchaRepository(context: Context, accountId: String = "guest") {
         hsrUid = prefs.getString(KEY_HOYO_HSR, "") ?: "",
         zzzUid = prefs.getString(KEY_HOYO_ZZZ, "") ?: "",
         cookieToken = prefs.getString(KEY_HOYO_COOKIETOKEN, "") ?: "",
+        webCookie = prefs.getString(KEY_HOYO_WEBCOOKIE, "") ?: "",
     )
 
     fun saveHoyolab(config: HoyolabConfig) {
@@ -106,6 +107,7 @@ class GatchaRepository(context: Context, accountId: String = "guest") {
             .putString(KEY_HOYO_HSR, config.hsrUid)
             .putString(KEY_HOYO_ZZZ, config.zzzUid)
             .putString(KEY_HOYO_COOKIETOKEN, config.cookieToken)
+            .putString(KEY_HOYO_WEBCOOKIE, config.webCookie)
             .apply()
         changed()
     }
@@ -241,6 +243,7 @@ class GatchaRepository(context: Context, accountId: String = "guest") {
         prefs.getString(KEY_HOYO_HSR, null)?.let { o.put(KEY_HOYO_HSR, it) }
         prefs.getString(KEY_HOYO_ZZZ, null)?.let { o.put(KEY_HOYO_ZZZ, it) }
         prefs.getString(KEY_HOYO_COOKIETOKEN, null)?.let { o.put(KEY_HOYO_COOKIETOKEN, it) }
+        prefs.getString(KEY_HOYO_WEBCOOKIE, null)?.let { o.put(KEY_HOYO_WEBCOOKIE, it) }
         o.put(KEY_ACCENT, loadAccentIndex())
         prefs.getString(KEY_ENKA_GI, null)?.let { o.put(KEY_ENKA_GI, it) }
         prefs.getString(KEY_ENKA_HSR, null)?.let { o.put(KEY_ENKA_HSR, it) }
@@ -267,6 +270,7 @@ class GatchaRepository(context: Context, accountId: String = "guest") {
             if (o.has(KEY_HOYO_HSR)) putString(KEY_HOYO_HSR, o.getString(KEY_HOYO_HSR))
             if (o.has(KEY_HOYO_ZZZ)) putString(KEY_HOYO_ZZZ, o.getString(KEY_HOYO_ZZZ))
             if (o.has(KEY_HOYO_COOKIETOKEN)) putString(KEY_HOYO_COOKIETOKEN, o.getString(KEY_HOYO_COOKIETOKEN))
+            if (o.has(KEY_HOYO_WEBCOOKIE)) putString(KEY_HOYO_WEBCOOKIE, o.getString(KEY_HOYO_WEBCOOKIE))
             if (o.has(KEY_ACCENT)) putInt(KEY_ACCENT, o.getInt(KEY_ACCENT))
             if (o.has(KEY_ENKA_GI)) putString(KEY_ENKA_GI, o.getString(KEY_ENKA_GI))
             if (o.has(KEY_ENKA_HSR)) putString(KEY_ENKA_HSR, o.getString(KEY_ENKA_HSR))
@@ -294,6 +298,7 @@ class GatchaRepository(context: Context, accountId: String = "guest") {
         const val KEY_HOYO_HSR = "hoyo_hsr"
         const val KEY_HOYO_ZZZ = "hoyo_zzz"
         const val KEY_HOYO_COOKIETOKEN = "hoyo_cookietoken"
+        const val KEY_HOYO_WEBCOOKIE = "hoyo_webcookie"
         const val KEY_ACCENT = "accent_index"
         const val KEY_ATTENDANCE = "attendance"
         const val KEY_ENKA_GI = "enka_gi"
