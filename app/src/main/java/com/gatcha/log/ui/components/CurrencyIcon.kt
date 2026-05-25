@@ -23,7 +23,9 @@ import com.gatcha.log.data.GameData
 enum class GameCurrency(val gameKeys: Set<String>, val label: String, @param:DrawableRes val iconRes: Int) {
     GENESIS_CRYSTAL(setOf("genshin", "원신"), "창세의 결정", R.drawable.ic_currency_genshin),
     ONEIRIC_SHARD(setOf("hsr", "스타레일"), "오래된 꿈", R.drawable.ic_currency_hsr),
-    MONOCHROME(setOf("zzz", "젠레스"), "모노크롬", R.drawable.ic_currency_zzz);
+    MONOCHROME(setOf("zzz", "젠레스"), "모노크롬", R.drawable.ic_currency_zzz),
+    LUNITE(setOf("wuwa", "명조"), "달빛", R.drawable.ic_currency_wuwa),
+    ORIGEOMETRY(setOf("endfield", "엔드필드"), "파생 오리지늄", R.drawable.ic_currency_endfield);
 
     companion object {
         fun forGame(gameName: String): GameCurrency? {
@@ -34,7 +36,7 @@ enum class GameCurrency(val gameKeys: Set<String>, val label: String, @param:Dra
 }
 
 /**
- * 인게임 재화 아이콘. 지원 게임(원신·스타레일·젠레스)은 실제 아트, 그 외(명조·엔드필드)는 게임 색 원형으로 폴백.
+ * 인게임 재화 아이콘. 지원 게임(원신·스타레일·젠레스·명조·엔드필드)은 실제 아트, 그 외(이환 등)는 게임 색 원형으로 폴백.
  */
 @Composable
 fun CurrencyIcon(gameName: String, size: Dp = 28.dp, modifier: Modifier = Modifier) {
