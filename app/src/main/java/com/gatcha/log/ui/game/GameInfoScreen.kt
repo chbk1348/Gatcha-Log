@@ -159,7 +159,7 @@ fun GameInfoScreen(
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         GachaRateButton { showRateDialog.value = true }
                         if (hoyolab.isLinked) {
-                            GlgCircleIconButton(Icons.Default.Redeem, "선물코드", outlined = true) { showGiftDialog.value = true }
+                            GlgCircleIconButton(Icons.Default.Redeem, "리딤코드", outlined = true) { showGiftDialog.value = true }
                         }
                         GlgCircleIconButton(Icons.Default.Refresh, "새로고침", loading = isRefreshing, enabled = !isRefreshing, outlined = true) {
                             viewModel.refreshGameInfo()
@@ -276,7 +276,7 @@ fun GameInfoScreen(
     }
 }
 
-/** HoYoLAB 선물코드 — 활성 코드 자동 수집 + 교환(단건/모두) + 직접 입력. */
+/** HoYoLAB 리딤코드 — 활성 코드 자동 수집 + 교환(단건/모두) + 직접 입력. */
 @Composable
 private fun GiftCodeDialog(
     hoyolab: HoyolabConfig,
@@ -305,7 +305,7 @@ private fun GiftCodeDialog(
     val pending = activeCodes.count { it.code !in redeemedCodes }
 
     GlgDialog(
-        title = "선물코드",
+        title = "리딤코드",
         onDismiss = onDismiss,
         confirmText = if (loading) "교환 중…" else "모두 교환",
         confirmEnabled = pending > 0 && !loading && games.isNotEmpty(),

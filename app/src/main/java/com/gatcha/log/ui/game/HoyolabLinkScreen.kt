@@ -76,7 +76,7 @@ fun HoyolabLinkScreen(config: HoyolabConfig, onSave: (HoyolabConfig) -> Unit, on
             Text("쿠키(ltuid·ltoken)는 개인 정보입니다. 타인과 공유하지 마세요. 수동 입력도 가능해요.", fontSize = 11.sp, color = TextSecondary)
             GlgTextField(ltuid, { ltuid = it }, label = "ltuid", modifier = Modifier.fillMaxWidth())
             GlgTextField(ltoken, { ltoken = it }, label = "ltoken", modifier = Modifier.fillMaxWidth())
-            GlgTextField(cookieToken, { cookieToken = it }, label = "cookie_token (선물코드 교환용·선택)", modifier = Modifier.fillMaxWidth())
+            GlgTextField(cookieToken, { cookieToken = it }, label = "cookie_token (리딤코드 교환용·선택)", modifier = Modifier.fillMaxWidth())
             GlgTextField(gi, { gi = it }, label = "원신 UID", modifier = Modifier.fillMaxWidth())
             GlgTextField(hsr, { hsr = it }, label = "스타레일 UID", modifier = Modifier.fillMaxWidth())
             GlgTextField(zzz, { zzz = it }, label = "젠레스 UID", modifier = Modifier.fillMaxWidth())
@@ -134,7 +134,7 @@ fun HoyolabLinkScreen(config: HoyolabConfig, onSave: (HoyolabConfig) -> Unit, on
         ) {
             Text(
                 "토큰을 정상적으로 가져오려면 다음 화면에서 반드시 ‘이메일(비밀번호) 로그인’ 을 사용하세요.\n\n" +
-                    "구글·애플 등 소셜 로그인은 cookie_token 등 일부 정보를 가져오지 못해 선물코드 교환이 안 될 수 있어요.",
+                    "구글·애플 등 소셜 로그인은 cookie_token 등 일부 정보를 가져오지 못해 리딤코드 교환이 안 될 수 있어요.",
                 fontSize = 13.sp, color = TextSecondary,
             )
         }

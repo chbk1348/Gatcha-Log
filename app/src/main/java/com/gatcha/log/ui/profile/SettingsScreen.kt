@@ -413,14 +413,14 @@ private fun UplogDialog(versionName: String, onDismiss: () -> Unit) {
             UplogEntry(
                 "v27.5.1",
                 listOf(
-                    "[핫픽스] 선물코드 교환 시 '쿠키 인증 필요' 오류 수정 — HoYoLAB 재연동(이메일 로그인) 후 정상 교환",
+                    "[핫픽스] 리딤코드 교환 시 '쿠키 인증 필요' 오류 수정 — HoYoLAB 재연동(이메일 로그인) 후 정상 교환",
                 ),
             )
             UplogEntry(
                 "v27.5.0",
                 listOf(
                     "HoYoLAB 로그인 한 번으로 토큰·게임 UID 자동 입력 (수동 복사 불필요)",
-                    "HoYoLAB 선물코드 자동 수집 + 한 번에 교환",
+                    "HoYoLAB 리딤코드 자동 수집 + 한 번에 교환",
                     "HoYoLAB 계정 연동을 전용 페이지로 개편 (전환 애니메이션·연동 안내)",
                     "스타레일 등 UID가 부계정으로 잘못 채워지던 문제 수정 (대표 계정 우선)",
                 ),
@@ -464,7 +464,7 @@ private fun UplogDialog(versionName: String, onDismiss: () -> Unit) {
                     "출석 기준 시간 베이징 표준시(UTC+8)로 정정 — 자정 직후 오출석 방지",
                     "출석 최근 7일 스트립 + 월간 달력",
                     "인앱 자동 업데이트 (다운로드→설치→자동 삭제)",
-                    "HoYoLAB 선물코드 교환, 젠레스 픽업 배너",
+                    "HoYoLAB 리딤코드 교환, 젠레스 픽업 배너",
                     "데일리 인게임 용어·재화 명칭 정정 (선계 화폐 등)",
                     "하단 탭 다시 누르면 최상단 이동, 출처·저작권 고지",
                 ),
