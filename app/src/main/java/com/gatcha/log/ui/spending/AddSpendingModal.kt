@@ -141,15 +141,6 @@ fun AddSpendingModal(
                 // ── 금액 + 상품 ──
                 item {
                     SectionCard {
-                        GlgTextField(
-                            value = amount,
-                            onValueChange = { input -> amount = input.filter { it.isDigit() } },
-                            label = "금액 (원)",
-                            placeholder = "0",
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                            modifier = Modifier.fillMaxWidth(),
-                        )
-                        Spacer(Modifier.height(14.dp))
                         SectionRowLabel("빠른 상품 선택")
                         Text("선택하면 금액·재화명이 자동 입력돼요", fontSize = 12.sp, color = TextSecondary, modifier = Modifier.padding(top = 2.dp, bottom = 8.dp))
                         val allPackages = GameData.packagesFor(game)
@@ -189,6 +180,15 @@ fun AddSpendingModal(
                                 }
                             }
                         }
+                        Spacer(Modifier.height(14.dp))
+                        GlgTextField(
+                            value = amount,
+                            onValueChange = { input -> amount = input.filter { it.isDigit() } },
+                            label = "금액 (원)",
+                            placeholder = "0",
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            modifier = Modifier.fillMaxWidth(),
+                        )
                         Spacer(Modifier.height(12.dp))
                         GlgTextField(
                             value = itemName,
