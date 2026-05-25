@@ -1,10 +1,10 @@
 {
-  "versionCode": 270501,
-  "versionName": "27.5.1",
+  "versionCode": 270502,
+  "versionName": "27.5.2",
   "url": "https://github.com/chbk1348/Gatcha-Log-Android/releases/latest",
   "apkUrl": "https://github.com/chbk1348/Gatcha-Log-Android/releases/latest/download/app-release.apk",
   "notes": [
-    "[핫픽스] 선물코드 교환 시 '쿠키 인증 필요' 오류 수정",
-    "HoYoLAB 재연동(이메일 로그인) 후 코드가 정상 교환됩니다"
+    "연간 리포트·알림 상세 등 전체 화면 페이지에서 하단바와 + 버튼이 숨겨져요",
+    "콘텐츠를 더 넓게 볼 수 있어요"
   ]
 }
