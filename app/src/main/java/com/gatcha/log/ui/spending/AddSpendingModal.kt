@@ -28,6 +28,8 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.gatcha.log.data.DateUtil
@@ -366,13 +368,21 @@ private fun PackageCard(pkg: GamePackage, isSelected: Boolean, modifier: Modifie
         border = BorderStroke(1.dp, if (isSelected) accent else DividerColor),
     ) {
         Column(
-            modifier = Modifier.padding(10.dp).heightIn(min = 64.dp),
+            modifier = Modifier.fillMaxWidth().padding(10.dp).heightIn(min = 64.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center,
         ) {
-            Text(pkg.name, fontSize = 13.sp, fontWeight = FontWeight.Bold, maxLines = 1, color = TextPrimary)
-            pkg.bonus?.let { Text(it, fontSize = 10.sp, color = accent, fontWeight = FontWeight.Bold) }
-            Text("₩%,d".format(pkg.price), fontSize = 11.sp, color = TextSecondary)
+            Text(
+                pkg.name,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Bold,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                textAlign = TextAlign.Center,
+                color = TextPrimary,
+            )
+            pkg.bonus?.let { Text(it, fontSize = 10.sp, color = accent, fontWeight = FontWeight.Bold, maxLines = 1) }
+            Text("₩%,d".format(pkg.price), fontSize = 11.sp, color = TextSecondary, maxLines = 1)
         }
     }
 }
