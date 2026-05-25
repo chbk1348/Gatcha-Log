@@ -317,7 +317,13 @@ private fun UplogDialog(versionName: String, onDismiss: () -> Unit) {
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
             UplogEntry(
-                "v${versionName.ifBlank { "27.5.2" }}",
+                "v${versionName.ifBlank { "27.5.3" }}",
+                listOf(
+                    "설정 ▸ 앱 버전에 빌드 종류(DEBUG/RELEASE) 표시 칩 추가",
+                ),
+            )
+            UplogEntry(
+                "v27.5.2",
                 listOf(
                     "연간 리포트·알림 상세 등 전체 화면 페이지에서 하단바와 + 버튼 자동 숨김",
                     "하단바가 차지하던 빈 여백 정리 — 콘텐츠를 더 넓게",
