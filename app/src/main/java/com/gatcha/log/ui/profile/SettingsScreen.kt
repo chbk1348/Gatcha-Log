@@ -398,7 +398,16 @@ private fun UplogDialog(versionName: String, onDismiss: () -> Unit) {
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
             UplogEntry(
-                "v${versionName.ifBlank { "27.5.3" }}",
+                "v${versionName.ifBlank { "27.5.6" }}",
+                listOf(
+                    "HoYoLAB 토큰을 단말기 내 암호화 저장소로 이관 — 클라우드 평문 보관 제거",
+                    "비공식 앱 안내·토큰 로컬 보관 안내 등 면책 고지 보강",
+                    "게임 재화 아이콘을 권리자 CDN에서 불러오도록 변경 — 앱 용량 축소",
+                    "내부 안정성 보강(앱 실행 단계 회귀 방지)",
+                ),
+            )
+            UplogEntry(
+                "v27.5.3",
                 listOf(
                     "설정 ▸ 앱 버전에 빌드 종류(DEBUG/RELEASE) 표시 칩 추가",
                 ),
