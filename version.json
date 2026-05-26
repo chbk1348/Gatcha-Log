@@ -1,10 +1,12 @@
 {
-  "versionCode": 270503,
-  "versionName": "27.5.3",
+  "versionCode": 270505,
+  "versionName": "27.5.5",
   "url": "https://github.com/chbk1348/Gatcha-Log-Android/releases/latest",
   "apkUrl": "https://github.com/chbk1348/Gatcha-Log-Android/releases/latest/download/app-release.apk",
   "notes": [
-    "설정 ▸ 앱 버전에서 현재 빌드 종류(DEBUG/RELEASE)를 확인할 수 있어요",
-    "내부 표기 정리"
+    "[핫픽스] 27.5.4 실행 시 앱이 켜지지 않던 블로커 수정 (R8 축소로 사라진 Room/WorkManager 클래스 보존)",
+    "HoYoLAB 토큰을 단말기 내 암호화 저장소로 이관 — 클라우드 평문 보관 제거",
+    "비공식 앱 안내·토큰 로컬 보관 안내 등 면책 고지 보강",
+    "게임 재화 아이콘을 권리자 CDN에서 불러오도록 변경 — 앱 용량 축소"
   ]
 }

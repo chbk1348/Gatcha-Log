@@ -24,3 +24,15 @@
 -keep class com.google.android.libraries.identity.googleid.** { *; }
 -keep class androidx.credentials.playservices.** { *; }
 -dontwarn com.google.android.libraries.identity.googleid.**
+
+# ── Room / WorkManager ─────────────────────────────────────────────
+# Room 은 컴파일타임에 *_Impl 클래스를 생성하고 RoomDatabase#build 단계에서
+# canonicalName + "_Impl" 로 동적 로드한다. R8 축소 시 누락되면 앱 시작 시
+# "Failed to create an instance of class ..._Impl" 로 즉시 크래시(블로커).
+# WorkManager 는 내부적으로 WorkDatabase(Room) 를 사용하므로 동일 영향.
+-keep class * extends androidx.room.RoomDatabase { *; }
+-keep class androidx.room.** { *; }
+-keep class androidx.work.impl.WorkDatabase { *; }
+-keep class androidx.work.impl.WorkDatabase_Impl { *; }
+-keep class androidx.work.impl.model.** { *; }
+-dontwarn androidx.room.paging.**
