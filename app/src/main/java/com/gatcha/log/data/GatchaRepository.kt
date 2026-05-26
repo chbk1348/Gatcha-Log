@@ -1,7 +1,10 @@
 package com.gatcha.log.data
 
 import android.content.Context
+import android.content.SharedPreferences
 import androidx.compose.ui.graphics.Color
+import androidx.security.crypto.EncryptedSharedPreferences
+import androidx.security.crypto.MasterKey
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -13,9 +16,17 @@ import org.json.JSONObject
  */
 class GatchaRepository(context: Context, accountId: String = "guest") {
 
+    private val appContext = context.applicationContext
     private val safeId = accountId.ifBlank { "guest" }.replace(Regex("[^A-Za-z0-9]"), "_")
-    private val prefs = context.applicationContext
-        .getSharedPreferences("gatcha_log_$safeId", Context.MODE_PRIVATE)
+    private val prefs = appContext.getSharedPreferences("gatcha_log_$safeId", Context.MODE_PRIVATE)
+
+    /**
+     * 인증 토큰 전용 암호화 저장소(EncryptedSharedPreferences, Android Keystore 기반).
+     * 평문 [prefs] 와 분리해 토큰만 암호화 보관하며, 스냅샷(클라우드/백업)에는 절대 포함하지 않는다.
+     */
+    private val securePrefs: SharedPreferences by lazy { buildSecurePrefs() }
+
+    init { migrateLegacyTokens() }
 
     /** 데이터가 저장될 때마다 호출(클라우드 동기화 트리거용). 스냅샷 import 시에는 호출되지 않는다. */
     var onChange: (() -> Unit)? = null
@@ -88,27 +99,61 @@ class GatchaRepository(context: Context, accountId: String = "guest") {
     }
 
     // ---------------------------------------------------------------- HoYoLAB
+    // 토큰(ltuid/ltoken/cookieToken/webCookie)은 암호화 저장소[securePrefs]에, UID 는 평문 [prefs]에 둔다.
+    // 토큰은 스냅샷(클라우드/백업)에 포함되지 않으므로 기기 밖으로 나가지 않는다.
     fun loadHoyolab(): HoyolabConfig = HoyolabConfig(
-        ltuid = prefs.getString(KEY_HOYO_LTUID, "") ?: "",
-        ltoken = prefs.getString(KEY_HOYO_LTOKEN, "") ?: "",
+        ltuid = securePrefs.getString(KEY_HOYO_LTUID, "") ?: "",
+        ltoken = securePrefs.getString(KEY_HOYO_LTOKEN, "") ?: "",
         genshinUid = prefs.getString(KEY_HOYO_GI, "") ?: "",
         hsrUid = prefs.getString(KEY_HOYO_HSR, "") ?: "",
         zzzUid = prefs.getString(KEY_HOYO_ZZZ, "") ?: "",
-        cookieToken = prefs.getString(KEY_HOYO_COOKIETOKEN, "") ?: "",
-        webCookie = prefs.getString(KEY_HOYO_WEBCOOKIE, "") ?: "",
+        cookieToken = securePrefs.getString(KEY_HOYO_COOKIETOKEN, "") ?: "",
+        webCookie = securePrefs.getString(KEY_HOYO_WEBCOOKIE, "") ?: "",
     )
 
     fun saveHoyolab(config: HoyolabConfig) {
-        prefs.edit()
+        securePrefs.edit()
             .putString(KEY_HOYO_LTUID, config.ltuid)
             .putString(KEY_HOYO_LTOKEN, config.ltoken)
-            .putString(KEY_HOYO_GI, config.genshinUid)
-            .putString(KEY_HOYO_HSR, config.hsrUid)
-            .putString(KEY_HOYO_ZZZ, config.zzzUid)
             .putString(KEY_HOYO_COOKIETOKEN, config.cookieToken)
             .putString(KEY_HOYO_WEBCOOKIE, config.webCookie)
             .apply()
+        prefs.edit()
+            .putString(KEY_HOYO_GI, config.genshinUid)
+            .putString(KEY_HOYO_HSR, config.hsrUid)
+            .putString(KEY_HOYO_ZZZ, config.zzzUid)
+            .apply()
         changed()
+    }
+
+    /** EncryptedSharedPreferences 생성. 키 손상(복호화 불가) 시 1회 폐기·재생성, 그래도 실패하면 평문 폴백으로 크래시 방지. */
+    private fun buildSecurePrefs(): SharedPreferences {
+        val name = "gatcha_sec_$safeId"
+        fun create(): SharedPreferences {
+            val masterKey = MasterKey.Builder(appContext)
+                .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
+                .build()
+            return EncryptedSharedPreferences.create(
+                appContext, name, masterKey,
+                EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+                EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM,
+            )
+        }
+        return runCatching { create() }.getOrElse {
+            // 자동백업 복원 등으로 키스토어 키와 어긋나 복호화 불가 → 폐기 후 재시도(토큰만 잃고 재로그인 유도)
+            appContext.deleteSharedPreferences(name)
+            runCatching { create() }.getOrDefault(appContext.getSharedPreferences(name, Context.MODE_PRIVATE))
+        }
+    }
+
+    /** 평문 prefs 에 남아있던 기존 토큰을 최초 1회 암호화 저장소로 이전하고 평문 키는 삭제한다. */
+    private fun migrateLegacyTokens() {
+        val legacyKeys = listOf(KEY_HOYO_LTUID, KEY_HOYO_LTOKEN, KEY_HOYO_COOKIETOKEN, KEY_HOYO_WEBCOOKIE)
+        if (legacyKeys.none { prefs.contains(it) }) return
+        securePrefs.edit().apply {
+            legacyKeys.forEach { k -> prefs.getString(k, null)?.let { putString(k, it) } }
+        }.apply()
+        prefs.edit().apply { legacyKeys.forEach { remove(it) } }.apply()
     }
 
     // ---------------------------------------------------------------- 테마 강조색
@@ -252,13 +297,11 @@ class GatchaRepository(context: Context, accountId: String = "guest") {
         o.put(KEY_BUDGET, loadBudget())
         prefs.getString(KEY_PROFILE_NAME, null)?.let { o.put(KEY_PROFILE_NAME, it) }
         prefs.getString(KEY_PROFILE_EMAIL, null)?.let { o.put(KEY_PROFILE_EMAIL, it) }
-        prefs.getString(KEY_HOYO_LTUID, null)?.let { o.put(KEY_HOYO_LTUID, it) }
-        prefs.getString(KEY_HOYO_LTOKEN, null)?.let { o.put(KEY_HOYO_LTOKEN, it) }
+        // 토큰(ltuid/ltoken/cookieToken/webCookie)은 보안상 스냅샷에 절대 포함하지 않는다(암호화 저장소 전용).
+        // 게임 UID 만 포함 — 토큰이 아니므로 기기 간 동기화에 필요.
         prefs.getString(KEY_HOYO_GI, null)?.let { o.put(KEY_HOYO_GI, it) }
         prefs.getString(KEY_HOYO_HSR, null)?.let { o.put(KEY_HOYO_HSR, it) }
         prefs.getString(KEY_HOYO_ZZZ, null)?.let { o.put(KEY_HOYO_ZZZ, it) }
-        prefs.getString(KEY_HOYO_COOKIETOKEN, null)?.let { o.put(KEY_HOYO_COOKIETOKEN, it) }
-        prefs.getString(KEY_HOYO_WEBCOOKIE, null)?.let { o.put(KEY_HOYO_WEBCOOKIE, it) }
         o.put(KEY_ACCENT, loadAccentIndex())
         prefs.getString(KEY_ENKA_GI, null)?.let { o.put(KEY_ENKA_GI, it) }
         prefs.getString(KEY_ENKA_HSR, null)?.let { o.put(KEY_ENKA_HSR, it) }
@@ -280,13 +323,10 @@ class GatchaRepository(context: Context, accountId: String = "guest") {
             if (o.has(KEY_BUDGET)) putLong(KEY_BUDGET, o.getLong(KEY_BUDGET))
             if (o.has(KEY_PROFILE_NAME)) putString(KEY_PROFILE_NAME, o.getString(KEY_PROFILE_NAME))
             if (o.has(KEY_PROFILE_EMAIL)) putString(KEY_PROFILE_EMAIL, o.getString(KEY_PROFILE_EMAIL))
-            if (o.has(KEY_HOYO_LTUID)) putString(KEY_HOYO_LTUID, o.getString(KEY_HOYO_LTUID))
-            if (o.has(KEY_HOYO_LTOKEN)) putString(KEY_HOYO_LTOKEN, o.getString(KEY_HOYO_LTOKEN))
+            // 토큰 키는 스냅샷에서 의도적으로 제외 — 구버전 클라우드/백업에 토큰이 남아 있어도 가져오지 않는다.
             if (o.has(KEY_HOYO_GI)) putString(KEY_HOYO_GI, o.getString(KEY_HOYO_GI))
             if (o.has(KEY_HOYO_HSR)) putString(KEY_HOYO_HSR, o.getString(KEY_HOYO_HSR))
             if (o.has(KEY_HOYO_ZZZ)) putString(KEY_HOYO_ZZZ, o.getString(KEY_HOYO_ZZZ))
-            if (o.has(KEY_HOYO_COOKIETOKEN)) putString(KEY_HOYO_COOKIETOKEN, o.getString(KEY_HOYO_COOKIETOKEN))
-            if (o.has(KEY_HOYO_WEBCOOKIE)) putString(KEY_HOYO_WEBCOOKIE, o.getString(KEY_HOYO_WEBCOOKIE))
             if (o.has(KEY_ACCENT)) putInt(KEY_ACCENT, o.getInt(KEY_ACCENT))
             if (o.has(KEY_ENKA_GI)) putString(KEY_ENKA_GI, o.getString(KEY_ENKA_GI))
             if (o.has(KEY_ENKA_HSR)) putString(KEY_ENKA_HSR, o.getString(KEY_ENKA_HSR))

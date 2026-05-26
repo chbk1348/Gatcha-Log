@@ -25,8 +25,10 @@ import androidx.compose.ui.window.DialogProperties
 import com.gatcha.log.ui.theme.TextSecondary
 
 /**
- * HoYoLAB 로그인 WebView — 로그인하면 인증 쿠키(ltoken_v2 / ltuid_v2 / cookie_token_v2)를 자동 추출해
- * [onCollected](ltuid, ltoken, cookieToken) 로 전달한다. 쿠키는 기기의 WebView 에만 존재하며 외부로 전송하지 않는다.
+ * HoYoLAB 로그인 WebView — 로그인하면 인증 쿠키(ltoken_v2 / ltuid_v2 / cookie_token_v2 + 전체 쿠키)를 자동 추출해
+ * [onCollected](ltuid, ltoken, cookieToken, webCookie) 로 전달한다.
+ * 추출된 토큰은 이 기기의 암호화 저장소(EncryptedSharedPreferences)에만 보관되며,
+ * 클라우드(Firestore)·백업 스냅샷에는 포함되지 않는다(기기 밖으로 전송하지 않음).
  * (수동으로 토큰을 복사·붙여넣을 필요 없이 로그인만 하면 됨)
  */
 @SuppressLint("SetJavaScriptEnabled")
