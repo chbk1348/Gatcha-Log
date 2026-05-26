@@ -22,6 +22,7 @@ import com.gatcha.log.data.GachaDashboard
 import com.gatcha.log.data.HomeCardItem
 import com.gatcha.log.data.HomeCards
 import com.gatcha.log.data.AppSettings
+import com.gatcha.log.data.work.AutoCheckInRunner
 import com.gatcha.log.data.work.NativeScheduler
 import com.gatcha.log.data.GameData
 import com.gatcha.log.data.GameEvent
@@ -103,11 +104,22 @@ class SpendingViewModel(app: Application) : AndroidViewModel(app) {
         appSettings.autoCheckIn = enabled
         _autoCheckIn.value = enabled
         NativeScheduler.apply(getApplication())
-        if (enabled) {
-            NativeScheduler.runNow(getApplication())
-            emitStatus("자동 출석체크를 켰어요 — 지금 한 번 시도해요")
-        } else {
+        if (!enabled) {
             emitStatus("자동 출석체크를 껐어요")
+            return
+        }
+        emitStatus("자동 출석체크를 켰어요 — 지금 한 번 시도할게요")
+        // 결과를 토스트로 즉시 피드백(완료/이미 완료/재연동 필요 등). 워커도 같은 Runner 를 쓰지만
+        // 여기선 알림 중복을 피하려고 postFailureNotification=false 로 끄고 토스트만 띄운다.
+        viewModelScope.launch {
+            val outcome = AutoCheckInRunner.run(
+                ctx = getApplication(),
+                settings = appSettings,
+                repo = repo,
+                cfg = repo.loadHoyolab(),
+                postFailureNotification = false,
+            )
+            emitStatus(outcome?.toToastMessage() ?: "HoYoLAB 연동이 안 돼 있어요")
         }
     }
 

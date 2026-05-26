@@ -39,7 +39,9 @@ object Notifier {
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
         val n = NotificationCompat.Builder(ctx, CHANNEL)
-            .setSmallIcon(R.mipmap.ic_launcher)
+            // small icon 은 단색 vector(알파 채널만) — 컬러 mipmap 쓰면 픽셀류에서 흰 사각형/미노출.
+            .setSmallIcon(R.drawable.ic_notification)
+            .setColor(0xFF7B5BFA.toInt()) // 강조색(보라) — 시스템이 small icon 에 색조 적용
             .setContentTitle(title)
             .setContentText(text)
             .setStyle(NotificationCompat.BigTextStyle().bigText(text))

@@ -28,35 +28,9 @@ class GatchaWorker(appContext: Context, params: WorkerParameters) : CoroutineWor
         return Result.success()
     }
 
-    /**
-     * 실패는 매일 1회 알림으로 보고(이전에는 조용히 skip 돼 사용자가 며칠씩 못 챙기는 사례 발생).
-     * 성공은 출석 화면에서 확인 가능하므로 알림 안 띄움.
-     */
+    /** 출석 시도·결과 집계·실패 알림은 [AutoCheckInRunner] 가 담당(UI 호출과 동일 흐름). */
     private suspend fun autoCheckIn(ctx: Context, settings: AppSettings, repo: GatchaRepository, cfg: HoyolabConfig) {
-        if (!cfg.isLinked || cfg.ltuid.isBlank() || cfg.ltoken.isBlank()) return
-        val today = DateUtil.hoyoDayKey()
-        var attendance = repo.loadAttendance()
-        var changed = false
-        val failed = mutableListOf<Pair<String, String>>()
-        for (game in GameData.attendanceGames) {
-            if (game.key in (attendance[today] ?: emptySet())) continue
-            val r = HoyolabApi.checkIn(cfg.ltuid, cfg.ltoken, game.key)
-            if (r.success) {
-                val set = (attendance[today] ?: emptySet()) + game.key
-                attendance = attendance.toMutableMap().apply { put(today, set) }
-                changed = true
-            } else {
-                failed += game.shortName to r.message
-            }
-        }
-        if (changed) repo.saveAttendance(attendance)
-
-        if (failed.isNotEmpty() && settings.lastNotified("auto_checkin_fail") != today) {
-            settings.setLastNotified("auto_checkin_fail", today)
-            val body = failed.joinToString("\n") { (name, msg) -> "$name — $msg" } +
-                "\n\nHoYoLAB 재연동(설정 ▸ HoYoLAB 연동)이 필요할 수 있어요"
-            Notifier.notify(ctx, Notifier.ID_AUTO_CHECKIN, "자동 출석 실패", body)
-        }
+        AutoCheckInRunner.run(ctx, settings, repo, cfg, postFailureNotification = true)
     }
 
     private suspend fun checkNotifications(ctx: Context, settings: AppSettings, repo: GatchaRepository, cfg: HoyolabConfig) {

@@ -1,0 +1,13 @@
+<!--
+  알림 small icon — 알파 채널만 사용(시스템이 색조를 자동 적용).
+  컬러 mipmap(ic_launcher)을 small icon 에 쓰면 픽셀류·일부 단말에서 흰 사각형/미노출로 표시되는 이슈를 회피.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M12,2L14.6,8.6L21.5,9.2L16.2,13.7L17.9,20.5L12,16.8L6.1,20.5L7.8,13.7L2.5,9.2L9.4,8.6Z" />
+</vector>

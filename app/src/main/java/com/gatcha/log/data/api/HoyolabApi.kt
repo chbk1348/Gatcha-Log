@@ -12,7 +12,21 @@ import kotlin.math.ceil
 import kotlin.random.Random
 
 data class NoteResult(val note: LiveNote?, val error: String?)
-data class CheckInResult(val success: Boolean, val already: Boolean, val message: String)
+/**
+ * 자동 출석 결과. [reason] 으로 실패 사유를 구분해 알림 본문을 사유별로 분기한다.
+ * - [Reason.AUTH] 쿠키 인증 만료 — HoYoLAB 재연동 필요
+ * - [Reason.NETWORK] 네트워크 오류 — 잠시 후 자동 재시도
+ * - [Reason.OTHER] 기타 retcode 실패 — 메시지·코드 그대로 노출
+ */
+data class CheckInResult(
+    val success: Boolean,
+    val already: Boolean,
+    val message: String,
+    val retcode: Int = 0,
+    val reason: CheckInResult.Reason = Reason.NONE,
+) {
+    enum class Reason { NONE, AUTH, NETWORK, OTHER }
+}
 data class CodeResult(val success: Boolean, val message: String)
 
 /**
@@ -164,8 +178,10 @@ object HoyolabApi {
 
     // ----------------------------------------------------------------- 출석체크
     suspend fun checkIn(ltuid: String, ltoken: String, gameKey: String): CheckInResult {
-        val url = SIGN_APIS[gameKey] ?: return CheckInResult(false, false, "지원하지 않는 게임")
-        if (ltuid.isBlank() || ltoken.isBlank()) return CheckInResult(false, false, "쿠키 미설정")
+        val url = SIGN_APIS[gameKey] ?: return CheckInResult(false, false, "지원하지 않는 게임", reason = CheckInResult.Reason.OTHER)
+        if (ltuid.isBlank() || ltoken.isBlank()) {
+            return CheckInResult(false, false, "쿠키 미설정 — HoYoLAB 연동이 필요해요", reason = CheckInResult.Reason.AUTH)
+        }
 
         val headers = mapOf(
             "Cookie" to "ltuid=$ltuid; ltoken=$ltoken; ltuid_v2=$ltuid; ltoken_v2=$ltoken;",
@@ -179,15 +195,19 @@ object HoyolabApi {
 
         // HoYoLAB sign 응답은 느릴 수 있어 30초까지 대기 (웹앱 GAS 와 동일)
         val res = Net.post(url, headers, "{}", timeoutMs = 30_000)
-        if (res.code == -1) return CheckInResult(false, false, "네트워크 오류")
+        if (res.code == -1) return CheckInResult(false, false, "네트워크 오류", reason = CheckInResult.Reason.NETWORK)
         return runCatching {
             val json = JSONObject(res.body)
-            when (val retcode = json.optInt("retcode", -1)) {
-                0 -> CheckInResult(true, false, "출석 완료")
-                -5003 -> CheckInResult(true, true, "이미 출석했어요")
-                else -> CheckInResult(false, false, json.optString("message").ifBlank { "출석 실패 ($retcode)" })
+            val retcode = json.optInt("retcode", -1)
+            val msg = json.optString("message")
+            when (retcode) {
+                0 -> CheckInResult(true, false, "출석 완료", retcode)
+                -5003 -> CheckInResult(true, true, "이미 출석했어요", retcode)
+                // 쿠키 인증 만료 — 재연동 필요
+                -100, -1071, 10001, 10002 -> CheckInResult(false, false, "쿠키 인증 만료", retcode, CheckInResult.Reason.AUTH)
+                else -> CheckInResult(false, false, msg.ifBlank { "출석 실패 ($retcode)" }, retcode, CheckInResult.Reason.OTHER)
             }
-        }.getOrElse { CheckInResult(false, false, "응답 파싱 실패") }
+        }.getOrElse { CheckInResult(false, false, "응답 파싱 실패", reason = CheckInResult.Reason.OTHER) }
     }
 
     // ----------------------------------------------------------------- 선물코드 교환

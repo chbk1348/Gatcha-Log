@@ -513,7 +513,9 @@ private fun CreditsDialog(onDismiss: () -> Unit) {
             )
             CreditRow(
                 "게임 콘텐츠 · 아이콘 저작권",
-                "© HoYoverse (miHoYo / Cognosphere)\n원신 · 붕괴: 스타레일 · 젠레스 존 제로",
+                "© HoYoverse (miHoYo / Cognosphere) — 원신 · 붕괴: 스타레일 · 젠레스 존 제로\n" +
+                    "© Kuro Games — 명조: 워더링 웨이브\n" +
+                    "© Hypergryph / Yostar — 명일방주: 엔드필드",
             )
             CreditRow(
                 "데이터 · 에셋 출처",
