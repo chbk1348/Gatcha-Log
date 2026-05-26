@@ -55,6 +55,11 @@ fun HoyolabLinkScreen(config: HoyolabConfig, onSave: (HoyolabConfig) -> Unit, on
             Modifier.weight(1f).verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
+            // 비공식 연동 + 토큰 보관 위치 사전 고지 (로그인 직전)
+            Text(
+                "이 기능은 비공식 연동이며, 토큰은 이 기기에만 저장됩니다 (클라우드·백업에 포함되지 않음).",
+                fontSize = 11.sp, color = TextSecondary,
+            )
             // 로그인으로 자동 가져오기 (WebView → 쿠키 추출)
             Surface(
                 modifier = Modifier.fillMaxWidth().clickable { showEmailGuide = true },
@@ -80,7 +85,11 @@ fun HoyolabLinkScreen(config: HoyolabConfig, onSave: (HoyolabConfig) -> Unit, on
             GlgTextField(gi, { gi = it }, label = "원신 UID", modifier = Modifier.fillMaxWidth())
             GlgTextField(hsr, { hsr = it }, label = "스타레일 UID", modifier = Modifier.fillMaxWidth())
             GlgTextField(zzz, { zzz = it }, label = "젠레스 UID", modifier = Modifier.fillMaxWidth())
-            Text("구글 로그인 시 연동 정보가 계정에 함께 동기화돼 다른 기기에서도 그대로 사용돼요.", fontSize = 11.sp, color = TextSecondary)
+            Text(
+                "구글 로그인 시 게임 UID 는 계정에 함께 동기화돼 다른 기기에서도 그대로 사용돼요. " +
+                    "보안을 위해 ltuid·ltoken·cookie_token 등 토큰은 동기화하지 않으며, 새 기기에서는 다시 로그인해 가져와야 해요.",
+                fontSize = 11.sp, color = TextSecondary,
+            )
             Spacer(Modifier.height(12.dp))
         }
         GlgButton(

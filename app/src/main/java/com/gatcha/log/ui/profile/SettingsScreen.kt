@@ -483,7 +483,7 @@ private fun UplogDialog(versionName: String, onDismiss: () -> Unit) {
     }
 }
 
-/** 출처·저작권 고지 — 비상업 팬 프로젝트, 게임 자료의 권리자 명시. */
+/** 출처·저작권 고지 — 비상업·비공식 팬 프로젝트, 게임 자료의 권리자 명시 + 권리자 요청 시 즉시 삭제. */
 @Composable
 private fun CreditsDialog(onDismiss: () -> Unit) {
     GlgDialog(
@@ -495,11 +495,17 @@ private fun CreditsDialog(onDismiss: () -> Unit) {
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text(
-                "Gatcha LOG는 개인이 만든 비상업 팬 프로젝트입니다. HoYoverse와 무관하며 공식 서비스가 아닙니다.",
+                "본 앱은 개인이 만든 비상업·비공식 팬 프로젝트로 HoYoverse와 무관하며 공식 서비스가 아닙니다.",
                 fontSize = 13.sp, color = TextSecondary,
             )
-            CreditRow("게임·재화 아이콘 저작권", "© HoYoverse (miHoYo / Cognosphere)\n원신 · 붕괴: 스타레일 · 젠레스 존 제로")
-            CreditRow("데이터 · 에셋 제공", "enka.network · Project Amber(yatta.moe) · HoYoLAB · Fandom")
+            CreditRow(
+                "게임 콘텐츠 · 아이콘 저작권",
+                "© HoYoverse (miHoYo / Cognosphere)\n원신 · 붕괴: 스타레일 · 젠레스 존 제로",
+            )
+            CreditRow(
+                "데이터 · 에셋 출처",
+                "enka.network · Project Amber (yatta.moe)\nHoYoLAB · ennead.cc",
+            )
             Text(
                 "모든 게임 콘텐츠의 권리는 각 권리자에게 있으며, 권리자의 요청이 있을 경우 즉시 해당 자료를 삭제합니다.",
                 fontSize = 12.sp, color = TextSecondary,
