@@ -402,7 +402,18 @@ private fun UplogDialog(versionName: String, onDismiss: () -> Unit) {
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
             UplogEntry(
-                "v${versionName.ifBlank { "27.5.6" }}",
+                "v${versionName.ifBlank { "27.6.0" }}",
+                listOf(
+                    "혹시 자동 출석이 안 되고 계셨다면 — 자동 출석 토글을 한 번 껐다 다시 켜주세요 (알림 권한 안내가 떠요)",
+                    "자동 출석 토글을 켜면 결과를 바로 알려드려요 — 완료·이미 완료·재연동 필요 등",
+                    "자동 출석 실패 시 사유별 안내 — 재연동 필요·네트워크·기타로 구분",
+                    "원신 창세의 결정·스타레일 오래된 꿈 아이콘을 정확한 이미지로 교체",
+                    "알림 아이콘이 일부 단말(픽셀 등)에서 안 보이던 문제 수정",
+                    "출처·저작권 안내에 명조(Kuro Games)·엔드필드(Hypergryph / Yostar) 권리자 추가",
+                ),
+            )
+            UplogEntry(
+                "v27.5.6",
                 listOf(
                     "HoYoLAB 토큰을 단말기 내 암호화 저장소로 이관 — 클라우드 평문 보관 제거",
                     "비공식 앱 안내·토큰 로컬 보관 안내 등 면책 고지 보강",
