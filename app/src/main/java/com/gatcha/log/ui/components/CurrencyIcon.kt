@@ -29,11 +29,11 @@ import com.gatcha.log.data.GameData
 enum class GameCurrency(val gameKeys: Set<String>, val label: String, val iconUrl: String?) {
     GENESIS_CRYSTAL(
         setOf("genshin", "원신"), "창세의 결정",
-        "https://gi.yatta.moe/assets/UI/UI_ItemIcon_101.png",
+        "https://gi.yatta.moe/assets/UI/UI_ItemIcon_203.png",
     ),
     ONEIRIC_SHARD(
         setOf("hsr", "스타레일"), "오래된 꿈",
-        "https://sr.yatta.moe/hsr/assets/UI/item/102.png",
+        "https://sr.yatta.moe/hsr/assets/UI/item/3.png",
     ),
     MONOCHROME(setOf("zzz", "젠레스"), "모노크롬", iconUrl = null),
     LUNITE(setOf("wuwa", "명조"), "달빛", iconUrl = null),
