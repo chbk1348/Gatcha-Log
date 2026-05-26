@@ -18,6 +18,7 @@ object Notifier {
     // 알림 ID (종류별 고정 → 같은 종류는 갱신, 누적 안 됨)
     const val ID_BUDGET = 2001
     const val ID_ATTEND = 2002
+    const val ID_AUTO_CHECKIN = 2003
     const val ID_RESIN_BASE = 2100 // + game.ordinal
 
     private fun ensureChannel(ctx: Context) {

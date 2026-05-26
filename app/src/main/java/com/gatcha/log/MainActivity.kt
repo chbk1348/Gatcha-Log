@@ -17,6 +17,10 @@ import com.gatcha.log.ui.auth.LoginScreen
 import com.gatcha.log.ui.home.HomeScreen
 import com.gatcha.log.ui.spending.SpendingViewModel
 import com.gatcha.log.ui.theme.GatchaLogTheme
+import com.gatcha.log.data.AppSettings
+import com.gatcha.log.data.DateUtil
+import com.gatcha.log.data.GameData
+import com.gatcha.log.data.GatchaRepository
 import com.gatcha.log.data.work.NativeScheduler
 
 class MainActivity : ComponentActivity() {
@@ -36,6 +40,19 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         // 자동 출석·알림 주기 작업을 설정 상태에 맞춰 동기화(재부팅·재설치 후 복구 포함)
         runCatching { NativeScheduler.apply(applicationContext) }
+        // 6시간 주기 워커가 도즈모드·배터리 절약으로 며칠씩 안 돌 수 있어, 앱 실행 시
+        // 오늘 미출석 게임이 남아있으면 즉시 1회 트리거(자동 출석 토글이 켜진 경우만).
+        runCatching {
+            val ctx = applicationContext
+            if (AppSettings(ctx).autoCheckIn) {
+                val repo = GatchaRepository(ctx, AppSettings.currentAccountId(ctx))
+                val today = DateUtil.hoyoDayKey()
+                val done = repo.loadAttendance()[today].orEmpty()
+                if (done.size < GameData.attendanceGames.size) {
+                    NativeScheduler.runNow(ctx)
+                }
+            }
+        }
         setContent {
             val viewModel: SpendingViewModel = viewModel()
             val accentIndex by viewModel.accentIndex.collectAsState()

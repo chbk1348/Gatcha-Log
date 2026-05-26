@@ -176,7 +176,11 @@ fun SettingsScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
                     }
                     Spacer(Modifier.width(8.dp))
                     if (hoyolab.isLinked) {
-                        GlgSwitch(autoCheckIn) { viewModel.setAutoCheckIn(it) }
+                        // 자동 출석 실패 시 알림으로 안내하려면 POST_NOTIFICATIONS(API33+) 권한 필요.
+                        GlgSwitch(autoCheckIn) { on ->
+                            if (on) ensureNotifPerm()
+                            viewModel.setAutoCheckIn(on)
+                        }
                     } else {
                         GlgSwitch(false) { showHoyolab.value = true }
                     }
