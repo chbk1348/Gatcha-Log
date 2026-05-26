@@ -78,6 +78,15 @@ fun SettingsScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
 
     val showBudget = remember { mutableStateOf(false) }
     val showHoyolab = remember { mutableStateOf(false) }
+
+    // 홈 만료 배너 CTA → 마이페이지 → 설정 → HoYoLAB 연동까지 자동 진입(C4 흐름).
+    val pendingOpenHoyolab by viewModel.pendingOpenHoyolabLink.collectAsState()
+    LaunchedEffect(pendingOpenHoyolab) {
+        if (pendingOpenHoyolab) {
+            showHoyolab.value = true
+            viewModel.consumePendingOpenHoyolabLink()
+        }
+    }
     val showUplog = remember { mutableStateOf(false) }
     val showClearGacha = remember { mutableStateOf(false) }
     val showClearSpend = remember { mutableStateOf(false) }

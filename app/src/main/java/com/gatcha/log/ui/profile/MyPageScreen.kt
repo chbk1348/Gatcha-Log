@@ -58,6 +58,12 @@ fun MyPageScreen(
     // 설정 페이지가 열리면 상위(Scaffold)에 알려 하단바·FAB를 숨김
     LaunchedEffect(showSettings.value) { onSubPageChange(showSettings.value) }
 
+    // 홈 만료 배너 CTA 가 마이페이지 → 설정으로 자동 진입시키도록(C4 흐름).
+    val pendingOpenHoyolab by viewModel.pendingOpenHoyolabLink.collectAsState()
+    LaunchedEffect(pendingOpenHoyolab) {
+        if (pendingOpenHoyolab) showSettings.value = true
+    }
+
     val monthlyTotal = remember(spendings) { viewModel.monthlyTotal() }
     val total = remember(spendings) { spendings.sumOf { it.amount } }
     val games = remember(spendings) { spendings.map { it.gameName }.distinct().size }

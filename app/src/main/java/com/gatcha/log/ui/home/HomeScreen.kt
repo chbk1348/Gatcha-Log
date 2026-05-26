@@ -171,6 +171,7 @@ fun HomeScreen(viewModel: SpendingViewModel = viewModel()) {
                             0 -> HomeContent(
                                 viewModel,
                                 onNavigateToGameInfo = { onTabClick(2) },
+                                onNavigateToMyPage = { onTabClick(3) },
                                 listState = tabListStates[0],
                                 onSubPageChange = { subPageActive = it },
                             )
@@ -227,6 +228,7 @@ fun HomeScreen(viewModel: SpendingViewModel = viewModel()) {
 fun HomeContent(
     viewModel: SpendingViewModel,
     onNavigateToGameInfo: () -> Unit,
+    onNavigateToMyPage: () -> Unit = {},
     listState: LazyListState = rememberLazyListState(),
     onSubPageChange: (Boolean) -> Unit = {},
 ) {
@@ -243,6 +245,9 @@ fun HomeContent(
     val account by viewModel.account.collectAsState()
     val gachaStats by viewModel.gachaStats.collectAsState()
     val homeCards by viewModel.homeCards.collectAsState()
+    val hoyoTokenExpired by viewModel.hoyoTokenExpired.collectAsState()
+    // 홈 진입·복귀 시 워커가 백그라운드에서 바꾼 플래그를 다시 읽어 배너에 반영.
+    LaunchedEffect(Unit) { viewModel.refreshHoyoTokenExpired() }
 
     val monthlyTotal = remember(spendings) { viewModel.monthlyTotal() }
     val gachaCount = remember(spendings) {
@@ -296,6 +301,16 @@ fun HomeContent(
         modifier = Modifier.fillMaxSize(),
     ) {
     LazyColumn(state = listState, modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
+        // HoYoLAB 토큰 만료 감지 시 최상단 배너 — 자동 출석에서 AUTH 실패가 누적되어
+        // 사용자가 출석을 며칠씩 못 챙기는 사례 방지. CTA 한 번으로 재연동 진입.
+        if (hoyoTokenExpired) {
+            item {
+                TokenExpiredBanner(onReconnect = {
+                    viewModel.requestOpenHoyolabLink()
+                    onNavigateToMyPage()
+                })
+            }
+        }
         item {
             ProfileGameSection(
                 userName = profile.name,
@@ -1017,6 +1032,30 @@ fun NavItem(icon: ImageVector, label: String, isSelected: Boolean, accent: Color
                 color = accent,
                 maxLines = 1,
             )
+        }
+    }
+}
+
+/**
+ * 홈 최상단 만료 배너 — 자동 출석에서 HoYoLAB 쿠키 만료(AUTH 실패)가 감지되면 노출.
+ * CTA "재연동" 클릭 → 마이페이지 ▸ 설정 ▸ HoYoLAB 연동까지 자동 진입(ViewModel 1회성 신호로).
+ */
+@Composable
+private fun TokenExpiredBanner(onReconnect: () -> Unit) {
+    val accent = LocalAccent.current
+    GlassCard(shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth().background(accent.copy(alpha = 0.10f)).padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(Icons.Default.Warning, null, tint = accent, modifier = Modifier.size(24.dp))
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+                Text("HoYoLAB 토큰이 만료된 것 같아요", fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                Text("재연동하지 않으면 자동 출석이 안 돼요", fontSize = 11.sp, color = TextSecondary)
+            }
+            Spacer(Modifier.width(8.dp))
+            GlgButton("재연동", onClick = onReconnect, height = 36.dp, modifier = Modifier.width(80.dp))
         }
     }
 }

@@ -98,6 +98,18 @@ class SpendingViewModel(app: Application) : AndroidViewModel(app) {
 
     // 네이티브 설정(자동 출석체크 등) — 기기 단위, 계정 무관
     private val appSettings = AppSettings(app)
+
+    /** HoYoLAB 토큰 만료 감지 플래그. 자동 출석 AUTH 실패 시 set, 재연동·재성공 시 clear. */
+    private val _hoyoTokenExpired = MutableStateFlow(appSettings.hoyoTokenExpired)
+    val hoyoTokenExpired: StateFlow<Boolean> = _hoyoTokenExpired.asStateFlow()
+    /** 워커가 백그라운드에서 플래그를 바꿨을 수 있어 화면 진입 시 다시 읽는다. */
+    fun refreshHoyoTokenExpired() { _hoyoTokenExpired.value = appSettings.hoyoTokenExpired }
+
+    /** 홈 배너 CTA → 마이페이지·설정·HoYoLAB 연동까지 자동 진입시키기 위한 1회성 신호. */
+    private val _pendingOpenHoyolabLink = MutableStateFlow(false)
+    val pendingOpenHoyolabLink: StateFlow<Boolean> = _pendingOpenHoyolabLink.asStateFlow()
+    fun requestOpenHoyolabLink() { _pendingOpenHoyolabLink.value = true }
+    fun consumePendingOpenHoyolabLink() { _pendingOpenHoyolabLink.value = false }
     private val _autoCheckIn = MutableStateFlow(appSettings.autoCheckIn)
     val autoCheckIn: StateFlow<Boolean> = _autoCheckIn.asStateFlow()
     fun setAutoCheckIn(enabled: Boolean) {
@@ -306,6 +318,11 @@ class SpendingViewModel(app: Application) : AndroidViewModel(app) {
     fun updateHoyolabConfig(config: HoyolabConfig) {
         _hoyolabConfig.value = config
         repo.saveHoyolab(config)
+        // 새 토큰이 들어왔으면 만료 플래그 자동 클리어 — 홈 상단 배너 즉시 사라짐.
+        if (config.isLinked && config.ltoken.isNotBlank()) {
+            appSettings.hoyoTokenExpired = false
+            _hoyoTokenExpired.value = false
+        }
         // 연동 성공/실패 넛징(전역 토스트). 토큰이 있으면 실제 유효성 검증 후 안내.
         if (!config.isLinked) {
             emitStatus("연동되지 않았어요 — ltuid·ltoken을 입력하거나 로그인으로 가져오세요")

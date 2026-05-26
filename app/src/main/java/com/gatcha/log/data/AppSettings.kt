@@ -25,6 +25,15 @@ class AppSettings(context: Context) {
         get() = prefs.getBoolean(KEY_NOTIFY_BUDGET, false)
         set(v) { prefs.edit().putBoolean(KEY_NOTIFY_BUDGET, v).apply() }
 
+    /**
+     * HoYoLAB 토큰 만료 감지 플래그.
+     * 자동 출석에서 AUTH 실패(쿠키 만료) 발생 시 [AutoCheckInRunner] 가 true 로 세팅하고,
+     * 재연동(토큰 새로 저장)·자동 출석 재성공 시 false 로 클리어. 홈 상단 배너 표시에 사용.
+     */
+    var hoyoTokenExpired: Boolean
+        get() = prefs.getBoolean(KEY_HOYO_EXPIRED, false)
+        set(v) { prefs.edit().putBoolean(KEY_HOYO_EXPIRED, v).apply() }
+
     /** 백그라운드 주기 작업이 필요한지(하나라도 켜져 있으면 스케줄 유지). */
     fun needsPeriodicWork(): Boolean = autoCheckIn || notifyResin || notifyAttendance || notifyBudget
 
@@ -38,6 +47,7 @@ class AppSettings(context: Context) {
         private const val KEY_NOTIFY_RESIN = "notify_resin"
         private const val KEY_NOTIFY_ATTEND = "notify_attendance"
         private const val KEY_NOTIFY_BUDGET = "notify_budget"
+        private const val KEY_HOYO_EXPIRED = "hoyo_token_expired"
 
         /** 현재 로그인 계정 id(gatcha_auth). 비로그인=guest. 백그라운드 컴포넌트가 계정별 저장소를 열 때 사용. */
         fun currentAccountId(context: Context): String =

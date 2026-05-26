@@ -82,6 +82,12 @@ object AutoCheckInRunner {
         if (changed) repo.saveAttendance(attendance)
 
         val outcome = Outcome(newSuccess, alreadyDone, authFails, netFails, otherFails)
+        // 토큰 만료 플래그 동기화 — 홈 상단 배너 표시에 사용.
+        // AUTH 실패가 있으면 set, AUTH 없고 새로 성공한 게 있으면 clear(재연동 후 회복 케이스).
+        when {
+            authFails.isNotEmpty() -> settings.hoyoTokenExpired = true
+            newSuccess.isNotEmpty() -> settings.hoyoTokenExpired = false
+        }
         if (postFailureNotification) maybeNotifyFailure(ctx, settings, outcome, today)
         return outcome
     }
