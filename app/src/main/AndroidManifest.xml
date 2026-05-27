@@ -7,6 +7,10 @@
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <!-- 로컬 알림(출석·예산·재화) — Android 13+ 런타임 권한 -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- 자동 출석 백그라운드 안정성: 도즈/스탠바이로 워커가 며칠씩 막히는 케이스 회복용
+         배터리 최적화 화이트리스트 등록 요청(사용자 확인 다이얼로그). Play 정책상 "필수 백그라운드 작업"
+         (일일 출석)에 해당하므로 명시적으로 요청 가능. -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
 
     <application
         android:allowBackup="true"

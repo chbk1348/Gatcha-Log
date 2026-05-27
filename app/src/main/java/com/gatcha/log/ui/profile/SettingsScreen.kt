@@ -187,12 +187,57 @@ fun SettingsScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
                     Spacer(Modifier.width(8.dp))
                     if (hoyolab.isLinked) {
                         // 자동 출석 실패 시 알림으로 안내하려면 POST_NOTIFICATIONS(API33+) 권한 필요.
+                        // 도즈/스탠바이로 워커가 며칠 누락되는 케이스 회복을 위해 배터리 최적화 화이트리스트도 요청.
                         GlgSwitch(autoCheckIn) { on ->
-                            if (on) ensureNotifPerm()
+                            if (on) {
+                                ensureNotifPerm()
+                                (context as? android.app.Activity)?.let {
+                                    com.gatcha.log.data.BatteryOptimization.request(it)
+                                }
+                            }
                             viewModel.setAutoCheckIn(on)
                         }
                     } else {
                         GlgSwitch(false) { showHoyolab.value = true }
+                    }
+                }
+            }
+        }
+        // 배터리 최적화 상태 진단(자동 출석 ON 인데 화이트리스트 미등록이면 안내 + CTA)
+        item {
+            val ignoring = remember(autoCheckIn) {
+                com.gatcha.log.data.BatteryOptimization.isIgnoring(context)
+            }
+            if (autoCheckIn && hoyolab.isLinked && !ignoring) {
+                Spacer(Modifier.height(8.dp))
+                GlassCard(
+                    shape = RoundedCornerShape(20.dp),
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Icon(Icons.Default.BatteryAlert, null, tint = Color(0xFFFB8C00), modifier = Modifier.size(20.dp))
+                        Spacer(Modifier.width(12.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text("배터리 최적화로 자동 출석이 막힐 수 있어요", fontSize = 13.sp, fontWeight = FontWeight.Medium, color = Color(0xFFFB8C00))
+                            Text(
+                                "절전 정책 때문에 며칠씩 자동 출석이 안 되는 분들은 이 앱을 \"제한 안함\"으로 등록해주세요.",
+                                fontSize = 11.sp, color = TextSecondary,
+                            )
+                        }
+                        Spacer(Modifier.width(8.dp))
+                        GlgButton(
+                            "허용",
+                            onClick = {
+                                (context as? android.app.Activity)?.let {
+                                    com.gatcha.log.data.BatteryOptimization.request(it)
+                                }
+                            },
+                            modifier = Modifier.width(72.dp),
+                            height = 36.dp,
+                        )
                     }
                 }
             }
