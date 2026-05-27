@@ -85,26 +85,21 @@ fun AddSpendingModal(
         isSubscription = pkg.bonus == "월정액"
     }
 
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-        containerColor = SheetBg,
-        contentWindowInsets = { WindowInsets(0, 0, 0, 0) },
-        dragHandle = {
-            Box(Modifier.fillMaxWidth().padding(top = 12.dp), contentAlignment = Alignment.Center) {
-                Box(Modifier.size(width = 40.dp, height = 4.dp).background(Color(0x22000000), RoundedCornerShape(2.dp)))
-            }
-        },
-        shape = RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp),
+    // 시스템 뒤로가기 처리(풀스크린 페이지처럼 동작) — 시트 외부 dismiss 가 사라졌으므로 명시.
+    androidx.activity.compose.BackHandler { onDismiss() }
+
+    Surface(
+        color = SheetBg,
+        modifier = Modifier.fillMaxSize(),
     ) {
         Column(
             modifier = Modifier
-                .fillMaxWidth()
-                .fillMaxHeight(0.92f),
+                .fillMaxSize()
+                .statusBarsPadding(),
         ) {
             // Header
             Row(
-                modifier = Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 8.dp),
+                modifier = Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 8.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {

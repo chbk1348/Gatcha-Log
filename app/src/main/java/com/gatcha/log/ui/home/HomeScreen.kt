@@ -8,11 +8,14 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
+import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -134,92 +137,111 @@ fun HomeScreen(viewModel: SpendingViewModel = viewModel()) {
         }
     }
 
-    Scaffold(
-        containerColor = Color.Transparent,
-        bottomBar = {
-            // 하위 페이지(연간 리포트·알림 상세 등)에서는 하단바·FAB를 아래로 슬라이드해 숨김
-            AnimatedVisibility(
-                visible = !subPageActive,
-                enter = slideInVertically(tween(280)) { it } + fadeIn(tween(280)),
-                exit = slideOutVertically(tween(280)) { it } + fadeOut(tween(220)),
-            ) {
-                BottomNavBar(
-                    selectedTab = selectedTab,
-                    onTabSelected = onTabClick,
-                    onAddClick = { openEditor(null) },
-                    accent = accent,
-                    showFab = selectedTab <= 1, // 홈·지출 탭에서만 FAB 노출
-                )
+    // 루트 레벨 페이지 스왑 — 지출 추가/수정은 별도 페이지로 운영(바텀시트가 아닌 실제 페이지 전환).
+    // FAB 우하단(약 88%, 94%) 위치에서 페이지 전체가 스케일 인/아웃하면서 슈르륵 펼쳐지고 닫힐 때 같은 위치로 줄어든다.
+    AnimatedContent(
+        targetState = showAddSpendingSheet.value,
+        transitionSpec = {
+            val origin = TransformOrigin(0.88f, 0.94f)
+            if (targetState) {
+                // 메인 → 지출 추가: 우하단에서 펼쳐짐
+                (scaleIn(tween(320), initialScale = 0f, transformOrigin = origin) + fadeIn(tween(220))) togetherWith
+                    (fadeOut(tween(200)))
+            } else {
+                // 지출 추가 → 메인: 우하단으로 줄어들며 사라짐
+                (fadeIn(tween(220))) togetherWith
+                    (scaleOut(tween(280), targetScale = 0f, transformOrigin = origin) + fadeOut(tween(220)))
             }
         },
-    ) { paddingValues ->
-        GlassBackground(modifier = Modifier.fillMaxSize()) {
-            // 콘텐츠는 하단바 아래까지 확장(상단 인셋만 적용)
-            Box(modifier = Modifier.fillMaxSize().padding(top = paddingValues.calculateTopPadding())) {
-                    AnimatedContent(
-                        targetState = selectedTab,
-                        modifier = Modifier.fillMaxSize(),
-                        transitionSpec = {
-                            // 탭 인덱스 방향에 따라 좌/우로 슬라이드 + 페이드
-                            val dir = if (targetState > initialState) 1 else -1
-                            (slideInHorizontally(tween(260)) { w -> dir * w / 4 } + fadeIn(tween(260))) togetherWith
-                                (slideOutHorizontally(tween(260)) { w -> -dir * w / 4 } + fadeOut(tween(180)))
-                        },
-                        label = "tab",
-                    ) { tab ->
-                        when (tab) {
-                            0 -> HomeContent(
-                                viewModel,
-                                onNavigateToGameInfo = { onTabClick(2) },
-                                onNavigateToMyPage = { onTabClick(3) },
-                                listState = tabListStates[0],
-                                onSubPageChange = { subPageActive = it },
-                            )
-                            1 -> SpendingScreen(viewModel, onEditSpending = { openEditor(it) }, listState = tabListStates[1], onSubPageChange = { subPageActive = it })
-                            2 -> GameInfoScreen(viewModel, listState = tabListStates[2], onSubPageChange = { subPageActive = it })
-                            3 -> MyPageScreen(viewModel, listState = tabListStates[3], onSubPageChange = { subPageActive = it })
+        label = "rootPage",
+    ) { addPage ->
+        if (addPage) {
+            AddSpendingModal(
+                spendingToEdit = spendingToEdit.value,
+                onDismiss = {
+                    showAddSpendingSheet.value = false
+                    spendingToEdit.value = null
+                },
+                onSave = { spending ->
+                    if (spendingToEdit.value == null) viewModel.addSpending(spending)
+                    else viewModel.updateSpending(spending)
+                    showAddSpendingSheet.value = false
+                    spendingToEdit.value = null
+                },
+            )
+        } else {
+            Scaffold(
+                containerColor = Color.Transparent,
+                bottomBar = {
+                    // 하위 페이지(연간 리포트·알림 상세 등)에서는 하단바·FAB를 아래로 슬라이드해 숨김
+                    AnimatedVisibility(
+                        visible = !subPageActive,
+                        enter = slideInVertically(tween(280)) { it } + fadeIn(tween(280)),
+                        exit = slideOutVertically(tween(280)) { it } + fadeOut(tween(220)),
+                    ) {
+                        BottomNavBar(
+                            selectedTab = selectedTab,
+                            onTabSelected = onTabClick,
+                            onAddClick = { openEditor(null) },
+                            accent = accent,
+                            showFab = selectedTab <= 1, // 홈·지출 탭에서만 FAB 노출
+                        )
+                    }
+                },
+            ) { paddingValues ->
+                GlassBackground(modifier = Modifier.fillMaxSize()) {
+                    // 콘텐츠는 하단바 아래까지 확장(상단 인셋만 적용)
+                    Box(modifier = Modifier.fillMaxSize().padding(top = paddingValues.calculateTopPadding())) {
+                        AnimatedContent(
+                            targetState = selectedTab,
+                            modifier = Modifier.fillMaxSize(),
+                            transitionSpec = {
+                                // 탭 인덱스 방향에 따라 좌/우로 슬라이드 + 페이드
+                                val dir = if (targetState > initialState) 1 else -1
+                                (slideInHorizontally(tween(260)) { w -> dir * w / 4 } + fadeIn(tween(260))) togetherWith
+                                    (slideOutHorizontally(tween(260)) { w -> -dir * w / 4 } + fadeOut(tween(180)))
+                            },
+                            label = "tab",
+                        ) { tab ->
+                            when (tab) {
+                                0 -> HomeContent(
+                                    viewModel,
+                                    onNavigateToGameInfo = { onTabClick(2) },
+                                    onNavigateToMyPage = { onTabClick(3) },
+                                    listState = tabListStates[0],
+                                    onSubPageChange = { subPageActive = it },
+                                )
+                                1 -> SpendingScreen(viewModel, onEditSpending = { openEditor(it) }, listState = tabListStates[1], onSubPageChange = { subPageActive = it })
+                                2 -> GameInfoScreen(viewModel, listState = tabListStates[2], onSubPageChange = { subPageActive = it })
+                                3 -> MyPageScreen(viewModel, listState = tabListStates[3], onSubPageChange = { subPageActive = it })
+                            }
                         }
-                    }
 
-                    if (showAddSpendingSheet.value) {
-                        AddSpendingModal(
-                            spendingToEdit = spendingToEdit.value,
-                            onDismiss = {
-                                showAddSpendingSheet.value = false
-                                spendingToEdit.value = null
-                            },
-                            onSave = { spending ->
-                                if (spendingToEdit.value == null) viewModel.addSpending(spending)
-                                else viewModel.updateSpending(spending)
-                                showAddSpendingSheet.value = false
-                                spendingToEdit.value = null
-                            },
+                        updateInfo?.let { info ->
+                            UpdateDialog(
+                                info = info,
+                                onDownload = { viewModel.startInAppUpdate() },
+                                onDismiss = { viewModel.dismissUpdate() },
+                            )
+                        }
+
+                        // 인앱 업데이트 다운로드 진행 오버레이
+                        updateProgress?.let { p -> UpdateProgressOverlay(p) }
+
+                        // 전역 커스텀 토스트 (모든 탭 위에 표시)
+                        // 하단바가 있을 땐 바 높이(100dp)만큼 띄우고, 하단바 없는 하위 페이지에선 24dp만 띄움
+                        GlgStatusToast(
+                            message = statusMessage,
+                            onConsumed = { viewModel.clearStatus() },
+                            modifier = Modifier
+                                .align(Alignment.BottomCenter)
+                                .navigationBarsPadding()
+                                .padding(bottom = if (subPageActive) 24.dp else 100.dp),
                         )
                     }
-
-                    updateInfo?.let { info ->
-                        UpdateDialog(
-                            info = info,
-                            onDownload = { viewModel.startInAppUpdate() },
-                            onDismiss = { viewModel.dismissUpdate() },
-                        )
-                    }
-
-                    // 인앱 업데이트 다운로드 진행 오버레이
-                    updateProgress?.let { p -> UpdateProgressOverlay(p) }
-
-                    // 전역 커스텀 토스트 (모든 탭 위에 표시)
-                    // 하단바가 있을 땐 바 높이(100dp)만큼 띄우고, 하단바 없는 하위 페이지에선 24dp만 띄움
-                    GlgStatusToast(
-                        message = statusMessage,
-                        onConsumed = { viewModel.clearStatus() },
-                        modifier = Modifier
-                            .align(Alignment.BottomCenter)
-                            .navigationBarsPadding()
-                            .padding(bottom = if (subPageActive) 24.dp else 100.dp),
-                    )
                 }
             }
+        }
     }
 }
 
