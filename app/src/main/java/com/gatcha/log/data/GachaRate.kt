@@ -43,6 +43,23 @@ data class GachaBannerRate(
 /** 이월/보장 배지 종류 — 색상은 UI에서 결정 */
 enum class CarryoverKind { YES, NO, EPITOMIZED, NONE }
 
+/**
+ * 천장 임박 단계. Safe(안전) → Caution(주의, soft-10) → Imminent(임박, soft 진입) → Reached(하드 천장 도달).
+ * UI 색·문구 분기 + VM 토스트 트리거에 공용. 게임별 softPity/hardPity 는 [GachaBannerRate] 캐릭터 배너 값을 사용.
+ */
+enum class PityTier { Safe, Caution, Imminent, Reached }
+
+/** 캐릭터 배너 기준 현재 카운트의 임박 단계 판정. 배너 없으면 안전 처리. */
+fun pityTierOf(count: Int, banner: GachaBannerRate?): PityTier {
+    if (banner == null) return PityTier.Safe
+    return when {
+        count >= banner.hardPity -> PityTier.Reached
+        count >= banner.softPity -> PityTier.Imminent
+        count >= (banner.softPity - 10) -> PityTier.Caution
+        else -> PityTier.Safe
+    }
+}
+
 /** 보장 방식 설명 (제목 + 상세) */
 data class GuaranteeInfo(val title: String, val detail: String)
 

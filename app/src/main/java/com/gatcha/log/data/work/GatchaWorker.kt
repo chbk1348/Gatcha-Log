@@ -9,7 +9,9 @@ import com.gatcha.log.data.GameData
 import com.gatcha.log.data.GatchaRepository
 import com.gatcha.log.data.HoyolabConfig
 import com.gatcha.log.data.Notifier
+import com.gatcha.log.data.api.EnneadApi
 import com.gatcha.log.data.api.HoyolabApi
+import com.gatcha.log.data.api.ZzzBannerApi
 import java.util.Calendar
 
 /**
@@ -81,6 +83,33 @@ class GatchaWorker(appContext: Context, params: WorkerParameters) : CoroutineWor
                     if (settings.lastNotified(tag) != today) {
                         settings.setLastNotified(tag, today)
                         Notifier.notify(ctx, Notifier.ID_RESIN_BASE + game.ordinal, "${game.shortName} 재화 가득참", "재화가 가득 찼어요 (${note.currentResin}/${note.maxResin})")
+                    }
+                }
+            }
+        }
+
+        // ④ 위시 캐릭터 픽업 — 새 배너에 등장하면 배너 endMillis 변경 시마다 1회
+        if (settings.notifyWish) {
+            val wishes = repo.loadWishlist()
+            if (wishes.values.any { it.isNotEmpty() }) {
+                val banners = mutableListOf<com.gatcha.log.data.GachaBanner>()
+                GameData.games.filter { it.enneadKey != null }.forEach { g ->
+                    banners += runCatching { EnneadApi.fetch(g).banners }.getOrDefault(emptyList())
+                }
+                banners += runCatching { ZzzBannerApi.fetch() }.getOrDefault(emptyList())
+                wishes.forEach { (gameKey, names) ->
+                    val gameName = com.gatcha.log.data.Game.entries.firstOrNull { it.key == gameKey }?.displayName ?: return@forEach
+                    val game = com.gatcha.log.data.Game.entries.firstOrNull { it.key == gameKey } ?: return@forEach
+                    names.forEach { name ->
+                        val hit = banners.firstOrNull {
+                            it.game == gameName && (it.name.contains(name) || name.contains(it.name))
+                        } ?: return@forEach
+                        val tag = "wish_pickup:$gameKey:$name"
+                        val sig = hit.endMillis.toString()
+                        if (settings.lastNotified(tag) == sig) return@forEach
+                        settings.setLastNotified(tag, sig)
+                        val nid = Notifier.ID_WISH_PICKUP_BASE + ((gameKey + name).hashCode() and 0x3FF)
+                        Notifier.notify(ctx, nid, "${game.shortName} 픽업 — $name", "${hit.name} 배너에 등장했어요. 천장 점검해보세요.")
                     }
                 }
             }

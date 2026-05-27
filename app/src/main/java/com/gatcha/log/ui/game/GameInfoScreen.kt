@@ -1234,6 +1234,7 @@ fun PatchSection(banners: List<GachaBanner>) {
 }
 
 // ============================================================ 위시리스트
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun WishlistSection(
     wishlist: Map<String, List<String>>,
@@ -1247,9 +1248,10 @@ fun WishlistSection(
     Text("위시리스트", fontSize = 16.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 12.dp))
     GlassCard(shape = RoundedCornerShape(24.dp), modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp)) {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                WishTab("원신", wgame == "genshin", Color(0xFF4F8EF7)) { wgame = "genshin" }
-                WishTab("스타레일", wgame == "hsr", Color(0xFFB06BFF)) { wgame = "hsr" }
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                GameData.games.forEach { g ->
+                    WishTab(g.shortName, wgame == g.key, g.color) { wgame = g.key }
+                }
             }
             Spacer(Modifier.height(12.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -1290,7 +1292,12 @@ fun WishlistSection(
                 }
             }
             Spacer(Modifier.height(8.dp))
-            Text("픽업 배너에 등장하면 \"픽업 중\"으로 표시돼요 (원신·스타레일)", fontSize = 11.sp, color = Color.LightGray)
+            val pickupSupported = wgame == "genshin" || wgame == "hsr" || wgame == "zzz"
+            val tip = if (pickupSupported)
+                "픽업 배너에 등장하면 \"픽업 중\"으로 표시돼요"
+            else
+                "이 게임은 아직 픽업 데이터 연동 전이에요. 추가만 가능해요."
+            Text(tip, fontSize = 11.sp, color = Color.LightGray)
         }
     }
 }
@@ -1316,7 +1323,29 @@ fun PitySection(pity: Map<String, PityState>, onAdjust: (String, Int) -> Unit, o
         Column(Modifier.padding(16.dp)) {
             GameData.attendanceGames.forEachIndexed { i, game ->
                 val state = pity[game.key] ?: PityState()
-                val max = 90
+                val banner = com.gatcha.log.data.GachaRateData.byKey(game.key)?.character
+                val hard = banner?.hardPity ?: 90
+                val soft = banner?.softPity ?: 74
+                val grade = com.gatcha.log.data.GachaRateData.byKey(game.key)?.grade ?: "5★"
+                val tier = com.gatcha.log.data.pityTierOf(state.count, banner)
+                val tierColor = when (tier) {
+                    com.gatcha.log.data.PityTier.Safe -> accent
+                    com.gatcha.log.data.PityTier.Caution -> Color(0xFFF59E0B)
+                    com.gatcha.log.data.PityTier.Imminent -> Color(0xFFFB8C00)
+                    com.gatcha.log.data.PityTier.Reached -> Color(0xFFE53935)
+                }
+                val tierLabel: String? = when (tier) {
+                    com.gatcha.log.data.PityTier.Safe -> null
+                    com.gatcha.log.data.PityTier.Caution -> "주의"
+                    com.gatcha.log.data.PityTier.Imminent -> "임박"
+                    com.gatcha.log.data.PityTier.Reached -> "도달"
+                }
+                val helperText = when (tier) {
+                    com.gatcha.log.data.PityTier.Safe -> "천장까지 ${(hard - state.count).coerceAtLeast(0)}연"
+                    com.gatcha.log.data.PityTier.Caution -> "주의 — 천장까지 ${(hard - state.count).coerceAtLeast(0)}연 (소프트 ${soft}연)"
+                    com.gatcha.log.data.PityTier.Imminent -> "임박 — ${(hard - state.count).coerceAtLeast(0)}연 이내 $grade 보장"
+                    com.gatcha.log.data.PityTier.Reached -> "도달 — 다음 $grade 100% 확정"
+                }
                 Column(Modifier.padding(vertical = 8.dp)) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -1327,10 +1356,28 @@ fun PitySection(pity: Map<String, PityState>, onAdjust: (String, Int) -> Unit, o
                             Box(Modifier.size(8.dp).background(game.color, CircleShape))
                             Spacer(Modifier.width(8.dp))
                             Text(game.displayName, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                            if (tierLabel != null) {
+                                Spacer(Modifier.width(8.dp))
+                                Surface(color = tierColor.copy(alpha = 0.15f), shape = RoundedCornerShape(6.dp)) {
+                                    Text(
+                                        tierLabel,
+                                        fontSize = 10.sp,
+                                        color = tierColor,
+                                        fontWeight = FontWeight.Bold,
+                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                    )
+                                }
+                            }
                         }
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             PityBtn("−") { onAdjust(game.key, -1) }
-                            Text("${state.count} / $max", fontWeight = FontWeight.Bold, fontSize = 14.sp, modifier = Modifier.padding(horizontal = 10.dp))
+                            Text(
+                                "${state.count} / $hard",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 14.sp,
+                                color = if (tier == com.gatcha.log.data.PityTier.Safe) TextPrimary else tierColor,
+                                modifier = Modifier.padding(horizontal = 10.dp),
+                            )
                             PityBtn("+") { onAdjust(game.key, 1) }
                             Spacer(Modifier.width(8.dp))
                             Text("리셋", color = accent, fontSize = 12.sp, fontWeight = FontWeight.Bold, modifier = Modifier.clickable { onReset(game.key) }.padding(4.dp))
@@ -1338,13 +1385,18 @@ fun PitySection(pity: Map<String, PityState>, onAdjust: (String, Int) -> Unit, o
                     }
                     Spacer(Modifier.height(6.dp))
                     LinearProgressIndicator(
-                        progress = { (state.count.toFloat() / max).coerceIn(0f, 1f) },
-                        color = accent,
+                        progress = { (state.count.toFloat() / hard).coerceIn(0f, 1f) },
+                        color = tierColor,
                         trackColor = ProgressEmpty,
                         modifier = Modifier.fillMaxWidth().height(5.dp).clip(CircleShape),
                     )
                     Spacer(Modifier.height(4.dp))
-                    Text("천장까지 ${(max - state.count).coerceAtLeast(0)}연", fontSize = 11.sp, color = TextSecondary)
+                    Text(
+                        helperText,
+                        fontSize = 11.sp,
+                        color = if (tier == com.gatcha.log.data.PityTier.Safe) TextSecondary else tierColor,
+                        fontWeight = if (tier == com.gatcha.log.data.PityTier.Reached) FontWeight.Bold else FontWeight.Normal,
+                    )
                 }
                 if (i < GameData.attendanceGames.lastIndex) HorizontalDivider(color = DividerColor)
             }

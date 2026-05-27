@@ -142,10 +142,13 @@ class SpendingViewModel(app: Application) : AndroidViewModel(app) {
     val notifyAttendance: StateFlow<Boolean> = _notifyAttendance.asStateFlow()
     private val _notifyResin = MutableStateFlow(appSettings.notifyResin)
     val notifyResin: StateFlow<Boolean> = _notifyResin.asStateFlow()
+    private val _notifyWish = MutableStateFlow(appSettings.notifyWish)
+    val notifyWish: StateFlow<Boolean> = _notifyWish.asStateFlow()
 
     fun setNotifyBudget(v: Boolean) { appSettings.notifyBudget = v; _notifyBudget.value = v; applyNativeAfterNotifyChange(v) }
     fun setNotifyAttendance(v: Boolean) { appSettings.notifyAttendance = v; _notifyAttendance.value = v; applyNativeAfterNotifyChange(v) }
     fun setNotifyResin(v: Boolean) { appSettings.notifyResin = v; _notifyResin.value = v; applyNativeAfterNotifyChange(v) }
+    fun setNotifyWish(v: Boolean) { appSettings.notifyWish = v; _notifyWish.value = v; applyNativeAfterNotifyChange(v) }
 
     private fun applyNativeAfterNotifyChange(enabled: Boolean) {
         NativeScheduler.apply(getApplication())
@@ -418,6 +421,39 @@ class SpendingViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /**
+     * 현재 활성 배너 vs 위시리스트 교차 검사. notifyWish 토글이 켜져 있고
+     * 직전 알림 키(배너 endMillis)와 다르면 알림 1회 발송. 배너 갱신/교체될 때마다 다시 알림.
+     */
+    private fun checkWishPickupsAndNotify() {
+        if (!appSettings.notifyWish) return
+        val ctx = getApplication<android.app.Application>()
+        val wishes = _wishlist.value
+        val banners = _activeBanners.value
+        if (wishes.isEmpty() || banners.isEmpty()) return
+        wishes.forEach { (gameKey, names) ->
+            val gameName = Game.entries.firstOrNull { it.key == gameKey }?.displayName ?: return@forEach
+            val game = Game.entries.firstOrNull { it.key == gameKey } ?: return@forEach
+            names.forEach { name ->
+                val hit = banners.firstOrNull {
+                    it.game == gameName && (it.name.contains(name) || name.contains(it.name))
+                } ?: return@forEach
+                val tag = "wish_pickup:$gameKey:$name"
+                val sig = hit.endMillis.toString()
+                if (appSettings.lastNotified(tag) == sig) return@forEach
+                appSettings.setLastNotified(tag, sig)
+                val nid = com.gatcha.log.data.Notifier.ID_WISH_PICKUP_BASE +
+                    ((gameKey + name).hashCode() and 0x3FF)
+                com.gatcha.log.data.Notifier.notify(
+                    ctx,
+                    nid,
+                    "${game.shortName} 픽업 — $name",
+                    "${hit.name} 배너에 등장했어요. 천장 점검해보세요.",
+                )
+            }
+        }
+    }
+
     // ----- 천장 카운터 -----
     fun adjustPity(gameKey: String, delta: Int) = updatePity(gameKey) { it.copy(count = (it.count + delta).coerceAtLeast(0)) }
     fun setPityCount(gameKey: String, value: Int) = updatePity(gameKey) { it.copy(count = value.coerceAtLeast(0)) }
@@ -426,9 +462,28 @@ class SpendingViewModel(app: Application) : AndroidViewModel(app) {
 
     private fun updatePity(gameKey: String, transform: (PityState) -> PityState) {
         val cur = _pity.value[gameKey] ?: PityState()
-        val updated = _pity.value + (gameKey to transform(cur))
+        val next = transform(cur)
+        val updated = _pity.value + (gameKey to next)
         _pity.value = updated
         repo.savePity(updated)
+        // 임박 단계 상승 시 1회 토스트(리셋·후퇴는 무시).
+        val banner = com.gatcha.log.data.GachaRateData.byKey(gameKey)?.character
+        if (banner != null) {
+            val before = com.gatcha.log.data.pityTierOf(cur.count, banner)
+            val after = com.gatcha.log.data.pityTierOf(next.count, banner)
+            if (after.ordinal > before.ordinal) {
+                val game = com.gatcha.log.data.GameData.byNameOrNull(gameKey)
+                val name = game?.shortName ?: gameKey
+                val grade = com.gatcha.log.data.GachaRateData.byKey(gameKey)?.grade ?: "5★"
+                val msg = when (after) {
+                    com.gatcha.log.data.PityTier.Caution -> "$name 천장 ${banner.softPity - 10}연 진입 — 슬슬 모아두실 시간이에요"
+                    com.gatcha.log.data.PityTier.Imminent -> "$name 소프트 천장 진입 — ${banner.hardPity - next.count}연 이내 $grade 보장"
+                    com.gatcha.log.data.PityTier.Reached -> "$name 하드 천장 도달 — 다음 $grade 100% 확정"
+                    com.gatcha.log.data.PityTier.Safe -> null
+                }
+                if (msg != null) emitStatus(msg)
+            }
+        }
     }
 
     // ----- Enka 프로필 쇼케이스 -----
@@ -695,6 +750,9 @@ class SpendingViewModel(app: Application) : AndroidViewModel(app) {
                 if (ledgers.isNotEmpty()) _ledgers.value = ledgers
                 if (combats.isNotEmpty()) _combat.value = combats
             }
+
+            // 위시 캐릭터가 새 픽업 배너에 등장하면 알림(설정 ON 인 경우만, 배너별 1회 dedup).
+            runCatching { checkWishPickupsAndNotify() }
 
             _isRefreshing.value = false
         }

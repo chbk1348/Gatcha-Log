@@ -20,6 +20,8 @@ object Notifier {
     const val ID_ATTEND = 2002
     const val ID_AUTO_CHECKIN = 2003
     const val ID_RESIN_BASE = 2100 // + game.ordinal
+    // 위시 픽업: 캐릭터 이름 해시로 1000 범위에 분산(여러 캐릭이 동시 픽업되면 별개 알림 유지).
+    const val ID_WISH_PICKUP_BASE = 2200
 
     private fun ensureChannel(ctx: Context) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {

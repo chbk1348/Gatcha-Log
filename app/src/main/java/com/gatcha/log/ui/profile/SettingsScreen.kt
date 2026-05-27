@@ -58,6 +58,7 @@ fun SettingsScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
     val notifyBudget by viewModel.notifyBudget.collectAsState()
     val notifyAttendance by viewModel.notifyAttendance.collectAsState()
     val notifyResin by viewModel.notifyResin.collectAsState()
+    val notifyWish by viewModel.notifyWish.collectAsState()
     val gachaStats by viewModel.gachaStats.collectAsState()
     val spendings by viewModel.spendings.collectAsState()
     val versionName = remember { com.gatcha.log.data.api.UpdateChecker.currentVersionName(context) }
@@ -213,6 +214,10 @@ fun SettingsScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
                     HorizontalDivider(color = DividerColor, modifier = Modifier.padding(horizontal = 16.dp))
                     SettingsToggleRow(Icons.Default.Bolt, "재화 가득참 알림", "레진·개척력·배터리가 가득 차면 알려줘요", notifyResin) { on ->
                         if (on) ensureNotifPerm(); viewModel.setNotifyResin(on)
+                    }
+                    HorizontalDivider(color = DividerColor, modifier = Modifier.padding(horizontal = 16.dp))
+                    SettingsToggleRow(Icons.Default.Star, "위시 픽업 알림", "위시리스트 캐릭터가 픽업 배너에 등장하면 알려줘요", notifyWish) { on ->
+                        if (on) ensureNotifPerm(); viewModel.setNotifyWish(on)
                     }
                 }
             }
