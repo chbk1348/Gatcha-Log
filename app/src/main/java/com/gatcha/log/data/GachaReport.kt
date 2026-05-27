@@ -80,13 +80,17 @@ object GachaReport {
 
     val poolLabels: Map<String, Map<String, String>> = mapOf(
         "genshin" to mapOf("character" to "캐릭터", "weapon" to "무기", "chronicled" to "집록", "permanent" to "상시", "novice" to "초보자"),
-        "starrail" to mapOf("character" to "캐릭터", "lightcone" to "광추", "permanent" to "상시", "novice" to "초보"),
+        "starrail" to mapOf(
+            "character" to "캐릭터", "lightcone" to "광추",
+            "collab_character" to "콜라보 캐릭터", "collab_lightcone" to "콜라보 광추",
+            "permanent" to "상시", "novice" to "초보",
+        ),
         "zzz" to mapOf("character" to "독점", "engine" to "W-엔진", "bangboo" to "봉구", "permanent" to "상시", "novice" to "초보"),
     )
 
     val poolOrder: Map<String, List<String>> = mapOf(
         "genshin" to listOf("character", "weapon", "chronicled", "permanent", "novice"),
-        "starrail" to listOf("character", "lightcone", "permanent", "novice"),
+        "starrail" to listOf("character", "lightcone", "collab_character", "collab_lightcone", "permanent", "novice"),
         "zzz" to listOf("character", "engine", "bangboo", "permanent", "novice"),
     )
 
@@ -94,7 +98,12 @@ object GachaReport {
 
     private val poolMap: Map<String, Map<String, String>> = mapOf(
         "genshin" to mapOf("100" to "novice", "200" to "permanent", "301" to "character", "400" to "character", "302" to "weapon", "500" to "chronicled"),
-        "starrail" to mapOf("1" to "permanent", "2" to "novice", "11" to "character", "12" to "lightcone"),
+        // 스타레일 21·22 = 콜라보 캐릭터·광추 픽업(Collaboration Warp) — 일반 픽업과 천장이 별개라 별도 풀로 분리.
+        "starrail" to mapOf(
+            "1" to "permanent", "2" to "novice",
+            "11" to "character", "12" to "lightcone",
+            "21" to "collab_character", "22" to "collab_lightcone",
+        ),
         "zzz" to mapOf("1" to "permanent", "2" to "character", "3" to "engine", "5" to "bangboo"),
     )
 
@@ -274,8 +283,11 @@ object GachaReport {
                 val gachaType = o.optString("gachaType")
                 GachaRecord(
                     game = game,
-                    // pool 은 저장 안 함 — 옛 데이터에 있으면 그대로, 없으면 game+gachaType 로 재계산
-                    pool = o.optString("pool").ifBlank { poolKey(game, gachaType) },
+                    // pool 은 저장 안 함 — 옛 데이터에 있으면 그대로, 없으면 game+gachaType 로 재계산.
+                    // 다만 "etc*" 폴백으로 저장됐던 옛 기록은 무시하고 새 매핑으로 재계산(예: 스타레일 21·22 콜라보).
+                    pool = o.optString("pool")
+                        .takeUnless { it.isBlank() || it.startsWith("etc") }
+                        ?: poolKey(game, gachaType),
                     gachaType = gachaType,
                     itemId = o.optString("itemId"),
                     name = o.optString("name"),
