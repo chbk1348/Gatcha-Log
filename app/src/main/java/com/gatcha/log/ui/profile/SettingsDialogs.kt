@@ -22,7 +22,18 @@ internal fun UplogDialog(versionName: String, onDismiss: () -> Unit) {
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
             UplogEntry(
-                "v${versionName.ifBlank { "27.6.0" }}",
+                "v${versionName.ifBlank { "27.7.0" }}",
+                listOf(
+                    "HoYoLAB 토큰 만료를 자동 감지해 홈 상단에서 재연동을 안내 — 탭하면 연동 화면까지 바로 이동",
+                    "천장 카운터에 임박 단계 강조(주의·임박·도달) + 단계 진입 시 토스트 안내",
+                    "위시리스트를 전 게임으로 확장 + 위시 캐릭터가 픽업 배너에 뜨면 알림",
+                    "자동 출석이 며칠 누락되던 문제 — 배터리 최적화 예외 요청으로 회복",
+                    "지출 추가를 풀스크린 페이지로 개편 (FAB 위치에서 펼쳐지는 전환)",
+                    "스타레일 가챠 효율 리포트에 콜라보 워프(콜라보 캐릭터·광추) 반영",
+                ),
+            )
+            UplogEntry(
+                "v27.6.0",
                 listOf(
                     "혹시 자동 출석이 안 되고 계셨다면 — 자동 출석 토글을 한 번 껐다 다시 켜주세요 (알림 권한 안내가 떠요)",
                     "자동 출석 토글을 켜면 결과를 바로 알려드려요 — 완료·이미 완료·재연동 필요 등",
