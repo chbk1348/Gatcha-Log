@@ -22,7 +22,15 @@ internal fun UplogDialog(versionName: String, onDismiss: () -> Unit) {
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
             UplogEntry(
-                "v${versionName.ifBlank { "27.7.0" }}",
+                "v${versionName.ifBlank { "27.7.1" }}",
+                listOf(
+                    "지출 추가 화면이 + 버튼에서 펼쳐지듯 열리는 전환으로 더 부드러워졌어요",
+                    "+ 버튼에 입체 그림자를 더해 또렷하게",
+                    "내부 UI 프레임워크 최신화(Compose 1.9) — 더 부드러운 렌더링",
+                ),
+            )
+            UplogEntry(
+                "v27.7.0",
                 listOf(
                     "HoYoLAB 토큰 만료를 자동 감지해 홈 상단에서 재연동을 안내 — 탭하면 연동 화면까지 바로 이동",
                     "천장 카운터에 임박 단계 강조(주의·임박·도달) + 단계 진입 시 토스트 안내",
