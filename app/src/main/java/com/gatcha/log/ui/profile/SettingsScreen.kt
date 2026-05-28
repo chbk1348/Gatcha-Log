@@ -45,6 +45,7 @@ import com.gatcha.log.ui.spending.SpendingViewModel
 import com.gatcha.log.ui.theme.DangerText
 import com.gatcha.log.ui.theme.DividerColor
 import com.gatcha.log.ui.theme.LocalAccent
+import com.gatcha.log.ui.components.BudgetDialog
 import com.gatcha.log.ui.theme.TextSecondary
 import com.gatcha.log.util.won
 
