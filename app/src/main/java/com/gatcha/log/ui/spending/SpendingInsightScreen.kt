@@ -26,6 +26,7 @@ import com.gatcha.log.data.GameData
 import com.gatcha.log.data.Spending
 import com.gatcha.log.ui.components.GlassCard
 import com.gatcha.log.ui.components.GlgScreenHeader
+import com.gatcha.log.ui.components.StatTile
 import com.gatcha.log.ui.theme.DangerText
 import com.gatcha.log.ui.theme.LocalAccent
 import com.gatcha.log.ui.theme.ProgressEmpty
@@ -93,9 +94,9 @@ private fun BudgetPaceCard(monthTotal: Long, budget: Long, month: Int, accent: C
         }
         Spacer(Modifier.height(12.dp))
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            StatTile(won(monthTotal), "현재 지출", Modifier.weight(1f))
-            StatTile(won(dailyAvg), "하루 평균", Modifier.weight(1f))
-            StatTile(if (budget > 0) won(budget) else "—", "이번 달 예산", Modifier.weight(1f))
+            StatTile(won(monthTotal), "현재 지출", Modifier.weight(1f), valueFontSize = 14.sp)
+            StatTile(won(dailyAvg), "하루 평균", Modifier.weight(1f), valueFontSize = 14.sp)
+            StatTile(if (budget > 0) won(budget) else "—", "이번 달 예산", Modifier.weight(1f), valueFontSize = 14.sp)
         }
         if (budget > 0) {
             Spacer(Modifier.height(14.dp))
@@ -226,18 +227,6 @@ private fun CardTitle(title: String, sub: String? = null) {
     if (sub != null) {
         Spacer(Modifier.height(2.dp))
         Text(sub, fontSize = 11.sp, color = TextSecondary)
-    }
-}
-
-@Composable
-private fun StatTile(value: String, label: String, modifier: Modifier = Modifier) {
-    Column(
-        modifier.clip(RoundedCornerShape(12.dp)).background(Color(0x08000000)).padding(vertical = 11.dp, horizontal = 6.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        Text(value, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TextPrimary, maxLines = 1)
-        Spacer(Modifier.height(2.dp))
-        Text(label, fontSize = 10.sp, color = TextSecondary, maxLines = 1)
     }
 }
 

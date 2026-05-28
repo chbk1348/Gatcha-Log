@@ -31,6 +31,7 @@ import com.gatcha.log.data.GachaGameDash
 import com.gatcha.log.data.GachaReport
 import com.gatcha.log.ui.components.GlassCard
 import com.gatcha.log.ui.components.GlgScreenHeader
+import com.gatcha.log.ui.components.StatTile
 import com.gatcha.log.ui.theme.DividerColor
 import com.gatcha.log.ui.theme.LocalAccent
 import com.gatcha.log.ui.theme.TextPrimary
@@ -217,18 +218,6 @@ private fun CardTitle(title: String, sub: String? = null) {
     if (sub != null) {
         Spacer(Modifier.height(2.dp))
         Text(sub, fontSize = 11.sp, color = TextSecondary)
-    }
-}
-
-@Composable
-private fun StatTile(value: String, label: String, modifier: Modifier = Modifier, valueColor: Color = TextPrimary) {
-    Column(
-        modifier.clip(RoundedCornerShape(12.dp)).background(Color(0x08000000)).padding(vertical = 11.dp, horizontal = 6.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        Text(value, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = valueColor, maxLines = 1)
-        Spacer(Modifier.height(2.dp))
-        Text(label, fontSize = 10.sp, color = TextSecondary, maxLines = 1)
     }
 }
 
