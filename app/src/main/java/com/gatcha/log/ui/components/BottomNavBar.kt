@@ -20,6 +20,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -80,8 +81,12 @@ fun BottomNavBar(selectedTab: Int, onTabSelected: (Int) -> Unit, onAddClick: () 
                         containerColor = accent,
                         contentColor = Color.White,
                         shape = CircleShape,
-                        modifier = Modifier.requiredSize(64.dp),
-                        // 그림자 제거 — 애니메이션 중 그림자 깜빡임 방지 + 플랫 일관성
+                        modifier = Modifier
+                            .requiredSize(64.dp)
+                            // 입체감: accent 틴트 드롭 섀도(떠 있는 느낌). Material elevation 대신
+                            // Modifier.shadow 로 줘서 FAB 스케일 애니메이션 중 깜빡임 없이 함께 스케일됨.
+                            .shadow(12.dp, CircleShape, clip = false, ambientColor = accent.copy(alpha = 0.4f), spotColor = accent.copy(alpha = 0.6f)),
+                        // Material elevation 은 0 유지(애니메이션 중 elevation 보간 깜빡임 방지) — 그림자는 위 Modifier 로 처리.
                         elevation = FloatingActionButtonDefaults.elevation(
                             defaultElevation = 0.dp,
                             pressedElevation = 0.dp,

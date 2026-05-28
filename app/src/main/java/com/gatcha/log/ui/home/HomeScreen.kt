@@ -4,17 +4,19 @@ import android.app.Activity
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.EnterExitState
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.scaleIn
-import androidx.compose.animation.scaleOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -135,37 +137,45 @@ fun HomeScreen(viewModel: SpendingViewModel = viewModel()) {
     }
 
     // 루트 레벨 페이지 스왑 — 지출 추가/수정은 별도 페이지로 운영(바텀시트가 아닌 실제 페이지 전환).
-    // FAB 우하단(약 88%, 94%) 위치에서 페이지 전체가 스케일 인/아웃하면서 슈르륵 펼쳐지고 닫힐 때 같은 위치로 줄어든다.
+    // 컨테이너 트랜스폼 morph: FAB(우하단 accent 원)에서 페이지가 스케일 + 모서리 라운드가 풀리며 펼쳐지고,
+    // 닫을 땐 같은 위치로 줄며 라운드가 다시 차올라 FAB 로 흡수되는 느낌.
     AnimatedContent(
         targetState = showAddSpendingSheet.value,
-        transitionSpec = {
-            val origin = TransformOrigin(0.88f, 0.94f)
-            if (targetState) {
-                // 메인 → 지출 추가: 우하단에서 펼쳐짐
-                (scaleIn(tween(320), initialScale = 0f, transformOrigin = origin) + fadeIn(tween(220))) togetherWith
-                    (fadeOut(tween(200)))
-            } else {
-                // 지출 추가 → 메인: 우하단으로 줄어들며 사라짐
-                (fadeIn(tween(220))) togetherWith
-                    (scaleOut(tween(280), targetScale = 0f, transformOrigin = origin) + fadeOut(tween(220)))
-            }
-        },
+        transitionSpec = { fadeIn(tween(200)) togetherWith fadeOut(tween(260)) },
         label = "rootPage",
     ) { addPage ->
         if (addPage) {
-            AddSpendingModal(
-                spendingToEdit = spendingToEdit.value,
-                onDismiss = {
-                    showAddSpendingSheet.value = false
-                    spendingToEdit.value = null
-                },
-                onSave = { spending ->
-                    if (spendingToEdit.value == null) viewModel.addSpending(spending)
-                    else viewModel.updateSpending(spending)
-                    showAddSpendingSheet.value = false
-                    spendingToEdit.value = null
-                },
-            )
+            // 등장 0→1 / 퇴장 1→0. 스케일(0.35→1, FAB 우하단 피벗) + 모서리 라운드(32→0dp)로 morph.
+            val morph by transition.animateFloat(
+                transitionSpec = { tween(durationMillis = 360, easing = FastOutSlowInEasing) },
+                label = "fabMorph",
+            ) { state -> if (state == EnterExitState.Visible) 1f else 0f }
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .graphicsLayer {
+                        val s = 0.35f + 0.65f * morph
+                        scaleX = s
+                        scaleY = s
+                        transformOrigin = TransformOrigin(0.9f, 0.95f)
+                        clip = true
+                        shape = RoundedCornerShape((32f * (1f - morph)).dp)
+                    },
+            ) {
+                AddSpendingModal(
+                    spendingToEdit = spendingToEdit.value,
+                    onDismiss = {
+                        showAddSpendingSheet.value = false
+                        spendingToEdit.value = null
+                    },
+                    onSave = { spending ->
+                        if (spendingToEdit.value == null) viewModel.addSpending(spending)
+                        else viewModel.updateSpending(spending)
+                        showAddSpendingSheet.value = false
+                        spendingToEdit.value = null
+                    },
+                )
+            }
         } else {
             Scaffold(
                 containerColor = Color.Transparent,
