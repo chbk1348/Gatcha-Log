@@ -32,6 +32,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import android.os.Build
 import com.gatcha.log.BuildConfig
+import com.gatcha.log.ui.components.BudgetDialog
 import com.gatcha.log.ui.components.GlassCard
 import com.gatcha.log.ui.components.GlgButton
 import com.gatcha.log.ui.components.GlgScreenHeader
@@ -45,6 +46,7 @@ import com.gatcha.log.ui.theme.DangerText
 import com.gatcha.log.ui.theme.DividerColor
 import com.gatcha.log.ui.theme.LocalAccent
 import com.gatcha.log.ui.theme.TextSecondary
+import com.gatcha.log.util.won
 
 @Composable
 fun SettingsScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
@@ -158,7 +160,7 @@ fun SettingsScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
         item {
             GlassCard(shape = RoundedCornerShape(24.dp), modifier = Modifier.fillMaxWidth()) {
                 Column {
-                    SettingsItem("월 예산", Icons.Default.Savings, value = if (budget > 0) "₩%,d".format(budget) else "미설정") { showBudget.value = true }
+                    SettingsItem("월 예산", Icons.Default.Savings, value = if (budget > 0) won(budget) else "미설정") { showBudget.value = true }
                     HorizontalDivider(color = DividerColor, modifier = Modifier.padding(horizontal = 16.dp))
                     SettingsItem("HoYoLAB 계정 연동", Icons.Default.Link, value = if (hoyolab.isLinked) "연동됨" else "미연동") { showHoyolab.value = true }
                 }
@@ -334,7 +336,7 @@ fun SettingsScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
     }
 
     if (showBudget.value) {
-        BudgetSettingDialog(budget, onDismiss = { showBudget.value = false }) { viewModel.setBudget(it); showBudget.value = false }
+        BudgetDialog(budget, onDismiss = { showBudget.value = false }) { viewModel.setBudget(it); showBudget.value = false }
     }
     if (showUplog.value) {
         UplogDialog(versionName) { showUplog.value = false }
@@ -411,26 +413,6 @@ private fun shareCsvFile(context: Context, csv: String) {
         putExtra(Intent.EXTRA_TEXT, csv)
     }
     context.startActivity(Intent.createChooser(intent, "지출 내역 내보내기"))
-}
-
-@Composable
-private fun BudgetSettingDialog(current: Long, onDismiss: () -> Unit, onConfirm: (Long) -> Unit) {
-    var text by remember { mutableStateOf(if (current > 0) current.toString() else "") }
-    GlgDialog(
-        title = "월 예산 설정",
-        onDismiss = onDismiss,
-        confirmText = "저장",
-        onConfirm = { onConfirm(text.toLongOrNull() ?: 0L) },
-    ) {
-        com.gatcha.log.ui.components.GlgTextField(
-            value = text,
-            onValueChange = { v -> text = v.filter { it.isDigit() } },
-            label = "예산 (원)",
-            placeholder = "0",
-            keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number),
-            modifier = Modifier.fillMaxWidth(),
-        )
-    }
 }
 
 /** 빌드 타입(디버그/릴리스) 구분칩 — 어떤 빌드가 설치됐는지 한눈에. */

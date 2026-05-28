@@ -53,6 +53,7 @@ import com.gatcha.log.data.api.GiftCode
 import com.gatcha.log.ui.spending.RedeemState
 import com.gatcha.log.ui.spending.SpendingViewModel
 import com.gatcha.log.ui.theme.*
+import com.gatcha.log.util.num
 
 /** 게임정보 탭의 풀스크린 하위 페이지 (열리면 하단바·FAB 숨김) */
 private enum class GiSub { Main, HoyoLink, Dashboard }
@@ -979,14 +980,14 @@ private fun LedgerCard(ledger: MonthlyLedger) {
             }
             Spacer(Modifier.height(12.dp))
             Row(verticalAlignment = Alignment.Bottom) {
-                Text("%,d".format(ledger.premium), fontSize = 28.sp, fontWeight = FontWeight.Bold, color = accent)
+                Text(num(ledger.premium), fontSize = 28.sp, fontWeight = FontWeight.Bold, color = accent)
                 Spacer(Modifier.width(6.dp))
                 Text(ledger.premiumLabel, fontSize = 13.sp, color = TextSecondary, modifier = Modifier.padding(bottom = 4.dp))
                 ledger.premiumDelta?.let { d ->
                     Spacer(Modifier.width(10.dp))
                     val up = d >= 0
                     Text(
-                        (if (up) "▲ " else "▼ ") + "%,d".format(kotlin.math.abs(d)),
+                        (if (up) "▲ " else "▼ ") + num(kotlin.math.abs(d)),
                         fontSize = 12.sp, fontWeight = FontWeight.Bold,
                         color = if (up) Color(0xFF1FB16B) else Color(0xFFE5484D),
                         modifier = Modifier.padding(bottom = 5.dp),
@@ -995,7 +996,7 @@ private fun LedgerCard(ledger: MonthlyLedger) {
             }
             if (ledger.gold > 0) {
                 Spacer(Modifier.height(2.dp))
-                Text("${ledger.goldLabel} ${"%,d".format(ledger.gold)}", fontSize = 12.sp, color = TextSecondary)
+                Text("${ledger.goldLabel} ${num(ledger.gold)}", fontSize = 12.sp, color = TextSecondary)
             }
             if (ledger.breakdown.isNotEmpty()) {
                 Spacer(Modifier.height(14.dp))
@@ -1005,7 +1006,7 @@ private fun LedgerCard(ledger: MonthlyLedger) {
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Text(e.action, fontSize = 12.sp, modifier = Modifier.weight(1f), maxLines = 1)
-                        Text("%,d".format(e.num), fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                        Text(num(e.num), fontSize = 12.sp, fontWeight = FontWeight.Medium)
                         Spacer(Modifier.width(8.dp))
                         Text("${e.percent}%", fontSize = 11.sp, color = TextSecondary, modifier = Modifier.width(36.dp), textAlign = TextAlign.End)
                     }

@@ -37,6 +37,7 @@ import com.gatcha.log.ui.theme.DividerColor
 import com.gatcha.log.ui.theme.LocalAccent
 import com.gatcha.log.ui.theme.TextPrimary
 import com.gatcha.log.ui.theme.TextSecondary
+import com.gatcha.log.util.won
 
 @Composable
 fun SubscriptionSection(
@@ -65,7 +66,7 @@ fun SubscriptionSection(
                     Text("구독 관리", fontWeight = FontWeight.Bold)
                     if (subscriptions.isNotEmpty()) {
                         Spacer(Modifier.width(8.dp))
-                        Text("${subscriptions.size}개 · 월 ₩%,d".format(monthlyTotal), fontSize = 12.sp, color = TextSecondary, maxLines = 1)
+                        Text("${subscriptions.size}개 · 월 " + won(monthlyTotal), fontSize = 12.sp, color = TextSecondary, maxLines = 1)
                     }
                 }
                 Icon(
@@ -138,7 +139,7 @@ private fun SubscriptionRow(sub: Subscription, onClick: () -> Unit) {
         }
         Spacer(Modifier.width(8.dp))
         Column(horizontalAlignment = Alignment.End) {
-            Text("₩%,d".format(sub.amount), fontSize = 14.sp, fontWeight = FontWeight.Bold)
+            Text(won(sub.amount), fontSize = 14.sp, fontWeight = FontWeight.Bold)
             Text(if (d == 0) "오늘 결제" else "D-$d", fontSize = 11.sp, color = accent, fontWeight = FontWeight.Bold)
         }
     }

@@ -27,7 +27,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -42,7 +41,6 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -73,9 +71,12 @@ import com.gatcha.log.ui.components.GlgScreenHeader
 import com.gatcha.log.ui.components.GlgDialog
 import com.gatcha.log.ui.components.GlgStatusToast
 import com.gatcha.log.ui.components.ProfileAvatar
-import com.gatcha.log.ui.components.GlgTextField
 import com.gatcha.log.ui.components.NoteSkeletonRow
+import com.gatcha.log.ui.components.InfoColumn
+import com.gatcha.log.ui.components.BudgetDialog
 import com.gatcha.log.ui.theme.*
+import com.gatcha.log.util.num
+import com.gatcha.log.util.won
 
 @Composable
 fun HomeScreen(viewModel: SpendingViewModel = viewModel()) {
@@ -472,7 +473,7 @@ fun ProfileGameSection(
                             Text("🔥 ${streak}일 연속", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = accent, maxLines = 1)
                             Text("  ·  ", fontSize = 12.sp, color = Color.LightGray)
                         }
-                        Text("₩%,d".format(monthlyTotal), fontSize = 12.sp, fontWeight = FontWeight.Medium, color = TextSecondary, maxLines = 1)
+                        Text(won(monthlyTotal), fontSize = 12.sp, fontWeight = FontWeight.Medium, color = TextSecondary, maxLines = 1)
                     }
                 }
                 Spacer(Modifier.width(8.dp))
@@ -652,7 +653,7 @@ fun SpendingSection(
                 }
             }
             Spacer(Modifier.height(4.dp))
-            Text("₩%,d".format(monthlyTotal), fontSize = 32.sp, fontWeight = FontWeight.Bold)
+            Text(won(monthlyTotal), fontSize = 32.sp, fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(20.dp))
 
             if (budget > 0) {
@@ -671,7 +672,7 @@ fun SpendingSection(
                 Spacer(Modifier.height(8.dp))
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                     Text(
-                        if (over) "₩%,d 초과".format(-remaining) else "₩%,d 남음".format(remaining),
+                        if (over) won(-remaining) + " 초과" else won(remaining) + " 남음",
                         fontSize = 11.sp, color = if (over) DangerText else TextSecondary,
                     )
                     Text("예산 ${pct}% 사용", fontSize = 11.sp, color = TextSecondary)
@@ -711,19 +712,11 @@ fun SpendingSection(
 
             Spacer(Modifier.height(24.dp))
             Row(Modifier.fillMaxWidth()) {
-                InfoColumn("₩%,d".format(monthlyTotal), "총 지출", Modifier.weight(1f))
+                InfoColumn(won(monthlyTotal), "총 지출", Modifier.weight(1f))
                 InfoColumn("${gachaCount}회", "총 가챠", Modifier.weight(1f))
                 InfoColumn(topGame ?: "-", "최다 지출", Modifier.weight(1f))
             }
         }
-    }
-}
-
-@Composable
-fun InfoColumn(value: String, label: String, modifier: Modifier) {
-    Column(modifier = modifier, horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(value, fontSize = 14.sp, fontWeight = FontWeight.Bold, maxLines = 1)
-        Text(label, fontSize = 11.sp, color = TextSecondary)
     }
 }
 
@@ -747,8 +740,8 @@ fun GachaSummarySection(stats: GachaStats?, onOpen: () -> Unit) {
             } else {
                 val totalFive = stats.byGame.values.sumOf { it.five }
                 Row(Modifier.fillMaxWidth()) {
-                    InfoColumn("%,d".format(stats.total), "총 뽑기", Modifier.weight(1f))
-                    InfoColumn("%,d".format(totalFive), "획득 5성", Modifier.weight(1f))
+                    InfoColumn(num(stats.total), "총 뽑기", Modifier.weight(1f))
+                    InfoColumn(num(totalFive), "획득 5성", Modifier.weight(1f))
                     InfoColumn("${stats.byGame.size}", "게임", Modifier.weight(1f))
                 }
                 val games = stats.byGame.keys.sortedBy { GachaReport.gameOrder.indexOf(it).let { i -> if (i < 0) 99 else i } }
@@ -761,7 +754,7 @@ fun GachaSummarySection(stats: GachaStats?, onOpen: () -> Unit) {
                         Spacer(Modifier.width(8.dp))
                         Text(shortName, fontSize = 13.sp, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f))
                         Text(
-                            "${"%,d".format(g.total)}뽑 · 5성 ${g.five}" + if (g.avgPity > 0) " · 평균천장 ${g.avgPity}" else "",
+                            "${num(g.total)}뽑 · 5성 ${g.five}" + if (g.avgPity > 0) " · 평균천장 ${g.avgPity}" else "",
                             fontSize = 11.sp, color = TextSecondary,
                         )
                     }
@@ -884,26 +877,6 @@ private fun NotificationCard(alert: HomeAlert, onClick: () -> Unit) {
             Spacer(Modifier.width(8.dp))
             Icon(Icons.Default.ChevronRight, null, tint = Color.LightGray, modifier = Modifier.size(20.dp))
         }
-    }
-}
-
-@Composable
-private fun BudgetDialog(current: Long, onDismiss: () -> Unit, onConfirm: (Long) -> Unit) {
-    var text by remember { mutableStateOf(if (current > 0) current.toString() else "") }
-    GlgDialog(
-        title = "월 예산 설정",
-        onDismiss = onDismiss,
-        confirmText = "저장",
-        onConfirm = { onConfirm(text.toLongOrNull() ?: 0L) },
-    ) {
-        GlgTextField(
-            value = text,
-            onValueChange = { v -> text = v.filter { it.isDigit() } },
-            label = "예산 (원)",
-            placeholder = "0",
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-            modifier = Modifier.fillMaxWidth(),
-        )
     }
 }
 
