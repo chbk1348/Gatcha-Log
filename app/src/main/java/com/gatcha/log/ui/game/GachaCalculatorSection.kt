@@ -39,6 +39,7 @@ import com.gatcha.log.ui.theme.LocalAccent
 import com.gatcha.log.ui.theme.ProgressEmpty
 import com.gatcha.log.ui.theme.TextPrimary
 import com.gatcha.log.ui.theme.TextSecondary
+import com.gatcha.log.util.num
 import java.util.Calendar
 import kotlin.math.ceil
 import kotlin.math.roundToInt
@@ -49,8 +50,7 @@ private val BadRed = Color(0xFFDC2626)
 private val ResultBg = Color(0x08000000)
 private val ResultLabel = Color(0x59000000)
 
-private fun won(n: Int): String = "%,d".format(n) + "원"
-private fun thou(n: Int): String = "%,d".format(n)
+private fun won(n: Int): String = num(n) + "원"
 
 /** 통합 계산기 섹션 — 재화 환산·확보 확률·뽑기 플래너 (웹앱 GameInfo 도구 이식). 천장 카운터 값을 자동 주입. */
 @Composable
@@ -185,7 +185,7 @@ private fun CurrencyCalc(game: GachaGameRate, banner: GachaBannerRate, pity: Map
         Spacer(Modifier.height(14.dp))
         val tp = targetPulls.toIntOrNull() ?: 0
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            ResultBox("필요 재화", "${thou(tp * banner.perPull)} ${banner.currency}", "목표 ${tp}회", Modifier.weight(1f))
+            ResultBox("필요 재화", "${num(tp * banner.perPull)} ${banner.currency}", "목표 ${tp}회", Modifier.weight(1f))
             ResultBox("추정 비용", won(tp * banner.wonPerPull), "현금 충전 기준", Modifier.weight(1f))
         }
         return
@@ -218,8 +218,8 @@ private fun CurrencyCalc(game: GachaGameRate, banner: GachaBannerRate, pity: Map
     val pct = if (currencyToHard > 0) (cur.toDouble() / currencyToHard * 100).roundToInt().coerceIn(0, 100) else 0
 
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        ResultBox("가능 뽑기 수", "${possiblePulls}회", if (cur > 0) "남은 ${thou(leftCurrency)} ${banner.currency}" else "", Modifier.weight(1f))
-        ResultBox("하드 천장까지", "${pullsToHard}회", if (additionalNeeded > 0) "추가 ${thou(additionalNeeded)} 필요" else "재화 충분", Modifier.weight(1f))
+        ResultBox("가능 뽑기 수", "${possiblePulls}회", if (cur > 0) "남은 ${num(leftCurrency)} ${banner.currency}" else "", Modifier.weight(1f))
+        ResultBox("하드 천장까지", "${pullsToHard}회", if (additionalNeeded > 0) "추가 ${num(additionalNeeded)} 필요" else "재화 충분", Modifier.weight(1f))
     }
     Spacer(Modifier.height(8.dp))
     ResultBox("천장까지 추정 비용", won(estCost), if (additionalPulls > 0) "천장까지 ${additionalPulls}회 부족" else "재화 충분", Modifier.fillMaxWidth())
@@ -227,7 +227,7 @@ private fun CurrencyCalc(game: GachaGameRate, banner: GachaBannerRate, pity: Map
 
     // 진행도
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-        Text("${thou(cur)} / ${thou(currencyToHard)} ${banner.currency}", fontSize = 11.sp, color = TextSecondary)
+        Text("${num(cur)} / ${num(currencyToHard)} ${banner.currency}", fontSize = 11.sp, color = TextSecondary)
         Text("$pct%", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = LocalAccent.current)
     }
     Spacer(Modifier.height(5.dp))
@@ -260,8 +260,8 @@ private fun CurrencyCalc(game: GachaGameRate, banner: GachaBannerRate, pity: Map
     Text("시나리오 (${qty}개 기준)", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
     Spacer(Modifier.height(8.dp))
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        ScenarioBox("최선의 경우", bestSub, "${bestPulls}회", "≈ ${thou(bestPulls * banner.perPull)} ${banner.currency}", OkGreen, Modifier.weight(1f))
-        ScenarioBox("최악의 경우", worstSub, "${worstPulls}회", "≈ ${thou(worstPulls * banner.perPull)} ${banner.currency}", BadRed, Modifier.weight(1f))
+        ScenarioBox("최선의 경우", bestSub, "${bestPulls}회", "≈ ${num(bestPulls * banner.perPull)} ${banner.currency}", OkGreen, Modifier.weight(1f))
+        ScenarioBox("최악의 경우", worstSub, "${worstPulls}회", "≈ ${num(worstPulls * banner.perPull)} ${banner.currency}", BadRed, Modifier.weight(1f))
     }
 }
 

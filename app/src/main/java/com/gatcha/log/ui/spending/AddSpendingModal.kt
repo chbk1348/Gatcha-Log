@@ -49,6 +49,7 @@ import com.gatcha.log.ui.theme.DividerColor
 import com.gatcha.log.ui.theme.LocalAccent
 import com.gatcha.log.ui.theme.TextPrimary
 import com.gatcha.log.ui.theme.TextSecondary
+import com.gatcha.log.util.won
 
 private val SheetBg = Color(0xFFF2F2F7)   // iOS 인셋-그룹 회색 배경
 private val CardBg = Color.White
@@ -388,7 +389,7 @@ private fun PackageCard(pkg: GamePackage, isSelected: Boolean, modifier: Modifie
                     Text(it, fontSize = 10.sp, color = accent, fontWeight = FontWeight.Bold, maxLines = 1)
                     Spacer(Modifier.width(5.dp))
                 }
-                Text("₩%,d".format(pkg.price), fontSize = 11.sp, color = TextSecondary, fontWeight = FontWeight.Medium, maxLines = 1)
+                Text(won(pkg.price), fontSize = 11.sp, color = TextSecondary, fontWeight = FontWeight.Medium, maxLines = 1)
             }
         }
     }

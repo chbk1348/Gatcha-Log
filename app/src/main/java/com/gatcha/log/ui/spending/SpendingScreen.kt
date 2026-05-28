@@ -38,12 +38,14 @@ import com.gatcha.log.data.GameData
 import com.gatcha.log.data.Spending
 import com.gatcha.log.ui.components.CurrencyIcon
 import com.gatcha.log.ui.components.GameCurrency
+import com.gatcha.log.ui.components.InfoColumn
 import com.gatcha.log.ui.components.GlassCard
 import com.gatcha.log.ui.components.GlgButton
 import com.gatcha.log.ui.components.GlgScreenHeader
 import com.gatcha.log.ui.components.GlgDialog
 import com.gatcha.log.ui.components.GlgOutlineButton
 import com.gatcha.log.ui.theme.*
+import com.gatcha.log.util.won
 import java.util.Calendar
 
 private enum class PeriodFilter(val label: String) { ALL("전체"), THIS_MONTH("이번 달"), LAST_MONTH("지난 달"), THIS_YEAR("올해") }
@@ -254,14 +256,14 @@ fun MonthlySummaryCard(month: Int, total: Long, prevTotal: Long) {
                 Spacer(Modifier.width(6.dp))
                 Text("${month}월", fontSize = 12.sp, fontWeight = FontWeight.Medium, color = TextSecondary)
                 Spacer(Modifier.width(8.dp))
-                Text("₩%,d".format(total), fontSize = 21.sp, fontWeight = FontWeight.Bold)
+                Text(won(total), fontSize = 21.sp, fontWeight = FontWeight.Bold)
             }
             // 우: 지난달 대비 증감
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("지난달", fontSize = 11.sp, color = TextSecondary)
                 Spacer(Modifier.width(6.dp))
                 Text(
-                    (if (diff >= 0) "+" else "-") + "₩%,d".format(kotlin.math.abs(diff)),
+                    (if (diff >= 0) "+" else "-") + won(kotlin.math.abs(diff)),
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Bold,
                     color = if (diff > 0) DangerText else accent,
@@ -357,8 +359,8 @@ fun AnnualReportScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
             GlassCard(shape = RoundedCornerShape(24.dp), modifier = Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp)) {
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        InfoColumn("₩%,d".format(total), "총 지출", Modifier.weight(1f))
-                        InfoColumn("₩%,d".format(avg), "월 평균", Modifier.weight(1f))
+                        InfoColumn(won(total), "총 지출", Modifier.weight(1f))
+                        InfoColumn(won(avg), "월 평균", Modifier.weight(1f))
                         InfoColumn("${yearItems.size}회", "총 기록", Modifier.weight(1f))
                     }
                     Spacer(Modifier.height(18.dp))
@@ -423,7 +425,7 @@ fun SpendingDetailScreen(
                         }
                     }
                     Spacer(Modifier.height(14.dp))
-                    Text("₩%,d".format(spending.amount), fontSize = 32.sp, fontWeight = FontWeight.Bold)
+                    Text(won(spending.amount), fontSize = 32.sp, fontWeight = FontWeight.Bold)
                     Spacer(Modifier.height(6.dp))
                     Text(spending.dateLabel, fontSize = 13.sp, color = TextSecondary)
                 }
@@ -526,7 +528,7 @@ private fun GameBreakdownRow(game: String, amount: Long, frac: Float) {
                 Spacer(Modifier.width(8.dp))
                 Text(game, fontSize = 13.sp, fontWeight = FontWeight.Medium, maxLines = 1)
             }
-            Text("₩%,d".format(amount), fontSize = 13.sp, fontWeight = FontWeight.Bold)
+            Text(won(amount), fontSize = 13.sp, fontWeight = FontWeight.Bold)
             Spacer(Modifier.width(8.dp))
             Text("${(frac * 100).toInt()}%", fontSize = 11.sp, color = TextSecondary)
         }
@@ -574,7 +576,7 @@ fun DateHeader(date: String, total: Long) {
         horizontalArrangement = Arrangement.SpaceBetween,
     ) {
         Text(date, fontSize = 12.sp, color = TextSecondary, fontWeight = FontWeight.Bold)
-        Text("₩%,d".format(total), fontSize = 12.sp, color = accent, fontWeight = FontWeight.Bold)
+        Text(won(total), fontSize = 12.sp, color = accent, fontWeight = FontWeight.Bold)
     }
 }
 
@@ -617,7 +619,7 @@ fun HistoryItem(spending: Spending, onClick: () -> Unit) {
                     }
                 }
             }
-            Text("₩%,d".format(spending.amount), fontSize = 14.sp, fontWeight = FontWeight.Bold)
+            Text(won(spending.amount), fontSize = 14.sp, fontWeight = FontWeight.Bold)
             Spacer(Modifier.width(10.dp))
             // 3점 메뉴 대신 명시적 [상세] 버튼 (수정·삭제는 상세 페이지에서)
             Surface(
@@ -751,13 +753,5 @@ private fun EmptyState() {
         Spacer(Modifier.height(12.dp))
         Text("아직 기록된 지출이 없어요", color = TextSecondary, fontSize = 14.sp)
         Text("+ 버튼으로 첫 지출을 기록해보세요", color = Color.LightGray, fontSize = 12.sp)
-    }
-}
-
-@Composable
-fun InfoColumn(value: String, label: String, modifier: Modifier) {
-    Column(modifier = modifier, horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(value, fontSize = 14.sp, fontWeight = FontWeight.Bold, maxLines = 1)
-        Text(label, fontSize = 11.sp, color = TextSecondary)
     }
 }

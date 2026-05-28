@@ -31,9 +31,9 @@ import com.gatcha.log.ui.theme.LocalAccent
 import com.gatcha.log.ui.theme.ProgressEmpty
 import com.gatcha.log.ui.theme.TextPrimary
 import com.gatcha.log.ui.theme.TextSecondary
+import com.gatcha.log.util.won
 import java.util.Calendar
 
-private fun won(v: Long): String = "₩%,d".format(v)
 private val EtcColor = Color(0xFFB8BDC6)
 
 /** 지출 인사이트 — 예산 페이스 예측 + 게임별 월 추이 + 카테고리(결제수단·태그) 비중. */

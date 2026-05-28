@@ -32,9 +32,8 @@ import com.gatcha.log.ui.theme.DividerColor
 import com.gatcha.log.ui.theme.LocalAccent
 import com.gatcha.log.ui.theme.TextPrimary
 import com.gatcha.log.ui.theme.TextSecondary
-
-private fun won(n: Long): String = "₩%,d".format(n)
-private fun num(n: Int): String = "%,d".format(n)
+import com.gatcha.log.util.num
+import com.gatcha.log.util.won
 
 @Composable
 fun GachaReportSection(

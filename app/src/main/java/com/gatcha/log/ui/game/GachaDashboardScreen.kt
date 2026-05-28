@@ -35,9 +35,8 @@ import com.gatcha.log.ui.theme.DividerColor
 import com.gatcha.log.ui.theme.LocalAccent
 import com.gatcha.log.ui.theme.TextPrimary
 import com.gatcha.log.ui.theme.TextSecondary
-
-private fun n(v: Int): String = "%,d".format(v)
-private fun won(v: Long): String = "₩%,d".format(v)
+import com.gatcha.log.util.num
+import com.gatcha.log.util.won
 
 // 등급 색
 private val Gold = Color(0xFFF5B301)
@@ -114,8 +113,8 @@ fun GachaDashboardScreen(
             // 1) 요약
             DashCard {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    StatTile(n(d.total), "총 뽑기", Modifier.weight(1f))
-                    StatTile(n(d.five), "획득 5성", Modifier.weight(1f))
+                    StatTile(num(d.total), "총 뽑기", Modifier.weight(1f))
+                    StatTile(num(d.five), "획득 5성", Modifier.weight(1f))
                     StatTile(if (d.avgPity > 0) "${d.avgPity}" else "—", "평균 천장", Modifier.weight(1f), valueColor = accent)
                     StatTile(if (cost > 0) won(cost) else "—", "5성 단가", Modifier.weight(1f), valueColor = accent)
                 }
@@ -123,7 +122,7 @@ fun GachaDashboardScreen(
 
             // 2) 등급 비율
             DashCard {
-                CardTitle("등급 비율", "총 ${n(d.total)}뽑")
+                CardTitle("등급 비율", "총 ${num(d.total)}뽑")
                 Spacer(Modifier.height(12.dp))
                 Row(Modifier.fillMaxWidth().height(14.dp).clip(CircleShape)) {
                     if (d.five > 0) Box(Modifier.weight(d.five.toFloat()).fillMaxHeight().background(Gold))
@@ -240,7 +239,7 @@ private fun RarityLegend(label: String, value: Int, total: Int, color: Color, mo
         Box(Modifier.size(8.dp).clip(CircleShape).background(color))
         Spacer(Modifier.width(6.dp))
         Column {
-            Text("$label ${n(value)}", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextPrimary, maxLines = 1)
+            Text("$label ${num(value)}", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextPrimary, maxLines = 1)
             Text("%.1f%%".format(pct), fontSize = 10.sp, color = TextSecondary, maxLines = 1)
         }
     }

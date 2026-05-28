@@ -37,6 +37,7 @@ import com.gatcha.log.ui.components.GlgCircleIconButton
 import com.gatcha.log.ui.components.ProfileAvatar
 import com.gatcha.log.ui.spending.SpendingViewModel
 import com.gatcha.log.ui.theme.*
+import com.gatcha.log.util.won
 
 @Composable
 fun MyPageScreen(
@@ -120,13 +121,13 @@ fun MyPageScreen(
         item {
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 StatTile(Icons.Default.LocalFireDepartment, "${attendanceStreak}일", "연속 출석", Modifier.weight(1f), tint = Color(0xFFFF7A45))
-                StatTile(Icons.Default.CalendarMonth, "₩%,d".format(monthlyTotal), "이번 달 지출", Modifier.weight(1f))
+                StatTile(Icons.Default.CalendarMonth, won(monthlyTotal), "이번 달 지출", Modifier.weight(1f))
             }
         }
         item { Spacer(Modifier.height(12.dp)) }
         item {
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                StatTile(Icons.Default.Payments, "₩%,d".format(total), "총 지출", Modifier.weight(1f))
+                StatTile(Icons.Default.Payments, won(total), "총 지출", Modifier.weight(1f))
                 StatTile(Icons.Default.Casino, "${gachaTotal}회", "가챠 기록", Modifier.weight(1f))
                 StatTile(Icons.Default.Games, "${games}개", "게임 수", Modifier.weight(1f))
             }
@@ -259,7 +260,7 @@ private fun TopGamesCard(spendings: List<Spending>) {
                         Box(Modifier.size(8.dp).clip(CircleShape).background(color))
                         Spacer(Modifier.width(8.dp))
                         Text(game, fontSize = 13.sp, fontWeight = FontWeight.Medium, maxLines = 1, modifier = Modifier.weight(1f))
-                        Text("₩%,d".format(amt), fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                        Text(won(amt), fontSize = 13.sp, fontWeight = FontWeight.Bold)
                         Spacer(Modifier.width(8.dp))
                         Text("${(frac * 100).toInt()}%", fontSize = 11.sp, color = TextSecondary)
                     }
