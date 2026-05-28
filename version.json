@@ -1,14 +1,11 @@
 {
-  "versionCode": 270700,
-  "versionName": "27.7.0",
+  "versionCode": 270701,
+  "versionName": "27.7.1",
   "url": "https://github.com/chbk1348/Gatcha-Log-Android/releases/latest",
   "apkUrl": "https://github.com/chbk1348/Gatcha-Log-Android/releases/latest/download/app-release.apk",
   "notes": [
-    "HoYoLAB 토큰 만료를 자동 감지해 홈 상단에서 재연동 안내 — 탭하면 연동 화면까지 바로 이동",
-    "천장 카운터에 임박 단계 강조(주의·임박·도달) + 단계 진입 시 토스트 안내",
-    "위시리스트를 전 게임으로 확장 + 위시 캐릭터가 픽업 배너에 뜨면 알림",
-    "자동 출석이 며칠 누락되던 문제 — 배터리 최적화 예외 요청으로 회복",
-    "지출 추가를 풀스크린 페이지로 개편 (FAB 위치에서 펼쳐지는 전환)",
-    "스타레일 가챠 효율 리포트에 콜라보 워프(콜라보 캐릭터·광추) 반영"
+    "지출 추가 화면이 + 버튼에서 펼쳐지듯 열리는 전환으로 더 부드러워졌어요",
+    "+ 버튼에 입체 그림자를 더해 또렷하게",
+    "내부 UI 프레임워크 최신화(Compose 1.9) — 더 부드러운 렌더링"
   ]
 }
