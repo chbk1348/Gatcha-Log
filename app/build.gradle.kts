@@ -16,8 +16,8 @@ android {
         applicationId = "com.gatcha.log"
         minSdk = 24
         targetSdk = 34
-        versionCode = 270800 // 27.8.0
-        versionName = "27.8.0"
+        versionCode = 270900 // 27.9.0
+        versionName = "27.9.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {

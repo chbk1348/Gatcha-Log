@@ -22,7 +22,17 @@ internal fun UplogDialog(versionName: String, onDismiss: () -> Unit) {
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
             UplogEntry(
-                "v${versionName.ifBlank { "27.8.0" }}",
+                "v${versionName.ifBlank { "27.9.0" }}",
+                listOf(
+                    "게임별 월 예산 한도를 따로 정할 수 있어요 — 초과하면 알림·홈에서 안내",
+                    "충동구매 예방 넛지 — 지출 추가 시 예산이나 평소보다 큰 금액이면 한 번 더 확인해요",
+                    "통합 캘린더 추가 — 월 달력에서 일별 지출·출석·픽업 배너 일정을 한눈에",
+                    "가챠 뽑기 시뮬레이터 — 실제 확률·천장으로 '탭해서 뽑기'를 체험해보세요 (통합 계산기 ▸ 시뮬)",
+                    "지출 내역·헤더 버튼 디자인 다듬기",
+                ),
+            )
+            UplogEntry(
+                "v27.8.0",
                 listOf(
                     "앱 아이콘을 새 디자인(밤하늘 위 반짝이는 위시 스타)으로 단장했어요",
                     "로딩·로그인 화면 로고와 앱 색감을 새 아이콘 톤에 맞춰 정리했어요",
