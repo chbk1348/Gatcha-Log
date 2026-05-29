@@ -1,11 +1,12 @@
 {
-  "versionCode": 270701,
-  "versionName": "27.7.1",
+  "versionCode": 270800,
+  "versionName": "27.8.0",
   "url": "https://github.com/chbk1348/Gatcha-Log-Android/releases/latest",
   "apkUrl": "https://github.com/chbk1348/Gatcha-Log-Android/releases/latest/download/app-release.apk",
   "notes": [
-    "지출 추가 화면이 + 버튼에서 펼쳐지듯 열리는 전환으로 더 부드러워졌어요",
-    "+ 버튼에 입체 그림자를 더해 또렷하게",
-    "내부 UI 프레임워크 최신화(Compose 1.9) — 더 부드러운 렌더링"
+    "앱 아이콘·로딩 화면을 새 디자인(밤하늘 위 위시 스타)으로 단장했어요",
+    "모든 금액을 1,234원 형식(콤마+원)으로 통일",
+    "알림 배지가 확인 후엔 다시 뜨지 않도록 수정 (앱 재실행에도 유지)",
+    "패치 일정에 버전 시작·종료 날짜 표기"
   ]
 }
