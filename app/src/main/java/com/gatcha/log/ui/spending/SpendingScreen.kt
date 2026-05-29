@@ -26,7 +26,10 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -34,6 +37,7 @@ import com.gatcha.log.data.DateUtil
 import com.gatcha.log.data.GameData
 import com.gatcha.log.data.Spending
 import com.gatcha.log.ui.components.CurrencyIcon
+import com.gatcha.log.ui.components.GameCurrency
 import com.gatcha.log.ui.components.GlassCard
 import com.gatcha.log.ui.components.GlgButton
 import com.gatcha.log.ui.components.GlgScreenHeader
@@ -283,10 +287,21 @@ fun SummaryItem(label: String, value: String, valueColor: Color) {
     }
 }
 
-/** 지출 분석 헤더 우측의 연간 리포트 진입 버튼 — 강조색 옅은 알약. */
+/**
+ * 지출 분석 헤더 우측 진입 알약 버튼 (캘린더·인사이트·연간 리포트 공용).
+ * 세 버튼의 높이·아이콘 크기를 강제로 통일한다(고정 높이 + 동일 아이콘 14dp).
+ * [label] 이 null 이면 아이콘 전용(캘린더)으로 폭만 줄인다.
+ */
 @Composable
-private fun AnnualReportButton(onClick: () -> Unit) {
+private fun HeaderPillButton(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String?,
+    contentDescription: String?,
+    onClick: () -> Unit,
+) {
     val accent = LocalAccent.current
+    // 게임 정보 탭의 헤더 알약(GachaRateButton)과 100% 동일한 스펙(shape 11·color 0.10·border 1.5/0.30·
+    // padding h12 v7·아이콘 14dp·텍스트 12sp). 아이콘 전용(캘린더)은 0폭 텍스트로 높이만 동일하게 맞춘다.
     Surface(
         shape = RoundedCornerShape(11.dp),
         color = accent.copy(alpha = 0.10f),
@@ -297,52 +312,31 @@ private fun AnnualReportButton(onClick: () -> Unit) {
             modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Icon(Icons.Default.Assessment, null, tint = accent, modifier = Modifier.size(14.dp))
-            Spacer(Modifier.width(5.dp))
-            Text("연간 리포트", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = accent)
+            Icon(icon, contentDescription, tint = accent, modifier = Modifier.size(14.dp))
+            if (label != null) {
+                Spacer(Modifier.width(5.dp))
+                Text(label, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = accent)
+            } else {
+                Text("", fontSize = 12.sp, fontWeight = FontWeight.Bold) // 높이 동일화용 0폭 텍스트
+            }
         }
     }
 }
 
-/** 지출 분석 헤더 우측의 캘린더 진입 버튼 — 공간 절약을 위해 아이콘 전용 알약. */
+/** 연간 리포트 진입 버튼. */
 @Composable
-private fun CalendarButton(onClick: () -> Unit) {
-    val accent = LocalAccent.current
-    Surface(
-        shape = RoundedCornerShape(11.dp),
-        color = accent.copy(alpha = 0.10f),
-        border = androidx.compose.foundation.BorderStroke(1.5.dp, accent.copy(alpha = 0.30f)),
-        modifier = Modifier.clickable { onClick() },
-    ) {
-        Icon(
-            Icons.Default.CalendarMonth,
-            contentDescription = "캘린더",
-            tint = accent,
-            modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp).size(16.dp),
-        )
-    }
-}
+private fun AnnualReportButton(onClick: () -> Unit) =
+    HeaderPillButton(Icons.Default.Assessment, "연간 리포트", null, onClick)
 
-/** 지출 분석 헤더 우측의 인사이트 진입 버튼 — 강조색 옅은 알약. */
+/** 캘린더 진입 버튼 — 공간 절약을 위해 아이콘 전용(높이는 동일). */
 @Composable
-private fun InsightButton(onClick: () -> Unit) {
-    val accent = LocalAccent.current
-    Surface(
-        shape = RoundedCornerShape(11.dp),
-        color = accent.copy(alpha = 0.10f),
-        border = androidx.compose.foundation.BorderStroke(1.5.dp, accent.copy(alpha = 0.30f)),
-        modifier = Modifier.clickable { onClick() },
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Icon(Icons.Default.Insights, null, tint = accent, modifier = Modifier.size(14.dp))
-            Spacer(Modifier.width(5.dp))
-            Text("인사이트", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = accent)
-        }
-    }
-}
+private fun CalendarButton(onClick: () -> Unit) =
+    HeaderPillButton(Icons.Default.CalendarMonth, null, "캘린더", onClick)
+
+/** 인사이트 진입 버튼. */
+@Composable
+private fun InsightButton(onClick: () -> Unit) =
+    HeaderPillButton(Icons.Default.Insights, "인사이트", null, onClick)
 
 @Composable
 fun GameFilterRow(selectedGame: String?, onGameSelected: (String?) -> Unit) {
@@ -394,12 +388,25 @@ fun HistoryItem(spending: Spending, onClick: () -> Unit) {
         shape = RoundedCornerShape(18.dp),
         modifier = Modifier.fillMaxWidth().padding(vertical = 5.dp),
     ) {
+        // 재화 아이콘 미지원 게임(zzz·명조·엔드필드·이환)은 원형 폴백 대신 카드 좌측 게임색 세로 막대.
+        val hasCurrencyIcon = GameCurrency.forGame(spending.gameName)?.iconUrl != null
+        val barPx = with(LocalDensity.current) { 5.dp.toPx() }
         Row(
-            modifier = Modifier.fillMaxWidth().clickable { onClick() }.padding(16.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .then(
+                    if (!hasCurrencyIcon) {
+                        Modifier.drawBehind { drawRect(spending.gameColor, size = Size(barPx, size.height)) }
+                    } else Modifier,
+                )
+                .clickable { onClick() }
+                .padding(16.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            CurrencyIcon(spending.gameName, size = 30.dp)
-            Spacer(Modifier.width(12.dp))
+            if (hasCurrencyIcon) {
+                CurrencyIcon(spending.gameName, size = 30.dp)
+                Spacer(Modifier.width(12.dp))
+            }
             Column(Modifier.weight(1f)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(spending.gameName, fontSize = 14.sp, fontWeight = FontWeight.Bold)
