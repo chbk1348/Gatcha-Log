@@ -1,5 +1,6 @@
 package com.gatcha.log.ui.game
 
+import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -44,6 +45,8 @@ import com.gatcha.log.util.won
 import java.util.Calendar
 import kotlin.math.ceil
 import kotlin.math.roundToInt
+import kotlin.random.Random
+import kotlinx.coroutines.delay
 
 private val OkGreen = Color(0xFF16A34A)
 private val WarnAmber = Color(0xFFD97706)
@@ -75,6 +78,7 @@ fun GachaCalculatorSection(pity: Map<String, PityState>) {
             when (tool) {
                 "calc" -> CurrencyCalc(game, banner, pity)
                 "prob" -> ProbCalc(game, banner, pity)
+                "sim" -> Simulator(game, banner)
                 else -> Planner(game, banner)
             }
         }
@@ -139,7 +143,7 @@ private fun BannerTypeRow(game: GachaGameRate, selected: String, onSelect: (Stri
 @Composable
 private fun ToolTabs(selected: String, onSelect: (String) -> Unit) {
     val accent = LocalAccent.current
-    val tabs = listOf("calc" to "재화 환산", "prob" to "확보 확률", "plan" to "뽑기 플래너")
+    val tabs = listOf("calc" to "환산", "prob" to "확률", "sim" to "시뮬", "plan" to "플래너")
     Row(
         Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Color(0xFFF2F2F6)).padding(3.dp),
         horizontalArrangement = Arrangement.spacedBy(3.dp),
@@ -155,7 +159,7 @@ private fun ToolTabs(selected: String, onSelect: (String) -> Unit) {
                     .padding(vertical = 8.dp),
                 contentAlignment = Alignment.Center,
             ) {
-                Text(label, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = if (isSel) Color.White else TextSecondary)
+                Text(label, fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1, color = if (isSel) Color.White else TextSecondary)
             }
         }
     }
@@ -399,6 +403,178 @@ private fun Planner(game: GachaGameRate, banner: GachaBannerRate) {
             onDismiss = { showPicker = false },
             onConfirm = { dateMillis = it; showPicker = false },
         )
+    }
+}
+
+// ============================================================ 뽑기 시뮬레이터 (N1)
+private val Gold5 = Color(0xFFE0A93B)
+private val Purple4 = Color(0xFF9B59B6)
+private val Gray3 = Color(0xFFB6B9C0)
+
+/** 단일 뽑기 결과: 등급(5/4/3) + 5★ 픽업 여부. */
+private data class PullResult(val tier: Int, val pickup: Boolean)
+
+/**
+ * 실확률·소프트/하드 천장으로 "탭해서 뽑기"를 체험하는 시뮬레이터.
+ * 5★는 [GachaRateData.rateAt] 실확률(소프트 천장 가속·하드 천장 보장)로 판정하고,
+ * 4★는 10연 보장(미획득 시 10번째 확정)으로 근사한다. 50/50·이월 보장도 반영한다.
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun Simulator(game: GachaGameRate, banner: GachaBannerRate) {
+    val accent = LocalAccent.current
+    // 시뮬 상태 — 게임/배너 바뀌면 초기화
+    var pity5 by remember(game.key, banner) { mutableIntStateOf(0) }
+    var pity4 by remember(game.key, banner) { mutableIntStateOf(0) }
+    var guaranteed by remember(game.key, banner) { mutableStateOf(false) }
+    var total by remember(game.key, banner) { mutableIntStateOf(0) }
+    var fiveCount by remember(game.key, banner) { mutableIntStateOf(0) }
+    var pickupCount by remember(game.key, banner) { mutableIntStateOf(0) }
+    var fourCount by remember(game.key, banner) { mutableIntStateOf(0) }
+    var lastBatch by remember(game.key, banner) { mutableStateOf<List<PullResult>>(emptyList()) }
+    var batchId by remember(game.key, banner) { mutableIntStateOf(0) }
+
+    fun rollOnce(): PullResult {
+        val p5 = GachaRateData.rateAt(pity5, banner)
+        if (Random.nextDouble() < p5) {
+            val pickup = when {
+                banner.no5050 || !banner.has5050 -> true
+                guaranteed -> { guaranteed = false; true }
+                Random.nextDouble() < 0.5 -> true
+                else -> { guaranteed = true; false } // 50/50 실패 → 다음 5★ 픽업 이월(carryover 게임)
+            }
+            pity5 = 0; pity4 = 0
+            fiveCount++; if (pickup) pickupCount++
+            return PullResult(5, pickup)
+        }
+        pity5++; pity4++
+        return if (pity4 >= 10 || Random.nextDouble() < 0.051) {
+            pity4 = 0; fourCount++; PullResult(4, false)
+        } else PullResult(3, false)
+    }
+
+    fun pull(n: Int) {
+        val results = ArrayList<PullResult>(n)
+        repeat(n) { results.add(rollOnce()) }
+        total += n
+        lastBatch = results
+        batchId++
+    }
+
+    fun reset() {
+        pity5 = 0; pity4 = 0; guaranteed = false
+        total = 0; fiveCount = 0; pickupCount = 0; fourCount = 0
+        lastBatch = emptyList(); batchId++
+    }
+
+    // 천장 진행도
+    val tier = com.gatcha.log.data.pityTierOf(pity5, banner)
+    val pityColor = when (tier) {
+        com.gatcha.log.data.PityTier.Reached -> BadRed
+        com.gatcha.log.data.PityTier.Imminent -> WarnAmber
+        com.gatcha.log.data.PityTier.Caution -> Gold5
+        else -> accent
+    }
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+        Text("천장 $pity5 / ${banner.hardPity}", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+        if (banner.has5050 && !banner.no5050) {
+            Surface(color = (if (guaranteed) OkGreen else TextSecondary).copy(alpha = 0.12f), shape = RoundedCornerShape(8.dp)) {
+                Text(
+                    if (guaranteed) "다음 5★ 픽업 확정" else "50/50",
+                    fontSize = 10.sp, fontWeight = FontWeight.Bold,
+                    color = if (guaranteed) OkGreen else TextSecondary,
+                    modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp),
+                )
+            }
+        }
+    }
+    Spacer(Modifier.height(6.dp))
+    LinearProgressIndicator(
+        progress = { (pity5.toFloat() / banner.hardPity).coerceIn(0f, 1f) },
+        color = pityColor, trackColor = ProgressEmpty,
+        modifier = Modifier.fillMaxWidth().height(7.dp).clip(CircleShape),
+    )
+    Spacer(Modifier.height(14.dp))
+
+    // 마지막 뽑기 결과 (순차 공개)
+    var revealed by remember(batchId) { mutableIntStateOf(0) }
+    LaunchedEffect(batchId) {
+        if (lastBatch.isEmpty()) { revealed = 0; return@LaunchedEffect }
+        revealed = 0
+        for (i in lastBatch.indices) { revealed = i + 1; delay(55) }
+    }
+    if (lastBatch.isNotEmpty()) {
+        FlowRow(
+            modifier = Modifier.fillMaxWidth().animateContentSize(),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            lastBatch.take(revealed).forEach { r -> ResultChip(r) }
+        }
+        Spacer(Modifier.height(14.dp))
+    }
+
+    // 뽑기 버튼
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        PullButton("1회 뽑기", accent, Modifier.weight(1f)) { pull(1) }
+        PullButton("10연차", accent, Modifier.weight(1f)) { pull(10) }
+    }
+    Spacer(Modifier.height(14.dp))
+
+    // 누적 통계
+    val avgPer = if (fiveCount > 0) "%.1f".format(total.toDouble() / fiveCount) else "—"
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        ResultBox("총 뽑기", "${total}회", "≈ ${num(total * banner.perPull)} ${banner.currency}", Modifier.weight(1f))
+        ResultBox("5★ 획득", "${fiveCount}개", if (banner.has5050 && !banner.no5050) "픽업 ${pickupCount} · 픽뚫 ${fiveCount - pickupCount}" else "픽업 $pickupCount", Modifier.weight(1f))
+    }
+    Spacer(Modifier.height(8.dp))
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        ResultBox("4★ 획득", "${fourCount}개", "", Modifier.weight(1f))
+        ResultBox("평균 천장", if (avgPer == "—") "—" else "${avgPer}회", "5★ 1개당", Modifier.weight(1f))
+    }
+    Spacer(Modifier.height(8.dp))
+    ResultBox("누적 추정 비용", won(total * banner.wonPerPull), "현금 충전 환산", Modifier.fillMaxWidth())
+    Spacer(Modifier.height(12.dp))
+    Box(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Color(0xFFF2F2F6)).clickable { reset() }.padding(vertical = 11.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text("초기화", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextSecondary)
+    }
+    Spacer(Modifier.height(4.dp))
+    Text("실제 확률·소프트/하드 천장 기반 시뮬레이션이에요. 결과는 체험용이며 실제 뽑기와 무관해요.", fontSize = 10.sp, color = TextSecondary)
+}
+
+@Composable
+private fun ResultChip(r: PullResult) {
+    val color = when (r.tier) { 5 -> Gold5; 4 -> Purple4; else -> Gray3 }
+    val size = if (r.tier >= 4) 40.dp else 34.dp
+    Box(
+        modifier = Modifier
+            .size(size)
+            .clip(RoundedCornerShape(10.dp))
+            .background(color.copy(alpha = if (r.tier == 3) 0.18f else 0.16f))
+            .padding(2.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text("${r.tier}★", fontSize = if (r.tier >= 4) 13.sp else 11.sp, fontWeight = FontWeight.Bold, color = if (r.tier == 3) TextSecondary else color)
+            if (r.tier == 5) Text(if (r.pickup) "픽업" else "픽뚫", fontSize = 7.sp, fontWeight = FontWeight.Bold, color = if (r.pickup) OkGreen else BadRed)
+        }
+    }
+}
+
+@Composable
+private fun PullButton(label: String, accent: Color, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    Box(
+        modifier
+            .clip(RoundedCornerShape(12.dp))
+            .background(accent)
+            .clickable { onClick() }
+            .padding(vertical = 13.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(label, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.White)
     }
 }
 
