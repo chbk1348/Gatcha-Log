@@ -22,7 +22,17 @@ internal fun UplogDialog(versionName: String, onDismiss: () -> Unit) {
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
             UplogEntry(
-                "v${versionName.ifBlank { "27.7.1" }}",
+                "v${versionName.ifBlank { "27.8.0" }}",
+                listOf(
+                    "앱 아이콘을 새 디자인(밤하늘 위 반짝이는 위시 스타)으로 단장했어요",
+                    "로딩·로그인 화면 로고와 앱 색감을 새 아이콘 톤에 맞춰 정리했어요",
+                    "모든 금액을 1,234원 형식(콤마+원)으로 통일해 읽기 쉽게",
+                    "알림 배지가 한 번 확인하면 다시 뜨지 않도록 수정 — 앱을 다시 열어도 유지돼요",
+                    "패치 일정에 버전 시작·종료 날짜를 함께 표시해 한눈에 알아보기 쉽게",
+                ),
+            )
+            UplogEntry(
+                "v27.7.1",
                 listOf(
                     "지출 추가 화면이 + 버튼에서 펼쳐지듯 열리는 전환으로 더 부드러워졌어요",
                     "+ 버튼에 입체 그림자를 더해 또렷하게",
