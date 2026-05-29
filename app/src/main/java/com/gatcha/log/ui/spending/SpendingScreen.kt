@@ -53,6 +53,7 @@ private sealed interface SpendingScreenNav {
     data object List : SpendingScreenNav
     data object Annual : SpendingScreenNav
     data object Insight : SpendingScreenNav
+    data object Calendar : SpendingScreenNav
     data class Detail(val spending: Spending) : SpendingScreenNav
 }
 
@@ -119,6 +120,10 @@ fun SpendingScreen(
                 SpendingInsightScreen(viewModel, onBack = { nav = SpendingScreenNav.List })
                 return@AnimatedContent
             }
+            is SpendingScreenNav.Calendar -> {
+                CalendarScreen(viewModel, onBack = { nav = SpendingScreenNav.List })
+                return@AnimatedContent
+            }
             is SpendingScreenNav.Detail -> {
                 // 편집 반영을 위해 라이브 목록에서 재조회(삭제됐으면 스냅샷으로 폴백 → 종료 애니 동안 표시 유지)
                 val live = spendings.firstOrNull { it.id == navState.spending.id } ?: navState.spending
@@ -147,6 +152,7 @@ fun SpendingScreen(
                 ) {
                     Text("지출 분석", fontSize = 24.sp, fontWeight = FontWeight.Bold)
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                        CalendarButton { nav = SpendingScreenNav.Calendar }
                         InsightButton { nav = SpendingScreenNav.Insight }
                         AnnualReportButton { nav = SpendingScreenNav.Annual }
                     }
@@ -295,6 +301,25 @@ private fun AnnualReportButton(onClick: () -> Unit) {
             Spacer(Modifier.width(5.dp))
             Text("연간 리포트", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = accent)
         }
+    }
+}
+
+/** 지출 분석 헤더 우측의 캘린더 진입 버튼 — 공간 절약을 위해 아이콘 전용 알약. */
+@Composable
+private fun CalendarButton(onClick: () -> Unit) {
+    val accent = LocalAccent.current
+    Surface(
+        shape = RoundedCornerShape(11.dp),
+        color = accent.copy(alpha = 0.10f),
+        border = androidx.compose.foundation.BorderStroke(1.5.dp, accent.copy(alpha = 0.30f)),
+        modifier = Modifier.clickable { onClick() },
+    ) {
+        Icon(
+            Icons.Default.CalendarMonth,
+            contentDescription = "캘린더",
+            tint = accent,
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp).size(16.dp),
+        )
     }
 }
 
