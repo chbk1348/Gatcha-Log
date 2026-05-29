@@ -18,6 +18,7 @@ import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.Savings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -41,6 +42,7 @@ import com.gatcha.log.data.category
 import com.gatcha.log.data.Spending
 import com.gatcha.log.ui.components.GlgButton
 import com.gatcha.log.ui.components.GlgDatePickerDialog
+import com.gatcha.log.ui.components.GlgDialog
 import com.gatcha.log.ui.components.GlgFieldLabel
 import com.gatcha.log.ui.components.GlgOutlineButton
 import com.gatcha.log.ui.components.GlgSwitch
@@ -59,6 +61,7 @@ private val ChipIdleBg = Color(0xFFF2F2F7)
 @Composable
 fun AddSpendingModal(
     spendingToEdit: Spending? = null,
+    nudgeMessage: (game: Game, amount: Long) -> String? = { _, _ -> null },
     onDismiss: () -> Unit,
     onSave: (Spending) -> Unit,
 ) {
@@ -78,12 +81,41 @@ fun AddSpendingModal(
     var isSubscription by remember(spendingToEdit) { mutableStateOf(spendingToEdit?.isSubscription ?: false) }
     var selectedPackage by remember(spendingToEdit) { mutableStateOf<GamePackage?>(null) }
     val showDatePicker = remember { mutableStateOf(false) }
+    // N6 과소비 넛지 — 저장 직전 경고 메시지(있으면 확인 다이얼로그 노출 후 그래도 추가 시 저장).
+    var nudgeMsg by remember { mutableStateOf<String?>(null) }
 
     fun applyPackage(pkg: GamePackage) {
         selectedPackage = pkg
         amount = pkg.price.toString()
         itemName = pkg.name
         isSubscription = pkg.bonus == "월정액"
+    }
+
+    fun buildSpending(): Spending {
+        val parsed = amount.toLongOrNull() ?: 0L
+        val tags = (selectedTags + customTags.split(",", " "))
+            .map { it.trim() }
+            .filter { it.isNotEmpty() }
+            .distinct()
+        val base = spendingToEdit ?: Spending(gameName = game.displayName, amount = parsed)
+        return base.copy(
+            gameName = game.displayName,
+            amount = parsed,
+            dateMillis = dateMillis,
+            paymentMethod = paymentMethod,
+            itemName = itemName,
+            memo = memo,
+            tags = tags,
+            isSubscription = isSubscription,
+            gameColor = game.color,
+        )
+    }
+
+    // 저장 시도 — 넛지 메시지가 있으면 확인 다이얼로그를 띄우고, 없으면 즉시 저장.
+    fun attemptSave() {
+        val parsed = amount.toLongOrNull() ?: 0L
+        val msg = nudgeMessage(game, parsed)
+        if (msg != null) nudgeMsg = msg else onSave(buildSpending())
     }
 
     // 시스템 뒤로가기 처리(풀스크린 페이지처럼 동작) — 시트 외부 dismiss 가 사라졌으므로 명시.
@@ -272,27 +304,7 @@ fun AddSpendingModal(
                     GlgOutlineButton("취소", onDismiss, Modifier.weight(1f), height = 54.dp)
                     GlgButton(
                         text = if (editing) "수정하기" else "저장하기",
-                        onClick = {
-                            val parsed = amount.toLongOrNull() ?: 0L
-                            val tags = (selectedTags + customTags.split(",", " "))
-                                .map { it.trim() }
-                                .filter { it.isNotEmpty() }
-                                .distinct()
-                            val base = spendingToEdit ?: Spending(gameName = game.displayName, amount = parsed)
-                            onSave(
-                                base.copy(
-                                    gameName = game.displayName,
-                                    amount = parsed,
-                                    dateMillis = dateMillis,
-                                    paymentMethod = paymentMethod,
-                                    itemName = itemName,
-                                    memo = memo,
-                                    tags = tags,
-                                    isSubscription = isSubscription,
-                                    gameColor = game.color,
-                                )
-                            )
-                        },
+                        onClick = { attemptSave() },
                         modifier = Modifier.weight(1.5f),
                         enabled = amountValid,
                         height = 54.dp,
@@ -308,6 +320,27 @@ fun AddSpendingModal(
             onDismiss = { showDatePicker.value = false },
             onConfirm = { dateMillis = it; showDatePicker.value = false },
         )
+    }
+
+    // N6 과소비 리플렉션 넛지 — 예산·평소치 초과 시 저장 직전 한 번 더 확인(예방형).
+    nudgeMsg?.let { msg ->
+        GlgDialog(
+            title = "잠깐, 다시 한 번 볼까요?",
+            onDismiss = { nudgeMsg = null },
+            dismissText = "다시 볼게요",
+            confirmText = "그래도 추가",
+            onConfirm = {
+                val s = buildSpending()
+                nudgeMsg = null
+                onSave(s)
+            },
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.Savings, null, tint = LocalAccent.current, modifier = Modifier.size(22.dp))
+                Spacer(Modifier.width(12.dp))
+                Text(msg, fontSize = 14.sp, color = TextPrimary, lineHeight = 20.sp)
+            }
+        }
     }
 }
 

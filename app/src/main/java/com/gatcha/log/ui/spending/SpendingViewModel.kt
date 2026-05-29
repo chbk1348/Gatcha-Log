@@ -43,6 +43,7 @@ import com.gatcha.log.data.api.GiftCode
 import com.gatcha.log.data.api.GiftCodeApi
 import com.gatcha.log.data.api.UpdateChecker
 import com.gatcha.log.data.api.UpdateInfo
+import com.gatcha.log.util.won
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -148,6 +149,46 @@ class SpendingViewModel(app: Application) : AndroidViewModel(app) {
     val notifyResin: StateFlow<Boolean> = _notifyResin.asStateFlow()
     private val _notifyWish = MutableStateFlow(appSettings.notifyWish)
     val notifyWish: StateFlow<Boolean> = _notifyWish.asStateFlow()
+
+    // 과소비 리플렉션 넛지(지출 추가 시점) — 토글 + 평소치 기준액
+    private val _nudgeOverspend = MutableStateFlow(appSettings.nudgeOverspend)
+    val nudgeOverspend: StateFlow<Boolean> = _nudgeOverspend.asStateFlow()
+    private val _nudgeThreshold = MutableStateFlow(appSettings.nudgeThreshold)
+    val nudgeThreshold: StateFlow<Long> = _nudgeThreshold.asStateFlow()
+    fun setNudgeOverspend(v: Boolean) { appSettings.nudgeOverspend = v; _nudgeOverspend.value = v }
+    fun setNudgeThreshold(v: Long) { appSettings.nudgeThreshold = v; _nudgeThreshold.value = v }
+
+    /**
+     * N6 과소비 넛지 판정 — 지출 저장 직전 호출. 경고가 필요하면 메시지, 아니면 null.
+     * 우선순위: 게임별 한도 초과 예상 → 전체 예산 초과 예상 → 단건 큰 금액(평소치 초과).
+     * 수정 시엔 같은 달의 기존 금액을 빼서 순증분으로 예측(이중 합산 방지).
+     */
+    fun overspendNudge(game: Game, amount: Long, editingId: String? = null): String? {
+        if (!appSettings.nudgeOverspend || amount <= 0) return null
+        val editRecord = editingId?.let { id -> _spendings.value.firstOrNull { it.id == id } }
+        // 이번 달에 이미 집계된 기존 금액만 차감(다른 달 기록 수정 시 이중차감 방지).
+        val prevInMonth = editRecord != null && DateUtil.isSameMonth(editRecord.dateMillis, currentYear, currentMonth)
+        val prev = if (prevInMonth) editRecord.amount else 0L
+        val prevSameGame = prevInMonth && editRecord.gameName == game.displayName
+
+        val gameNow = monthlyTotalsByGame()[game.key] ?: 0L
+        val monthNow = monthlyTotal()
+        val projectedGame = gameNow - (if (prevSameGame) prev else 0L) + amount
+        val projectedMonth = monthNow - prev + amount
+
+        val gameLimit = _gameBudgets.value[game.key] ?: 0L
+        val overall = _budget.value
+        val threshold = appSettings.nudgeThreshold
+        return when {
+            gameLimit > 0 && projectedGame > gameLimit ->
+                "${game.shortName}에 이번 달 이미 ${won(gameNow)} 썼어요.\n추가하면 한도 ${won(gameLimit)}을 넘어요."
+            overall > 0 && projectedMonth > overall ->
+                "이번 달 이미 ${won(monthNow)} 썼어요.\n추가하면 예산 ${won(overall)}을 넘어요."
+            threshold > 0 && amount >= threshold ->
+                "${won(amount)}은 평소보다 큰 지출이에요.\n정말 추가할까요?"
+            else -> null
+        }
+    }
 
     fun setNotifyBudget(v: Boolean) { appSettings.notifyBudget = v; _notifyBudget.value = v; applyNativeAfterNotifyChange(v) }
     fun setNotifyAttendance(v: Boolean) { appSettings.notifyAttendance = v; _notifyAttendance.value = v; applyNativeAfterNotifyChange(v) }

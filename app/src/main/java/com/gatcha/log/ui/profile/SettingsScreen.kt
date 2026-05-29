@@ -39,6 +39,9 @@ import com.gatcha.log.ui.components.GlgScreenHeader
 import com.gatcha.log.ui.components.GlgDialog
 import com.gatcha.log.ui.components.GlgOutlineButton
 import com.gatcha.log.ui.components.GlgSwitch
+import com.gatcha.log.ui.components.GlgTextField
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.KeyboardType
 import com.gatcha.log.ui.components.ProfileAvatar
 import com.gatcha.log.ui.game.HoyolabLinkScreen
 import com.gatcha.log.ui.spending.SpendingViewModel
@@ -62,6 +65,8 @@ fun SettingsScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
     val notifyAttendance by viewModel.notifyAttendance.collectAsState()
     val notifyResin by viewModel.notifyResin.collectAsState()
     val notifyWish by viewModel.notifyWish.collectAsState()
+    val nudgeOverspend by viewModel.nudgeOverspend.collectAsState()
+    val nudgeThreshold by viewModel.nudgeThreshold.collectAsState()
     val gachaStats by viewModel.gachaStats.collectAsState()
     val spendings by viewModel.spendings.collectAsState()
     val versionName = remember { com.gatcha.log.data.api.UpdateChecker.currentVersionName(context) }
@@ -81,6 +86,7 @@ fun SettingsScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
     }
 
     val showBudget = remember { mutableStateOf(false) }
+    val showNudgeThreshold = remember { mutableStateOf(false) }
     val showHoyolab = remember { mutableStateOf(false) }
 
     // 홈 만료 배너 CTA → 마이페이지 → 설정 → HoYoLAB 연동까지 자동 진입(C4 흐름).
@@ -162,6 +168,17 @@ fun SettingsScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
             GlassCard(shape = RoundedCornerShape(24.dp), modifier = Modifier.fillMaxWidth()) {
                 Column {
                     SettingsItem("월 예산", Icons.Default.Savings, value = if (budget > 0) won(budget) else "미설정") { showBudget.value = true }
+                    HorizontalDivider(color = DividerColor, modifier = Modifier.padding(horizontal = 16.dp))
+                    SettingsToggleRow(
+                        Icons.Default.Psychology,
+                        "과소비 예방 넛지",
+                        "지출 추가 시 예산·평소치를 넘으면 한 번 더 확인해요",
+                        nudgeOverspend,
+                    ) { viewModel.setNudgeOverspend(it) }
+                    if (nudgeOverspend) {
+                        HorizontalDivider(color = DividerColor, modifier = Modifier.padding(horizontal = 16.dp))
+                        SettingsItem("넛지 기준 금액", Icons.Default.PriceCheck, value = won(nudgeThreshold)) { showNudgeThreshold.value = true }
+                    }
                     HorizontalDivider(color = DividerColor, modifier = Modifier.padding(horizontal = 16.dp))
                     SettingsItem("HoYoLAB 계정 연동", Icons.Default.Link, value = if (hoyolab.isLinked) "연동됨" else "미연동") { showHoyolab.value = true }
                 }
@@ -345,6 +362,13 @@ fun SettingsScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
             onConfirm = { o, perGame -> viewModel.setBudgets(o, perGame); showBudget.value = false },
         )
     }
+    if (showNudgeThreshold.value) {
+        NudgeThresholdDialog(
+            current = nudgeThreshold,
+            onDismiss = { showNudgeThreshold.value = false },
+            onConfirm = { viewModel.setNudgeThreshold(it); showNudgeThreshold.value = false },
+        )
+    }
     if (showUplog.value) {
         UplogDialog(versionName) { showUplog.value = false }
     }
@@ -392,6 +416,31 @@ fun SettingsScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
 @Composable
 private fun SectionTitle(text: String) {
     Text(text, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextSecondary, modifier = Modifier.padding(bottom = 10.dp, start = 4.dp))
+}
+
+/** 과소비 넛지 기준 금액 입력 다이얼로그 — 단건 지출이 이 금액 이상이면 확인. */
+@Composable
+private fun NudgeThresholdDialog(current: Long, onDismiss: () -> Unit, onConfirm: (Long) -> Unit) {
+    var text by remember { mutableStateOf(if (current > 0) current.toString() else "") }
+    GlgDialog(
+        title = "넛지 기준 금액",
+        onDismiss = onDismiss,
+        confirmText = "저장",
+        onConfirm = { onConfirm(text.toLongOrNull() ?: 0L) },
+    ) {
+        Column {
+            Text("단건 지출이 이 금액 이상이면 추가 전 한 번 더 확인해요.", fontSize = 12.sp, color = TextSecondary)
+            Spacer(Modifier.height(12.dp))
+            GlgTextField(
+                value = text,
+                onValueChange = { v -> text = v.filter { it.isDigit() } },
+                label = "기준 금액 (원)",
+                placeholder = "100000",
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+    }
 }
 
 /** 아이콘 + 제목/설명 + 스위치 한 줄 (설정 토글 항목). */

@@ -164,6 +164,7 @@ fun HomeScreen(viewModel: SpendingViewModel = viewModel()) {
             ) {
                 AddSpendingModal(
                     spendingToEdit = spendingToEdit.value,
+                    nudgeMessage = { game, amount -> viewModel.overspendNudge(game, amount, spendingToEdit.value?.id) },
                     onDismiss = {
                         showAddSpendingSheet.value = false
                         spendingToEdit.value = null
