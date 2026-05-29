@@ -84,6 +84,22 @@ class GatchaRepository(context: Context, accountId: String = "guest") {
     fun loadBudget(): Long = prefs.getLong(KEY_BUDGET, 0L) // 0 = 미설정(사용자가 지정해야 함)
     fun saveBudget(value: Long) { prefs.edit().putLong(KEY_BUDGET, value).apply(); changed() }
 
+    /** 게임별 월 한도(gameKey → 금액). 한도 없는 게임은 키 자체가 없음. 전체 예산[loadBudget]과 별개. */
+    fun loadGameBudgets(): Map<String, Long> {
+        val raw = prefs.getString(KEY_BUDGET_GAMES, null) ?: return emptyMap()
+        return runCatching {
+            val o = JSONObject(raw)
+            buildMap { o.keys().forEach { k -> o.optLong(k, 0L).takeIf { it > 0 }?.let { put(k, it) } } }
+        }.getOrDefault(emptyMap())
+    }
+
+    fun saveGameBudgets(map: Map<String, Long>) {
+        val o = JSONObject()
+        map.forEach { (k, v) -> if (v > 0) o.put(k, v) }
+        prefs.edit().putString(KEY_BUDGET_GAMES, o.toString()).apply()
+        changed()
+    }
+
     // ---------------------------------------------------------------- 프로필
     fun loadProfile(): UserProfile = UserProfile(
         name = prefs.getString(KEY_PROFILE_NAME, "게스트") ?: "게스트",
@@ -309,6 +325,7 @@ class GatchaRepository(context: Context, accountId: String = "guest") {
         val o = JSONObject()
         prefs.getString(KEY_SPENDINGS, null)?.let { o.put(KEY_SPENDINGS, JSONArray(it)) }
         o.put(KEY_BUDGET, loadBudget())
+        prefs.getString(KEY_BUDGET_GAMES, null)?.let { o.put(KEY_BUDGET_GAMES, JSONObject(it)) }
         prefs.getString(KEY_PROFILE_NAME, null)?.let { o.put(KEY_PROFILE_NAME, it) }
         prefs.getString(KEY_PROFILE_EMAIL, null)?.let { o.put(KEY_PROFILE_EMAIL, it) }
         // 토큰(ltuid/ltoken/cookieToken/webCookie)은 보안상 스냅샷에 절대 포함하지 않는다(암호화 저장소 전용).
@@ -335,6 +352,7 @@ class GatchaRepository(context: Context, accountId: String = "guest") {
         prefs.edit().apply {
             if (o.has(KEY_SPENDINGS)) putString(KEY_SPENDINGS, o.getJSONArray(KEY_SPENDINGS).toString())
             if (o.has(KEY_BUDGET)) putLong(KEY_BUDGET, o.getLong(KEY_BUDGET))
+            if (o.has(KEY_BUDGET_GAMES)) putString(KEY_BUDGET_GAMES, o.getJSONObject(KEY_BUDGET_GAMES).toString())
             if (o.has(KEY_PROFILE_NAME)) putString(KEY_PROFILE_NAME, o.getString(KEY_PROFILE_NAME))
             if (o.has(KEY_PROFILE_EMAIL)) putString(KEY_PROFILE_EMAIL, o.getString(KEY_PROFILE_EMAIL))
             // 토큰 키는 스냅샷에서 의도적으로 제외 — 구버전 클라우드/백업에 토큰이 남아 있어도 가져오지 않는다.
@@ -362,6 +380,7 @@ class GatchaRepository(context: Context, accountId: String = "guest") {
         const val KEY_READ_ALERTS = "read_alerts"
         const val KEY_SPENDINGS = "spendings"
         const val KEY_BUDGET = "budget"
+        const val KEY_BUDGET_GAMES = "budget_games"
         const val KEY_PROFILE_NAME = "profile_name"
         const val KEY_PROFILE_EMAIL = "profile_email"
         const val KEY_HOYO_LTUID = "hoyo_ltuid"

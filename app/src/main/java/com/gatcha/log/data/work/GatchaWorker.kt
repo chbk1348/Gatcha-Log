@@ -36,13 +36,15 @@ class GatchaWorker(appContext: Context, params: WorkerParameters) : CoroutineWor
     }
 
     private suspend fun checkNotifications(ctx: Context, settings: AppSettings, repo: GatchaRepository, cfg: HoyolabConfig) {
-        // ① 예산 임박/초과 (로컬 데이터) — 월·레벨 단위 1회
+        // ① 예산 임박/초과 (로컬 데이터) — 월·레벨 단위 1회. 전체 예산 + 게임별 한도.
         if (settings.notifyBudget) {
+            val now = System.currentTimeMillis()
+            val y = DateUtil.year(now); val m = DateUtil.month(now)
+            val monthSpendings = repo.loadSpendings().filter { DateUtil.isSameMonth(it.dateMillis, y, m) }
+
             val budget = repo.loadBudget()
             if (budget > 0) {
-                val now = System.currentTimeMillis()
-                val y = DateUtil.year(now); val m = DateUtil.month(now)
-                val total = repo.loadSpendings().filter { DateUtil.isSameMonth(it.dateMillis, y, m) }.sumOf { it.amount }
+                val total = monthSpendings.sumOf { it.amount }
                 val pct = (total * 100 / budget).toInt()
                 val level = when { total > budget -> "over"; pct >= 90 -> "near"; else -> null }
                 if (level != null) {
@@ -51,6 +53,25 @@ class GatchaWorker(appContext: Context, params: WorkerParameters) : CoroutineWor
                         settings.setLastNotified("budget", key)
                         if (level == "over") Notifier.notify(ctx, Notifier.ID_BUDGET, "예산 초과", "이번 달 예산을 초과했어요 (${pct}%)")
                         else Notifier.notify(ctx, Notifier.ID_BUDGET, "예산 임박", "이번 달 예산의 ${pct}%를 사용했어요")
+                    }
+                }
+            }
+
+            // 게임별 한도 — 게임마다 별도 알림 ID·dedup 키
+            repo.loadGameBudgets().forEach { (gameKey, limit) ->
+                if (limit <= 0) return@forEach
+                val game = GameData.games.firstOrNull { it.key == gameKey } ?: return@forEach
+                val total = monthSpendings.filter { GameData.byNameOrNull(it.gameName)?.key == gameKey }.sumOf { it.amount }
+                val pct = (total * 100 / limit).toInt()
+                val level = when { total > limit -> "over"; pct >= 90 -> "near"; else -> null }
+                if (level != null) {
+                    val key = "$y-$m:$level"
+                    val tag = "budget_game:$gameKey"
+                    if (settings.lastNotified(tag) != key) {
+                        settings.setLastNotified(tag, key)
+                        val nid = Notifier.ID_BUDGET_GAME_BASE + game.ordinal
+                        if (level == "over") Notifier.notify(ctx, nid, "${game.shortName} 예산 초과", "${game.shortName} 이번 달 한도를 초과했어요 (${pct}%)")
+                        else Notifier.notify(ctx, nid, "${game.shortName} 예산 임박", "${game.shortName} 한도의 ${pct}%를 사용했어요")
                     }
                 }
             }

@@ -86,6 +86,10 @@ class SpendingViewModel(app: Application) : AndroidViewModel(app) {
     private val _budget = MutableStateFlow(0L) // 0 = 미설정
     val budget: StateFlow<Long> = _budget.asStateFlow()
 
+    /** 게임별 월 한도(gameKey → 금액). 한도 없는 게임은 키 없음. 전체 예산[budget]과 별개. */
+    private val _gameBudgets = MutableStateFlow<Map<String, Long>>(emptyMap())
+    val gameBudgets: StateFlow<Map<String, Long>> = _gameBudgets.asStateFlow()
+
     private val _profile = MutableStateFlow(UserProfile())
     val profile: StateFlow<UserProfile> = _profile.asStateFlow()
 
@@ -188,6 +192,7 @@ class SpendingViewModel(app: Application) : AndroidViewModel(app) {
     private fun loadAll() {
         _spendings.value = repo.loadSpendings()
         _budget.value = repo.loadBudget()
+        _gameBudgets.value = repo.loadGameBudgets()
         _profile.value = repo.loadProfile()
         _hoyolabConfig.value = repo.loadHoyolab()
         _accentIndex.value = repo.loadAccentIndex()
@@ -312,6 +317,30 @@ class SpendingViewModel(app: Application) : AndroidViewModel(app) {
         _budget.value = value
         repo.saveBudget(value)
     }
+
+    /** 게임별 한도 설정. value 0 이면 해당 게임 한도 해제. */
+    fun setGameBudget(gameKey: String, value: Long) {
+        val updated = _gameBudgets.value.toMutableMap()
+        if (value > 0) updated[gameKey] = value else updated.remove(gameKey)
+        _gameBudgets.value = updated
+        repo.saveGameBudgets(updated)
+    }
+
+    /** 전체 예산 + 게임별 한도를 한 번에 저장(예산 관리 시트용). */
+    fun setBudgets(overall: Long, perGame: Map<String, Long>) {
+        _budget.value = overall
+        repo.saveBudget(overall)
+        val cleaned = perGame.filterValues { it > 0 }
+        _gameBudgets.value = cleaned
+        repo.saveGameBudgets(cleaned)
+    }
+
+    /** 이번 달 게임별 지출 합계(gameKey → 금액). */
+    fun monthlyTotalsByGame(year: Int = currentYear, month: Int = currentMonth): Map<String, Long> =
+        _spendings.value
+            .filter { DateUtil.isSameMonth(it.dateMillis, year, month) }
+            .groupBy { GameData.byNameOrNull(it.gameName)?.key ?: it.gameName }
+            .mapValues { e -> e.value.sumOf { it.amount } }
 
     // ----------------------------------------------------------------- 프로필
     fun setProfileName(name: String) {

@@ -263,6 +263,7 @@ fun HomeContent(
 ) {
     val spendings by viewModel.spendings.collectAsState()
     val budget by viewModel.budget.collectAsState()
+    val gameBudgets by viewModel.gameBudgets.collectAsState()
     val profile by viewModel.profile.collectAsState()
     val attendanceToday by viewModel.attendanceToday.collectAsState()
     val banners by viewModel.activeBanners.collectAsState()
@@ -284,8 +285,20 @@ fun HomeContent(
     }
     val topGame = remember(spendings) { viewModel.topGameThisMonth() }
 
+    // 게임별 한도 초과 게임(이번 달) — 알림센터 표시용
+    val gameOverBudget = remember(spendings, gameBudgets) {
+        if (gameBudgets.isEmpty()) emptyList()
+        else {
+            val totals = viewModel.monthlyTotalsByGame()
+            GameData.games.mapNotNull { g ->
+                val limit = gameBudgets[g.key] ?: 0L
+                if (limit > 0 && (totals[g.key] ?: 0L) > limit) g.shortName else null
+            }
+        }
+    }
+
     // 알림 계산 + 읽음(넛징) 상태
-    val alerts = buildAlerts(monthlyTotal, budget, banners.map { it.dDay() to it.name }, attendanceToday, "${viewModel.displayYear}-${viewModel.displayMonth}")
+    val alerts = buildAlerts(monthlyTotal, budget, gameOverBudget, banners.map { it.dDay() to it.name }, attendanceToday, "${viewModel.displayYear}-${viewModel.displayMonth}")
     val readAlerts by viewModel.readAlerts.collectAsState()
     val unreadCount = alerts.count { it.key !in readAlerts }
 
@@ -383,9 +396,11 @@ fun HomeContent(
 
     if (showBudgetDialog.value) {
         BudgetDialog(
-            current = budget,
+            overall = budget,
+            gameBudgets = gameBudgets,
+            monthlyTotals = remember(spendings) { viewModel.monthlyTotalsByGame() },
             onDismiss = { showBudgetDialog.value = false },
-            onConfirm = { viewModel.setBudget(it); showBudgetDialog.value = false },
+            onConfirm = { o, perGame -> viewModel.setBudgets(o, perGame); showBudgetDialog.value = false },
         )
     }
 
@@ -399,7 +414,7 @@ fun HomeContent(
 }
 
 /** 알림 종류 — 카드 아이콘/색/이동 동작을 결정 */
-private enum class AlertKind { BUDGET_OVER, BUDGET_NEAR, BANNER, ATTENDANCE }
+private enum class AlertKind { BUDGET_OVER, BUDGET_NEAR, BUDGET_GAME_OVER, BANNER, ATTENDANCE }
 
 /** 구조화된 홈 알림 (종류 + 메시지). message 가 읽음 처리 키로도 쓰임. */
 private data class HomeAlert(val kind: AlertKind, val message: String, val key: String)
@@ -407,6 +422,7 @@ private data class HomeAlert(val kind: AlertKind, val message: String, val key: 
 private fun buildAlerts(
     monthlyTotal: Long,
     budget: Long,
+    gameOverBudget: List<String>,
     bannerDDays: List<Pair<Int, String>>,
     attendanceToday: Set<String>,
     monthKey: String,
@@ -418,6 +434,9 @@ private fun buildAlerts(
         val pct = (monthlyTotal * 100 / budget).toInt()
         if (monthlyTotal > budget) add(HomeAlert(AlertKind.BUDGET_OVER, "이번 달 예산을 초과했어요 (${pct}%)", "budget_over:$monthKey"))
         else if (pct >= 90) add(HomeAlert(AlertKind.BUDGET_NEAR, "이번 달 예산의 ${pct}%를 사용했어요", "budget_near:$monthKey"))
+    }
+    gameOverBudget.forEach { name ->
+        add(HomeAlert(AlertKind.BUDGET_GAME_OVER, "$name 이번 달 한도를 초과했어요", "budget_game_over:$name:$monthKey"))
     }
     bannerDDays.filter { it.first in 0..3 }.forEach { (d, name) ->
         add(HomeAlert(AlertKind.BANNER, "$name 픽업 배너 종료 ${if (d == 0) "D-DAY" else "D-$d"}", "banner:$name"))
@@ -818,7 +837,7 @@ private fun NotificationDetailScreen(
                 items(alerts) { alert ->
                     NotificationCard(alert) {
                         when (alert.kind) {
-                            AlertKind.BUDGET_OVER, AlertKind.BUDGET_NEAR -> onBudget()
+                            AlertKind.BUDGET_OVER, AlertKind.BUDGET_NEAR, AlertKind.BUDGET_GAME_OVER -> onBudget()
                             AlertKind.BANNER, AlertKind.ATTENDANCE -> onGameInfo()
                         }
                     }
@@ -837,6 +856,7 @@ private fun NotificationCard(alert: HomeAlert, onClick: () -> Unit) {
     when (alert.kind) {
         AlertKind.BUDGET_OVER -> { icon = Icons.Default.Savings; tint = DangerText; hint = "예산 설정하기" }
         AlertKind.BUDGET_NEAR -> { icon = Icons.Default.Savings; tint = WarningText; hint = "예산 설정하기" }
+        AlertKind.BUDGET_GAME_OVER -> { icon = Icons.Default.Savings; tint = DangerText; hint = "예산 설정하기" }
         AlertKind.BANNER -> { icon = Icons.Default.Bolt; tint = accent; hint = "게임 정보 보기" }
         AlertKind.ATTENDANCE -> { icon = Icons.Default.CheckCircleOutline; tint = accent; hint = "출석하러 가기" }
     }

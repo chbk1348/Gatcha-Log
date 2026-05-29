@@ -54,6 +54,7 @@ fun SettingsScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
     val context = LocalContext.current
     val account by viewModel.account.collectAsState()
     val budget by viewModel.budget.collectAsState()
+    val gameBudgets by viewModel.gameBudgets.collectAsState()
     val accentIndex by viewModel.accentIndex.collectAsState()
     val hoyolab by viewModel.hoyolabConfig.collectAsState()
     val autoCheckIn by viewModel.autoCheckIn.collectAsState()
@@ -336,7 +337,13 @@ fun SettingsScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
     }
 
     if (showBudget.value) {
-        BudgetDialog(budget, onDismiss = { showBudget.value = false }) { viewModel.setBudget(it); showBudget.value = false }
+        BudgetDialog(
+            overall = budget,
+            gameBudgets = gameBudgets,
+            monthlyTotals = viewModel.monthlyTotalsByGame(),
+            onDismiss = { showBudget.value = false },
+            onConfirm = { o, perGame -> viewModel.setBudgets(o, perGame); showBudget.value = false },
+        )
     }
     if (showUplog.value) {
         UplogDialog(versionName) { showUplog.value = false }

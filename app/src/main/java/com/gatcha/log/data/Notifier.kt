@@ -26,6 +26,8 @@ object Notifier {
     const val ID_RESIN_BASE = 2100 // + game.ordinal
     // 위시 픽업: 캐릭터 이름 해시로 1000 범위에 분산(여러 캐릭이 동시 픽업되면 별개 알림 유지).
     const val ID_WISH_PICKUP_BASE = 2200
+    // 게임별 예산 초과/임박 — 위시 범위(2200~3223) 위로 분리. + game.ordinal
+    const val ID_BUDGET_GAME_BASE = 3300
 
     private fun ensureChannel(ctx: Context) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
