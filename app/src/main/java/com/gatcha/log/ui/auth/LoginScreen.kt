@@ -1,14 +1,21 @@
 package com.gatcha.log.ui.auth
 
 import android.app.Activity
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.CloudSync
 import androidx.compose.material.icons.filled.Percent
@@ -17,15 +24,20 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.gatcha.log.R
 import com.gatcha.log.ui.components.GlgButton
 import com.gatcha.log.ui.components.GlgOutlineButton
 import com.gatcha.log.ui.components.GlgStatusToast
@@ -61,12 +73,7 @@ fun LoginScreen(viewModel: SpendingViewModel) {
             modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 28.dp),
         )
         Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
-            Box(
-                Modifier.size(84.dp).clip(CircleShape).background(accent.copy(alpha = 0.14f)),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(Icons.Default.AutoAwesome, null, tint = accent, modifier = Modifier.size(44.dp))
-            }
+            WishStarLogo(boxSize = 84.dp)
             Spacer(Modifier.height(20.dp))
             Text("Gatcha LOG", fontSize = 28.sp, fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(6.dp))
@@ -128,6 +135,54 @@ private fun FeatureRow(icon: ImageVector, title: String, desc: String) {
 }
 
 /**
+ * 앱 아이콘(다크 네이비 스퀘어클 + 민트 위시 스타) 로고 + 애니메이션. 로그인·로딩 화면 공용.
+ * 진입 팝(바운스 스케일·페이드) + 무한 호흡 펄스 + 글로우 헤일로.
+ */
+@Composable
+private fun WishStarLogo(boxSize: Dp, modifier: Modifier = Modifier) {
+    val accent = LocalAccent.current
+    val enter = remember { Animatable(0f) }
+    LaunchedEffect(Unit) {
+        enter.animateTo(1f, spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow))
+    }
+    val infinite = rememberInfiniteTransition(label = "wishLogo")
+    val pulse by infinite.animateFloat(
+        initialValue = 1f, targetValue = 1.05f,
+        animationSpec = infiniteRepeatable(tween(1400), RepeatMode.Reverse), label = "pulse",
+    )
+    val haloAlpha by infinite.animateFloat(
+        initialValue = 0.12f, targetValue = 0.32f,
+        animationSpec = infiniteRepeatable(tween(1600), RepeatMode.Reverse), label = "haloAlpha",
+    )
+    val haloScale by infinite.animateFloat(
+        initialValue = 0.9f, targetValue = 1.2f,
+        animationSpec = infiniteRepeatable(tween(1600), RepeatMode.Reverse), label = "haloScale",
+    )
+    Box(modifier, contentAlignment = Alignment.Center) {
+        // 뒤에서 번지는 글로우 헤일로
+        Box(
+            Modifier.size(boxSize * 1.4f).scale(haloScale).clip(CircleShape)
+                .background(accent.copy(alpha = haloAlpha * enter.value)),
+        )
+        // 스퀘어클 네이비 배경 + 위시 스타 foreground (런처 마스크처럼 1.5x로 채우고 넘침은 클립)
+        Box(
+            Modifier.size(boxSize)
+                .scale(enter.value * pulse)
+                .alpha(enter.value)
+                .clip(RoundedCornerShape(boxSize * 0.27f))
+                .background(Brush.linearGradient(listOf(Color(0xFF2B3F70), Color(0xFF0F1A33)))),
+            contentAlignment = Alignment.Center,
+        ) {
+            Image(
+                painter = painterResource(R.drawable.ic_launcher_foreground),
+                contentDescription = null,
+                modifier = Modifier.fillMaxSize().scale(1.5f),
+            )
+        }
+    }
+}
+
+/**
  * 기존 로그인 유저 진입 시 — 계정 데이터를 불러오는 중 로딩 화면.
  * 0→100% 프로그레스바: [loading] 중에는 90%까지 부드럽게 차오르고, 완료되면 100%로 채운 뒤 [onFinished] 호출.
  */
@@ -161,19 +216,13 @@ fun AccountLoadingScreen(loading: Boolean, onFinished: () -> Unit) {
         contentAlignment = Alignment.Center,
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
-            Box(
-                Modifier.size(92.dp).clip(CircleShape)
-                    .background(Brush.verticalGradient(listOf(accent.copy(alpha = 0.18f), accent2.copy(alpha = 0.12f)))),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(Icons.Default.AutoAwesome, null, tint = accent, modifier = Modifier.size(46.dp))
-            }
-            Spacer(Modifier.height(22.dp))
-            Text("Gatcha LOG", fontSize = 22.sp, fontWeight = FontWeight.Bold)
+            WishStarLogo(boxSize = 100.dp)
+            Spacer(Modifier.height(26.dp))
+            Text("Gatcha LOG", fontSize = 24.sp, fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(6.dp))
             Text("계정 정보를 불러오는 중…", fontSize = 13.sp, color = TextSecondary)
 
-            Spacer(Modifier.height(28.dp))
+            Spacer(Modifier.height(30.dp))
             // 프로그레스 바 (라운드 + 그라데이션)
             Box(
                 Modifier.fillMaxWidth().height(10.dp).clip(CircleShape).background(ProgressEmpty),

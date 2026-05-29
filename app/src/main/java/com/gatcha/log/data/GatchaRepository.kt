@@ -275,6 +275,20 @@ class GatchaRepository(context: Context, accountId: String = "guest") {
         prefs.edit().putString(KEY_REDEEMED, JSONArray(codes.toList()).toString()).apply()
     }
 
+    // ---------------------------------------------------------------- 읽은 홈 알림 넛징 키 — 로컬 전용(기기별 UI 상태)
+    fun loadReadAlerts(): Set<String> {
+        val raw = prefs.getString(KEY_READ_ALERTS, null) ?: return emptySet()
+        return runCatching {
+            val arr = JSONArray(raw)
+            (0 until arr.length()).map { arr.getString(it) }.toSet()
+        }.getOrDefault(emptySet())
+    }
+
+    fun saveReadAlerts(keys: Set<String>) {
+        // 스냅샷 미포함(로컬 전용) → changed() 미호출
+        prefs.edit().putString(KEY_READ_ALERTS, JSONArray(keys.toList()).toString()).apply()
+    }
+
     // ---------------------------------------------------------------- 구독 관리 (정기결제)
     fun loadSubscriptions(): List<Subscription> = Subscriptions.fromJsonArray(prefs.getString(KEY_SUBS, null))
     fun saveSubscriptions(list: List<Subscription>) {
@@ -345,6 +359,7 @@ class GatchaRepository(context: Context, accountId: String = "guest") {
         const val KEY_PITY = "pity"
         const val KEY_EVENT_CHECKS = "event_checks"
         const val KEY_REDEEMED = "redeemed_codes"
+        const val KEY_READ_ALERTS = "read_alerts"
         const val KEY_SPENDINGS = "spendings"
         const val KEY_BUDGET = "budget"
         const val KEY_PROFILE_NAME = "profile_name"

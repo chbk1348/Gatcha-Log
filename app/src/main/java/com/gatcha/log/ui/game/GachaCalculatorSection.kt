@@ -40,6 +40,7 @@ import com.gatcha.log.ui.theme.ProgressEmpty
 import com.gatcha.log.ui.theme.TextPrimary
 import com.gatcha.log.ui.theme.TextSecondary
 import com.gatcha.log.util.num
+import com.gatcha.log.util.won
 import java.util.Calendar
 import kotlin.math.ceil
 import kotlin.math.roundToInt
@@ -49,8 +50,6 @@ private val WarnAmber = Color(0xFFD97706)
 private val BadRed = Color(0xFFDC2626)
 private val ResultBg = Color(0x08000000)
 private val ResultLabel = Color(0x59000000)
-
-private fun won(n: Int): String = num(n) + "원"
 
 /** 통합 계산기 섹션 — 재화 환산·확보 확률·뽑기 플래너 (웹앱 GameInfo 도구 이식). 천장 카운터 값을 자동 주입. */
 @Composable

@@ -111,7 +111,7 @@ object GachaRateData {
             weapon = GachaBannerRate(0.007, 62, 80, "원석", 160, epitomized = true),
             standard = GachaBannerRate(0.006, 74, 90, "원석", 160),
             dailyFree = 60, weeklyFree = 60,
-            pass = GachaPass(90, "₩5,900", "공월 축복"),
+            pass = GachaPass(90, "5,900원", "공월 축복"),
         ),
         GachaGameRate(
             key = "hsr", name = "붕괴: 스타레일", shortName = "스타레일", grade = "5★",
@@ -120,7 +120,7 @@ object GachaRateData {
             weapon = GachaBannerRate(0.0075, 66, 80, "성옥", 160),
             standard = GachaBannerRate(0.006, 74, 90, "성옥", 160),
             dailyFree = 60, weeklyFree = 65,
-            pass = GachaPass(90, "₩5,900", "특급 보급 허가증"),
+            pass = GachaPass(90, "5,900원", "특급 보급 허가증"),
         ),
         GachaGameRate(
             key = "zzz", name = "젠레스 존 제로", shortName = "젠레스", grade = "S급",
@@ -129,7 +129,7 @@ object GachaRateData {
             weapon = GachaBannerRate(0.01, 65, 80, "폴리크롬", 160),
             standard = GachaBannerRate(0.006, 74, 90, "폴리크롬", 160),
             dailyFree = 60, weeklyFree = 60,
-            pass = GachaPass(90, "₩5,900", "인터노트 멤버십"),
+            pass = GachaPass(90, "5,900원", "인터노트 멤버십"),
         ),
         GachaGameRate(
             key = "endfield", name = "명일방주: 엔드필드", shortName = "엔드필드", grade = "6★",
@@ -147,7 +147,7 @@ object GachaRateData {
             weapon = GachaBannerRate(0.01, 66, 80, "별의 소리", 160),
             standard = GachaBannerRate(0.008, 66, 80, "별의 소리", 160),
             dailyFree = 60, weeklyFree = 60,
-            pass = GachaPass(90, "₩5,900", "루나이트 정기권"),
+            pass = GachaPass(90, "5,900원", "루나이트 정기권"),
         ),
         GachaGameRate(
             key = "nte", name = "이환", shortName = "이환", grade = "S급",

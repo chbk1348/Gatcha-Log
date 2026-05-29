@@ -5,19 +5,30 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <!-- 원형 배경 (그라데이션) -->
+    <!-- 원형 배경 (다크 네이비 그라데이션) -->
     <path android:pathData="M2,54 a52,52 0 1 0 104,0 a52,52 0 1 0 -104,0 z">
         <aapt:attr name="android:fillColor">
             <gradient
                 android:type="linear"
                 android:startX="2" android:startY="2"
                 android:endX="106" android:endY="106"
-                android:startColor="#FF34D1B6"
-                android:endColor="#FF179C84" />
+                android:startColor="#FF2B3F70"
+                android:endColor="#FF0F1A33" />
         </aapt:attr>
     </path>
-    <path android:fillColor="#FFFFFFFF"
-        android:pathData="M54,32 L58.5,49.5 L76,54 L58.5,58.5 L54,76 L49.5,58.5 L32,54 L49.5,49.5 Z" />
-    <path android:fillColor="#FFFFFFFF" android:fillAlpha="0.9"
-        android:pathData="M73,35 L74.3,38.7 L78,40 L74.3,41.3 L73,45 L71.7,41.3 L68,40 L71.7,38.7 Z" />
+    <!-- 위시 스타 꼬리 (진행축 따라 좌하단 테이퍼링) -->
+    <path android:pathData="M48,59 L41,66" android:strokeColor="#FF7FFBE6" android:strokeWidth="6" android:strokeLineCap="round" />
+    <path android:pathData="M38,69 L33,74" android:strokeColor="#FF7FFBE6" android:strokeWidth="5" android:strokeLineCap="round" android:strokeAlpha="0.7" />
+    <path android:pathData="M30,77 L26,81" android:strokeColor="#FF7FFBE6" android:strokeWidth="4" android:strokeLineCap="round" android:strokeAlpha="0.45" />
+    <!-- 메인 스파클 (우상단, 민트 그라데이션) -->
+    <path android:pathData="M62,27 C63.19,39.31 67.69,43.82 80.01,45 C67.69,46.19 63.19,50.69 62,63.01 C60.81,50.69 56.31,46.19 43.99,45 C56.31,43.82 60.81,39.31 62,27 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:type="linear"
+                android:startX="0" android:startY="8"
+                android:endX="0" android:endY="100"
+                android:startColor="#FF7FFBE6"
+                android:endColor="#FF34D1B6" />
+        </aapt:attr>
+    </path>
 </vector>

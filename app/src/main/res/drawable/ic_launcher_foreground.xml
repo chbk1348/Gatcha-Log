@@ -1,16 +1,61 @@
 <?xml version="1.0" encoding="utf-8"?>
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <!-- 메인 스파클 (✨) — 안전영역 안쪽으로 작게 -->
+    <!-- 위시 스타: 별=우상단 / 꼬리=별의 진행축 따라 좌하단으로 일직선 테이퍼링. 흰→연민트 그라데이션 -->
     <path
-        android:fillColor="#FFFFFFFF"
-        android:pathData="M54,30 L58.5,49.5 L78,54 L58.5,58.5 L54,78 L49.5,58.5 L30,54 L49.5,49.5 Z" />
-    <!-- 작은 액센트 스파클 -->
+        android:pathData="M48,59 L41,66"
+        android:strokeWidth="6"
+        android:strokeLineCap="round">
+        <aapt:attr name="android:strokeColor">
+            <gradient
+                android:type="linear"
+                android:startX="0" android:startY="8"
+                android:endX="0" android:endY="100"
+                android:startColor="#FF7FFBE6"
+                android:endColor="#FF34D1B6" />
+        </aapt:attr>
+    </path>
     <path
-        android:fillColor="#FFFFFFFF"
-        android:fillAlpha="0.9"
-        android:pathData="M73,33 L74.3,36.7 L78,38 L74.3,39.3 L73,43 L71.7,39.3 L68,38 L71.7,36.7 Z" />
+        android:pathData="M38,69 L33,74"
+        android:strokeWidth="5"
+        android:strokeLineCap="round"
+        android:strokeAlpha="0.7">
+        <aapt:attr name="android:strokeColor">
+            <gradient
+                android:type="linear"
+                android:startX="0" android:startY="8"
+                android:endX="0" android:endY="100"
+                android:startColor="#FF7FFBE6"
+                android:endColor="#FF34D1B6" />
+        </aapt:attr>
+    </path>
+    <path
+        android:pathData="M30,77 L26,81"
+        android:strokeWidth="4"
+        android:strokeLineCap="round"
+        android:strokeAlpha="0.45">
+        <aapt:attr name="android:strokeColor">
+            <gradient
+                android:type="linear"
+                android:startX="0" android:startY="8"
+                android:endX="0" android:endY="100"
+                android:startColor="#FF7FFBE6"
+                android:endColor="#FF34D1B6" />
+        </aapt:attr>
+    </path>
+    <path
+        android:pathData="M62,27 C63.19,39.31 67.69,43.82 80.01,45 C67.69,46.19 63.19,50.69 62,63.01 C60.81,50.69 56.31,46.19 43.99,45 C56.31,43.82 60.81,39.31 62,27 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:type="linear"
+                android:startX="0" android:startY="8"
+                android:endX="0" android:endY="100"
+                android:startColor="#FF7FFBE6"
+                android:endColor="#FF34D1B6" />
+        </aapt:attr>
+    </path>
 </vector>

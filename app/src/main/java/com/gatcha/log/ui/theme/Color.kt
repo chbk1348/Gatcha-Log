@@ -2,8 +2,8 @@ package com.gatcha.log.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-// 강조색(기본: 민트). 테마 선택 시 LocalAccent 로 대체된다.
-val MintPrimary = Color(0xFF2EC1A6)
+// 강조색(기본: 민트 — 앱 아이콘 틸과 동일색). 테마 선택 시 LocalAccent 로 대체된다.
+val MintPrimary = Color(0xFF34D1B6)
 val MintSecondary = Color(0xFF7FE3D0)
 
 val BackgroundGradientStart = Color(0xFFF0F7F6)
@@ -33,7 +33,7 @@ val ZZZColor = Color(0xFFF5A623)
 data class AccentOption(val label: String, val color: Color, val secondary: Color)
 
 val AccentPalette: List<AccentOption> = listOf(
-    AccentOption("민트", Color(0xFF2EC1A6), Color(0xFF7FE3D0)),
+    AccentOption("민트", Color(0xFF34D1B6), Color(0xFF7FE3D0)),
     AccentOption("퍼플", Color(0xFF8B5CF6), Color(0xFFC4B5FD)),
     AccentOption("인디고", Color(0xFF4F46E5), Color(0xFFA5B4FC)),
     AccentOption("블루", Color(0xFF3B82F6), Color(0xFF93C5FD)),

@@ -1,13 +1,17 @@
 package com.gatcha.log.data
 
+import android.Manifest
+import android.annotation.SuppressLint
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
+import androidx.core.content.ContextCompat
 import com.gatcha.log.MainActivity
 import com.gatcha.log.R
 
@@ -32,7 +36,15 @@ object Notifier {
         }
     }
 
+    // 권한은 아래에서 명시적으로 확인하지만, 린트가 compound 가드를 추적 못 해 false-positive → 명시 suppress.
+    @SuppressLint("MissingPermission")
     fun notify(ctx: Context, id: Int, title: String, text: String) {
+        // Android 13+ 는 POST_NOTIFICATIONS 런타임 권한 필요 — 미허용이면 조용히 무시(명시적 권한 확인으로 lint 충족)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            ContextCompat.checkSelfPermission(ctx, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+        ) {
+            return
+        }
         ensureChannel(ctx)
         val intent = Intent(ctx, MainActivity::class.java)
             .apply { flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP }

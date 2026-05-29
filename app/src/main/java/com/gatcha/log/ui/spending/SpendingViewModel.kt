@@ -198,6 +198,7 @@ class SpendingViewModel(app: Application) : AndroidViewModel(app) {
         _wishlist.value = repo.loadWishlist()
         _pity.value = repo.loadPity()
         _eventChecks.value = repo.loadEventChecks()
+        _readAlerts.value = repo.loadReadAlerts()
         _enkaGiUid.value = repo.loadEnkaGiUid()
         _enkaHsrUid.value = repo.loadEnkaHsrUid()
         _enkaResult.value = null
@@ -644,11 +645,15 @@ class SpendingViewModel(app: Application) : AndroidViewModel(app) {
     /** UI 에서 직접 토스트를 띄울 때 (예: 뒤로가기 종료 안내) */
     fun showStatus(msg: String) = emitStatus(msg)
 
-    /** 읽은 알림 키(메시지) 집합 — 벨 배지(넛징)는 안 읽은 알림 수만 카운트. */
+    /** 읽은 알림 키 집합(안정 키 — 가변 메시지 아님). 기기 재진입에도 유지되도록 prefs 영구 저장(로컬 전용). */
     private val _readAlerts = MutableStateFlow<Set<String>>(emptySet())
     val readAlerts: StateFlow<Set<String>> = _readAlerts.asStateFlow()
     fun markAlertsRead(keys: Collection<String>) {
-        if (keys.isNotEmpty()) _readAlerts.value = _readAlerts.value + keys
+        val next = _readAlerts.value + keys
+        if (next != _readAlerts.value) {
+            _readAlerts.value = next
+            repo.saveReadAlerts(next)
+        }
     }
 
     // ----------------------------------------------------------------- 인앱 업데이트 확인

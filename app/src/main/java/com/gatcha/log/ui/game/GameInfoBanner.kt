@@ -213,28 +213,39 @@ fun PatchSection(banners: List<GachaBanner>) {
     val accent = LocalAccent.current
     val patches = computePatchInfo(banners)
     if (patches.isEmpty()) return
-    Text("패치 일정", fontSize = 16.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 12.dp))
+    Text("패치 일정", fontSize = 16.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 4.dp))
+    Text(
+        "게임 버전 업데이트의 시작·종료까지 남은 기간이에요.",
+        fontSize = 11.sp, color = TextSecondary, modifier = Modifier.padding(bottom = 12.dp),
+    )
     GlassCard(shape = RoundedCornerShape(24.dp), modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp)) {
             patches.forEachIndexed { i, p ->
+                val d = p.dDay()
+                val v = if (p.version.isNotBlank()) "v${p.version} " else ""
                 Row(
                     modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
                         Box(Modifier.size(8.dp).background(p.gameColor, CircleShape))
                         Spacer(Modifier.width(8.dp))
                         Column {
+                            // "원신 v5.4 새 버전 시작" / "원신 v5.3 버전 종료" — 무슨 일이 일어나는지 명시
                             Text(
-                                GameData.byName(p.game).shortName + if (p.version.isNotBlank()) " v${p.version}" else "",
+                                GameData.byName(p.game).shortName + " " +
+                                    if (p.isStart) "${v}새 버전 시작" else "${v}버전 종료",
                                 fontWeight = FontWeight.Bold, fontSize = 14.sp,
                             )
-                            Text(if (p.isStart) "다음 버전 시작" else "현재 버전 종료", fontSize = 11.sp, color = TextSecondary)
+                            // 실제 날짜로 모호함 제거
+                            Text(DateUtil.shortLabelWithWeekday(p.targetMillis), fontSize = 11.sp, color = TextSecondary)
                         }
                     }
-                    val d = p.dDay()
-                    Text(if (d > 0) "D-$d" else if (d == 0) "D-DAY" else "—", color = accent, fontWeight = FontWeight.Bold)
+                    Column(horizontalAlignment = Alignment.End) {
+                        Text(if (d > 0) "D-$d" else if (d == 0) "D-DAY" else "—", color = accent, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                        Text(if (p.isStart) "시작까지" else "종료까지", fontSize = 10.sp, color = TextSecondary)
+                    }
                 }
                 if (i < patches.lastIndex) HorizontalDivider(color = DividerColor)
             }

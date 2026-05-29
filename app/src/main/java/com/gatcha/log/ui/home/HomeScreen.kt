@@ -285,9 +285,9 @@ fun HomeContent(
     val topGame = remember(spendings) { viewModel.topGameThisMonth() }
 
     // 알림 계산 + 읽음(넛징) 상태
-    val alerts = buildAlerts(monthlyTotal, budget, banners.map { it.dDay() to it.name }, attendanceToday)
+    val alerts = buildAlerts(monthlyTotal, budget, banners.map { it.dDay() to it.name }, attendanceToday, "${viewModel.displayYear}-${viewModel.displayMonth}")
     val readAlerts by viewModel.readAlerts.collectAsState()
-    val unreadCount = alerts.count { it.message !in readAlerts }
+    val unreadCount = alerts.count { it.key !in readAlerts }
 
     val showNotifications = remember { mutableStateOf(false) }
     val showBudgetDialog = remember { mutableStateOf(false) }
@@ -348,7 +348,7 @@ fun HomeContent(
                 streak = attendanceStreak,
                 monthlyTotal = monthlyTotal,
                 alertCount = unreadCount,
-                onBellClick = { showNotifications.value = true; viewModel.markAlertsRead(alerts.map { it.message }) },
+                onBellClick = { showNotifications.value = true; viewModel.markAlertsRead(alerts.map { it.key }) },
                 hoyolab = hoyolab,
                 attendanceToday = attendanceToday,
                 liveNotes = liveNotes,
@@ -402,24 +402,28 @@ fun HomeContent(
 private enum class AlertKind { BUDGET_OVER, BUDGET_NEAR, BANNER, ATTENDANCE }
 
 /** 구조화된 홈 알림 (종류 + 메시지). message 가 읽음 처리 키로도 쓰임. */
-private data class HomeAlert(val kind: AlertKind, val message: String)
+private data class HomeAlert(val kind: AlertKind, val message: String, val key: String)
 
 private fun buildAlerts(
     monthlyTotal: Long,
     budget: Long,
     bannerDDays: List<Pair<Int, String>>,
     attendanceToday: Set<String>,
+    monthKey: String,
 ): List<HomeAlert> = buildList {
+    // 읽음(넛징) 키는 메시지가 아니라 안정적 식별자로 — 메시지에 든 가변값(%·D-day·남은 개수)이
+    // 바뀌어도 한 번 확인하면 다시 안 뜨도록. 영구 저장돼도 자연 만료되게 기간을 키에 포함:
+    // 예산=종류+월, 출석=오늘 날짜, 배너=배너명(1회성).
     if (budget > 0) {
         val pct = (monthlyTotal * 100 / budget).toInt()
-        if (monthlyTotal > budget) add(HomeAlert(AlertKind.BUDGET_OVER, "이번 달 예산을 초과했어요 (${pct}%)"))
-        else if (pct >= 90) add(HomeAlert(AlertKind.BUDGET_NEAR, "이번 달 예산의 ${pct}%를 사용했어요"))
+        if (monthlyTotal > budget) add(HomeAlert(AlertKind.BUDGET_OVER, "이번 달 예산을 초과했어요 (${pct}%)", "budget_over:$monthKey"))
+        else if (pct >= 90) add(HomeAlert(AlertKind.BUDGET_NEAR, "이번 달 예산의 ${pct}%를 사용했어요", "budget_near:$monthKey"))
     }
     bannerDDays.filter { it.first in 0..3 }.forEach { (d, name) ->
-        add(HomeAlert(AlertKind.BANNER, "$name 픽업 배너 종료 ${if (d == 0) "D-DAY" else "D-$d"}"))
+        add(HomeAlert(AlertKind.BANNER, "$name 픽업 배너 종료 ${if (d == 0) "D-DAY" else "D-$d"}", "banner:$name"))
     }
     val pending = GameData.attendanceGames.count { it.key !in attendanceToday }
-    if (pending > 0) add(HomeAlert(AlertKind.ATTENDANCE, "오늘 출석체크가 ${pending}개 남아있어요"))
+    if (pending > 0) add(HomeAlert(AlertKind.ATTENDANCE, "오늘 출석체크가 ${pending}개 남아있어요", "attendance:${DateUtil.hoyoDayKey()}"))
 }
 
 /** 시간대별 인사말 */
