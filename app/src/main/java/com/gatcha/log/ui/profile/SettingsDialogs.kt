@@ -22,7 +22,17 @@ internal fun UplogDialog(versionName: String, onDismiss: () -> Unit) {
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
             UplogEntry(
-                "v${versionName.ifBlank { "27.9.0" }}",
+                "v${versionName.ifBlank { "27.10.0" }}",
+                listOf(
+                    "홈 화면을 새 디자인으로 개편했어요 — 이번 달 요약·남은 예산·연속 출석·게임별 예산을 한눈에",
+                    "‘이번 달 한눈에’ 요약 카드 추가 — 지출·예산·천장 상황을 매일 다른 문구로 알려드려요",
+                    "출석체크에 ‘전체 출석’ 버튼 추가 — 미출석 게임을 한 번에 체크인",
+                    "게임 정보 출석에서 ‘한 달 보기’로 월간 출석 달력을 바로 펼쳐볼 수 있어요",
+                    "임박한 픽업 배너를 홈에서 D-day로 안내 + HoYoLAB 불러오기 속도 개선",
+                ),
+            )
+            UplogEntry(
+                "v27.9.0",
                 listOf(
                     "게임별 월 예산 한도를 따로 정할 수 있어요 — 초과하면 알림·홈에서 안내",
                     "충동구매 예방 넛지 — 지출 추가 시 예산이나 평소보다 큰 금액이면 한 번 더 확인해요",
