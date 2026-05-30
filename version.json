@@ -1,13 +1,13 @@
 {
-  "versionCode": 270900,
-  "versionName": "27.9.0",
+  "versionCode": 271000,
+  "versionName": "27.10.0",
   "url": "https://github.com/chbk1348/Gatcha-Log-Android/releases/latest",
   "apkUrl": "https://github.com/chbk1348/Gatcha-Log-Android/releases/latest/download/app-release.apk",
   "notes": [
-    "게임별 월 예산 한도 — 초과하면 알림·홈에서 안내",
-    "과소비 예방 넛지 — 지출 추가 시 예산·평소보다 큰 금액이면 한 번 더 확인",
-    "통합 캘린더 — 월 달력에서 일별 지출·출석·배너 일정을 한눈에",
-    "가챠 뽑기 시뮬레이터 — 실제 확률·천장으로 탭해서 뽑기 체험",
-    "지출 내역·헤더 버튼 디자인 다듬기"
+    "홈 화면을 새 디자인으로 개편 — 이번 달 요약·남은 예산·연속 출석·게임별 예산을 한눈에",
+    "‘이번 달 한눈에’ 요약 카드 — 지출·예산·천장 상황을 매일 다른 문구로 안내",
+    "‘전체 출석’ 버튼 — 미출석 게임을 한 번에 체크인",
+    "게임 정보 출석에서 ‘한 달 보기’로 월간 출석 달력을 바로 펼쳐보기",
+    "임박 픽업 배너 D-day 안내 + HoYoLAB 불러오기 속도 개선"
   ]
 }
