@@ -46,6 +46,8 @@ import com.gatcha.log.data.api.UpdateInfo
 import com.gatcha.log.util.won
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
@@ -784,52 +786,76 @@ class SpendingViewModel(app: Application) : AndroidViewModel(app) {
     private val _checkingIn = MutableStateFlow<String?>(null)
     val checkingIn: StateFlow<String?> = _checkingIn.asStateFlow()
 
-    /** ennead.cc 배너·이벤트 + (연동 시) HoYoLAB 실시간 노트 새로고침 */
+    /**
+     * ennead.cc 배너·이벤트 + (연동 시) HoYoLAB 실시간 노트 새로고침.
+     *
+     * 최적화: ①**in-flight 가드** — 이미 새로고침 중이면 즉시 반환(초기 로드+PTR+수동 버튼 동시 호출 방지).
+     * ②**병렬화** — ennead(게임별)·ZZZ·HoYoLAB(게임별 note/ledger/combat 체인)을 `async` 로 동시 실행.
+     * HoYoLAB 은 같은 게임 내부 3콜은 순차 유지하되 **게임 간**으로 병렬화(단일 호스트 레이트리밋 보호).
+     * ③**try/finally** — 예외가 나도 `_isRefreshing` 가 반드시 해제(과거엔 예외 시 무한 새로고침 갇힐 위험).
+     */
     fun refreshGameInfo() {
+        if (_isRefreshing.value) return // 동시 새로고침 차단
         viewModelScope.launch {
             _isRefreshing.value = true
+            try {
+                coroutineScope {
+                    // 배너/이벤트 — ennead 2게임 + ZZZ JSON 을 동시에 요청
+                    val enneadDeferred = GameData.games.filter { it.enneadKey != null }
+                        .map { game -> async { EnneadApi.fetch(game) } }
+                    val zzzDeferred = async { com.gatcha.log.data.api.ZzzBannerApi.fetch() }
 
-            val banners = mutableListOf<GachaBanner>()
-            val events = mutableListOf<GameEvent>()
-            val challenges = mutableListOf<GameChallenge>()
-            GameData.games.filter { it.enneadKey != null }.forEach { game ->
-                val r = EnneadApi.fetch(game)
-                banners += r.banners
-                events += r.events
-                challenges += r.challenges
-            }
-            // ZZZ 픽업 배너는 공개 API 부재 → 레포 수동 JSON(zzz_banners.json)에서 병합
-            banners += com.gatcha.log.data.api.ZzzBannerApi.fetch()
-            if (banners.isNotEmpty()) _activeBanners.value = banners.sortedBy { it.dDay() }
-            _gameEvents.value = events.sortedBy { it.endMillis }
-            _challenges.value = challenges.sortedBy { it.endMillis }
+                    val banners = mutableListOf<GachaBanner>()
+                    val events = mutableListOf<GameEvent>()
+                    val challenges = mutableListOf<GameChallenge>()
+                    enneadDeferred.forEach { d ->
+                        val r = d.await()
+                        banners += r.banners
+                        events += r.events
+                        challenges += r.challenges
+                    }
+                    banners += zzzDeferred.await()
+                    if (banners.isNotEmpty()) _activeBanners.value = banners.sortedBy { it.dDay() }
+                    _gameEvents.value = events.sortedBy { it.endMillis }
+                    _challenges.value = challenges.sortedBy { it.endMillis }
 
-            val cfg = _hoyolabConfig.value
-            if (cfg.isLinked) {
-                val uids = mapOf(
-                    "genshin" to cfg.genshinUid,
-                    "hsr" to cfg.hsrUid,
-                    "zzz" to cfg.zzzUid,
-                )
-                val notes = mutableListOf<LiveNote>()
-                val ledgers = mutableListOf<MonthlyLedger>()
-                val combats = mutableListOf<CombatMode>()
-                uids.filterValues { it.isNotBlank() }.forEach { (key, uid) ->
-                    val res = HoyolabApi.getLiveNote(cfg.ltuid, cfg.ltoken, key, uid)
-                    res.note?.let { notes += it }
-                    HoyolabApi.getMonthlyLedger(cfg.ltuid, cfg.ltoken, key, uid)
-                        ?.takeIf { it.hasData }?.let { ledgers += it }
-                    combats += HoyolabApi.getCombat(cfg.ltuid, cfg.ltoken, key, uid)
+                    val cfg = _hoyolabConfig.value
+                    if (cfg.isLinked) {
+                        val uids = mapOf(
+                            "genshin" to cfg.genshinUid,
+                            "hsr" to cfg.hsrUid,
+                            "zzz" to cfg.zzzUid,
+                        ).filterValues { it.isNotBlank() }
+                        // 게임별 (note→ledger→combat) 체인을 게임 간 병렬 실행
+                        val perGame = uids.map { (key, uid) ->
+                            async {
+                                val note = HoyolabApi.getLiveNote(cfg.ltuid, cfg.ltoken, key, uid).note
+                                val ledger = HoyolabApi.getMonthlyLedger(cfg.ltuid, cfg.ltoken, key, uid)
+                                    ?.takeIf { it.hasData }
+                                val combat = HoyolabApi.getCombat(cfg.ltuid, cfg.ltoken, key, uid)
+                                Triple(note, ledger, combat)
+                            }
+                        }
+                        val notes = mutableListOf<LiveNote>()
+                        val ledgers = mutableListOf<MonthlyLedger>()
+                        val combats = mutableListOf<CombatMode>()
+                        perGame.forEach { d ->
+                            val (note, ledger, combat) = d.await()
+                            note?.let { notes += it }
+                            ledger?.let { ledgers += it }
+                            combats += combat
+                        }
+                        if (notes.isNotEmpty()) _liveNotes.value = notes
+                        if (ledgers.isNotEmpty()) _ledgers.value = ledgers
+                        if (combats.isNotEmpty()) _combat.value = combats
+                    }
+
+                    // 위시 캐릭터가 새 픽업 배너에 등장하면 알림(설정 ON 인 경우만, 배너별 1회 dedup).
+                    runCatching { checkWishPickupsAndNotify() }
                 }
-                if (notes.isNotEmpty()) _liveNotes.value = notes
-                if (ledgers.isNotEmpty()) _ledgers.value = ledgers
-                if (combats.isNotEmpty()) _combat.value = combats
+            } finally {
+                _isRefreshing.value = false
             }
-
-            // 위시 캐릭터가 새 픽업 배너에 등장하면 알림(설정 ON 인 경우만, 배너별 1회 dedup).
-            runCatching { checkWishPickupsAndNotify() }
-
-            _isRefreshing.value = false
         }
     }
 
@@ -879,6 +905,33 @@ class SpendingViewModel(app: Application) : AndroidViewModel(app) {
             if (r.success) markCheckedIn(gameKey)
             emitStatus(r.message)
             _checkingIn.value = null
+        }
+    }
+
+    /** 전체 출석 한번에 — 오늘 미출석 게임을 순차로 체크인(연동 시 실제 API, 미연동 시 로컬 토글). */
+    fun checkInAll() {
+        val done = attendanceToday.value
+        val pending = GameData.attendanceGames.filter { it.key !in done }
+        if (pending.isEmpty()) {
+            emitStatus("오늘 출석을 모두 완료했어요")
+            return
+        }
+        val cfg = _hoyolabConfig.value
+        if (!cfg.isLinked) {
+            pending.forEach { toggleAttendance(it.key) }
+            emitStatus("수동 출석 ${pending.size}건 처리 (HoYoLAB 미연동)")
+            return
+        }
+        if (_checkingIn.value != null) return // 이미 진행 중
+        viewModelScope.launch {
+            var ok = 0
+            for (g in pending) {
+                _checkingIn.value = g.key
+                val r = HoyolabApi.checkIn(cfg.ltuid, cfg.ltoken, g.key)
+                if (r.success) { markCheckedIn(g.key); ok++ }
+            }
+            _checkingIn.value = null
+            emitStatus(if (ok == pending.size) "전체 출석 완료 — ${ok}개" else "출석 ${ok}/${pending.size} 완료 (일부 실패)")
         }
     }
 

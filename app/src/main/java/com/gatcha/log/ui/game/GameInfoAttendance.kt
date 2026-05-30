@@ -1,5 +1,6 @@
 package com.gatcha.log.ui.game
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -31,7 +32,6 @@ import com.gatcha.log.data.LiveNote
 import com.gatcha.log.data.NoteStat
 import com.gatcha.log.ui.components.GlassCard
 import com.gatcha.log.ui.components.GlgButton
-import com.gatcha.log.ui.components.GlgDialog
 import com.gatcha.log.ui.theme.*
 
 // ============================================================ 데일리 히어로 (실시간 노트 + 출석체크 통합)
@@ -48,10 +48,12 @@ internal fun DailyHeroSection(
     checkingIn: String?,
     streak: Int,
     onCheckIn: (String) -> Unit,
+    onCheckInAll: () -> Unit,
     onConfigClick: () -> Unit,
 ) {
     val accent = LocalAccent.current
-    var showCalendar by remember { mutableStateOf(false) }
+    var expanded by remember { mutableStateOf(false) }
+    val pendingCount = GameData.attendanceGames.count { it.key !in attendanceToday }
 
     if (!hoyolab.isLinked) {
         GlassCard(shape = RoundedCornerShape(24.dp), modifier = Modifier.fillMaxWidth()) {
@@ -97,27 +99,45 @@ internal fun DailyHeroSection(
                         StreakChip(streak)
                     }
                 }
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Box(
-                        Modifier.size(28.dp).clip(CircleShape).background(accent.copy(alpha = 0.10f))
-                            .clickable { showCalendar = true },
-                        contentAlignment = Alignment.Center,
+                // 미출석 게임이 있으면 "전체 출석" 한번에 버튼
+                if (pendingCount > 0) {
+                    Surface(
+                        shape = RoundedCornerShape(999.dp),
+                        color = accent.copy(alpha = 0.12f),
+                        modifier = Modifier.clickable(enabled = checkingIn == null) { onCheckInAll() },
                     ) {
-                        Icon(Icons.Default.CalendarMonth, "출석 달력", tint = accent, modifier = Modifier.size(16.dp))
-                    }
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.clickable { onConfigClick() },
-                    ) {
-                        Icon(Icons.Default.CheckCircle, null, tint = accent, modifier = Modifier.size(14.dp))
-                        Spacer(Modifier.width(4.dp))
-                        Text("연동됨", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = accent)
+                        Row(Modifier.padding(horizontal = 11.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                            if (checkingIn != null) {
+                                CircularProgressIndicator(Modifier.size(13.dp), strokeWidth = 2.dp, color = accent)
+                            } else {
+                                Icon(Icons.Default.DoneAll, null, tint = accent, modifier = Modifier.size(15.dp))
+                            }
+                            Spacer(Modifier.width(5.dp))
+                            Text("전체 출석", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = accent)
+                        }
                     }
                 }
             }
-            // 최근 7일 출석 스트립
+            // 최근 7일 출석 스트립 + "한 달 보기" 인라인 펼치기
             Spacer(Modifier.height(14.dp))
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Text("최근 출석", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextSecondary)
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable { expanded = !expanded }.padding(horizontal = 4.dp, vertical = 2.dp),
+                ) {
+                    Text(if (expanded) "접기" else "한 달 보기", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = accent)
+                    Icon(if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore, null, tint = accent, modifier = Modifier.size(16.dp))
+                }
+            }
+            Spacer(Modifier.height(10.dp))
             WeekAttendanceStrip(attendanceHistory)
+            AnimatedVisibility(visible = expanded) {
+                Column {
+                    Spacer(Modifier.height(14.dp))
+                    MonthAttendanceCalendar(attendanceHistory)
+                }
+            }
             Spacer(Modifier.height(12.dp))
             HorizontalDivider(color = DividerColor)
             Spacer(Modifier.height(4.dp))
@@ -133,10 +153,6 @@ internal fun DailyHeroSection(
                 if (i < GameData.attendanceGames.lastIndex) HorizontalDivider(color = DividerColor)
             }
         }
-    }
-
-    if (showCalendar) {
-        MonthAttendanceDialog(attendanceHistory) { showCalendar = false }
     }
 }
 
@@ -199,9 +215,9 @@ private fun WeekAttendanceStrip(history: Map<String, Set<String>>) {
     }
 }
 
-/** 월간 출석 달력 다이얼로그. 일자별 출석 완료도 표시 + 이전/이번 달 이동. */
+/** 월간 출석 달력 (인라인). 일자별 출석 완료도 표시 + 이전/이번 달 이동. */
 @Composable
-private fun MonthAttendanceDialog(history: Map<String, Set<String>>, onDismiss: () -> Unit) {
+private fun MonthAttendanceCalendar(history: Map<String, Set<String>>) {
     val accent = LocalAccent.current
     var monthOffset by remember { mutableIntStateOf(0) } // 0 = 이번 달
     val base = remember(monthOffset) {
@@ -213,8 +229,8 @@ private fun MonthAttendanceDialog(history: Map<String, Set<String>>, onDismiss: 
     val daysInMonth = base.getActualMaximum(java.util.Calendar.DAY_OF_MONTH)
     val todayKey = DateUtil.hoyoDayKey()
 
-    GlgDialog(title = "출석 현황", onDismiss = onDismiss, confirmText = "확인", onConfirm = onDismiss, dismissText = null) {
-        Column {
+    Surface(color = Color(0xFFF7F8FA), shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(14.dp)) {
             // 월 이동
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Box(Modifier.size(32.dp).clip(CircleShape).clickable { monthOffset-- }, contentAlignment = Alignment.Center) {
