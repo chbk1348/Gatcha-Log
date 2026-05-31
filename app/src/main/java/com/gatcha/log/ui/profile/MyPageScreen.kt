@@ -34,6 +34,7 @@ import androidx.compose.ui.unit.sp
 import com.gatcha.log.data.Spending
 import com.gatcha.log.ui.components.GlassCard
 import com.gatcha.log.ui.components.GlgCircleIconButton
+import com.gatcha.log.ui.components.GlgTabHeader
 import com.gatcha.log.ui.components.ProfileAvatar
 import com.gatcha.log.ui.spending.SpendingViewModel
 import com.gatcha.log.ui.theme.*
@@ -97,12 +98,7 @@ fun MyPageScreen(
         contentPadding = PaddingValues(bottom = 120.dp),
     ) {
         item {
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(top = 24.dp, bottom = 16.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text("마이페이지", fontSize = 24.sp, fontWeight = FontWeight.Bold)
+            GlgTabHeader("마이페이지") {
                 GlgCircleIconButton(Icons.Default.Settings, "설정", outlined = true) { showSettings.value = true }
             }
         }

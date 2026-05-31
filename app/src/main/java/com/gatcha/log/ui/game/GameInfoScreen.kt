@@ -32,6 +32,8 @@ import com.gatcha.log.data.GameEvent
 import com.gatcha.log.ui.components.ListSkeleton
 import com.gatcha.log.ui.components.GlassCard
 import com.gatcha.log.ui.components.GlgCircleIconButton
+import com.gatcha.log.ui.components.GlgTabHeader
+import com.gatcha.log.ui.spending.GameInfoAnchor
 import com.gatcha.log.ui.spending.SpendingViewModel
 import com.gatcha.log.ui.theme.*
 
@@ -91,6 +93,22 @@ fun GameInfoScreen(
     val codesLoading by viewModel.codesLoading.collectAsState()
     val redeemedCodes by viewModel.redeemedCodes.collectAsState()
 
+    // 오늘 할 일/요약에서 넘어온 경우 해당 섹션으로 스크롤 앵커링(1회성).
+    // 아이템 순서: 0 헤더 · 1 실시간노트(NOTES) · 2 spacer · 3 배너(BANNER) · 4 spacer ·
+    // (패치 표시 시 5·6) · 위시 · spacer · 천장(PITY).
+    val pendingAnchor by viewModel.pendingGameInfoAnchor.collectAsState()
+    LaunchedEffect(pendingAnchor) {
+        val anchor = pendingAnchor ?: return@LaunchedEffect
+        val patchVisible = !(banners.isEmpty() && isRefreshing)
+        val index = when (anchor) {
+            GameInfoAnchor.NOTES -> 1
+            GameInfoAnchor.BANNER -> 3
+            GameInfoAnchor.PITY -> if (patchVisible) 9 else 7
+        }
+        listState.animateScrollToItem(index)
+        viewModel.consumeGameInfoAnchor()
+    }
+
     // HoYoLAB 연동 페이지 — 화면 스왑(게임정보 ↔ 연동) 슬라이드 push/pop
     AnimatedContent(
         targetState = subPage,
@@ -111,7 +129,7 @@ fun GameInfoScreen(
                 onSave = {
                     viewModel.updateHoyolabConfig(it)
                     subPage = GiSub.Main
-                    viewModel.refreshGameInfo()
+                    viewModel.refreshGameInfo(force = true)
                 },
                 onBack = { subPage = GiSub.Main },
             )
@@ -122,7 +140,7 @@ fun GameInfoScreen(
             )
             GiSub.Main -> GlgPullToRefreshBox(
             isRefreshing = isRefreshing,
-            onRefresh = { viewModel.refreshGameInfo() },
+            onRefresh = { viewModel.refreshGameInfo(force = true) },
             modifier = Modifier.fillMaxSize(),
         ) {
             LazyColumn(
@@ -131,25 +149,18 @@ fun GameInfoScreen(
                 contentPadding = PaddingValues(bottom = 120.dp),
             ) {
             item {
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(top = 24.dp, bottom = 16.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text("게임 정보", fontSize = 24.sp, fontWeight = FontWeight.Bold)
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        GachaRateButton { showRateDialog.value = true }
-                        if (hoyolab.isLinked) {
-                            GlgCircleIconButton(Icons.Default.Redeem, "리딤코드", outlined = true) { showGiftDialog.value = true }
-                        }
-                        // 새로고침은 PTR 인디케이터 하나로만 표시 — 버튼 자체 스피너를 빼서 PTR 와 중복 노출 방지.
-                        // (진행 중엔 버튼만 비활성화해 중복 트리거 차단)
-                        GlgCircleIconButton(Icons.Default.Refresh, "새로고침", enabled = !isRefreshing, outlined = true) {
-                            viewModel.refreshGameInfo()
-                        }
-                        GlgCircleIconButton(Icons.Default.Settings, "HoYoLAB 설정", outlined = true) {
-                            subPage = GiSub.HoyoLink
-                        }
+                GlgTabHeader("게임 정보") {
+                    GachaRateButton { showRateDialog.value = true }
+                    if (hoyolab.isLinked) {
+                        GlgCircleIconButton(Icons.Default.Redeem, "리딤코드", outlined = true) { showGiftDialog.value = true }
+                    }
+                    // 새로고침은 PTR 인디케이터 하나로만 표시 — 버튼 자체 스피너를 빼서 PTR 와 중복 노출 방지.
+                    // (진행 중엔 버튼만 비활성화해 중복 트리거 차단)
+                    GlgCircleIconButton(Icons.Default.Refresh, "새로고침", enabled = !isRefreshing, outlined = true) {
+                        viewModel.refreshGameInfo(force = true)
+                    }
+                    GlgCircleIconButton(Icons.Default.Settings, "HoYoLAB 설정", outlined = true) {
+                        subPage = GiSub.HoyoLink
                     }
                 }
             }

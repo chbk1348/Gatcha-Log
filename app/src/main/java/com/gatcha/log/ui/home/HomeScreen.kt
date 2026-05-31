@@ -2,6 +2,8 @@ package com.gatcha.log.ui.home
 
 import android.app.Activity
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.EnterExitState
@@ -271,12 +273,18 @@ fun HomeContent(
     val gachaStats by viewModel.gachaStats.collectAsState()
     val homeCards by viewModel.homeCards.collectAsState()
     val pity by viewModel.pity.collectAsState()
+    val gameInfoReady by viewModel.gameInfoReady.collectAsState()
     val hoyoTokenExpired by viewModel.hoyoTokenExpired.collectAsState()
     // 홈 진입·복귀 시 워커가 백그라운드에서 바꾼 플래그를 다시 읽어 배너에 반영.
     LaunchedEffect(Unit) { viewModel.refreshHoyoTokenExpired() }
 
     val monthlyTotal = remember(spendings) { viewModel.monthlyTotal() }
-    val topGame = remember(spendings) { viewModel.topGameThisMonth() }
+    val prevTotal = remember(spendings) { viewModel.prevMonthTotal() }
+
+    // 가챠 기록 가져오기(홈 빠른 액션) — 가챠 효율 리포트와 동일 picker 패턴(*/* 로 SAF 회색처리 회피)
+    val gachaPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
+        if (uris.isNotEmpty()) viewModel.importGachaFromUris(uris)
+    }
 
     // 게임별 한도 초과 게임(이번 달) — 알림센터 표시용
     val gameOverBudget = remember(spendings, gameBudgets) {
@@ -287,6 +295,16 @@ fun HomeContent(
                 val limit = gameBudgets[g.key] ?: 0L
                 if (limit > 0 && (totals[g.key] ?: 0L) > limit) g.shortName else null
             }
+        }
+    }
+
+    // 절약 팁 — 상황별 실제 조언(M 카드 '절약 팁' 칩이 토스트로 노출)
+    val savingTip = remember(budget, monthlyTotal, gameOverBudget) {
+        when {
+            budget > 0 && monthlyTotal > budget -> "이번 달은 예산을 넘겼어요. 다음 픽업까지 무·저과금으로 천장을 모아보세요."
+            gameOverBudget.isNotEmpty() -> "${gameOverBudget.first()} 한도를 넘었어요. 게임별 예산을 점검해보세요."
+            budget <= 0 -> "월 예산을 정하면 페이스를 알려드려요. 보통 한 달 결제액의 80% 선이 적당해요."
+            else -> "천장이 가까운 게임부터 모으면 50/50 손해를 줄일 수 있어요."
         }
     }
 
@@ -310,12 +328,35 @@ fun HomeContent(
         }.sortedByDescending { it.spent }
     }
 
-    val attendanceDone = GameData.attendanceGames.count { it.key in attendanceToday }
-
     // 임박 픽업 배너 — 7일 이내 종료, D-day 오름차순, 최대 4 (홈 캡슐 노출)
     // (상시/종료 배너는 endMillis 가 0 또는 과거라 dDay 가 0..7 범위 밖으로 자연 제외됨)
     val soonBanners = remember(banners) {
         banners.filter { it.dDay() in 0..7 }.sortedBy { it.dDay() }.take(4)
+    }
+    val nextBanner = soonBanners.firstOrNull()
+
+    // 다음 픽업 확정 비용(가챠×지출) — 천장 누적·확률·1뽑 단가로 산출
+    val nextBannerPlan = remember(nextBanner, pity) {
+        nextBanner?.let { b ->
+            val g = GameData.byNameOrNull(b.game) ?: return@let null
+            val rate = com.gatcha.log.data.GachaRateData.byKey(g.key)?.character ?: return@let null
+            val st = pity[g.key]
+            val pulls = com.gatcha.log.data.GachaRateData.maxPullsToSecure(st?.count ?: 0, st?.guaranteed ?: false, rate)
+            BannerPlan(pulls, pulls.toLong() * rate.wonPerPull)
+        }
+    }
+
+    // 재화 임박 경보 — 85% 이상(가득 직전)인 게임 '전부'(원신뿐 아니라 스타레일·젠레스 등). 가장 찬 순.
+    val resinAlerts = remember(liveNotes) {
+        liveNotes.filter { it.maxResin > 0 && it.resinRatio >= 0.85f }
+            .sortedByDescending { it.resinRatio }
+            .map {
+                ResinAlert(
+                    GameData.byName(it.game).shortName, it.resinLabel,
+                    it.currentResin, it.maxResin, it.resinRecoveryTime,
+                    it.currentResin >= it.maxResin,
+                )
+            }
     }
 
     // 알림 계산 + 읽음(넛징) 상태
@@ -360,7 +401,7 @@ fun HomeContent(
 
     GlgPullToRefreshBox(
         isRefreshing = isRefreshing,
-        onRefresh = { viewModel.refreshGameInfo() },
+        onRefresh = { viewModel.refreshGameInfo(force = true) },
         modifier = Modifier.fillMaxSize(),
     ) {
     LazyColumn(state = listState, modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
@@ -381,57 +422,79 @@ fun HomeContent(
                 isGuest = account.isGuest,
                 photoUrl = account.photoUrl,
                 streak = attendanceStreak,
-                monthlyTotal = monthlyTotal,
                 alertCount = unreadCount,
                 onBellClick = { showNotifications.value = true; viewModel.markAlertsRead(alerts.map { it.key }) },
             )
         }
         item { Spacer(Modifier.height(12.dp)) }
-        // M — 이번 달 한눈에 (AI 요약)
+        // M — 이번 달 한눈에 (인사이트 요약). 대표 지시로 헤더 바로 밑 최상단 배치.
         item {
             MonthlySummaryCard(
                 monthlyTotal = monthlyTotal,
+                prevTotal = prevTotal,
                 budget = budget,
-                topGame = topGame,
                 topPity = topPity,
+                nextBanner = nextBanner,
+                gameOverCount = gameOverBudget.size,
                 onBudget = { showBudgetDialog.value = true },
-                onPity = onNavigateToGameInfo,
-                onTip = onNavigateToMyPage,
+                onPity = { viewModel.requestGameInfoAnchor(com.gatcha.log.ui.spending.GameInfoAnchor.PITY); onNavigateToGameInfo() },
+                onTip = { viewModel.showStatus(savingTip) },
             )
             Spacer(Modifier.height(16.dp))
         }
-        // K — 토널 2-stat (남은 예산 · 출석). 예산 타일 탭 → 예산 관리
+        // 오늘 할 일 — 상태 기반 리스트(출석·재화·픽업·예산·천장). 각 항목 탭 시 해당 섹션으로 앵커링.
         item {
-            TonalStatRow(
-                monthlyTotal = monthlyTotal,
-                budget = budget,
-                attendanceDone = attendanceDone,
-                attendanceTotal = GameData.attendanceGames.size,
-                streak = attendanceStreak,
-                onBudgetClick = { showBudgetDialog.value = true },
+            // 로딩 중엔 스켈레톤, 배너·노트 로드 완료 시 전체 리스트를 한 번에 표출
+            if (!gameInfoReady) {
+                TodayTaskSkeleton()
+            } else {
+                TodayTaskCard(
+                    tasks = resolveTodayTasks(
+                        pendingAttendance = GameData.attendanceGames.count { it.key !in attendanceToday },
+                        resins = resinAlerts,
+                        urgentBanner = soonBanners.firstOrNull { it.dDay() <= 3 },
+                        budget = budget,
+                        monthlyTotal = monthlyTotal,
+                        topPity = topPity,
+                        onCheckInAll = { viewModel.checkInAll() },
+                        onResin = { viewModel.requestGameInfoAnchor(com.gatcha.log.ui.spending.GameInfoAnchor.NOTES); onNavigateToGameInfo() },
+                        onBanner = { viewModel.requestGameInfoAnchor(com.gatcha.log.ui.spending.GameInfoAnchor.BANNER); onNavigateToGameInfo() },
+                        onPity = { viewModel.requestGameInfoAnchor(com.gatcha.log.ui.spending.GameInfoAnchor.PITY); onNavigateToGameInfo() },
+                        onBudget = { showBudgetDialog.value = true },
+                    ),
+                    inProgress = checkingIn != null,
+                )
+            }
+            Spacer(Modifier.height(16.dp))
+        }
+        // G — 가챠 현황 미니카드 (천장 + 다음 픽업, 읽기전용). 가챠 정체성 고정 노출.
+        item {
+            GachaStatusCard(
+                topPity = topPity,
+                nextBanner = nextBanner,
+                nextBannerPlan = nextBannerPlan,
+                onOpen = onNavigateToGameInfo,
+                onImport = { gachaPicker.launch(arrayOf("*/*")) },
             )
             Spacer(Modifier.height(16.dp))
         }
-        // 게임 현황 (HoYoLAB 연동·출석체크·실시간 노트) — 기능 보존
+        // 실시간 노트 (레진/배터리 등) — 출석은 '오늘 할 일'이 담당하므로 노트만 표시(중복 제거)
         item {
             GameStatusSection(
                 hoyolab = hoyolab,
-                attendanceToday = attendanceToday,
                 liveNotes = liveNotes,
-                checkingIn = checkingIn,
                 isRefreshing = isRefreshing,
-                onCheckIn = viewModel::attemptCheckIn,
-                onCheckInAll = viewModel::checkInAll,
                 onConfigClick = onNavigateToGameInfo,
             )
             Spacer(Modifier.height(16.dp))
         }
-        // 픽업 배너 캡슐 (임박 종료) — 있을 때만
-        if (soonBanners.isNotEmpty()) {
+        // 픽업 배너 캡슐 (임박 종료) — 가장 임박 1건은 G 카드가 표시하므로 그 다음부터 노출
+        val restBanners = soonBanners.drop(1)
+        if (restBanners.isNotEmpty()) {
             item {
                 Column {
                     Text("픽업 배너", fontSize = 13.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 2.dp, bottom = 10.dp))
-                    soonBanners.forEachIndexed { i, b ->
+                    restBanners.forEachIndexed { i, b ->
                         if (i > 0) Spacer(Modifier.height(8.dp))
                         BannerCapsule(b)
                     }
@@ -522,24 +585,19 @@ internal fun greetingForNow(): String =
         else -> "오늘도 수고했어요"
     }
 
-/** 게임 현황 카드 2.0 (HoYoLAB 연동/출석체크/실시간 노트) — 토널 출석 타일 + 캡슐 노트. */
+/** 실시간 노트 (HoYoLAB 레진/개척력/배터리 등). 출석·전체출석은 '오늘 할 일'이 담당하므로 여기선 노트만(중복 제거). */
 @Composable
 fun GameStatusSection(
     hoyolab: HoyolabConfig,
-    attendanceToday: Set<String>,
     liveNotes: List<LiveNote>,
-    checkingIn: String?,
     isRefreshing: Boolean,
-    onCheckIn: (String) -> Unit,
-    onCheckInAll: () -> Unit,
     onConfigClick: () -> Unit,
 ) {
     val accent = LocalAccent.current
-    val pendingCount = GameData.attendanceGames.count { it.key !in attendanceToday }
     GlassCard(shape = RoundedCornerShape(26.dp), modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(18.dp)) {
             if (!hoyolab.isLinked) {
-                // 미연동 — 출석/노트 숨기고 연동 유도
+                // 미연동 — 노트 숨기고 연동 유도
                 Column(
                     Modifier.fillMaxWidth().padding(vertical = 6.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
@@ -553,63 +611,27 @@ fun GameStatusSection(
                     Spacer(Modifier.height(10.dp))
                     Text("HoYoLAB 연동이 필요해요", fontSize = 14.sp, fontWeight = FontWeight.Bold)
                     Spacer(Modifier.height(4.dp))
-                    Text("실시간 노트·출석체크를 보려면 연동하세요", fontSize = 12.sp, color = TextSecondary)
+                    Text("실시간 노트를 보려면 연동하세요", fontSize = 12.sp, color = TextSecondary)
                     Spacer(Modifier.height(14.dp))
                     GlgButton("HoYoLAB 연동하러 가기", onClick = onConfigClick, modifier = Modifier.fillMaxWidth())
                 }
             } else {
-                // 헤더 — 미출석이 있으면 "전체 출석" 버튼, 모두 완료면 날짜 표시
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                    Text("오늘의 출석", fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                    if (pendingCount > 0) {
-                        Surface(
-                            shape = RoundedCornerShape(999.dp),
-                            color = accent.copy(alpha = 0.12f),
-                            modifier = Modifier.clickable(enabled = checkingIn == null) { onCheckInAll() },
-                        ) {
-                            Row(Modifier.padding(horizontal = 11.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-                                if (checkingIn != null) {
-                                    CircularProgressIndicator(Modifier.size(13.dp), strokeWidth = 2.dp, color = accent)
-                                } else {
-                                    Icon(Icons.Default.DoneAll, null, tint = accent, modifier = Modifier.size(15.dp))
-                                }
-                                Spacer(Modifier.width(5.dp))
-                                Text("전체 출석", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = accent)
-                            }
-                        }
-                    } else {
-                        Text(DateUtil.shortLabelWithWeekday(System.currentTimeMillis()), fontSize = 11.sp, color = TextSecondary)
-                    }
-                }
-                Spacer(Modifier.height(14.dp))
-                // 출석 타일 (게임별)
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    GameData.attendanceGames.forEach { game ->
-                        AttendanceTile(
-                            game = game,
-                            done = game.key in attendanceToday,
-                            inProgress = checkingIn == game.key,
-                            modifier = Modifier.weight(1f),
-                            onClick = { onCheckIn(game.key) },
-                        )
-                    }
-                }
-                // 실시간 노트 (캡슐)
+                Text("실시간 노트", fontSize = 14.sp, fontWeight = FontWeight.Bold)
                 when {
                     liveNotes.isNotEmpty() -> {
-                        Spacer(Modifier.height(18.dp))
-                        HorizontalDivider(color = DividerColor)
-                        Spacer(Modifier.height(14.dp))
-                        Text("실시간 노트", fontSize = 12.sp, color = TextSecondary)
-                        Spacer(Modifier.height(10.dp))
+                        Spacer(Modifier.height(12.dp))
                         liveNotes.forEachIndexed { i, note ->
                             if (i > 0) Spacer(Modifier.height(8.dp))
                             NoteCapsule(note)
                         }
                     }
                     isRefreshing -> {
-                        Spacer(Modifier.height(16.dp))
+                        Spacer(Modifier.height(14.dp))
                         NoteSkeletonRow()
+                    }
+                    else -> {
+                        Spacer(Modifier.height(8.dp))
+                        Text("표시할 노트가 없어요", fontSize = 12.sp, color = TextSecondary)
                     }
                 }
             }
