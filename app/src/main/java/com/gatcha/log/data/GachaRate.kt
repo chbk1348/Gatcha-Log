@@ -205,6 +205,18 @@ object GachaRateData {
         return minOf(1.0, p5 * 0.5 + p2 * 0.5)
     }
 
+    /**
+     * 픽업(최고등급 픽업 캐릭터/음추) 확정까지 **최악의 경우** 필요한 뽑기 수.
+     * - 기본: 하드 천장까지 남은 횟수(반드시 최고등급 1회 확보).
+     * - 50/50 보유 + 미보장이면 첫 5★를 픽뚫할 수 있어 한 사이클(hardPity) 더 가산.
+     * - no5050(픽뚫 없음)/이미 보장(guaranteed)이면 한 번에 픽업 확정이라 가산 없음.
+     */
+    fun maxPullsToSecure(count: Int, guaranteed: Boolean, b: GachaBannerRate): Int {
+        val toFive = (b.hardPity - count).coerceAtLeast(1)
+        val needsTwoCycles = b.has5050 && !b.no5050 && !guaranteed
+        return if (needsTwoCycles) toFive + b.hardPity else toFive
+    }
+
     /** 보장 방식 설명. grade 는 게임의 최고등급 표기. */
     fun guaranteeInfo(grade: String, banner: GachaBannerRate?): GuaranteeInfo {
         if (banner == null) return GuaranteeInfo("해당 배너 없음", "")

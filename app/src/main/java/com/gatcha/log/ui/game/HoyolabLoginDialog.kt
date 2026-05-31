@@ -61,20 +61,33 @@ fun HoyolabLoginDialog(onCollected: (String, String, String, String) -> Unit, on
                         settings.javaScriptEnabled = true
                         settings.domStorageEnabled = true
                         var collected = false
+                        var ctRetries = 0
                         webViewClient = object : WebViewClient() {
                             override fun onPageFinished(view: WebView?, url: String?) {
                                 if (collected) return
-                                val raw = cm.getCookie("https://www.hoyolab.com") ?: return
-                                val map = raw.split(";").mapNotNull {
-                                    val p = it.trim().split("=", limit = 2)
-                                    if (p.size == 2) p[0] to p[1] else null
-                                }.toMap()
-                                val ltoken = map["ltoken_v2"].orEmpty()
-                                val ltuid = map["ltuid_v2"] ?: map["account_id_v2"] ?: map["account_id"].orEmpty()
-                                val cookieToken = map["cookie_token_v2"] ?: map["cookie_token"].orEmpty()
+                                // cdkey 교환(webExchangeCdkey)은 cookie_token_v2 로 인증한다. 이 값은 ltoken_v2 보다
+                                // 늦게, www 가 아닌 account/.hoyolab.com 도메인에 발행되므로 여러 도메인 쿠키를 병합 수집한다.
+                                val merged = LinkedHashMap<String, String>()
+                                listOf(
+                                    "https://www.hoyolab.com",
+                                    "https://account.hoyolab.com",
+                                    "https://act.hoyolab.com",
+                                    "https://api-account-os.hoyolab.com",
+                                ).forEach { u ->
+                                    cm.getCookie(u)?.split(";")?.forEach { c ->
+                                        val p = c.trim().split("=", limit = 2)
+                                        if (p.size == 2 && p[1].isNotBlank() && !merged.containsKey(p[0])) merged[p[0]] = p[1]
+                                    }
+                                }
+                                val ltoken = merged["ltoken_v2"].orEmpty()
+                                val ltuid = merged["ltuid_v2"] ?: merged["account_id_v2"] ?: merged["account_id"].orEmpty()
+                                val cookieToken = merged["cookie_token_v2"] ?: merged["cookie_token"].orEmpty()
                                 if (ltoken.isNotBlank() && ltuid.isNotBlank()) {
+                                    // cookie_token_v2 가 아직 안 들어왔으면 다음 페이지 로드까지 잠깐 대기(최대 4회). 끝내 없으면 폴백 수집.
+                                    if (cookieToken.isBlank() && ctRetries < 4) { ctRetries++; return }
                                     collected = true
-                                    // raw = 전체 쿠키 문자열(account_mid_v2 등 포함) → 교환 인증에 그대로 사용
+                                    // 병합된 전체 쿠키 문자열(account_mid_v2·cookie_token_v2 등 포함) → 교환 인증에 그대로 사용
+                                    val raw = merged.entries.joinToString("; ") { "${it.key}=${it.value}" }
                                     collectedCb.value(ltuid, ltoken, cookieToken, raw)
                                 }
                             }

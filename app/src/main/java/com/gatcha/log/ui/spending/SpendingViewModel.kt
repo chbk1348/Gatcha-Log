@@ -117,6 +117,12 @@ class SpendingViewModel(app: Application) : AndroidViewModel(app) {
     val pendingOpenHoyolabLink: StateFlow<Boolean> = _pendingOpenHoyolabLink.asStateFlow()
     fun requestOpenHoyolabLink() { _pendingOpenHoyolabLink.value = true }
     fun consumePendingOpenHoyolabLink() { _pendingOpenHoyolabLink.value = false }
+
+    /** 오늘 할 일 → 게임 정보 탭 진입 시 해당 섹션으로 스크롤 앵커링하기 위한 1회성 신호. */
+    private val _pendingGameInfoAnchor = MutableStateFlow<GameInfoAnchor?>(null)
+    val pendingGameInfoAnchor: StateFlow<GameInfoAnchor?> = _pendingGameInfoAnchor.asStateFlow()
+    fun requestGameInfoAnchor(anchor: GameInfoAnchor) { _pendingGameInfoAnchor.value = anchor }
+    fun consumeGameInfoAnchor() { _pendingGameInfoAnchor.value = null }
     private val _autoCheckIn = MutableStateFlow(appSettings.autoCheckIn)
     val autoCheckIn: StateFlow<Boolean> = _autoCheckIn.asStateFlow()
     fun setAutoCheckIn(enabled: Boolean) {
@@ -321,7 +327,7 @@ class SpendingViewModel(app: Application) : AndroidViewModel(app) {
             _profile.value = p
             repo.saveProfile(p)
         }
-        refreshGameInfo()
+        refreshGameInfo(force = true)
     }
 
     // ----------------------------------------------------------------- 지출
@@ -708,6 +714,13 @@ class SpendingViewModel(app: Application) : AndroidViewModel(app) {
     private val _isRefreshing = MutableStateFlow(false)
     val isRefreshing: StateFlow<Boolean> = _isRefreshing.asStateFlow()
 
+    /** 홈/오늘 할 일 표출 준비 완료(배너+실시간 노트 로드 후 true). 초기 로딩 스켈레톤 게이트. */
+    private val _gameInfoReady = MutableStateFlow(false)
+    val gameInfoReady: StateFlow<Boolean> = _gameInfoReady.asStateFlow()
+    /** 마지막 게임정보 성공 로드 시각 — freshness 캐시(재진입 시 불필요한 재요청 생략). */
+    private var lastGameInfoLoadAt = 0L
+    private val gameInfoFreshMs = 5 * 60 * 1000L
+
     /** 일회성 토스트 메시지 (UI 가 소비 후 clearStatus 호출) */
     private val _statusMessage = MutableStateFlow<String?>(null)
     val statusMessage: StateFlow<String?> = _statusMessage.asStateFlow()
@@ -794,16 +807,35 @@ class SpendingViewModel(app: Application) : AndroidViewModel(app) {
      * HoYoLAB 은 같은 게임 내부 3콜은 순차 유지하되 **게임 간**으로 병렬화(단일 호스트 레이트리밋 보호).
      * ③**try/finally** — 예외가 나도 `_isRefreshing` 가 반드시 해제(과거엔 예외 시 무한 새로고침 갇힐 위험).
      */
-    fun refreshGameInfo() {
+    /**
+     * 게임 정보(배너·실시간 노트·월간 원장·전투) 새로고침.
+     *
+     * 최적화: 홈/오늘 할 일이 의존하는 **배너 + 실시간 노트를 먼저 동시에 로드해 즉시 표출(gameInfoReady)**,
+     * 게임 정보 탭 전용인 월간 원장·전투 진행도는 뒤이어 로드한다. [force]=false 면 최근(5분 내) 성공 로드가
+     * 있을 때 재요청을 생략(재진입 시 즉시 표시). PTR·새로고침 버튼·재연동·계정전환은 force=true.
+     * try/finally 로 예외 시에도 _isRefreshing 해제 + 스켈레톤 영구 고착 방지.
+     */
+    fun refreshGameInfo(force: Boolean = false) {
         if (_isRefreshing.value) return // 동시 새로고침 차단
+        if (!force && _gameInfoReady.value && System.currentTimeMillis() - lastGameInfoLoadAt < gameInfoFreshMs) return
         viewModelScope.launch {
             _isRefreshing.value = true
             try {
                 coroutineScope {
-                    // 배너/이벤트 — ennead 2게임 + ZZZ JSON 을 동시에 요청
+                    val cfg = _hoyolabConfig.value
+                    val uids = if (cfg.isLinked) mapOf(
+                        "genshin" to cfg.genshinUid,
+                        "hsr" to cfg.hsrUid,
+                        "zzz" to cfg.zzzUid,
+                    ).filterValues { it.isNotBlank() } else emptyMap()
+
+                    // 1) 홈/오늘 할 일 의존 최소셋 — 배너(ennead 2게임 + ZZZ) + 실시간 노트를 모두 동시에
                     val enneadDeferred = GameData.games.filter { it.enneadKey != null }
                         .map { game -> async { EnneadApi.fetch(game) } }
                     val zzzDeferred = async { com.gatcha.log.data.api.ZzzBannerApi.fetch() }
+                    val noteDeferred = uids.map { (key, uid) ->
+                        async { HoyolabApi.getLiveNote(cfg.ltuid, cfg.ltoken, key, uid).note }
+                    }
 
                     val banners = mutableListOf<GachaBanner>()
                     val events = mutableListOf<GameEvent>()
@@ -819,33 +851,29 @@ class SpendingViewModel(app: Application) : AndroidViewModel(app) {
                     _gameEvents.value = events.sortedBy { it.endMillis }
                     _challenges.value = challenges.sortedBy { it.endMillis }
 
-                    val cfg = _hoyolabConfig.value
-                    if (cfg.isLinked) {
-                        val uids = mapOf(
-                            "genshin" to cfg.genshinUid,
-                            "hsr" to cfg.hsrUid,
-                            "zzz" to cfg.zzzUid,
-                        ).filterValues { it.isNotBlank() }
-                        // 게임별 (note→ledger→combat) 체인을 게임 간 병렬 실행
-                        val perGame = uids.map { (key, uid) ->
+                    val notes = noteDeferred.mapNotNull { it.await() }
+                    if (notes.isNotEmpty()) _liveNotes.value = notes
+
+                    // ★ 배너+노트까지면 홈/오늘 할 일 준비 완료 — 즉시 표출(원장·전투는 뒤이어)
+                    _gameInfoReady.value = true
+                    lastGameInfoLoadAt = System.currentTimeMillis()
+
+                    // 2) 게임 정보 탭 전용 — 월간 원장 + 전투 진행도(게임 간 병렬, 게임 내 순차로 단일 호스트 보호)
+                    if (uids.isNotEmpty()) {
+                        val rest = uids.map { (key, uid) ->
                             async {
-                                val note = HoyolabApi.getLiveNote(cfg.ltuid, cfg.ltoken, key, uid).note
-                                val ledger = HoyolabApi.getMonthlyLedger(cfg.ltuid, cfg.ltoken, key, uid)
-                                    ?.takeIf { it.hasData }
+                                val ledger = HoyolabApi.getMonthlyLedger(cfg.ltuid, cfg.ltoken, key, uid)?.takeIf { it.hasData }
                                 val combat = HoyolabApi.getCombat(cfg.ltuid, cfg.ltoken, key, uid)
-                                Triple(note, ledger, combat)
+                                ledger to combat
                             }
                         }
-                        val notes = mutableListOf<LiveNote>()
                         val ledgers = mutableListOf<MonthlyLedger>()
                         val combats = mutableListOf<CombatMode>()
-                        perGame.forEach { d ->
-                            val (note, ledger, combat) = d.await()
-                            note?.let { notes += it }
+                        rest.forEach { d ->
+                            val (ledger, combat) = d.await()
                             ledger?.let { ledgers += it }
                             combats += combat
                         }
-                        if (notes.isNotEmpty()) _liveNotes.value = notes
                         if (ledgers.isNotEmpty()) _ledgers.value = ledgers
                         if (combats.isNotEmpty()) _combat.value = combats
                     }
@@ -855,6 +883,7 @@ class SpendingViewModel(app: Application) : AndroidViewModel(app) {
                 }
             } finally {
                 _isRefreshing.value = false
+                _gameInfoReady.value = true // 예외로 1)단계 못 미쳐도 스켈레톤 영구 고착 방지
             }
         }
     }
@@ -901,10 +930,13 @@ class SpendingViewModel(app: Application) : AndroidViewModel(app) {
         }
         viewModelScope.launch {
             _checkingIn.value = gameKey
-            val r = HoyolabApi.checkIn(cfg.ltuid, cfg.ltoken, gameKey)
-            if (r.success) markCheckedIn(gameKey)
-            emitStatus(r.message)
-            _checkingIn.value = null
+            try {
+                val r = HoyolabApi.checkIn(cfg.ltuid, cfg.ltoken, gameKey)
+                if (r.success) markCheckedIn(gameKey)
+                emitStatus(r.message)
+            } finally {
+                _checkingIn.value = null
+            }
         }
     }
 
@@ -925,12 +957,15 @@ class SpendingViewModel(app: Application) : AndroidViewModel(app) {
         if (_checkingIn.value != null) return // 이미 진행 중
         viewModelScope.launch {
             var ok = 0
-            for (g in pending) {
-                _checkingIn.value = g.key
-                val r = HoyolabApi.checkIn(cfg.ltuid, cfg.ltoken, g.key)
-                if (r.success) { markCheckedIn(g.key); ok++ }
+            try {
+                for (g in pending) {
+                    _checkingIn.value = g.key
+                    val r = HoyolabApi.checkIn(cfg.ltuid, cfg.ltoken, g.key)
+                    if (r.success) { markCheckedIn(g.key); ok++ }
+                }
+            } finally {
+                _checkingIn.value = null
             }
-            _checkingIn.value = null
             emitStatus(if (ok == pending.size) "전체 출석 완료 — ${ok}개" else "출석 ${ok}/${pending.size} 완료 (일부 실패)")
         }
     }
@@ -996,14 +1031,20 @@ class SpendingViewModel(app: Application) : AndroidViewModel(app) {
         val targets = _activeCodes.value.map { it.code }.filter { it !in _redeemedCodes.value }
         if (targets.isEmpty()) { _redeemState.value = RedeemState.Done(true, "교환할 새 코드가 없어요"); return }
         viewModelScope.launch {
-            var ok = 0; var fail = 0
+            var ok = 0; var fail = 0; var lastFailMsg = ""
             targets.forEachIndexed { i, code ->
                 _redeemState.value = RedeemState.Loading
                 val r = doRedeem(gameKey, code)
-                if (r.success || r.message.contains("이미 사용")) ok++ else fail++
+                if (r.success || r.message.contains("이미 사용")) ok++ else { fail++; lastFailMsg = r.message }
                 if (i < targets.lastIndex) delay(5500) // 교환 레이트리밋(-2016) 회피
             }
-            _redeemState.value = RedeemState.Done(fail == 0, "교환 ${ok}건 완료${if (fail > 0) " · 실패 $fail" else ""} (우편함 확인)")
+            // 실패 사유를 그대로 노출(전부 실패 시 원인 파악 — 쿠키/만료/리전 등)
+            val detail = when {
+                fail == 0 -> "교환 ${ok}건 완료 (우편함 확인)"
+                ok == 0 -> "교환 실패 ${fail}건 — $lastFailMsg"
+                else -> "교환 ${ok}건 완료 · 실패 ${fail}건 ($lastFailMsg)"
+            }
+            _redeemState.value = RedeemState.Done(fail == 0, detail)
         }
     }
 
@@ -1025,6 +1066,10 @@ class SpendingViewModel(app: Application) : AndroidViewModel(app) {
 
     fun yearlyTotal(year: Int = currentYear): Long =
         _spendings.value.filter { DateUtil.isSameYear(it.dateMillis, year) }.sumOf { it.amount }
+
+    /** 전월 총 지출(MoM 비교용). 1월이면 전년 12월. */
+    fun prevMonthTotal(): Long =
+        if (currentMonth == 1) monthlyTotal(currentYear - 1, 12) else monthlyTotal(currentYear, currentMonth - 1)
 
     fun topGameThisMonth(): String? =
         _spendings.value
@@ -1153,3 +1198,6 @@ class SpendingViewModel(app: Application) : AndroidViewModel(app) {
         bootstrapAuthAndSync()
     }
 }
+
+/** 오늘 할 일 → 게임 정보 탭 진입 시 스크롤할 섹션. NOTES=실시간 노트, BANNER=배너, PITY=천장. */
+enum class GameInfoAnchor { NOTES, BANNER, PITY }

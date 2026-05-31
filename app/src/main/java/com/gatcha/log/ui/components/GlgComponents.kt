@@ -216,6 +216,31 @@ fun GlgScreenHeader(title: String, onBack: () -> Unit, modifier: Modifier = Modi
     }
 }
 
+/**
+ * 탭(루트) 화면 공통 헤더 — 큰 제목 + 우측 액션 슬롯. 홈을 제외한 지출·게임정보·마이페이지가 공유해
+ * 제목 크기(24sp)·여백(top 24·bottom 16)·액션 간격(8dp)을 통일한다.
+ * 가로 16dp 패딩된 컨테이너(LazyColumn item) 안에서 [modifier] 없이 사용.
+ */
+@Composable
+fun GlgTabHeader(
+    title: String,
+    modifier: Modifier = Modifier,
+    actions: @Composable RowScope.() -> Unit = {},
+) {
+    Row(
+        modifier = modifier.fillMaxWidth().padding(top = 24.dp, bottom = 16.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(title, fontSize = 24.sp, fontWeight = FontWeight.Bold)
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            content = actions,
+        )
+    }
+}
+
 /** 보조/취소 버튼 — 고스트 스타일 + 누르면 옅은 강조색 호버(플랫) */
 @Composable
 fun GlgOutlineButton(

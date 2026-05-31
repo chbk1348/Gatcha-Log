@@ -93,7 +93,7 @@ fun CalendarScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
             }
         }
         item {
-            GlassCard(shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth()) {
+            GlassCard(shape = RoundedCornerShape(24.dp), modifier = Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(12.dp)) {
                     WeekdayHeader()
                     Spacer(Modifier.height(4.dp))

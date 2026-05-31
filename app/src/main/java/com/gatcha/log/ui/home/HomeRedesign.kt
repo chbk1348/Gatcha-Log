@@ -9,11 +9,15 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Bolt
-import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Casino
+import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.DoneAll
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.LocalFireDepartment
+import androidx.compose.material.icons.filled.FileDownload
+import androidx.compose.material.icons.filled.Flag
 import androidx.compose.material.icons.filled.NotificationsNone
 import androidx.compose.material.icons.filled.Savings
+import androidx.compose.material.icons.filled.TaskAlt
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -43,6 +47,7 @@ import com.gatcha.log.data.PityTier
 import com.gatcha.log.ui.components.GlassCard
 import com.gatcha.log.ui.components.GlgCircleIconButton
 import com.gatcha.log.ui.components.ProfileAvatar
+import com.gatcha.log.ui.components.SkeletonBox
 import com.gatcha.log.ui.theme.DangerBackground
 import com.gatcha.log.ui.theme.DangerText
 import com.gatcha.log.ui.theme.DividerColor
@@ -62,11 +67,7 @@ import kotlin.random.Random
 // 데이터는 전부 기존 ViewModel 재사용 — 회귀 최소.
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** M3 Expressive 토널 컨테이너 색 (accent 단색 팔레트를 톤으로 확장). */
-private val SecCont = Color(0xFFE5E1F2); private val SecOnCont = Color(0xFF2C2746)
-private val TerCont = Color(0xFFFCE4D6); private val TerOnCont = Color(0xFF5A3216)
-
-/** 천장 하이라이트 — 가장 임박한 게임 1종(요약·토널 타일에 공유). */
+/** 천장 하이라이트 — 가장 임박한 게임 1종(요약·가챠 현황 카드에 공유). */
 data class PityHighlight(
     val game: Game,
     val count: Int,
@@ -85,7 +86,6 @@ fun HomeHeader(
     isGuest: Boolean,
     photoUrl: String?,
     streak: Int,
-    monthlyTotal: Long,
     alertCount: Int,
     onBellClick: () -> Unit,
 ) {
@@ -106,7 +106,7 @@ fun HomeHeader(
                 maxLines = 1,
             )
             if (streak > 0) {
-                Text("🔥 ${streak}일 연속 · ${won(monthlyTotal)}", fontSize = 11.sp, color = TextSecondary, maxLines = 1)
+                Text("🔥 ${streak}일 연속 출석 중", fontSize = 11.sp, color = TextSecondary, maxLines = 1)
             }
         }
         Spacer(Modifier.width(8.dp))
@@ -124,43 +124,36 @@ fun HomeHeader(
 @Composable
 fun MonthlySummaryCard(
     monthlyTotal: Long,
+    prevTotal: Long,
     budget: Long,
-    topGame: String?,
     topPity: PityHighlight?,
+    nextBanner: GachaBanner?,
+    gameOverCount: Int,
     onBudget: () -> Unit,
     onPity: () -> Unit,
     onTip: () -> Unit,
 ) {
-    val accent2 = LocalAccentSecondary.current
-    // 하루 단위로 고정되는 시드 — 매일 다른 문구, 같은 날 리컴포지션엔 안 흔들림
+    val accent = LocalAccent.current
+    // 하루 단위로 고정되는 시드 — 매일 다른 어투, 같은 날 리컴포지션엔 안 흔들림
     val daySeed = remember { java.util.Calendar.getInstance().get(java.util.Calendar.DAY_OF_YEAR) }
-    val summary = remember(monthlyTotal, budget, topGame, topPity, daySeed) {
-        buildMonthlySummary(monthlyTotal, budget, topGame, topPity, accent2, daySeed)
+    val summary = remember(monthlyTotal, prevTotal, budget, topPity, nextBanner, gameOverCount, daySeed) {
+        buildMonthlySummary(monthlyTotal, prevTotal, budget, topPity, nextBanner, gameOverCount, accent, daySeed)
     }
-    Surface(
-        shape = RoundedCornerShape(28.dp),
-        color = Color.Transparent,
-        modifier = Modifier.fillMaxWidth(),
-    ) {
-        Box(
-            Modifier.background(
-                Brush.linearGradient(listOf(Color(0xFF11352F), Color(0xFF0E2A45)))
-            ).padding(18.dp),
-        ) {
-            Column {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.AutoAwesome, null, tint = accent2, modifier = Modifier.size(16.dp))
-                    Spacer(Modifier.width(6.dp))
-                    Text("이번 달 한눈에", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = accent2)
-                }
-                Spacer(Modifier.height(10.dp))
-                Text(summary, fontSize = 14.sp, color = Color(0xFFEAFFF9), lineHeight = 21.sp)
-                Spacer(Modifier.height(14.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    SummaryChip("예산 점검", onBudget)
-                    SummaryChip("천장 보기", onPity)
-                    SummaryChip("절약 팁", onTip)
-                }
+    // 팔레트 통일 — 다크 그라데이션 히어로를 라이트 글라스 카드로(나머지 카드와 동일 계열)
+    GlassCard(shape = RoundedCornerShape(28.dp), modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(18.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.AutoAwesome, null, tint = accent, modifier = Modifier.size(16.dp))
+                Spacer(Modifier.width(6.dp))
+                Text("이번 달 한눈에", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = accent)
+            }
+            Spacer(Modifier.height(10.dp))
+            Text(summary, fontSize = 14.sp, color = TextPrimary, lineHeight = 21.sp)
+            Spacer(Modifier.height(14.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                SummaryChip(if (budget > 0) "예산 점검" else "예산 세우기", onBudget)
+                SummaryChip("천장 보기", onPity)
+                SummaryChip("절약 팁", onTip)
             }
         }
     }
@@ -168,189 +161,121 @@ fun MonthlySummaryCard(
 
 @Composable
 private fun SummaryChip(text: String, onClick: () -> Unit) {
-    val accent2 = LocalAccentSecondary.current
+    val accent = LocalAccent.current
     Surface(
         shape = RoundedCornerShape(999.dp),
-        color = accent2.copy(alpha = 0.16f),
-        border = BorderStroke(1.dp, accent2.copy(alpha = 0.35f)),
+        color = accent.copy(alpha = 0.10f),
+        border = BorderStroke(1.dp, accent.copy(alpha = 0.30f)),
         modifier = Modifier.clickable { onClick() },
     ) {
         Text(
             text,
             fontSize = 12.sp,
             fontWeight = FontWeight.Bold,
-            color = accent2,
+            color = accent,
             modifier = Modifier.padding(horizontal = 13.dp, vertical = 7.dp),
         )
     }
 }
 
-// ── 50종 랜덤 요약 엔진 ──────────────────────────────────────────────────────
-// 토큰 렌더러: {M}=월, {AMT}=금액, {S}=예산상태절 을 스타일된 조각으로 치환.
-private fun render(template: String, tokens: Map<String, AnnotatedString>): AnnotatedString =
-    buildAnnotatedString {
-        val rx = Regex("\\{[A-Z]+\\}")
-        var last = 0
-        rx.findAll(template).forEach { m ->
-            append(template.substring(last, m.range.first))
-            tokens[m.value]?.let { append(it) }
-            last = m.range.last + 1
-        }
-        append(template.substring(last))
-    }
-
-/** 50종 프레임 — 모두 {AMT}(금액) + {S}(예산상태절)을 자연스럽게 배치. */
-private val SUMMARY_FRAMES: List<String> = listOf(
-    "{M}월 지출은 {AMT}, {S}.", "이번 달 {AMT} 썼어요. {S}.", "벌써 {AMT}네요. {S}.",
-    "{M}월 들어 {AMT}. {S}.", "지금까지 {AMT} 지출했어요. {S}.", "이번 달 결제 {AMT}. {S}.",
-    "{M}월 한 달 {AMT} 사용. {S}.", "현재 {AMT}까지 왔어요. {S}.", "오늘까지 {AMT} 썼네요. {S}.",
-    "{M}월 가챠·결제 합계 {AMT}. {S}.", "음, 이번 달 {AMT}. {S}.", "이번 달도 달렸네요 — {AMT}, {S}.",
-    "{AMT} 지출 중이에요. {S}.", "집계해보니 {AMT}. {S}.", "{M}월 누적 {AMT}. {S}.",
-    "이번 달 씀씀이 {AMT}. {S}.", "지갑 점검! {AMT} 썼어요. {S}.", "{M}월 현재 {AMT}. {S}.",
-    "여기까지 {AMT}. {S}.", "이번 달 {AMT} 기록 중이에요. {S}.", "총 {AMT} 나갔어요. {S}.",
-    "{M}월 소비 {AMT}. {S}.", "체크해보면 {AMT}. {S}.", "이번 달 {AMT} 사용했어요. {S}.",
-    "지출 현황 {AMT}. {S}.", "{M}월 {AMT} 썼습니다. {S}.", "슬쩍 보니 {AMT}. {S}.",
-    "이달 누계 {AMT}. {S}.", "{AMT} 사용 중. {S}.", "이번 달 합계 {AMT}. {S}.",
-    "{M}월 지출 집계 {AMT}. {S}.", "현재 지출 {AMT}. {S}.", "이번 달 {AMT} 떠났네요. {S}.",
-    "결산하면 {AMT}. {S}.", "{M}월에 {AMT} 썼어요. {S}.", "지금 {AMT}. {S}.",
-    "이번 달 쓴 돈 {AMT}. {S}.", "{AMT} 지출 기록. {S}.", "한눈에 {AMT}. {S}.",
-    "{M}월 페이스 {AMT}. {S}.", "이번 달 {AMT}, 어떠세요? {S}.", "지출 합산 {AMT}. {S}.",
-    "{M}월 동안 {AMT}. {S}.", "톡 까보면 {AMT}. {S}.", "이번 달 가챠 포함 {AMT}. {S}.",
-    "{AMT} 사용했네요. {S}.", "여태 {AMT} 썼어요. {S}.", "{M}월 결제 합 {AMT}. {S}.",
-    "이번 달 {AMT}로 집계돼요. {S}.", "현재까지 총 {AMT}. {S}.",
-)
-
-private val OVER_STATUS = listOf("예산을 {V} 넘겼어요", "예산보다 {V} 더 썼네요", "예산 초과 {V}", "예산을 {V} 초과했어요")
-private val NEAR_STATUS = listOf("예산의 {V}까지 왔어요", "예산 {V} 소진했어요", "예산을 거의 다 썼어요 ({V})", "예산 사용률 {V}")
-private val UNDER_STATUS = listOf("예산의 {V} 수준이에요", "아직 예산 {V}", "예산 내 잘 쓰고 있어요 ({V})", "예산 {V} 사용 중")
-private val NONE_STATUS = listOf("예산을 정하면 페이스를 알려드릴게요", "예산은 아직 미설정이에요", "예산을 설정해 보세요")
-
+// ── 인사이트 요약 엔진 ───────────────────────────────────────────────────────
+// 단순 금액 재진술(절대금액은 D 카드 담당) 대신 ①전월 대비 ②페이스/예산 ③천장·픽업 을
+// 우선순위로 조합해 최대 3문장. 일자 시드로 어투만 매일 변주(같은 날 리컴포지션엔 고정).
 /**
- * 온디바이스 규칙 기반 월간 요약(LLM 미사용). 예산(이하/임박/초과)·최다게임·천장 단계를 반영하되
- * **일자 시드로 50종 프레임 중 하나를 골라** 매일 다른 문구로 표시. 강조 단어만 색 span.
+ * 온디바이스 규칙 기반 월간 인사이트(LLM 미사용). 강조 단어만 색 span.
+ * - prevTotal: 전월 총 지출(MoM). 0이면 비교 생략.
+ * - topPity: 가장 임박한 천장 1종. - nextBanner: 가장 임박한 픽업 배너 1종.
+ * - gameOverCount: 게임별 한도를 넘긴 게임 수.
  */
 private fun buildMonthlySummary(
     monthlyTotal: Long,
+    prevTotal: Long,
     budget: Long,
-    topGame: String?,
     topPity: PityHighlight?,
+    nextBanner: GachaBanner?,
+    gameOverCount: Int,
     accent2: Color,
     seed: Int,
 ): AnnotatedString {
-    val month = DateUtil.month(System.currentTimeMillis())
-    val white = SpanStyle(color = Color.White, fontWeight = FontWeight.Bold)
-    val warn = SpanStyle(color = Color(0xFFFF9B9B), fontWeight = FontWeight.Bold)
+    // 라이트 글라스 카드 위 — 흰색 대신 본문색, 경고는 진한 빨강, 강조는 강조색
+    val white = SpanStyle(color = TextPrimary, fontWeight = FontWeight.Bold)
+    val warn = SpanStyle(color = DangerText, fontWeight = FontWeight.Bold)
     val mint = SpanStyle(color = accent2, fontWeight = FontWeight.Bold)
     val rnd = Random(seed)
     fun <T> List<T>.pick(): T = this[rnd.nextInt(size)]
 
-    val amt = buildAnnotatedString { withStyle(white) { append(won(monthlyTotal)) } }
+    val parts = mutableListOf<AnnotatedString>()
 
-    // 예산 상태절 — {V}(퍼센트/초과율)를 스타일된 조각으로 치환
-    val pct = if (budget > 0) (monthlyTotal * 100 / budget).toInt() else 0
-    val status: AnnotatedString = when {
-        budget <= 0 -> AnnotatedString(NONE_STATUS.pick())
-        monthlyTotal > budget -> render(OVER_STATUS.pick(), mapOf("{V}" to buildAnnotatedString { withStyle(warn) { append("${pct - 100}%") } }))
-        pct >= 90 -> render(NEAR_STATUS.pick(), mapOf("{V}" to buildAnnotatedString { withStyle(warn) { append("${pct}%") } }))
-        else -> render(UNDER_STATUS.pick(), mapOf("{V}" to buildAnnotatedString { withStyle(mint) { append("${pct}%") } }))
+    // ① 전월 대비(MoM) — prev 있으면 비교, 없으면 절대금액 1회만(D와 중복 최소화 위해 첫 달만)
+    if (monthlyTotal <= 0L) {
+        parts += AnnotatedString(listOf("이번 달은 아직 지출이 없어요.", "이번 달 지출 기록이 비어 있어요.").pick())
+    } else if (prevTotal > 0L) {
+        val diff = ((monthlyTotal - prevTotal) * 100 / prevTotal).toInt()
+        parts += when {
+            diff >= 5 -> buildAnnotatedString {
+                append(listOf("지난달보다 ", "전월 대비 ").pick()); withStyle(warn) { append("${diff}% 더") }
+                append(listOf(" 쓰고 있어요.", " 지출 중이에요.").pick())
+            }
+            diff <= -5 -> buildAnnotatedString {
+                append(listOf("지난달보다 ", "전월 대비 ").pick()); withStyle(mint) { append("${-diff}% 덜") }
+                append(listOf(" 쓰고 있어요.", " 아꼈어요.").pick())
+            }
+            else -> AnnotatedString("지난달과 비슷한 페이스예요.")
+        }
+    } else {
+        parts += buildAnnotatedString {
+            append("이번 달 "); withStyle(white) { append(won(monthlyTotal)) }; append(" 쓰고 있어요.")
+        }
     }
 
-    val frame = SUMMARY_FRAMES.pick()
-    val core = render(frame, mapOf("{M}" to AnnotatedString("$month"), "{AMT}" to amt, "{S}" to status))
-
-    // 꼬리 — 최다 지출 + 천장 임박(있을 때만)
-    return buildAnnotatedString {
-        append(core)
-        val tg = topGame?.let { GameData.byNameOrNull(it)?.shortName ?: it }
-        if (tg != null) {
-            append(listOf(" 최다 지출은 ", " 가장 많이 쓴 곳은 ", " 지출 1위는 ").pick())
-            withStyle(white) { append(tg) }
-            append("입니다.")
+    // ② 페이스/예산
+    val cal = java.util.Calendar.getInstance()
+    val passed = cal.get(java.util.Calendar.DAY_OF_MONTH).coerceAtLeast(1)
+    val totalDays = cal.getActualMaximum(java.util.Calendar.DAY_OF_MONTH)
+    val projected = monthlyTotal * totalDays / passed
+    if (budget > 0) {
+        val pct = (monthlyTotal * 100 / budget).toInt()
+        parts += when {
+            monthlyTotal > budget -> buildAnnotatedString {
+                append("예산을 "); withStyle(warn) { append("${pct - 100}%") }; append(" 넘겼어요. 이번 달은 무·저과금을 권해요.")
+            }
+            pct >= 90 -> buildAnnotatedString {
+                append("예산 "); withStyle(warn) { append("${pct}%") }; append(" 소진 — 마무리 조심하세요.")
+            }
+            projected > budget -> buildAnnotatedString {
+                append("이 페이스면 월말 약 "); withStyle(warn) { append("${projected / 10000}만원") }; append(", 예산을 넘길 수 있어요.")
+            }
+            else -> buildAnnotatedString {
+                append("예산의 "); withStyle(mint) { append("${pct}%") }; append(" 선에서 잘 쓰고 있어요.")
+            }
         }
-        if (topPity != null && topPity.tier != PityTier.Safe) {
-            append(" ")
+    } else if (projected >= 10000L) {
+        parts += buildAnnotatedString {
+            append("이 페이스면 월말 약 "); withStyle(white) { append("${projected / 10000}만원") }; append(" 예상이에요.")
+        }
+    }
+
+    // ③ 천장 임박 또는 다음 픽업(천장 우선)
+    if (topPity != null && topPity.tier != PityTier.Safe) {
+        parts += buildAnnotatedString {
             withStyle(mint) { append("${topPity.game.shortName} 천장 ${topPity.count}/${topPity.hard}") }
             append(if (topPity.tier == PityTier.Reached) ", 다음 보장 확정이에요." else ", 곧 보장이에요.")
         }
+    } else if (nextBanner != null) {
+        val d = nextBanner.dDay()
+        parts += buildAnnotatedString {
+            withStyle(mint) { append(nextBanner.name) }; append(" 픽업 ")
+            withStyle(if (d <= 3) warn else mint) { append(nextBanner.endShortLabel()) }
+            append(if (d <= 3) ", 막바지예요." else " 진행 중이에요.")
+        }
+    } else if (gameOverCount > 0) {
+        parts += buildAnnotatedString {
+            withStyle(warn) { append("${gameOverCount}개 게임") }; append("이 한도를 넘었어요. 게임별 예산을 점검해보세요.")
+        }
     }
-}
 
-// ── K: 토널 2-stat (남은 예산·출석) ──────────────────────────────────────────
-@Composable
-fun TonalStatRow(
-    monthlyTotal: Long,
-    budget: Long,
-    attendanceDone: Int,
-    attendanceTotal: Int,
-    streak: Int,
-    onBudgetClick: () -> Unit,
-) {
-    // 두 타일 높이를 콘텐츠가 많은 쪽에 맞춰 통일 (IntrinsicSize.Min + fillMaxHeight)
-    Row(
-        modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min),
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
-    ) {
-        // 남은 예산 · 페이스 타일 (secondary container, 비대칭 코너) — 탭하면 예산 관리
-        Surface(
-            shape = RoundedCornerShape(28.dp, 28.dp, 10.dp, 28.dp),
-            color = SecCont,
-            modifier = Modifier.weight(1f).fillMaxHeight().clickable { onBudgetClick() },
-        ) {
-            Column(Modifier.padding(14.dp)) {
-                Text("남은 예산", fontSize = 11.sp, fontWeight = FontWeight.Medium, color = SecOnCont.copy(alpha = 0.8f), maxLines = 1)
-                Spacer(Modifier.height(2.dp))
-                if (budget > 0) {
-                    val remaining = budget - monthlyTotal
-                    val over = remaining < 0
-                    val pct = (monthlyTotal * 100 / budget).toInt()
-                    Text(
-                        if (over) "−${won(-remaining)}" else won(remaining),
-                        fontSize = 19.sp, fontWeight = FontWeight.Bold,
-                        color = if (over) DangerText else SecOnCont, maxLines = 1,
-                    )
-                    Spacer(Modifier.height(6.dp))
-                    val chipColor = if (over) DangerText else if (pct >= 90) WarningText else SecOnCont
-                    Surface(color = chipColor.copy(alpha = if (over) 0.14f else 0.12f), shape = RoundedCornerShape(999.dp)) {
-                        Text(
-                            if (over) "예산 초과" else "${pct}% 소진",
-                            fontSize = 11.sp, fontWeight = FontWeight.Bold, color = chipColor,
-                            modifier = Modifier.padding(horizontal = 9.dp, vertical = 3.dp),
-                        )
-                    }
-                    // 페이스 — 이 속도면 월말 예상 지출
-                    val cal = java.util.Calendar.getInstance()
-                    val passed = cal.get(java.util.Calendar.DAY_OF_MONTH)
-                    val total = cal.getActualMaximum(java.util.Calendar.DAY_OF_MONTH)
-                    val projected = monthlyTotal * total / passed
-                    if (projected >= 10000) {
-                        Spacer(Modifier.height(5.dp))
-                        Text("이 페이스 약 ${projected / 10000}만원", fontSize = 10.sp, color = SecOnCont.copy(alpha = 0.7f), maxLines = 1)
-                    }
-                } else {
-                    Text("미설정", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = SecOnCont)
-                    Spacer(Modifier.height(7.dp))
-                    Surface(color = SecOnCont.copy(alpha = 0.10f), shape = RoundedCornerShape(999.dp)) {
-                        Text("예산 설정 ›", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = SecOnCont, modifier = Modifier.padding(horizontal = 9.dp, vertical = 3.dp))
-                    }
-                }
-            }
-        }
-        // 출석 타일 (tertiary container)
-        Surface(
-            shape = RoundedCornerShape(28.dp, 28.dp, 28.dp, 10.dp),
-            color = TerCont,
-            modifier = Modifier.weight(1f).fillMaxHeight(),
-        ) {
-            Column(
-                Modifier.fillMaxSize().padding(14.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center,
-            ) {
-                Icon(Icons.Default.LocalFireDepartment, null, tint = Color(0xFFFB8C00), modifier = Modifier.size(26.dp))
-                Text(if (streak > 0) "${streak}일" else "—", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = TerOnCont)
-                Text("연속 출석 · $attendanceDone/$attendanceTotal", fontSize = 11.sp, fontWeight = FontWeight.Medium, color = TerOnCont.copy(alpha = 0.8f), maxLines = 1)
-            }
-        }
+    return buildAnnotatedString {
+        parts.take(3).forEachIndexed { i, p -> if (i > 0) append(" "); append(p) }
     }
 }
 
@@ -443,48 +368,6 @@ private fun BudgetBar(ratio: Float, over: Boolean) {
     }
 }
 
-// ── 게임 현황 2.0 — 토널 출석 타일 + 캡슐 노트 ───────────────────────────────
-/** 출석 타일 — 게임색 토널. 완료=체크, 진행=스피너, 대기=약자(탭하여 출석). */
-@Composable
-fun AttendanceTile(
-    game: Game,
-    done: Boolean,
-    inProgress: Boolean,
-    modifier: Modifier = Modifier,
-    onClick: () -> Unit,
-) {
-    Surface(
-        shape = RoundedCornerShape(18.dp),
-        color = if (done) game.color.copy(alpha = 0.10f) else Color.White,
-        border = BorderStroke(1.dp, if (done) game.color.copy(alpha = 0.35f) else DividerColor),
-        modifier = modifier.clickable(enabled = !done && !inProgress) { onClick() },
-    ) {
-        Column(
-            Modifier.padding(vertical = 14.dp, horizontal = 6.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            Box(
-                Modifier.size(42.dp).clip(CircleShape).background(game.color.copy(alpha = 0.15f)),
-                contentAlignment = Alignment.Center,
-            ) {
-                when {
-                    inProgress -> CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp, color = game.color)
-                    done -> Icon(Icons.Default.CheckCircle, null, tint = game.color, modifier = Modifier.size(24.dp))
-                    else -> Text(game.abbr, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = game.color)
-                }
-            }
-            Spacer(Modifier.height(8.dp))
-            Text(game.shortName, fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1)
-            Spacer(Modifier.height(2.dp))
-            Text(
-                if (done) "출석 완료" else if (inProgress) "처리 중" else "탭하여 출석",
-                fontSize = 10.sp,
-                color = if (done) game.color else TextSecondary,
-                maxLines = 1,
-            )
-        }
-    }
-}
 
 /** 실시간 노트 캡슐 (O) — 레진/배터리 등. 가득 차면 경고색. */
 @Composable
@@ -585,10 +468,293 @@ fun BannerCapsule(banner: GachaBanner) {
             Spacer(Modifier.width(8.dp))
             Surface(color = chipColor.copy(alpha = 0.14f), shape = RoundedCornerShape(999.dp)) {
                 Text(
-                    if (d == 0) "D-DAY" else "D-$d",
+                    banner.endShortLabel(),
                     fontSize = 11.sp, fontWeight = FontWeight.Bold, color = chipColor,
                     modifier = Modifier.padding(horizontal = 9.dp, vertical = 3.dp),
                 )
+            }
+        }
+    }
+}
+
+// ── 오늘 할 일 (상태 기반 스마트 액션) ────────────────────────────────────────
+/** 재화(레진/개척력/배터리) 임박 경보. full=가득, recovery="약 N시간 후 충전". */
+data class ResinAlert(val gameShort: String, val label: String, val cur: Int, val max: Int, val recovery: String, val full: Boolean)
+
+/** 픽업 확정 계획 — 최악의 경우 필요한 뽑기 수와 원화 비용(가챠×지출 결합 지표). */
+data class BannerPlan(val maxPulls: Int, val wonCost: Long)
+
+/** 오늘 할 일 한 줄. busyable=전체출석처럼 진행 중 스피너가 필요한 항목. */
+data class TodayItem(
+    val icon: androidx.compose.ui.graphics.vector.ImageVector,
+    val message: String,
+    val ctaLabel: String,
+    val urgent: Boolean,
+    val busyable: Boolean,
+    val onAction: () -> Unit,
+)
+
+/**
+ * 출석·재화·픽업·예산·천장 상태를 우선순위 순으로 훑어 **활성 할 일을 전부** 리스트로 산출.
+ * 순서(시간 민감도): 미출석 → 재화 임박 → 픽업 막바지 → 예산 경고 → 천장 임박. 없으면 빈 리스트.
+ */
+fun resolveTodayTasks(
+    pendingAttendance: Int,
+    resins: List<ResinAlert>,
+    urgentBanner: GachaBanner?,
+    budget: Long,
+    monthlyTotal: Long,
+    topPity: PityHighlight?,
+    onCheckInAll: () -> Unit,
+    onResin: () -> Unit,
+    onBanner: () -> Unit,
+    onPity: () -> Unit,
+    onBudget: () -> Unit,
+): List<TodayItem> = buildList {
+    val budgetPct = if (budget > 0) (monthlyTotal * 100 / budget).toInt() else 0
+    if (pendingAttendance > 0)
+        add(TodayItem(Icons.Default.DoneAll, "출석 안 한 게임 ${pendingAttendance}개", "한 번에 출석", false, true, onCheckInAll))
+    // 가득/임박한 게임을 전부 — 원신뿐 아니라 스타레일·젠레스 등 해당되는 모든 게임
+    resins.forEach { r ->
+        add(TodayItem(
+            Icons.Default.Bolt,
+            if (r.full) "${r.gameShort} ${r.label} 가득 참" else "${r.gameShort} ${r.label} ${r.cur}/${r.max} 곧 넘침",
+            "게임 정보", true, false, onResin,
+        ))
+    }
+    if (urgentBanner != null) {
+        add(TodayItem(Icons.Default.Casino, "${urgentBanner.name} 픽업 ${urgentBanner.endShortLabel()} 막바지", "픽업 계획", true, false, onBanner))
+    }
+    if (budget > 0 && monthlyTotal > budget)
+        add(TodayItem(Icons.Default.Savings, "예산 ${budgetPct - 100}% 초과", "예산 점검", true, false, onBudget))
+    else if (budget > 0 && budgetPct >= 90)
+        add(TodayItem(Icons.Default.Savings, "예산 ${budgetPct}% 사용", "예산 점검", true, false, onBudget))
+    if (topPity != null && (topPity.tier == PityTier.Imminent || topPity.tier == PityTier.Reached))
+        add(TodayItem(Icons.Default.Flag, "${topPity.game.shortName} 천장 곧 보장", "천장 보기", false, false, onPity))
+}
+
+/** 오늘 할 일 카드 — 활성 항목을 전부 리스트로. 각 행 탭 시 해당 액션. 없으면 격려 한 줄. */
+@Composable
+fun TodayTaskCard(tasks: List<TodayItem>, inProgress: Boolean) {
+    val accent = LocalAccent.current
+    GlassCard(shape = RoundedCornerShape(24.dp), modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.TaskAlt, null, tint = accent, modifier = Modifier.size(16.dp))
+                Spacer(Modifier.width(6.dp))
+                Text("오늘 할 일", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = accent)
+                if (tasks.isNotEmpty()) {
+                    Spacer(Modifier.width(6.dp))
+                    Surface(color = accent.copy(alpha = 0.14f), shape = RoundedCornerShape(999.dp)) {
+                        Text("${tasks.size}", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = accent, modifier = Modifier.padding(horizontal = 7.dp, vertical = 1.dp))
+                    }
+                }
+            }
+            Spacer(Modifier.height(12.dp))
+            if (tasks.isEmpty()) {
+                Text("오늘 챙길 건 다 끝냈어요 🎉 여유롭게 즐기세요", fontSize = 14.sp, color = TextPrimary)
+            } else {
+                tasks.forEachIndexed { i, t ->
+                    if (i > 0) {
+                        Spacer(Modifier.height(10.dp))
+                        HorizontalDivider(color = DividerColor)
+                        Spacer(Modifier.height(10.dp))
+                    }
+                    TodayRow(t, inProgress)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun TodayRow(t: TodayItem, inProgress: Boolean) {
+    val tint = if (t.urgent) WarningText else LocalAccent.current
+    val busy = t.busyable && inProgress
+    Row(
+        modifier = Modifier.fillMaxWidth().clickable(enabled = !busy) { t.onAction() },
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(t.icon, null, tint = tint, modifier = Modifier.size(18.dp))
+        Spacer(Modifier.width(10.dp))
+        Text(t.message, fontSize = 14.sp, color = TextPrimary, modifier = Modifier.weight(1f), maxLines = 2)
+        Spacer(Modifier.width(8.dp))
+        if (busy) {
+            CircularProgressIndicator(Modifier.size(15.dp), strokeWidth = 2.dp, color = tint)
+        } else {
+            Surface(color = tint.copy(alpha = 0.12f), shape = RoundedCornerShape(999.dp)) {
+                Row(Modifier.padding(start = 10.dp, end = 7.dp, top = 4.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text(t.ctaLabel, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = tint)
+                    Icon(Icons.Default.ChevronRight, null, tint = tint, modifier = Modifier.size(13.dp))
+                }
+            }
+        }
+    }
+}
+
+/** 오늘 할 일 로딩 스켈레톤 — 헤더 + 시머 행 N개. 로딩 완료 시 실제 리스트로 한 번에 교체. */
+@Composable
+fun TodayTaskSkeleton(rows: Int = 3) {
+    val accent = LocalAccent.current
+    GlassCard(shape = RoundedCornerShape(24.dp), modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.TaskAlt, null, tint = accent.copy(alpha = 0.5f), modifier = Modifier.size(16.dp))
+                Spacer(Modifier.width(6.dp))
+                Text("오늘 할 일", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = accent.copy(alpha = 0.5f))
+            }
+            Spacer(Modifier.height(12.dp))
+            repeat(rows) { i ->
+                if (i > 0) {
+                    Spacer(Modifier.height(10.dp))
+                    HorizontalDivider(color = DividerColor)
+                    Spacer(Modifier.height(10.dp))
+                }
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    SkeletonBox(Modifier.size(18.dp), CircleShape)
+                    Spacer(Modifier.width(10.dp))
+                    SkeletonBox(Modifier.weight(1f).height(13.dp))
+                    Spacer(Modifier.width(8.dp))
+                    SkeletonBox(Modifier.width(56.dp).height(22.dp), RoundedCornerShape(999.dp))
+                }
+            }
+        }
+    }
+}
+
+// ── 가챠 현황 미니카드 (천장 + 다음 픽업, 읽기전용) ───────────────────────────
+/** 천장 단계별 강조색. Safe 는 옅은 회색(평온). */
+private fun PityTier.accentColor(): Color = when (this) {
+    PityTier.Reached -> Color(0xFFE53935)
+    PityTier.Imminent -> Color(0xFFFB8C00)
+    PityTier.Caution -> Color(0xFFF59E0B)
+    PityTier.Safe -> Color(0xFF9AA0A6)
+}
+
+private fun PityTier.shortLabel(): String = when (this) {
+    PityTier.Reached -> "보장 확정"
+    PityTier.Imminent -> "곧 보장"
+    PityTier.Caution -> "주의"
+    PityTier.Safe -> "모으는 중"
+}
+
+/**
+ * 가챠 현황 카드 — 좌: 가장 임박한 천장, 우: 가장 임박한 픽업. 읽기 전용(탭 → 게임정보 탭).
+ * 데이터 없을 때는 가챠 기록 가져오기 CTA. (입력은 게임정보 탭 PitySection 담당)
+ */
+@Composable
+fun GachaStatusCard(
+    topPity: PityHighlight?,
+    nextBanner: GachaBanner?,
+    nextBannerPlan: BannerPlan?,
+    onOpen: () -> Unit,
+    onImport: () -> Unit,
+) {
+    val accent = LocalAccent.current
+    GlassCard(shape = RoundedCornerShape(24.dp), modifier = Modifier.fillMaxWidth().clickable { onOpen() }) {
+        Column(Modifier.padding(16.dp)) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.Casino, null, tint = accent, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text("가챠 현황", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                }
+                Icon(Icons.Default.ChevronRight, "가챠 상세", tint = TextSecondary, modifier = Modifier.size(20.dp))
+            }
+            Spacer(Modifier.height(14.dp))
+            if (topPity == null && nextBanner == null) {
+                Text("가챠 기록을 가져오면 천장·픽업이 표시돼요", fontSize = 12.sp, color = TextSecondary)
+                Spacer(Modifier.height(12.dp))
+                Surface(
+                    shape = RoundedCornerShape(999.dp),
+                    color = accent.copy(alpha = 0.10f),
+                    modifier = Modifier.clickable { onImport() },
+                ) {
+                    Row(Modifier.padding(horizontal = 13.dp, vertical = 7.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.FileDownload, null, tint = accent, modifier = Modifier.size(15.dp))
+                        Spacer(Modifier.width(6.dp))
+                        Text("가챠 기록 가져오기", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = accent)
+                    }
+                }
+            } else {
+                Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    PityMini(topPity, Modifier.weight(1f))
+                    NextBannerMini(nextBanner, nextBannerPlan, Modifier.weight(1f))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun PityMini(p: PityHighlight?, modifier: Modifier) {
+    Surface(
+        shape = RoundedCornerShape(16.dp),
+        color = Color.White,
+        border = BorderStroke(1.dp, DividerColor),
+        modifier = modifier.fillMaxHeight(),
+    ) {
+        Column(Modifier.padding(13.dp)) {
+            Text("천장", fontSize = 11.sp, color = TextSecondary)
+            Spacer(Modifier.height(4.dp))
+            if (p == null) {
+                Text("기록 없음", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TextSecondary)
+            } else {
+                val c = p.tier.accentColor()
+                Text(p.game.shortName, fontSize = 13.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+                Spacer(Modifier.height(2.dp))
+                Row(verticalAlignment = Alignment.Bottom) {
+                    Text("${p.count}", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = c)
+                    Text("/${p.hard}", fontSize = 12.sp, color = TextSecondary, modifier = Modifier.padding(bottom = 2.dp))
+                }
+                Spacer(Modifier.height(6.dp))
+                val ratio = (p.count.toFloat() / p.hard).coerceIn(0f, 1f)
+                Box(Modifier.fillMaxWidth().height(5.dp).clip(CircleShape).background(ProgressEmpty)) {
+                    Box(Modifier.fillMaxWidth(ratio).fillMaxHeight().clip(CircleShape).background(c))
+                }
+                Spacer(Modifier.height(6.dp))
+                Surface(color = c.copy(alpha = 0.12f), shape = RoundedCornerShape(999.dp)) {
+                    Text(p.tier.shortLabel(), fontSize = 10.sp, fontWeight = FontWeight.Bold, color = c, modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun NextBannerMini(b: GachaBanner?, plan: BannerPlan?, modifier: Modifier) {
+    Surface(
+        shape = RoundedCornerShape(16.dp),
+        color = Color.White,
+        border = BorderStroke(1.dp, DividerColor),
+        modifier = modifier.fillMaxHeight(),
+    ) {
+        Column(Modifier.padding(13.dp)) {
+            Text("다음 픽업", fontSize = 11.sp, color = TextSecondary)
+            Spacer(Modifier.height(4.dp))
+            if (b == null) {
+                Text("예정 없음", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TextSecondary)
+            } else {
+                val d = b.dDay()
+                val urgent = d <= 3
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.size(8.dp).clip(CircleShape).background(b.gameColor))
+                    Spacer(Modifier.width(6.dp))
+                    Text(b.name, fontSize = 13.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+                }
+                Spacer(Modifier.height(6.dp))
+                Text(GameData.byNameOrNull(b.game)?.shortName ?: b.game, fontSize = 11.sp, color = TextSecondary, maxLines = 1)
+                Spacer(Modifier.height(6.dp))
+                val c = if (urgent) WarningText else LocalAccent.current
+                Surface(color = c.copy(alpha = 0.14f), shape = RoundedCornerShape(999.dp)) {
+                    Text(b.endShortLabel(), fontSize = 10.sp, fontWeight = FontWeight.Bold, color = c, modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp))
+                }
+                // 픽업 확정 비용 인텔리전스 — 천장 누적·확률·1뽑 단가로 산출(가챠×지출 결합)
+                if (plan != null) {
+                    Spacer(Modifier.height(7.dp))
+                    Text("확정 최대 ${plan.maxPulls}연", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextPrimary, maxLines = 1)
+                    Text("약 ${won(plan.wonCost)}", fontSize = 10.sp, color = TextSecondary, maxLines = 1)
+                }
             }
         }
     }

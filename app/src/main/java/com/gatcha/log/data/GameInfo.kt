@@ -54,6 +54,20 @@ data class GachaBanner(
             else -> "종료"
         }
     }
+
+    /** 종료까지 남은 시간(시간 단위·올림). 0 이하면 0. */
+    fun hoursLeft(nowMillis: Long = System.currentTimeMillis()): Int {
+        val diff = endMillis - nowMillis
+        return if (diff <= 0) 0 else Math.ceil(diff / (1000.0 * 60 * 60)).toInt()
+    }
+
+    /** 임박 라벨 — D-1 이하(24시간 이내)면 '시간'으로, 그 외엔 D-N. */
+    fun endShortLabel(nowMillis: Long = System.currentTimeMillis()): String {
+        val d = dDay(nowMillis)
+        if (d > 1) return "D-$d"
+        val h = hoursLeft(nowMillis)
+        return if (h <= 0) "종료 임박" else "${h}시간 남음"
+    }
 }
 
 /** 진행 중인 게임 이벤트 (ennead.cc) */

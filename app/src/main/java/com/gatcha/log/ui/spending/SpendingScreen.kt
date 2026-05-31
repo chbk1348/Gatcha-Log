@@ -40,6 +40,7 @@ import com.gatcha.log.ui.components.CurrencyIcon
 import com.gatcha.log.ui.components.GameCurrency
 import com.gatcha.log.ui.components.GlassCard
 import com.gatcha.log.ui.components.GlgButton
+import com.gatcha.log.ui.components.GlgTabHeader
 import com.gatcha.log.ui.components.GlgScreenHeader
 import com.gatcha.log.ui.components.GlgDialog
 import com.gatcha.log.ui.components.GlgOutlineButton
@@ -149,17 +150,10 @@ fun SpendingScreen(
     ) {
         LazyColumn(state = listState, modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
             item {
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(top = 16.dp, bottom = 10.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text("지출 분석", fontSize = 24.sp, fontWeight = FontWeight.Bold)
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                        CalendarButton { nav = SpendingScreenNav.Calendar }
-                        InsightButton { nav = SpendingScreenNav.Insight }
-                        AnnualReportButton { nav = SpendingScreenNav.Annual }
-                    }
+                GlgTabHeader("지출 분석") {
+                    CalendarButton { nav = SpendingScreenNav.Calendar }
+                    InsightButton { nav = SpendingScreenNav.Insight }
+                    AnnualReportButton { nav = SpendingScreenNav.Annual }
                 }
             }
             item { MonthlySummaryCard(viewModel.displayMonth, monthlyTotal, prevMonthTotal) }
