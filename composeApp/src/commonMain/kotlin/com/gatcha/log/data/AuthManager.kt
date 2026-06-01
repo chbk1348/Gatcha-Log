@@ -26,6 +26,22 @@ sealed interface SignInOutcome {
     data class Error(val message: String) : SignInOutcome
 }
 
+/** 플랫폼 구글 로그인 결과 (idToken = Firebase 인증용) */
+data class PlatformSignInResult(
+    val idToken: String,
+    val email: String,
+    val name: String,
+    val photoUrl: String,
+)
+
+/**
+ * 플랫폼별 구글 로그인 (expect/actual).
+ * - iOS: GoogleSignIn SDK (Swift 브리지 — IosGoogleSignIn.provider)
+ * - Android(composeApp): 미구현(null) — Android 는 :app 의 Credential Manager 가 담당
+ * 반환 null = 로그인 불가/취소.
+ */
+internal expect suspend fun platformGoogleSignIn(autoSelectOnly: Boolean): PlatformSignInResult?
+
 /**
  * 계정 상태 영속화 — :app 의 AuthManager 를 KMP 로 이식.
  *
@@ -60,12 +76,26 @@ class AuthManager {
         private set
 
     /**
-     * 구글/애플 로그인.
-     * 5단계에서 플랫폼별 구현(Credential Manager / AuthenticationServices)으로 교체 예정.
+     * 구글 로그인 — 플랫폼 구현(platformGoogleSignIn)에 위임.
+     * iOS: GoogleSignIn SDK / Android(composeApp): 미지원(:app 이 담당).
      */
-    @Suppress("UNUSED_PARAMETER")
-    suspend fun signIn(autoSelectOnly: Boolean): SignInOutcome =
-        SignInOutcome.Error("이 버전에서는 아직 로그인을 지원하지 않아요 (게스트로 이용해주세요)")
+    suspend fun signIn(autoSelectOnly: Boolean): SignInOutcome {
+        val result = runCatching { platformGoogleSignIn(autoSelectOnly) }
+            .getOrElse { return SignInOutcome.Error("로그인에 실패했어요") }
+            ?: return SignInOutcome.NoCredential
+
+        lastIdToken = result.idToken
+        val account = Account(
+            id = result.email.ifBlank { result.idToken.take(32) },
+            name = result.name.ifBlank { result.email.substringBefore("@") },
+            email = result.email,
+            photoUrl = result.photoUrl,
+            isGuest = false,
+        )
+        _account.value = account
+        persist(account)
+        return SignInOutcome.Success(account)
+    }
 
     /** 로그아웃 → 게스트(로컬) 계정으로 전환. */
     suspend fun signOut() {

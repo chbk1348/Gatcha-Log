@@ -6,6 +6,8 @@ plugins {
     id("com.android.kotlin.multiplatform.library")
     id("org.jetbrains.kotlin.plugin.compose")
     id("org.jetbrains.compose")
+    // Firestore 문서 직렬화(@Serializable) — GitLive Firebase 용
+    id("org.jetbrains.kotlin.plugin.serialization")
 }
 
 kotlin {
@@ -58,6 +60,12 @@ kotlin {
             // 백드롭 블러 (iOS 26 리퀴드 글래스 하단바) — KMP 지원
             implementation("dev.chrisbanes.haze:haze:1.7.2")
             implementation("dev.chrisbanes.haze:haze-materials:1.7.2")
+
+            // ── 클라우드 (5단계) ──
+            // Firebase 인증 + Firestore — :app 의 com.google.firebase 를 GitLive(KMP) 로 대체
+            // iOS 는 네이티브 Firebase iOS SDK(SPM) 가 앱에 링크되어야 동작 (iosApp/project.yml)
+            implementation("dev.gitlive:firebase-auth:2.4.0")
+            implementation("dev.gitlive:firebase-firestore:2.4.0")
         }
         androidMain.dependencies {
             implementation("io.ktor:ktor-client-okhttp:3.5.0")
