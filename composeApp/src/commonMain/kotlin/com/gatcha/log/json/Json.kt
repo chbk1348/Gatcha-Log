@@ -140,6 +140,11 @@ class JSONArray {
         list = el.toMutableList()
     }
 
+    /** org.json 의 JSONArray(Collection) — 문자열 컬렉션을 배열로 */
+    constructor(values: Collection<String>) {
+        list = values.map { JsonPrimitive(it) }.toMutableList()
+    }
+
     internal constructor(arr: JsonArray) {
         list = arr.toMutableList()
     }
