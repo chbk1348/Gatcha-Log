@@ -46,6 +46,15 @@ kotlin {
             implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.11.0")
             // HTTP 클라이언트 — :app 의 HttpURLConnection 대체 (Net 호환 레이어가 감쌈)
             implementation("io.ktor:ktor-client-core:3.5.0")
+
+            // ── UI 레이어 (4단계) ──
+            // ViewModel — :app 의 androidx.lifecycle 와 동일 패키지명 (KMP 버전)
+            implementation("org.jetbrains.androidx.lifecycle:lifecycle-viewmodel-compose:2.10.0")
+            // 머티리얼 아이콘 확장 (Casino, Savings 등) — JetBrains 가 1.7.3 에서 동결한 KMP 아티팩트
+            implementation("org.jetbrains.compose.material:material-icons-extended:1.7.3")
+            // 네트워크 이미지 (구글 프로필 사진·캐릭터 아이콘) — :app 의 Coil 2 → Coil 3 (KMP)
+            implementation("io.coil-kt.coil3:coil-compose:3.4.0")
+            implementation("io.coil-kt.coil3:coil-network-ktor3:3.4.0")
         }
         androidMain.dependencies {
             implementation("io.ktor:ktor-client-okhttp:3.5.0")
@@ -53,6 +62,8 @@ kotlin {
             implementation("androidx.security:security-crypto:1.1.0-alpha06")
             // 알림(NotificationCompat) — Notifier actual
             implementation("androidx.core:core-ktx:1.15.0")
+            // 파일 선택기(SAF) — FilePicker actual
+            implementation("androidx.activity:activity-compose:1.10.1")
         }
         iosMain.dependencies {
             implementation("io.ktor:ktor-client-darwin:3.5.0")
