@@ -54,6 +54,14 @@ object DateUtil {
     fun hoyoDayKey(millis: Long = currentTimeMillis()): String =
         local(millis, hoyoTz).let { "${it.year}-${pad2(it.month.number)}-${pad2(it.day)}" }
 
+    /**
+     * 출석 기준일에서 [daysAgo]일 전의 날짜 키 — 연속 출석(streak) 계산용.
+     * :app 의 hoyoCalendar() + Calendar.add(DAY_OF_YEAR, -n) 패턴을 대체.
+     * (UTC+8 은 DST 가 없어 millis 산술로 안전)
+     */
+    fun hoyoDayKeyAgo(daysAgo: Int): String =
+        hoyoDayKey(currentTimeMillis() - daysAgo * 86_400_000L)
+
     /** "5/20 09:00" (배너 기간 표시용) */
     fun shortDateTime(millis: Long): String =
         local(millis).let { "${it.month.number}/${pad2(it.day)} ${pad2(it.hour)}:${pad2(it.minute)}" }
