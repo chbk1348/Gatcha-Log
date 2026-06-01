@@ -1,0 +1,143 @@
+package com.gatcha.log.storage
+
+import kotlinx.cinterop.ExperimentalForeignApi
+import kotlinx.cinterop.alloc
+import kotlinx.cinterop.memScoped
+import kotlinx.cinterop.ptr
+import kotlinx.cinterop.value
+import platform.CoreFoundation.CFDictionaryAddValue
+import platform.CoreFoundation.CFDictionaryCreateMutable
+import platform.CoreFoundation.CFRelease
+import platform.CoreFoundation.CFTypeRefVar
+import platform.CoreFoundation.kCFBooleanTrue
+import platform.CoreFoundation.kCFTypeDictionaryKeyCallBacks
+import platform.CoreFoundation.kCFTypeDictionaryValueCallBacks
+import platform.Foundation.CFBridgingRelease
+import platform.Foundation.CFBridgingRetain
+import platform.Foundation.NSData
+import platform.Foundation.NSString
+import platform.Foundation.NSUTF8StringEncoding
+import platform.Foundation.NSUserDefaults
+import platform.Foundation.create
+import platform.Foundation.dataUsingEncoding
+import platform.Security.SecItemAdd
+import platform.Security.SecItemCopyMatching
+import platform.Security.SecItemDelete
+import platform.Security.errSecSuccess
+import platform.Security.kSecAttrAccessible
+import platform.Security.kSecAttrAccessibleAfterFirstUnlock
+import platform.Security.kSecAttrAccount
+import platform.Security.kSecAttrService
+import platform.Security.kSecClass
+import platform.Security.kSecClassGenericPassword
+import platform.Security.kSecReturnData
+import platform.Security.kSecValueData
+
+/** NSUserDefaults 기반 구현 — Android 의 SharedPreferences 에 대응 */
+actual class KeyValueStore actual constructor(name: String) {
+    // suiteName 으로 prefs 파일을 분리 (SharedPreferences 의 name 분리에 대응)
+    private val defaults = NSUserDefaults(suiteName = name)
+
+    actual fun getString(key: String, default: String?): String? =
+        (defaults.objectForKey(key) as? String) ?: default
+
+    actual fun putString(key: String, value: String) = defaults.setObject(value, key)
+
+    actual fun getBoolean(key: String, default: Boolean): Boolean =
+        if (defaults.objectForKey(key) != null) defaults.boolForKey(key) else default
+
+    actual fun putBoolean(key: String, value: Boolean) = defaults.setBool(value, key)
+
+    actual fun getLong(key: String, default: Long): Long =
+        if (defaults.objectForKey(key) != null) defaults.integerForKey(key).toLong() else default
+
+    actual fun putLong(key: String, value: Long) = defaults.setInteger(value, key)
+
+    actual fun getInt(key: String, default: Int): Int =
+        if (defaults.objectForKey(key) != null) defaults.integerForKey(key).toInt() else default
+
+    actual fun putInt(key: String, value: Int) = defaults.setInteger(value.toLong(), key)
+
+    actual fun contains(key: String): Boolean = defaults.objectForKey(key) != null
+
+    actual fun remove(key: String) = defaults.removeObjectForKey(key)
+}
+
+/**
+ * iOS Keychain(generic password) 기반 보안 저장소 — Android 의 EncryptedSharedPreferences 에 대응.
+ * service = 저장소 이름, account = 키. 잠금 해제 후 접근 가능(AfterFirstUnlock) 정책.
+ */
+@OptIn(ExperimentalForeignApi::class)
+actual class SecureKeyValueStore actual constructor(private val name: String) {
+
+    /**
+     * 마지막 SecItemAdd 결과 코드 (진단용).
+     * 호스트 앱 없는 테스트 프로세스에서는 entitlement 부재로 -34018(errSecMissingEntitlement)이 나올 수 있다.
+     */
+    var lastAddStatus: Int = 0
+        private set
+
+    actual fun getString(key: String, default: String?): String? = memScoped {
+        val query = CFDictionaryCreateMutable(null, 5, kCFTypeDictionaryKeyCallBacks.ptr, kCFTypeDictionaryValueCallBacks.ptr)
+        val serviceRef = CFBridgingRetain(name as NSString)
+        val accountRef = CFBridgingRetain(key as NSString)
+        CFDictionaryAddValue(query, kSecClass, kSecClassGenericPassword)
+        CFDictionaryAddValue(query, kSecAttrService, serviceRef)
+        CFDictionaryAddValue(query, kSecAttrAccount, accountRef)
+        CFDictionaryAddValue(query, kSecReturnData, kCFBooleanTrue)
+
+        val result = alloc<CFTypeRefVar>()
+        val status = SecItemCopyMatching(query, result.ptr)
+
+        CFRelease(query)
+        CFRelease(serviceRef)
+        CFRelease(accountRef)
+
+        if (status == errSecSuccess) {
+            val data = CFBridgingRelease(result.value) as? NSData ?: return default
+            NSString.create(data = data, encoding = NSUTF8StringEncoding) as String? ?: default
+        } else {
+            default
+        }
+    }
+
+    actual fun putString(key: String, value: String) {
+        // Keychain 은 update 가 번거로워 삭제 후 추가 (단일 토큰 저장 용도라 충분)
+        remove(key)
+
+        val data = (value as NSString).dataUsingEncoding(NSUTF8StringEncoding) ?: return
+        val query = CFDictionaryCreateMutable(null, 5, kCFTypeDictionaryKeyCallBacks.ptr, kCFTypeDictionaryValueCallBacks.ptr)
+        val serviceRef = CFBridgingRetain(name as NSString)
+        val accountRef = CFBridgingRetain(key as NSString)
+        val dataRef = CFBridgingRetain(data)
+        CFDictionaryAddValue(query, kSecClass, kSecClassGenericPassword)
+        CFDictionaryAddValue(query, kSecAttrService, serviceRef)
+        CFDictionaryAddValue(query, kSecAttrAccount, accountRef)
+        CFDictionaryAddValue(query, kSecValueData, dataRef)
+        CFDictionaryAddValue(query, kSecAttrAccessible, kSecAttrAccessibleAfterFirstUnlock)
+
+        lastAddStatus = SecItemAdd(query, null)
+
+        CFRelease(query)
+        CFRelease(serviceRef)
+        CFRelease(accountRef)
+        CFRelease(dataRef)
+    }
+
+    actual fun contains(key: String): Boolean = getString(key, null) != null
+
+    actual fun remove(key: String) {
+        val query = CFDictionaryCreateMutable(null, 3, kCFTypeDictionaryKeyCallBacks.ptr, kCFTypeDictionaryValueCallBacks.ptr)
+        val serviceRef = CFBridgingRetain(name as NSString)
+        val accountRef = CFBridgingRetain(key as NSString)
+        CFDictionaryAddValue(query, kSecClass, kSecClassGenericPassword)
+        CFDictionaryAddValue(query, kSecAttrService, serviceRef)
+        CFDictionaryAddValue(query, kSecAttrAccount, accountRef)
+
+        SecItemDelete(query)
+
+        CFRelease(query)
+        CFRelease(serviceRef)
+        CFRelease(accountRef)
+    }
+}

@@ -49,6 +49,10 @@ kotlin {
         }
         androidMain.dependencies {
             implementation("io.ktor:ktor-client-okhttp:3.5.0")
+            // 보안 토큰 저장(EncryptedSharedPreferences) — :app 과 동일 (SecureKeyValueStore actual)
+            implementation("androidx.security:security-crypto:1.1.0-alpha06")
+            // 알림(NotificationCompat) — Notifier actual
+            implementation("androidx.core:core-ktx:1.15.0")
         }
         iosMain.dependencies {
             implementation("io.ktor:ktor-client-darwin:3.5.0")
