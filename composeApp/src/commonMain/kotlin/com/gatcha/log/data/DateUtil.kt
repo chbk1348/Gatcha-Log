@@ -1,9 +1,14 @@
 package com.gatcha.log.data
 
+import kotlinx.datetime.DateTimeUnit
 import kotlinx.datetime.DayOfWeek
+import kotlinx.datetime.LocalDate
 import kotlinx.datetime.LocalDateTime
 import kotlinx.datetime.TimeZone
+import kotlinx.datetime.daysUntil
+import kotlinx.datetime.minus
 import kotlinx.datetime.number
+import kotlinx.datetime.plus
 import kotlinx.datetime.toLocalDateTime
 import com.gatcha.log.util.currentTimeMillis
 import kotlin.time.ExperimentalTime
@@ -78,4 +83,49 @@ object DateUtil {
         year(millis) == year && month(millis) == month
 
     fun isSameYear(millis: Long, year: Int): Boolean = year(millis) == year
+
+    // ----------------------------------------------------------------- 출석 달력(베이징 UTC+8) 헬퍼
+    // :app 의 hoyoCalendar() + Calendar API 를 대체해 출석 스트립·월간 달력 UI 가 쓰는 값들을 제공.
+
+    /** 오늘(베이징 기준)의 LocalDate. */
+    private fun hoyoToday(): LocalDate = local(currentTimeMillis(), hoyoTz).date
+
+    /** 출석 기준 오늘로부터 [daysAgo]일 전 날짜의 (일자, 한국어 요일) — 최근 7일 스트립용. */
+    fun hoyoDayOfMonthAgo(daysAgo: Int): Int = hoyoToday().minus(daysAgo, DateTimeUnit.DAY).day
+    fun hoyoWeekdayKoAgo(daysAgo: Int): String = hoyoToday().minus(daysAgo, DateTimeUnit.DAY).dayOfWeek.koLabel
+
+    /** 출석 기준 오늘로부터 [daysAgo]일 전의 날짜 키 "yyyy-MM-dd". */
+    fun hoyoDayKeyAgoKey(daysAgo: Int): String =
+        hoyoToday().minus(daysAgo, DateTimeUnit.DAY).let { "${it.year}-${pad2(it.month.number)}-${pad2(it.day)}" }
+
+    /** 출석 기준 이번 달에서 [monthOffset]달 이동한 달의 1일. monthOffset 0=이번 달, 음수=과거. */
+    private fun hoyoMonthFirst(monthOffset: Int): LocalDate =
+        hoyoToday().let { LocalDate(it.year, it.month, 1) }.plus(monthOffset, DateTimeUnit.MONTH)
+
+    fun hoyoMonthYear(monthOffset: Int): Int = hoyoMonthFirst(monthOffset).year
+    /** 1-base 월(1~12). */
+    fun hoyoMonthNumber(monthOffset: Int): Int = hoyoMonthFirst(monthOffset).month.number
+    /** 그 달 1일의 요일 인덱스(일=0 … 토=6) — Calendar.DAY_OF_WEEK-1 과 동일. */
+    fun hoyoMonthFirstDow(monthOffset: Int): Int = hoyoMonthFirst(monthOffset).dayOfWeek.sundayBasedIndex
+    /** 그 달의 일수. */
+    fun hoyoMonthDays(monthOffset: Int): Int =
+        hoyoMonthFirst(monthOffset).plus(1, DateTimeUnit.MONTH).minus(1, DateTimeUnit.DAY).day
+
+    /**
+     * [fromMillis] ~ [toMillis] 사이의 로컬 달력 일수 차(자정 기준, 음수면 0).
+     * :app 의 Calendar 자정 절삭 + (대상-오늘)/86400000 패턴을 대체.
+     */
+    fun daysBetween(fromMillis: Long, toMillis: Long): Int {
+        val from = local(fromMillis).date
+        val to = local(toMillis).date
+        return from.daysUntil(to).coerceAtLeast(0)
+    }
+
+    /** 일요일을 0 으로 두는 요일 인덱스. */
+    private val DayOfWeek.sundayBasedIndex: Int
+        get() = when (this) {
+            DayOfWeek.SUNDAY -> 0; DayOfWeek.MONDAY -> 1; DayOfWeek.TUESDAY -> 2; DayOfWeek.WEDNESDAY -> 3
+            DayOfWeek.THURSDAY -> 4; DayOfWeek.FRIDAY -> 5; DayOfWeek.SATURDAY -> 6
+            else -> 0
+        }
 }
