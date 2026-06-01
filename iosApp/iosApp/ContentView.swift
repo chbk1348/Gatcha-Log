@@ -1,18 +1,91 @@
 import SwiftUI
 import ComposeApp
 
-/// Kotlin(Compose Multiplatform) UI 를 SwiftUI 안에 호스팅
+/// Kotlin(Compose) ViewController 를 SwiftUI 안에 호스팅하는 공용 래퍼
 struct ComposeView: UIViewControllerRepresentable {
-    func makeUIViewController(context: Context) -> UIViewController {
-        MainViewControllerKt.MainViewController()
-    }
-
+    let factory: () -> UIViewController
+    func makeUIViewController(context: Context) -> UIViewController { factory() }
     func updateUIViewController(_ uiViewController: UIViewController, context: Context) {}
 }
 
+/// 앱 루트 — 온보딩(로그인/게스트) → 네이티브 탭바 화면
+///
+/// 탭바는 SwiftUI TabView(= UITabBarController) 라서 iOS 26 에서는 시스템
+/// 리퀴드 글래스(블러·스크롤 축소·모핑)가 자동 적용되고, iOS 16~18 에서는
+/// 해당 버전의 시스템 머티리얼 탭바로 표시된다. 탭 콘텐츠는 전부 Compose 공유 코드.
 struct ContentView: View {
+    @State private var showOnboarding: Bool = MainViewControllerKt.needsOnboarding()
+    @State private var selectedTab: Int = 0
+    @State private var showAddSpending: Bool = false
+    /// 서브페이지(연간 리포트·알림 상세 등)가 열리면 탭바 숨김 — 기존 앱 UX 유지
+    @State private var hideTabBar: Bool = false
+
+    /// 앱 강조색 (민트) — 탭 아이콘 틴트
+    private let accent = Color(red: 0.204, green: 0.820, blue: 0.714)
+
     var body: some View {
-        ComposeView()
-            .ignoresSafeArea(.all) // Compose 가 자체적으로 인셋을 처리
+        if showOnboarding {
+            ComposeView(factory: {
+                MainViewControllerKt.LoginViewController(onComplete: { showOnboarding = false })
+            })
+            .ignoresSafeArea(.all)
+        } else {
+            TabView(selection: $selectedTab) {
+                // ── 홈 ──────────────────────────────────────────────
+                ComposeView(factory: {
+                    MainViewControllerKt.HomeTabViewController(
+                        onSwitchTab: { tab in selectedTab = tab.intValue },
+                        onAddSpending: { showAddSpending = true },
+                        onSubPageChange: { active in hideTabBar = active.boolValue }
+                    )
+                })
+                .ignoresSafeArea(.all)
+                .toolbar(hideTabBar ? .hidden : .visible, for: .tabBar)
+                .tabItem { Label("홈", systemImage: "house.fill") }
+                .tag(0)
+
+                // ── 지출 ────────────────────────────────────────────
+                ComposeView(factory: {
+                    MainViewControllerKt.SpendingTabViewController(
+                        onAddSpending: { showAddSpending = true },
+                        onSubPageChange: { active in hideTabBar = active.boolValue }
+                    )
+                })
+                .ignoresSafeArea(.all)
+                .toolbar(hideTabBar ? .hidden : .visible, for: .tabBar)
+                .tabItem { Label("지출", systemImage: "creditcard.fill") }
+                .tag(1)
+
+                // ── 게임 정보 ────────────────────────────────────────
+                ComposeView(factory: {
+                    MainViewControllerKt.GameInfoTabViewController(
+                        onSubPageChange: { active in hideTabBar = active.boolValue }
+                    )
+                })
+                .ignoresSafeArea(.all)
+                .toolbar(hideTabBar ? .hidden : .visible, for: .tabBar)
+                .tabItem { Label("게임 정보", systemImage: "gamecontroller.fill") }
+                .tag(2)
+
+                // ── 마이페이지 ───────────────────────────────────────
+                ComposeView(factory: {
+                    MainViewControllerKt.MyPageTabViewController(
+                        onSubPageChange: { active in hideTabBar = active.boolValue }
+                    )
+                })
+                .ignoresSafeArea(.all)
+                .toolbar(hideTabBar ? .hidden : .visible, for: .tabBar)
+                .tabItem { Label("마이페이지", systemImage: "person.fill") }
+                .tag(3)
+            }
+            .tint(accent)
+            // 지출 추가/수정 — 네이티브 풀스크린 커버 (탭바를 자연스럽게 덮음)
+            .fullScreenCover(isPresented: $showAddSpending) {
+                ComposeView(factory: {
+                    MainViewControllerKt.AddSpendingViewController(onClose: { showAddSpending = false })
+                })
+                .ignoresSafeArea(.all)
+            }
+        }
     }
 }
