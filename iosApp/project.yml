@@ -1,0 +1,45 @@
+# XcodeGen 스펙 — `xcodegen generate` 실행 시 iosApp.xcodeproj 생성
+# (생성된 .xcodeproj 를 git 에 커밋하므로, 이후 xcodegen 없이도 빌드 가능)
+name: iosApp
+options:
+  bundleIdPrefix: com.gatcha.log
+  deploymentTarget:
+    iOS: "16.0"
+settings:
+  base:
+    # Xcode 15+ 스크립트 샌드박스가 Gradle 실행을 막으므로 비활성화
+    ENABLE_USER_SCRIPT_SANDBOXING: "NO"
+targets:
+  iosApp:
+    type: application
+    platform: iOS
+    sources:
+      - iosApp
+    info:
+      path: iosApp/Info.plist
+      properties:
+        CFBundleDisplayName: Gatcha-Log
+        # Compose Multiplatform 필수 — 없으면 시작 시 PlistSanityCheck 크래시 (120Hz 허용)
+        CADisableMinimumFrameDurationOnPhone: true
+        UILaunchScreen: {}
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+        ITSAppUsesNonExemptEncryption: false
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.gatcha.log.ios
+        PRODUCT_NAME: Gatcha-Log
+        # composeApp Gradle 빌드가 떨궈 주는 framework 위치
+        FRAMEWORK_SEARCH_PATHS: "$(SRCROOT)/../composeApp/build/xcode-frameworks/$(CONFIGURATION)/$(SDK_NAME)"
+        OTHER_LDFLAGS: "$(inherited) -framework ComposeApp"
+        # 시뮬레이터 전용 단계 — 실기기 테스트 시 Signing & Capabilities 에서 팀 설정
+        CODE_SIGNING_REQUIRED: "NO"
+        CODE_SIGN_IDENTITY: ""
+    preBuildScripts:
+      - name: Compile Kotlin Framework
+        basedOnDependencyAnalysis: false
+        script: |
+          # Xcode 빌드 환경에는 JAVA_HOME 이 없으므로 직접 지정
+          export JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home"
+          cd "$SRCROOT/.."
+          ./gradlew :composeApp:embedAndSignAppleFrameworkForXcode
