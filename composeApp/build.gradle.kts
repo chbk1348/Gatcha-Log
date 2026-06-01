@@ -55,6 +55,9 @@ kotlin {
             // 네트워크 이미지 (구글 프로필 사진·캐릭터 아이콘) — :app 의 Coil 2 → Coil 3 (KMP)
             implementation("io.coil-kt.coil3:coil-compose:3.4.0")
             implementation("io.coil-kt.coil3:coil-network-ktor3:3.4.0")
+            // 백드롭 블러 (iOS 26 리퀴드 글래스 하단바) — KMP 지원
+            implementation("dev.chrisbanes.haze:haze:1.7.2")
+            implementation("dev.chrisbanes.haze:haze-materials:1.7.2")
         }
         androidMain.dependencies {
             implementation("io.ktor:ktor-client-okhttp:3.5.0")
