@@ -1,79 +1,64 @@
 package com.gatcha.log
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.unit.dp
-import com.gatcha.log.ui.theme.BackgroundGradientEnd
-import com.gatcha.log.ui.theme.BackgroundGradientStart
-import com.gatcha.log.ui.theme.CardBackground
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.gatcha.log.data.AppSettings
+import com.gatcha.log.data.DateUtil
+import com.gatcha.log.data.GameData
+import com.gatcha.log.data.GatchaRepository
+import com.gatcha.log.data.work.NativeScheduler
+import com.gatcha.log.ui.auth.AccountLoadingScreen
+import com.gatcha.log.ui.auth.LoginScreen
+import com.gatcha.log.ui.home.HomeScreen
+import com.gatcha.log.ui.spending.SpendingViewModel
 import com.gatcha.log.ui.theme.GatchaLogTheme
-import com.gatcha.log.ui.theme.LocalAccent
-import com.gatcha.log.ui.theme.TextSecondary
-import com.gatcha.log.util.won
 
 /**
- * KMP 공유 UI 진입점.
- * 2단계: 복사된 GatchaLogTheme(테마·강조색·PressScale 인디케이션)와 util/Format 을 실사용해 검증.
- * 이후 단계에서 기존 :app 의 화면들이 이 아래로 복사된다.
+ * KMP 공유 앱 진입점 — :app 의 MainActivity.setContent 내용을 이식.
+ * Android 는 MainActivity(5단계에서 composeApp 기반으로 전환 시), iOS 는 MainViewController 가 이걸 띄운다.
  */
 @Composable
 fun App() {
-    GatchaLogTheme {
-        Surface(modifier = Modifier.fillMaxSize()) {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(
-                        Brush.verticalGradient(
-                            listOf(BackgroundGradientStart, BackgroundGradientEnd)
-                        )
-                    )
-                    .padding(24.dp),
-                verticalArrangement = Arrangement.Center,
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Text(
-                    text = "Gatcha-Log",
-                    style = MaterialTheme.typography.headlineLarge,
-                    color = LocalAccent.current
-                )
-                Text(
-                    text = "KMP 공유 모듈 동작 중 — ${platformName()}",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = TextSecondary,
-                    modifier = Modifier.padding(top = 12.dp)
-                )
-                Column(
-                    modifier = Modifier
-                        .padding(top = 24.dp)
-                        .background(CardBackground, RoundedCornerShape(16.dp))
-                        .padding(16.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Text(
-                        text = "테마 + 포맷 유틸 검증",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = TextSecondary
-                    )
-                    Text(
-                        text = won(1234567),
-                        style = MaterialTheme.typography.titleLarge,
-                        color = LocalAccent.current,
-                        modifier = Modifier.padding(top = 4.dp)
-                    )
+    // :app MainActivity.onCreate 의 시작 로직 — 주기 작업 동기화 + 미출석 보충 실행
+    LaunchedEffect(Unit) {
+        // 자동 출석·알림 주기 작업을 설정 상태에 맞춰 동기화(재부팅·재설치 후 복구 포함)
+        runCatching { NativeScheduler.apply() }
+        // 주기 작업이 도즈모드 등으로 며칠씩 안 돌 수 있어, 앱 실행 시
+        // 오늘 미출석 게임이 남아있으면 즉시 1회 트리거(자동 출석 토글이 켜진 경우만).
+        runCatching {
+            if (AppSettings().autoCheckIn) {
+                val repo = GatchaRepository(AppSettings.currentAccountId())
+                val today = DateUtil.hoyoDayKey()
+                val done = repo.loadAttendance()[today].orEmpty()
+                if (done.size < GameData.attendanceGames.size) {
+                    NativeScheduler.runNow()
                 }
             }
+        }
+    }
+
+    // KMP viewModel(): iOS 에는 리플렉션이 없어 initializer 람다로 생성
+    val viewModel: SpendingViewModel = viewModel { SpendingViewModel() }
+    val accentIndex by viewModel.accentIndex.collectAsState()
+    val account by viewModel.account.collectAsState()
+    val guestChosen by viewModel.guestChosen.collectAsState()
+    val initialSyncing by viewModel.initialSyncing.collectAsState()
+    var loadingDone by rememberSaveable { mutableStateOf(false) }
+
+    GatchaLogTheme(accentIndex = accentIndex) {
+        when {
+            // 첫 진입(로그인/게스트 미선택) → 온보딩에서 사용자가 직접 선택(자동 로그인 안 함)
+            account.isGuest && !guestChosen -> LoginScreen(viewModel)
+            // 로그인 유저 → 계정 데이터 불러오는 중(0~100% 프로그레스)
+            !account.isGuest && !loadingDone ->
+                AccountLoadingScreen(loading = initialSyncing, onFinished = { loadingDone = true })
+            else -> HomeScreen(viewModel)
         }
     }
 }
