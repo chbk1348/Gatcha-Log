@@ -84,25 +84,9 @@ private fun TabPage(
                 content()
             }
 
-            // 지출 추가 FAB — 네이티브 탭바 위에 떠 있는 민트 원형 버튼 (홈·지출 탭 전용)
-            // bottom 70dp = 네이티브 탭바(~49pt) + 여백. navigationBarsPadding 은 홈 인디케이터 몫.
-            if (showFab) {
-                val accent = LocalAccent.current
-                FloatingActionButton(
-                    onClick = onAddClick,
-                    containerColor = accent,
-                    contentColor = Color.White,
-                    shape = CircleShape,
-                    modifier = Modifier
-                        .align(Alignment.BottomEnd)
-                        .navigationBarsPadding()
-                        .padding(end = 20.dp, bottom = 70.dp)
-                        .shadow(12.dp, CircleShape, clip = false, ambientColor = accent.copy(alpha = 0.4f), spotColor = accent.copy(alpha = 0.6f)),
-                    elevation = FloatingActionButtonDefaults.elevation(0.dp, 0.dp, 0.dp, 0.dp),
-                ) {
-                    Icon(Icons.Default.Add, contentDescription = "지출 추가")
-                }
-            }
+            // 지출 추가 FAB 는 SwiftUI 네이티브 버튼(ContentView.swift)으로 이동 —
+            // iOS 26 시스템 리퀴드 글래스 버튼 + 탭바와 일관된 위치 정렬.
+            // showFab/onAddClick 파라미터는 시그니처 호환을 위해 유지하되 여기서는 사용하지 않음.
 
             // 상태 토스트 (저장됨·출석 완료 등) — 탭바 위에 표시
             GlgStatusToast(

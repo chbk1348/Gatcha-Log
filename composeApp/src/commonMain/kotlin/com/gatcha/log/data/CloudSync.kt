@@ -34,10 +34,16 @@ object CloudSync {
     /** 현재 Firebase 로그인 uid (없으면 null). */
     fun currentUid(): String? = runCatching { Firebase.auth.currentUser?.uid }.getOrNull()
 
-    /** Google ID 토큰으로 Firebase 인증 → uid 반환(실패 시 null). */
-    suspend fun signInWithGoogle(idToken: String): String? = runCatching {
-        val cred = GoogleAuthProvider.credential(idToken, null)
+    /**
+     * Google ID 토큰으로 Firebase 인증 → uid 반환(실패 시 null).
+     * [accessToken]: iOS Firebase SDK 는 필수, Android 는 null 허용 — 항상 넘기는 것이 안전.
+     */
+    suspend fun signInWithGoogle(idToken: String, accessToken: String? = null): String? = runCatching {
+        val cred = GoogleAuthProvider.credential(idToken, accessToken)
         Firebase.auth.signInWithCredential(cred).user?.uid
+    }.onFailure {
+        // 진단용 — Xcode 콘솔/시스템 로그에서 "GatchaCloudSync" 로 검색
+        println("GatchaCloudSync: Firebase 인증 실패 — ${it::class.simpleName}: ${it.message}")
     }.getOrNull()
 
     /** Firebase 로그아웃. 실패해도 로컬 로그아웃은 진행되도록 예외를 삼킨다. */
@@ -48,6 +54,8 @@ object CloudSync {
     /** uid 문서의 스냅샷 JSON(평문) 로드(없거나 실패 시 null). */
     suspend fun pull(uid: String): String? = runCatching {
         Firebase.firestore.collection(COLLECTION).document(uid).get().get<String?>(FIELD_DATA)
+    }.onFailure {
+        println("GatchaCloudSync: pull 실패 — ${it::class.simpleName}: ${it.message}")
     }.getOrNull()
 
     /**

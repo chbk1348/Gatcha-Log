@@ -23,6 +23,31 @@ struct ContentView: View {
     /// 앱 강조색 (민트) — 탭 아이콘 틴트
     private let accent = Color(red: 0.204, green: 0.820, blue: 0.714)
 
+    /// 지출 추가 버튼 — 무색 리퀴드 글래스 (색상 없음, 유리 + 아이콘만)
+    @ViewBuilder
+    private var addSpendingButton: some View {
+        if #available(iOS 26.0, *) {
+            // iOS 26 네이티브 리퀴드 글래스 버튼 (무색 — 시스템이 블러·굴절·모핑 처리)
+            Button(action: { showAddSpending = true }) {
+                Image(systemName: "plus")
+                    .font(.system(size: 22, weight: .semibold))
+                    .frame(width: 56, height: 56)
+            }
+            .buttonStyle(.glass)
+            .buttonBorderShape(.circle)
+        } else {
+            // iOS 16~18 폴백: 반투명 시스템 머티리얼 (무색 유리)
+            Button(action: { showAddSpending = true }) {
+                Image(systemName: "plus")
+                    .font(.system(size: 22, weight: .semibold))
+                    .foregroundColor(.primary)
+                    .frame(width: 56, height: 56)
+                    .background(.ultraThinMaterial, in: Circle())
+                    .shadow(color: .black.opacity(0.15), radius: 10, y: 4)
+            }
+        }
+    }
+
     var body: some View {
         if showOnboarding {
             ComposeView(factory: {
@@ -79,6 +104,15 @@ struct ContentView: View {
                 .tag(3)
             }
             .tint(accent)
+            // ── 지출 추가 FAB — iOS 네이티브 버튼 (홈·지출 탭에서만, 서브페이지에선 숨김) ──
+            // iOS 26: 시스템 리퀴드 글래스 버튼 / iOS 16~18: 동일 디자인의 일반 버튼 폴백
+            .overlay(alignment: .bottomTrailing) {
+                if selectedTab <= 1 && !hideTabBar {
+                    addSpendingButton
+                        .padding(.trailing, 20)
+                        .padding(.bottom, 64) // 네이티브 탭바 위
+                }
+            }
             // 지출 추가/수정 — 네이티브 풀스크린 커버 (탭바를 자연스럽게 덮음)
             .fullScreenCover(isPresented: $showAddSpending) {
                 ComposeView(factory: {

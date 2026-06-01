@@ -27,6 +27,13 @@ targets:
     platform: iOS
     sources:
       - iosApp
+    # 키체인 entitlement — Firebase Auth 인증 상태·구글 로그인 토큰·HoYoLAB 토큰(Keychain) 저장에 필수.
+    # 이게 없으면 SecItem* 호출이 -34018(errSecMissingEntitlement)로 실패한다.
+    entitlements:
+      path: iosApp/iosApp.entitlements
+      properties:
+        keychain-access-groups:
+          - "$(AppIdentifierPrefix)com.gatcha.log.ios"
     dependencies:
       - package: Firebase
         product: FirebaseAuth
@@ -62,9 +69,10 @@ targets:
         FRAMEWORK_SEARCH_PATHS: "$(SRCROOT)/../composeApp/build/xcode-frameworks/$(CONFIGURATION)/$(SDK_NAME)"
         # -ObjC: Firebase 정적 라이브러리의 ObjC 카테고리 로드에 필요
         OTHER_LDFLAGS: "$(inherited) -framework ComposeApp -ObjC"
-        # 시뮬레이터 전용 단계 — 실기기 테스트 시 Signing & Capabilities 에서 팀 설정
-        CODE_SIGNING_REQUIRED: "NO"
-        CODE_SIGN_IDENTITY: ""
+        # ad-hoc 서명 (Sign to Run Locally) — 키체인 entitlement 활성화.
+        # 키체인은 Firebase Auth 인증 상태·구글 로그인 토큰·HoYoLAB 토큰 저장에 필수.
+        # 실기기 테스트 시에는 Xcode Signing & Capabilities 에서 개인 팀으로 변경.
+        CODE_SIGN_IDENTITY: "-"
     preBuildScripts:
       - name: Compile Kotlin Framework
         basedOnDependencyAnalysis: false
