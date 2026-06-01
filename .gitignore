@@ -23,3 +23,12 @@ app/google-services.json
 # 프로젝트 문서·장애 리포트 (로컬 참고용 — 커밋 금지, iCloud 원본 별도)
 GatchaLOG_MD/
 GatchaLOG_Error Report/
+
+# iOS / Xcode (KMP 마이그레이션)
+iosApp/iosApp.xcodeproj/xcuserdata/
+iosApp/iosApp.xcodeproj/project.xcworkspace/xcuserdata/
+*.xcuserstate
+DerivedData/
+
+# Kotlin 2.x 로컬 캐시
+.kotlin/
