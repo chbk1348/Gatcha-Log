@@ -55,8 +55,15 @@ object Net {
                 socketTimeoutMillis = timeoutMs
             }
         }
-        NetResult(response.status.value, response.bodyAsText())
+        val result = NetResult(response.status.value, response.bodyAsText())
+        // 진단용: 비정상 응답만 로깅 (시스템 로그에서 "GatchaNet" 로 검색)
+        if (!result.isOk) {
+            println("GatchaNet: ${method.value} ${url.substringBefore("?")} → HTTP ${result.code} (본문 ${result.body.length}자)")
+        }
+        result
     } catch (e: Exception) {
+        // 진단용: 예외(타임아웃·연결 실패 등)는 항상 로깅
+        println("GatchaNet: ${method.value} ${url.substringBefore("?")} → 예외 ${e::class.simpleName}: ${e.message}")
         NetResult(-1, e.message ?: "network error")
     }
 }

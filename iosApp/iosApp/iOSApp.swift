@@ -27,16 +27,20 @@ class AppDelegate: NSObject, UIApplicationDelegate {
                 guard let rootVC = UIApplication.shared.connectedScenes
                     .compactMap({ ($0 as? UIWindowScene)?.keyWindow })
                     .first?.rootViewController else {
-                    callback(nil, nil, nil, nil)
+                    callback(nil, nil, nil, nil, nil)
                     return
                 }
                 var topVC = rootVC
                 while let presented = topVC.presentedViewController { topVC = presented }
 
                 GIDSignIn.sharedInstance.signIn(withPresenting: topVC) { result, error in
+                    if let error = error {
+                        NSLog("GatchaSignIn: GIDSignIn 실패 — \(error.localizedDescription)")
+                    }
                     let user = result?.user
                     callback(
                         user?.idToken?.tokenString,
+                        user?.accessToken.tokenString,  // iOS Firebase 인증에 필수
                         user?.profile?.email,
                         user?.profile?.name,
                         user?.profile?.imageURL(withDimension: 200)?.absoluteString

@@ -25,20 +25,22 @@ import kotlinx.coroutines.suspendCancellableCoroutine
 object IosGoogleSignIn {
     /**
      * Swift 가 등록하는 로그인 플로우.
-     * 파라미터: 완료 콜백(idToken, email, name, photoUrl) — 실패/취소 시 idToken = null.
+     * 파라미터: 완료 콜백(idToken, accessToken, email, name, photoUrl) — 실패/취소 시 idToken = null.
+     * accessToken 은 iOS Firebase 인증(GoogleAuthProvider.credential)에 필수.
      */
-    var provider: ((callback: (String?, String?, String?, String?) -> Unit) -> Unit)? = null
+    var provider: ((callback: (String?, String?, String?, String?, String?) -> Unit) -> Unit)? = null
 }
 
 internal actual suspend fun platformGoogleSignIn(autoSelectOnly: Boolean): PlatformSignInResult? {
     val provider = IosGoogleSignIn.provider ?: return null
     return suspendCancellableCoroutine { cont ->
-        provider { idToken, email, name, photoUrl ->
+        provider { idToken, accessToken, email, name, photoUrl ->
             if (cont.isActive) {
                 cont.resume(
                     if (idToken.isNullOrBlank()) null
                     else PlatformSignInResult(
                         idToken = idToken,
+                        accessToken = accessToken.orEmpty(),
                         email = email.orEmpty(),
                         name = name.orEmpty(),
                         photoUrl = photoUrl.orEmpty(),

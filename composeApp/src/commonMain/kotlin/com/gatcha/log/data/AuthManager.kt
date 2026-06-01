@@ -26,9 +26,11 @@ sealed interface SignInOutcome {
     data class Error(val message: String) : SignInOutcome
 }
 
-/** 플랫폼 구글 로그인 결과 (idToken = Firebase 인증용) */
+/** 플랫폼 구글 로그인 결과 (idToken/accessToken = Firebase 인증용) */
 data class PlatformSignInResult(
     val idToken: String,
+    /** iOS Firebase SDK 는 구글 인증에 accessToken 도 필수 (Android 는 선택) */
+    val accessToken: String,
     val email: String,
     val name: String,
     val photoUrl: String,
@@ -75,6 +77,10 @@ class AuthManager {
     var lastIdToken: String? = null
         private set
 
+    /** 마지막 로그인의 Google Access 토큰 — iOS Firebase 인증에 필수, Android 는 미사용. */
+    var lastAccessToken: String? = null
+        private set
+
     /**
      * 구글 로그인 — 플랫폼 구현(platformGoogleSignIn)에 위임.
      * iOS: GoogleSignIn SDK / Android(composeApp): 미지원(:app 이 담당).
@@ -85,6 +91,7 @@ class AuthManager {
             ?: return SignInOutcome.NoCredential
 
         lastIdToken = result.idToken
+        lastAccessToken = result.accessToken
         val account = Account(
             id = result.email.ifBlank { result.idToken.take(32) },
             name = result.name.ifBlank { result.email.substringBefore("@") },
@@ -101,6 +108,7 @@ class AuthManager {
     suspend fun signOut() {
         runCatching { CloudSync.signOut() }
         lastIdToken = null
+        lastAccessToken = null
         listOf(KEY_ID, KEY_NAME, KEY_EMAIL, KEY_PHOTO, KEY_GUEST).forEach { prefs.remove(it) }
         _account.value = Account.GUEST
         _guestChosen.value = false // 로그아웃 시 다시 로그인 화면으로

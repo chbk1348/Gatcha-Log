@@ -284,7 +284,7 @@ class SpendingViewModel : ViewModel() {
      */
     private suspend fun completeSignIn(acc: Account): Boolean {
         val finalAcc = if (cloudConfigured) {
-            val uid = authManager.lastIdToken?.let { CloudSync.signInWithGoogle(it) }
+            val uid = authManager.lastIdToken?.let { CloudSync.signInWithGoogle(it, authManager.lastAccessToken) }
             if (uid == null) {
                 // Firebase 인증 실패 → 방금 영속된 email 계정을 롤백(게스트로 복귀)
                 authManager.signOut()
