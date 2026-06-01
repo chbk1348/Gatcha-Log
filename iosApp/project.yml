@@ -9,12 +9,31 @@ settings:
   base:
     # Xcode 15+ 스크립트 샌드박스가 Gradle 실행을 막으므로 비활성화
     ENABLE_USER_SCRIPT_SANDBOXING: "NO"
+
+# ── 외부 패키지 (SPM) ─────────────────────────────────────────────
+# Firebase iOS SDK: GitLive(Kotlin) firebase-auth/firestore 가 런타임에 사용하는 네이티브 SDK
+# GoogleSignIn: 구글 로그인 플로우 (idToken 발급 → Kotlin CloudSync 로 전달)
+packages:
+  Firebase:
+    url: https://github.com/firebase/firebase-ios-sdk
+    majorVersion: 12.0.0
+  GoogleSignIn:
+    url: https://github.com/google/GoogleSignIn-iOS
+    majorVersion: 8.0.0
+
 targets:
   iosApp:
     type: application
     platform: iOS
     sources:
       - iosApp
+    dependencies:
+      - package: Firebase
+        product: FirebaseAuth
+      - package: Firebase
+        product: FirebaseFirestore
+      - package: GoogleSignIn
+        product: GoogleSignIn
     info:
       path: iosApp/Info.plist
       properties:
@@ -25,13 +44,24 @@ targets:
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
         ITSAppUsesNonExemptEncryption: false
+        # ── 구글 로그인 (GoogleSignIn SDK) ──
+        GIDClientID: 711708512022-6upq632okh78jru6q09o2dol4tekokbn.apps.googleusercontent.com
+        CFBundleURLTypes:
+          - CFBundleURLSchemes:
+              - com.googleusercontent.apps.711708512022-6upq632okh78jru6q09o2dol4tekokbn
+        # ── 자동 출석 백그라운드 (BGTaskScheduler) ──
+        BGTaskSchedulerPermittedIdentifiers:
+          - com.gatcha.log.ios.checkin
+        UIBackgroundModes:
+          - fetch
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.gatcha.log.ios
         PRODUCT_NAME: Gatcha-Log
         # composeApp Gradle 빌드가 떨궈 주는 framework 위치
         FRAMEWORK_SEARCH_PATHS: "$(SRCROOT)/../composeApp/build/xcode-frameworks/$(CONFIGURATION)/$(SDK_NAME)"
-        OTHER_LDFLAGS: "$(inherited) -framework ComposeApp"
+        # -ObjC: Firebase 정적 라이브러리의 ObjC 카테고리 로드에 필요
+        OTHER_LDFLAGS: "$(inherited) -framework ComposeApp -ObjC"
         # 시뮬레이터 전용 단계 — 실기기 테스트 시 Signing & Capabilities 에서 팀 설정
         CODE_SIGNING_REQUIRED: "NO"
         CODE_SIGN_IDENTITY: ""
