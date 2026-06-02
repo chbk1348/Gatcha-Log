@@ -140,14 +140,9 @@ fun GlassButton(
     ) {
         GlassGloss(tinted = effectiveTint != null, shape = shape, modifier = Modifier.matchParentSize())
         Box(Modifier.matchParentSize().background(pressOverlay))
-        Text(
-            text,
-            color = textColor,
-            fontWeight = FontWeight.Bold,
-            fontSize = 15.sp,
-            maxLines = 1,
-            modifier = Modifier.padding(horizontal = 20.dp),
-        )
+        // 기존 GlgButton 과 동일하게 패딩/maxLines 제약 없음 —
+        // 패딩을 주면 weight 등으로 폭이 제한된 버튼에서 문구가 잘리는 문제 발생
+        Text(text, color = textColor, fontWeight = FontWeight.Bold, fontSize = 15.sp)
     }
 }
 

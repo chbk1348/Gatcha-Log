@@ -63,6 +63,19 @@ object IosAppState {
      * 게이트 활성 = !account.isGuest && !syncLoadingDone — 4개 탭(TabPage)과 Swift(탭바/추가버튼 숨김)가 공유.
      */
     val syncLoadingDone = MutableStateFlow(false)
+
+    /**
+     * 현재 선택된 탭 (Swift TabView 의 selectedTab 과 동기화).
+     * 토스트는 보이는 탭에서만 컴포즈한다 — 숨겨진 탭의 컴포지션은 프레임 클럭이 멈춰
+     * 토스트 상태가 지연 처리되므로, 탭 전환 시 유령 토스트가 보였다 사라지는 문제 방지.
+     */
+    val selectedTab = MutableStateFlow(0)
+}
+
+/** Swift 가 호출 — 탭 전환 시 현재 탭 인덱스 동기화 */
+@Suppress("unused")
+fun setSelectedTab(tab: Int) {
+    IosAppState.selectedTab.value = tab
 }
 
 /** 초기 동기화 게이트 활성 여부 — Swift 가 탭바·추가 버튼 숨김 초기값으로 사용 */
@@ -133,15 +146,18 @@ fun observeAccentColor(onChange: (Long) -> Unit) {
  * 로그인 유저는 초기 클라우드 pull 이 끝날 때까지 [AccountLoadingScreen] 으로 UI 를 막는다
  * (Compose 경로의 App.kt 와 동일한 게이트) — pull 완료 전 로컬 편집이 디바운스 push 로
  * 아직 받지 않은 클라우드 스냅샷을 덮어쓰는 것을 방지.
+ *
+ * [tabIndex] 는 이 탭의 인덱스 — 토스트는 현재 보이는 탭에서만 컴포즈한다.
  */
 @Composable
-private fun TabPage(content: @Composable () -> Unit) {
+private fun TabPage(tabIndex: Int, content: @Composable () -> Unit) {
     val vm = IosAppState.viewModel
     val accentIndex by vm.accentIndex.collectAsState()
     val statusMessage by vm.statusMessage.collectAsState()
     val account by vm.account.collectAsState()
     val initialSyncing by vm.initialSyncing.collectAsState()
     val loadingDone by IosAppState.syncLoadingDone.collectAsState()
+    val selectedTab by IosAppState.selectedTab.collectAsState()
 
     GatchaLogTheme(accentIndex = accentIndex) {
         if (!account.isGuest && !loadingDone) {
@@ -159,16 +175,19 @@ private fun TabPage(content: @Composable () -> Unit) {
                 content()
             }
 
-            // 상태 토스트 (저장됨·출석 완료 등) — 탭바 위에 표시
-            // (지출 추가 버튼은 SwiftUI 네이티브 글래스 버튼 — ContentView.swift)
-            GlgStatusToast(
-                message = statusMessage,
-                onConsumed = { vm.clearStatus() },
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .navigationBarsPadding()
-                    .padding(bottom = 66.dp),
-            )
+            // 상태 토스트 (저장됨·출석 완료 등) — 탭바 위에 표시.
+            // 현재 보이는 탭에서만 컴포즈 — 숨겨진 탭(프레임 클럭 정지)에 토스트 상태가 남아
+            // 탭 전환 시 유령 토스트가 보였다 사라지는 문제 방지.
+            if (selectedTab == tabIndex) {
+                GlgStatusToast(
+                    message = statusMessage,
+                    onConsumed = { vm.clearStatus() },
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .navigationBarsPadding()
+                        .padding(bottom = 66.dp),
+                )
+            }
         }
     }
 }
@@ -194,7 +213,7 @@ fun HomeTabViewController(
     onSwitchTab: (Int) -> Unit,
     onSubPageChange: (Boolean) -> Unit,
 ): UIViewController = ComposeUIViewController {
-    TabPage {
+    TabPage(tabIndex = 0) {
         // 앱 시작 시 1회 API 새로고침 (ennead 배너·이벤트 + HoYoLAB 노트) —
         // Compose 경로(HomeScreen.kt)의 LaunchedEffect 와 동일한 역할.
         // iOS 네이티브 탭 경로는 HomeScreen 을 거치지 않고 HomeContent 를 직접 쓰므로 여기서 트리거.
@@ -217,7 +236,7 @@ fun SpendingTabViewController(
     onAddSpending: () -> Unit,
     onSubPageChange: (Boolean) -> Unit,
 ): UIViewController = ComposeUIViewController {
-    TabPage {
+    TabPage(tabIndex = 1) {
         SpendingScreen(
             viewModel = IosAppState.viewModel,
             onEditSpending = { spending ->
@@ -233,7 +252,7 @@ fun SpendingTabViewController(
 /** 게임 정보 탭 */
 @Suppress("unused", "FunctionName")
 fun GameInfoTabViewController(onSubPageChange: (Boolean) -> Unit): UIViewController = ComposeUIViewController {
-    TabPage {
+    TabPage(tabIndex = 2) {
         GameInfoScreen(viewModel = IosAppState.viewModel, onSubPageChange = onSubPageChange)
     }
 }
@@ -241,7 +260,7 @@ fun GameInfoTabViewController(onSubPageChange: (Boolean) -> Unit): UIViewControl
 /** 마이페이지 탭 */
 @Suppress("unused", "FunctionName")
 fun MyPageTabViewController(onSubPageChange: (Boolean) -> Unit): UIViewController = ComposeUIViewController {
-    TabPage {
+    TabPage(tabIndex = 3) {
         MyPageScreen(viewModel = IosAppState.viewModel, onSubPageChange = onSubPageChange)
     }
 }

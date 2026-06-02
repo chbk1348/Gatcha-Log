@@ -59,6 +59,13 @@ struct ContentView: View {
                 syncGateActive = active.boolValue
             }
         }
+        // 현재 탭 인덱스를 Kotlin 과 동기화 — 토스트를 보이는 탭에서만 컴포즈하기 위함
+        // (탭 4(추가 버튼)는 실제 탭이 아니므로 제외)
+        .onChange(of: selectedTab) { _, newValue in
+            if newValue != 4 {
+                MainViewControllerKt.setSelectedTab(tab: Int32(newValue))
+            }
+        }
     }
 
     /// '+' (지출 추가) 모달 열기 — 이전 수정 대상이 남아있지 않게 초기화 후 연다.
