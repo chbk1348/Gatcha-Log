@@ -21,8 +21,9 @@ struct ContentView: View {
     @State private var showOnboarding: Bool = MainViewControllerKt.needsOnboarding()
     @State private var selectedTab: Int = 0
     @State private var showAddSpending: Bool = false
-    /// 서브페이지(연간 리포트·알림 상세 등)가 열리면 탭바 숨김 — 기존 앱 UX 유지
-    @State private var hideTabBar: Bool = false
+    /// 서브페이지(연간 리포트·알림 상세 등)가 열린 탭 집합 — 해당 탭에서만 탭바 숨김.
+    /// (전역 단일 플래그는 탭 전환 시 상태가 어긋나므로 탭별로 독립 관리)
+    @State private var tabsWithSubPage: Set<Int> = []
 
     /// 앱 강조색 — Kotlin 테마(accentIndex)와 연동된 탭 아이콘 틴트 (초기값: 민트)
     @State private var accent = Color(red: 0.204, green: 0.820, blue: 0.714)
@@ -53,6 +54,13 @@ struct ContentView: View {
         }
     }
 
+    /// '+' (지출 추가) 모달 열기 — 이전 수정 대상이 남아있지 않게 초기화 후 연다.
+    /// (수정 흐름은 Kotlin 쪽이 대상을 설정한 뒤 onAddSpending 콜백으로 열므로 이 함수를 거치지 않는다)
+    private func openAddSpending() {
+        MainViewControllerKt.prepareAddSpending()
+        showAddSpending = true
+    }
+
     // ── 탭 구성 ─────────────────────────────────────────────────────────
 
     @ViewBuilder
@@ -76,7 +84,7 @@ struct ContentView: View {
                 if newValue == 4 {
                     // "추가" 는 탭이 아니라 액션 — 모달 열고 이전 탭으로 복귀
                     selectedTab = oldValue
-                    showAddSpending = true
+                    openAddSpending()
                 }
             }
         } else {
@@ -97,11 +105,22 @@ struct ContentView: View {
             }
             .tint(accent)
             .overlay(alignment: .bottomTrailing) {
-                if selectedTab <= 1 && !hideTabBar {
+                if selectedTab <= 1 && !tabsWithSubPage.contains(selectedTab) {
                     legacyAddButton
                         .padding(.trailing, 20)
                         .padding(.bottom, 64)
                 }
+            }
+        }
+    }
+
+    /// 탭별 서브페이지 상태 콜백 — 해당 탭의 탭바 숨김 상태만 갱신
+    private func subPageBinding(_ tab: Int) -> (KotlinBoolean) -> Void {
+        return { active in
+            if active.boolValue {
+                tabsWithSubPage.insert(tab)
+            } else {
+                tabsWithSubPage.remove(tab)
             }
         }
     }
@@ -112,49 +131,49 @@ struct ContentView: View {
         ComposeView(factory: {
             MainViewControllerKt.HomeTabViewController(
                 onSwitchTab: { tab in selectedTab = tab.intValue },
-                onAddSpending: { showAddSpending = true },
-                onSubPageChange: { active in hideTabBar = active.boolValue }
+                onSubPageChange: subPageBinding(0)
             )
         })
         .ignoresSafeArea(.all)
-        .toolbar(hideTabBar ? .hidden : .visible, for: .tabBar)
+        .toolbar(tabsWithSubPage.contains(0) ? .hidden : .visible, for: .tabBar)
     }
 
     private var spendingTabContent: some View {
         ComposeView(factory: {
             MainViewControllerKt.SpendingTabViewController(
+                // 수정 흐름: Kotlin 이 spendingToEdit 을 설정한 뒤 이 콜백으로 모달을 연다 (클리어 없이)
                 onAddSpending: { showAddSpending = true },
-                onSubPageChange: { active in hideTabBar = active.boolValue }
+                onSubPageChange: subPageBinding(1)
             )
         })
         .ignoresSafeArea(.all)
-        .toolbar(hideTabBar ? .hidden : .visible, for: .tabBar)
+        .toolbar(tabsWithSubPage.contains(1) ? .hidden : .visible, for: .tabBar)
     }
 
     private var gameInfoTabContent: some View {
         ComposeView(factory: {
             MainViewControllerKt.GameInfoTabViewController(
-                onSubPageChange: { active in hideTabBar = active.boolValue }
+                onSubPageChange: subPageBinding(2)
             )
         })
         .ignoresSafeArea(.all)
-        .toolbar(hideTabBar ? .hidden : .visible, for: .tabBar)
+        .toolbar(tabsWithSubPage.contains(2) ? .hidden : .visible, for: .tabBar)
     }
 
     private var myPageTabContent: some View {
         ComposeView(factory: {
             MainViewControllerKt.MyPageTabViewController(
-                onSubPageChange: { active in hideTabBar = active.boolValue }
+                onSubPageChange: subPageBinding(3)
             )
         })
         .ignoresSafeArea(.all)
-        .toolbar(hideTabBar ? .hidden : .visible, for: .tabBar)
+        .toolbar(tabsWithSubPage.contains(3) ? .hidden : .visible, for: .tabBar)
     }
 
     // ── iOS 16~25 폴백 버튼 (무색 글래스) ───────────────────────────────
 
     private var legacyAddButton: some View {
-        Button(action: { showAddSpending = true }) {
+        Button(action: { openAddSpending() }) {
             Image(systemName: "plus")
                 .font(.system(size: 19, weight: .semibold))
                 .foregroundColor(.primary)

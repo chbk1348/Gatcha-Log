@@ -2,6 +2,7 @@ package com.gatcha.log.data.work
 
 import com.gatcha.log.data.AppSettings
 import com.gatcha.log.data.GatchaRepository
+import kotlin.concurrent.AtomicInt
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -76,15 +77,24 @@ fun registerBackgroundTask() {
         // 다음 주기를 먼저 재예약(이번 실행이 실패해도 체인이 끊기지 않게).
         NativeScheduler.apply()
 
+        // setTaskCompleted 는 정확히 1회만 호출되어야 한다 (이중 호출은 Apple 문서상 undefined behavior).
+        // job 완료(성공)와 expirationHandler(만료)가 서로 다른 스레드에서 경합할 수 있으므로 CAS 가드.
+        val completed = AtomicInt(0)
+        fun completeOnce(success: Boolean) {
+            if (completed.compareAndSet(0, 1)) {
+                refreshTask.setTaskCompletedWithSuccess(success)
+            }
+        }
+
         val scope = CoroutineScope(Dispatchers.Default)
         val job = scope.launch {
             runCatching { runCheckIn() }
-            refreshTask.setTaskCompletedWithSuccess(true)
+            completeOnce(true)
         }
         // OS 가 시간 초과로 작업을 회수할 때 코루틴 취소 + 실패 보고.
         refreshTask.expirationHandler = {
             job.cancel()
-            refreshTask.setTaskCompletedWithSuccess(false)
+            completeOnce(false)
         }
     }
 }

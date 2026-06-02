@@ -5,25 +5,21 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material3.FloatingActionButton
-import androidx.compose.material3.FloatingActionButtonDefaults
-import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.ComposeUIViewController
 import com.gatcha.log.data.Spending
+import com.gatcha.log.ui.auth.AccountLoadingScreen
 import com.gatcha.log.ui.auth.LoginScreen
 import com.gatcha.log.ui.components.GlassBackground
 import com.gatcha.log.ui.components.GlgStatusToast
@@ -35,7 +31,6 @@ import com.gatcha.log.ui.spending.SpendingScreen
 import com.gatcha.log.ui.spending.SpendingViewModel
 import com.gatcha.log.ui.theme.AccentPalette
 import com.gatcha.log.ui.theme.GatchaLogTheme
-import com.gatcha.log.ui.theme.LocalAccent
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -70,6 +65,15 @@ object IosAppState {
 fun needsOnboarding(): Boolean =
     IosAppState.viewModel.account.value.isGuest && !IosAppState.viewModel.guestChosen.value
 
+/**
+ * Swift '+' (지출 추가) 버튼이 모달을 열기 전 호출 — 이전 수정 대상이 남아있지 않게 초기화.
+ * (수정 흐름은 SpendingTabViewController.onEditSpending 이 대상을 설정한 뒤 모달을 열므로 이 함수를 거치지 않는다)
+ */
+@Suppress("unused")
+fun prepareAddSpending() {
+    IosAppState.spendingToEdit.value = null
+}
+
 // ── 테마(액센트) 색상 브리지 — 네이티브 탭바 틴트를 앱 테마와 연동 ──────────────
 
 private var accentObserver: ((Long) -> Unit)? = null
@@ -100,18 +104,29 @@ fun observeAccentColor(onChange: (Long) -> Unit) {
     }
 }
 
-/** 탭 공통 래퍼: 테마 + 글래스 배경 + 상태 토스트 + (옵션) 지출추가 FAB */
+/**
+ * 탭 공통 래퍼: 테마 + 글래스 배경 + 상태 토스트 + 초기 동기화 게이트.
+ *
+ * 로그인 유저는 초기 클라우드 pull 이 끝날 때까지 [AccountLoadingScreen] 으로 UI 를 막는다
+ * (Compose 경로의 App.kt 와 동일한 게이트) — pull 완료 전 로컬 편집이 디바운스 push 로
+ * 아직 받지 않은 클라우드 스냅샷을 덮어쓰는 것을 방지.
+ */
 @Composable
-private fun TabPage(
-    showFab: Boolean = false,
-    onAddClick: () -> Unit = {},
-    content: @Composable () -> Unit,
-) {
+private fun TabPage(content: @Composable () -> Unit) {
     val vm = IosAppState.viewModel
     val accentIndex by vm.accentIndex.collectAsState()
     val statusMessage by vm.statusMessage.collectAsState()
+    val account by vm.account.collectAsState()
+    val initialSyncing by vm.initialSyncing.collectAsState()
+    var loadingDone by remember { mutableStateOf(false) }
 
     GatchaLogTheme(accentIndex = accentIndex) {
+        if (!account.isGuest && !loadingDone) {
+            // 초기 클라우드 동기화 게이트 (0~100% 프로그레스)
+            AccountLoadingScreen(loading = initialSyncing, onFinished = { loadingDone = true })
+            return@GatchaLogTheme
+        }
+
         GlassBackground(modifier = Modifier.fillMaxSize()) {
             // 콘텐츠는 상태바 아래부터 시작 (원래 Scaffold 가 주던 상단 인셋을 직접 적용).
             // 하단은 패딩 없이 — 콘텐츠가 반투명 네이티브 탭바 밑으로 비쳐 보이는 게 iOS 26 표준.
@@ -119,11 +134,8 @@ private fun TabPage(
                 content()
             }
 
-            // 지출 추가 FAB 는 SwiftUI 네이티브 버튼(ContentView.swift)으로 이동 —
-            // iOS 26 시스템 리퀴드 글래스 버튼 + 탭바와 일관된 위치 정렬.
-            // showFab/onAddClick 파라미터는 시그니처 호환을 위해 유지하되 여기서는 사용하지 않음.
-
             // 상태 토스트 (저장됨·출석 완료 등) — 탭바 위에 표시
+            // (지출 추가 버튼은 SwiftUI 네이티브 글래스 버튼 — ContentView.swift)
             GlgStatusToast(
                 message = statusMessage,
                 onConsumed = { vm.clearStatus() },
@@ -155,10 +167,9 @@ fun LoginViewController(onComplete: () -> Unit): UIViewController = ComposeUIVie
 @Suppress("unused", "FunctionName")
 fun HomeTabViewController(
     onSwitchTab: (Int) -> Unit,
-    onAddSpending: () -> Unit,
     onSubPageChange: (Boolean) -> Unit,
 ): UIViewController = ComposeUIViewController {
-    TabPage(showFab = true, onAddClick = { IosAppState.spendingToEdit.value = null; onAddSpending() }) {
+    TabPage {
         HomeContent(
             viewModel = IosAppState.viewModel,
             onNavigateToGameInfo = { onSwitchTab(2) },
@@ -174,7 +185,7 @@ fun SpendingTabViewController(
     onAddSpending: () -> Unit,
     onSubPageChange: (Boolean) -> Unit,
 ): UIViewController = ComposeUIViewController {
-    TabPage(showFab = true, onAddClick = { IosAppState.spendingToEdit.value = null; onAddSpending() }) {
+    TabPage {
         SpendingScreen(
             viewModel = IosAppState.viewModel,
             onEditSpending = { spending ->
@@ -208,24 +219,32 @@ fun MyPageTabViewController(onSubPageChange: (Boolean) -> Unit): UIViewControlle
 fun AddSpendingViewController(onClose: () -> Unit): UIViewController = ComposeUIViewController {
     val vm = IosAppState.viewModel
     val accentIndex by vm.accentIndex.collectAsState()
+    val initialSyncing by vm.initialSyncing.collectAsState()
+    val account by vm.account.collectAsState()
     val target = IosAppState.spendingToEdit.value
 
     GatchaLogTheme(accentIndex = accentIndex) {
         Surface(modifier = Modifier.fillMaxSize()) {
             Box(Modifier.fillMaxSize()) {
-                AddSpendingModal(
-                    spendingToEdit = target,
-                    nudgeMessage = { game, amount -> vm.overspendNudge(game, amount, target?.id) },
-                    onDismiss = {
-                        IosAppState.spendingToEdit.value = null
-                        onClose()
-                    },
-                    onSave = { spending ->
-                        if (target == null) vm.addSpending(spending) else vm.updateSpending(spending)
-                        IosAppState.spendingToEdit.value = null
-                        onClose()
-                    },
-                )
+                if (!account.isGuest && initialSyncing) {
+                    // 초기 동기화 중에는 편집을 막는다 — 탭 게이트와 동일한 이유 (클라우드 덮어쓰기 방지).
+                    // 동기화가 끝나면 자동으로 입력 폼이 나타난다.
+                    AccountLoadingScreen(loading = true, onFinished = {})
+                } else {
+                    AddSpendingModal(
+                        spendingToEdit = target,
+                        nudgeMessage = { game, amount -> vm.overspendNudge(game, amount, target?.id) },
+                        onDismiss = {
+                            IosAppState.spendingToEdit.value = null
+                            onClose()
+                        },
+                        onSave = { spending ->
+                            if (target == null) vm.addSpending(spending) else vm.updateSpending(spending)
+                            IosAppState.spendingToEdit.value = null
+                            onClose()
+                        },
+                    )
+                }
             }
         }
     }
