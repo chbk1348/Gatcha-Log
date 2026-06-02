@@ -346,7 +346,8 @@ fun GlgDialog(
       // 다이얼로그 내부는 글래스 룩 비활성 —
       // iOS 26 가이드라인: 알럿/다이얼로그 내부 버튼은 글래스가 아닌 일반 버튼
       CompositionLocalProvider(LocalGlassButtonsEnabled provides false) {
-        Box(Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) {
+        // 입력 필드 밖 탭 → 키보드 숨김 (예산 입력 등 숫자 키패드 다이얼로그 대응)
+        Box(Modifier.fillMaxWidth().padding(24.dp).dismissKeyboardOnTapOutside(), contentAlignment = Alignment.Center) {
             androidx.compose.material3.Surface(
                 shape = RoundedCornerShape(24.dp),
                 color = Color.White,
