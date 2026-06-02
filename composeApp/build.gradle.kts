@@ -18,7 +18,8 @@ kotlin {
         minSdk = 24
 
         compilerOptions {
-            jvmTarget.set(JvmTarget.JVM_11)
+            // GitLive Firebase(2.4.0) 등 일부 의존성이 JVM 17 바이트코드라 인라인 충돌(JVM_11 시 CloudSync 컴파일 실패) → 17
+            jvmTarget.set(JvmTarget.JVM_17)
         }
     }
 
@@ -39,6 +40,8 @@ kotlin {
             implementation(compose.foundation)
             implementation(compose.material3)
             implementation(compose.ui)
+            // 공용 BackHandler/PredictiveBackHandler — compose.ui 에 미포함, 별도 아티팩트(1.8.0+) 필요
+            implementation("org.jetbrains.compose.ui:ui-backhandler:1.11.0")
 
             // 코루틴 (Net, ViewModel 등)
             implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.11.0")
