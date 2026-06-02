@@ -70,6 +70,9 @@ targets:
         PRODUCT_NAME: Gatcha-Log
         # 앱 아이콘 (Assets.xcassets/AppIcon) — Android 앱과 동일한 위시스타 아이콘
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        # Intel 시뮬레이터(x86_64) 제외 — Kotlin 타깃이 iosSimulatorArm64(애플 실리콘)만 구성됨.
+        # 없으면 Release 시뮬레이터 빌드가 "Unknown iOS simulator arch: 'x86_64'" 로 실패.
+        "EXCLUDED_ARCHS[sdk=iphonesimulator*]": x86_64
         # composeApp Gradle 빌드가 떨궈 주는 framework 위치
         FRAMEWORK_SEARCH_PATHS: "$(SRCROOT)/../composeApp/build/xcode-frameworks/$(CONFIGURATION)/$(SDK_NAME)"
         # -ObjC: Firebase 정적 라이브러리의 ObjC 카테고리 로드에 필요
