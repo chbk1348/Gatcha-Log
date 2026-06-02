@@ -1,0 +1,88 @@
+# XcodeGen 스펙 — `xcodegen generate` 실행 시 iosApp.xcodeproj 생성
+# (생성된 .xcodeproj 를 git 에 커밋하므로, 이후 xcodegen 없이도 빌드 가능)
+name: iosApp
+options:
+  bundleIdPrefix: com.gatcha.log
+  deploymentTarget:
+    iOS: "16.0"
+settings:
+  base:
+    # Xcode 15+ 스크립트 샌드박스가 Gradle 실행을 막으므로 비활성화
+    ENABLE_USER_SCRIPT_SANDBOXING: "NO"
+
+# ── 외부 패키지 (SPM) ─────────────────────────────────────────────
+# Firebase iOS SDK: GitLive(Kotlin) firebase-auth/firestore 가 런타임에 사용하는 네이티브 SDK
+# GoogleSignIn: 구글 로그인 플로우 (idToken 발급 → Kotlin CloudSync 로 전달)
+packages:
+  Firebase:
+    url: https://github.com/firebase/firebase-ios-sdk
+    majorVersion: 12.0.0
+  GoogleSignIn:
+    url: https://github.com/google/GoogleSignIn-iOS
+    majorVersion: 8.0.0
+
+targets:
+  iosApp:
+    type: application
+    platform: iOS
+    sources:
+      - iosApp
+    # 키체인 entitlement — Firebase Auth 인증 상태·구글 로그인 토큰·HoYoLAB 토큰(Keychain) 저장에 필수.
+    # 이게 없으면 SecItem* 호출이 -34018(errSecMissingEntitlement)로 실패한다.
+    entitlements:
+      path: iosApp/iosApp.entitlements
+      properties:
+        keychain-access-groups:
+          - "$(AppIdentifierPrefix)com.gatcha.log.ios"
+    dependencies:
+      - package: Firebase
+        product: FirebaseAuth
+      - package: Firebase
+        product: FirebaseFirestore
+      - package: GoogleSignIn
+        product: GoogleSignIn
+    info:
+      path: iosApp/Info.plist
+      properties:
+        CFBundleDisplayName: Gatcha-Log
+        # 앱 버전 — Android(app/build.gradle.kts)와 동일한 규칙: versionName "27.12.0" / versionCode 271200
+        CFBundleShortVersionString: "27.12.0"
+        CFBundleVersion: "271200"
+        # Compose Multiplatform 필수 — 없으면 시작 시 PlistSanityCheck 크래시 (120Hz 허용)
+        CADisableMinimumFrameDurationOnPhone: true
+        UILaunchScreen: {}
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+        ITSAppUsesNonExemptEncryption: false
+        # ── 구글 로그인 (GoogleSignIn SDK) ──
+        GIDClientID: 711708512022-6upq632okh78jru6q09o2dol4tekokbn.apps.googleusercontent.com
+        CFBundleURLTypes:
+          - CFBundleURLSchemes:
+              - com.googleusercontent.apps.711708512022-6upq632okh78jru6q09o2dol4tekokbn
+        # ── 자동 출석 백그라운드 (BGTaskScheduler) ──
+        BGTaskSchedulerPermittedIdentifiers:
+          - com.gatcha.log.ios.checkin
+        UIBackgroundModes:
+          - fetch
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.gatcha.log.ios
+        PRODUCT_NAME: Gatcha-Log
+        # 앱 아이콘 (Assets.xcassets/AppIcon) — Android 앱과 동일한 위시스타 아이콘
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        # composeApp Gradle 빌드가 떨궈 주는 framework 위치
+        FRAMEWORK_SEARCH_PATHS: "$(SRCROOT)/../composeApp/build/xcode-frameworks/$(CONFIGURATION)/$(SDK_NAME)"
+        # -ObjC: Firebase 정적 라이브러리의 ObjC 카테고리 로드에 필요
+        OTHER_LDFLAGS: "$(inherited) -framework ComposeApp -ObjC"
+        # ad-hoc 서명 (Sign to Run Locally) — 키체인 entitlement 활성화.
+        # 키체인은 Firebase Auth 인증 상태·구글 로그인 토큰·HoYoLAB 토큰 저장에 필수.
+        # 실기기 테스트 시에는 Xcode Signing & Capabilities 에서 개인 팀으로 변경.
+        CODE_SIGN_IDENTITY: "-"
+    preBuildScripts:
+      - name: Compile Kotlin Framework
+        basedOnDependencyAnalysis: false
+        script: |
+          # Xcode 빌드 환경에는 JAVA_HOME 이 없으므로 직접 지정
+          export JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home"
+          cd "$SRCROOT/.."
+          ./gradlew :composeApp:embedAndSignAppleFrameworkForXcode
