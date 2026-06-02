@@ -27,6 +27,7 @@ import com.gatcha.log.data.GameData
 import com.gatcha.log.ui.components.GlassCard
 import com.gatcha.log.ui.components.GlgScreenHeader
 import com.gatcha.log.ui.components.InfoColumn
+import com.gatcha.log.ui.components.subPageBottomInset
 import com.gatcha.log.ui.theme.LocalAccent
 import com.gatcha.log.ui.theme.ProgressEmpty
 import com.gatcha.log.ui.theme.TextSecondary
@@ -56,8 +57,8 @@ fun AnnualReportScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
     Column(Modifier.fillMaxSize()) {
         GlgScreenHeader("연간 리포트", onBack, Modifier.padding(horizontal = 16.dp))
         Column(
-            // 하단바 미노출 페이지 — 바 높이 여백 대신 시스템 네비 인셋만 확보
-            Modifier.fillMaxSize().navigationBarsPadding().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 8.dp),
+            // 하단바 미노출 페이지 — Android 는 네비 인셋, iOS 는 인셋 없이 화면 끝까지
+            Modifier.fillMaxSize().subPageBottomInset().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 8.dp),
         ) {
             if (years.size > 1) {
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {

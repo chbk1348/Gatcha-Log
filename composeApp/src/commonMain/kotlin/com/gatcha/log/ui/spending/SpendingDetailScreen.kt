@@ -22,10 +22,11 @@ import com.gatcha.log.data.Spending
 import com.gatcha.log.ui.components.CurrencyIcon
 import com.gatcha.log.ui.components.GameCurrency
 import com.gatcha.log.ui.components.GlassCard
+import com.gatcha.log.ui.components.GlgAlert
 import com.gatcha.log.ui.components.GlgButton
-import com.gatcha.log.ui.components.GlgDialog
 import com.gatcha.log.ui.components.GlgOutlineButton
 import com.gatcha.log.ui.components.GlgScreenHeader
+import com.gatcha.log.ui.components.subPageBottomInset
 import com.gatcha.log.ui.theme.DividerColor
 import com.gatcha.log.ui.theme.TextSecondary
 import com.gatcha.log.util.won
@@ -44,8 +45,8 @@ fun SpendingDetailScreen(
     Column(Modifier.fillMaxSize()) {
         GlgScreenHeader("지출 상세", onBack, Modifier.padding(horizontal = 16.dp))
         Column(
-            // 하단바 미노출 페이지 — 바 높이 여백 대신 시스템 네비 인셋만 확보
-            Modifier.fillMaxSize().navigationBarsPadding().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 8.dp),
+            // 하단바 미노출 페이지 — Android 는 네비 인셋, iOS 는 인셋 없이 화면 끝까지
+            Modifier.fillMaxSize().subPageBottomInset().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 8.dp),
         ) {
             // 요약 카드 (게임·금액·날짜)
             GlassCard(shape = RoundedCornerShape(24.dp), modifier = Modifier.fillMaxWidth()) {
@@ -114,15 +115,14 @@ fun SpendingDetailScreen(
     }
 
     if (confirmDelete) {
-        GlgDialog(
+        GlgAlert(
             title = "이 지출을 삭제할까요?",
+            message = "삭제하면 되돌릴 수 없어요.",
             onDismiss = { confirmDelete = false },
             confirmText = "삭제",
             onConfirm = { confirmDelete = false; onDelete() },
-            dismissText = "취소",
-        ) {
-            Text("삭제하면 되돌릴 수 없어요.", fontSize = 13.sp, color = TextSecondary)
-        }
+            destructive = true,
+        )
     }
 }
 

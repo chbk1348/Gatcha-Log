@@ -50,8 +50,8 @@ import androidx.compose.ui.unit.sp
 expect fun isGlassButtonsSupported(): Boolean
 
 /**
- * 글래스 룩 비활성 영역 표시용.
- * iOS 26 가이드라인상 알럿/다이얼로그 내부 버튼은 글래스가 아니므로 GlgDialog 가 false 를 제공한다.
+ * 글래스 룩 비활성 영역 표시용 — 특정 영역에서 글래스 버튼을 끌 때 false 를 제공한다.
+ * (현재는 모든 영역에서 활성 — 다이얼로그 내부도 iOS 26 시스템 버튼처럼 캡슐 글래스를 쓴다)
  */
 val LocalGlassButtonsEnabled = compositionLocalOf { true }
 

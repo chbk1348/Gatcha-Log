@@ -26,6 +26,7 @@ import com.gatcha.log.data.Spending
 import com.gatcha.log.ui.components.GlassCard
 import com.gatcha.log.ui.components.GlgScreenHeader
 import com.gatcha.log.ui.components.StatTile
+import com.gatcha.log.ui.components.subPageBottomInset
 import com.gatcha.log.ui.theme.DangerText
 import com.gatcha.log.ui.theme.LocalAccent
 import com.gatcha.log.ui.theme.ProgressEmpty
@@ -59,7 +60,7 @@ fun SpendingInsightScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
     Column(Modifier.fillMaxSize()) {
         GlgScreenHeader("지출 인사이트", onBack, Modifier.padding(horizontal = 16.dp))
         Column(
-            Modifier.fillMaxSize().navigationBarsPadding().verticalScroll(rememberScrollState())
+            Modifier.fillMaxSize().subPageBottomInset().verticalScroll(rememberScrollState())
                 .padding(horizontal = 16.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
