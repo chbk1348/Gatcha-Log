@@ -204,9 +204,10 @@ fun SpendingScreen(
             } else if (sortOrder == SortOrder.AMOUNT_DESC) {
                 // 금액순 — 날짜 그룹 없이 평면 리스트
                 items(filtered.sortedByDescending { it.amount }, key = { it.id }) { spending ->
-                    HistoryItem(
+                    SwipeableHistoryItem(
                         spending = spending,
                         onClick = { nav = SpendingScreenNav.Detail(spending) },
+                        onDelete = { viewModel.deleteSpending(spending.id) },
                     )
                 }
             } else {
@@ -216,9 +217,10 @@ fun SpendingScreen(
                 grouped.forEach { (_, items) ->
                     item { DateHeader(items.first().dateLabel, items.sumOf { it.amount }) }
                     items(items, key = { it.id }) { spending ->
-                        HistoryItem(
+                        SwipeableHistoryItem(
                             spending = spending,
                             onClick = { nav = SpendingScreenNav.Detail(spending) },
+                            onDelete = { viewModel.deleteSpending(spending.id) },
                         )
                     }
                 }
@@ -382,6 +384,55 @@ fun DateHeader(date: String, total: Long) {
     ) {
         Text(date, fontSize = 12.sp, color = TextSecondary, fontWeight = FontWeight.Bold)
         Text(won(total), fontSize = 12.sp, color = accent, fontWeight = FontWeight.Bold)
+    }
+}
+
+/**
+ * 지출 항목 + 왼쪽 스와이프 삭제 (iOS 표준 UX — 밀어서 삭제).
+ * 왼쪽으로 밀면 빨간 삭제 영역이 드러나고, 임계치를 넘기면 삭제된다.
+ * 탭하면 기존처럼 상세 화면으로 이동.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SwipeableHistoryItem(
+    spending: Spending,
+    onClick: () -> Unit,
+    onDelete: () -> Unit,
+) {
+    val dismissState = rememberSwipeToDismissBoxState(
+        confirmValueChange = { value ->
+            if (value == SwipeToDismissBoxValue.EndToStart) {
+                onDelete()
+                true
+            } else {
+                false
+            }
+        },
+    )
+    SwipeToDismissBox(
+        state = dismissState,
+        // 오른쪽 방향 스와이프(StartToEnd)는 사용하지 않음 — iOS 표준은 왼쪽 스와이프 삭제만
+        enableDismissFromStartToEnd = false,
+        backgroundContent = {
+            // 빨간 삭제 배경 — 카드와 동일한 라운드/패딩으로 정렬 (iOS 시스템 레드)
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .padding(vertical = 5.dp)
+                    .clip(RoundedCornerShape(18.dp))
+                    .background(Color(0xFFFF3B30)),
+                contentAlignment = Alignment.CenterEnd,
+            ) {
+                Icon(
+                    Icons.Default.Delete,
+                    contentDescription = "삭제",
+                    tint = Color.White,
+                    modifier = Modifier.padding(end = 24.dp),
+                )
+            }
+        },
+    ) {
+        HistoryItem(spending = spending, onClick = onClick)
     }
 }
 
