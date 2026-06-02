@@ -22,6 +22,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -229,9 +230,9 @@ private fun RarityLegend(label: String, value: Int, total: Int, color: Color, mo
     Row(modifier, verticalAlignment = Alignment.CenterVertically) {
         Box(Modifier.size(8.dp).clip(CircleShape).background(color))
         Spacer(Modifier.width(6.dp))
-        Column {
-            Text("$label ${num(value)}", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextPrimary, maxLines = 1)
-            Text("${fixed(pct, 1)}%", fontSize = 10.sp, color = TextSecondary, maxLines = 1)
+        Column(Modifier.weight(1f)) {
+            Text("$label ${num(value)}", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text("${fixed(pct, 1)}%", fontSize = 10.sp, color = TextSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
     }
 }
@@ -271,10 +272,10 @@ private fun FiveRow(f: DashFive, gameKey: String, accent: Color) {
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(Modifier.weight(1f)) {
-            Text(f.name.ifBlank { "(이름 없음)" }, fontSize = 13.sp, fontWeight = FontWeight.Medium, color = TextPrimary, maxLines = 1)
+            Text(f.name.ifBlank { "(이름 없음)" }, fontSize = 13.sp, fontWeight = FontWeight.Medium, color = TextPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text(
                 poolLabel + if (f.time.isNotBlank()) " · ${f.time.take(10)}" else "",
-                fontSize = 10.sp, color = TextSecondary, maxLines = 1,
+                fontSize = 10.sp, color = TextSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis,
             )
         }
         Spacer(Modifier.width(8.dp))

@@ -20,6 +20,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.gatcha.log.data.GameData
@@ -76,7 +77,7 @@ fun WishlistSection(
                             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
                                 Icon(Icons.Default.Star, null, tint = accent, modifier = Modifier.size(16.dp))
                                 Spacer(Modifier.width(8.dp))
-                                Text(name, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                                Text(name, fontSize = 14.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
                                 if (picked) {
                                     Spacer(Modifier.width(6.dp))
                                     Surface(color = accent.copy(alpha = 0.15f), shape = RoundedCornerShape(6.dp)) {
@@ -152,10 +153,10 @@ fun PitySection(pity: Map<String, PityState>, onAdjust: (String, Int) -> Unit, o
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f, fill = false)) {
                             Box(Modifier.size(8.dp).background(game.color, CircleShape))
                             Spacer(Modifier.width(8.dp))
-                            Text(game.displayName, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                            Text(game.displayName, fontWeight = FontWeight.Bold, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                             if (tierLabel != null) {
                                 Spacer(Modifier.width(8.dp))
                                 Surface(color = tierColor.copy(alpha = 0.15f), shape = RoundedCornerShape(6.dp)) {

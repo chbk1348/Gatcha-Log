@@ -14,6 +14,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.gatcha.log.data.CombatMode
@@ -167,7 +168,7 @@ private fun PhaseBlock(phase: String, banners: List<GachaBanner>, gameColor: Col
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            Row(modifier = Modifier.weight(1f, fill = false), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 Surface(color = gameColor.copy(alpha = 0.12f), shape = RoundedCornerShape(6.dp)) {
                     Text(phase, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = gameColor, modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp))
                 }
@@ -186,7 +187,7 @@ private fun PhaseBlock(phase: String, banners: List<GachaBanner>, gameColor: Col
             }
         }
         Spacer(Modifier.height(6.dp))
-        Text(title, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+        Text(title, fontWeight = FontWeight.Bold, fontSize = 14.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
         Spacer(Modifier.height(2.dp))
         Text(period, fontSize = 11.sp, color = TextSecondary)
     }
@@ -239,6 +240,7 @@ fun PatchSection(banners: List<GachaBanner>) {
                                 GameData.byName(p.game).shortName + " " +
                                     if (p.isStart) "${v}새 버전 시작" else "${v}버전 종료",
                                 fontWeight = FontWeight.Bold, fontSize = 14.sp,
+                                maxLines = 1, overflow = TextOverflow.Ellipsis,
                             )
                             // 실제 날짜로 모호함 제거
                             Text(DateUtil.shortLabelWithWeekday(p.targetMillis), fontSize = 11.sp, color = TextSecondary)
