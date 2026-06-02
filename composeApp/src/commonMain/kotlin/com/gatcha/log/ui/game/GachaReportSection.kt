@@ -18,6 +18,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.gatcha.log.data.GachaReport
@@ -136,7 +137,7 @@ private fun ReportContent(stats: GachaStats, spendByGameKey: Map<String, Long>, 
             Spacer(Modifier.width(8.dp))
             Text(shortName, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
             Spacer(Modifier.width(8.dp))
-            Text("${num(g.total)}뽑 · 5성 ${num(g.five)}", fontSize = 11.sp, color = TextSecondary)
+            Text("${num(g.total)}뽑 · 5성 ${num(g.five)}", fontSize = 11.sp, color = TextSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
         Spacer(Modifier.height(8.dp))
 
@@ -160,10 +161,11 @@ private fun ReportContent(stats: GachaStats, spendByGameKey: Map<String, Long>, 
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(labels[pk] ?: pk, fontSize = 12.sp, fontWeight = FontWeight.Medium, color = TextPrimary, modifier = Modifier.weight(1f))
+                Text(labels[pk] ?: pk, fontSize = 12.sp, fontWeight = FontWeight.Medium, color = TextPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
                 Text(
                     "${p.total}뽑 · 5성 ${p.five}" + if (p.avgPity > 0) " · 평균 ${p.avgPity}" else "",
                     fontSize = 11.sp, color = TextSecondary,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis,
                 )
                 Spacer(Modifier.width(8.dp))
                 Surface(color = color.copy(alpha = 0.12f), shape = RoundedCornerShape(6.dp)) {
@@ -193,8 +195,8 @@ private fun SummaryStat(value: String, label: String, sub: String?, modifier: Mo
         modifier.clip(RoundedCornerShape(12.dp)).background(Color(0x08000000)).padding(vertical = 11.dp, horizontal = 8.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Text(value, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = valueColor, maxLines = 1)
-        Text(label, fontSize = 10.sp, color = TextSecondary)
+        Text(value, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = valueColor, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(label, fontSize = 10.sp, color = TextSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
         if (sub != null) Text(sub, fontSize = 9.sp, color = Color.LightGray)
     }
 }
@@ -215,7 +217,7 @@ private fun FlowChips(items: List<String>) {
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 row.forEach { t ->
                     Surface(color = Color(0x08000000), shape = RoundedCornerShape(8.dp)) {
-                        Text(t, fontSize = 11.sp, color = TextPrimary, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp), maxLines = 1)
+                        Text(t, fontSize = 11.sp, color = TextPrimary, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp), maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                 }
             }

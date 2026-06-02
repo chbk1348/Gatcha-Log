@@ -18,6 +18,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.gatcha.log.data.HoyolabConfig
@@ -190,9 +191,10 @@ private fun CodeRow(c: GiftCode, redeemed: Boolean, accent: Color, enabled: Bool
                         fontSize = 14.sp, fontWeight = FontWeight.Bold,
                         color = if (redeemed) TextSecondary else TextPrimary,
                         textDecoration = if (redeemed) TextDecoration.LineThrough else null,
+                        maxLines = 1, overflow = TextOverflow.Ellipsis,
                     )
                 }
-                if (c.rewards.isNotBlank()) Text(c.rewards, fontSize = 11.sp, color = TextSecondary, maxLines = 2)
+                if (c.rewards.isNotBlank()) Text(c.rewards, fontSize = 11.sp, color = TextSecondary, maxLines = 2, overflow = TextOverflow.Ellipsis)
             }
             Spacer(Modifier.width(8.dp))
             if (redeemed) {

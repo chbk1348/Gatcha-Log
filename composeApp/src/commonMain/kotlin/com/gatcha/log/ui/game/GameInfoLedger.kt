@@ -13,6 +13,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.gatcha.log.data.GameData
@@ -40,7 +41,7 @@ internal fun LedgerCard(ledger: MonthlyLedger) {
             }
             Spacer(Modifier.height(12.dp))
             Row(verticalAlignment = Alignment.Bottom) {
-                Text(num(ledger.premium), fontSize = 28.sp, fontWeight = FontWeight.Bold, color = accent)
+                Text(num(ledger.premium), fontSize = 28.sp, fontWeight = FontWeight.Bold, color = accent, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
                 Spacer(Modifier.width(6.dp))
                 Text(ledger.premiumLabel, fontSize = 13.sp, color = TextSecondary, modifier = Modifier.padding(bottom = 4.dp))
                 ledger.premiumDelta?.let { d ->
@@ -65,10 +66,10 @@ internal fun LedgerCard(ledger: MonthlyLedger) {
                         modifier = Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 4.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Text(e.action, fontSize = 12.sp, modifier = Modifier.weight(1f), maxLines = 1)
+                        Text(e.action, fontSize = 12.sp, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
                         Text(num(e.num), fontSize = 12.sp, fontWeight = FontWeight.Medium)
                         Spacer(Modifier.width(8.dp))
-                        Text("${e.percent}%", fontSize = 11.sp, color = TextSecondary, modifier = Modifier.width(36.dp), textAlign = TextAlign.End)
+                        Text("${e.percent}%", fontSize = 11.sp, color = TextSecondary, modifier = Modifier.width(44.dp), textAlign = TextAlign.End)
                     }
                     LinearProgressIndicator(
                         progress = { (e.percent / 100f).coerceIn(0f, 1f) },

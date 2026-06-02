@@ -18,6 +18,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.gatcha.log.data.CarryoverKind
@@ -202,7 +203,7 @@ private fun StatBox(label: String, value: String, sub: String, modifier: Modifie
             .padding(horizontal = 11.dp, vertical = 9.dp),
     ) {
         Text(label, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, color = StatLabel)
-        Text(value, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TextPrimary, modifier = Modifier.padding(top = 3.dp))
+        Text(value, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TextPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 3.dp))
         Text(sub, fontSize = 10.sp, color = StatLabel, modifier = Modifier.padding(top = 1.dp))
     }
 }
@@ -243,12 +244,12 @@ private fun CompareTable(bannerType: String, sortCol: String?, sortAsc: Boolean,
             Modifier.fillMaxWidth().background(Color(0xFFF6F6FA)).padding(vertical = 8.dp, horizontal = 6.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            HeaderCell("게임", "name", sortCol, sortAsc, 1.5f, onSort)
+            HeaderCell("게임", "name", sortCol, sortAsc, 1.7f, onSort)
             HeaderCell("등급", "grade", sortCol, sortAsc, 0.9f, onSort)
-            HeaderCell("기본", "base", sortCol, sortAsc, 1.1f, onSort)
-            HeaderCell("소프트", "soft", sortCol, sortAsc, 0.9f, onSort)
-            HeaderCell("하드", "hard", sortCol, sortAsc, 0.9f, onSort)
-            HeaderCell("보장", "guarantee", sortCol, sortAsc, 1.3f, onSort)
+            HeaderCell("기본", "base", sortCol, sortAsc, 0.9f, onSort)
+            HeaderCell("소프트", "soft", sortCol, sortAsc, 0.8f, onSort)
+            HeaderCell("하드", "hard", sortCol, sortAsc, 0.8f, onSort)
+            HeaderCell("보장", "guarantee", sortCol, sortAsc, 1.5f, onSort)
         }
         rows.forEachIndexed { i, r ->
             if (i > 0) HorizontalDivider(color = DividerColor)
@@ -256,16 +257,16 @@ private fun CompareTable(bannerType: String, sortCol: String?, sortAsc: Boolean,
                 Modifier.fillMaxWidth().padding(vertical = 9.dp, horizontal = 6.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Row(Modifier.weight(1.5f), verticalAlignment = Alignment.CenterVertically) {
+                Row(Modifier.weight(1.7f), verticalAlignment = Alignment.CenterVertically) {
                     Box(Modifier.size(7.dp).clip(CircleShape).background(r.color))
                     Spacer(Modifier.width(5.dp))
-                    Text(r.shortName, fontSize = 11.sp, fontWeight = FontWeight.Medium, color = TextPrimary, maxLines = 1)
+                    Text(r.shortName, fontSize = 11.sp, fontWeight = FontWeight.Medium, color = TextPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
                 DataCell(r.grade, 0.9f)
-                DataCell(r.base?.let { pct(it, 3) } ?: "—", 1.1f)
-                DataCell(r.soft?.let { "$it" } ?: "—", 0.9f)
-                DataCell(r.hard?.let { "$it" } ?: "—", 0.9f)
-                DataCell(r.guarantee, 1.3f)
+                DataCell(r.base?.let { pct(it, 3) } ?: "—", 0.9f)
+                DataCell(r.soft?.let { "$it" } ?: "—", 0.8f)
+                DataCell(r.hard?.let { "$it" } ?: "—", 0.8f)
+                DataCell(r.guarantee, 1.5f)
             }
         }
     }
@@ -284,10 +285,13 @@ private fun RowScope.HeaderCell(
         fontSize = 10.sp,
         fontWeight = FontWeight.Bold,
         color = if (active) accent else TextSecondary,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+        softWrap = false,
     )
 }
 
 @Composable
 private fun RowScope.DataCell(text: String, weight: Float) {
-    Text(text, modifier = Modifier.weight(weight), fontSize = 11.sp, color = TextSecondary, maxLines = 1)
+    Text(text, modifier = Modifier.weight(weight), fontSize = 11.sp, color = TextSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
 }

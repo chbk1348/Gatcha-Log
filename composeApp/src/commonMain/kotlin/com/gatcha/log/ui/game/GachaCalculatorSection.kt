@@ -24,6 +24,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.gatcha.log.data.DateUtil
@@ -231,7 +232,7 @@ private fun CurrencyCalc(game: GachaGameRate, banner: GachaBannerRate, pity: Map
 
     // 진행도
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-        Text("${num(cur)} / ${num(currencyToHard)} ${banner.currency}", fontSize = 11.sp, color = TextSecondary)
+        Text("${num(cur)} / ${num(currencyToHard)} ${banner.currency}", fontSize = 11.sp, color = TextSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
         Text("$pct%", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = LocalAccent.current)
     }
     Spacer(Modifier.height(5.dp))
@@ -634,7 +635,7 @@ private fun ResultBox(label: String, value: String, sub: String, modifier: Modif
             .padding(horizontal = 12.dp, vertical = 11.dp),
     ) {
         Text(label, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, color = ResultLabel)
-        Text(value, fontSize = 17.sp, fontWeight = FontWeight.Bold, color = TextPrimary, modifier = Modifier.padding(top = 3.dp))
+        Text(value, fontSize = 17.sp, fontWeight = FontWeight.Bold, color = TextPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 3.dp))
         if (sub.isNotBlank()) Text(sub, fontSize = 10.sp, color = ResultLabel, modifier = Modifier.padding(top = 1.dp))
     }
 }
@@ -648,9 +649,9 @@ private fun ScenarioBox(title: String, sub: String, pulls: String, currency: Str
             .padding(horizontal = 12.dp, vertical = 11.dp),
     ) {
         Text(title, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = color)
-        Text(sub, fontSize = 10.sp, color = TextSecondary, modifier = Modifier.padding(top = 1.dp))
+        Text(sub, fontSize = 10.sp, color = TextSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 1.dp))
         Spacer(Modifier.height(6.dp))
         Text(pulls, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
-        Text(currency, fontSize = 10.sp, color = TextSecondary)
+        Text(currency, fontSize = 10.sp, color = TextSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }

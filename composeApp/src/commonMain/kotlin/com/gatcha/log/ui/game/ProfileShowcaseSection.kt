@@ -14,6 +14,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.unit.dp
@@ -189,12 +190,12 @@ private fun CharCard(c: EnkaChar, game: String) {
             }
         }
         Spacer(Modifier.height(6.dp))
-        Text(c.name, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextPrimary, maxLines = 1)
+        Text(c.name, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
         Spacer(Modifier.height(1.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text("★".repeat(c.rarity.coerceIn(1, 5)), fontSize = 9.sp, color = color, maxLines = 1)
             if (c.element.isNotBlank()) {
-                Text(" · ${c.element}", fontSize = 10.sp, color = TextSecondary, maxLines = 1)
+                Text(" · ${c.element}", fontSize = 10.sp, color = TextSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
     }
