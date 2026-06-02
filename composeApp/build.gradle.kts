@@ -69,6 +69,9 @@ kotlin {
         }
         androidMain.dependencies {
             implementation("io.ktor:ktor-client-okhttp:3.5.0")
+            // Firebase BoM — GitLive(KMP) firebase-* 의 Android 변형이 요구하는
+            // com.google.firebase:* 버전을 고정 (:app 과 동일 BoM). 없으면 androidCompileClasspath 해석 실패.
+            implementation(project.dependencies.platform("com.google.firebase:firebase-bom:33.7.0"))
             // 보안 토큰 저장(EncryptedSharedPreferences) — :app 과 동일 (SecureKeyValueStore actual)
             implementation("androidx.security:security-crypto:1.1.0-alpha06")
             // 알림(NotificationCompat) — Notifier actual

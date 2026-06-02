@@ -24,24 +24,32 @@ struct ContentView: View {
     /// 서브페이지(연간 리포트·알림 상세 등)가 열리면 탭바 숨김 — 기존 앱 UX 유지
     @State private var hideTabBar: Bool = false
 
-    /// 앱 강조색 (민트) — 탭 아이콘 틴트
-    private let accent = Color(red: 0.204, green: 0.820, blue: 0.714)
+    /// 앱 강조색 — Kotlin 테마(accentIndex)와 연동된 탭 아이콘 틴트 (초기값: 민트)
+    @State private var accent = Color(red: 0.204, green: 0.820, blue: 0.714)
 
     var body: some View {
-        if showOnboarding {
-            ComposeView(factory: {
-                MainViewControllerKt.LoginViewController(onComplete: { showOnboarding = false })
-            })
-            .ignoresSafeArea(.all)
-        } else {
-            mainTabs
-                // 지출 추가/수정 — 네이티브 풀스크린 커버 (탭바를 자연스럽게 덮음)
-                .fullScreenCover(isPresented: $showAddSpending) {
-                    ComposeView(factory: {
-                        MainViewControllerKt.AddSpendingViewController(onClose: { showAddSpending = false })
-                    })
-                    .ignoresSafeArea(.all)
-                }
+        Group {
+            if showOnboarding {
+                ComposeView(factory: {
+                    MainViewControllerKt.LoginViewController(onComplete: { showOnboarding = false })
+                })
+                .ignoresSafeArea(.all)
+            } else {
+                mainTabs
+                    // 지출 추가/수정 — 네이티브 풀스크린 커버 (탭바를 자연스럽게 덮음)
+                    .fullScreenCover(isPresented: $showAddSpending) {
+                        ComposeView(factory: {
+                            MainViewControllerKt.AddSpendingViewController(onClose: { showAddSpending = false })
+                        })
+                        .ignoresSafeArea(.all)
+                    }
+            }
+        }
+        .onAppear {
+            // 테마(액센트) 변경 구독 — 마이페이지에서 테마를 바꾸면 탭바 틴트도 즉시 반영
+            MainViewControllerKt.observeAccentColor { argb in
+                accent = Color(argb: argb.int64Value)
+            }
         }
     }
 
@@ -154,5 +162,19 @@ struct ContentView: View {
                 .background(.ultraThinMaterial, in: Circle())
                 .shadow(color: .black.opacity(0.15), radius: 10, y: 4)
         }
+    }
+}
+
+// ── Kotlin ARGB(Long) → SwiftUI Color ──────────────────────────────────────
+
+private extension Color {
+    init(argb: Int64) {
+        self.init(
+            .sRGB,
+            red: Double((argb >> 16) & 0xFF) / 255.0,
+            green: Double((argb >> 8) & 0xFF) / 255.0,
+            blue: Double(argb & 0xFF) / 255.0,
+            opacity: Double((argb >> 24) & 0xFF) / 255.0
+        )
     }
 }

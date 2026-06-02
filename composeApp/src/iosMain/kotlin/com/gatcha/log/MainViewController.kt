@@ -20,6 +20,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.ComposeUIViewController
 import com.gatcha.log.data.Spending
@@ -32,9 +33,13 @@ import com.gatcha.log.ui.profile.MyPageScreen
 import com.gatcha.log.ui.spending.AddSpendingModal
 import com.gatcha.log.ui.spending.SpendingScreen
 import com.gatcha.log.ui.spending.SpendingViewModel
+import com.gatcha.log.ui.theme.AccentPalette
 import com.gatcha.log.ui.theme.GatchaLogTheme
 import com.gatcha.log.ui.theme.LocalAccent
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.launch
 import platform.UIKit.UIViewController
 
 /**
@@ -64,6 +69,36 @@ object IosAppState {
 @Suppress("unused")
 fun needsOnboarding(): Boolean =
     IosAppState.viewModel.account.value.isGuest && !IosAppState.viewModel.guestChosen.value
+
+// ── 테마(액센트) 색상 브리지 — 네이티브 탭바 틴트를 앱 테마와 연동 ──────────────
+
+private var accentObserver: ((Long) -> Unit)? = null
+private var accentCollectorStarted = false
+
+/** 현재 액센트 색상 → ARGB Long */
+private fun currentAccentArgb(): Long {
+    val idx = IosAppState.viewModel.accentIndex.value
+    val accent = AccentPalette.getOrElse(idx) { AccentPalette[0] }.color
+    return accent.toArgb().toLong() and 0xFFFFFFFFL
+}
+
+/**
+ * Swift 가 호출 — 테마(액센트) 색상 변경 구독.
+ * 등록 즉시 현재 값으로 1회 호출되고, 이후 마이페이지에서 테마를 바꿀 때마다 호출된다(메인 스레드).
+ */
+@Suppress("unused")
+fun observeAccentColor(onChange: (Long) -> Unit) {
+    accentObserver = onChange
+    onChange(currentAccentArgb())
+    if (!accentCollectorStarted) {
+        accentCollectorStarted = true
+        CoroutineScope(Dispatchers.Main).launch {
+            IosAppState.viewModel.accentIndex.collect {
+                accentObserver?.invoke(currentAccentArgb())
+            }
+        }
+    }
+}
 
 /** 탭 공통 래퍼: 테마 + 글래스 배경 + 상태 토스트 + (옵션) 지출추가 FAB */
 @Composable
