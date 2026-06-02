@@ -40,12 +40,17 @@ struct ContentView: View {
                 .ignoresSafeArea(.all)
             } else {
                 mainTabs
-                    // 지출 추가/수정 — 네이티브 풀스크린 커버 (탭바를 자연스럽게 덮음)
-                    .fullScreenCover(isPresented: $showAddSpending) {
+                    // 지출 추가/수정 — iOS 표준 시트 (드래그 핸들 + 아래로 스와이프 닫기)
+                    .sheet(isPresented: $showAddSpending, onDismiss: {
+                        // 드래그로 닫힌 경우에도 수정 대상 클리어 (저장/취소 경로는 Kotlin 쪽에서 클리어)
+                        MainViewControllerKt.prepareAddSpending()
+                    }) {
                         ComposeView(factory: {
                             MainViewControllerKt.AddSpendingViewController(onClose: { showAddSpending = false })
                         })
-                        .ignoresSafeArea(.all)
+                        .ignoresSafeArea(edges: .bottom)
+                        .presentationDetents([.large])
+                        .presentationDragIndicator(.visible)
                     }
             }
         }
