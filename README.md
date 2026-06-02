@@ -19,7 +19,7 @@ Google Apps Script 웹앱에서 출발해 **Kotlin Multiplatform + Compose Multi
 <br/>
 
 [![Download APK](https://img.shields.io/badge/⬇️%20APK%20다운로드-3DDC84?style=for-the-badge&logo=android&logoColor=white)](https://github.com/chbk1348/Gatcha-Log/releases/latest)
-[![Download IPA](https://img.shields.io/badge/⬇️%20iOS%20IPA%20다운로드-0A84FF?style=for-the-badge&logo=apple&logoColor=white)](https://github.com/chbk1348/Gatcha-Log/releases/tag/v27.12.0-ios)
+[![Download IPA](https://img.shields.io/badge/⬇️%20iOS%20IPA%20다운로드-0A84FF?style=for-the-badge&logo=apple&logoColor=white)](https://github.com/chbk1348/Gatcha-Log/releases/tag/v27.12.1-ios)
 
 </div>
 
@@ -126,7 +126,7 @@ open iosApp/iosApp.xcodeproj      # Xcode 에서 열고 시뮬레이터/기기�
 ### 📲 iOS 설치 (사이드로딩)
 
 iOS 용 IPA 는 **미서명** 상태로 배포됩니다 — [Sideloadly](https://sideloadly.io) 또는 [AltStore](https://altstore.io) 로
-본인의 Apple ID 서명 후 설치하세요. 자세한 방법은 [iOS 릴리즈 페이지](https://github.com/chbk1348/Gatcha-Log/releases/tag/v27.12.0-ios) 참고.
+본인의 Apple ID 서명 후 설치하세요. 자세한 방법은 [iOS 릴리즈 페이지](https://github.com/chbk1348/Gatcha-Log/releases/tag/v27.12.1-ios) 참고.
 (무료 Apple ID 서명은 7일 유효 — 만료 시 재설치, 데이터는 유지됩니다)
 
 ---
