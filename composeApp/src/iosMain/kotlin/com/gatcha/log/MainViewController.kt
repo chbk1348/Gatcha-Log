@@ -10,9 +10,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.toArgb
@@ -34,6 +31,7 @@ import com.gatcha.log.ui.theme.GatchaLogTheme
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 import platform.UIKit.UIViewController
 
@@ -58,6 +56,30 @@ object IosAppState {
 
     /** 지출 추가/수정 모달 대상 — 수정이면 해당 Spending, 추가면 null. (Swift 와 객체를 주고받지 않기 위한 공유 상태) */
     val spendingToEdit = MutableStateFlow<Spending?>(null)
+
+    /**
+     * 초기 동기화 로딩 화면 완료 여부 (프로세스 수명 동안 유지 — Compose 경로의 loadingDone 와 동일).
+     * 게이트 활성 = !account.isGuest && !syncLoadingDone — 4개 탭(TabPage)과 Swift(탭바/추가버튼 숨김)가 공유.
+     */
+    val syncLoadingDone = MutableStateFlow(false)
+}
+
+/** 초기 동기화 게이트 활성 여부 — Swift 가 탭바·추가 버튼 숨김 초기값으로 사용 */
+@Suppress("unused")
+fun isSyncGateActive(): Boolean =
+    !IosAppState.viewModel.account.value.isGuest && !IosAppState.syncLoadingDone.value
+
+/**
+ * Swift 가 호출 — 초기 동기화 게이트 상태 변경 구독 (메인 스레드).
+ * 게이트가 활성인 동안 Swift 는 네이티브 탭바와 지출 추가 버튼을 숨긴다.
+ */
+@Suppress("unused")
+fun observeSyncGate(onChange: (Boolean) -> Unit) {
+    CoroutineScope(Dispatchers.Main).launch {
+        combine(IosAppState.viewModel.account, IosAppState.syncLoadingDone) { account, done ->
+            !account.isGuest && !done
+        }.collect { onChange(it) }
+    }
 }
 
 /** Swift 가 시작 화면을 결정 — true 면 온보딩(로그인/게스트 선택)부터 */
@@ -118,12 +140,13 @@ private fun TabPage(content: @Composable () -> Unit) {
     val statusMessage by vm.statusMessage.collectAsState()
     val account by vm.account.collectAsState()
     val initialSyncing by vm.initialSyncing.collectAsState()
-    var loadingDone by remember { mutableStateOf(false) }
+    val loadingDone by IosAppState.syncLoadingDone.collectAsState()
 
     GatchaLogTheme(accentIndex = accentIndex) {
         if (!account.isGuest && !loadingDone) {
-            // 초기 클라우드 동기화 게이트 (0~100% 프로그레스)
-            AccountLoadingScreen(loading = initialSyncing, onFinished = { loadingDone = true })
+            // 초기 클라우드 동기화 게이트 (0~100% 프로그레스) — 완료 상태는 IosAppState 로 공유
+            // (Swift 도 이 상태를 구독해 게이트 동안 네이티브 탭바·추가 버튼을 숨긴다)
+            AccountLoadingScreen(loading = initialSyncing, onFinished = { IosAppState.syncLoadingDone.value = true })
             return@GatchaLogTheme
         }
 
