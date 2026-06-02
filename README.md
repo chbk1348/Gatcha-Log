@@ -19,6 +19,7 @@ Google Apps Script 웹앱에서 출발해 **Kotlin Multiplatform + Compose Multi
 <br/>
 
 [![Download APK](https://img.shields.io/badge/⬇️%20APK%20다운로드-3DDC84?style=for-the-badge&logo=android&logoColor=white)](https://github.com/chbk1348/Gatcha-Log/releases/latest)
+[![Download IPA](https://img.shields.io/badge/⬇️%20iOS%20IPA%20다운로드-0A84FF?style=for-the-badge&logo=apple&logoColor=white)](https://github.com/chbk1348/Gatcha-Log/releases/tag/v27.12.0-ios)
 
 </div>
 
@@ -114,11 +115,19 @@ cd Gatcha-Log
 ```bash
 open iosApp/iosApp.xcodeproj      # Xcode 에서 열고 시뮬레이터/기기로 실행
 # Kotlin 프레임워크는 Xcode 빌드 시 Gradle 로 자동 빌드됨
+
+./iosApp/build-ipa.sh             # 배포용 미서명 IPA 빌드 (build/Gatcha-Log-<버전>.ipa)
 ```
 
 > JDK는 Android Studio 번들 JBR(OpenJDK 21) 사용 권장.
 > `google-services.json` 이 없어도 빌드됩니다(클라우드 비활성·로컬 모드로 동작).
 > iOS 의 `project.yml` 을 수정한 경우 `xcodegen generate` 로 .xcodeproj 재생성.
+
+### 📲 iOS 설치 (사이드로딩)
+
+iOS 용 IPA 는 **미서명** 상태로 배포됩니다 — [Sideloadly](https://sideloadly.io) 또는 [AltStore](https://altstore.io) 로
+본인의 Apple ID 서명 후 설치하세요. 자세한 방법은 [iOS 릴리즈 페이지](https://github.com/chbk1348/Gatcha-Log/releases/tag/v27.12.0-ios) 참고.
+(무료 Apple ID 서명은 7일 유효 — 만료 시 재설치, 데이터는 유지됩니다)
 
 ---
 
