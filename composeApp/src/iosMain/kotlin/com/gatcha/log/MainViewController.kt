@@ -20,6 +20,7 @@ import com.gatcha.log.ui.auth.AccountLoadingScreen
 import com.gatcha.log.ui.auth.LoginScreen
 import com.gatcha.log.ui.components.GlassBackground
 import com.gatcha.log.ui.components.GlgStatusToast
+import com.gatcha.log.ui.components.dismissKeyboardOnTapOutside
 import com.gatcha.log.ui.game.GameInfoScreen
 import com.gatcha.log.ui.home.HomeContent
 import com.gatcha.log.ui.profile.MyPageScreen
@@ -153,7 +154,8 @@ private fun TabPage(content: @Composable () -> Unit) {
         GlassBackground(modifier = Modifier.fillMaxSize()) {
             // 콘텐츠는 상태바 아래부터 시작 (원래 Scaffold 가 주던 상단 인셋을 직접 적용).
             // 하단은 패딩 없이 — 콘텐츠가 반투명 네이티브 탭바 밑으로 비쳐 보이는 게 iOS 26 표준.
-            Box(Modifier.fillMaxSize().statusBarsPadding()) {
+            // 입력 필드 밖 탭 → 키보드 숨김 (iOS 는 시스템 차원의 키보드 닫기 수단이 없음)
+            Box(Modifier.fillMaxSize().statusBarsPadding().dismissKeyboardOnTapOutside()) {
                 content()
             }
 
@@ -255,7 +257,8 @@ fun AddSpendingViewController(onClose: () -> Unit): UIViewController = ComposeUI
 
     GatchaLogTheme(accentIndex = accentIndex) {
         Surface(modifier = Modifier.fillMaxSize()) {
-            Box(Modifier.fillMaxSize()) {
+            // 입력 필드 밖 탭 → 키보드 숨김 (금액 입력 숫자 키패드는 리턴 키가 없어 필수)
+            Box(Modifier.fillMaxSize().dismissKeyboardOnTapOutside()) {
                 if (!account.isGuest && initialSyncing) {
                     // 초기 동기화 중에는 편집을 막는다 — 탭 게이트와 동일한 이유 (클라우드 덮어쓰기 방지).
                     // 동기화가 끝나면 자동으로 입력 폼이 나타난다.
