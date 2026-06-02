@@ -65,6 +65,8 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.gatcha.log.ios
         PRODUCT_NAME: Gatcha-Log
+        # 앱 아이콘 (Assets.xcassets/AppIcon) — Android 앱과 동일한 위시스타 아이콘
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         # composeApp Gradle 빌드가 떨궈 주는 framework 위치
         FRAMEWORK_SEARCH_PATHS: "$(SRCROOT)/../composeApp/build/xcode-frameworks/$(CONFIGURATION)/$(SDK_NAME)"
         # -ObjC: Firebase 정적 라이브러리의 ObjC 카테고리 로드에 필요

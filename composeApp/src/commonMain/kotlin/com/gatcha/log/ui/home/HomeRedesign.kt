@@ -145,6 +145,7 @@ fun HomeHeader(
             contentDescription = "알림",
             badgeCount = alertCount,
             outlined = true,
+            sfSymbol = "bell",
             onClick = onBellClick,
         )
     }

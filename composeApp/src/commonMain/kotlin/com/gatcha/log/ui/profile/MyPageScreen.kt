@@ -96,7 +96,7 @@ fun MyPageScreen(
     ) {
         item {
             GlgTabHeader("마이페이지") {
-                GlgCircleIconButton(Icons.Default.Settings, "설정", outlined = true) { showSettings.value = true }
+                GlgCircleIconButton(Icons.Default.Settings, "설정", outlined = true, sfSymbol = "gearshape") { showSettings.value = true }
             }
         }
         item {
