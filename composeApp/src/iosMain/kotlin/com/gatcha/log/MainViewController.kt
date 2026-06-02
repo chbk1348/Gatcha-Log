@@ -193,6 +193,13 @@ fun HomeTabViewController(
     onSubPageChange: (Boolean) -> Unit,
 ): UIViewController = ComposeUIViewController {
     TabPage {
+        // 앱 시작 시 1회 API 새로고침 (ennead 배너·이벤트 + HoYoLAB 노트) —
+        // Compose 경로(HomeScreen.kt)의 LaunchedEffect 와 동일한 역할.
+        // iOS 네이티브 탭 경로는 HomeScreen 을 거치지 않고 HomeContent 를 직접 쓰므로 여기서 트리거.
+        // (초기 동기화 게이트가 있으면 게이트 완료 후 발화 → hoyolabConfig 로드 완료 상태 보장)
+        LaunchedEffect(Unit) {
+            IosAppState.viewModel.refreshGameInfo()
+        }
         HomeContent(
             viewModel = IosAppState.viewModel,
             onNavigateToGameInfo = { onSwitchTab(2) },
