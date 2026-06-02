@@ -77,10 +77,12 @@ targets:
         FRAMEWORK_SEARCH_PATHS: "$(SRCROOT)/../composeApp/build/xcode-frameworks/$(CONFIGURATION)/$(SDK_NAME)"
         # -ObjC: Firebase 정적 라이브러리의 ObjC 카테고리 로드에 필요
         OTHER_LDFLAGS: "$(inherited) -framework ComposeApp -ObjC"
-        # ad-hoc 서명 (Sign to Run Locally) — 키체인 entitlement 활성화.
+        # 자동 서명 (Personal Team) — 시뮬레이터·실기기 모두 동작 + 키체인 entitlement 활성화.
         # 키체인은 Firebase Auth 인증 상태·구글 로그인 토큰·HoYoLAB 토큰 저장에 필수.
-        # 실기기 테스트 시에는 Xcode Signing & Capabilities 에서 개인 팀으로 변경.
-        CODE_SIGN_IDENTITY: "-"
+        # 무료 개인 팀: 앱 7일 유효(만료 시 재설치), App Store 배포 시 유료 계정으로 전환.
+        CODE_SIGN_STYLE: Automatic
+        DEVELOPMENT_TEAM: CCTT9CBG38
+        CODE_SIGN_IDENTITY: "Apple Development"
     preBuildScripts:
       - name: Compile Kotlin Framework
         basedOnDependencyAnalysis: false
