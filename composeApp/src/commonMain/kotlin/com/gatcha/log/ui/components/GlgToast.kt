@@ -49,6 +49,11 @@ fun GlgStatusToast(message: String?, onConsumed: () -> Unit, modifier: Modifier 
             delay(2200)
             visible = false
             onConsumed()
+        } else {
+            // 메시지가 외부에서 소거된 경우(다른 컴포지션의 토스트가 먼저 소비) 즉시 숨김.
+            // iOS 는 탭마다 독립 컴포지션이고 비활성 탭은 프레임 클럭이 멈춰 delay 가 완료되지 못한 채
+            // 취소되므로, 이 동기화가 없으면 비활성 탭의 토스트가 visible=true 로 영구 고착된다.
+            visible = false
         }
     }
 
