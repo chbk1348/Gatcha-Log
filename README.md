@@ -8,15 +8,15 @@
 가챠 확률표·계산기는 **명조 · 명일방주: 엔드필드 · 이환**까지 6개 게임을 지원합니다.
 기존 Google Apps Script 웹앱을 **Kotlin + Jetpack Compose**로 네이티브 포팅한 프로젝트입니다.
 
-[![Release](https://img.shields.io/github/v/release/chbk1348/Gatcha-Log-Android?label=release&color=3DDC84)](https://github.com/chbk1348/Gatcha-Log-Android/releases/latest)
-![Platform](https://img.shields.io/badge/Platform-Android-3DDC84?logo=android&logoColor=white)
+[![Release](https://img.shields.io/github/v/release/chbk1348/Gatcha-Log?label=release&color=3DDC84)](https://github.com/chbk1348/Gatcha-Log/releases/latest)
+![Platform](https://img.shields.io/badge/Platform-Android%20%C2%B7%20iOS-3DDC84?logo=android&logoColor=white)
 ![Kotlin](https://img.shields.io/badge/Kotlin-2.3.21-7F52FF?logo=kotlin&logoColor=white)
 ![Compose](https://img.shields.io/badge/Jetpack%20Compose-Material3-4285F4?logo=jetpackcompose&logoColor=white)
 ![Firebase](https://img.shields.io/badge/Firebase-Auth%20%2B%20Firestore-FFCA28?logo=firebase&logoColor=black)
 
 <br/>
 
-[![Download APK](https://img.shields.io/badge/⬇️%20APK%20다운로드-3DDC84?style=for-the-badge&logo=android&logoColor=white)](https://github.com/chbk1348/Gatcha-Log-Android/releases/latest)
+[![Download APK](https://img.shields.io/badge/⬇️%20APK%20다운로드-3DDC84?style=for-the-badge&logo=android&logoColor=white)](https://github.com/chbk1348/Gatcha-Log/releases/latest)
 
 </div>
 
@@ -87,8 +87,8 @@
 ## 🚀 빌드 & 실행
 
 ```bash
-git clone https://github.com/chbk1348/Gatcha-Log-Android.git
-cd Gatcha-Log-Android
+git clone https://github.com/chbk1348/Gatcha-Log.git
+cd Gatcha-Log
 ./gradlew :app:assembleDebug      # 디버그 APK 빌드
 ./gradlew :app:installDebug       # 연결된 기기에 설치
 ```

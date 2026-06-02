@@ -17,7 +17,7 @@ import kotlin.time.ExperimentalTime
 object ZzzBannerApi {
 
     private const val URL =
-        "https://raw.githubusercontent.com/chbk1348/Gatcha-Log-Android/main/zzz_banners.json"
+        "https://raw.githubusercontent.com/chbk1348/Gatcha-Log/main/zzz_banners.json"
 
     private val seoulTz = TimeZone.of("Asia/Seoul")
 

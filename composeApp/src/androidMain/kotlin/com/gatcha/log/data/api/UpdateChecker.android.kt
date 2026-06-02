@@ -11,7 +11,7 @@ import com.gatcha.log.util.currentTimeMillis
 actual object UpdateChecker {
 
     private const val MANIFEST_URL =
-        "https://raw.githubusercontent.com/chbk1348/Gatcha-Log-Android/main/version.json"
+        "https://raw.githubusercontent.com/chbk1348/Gatcha-Log/main/version.json"
 
     actual fun currentVersionCode(): Long = runCatching {
         val ctx = AppContext.appContext
@@ -37,7 +37,7 @@ actual object UpdateChecker {
             val notes = if (notesArr != null) (0 until notesArr.length()).map { notesArr.getString(it) } else emptyList()
             // apkUrl 미지정 시 최신 릴리스 에셋(고정 경로)으로 폴백
             val apkUrl = o.optString("apkUrl", "").ifBlank {
-                "https://github.com/chbk1348/Gatcha-Log-Android/releases/latest/download/app-release.apk"
+                "https://github.com/chbk1348/Gatcha-Log/releases/latest/download/app-release.apk"
             }
             UpdateInfo(
                 versionCode = latest,
