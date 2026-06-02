@@ -33,6 +33,7 @@ import com.gatcha.log.data.GachaReport
 import com.gatcha.log.ui.components.GlassCard
 import com.gatcha.log.ui.components.GlgScreenHeader
 import com.gatcha.log.ui.components.StatTile
+import com.gatcha.log.ui.components.subPageBottomInset
 import com.gatcha.log.ui.theme.DividerColor
 import com.gatcha.log.ui.theme.LocalAccent
 import com.gatcha.log.ui.theme.TextPrimary
@@ -203,7 +204,7 @@ fun GachaDashboardScreen(
                 }
             }
 
-            Spacer(Modifier.navigationBarsPadding().height(8.dp))
+            Spacer(Modifier.subPageBottomInset().height(8.dp))
         }
     }
 }

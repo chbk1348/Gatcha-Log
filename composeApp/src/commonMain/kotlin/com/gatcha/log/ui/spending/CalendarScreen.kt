@@ -31,6 +31,7 @@ import com.gatcha.log.data.GameData
 import com.gatcha.log.data.Spending
 import com.gatcha.log.ui.components.GlassCard
 import com.gatcha.log.ui.components.GlgScreenHeader
+import com.gatcha.log.ui.components.subPageBottomInset
 import com.gatcha.log.ui.theme.DangerText
 import com.gatcha.log.ui.theme.DividerColor
 import com.gatcha.log.ui.theme.LocalAccent
@@ -96,7 +97,7 @@ fun CalendarScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
     val todayKey = remember { DateUtil.dayKey(currentTimeMillis()) }
 
     LazyColumn(
-        modifier = Modifier.fillMaxSize().navigationBarsPadding().padding(horizontal = 16.dp),
+        modifier = Modifier.fillMaxSize().subPageBottomInset().padding(horizontal = 16.dp),
         contentPadding = PaddingValues(bottom = 24.dp),
     ) {
         item { GlgScreenHeader("캘린더", onBack) }

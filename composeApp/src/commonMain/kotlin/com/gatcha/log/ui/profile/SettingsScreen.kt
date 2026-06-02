@@ -28,12 +28,14 @@ import androidx.compose.ui.unit.sp
 import com.gatcha.log.data.DateUtil
 import com.gatcha.log.ui.components.BudgetDialog
 import com.gatcha.log.ui.components.GlassCard
+import com.gatcha.log.ui.components.GlgAlert
 import com.gatcha.log.ui.components.GlgButton
 import com.gatcha.log.ui.components.GlgScreenHeader
 import com.gatcha.log.ui.components.GlgDialog
 import com.gatcha.log.ui.components.GlgOutlineButton
 import com.gatcha.log.ui.components.GlgSwitch
 import com.gatcha.log.ui.components.GlgTextField
+import com.gatcha.log.ui.components.subPageBottomInset
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.input.KeyboardType
 import com.gatcha.log.ui.components.ProfileAvatar
@@ -123,8 +125,8 @@ fun SettingsScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
                 onBack = { showHoyolab.value = false },
             )
         } else LazyColumn(
-            // 하단바 미노출 페이지 — 바 높이 여백 대신 시스템 네비 인셋만 확보
-            modifier = Modifier.fillMaxSize().navigationBarsPadding().padding(horizontal = 16.dp),
+            // 하단바 미노출 페이지 — Android 는 네비 인셋, iOS 는 인셋 없이 화면 끝까지
+            modifier = Modifier.fillMaxSize().subPageBottomInset().padding(horizontal = 16.dp),
             contentPadding = PaddingValues(bottom = 24.dp),
         ) {
             item { GlgScreenHeader("설정", onBack) }
@@ -330,40 +332,36 @@ fun SettingsScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
         CreditsDialog { showCredits.value = false }
     }
     if (showClearGacha.value) {
-        GlgDialog(
+        GlgAlert(
             title = "가챠 기록 초기화",
+            message = "가져온 모든 가챠 기록을 삭제할까요? 이 작업은 되돌릴 수 없어요.",
             onDismiss = { showClearGacha.value = false },
             confirmText = "초기화",
             onConfirm = { viewModel.clearGachaRecords(); showClearGacha.value = false },
-        ) {
-            Text("가져온 모든 가챠 기록을 삭제할까요? 이 작업은 되돌릴 수 없어요.", fontSize = 13.sp, color = TextSecondary)
-        }
+            destructive = true,
+        )
     }
     if (showClearSpend.value) {
-        GlgDialog(
+        GlgAlert(
             title = "지출 전체 삭제",
+            message = "모든 지출 기록(${spendings.size}건)을 삭제할까요? 이 작업은 되돌릴 수 없어요.",
             onDismiss = { showClearSpend.value = false },
             confirmText = "삭제",
             onConfirm = { viewModel.clearSpendings(); showClearSpend.value = false },
-        ) {
-            Text("모든 지출 기록(${spendings.size}건)을 삭제할까요? 이 작업은 되돌릴 수 없어요.", fontSize = 13.sp, color = TextSecondary)
-        }
+            destructive = true,
+        )
     }
     if (showImportBackup.value) {
-        GlgDialog(
+        GlgAlert(
             title = "백업 파일에서 복원",
+            message = "백업 파일을 선택해 복원할까요? 백업에 들어 있는 항목은 현재 데이터를 덮어씁니다.",
             onDismiss = { showImportBackup.value = false },
             confirmText = "파일 선택",
             onConfirm = {
                 showImportBackup.value = false
                 importBackupLauncher()
             },
-        ) {
-            Text(
-                "백업 파일을 선택해 복원할까요? 백업에 들어 있는 항목은 현재 데이터를 덮어씁니다.",
-                fontSize = 13.sp, color = TextSecondary,
-            )
-        }
+        )
     }
 }
 

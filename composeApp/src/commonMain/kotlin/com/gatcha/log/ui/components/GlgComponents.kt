@@ -162,7 +162,8 @@ fun GlgButton(
             text = text,
             tint = accent,
             textColor = Color.White,
-            cornerRadius = 14.dp,
+            // 캡슐 형태 — iOS 26 시스템 버튼(.glassProminent)과 동일한 모양
+            cornerRadius = height / 2,
             enabled = enabled,
             modifier = modifier.height(height),
             onClick = onClick,
@@ -295,7 +296,8 @@ fun GlgOutlineButton(
             text = text,
             tint = null,
             textColor = GhostText,
-            cornerRadius = 14.dp,
+            // 캡슐 형태 — iOS 26 시스템 버튼(.glass)과 동일한 모양
+            cornerRadius = height / 2,
             enabled = true,
             modifier = modifier.height(height),
             onClick = onClick,
@@ -325,6 +327,9 @@ fun GlgOutlineButton(
 /**
  * 커스텀 중앙 다이얼로그 (라운드 카드 + 강조 버튼).
  * [dismissText] 가 null 이면 확인 버튼만 전체폭으로 표시.
+ *
+ * 입력 폼·달력 등 시스템 알럿으로 표현할 수 없는 콘텐츠형 다이얼로그용 (양 플랫폼 동일 디자인).
+ * 단순 텍스트 확인은 GlgAlert 를 쓸 것 — iOS 에서 네이티브 시스템 알럿으로 표시된다.
  */
 @Composable
 fun GlgDialog(
@@ -343,10 +348,8 @@ fun GlgDialog(
     }
     val maxDialogHeight = screenHeightDp * 0.90f
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
-      // 다이얼로그 내부는 글래스 룩 비활성 —
-      // iOS 26 가이드라인: 알럿/다이얼로그 내부 버튼은 글래스가 아닌 일반 버튼
-      CompositionLocalProvider(LocalGlassButtonsEnabled provides false) {
         // 입력 필드 밖 탭 → 키보드 숨김 (예산 입력 등 숫자 키패드 다이얼로그 대응)
+        // 내부 취소/저장 버튼은 iOS 에서 캡슐 글래스(시스템 버튼 모양)로 렌더링된다.
         Box(Modifier.fillMaxWidth().padding(24.dp).dismissKeyboardOnTapOutside(), contentAlignment = Alignment.Center) {
             androidx.compose.material3.Surface(
                 shape = RoundedCornerShape(24.dp),
@@ -378,7 +381,6 @@ fun GlgDialog(
                 }
             }
         }
-      }
     }
 }
 

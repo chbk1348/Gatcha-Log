@@ -24,10 +24,11 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.IO
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import com.gatcha.log.ui.components.GlgAlert
 import com.gatcha.log.ui.components.GlgButton
-import com.gatcha.log.ui.components.GlgDialog
 import com.gatcha.log.ui.components.GlgScreenHeader
 import com.gatcha.log.ui.components.GlgTextField
+import com.gatcha.log.ui.components.subPageBottomInset
 import com.gatcha.log.ui.theme.LocalAccent
 import com.gatcha.log.ui.theme.TextSecondary
 
@@ -105,8 +106,8 @@ fun HoyolabLinkScreen(config: HoyolabConfig, onSave: (HoyolabConfig) -> Unit, on
                     ),
                 )
             },
-            // 하단바 미노출 페이지 — 시스템 네비 인셋 위에 여백만 확보
-            modifier = Modifier.fillMaxWidth().navigationBarsPadding().padding(top = 12.dp, bottom = 24.dp),
+            // 하단바 미노출 페이지 — Android 는 네비 인셋, iOS 는 인셋 없이
+            modifier = Modifier.fillMaxWidth().subPageBottomInset().padding(top = 12.dp, bottom = 24.dp),
             height = 54.dp,
         )
     }
@@ -136,18 +137,13 @@ fun HoyolabLinkScreen(config: HoyolabConfig, onSave: (HoyolabConfig) -> Unit, on
 
     // 이메일 로그인 강제 안내 — 소셜 로그인은 cookie_token 등 일부 토큰을 못 가져올 수 있음
     if (showEmailGuide) {
-        GlgDialog(
+        GlgAlert(
             title = "이메일 로그인 필수",
+            message = "토큰을 정상적으로 가져오려면 다음 화면에서 반드시 ‘이메일(비밀번호) 로그인’ 을 사용하세요.\n\n" +
+                "구글·애플 등 소셜 로그인은 cookie_token 등 일부 정보를 가져오지 못해 리딤코드 교환이 안 될 수 있어요.",
             onDismiss = { showEmailGuide = false },
             confirmText = "이메일로 로그인",
             onConfirm = { showEmailGuide = false; showLogin = true },
-            dismissText = "취소",
-        ) {
-            Text(
-                "토큰을 정상적으로 가져오려면 다음 화면에서 반드시 ‘이메일(비밀번호) 로그인’ 을 사용하세요.\n\n" +
-                    "구글·애플 등 소셜 로그인은 cookie_token 등 일부 정보를 가져오지 못해 리딤코드 교환이 안 될 수 있어요.",
-                fontSize = 13.sp, color = TextSecondary,
-            )
-        }
+        )
     }
 }

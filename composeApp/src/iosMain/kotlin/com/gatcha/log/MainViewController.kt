@@ -286,6 +286,7 @@ fun AddSpendingViewController(onClose: () -> Unit): UIViewController = ComposeUI
                     AddSpendingModal(
                         spendingToEdit = target,
                         nudgeMessage = { game, amount -> vm.overspendNudge(game, amount, target?.id) },
+                        insideSheet = true,
                         onDismiss = {
                             IosAppState.spendingToEdit.value = null
                             onClose()

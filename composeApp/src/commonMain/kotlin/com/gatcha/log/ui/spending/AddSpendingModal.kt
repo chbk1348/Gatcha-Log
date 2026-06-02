@@ -65,6 +65,8 @@ fun AddSpendingModal(
     nudgeMessage: (game: Game, amount: Long) -> String? = { _, _ -> null },
     onDismiss: () -> Unit,
     onSave: (Spending) -> Unit,
+    /** iOS 네이티브 시트 안에서 표시될 때 true — 시트는 시스템 바와 겹치지 않으므로 상하단 인셋 패딩을 생략한다 */
+    insideSheet: Boolean = false,
 ) {
     val editing = spendingToEdit != null
 
@@ -129,7 +131,8 @@ fun AddSpendingModal(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .statusBarsPadding(),
+                // 풀스크린(Android)에서만 상태바 패딩 — iOS 시트는 상태바 아래에서 시작하므로 불필요
+                .then(if (insideSheet) Modifier else Modifier.statusBarsPadding()),
         ) {
             // Header
             Row(
@@ -298,7 +301,10 @@ fun AddSpendingModal(
             // Bottom Actions — 시트 하단(내비 영역까지 흰 띠), 버튼은 내비 위로
             Surface(color = CardBg, shadowElevation = 10.dp, modifier = Modifier.fillMaxWidth()) {
                 Row(
-                    modifier = Modifier.fillMaxWidth().navigationBarsPadding().padding(20.dp),
+                    modifier = Modifier.fillMaxWidth()
+                        // 풀스크린(Android)에서만 내비 바 패딩 — iOS 시트는 하단 인셋이 중복 적용되므로 생략
+                        .then(if (insideSheet) Modifier else Modifier.navigationBarsPadding())
+                        .padding(20.dp),
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
                     val amountValid = (amount.toLongOrNull() ?: 0L) > 0
