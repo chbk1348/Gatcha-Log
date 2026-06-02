@@ -32,3 +32,6 @@ DerivedData/
 
 # Kotlin 2.x 로컬 캐시
 .kotlin/
+
+# iOS IPA 빌드 산출물
+iosApp/build/
