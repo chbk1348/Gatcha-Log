@@ -145,8 +145,8 @@ fun GlgTextField(
 
 /**
  * 주요 액션 버튼.
- * - iOS 26: 네이티브 리퀴드 글래스(UIGlassEffect, 강조색 틴트)
- * - 그 외(Android/iOS 25 이하/다이얼로그 내부): 강조색 그라데이션 + 호버 오버레이(플랫)
+ * - iOS: 글래스 룩(강조색 틴트 유리) — 리퀴드 글래스 디자인 언어
+ * - 그 외(Android/다이얼로그 내부): 강조색 그라데이션 + 호버 오버레이(플랫)
  */
 @Composable
 fun GlgButton(
@@ -157,8 +157,8 @@ fun GlgButton(
     height: androidx.compose.ui.unit.Dp = 50.dp,
 ) {
     val accent = LocalAccent.current
-    if (useNativeGlass()) {
-        NativeGlassButton(
+    if (useGlassButtons()) {
+        GlassButton(
             text = text,
             tint = accent,
             textColor = Color.White,
@@ -198,14 +198,15 @@ fun GlgButton(
 
 /**
  * 하위 페이지 공통 뒤로가기 버튼.
- * - iOS 26: 네이티브 리퀴드 글래스 원형(무색) + SF Symbol 'chevron.backward'
+ * - iOS: 글래스 룩 원형(무색 프로스티드)
  * - 그 외: 회색 배경 + 아웃라인(고스트 톤)
  */
 @Composable
 fun GlgBackButton(onClick: () -> Unit, modifier: Modifier = Modifier, size: Dp = 40.dp) {
-    if (useNativeGlass()) {
-        NativeGlassIconButton(
-            sfSymbol = "chevron.backward",
+    if (useGlassButtons()) {
+        GlassIconButton(
+            icon = Icons.AutoMirrored.Filled.ArrowBack,
+            contentDescription = "뒤로",
             tint = null,
             iconColor = GhostText,
             size = size,
@@ -278,7 +279,7 @@ fun GlgTabHeader(
 
 /**
  * 보조/취소 버튼.
- * - iOS 26: 네이티브 리퀴드 글래스(무색 클리어)
+ * - iOS: 글래스 룩(무색 프로스티드)
  * - 그 외: 고스트 스타일 + 누르면 옅은 강조색 호버(플랫)
  */
 @Composable
@@ -289,8 +290,8 @@ fun GlgOutlineButton(
     height: androidx.compose.ui.unit.Dp = 50.dp,
 ) {
     val accent = LocalAccent.current
-    if (useNativeGlass()) {
-        NativeGlassButton(
+    if (useGlassButtons()) {
+        GlassButton(
             text = text,
             tint = null,
             textColor = GhostText,
@@ -342,10 +343,9 @@ fun GlgDialog(
     }
     val maxDialogHeight = screenHeightDp * 0.90f
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
-      // 다이얼로그 내부는 네이티브 글래스 비활성:
-      //  1) Compose Dialog 레이어에선 UIKit 인터롭 뷰 배치가 보장되지 않음
-      //  2) iOS 26 가이드라인 — 알럿/다이얼로그 내부 버튼은 글래스가 아닌 일반 버튼
-      CompositionLocalProvider(LocalNativeGlassEnabled provides false) {
+      // 다이얼로그 내부는 글래스 룩 비활성 —
+      // iOS 26 가이드라인: 알럿/다이얼로그 내부 버튼은 글래스가 아닌 일반 버튼
+      CompositionLocalProvider(LocalGlassButtonsEnabled provides false) {
         Box(Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) {
             androidx.compose.material3.Surface(
                 shape = RoundedCornerShape(24.dp),
@@ -385,8 +385,8 @@ fun GlgDialog(
  * 헤더용 공통 커스텀 원형 아이콘 버튼 — 강조색 틴트 + 눌림 효과(전역 인디케이션).
  * [loading] 시 스피너, [badgeCount] > 0 이면 우상단 배지.
  *
- * iOS 26 + [sfSymbol] 지정 시: 네이티브 리퀴드 글래스 원형(무색) + SF Symbol 로 렌더링.
- * (loading 상태는 Compose 스피너가 필요하므로 글래스를 쓰지 않는다)
+ * iOS: 글래스 룩 원형(무색 프로스티드) + 강조색 아이콘으로 렌더링.
+ * (loading 상태는 스피너 표시가 필요하므로 기존 스타일 사용)
  */
 @Composable
 fun GlgCircleIconButton(
@@ -399,14 +399,13 @@ fun GlgCircleIconButton(
     badgeCount: Int = 0,
     /** true 면 강조색 아웃라인(테두리)을 그린다 — 확률표 알약 버튼과 동일한 톤 */
     outlined: Boolean = false,
-    /** iOS 26 네이티브 글래스 렌더링 시 사용할 SF Symbol 이름 (예: "gearshape") */
-    sfSymbol: String? = null,
     onClick: () -> Unit,
 ) {
     val accent = LocalAccent.current
-    if (sfSymbol != null && !loading && useNativeGlass()) {
-        NativeGlassIconButton(
-            sfSymbol = sfSymbol,
+    if (!loading && useGlassButtons()) {
+        GlassIconButton(
+            icon = icon,
+            contentDescription = contentDescription,
             tint = null,
             iconColor = accent,
             size = size,

@@ -152,14 +152,14 @@ fun GameInfoScreen(
                 GlgTabHeader("게임 정보") {
                     GachaRateButton { showRateDialog.value = true }
                     if (hoyolab.isLinked) {
-                        GlgCircleIconButton(Icons.Default.Redeem, "리딤코드", outlined = true, sfSymbol = "gift") { showGiftDialog.value = true }
+                        GlgCircleIconButton(Icons.Default.Redeem, "리딤코드", outlined = true) { showGiftDialog.value = true }
                     }
                     // 새로고침은 PTR 인디케이터 하나로만 표시 — 버튼 자체 스피너를 빼서 PTR 와 중복 노출 방지.
                     // (진행 중엔 버튼만 비활성화해 중복 트리거 차단)
-                    GlgCircleIconButton(Icons.Default.Refresh, "새로고침", enabled = !isRefreshing, outlined = true, sfSymbol = "arrow.clockwise") {
+                    GlgCircleIconButton(Icons.Default.Refresh, "새로고침", enabled = !isRefreshing, outlined = true) {
                         viewModel.refreshGameInfo(force = true)
                     }
-                    GlgCircleIconButton(Icons.Default.Settings, "HoYoLAB 설정", outlined = true, sfSymbol = "gearshape") {
+                    GlgCircleIconButton(Icons.Default.Settings, "HoYoLAB 설정", outlined = true) {
                         subPage = GiSub.HoyoLink
                     }
                 }
