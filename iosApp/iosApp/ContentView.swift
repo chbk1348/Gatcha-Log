@@ -25,6 +25,9 @@ struct ContentView: View {
     /// (전역 단일 플래그는 탭 전환 시 상태가 어긋나므로 탭별로 독립 관리)
     @State private var tabsWithSubPage: Set<Int> = []
 
+    /// 초기 클라우드 동기화 게이트(로딩 화면) 활성 여부 — 게이트 동안 탭바·추가 버튼 숨김
+    @State private var syncGateActive: Bool = MainViewControllerKt.isSyncGateActive()
+
     /// 앱 강조색 — Kotlin 테마(accentIndex)와 연동된 탭 아이콘 틴트 (초기값: 민트)
     @State private var accent = Color(red: 0.204, green: 0.820, blue: 0.714)
 
@@ -51,6 +54,10 @@ struct ContentView: View {
             MainViewControllerKt.observeAccentColor { argb in
                 accent = Color(argb: argb.int64Value)
             }
+            // 초기 동기화 게이트 구독 — 로딩 화면 동안 탭바·추가 버튼 숨김
+            MainViewControllerKt.observeSyncGate { active in
+                syncGateActive = active.boolValue
+            }
         }
     }
 
@@ -74,8 +81,11 @@ struct ContentView: View {
                 Tab("게임 정보", systemImage: "gamecontroller.fill", value: 2) { gameInfoTabContent }
                 Tab("마이페이지", systemImage: "person.fill", value: 3) { myPageTabContent }
                 // 분리된 원형 버튼 — 탭 전환 대신 지출 추가 모달을 연다 (onChange 에서 가로챔)
-                Tab(value: 4, role: .search) { Color.clear } label: {
-                    Label("추가", systemImage: "plus")
+                // 초기 동기화 게이트(로딩 화면) 동안에는 표시하지 않음
+                if !syncGateActive {
+                    Tab(value: 4, role: .search) { Color.clear } label: {
+                        Label("추가", systemImage: "plus")
+                    }
                 }
             }
             .tint(accent)
@@ -105,7 +115,7 @@ struct ContentView: View {
             }
             .tint(accent)
             .overlay(alignment: .bottomTrailing) {
-                if selectedTab <= 1 && !tabsWithSubPage.contains(selectedTab) {
+                if selectedTab <= 1 && !tabsWithSubPage.contains(selectedTab) && !syncGateActive {
                     legacyAddButton
                         .padding(.trailing, 20)
                         .padding(.bottom, 64)
@@ -125,6 +135,11 @@ struct ContentView: View {
         }
     }
 
+    /// 탭바 표시 여부 — 해당 탭의 서브페이지가 열려 있거나 초기 동기화 게이트 중이면 숨김
+    private func tabBarVisibility(_ tab: Int) -> Visibility {
+        (syncGateActive || tabsWithSubPage.contains(tab)) ? .hidden : .visible
+    }
+
     // ── 탭 콘텐츠 (Compose 공유 코드) ──────────────────────────────────
 
     private var homeTabContent: some View {
@@ -135,7 +150,7 @@ struct ContentView: View {
             )
         })
         .ignoresSafeArea(.all)
-        .toolbar(tabsWithSubPage.contains(0) ? .hidden : .visible, for: .tabBar)
+        .toolbar(tabBarVisibility(0), for: .tabBar)
     }
 
     private var spendingTabContent: some View {
@@ -147,7 +162,7 @@ struct ContentView: View {
             )
         })
         .ignoresSafeArea(.all)
-        .toolbar(tabsWithSubPage.contains(1) ? .hidden : .visible, for: .tabBar)
+        .toolbar(tabBarVisibility(1), for: .tabBar)
     }
 
     private var gameInfoTabContent: some View {
@@ -157,7 +172,7 @@ struct ContentView: View {
             )
         })
         .ignoresSafeArea(.all)
-        .toolbar(tabsWithSubPage.contains(2) ? .hidden : .visible, for: .tabBar)
+        .toolbar(tabBarVisibility(2), for: .tabBar)
     }
 
     private var myPageTabContent: some View {
@@ -167,7 +182,7 @@ struct ContentView: View {
             )
         })
         .ignoresSafeArea(.all)
-        .toolbar(tabsWithSubPage.contains(3) ? .hidden : .visible, for: .tabBar)
+        .toolbar(tabBarVisibility(3), for: .tabBar)
     }
 
     // ── iOS 16~25 폴백 버튼 (무색 글래스) ───────────────────────────────

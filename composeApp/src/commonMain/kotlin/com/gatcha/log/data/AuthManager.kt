@@ -1,6 +1,9 @@
 package com.gatcha.log.data
 
+import com.gatcha.log.json.JSONObject
 import com.gatcha.log.storage.KeyValueStore
+import kotlin.io.encoding.Base64
+import kotlin.io.encoding.ExperimentalEncodingApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -93,7 +96,10 @@ class AuthManager {
         lastIdToken = result.idToken
         lastAccessToken = result.accessToken
         val account = Account(
-            id = result.email.ifBlank { result.idToken.take(32) },
+            // 이메일이 비어있으면 idToken(JWT)의 sub 클레임(구글 계정 고유 번호, 불변)을 ID 로 사용.
+            // idToken 문자열 자체는 매 로그인마다 회전하므로 prefix 를 ID 로 쓰면
+            // 로컬 데이터(GatchaRepository 키)가 로그인할 때마다 고아가 된다.
+            id = result.email.ifBlank { googleStableId(result.idToken) },
             name = result.name.ifBlank { result.email.substringBefore("@") },
             email = result.email,
             photoUrl = result.photoUrl,
@@ -140,3 +146,16 @@ class AuthManager {
         const val KEY_GUEST = "guest_chosen"
     }
 }
+
+/**
+ * 구글 idToken(JWT) payload 의 sub 클레임 — 같은 구글 계정이면 항상 같은 값.
+ * 파싱 실패 시에만 최후 폴백으로 idToken prefix 를 쓴다.
+ */
+@OptIn(ExperimentalEncodingApi::class)
+private fun googleStableId(idToken: String): String = runCatching {
+    val payload = idToken.split(".").getOrNull(1) ?: return@runCatching null
+    val json = Base64.UrlSafe.withPadding(Base64.PaddingOption.ABSENT_OPTIONAL)
+        .decode(payload)
+        .decodeToString()
+    JSONObject(json).optString("sub").ifBlank { null }
+}.getOrNull() ?: idToken.take(32)

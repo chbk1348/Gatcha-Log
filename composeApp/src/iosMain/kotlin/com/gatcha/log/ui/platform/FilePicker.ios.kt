@@ -15,6 +15,8 @@ import platform.UIKit.UIApplication
 import platform.UIKit.UIDocumentPickerViewController
 import platform.UIKit.UIDocumentPickerDelegateProtocol
 import platform.UIKit.UIViewController
+import platform.UIKit.UIWindow
+import platform.UIKit.UIWindowScene
 import platform.UniformTypeIdentifiers.UTTypeData
 import platform.UniformTypeIdentifiers.UTTypeJSON
 import platform.UniformTypeIdentifiers.UTTypeText
@@ -29,9 +31,20 @@ import platform.darwin.NSObject
  * 델리게이트(NSObject)는 ARC 가 즉시 해제하지 않도록 remember 로 참조를 유지한다.
  */
 
-/** keyWindow → rootViewController 에서 presentedViewController 체인을 따라 최상위 VC 를 찾는다. */
+/**
+ * 키 윈도우 → rootViewController 에서 presentedViewController 체인을 따라 최상위 VC 를 찾는다.
+ *
+ * UIApplication.keyWindow 는 scene 기반(SwiftUI @main) 앱에서 nil 일 수 있어(deprecated) 쓰지 않는다 —
+ * connectedScenes 의 keyWindow 를 찾는다 (iOSApp.swift 의 구글 로그인 presenting VC 탐색과 동일 패턴).
+ */
 private fun topMostViewController(): UIViewController? {
-    var vc = UIApplication.sharedApplication.keyWindow?.rootViewController ?: return null
+    val window = UIApplication.sharedApplication.connectedScenes
+        .filterIsInstance<UIWindowScene>()
+        .firstNotNullOfOrNull { scene ->
+            scene.keyWindow ?: scene.windows.filterIsInstance<UIWindow>().firstOrNull()
+        }
+        ?: return null
+    var vc = window.rootViewController ?: return null
     while (true) {
         val presented = vc.presentedViewController ?: break
         vc = presented
