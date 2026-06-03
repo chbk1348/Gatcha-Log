@@ -1,0 +1,32 @@
+rules_version = '2';
+
+// ============================================================
+// Gatcha LOG — Firestore 보안 규칙
+//
+// 데이터 모델: users/{uid} 문서 하나에 사용자별 전체 스냅샷 저장
+//   - data       : 가챠·지출 전체 스냅샷(평문 JSON 문자열)
+//   - updatedAt   : 갱신 시각(epoch millis)
+//   (CloudSync.kt 의 COLLECTION="users", FIELD_DATA="data", FIELD_UPDATED="updatedAt")
+//
+// 원칙: "구글 계정 귀속" — 본인(uid) 문서만 읽고 쓸 수 있다.
+//   · 비로그인 → 전면 차단
+//   · 로그인했어도 남의 uid 문서 → 차단 (request.auth.uid == uid 강제)
+//
+// 배포:  firebase deploy --only firestore:rules
+// 콘솔:  Firebase Console → Firestore Database → 규칙 탭에 동일 내용
+// ============================================================
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // 사용자별 클라우드 스냅샷 — 소유자 본인만 접근
+    match /users/{uid} {
+      allow read, write: if request.auth != null
+                         && request.auth.uid == uid;
+    }
+
+    // 그 외 모든 경로는 기본 차단(명시적 deny — 규칙 추가 시 실수 방지)
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
