@@ -2,6 +2,7 @@ package com.gatcha.log.data
 
 import com.gatcha.log.util.currentTimeMillis
 import dev.gitlive.firebase.Firebase
+import dev.gitlive.firebase.apps
 import dev.gitlive.firebase.auth.GoogleAuthProvider
 import dev.gitlive.firebase.auth.auth
 import dev.gitlive.firebase.firestore.firestore
@@ -28,8 +29,15 @@ object CloudSync {
     @Serializable
     private data class SnapshotDoc(val data: String, val updatedAt: Long)
 
-    /** FirebaseApp 이 초기화되었는가 (iOS: FirebaseApp.configure() 호출됨 / Android composeApp: 항상 false). */
-    fun isConfigured(): Boolean = runCatching { Firebase.auth; true }.getOrDefault(false)
+    /**
+     * FirebaseApp 이 초기화되었는가 (iOS: FirebaseApp.configure() 호출됨 / Android composeApp: 항상 false).
+     *
+     * `Firebase.auth` 접근으로 판정하지 않는 이유: iOS 에서 FirebaseApp 미구성 상태로 FIRAuth.auth() 를
+     * 호출하면 ObjC NSException 이 발생하는데, 이는 Kotlin 의 runCatching 으로 잡히지 않고 프로세스가
+     * 종료될 수 있다. FIRApp.allApps 조회(= Firebase.apps)는 예외 없이 빈 목록을 돌려준다.
+     * (Android composeApp 은 null context 캐스트 실패 → runCatching → false, 기존 동작 유지)
+     */
+    fun isConfigured(): Boolean = runCatching { Firebase.apps(null).isNotEmpty() }.getOrDefault(false)
 
     /** 현재 Firebase 로그인 uid (없으면 null). */
     fun currentUid(): String? = runCatching { Firebase.auth.currentUser?.uid }.getOrNull()
