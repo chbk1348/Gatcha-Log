@@ -18,14 +18,12 @@ internal actual fun createHttpClient(config: HttpClientConfig<*>.() -> Unit): Ht
     HttpClient(Darwin) {
         config(this)
         engine {
-            // 세션 차원: 쿠키 저장소 제거 + 자동 첨부 비활성
+            // 세션 차원에서 쿠키 저장소 자체를 제거 + 자동 첨부 비활성 —
+            // 저장소가 null 이면 요청 차원의 쿠키 자동 처리도 함께 무력화된다.
+            // (NSMutableURLRequest 의 HTTPShouldHandleCookies 는 K/N 바인딩에 setter 가 없어 사용하지 않음)
             configureSession {
                 setHTTPCookieStorage(null)
                 setHTTPShouldSetCookies(false)
-            }
-            // 요청 차원: 쿠키 자동 처리 비활성 (이중 안전망)
-            configureRequest {
-                setHTTPShouldHandleCookies(false)
             }
         }
     }
