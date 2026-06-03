@@ -1,0 +1,63 @@
+# ============================================================
+# iOS 미서명 IPA 클라우드 빌드 (GitHub Actions macOS 러너)
+#
+# Windows 작업 라인에서도 IPA를 뽑을 수 있게 하는 워크플로.
+# 수동 트리거(workflow_dispatch) 전용 — gh CLI 또는 Actions 탭에서 실행:
+#   gh workflow run build-ipa.yml
+#   gh run download <run-id>   # 완료 후 IPA 아티팩트 다운로드
+#
+# 산출물: Gatcha-Log-<버전>.ipa (미서명 — AltStore/Sideloadly 등으로 사용자가 재서명)
+# ============================================================
+name: Build iOS IPA
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-ipa:
+    runs-on: macos-latest
+    timeout-minutes: 90
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # ContentView.swift 가 iOS 26 API(Tab·tabBarMinimizeBehavior)를 쓰므로
+      # 러너에 설치된 가장 최신 Xcode(iOS 26 SDK 포함)를 선택한다.
+      - name: Select latest Xcode
+        run: |
+          LATEST_XCODE=$(ls -d /Applications/Xcode*.app | sort -V | tail -n 1)
+          echo "Selected: $LATEST_XCODE"
+          sudo xcode-select -s "$LATEST_XCODE"
+          xcodebuild -version
+
+      # Kotlin 프레임워크(embedAndSignAppleFrameworkForXcode) 빌드용 JDK
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      # Gradle 의존성 + Kotlin/Native(konan) 툴체인 캐시 — 재빌드 시간 단축
+      - name: Cache Gradle & Kotlin/Native
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+            ~/.konan
+          key: ${{ runner.os }}-gradle-konan-${{ hashFiles('**/*.gradle.kts', 'gradle/wrapper/gradle-wrapper.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-konan-
+
+      - name: Build unsigned IPA
+        working-directory: iosApp
+        run: bash build-ipa.sh
+
+      - name: Upload IPA artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Gatcha-Log-IPA
+          path: iosApp/build/*.ipa
+          if-no-files-found: error
+          retention-days: 30
