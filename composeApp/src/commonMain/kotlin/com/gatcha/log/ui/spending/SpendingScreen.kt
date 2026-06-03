@@ -518,6 +518,8 @@ private fun SpendingFilterSheet(
         containerColor = Color.White,
         contentWindowInsets = { WindowInsets(0, 0, 0, 0) },
     ) {
+        // 시트는 별도 윈도우(레이어)라 시스템 폰트 스케일을 다시 가져옴 → 여기서 다시 1.0 고정
+        FixedFontScale {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -545,6 +547,7 @@ private fun SpendingFilterSheet(
                 GlgButton("적용", onDismiss, Modifier.weight(1.4f))
             }
         }
+        } // FixedFontScale
     }
 }
 

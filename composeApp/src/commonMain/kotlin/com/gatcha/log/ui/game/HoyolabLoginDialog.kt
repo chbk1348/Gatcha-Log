@@ -3,6 +3,7 @@ package com.gatcha.log.ui.game
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.Icon
@@ -16,6 +17,7 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -23,6 +25,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.gatcha.log.ui.platform.CookieCollectingWebView
+import com.gatcha.log.ui.theme.FixedFontScale
 import com.gatcha.log.ui.theme.TextSecondary
 
 /**
@@ -36,7 +39,12 @@ import com.gatcha.log.ui.theme.TextSecondary
 fun HoyolabLoginDialog(onCollected: (String, String, String, String) -> Unit, onDismiss: () -> Unit) {
     val collectedCb = rememberUpdatedState(onCollected)
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
-        Column(Modifier.fillMaxSize().background(Color.White)) {
+        // 다이얼로그는 별도 윈도우라 시스템 폰트 스케일을 다시 가져옴 → 여기서 다시 1.0 고정
+        FixedFontScale {
+        // 풀스크린 다이얼로그는 자체 윈도우에 그려져 화면의 상단 인셋을 상속받지 않는다 —
+        // statusBarsPadding 이 없으면 iOS 노치/다이나믹 아일랜드가 제목·닫기 버튼을 가린다.
+        // (배경 White 는 패딩보다 먼저 적용해 상태바 뒤까지 채운다)
+        Column(Modifier.fillMaxSize().background(Color.White).statusBarsPadding()) {
             Row(
                 Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -46,7 +54,13 @@ fun HoyolabLoginDialog(onCollected: (String, String, String, String) -> Unit, on
                     Text("HoYoLAB 로그인", fontSize = 16.sp, fontWeight = FontWeight.Bold)
                     Text("로그인하면 연동 토큰을 자동으로 가져옵니다", fontSize = 11.sp, color = TextSecondary)
                 }
-                Icon(Icons.Default.Close, "닫기", modifier = Modifier.clickable { onDismiss() })
+                // iOS 시스템 클로즈 버튼 스타일 (회색 원형 + X) — 지출 추가 모달의 닫기 버튼과 동일한 토큰
+                Box(
+                    Modifier.size(32.dp).clip(CircleShape).background(Color(0xFFE6E6EB)).clickable { onDismiss() },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(Icons.Default.Close, contentDescription = "닫기", modifier = Modifier.size(16.dp), tint = TextSecondary)
+                }
             }
             // 쿠키 수집은 플랫폼별 WebView(expect/actual)가 담당. 페이지 로드가 끝날 때마다
             // 여러 도메인 쿠키를 병합한 맵이 onPageLoaded 로 전달된다 — 추출 로직은 원본 onPageFinished 와 동일.
@@ -79,5 +93,6 @@ fun HoyolabLoginDialog(onCollected: (String, String, String, String) -> Unit, on
                 modifier = Modifier.fillMaxSize(),
             )
         }
+        } // FixedFontScale
     }
 }
