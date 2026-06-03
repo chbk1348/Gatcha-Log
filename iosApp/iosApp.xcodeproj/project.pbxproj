@@ -163,7 +163,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "# Xcode 빌드 환경에는 JAVA_HOME 이 없으므로 직접 지정\nexport JAVA_HOME=\"/Applications/Android Studio.app/Contents/jbr/Contents/Home\"\ncd \"$SRCROOT/..\"\n./gradlew :composeApp:embedAndSignAppleFrameworkForXcode\n";
+			shellScript = "# JAVA_HOME 폴백 — 로컬 Xcode GUI 빌드는 Android Studio JBR, CI/CLI 빌드는 기존 JAVA_HOME 사용\nif [ ! -d \"${JAVA_HOME:-/nonexistent}\" ]; then\n  export JAVA_HOME=\"/Applications/Android Studio.app/Contents/jbr/Contents/Home\"\nfi\ncd \"$SRCROOT/..\"\n./gradlew :composeApp:embedAndSignAppleFrameworkForXcode\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 

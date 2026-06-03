@@ -38,6 +38,14 @@ jobs:
           distribution: temurin
           java-version: '17'
 
+      # Xcode 스크립트 페이즈의 JAVA_HOME 폴백 경로(Android Studio JBR)가 CI 에도
+      # 실존하도록 심볼릭 링크 — 환경변수 전파가 안 되는 경우의 이중 안전망
+      - name: Link JDK to Android Studio JBR path
+        run: |
+          sudo mkdir -p "/Applications/Android Studio.app/Contents/jbr/Contents"
+          sudo ln -sfn "$JAVA_HOME" "/Applications/Android Studio.app/Contents/jbr/Contents/Home"
+          ls -la "/Applications/Android Studio.app/Contents/jbr/Contents/"
+
       # Gradle 의존성 + Kotlin/Native(konan) 툴체인 캐시 — 재빌드 시간 단축
       - name: Cache Gradle & Kotlin/Native
         uses: actions/cache@v4

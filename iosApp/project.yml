@@ -87,7 +87,10 @@ targets:
       - name: Compile Kotlin Framework
         basedOnDependencyAnalysis: false
         script: |
-          # Xcode 빌드 환경에는 JAVA_HOME 이 없으므로 직접 지정
-          export JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home"
+          # JAVA_HOME 폴백 — 로컬 Xcode GUI 빌드는 Android Studio JBR,
+          # CI(GitHub Actions)·CLI 빌드는 이미 설정된 JAVA_HOME 을 그대로 사용
+          if [ ! -d "${JAVA_HOME:-/nonexistent}" ]; then
+            export JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home"
+          fi
           cd "$SRCROOT/.."
           ./gradlew :composeApp:embedAndSignAppleFrameworkForXcode
