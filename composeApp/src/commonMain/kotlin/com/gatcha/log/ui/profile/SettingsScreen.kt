@@ -29,16 +29,13 @@ import com.gatcha.log.data.DateUtil
 import com.gatcha.log.ui.components.BudgetDialog
 import com.gatcha.log.ui.components.GlassCard
 import com.gatcha.log.ui.components.GlgAlert
-import com.gatcha.log.ui.components.GlgButton
 import com.gatcha.log.ui.components.GlgScreenHeader
 import com.gatcha.log.ui.components.GlgDialog
-import com.gatcha.log.ui.components.GlgOutlineButton
 import com.gatcha.log.ui.components.GlgSwitch
 import com.gatcha.log.ui.components.GlgTextField
 import com.gatcha.log.ui.components.subPageBottomInset
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.input.KeyboardType
-import com.gatcha.log.ui.components.ProfileAvatar
 import com.gatcha.log.ui.game.HoyolabLinkScreen
 import com.gatcha.log.ui.platform.rememberFileOpenLauncher
 import com.gatcha.log.ui.platform.rememberFileSaveLauncher
@@ -53,7 +50,6 @@ import com.gatcha.log.util.won
 @Composable
 fun SettingsScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
     val accent = LocalAccent.current
-    val account by viewModel.account.collectAsState()
     val budget by viewModel.budget.collectAsState()
     val gameBudgets by viewModel.gameBudgets.collectAsState()
     val accentIndex by viewModel.accentIndex.collectAsState()
@@ -99,8 +95,11 @@ fun SettingsScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
         }
     }
     val showUplog = remember { mutableStateOf(false) }
+    // 파괴작업은 2단계 확인: 1차(백업 권장 안내) → 2차(최종 확인)
     val showClearGacha = remember { mutableStateOf(false) }
+    val showClearGacha2 = remember { mutableStateOf(false) }
     val showClearSpend = remember { mutableStateOf(false) }
+    val showClearSpend2 = remember { mutableStateOf(false) }
     val showImportBackup = remember { mutableStateOf(false) }
     val showCredits = remember { mutableStateOf(false) }
 
@@ -131,39 +130,8 @@ fun SettingsScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
         ) {
             item { GlgScreenHeader("설정", onBack) }
 
-        // 계정
-        item { SectionTitle("계정") }
-        item {
-            GlassCard(shape = RoundedCornerShape(24.dp), modifier = Modifier.fillMaxWidth()) {
-                Column(Modifier.padding(16.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        ProfileAvatar(photoUrl = if (account.isGuest) null else account.photoUrl, size = 44.dp)
-                        Spacer(Modifier.width(12.dp))
-                        Column(Modifier.weight(1f)) {
-                            Text(if (account.isGuest) "게스트" else account.name, fontSize = 15.sp, fontWeight = FontWeight.Bold)
-                            Text(
-                                if (account.isGuest) "게스트 — 동기화 꺼짐" else "구글 계정 동기화 켜짐",
-                                fontSize = 12.sp,
-                                color = if (account.isGuest) TextSecondary else accent,
-                            )
-                        }
-                    }
-                    Spacer(Modifier.height(14.dp))
-                    if (account.isGuest) {
-                        GlgButton("Google로 로그인", onClick = { viewModel.signIn() }, modifier = Modifier.fillMaxWidth())
-                    } else {
-                        GlgOutlineButton("로그아웃", onClick = { viewModel.signOut() }, modifier = Modifier.fillMaxWidth())
-                    }
-                }
-            }
-        }
-
-        // 화면(테마)
-        item { Spacer(Modifier.height(20.dp)) }
-        item { ThemeSection(accentIndex) { viewModel.setAccentIndex(it) } }
-
-        // 예산·연동
-        item { Spacer(Modifier.height(20.dp)) }
+        // ── 1층: 자주 쓰는 설정 ── (계정은 마이페이지 히어로로 일원화 — 중복 카드 제거)
+        item { TierTitle("자주 쓰는 설정") }
         item { SectionTitle("예산·연동") }
         item {
             GlassCard(shape = RoundedCornerShape(24.dp), modifier = Modifier.fillMaxWidth()) {
@@ -245,8 +213,13 @@ fun SettingsScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
             }
         }
 
-        // 데이터
+        // 화면(테마) — 1층 하단으로 이동
         item { Spacer(Modifier.height(20.dp)) }
+        item { ThemeSection(accentIndex) { viewModel.setAccentIndex(it) } }
+
+        // ── 2층: 데이터·계정 ──
+        item { Spacer(Modifier.height(28.dp)) }
+        item { TierTitle("데이터·계정") }
         item { SectionTitle("데이터") }
         item {
             GlassCard(shape = RoundedCornerShape(24.dp), modifier = Modifier.fillMaxWidth()) {
@@ -290,9 +263,9 @@ fun SettingsScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
             )
         }
 
-        // 정보
-        item { Spacer(Modifier.height(20.dp)) }
-        item { SectionTitle("정보") }
+        // ── 3층: 앱 정보 ──
+        item { Spacer(Modifier.height(28.dp)) }
+        item { TierTitle("앱 정보") }
         item {
             GlassCard(shape = RoundedCornerShape(24.dp), modifier = Modifier.fillMaxWidth()) {
                 Column {
@@ -331,23 +304,47 @@ fun SettingsScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
     if (showCredits.value) {
         CreditsDialog { showCredits.value = false }
     }
+    // 가챠 기록 초기화 — 1단계(백업 권장 안내)
     if (showClearGacha.value) {
         GlgAlert(
             title = "가챠 기록 초기화",
-            message = "가져온 모든 가챠 기록을 삭제할까요? 이 작업은 되돌릴 수 없어요.",
+            message = "가져온 모든 가챠 기록을 삭제합니다. 되돌릴 수 없으니, 먼저 ‘데이터·계정 → 백업 파일 내보내기’로 백업을 권장해요.",
             onDismiss = { showClearGacha.value = false },
-            confirmText = "초기화",
-            onConfirm = { viewModel.clearGachaRecords(); showClearGacha.value = false },
+            confirmText = "계속",
+            onConfirm = { showClearGacha.value = false; showClearGacha2.value = true },
             destructive = true,
         )
     }
+    // 가챠 기록 초기화 — 2단계(최종 확인)
+    if (showClearGacha2.value) {
+        GlgAlert(
+            title = "정말 초기화할까요?",
+            message = "이 작업은 되돌릴 수 없어요. 가챠 기록을 모두 삭제합니다.",
+            onDismiss = { showClearGacha2.value = false },
+            confirmText = "초기화",
+            onConfirm = { viewModel.clearGachaRecords(); showClearGacha2.value = false },
+            destructive = true,
+        )
+    }
+    // 지출 전체 삭제 — 1단계(백업 권장 안내)
     if (showClearSpend.value) {
         GlgAlert(
             title = "지출 전체 삭제",
-            message = "모든 지출 기록(${spendings.size}건)을 삭제할까요? 이 작업은 되돌릴 수 없어요.",
+            message = "모든 지출 기록(${spendings.size}건)을 삭제합니다. 되돌릴 수 없으니, 먼저 ‘데이터·계정 → 백업 파일 내보내기’로 백업을 권장해요.",
             onDismiss = { showClearSpend.value = false },
+            confirmText = "계속",
+            onConfirm = { showClearSpend.value = false; showClearSpend2.value = true },
+            destructive = true,
+        )
+    }
+    // 지출 전체 삭제 — 2단계(최종 확인)
+    if (showClearSpend2.value) {
+        GlgAlert(
+            title = "정말 삭제할까요?",
+            message = "이 작업은 되돌릴 수 없어요. 지출 기록(${spendings.size}건)을 모두 삭제합니다.",
+            onDismiss = { showClearSpend2.value = false },
             confirmText = "삭제",
-            onConfirm = { viewModel.clearSpendings(); showClearSpend.value = false },
+            onConfirm = { viewModel.clearSpendings(); showClearSpend2.value = false },
             destructive = true,
         )
     }
@@ -368,6 +365,12 @@ fun SettingsScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
 @Composable
 private fun SectionTitle(text: String) {
     Text(text, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextSecondary, modifier = Modifier.padding(bottom = 10.dp, start = 4.dp))
+}
+
+/** 빈도별 묶음(자주 쓰는 설정 / 데이터·계정 / 앱 정보) 상단 헤더 — SectionTitle 보다 큰 1차 그룹 제목. */
+@Composable
+private fun TierTitle(text: String) {
+    Text(text, fontSize = 18.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 12.dp, start = 2.dp))
 }
 
 /** 과소비 넛지 기준 금액 입력 다이얼로그 — 단건 지출이 이 금액 이상이면 확인. */

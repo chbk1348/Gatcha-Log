@@ -133,8 +133,7 @@ struct HoyolabLinkView: View {
                 .textFieldStyle(.plain)
                 .font(.system(size: 15))
                 .autocapitalization(.none).disableAutocorrection(true)
-                .padding(.horizontal, 12).padding(.vertical, 10)
-                .background(Color(.systemGray6), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .glgPillField()
         }
     }
 }

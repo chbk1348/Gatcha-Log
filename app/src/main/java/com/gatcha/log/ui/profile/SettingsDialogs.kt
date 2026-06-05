@@ -22,7 +22,17 @@ internal fun UplogDialog(versionName: String, onDismiss: () -> Unit) {
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
             UplogEntry(
-                "v${versionName.ifBlank { "27.11.0" }}",
+                "v${versionName.ifBlank { "27.20.0" }}",
+                listOf(
+                    "마이페이지를 새로 정리했어요 — 계정 정보를 상단 프로필 카드 한 곳으로 모았어요 (로그인·로그아웃도 여기서)",
+                    "설정을 ‘자주 쓰는 설정 · 데이터·계정 · 앱 정보’ 3단으로 묶어 찾기 쉽게 했어요",
+                    "실수 방지 — 가챠 기록 초기화·지출 전체 삭제는 2단계로 확인하고, 삭제 전 백업을 권장해드려요",
+                    "입력창을 알약형 디자인으로 깔끔하게 다듬었어요",
+                    "홈 화면 상단을 간결하게 정리했어요",
+                ),
+            )
+            UplogEntry(
+                "v27.11.0",
                 listOf(
                     "홈을 더 똑똑하게 — ‘오늘 할 일’이 출석·재화·픽업·예산을 모아 보여주고, 누르면 해당 화면으로 바로 이동해요",
                     "‘이번 달 한눈에’가 지난달 대비·예상 지출·천장 상황까지 분석해 알려드려요",

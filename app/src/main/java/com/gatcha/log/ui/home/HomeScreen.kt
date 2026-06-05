@@ -418,10 +418,7 @@ fun HomeContent(
         // 슬림 헤더 (프로필·인사·연속·벨)
         item {
             HomeHeader(
-                userName = profile.name,
-                isGuest = account.isGuest,
                 photoUrl = account.photoUrl,
-                streak = attendanceStreak,
                 alertCount = unreadCount,
                 onBellClick = { showNotifications.value = true; viewModel.markAlertsRead(alerts.map { it.key }) },
             )

@@ -115,12 +115,28 @@ private struct ProfileHeroCard: View {
                         .background(Color.white, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
                 }
                 .padding(.top, 16)
-            } else if !store.profile.email.isEmpty {
-                Text(store.profile.email)
-                    .font(.system(size: 12))
-                    .foregroundStyle(.white.opacity(0.85))
-                    .lineLimit(1)
-                    .padding(.top, 12)
+            } else {
+                // 계정 단일화: 로그아웃을 마이페이지 히어로로 일원화 (설정의 중복 계정 카드 제거)
+                HStack {
+                    if !store.profile.email.isEmpty {
+                        Text(store.profile.email)
+                            .font(.system(size: 12))
+                            .foregroundStyle(.white.opacity(0.85))
+                            .lineLimit(1)
+                        Spacer(minLength: 8)
+                    } else {
+                        Spacer(minLength: 0)
+                    }
+                    Button { store.signOut() } label: {
+                        Text("로그아웃")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 14).padding(.vertical, 7)
+                            .background(Color.white.opacity(0.22), in: Capsule())
+                    }
+                    .buttonStyle(.plain)
+                }
+                .padding(.top, 14)
             }
         }
         .padding(20)

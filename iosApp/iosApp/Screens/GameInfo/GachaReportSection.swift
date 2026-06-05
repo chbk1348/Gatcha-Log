@@ -173,12 +173,12 @@ struct ProfileShowcaseSection: View {
                         gameTab("스타레일", game == "hsr", Color(hex: 0xFFB06BFF)) { game = "hsr"; uid = store.enkaHsrUid; store.clearEnkaResult() }
                     }
                     HStack(spacing: 8) {
-                        TextField("UID 입력 (예: 800000000)", text: $uid).keyboardType(.numberPad).textFieldStyle(.roundedBorder)
+                        TextField("UID 입력 (예: 800000000)", text: $uid).keyboardType(.numberPad).textFieldStyle(.plain).glgPillField()
                             .onChange(of: uid) { uid = $0.filter(\.isNumber) }
-                        Button { store.loadEnkaProfile(game: game, uid: uid) } label: {
-                            Text("조회").font(.system(size: 13, weight: .bold)).foregroundStyle(.white)
-                                .padding(.horizontal, 16).padding(.vertical, 10).background(accent.primary, in: RoundedRectangle(cornerRadius: 10))
-                        }.buttonStyle(.plain)
+                        Button("조회") { store.loadEnkaProfile(game: game, uid: uid) }
+                            .buttonStyle(.borderedProminent)
+                            .tint(accent.primary)
+                            .controlSize(.large)
                     }
                     .padding(.top, 12)
                     Text("게임 내 '프로필 표시(쇼케이스)'에 올린 캐릭터만 조회돼요. UID는 이 기기에만 저장됩니다.")
