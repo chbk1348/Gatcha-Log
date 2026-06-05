@@ -101,12 +101,30 @@ actual fun CookieCollectingWebView(
             storeRef.value = store
             webView.navigationDelegate = delegate
 
-            // 재연동: 기존 쿠키 제거 후 로드 → 항상 새로 로그인하게 함
+            // 재연동: 기존 쿠키 제거 후 로드 → 항상 새로 로그인하게 함.
+            // ❗ 쿠키 삭제는 비동기 — 삭제가 전부 끝난 뒤에 loadRequest 해야 한다.
+            //   삭제 완료 전에 로드하면 이전 세션 쿠키가 살아남아 재연동해도 이전 계정으로
+            //   로그인된 상태가 유지될 수 있다 (Android 는 removeAllCookies+flush 후 loadUrl).
+            val load = {
+                NSURL.URLWithString(url)?.let { webView.loadRequest(NSURLRequest.requestWithURL(it)) }
+                Unit
+            }
             WKWebsiteDataStore.defaultDataStore().httpCookieStore.getAllCookies { cookies ->
                 @Suppress("UNCHECKED_CAST")
-                (cookies as? List<NSHTTPCookie>)?.forEach { store.deleteCookie(it, null) }
+                val list = (cookies as? List<NSHTTPCookie>).orEmpty()
+                if (list.isEmpty()) {
+                    load()
+                } else {
+                    // 각 삭제의 완료 콜백을 세어 모두 끝나면 로드 (WKHTTPCookieStore 콜백은 메인 스레드 — 카운터 경합 없음)
+                    var remaining = list.size
+                    list.forEach { cookie ->
+                        store.deleteCookie(cookie) {
+                            remaining--
+                            if (remaining == 0) load()
+                        }
+                    }
+                }
             }
-            NSURL.URLWithString(url)?.let { webView.loadRequest(NSURLRequest.requestWithURL(it)) }
             webView
         },
         modifier = modifier,

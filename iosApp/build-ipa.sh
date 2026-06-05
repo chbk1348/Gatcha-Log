@@ -8,6 +8,14 @@
 # 미서명인 이유: 사용자가 AltStore/Sideloadly 등 사이드로딩 도구로
 # 자신의 Apple ID 로 서명해 설치한다 (오픈소스 iOS 앱 배포 관행).
 # 서명된 IPA 는 개발자 개인정보(팀 ID)가 포함되고 재서명이 더 까다롭다.
+#
+# ⚠️ Keychain entitlement 주의:
+#   iosApp.entitlements 의 keychain-access-groups 는
+#   $(AppIdentifierPrefix)com.gatcha.log.ios 로 선언되어 있는데, 미서명 IPA 에는
+#   entitlement 가 실리지 않고, 재서명 도구가 서명자 팀 prefix 로 다시 생성한다.
+#   재서명 도구가 keychain-access-groups 를 누락/불일치 처리하면 SecItem* 가
+#   -34018(errSecMissingEntitlement) 로 실패해 HoYoLAB 토큰 저장이 조용히 깨진다.
+#   → 토큰 저장 이상 보고 시 시스템 로그 "GatchaKeychain" 검색으로 진단.
 # ============================================================
 set -euo pipefail
 
@@ -49,6 +57,13 @@ mv "$IPA_DIR/$IPA_NAME" "build/$IPA_NAME"
 
 echo "═══ 3/3 완료 ═══"
 ls -lh "build/$IPA_NAME"
+
+# 다운로드 폴더에도 복사 — 사이드로딩 도구(AltStore/Sideloadly)에서 바로 집어 쓰기 편하게
+if [ -d "$HOME/Downloads" ]; then
+  cp -f "build/$IPA_NAME" "$HOME/Downloads/$IPA_NAME"
+  echo "📥 다운로드 폴더에 복사됨: $HOME/Downloads/$IPA_NAME"
+fi
+
 echo
 echo "GitHub 릴리즈 업로드:"
 echo "  gh release upload <태그> build/$IPA_NAME"

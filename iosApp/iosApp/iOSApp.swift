@@ -2,10 +2,11 @@ import SwiftUI
 import ComposeApp
 import FirebaseCore
 import GoogleSignIn
+import UserNotifications
 
-/// 앱 델리게이트 — Firebase 초기화 + 백그라운드 태스크 등록 + 구글 로그인 브리지.
+/// 앱 델리게이트 — Firebase 초기화 + 백그라운드 태스크 등록 + 구글 로그인 브리지 + 알림 델리게이트.
 /// (BGTaskScheduler 등록은 앱 launch 완료 전에 해야 하므로 didFinishLaunching 에서 처리)
-class AppDelegate: NSObject, UIApplicationDelegate {
+class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDelegate {
     func application(
         _ application: UIApplication,
         didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
@@ -20,7 +21,11 @@ class AppDelegate: NSObject, UIApplicationDelegate {
         // 2. 자동 출석 백그라운드 태스크 등록 (Kotlin BGTaskScheduler 핸들러)
         NativeScheduler_iosKt.registerBackgroundTask()
 
-        // 3. Kotlin(AuthManager)에 구글 로그인 플로우 등록 — 로그인 버튼 탭 시 GIDSignIn 실행
+        // 3. 알림 델리게이트 — 이게 없으면 앱이 포그라운드일 때 발생한 로컬 알림
+        //    (예산 초과·출석 완료·재화 넛지)이 배너로 표시되지 않고 무음으로 사라진다.
+        UNUserNotificationCenter.current().delegate = self
+
+        // 4. Kotlin(AuthManager)에 구글 로그인 플로우 등록 — 로그인 버튼 탭 시 GIDSignIn 실행
         IosGoogleSignIn.shared.provider = { callback in
             DispatchQueue.main.async {
                 // 최상위 ViewController 탐색 (모달 위에서도 동작)
@@ -58,6 +63,15 @@ class AppDelegate: NSObject, UIApplicationDelegate {
         options: [UIApplication.OpenURLOptionsKey: Any] = [:]
     ) -> Bool {
         return GIDSignIn.sharedInstance.handle(url)
+    }
+
+    /// 앱이 포그라운드일 때도 로컬 알림을 배너로 표시 (UNUserNotificationCenterDelegate)
+    func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        willPresent notification: UNNotification,
+        withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
+    ) {
+        completionHandler([.banner, .list, .sound])
     }
 }
 

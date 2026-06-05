@@ -95,22 +95,34 @@ fun GatchaLogTheme(
         onSurface = TextPrimary,
     )
 
-    // 기기 글꼴 크기(접근성 폰트 스케일)와 무관하게 앱 자체 크기를 유지 → 모든 화면 레이아웃 일관성 확보.
-    val systemDensity = LocalDensity.current
-    val fixedDensity = remember(systemDensity.density) { Density(systemDensity.density, fontScale = 1f) }
-
     CompositionLocalProvider(
         LocalAccent provides accent.color,
         LocalAccentSecondary provides accent.secondary,
         // 회색 박스/리플 대신 "눌린 느낌"(축소) 인디케이션을 전역 적용
         LocalIndication provides PressScaleIndication,
         LocalRippleConfiguration provides null,
-        // 기기 폰트 크기 영향 제거(고정 1.0)
-        LocalDensity provides fixedDensity,
     ) {
-        MaterialTheme(
-            colorScheme = colorScheme,
-            content = content,
-        )
+        // 기기 폰트 크기 영향 제거(고정 1.0) — iOS 다이내믹 타입·Android 글꼴 크기 설정 모두
+        FixedFontScale {
+            MaterialTheme(
+                colorScheme = colorScheme,
+                content = content,
+            )
+        }
     }
+}
+
+/**
+ * 기기 글꼴 크기(접근성 폰트 스케일)와 무관하게 앱 자체 크기를 유지하는 래퍼 — 폰트 스케일 1.0 고정.
+ *
+ * [GatchaLogTheme] 이 메인 콘텐츠에 적용하지만, Compose `Dialog`/`ModalBottomSheet` 는 별도
+ * 윈도우(레이어)에 그려져 루트에서 시스템 폰트 스케일을 다시 가져온다 — 테마의 고정이 안까지 미치지 않는다.
+ * 따라서 다이얼로그/시트류 콘텐츠 루트는 반드시 이 래퍼로 다시 감싸야 한다.
+ * (iOS: 설정 ▸ 디스플레이 및 밝기 ▸ 텍스트 크기 / Android: 글꼴 크기 설정 모두 무시)
+ */
+@Composable
+fun FixedFontScale(content: @Composable () -> Unit) {
+    val systemDensity = LocalDensity.current
+    val fixedDensity = remember(systemDensity.density) { Density(systemDensity.density, fontScale = 1f) }
+    CompositionLocalProvider(LocalDensity provides fixedDensity, content = content)
 }

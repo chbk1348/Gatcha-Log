@@ -7,13 +7,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.compositionLocalOf
@@ -26,7 +20,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -146,66 +139,5 @@ fun GlassButton(
     }
 }
 
-/**
- * 글래스 룩 원형 아이콘 버튼.
- *
- * @param tint 글래스 틴트 색 — null 이면 무색(클리어) 글래스
- * @param badgeCount > 0 이면 우상단 배지 표시
- */
-@Composable
-fun GlassIconButton(
-    icon: ImageVector,
-    contentDescription: String,
-    tint: Color?,
-    iconColor: Color,
-    size: Dp,
-    enabled: Boolean,
-    badgeCount: Int,
-    modifier: Modifier = Modifier,
-    onClick: () -> Unit,
-) {
-    val interaction = remember { MutableInteractionSource() }
-    val pressed by interaction.collectIsPressedAsState()
-    val pressOverlay by animateColorAsState(
-        if (pressed && enabled) Color.White.copy(alpha = 0.22f) else Color.Transparent,
-        label = "glassIconPress",
-    )
-
-    Box(modifier) {
-        Box(
-            modifier = Modifier
-                .size(size)
-                .alpha(if (enabled) 1f else 0.55f)
-                .glassSurface(tint, CircleShape)
-                .then(
-                    if (enabled) Modifier.clickable(interactionSource = interaction, indication = null) { onClick() }
-                    else Modifier
-                ),
-            contentAlignment = Alignment.Center,
-        ) {
-            GlassGloss(tinted = tint != null, shape = CircleShape, modifier = Modifier.matchParentSize())
-            Box(Modifier.matchParentSize().background(pressOverlay))
-            Icon(icon, contentDescription = contentDescription, tint = iconColor, modifier = Modifier.size(18.dp))
-        }
-        // 우상단 배지 (알림 수 등) — 기존 GlgCircleIconButton 과 동일
-        if (badgeCount > 0) {
-            Box(
-                modifier = Modifier
-                    .size(16.dp)
-                    .align(Alignment.TopEnd)
-                    .offset(x = 3.dp, y = (-3).dp)
-                    .clip(CircleShape)
-                    .background(Color(0xFFFFA500)),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(
-                    if (badgeCount > 9) "9+" else "$badgeCount",
-                    color = Color.White,
-                    fontSize = 9.sp,
-                    lineHeight = 9.sp,
-                    fontWeight = FontWeight.Bold,
-                )
-            }
-        }
-    }
-}
+// (구) GlassIconButton 은 제거됨 — 헤더 아이콘 버튼(뒤로가기·바 버튼)은 iOS 시스템 버튼 스타일을 쓴다.
+// GlgComponents.kt 의 GlgBackButton / GlgCircleIconButton 참고.

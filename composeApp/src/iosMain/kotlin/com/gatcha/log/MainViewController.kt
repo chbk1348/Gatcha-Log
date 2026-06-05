@@ -15,7 +15,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.ComposeUIViewController
+import com.gatcha.log.data.AppSettings
+import com.gatcha.log.data.DateUtil
+import com.gatcha.log.data.GameData
+import com.gatcha.log.data.GatchaRepository
 import com.gatcha.log.data.Spending
+import com.gatcha.log.data.work.NativeScheduler
 import com.gatcha.log.ui.auth.AccountLoadingScreen
 import com.gatcha.log.ui.auth.LoginScreen
 import com.gatcha.log.ui.components.GlassBackground
@@ -84,6 +89,11 @@ fun setSelectedTab(tab: Int) {
 fun isSyncGateActive(): Boolean =
     !IosAppState.viewModel.account.value.isGuest && !IosAppState.syncLoadingDone.value
 
+// observeSyncGate 콜백·컬렉터 시작 가드 — SwiftUI 의 onAppear 는 루트 뷰가 다시 나타날 때마다
+// 호출되므로, 가드 없이 매번 collect 를 시작하면 무한 코루틴이 누적된다 (observeAccentColor 와 동일 패턴).
+private var syncGateObserver: ((Boolean) -> Unit)? = null
+private var syncGateCollectorStarted = false
+
 /**
  * SwiftUI AccountLoadingView 게이트 완료 시 호출 — 초기 동기화 로딩 완료 표시.
  * (Compose 경로의 AccountLoadingScreen.onFinished 와 동일 — 이후 게이트 해제되어 탭바·FAB 노출)
@@ -96,13 +106,20 @@ fun markSyncLoadingDone() {
 /**
  * Swift 가 호출 — 초기 동기화 게이트 상태 변경 구독 (메인 스레드).
  * 게이트가 활성인 동안 Swift 는 네이티브 탭바와 지출 추가 버튼을 숨긴다.
+ * 재호출 시 콜백만 교체하고 컬렉터는 1회만 시작한다.
  */
 @Suppress("unused")
 fun observeSyncGate(onChange: (Boolean) -> Unit) {
-    CoroutineScope(Dispatchers.Main).launch {
-        combine(IosAppState.viewModel.account, IosAppState.syncLoadingDone) { account, done ->
-            !account.isGuest && !done
-        }.collect { onChange(it) }
+    syncGateObserver = onChange
+    // 등록 즉시 현재 상태로 1회 호출 — 재등록(뷰 재출현) 시에도 최신 상태 보장
+    onChange(isSyncGateActive())
+    if (!syncGateCollectorStarted) {
+        syncGateCollectorStarted = true
+        CoroutineScope(Dispatchers.Main).launch {
+            combine(IosAppState.viewModel.account, IosAppState.syncLoadingDone) { account, done ->
+                !account.isGuest && !done
+            }.collect { syncGateObserver?.invoke(it) }
+        }
     }
 }
 
@@ -273,6 +290,20 @@ fun HomeTabViewController(
         // iOS 네이티브 탭 경로는 HomeScreen 을 거치지 않고 HomeContent 를 직접 쓰므로 여기서 트리거.
         // (초기 동기화 게이트가 있으면 게이트 완료 후 발화 → hoyolabConfig 로드 완료 상태 보장)
         LaunchedEffect(Unit) {
+            // 자동 출석: 주기 작업 동기화 + 오늘 미출석 보충 실행 (App.kt 의 시작 로직과 동일).
+            // iOS 의 BGAppRefreshTask 는 OS 재량이라 거의 안 깨어나므로,
+            // 포그라운드 진입 시 보충 실행이 사실상 자동 출석의 주 실행 경로다.
+            runCatching { NativeScheduler.apply() }
+            runCatching {
+                if (AppSettings().autoCheckIn) {
+                    val repo = GatchaRepository(AppSettings.currentAccountId())
+                    val today = DateUtil.hoyoDayKey()
+                    val done = repo.loadAttendance()[today].orEmpty()
+                    if (done.size < GameData.attendanceGames.size) {
+                        NativeScheduler.runNow()
+                    }
+                }
+            }
             IosAppState.viewModel.refreshGameInfo()
         }
         HomeContent(
