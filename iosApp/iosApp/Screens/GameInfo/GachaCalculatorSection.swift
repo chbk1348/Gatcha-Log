@@ -442,7 +442,7 @@ private struct NumField: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(label).font(.system(size: 11, weight: .semibold)).foregroundStyle(GLGColor.textSecondary)
-            TextField(placeholder, text: $text).keyboardType(.numberPad).textFieldStyle(.roundedBorder)
+            TextField(placeholder, text: $text).keyboardType(.numberPad).textFieldStyle(.plain).glgPillField()
                 .onChange(of: text) { text = $0.filter(\.isNumber) }
         }
     }

@@ -82,34 +82,17 @@ data class GameSpend(val game: Game, val spent: Long, val limit: Long)
 // ── 슬림 헤더 ────────────────────────────────────────────────────────────────
 @Composable
 fun HomeHeader(
-    userName: String,
-    isGuest: Boolean,
     photoUrl: String?,
-    streak: Int,
     alertCount: Int,
     onBellClick: () -> Unit,
 ) {
-    val greeting = remember { greetingForNow() }
+    // 인사말·이름·연속출석 문구 제거 — 아바타와 알림벨만 노출 (대표 지시, Android 전용)
     Row(
         modifier = Modifier.fillMaxWidth().padding(start = 4.dp, end = 2.dp, top = 8.dp, bottom = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         ProfileAvatar(photoUrl = photoUrl, size = 46.dp)
-        Spacer(Modifier.width(12.dp))
-        Column(Modifier.weight(1f)) {
-            Text("$greeting 👋", fontSize = 12.sp, color = TextSecondary)
-            Text(
-                if (isGuest) "게스트" else "$userName 님",
-                fontSize = 20.sp,
-                fontWeight = FontWeight.Bold,
-                color = TextPrimary,
-                maxLines = 1,
-            )
-            if (streak > 0) {
-                Text("🔥 ${streak}일 연속 출석 중", fontSize = 11.sp, color = TextSecondary, maxLines = 1)
-            }
-        }
-        Spacer(Modifier.width(8.dp))
+        Spacer(Modifier.weight(1f))
         GlgCircleIconButton(
             Icons.Default.NotificationsNone,
             contentDescription = "알림",

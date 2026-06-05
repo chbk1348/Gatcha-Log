@@ -217,8 +217,7 @@ struct AddSpendingView: View {
                 .textFieldStyle(.plain)
                 .font(.system(size: 15))
                 .keyboardType(number ? .numberPad : .default)
-                .padding(.horizontal, 12).padding(.vertical, 10)
-                .background(Color(.systemGray6), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .glgPillField()
                 .onChange(of: text.wrappedValue) { if number { text.wrappedValue = $0.filter(\.isNumber) } }
         }
     }

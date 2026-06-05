@@ -51,10 +51,10 @@ import com.gatcha.log.ui.theme.LocalAccent
 // ============================================================
 //  Gatcha LOG 커스텀 디자인 토큰 (웹앱 스타일 이식)
 // ============================================================
-private val FieldShape = RoundedCornerShape(12.dp)
+private val FieldShape = RoundedCornerShape(percent = 50)  // 알약(pill) 형태
 private val FieldBgIdle = Color(0xFFF6F6FA)
 private val FieldBgFocus = Color(0xFFFFFFFF)
-private val FieldBorderIdle = Color(0x14000000)   // rgba(0,0,0,0.08)
+private val FieldBorderIdle = Color(0x1F000000)   // rgba(0,0,0,0.12) — 약간의 아웃라인
 private val FieldText = Color(0xFF1A1C1E)
 private val FieldPlaceholder = Color(0x40000000)  // rgba(0,0,0,0.25)
 private val LabelColor = Color(0x66000000)        // rgba(0,0,0,0.4)
@@ -114,7 +114,7 @@ fun GlgTextField(
                 .background(bg)
                 .border(1.dp, borderColor, FieldShape)
                 .then(if (onClick != null) Modifier.clickable { onClick() } else Modifier)
-                .padding(horizontal = 14.dp, vertical = 12.dp)
+                .padding(horizontal = 18.dp, vertical = 12.dp)
 
             Row(verticalAlignment = Alignment.CenterVertically, modifier = fieldModifier) {
                 Box(Modifier.weight(1f)) {

@@ -148,7 +148,7 @@ struct GiftCodeSheet: View {
         VStack(alignment: .leading, spacing: 8) {
             VStack(alignment: .leading, spacing: 4) {
                 Text("직접 입력 (새 코드)").font(.system(size: 11, weight: .semibold)).foregroundStyle(GLGColor.textSecondary)
-                TextField("예: GENSHINGIFT", text: $code).textFieldStyle(.roundedBorder).autocapitalization(.allCharacters)
+                TextField("예: GENSHINGIFT", text: $code).textFieldStyle(.plain).glgPillField().autocapitalization(.allCharacters)
                     .onChange(of: code) { code = $0.uppercased().filter { $0.isLetter || $0.isNumber } }
             }
             if !code.isEmpty {

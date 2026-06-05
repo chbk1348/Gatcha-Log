@@ -19,8 +19,11 @@ struct SettingsView: View {
     @State private var showHoyolab = false
     @State private var showUplog = false
     @State private var showCredits = false
+    // 파괴작업은 2단계 확인: 1차(백업 권장) → 2차(최종 확인)
     @State private var confirmClearGacha = false
+    @State private var confirmClearGacha2 = false
     @State private var confirmClearSpend = false
+    @State private var confirmClearSpend2 = false
     @State private var confirmImport = false
     // 파일 내보내기/가져오기
     @State private var exportCsv = false
@@ -30,21 +33,21 @@ struct SettingsView: View {
     @State private var exportName = "export.txt"
     @State private var exportType: UTType = .plainText
 
-    private var account: Account { store.account }
-    private var isGuest: Bool { account.isGuest }
     private var version: String {
         (Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String) ?? "—"
     }
 
     var body: some View {
         List {
-            accountSection
-            themeSection
+            // 1층: 자주 쓰는 설정 (계정은 마이페이지 히어로로 일원화 — 중복 카드 제거)
             budgetLinkSection
             automationSection
             notificationSection
+            themeSection
+            // 2층: 데이터·계정
             dataSection
             backupSection
+            // 3층: 앱 정보
             infoSection
         }
         .listStyle(.insetGrouped)
@@ -67,14 +70,26 @@ struct SettingsView: View {
         .sheet(isPresented: $showHoyolab) {
             HoyolabLinkView(store: store) { showHoyolab = false }
         }
+        // 가챠 초기화 — 1단계(백업 권장)
         .alert("가챠 기록 초기화", isPresented: $confirmClearGacha) {
             Button("취소", role: .cancel) {}
+            Button("계속") { confirmClearGacha2 = true }
+        } message: { Text("가져온 모든 가챠 기록을 삭제합니다. 되돌릴 수 없으니, 먼저 ‘데이터 → 백업 파일 내보내기’로 백업을 권장해요.") }
+        // 가챠 초기화 — 2단계(최종 확인)
+        .alert("정말 초기화할까요?", isPresented: $confirmClearGacha2) {
+            Button("취소", role: .cancel) {}
             Button("초기화", role: .destructive) { store.clearGachaRecords() }
-        } message: { Text("가져온 모든 가챠 기록을 삭제할까요? 이 작업은 되돌릴 수 없어요.") }
+        } message: { Text("이 작업은 되돌릴 수 없어요. 가챠 기록을 모두 삭제합니다.") }
+        // 지출 전체 삭제 — 1단계(백업 권장)
         .alert("지출 전체 삭제", isPresented: $confirmClearSpend) {
             Button("취소", role: .cancel) {}
+            Button("계속") { confirmClearSpend2 = true }
+        } message: { Text("모든 지출 기록(\(store.spendings.count)건)을 삭제합니다. 되돌릴 수 없으니, 먼저 ‘데이터 → 백업 파일 내보내기’로 백업을 권장해요.") }
+        // 지출 전체 삭제 — 2단계(최종 확인)
+        .alert("정말 삭제할까요?", isPresented: $confirmClearSpend2) {
+            Button("취소", role: .cancel) {}
             Button("삭제", role: .destructive) { store.clearSpendings() }
-        } message: { Text("모든 지출 기록(\(store.spendings.count)건)을 삭제할까요? 이 작업은 되돌릴 수 없어요.") }
+        } message: { Text("이 작업은 되돌릴 수 없어요. 지출 기록(\(store.spendings.count)건)을 모두 삭제합니다.") }
         .alert("백업 파일에서 복원", isPresented: $confirmImport) {
             Button("취소", role: .cancel) {}
             Button("파일 선택") { importBackup = true }
@@ -85,39 +100,6 @@ struct SettingsView: View {
                       contentType: .json, defaultFilename: "gatchalog-backup") { _ in }
         .fileImporter(isPresented: $importBackup, allowedContentTypes: [.json]) { result in
             if case .success(let url) = result { readBackup(url) }
-        }
-    }
-
-    // ── 계정 ──
-    private var accountSection: some View {
-        Section {
-            VStack(spacing: 16) {
-                HStack(spacing: 14) {
-                    ProfileAvatarView(photoUrl: isGuest ? nil : account.photoUrl, size: 56)
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(isGuest ? "게스트" : account.name).font(.system(size: 18, weight: .bold)).lineLimit(1)
-                        if !isGuest && !account.email.isEmpty {
-                            Text(account.email).font(.system(size: 12)).foregroundStyle(GLGColor.textSecondary).lineLimit(1)
-                        }
-                        HStack(spacing: 4) {
-                            Image(systemName: isGuest ? "icloud.slash.fill" : "checkmark.icloud.fill").font(.system(size: 10, weight: .bold))
-                            Text(isGuest ? "동기화 꺼짐" : "구글 계정 동기화 켜짐").font(.system(size: 11, weight: .semibold))
-                        }
-                        .foregroundStyle(isGuest ? GLGColor.textSecondary : accent.primary)
-                        .padding(.horizontal, 9).padding(.vertical, 3)
-                        .background((isGuest ? Color.gray : accent.primary).opacity(0.14), in: Capsule())
-                        .padding(.top, 2)
-                    }
-                    Spacer(minLength: 0)
-                }
-                if isGuest {
-                    GLGButton(title: "Google로 로그인") { store.signIn() }
-                } else {
-                    GLGOutlineButton(title: "로그아웃") { store.signOut() }
-                }
-            }
-            .padding(.vertical, 8)
-            .listRowInsets(EdgeInsets(top: 14, leading: 16, bottom: 14, trailing: 16))
         }
     }
 

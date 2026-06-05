@@ -109,6 +109,7 @@ fun MyPageScreen(
                 photoUrl = if (account.isGuest) null else account.photoUrl,
                 isGuest = account.isGuest,
                 onLogin = { (context as? android.app.Activity)?.let { viewModel.signIn(it) } },
+                onLogout = { viewModel.signOut() },
             )
         }
         item { Spacer(Modifier.height(22.dp)) }
@@ -149,6 +150,7 @@ private fun ProfileHeroCard(
     photoUrl: String?,
     isGuest: Boolean,
     onLogin: () -> Unit,
+    onLogout: () -> Unit,
 ) {
     val accent = LocalAccent.current
     Box(
@@ -202,9 +204,28 @@ private fun ProfileHeroCard(
                 ) {
                     Text("Google로 로그인", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = accent)
                 }
-            } else if (email.isNotBlank()) {
-                Spacer(Modifier.height(12.dp))
-                Text(email, fontSize = 12.sp, color = Color.White.copy(alpha = 0.85f), maxLines = 1)
+            } else {
+                Spacer(Modifier.height(14.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (email.isNotBlank()) {
+                        Text(
+                            email, fontSize = 12.sp, color = Color.White.copy(alpha = 0.85f),
+                            maxLines = 1, modifier = Modifier.weight(1f),
+                        )
+                    } else {
+                        Spacer(Modifier.weight(1f))
+                    }
+                    // 계정 단일화: 로그아웃을 마이페이지 히어로로 일원화 (설정의 중복 계정 카드 제거)
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(Color.White.copy(alpha = 0.22f))
+                            .clickable { onLogout() }
+                            .padding(horizontal = 14.dp, vertical = 7.dp),
+                    ) {
+                        Text("로그아웃", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Color.White)
+                    }
+                }
             }
         }
     }

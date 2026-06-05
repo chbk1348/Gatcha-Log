@@ -40,6 +40,7 @@
 		B7C4F6137AC8345E71E92063 /* GoogleSignIn in Frameworks */ = {isa = PBXBuildFile; productRef = B6E18E1D8AEE3BF1FDA1E5E9 /* GoogleSignIn */; };
 		C6B5FD45AE8AAD4CD43AF7A1 /* CalendarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0DA2E93117E3D3E211751905 /* CalendarView.swift */; };
 		C87B4FA04BDA1DA04158D48E /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = A55143988C4C8F291BE72E9A /* GoogleService-Info.plist */; };
+		CDEA50F7CE2B7828E27E9B48 /* PillField.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA381A5AAC6182B346F40269 /* PillField.swift */; };
 		D112A7419F8E10B338F50D35 /* SpendingStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 584F7FE6E84442E4DDDF5B5C /* SpendingStore.swift */; };
 		D854C4D7411A93D634B12E09 /* AnnualReportView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D3B0527581EAD3D8308AEE5B /* AnnualReportView.swift */; };
 		D8EF247310E228699880A658 /* Format.swift in Sources */ = {isa = PBXBuildFile; fileRef = 470F2BADFFFD74FF78852C57 /* Format.swift */; };
@@ -87,6 +88,7 @@
 		D89043B1C0E20D93D8769699 /* AddSpendingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddSpendingView.swift; sourceTree = "<group>"; };
 		E1B90DF6528691EF06F869AE /* GameTabbedSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameTabbedSection.swift; sourceTree = "<group>"; };
 		E7615BA05B2BD4B18CCBC7D9 /* GlassCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlassCard.swift; sourceTree = "<group>"; };
+		EA381A5AAC6182B346F40269 /* PillField.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PillField.swift; sourceTree = "<group>"; };
 		F543015C899423D4B01CEB2E /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		F8889DD3E2B68EA74993BD55 /* HomeComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeComponents.swift; sourceTree = "<group>"; };
 		FC6DB2645FC5AD218A229983 /* DailyHeroSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DailyHeroSection.swift; sourceTree = "<group>"; };
@@ -199,6 +201,7 @@
 				E7615BA05B2BD4B18CCBC7D9 /* GlassCard.swift */,
 				70DDE6CE10757B3FFAAC4EE9 /* HeaderButton.swift */,
 				D5C1204F7E110F6FAB47E844 /* NotificationPermission.swift */,
+				EA381A5AAC6182B346F40269 /* PillField.swift */,
 				293C803154C68DC21F70850C /* Theme.swift */,
 				2F197AF8EBAAA2AF47FB30E0 /* Toast.swift */,
 			);
@@ -326,7 +329,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "# JAVA_HOME 폴백 — 로컬 Xcode GUI 빌드는 Android Studio JBR, CI/CLI 빌드는 기존 JAVA_HOME 사용\nif [ ! -d \"${JAVA_HOME:-/nonexistent}\" ]; then\n  export JAVA_HOME=\"/Applications/Android Studio.app/Contents/jbr/Contents/Home\"\nfi\ncd \"$SRCROOT/..\"\n./gradlew :composeApp:embedAndSignAppleFrameworkForXcode\n";
+			shellScript = "# JAVA_HOME 폴백 — 로컬 Xcode GUI 빌드는 Android Studio JBR,\n# CI(GitHub Actions)·CLI 빌드는 이미 설정된 JAVA_HOME 을 그대로 사용\nif [ ! -d \"${JAVA_HOME:-/nonexistent}\" ]; then\n  export JAVA_HOME=\"/Applications/Android Studio.app/Contents/jbr/Contents/Home\"\nfi\ncd \"$SRCROOT/..\"\n./gradlew :composeApp:embedAndSignAppleFrameworkForXcode\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 
@@ -359,6 +362,7 @@
 				2D35F907FC44079CFC4E3403 /* LoginView.swift in Sources */,
 				E9458AF327B0B6E2596FA576 /* MyPageView.swift in Sources */,
 				A9B00EA52935CEDB4ACF5733 /* NotificationPermission.swift in Sources */,
+				CDEA50F7CE2B7828E27E9B48 /* PillField.swift in Sources */,
 				5AFEAF2E24A932001380F440 /* SettingsDialogs.swift in Sources */,
 				94C34A0D85D4621BEDCA1045 /* SettingsView.swift in Sources */,
 				2067CB41DC222CE302CA3543 /* SpendingDetailView.swift in Sources */,
