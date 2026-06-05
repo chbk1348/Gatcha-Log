@@ -117,6 +117,13 @@ actual class SecureKeyValueStore actual constructor(private val name: String) {
         CFDictionaryAddValue(query, kSecAttrAccessible, kSecAttrAccessibleAfterFirstUnlock)
 
         lastAddStatus = SecItemAdd(query, null)
+        if (lastAddStatus != errSecSuccess) {
+            // 진단용 — Keychain 쓰기 실패를 무음으로 넘기면 HoYoLAB 토큰이 통째로 사라져
+            // 연동 기능 전체가 조용히 죽는다. -34018 = errSecMissingEntitlement
+            // (사이드로드 재서명으로 keychain-access-groups entitlement 가 깨진 경우 발생).
+            // 시스템 로그에서 "GatchaKeychain" 으로 검색.
+            println("GatchaKeychain: SecItemAdd 실패 status=$lastAddStatus (service=$name, key=$key)")
+        }
 
         CFRelease(query)
         CFRelease(serviceRef)

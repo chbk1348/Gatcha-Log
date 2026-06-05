@@ -18,6 +18,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowBackIos
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalTextStyle
@@ -29,6 +30,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -43,6 +45,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import com.gatcha.log.ui.theme.FixedFontScale
 import com.gatcha.log.ui.theme.LocalAccent
 
 // ============================================================
@@ -199,23 +202,24 @@ fun GlgButton(
 
 /**
  * 하위 페이지 공통 뒤로가기 버튼.
- * - iOS: 글래스 룩 원형(무색 프로스티드)
+ * - iOS: 시스템 내비게이션 바 뒤로가기 버튼 스타일 — 배경 없는 셰브론(‹) + 강조색 틴트 (커스텀 장식 X)
  * - 그 외: 회색 배경 + 아웃라인(고스트 톤)
  */
 @Composable
 fun GlgBackButton(onClick: () -> Unit, modifier: Modifier = Modifier, size: Dp = 40.dp) {
     if (useGlassButtons()) {
-        GlassIconButton(
-            icon = Icons.AutoMirrored.Filled.ArrowBack,
-            contentDescription = "뒤로",
-            tint = null,
-            iconColor = GhostText,
-            size = size,
-            enabled = true,
-            badgeCount = 0,
-            modifier = modifier,
-            onClick = onClick,
-        )
+        val accent = LocalAccent.current
+        Box(
+            modifier = modifier.size(size).clip(CircleShape).clickable { onClick() },
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                Icons.AutoMirrored.Filled.ArrowBackIos,
+                contentDescription = "뒤로",
+                tint = accent,
+                modifier = Modifier.size(20.dp),
+            )
+        }
         return
     }
     Box(
@@ -348,9 +352,13 @@ fun GlgDialog(
     }
     val maxDialogHeight = screenHeightDp * 0.90f
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        // 다이얼로그는 별도 윈도우라 시스템 폰트 스케일을 다시 가져옴 → 여기서 다시 1.0 고정
+        FixedFontScale {
         // 입력 필드 밖 탭 → 키보드 숨김 (예산 입력 등 숫자 키패드 다이얼로그 대응)
         // 내부 취소/저장 버튼은 iOS 에서 캡슐 글래스(시스템 버튼 모양)로 렌더링된다.
-        Box(Modifier.fillMaxWidth().padding(24.dp).dismissKeyboardOnTapOutside(), contentAlignment = Alignment.Center) {
+        // imePadding: iOS 는 다이얼로그가 키보드를 피해서 자동으로 밀려나지 않으므로 직접 인셋 적용
+        // (Android 다이얼로그 윈도우는 키보드 인셋을 윈도우 차원에서 소비해 사실상 no-op — 이중 패딩 없음)
+        Box(Modifier.fillMaxWidth().imePadding().padding(24.dp).dismissKeyboardOnTapOutside(), contentAlignment = Alignment.Center) {
             androidx.compose.material3.Surface(
                 shape = RoundedCornerShape(24.dp),
                 color = Color.White,
@@ -381,6 +389,7 @@ fun GlgDialog(
                 }
             }
         }
+        } // FixedFontScale
     }
 }
 
@@ -388,7 +397,7 @@ fun GlgDialog(
  * 헤더용 공통 커스텀 원형 아이콘 버튼 — 강조색 틴트 + 눌림 효과(전역 인디케이션).
  * [loading] 시 스피너, [badgeCount] > 0 이면 우상단 배지.
  *
- * iOS: 글래스 룩 원형(무색 프로스티드) + 강조색 아이콘으로 렌더링.
+ * iOS: 시스템 바 버튼(UIBarButtonItem) 스타일 — 배경·테두리 없는 아이콘 + 강조색 틴트 (커스텀 장식 X).
  * (loading 상태는 스피너 표시가 필요하므로 기존 스타일 사용)
  */
 @Composable
@@ -400,23 +409,27 @@ fun GlgCircleIconButton(
     loading: Boolean = false,
     enabled: Boolean = true,
     badgeCount: Int = 0,
-    /** true 면 강조색 아웃라인(테두리)을 그린다 — 확률표 알약 버튼과 동일한 톤 */
+    /** true 면 강조색 아웃라인(테두리)을 그린다 — 확률표 알약 버튼과 동일한 톤 (iOS 에선 무시 — 시스템 버튼은 장식 없음) */
     outlined: Boolean = false,
     onClick: () -> Unit,
 ) {
     val accent = LocalAccent.current
     if (!loading && useGlassButtons()) {
-        GlassIconButton(
-            icon = icon,
-            contentDescription = contentDescription,
-            tint = null,
-            iconColor = accent,
-            size = size,
-            enabled = enabled,
-            badgeCount = badgeCount,
-            modifier = modifier,
-            onClick = onClick,
-        )
+        Box(modifier) {
+            Box(
+                modifier = Modifier
+                    .size(size)
+                    .clip(CircleShape)
+                    .alpha(if (enabled) 1f else 0.35f)
+                    .then(if (enabled) Modifier.clickable { onClick() } else Modifier),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(icon, contentDescription = contentDescription, tint = accent, modifier = Modifier.size(22.dp))
+            }
+            if (badgeCount > 0) {
+                CountBadge(badgeCount, Modifier.align(Alignment.TopEnd))
+            }
+        }
         return
     }
     Box(modifier) {
@@ -436,24 +449,29 @@ fun GlgCircleIconButton(
             }
         }
         if (badgeCount > 0) {
-            Box(
-                modifier = Modifier
-                    .size(16.dp)
-                    .align(Alignment.TopEnd)
-                    .offset(x = 3.dp, y = (-3).dp)
-                    .clip(CircleShape)
-                    .background(Color(0xFFFFA500)),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(
-                    if (badgeCount > 9) "9+" else "$badgeCount",
-                    color = Color.White,
-                    fontSize = 9.sp,
-                    lineHeight = 9.sp,
-                    fontWeight = FontWeight.Bold,
-                )
-            }
+            CountBadge(badgeCount, Modifier.align(Alignment.TopEnd))
         }
+    }
+}
+
+/** 우상단 카운트 배지 (알림 수 등) — 헤더 아이콘 버튼 공용 */
+@Composable
+private fun CountBadge(count: Int, modifier: Modifier = Modifier) {
+    Box(
+        modifier = modifier
+            .size(16.dp)
+            .offset(x = 3.dp, y = (-3).dp)
+            .clip(CircleShape)
+            .background(Color(0xFFFFA500)),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            if (count > 9) "9+" else "$count",
+            color = Color.White,
+            fontSize = 9.sp,
+            lineHeight = 9.sp,
+            fontWeight = FontWeight.Bold,
+        )
     }
 }
 
