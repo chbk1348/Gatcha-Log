@@ -56,12 +56,16 @@ struct HoyolabLinkView: View {
                     field("젠레스 UID", $zzz)
                     Text("구글 로그인 시 게임 UID 는 계정에 함께 동기화돼 다른 기기에서도 그대로 사용돼요. 보안을 위해 ltuid·ltoken·cookie_token 등 토큰은 동기화하지 않으며, 새 기기에서는 다시 로그인해 가져와야 해요.")
                         .font(.system(size: 11)).foregroundStyle(GLGColor.textSecondary)
-
-                    GLGButton(title: "저장") { save() }.padding(.top, 12)
                 }
                 .padding(.horizontal, 16).padding(.top, 16).padding(.bottom, 8)
             }
             .background(GLGBackground { Color.clear })
+            // 저장 버튼은 시트 하단에 고정 — 폼이 짧아도 버튼이 중간에 뜨던 불필요한 여백 제거
+            .safeAreaInset(edge: .bottom) {
+                GLGButton(title: "저장") { save() }
+                    .padding(.horizontal, 16)
+                    .padding(.top, 8)
+            }
             .navigationTitle("HoYoLAB 계정 연동")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .cancellationAction) { Button("닫기") { onClose() } } }

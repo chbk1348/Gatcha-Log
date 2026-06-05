@@ -181,9 +181,17 @@ struct UpdateLogSheet: View {
 private enum UpdateLog {
     struct Entry { let version: String; let items: [String] }
 
+    // iOS 전용 업데이트 로그 — Android 와 별도 작성/관리. (iOS 릴리스 태그: vX.Y.Z-ios)
     static func entries(currentVersion: String) -> [Entry] {
         [
-            Entry(version: "v\(currentVersion.isEmpty ? "27.11.0" : currentVersion)", items: [
+            Entry(version: "v27.13.0", items: [
+                "iOS 앱을 네이티브로 새로 만들었어요 — 더 빠르고 부드러운 화면 전환과 iOS다운 조작감",
+                "iOS 26 리퀴드 글래스 디자인 적용 — 카드·버튼·탭바에 시스템 유리 질감",
+                "네이티브 알림 배너 — 앱을 보고 있는 중에도 예산·출석·재화 알림이 바로 떠요",
+                "잠금 해제·앱 전환 후 글래스 카드가 깜빡이던 문제 수정",
+                "로딩 화면 퍼센트 숫자 떨림, ‘오늘의 데일리’ 칩 줄바꿈, HoYoLAB 연동 화면 여백 등 자잘한 UI 다듬기",
+            ]),
+            Entry(version: "v27.11.0", items: [
                 "홈을 더 똑똑하게 — ‘오늘 할 일’이 출석·재화·픽업·예산을 모아 보여주고, 누르면 해당 화면으로 바로 이동해요",
                 "‘이번 달 한눈에’가 지난달 대비·예상 지출·천장 상황까지 분석해 알려드려요",
                 "‘가챠 현황’ 카드 — 다음 픽업 확정에 필요한 뽑기 수와 예상 비용을 한눈에",
