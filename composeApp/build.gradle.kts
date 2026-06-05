@@ -8,6 +8,8 @@ plugins {
     id("org.jetbrains.compose")
     // Firestore 문서 직렬화(@Serializable) — GitLive Firebase 용
     id("org.jetbrains.kotlin.plugin.serialization")
+    // SKIE — iOS 프레임워크에 Swift 친화 API(Flow→AsyncSequence 등) 생성. KMP 플러그인 뒤에 적용.
+    id("co.touchlab.skie")
 }
 
 kotlin {
@@ -30,6 +32,8 @@ kotlin {
         iosTarget.binaries.framework {
             baseName = "ComposeApp"
             isStatic = true
+            // 프레임워크 bundle ID 명시(없으면 SKIE/링커가 경고). :app 와 무관한 공유 모듈 식별자.
+            binaryOption("bundleId", "com.gatcha.log.shared")
         }
     }
 
@@ -85,5 +89,12 @@ kotlin {
         commonTest.dependencies {
             implementation(kotlin("test"))
         }
+    }
+}
+
+// SKIE — 빌드 시 익명 분석 업로드 비활성화(프라이버시·오프라인 빌드). Swift 친화 API 생성은 그대로.
+skie {
+    analytics {
+        enabled.set(false)
     }
 }

@@ -9,4 +9,7 @@ plugins {
     id("com.android.kotlin.multiplatform.library") version "9.2.1" apply false
     id("org.jetbrains.compose") version "1.11.0" apply false
     id("org.jetbrains.kotlin.plugin.serialization") version "2.3.21" apply false
+    // SKIE — Kotlin StateFlow/Flow → Swift AsyncSequence, sealed class → enum 등 SwiftUI 친화 브리지.
+    // :composeApp 의 iOS 프레임워크 생성에만 관여(Android·:app 무영향). Kotlin 2.3.21 지원(0.10.12).
+    id("co.touchlab.skie") version "0.10.12" apply false
 }

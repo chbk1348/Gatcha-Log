@@ -22,6 +22,7 @@ import com.gatcha.log.ui.components.GlassBackground
 import com.gatcha.log.ui.components.GlgStatusToast
 import com.gatcha.log.ui.components.dismissKeyboardOnTapOutside
 import com.gatcha.log.ui.game.GameInfoScreen
+import com.gatcha.log.ui.game.HoyolabLinkScreen
 import com.gatcha.log.ui.home.HomeContent
 import com.gatcha.log.ui.profile.MyPageScreen
 import com.gatcha.log.ui.spending.AddSpendingModal
@@ -84,6 +85,15 @@ fun isSyncGateActive(): Boolean =
     !IosAppState.viewModel.account.value.isGuest && !IosAppState.syncLoadingDone.value
 
 /**
+ * SwiftUI AccountLoadingView 게이트 완료 시 호출 — 초기 동기화 로딩 완료 표시.
+ * (Compose 경로의 AccountLoadingScreen.onFinished 와 동일 — 이후 게이트 해제되어 탭바·FAB 노출)
+ */
+@Suppress("unused")
+fun markSyncLoadingDone() {
+    IosAppState.syncLoadingDone.value = true
+}
+
+/**
  * Swift 가 호출 — 초기 동기화 게이트 상태 변경 구독 (메인 스레드).
  * 게이트가 활성인 동안 Swift 는 네이티브 탭바와 지출 추가 버튼을 숨긴다.
  */
@@ -107,6 +117,50 @@ fun needsOnboarding(): Boolean =
  */
 @Suppress("unused")
 fun prepareAddSpending() {
+    IosAppState.spendingToEdit.value = null
+}
+
+/**
+ * SwiftUI 지출 상세 '수정' → 편집 대상을 공유 상태에 설정한 뒤 Swift 가 AddSpending 모달을 연다.
+ * (Compose SpendingScreen.onEditSpending 과 동일 역할 — SwiftUI 목록/상세에서 사용)
+ */
+@Suppress("unused")
+fun prepareEditSpending(spending: Spending) {
+    IosAppState.spendingToEdit.value = spending
+}
+
+/**
+ * SwiftUI 지출 추가/수정 폼 저장 — Spending 객체 생성을 Kotlin 에서 처리(id·gameColor 정합성).
+ * editingId 가 있으면 해당 기록을 수정, 없으면 신규 추가. (Compose AddSpendingModal.buildSpending 과 동일 로직)
+ */
+@Suppress("unused")
+fun saveSpending(
+    editingId: String?,
+    gameName: String,
+    amount: Long,
+    dateMillis: Long,
+    paymentMethod: String,
+    itemName: String,
+    memo: String,
+    tags: List<String>,
+    isSubscription: Boolean,
+) {
+    val vm = IosAppState.viewModel
+    val game = com.gatcha.log.data.GameData.byName(gameName)
+    val target = editingId?.let { id -> vm.spendings.value.firstOrNull { it.id == id } }
+    val base = target ?: Spending(gameName = game.displayName, amount = amount)
+    val s = base.copy(
+        gameName = game.displayName,
+        amount = amount,
+        dateMillis = dateMillis,
+        paymentMethod = paymentMethod,
+        itemName = itemName,
+        memo = memo,
+        tags = tags,
+        isSubscription = isSubscription,
+        gameColor = game.color,
+    )
+    if (target == null) vm.addSpending(s) else vm.updateSpending(s)
     IosAppState.spendingToEdit.value = null
 }
 
@@ -262,6 +316,26 @@ fun GameInfoTabViewController(onSubPageChange: (Boolean) -> Unit): UIViewControl
 fun MyPageTabViewController(onSubPageChange: (Boolean) -> Unit): UIViewController = ComposeUIViewController {
     TabPage(tabIndex = 3) {
         MyPageScreen(viewModel = IosAppState.viewModel, onSubPageChange = onSubPageChange)
+    }
+}
+
+/**
+ * HoYoLAB 연동 화면 (SwiftUI 설정에서 시트로 호스팅 — Phase 2 interim).
+ * 진짜 WKWebView 기반 SwiftUI 재구현은 Phase 4. 그 전까지 기존 Compose 화면을 그대로 띄운다.
+ */
+@Suppress("unused", "FunctionName")
+fun HoyolabLinkViewController(onClose: () -> Unit): UIViewController = ComposeUIViewController {
+    val vm = IosAppState.viewModel
+    val accentIndex by vm.accentIndex.collectAsState()
+    val cfg by vm.hoyolabConfig.collectAsState()
+    GatchaLogTheme(accentIndex = accentIndex) {
+        Surface(modifier = Modifier.fillMaxSize()) {
+            HoyolabLinkScreen(
+                config = cfg,
+                onSave = { vm.updateHoyolabConfig(it); onClose() },
+                onBack = onClose,
+            )
+        }
     }
 }
 
