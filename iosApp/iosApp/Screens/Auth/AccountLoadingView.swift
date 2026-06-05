@@ -48,8 +48,10 @@ struct AccountLoadingView: View {
 
                 Spacer().frame(height: 10)
                 Text("\(Int((progress * 100).rounded()))%")
-                    .font(.system(size: 13, weight: .bold))
+                    // 고정폭 숫자 — 애니메이션 중 자릿수/글자폭 변화로 가운데정렬이 좌우로 떨리는 것 방지
+                    .font(.system(size: 13, weight: .bold).monospacedDigit())
                     .foregroundStyle(accent.primary)
+                    .frame(minWidth: 44)  // "100%" 폭 확보 → 자릿수 늘어도 위치 안 밀림
             }
             .padding(.horizontal, 36)
         }
