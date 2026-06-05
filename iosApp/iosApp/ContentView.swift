@@ -18,9 +18,12 @@ struct ComposeView: UIViewControllerRepresentable {
 ///  - iOS 26: 탭바와 같은 높이에 분리된 원형 글래스 버튼 (Mail 컴포즈 버튼 패턴 — Tab role 사용)
 ///  - iOS 16~25: 탭바 위 우측의 글래스 원형 버튼 (오버레이 폴백)
 struct ContentView: View {
-    @State private var showOnboarding: Bool = MainViewControllerKt.needsOnboarding()
+    /// Kotlin SpendingViewModel 브리지(공유 VM). 온보딩 게이트·강조색을 SwiftUI 에서 직접 구독.
+    @StateObject private var store = SpendingStore()
     @State private var selectedTab: Int = 0
     @State private var showAddSpending: Bool = false
+    /// 지출 추가/수정 시트의 편집 대상 (nil = 신규 추가). Phase 6 — SwiftUI 폼으로 교체하며 로컬 상태로 관리.
+    @State private var editingSpending: Spending? = nil
     /// 서브페이지(연간 리포트·알림 상세 등)가 열린 탭 집합 — 해당 탭에서만 탭바 숨김.
     /// (전역 단일 플래그는 탭 전환 시 상태가 어긋나므로 탭별로 독립 관리)
     @State private var tabsWithSubPage: Set<Int> = []
@@ -33,24 +36,25 @@ struct ContentView: View {
 
     var body: some View {
         Group {
-            if showOnboarding {
-                ComposeView(factory: {
-                    MainViewControllerKt.LoginViewController(onComplete: { showOnboarding = false })
-                })
-                .ignoresSafeArea(.all)
+            if store.needsOnboarding {
+                // Phase 1 — SwiftUI 네이티브 로그인/온보딩 (구 ComposeView LoginViewController 대체).
+                // 게스트 선택/로그인 완료 시 공유 VM 의 account·guestChosen 이 바뀌어 자동으로 탭 화면으로 전환.
+                LoginView(store: store)
+                    .glgAccent(index: store.accentIndex)
+            } else if syncGateActive {
+                // 로그인 유저 초기 클라우드 동기화 게이트 — 완료 전 로컬 편집이 클라우드를 덮어쓰는 레이스 방지.
+                // 완료 시 syncLoadingDone 설정 → observeSyncGate 가 syncGateActive=false 로 전환해 탭 화면 진입.
+                AccountLoadingView(loading: store.initialSyncing) {
+                    store.markSyncLoadingDone()
+                    syncGateActive = false
+                }
+                .glgAccent(index: store.accentIndex)
             } else {
                 mainTabs
-                    // 지출 추가/수정 — iOS 표준 시트 (드래그 핸들 + 아래로 스와이프 닫기)
-                    .sheet(isPresented: $showAddSpending, onDismiss: {
-                        // 드래그로 닫힌 경우에도 수정 대상 클리어 (저장/취소 경로는 Kotlin 쪽에서 클리어)
-                        MainViewControllerKt.prepareAddSpending()
-                    }) {
-                        ComposeView(factory: {
-                            MainViewControllerKt.AddSpendingViewController(onClose: { showAddSpending = false })
-                        })
-                        .ignoresSafeArea(edges: .bottom)
-                        .presentationDetents([.large])
-                        .presentationDragIndicator(.visible)
+                    // 지출 추가/수정 — Phase 6: SwiftUI 네이티브 폼 (구 ComposeView AddSpendingViewController 대체)
+                    .sheet(isPresented: $showAddSpending, onDismiss: { editingSpending = nil }) {
+                        AddSpendingView(store: store, editing: editingSpending) { showAddSpending = false }
+                            .presentationDragIndicator(.visible)
                     }
             }
         }
@@ -74,10 +78,9 @@ struct ContentView: View {
         })
     }
 
-    /// '+' (지출 추가) 모달 열기 — 이전 수정 대상이 남아있지 않게 초기화 후 연다.
-    /// (수정 흐름은 Kotlin 쪽이 대상을 설정한 뒤 onAddSpending 콜백으로 열므로 이 함수를 거치지 않는다)
+    /// '+' (지출 추가) 모달 열기 — 신규 추가(편집 대상 없음).
     private func openAddSpending() {
-        MainViewControllerKt.prepareAddSpending()
+        editingSpending = nil
         showAddSpending = true
     }
 
@@ -89,6 +92,7 @@ struct ContentView: View {
             // iOS 26: Tab API — "추가" 버튼은 .search 역할로 탭바에서 분리된 원형 글래스 버튼
             // (Mail 의 컴포즈 버튼과 동일한 시스템 배치 — 탭바 캡슐 우측, 같은 높이)
             TabView(selection: $selectedTab) {
+                // 라벨(문구) 노출 — 표준 시스템 탭뷰 (시스템 탭바 높이는 고정이라 아이콘전용 이점이 없어 라벨 복귀)
                 Tab("홈", systemImage: "house.fill", value: 0) { homeTabContent }
                 Tab("지출", systemImage: "creditcard.fill", value: 1) { spendingTabContent }
                 Tab("게임 정보", systemImage: "gamecontroller.fill", value: 2) { gameInfoTabContent }
@@ -102,7 +106,7 @@ struct ContentView: View {
                 }
             }
             .tint(accent)
-            .tabBarMinimizeBehavior(.onScrollDown) // iOS 26: 스크롤 시 탭바 자동 축소
+            .tabBarMinimizeBehavior(.never) // 스크롤 시 탭바 축소 안 함(항상 전체 크기 유지)
             .onChange(of: selectedTab) { oldValue, newValue in
                 if newValue == 4 {
                     // "추가" 는 탭이 아니라 액션 — 모달 열고 이전 탭으로 복귀
@@ -113,6 +117,7 @@ struct ContentView: View {
         } else {
             // iOS 16~25: 기존 tabItem API + 오버레이 글래스 FAB
             TabView(selection: $selectedTab) {
+                // 라벨(문구) 노출 — 표준 시스템 탭뷰
                 homeTabContent
                     .tabItem { Label("홈", systemImage: "house.fill") }
                     .tag(0)
@@ -148,53 +153,48 @@ struct ContentView: View {
         }
     }
 
-    /// 탭바 표시 여부 — 해당 탭의 서브페이지가 열려 있거나 초기 동기화 게이트 중이면 숨김
-    private func tabBarVisibility(_ tab: Int) -> Visibility {
-        (syncGateActive || tabsWithSubPage.contains(tab)) ? .hidden : .visible
-    }
+    /// 탭바 표시 여부 — 서브페이지에서도 항상 노출하되, **초기 동기화 게이트(로딩 화면)에서만 숨김**.
+    /// (로그인 화면은 TabView 밖 별도 뷰라 자동으로 탭바·FAB 없음)
+    private func tabBarVisibility(_ tab: Int) -> Visibility { syncGateActive ? .hidden : .visible }
 
     // ── 탭 콘텐츠 (Compose 공유 코드) ──────────────────────────────────
 
+    // Phase 5 — SwiftUI 네이티브 홈. 시작 로직(refreshGameInfo)은 HomeView.task 에서 트리거.
     private var homeTabContent: some View {
-        ComposeView(factory: {
-            MainViewControllerKt.HomeTabViewController(
-                onSwitchTab: { tab in selectedTab = tab.intValue },
-                onSubPageChange: subPageBinding(0)
-            )
-        })
-        .ignoresSafeArea(.all)
+        NavigationStack {
+            HomeView(store: store, onSwitchTab: { selectedTab = $0 })
+        }
+        .glgAccent(index: store.accentIndex)
         .toolbar(tabBarVisibility(0), for: .tabBar)
     }
 
+    // Phase 3 — SwiftUI 네이티브 지출(목록·분석·달력·상세). 수정 시 편집 대상 설정 후 기존 AddSpending 시트(Compose interim)를 연다.
     private var spendingTabContent: some View {
-        ComposeView(factory: {
-            MainViewControllerKt.SpendingTabViewController(
-                // 수정 흐름: Kotlin 이 spendingToEdit 을 설정한 뒤 이 콜백으로 모달을 연다 (클리어 없이)
-                onAddSpending: { showAddSpending = true },
-                onSubPageChange: subPageBinding(1)
-            )
-        })
-        .ignoresSafeArea(.all)
+        NavigationStack {
+            SpendingView(store: store, onEdit: { spending in
+                editingSpending = spending    // 편집 대상 설정
+                showAddSpending = true        // ContentView 의 시트 오픈
+            })
+        }
+        .glgAccent(index: store.accentIndex)
         .toolbar(tabBarVisibility(1), for: .tabBar)
     }
 
+    // Phase 4 chunk ② — SwiftUI 게임정보(데일리·배너/전투/일지·패치·위시·천장·이벤트). 가챠 도구는 chunk ③.
     private var gameInfoTabContent: some View {
-        ComposeView(factory: {
-            MainViewControllerKt.GameInfoTabViewController(
-                onSubPageChange: subPageBinding(2)
-            )
-        })
-        .ignoresSafeArea(.all)
-        .toolbar(tabBarVisibility(2), for: .tabBar)
+        NavigationStack { GameInfoView(store: store) }
+            .glgAccent(index: store.accentIndex)
+            .toolbar(tabBarVisibility(2), for: .tabBar)
     }
 
+    // Phase 2 — SwiftUI 네이티브 마이페이지/설정 (구 ComposeView MyPageTabViewController 대체).
+    // 설정은 NavigationStack push(시스템 슬라이드·뒤로가기), 탭바 숨김은 SettingsView 가 .toolbar(.hidden) 로 처리.
     private var myPageTabContent: some View {
-        ComposeView(factory: {
-            MainViewControllerKt.MyPageTabViewController(
-                onSubPageChange: subPageBinding(3)
-            )
-        })
-        .ignoresSafeArea(.all)
+        NavigationStack {
+            MyPageView(store: store)
+        }
+        .glgAccent(index: store.accentIndex)
+        // 초기 동기화 게이트(로딩) 중에는 탭바 숨김 — 서브페이지(설정)에서는 노출 유지
         .toolbar(tabBarVisibility(3), for: .tabBar)
     }
 
@@ -206,7 +206,7 @@ struct ContentView: View {
                 .font(.system(size: 19, weight: .semibold))
                 .foregroundColor(.primary)
                 .frame(width: 48, height: 48)
-                .background(.ultraThinMaterial, in: Circle())
+                .background { GLGVisualEffectBlur(style: .systemUltraThinMaterial).clipShape(Circle()) }
                 .shadow(color: .black.opacity(0.15), radius: 10, y: 4)
         }
     }

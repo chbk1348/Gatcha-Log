@@ -4,7 +4,7 @@ name: iosApp
 options:
   bundleIdPrefix: com.gatcha.log
   deploymentTarget:
-    iOS: "16.0"
+    iOS: "18.0"
 settings:
   base:
     # Xcode 15+ 스크립트 샌드박스가 Gradle 실행을 막으므로 비활성화
@@ -91,3 +91,14 @@ targets:
           export JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home"
           cd "$SRCROOT/.."
           ./gradlew :composeApp:embedAndSignAppleFrameworkForXcode
+
+# 공유 스킴 — `xcodebuild -scheme iosApp` / 아카이브(build-ipa.sh) 용. xcodegen 재생성 후에도 유지.
+schemes:
+  iosApp:
+    build:
+      targets:
+        iosApp: all
+    run:
+      config: Debug
+    archive:
+      config: Release

@@ -1,0 +1,214 @@
+import SwiftUI
+import UniformTypeIdentifiers
+import ComposeApp
+
+// 홈 — 헤더·이번달 요약·오늘 할 일·가챠 현황·실시간 노트·픽업 배너·지출/예산·가챠 요약·알림.
+// (Compose HomeContent + HomeRedesign 대응) VM 의존 최다. 시작 시 refreshGameInfo 트리거 보존.
+struct HomeView: View {
+    @ObservedObject var store: SpendingStore
+    let onSwitchTab: (Int) -> Void
+    @Environment(\.glgAccent) private var accent
+
+    @State private var showBudget = false
+    @State private var showHomeEdit = false
+    @State private var importingGacha = false
+    @State private var didStart = false
+
+    var body: some View {
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: 16) {
+                if store.hoyoTokenExpired { TokenExpiredBanner { store.requestOpenHoyolabLink(); onSwitchTab(3) } }
+                HomeSummaryCard(monthlyTotal: monthlyTotal, prevTotal: prevTotal,
+                                topPity: topPity, nextBanner: nextBanner, gameOverCount: gameOverBudget.count,
+                                onBudget: { showBudget = true }, onPity: { onSwitchTab(2) }, onTip: { store.showStatus(savingTip) })
+                todayTask
+                GachaStatusCard(topPity: topPity, nextBanner: nextBanner, nextBannerPlan: nextBannerPlan,
+                                onOpen: { onSwitchTab(2) }, onImport: { importingGacha = true })
+                GameStatusSection(store: store, onConfig: { onSwitchTab(2) })
+                let rest = Array(soonBanners.dropFirst())
+                if !rest.isEmpty {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("픽업 배너").font(.system(size: 13, weight: .bold)).padding(.leading, 2)
+                        ForEach(Array(rest.enumerated()), id: \.offset) { _, b in BannerCapsule(banner: b) }
+                    }
+                }
+                ForEach(store.homeCards.filter { $0.visible }, id: \.id) { card in
+                    if card.id == HomeCards.shared.SPENDING {
+                        SpendingBudgetSection(monthlyTotal: monthlyTotal, budget: store.budget, perGame: perGameSpend, onEdit: { showBudget = true })
+                    } else if card.id == HomeCards.shared.GACHA {
+                        GachaSummarySection(stats: store.gachaStats, onOpen: { onSwitchTab(2) })
+                    }
+                }
+                homeEditButton
+                Color.clear.frame(height: 12)
+            }
+            .padding(.horizontal, 16)
+        }
+        .scrollIndicators(.hidden)
+        .background(GLGBackground { Color.clear })
+        .refreshable { store.refreshGameInfo(force: true) }
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            // 프로필 사진만 헤더 좌측에 노출 (탭하면 마이페이지). 시스템 글래스 squircle 크롬 없이 순수 원형.
+            ToolbarItem(placement: .topBarLeading) {
+                Button { onSwitchTab(3) } label: {
+                    ProfileAvatarView(photoUrl: store.account.isGuest ? nil : store.account.photoUrl, size: 32)
+                }
+                .buttonStyle(.plain)
+            }
+            ToolbarItem(placement: .topBarTrailing) {
+                NavigationLink {
+                    NotificationDetailView(alerts: alerts, onBudget: { showBudget = true }, onGameInfo: { onSwitchTab(2) })
+                } label: {
+                    Image(systemName: unreadCount > 0 ? "bell.badge" : "bell")
+                }
+                .simultaneousGesture(TapGesture().onEnded { store.markAlertsRead(alerts.map { $0.key }) })
+            }
+        }
+        .glgToast(message: store.statusMessage, bottomPadding: 14) { store.clearStatus() }
+        .sheet(isPresented: $showBudget) { BudgetSheet(store: store) }
+        .sheet(isPresented: $showHomeEdit) { HomeCardEditSheet(store: store) }
+        .fileImporter(isPresented: $importingGacha, allowedContentTypes: [.json], allowsMultipleSelection: true) { result in
+            if case .success(let urls) = result {
+                let contents = urls.compactMap { url -> String? in
+                    let s = url.startAccessingSecurityScopedResource(); defer { if s { url.stopAccessingSecurityScopedResource() } }
+                    return try? String(contentsOf: url, encoding: .utf8)
+                }
+                if !contents.isEmpty { store.importGachaFromContents(contents) }
+            }
+        }
+        .task {
+            guard !didStart else { return }; didStart = true
+            store.refreshGameInfo()       // HomeScreen 시작 로직 보존 (iOS 진입점)
+            store.refreshHoyoTokenExpired()
+        }
+        // HoYoLAB 연동(config)이 늦게 링크되면 그 순간 강제 갱신 — 실시간 노트가 첫 진입에서 누락되는 문제 방지
+        .onChange(of: store.hoyolabConfig.isLinked) { _, linked in
+            if linked { store.refreshGameInfo(force: true) }
+        }
+    }
+
+
+    private var todayTask: some View {
+        Group {
+            if !store.gameInfoReady {
+                TodayTaskSkeleton()
+            } else {
+                TodayTaskCard(tasks: todayTasks, inProgress: store.checkingIn != nil)
+            }
+        }
+    }
+
+    private var homeEditButton: some View {
+        Button { showHomeEdit = true } label: {
+            HStack(spacing: 6) {
+                Image(systemName: "slider.horizontal.3").font(.system(size: 16)).foregroundStyle(GLGColor.textSecondary)
+                Text("홈 카드 편집").font(.system(size: 13, weight: .medium)).foregroundStyle(GLGColor.textSecondary)
+            }
+            .frame(maxWidth: .infinity).padding(.vertical, 12)
+        }.buttonStyle(.plain)
+    }
+
+    // ── 파생 ──
+    private var greeting: String {
+        let h = Calendar.current.component(.hour, from: Date())
+        switch h { case 5...10: return "좋은 아침이에요"; case 11...16: return "좋은 오후예요"; case 17...21: return "좋은 저녁이에요"; default: return "오늘도 수고했어요" }
+    }
+    private var monthlyTotal: Int64 { store.monthlyTotal() }
+    private var prevTotal: Int64 { store.prevMonthTotal() }
+    private var gameOverBudget: [String] {
+        if store.gameBudgets.isEmpty { return [] }
+        let totals = store.monthlyTotalsByGame()
+        return GameData.shared.games.compactMap { g in
+            let limit = store.gameBudgets[g.key] ?? 0
+            return (limit > 0 && (totals[g.key] ?? 0) > limit) ? g.shortName : nil
+        }
+    }
+    private var topPity: PityHighlight? {
+        GameData.shared.games.compactMap { g -> PityHighlight? in
+            guard let st = store.pity[g.key], st.count > 0,
+                  let banner = GachaRateData.shared.byKey(key: g.key)?.character else { return nil }
+            let tier = pityTier(count: Int(st.count), soft: Int(banner.softPity), hard: Int(banner.hardPity))
+            return PityHighlight(game: g, count: Int(st.count), soft: Int(banner.softPity), hard: Int(banner.hardPity), tier: tier)
+        }
+        .max { ($0.tier.ord, $0.count) < ($1.tier.ord, $1.count) }
+    }
+    private var perGameSpend: [GameSpend] {
+        let totals = store.monthlyTotalsByGame()
+        return GameData.shared.games.compactMap { g -> GameSpend? in
+            let spent = totals[g.key] ?? 0
+            let limit = store.gameBudgets[g.key] ?? 0
+            return (spent <= 0 && limit <= 0) ? nil : GameSpend(game: g, spent: spent, limit: limit)
+        }.sorted { $0.spent > $1.spent }
+    }
+    private var soonBanners: [GachaBanner] {
+        store.activeBanners.filter { (0...7).contains(Int($0.dDay(nowMillis: nowMs()))) }.sorted { $0.dDay(nowMillis: nowMs()) < $1.dDay(nowMillis: nowMs()) }.prefix(4).map { $0 }
+    }
+    private var nextBanner: GachaBanner? { soonBanners.first }
+    private var nextBannerPlan: BannerPlan? {
+        guard let b = nextBanner, let g = GameData.shared.byNameOrNull(name: b.game),
+              let rate = GachaRateData.shared.byKey(key: g.key)?.character else { return nil }
+        let st = store.pity[g.key]
+        let pulls = store.maxPullsToSecure(count: Int(st?.count ?? 0), guaranteed: st?.guaranteed ?? false, banner: rate)
+        return BannerPlan(maxPulls: pulls, wonCost: Int64(pulls) * Int64(rate.wonPerPull))
+    }
+    private var savingTip: String {
+        if store.budget > 0 && monthlyTotal > store.budget { return "이번 달은 예산을 넘겼어요. 다음 픽업까지 무·저과금으로 천장을 모아보세요." }
+        if !gameOverBudget.isEmpty { return "\(gameOverBudget[0]) 한도를 넘었어요. 게임별 예산을 점검해보세요." }
+        if store.budget <= 0 { return "월 예산을 정하면 페이스를 알려드려요. 보통 한 달 결제액의 80% 선이 적당해요." }
+        return "천장이 가까운 게임부터 모으면 50/50 손해를 줄일 수 있어요."
+    }
+    private var alerts: [HomeAlert] { buildAlerts(monthlyTotal: monthlyTotal, budget: store.budget, gameOver: gameOverBudget, banners: store.activeBanners, attendanceToday: store.attendanceToday, monthKey: "\(store.displayYear)-\(store.displayMonth)") }
+    private var unreadCount: Int { alerts.filter { !store.readAlerts.contains($0.key) }.count }
+    private var todayTasks: [TodayItem] {
+        let resins = store.liveNotes.filter { $0.maxResin > 0 && $0.resinRatio >= 0.85 }
+            .sorted { $0.resinRatio > $1.resinRatio }
+            .map { ResinAlert(gameShort: GameData.shared.byName(name: $0.game).shortName, label: $0.resinLabel, cur: Int($0.currentResin), max: Int($0.maxResin), full: $0.currentResin >= $0.maxResin) }
+        let urgentBanner = soonBanners.first { $0.dDay(nowMillis: nowMs()) <= 3 }
+        return resolveTodayTasks(
+            pendingAttendance: GameData.shared.attendanceGames.filter { !store.attendanceToday.contains($0.key) }.count,
+            resins: resins, urgentBanner: urgentBanner, budget: store.budget, monthlyTotal: monthlyTotal, topPity: topPity,
+            onCheckInAll: { store.checkInAll() }, onResin: { onSwitchTab(2) }, onBanner: { onSwitchTab(2) }, onPity: { onSwitchTab(2) }, onBudget: { showBudget = true })
+    }
+}
+
+// ── 데이터 ──
+struct PityHighlight { let game: Game; let count: Int; let soft: Int; let hard: Int; let tier: PityTierS }
+struct GameSpend { let game: Game; let spent: Int64; let limit: Int64 }
+struct BannerPlan { let maxPulls: Int; let wonCost: Int64 }
+struct ResinAlert { let gameShort: String; let label: String; let cur: Int; let max: Int; let full: Bool }
+struct TodayItem: Identifiable { let id = UUID(); let icon: String; let message: String; let cta: String; let urgent: Bool; let busyable: Bool; let action: () -> Void }
+enum AlertKind { case budgetOver, budgetNear, budgetGameOver, banner, attendance }
+struct HomeAlert: Identifiable { let id = UUID(); let kind: AlertKind; let message: String; let key: String }
+
+extension PityTierS { var ord: Int { switch self { case .safe: return 0; case .caution: return 1; case .imminent: return 2; case .reached: return 3 } } }
+
+func resolveTodayTasks(pendingAttendance: Int, resins: [ResinAlert], urgentBanner: GachaBanner?, budget: Int64, monthlyTotal: Int64, topPity: PityHighlight?,
+                       onCheckInAll: @escaping () -> Void, onResin: @escaping () -> Void, onBanner: @escaping () -> Void, onPity: @escaping () -> Void, onBudget: @escaping () -> Void) -> [TodayItem] {
+    var items: [TodayItem] = []
+    let pct = budget > 0 ? Int(monthlyTotal * 100 / budget) : 0
+    if pendingAttendance > 0 { items.append(TodayItem(icon: "checkmark.circle", message: "출석 안 한 게임 \(pendingAttendance)개", cta: "한 번에 출석", urgent: false, busyable: true, action: onCheckInAll)) }
+    for r in resins { items.append(TodayItem(icon: "bolt.fill", message: r.full ? "\(r.gameShort) \(r.label) 가득 참" : "\(r.gameShort) \(r.label) \(r.cur)/\(r.max) 곧 넘침", cta: "게임 정보", urgent: true, busyable: false, action: onResin)) }
+    if let b = urgentBanner { items.append(TodayItem(icon: "die.face.5", message: "\(b.name) 픽업 \(b.endShortLabel(nowMillis: nowMs())) 막바지", cta: "픽업 계획", urgent: true, busyable: false, action: onBanner)) }
+    if budget > 0 && monthlyTotal > budget { items.append(TodayItem(icon: "banknote", message: "예산 \(pct - 100)% 초과", cta: "예산 점검", urgent: true, busyable: false, action: onBudget)) }
+    else if budget > 0 && pct >= 90 { items.append(TodayItem(icon: "banknote", message: "예산 \(pct)% 사용", cta: "예산 점검", urgent: true, busyable: false, action: onBudget)) }
+    if let p = topPity, p.tier == .imminent || p.tier == .reached { items.append(TodayItem(icon: "flag.fill", message: "\(p.game.shortName) 천장 곧 보장", cta: "천장 보기", urgent: false, busyable: false, action: onPity)) }
+    return items
+}
+
+func buildAlerts(monthlyTotal: Int64, budget: Int64, gameOver: [String], banners: [GachaBanner], attendanceToday: Set<String>, monthKey: String) -> [HomeAlert] {
+    var r: [HomeAlert] = []
+    if budget > 0 {
+        let pct = Int(monthlyTotal * 100 / budget)
+        if monthlyTotal > budget { r.append(HomeAlert(kind: .budgetOver, message: "이번 달 예산을 초과했어요 (\(pct)%)", key: "budget_over:\(monthKey)")) }
+        else if pct >= 90 { r.append(HomeAlert(kind: .budgetNear, message: "이번 달 예산의 \(pct)%를 사용했어요", key: "budget_near:\(monthKey)")) }
+    }
+    for name in gameOver { r.append(HomeAlert(kind: .budgetGameOver, message: "\(name) 이번 달 한도를 초과했어요", key: "budget_game_over:\(name):\(monthKey)")) }
+    for b in banners where (0...3).contains(Int(b.dDay(nowMillis: nowMs()))) {
+        let d = Int(b.dDay(nowMillis: nowMs()))
+        r.append(HomeAlert(kind: .banner, message: "\(b.name) 픽업 배너 종료 \(d == 0 ? "D-DAY" : "D-\(d)")", key: "banner:\(b.name)"))
+    }
+    let pending = GameData.shared.attendanceGames.filter { !attendanceToday.contains($0.key) }.count
+    if pending > 0 { r.append(HomeAlert(kind: .attendance, message: "오늘 출석체크가 \(pending)개 남아있어요", key: "attendance:\(DateUtil.shared.hoyoDayKey(millis: nowMs()))")) }
+    return r
+}
