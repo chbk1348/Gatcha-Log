@@ -7,6 +7,7 @@ import android.content.pm.PackageInstaller
 import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
+import java.security.MessageDigest
 
 /**
  * 인앱 업데이트: APK 를 직접 다운로드한 뒤 [PackageInstaller] 세션으로 설치 요청한다.
@@ -18,12 +19,29 @@ import java.net.URL
  */
 object AppUpdater {
 
-    /** [apkUrl] 다운로드(진행률 0~1 콜백) 후 설치 세션 커밋. 실패 시 예외를 던진다. */
-    fun downloadAndInstall(context: Context, apkUrl: String, onProgress: (Float) -> Unit) {
+    /**
+     * [apkUrl] 다운로드(진행률 0~1 콜백) 후 설치 세션 커밋. 실패 시 예외를 던진다.
+     *
+     * [expectedSha256] 가 비어있지 않으면 설치 직전 다운로드 APK 의 SHA-256 을 대조해
+     * 불일치 시 설치를 중단한다(전송 구간 변조 방어 — 서명 검증에 더해 한 겹 더).
+     */
+    fun downloadAndInstall(
+        context: Context,
+        apkUrl: String,
+        expectedSha256: String = "",
+        onProgress: (Float) -> Unit,
+    ) {
         val ctx = context.applicationContext
         val tmp = File(ctx.cacheDir, "update.apk")
         try {
             downloadTo(apkUrl, tmp, onProgress)
+
+            if (expectedSha256.isNotBlank()) {
+                val actual = sha256Of(tmp)
+                require(actual.equals(expectedSha256, ignoreCase = true)) {
+                    "APK 무결성 검증 실패(SHA-256 불일치)"
+                }
+            }
 
             val installer = ctx.packageManager.packageInstaller
             val params = PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL)
@@ -88,5 +106,16 @@ object AppUpdater {
         }
         conn.disconnect()
         onProgress(1f)
+    }
+
+    /** [file] 의 SHA-256 을 소문자 hex 문자열로 반환. */
+    private fun sha256Of(file: File): String {
+        val md = MessageDigest.getInstance("SHA-256")
+        file.inputStream().use { input ->
+            val buf = ByteArray(64 * 1024)
+            var read: Int
+            while (input.read(buf).also { read = it } != -1) md.update(buf, 0, read)
+        }
+        return md.digest().joinToString("") { "%02x".format(it.toInt() and 0xFF) }
     }
 }

@@ -17,6 +17,10 @@ Thumbs.db
 # Firebase config (개발자별로 직접 추가 — 커밋 금지)
 app/google-services.json
 
+# 릴리스 서명 키스토어 — 절대 커밋 금지(유출 시 앱 위장 서명 가능). local.properties 에 경로/비번 보관
+*.keystore
+*.jks
+
 # Claude / local agent config
 .claude/
 

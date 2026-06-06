@@ -158,7 +158,9 @@ class GatchaRepository(context: Context, accountId: String = "guest") {
         return runCatching { create() }.getOrElse {
             // 자동백업 복원 등으로 키스토어 키와 어긋나 복호화 불가 → 폐기 후 재시도(토큰만 잃고 재로그인 유도)
             appContext.deleteSharedPreferences(name)
-            runCatching { create() }.getOrDefault(appContext.getSharedPreferences(name, Context.MODE_PRIVATE))
+            // 재시도도 실패하면 평문 prefs 로 절대 떨어지지 않는다(평문 토큰이 자동백업으로 클라우드 유출되는 경로 차단).
+            // 휘발성 메모리 저장소로 대체 → 토큰은 세션 한정, 앱 재시작 시 재연동 유도.
+            runCatching { create() }.getOrElse { InMemorySharedPreferences() }
         }
     }
 

@@ -1,7 +1,18 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.plugin.compose")
 }
+
+// 릴리스 서명 자격증명: local.properties(레포 제외) 또는 환경변수에서 읽는다. 코드/레포에는 절대 두지 않는다.
+//   local.properties 예: RELEASE_STORE_FILE=../release.keystore / RELEASE_STORE_PASSWORD=... / RELEASE_KEY_ALIAS=... / RELEASE_KEY_PASSWORD=...
+val keystoreProps = Properties().apply {
+    val f = rootProject.file("local.properties")
+    if (f.exists()) f.inputStream().use { load(it) }
+}
+fun releaseProp(key: String): String? =
+    (keystoreProps.getProperty(key) ?: System.getenv(key))?.takeIf { it.isNotBlank() }
 
 // google-services.json 이 있을 때만 Firebase 플러그인 적용 → json 없이도 빌드 가능(로컬 모드).
 if (file("google-services.json").exists()) {
@@ -16,8 +27,8 @@ android {
         applicationId = "com.gatcha.log"
         minSdk = 24
         targetSdk = 34
-        versionCode = 272000 // 27.20.0
-        versionName = "27.20.0"
+        versionCode = 272001 // 27.20.1
+        versionName = "27.20.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -27,11 +38,31 @@ android {
 
     signingConfigs {
         create("release") {
-            // 로컬 성능 검증용: 디버그 키스토어 재사용. 스토어 배포 시 실제 릴리스 키로 교체할 것.
-            storeFile = file("${System.getProperty("user.home")}/.android/debug.keystore")
-            storePassword = "android"
-            keyAlias = "androiddebugkey"
-            keyPassword = "android"
+            val storePath = releaseProp("RELEASE_STORE_FILE")
+            if (storePath != null) {
+                // 실제 릴리스 키(local.properties/환경변수). 배포 APK 는 이 키로만 서명되어야 한다.
+                val sp = releaseProp("RELEASE_STORE_PASSWORD")
+                val ka = releaseProp("RELEASE_KEY_ALIAS")
+                val kp = releaseProp("RELEASE_KEY_PASSWORD")
+                // 부분 설정은 조용히 debug 로 떨어지지 않고 명시적으로 실패시킨다(설정 누락을 즉시 인지).
+                if (sp == null || ka == null || kp == null) {
+                    throw GradleException(
+                        "RELEASE_STORE_FILE 가 설정됐지만 RELEASE_STORE_PASSWORD/RELEASE_KEY_ALIAS/RELEASE_KEY_PASSWORD 중 누락이 있습니다. local.properties 를 확인하세요.",
+                    )
+                }
+                storeFile = file(storePath)
+                storePassword = sp
+                keyAlias = ka
+                keyPassword = kp
+            } else {
+                // ⚠️ 릴리스 키 미설정 → 로컬 성능 검증 전용 debug 키로 폴백. 이 빌드는 절대 배포 금지.
+                //    (debug.keystore 는 전 세계 공통·비번 공개 → 업데이트 변조 방어 불가)
+                println("⚠️  RELEASE signing: using DEBUG keystore (local test only — DO NOT DISTRIBUTE). Set RELEASE_STORE_FILE in local.properties to sign with the real key.")
+                storeFile = file("${System.getProperty("user.home")}/.android/debug.keystore")
+                storePassword = "android"
+                keyAlias = "androiddebugkey"
+                keyPassword = "android"
+            }
         }
     }
 
