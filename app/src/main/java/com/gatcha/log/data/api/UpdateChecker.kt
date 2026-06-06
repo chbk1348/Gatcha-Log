@@ -13,6 +13,8 @@ data class UpdateInfo(
     /** 직접 다운로드용 APK URL(인앱 다운로드·설치). */
     val apkUrl: String,
     val notes: List<String>,
+    /** APK 의 SHA-256(소문자 hex). 지정 시 설치 직전 무결성 검증에 사용. 빈 문자열이면 검증 생략. */
+    val sha256: String = "",
 )
 
 /**
@@ -22,10 +24,13 @@ data class UpdateInfo(
  * ```
  * { "versionCode": 2, "versionName": "1.1",
  *   "url": "https://github.com/chbk1348/Gatcha-Log-Android/releases/latest",
+ *   "sha256": "<app-release.apk 의 SHA-256 소문자 hex>",
  *   "notes": ["새 기능 A", "버그 수정 B"] }
  * ```
  * 새 버전 배포 시: app/build.gradle.kts 의 versionCode/Name 올리고 → APK 를 Releases 에 업로드 →
  * version.json 의 versionCode/Name/url/notes 갱신 후 커밋하면, 기존 앱이 업데이트를 감지한다.
+ * 권장: 업로드한 APK 의 SHA-256(`sha256sum app-release.apk` / PowerShell `Get-FileHash -Algorithm SHA256`)을
+ * `sha256` 에 넣으면, 설치 직전 무결성 검증으로 전송 구간 변조를 한 겹 더 막는다.
  */
 object UpdateChecker {
 
@@ -63,6 +68,7 @@ object UpdateChecker {
                 url = o.optString("url", ""),
                 apkUrl = apkUrl,
                 notes = notes,
+                sha256 = o.optString("sha256", "").trim(),
             )
         }.getOrNull()
     }

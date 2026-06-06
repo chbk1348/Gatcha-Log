@@ -785,7 +785,7 @@ class SpendingViewModel(app: Application) : AndroidViewModel(app) {
             _updateProgress.value = 0f
             val r = runCatching {
                 withContext(Dispatchers.IO) {
-                    com.gatcha.log.data.api.AppUpdater.downloadAndInstall(ctx, info.apkUrl) { p ->
+                    com.gatcha.log.data.api.AppUpdater.downloadAndInstall(ctx, info.apkUrl, info.sha256) { p ->
                         _updateProgress.value = p
                     }
                 }

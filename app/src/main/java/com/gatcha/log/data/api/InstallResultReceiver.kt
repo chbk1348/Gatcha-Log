@@ -39,8 +39,28 @@ class InstallResultReceiver : BroadcastReceiver() {
                 // 사용자가 취소 — 조용히 무시
             }
             else -> {
+                val status = intent.getIntExtra(PackageInstaller.EXTRA_STATUS, PackageInstaller.STATUS_FAILURE)
                 val msg = intent.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE)
-                Toast.makeText(context, "설치 실패" + (msg?.let { " ($it)" } ?: ""), Toast.LENGTH_SHORT).show()
+                // 서명 키 변경(보안 릴리스) → 기존 설치본 위에 덮어쓰기 불가. 삭제 후 재설치 안내.
+                val signatureConflict = status == PackageInstaller.STATUS_FAILURE_CONFLICT ||
+                    msg?.contains("INCOMPATIBLE", ignoreCase = true) == true ||
+                    msg?.contains("signature", ignoreCase = true) == true
+                if (signatureConflict) {
+                    Toast.makeText(
+                        context,
+                        "보안 업데이트로 서명이 변경되어 덮어쓸 수 없습니다. 기존 Gatcha LOG 를 삭제한 뒤 새로 설치해주세요. (가챠·지출 데이터는 로그인 시 클라우드에서 복원됩니다)",
+                        Toast.LENGTH_LONG,
+                    ).show()
+                    // 삭제 화면을 바로 띄워 재설치를 돕는다.
+                    runCatching {
+                        context.startActivity(
+                            Intent(Intent.ACTION_DELETE, android.net.Uri.parse("package:${context.packageName}"))
+                                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                        )
+                    }
+                } else {
+                    Toast.makeText(context, "설치 실패" + (msg?.let { " ($it)" } ?: ""), Toast.LENGTH_SHORT).show()
+                }
             }
         }
     }
