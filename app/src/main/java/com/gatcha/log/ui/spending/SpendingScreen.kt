@@ -9,13 +9,11 @@ import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ReceiptLong
@@ -41,10 +39,7 @@ import com.gatcha.log.ui.components.GameCurrency
 import com.gatcha.log.ui.components.GlassCard
 import com.gatcha.log.ui.components.GlgButton
 import com.gatcha.log.ui.components.GlgTabHeader
-import com.gatcha.log.ui.components.GlgScreenHeader
-import com.gatcha.log.ui.components.GlgDialog
 import com.gatcha.log.ui.components.GlgOutlineButton
-import com.gatcha.log.ui.components.InfoColumn
 import com.gatcha.log.ui.theme.*
 import com.gatcha.log.util.won
 import java.util.Calendar
