@@ -36,7 +36,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
@@ -45,6 +44,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlinx.coroutines.launch
+import java.util.Calendar
 import com.gatcha.log.data.DateUtil
 import com.gatcha.log.data.GameData
 import com.gatcha.log.data.GachaReport
@@ -56,11 +56,11 @@ import com.gatcha.log.data.Spending
 import com.gatcha.log.ui.game.GameInfoScreen
 import com.gatcha.log.ui.profile.MyPageScreen
 import com.gatcha.log.ui.spending.AddSpendingModal
+import com.gatcha.log.ui.spending.GameInfoAnchor
 import com.gatcha.log.ui.spending.SpendingScreen
 import com.gatcha.log.ui.spending.SpendingViewModel
 import com.gatcha.log.ui.components.GlassBackground
 import com.gatcha.log.ui.components.GlassCard
-import com.gatcha.log.ui.components.GlgDialog
 import com.gatcha.log.ui.components.GlgButton
 import com.gatcha.log.ui.components.GlgScreenHeader
 import com.gatcha.log.ui.components.GlgStatusToast
@@ -70,7 +70,6 @@ import com.gatcha.log.ui.components.BudgetDialog
 import com.gatcha.log.ui.components.BottomNavBar
 import com.gatcha.log.ui.theme.*
 import com.gatcha.log.util.num
-import com.gatcha.log.util.won
 
 @Composable
 fun HomeScreen(viewModel: SpendingViewModel = viewModel()) {
@@ -286,78 +285,34 @@ fun HomeContent(
         if (uris.isNotEmpty()) viewModel.importGachaFromUris(uris)
     }
 
+    // 파생 계산은 HomeLogic.kt 의 순수 함수로 분리(테스트 가능·Composable 본문 경량화). remember 로 재계산 캐싱.
     // 게임별 한도 초과 게임(이번 달) — 알림센터 표시용
     val gameOverBudget = remember(spendings, gameBudgets) {
-        if (gameBudgets.isEmpty()) emptyList()
-        else {
-            val totals = viewModel.monthlyTotalsByGame()
-            GameData.games.mapNotNull { g ->
-                val limit = gameBudgets[g.key] ?: 0L
-                if (limit > 0 && (totals[g.key] ?: 0L) > limit) g.shortName else null
-            }
-        }
+        computeGameOverBudget(gameBudgets, viewModel.monthlyTotalsByGame())
     }
 
     // 절약 팁 — 상황별 실제 조언(M 카드 '절약 팁' 칩이 토스트로 노출)
     val savingTip = remember(budget, monthlyTotal, gameOverBudget) {
-        when {
-            budget > 0 && monthlyTotal > budget -> "이번 달은 예산을 넘겼어요. 다음 픽업까지 무·저과금으로 천장을 모아보세요."
-            gameOverBudget.isNotEmpty() -> "${gameOverBudget.first()} 한도를 넘었어요. 게임별 예산을 점검해보세요."
-            budget <= 0 -> "월 예산을 정하면 페이스를 알려드려요. 보통 한 달 결제액의 80% 선이 적당해요."
-            else -> "천장이 가까운 게임부터 모으면 50/50 손해를 줄일 수 있어요."
-        }
+        savingTipFor(budget, monthlyTotal, gameOverBudget)
     }
 
     // 천장 하이라이트 — 가장 임박한(티어 높고 카운트 큰) 게임 1종 (M 요약·K 토널 공유)
-    val topPity = remember(pity) {
-        GameData.games.mapNotNull { g ->
-            val st = pity[g.key] ?: return@mapNotNull null
-            if (st.count <= 0) return@mapNotNull null
-            val banner = com.gatcha.log.data.GachaRateData.byKey(g.key)?.character ?: return@mapNotNull null
-            PityHighlight(g, st.count, banner.softPity, banner.hardPity, com.gatcha.log.data.pityTierOf(st.count, banner))
-        }.maxWithOrNull(compareBy({ it.tier.ordinal }, { it.count }))
-    }
+    val topPity = remember(pity) { computeTopPity(pity) }
 
     // 게임별 이번 달 지출/한도 (D 섹션) — 지출 있거나 한도 설정된 게임만, 지출 내림차순
     val perGameSpend = remember(spendings, gameBudgets) {
-        val totals = viewModel.monthlyTotalsByGame()
-        GameData.games.mapNotNull { g ->
-            val spent = totals[g.key] ?: 0L
-            val limit = gameBudgets[g.key] ?: 0L
-            if (spent <= 0L && limit <= 0L) null else GameSpend(g, spent, limit)
-        }.sortedByDescending { it.spent }
+        computePerGameSpend(viewModel.monthlyTotalsByGame(), gameBudgets)
     }
 
     // 임박 픽업 배너 — 7일 이내 종료, D-day 오름차순, 최대 4 (홈 캡슐 노출)
-    // (상시/종료 배너는 endMillis 가 0 또는 과거라 dDay 가 0..7 범위 밖으로 자연 제외됨)
-    val soonBanners = remember(banners) {
-        banners.filter { it.dDay() in 0..7 }.sortedBy { it.dDay() }.take(4)
-    }
+    val soonBanners = remember(banners) { computeSoonBanners(banners) }
     val nextBanner = soonBanners.firstOrNull()
 
     // 다음 픽업 확정 비용(가챠×지출) — 천장 누적·확률·1뽑 단가로 산출
-    val nextBannerPlan = remember(nextBanner, pity) {
-        nextBanner?.let { b ->
-            val g = GameData.byNameOrNull(b.game) ?: return@let null
-            val rate = com.gatcha.log.data.GachaRateData.byKey(g.key)?.character ?: return@let null
-            val st = pity[g.key]
-            val pulls = com.gatcha.log.data.GachaRateData.maxPullsToSecure(st?.count ?: 0, st?.guaranteed ?: false, rate)
-            BannerPlan(pulls, pulls.toLong() * rate.wonPerPull)
-        }
-    }
+    val nextBannerPlan = remember(nextBanner, pity) { computeNextBannerPlan(nextBanner, pity) }
 
     // 재화 임박 경보 — 85% 이상(가득 직전)인 게임 '전부'(원신뿐 아니라 스타레일·젠레스 등). 가장 찬 순.
-    val resinAlerts = remember(liveNotes) {
-        liveNotes.filter { it.maxResin > 0 && it.resinRatio >= 0.85f }
-            .sortedByDescending { it.resinRatio }
-            .map {
-                ResinAlert(
-                    GameData.byName(it.game).shortName, it.resinLabel,
-                    it.currentResin, it.maxResin, it.resinRecoveryTime,
-                    it.currentResin >= it.maxResin,
-                )
-            }
-    }
+    val resinAlerts = remember(liveNotes) { computeResinAlerts(liveNotes) }
 
     // 알림 계산 + 읽음(넛징) 상태
     val alerts = buildAlerts(monthlyTotal, budget, gameOverBudget, banners.map { it.dDay() to it.name }, attendanceToday, "${viewModel.displayYear}-${viewModel.displayMonth}")
@@ -434,7 +389,7 @@ fun HomeContent(
                 nextBanner = nextBanner,
                 gameOverCount = gameOverBudget.size,
                 onBudget = { showBudgetDialog.value = true },
-                onPity = { viewModel.requestGameInfoAnchor(com.gatcha.log.ui.spending.GameInfoAnchor.PITY); onNavigateToGameInfo() },
+                onPity = { viewModel.requestGameInfoAnchor(GameInfoAnchor.PITY); onNavigateToGameInfo() },
                 onTip = { viewModel.showStatus(savingTip) },
             )
             Spacer(Modifier.height(16.dp))
@@ -454,9 +409,9 @@ fun HomeContent(
                         monthlyTotal = monthlyTotal,
                         topPity = topPity,
                         onCheckInAll = { viewModel.checkInAll() },
-                        onResin = { viewModel.requestGameInfoAnchor(com.gatcha.log.ui.spending.GameInfoAnchor.NOTES); onNavigateToGameInfo() },
-                        onBanner = { viewModel.requestGameInfoAnchor(com.gatcha.log.ui.spending.GameInfoAnchor.BANNER); onNavigateToGameInfo() },
-                        onPity = { viewModel.requestGameInfoAnchor(com.gatcha.log.ui.spending.GameInfoAnchor.PITY); onNavigateToGameInfo() },
+                        onResin = { viewModel.requestGameInfoAnchor(GameInfoAnchor.NOTES); onNavigateToGameInfo() },
+                        onBanner = { viewModel.requestGameInfoAnchor(GameInfoAnchor.BANNER); onNavigateToGameInfo() },
+                        onPity = { viewModel.requestGameInfoAnchor(GameInfoAnchor.PITY); onNavigateToGameInfo() },
                         onBudget = { showBudgetDialog.value = true },
                     ),
                     inProgress = checkingIn != null,
@@ -575,7 +530,7 @@ private fun buildAlerts(
 
 /** 시간대별 인사말 */
 internal fun greetingForNow(): String =
-    when (java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)) {
+    when (Calendar.getInstance().get(Calendar.HOUR_OF_DAY)) {
         in 5..10 -> "좋은 아침이에요"
         in 11..16 -> "좋은 오후예요"
         in 17..21 -> "좋은 저녁이에요"
