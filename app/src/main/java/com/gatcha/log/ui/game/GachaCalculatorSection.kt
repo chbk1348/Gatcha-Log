@@ -41,7 +41,6 @@ import com.gatcha.log.ui.theme.TextSecondary
 import com.gatcha.log.util.num
 import com.gatcha.log.util.won
 import java.util.Calendar
-import kotlin.math.ceil
 import kotlin.math.roundToInt
 import kotlin.random.Random
 import kotlinx.coroutines.delay
@@ -206,63 +205,38 @@ private fun CurrencyCalc(game: GachaGameRate, banner: GachaBannerRate, pity: Map
     QtyRow(qty) { qty = it }
     Spacer(Modifier.height(14.dp))
 
-    // 계산
+    // 계산 (순수 함수 → GachaCalcLogic.kt)
     val cur = currency.toIntOrNull() ?: 0
-    val pityVal = (pityStr.toIntOrNull() ?: 0).coerceIn(0, banner.hardPity - 1)
-    val possiblePulls = cur / banner.perPull
-    val leftCurrency = cur - possiblePulls * banner.perPull
-    val pullsToHard = (banner.hardPity - pityVal).coerceAtLeast(0)
-    val currencyToHard = pullsToHard * banner.perPull
-    val additionalNeeded = (currencyToHard - cur).coerceAtLeast(0)
-    val additionalPulls = if (banner.perPull > 0) ceil(additionalNeeded.toDouble() / banner.perPull).toInt() else 0
-    val estCost = additionalPulls * banner.wonPerPull
-    val pct = if (currencyToHard > 0) (cur.toDouble() / currencyToHard * 100).roundToInt().coerceIn(0, 100) else 0
+    val calc = computeCurrencyCalc(cur, pityStr.toIntOrNull() ?: 0, banner)
 
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        ResultBox("가능 뽑기 수", "${possiblePulls}회", if (cur > 0) "남은 ${num(leftCurrency)} ${banner.currency}" else "", Modifier.weight(1f))
-        ResultBox("하드 천장까지", "${pullsToHard}회", if (additionalNeeded > 0) "추가 ${num(additionalNeeded)} 필요" else "재화 충분", Modifier.weight(1f))
+        ResultBox("가능 뽑기 수", "${calc.possiblePulls}회", if (cur > 0) "남은 ${num(calc.leftCurrency)} ${banner.currency}" else "", Modifier.weight(1f))
+        ResultBox("하드 천장까지", "${calc.pullsToHard}회", if (calc.additionalNeeded > 0) "추가 ${num(calc.additionalNeeded)} 필요" else "재화 충분", Modifier.weight(1f))
     }
     Spacer(Modifier.height(8.dp))
-    ResultBox("천장까지 추정 비용", won(estCost), if (additionalPulls > 0) "천장까지 ${additionalPulls}회 부족" else "재화 충분", Modifier.fillMaxWidth())
+    ResultBox("천장까지 추정 비용", won(calc.estCost), if (calc.additionalPulls > 0) "천장까지 ${calc.additionalPulls}회 부족" else "재화 충분", Modifier.fillMaxWidth())
     Spacer(Modifier.height(12.dp))
 
     // 진행도
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-        Text("${num(cur)} / ${num(currencyToHard)} ${banner.currency}", fontSize = 11.sp, color = TextSecondary)
-        Text("$pct%", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = LocalAccent.current)
+        Text("${num(cur)} / ${num(calc.currencyToHard)} ${banner.currency}", fontSize = 11.sp, color = TextSecondary)
+        Text("${calc.pct}%", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = LocalAccent.current)
     }
     Spacer(Modifier.height(5.dp))
     LinearProgressIndicator(
-        progress = { pct / 100f },
+        progress = { calc.pct / 100f },
         color = LocalAccent.current, trackColor = ProgressEmpty,
         modifier = Modifier.fillMaxWidth().height(6.dp).clip(CircleShape),
     )
     Spacer(Modifier.height(14.dp))
 
-    // 시나리오
-    val noPickup = banner.no5050 || !banner.has5050
-    val bestPulls: Int
-    val worstPulls: Int
-    val bestSub: String
-    val worstSub: String
-    if (noPickup) {
-        bestSub = "조기 획득"; worstSub = "천장 도달"
-        bestPulls = (banner.softPity * 0.7).roundToInt() * qty
-        worstPulls = banner.hardPity * qty
-    } else {
-        bestSub = if (guaranteed) "보장 + 빠른 획득" else "50/50 성공"
-        worstSub = "50/50 실패 → 천장"
-        val avgSingle = (banner.hardPity * 0.83).roundToInt()
-        val bestSingle = if (guaranteed) maxOf(1, avgSingle - pityVal) else maxOf(1, (avgSingle * 0.6).roundToInt() - pityVal)
-        val worstSingle = if (guaranteed) banner.hardPity - pityVal else (banner.hardPity - pityVal) + banner.hardPity
-        bestPulls = maxOf(1, bestSingle) * qty
-        worstPulls = maxOf(1, worstSingle) * qty
-    }
+    // 시나리오 (순수 함수 → GachaCalcLogic.kt)
+    val scenario = computeScenario(banner, calc.pityVal, guaranteed, qty)
     Text("시나리오 (${qty}개 기준)", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
     Spacer(Modifier.height(8.dp))
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        ScenarioBox("최선의 경우", bestSub, "${bestPulls}회", "≈ ${num(bestPulls * banner.perPull)} ${banner.currency}", OkGreen, Modifier.weight(1f))
-        ScenarioBox("최악의 경우", worstSub, "${worstPulls}회", "≈ ${num(worstPulls * banner.perPull)} ${banner.currency}", BadRed, Modifier.weight(1f))
+        ScenarioBox("최선의 경우", scenario.bestSub, "${scenario.bestPulls}회", "≈ ${num(scenario.bestPulls * banner.perPull)} ${banner.currency}", OkGreen, Modifier.weight(1f))
+        ScenarioBox("최악의 경우", scenario.worstSub, "${scenario.worstPulls}회", "≈ ${num(scenario.worstPulls * banner.perPull)} ${banner.currency}", BadRed, Modifier.weight(1f))
     }
 }
 
@@ -370,26 +344,21 @@ private fun Planner(game: GachaGameRate, banner: GachaBannerRate) {
         set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0); set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
     }.timeInMillis
     val days = ((targetMid - todayMid) / 86_400_000L).toInt().coerceAtLeast(0)
-    val weeks = days / 7
-    val dailyPerDay = game.dailyFree.toDouble() / banner.perPull
-    val weeklyPerWeek = game.weeklyFree.toDouble() / banner.perPull
-    val passPerDay = if (passOn && game.pass != null) game.pass.dailyCrystal.toDouble() / banner.perPull else 0.0
-    val freePulls = (days * (dailyPerDay + passPerDay) + weeks * weeklyPerWeek).toInt()
-    val totalAvailable = (currentPulls.toIntOrNull() ?: 0) + freePulls
-    val totalNeeded = banner.hardPity * qty
+    // 무료 누적·필요 뽑기 계산 (순수 함수 → GachaCalcLogic.kt). days 는 플랫폼 타임존 의존이라 위에서 산출해 주입.
+    val plan = computePlanner(days, game, banner, currentPulls.toIntOrNull() ?: 0, passOn, qty)
 
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        ResultBox("남은 일수", "${days}일", "주 ${weeks}회 보너스", Modifier.weight(1f))
-        ResultBox("무료 확보 뽑기", "${freePulls}회", "데일리+주간 누적", Modifier.weight(1f))
+        ResultBox("남은 일수", "${plan.days}일", "주 ${plan.weeks}회 보너스", Modifier.weight(1f))
+        ResultBox("무료 확보 뽑기", "${plan.freePulls}회", "데일리+주간 누적", Modifier.weight(1f))
     }
     Spacer(Modifier.height(8.dp))
-    ResultBox("필요 뽑기 (${qty}개·천장 기준)", "${totalNeeded}회", "보유+무료 ${totalAvailable}회", Modifier.fillMaxWidth())
+    ResultBox("필요 뽑기 (${qty}개·천장 기준)", "${plan.totalNeeded}회", "보유+무료 ${plan.totalAvailable}회", Modifier.fillMaxWidth())
     Spacer(Modifier.height(12.dp))
 
     val (msg, color) = when {
-        totalAvailable >= totalNeeded -> "확보 가능 — 여유 ${totalAvailable - totalNeeded}회" to OkGreen
-        totalAvailable >= totalNeeded * 0.7 -> "뽑기 부족 — ${totalNeeded - totalAvailable}회 모자람" to WarnAmber
-        else -> "달성 불가 — ${totalNeeded - totalAvailable}회 부족" to BadRed
+        plan.totalAvailable >= plan.totalNeeded -> "확보 가능 — 여유 ${plan.totalAvailable - plan.totalNeeded}회" to OkGreen
+        plan.totalAvailable >= plan.totalNeeded * 0.7 -> "뽑기 부족 — ${plan.totalNeeded - plan.totalAvailable}회 모자람" to WarnAmber
+        else -> "달성 불가 — ${plan.totalNeeded - plan.totalAvailable}회 부족" to BadRed
     }
     Surface(color = color.copy(alpha = 0.1f), shape = RoundedCornerShape(12.dp), modifier = Modifier.fillMaxWidth()) {
         Text(msg, modifier = Modifier.padding(14.dp), fontSize = 13.sp, fontWeight = FontWeight.Bold, color = color)
