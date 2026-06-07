@@ -1,31 +1,29 @@
 import SwiftUI
 import ComposeApp
 
-// 가챠 확률표 — 천장&확률 정보 카드 + 빠른 비교 테이블. (Compose GachaRateDialog 대응)
-struct GachaRateSheet: View {
-    @Environment(\.dismiss) private var dismiss
+// 가챠 확률표 — 페이지 형식(네비게이션 푸시). 천장&확률 글래스 카드 + 빠른 비교 테이블.
+// (Compose GachaRatePage 대응) 시트 → 페이지로 전환하며 글래스 카드로 디자인 개선.
+struct GachaRatePage: View {
     @Environment(\.glgAccent) private var accent
     @State private var bannerType = "character"
     @State private var sortCol: String? = nil
     @State private var sortAsc = true
 
     var body: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 14) {
-                    Text("천장 & 확률 정보").font(.system(size: 14, weight: .bold))
-                    bannerTabs
-                    ForEach(GachaRateData.shared.games, id: \.key) { g in gameCard(g) }
-                    Text("빠른 비교").font(.system(size: 14, weight: .bold)).padding(.top, 2)
-                    compareTable
-                }
-                .padding(16)
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                bannerTabs
+                ForEach(GachaRateData.shared.games, id: \.key) { g in gameCard(g) }
+                Text("빠른 비교").font(.system(size: 16, weight: .bold)).padding(.top, 4).padding(.leading, 2)
+                compareCard
+                Color.clear.frame(height: 12)
             }
-            .background(GLGBackground { Color.clear })
-            .navigationTitle("가챠 확률표")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar { ToolbarItem(placement: .confirmationAction) { Button("닫기") { dismiss() } } }
+            .padding(16)
         }
+        .scrollIndicators(.hidden)
+        .background(GLGBackground { Color.clear })
+        .navigationTitle("가챠 확률표")
+        .navigationBarTitleDisplayMode(.large)
     }
 
     private var bannerTabs: some View {
@@ -34,59 +32,60 @@ struct GachaRateSheet: View {
                 let key = (pair.first as? String) ?? ""
                 let label = (pair.second as? String) ?? ""
                 let sel = key == bannerType
-                Button { bannerType = key } label: {
-                    Text(label).font(.system(size: 12, weight: .bold)).foregroundStyle(sel ? .white : GLGColor.textSecondary)
-                        .padding(.horizontal, 16).padding(.vertical, 7)
-                        .background(sel ? accent.primary : Color(hex: 0xFFF2F2F6), in: RoundedRectangle(cornerRadius: 10))
-                }.buttonStyle(.plain)
+                Button { withAnimation(.snappy(duration: 0.2)) { bannerType = key } } label: {
+                    Text(label).font(.system(size: 13, weight: .bold))
+                        .foregroundStyle(sel ? .white : GLGColor.textSecondary)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 9)
+                        .background(sel ? accent.primary : Color.clear, in: Capsule())
+                }
+                .buttonStyle(.plain)
             }
         }
+        .padding(4)
+        .glgGlass(in: Capsule())
     }
 
     private func gameCard(_ game: GachaGameRate) -> some View {
         let banner = game.banner(type: bannerType)
-        return VStack(alignment: .leading, spacing: 0) {
-            Rectangle().fill(Color(argb64: game.color)).frame(height: 4)
+        return GLGCard(cornerRadius: 20, padding: 16) {
             VStack(alignment: .leading, spacing: 0) {
                 HStack(spacing: 8) {
-                    Text(game.name).font(.system(size: 14, weight: .bold))
+                    Circle().fill(Color(argb64: game.color)).frame(width: 10, height: 10)
+                    Text(game.name).font(.system(size: 15, weight: .bold))
                     Text(game.grade).font(.system(size: 10, weight: .bold)).foregroundStyle(.white)
                         .padding(.horizontal, 8).padding(.vertical, 2).background(Color(argb64: game.color), in: Capsule())
+                    Spacer()
+                    if let b = banner { carryoverBadge(b) }
                 }
                 if let b = banner {
-                    carryoverBadge(b).padding(.top, 8)
                     VStack(spacing: 8) {
                         HStack(spacing: 8) {
-                            statBox("기본 확률", pctStr(b.base, 2), "\(game.grade) 기준")
-                            statBox("소프트 천장", "\(b.softPity)회", "이후 확률 상승")
+                            statBox("기본 확률", pctStr(b.base, 2), "\(game.grade) 기준", game)
+                            statBox("소프트 천장", "\(b.softPity)회", "이후 확률 상승", game)
                         }
                         HStack(spacing: 8) {
-                            statBox("하드 천장", "\(b.hardPity)회", "100% \(game.grade) 보장")
-                            statBox("뽑기 단위", "\(b.currency) \(b.perPull)", "= 1회 소환")
+                            statBox("하드 천장", "\(b.hardPity)회", "100% \(game.grade) 보장", game)
+                            statBox("뽑기 단위", "\(b.currency) \(b.perPull)", "= 1회 소환", game)
                         }
                     }
-                    .padding(.top, 10)
+                    .padding(.top, 12)
                     let g = GachaRateData.shared.guaranteeInfo(grade: game.grade, banner: b)
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(g.title).font(.system(size: 12, weight: .bold))
+                        Text(g.title).font(.system(size: 12, weight: .bold)).foregroundStyle(accent.primary)
                         if !g.detail.isEmpty { Text(g.detail).font(.system(size: 11)).foregroundStyle(GLGColor.textSecondary) }
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, 11).padding(.vertical, 8)
-                    .background(accent.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: 10))
-                    .overlay(RoundedRectangle(cornerRadius: 10).stroke(accent.primary.opacity(0.12), lineWidth: 1))
+                    .padding(.horizontal, 11).padding(.vertical, 9)
+                    .background(accent.primary.opacity(0.06), in: RoundedRectangle(cornerRadius: 12))
                     .padding(.top, 10)
                 } else {
-                    Text("이 배너 타입이 없습니다.").font(.system(size: 12)).foregroundStyle(Color(.systemGray3)).padding(.top, 8)
+                    Text("이 배너 타입이 없습니다.").font(.system(size: 12)).foregroundStyle(GLGColor.textSecondary).padding(.top, 10)
                 }
-                Text("기준: 버전 \(game.version)").font(.system(size: 10)).foregroundStyle(Color.black.opacity(0.3))
-                    .frame(maxWidth: .infinity, alignment: .trailing).padding(.top, 8)
+                Text("기준: 버전 \(game.version)").font(.system(size: 10)).foregroundStyle(GLGColor.textSecondary.opacity(0.7))
+                    .frame(maxWidth: .infinity, alignment: .trailing).padding(.top, 10)
             }
-            .padding(14)
         }
-        .background(Color(hex: 0xFFF8F8FB), in: RoundedRectangle(cornerRadius: 16))
-        .overlay(RoundedRectangle(cornerRadius: 16).stroke(GLGColor.divider, lineWidth: 1))
-        .clipShape(RoundedRectangle(cornerRadius: 16))
     }
 
     @ViewBuilder private func carryoverBadge(_ banner: GachaBannerRate) -> some View {
@@ -94,26 +93,26 @@ struct GachaRateSheet: View {
            let label = badge.first as? String, let kind = badge.second as? CarryoverKind {
             let (bg, fg) = carryoverColors(kind.name)
             Text(label).font(.system(size: 10, weight: .bold)).foregroundStyle(fg)
-                .padding(.horizontal, 8).padding(.vertical, 2).background(bg, in: Capsule())
+                .padding(.horizontal, 8).padding(.vertical, 3).background(bg, in: Capsule())
         }
     }
     private func carryoverColors(_ name: String) -> (Color, Color) {
         switch name {
         case "YES": return (Color(hex: 0x2622C55E), Color(hex: 0xFF16A34A))
         case "NO": return (Color(hex: 0x1ADC2626), Color(hex: 0xFFDC2626))
-        case "EPITOMIZED": return (accent.primary.opacity(0.1), accent.primary)
-        default: return (Color.black.opacity(0.06), Color.black.opacity(0.45))
+        case "EPITOMIZED": return (accent.primary.opacity(0.12), accent.primary)
+        default: return (Color.black.opacity(0.06), GLGColor.textSecondary)
         }
     }
 
-    private func statBox(_ label: String, _ value: String, _ sub: String) -> some View {
+    private func statBox(_ label: String, _ value: String, _ sub: String, _ game: GachaGameRate) -> some View {
         VStack(alignment: .leading, spacing: 3) {
-            Text(label).font(.system(size: 10, weight: .semibold)).foregroundStyle(Color.black.opacity(0.35))
-            Text(value).font(.system(size: 14, weight: .bold)).lineLimit(1)
-            Text(sub).font(.system(size: 10)).foregroundStyle(Color.black.opacity(0.35))
+            Text(label).font(.system(size: 10, weight: .semibold)).foregroundStyle(GLGColor.textSecondary)
+            Text(value).font(.system(size: 15, weight: .bold)).lineLimit(1)
+            Text(sub).font(.system(size: 10)).foregroundStyle(GLGColor.textSecondary.opacity(0.8))
         }
-        .frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 11).padding(.vertical, 9)
-        .background(Color.black.opacity(0.03), in: RoundedRectangle(cornerRadius: 10))
+        .frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 11).padding(.vertical, 10)
+        .background(Color(argb64: game.color).opacity(0.06), in: RoundedRectangle(cornerRadius: 12))
     }
 
     private func pctStr(_ v: Double, _ d: Int) -> String { "\(fixed(v * 100, d))%" }
@@ -141,40 +140,40 @@ struct GachaRateSheet: View {
         return rows
     }
 
-    private var compareTable: some View {
-        VStack(spacing: 0) {
-            HStack(spacing: 0) {
-                headerCell("게임", "name", 1.7)
-                headerCell("등급", "grade", 0.9)
-                headerCell("기본", "base", 0.9)
-                headerCell("소프트", "soft", 0.8)
-                headerCell("하드", "hard", 0.8)
-                headerCell("보장", "guarantee", 1.5)
-            }
-            .padding(.vertical, 8).padding(.horizontal, 6).background(Color(hex: 0xFFF6F6FA))
-            ForEach(Array(compareRows.enumerated()), id: \.offset) { i, r in
-                if i > 0 { Divider() }
+    private var compareCard: some View {
+        GLGCard(cornerRadius: 16, padding: 0) {
+            VStack(spacing: 0) {
                 HStack(spacing: 0) {
-                    HStack(spacing: 5) {
-                        Circle().fill(r.color).frame(width: 7, height: 7)
-                        Text(r.short).font(.system(size: 11, weight: .medium)).lineLimit(1)
-                    }.frame(maxWidth: .infinity, alignment: .leading)
-                    dataCell(r.grade, 0.9)
-                    dataCell(r.base.map { pctStr($0, 3) } ?? "—", 0.9)
-                    dataCell(r.soft.map { "\($0)" } ?? "—", 0.8)
-                    dataCell(r.hard.map { "\($0)" } ?? "—", 0.8)
-                    dataCell(r.guarantee, 1.5)
+                    headerCell("게임", "name")
+                    headerCell("등급", "grade")
+                    headerCell("기본", "base")
+                    headerCell("소프트", "soft")
+                    headerCell("하드", "hard")
+                    headerCell("보장", "guarantee")
                 }
-                .padding(.vertical, 9).padding(.horizontal, 6)
+                .padding(.vertical, 10).padding(.horizontal, 12)
+                ForEach(Array(compareRows.enumerated()), id: \.offset) { i, r in
+                    Divider()
+                    HStack(spacing: 0) {
+                        HStack(spacing: 5) {
+                            Circle().fill(r.color).frame(width: 7, height: 7)
+                            Text(r.short).font(.system(size: 11, weight: .medium)).lineLimit(1)
+                        }.frame(maxWidth: .infinity, alignment: .leading)
+                        dataCell(r.grade)
+                        dataCell(r.base.map { pctStr($0, 3) } ?? "—")
+                        dataCell(r.soft.map { "\($0)" } ?? "—")
+                        dataCell(r.hard.map { "\($0)" } ?? "—")
+                        dataCell(r.guarantee)
+                    }
+                    .padding(.vertical, 10).padding(.horizontal, 12)
+                }
             }
         }
-        .overlay(RoundedRectangle(cornerRadius: 12).stroke(GLGColor.divider, lineWidth: 1))
-        .clipShape(RoundedRectangle(cornerRadius: 12))
     }
 
-    private func headerCell(_ label: String, _ col: String, _ weight: CGFloat) -> some View {
+    private func headerCell(_ label: String, _ col: String) -> some View {
         let active = sortCol == col
-        let arrow = active ? (sortAsc ? " ↑" : " ↓") : " ↕"
+        let arrow = active ? (sortAsc ? " ↑" : " ↓") : ""
         return Button {
             if sortCol == col { sortAsc.toggle() } else { sortCol = col; sortAsc = true }
         } label: {
@@ -183,7 +182,7 @@ struct GachaRateSheet: View {
         }
         .buttonStyle(.plain)
     }
-    private func dataCell(_ text: String, _ weight: CGFloat) -> some View {
+    private func dataCell(_ text: String) -> some View {
         Text(text).font(.system(size: 11)).foregroundStyle(GLGColor.textSecondary).lineLimit(1)
             .frame(maxWidth: .infinity, alignment: .leading)
     }

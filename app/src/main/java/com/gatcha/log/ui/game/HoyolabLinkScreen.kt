@@ -23,9 +23,9 @@ import com.gatcha.log.data.api.HoyolabApi
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import com.gatcha.log.ui.components.GlgButton
+import androidx.compose.ui.draw.clip
 import com.gatcha.log.ui.components.GlgDialog
-import com.gatcha.log.ui.components.GlgScreenHeader
+import com.gatcha.log.ui.components.GlgBackButton
 import com.gatcha.log.ui.components.GlgTextField
 import com.gatcha.log.ui.theme.LocalAccent
 import com.gatcha.log.ui.theme.TextSecondary
@@ -50,7 +50,34 @@ fun HoyolabLinkScreen(config: HoyolabConfig, onSave: (HoyolabConfig) -> Unit, on
     BackHandler { onBack() }
 
     Column(Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
-        GlgScreenHeader("HoYoLAB 계정 연동", onBack)
+        // 헤더 — 뒤로 + 제목 + 저장(우측 이관)
+        Row(
+            Modifier.fillMaxWidth().padding(top = 12.dp, bottom = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            GlgBackButton(onBack)
+            Spacer(Modifier.width(10.dp))
+            Text("HoYoLAB 계정 연동", fontSize = 22.sp, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.weight(1f))
+            Text(
+                "저장",
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Bold,
+                color = accent,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(8.dp))
+                    .clickable {
+                        onSave(
+                            HoyolabConfig(
+                                ltuid = ltuid.trim(), ltoken = ltoken.trim(),
+                                genshinUid = gi.trim(), hsrUid = hsr.trim(), zzzUid = zzz.trim(),
+                                cookieToken = cookieToken.trim(), webCookie = webCookie,
+                            ),
+                        )
+                    }
+                    .padding(horizontal = 10.dp, vertical = 6.dp),
+            )
+        }
         Column(
             Modifier.weight(1f).verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(10.dp),
@@ -90,23 +117,8 @@ fun HoyolabLinkScreen(config: HoyolabConfig, onSave: (HoyolabConfig) -> Unit, on
                     "보안을 위해 ltuid·ltoken·cookie_token 등 토큰은 동기화하지 않으며, 새 기기에서는 다시 로그인해 가져와야 해요.",
                 fontSize = 11.sp, color = TextSecondary,
             )
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(24.dp))
         }
-        GlgButton(
-            "저장",
-            onClick = {
-                onSave(
-                    HoyolabConfig(
-                        ltuid = ltuid.trim(), ltoken = ltoken.trim(),
-                        genshinUid = gi.trim(), hsrUid = hsr.trim(), zzzUid = zzz.trim(),
-                        cookieToken = cookieToken.trim(), webCookie = webCookie,
-                    ),
-                )
-            },
-            // 하단바 미노출 페이지 — 시스템 네비 인셋 위에 여백만 확보
-            modifier = Modifier.fillMaxWidth().navigationBarsPadding().padding(top = 12.dp, bottom = 24.dp),
-            height = 54.dp,
-        )
     }
 
     if (showLogin) {

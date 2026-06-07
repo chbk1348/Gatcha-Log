@@ -19,7 +19,8 @@ extension View {
             self.glassEffect(interactive ? .regular.interactive() : .regular, in: shape)
         } else {
             self.background { GLGVisualEffectBlur(style: .systemUltraThinMaterial).clipShape(shape) }
-                .overlay(shape.stroke(GLGColor.glassBorder, lineWidth: 0.5))
+                // 테두리 overlay 가 내부 버튼 터치를 가로채지 않도록 히트테스트 비활성화 (iOS18 탭 안눌림 수정)
+                .overlay(shape.stroke(GLGColor.glassBorder, lineWidth: 0.5).allowsHitTesting(false))
         }
     }
 
@@ -30,7 +31,7 @@ extension View {
             self.glassEffect(.regular, in: shape)
         } else {
             self.background { GLGVisualEffectBlur(style: .systemMaterial).clipShape(shape) }
-                .overlay(shape.stroke(GLGColor.glassBorder, lineWidth: 0.5))
+                .overlay(shape.stroke(GLGColor.glassBorder, lineWidth: 0.5).allowsHitTesting(false))
         }
     }
 }

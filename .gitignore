@@ -3,6 +3,7 @@
 build/
 
 # Android / Studio
+.idea/
 local.properties
 *.iml
 *.hprof

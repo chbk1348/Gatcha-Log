@@ -5,31 +5,44 @@ import ComposeApp
 // (Compose DailyHeroSection 대응) HoYoLAB 미연동 시 연동 유도 카드.
 struct DailyHeroSection: View {
     @ObservedObject var store: SpendingStore
+    var filter: String = "all"   // "all" | game.key — Segmented 세그먼트 선택값
     let onConfig: () -> Void
     @Environment(\.glgAccent) private var accent
     @State private var expanded = false
 
     private var attendanceGames: [Game] { GameData.shared.attendanceGames }
+    // 세그먼트로 특정 게임이 선택되면 그 게임만, "all"이면 전체.
+    private var shownGames: [Game] {
+        filter == "all" ? attendanceGames : attendanceGames.filter { $0.key == filter }
+    }
     private var pendingCount: Int { attendanceGames.filter { !store.attendanceToday.contains($0.key) }.count }
 
     var body: some View {
         if !store.hoyolabConfig.isLinked {
             linkPrompt
+        } else if let game = attendanceGames.first(where: { $0.key == filter }) {
+            // Segmented — 특정 게임 선택: 목업 2번 지면(게임색 테두리 노트 카드 + 별도 출석 카드)
+            focusedGame(game)
         } else {
-            GLGCard(cornerRadius: 24, padding: 16) {
-                VStack(alignment: .leading, spacing: 0) {
-                    headerRow
-                    Spacer().frame(height: 14)
-                    attendanceHeader
-                    Spacer().frame(height: 10)
-                    WeekAttendanceStrip(history: store.attendanceHistory)
-                    if expanded {
+            // 전체 모드 — 요약 카드 + 게임별 개별 카드 분리 (재디자인)
+            VStack(alignment: .leading, spacing: 16) {
+                // 요약 카드: 연속·전체출석 + 최근 출석 스트립
+                GLGCard(cornerRadius: 20, padding: 16) {
+                    VStack(alignment: .leading, spacing: 0) {
+                        headerRow
                         Spacer().frame(height: 14)
-                        MonthAttendanceCalendar(history: store.attendanceHistory)
+                        attendanceHeader
+                        Spacer().frame(height: 10)
+                        WeekAttendanceStrip(history: store.attendanceHistory)
+                        if expanded {
+                            Spacer().frame(height: 14)
+                            MonthAttendanceCalendar(history: store.attendanceHistory)
+                        }
                     }
-                    Spacer().frame(height: 12)
-                    Divider()
-                    ForEach(Array(attendanceGames.enumerated()), id: \.offset) { i, game in
+                }
+                // 게임별 카드: 실시간 노트 + 출석 (게임당 한 장)
+                ForEach(Array(attendanceGames.enumerated()), id: \.offset) { _, game in
+                    GLGCard(cornerRadius: 20, padding: 16) {
                         DailyGameRow(game: game,
                                      note: store.liveNotes.first { GameData.shared.byNameOrNull(name: $0.game)?.key == game.key },
                                      uid: uid(for: game.key),
@@ -37,11 +50,113 @@ struct DailyHeroSection: View {
                                      inProgress: store.checkingIn == game.key) {
                             store.attemptCheckIn(game.key)
                         }
-                        if i < attendanceGames.count - 1 { Divider() }
                     }
                 }
             }
         }
+    }
+
+    // ── Segmented 선택-게임 지면 (목업 2번) ──
+    @ViewBuilder
+    private func focusedGame(_ game: Game) -> some View {
+        let note = store.liveNotes.first { GameData.shared.byNameOrNull(name: $0.game)?.key == game.key }
+        let checked = store.attendanceToday.contains(game.key)
+        let inProgress = store.checkingIn == game.key
+        let gameColor = Color(argb64: game.color)
+        VStack(alignment: .leading, spacing: 16) {
+            // 실시간 노트 카드 — 게임색 테두리
+            GLGCard(cornerRadius: 24, padding: 16) {
+                VStack(alignment: .leading, spacing: 0) {
+                    HStack {
+                        HStack(spacing: 7) {
+                            Circle().fill(gameColor).frame(width: 8, height: 8)
+                            Text(game.shortName).font(.system(size: 16, weight: .bold)).foregroundStyle(gameColor)
+                        }
+                        Spacer()
+                        focusedCheckControl(game.key, checked: checked, inProgress: inProgress)
+                    }
+                    Spacer().frame(height: 12)
+                    Divider()
+                    Spacer().frame(height: 12)
+                    Text("실시간 노트").font(.system(size: 12, weight: .bold)).foregroundStyle(GLGColor.textSecondary)
+                    Spacer().frame(height: 8)
+                    if let n = note, n.maxResin > 0 {
+                        HStack(alignment: .firstTextBaseline, spacing: 5) {
+                            Text("\(n.currentResin)").font(.system(size: 30, weight: .bold))
+                            Text("/ \(n.maxResin) \(n.resinLabel)").font(.system(size: 13)).foregroundStyle(GLGColor.textSecondary)
+                        }
+                        if !n.resinRecoveryTime.isEmpty {
+                            HStack(spacing: 3) {
+                                Image(systemName: "bolt.fill").font(.system(size: 11)).foregroundStyle(accent.primary)
+                                Text("\(n.resinRecoveryTime) 후 가득 참").font(.system(size: 12)).foregroundStyle(GLGColor.textSecondary)
+                            }
+                            .padding(.top, 2)
+                        }
+                        ProgressView(value: Double(n.resinRatio)).tint(gameColor).padding(.top, 10)
+                        if !n.extras.isEmpty {
+                            FlowLayout(spacing: 6, lineSpacing: 6) {
+                                ForEach(Array(n.extras.enumerated()), id: \.offset) { _, e in focusedNoteChip(e) }
+                            }
+                            .padding(.top, 10)
+                        }
+                    } else {
+                        Text(uid(for: game.key).isEmpty ? "UID 미등록 — 설정에서 등록하세요" : "실시간 노트 동기화 중…")
+                            .font(.system(size: 12)).foregroundStyle(GLGColor.textSecondary)
+                    }
+                }
+            }
+            .overlay(RoundedRectangle(cornerRadius: 24, style: .continuous).stroke(gameColor.opacity(0.4), lineWidth: 1.5))
+
+            // 출석 카드
+            GLGCard(cornerRadius: 24, padding: 16) {
+                VStack(alignment: .leading, spacing: 0) {
+                    HStack {
+                        Text("\(game.shortName) 출석").font(.system(size: 16, weight: .bold))
+                        Spacer()
+                        Button { withAnimation { expanded.toggle() } } label: {
+                            HStack(spacing: 2) {
+                                Text(expanded ? "접기" : "한 달 보기").font(.system(size: 11, weight: .bold))
+                                Image(systemName: expanded ? "chevron.up" : "chevron.down").font(.system(size: 11))
+                            }
+                            .foregroundStyle(accent.primary)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    Spacer().frame(height: 12)
+                    WeekAttendanceStrip(history: store.attendanceHistory)
+                    if expanded {
+                        Spacer().frame(height: 14)
+                        MonthAttendanceCalendar(history: store.attendanceHistory)
+                    }
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func focusedCheckControl(_ key: String, checked: Bool, inProgress: Bool) -> some View {
+        if inProgress {
+            HStack(spacing: 6) { ProgressView().controlSize(.mini).tint(accent.primary); Text("처리 중").font(.system(size: 11, weight: .bold)).foregroundStyle(GLGColor.textSecondary) }
+        } else if checked {
+            HStack(spacing: 4) { Image(systemName: "checkmark.circle.fill").font(.system(size: 16)).foregroundStyle(accent.primary); Text("출석완료").font(.system(size: 12, weight: .bold)).foregroundStyle(accent.primary) }
+        } else {
+            Button { store.attemptCheckIn(key) } label: {
+                Text("출석").font(.system(size: 12, weight: .bold)).foregroundStyle(accent.primary)
+                    .padding(.horizontal, 16).padding(.vertical, 7)
+                    .background(accent.primary.opacity(0.12), in: Capsule())
+            }
+            .buttonStyle(.plain)
+        }
+    }
+
+    private func focusedNoteChip(_ stat: NoteStat) -> some View {
+        HStack(spacing: 4) {
+            Text(stat.label).font(.system(size: 10)).foregroundStyle(GLGColor.textSecondary)
+            Text(stat.value).font(.system(size: 11, weight: .bold)).foregroundStyle(stat.highlight ? accent.primary : GLGColor.textPrimary)
+        }
+        .lineLimit(1).fixedSize()
+        .padding(.horizontal, 8).padding(.vertical, 4)
+        .background(stat.highlight ? accent.primary.opacity(0.14) : Color(hex: 0xFFF2F2F6), in: RoundedRectangle(cornerRadius: 8))
     }
 
     private func uid(for key: String) -> String {

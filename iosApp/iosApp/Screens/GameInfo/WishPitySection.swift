@@ -8,8 +8,9 @@ struct PitySection: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Text("천장 카운터").font(.system(size: 16, weight: .bold)).padding(.bottom, 12)
-            GLGCard(cornerRadius: 24, padding: 16) {
+            Text("천장 카운터").font(.system(size: 16, weight: .bold)).padding(.bottom, 4)
+            Text("남은 천장까지의 거리를 게임별로 관리해요.").font(.system(size: 11)).foregroundStyle(GLGColor.textSecondary).padding(.bottom, 12)
+            GLGCard(cornerRadius: 20, padding: 16) {
                 VStack(spacing: 0) {
                     let games = GameData.shared.attendanceGames
                     ForEach(Array(games.enumerated()), id: \.offset) { i, game in
@@ -53,22 +54,34 @@ struct PitySection: View {
                     }
                 }
                 Spacer()
-                HStack(spacing: 0) {
+                Button { store.resetPity(gameKey: game.key) } label: {
+                    Text("리셋").font(.system(size: 12, weight: .bold)).foregroundStyle(accent.primary)
+                }.buttonStyle(.plain)
+            }
+            HStack(alignment: .firstTextBaseline, spacing: 4) {
+                Text("\(count)").font(.system(size: 28, weight: .bold)).foregroundStyle(tier == .safe ? GLGColor.textPrimary : tierColor)
+                Text("/ \(hard)").font(.system(size: 13, weight: .semibold)).foregroundStyle(GLGColor.textSecondary)
+                Spacer()
+                HStack(spacing: 8) {
                     pityBtn("−") { store.adjustPity(gameKey: game.key, delta: -1) }
-                    Text("\(count) / \(hard)").font(.system(size: 14, weight: .bold))
-                        .foregroundStyle(tier == .safe ? GLGColor.textPrimary : tierColor)
-                        .padding(.horizontal, 10)
                     pityBtn("+") { store.adjustPity(gameKey: game.key, delta: 1) }
-                    Button { store.resetPity(gameKey: game.key) } label: {
-                        Text("리셋").font(.system(size: 12, weight: .bold)).foregroundStyle(accent.primary).padding(4)
-                    }.buttonStyle(.plain).padding(.leading, 4)
                 }
             }
-            ProgressView(value: min(max(Double(count)/Double(hard), 0), 1)).tint(tierColor).padding(.top, 6)
+            .padding(.top, 6)
+            // 프로그레스바를 직접 드래그해 천장 카운트 조정 (±버튼은 미세조정용으로 유지)
+            Slider(
+                value: Binding(
+                    get: { Double(count) },
+                    set: { v in let nv = Int(v.rounded()); if nv != count { store.adjustPity(gameKey: game.key, delta: nv - count) } }
+                ),
+                in: 0...Double(max(hard, 1)), step: 1
+            )
+            .tint(tierColor)
+            .padding(.top, 4)
             Text(helper).font(.system(size: 11, weight: tier == .reached ? .bold : .regular))
-                .foregroundStyle(tier == .safe ? GLGColor.textSecondary : tierColor).padding(.top, 4)
+                .foregroundStyle(tier == .safe ? GLGColor.textSecondary : tierColor).padding(.top, 5)
         }
-        .padding(.vertical, 8)
+        .padding(.vertical, 10)
     }
 
     private func pityBtn(_ label: String, _ action: @escaping () -> Void) -> some View {

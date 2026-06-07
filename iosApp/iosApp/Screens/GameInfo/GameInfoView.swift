@@ -11,19 +11,25 @@ struct GameInfoView: View {
     @State private var showRate = false
     @State private var showGift = false
     @State private var showDashboard = false
+    // 페이지로 분류된 섹션(계산기·리포트·프로필) — 진입 카드 탭 시 푸시.
+    @State private var showCalc = false
+    @State private var showReport = false
+    @State private var showProfile = false
+    // Segmented 레이아웃 — 상단 게임 세그먼트 선택값("all" | game.key). 하위 섹션들이 이 값으로 필터된다.
+    @State private var gameFilter = "all"
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
-                DailyHeroSection(store: store, onConfig: { showHoyolab = true })
-                section { GameTabbedSection(store: store) }
+                DailyHeroSection(store: store, filter: gameFilter, onConfig: { showHoyolab = true })
+                section { GameTabbedSection(store: store, filter: gameFilter) }
                 if !(store.activeBanners.isEmpty && store.isRefreshing) {
                     section { PatchSection(banners: store.activeBanners) }
                 }
                 section { PitySection(store: store) }
-                section { GachaCalculatorSection(store: store) }
-                section { ProfileShowcaseSection(store: store) }
-                section { GachaReportSection(store: store, onOpenDashboard: { showDashboard = true }) }
+                section { navEntry(icon: "function", title: "가챠 계산기", sub: "재화 환산 · 확률 · 시뮬레이터 · 플래너") { showCalc = true } }
+                section { navEntry(icon: "person.crop.square", title: "프로필 쇼케이스", sub: "Enka.Network UID로 캐릭터 조회") { showProfile = true } }
+                section { navEntry(icon: "chart.bar.xaxis", title: "가챠 효율 리포트", sub: "UIGF/SRGF 분석 · 단가 · 천장 분포") { showReport = true } }
                 if !store.challenges.isEmpty { section { ChallengeSection(challenges: store.challenges) } }
                 if !store.gameEvents.isEmpty { section { EventSection(events: store.gameEvents) } }
                 Color.clear.frame(height: 12)
@@ -41,6 +47,21 @@ struct GameInfoView: View {
         .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
+            ToolbarItem(placement: .topBarLeading) {
+                Menu {
+                    Picker("게임 선택", selection: $gameFilter) {
+                        Text("전체").tag("all")
+                        ForEach(Array(GameData.shared.attendanceGames.enumerated()), id: \.offset) { _, g in
+                            Text(g.shortName).tag(g.key)
+                        }
+                    }
+                } label: {
+                    HStack(spacing: 4) {
+                        Text(gameFilterLabel).font(.system(size: 17, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
+                        Image(systemName: "chevron.down").font(.system(size: 12, weight: .semibold)).foregroundStyle(GLGColor.textSecondary)
+                    }
+                }
+            }
             ToolbarItemGroup(placement: .topBarTrailing) {
                 Button { showRate = true } label: { Image(systemName: "percent") }
                 if store.hoyolabConfig.isLinked { Button { showGift = true } label: { Image(systemName: "gift") } }
@@ -50,17 +71,57 @@ struct GameInfoView: View {
             }
         }
         .glgToast(message: store.statusMessage, bottomPadding: 14) { store.clearStatus() }
-        .sheet(isPresented: $showHoyolab) {
+        .navigationDestination(isPresented: $showHoyolab) {
             HoyolabLinkView(store: store) { showHoyolab = false }
         }
-        .sheet(isPresented: $showRate) { GachaRateSheet() }
-        .sheet(isPresented: $showGift) { GiftCodeSheet(store: store) }
-        .sheet(isPresented: $showDashboard) { GachaDashboardView(store: store) }
+        .navigationDestination(isPresented: $showRate) { GachaRatePage() }
+        .navigationDestination(isPresented: $showCalc) { sectionPage { GachaCalculatorSection(store: store) } }
+        .navigationDestination(isPresented: $showProfile) { sectionPage { ProfileShowcaseSection(store: store) } }
+        .navigationDestination(isPresented: $showReport) { sectionPage { GachaReportSection(store: store, onOpenDashboard: { showDashboard = true }) } }
+        .navigationDestination(isPresented: $showGift) { GiftCodePage(store: store) }
+        .navigationDestination(isPresented: $showDashboard) { GachaDashboardView(store: store) }
+    }
+
+    // 헤더 좌측 게임 드롭다운 라벨
+    private var gameFilterLabel: String {
+        gameFilter == "all" ? "전체" : (GameData.shared.attendanceGames.first { $0.key == gameFilter }?.shortName ?? "전체")
     }
 
     @ViewBuilder private func section<C: View>(@ViewBuilder _ content: () -> C) -> some View {
         Spacer().frame(height: 20)
         content()
+    }
+
+    // 페이지 진입 카드 — 아이콘 + 제목 + 설명 + 셰브론(글래스 카드).
+    @ViewBuilder private func navEntry(icon: String, title: String, sub: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            GLGCard(cornerRadius: 20, padding: 16) {
+                HStack(spacing: 14) {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 12, style: .continuous).fill(accent.primary.opacity(0.12)).frame(width: 44, height: 44)
+                        Image(systemName: icon).font(.system(size: 18, weight: .semibold)).foregroundStyle(accent.primary)
+                    }
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(title).font(.system(size: 15, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
+                        Text(sub).font(.system(size: 12)).foregroundStyle(GLGColor.textSecondary).lineLimit(1).minimumScaleFactor(0.85)
+                    }
+                    Spacer(minLength: 8)
+                    Image(systemName: "chevron.right").font(.system(size: 14, weight: .semibold)).foregroundStyle(GLGColor.textSecondary)
+                }
+            }
+        }
+        .buttonStyle(.plain)
+    }
+
+    // 페이지로 분류된 섹션을 감싸는 페이지 래퍼 — 섹션 자체 헤더를 그대로 쓰고 시스템 뒤로가기 제공.
+    @ViewBuilder private func sectionPage<C: View>(@ViewBuilder _ content: () -> C) -> some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 0) { content() }
+                .padding(16)
+        }
+        .scrollIndicators(.hidden)
+        .background(GLGBackground { Color.clear })
+        .navigationBarTitleDisplayMode(.inline)
     }
 }
 
@@ -95,7 +156,7 @@ struct PatchSection: View {
             VStack(alignment: .leading, spacing: 0) {
                 Text("패치 일정").font(.system(size: 16, weight: .bold)).padding(.bottom, 4)
                 Text("게임 버전 업데이트의 시작·종료까지 남은 기간이에요.").font(.system(size: 11)).foregroundStyle(GLGColor.textSecondary).padding(.bottom, 12)
-                GLGCard(cornerRadius: 24, padding: 16) {
+                GLGCard(cornerRadius: 20, padding: 16) {
                     VStack(spacing: 0) {
                         ForEach(Array(items.enumerated()), id: \.element.id) { i, p in
                             let d = Int((p.target - nowMs()) / 86_400_000)
@@ -155,7 +216,7 @@ private struct ScheduleGrouped<T, Row: View>: View {
         let gamesWithData = GameData.shared.games.filter { byGame[$0.displayName] != nil }
         return VStack(alignment: .leading, spacing: 0) {
             Text(title).font(.system(size: 16, weight: .bold)).padding(.bottom, 12)
-            GLGCard(cornerRadius: 24, padding: 16) {
+            GLGCard(cornerRadius: 20, padding: 16) {
                 VStack(alignment: .leading, spacing: 0) {
                     ForEach(Array(gamesWithData.enumerated()), id: \.offset) { gi, game in
                         if gi > 0 { Divider().padding(.vertical, 10) }

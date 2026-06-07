@@ -30,6 +30,7 @@
 		7B31DCB27308E22E16BB75B2 /* GachaCalculatorSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 61F8C41415A86224671E05D0 /* GachaCalculatorSection.swift */; };
 		7F2C7C7A3927BC6D3191C5E1 /* Toast.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F197AF8EBAAA2AF47FB30E0 /* Toast.swift */; };
 		8563822B769E7BDFC45950EC /* GameInfoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 99635545CE4D700502C2661D /* GameInfoView.swift */; };
+		93A2BDCB8D6E5E370630FC66 /* GameSegmentControl.swift in Sources */ = {isa = PBXBuildFile; fileRef = CBFE0B55D71FEC560D0E1D8B /* GameSegmentControl.swift */; };
 		94357DE8B03A0016B606DF05 /* HomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB1FAA4BC5A591201167C91A /* HomeView.swift */; };
 		94C34A0D85D4621BEDCA1045 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3EE67C47045E3E41A6DA540C /* SettingsView.swift */; };
 		A9B00EA52935CEDB4ACF5733 /* NotificationPermission.swift in Sources */ = {isa = PBXBuildFile; fileRef = D5C1204F7E110F6FAB47E844 /* NotificationPermission.swift */; };
@@ -82,6 +83,7 @@
 		BB1FAA4BC5A591201167C91A /* HomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeView.swift; sourceTree = "<group>"; };
 		C117AD187833E2513BD2F553 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		C49B0B02429FBBC9F867DDE1 /* iosApp.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = iosApp.entitlements; sourceTree = "<group>"; };
+		CBFE0B55D71FEC560D0E1D8B /* GameSegmentControl.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameSegmentControl.swift; sourceTree = "<group>"; };
 		CE8509E5A49E4A5CAAEB3ADB /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		D3B0527581EAD3D8308AEE5B /* AnnualReportView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnnualReportView.swift; sourceTree = "<group>"; };
 		D5C1204F7E110F6FAB47E844 /* NotificationPermission.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationPermission.swift; sourceTree = "<group>"; };
@@ -217,6 +219,7 @@
 				5578C3FC844B66842EE934A0 /* GachaRateSheet.swift */,
 				761FA1021B87000D541E0742 /* GachaReportSection.swift */,
 				99635545CE4D700502C2661D /* GameInfoView.swift */,
+				CBFE0B55D71FEC560D0E1D8B /* GameSegmentControl.swift */,
 				E1B90DF6528691EF06F869AE /* GameTabbedSection.swift */,
 				59D7A7D9B537866557A9E9DC /* GiftCodeSheet.swift */,
 				8579814CF27340C1C2EEA639 /* HoyolabLinkView.swift */,
@@ -350,6 +353,7 @@
 				E1DD09AE4338B065B2ADBF31 /* GachaRateSheet.swift in Sources */,
 				AC28C38C2F246B0AE02900E6 /* GachaReportSection.swift in Sources */,
 				8563822B769E7BDFC45950EC /* GameInfoView.swift in Sources */,
+				93A2BDCB8D6E5E370630FC66 /* GameSegmentControl.swift in Sources */,
 				B3F2BB194A2A49EAEEA41485 /* GameTabbedSection.swift in Sources */,
 				7863AB859161975BEA40D6C3 /* GiftCodeSheet.swift in Sources */,
 				2688E6ED5635C1512EAA1F70 /* Glass.swift in Sources */,

@@ -4,41 +4,50 @@ import ComposeApp
 // 통합 게임 탭 — 선택 게임의 픽업 배너·전투 진행도·수입 일지. (Compose GameTabbedSection 대응)
 struct GameTabbedSection: View {
     @ObservedObject var store: SpendingStore
-    @State private var selectedKey = "genshin"
+    var filter: String = "all"   // 상단 게임 세그먼트 선택값 — 자체 칩 제거, 이 값으로 노출 게임 결정
     @Environment(\.glgAccent) private var accent
 
     private var games: [Game] { GameData.shared.attendanceGames }
-    private var sel: Game { games.first { $0.key == selectedKey } ?? games[0] }
+    private var shownGames: [Game] { filter == "all" ? games : games.filter { $0.key == filter } }
 
     var body: some View {
-        let selBanners = store.activeBanners.filter { $0.game == sel.displayName }
-        let selCombat = store.combat.filter { $0.game == sel.displayName }
-        let selLedger = store.ledgers.first { $0.game == sel.displayName }
-        let empty = selBanners.isEmpty && selCombat.isEmpty && selLedger == nil
-        return VStack(alignment: .leading, spacing: 0) {
-            HStack(spacing: 8) {
-                ForEach(games, id: \.key) { g in
-                    Button { selectedKey = g.key } label: {
-                        Text(g.shortName).font(.system(size: 13, weight: .bold))
-                            .foregroundStyle(g.key == selectedKey ? .white : Color(argb64: g.color))
-                            .padding(.horizontal, 16).padding(.vertical, 8)
-                            .background(g.key == selectedKey ? Color(argb64: g.color) : .white, in: Capsule())
-                            .overlay(Capsule().stroke(Color(argb64: g.color).opacity(g.key == selectedKey ? 1 : 0.5), lineWidth: 1.5))
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-            .padding(.bottom, 16)
-            if empty {
-                GLGCard(cornerRadius: 24, padding: 28) {
-                    Text("\(sel.shortName) 정보가 아직 없어요").font(.system(size: 13)).foregroundStyle(GLGColor.textSecondary)
+        // 같은 카드 섹션끼리 묶기 — 게임별이 아니라 섹션 타입(배너/전투/일지)별로 그룹화.
+        // 각 카드가 자체 게임 헤더를 가지므로 전체 보기에서 게임 구분이 유지된다.
+        let bannerGames = shownGames.compactMap { g -> (Game, [GachaBanner])? in
+            let b = store.activeBanners.filter { $0.game == g.displayName }; return b.isEmpty ? nil : (g, b)
+        }
+        let combatGames = shownGames.compactMap { g -> (Game, [CombatMode])? in
+            let c = store.combat.filter { $0.game == g.displayName }; return c.isEmpty ? nil : (g, c)
+        }
+        let ledgers = shownGames.compactMap { g in store.ledgers.first { $0.game == g.displayName } }
+        let allEmpty = bannerGames.isEmpty && combatGames.isEmpty && ledgers.isEmpty
+        return VStack(alignment: .leading, spacing: 20) {
+            if allEmpty {
+                GLGCard(cornerRadius: 20, padding: 28) {
+                    Text("표시할 게임 정보가 아직 없어요").font(.system(size: 13)).foregroundStyle(GLGColor.textSecondary)
                         .frame(maxWidth: .infinity)
                 }
             } else {
-                VStack(alignment: .leading, spacing: 16) {
-                    if !selBanners.isEmpty { contentBlock("픽업 배너 D-Day") { BannerCard(game: sel, banners: selBanners) } }
-                    if !selCombat.isEmpty { contentBlock("전투 콘텐츠 진행도") { CombatCard(game: sel, modes: selCombat) } }
-                    if let l = selLedger { contentBlock("이번 달 수입 일지") { LedgerCard(ledger: l) } }
+                if !bannerGames.isEmpty {
+                    contentBlock("픽업 배너 D-Day") {
+                        VStack(alignment: .leading, spacing: 12) {
+                            ForEach(Array(bannerGames.enumerated()), id: \.offset) { _, p in BannerCard(game: p.0, banners: p.1) }
+                        }
+                    }
+                }
+                if !combatGames.isEmpty {
+                    contentBlock("전투 콘텐츠 진행도") {
+                        VStack(alignment: .leading, spacing: 12) {
+                            ForEach(Array(combatGames.enumerated()), id: \.offset) { _, p in CombatCard(game: p.0, modes: p.1) }
+                        }
+                    }
+                }
+                if !ledgers.isEmpty {
+                    contentBlock("이번 달 수입 일지") {
+                        VStack(alignment: .leading, spacing: 12) {
+                            ForEach(Array(ledgers.enumerated()), id: \.offset) { _, l in LedgerCard(ledger: l) }
+                        }
+                    }
                 }
             }
         }
@@ -58,7 +67,7 @@ private struct BannerCard: View {
     var body: some View {
         let phases = phaseGroups(banners)
         let labels = phaseLabels(phases)
-        return GLGCard(cornerRadius: 24, padding: 16) {
+        return GLGCard(cornerRadius: 20, padding: 16) {
             VStack(alignment: .leading, spacing: 0) {
                 HStack(spacing: 8) {
                     Circle().fill(Color(argb64: game.color)).frame(width: 10, height: 10)
@@ -128,7 +137,7 @@ private struct CombatCard: View {
     let modes: [CombatMode]
     @Environment(\.glgAccent) private var accent
     var body: some View {
-        GLGCard(cornerRadius: 24, padding: 16) {
+        GLGCard(cornerRadius: 20, padding: 16) {
             VStack(alignment: .leading, spacing: 0) {
                 HStack(spacing: 8) { Circle().fill(Color(argb64: game.color)).frame(width: 10, height: 10); Text(game.shortName).font(.system(size: 15, weight: .bold)) }
                     .padding(.bottom, 2)
@@ -170,7 +179,7 @@ struct LedgerCard: View {
     let ledger: MonthlyLedger
     @Environment(\.glgAccent) private var accent
     var body: some View {
-        GLGCard(cornerRadius: 24, padding: 16) {
+        GLGCard(cornerRadius: 20, padding: 16) {
             VStack(alignment: .leading, spacing: 0) {
                 HStack(spacing: 8) {
                     Circle().fill(Color(argb64: ledger.gameColor)).frame(width: 10, height: 10)
