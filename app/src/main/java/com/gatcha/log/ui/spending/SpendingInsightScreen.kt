@@ -21,7 +21,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.gatcha.log.data.DateUtil
 import com.gatcha.log.data.GameData
 import com.gatcha.log.data.Spending
 import com.gatcha.log.ui.components.GlassCard
@@ -80,12 +79,11 @@ private fun BudgetPaceCard(monthTotal: Long, budget: Long, month: Int, accent: C
     val cal = remember { Calendar.getInstance() }
     val dayOfMonth = cal.get(Calendar.DAY_OF_MONTH)
     val daysInMonth = cal.getActualMaximum(Calendar.DAY_OF_MONTH)
-    val projected = if (dayOfMonth > 0) monthTotal * daysInMonth / dayOfMonth else monthTotal
-    val dailyAvg = if (dayOfMonth > 0) monthTotal / dayOfMonth else 0L
-    val remainingDays = (daysInMonth - dayOfMonth).coerceAtLeast(0)
+    val pace = computeBudgetPace(monthTotal, dayOfMonth, daysInMonth)
+    val projected = pace.projected
 
     DashCard {
-        CardTitle("${month}월 예산 페이스", "${dayOfMonth}일 경과 · ${remainingDays}일 남음")
+        CardTitle("${month}월 예산 페이스", "${dayOfMonth}일 경과 · ${pace.remainingDays}일 남음")
         Spacer(Modifier.height(14.dp))
         Row(verticalAlignment = Alignment.Bottom) {
             Text("월말 예상", fontSize = 12.sp, color = TextSecondary)
@@ -95,7 +93,7 @@ private fun BudgetPaceCard(monthTotal: Long, budget: Long, month: Int, accent: C
         Spacer(Modifier.height(12.dp))
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             StatTile(won(monthTotal), "현재 지출", Modifier.weight(1f), valueFontSize = 14.sp)
-            StatTile(won(dailyAvg), "하루 평균", Modifier.weight(1f), valueFontSize = 14.sp)
+            StatTile(won(pace.dailyAvg), "하루 평균", Modifier.weight(1f), valueFontSize = 14.sp)
             StatTile(if (budget > 0) won(budget) else "—", "이번 달 예산", Modifier.weight(1f), valueFontSize = 14.sp)
         }
         if (budget > 0) {
@@ -124,26 +122,10 @@ private fun BudgetPaceCard(monthTotal: Long, budget: Long, month: Int, accent: C
 // ---------------------------------------------------------------- 2) 게임별 월 추이 (올해, 누적 막대)
 @Composable
 private fun MonthlyTrendCard(spendings: List<Spending>, year: Int, accent: Color) {
-    val yearItems = remember(spendings, year) { spendings.filter { DateUtil.isSameYear(it.dateMillis, year) } }
-    if (yearItems.isEmpty()) return
-    val topGames = remember(yearItems) {
-        yearItems.groupBy { it.gameName }.mapValues { e -> e.value.sumOf { it.amount } }
-            .entries.sortedByDescending { it.value }.take(5).map { it.key }
-    }
-    val hasEtc = remember(yearItems, topGames) { yearItems.any { it.gameName !in topGames } }
-    // month(0..11) -> 게임키 -> 금액
-    val monthGame = remember(yearItems, topGames) {
-        Array(12) { LinkedHashMap<String, Long>() }.also { arr ->
-            yearItems.forEach { s ->
-                val m = DateUtil.month(s.dateMillis) - 1
-                val key = if (s.gameName in topGames) s.gameName else "기타"
-                arr[m][key] = (arr[m][key] ?: 0L) + s.amount
-            }
-        }
-    }
-    val monthTotals = LongArray(12) { monthGame[it].values.sum() }
-    val maxMonth = (monthTotals.maxOrNull() ?: 0L).coerceAtLeast(1L)
-    val legend = topGames + if (hasEtc) listOf("기타") else emptyList()
+    val trend = remember(spendings, year) { computeMonthlyTrend(spendings, year) } ?: return
+    val monthGame = trend.monthGame
+    val maxMonth = trend.maxMonth
+    val legend = trend.legend
     fun colorOf(g: String) = if (g == "기타") EtcColor else GameData.colorFor(g)
 
     DashCard {
@@ -178,12 +160,7 @@ private fun MonthlyTrendCard(spendings: List<Spending>, year: Int, accent: Color
 // ---------------------------------------------------------------- 3) 결제수단별 비중
 @Composable
 private fun PaymentBreakdownCard(spendings: List<Spending>, accent: Color) {
-    val rows = remember(spendings) {
-        val total = spendings.sumOf { it.amount }
-        spendings.groupBy { it.paymentMethod.ifBlank { "기타" } }
-            .map { Triple(it.key, it.value.sumOf { s -> s.amount }, total) }
-            .sortedByDescending { it.second }
-    }
+    val rows = remember(spendings) { computePaymentBreakdown(spendings) }
     if (rows.isEmpty()) return
     DashCard {
         CardTitle("결제수단별 비중")
@@ -197,11 +174,7 @@ private fun PaymentBreakdownCard(spendings: List<Spending>, accent: Color) {
 // ---------------------------------------------------------------- 4) 태그별 지출
 @Composable
 private fun TagBreakdownCard(spendings: List<Spending>, accent: Color) {
-    val rows = remember(spendings) {
-        val m = LinkedHashMap<String, Long>()
-        spendings.forEach { s -> s.tags.forEach { t -> m[t] = (m[t] ?: 0L) + s.amount } }
-        m.entries.sortedByDescending { it.value }.take(8).map { it.key to it.value }
-    }
+    val rows = remember(spendings) { computeTagBreakdown(spendings) }
     if (rows.isEmpty()) return
     val maxTag = (rows.maxOfOrNull { it.second } ?: 1L).coerceAtLeast(1L)
     DashCard {
