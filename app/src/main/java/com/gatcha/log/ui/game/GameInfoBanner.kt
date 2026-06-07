@@ -30,38 +30,46 @@ import com.gatcha.log.ui.theme.LocalAccent
 import com.gatcha.log.ui.theme.TextSecondary
 
 // ============================================================ 통합 게임 탭 (배너·전투·일지)
-/** 게임 칩으로 선택 게임의 픽업 배너·전투 진행도·수입 일지를 번갈아 표시 (세로 스크롤 단축). */
+/** 상단 게임 세그먼트(filter)로 선택된 게임의 픽업 배너·전투 진행도·수입 일지 표시. 자체 칩 제거. */
 @Composable
 fun GameTabbedSection(
     banners: List<GachaBanner>,
     combat: List<CombatMode>,
     ledgers: List<MonthlyLedger>,
     isRefreshing: Boolean,
+    filter: String = "all",
 ) {
     val games = GameData.attendanceGames // 원신·스타레일·젠레스
-    var selectedKey by remember { mutableStateOf("genshin") }
-    val sel = games.firstOrNull { it.key == selectedKey } ?: games.first()
-    val selBanners = banners.filter { it.game == sel.displayName }
-    val selCombat = combat.filter { it.game == sel.displayName }
-    val selLedger = ledgers.firstOrNull { it.game == sel.displayName }
-    val empty = selBanners.isEmpty() && selCombat.isEmpty() && selLedger == null
-
-    Column {
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            games.forEach { g -> GameTabChip(g, g.key == selectedKey) { selectedKey = g.key } }
-        }
-        Spacer(Modifier.height(16.dp))
+    val shown = if (filter == "all") games else games.filter { it.key == filter }
+    // 같은 카드 섹션끼리 묶기 — 게임별이 아니라 섹션 타입(배너/전투/일지)별로 그룹화. 각 카드는 자체 게임 헤더 보유.
+    val bannerGames = shown.mapNotNull { g -> banners.filter { it.game == g.displayName }.takeIf { it.isNotEmpty() }?.let { g to it } }
+    val combatGames = shown.mapNotNull { g -> combat.filter { it.game == g.displayName }.takeIf { it.isNotEmpty() }?.let { g to it } }
+    val ledgerList = shown.mapNotNull { g -> ledgers.firstOrNull { it.game == g.displayName } }
+    val allEmpty = bannerGames.isEmpty() && combatGames.isEmpty() && ledgerList.isEmpty()
+    Column(verticalArrangement = Arrangement.spacedBy(20.dp)) {
         when {
-            empty && isRefreshing -> BannerSkeleton()
-            empty -> GlassCard(shape = RoundedCornerShape(24.dp), modifier = Modifier.fillMaxWidth()) {
+            allEmpty && isRefreshing -> BannerSkeleton()
+            allEmpty -> GlassCard(shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth()) {
                 Box(Modifier.fillMaxWidth().padding(28.dp), contentAlignment = Alignment.Center) {
-                    Text("${sel.shortName} 정보가 아직 없어요", fontSize = 13.sp, color = TextSecondary)
+                    Text("표시할 게임 정보가 아직 없어요", fontSize = 13.sp, color = TextSecondary)
                 }
             }
-            else -> Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                if (selBanners.isNotEmpty()) GameContentBlock("픽업 배너 D-Day") { GameBannerCard(sel, selBanners) }
-                if (selCombat.isNotEmpty()) GameContentBlock("전투 콘텐츠 진행도") { CombatGameCard(sel, selCombat) }
-                if (selLedger != null) GameContentBlock("이번 달 수입 일지") { LedgerCard(selLedger) }
+            else -> {
+                if (bannerGames.isNotEmpty()) GameContentBlock("픽업 배너 D-Day") {
+                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        bannerGames.forEach { (g, b) -> GameBannerCard(g, b) }
+                    }
+                }
+                if (combatGames.isNotEmpty()) GameContentBlock("전투 콘텐츠 진행도") {
+                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        combatGames.forEach { (g, c) -> CombatGameCard(g, c) }
+                    }
+                }
+                if (ledgerList.isNotEmpty()) GameContentBlock("이번 달 수입 일지") {
+                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        ledgerList.forEach { LedgerCard(it) }
+                    }
+                }
             }
         }
     }
@@ -76,29 +84,12 @@ private fun GameContentBlock(label: String, content: @Composable () -> Unit) {
 }
 
 @Composable
-private fun GameTabChip(game: Game, selected: Boolean, onClick: () -> Unit) {
-    Surface(
-        modifier = Modifier.clickable { onClick() },
-        shape = RoundedCornerShape(20.dp),
-        color = if (selected) game.color else Color.White,
-        border = BorderStroke(1.5.dp, if (selected) game.color else DividerColor),
-    ) {
-        Text(
-            game.shortName,
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-            fontSize = 13.sp, fontWeight = FontWeight.Bold,
-            color = if (selected) Color.White else game.color,
-        )
-    }
-}
-
-@Composable
 private fun GameBannerCard(game: Game, banners: List<GachaBanner>) {
     // 종료일 빠른 순으로 페이즈 정렬 후, 버전 기준으로 전반/후반 판별
     val phases = banners.groupBy { it.endMillis }.toSortedMap().values.toList()
     val labels = phaseLabels(phases)
 
-    GlassCard(shape = RoundedCornerShape(24.dp), modifier = Modifier.fillMaxWidth()) {
+    GlassCard(shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp)) {
             // 게임 헤더
             Row(
@@ -218,7 +209,7 @@ fun PatchSection(banners: List<GachaBanner>) {
         "게임 버전 업데이트의 시작·종료까지 남은 기간이에요.",
         fontSize = 11.sp, color = TextSecondary, modifier = Modifier.padding(bottom = 12.dp),
     )
-    GlassCard(shape = RoundedCornerShape(24.dp), modifier = Modifier.fillMaxWidth()) {
+    GlassCard(shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp)) {
             patches.forEachIndexed { i, p ->
                 val d = p.dDay()

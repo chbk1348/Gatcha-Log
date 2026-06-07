@@ -29,8 +29,14 @@ import com.gatcha.log.data.Game
 import com.gatcha.log.data.GameChallenge
 import com.gatcha.log.data.GameData
 import com.gatcha.log.data.GameEvent
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.vector.ImageVector
 import com.gatcha.log.ui.components.ListSkeleton
 import com.gatcha.log.ui.components.GlassCard
+import com.gatcha.log.ui.components.GlgBackButton
 import com.gatcha.log.ui.components.GlgCircleIconButton
 import com.gatcha.log.ui.components.GlgTabHeader
 import com.gatcha.log.ui.spending.GameInfoAnchor
@@ -38,7 +44,7 @@ import com.gatcha.log.ui.spending.SpendingViewModel
 import com.gatcha.log.ui.theme.*
 
 /** 게임정보 탭의 풀스크린 하위 페이지 (열리면 하단바·FAB 숨김) */
-private enum class GiSub { Main, HoyoLink, Dashboard }
+private enum class GiSub { Main, HoyoLink, Dashboard, Rate, Calc, Profile, Report, Gift }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -83,11 +89,11 @@ fun GameInfoScreen(
         }
         m
     }
+    // Segmented 레이아웃 — 상단 게임 세그먼트 선택값("all" | game.key). 하위 섹션들이 이 값으로 필터된다.
+    var gameFilter by remember { mutableStateOf("all") }
     // 게임정보 하위 풀스크린 페이지(연동 / 가챠 통계) — 열리면 상위(Scaffold)에 알려 하단바·FAB 숨김
     var subPage by remember { mutableStateOf(GiSub.Main) }
     LaunchedEffect(subPage) { onSubPageChange(subPage != GiSub.Main) }
-    val showRateDialog = remember { mutableStateOf(false) }
-    val showGiftDialog = remember { mutableStateOf(false) }
     val redeemState by viewModel.redeemState.collectAsState()
     val activeCodes by viewModel.activeCodes.collectAsState()
     val codesLoading by viewModel.codesLoading.collectAsState()
@@ -138,6 +144,38 @@ fun GameInfoScreen(
                 spendByGameKey = gachaSpendByGame,
                 onBack = { subPage = GiSub.Main },
             )
+            GiSub.Rate -> GachaRatePage(onBack = { subPage = GiSub.Main })
+            GiSub.Calc -> SectionPage(onBack = { subPage = GiSub.Main }) { GachaCalculatorSection(pity) }
+            GiSub.Profile -> SectionPage(onBack = { subPage = GiSub.Main }) {
+                ProfileShowcaseSection(
+                    giUid = enkaGiUid,
+                    hsrUid = enkaHsrUid,
+                    result = enkaResult,
+                    loading = enkaLoading,
+                    onLoad = { game, uid -> viewModel.loadEnkaProfile(game, uid) },
+                    onGameChange = { viewModel.clearEnkaResult() },
+                )
+            }
+            GiSub.Report -> SectionPage(onBack = { subPage = GiSub.Main }) {
+                GachaReportSection(
+                    stats = gachaStats,
+                    spendByGameKey = gachaSpendByGame,
+                    onImport = { uris -> viewModel.importGachaFromUris(uris) },
+                    onClear = { viewModel.clearGachaRecords() },
+                    onOpenDashboard = { subPage = GiSub.Dashboard },
+                )
+            }
+            GiSub.Gift -> GiftCodePage(
+                hoyolab = hoyolab,
+                state = redeemState,
+                activeCodes = activeCodes,
+                codesLoading = codesLoading,
+                redeemedCodes = redeemedCodes,
+                onLoadCodes = { key -> viewModel.loadActiveCodes(key) },
+                onRedeem = { key, c -> viewModel.redeemGiftCode(key, c) },
+                onRedeemAll = { key -> viewModel.redeemAllCodes(key) },
+                onBack = { subPage = GiSub.Main; viewModel.resetRedeem() },
+            )
             GiSub.Main -> GlgPullToRefreshBox(
             isRefreshing = isRefreshing,
             onRefresh = { viewModel.refreshGameInfo(force = true) },
@@ -148,23 +186,28 @@ fun GameInfoScreen(
                 modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
                 contentPadding = PaddingValues(bottom = 120.dp),
             ) {
+            // 헤더 — 좌측 게임 드롭다운 + 우측 액션 버튼들 (게임 세그먼트를 헤더로 이관)
             item {
-                GlgTabHeader("게임 정보") {
-                    GachaRateButton { showRateDialog.value = true }
-                    if (hoyolab.isLinked) {
-                        GlgCircleIconButton(Icons.Default.Redeem, "리딤코드", outlined = true) { showGiftDialog.value = true }
-                    }
-                    // 새로고침은 PTR 인디케이터 하나로만 표시 — 버튼 자체 스피너를 빼서 PTR 와 중복 노출 방지.
-                    // (진행 중엔 버튼만 비활성화해 중복 트리거 차단)
-                    GlgCircleIconButton(Icons.Default.Refresh, "새로고침", enabled = !isRefreshing, outlined = true) {
-                        viewModel.refreshGameInfo(force = true)
-                    }
-                    GlgCircleIconButton(Icons.Default.Settings, "HoYoLAB 설정", outlined = true) {
-                        subPage = GiSub.HoyoLink
+                Row(
+                    Modifier.fillMaxWidth().padding(top = 24.dp, bottom = 16.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    GameFilterDropdown(selected = gameFilter, onSelect = { gameFilter = it })
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        GachaRateButton { subPage = GiSub.Rate }
+                        if (hoyolab.isLinked) {
+                            GlgCircleIconButton(Icons.Default.Redeem, "리딤코드", outlined = true) { subPage = GiSub.Gift }
+                        }
+                        GlgCircleIconButton(Icons.Default.Refresh, "새로고침", enabled = !isRefreshing, outlined = true) {
+                            viewModel.refreshGameInfo(force = true)
+                        }
+                        GlgCircleIconButton(Icons.Default.Settings, "HoYoLAB 설정", outlined = true) {
+                            subPage = GiSub.HoyoLink
+                        }
                     }
                 }
             }
-
             // 최상단 히어로 — 실시간 노트 + 출석체크 통합
             item {
                 DailyHeroSection(
@@ -174,6 +217,7 @@ fun GameInfoScreen(
                     hoyolab = hoyolab,
                     checkingIn = checkingIn,
                     streak = attendanceStreak,
+                    filter = gameFilter,
                     onCheckIn = { viewModel.attemptCheckIn(it) },
                     onCheckInAll = { viewModel.checkInAll() },
                     onConfigClick = { subPage = GiSub.HoyoLink },
@@ -187,6 +231,7 @@ fun GameInfoScreen(
                     combat = combat,
                     ledgers = ledgers,
                     isRefreshing = isRefreshing,
+                    filter = gameFilter,
                 )
             }
             item { Spacer(Modifier.height(20.dp)) }
@@ -210,29 +255,13 @@ fun GameInfoScreen(
                     onReset = viewModel::resetPity,
                 )
             }
+            // 페이지로 분류된 섹션(계산기·프로필·리포트) — 진입 카드
             item { Spacer(Modifier.height(20.dp)) }
-            item { GachaCalculatorSection(pity) }
-            item { Spacer(Modifier.height(20.dp)) }
-            item {
-                ProfileShowcaseSection(
-                    giUid = enkaGiUid,
-                    hsrUid = enkaHsrUid,
-                    result = enkaResult,
-                    loading = enkaLoading,
-                    onLoad = { game, uid -> viewModel.loadEnkaProfile(game, uid) },
-                    onGameChange = { viewModel.clearEnkaResult() },
-                )
-            }
-            item { Spacer(Modifier.height(20.dp)) }
-            item {
-                GachaReportSection(
-                    stats = gachaStats,
-                    spendByGameKey = gachaSpendByGame,
-                    onImport = { uris -> viewModel.importGachaFromUris(uris) },
-                    onClear = { viewModel.clearGachaRecords() },
-                    onOpenDashboard = { subPage = GiSub.Dashboard },
-                )
-            }
+            item { NavEntryCard(Icons.Default.Calculate, "가챠 계산기", "재화 환산 · 확률 · 시뮬레이터 · 플래너") { subPage = GiSub.Calc } }
+            item { Spacer(Modifier.height(12.dp)) }
+            item { NavEntryCard(Icons.Default.AccountBox, "프로필 쇼케이스", "Enka.Network UID로 캐릭터 조회") { subPage = GiSub.Profile } }
+            item { Spacer(Modifier.height(12.dp)) }
+            item { NavEntryCard(Icons.Default.BarChart, "가챠 효율 리포트", "UIGF/SRGF 분석 · 단가 · 천장 분포") { subPage = GiSub.Report } }
             item { Spacer(Modifier.height(20.dp)) }
             if (banners.isEmpty() && isRefreshing) {
                 item { ListSkeleton(rows = 3) }
@@ -252,23 +281,6 @@ fun GameInfoScreen(
         }
     }
 
-    if (showRateDialog.value) {
-        GachaRateDialog(onDismiss = { showRateDialog.value = false })
-    }
-
-    if (showGiftDialog.value) {
-        GiftCodeDialog(
-            hoyolab = hoyolab,
-            state = redeemState,
-            activeCodes = activeCodes,
-            codesLoading = codesLoading,
-            redeemedCodes = redeemedCodes,
-            onLoadCodes = { key -> viewModel.loadActiveCodes(key) },
-            onRedeem = { key, code -> viewModel.redeemGiftCode(key, code) },
-            onRedeemAll = { key -> viewModel.redeemAllCodes(key) },
-            onDismiss = { showGiftDialog.value = false; viewModel.resetRedeem() },
-        )
-    }
 }
 
 /** 헤더 "가챠 확률표" 알약 버튼 (웹앱 gi-rate-btn 이식) */
@@ -292,11 +304,49 @@ private fun GachaRateButton(onClick: () -> Unit) {
     }
 }
 
+/** 페이지로 분류된 섹션 진입 카드 (아이콘 + 제목 + 설명 + 셰브론). */
+@Composable
+private fun NavEntryCard(icon: ImageVector, title: String, sub: String, onClick: () -> Unit) {
+    val accent = LocalAccent.current
+    GlassCard(shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth().clickable { onClick() }) {
+        Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                Modifier.size(44.dp).clip(RoundedCornerShape(12.dp)).background(accent.copy(alpha = 0.12f)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(icon, null, tint = accent, modifier = Modifier.size(20.dp))
+            }
+            Spacer(Modifier.width(14.dp))
+            Column(Modifier.weight(1f)) {
+                Text(title, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                Text(sub, fontSize = 12.sp, color = TextSecondary, maxLines = 1)
+            }
+            Spacer(Modifier.width(8.dp))
+            Icon(Icons.Default.ChevronRight, null, tint = TextSecondary, modifier = Modifier.size(20.dp))
+        }
+    }
+}
+
+/** 페이지로 분류된 섹션 래퍼 — 뒤로가기 + 섹션 자체 콘텐츠 스크롤. (섹션 내부 헤더 사용) */
+@Composable
+private fun SectionPage(onBack: () -> Unit, content: @Composable () -> Unit) {
+    BackHandler { onBack() }
+    Column(Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
+        Row(Modifier.fillMaxWidth().padding(top = 12.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+            GlgBackButton(onBack)
+        }
+        Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) {
+            content()
+            Spacer(Modifier.height(24.dp))
+        }
+    }
+}
+
 @Composable
 fun EventSection(events: List<GameEvent>) {
     Text("진행 중인 이벤트", fontSize = 16.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 12.dp))
     val byGame = events.groupBy { it.game }
-    GlassCard(shape = RoundedCornerShape(24.dp), modifier = Modifier.fillMaxWidth()) {
+    GlassCard(shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp)) {
             val gamesWithData = GameData.games.filter { byGame.containsKey(it.displayName) }
             gamesWithData.forEachIndexed { gi, game ->
@@ -346,7 +396,7 @@ private fun ScheduleRow(name: String, sub: String, endMillis: Long, dDayLabel: S
 fun ChallengeSection(challenges: List<GameChallenge>) {
     Text("정기 콘텐츠", fontSize = 16.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 12.dp))
     val byGame = challenges.groupBy { it.game }
-    GlassCard(shape = RoundedCornerShape(24.dp), modifier = Modifier.fillMaxWidth()) {
+    GlassCard(shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp)) {
             val gamesWithData = GameData.games.filter { byGame.containsKey(it.displayName) }
             gamesWithData.forEachIndexed { gi, game ->

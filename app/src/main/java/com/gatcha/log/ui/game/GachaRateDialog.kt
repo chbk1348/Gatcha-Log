@@ -1,5 +1,6 @@
 package com.gatcha.log.ui.game
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -24,60 +25,48 @@ import com.gatcha.log.data.CarryoverKind
 import com.gatcha.log.data.GachaBannerRate
 import com.gatcha.log.data.GachaGameRate
 import com.gatcha.log.data.GachaRateData
-import com.gatcha.log.ui.components.GlgDialog
+import com.gatcha.log.ui.components.GlassCard
+import com.gatcha.log.ui.components.GlgScreenHeader
 import com.gatcha.log.ui.theme.DividerColor
 import com.gatcha.log.ui.theme.LocalAccent
 import com.gatcha.log.ui.theme.TextPrimary
 import com.gatcha.log.ui.theme.TextSecondary
 
-private val StatBg = Color(0x08000000)       // rgba(0,0,0,0.03)
-private val StatLabel = Color(0x59000000)    // rgba(0,0,0,0.35)
-private val CardBg = Color(0xFFF8F8FB)
-
 private fun pct(v: Double, digits: Int): String = "%.${digits}f%%".format(v * 100)
 
-/** 가챠 확률표 모달 — 천장&확률 정보 카드 + 빠른 비교 테이블 (웹앱 v27.19.0 이식) */
+/** 가챠 확률표 — 페이지 형식(서브 페이지). 천장&확률 글래스 카드 + 빠른 비교 테이블. */
 @Composable
-fun GachaRateDialog(onDismiss: () -> Unit) {
+fun GachaRatePage(onBack: () -> Unit) {
+    BackHandler { onBack() }
     var bannerType by remember { mutableStateOf("character") }
     var sortCol by remember { mutableStateOf<String?>(null) }
     var sortAsc by remember { mutableStateOf(true) }
 
-    GlgDialog(
-        title = "가챠 확률표",
-        onDismiss = onDismiss,
-        confirmText = "닫기",
-        onConfirm = onDismiss,
-        dismissText = null,
-    ) {
+    Column(Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
+        GlgScreenHeader("가챠 확률표", onBack)
         Column(
-            modifier = Modifier
-                .heightIn(max = 540.dp)
-                .verticalScroll(rememberScrollState()),
+            Modifier.weight(1f).verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
-            SectionLabel("천장 & 확률 정보")
+            Spacer(Modifier.height(2.dp))
             BannerTypeTabs(bannerType) { bannerType = it }
-            GachaRateData.games.forEach { game ->
-                GameRateCard(game, bannerType)
-            }
+            GachaRateData.games.forEach { game -> GameRateCard(game, bannerType) }
             Spacer(Modifier.height(2.dp))
             SectionLabel("빠른 비교")
             CompareTable(
                 bannerType = bannerType,
                 sortCol = sortCol,
                 sortAsc = sortAsc,
-                onSort = { col ->
-                    if (sortCol == col) sortAsc = !sortAsc else { sortCol = col; sortAsc = true }
-                },
+                onSort = { col -> if (sortCol == col) sortAsc = !sortAsc else { sortCol = col; sortAsc = true } },
             )
+            Spacer(Modifier.height(12.dp))
         }
     }
 }
 
 @Composable
 private fun SectionLabel(text: String) {
-    Text(text, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+    Text(text, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = TextPrimary, modifier = Modifier.padding(start = 2.dp))
 }
 
 @Composable
@@ -87,16 +76,18 @@ private fun BannerTypeTabs(selected: String, onSelect: (String) -> Unit) {
         GachaRateData.bannerTypes.forEach { (key, label) ->
             val isSel = key == selected
             Surface(
-                modifier = Modifier.clickable { onSelect(key) },
-                shape = RoundedCornerShape(10.dp),
-                color = if (isSel) accent else Color(0xFFF2F2F6),
+                modifier = Modifier.weight(1f).clickable { onSelect(key) },
+                shape = RoundedCornerShape(50),
+                color = if (isSel) accent else Color(0xF7FFFFFF),
+                border = if (isSel) null else androidx.compose.foundation.BorderStroke(1.dp, DividerColor),
             ) {
                 Text(
                     label,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 7.dp),
-                    fontSize = 12.sp,
+                    modifier = Modifier.padding(vertical = 9.dp),
+                    fontSize = 13.sp,
                     fontWeight = FontWeight.Bold,
                     color = if (isSel) Color.White else TextSecondary,
+                    textAlign = TextAlign.Center,
                 )
             }
         }
@@ -107,18 +98,12 @@ private fun BannerTypeTabs(selected: String, onSelect: (String) -> Unit) {
 private fun GameRateCard(game: GachaGameRate, bannerType: String) {
     val accent = LocalAccent.current
     val banner = game.banner(bannerType)
-    Column(
-        Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
-            .background(CardBg)
-            .border(1.dp, DividerColor, RoundedCornerShape(16.dp)),
-    ) {
-        // 게임 색상 바
-        Box(Modifier.fillMaxWidth().height(4.dp).background(game.color))
-        Column(Modifier.padding(14.dp)) {
+    GlassCard(shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(game.name, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+                Box(Modifier.size(10.dp).clip(CircleShape).background(game.color))
+                Spacer(Modifier.width(8.dp))
+                Text(game.name, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
                 Spacer(Modifier.width(8.dp))
                 Surface(color = game.color, shape = CircleShape) {
                     Text(
@@ -127,44 +112,42 @@ private fun GameRateCard(game: GachaGameRate, bannerType: String) {
                         fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color.White,
                     )
                 }
+                Spacer(Modifier.weight(1f))
+                if (banner != null) CarryoverBadge(banner)
             }
             if (banner != null) {
-                Spacer(Modifier.height(8.dp))
-                CarryoverBadge(banner)
-                Spacer(Modifier.height(10.dp))
-                // 2x2 통계 그리드
+                Spacer(Modifier.height(12.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    StatBox("기본 확률", pct(banner.base, 2), "${game.grade} 기준", Modifier.weight(1f))
-                    StatBox("소프트 천장", "${banner.softPity}회", "이후 확률 상승", Modifier.weight(1f))
+                    StatBox("기본 확률", pct(banner.base, 2), "${game.grade} 기준", game.color, Modifier.weight(1f))
+                    StatBox("소프트 천장", "${banner.softPity}회", "이후 확률 상승", game.color, Modifier.weight(1f))
                 }
                 Spacer(Modifier.height(8.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    StatBox("하드 천장", "${banner.hardPity}회", "100% ${game.grade} 보장", Modifier.weight(1f))
-                    StatBox("뽑기 단위", "${banner.currency} ${banner.perPull}", "= 1회 소환", Modifier.weight(1f))
+                    StatBox("하드 천장", "${banner.hardPity}회", "100% ${game.grade} 보장", game.color, Modifier.weight(1f))
+                    StatBox("뽑기 단위", "${banner.currency} ${banner.perPull}", "= 1회 소환", game.color, Modifier.weight(1f))
                 }
                 Spacer(Modifier.height(10.dp))
                 val g = GachaRateData.guaranteeInfo(game.grade, banner)
                 Column(
                     Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(accent.copy(alpha = 0.05f))
-                        .border(1.dp, accent.copy(alpha = 0.12f), RoundedCornerShape(10.dp))
-                        .padding(horizontal = 11.dp, vertical = 8.dp),
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(accent.copy(alpha = 0.06f))
+                        .padding(horizontal = 11.dp, vertical = 9.dp),
                 ) {
-                    Text(g.title, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+                    Text(g.title, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = accent)
                     if (g.detail.isNotBlank()) {
                         Text(g.detail, fontSize = 11.sp, color = TextSecondary, modifier = Modifier.padding(top = 2.dp))
                     }
                 }
             } else {
-                Spacer(Modifier.height(8.dp))
-                Text("이 배너 타입이 없습니다.", fontSize = 12.sp, color = Color.LightGray)
+                Spacer(Modifier.height(10.dp))
+                Text("이 배너 타입이 없습니다.", fontSize = 12.sp, color = TextSecondary)
             }
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(10.dp))
             Text(
                 "기준: 버전 ${game.version}",
-                fontSize = 10.sp, color = Color(0x4D000000),
+                fontSize = 10.sp, color = TextSecondary.copy(alpha = 0.7f),
                 modifier = Modifier.fillMaxWidth(),
                 textAlign = TextAlign.End,
             )
@@ -180,29 +163,29 @@ private fun CarryoverBadge(banner: GachaBannerRate) {
     val (bg, fg) = when (kind) {
         CarryoverKind.YES -> Color(0x2622C55E) to Color(0xFF16A34A)
         CarryoverKind.NO -> Color(0x1ADC2626) to Color(0xFFDC2626)
-        CarryoverKind.EPITOMIZED -> accent.copy(alpha = 0.1f) to accent
-        CarryoverKind.NONE -> Color(0x0F000000) to Color(0x73000000)
+        CarryoverKind.EPITOMIZED -> accent.copy(alpha = 0.12f) to accent
+        CarryoverKind.NONE -> Color(0x0F000000) to TextSecondary
     }
     Surface(color = bg, shape = CircleShape) {
         Text(
             label,
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
             fontSize = 10.sp, fontWeight = FontWeight.Bold, color = fg,
         )
     }
 }
 
 @Composable
-private fun StatBox(label: String, value: String, sub: String, modifier: Modifier = Modifier) {
+private fun StatBox(label: String, value: String, sub: String, tint: Color, modifier: Modifier = Modifier) {
     Column(
         modifier
-            .clip(RoundedCornerShape(10.dp))
-            .background(StatBg)
-            .padding(horizontal = 11.dp, vertical = 9.dp),
+            .clip(RoundedCornerShape(12.dp))
+            .background(tint.copy(alpha = 0.06f))
+            .padding(horizontal = 11.dp, vertical = 10.dp),
     ) {
-        Text(label, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, color = StatLabel)
-        Text(value, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TextPrimary, modifier = Modifier.padding(top = 3.dp))
-        Text(sub, fontSize = 10.sp, color = StatLabel, modifier = Modifier.padding(top = 1.dp))
+        Text(label, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, color = TextSecondary)
+        Text(value, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TextPrimary, modifier = Modifier.padding(top = 3.dp))
+        Text(sub, fontSize = 10.sp, color = TextSecondary.copy(alpha = 0.8f), modifier = Modifier.padding(top = 1.dp))
     }
 }
 
@@ -231,40 +214,36 @@ private fun CompareTable(bannerType: String, sortCol: String?, sortAsc: Boolean,
         if (!sortAsc) rows = rows.reversed()
     }
 
-    Column(
-        Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
-            .border(1.dp, DividerColor, RoundedCornerShape(12.dp)),
-    ) {
-        // 헤더
-        Row(
-            Modifier.fillMaxWidth().background(Color(0xFFF6F6FA)).padding(vertical = 8.dp, horizontal = 6.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            HeaderCell("게임", "name", sortCol, sortAsc, 1.5f, onSort)
-            HeaderCell("등급", "grade", sortCol, sortAsc, 0.9f, onSort)
-            HeaderCell("기본", "base", sortCol, sortAsc, 1.1f, onSort)
-            HeaderCell("소프트", "soft", sortCol, sortAsc, 0.9f, onSort)
-            HeaderCell("하드", "hard", sortCol, sortAsc, 0.9f, onSort)
-            HeaderCell("보장", "guarantee", sortCol, sortAsc, 1.3f, onSort)
-        }
-        rows.forEachIndexed { i, r ->
-            if (i > 0) HorizontalDivider(color = DividerColor)
+    GlassCard(shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.fillMaxWidth()) {
             Row(
-                Modifier.fillMaxWidth().padding(vertical = 9.dp, horizontal = 6.dp),
+                Modifier.fillMaxWidth().padding(vertical = 10.dp, horizontal = 12.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Row(Modifier.weight(1.5f), verticalAlignment = Alignment.CenterVertically) {
-                    Box(Modifier.size(7.dp).clip(CircleShape).background(r.color))
-                    Spacer(Modifier.width(5.dp))
-                    Text(r.shortName, fontSize = 11.sp, fontWeight = FontWeight.Medium, color = TextPrimary, maxLines = 1)
+                HeaderCell("게임", "name", sortCol, sortAsc, 1.5f, onSort)
+                HeaderCell("등급", "grade", sortCol, sortAsc, 0.9f, onSort)
+                HeaderCell("기본", "base", sortCol, sortAsc, 1.1f, onSort)
+                HeaderCell("소프트", "soft", sortCol, sortAsc, 0.9f, onSort)
+                HeaderCell("하드", "hard", sortCol, sortAsc, 0.9f, onSort)
+                HeaderCell("보장", "guarantee", sortCol, sortAsc, 1.3f, onSort)
+            }
+            rows.forEach { r ->
+                HorizontalDivider(color = DividerColor)
+                Row(
+                    Modifier.fillMaxWidth().padding(vertical = 10.dp, horizontal = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Row(Modifier.weight(1.5f), verticalAlignment = Alignment.CenterVertically) {
+                        Box(Modifier.size(7.dp).clip(CircleShape).background(r.color))
+                        Spacer(Modifier.width(5.dp))
+                        Text(r.shortName, fontSize = 11.sp, fontWeight = FontWeight.Medium, color = TextPrimary, maxLines = 1)
+                    }
+                    DataCell(r.grade, 0.9f)
+                    DataCell(r.base?.let { pct(it, 3) } ?: "—", 1.1f)
+                    DataCell(r.soft?.let { "$it" } ?: "—", 0.9f)
+                    DataCell(r.hard?.let { "$it" } ?: "—", 0.9f)
+                    DataCell(r.guarantee, 1.3f)
                 }
-                DataCell(r.grade, 0.9f)
-                DataCell(r.base?.let { pct(it, 3) } ?: "—", 1.1f)
-                DataCell(r.soft?.let { "$it" } ?: "—", 0.9f)
-                DataCell(r.hard?.let { "$it" } ?: "—", 0.9f)
-                DataCell(r.guarantee, 1.3f)
             }
         }
     }
@@ -276,7 +255,7 @@ private fun RowScope.HeaderCell(
 ) {
     val accent = LocalAccent.current
     val active = sortCol == col
-    val arrow = if (active) (if (sortAsc) " ↑" else " ↓") else " ↕"
+    val arrow = if (active) (if (sortAsc) " ↑" else " ↓") else ""
     Text(
         label + arrow,
         modifier = Modifier.weight(weight).clickable { onSort(col) },

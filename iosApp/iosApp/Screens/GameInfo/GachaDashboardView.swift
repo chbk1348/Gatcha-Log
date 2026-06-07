@@ -20,21 +20,18 @@ struct GachaDashboardView: View {
     private var sel: String? { selected ?? games.first }
 
     var body: some View {
-        NavigationStack {
-            Group {
-                if let gk = sel, let d = store.gachaDashboard?.byGame[gk] {
-                    content(gk, d)
-                } else {
-                    Text("가챠 기록을 가져오면\n천장 분포·월별 추이·픽업 비율을 분석해 드려요.")
-                        .font(.system(size: 13)).foregroundStyle(GLGColor.textSecondary).multilineTextAlignment(.center)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                }
+        Group {
+            if let gk = sel, let d = store.gachaDashboard?.byGame[gk] {
+                content(gk, d)
+            } else {
+                Text("가챠 기록을 가져오면\n천장 분포·월별 추이·픽업 비율을 분석해 드려요.")
+                    .font(.system(size: 13)).foregroundStyle(GLGColor.textSecondary).multilineTextAlignment(.center)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
-            .background(GLGBackground { Color.clear })
-            .navigationTitle("가챠 통계")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar { ToolbarItem(placement: .confirmationAction) { Button("닫기") { dismiss() } } }
         }
+        .background(GLGBackground { Color.clear })
+        .navigationTitle("가챠 통계")
+        .navigationBarTitleDisplayMode(.inline)
     }
 
     private func content(_ gk: String, _ d: GachaGameDash) -> some View {

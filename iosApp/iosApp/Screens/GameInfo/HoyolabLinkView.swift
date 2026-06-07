@@ -22,8 +22,7 @@ struct HoyolabLinkView: View {
     @State private var didInit = false
 
     var body: some View {
-        NavigationStack {
-            ScrollView {
+        ScrollView {
                 VStack(alignment: .leading, spacing: 10) {
                     Text("이 기능은 비공식 연동이며, 토큰은 이 기기에만 저장됩니다 (클라우드·백업에 포함되지 않음).")
                         .font(.system(size: 11)).foregroundStyle(GLGColor.textSecondary)
@@ -60,16 +59,10 @@ struct HoyolabLinkView: View {
                 .padding(.horizontal, 16).padding(.top, 16).padding(.bottom, 8)
             }
             .background(GLGBackground { Color.clear })
-            // 저장 버튼은 시트 하단에 고정 — 폼이 짧아도 버튼이 중간에 뜨던 불필요한 여백 제거
-            .safeAreaInset(edge: .bottom) {
-                GLGButton(title: "저장") { save() }
-                    .padding(.horizontal, 16)
-                    .padding(.top, 8)
-            }
             .navigationTitle("HoYoLAB 계정 연동")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar { ToolbarItem(placement: .cancellationAction) { Button("닫기") { onClose() } } }
-        }
+            // 저장 버튼을 헤더(우상단)로 이관
+            .toolbar { ToolbarItem(placement: .topBarTrailing) { Button("저장") { save() }.fontWeight(.bold) } }
         .onAppear {
             guard !didInit else { return }; didInit = true
             let c = store.hoyolabConfig

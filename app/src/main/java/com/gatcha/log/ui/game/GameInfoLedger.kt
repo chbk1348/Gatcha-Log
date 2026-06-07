@@ -27,7 +27,7 @@ import com.gatcha.log.util.num
 @Composable
 internal fun LedgerCard(ledger: MonthlyLedger) {
     val accent = LocalAccent.current
-    GlassCard(shape = RoundedCornerShape(24.dp), modifier = Modifier.fillMaxWidth()) {
+    GlassCard(shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(Modifier.size(10.dp).background(ledger.gameColor, CircleShape))

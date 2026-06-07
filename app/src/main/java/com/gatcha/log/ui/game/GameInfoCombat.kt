@@ -25,7 +25,7 @@ import com.gatcha.log.ui.theme.TextSecondary
 /** 게임별 전투 콘텐츠 진행도 카드 (나선 비경·현실 속 환상극 / 혼돈의 기억·허구 이야기·종말의 환영). */
 @Composable
 internal fun CombatGameCard(game: Game, modes: List<CombatMode>) {
-    GlassCard(shape = RoundedCornerShape(24.dp), modifier = Modifier.fillMaxWidth()) {
+    GlassCard(shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 2.dp)) {
                 Box(Modifier.size(10.dp).background(game.color, CircleShape))

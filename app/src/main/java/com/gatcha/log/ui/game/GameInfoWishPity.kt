@@ -12,8 +12,11 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import kotlin.math.roundToInt
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -46,7 +49,7 @@ fun WishlistSection(
     var wgame by remember { mutableStateOf("genshin") }
     var input by remember { mutableStateOf("") }
     Text("위시리스트", fontSize = 16.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 12.dp))
-    GlassCard(shape = RoundedCornerShape(24.dp), modifier = Modifier.fillMaxWidth()) {
+    GlassCard(shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp)) {
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 GameData.games.forEach { g ->
@@ -118,8 +121,9 @@ private fun WishTab(label: String, selected: Boolean, color: Color, onClick: () 
 @Composable
 fun PitySection(pity: Map<String, PityState>, onAdjust: (String, Int) -> Unit, onReset: (String) -> Unit) {
     val accent = LocalAccent.current
-    Text("천장 카운터", fontSize = 16.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 12.dp))
-    GlassCard(shape = RoundedCornerShape(24.dp), modifier = Modifier.fillMaxWidth()) {
+    Text("천장 카운터", fontSize = 16.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 4.dp))
+    Text("남은 천장까지의 거리를 게임별로 관리해요.", fontSize = 11.sp, color = TextSecondary, modifier = Modifier.padding(bottom = 12.dp))
+    GlassCard(shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp)) {
             GameData.attendanceGames.forEachIndexed { i, game ->
                 val state = pity[game.key] ?: PityState()
@@ -146,7 +150,7 @@ fun PitySection(pity: Map<String, PityState>, onAdjust: (String, Int) -> Unit, o
                     com.gatcha.log.data.PityTier.Imminent -> "임박 — ${(hard - state.count).coerceAtLeast(0)}연 이내 $grade 보장"
                     com.gatcha.log.data.PityTier.Reached -> "도달 — 다음 $grade 100% 확정"
                 }
-                Column(Modifier.padding(vertical = 8.dp)) {
+                Column(Modifier.padding(vertical = 10.dp)) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -169,28 +173,44 @@ fun PitySection(pity: Map<String, PityState>, onAdjust: (String, Int) -> Unit, o
                                 }
                             }
                         }
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            PityBtn("−") { onAdjust(game.key, -1) }
-                            Text(
-                                "${state.count} / $hard",
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 14.sp,
-                                color = if (tier == com.gatcha.log.data.PityTier.Safe) TextPrimary else tierColor,
-                                modifier = Modifier.padding(horizontal = 10.dp),
-                            )
-                            PityBtn("+") { onAdjust(game.key, 1) }
-                            Spacer(Modifier.width(8.dp))
-                            Text("리셋", color = accent, fontSize = 12.sp, fontWeight = FontWeight.Bold, modifier = Modifier.clickable { onReset(game.key) }.padding(4.dp))
-                        }
+                        Text("리셋", color = accent, fontSize = 12.sp, fontWeight = FontWeight.Bold, modifier = Modifier.clickable { onReset(game.key) }.padding(4.dp))
                     }
                     Spacer(Modifier.height(6.dp))
-                    LinearProgressIndicator(
-                        progress = { (state.count.toFloat() / hard).coerceIn(0f, 1f) },
-                        color = tierColor,
-                        trackColor = ProgressEmpty,
-                        modifier = Modifier.fillMaxWidth().height(5.dp).clip(CircleShape),
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Row(verticalAlignment = Alignment.Bottom) {
+                            Text(
+                                "${state.count}",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 28.sp,
+                                color = if (tier == com.gatcha.log.data.PityTier.Safe) TextPrimary else tierColor,
+                            )
+                            Spacer(Modifier.width(4.dp))
+                            Text("/ $hard", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = TextSecondary, modifier = Modifier.padding(bottom = 4.dp))
+                        }
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            PityBtn("−") { onAdjust(game.key, -1) }
+                            PityBtn("+") { onAdjust(game.key, 1) }
+                        }
+                    }
+                    // 프로그레스바를 직접 드래그해 천장 카운트 조정 (±버튼은 미세조정용으로 유지)
+                    Slider(
+                        value = state.count.toFloat(),
+                        onValueChange = { v ->
+                            val nv = v.roundToInt()
+                            if (nv != state.count) onAdjust(game.key, nv - state.count)
+                        },
+                        valueRange = 0f..hard.toFloat().coerceAtLeast(1f),
+                        colors = SliderDefaults.colors(
+                            thumbColor = tierColor,
+                            activeTrackColor = tierColor,
+                            inactiveTrackColor = ProgressEmpty,
+                        ),
+                        modifier = Modifier.fillMaxWidth(),
                     )
-                    Spacer(Modifier.height(4.dp))
                     Text(
                         helperText,
                         fontSize = 11.sp,

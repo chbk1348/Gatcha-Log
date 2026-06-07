@@ -1,10 +1,10 @@
 import SwiftUI
 import ComposeApp
 
-// 리딤코드 — 활성 코드 자동 수집 + 교환(단건/모두) + 직접 입력. (Compose GiftCodeDialog 대응)
-struct GiftCodeSheet: View {
+// 리딤코드 — 페이지 형식(네비게이션 푸시). 활성 코드 자동 수집 + 교환(단건/모두) + 직접 입력.
+// (Compose GiftCodePage 대응) 시트 → 페이지로 전환하며 글래스 카드로 디자인 개선.
+struct GiftCodePage: View {
     @ObservedObject var store: SpendingStore
-    @Environment(\.dismiss) private var dismiss
     @Environment(\.glgAccent) private var accent
     @State private var selected = "genshin"
     @State private var code = ""
@@ -23,36 +23,42 @@ struct GiftCodeSheet: View {
     private var pending: Int { store.activeCodes.filter { !store.redeemedCodes.contains($0.code) }.count }
 
     var body: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 0) {
-                    if games.isEmpty {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                if games.isEmpty {
+                    GLGCard(cornerRadius: 20, padding: 16) {
                         Text("HoYoLAB 연동 후 UID가 있어야 코드를 교환할 수 있어요").font(.system(size: 13)).foregroundStyle(GLGColor.textSecondary)
-                    } else {
-                        gameTabs
-                        activeHeader.padding(.top, 12)
-                        codeList.padding(.top, 6)
-                        directInput.padding(.top, 14)
-                        statusText.padding(.top, 10)
                     }
+                } else {
+                    gameTabs
+                    GLGCard(cornerRadius: 20, padding: 16) {
+                        VStack(alignment: .leading, spacing: 0) {
+                            activeHeader
+                            codeList.padding(.top, 10)
+                        }
+                    }
+                    GLGCard(cornerRadius: 20, padding: 16) { directInput }
+                    statusText.padding(.horizontal, 2)
                 }
-                .padding(16)
+                Color.clear.frame(height: 12)
             }
-            .background(GLGBackground { Color.clear })
-            .navigationTitle("리딤코드")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("닫기") { store.resetRedeem(); dismiss() } }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button(loading ? "교환 중…" : "모두 교환") { store.redeemAllCodes(selected) }
-                        .disabled(pending == 0 || loading || games.isEmpty)
-                }
-            }
-            .onAppear {
-                if !didInit { didInit = true; selected = games.first?.0 ?? "genshin"; if !games.isEmpty { store.loadActiveCodes(selected) } }
-            }
-            .onChange(of: selected) { if !games.isEmpty { store.loadActiveCodes($0) } }
+            .padding(16)
         }
+        .scrollIndicators(.hidden)
+        .background(GLGBackground { Color.clear })
+        .navigationTitle("리딤코드")
+        .navigationBarTitleDisplayMode(.large)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button(loading ? "교환 중…" : "모두 교환") { store.redeemAllCodes(selected) }
+                    .disabled(pending == 0 || loading || games.isEmpty)
+            }
+        }
+        .onAppear {
+            if !didInit { didInit = true; selected = games.first?.0 ?? "genshin"; if !games.isEmpty { store.loadActiveCodes(selected) } }
+        }
+        .onChange(of: selected) { if !games.isEmpty { store.loadActiveCodes($0) } }
+        .onDisappear { store.resetRedeem() }
     }
 
     private var gameTabs: some View {
@@ -60,11 +66,13 @@ struct GiftCodeSheet: View {
             ForEach(games, id: \.0) { key, label in
                 let sel = key == selected
                 Button { selected = key } label: {
-                    Text(label).font(.system(size: 12, weight: .bold)).foregroundStyle(sel ? .white : GLGColor.textSecondary)
-                        .padding(.horizontal, 12).padding(.vertical, 6)
-                        .background(sel ? accent.primary : Color(hex: 0xFFF2F2F6), in: Capsule())
+                    Text(label).font(.system(size: 13, weight: .bold)).foregroundStyle(sel ? .white : GLGColor.textSecondary)
+                        .padding(.horizontal, 14).padding(.vertical, 7)
+                        .background(sel ? accent.primary : Color.white.opacity(0.6), in: Capsule())
+                        .overlay(Capsule().stroke(GLGColor.divider, lineWidth: sel ? 0 : 1))
                 }.buttonStyle(.plain)
             }
+            Spacer(minLength: 0)
         }
     }
 
@@ -146,11 +154,9 @@ struct GiftCodeSheet: View {
 
     private var directInput: some View {
         VStack(alignment: .leading, spacing: 8) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text("직접 입력 (새 코드)").font(.system(size: 11, weight: .semibold)).foregroundStyle(GLGColor.textSecondary)
-                TextField("예: GENSHINGIFT", text: $code).textFieldStyle(.plain).glgPillField().autocapitalization(.allCharacters)
-                    .onChange(of: code) { code = $0.uppercased().filter { $0.isLetter || $0.isNumber } }
-            }
+            Text("직접 입력 (새 코드)").font(.system(size: 11, weight: .semibold)).foregroundStyle(GLGColor.textSecondary)
+            TextField("예: GENSHINGIFT", text: $code).textFieldStyle(.plain).glgPillField().autocapitalization(.allCharacters)
+                .onChange(of: code) { code = $0.uppercased().filter { $0.isLetter || $0.isNumber } }
             if !code.isEmpty {
                 Button { store.redeemGiftCode(gameKey: selected, code: code.trimmingCharacters(in: .whitespaces)); code = "" } label: {
                     Text("이 코드 교환").font(.system(size: 12, weight: .bold)).foregroundStyle(accent.primary)
