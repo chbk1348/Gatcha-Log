@@ -41,11 +41,10 @@ fun GameTabbedSection(
 ) {
     val games = GameData.attendanceGames // 원신·스타레일·젠레스
     val shown = if (filter == "all") games else games.filter { it.key == filter }
-    // 같은 카드 섹션끼리 묶기 — 게임별이 아니라 섹션 타입(배너/전투/일지)별로 그룹화. 각 카드는 자체 게임 헤더 보유.
-    val bannerGames = shown.mapNotNull { g -> banners.filter { it.game == g.displayName }.takeIf { it.isNotEmpty() }?.let { g to it } }
+    // 전투 진행도·수입 일지를 섹션 타입별로 그룹화. 픽업 배너는 '게임 일정'으로 통합돼 제외.
     val combatGames = shown.mapNotNull { g -> combat.filter { it.game == g.displayName }.takeIf { it.isNotEmpty() }?.let { g to it } }
     val ledgerList = shown.mapNotNull { g -> ledgers.firstOrNull { it.game == g.displayName } }
-    val allEmpty = bannerGames.isEmpty() && combatGames.isEmpty() && ledgerList.isEmpty()
+    val allEmpty = combatGames.isEmpty() && ledgerList.isEmpty()
     Column(verticalArrangement = Arrangement.spacedBy(20.dp)) {
         when {
             allEmpty && isRefreshing -> BannerSkeleton()
@@ -55,11 +54,6 @@ fun GameTabbedSection(
                 }
             }
             else -> {
-                if (bannerGames.isNotEmpty()) GameContentBlock("픽업 배너 D-Day") {
-                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        bannerGames.forEach { (g, b) -> GameBannerCard(g, b) }
-                    }
-                }
                 if (combatGames.isNotEmpty()) GameContentBlock("전투 콘텐츠 진행도") {
                     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         combatGames.forEach { (g, c) -> CombatGameCard(g, c) }
