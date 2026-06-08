@@ -44,7 +44,7 @@ import com.gatcha.log.ui.spending.SpendingViewModel
 import com.gatcha.log.ui.theme.*
 
 /** 게임정보 탭의 풀스크린 하위 페이지 (열리면 하단바·FAB 숨김) */
-private enum class GiSub { Main, HoyoLink, Dashboard, Rate, Calc, Profile, Report, Gift }
+private enum class GiSub { Main, HoyoLink, Dashboard, Rate, Calc, Profile, Report, Gift, Schedule }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -91,6 +91,8 @@ fun GameInfoScreen(
     }
     // Segmented 레이아웃 — 상단 게임 세그먼트 선택값("all" | game.key). 하위 섹션들이 이 값으로 필터된다.
     var gameFilter by remember { mutableStateOf("all") }
+    // 통합 게임 일정(패치·이벤트·콘텐츠 병합) — 데일리 아래 첫 섹션.
+    val schedule = remember(banners, events, challenges) { buildSchedule(banners, events, challenges) }
     // 게임정보 하위 풀스크린 페이지(연동 / 가챠 통계) — 열리면 상위(Scaffold)에 알려 하단바·FAB 숨김
     var subPage by remember { mutableStateOf(GiSub.Main) }
     LaunchedEffect(subPage) { onSubPageChange(subPage != GiSub.Main) }
@@ -179,6 +181,9 @@ fun GameInfoScreen(
                 onRedeemAll = { key -> viewModel.redeemAllCodes(key) },
                 onBack = { subPage = GiSub.Main; viewModel.resetRedeem() },
             )
+            GiSub.Schedule -> SectionPage(onBack = { subPage = GiSub.Main }) {
+                GameScheduleFullContent(banners, events, challenges, gameFilter)
+            }
             GiSub.Main -> GlgPullToRefreshBox(
             isRefreshing = isRefreshing,
             onRefresh = { viewModel.refreshGameInfo(force = true) },
@@ -226,7 +231,12 @@ fun GameInfoScreen(
                     onConfigClick = { subPage = GiSub.HoyoLink },
                 )
             }
-            // 배너·전투 진행도·수입 일지를 게임 칩으로 번갈아 보는 통합 섹션
+            // 통합 게임 일정 — 데일리 바로 아래. 헤더 드롭다운(gameFilter) 연동.
+            if (schedule.isNotEmpty()) {
+                item { Spacer(Modifier.height(20.dp)) }
+                item { GameScheduleSection(schedule, banners, gameFilter) { subPage = GiSub.Schedule } }
+            }
+            // 전투 진행도·수입 일지(게임 필터 연동). 픽업 배너는 게임 일정으로 통합돼 제외.
             item { Spacer(Modifier.height(20.dp)) }
             item {
                 GameTabbedSection(
@@ -238,10 +248,6 @@ fun GameInfoScreen(
                 )
             }
             item { Spacer(Modifier.height(20.dp)) }
-            if (!(banners.isEmpty() && isRefreshing)) {
-                item { PatchSection(banners) }
-                item { Spacer(Modifier.height(20.dp)) }
-            }
             item {
                 WishlistSection(
                     wishlist = wishlist,
@@ -258,19 +264,6 @@ fun GameInfoScreen(
             item { Spacer(Modifier.height(12.dp)) }
             item { NavEntryCard(Icons.Default.BarChart, "가챠 효율 리포트", "UIGF/SRGF 분석 · 단가 · 천장 분포") { subPage = GiSub.Report } }
             item { Spacer(Modifier.height(20.dp)) }
-            if (banners.isEmpty() && isRefreshing) {
-                item { ListSkeleton(rows = 3) }
-                item { Spacer(Modifier.height(20.dp)) }
-                item { ListSkeleton(rows = 4) }
-            } else {
-                if (challenges.isNotEmpty()) {
-                    item { ChallengeSection(challenges) }
-                    item { Spacer(Modifier.height(20.dp)) }
-                }
-                if (events.isNotEmpty()) {
-                    item { EventSection(events) }
-                }
-            }
         }
     }
         }
