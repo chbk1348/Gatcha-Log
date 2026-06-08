@@ -60,7 +60,6 @@ struct LoginView: View {
             }
             .padding(.horizontal, 28)
         }
-        .glgToast(message: store.statusMessage) { store.clearStatus() }
     }
 }
 

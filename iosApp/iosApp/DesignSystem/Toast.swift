@@ -17,35 +17,38 @@ private struct GLGToastModifier: ViewModifier {
     func body(content: Content) -> some View {
         content.overlay(alignment: .bottom) {
             if visible {
-                HStack(spacing: 8) {
-                    Image(systemName: "checkmark.circle.fill")
-                        .font(.system(size: 18))
-                        .foregroundStyle(accent.primary)
+                HStack(spacing: 10) {
+                    ZStack {
+                        Circle().fill(accent.primary.opacity(0.16)).frame(width: 26, height: 26)
+                        Image(systemName: "checkmark").font(.system(size: 12, weight: .heavy)).foregroundStyle(accent.primary)
+                    }
                     Text(text)
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundStyle(.white)
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(GLGColor.textPrimary)
+                        .lineLimit(2)
                 }
-                .padding(.horizontal, 18)
-                .padding(.vertical, 13)
-                .background(
-                    Color(hex: 0xF22A2C32),
-                    in: RoundedRectangle(cornerRadius: 22, style: .continuous)
-                )
+                .padding(.leading, 10)
+                .padding(.trailing, 18)
+                .padding(.vertical, 10)
+                .background(.regularMaterial, in: Capsule())
+                .overlay(Capsule().stroke(Color.white.opacity(0.55), lineWidth: 0.5))
+                .shadow(color: .black.opacity(0.14), radius: 18, y: 6)
+                .padding(.horizontal, 24)
                 .padding(.bottom, bottomPadding)
-                .transition(.opacity.combined(with: .move(edge: .bottom)))
+                .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
         // message 변경 시 재실행(이전 task 취소 — Compose LaunchedEffect(message) 와 동일 의미).
         .task(id: message) {
             guard let m = message, !m.isEmpty else {
-                withAnimation { visible = false }
+                withAnimation(.easeOut(duration: 0.2)) { visible = false }
                 return
             }
             text = m
-            withAnimation { visible = true }
+            withAnimation(.spring(response: 0.4, dampingFraction: 0.78)) { visible = true }
             try? await Task.sleep(nanoseconds: 2_200_000_000)
             guard !Task.isCancelled else { return }
-            withAnimation { visible = false }
+            withAnimation(.easeOut(duration: 0.25)) { visible = false }
             onConsumed()
         }
     }

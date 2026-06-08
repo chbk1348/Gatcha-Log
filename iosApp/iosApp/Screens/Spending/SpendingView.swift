@@ -71,7 +71,6 @@ struct SpendingView: View {
                 NavigationLink { AnnualReportView(store: store) } label: { Image(systemName: "chart.bar.doc.horizontal") }
             }
         }
-        .glgToast(message: store.statusMessage, bottomPadding: 14) { store.clearStatus() }
         .sheet(isPresented: $showFilter) { filterSheet }
     }
 

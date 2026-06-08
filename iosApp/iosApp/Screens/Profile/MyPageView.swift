@@ -46,7 +46,6 @@ struct MyPageView: View {
         .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar { ToolbarItem(placement: .topBarTrailing) { settingsButton } }
-        .glgToast(message: store.statusMessage, bottomPadding: 14) { store.clearStatus() }
     }
 
     private var settingsButton: some View {
