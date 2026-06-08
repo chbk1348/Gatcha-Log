@@ -143,7 +143,8 @@ struct ScheduleEntry: Identifiable {
 func buildSchedule(banners: [GachaBanner], events: [GameEvent], challenges: [GameChallenge]) -> [ScheduleEntry] {
     let now = nowMs()
     var out: [ScheduleEntry] = []
-    // ① 패치 — 게임별 다음 시작(미래) 또는 마지막 종료
+    // ① 픽업 페이즈 — 게임별 다음 픽업 시작(미래) 또는 현재 픽업 종료.
+    // (ennead가 버전 종료 시각을 안 줘서 '버전' 대신 '픽업' 기준 표기 — 후반 미게시 시 오해 방지)
     for game in GameData.shared.games where game.enneadKey != nil {
         let gb = banners.filter { $0.game == game.displayName }
         if gb.isEmpty { continue }
@@ -151,12 +152,12 @@ func buildSchedule(banners: [GachaBanner], events: [GameEvent], challenges: [Gam
         if let f = gb.compactMap({ $0.startMillis > now ? $0.startMillis : nil }).min() {
             let v = gb.first { $0.startMillis == f }?.version ?? ""
             out.append(ScheduleEntry(gameKey: game.key, gameShort: game.shortName, color: color, kind: "패치",
-                                     title: v.isEmpty ? "새 버전 시작" : "v\(v) 새 버전 시작", sub: "", target: f, isStart: true))
+                                     title: v.isEmpty ? "새 픽업 시작" : "v\(v) 새 픽업 시작", sub: "", target: f, isStart: true))
         } else {
             let end = gb.map { $0.endMillis }.max() ?? 0
             let v = gb.first { $0.endMillis == end }?.version ?? ""
             out.append(ScheduleEntry(gameKey: game.key, gameShort: game.shortName, color: color, kind: "패치",
-                                     title: v.isEmpty ? "버전 종료" : "v\(v) 버전 종료", sub: "", target: end, isStart: false))
+                                     title: v.isEmpty ? "픽업 종료" : "v\(v) 픽업 종료", sub: "", target: end, isStart: false))
         }
     }
     // ② 진행 중인 이벤트

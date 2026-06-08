@@ -61,7 +61,8 @@ data class ScheduleEntry(
 fun buildSchedule(banners: List<GachaBanner>, events: List<GameEvent>, challenges: List<GameChallenge>): List<ScheduleEntry> {
     val now = System.currentTimeMillis()
     val out = mutableListOf<ScheduleEntry>()
-    // ① 패치 — 게임별 다음 시작(미래) 또는 마지막 종료
+    // ① 픽업 페이즈 — 게임별 다음 픽업 시작(미래) 또는 현재 픽업 종료.
+    // (ennead가 버전 종료 시각을 안 줘서 '버전' 대신 '픽업' 기준으로 표기 — 후반 미게시 시 오해 방지)
     for (game in GameData.games) {
         if (game.enneadKey == null) continue
         val gb = banners.filter { it.game == game.displayName }
@@ -70,12 +71,12 @@ fun buildSchedule(banners: List<GachaBanner>, events: List<GameEvent>, challenge
         if (future != null) {
             val v = gb.firstOrNull { it.startMillis == future }?.version ?: ""
             out += ScheduleEntry(game.key, game.shortName, game.color, "패치",
-                if (v.isBlank()) "새 버전 시작" else "v$v 새 버전 시작", "", future, true)
+                if (v.isBlank()) "새 픽업 시작" else "v$v 새 픽업 시작", "", future, true)
         } else {
             val end = gb.maxOf { it.endMillis }
             val v = gb.firstOrNull { it.endMillis == end }?.version ?: ""
             out += ScheduleEntry(game.key, game.shortName, game.color, "패치",
-                if (v.isBlank()) "버전 종료" else "v$v 버전 종료", "", end, false)
+                if (v.isBlank()) "픽업 종료" else "v$v 픽업 종료", "", end, false)
         }
     }
     // ② 진행 중인 이벤트
