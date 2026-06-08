@@ -168,8 +168,8 @@ private fun CurrencyCalc(game: GachaGameRate, banner: GachaBannerRate, pity: Map
     var mode by remember { mutableStateOf("calc") } // calc | reverse
     var qty by remember { mutableStateOf(1) }
     var currency by remember { mutableStateOf("") }
-    var pityStr by remember(game.key) { mutableStateOf((pity[game.key]?.count ?: 0).toString()) }
-    var guaranteed by remember(game.key) { mutableStateOf(pity[game.key]?.guaranteed ?: false) }
+    var pityStr by remember(game.key) { mutableStateOf("0") }   // 수동 입력(천장 카운터 연동 제거)
+    var guaranteed by remember(game.key) { mutableStateOf(false) }
     var targetPulls by remember { mutableStateOf("") }
 
     // 모드 토글
@@ -195,7 +195,7 @@ private fun CurrencyCalc(game: GachaGameRate, banner: GachaBannerRate, pity: Map
     GlgTextField(currency, { currency = it.filter(Char::isDigit) }, label = "보유 ${banner.currency}",
         placeholder = "0", keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.fillMaxWidth())
     Spacer(Modifier.height(10.dp))
-    GlgTextField(pityStr, { pityStr = it.filter(Char::isDigit) }, label = "현재 천장 (천장 카운터 연동)",
+    GlgTextField(pityStr, { pityStr = it.filter(Char::isDigit) }, label = "현재 천장",
         placeholder = "0", keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.fillMaxWidth())
     if (banner.has5050 && !banner.no5050) {
         Spacer(Modifier.height(10.dp))
@@ -245,8 +245,8 @@ private fun CurrencyCalc(game: GachaGameRate, banner: GachaBannerRate, pity: Map
 private fun ProbCalc(game: GachaGameRate, banner: GachaBannerRate, pity: Map<String, PityState>) {
     val maxPulls = banner.hardPity * 2
     var nFloat by remember(game.key, banner) { mutableStateOf(banner.hardPity.toFloat()) }
-    var pityStr by remember(game.key) { mutableStateOf((pity[game.key]?.count ?: 0).toString()) }
-    var guaranteed by remember(game.key) { mutableStateOf(pity[game.key]?.guaranteed ?: false) }
+    var pityStr by remember(game.key) { mutableStateOf("0") }   // 수동 입력(천장 카운터 연동 제거)
+    var guaranteed by remember(game.key) { mutableStateOf(false) }
 
     val n = nFloat.toInt().coerceIn(1, maxPulls)
     val startPity = (pityStr.toIntOrNull() ?: 0).coerceAtLeast(0)
@@ -286,7 +286,7 @@ private fun ProbCalc(game: GachaGameRate, banner: GachaBannerRate, pity: Map<Str
         colors = SliderDefaults.colors(thumbColor = LocalAccent.current, activeTrackColor = LocalAccent.current, inactiveTrackColor = ProgressEmpty),
     )
     Spacer(Modifier.height(6.dp))
-    GlgTextField(pityStr, { pityStr = it.filter(Char::isDigit) }, label = "현재 천장 (천장 카운터 연동)",
+    GlgTextField(pityStr, { pityStr = it.filter(Char::isDigit) }, label = "현재 천장",
         placeholder = "0", keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.fillMaxWidth())
     if (banner.has5050 && !banner.no5050) {
         Spacer(Modifier.height(10.dp))
