@@ -1,7 +1,7 @@
 import SwiftUI
 import ComposeApp
 
-// 통합 게임 탭 — 선택 게임의 픽업 배너·전투 진행도·수입 일지. (Compose GameTabbedSection 대응)
+// 통합 게임 탭 — 선택 게임의 전투 진행도·수입 일지. (픽업 배너는 상단 '게임 일정'으로 통합돼 여기선 제외)
 struct GameTabbedSection: View {
     @ObservedObject var store: SpendingStore
     var filter: String = "all"   // 상단 게임 세그먼트 선택값 — 자체 칩 제거, 이 값으로 노출 게임 결정
@@ -13,14 +13,11 @@ struct GameTabbedSection: View {
     var body: some View {
         // 같은 카드 섹션끼리 묶기 — 게임별이 아니라 섹션 타입(배너/전투/일지)별로 그룹화.
         // 각 카드가 자체 게임 헤더를 가지므로 전체 보기에서 게임 구분이 유지된다.
-        let bannerGames = shownGames.compactMap { g -> (Game, [GachaBanner])? in
-            let b = store.activeBanners.filter { $0.game == g.displayName }; return b.isEmpty ? nil : (g, b)
-        }
         let combatGames = shownGames.compactMap { g -> (Game, [CombatMode])? in
             let c = store.combat.filter { $0.game == g.displayName }; return c.isEmpty ? nil : (g, c)
         }
         let ledgers = shownGames.compactMap { g in store.ledgers.first { $0.game == g.displayName } }
-        let allEmpty = bannerGames.isEmpty && combatGames.isEmpty && ledgers.isEmpty
+        let allEmpty = combatGames.isEmpty && ledgers.isEmpty
         return VStack(alignment: .leading, spacing: 20) {
             if allEmpty {
                 GLGCard(cornerRadius: 20, padding: 28) {
@@ -28,13 +25,6 @@ struct GameTabbedSection: View {
                         .frame(maxWidth: .infinity)
                 }
             } else {
-                if !bannerGames.isEmpty {
-                    contentBlock("픽업 배너 D-Day") {
-                        VStack(alignment: .leading, spacing: 12) {
-                            ForEach(Array(bannerGames.enumerated()), id: \.offset) { _, p in BannerCard(game: p.0, banners: p.1) }
-                        }
-                    }
-                }
                 if !combatGames.isEmpty {
                     contentBlock("전투 콘텐츠 진행도") {
                         VStack(alignment: .leading, spacing: 12) {
@@ -58,77 +48,6 @@ struct GameTabbedSection: View {
             Text(label).font(.system(size: 13, weight: .bold)).foregroundStyle(GLGColor.textSecondary).padding(.leading, 2)
             content()
         }
-    }
-}
-
-private struct BannerCard: View {
-    let game: Game
-    let banners: [GachaBanner]
-    var body: some View {
-        let phases = phaseGroups(banners)
-        let labels = phaseLabels(phases)
-        return GLGCard(cornerRadius: 20, padding: 16) {
-            VStack(alignment: .leading, spacing: 0) {
-                HStack(spacing: 8) {
-                    Circle().fill(Color(argb64: game.color)).frame(width: 10, height: 10)
-                    Text(game.displayName).font(.system(size: 15, weight: .bold))
-                }
-                .padding(.bottom, 4)
-                ForEach(Array(phases.enumerated()), id: \.offset) { i, phaseBanners in
-                    PhaseBlock(phase: labels[i], banners: phaseBanners, gameColor: Color(argb64: game.color))
-                    if i < phases.count - 1 { Divider() }
-                }
-            }
-        }
-    }
-}
-
-private func phaseGroups(_ banners: [GachaBanner]) -> [[GachaBanner]] {
-    Dictionary(grouping: banners, by: { $0.endMillis }).sorted { $0.key < $1.key }.map { $0.value }
-}
-private func phaseLabels(_ phases: [[GachaBanner]]) -> [String] {
-    let versions = phases.map { $0.first?.version ?? "" }
-    let last = versions.last
-    var total: [String: Int] = [:]; for v in versions { total[v, default: 0] += 1 }
-    var seen: [String: Int] = [:]
-    return versions.map { v in
-        let pos = seen[v] ?? 0; seen[v] = pos + 1
-        if (total[v] ?? 1) >= 2 { return pos == 0 ? "전반" : (pos == 1 ? "후반" : "\(pos+1)페이즈") }
-        return v == last ? "전반" : "후반"
-    }
-}
-
-private struct PhaseBlock: View {
-    let phase: String
-    let banners: [GachaBanner]
-    let gameColor: Color
-    var body: some View {
-        let first = banners[0]
-        let version = banners.first { !$0.version.isEmpty }?.version ?? ""
-        let start = banners.map { $0.startMillis }.min() ?? 0
-        let charNames = banners.filter { $0.type != "weapon" }.map { $0.name }
-        let hasWeapon = banners.contains { $0.type == "weapon" }
-        let title = (charNames + (hasWeapon ? ["무기 기원"] : [])).joined(separator: " · ")
-        let du = DateUtil.shared
-        let period = start > 0 ? "\(du.shortDateTime(millis: start)) ~ \(du.shortDateTime(millis: first.endMillis))"
-                               : du.shortDateTime(millis: first.endMillis)
-        return VStack(alignment: .leading, spacing: 0) {
-            HStack {
-                HStack(spacing: 6) {
-                    Text(phase).font(.system(size: 11, weight: .bold)).foregroundStyle(gameColor)
-                        .padding(.horizontal, 7).padding(.vertical, 2)
-                        .background(gameColor.opacity(0.12), in: RoundedRectangle(cornerRadius: 6))
-                    if !version.isEmpty { Text("v\(version)").font(.system(size: 11, weight: .medium)).foregroundStyle(GLGColor.textSecondary) }
-                }
-                Spacer()
-                Text(first.dDayLabel(nowMillis: nowMs())).font(.system(size: 12, weight: .bold)).foregroundStyle(.white)
-                    .padding(.horizontal, 10).padding(.vertical, 3)
-                    .background(gameColor, in: RoundedRectangle(cornerRadius: 8))
-            }
-            Text(title).font(.system(size: 14, weight: .bold)).lineLimit(2).padding(.top, 6)
-            Text(period).font(.system(size: 11)).foregroundStyle(GLGColor.textSecondary).padding(.top, 2)
-        }
-        .padding(.vertical, 10)
     }
 }
 
