@@ -55,7 +55,6 @@ struct SettingsView: View {
         .background(GLGBackground { Color.clear })
         .navigationTitle("설정")
         .navigationBarTitleDisplayMode(.inline)
-        .glgToast(message: store.statusMessage) { store.clearStatus() }
         .onAppear {
             // 홈 만료 배너 CTA → 설정 → HoYoLAB 연동 자동 진입
             if store.pendingOpenHoyolabLink {

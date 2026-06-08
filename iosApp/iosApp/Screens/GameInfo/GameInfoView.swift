@@ -70,7 +70,6 @@ struct GameInfoView: View {
                 Button { showHoyolab = true } label: { Image(systemName: "gearshape") }
             }
         }
-        .glgToast(message: store.statusMessage, bottomPadding: 14) { store.clearStatus() }
         .navigationDestination(isPresented: $showHoyolab) {
             HoyolabLinkView(store: store) { showHoyolab = false }
         }

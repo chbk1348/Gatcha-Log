@@ -65,7 +65,6 @@ struct HomeView: View {
                 .simultaneousGesture(TapGesture().onEnded { store.markAlertsRead(alerts.map { $0.key }) })
             }
         }
-        .glgToast(message: store.statusMessage, bottomPadding: 14) { store.clearStatus() }
         .sheet(isPresented: $showBudget) { BudgetSheet(store: store) }
         .sheet(isPresented: $showHomeEdit) { HomeCardEditSheet(store: store) }
         .fileImporter(isPresented: $importingGacha, allowedContentTypes: [.json], allowsMultipleSelection: true) { result in

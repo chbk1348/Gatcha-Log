@@ -76,6 +76,8 @@ struct ContentView: View {
                 MainViewControllerKt.setSelectedTab(tab: Int32(newValue))
             }
         })
+        // 전역 단일 토스트 — 화면마다 붙이면 탭/페이지마다 중복 표시되므로 앱 루트에서 한 번만 노출·소비.
+        .glgToast(message: store.statusMessage, bottomPadding: 64) { store.clearStatus() }
     }
 
     /// '+' (지출 추가) 모달 열기 — 신규 추가(편집 대상 없음).
