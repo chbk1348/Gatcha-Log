@@ -317,6 +317,15 @@ fun HomeContent(
         }
     }
 
+    // 천장 하이라이트 — 가장 임박한(티어 높고 카운트 큰) 게임 1종 (M 요약·K 토널 공유)
+    val topPity = remember(pity) {
+        GameData.games.mapNotNull { g ->
+            val st = pity[g.key] ?: return@mapNotNull null
+            if (st.count <= 0) return@mapNotNull null
+            val banner = com.gatcha.log.data.GachaRateData.byKey(g.key)?.character ?: return@mapNotNull null
+            PityHighlight(g, st.count, banner.softPity, banner.hardPity, com.gatcha.log.data.pityTierOf(st.count, banner))
+        }.maxWithOrNull(compareBy({ it.tier.ordinal }, { it.count }))
+    }
 
     // 게임별 이번 달 지출/한도 (D 섹션) — 지출 있거나 한도 설정된 게임만, 지출 내림차순
     val perGameSpend = remember(spendings, gameBudgets) {
@@ -433,9 +442,11 @@ fun HomeContent(
                 monthlyTotal = monthlyTotal,
                 prevTotal = prevTotal,
                 budget = budget,
+                topPity = topPity,
                 nextBanner = nextBanner,
                 gameOverCount = gameOverBudget.size,
                 onBudget = { showBudgetDialog.value = true },
+                onPity = { viewModel.requestGameInfoAnchor(com.gatcha.log.ui.spending.GameInfoAnchor.PITY); onNavigateToGameInfo() },
                 onTip = { viewModel.showStatus(savingTip) },
             )
             Spacer(Modifier.height(16.dp))
@@ -453,9 +464,11 @@ fun HomeContent(
                         urgentBanner = soonBanners.firstOrNull { it.dDay() <= 3 },
                         budget = budget,
                         monthlyTotal = monthlyTotal,
+                        topPity = topPity,
                         onCheckInAll = { viewModel.checkInAll() },
                         onResin = { viewModel.requestGameInfoAnchor(com.gatcha.log.ui.spending.GameInfoAnchor.NOTES); onNavigateToGameInfo() },
                         onBanner = { viewModel.requestGameInfoAnchor(com.gatcha.log.ui.spending.GameInfoAnchor.BANNER); onNavigateToGameInfo() },
+                        onPity = { viewModel.requestGameInfoAnchor(com.gatcha.log.ui.spending.GameInfoAnchor.PITY); onNavigateToGameInfo() },
                         onBudget = { showBudgetDialog.value = true },
                     ),
                     inProgress = checkingIn != null,
@@ -466,6 +479,7 @@ fun HomeContent(
         // G — 가챠 현황 미니카드 (천장 + 다음 픽업, 읽기전용). 가챠 정체성 고정 노출.
         item {
             GachaStatusCard(
+                topPity = topPity,
                 nextBanner = nextBanner,
                 nextBannerPlan = nextBannerPlan,
                 onOpen = onNavigateToGameInfo,

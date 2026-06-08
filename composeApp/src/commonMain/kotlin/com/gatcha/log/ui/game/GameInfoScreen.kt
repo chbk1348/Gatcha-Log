@@ -204,6 +204,14 @@ fun GameInfoScreen(
                 )
             }
             item { Spacer(Modifier.height(20.dp)) }
+            item {
+                PitySection(
+                    pity = pity,
+                    onAdjust = viewModel::adjustPity,
+                    onReset = viewModel::resetPity,
+                )
+            }
+            item { Spacer(Modifier.height(20.dp)) }
             item { GachaCalculatorSection(pity) }
             item { Spacer(Modifier.height(20.dp)) }
             item {

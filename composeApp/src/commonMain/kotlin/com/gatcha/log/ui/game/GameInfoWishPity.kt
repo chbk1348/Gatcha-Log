@@ -115,4 +115,102 @@ private fun WishTab(label: String, selected: Boolean, color: Color, onClick: () 
     }
 }
 
-// 천장 카운터(PitySection)는 제거됨 — iOS 패리티(천장 수동 카운터 폐기). pity 데이터·계산기 입력은 유지.
+// ============================================================ 천장 카운터
+@Composable
+fun PitySection(pity: Map<String, PityState>, onAdjust: (String, Int) -> Unit, onReset: (String) -> Unit) {
+    val accent = LocalAccent.current
+    Text("천장 카운터", fontSize = 16.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 12.dp))
+    GlassCard(shape = RoundedCornerShape(24.dp), modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(16.dp)) {
+            GameData.attendanceGames.forEachIndexed { i, game ->
+                val state = pity[game.key] ?: PityState()
+                val banner = com.gatcha.log.data.GachaRateData.byKey(game.key)?.character
+                val hard = banner?.hardPity ?: 90
+                val soft = banner?.softPity ?: 74
+                val grade = com.gatcha.log.data.GachaRateData.byKey(game.key)?.grade ?: "5★"
+                val tier = com.gatcha.log.data.pityTierOf(state.count, banner)
+                val tierColor = when (tier) {
+                    com.gatcha.log.data.PityTier.Safe -> accent
+                    com.gatcha.log.data.PityTier.Caution -> Color(0xFFF59E0B)
+                    com.gatcha.log.data.PityTier.Imminent -> Color(0xFFFB8C00)
+                    com.gatcha.log.data.PityTier.Reached -> Color(0xFFE53935)
+                }
+                val tierLabel: String? = when (tier) {
+                    com.gatcha.log.data.PityTier.Safe -> null
+                    com.gatcha.log.data.PityTier.Caution -> "주의"
+                    com.gatcha.log.data.PityTier.Imminent -> "임박"
+                    com.gatcha.log.data.PityTier.Reached -> "도달"
+                }
+                val helperText = when (tier) {
+                    com.gatcha.log.data.PityTier.Safe -> "천장까지 ${(hard - state.count).coerceAtLeast(0)}연"
+                    com.gatcha.log.data.PityTier.Caution -> "주의 — 천장까지 ${(hard - state.count).coerceAtLeast(0)}연 (소프트 ${soft}연)"
+                    com.gatcha.log.data.PityTier.Imminent -> "임박 — ${(hard - state.count).coerceAtLeast(0)}연 이내 $grade 보장"
+                    com.gatcha.log.data.PityTier.Reached -> "도달 — 다음 $grade 100% 확정"
+                }
+                Column(Modifier.padding(vertical = 8.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f, fill = false)) {
+                            Box(Modifier.size(8.dp).background(game.color, CircleShape))
+                            Spacer(Modifier.width(8.dp))
+                            Text(game.displayName, fontWeight = FontWeight.Bold, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            if (tierLabel != null) {
+                                Spacer(Modifier.width(8.dp))
+                                Surface(color = tierColor.copy(alpha = 0.15f), shape = RoundedCornerShape(6.dp)) {
+                                    Text(
+                                        tierLabel,
+                                        fontSize = 10.sp,
+                                        color = tierColor,
+                                        fontWeight = FontWeight.Bold,
+                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                    )
+                                }
+                            }
+                        }
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            PityBtn("−") { onAdjust(game.key, -1) }
+                            Text(
+                                "${state.count} / $hard",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 14.sp,
+                                color = if (tier == com.gatcha.log.data.PityTier.Safe) TextPrimary else tierColor,
+                                modifier = Modifier.padding(horizontal = 10.dp),
+                            )
+                            PityBtn("+") { onAdjust(game.key, 1) }
+                            Spacer(Modifier.width(8.dp))
+                            Text("리셋", color = accent, fontSize = 12.sp, fontWeight = FontWeight.Bold, modifier = Modifier.clickable { onReset(game.key) }.padding(4.dp))
+                        }
+                    }
+                    Spacer(Modifier.height(6.dp))
+                    LinearProgressIndicator(
+                        progress = { (state.count.toFloat() / hard).coerceIn(0f, 1f) },
+                        color = tierColor,
+                        trackColor = ProgressEmpty,
+                        modifier = Modifier.fillMaxWidth().height(5.dp).clip(CircleShape),
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        helperText,
+                        fontSize = 11.sp,
+                        color = if (tier == com.gatcha.log.data.PityTier.Safe) TextSecondary else tierColor,
+                        fontWeight = if (tier == com.gatcha.log.data.PityTier.Reached) FontWeight.Bold else FontWeight.Normal,
+                    )
+                }
+                if (i < GameData.attendanceGames.lastIndex) HorizontalDivider(color = DividerColor)
+            }
+        }
+    }
+}
+
+@Composable
+private fun PityBtn(label: String, onClick: () -> Unit) {
+    Box(
+        modifier = Modifier.size(32.dp).clip(CircleShape).background(Color(0xFFF2F2F6)).clickable { onClick() },
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(label, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = TextSecondary)
+    }
+}
