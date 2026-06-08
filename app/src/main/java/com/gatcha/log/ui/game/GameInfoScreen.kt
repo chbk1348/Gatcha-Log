@@ -247,14 +247,6 @@ fun GameInfoScreen(
                     isPickedUp = viewModel::isWishPickedUp,
                 )
             }
-            item { Spacer(Modifier.height(20.dp)) }
-            item {
-                PitySection(
-                    pity = pity,
-                    onAdjust = viewModel::adjustPity,
-                    onReset = viewModel::resetPity,
-                )
-            }
             // 페이지로 분류된 섹션(계산기·프로필·리포트) — 진입 카드
             item { Spacer(Modifier.height(20.dp)) }
             item { NavEntryCard(Icons.Default.Calculate, "가챠 계산기", "재화 환산 · 확률 · 시뮬레이터 · 플래너") { subPage = GiSub.Calc } }

@@ -109,18 +109,16 @@ fun MonthlySummaryCard(
     monthlyTotal: Long,
     prevTotal: Long,
     budget: Long,
-    topPity: PityHighlight?,
     nextBanner: GachaBanner?,
     gameOverCount: Int,
     onBudget: () -> Unit,
-    onPity: () -> Unit,
     onTip: () -> Unit,
 ) {
     val accent = LocalAccent.current
     // 하루 단위로 고정되는 시드 — 매일 다른 어투, 같은 날 리컴포지션엔 안 흔들림
     val daySeed = remember { java.util.Calendar.getInstance().get(java.util.Calendar.DAY_OF_YEAR) }
-    val summary = remember(monthlyTotal, prevTotal, budget, topPity, nextBanner, gameOverCount, daySeed) {
-        buildMonthlySummary(monthlyTotal, prevTotal, budget, topPity, nextBanner, gameOverCount, accent, daySeed)
+    val summary = remember(monthlyTotal, prevTotal, budget, nextBanner, gameOverCount, daySeed) {
+        buildMonthlySummary(monthlyTotal, prevTotal, budget, nextBanner, gameOverCount, accent, daySeed)
     }
     // 팔레트 통일 — 다크 그라데이션 히어로를 라이트 글라스 카드로(나머지 카드와 동일 계열)
     GlassCard(shape = RoundedCornerShape(28.dp), modifier = Modifier.fillMaxWidth()) {
@@ -135,7 +133,6 @@ fun MonthlySummaryCard(
             Spacer(Modifier.height(14.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 SummaryChip(if (budget > 0) "예산 점검" else "예산 세우기", onBudget)
-                SummaryChip("천장 보기", onPity)
                 SummaryChip("절약 팁", onTip)
             }
         }
@@ -174,7 +171,6 @@ private fun buildMonthlySummary(
     monthlyTotal: Long,
     prevTotal: Long,
     budget: Long,
-    topPity: PityHighlight?,
     nextBanner: GachaBanner?,
     gameOverCount: Int,
     accent2: Color,
@@ -238,13 +234,8 @@ private fun buildMonthlySummary(
         }
     }
 
-    // ③ 천장 임박 또는 다음 픽업(천장 우선)
-    if (topPity != null && topPity.tier != PityTier.Safe) {
-        parts += buildAnnotatedString {
-            withStyle(mint) { append("${topPity.game.shortName} 천장 ${topPity.count}/${topPity.hard}") }
-            append(if (topPity.tier == PityTier.Reached) ", 다음 보장 확정이에요." else ", 곧 보장이에요.")
-        }
-    } else if (nextBanner != null) {
+    // ③ 다음 픽업
+    if (nextBanner != null) {
         val d = nextBanner.dDay()
         parts += buildAnnotatedString {
             withStyle(mint) { append(nextBanner.name) }; append(" 픽업 ")
@@ -487,11 +478,9 @@ fun resolveTodayTasks(
     urgentBanner: GachaBanner?,
     budget: Long,
     monthlyTotal: Long,
-    topPity: PityHighlight?,
     onCheckInAll: () -> Unit,
     onResin: () -> Unit,
     onBanner: () -> Unit,
-    onPity: () -> Unit,
     onBudget: () -> Unit,
 ): List<TodayItem> = buildList {
     val budgetPct = if (budget > 0) (monthlyTotal * 100 / budget).toInt() else 0
@@ -512,8 +501,6 @@ fun resolveTodayTasks(
         add(TodayItem(Icons.Default.Savings, "예산 ${budgetPct - 100}% 초과", "예산 점검", true, false, onBudget))
     else if (budget > 0 && budgetPct >= 90)
         add(TodayItem(Icons.Default.Savings, "예산 ${budgetPct}% 사용", "예산 점검", true, false, onBudget))
-    if (topPity != null && (topPity.tier == PityTier.Imminent || topPity.tier == PityTier.Reached))
-        add(TodayItem(Icons.Default.Flag, "${topPity.game.shortName} 천장 곧 보장", "천장 보기", false, false, onPity))
 }
 
 /** 오늘 할 일 카드 — 활성 항목을 전부 리스트로. 각 행 탭 시 해당 액션. 없으면 격려 한 줄. */
@@ -627,7 +614,6 @@ private fun PityTier.shortLabel(): String = when (this) {
  */
 @Composable
 fun GachaStatusCard(
-    topPity: PityHighlight?,
     nextBanner: GachaBanner?,
     nextBannerPlan: BannerPlan?,
     onOpen: () -> Unit,
@@ -645,8 +631,8 @@ fun GachaStatusCard(
                 Icon(Icons.Default.ChevronRight, "가챠 상세", tint = TextSecondary, modifier = Modifier.size(20.dp))
             }
             Spacer(Modifier.height(14.dp))
-            if (topPity == null && nextBanner == null) {
-                Text("가챠 기록을 가져오면 천장·픽업이 표시돼요", fontSize = 12.sp, color = TextSecondary)
+            if (nextBanner == null) {
+                Text("가챠 기록을 가져오면 픽업 정보가 표시돼요", fontSize = 12.sp, color = TextSecondary)
                 Spacer(Modifier.height(12.dp))
                 Surface(
                     shape = RoundedCornerShape(999.dp),
@@ -660,10 +646,7 @@ fun GachaStatusCard(
                     }
                 }
             } else {
-                Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    PityMini(topPity, Modifier.weight(1f))
-                    NextBannerMini(nextBanner, nextBannerPlan, Modifier.weight(1f))
-                }
+                NextBannerMini(nextBanner, nextBannerPlan, Modifier.fillMaxWidth())
             }
         }
     }
