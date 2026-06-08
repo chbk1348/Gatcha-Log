@@ -5,7 +5,7 @@ import ComposeApp
 // ════════════════════════════════════════════════════════════════════════════
 // 설정 — 계정·테마·예산/연동·자동화·알림·데이터·백업·정보. (Compose SettingsScreen 대응)
 // 네이티브 List+Section + Toggle + .alert/.sheet/.fileExporter/.fileImporter.
-// HoYoLAB 연동은 Phase 4(WKWebView) 전까지 기존 Compose 화면을 시트로 호스팅.
+// HoYoLAB 연동은 네이티브 HoyolabLinkView(WKWebView) 를 시트로 호스팅.
 // ════════════════════════════════════════════════════════════════════════════
 
 struct SettingsView: View {
