@@ -9,7 +9,6 @@
 /* Begin PBXBuildFile section */
 		032996AE8945C0AB0AA84EA3 /* SpendingInsightView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1208143070B2500669A1A1A3 /* SpendingInsightView.swift */; };
 		05617F792A47F3D9F7E1F212 /* HeaderButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 70DDE6CE10757B3FFAAC4EE9 /* HeaderButton.swift */; };
-		09122C758E238F57C8EB2E97 /* WishPitySection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 474502C0C961C6916C21C25D /* WishPitySection.swift */; };
 		17D877DDEC49794DC376B121 /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 293C803154C68DC21F70850C /* Theme.swift */; };
 		1C81D6F669B7BB6D2FFCCEB3 /* FirebaseAuth in Frameworks */ = {isa = PBXBuildFile; productRef = 617043448F4869026C2F0BB4 /* FirebaseAuth */; };
 		2067CB41DC222CE302CA3543 /* SpendingDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 76E3014C6AA14AC4B4EDD186 /* SpendingDetailView.swift */; };
@@ -61,7 +60,6 @@
 		3D457C4BF1660729F31BD940 /* MyPageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MyPageView.swift; sourceTree = "<group>"; };
 		3EE67C47045E3E41A6DA540C /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		470F2BADFFFD74FF78852C57 /* Format.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Format.swift; sourceTree = "<group>"; };
-		474502C0C961C6916C21C25D /* WishPitySection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WishPitySection.swift; sourceTree = "<group>"; };
 		5578C3FC844B66842EE934A0 /* GachaRateSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GachaRateSheet.swift; sourceTree = "<group>"; };
 		564F5DBE0B96579DF042A2E1 /* GachaDashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GachaDashboardView.swift; sourceTree = "<group>"; };
 		584F7FE6E84442E4DDDF5B5C /* SpendingStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpendingStore.swift; sourceTree = "<group>"; };
@@ -223,7 +221,6 @@
 				E1B90DF6528691EF06F869AE /* GameTabbedSection.swift */,
 				59D7A7D9B537866557A9E9DC /* GiftCodeSheet.swift */,
 				8579814CF27340C1C2EEA639 /* HoyolabLinkView.swift */,
-				474502C0C961C6916C21C25D /* WishPitySection.swift */,
 			);
 			path = GameInfo;
 			sourceTree = "<group>";
@@ -375,7 +372,6 @@
 				E26D485CB292C9D8876FB84F /* SpendingView.swift in Sources */,
 				17D877DDEC49794DC376B121 /* Theme.swift in Sources */,
 				7F2C7C7A3927BC6D3191C5E1 /* Toast.swift in Sources */,
-				09122C758E238F57C8EB2E97 /* WishPitySection.swift in Sources */,
 				2C930F0480E7D2D733D15D7D /* WishStarLogo.swift in Sources */,
 				307C2654CD5972A25FB7FD87 /* iOSApp.swift in Sources */,
 			);

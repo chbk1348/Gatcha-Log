@@ -3,7 +3,6 @@ import ComposeApp
 
 // 통합 계산기 — 재화 환산·확보 확률·뽑기 시뮬레이터·플래너. (Compose GachaCalculatorSection 대응)
 struct GachaCalculatorSection: View {
-    @ObservedObject var store: SpendingStore
     @Environment(\.glgAccent) private var accent
     @State private var gameKey = "genshin"
     @State private var bannerType = "character"
@@ -22,8 +21,8 @@ struct GachaCalculatorSection: View {
                     toolTabs.padding(.top, 12)
                     Group {
                         switch tool {
-                        case "calc": CurrencyCalc(store: store, game: game, banner: banner)
-                        case "prob": ProbCalc(store: store, game: game, banner: banner)
+                        case "calc": CurrencyCalc(game: game, banner: banner)
+                        case "prob": ProbCalc(game: game, banner: banner)
                         case "sim": Simulator(game: game, banner: banner)
                         default: Planner(game: game, banner: banner)
                         }
@@ -98,9 +97,17 @@ private let gold5 = Color(hex: 0xFFE0A93B)
 private let purple4 = Color(hex: 0xFF9B59B6)
 private let gray3 = Color(hex: 0xFFB6B9C0)
 
+// 천장 티어 — 시뮬레이터 진행도 색/라벨 판단용. (천장 카운터(WishPitySection) 제거 후 이관)
+enum PityTierS { case safe, caution, imminent, reached }
+func pityTier(count: Int, soft: Int, hard: Int) -> PityTierS {
+    if count >= hard { return .reached }
+    if count >= soft { return .imminent }
+    if count >= soft - 10 { return .caution }
+    return .safe
+}
+
 // ── 재화 환산 ──
 private struct CurrencyCalc: View {
-    @ObservedObject var store: SpendingStore
     let game: GachaGameRate; let banner: GachaBannerRate
     @Environment(\.glgAccent) private var accent
     @State private var mode = "calc"
@@ -129,7 +136,6 @@ private struct CurrencyCalc: View {
                 calcMode
             }
         }
-        .onAppear { pityStr = "\(Int(store.pity[game.key]?.count ?? 0))"; guaranteed = store.pity[game.key]?.guaranteed ?? false }
     }
 
     @ViewBuilder private var calcMode: some View {
@@ -146,7 +152,7 @@ private struct CurrencyCalc: View {
 
         VStack(alignment: .leading, spacing: 0) {
             numField("보유 \(banner.currency)", "0", $currency)
-            numField("현재 천장 (천장 카운터 연동)", "0", $pityStr).padding(.top, 10)
+            numField("현재 천장", "0", $pityStr).padding(.top, 10)
             if banner.has5050 && !banner.no5050 {
                 toggleRow("확정(픽업 보장) 보유", $guaranteed).padding(.top, 10)
             }
@@ -207,7 +213,6 @@ private struct CurrencyCalc: View {
 
 // ── 확보 확률 ──
 private struct ProbCalc: View {
-    @ObservedObject var store: SpendingStore
     let game: GachaGameRate; let banner: GachaBannerRate
     @Environment(\.glgAccent) private var accent
     @State private var nFloat: Double = 0
@@ -237,16 +242,12 @@ private struct ProbCalc: View {
             }
             .padding(.top, 16)
             Slider(value: $nFloat, in: 1...maxPulls).tint(accent.primary)
-            NumField(label: "현재 천장 (천장 카운터 연동)", placeholder: "0", text: $pityStr).padding(.top, 6)
+            NumField(label: "현재 천장", placeholder: "0", text: $pityStr).padding(.top, 6)
             if banner.has5050 && !banner.no5050 {
                 CalcToggleRow(label: "확정(픽업 보장) 보유", isOn: $guaranteed).padding(.top, 10)
             }
         }
-        .onAppear {
-            if nFloat == 0 { nFloat = Double(banner.hardPity) }
-            pityStr = "\(Int(store.pity[game.key]?.count ?? 0))"
-            guaranteed = store.pity[game.key]?.guaranteed ?? false
-        }
+        .onAppear { if nFloat == 0 { nFloat = Double(banner.hardPity) } }
     }
 }
 
