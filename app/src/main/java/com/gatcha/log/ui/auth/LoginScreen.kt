@@ -25,11 +25,19 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.foundation.Canvas
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
+import com.gatcha.log.ui.theme.DividerColor
+import kotlinx.coroutines.delay
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -189,51 +197,80 @@ private fun WishStarLogo(boxSize: Dp, modifier: Modifier = Modifier) {
 @Composable
 fun AccountLoadingScreen(loading: Boolean, onFinished: () -> Unit) {
     val accent = LocalAccent.current
-    val accent2 = LocalAccentSecondary.current
 
-    var target by remember { mutableStateOf(0f) }
-    val progress by animateFloatAsState(
-        targetValue = target,
-        animationSpec = tween(durationMillis = if (target >= 1f) 350 else 1100),
-        label = "loadProgress",
-    )
-    // 진입하면 90%까지 천천히 차오름
-    LaunchedEffect(Unit) { target = 0.9f }
-    // 로딩 완료되면 100%로
-    LaunchedEffect(loading) { if (!loading) target = 1f }
-    // 100% 도달 + 로딩 완료 시 종료
-    LaunchedEffect(progress, loading) {
-        if (!loading && progress >= 0.999f) onFinished()
+    // 디자인: design_loading_mockup.html(A) — 브랜드 위시 스타 + 회전 링 + 3단계 진행 도트.
+    var done by remember { mutableStateOf(false) }
+    LaunchedEffect(loading) {
+        if (!loading) { done = true; delay(420); onFinished() }
     }
-    val pct = (progress * 100).toInt().coerceIn(0, 100)
+    val anim = rememberInfiniteTransition(label = "load")
+    val spin by anim.animateFloat(0f, 360f, infiniteRepeatable(tween(1000, easing = LinearEasing), RepeatMode.Restart), label = "spin")
+    val pulse by anim.animateFloat(1f, 1.08f, infiniteRepeatable(tween(1100), RepeatMode.Reverse), label = "pulse")
 
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Brush.verticalGradient(listOf(accent.copy(alpha = 0.20f), Color.White, accent2.copy(alpha = 0.14f))))
+            .background(Brush.verticalGradient(listOf(Color(0xFFEAFBF6), Color(0xFFF2F3F7))))
             .systemBarsPadding()
             .padding(horizontal = 36.dp),
         contentAlignment = Alignment.Center,
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
-            WishStarLogo(boxSize = 100.dp)
+            // 회전 링 + 브랜드 위시 스타(펄스 글로우)
+            Box(contentAlignment = Alignment.Center, modifier = Modifier.size(84.dp)) {
+                Canvas(Modifier.size(84.dp)) {
+                    val sw = 3.dp.toPx(); val inset = sw / 2
+                    val arc = Size(size.width - sw, size.height - sw)
+                    drawArc(accent.copy(alpha = 0.18f), 0f, 360f, false, Offset(inset, inset), arc, style = Stroke(sw))
+                    drawArc(accent, spin, 90f, false, Offset(inset, inset), arc, style = Stroke(sw, cap = StrokeCap.Round))
+                }
+                Box(Modifier.size(60.dp).clip(CircleShape).background(Brush.radialGradient(listOf(accent.copy(alpha = 0.35f), Color.Transparent))))
+                WishStarLogo(boxSize = 48.dp, modifier = Modifier.scale(pulse))
+            }
             Spacer(Modifier.height(26.dp))
-            Text("Gatcha LOG", fontSize = 24.sp, fontWeight = FontWeight.Bold)
-            Spacer(Modifier.height(6.dp))
-            Text("계정 정보를 불러오는 중…", fontSize = 13.sp, color = TextSecondary)
-
-            Spacer(Modifier.height(30.dp))
-            // 프로그레스 바 (라운드 + 그라데이션)
-            Box(
-                Modifier.fillMaxWidth().height(10.dp).clip(CircleShape).background(ProgressEmpty),
-            ) {
-                Box(
-                    Modifier.fillMaxWidth(progress.coerceIn(0f, 1f)).fillMaxHeight().clip(CircleShape)
-                        .background(Brush.horizontalGradient(listOf(accent2, accent))),
-                )
+            Row {
+                Text("Gatcha ", fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                Text("LOG", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = accent)
             }
             Spacer(Modifier.height(10.dp))
-            Text("$pct%", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = accent)
+            Text(if (done) "동기화 완료" else "계정 데이터를 불러오는 중…", fontSize = 13.sp, color = TextSecondary)
+
+            // 3단계 진행 도트
+            Spacer(Modifier.height(28.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                StepDot(active = true, current = false)
+                StepBar(filled = true)
+                StepDot(active = true, current = !done)
+                StepBar(filled = done)
+                StepDot(active = done, current = false)
+            }
+            Spacer(Modifier.height(12.dp))
+            Row {
+                Text("연동 확인 · ", fontSize = 11.sp, color = TextSecondary)
+                Text("클라우드 불러오기", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = if (done) TextSecondary else accent)
+                Text(" · ", fontSize = 11.sp, color = TextSecondary)
+                Text("완료", fontSize = 11.sp, fontWeight = if (done) FontWeight.Bold else FontWeight.Normal, color = if (done) accent else TextSecondary)
+            }
         }
+        Text(
+            "기기 간 데이터를 안전하게 동기화하고 있어요",
+            fontSize = 11.sp, color = Color(0xFFA7ABB5),
+            modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 30.dp),
+        )
     }
+}
+
+@Composable
+private fun StepDot(active: Boolean, current: Boolean) {
+    val accent = LocalAccent.current
+    Box(contentAlignment = Alignment.Center, modifier = Modifier.size(16.dp)) {
+        if (current) Box(Modifier.size(16.dp).clip(CircleShape).background(accent.copy(alpha = 0.2f)))
+        Box(Modifier.size(8.dp).clip(CircleShape).background(if (active) accent else DividerColor))
+    }
+}
+
+@Composable
+private fun StepBar(filled: Boolean) {
+    val accent = LocalAccentSecondary.current
+    Box(Modifier.width(34.dp).height(2.dp).clip(CircleShape).background(if (filled) accent else DividerColor))
 }
