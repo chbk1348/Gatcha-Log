@@ -64,7 +64,6 @@ fun GameInfoScreen(
     val hoyolab by viewModel.hoyolabConfig.collectAsState()
     val isRefreshing by viewModel.isRefreshing.collectAsState()
     val challenges by viewModel.challenges.collectAsState()
-    val wishlist by viewModel.wishlist.collectAsState()
     val pity by viewModel.pity.collectAsState()
     val checkingIn by viewModel.checkingIn.collectAsState()
     val attendanceStreak by viewModel.attendanceStreak.collectAsState()
@@ -245,15 +244,6 @@ fun GameInfoScreen(
                     ledgers = ledgers,
                     isRefreshing = isRefreshing,
                     filter = gameFilter,
-                )
-            }
-            item { Spacer(Modifier.height(20.dp)) }
-            item {
-                WishlistSection(
-                    wishlist = wishlist,
-                    onAdd = viewModel::addWish,
-                    onRemove = viewModel::removeWish,
-                    isPickedUp = viewModel::isWishPickedUp,
                 )
             }
             // 페이지로 분류된 섹션(계산기·프로필·리포트) — 진입 카드
