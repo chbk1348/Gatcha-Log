@@ -1,10 +1,15 @@
 package com.gatcha.log.ui.game
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.Link
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
@@ -38,14 +43,37 @@ private val Purple = Color(0xFF9B6BD6) // 4★
 fun ProfileShowcaseSection(
     giUid: String,
     hsrUid: String,
+    hoyoGiUid: String,
+    hoyoHsrUid: String,
     result: EnkaResult?,
     loading: Boolean,
     onLoad: (game: String, uid: String) -> Unit,
     onGameChange: () -> Unit,
+    onOpenHoyolab: () -> Unit,
 ) {
     var game by remember { mutableStateOf("genshin") }
-    var uid by remember(game) { mutableStateOf(if (game == "genshin") giUid else hsrUid) }
-    LaunchedEffect(game) { onGameChange() }
+    // 저장된 enka 조회 UID(과거 조회) → HoYoLAB 연동 UID 순.
+    fun defaultUid(g: String) = (if (g == "genshin") giUid else hsrUid)
+        .ifBlank { if (g == "genshin") hoyoGiUid else hoyoHsrUid }
+    var uid by remember(game) { mutableStateOf(defaultUid(game)) }
+    var retry by remember(game) { mutableStateOf(0) }
+    // 진입/탭전환 시: 이전 결과 정리 + UID 있으면 자동 조회.
+    LaunchedEffect(game) {
+        onGameChange()
+        val d = defaultUid(game)
+        uid = d
+        if (d.isNotBlank()) onLoad(game, d)
+    }
+    // 조회 타임아웃/네트워크 오류 시 자동 새로고침(최대 2회).
+    LaunchedEffect(result) {
+        val err = result?.error
+        if (err != null && (err.contains("네트워크") || err.contains("요청이 많")) && retry < 2 && uid.isNotBlank()) {
+            retry++
+            kotlinx.coroutines.delay(1200)
+            onLoad(game, uid)
+        }
+    }
+    val hasUid = defaultUid(game).isNotBlank() || uid.isNotBlank()
 
     Text("프로필 쇼케이스", fontSize = 16.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 12.dp))
     GlassCard(shape = RoundedCornerShape(24.dp), modifier = Modifier.fillMaxWidth()) {
@@ -53,6 +81,11 @@ fun ProfileShowcaseSection(
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 GameTab("원신", game == "genshin", Color(0xFF4F8EF7)) { game = "genshin" }
                 GameTab("스타레일", game == "hsr", Color(0xFFB06BFF)) { game = "hsr" }
+            }
+            // UID가 없으면 HoYoLAB 연동 진입 CTA 노출(연동하면 UID 자동 확보).
+            if (!hasUid) {
+                Spacer(Modifier.height(14.dp))
+                HoyolabPrompt(onOpenHoyolab)
             }
             Spacer(Modifier.height(12.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -64,11 +97,11 @@ fun ProfileShowcaseSection(
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     )
                 }
-                GlgButton("조회", onClick = { onLoad(game, uid) }, modifier = Modifier.width(72.dp), height = 48.dp)
+                GlgButton("조회", onClick = { retry = 0; onLoad(game, uid) }, modifier = Modifier.width(72.dp), height = 48.dp)
             }
             Spacer(Modifier.height(8.dp))
             Text(
-                "게임 내 '프로필 표시(쇼케이스)'에 올린 캐릭터만 조회돼요. UID는 이 기기에만 저장됩니다.",
+                "게임 내 '프로필 표시(쇼케이스)'에 올린 캐릭터만 조회돼요. 조회한 UID는 이 기기에 저장돼 다음엔 자동으로 불러와요.",
                 fontSize = 11.sp, color = Color.LightGray,
             )
 
@@ -111,6 +144,31 @@ fun ProfileShowcaseSection(
                     }
                 }
             }
+        }
+    }
+}
+
+// UID 없음 — HoYoLAB 연동 진입 CTA (iOS hoyolabPrompt 패리티).
+@Composable
+private fun HoyolabPrompt(onClick: () -> Unit) {
+    val accent = LocalAccent.current
+    Surface(
+        modifier = Modifier.fillMaxWidth().clickable { onClick() },
+        shape = RoundedCornerShape(14.dp),
+        color = accent.copy(alpha = 0.06f),
+        border = BorderStroke(1.dp, accent.copy(alpha = 0.18f)),
+    ) {
+        Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                Modifier.size(38.dp).clip(RoundedCornerShape(10.dp)).background(accent.copy(alpha = 0.12f)),
+                contentAlignment = Alignment.Center,
+            ) { Icon(Icons.Default.Link, null, tint = accent, modifier = Modifier.size(16.dp)) }
+            Spacer(Modifier.width(10.dp))
+            Column(Modifier.weight(1f)) {
+                Text("HoYoLAB 연동하고 UID 자동 가져오기", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+                Text("연동하면 UID 입력 없이 바로 조회돼요", fontSize = 11.sp, color = TextSecondary)
+            }
+            Icon(Icons.Default.ChevronRight, null, tint = TextSecondary, modifier = Modifier.size(16.dp))
         }
     }
 }
