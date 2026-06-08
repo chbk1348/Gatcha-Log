@@ -159,35 +159,112 @@ struct ProfileShowcaseSection: View {
     @Environment(\.glgAccent) private var accent
     @State private var game = "genshin"
     @State private var uid = ""
+    @State private var showHoyolab = false
+    @State private var loadTask: Task<Void, Never>? = nil
 
     private let gold = Color(hex: 0xFFD8A12E)
     private let purple = Color(hex: 0xFF9B6BD6)
+    private let maxRetries = 2
+
+    // 저장된 enka 조회 UID(과거 조회 시 KMP가 자동 저장) — 1순위.
+    private func savedUid(_ g: String) -> String { g == "genshin" ? store.enkaGiUid : store.enkaHsrUid }
+    // HoYoLAB 연동으로 가져온 게임 UID — 2순위(저장된 enka UID가 없을 때).
+    private func hoyoUid(_ g: String) -> String { g == "genshin" ? store.hoyolabConfig.genshinUid : store.hoyolabConfig.hsrUid }
+    private func defaultUid(_ g: String) -> String { let s = savedUid(g); return s.isEmpty ? hoyoUid(g) : s }
+
+    // UID가 있으면 자동 조회. (clearEnkaResult는 비동기 반영이라 enkaResult==nil 가드를 쓰면
+    //  탭 전환 시 직전 게임 결과가 아직 남아 조회가 스킵되는 레이스가 생긴다 → 무조건 조회)
+    private func autoLoad(_ g: String) {
+        let d = defaultUid(g)
+        uid = d
+        if !d.isEmpty { load(game: g, uid: d) }
+    }
+
+    // 타임아웃/네트워크 오류는 일시적이므로 자동 새로고침(재시도) 대상.
+    private func isRetriable(_ err: String) -> Bool { err.contains("네트워크") || err.contains("요청이 많") }
+
+    /// Enka 조회 + 타임아웃 워치독 — 조회가 타임아웃/네트워크 오류로 끝나면 자동 재시도(최대 maxRetries).
+    private func load(game g: String, uid u: String, attempt: Int = 0) {
+        store.loadEnkaProfile(game: g, uid: u)
+        loadTask?.cancel()
+        loadTask = Task {
+            // 조회가 끝날 때까지(로딩 false) 대기 — Net 타임아웃(12s) + 여유.
+            for _ in 0..<80 {
+                try? await Task.sleep(nanoseconds: 200_000_000)
+                if Task.isCancelled { return }
+                if !store.enkaLoading { break }
+            }
+            if Task.isCancelled { return }
+            // 타임아웃/네트워크 오류 + 재시도 여유가 있으면 잠시 후 자동 새로고침.
+            if let err = store.enkaResult?.error, isRetriable(err), attempt < maxRetries {
+                try? await Task.sleep(nanoseconds: 1_200_000_000)
+                if Task.isCancelled { return }
+                load(game: g, uid: u, attempt: attempt + 1)
+            }
+        }
+    }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
+        let hasUid = !defaultUid(game).isEmpty || !uid.isEmpty
+        return VStack(alignment: .leading, spacing: 0) {
             Text("프로필 쇼케이스").font(.system(size: 16, weight: .bold)).padding(.bottom, 12)
             GLGCard(cornerRadius: 24, padding: 16) {
                 VStack(alignment: .leading, spacing: 0) {
                     HStack(spacing: 8) {
-                        gameTab("원신", game == "genshin", Color(hex: 0xFF4F8EF7)) { game = "genshin"; uid = store.enkaGiUid; store.clearEnkaResult() }
-                        gameTab("스타레일", game == "hsr", Color(hex: 0xFFB06BFF)) { game = "hsr"; uid = store.enkaHsrUid; store.clearEnkaResult() }
+                        gameTab("원신", game == "genshin", Color(hex: 0xFF4F8EF7)) { switchGame("genshin") }
+                        gameTab("스타레일", game == "hsr", Color(hex: 0xFFB06BFF)) { switchGame("hsr") }
+                    }
+                    // UID가 없으면 HoYoLAB 연동 진입을 노출(연동하면 UID 자동 확보).
+                    if !hasUid {
+                        hoyolabPrompt.padding(.top, 14)
                     }
                     HStack(spacing: 8) {
                         TextField("UID 입력 (예: 800000000)", text: $uid).keyboardType(.numberPad).textFieldStyle(.plain).glgPillField()
                             .onChange(of: uid) { uid = $0.filter(\.isNumber) }
-                        Button("조회") { store.loadEnkaProfile(game: game, uid: uid) }
+                        Button("조회") { load(game: game, uid: uid) }
                             .buttonStyle(.borderedProminent)
                             .tint(accent.primary)
                             .controlSize(.large)
+                            .disabled(uid.isEmpty)
                     }
                     .padding(.top, 12)
-                    Text("게임 내 '프로필 표시(쇼케이스)'에 올린 캐릭터만 조회돼요. UID는 이 기기에만 저장됩니다.")
+                    Text("게임 내 '프로필 표시(쇼케이스)'에 올린 캐릭터만 조회돼요. 조회한 UID는 이 기기에 저장돼 다음엔 자동으로 불러와요.")
                         .font(.system(size: 11)).foregroundStyle(Color(.systemGray3)).padding(.top, 8)
                     resultView
                 }
             }
         }
-        .onAppear { uid = game == "genshin" ? store.enkaGiUid : store.enkaHsrUid }
+        .navigationDestination(isPresented: $showHoyolab) { HoyolabLinkView(store: store) { showHoyolab = false } }
+        // 진입 시 저장된/연동 UID가 있으면 자동 조회. (연동 페이지에서 돌아올 때도 재실행)
+        .onAppear { autoLoad(game) }
+        .onDisappear { loadTask?.cancel() }
+    }
+
+    private func switchGame(_ g: String) {
+        game = g
+        store.clearEnkaResult()
+        autoLoad(g)
+    }
+
+    // ── UID 없음: HoYoLAB 연동 진입 CTA ──
+    private var hoyolabPrompt: some View {
+        Button { showHoyolab = true } label: {
+            HStack(spacing: 10) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 10, style: .continuous).fill(accent.primary.opacity(0.12)).frame(width: 38, height: 38)
+                    Image(systemName: "link").font(.system(size: 16, weight: .semibold)).foregroundStyle(accent.primary)
+                }
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("HoYoLAB 연동하고 UID 자동 가져오기").font(.system(size: 13, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
+                    Text("연동하면 UID 입력 없이 바로 조회돼요").font(.system(size: 11)).foregroundStyle(GLGColor.textSecondary)
+                }
+                Spacer(minLength: 6)
+                Image(systemName: "chevron.right").font(.system(size: 13, weight: .semibold)).foregroundStyle(GLGColor.textSecondary)
+            }
+            .padding(12)
+            .background(accent.primary.opacity(0.06), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(accent.primary.opacity(0.18), lineWidth: 1))
+        }.buttonStyle(.plain)
     }
 
     @ViewBuilder private var resultView: some View {
