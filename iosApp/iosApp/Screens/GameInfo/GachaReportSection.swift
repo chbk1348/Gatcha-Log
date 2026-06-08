@@ -29,9 +29,7 @@ struct GachaReportSection: View {
                 }
             }
             .padding(.bottom, 12)
-            GLGCard(cornerRadius: 24, padding: 16) {
-                if let s = stats { reportContent(s) } else { emptyState }
-            }
+            if let s = stats { reportContent(s) } else { GLGCard(cornerRadius: 24, padding: 16) { emptyState } }
         }
         .fileImporter(isPresented: $importing, allowedContentTypes: [.json], allowsMultipleSelection: true) { result in
             if case .success(let urls) = result {
@@ -57,99 +55,122 @@ struct GachaReportSection: View {
         .frame(maxWidth: .infinity)
     }
 
+    // design_gachareport_mockup.html(B) — 게임별 카드(배지+4통계+운분포 바+최근5성), 첫 카드에 대시보드 진입.
+    private let lucky = Color(hex: 0xFF2BB673)
+    private let gold = Color(hex: 0xFFE0A93B)
+    private let unluckyC = Color(hex: 0xFFE8634A)
+
     private func reportContent(_ s: GachaStats) -> some View {
-        // 요약 집계
-        var totalPulls = 0, totalFive = 0, totalFour = 0, totalSpend: Int64 = 0, fiveForCost = 0
-        for (gk, g) in s.byGame {
-            totalPulls += Int(g.total); totalFive += Int(g.five); totalFour += Int(g.four)
-            let sp = spend[gk] ?? 0
-            if sp > 0 && g.five > 0 { totalSpend += sp; fiveForCost += Int(g.five) }
-        }
-        let overallCost = fiveForCost > 0 ? totalSpend / Int64(fiveForCost) : 0
         let order = GachaReport.shared.gameOrder
         let games = s.byGame.keys.sorted { (order.firstIndex(of: $0) ?? 99) < (order.firstIndex(of: $1) ?? 99) }
         let poolLabels = GachaReport.shared.poolLabels
-        let poolOrder = GachaReport.shared.poolOrder
-
-        return VStack(alignment: .leading, spacing: 0) {
-            HStack(spacing: 8) {
-                summaryStat(num(totalPulls), "총 뽑기", nil)
-                summaryStat(num(totalFive), "획득 5성", "4성 \(num(totalFour))")
-                summaryStat(overallCost > 0 ? won(overallCost) : "—", "5성 평균 단가", "월정액 제외", accent.primary)
-            }
-            .padding(.bottom, 14)
+        return VStack(alignment: .leading, spacing: 14) {
             ForEach(Array(games.enumerated()), id: \.offset) { idx, gk in
                 if let g = s.byGame[gk] {
-                    if idx > 0 { Divider().padding(.vertical, 12) }
-                    gameReport(gk, g, poolLabels[gk] ?? [:], poolOrder[gk] ?? Array(g.pools.keys))
+                    gameCard(gk, g, labels: poolLabels[gk] ?? [:], showDash: idx == 0)
                 }
             }
-            GLGOutlineButton(title: "📊 통계 대시보드 열기") { onOpenDashboard() }.padding(.top, 14)
-            GLGButton(title: "기록 추가 가져오기") { importing = true }.padding(.top, 10)
+            GLGButton(title: "기록 추가 가져오기") { importing = true }
         }
     }
 
-    private func gameReport(_ gk: String, _ g: GachaGameStat, _ labels: [String: String], _ pOrder: [String]) -> some View {
+    private func gameCard(_ gk: String, _ g: GachaGameStat, labels: [String: String], showDash: Bool) -> some View {
         let info = gachaGameInfo(gk)
         let sp = spend[gk] ?? 0
         let cost = (sp > 0 && g.five > 0) ? sp / Int64(g.five) : 0
-        let fiveRate = g.total > 0 ? Double(g.five) * 100.0 / Double(g.total) : 0
-        let pools = g.pools.keys.sorted { (pOrder.firstIndex(of: $0) ?? 99) < (pOrder.firstIndex(of: $1) ?? 99) }
-        return VStack(alignment: .leading, spacing: 0) {
-            HStack(spacing: 8) {
-                Circle().fill(info.color).frame(width: 9, height: 9)
-                Text(info.short).font(.system(size: 15, weight: .bold))
-                Text("\(num(Int(g.total)))뽑 · 5성 \(num(Int(g.five)))").font(.system(size: 11)).foregroundStyle(GLGColor.textSecondary).lineLimit(1)
-            }
-            .padding(.bottom, 8)
-            HStack(spacing: 14) {
-                if cost > 0 { metaItem("5성 단가", won(cost)) }
-                metaItem("5성 출현율", "\(fixed(fiveRate, 2))%")
-                if g.avgPity > 0 { metaItem("평균 천장", "\(g.avgPity)") }
-            }
-            .padding(.bottom, 10)
-            ForEach(Array(pools.enumerated()), id: \.offset) { _, pk in
-                if let p = g.pools[pk] {
+        let dist = g.luckDist.map { Int(truncating: $0) }
+        let distTotal = max(dist.reduce(0, +), 1)
+        return GLGCard(cornerRadius: 20, padding: 16) {
+            VStack(alignment: .leading, spacing: 0) {
+                // 헤더 — 배지 + 게임명
+                HStack(spacing: 10) {
+                    Text(reportAbbr(gk)).font(.system(size: 11, weight: .heavy)).foregroundStyle(.white)
+                        .padding(.horizontal, 7).padding(.vertical, 4)
+                        .background(info.color, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+                    Text(info.short).font(.system(size: 15, weight: .bold))
+                    Spacer()
+                }
+                .padding(.bottom, 10)
+                // 4 통계
+                HStack(spacing: 0) {
+                    statCol("\(num(Int(g.total)))", "총 뽑기")
+                    statCol("\(num(Int(g.five)))", "5성")
+                    statCol(g.avgPity > 0 ? "\(g.avgPity)" : "—", "평균 천장", accent.primary)
+                    statCol(cost > 0 ? wonShort(cost) : "—", "5성 단가", accent.primary)
+                }
+                .padding(.bottom, 12)
+                // 운 분포 바
+                if Int(g.five) > 0 {
                     HStack {
-                        Text(labels[pk] ?? pk).font(.system(size: 12, weight: .medium)).lineLimit(1).frame(maxWidth: .infinity, alignment: .leading)
-                        Text("\(p.total)뽑 · 5성 \(p.five)" + (p.avgPity > 0 ? " · 평균 \(p.avgPity)" : ""))
-                            .font(.system(size: 11)).foregroundStyle(GLGColor.textSecondary).lineLimit(1)
-                        Text("천장 \(p.pity)").font(.system(size: 10, weight: .bold)).foregroundStyle(info.color)
-                            .padding(.horizontal, 6).padding(.vertical, 2)
-                            .background(info.color.opacity(0.12), in: RoundedRectangle(cornerRadius: 6))
+                        Text("운 분포 (천장 구간)").font(.system(size: 11)).foregroundStyle(GLGColor.textSecondary)
+                        Spacer()
+                        Text("5성 \(num(Int(g.five)))개").font(.system(size: 11)).foregroundStyle(GLGColor.textSecondary)
                     }
-                    .padding(.vertical, 5)
+                    .padding(.bottom, 6)
+                    GeometryReader { geo in
+                        HStack(spacing: 0) {
+                            lucky.frame(width: geo.size.width * CGFloat(dist[0]) / CGFloat(distTotal))
+                            gold.frame(width: geo.size.width * CGFloat(dist[1]) / CGFloat(distTotal))
+                            unluckyC.frame(width: geo.size.width * CGFloat(dist[2]) / CGFloat(distTotal))
+                        }
+                    }
+                    .frame(height: 8).clipShape(Capsule())
+                    HStack(spacing: 12) {
+                        legendItem(lucky, "~40 행운"); legendItem(gold, "41~74 평균"); legendItem(unluckyC, "75+ 불운")
+                    }
+                    .padding(.top, 8)
                 }
-            }
-            if !g.recentFive.isEmpty {
-                Text("최근 5성").font(.system(size: 11, weight: .bold)).foregroundStyle(GLGColor.textSecondary).padding(.top, 8)
-                let chips = g.recentFive.map { "\($0.name) (\(labels[$0.pool] ?? "") \($0.pity))" }
-                FlexibleRow(Array(chips.enumerated().map { IdxStr(i: $0.offset, s: $0.element) })) { item in
-                    Text(item.s).font(.system(size: 11)).foregroundStyle(GLGColor.textPrimary)
-                        .padding(.horizontal, 8).padding(.vertical, 4)
-                        .background(Color.black.opacity(0.03), in: RoundedRectangle(cornerRadius: 8))
+                // 최근 5성
+                if !g.recentFive.isEmpty {
+                    Text("최근 5성").font(.system(size: 13, weight: .bold)).foregroundStyle(GLGColor.textSecondary).padding(.top, 14).padding(.bottom, 8)
+                    FlexibleRow(Array(g.recentFive.enumerated().map { IdxFive(i: $0.offset, name: $0.element.name, pity: Int($0.element.pity)) })) { item in
+                        let c: Color = item.pity <= 40 ? lucky : (item.pity >= 75 ? unluckyC : GLGColor.textPrimary)
+                        HStack(spacing: 5) {
+                            Text(item.name).font(.system(size: 11, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
+                            Text("\(item.pity)").font(.system(size: 10, weight: .heavy)).foregroundStyle(c)
+                        }
+                        .padding(.horizontal, 9).padding(.vertical, 5)
+                        .background(Color(hex: 0xFFF3F4F8), in: Capsule())
+                    }
                 }
-                .padding(.top, 6)
+                // 대시보드 진입 (첫 카드)
+                if showDash {
+                    Divider().padding(.top, 13)
+                    Button { onOpenDashboard() } label: {
+                        HStack {
+                            Text("상세 대시보드 (월별·풀별 추이)").font(.system(size: 13, weight: .bold)).foregroundStyle(accent.primary)
+                            Spacer()
+                            Image(systemName: "chevron.right").font(.system(size: 12, weight: .semibold)).foregroundStyle(accent.primary)
+                        }
+                        .padding(.vertical, 12)
+                    }.buttonStyle(.plain)
+                }
             }
         }
     }
 
-    private func summaryStat(_ value: String, _ label: String, _ sub: String?, _ color: Color = GLGColor.textPrimary) -> some View {
+    private func statCol(_ value: String, _ label: String, _ color: Color = GLGColor.textPrimary) -> some View {
         VStack(spacing: 2) {
-            Text(value).font(.system(size: 16, weight: .bold)).foregroundStyle(color).lineLimit(1).minimumScaleFactor(0.6)
+            Text(value).font(.system(size: 20, weight: .bold)).foregroundStyle(color).lineLimit(1).minimumScaleFactor(0.6)
             Text(label).font(.system(size: 10)).foregroundStyle(GLGColor.textSecondary).lineLimit(1)
-            if let sub { Text(sub).font(.system(size: 9)).foregroundStyle(Color(.systemGray3)) }
         }
-        .frame(maxWidth: .infinity).padding(.vertical, 11).padding(.horizontal, 8)
-        .background(Color.black.opacity(0.03), in: RoundedRectangle(cornerRadius: 12))
+        .frame(maxWidth: .infinity)
     }
-    private func metaItem(_ label: String, _ value: String) -> some View {
+    private func legendItem(_ c: Color, _ text: String) -> some View {
         HStack(spacing: 4) {
-            Text(label).font(.system(size: 11)).foregroundStyle(GLGColor.textSecondary)
-            Text(value).font(.system(size: 12, weight: .bold))
+            RoundedRectangle(cornerRadius: 2).fill(c).frame(width: 8, height: 8)
+            Text(text).font(.system(size: 10)).foregroundStyle(GLGColor.textSecondary)
         }
+    }
+    private func reportAbbr(_ gk: String) -> String {
+        switch gk { case "genshin": return "GI"; case "hsr", "starrail": return "HSR"; case "zzz": return "ZZZ"; default: return gk.uppercased() }
+    }
+    private func wonShort(_ v: Int64) -> String {
+        v >= 10000 ? "\(fixed(Double(v) / 10000, 1))만" : won(v)
     }
 }
+
+private struct IdxFive: Hashable { let i: Int; let name: String; let pity: Int }
 
 private struct IdxStr: Hashable { let i: Int; let s: String }
 

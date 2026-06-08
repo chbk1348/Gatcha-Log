@@ -39,6 +39,7 @@ data class GachaGameStat(
     val avgPity: Int,
     val pools: Map<String, GachaPoolStat>,
     val recentFive: List<FiveEntry>,
+    val luckDist: List<Int> = listOf(0, 0, 0),  // 운 분포: [행운 ≤40, 평균 41~74, 불운 ≥75] 5성 개수
 )
 
 /** 전체 통계 */
@@ -213,6 +214,7 @@ object GachaReport {
                 avgPity = if (allPities.isEmpty()) 0 else allPities.average().roundToInt(),
                 pools = poolStats,
                 recentFive = allFive.sortedByDescending { bigId(it.id) }.take(8),
+                luckDist = listOf(allPities.count { it <= 40 }, allPities.count { it in 41..74 }, allPities.count { it >= 75 }),
             )
         }
         return GachaStats(records.size, byGame)
