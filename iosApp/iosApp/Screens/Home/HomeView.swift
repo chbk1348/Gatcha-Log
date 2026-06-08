@@ -19,10 +19,10 @@ struct HomeView: View {
             LazyVStack(alignment: .leading, spacing: 16) {
                 if store.hoyoTokenExpired { TokenExpiredBanner { store.requestOpenHoyolabLink(); onSwitchTab(3) } }
                 HomeSummaryCard(monthlyTotal: monthlyTotal, prevTotal: prevTotal,
-                                topPity: topPity, nextBanner: nextBanner, gameOverCount: gameOverBudget.count,
-                                onBudget: { showBudget = true }, onPity: { onSwitchTab(2) }, onTip: { store.showStatus(savingTip) })
+                                nextBanner: nextBanner, gameOverCount: gameOverBudget.count,
+                                onBudget: { showBudget = true }, onTip: { store.showStatus(savingTip) })
                 todayTask
-                GachaStatusCard(topPity: topPity, nextBanner: nextBanner, nextBannerPlan: nextBannerPlan,
+                GachaStatusCard(nextBanner: nextBanner, nextBannerPlan: nextBannerPlan,
                                 onOpen: { onSwitchTab(2) }, onImport: { importingGacha = true })
                 GameStatusSection(store: store, onConfig: { onSwitchTab(2) })
                 let rest = Array(soonBanners.dropFirst())
@@ -124,15 +124,6 @@ struct HomeView: View {
             return (limit > 0 && (totals[g.key] ?? 0) > limit) ? g.shortName : nil
         }
     }
-    private var topPity: PityHighlight? {
-        GameData.shared.games.compactMap { g -> PityHighlight? in
-            guard let st = store.pity[g.key], st.count > 0,
-                  let banner = GachaRateData.shared.byKey(key: g.key)?.character else { return nil }
-            let tier = pityTier(count: Int(st.count), soft: Int(banner.softPity), hard: Int(banner.hardPity))
-            return PityHighlight(game: g, count: Int(st.count), soft: Int(banner.softPity), hard: Int(banner.hardPity), tier: tier)
-        }
-        .max { ($0.tier.ord, $0.count) < ($1.tier.ord, $1.count) }
-    }
     private var perGameSpend: [GameSpend] {
         let totals = store.monthlyTotalsByGame()
         return GameData.shared.games.compactMap { g -> GameSpend? in
@@ -167,13 +158,12 @@ struct HomeView: View {
         let urgentBanner = soonBanners.first { $0.dDay(nowMillis: nowMs()) <= 3 }
         return resolveTodayTasks(
             pendingAttendance: GameData.shared.attendanceGames.filter { !store.attendanceToday.contains($0.key) }.count,
-            resins: resins, urgentBanner: urgentBanner, budget: store.budget, monthlyTotal: monthlyTotal, topPity: topPity,
-            onCheckInAll: { store.checkInAll() }, onResin: { onSwitchTab(2) }, onBanner: { onSwitchTab(2) }, onPity: { onSwitchTab(2) }, onBudget: { showBudget = true })
+            resins: resins, urgentBanner: urgentBanner, budget: store.budget, monthlyTotal: monthlyTotal,
+            onCheckInAll: { store.checkInAll() }, onResin: { onSwitchTab(2) }, onBanner: { onSwitchTab(2) }, onBudget: { showBudget = true })
     }
 }
 
 // ── 데이터 ──
-struct PityHighlight { let game: Game; let count: Int; let soft: Int; let hard: Int; let tier: PityTierS }
 struct GameSpend { let game: Game; let spent: Int64; let limit: Int64 }
 struct BannerPlan { let maxPulls: Int; let wonCost: Int64 }
 struct ResinAlert { let gameShort: String; let label: String; let cur: Int; let max: Int; let full: Bool }
@@ -181,10 +171,8 @@ struct TodayItem: Identifiable { let id = UUID(); let icon: String; let message:
 enum AlertKind { case budgetOver, budgetNear, budgetGameOver, banner, attendance }
 struct HomeAlert: Identifiable { let id = UUID(); let kind: AlertKind; let message: String; let key: String }
 
-extension PityTierS { var ord: Int { switch self { case .safe: return 0; case .caution: return 1; case .imminent: return 2; case .reached: return 3 } } }
-
-func resolveTodayTasks(pendingAttendance: Int, resins: [ResinAlert], urgentBanner: GachaBanner?, budget: Int64, monthlyTotal: Int64, topPity: PityHighlight?,
-                       onCheckInAll: @escaping () -> Void, onResin: @escaping () -> Void, onBanner: @escaping () -> Void, onPity: @escaping () -> Void, onBudget: @escaping () -> Void) -> [TodayItem] {
+func resolveTodayTasks(pendingAttendance: Int, resins: [ResinAlert], urgentBanner: GachaBanner?, budget: Int64, monthlyTotal: Int64,
+                       onCheckInAll: @escaping () -> Void, onResin: @escaping () -> Void, onBanner: @escaping () -> Void, onBudget: @escaping () -> Void) -> [TodayItem] {
     var items: [TodayItem] = []
     let pct = budget > 0 ? Int(monthlyTotal * 100 / budget) : 0
     if pendingAttendance > 0 { items.append(TodayItem(icon: "checkmark.circle", message: "출석 안 한 게임 \(pendingAttendance)개", cta: "한 번에 출석", urgent: false, busyable: true, action: onCheckInAll)) }
@@ -192,7 +180,6 @@ func resolveTodayTasks(pendingAttendance: Int, resins: [ResinAlert], urgentBanne
     if let b = urgentBanner { items.append(TodayItem(icon: "die.face.5", message: "\(b.name) 픽업 \(b.endShortLabel(nowMillis: nowMs())) 막바지", cta: "픽업 계획", urgent: true, busyable: false, action: onBanner)) }
     if budget > 0 && monthlyTotal > budget { items.append(TodayItem(icon: "banknote", message: "예산 \(pct - 100)% 초과", cta: "예산 점검", urgent: true, busyable: false, action: onBudget)) }
     else if budget > 0 && pct >= 90 { items.append(TodayItem(icon: "banknote", message: "예산 \(pct)% 사용", cta: "예산 점검", urgent: true, busyable: false, action: onBudget)) }
-    if let p = topPity, p.tier == .imminent || p.tier == .reached { items.append(TodayItem(icon: "flag.fill", message: "\(p.game.shortName) 천장 곧 보장", cta: "천장 보기", urgent: false, busyable: false, action: onPity)) }
     return items
 }
 

@@ -8,9 +8,9 @@ private let dangerText = Color(hex: 0xFFD0021B)
 
 // ── 이번 달 한눈에 (요약 — 3부 구조: MoM·예산/페이스·천장/픽업. 랜덤 변주는 생략) ──
 struct HomeSummaryCard: View {
-    let monthlyTotal: Int64; let prevTotal: Int64; let topPity: PityHighlight?
+    let monthlyTotal: Int64; let prevTotal: Int64
     let nextBanner: GachaBanner?; let gameOverCount: Int
-    let onBudget: () -> Void; let onPity: () -> Void; let onTip: () -> Void
+    let onBudget: () -> Void; let onTip: () -> Void
     @ObservedObject private var holder = Holder()  // store 없이 budget 접근 위해 — 아래 init 에서 주입
     @Environment(\.glgAccent) private var accent
     // budget 은 별도 주입이 번거로워 environment 대신 파생에서 받음 → 간단히 외부 계산값으로 처리
@@ -27,7 +27,6 @@ struct HomeSummaryCard: View {
                 summaryText.padding(.top, 10)
                 HStack(spacing: 8) {
                     chip(budget > 0 ? "예산 점검" : "예산 세우기", onBudget)
-                    chip("천장 보기", onPity)
                     chip("절약 팁", onTip)
                 }
                 .padding(.top, 14)
@@ -48,11 +47,8 @@ struct HomeSummaryCard: View {
         } else {
             t = t + Text("이번 달 ") + Text(won(monthlyTotal)).bold() + Text(" 쓰고 있어요.")
         }
-        // ② 천장/픽업
-        if let p = topPity, p.tier != .safe {
-            t = t + Text(" ") + Text("\(p.game.shortName) 천장 \(p.count)/\(p.hard)").bold().foregroundColor(accent.secondary)
-                + Text(p.tier == .reached ? ", 다음 보장 확정이에요." : ", 곧 보장이에요.")
-        } else if let b = nextBanner {
+        // ② 픽업/예산
+        if let b = nextBanner {
             t = t + Text(" ") + Text(b.name).bold().foregroundColor(accent.secondary) + Text(" 픽업 진행 중이에요.")
         } else if gameOverCount > 0 {
             t = t + Text(" ") + Text("\(gameOverCount)개 게임").bold().foregroundColor(dangerText) + Text("이 한도를 넘었어요.")
@@ -140,9 +136,9 @@ struct TodayTaskSkeleton: View {
     }
 }
 
-// ── 가챠 현황 (천장 + 다음 픽업) ──
+// ── 가챠 현황 (다음 픽업) ──
 struct GachaStatusCard: View {
-    let topPity: PityHighlight?; let nextBanner: GachaBanner?; let nextBannerPlan: BannerPlan?
+    let nextBanner: GachaBanner?; let nextBannerPlan: BannerPlan?
     let onOpen: () -> Void; let onImport: () -> Void
     @Environment(\.glgAccent) private var accent
     var body: some View {
@@ -154,37 +150,18 @@ struct GachaStatusCard: View {
                     Image(systemName: "chevron.right").font(.system(size: 14)).foregroundStyle(GLGColor.textSecondary)
                 }
                 .padding(.bottom, 14)
-                if topPity == nil && nextBanner == nil {
-                    Text("가챠 기록을 가져오면 천장·픽업이 표시돼요").font(.system(size: 12)).foregroundStyle(GLGColor.textSecondary)
+                if nextBanner == nil {
+                    Text("가챠 기록을 가져오면 픽업 정보가 표시돼요").font(.system(size: 12)).foregroundStyle(GLGColor.textSecondary)
                     Button(action: onImport) {
                         HStack(spacing: 6) { Image(systemName: "square.and.arrow.down").font(.system(size: 14)); Text("가챠 기록 가져오기").font(.system(size: 12, weight: .bold)) }
                             .foregroundStyle(accent.primary).padding(.horizontal, 13).padding(.vertical, 7).background(accent.primary.opacity(0.10), in: Capsule())
                     }.buttonStyle(.plain).padding(.top, 12)
                 } else {
-                    HStack(spacing: 10) {
-                        pityMini.frame(maxWidth: .infinity)
-                        nextMini.frame(maxWidth: .infinity)
-                    }
+                    nextMini.frame(maxWidth: .infinity)
                 }
             }
         }
         .contentShape(Rectangle()).onTapGesture { onOpen() }
-    }
-    private var pityMini: some View {
-        miniCard {
-            Text("천장").font(.system(size: 11)).foregroundStyle(GLGColor.textSecondary)
-            if let p = topPity {
-                let c = pityTierColor(p.tier)
-                Text(p.game.shortName).font(.system(size: 13, weight: .bold)).lineLimit(1)
-                HStack(alignment: .bottom, spacing: 0) {
-                    Text("\(p.count)").font(.system(size: 20, weight: .bold)).foregroundStyle(c)
-                    Text("/\(p.hard)").font(.system(size: 12)).foregroundStyle(GLGColor.textSecondary)
-                }
-                ProgressView(value: min(max(Double(p.count)/Double(p.hard), 0), 1)).tint(c)
-                Text(pityShortLabel(p.tier)).font(.system(size: 10, weight: .bold)).foregroundStyle(c)
-                    .padding(.horizontal, 8).padding(.vertical, 2).background(c.opacity(0.12), in: Capsule())
-            } else { Text("기록 없음").font(.system(size: 15, weight: .bold)).foregroundStyle(GLGColor.textSecondary) }
-        }
     }
     private var nextMini: some View {
         miniCard {
@@ -207,13 +184,6 @@ struct GachaStatusCard: View {
             .frame(maxWidth: .infinity, alignment: .leading).padding(13)
             .background(.white, in: RoundedRectangle(cornerRadius: 16)).overlay(RoundedRectangle(cornerRadius: 16).stroke(GLGColor.divider, lineWidth: 1))
     }
-}
-
-private func pityTierColor(_ t: PityTierS) -> Color {
-    switch t { case .reached: return Color(hex: 0xFFE53935); case .imminent: return Color(hex: 0xFFFB8C00); case .caution: return Color(hex: 0xFFF59E0B); case .safe: return Color(hex: 0xFF9AA0A6) }
-}
-private func pityShortLabel(_ t: PityTierS) -> String {
-    switch t { case .reached: return "보장 확정"; case .imminent: return "곧 보장"; case .caution: return "주의"; case .safe: return "모으는 중" }
 }
 
 // ── 실시간 노트 ──
