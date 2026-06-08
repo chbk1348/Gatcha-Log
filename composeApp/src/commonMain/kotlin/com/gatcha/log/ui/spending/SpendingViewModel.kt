@@ -645,7 +645,7 @@ class SpendingViewModel : ViewModel() {
             loadAll()
             // 로그인 상태면 복원 결과를 클라우드에도 업로드(다른 기기와 일치)
             if (cloudConfigured) CloudSync.currentUid()?.let { uid ->
-                withContext(Dispatchers.IO) { CloudSync.push(uid, repo.exportSnapshotJson()) }
+                withContext(Dispatchers.IO) { cloudPush(uid) }
             }
             emitStatus("백업을 복원했어요")
         }
@@ -848,13 +848,13 @@ class SpendingViewModel : ViewModel() {
                     syncJob?.cancel()
                     if (hasPendingLocal) {
                         // 로컬 변경을 먼저 클라우드에 반영(PTR 이 옛 클라우드로 덮어쓰지 않게)
-                        withTimeoutOrNull(SYNC_TIMEOUT_MS) { CloudSync.push(uid, repo.exportSnapshotJson()) }
+                        withTimeoutOrNull(SYNC_TIMEOUT_MS) { cloudPush(uid) }
                     } else {
                         val remote = withTimeoutOrNull(SYNC_TIMEOUT_MS) { CloudSync.pull(uid) }
                         if (remote != null) repo.importSnapshotJson(remote)
                         carryOverGuestHoyolab()
                         loadAll()
-                        withTimeoutOrNull(SYNC_TIMEOUT_MS) { CloudSync.push(uid, repo.exportSnapshotJson()) }
+                        withTimeoutOrNull(SYNC_TIMEOUT_MS) { cloudPush(uid) }
                     }
                 }
             }
@@ -1067,8 +1067,28 @@ class SpendingViewModel : ViewModel() {
         syncJob?.cancel()
         syncJob = viewModelScope.launch {
             delay(1500)
-            CloudSync.push(uid, repo.exportSnapshotJson())
+            cloudPush(uid)
         }
+    }
+
+    /** 마지막으로 Firestore 에 성공적으로 push 한 스냅샷(중복 쓰기 생략용). */
+    private var lastPushedSnapshot: String? = null
+
+    /**
+     * 전체 스냅샷을 Firestore 에 push 하는 단일 경로.
+     *  - 중복 방지: 직전 성공 push 와 내용이 같으면 쓰기를 생략(테마 변경·재로딩 등 무변화 churn 절감).
+     *  - 1MB 한도 경고: Firestore 문서 한도(1MB)에 근접하면 사용자에게 미리 안내(초과 시 백업이 조용히 중단되는 것 예방).
+     *  - 실패 시 lastPushedSnapshot 을 갱신하지 않아 다음 변경에서 재시도된다.
+     */
+    private suspend fun cloudPush(uid: String): Boolean {
+        val json = repo.exportSnapshotJson()
+        if (json == lastPushedSnapshot) return true   // 변경 없음 → write 생략
+        if (json.length > CLOUD_DOC_WARN_BYTES) {
+            emitStatus("클라우드 백업 용량이 한계에 근접했어요 (${json.length / 1024}KB / 1MB) — 오래된 뽑기 기록 정리를 권장해요")
+        }
+        val ok = CloudSync.push(uid, json)
+        if (ok) lastPushedSnapshot = json
+        return ok
     }
 
     /**
@@ -1112,7 +1132,7 @@ class SpendingViewModel : ViewModel() {
             carryOverGuestHoyolab()
             loadAll()
             // 병합 결과를 다시 업로드 → 유실됐던 호요랩 토큰 등을 클라우드에 자가 복구
-            withTimeoutOrNull(SYNC_TIMEOUT_MS) { CloudSync.push(uid, repo.exportSnapshotJson()) }
+            withTimeoutOrNull(SYNC_TIMEOUT_MS) { cloudPush(uid) }
         } finally {
             _initialSyncing.value = false
         }
@@ -1121,6 +1141,8 @@ class SpendingViewModel : ViewModel() {
     private companion object {
         /** 클라우드 pull/push 최대 대기(ms). 오프라인 등으로 응답 없을 때 로딩 화면 갇힘 방지. */
         const val SYNC_TIMEOUT_MS = 8_000L
+        /** Firestore 문서 1MB 한도 근접 경고 임계치(바이트). 초과 시 set 이 실패해 백업이 조용히 멈추므로 미리 안내. */
+        const val CLOUD_DOC_WARN_BYTES = 900_000
     }
 
     /**
