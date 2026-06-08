@@ -1,18 +1,11 @@
 import SwiftUI
 import ComposeApp
 
-/// Kotlin(Compose) ViewController 를 SwiftUI 안에 호스팅하는 공용 래퍼
-struct ComposeView: UIViewControllerRepresentable {
-    let factory: () -> UIViewController
-    func makeUIViewController(context: Context) -> UIViewController { factory() }
-    func updateUIViewController(_ uiViewController: UIViewController, context: Context) {}
-}
-
 /// 앱 루트 — 온보딩(로그인/게스트) → 네이티브 탭바 화면
 ///
 /// 탭바는 SwiftUI TabView(= UITabBarController) 라서 iOS 26 에서는 시스템
 /// 리퀴드 글래스(블러·스크롤 축소·모핑)가 자동 적용되고, iOS 16~18 에서는
-/// 해당 버전의 시스템 머티리얼 탭바로 표시된다. 탭 콘텐츠는 전부 Compose 공유 코드.
+/// 해당 버전의 시스템 머티리얼 탭바로 표시된다. 탭 콘텐츠는 전부 네이티브 SwiftUI.
 ///
 /// 지출 추가 버튼 (iOS 26 가이드라인):
 ///  - iOS 26: 탭바와 같은 높이에 분리된 원형 글래스 버튼 (Mail 컴포즈 버튼 패턴 — Tab role 사용)
@@ -159,7 +152,7 @@ struct ContentView: View {
     /// (로그인 화면은 TabView 밖 별도 뷰라 자동으로 탭바·FAB 없음)
     private func tabBarVisibility(_ tab: Int) -> Visibility { syncGateActive ? .hidden : .visible }
 
-    // ── 탭 콘텐츠 (Compose 공유 코드) ──────────────────────────────────
+    // ── 탭 콘텐츠 (네이티브 SwiftUI) ──────────────────────────────────
 
     // Phase 5 — SwiftUI 네이티브 홈. 시작 로직(refreshGameInfo)은 HomeView.task 에서 트리거.
     private var homeTabContent: some View {

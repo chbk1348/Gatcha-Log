@@ -9,8 +9,7 @@ import ComposeApp
 // Swift AsyncSequence(SkieSwiftStateFlow)로 변환해 주므로, 각 Flow 를 for-await 로
 // 구독해 @Published 프로퍼티에 미러링한다 → SwiftUI 가 변경을 자동 반영.
 //
-// VM 인스턴스는 IosAppState.shared.viewModel(= Compose 경로와 동일 인스턴스)을 공유한다.
-// → SwiftUI 화면과 (아직 남아 있는) Compose 화면이 같은 상태를 본다(점진 마이그레이션 안전).
+// VM 인스턴스는 IosAppState.shared.viewModel 싱글톤을 공유한다 — 모든 SwiftUI 화면이 단일 상태를 본다.
 //
 // ⚠️ 확장 정책: 이 스토어는 Phase 마다 "그 화면이 실제로 쓰는 Flow 만" 추가하며 자란다.
 // 40여 개 StateFlow 를 한 번에 미러링하지 않는다(검증되지 않은 대량 코드 방지).
