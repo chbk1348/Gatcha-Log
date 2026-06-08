@@ -210,13 +210,10 @@ fun GameInfoScreen(
                 ProfileShowcaseSection(
                     giUid = enkaGiUid,
                     hsrUid = enkaHsrUid,
-                    hoyoGiUid = hoyolab.genshinUid,
-                    hoyoHsrUid = hoyolab.hsrUid,
                     result = enkaResult,
                     loading = enkaLoading,
                     onLoad = { game, uid -> viewModel.loadEnkaProfile(game, uid) },
                     onGameChange = { viewModel.clearEnkaResult() },
-                    onOpenHoyolab = { subPage = GiSub.HoyoLink },
                 )
             }
             item { Spacer(Modifier.height(20.dp)) }
