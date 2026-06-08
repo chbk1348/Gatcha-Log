@@ -59,24 +59,28 @@ data class ScheduleEntry(
 )
 
 fun buildSchedule(banners: List<GachaBanner>, events: List<GameEvent>, challenges: List<GameChallenge>): List<ScheduleEntry> {
-    val now = System.currentTimeMillis()
     val out = mutableListOf<ScheduleEntry>()
-    // ① 픽업 페이즈 — 게임별 다음 픽업 시작(미래) 또는 현재 픽업 종료.
-    // (ennead가 버전 종료 시각을 안 줘서 '버전' 대신 '픽업' 기준으로 표기 — 후반 미게시 시 오해 방지)
+    // ① 픽업 페이즈 — 게임별로 종료일 기준 페이즈(전반/후반) 분리해 각각 'v6.6 전반 픽업 종료'처럼 표기.
+    // (ennead가 버전 종료 시각을 안 줘서 '버전' 대신 '픽업 페이즈' 기준. 전반/후반 판별은 구 GameBannerCard 로직 이식)
     for (game in GameData.games) {
         if (game.enneadKey == null) continue
         val gb = banners.filter { it.game == game.displayName }
         if (gb.isEmpty()) continue
-        val future = gb.mapNotNull { if (it.startMillis > now) it.startMillis else null }.minOrNull()
-        if (future != null) {
-            val v = gb.firstOrNull { it.startMillis == future }?.version ?: ""
-            out += ScheduleEntry(game.key, game.shortName, game.color, "패치",
-                if (v.isBlank()) "새 픽업 시작" else "v$v 새 픽업 시작", "", future, true)
-        } else {
-            val end = gb.maxOf { it.endMillis }
-            val v = gb.firstOrNull { it.endMillis == end }?.version ?: ""
-            out += ScheduleEntry(game.key, game.shortName, game.color, "패치",
-                if (v.isBlank()) "픽업 종료" else "v$v 픽업 종료", "", end, false)
+        val phases = gb.groupBy { it.endMillis }.entries.sortedBy { it.key } // 종료일 오름차순 페이즈
+        val versions = phases.map { it.value.firstOrNull()?.version ?: "" }
+        val lastVersion = versions.lastOrNull()
+        val totalByVer = versions.groupingBy { it }.eachCount()
+        val seen = mutableMapOf<String, Int>()
+        phases.forEachIndexed { idx, ph ->
+            val v = versions[idx]
+            val pos = seen[v] ?: 0; seen[v] = pos + 1
+            val phaseLabel = when {
+                (totalByVer[v] ?: 1) >= 2 -> if (pos == 0) "전반" else if (pos == 1) "후반" else "${pos + 1}페이즈"
+                v == lastVersion -> "전반"  // 최신 버전 단일 페이즈 = 전반(후반 미게시)
+                else -> "후반"               // 이전 버전 단일 페이즈 = 후반(전반 종료됨)
+            }
+            val title = if (v.isBlank()) "$phaseLabel 픽업 종료" else "v$v $phaseLabel 픽업 종료"
+            out += ScheduleEntry(game.key, game.shortName, game.color, "패치", title, "", ph.key, false)
         }
     }
     // ② 진행 중인 이벤트

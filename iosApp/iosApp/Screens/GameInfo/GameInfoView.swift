@@ -141,23 +141,26 @@ struct ScheduleEntry: Identifiable {
 }
 
 func buildSchedule(banners: [GachaBanner], events: [GameEvent], challenges: [GameChallenge]) -> [ScheduleEntry] {
-    let now = nowMs()
     var out: [ScheduleEntry] = []
-    // ① 픽업 페이즈 — 게임별 다음 픽업 시작(미래) 또는 현재 픽업 종료.
-    // (ennead가 버전 종료 시각을 안 줘서 '버전' 대신 '픽업' 기준 표기 — 후반 미게시 시 오해 방지)
+    // ① 픽업 페이즈 — 게임별로 종료일 기준 페이즈(전반/후반) 분리해 'v6.6 전반 픽업 종료'처럼 표기.
+    // (ennead가 버전 종료 시각을 안 줘서 '버전' 대신 '픽업 페이즈' 기준. 전반/후반 판별 = 구 GameBannerCard 로직)
     for game in GameData.shared.games where game.enneadKey != nil {
         let gb = banners.filter { $0.game == game.displayName }
         if gb.isEmpty { continue }
         let color = Color(argb64: game.color)
-        if let f = gb.compactMap({ $0.startMillis > now ? $0.startMillis : nil }).min() {
-            let v = gb.first { $0.startMillis == f }?.version ?? ""
-            out.append(ScheduleEntry(gameKey: game.key, gameShort: game.shortName, color: color, kind: "패치",
-                                     title: v.isEmpty ? "새 픽업 시작" : "v\(v) 새 픽업 시작", sub: "", target: f, isStart: true))
-        } else {
-            let end = gb.map { $0.endMillis }.max() ?? 0
-            let v = gb.first { $0.endMillis == end }?.version ?? ""
-            out.append(ScheduleEntry(gameKey: game.key, gameShort: game.shortName, color: color, kind: "패치",
-                                     title: v.isEmpty ? "픽업 종료" : "v\(v) 픽업 종료", sub: "", target: end, isStart: false))
+        let phases = Dictionary(grouping: gb, by: { $0.endMillis }).sorted { $0.key < $1.key }
+        let versions = phases.map { $0.value.first?.version ?? "" }
+        let lastVersion = versions.last
+        var totalByVer: [String: Int] = [:]; for v in versions { totalByVer[v, default: 0] += 1 }
+        var seen: [String: Int] = [:]
+        for (idx, ph) in phases.enumerated() {
+            let v = versions[idx]
+            let pos = seen[v] ?? 0; seen[v] = pos + 1
+            let phaseLabel: String
+            if (totalByVer[v] ?? 1) >= 2 { phaseLabel = pos == 0 ? "전반" : (pos == 1 ? "후반" : "\(pos + 1)페이즈") }
+            else { phaseLabel = (v == lastVersion) ? "전반" : "후반" }
+            let title = v.isEmpty ? "\(phaseLabel) 픽업 종료" : "v\(v) \(phaseLabel) 픽업 종료"
+            out.append(ScheduleEntry(gameKey: game.key, gameShort: game.shortName, color: color, kind: "패치", title: title, sub: "", target: ph.key, isStart: false))
         }
     }
     // ② 진행 중인 이벤트
