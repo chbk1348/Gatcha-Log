@@ -23,10 +23,11 @@ struct GameInfoView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
                 DailyHeroSection(store: store, filter: gameFilter, onConfig: { showHoyolab = true })
-                // 통합 게임 일정 — 패치·이벤트·정기 콘텐츠를 날짜순으로 합쳐 데일리 바로 아래 첫 섹션에 노출.
-                let schedule = buildSchedule(banners: store.activeBanners, events: store.gameEvents, challenges: store.challenges, filter: gameFilter)
+                // 통합 게임 일정 — 패치·이벤트·정기 콘텐츠를 합쳐 데일리 바로 아래 첫 섹션에 노출.
+                // 게임 분리는 상단 헤더 드롭다운(gameFilter)으로 필터한다.
+                let schedule = buildSchedule(banners: store.activeBanners, events: store.gameEvents, challenges: store.challenges)
                 if !schedule.isEmpty {
-                    section { GameScheduleSection(entries: schedule, onSeeAll: { showSchedule = true }) }
+                    section { GameScheduleSection(entries: schedule, banners: store.activeBanners, filter: gameFilter, onSeeAll: { showSchedule = true }) }
                 }
                 section { GameTabbedSection(store: store, filter: gameFilter) }
                 section { navEntry(icon: "function", title: "가챠 계산기", sub: "재화 환산 · 확률 · 시뮬레이터 · 플래너") { showCalc = true } }
@@ -139,7 +140,7 @@ struct ScheduleEntry: Identifiable {
     let isStart: Bool         // 패치 시작 여부(라벨·날짜 접두 분기)
 }
 
-func buildSchedule(banners: [GachaBanner], events: [GameEvent], challenges: [GameChallenge], filter: String) -> [ScheduleEntry] {
+func buildSchedule(banners: [GachaBanner], events: [GameEvent], challenges: [GameChallenge]) -> [ScheduleEntry] {
     let now = nowMs()
     var out: [ScheduleEntry] = []
     // ① 패치 — 게임별 다음 시작(미래) 또는 마지막 종료
@@ -172,8 +173,7 @@ func buildSchedule(banners: [GachaBanner], events: [GameEvent], challenges: [Gam
                                  color: Color(argb64: ch.gameColor), kind: "콘텐츠",
                                  title: ch.name, sub: ch.reward, target: ch.endMillis, isStart: false))
     }
-    let filtered = filter == "all" ? out : out.filter { $0.gameKey == filter }
-    return filtered.sorted { $0.target < $1.target }
+    return out.sorted { $0.target < $1.target }
 }
 
 private func scheduleKindColor(_ kind: String) -> Color {
@@ -182,6 +182,56 @@ private func scheduleKindColor(_ kind: String) -> Color {
     case "이벤트": return Color(hex: 0xFFE0A93B)
     default: return Color(hex: 0xFF2BB673)
     }
+}
+
+// 픽업 배너 — 일정 목록과 구분되는 단독 디자인(게임색 틴트 카드 + 아이콘 타일 + 픽업 칩).
+private struct PickupBannerCard: View {
+    let banner: GachaBanner
+    var body: some View {
+        let c = Color(argb64: banner.gameColor)
+        let urgent = banner.dDay(nowMillis: nowMs()) <= 3
+        let ddColor = urgent ? Color(hex: 0xFFE8634A) : c
+        return HStack(spacing: 12) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 12, style: .continuous).fill(c.opacity(0.16)).frame(width: 44, height: 44)
+                Image(systemName: banner.type == "weapon" ? "scope" : "person.fill").font(.system(size: 18, weight: .semibold)).foregroundStyle(c)
+            }
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: 6) {
+                    Text("픽업").font(.system(size: 9, weight: .bold)).foregroundStyle(.white)
+                        .padding(.horizontal, 6).padding(.vertical, 2).background(c, in: Capsule())
+                    Text(banner.type == "weapon" ? "무기" : "캐릭터").font(.system(size: 10, weight: .semibold)).foregroundStyle(GLGColor.textSecondary)
+                    if !banner.version.isEmpty { Text("v\(banner.version)").font(.system(size: 10)).foregroundStyle(GLGColor.textSecondary) }
+                }
+                Text(banner.name).font(.system(size: 15, weight: .bold)).foregroundStyle(GLGColor.textPrimary).lineLimit(1)
+                Text("~ \(DateUtil.shared.shortDate(millis: banner.endMillis)) 종료").font(.system(size: 10)).foregroundStyle(GLGColor.textSecondary)
+            }
+            Spacer(minLength: 8)
+            Text(banner.endShortLabel(nowMillis: nowMs())).font(.system(size: 12, weight: .bold)).foregroundStyle(ddColor)
+                .padding(.horizontal, 9).padding(.vertical, 4).background(ddColor.opacity(0.14), in: Capsule())
+        }
+        .padding(12)
+        .background(c.opacity(0.06), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(c.opacity(0.18), lineWidth: 1))
+    }
+}
+
+// 헤더 드롭다운(filter)에 맞춘 픽업 배너 — "all"이면 전체, 특정 게임이면 그 게임만. 종료 임박순.
+private func filteredPickups(_ banners: [GachaBanner], filter: String) -> [GachaBanner] {
+    let list: [GachaBanner]
+    if filter == "all" {
+        list = banners
+    } else if let g = GameData.shared.games.first(where: { $0.key == filter }) {
+        list = banners.filter { $0.game == g.displayName }
+    } else {
+        list = []
+    }
+    return list.sorted { $0.endMillis < $1.endMillis }
+}
+
+// 헤더 드롭다운(filter)에 맞춘 일정 — "all"이면 전체, 특정 게임이면 그 게임만.
+private func filteredEntries(_ entries: [ScheduleEntry], filter: String) -> [ScheduleEntry] {
+    filter == "all" ? entries : entries.filter { $0.gameKey == filter }
 }
 
 private struct ScheduleEntryRow: View {
@@ -194,12 +244,9 @@ private struct ScheduleEntryRow: View {
         HStack(spacing: 12) {
             Circle().fill(e.color).frame(width: 9, height: 9)
             VStack(alignment: .leading, spacing: 3) {
-                HStack(spacing: 6) {
-                    Text(e.gameShort).font(.system(size: 12, weight: .bold)).foregroundStyle(e.color).lineLimit(1)
-                    Text(e.kind).font(.system(size: 9, weight: .bold)).foregroundStyle(scheduleKindColor(e.kind))
-                        .padding(.horizontal, 6).padding(.vertical, 2)
-                        .background(scheduleKindColor(e.kind).opacity(0.13), in: Capsule())
-                }
+                Text(e.kind).font(.system(size: 9, weight: .bold)).foregroundStyle(scheduleKindColor(e.kind))
+                    .padding(.horizontal, 6).padding(.vertical, 2)
+                    .background(scheduleKindColor(e.kind).opacity(0.13), in: Capsule())
                 Text(e.title).font(.system(size: 14, weight: .semibold)).foregroundStyle(GLGColor.textPrimary).lineLimit(1)
                 if !e.sub.isEmpty {
                     Text(e.sub).font(.system(size: 11)).foregroundStyle(GLGColor.textSecondary).lineLimit(1)
@@ -215,27 +262,47 @@ private struct ScheduleEntryRow: View {
     }
 }
 
+// 통합 일정 — 헤더 드롭다운(filter)으로 게임 분리. 픽업 배너(단독 디자인) + 상위 3개 일정, 초과 시 전체 페이지로.
 struct GameScheduleSection: View {
     let entries: [ScheduleEntry]
+    let banners: [GachaBanner]
+    let filter: String
     let onSeeAll: () -> Void
     @Environment(\.glgAccent) private var accent
+
     var body: some View {
+        let items = filteredEntries(entries, filter: filter)
+        let allPickups = filteredPickups(banners, filter: filter)
+        let pickups = Array(allPickups.prefix(3))   // 섹션은 압축: 픽업 최대 3개
+        let top = Array(items.prefix(3))
+        let hasMore = items.count > 3 || allPickups.count > pickups.count
         VStack(alignment: .leading, spacing: 0) {
             Text("게임 일정").font(.system(size: 16, weight: .bold)).padding(.bottom, 4)
-            Text("다가오는 패치·이벤트·콘텐츠를 날짜순으로 모았어요.").font(.system(size: 11)).foregroundStyle(GLGColor.textSecondary).padding(.bottom, 12)
+            Text("픽업 배너와 다가오는 패치·이벤트·콘텐츠를 모았어요.").font(.system(size: 11)).foregroundStyle(GLGColor.textSecondary).padding(.bottom, 12)
+            // 픽업 배너 + 일정을 하나의 통합 카드에 담는다. 픽업 배너는 카드 안에서 단독 디자인(틴트 카드)으로 구분.
             GLGCard(cornerRadius: 20, padding: 16) {
                 VStack(spacing: 0) {
-                    let top = Array(entries.prefix(3))
-                    ForEach(Array(top.enumerated()), id: \.element.id) { i, e in
-                        ScheduleEntryRow(e: e)
-                        if i < top.count - 1 { Divider() }
+                    if !pickups.isEmpty {
+                        VStack(spacing: 8) {
+                            ForEach(Array(pickups.enumerated()), id: \.offset) { _, b in PickupBannerCard(banner: b) }
+                        }
+                        if !top.isEmpty { Divider().padding(.vertical, 12) }
                     }
-                    if entries.count > 3 {
+                    if !top.isEmpty {
+                        ForEach(Array(top.enumerated()), id: \.element.id) { i, e in
+                            ScheduleEntryRow(e: e)
+                            if i < top.count - 1 { Divider() }
+                        }
+                    } else if pickups.isEmpty {
+                        Text("예정된 일정이 없어요.").font(.system(size: 12)).foregroundStyle(GLGColor.textSecondary)
+                            .frame(maxWidth: .infinity, alignment: .leading).padding(.vertical, 8)
+                    }
+                    if hasMore {
                         Divider()
                         Button(action: onSeeAll) {
                             HStack(spacing: 6) {
                                 Text("전체 일정 보기").font(.system(size: 13, weight: .bold)).foregroundStyle(accent.primary)
-                                Text("\(entries.count)").font(.system(size: 12, weight: .bold)).foregroundStyle(accent.primary.opacity(0.6))
+                                Text("\(items.count + allPickups.count)").font(.system(size: 12, weight: .bold)).foregroundStyle(accent.primary.opacity(0.6))
                                 Spacer()
                                 Image(systemName: "chevron.right").font(.system(size: 12, weight: .semibold)).foregroundStyle(accent.primary)
                             }
@@ -248,22 +315,30 @@ struct GameScheduleSection: View {
     }
 }
 
-// ── 전체 게임 일정 페이지 ──
+// ── 전체 게임 일정 페이지 (헤더 드롭다운 필터 연동) ──
 struct GameSchedulePage: View {
     @ObservedObject var store: SpendingStore
     let filter: String
+
     var body: some View {
-        let entries = buildSchedule(banners: store.activeBanners, events: store.gameEvents, challenges: store.challenges, filter: filter)
+        let entries = filteredEntries(buildSchedule(banners: store.activeBanners, events: store.gameEvents, challenges: store.challenges), filter: filter)
+        let pickups = filteredPickups(store.activeBanners, filter: filter)
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
                 Text("게임 일정").font(.system(size: 22, weight: .bold)).padding(.bottom, 4)
-                Text("패치·이벤트·정기 콘텐츠를 날짜순으로 모았어요.").font(.system(size: 12)).foregroundStyle(GLGColor.textSecondary).padding(.bottom, 14)
-                if entries.isEmpty {
+                Text("픽업 배너와 패치·이벤트·정기 콘텐츠를 모았어요.").font(.system(size: 12)).foregroundStyle(GLGColor.textSecondary).padding(.bottom, 14)
+                if entries.isEmpty && pickups.isEmpty {
                     Text("예정된 일정이 없어요.").font(.system(size: 13)).foregroundStyle(GLGColor.textSecondary)
                         .frame(maxWidth: .infinity, alignment: .center).padding(.top, 40)
                 } else {
                     GLGCard(cornerRadius: 20, padding: 16) {
                         VStack(spacing: 0) {
+                            if !pickups.isEmpty {
+                                VStack(spacing: 8) {
+                                    ForEach(Array(pickups.enumerated()), id: \.offset) { _, b in PickupBannerCard(banner: b) }
+                                }
+                                if !entries.isEmpty { Divider().padding(.vertical, 12) }
+                            }
                             ForEach(Array(entries.enumerated()), id: \.element.id) { i, e in
                                 ScheduleEntryRow(e: e)
                                 if i < entries.count - 1 { Divider() }
