@@ -735,7 +735,7 @@ class SpendingViewModel : ViewModel() {
     fun startInAppUpdate() {
         val info = _updateInfo.value ?: return
         _updateInfo.value = null // 다이얼로그 닫기
-        com.gatcha.log.ui.platform.openUrl(info.url)
+        com.gatcha.log.util.openUrl(info.url)
     }
 
     /** 현재 출석 처리 중인 게임 키 (버튼 진행 표시용). null 이면 진행 중 아님. */
