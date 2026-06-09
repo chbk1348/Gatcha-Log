@@ -1,6 +1,5 @@
 package com.gatcha.log.data
 
-import androidx.compose.ui.graphics.Color
 import com.gatcha.log.util.currentTimeMillis
 import kotlin.math.ceil
 
@@ -40,7 +39,7 @@ data class GachaBanner(
     /** 버전 (예: "6.6") */
     val version: String = "",
 ) {
-    val gameColor: Color get() = GameData.colorFor(game)
+    val gameColor: Long get() = GameData.colorFor(game)
 
     /** 종료까지 남은 일수. 음수면 종료됨. */
     fun dDay(nowMillis: Long = currentTimeMillis()): Int {
@@ -79,7 +78,7 @@ data class GameEvent(
     val endMillis: Long,
     val reward: String = "",
 ) {
-    val gameColor: Color get() = GameData.colorFor(game)
+    val gameColor: Long get() = GameData.colorFor(game)
 
     fun dDay(nowMillis: Long = currentTimeMillis()): Int {
         val diff = endMillis - nowMillis
@@ -104,7 +103,7 @@ data class GameChallenge(
     val endMillis: Long,
     val reward: String = "",
 ) {
-    val gameColor: Color get() = GameData.colorFor(game)
+    val gameColor: Long get() = GameData.colorFor(game)
     fun dDayLabel(nowMillis: Long = currentTimeMillis()): String {
         val d = ceil((endMillis - nowMillis) / (1000.0 * 60 * 60 * 24)).toInt()
         return when {
@@ -120,7 +119,7 @@ data class PityState(val count: Int = 0, val guaranteed: Boolean = false)
 
 /** 패치(다음 일정) 카운트다운 정보 */
 data class PatchInfo(val game: String, val version: String, val targetMillis: Long, val isStart: Boolean) {
-    val gameColor: Color get() = GameData.colorFor(game)
+    val gameColor: Long get() = GameData.colorFor(game)
     fun dDay(nowMillis: Long = currentTimeMillis()): Int =
         ceil((targetMillis - nowMillis) / (1000.0 * 60 * 60 * 24)).toInt()
 }
@@ -144,7 +143,7 @@ data class LiveNote(
     /** 게임별 부가 통계(탐사 파견·주간 보스 잔여·선계 화폐·예비 개척력·현상 의뢰 등) */
     val extras: List<NoteStat> = emptyList(),
 ) {
-    val gameColor: Color get() = GameData.colorFor(game)
+    val gameColor: Long get() = GameData.colorFor(game)
     val resinRatio: Float get() = if (maxResin == 0) 0f else currentResin.toFloat() / maxResin
 
     /** 게임별 재화 명칭 */
@@ -170,7 +169,7 @@ data class CombatMode(
     val endMillis: Long = 0,  // 시즌 종료 (0이면 D-day 미표시)
     val hasData: Boolean = true,
 ) {
-    val gameColor: Color get() = GameData.colorFor(game)
+    val gameColor: Long get() = GameData.colorFor(game)
     val ratio: Float get() = if (maxStars <= 0) 0f else (stars.toFloat() / maxStars).coerceIn(0f, 1f)
     fun dDay(now: Long = currentTimeMillis()): Int? =
         if (endMillis <= 0) null else ceil((endMillis - now) / (1000.0 * 60 * 60 * 24)).toInt()
@@ -198,7 +197,7 @@ data class MonthlyLedger(
     /** 수입원별 비중 */
     val breakdown: List<LedgerEntry> = emptyList(),
 ) {
-    val gameColor: Color get() = GameData.colorFor(game)
+    val gameColor: Long get() = GameData.colorFor(game)
 
     /** 데이터가 비어 있으면(수입·내역 모두 0) 카드를 숨기기 위한 판정 */
     val hasData: Boolean get() = premium > 0 || gold > 0 || breakdown.isNotEmpty()

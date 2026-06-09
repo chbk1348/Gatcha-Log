@@ -1,6 +1,5 @@
 package com.gatcha.log.data
 
-import androidx.compose.ui.graphics.Color
 import com.gatcha.log.json.JSONArray
 import com.gatcha.log.json.JSONObject
 import com.gatcha.log.storage.KeyValueStore
@@ -64,7 +63,7 @@ class GatchaRepository(accountId: String = "guest") {
         val tagsArr = optJSONArray("tags") ?: JSONArray()
         val tags = (0 until tagsArr.length()).map { tagsArr.getString(it) }
         val gameName = optString("gameName", "원신")
-        val color = if (has("gameColor")) Color(getInt("gameColor")) else GameData.colorFor(gameName)
+        val color = if (has("gameColor")) (getInt("gameColor").toLong() and 0xFFFFFFFFL) else GameData.colorFor(gameName)
         return Spending(
             id = optString("id"),
             gameName = gameName,

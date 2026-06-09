@@ -1,6 +1,5 @@
 package com.gatcha.log.data
 
-import androidx.compose.ui.graphics.Color
 import com.gatcha.log.json.JSONArray
 import com.gatcha.log.json.JSONObject
 import kotlin.math.roundToInt
@@ -71,11 +70,11 @@ data class GachaDashboard(val byGame: Map<String, GachaGameDash>)
 
 object GachaReport {
 
-    /** 게임 키 → (짧은 이름, 지출 게임명, 색상) */
-    val gameInfo: Map<String, Triple<String, String, Color>> = mapOf(
-        "genshin" to Triple("원신", "원신", Color(0xFF4F8EF7)),
-        "starrail" to Triple("스타레일", "붕괴: 스타레일", Color(0xFFB06BFF)),
-        "zzz" to Triple("젠레스", "젠레스 존 제로", Color(0xFFF5A623)),
+    /** 게임 키 → (짧은 이름, 지출 게임명, 색상 ARGB Long) */
+    val gameInfo: Map<String, Triple<String, String, Long>> = mapOf(
+        "genshin" to Triple("원신", "원신", 0xFF4F8EF7L),
+        "starrail" to Triple("스타레일", "붕괴: 스타레일", 0xFFB06BFFL),
+        "zzz" to Triple("젠레스", "젠레스 존 제로", 0xFFF5A623L),
     )
 
     val poolLabels: Map<String, Map<String, String>> = mapOf(
