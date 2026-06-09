@@ -1,5 +1,5 @@
 import SwiftUI
-import ComposeApp
+import Shared
 
 // ════════════════════════════════════════════════════════════════════════════
 // 마이페이지 — 프로필 히어로 + 활동 통계 + 게임별 지출 TOP. (Compose MyPageScreen 대응)

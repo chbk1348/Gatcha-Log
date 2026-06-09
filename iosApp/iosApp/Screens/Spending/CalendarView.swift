@@ -1,5 +1,5 @@
 import SwiftUI
-import ComposeApp
+import Shared
 
 // 통합 캘린더 — 월 달력에 일별 지출 합계·출석·픽업 배너 시작/종료 합성. (Compose CalendarScreen 대응)
 struct CalendarView: View {

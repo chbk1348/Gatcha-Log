@@ -1,5 +1,5 @@
 import SwiftUI
-import ComposeApp
+import Shared
 
 // 리딤코드 — 페이지 형식(네비게이션 푸시). 활성 코드 자동 수집 + 교환(단건/모두) + 직접 입력.
 // (Compose GiftCodePage 대응) 시트 → 페이지로 전환하며 글래스 카드로 디자인 개선.

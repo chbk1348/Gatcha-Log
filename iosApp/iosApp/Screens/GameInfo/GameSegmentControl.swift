@@ -1,5 +1,5 @@
 import SwiftUI
-import ComposeApp
+import Shared
 
 // 게임 세그먼트 컨트롤 (게임정보 2.0 — Segmented 레이아웃).
 // 디자인(참고 이미지): 단일 글래스 캡슐 + 선택 칸은 옅은 흰 알약 + 어두운 글자(시스템 기본 세그먼티드 룩).

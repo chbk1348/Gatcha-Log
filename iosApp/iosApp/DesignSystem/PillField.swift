@@ -2,7 +2,7 @@ import SwiftUI
 
 extension View {
     /// 알약(pill) 형태 + 옅은 아웃라인 입력필드 스타일.
-    /// Android/composeApp 의 GlgTextField(FieldShape = RoundedCornerShape(50%), 아웃라인 0.12, 좌우 18) 와 동일 디자인 언어.
+    /// Android/shared 의 GlgTextField(FieldShape = RoundedCornerShape(50%), 아웃라인 0.12, 좌우 18) 와 동일 디자인 언어.
     /// 사용: `TextField(...).textFieldStyle(.plain).glgPillField()`
     func glgPillField() -> some View {
         self

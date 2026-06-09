@@ -1,6 +1,6 @@
 import SwiftUI
 import UniformTypeIdentifiers
-import ComposeApp
+import Shared
 
 // ════════════════════════════════════════════════════════════════════════════
 // 설정 — 계정·테마·예산/연동·자동화·알림·데이터·백업·정보. (Compose SettingsScreen 대응)

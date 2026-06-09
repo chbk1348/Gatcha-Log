@@ -1,5 +1,5 @@
 import SwiftUI
-import ComposeApp
+import Shared
 
 // 지출 인사이트 — 예산 페이스 예측 + 게임별 월 추이 + 결제수단·태그 비중. (Compose SpendingInsightScreen 대응)
 struct SpendingInsightView: View {

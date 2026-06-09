@@ -1,5 +1,5 @@
 import SwiftUI
-import ComposeApp
+import Shared
 
 // 가챠 통계 대시보드 — 요약·등급비율·천장분포·월별추이·픽업vs상시·5성 타임라인. (Compose GachaDashboardScreen 대응)
 struct GachaDashboardView: View {

@@ -1,5 +1,5 @@
 import SwiftUI
-import ComposeApp
+import Shared
 
 // 통합 계산기 — 재화 환산·확보 확률·뽑기 시뮬레이터·플래너. (Compose GachaCalculatorSection 대응)
 struct GachaCalculatorSection: View {

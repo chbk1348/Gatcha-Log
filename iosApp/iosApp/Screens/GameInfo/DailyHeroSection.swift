@@ -1,5 +1,5 @@
 import SwiftUI
-import ComposeApp
+import Shared
 
 // 데일리 히어로 — 실시간 노트(레진/개척력/배터리) + 출석체크(7일 스트립 + 월 달력 + 게임별).
 // (Compose DailyHeroSection 대응) HoYoLAB 미연동 시 연동 유도 카드.

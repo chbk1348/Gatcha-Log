@@ -1,5 +1,5 @@
 import SwiftUI
-import ComposeApp
+import Shared
 
 // 연간 리포트 — 연도 선택 + 총/평균/기록 + 월별 막대 + 게임별 분석. (Compose AnnualReportScreen 대응)
 struct AnnualReportView: View {

@@ -1,5 +1,5 @@
 import SwiftUI
-import ComposeApp
+import Shared
 
 // 홈 서브컴포넌트 — (Compose HomeRedesign/HomeScreen 대응)
 

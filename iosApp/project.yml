@@ -73,10 +73,10 @@ targets:
         # Intel 시뮬레이터(x86_64) 제외 — Kotlin 타깃이 iosSimulatorArm64(애플 실리콘)만 구성됨.
         # 없으면 Release 시뮬레이터 빌드가 "Unknown iOS simulator arch: 'x86_64'" 로 실패.
         "EXCLUDED_ARCHS[sdk=iphonesimulator*]": x86_64
-        # composeApp Gradle 빌드가 떨궈 주는 framework 위치
-        FRAMEWORK_SEARCH_PATHS: "$(SRCROOT)/../composeApp/build/xcode-frameworks/$(CONFIGURATION)/$(SDK_NAME)"
+        # shared Gradle 빌드가 떨궈 주는 framework 위치
+        FRAMEWORK_SEARCH_PATHS: "$(SRCROOT)/../shared/build/xcode-frameworks/$(CONFIGURATION)/$(SDK_NAME)"
         # -ObjC: Firebase 정적 라이브러리의 ObjC 카테고리 로드에 필요
-        OTHER_LDFLAGS: "$(inherited) -framework ComposeApp -ObjC"
+        OTHER_LDFLAGS: "$(inherited) -framework Shared -ObjC"
         # 자동 서명 (Personal Team) — 시뮬레이터·실기기 모두 동작 + 키체인 entitlement 활성화.
         # 키체인은 Firebase Auth 인증 상태·구글 로그인 토큰·HoYoLAB 토큰 저장에 필수.
         # 무료 개인 팀: 앱 7일 유효(만료 시 재설치), App Store 배포 시 유료 계정으로 전환.
@@ -93,7 +93,7 @@ targets:
             export JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home"
           fi
           cd "$SRCROOT/.."
-          ./gradlew :composeApp:embedAndSignAppleFrameworkForXcode
+          ./gradlew :shared:embedAndSignAppleFrameworkForXcode
 
 # 공유 스킴 — `xcodebuild -scheme iosApp` / 아카이브(build-ipa.sh) 용. xcodegen 재생성 후에도 유지.
 schemes:

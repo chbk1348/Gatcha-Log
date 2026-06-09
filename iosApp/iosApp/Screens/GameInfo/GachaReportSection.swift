@@ -1,6 +1,6 @@
 import SwiftUI
 import UniformTypeIdentifiers
-import ComposeApp
+import Shared
 
 // 가챠 효율 리포트 — UIGF/SRGF JSON 가져오기 + 게임별 단가·출현율·풀별·최근5성. (Compose GachaReportSection 대응)
 struct GachaReportSection: View {

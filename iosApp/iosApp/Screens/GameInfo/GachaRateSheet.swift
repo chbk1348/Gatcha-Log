@@ -1,5 +1,5 @@
 import SwiftUI
-import ComposeApp
+import Shared
 
 // 가챠 확률표 — 페이지 형식(네비게이션 푸시). 천장&확률 글래스 카드 + 빠른 비교 테이블.
 // (Compose GachaRatePage 대응) 시트 → 페이지로 전환하며 글래스 카드로 디자인 개선.
