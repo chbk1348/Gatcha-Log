@@ -1,6 +1,6 @@
 import SwiftUI
 import UniformTypeIdentifiers
-import ComposeApp
+import Shared
 
 // 홈 — 헤더·이번달 요약·오늘 할 일·가챠 현황·실시간 노트·픽업 배너·지출/예산·가챠 요약·알림.
 // (Compose HomeContent + HomeRedesign 대응) VM 의존 최다. 시작 시 refreshGameInfo 트리거 보존.

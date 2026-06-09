@@ -1,5 +1,5 @@
 import SwiftUI
-import ComposeApp
+import Shared
 
 // 지출 상세 — 전체 정보 + 수정/삭제. (Compose SpendingDetailScreen 대응)
 struct SpendingDetailView: View {

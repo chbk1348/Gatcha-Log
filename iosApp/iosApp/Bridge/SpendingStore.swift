@@ -1,6 +1,6 @@
 import Foundation
 import Combine
-import ComposeApp
+import Shared
 
 // ════════════════════════════════════════════════════════════════════════════
 // Kotlin SpendingViewModel ↔ SwiftUI 브리지
@@ -48,7 +48,7 @@ final class SpendingStore: ObservableObject {
 
     // ── Phase 3 (지출) ──
     @Published private(set) var isRefreshing: Bool = false
-    @Published private(set) var subscriptions: [ComposeApp.Subscription] = []
+    @Published private(set) var subscriptions: [Shared.Subscription] = []
     @Published private(set) var attendanceHistory: [String: Set<String>] = [:]
     @Published private(set) var activeBanners: [GachaBanner] = []
 
@@ -216,8 +216,8 @@ final class SpendingStore: ObservableObject {
     // ── Phase 3 액션 ──────────────────────────────────────────────────────
     func deleteSpending(_ id: String) { vm.deleteSpending(id: id) }
     func refreshSpending() { vm.refreshSpending() }
-    func addSubscription(_ sub: ComposeApp.Subscription) { vm.addSubscription(sub: sub) }
-    func updateSubscription(_ sub: ComposeApp.Subscription) { vm.updateSubscription(sub: sub) }
+    func addSubscription(_ sub: Shared.Subscription) { vm.addSubscription(sub: sub) }
+    func updateSubscription(_ sub: Shared.Subscription) { vm.updateSubscription(sub: sub) }
     func deleteSubscription(_ id: String) { vm.deleteSubscription(id: id) }
     /// 지출 수정 진입 — 편집 대상 설정(모달 열기는 ContentView 가 담당).
     func prepareEdit(_ spending: Spending) { MainViewControllerKt.prepareEditSpending(spending: spending) }

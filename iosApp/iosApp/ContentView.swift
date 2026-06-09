@@ -1,5 +1,5 @@
 import SwiftUI
-import ComposeApp
+import Shared
 
 /// 앱 루트 — 온보딩(로그인/게스트) → 네이티브 탭바 화면
 ///
