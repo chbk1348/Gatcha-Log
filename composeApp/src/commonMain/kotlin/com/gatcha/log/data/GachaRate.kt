@@ -1,6 +1,5 @@
 package com.gatcha.log.data
 
-import androidx.compose.ui.graphics.Color
 
 /**
  * 가챠 확률표용 정적 데이터. 웹앱(Gatcha LOG)의 `GatchaLog_GameInfo` 안 `GAMES` 정의를 그대로 이식.
@@ -73,7 +72,8 @@ data class GachaGameRate(
     val shortName: String,
     /** 최고 등급 표기 (5★ / 6★ / S급) */
     val grade: String,
-    val color: Color,
+    /** 게임 대표색 — ARGB Long(0xAARRGGBB). */
+    val color: Long,
     val version: String,
     val character: GachaBannerRate?,
     val weapon: GachaBannerRate?,
@@ -106,7 +106,7 @@ object GachaRateData {
     val games: List<GachaGameRate> = listOf(
         GachaGameRate(
             key = "genshin", name = "원신", shortName = "원신", grade = "5★",
-            color = Color(0xFF4F8EF7), version = "5.x",
+            color = 0xFF4F8EF7L, version = "5.x",
             character = GachaBannerRate(0.006, 74, 90, "원석", 160, has5050 = true, carryover = true),
             weapon = GachaBannerRate(0.007, 62, 80, "원석", 160, epitomized = true),
             standard = GachaBannerRate(0.006, 74, 90, "원석", 160),
@@ -115,7 +115,7 @@ object GachaRateData {
         ),
         GachaGameRate(
             key = "hsr", name = "붕괴: 스타레일", shortName = "스타레일", grade = "5★",
-            color = Color(0xFFB06BFF), version = "3.x",
+            color = 0xFFB06BFFL, version = "3.x",
             character = GachaBannerRate(0.006, 74, 90, "성옥", 160, has5050 = true, carryover = true),
             weapon = GachaBannerRate(0.0075, 66, 80, "성옥", 160),
             standard = GachaBannerRate(0.006, 74, 90, "성옥", 160),
@@ -124,7 +124,7 @@ object GachaRateData {
         ),
         GachaGameRate(
             key = "zzz", name = "젠레스 존 제로", shortName = "젠레스", grade = "S급",
-            color = Color(0xFFF5A623), version = "1.x",
+            color = 0xFFF5A623L, version = "1.x",
             character = GachaBannerRate(0.006, 74, 90, "폴리크롬", 160, has5050 = true, carryover = true),
             weapon = GachaBannerRate(0.01, 65, 80, "폴리크롬", 160),
             standard = GachaBannerRate(0.006, 74, 90, "폴리크롬", 160),
@@ -133,7 +133,7 @@ object GachaRateData {
         ),
         GachaGameRate(
             key = "endfield", name = "명일방주: 엔드필드", shortName = "엔드필드", grade = "6★",
-            color = Color(0xFF1CB8A8), version = "CBT",
+            color = 0xFF1CB8A8L, version = "CBT",
             character = GachaBannerRate(0.02, 50, 100, "오로베릴", 1, has5050 = true, carryover = true, costPerPull = 850),
             weapon = null,
             standard = GachaBannerRate(0.02, 50, 100, "오로베릴", 1, costPerPull = 850),
@@ -142,7 +142,7 @@ object GachaRateData {
         ),
         GachaGameRate(
             key = "wuwa", name = "명조", shortName = "명조", grade = "5★",
-            color = Color(0xFFE85D75), version = "2.x",
+            color = 0xFFE85D75L, version = "2.x",
             character = GachaBannerRate(0.008, 66, 80, "별의 소리", 160, has5050 = true, carryover = true),
             weapon = GachaBannerRate(0.01, 66, 80, "별의 소리", 160),
             standard = GachaBannerRate(0.008, 66, 80, "별의 소리", 160),
@@ -151,7 +151,7 @@ object GachaRateData {
         ),
         GachaGameRate(
             key = "nte", name = "이환", shortName = "이환", grade = "S급",
-            color = Color(0xFF0EA5E9), version = "1.x",
+            color = 0xFF0EA5E9L, version = "1.x",
             character = GachaBannerRate(0.0099, 70, 90, "환석", 160, no5050 = true),
             weapon = null,
             standard = GachaBannerRate(0.0099, 70, 90, "환석", 160),

@@ -1,6 +1,5 @@
 package com.gatcha.log
 
-import androidx.compose.ui.graphics.toArgb
 import com.gatcha.log.data.GameData
 import com.gatcha.log.data.Spending
 import com.gatcha.log.ui.spending.SpendingViewModel
@@ -130,11 +129,10 @@ fun saveSpending(
 private var accentObserver: ((Long) -> Unit)? = null
 private var accentCollectorStarted = false
 
-/** 현재 액센트 색상 → ARGB Long */
+/** 현재 액센트 색상 → ARGB Long (AccentPalette 가 이미 0xAARRGGBB Long 을 보유) */
 private fun currentAccentArgb(): Long {
     val idx = IosAppState.viewModel.accentIndex.value
-    val accent = AccentPalette.getOrElse(idx) { AccentPalette[0] }.color
-    return accent.toArgb().toLong() and 0xFFFFFFFFL
+    return AccentPalette.getOrElse(idx) { AccentPalette[0] }.color
 }
 
 /**

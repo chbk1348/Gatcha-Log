@@ -42,10 +42,10 @@ func gachaGameInfo(_ key: String) -> (short: String, color: Color) {
 
 extension Color {
     /// Kotlin Game.color / Spending.gameColor → Color.
-    /// ⚠️ Compose `Color.value`(ULong)는 sRGB ARGB 를 **상위 32비트**에 패킹한다
-    /// (`Color(0xFF4F8EF7).value == 0xFF4F8EF7_00000000`). 하위 32비트를 쓰면 0(검정)이 되므로 >>32.
-    init(argb64: UInt64) {
-        self.init(hex: UInt32(truncatingIfNeeded: argb64 >> 32))
+    /// 데이터 모델 색상은 평범한 ARGB Long(0xAARRGGBB, 하위 32비트) — SKIE 로 Int64 로 전달됨.
+    /// (구 Compose `Color.value` 상위 32비트 패킹은 de-Color 작업으로 제거됨)
+    init(argb64: Int64) {
+        self.init(hex: UInt32(truncatingIfNeeded: argb64))
     }
 }
 

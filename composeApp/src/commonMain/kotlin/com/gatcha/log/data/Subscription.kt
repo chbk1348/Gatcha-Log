@@ -1,6 +1,5 @@
 package com.gatcha.log.data
 
-import androidx.compose.ui.graphics.Color
 import com.gatcha.log.json.JSONArray
 import com.gatcha.log.json.JSONObject
 import com.gatcha.log.util.currentTimeMillis
@@ -23,7 +22,7 @@ data class Subscription(
     val amount: Long,
     val billingDay: Int, // 1..31
 ) {
-    val gameColor: Color get() = GameData.colorFor(gameName)
+    val gameColor: Long get() = GameData.colorFor(gameName)
 
     /**
      * 다음 결제까지 남은 일수(오늘이면 0).

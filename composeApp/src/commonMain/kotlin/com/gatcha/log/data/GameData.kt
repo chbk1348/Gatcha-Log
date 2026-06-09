@@ -1,7 +1,5 @@
 package com.gatcha.log.data
 
-import androidx.compose.ui.graphics.Color
-
 /**
  * 지원 게임 정의. 웹앱(Gatcha LOG)의 GAMES / _ATT_META 정의를 네이티브로 옮긴 것.
  * color 값은 웹앱과 동일하게 맞춤.
@@ -11,17 +9,18 @@ enum class Game(
     val displayName: String,
     val shortName: String,
     val abbr: String,
-    val color: Color,
+    /** 게임 대표색 — ARGB Long(0xAARRGGBB). iOS 는 SKIE 로 Int64 로 받음. */
+    val color: Long,
     val attendanceReward: String,
     /** ennead.cc 캘린더 API 게임 키 (배너·이벤트 지원 게임만). 미지원이면 null */
     val enneadKey: String? = null,
 ) {
-    GENSHIN("genshin", "원신", "원신", "GI", Color(0xFF4F8EF7), "원석 +60", enneadKey = "genshin"),
-    HSR("hsr", "붕괴: 스타레일", "스타레일", "HSR", Color(0xFFB06BFF), "성옥 +60", enneadKey = "starrail"),
-    ZZZ("zzz", "젠레스 존 제로", "젠레스", "ZZZ", Color(0xFFF5A623), "폴리크롬 +60"),
-    WUWA("wuwa", "명조", "명조", "WW", Color(0xFFE5007F), ""),
-    ENDFIELD("endfield", "명일방주: 엔드필드", "엔드필드", "EF", Color(0xFF1CB8A8), ""),
-    NTE("nte", "이환", "이환", "NTE", Color(0xFF6C5CE7), "");
+    GENSHIN("genshin", "원신", "원신", "GI", 0xFF4F8EF7L, "원석 +60", enneadKey = "genshin"),
+    HSR("hsr", "붕괴: 스타레일", "스타레일", "HSR", 0xFFB06BFFL, "성옥 +60", enneadKey = "starrail"),
+    ZZZ("zzz", "젠레스 존 제로", "젠레스", "ZZZ", 0xFFF5A623L, "폴리크롬 +60"),
+    WUWA("wuwa", "명조", "명조", "WW", 0xFFE5007FL, ""),
+    ENDFIELD("endfield", "명일방주: 엔드필드", "엔드필드", "EF", 0xFF1CB8A8L, ""),
+    NTE("nte", "이환", "이환", "NTE", 0xFF6C5CE7L, "");
 
     /** 출석체크가 지원되는 게임(원신·스타레일·젠레스) */
     val supportsAttendance: Boolean get() = attendanceReward.isNotEmpty()
@@ -64,7 +63,7 @@ object GameData {
 
     fun byName(name: String): Game = byNameOrNull(name) ?: Game.GENSHIN
 
-    fun colorFor(name: String): Color = byNameOrNull(name)?.color ?: Game.GENSHIN.color
+    fun colorFor(name: String): Long = byNameOrNull(name)?.color ?: Game.GENSHIN.color
 
     /** 게임별 충전 패키지. 미지원 게임은 generic 사용. */
     fun packagesFor(game: Game): List<GamePackage> = when (game) {
