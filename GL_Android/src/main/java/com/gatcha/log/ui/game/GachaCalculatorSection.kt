@@ -1,7 +1,9 @@
 package com.gatcha.log.ui.game
 
 import androidx.compose.animation.animateContentSize
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
@@ -12,14 +14,13 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material3.LinearProgressIndicator
-import androidx.compose.material3.Slider
-import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -51,7 +52,10 @@ private val BadRed = Color(0xFFDC2626)
 private val ResultBg = Color(0x08000000)
 private val ResultLabel = Color(0x59000000)
 
-/** 통합 계산기 섹션 — 재화 환산·확보 확률·뽑기 플래너 (웹앱 GameInfo 도구 이식). 천장 카운터 값을 자동 주입. */
+/**
+ * 계산기 2.0 — B 대시보드 레이아웃. 탭 제거, 입력→확률→재화→시나리오 위젯 세로 나열.
+ * 게임/배너 칩은 Android S4 글래스 글로우(투명 글래스 + 선택 시 컬러 보더 발광). 시뮬·플래너는 상세 진입.
+ */
 @Composable
 fun GachaCalculatorSection(pity: Map<String, PityState>) {
     var gameKey by remember { mutableStateOf("genshin") }
@@ -61,236 +65,179 @@ fun GachaCalculatorSection(pity: Map<String, PityState>) {
         if (game.banner(bannerType) == null) bannerType = "character"
     }
     val banner = game.banner(bannerType) ?: game.character ?: game.standard!!
-    var tool by remember { mutableStateOf("calc") }
 
-    Text("통합 계산기", fontSize = 16.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 12.dp))
-    GlassCard(shape = RoundedCornerShape(24.dp), modifier = Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp)) {
-            GameSelector(gameKey) { gameKey = it }
-            Spacer(Modifier.height(12.dp))
-            BannerTypeRow(game, bannerType) { bannerType = it }
-            Spacer(Modifier.height(12.dp))
-            ToolTabs(tool) { tool = it }
-            Spacer(Modifier.height(16.dp))
-            when (tool) {
-                "calc" -> CurrencyCalc(game, banner, pity)
-                "prob" -> ProbCalc(game, banner, pity)
-                "sim" -> Simulator(game, banner)
-                else -> Planner(game, banner)
-            }
-        }
-    }
-}
+    var currency by remember { mutableStateOf("") }
+    var pityStr by remember(gameKey) { mutableStateOf("") }
+    var guaranteed by remember(gameKey) { mutableStateOf(false) }
+    var qty by remember { mutableStateOf(1) }
+    var detail by remember { mutableStateOf<String?>(null) } // null | "sim" | "plan"
+    val accent = LocalAccent.current
 
-// ============================================================ 셀렉터들
-@Composable
-private fun GameSelector(selected: String, onSelect: (String) -> Unit) {
+    Text("계산기", fontSize = 16.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 12.dp))
+
+    // 컨텍스트: 게임 + 배너 (S4 글래스 글로우 칩). 칩 행에 여백을 줘 글로우 그림자가 스크롤/경계에 잘리지 않게 함.
     Row(
-        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(8.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         GachaRateData.games.forEach { g ->
-            val isSel = g.key == selected
-            Surface(
-                modifier = Modifier.clickable { onSelect(g.key) },
-                shape = RoundedCornerShape(20.dp),
-                color = if (isSel) g.color else Color(0xFFF2F2F6),
-            ) {
-                Row(
-                    modifier = Modifier.padding(horizontal = 13.dp, vertical = 7.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Box(Modifier.size(7.dp).clip(CircleShape).background(if (isSel) Color.White.copy(alpha = 0.8f) else g.color))
-                    Spacer(Modifier.width(6.dp))
-                    Text(g.shortName, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = if (isSel) Color.White else TextSecondary)
-                }
-            }
+            GlowChip(g.shortName, g.color, g.key == gameKey, true) { gameKey = g.key }
         }
     }
-}
-
-@Composable
-private fun BannerTypeRow(game: GachaGameRate, selected: String, onSelect: (String) -> Unit) {
-    val accent = LocalAccent.current
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    Row(Modifier.padding(horizontal = 8.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         GachaRateData.bannerTypes.forEach { (key, label) ->
             val available = game.banner(key) != null
-            val isSel = key == selected
-            Surface(
-                modifier = if (available) Modifier.clickable { onSelect(key) } else Modifier,
-                shape = RoundedCornerShape(10.dp),
-                color = if (isSel) accent else Color(0xFFF2F2F6),
-            ) {
+            GlowChip(label, accent, key == bannerType, available) { bannerType = key }
+        }
+    }
+
+    // 상세 도구(시뮬·플래너) 진입 시 대체 화면
+    if (detail != null) {
+        Spacer(Modifier.height(13.dp))
+        GlassCard(shape = RoundedCornerShape(24.dp), modifier = Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(16.dp)) {
                 Text(
-                    label,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 7.dp),
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = when {
-                        isSel -> Color.White
-                        !available -> Color.LightGray
-                        else -> TextSecondary
-                    },
+                    "‹ ${if (detail == "sim") "뽑기 시뮬" else "목표 플래너"}",
+                    fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TextPrimary,
+                    modifier = Modifier.clickable { detail = null }.padding(bottom = 12.dp),
                 )
+                if (detail == "sim") Simulator(game, banner) else Planner(game, banner)
             }
-        }
-    }
-}
-
-@Composable
-private fun ToolTabs(selected: String, onSelect: (String) -> Unit) {
-    val accent = LocalAccent.current
-    val tabs = listOf("calc" to "환산", "prob" to "확률", "sim" to "시뮬", "plan" to "플래너")
-    Row(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Color(0xFFF2F2F6)).padding(3.dp),
-        horizontalArrangement = Arrangement.spacedBy(3.dp),
-    ) {
-        tabs.forEach { (key, label) ->
-            val isSel = key == selected
-            Box(
-                Modifier
-                    .weight(1f)
-                    .clip(RoundedCornerShape(9.dp))
-                    .background(if (isSel) accent else Color.Transparent)
-                    .clickable { onSelect(key) }
-                    .padding(vertical = 8.dp),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(label, fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1, color = if (isSel) Color.White else TextSecondary)
-            }
-        }
-    }
-}
-
-// ============================================================ 재화 환산
-@Composable
-private fun CurrencyCalc(game: GachaGameRate, banner: GachaBannerRate, pity: Map<String, PityState>) {
-    var mode by remember { mutableStateOf("calc") } // calc | reverse
-    var qty by remember { mutableStateOf(1) }
-    var currency by remember { mutableStateOf("") }
-    var pityStr by remember(game.key) { mutableStateOf("0") }   // 수동 입력(천장 카운터 연동 제거)
-    var guaranteed by remember(game.key) { mutableStateOf(false) }
-    var targetPulls by remember { mutableStateOf("") }
-
-    // 모드 토글
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        PillToggle("보유 → 뽑기", mode == "calc", Modifier.weight(1f)) { mode = "calc" }
-        PillToggle("목표 → 재화", mode == "reverse", Modifier.weight(1f)) { mode = "reverse" }
-    }
-    Spacer(Modifier.height(14.dp))
-
-    if (mode == "reverse") {
-        GlgTextField(targetPulls, { targetPulls = it.filter(Char::isDigit) }, label = "목표 뽑기 수",
-            placeholder = "예: 90", keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.fillMaxWidth())
-        Spacer(Modifier.height(14.dp))
-        val tp = targetPulls.toIntOrNull() ?: 0
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            ResultBox("필요 재화", "${num(tp * banner.perPull)} ${banner.currency}", "목표 ${tp}회", Modifier.weight(1f))
-            ResultBox("추정 비용", won(tp * banner.wonPerPull), "현금 충전 기준", Modifier.weight(1f))
         }
         return
     }
 
-    // 정상 모드 입력
-    GlgTextField(currency, { currency = it.filter(Char::isDigit) }, label = "보유 ${banner.currency}",
-        placeholder = "0", keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.fillMaxWidth())
-    Spacer(Modifier.height(10.dp))
-    GlgTextField(pityStr, { pityStr = it.filter(Char::isDigit) }, label = "현재 천장",
-        placeholder = "0", keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.fillMaxWidth())
-    if (banner.has5050 && !banner.no5050) {
-        Spacer(Modifier.height(10.dp))
-        ToggleRow("확정(픽업 보장) 보유", guaranteed) { guaranteed = it }
-    }
-    Spacer(Modifier.height(8.dp))
-    QtyRow(qty) { qty = it }
-    Spacer(Modifier.height(14.dp))
-
-    // 계산 (순수 함수 → GachaCalcLogic.kt)
+    // 파생 계산 (순수 함수 → GachaCalcLogic.kt)
     val cur = currency.toIntOrNull() ?: 0
-    val calc = computeCurrencyCalc(cur, pityStr.toIntOrNull() ?: 0, banner)
-
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        ResultBox("가능 뽑기 수", "${calc.possiblePulls}회", if (cur > 0) "남은 ${num(calc.leftCurrency)} ${banner.currency}" else "", Modifier.weight(1f))
-        ResultBox("하드 천장까지", "${calc.pullsToHard}회", if (calc.additionalNeeded > 0) "추가 ${num(calc.additionalNeeded)} 필요" else "재화 충분", Modifier.weight(1f))
+    val c = computeCurrencyCalc(cur, pityStr.toIntOrNull() ?: 0, banner)
+    val prob = (GachaRateData.pickupProb(c.possiblePulls, c.pityVal, banner, guaranteed) * 100).roundToInt()
+    val probColor = when {
+        prob >= 70 -> OkGreen
+        prob >= 40 -> WarnAmber
+        else -> BadRed
     }
-    Spacer(Modifier.height(8.dp))
-    ResultBox("천장까지 추정 비용", won(calc.estCost), if (calc.additionalPulls > 0) "천장까지 ${calc.additionalPulls}회 부족" else "재화 충분", Modifier.fillMaxWidth())
-    Spacer(Modifier.height(12.dp))
 
-    // 진행도
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-        Text("${num(cur)} / ${num(calc.currencyToHard)} ${banner.currency}", fontSize = 11.sp, color = TextSecondary)
-        Text("${calc.pct}%", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = LocalAccent.current)
+    // 입력 위젯
+    Spacer(Modifier.height(13.dp))
+    GlassCard(shape = RoundedCornerShape(24.dp), modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(16.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                GlgTextField(currency, { currency = it.filter(Char::isDigit) }, label = "보유 ${banner.currency}",
+                    placeholder = "0", keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.weight(1f))
+                GlgTextField(pityStr, { pityStr = it.filter(Char::isDigit) }, label = "현재 천장",
+                    placeholder = "0", keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.weight(1f))
+            }
+            if (banner.has5050 && !banner.no5050) {
+                Spacer(Modifier.height(10.dp))
+                ToggleRow("확정(픽업 보장) 보유", guaranteed) { guaranteed = it }
+            }
+            Spacer(Modifier.height(8.dp))
+            QtyRow(qty) { qty = it }
+        }
     }
-    Spacer(Modifier.height(5.dp))
-    LinearProgressIndicator(
-        progress = { calc.pct / 100f },
-        color = LocalAccent.current, trackColor = ProgressEmpty,
-        modifier = Modifier.fillMaxWidth().height(6.dp).clip(CircleShape),
-    )
-    Spacer(Modifier.height(14.dp))
 
-    // 시나리오 (순수 함수 → GachaCalcLogic.kt)
-    val scenario = computeScenario(banner, calc.pityVal, guaranteed, qty)
-    Text("시나리오 (${qty}개 기준)", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
-    Spacer(Modifier.height(8.dp))
+    // 결과 카드 (확률·재화·시나리오 통합 — 글래스 표면 1장으로 합쳐 전환 시 재합성 비용 최소화)
+    Spacer(Modifier.height(13.dp))
+    val s = computeScenario(banner, c.pityVal, guaranteed, qty)
+    GlassCard(shape = RoundedCornerShape(24.dp), modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(16.dp)) {
+            // 확보 확률
+            WidgetHead("🎯 확보 확률")
+            if (cur > 0) {
+                Row {
+                    Text("보유분 ${c.possiblePulls}회로 ", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = TextPrimary)
+                    Text("$prob%", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = probColor)
+                    Text(" 확보 가능", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = TextPrimary)
+                }
+                Spacer(Modifier.height(11.dp))
+                LinearProgressIndicator(
+                    progress = { prob / 100f },
+                    color = probColor, trackColor = ProgressEmpty,
+                    modifier = Modifier.fillMaxWidth().height(8.dp).clip(CircleShape),
+                )
+            } else {
+                Text("재화를 입력하면 확보 확률을 계산해요", fontSize = 12.sp, color = TextSecondary)
+            }
+            SectionDivider()
+            // 필요 재화
+            WidgetHead("💎 필요 재화")
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                ResultBox("하드 천장까지", "${c.pullsToHard}회", "${num(c.currencyToHard)} ${banner.currency}", Modifier.weight(1f))
+                ResultBox("부족분", if (c.additionalNeeded > 0) num(c.additionalNeeded) else "0",
+                    if (c.additionalNeeded > 0) "${won(c.estCost)} 충전" else "충전 불필요", Modifier.weight(1f))
+            }
+            SectionDivider()
+            // 시나리오
+            WidgetHead("📊 시나리오 (${qty}개 기준)")
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                ScenarioBox("최선", s.bestSub, "${s.bestPulls}회", "≈ ${num(s.bestPulls * banner.perPull)} ${banner.currency}", OkGreen, Modifier.weight(1f))
+                ScenarioBox("최악", s.worstSub, "${s.worstPulls}회", "≈ ${num(s.worstPulls * banner.perPull)} ${banner.currency}", BadRed, Modifier.weight(1f))
+            }
+        }
+    }
+
+    // 보조 도구 진입
+    Spacer(Modifier.height(13.dp))
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        ScenarioBox("최선의 경우", scenario.bestSub, "${scenario.bestPulls}회", "≈ ${num(scenario.bestPulls * banner.perPull)} ${banner.currency}", OkGreen, Modifier.weight(1f))
-        ScenarioBox("최악의 경우", scenario.worstSub, "${scenario.worstPulls}회", "≈ ${num(scenario.worstPulls * banner.perPull)} ${banner.currency}", BadRed, Modifier.weight(1f))
+        ToolTile("🎲", "뽑기 시뮬", Modifier.weight(1f)) { detail = "sim" }
+        ToolTile("🗓️", "목표 플래너", Modifier.weight(1f)) { detail = "plan" }
     }
 }
 
-// ============================================================ 확보 확률
+// ============================================================ S4 글래스 글로우 칩 · 위젯 보조
 @Composable
-private fun ProbCalc(game: GachaGameRate, banner: GachaBannerRate, pity: Map<String, PityState>) {
-    val maxPulls = banner.hardPity * 2
-    var nFloat by remember(game.key, banner) { mutableStateOf(banner.hardPity.toFloat()) }
-    var pityStr by remember(game.key) { mutableStateOf("0") }   // 수동 입력(천장 카운터 연동 제거)
-    var guaranteed by remember(game.key) { mutableStateOf(false) }
+private fun GlowChip(label: String, glow: Color, selected: Boolean, enabled: Boolean, onClick: () -> Unit) {
+    val textColor = when {
+        selected -> glow
+        !enabled -> Color.LightGray
+        else -> TextSecondary
+    }
+    Surface(
+        shape = CircleShape,
+        color = if (selected) glow.copy(alpha = 0.12f) else Color.White.copy(alpha = 0.4f),
+        border = BorderStroke(if (selected) 1.5.dp else 1.dp, if (selected) glow else Color.White.copy(alpha = 0.6f)),
+        modifier = (if (enabled) Modifier.clickable { onClick() } else Modifier)
+            .then(if (selected) Modifier.shadow(8.dp, CircleShape, ambientColor = glow, spotColor = glow) else Modifier),
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 15.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box(Modifier.size(8.dp).clip(CircleShape).background(if (enabled) glow else Color.LightGray))
+            Spacer(Modifier.width(6.dp))
+            Text(label, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = textColor)
+        }
+    }
+}
 
-    val n = nFloat.toInt().coerceIn(1, maxPulls)
-    val startPity = (pityStr.toIntOrNull() ?: 0).coerceAtLeast(0)
-    val prob = GachaRateData.pickupProb(n, startPity, banner, guaranteed)
-    val pct = (prob * 100).roundToInt()
-    val color = when {
-        pct >= 70 -> OkGreen
-        pct >= 40 -> WarnAmber
-        else -> BadRed
-    }
-    val label = when {
-        banner.no5050 || !banner.has5050 -> "5★ 확보 확률 (픽뚫 없음)"
-        guaranteed -> "픽업 확보 확률 (보장 보유)"
-        else -> "픽업 확보 확률 (50/50 포함)"
-    }
+@Composable
+private fun WidgetHead(text: String) {
+    Text(text, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextPrimary, modifier = Modifier.fillMaxWidth().padding(bottom = 10.dp))
+}
 
-    Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
-        Text("$pct%", fontSize = 48.sp, fontWeight = FontWeight.Bold, color = color)
-        Text(label, fontSize = 12.sp, color = TextSecondary)
-    }
-    Spacer(Modifier.height(14.dp))
-    LinearProgressIndicator(
-        progress = { pct / 100f },
-        color = color, trackColor = ProgressEmpty,
-        modifier = Modifier.fillMaxWidth().height(8.dp).clip(CircleShape),
+// 결과 카드 내부 섹션 구분선 (위아래 14dp 여백 + 1dp 라인)
+@Composable
+private fun SectionDivider() {
+    Box(
+        Modifier.fillMaxWidth().padding(vertical = 14.dp).height(1.dp).background(Color(0x0F000000)),
     )
-    Spacer(Modifier.height(16.dp))
+}
 
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-        Text("뽑기 횟수", fontSize = 12.sp, color = TextSecondary)
-        Text("${n}회", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
-    }
-    Slider(
-        value = nFloat,
-        onValueChange = { nFloat = it },
-        valueRange = 1f..maxPulls.toFloat(),
-        colors = SliderDefaults.colors(thumbColor = LocalAccent.current, activeTrackColor = LocalAccent.current, inactiveTrackColor = ProgressEmpty),
-    )
-    Spacer(Modifier.height(6.dp))
-    GlgTextField(pityStr, { pityStr = it.filter(Char::isDigit) }, label = "현재 천장",
-        placeholder = "0", keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.fillMaxWidth())
-    if (banner.has5050 && !banner.no5050) {
-        Spacer(Modifier.height(10.dp))
-        ToggleRow("확정(픽업 보장) 보유", guaranteed) { guaranteed = it }
+// 솔리드 타일 — 글래스 표면이 아니라 반투명 솔리드(블러 없음)로 렌더 비용 0에 가깝게.
+@Composable
+private fun ToolTile(icon: String, label: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    Column(
+        modifier
+            .clip(RoundedCornerShape(18.dp))
+            .background(Color.White.copy(alpha = 0.5f))
+            .border(0.5.dp, Color.White.copy(alpha = 0.6f), RoundedCornerShape(18.dp))
+            .clickable { onClick() }
+            .padding(vertical = 14.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Text(icon, fontSize = 22.sp)
+        Spacer(Modifier.height(5.dp))
+        Text(label, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextSecondary)
     }
 }
 
@@ -546,21 +493,6 @@ private fun PullButton(label: String, accent: Color, modifier: Modifier = Modifi
 }
 
 // ============================================================ 공용 작은 컴포넌트
-@Composable
-private fun PillToggle(label: String, selected: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
-    val accent = LocalAccent.current
-    Box(
-        modifier
-            .clip(RoundedCornerShape(10.dp))
-            .background(if (selected) accent else Color(0xFFF2F2F6))
-            .clickable { onClick() }
-            .padding(vertical = 9.dp),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(label, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = if (selected) Color.White else TextSecondary)
-    }
-}
-
 @Composable
 private fun QtyRow(qty: Int, onSelect: (Int) -> Unit) {
     val accent = LocalAccent.current
