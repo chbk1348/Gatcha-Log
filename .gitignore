@@ -16,7 +16,7 @@ local.properties
 Thumbs.db
 
 # Firebase config (개발자별로 직접 추가 — 커밋 금지)
-app/google-services.json
+GL_Android/google-services.json
 
 # 릴리스 서명 키스토어 — 절대 커밋 금지(유출 시 앱 위장 서명 가능). local.properties 에 경로/비번 보관
 *.keystore
@@ -31,8 +31,8 @@ GatchaLOG_MD/
 GatchaLOG_Error Report/
 
 # iOS / Xcode (KMP 마이그레이션)
-iosApp/iosApp.xcodeproj/xcuserdata/
-iosApp/iosApp.xcodeproj/project.xcworkspace/xcuserdata/
+GL_IOS/GL_IOS.xcodeproj/xcuserdata/
+GL_IOS/GL_IOS.xcodeproj/project.xcworkspace/xcuserdata/
 *.xcuserstate
 DerivedData/
 
@@ -40,4 +40,4 @@ DerivedData/
 .kotlin/
 
 # iOS IPA 빌드 산출물
-iosApp/build/
+GL_IOS/build/
