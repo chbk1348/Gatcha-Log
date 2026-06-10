@@ -83,7 +83,7 @@ Google Apps Script 웹앱에서 출발해 **Kotlin Multiplatform + Compose Multi
 
 ```
 GL_Android/  Android 앱 (프로덕션 · Jetpack Compose)
-shared/      KMP 공유 모듈 — commonMain(데이터·비즈니스 로직·VM) + androidMain / iosMain
+GL_Shared/   KMP 공유 모듈 — commonMain(데이터·비즈니스 로직·VM) + androidMain / iosMain
 GL_IOS/      iOS 앱 — SwiftUI 호스트(네이티브 탭바·글래스 버튼) + Xcode 프로젝트
 ```
 
