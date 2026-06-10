@@ -19,6 +19,13 @@ if (file("google-services.json").exists()) {
     apply(plugin = "com.google.gms.google-services")
 }
 
+// 산출물 APK 파일명을 모듈명(GL_Android)과 분리해 'app'으로 고정.
+//   → 기본값은 모듈명 기반(GL_Android-release.apk)이라, 인앱 업데이트가 참조하는
+//     version.json 의 app-release.apk URL 이 깨지지 않도록 명시 고정한다.
+base {
+    archivesName.set("app")
+}
+
 android {
     namespace = "com.gatcha.log"
     compileSdk = 36
