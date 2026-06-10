@@ -30,6 +30,20 @@
             </intent-filter>
         </activity>
 
+        <!-- 웹 OAuth(PKCE) 리다이렉트 수신 — Google 로그인 콜백 스킴 -->
+        <activity
+            android:name=".auth.OAuthRedirectActivity"
+            android:exported="true"
+            android:launchMode="singleTop"
+            android:theme="@android:style/Theme.NoDisplay">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="com.googleusercontent.apps.711708512022-6upq632okh78jru6q09o2dol4tekokbn" />
+            </intent-filter>
+        </activity>
+
         <!-- PackageInstaller 설치 결과 수신 (앱 내부 전용) -->
         <receiver
             android:name=".data.api.InstallResultReceiver"

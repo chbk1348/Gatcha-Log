@@ -4,13 +4,7 @@ import android.content.Context
 import android.util.Log
 import androidx.credentials.ClearCredentialStateRequest
 import androidx.credentials.CredentialManager
-import androidx.credentials.CustomCredential
-import androidx.credentials.GetCredentialRequest
-import androidx.credentials.exceptions.GetCredentialCancellationException
-import androidx.credentials.exceptions.GetCredentialException
-import androidx.credentials.exceptions.NoCredentialException
-import com.google.android.libraries.identity.googleid.GetGoogleIdOption
-import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
+import com.gatcha.log.auth.GoogleWebOAuth
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -86,39 +80,25 @@ class AuthManager(context: Context) {
      *                       false → 기기의 모든 구글 계정을 보여주고 원탭 선택.
      */
     suspend fun signIn(activityContext: Context, autoSelectOnly: Boolean): SignInOutcome {
-        val serverId = webClientId() ?: return SignInOutcome.Error("Firebase가 설정되지 않았어요")
-        val option = GetGoogleIdOption.Builder()
-            .setServerClientId(serverId)
-            .setFilterByAuthorizedAccounts(autoSelectOnly)
-            .setAutoSelectEnabled(autoSelectOnly)
-            .build()
-        val request = GetCredentialRequest.Builder().addCredentialOption(option).build()
+        // 웹 OAuth(브라우저)는 무탭 자동선택을 지원하지 않음 → 자동선택 시도는 건너뜀.
+        if (autoSelectOnly) return SignInOutcome.NoCredential
         return try {
-            val response = credentialManager.getCredential(activityContext, request)
-            val cred = response.credential
-            if (cred is CustomCredential && cred.type == GoogleIdTokenCredential.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL) {
-                val gid = GoogleIdTokenCredential.createFrom(cred.data)
-                lastIdToken = gid.idToken
-                val account = Account(
-                    id = gid.id,
-                    name = gid.displayName ?: gid.givenName ?: gid.id.substringBefore("@"),
-                    email = gid.id,
-                    photoUrl = gid.profilePictureUri?.toString() ?: "",
-                    isGuest = false,
-                )
-                _account.value = account
-                persist(account)
-                SignInOutcome.Success(account)
-            } else {
-                SignInOutcome.Error("지원하지 않는 로그인 응답이에요")
-            }
-        } catch (e: NoCredentialException) {
-            // 자동선택: 인가 계정 없음 / 수동: 보여줄 계정 없음
-            SignInOutcome.NoCredential
-        } catch (e: GetCredentialCancellationException) {
-            SignInOutcome.Error("로그인이 취소되었어요")
-        } catch (e: GetCredentialException) {
-            Log.e("GatchaAuth", "credential sign-in failed", e)
+            val tokens = GoogleWebOAuth.signIn(activityContext)
+                ?: return SignInOutcome.Error("로그인이 취소되었어요")
+            lastIdToken = tokens.idToken
+            val email = tokens.email ?: ""
+            val account = Account(
+                id = email.ifEmpty { "google" },                       // completeSignIn 에서 Firebase uid 로 교체됨
+                name = tokens.name ?: email.substringBefore("@").ifEmpty { "사용자" },
+                email = email,
+                photoUrl = tokens.picture ?: "",
+                isGuest = false,
+            )
+            _account.value = account
+            persist(account)
+            SignInOutcome.Success(account)
+        } catch (e: Exception) {
+            Log.e("GatchaAuth", "web oauth sign-in failed", e)
             SignInOutcome.Error("로그인에 실패했어요")
         }
     }
