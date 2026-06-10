@@ -59,13 +59,13 @@ jobs:
             ${{ runner.os }}-gradle-konan-
 
       - name: Build unsigned IPA
-        working-directory: iosApp
+        working-directory: GL_IOS
         run: bash build-ipa.sh
 
       - name: Upload IPA artifact
         uses: actions/upload-artifact@v4
         with:
           name: Gatcha-Log-IPA
-          path: iosApp/build/*.ipa
+          path: GL_IOS/build/*.ipa
           if-no-files-found: error
           retention-days: 30

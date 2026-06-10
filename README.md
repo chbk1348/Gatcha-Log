@@ -82,9 +82,9 @@ Google Apps Script 웹앱에서 출발해 **Kotlin Multiplatform + Compose Multi
 ## 🏗 아키텍처
 
 ```
-app/         Android 앱 (프로덕션 · Jetpack Compose)
-composeApp/  KMP 공유 모듈 — commonMain(화면·데이터·비즈니스 로직) + androidMain / iosMain
-iosApp/      iOS 앱 — SwiftUI 호스트(네이티브 탭바·글래스 버튼) + Xcode 프로젝트
+GL_Android/  Android 앱 (프로덕션 · Jetpack Compose)
+GL_Shared/   KMP 공유 모듈 — commonMain(데이터·비즈니스 로직·VM) + androidMain / iosMain
+GL_IOS/      iOS 앱 — SwiftUI 호스트(네이티브 탭바·글래스 버튼) + Xcode 프로젝트
 ```
 
 - 단일 공유 ViewModel로 앱 전반 상태·데이터 관리 (화면 28개·데이터 레이어 전부 commonMain 공유)
@@ -106,17 +106,17 @@ cd Gatcha-Log
 **Android** (프로덕션 앱)
 
 ```bash
-./gradlew :app:assembleDebug      # 디버그 APK 빌드
-./gradlew :app:installDebug       # 연결된 기기에 설치
+./gradlew :GL_Android:assembleDebug   # 디버그 APK 빌드
+./gradlew :GL_Android:installDebug    # 연결된 기기에 설치
 ```
 
 **iOS** (macOS + Xcode 26 필요)
 
 ```bash
-open iosApp/iosApp.xcodeproj      # Xcode 에서 열고 시뮬레이터/기기로 실행
+open GL_IOS/GL_IOS.xcodeproj      # Xcode 에서 열고 시뮬레이터/기기로 실행
 # Kotlin 프레임워크는 Xcode 빌드 시 Gradle 로 자동 빌드됨
 
-./iosApp/build-ipa.sh             # 배포용 미서명 IPA 빌드 (build/Gatcha-Log-<버전>.ipa)
+./GL_IOS/build-ipa.sh             # 배포용 미서명 IPA 빌드 (build/Gatcha-Log-<버전>.ipa)
 ```
 
 > JDK는 Android Studio 번들 JBR(OpenJDK 21) 사용 권장.

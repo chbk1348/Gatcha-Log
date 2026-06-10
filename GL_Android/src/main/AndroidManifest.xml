@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- 인앱 업데이트: APK 다운로드 후 설치 요청 -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <!-- 로컬 알림(출석·예산·재화) — Android 13+ 런타임 권한 -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- 자동 출석 백그라운드 안정성: 도즈/스탠바이로 워커가 며칠씩 막히는 케이스 회복용
+         배터리 최적화 화이트리스트 등록 요청(사용자 확인 다이얼로그). Play 정책상 "필수 백그라운드 작업"
+         (일일 출석)에 해당하므로 명시적으로 요청 가능. -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+
+    <application
+        android:allowBackup="true"
+        android:fullBackupContent="@xml/backup_rules"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:label="Gatcha LOG"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.GatchaLog">
+        <activity
+            android:name=".MainActivity"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!-- 웹 OAuth(PKCE) 리다이렉트 수신 — Google 로그인 콜백 스킴 -->
+        <activity
+            android:name=".auth.OAuthRedirectActivity"
+            android:exported="true"
+            android:launchMode="singleTop"
+            android:theme="@android:style/Theme.NoDisplay">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="com.googleusercontent.apps.711708512022-6upq632okh78jru6q09o2dol4tekokbn" />
+            </intent-filter>
+        </activity>
+
+        <!-- PackageInstaller 설치 결과 수신 (앱 내부 전용) -->
+        <receiver
+            android:name=".data.api.InstallResultReceiver"
+            android:exported="false" />
+    </application>
+
+</manifest>
