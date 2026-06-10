@@ -18,4 +18,4 @@ dependencyResolutionManagement {
 rootProject.name = "GatchaLOG"
 include(":GL_Android")
 // KMP(iOS) 마이그레이션용 공유 모듈 — :GL_Android 과 독립적으로 빌드됨
-include(":shared")
+include(":GL_Shared")
