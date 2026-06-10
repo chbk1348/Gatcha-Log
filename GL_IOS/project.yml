@@ -1,0 +1,101 @@
+# XcodeGen 스펙 — `xcodegen generate` 실행 시 GL_IOS.xcodeproj 생성
+# (생성된 .xcodeproj 를 git 에 커밋하므로, 이후 xcodegen 없이도 빌드 가능)
+name: GL_IOS
+options:
+  bundleIdPrefix: com.gatcha.log
+  deploymentTarget:
+    iOS: "18.0"
+settings:
+  base:
+    # Xcode 15+ 스크립트 샌드박스가 Gradle 실행을 막으므로 비활성화
+    ENABLE_USER_SCRIPT_SANDBOXING: "NO"
+
+# ── 외부 패키지 (SPM) ─────────────────────────────────────────────
+# Firebase iOS SDK: GitLive(Kotlin) firebase-auth/firestore 가 런타임에 사용하는 네이티브 SDK
+# (구글 로그인은 GoogleSignIn SDK 제거 → ASWebAuthenticationSession 웹 OAuth 로 전환, GoogleWebOAuth.swift)
+packages:
+  Firebase:
+    url: https://github.com/firebase/firebase-ios-sdk
+    majorVersion: 12.0.0
+
+targets:
+  GL_IOS:
+    type: application
+    platform: iOS
+    sources:
+      - GL_IOS
+    # 키체인 entitlement — Firebase Auth 인증 상태·구글 로그인 토큰·HoYoLAB 토큰(Keychain) 저장에 필수.
+    # 이게 없으면 SecItem* 호출이 -34018(errSecMissingEntitlement)로 실패한다.
+    entitlements:
+      path: GL_IOS/GL_IOS.entitlements
+      properties:
+        keychain-access-groups:
+          - "$(AppIdentifierPrefix)com.gatcha.log.ios"
+    dependencies:
+      - package: Firebase
+        product: FirebaseAuth
+      - package: Firebase
+        product: FirebaseFirestore
+    info:
+      path: GL_IOS/Info.plist
+      properties:
+        CFBundleDisplayName: Gatcha-Log
+        # 앱 버전 — Android(app/build.gradle.kts)와 동일한 규칙: versionName "27.25.0" / versionCode 272500
+        CFBundleShortVersionString: "27.25.0"
+        CFBundleVersion: "272500"
+        # Compose Multiplatform 필수 — 없으면 시작 시 PlistSanityCheck 크래시 (120Hz 허용)
+        CADisableMinimumFrameDurationOnPhone: true
+        UILaunchScreen: {}
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+        ITSAppUsesNonExemptEncryption: false
+        # ── 구글 로그인 (웹 OAuth) — ASWebAuthenticationSession 리다이렉트 콜백 스킴 ──
+        CFBundleURLTypes:
+          - CFBundleURLSchemes:
+              - com.googleusercontent.apps.711708512022-6upq632okh78jru6q09o2dol4tekokbn
+        # ── 자동 출석 백그라운드 (BGTaskScheduler) ──
+        BGTaskSchedulerPermittedIdentifiers:
+          - com.gatcha.log.ios.checkin
+        UIBackgroundModes:
+          - fetch
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.gatcha.log.ios
+        PRODUCT_NAME: Gatcha-Log
+        # 앱 아이콘 (Assets.xcassets/AppIcon) — Android 앱과 동일한 위시스타 아이콘
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        # Intel 시뮬레이터(x86_64) 제외 — Kotlin 타깃이 iosSimulatorArm64(애플 실리콘)만 구성됨.
+        # 없으면 Release 시뮬레이터 빌드가 "Unknown iOS simulator arch: 'x86_64'" 로 실패.
+        "EXCLUDED_ARCHS[sdk=iphonesimulator*]": x86_64
+        # GL_Shared Gradle 빌드가 떨궈 주는 framework 위치
+        FRAMEWORK_SEARCH_PATHS: "$(SRCROOT)/../GL_Shared/build/xcode-frameworks/$(CONFIGURATION)/$(SDK_NAME)"
+        # -ObjC: Firebase 정적 라이브러리의 ObjC 카테고리 로드에 필요
+        OTHER_LDFLAGS: "$(inherited) -framework Shared -ObjC"
+        # 자동 서명 (Personal Team) — 시뮬레이터·실기기 모두 동작 + 키체인 entitlement 활성화.
+        # 키체인은 Firebase Auth 인증 상태·구글 로그인 토큰·HoYoLAB 토큰 저장에 필수.
+        # 무료 개인 팀: 앱 7일 유효(만료 시 재설치), App Store 배포 시 유료 계정으로 전환.
+        CODE_SIGN_STYLE: Automatic
+        DEVELOPMENT_TEAM: CCTT9CBG38
+        CODE_SIGN_IDENTITY: "Apple Development"
+    preBuildScripts:
+      - name: Compile Kotlin Framework
+        basedOnDependencyAnalysis: false
+        script: |
+          # JAVA_HOME 폴백 — 로컬 Xcode GUI 빌드는 Android Studio JBR,
+          # CI(GitHub Actions)·CLI 빌드는 이미 설정된 JAVA_HOME 을 그대로 사용
+          if [ ! -d "${JAVA_HOME:-/nonexistent}" ]; then
+            export JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home"
+          fi
+          cd "$SRCROOT/.."
+          ./gradlew :GL_Shared:embedAndSignAppleFrameworkForXcode
+
+# 공유 스킴 — `xcodebuild -scheme GL_IOS` / 아카이브(build-ipa.sh) 용. xcodegen 재생성 후에도 유지.
+schemes:
+  GL_IOS:
+    build:
+      targets:
+        GL_IOS: all
+    run:
+      config: Debug
+    archive:
+      config: Release
