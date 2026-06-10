@@ -13,26 +13,18 @@ extension View {
     /// - Parameters:
     ///   - shape: 글래스 패널 모양 (기본: 둥근 사각형)
     ///   - interactive: iOS 26 인터랙티브 글래스(탭 시 반응) 여부
+    // 유리 제거(전역) — 흰 배경 + 옅은 아웃라인. (구 Liquid Glass: glassEffect/ultraThinMaterial)
     @ViewBuilder
     func glgGlass<S: Shape>(in shape: S, interactive: Bool = false) -> some View {
-        if #available(iOS 26.0, *) {
-            self.glassEffect(interactive ? .regular.interactive() : .regular, in: shape)
-        } else {
-            self.background { GLGVisualEffectBlur(style: .systemUltraThinMaterial).clipShape(shape) }
-                // 테두리 overlay 가 내부 버튼 터치를 가로채지 않도록 히트테스트 비활성화 (iOS18 탭 안눌림 수정)
-                .overlay(shape.stroke(GLGColor.glassBorder, lineWidth: 0.5).allowsHitTesting(false))
-        }
+        self.background(Color.white, in: shape)
+            .overlay(shape.stroke(Color.black.opacity(0.08), lineWidth: 1).allowsHitTesting(false))
     }
 
-    /// 가독성이 더 필요한 패널(시트/다이얼로그 본문)용 — 더 불투명한 글래스.
+    /// 가독성이 더 필요한 패널(시트/다이얼로그 본문)용 — 흰 배경 + 아웃라인(전역 유리 제거).
     @ViewBuilder
     func glgGlassStrong<S: Shape>(in shape: S) -> some View {
-        if #available(iOS 26.0, *) {
-            self.glassEffect(.regular, in: shape)
-        } else {
-            self.background { GLGVisualEffectBlur(style: .systemMaterial).clipShape(shape) }
-                .overlay(shape.stroke(GLGColor.glassBorder, lineWidth: 0.5).allowsHitTesting(false))
-        }
+        self.background(Color.white, in: shape)
+            .overlay(shape.stroke(Color.black.opacity(0.10), lineWidth: 1).allowsHitTesting(false))
     }
 }
 

@@ -75,9 +75,9 @@ struct GameInfoView: View {
             HoyolabLinkView(store: store) { showHoyolab = false }
         }
         .navigationDestination(isPresented: $showRate) { GachaRatePage() }
-        .navigationDestination(isPresented: $showCalc) { sectionPage { GachaCalculatorSection() } }
-        .navigationDestination(isPresented: $showProfile) { sectionPage { ProfileShowcaseSection(store: store) } }
-        .navigationDestination(isPresented: $showReport) { sectionPage { GachaReportSection(store: store, onOpenDashboard: { showDashboard = true }) } }
+        .navigationDestination(isPresented: $showCalc) { sectionPage("계산기") { GachaCalculatorSection() } }
+        .navigationDestination(isPresented: $showProfile) { sectionPage("프로필") { ProfileShowcaseSection(store: store) } }
+        .navigationDestination(isPresented: $showReport) { sectionPage("가챠 리포트") { GachaReportSection(store: store, onOpenDashboard: { showDashboard = true }) } }
         .navigationDestination(isPresented: $showGift) { GiftCodePage(store: store) }
         .navigationDestination(isPresented: $showDashboard) { GachaDashboardView(store: store) }
         .navigationDestination(isPresented: $showSchedule) { GameSchedulePage(store: store, filter: gameFilter) }
@@ -115,13 +115,14 @@ struct GameInfoView: View {
     }
 
     // 페이지로 분류된 섹션을 감싸는 페이지 래퍼 — 섹션 자체 헤더를 그대로 쓰고 시스템 뒤로가기 제공.
-    @ViewBuilder private func sectionPage<C: View>(@ViewBuilder _ content: () -> C) -> some View {
+    @ViewBuilder private func sectionPage<C: View>(_ title: String, @ViewBuilder _ content: () -> C) -> some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) { content() }
                 .padding(16)
         }
         .scrollIndicators(.hidden)
         .background(GLGBackground { Color.clear })
+        .navigationTitle(title)
         .navigationBarTitleDisplayMode(.inline)
     }
 }
