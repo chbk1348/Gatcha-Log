@@ -2,15 +2,15 @@
 # ============================================================
 # 미서명 IPA 빌드 — GitHub Releases 배포용
 #
-# 사용법: cd iosApp && ./build-ipa.sh
-# 출력:  iosApp/build/Gatcha-Log-<버전>.ipa
+# 사용법: cd GL_IOS && ./build-ipa.sh
+# 출력:  GL_IOS/build/Gatcha-Log-<버전>.ipa
 #
 # 미서명인 이유: 사용자가 AltStore/Sideloadly 등 사이드로딩 도구로
 # 자신의 Apple ID 로 서명해 설치한다 (오픈소스 iOS 앱 배포 관행).
 # 서명된 IPA 는 개발자 개인정보(팀 ID)가 포함되고 재서명이 더 까다롭다.
 #
 # ⚠️ Keychain entitlement 주의:
-#   iosApp.entitlements 의 keychain-access-groups 는
+#   GL_IOS.entitlements 의 keychain-access-groups 는
 #   $(AppIdentifierPrefix)com.gatcha.log.ios 로 선언되어 있는데, 미서명 IPA 에는
 #   entitlement 가 실리지 않고, 재서명 도구가 서명자 팀 prefix 로 다시 생성한다.
 #   재서명 도구가 keychain-access-groups 를 누락/불일치 처리하면 SecItem* 가
@@ -33,8 +33,8 @@ IPA_NAME="Gatcha-Log-${VERSION}.ipa"
 
 echo "═══ 1/3 미서명 아카이브 빌드 (v${VERSION}) ═══"
 xcodebuild archive \
-  -project iosApp.xcodeproj \
-  -scheme iosApp \
+  -project GL_IOS.xcodeproj \
+  -scheme GL_IOS \
   -configuration Release \
   -destination 'generic/platform=iOS' \
   -archivePath "$ARCHIVE_PATH" \

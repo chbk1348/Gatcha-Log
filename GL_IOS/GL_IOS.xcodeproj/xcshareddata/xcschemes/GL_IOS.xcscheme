@@ -15,10 +15,10 @@
             buildForAnalyzing = "YES">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "78B53CC79860CBFC2F5543C6"
-               BuildableName = "iosApp.app"
-               BlueprintName = "iosApp"
-               ReferencedContainer = "container:iosApp.xcodeproj">
+               BlueprintIdentifier = "DA3E2EEB6C3CA1BF23C0AD3C"
+               BuildableName = "GL_IOS.app"
+               BlueprintName = "GL_IOS"
+               ReferencedContainer = "container:GL_IOS.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
       </BuildActionEntries>
@@ -32,10 +32,10 @@
       <MacroExpansion>
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "78B53CC79860CBFC2F5543C6"
-            BuildableName = "iosApp.app"
-            BlueprintName = "iosApp"
-            ReferencedContainer = "container:iosApp.xcodeproj">
+            BlueprintIdentifier = "DA3E2EEB6C3CA1BF23C0AD3C"
+            BuildableName = "GL_IOS.app"
+            BlueprintName = "GL_IOS"
+            ReferencedContainer = "container:GL_IOS.xcodeproj">
          </BuildableReference>
       </MacroExpansion>
       <Testables>
@@ -55,10 +55,10 @@
          runnableDebuggingMode = "0">
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "78B53CC79860CBFC2F5543C6"
-            BuildableName = "iosApp.app"
-            BlueprintName = "iosApp"
-            ReferencedContainer = "container:iosApp.xcodeproj">
+            BlueprintIdentifier = "DA3E2EEB6C3CA1BF23C0AD3C"
+            BuildableName = "GL_IOS.app"
+            BlueprintName = "GL_IOS"
+            ReferencedContainer = "container:GL_IOS.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
       <CommandLineArguments>
@@ -74,10 +74,10 @@
          runnableDebuggingMode = "0">
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "78B53CC79860CBFC2F5543C6"
-            BuildableName = "iosApp.app"
-            BlueprintName = "iosApp"
-            ReferencedContainer = "container:iosApp.xcodeproj">
+            BlueprintIdentifier = "DA3E2EEB6C3CA1BF23C0AD3C"
+            BuildableName = "GL_IOS.app"
+            BlueprintName = "GL_IOS"
+            ReferencedContainer = "container:GL_IOS.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </ProfileAction>
