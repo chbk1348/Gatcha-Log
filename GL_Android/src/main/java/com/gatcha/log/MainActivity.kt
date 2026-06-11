@@ -45,7 +45,7 @@ class MainActivity : ComponentActivity() {
         runCatching {
             val ctx = applicationContext
             if (AppSettings().autoCheckIn) {
-                val repo = GatchaRepository(ctx, AppSettings.currentAccountId())
+                val repo = GatchaRepository(AppSettings.currentAccountId())
                 val today = DateUtil.hoyoDayKey()
                 val done = repo.loadAttendance()[today].orEmpty()
                 if (done.size < GameData.attendanceGames.size) {

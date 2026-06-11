@@ -104,6 +104,9 @@ fun ProfileShowcaseSection(
                 fontSize = 11.sp, color = Color.LightGray,
             )
 
+            // EnkaResult 는 타 모듈(GL_Shared) 타입이라 프로퍼티 스마트캐스트 불가 → 로컬로 추출.
+            val err = result?.error
+            val prof = result?.profile
             when {
                 loading -> {
                     Spacer(Modifier.height(16.dp))
@@ -112,12 +115,12 @@ fun ProfileShowcaseSection(
                     }
                     Spacer(Modifier.height(8.dp))
                 }
-                result?.error != null -> {
+                err != null -> {
                     Spacer(Modifier.height(14.dp))
-                    Text(result.error, fontSize = 13.sp, color = Color(0xFFDC2626))
+                    Text(err, fontSize = 13.sp, color = Color(0xFFDC2626))
                 }
-                result?.profile != null -> {
-                    val p = result.profile
+                prof != null -> {
+                    val p = prof
                     Spacer(Modifier.height(16.dp))
                     Box(Modifier.fillMaxWidth().height(1.dp).background(DividerColor))
                     Spacer(Modifier.height(14.dp))

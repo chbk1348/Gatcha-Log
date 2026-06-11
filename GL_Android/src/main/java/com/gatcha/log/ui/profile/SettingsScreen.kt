@@ -60,7 +60,7 @@ fun SettingsScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
     val nudgeThreshold by viewModel.nudgeThreshold.collectAsState()
     val gachaStats by viewModel.gachaStats.collectAsState()
     val spendings by viewModel.spendings.collectAsState()
-    val versionName = remember { com.gatcha.log.data.api.UpdateChecker.currentVersionName(context) }
+    val versionName = remember { com.gatcha.log.data.api.UpdateChecker.currentVersionName() }
     // 상태 메시지 토스트는 상위 HomeScreen 의 전역 GlgStatusToast 가 처리
 
     // 백업 파일 내보내기/가져오기 (SAF)

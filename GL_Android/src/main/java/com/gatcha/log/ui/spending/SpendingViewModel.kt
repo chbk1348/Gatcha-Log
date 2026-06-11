@@ -80,7 +80,7 @@ class SpendingViewModel(app: Application) : AndroidViewModel(app) {
     fun continueAsGuest() = authManager.continueAsGuest()
 
     // 계정별로 분리되는 저장소. 계정 전환 시 교체된다.
-    private var repo: GatchaRepository = GatchaRepository(app, account.value.id)
+    private var repo: GatchaRepository = GatchaRepository(account.value.id)
 
     // ----------------------------------------------------------------- 상태 (계정별 로드)
     private val _spendings = MutableStateFlow<List<Spending>>(emptyList())
@@ -317,7 +317,7 @@ class SpendingViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private fun switchAccount(acc: Account) {
-        repo = GatchaRepository(getApplication(), acc.id)
+        repo = GatchaRepository(acc.id)
         repo.onChange = { scheduleCloudSync() }
         loadAll()
         // 로그인 계정이면 프로필을 구글 계정 정보로 맞춤
@@ -686,7 +686,7 @@ class SpendingViewModel(app: Application) : AndroidViewModel(app) {
     /** 원격 version.json 과 현재 버전 비교. [manual] 이면 최신일 때 토스트로 알림. */
     fun checkForUpdate(manual: Boolean = false) {
         viewModelScope.launch {
-            val info = UpdateChecker.check(getApplication())
+            val info = UpdateChecker.check()
             if (info != null) _updateInfo.value = info
             else if (manual) emitStatus("이미 최신 버전이에요")
         }
@@ -1090,7 +1090,7 @@ class SpendingViewModel(app: Application) : AndroidViewModel(app) {
      */
     private fun carryOverGuestHoyolab() {
         if (repo.loadHoyolab().isLinked) return
-        val guest = GatchaRepository(getApplication(), Account.GUEST.id)
+        val guest = GatchaRepository(Account.GUEST.id)
         val guestCfg = guest.loadHoyolab()
         if (!guestCfg.isLinked) return
         repo.saveHoyolab(guestCfg)

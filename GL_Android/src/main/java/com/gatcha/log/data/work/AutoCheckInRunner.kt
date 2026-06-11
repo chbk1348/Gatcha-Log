@@ -101,7 +101,7 @@ object AutoCheckInRunner {
         if (o.authFails.isNotEmpty()) {
             val games = (o.authFails + o.netFails + o.otherFails.map { it.first }).joinToString("·")
             val body = "${games}: HoYoLAB 쿠키가 만료된 것 같아요.\n설정 ▸ HoYoLAB 연동에서 다시 연동해주세요."
-            Notifier.notify(ctx, Notifier.ID_AUTO_CHECKIN, "자동 출석 — 재연동 필요", body)
+            Notifier.notify(Notifier.ID_AUTO_CHECKIN, "자동 출석 — 재연동 필요", body)
             return
         }
         val lines = buildList {
@@ -109,7 +109,7 @@ object AutoCheckInRunner {
             o.otherFails.forEach { (name, msg) -> add("$name: $msg") }
         }
         val body = lines.joinToString("\n") + "\n\n잠시 후 자동으로 다시 시도해요."
-        Notifier.notify(ctx, Notifier.ID_AUTO_CHECKIN, "자동 출석 일부 실패", body)
+        Notifier.notify(Notifier.ID_AUTO_CHECKIN, "자동 출석 일부 실패", body)
     }
 
 }
