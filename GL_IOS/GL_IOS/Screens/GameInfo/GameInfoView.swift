@@ -13,6 +13,7 @@ struct GameInfoView: View {
     @State private var showDashboard = false
     // 페이지로 분류된 섹션(계산기·리포트·프로필) — 진입 카드 탭 시 푸시.
     @State private var showCalc = false
+    @State private var showRecharge = false
     @State private var showReport = false
     @State private var showProfile = false
     @State private var showSchedule = false
@@ -31,6 +32,7 @@ struct GameInfoView: View {
                 }
                 section { GameTabbedSection(store: store, filter: gameFilter) }
                 section { navEntry(icon: "function", title: "가챠 계산기", sub: "재화 환산 · 확률 · 시뮬레이터 · 플래너") { showCalc = true } }
+                section { navEntry(icon: "wonsign.circle", title: "충전 가성비", sub: "충전 패키지 단가 비교 · 첫구매 반영") { showRecharge = true } }
                 section { navEntry(icon: "person.crop.square", title: "프로필 쇼케이스", sub: "Enka.Network UID로 캐릭터 조회") { showProfile = true } }
                 section { navEntry(icon: "chart.bar.xaxis", title: "가챠 효율 리포트", sub: "UIGF/SRGF 분석 · 단가 · 천장 분포") { showReport = true } }
                 Color.clear.frame(height: 12)
@@ -76,6 +78,7 @@ struct GameInfoView: View {
         }
         .navigationDestination(isPresented: $showRate) { GachaRatePage() }
         .navigationDestination(isPresented: $showCalc) { sectionPage("계산기") { GachaCalculatorSection() } }
+        .navigationDestination(isPresented: $showRecharge) { sectionPage("충전 가성비") { RechargeValueSection() } }
         .navigationDestination(isPresented: $showProfile) { sectionPage("프로필") { ProfileShowcaseSection(store: store) } }
         .navigationDestination(isPresented: $showReport) { sectionPage("가챠 리포트") { GachaReportSection(store: store, onOpenDashboard: { showDashboard = true }) } }
         .navigationDestination(isPresented: $showGift) { GiftCodePage(store: store) }

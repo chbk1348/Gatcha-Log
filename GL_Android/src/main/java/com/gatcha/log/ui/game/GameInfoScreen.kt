@@ -44,7 +44,7 @@ import com.gatcha.log.ui.spending.SpendingViewModel
 import com.gatcha.log.ui.theme.*
 
 /** 게임정보 탭의 풀스크린 하위 페이지 (열리면 하단바·FAB 숨김) */
-private enum class GiSub { Main, HoyoLink, Dashboard, Rate, Calc, Profile, Report, Gift, Schedule }
+private enum class GiSub { Main, HoyoLink, Dashboard, Rate, Calc, RechargeValue, Profile, Report, Gift, Schedule }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -147,6 +147,7 @@ fun GameInfoScreen(
             )
             GiSub.Rate -> GachaRatePage(onBack = { subPage = GiSub.Main })
             GiSub.Calc -> SectionPage(onBack = { subPage = GiSub.Main }) { GachaCalculatorSection(pity) }
+            GiSub.RechargeValue -> SectionPage(onBack = { subPage = GiSub.Main }) { RechargeValueSection() }
             GiSub.Profile -> SectionPage(onBack = { subPage = GiSub.Main }) {
                 ProfileShowcaseSection(
                     giUid = enkaGiUid,
@@ -249,6 +250,8 @@ fun GameInfoScreen(
             // 페이지로 분류된 섹션(계산기·프로필·리포트) — 진입 카드
             item { Spacer(Modifier.height(20.dp)) }
             item { NavEntryCard(Icons.Default.Calculate, "가챠 계산기", "재화 환산 · 확률 · 시뮬레이터 · 플래너") { subPage = GiSub.Calc } }
+            item { Spacer(Modifier.height(12.dp)) }
+            item { NavEntryCard(Icons.Default.Savings, "충전 가성비", "패키지 단가 비교 · 첫구매 반영 · 뽑 환산") { subPage = GiSub.RechargeValue } }
             item { Spacer(Modifier.height(12.dp)) }
             item { NavEntryCard(Icons.Default.AccountBox, "프로필 쇼케이스", "Enka.Network UID로 캐릭터 조회") { subPage = GiSub.Profile } }
             item { Spacer(Modifier.height(12.dp)) }
