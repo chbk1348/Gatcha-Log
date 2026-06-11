@@ -28,6 +28,7 @@ import com.gatcha.log.ui.components.GlassCard
 import com.gatcha.log.ui.components.GlgScreenHeader
 import com.gatcha.log.ui.components.InfoColumn
 import com.gatcha.log.ui.theme.LocalAccent
+import com.gatcha.log.ui.theme.toColor
 import com.gatcha.log.ui.theme.ProgressEmpty
 import com.gatcha.log.ui.theme.TextSecondary
 import com.gatcha.log.util.won
@@ -121,7 +122,7 @@ private fun MonthlyBars(monthly: LongArray, currentMonth: Int?) {
 
 @Composable
 private fun GameBreakdownRow(game: String, amount: Long, frac: Float) {
-    val color = GameData.colorFor(game)
+    val color = GameData.colorFor(game).toColor()
     Column(Modifier.padding(vertical = 5.dp)) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {

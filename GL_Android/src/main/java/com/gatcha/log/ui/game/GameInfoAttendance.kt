@@ -207,9 +207,9 @@ private fun FocusedGameDaily(
                 Column(Modifier.padding(16.dp)) {
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Box(Modifier.size(8.dp).clip(CircleShape).background(game.color))
+                            Box(Modifier.size(8.dp).clip(CircleShape).background(game.color.toColor()))
                             Spacer(Modifier.width(7.dp))
-                            Text(game.shortName, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = game.color)
+                            Text(game.shortName, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = game.color.toColor())
                         }
                         FocusedCheckControl(checked, inProgress, onCheckIn)
                     }
@@ -235,7 +235,7 @@ private fun FocusedGameDaily(
                         Spacer(Modifier.height(10.dp))
                         LinearProgressIndicator(
                             progress = { note.resinRatio },
-                            color = game.color, trackColor = ProgressEmpty,
+                            color = game.color.toColor(), trackColor = ProgressEmpty,
                             modifier = Modifier.fillMaxWidth().height(6.dp).clip(CircleShape),
                         )
                         if (note.extras.isNotEmpty()) {
@@ -249,7 +249,7 @@ private fun FocusedGameDaily(
                     }
                 }
             }
-            Box(Modifier.matchParentSize().border(1.5.dp, game.color.copy(alpha = 0.4f), shape))
+            Box(Modifier.matchParentSize().border(1.5.dp, game.color.toColor().copy(alpha = 0.4f), shape))
         }
         // 출석 카드
         GlassCard(shape = RoundedCornerShape(24.dp), modifier = Modifier.fillMaxWidth()) {
@@ -472,9 +472,9 @@ private fun DailyGameRow(game: Game, note: LiveNote?, uid: String, checked: Bool
     val accent = LocalAccent.current
     Column(Modifier.padding(vertical = 10.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Surface(color = game.color.copy(alpha = 0.15f), shape = RoundedCornerShape(10.dp), modifier = Modifier.size(40.dp)) {
+            Surface(color = game.color.toColor().copy(alpha = 0.15f), shape = RoundedCornerShape(10.dp), modifier = Modifier.size(40.dp)) {
                 Box(contentAlignment = Alignment.Center) {
-                    Text(game.abbr, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = game.color)
+                    Text(game.abbr, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = game.color.toColor())
                 }
             }
             Spacer(Modifier.width(12.dp))

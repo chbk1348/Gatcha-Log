@@ -36,6 +36,7 @@ import com.gatcha.log.ui.components.GlgDatePickerDialog
 import com.gatcha.log.ui.components.GlgSwitch
 import com.gatcha.log.ui.components.GlgTextField
 import com.gatcha.log.ui.theme.LocalAccent
+import com.gatcha.log.ui.theme.toColor
 import com.gatcha.log.ui.theme.ProgressEmpty
 import com.gatcha.log.ui.theme.TextPrimary
 import com.gatcha.log.ui.theme.TextSecondary
@@ -81,7 +82,7 @@ fun GachaCalculatorSection(pity: Map<String, PityState>) {
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         GachaRateData.games.forEach { g ->
-            GlowChip(g.shortName, g.color, g.key == gameKey, true) { gameKey = g.key }
+            GlowChip(g.shortName, g.color.toColor(), g.key == gameKey, true) { gameKey = g.key }
         }
     }
     Row(Modifier.padding(horizontal = 8.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -263,9 +264,10 @@ private fun Planner(game: GachaGameRate, banner: GachaBannerRate) {
     Spacer(Modifier.height(10.dp))
     GlgTextField(currentPulls, { currentPulls = it.filter(Char::isDigit) }, label = "현재 보유 뽑기 수",
         placeholder = "0", keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.fillMaxWidth())
-    if (game.pass != null) {
+    val pass = game.pass
+    if (pass != null) {
         Spacer(Modifier.height(10.dp))
-        ToggleRow("${game.pass.name} 적용", passOn) { passOn = it }
+        ToggleRow("${pass.name} 적용", passOn) { passOn = it }
     }
     Spacer(Modifier.height(8.dp))
     QtyRow(qty) { qty = it }

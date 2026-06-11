@@ -385,7 +385,7 @@ fun HistoryItem(spending: Spending, onClick: () -> Unit) {
                 .fillMaxWidth()
                 .then(
                     if (!hasCurrencyIcon) {
-                        Modifier.drawBehind { drawRect(spending.gameColor, size = Size(barPx, size.height)) }
+                        Modifier.drawBehind { drawRect(spending.gameColor.toColor(), size = Size(barPx, size.height)) }
                     } else Modifier,
                 )
                 .clickable { onClick() }
@@ -401,8 +401,8 @@ fun HistoryItem(spending: Spending, onClick: () -> Unit) {
                     Text(spending.gameName, fontSize = 14.sp, fontWeight = FontWeight.Bold)
                     if (spending.isSubscription) {
                         Spacer(Modifier.width(6.dp))
-                        Surface(color = spending.gameColor.copy(alpha = 0.12f), shape = RoundedCornerShape(4.dp)) {
-                            Text("정기", fontSize = 9.sp, color = spending.gameColor, modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp))
+                        Surface(color = spending.gameColor.toColor().copy(alpha = 0.12f), shape = RoundedCornerShape(4.dp)) {
+                            Text("정기", fontSize = 9.sp, color = spending.gameColor.toColor(), modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp))
                         }
                     }
                 }

@@ -41,6 +41,7 @@ import com.gatcha.log.ui.theme.DividerColor
 import com.gatcha.log.ui.theme.LocalAccent
 import com.gatcha.log.ui.theme.TextPrimary
 import com.gatcha.log.ui.theme.TextSecondary
+import com.gatcha.log.ui.theme.toColor
 
 // ============================================================
 // 통합 게임 일정 — 패치(게임별 다음 시작/종료)·진행 이벤트·정기 콘텐츠를 하나의 모델로 합쳐 날짜순 정렬.
@@ -80,18 +81,18 @@ fun buildSchedule(banners: List<GachaBanner>, events: List<GameEvent>, challenge
                 else -> "후반"               // 이전 버전 단일 페이즈 = 후반(전반 종료됨)
             }
             val title = if (v.isBlank()) "$phaseLabel 픽업 종료" else "v$v $phaseLabel 픽업 종료"
-            out += ScheduleEntry(game.key, game.shortName, game.color, "패치", title, "", ph.key, false)
+            out += ScheduleEntry(game.key, game.shortName, game.color.toColor(), "패치", title, "", ph.key, false)
         }
     }
     // ② 진행 중인 이벤트
     for (ev in events) {
         val g = GameData.byNameOrNull(ev.game)
-        out += ScheduleEntry(g?.key ?: ev.game, g?.shortName ?: ev.game, ev.gameColor, "이벤트", ev.name, ev.reward, ev.endMillis, false)
+        out += ScheduleEntry(g?.key ?: ev.game, g?.shortName ?: ev.game, ev.gameColor.toColor(), "이벤트", ev.name, ev.reward, ev.endMillis, false)
     }
     // ③ 정기 콘텐츠
     for (ch in challenges) {
         val g = GameData.byNameOrNull(ch.game)
-        out += ScheduleEntry(g?.key ?: ch.game, g?.shortName ?: ch.game, ch.gameColor, "콘텐츠", ch.name, ch.reward, ch.endMillis, false)
+        out += ScheduleEntry(g?.key ?: ch.game, g?.shortName ?: ch.game, ch.gameColor.toColor(), "콘텐츠", ch.name, ch.reward, ch.endMillis, false)
     }
     return out.sortedBy { it.target }
 }
@@ -116,7 +117,7 @@ private val Urgent = Color(0xFFE8634A)
 // 픽업 배너 — 한 줄 알약(캡슐). 게임색 틴트.
 @Composable
 fun PickupBannerPill(banner: GachaBanner) {
-    val c = banner.gameColor
+    val c = banner.gameColor.toColor()
     val ddColor = if (banner.dDay() <= 3) Urgent else c
     Row(
         Modifier.fillMaxWidth().padding(bottom = 8.dp)
@@ -214,7 +215,7 @@ private fun GameScheduleGroup(game: Game, entries: List<ScheduleEntry>, pickups:
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        Surface(color = game.color, shape = RoundedCornerShape(8.dp)) {
+        Surface(color = game.color.toColor(), shape = RoundedCornerShape(8.dp)) {
             Text(game.abbr, fontSize = 12.sp, fontWeight = FontWeight.Black, color = Color.White, modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp))
         }
         Text(game.displayName, fontSize = 17.sp, fontWeight = FontWeight.Bold, color = TextPrimary)

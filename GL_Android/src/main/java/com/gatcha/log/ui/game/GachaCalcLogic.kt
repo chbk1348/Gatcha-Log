@@ -97,7 +97,8 @@ internal fun computePlanner(
     val weeks = days / 7
     val dailyPerDay = game.dailyFree.toDouble() / banner.perPull
     val weeklyPerWeek = game.weeklyFree.toDouble() / banner.perPull
-    val passPerDay = if (passOn && game.pass != null) game.pass.dailyCrystal.toDouble() / banner.perPull else 0.0
+    val pass = game.pass
+    val passPerDay = if (passOn && pass != null) pass.dailyCrystal.toDouble() / banner.perPull else 0.0
     val freePulls = (days * (dailyPerDay + passPerDay) + weeks * weeklyPerWeek).toInt()
     val totalAvailable = currentPulls + freePulls
     val totalNeeded = banner.hardPity * qty
