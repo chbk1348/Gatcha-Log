@@ -32,7 +32,7 @@ class GatchaWorker(appContext: Context, params: WorkerParameters) : CoroutineWor
 
     /** 출석 시도·결과 집계·실패 알림은 [AutoCheckInRunner] 가 담당(UI 호출과 동일 흐름). */
     private suspend fun autoCheckIn(ctx: Context, settings: AppSettings, repo: GatchaRepository, cfg: HoyolabConfig) {
-        AutoCheckInRunner.run(ctx, settings, repo, cfg, postFailureNotification = true)
+        AutoCheckInRunner.run(settings, repo, cfg, postFailureNotification = true)
     }
 
     private suspend fun checkNotifications(ctx: Context, settings: AppSettings, repo: GatchaRepository, cfg: HoyolabConfig) {

@@ -138,7 +138,6 @@ class SpendingViewModel(app: Application) : AndroidViewModel(app) {
         // 여기선 알림 중복을 피하려고 postFailureNotification=false 로 끄고 토스트만 띄운다.
         viewModelScope.launch {
             val outcome = AutoCheckInRunner.run(
-                ctx = getApplication(),
                 settings = appSettings,
                 repo = repo,
                 cfg = repo.loadHoyolab(),
@@ -1045,7 +1044,7 @@ class SpendingViewModel(app: Application) : AndroidViewModel(app) {
     val displayMonth: Int get() = currentMonth
 
     // ----------------------------------------------------------------- 클라우드 동기화 (Firebase Firestore)
-    private val cloudConfigured: Boolean get() = CloudSync.isConfigured(getApplication())
+    private val cloudConfigured: Boolean get() = CloudSync.isConfigured()
     private var syncJob: Job? = null
 
     /** 기존 로그인 유저의 최초 클라우드 동기화(데이터 불러오는 중) 여부. 시작 시 로그인 상태면 true. */
