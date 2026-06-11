@@ -2,7 +2,6 @@ package com.gatcha.log.data
 
 import android.content.Context
 import android.content.SharedPreferences
-import androidx.compose.ui.graphics.Color
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
 import org.json.JSONArray
@@ -65,7 +64,6 @@ class GatchaRepository(context: Context, accountId: String = "guest") {
         val tagsArr = optJSONArray("tags") ?: JSONArray()
         val tags = (0 until tagsArr.length()).map { tagsArr.getString(it) }
         val gameName = optString("gameName", "원신")
-        val color = if (has("gameColor")) Color(getInt("gameColor")) else GameData.colorFor(gameName)
         return Spending(
             id = optString("id"),
             gameName = gameName,
@@ -76,7 +74,6 @@ class GatchaRepository(context: Context, accountId: String = "guest") {
             memo = optString("memo", ""),
             tags = tags,
             isSubscription = optBoolean("isSubscription", false),
-            gameColor = color,
         )
     }
 

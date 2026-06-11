@@ -12,6 +12,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import coil.compose.SubcomposeAsyncImage
 import com.gatcha.log.data.GameData
+import com.gatcha.log.ui.theme.toColor
 
 /**
  * 게임별 인게임 충전 재화(유료 결제 재화)와 그 아이콘.
@@ -70,5 +71,5 @@ fun CurrencyIcon(gameName: String, size: Dp = 28.dp, modifier: Modifier = Modifi
 /** 아이콘이 없거나 네트워크 실패 시 표시할 게임 색 원형 폴백. */
 @Composable
 private fun CurrencyFallback(gameName: String, size: Dp, modifier: Modifier = Modifier) {
-    Box(modifier.size(size).clip(CircleShape).background(GameData.colorFor(gameName)))
+    Box(modifier.size(size).clip(CircleShape).background(GameData.colorFor(gameName).toColor()))
 }

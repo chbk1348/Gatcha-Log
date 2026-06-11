@@ -14,7 +14,7 @@ kotlin {
     // ── Android 타겟 ──────────────────────────────────────────────
     android {
         namespace = "com.gatcha.log.shared"
-        compileSdk = 35
+        compileSdk = 36 // :GL_Android(36)과 정합 — 단일 클래스패스 소비
         minSdk = 24
 
         compilerOptions {
@@ -60,7 +60,7 @@ kotlin {
             implementation("io.ktor:ktor-client-okhttp:3.5.0")
             // Firebase BoM — GitLive(KMP) firebase-* 의 Android 변형이 요구하는
             // com.google.firebase:* 버전을 고정 (:GL_Android 과 동일 BoM). 없으면 androidCompileClasspath 해석 실패.
-            implementation(project.dependencies.platform("com.google.firebase:firebase-bom:33.7.0"))
+            implementation(project.dependencies.platform("com.google.firebase:firebase-bom:34.14.0"))
             // 보안 토큰 저장(EncryptedSharedPreferences) — :GL_Android 과 동일 (SecureKeyValueStore actual)
             implementation("androidx.security:security-crypto:1.1.0-alpha06")
             // 알림(NotificationCompat) — Notifier actual

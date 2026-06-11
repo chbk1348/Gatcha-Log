@@ -44,8 +44,8 @@ class MainActivity : ComponentActivity() {
         // 오늘 미출석 게임이 남아있으면 즉시 1회 트리거(자동 출석 토글이 켜진 경우만).
         runCatching {
             val ctx = applicationContext
-            if (AppSettings(ctx).autoCheckIn) {
-                val repo = GatchaRepository(ctx, AppSettings.currentAccountId(ctx))
+            if (AppSettings().autoCheckIn) {
+                val repo = GatchaRepository(ctx, AppSettings.currentAccountId())
                 val today = DateUtil.hoyoDayKey()
                 val done = repo.loadAttendance()[today].orEmpty()
                 if (done.size < GameData.attendanceGames.size) {

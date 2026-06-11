@@ -21,6 +21,7 @@ import com.gatcha.log.ui.theme.DividerColor
 import com.gatcha.log.ui.theme.LocalAccent
 import com.gatcha.log.ui.theme.ProgressEmpty
 import com.gatcha.log.ui.theme.TextSecondary
+import com.gatcha.log.ui.theme.toColor
 
 /** 게임별 전투 콘텐츠 진행도 카드 (나선 비경·현실 속 환상극 / 혼돈의 기억·허구 이야기·종말의 환영). */
 @Composable
@@ -28,7 +29,7 @@ internal fun CombatGameCard(game: Game, modes: List<CombatMode>) {
     GlassCard(shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 2.dp)) {
-                Box(Modifier.size(10.dp).background(game.color, CircleShape))
+                Box(Modifier.size(10.dp).background(game.color.toColor(), CircleShape))
                 Spacer(Modifier.width(8.dp))
                 Text(game.shortName, fontWeight = FontWeight.Bold, fontSize = 15.sp)
             }
@@ -52,8 +53,8 @@ private fun CombatRow(m: CombatMode) {
             Spacer(Modifier.width(8.dp))
             Column(horizontalAlignment = Alignment.End) {
                 when {
-                    m.maxStars > 0 -> Text("⭐ ${m.stars}/${m.maxStars}", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = m.gameColor)
-                    m.hasData -> Text("메달 ${m.stars}", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = m.gameColor)
+                    m.maxStars > 0 -> Text("⭐ ${m.stars}/${m.maxStars}", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = m.gameColor.toColor())
+                    m.hasData -> Text("메달 ${m.stars}", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = m.gameColor.toColor())
                 }
                 val d = m.dDay()
                 if (d != null && d >= 0) Text("D-$d", fontSize = 11.sp, color = accent, fontWeight = FontWeight.Bold)
@@ -63,7 +64,7 @@ private fun CombatRow(m: CombatMode) {
             Spacer(Modifier.height(8.dp))
             LinearProgressIndicator(
                 progress = { m.ratio },
-                color = m.gameColor, trackColor = ProgressEmpty,
+                color = m.gameColor.toColor(), trackColor = ProgressEmpty,
                 modifier = Modifier.fillMaxWidth().height(4.dp).clip(CircleShape),
             )
         }

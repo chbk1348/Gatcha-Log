@@ -28,6 +28,7 @@ import com.gatcha.log.data.GachaRateData
 import com.gatcha.log.ui.components.GlassCard
 import com.gatcha.log.ui.components.GlgScreenHeader
 import com.gatcha.log.ui.theme.DividerColor
+import com.gatcha.log.ui.theme.toColor
 import com.gatcha.log.ui.theme.LocalAccent
 import com.gatcha.log.ui.theme.TextPrimary
 import com.gatcha.log.ui.theme.TextSecondary
@@ -101,11 +102,11 @@ private fun GameRateCard(game: GachaGameRate, bannerType: String) {
     GlassCard(shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(Modifier.size(10.dp).clip(CircleShape).background(game.color))
+                Box(Modifier.size(10.dp).clip(CircleShape).background(game.color.toColor()))
                 Spacer(Modifier.width(8.dp))
                 Text(game.name, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
                 Spacer(Modifier.width(8.dp))
-                Surface(color = game.color, shape = CircleShape) {
+                Surface(color = game.color.toColor(), shape = CircleShape) {
                     Text(
                         game.grade,
                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
@@ -118,13 +119,13 @@ private fun GameRateCard(game: GachaGameRate, bannerType: String) {
             if (banner != null) {
                 Spacer(Modifier.height(12.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    StatBox("기본 확률", pct(banner.base, 2), "${game.grade} 기준", game.color, Modifier.weight(1f))
-                    StatBox("소프트 천장", "${banner.softPity}회", "이후 확률 상승", game.color, Modifier.weight(1f))
+                    StatBox("기본 확률", pct(banner.base, 2), "${game.grade} 기준", game.color.toColor(), Modifier.weight(1f))
+                    StatBox("소프트 천장", "${banner.softPity}회", "이후 확률 상승", game.color.toColor(), Modifier.weight(1f))
                 }
                 Spacer(Modifier.height(8.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    StatBox("하드 천장", "${banner.hardPity}회", "100% ${game.grade} 보장", game.color, Modifier.weight(1f))
-                    StatBox("뽑기 단위", "${banner.currency} ${banner.perPull}", "= 1회 소환", game.color, Modifier.weight(1f))
+                    StatBox("하드 천장", "${banner.hardPity}회", "100% ${game.grade} 보장", game.color.toColor(), Modifier.weight(1f))
+                    StatBox("뽑기 단위", "${banner.currency} ${banner.perPull}", "= 1회 소환", game.color.toColor(), Modifier.weight(1f))
                 }
                 Spacer(Modifier.height(10.dp))
                 val g = GachaRateData.guaranteeInfo(game.grade, banner)
@@ -199,7 +200,7 @@ private data class CompareRow(
 private fun CompareTable(bannerType: String, sortCol: String?, sortAsc: Boolean, onSort: (String) -> Unit) {
     var rows = GachaRateData.games.map { g ->
         val b = g.banner(bannerType)
-        CompareRow(g.shortName, g.color, g.grade, b?.base, b?.softPity, b?.hardPity, b?.guaranteeShort ?: "—")
+        CompareRow(g.shortName, g.color.toColor(), g.grade, b?.base, b?.softPity, b?.hardPity, b?.guaranteeShort ?: "—")
     }
     if (sortCol != null) {
         rows = when (sortCol) {

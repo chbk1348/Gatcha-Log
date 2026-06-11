@@ -104,7 +104,7 @@ class SpendingViewModel(app: Application) : AndroidViewModel(app) {
     fun setHomeCards(list: List<HomeCardItem>) { _homeCards.value = list; repo.saveHomeCards(list) }
 
     // 네이티브 설정(자동 출석체크 등) — 기기 단위, 계정 무관
-    private val appSettings = AppSettings(app)
+    private val appSettings = AppSettings()
 
     /** HoYoLAB 토큰 만료 감지 플래그. 자동 출석 AUTH 실패 시 set, 재연동·재성공 시 clear. */
     private val _hoyoTokenExpired = MutableStateFlow(appSettings.hoyoTokenExpired)

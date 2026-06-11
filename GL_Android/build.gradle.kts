@@ -1,4 +1,5 @@
 import java.util.Properties
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
     id("com.android.application")
@@ -85,8 +86,9 @@ android {
         }
     }
     compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_1_8
-        targetCompatibility = JavaVersion.VERSION_1_8
+        // :GL_Shared(GitLive Firebase 2.4.0)가 JVM 17 바이트코드라 소비 측도 17로 맞춘다.
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
     }
     buildFeatures {
         compose = true
@@ -99,7 +101,17 @@ android {
     }
 }
 
+// Kotlin 바이트코드도 17 — :GL_Shared(JVM_17, GitLive) 인라인 함수 소비 충돌 방지.
+kotlin {
+    compilerOptions {
+        jvmTarget.set(JvmTarget.JVM_17)
+    }
+}
+
 dependencies {
+    // 공유 KMP 모듈 — 비즈니스 로직(데이터/리포지토리/API/동기화)의 정본. 레거시 P3 통합.
+    implementation(project(":GL_Shared"))
+
     implementation("androidx.core:core-ktx:1.15.0") // compileSdk 35 호환 (1.19.0은 compileSdk 37 요구)
     // 인증 토큰 암호화 저장(EncryptedSharedPreferences / Android Keystore) — HoYoLAB 토큰 전용
     implementation("androidx.security:security-crypto:1.1.0")

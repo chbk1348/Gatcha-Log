@@ -258,7 +258,7 @@ private fun StatTile(icon: ImageVector, value: String, label: String, modifier: 
 private fun TopGamesCard(spendings: List<Spending>) {
     val byGame = remember(spendings) {
         spendings.groupBy { it.gameName }
-            .map { (g, list) -> Triple(g, list.sumOf { s -> s.amount }, list.first().gameColor) }
+            .map { (g, list) -> Triple(g, list.sumOf { s -> s.amount }, list.first().gameColor.toColor()) }
             .sortedByDescending { it.second }
             .take(5)
     }

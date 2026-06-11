@@ -22,8 +22,8 @@ class GatchaWorker(appContext: Context, params: WorkerParameters) : CoroutineWor
 
     override suspend fun doWork(): Result {
         val ctx = applicationContext
-        val settings = AppSettings(ctx)
-        val repo = GatchaRepository(ctx, AppSettings.currentAccountId(ctx))
+        val settings = AppSettings()
+        val repo = GatchaRepository(ctx, AppSettings.currentAccountId())
         val cfg = repo.loadHoyolab()
         if (settings.autoCheckIn) runCatching { autoCheckIn(ctx, settings, repo, cfg) }
         runCatching { checkNotifications(ctx, settings, repo, cfg) }
