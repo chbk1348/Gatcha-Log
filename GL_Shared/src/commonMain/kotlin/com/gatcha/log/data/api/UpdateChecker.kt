@@ -9,6 +9,8 @@ data class UpdateInfo(
     /** 직접 다운로드용 APK URL(인앱 다운로드·설치). */
     val apkUrl: String,
     val notes: List<String>,
+    /** APK SHA-256(소문자 hex). 설치 직전 무결성 검증용(Android). 미지정 시 빈 문자열. */
+    val sha256: String = "",
 )
 
 /**
