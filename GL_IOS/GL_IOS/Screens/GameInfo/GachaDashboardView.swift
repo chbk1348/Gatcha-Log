@@ -81,7 +81,7 @@ struct GachaDashboardView: View {
                 if !d.monthly.isEmpty {
                     dashCard {
                         cardTitle("월별 뽑기 추이", "최근 \(d.monthly.count)개월")
-                        barRow(d.monthly.map { Int(truncating: ($0.second as? NSNumber) ?? 0) },
+                        barRow(d.monthly.map { Int(truncating: ($0.second as NSNumber?) ?? 0) },
                                d.monthly.map { String(((($0.first as? String) ?? "")).suffix(2)) }, accent.primary).padding(.top, 14)
                     }
                 }

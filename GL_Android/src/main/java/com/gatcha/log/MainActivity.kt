@@ -6,6 +6,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.material3.Text
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -13,6 +14,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.gatcha.log.ui.auth.AccountLoadingScreen
+import com.gatcha.log.ui.components.GlgDialog
 import com.gatcha.log.ui.auth.LoginScreen
 import com.gatcha.log.ui.home.HomeScreen
 import com.gatcha.log.ui.spending.SpendingViewModel
@@ -59,6 +61,7 @@ class MainActivity : ComponentActivity() {
             val account by viewModel.account.collectAsState()
             val guestChosen by viewModel.guestChosen.collectAsState()
             val initialSyncing by viewModel.initialSyncing.collectAsState()
+            val networkAlert by viewModel.networkAlert.collectAsState()
             var loadingDone by rememberSaveable { mutableStateOf(false) }
             GatchaLogTheme(accentIndex = accentIndex) {
                 when {
@@ -68,6 +71,18 @@ class MainActivity : ComponentActivity() {
                     !account.isGuest && !loadingDone ->
                         AccountLoadingScreen(loading = initialSyncing, onFinished = { loadingDone = true })
                     else -> HomeScreen(viewModel)
+                }
+                // 네트워크 미연결 — 앱 진입·로딩·새로고침 공통 얼럿 모달(앱 루트에 한 번만).
+                networkAlert?.let { msg ->
+                    GlgDialog(
+                        title = "인터넷 연결 없음",
+                        onDismiss = { viewModel.clearNetworkAlert() },
+                        confirmText = "확인",
+                        onConfirm = { viewModel.clearNetworkAlert() },
+                        dismissText = null,
+                    ) {
+                        Text(msg)
+                    }
                 }
             }
         }

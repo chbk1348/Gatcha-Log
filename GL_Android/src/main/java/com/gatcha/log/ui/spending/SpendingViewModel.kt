@@ -14,6 +14,7 @@ import com.gatcha.log.data.DateUtil
 import com.gatcha.log.data.HoyoCalendar
 import com.gatcha.log.data.GachaBanner
 import com.gatcha.log.data.Game
+import com.gatcha.log.data.NetworkMonitor
 import com.gatcha.log.data.GameChallenge
 import com.gatcha.log.data.GachaRecord
 import com.gatcha.log.data.GachaReport
@@ -668,6 +669,12 @@ class SpendingViewModel(app: Application) : AndroidViewModel(app) {
     /** UI 에서 직접 토스트를 띄울 때 (예: 뒤로가기 종료 안내) */
     fun showStatus(msg: String) = emitStatus(msg)
 
+    /** 네트워크 미연결 경고 — 토스트가 아닌 **얼럿 모달**로 표시(메시지 != null 이면 노출). UI 가 확인 후 [clearNetworkAlert]. */
+    private val _networkAlert = MutableStateFlow<String?>(null)
+    val networkAlert: StateFlow<String?> = _networkAlert.asStateFlow()
+    fun clearNetworkAlert() { _networkAlert.value = null }
+    private fun emitNetworkAlert() { _networkAlert.value = "인터넷에 연결되어 있지 않아요.\n연결 상태를 확인한 뒤 다시 시도해주세요." }
+
     /** 읽은 알림 키 집합(안정 키 — 가변 메시지 아님). 기기 재진입에도 유지되도록 prefs 영구 저장(로컬 전용). */
     private val _readAlerts = MutableStateFlow<Set<String>>(emptySet())
     val readAlerts: StateFlow<Set<String>> = _readAlerts.asStateFlow()
@@ -759,6 +766,11 @@ class SpendingViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             _isRefreshing.value = true
             try {
+                // 오프라인이면 12초 타임아웃을 기다리지 않고 즉시 안내(앱 진입·새로고침 공통).
+                if (!NetworkMonitor.isOnline()) {
+                    emitNetworkAlert()
+                    return@launch
+                }
                 coroutineScope {
                     val cfg = _hoyolabConfig.value
                     val uids = if (cfg.isLinked) mapOf(
@@ -834,7 +846,10 @@ class SpendingViewModel(app: Application) : AndroidViewModel(app) {
     fun refreshSpending() {
         viewModelScope.launch {
             _isRefreshing.value = true
-            if (cloudConfigured) {
+            if (cloudConfigured && !NetworkMonitor.isOnline()) {
+                // 오프라인 — 클라우드 동기화는 건너뛰고 로컬만 갱신하며 안내.
+                emitNetworkAlert()
+            } else if (cloudConfigured) {
                 CloudSync.currentUid()?.let { uid ->
                     val hasPendingLocal = syncJob?.isActive == true // 디바운스 푸시 대기 = 미반영 로컬 변경
                     syncJob?.cancel()
@@ -948,7 +963,8 @@ class SpendingViewModel(app: Application) : AndroidViewModel(app) {
             return CodeResult(false, "HoYoLAB 재연동이 필요해요 (교환 인증 쿠키 없음)")
         }
         val r = HoyolabApi.redeemCode(cfg.ltuid, cfg.ltoken, cfg.cookieToken, cfg.webCookie, gameKey, uid, code)
-        if (r.success || r.message.contains("이미 사용")) markRedeemed(code)
+        // 교환 성공 또는 이미 계정 귀속(retcode -2017/-2018)이면 '받음' 표시 — 메시지 문자열 매칭 금지(확실 분기).
+        if (r.success || r.alreadyRedeemed) markRedeemed(code)
         return r
     }
 
@@ -970,7 +986,7 @@ class SpendingViewModel(app: Application) : AndroidViewModel(app) {
             targets.forEachIndexed { i, code ->
                 _redeemState.value = RedeemState.Loading
                 val r = doRedeem(gameKey, code)
-                if (r.success || r.message.contains("이미 사용")) ok++ else { fail++; lastFailMsg = r.message }
+                if (r.success || r.alreadyRedeemed) ok++ else { fail++; lastFailMsg = r.message }
                 if (i < targets.lastIndex) delay(5500) // 교환 레이트리밋(-2016) 회피
             }
             // 실패 사유를 그대로 노출(전부 실패 시 원인 파악 — 쿠키/만료/리전 등)
@@ -1114,6 +1130,13 @@ class SpendingViewModel(app: Application) : AndroidViewModel(app) {
     private suspend fun cloudSyncPullOrSeed() {
         if (!cloudConfigured) { _initialSyncing.value = false; return }
         val uid = CloudSync.currentUid() ?: run { _initialSyncing.value = false; return }
+        // 로딩 페이지 오프라인 분기: 8초 타임아웃을 기다리지 않고 즉시 로컬로 진행 + 얼럿 안내.
+        if (!NetworkMonitor.isOnline()) {
+            emitNetworkAlert()
+            loadAll()
+            _initialSyncing.value = false
+            return
+        }
         _initialSyncing.value = true
         syncJob?.cancel()
         try {

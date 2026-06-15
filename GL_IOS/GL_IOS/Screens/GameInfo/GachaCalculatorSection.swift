@@ -36,7 +36,7 @@ struct GachaCalculatorSection: View {
 
     var body: some View {
         stack
-            .onChange(of: gameKey) { _ in if game.banner(type: bannerType) == nil { bannerType = "character" } }
+            .onChange(of: gameKey) { if game.banner(type: bannerType) == nil { bannerType = "character" } }
             .sheet(item: $sheet) { s in
                 NavigationStack {
                     ScrollView {
@@ -299,7 +299,7 @@ private struct Simulator: View {
             Text("실제 확률·소프트/하드 천장 기반 시뮬레이션이에요. 결과는 체험용이며 실제 뽑기와 무관해요.")
                 .font(.system(size: 10)).foregroundStyle(GLGColor.textSecondary).padding(.top, 4)
         }
-        .onChange(of: game.key) { _ in reset() }
+        .onChange(of: game.key) { reset() }
     }
 
     private func rollOnce() -> PullResult {
@@ -418,7 +418,7 @@ private struct NumField: View {
         VStack(alignment: .leading, spacing: 4) {
             Text(label).font(.system(size: 11, weight: .semibold)).foregroundStyle(GLGColor.textSecondary)
             TextField(placeholder, text: $text).keyboardType(.numberPad).textFieldStyle(.plain).glgPillField()
-                .onChange(of: text) { text = $0.filter(\.isNumber) }
+                .onChange(of: text) { _, newValue in text = newValue.filter(\.isNumber) }
         }
     }
 }

@@ -176,7 +176,7 @@ struct SpendingView: View {
             }
         }
         .presentationDetents([.medium, .large])
-        .presentationBackground { GLGBackground { Color.clear } }
+        .presentationBackground(Color(hex: 0xFFF2F2F7))
     }
 
     private func pillWrap<T: Equatable & Hashable>(_ all: [T], _ sel: T, _ set: @escaping (T) -> Void,
