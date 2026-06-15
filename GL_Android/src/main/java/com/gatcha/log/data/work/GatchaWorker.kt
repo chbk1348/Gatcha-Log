@@ -5,6 +5,7 @@ import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.gatcha.log.data.AppSettings
 import com.gatcha.log.data.DateUtil
+import com.gatcha.log.data.HoyoCalendar
 import com.gatcha.log.data.GameData
 import com.gatcha.log.data.GatchaRepository
 import com.gatcha.log.data.HoyolabConfig
@@ -79,7 +80,7 @@ class GatchaWorker(appContext: Context, params: WorkerParameters) : CoroutineWor
 
         // ② 출석 리마인더 (베이징 저녁 이후 미출석) — 하루 1회
         if (settings.notifyAttendance && cfg.isLinked) {
-            val hour = DateUtil.hoyoCalendar().get(Calendar.HOUR_OF_DAY)
+            val hour = HoyoCalendar.instance().get(Calendar.HOUR_OF_DAY)
             if (hour >= 18) {
                 val today = DateUtil.hoyoDayKey()
                 val done = repo.loadAttendance()[today] ?: emptySet()

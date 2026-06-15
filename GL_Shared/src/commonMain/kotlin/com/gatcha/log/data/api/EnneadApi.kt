@@ -100,14 +100,16 @@ object EnneadApi {
         return EnneadResult(banners, events, challenges)
     }
 
-    /** characters / agents / items / weapons 중 첫 번째 비어있지 않은 배열 + 무기 여부 */
+    /** 캐릭터(characters/agents/items) 우선, 없으면 무기(weapons=원신 / light_cones=스타레일 광추) + 무기 여부 */
     private fun firstItems(b: JSONObject): Pair<JSONArray, Boolean> {
         for (key in listOf("characters", "agents", "items")) {
             val arr = b.optJSONArray(key)
             if (arr != null && arr.length() > 0) return arr to false
         }
-        val weapons = b.optJSONArray("weapons")
-        if (weapons != null && weapons.length() > 0) return weapons to true
+        for (key in listOf("weapons", "light_cones")) {
+            val arr = b.optJSONArray(key)
+            if (arr != null && arr.length() > 0) return arr to true
+        }
         return JSONArray() to false
     }
 

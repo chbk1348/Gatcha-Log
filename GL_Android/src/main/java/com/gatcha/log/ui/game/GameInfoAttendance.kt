@@ -25,6 +25,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.gatcha.log.data.DateUtil
+import com.gatcha.log.data.HoyoCalendar
 import com.gatcha.log.data.Game
 import com.gatcha.log.data.GameData
 import com.gatcha.log.data.HoyolabConfig
@@ -315,7 +316,7 @@ private fun WeekAttendanceStrip(history: Map<String, Set<String>>) {
     val accent = LocalAccent.current
     val days = remember(history) {
         (6 downTo 0).map { offset ->
-            val cal = DateUtil.hoyoCalendar().apply { add(java.util.Calendar.DAY_OF_YEAR, -offset) }
+            val cal = HoyoCalendar.instance().apply { add(java.util.Calendar.DAY_OF_YEAR, -offset) }
             Triple(cal.get(java.util.Calendar.DAY_OF_MONTH), dowKo(cal), history[DateUtil.hoyoDayKey(cal.timeInMillis)]?.size ?: 0)
         }
     }
@@ -362,7 +363,7 @@ private fun MonthAttendanceCalendar(history: Map<String, Set<String>>) {
     val accent = LocalAccent.current
     var monthOffset by remember { mutableIntStateOf(0) } // 0 = 이번 달
     val base = remember(monthOffset) {
-        DateUtil.hoyoCalendar().apply { add(java.util.Calendar.MONTH, monthOffset); set(java.util.Calendar.DAY_OF_MONTH, 1) }
+        HoyoCalendar.instance().apply { add(java.util.Calendar.MONTH, monthOffset); set(java.util.Calendar.DAY_OF_MONTH, 1) }
     }
     val year = base.get(java.util.Calendar.YEAR)
     val month = base.get(java.util.Calendar.MONTH) // 0-based
