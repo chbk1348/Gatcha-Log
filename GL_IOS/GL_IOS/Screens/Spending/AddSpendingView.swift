@@ -37,7 +37,7 @@ struct AddSpendingView: View {
                 }
                 .padding(16)
             }
-            .background(GLGBackground { Color.clear })
+            .background(Color(hex: 0xFFF2F2F7))
             .scrollDismissesKeyboard(.interactively)
             .navigationTitle(editing == nil ? "지출 추가" : "지출 수정")
             .navigationBarTitleDisplayMode(.inline)
@@ -51,6 +51,7 @@ struct AddSpendingView: View {
                     get: { Date(timeIntervalSince1970: Double(dateMillis) / 1000) },
                     set: { dateMillis = Int64($0.timeIntervalSince1970 * 1000) }), displayedComponents: .date)
                     .datePickerStyle(.graphical).padding()
+                    .environment(\.locale, Locale(identifier: "ko_KR"))
                     .toolbar { ToolbarItem(placement: .confirmationAction) { Button("확인") { showDate = false } } }
             }
             .presentationDetents([.medium])
@@ -170,7 +171,7 @@ struct AddSpendingView: View {
                 .opacity(amountValid ? 1 : 0.5).disabled(!amountValid)
         }
         .padding(.horizontal, 16).padding(.top, 12).padding(.bottom, 6)
-        .background(GLGBackground { Color.clear })
+        .background(Color(hex: 0xFFF2F2F7))
     }
 
     // ── 로직 ──
@@ -218,7 +219,7 @@ struct AddSpendingView: View {
                 .font(.system(size: 15))
                 .keyboardType(number ? .numberPad : .default)
                 .glgPillField()
-                .onChange(of: text.wrappedValue) { if number { text.wrappedValue = $0.filter(\.isNumber) } }
+                .onChange(of: text.wrappedValue) { _, newValue in if number { text.wrappedValue = newValue.filter(\.isNumber) } }
         }
     }
     private func chip(_ label: String, _ selected: Bool, _ action: @escaping () -> Void) -> some View {

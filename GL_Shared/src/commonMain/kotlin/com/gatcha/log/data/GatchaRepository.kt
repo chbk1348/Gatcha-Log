@@ -248,7 +248,8 @@ class GatchaRepository(accountId: String = "guest") {
         changed()
     }
 
-    // ---------------------------------------------------------------- 교환한 선물코드 (자동수집 목록에서 사용 표시) — 로컬 전용
+    // ---------------------------------------------------------------- 교환한 선물코드 (자동수집 목록에서 '받음' 표시)
+    // 스냅샷 동기화 대상 — 재설치·기기변경·계정전환에도 '받음'이 유지되도록(미동기화 시 받은 코드가 다시 '받기 가능'으로 노출됨).
     fun loadRedeemedCodes(): Set<String> {
         val raw = prefs.getString(KEY_REDEEMED, null) ?: return emptySet()
         return runCatching {
@@ -258,8 +259,8 @@ class GatchaRepository(accountId: String = "guest") {
     }
 
     fun saveRedeemedCodes(codes: Set<String>) {
-        // 스냅샷 미포함(로컬 전용) → changed() 미호출
         prefs.putString(KEY_REDEEMED, JSONArray(codes.toList()).toString())
+        changed() // 스냅샷 포함 → 변경 시 클라우드 동기화 트리거
     }
 
     // ---------------------------------------------------------------- 읽은 홈 알림 넛징 키 — 로컬 전용(기기별 UI 상태)
@@ -314,6 +315,7 @@ class GatchaRepository(accountId: String = "guest") {
         prefs.getString(KEY_SUBS, null)?.let { o.put(KEY_SUBS, JSONArray(it)) }
         prefs.getString(KEY_GACHA, null)?.let { o.put(KEY_GACHA, JSONArray(it)) }
         prefs.getString(KEY_HOME_CARDS, null)?.let { o.put(KEY_HOME_CARDS, JSONArray(it)) }
+        prefs.getString(KEY_REDEEMED, null)?.let { o.put(KEY_REDEEMED, JSONArray(it)) }
         return o.toString()
     }
 
@@ -339,6 +341,13 @@ class GatchaRepository(accountId: String = "guest") {
         if (o.has(KEY_SUBS)) prefs.putString(KEY_SUBS, o.getJSONArray(KEY_SUBS).toString())
         if (o.has(KEY_GACHA)) prefs.putString(KEY_GACHA, o.getJSONArray(KEY_GACHA).toString())
         if (o.has(KEY_HOME_CARDS)) prefs.putString(KEY_HOME_CARDS, o.getJSONArray(KEY_HOME_CARDS).toString())
+        // 교환한 코드는 **합집합 병합**(덮어쓰기 금지) — 오래된/빈 스냅샷이 로컬 '받음'을 되돌리지 않도록(받음은 단조 증가).
+        if (o.has(KEY_REDEEMED)) {
+            val arr = o.getJSONArray(KEY_REDEEMED)
+            val incoming = (0 until arr.length()).map { arr.getString(it) }
+            val merged = loadRedeemedCodes() + incoming
+            prefs.putString(KEY_REDEEMED, JSONArray(merged.toList()).toString())
+        }
     }
 
     private companion object {

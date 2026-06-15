@@ -24,7 +24,7 @@ struct BudgetSheet: View {
                 Section("전체 월 예산") {
                     TextField("예산 (원)", text: $overall)
                         .keyboardType(.numberPad)
-                        .onChange(of: overall) { overall = $0.filter(\.isNumber) }
+                        .onChange(of: overall) { _, newValue in overall = newValue.filter(\.isNumber) }
                 }
                 Section {
                     ForEach(games, id: \.key) { game in
@@ -91,7 +91,7 @@ struct NudgeThresholdSheet: View {
                 Section {
                     TextField("기준 금액 (원)", text: $text)
                         .keyboardType(.numberPad)
-                        .onChange(of: text) { text = $0.filter(\.isNumber) }
+                        .onChange(of: text) { _, newValue in text = newValue.filter(\.isNumber) }
                 } footer: {
                     Text("단건 지출이 이 금액 이상이면 추가 전 한 번 더 확인해요.")
                 }
@@ -184,6 +184,12 @@ private enum UpdateLog {
     // iOS 전용 업데이트 로그 — Android 와 별도 작성/관리. (iOS 릴리스 태그: vX.Y.Z-ios)
     static func entries(currentVersion: String) -> [Entry] {
         [
+            Entry(version: "v27.26.0", items: [
+                "충전 가성비 비교를 추가했어요 — 호요 3종 패키지의 단가·뽑 환산을 한눈에 비교해요",
+                "게임 정보에서 스타레일 광추(돌파) 픽업 배너도 무기처럼 표시해요",
+                "구글 로그인 안정성을 다듬었어요 — 인증 도중 종료돼도 계정 저장소가 어긋나지 않아요",
+                "내부 구조를 정리해 안정성과 동작 속도를 개선했어요",
+            ]),
             Entry(version: "v27.25.0", items: [
                 "통합 계산기를 새 대시보드로 개편했어요 — 게임·배너 선택부터 확보 확률·필요 재화·시나리오까지 한 화면에서",
                 "가챠 효율 리포트를 개편했어요 — 게임별 카드와 운(행운) 분포를 한눈에",

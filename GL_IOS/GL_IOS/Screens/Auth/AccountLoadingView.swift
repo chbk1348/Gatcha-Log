@@ -78,7 +78,7 @@ struct AccountLoadingView: View {
             if !loading { finish() }
         }
         // iOS 16 호환 1-파라미터 onChange.
-        .onChange(of: loading) { isLoading in
+        .onChange(of: loading) { _, isLoading in
             if !isLoading { finish() }
         }
     }

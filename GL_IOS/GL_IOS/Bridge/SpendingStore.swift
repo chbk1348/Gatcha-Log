@@ -28,6 +28,8 @@ final class SpendingStore: ObservableObject {
     @Published private(set) var accentIndex: Int
     @Published private(set) var profile: UserProfile
     @Published private(set) var statusMessage: String?
+    /// 네트워크 미연결 경고 — 얼럿 모달용(nil 이 아니면 표시). 토스트(statusMessage)와 분리.
+    @Published private(set) var networkAlert: String?
     @Published private(set) var initialSyncing: Bool
 
     // ── Phase 2 (마이페이지/설정) ──
@@ -103,6 +105,7 @@ final class SpendingStore: ObservableObject {
         bind(vm.accentIndex) { [weak self] in self?.accentIndex = Int($0.int32Value) }
         bind(vm.profile) { [weak self] in self?.profile = $0 }
         bind(vm.statusMessage) { [weak self] in self?.statusMessage = $0 }
+        bind(vm.networkAlert) { [weak self] in self?.networkAlert = $0 }
         bind(vm.initialSyncing) { [weak self] in self?.initialSyncing = $0.boolValue }
 
         // Phase 2
@@ -181,6 +184,8 @@ final class SpendingStore: ObservableObject {
     func setProfileName(_ name: String) { vm.setProfileName(name: name) }
     /// 상태 토스트 소비.
     func clearStatus() { vm.clearStatus() }
+    /// 네트워크 미연결 얼럿 소비.
+    func clearNetworkAlert() { vm.clearNetworkAlert() }
 
     // ── Phase 2 액션 ──────────────────────────────────────────────────────
     /// 전체 예산 + 게임별 한도 저장.

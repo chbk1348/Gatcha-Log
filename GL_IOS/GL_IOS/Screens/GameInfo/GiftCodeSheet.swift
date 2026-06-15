@@ -57,7 +57,7 @@ struct GiftCodePage: View {
         .onAppear {
             if !didInit { didInit = true; selected = games.first?.0 ?? "genshin"; if !games.isEmpty { store.loadActiveCodes(selected) } }
         }
-        .onChange(of: selected) { if !games.isEmpty { store.loadActiveCodes($0) } }
+        .onChange(of: selected) { _, newValue in if !games.isEmpty { store.loadActiveCodes(newValue) } }
         .onDisappear { store.resetRedeem() }
     }
 
@@ -156,7 +156,7 @@ struct GiftCodePage: View {
         VStack(alignment: .leading, spacing: 8) {
             Text("직접 입력 (새 코드)").font(.system(size: 11, weight: .semibold)).foregroundStyle(GLGColor.textSecondary)
             TextField("예: GENSHINGIFT", text: $code).textFieldStyle(.plain).glgPillField().autocapitalization(.allCharacters)
-                .onChange(of: code) { code = $0.uppercased().filter { $0.isLetter || $0.isNumber } }
+                .onChange(of: code) { _, newValue in code = newValue.uppercased().filter { $0.isLetter || $0.isNumber } }
             if !code.isEmpty {
                 Button { store.redeemGiftCode(gameKey: selected, code: code.trimmingCharacters(in: .whitespaces)); code = "" } label: {
                     Text("이 코드 교환").font(.system(size: 12, weight: .bold)).foregroundStyle(accent.primary)

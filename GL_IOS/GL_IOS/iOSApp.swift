@@ -20,6 +20,9 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
         // 2. 자동 출석 백그라운드 태스크 등록 (Kotlin BGTaskScheduler 핸들러)
         NativeScheduler_iosKt.registerBackgroundTask()
 
+        // 2-1. 네트워크 연결 감지 시작 — Kotlin NetworkMonitor.online 을 NWPathMonitor 로 지속 갱신.
+        NetworkReachability.shared.start()
+
         // 3. 알림 델리게이트 — 이게 없으면 앱이 포그라운드일 때 발생한 로컬 알림
         //    (예산 초과·출석 완료·재화 넛지)이 배너로 표시되지 않고 무음으로 사라진다.
         UNUserNotificationCenter.current().delegate = self
@@ -30,7 +33,7 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
             DispatchQueue.main.async {
                 GoogleWebOAuth.shared.signIn { tokens in
                     DispatchQueue.main.async {
-                        callback(tokens?.idToken, tokens?.accessToken, tokens?.email, tokens?.name, tokens?.picture)
+                        _ = callback(tokens?.idToken, tokens?.accessToken, tokens?.email, tokens?.name, tokens?.picture)
                     }
                 }
             }
