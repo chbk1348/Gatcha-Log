@@ -307,7 +307,7 @@ fun ThemeSection(selectedIndex: Int, onSelect: (Int) -> Unit) {
             AccentPalette.forEachIndexed { index, option ->
                 Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.clickable { onSelect(index) }) {
                     Box(
-                        modifier = Modifier.size(40.dp).clip(CircleShape).background(option.color),
+                        modifier = Modifier.size(40.dp).clip(CircleShape).background(option.color.toColor()),
                         contentAlignment = Alignment.Center,
                     ) {
                         if (index == selectedIndex) {
@@ -315,7 +315,7 @@ fun ThemeSection(selectedIndex: Int, onSelect: (Int) -> Unit) {
                         }
                     }
                     Spacer(Modifier.height(4.dp))
-                    Text(option.label, fontSize = 10.sp, color = if (index == selectedIndex) option.color else TextSecondary)
+                    Text(option.label, fontSize = 10.sp, color = if (index == selectedIndex) option.color.toColor() else TextSecondary)
                 }
             }
         }

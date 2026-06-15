@@ -7,10 +7,11 @@ import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.gatcha.log.data.Account
-import com.gatcha.log.data.AuthManager
+import com.gatcha.log.data.AppAuthManager
 import com.gatcha.log.data.SignInOutcome
 import com.gatcha.log.data.CloudSync
 import com.gatcha.log.data.DateUtil
+import com.gatcha.log.data.HoyoCalendar
 import com.gatcha.log.data.GachaBanner
 import com.gatcha.log.data.Game
 import com.gatcha.log.data.GameChallenge
@@ -71,7 +72,7 @@ sealed interface RedeemState {
  */
 class SpendingViewModel(app: Application) : AndroidViewModel(app) {
 
-    private val authManager = AuthManager(app)
+    private val authManager = AppAuthManager(app)
     /** 현재 로그인 계정 (게스트 = 비로그인 로컬) */
     val account: StateFlow<Account> = authManager.account
 
@@ -223,7 +224,7 @@ class SpendingViewModel(app: Application) : AndroidViewModel(app) {
     val attendanceStreak: StateFlow<Int> = _attendanceStreak.asStateFlow()
 
     private fun computeAttendanceStreak(): Int {
-        val cal = DateUtil.hoyoCalendar()
+        val cal = HoyoCalendar.instance()
         // 오늘 아직 출석 전이면 어제부터 카운트(낮 동안 streak 유지)
         if (attendanceMap[DateUtil.hoyoDayKey(cal.timeInMillis)].isNullOrEmpty()) {
             cal.add(Calendar.DAY_OF_YEAR, -1)

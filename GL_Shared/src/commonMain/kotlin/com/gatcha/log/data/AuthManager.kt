@@ -105,8 +105,10 @@ class AuthManager {
             photoUrl = result.photoUrl,
             isGuest = false,
         )
+        // prefs 영속은 completeSignIn 의 setAccount(최종 id=Firebase uid) 에서 수행한다.
+        // 여기서 email 키로 persist 하면, Firebase 인증 전 앱이 종료될 때 email 키가 고착돼
+        // uid 저장소(실데이터)를 못 찾는 상태가 남는다. (:app AppAuthManager 와 동일 하드닝)
         _account.value = account
-        persist(account)
         return SignInOutcome.Success(account)
     }
 

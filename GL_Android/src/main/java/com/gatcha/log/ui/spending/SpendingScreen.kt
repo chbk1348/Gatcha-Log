@@ -145,7 +145,8 @@ fun SpendingScreen(
     ) {
         LazyColumn(state = listState, modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
             item {
-                GlgTabHeader("지출 분석") {
+                // 제목 문구("지출 분석") 제거 — 우측 액션 버튼만 유지.
+                GlgTabHeader("") {
                     CalendarButton { nav = SpendingScreenNav.Calendar }
                     InsightButton { nav = SpendingScreenNav.Insight }
                     AnnualReportButton { nav = SpendingScreenNav.Annual }
@@ -153,17 +154,14 @@ fun SpendingScreen(
             }
             item { MonthlySummaryCard(viewModel.displayMonth, monthlyTotal, prevMonthTotal) }
             item { Spacer(Modifier.height(10.dp)) }
+            // 게임별 칩(스크롤) + 우측 고정 필터 버튼 — iOS HStack{gameFilterRow; filterButton} 와 동일 배치. ("지출 내역" 문구 제거)
             item {
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text("지출 내역", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    GameFilterRow(selectedGameFilter, Modifier.weight(1f)) { selectedGameFilter = it }
+                    Spacer(Modifier.width(8.dp))
                     FilterButton(activeFilterCount) { showFilterSheet.value = true }
                 }
             }
-            item { GameFilterRow(selectedGameFilter) { selectedGameFilter = it } }
 
             val filtered = spendings.filter { s ->
                 (selectedGameFilter == null || s.gameName == selectedGameFilter) &&
@@ -328,9 +326,9 @@ private fun InsightButton(onClick: () -> Unit) =
     HeaderPillButton(Icons.Default.Insights, "인사이트", null, onClick)
 
 @Composable
-fun GameFilterRow(selectedGame: String?, onGameSelected: (String?) -> Unit) {
+fun GameFilterRow(selectedGame: String?, modifier: Modifier = Modifier, onGameSelected: (String?) -> Unit) {
     val accent = LocalAccent.current
-    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(vertical = 8.dp)) {
+    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = modifier.padding(vertical = 8.dp)) {
         item { FilterPill("전체", selectedGame == null, accent) { onGameSelected(null) } }
         items(GameData.games) { game ->
             FilterPill(game.shortName, selectedGame == game.displayName, accent) { onGameSelected(game.displayName) }
@@ -421,22 +419,9 @@ fun HistoryItem(spending: Spending, onClick: () -> Unit) {
                 }
             }
             Text(won(spending.amount), fontSize = 14.sp, fontWeight = FontWeight.Bold)
-            Spacer(Modifier.width(10.dp))
-            // 3점 메뉴 대신 명시적 [상세] 버튼 (수정·삭제는 상세 페이지에서)
-            Surface(
-                color = accent.copy(alpha = 0.10f),
-                shape = RoundedCornerShape(10.dp),
-                border = BorderStroke(1.dp, accent.copy(alpha = 0.30f)),
-                modifier = Modifier.clip(RoundedCornerShape(10.dp)).clickable { onClick() },
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.padding(start = 10.dp, end = 6.dp, top = 6.dp, bottom = 6.dp),
-                ) {
-                    Text("상세", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = accent)
-                    Icon(Icons.Default.ChevronRight, contentDescription = null, tint = accent, modifier = Modifier.size(15.dp))
-                }
-            }
+            Spacer(Modifier.width(4.dp))
+            // 상세 진입은 행 전체 클릭(.clickable)으로 처리 — iOS 처럼 chevron 인디케이터만 표시.
+            Icon(Icons.Default.ChevronRight, contentDescription = null, tint = TextSecondary, modifier = Modifier.size(18.dp))
         }
     }
 }
