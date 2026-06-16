@@ -21,6 +21,7 @@ import com.gatcha.log.ui.components.GlgPullToRefreshBox
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -39,9 +40,11 @@ import com.gatcha.log.ui.components.GlassCard
 import com.gatcha.log.ui.components.GlgBackButton
 import com.gatcha.log.ui.components.GlgCircleIconButton
 import com.gatcha.log.ui.components.GlgTabHeader
-import com.gatcha.log.ui.spending.GameInfoAnchor
-import com.gatcha.log.ui.spending.SpendingViewModel
+import com.gatcha.log.data.GameInfoAnchor
+import com.gatcha.log.data.SpendingViewModel
+import com.gatcha.log.util.SafIO
 import com.gatcha.log.ui.theme.*
+import kotlinx.coroutines.launch
 
 /** 게임정보 탭의 풀스크린 하위 페이지 (열리면 하단바·FAB 숨김) */
 private enum class GiSub { Main, HoyoLink, Dashboard, Rate, Calc, RechargeValue, Profile, Report, Gift, Schedule }
@@ -54,6 +57,8 @@ fun GameInfoScreen(
     onSubPageChange: (Boolean) -> Unit = {},
 ) {
     val accent = LocalAccent.current
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     val banners by viewModel.activeBanners.collectAsState()
     val events by viewModel.gameEvents.collectAsState()
     val notes by viewModel.liveNotes.collectAsState()
@@ -165,7 +170,7 @@ fun GameInfoScreen(
                 GachaReportSection(
                     stats = gachaStats,
                     spendByGameKey = gachaSpendByGame,
-                    onImport = { uris -> viewModel.importGachaFromUris(uris) },
+                    onImport = { uris -> scope.launch { viewModel.importGachaFromContents(SafIO.readTexts(context, uris)) } },
                     onClear = { viewModel.clearGachaRecords() },
                     onOpenDashboard = { subPage = GiSub.Dashboard },
                 )

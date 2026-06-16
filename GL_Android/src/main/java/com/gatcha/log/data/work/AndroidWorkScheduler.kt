@@ -10,8 +10,13 @@ import androidx.work.WorkManager
 import com.gatcha.log.data.AppSettings
 import java.util.concurrent.TimeUnit
 
-/** 자동 출석·알림 점검용 주기 작업 스케줄링. 토글 변화·앱 시작 시 [apply] 로 동기화한다. */
-object NativeScheduler {
+/**
+ * 자동 출석·알림 점검용 주기 작업 스케줄링. 토글 변화·앱 시작 시 [apply] 로 동기화한다.
+ *
+ * NOTE: GL_Shared 에도 KMP expect/actual `NativeScheduler`(no-op 스텁)가 있어 FQN 이
+ * 겹치면 R8(release) 가 "defined multiple times" 로 실패한다. Android 실구현은 이 이름으로 분리한다.
+ */
+object AndroidWorkScheduler {
     private const val PERIODIC = "gatcha_periodic_work"
 
     /** 설정 상태에 맞춰 주기 작업을 켜거나 끈다. */
