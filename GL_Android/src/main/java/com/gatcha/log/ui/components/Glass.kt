@@ -9,12 +9,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.unit.dp
-import com.gatcha.log.ui.theme.DividerColor
 import com.gatcha.log.ui.theme.LocalAccent
 import com.gatcha.log.ui.theme.LocalAccentSecondary
 
@@ -51,19 +49,19 @@ fun GlassBackground(
 }
 
 /**
- * 카드 — 솔리드(거의 불투명) 흰색 카드(연한 보더 + 부드러운 그림자).
+ * 카드 — 솔리드(거의 불투명) 흰색 카드(연한 보더, 평평).
  * 가독성·스크롤 성능을 위해 backdrop-blur 를 쓰지 않는다(다중 블러로 인한 스크롤 끊김 방지).
+ * iOS(glgGlass: 흰 배경 + 아웃라인, 그림자 없음)와 동일하게 그림자를 두지 않는다(파리티).
  */
 @Composable
 fun GlassCard(
     modifier: Modifier = Modifier,
-    shape: Shape = RoundedCornerShape(24.dp),
+    shape: Shape = RoundedCornerShape(22.dp),
     content: @Composable BoxScope.() -> Unit,
 ) {
     val styled = modifier
-        .shadow(3.dp, shape, clip = false, ambientColor = Color(0x1F000000), spotColor = Color(0x1F000000))
         .clip(shape)
         .background(CardSurface)
-        .border(1.dp, DividerColor, shape)
+        .border(1.dp, Color.Black.copy(alpha = 0.08f), shape)
     Box(styled, content = content)
 }
