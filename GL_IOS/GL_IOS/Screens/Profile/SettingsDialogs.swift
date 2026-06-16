@@ -184,6 +184,10 @@ private enum UpdateLog {
     // iOS 전용 업데이트 로그 — Android 와 별도 작성/관리. (iOS 릴리스 태그: vX.Y.Z-ios)
     static func entries(currentVersion: String) -> [Entry] {
         [
+            Entry(version: "v27.27.0", items: [
+                "마이페이지를 대시보드로 새단장했어요 — 이번 달 지출·월별 추이·활동 지표·게임별 비중을 한눈에 봐요",
+                "내부 구조를 정리해 안정성과 iOS·안드로이드 동작 일관성을 높였어요",
+            ]),
             Entry(version: "v27.26.0", items: [
                 "충전 가성비 비교를 추가했어요 — 호요 3종 패키지의 단가·뽑 환산을 한눈에 비교해요",
                 "게임 정보에서 스타레일 광추(돌파) 픽업 배너도 무기처럼 표시해요",
