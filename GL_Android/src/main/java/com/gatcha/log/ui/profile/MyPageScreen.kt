@@ -189,7 +189,7 @@ private fun OutlineCard(
         shape = shape,
         color = Color.White,
         border = BorderStroke(1.dp, Color.Black.copy(alpha = 0.08f)),
-        shadowElevation = 1.dp,
+        shadowElevation = 0.dp,
         content = content,
     )
 }
