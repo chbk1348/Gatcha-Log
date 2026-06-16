@@ -32,6 +32,7 @@ import com.gatcha.log.data.Spending
 import com.gatcha.log.ui.components.GlassCard
 import com.gatcha.log.ui.components.GlgScreenHeader
 import com.gatcha.log.ui.theme.DangerText
+import com.gatcha.log.ui.theme.toColor
 import com.gatcha.log.ui.theme.DividerColor
 import com.gatcha.log.ui.theme.LocalAccent
 import com.gatcha.log.ui.theme.TextPrimary
@@ -168,8 +169,8 @@ private fun DayCell(
         // 배너 시작(▲)·종료(▼) 마커 — 게임색
         if (bannerStart.isNotEmpty() || bannerEnd.isNotEmpty()) {
             Row(horizontalArrangement = Arrangement.spacedBy(1.dp)) {
-                bannerStart.take(2).forEach { Text("▲", fontSize = 7.sp, color = it.gameColor) }
-                bannerEnd.take(2).forEach { Text("▼", fontSize = 7.sp, color = it.gameColor) }
+                bannerStart.take(2).forEach { Text("▲", fontSize = 7.sp, color = it.gameColor.toColor()) }
+                bannerEnd.take(2).forEach { Text("▼", fontSize = 7.sp, color = it.gameColor.toColor()) }
             }
         } else {
             Spacer(Modifier.height(9.dp))
@@ -185,7 +186,7 @@ private fun DayCell(
         if (attended.isNotEmpty()) {
             Row(horizontalArrangement = Arrangement.spacedBy(2.dp), modifier = Modifier.padding(top = 2.dp)) {
                 attended.take(4).forEach { gk ->
-                    val c = GameData.games.firstOrNull { it.key == gk }?.color ?: TextSecondary
+                    val c = GameData.games.firstOrNull { it.key == gk }?.color?.toColor() ?: TextSecondary
                     Box(Modifier.size(4.dp).clip(CircleShape).background(c))
                 }
             }
@@ -243,7 +244,7 @@ private fun CalendarLegend(accent: Color) {
         verticalAlignment = Alignment.CenterVertically,
     ) {
         LegendItem { Box(Modifier.size(10.dp).clip(RoundedCornerShape(3.dp)).background(accent.copy(alpha = 0.18f))); Text(" 지출", fontSize = 11.sp, color = TextSecondary) }
-        LegendItem { Box(Modifier.size(6.dp).clip(CircleShape).background(Game.GENSHIN.color)); Text(" 출석", fontSize = 11.sp, color = TextSecondary) }
+        LegendItem { Box(Modifier.size(6.dp).clip(CircleShape).background(Game.GENSHIN.color.toColor())); Text(" 출석", fontSize = 11.sp, color = TextSecondary) }
         LegendItem { Text("▲", fontSize = 9.sp, color = accent); Text(" 배너 시작", fontSize = 11.sp, color = TextSecondary) }
         LegendItem { Text("▼", fontSize = 9.sp, color = accent); Text(" 종료", fontSize = 11.sp, color = TextSecondary) }
     }

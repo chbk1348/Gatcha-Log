@@ -85,8 +85,8 @@ fun GatchaLogTheme(
     val accent = AccentPalette.getOrElse(accentIndex) { AccentPalette[0] }
 
     val colorScheme = lightColorScheme(
-        primary = accent.color,
-        secondary = accent.secondary,
+        primary = accent.color.toColor(),
+        secondary = accent.secondary.toColor(),
         background = Color.White,
         surface = Color.White,
         onPrimary = Color.White,
@@ -100,8 +100,8 @@ fun GatchaLogTheme(
     val fixedDensity = remember(systemDensity.density) { Density(systemDensity.density, fontScale = 1f) }
 
     CompositionLocalProvider(
-        LocalAccent provides accent.color,
-        LocalAccentSecondary provides accent.secondary,
+        LocalAccent provides accent.color.toColor(),
+        LocalAccentSecondary provides accent.secondary.toColor(),
         // 회색 박스/리플 대신 "눌린 느낌"(축소) 인디케이션을 전역 적용
         LocalIndication provides PressScaleIndication,
         LocalRippleConfiguration provides null,

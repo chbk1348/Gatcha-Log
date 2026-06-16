@@ -29,7 +29,8 @@ data class CheckInResult(
 ) {
     enum class Reason { NONE, AUTH, NETWORK, OTHER }
 }
-data class CodeResult(val success: Boolean, val message: String)
+/** [alreadyRedeemed] = 이미 계정에 귀속(수령)된 코드(retcode -2017/-2018). '받음' 처리 분기에 사용 — 메시지 문자열 매칭 금지. */
+data class CodeResult(val success: Boolean, val message: String, val alreadyRedeemed: Boolean = false)
 
 /**
  * HoYoLAB(OS) 실시간 노트 + 출석체크.
@@ -260,7 +261,7 @@ object HoyolabApi {
             val msg = json.optString("message")
             when (retcode) {
                 0 -> CodeResult(true, "교환 완료! 게임 우편함을 확인하세요")
-                -2017, -2018 -> CodeResult(false, "이미 사용한 코드예요")
+                -2017, -2018 -> CodeResult(false, "이미 사용한 코드예요", alreadyRedeemed = true)
                 -2001 -> CodeResult(false, "만료된 코드예요")
                 -2003, -2004, -2014 -> CodeResult(false, "유효하지 않은 코드예요")
                 -2016 -> CodeResult(false, "교환이 너무 잦아요. 잠시 후 다시 시도하세요")

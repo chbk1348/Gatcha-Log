@@ -31,6 +31,7 @@ import com.gatcha.log.ui.components.GlassCard
 import com.gatcha.log.ui.components.GlgButton
 import com.gatcha.log.ui.components.GlgOutlineButton
 import com.gatcha.log.ui.theme.DividerColor
+import com.gatcha.log.ui.theme.toColor
 import com.gatcha.log.ui.theme.LocalAccent
 import com.gatcha.log.ui.theme.TextPrimary
 import com.gatcha.log.ui.theme.TextSecondary
@@ -128,14 +129,14 @@ private fun ReportContent(stats: GachaStats, spendByGameKey: Map<String, Long>, 
 @Composable
 private fun GameCard(gk: String, g: GachaGameStat, spend: Long, showDash: Boolean, onOpenDashboard: () -> Unit) {
     val accent = LocalAccent.current
-    val (shortName, _, color) = GachaReport.gameInfo[gk] ?: Triple(gk, gk, Color(0xFF888888))
+    val (shortName, _, color) = GachaReport.gameInfo[gk] ?: Triple(gk, gk, 0xFF888888L)
     val cost = if (spend > 0 && g.five > 0) spend / g.five else 0L
     val dist = g.luckDist
     GlassCard(shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp)) {
             // 헤더 — 배지 + 게임명
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Surface(color = color, shape = RoundedCornerShape(7.dp)) {
+                Surface(color = color.toColor(), shape = RoundedCornerShape(7.dp)) {
                     Text(reportAbbr(gk), fontSize = 11.sp, fontWeight = FontWeight.Black, color = Color.White, modifier = Modifier.padding(horizontal = 7.dp, vertical = 4.dp))
                 }
                 Spacer(Modifier.width(10.dp))

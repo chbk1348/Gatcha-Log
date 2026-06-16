@@ -27,6 +27,7 @@ import com.gatcha.log.ui.components.GlgDialog
 import com.gatcha.log.ui.components.GlgOutlineButton
 import com.gatcha.log.ui.components.GlgScreenHeader
 import com.gatcha.log.ui.theme.DividerColor
+import com.gatcha.log.ui.theme.toColor
 import com.gatcha.log.ui.theme.TextSecondary
 import com.gatcha.log.util.won
 
@@ -58,8 +59,8 @@ fun SpendingDetailScreen(
                                 Text(spending.gameName, fontSize = 16.sp, fontWeight = FontWeight.Bold)
                                 if (spending.isSubscription) {
                                     Spacer(Modifier.width(8.dp))
-                                    Surface(color = spending.gameColor.copy(alpha = 0.12f), shape = RoundedCornerShape(6.dp)) {
-                                        Text("정기", fontSize = 10.sp, color = spending.gameColor, modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
+                                    Surface(color = spending.gameColor.toColor().copy(alpha = 0.12f), shape = RoundedCornerShape(6.dp)) {
+                                        Text("정기", fontSize = 10.sp, color = spending.gameColor.toColor(), modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
                                     }
                                 }
                             }

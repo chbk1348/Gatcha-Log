@@ -45,6 +45,7 @@ actual object UpdateChecker {
                 url = o.optString("url", ""),
                 apkUrl = apkUrl,
                 notes = notes,
+                sha256 = o.optString("sha256", "").trim(),
             )
         }.getOrNull()
     }

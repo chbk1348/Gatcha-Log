@@ -1,3 +1,5 @@
+@file:JvmName("AndroidThemeColorKt")  // Shared(commonMain) Color.kt 와 동일 패키지·파일명이라 ColorKt 파사드가 dex 병합 충돌 → 파사드명 분리.
+
 package com.gatcha.log.ui.theme
 
 import androidx.compose.ui.graphics.Color
@@ -29,13 +31,5 @@ val GIColor = Color(0xFF4F8EF7)
 val HSRColor = Color(0xFFB06BFF)
 val ZZZColor = Color(0xFFF5A623)
 
-/** 강조색 팔레트 (웹앱 테마 색상: 민트·퍼플·인디고·블루·로즈) */
-data class AccentOption(val label: String, val color: Color, val secondary: Color)
-
-val AccentPalette: List<AccentOption> = listOf(
-    AccentOption("민트", Color(0xFF34D1B6), Color(0xFF7FE3D0)),
-    AccentOption("퍼플", Color(0xFF8B5CF6), Color(0xFFC4B5FD)),
-    AccentOption("인디고", Color(0xFF4F46E5), Color(0xFFA5B4FC)),
-    AccentOption("블루", Color(0xFF3B82F6), Color(0xFF93C5FD)),
-    AccentOption("로즈", Color(0xFFF43F5E), Color(0xFFFDA4AF)),
-)
+// AccentOption / AccentPalette 는 GL_Shared(commonMain) 정본 사용(color/secondary 는 Long ARGB → toColor()).
+// 동일 FQN 중복 정의 시 dex 병합 충돌 → 여기서 재정의하지 않는다.

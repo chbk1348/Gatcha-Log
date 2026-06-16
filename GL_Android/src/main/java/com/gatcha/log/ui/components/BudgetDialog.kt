@@ -29,6 +29,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.gatcha.log.data.GameData
 import com.gatcha.log.ui.theme.DangerText
+import com.gatcha.log.ui.theme.toColor
 import com.gatcha.log.ui.theme.DividerColor
 import com.gatcha.log.ui.theme.TextSecondary
 import com.gatcha.log.util.won
@@ -93,7 +94,7 @@ fun BudgetDialog(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
-                    Box(Modifier.size(10.dp).clip(CircleShape).background(game.color))
+                    Box(Modifier.size(10.dp).clip(CircleShape).background(game.color.toColor()))
                     Column(Modifier.weight(1f)) {
                         Text(game.shortName, fontSize = 14.sp, fontWeight = FontWeight.Medium)
                         Text(

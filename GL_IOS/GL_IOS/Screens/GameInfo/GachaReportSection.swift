@@ -241,7 +241,7 @@ struct ProfileShowcaseSection: View {
                     }
                     HStack(spacing: 8) {
                         TextField("UID 입력 (예: 800000000)", text: $uid).keyboardType(.numberPad).textFieldStyle(.plain).glgPillField()
-                            .onChange(of: uid) { uid = $0.filter(\.isNumber) }
+                            .onChange(of: uid) { _, newValue in uid = newValue.filter(\.isNumber) }
                         Button("조회") { load(game: game, uid: uid) }
                             .buttonStyle(.borderedProminent)
                             .tint(accent.primary)

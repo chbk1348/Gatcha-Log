@@ -57,6 +57,7 @@ import com.gatcha.log.ui.theme.ProgressEmpty
 import com.gatcha.log.ui.theme.TextPrimary
 import com.gatcha.log.ui.theme.TextSecondary
 import com.gatcha.log.ui.theme.WarningText
+import com.gatcha.log.ui.theme.toColor
 import com.gatcha.log.util.won
 import kotlin.random.Random
 
@@ -388,7 +389,7 @@ private fun GameBudgetRow(gs: GameSpend, accent: Color, accent2: Color) {
     Column {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(Modifier.size(8.dp).clip(CircleShape).background(gs.game.color))
+                Box(Modifier.size(8.dp).clip(CircleShape).background(gs.game.color.toColor()))
                 Spacer(Modifier.width(7.dp))
                 Text(gs.game.shortName, fontSize = 13.sp)
             }
@@ -422,7 +423,7 @@ fun BannerCapsule(banner: GachaBanner) {
     val accent = LocalAccent.current
     // banner.game 은 displayName(예: "원신") — byNameOrNull 로 매핑
     val g = GameData.byNameOrNull(banner.game)
-    val color = banner.gameColor
+    val color = banner.gameColor.toColor()
     val d = banner.dDay()
     val urgent = d <= 3
     val chipColor = if (urgent) WarningText else accent
@@ -704,7 +705,7 @@ private fun NextBannerMini(b: GachaBanner?, plan: BannerPlan?, modifier: Modifie
                 val d = b.dDay()
                 val urgent = d <= 3
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(Modifier.size(8.dp).clip(CircleShape).background(b.gameColor))
+                    Box(Modifier.size(8.dp).clip(CircleShape).background(b.gameColor.toColor()))
                     Spacer(Modifier.width(6.dp))
                     Text(b.name, fontSize = 13.sp, fontWeight = FontWeight.Bold, maxLines = 1)
                 }

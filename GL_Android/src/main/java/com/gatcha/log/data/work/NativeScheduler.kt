@@ -17,7 +17,7 @@ object NativeScheduler {
     /** 설정 상태에 맞춰 주기 작업을 켜거나 끈다. */
     fun apply(context: Context) {
         val wm = WorkManager.getInstance(context)
-        if (AppSettings(context).needsPeriodicWork()) {
+        if (AppSettings().needsPeriodicWork()) {
             val req = PeriodicWorkRequestBuilder<GatchaWorker>(6, TimeUnit.HOURS)
                 .setConstraints(
                     Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build(),

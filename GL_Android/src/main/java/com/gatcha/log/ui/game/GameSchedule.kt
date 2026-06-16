@@ -9,7 +9,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.ChevronRight
-import androidx.compose.material.icons.filled.GpsFixed
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -26,6 +25,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.vector.path
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -41,6 +43,7 @@ import com.gatcha.log.ui.theme.DividerColor
 import com.gatcha.log.ui.theme.LocalAccent
 import com.gatcha.log.ui.theme.TextPrimary
 import com.gatcha.log.ui.theme.TextSecondary
+import com.gatcha.log.ui.theme.toColor
 
 // ============================================================
 // 통합 게임 일정 — 패치(게임별 다음 시작/종료)·진행 이벤트·정기 콘텐츠를 하나의 모델로 합쳐 날짜순 정렬.
@@ -80,18 +83,18 @@ fun buildSchedule(banners: List<GachaBanner>, events: List<GameEvent>, challenge
                 else -> "후반"               // 이전 버전 단일 페이즈 = 후반(전반 종료됨)
             }
             val title = if (v.isBlank()) "$phaseLabel 픽업 종료" else "v$v $phaseLabel 픽업 종료"
-            out += ScheduleEntry(game.key, game.shortName, game.color, "패치", title, "", ph.key, false)
+            out += ScheduleEntry(game.key, game.shortName, game.color.toColor(), "패치", title, "", ph.key, false)
         }
     }
     // ② 진행 중인 이벤트
     for (ev in events) {
         val g = GameData.byNameOrNull(ev.game)
-        out += ScheduleEntry(g?.key ?: ev.game, g?.shortName ?: ev.game, ev.gameColor, "이벤트", ev.name, ev.reward, ev.endMillis, false)
+        out += ScheduleEntry(g?.key ?: ev.game, g?.shortName ?: ev.game, ev.gameColor.toColor(), "이벤트", ev.name, ev.reward, ev.endMillis, false)
     }
     // ③ 정기 콘텐츠
     for (ch in challenges) {
         val g = GameData.byNameOrNull(ch.game)
-        out += ScheduleEntry(g?.key ?: ch.game, g?.shortName ?: ch.game, ch.gameColor, "콘텐츠", ch.name, ch.reward, ch.endMillis, false)
+        out += ScheduleEntry(g?.key ?: ch.game, g?.shortName ?: ch.game, ch.gameColor.toColor(), "콘텐츠", ch.name, ch.reward, ch.endMillis, false)
     }
     return out.sortedBy { it.target }
 }
@@ -113,10 +116,48 @@ private fun scheduleKindColor(kind: String): Color = when (kind) {
 
 private val Urgent = Color(0xFFE8634A)
 
+// 무기(검) 아이콘 — Material/SF Symbols에 검 심볼이 없어 커스텀 벡터로 정의(iOS SwordShape와 동일 형상).
+val SwordIcon: ImageVector = ImageVector.Builder("Sword", 24.dp, 24.dp, 24f, 24f).apply {
+    path(fill = SolidColor(Color.White)) {
+        moveTo(12f, 2f); lineTo(13.2f, 5f); lineTo(13.2f, 14f); lineTo(10.8f, 14f); lineTo(10.8f, 5f); close()   // 칼날
+        moveTo(8f, 14f); lineTo(16f, 14f); lineTo(16f, 16f); lineTo(8f, 16f); close()                             // 코등이
+        moveTo(11.1f, 16f); lineTo(12.9f, 16f); lineTo(12.9f, 20f); lineTo(11.1f, 20f); close()                   // 손잡이
+        moveTo(10.4f, 20f); lineTo(13.6f, 20f); lineTo(13.6f, 22f); lineTo(10.4f, 22f); close()                   // 폼멜
+    }
+}.build()
+
+// 픽업 그룹 라벨 — 캐릭터/무기 구분 소제목.
+@Composable
+private fun PickupGroupLabel(icon: ImageVector, text: String) {
+    Row(
+        Modifier.padding(top = 2.dp, bottom = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(5.dp),
+    ) {
+        Icon(icon, null, tint = TextSecondary, modifier = Modifier.size(13.dp))
+        Text(text, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextSecondary)
+    }
+}
+
+// 픽업 배너를 캐릭터 픽업 / 무기 픽업 2그룹으로 분류 표시.
+@Composable
+private fun PickupGroups(pickups: List<GachaBanner>) {
+    val chars = pickups.filter { it.type != "weapon" }
+    val weapons = pickups.filter { it.type == "weapon" }
+    if (chars.isNotEmpty()) {
+        PickupGroupLabel(Icons.Default.Person, "캐릭터 픽업")
+        chars.forEach { PickupBannerPill(it) }
+    }
+    if (weapons.isNotEmpty()) {
+        PickupGroupLabel(SwordIcon, "무기 픽업")
+        weapons.forEach { PickupBannerPill(it) }
+    }
+}
+
 // 픽업 배너 — 한 줄 알약(캡슐). 게임색 틴트.
 @Composable
 fun PickupBannerPill(banner: GachaBanner) {
-    val c = banner.gameColor
+    val c = banner.gameColor.toColor()
     val ddColor = if (banner.dDay() <= 3) Urgent else c
     Row(
         Modifier.fillMaxWidth().padding(bottom = 8.dp)
@@ -130,7 +171,7 @@ fun PickupBannerPill(banner: GachaBanner) {
         Surface(color = c, shape = RoundedCornerShape(999.dp)) {
             Text("픽업", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = Color.White, modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
         }
-        Icon(if (banner.type == "weapon") Icons.Default.GpsFixed else Icons.Default.Person, null, tint = c, modifier = Modifier.size(13.dp))
+        Icon(if (banner.type == "weapon") SwordIcon else Icons.Default.Person, null, tint = c, modifier = Modifier.size(13.dp))
         Text(banner.name, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
         Text(banner.endShortLabel(), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = ddColor)
     }
@@ -181,7 +222,7 @@ fun GameScheduleSection(
     GlassCard(shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp)) {
             if (pickups.isNotEmpty()) {
-                pickups.forEach { PickupBannerPill(it) }
+                PickupGroups(pickups)
                 if (top.isNotEmpty()) { Spacer(Modifier.height(4.dp)); HorizontalDivider(color = DividerColor); Spacer(Modifier.height(4.dp)) }
             }
             if (top.isNotEmpty()) {
@@ -192,7 +233,7 @@ fun GameScheduleSection(
             if (items.size > 3) {
                 HorizontalDivider(color = DividerColor)
                 Row(
-                    Modifier.fillMaxWidth().clickable { onSeeAll() }.padding(vertical = 12.dp),
+                    Modifier.fillMaxWidth().clickable { onSeeAll() }.padding(top = 12.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text("전체 일정 보기", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = accent)
@@ -214,7 +255,7 @@ private fun GameScheduleGroup(game: Game, entries: List<ScheduleEntry>, pickups:
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        Surface(color = game.color, shape = RoundedCornerShape(8.dp)) {
+        Surface(color = game.color.toColor(), shape = RoundedCornerShape(8.dp)) {
             Text(game.abbr, fontSize = 12.sp, fontWeight = FontWeight.Black, color = Color.White, modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp))
         }
         Text(game.displayName, fontSize = 17.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
@@ -222,7 +263,7 @@ private fun GameScheduleGroup(game: Game, entries: List<ScheduleEntry>, pickups:
     GlassCard(shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp)) {
             if (pickups.isNotEmpty()) {
-                pickups.forEach { PickupBannerPill(it) }
+                PickupGroups(pickups)
                 if (entries.isNotEmpty()) { Spacer(Modifier.height(4.dp)); HorizontalDivider(color = DividerColor); Spacer(Modifier.height(4.dp)) }
             }
             entries.forEachIndexed { i, e -> ScheduleEntryRow(e); if (i < entries.lastIndex) HorizontalDivider(color = DividerColor) }

@@ -48,6 +48,7 @@ import com.gatcha.log.ui.components.GlgOutlineButton
 import com.gatcha.log.ui.components.GlgSwitch
 import com.gatcha.log.ui.components.GlgTextField
 import com.gatcha.log.ui.theme.DividerColor
+import com.gatcha.log.ui.theme.toColor
 import com.gatcha.log.ui.theme.LocalAccent
 import com.gatcha.log.ui.theme.TextPrimary
 import com.gatcha.log.ui.theme.TextSecondary
@@ -369,14 +370,14 @@ private fun GameSelectItem(game: Game, isSelected: Boolean, onClick: () -> Unit)
     Surface(
         modifier = Modifier.clickable { onClick() },
         shape = RoundedCornerShape(12.dp),
-        color = if (isSelected) game.color else ChipIdleBg,
+        color = if (isSelected) game.color.toColor() else ChipIdleBg,
         border = if (isSelected) null else BorderStroke(1.dp, DividerColor),
     ) {
         Row(
             modifier = Modifier.padding(horizontal = 14.dp, vertical = 9.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Box(Modifier.size(7.dp).clip(CircleShape).background(if (isSelected) Color.White else game.color))
+            Box(Modifier.size(7.dp).clip(CircleShape).background(if (isSelected) Color.White else game.color.toColor()))
             Spacer(Modifier.width(8.dp))
             Text(
                 game.shortName,

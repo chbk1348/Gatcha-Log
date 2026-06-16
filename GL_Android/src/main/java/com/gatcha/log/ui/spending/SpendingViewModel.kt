@@ -7,12 +7,14 @@ import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.gatcha.log.data.Account
-import com.gatcha.log.data.AuthManager
+import com.gatcha.log.data.AppAuthManager
 import com.gatcha.log.data.SignInOutcome
 import com.gatcha.log.data.CloudSync
 import com.gatcha.log.data.DateUtil
+import com.gatcha.log.data.HoyoCalendar
 import com.gatcha.log.data.GachaBanner
 import com.gatcha.log.data.Game
+import com.gatcha.log.data.NetworkMonitor
 import com.gatcha.log.data.GameChallenge
 import com.gatcha.log.data.GachaRecord
 import com.gatcha.log.data.GachaReport
@@ -71,7 +73,7 @@ sealed interface RedeemState {
  */
 class SpendingViewModel(app: Application) : AndroidViewModel(app) {
 
-    private val authManager = AuthManager(app)
+    private val authManager = AppAuthManager(app)
     /** 현재 로그인 계정 (게스트 = 비로그인 로컬) */
     val account: StateFlow<Account> = authManager.account
 
@@ -80,7 +82,7 @@ class SpendingViewModel(app: Application) : AndroidViewModel(app) {
     fun continueAsGuest() = authManager.continueAsGuest()
 
     // 계정별로 분리되는 저장소. 계정 전환 시 교체된다.
-    private var repo: GatchaRepository = GatchaRepository(app, account.value.id)
+    private var repo: GatchaRepository = GatchaRepository(account.value.id)
 
     // ----------------------------------------------------------------- 상태 (계정별 로드)
     private val _spendings = MutableStateFlow<List<Spending>>(emptyList())
@@ -104,7 +106,7 @@ class SpendingViewModel(app: Application) : AndroidViewModel(app) {
     fun setHomeCards(list: List<HomeCardItem>) { _homeCards.value = list; repo.saveHomeCards(list) }
 
     // 네이티브 설정(자동 출석체크 등) — 기기 단위, 계정 무관
-    private val appSettings = AppSettings(app)
+    private val appSettings = AppSettings()
 
     /** HoYoLAB 토큰 만료 감지 플래그. 자동 출석 AUTH 실패 시 set, 재연동·재성공 시 clear. */
     private val _hoyoTokenExpired = MutableStateFlow(appSettings.hoyoTokenExpired)
@@ -138,7 +140,6 @@ class SpendingViewModel(app: Application) : AndroidViewModel(app) {
         // 여기선 알림 중복을 피하려고 postFailureNotification=false 로 끄고 토스트만 띄운다.
         viewModelScope.launch {
             val outcome = AutoCheckInRunner.run(
-                ctx = getApplication(),
                 settings = appSettings,
                 repo = repo,
                 cfg = repo.loadHoyolab(),
@@ -224,7 +225,7 @@ class SpendingViewModel(app: Application) : AndroidViewModel(app) {
     val attendanceStreak: StateFlow<Int> = _attendanceStreak.asStateFlow()
 
     private fun computeAttendanceStreak(): Int {
-        val cal = DateUtil.hoyoCalendar()
+        val cal = HoyoCalendar.instance()
         // 오늘 아직 출석 전이면 어제부터 카운트(낮 동안 streak 유지)
         if (attendanceMap[DateUtil.hoyoDayKey(cal.timeInMillis)].isNullOrEmpty()) {
             cal.add(Calendar.DAY_OF_YEAR, -1)
@@ -317,7 +318,7 @@ class SpendingViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private fun switchAccount(acc: Account) {
-        repo = GatchaRepository(getApplication(), acc.id)
+        repo = GatchaRepository(acc.id)
         repo.onChange = { scheduleCloudSync() }
         loadAll()
         // 로그인 계정이면 프로필을 구글 계정 정보로 맞춤
@@ -668,6 +669,12 @@ class SpendingViewModel(app: Application) : AndroidViewModel(app) {
     /** UI 에서 직접 토스트를 띄울 때 (예: 뒤로가기 종료 안내) */
     fun showStatus(msg: String) = emitStatus(msg)
 
+    /** 네트워크 미연결 경고 — 토스트가 아닌 **얼럿 모달**로 표시(메시지 != null 이면 노출). UI 가 확인 후 [clearNetworkAlert]. */
+    private val _networkAlert = MutableStateFlow<String?>(null)
+    val networkAlert: StateFlow<String?> = _networkAlert.asStateFlow()
+    fun clearNetworkAlert() { _networkAlert.value = null }
+    private fun emitNetworkAlert() { _networkAlert.value = "인터넷에 연결되어 있지 않아요.\n연결 상태를 확인한 뒤 다시 시도해주세요." }
+
     /** 읽은 알림 키 집합(안정 키 — 가변 메시지 아님). 기기 재진입에도 유지되도록 prefs 영구 저장(로컬 전용). */
     private val _readAlerts = MutableStateFlow<Set<String>>(emptySet())
     val readAlerts: StateFlow<Set<String>> = _readAlerts.asStateFlow()
@@ -686,7 +693,7 @@ class SpendingViewModel(app: Application) : AndroidViewModel(app) {
     /** 원격 version.json 과 현재 버전 비교. [manual] 이면 최신일 때 토스트로 알림. */
     fun checkForUpdate(manual: Boolean = false) {
         viewModelScope.launch {
-            val info = UpdateChecker.check(getApplication())
+            val info = UpdateChecker.check()
             if (info != null) _updateInfo.value = info
             else if (manual) emitStatus("이미 최신 버전이에요")
         }
@@ -759,6 +766,11 @@ class SpendingViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             _isRefreshing.value = true
             try {
+                // 오프라인이면 12초 타임아웃을 기다리지 않고 즉시 안내(앱 진입·새로고침 공통).
+                if (!NetworkMonitor.isOnline()) {
+                    emitNetworkAlert()
+                    return@launch
+                }
                 coroutineScope {
                     val cfg = _hoyolabConfig.value
                     val uids = if (cfg.isLinked) mapOf(
@@ -834,7 +846,10 @@ class SpendingViewModel(app: Application) : AndroidViewModel(app) {
     fun refreshSpending() {
         viewModelScope.launch {
             _isRefreshing.value = true
-            if (cloudConfigured) {
+            if (cloudConfigured && !NetworkMonitor.isOnline()) {
+                // 오프라인 — 클라우드 동기화는 건너뛰고 로컬만 갱신하며 안내.
+                emitNetworkAlert()
+            } else if (cloudConfigured) {
                 CloudSync.currentUid()?.let { uid ->
                     val hasPendingLocal = syncJob?.isActive == true // 디바운스 푸시 대기 = 미반영 로컬 변경
                     syncJob?.cancel()
@@ -948,7 +963,8 @@ class SpendingViewModel(app: Application) : AndroidViewModel(app) {
             return CodeResult(false, "HoYoLAB 재연동이 필요해요 (교환 인증 쿠키 없음)")
         }
         val r = HoyolabApi.redeemCode(cfg.ltuid, cfg.ltoken, cfg.cookieToken, cfg.webCookie, gameKey, uid, code)
-        if (r.success || r.message.contains("이미 사용")) markRedeemed(code)
+        // 교환 성공 또는 이미 계정 귀속(retcode -2017/-2018)이면 '받음' 표시 — 메시지 문자열 매칭 금지(확실 분기).
+        if (r.success || r.alreadyRedeemed) markRedeemed(code)
         return r
     }
 
@@ -970,7 +986,7 @@ class SpendingViewModel(app: Application) : AndroidViewModel(app) {
             targets.forEachIndexed { i, code ->
                 _redeemState.value = RedeemState.Loading
                 val r = doRedeem(gameKey, code)
-                if (r.success || r.message.contains("이미 사용")) ok++ else { fail++; lastFailMsg = r.message }
+                if (r.success || r.alreadyRedeemed) ok++ else { fail++; lastFailMsg = r.message }
                 if (i < targets.lastIndex) delay(5500) // 교환 레이트리밋(-2016) 회피
             }
             // 실패 사유를 그대로 노출(전부 실패 시 원인 파악 — 쿠키/만료/리전 등)
@@ -1045,7 +1061,7 @@ class SpendingViewModel(app: Application) : AndroidViewModel(app) {
     val displayMonth: Int get() = currentMonth
 
     // ----------------------------------------------------------------- 클라우드 동기화 (Firebase Firestore)
-    private val cloudConfigured: Boolean get() = CloudSync.isConfigured(getApplication())
+    private val cloudConfigured: Boolean get() = CloudSync.isConfigured()
     private var syncJob: Job? = null
 
     /** 기존 로그인 유저의 최초 클라우드 동기화(데이터 불러오는 중) 여부. 시작 시 로그인 상태면 true. */
@@ -1090,7 +1106,7 @@ class SpendingViewModel(app: Application) : AndroidViewModel(app) {
      */
     private fun carryOverGuestHoyolab() {
         if (repo.loadHoyolab().isLinked) return
-        val guest = GatchaRepository(getApplication(), Account.GUEST.id)
+        val guest = GatchaRepository(Account.GUEST.id)
         val guestCfg = guest.loadHoyolab()
         if (!guestCfg.isLinked) return
         repo.saveHoyolab(guestCfg)
@@ -1114,6 +1130,13 @@ class SpendingViewModel(app: Application) : AndroidViewModel(app) {
     private suspend fun cloudSyncPullOrSeed() {
         if (!cloudConfigured) { _initialSyncing.value = false; return }
         val uid = CloudSync.currentUid() ?: run { _initialSyncing.value = false; return }
+        // 로딩 페이지 오프라인 분기: 8초 타임아웃을 기다리지 않고 즉시 로컬로 진행 + 얼럿 안내.
+        if (!NetworkMonitor.isOnline()) {
+            emitNetworkAlert()
+            loadAll()
+            _initialSyncing.value = false
+            return
+        }
         _initialSyncing.value = true
         syncJob?.cancel()
         try {

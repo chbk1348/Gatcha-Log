@@ -21,6 +21,7 @@ import com.gatcha.log.ui.components.GlassCard
 import com.gatcha.log.ui.theme.LocalAccent
 import com.gatcha.log.ui.theme.ProgressEmpty
 import com.gatcha.log.ui.theme.TextSecondary
+import com.gatcha.log.ui.theme.toColor
 import com.gatcha.log.util.num
 
 /** 게임별 이번 달 재화 수입 카드 (여행자의 일지 / 폴리크롬 일지). */
@@ -30,7 +31,7 @@ internal fun LedgerCard(ledger: MonthlyLedger) {
     GlassCard(shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(Modifier.size(10.dp).background(ledger.gameColor, CircleShape))
+                Box(Modifier.size(10.dp).background(ledger.gameColor.toColor(), CircleShape))
                 Spacer(Modifier.width(8.dp))
                 Text(GameData.byName(ledger.game).shortName, fontWeight = FontWeight.Bold, fontSize = 15.sp)
                 if (ledger.month > 0) {
@@ -72,7 +73,7 @@ internal fun LedgerCard(ledger: MonthlyLedger) {
                     }
                     LinearProgressIndicator(
                         progress = { (e.percent / 100f).coerceIn(0f, 1f) },
-                        color = ledger.gameColor, trackColor = ProgressEmpty,
+                        color = ledger.gameColor.toColor(), trackColor = ProgressEmpty,
                         modifier = Modifier.fillMaxWidth().height(3.dp).clip(CircleShape),
                     )
                 }
