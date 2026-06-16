@@ -41,6 +41,26 @@ object HoyolabApi {
 
     private const val DS_SALT = "okr4obncj8bw5a65hbnn5oo6ixjc3l9w"
 
+    // 공통 헤더 값 — 호출별로 흩어져 있던 매직 문자열을 단일 출처로 모은다.
+    private const val APP_VERSION = "2.55.0"
+    private const val LANG = "ko-kr"
+    /** game_record 계열(dailyNote/note/combat/uid/zzz-ledger)이 쓰는 모바일 BBS UA. */
+    private const val UA_BBS = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) miHoYoBBS/2.55.0"
+    /** 출석·교환·원신일지 등 웹 act 계열이 쓰는 데스크톱 Chrome UA. */
+    private const val UA_WEB = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    private const val ACT_ORIGIN = "https://act.hoyolab.com"
+    private const val ACT_REFERER = "https://act.hoyolab.com/"
+
+    /** 응답 에러 매직 문자열 단일 출처. */
+    private object Err {
+        const val NETWORK = "네트워크 오류"
+        const val PARSE = "응답 파싱 실패"
+        const val UNSUPPORTED = "지원하지 않는 게임"
+    }
+
+    /** 쿠키 인증 만료를 뜻하는 공통 retcode(출석). */
+    private val AUTH_RETCODES = setOf(-100, -1071, 10001, 10002)
+
     private val NOTE_ENDPOINTS = mapOf(
         "genshin" to "https://bbs-api-os.hoyolab.com/game_record/app/genshin/api/dailyNote",
         "hsr" to "https://bbs-api-os.hoyolab.com/game_record/app/hkrpg/api/note",
@@ -55,44 +75,92 @@ object HoyolabApi {
 
     private val SIGN_GAME = mapOf("genshin" to "hk4e", "hsr" to "hkrpg", "zzz" to "zzz")
 
+    // ----------------------------------------------------------------- HTTP 헤더/응답 공통
+
+    /**
+     * HoYoLAB 헤더 빌더 — 호출마다 반복되던 헤더 맵 조립을 일원화한다(값은 호출별로 그대로 주입).
+     * Cookie 형식·client_type·UA 가 엔드포인트마다 다르므로 체인으로 필요한 것만 붙인다.
+     */
+    private class HoyoHeaders {
+        private val h = linkedMapOf<String, String>()
+        fun withCookie(cookie: String) = apply { h["Cookie"] = cookie }
+        fun withDS(query: String) = apply { h["DS"] = makeDS(query) }
+        /** game_record 계열 공통 3종: app_version + client_type + language. */
+        fun withRpc(clientType: Int) = apply {
+            h["x-rpc-app_version"] = APP_VERSION
+            h["x-rpc-client_type"] = clientType.toString()
+            h["x-rpc-language"] = LANG
+        }
+        fun withUserAgent(ua: String) = apply { h["User-Agent"] = ua }
+        /** 웹 act 계열의 Origin + Referer. */
+        fun withActOrigin() = apply {
+            h["Origin"] = ACT_ORIGIN
+            h["Referer"] = ACT_REFERER
+        }
+        fun put(key: String, value: String) = apply { h[key] = value }
+        fun build(): Map<String, String> = h
+    }
+
+    /** ltuid_v2/ltoken_v2 만(실시간 노트). */
+    private fun cookieV2(ltuid: String, ltoken: String) = "ltuid_v2=$ltuid; ltoken_v2=$ltoken;"
+
+    /** v1 + v2 (출석·일지 등 대부분). */
+    private fun cookieFull(ltuid: String, ltoken: String) =
+        "ltuid=$ltuid; ltoken=$ltoken; ltuid_v2=$ltuid; ltoken_v2=$ltoken;"
+
+    /**
+     * HoYoLAB JSON 응답 처리 템플릿 — 네트워크 가드 + 파싱 가드 + retcode/message 추출을 일원화.
+     * 각 호출부는 [onJson] 의 `when(retcode)` 만 작성한다.
+     */
+    private inline fun <T> NetResult.parse(
+        onNetwork: () -> T,
+        onParse: () -> T,
+        onJson: (retcode: Int, message: String, json: JSONObject) -> T,
+    ): T {
+        if (code == -1) return onNetwork()
+        return runCatching {
+            val json = JSONObject(body)
+            onJson(json.optInt("retcode", -1), json.optString("message"), json)
+        }.getOrElse { onParse() }
+    }
+
     // ----------------------------------------------------------------- 실시간 노트
     suspend fun getLiveNote(ltuid: String, ltoken: String, gameKey: String, uid: String): NoteResult {
-        val endpoint = NOTE_ENDPOINTS[gameKey] ?: return NoteResult(null, "지원하지 않는 게임")
+        val endpoint = NOTE_ENDPOINTS[gameKey] ?: return NoteResult(null, Err.UNSUPPORTED)
         if (ltuid.isBlank() || ltoken.isBlank() || uid.isBlank()) return NoteResult(null, "쿠키/UID 미설정")
 
         val server = inferServer(gameKey, uid)
         val query = "role_id=$uid&server=$server"
-        val headers = buildMap {
-            put("Cookie", "ltuid_v2=$ltuid; ltoken_v2=$ltoken;")
-            put("DS", makeDS(query))
-            put("x-rpc-app_version", "2.55.0")
-            put("x-rpc-client_type", "2")
-            put("x-rpc-language", "ko-kr")
-            put("User-Agent", "Mozilla/5.0 (iPhone; CPU iPhone OS 17_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) miHoYoBBS/2.55.0")
-            if (gameKey == "zzz") {
-                put("x-rpc-challenge_game", "8")
-                put("x-rpc-challenge_path", "event/game_record_zzz/api/zzz/note")
+        val headers = HoyoHeaders()
+            .withCookie(cookieV2(ltuid, ltoken))
+            .withDS(query)
+            .withRpc(2)
+            .withUserAgent(UA_BBS)
+            .apply {
+                if (gameKey == "zzz") {
+                    put("x-rpc-challenge_game", "8")
+                    put("x-rpc-challenge_path", "event/game_record_zzz/api/zzz/note")
+                }
             }
-        }
+            .build()
 
-        val res = Net.get("$endpoint?$query", headers)
-        if (res.code == -1) return NoteResult(null, "네트워크 오류")
-        return runCatching {
-            val json = JSONObject(res.body)
-            val retcode = json.optInt("retcode", -1)
-            if (retcode != 0) {
-                NoteResult(null, json.optString("message").ifBlank { "오류 ($retcode)" })
-            } else {
-                NoteResult(parseNote(gameKey, json.getJSONObject("data")), null)
-            }
-        }.getOrElse { NoteResult(null, "응답 파싱 실패") }
+        return Net.get("$endpoint?$query", headers).parse(
+            onNetwork = { NoteResult(null, Err.NETWORK) },
+            onParse = { NoteResult(null, Err.PARSE) },
+        ) { retcode, message, json ->
+            if (retcode != 0) NoteResult(null, message.ifBlank { "오류 ($retcode)" })
+            else NoteResult(parseNote(gameKey, json.getJSONObject("data")), null)
+        }
     }
 
-    private fun parseNote(gameKey: String, data: JSONObject): LiveNote {
-        val game = gameFor(gameKey)
-        return when (gameKey) {
-            "genshin" -> LiveNote(
-                game = game.displayName,
+    /**
+     * 게임별 노트 파서 전략 맵 — 새 게임 추가 시 여기 엔트리(+extras 함수) 한 곳만 손대면 된다.
+     * 람다 본문은 호출 시점에만 실행되므로 아래 extras/formatRecovery 메서드를 자유롭게 참조한다.
+     */
+    private val NOTE_PARSERS: Map<String, (game: String, data: JSONObject) -> LiveNote> = mapOf(
+        "genshin" to { game, data ->
+            LiveNote(
+                game = game,
                 currentResin = data.optInt("current_resin"),
                 maxResin = data.optInt("max_resin"),
                 resinRecoveryTime = formatRecovery(data.optString("resin_recovery_time").toLongOrNull() ?: 0),
@@ -100,8 +168,10 @@ object HoyolabApi {
                 maxDailyTaskCount = data.optInt("total_task_num"),
                 extras = genshinExtras(data),
             )
-            "hsr" -> LiveNote(
-                game = game.displayName,
+        },
+        "hsr" to { game, data ->
+            LiveNote(
+                game = game,
                 currentResin = data.optInt("current_stamina"),
                 maxResin = data.optInt("max_stamina"),
                 resinRecoveryTime = formatRecovery(data.optLong("stamina_recover_time")),
@@ -109,21 +179,26 @@ object HoyolabApi {
                 maxDailyTaskCount = data.optInt("max_train_score"),
                 extras = hsrExtras(data),
             )
-            else -> { // zzz
-                val energy = data.optJSONObject("energy")
-                val progress = energy?.optJSONObject("progress")
-                val vitality = data.optJSONObject("vitality")
-                LiveNote(
-                    game = game.displayName,
-                    currentResin = progress?.optInt("current") ?: 0,
-                    maxResin = progress?.optInt("max") ?: 0,
-                    resinRecoveryTime = formatRecovery(energy?.optLong("restore") ?: 0),
-                    dailyTaskCount = vitality?.optInt("current") ?: 0,
-                    maxDailyTaskCount = vitality?.optInt("max") ?: 0,
-                    extras = zzzExtras(data),
-                )
-            }
-        }
+        },
+        "zzz" to { game, data ->
+            val energy = data.optJSONObject("energy")
+            val progress = energy?.optJSONObject("progress")
+            val vitality = data.optJSONObject("vitality")
+            LiveNote(
+                game = game,
+                currentResin = progress?.optInt("current") ?: 0,
+                maxResin = progress?.optInt("max") ?: 0,
+                resinRecoveryTime = formatRecovery(energy?.optLong("restore") ?: 0),
+                dailyTaskCount = vitality?.optInt("current") ?: 0,
+                maxDailyTaskCount = vitality?.optInt("max") ?: 0,
+                extras = zzzExtras(data),
+            )
+        },
+    )
+
+    private fun parseNote(gameKey: String, data: JSONObject): LiveNote {
+        val parser = NOTE_PARSERS[gameKey] ?: NOTE_PARSERS.getValue("genshin")
+        return parser(gameFor(gameKey).displayName, data)
     }
 
     /**
@@ -181,36 +256,33 @@ object HoyolabApi {
 
     // ----------------------------------------------------------------- 출석체크
     suspend fun checkIn(ltuid: String, ltoken: String, gameKey: String): CheckInResult {
-        val url = SIGN_APIS[gameKey] ?: return CheckInResult(false, false, "지원하지 않는 게임", reason = CheckInResult.Reason.OTHER)
+        val url = SIGN_APIS[gameKey] ?: return CheckInResult(false, false, Err.UNSUPPORTED, reason = CheckInResult.Reason.OTHER)
         if (ltuid.isBlank() || ltoken.isBlank()) {
             return CheckInResult(false, false, "쿠키 미설정 — HoYoLAB 연동이 필요해요", reason = CheckInResult.Reason.AUTH)
         }
 
-        val headers = mapOf(
-            "Cookie" to "ltuid=$ltuid; ltoken=$ltoken; ltuid_v2=$ltuid; ltoken_v2=$ltoken;",
-            "User-Agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-            "x-rpc-client_type" to "5",
-            "x-rpc-signgame" to (SIGN_GAME[gameKey] ?: ""),
-            "Origin" to "https://act.hoyolab.com",
-            "Referer" to "https://act.hoyolab.com/",
-            "Content-Type" to "application/json",
-        )
+        val headers = HoyoHeaders()
+            .withCookie(cookieFull(ltuid, ltoken))
+            .withUserAgent(UA_WEB)
+            .put("x-rpc-client_type", "5")
+            .put("x-rpc-signgame", SIGN_GAME[gameKey] ?: "")
+            .withActOrigin()
+            .put("Content-Type", "application/json")
+            .build()
 
         // HoYoLAB sign 응답은 느릴 수 있어 30초까지 대기 (웹앱 GAS 와 동일)
-        val res = Net.post(url, headers, "{}", timeoutMs = 30_000)
-        if (res.code == -1) return CheckInResult(false, false, "네트워크 오류", reason = CheckInResult.Reason.NETWORK)
-        return runCatching {
-            val json = JSONObject(res.body)
-            val retcode = json.optInt("retcode", -1)
-            val msg = json.optString("message")
+        return Net.post(url, headers, "{}", timeoutMs = 30_000).parse(
+            onNetwork = { CheckInResult(false, false, Err.NETWORK, reason = CheckInResult.Reason.NETWORK) },
+            onParse = { CheckInResult(false, false, Err.PARSE, reason = CheckInResult.Reason.OTHER) },
+        ) { retcode, msg, _ ->
             when (retcode) {
                 0 -> CheckInResult(true, false, "출석 완료", retcode)
                 -5003 -> CheckInResult(true, true, "이미 출석했어요", retcode)
                 // 쿠키 인증 만료 — 재연동 필요
-                -100, -1071, 10001, 10002 -> CheckInResult(false, false, "쿠키 인증 만료", retcode, CheckInResult.Reason.AUTH)
+                in AUTH_RETCODES -> CheckInResult(false, false, "쿠키 인증 만료", retcode, CheckInResult.Reason.AUTH)
                 else -> CheckInResult(false, false, msg.ifBlank { "출석 실패 ($retcode)" }, retcode, CheckInResult.Reason.OTHER)
             }
-        }.getOrElse { CheckInResult(false, false, "응답 파싱 실패", reason = CheckInResult.Reason.OTHER) }
+        }
     }
 
     // ----------------------------------------------------------------- 선물코드 교환
@@ -228,7 +300,7 @@ object HoyolabApi {
      * 그 경우 인증 오류 retcode 를 안내 메시지로 변환한다.
      */
     suspend fun redeemCode(ltuid: String, ltoken: String, cookieToken: String, webCookie: String, gameKey: String, uid: String, code: String): CodeResult {
-        val spec = REDEEM[gameKey] ?: return CodeResult(false, "지원하지 않는 게임")
+        val spec = REDEEM[gameKey] ?: return CodeResult(false, Err.UNSUPPORTED)
         if (ltuid.isBlank() || ltoken.isBlank()) return CodeResult(false, "HoYoLAB 쿠키 미설정")
         if (uid.isBlank()) return CodeResult(false, "UID 미설정")
         val c = code.trim().uppercase()
@@ -246,19 +318,16 @@ object HoyolabApi {
                 if (cookieToken.isNotBlank()) append(" cookie_token=$cookieToken; cookie_token_v2=$cookieToken;")
             }
         }
-        val headers = mapOf(
-            "Cookie" to cookie,
-            "User-Agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-            "Origin" to "https://act.hoyolab.com",
-            "Referer" to "https://act.hoyolab.com/",
-        )
+        val headers = HoyoHeaders()
+            .withCookie(cookie)
+            .withUserAgent(UA_WEB)
+            .withActOrigin()
+            .build()
 
-        val res = Net.get("${spec.endpoint}?$query", headers)
-        if (res.code == -1) return CodeResult(false, "네트워크 오류")
-        return runCatching {
-            val json = JSONObject(res.body)
-            val retcode = json.optInt("retcode", -1)
-            val msg = json.optString("message")
+        return Net.get("${spec.endpoint}?$query", headers).parse(
+            onNetwork = { CodeResult(false, Err.NETWORK) },
+            onParse = { CodeResult(false, Err.PARSE) },
+        ) { retcode, msg, _ ->
             when (retcode) {
                 0 -> CodeResult(true, "교환 완료! 게임 우편함을 확인하세요")
                 -2017, -2018 -> CodeResult(false, "이미 사용한 코드예요", alreadyRedeemed = true)
@@ -268,7 +337,7 @@ object HoyolabApi {
                 -1071, -100 -> CodeResult(false, "쿠키 인증 필요 — HoYoLAB 재연동(쿠키 갱신)")
                 else -> CodeResult(false, msg.ifBlank { "교환 실패 ($retcode)" })
             }
-        }.getOrElse { CodeResult(false, "응답 파싱 실패") }
+        }
     }
 
     // ----------------------------------------------------------------- 게임 UID 자동 조회
@@ -281,19 +350,17 @@ object HoyolabApi {
      */
     suspend fun fetchGameUids(ltuid: String, ltoken: String): Map<String, String> {
         if (ltuid.isBlank() || ltoken.isBlank()) return emptyMap()
-        val cookie = "ltuid=$ltuid; ltoken=$ltoken; ltuid_v2=$ltuid; ltoken_v2=$ltoken; account_id=$ltuid; account_id_v2=$ltuid;"
+        val cookie = cookieFull(ltuid, ltoken) + " account_id=$ltuid; account_id_v2=$ltuid;"
         val out = linkedMapOf<String, String>()
 
         // 1) 바인딩 API — game_biz 로 모든 게임 역할(ZZZ 포함)
         runCatching {
-            val h = mapOf(
-                "Cookie" to cookie,
-                "x-rpc-app_version" to "2.55.0",
-                "x-rpc-client_type" to "2",
-                "x-rpc-language" to "ko-kr",
-                "User-Agent" to "Mozilla/5.0 (iPhone; CPU iPhone OS 17_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) miHoYoBBS/2.55.0",
-                "Referer" to "https://act.hoyolab.com/",
-            )
+            val h = HoyoHeaders()
+                .withCookie(cookie)
+                .withRpc(2)
+                .withUserAgent(UA_BBS)
+                .put("Referer", ACT_REFERER)
+                .build()
             val res = Net.get("https://api-account-os.hoyoverse.com/account/binding/api/getUserGameRolesByLtoken?game_biz=", h)
             JSONObject(res.body).optJSONObject("data")?.optJSONArray("list")?.let { list ->
                 // 한 게임에 여러 역할(지역/부계정)이 올 수 있다 → 게임별 후보를 모은 뒤 대표 1개만 선택
@@ -321,14 +388,12 @@ object HoyolabApi {
         // 2) getGameRecordCard — 바인딩에 없는 게임 보강
         if (out.size < 3) runCatching {
             val query = "uid=$ltuid"
-            val h = mapOf(
-                "Cookie" to cookie,
-                "DS" to makeDS(query),
-                "x-rpc-app_version" to "2.55.0",
-                "x-rpc-client_type" to "2",
-                "x-rpc-language" to "ko-kr",
-                "User-Agent" to "Mozilla/5.0 (iPhone; CPU iPhone OS 17_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) miHoYoBBS/2.55.0",
-            )
+            val h = HoyoHeaders()
+                .withCookie(cookie)
+                .withDS(query)
+                .withRpc(2)
+                .withUserAgent(UA_BBS)
+                .build()
             val res = Net.get("https://bbs-api-os.hoyolab.com/game_record/card/wapi/getGameRecordCard?$query", h)
             JSONObject(res.body).optJSONObject("data")?.optJSONArray("list")?.let { list ->
                 for (i in 0 until list.length()) {
@@ -374,22 +439,20 @@ object HoyolabApi {
 
         val region = inferServer(gameKey, uid)
         val query = "month=&lang=ko-kr&region=$region&uid=$uid" // month 비우면 이번 달
-        val headers = mapOf(
-            "Cookie" to "ltuid=$ltuid; ltoken=$ltoken; ltuid_v2=$ltuid; ltoken_v2=$ltoken;",
-            "DS" to makeDS(query),
-            "x-rpc-app_version" to "2.55.0",
-            "x-rpc-client_type" to "5",
-            "x-rpc-language" to "ko-kr",
-            "User-Agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-        )
+        val headers = HoyoHeaders()
+            .withCookie(cookieFull(ltuid, ltoken))
+            .withDS(query)
+            .withRpc(5)
+            .withUserAgent(UA_WEB)
+            .build()
 
-        val res = Net.get("${spec.endpoint}?$query", headers)
-        if (res.code == -1) return null
-        return runCatching {
-            val json = JSONObject(res.body)
-            if (json.optInt("retcode", -1) != 0) return null
+        return Net.get("${spec.endpoint}?$query", headers).parse<MonthlyLedger?>(
+            onNetwork = { null },
+            onParse = { null },
+        ) { retcode, _, json ->
+            if (retcode != 0) return@parse null
             val data = json.getJSONObject("data")
-            val md = data.optJSONObject("month_data") ?: return null
+            val md = data.optJSONObject("month_data") ?: return@parse null
 
             val lastField = "last_" + spec.premiumField.removePrefix("current_")
             val breakdown = md.optJSONArray("group_by")?.let { arr ->
@@ -409,7 +472,7 @@ object HoyolabApi {
                 goldLabel = spec.goldLabel,
                 breakdown = breakdown.sortedByDescending { it.num },
             )
-        }.getOrNull()
+        }
     }
 
     /** 젠레스 폴리크롬 일지 (nap_ledger). month_data.list[] + income_components[] 의 별도 shape. */
@@ -417,21 +480,19 @@ object HoyolabApi {
         if (ltuid.isBlank() || ltoken.isBlank() || uid.isBlank()) return null
         val region = inferServer("zzz", uid)
         val query = "lang=ko-kr&month=&region=$region&uid=$uid"
-        val headers = mapOf(
-            "Cookie" to "ltuid=$ltuid; ltoken=$ltoken; ltuid_v2=$ltuid; ltoken_v2=$ltoken;",
-            "DS" to makeDS(query),
-            "x-rpc-app_version" to "2.55.0",
-            "x-rpc-client_type" to "2",
-            "x-rpc-language" to "ko-kr",
-            "User-Agent" to "Mozilla/5.0 (iPhone; CPU iPhone OS 17_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) miHoYoBBS/2.55.0",
-        )
-        val res = Net.get("https://sg-public-api.hoyolab.com/event/nap_ledger/month_info?$query", headers)
-        if (res.code == -1) return null
-        return runCatching {
-            val json = JSONObject(res.body)
-            if (json.optInt("retcode", -1) != 0) return null
+        val headers = HoyoHeaders()
+            .withCookie(cookieFull(ltuid, ltoken))
+            .withDS(query)
+            .withRpc(2)
+            .withUserAgent(UA_BBS)
+            .build()
+        return Net.get("https://sg-public-api.hoyolab.com/event/nap_ledger/month_info?$query", headers).parse<MonthlyLedger?>(
+            onNetwork = { null },
+            onParse = { null },
+        ) { retcode, _, json ->
+            if (retcode != 0) return@parse null
             val data = json.getJSONObject("data")
-            val md = data.optJSONObject("month_data") ?: return null
+            val md = data.optJSONObject("month_data") ?: return@parse null
 
             var premium = 0L
             var premiumLabel = "폴리크롬"
@@ -457,7 +518,7 @@ object HoyolabApi {
                 premiumLabel = premiumLabel,
                 breakdown = breakdown.sortedByDescending { it.num },
             )
-        }.getOrNull()
+        }
     }
 
     /** nap_ledger income_components 액션 키 → KR 라벨 (API가 키만 줘서 앱 매핑). */
@@ -482,14 +543,12 @@ object HoyolabApi {
         val server = inferServer(gameKey, uid)
         val cookie = "ltuid_v2=$ltuid; ltoken_v2=$ltoken; ltuid=$ltuid; ltoken=$ltoken;"
         suspend fun fetch(base: String, query: String): JSONObject? {
-            val headers = mapOf(
-                "Cookie" to cookie,
-                "DS" to makeDS(query),
-                "x-rpc-app_version" to "2.55.0",
-                "x-rpc-client_type" to "2",
-                "x-rpc-language" to "ko-kr",
-                "User-Agent" to "Mozilla/5.0 (iPhone; CPU iPhone OS 17_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) miHoYoBBS/2.55.0",
-            )
+            val headers = HoyoHeaders()
+                .withCookie(cookie)
+                .withDS(query)
+                .withRpc(2)
+                .withUserAgent(UA_BBS)
+                .build()
             val res = Net.get("$base?$query", headers)
             return runCatching {
                 JSONObject(res.body).takeIf { it.optInt("retcode", -1) == 0 }?.optJSONObject("data")
