@@ -5,6 +5,7 @@ import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.gatcha.log.data.AppSettings
 import com.gatcha.log.data.DateUtil
+import com.gatcha.log.data.HoyoCalendar
 import com.gatcha.log.data.GameData
 import com.gatcha.log.data.GatchaRepository
 import com.gatcha.log.data.HoyolabConfig
@@ -22,8 +23,8 @@ class GatchaWorker(appContext: Context, params: WorkerParameters) : CoroutineWor
 
     override suspend fun doWork(): Result {
         val ctx = applicationContext
-        val settings = AppSettings(ctx)
-        val repo = GatchaRepository(ctx, AppSettings.currentAccountId(ctx))
+        val settings = AppSettings()
+        val repo = GatchaRepository(AppSettings.currentAccountId())
         val cfg = repo.loadHoyolab()
         if (settings.autoCheckIn) runCatching { autoCheckIn(ctx, settings, repo, cfg) }
         runCatching { checkNotifications(ctx, settings, repo, cfg) }
@@ -32,7 +33,7 @@ class GatchaWorker(appContext: Context, params: WorkerParameters) : CoroutineWor
 
     /** 출석 시도·결과 집계·실패 알림은 [AutoCheckInRunner] 가 담당(UI 호출과 동일 흐름). */
     private suspend fun autoCheckIn(ctx: Context, settings: AppSettings, repo: GatchaRepository, cfg: HoyolabConfig) {
-        AutoCheckInRunner.run(ctx, settings, repo, cfg, postFailureNotification = true)
+        AutoCheckInRunner.run(settings, repo, cfg, postFailureNotification = true)
     }
 
     private suspend fun checkNotifications(ctx: Context, settings: AppSettings, repo: GatchaRepository, cfg: HoyolabConfig) {
@@ -51,8 +52,8 @@ class GatchaWorker(appContext: Context, params: WorkerParameters) : CoroutineWor
                     val key = "$y-$m:$level"
                     if (settings.lastNotified("budget") != key) {
                         settings.setLastNotified("budget", key)
-                        if (level == "over") Notifier.notify(ctx, Notifier.ID_BUDGET, "예산 초과", "이번 달 예산을 초과했어요 (${pct}%)")
-                        else Notifier.notify(ctx, Notifier.ID_BUDGET, "예산 임박", "이번 달 예산의 ${pct}%를 사용했어요")
+                        if (level == "over") Notifier.notify(Notifier.ID_BUDGET, "예산 초과", "이번 달 예산을 초과했어요 (${pct}%)")
+                        else Notifier.notify(Notifier.ID_BUDGET, "예산 임박", "이번 달 예산의 ${pct}%를 사용했어요")
                     }
                 }
             }
@@ -70,8 +71,8 @@ class GatchaWorker(appContext: Context, params: WorkerParameters) : CoroutineWor
                     if (settings.lastNotified(tag) != key) {
                         settings.setLastNotified(tag, key)
                         val nid = Notifier.ID_BUDGET_GAME_BASE + game.ordinal
-                        if (level == "over") Notifier.notify(ctx, nid, "${game.shortName} 예산 초과", "${game.shortName} 이번 달 한도를 초과했어요 (${pct}%)")
-                        else Notifier.notify(ctx, nid, "${game.shortName} 예산 임박", "${game.shortName} 한도의 ${pct}%를 사용했어요")
+                        if (level == "over") Notifier.notify(nid, "${game.shortName} 예산 초과", "${game.shortName} 이번 달 한도를 초과했어요 (${pct}%)")
+                        else Notifier.notify(nid, "${game.shortName} 예산 임박", "${game.shortName} 한도의 ${pct}%를 사용했어요")
                     }
                 }
             }
@@ -79,14 +80,14 @@ class GatchaWorker(appContext: Context, params: WorkerParameters) : CoroutineWor
 
         // ② 출석 리마인더 (베이징 저녁 이후 미출석) — 하루 1회
         if (settings.notifyAttendance && cfg.isLinked) {
-            val hour = DateUtil.hoyoCalendar().get(Calendar.HOUR_OF_DAY)
+            val hour = HoyoCalendar.instance().get(Calendar.HOUR_OF_DAY)
             if (hour >= 18) {
                 val today = DateUtil.hoyoDayKey()
                 val done = repo.loadAttendance()[today] ?: emptySet()
                 val pending = GameData.attendanceGames.filter { it.key !in done }
                 if (pending.isNotEmpty() && settings.lastNotified("attend") != today) {
                     settings.setLastNotified("attend", today)
-                    Notifier.notify(ctx, Notifier.ID_ATTEND, "출석 체크 알림", "${pending.joinToString(", ") { it.shortName }} 아직 출석 안 했어요")
+                    Notifier.notify(Notifier.ID_ATTEND, "출석 체크 알림", "${pending.joinToString(", ") { it.shortName }} 아직 출석 안 했어요")
                 }
             }
         }
@@ -103,7 +104,7 @@ class GatchaWorker(appContext: Context, params: WorkerParameters) : CoroutineWor
                     val tag = "resin:${game.key}"
                     if (settings.lastNotified(tag) != today) {
                         settings.setLastNotified(tag, today)
-                        Notifier.notify(ctx, Notifier.ID_RESIN_BASE + game.ordinal, "${game.shortName} 재화 가득참", "재화가 가득 찼어요 (${note.currentResin}/${note.maxResin})")
+                        Notifier.notify(Notifier.ID_RESIN_BASE + game.ordinal, "${game.shortName} 재화 가득참", "재화가 가득 찼어요 (${note.currentResin}/${note.maxResin})")
                     }
                 }
             }
@@ -130,7 +131,7 @@ class GatchaWorker(appContext: Context, params: WorkerParameters) : CoroutineWor
                         if (settings.lastNotified(tag) == sig) return@forEach
                         settings.setLastNotified(tag, sig)
                         val nid = Notifier.ID_WISH_PICKUP_BASE + ((gameKey + name).hashCode() and 0x3FF)
-                        Notifier.notify(ctx, nid, "${game.shortName} 픽업 — $name", "${hit.name} 배너에 등장했어요. 천장 점검해보세요.")
+                        Notifier.notify(nid, "${game.shortName} 픽업 — $name", "${hit.name} 배너에 등장했어요. 천장 점검해보세요.")
                     }
                 }
             }

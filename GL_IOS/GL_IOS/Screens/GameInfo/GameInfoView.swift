@@ -13,6 +13,7 @@ struct GameInfoView: View {
     @State private var showDashboard = false
     // 페이지로 분류된 섹션(계산기·리포트·프로필) — 진입 카드 탭 시 푸시.
     @State private var showCalc = false
+    @State private var showRecharge = false
     @State private var showReport = false
     @State private var showProfile = false
     @State private var showSchedule = false
@@ -31,6 +32,7 @@ struct GameInfoView: View {
                 }
                 section { GameTabbedSection(store: store, filter: gameFilter) }
                 section { navEntry(icon: "function", title: "가챠 계산기", sub: "재화 환산 · 확률 · 시뮬레이터 · 플래너") { showCalc = true } }
+                section { navEntry(icon: "wonsign.circle", title: "충전 가성비", sub: "충전 패키지 단가 비교 · 첫구매 반영") { showRecharge = true } }
                 section { navEntry(icon: "person.crop.square", title: "프로필 쇼케이스", sub: "Enka.Network UID로 캐릭터 조회") { showProfile = true } }
                 section { navEntry(icon: "chart.bar.xaxis", title: "가챠 효율 리포트", sub: "UIGF/SRGF 분석 · 단가 · 천장 분포") { showReport = true } }
                 Color.clear.frame(height: 12)
@@ -76,6 +78,7 @@ struct GameInfoView: View {
         }
         .navigationDestination(isPresented: $showRate) { GachaRatePage() }
         .navigationDestination(isPresented: $showCalc) { sectionPage("계산기") { GachaCalculatorSection() } }
+        .navigationDestination(isPresented: $showRecharge) { sectionPage("충전 가성비") { RechargeValueSection() } }
         .navigationDestination(isPresented: $showProfile) { sectionPage("프로필") { ProfileShowcaseSection(store: store) } }
         .navigationDestination(isPresented: $showReport) { sectionPage("가챠 리포트") { GachaReportSection(store: store, onOpenDashboard: { showDashboard = true }) } }
         .navigationDestination(isPresented: $showGift) { GiftCodePage(store: store) }
@@ -189,6 +192,63 @@ private func scheduleKindColor(_ kind: String) -> Color {
     }
 }
 
+// 무기(검) 아이콘 — SF Symbols에 검 심볼이 없어 커스텀 Shape로 정의(Android SwordIcon과 동일 24×24 좌표).
+struct SwordShape: Shape {
+    func path(in r: CGRect) -> Path {
+        let s = min(r.width, r.height)
+        func px(_ v: CGFloat) -> CGFloat { r.minX + v / 24 * s }
+        func py(_ v: CGFloat) -> CGFloat { r.minY + v / 24 * s }
+        var p = Path()
+        // 칼날
+        p.move(to: CGPoint(x: px(12), y: py(2)))
+        p.addLines([CGPoint(x: px(13.2), y: py(5)), CGPoint(x: px(13.2), y: py(14)), CGPoint(x: px(10.8), y: py(14)), CGPoint(x: px(10.8), y: py(5))])
+        p.closeSubpath()
+        // 코등이
+        p.addRect(CGRect(x: px(8), y: py(14), width: px(16) - px(8), height: py(16) - py(14)))
+        // 손잡이
+        p.addRect(CGRect(x: px(11.1), y: py(16), width: px(12.9) - px(11.1), height: py(20) - py(16)))
+        // 폼멜
+        p.addRect(CGRect(x: px(10.4), y: py(20), width: px(13.6) - px(10.4), height: py(22) - py(20)))
+        return p
+    }
+}
+
+// 픽업 그룹 라벨 — 캐릭터/무기 구분 소제목.
+private struct PickupGroupLabel: View {
+    let isSword: Bool
+    let text: String
+    var body: some View {
+        HStack(spacing: 5) {
+            if isSword {
+                SwordShape().fill(GLGColor.textSecondary).frame(width: 12, height: 13)
+            } else {
+                Image(systemName: "person.fill").font(.system(size: 11, weight: .semibold)).foregroundStyle(GLGColor.textSecondary)
+            }
+            Text(text).font(.system(size: 12, weight: .bold)).foregroundStyle(GLGColor.textSecondary)
+        }
+        .padding(.top, 2)
+    }
+}
+
+// 픽업 배너를 캐릭터 픽업 / 무기 픽업 2그룹으로 분류 표시.
+private struct PickupGroups: View {
+    let pickups: [GachaBanner]
+    var body: some View {
+        let chars = pickups.filter { $0.type != "weapon" }
+        let weapons = pickups.filter { $0.type == "weapon" }
+        VStack(alignment: .leading, spacing: 8) {
+            if !chars.isEmpty {
+                PickupGroupLabel(isSword: false, text: "캐릭터 픽업")
+                ForEach(Array(chars.enumerated()), id: \.offset) { _, b in PickupBannerCard(banner: b) }
+            }
+            if !weapons.isEmpty {
+                PickupGroupLabel(isSword: true, text: "무기 픽업")
+                ForEach(Array(weapons.enumerated()), id: \.offset) { _, b in PickupBannerCard(banner: b) }
+            }
+        }
+    }
+}
+
 // 픽업 배너 — 일정 목록과 구분되는 단독 디자인(게임색 틴트 알약/리스트). 한 줄 컴팩트.
 private struct PickupBannerCard: View {
     let banner: GachaBanner
@@ -199,7 +259,11 @@ private struct PickupBannerCard: View {
         return HStack(spacing: 8) {
             Text("픽업").font(.system(size: 9, weight: .bold)).foregroundStyle(.white)
                 .padding(.horizontal, 6).padding(.vertical, 2).background(c, in: Capsule())
-            Image(systemName: banner.type == "weapon" ? "scope" : "person.fill").font(.system(size: 11, weight: .semibold)).foregroundStyle(c)
+            if banner.type == "weapon" {
+                SwordShape().fill(c).frame(width: 11, height: 12)
+            } else {
+                Image(systemName: "person.fill").font(.system(size: 11, weight: .semibold)).foregroundStyle(c)
+            }
             Text(banner.name).font(.system(size: 13, weight: .bold)).foregroundStyle(GLGColor.textPrimary).lineLimit(1)
             Spacer(minLength: 6)
             Text(banner.endShortLabel(nowMillis: nowMs())).font(.system(size: 11, weight: .bold)).foregroundStyle(ddColor)
@@ -276,9 +340,7 @@ struct GameScheduleSection: View {
             GLGCard(cornerRadius: 20, padding: 16) {
                 VStack(spacing: 0) {
                     if !pickups.isEmpty {
-                        VStack(spacing: 8) {
-                            ForEach(Array(pickups.enumerated()), id: \.offset) { _, b in PickupBannerCard(banner: b) }
-                        }
+                        PickupGroups(pickups: pickups)
                         if !top.isEmpty { Divider().padding(.vertical, 12) }
                     }
                     if !top.isEmpty {
@@ -299,7 +361,7 @@ struct GameScheduleSection: View {
                                 Spacer()
                                 Image(systemName: "chevron.right").font(.system(size: 12, weight: .semibold)).foregroundStyle(accent.primary)
                             }
-                            .padding(.vertical, 12)
+                            .padding(.top, 12)
                         }.buttonStyle(.plain)
                     }
                 }
@@ -362,9 +424,7 @@ private struct GameScheduleGroup: View {
             GLGCard(cornerRadius: 20, padding: 16) {
                 VStack(spacing: 0) {
                     if !pickups.isEmpty {
-                        VStack(spacing: 8) {
-                            ForEach(Array(pickups.enumerated()), id: \.offset) { _, b in PickupBannerCard(banner: b) }
-                        }
+                        PickupGroups(pickups: pickups)
                         if !entries.isEmpty { Divider().padding(.vertical, 12) }
                     }
                     ForEach(Array(entries.enumerated()), id: \.element.id) { i, e in

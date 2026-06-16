@@ -27,6 +27,7 @@ import com.gatcha.log.ui.components.GlassCard
 import com.gatcha.log.ui.components.GlgScreenHeader
 import com.gatcha.log.ui.components.StatTile
 import com.gatcha.log.ui.theme.DangerText
+import com.gatcha.log.ui.theme.toColor
 import com.gatcha.log.ui.theme.LocalAccent
 import com.gatcha.log.ui.theme.ProgressEmpty
 import com.gatcha.log.ui.theme.TextPrimary
@@ -126,7 +127,7 @@ private fun MonthlyTrendCard(spendings: List<Spending>, year: Int, accent: Color
     val monthGame = trend.monthGame
     val maxMonth = trend.maxMonth
     val legend = trend.legend
-    fun colorOf(g: String) = if (g == "기타") EtcColor else GameData.colorFor(g)
+    fun colorOf(g: String) = if (g == "기타") EtcColor else GameData.colorFor(g).toColor()
 
     DashCard {
         CardTitle("게임별 월 추이", "${year}년 · 누적 막대")

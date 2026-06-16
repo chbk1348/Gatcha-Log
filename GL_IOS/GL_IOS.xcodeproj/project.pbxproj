@@ -11,6 +11,7 @@
 		14AFD15B3420C392511D404A /* CalendarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A84E3B9B9790F13D3F75EE5E /* CalendarView.swift */; };
 		169ACD2F4B8A99D2183912C3 /* SettingsDialogs.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC551FFC4A65F19F94A1987B /* SettingsDialogs.swift */; };
 		17991733B1B0EC7204C21DEB /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = E167D2DF62218A027D330ECD /* Theme.swift */; };
+		204FDA5824E8A751CA6B0D81 /* RechargeValueSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2EA8EE4E1628239A1E3A7557 /* RechargeValueSection.swift */; };
 		21D7656AF322C290D874AFFA /* HomeComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 016E2C9FECC1E779E9DFEC65 /* HomeComponents.swift */; };
 		23F844366ABC2775F890F5C8 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2EAD6CB38E6E41AADF430D6E /* SettingsView.swift */; };
 		311A9FB837CB5310C4AB5714 /* SpendingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A348DAF50519ABD14014AA0 /* SpendingView.swift */; };
@@ -46,6 +47,7 @@
 		F937497C109F642AB75D1979 /* NotificationPermission.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E6A1754F38C5D6D3F9A2605 /* NotificationPermission.swift */; };
 		F9A4415B104B132762948DEB /* GameTabbedSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 43857C0EDD6E6397211940A6 /* GameTabbedSection.swift */; };
 		FB067A16E345B8B1746B2F26 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 1B23BEFE8CD250421E457609 /* Assets.xcassets */; };
+		FD93CB902981C13F3C6FA712 /* NetworkReachability.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3722E93D2F937C67F1B8BABD /* NetworkReachability.swift */; };
 		FE473FA3E330163CA197055C /* GachaDashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A7AD50D44CC890634902ADD /* GachaDashboardView.swift */; };
 		FEFECA4B17E26F1661161AC0 /* DailyHeroSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1684DC3A94F3A86481854D57 /* DailyHeroSection.swift */; };
 /* End PBXBuildFile section */
@@ -66,10 +68,12 @@
 		24406A47C5595952918ABF5B /* HoyolabLinkView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HoyolabLinkView.swift; sourceTree = "<group>"; };
 		27054819557D026D9CB4FE7D /* GoogleService-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = "GoogleService-Info.plist"; sourceTree = "<group>"; };
 		2A52426EBEF59CD4BBBCA778 /* GachaRateSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GachaRateSheet.swift; sourceTree = "<group>"; };
+		2EA8EE4E1628239A1E3A7557 /* RechargeValueSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RechargeValueSection.swift; sourceTree = "<group>"; };
 		2EAD6CB38E6E41AADF430D6E /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		30864BF6E1651C389D2661B1 /* AccountLoadingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountLoadingView.swift; sourceTree = "<group>"; };
 		32BBA1BA7898178C15DF09E1 /* HeaderButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HeaderButton.swift; sourceTree = "<group>"; };
 		340BBE9D7107D50A8AF32A5C /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		3722E93D2F937C67F1B8BABD /* NetworkReachability.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkReachability.swift; sourceTree = "<group>"; };
 		43857C0EDD6E6397211940A6 /* GameTabbedSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameTabbedSection.swift; sourceTree = "<group>"; };
 		4A3AE615BDC494C0880E998A /* GachaReportSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GachaReportSection.swift; sourceTree = "<group>"; };
 		4E67D38A3417978B0AEDC5AE /* SpendingDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpendingDetailView.swift; sourceTree = "<group>"; };
@@ -129,6 +133,7 @@
 				43857C0EDD6E6397211940A6 /* GameTabbedSection.swift */,
 				846F3D6CE1BD91FB25597AA6 /* GiftCodeSheet.swift */,
 				24406A47C5595952918ABF5B /* HoyolabLinkView.swift */,
+				2EA8EE4E1628239A1E3A7557 /* RechargeValueSection.swift */,
 			);
 			path = GameInfo;
 			sourceTree = "<group>";
@@ -187,6 +192,7 @@
 				27054819557D026D9CB4FE7D /* GoogleService-Info.plist */,
 				0AB3CC660B02C393DA32935B /* Info.plist */,
 				05DA476A730AFA37D40240E5 /* iOSApp.swift */,
+				3722E93D2F937C67F1B8BABD /* NetworkReachability.swift */,
 				878475C3342D4D2376A6E9F4 /* Auth */,
 				A8BD5AA0544A3F3CBC1C2D20 /* Bridge */,
 				C87EC8D816454657A9B81FA8 /* DesignSystem */,
@@ -370,8 +376,10 @@
 				BCE6291BF8A244C01AF6F8F1 /* HoyolabLinkView.swift in Sources */,
 				76C8B5CC8DB8D93A0C9CE484 /* LoginView.swift in Sources */,
 				E384711C3477C7DAD49E2A01 /* MyPageView.swift in Sources */,
+				FD93CB902981C13F3C6FA712 /* NetworkReachability.swift in Sources */,
 				F937497C109F642AB75D1979 /* NotificationPermission.swift in Sources */,
 				808FA397C7B307AA83931954 /* PillField.swift in Sources */,
+				204FDA5824E8A751CA6B0D81 /* RechargeValueSection.swift in Sources */,
 				169ACD2F4B8A99D2183912C3 /* SettingsDialogs.swift in Sources */,
 				23F844366ABC2775F890F5C8 /* SettingsView.swift in Sources */,
 				A2F4158A73805AFB736EF6D0 /* SpendingDetailView.swift in Sources */,

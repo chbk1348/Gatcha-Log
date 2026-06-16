@@ -134,7 +134,7 @@ private struct CalendarGrid: View {
     var body: some View {
         let first = firstWeekdayIndex()
         let days = daysInMonth()
-        var cells: [Int] = Array(repeating: 0, count: first) + Array(1...days)
+        let cells: [Int] = Array(repeating: 0, count: first) + Array(1...days)
         let rows = stride(from: 0, to: cells.count, by: 7).map { Array(cells[$0..<min($0+7, cells.count)]) }
         let todayKey = todayKeyString()
         return VStack(spacing: 2) {

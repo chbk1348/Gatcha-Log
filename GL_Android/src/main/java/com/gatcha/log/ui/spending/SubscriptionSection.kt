@@ -33,6 +33,7 @@ import com.gatcha.log.ui.components.GlassCard
 import com.gatcha.log.ui.components.GlgDialog
 import com.gatcha.log.ui.components.GlgTextField
 import com.gatcha.log.ui.theme.DangerText
+import com.gatcha.log.ui.theme.toColor
 import com.gatcha.log.ui.theme.DividerColor
 import com.gatcha.log.ui.theme.LocalAccent
 import com.gatcha.log.ui.theme.TextPrimary
@@ -131,7 +132,7 @@ private fun SubscriptionRow(sub: Subscription, onClick: () -> Unit) {
         modifier = Modifier.fillMaxWidth().clickable { onClick() }.padding(vertical = 11.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(Modifier.size(8.dp).clip(CircleShape).background(sub.gameColor))
+        Box(Modifier.size(8.dp).clip(CircleShape).background(sub.gameColor.toColor()))
         Spacer(Modifier.width(10.dp))
         Column(Modifier.weight(1f)) {
             Text(sub.name.ifBlank { "구독" }, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TextPrimary, maxLines = 1)
@@ -186,10 +187,10 @@ private fun SubscriptionDialog(
                     Surface(
                         modifier = Modifier.clickable { game = g.displayName },
                         shape = RoundedCornerShape(20.dp),
-                        color = if (sel) g.color else Color.White,
-                        border = BorderStroke(1.dp, if (sel) g.color else DividerColor),
+                        color = if (sel) g.color.toColor() else Color.White,
+                        border = BorderStroke(1.dp, if (sel) g.color.toColor() else DividerColor),
                     ) {
-                        Text(g.shortName, modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp), fontSize = 12.sp, fontWeight = FontWeight.Bold, color = if (sel) Color.White else g.color)
+                        Text(g.shortName, modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp), fontSize = 12.sp, fontWeight = FontWeight.Bold, color = if (sel) Color.White else g.color.toColor())
                     }
                 }
             }

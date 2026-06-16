@@ -35,6 +35,7 @@ import com.gatcha.log.ui.theme.DividerColor
 import com.gatcha.log.ui.theme.LocalAccent
 import com.gatcha.log.ui.theme.TextPrimary
 import com.gatcha.log.ui.theme.TextSecondary
+import com.gatcha.log.ui.theme.toColor
 import com.gatcha.log.util.num
 import com.gatcha.log.util.won
 
@@ -106,7 +107,7 @@ fun GachaDashboardScreen(
             }
 
             val gk = selected!!
-            val gameColor = GachaReport.gameInfo[gk]?.third ?: accent
+            val gameColor = GachaReport.gameInfo[gk]?.third?.toColor() ?: accent
             val spend = spendByGameKey[gk] ?: 0L
             val cost = if (spend > 0 && d.five > 0) spend / d.five else 0L
 

@@ -64,13 +64,22 @@ struct ContentView: View {
         // 현재 탭 인덱스를 Kotlin 과 동기화 — 토스트를 보이는 탭에서만 컴포즈하기 위함
         // (탭 4(추가 버튼)는 실제 탭이 아니므로 제외)
         // iOS 16 호환을 위해 1-파라미터 onChange 사용 (2-파라미터 버전은 iOS 17+)
-        .onChange(of: selectedTab, perform: { newValue in
+        .onChange(of: selectedTab) { _, newValue in
             if newValue != 4 {
                 MainViewControllerKt.setSelectedTab(tab: Int32(newValue))
             }
-        })
+        }
         // 전역 단일 토스트 — 화면마다 붙이면 탭/페이지마다 중복 표시되므로 앱 루트에서 한 번만 노출·소비.
         .glgToast(message: store.statusMessage, bottomPadding: 64) { store.clearStatus() }
+        // 네트워크 미연결 — 앱 진입·로딩·새로고침 공통 얼럿 모달(앱 루트에 한 번만).
+        .alert("인터넷 연결 없음", isPresented: Binding(
+            get: { store.networkAlert != nil },
+            set: { if !$0 { store.clearNetworkAlert() } }
+        )) {
+            Button("확인", role: .cancel) { store.clearNetworkAlert() }
+        } message: {
+            Text(store.networkAlert ?? "")
+        }
     }
 
     /// '+' (지출 추가) 모달 열기 — 신규 추가(편집 대상 없음).

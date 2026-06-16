@@ -610,7 +610,9 @@ fun GachaSummarySection(stats: GachaStats?, onOpen: () -> Unit) {
                 val games = stats.byGame.keys.sortedBy { GachaReport.gameOrder.indexOf(it).let { i -> if (i < 0) 99 else i } }
                 games.forEach { gk ->
                     val g = stats.byGame[gk] ?: return@forEach
-                    val (shortName, _, color) = GachaReport.gameInfo[gk] ?: Triple(gk, gk, accent)
+                    val info = GachaReport.gameInfo[gk]
+                    val shortName = info?.first ?: gk
+                    val color = info?.third?.toColor() ?: accent
                     Spacer(Modifier.height(10.dp))
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                         Box(Modifier.size(8.dp).clip(CircleShape).background(color))
