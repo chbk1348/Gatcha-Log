@@ -735,13 +735,17 @@ class SpendingViewModel : ViewModel() {
     val updateProgress: StateFlow<Float?> = _updateProgress.asStateFlow()
 
     /**
-     * 인앱 업데이트: 릴리스 페이지를 열어 사용자가 직접 내려받도록 안내한다.
-     * (KMP commonMain — APK 직접 다운로드/설치 대신 외부 브라우저로 릴리스 페이지를 연다.)
+     * 인앱 업데이트 실행 — 플랫폼별 동작은 [platformStartInAppUpdate] 에 위임한다.
+     * (Android: APK 다운로드+설치 / iOS: 릴리스 페이지 URL 열기)
      */
     fun startInAppUpdate() {
         val info = _updateInfo.value ?: return
         _updateInfo.value = null // 다이얼로그 닫기
-        com.gatcha.log.util.openUrl(info.url)
+        platformStartInAppUpdate(
+            info,
+            onProgress = { _updateProgress.value = it },
+            onStatus = { emitStatus(it) },
+        )
     }
 
     /** 현재 출석 처리 중인 게임 키 (버튼 진행 표시용). null 이면 진행 중 아님. */

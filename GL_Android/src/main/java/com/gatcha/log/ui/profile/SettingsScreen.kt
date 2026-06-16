@@ -22,6 +22,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -38,7 +39,9 @@ import com.gatcha.log.ui.components.GlgTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.input.KeyboardType
 import com.gatcha.log.ui.game.HoyolabLinkScreen
-import com.gatcha.log.ui.spending.SpendingViewModel
+import com.gatcha.log.data.SpendingViewModel
+import com.gatcha.log.util.SafIO
+import kotlinx.coroutines.launch
 import com.gatcha.log.ui.theme.DividerColor
 import com.gatcha.log.ui.theme.LocalAccent
 import com.gatcha.log.ui.theme.TextSecondary
@@ -48,6 +51,7 @@ import com.gatcha.log.util.won
 fun SettingsScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
     val accent = LocalAccent.current
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     val budget by viewModel.budget.collectAsState()
     val gameBudgets by viewModel.gameBudgets.collectAsState()
     val accentIndex by viewModel.accentIndex.collectAsState()
@@ -65,10 +69,10 @@ fun SettingsScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
 
     // 백업 파일 내보내기/가져오기 (SAF)
     val exportBackupLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
-        uri?.let { viewModel.exportBackupToUri(it) }
+        uri?.let { u -> scope.launch { viewModel.exportBackupContent()?.let { json -> SafIO.writeText(context, u, json) } } }
     }
     val importBackupLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        uri?.let { viewModel.importBackupFromUri(it) }
+        uri?.let { u -> scope.launch { SafIO.readText(context, u)?.let { viewModel.importBackupFromContent(it) } } }
     }
     // 알림 권한(Android 13+) — 알림 토글 켤 때 요청
     val notifPermLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }

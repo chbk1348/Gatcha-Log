@@ -56,9 +56,10 @@ import com.gatcha.log.data.Spending
 import com.gatcha.log.ui.game.GameInfoScreen
 import com.gatcha.log.ui.profile.MyPageScreen
 import com.gatcha.log.ui.spending.AddSpendingModal
-import com.gatcha.log.ui.spending.GameInfoAnchor
+import com.gatcha.log.data.GameInfoAnchor
 import com.gatcha.log.ui.spending.SpendingScreen
-import com.gatcha.log.ui.spending.SpendingViewModel
+import com.gatcha.log.data.SpendingViewModel
+import com.gatcha.log.util.SafIO
 import com.gatcha.log.ui.components.GlassBackground
 import com.gatcha.log.ui.components.GlassCard
 import com.gatcha.log.ui.components.GlgButton
@@ -281,8 +282,10 @@ fun HomeContent(
     val prevTotal = remember(spendings) { viewModel.prevMonthTotal() }
 
     // 가챠 기록 가져오기(홈 빠른 액션) — 가챠 효율 리포트와 동일 picker 패턴(*/* 로 SAF 회색처리 회피)
+    val gachaContext = LocalContext.current
+    val gachaScope = rememberCoroutineScope()
     val gachaPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
-        if (uris.isNotEmpty()) viewModel.importGachaFromUris(uris)
+        if (uris.isNotEmpty()) gachaScope.launch { viewModel.importGachaFromContents(SafIO.readTexts(gachaContext, uris)) }
     }
 
     // 파생 계산은 HomeLogic.kt 의 순수 함수로 분리(테스트 가능·Composable 본문 경량화). remember 로 재계산 캐싱.

@@ -1,6 +1,5 @@
 package com.gatcha.log.ui.auth
 
-import android.app.Activity
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.Spring
@@ -38,7 +37,6 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
 import com.gatcha.log.ui.theme.DividerColor
 import kotlinx.coroutines.delay
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -49,7 +47,7 @@ import com.gatcha.log.R
 import com.gatcha.log.ui.components.GlgButton
 import com.gatcha.log.ui.components.GlgOutlineButton
 import com.gatcha.log.ui.components.GlgStatusToast
-import com.gatcha.log.ui.spending.SpendingViewModel
+import com.gatcha.log.data.SpendingViewModel
 import com.gatcha.log.ui.theme.LocalAccent
 import com.gatcha.log.ui.theme.LocalAccentSecondary
 import com.gatcha.log.ui.theme.ProgressEmpty
@@ -60,7 +58,6 @@ import com.gatcha.log.ui.theme.TextSecondary
 fun LoginScreen(viewModel: SpendingViewModel) {
     val accent = LocalAccent.current
     val accent2 = LocalAccentSecondary.current
-    val context = LocalContext.current
     val statusMessage by viewModel.statusMessage.collectAsState()
 
     Box(
@@ -97,7 +94,7 @@ fun LoginScreen(viewModel: SpendingViewModel) {
             Spacer(Modifier.height(40.dp))
             GlgButton(
                 "Google로 로그인",
-                onClick = { (context as? Activity)?.let { viewModel.signIn(it) } },
+                onClick = { viewModel.signIn() },
                 modifier = Modifier.fillMaxWidth(),
                 height = 54.dp,
             )
