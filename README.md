@@ -19,7 +19,7 @@ Google Apps Script 웹앱에서 출발해 **Kotlin Multiplatform + Compose Multi
 <br/>
 
 [![Download APK](https://img.shields.io/badge/⬇️%20APK%20다운로드-3DDC84?style=for-the-badge&logo=android&logoColor=white)](https://github.com/chbk1348/Gatcha-Log/releases/latest)
-[![Download IPA](https://img.shields.io/badge/⬇️%20iOS%20IPA%20다운로드-0A84FF?style=for-the-badge&logo=apple&logoColor=white)](https://github.com/chbk1348/Gatcha-Log/releases/tag/v27.12.2-ios)
+[![Download IPA](https://img.shields.io/badge/⬇️%20iOS%20IPA%20다운로드-0A84FF?style=for-the-badge&logo=apple&logoColor=white)](https://github.com/chbk1348/Gatcha-Log/releases/latest)
 
 </div>
 
@@ -126,14 +126,14 @@ open GL_IOS/GL_IOS.xcodeproj      # Xcode 에서 열고 시뮬레이터/기기�
 ### 📲 iOS 설치 (사이드로딩)
 
 iOS 용 IPA 는 **미서명** 상태로 배포됩니다 — [Sideloadly](https://sideloadly.io) 또는 [AltStore](https://altstore.io) 로
-본인의 Apple ID 서명 후 설치하세요. 자세한 방법은 [iOS 릴리즈 페이지](https://github.com/chbk1348/Gatcha-Log/releases/tag/v27.12.2-ios) 참고.
+본인의 Apple ID 서명 후 설치하세요. IPA 는 [최신 릴리즈 페이지](https://github.com/chbk1348/Gatcha-Log/releases/latest)에서 받을 수 있습니다.
 (무료 Apple ID 서명은 7일 유효 — 만료 시 재설치, 데이터는 유지됩니다)
 
 ---
 
 ## 🎨 디자인
-- **iOS 26 리퀴드 글래스** — iOS 는 시스템 네이티브 글래스(UIGlassEffect 버튼·글래스 탭바),
-  Android 는 글래스모피즘 스타일로 동일한 디자인 언어 유지
+- **카드 — 흰 배경 + 아웃라인** (Android · iOS 동일, 22dp 라운드 · 그림자 없는 평면 카드 — 가독성·스크롤 성능 우선)
+- **iOS 26 리퀴드 글래스** — 탭바·헤더 버튼 등 시스템 크롬은 iOS 네이티브 글래스(UIGlassEffect) 유지
 - 다크 네이비 위시 스타 앱 아이콘 (양 플랫폼 동일)
 - 커스텀 입력·버튼 · "눌린 느낌" 인디케이션 · 로딩/화면 전환 애니메이션
 - 테마 색상 5종 (민트·퍼플·인디고·블루·로즈) — iOS 네이티브 탭바 틴트까지 연동
