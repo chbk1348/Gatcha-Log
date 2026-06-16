@@ -3,7 +3,7 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 77;
+	objectVersion = 100;
 	objects = {
 
 /* Begin PBXBuildFile section */
@@ -96,18 +96,16 @@
 		E167D2DF62218A027D330ECD /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
 		EC551FFC4A65F19F94A1987B /* SettingsDialogs.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsDialogs.swift; sourceTree = "<group>"; };
 		F1B20A3BE3C43A7ADDFEB789 /* MyPageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MyPageView.swift; sourceTree = "<group>"; };
-		F54315F0900C3C41178F8697 /* GL_IOS.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = GL_IOS.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		F54315F0900C3C41178F8697 /* Gatcha-Log.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Gatcha-Log.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
 		18931829802CE617D78491F0 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
 			files = (
 				F1C09A1FD2BA56EE1E609282 /* FirebaseAuth in Frameworks */,
 				407B2B835C63881B6D71A3D6 /* FirebaseFirestore in Frameworks */,
 			);
-			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXFrameworksBuildPhase section */
 
@@ -115,7 +113,7 @@
 		0FDF273AAA05F684579FB85C /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				F54315F0900C3C41178F8697 /* GL_IOS.app */,
+				F54315F0900C3C41178F8697 /* Gatcha-Log.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -264,15 +262,13 @@
 			);
 			buildRules = (
 			);
-			dependencies = (
-			);
 			name = GL_IOS;
 			packageProductDependencies = (
 				D103EA39B0ABE88067BF7706 /* FirebaseAuth */,
 				8271CA7956D21511F8C90ED4 /* FirebaseFirestore */,
 			);
 			productName = GL_IOS;
-			productReference = F54315F0900C3C41178F8697 /* GL_IOS.app */;
+			productReference = F54315F0900C3C41178F8697 /* Gatcha-Log.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
@@ -282,7 +278,7 @@
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = YES;
-				LastUpgradeCheck = 1430;
+				LastUpgradeCheck = 2650;
 				TargetAttributes = {
 					DA3E2EEB6C3CA1BF23C0AD3C = {
 						DevelopmentTeam = CCTT9CBG38;
@@ -302,7 +298,7 @@
 			packageReferences = (
 				97F57FF2A59B7E25030424B2 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */,
 			);
-			preferredProjectObjectVersion = 77;
+			preferredProjectObjectVersion = 100;
 			productRefGroup = 0FDF273AAA05F684579FB85C /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
@@ -315,12 +311,10 @@
 /* Begin PBXResourcesBuildPhase section */
 		0B1E709650A542C10489664F /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
-			buildActionMask = 2147483647;
 			files = (
 				FB067A16E345B8B1746B2F26 /* Assets.xcassets in Resources */,
 				D518B6D75F70EEA8A1332D03 /* GoogleService-Info.plist in Resources */,
 			);
-			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
 
@@ -328,28 +322,24 @@
 		7C3ED7436F3F883BB7800AA8 /* Compile Kotlin Framework */ = {
 			isa = PBXShellScriptBuildPhase;
 			alwaysOutOfDate = 1;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			inputFileListPaths = (
-			);
-			inputPaths = (
-			);
 			name = "Compile Kotlin Framework";
-			outputFileListPaths = (
-			);
-			outputPaths = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "# JAVA_HOME 폴백 — 로컬 Xcode GUI 빌드는 Android Studio JBR,\n# CI(GitHub Actions)·CLI 빌드는 이미 설정된 JAVA_HOME 을 그대로 사용\nif [ ! -d \"${JAVA_HOME:-/nonexistent}\" ]; then\n  export JAVA_HOME=\"/Applications/Android Studio.app/Contents/jbr/Contents/Home\"\nfi\ncd \"$SRCROOT/..\"\n./gradlew :GL_Shared:embedAndSignAppleFrameworkForXcode\n";
+			shellScript = (
+				"# JAVA_HOME 폴백 — 로컬 Xcode GUI 빌드는 Android Studio JBR,",
+				"# CI(GitHub Actions)·CLI 빌드는 이미 설정된 JAVA_HOME 을 그대로 사용",
+				"if [ ! -d \"${JAVA_HOME:-/nonexistent}\" ]; then",
+				"  export JAVA_HOME=\"/Applications/Android Studio.app/Contents/jbr/Contents/Home\"",
+				"fi",
+				"cd \"$SRCROOT/..\"",
+				"./gradlew :GL_Shared:embedAndSignAppleFrameworkForXcode",
+				"",
+			);
 		};
 /* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		2839B69ECCC32150FC93517C /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
-			buildActionMask = 2147483647;
 			files = (
 				90F00551956AF38F2548C694 /* AccountLoadingView.swift in Sources */,
 				87BCB4BC1FDA9A8B97CB3D98 /* AddSpendingView.swift in Sources */,
@@ -391,12 +381,11 @@
 				D331E41E2017AA75D98B834C /* WishStarLogo.swift in Sources */,
 				A7BFA61A876C89B76798AD9A /* iOSApp.swift in Sources */,
 			);
-			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin XCBuildConfiguration section */
-		06FC36CEC0BCCFB22DB29D7B /* Release */ = {
+		06FC36CEC0BCCFB22DB29D7B /* Release configuration for PBXProject "GL_IOS" */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
@@ -431,6 +420,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = CCTT9CBG38;
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
@@ -447,13 +437,14 @@
 				MTL_FAST_MATH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_COMPILATION_MODE = wholemodule;
 				SWIFT_OPTIMIZATION_LEVEL = "-O";
 				SWIFT_VERSION = 5.0;
 			};
 			name = Release;
 		};
-		5547D000E16BBEA7E69F506E /* Debug */ = {
+		5547D000E16BBEA7E69F506E /* Debug configuration for PBXProject "GL_IOS" */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
@@ -488,6 +479,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = CCTT9CBG38;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
@@ -511,20 +503,20 @@
 				ONLY_ACTIVE_ARCH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 5.0;
 			};
 			name = Debug;
 		};
-		A8A80B89B3B6DF09926CB128 /* Release */ = {
+		A8A80B89B3B6DF09926CB128 /* Release configuration for PBXNativeTarget "GL_IOS" */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = GL_IOS/GL_IOS.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				DEVELOPMENT_TEAM = CCTT9CBG38;
 				"EXCLUDED_ARCHS[sdk=iphonesimulator*]" = x86_64;
 				FRAMEWORK_SEARCH_PATHS = "$(SRCROOT)/../GL_Shared/build/xcode-frameworks/$(CONFIGURATION)/$(SDK_NAME)";
 				INFOPLIST_FILE = GL_IOS/Info.plist;
@@ -532,7 +524,12 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				OTHER_LDFLAGS = "$(inherited) -framework Shared -ObjC";
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"-framework",
+					Shared,
+					"-ObjC",
+				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.gatcha.log.ios;
 				PRODUCT_NAME = "Gatcha-Log";
 				SDKROOT = iphoneos;
@@ -540,14 +537,13 @@
 			};
 			name = Release;
 		};
-		E76EE0CEB03CE0B9D0F1C01D /* Debug */ = {
+		E76EE0CEB03CE0B9D0F1C01D /* Debug configuration for PBXNativeTarget "GL_IOS" */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = GL_IOS/GL_IOS.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				DEVELOPMENT_TEAM = CCTT9CBG38;
 				"EXCLUDED_ARCHS[sdk=iphonesimulator*]" = x86_64;
 				FRAMEWORK_SEARCH_PATHS = "$(SRCROOT)/../GL_Shared/build/xcode-frameworks/$(CONFIGURATION)/$(SDK_NAME)";
 				INFOPLIST_FILE = GL_IOS/Info.plist;
@@ -555,7 +551,12 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				OTHER_LDFLAGS = "$(inherited) -framework Shared -ObjC";
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"-framework",
+					Shared,
+					"-ObjC",
+				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.gatcha.log.ios;
 				PRODUCT_NAME = "Gatcha-Log";
 				SDKROOT = iphoneos;
@@ -569,19 +570,17 @@
 		0FBFE0317ECDDC1DFD7AABC7 /* Build configuration list for PBXProject "GL_IOS" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				5547D000E16BBEA7E69F506E /* Debug */,
-				06FC36CEC0BCCFB22DB29D7B /* Release */,
+				5547D000E16BBEA7E69F506E /* Debug configuration for PBXProject "GL_IOS" */,
+				06FC36CEC0BCCFB22DB29D7B /* Release configuration for PBXProject "GL_IOS" */,
 			);
-			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;
 		};
 		E62CF29BF83FB6BC506DA22A /* Build configuration list for PBXNativeTarget "GL_IOS" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				E76EE0CEB03CE0B9D0F1C01D /* Debug */,
-				A8A80B89B3B6DF09926CB128 /* Release */,
+				E76EE0CEB03CE0B9D0F1C01D /* Debug configuration for PBXNativeTarget "GL_IOS" */,
+				A8A80B89B3B6DF09926CB128 /* Release configuration for PBXNativeTarget "GL_IOS" */,
 			);
-			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;
 		};
 /* End XCConfigurationList section */

@@ -29,7 +29,7 @@ import com.gatcha.log.ui.components.GlassCard
 import com.gatcha.log.ui.components.GlgButton
 import com.gatcha.log.ui.components.GlgScreenHeader
 import com.gatcha.log.ui.components.GlgTextField
-import com.gatcha.log.ui.spending.RedeemState
+import com.gatcha.log.data.RedeemState
 import com.gatcha.log.ui.theme.*
 
 /** HoYoLAB 리딤코드 — 페이지 형식. 활성 코드 자동 수집 + 교환(단건/모두) + 직접 입력. */

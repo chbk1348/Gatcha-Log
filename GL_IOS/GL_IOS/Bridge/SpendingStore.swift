@@ -213,6 +213,8 @@ final class SpendingStore: ObservableObject {
     func buildCsv() -> String { vm.buildCsv() }
     /// 이번 달 총 지출. (기본 인자가 인스턴스 상태 기반이라 SKIE 미보존 → 현재 연/월 명시)
     func monthlyTotal() -> Int64 { vm.monthlyTotal(year: vm.displayYear, month: vm.displayMonth) }
+    /// 지정 연/월 총 지출 (마이페이지 월별 추이 차트용).
+    func monthlyTotal(year: Int32, month: Int32) -> Int64 { vm.monthlyTotal(year: year, month: month) }
     /// 이번 달 게임별 지출 합계.
     func monthlyTotalsByGame() -> [String: Int64] {
         vm.monthlyTotalsByGame(year: vm.displayYear, month: vm.displayMonth).mapValues { $0.int64Value }
