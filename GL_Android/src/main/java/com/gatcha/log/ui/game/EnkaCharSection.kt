@@ -9,6 +9,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -59,13 +61,14 @@ private fun elementColor(el: String): Color = when (el) {
 fun EnkaCharSection(
     viewModel: SpendingViewModel,
     onOpenStats: (EnkaChar, String) -> Unit,
+    onOpenAll: (String) -> Unit = {},
+    onOpenHoyolab: () -> Unit = {},
 ) {
     val accent = LocalAccent.current
     var game by remember { mutableStateOf("genshin") }
     val result by viewModel.enkaResult.collectAsState()
     val loading by viewModel.enkaLoading.collectAsState()
-    val giUid by viewModel.enkaGiUid.collectAsState()
-    val hsrUid by viewModel.enkaHsrUid.collectAsState()
+    val hoyolab by viewModel.hoyolabConfig.collectAsState()
 
     // 진입 시 1회 자동 로드(TTL 캐시). 전환은 switchGame 에서 즉시 처리.
     LaunchedEffect(Unit) { viewModel.autoLoadEnka(game) }
@@ -79,7 +82,7 @@ fun EnkaCharSection(
         }
     }
 
-    val uidSet = (if (game == "genshin") giUid else hsrUid).isNotBlank()
+    val linked = hoyolab.isLinked
     val chars = result?.profile?.chars.orEmpty()
 
     Column {
@@ -93,19 +96,21 @@ fun EnkaCharSection(
             GameChip("원신", game == "genshin", accent) { switchGame("genshin") }
             Spacer(Modifier.width(6.dp))
             GameChip("스타레일", game == "hsr", accent) { switchGame("hsr") }
+            Spacer(Modifier.width(6.dp))
+            GameChip("젠레스", game == "zzz", accent) { switchGame("zzz") }
         }
         Spacer(Modifier.height(11.dp))
 
         when {
-            !uidSet -> Hint("「프로필 쇼케이스」에서 UID를 먼저 등록하면 캐릭터가 상시 표시돼요")
+            !linked -> LinkPrompt(accent, onOpenHoyolab)
             // 전환 직후·로드 전(result null)·로딩 중엔 로딩 표시, 로드 완료 후에만 빈/에러 표시
             chars.isEmpty() -> Hint(
                 if (result == null || loading) "불러오는 중…"
                 else result?.error ?: "표시할 캐릭터가 없어요 (인게임 쇼케이스 공개 확인)",
             )
             else -> {
-                // 2열 그리드
-                chars.chunked(2).forEach { row ->
+                // 대표 4명만 표시, 그 이상은 더보기로 전체 페이지 진입
+                chars.take(4).chunked(2).forEach { row ->
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         row.forEach { c ->
                             Box(Modifier.weight(1f)) { RosterCard(c, game) { onOpenStats(c, game) } }
@@ -114,6 +119,90 @@ fun EnkaCharSection(
                     }
                     Spacer(Modifier.height(10.dp))
                 }
+                if (chars.size > 4) MoreButton(chars.size, accent) { onOpenAll(game) }
+            }
+        }
+    }
+}
+
+@Composable
+private fun MoreButton(count: Int, accent: Color, onClick: () -> Unit) {
+    Surface(
+        color = Color.White,
+        shape = RoundedCornerShape(14.dp),
+        border = androidx.compose.foundation.BorderStroke(1.dp, CardOutline),
+        modifier = Modifier.fillMaxWidth().clickable { onClick() },
+    ) {
+        Row(
+            Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text("더보기", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = accent)
+            Spacer(Modifier.width(5.dp))
+            Text("$count", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextSecondary)
+            Spacer(Modifier.weight(1f))
+            Text("›", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = accent)
+        }
+    }
+}
+
+/**
+ * 보유 캐릭터 전체 목록 페이지 — 더보기 진입. 캐릭터 탭 → 스탯 상세([onOpenStats]).
+ */
+@Composable
+fun EnkaRosterPage(
+    viewModel: SpendingViewModel,
+    game: String,
+    onBack: () -> Unit,
+    onOpenStats: (EnkaChar, String) -> Unit,
+) {
+    val result by viewModel.enkaResult.collectAsState()
+    var rarityFilter by remember { mutableStateOf(0) } // 0=전체, 5, 4
+    val all = result?.profile?.chars.orEmpty()
+    val chars = if (rarityFilter == 0) all else all.filter { it.rarity == rarityFilter }
+    val title = "보유 캐릭터 · " + if (game == "genshin") "원신" else if (game == "zzz") "젠레스" else "스타레일"
+    Column(
+        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp).padding(bottom = 30.dp),
+    ) {
+        Row(Modifier.padding(vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+            Surface(color = Color.White, shape = RoundedCornerShape(999.dp), border = androidx.compose.foundation.BorderStroke(1.dp, CardOutline), modifier = Modifier.clickable { onBack() }) {
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, "뒤로", tint = Color(0xFF4B4F57), modifier = Modifier.padding(8.dp).size(18.dp))
+            }
+            Spacer(Modifier.width(10.dp))
+            Text(title, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+            Spacer(Modifier.weight(1f))
+            RarityFilter(rarityFilter) { rarityFilter = it }
+        }
+        chars.chunked(2).forEach { row ->
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                row.forEach { c ->
+                    Box(Modifier.weight(1f)) { RosterCard(c, game) { onOpenStats(c, game) } }
+                }
+                if (row.size == 1) Spacer(Modifier.weight(1f))
+            }
+            Spacer(Modifier.height(10.dp))
+        }
+    }
+}
+
+@Composable
+private fun RarityFilter(current: Int, onSelect: (Int) -> Unit) {
+    var expanded by remember { mutableStateOf(false) }
+    Box {
+        Surface(
+            color = Color.White, shape = RoundedCornerShape(999.dp),
+            border = androidx.compose.foundation.BorderStroke(1.dp, CardOutline),
+            modifier = Modifier.clickable { expanded = true },
+        ) {
+            Row(Modifier.padding(horizontal = 12.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(if (current == 0) "전체" else "${current}성", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+                Spacer(Modifier.width(3.dp))
+                Text("▾", fontSize = 11.sp, color = TextSecondary)
+            }
+        }
+        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            listOf(0 to "전체", 5 to "5성", 4 to "4성").forEach { (v, label) ->
+                DropdownMenuItem(text = { Text(label) }, onClick = { onSelect(v); expanded = false })
             }
         }
     }
@@ -138,6 +227,17 @@ private fun GameChip(label: String, on: Boolean, accent: Color, onClick: () -> U
 @Composable
 private fun Hint(text: String) {
     Text(text, fontSize = 12.sp, color = TextSecondary, modifier = Modifier.padding(vertical = 12.dp))
+}
+
+@Composable
+private fun LinkPrompt(accent: Color, onOpenHoyolab: () -> Unit) {
+    Column(Modifier.padding(vertical = 8.dp)) {
+        Text("HoYoLAB을 연동하면 보유 캐릭터가 자동으로 표시돼요", fontSize = 12.sp, color = TextSecondary)
+        Spacer(Modifier.height(10.dp))
+        Surface(color = accent, shape = RoundedCornerShape(999.dp), modifier = Modifier.clickable { onOpenHoyolab() }) {
+            Text("HoYoLAB 연동하기", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White, modifier = Modifier.padding(horizontal = 14.dp, vertical = 9.dp))
+        }
+    }
 }
 
 /** 로스터 카드 — 초상 + 이름 + Lv·우정/원소·명좌. 탭 가능. */
@@ -179,11 +279,11 @@ private fun RosterCard(c: EnkaChar, game: String, onClick: () -> Unit) {
     }
 }
 
-private fun rankLabelFor(c: EnkaChar, game: String): String? = if (game == "genshin") {
+private fun rankLabelFor(c: EnkaChar, game: String): String? = when (game) {
     // 원신: C0=명함, CN=N돌 (기존 앱 표기와 통일 — '명좌'는 한자 음독이라 미사용)
-    when { c.rank < 0 -> null; c.rank == 0 -> "명함"; else -> "${c.rank}돌" }
-} else {
-    if (c.rank > 0) "${c.rank}성혼" else null
+    "genshin" -> when { c.rank < 0 -> null; c.rank == 0 -> "명함"; else -> "${c.rank}돌" }
+    "zzz" -> if (c.rank > 0) "형상 시네마 ${c.rank}" else null
+    else -> if (c.rank > 0) "${c.rank}성혼" else null
 }
 
 /**
@@ -193,8 +293,8 @@ private fun rankLabelFor(c: EnkaChar, game: String): String? = if (game == "gens
 @Composable
 fun EnkaStatPage(c: EnkaChar, game: String, onBack: () -> Unit) {
     val accent = LocalAccent.current
-    val wepLabel = if (game == "genshin") "무기" else "광추"
-    val artLabel = if (game == "genshin") "성유물" else "유물"
+    val wepLabel = if (game == "genshin") "무기" else if (game == "zzz") "음동기" else "광추"
+    val artLabel = if (game == "genshin") "성유물" else if (game == "zzz") "드라이브 디스크" else "유물"
     Column(
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp).padding(bottom = 30.dp),
     ) {
@@ -234,11 +334,11 @@ fun EnkaStatPage(c: EnkaChar, game: String, onBack: () -> Unit) {
         Spacer(Modifier.height(16.dp))
 
         // 무기 / 광추
-        c.weapon?.let { w ->
-            SecLabel(wepLabel)
-            WeaponCard(w, accent)
-            Spacer(Modifier.height(16.dp))
-        }
+        SecLabel(wepLabel)
+        val w = c.weapon
+        if (w != null) WeaponCard(w, accent)
+        else EmptyEquipNote(if (game == "genshin") "무기가 장착되지 않았습니다." else if (game == "zzz") "음동기가 장착되지 않았습니다." else "광추가 장착되지 않았습니다.")
+        Spacer(Modifier.height(16.dp))
 
         // 핵심 스탯
         SecLabel("핵심 스탯")
@@ -255,13 +355,22 @@ fun EnkaStatPage(c: EnkaChar, game: String, onBack: () -> Unit) {
         Spacer(Modifier.height(16.dp))
 
         // 성유물 / 유물
-        if (c.artifacts.isNotEmpty()) {
-            SecLabel(artLabel)
+        SecLabel(artLabel)
+        if (c.artifacts.isEmpty()) {
+            EmptyEquipNote(if (game == "genshin") "성유물이 장착되지 않았습니다." else if (game == "zzz") "드라이브 디스크가 장착되지 않았습니다." else "유물이 장착되지 않았습니다.")
+        } else {
             c.artifacts.forEachIndexed { i, a ->
                 ArtifactCard(a, accent)
                 if (i < c.artifacts.lastIndex) Spacer(Modifier.height(10.dp))
             }
         }
+    }
+}
+
+@Composable
+private fun EmptyEquipNote(text: String) {
+    GlassCard(modifier = Modifier.fillMaxWidth()) {
+        Text(text, fontSize = 12.sp, color = TextSecondary, modifier = Modifier.padding(14.dp))
     }
 }
 
