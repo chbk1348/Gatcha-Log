@@ -19,6 +19,7 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import com.gatcha.log.ui.components.GlgPullToRefreshBox
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -49,6 +50,13 @@ import kotlinx.coroutines.launch
 
 /** 게임정보 탭의 풀스크린 하위 페이지 (열리면 하단바·FAB 숨김) */
 private enum class GiSub { Main, HoyoLink, Dashboard, Rate, Calc, RechargeValue, Report, Gift, Schedule, CharStats, CharRoster }
+
+/** 화면 전환 push/pop 방향용 계층 깊이. Main=0, 하위 페이지=1, 캐릭터 상세(목록서 진입)=2. */
+private fun subDepth(s: GiSub): Int = when (s) {
+    GiSub.Main -> 0
+    GiSub.CharStats -> 2
+    else -> 1
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -129,10 +137,12 @@ fun GameInfoScreen(
     }
 
     // HoYoLAB 연동 페이지 — 화면 스왑(게임정보 ↔ 연동) 슬라이드 push/pop
+    val subPageStateHolder = rememberSaveableStateHolder()
     AnimatedContent(
         targetState = subPage,
         transitionSpec = {
-            if (targetState != GiSub.Main) {
+            // 계층 깊이로 push/pop 방향 결정 (Main=0 < 하위=1 < 상세(CharStats)=2)
+            if (subDepth(targetState) >= subDepth(initialState)) {
                 (slideInHorizontally(tween(300)) { it } + fadeIn(tween(300))) togetherWith
                     (slideOutHorizontally(tween(300)) { -it / 4 } + fadeOut(tween(220)))
             } else {
@@ -142,7 +152,8 @@ fun GameInfoScreen(
         },
         label = "giSubPage",
     ) { page ->
-        when (page) {
+        subPageStateHolder.SaveableStateProvider(page) {
+            when (page) {
             GiSub.HoyoLink -> HoyolabLinkScreen(
                 config = hoyolab,
                 onSave = {
@@ -276,6 +287,7 @@ fun GameInfoScreen(
             item { Spacer(Modifier.height(20.dp)) }
         }
     }
+        }
         }
     }
 

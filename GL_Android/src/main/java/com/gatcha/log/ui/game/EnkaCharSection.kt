@@ -3,6 +3,7 @@ package com.gatcha.log.ui.game
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -15,6 +16,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -158,8 +160,9 @@ fun EnkaRosterPage(
     onBack: () -> Unit,
     onOpenStats: (EnkaChar, String) -> Unit,
 ) {
+    BackHandler { onBack() }
     val result by viewModel.enkaResult.collectAsState()
-    var rarityFilter by remember { mutableStateOf(0) } // 0=전체, 5, 4
+    var rarityFilter by rememberSaveable { mutableStateOf(0) } // 0=전체, 5, 4 (상세 왕복 시 보존)
     val all = result?.profile?.chars.orEmpty()
     val chars = if (rarityFilter == 0) all else all.filter { it.rarity == rarityFilter }
     val title = "보유 캐릭터 · " + if (game == "genshin") "원신" else if (game == "zzz") "젠레스" else "스타레일"
@@ -294,6 +297,7 @@ private fun rankLabelFor(c: EnkaChar, game: String): String? = when (game) {
  */
 @Composable
 fun EnkaStatPage(c: EnkaChar, game: String, onBack: () -> Unit) {
+    BackHandler { onBack() }
     val accent = LocalAccent.current
     val wepLabel = if (game == "genshin") "무기" else if (game == "zzz") "음동기" else "광추"
     val artLabel = if (game == "genshin") "성유물" else if (game == "zzz") "드라이브 디스크" else "유물"
