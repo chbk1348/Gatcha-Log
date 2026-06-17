@@ -20,11 +20,14 @@ private let enkaCrit = Color(hex: 0xFFE0533D)
 private let enkaGold = Color(hex: 0xFFD8A12E)
 
 private func enkaRankLabel(_ c: EnkaChar, _ game: String) -> String? {
-    if game == "genshin" {
+    switch game {
+    case "genshin":
         // 원신: C0=명함, CN=N돌 (기존 앱 표기와 통일 — '명좌'는 한자 음독이라 미사용)
         if c.rank < 0 { return nil }
         return c.rank == 0 ? "명함" : "\(c.rank)돌"
-    } else {
+    case "zzz":
+        return c.rank > 0 ? "형상 시네마 \(c.rank)" : nil
+    default:
         return c.rank > 0 ? "\(c.rank)성혼" : nil
     }
 }
@@ -35,12 +38,16 @@ struct EnkaCharSection: View {
     @Environment(\.glgAccent) private var accent
     @State private var game = "genshin"
     let onOpen: (EnkaChar, String) -> Void
+    /// 더보기 → 보유 캐릭터 전체 페이지(게임 전달)
+    var onOpenAll: (String) -> Void = { _ in }
+    /// 미연동 시 HoYoLAB 연동 페이지 열기
+    var onOpenHoyolab: () -> Void = {}
 
     private let cols = [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)]
 
     var body: some View {
         let chars = store.enkaResult?.profile?.chars ?? []
-        let uidSet = !(game == "genshin" ? store.enkaGiUid : store.enkaHsrUid).isEmpty
+        let linked = store.hoyolabConfig.isLinked
         VStack(alignment: .leading, spacing: 11) {
             HStack(spacing: 8) {
                 Text("내 캐릭터").font(.system(size: 16, weight: .bold))
@@ -49,19 +56,35 @@ struct EnkaCharSection: View {
                 Spacer()
                 gchip("원신", game == "genshin") { switchGame("genshin") }
                 gchip("스타레일", game == "hsr") { switchGame("hsr") }
+                gchip("젠레스", game == "zzz") { switchGame("zzz") }
             }
-            if !uidSet {
-                hint("「프로필 쇼케이스」에서 UID를 먼저 등록하면 캐릭터가 상시 표시돼요")
+            if !linked {
+                linkPrompt
             } else if chars.isEmpty {
                 // 전환 직후·로드 전(result nil)·로딩 중엔 로딩 표시, 로드 완료 후에만 빈/에러 표시
                 hint(store.enkaResult == nil || store.enkaLoading
                     ? "불러오는 중…"
                     : (store.enkaResult?.error ?? "표시할 캐릭터가 없어요 (인게임 쇼케이스 공개 확인)"))
             } else {
+                // 대표 4명만 표시, 그 이상은 더보기로 전체 페이지 진입
                 LazyVGrid(columns: cols, spacing: 10) {
-                    ForEach(Array(chars.enumerated()), id: \.offset) { _, c in
-                        Button { onOpen(c, game) } label: { rosterCard(c) }.buttonStyle(.plain)
+                    ForEach(Array(chars.prefix(4).enumerated()), id: \.offset) { _, c in
+                        Button { onOpen(c, game) } label: { enkaRosterCard(c, game) }.buttonStyle(.plain)
                     }
+                }
+                if chars.count > 4 {
+                    Button { onOpenAll(game) } label: {
+                        HStack(spacing: 5) {
+                            Text("더보기").font(.system(size: 13, weight: .bold))
+                            Text("\(chars.count)").font(.system(size: 11, weight: .bold)).foregroundStyle(GLGColor.textSecondary)
+                            Spacer()
+                            Image(systemName: "chevron.right").font(.system(size: 12, weight: .bold))
+                        }
+                        .foregroundStyle(accent.primary)
+                        .padding(.horizontal, 14).padding(.vertical, 12)
+                        .frame(maxWidth: .infinity)
+                        .glgGlass(in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    }.buttonStyle(.plain)
                 }
             }
         }
@@ -88,34 +111,92 @@ struct EnkaCharSection: View {
     private func hint(_ t: String) -> some View {
         Text(t).font(.system(size: 12)).foregroundStyle(GLGColor.textSecondary).padding(.vertical, 12)
     }
-    private func rosterCard(_ c: EnkaChar) -> some View {
-        let rc = c.rarity >= 5 ? enkaGold : Color(hex: 0xFF9B6BD6)
-        return HStack(spacing: 11) {
-            ZStack {
-                RoundedRectangle(cornerRadius: 14).fill(rc.opacity(0.14)).frame(width: 50, height: 50)
-                if let icon = c.iconUrl, let u = URL(string: icon) {
-                    AsyncImage(url: u) { $0.resizable().scaledToFill() } placeholder: { Color.clear }
-                        .frame(width: 50, height: 50).clipShape(RoundedRectangle(cornerRadius: 14))
-                } else {
-                    Text(String(c.name.prefix(1))).font(.system(size: 20, weight: .bold)).foregroundStyle(rc)
-                }
-            }
-            VStack(alignment: .leading, spacing: 3) {
-                Text(c.name).font(.system(size: 13, weight: .bold)).foregroundStyle(GLGColor.textPrimary).lineLimit(1)
-                HStack(spacing: 5) {
-                    Text("Lv.\(c.level)").font(.system(size: 11)).foregroundStyle(GLGColor.textSecondary)
-                    if !c.element.isEmpty { Circle().fill(enkaElementColor(c.element)).frame(width: 7, height: 7) }
-                }
-                if let rank = enkaRankLabel(c, game) {
-                    Text(rank).font(.system(size: 9, weight: .bold)).foregroundStyle(Color(hex: 0xFF9C6F12))
-                        .padding(.horizontal, 6).padding(.vertical, 1).background(enkaGold.opacity(0.16), in: Capsule())
-                }
-            }
-            Spacer(minLength: 0)
+
+    /// HoYoLAB 미연동 안내 + 연동 버튼.
+    private var linkPrompt: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("HoYoLAB을 연동하면 보유 캐릭터가 자동으로 표시돼요").font(.system(size: 12)).foregroundStyle(GLGColor.textSecondary)
+            Button { onOpenHoyolab() } label: {
+                Text("HoYoLAB 연동하기").font(.system(size: 13, weight: .bold)).foregroundStyle(.white)
+                    .padding(.horizontal, 14).padding(.vertical, 9)
+                    .background(accent.primary, in: Capsule())
+            }.buttonStyle(.plain)
         }
-        .padding(11)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .glgGlass(in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .padding(.vertical, 8).frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+/// 로스터 카드(섹션·보유 페이지 공용). [game] 은 명좌/성혼 라벨 표기용.
+@ViewBuilder
+func enkaRosterCard(_ c: EnkaChar, _ game: String) -> some View {
+    let rc = c.rarity >= 5 ? enkaGold : Color(hex: 0xFF9B6BD6)
+    HStack(spacing: 11) {
+        ZStack {
+            RoundedRectangle(cornerRadius: 14).fill(rc.opacity(0.14)).frame(width: 50, height: 50)
+            if let icon = c.iconUrl, let u = URL(string: icon) {
+                AsyncImage(url: u) { $0.resizable().scaledToFill() } placeholder: { Color.clear }
+                    .frame(width: 50, height: 50).clipShape(RoundedRectangle(cornerRadius: 14))
+            } else {
+                Text(String(c.name.prefix(1))).font(.system(size: 20, weight: .bold)).foregroundStyle(rc)
+            }
+        }
+        VStack(alignment: .leading, spacing: 3) {
+            Text(c.name).font(.system(size: 13, weight: .bold)).foregroundStyle(GLGColor.textPrimary).lineLimit(1)
+            HStack(spacing: 5) {
+                Text("Lv.\(c.level)").font(.system(size: 11)).foregroundStyle(GLGColor.textSecondary)
+                if !c.element.isEmpty { Circle().fill(enkaElementColor(c.element)).frame(width: 7, height: 7) }
+            }
+            if let rank = enkaRankLabel(c, game) {
+                Text(rank).font(.system(size: 9, weight: .bold)).foregroundStyle(Color(hex: 0xFF9C6F12))
+                    .padding(.horizontal, 6).padding(.vertical, 1).background(enkaGold.opacity(0.16), in: Capsule())
+            }
+        }
+        Spacer(minLength: 0)
+    }
+    .padding(11)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .glgGlass(in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+}
+
+/// 보유 캐릭터 전체 목록 페이지 — 탭 시 스탯 상세로 랜딩(뒤로 가면 이 목록으로 복귀).
+struct EnkaRosterPage: View {
+    @ObservedObject var store: SpendingStore
+    let game: String
+    @State private var statChar: EnkaChar? = nil
+    @State private var showStat = false
+    @State private var rarity = 0 // 0=전체, 5, 4
+
+    private let cols = [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)]
+
+    var body: some View {
+        let all = store.enkaResult?.profile?.chars ?? []
+        let chars = rarity == 0 ? all : all.filter { Int($0.rarity) == rarity }
+        ScrollView {
+            LazyVGrid(columns: cols, spacing: 10) {
+                ForEach(Array(chars.enumerated()), id: \.offset) { _, c in
+                    Button { statChar = c; showStat = true } label: { enkaRosterCard(c, game) }.buttonStyle(.plain)
+                }
+            }
+            .padding(16)
+        }
+        .background(GLGBackground { Color.clear })
+        .navigationTitle("보유 캐릭터 · " + (game == "genshin" ? "원신" : game == "zzz" ? "젠레스" : "스타레일"))
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Menu {
+                    Button("전체") { rarity = 0 }
+                    Button("5성") { rarity = 5 }
+                    Button("4성") { rarity = 4 }
+                } label: {
+                    HStack(spacing: 3) {
+                        Text(rarity == 0 ? "전체" : "\(rarity)성").font(.system(size: 13, weight: .bold))
+                        Image(systemName: "chevron.down").font(.system(size: 11, weight: .bold))
+                    }
+                }
+            }
+        }
+        .navigationDestination(isPresented: $showStat) { if let c = statChar { EnkaStatPage(char: c, game: game) } }
     }
 }
 
@@ -131,12 +212,15 @@ struct EnkaStatPage: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 header
-                if let w = char.weapon {
-                    section(game == "genshin" ? "무기" : "광추") { weaponCard(w) }
+                section(game == "genshin" ? "무기" : game == "zzz" ? "음동기" : "광추") {
+                    if let w = char.weapon { weaponCard(w) }
+                    else { emptyEquipNote(game == "genshin" ? "무기가 장착되지 않았습니다." : game == "zzz" ? "음동기가 장착되지 않았습니다." : "광추가 장착되지 않았습니다.") }
                 }
                 section("핵심 스탯") { statGrid }
-                if !char.artifacts.isEmpty {
-                    section(game == "genshin" ? "성유물" : "유물") {
+                section(game == "genshin" ? "성유물" : game == "zzz" ? "드라이브 디스크" : "유물") {
+                    if char.artifacts.isEmpty {
+                        emptyEquipNote(game == "genshin" ? "성유물이 장착되지 않았습니다." : game == "zzz" ? "드라이브 디스크가 장착되지 않았습니다." : "유물이 장착되지 않았습니다.")
+                    } else {
                         VStack(spacing: 10) {
                             ForEach(Array(char.artifacts.enumerated()), id: \.offset) { _, a in artifactCard(a) }
                         }
@@ -156,6 +240,15 @@ struct EnkaStatPage: View {
             secLabel(title)
             content()
         }
+    }
+
+    /// 광추/무기·유물 미장착 안내 카드.
+    private func emptyEquipNote(_ text: String) -> some View {
+        Text(text)
+            .font(.system(size: 12)).foregroundStyle(GLGColor.textSecondary)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(14)
+            .glgGlass(in: RoundedRectangle(cornerRadius: 22, style: .continuous))
     }
 
     private var header: some View {
