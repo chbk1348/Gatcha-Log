@@ -50,6 +50,8 @@ private fun elementColor(el: String): Color = when (el) {
     "물리" -> Color(0xFF8A9099)
     "양자" -> Color(0xFF6C5CE7)
     "허수" -> Color(0xFFE0A93B)
+    "전기" -> Color(0xFFE6C13A)
+    "에테르" -> Color(0xFFE05CAE)
     else -> Color(0xFF8A9099)
 }
 
@@ -111,9 +113,9 @@ fun EnkaCharSection(
             else -> {
                 // 대표 4명만 표시, 그 이상은 더보기로 전체 페이지 진입
                 chars.take(4).chunked(2).forEach { row ->
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Row(Modifier.fillMaxWidth().height(IntrinsicSize.Max), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         row.forEach { c ->
-                            Box(Modifier.weight(1f)) { RosterCard(c, game) { onOpenStats(c, game) } }
+                            Box(Modifier.weight(1f).fillMaxHeight()) { RosterCard(c, game, Modifier.fillMaxHeight()) { onOpenStats(c, game) } }
                         }
                         if (row.size == 1) Spacer(Modifier.weight(1f))
                     }
@@ -174,9 +176,9 @@ fun EnkaRosterPage(
             RarityFilter(rarityFilter) { rarityFilter = it }
         }
         chars.chunked(2).forEach { row ->
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(Modifier.fillMaxWidth().height(IntrinsicSize.Max), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 row.forEach { c ->
-                    Box(Modifier.weight(1f)) { RosterCard(c, game) { onOpenStats(c, game) } }
+                    Box(Modifier.weight(1f).fillMaxHeight()) { RosterCard(c, game, Modifier.fillMaxHeight()) { onOpenStats(c, game) } }
                 }
                 if (row.size == 1) Spacer(Modifier.weight(1f))
             }
@@ -242,9 +244,9 @@ private fun LinkPrompt(accent: Color, onOpenHoyolab: () -> Unit) {
 
 /** 로스터 카드 — 초상 + 이름 + Lv·우정/원소·명좌. 탭 가능. */
 @Composable
-private fun RosterCard(c: EnkaChar, game: String, onClick: () -> Unit) {
+private fun RosterCard(c: EnkaChar, game: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
     val rarityColor = if (c.rarity >= 5) Gold else Purple
-    GlassCard(shape = RoundedCornerShape(18.dp), modifier = Modifier.clickable { onClick() }) {
+    GlassCard(shape = RoundedCornerShape(18.dp), modifier = modifier.clickable { onClick() }) {
         Row(Modifier.fillMaxWidth().padding(11.dp), verticalAlignment = Alignment.CenterVertically) {
             Box(
                 Modifier.size(50.dp).clip(RoundedCornerShape(14.dp)).background(rarityColor.copy(alpha = 0.14f)),
@@ -325,6 +327,7 @@ fun EnkaStatPage(c: EnkaChar, game: String, onBack: () -> Unit) {
                     Spacer(Modifier.height(7.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         if (c.element.isNotBlank()) Badge(c.element, ec)
+                        if (c.path.isNotBlank()) Badge(c.path, TextSecondary)
                         rankLabelFor(c, game)?.let { Badge(it, Color(0xFF9C6F12)) }
                         Badge("Lv. ${c.level}", TextSecondary)
                     }

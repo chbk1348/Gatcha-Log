@@ -13,6 +13,8 @@ private func enkaElementColor(_ el: String) -> Color {
     case "물리": return Color(hex: 0xFF8A9099)
     case "양자": return Color(hex: 0xFF6C5CE7)
     case "허수": return Color(hex: 0xFFE0A93B)
+    case "전기": return Color(hex: 0xFFE6C13A)
+    case "에테르": return Color(hex: 0xFFE05CAE)
     default: return Color(hex: 0xFF8A9099)
     }
 }
@@ -154,7 +156,7 @@ func enkaRosterCard(_ c: EnkaChar, _ game: String) -> some View {
         Spacer(minLength: 0)
     }
     .padding(11)
-    .frame(maxWidth: .infinity, alignment: .leading)
+    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
     .glgGlass(in: RoundedRectangle(cornerRadius: 18, style: .continuous))
 }
 
@@ -268,6 +270,7 @@ struct EnkaStatPage: View {
                 Text(char.name).font(.system(size: 20, weight: .bold)).lineLimit(1)
                 HStack(spacing: 6) {
                     if !char.element.isEmpty { badge(char.element, ec) }
+                    if !char.path.isEmpty { badge(char.path, GLGColor.textSecondary) }
                     if let r = enkaRankLabel(char, game) { badge(r, Color(hex: 0xFF9C6F12)) }
                     badge("Lv. \(char.level)", GLGColor.textSecondary)
                 }
