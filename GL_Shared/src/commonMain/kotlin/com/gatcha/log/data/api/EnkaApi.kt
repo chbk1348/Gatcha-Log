@@ -19,6 +19,7 @@ data class EnkaChar(
     val stats: List<EnkaStatLine> = emptyList(),
     val weapon: EnkaWeapon? = null,
     val artifacts: List<EnkaArtifact> = emptyList(),
+    val sets: List<EnkaSet> = emptyList(),
 )
 
 /** 스탯 한 줄(라벨+표시값). [crit]=치명타 계열(UI 강조). */
@@ -41,6 +42,9 @@ data class EnkaArtifact(
     val main: EnkaStatLine,
     val subs: List<EnkaStatLine>,
 )
+
+/** 세트 효과(성유물/유물/드라이브 디스크). [count]=장착 수, [effects]=활성 세트 보너스 텍스트. */
+data class EnkaSet(val name: String, val count: Int, val effects: List<String> = emptyList())
 
 /** Yatta 아바타 메타(한글명·희귀도·아이콘 URL·한글 원소). id 매핑용 캐시 값. */
 private data class AvatarMeta(val name: String, val rarity: Int, val iconUrl: String, val element: String)
@@ -186,6 +190,7 @@ object EnkaApi {
                     stats = hsrStats(a),
                     weapon = hsrLightCone(a.optJSONObject("light_cone")),
                     artifacts = hsrRelics(a.optJSONArray("relics")),
+                    sets = hsrSets(a),
                 )
             }
             // 로스터: 연동되면 HoYoLAB 전체 목록(쇼케이스=mihomo 리치+공식이름 override, 그 외=HoYoLAB 파싱), 아니면 쇼케이스만
@@ -261,6 +266,18 @@ object EnkaApi {
             },
             artifacts = hsrHoyoRelics(o.optJSONArray("relics"), o.optJSONArray("ornaments"), propMap),
         )
+    }
+
+    /** mihomo relic_sets → 활성 세트 효과. */
+    private fun hsrSets(c: JSONObject): List<EnkaSet> = buildList {
+        val rs = c.optJSONArray("relic_sets") ?: return@buildList
+        for (i in 0 until rs.length()) {
+            val s = rs.optJSONObject(i) ?: continue
+            val name = s.optString("name")
+            if (name.isBlank()) continue
+            val desc = cleanName(s.optString("desc")).takeIf { it.isNotBlank() }
+            add(EnkaSet(name, s.optInt("num"), listOfNotNull(desc)))
+        }
     }
 
     /** HoYoLAB properties[] {property_type, final} → 핵심 스탯(0 값 제외). */
@@ -612,7 +629,32 @@ object EnkaApi {
             stats = giHoyoStats(o, propMap),
             weapon = giHoyoWeapon(o.optJSONObject("weapon"), propMap),
             artifacts = giHoyoRelics(o.optJSONArray("relics"), propMap),
+            sets = giHoyoSets(o.optJSONArray("relics")),
         )
+    }
+
+    /** 원신 성유물 set{name, affixes[activation_number, effect]} → 활성 세트 효과(장착 수 ≥ 발동 수). */
+    private fun giHoyoSets(arr: JSONArray?): List<EnkaSet> = buildList {
+        arr ?: return@buildList
+        val count = linkedMapOf<String, Int>()
+        val affixes = mutableMapOf<String, JSONArray?>()
+        for (i in 0 until arr.length()) {
+            val set = arr.optJSONObject(i)?.optJSONObject("set") ?: continue
+            val name = set.optString("name")
+            if (name.isBlank()) continue
+            count[name] = (count[name] ?: 0) + 1
+            affixes[name] = set.optJSONArray("affixes")
+        }
+        count.forEach { (name, c) ->
+            val eff = affixes[name]?.let { af ->
+                (0 until af.length()).mapNotNull { i ->
+                    val a = af.optJSONObject(i) ?: return@mapNotNull null
+                    val n = a.optInt("activation_number")
+                    if (n in 1..c) "${n}세트 ${cleanName(a.optString("effect"))}" else null
+                }
+            }.orEmpty()
+            add(EnkaSet(name, c, eff))
+        }
     }
 
     /** base_properties + element_properties(0 제외, 중복 type 제거) → 핵심 스탯. */
@@ -731,7 +773,28 @@ object EnkaApi {
             stats = zzzStats(o.optJSONArray("properties")),
             weapon = zzzWeapon(o.optJSONObject("weapon")),
             artifacts = zzzDiscs(o.optJSONArray("equip")),
+            sets = zzzSets(o.optJSONArray("equip")),
         )
+    }
+
+    /** ZZZ 드라이브 디스크 equip_suit{name, own, desc1/2} → 활성 세트 효과(2/4). */
+    private fun zzzSets(arr: JSONArray?): List<EnkaSet> = buildList {
+        arr ?: return@buildList
+        val seen = linkedMapOf<Int, EnkaSet>()
+        for (i in 0 until arr.length()) {
+            val suit = arr.optJSONObject(i)?.optJSONObject("equip_suit") ?: continue
+            val sid = suit.optInt("suit_id")
+            if (sid == 0 || sid in seen) continue
+            val name = suit.optString("name")
+            if (name.isBlank()) continue
+            val own = suit.optInt("own")
+            val eff = buildList {
+                if (own >= 2) suit.optString("desc1").takeIf { it.isNotBlank() }?.let { add("2세트 ${cleanName(it)}") }
+                if (own >= 4) suit.optString("desc2").takeIf { it.isNotBlank() }?.let { add("4세트 ${cleanName(it)}") }
+            }
+            seen[sid] = EnkaSet(name, own, eff)
+        }
+        addAll(seen.values)
     }
 
     /** ZZZ 패널 properties[] {property_name, final} → 핵심 스탯. */

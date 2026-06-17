@@ -167,13 +167,32 @@ struct EnkaRosterPage: View {
     @State private var statChar: EnkaChar? = nil
     @State private var showStat = false
     @State private var rarity = 0 // 0=전체, 5, 4
+    @State private var element = "" // ""=전체
+    @State private var path = "" // ""=전체 (HSR)
 
     private let cols = [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)]
 
     var body: some View {
         let all = store.enkaResult?.profile?.chars ?? []
-        let chars = rarity == 0 ? all : all.filter { Int($0.rarity) == rarity }
+        let elements = distinct(all.map { $0.element })
+        let paths = distinct(all.map { $0.path })
+        let chars = all.filter {
+            (rarity == 0 || Int($0.rarity) == rarity)
+                && (element.isEmpty || $0.element == element)
+                && (path.isEmpty || $0.path == path)
+        }
         ScrollView {
+            // 필터 칩 — 등급 · 속성 · 운명의길(스타레일)
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    filterMenu("등급", rarity == 0 ? "전체" : "\(rarity)성", [("전체", { rarity = 0 }), ("5성", { rarity = 5 }), ("4성", { rarity = 4 })])
+                    filterMenu("속성", element.isEmpty ? "전체" : element, [("전체", { element = "" })] + elements.map { e in (e, { element = e }) })
+                    if game == "hsr" && !paths.isEmpty {
+                        filterMenu("운명의길", path.isEmpty ? "전체" : path, [("전체", { path = "" })] + paths.map { p in (p, { path = p }) })
+                    }
+                }
+                .padding(.horizontal, 16).padding(.top, 12)
+            }
             LazyVGrid(columns: cols, spacing: 10) {
                 ForEach(Array(chars.enumerated()), id: \.offset) { _, c in
                     Button { statChar = c; showStat = true } label: { enkaRosterCard(c, game) }.buttonStyle(.plain)
@@ -184,21 +203,26 @@ struct EnkaRosterPage: View {
         .background(GLGBackground { Color.clear })
         .navigationTitle("보유 캐릭터 · " + (game == "genshin" ? "원신" : game == "zzz" ? "젠레스" : "스타레일"))
         .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                Menu {
-                    Button("전체") { rarity = 0 }
-                    Button("5성") { rarity = 5 }
-                    Button("4성") { rarity = 4 }
-                } label: {
-                    HStack(spacing: 3) {
-                        Text(rarity == 0 ? "전체" : "\(rarity)성").font(.system(size: 13, weight: .bold))
-                        Image(systemName: "chevron.down").font(.system(size: 11, weight: .bold))
-                    }
-                }
-            }
-        }
         .navigationDestination(isPresented: $showStat) { if let c = statChar { EnkaStatPage(char: c, game: game) } }
+    }
+
+    private func distinct(_ xs: [String]) -> [String] {
+        var seen = Set<String>()
+        return xs.compactMap { $0.isEmpty ? nil : $0 }.filter { seen.insert($0).inserted }
+    }
+
+    private func filterMenu(_ label: String, _ current: String, _ items: [(String, () -> Void)]) -> some View {
+        Menu {
+            ForEach(Array(items.enumerated()), id: \.offset) { _, it in Button(it.0) { it.1() } }
+        } label: {
+            HStack(spacing: 3) {
+                Text("\(label)·\(current)").font(.system(size: 11.5, weight: .bold))
+                Image(systemName: "chevron.down").font(.system(size: 9, weight: .bold))
+            }
+            .foregroundStyle(GLGColor.textPrimary)
+            .padding(.horizontal, 11).padding(.vertical, 6)
+            .glgGlass(in: Capsule())
+        }
     }
 }
 
@@ -228,6 +252,17 @@ struct EnkaStatPage: View {
                         }
                     }
                 }
+                if !char.artifacts.isEmpty {
+                    section("세트 효과") {
+                        if char.sets.isEmpty {
+                            emptyEquipNote("세트 효과 발동 없음")
+                        } else {
+                            VStack(spacing: 10) {
+                                ForEach(Array(char.sets.enumerated()), id: \.offset) { _, s in setCard(s) }
+                            }
+                        }
+                    }
+                }
             }
             .padding(16).padding(.bottom, 20)
         }
@@ -242,6 +277,24 @@ struct EnkaStatPage: View {
             secLabel(title)
             content()
         }
+    }
+
+    /// 세트 효과 카드 — 세트명 + 장착 수 + 활성 보너스.
+    private func setCard(_ s: EnkaSet) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Text(s.name).font(.system(size: 13, weight: .bold)).lineLimit(1)
+                Spacer()
+                Text("\(s.count)").font(.system(size: 10.5, weight: .bold)).foregroundStyle(accent.primary)
+                    .padding(.horizontal, 7).padding(.vertical, 2).background(accent.primary.opacity(0.14), in: Capsule())
+            }
+            ForEach(Array(s.effects.enumerated()), id: \.offset) { _, e in
+                Text(e).font(.system(size: 11)).foregroundStyle(GLGColor.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true).frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+        .padding(13).frame(maxWidth: .infinity, alignment: .leading)
+        .glgGlass(in: RoundedRectangle(cornerRadius: 22, style: .continuous))
     }
 
     /// 광추/무기·유물 미장착 안내 카드.
@@ -332,6 +385,9 @@ struct EnkaStatPage: View {
                 VStack(alignment: .leading, spacing: 1) {
                     Text(a.main.label).font(.system(size: 12.5, weight: .bold)).lineLimit(1)
                     Text(a.main.value).font(.system(size: 13, weight: .bold)).foregroundStyle(a.main.crit ? enkaCrit : accent.primary)
+                    if !a.setName.isEmpty {
+                        Text(a.setName).font(.system(size: 9.5)).foregroundStyle(GLGColor.textSecondary).lineLimit(1)
+                    }
                 }
                 Spacer(minLength: 0)
                 Text("+\(a.level)").font(.system(size: 10, weight: .bold)).foregroundStyle(Color(hex: 0xFF9C6F12))

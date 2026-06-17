@@ -256,7 +256,8 @@ fun GameInfoScreen(
                 EnkaCharSection(
                     viewModel,
                     onOpenStats = { c, g -> statChar = c; statCharGame = g; statReturn = GiSub.Main; subPage = GiSub.CharStats },
-                    onOpenAll = { g -> rosterGame = g; subPage = GiSub.CharRoster },
+                    // 더보기로 새로 진입 시엔 보유목록 상태(스크롤/필터) 초기화 — 상세→뒤로 복귀는 SaveableStateProvider 가 유지
+                    onOpenAll = { g -> rosterGame = g; subPageStateHolder.removeState(GiSub.CharRoster); subPage = GiSub.CharRoster },
                     onOpenHoyolab = { subPage = GiSub.HoyoLink },
                 )
             }
@@ -281,7 +282,6 @@ fun GameInfoScreen(
             item { NavEntryCard(Icons.Default.Calculate, "가챠 계산기", "재화 환산 · 확률 · 시뮬레이터 · 플래너") { subPage = GiSub.Calc } }
             item { Spacer(Modifier.height(12.dp)) }
             item { NavEntryCard(Icons.Default.Savings, "충전 가성비", "패키지 단가 비교 · 첫구매 반영 · 뽑 환산") { subPage = GiSub.RechargeValue } }
-            item { Spacer(Modifier.height(12.dp)) }
             item { Spacer(Modifier.height(12.dp)) }
             item { NavEntryCard(Icons.Default.BarChart, "가챠 효율 리포트", "UIGF/SRGF 분석 · 단가 · 천장 분포") { subPage = GiSub.Report } }
             item { Spacer(Modifier.height(20.dp)) }
