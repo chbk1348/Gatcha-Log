@@ -146,7 +146,7 @@ object EnkaApi {
     private suspend fun fetchHsr(uid: String, ltuid: String = "", ltoken: String = ""): EnkaResult {
         val res = Net.get("https://api.mihomo.me/sr_info_parsed/$uid?lang=kr", headers)
         errorFor(res.code)?.let { return EnkaResult(null, it) }
-        // §5: 본인 계정 연동 시 HoYoLAB 공식 KR 이름으로 mihomo 빈 이름(신규 캐릭터) 보완
+        // §5: 본인 계정 연동 시 HoYoLAB 공식 KR 이름(캐릭터·광추)으로 mihomo 빈 이름(신규) 보완
         val krNames = HoyolabApi.fetchHsrCharNames(ltuid, ltoken, uid)
         return runCatching {
             val json = JSONObject(res.body)
@@ -155,10 +155,11 @@ object EnkaApi {
             val chars = (0 until list.length()).mapNotNull { i ->
                 val a = list.optJSONObject(i) ?: return@mapNotNull null
                 val id = a.optString("id").toIntOrNull() ?: 0
+                val official = krNames[id]
                 EnkaChar(
                     id = id,
                     // §5 폴백: HoYoLAB 공식 KR → mihomo KR(비어있지 않으면) → "#id"
-                    name = krNames[id] ?: a.optString("name").ifBlank { "#$id" },
+                    name = official?.char?.ifBlank { null } ?: a.optString("name").ifBlank { "#$id" },
                     level = a.optInt("level"),
                     rank = a.optInt("rank"), // 성혼
                     rarity = a.optInt("rarity", 5),
@@ -166,7 +167,8 @@ object EnkaApi {
                     element = a.optJSONObject("element")?.optString("name").orEmpty(),
                     detailed = true,
                     stats = hsrStats(a),
-                    weapon = hsrLightCone(a.optJSONObject("light_cone")),
+                    // 광추도 동일 폴백: HoYoLAB 공식 KR → mihomo
+                    weapon = hsrLightCone(a.optJSONObject("light_cone"), official?.lightCone),
                     artifacts = hsrRelics(a.optJSONArray("relics")),
                 )
             }
@@ -229,13 +231,14 @@ object EnkaApi {
         )
     }
 
-    private fun hsrLightCone(lc: JSONObject?): EnkaWeapon? {
+    private fun hsrLightCone(lc: JSONObject?, officialName: String? = null): EnkaWeapon? {
         lc ?: return null
         val main = lc.optJSONArray("attributes")?.optJSONObject(0)?.let {
             EnkaStatLine(it.optString("name"), it.optString("display"), false)
         }
         return EnkaWeapon(
-            name = lc.optString("name"),
+            // §5 폴백: HoYoLAB 공식 KR 광추명 → mihomo
+            name = officialName?.ifBlank { null } ?: lc.optString("name"),
             level = lc.optInt("level"),
             refinement = lc.optInt("rank"), // 중첩
             main = main,
