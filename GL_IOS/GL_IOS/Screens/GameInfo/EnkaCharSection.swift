@@ -182,17 +182,6 @@ struct EnkaRosterPage: View {
                 && (path.isEmpty || $0.path == path)
         }
         ScrollView {
-            // 필터 칩 — 등급 · 속성 · 운명의길(스타레일)
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 8) {
-                    filterMenu("등급", rarity == 0 ? "전체" : "\(rarity)성", [("전체", { rarity = 0 }), ("5성", { rarity = 5 }), ("4성", { rarity = 4 })])
-                    filterMenu("속성", element.isEmpty ? "전체" : element, [("전체", { element = "" })] + elements.map { e in (e, { element = e }) })
-                    if game == "hsr" && !paths.isEmpty {
-                        filterMenu("운명의길", path.isEmpty ? "전체" : path, [("전체", { path = "" })] + paths.map { p in (p, { path = p }) })
-                    }
-                }
-                .padding(.horizontal, 16).padding(.top, 12)
-            }
             LazyVGrid(columns: cols, spacing: 10) {
                 ForEach(Array(chars.enumerated()), id: \.offset) { _, c in
                     Button { statChar = c; showStat = true } label: { enkaRosterCard(c, game) }.buttonStyle(.plain)
@@ -203,26 +192,34 @@ struct EnkaRosterPage: View {
         .background(GLGBackground { Color.clear })
         .navigationTitle("보유 캐릭터 · " + (game == "genshin" ? "원신" : game == "zzz" ? "젠레스" : "스타레일"))
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            // 필터를 헤더(시스템 툴바)로 — iOS 26 시스템 글래스 메뉴 버튼
+            ToolbarItem(placement: .topBarTrailing) {
+                Menu {
+                    Picker("등급", selection: $rarity) {
+                        Text("전체").tag(0); Text("5성").tag(5); Text("4성").tag(4)
+                    }
+                    Picker("속성", selection: $element) {
+                        Text("전체").tag("")
+                        ForEach(elements, id: \.self) { Text($0).tag($0) }
+                    }
+                    if game == "hsr" && !paths.isEmpty {
+                        Picker("운명의 길", selection: $path) {
+                            Text("전체").tag("")
+                            ForEach(paths, id: \.self) { Text($0).tag($0) }
+                        }
+                    }
+                } label: {
+                    Image(systemName: "line.3.horizontal.decrease.circle")
+                }
+            }
+        }
         .navigationDestination(isPresented: $showStat) { if let c = statChar { EnkaStatPage(char: c, game: game) } }
     }
 
     private func distinct(_ xs: [String]) -> [String] {
         var seen = Set<String>()
         return xs.compactMap { $0.isEmpty ? nil : $0 }.filter { seen.insert($0).inserted }
-    }
-
-    private func filterMenu(_ label: String, _ current: String, _ items: [(String, () -> Void)]) -> some View {
-        Menu {
-            ForEach(Array(items.enumerated()), id: \.offset) { _, it in Button(it.0) { it.1() } }
-        } label: {
-            HStack(spacing: 3) {
-                Text("\(label)·\(current)").font(.system(size: 11.5, weight: .bold))
-                Image(systemName: "chevron.down").font(.system(size: 9, weight: .bold))
-            }
-            .foregroundStyle(GLGColor.textPrimary)
-            .padding(.horizontal, 11).padding(.vertical, 6)
-            .glgGlass(in: Capsule())
-        }
     }
 }
 
