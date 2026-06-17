@@ -8,6 +8,9 @@ import com.gatcha.log.data.MonthlyLedger
 import com.gatcha.log.data.NoteStat
 import com.gatcha.log.json.JSONObject
 import com.gatcha.log.util.currentTimeMillis
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import com.gatcha.log.util.md5Hex
 import kotlinx.datetime.toInstant
 import kotlin.math.ceil
@@ -84,7 +87,7 @@ object HoyolabApi {
     private class HoyoHeaders {
         private val h = linkedMapOf<String, String>()
         fun withCookie(cookie: String) = apply { h["Cookie"] = cookie }
-        fun withDS(query: String) = apply { h["DS"] = makeDS(query) }
+        fun withDS(query: String, body: String = "") = apply { h["DS"] = makeDS(query, body) }
         /** game_record 계열 공통 3종: app_version + client_type + language. */
         fun withRpc(clientType: Int) = apply {
             h["x-rpc-app_version"] = APP_VERSION
@@ -410,17 +413,14 @@ object HoyolabApi {
         return out
     }
 
-    // ----------------------------------------------------------------- HSR 캐릭터 공식 KR 이름
-    /** HSR 캐릭터의 공식 KR 이름 + 장착 광추 KR 이름(둘 다 mihomo 신규 번역 지연 보완용). 빈 값일 수 있음. */
-    data class HsrOfficialName(val char: String, val lightCone: String)
-
+    // ----------------------------------------------------------------- HSR 보유 캐릭터(avatar/info)
     /**
-     * HSR 캐릭터 id → 공식 한국어 이름(캐릭터·광추). mihomo/StarRailRes 가 신규 KR 번역을 비워두는 문제를
-     * 호요버스 공식 게임기록(avatar/info)으로 보완(번역 지연 0). 본인 계정(ltuid/ltoken) 한정 →
-     * 비연동/실패 시 빈 맵 → 호출부는 mihomo 이름으로 폴백(§5).
+     * HSR avatar/info 의 `data` 객체 — `avatar_list`(보유 전체 캐릭터: 이름·레벨·성흔·원소·스탯·유물·광추)
+     * 와 `property_info`(property_type→KR 스탯명 매핑)를 함께 담는다. 본인 계정(ltuid/ltoken) 한정.
+     * 비연동/실패 시 null → 호출부는 mihomo 쇼케이스로 폴백(§5 + 전체 로스터).
      */
-    suspend fun fetchHsrCharNames(ltuid: String, ltoken: String, uid: String): Map<Int, HsrOfficialName> {
-        if (ltuid.isBlank() || ltoken.isBlank() || uid.isBlank()) return emptyMap()
+    suspend fun fetchHsrAvatarInfo(ltuid: String, ltoken: String, uid: String): JSONObject? {
+        if (ltuid.isBlank() || ltoken.isBlank() || uid.isBlank()) return null
         val query = "role_id=$uid&server=${inferServer("hsr", uid)}"
         val headers = HoyoHeaders()
             .withCookie(cookieV2(ltuid, ltoken))
@@ -429,22 +429,121 @@ object HoyolabApi {
             .withUserAgent(UA_BBS)
             .build()
         return Net.get("https://bbs-api-os.hoyolab.com/game_record/app/hkrpg/api/avatar/info?$query", headers).parse(
-            onNetwork = { emptyMap() },
-            onParse = { emptyMap() },
+            onNetwork = { null },
+            onParse = { null },
         ) { retcode, _, json ->
-            if (retcode != 0) return@parse emptyMap()
-            val list = json.optJSONObject("data")?.optJSONArray("avatar_list") ?: return@parse emptyMap()
-            buildMap {
-                for (i in 0 until list.length()) {
-                    val o = list.optJSONObject(i) ?: continue
-                    val id = o.optInt("id")
-                    val name = o.optString("name")
-                    // equip = 장착 광추(이름/중첩/레벨). 공식 KR 광추명.
-                    val lightCone = o.optJSONObject("equip")?.optString("name").orEmpty()
-                    if (id != 0 && (name.isNotBlank() || lightCone.isNotBlank())) put(id, HsrOfficialName(name, lightCone))
+            if (retcode != 0) null else json.optJSONObject("data")
+        }
+    }
+
+    // ----------------------------------------------------------------- 젠레스(ZZZ) 보유 에이전트
+    private fun zzzHeaders(ltuid: String, ltoken: String, query: String, path: String) = HoyoHeaders()
+        .withCookie(cookieV2(ltuid, ltoken))
+        .withDS(query)
+        .withRpc(2)
+        .withUserAgent(UA_BBS)
+        .put("x-rpc-challenge_game", "8")
+        .put("x-rpc-challenge_path", "event/game_record_zzz/api/zzz/$path")
+        .build()
+
+    /**
+     * ZZZ 보유 에이전트 전체 상세(avatar/info). basic 으로 id 수집 → info(id_list) 로 음동기·디스크·스탯.
+     * 본인 계정(ltuid/ltoken) 한정. 비연동/실패 시 null.
+     */
+    /** ZZZ 로드 실패 시 사용자 메시지(성공 시 null). 호출부가 그대로 노출. */
+    var zzzLastError: String? = null
+
+    /** HoYoLAB retcode/HTTP → 사용자 메시지 분기. */
+    private fun zzzMsg(http: Int, rc: Int): String = when {
+        http == 429 || rc == 10101 -> "요청이 많아요. 잠시 후 다시 시도해주세요"
+        rc in AUTH_RETCODES -> "HoYoLAB 토큰이 만료됐어요 — 재연동이 필요해요"
+        rc == 1034 || rc == 10035 || rc == 5003 -> "HoYoLAB 보안 인증이 필요해요 — 앱에서 인증 후 다시 시도해주세요"
+        rc == 10104 || rc == 10103 || rc == -10001 -> "전투 기록이 비공개예요 — HoYoLAB에서 공개로 설정해주세요"
+        else -> "젠레스 정보를 불러오지 못했어요 (HoYoLAB 연동·전투 기록 공개 확인) [$rc]"
+    }
+
+    suspend fun fetchZzzAvatars(ltuid: String, ltoken: String, uid: String): List<JSONObject>? {
+        zzzLastError = null
+        if (ltuid.isBlank() || ltoken.isBlank() || uid.isBlank()) {
+            zzzLastError = "HoYoLAB 연동이 필요해요"
+            return null
+        }
+        val server = inferServer("zzz", uid)
+        // 1) basic → 보유 에이전트 id (실패 retcode 로 사유 분기)
+        val ids = mutableListOf<Int>()
+        var basicHttp = -1
+        var basicRc = -999
+        runCatching {
+            val q = "lang=ko-kr&role_id=$uid&server=$server"
+            val r = Net.get("https://sg-public-api.hoyolab.com/event/game_record_zzz/api/zzz/avatar/basic?$q", zzzHeaders(ltuid, ltoken, q, "avatar/basic"))
+            basicHttp = r.code
+            val j = JSONObject(r.body)
+            basicRc = j.optInt("retcode", -999)
+            if (basicRc == 0) j.optJSONObject("data")?.optJSONArray("avatar_list")?.let { l ->
+                for (i in 0 until l.length()) l.optJSONObject(i)?.optInt("id")?.let { if (it != 0) ids.add(it) }
+            }
+        }
+        if (ids.isEmpty()) {
+            zzzLastError = zzzMsg(basicHttp, basicRc)
+            return null
+        }
+        // 2) info — id_list 다건은 -400005 → 에이전트별 단건 병합. 호출량 제어: 동시 4건씩.
+        val agents = mutableListOf<JSONObject>()
+        for (group in ids.chunked(4)) {
+            val results = coroutineScope {
+                group.map { id -> async { fetchZzzOne(ltuid, ltoken, uid, server, id) } }.awaitAll()
+            }
+            results.forEach { it?.let(agents::add) }
+        }
+        if (agents.isEmpty()) {
+            zzzLastError = "젠레스 상세를 불러오지 못했어요. 잠시 후 다시 시도해주세요"
+            return null
+        }
+        return agents
+    }
+
+    private suspend fun fetchZzzOne(ltuid: String, ltoken: String, uid: String, server: String, id: Int): JSONObject? {
+        val q = "id_list[]=$id&lang=ko-kr&role_id=$uid&server=$server"
+        return runCatching {
+            val j = JSONObject(Net.get("https://sg-public-api.hoyolab.com/event/game_record_zzz/api/zzz/avatar/info?$q", zzzHeaders(ltuid, ltoken, q, "avatar/info")).body)
+            if (j.optInt("retcode", -1) == 0) j.optJSONObject("data")?.optJSONArray("avatar_list")?.optJSONObject(0) else null
+        }.getOrNull()
+    }
+
+    // ----------------------------------------------------------------- 원신 보유 캐릭터(character/list+detail, POST)
+    /**
+     * 원신 보유 전체 캐릭터 상세(HoYoLAB). list 로 id 수집 → detail 로 스탯·무기·성유물.
+     * POST 라 DS 서명에 body 포함. 본인 계정 한정. 비연동/실패 시 null → Enka 쇼케이스 폴백.
+     */
+    suspend fun fetchGenshinCharDetail(ltuid: String, ltoken: String, uid: String): JSONObject? {
+        if (ltuid.isBlank() || ltoken.isBlank() || uid.isBlank()) return null
+        val server = inferServer("genshin", uid)
+        fun headersFor(body: String) = HoyoHeaders()
+            .withCookie(cookieV2(ltuid, ltoken))
+            .withDS("", body)
+            .withRpc(2)
+            .withUserAgent(UA_BBS)
+            .put("Content-Type", "application/json")
+            .build()
+        // 1) 보유 캐릭터 id 목록
+        val listBody = "{\"role_id\":\"$uid\",\"server\":\"$server\"}"
+        val ids = mutableListOf<Int>()
+        runCatching {
+            val j = JSONObject(Net.post("https://bbs-api-os.hoyolab.com/game_record/app/genshin/api/character/list", headersFor(listBody), listBody).body)
+            if (j.optInt("retcode", -1) == 0) j.optJSONObject("data")?.optJSONArray("list")?.let { l ->
+                for (i in 0 until l.length()) {
+                    val id = l.optJSONObject(i)?.optInt("id") ?: 0
+                    if (id != 0) ids.add(id)
                 }
             }
         }
+        if (ids.isEmpty()) return null
+        // 2) 상세(스탯·무기·성유물 + property_map)
+        val detailBody = "{\"character_ids\":[${ids.joinToString(",")}],\"role_id\":\"$uid\",\"server\":\"$server\"}"
+        return runCatching {
+            val j = JSONObject(Net.post("https://bbs-api-os.hoyolab.com/game_record/app/genshin/api/character/detail", headersFor(detailBody), detailBody).body)
+            if (j.optInt("retcode", -1) == 0) j.optJSONObject("data") else null
+        }.getOrNull()
     }
 
     // ----------------------------------------------------------------- 월간 수입 일지
@@ -665,10 +764,10 @@ object HoyolabApi {
         }
     }
 
-    private fun makeDS(query: String): String {
+    private fun makeDS(query: String, body: String = ""): String {
         val t = currentTimeMillis() / 1000
         val r = Random.nextInt(100000, 200000)
-        val raw = "salt=$DS_SALT&t=$t&r=$r&b=&q=$query"
+        val raw = "salt=$DS_SALT&t=$t&r=$r&b=$body&q=$query"
         // md5Hex 는 com.gatcha.log.util 의 순수 Kotlin 구현 (JVM MessageDigest 와 동일 출력)
         return "$t,$r,${md5Hex(raw)}"
     }

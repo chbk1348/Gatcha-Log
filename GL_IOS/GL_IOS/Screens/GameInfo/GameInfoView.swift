@@ -15,11 +15,12 @@ struct GameInfoView: View {
     @State private var showCalc = false
     @State private var showRecharge = false
     @State private var showReport = false
-    @State private var showProfile = false
     @State private var showSchedule = false
     @State private var statChar: EnkaChar? = nil
     @State private var statGame = "genshin"
     @State private var showStats = false
+    @State private var rosterGame = "genshin"
+    @State private var showRoster = false
     // Segmented 레이아웃 — 상단 게임 세그먼트 선택값("all" | game.key). 하위 섹션들이 이 값으로 필터된다.
     @State private var gameFilter = "all"
 
@@ -27,17 +28,20 @@ struct GameInfoView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
                 DailyHeroSection(store: store, filter: gameFilter, onConfig: { showHoyolab = true })
-                // 통합 게임 일정 — 패치·이벤트·정기 콘텐츠를 합쳐 데일리 바로 아래 첫 섹션에 노출.
-                // 게임 분리는 상단 헤더 드롭다운(gameFilter)으로 필터한다.
+                // 내 캐릭터(보유 전체 로스터) — 데일리 다음 핵심 콘텐츠로 상단 배치
+                section {
+                    EnkaCharSection(store: store, onOpen: { c, g in statChar = c; statGame = g; showStats = true },
+                                    onOpenAll: { g in rosterGame = g; showRoster = true },
+                                    onOpenHoyolab: { showHoyolab = true })
+                }
+                // 통합 게임 일정 — 패치·이벤트·정기 콘텐츠. 게임 분리는 상단 헤더 드롭다운(gameFilter)으로 필터.
                 let schedule = buildSchedule(banners: store.activeBanners, events: store.gameEvents, challenges: store.challenges)
                 if !schedule.isEmpty {
                     section { GameScheduleSection(entries: schedule, banners: store.activeBanners, filter: gameFilter, onSeeAll: { showSchedule = true }) }
                 }
                 section { GameTabbedSection(store: store, filter: gameFilter) }
-                section { EnkaCharSection(store: store) { c, g in statChar = c; statGame = g; showStats = true } }
                 section { navEntry(icon: "function", title: "가챠 계산기", sub: "재화 환산 · 확률 · 시뮬레이터 · 플래너") { showCalc = true } }
                 section { navEntry(icon: "wonsign.circle", title: "충전 가성비", sub: "충전 패키지 단가 비교 · 첫구매 반영") { showRecharge = true } }
-                section { navEntry(icon: "person.crop.square", title: "프로필 쇼케이스", sub: "Enka.Network UID로 캐릭터 조회") { showProfile = true } }
                 section { navEntry(icon: "chart.bar.xaxis", title: "가챠 효율 리포트", sub: "UIGF/SRGF 분석 · 단가 · 천장 분포") { showReport = true } }
                 Color.clear.frame(height: 12)
             }
@@ -83,12 +87,14 @@ struct GameInfoView: View {
         .navigationDestination(isPresented: $showRate) { GachaRatePage() }
         .navigationDestination(isPresented: $showCalc) { sectionPage("계산기") { GachaCalculatorSection() } }
         .navigationDestination(isPresented: $showRecharge) { sectionPage("충전 가성비") { RechargeValueSection() } }
-        .navigationDestination(isPresented: $showProfile) { sectionPage("프로필") { ProfileShowcaseSection(store: store) } }
         .navigationDestination(isPresented: $showReport) { sectionPage("가챠 리포트") { GachaReportSection(store: store, onOpenDashboard: { showDashboard = true }) } }
         .navigationDestination(isPresented: $showGift) { GiftCodePage(store: store) }
         .navigationDestination(isPresented: $showDashboard) { GachaDashboardView(store: store) }
         .navigationDestination(isPresented: $showSchedule) { GameSchedulePage(store: store, filter: gameFilter) }
         .navigationDestination(isPresented: $showStats) { if let c = statChar { EnkaStatPage(char: c, game: statGame) } }
+        .navigationDestination(isPresented: $showRoster) {
+            EnkaRosterPage(store: store, game: rosterGame)
+        }
     }
 
     // 헤더 좌측 게임 드롭다운 라벨
