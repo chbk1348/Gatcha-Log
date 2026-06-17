@@ -42,12 +42,13 @@ import com.gatcha.log.ui.components.GlgCircleIconButton
 import com.gatcha.log.ui.components.GlgTabHeader
 import com.gatcha.log.data.GameInfoAnchor
 import com.gatcha.log.data.SpendingViewModel
+import com.gatcha.log.data.api.EnkaChar
 import com.gatcha.log.util.SafIO
 import com.gatcha.log.ui.theme.*
 import kotlinx.coroutines.launch
 
 /** 게임정보 탭의 풀스크린 하위 페이지 (열리면 하단바·FAB 숨김) */
-private enum class GiSub { Main, HoyoLink, Dashboard, Rate, Calc, RechargeValue, Profile, Report, Gift, Schedule }
+private enum class GiSub { Main, HoyoLink, Dashboard, Rate, Calc, RechargeValue, Profile, Report, Gift, Schedule, CharStats }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -99,6 +100,9 @@ fun GameInfoScreen(
     val schedule = remember(banners, events, challenges) { buildSchedule(banners, events, challenges) }
     // 게임정보 하위 풀스크린 페이지(연동 / 가챠 통계) — 열리면 상위(Scaffold)에 알려 하단바·FAB 숨김
     var subPage by remember { mutableStateOf(GiSub.Main) }
+    // Enka 캐릭터 스탯 페이지 랜딩 대상
+    var statChar by remember { mutableStateOf<EnkaChar?>(null) }
+    var statCharGame by remember { mutableStateOf("genshin") }
     LaunchedEffect(subPage) { onSubPageChange(subPage != GiSub.Main) }
     val redeemState by viewModel.redeemState.collectAsState()
     val activeCodes by viewModel.activeCodes.collectAsState()
@@ -151,6 +155,10 @@ fun GameInfoScreen(
                 onBack = { subPage = GiSub.Main },
             )
             GiSub.Rate -> GachaRatePage(onBack = { subPage = GiSub.Main })
+            GiSub.CharStats -> {
+                val c = statChar
+                if (c != null) EnkaStatPage(c, statCharGame) { subPage = GiSub.Main }
+            }
             GiSub.Calc -> SectionPage(onBack = { subPage = GiSub.Main }) { GachaCalculatorSection(pity) }
             GiSub.RechargeValue -> SectionPage(onBack = { subPage = GiSub.Main }) { RechargeValueSection() }
             GiSub.Profile -> SectionPage(onBack = { subPage = GiSub.Main }) {
@@ -251,6 +259,13 @@ fun GameInfoScreen(
                     isRefreshing = isRefreshing,
                     filter = gameFilter,
                 )
+            }
+            // 캐릭터 스탯 상시 섹션 (Enka 쇼케이스 로스터 → 탭 시 풀 스탯 페이지)
+            item { Spacer(Modifier.height(20.dp)) }
+            item {
+                EnkaCharSection(viewModel) { c, g ->
+                    statChar = c; statCharGame = g; subPage = GiSub.CharStats
+                }
             }
             // 페이지로 분류된 섹션(계산기·프로필·리포트) — 진입 카드
             item { Spacer(Modifier.height(20.dp)) }

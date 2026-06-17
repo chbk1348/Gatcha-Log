@@ -17,6 +17,9 @@ struct GameInfoView: View {
     @State private var showReport = false
     @State private var showProfile = false
     @State private var showSchedule = false
+    @State private var statChar: EnkaChar? = nil
+    @State private var statGame = "genshin"
+    @State private var showStats = false
     // Segmented 레이아웃 — 상단 게임 세그먼트 선택값("all" | game.key). 하위 섹션들이 이 값으로 필터된다.
     @State private var gameFilter = "all"
 
@@ -31,6 +34,7 @@ struct GameInfoView: View {
                     section { GameScheduleSection(entries: schedule, banners: store.activeBanners, filter: gameFilter, onSeeAll: { showSchedule = true }) }
                 }
                 section { GameTabbedSection(store: store, filter: gameFilter) }
+                section { EnkaCharSection(store: store) { c, g in statChar = c; statGame = g; showStats = true } }
                 section { navEntry(icon: "function", title: "가챠 계산기", sub: "재화 환산 · 확률 · 시뮬레이터 · 플래너") { showCalc = true } }
                 section { navEntry(icon: "wonsign.circle", title: "충전 가성비", sub: "충전 패키지 단가 비교 · 첫구매 반영") { showRecharge = true } }
                 section { navEntry(icon: "person.crop.square", title: "프로필 쇼케이스", sub: "Enka.Network UID로 캐릭터 조회") { showProfile = true } }
@@ -84,6 +88,7 @@ struct GameInfoView: View {
         .navigationDestination(isPresented: $showGift) { GiftCodePage(store: store) }
         .navigationDestination(isPresented: $showDashboard) { GachaDashboardView(store: store) }
         .navigationDestination(isPresented: $showSchedule) { GameSchedulePage(store: store, filter: gameFilter) }
+        .navigationDestination(isPresented: $showStats) { if let c = statChar { EnkaStatPage(char: c, game: statGame) } }
     }
 
     // 헤더 좌측 게임 드롭다운 라벨
