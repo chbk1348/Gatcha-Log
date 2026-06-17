@@ -48,7 +48,7 @@ import com.gatcha.log.ui.theme.*
 import kotlinx.coroutines.launch
 
 /** 게임정보 탭의 풀스크린 하위 페이지 (열리면 하단바·FAB 숨김) */
-private enum class GiSub { Main, HoyoLink, Dashboard, Rate, Calc, RechargeValue, Profile, Report, Gift, Schedule, CharStats }
+private enum class GiSub { Main, HoyoLink, Dashboard, Rate, Calc, RechargeValue, Report, Gift, Schedule, CharStats, CharRoster }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -103,6 +103,9 @@ fun GameInfoScreen(
     // Enka 캐릭터 스탯 페이지 랜딩 대상
     var statChar by remember { mutableStateOf<EnkaChar?>(null) }
     var statCharGame by remember { mutableStateOf("genshin") }
+    var rosterGame by remember { mutableStateOf("genshin") }
+    // 스탯 상세에서 뒤로 갈 위치(섹션=Main, 보유목록=CharRoster)
+    var statReturn by remember { mutableStateOf(GiSub.Main) }
     LaunchedEffect(subPage) { onSubPageChange(subPage != GiSub.Main) }
     val redeemState by viewModel.redeemState.collectAsState()
     val activeCodes by viewModel.activeCodes.collectAsState()
@@ -157,23 +160,15 @@ fun GameInfoScreen(
             GiSub.Rate -> GachaRatePage(onBack = { subPage = GiSub.Main })
             GiSub.CharStats -> {
                 val c = statChar
-                if (c != null) EnkaStatPage(c, statCharGame) { subPage = GiSub.Main }
+                if (c != null) EnkaStatPage(c, statCharGame) { subPage = statReturn }
             }
+            GiSub.CharRoster -> EnkaRosterPage(
+                viewModel, rosterGame,
+                onBack = { subPage = GiSub.Main },
+                onOpenStats = { c, g -> statChar = c; statCharGame = g; statReturn = GiSub.CharRoster; subPage = GiSub.CharStats },
+            )
             GiSub.Calc -> SectionPage(onBack = { subPage = GiSub.Main }) { GachaCalculatorSection(pity) }
             GiSub.RechargeValue -> SectionPage(onBack = { subPage = GiSub.Main }) { RechargeValueSection() }
-            GiSub.Profile -> SectionPage(onBack = { subPage = GiSub.Main }) {
-                ProfileShowcaseSection(
-                    giUid = enkaGiUid,
-                    hsrUid = enkaHsrUid,
-                    hoyoGiUid = hoyolab.genshinUid,
-                    hoyoHsrUid = hoyolab.hsrUid,
-                    result = enkaResult,
-                    loading = enkaLoading,
-                    onLoad = { game, uid -> viewModel.loadEnkaProfile(game, uid) },
-                    onGameChange = { viewModel.clearEnkaResult() },
-                    onOpenHoyolab = { subPage = GiSub.HoyoLink },
-                )
-            }
             GiSub.Report -> SectionPage(onBack = { subPage = GiSub.Main }) {
                 GachaReportSection(
                     stats = gachaStats,
@@ -244,7 +239,17 @@ fun GameInfoScreen(
                     onConfigClick = { subPage = GiSub.HoyoLink },
                 )
             }
-            // 통합 게임 일정 — 데일리 바로 아래. 헤더 드롭다운(gameFilter) 연동.
+            // 내 캐릭터(보유 전체 로스터) — 데일리 다음 핵심 콘텐츠로 상단 배치
+            item { Spacer(Modifier.height(20.dp)) }
+            item {
+                EnkaCharSection(
+                    viewModel,
+                    onOpenStats = { c, g -> statChar = c; statCharGame = g; statReturn = GiSub.Main; subPage = GiSub.CharStats },
+                    onOpenAll = { g -> rosterGame = g; subPage = GiSub.CharRoster },
+                    onOpenHoyolab = { subPage = GiSub.HoyoLink },
+                )
+            }
+            // 통합 게임 일정 — 헤더 드롭다운(gameFilter) 연동.
             if (schedule.isNotEmpty()) {
                 item { Spacer(Modifier.height(20.dp)) }
                 item { GameScheduleSection(schedule, banners, gameFilter) { subPage = GiSub.Schedule } }
@@ -260,20 +265,12 @@ fun GameInfoScreen(
                     filter = gameFilter,
                 )
             }
-            // 캐릭터 스탯 상시 섹션 (Enka 쇼케이스 로스터 → 탭 시 풀 스탯 페이지)
-            item { Spacer(Modifier.height(20.dp)) }
-            item {
-                EnkaCharSection(viewModel) { c, g ->
-                    statChar = c; statCharGame = g; subPage = GiSub.CharStats
-                }
-            }
             // 페이지로 분류된 섹션(계산기·프로필·리포트) — 진입 카드
             item { Spacer(Modifier.height(20.dp)) }
             item { NavEntryCard(Icons.Default.Calculate, "가챠 계산기", "재화 환산 · 확률 · 시뮬레이터 · 플래너") { subPage = GiSub.Calc } }
             item { Spacer(Modifier.height(12.dp)) }
             item { NavEntryCard(Icons.Default.Savings, "충전 가성비", "패키지 단가 비교 · 첫구매 반영 · 뽑 환산") { subPage = GiSub.RechargeValue } }
             item { Spacer(Modifier.height(12.dp)) }
-            item { NavEntryCard(Icons.Default.AccountBox, "프로필 쇼케이스", "Enka.Network UID로 캐릭터 조회") { subPage = GiSub.Profile } }
             item { Spacer(Modifier.height(12.dp)) }
             item { NavEntryCard(Icons.Default.BarChart, "가챠 효율 리포트", "UIGF/SRGF 분석 · 단가 · 천장 분포") { subPage = GiSub.Report } }
             item { Spacer(Modifier.height(20.dp)) }
