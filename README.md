@@ -41,6 +41,7 @@ Google Apps Script 웹앱에서 출발해 **Kotlin Multiplatform + Compose Multi
 - **월간 수입 일지** — 원석·폴리크롬 등 이번 달 재화 수입 + 수입원 비중
 - **전투 콘텐츠 진행도** — 나선 비경·현실 속 환상극·혼돈의 기억 등
 - **자동 연동** — 로그인 한 번으로 토큰·게임 UID 자동 수집
+- **내 캐릭터 — 보유 전체 스탯시트** — 연동 계정의 **보유 캐릭터 전체(쇼케이스 밖 포함)** 를 핵심 스탯·무기(광추/음동기)·성유물(유물/드라이브 디스크)까지 풀 상세로 조회. 대표 4명 + 더보기 → 보유 목록(등급 필터) → 캐릭터 상세 (원신·스타레일·젠레스)
 
 ### 🗓 배너 · 일정
 - **픽업 배너 D-Day**(전반/후반 · 버전), **패치 일정**(버전 시작·종료 날짜)
@@ -52,7 +53,6 @@ Google Apps Script 웹앱에서 출발해 **Kotlin Multiplatform + Compose Multi
 - **가챠 확률표** — 소프트/하드 천장·픽업 확률 통계
 - **통합 계산기** — 재화 환산 · 확보 확률 · 뽑기 플래너(목표일까지 무료 재화 누적·달성 판정)
 - **가챠 효율 리포트** — UIGF v4 / SRGF JSON 가져오기 → 천장 분포·월별 추이·픽업 비율·5성 타임라인·평균 천장·운 분석
-- **프로필 쇼케이스** — Enka.Network 기반 보유 캐릭터 조회
 
 ### 🔔 알림
 - 예산 초과 · 출석 미완료 · 재화 가득 · 위시 픽업 로컬 알림 (항목별 토글)
@@ -147,7 +147,7 @@ iOS 용 IPA 는 **미서명** 상태로 배포됩니다 — [Sideloadly](https:/
 
 - 게임 콘텐츠 및 재화·캐릭터 아이콘의 저작권은 각 권리자에게 있습니다 —
   **© HoYoverse**(원신 · 붕괴: 스타레일 · 젠레스 존 제로) · **© Kuro Games**(명조) · **© Hypergryph / Yostar**(명일방주: 엔드필드) 등.
-- 데이터·에셋 제공: [enka.network](https://enka.network) · [Project Amber (ambr.top)](https://ambr.top) · ennead.cc · HoYoLAB
+- 데이터·에셋 제공: [enka.network](https://enka.network) · [mihomo.me](https://api.mihomo.me) · [Project Amber (ambr.top)](https://ambr.top) · ennead.cc · HoYoLAB
 - 모든 게임 콘텐츠의 권리는 각 권리자에게 있으며, **권리자의 요청이 있을 경우 즉시 해당 자료를 삭제**합니다.
 
 <div align="center">
