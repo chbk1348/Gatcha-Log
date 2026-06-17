@@ -411,12 +411,15 @@ object HoyolabApi {
     }
 
     // ----------------------------------------------------------------- HSR 캐릭터 공식 KR 이름
+    /** HSR 캐릭터의 공식 KR 이름 + 장착 광추 KR 이름(둘 다 mihomo 신규 번역 지연 보완용). 빈 값일 수 있음. */
+    data class HsrOfficialName(val char: String, val lightCone: String)
+
     /**
-     * HSR 캐릭터 id → 공식 한국어 이름. mihomo/StarRailRes 가 신규 캐릭터 KR 번역을 비워두는 문제를
+     * HSR 캐릭터 id → 공식 한국어 이름(캐릭터·광추). mihomo/StarRailRes 가 신규 KR 번역을 비워두는 문제를
      * 호요버스 공식 게임기록(avatar/info)으로 보완(번역 지연 0). 본인 계정(ltuid/ltoken) 한정 →
      * 비연동/실패 시 빈 맵 → 호출부는 mihomo 이름으로 폴백(§5).
      */
-    suspend fun fetchHsrCharNames(ltuid: String, ltoken: String, uid: String): Map<Int, String> {
+    suspend fun fetchHsrCharNames(ltuid: String, ltoken: String, uid: String): Map<Int, HsrOfficialName> {
         if (ltuid.isBlank() || ltoken.isBlank() || uid.isBlank()) return emptyMap()
         val query = "role_id=$uid&server=${inferServer("hsr", uid)}"
         val headers = HoyoHeaders()
@@ -436,7 +439,9 @@ object HoyolabApi {
                     val o = list.optJSONObject(i) ?: continue
                     val id = o.optInt("id")
                     val name = o.optString("name")
-                    if (id != 0 && name.isNotBlank()) put(id, name)
+                    // equip = 장착 광추(이름/중첩/레벨). 공식 KR 광추명.
+                    val lightCone = o.optJSONObject("equip")?.optString("name").orEmpty()
+                    if (id != 0 && (name.isNotBlank() || lightCone.isNotBlank())) put(id, HsrOfficialName(name, lightCone))
                 }
             }
         }
