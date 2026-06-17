@@ -563,6 +563,10 @@ class SpendingViewModel : ViewModel() {
     private val _enkaLoading = MutableStateFlow(false)
     val enkaLoading: StateFlow<Boolean> = _enkaLoading.asStateFlow()
 
+    // 상시 섹션용 TTL 캐시 ("game:uid" → (시각, 결과)). Enka 429 방지 위해 5분 내 재요청 생략.
+    private val enkaCache = mutableMapOf<String, Pair<Long, EnkaResult>>()
+    private val enkaTtlMs = 5 * 60 * 1000L
+
     /** Enka UID 로 프로필 조회 + UID 계정별 영속(클라우드 동기화 포함). */
     fun loadEnkaProfile(game: String, uid: String) {
         val u = uid.trim()
@@ -570,7 +574,33 @@ class SpendingViewModel : ViewModel() {
         repo.saveEnkaUids(_enkaGiUid.value, _enkaHsrUid.value)
         viewModelScope.launch {
             _enkaLoading.value = true
-            _enkaResult.value = EnkaApi.fetchProfile(game, u)
+            val cfg = _hoyolabConfig.value
+            val r = EnkaApi.fetchProfile(game, u, cfg.ltuid, cfg.ltoken)
+            if (r.profile != null) enkaCache["$game:$u"] = currentTimeMillis() to r
+            _enkaResult.value = r
+            _enkaLoading.value = false
+        }
+    }
+
+    /**
+     * 게임정보 탭 상시 섹션 — 선택 게임의 저장 UID 로 자동 로드. 5분 캐시 적중 시 네트워크 생략.
+     * UID 미설정이면 결과 비움(섹션 미표시). [force] 면 캐시 무시하고 새로고침.
+     */
+    fun autoLoadEnka(game: String, force: Boolean = false) {
+        val uid = (if (game == "genshin") _enkaGiUid.value else _enkaHsrUid.value).trim()
+        if (uid.isBlank()) { _enkaResult.value = null; return }
+        val key = "$game:$uid"
+        val cached = enkaCache[key]
+        if (!force && cached != null && currentTimeMillis() - cached.first < enkaTtlMs) {
+            _enkaResult.value = cached.second
+            return
+        }
+        viewModelScope.launch {
+            _enkaLoading.value = true
+            val cfg = _hoyolabConfig.value
+            val r = EnkaApi.fetchProfile(game, uid, cfg.ltuid, cfg.ltoken)
+            if (r.profile != null) enkaCache[key] = currentTimeMillis() to r
+            _enkaResult.value = r
             _enkaLoading.value = false
         }
     }

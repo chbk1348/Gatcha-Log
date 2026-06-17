@@ -68,10 +68,14 @@ object EnkaApi {
     private var giMeta: Map<Int, AvatarMeta>? = null
     private var hsrMeta: Map<Int, AvatarMeta>? = null
 
-    suspend fun fetchProfile(game: String, uid: String): EnkaResult {
+    /**
+     * [ltuid]/[ltoken] 은 HSR 전용 — 본인 계정 연동 시 HoYoLAB 공식 KR 캐릭터명을 받아
+     * mihomo 가 비워두는 신규 캐릭터 이름을 보완한다(§5). 미연동이면 빈 문자열 → mihomo 이름 폴백.
+     */
+    suspend fun fetchProfile(game: String, uid: String, ltuid: String = "", ltoken: String = ""): EnkaResult {
         val u = uid.trim()
         if (u.isBlank() || u.any { !it.isDigit() }) return EnkaResult(null, "UID는 숫자만 입력하세요")
-        return if (game == "hsr" || game == "starrail") fetchHsr(u) else fetchGenshin(u)
+        return if (game == "hsr" || game == "starrail") fetchHsr(u, ltuid, ltoken) else fetchGenshin(u)
     }
 
     // ----------------------------------------------------------------- 원신
@@ -139,18 +143,22 @@ object EnkaApi {
     // (KR 표시문자열·세트명까지 계산해서 반환). 로스터+풀스탯 동일 응답에서 파싱.
     private val hsrSlots = listOf("머리", "손", "몸통", "발", "행성구", "연결로프")
 
-    private suspend fun fetchHsr(uid: String): EnkaResult {
+    private suspend fun fetchHsr(uid: String, ltuid: String = "", ltoken: String = ""): EnkaResult {
         val res = Net.get("https://api.mihomo.me/sr_info_parsed/$uid?lang=kr", headers)
         errorFor(res.code)?.let { return EnkaResult(null, it) }
+        // §5: 본인 계정 연동 시 HoYoLAB 공식 KR 이름으로 mihomo 빈 이름(신규 캐릭터) 보완
+        val krNames = HoyolabApi.fetchHsrCharNames(ltuid, ltoken, uid)
         return runCatching {
             val json = JSONObject(res.body)
             val player = json.optJSONObject("player")
             val list = json.optJSONArray("characters") ?: JSONArray()
             val chars = (0 until list.length()).mapNotNull { i ->
                 val a = list.optJSONObject(i) ?: return@mapNotNull null
+                val id = a.optString("id").toIntOrNull() ?: 0
                 EnkaChar(
-                    id = a.optString("id").toIntOrNull() ?: 0,
-                    name = a.optString("name"),
+                    id = id,
+                    // §5 폴백: HoYoLAB 공식 KR → mihomo KR(비어있지 않으면) → "#id"
+                    name = krNames[id] ?: a.optString("name").ifBlank { "#$id" },
                     level = a.optInt("level"),
                     rank = a.optInt("rank"), // 성혼
                     rarity = a.optInt("rarity", 5),
