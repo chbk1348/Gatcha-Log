@@ -75,54 +75,66 @@ object EnkaApi {
     suspend fun fetchProfile(game: String, uid: String, ltuid: String = "", ltoken: String = ""): EnkaResult {
         val u = uid.trim()
         if (u.isBlank() || u.any { !it.isDigit() }) return EnkaResult(null, "UID는 숫자만 입력하세요")
-        return if (game == "hsr" || game == "starrail") fetchHsr(u, ltuid, ltoken) else fetchGenshin(u)
+        return when (game) {
+            "hsr", "starrail" -> fetchHsr(u, ltuid, ltoken)
+            "zzz" -> fetchZzz(u, ltuid, ltoken)
+            else -> fetchGenshin(u, ltuid, ltoken)
+        }
     }
 
     // ----------------------------------------------------------------- 원신
-    private suspend fun fetchGenshin(uid: String): EnkaResult {
+    private suspend fun fetchGenshin(uid: String, ltuid: String = "", ltoken: String = ""): EnkaResult {
         val res = Net.get("https://enka.network/api/uid/$uid", headers)
         errorFor(res.code)?.let { return EnkaResult(null, it) }
+        // 본인 계정 연동 시: HoYoLAB character/detail 로 보유 전체(쇼케이스 밖 포함). 미연동/실패 → Enka 쇼케이스.
+        val hoyoData = if (ltuid.isNotBlank() && ltoken.isNotBlank()) HoyolabApi.fetchGenshinCharDetail(ltuid, ltoken, uid) else null
         return runCatching {
             val json = JSONObject(res.body)
             val p = json.getJSONObject("playerInfo")
-            val show = p.optJSONArray("showAvatarInfoList") ?: JSONArray()
-            // 상세 스탯(fightPropMap·equipList)은 "캐릭터 상세 공개" 시에만 avatarInfoList 에 존재.
-            val detailed = json.optJSONArray("avatarInfoList")
-            val meta = avatarMeta(false)
-            val chars = if (detailed != null && detailed.length() > 0) {
-                val wnames = weaponMeta(false)
-                (0 until detailed.length()).mapNotNull { i ->
-                    val a = detailed.optJSONObject(i) ?: return@mapNotNull null
-                    val id = a.optInt("avatarId")
-                    val m = meta[id]
-                    val fp = a.optJSONObject("fightPropMap")
-                    val equip = a.optJSONArray("equipList")
-                    val lvl = a.optJSONObject("propMap")?.optJSONObject("4001")?.optString("val")?.toIntOrNull() ?: 0
-                    EnkaChar(
-                        id = id,
-                        name = m?.name ?: "#$id",
-                        level = lvl,
-                        rank = a.optJSONArray("talentIdList")?.length() ?: 0,
-                        rarity = m?.rarity ?: 5,
-                        iconUrl = m?.iconUrl?.ifBlank { null },
-                        element = m?.element ?: "",
-                        detailed = true,
-                        stats = fp?.let { giStats(it) } ?: emptyList(),
-                        weapon = equip?.let { giWeapon(it, wnames) },
-                        artifacts = equip?.let { giArtifacts(it) } ?: emptyList(),
-                    )
-                }
+            val chars: List<EnkaChar> = if (hoyoData != null) {
+                val propMap = hsrPropMap(hoyoData.optJSONObject("property_map")) // property_type → KR명
+                val gl = hoyoData.optJSONArray("list") ?: JSONArray()
+                (0 until gl.length()).mapNotNull { i -> gl.optJSONObject(i)?.let { giCharFromHoyo(it, propMap) } }
             } else {
-                // 상세 비공개 → 로스터만(스탯 없음)
-                (0 until show.length()).map { i ->
-                    val a = show.getJSONObject(i)
-                    val id = a.optInt("avatarId")
-                    val m = meta[id]
-                    EnkaChar(
-                        id = id, name = m?.name ?: "#$id", level = a.optInt("level"),
-                        rank = -1, rarity = m?.rarity ?: 5,
-                        iconUrl = m?.iconUrl?.ifBlank { null }, element = m?.element ?: "",
-                    )
+                val show = p.optJSONArray("showAvatarInfoList") ?: JSONArray()
+                // 상세 스탯(fightPropMap·equipList)은 "캐릭터 상세 공개" 시에만 avatarInfoList 에 존재.
+                val detailed = json.optJSONArray("avatarInfoList")
+                val meta = avatarMeta(false)
+                if (detailed != null && detailed.length() > 0) {
+                    val wnames = weaponMeta(false)
+                    (0 until detailed.length()).mapNotNull { i ->
+                        val a = detailed.optJSONObject(i) ?: return@mapNotNull null
+                        val id = a.optInt("avatarId")
+                        val m = meta[id]
+                        val fp = a.optJSONObject("fightPropMap")
+                        val equip = a.optJSONArray("equipList")
+                        val lvl = a.optJSONObject("propMap")?.optJSONObject("4001")?.optString("val")?.toIntOrNull() ?: 0
+                        EnkaChar(
+                            id = id,
+                            name = m?.name ?: "#$id",
+                            level = lvl,
+                            rank = a.optJSONArray("talentIdList")?.length() ?: 0,
+                            rarity = m?.rarity ?: 5,
+                            iconUrl = m?.iconUrl?.ifBlank { null },
+                            element = m?.element ?: "",
+                            detailed = true,
+                            stats = fp?.let { giStats(it) } ?: emptyList(),
+                            weapon = equip?.let { giWeapon(it, wnames) },
+                            artifacts = equip?.let { giArtifacts(it) } ?: emptyList(),
+                        )
+                    }
+                } else {
+                    // 상세 비공개 → 로스터만(스탯 없음)
+                    (0 until show.length()).map { i ->
+                        val a = show.getJSONObject(i)
+                        val id = a.optInt("avatarId")
+                        val m = meta[id]
+                        EnkaChar(
+                            id = id, name = m?.name ?: "#$id", level = a.optInt("level"),
+                            rank = -1, rarity = m?.rarity ?: 5,
+                            iconUrl = m?.iconUrl?.ifBlank { null }, element = m?.element ?: "",
+                        )
+                    }
                 }
             }
             EnkaResult(
@@ -147,7 +159,9 @@ object EnkaApi {
         val res = Net.get("https://api.mihomo.me/sr_info_parsed/$uid?lang=kr", headers)
         errorFor(res.code)?.let { return EnkaResult(null, it) }
         // 본인 계정 연동 시: HoYoLAB avatar/info 로 보유 전체 캐릭터(쇼케이스 밖 포함)
-        val hoyoList = HoyolabApi.fetchHsrAvatarInfo(ltuid, ltoken, uid)
+        val hoyoData = HoyolabApi.fetchHsrAvatarInfo(ltuid, ltoken, uid)
+        val hoyoList = hoyoData?.optJSONArray("avatar_list")
+        val propMap = hsrPropMap(hoyoData?.optJSONObject("property_info")) // property_type → KR 스탯명
         return runCatching {
             val json = JSONObject(res.body)
             val player = json.optJSONObject("player")
@@ -181,7 +195,7 @@ object EnkaApi {
                     showcase[id]?.copy(
                         name = officialName.ifBlank { showcase[id]!!.name },
                         weapon = showcase[id]!!.weapon?.let { w -> w.copy(name = officialLc.ifBlank { w.name }) },
-                    ) ?: hsrCharFromHoyo(o)
+                    ) ?: hsrCharFromHoyo(o, propMap)
                 }
             } else {
                 showcase.values.toList()
@@ -202,10 +216,31 @@ object EnkaApi {
         }.getOrElse { EnkaResult(null, "응답을 해석하지 못했어요") }
     }
 
-    // ---------------- HoYoLAB avatar/info(보유 전체) 파싱 — 응답 라벨(name/final/value) 그대로 사용 ----------------
+    // ---------------- HoYoLAB avatar/info(보유 전체) 파싱 — property_info(type→KR명) + 응답 value 사용 ----------------
     private fun hoyoIcon(p: String): String? = p.takeIf { it.startsWith("http") }
 
-    private fun hsrCharFromHoyo(o: JSONObject): EnkaChar {
+    /** property_info {"53":{name:"치명타 피해",...}} → property_type → KR 스탯명. */
+    private fun hsrPropMap(info: JSONObject?): Map<Int, String> {
+        info ?: return emptyMap()
+        return buildMap {
+            val it = info.keys()
+            while (it.hasNext()) {
+                val k = it.next()
+                val type = k.toIntOrNull() ?: continue
+                val name = info.optJSONObject(k)?.optString("name").orEmpty()
+                if (name.isNotBlank()) put(type, name)
+            }
+        }
+    }
+
+    /** 정수 문자열이면 천 단위 콤마, %·소수 등은 그대로. */
+    private fun hsrFmt(v: String): String =
+        if (v.isNotEmpty() && v.all { it.isDigit() }) comma(v.toInt()) else v
+
+    private fun isZeroValue(v: String): Boolean =
+        v.removeSuffix("%").trim().toDoubleOrNull()?.let { it == 0.0 } ?: false
+
+    private fun hsrCharFromHoyo(o: JSONObject, propMap: Map<Int, String>): EnkaChar {
         val id = o.optInt("id")
         return EnkaChar(
             id = id,
@@ -216,41 +251,40 @@ object EnkaApi {
             iconUrl = hoyoIcon(o.optString("icon").ifBlank { o.optString("image") }),
             element = hsrElementKo(o.optString("element")),
             detailed = true,
-            stats = hsrHoyoStats(o.optJSONArray("properties")),
+            stats = hsrHoyoStats(o.optJSONArray("properties"), propMap),
             weapon = o.optJSONObject("equip")?.let { e ->
                 EnkaWeapon(e.optString("name"), e.optInt("level"), e.optInt("rank"), null, null)
             },
-            artifacts = hsrHoyoRelics(o.optJSONArray("relics"), o.optJSONArray("ornaments")),
+            artifacts = hsrHoyoRelics(o.optJSONArray("relics"), o.optJSONArray("ornaments"), propMap),
         )
     }
 
-    /** HoYoLAB properties[] → 핵심 스탯. 응답의 name/final 라벨 그대로(ko-kr 로컬라이즈). */
-    private fun hsrHoyoStats(props: JSONArray?): List<EnkaStatLine> = buildList {
+    /** HoYoLAB properties[] {property_type, final} → 핵심 스탯(0 값 제외). */
+    private fun hsrHoyoStats(props: JSONArray?, propMap: Map<Int, String>): List<EnkaStatLine> = buildList {
         props ?: return@buildList
         for (i in 0 until props.length()) {
             val p = props.optJSONObject(i) ?: continue
-            val name = p.optString("name")
+            val name = propMap[p.optInt("property_type")] ?: continue
             val value = p.optString("final").ifBlank { p.optString("value") }
-            if (name.isBlank() || value.isBlank()) continue
-            add(EnkaStatLine(name, value, hsrCrit(name)))
+            if (value.isBlank() || isZeroValue(value)) continue
+            add(EnkaStatLine(name, hsrFmt(value), hsrCrit(name)))
         }
     }
 
-    /** HoYoLAB relics[]+ornaments[] → 유물 슬롯. main/sub 어픽스 라벨도 응답값 사용(없으면 슬롯 생략). */
-    private fun hsrHoyoRelics(relics: JSONArray?, ornaments: JSONArray?): List<EnkaArtifact> = buildList {
+    /** HoYoLAB relics[]+ornaments[] → 유물 슬롯. main_property/properties 의 property_type 를 propMap 으로 매핑. */
+    private fun hsrHoyoRelics(relics: JSONArray?, ornaments: JSONArray?, propMap: Map<Int, String>): List<EnkaArtifact> = buildList {
         fun addAll(arr: JSONArray?) {
             arr ?: return
             for (i in 0 until arr.length()) {
                 val r = arr.optJSONObject(i) ?: continue
-                val mainObj = r.optJSONObject("main_property")
-                val mainName = mainObj?.optString("name").orEmpty()
-                val mainVal = mainObj?.optString("value").orEmpty()
-                if (mainName.isBlank() && mainVal.isBlank()) continue // 어픽스 정보 없으면 슬롯 생략
+                val mainObj = r.optJSONObject("main_property") ?: continue
+                val mainName = propMap[mainObj.optInt("property_type")].orEmpty()
+                val mainVal = mainObj.optString("value")
                 val subs = r.optJSONArray("properties")?.let { sa ->
                     (0 until sa.length()).mapNotNull { j ->
                         val s = sa.optJSONObject(j) ?: return@mapNotNull null
-                        val sn = s.optString("name"); val sv = s.optString("value")
-                        if (sn.isBlank() && sv.isBlank()) null else EnkaStatLine(sn, sv, hsrCrit(sn))
+                        val sn = propMap[s.optInt("property_type")].orEmpty()
+                        EnkaStatLine(sn, hsrFmt(s.optString("value")), hsrCrit(sn))
                     }
                 }.orEmpty()
                 val pos = r.optInt("pos", 0).takeIf { it in 1..6 } ?: (size + 1)
@@ -259,7 +293,7 @@ object EnkaApi {
                         slot = hsrSlots.getOrElse(pos - 1) { "유물" },
                         setName = r.optString("name"),
                         level = r.optInt("level"),
-                        main = EnkaStatLine(mainName, mainVal, hsrCrit(mainName)),
+                        main = EnkaStatLine(mainName, hsrFmt(mainVal), hsrCrit(mainName)),
                         subs = subs,
                     ),
                 )
@@ -545,6 +579,183 @@ object EnkaApi {
                     setName = "", // v1 미해결(로컬라이즈 텍스트맵 필요) — 후속
                     level = (e.optJSONObject("reliquary")?.optInt("level") ?: 1) - 1, // Enka +1 보정
                     main = EnkaStatLine(mLabel, fmtStat(ms.optDouble("statValue"), mPct), mCrit),
+                    subs = subs,
+                ),
+            )
+        }
+    }
+
+    // ---------------- HoYoLAB 원신 character/detail(보유 전체) 파싱 — property_map(type→KR명) 사용 ----------------
+    private fun giCharFromHoyo(o: JSONObject, propMap: Map<Int, String>): EnkaChar {
+        val base = o.optJSONObject("base") ?: o
+        val id = base.optInt("id")
+        return EnkaChar(
+            id = id,
+            name = base.optString("name").ifBlank { "#$id" },
+            level = base.optInt("level"),
+            rank = base.optInt("actived_constellation_num"), // 명좌
+            rarity = base.optInt("rarity", 5),
+            iconUrl = hoyoIcon(base.optString("icon").ifBlank { base.optString("image") }),
+            element = giElementKo(base.optString("element")),
+            detailed = true,
+            stats = giHoyoStats(o, propMap),
+            weapon = giHoyoWeapon(o.optJSONObject("weapon"), propMap),
+            artifacts = giHoyoRelics(o.optJSONArray("relics"), propMap),
+        )
+    }
+
+    /** base_properties + element_properties(0 제외, 중복 type 제거) → 핵심 스탯. */
+    private fun giHoyoStats(o: JSONObject, propMap: Map<Int, String>): List<EnkaStatLine> = buildList {
+        val seen = mutableSetOf<Int>()
+        fun addFrom(arr: JSONArray?) {
+            arr ?: return
+            for (i in 0 until arr.length()) {
+                val p = arr.optJSONObject(i) ?: continue
+                val type = p.optInt("property_type")
+                if (type in seen) continue
+                val name = propMap[type] ?: continue
+                val value = p.optString("final").ifBlank { p.optString("value") }
+                if (value.isBlank() || isZeroValue(value)) continue
+                seen.add(type)
+                add(EnkaStatLine(name, hsrFmt(value), hsrCrit(name)))
+            }
+        }
+        addFrom(o.optJSONArray("base_properties"))   // HP·공격력·방어력·원소 마스터리
+        addFrom(o.optJSONArray("extra_properties"))  // 치명타 확률·피해·원소 충전 효율·치유 보너스 등
+        addFrom(o.optJSONArray("element_properties")) // 원소/물리 피해 보너스
+    }
+
+    private fun giHoyoWeapon(w: JSONObject?, propMap: Map<Int, String>): EnkaWeapon? {
+        w ?: return null
+        val main = w.optJSONObject("main_property")?.let {
+            EnkaStatLine(propMap[it.optInt("property_type")]?.ifBlank { null } ?: "기초 공격력", hsrFmt(it.optString("final")), false)
+        }
+        val sub = w.optJSONObject("sub_property")?.takeIf { it.optString("final").isNotBlank() }?.let {
+            val n = propMap[it.optInt("property_type")].orEmpty()
+            EnkaStatLine(n, hsrFmt(it.optString("final")), hsrCrit(n))
+        }
+        return EnkaWeapon(w.optString("name"), w.optInt("level"), w.optInt("affix_level"), main, sub)
+    }
+
+    private fun giHoyoRelics(arr: JSONArray?, propMap: Map<Int, String>): List<EnkaArtifact> = buildList {
+        arr ?: return@buildList
+        for (i in 0 until arr.length()) {
+            val r = arr.optJSONObject(i) ?: continue
+            val mainObj = r.optJSONObject("main_property") ?: continue
+            val mainName = propMap[mainObj.optInt("property_type")].orEmpty()
+            val subs = r.optJSONArray("sub_property_list")?.let { sa ->
+                (0 until sa.length()).mapNotNull { j ->
+                    val s = sa.optJSONObject(j) ?: return@mapNotNull null
+                    val sn = propMap[s.optInt("property_type")].orEmpty()
+                    EnkaStatLine(sn, hsrFmt(s.optString("value")), hsrCrit(sn))
+                }
+            }.orEmpty()
+            add(
+                EnkaArtifact(
+                    slot = r.optString("pos_name").ifBlank { "성유물" },
+                    setName = r.optJSONObject("set")?.optString("name").orEmpty(),
+                    level = r.optInt("level"),
+                    main = EnkaStatLine(mainName, hsrFmt(mainObj.optString("value")), hsrCrit(mainName)),
+                    subs = subs,
+                ),
+            )
+        }
+    }
+
+    // ---------------- 젠레스(ZZZ) avatar/info 파싱 — 응답 라벨(property_name) 사용, property_map 없음 ----------------
+    private suspend fun fetchZzz(uid: String, ltuid: String, ltoken: String): EnkaResult {
+        val list = HoyolabApi.fetchZzzAvatars(ltuid, ltoken, uid)
+            ?: return EnkaResult(null, HoyolabApi.zzzLastError ?: "젠레스 정보를 불러오지 못했어요")
+        val chars = list.map { zzzChar(it) }
+        if (chars.isEmpty()) return EnkaResult(null, "표시할 에이전트가 없어요")
+        return EnkaResult(EnkaProfile("", 0, 0, "", chars), null)
+    }
+
+    private fun zzzCrit(name: String): Boolean = name.contains("치명") || name.contains("CRIT", ignoreCase = true)
+
+    /** ZZZ 스탯명 영문→KR(응답이 계정 언어라 영문일 수 있음). property_map 부재 보완. 미매칭은 원문 유지. */
+    private fun zzzKrStat(en: String): String = when (en.trim()) {
+        "HP" -> "HP"
+        "ATK" -> "공격력"
+        "Base ATK" -> "기초 공격력"
+        "DEF" -> "방어력"
+        "Impact" -> "충격력"
+        "CRIT Rate" -> "치명타 확률"
+        "CRIT DMG" -> "치명타 피해"
+        "Anomaly Mastery" -> "이상 숙련"
+        "Anomaly Proficiency" -> "이상 장악력"
+        "PEN Ratio" -> "관통률"
+        "PEN", "Flat PEN" -> "관통값"
+        "Energy Regen" -> "에너지 자동 회복"
+        "Sheer Force" -> "실효 능력"
+        "Physical DMG Bonus" -> "물리 속성 피해 보너스"
+        "Fire DMG Bonus" -> "화염 속성 피해 보너스"
+        "Ice DMG Bonus" -> "냉기 속성 피해 보너스"
+        "Electric DMG Bonus" -> "전기 속성 피해 보너스"
+        "Ether DMG Bonus" -> "에테르 속성 피해 보너스"
+        else -> en
+    }
+
+    private fun zzzChar(o: JSONObject): EnkaChar {
+        val id = o.optInt("id")
+        return EnkaChar(
+            id = id,
+            name = o.optString("name_mi18n").ifBlank { "#$id" },
+            level = o.optInt("level"),
+            rank = o.optInt("rank"), // 마인드스케이프(시너지)
+            rarity = if (o.optString("rarity") == "S") 5 else 4, // S→5★ / A→4★ (색·필터 호환)
+            iconUrl = o.optString("role_square_url").ifBlank { o.optString("group_icon_path") }.takeIf { it.startsWith("http") },
+            element = "", // ZZZ element_type(int) 매핑 미확정 → v1 생략
+            detailed = true,
+            stats = zzzStats(o.optJSONArray("properties")),
+            weapon = zzzWeapon(o.optJSONObject("weapon")),
+            artifacts = zzzDiscs(o.optJSONArray("equip")),
+        )
+    }
+
+    /** ZZZ 패널 properties[] {property_name, final} → 핵심 스탯. */
+    private fun zzzStats(props: JSONArray?): List<EnkaStatLine> = buildList {
+        props ?: return@buildList
+        for (i in 0 until props.length()) {
+            val p = props.optJSONObject(i) ?: continue
+            val name = p.optString("property_name")
+            val value = p.optString("final").ifBlank { p.optString("base") }
+            if (name.isBlank() || value.isBlank()) continue
+            val kr = zzzKrStat(name)
+            add(EnkaStatLine(kr, hsrFmt(value), zzzCrit(kr)))
+        }
+    }
+
+    /** 음동기(W-Engine) — main_properties[0]=기초 공격력, properties[0]=상위 스탯, star=페이즈. */
+    private fun zzzWeapon(w: JSONObject?): EnkaWeapon? {
+        w ?: return null
+        fun line(arr: JSONArray?) = arr?.optJSONObject(0)?.let {
+            val n = zzzKrStat(it.optString("property_name"))
+            EnkaStatLine(n, hsrFmt(it.optString("base")), zzzCrit(n))
+        }
+        return EnkaWeapon(w.optString("name"), w.optInt("level"), w.optInt("star"), line(w.optJSONArray("main_properties")), line(w.optJSONArray("properties")))
+    }
+
+    /** 드라이브 디스크 — equipment_type(슬롯 1~6)·main_properties[0]·properties[](부옵션)·equip_suit.name(세트). */
+    private fun zzzDiscs(arr: JSONArray?): List<EnkaArtifact> = buildList {
+        arr ?: return@buildList
+        for (i in 0 until arr.length()) {
+            val e = arr.optJSONObject(i) ?: continue
+            val mainObj = e.optJSONArray("main_properties")?.optJSONObject(0) ?: continue
+            val mainName = zzzKrStat(mainObj.optString("property_name"))
+            val subs = e.optJSONArray("properties")?.let { sa ->
+                (0 until sa.length()).mapNotNull { j ->
+                    val s = sa.optJSONObject(j) ?: return@mapNotNull null
+                    val sn = zzzKrStat(s.optString("property_name"))
+                    EnkaStatLine(sn, hsrFmt(s.optString("base")), zzzCrit(sn))
+                }
+            }.orEmpty()
+            add(
+                EnkaArtifact(
+                    slot = "${e.optInt("equipment_type")}번",
+                    setName = e.optJSONObject("equip_suit")?.optString("name").orEmpty(),
+                    level = e.optInt("level"),
+                    main = EnkaStatLine(mainName, hsrFmt(mainObj.optString("base")), zzzCrit(mainName)),
                     subs = subs,
                 ),
             )
