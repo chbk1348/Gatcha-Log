@@ -12,6 +12,8 @@ data class EnkaChar(
     val rarity: Int,
     val iconUrl: String? = null,
     val element: String = "",
+    /** 스타레일 운명의 길(파멸·수렵 등). 다른 게임은 빈 문자열. */
+    val path: String = "",
     /** 캐릭터 상세 공개 시에만 채워짐(풀 스탯시트). 비공개면 false → 로스터만 표시. */
     val detailed: Boolean = false,
     val stats: List<EnkaStatLine> = emptyList(),
@@ -179,6 +181,7 @@ object EnkaApi {
                     rarity = a.optInt("rarity", 5),
                     iconUrl = mihomoIcon(a.optString("icon")),
                     element = a.optJSONObject("element")?.optString("name").orEmpty(),
+                    path = a.optJSONObject("path")?.optString("name").orEmpty(),
                     detailed = true,
                     stats = hsrStats(a),
                     weapon = hsrLightCone(a.optJSONObject("light_cone")),
@@ -250,6 +253,7 @@ object EnkaApi {
             rarity = o.optInt("rarity", 5),
             iconUrl = hoyoIcon(o.optString("icon").ifBlank { o.optString("image") }),
             element = hsrElementKo(o.optString("element")),
+            path = hsrPathKo(o.optInt("base_type")),
             detailed = true,
             stats = hsrHoyoStats(o.optJSONArray("properties"), propMap),
             weapon = o.optJSONObject("equip")?.let { e ->
@@ -421,27 +425,34 @@ object EnkaApi {
     private fun cleanName(raw: String): String =
         raw.replace(Regex("<[^>]*>"), "").replace(Regex("\\s+"), " ").trim()
 
-    /** Yatta 원신 원소 영문 → 한글 */
+    /** 원신 원소 영문 → 한글. Yatta(Fire/Water…) + HoYoLAB(Pyro/Hydro…) 키 모두 지원. */
     private fun giElementKo(e: String): String = when (e) {
-        "Fire" -> "불"
-        "Water" -> "물"
-        "Electric" -> "번개"
-        "Ice" -> "얼음"
-        "Wind" -> "바람"
-        "Rock" -> "바위"
-        "Grass" -> "풀"
+        "Fire", "Pyro" -> "불"
+        "Water", "Hydro" -> "물"
+        "Electric", "Electro" -> "번개"
+        "Ice", "Cryo" -> "얼음"
+        "Wind", "Anemo" -> "바람"
+        "Rock", "Geo" -> "바위"
+        "Grass", "Dendro" -> "풀"
         else -> ""
     }
 
-    /** Yatta 스타레일 전투속성 영문 → 한글 */
-    private fun hsrElementKo(e: String): String = when (e) {
-        "Fire" -> "화염"
-        "Ice" -> "얼음"
-        "Thunder", "Lightning" -> "번개"
-        "Wind" -> "바람"
-        "Physical" -> "물리"
-        "Quantum" -> "양자"
-        "Imaginary" -> "허수"
+    /** HoYoLAB HSR base_type(int) → 운명의 길 KR. */
+    private fun hsrPathKo(t: Int): String = when (t) {
+        1 -> "파멸"; 2 -> "수렵"; 3 -> "지식"; 4 -> "화합"
+        5 -> "공허"; 6 -> "보존"; 7 -> "풍요"; 8 -> "기억"
+        else -> ""
+    }
+
+    /** 스타레일 전투속성 영문 → 한글. Yatta(대문자) + HoYoLAB(소문자, quantum 등) 모두 지원. */
+    private fun hsrElementKo(e: String): String = when (e.lowercase()) {
+        "fire" -> "화염"
+        "ice" -> "얼음"
+        "thunder", "lightning" -> "번개"
+        "wind" -> "바람"
+        "physical" -> "물리"
+        "quantum" -> "양자"
+        "imaginary" -> "허수"
         else -> ""
     }
 
@@ -673,6 +684,16 @@ object EnkaApi {
 
     private fun zzzCrit(name: String): Boolean = name.contains("치명") || name.contains("CRIT", ignoreCase = true)
 
+    /** ZZZ element_type(int) → KR 속성. (200 물리·201 화염·202/206 얼음·203 전기·205/207 에테르) */
+    private fun zzzElementKo(type: Int): String = when (type) {
+        200 -> "물리"
+        201 -> "화염"
+        202, 206 -> "얼음"
+        203 -> "전기"
+        205, 207 -> "에테르"
+        else -> ""
+    }
+
     /** ZZZ 스탯명 영문→KR(응답이 계정 언어라 영문일 수 있음). property_map 부재 보완. 미매칭은 원문 유지. */
     private fun zzzKrStat(en: String): String = when (en.trim()) {
         "HP" -> "HP"
@@ -705,7 +726,7 @@ object EnkaApi {
             rank = o.optInt("rank"), // 마인드스케이프(시너지)
             rarity = if (o.optString("rarity") == "S") 5 else 4, // S→5★ / A→4★ (색·필터 호환)
             iconUrl = o.optString("role_square_url").ifBlank { o.optString("group_icon_path") }.takeIf { it.startsWith("http") },
-            element = "", // ZZZ element_type(int) 매핑 미확정 → v1 생략
+            element = zzzElementKo(o.optInt("element_type")),
             detailed = true,
             stats = zzzStats(o.optJSONArray("properties")),
             weapon = zzzWeapon(o.optJSONObject("weapon")),
