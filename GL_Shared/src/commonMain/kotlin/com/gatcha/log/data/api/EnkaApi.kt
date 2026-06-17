@@ -12,11 +12,14 @@ data class EnkaChar(
     val rarity: Int,
     val iconUrl: String? = null,
     val element: String = "",
+    /** 스타레일 운명의 길(파멸·수렵 등). 다른 게임은 빈 문자열. */
+    val path: String = "",
     /** 캐릭터 상세 공개 시에만 채워짐(풀 스탯시트). 비공개면 false → 로스터만 표시. */
     val detailed: Boolean = false,
     val stats: List<EnkaStatLine> = emptyList(),
     val weapon: EnkaWeapon? = null,
     val artifacts: List<EnkaArtifact> = emptyList(),
+    val sets: List<EnkaSet> = emptyList(),
 )
 
 /** 스탯 한 줄(라벨+표시값). [crit]=치명타 계열(UI 강조). */
@@ -39,6 +42,9 @@ data class EnkaArtifact(
     val main: EnkaStatLine,
     val subs: List<EnkaStatLine>,
 )
+
+/** 세트 효과(성유물/유물/드라이브 디스크). [count]=장착 수, [effects]=활성 세트 보너스 텍스트. */
+data class EnkaSet(val name: String, val count: Int, val effects: List<String> = emptyList())
 
 /** Yatta 아바타 메타(한글명·희귀도·아이콘 URL·한글 원소). id 매핑용 캐시 값. */
 private data class AvatarMeta(val name: String, val rarity: Int, val iconUrl: String, val element: String)
@@ -179,10 +185,12 @@ object EnkaApi {
                     rarity = a.optInt("rarity", 5),
                     iconUrl = mihomoIcon(a.optString("icon")),
                     element = a.optJSONObject("element")?.optString("name").orEmpty(),
+                    path = a.optJSONObject("path")?.optString("name").orEmpty(),
                     detailed = true,
                     stats = hsrStats(a),
                     weapon = hsrLightCone(a.optJSONObject("light_cone")),
                     artifacts = hsrRelics(a.optJSONArray("relics")),
+                    sets = hsrSets(a),
                 )
             }
             // 로스터: 연동되면 HoYoLAB 전체 목록(쇼케이스=mihomo 리치+공식이름 override, 그 외=HoYoLAB 파싱), 아니면 쇼케이스만
@@ -250,6 +258,7 @@ object EnkaApi {
             rarity = o.optInt("rarity", 5),
             iconUrl = hoyoIcon(o.optString("icon").ifBlank { o.optString("image") }),
             element = hsrElementKo(o.optString("element")),
+            path = hsrPathKo(o.optInt("base_type")),
             detailed = true,
             stats = hsrHoyoStats(o.optJSONArray("properties"), propMap),
             weapon = o.optJSONObject("equip")?.let { e ->
@@ -257,6 +266,18 @@ object EnkaApi {
             },
             artifacts = hsrHoyoRelics(o.optJSONArray("relics"), o.optJSONArray("ornaments"), propMap),
         )
+    }
+
+    /** mihomo relic_sets → 활성 세트 효과. */
+    private fun hsrSets(c: JSONObject): List<EnkaSet> = buildList {
+        val rs = c.optJSONArray("relic_sets") ?: return@buildList
+        for (i in 0 until rs.length()) {
+            val s = rs.optJSONObject(i) ?: continue
+            val name = s.optString("name")
+            if (name.isBlank()) continue
+            val desc = cleanName(s.optString("desc")).takeIf { it.isNotBlank() }
+            add(EnkaSet(name, s.optInt("num"), listOfNotNull(desc)))
+        }
     }
 
     /** HoYoLAB properties[] {property_type, final} → 핵심 스탯(0 값 제외). */
@@ -421,27 +442,34 @@ object EnkaApi {
     private fun cleanName(raw: String): String =
         raw.replace(Regex("<[^>]*>"), "").replace(Regex("\\s+"), " ").trim()
 
-    /** Yatta 원신 원소 영문 → 한글 */
+    /** 원신 원소 영문 → 한글. Yatta(Fire/Water…) + HoYoLAB(Pyro/Hydro…) 키 모두 지원. */
     private fun giElementKo(e: String): String = when (e) {
-        "Fire" -> "불"
-        "Water" -> "물"
-        "Electric" -> "번개"
-        "Ice" -> "얼음"
-        "Wind" -> "바람"
-        "Rock" -> "바위"
-        "Grass" -> "풀"
+        "Fire", "Pyro" -> "불"
+        "Water", "Hydro" -> "물"
+        "Electric", "Electro" -> "번개"
+        "Ice", "Cryo" -> "얼음"
+        "Wind", "Anemo" -> "바람"
+        "Rock", "Geo" -> "바위"
+        "Grass", "Dendro" -> "풀"
         else -> ""
     }
 
-    /** Yatta 스타레일 전투속성 영문 → 한글 */
-    private fun hsrElementKo(e: String): String = when (e) {
-        "Fire" -> "화염"
-        "Ice" -> "얼음"
-        "Thunder", "Lightning" -> "번개"
-        "Wind" -> "바람"
-        "Physical" -> "물리"
-        "Quantum" -> "양자"
-        "Imaginary" -> "허수"
+    /** HoYoLAB HSR base_type(int) → 운명의 길 KR. */
+    private fun hsrPathKo(t: Int): String = when (t) {
+        1 -> "파멸"; 2 -> "수렵"; 3 -> "지식"; 4 -> "화합"
+        5 -> "공허"; 6 -> "보존"; 7 -> "풍요"; 8 -> "기억"
+        else -> ""
+    }
+
+    /** 스타레일 전투속성 영문 → 한글. Yatta(대문자) + HoYoLAB(소문자, quantum 등) 모두 지원. */
+    private fun hsrElementKo(e: String): String = when (e.lowercase()) {
+        "fire" -> "화염"
+        "ice" -> "얼음"
+        "thunder", "lightning" -> "번개"
+        "wind" -> "바람"
+        "physical" -> "물리"
+        "quantum" -> "양자"
+        "imaginary" -> "허수"
         else -> ""
     }
 
@@ -601,7 +629,32 @@ object EnkaApi {
             stats = giHoyoStats(o, propMap),
             weapon = giHoyoWeapon(o.optJSONObject("weapon"), propMap),
             artifacts = giHoyoRelics(o.optJSONArray("relics"), propMap),
+            sets = giHoyoSets(o.optJSONArray("relics")),
         )
+    }
+
+    /** 원신 성유물 set{name, affixes[activation_number, effect]} → 활성 세트 효과(장착 수 ≥ 발동 수). */
+    private fun giHoyoSets(arr: JSONArray?): List<EnkaSet> = buildList {
+        arr ?: return@buildList
+        val count = linkedMapOf<String, Int>()
+        val affixes = mutableMapOf<String, JSONArray?>()
+        for (i in 0 until arr.length()) {
+            val set = arr.optJSONObject(i)?.optJSONObject("set") ?: continue
+            val name = set.optString("name")
+            if (name.isBlank()) continue
+            count[name] = (count[name] ?: 0) + 1
+            affixes[name] = set.optJSONArray("affixes")
+        }
+        count.forEach { (name, c) ->
+            val eff = affixes[name]?.let { af ->
+                (0 until af.length()).mapNotNull { i ->
+                    val a = af.optJSONObject(i) ?: return@mapNotNull null
+                    val n = a.optInt("activation_number")
+                    if (n in 1..c) "${n}세트 ${cleanName(a.optString("effect"))}" else null
+                }
+            }.orEmpty()
+            add(EnkaSet(name, c, eff))
+        }
     }
 
     /** base_properties + element_properties(0 제외, 중복 type 제거) → 핵심 스탯. */
@@ -673,6 +726,16 @@ object EnkaApi {
 
     private fun zzzCrit(name: String): Boolean = name.contains("치명") || name.contains("CRIT", ignoreCase = true)
 
+    /** ZZZ element_type(int) → KR 속성. (200 물리·201 화염·202/206 얼음·203 전기·205/207 에테르) */
+    private fun zzzElementKo(type: Int): String = when (type) {
+        200 -> "물리"
+        201 -> "화염"
+        202, 206 -> "얼음"
+        203 -> "전기"
+        205, 207 -> "에테르"
+        else -> ""
+    }
+
     /** ZZZ 스탯명 영문→KR(응답이 계정 언어라 영문일 수 있음). property_map 부재 보완. 미매칭은 원문 유지. */
     private fun zzzKrStat(en: String): String = when (en.trim()) {
         "HP" -> "HP"
@@ -705,12 +768,33 @@ object EnkaApi {
             rank = o.optInt("rank"), // 마인드스케이프(시너지)
             rarity = if (o.optString("rarity") == "S") 5 else 4, // S→5★ / A→4★ (색·필터 호환)
             iconUrl = o.optString("role_square_url").ifBlank { o.optString("group_icon_path") }.takeIf { it.startsWith("http") },
-            element = "", // ZZZ element_type(int) 매핑 미확정 → v1 생략
+            element = zzzElementKo(o.optInt("element_type")),
             detailed = true,
             stats = zzzStats(o.optJSONArray("properties")),
             weapon = zzzWeapon(o.optJSONObject("weapon")),
             artifacts = zzzDiscs(o.optJSONArray("equip")),
+            sets = zzzSets(o.optJSONArray("equip")),
         )
+    }
+
+    /** ZZZ 드라이브 디스크 equip_suit{name, own, desc1/2} → 활성 세트 효과(2/4). */
+    private fun zzzSets(arr: JSONArray?): List<EnkaSet> = buildList {
+        arr ?: return@buildList
+        val seen = linkedMapOf<Int, EnkaSet>()
+        for (i in 0 until arr.length()) {
+            val suit = arr.optJSONObject(i)?.optJSONObject("equip_suit") ?: continue
+            val sid = suit.optInt("suit_id")
+            if (sid == 0 || sid in seen) continue
+            val name = suit.optString("name")
+            if (name.isBlank()) continue
+            val own = suit.optInt("own")
+            val eff = buildList {
+                if (own >= 2) suit.optString("desc1").takeIf { it.isNotBlank() }?.let { add("2세트 ${cleanName(it)}") }
+                if (own >= 4) suit.optString("desc2").takeIf { it.isNotBlank() }?.let { add("4세트 ${cleanName(it)}") }
+            }
+            seen[sid] = EnkaSet(name, own, eff)
+        }
+        addAll(seen.values)
     }
 
     /** ZZZ 패널 properties[] {property_name, final} → 핵심 스탯. */

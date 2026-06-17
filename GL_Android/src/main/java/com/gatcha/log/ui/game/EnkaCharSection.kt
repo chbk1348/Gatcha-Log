@@ -3,6 +3,8 @@ package com.gatcha.log.ui.game
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -15,6 +17,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -27,6 +30,7 @@ import coil.compose.AsyncImage
 import com.gatcha.log.data.SpendingViewModel
 import com.gatcha.log.data.api.EnkaArtifact
 import com.gatcha.log.data.api.EnkaChar
+import com.gatcha.log.data.api.EnkaSet
 import com.gatcha.log.data.api.EnkaStatLine
 import com.gatcha.log.data.api.EnkaWeapon
 import com.gatcha.log.ui.components.GlassCard
@@ -50,6 +54,8 @@ private fun elementColor(el: String): Color = when (el) {
     "물리" -> Color(0xFF8A9099)
     "양자" -> Color(0xFF6C5CE7)
     "허수" -> Color(0xFFE0A93B)
+    "전기" -> Color(0xFFE6C13A)
+    "에테르" -> Color(0xFFE05CAE)
     else -> Color(0xFF8A9099)
 }
 
@@ -65,7 +71,7 @@ fun EnkaCharSection(
     onOpenHoyolab: () -> Unit = {},
 ) {
     val accent = LocalAccent.current
-    var game by remember { mutableStateOf("genshin") }
+    var game by rememberSaveable { mutableStateOf("genshin") } // 스크롤/탭 왕복에도 게임 선택 유지
     val result by viewModel.enkaResult.collectAsState()
     val loading by viewModel.enkaLoading.collectAsState()
     val hoyolab by viewModel.hoyolabConfig.collectAsState()
@@ -111,9 +117,9 @@ fun EnkaCharSection(
             else -> {
                 // 대표 4명만 표시, 그 이상은 더보기로 전체 페이지 진입
                 chars.take(4).chunked(2).forEach { row ->
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Row(Modifier.fillMaxWidth().height(IntrinsicSize.Max), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         row.forEach { c ->
-                            Box(Modifier.weight(1f)) { RosterCard(c, game) { onOpenStats(c, game) } }
+                            Box(Modifier.weight(1f).fillMaxHeight()) { RosterCard(c, game, Modifier.fillMaxHeight()) { onOpenStats(c, game) } }
                         }
                         if (row.size == 1) Spacer(Modifier.weight(1f))
                     }
@@ -156,10 +162,19 @@ fun EnkaRosterPage(
     onBack: () -> Unit,
     onOpenStats: (EnkaChar, String) -> Unit,
 ) {
+    BackHandler { onBack() }
     val result by viewModel.enkaResult.collectAsState()
-    var rarityFilter by remember { mutableStateOf(0) } // 0=전체, 5, 4
+    var rarityFilter by rememberSaveable { mutableStateOf(0) } // 0=전체, 5, 4
+    var elementFilter by rememberSaveable { mutableStateOf("") } // ""=전체
+    var pathFilter by rememberSaveable { mutableStateOf("") } // ""=전체 (HSR)
     val all = result?.profile?.chars.orEmpty()
-    val chars = if (rarityFilter == 0) all else all.filter { it.rarity == rarityFilter }
+    val elements = all.mapNotNull { it.element.ifBlank { null } }.distinct()
+    val paths = all.mapNotNull { it.path.ifBlank { null } }.distinct()
+    val chars = all.filter {
+        (rarityFilter == 0 || it.rarity == rarityFilter) &&
+            (elementFilter.isBlank() || it.element == elementFilter) &&
+            (pathFilter.isBlank() || it.path == pathFilter)
+    }
     val title = "보유 캐릭터 · " + if (game == "genshin") "원신" else if (game == "zzz") "젠레스" else "스타레일"
     Column(
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp).padding(bottom = 30.dp),
@@ -170,13 +185,22 @@ fun EnkaRosterPage(
             }
             Spacer(Modifier.width(10.dp))
             Text(title, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
-            Spacer(Modifier.weight(1f))
-            RarityFilter(rarityFilter) { rarityFilter = it }
+        }
+        // 필터 칩 — 등급 · 속성 · 운명의길(스타레일)
+        Row(
+            Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(bottom = 10.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            FilterChip("등급", if (rarityFilter == 0) "전체" else "${rarityFilter}성", listOf<Pair<String, () -> Unit>>("전체" to { rarityFilter = 0 }, "5성" to { rarityFilter = 5 }, "4성" to { rarityFilter = 4 }))
+            FilterChip("속성", elementFilter.ifBlank { "전체" }, listOf<Pair<String, () -> Unit>>("전체" to { elementFilter = "" }) + elements.map { e -> e to { elementFilter = e } })
+            if (game == "hsr" && paths.isNotEmpty()) {
+                FilterChip("운명의길", pathFilter.ifBlank { "전체" }, listOf<Pair<String, () -> Unit>>("전체" to { pathFilter = "" }) + paths.map { p -> p to { pathFilter = p } })
+            }
         }
         chars.chunked(2).forEach { row ->
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(Modifier.fillMaxWidth().height(IntrinsicSize.Max), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 row.forEach { c ->
-                    Box(Modifier.weight(1f)) { RosterCard(c, game) { onOpenStats(c, game) } }
+                    Box(Modifier.weight(1f).fillMaxHeight()) { RosterCard(c, game, Modifier.fillMaxHeight()) { onOpenStats(c, game) } }
                 }
                 if (row.size == 1) Spacer(Modifier.weight(1f))
             }
@@ -186,7 +210,7 @@ fun EnkaRosterPage(
 }
 
 @Composable
-private fun RarityFilter(current: Int, onSelect: (Int) -> Unit) {
+private fun FilterChip(label: String, current: String, items: List<Pair<String, () -> Unit>>) {
     var expanded by remember { mutableStateOf(false) }
     Box {
         Surface(
@@ -194,15 +218,15 @@ private fun RarityFilter(current: Int, onSelect: (Int) -> Unit) {
             border = androidx.compose.foundation.BorderStroke(1.dp, CardOutline),
             modifier = Modifier.clickable { expanded = true },
         ) {
-            Row(Modifier.padding(horizontal = 12.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text(if (current == 0) "전체" else "${current}성", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+            Row(Modifier.padding(horizontal = 11.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text("$label·$current", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
                 Spacer(Modifier.width(3.dp))
-                Text("▾", fontSize = 11.sp, color = TextSecondary)
+                Text("▾", fontSize = 10.sp, color = TextSecondary)
             }
         }
         DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-            listOf(0 to "전체", 5 to "5성", 4 to "4성").forEach { (v, label) ->
-                DropdownMenuItem(text = { Text(label) }, onClick = { onSelect(v); expanded = false })
+            items.forEach { (disp, act) ->
+                DropdownMenuItem(text = { Text(disp) }, onClick = { act(); expanded = false })
             }
         }
     }
@@ -242,9 +266,9 @@ private fun LinkPrompt(accent: Color, onOpenHoyolab: () -> Unit) {
 
 /** 로스터 카드 — 초상 + 이름 + Lv·우정/원소·명좌. 탭 가능. */
 @Composable
-private fun RosterCard(c: EnkaChar, game: String, onClick: () -> Unit) {
+private fun RosterCard(c: EnkaChar, game: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
     val rarityColor = if (c.rarity >= 5) Gold else Purple
-    GlassCard(shape = RoundedCornerShape(18.dp), modifier = Modifier.clickable { onClick() }) {
+    GlassCard(shape = RoundedCornerShape(18.dp), modifier = modifier.clickable { onClick() }) {
         Row(Modifier.fillMaxWidth().padding(11.dp), verticalAlignment = Alignment.CenterVertically) {
             Box(
                 Modifier.size(50.dp).clip(RoundedCornerShape(14.dp)).background(rarityColor.copy(alpha = 0.14f)),
@@ -292,6 +316,7 @@ private fun rankLabelFor(c: EnkaChar, game: String): String? = when (game) {
  */
 @Composable
 fun EnkaStatPage(c: EnkaChar, game: String, onBack: () -> Unit) {
+    BackHandler { onBack() }
     val accent = LocalAccent.current
     val wepLabel = if (game == "genshin") "무기" else if (game == "zzz") "음동기" else "광추"
     val artLabel = if (game == "genshin") "성유물" else if (game == "zzz") "드라이브 디스크" else "유물"
@@ -325,6 +350,7 @@ fun EnkaStatPage(c: EnkaChar, game: String, onBack: () -> Unit) {
                     Spacer(Modifier.height(7.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         if (c.element.isNotBlank()) Badge(c.element, ec)
+                        if (c.path.isNotBlank()) Badge(c.path, TextSecondary)
                         rankLabelFor(c, game)?.let { Badge(it, Color(0xFF9C6F12)) }
                         Badge("Lv. ${c.level}", TextSecondary)
                     }
@@ -362,6 +388,38 @@ fun EnkaStatPage(c: EnkaChar, game: String, onBack: () -> Unit) {
             c.artifacts.forEachIndexed { i, a ->
                 ArtifactCard(a, accent)
                 if (i < c.artifacts.lastIndex) Spacer(Modifier.height(10.dp))
+            }
+        }
+
+        // 세트 효과 (장비 있으면 항상 표시 — 활성 세트 없으면 "발동 없음")
+        if (c.artifacts.isNotEmpty()) {
+            Spacer(Modifier.height(16.dp))
+            SecLabel("세트 효과")
+            if (c.sets.isEmpty()) {
+                EmptyEquipNote("세트 효과 발동 없음")
+            } else {
+                c.sets.forEachIndexed { i, s ->
+                    SetCard(s, accent)
+                    if (i < c.sets.lastIndex) Spacer(Modifier.height(10.dp))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SetCard(s: EnkaSet, accent: Color) {
+    GlassCard(modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(13.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(s.name, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextPrimary, maxLines = 1, modifier = Modifier.weight(1f))
+                Surface(color = accent.copy(alpha = 0.14f), shape = RoundedCornerShape(999.dp)) {
+                    Text("${s.count}", fontSize = 10.5.sp, fontWeight = FontWeight.Bold, color = accent, modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp))
+                }
+            }
+            s.effects.forEach { e ->
+                Spacer(Modifier.height(4.dp))
+                Text(e, fontSize = 11.sp, color = TextSecondary)
             }
         }
     }
@@ -442,6 +500,9 @@ private fun ArtifactCard(a: EnkaArtifact, accent: Color) {
                 Column(Modifier.weight(1f)) {
                     Text(a.main.label, fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = TextPrimary, maxLines = 1)
                     Text(a.main.value, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = if (a.main.crit) CritColor else accent)
+                    if (a.setName.isNotBlank()) {
+                        Text(a.setName, fontSize = 9.5.sp, color = TextSecondary, maxLines = 1)
+                    }
                 }
                 Surface(color = Gold.copy(alpha = 0.16f), shape = RoundedCornerShape(7.dp)) {
                     Text("+${a.level}", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color(0xFF9C6F12), modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp))

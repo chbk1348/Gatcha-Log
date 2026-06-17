@@ -42,7 +42,7 @@ fun BottomNavBar(selectedTab: Int, onTabSelected: (Int) -> Unit, onAddClick: () 
         modifier = Modifier
             .fillMaxWidth()
             .navigationBarsPadding()
-            .padding(horizontal = 16.dp, vertical = 16.dp),
+            .padding(horizontal = 16.dp, vertical = 12.dp),
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -57,14 +57,13 @@ fun BottomNavBar(selectedTab: Int, onTabSelected: (Int) -> Unit, onAddClick: () 
                 modifier = Modifier.weight(1f), // FAB 폭이 줄면 가중치로 자연스럽게 확장
             ) {
                 Row(
-                    modifier = Modifier.fillMaxWidth().height(64.dp).padding(horizontal = 8.dp),
-                    horizontalArrangement = Arrangement.SpaceEvenly,
+                    modifier = Modifier.fillMaxWidth().height(64.dp).padding(horizontal = 6.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    NavItem(Icons.Default.Home, "홈", selectedTab == 0, accent) { onTabSelected(0) }
-                    NavItem(Icons.Default.AccountBalanceWallet, "지출", selectedTab == 1, accent) { onTabSelected(1) }
-                    NavItem(Icons.Default.Games, "게임 정보", selectedTab == 2, accent) { onTabSelected(2) }
-                    NavItem(Icons.Default.Person, "마이페이지", selectedTab == 3, accent) { onTabSelected(3) }
+                    NavItem(Icons.Default.Home, "홈", selectedTab == 0, accent, Modifier.weight(1f)) { onTabSelected(0) }
+                    NavItem(Icons.Default.AccountBalanceWallet, "지출", selectedTab == 1, accent, Modifier.weight(1f)) { onTabSelected(1) }
+                    NavItem(Icons.Default.Games, "게임 정보", selectedTab == 2, accent, Modifier.weight(1f)) { onTabSelected(2) }
+                    NavItem(Icons.Default.Person, "마이페이지", selectedTab == 3, accent, Modifier.weight(1f)) { onTabSelected(3) }
                 }
             }
 
@@ -103,15 +102,16 @@ fun BottomNavBar(selectedTab: Int, onTabSelected: (Int) -> Unit, onAddClick: () 
 }
 
 @Composable
-fun NavItem(icon: ImageVector, label: String, isSelected: Boolean, accent: Color, onClick: () -> Unit) {
-    // 선택 시: 아이콘 + 텍스트가 함께 들어간 가로 알약. 미선택: 아이콘만.
-    Row(
-        modifier = Modifier
-            .clip(RoundedCornerShape(percent = 50))
-            .background(if (isSelected) accent.copy(alpha = 0.15f) else Color.Transparent)
-            .clickable { onClick() }
-            .padding(horizontal = if (isSelected) 14.dp else 10.dp, vertical = 9.dp),
-        verticalAlignment = Alignment.CenterVertically,
+fun NavItem(icon: ImageVector, label: String, isSelected: Boolean, accent: Color, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    // 세로 스택(아이콘 위·라벨 아래), 모든 탭 라벨 상시. 선택 표시는 배경 없이 accent 색/볼드만(iOS식).
+    // 균등 폭(weight) 슬롯 + 상하좌우 중앙 정렬 → 탭별 간격 일정.
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+        modifier = modifier
+            .fillMaxHeight()
+            .clip(RoundedCornerShape(16.dp))
+            .clickable { onClick() },
     ) {
         Icon(
             icon,
@@ -119,15 +119,14 @@ fun NavItem(icon: ImageVector, label: String, isSelected: Boolean, accent: Color
             tint = if (isSelected) accent else NavUnselected,
             modifier = Modifier.size(22.dp),
         )
-        if (isSelected) {
-            Spacer(Modifier.width(6.dp))
-            Text(
-                label,
-                fontSize = 13.sp,
-                fontWeight = FontWeight.Bold,
-                color = accent,
-                maxLines = 1,
-            )
-        }
+        Spacer(Modifier.height(2.dp))
+        Text(
+            label,
+            fontSize = 10.sp,
+            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+            color = if (isSelected) accent else NavUnselected,
+            maxLines = 1,
+            softWrap = false,
+        )
     }
 }

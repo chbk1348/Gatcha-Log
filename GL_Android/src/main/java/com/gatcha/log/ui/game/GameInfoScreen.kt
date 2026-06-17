@@ -19,6 +19,7 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import com.gatcha.log.ui.components.GlgPullToRefreshBox
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -49,6 +50,13 @@ import kotlinx.coroutines.launch
 
 /** 게임정보 탭의 풀스크린 하위 페이지 (열리면 하단바·FAB 숨김) */
 private enum class GiSub { Main, HoyoLink, Dashboard, Rate, Calc, RechargeValue, Report, Gift, Schedule, CharStats, CharRoster }
+
+/** 화면 전환 push/pop 방향용 계층 깊이. Main=0, 하위 페이지=1, 캐릭터 상세(목록서 진입)=2. */
+private fun subDepth(s: GiSub): Int = when (s) {
+    GiSub.Main -> 0
+    GiSub.CharStats -> 2
+    else -> 1
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -129,10 +137,12 @@ fun GameInfoScreen(
     }
 
     // HoYoLAB 연동 페이지 — 화면 스왑(게임정보 ↔ 연동) 슬라이드 push/pop
+    val subPageStateHolder = rememberSaveableStateHolder()
     AnimatedContent(
         targetState = subPage,
         transitionSpec = {
-            if (targetState != GiSub.Main) {
+            // 계층 깊이로 push/pop 방향 결정 (Main=0 < 하위=1 < 상세(CharStats)=2)
+            if (subDepth(targetState) >= subDepth(initialState)) {
                 (slideInHorizontally(tween(300)) { it } + fadeIn(tween(300))) togetherWith
                     (slideOutHorizontally(tween(300)) { -it / 4 } + fadeOut(tween(220)))
             } else {
@@ -142,7 +152,8 @@ fun GameInfoScreen(
         },
         label = "giSubPage",
     ) { page ->
-        when (page) {
+        subPageStateHolder.SaveableStateProvider(page) {
+            when (page) {
             GiSub.HoyoLink -> HoyolabLinkScreen(
                 config = hoyolab,
                 onSave = {
@@ -245,7 +256,8 @@ fun GameInfoScreen(
                 EnkaCharSection(
                     viewModel,
                     onOpenStats = { c, g -> statChar = c; statCharGame = g; statReturn = GiSub.Main; subPage = GiSub.CharStats },
-                    onOpenAll = { g -> rosterGame = g; subPage = GiSub.CharRoster },
+                    // 더보기로 새로 진입 시엔 보유목록 상태(스크롤/필터) 초기화 — 상세→뒤로 복귀는 SaveableStateProvider 가 유지
+                    onOpenAll = { g -> rosterGame = g; subPageStateHolder.removeState(GiSub.CharRoster); subPage = GiSub.CharRoster },
                     onOpenHoyolab = { subPage = GiSub.HoyoLink },
                 )
             }
@@ -271,11 +283,11 @@ fun GameInfoScreen(
             item { Spacer(Modifier.height(12.dp)) }
             item { NavEntryCard(Icons.Default.Savings, "충전 가성비", "패키지 단가 비교 · 첫구매 반영 · 뽑 환산") { subPage = GiSub.RechargeValue } }
             item { Spacer(Modifier.height(12.dp)) }
-            item { Spacer(Modifier.height(12.dp)) }
             item { NavEntryCard(Icons.Default.BarChart, "가챠 효율 리포트", "UIGF/SRGF 분석 · 단가 · 천장 분포") { subPage = GiSub.Report } }
             item { Spacer(Modifier.height(20.dp)) }
         }
     }
+        }
         }
     }
 
