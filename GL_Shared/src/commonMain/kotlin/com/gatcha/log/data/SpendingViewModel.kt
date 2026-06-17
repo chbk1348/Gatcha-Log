@@ -406,23 +406,46 @@ class SpendingViewModel : ViewModel() {
             }
             // 연동 계정의 게임 UID 를 「내 캐릭터」 섹션이 쓰도록 반영 — 별도 입력 불필요
             if (uids.isNotEmpty()) {
-                // 젠레스 UID 는 config 에 보존(autoLoadEnka 가 zzz 일 때 참조)
-                val cur = _hoyolabConfig.value
-                val merged = cur.copy(
-                    genshinUid = uids["genshin"]?.ifBlank { null } ?: cur.genshinUid,
-                    hsrUid = uids["hsr"]?.ifBlank { null } ?: cur.hsrUid,
-                    zzzUid = uids["zzz"]?.ifBlank { null } ?: cur.zzzUid,
-                )
-                _hoyolabConfig.value = merged
-                repo.saveHoyolab(merged)
-                uids["genshin"]?.takeIf { it.isNotBlank() }?.let { _enkaGiUid.value = it }
-                uids["hsr"]?.takeIf { it.isNotBlank() }?.let { _enkaHsrUid.value = it }
-                repo.saveEnkaUids(_enkaGiUid.value, _enkaHsrUid.value)
+                applyGameUids(uids)
+                enkaUidsSynced = true
             }
             emitStatus(
                 if (uids.isNotEmpty()) "HoYoLAB 계정이 연동되었어요 ✓ (캐릭터 UID 자동 설정)"
                 else "연동 실패 — 토큰이 만료됐을 수 있어요. 다시 로그인해 가져와주세요",
             )
+        }
+    }
+
+    // fetchGameUids 결과를 config(genshin/hsr/zzz) + Enka 섹션 UID 로 반영(공통).
+    private fun applyGameUids(uids: Map<String, String>) {
+        if (uids.isEmpty()) return
+        val cur = _hoyolabConfig.value
+        val merged = cur.copy(
+            genshinUid = uids["genshin"]?.ifBlank { null } ?: cur.genshinUid,
+            hsrUid = uids["hsr"]?.ifBlank { null } ?: cur.hsrUid,
+            zzzUid = uids["zzz"]?.ifBlank { null } ?: cur.zzzUid,
+        )
+        _hoyolabConfig.value = merged
+        repo.saveHoyolab(merged)
+        uids["genshin"]?.takeIf { it.isNotBlank() }?.let { _enkaGiUid.value = it }
+        uids["hsr"]?.takeIf { it.isNotBlank() }?.let { _enkaHsrUid.value = it }
+        repo.saveEnkaUids(_enkaGiUid.value, _enkaHsrUid.value)
+    }
+
+    // 기존 연동 사용자 대비: 연동됐는데 게임 UID 가 비어있으면 1회 자동 동기화(재연동 불필요).
+    private var enkaUidsSynced = false
+    private suspend fun ensureEnkaUids() {
+        if (enkaUidsSynced) return
+        val cfg = _hoyolabConfig.value
+        if (!cfg.isLinked) return
+        if (_enkaGiUid.value.isNotBlank() && _enkaHsrUid.value.isNotBlank() && cfg.zzzUid.isNotBlank()) {
+            enkaUidsSynced = true
+            return
+        }
+        val uids = withContext(Dispatchers.IO) { HoyolabApi.fetchGameUids(cfg.ltuid, cfg.ltoken) }
+        if (uids.isNotEmpty()) {
+            applyGameUids(uids)
+            enkaUidsSynced = true
         }
     }
 
@@ -601,20 +624,32 @@ class SpendingViewModel : ViewModel() {
      * 게임정보 탭 상시 섹션 — 선택 게임의 저장 UID 로 자동 로드. 5분 캐시 적중 시 네트워크 생략.
      * UID 미설정이면 결과 비움(섹션 미표시). [force] 면 캐시 무시하고 새로고침.
      */
+    private fun enkaUidFor(game: String): String = when (game) {
+        "genshin" -> _enkaGiUid.value
+        "hsr" -> _enkaHsrUid.value
+        else -> _hoyolabConfig.value.zzzUid // 젠레스: 연동 계정 UID
+    }.trim()
+
     fun autoLoadEnka(game: String, force: Boolean = false) {
-        val uid = when (game) {
-            "genshin" -> _enkaGiUid.value
-            "hsr" -> _enkaHsrUid.value
-            else -> _hoyolabConfig.value.zzzUid // 젠레스: 연동 계정 UID
-        }.trim()
-        if (uid.isBlank()) { _enkaResult.value = null; return }
-        val key = "$game:$uid"
-        val cached = enkaCache[key]
-        if (!force && cached != null && currentTimeMillis() - cached.first < enkaTtlMs) {
-            _enkaResult.value = cached.second
-            return
+        // 캐시 적중 시 동기 반영(탭 전환 즉시) — UID 가 이미 있는 경우만
+        val uidNow = enkaUidFor(game)
+        if (!force && uidNow.isNotBlank()) {
+            val cached = enkaCache["$game:$uidNow"]
+            if (cached != null && currentTimeMillis() - cached.first < enkaTtlMs) {
+                _enkaResult.value = cached.second
+                return
+            }
         }
         viewModelScope.launch {
+            ensureEnkaUids() // 연동됐는데 UID 비면 1회 동기화 → 기존 사용자도 자동 로드
+            val uid = enkaUidFor(game)
+            if (uid.isBlank()) { _enkaResult.value = null; return@launch }
+            val key = "$game:$uid"
+            val cached = enkaCache[key]
+            if (!force && cached != null && currentTimeMillis() - cached.first < enkaTtlMs) {
+                _enkaResult.value = cached.second
+                return@launch
+            }
             _enkaLoading.value = true
             val cfg = _hoyolabConfig.value
             val r = EnkaApi.fetchProfile(game, uid, cfg.ltuid, cfg.ltoken)
