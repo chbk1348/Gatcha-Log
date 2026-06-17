@@ -150,6 +150,12 @@ iOS 용 IPA 는 **미서명** 상태로 배포됩니다 — [Sideloadly](https:/
 - 데이터·에셋 제공: [enka.network](https://enka.network) · [mihomo.me](https://api.mihomo.me) · [Project Amber (ambr.top)](https://ambr.top) · ennead.cc · HoYoLAB
 - 모든 게임 콘텐츠의 권리는 각 권리자에게 있으며, **권리자의 요청이 있을 경우 즉시 해당 자료를 삭제**합니다.
 
+### ⚠️ 비공식 API · 이용 고지
+- HoYoLAB 연동 기능은 호요버스의 **공식 공개 API가 아닌 비공식 엔드포인트**를 사용하며, **본인 계정 데이터에 한해** 조회합니다.
+- 이러한 자동화 접근은 각 서비스의 이용약관에 어긋날 수 있으며, 그로 인한 **계정 정지 등 모든 책임은 사용자 본인**에게 있습니다.
+- 본 프로젝트는 **개인 학습·비상업 용도**로 제공되며, 앱 스토어 등 공식 배포 채널을 통해 배포되지 않습니다. 사용에 따른 위험은 사용자가 부담합니다.
+- HoYoLAB 인증 토큰(쿠키)은 기기 보안 저장소에만 보관되며 제3자에게 전송되지 않습니다(클라우드 백업 스냅샷 제외 대상).
+
 <div align="center">
 <sub>호요버스 게임 트래커 · 비상업 개인 팬 프로젝트 · Kotlin Multiplatform & Compose</sub>
 </div>
