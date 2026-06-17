@@ -6,6 +6,7 @@ import com.gatcha.log.data.LedgerEntry
 import com.gatcha.log.data.LiveNote
 import com.gatcha.log.data.MonthlyLedger
 import com.gatcha.log.data.NoteStat
+import com.gatcha.log.json.JSONArray
 import com.gatcha.log.json.JSONObject
 import com.gatcha.log.util.currentTimeMillis
 import com.gatcha.log.util.md5Hex
@@ -410,17 +411,14 @@ object HoyolabApi {
         return out
     }
 
-    // ----------------------------------------------------------------- HSR 캐릭터 공식 KR 이름
-    /** HSR 캐릭터의 공식 KR 이름 + 장착 광추 KR 이름(둘 다 mihomo 신규 번역 지연 보완용). 빈 값일 수 있음. */
-    data class HsrOfficialName(val char: String, val lightCone: String)
-
+    // ----------------------------------------------------------------- HSR 보유 캐릭터(avatar/info)
     /**
-     * HSR 캐릭터 id → 공식 한국어 이름(캐릭터·광추). mihomo/StarRailRes 가 신규 KR 번역을 비워두는 문제를
-     * 호요버스 공식 게임기록(avatar/info)으로 보완(번역 지연 0). 본인 계정(ltuid/ltoken) 한정 →
-     * 비연동/실패 시 빈 맵 → 호출부는 mihomo 이름으로 폴백(§5).
+     * HSR 보유 전체 캐릭터 원시 목록(avatar_list). 각 항목: 캐릭터/광추 공식 KR 이름 + 레벨·성흔·원소·
+     * 스탯(properties)·유물(relics/ornaments) 포함. 본인 계정(ltuid/ltoken) 한정.
+     * 비연동/실패 시 null → 호출부는 mihomo 쇼케이스로 폴백(§5 + 전체 로스터).
      */
-    suspend fun fetchHsrCharNames(ltuid: String, ltoken: String, uid: String): Map<Int, HsrOfficialName> {
-        if (ltuid.isBlank() || ltoken.isBlank() || uid.isBlank()) return emptyMap()
+    suspend fun fetchHsrAvatarInfo(ltuid: String, ltoken: String, uid: String): JSONArray? {
+        if (ltuid.isBlank() || ltoken.isBlank() || uid.isBlank()) return null
         val query = "role_id=$uid&server=${inferServer("hsr", uid)}"
         val headers = HoyoHeaders()
             .withCookie(cookieV2(ltuid, ltoken))
@@ -429,21 +427,10 @@ object HoyolabApi {
             .withUserAgent(UA_BBS)
             .build()
         return Net.get("https://bbs-api-os.hoyolab.com/game_record/app/hkrpg/api/avatar/info?$query", headers).parse(
-            onNetwork = { emptyMap() },
-            onParse = { emptyMap() },
+            onNetwork = { null },
+            onParse = { null },
         ) { retcode, _, json ->
-            if (retcode != 0) return@parse emptyMap()
-            val list = json.optJSONObject("data")?.optJSONArray("avatar_list") ?: return@parse emptyMap()
-            buildMap {
-                for (i in 0 until list.length()) {
-                    val o = list.optJSONObject(i) ?: continue
-                    val id = o.optInt("id")
-                    val name = o.optString("name")
-                    // equip = 장착 광추(이름/중첩/레벨). 공식 KR 광추명.
-                    val lightCone = o.optJSONObject("equip")?.optString("name").orEmpty()
-                    if (id != 0 && (name.isNotBlank() || lightCone.isNotBlank())) put(id, HsrOfficialName(name, lightCone))
-                }
-            }
+            if (retcode != 0) null else json.optJSONObject("data")?.optJSONArray("avatar_list")
         }
     }
 

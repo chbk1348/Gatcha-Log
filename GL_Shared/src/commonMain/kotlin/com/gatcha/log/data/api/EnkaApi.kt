@@ -146,20 +146,20 @@ object EnkaApi {
     private suspend fun fetchHsr(uid: String, ltuid: String = "", ltoken: String = ""): EnkaResult {
         val res = Net.get("https://api.mihomo.me/sr_info_parsed/$uid?lang=kr", headers)
         errorFor(res.code)?.let { return EnkaResult(null, it) }
-        // §5: 본인 계정 연동 시 HoYoLAB 공식 KR 이름(캐릭터·광추)으로 mihomo 빈 이름(신규) 보완
-        val krNames = HoyolabApi.fetchHsrCharNames(ltuid, ltoken, uid)
+        // 본인 계정 연동 시: HoYoLAB avatar/info 로 보유 전체 캐릭터(쇼케이스 밖 포함)
+        val hoyoList = HoyolabApi.fetchHsrAvatarInfo(ltuid, ltoken, uid)
         return runCatching {
             val json = JSONObject(res.body)
             val player = json.optJSONObject("player")
             val list = json.optJSONArray("characters") ?: JSONArray()
-            val chars = (0 until list.length()).mapNotNull { i ->
-                val a = list.optJSONObject(i) ?: return@mapNotNull null
+            // mihomo 쇼케이스 캐릭터(풍부한 KR 파싱) — id 색인
+            val showcase = linkedMapOf<Int, EnkaChar>()
+            for (i in 0 until list.length()) {
+                val a = list.optJSONObject(i) ?: continue
                 val id = a.optString("id").toIntOrNull() ?: 0
-                val official = krNames[id]
-                EnkaChar(
+                showcase[id] = EnkaChar(
                     id = id,
-                    // §5 폴백: HoYoLAB 공식 KR → mihomo KR(비어있지 않으면) → "#id"
-                    name = official?.char?.ifBlank { null } ?: a.optString("name").ifBlank { "#$id" },
+                    name = a.optString("name").ifBlank { "#$id" },
                     level = a.optInt("level"),
                     rank = a.optInt("rank"), // 성혼
                     rarity = a.optInt("rarity", 5),
@@ -167,10 +167,24 @@ object EnkaApi {
                     element = a.optJSONObject("element")?.optString("name").orEmpty(),
                     detailed = true,
                     stats = hsrStats(a),
-                    // 광추도 동일 폴백: HoYoLAB 공식 KR → mihomo
-                    weapon = hsrLightCone(a.optJSONObject("light_cone"), official?.lightCone),
+                    weapon = hsrLightCone(a.optJSONObject("light_cone")),
                     artifacts = hsrRelics(a.optJSONArray("relics")),
                 )
+            }
+            // 로스터: 연동되면 HoYoLAB 전체 목록(쇼케이스=mihomo 리치+공식이름 override, 그 외=HoYoLAB 파싱), 아니면 쇼케이스만
+            val chars: List<EnkaChar> = if (hoyoList != null && hoyoList.length() > 0) {
+                (0 until hoyoList.length()).mapNotNull { i ->
+                    val o = hoyoList.optJSONObject(i) ?: return@mapNotNull null
+                    val id = o.optInt("id")
+                    val officialName = o.optString("name")
+                    val officialLc = o.optJSONObject("equip")?.optString("name").orEmpty()
+                    showcase[id]?.copy(
+                        name = officialName.ifBlank { showcase[id]!!.name },
+                        weapon = showcase[id]!!.weapon?.let { w -> w.copy(name = officialLc.ifBlank { w.name }) },
+                    ) ?: hsrCharFromHoyo(o)
+                }
+            } else {
+                showcase.values.toList()
             }
             if (chars.isEmpty() && player == null) {
                 return@runCatching EnkaResult(null, "프로필을 찾을 수 없어요 (UID·쇼케이스 공개 확인)")
@@ -186,6 +200,73 @@ object EnkaApi {
                 null,
             )
         }.getOrElse { EnkaResult(null, "응답을 해석하지 못했어요") }
+    }
+
+    // ---------------- HoYoLAB avatar/info(보유 전체) 파싱 — 응답 라벨(name/final/value) 그대로 사용 ----------------
+    private fun hoyoIcon(p: String): String? = p.takeIf { it.startsWith("http") }
+
+    private fun hsrCharFromHoyo(o: JSONObject): EnkaChar {
+        val id = o.optInt("id")
+        return EnkaChar(
+            id = id,
+            name = o.optString("name").ifBlank { "#$id" },
+            level = o.optInt("level"),
+            rank = o.optInt("rank"), // 성흔
+            rarity = o.optInt("rarity", 5),
+            iconUrl = hoyoIcon(o.optString("icon").ifBlank { o.optString("image") }),
+            element = hsrElementKo(o.optString("element")),
+            detailed = true,
+            stats = hsrHoyoStats(o.optJSONArray("properties")),
+            weapon = o.optJSONObject("equip")?.let { e ->
+                EnkaWeapon(e.optString("name"), e.optInt("level"), e.optInt("rank"), null, null)
+            },
+            artifacts = hsrHoyoRelics(o.optJSONArray("relics"), o.optJSONArray("ornaments")),
+        )
+    }
+
+    /** HoYoLAB properties[] → 핵심 스탯. 응답의 name/final 라벨 그대로(ko-kr 로컬라이즈). */
+    private fun hsrHoyoStats(props: JSONArray?): List<EnkaStatLine> = buildList {
+        props ?: return@buildList
+        for (i in 0 until props.length()) {
+            val p = props.optJSONObject(i) ?: continue
+            val name = p.optString("name")
+            val value = p.optString("final").ifBlank { p.optString("value") }
+            if (name.isBlank() || value.isBlank()) continue
+            add(EnkaStatLine(name, value, hsrCrit(name)))
+        }
+    }
+
+    /** HoYoLAB relics[]+ornaments[] → 유물 슬롯. main/sub 어픽스 라벨도 응답값 사용(없으면 슬롯 생략). */
+    private fun hsrHoyoRelics(relics: JSONArray?, ornaments: JSONArray?): List<EnkaArtifact> = buildList {
+        fun addAll(arr: JSONArray?) {
+            arr ?: return
+            for (i in 0 until arr.length()) {
+                val r = arr.optJSONObject(i) ?: continue
+                val mainObj = r.optJSONObject("main_property")
+                val mainName = mainObj?.optString("name").orEmpty()
+                val mainVal = mainObj?.optString("value").orEmpty()
+                if (mainName.isBlank() && mainVal.isBlank()) continue // 어픽스 정보 없으면 슬롯 생략
+                val subs = r.optJSONArray("properties")?.let { sa ->
+                    (0 until sa.length()).mapNotNull { j ->
+                        val s = sa.optJSONObject(j) ?: return@mapNotNull null
+                        val sn = s.optString("name"); val sv = s.optString("value")
+                        if (sn.isBlank() && sv.isBlank()) null else EnkaStatLine(sn, sv, hsrCrit(sn))
+                    }
+                }.orEmpty()
+                val pos = r.optInt("pos", 0).takeIf { it in 1..6 } ?: (size + 1)
+                add(
+                    EnkaArtifact(
+                        slot = hsrSlots.getOrElse(pos - 1) { "유물" },
+                        setName = r.optString("name"),
+                        level = r.optInt("level"),
+                        main = EnkaStatLine(mainName, mainVal, hsrCrit(mainName)),
+                        subs = subs,
+                    ),
+                )
+            }
+        }
+        addAll(relics)
+        addAll(ornaments)
     }
 
     // Mihomo 응답의 상대 아이콘 경로는 StarRailRes 에셋 → raw.githubusercontent 가 정본(api.mihomo.me 는 404)
@@ -322,7 +403,7 @@ object EnkaApi {
     private fun hsrElementKo(e: String): String = when (e) {
         "Fire" -> "화염"
         "Ice" -> "얼음"
-        "Thunder" -> "번개"
+        "Thunder", "Lightning" -> "번개"
         "Wind" -> "바람"
         "Physical" -> "물리"
         "Quantum" -> "양자"
