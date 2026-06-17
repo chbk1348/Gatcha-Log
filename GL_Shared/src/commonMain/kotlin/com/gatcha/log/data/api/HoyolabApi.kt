@@ -410,6 +410,38 @@ object HoyolabApi {
         return out
     }
 
+    // ----------------------------------------------------------------- HSR 캐릭터 공식 KR 이름
+    /**
+     * HSR 캐릭터 id → 공식 한국어 이름. mihomo/StarRailRes 가 신규 캐릭터 KR 번역을 비워두는 문제를
+     * 호요버스 공식 게임기록(avatar/info)으로 보완(번역 지연 0). 본인 계정(ltuid/ltoken) 한정 →
+     * 비연동/실패 시 빈 맵 → 호출부는 mihomo 이름으로 폴백(§5).
+     */
+    suspend fun fetchHsrCharNames(ltuid: String, ltoken: String, uid: String): Map<Int, String> {
+        if (ltuid.isBlank() || ltoken.isBlank() || uid.isBlank()) return emptyMap()
+        val query = "role_id=$uid&server=${inferServer("hsr", uid)}"
+        val headers = HoyoHeaders()
+            .withCookie(cookieV2(ltuid, ltoken))
+            .withDS(query)
+            .withRpc(2)
+            .withUserAgent(UA_BBS)
+            .build()
+        return Net.get("https://bbs-api-os.hoyolab.com/game_record/app/hkrpg/api/avatar/info?$query", headers).parse(
+            onNetwork = { emptyMap() },
+            onParse = { emptyMap() },
+        ) { retcode, _, json ->
+            if (retcode != 0) return@parse emptyMap()
+            val list = json.optJSONObject("data")?.optJSONArray("avatar_list") ?: return@parse emptyMap()
+            buildMap {
+                for (i in 0 until list.length()) {
+                    val o = list.optJSONObject(i) ?: continue
+                    val id = o.optInt("id")
+                    val name = o.optString("name")
+                    if (id != 0 && name.isNotBlank()) put(id, name)
+                }
+            }
+        }
+    }
+
     // ----------------------------------------------------------------- 월간 수입 일지
     /** 게임별 일지 엔드포인트 + 재화 필드. 동일 응답 구조(month_data.current_*)를 공유하는 게임만. */
     private data class LedgerSpec(
