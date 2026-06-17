@@ -401,11 +401,26 @@ class SpendingViewModel : ViewModel() {
             return
         }
         viewModelScope.launch {
-            val ok = withContext(Dispatchers.IO) {
-                HoyolabApi.fetchGameUids(config.ltuid, config.ltoken).isNotEmpty()
+            val uids = withContext(Dispatchers.IO) {
+                HoyolabApi.fetchGameUids(config.ltuid, config.ltoken)
+            }
+            // 연동 계정의 게임 UID 를 「내 캐릭터」 섹션이 쓰도록 반영 — 별도 입력 불필요
+            if (uids.isNotEmpty()) {
+                // 젠레스 UID 는 config 에 보존(autoLoadEnka 가 zzz 일 때 참조)
+                val cur = _hoyolabConfig.value
+                val merged = cur.copy(
+                    genshinUid = uids["genshin"]?.ifBlank { null } ?: cur.genshinUid,
+                    hsrUid = uids["hsr"]?.ifBlank { null } ?: cur.hsrUid,
+                    zzzUid = uids["zzz"]?.ifBlank { null } ?: cur.zzzUid,
+                )
+                _hoyolabConfig.value = merged
+                repo.saveHoyolab(merged)
+                uids["genshin"]?.takeIf { it.isNotBlank() }?.let { _enkaGiUid.value = it }
+                uids["hsr"]?.takeIf { it.isNotBlank() }?.let { _enkaHsrUid.value = it }
+                repo.saveEnkaUids(_enkaGiUid.value, _enkaHsrUid.value)
             }
             emitStatus(
-                if (ok) "HoYoLAB 계정이 연동되었어요 ✓"
+                if (uids.isNotEmpty()) "HoYoLAB 계정이 연동되었어요 ✓ (캐릭터 UID 자동 설정)"
                 else "연동 실패 — 토큰이 만료됐을 수 있어요. 다시 로그인해 가져와주세요",
             )
         }
@@ -587,7 +602,11 @@ class SpendingViewModel : ViewModel() {
      * UID 미설정이면 결과 비움(섹션 미표시). [force] 면 캐시 무시하고 새로고침.
      */
     fun autoLoadEnka(game: String, force: Boolean = false) {
-        val uid = (if (game == "genshin") _enkaGiUid.value else _enkaHsrUid.value).trim()
+        val uid = when (game) {
+            "genshin" -> _enkaGiUid.value
+            "hsr" -> _enkaHsrUid.value
+            else -> _hoyolabConfig.value.zzzUid // 젠레스: 연동 계정 UID
+        }.trim()
         if (uid.isBlank()) { _enkaResult.value = null; return }
         val key = "$game:$uid"
         val cached = enkaCache[key]
