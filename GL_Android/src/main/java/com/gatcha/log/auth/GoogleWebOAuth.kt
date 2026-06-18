@@ -1,10 +1,10 @@
 package com.gatcha.log.auth
 
 import android.content.Context
-import android.content.Intent
 import android.net.Uri
 import android.util.Base64
 import android.util.Log
+import androidx.browser.customtabs.CustomTabsIntent
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -55,7 +55,9 @@ object GoogleWebOAuth {
         val deferred = CompletableDeferred<Uri?>()
         pending = deferred
         runCatching {
-            context.startActivity(Intent(Intent.ACTION_VIEW, authUrl).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+            // 인앱 브라우저(Chrome Custom Tabs) — Activity 컨텍스트로 같은 태스크에 띄워 인앱 느낌.
+            // Custom Tabs 미지원 브라우저면 launchUrl 이 일반 브라우저로 자동 폴백한다.
+            CustomTabsIntent.Builder().setShowTitle(true).build().launchUrl(context, authUrl)
         }.onFailure { pending = null; return null }
 
         val callback = deferred.await() ?: return null

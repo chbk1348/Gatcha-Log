@@ -265,7 +265,7 @@ class SpendingViewModel : ViewModel() {
                         emitStatus("네트워크 오류로 로그인에 실패했어요")
                     }
                 }
-                SignInOutcome.NoCredential -> { _initialSyncing.value = false; emitStatus("기기에 로그인된 구글 계정이 없어요") }
+                SignInOutcome.NoCredential -> { _initialSyncing.value = false; emitStatus("로그인이 취소되었거나 완료되지 못했어요") }
                 is SignInOutcome.Error -> { _initialSyncing.value = false; emitStatus(outcome.message) }
             }
         }
