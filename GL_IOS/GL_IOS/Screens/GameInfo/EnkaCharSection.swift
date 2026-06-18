@@ -235,9 +235,9 @@ struct EnkaStatPage: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 header
-                section(game == "genshin" ? "무기" : game == "zzz" ? "음동기" : "광추") {
+                section(game == "genshin" ? "무기" : game == "zzz" ? "W-엔진" : "광추") {
                     if let w = char.weapon { weaponCard(w) }
-                    else { emptyEquipNote(game == "genshin" ? "무기가 장착되지 않았습니다." : game == "zzz" ? "음동기가 장착되지 않았습니다." : "광추가 장착되지 않았습니다.") }
+                    else { emptyEquipNote(game == "genshin" ? "무기가 장착되지 않았습니다." : game == "zzz" ? "W-엔진이 장착되지 않았습니다." : "광추가 장착되지 않았습니다.") }
                 }
                 section("핵심 스탯") { statGrid }
                 section(game == "genshin" ? "성유물" : game == "zzz" ? "드라이브 디스크" : "유물") {

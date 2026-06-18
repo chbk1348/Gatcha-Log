@@ -319,7 +319,7 @@ private fun rankLabelFor(c: EnkaChar, game: String): String? = when (game) {
 fun EnkaStatPage(c: EnkaChar, game: String, onBack: () -> Unit) {
     BackHandler { onBack() }
     val accent = LocalAccent.current
-    val wepLabel = if (game == "genshin") "무기" else if (game == "zzz") "음동기" else "광추"
+    val wepLabel = if (game == "genshin") "무기" else if (game == "zzz") "W-엔진" else "광추"
     val artLabel = if (game == "genshin") "성유물" else if (game == "zzz") "드라이브 디스크" else "유물"
     Column(
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp).padding(bottom = 30.dp),
@@ -366,7 +366,7 @@ fun EnkaStatPage(c: EnkaChar, game: String, onBack: () -> Unit) {
         SecLabel(wepLabel)
         val w = c.weapon
         if (w != null) WeaponCard(w, accent)
-        else EmptyEquipNote(if (game == "genshin") "무기가 장착되지 않았습니다." else if (game == "zzz") "음동기가 장착되지 않았습니다." else "광추가 장착되지 않았습니다.")
+        else EmptyEquipNote(if (game == "genshin") "무기가 장착되지 않았습니다." else if (game == "zzz") "W-엔진이 장착되지 않았습니다." else "광추가 장착되지 않았습니다.")
         Spacer(Modifier.height(16.dp))
 
         // 핵심 스탯
