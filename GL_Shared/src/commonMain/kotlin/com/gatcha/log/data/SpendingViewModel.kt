@@ -72,10 +72,6 @@ class SpendingViewModel : ViewModel() {
     /** 현재 로그인 계정 (게스트 = 비로그인 로컬) */
     val account: StateFlow<Account> = authManager.account
 
-    /** 게스트로 시작 선택 여부(로그인 화면 게이트용) */
-    val guestChosen: StateFlow<Boolean> = authManager.guestChosen
-    fun continueAsGuest() = authManager.continueAsGuest()
-
     // 계정별로 분리되는 저장소. 계정 전환 시 교체된다.
     private var repo: GatchaRepository = GatchaRepository(account.value.id)
 

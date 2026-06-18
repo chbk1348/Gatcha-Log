@@ -31,7 +31,7 @@ struct ContentView: View {
         Group {
             if store.needsOnboarding {
                 // Phase 1 — SwiftUI 네이티브 로그인/온보딩 (구 ComposeView LoginViewController 대체).
-                // 게스트 선택/로그인 완료 시 공유 VM 의 account·guestChosen 이 바뀌어 자동으로 탭 화면으로 전환.
+                // 로그인 완료 시 공유 VM 의 account 가 바뀌어 자동으로 탭 화면으로 전환.
                 LoginView(store: store)
                     .glgAccent(index: store.accentIndex)
             } else if syncGateActive {

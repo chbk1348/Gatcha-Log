@@ -61,15 +61,6 @@ class AuthManager {
     private val _account = MutableStateFlow(load())
     val account: StateFlow<Account> = _account.asStateFlow()
 
-    /** 게스트로 시작하기를 명시적으로 선택했는지(로그인 화면 통과 여부). */
-    private val _guestChosen = MutableStateFlow(prefs.getBoolean(KEY_GUEST, false))
-    val guestChosen: StateFlow<Boolean> = _guestChosen.asStateFlow()
-
-    fun continueAsGuest() {
-        prefs.putBoolean(KEY_GUEST, true)
-        _guestChosen.value = true
-    }
-
     /** 계정 식별자를 확정해 영속(예: Firebase uid 로 교체). 로컬/클라우드 키를 일치시킨다. */
     fun setAccount(acc: Account) {
         _account.value = acc
@@ -112,14 +103,13 @@ class AuthManager {
         return SignInOutcome.Success(account)
     }
 
-    /** 로그아웃 → 게스트(로컬) 계정으로 전환. */
+    /** 로그아웃 → 미로그인 sentinel 로 전환(루트 게이트가 로그인 화면 표시). */
     suspend fun signOut() {
         runCatching { CloudSync.signOut() }
         lastIdToken = null
         lastAccessToken = null
-        listOf(KEY_ID, KEY_NAME, KEY_EMAIL, KEY_PHOTO, KEY_GUEST).forEach { prefs.remove(it) }
+        listOf(KEY_ID, KEY_NAME, KEY_EMAIL, KEY_PHOTO).forEach { prefs.remove(it) }
         _account.value = Account.GUEST
-        _guestChosen.value = false // 로그아웃 시 다시 로그인 화면으로
     }
 
     private fun load(): Account {
@@ -145,7 +135,6 @@ class AuthManager {
         const val KEY_NAME = "account_name"
         const val KEY_EMAIL = "account_email"
         const val KEY_PHOTO = "account_photo"
-        const val KEY_GUEST = "guest_chosen"
     }
 }
 
