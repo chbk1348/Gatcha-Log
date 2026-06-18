@@ -276,18 +276,31 @@ struct EnkaStatPage: View {
         }
     }
 
-    /// 세트 효과 카드 — 세트명 + 장착 수 + 활성 보너스.
+    /// 세트 효과 카드 — 세트명(+종류 태그) + 장착 수 + 조각수별 보너스(발동=진하게/미발동=흐리게).
     private func setCard(_ s: EnkaSet) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack {
-                Text(s.name).font(.system(size: 13, weight: .bold)).lineLimit(1)
-                Spacer()
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 6) {
+                Text(s.name).font(.system(size: 13, weight: .bold)).foregroundStyle(GLGColor.textPrimary).lineLimit(1)
+                if !s.kind.isEmpty {
+                    Text(s.kind).font(.system(size: 9.5, weight: .bold)).foregroundStyle(GLGColor.textSecondary)
+                        .padding(.horizontal, 5).padding(.vertical, 1.5)
+                        .background(GLGColor.textSecondary.opacity(0.12), in: RoundedRectangle(cornerRadius: 5, style: .continuous))
+                }
+                Spacer(minLength: 4)
                 Text("\(s.count)").font(.system(size: 10.5, weight: .bold)).foregroundStyle(accent.primary)
                     .padding(.horizontal, 7).padding(.vertical, 2).background(accent.primary.opacity(0.14), in: Capsule())
             }
             ForEach(Array(s.effects.enumerated()), id: \.offset) { _, e in
-                Text(e).font(.system(size: 11)).foregroundStyle(GLGColor.textSecondary)
-                    .fixedSize(horizontal: false, vertical: true).frame(maxWidth: .infinity, alignment: .leading)
+                HStack(alignment: .top, spacing: 8) {
+                    Text("\(e.pieces)").font(.system(size: 10, weight: .heavy))
+                        .foregroundStyle(e.active ? AnyShapeStyle(.white) : AnyShapeStyle(GLGColor.textSecondary))
+                        .frame(width: 18, height: 18)
+                        .background(e.active ? AnyShapeStyle(accent.primary) : AnyShapeStyle(Color.clear), in: Circle())
+                        .overlay(Circle().strokeBorder(GLGColor.textSecondary.opacity(0.35), lineWidth: e.active ? 0 : 1))
+                    Text(e.text).font(.system(size: 11)).foregroundStyle(GLGColor.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true).frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .opacity(e.active ? 1 : 0.45)
             }
         }
         .padding(13).frame(maxWidth: .infinity, alignment: .leading)
@@ -305,27 +318,28 @@ struct EnkaStatPage: View {
 
     private var header: some View {
         let ec = enkaElementColor(char.element)
-        return HStack(spacing: 14) {
-            ZStack {
-                RoundedRectangle(cornerRadius: 18).fill(ec.opacity(0.16)).frame(width: 64, height: 64)
-                if let icon = char.iconUrl, let u = URL(string: icon) {
-                    AsyncImage(url: u) { $0.resizable().scaledToFill() } placeholder: { Color.clear }
-                        .frame(width: 64, height: 64).clipShape(RoundedRectangle(cornerRadius: 18))
-                } else {
-                    Text(String(char.name.prefix(1))).font(.system(size: 26, weight: .bold)).foregroundStyle(ec)
+        return VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 14) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 18).fill(ec.opacity(0.16)).frame(width: 64, height: 64)
+                    if let icon = char.iconUrl, let u = URL(string: icon) {
+                        AsyncImage(url: u) { $0.resizable().scaledToFill() } placeholder: { Color.clear }
+                            .frame(width: 64, height: 64).clipShape(RoundedRectangle(cornerRadius: 18))
+                    } else {
+                        Text(String(char.name.prefix(1))).font(.system(size: 26, weight: .bold)).foregroundStyle(ec)
+                    }
                 }
-            }
-            .overlay(RoundedRectangle(cornerRadius: 18).stroke(ec.opacity(0.35), lineWidth: 1.5))
-            VStack(alignment: .leading, spacing: 7) {
+                .overlay(RoundedRectangle(cornerRadius: 18).stroke(ec.opacity(0.35), lineWidth: 1.5))
                 Text(char.name).font(.system(size: 20, weight: .bold)).lineLimit(1)
-                HStack(spacing: 6) {
-                    if !char.element.isEmpty { badge(char.element, ec) }
-                    if !char.path.isEmpty { badge(char.path, GLGColor.textSecondary) }
-                    if let r = enkaRankLabel(char, game) { badge(r, Color(hex: 0xFF9C6F12)) }
-                    badge("Lv. \(char.level)", GLGColor.textSecondary)
-                }
+                Spacer(minLength: 0)
             }
-            Spacer(minLength: 0)
+            Divider().overlay(Color.black.opacity(0.06)).padding(.top, 13).padding(.bottom, 11)
+            VStack(spacing: 10) {
+                infoRow("레벨", "Lv. \(char.level)", GLGColor.textPrimary)
+                if !char.element.isEmpty { infoRow("속성", char.element, ec) }
+                if !char.path.isEmpty { infoRow("운명의 길", char.path, GLGColor.textPrimary) }
+                if let r = enkaRankLabel(char, game) { infoRow("돌파", r, GLGColor.textPrimary) }
+            }
         }
         .padding(16).frame(maxWidth: .infinity, alignment: .leading)
         .glgGlass(in: RoundedRectangle(cornerRadius: 22, style: .continuous))
@@ -376,12 +390,12 @@ struct EnkaStatPage: View {
 
     private func artifactCard(_ a: EnkaArtifact) -> some View {
         VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 9) {
+            HStack(alignment: .top, spacing: 9) {
                 Text(a.slot).font(.system(size: 11, weight: .bold)).foregroundStyle(GLGColor.textSecondary)
                     .padding(.horizontal, 8).padding(.vertical, 5).background(Color(hex: 0xFFF1F1F6), in: RoundedRectangle(cornerRadius: 8))
-                VStack(alignment: .leading, spacing: 1) {
-                    Text(a.main.label).font(.system(size: 12.5, weight: .bold)).lineLimit(1)
-                    Text(a.main.value).font(.system(size: 13, weight: .bold)).foregroundStyle(a.main.crit ? enkaCrit : accent.primary)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(a.main.label).font(.system(size: 10.5)).foregroundStyle(GLGColor.textSecondary).lineLimit(1)
+                    Text(a.main.value).font(.system(size: 16, weight: .heavy)).foregroundStyle(a.main.crit ? enkaCrit : accent.primary).lineLimit(1)
                     if !a.setName.isEmpty {
                         Text(a.setName).font(.system(size: 9.5)).foregroundStyle(GLGColor.textSecondary).lineLimit(1)
                     }
@@ -391,25 +405,31 @@ struct EnkaStatPage: View {
                     .padding(.horizontal, 7).padding(.vertical, 2).background(enkaGold.opacity(0.16), in: RoundedRectangle(cornerRadius: 7))
             }
             if !a.subs.isEmpty {
-                Divider().overlay(Color.black.opacity(0.06))
-                LazyVGrid(columns: g2, spacing: 7) {
+                LazyVGrid(columns: g2, spacing: 4) {
                     ForEach(Array(a.subs.enumerated()), id: \.offset) { _, s in
-                        HStack {
-                            Text(s.label).font(.system(size: 10.5)).foregroundStyle(GLGColor.textSecondary).lineLimit(1)
-                            Spacer()
-                            Text(s.value).font(.system(size: 10.5, weight: .bold)).foregroundStyle(s.crit ? enkaCrit : GLGColor.textPrimary).lineLimit(1)
+                        HStack(spacing: 6) {
+                            Text(s.label).font(.system(size: 11)).foregroundStyle(GLGColor.textSecondary).lineLimit(1)
+                            Spacer(minLength: 4)
+                            Text(s.value).font(.system(size: 12, weight: .bold)).foregroundStyle(s.crit ? enkaCrit : GLGColor.textPrimary).lineLimit(1)
                         }
+                        .padding(.horizontal, 10).padding(.vertical, 8)
                     }
                 }
+                .padding(4)
+                .background(Color(hex: 0xFFF1F1F6).opacity(0.5), in: RoundedRectangle(cornerRadius: 14))
             }
         }
         .padding(13).frame(maxWidth: .infinity, alignment: .leading)
         .glgGlass(in: RoundedRectangle(cornerRadius: 22, style: .continuous))
     }
 
-    private func badge(_ t: String, _ c: Color) -> some View {
-        Text(t).font(.system(size: 10.5, weight: .bold)).foregroundStyle(c)
-            .padding(.horizontal, 9).padding(.vertical, 3).background(c.opacity(0.14), in: Capsule())
+    /// 프로필 속성 1줄 — 라벨(보조색, 좌) : 값(굵게, 우).
+    private func infoRow(_ label: String, _ value: String, _ valueColor: Color) -> some View {
+        HStack {
+            Text(label).font(.system(size: 12.5)).foregroundStyle(GLGColor.textSecondary)
+            Spacer(minLength: 8)
+            Text(value).font(.system(size: 13, weight: .bold)).foregroundStyle(valueColor).lineLimit(1)
+        }
     }
     private func secLabel(_ t: String) -> some View {
         Text(t).font(.system(size: 13, weight: .bold)).foregroundStyle(GLGColor.textSecondary)

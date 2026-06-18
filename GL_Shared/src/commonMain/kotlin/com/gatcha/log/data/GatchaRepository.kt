@@ -52,6 +52,7 @@ class GatchaRepository(accountId: String = "guest") {
         put("amount", amount)
         put("dateMillis", dateMillis)
         put("paymentMethod", paymentMethod)
+        put("chargePlatform", chargePlatform)
         put("itemName", itemName)
         put("memo", memo)
         put("isSubscription", isSubscription)
@@ -69,7 +70,22 @@ class GatchaRepository(accountId: String = "guest") {
             gameName = gameName,
             amount = optLong("amount", 0L),
             dateMillis = optLong("dateMillis", currentTimeMillis()),
-            paymentMethod = optString("paymentMethod", "신용카드"),
+            // 레거시 정규화: 신용/체크카드 → 카드. 옛 결제수단의 구글플레이/앱스토어는
+            // 의미상 '충전 플랫폼'이므로 paymentMethod 는 카드로 두고 chargePlatform 으로 이동.
+            paymentMethod = optString("paymentMethod", "카드").let { m ->
+                when (m) {
+                    "신용카드", "체크카드", "구글 플레이", "앱스토어" -> "카드"
+                    else -> m
+                }
+            },
+            // 충전 플랫폼은 선택 항목 → 모르면 빈 값 유지. 옛 스토어 결제만 플랫폼으로 이동.
+            chargePlatform = optString("chargePlatform", "").ifBlank {
+                when (optString("paymentMethod", "")) {
+                    "구글 플레이" -> "구글플레이스토어"
+                    "앱스토어" -> "앱스토어"
+                    else -> ""
+                }
+            },
             itemName = optString("itemName", ""),
             memo = optString("memo", ""),
             tags = tags,

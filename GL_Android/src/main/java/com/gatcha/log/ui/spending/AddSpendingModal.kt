@@ -25,7 +25,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
-import androidx.compose.ui.draw.shadow
+import com.gatcha.log.ui.components.GlassCard
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -72,7 +72,8 @@ fun AddSpendingModal(
     var game by remember(spendingToEdit) { mutableStateOf(GameData.byName(spendingToEdit?.gameName ?: "원신")) }
     var amount by remember(spendingToEdit) { mutableStateOf(spendingToEdit?.amount?.takeIf { it > 0 }?.toString() ?: "") }
     var dateMillis by remember(spendingToEdit) { mutableLongStateOf(spendingToEdit?.dateMillis ?: System.currentTimeMillis()) }
-    var paymentMethod by remember(spendingToEdit) { mutableStateOf(spendingToEdit?.paymentMethod ?: "신용카드") }
+    var paymentMethod by remember(spendingToEdit) { mutableStateOf(spendingToEdit?.paymentMethod ?: "카드") }
+    var chargePlatform by remember(spendingToEdit) { mutableStateOf(spendingToEdit?.chargePlatform ?: "") }
     var itemName by remember(spendingToEdit) { mutableStateOf(spendingToEdit?.itemName ?: "") }
     var memo by remember(spendingToEdit) { mutableStateOf(spendingToEdit?.memo ?: "") }
     var customTags by remember(spendingToEdit) { mutableStateOf("") }
@@ -104,6 +105,7 @@ fun AddSpendingModal(
             amount = parsed,
             dateMillis = dateMillis,
             paymentMethod = paymentMethod,
+            chargePlatform = chargePlatform,
             itemName = itemName,
             memo = memo,
             tags = tags,
@@ -249,6 +251,17 @@ fun AddSpendingModal(
                                 ChoiceChip(label = method, selected = paymentMethod == method) { paymentMethod = method }
                             }
                         }
+                        Spacer(Modifier.height(14.dp))
+                        SectionRowLabel("충전 플랫폼 (선택)")
+                        Spacer(Modifier.height(8.dp))
+                        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            items(GameData.chargePlatforms) { platform ->
+                                // 선택 항목 — 선택된 칩 다시 탭하면 해제(빈 값)
+                                ChoiceChip(label = platform, selected = chargePlatform == platform) {
+                                    chargePlatform = if (chargePlatform == platform) "" else platform
+                                }
+                            }
+                        }
                     }
                 }
 
@@ -295,8 +308,8 @@ fun AddSpendingModal(
                 }
             }
 
-            // Bottom Actions — 시트 하단(내비 영역까지 흰 띠), 버튼은 내비 위로
-            Surface(color = CardBg, shadowElevation = 10.dp, modifier = Modifier.fillMaxWidth()) {
+            // Bottom Actions — 시트 하단(내비 영역까지 흰 띠), 버튼은 내비 위로. 그림자 없는 플랫.
+            Surface(color = CardBg, shadowElevation = 0.dp, modifier = Modifier.fillMaxWidth()) {
                 Row(
                     modifier = Modifier.fillMaxWidth().navigationBarsPadding().padding(20.dp),
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -345,19 +358,12 @@ fun AddSpendingModal(
     }
 }
 
-/** 흰색 그룹 섹션 카드 (회색 시트 위, 소프트 섀도). */
+/** 그룹 섹션 카드 — 앱 표준 [GlassCard](흰 배경·아웃라인·평면, 22dp)와 동일하게 통일. */
 @Composable
 private fun SectionCard(content: @Composable ColumnScope.() -> Unit) {
-    Column(
-        Modifier
-            .fillMaxWidth()
-            .shadow(1.dp, RoundedCornerShape(18.dp), clip = false, ambientColor = Color(0x12000000), spotColor = Color(0x12000000))
-            .clip(RoundedCornerShape(18.dp))
-            .background(CardBg)
-            .animateContentSize()
-            .padding(16.dp),
-        content = content,
-    )
+    GlassCard(modifier = Modifier.fillMaxWidth().animateContentSize()) {
+        Column(Modifier.padding(16.dp), content = content)
+    }
 }
 
 @Composable
@@ -395,8 +401,8 @@ private fun PackageCard(pkg: GamePackage, isSelected: Boolean, modifier: Modifie
     Surface(
         modifier = modifier.clickable { onClick() },
         shape = RoundedCornerShape(14.dp),
-        color = if (isSelected) accent.copy(alpha = 0.1f) else ChipIdleBg,
-        border = BorderStroke(1.dp, if (isSelected) accent else DividerColor),
+        color = if (isSelected) accent.copy(alpha = 0.1f) else Color.White,
+        border = BorderStroke(1.dp, if (isSelected) accent else Color.Black.copy(alpha = 0.08f)),
     ) {
         // 컴팩트·깔끔 — 내용에 딱 맞는 높이(2열이라 이름 1줄, 모든 카드 구조 동일 → 자동 통일)
         Column(

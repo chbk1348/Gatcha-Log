@@ -20,6 +20,7 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
@@ -335,25 +336,27 @@ fun EnkaStatPage(c: EnkaChar, game: String, onBack: () -> Unit) {
         // 캐릭터 헤더
         val ec = elementColor(c.element)
         GlassCard(modifier = Modifier.fillMaxWidth()) {
-            Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                Box(contentAlignment = Alignment.Center) {
-                    Box(Modifier.size(64.dp).clip(RoundedCornerShape(18.dp)).background(ec.copy(alpha = 0.16f)), contentAlignment = Alignment.Center) {
-                        if (c.iconUrl != null) AsyncImage(model = c.iconUrl, contentDescription = c.name, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
-                        else Text(c.name.take(1), fontSize = 26.sp, fontWeight = FontWeight.Bold, color = ec)
+            Column(Modifier.padding(16.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Box(Modifier.size(64.dp).clip(RoundedCornerShape(18.dp)).background(ec.copy(alpha = 0.16f)), contentAlignment = Alignment.Center) {
+                            if (c.iconUrl != null) AsyncImage(model = c.iconUrl, contentDescription = c.name, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+                            else Text(c.name.take(1), fontSize = 26.sp, fontWeight = FontWeight.Bold, color = ec)
+                        }
+                        // 원소색 링(이미지 위 오버레이)
+                        Box(Modifier.size(64.dp).border(1.5.dp, ec.copy(alpha = 0.35f), RoundedCornerShape(18.dp)))
                     }
-                    // 원소색 링(이미지 위 오버레이)
-                    Box(Modifier.size(64.dp).border(1.5.dp, ec.copy(alpha = 0.35f), RoundedCornerShape(18.dp)))
+                    Spacer(Modifier.width(14.dp))
+                    Text(c.name, fontSize = 20.sp, fontWeight = FontWeight.Bold, color = TextPrimary, maxLines = 1)
                 }
-                Spacer(Modifier.width(14.dp))
-                Column {
-                    Text(c.name, fontSize = 20.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
-                    Spacer(Modifier.height(7.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        if (c.element.isNotBlank()) Badge(c.element, ec)
-                        if (c.path.isNotBlank()) Badge(c.path, TextSecondary)
-                        rankLabelFor(c, game)?.let { Badge(it, Color(0xFF9C6F12)) }
-                        Badge("Lv. ${c.level}", TextSecondary)
-                    }
+                Spacer(Modifier.height(13.dp))
+                Box(Modifier.fillMaxWidth().height(1.dp).background(Color.Black.copy(alpha = 0.06f)))
+                Spacer(Modifier.height(11.dp))
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    InfoRow("레벨", "Lv. ${c.level}", TextPrimary)
+                    if (c.element.isNotBlank()) InfoRow("속성", c.element, ec)
+                    if (c.path.isNotBlank()) InfoRow("운명의 길", c.path, TextPrimary)
+                    rankLabelFor(c, game)?.let { InfoRow("돌파", it, TextPrimary) }
                 }
             }
         }
@@ -412,14 +415,34 @@ private fun SetCard(s: EnkaSet, accent: Color) {
     GlassCard(modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(13.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(s.name, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextPrimary, maxLines = 1, modifier = Modifier.weight(1f))
+                Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
+                    Text(s.name, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextPrimary, maxLines = 1, modifier = Modifier.weight(1f, fill = false))
+                    if (s.kind.isNotEmpty()) {
+                        Spacer(Modifier.width(6.dp))
+                        Surface(color = TextSecondary.copy(alpha = 0.12f), shape = RoundedCornerShape(5.dp)) {
+                            Text(s.kind, fontSize = 9.5.sp, fontWeight = FontWeight.Bold, color = TextSecondary, modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp))
+                        }
+                    }
+                }
                 Surface(color = accent.copy(alpha = 0.14f), shape = RoundedCornerShape(999.dp)) {
                     Text("${s.count}", fontSize = 10.5.sp, fontWeight = FontWeight.Bold, color = accent, modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp))
                 }
             }
             s.effects.forEach { e ->
-                Spacer(Modifier.height(4.dp))
-                Text(e, fontSize = 11.sp, color = TextSecondary)
+                Spacer(Modifier.height(7.dp))
+                Row(verticalAlignment = Alignment.Top, modifier = Modifier.alpha(if (e.active) 1f else 0.45f)) {
+                    Box(
+                        Modifier.size(18.dp).then(
+                            if (e.active) Modifier.background(accent, RoundedCornerShape(999.dp))
+                            else Modifier.border(1.dp, TextSecondary.copy(alpha = 0.35f), RoundedCornerShape(999.dp)),
+                        ),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text("${e.pieces}", fontSize = 10.sp, fontWeight = FontWeight.Black, color = if (e.active) Color.White else TextSecondary)
+                    }
+                    Spacer(Modifier.width(8.dp))
+                    Text(e.text, fontSize = 11.sp, color = TextSecondary, modifier = Modifier.weight(1f))
+                }
             }
         }
     }
@@ -432,10 +455,12 @@ private fun EmptyEquipNote(text: String) {
     }
 }
 
+/** 프로필 속성 1줄 — 라벨(보조색, 좌) : 값(굵게, 우). */
 @Composable
-private fun Badge(text: String, color: Color) {
-    Surface(color = color.copy(alpha = 0.14f), shape = RoundedCornerShape(999.dp)) {
-        Text(text, fontSize = 10.5.sp, fontWeight = FontWeight.Bold, color = color, modifier = Modifier.padding(horizontal = 9.dp, vertical = 3.dp))
+private fun InfoRow(label: String, value: String, valueColor: Color) {
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+        Text(label, fontSize = 12.5.sp, color = TextSecondary)
+        Text(value, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = valueColor, maxLines = 1)
     }
 }
 
@@ -492,14 +517,14 @@ private fun StatCell(s: EnkaStatLine) {
 private fun ArtifactCard(a: EnkaArtifact, accent: Color) {
     GlassCard(modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(13.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            Row(verticalAlignment = Alignment.Top) {
                 Surface(color = Color(0xFFF1F1F6), shape = RoundedCornerShape(8.dp)) {
                     Text(a.slot, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextSecondary, modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp))
                 }
                 Spacer(Modifier.width(9.dp))
                 Column(Modifier.weight(1f)) {
-                    Text(a.main.label, fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = TextPrimary, maxLines = 1)
-                    Text(a.main.value, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = if (a.main.crit) CritColor else accent)
+                    Text(a.main.label, fontSize = 10.5.sp, color = TextSecondary, maxLines = 1)
+                    Text(a.main.value, fontSize = 16.sp, fontWeight = FontWeight.Black, color = if (a.main.crit) CritColor else accent, maxLines = 1)
                     if (a.setName.isNotBlank()) {
                         Text(a.setName, fontSize = 9.5.sp, color = TextSecondary, maxLines = 1)
                     }
@@ -510,18 +535,23 @@ private fun ArtifactCard(a: EnkaArtifact, accent: Color) {
             }
             if (a.subs.isNotEmpty()) {
                 Spacer(Modifier.height(10.dp))
-                Box(Modifier.fillMaxWidth().height(1.dp).background(Color.Black.copy(alpha = 0.06f)))
-                Spacer(Modifier.height(8.dp))
-                a.subs.chunked(2).forEach { row ->
-                    Row(Modifier.fillMaxWidth().padding(top = 4.dp)) {
-                        row.forEach { s ->
-                            Row(Modifier.weight(1f), horizontalArrangement = Arrangement.SpaceBetween) {
-                                Text(s.label, fontSize = 10.5.sp, color = TextSecondary, maxLines = 1)
-                                Text(s.value, fontSize = 10.5.sp, fontWeight = FontWeight.Bold, color = if (s.crit) CritColor else TextPrimary, maxLines = 1)
+                Surface(color = Color(0xFFF1F1F6).copy(alpha = 0.5f), shape = RoundedCornerShape(14.dp)) {
+                    Column(Modifier.padding(6.dp)) {
+                        a.subs.chunked(2).forEach { row ->
+                            Row(Modifier.fillMaxWidth()) {
+                                row.forEach { s ->
+                                    Row(
+                                        Modifier.weight(1f).padding(horizontal = 10.dp, vertical = 8.dp),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically,
+                                    ) {
+                                        Text(s.label, fontSize = 11.sp, color = TextSecondary, maxLines = 1)
+                                        Text(s.value, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = if (s.crit) CritColor else TextPrimary, maxLines = 1)
+                                    }
+                                }
+                                if (row.size == 1) Spacer(Modifier.weight(1f))
                             }
-                            Spacer(Modifier.width(12.dp))
                         }
-                        if (row.size == 1) Spacer(Modifier.weight(1f))
                     }
                 }
             }

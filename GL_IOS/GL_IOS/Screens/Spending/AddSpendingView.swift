@@ -12,7 +12,8 @@ struct AddSpendingView: View {
     @State private var gameName: String = "원신"
     @State private var amount: String = ""
     @State private var dateMillis: Int64 = 0
-    @State private var paymentMethod: String = "신용카드"
+    @State private var paymentMethod: String = "카드"
+    @State private var chargePlatform: String = ""
     @State private var itemName: String = ""
     @State private var memo: String = ""
     @State private var customTags: String = ""
@@ -106,8 +107,8 @@ struct AddSpendingView: View {
                             }
                         }
                         .frame(maxWidth: .infinity).padding(.horizontal, 12).padding(.vertical, 9)
-                        .background(sel ? accent.primary.opacity(0.1) : Color(hex: 0xFFF2F2F7), in: RoundedRectangle(cornerRadius: 14))
-                        .overlay(RoundedRectangle(cornerRadius: 14).stroke(sel ? accent.primary : GLGColor.divider, lineWidth: 1))
+                        .background(sel ? accent.primary.opacity(0.1) : Color.white, in: RoundedRectangle(cornerRadius: 14))
+                        .overlay(RoundedRectangle(cornerRadius: 14).stroke(sel ? accent.primary : Color.black.opacity(0.08), lineWidth: 1))
                     }.buttonStyle(.plain)
                 }
             }
@@ -126,12 +127,17 @@ struct AddSpendingView: View {
                         Text(DateUtil.shared.labelWithWeekday(millis: dateMillis)).foregroundStyle(GLGColor.textPrimary)
                         Spacer(); Image(systemName: "calendar").foregroundStyle(accent.primary)
                     }
-                    .font(.system(size: 14)).padding(12).background(Color(hex: 0xFFF2F2F7), in: RoundedRectangle(cornerRadius: 10))
+                    .font(.system(size: 15)).glgPillField()
                 }
             }.buttonStyle(.plain)
             label("결제 수단").padding(.top, 14)
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) { ForEach(GameData.shared.paymentMethods, id: \.self) { m in chip(m, paymentMethod == m) { paymentMethod = m } } }
+            }
+            .padding(.top, 8)
+            label("충전 플랫폼 (선택)").padding(.top, 14)
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) { ForEach(GameData.shared.chargePlatforms, id: \.self) { p in chip(p, chargePlatform == p) { chargePlatform = (chargePlatform == p ? "" : p) } } }
             }
             .padding(.top, 8)
         }
@@ -179,7 +185,8 @@ struct AddSpendingView: View {
         guard !didInit else { return }; didInit = true
         if let e = editing {
             gameName = e.gameName; amount = e.amount > 0 ? "\(e.amount)" : ""; dateMillis = e.dateMillis
-            paymentMethod = e.paymentMethod.isEmpty ? "신용카드" : e.paymentMethod
+            paymentMethod = e.paymentMethod.isEmpty ? "카드" : e.paymentMethod
+            chargePlatform = e.chargePlatform
             itemName = e.itemName; memo = e.memo; selectedTags = e.tags; isSubscription = e.isSubscription
         } else {
             dateMillis = nowMs()
@@ -199,7 +206,7 @@ struct AddSpendingView: View {
         var tags: [String] = []
         for t in (selectedTags + extra) { let tt = t.trimmingCharacters(in: .whitespaces); if !tt.isEmpty && !tags.contains(tt) { tags.append(tt) } }
         store.saveSpending(editingId: editing?.id, gameName: gameName, amount: parsed, dateMillis: dateMillis,
-                           paymentMethod: paymentMethod, itemName: itemName, memo: memo, tags: tags, isSubscription: isSubscription)
+                           paymentMethod: paymentMethod, chargePlatform: chargePlatform, itemName: itemName, memo: memo, tags: tags, isSubscription: isSubscription)
         onClose()
     }
 
@@ -207,8 +214,7 @@ struct AddSpendingView: View {
     private func sectionCard<C: View>(@ViewBuilder _ content: () -> C) -> some View {
         VStack(alignment: .leading, spacing: 0) { content() }
             .padding(16).frame(maxWidth: .infinity, alignment: .leading)
-            .background(.white, in: RoundedRectangle(cornerRadius: 18))
-            .shadow(color: .black.opacity(0.07), radius: 3, y: 1)
+            .glgGlass(in: RoundedRectangle(cornerRadius: 22, style: .continuous))
     }
     private func label(_ t: String) -> some View { Text(t).font(.system(size: 14, weight: .bold)).foregroundStyle(GLGColor.textSecondary) }
     private func field(_ label: String, _ ph: String, _ text: Binding<String>, number: Bool = false) -> some View {
