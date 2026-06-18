@@ -286,8 +286,8 @@ final class SpendingStore: ObservableObject {
     }
 
     // ── 편의 ────────────────────────────────────────────────────────────────
-    /// 온보딩 필요 여부(게스트이면서 게스트 선택도 안 한 상태).
-    var needsOnboarding: Bool { account.isGuest && !guestChosen }
+    /// 온보딩 필요 여부 — 미로그인(게스트 모드 없음, 구글 로그인 필수).
+    var needsOnboarding: Bool { account.isGuest }
     /// 현재 강조색.
     var accent: GLGAccent { GLGTheme.accent(accentIndex) }
 }

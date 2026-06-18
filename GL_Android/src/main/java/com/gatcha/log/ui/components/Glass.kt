@@ -9,41 +9,21 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.unit.dp
-import com.gatcha.log.ui.theme.LocalAccent
-import com.gatcha.log.ui.theme.LocalAccentSecondary
 
 /** 카드 표면색 — 거의 불투명한 흰색(가독성·성능). 카드는 backdrop-blur 를 쓰지 않는다. */
 private val CardSurface = Color(0xFFFCFCFE)
 
-/**
- * 앱 배경 — 선택된 테마(강조색) 기반의 단순 그라데이션.
- * 도형(블롭)·라이브 블러 없이 부드러운 테마색만 깔아 스크롤이 가볍다.
- */
+/** 앱 배경 — 흰색 단색(전역). 강조색 그라데이션 제거. */
 @Composable
 fun GlassBackground(
     modifier: Modifier = Modifier,
     content: @Composable BoxScope.() -> Unit,
 ) {
-    val accent = LocalAccent.current
-    val accent2 = LocalAccentSecondary.current
     Box(modifier.fillMaxSize()) {
-        Box(
-            Modifier
-                .matchParentSize()
-                .background(
-                    Brush.verticalGradient(
-                        listOf(
-                            accent.copy(alpha = 0.12f),
-                            Color.White,
-                            accent2.copy(alpha = 0.08f),
-                        )
-                    )
-                ),
-        )
+        Box(Modifier.matchParentSize().background(Color.White))
         content()
     }
 }

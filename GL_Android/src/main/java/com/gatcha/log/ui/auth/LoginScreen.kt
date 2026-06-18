@@ -53,7 +53,7 @@ import com.gatcha.log.ui.theme.LocalAccentSecondary
 import com.gatcha.log.ui.theme.ProgressEmpty
 import com.gatcha.log.ui.theme.TextSecondary
 
-/** 앱 최초 진입 로그인 화면 — Google 로그인 또는 게스트로 시작. */
+/** 앱 최초 진입 로그인 화면 — Google 로그인 전용(게스트 모드 없음). */
 @Composable
 fun LoginScreen(viewModel: SpendingViewModel) {
     val accent = LocalAccent.current
@@ -98,16 +98,9 @@ fun LoginScreen(viewModel: SpendingViewModel) {
                 modifier = Modifier.fillMaxWidth(),
                 height = 54.dp,
             )
-            Spacer(Modifier.height(12.dp))
-            GlgOutlineButton(
-                "게스트로 시작",
-                onClick = { viewModel.continueAsGuest() },
-                modifier = Modifier.fillMaxWidth(),
-                height = 54.dp,
-            )
             Spacer(Modifier.height(20.dp))
             Text(
-                "로그인하면 데이터가 구글 계정에 안전하게 저장·동기화됩니다.\n게스트는 이 기기에만 저장돼요.",
+                "로그인하면 데이터가 구글 계정에 안전하게 저장·동기화됩니다.",
                 fontSize = 11.sp, color = Color.Gray,
                 textAlign = TextAlign.Center, lineHeight = 16.sp,
             )

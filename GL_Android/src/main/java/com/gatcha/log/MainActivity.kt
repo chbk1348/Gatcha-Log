@@ -59,14 +59,13 @@ class MainActivity : ComponentActivity() {
             val viewModel: SpendingViewModel = viewModel()
             val accentIndex by viewModel.accentIndex.collectAsState()
             val account by viewModel.account.collectAsState()
-            val guestChosen by viewModel.guestChosen.collectAsState()
             val initialSyncing by viewModel.initialSyncing.collectAsState()
             val networkAlert by viewModel.networkAlert.collectAsState()
             var loadingDone by rememberSaveable { mutableStateOf(false) }
             GatchaLogTheme(accentIndex = accentIndex) {
                 when {
-                    // 첫 진입(로그인/게스트 미선택) → 온보딩에서 사용자가 직접 선택(자동 로그인 안 함)
-                    account.isGuest && !guestChosen -> LoginScreen(viewModel)
+                    // 미로그인 → 로그인 화면(게스트 모드 없음, 구글 로그인 필수)
+                    account.isGuest -> LoginScreen(viewModel)
                     // 로그인 유저 → 계정 데이터 불러오는 중(0~100% 프로그레스)
                     !account.isGuest && !loadingDone ->
                         AccountLoadingScreen(loading = initialSyncing, onFinished = { loadingDone = true })

@@ -1,7 +1,7 @@
 import SwiftUI
 
 // ════════════════════════════════════════════════════════════════════════════
-// 로그인/온보딩 — Google 로그인 또는 게스트로 시작. (Compose LoginScreen.kt 대응)
+// 로그인/온보딩 — Google 로그인 전용(게스트 모드 없음). (Compose LoginScreen.kt 대응)
 // 상태/액션은 SpendingStore(= 공유 Kotlin VM) 를 통한다.
 // ════════════════════════════════════════════════════════════════════════════
 
@@ -42,13 +42,9 @@ struct LoginView: View {
                 GLGButton(title: "Google로 로그인", systemImage: "g.circle.fill") {
                     store.signIn()
                 }
-                Spacer().frame(height: 12)
-                GLGOutlineButton(title: "게스트로 시작") {
-                    store.continueAsGuest()
-                }
 
                 Spacer().frame(height: 20)
-                Text("로그인하면 데이터가 구글 계정에 안전하게 저장·동기화됩니다.\n게스트는 이 기기에만 저장돼요.")
+                Text("로그인하면 데이터가 구글 계정에 안전하게 저장·동기화됩니다.")
                     .font(.system(size: 11))
                     .foregroundStyle(.gray)
                     .multilineTextAlignment(.center)
