@@ -1185,7 +1185,8 @@ class SpendingViewModel : ViewModel() {
         if (json.length > CLOUD_DOC_WARN_BYTES) {
             emitStatus("클라우드 백업 용량이 한계에 근접했어요 (${json.length / 1024}KB / 1MB) — 오래된 뽑기 기록 정리를 권장해요")
         }
-        val ok = CloudSync.push(uid, json)
+        val s = repo.exportCloudSections()
+        val ok = CloudSync.push(uid, json, s.userInfo, s.spending, s.gameInfo)
         if (ok) lastPushedSnapshot = json
         return ok
     }
