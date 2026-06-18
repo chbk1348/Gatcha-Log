@@ -57,6 +57,10 @@ struct SpendingDetailView: View {
                         Divider()
                         detailRow("결제 수단", s.paymentMethod.isEmpty ? "—" : s.paymentMethod)
                         Divider()
+                        if !s.chargePlatform.isEmpty {
+                            detailRow("충전 플랫폼", s.chargePlatform)
+                            Divider()
+                        }
                         detailRow("구분", s.isSubscription ? "정기 결제" : "일반")
                         if !s.memo.isEmpty { Divider(); detailRow("메모", s.memo) }
                         if !s.tags.isEmpty {

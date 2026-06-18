@@ -230,9 +230,9 @@ final class SpendingStore: ObservableObject {
     func prepareEdit(_ spending: Spending) { MainViewControllerKt.prepareEditSpending(spending: spending) }
     /// 지출 추가/수정 저장 (Spending 생성은 Kotlin 헬퍼).
     func saveSpending(editingId: String?, gameName: String, amount: Int64, dateMillis: Int64,
-                      paymentMethod: String, itemName: String, memo: String, tags: [String], isSubscription: Bool) {
+                      paymentMethod: String, chargePlatform: String, itemName: String, memo: String, tags: [String], isSubscription: Bool) {
         MainViewControllerKt.saveSpending(editingId: editingId, gameName: gameName, amount: amount, dateMillis: dateMillis,
-                                          paymentMethod: paymentMethod, itemName: itemName, memo: memo, tags: tags, isSubscription: isSubscription)
+                                          paymentMethod: paymentMethod, chargePlatform: chargePlatform, itemName: itemName, memo: memo, tags: tags, isSubscription: isSubscription)
     }
     /// N6 과소비 넛지 판정 — 경고 메시지 또는 nil.
     func overspendNudge(game: Game, amount: Int64, editingId: String?) -> String? {
@@ -256,6 +256,7 @@ final class SpendingStore: ObservableObject {
     func setPityGuaranteed(gameKey: String, _ g: Bool) { vm.setPityGuaranteed(gameKey: gameKey, g: g) }
     // chunk ③
     func loadEnkaProfile(game: String, uid: String) { vm.loadEnkaProfile(game: game, uid: uid) }
+    func autoLoadEnka(game: String, force: Bool = false) { vm.autoLoadEnka(game: game, force: force) }
     func clearEnkaResult() { vm.clearEnkaResult() }
     func importGachaFromContents(_ contents: [String]) { vm.importGachaFromContents(contents: contents) }
     func loadActiveCodes(_ gameKey: String) { vm.loadActiveCodes(gameKey: gameKey) }

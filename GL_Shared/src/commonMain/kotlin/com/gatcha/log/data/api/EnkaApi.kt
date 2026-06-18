@@ -43,8 +43,19 @@ data class EnkaArtifact(
     val subs: List<EnkaStatLine>,
 )
 
-/** 세트 효과(성유물/유물/드라이브 디스크). [count]=장착 수, [effects]=활성 세트 보너스 텍스트. */
-data class EnkaSet(val name: String, val count: Int, val effects: List<String> = emptyList())
+/** 세트 보너스 1줄. [pieces]=발동 조각수(2/4), [text]=효과 설명(접두 제거), [active]=현재 장착 수로 발동 여부. */
+data class EnkaSetEffect(val pieces: Int, val text: String, val active: Boolean)
+
+/**
+ * 세트 효과(성유물/유물/장신구/드라이브 디스크).
+ * [count]=장착 수, [effects]=조각수별 보너스(미발동 tier 포함), [kind]=종류 라벨(HSR "유물"/"장신구", 그 외 "").
+ */
+data class EnkaSet(
+    val name: String,
+    val count: Int,
+    val effects: List<EnkaSetEffect> = emptyList(),
+    val kind: String = "",
+)
 
 /** Yatta 아바타 메타(한글명·희귀도·아이콘 URL·한글 원소). id 매핑용 캐시 값. */
 private data class AvatarMeta(val name: String, val rarity: Int, val iconUrl: String, val element: String)
@@ -159,7 +170,7 @@ object EnkaApi {
     // ----------------------------------------------------------------- 스타레일 (Mihomo parsed)
     // Enka HSR 은 원시 데이터만 줘 최종 스탯 계산이 불가 → Mihomo parsed API 사용
     // (KR 표시문자열·세트명까지 계산해서 반환). 로스터+풀스탯 동일 응답에서 파싱.
-    private val hsrSlots = listOf("머리", "손", "몸통", "발", "행성구", "연결로프")
+    private val hsrSlots = listOf("머리", "핸드", "바디", "신발", "차원 구체", "연결 매듭")
 
     private suspend fun fetchHsr(uid: String, ltuid: String = "", ltoken: String = ""): EnkaResult {
         val res = Net.get("https://api.mihomo.me/sr_info_parsed/$uid?lang=kr", headers)
@@ -268,15 +279,28 @@ object EnkaApi {
         )
     }
 
-    /** mihomo relic_sets → 활성 세트 효과. */
+    /**
+     * mihomo relic_sets → 세트 효과.
+     * mihomo 는 같은 세트를 tier 별 행(num=2 / num=4)으로 분리해 반환하므로 set_id 로 묶어 카드 1장에 모은다.
+     * 반환되는 tier 는 모두 발동 상태(active=true) — 미발동 tier 는 응답에 없음.
+     * 종류(kind): set_id ≥ 300 = "장신구"(차원 구체·연결 매듭), 그 외 = "유물".
+     */
     private fun hsrSets(c: JSONObject): List<EnkaSet> = buildList {
         val rs = c.optJSONArray("relic_sets") ?: return@buildList
+        val grouped = linkedMapOf<String, MutableList<JSONObject>>()
         for (i in 0 until rs.length()) {
             val s = rs.optJSONObject(i) ?: continue
-            val name = s.optString("name")
-            if (name.isBlank()) continue
-            val desc = cleanName(s.optString("desc")).takeIf { it.isNotBlank() }
-            add(EnkaSet(name, s.optInt("num"), listOfNotNull(desc)))
+            val id = s.optString("id")
+            if (id.isBlank() || s.optString("name").isBlank()) continue
+            grouped.getOrPut(id) { mutableListOf() }.add(s)
+        }
+        grouped.forEach { (id, rows) ->
+            val effects = rows.mapNotNull { s ->
+                val text = cleanName(s.optString("desc")).takeIf { it.isNotBlank() } ?: return@mapNotNull null
+                EnkaSetEffect(s.optInt("num"), text, true)
+            }.sortedBy { it.pieces }
+            val kind = if ((id.toIntOrNull() ?: 0) >= 300) "장신구" else "유물"
+            add(EnkaSet(rows.first().optString("name"), rows.maxOf { it.optInt("num") }, effects, kind))
         }
     }
 
@@ -394,7 +418,7 @@ object EnkaApi {
                     EnkaStatLine(s.optString("name"), s.optString("display"), hsrCrit(s.optString("name")))
                 }
             }.orEmpty()
-            // relic.type 1~6 = 머리/손/몸통/발/행성구/연결로프 (int 또는 string 대응)
+            // relic.type 1~6 = 머리/핸드/바디/신발/차원 구체/연결 매듭 (int 또는 string 대응)
             val slotType = r.optInt("type", 0).takeIf { it in 1..6 } ?: r.optString("type").toIntOrNull() ?: (i + 1)
             add(
                 EnkaArtifact(
@@ -458,6 +482,7 @@ object EnkaApi {
     private fun hsrPathKo(t: Int): String = when (t) {
         1 -> "파멸"; 2 -> "수렵"; 3 -> "지식"; 4 -> "화합"
         5 -> "공허"; 6 -> "보존"; 7 -> "풍요"; 8 -> "기억"
+        9 -> "환락"
         else -> ""
     }
 
@@ -633,7 +658,10 @@ object EnkaApi {
         )
     }
 
-    /** 원신 성유물 set{name, affixes[activation_number, effect]} → 활성 세트 효과(장착 수 ≥ 발동 수). */
+    /**
+     * 원신 성유물 set{name, affixes[activation_number, effect]} → 세트 효과.
+     * 미발동 tier(예: 2개만 껴서 4세트 미발동)도 active=false 로 포함. 발동 효과가 1개 이상인 세트만 노출.
+     */
     private fun giHoyoSets(arr: JSONArray?): List<EnkaSet> = buildList {
         arr ?: return@buildList
         val count = linkedMapOf<String, Int>()
@@ -650,10 +678,10 @@ object EnkaApi {
                 (0 until af.length()).mapNotNull { i ->
                     val a = af.optJSONObject(i) ?: return@mapNotNull null
                     val n = a.optInt("activation_number")
-                    if (n in 1..c) "${n}세트 ${cleanName(a.optString("effect"))}" else null
-                }
+                    if (n >= 1) EnkaSetEffect(n, cleanName(a.optString("effect")), n <= c) else null
+                }.sortedBy { it.pieces }
             }.orEmpty()
-            add(EnkaSet(name, c, eff))
+            if (eff.any { it.active }) add(EnkaSet(name, c, eff))
         }
     }
 
@@ -726,12 +754,13 @@ object EnkaApi {
 
     private fun zzzCrit(name: String): Boolean = name.contains("치명") || name.contains("CRIT", ignoreCase = true)
 
-    /** ZZZ element_type(int) → KR 속성. (200 물리·201 화염·202/206 얼음·203 전기·205/207 에테르) */
+    /** ZZZ element_type(int) → KR 속성. (200 물리·201 화염·202/206 얼음·203 전기·204 바람·205/207 에테르) */
     private fun zzzElementKo(type: Int): String = when (type) {
         200 -> "물리"
         201 -> "화염"
         202, 206 -> "얼음"
         203 -> "전기"
+        204 -> "바람"
         205, 207 -> "에테르"
         else -> ""
     }
@@ -777,7 +806,10 @@ object EnkaApi {
         )
     }
 
-    /** ZZZ 드라이브 디스크 equip_suit{name, own, desc1/2} → 활성 세트 효과(2/4). */
+    /**
+     * ZZZ 드라이브 디스크 equip_suit{name, own, desc1/2} → 세트 효과(2/4).
+     * 미발동 4세트(2~3개 장착)도 active=false 로 함께 노출. 발동 효과가 1개 이상인 디스크만.
+     */
     private fun zzzSets(arr: JSONArray?): List<EnkaSet> = buildList {
         arr ?: return@buildList
         val seen = linkedMapOf<Int, EnkaSet>()
@@ -789,10 +821,10 @@ object EnkaApi {
             if (name.isBlank()) continue
             val own = suit.optInt("own")
             val eff = buildList {
-                if (own >= 2) suit.optString("desc1").takeIf { it.isNotBlank() }?.let { add("2세트 ${cleanName(it)}") }
-                if (own >= 4) suit.optString("desc2").takeIf { it.isNotBlank() }?.let { add("4세트 ${cleanName(it)}") }
+                suit.optString("desc1").takeIf { it.isNotBlank() }?.let { add(EnkaSetEffect(2, cleanName(it), own >= 2)) }
+                suit.optString("desc2").takeIf { it.isNotBlank() }?.let { add(EnkaSetEffect(4, cleanName(it), own >= 4)) }
             }
-            seen[sid] = EnkaSet(name, own, eff)
+            if (eff.any { it.active }) seen[sid] = EnkaSet(name, own, eff)
         }
         addAll(seen.values)
     }

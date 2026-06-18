@@ -84,6 +84,10 @@ fun SpendingDetailScreen(
                     HorizontalDivider(color = DividerColor)
                     DetailRow("결제 수단", spending.paymentMethod.ifBlank { "—" })
                     HorizontalDivider(color = DividerColor)
+                    if (spending.chargePlatform.isNotBlank()) {
+                        DetailRow("충전 플랫폼", spending.chargePlatform)
+                        HorizontalDivider(color = DividerColor)
+                    }
                     DetailRow("구분", if (spending.isSubscription) "정기 결제" else "일반")
                     if (spending.memo.isNotBlank()) {
                         HorizontalDivider(color = DividerColor)

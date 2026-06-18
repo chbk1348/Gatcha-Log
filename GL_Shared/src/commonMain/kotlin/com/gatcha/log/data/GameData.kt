@@ -52,8 +52,11 @@ object GameData {
     /** 출석/실시간 노트 등 호요버스 게임만 */
     val attendanceGames: List<Game> = games.filter { it.supportsAttendance }
 
-    /** 결제 수단 — 웹앱 _METHODS 와 동일 */
-    val paymentMethods: List<String> = listOf("신용카드", "체크카드", "구글 플레이", "앱스토어", "기타")
+    /** 결제 수단 — 카드 + 한국 간편결제 + 기타 (Android·iOS 공통). 레거시 값은 GatchaRepository 로드에서 정규화. */
+    val paymentMethods: List<String> = listOf("카드", "카카오페이", "네이버페이", "토스", "기타")
+
+    /** 충전 플랫폼 — 인게임 재화를 구입한 경로 (Android·iOS 공통) */
+    val chargePlatforms: List<String> = listOf("구글플레이스토어", "앱스토어", "공식 충전소", "코다샵")
 
     /** 추천 태그 칩 */
     val suggestedTags: List<String> = listOf("천장", "이벤트", "복각", "신캐", "무기", "월정액", "패스")
