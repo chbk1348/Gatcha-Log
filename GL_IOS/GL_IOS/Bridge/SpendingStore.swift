@@ -24,7 +24,6 @@ final class SpendingStore: ObservableObject {
 
     // ── 미러링된 상태 ──────────────────────────────────────────────────────
     @Published private(set) var account: Account
-    @Published private(set) var guestChosen: Bool
     @Published private(set) var accentIndex: Int
     @Published private(set) var profile: UserProfile
     @Published private(set) var statusMessage: String?
@@ -87,7 +86,6 @@ final class SpendingStore: ObservableObject {
         // 초기값(StateFlow 의 현재 값) — UI 첫 프레임이 즉시 올바른 상태로 그려지도록.
         let vm = IosAppState.shared.viewModel
         account = vm.account.value
-        guestChosen = vm.guestChosen.value.boolValue
         accentIndex = Int(vm.accentIndex.value.int32Value)
         profile = vm.profile.value
         statusMessage = vm.statusMessage.value
@@ -101,7 +99,6 @@ final class SpendingStore: ObservableObject {
     // ── Flow 구독 ───────────────────────────────────────────────────────────
     private func observe() {
         bind(vm.account) { [weak self] in self?.account = $0 }
-        bind(vm.guestChosen) { [weak self] in self?.guestChosen = $0.boolValue }
         bind(vm.accentIndex) { [weak self] in self?.accentIndex = Int($0.int32Value) }
         bind(vm.profile) { [weak self] in self?.profile = $0 }
         bind(vm.statusMessage) { [weak self] in self?.statusMessage = $0 }
@@ -174,8 +171,6 @@ final class SpendingStore: ObservableObject {
     // ── 액션 패스스루 ────────────────────────────────────────────────────────
     /// 구글 로그인(원탭).
     func signIn() { vm.signIn() }
-    /// 게스트로 시작.
-    func continueAsGuest() { vm.continueAsGuest() }
     /// 로그아웃.
     func signOut() { vm.signOut() }
     /// 강조색 변경.
