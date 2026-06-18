@@ -2,7 +2,6 @@ package com.gatcha.log.data
 
 import com.gatcha.log.util.currentTimeMillis
 import dev.gitlive.firebase.Firebase
-import dev.gitlive.firebase.apps
 import dev.gitlive.firebase.auth.GoogleAuthProvider
 import dev.gitlive.firebase.auth.auth
 import dev.gitlive.firebase.firestore.firestore
@@ -34,10 +33,12 @@ object CloudSync {
      *
      * `Firebase.auth` 접근으로 판정하지 않는 이유: iOS 에서 FirebaseApp 미구성 상태로 FIRAuth.auth() 를
      * 호출하면 ObjC NSException 이 발생하는데, 이는 Kotlin 의 runCatching 으로 잡히지 않고 프로세스가
-     * 종료될 수 있다. FIRApp.allApps 조회(= Firebase.apps)는 예외 없이 빈 목록을 돌려준다.
-     * (Android shared 은 null context 캐스트 실패 → runCatching → false, 기존 동작 유지)
+     * 종료될 수 있다. FIRApp.allApps 조회는 예외 없이 빈 목록을 돌려준다.
+     *
+     * 플랫폼별 actual: Android 는 GitLive `Firebase.apps(null)` 의 null 컨텍스트 캐스트 실패로 항상 false 가
+     * 되므로 실제 Application Context 를 넘겨야 한다(이게 없으면 Firebase 가 떠 있어도 로컬 모드로 오판). [firebaseAppExists]
      */
-    fun isConfigured(): Boolean = runCatching { Firebase.apps(null).isNotEmpty() }.getOrDefault(false)
+    fun isConfigured(): Boolean = runCatching { firebaseAppExists() }.getOrDefault(false)
 
     /** 현재 Firebase 로그인 uid (없으면 null). */
     fun currentUid(): String? = runCatching { Firebase.auth.currentUser?.uid }.getOrNull()
@@ -47,7 +48,8 @@ object CloudSync {
      * [accessToken]: iOS Firebase SDK 는 필수, Android 는 null 허용 — 항상 넘기는 것이 안전.
      */
     suspend fun signInWithGoogle(idToken: String, accessToken: String? = null): String? = runCatching {
-        val cred = GoogleAuthProvider.credential(idToken, accessToken)
+        // 웹 OAuth(Android)는 accessToken 이 빈 문자열 → idToken 만으로 인증해야 하므로 빈 값은 null 로.
+        val cred = GoogleAuthProvider.credential(idToken, accessToken?.ifBlank { null })
         Firebase.auth.signInWithCredential(cred).user?.uid
     }.onFailure {
         // 진단용 — Xcode 콘솔/시스템 로그에서 "GatchaCloudSync" 로 검색
@@ -76,3 +78,10 @@ object CloudSync {
         true
     }.getOrDefault(false)
 }
+
+/**
+ * FirebaseApp 초기화 여부. 플랫폼별 컨텍스트 차이 때문에 expect/actual.
+ * - Android: GitLive `Firebase.apps(null)` 은 null 컨텍스트 캐스트 실패로 false → 실제 Application Context 필요.
+ * - iOS: 컨텍스트 불필요(`Firebase.apps(null)`).
+ */
+internal expect fun firebaseAppExists(): Boolean

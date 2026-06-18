@@ -134,10 +134,8 @@ dependencies {
     // 백그라운드 작업 — 자동 출석체크·알림 점검(WorkManager)
     implementation("androidx.work:work-runtime-ktx:2.11.2")
 
-    // 구글 로그인 — Credential Manager(원탭/자동선택). 구식 GoogleSignIn 대체.
-    implementation("androidx.credentials:credentials:1.6.0")
-    implementation("androidx.credentials:credentials-play-services-auth:1.6.0")
-    implementation("com.google.android.libraries.identity.googleid:googleid:1.2.0")
+    // 구글 로그인 — 브라우저 웹 OAuth(PKCE)를 인앱 Custom Tabs 로 표시. (Credential Manager 제거)
+    implementation("androidx.browser:browser:1.8.0")
 
     // Firebase — 구글 계정 귀속 클라우드 저장(Firestore) + 인증.
     // google-services.json 이 없으면 런타임에 비활성(앱은 로컬로 동작).
