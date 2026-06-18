@@ -366,6 +366,25 @@ class GatchaRepository(accountId: String = "guest") {
         }
     }
 
+    /**
+     * 클라우드용 섹션 분리 — 전체 스냅샷을 유저정보/지출/게임정보 3맵으로 나눈다(각 키→값 JSON 문자열).
+     * Firestore `users/{uid}` 의 userInfo/spending/gameInfo 필드로 저장돼 콘솔 가독성↑.
+     * (읽기는 기존 `data` 전체 스냅샷 사용 — dual-write 호환)
+     */
+    fun exportCloudSections(): CloudSections {
+        val o = JSONObject(exportSnapshotJson())
+        fun valueString(k: String): String = when (k) {
+            KEY_BUDGET -> o.getLong(k).toString()
+            KEY_ACCENT -> o.getInt(k).toString()
+            in OBJECT_KEYS -> o.getJSONObject(k).toString()
+            in ARRAY_KEYS -> o.getJSONArray(k).toString()
+            else -> o.getString(k)
+        }
+        fun section(keys: List<String>): Map<String, String> =
+            buildMap { keys.forEach { k -> if (o.has(k)) put(k, valueString(k)) } }
+        return CloudSections(section(SECTION_USER_INFO), section(SECTION_SPENDING), section(SECTION_GAME_INFO))
+    }
+
     private companion object {
         const val KEY_WISHLIST = "wishlist"
         const val KEY_PITY = "pity"
@@ -391,5 +410,23 @@ class GatchaRepository(accountId: String = "guest") {
         const val KEY_GACHA = "gacha_records"
         const val KEY_SUBS = "subscriptions"
         const val KEY_HOME_CARDS = "home_cards"
+
+        // 클라우드 섹션 분리 — 스냅샷 키를 유저정보/지출/게임정보로 분배(토큰·read_alerts 는 스냅샷 비포함).
+        val SECTION_USER_INFO = listOf(KEY_PROFILE_NAME, KEY_PROFILE_EMAIL, KEY_ACCENT, KEY_HOME_CARDS)
+        val SECTION_SPENDING = listOf(KEY_SPENDINGS, KEY_BUDGET, KEY_BUDGET_GAMES, KEY_SUBS)
+        val SECTION_GAME_INFO = listOf(
+            KEY_HOYO_GI, KEY_HOYO_HSR, KEY_HOYO_ZZZ, KEY_ENKA_GI, KEY_ENKA_HSR,
+            KEY_ATTENDANCE, KEY_WISHLIST, KEY_PITY, KEY_EVENT_CHECKS, KEY_GACHA, KEY_REDEEMED,
+        )
+        // 값 타입 분류(섹션 맵의 문자열 변환용) — 나머지 키는 문자열.
+        private val OBJECT_KEYS = setOf(KEY_BUDGET_GAMES, KEY_ATTENDANCE, KEY_WISHLIST, KEY_PITY)
+        private val ARRAY_KEYS = setOf(KEY_SPENDINGS, KEY_EVENT_CHECKS, KEY_SUBS, KEY_GACHA, KEY_HOME_CARDS, KEY_REDEEMED)
     }
 }
+
+/** 클라우드 섹션 분리 결과 — Firestore `users/{uid}` 의 userInfo/spending/gameInfo 맵(키→JSON문자열 값). */
+data class CloudSections(
+    val userInfo: Map<String, String>,
+    val spending: Map<String, String>,
+    val gameInfo: Map<String, String>,
+)

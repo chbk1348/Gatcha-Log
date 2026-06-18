@@ -24,9 +24,19 @@ object CloudSync {
     private const val COLLECTION = "users"
     private const val FIELD_DATA = "data"
 
-    /** Firestore users/{uid} 문서 구조 — 필드명은 :app 과 동일 (data / updatedAt) */
+    /**
+     * Firestore users/{uid} 문서 구조.
+     * - `data`: 전체 스냅샷 JSON(평문) — **읽기의 단일 소스**(구버전 호환, dual-write).
+     * - `userInfo`/`spending`/`gameInfo`: 콘솔 가독성·향후 부분 동기화를 위한 섹션 분리 맵(키→JSON문자열).
+     */
     @Serializable
-    private data class SnapshotDoc(val data: String, val updatedAt: Long)
+    private data class SnapshotDoc(
+        val data: String,
+        val userInfo: Map<String, String> = emptyMap(),
+        val spending: Map<String, String> = emptyMap(),
+        val gameInfo: Map<String, String> = emptyMap(),
+        val updatedAt: Long,
+    )
 
     /**
      * FirebaseApp 이 초기화되었는가 (iOS: FirebaseApp.configure() 호출됨 / Android shared: 항상 false).
@@ -72,9 +82,15 @@ object CloudSync {
      * uid 문서에 스냅샷 JSON(평문) 저장. 실패 시 false 반환(set 미적용 → 기존 문서 보존, 손상 없음).
      * 1MB 초과 등으로 실패해도 클라우드 데이터를 비우지 않는다.
      */
-    suspend fun push(uid: String, json: String): Boolean = runCatching {
+    suspend fun push(
+        uid: String,
+        json: String,
+        userInfo: Map<String, String> = emptyMap(),
+        spending: Map<String, String> = emptyMap(),
+        gameInfo: Map<String, String> = emptyMap(),
+    ): Boolean = runCatching {
         Firebase.firestore.collection(COLLECTION).document(uid)
-            .set(SnapshotDoc(data = json, updatedAt = currentTimeMillis()))
+            .set(SnapshotDoc(data = json, userInfo = userInfo, spending = spending, gameInfo = gameInfo, updatedAt = currentTimeMillis()))
         true
     }.getOrDefault(false)
 }
