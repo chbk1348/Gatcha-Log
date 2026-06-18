@@ -85,6 +85,11 @@ object EnkaApi {
     private var giMeta: Map<Int, AvatarMeta>? = null
     private var hsrMeta: Map<Int, AvatarMeta>? = null
 
+    // HSR 세트 메타(StarRailRes). HoYoLAB 로스터(쇼케이스 밖) 캐릭터 세트 효과 계산용. 최초 1회 로드 후 캐시.
+    private var hsrSetMetaCache: Map<String, Pair<String, List<String>>>? = null // set_id → (세트명, desc[2/4세트])
+    private var hsrRelicSetCache: Map<String, String>? = null // relic 조각 item id → set_id
+    private var hsrSetNameCache: Map<String, String>? = null  // 세트명·조각명 → set_id (폴백 매칭)
+
     /**
      * [ltuid]/[ltoken] 은 HSR 전용 — 본인 계정 연동 시 HoYoLAB 공식 KR 캐릭터명을 받아
      * mihomo 가 비워두는 신규 캐릭터 이름을 보완한다(§5). 미연동이면 빈 문자열 → mihomo 이름 폴백.
@@ -175,6 +180,7 @@ object EnkaApi {
     private suspend fun fetchHsr(uid: String, ltuid: String = "", ltoken: String = ""): EnkaResult {
         val res = Net.get("https://api.mihomo.me/sr_info_parsed/$uid?lang=kr", headers)
         errorFor(res.code)?.let { return EnkaResult(null, it) }
+        ensureHsrSetData() // 로스터(쇼케이스 밖) 세트 효과 계산용 메타
         // 본인 계정 연동 시: HoYoLAB avatar/info 로 보유 전체 캐릭터(쇼케이스 밖 포함)
         val hoyoData = HoyolabApi.fetchHsrAvatarInfo(ltuid, ltoken, uid)
         val hoyoList = hoyoData?.optJSONArray("avatar_list")
@@ -276,7 +282,77 @@ object EnkaApi {
                 EnkaWeapon(e.optString("name"), e.optInt("level"), e.optInt("rank"), null, null)
             },
             artifacts = hsrHoyoRelics(o.optJSONArray("relics"), o.optJSONArray("ornaments"), propMap),
+            sets = hsrHoyoSets(o.optJSONArray("relics"), o.optJSONArray("ornaments")),
         )
+    }
+
+    /**
+     * HSR 세트 메타 1회 로드(StarRailRes, KR). 쇼케이스 밖(HoYoLAB) 캐릭터 세트 효과 계산에 필요.
+     * relic_sets: set_id → (세트명, desc[2/4세트]) · relics: 조각 item id → set_id. 실패해도 무시(세트 미표시).
+     */
+    private suspend fun ensureHsrSetData() {
+        if (hsrSetMetaCache != null && hsrRelicSetCache != null) return
+        runCatching {
+            val sets = JSONObject(Net.get("https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/index_new/kr/relic_sets.json", headers).body)
+            val nameToSet = mutableMapOf<String, String>()
+            val meta = buildMap {
+                sets.keys().forEach { k ->
+                    val o = sets.optJSONObject(k) ?: return@forEach
+                    val name = o.optString("name")
+                    val da = o.optJSONArray("desc")
+                    val descs = if (da != null) (0 until da.length()).map { da.optString(it) } else emptyList()
+                    put(k, name to descs)
+                    if (name.isNotBlank()) nameToSet[name] = k // 세트명 → set_id
+                }
+            }
+            val relics = JSONObject(Net.get("https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/index_new/kr/relics.json", headers).body)
+            val r2s = buildMap {
+                relics.keys().forEach { k ->
+                    val o = relics.optJSONObject(k) ?: return@forEach
+                    val sid = o.optString("set_id")
+                    if (sid.isBlank()) return@forEach
+                    put(k, sid) // 조각 item id → set_id
+                    o.optString("name").takeIf { it.isNotBlank() }?.let { nameToSet[it] = sid } // 조각명 → set_id
+                }
+            }
+            hsrSetMetaCache = meta
+            hsrRelicSetCache = r2s
+            hsrSetNameCache = nameToSet
+        }
+    }
+
+    /**
+     * HoYoLAB 로스터(쇼케이스 밖) relics+ornaments → 세트 효과. StarRailRes 메타로 set_id 묶음.
+     * set_id 식별: relic.set_id → 조각 item id 매핑 → 이름 매핑 순 폴백. 발동 tier(2/4세트)만 표시(쇼케이스와 동일).
+     */
+    private fun hsrHoyoSets(relics: JSONArray?, ornaments: JSONArray?): List<EnkaSet> {
+        val meta = hsrSetMetaCache ?: return emptyList()
+        val r2s = hsrRelicSetCache.orEmpty()
+        val n2s = hsrSetNameCache.orEmpty()
+        val count = linkedMapOf<String, Int>()
+        fun tally(arr: JSONArray?) {
+            arr ?: return
+            for (i in 0 until arr.length()) {
+                val p = arr.optJSONObject(i) ?: continue
+                val id = p.optString("id").takeIf { it.isNotBlank() } ?: p.optInt("id").takeIf { it != 0 }?.toString()
+                val sid = p.optString("set_id").takeIf { it.isNotBlank() }
+                    ?: id?.let { r2s[it] }
+                    ?: n2s[p.optString("name")]
+                    ?: continue
+                count[sid] = (count[sid] ?: 0) + 1
+            }
+        }
+        tally(relics); tally(ornaments)
+        return count.mapNotNull { (sid, c) ->
+            if (c < 2) return@mapNotNull null
+            val (name, descs) = meta[sid] ?: return@mapNotNull null
+            val effects = descs.mapIndexedNotNull { idx, text ->
+                val pieces = (idx + 1) * 2
+                if (c >= pieces && text.isNotBlank()) EnkaSetEffect(pieces, cleanName(text), true) else null
+            }
+            if (effects.isEmpty()) null
+            else EnkaSet(name, c, effects, kind = if ((sid.toIntOrNull() ?: 0) >= 300) "장신구" else "유물")
+        }
     }
 
     /**
