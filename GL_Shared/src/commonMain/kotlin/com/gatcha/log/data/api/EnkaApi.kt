@@ -2,8 +2,10 @@ package com.gatcha.log.data.api
 
 import com.gatcha.log.json.JSONArray
 import com.gatcha.log.json.JSONObject
+import kotlinx.serialization.Serializable
 
 /** 쇼케이스 캐릭터 (id, 한글명, 레벨, 명좌/성혼 rank, 희귀도, 아이콘 URL, 한글 원소) */
+@Serializable
 data class EnkaChar(
     val id: Int,
     val name: String,
@@ -23,9 +25,11 @@ data class EnkaChar(
 )
 
 /** 스탯 한 줄(라벨+표시값). [crit]=치명타 계열(UI 강조). */
+@Serializable
 data class EnkaStatLine(val label: String, val value: String, val crit: Boolean = false)
 
 /** 무기/광추. */
+@Serializable
 data class EnkaWeapon(
     val name: String,
     val level: Int,
@@ -35,21 +39,26 @@ data class EnkaWeapon(
 )
 
 /** 성유물/유물 슬롯 1개. setName 은 v1 미해결 시 빈 문자열. */
+@Serializable
 data class EnkaArtifact(
     val slot: String,
     val setName: String,
     val level: Int,
     val main: EnkaStatLine,
     val subs: List<EnkaStatLine>,
+    /** 성유물/유물/디스크 실제 인게임 아이콘 URL. 응답에 없으면 null(슬롯 배지로 대체). */
+    val iconUrl: String? = null,
 )
 
 /** 세트 보너스 1줄. [pieces]=발동 조각수(2/4), [text]=효과 설명(접두 제거), [active]=현재 장착 수로 발동 여부. */
+@Serializable
 data class EnkaSetEffect(val pieces: Int, val text: String, val active: Boolean)
 
 /**
  * 세트 효과(성유물/유물/장신구/드라이브 디스크).
  * [count]=장착 수, [effects]=조각수별 보너스(미발동 tier 포함), [kind]=종류 라벨(HSR "유물"/"장신구", 그 외 "").
  */
+@Serializable
 data class EnkaSet(
     val name: String,
     val count: Int,
@@ -61,6 +70,7 @@ data class EnkaSet(
 private data class AvatarMeta(val name: String, val rarity: Int, val iconUrl: String, val element: String)
 
 /** Enka 프로필 (닉네임/모험/세계 레벨/서명 + 쇼케이스 캐릭터) */
+@Serializable
 data class EnkaProfile(
     val nickname: String,
     val level: Int,
@@ -69,6 +79,7 @@ data class EnkaProfile(
     val chars: List<EnkaChar>,
 )
 
+@Serializable
 data class EnkaResult(val profile: EnkaProfile?, val error: String?)
 
 /**
@@ -416,6 +427,7 @@ object EnkaApi {
                         level = r.optInt("level"),
                         main = EnkaStatLine(mainName, hsrFmt(mainVal), hsrCrit(mainName)),
                         subs = subs,
+                        iconUrl = r.optString("icon").takeIf { it.startsWith("http") },
                     ),
                 )
             }
@@ -503,6 +515,7 @@ object EnkaApi {
                     level = r.optInt("level"),
                     main = main,
                     subs = subs,
+                    iconUrl = mihomoIcon(r.optString("icon")),
                 ),
             )
         }
@@ -702,6 +715,7 @@ object EnkaApi {
                     EnkaStatLine(l, fmtStat(s.optDouble("statValue"), p), c)
                 }
             }.orEmpty()
+            val icon = flat.optString("icon")
             add(
                 EnkaArtifact(
                     slot = giSlot(flat.optString("equipType")),
@@ -709,6 +723,7 @@ object EnkaApi {
                     level = (e.optJSONObject("reliquary")?.optInt("level") ?: 1) - 1, // Enka +1 보정
                     main = EnkaStatLine(mLabel, fmtStat(ms.optDouble("statValue"), mPct), mCrit),
                     subs = subs,
+                    iconUrl = if (icon.isBlank()) null else "https://enka.network/ui/$icon.png",
                 ),
             )
         }
@@ -814,6 +829,7 @@ object EnkaApi {
                     level = r.optInt("level"),
                     main = EnkaStatLine(mainName, hsrFmt(mainObj.optString("value")), hsrCrit(mainName)),
                     subs = subs,
+                    iconUrl = r.optString("icon").takeIf { it.startsWith("http") },
                 ),
             )
         }
@@ -949,6 +965,7 @@ object EnkaApi {
                     level = e.optInt("level"),
                     main = EnkaStatLine(mainName, hsrFmt(mainObj.optString("base")), zzzCrit(mainName)),
                     subs = subs,
+                    iconUrl = e.optString("icon").takeIf { it.startsWith("http") },
                 ),
             )
         }

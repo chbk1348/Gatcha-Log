@@ -68,6 +68,9 @@ final class SpendingStore: ObservableObject {
     @Published private(set) var enkaHsrUid: String = ""
     @Published private(set) var enkaResult: EnkaResult? = nil
     @Published private(set) var enkaLoading: Bool = false
+    // '내 캐릭터' 섹션(헤더 필터 연동) — 게임별 결과/로딩 동시 보관
+    @Published private(set) var enkaResults: [String: EnkaResult] = [:]
+    @Published private(set) var enkaLoadingGames: Set<String> = []
     @Published private(set) var gachaDashboard: GachaDashboard? = nil
     @Published private(set) var redeemState: RedeemState = RedeemStateIdle.shared
     @Published private(set) var activeCodes: [GiftCode] = []
@@ -142,6 +145,8 @@ final class SpendingStore: ObservableObject {
         bind(vm.enkaHsrUid) { [weak self] in self?.enkaHsrUid = $0 }
         bind(vm.enkaResult) { [weak self] in self?.enkaResult = $0 }
         bind(vm.enkaLoading) { [weak self] in self?.enkaLoading = $0.boolValue }
+        bind(vm.enkaResults) { [weak self] in self?.enkaResults = $0 }
+        bind(vm.enkaLoadingGames) { [weak self] in self?.enkaLoadingGames = $0 }
         bind(vm.gachaDashboard) { [weak self] in self?.gachaDashboard = $0 }
         bind(vm.redeemState) { [weak self] in self?.redeemState = $0 }
         bind(vm.activeCodes) { [weak self] in self?.activeCodes = $0 }
@@ -252,6 +257,7 @@ final class SpendingStore: ObservableObject {
     // chunk ③
     func loadEnkaProfile(game: String, uid: String) { vm.loadEnkaProfile(game: game, uid: uid) }
     func autoLoadEnka(game: String, force: Bool = false) { vm.autoLoadEnka(game: game, force: force) }
+    func autoLoadEnkaSection(games: [String], force: Bool = false) { vm.autoLoadEnkaSection(games: games, force: force) }
     func clearEnkaResult() { vm.clearEnkaResult() }
     func importGachaFromContents(_ contents: [String]) { vm.importGachaFromContents(contents: contents) }
     func loadActiveCodes(_ gameKey: String) { vm.loadActiveCodes(gameKey: gameKey) }

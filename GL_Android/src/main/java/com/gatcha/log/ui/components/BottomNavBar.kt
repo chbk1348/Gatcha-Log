@@ -10,6 +10,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.FloatingActionButtonDefaults
 import androidx.compose.material3.Icon
@@ -57,13 +58,14 @@ fun BottomNavBar(selectedTab: Int, onTabSelected: (Int) -> Unit, onAddClick: () 
                 modifier = Modifier.weight(1f), // FAB 폭이 줄면 가중치로 자연스럽게 확장
             ) {
                 Row(
-                    modifier = Modifier.fillMaxWidth().height(64.dp).padding(horizontal = 6.dp),
+                    // 좌우 끝 탭 선택 캡슐이 바 가장자리에 붙지 않도록 안쪽 여백 확보
+                    modifier = Modifier.fillMaxWidth().height(64.dp).padding(horizontal = 18.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    NavItem(Icons.Default.Home, "홈", selectedTab == 0, accent, Modifier.weight(1f)) { onTabSelected(0) }
-                    NavItem(Icons.Default.AccountBalanceWallet, "지출", selectedTab == 1, accent, Modifier.weight(1f)) { onTabSelected(1) }
-                    NavItem(Icons.Default.Games, "게임 정보", selectedTab == 2, accent, Modifier.weight(1f)) { onTabSelected(2) }
-                    NavItem(Icons.Default.Person, "마이페이지", selectedTab == 3, accent, Modifier.weight(1f)) { onTabSelected(3) }
+                    NavItem(Icons.Outlined.Home, "홈", selectedTab == 0, accent, Modifier.weight(1f)) { onTabSelected(0) }
+                    NavItem(Icons.Outlined.AccountBalanceWallet, "지출", selectedTab == 1, accent, Modifier.weight(1f)) { onTabSelected(1) }
+                    NavItem(Icons.Outlined.SportsEsports, "게임 정보", selectedTab == 2, accent, Modifier.weight(1f)) { onTabSelected(2) }
+                    NavItem(Icons.Outlined.Person, "마이페이지", selectedTab == 3, accent, Modifier.weight(1f)) { onTabSelected(3) }
                 }
             }
 
@@ -103,30 +105,40 @@ fun BottomNavBar(selectedTab: Int, onTabSelected: (Int) -> Unit, onAddClick: () 
 
 @Composable
 fun NavItem(icon: ImageVector, label: String, isSelected: Boolean, accent: Color, modifier: Modifier = Modifier, onClick: () -> Unit) {
-    // 세로 스택(아이콘 위·라벨 아래), 모든 탭 라벨 상시. 선택 표시는 배경 없이 accent 색/볼드만(iOS식).
-    // 균등 폭(weight) 슬롯 + 상하좌우 중앙 정렬 → 탭별 간격 일정.
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center,
+    // 세로 스택(아이콘 위·라벨 아래), 모든 탭 라벨 상시. 선택 시 accent 연한 라운드 배경 칩 + accent 색/볼드(Web식).
+    // 바깥 Box = 균등 폭(weight) 풀하이트 터치 슬롯, 안쪽 Column = 콘텐츠를 감싸는 하이라이트 칩.
+    Box(
         modifier = modifier
             .fillMaxHeight()
-            .clip(RoundedCornerShape(16.dp))
             .clickable { onClick() },
+        contentAlignment = Alignment.Center,
     ) {
-        Icon(
-            icon,
-            contentDescription = label,
-            tint = if (isSelected) accent else NavUnselected,
-            modifier = Modifier.size(22.dp),
-        )
-        Spacer(Modifier.height(2.dp))
-        Text(
-            label,
-            fontSize = 10.sp,
-            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-            color = if (isSelected) accent else NavUnselected,
-            maxLines = 1,
-            softWrap = false,
-        )
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center,
+            modifier = Modifier
+                // 양옆으로 긴 알약: 슬롯 폭을 무시하고 고정 폭으로 강제 → 옆 탭 위로 넘침(완전 오버랩 허용)
+                .requiredWidth(80.dp)
+                // 알약(캡슐) 형태: 모서리 완전 라운드(50%)
+                .clip(RoundedCornerShape(percent = 50))
+                .background(if (isSelected) accent.copy(alpha = 0.14f) else Color.Transparent)
+                .padding(vertical = 2.dp),
+        ) {
+            Icon(
+                icon,
+                contentDescription = label,
+                tint = if (isSelected) accent else NavUnselected,
+                modifier = Modifier.size(22.dp),
+            )
+            Spacer(Modifier.height(2.dp))
+            Text(
+                label,
+                fontSize = 10.sp,
+                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                color = if (isSelected) accent else NavUnselected,
+                maxLines = 1,
+                softWrap = false,
+            )
+        }
     }
 }

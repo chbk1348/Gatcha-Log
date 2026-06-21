@@ -73,13 +73,6 @@ struct SpendingDetailView: View {
                         }
                     }
                 }
-                // 액션
-                HStack(spacing: 10) {
-                    GLGOutlineButton(title: "삭제") { confirmDelete = true }
-                    // 수정 시 상세페이지를 닫지 않음 — 편집 시트를 위에 띄우고, 닫으면 상세로 복귀(갱신 내용 표시)
-                    GLGButton(title: "수정") { onEdit(s) }
-                }
-                .padding(.top, 4)
                 Color.clear.frame(height: 24)
             }
             .padding(.horizontal, 16).padding(.vertical, 8)
@@ -89,6 +82,14 @@ struct SpendingDetailView: View {
             Button("취소", role: .cancel) {}
             Button("삭제", role: .destructive) { store.deleteSpending(s.id); dismiss() }
         } message: { Text("삭제하면 되돌릴 수 없어요.") }
+        // 수정·삭제를 네비게이션 헤더 우측으로 이동(하단 버튼 제거).
+        .toolbar {
+            ToolbarItemGroup(placement: .topBarTrailing) {
+                // 수정 시 상세페이지를 닫지 않음 — 편집 시트를 위에 띄우고, 닫으면 상세로 복귀(갱신 내용 표시)
+                Button("수정") { onEdit(s) }
+                Button("삭제", role: .destructive) { confirmDelete = true }
+            }
+        }
     }
 
     private func detailRow(_ label: String, _ value: String) -> some View {

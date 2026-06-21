@@ -9,7 +9,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.ChevronRight
-import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
@@ -32,12 +31,16 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlin.math.roundToInt
 import com.gatcha.log.data.DateUtil
 import com.gatcha.log.data.Game
 import com.gatcha.log.data.GachaBanner
 import com.gatcha.log.data.GameChallenge
 import com.gatcha.log.data.GameData
 import com.gatcha.log.data.GameEvent
+import com.gatcha.log.data.companionWeapons
+import com.gatcha.log.data.dhLabel
+import com.gatcha.log.data.unpairedWeapons
 import com.gatcha.log.ui.components.GlassCard
 import com.gatcha.log.ui.theme.DividerColor
 import com.gatcha.log.ui.theme.LocalAccent
@@ -126,54 +129,134 @@ val SwordIcon: ImageVector = ImageVector.Builder("Sword", 24.dp, 24.dp, 24f, 24f
     }
 }.build()
 
-// 픽업 그룹 라벨 — 캐릭터/무기 구분 소제목.
+private val Track = Color(0xFFEDEFF3)
+private val CharBadge = Color(0xFF5B8DEF)
+private val WeapBadge = Color(0xFFE0883B)
+
+// 픽업 그룹 헤더 — 종류 배지(캐릭터=블루 / 무기=앰버) + 개수.
 @Composable
-private fun PickupGroupLabel(icon: ImageVector, text: String) {
+private fun PickupGroupHeader(isWeapon: Boolean, count: Int) {
     Row(
-        Modifier.padding(top = 2.dp, bottom = 6.dp),
+        Modifier.padding(top = 2.dp, bottom = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(5.dp),
+        horizontalArrangement = Arrangement.spacedBy(7.dp),
     ) {
-        Icon(icon, null, tint = TextSecondary, modifier = Modifier.size(13.dp))
-        Text(text, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextSecondary)
+        Surface(color = if (isWeapon) WeapBadge else CharBadge, shape = RoundedCornerShape(999.dp)) {
+            Text(if (isWeapon) "무기" else "캐릭터", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = Color.White,
+                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp))
+        }
+        Text("$count", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextSecondary)
     }
 }
 
-// 픽업 배너를 캐릭터 픽업 / 무기 픽업 2그룹으로 분류 표시.
+// "{종류} N개 더보기 ›" 푸터 — 전체 픽업 페이지로.
 @Composable
-private fun PickupGroups(pickups: List<GachaBanner>) {
+private fun PickupMoreFooter(label: String, more: Int, onMore: () -> Unit) {
+    val accent = LocalAccent.current
+    Row(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).clickable { onMore() }.padding(vertical = 9.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.Center,
+    ) {
+        Text("$label ${more}개 더보기", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = accent)
+        Spacer(Modifier.width(4.dp))
+        Icon(Icons.Default.ChevronRight, null, tint = accent, modifier = Modifier.size(14.dp))
+    }
+}
+
+// 픽업 배너를 캐릭터/무기 2그룹으로 분류. limit != null이면 그룹별 상위 N개만 + 더보기 푸터.
+@Composable
+private fun PickupGroups(pickups: List<GachaBanner>, limit: Int? = null, onMore: (() -> Unit)? = null) {
     val chars = pickups.filter { it.type != "weapon" }
-    val weapons = pickups.filter { it.type == "weapon" }
+    val weapons = unpairedWeapons(pickups)   // 동반 무기는 캐릭터 카드에 접어 표시 → 독립 목록에선 제외
     if (chars.isNotEmpty()) {
-        PickupGroupLabel(Icons.Default.Person, "캐릭터 픽업")
-        chars.forEach { PickupBannerPill(it) }
+        PickupGroupHeader(isWeapon = false, count = chars.size)
+        (if (limit != null) chars.take(limit) else chars).forEach { PickupItem(it, companionWeapons(it, pickups)) }
+        if (limit != null && chars.size > limit && onMore != null) PickupMoreFooter("캐릭터", chars.size - limit, onMore)
     }
     if (weapons.isNotEmpty()) {
-        PickupGroupLabel(SwordIcon, "무기 픽업")
-        weapons.forEach { PickupBannerPill(it) }
+        if (chars.isNotEmpty()) Spacer(Modifier.height(16.dp))
+        PickupGroupHeader(isWeapon = true, count = weapons.size)
+        (if (limit != null) weapons.take(limit) else weapons).forEach { PickupItem(it) }
+        if (limit != null && weapons.size > limit && onMore != null) PickupMoreFooter("무기", weapons.size - limit, onMore)
     }
 }
 
-// 픽업 배너 — 한 줄 알약(캡슐). 게임색 틴트.
+// 픽업 아이템 — 좌측 게임색 바 + 아바타 + 이름/버전 + 잔여(dhLabel) + 진행바. (design_pickup_list_final_mockup.html)
 @Composable
-fun PickupBannerPill(banner: GachaBanner) {
+fun PickupItem(banner: GachaBanner, companions: List<GachaBanner> = emptyList()) {
     val c = banner.gameColor.toColor()
-    val ddColor = if (banner.dDay() <= 3) Urgent else c
+    val isWeapon = banner.type == "weapon"
+    val urgent = banner.dDay() <= 3
+    val ddColor = if (urgent) Urgent else c
+    val short = GameData.byNameOrNull(banner.game)?.shortName ?: banner.game
+    val sub = if (banner.version.isBlank()) short else "$short · v${banner.version}"
+    val hasProg = banner.startMillis > 0 && banner.endMillis > banner.startMillis
+    val frac = if (hasProg)
+        ((System.currentTimeMillis() - banner.startMillis).toFloat() / (banner.endMillis - banner.startMillis)).coerceIn(0f, 1f)
+    else 0f
     Row(
-        Modifier.fillMaxWidth().padding(bottom = 8.dp)
-            .clip(RoundedCornerShape(999.dp))
-            .background(c.copy(alpha = 0.06f))
-            .border(1.dp, c.copy(alpha = 0.18f), RoundedCornerShape(999.dp))
-            .padding(horizontal = 12.dp, vertical = 9.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        Modifier.fillMaxWidth().padding(bottom = 9.dp).height(IntrinsicSize.Min)
+            .clip(RoundedCornerShape(14.dp))
+            .background(c.copy(alpha = 0.05f))
+            .border(1.dp, DividerColor, RoundedCornerShape(14.dp)),
     ) {
-        Surface(color = c, shape = RoundedCornerShape(999.dp)) {
-            Text("픽업", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = Color.White, modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
+        Box(Modifier.width(3.dp).fillMaxHeight().background(c))
+        Column(Modifier.weight(1f).padding(horizontal = 11.dp, vertical = 10.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(11.dp)) {
+                Box(
+                    Modifier.size(34.dp).clip(if (isWeapon) RoundedCornerShape(10.dp) else CircleShape).background(c),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    if (isWeapon) Icon(SwordIcon, null, tint = Color.White, modifier = Modifier.size(17.dp))
+                    else Text(banner.name.take(1), fontSize = 14.sp, fontWeight = FontWeight.Black, color = Color.White)
+                }
+                Column(Modifier.weight(1f)) {
+                    Text(banner.name, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TextPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(sub, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, color = TextSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+                Column(horizontalAlignment = Alignment.End) {
+                    Text(dhLabel(banner.endMillis), fontSize = 14.sp, fontWeight = FontWeight.Bold, color = ddColor, maxLines = 1)
+                    Text("~" + DateUtil.shortDate(banner.endMillis), fontSize = 9.sp, color = TextSecondary)
+                }
+            }
+            if (companions.isNotEmpty()) {
+                Spacer(Modifier.height(8.dp))
+                HorizontalDivider(color = DividerColor.copy(alpha = 0.6f))
+                companions.forEach { w ->
+                    Row(
+                        Modifier.fillMaxWidth().padding(top = 7.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    ) {
+                        Box(
+                            Modifier.size(18.dp).clip(RoundedCornerShape(6.dp)).background(WeapBadge.copy(alpha = 0.14f)),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Icon(SwordIcon, null, tint = WeapBadge, modifier = Modifier.size(11.dp))
+                        }
+                        Text("동반 무기 · ${w.name}", fontSize = 11.sp, fontWeight = FontWeight.Medium, color = TextSecondary,
+                            maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
+                }
+            }
+            if (hasProg) {
+                Spacer(Modifier.height(10.dp))
+                Box(Modifier.fillMaxWidth().height(5.dp).clip(RoundedCornerShape(99.dp)).background(Track)) {
+                    Box(
+                        Modifier.fillMaxWidth(frac).fillMaxHeight().clip(RoundedCornerShape(99.dp))
+                            .background(if (urgent) Urgent else c.copy(alpha = 0.35f)),
+                    )
+                }
+                if (urgent) {
+                    Spacer(Modifier.height(5.dp))
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text("${(frac * 100).roundToInt()}% 경과 · 막바지", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = Urgent)
+                        Text("${DateUtil.shortDate(banner.startMillis)} → ${DateUtil.shortDate(banner.endMillis)}", fontSize = 9.sp, color = TextSecondary)
+                    }
+                }
+            }
         }
-        Icon(if (banner.type == "weapon") SwordIcon else Icons.Default.Person, null, tint = c, modifier = Modifier.size(13.dp))
-        Text(banner.name, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-        Text(banner.endShortLabel(), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = ddColor)
     }
 }
 
@@ -199,7 +282,7 @@ fun ScheduleEntryRow(e: ScheduleEntry) {
             if (e.sub.isNotBlank()) Text(e.sub, fontSize = 11.sp, color = TextSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
         Column(horizontalAlignment = Alignment.End) {
-            Text(if (d > 0) "D-$d" else if (d == 0) "D-DAY" else "—", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = ddColor)
+            Text(dhLabel(e.target), fontSize = 15.sp, fontWeight = FontWeight.Bold, color = ddColor, maxLines = 1)
             Text((if (e.isStart) "" else "~") + DateUtil.shortDate(e.target), fontSize = 10.sp, color = TextSecondary)
         }
     }
@@ -212,6 +295,7 @@ fun GameScheduleSection(
     banners: List<GachaBanner>,
     filter: String,
     onSeeAll: () -> Unit,
+    onSeePickups: () -> Unit,
 ) {
     val accent = LocalAccent.current
     val items = filteredEntries(entries, filter)
@@ -222,7 +306,7 @@ fun GameScheduleSection(
     GlassCard(shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp)) {
             if (pickups.isNotEmpty()) {
-                PickupGroups(pickups)
+                PickupGroups(pickups, limit = 3, onMore = onSeePickups)
                 if (top.isNotEmpty()) { Spacer(Modifier.height(4.dp)); HorizontalDivider(color = DividerColor); Spacer(Modifier.height(4.dp)) }
             }
             if (top.isNotEmpty()) {
@@ -289,6 +373,21 @@ fun GameScheduleFullContent(
     } else {
         games.forEach { g ->
             GameScheduleGroup(g, entries.filter { it.gameKey == g.key }, pickups.filter { it.game == g.displayName })
+        }
+    }
+}
+
+// 픽업 전용 전체 페이지 콘텐츠 — 캐릭터/무기 그룹으로만 분리, 종료 임박순. (design_pickup_list_final_mockup.html ②)
+@Composable
+fun GamePickupFullContent(banners: List<GachaBanner>, filter: String) {
+    val pickups = filteredPickups(banners, filter)
+    Text("전체 픽업", fontSize = 22.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 4.dp))
+    Text("진행 중인 캐릭터·무기 픽업을 종료 임박순으로 모았어요.", fontSize = 12.sp, color = TextSecondary, modifier = Modifier.padding(bottom = 14.dp))
+    if (pickups.isEmpty()) {
+        Text("진행 중인 픽업이 없어요.", fontSize = 13.sp, color = TextSecondary, modifier = Modifier.fillMaxWidth().padding(top = 40.dp))
+    } else {
+        GlassCard(shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(16.dp)) { PickupGroups(pickups) }
         }
     }
 }

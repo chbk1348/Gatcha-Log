@@ -22,8 +22,6 @@ struct HomeView: View {
                                 nextBanner: nextBanner, gameOverCount: gameOverBudget.count,
                                 onBudget: { showBudget = true }, onTip: { store.showStatus(savingTip) })
                 todayTask
-                GachaStatusCard(nextBanner: nextBanner, nextBannerPlan: nextBannerPlan,
-                                onOpen: { onSwitchTab(2) }, onImport: { importingGacha = true })
                 GameStatusSection(store: store, onConfig: { onSwitchTab(2) })
                 let rest = Array(soonBanners.dropFirst())
                 if !rest.isEmpty {
@@ -36,7 +34,8 @@ struct HomeView: View {
                     if card.id == HomeCards.shared.SPENDING {
                         SpendingBudgetSection(monthlyTotal: monthlyTotal, budget: store.budget, perGame: perGameSpend, onEdit: { showBudget = true })
                     } else if card.id == HomeCards.shared.GACHA {
-                        GachaSummarySection(stats: store.gachaStats, onOpen: { onSwitchTab(2) })
+                        GachaSummarySection(stats: store.gachaStats, nextBanner: nextBanner, nextBannerPlan: nextBannerPlan,
+                                            onOpen: { onSwitchTab(2) }, onImport: { importingGacha = true })
                     }
                 }
                 homeEditButton
@@ -176,7 +175,7 @@ func resolveTodayTasks(pendingAttendance: Int, resins: [ResinAlert], urgentBanne
     let pct = budget > 0 ? Int(monthlyTotal * 100 / budget) : 0
     if pendingAttendance > 0 { items.append(TodayItem(icon: "checkmark.circle", message: "출석 안 한 게임 \(pendingAttendance)개", cta: "한 번에 출석", urgent: false, busyable: true, action: onCheckInAll)) }
     for r in resins { items.append(TodayItem(icon: "bolt.fill", message: r.full ? "\(r.gameShort) \(r.label) 가득 참" : "\(r.gameShort) \(r.label) \(r.cur)/\(r.max) 곧 넘침", cta: "게임 정보", urgent: true, busyable: false, action: onResin)) }
-    if let b = urgentBanner { items.append(TodayItem(icon: "die.face.5", message: "\(b.name) 픽업 \(b.endShortLabel(nowMillis: nowMs())) 막바지", cta: "픽업 계획", urgent: true, busyable: false, action: onBanner)) }
+    if let b = urgentBanner { items.append(TodayItem(icon: "die.face.5", message: "\(b.name) 픽업 \(GameInfoKt.dhLabel(targetMillis: b.endMillis, nowMillis: nowMs())) 막바지", cta: "픽업 계획", urgent: true, busyable: false, action: onBanner)) }
     if budget > 0 && monthlyTotal > budget { items.append(TodayItem(icon: "banknote", message: "예산 \(pct - 100)% 초과", cta: "예산 점검", urgent: true, busyable: false, action: onBudget)) }
     else if budget > 0 && pct >= 90 { items.append(TodayItem(icon: "banknote", message: "예산 \(pct)% 사용", cta: "예산 점검", urgent: true, busyable: false, action: onBudget)) }
     return items

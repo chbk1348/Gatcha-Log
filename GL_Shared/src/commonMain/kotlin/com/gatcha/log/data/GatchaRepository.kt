@@ -1,10 +1,18 @@
 package com.gatcha.log.data
 
+import com.gatcha.log.data.api.EnkaResult
 import com.gatcha.log.json.JSONArray
 import com.gatcha.log.json.JSONObject
 import com.gatcha.log.storage.KeyValueStore
 import com.gatcha.log.storage.SecureKeyValueStore
 import com.gatcha.log.util.currentTimeMillis
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
+
+/** Enka 프로필 결과 디스크 캐시 엔트리 — 타임스탬프 + 직렬화된 결과. */
+@Serializable
+private data class EnkaCacheEntry(val ts: Long, val result: EnkaResult)
 
 /**
  * 로컬 영속성 저장소 — :app 의 GatchaRepository 를 KMP 로 이식.
@@ -185,6 +193,27 @@ class GatchaRepository(accountId: String = "guest") {
         prefs.putString(KEY_ENKA_GI, gi)
         prefs.putString(KEY_ENKA_HSR, hsr)
         changed()
+    }
+
+    // ---------------------------------------------------------------- Enka 프로필 결과 디스크 캐시
+    // 앱 재시작 시 '내 캐릭터'를 즉시 표시(stale-while-revalidate)하기 위한 로컬 전용 캐시.
+    // 클라우드 스냅샷 비포함(SECTION_* 미등록) · changed() 호출 안 함.
+    private val enkaJson = Json { ignoreUnknownKeys = true }
+
+    /** "game:uid" → (타임스탬프, 결과). [maxAgeMs] 보다 오래된 항목은 제외. */
+    fun loadEnkaCache(maxAgeMs: Long): Map<String, Pair<Long, EnkaResult>> {
+        val raw = prefs.getString(KEY_ENKA_CACHE, null) ?: return emptyMap()
+        return runCatching {
+            val now = currentTimeMillis()
+            enkaJson.decodeFromString<Map<String, EnkaCacheEntry>>(raw)
+                .filterValues { now - it.ts < maxAgeMs }
+                .mapValues { it.value.ts to it.value.result }
+        }.getOrDefault(emptyMap())
+    }
+
+    fun saveEnkaCache(cache: Map<String, Pair<Long, EnkaResult>>) {
+        val map = cache.mapValues { EnkaCacheEntry(it.value.first, it.value.second) }
+        runCatching { prefs.putString(KEY_ENKA_CACHE, enkaJson.encodeToString(map)) }
     }
 
     // ---------------------------------------------------------------- 출석 (dayKey -> set<gameKey>)
@@ -407,6 +436,7 @@ class GatchaRepository(accountId: String = "guest") {
         const val KEY_ATTENDANCE = "attendance"
         const val KEY_ENKA_GI = "enka_gi"
         const val KEY_ENKA_HSR = "enka_hsr"
+        const val KEY_ENKA_CACHE = "enka_cache"   // 로컬 전용(클라우드 스냅샷 비포함)
         const val KEY_GACHA = "gacha_records"
         const val KEY_SUBS = "subscriptions"
         const val KEY_HOME_CARDS = "home_cards"

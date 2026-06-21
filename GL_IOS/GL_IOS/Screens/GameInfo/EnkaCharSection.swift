@@ -34,11 +34,22 @@ private func enkaRankLabel(_ c: EnkaChar, _ game: String) -> String? {
     }
 }
 
-/// 게임정보 탭 상시 섹션 — Enka 쇼케이스 로스터(2열). 캐릭터 탭 → [onOpen].
+private func enkaGameLabel(_ game: String) -> String {
+    switch game {
+    case "genshin": return "원신"
+    case "hsr": return "스타레일"
+    case "zzz": return "젠레스"
+    default: return game
+    }
+}
+
+/// 게임정보 탭 상시 섹션 — Enka 쇼케이스 로스터(2열). 헤더 게임필터([filter])에 연동.
+/// "all"=원신·스타레일·젠레스를 게임별 블록으로 모두 표시, 특정 게임=해당 게임만. 캐릭터 탭 → [onOpen].
 struct EnkaCharSection: View {
     @ObservedObject var store: SpendingStore
     @Environment(\.glgAccent) private var accent
-    @State private var game = "genshin"
+    /// 헤더 게임필터("all" | game.key)
+    let filter: String
     let onOpen: (EnkaChar, String) -> Void
     /// 더보기 → 보유 캐릭터 전체 페이지(게임 전달)
     var onOpenAll: (String) -> Void = { _ in }
@@ -46,27 +57,56 @@ struct EnkaCharSection: View {
     var onOpenHoyolab: () -> Void = {}
 
     private let cols = [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)]
+    private static let enkaGames = ["genshin", "hsr", "zzz"]
+
+    /// 표시 대상 게임 — 전체면 3게임, 특정 게임이면 그 게임(Enka 미지원이면 비표시).
+    private var games: [String] {
+        filter == "all" ? Self.enkaGames : (Self.enkaGames.contains(filter) ? [filter] : [])
+    }
 
     var body: some View {
-        let chars = store.enkaResult?.profile?.chars ?? []
         let linked = store.hoyolabConfig.isLinked
+        // 클라우드서 복원된 UID 가 있는데 토큰만 없으면 = 재설치/재로그인. 토큰은 보안상 기기에만 저장돼 동기화 안 됨.
+        let hadProfile = !store.enkaGiUid.isEmpty || !store.enkaHsrUid.isEmpty || !store.hoyolabConfig.zzzUid.isEmpty
         VStack(alignment: .leading, spacing: 11) {
             HStack(spacing: 8) {
                 Text("내 캐릭터").font(.system(size: 16, weight: .bold))
                 Text("상시").font(.system(size: 9, weight: .bold)).foregroundStyle(Color(hex: 0xFF15803D))
                     .padding(.horizontal, 7).padding(.vertical, 2).background(Color(hex: 0xFF16A34A).opacity(0.12), in: Capsule())
                 Spacer()
-                gchip("원신", game == "genshin") { switchGame("genshin") }
-                gchip("스타레일", game == "hsr") { switchGame("hsr") }
-                gchip("젠레스", game == "zzz") { switchGame("zzz") }
             }
             if !linked {
-                linkPrompt
+                linkPrompt(reLink: hadProfile)
+            } else {
+                // 전체 보기일 땐 게임별 라벨로 구분. 단일 게임이면 라벨 생략(섹션 제목으로 충분).
+                let showLabels = games.count > 1
+                ForEach(Array(games.enumerated()), id: \.offset) { _, g in
+                    gameBlock(g, showLabel: showLabels)
+                }
+            }
+        }
+        // 필터 변경 시 해당 게임들 로드(캐시 적중분 즉시, 미적중분 순차 호출).
+        .task(id: filter) { if !games.isEmpty { store.autoLoadEnkaSection(games: games, force: false) } }
+    }
+
+    /// '내 캐릭터' 단일 게임 블록 — (라벨) + 대표 4명 그리드 + 더보기. 로딩 시 스켈레톤.
+    @ViewBuilder
+    private func gameBlock(_ game: String, showLabel: Bool) -> some View {
+        let result = store.enkaResults[game]
+        let loading = store.enkaLoadingGames.contains(game)
+        let chars = result?.profile?.chars ?? []
+        VStack(alignment: .leading, spacing: 10) {
+            if showLabel {
+                HStack(spacing: 7) {
+                    Circle().fill(accent.primary).frame(width: 8, height: 8)
+                    Text(enkaGameLabel(game)).font(.system(size: 13, weight: .bold)).foregroundStyle(GLGColor.textSecondary)
+                }
+            }
+            if chars.isEmpty && (result == nil || loading) {
+                // 로드 전(result nil)·로딩 중엔 스켈레톤, 로드 완료 후에만 빈/에러 표시
+                rosterSkeleton
             } else if chars.isEmpty {
-                // 전환 직후·로드 전(result nil)·로딩 중엔 로딩 표시, 로드 완료 후에만 빈/에러 표시
-                hint(store.enkaResult == nil || store.enkaLoading
-                    ? "불러오는 중…"
-                    : (store.enkaResult?.error ?? "표시할 캐릭터가 없어요 (인게임 쇼케이스 공개 확인)"))
+                hint(result?.error ?? "표시할 캐릭터가 없어요 (인게임 쇼케이스 공개 확인)")
             } else {
                 // 대표 4명만 표시, 그 이상은 더보기로 전체 페이지 진입
                 LazyVGrid(columns: cols, spacing: 10) {
@@ -90,36 +130,45 @@ struct EnkaCharSection: View {
                 }
             }
         }
-        .task { store.autoLoadEnka(game: game, force: false) }
     }
 
-    /// 탭 전환: 이전 게임 결과를 즉시 비워 잔류 표시를 막고, 새 게임을 로드(캐시 적중 시 동기 반영).
-    private func switchGame(_ g: String) {
-        guard g != game else { return }
-        game = g
-        store.clearEnkaResult()
-        store.autoLoadEnka(game: g, force: false)
+    /// 로딩 스켈레톤 — 로스터 카드(초상+이름/레벨) 2열×2행 플레이스홀더.
+    private var rosterSkeleton: some View {
+        LazyVGrid(columns: cols, spacing: 10) {
+            ForEach(0..<4, id: \.self) { _ in
+                HStack(spacing: 11) {
+                    RoundedRectangle(cornerRadius: 14).fill(Color.black.opacity(0.06)).frame(width: 50, height: 50)
+                    VStack(alignment: .leading, spacing: 7) {
+                        RoundedRectangle(cornerRadius: 4).fill(Color.black.opacity(0.06)).frame(height: 13).frame(maxWidth: .infinity)
+                        RoundedRectangle(cornerRadius: 4).fill(Color.black.opacity(0.06)).frame(width: 48, height: 10)
+                    }
+                    Spacer(minLength: 0)
+                }
+                .padding(11)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .glgGlass(in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+            }
+        }
     }
 
-    private func gchip(_ t: String, _ on: Bool, _ act: @escaping () -> Void) -> some View {
-        Button(action: act) {
-            Text(t).font(.system(size: 12, weight: .bold))
-                .foregroundStyle(on ? AnyShapeStyle(.white) : AnyShapeStyle(GLGColor.textSecondary))
-                .padding(.horizontal, 12).padding(.vertical, 6)
-                .background(on ? AnyShapeStyle(accent.primary) : AnyShapeStyle(Color.white), in: Capsule())
-                .overlay(on ? nil : Capsule().stroke(Color.black.opacity(0.08), lineWidth: 1))
-        }.buttonStyle(.plain)
-    }
     private func hint(_ t: String) -> some View {
         Text(t).font(.system(size: 12)).foregroundStyle(GLGColor.textSecondary).padding(.vertical, 12)
     }
 
-    /// HoYoLAB 미연동 안내 + 연동 버튼.
-    private var linkPrompt: some View {
+    /// HoYoLAB 미연동 안내 + 연동 버튼. [reLink]=재설치/재로그인(복원된 UID 존재) 시 토큰 재연동 안내.
+    private func linkPrompt(reLink: Bool) -> some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("HoYoLAB을 연동하면 보유 캐릭터가 자동으로 표시돼요").font(.system(size: 12)).foregroundStyle(GLGColor.textSecondary)
+            if reLink {
+                // 재설치/재로그인 — 데이터(소비·UID)는 복원됐지만 토큰은 보안상 기기 전용이라 사라짐.
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("HoYoLAB 재연동이 필요해요").font(.system(size: 13, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
+                    Text("보안상 로그인 토큰은 기기에만 저장돼요. 재연동하면 보유 캐릭터가 바로 복원됩니다.").font(.system(size: 12)).foregroundStyle(GLGColor.textSecondary)
+                }
+            } else {
+                Text("HoYoLAB을 연동하면 보유 캐릭터가 자동으로 표시돼요").font(.system(size: 12)).foregroundStyle(GLGColor.textSecondary)
+            }
             Button { onOpenHoyolab() } label: {
-                Text("HoYoLAB 연동하기").font(.system(size: 13, weight: .bold)).foregroundStyle(.white)
+                Text(reLink ? "HoYoLAB 재연동하기" : "HoYoLAB 연동하기").font(.system(size: 13, weight: .bold)).foregroundStyle(.white)
                     .padding(.horizontal, 14).padding(.vertical, 9)
                     .background(accent.primary, in: Capsule())
             }.buttonStyle(.plain)
@@ -190,6 +239,8 @@ struct EnkaRosterPage: View {
             .padding(16)
         }
         .background(GLGBackground { Color.clear })
+        // 전체 보기/탭 어떤 경로로 진입해도 해당 게임 결과 보장(캐시 적중 시 즉시 반영).
+        .task { store.autoLoadEnka(game: game, force: false) }
         .navigationTitle("보유 캐릭터 · " + (game == "genshin" ? "원신" : game == "zzz" ? "젠레스" : "스타레일"))
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -391,6 +442,11 @@ struct EnkaStatPage: View {
     private func artifactCard(_ a: EnkaArtifact) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .top, spacing: 9) {
+                if let icon = a.iconUrl, let u = URL(string: icon) {
+                    AsyncImage(url: u) { $0.resizable().scaledToFit() } placeholder: { Color.clear }
+                        .frame(width: 40, height: 40).padding(2)
+                        .background(Color(hex: 0xFFF1F1F6), in: RoundedRectangle(cornerRadius: 10))
+                }
                 Text(a.slot).font(.system(size: 11, weight: .bold)).foregroundStyle(GLGColor.textSecondary)
                     .padding(.horizontal, 8).padding(.vertical, 5).background(Color(hex: 0xFFF1F1F6), in: RoundedRectangle(cornerRadius: 8))
                 VStack(alignment: .leading, spacing: 2) {

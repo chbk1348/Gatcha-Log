@@ -241,7 +241,38 @@ struct SettingsView: View {
                 Text("v\(version)").font(.system(size: 12)).foregroundStyle(GLGColor.textSecondary)
             }
             .padding(.vertical, 13)
+            // 서명(프로비저닝) 만료 — 무료 계정 7일 서명. 만료 시각(초 단위) + 남은 시간 라이브 카운트다운.
+            if let exp = SigningInfo.expirationDate {
+                Divider()
+                signingExpiryRow(exp)
+            }
         }
+    }
+
+    /// 서명 만료 행 — 1초마다 갱신되는 남은 시간 표시.
+    private func signingExpiryRow(_ exp: Date) -> some View {
+        TimelineView(.periodic(from: .now, by: 1)) { ctx in
+            HStack(alignment: .top) {
+                rowLabel(icon: "checkmark.seal", title: "서명 만료")
+                Spacer()
+                VStack(alignment: .trailing, spacing: 2) {
+                    Text(SigningInfo.absFormatter.string(from: exp))
+                        .font(.system(size: 12)).foregroundStyle(GLGColor.textSecondary)
+                    Text(remainingText(exp, now: ctx.date))
+                        .font(.system(size: 12, weight: .semibold).monospacedDigit())
+                        .foregroundStyle(exp.timeIntervalSince(ctx.date) < 86_400 ? .red : accent.primary)
+                }
+            }
+            .padding(.vertical, 11)
+        }
+    }
+
+    /// 남은 시간 "N일 HH:MM:SS 남음" (시·분·초 단위). 만료 시 "만료됨".
+    private func remainingText(_ exp: Date, now: Date) -> String {
+        let secs = Int(exp.timeIntervalSince(now))
+        if secs <= 0 { return "만료됨" }
+        let d = secs / 86_400, h = (secs % 86_400) / 3600, m = (secs % 3600) / 60, s = secs % 60
+        return String(format: "%d일 %02d:%02d:%02d 남음", d, h, m, s)
     }
 
     // ── 행 헬퍼 ──
@@ -297,6 +328,32 @@ struct SettingsView: View {
             store.importBackupFromContent(text)
         }
     }
+}
+
+// ── 서명(프로비저닝) 만료 정보 ───────────────────────────────────────────────
+// 앱 번들의 embedded.mobileprovision(CMS 서명된 plist)에서 ExpirationDate 를 1회 파싱해 캐시.
+// 무료 Apple 계정은 7일마다 서명이 만료되므로, 설정에서 남은 시간을 확인해 재빌드 시점을 가늠한다.
+enum SigningInfo {
+    static let expirationDate: Date? = {
+        guard let url = Bundle.main.url(forResource: "embedded", withExtension: "mobileprovision"),
+              let data = try? Data(contentsOf: url),
+              // 바이트 위치 보존(round-trip)을 위해 isoLatin1 로 디코드 — 내부 plist 는 ASCII.
+              let raw = String(data: data, encoding: .isoLatin1) else { return nil }
+        guard let start = raw.range(of: "<?xml") ?? raw.range(of: "<plist"),
+              let end = raw.range(of: "</plist>") else { return nil }
+        let plistStr = String(raw[start.lowerBound..<end.upperBound])
+        guard let pData = plistStr.data(using: .isoLatin1),
+              let plist = try? PropertyListSerialization.propertyList(from: pData, format: nil) as? [String: Any]
+        else { return nil }
+        return plist["ExpirationDate"] as? Date
+    }()
+
+    static let absFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "yyyy-MM-dd HH:mm:ss"
+        f.locale = Locale(identifier: "ko_KR")
+        return f
+    }()
 }
 
 // ── 텍스트 파일 문서 (fileExporter/Importer 용) ──────────────────────────────

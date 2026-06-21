@@ -47,6 +47,7 @@ import kotlinx.coroutines.launch
 import java.util.Calendar
 import com.gatcha.log.data.DateUtil
 import com.gatcha.log.data.GameData
+import com.gatcha.log.data.GachaBanner
 import com.gatcha.log.data.GachaReport
 import com.gatcha.log.data.GachaStats
 import com.gatcha.log.data.HomeCards
@@ -415,16 +416,6 @@ fun HomeContent(
             }
             Spacer(Modifier.height(16.dp))
         }
-        // G — 가챠 현황 미니카드 (천장 + 다음 픽업, 읽기전용). 가챠 정체성 고정 노출.
-        item {
-            GachaStatusCard(
-                nextBanner = nextBanner,
-                nextBannerPlan = nextBannerPlan,
-                onOpen = onNavigateToGameInfo,
-                onImport = { gachaPicker.launch(arrayOf("*/*")) },
-            )
-            Spacer(Modifier.height(16.dp))
-        }
         // 실시간 노트 (레진/배터리 등) — 출석은 '오늘 할 일'이 담당하므로 노트만 표시(중복 제거)
         item {
             GameStatusSection(
@@ -435,7 +426,7 @@ fun HomeContent(
             )
             Spacer(Modifier.height(16.dp))
         }
-        // 픽업 배너 캡슐 (임박 종료) — 가장 임박 1건은 G 카드가 표시하므로 그 다음부터 노출
+        // 픽업 배너 캡슐 (임박 종료) — 가장 임박 1건은 가챠 요약 카드가 표시하므로 그 다음부터 노출
         val restBanners = soonBanners.drop(1)
         if (restBanners.isNotEmpty()) {
             item {
@@ -460,7 +451,13 @@ fun HomeContent(
                         perGame = perGameSpend,
                         onEditBudget = { showBudgetDialog.value = true },
                     )
-                    HomeCards.GACHA -> GachaSummarySection(stats = gachaStats, onOpen = onNavigateToGameInfo)
+                    HomeCards.GACHA -> GachaSummarySection(
+                        stats = gachaStats,
+                        nextBanner = nextBanner,
+                        nextBannerPlan = nextBannerPlan,
+                        onOpen = onNavigateToGameInfo,
+                        onImport = { gachaPicker.launch(arrayOf("*/*")) },
+                    )
                 }
                 Spacer(Modifier.height(16.dp))
             }
@@ -586,9 +583,18 @@ fun GameStatusSection(
     }
 }
 
-/** 홈 가챠 요약 카드 — 탭하면 게임 정보(가챠 통계 대시보드)로 이동. */
+/**
+ * 홈 가챠 요약 카드 — 다음 픽업(구 '가챠 현황' 통합) + 가챠 통계 요약. 탭하면 게임 정보로 이동.
+ * 기록이 없으면 가져오기 CTA 노출.
+ */
 @Composable
-fun GachaSummarySection(stats: GachaStats?, onOpen: () -> Unit) {
+fun GachaSummarySection(
+    stats: GachaStats?,
+    nextBanner: GachaBanner?,
+    nextBannerPlan: BannerPlan?,
+    onOpen: () -> Unit,
+    onImport: () -> Unit,
+) {
     val accent = LocalAccent.current
     GlassCard(shape = RoundedCornerShape(24.dp), modifier = Modifier.fillMaxWidth().clickable { onOpen() }) {
         Column(Modifier.padding(20.dp)) {
@@ -600,9 +606,24 @@ fun GachaSummarySection(stats: GachaStats?, onOpen: () -> Unit) {
                 }
                 Icon(Icons.Default.ChevronRight, "가챠 통계 보기", tint = TextSecondary, modifier = Modifier.size(20.dp))
             }
+            // 다음 픽업(구 '가챠 현황') — 비용 인텔리전스 포함
+            Spacer(Modifier.height(14.dp))
+            NextBannerMini(nextBanner, nextBannerPlan, Modifier.fillMaxWidth())
             Spacer(Modifier.height(16.dp))
             if (stats == null) {
-                Text("가챠 기록을 가져오면 요약이 표시돼요", fontSize = 12.sp, color = TextSecondary)
+                Text("가챠 기록을 가져오면 통계 요약이 표시돼요", fontSize = 12.sp, color = TextSecondary)
+                Spacer(Modifier.height(12.dp))
+                Surface(
+                    shape = RoundedCornerShape(999.dp),
+                    color = accent.copy(alpha = 0.10f),
+                    modifier = Modifier.clickable { onImport() },
+                ) {
+                    Row(Modifier.padding(horizontal = 13.dp, vertical = 7.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.FileDownload, null, tint = accent, modifier = Modifier.size(15.dp))
+                        Spacer(Modifier.width(6.dp))
+                        Text("가챠 기록 가져오기", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = accent)
+                    }
+                }
             } else {
                 val totalFive = stats.byGame.values.sumOf { it.five }
                 Row(Modifier.fillMaxWidth()) {
