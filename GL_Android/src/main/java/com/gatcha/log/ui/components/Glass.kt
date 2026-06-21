@@ -41,5 +41,6 @@ fun GlassCard(
     val styled = modifier
         .clip(shape)
         .background(CardSurface)
+        .border(1.dp, Color.Black.copy(alpha = 0.06f), shape)
     Box(styled, content = content)
 }
