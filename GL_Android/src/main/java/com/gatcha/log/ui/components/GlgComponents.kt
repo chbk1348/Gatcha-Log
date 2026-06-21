@@ -287,28 +287,31 @@ fun GlgChip(
         }
         return
     }
-    // 단일 규격 칩 버튼.
+    // 단일 규격 칩 버튼 (D · Soft Modern) — idle=연회색 채움(테두리 없음), 선택=color 채움, 14dp 라운드.
     val textColor = when {
         !enabled -> Color.LightGray
         selected -> Color.White
-        else -> Color.DarkGray
+        else -> ChipIdleText
     }
     val clickable = onClick != null && enabled
     Surface(
         modifier = if (clickable) modifier.clickable { onClick?.invoke() } else modifier,
-        shape = RoundedCornerShape(20.dp),
-        color = if (selected) color else Color.White,
-        border = BorderStroke(1.dp, if (selected) color else DividerColor),
+        shape = RoundedCornerShape(14.dp),
+        color = if (selected) color else ChipIdleBg,
     ) {
         Text(
             label,
             fontSize = 13.sp,
-            fontWeight = FontWeight.Medium,
+            fontWeight = FontWeight.SemiBold,
             color = textColor,
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 9.dp),
         )
     }
 }
+
+// D 칩 토큰 — idle 배경/글자색.
+private val ChipIdleBg = Color(0xFFEEF0F3)
+private val ChipIdleText = Color(0xFF4A5159)
 
 /** 상태 표시 배지 — [color] 12% 배경 + [color] 라벨(작은 둥근 사각). 정기 결제 등 비대화형 표시용 단일 규격. */
 @Composable
