@@ -13,10 +13,11 @@ extension View {
     /// - Parameters:
     ///   - shape: 글래스 패널 모양 (기본: 둥근 사각형)
     ///   - interactive: iOS 26 인터랙티브 글래스(탭 시 반응) 여부
-    // D · Soft Modern 카드 — 흰 배경 위 연회색 솔리드 면(보더·그림자 없음). Android GlassCard 와 파리티.
+    // D · Soft Modern 카드 — 흰 배경 위 연회색 솔리드 면 + 약간의 아웃라인(헤어라인). Android GlassCard 와 파리티.
     @ViewBuilder
     func glgGlass<S: Shape>(in shape: S, interactive: Bool = false) -> some View {
         self.background(Color(hex: 0xFFF6F7F9), in: shape)
+            .overlay(shape.stroke(Color.black.opacity(0.06), lineWidth: 1).allowsHitTesting(false))
     }
 
     /// 가독성이 더 필요한 패널(시트/다이얼로그 본문)용 — 흰 배경 + 아웃라인(전역 유리 제거).
