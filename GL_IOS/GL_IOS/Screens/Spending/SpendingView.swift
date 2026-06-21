@@ -274,10 +274,7 @@ struct HistoryItem: View {
                     HStack(spacing: 6) {
                         Text(spending.gameName).font(.system(size: 15, weight: .bold)).lineLimit(1)
                         if spending.isSubscription {
-                            Text("정기").font(.system(size: 9, weight: .bold))
-                                .foregroundStyle(gameColor)
-                                .padding(.horizontal, 5).padding(.vertical, 1)
-                                .background(gameColor.opacity(0.14), in: Capsule())
+                            GLGBadge(label: "정기", color: gameColor)
                         }
                     }
                     if !subtitle.isEmpty {

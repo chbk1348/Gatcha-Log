@@ -310,6 +310,17 @@ fun GlgChip(
     }
 }
 
+/** 상태 표시 배지 — [color] 12% 배경 + [color] 라벨(작은 둥근 사각). 정기 결제 등 비대화형 표시용 단일 규격. */
+@Composable
+fun GlgBadge(label: String, color: Color, modifier: Modifier = Modifier) {
+    Surface(modifier, color = color.copy(alpha = 0.12f), shape = RoundedCornerShape(6.dp)) {
+        Text(
+            label, fontSize = 10.sp, fontWeight = FontWeight.Medium, color = color,
+            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+        )
+    }
+}
+
 /** 보조/취소 버튼 — 고스트 스타일 + 누르면 옅은 강조색 호버(플랫) */
 @Composable
 fun GlgOutlineButton(

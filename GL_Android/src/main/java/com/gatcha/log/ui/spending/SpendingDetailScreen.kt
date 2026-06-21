@@ -23,6 +23,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.gatcha.log.data.Spending
 import com.gatcha.log.ui.components.CurrencyIcon
+import com.gatcha.log.ui.components.GlgBadge
 import com.gatcha.log.ui.components.GameCurrency
 import com.gatcha.log.ui.components.GlassCard
 import com.gatcha.log.ui.components.GlgDialog
@@ -65,9 +66,7 @@ fun SpendingDetailScreen(
                                 Text(spending.gameName, fontSize = 16.sp, fontWeight = FontWeight.Bold)
                                 if (spending.isSubscription) {
                                     Spacer(Modifier.width(8.dp))
-                                    Surface(color = spending.gameColor.toColor().copy(alpha = 0.12f), shape = RoundedCornerShape(6.dp)) {
-                                        Text("정기", fontSize = 10.sp, color = spending.gameColor.toColor(), modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
-                                    }
+                                    GlgBadge("정기", spending.gameColor.toColor())
                                 }
                             }
                             GameCurrency.forGame(spending.gameName)?.let {

@@ -50,3 +50,14 @@ struct GLGChip: View {
         }
     }
 }
+
+/// 상태 표시 배지 — [color] 12% 배경 + [color] 라벨. 정기 결제 등 비대화형 표시용 단일 규격.
+struct GLGBadge: View {
+    let label: String
+    let color: Color
+    var body: some View {
+        Text(label).font(.system(size: 10, weight: .medium)).foregroundStyle(color)
+            .padding(.horizontal, 6).padding(.vertical, 2)
+            .background(color.opacity(0.12), in: RoundedRectangle(cornerRadius: 6))
+    }
+}
