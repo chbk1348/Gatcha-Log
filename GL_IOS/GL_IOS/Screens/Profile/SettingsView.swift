@@ -109,7 +109,7 @@ struct SettingsView: View {
     private func sectionCard<C: View>(_ title: String? = nil, footer: String? = nil, @ViewBuilder content: () -> C) -> some View {
         VStack(alignment: .leading, spacing: 7) {
             if let title {
-                Text(title).font(.system(size: 13, weight: .semibold))
+                Text(title).font(.pretendard(size: 13, weight: .semibold))
                     .foregroundStyle(GLGColor.textSecondary).padding(.leading, 4)
             }
             VStack(spacing: 0) { content() }
@@ -117,7 +117,7 @@ struct SettingsView: View {
                 .background(.white, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
                 .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(GLGColor.divider, lineWidth: 1))
             if let footer {
-                Text(footer).font(.system(size: 11)).foregroundStyle(GLGColor.textSecondary).padding(.horizontal, 4)
+                Text(footer).font(.pretendard(size: 11)).foregroundStyle(GLGColor.textSecondary).padding(.horizontal, 4)
             }
         }
     }
@@ -131,11 +131,11 @@ struct SettingsView: View {
                         ZStack {
                             Circle().fill(opt.primary).frame(width: 40, height: 40)
                             if opt.index == store.accentIndex {
-                                Image(systemName: "checkmark").font(.system(size: 18, weight: .bold))
+                                Image(systemName: "checkmark").font(.pretendard(size: 18, weight: .bold))
                                     .foregroundStyle(.white)
                             }
                         }
-                        Text(opt.label).font(.system(size: 10))
+                        Text(opt.label).font(.pretendard(size: 10))
                             .foregroundStyle(opt.index == store.accentIndex ? opt.primary : GLGColor.textSecondary)
                     }
                     .onTapGesture { store.setAccentIndex(opt.index) }
@@ -238,7 +238,7 @@ struct SettingsView: View {
             HStack {
                 rowLabel(icon: "info.circle", title: "앱 버전")
                 Spacer()
-                Text("v\(version)").font(.system(size: 12)).foregroundStyle(GLGColor.textSecondary)
+                Text("v\(version)").font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary)
             }
             .padding(.vertical, 13)
             // 서명(프로비저닝) 만료 — 무료 계정 7일 서명. 만료 시각(초 단위) + 남은 시간 라이브 카운트다운.
@@ -257,9 +257,9 @@ struct SettingsView: View {
                 Spacer()
                 VStack(alignment: .trailing, spacing: 2) {
                     Text(SigningInfo.absFormatter.string(from: exp))
-                        .font(.system(size: 12)).foregroundStyle(GLGColor.textSecondary)
+                        .font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary)
                     Text(remainingText(exp, now: ctx.date))
-                        .font(.system(size: 12, weight: .semibold).monospacedDigit())
+                        .font(.pretendard(size: 12, weight: .semibold).monospacedDigit())
                         .foregroundStyle(exp.timeIntervalSince(ctx.date) < 86_400 ? .red : accent.primary)
                 }
             }
@@ -278,11 +278,11 @@ struct SettingsView: View {
     // ── 행 헬퍼 ──
     private func rowLabel(icon: String, title: String, subtitle: String? = nil) -> some View {
         HStack(spacing: 12) {
-            Image(systemName: icon).font(.system(size: 18)).foregroundStyle(accent.primary).frame(width: 24)
+            Image(systemName: icon).font(.pretendard(size: 18)).foregroundStyle(accent.primary).frame(width: 24)
             VStack(alignment: .leading, spacing: 2) {
-                Text(title).font(.system(size: 14, weight: .medium))
+                Text(title).font(.pretendard(size: 14, weight: .medium))
                 if let subtitle {
-                    Text(subtitle).font(.system(size: 11)).foregroundStyle(GLGColor.textSecondary)
+                    Text(subtitle).font(.pretendard(size: 11)).foregroundStyle(GLGColor.textSecondary)
                 }
             }
         }
@@ -293,8 +293,8 @@ struct SettingsView: View {
             HStack {
                 rowLabel(icon: icon, title: title)
                 Spacer()
-                if let value { Text(value).font(.system(size: 12)).foregroundStyle(GLGColor.textSecondary) }
-                Image(systemName: "chevron.right").font(.system(size: 13, weight: .semibold))
+                if let value { Text(value).font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary) }
+                Image(systemName: "chevron.right").font(.pretendard(size: 13, weight: .semibold))
                     .foregroundStyle(Color(.tertiaryLabel))
             }
             .contentShape(Rectangle())

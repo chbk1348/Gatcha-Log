@@ -49,18 +49,18 @@ struct AnnualReportView: View {
                             infoCol(won(avg), "월 평균")
                             infoCol("\(yearItems.count)회", "총 기록")
                         }
-                        Text("월별 지출").font(.system(size: 12, weight: .bold)).foregroundStyle(GLGColor.textSecondary).padding(.top, 18)
+                        Text("월별 지출").font(.pretendard(size: 12, weight: .bold)).foregroundStyle(GLGColor.textSecondary).padding(.top, 18)
                         MonthlyBars(monthly: monthly, currentMonth: year == store.displayYear ? store.displayMonth : nil)
                             .padding(.top, 10)
                         if !byGame.isEmpty {
-                            Text("게임별 지출").font(.system(size: 12, weight: .bold)).foregroundStyle(GLGColor.textSecondary).padding(.top, 18)
+                            Text("게임별 지출").font(.pretendard(size: 12, weight: .bold)).foregroundStyle(GLGColor.textSecondary).padding(.top, 18)
                             ForEach(byGame, id: \.0) { (game, amt) in
                                 GameBreakdownRow(game: game, amount: amt, frac: total > 0 ? Double(amt)/Double(total) : 0)
                                     .padding(.top, 10)
                             }
                         }
                         if yearItems.isEmpty {
-                            Text("이 해의 지출 기록이 없어요").font(.system(size: 12)).foregroundStyle(Color(.systemGray3)).padding(.top, 8)
+                            Text("이 해의 지출 기록이 없어요").font(.pretendard(size: 12)).foregroundStyle(Color(.systemGray3)).padding(.top, 8)
                         }
                     }
                 }
@@ -76,8 +76,8 @@ struct AnnualReportView: View {
 
     private func infoCol(_ value: String, _ label: String) -> some View {
         VStack(spacing: 3) {
-            Text(value).font(.system(size: 15, weight: .bold)).lineLimit(1).minimumScaleFactor(0.7)
-            Text(label).font(.system(size: 10)).foregroundStyle(GLGColor.textSecondary)
+            Text(value).font(.pretendard(size: 15, weight: .bold)).lineLimit(1).minimumScaleFactor(0.7)
+            Text(label).font(.pretendard(size: 10)).foregroundStyle(GLGColor.textSecondary)
         }
         .frame(maxWidth: .infinity)
     }
@@ -103,7 +103,7 @@ struct MonthlyBars: View {
                                 .frame(maxWidth: .infinity).padding(.horizontal, 2)
                         }
                     }
-                    Text("\(m+1)").font(.system(size: 8)).foregroundStyle(GLGColor.textSecondary)
+                    Text("\(m+1)").font(.pretendard(size: 8)).foregroundStyle(GLGColor.textSecondary)
                 }
                 .frame(maxWidth: .infinity)
             }
@@ -118,10 +118,10 @@ struct GameBreakdownRow: View {
         VStack(spacing: 4) {
             HStack {
                 Circle().fill(color).frame(width: 8, height: 8)
-                Text(game).font(.system(size: 13, weight: .medium)).lineLimit(1)
+                Text(game).font(.pretendard(size: 13, weight: .medium)).lineLimit(1)
                 Spacer()
-                Text(won(amount)).font(.system(size: 13, weight: .bold))
-                Text("\(Int(frac*100))%").font(.system(size: 11)).foregroundStyle(GLGColor.textSecondary)
+                Text(won(amount)).font(.pretendard(size: 13, weight: .bold))
+                Text("\(Int(frac*100))%").font(.pretendard(size: 11)).foregroundStyle(GLGColor.textSecondary)
             }
             GeometryReader { geo in
                 ZStack(alignment: .leading) {

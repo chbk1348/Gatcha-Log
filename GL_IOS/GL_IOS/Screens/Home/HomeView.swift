@@ -26,7 +26,7 @@ struct HomeView: View {
                 let rest = Array(soonBanners.dropFirst())
                 if !rest.isEmpty {
                     VStack(alignment: .leading, spacing: 8) {
-                        Text("픽업 배너").font(.system(size: 13, weight: .bold)).padding(.leading, 2)
+                        Text("픽업 배너").font(.pretendard(size: 13, weight: .bold)).padding(.leading, 2)
                         ForEach(Array(rest.enumerated()), id: \.offset) { _, b in BannerCapsule(banner: b) }
                     }
                 }
@@ -100,8 +100,8 @@ struct HomeView: View {
     private var homeEditButton: some View {
         Button { showHomeEdit = true } label: {
             HStack(spacing: 6) {
-                Image(systemName: "slider.horizontal.3").font(.system(size: 16)).foregroundStyle(GLGColor.textSecondary)
-                Text("홈 카드 편집").font(.system(size: 13, weight: .medium)).foregroundStyle(GLGColor.textSecondary)
+                Image(systemName: "slider.horizontal.3").font(.pretendard(size: 16)).foregroundStyle(GLGColor.textSecondary)
+                Text("홈 카드 편집").font(.pretendard(size: 13, weight: .medium)).foregroundStyle(GLGColor.textSecondary)
             }
             .frame(maxWidth: .infinity).padding(.vertical, 12)
         }.buttonStyle(.plain)

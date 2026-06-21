@@ -39,10 +39,10 @@ struct AccountLoadingView: View {
                 }
                 Spacer().frame(height: 26)
                 (Text("Gatcha ") + Text("LOG").foregroundColor(accent.primary))
-                    .font(.system(size: 22, weight: .bold))
+                    .font(.pretendard(size: 22, weight: .bold))
                 Spacer().frame(height: 10)
                 Text(done ? "동기화 완료" : "계정 데이터를 불러오는 중…")
-                    .font(.system(size: 13))
+                    .font(.pretendard(size: 13))
                     .foregroundStyle(GLGColor.textSecondary)
 
                 // 3단계 진행 도트 — 연동 확인 · 클라우드 불러오기 · 완료
@@ -59,7 +59,7 @@ struct AccountLoadingView: View {
                     + Text("클라우드 불러오기").fontWeight(.bold).foregroundColor(done ? GLGColor.textSecondary : accent.primary)
                     + Text(" · ")
                     + Text("완료").fontWeight(done ? .bold : .regular).foregroundColor(done ? accent.primary : GLGColor.textSecondary))
-                    .font(.system(size: 11))
+                    .font(.pretendard(size: 11))
                     .foregroundStyle(GLGColor.textSecondary)
             }
             .padding(.horizontal, 36)
@@ -67,7 +67,7 @@ struct AccountLoadingView: View {
             VStack {
                 Spacer()
                 Text("기기 간 데이터를 안전하게 동기화하고 있어요")
-                    .font(.system(size: 11))
+                    .font(.pretendard(size: 11))
                     .foregroundStyle(Color(hex: 0xFFA7ABB5))
                     .padding(.bottom, 30)
             }

@@ -20,10 +20,10 @@ private struct GLGToastModifier: ViewModifier {
                 HStack(spacing: 10) {
                     ZStack {
                         Circle().fill(accent.primary.opacity(0.16)).frame(width: 26, height: 26)
-                        Image(systemName: "checkmark").font(.system(size: 12, weight: .heavy)).foregroundStyle(accent.primary)
+                        Image(systemName: "checkmark").font(.pretendard(size: 12, weight: .heavy)).foregroundStyle(accent.primary)
                     }
                     Text(text)
-                        .font(.system(size: 13, weight: .semibold))
+                        .font(.pretendard(size: 13, weight: .semibold))
                         .foregroundStyle(GLGColor.textPrimary)
                         .lineLimit(2)
                 }

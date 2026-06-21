@@ -29,7 +29,7 @@ struct GLGHeaderIconButton: View {
     @Environment(\.glgAccent) private var accent
     var body: some View {
         Button(action: action) {
-            Image(systemName: systemImage).font(.system(size: 15, weight: .semibold))
+            Image(systemName: systemImage).font(.pretendard(size: 15, weight: .semibold))
         }
         .glgGlassButton(circle: true)
         .tint(accent.primary)
@@ -50,7 +50,7 @@ struct GLGHeaderPillButton: View {
             if let systemImage { Label(title, systemImage: systemImage) }
             else { Text(title) }
         }
-        .font(.system(size: 12, weight: .bold))
+        .font(.pretendard(size: 12, weight: .bold))
         .glgGlassButton(circle: false)
         .tint(accent.primary)
     }

@@ -25,14 +25,14 @@ struct HoyolabLinkView: View {
         ScrollView {
                 VStack(alignment: .leading, spacing: 10) {
                     Text("이 기능은 비공식 연동이며, 토큰은 이 기기에만 저장됩니다 (클라우드·백업에 포함되지 않음).")
-                        .font(.system(size: 11)).foregroundStyle(GLGColor.textSecondary)
+                        .font(.pretendard(size: 11)).foregroundStyle(GLGColor.textSecondary)
 
                     Button { showEmailGuide = true } label: {
                         HStack(spacing: 10) {
-                            Image(systemName: "person.badge.key.fill").font(.system(size: 20)).foregroundStyle(accent.primary)
+                            Image(systemName: "person.badge.key.fill").font(.pretendard(size: 20)).foregroundStyle(accent.primary)
                             VStack(alignment: .leading, spacing: 2) {
-                                Text("HoYoLAB 로그인으로 자동 가져오기").font(.system(size: 14, weight: .bold)).foregroundStyle(accent.primary)
-                                Text("로그인하면 ltuid·ltoken·cookie_token·UID를 자동 입력해요").font(.system(size: 11)).foregroundStyle(GLGColor.textSecondary)
+                                Text("HoYoLAB 로그인으로 자동 가져오기").font(.pretendard(size: 14, weight: .bold)).foregroundStyle(accent.primary)
+                                Text("로그인하면 ltuid·ltoken·cookie_token·UID를 자동 입력해요").font(.pretendard(size: 11)).foregroundStyle(GLGColor.textSecondary)
                             }
                             Spacer(minLength: 0)
                         }
@@ -42,11 +42,11 @@ struct HoyolabLinkView: View {
                     }.buttonStyle(.plain)
 
                     if let msg = collectedMsg {
-                        Text(msg).font(.system(size: 12, weight: .medium)).foregroundStyle(accent.primary)
+                        Text(msg).font(.pretendard(size: 12, weight: .medium)).foregroundStyle(accent.primary)
                     }
 
                     Text("쿠키(ltuid·ltoken)는 개인 정보입니다. 타인과 공유하지 마세요. 수동 입력도 가능해요.")
-                        .font(.system(size: 11)).foregroundStyle(GLGColor.textSecondary)
+                        .font(.pretendard(size: 11)).foregroundStyle(GLGColor.textSecondary)
                     field("ltuid", $ltuid)
                     field("ltoken", $ltoken)
                     field("cookie_token (리딤코드 교환용·선택)", $cookieToken)
@@ -54,7 +54,7 @@ struct HoyolabLinkView: View {
                     field("스타레일 UID", $hsr)
                     field("젠레스 UID", $zzz)
                     Text("구글 로그인 시 게임 UID 는 계정에 함께 동기화돼 다른 기기에서도 그대로 사용돼요. 보안을 위해 ltuid·ltoken·cookie_token 등 토큰은 동기화하지 않으며, 새 기기에서는 다시 로그인해 가져와야 해요.")
-                        .font(.system(size: 11)).foregroundStyle(GLGColor.textSecondary)
+                        .font(.pretendard(size: 11)).foregroundStyle(GLGColor.textSecondary)
                 }
                 .padding(.horizontal, 16).padding(.top, 16).padding(.bottom, 8)
             }
@@ -121,10 +121,10 @@ struct HoyolabLinkView: View {
 
     private func field(_ label: String, _ text: Binding<String>) -> some View {
         VStack(alignment: .leading, spacing: 5) {
-            Text(label).font(.system(size: 11, weight: .semibold)).foregroundStyle(GLGColor.textSecondary)
+            Text(label).font(.pretendard(size: 11, weight: .semibold)).foregroundStyle(GLGColor.textSecondary)
             TextField("", text: text)
                 .textFieldStyle(.plain)
-                .font(.system(size: 15))
+                .font(.pretendard(size: 15))
                 .autocapitalization(.none).disableAutocorrection(true)
                 .glgPillField()
         }

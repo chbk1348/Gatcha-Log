@@ -47,7 +47,7 @@ struct RechargeValueSection: View {
             // 정렬 라벨
             (Text("정렬 ") + Text("1개당 단가 ↓").bold().foregroundColor(GLGColor.textPrimary)
                 + Text(" · \(currency) 1뽑 = \(costPerPull)개 기준"))
-                .font(.system(size: 11)).foregroundStyle(GLGColor.textSecondary)
+                .font(.pretendard(size: 11)).foregroundStyle(GLGColor.textSecondary)
                 .padding(.top, 16).padding(.bottom, 8).padding(.horizontal, 2)
 
             // 패키지 리스트 (단가 오름차순)
@@ -60,7 +60,7 @@ struct RechargeValueSection: View {
 
             // 푸터
             Text("가격은 한국 공식 인앱결제 기준(플랫폼·할인 미반영) · 단가 = 가격 ÷ 받는 재화\n창세의 결정·별옥·모노크롬은 게임 내 원석·성옥·폴리크롬으로 1:1 전환")
-                .font(.system(size: 10)).foregroundStyle(GLGColor.textSecondary)
+                .font(.pretendard(size: 10)).foregroundStyle(GLGColor.textSecondary)
                 .multilineTextAlignment(.center).lineSpacing(3)
                 .frame(maxWidth: .infinity).padding(.top, 14)
         }
@@ -76,7 +76,7 @@ private struct GameTab: View {
     var body: some View {
         Button(action: action) {
             Text(label)
-                .font(.system(size: 13, weight: .bold))
+                .font(.pretendard(size: 13, weight: .bold))
                 .foregroundStyle(selected ? .white : GLGColor.textSecondary)
                 .frame(maxWidth: .infinity).padding(.vertical, 9)
                 .background {
@@ -105,8 +105,8 @@ private struct FirstBuyRow: View {
     var body: some View {
         HStack(spacing: 12) {
             VStack(alignment: .leading, spacing: 2) {
-                Text("첫 구매 2배 보너스 반영").font(.system(size: 13, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
-                Text("계정당 패키지별 1회 · 버전마다 초기화").font(.system(size: 11)).foregroundStyle(GLGColor.textSecondary)
+                Text("첫 구매 2배 보너스 반영").font(.pretendard(size: 13, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
+                Text("계정당 패키지별 1회 · 버전마다 초기화").font(.pretendard(size: 11)).foregroundStyle(GLGColor.textSecondary)
             }
             Spacer(minLength: 8)
             Toggle("", isOn: $isOn).labelsHidden().tint(glow)
@@ -129,13 +129,13 @@ private struct RecoBanner: View {
         let pulls = pkg.pulls(firstBuy: firstBuy, costPerPull: Int32(costPerPull))
         let perPullWon = pulls > 0 ? Int64((Double(Int(pkg.priceKrw)) / pulls).rounded()) : 0
         VStack(alignment: .leading, spacing: 0) {
-            Text("🏆 지금 가장 이득").font(.system(size: 11, weight: .bold)).foregroundStyle(.white.opacity(0.85))
+            Text("🏆 지금 가장 이득").font(.pretendard(size: 11, weight: .bold)).foregroundStyle(.white.opacity(0.85))
             Text("\(num(total)) \(currency) · \(won(Int(pkg.priceKrw)))")
-                .font(.system(size: 18, weight: .heavy)).foregroundStyle(.white).padding(.top, 5)
+                .font(.pretendard(size: 18, weight: .heavy)).foregroundStyle(.white).padding(.top, 5)
             Text("\(firstBuy ? "첫구매 시 " : "")\(num(total))개 = 약 \(fixed(pulls, pulls < 10 ? 1 : 0))뽑 · 1뽑당 \(won(perPullWon))")
-                .font(.system(size: 12)).foregroundStyle(.white.opacity(0.9)).padding(.top, 2)
+                .font(.pretendard(size: 12)).foregroundStyle(.white.opacity(0.9)).padding(.top, 2)
             Text(firstBuy ? "미사용 첫구매 中 단가 최저" : "전체 패키지 中 단가 최저")
-                .font(.system(size: 10, weight: .heavy)).foregroundStyle(.white)
+                .font(.pretendard(size: 10, weight: .heavy)).foregroundStyle(.white)
                 .padding(.horizontal, 8).padding(.vertical, 3)
                 .background(Color.white.opacity(0.22), in: RoundedRectangle(cornerRadius: 8))
                 .padding(.top, 9)
@@ -173,25 +173,25 @@ private struct PackageRow: View {
         HStack(spacing: 12) {
             // 재화량
             VStack(spacing: 3) {
-                Text(num(total)).font(.system(size: 17, weight: .heavy)).foregroundStyle(GLGColor.textPrimary)
+                Text(num(total)).font(.pretendard(size: 17, weight: .heavy)).foregroundStyle(GLGColor.textPrimary)
                     .lineLimit(1).minimumScaleFactor(0.6)
-                Text(currency).font(.system(size: 10)).foregroundStyle(GLGColor.textSecondary)
+                Text(currency).font(.pretendard(size: 10)).foregroundStyle(GLGColor.textSecondary)
             }
             .frame(width: 64)
 
             // 가격·보너스·뽑
             VStack(alignment: .leading, spacing: 2) {
-                Text(won(Int(pkg.priceKrw))).font(.system(size: 15, weight: .heavy)).foregroundStyle(GLGColor.textPrimary)
+                Text(won(Int(pkg.priceKrw))).font(.pretendard(size: 15, weight: .heavy)).foregroundStyle(GLGColor.textPrimary)
                 Text(firstBuy ? "첫구매 2배 (+\(num(Int(pkg.base))))" : (pkg.bonus > 0 ? "보너스 +\(num(Int(pkg.bonus)))" : "보너스 없음"))
-                    .font(.system(size: 11, weight: .bold)).foregroundStyle(unitGood)
-                Text("≈ \(fixed(pulls, pulls < 10 ? 1 : 0))뽑").font(.system(size: 11)).foregroundStyle(GLGColor.textSecondary).padding(.top, 1)
+                    .font(.pretendard(size: 11, weight: .bold)).foregroundStyle(unitGood)
+                Text("≈ \(fixed(pulls, pulls < 10 ? 1 : 0))뽑").font(.pretendard(size: 11)).foregroundStyle(GLGColor.textSecondary).padding(.top, 1)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
 
             // 단가
             VStack(alignment: .trailing, spacing: 1) {
-                Text(fixed(unit, 1)).font(.system(size: 15, weight: .heavy)).foregroundStyle(unitColor)
-                Text("원/개").font(.system(size: 10)).foregroundStyle(GLGColor.textSecondary)
+                Text(fixed(unit, 1)).font(.pretendard(size: 15, weight: .heavy)).foregroundStyle(unitColor)
+                Text("원/개").font(.pretendard(size: 10)).foregroundStyle(GLGColor.textSecondary)
             }
         }
         .padding(.horizontal, 14).padding(.vertical, 13)
@@ -201,7 +201,7 @@ private struct PackageRow: View {
         .shadow(color: isBest ? glow.opacity(0.22) : .clear, radius: isBest ? 10 : 0, y: isBest ? 6 : 0)
         .overlay(alignment: .topLeading) {
             if isBest {
-                Text("BEST").font(.system(size: 9, weight: .heavy)).foregroundStyle(.white)
+                Text("BEST").font(.pretendard(size: 9, weight: .heavy)).foregroundStyle(.white)
                     .padding(.horizontal, 7).padding(.vertical, 2)
                     .background(glow, in: RoundedRectangle(cornerRadius: 6))
                     .offset(x: 12, y: -7)

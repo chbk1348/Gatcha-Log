@@ -25,7 +25,7 @@ struct GachaDashboardView: View {
                 content(gk, d)
             } else {
                 Text("가챠 기록을 가져오면\n천장 분포·월별 추이·픽업 비율을 분석해 드려요.")
-                    .font(.system(size: 13)).foregroundStyle(GLGColor.textSecondary).multilineTextAlignment(.center)
+                    .font(.pretendard(size: 13)).foregroundStyle(GLGColor.textSecondary).multilineTextAlignment(.center)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
@@ -44,7 +44,7 @@ struct GachaDashboardView: View {
                     ForEach(games, id: \.self) { g in
                         let s = g == sel
                         Button { selected = g } label: {
-                            Text(gachaGameInfo(g).short).font(.system(size: 13, weight: .bold)).foregroundStyle(s ? .white : GLGColor.textSecondary)
+                            Text(gachaGameInfo(g).short).font(.pretendard(size: 13, weight: .bold)).foregroundStyle(s ? .white : GLGColor.textSecondary)
                                 .padding(.horizontal, 16).padding(.vertical, 8)
                                 .background(s ? accent.primary : Color.black.opacity(0.05), in: Capsule())
                         }.buttonStyle(.plain)
@@ -74,7 +74,7 @@ struct GachaDashboardView: View {
                     dashCard {
                         cardTitle("5성 천장 분포", "최소 \(d.minPity) · 평균 \(d.avgPity) · 최대 \(d.maxPity)")
                         barRow(d.pityBuckets.map { Int(truncating: $0) }, ["10","20","30","40","50","60","70","80","90"], info.color).padding(.top, 14)
-                        Text("가로축 = 5성이 나온 뽑기 횟수(천장) 구간").font(.system(size: 10)).foregroundStyle(GLGColor.textSecondary).padding(.top, 6)
+                        Text("가로축 = 5성이 나온 뽑기 횟수(천장) 구간").font(.pretendard(size: 10)).foregroundStyle(GLGColor.textSecondary).padding(.top, 6)
                     }
                 }
                 // 월별 추이
@@ -109,7 +109,7 @@ struct GachaDashboardView: View {
                         }
                         .padding(.top, 10)
                         if d.fiveStars.count > shown.count {
-                            Text("외 \(d.fiveStars.count - shown.count)건").font(.system(size: 11)).foregroundStyle(GLGColor.textSecondary).padding(.top, 8)
+                            Text("외 \(d.fiveStars.count - shown.count)건").font(.pretendard(size: 11)).foregroundStyle(GLGColor.textSecondary).padding(.top, 8)
                         }
                     }
                 }
@@ -125,14 +125,14 @@ struct GachaDashboardView: View {
     }
     private func cardTitle(_ t: String, _ s: String?) -> some View {
         VStack(alignment: .leading, spacing: 2) {
-            Text(t).font(.system(size: 14, weight: .bold))
-            if let s { Text(s).font(.system(size: 11)).foregroundStyle(GLGColor.textSecondary) }
+            Text(t).font(.pretendard(size: 14, weight: .bold))
+            if let s { Text(s).font(.pretendard(size: 11)).foregroundStyle(GLGColor.textSecondary) }
         }
     }
     private func tile(_ value: String, _ label: String, _ color: Color = GLGColor.textPrimary) -> some View {
         VStack(spacing: 3) {
-            Text(value).font(.system(size: 15, weight: .bold)).foregroundStyle(color).lineLimit(1).minimumScaleFactor(0.6)
-            Text(label).font(.system(size: 10)).foregroundStyle(GLGColor.textSecondary)
+            Text(value).font(.pretendard(size: 15, weight: .bold)).foregroundStyle(color).lineLimit(1).minimumScaleFactor(0.6)
+            Text(label).font(.pretendard(size: 10)).foregroundStyle(GLGColor.textSecondary)
         }
         .frame(maxWidth: .infinity).padding(.vertical, 10).background(accent.primary.opacity(0.06), in: RoundedRectangle(cornerRadius: 12))
     }
@@ -152,8 +152,8 @@ struct GachaDashboardView: View {
         return HStack(spacing: 6) {
             Circle().fill(color).frame(width: 8, height: 8)
             VStack(alignment: .leading, spacing: 0) {
-                Text("\(label) \(num(value))").font(.system(size: 11, weight: .bold)).lineLimit(1)
-                Text("\(fixed(pct, 1))%").font(.system(size: 10)).foregroundStyle(GLGColor.textSecondary)
+                Text("\(label) \(num(value))").font(.pretendard(size: 11, weight: .bold)).lineLimit(1)
+                Text("\(fixed(pct, 1))%").font(.pretendard(size: 10)).foregroundStyle(GLGColor.textSecondary)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -163,7 +163,7 @@ struct GachaDashboardView: View {
         return HStack(alignment: .bottom, spacing: 3) {
             ForEach(Array(values.enumerated()), id: \.offset) { i, v in
                 VStack(spacing: 2) {
-                    Text(v > 0 ? "\(v)" : "").font(.system(size: 8)).foregroundStyle(GLGColor.textSecondary)
+                    Text(v > 0 ? "\(v)" : "").font(.pretendard(size: 8)).foregroundStyle(GLGColor.textSecondary)
                     ZStack(alignment: .bottom) {
                         Color.clear.frame(height: 84)
                         let h = v > 0 ? min(max(Double(v)/Double(maxV), 0.04), 1) : 0
@@ -171,7 +171,7 @@ struct GachaDashboardView: View {
                             RoundedRectangle(cornerRadius: 3).fill(color).frame(height: 84 * h).frame(maxWidth: .infinity).padding(.horizontal, 3)
                         }
                     }
-                    Text(i < labels.count ? labels[i] : "").font(.system(size: 8)).foregroundStyle(GLGColor.textSecondary)
+                    Text(i < labels.count ? labels[i] : "").font(.pretendard(size: 8)).foregroundStyle(GLGColor.textSecondary)
                 }
                 .frame(maxWidth: .infinity)
             }
@@ -182,11 +182,11 @@ struct GachaDashboardView: View {
         let lc: Color = f.pity <= 40 ? Color(hex: 0xFF2BB673) : (f.pity >= 75 ? Color(hex: 0xFFE8634A) : accent.primary)
         return HStack {
             VStack(alignment: .leading, spacing: 0) {
-                Text(f.name.isEmpty ? "(이름 없음)" : f.name).font(.system(size: 13, weight: .medium)).lineLimit(1)
-                Text(poolLabel + (f.time.isEmpty ? "" : " · \(String(f.time.prefix(10)))")).font(.system(size: 10)).foregroundStyle(GLGColor.textSecondary).lineLimit(1)
+                Text(f.name.isEmpty ? "(이름 없음)" : f.name).font(.pretendard(size: 13, weight: .medium)).lineLimit(1)
+                Text(poolLabel + (f.time.isEmpty ? "" : " · \(String(f.time.prefix(10)))")).font(.pretendard(size: 10)).foregroundStyle(GLGColor.textSecondary).lineLimit(1)
             }
             Spacer(minLength: 8)
-            Text("천장 \(f.pity)").font(.system(size: 11, weight: .bold)).foregroundStyle(lc)
+            Text("천장 \(f.pity)").font(.pretendard(size: 11, weight: .bold)).foregroundStyle(lc)
                 .padding(.horizontal, 8).padding(.vertical, 4).background(lc.opacity(0.14), in: RoundedRectangle(cornerRadius: 8))
         }
         .padding(.vertical, 7)

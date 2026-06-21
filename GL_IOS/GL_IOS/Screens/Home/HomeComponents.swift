@@ -21,8 +21,8 @@ struct HomeSummaryCard: View {
         GLGCard(cornerRadius: 28, padding: 18) {
             VStack(alignment: .leading, spacing: 0) {
                 HStack(spacing: 6) {
-                    Image(systemName: "sparkles").font(.system(size: 16)).foregroundStyle(accent.primary)
-                    Text("이번 달 한눈에").font(.system(size: 13, weight: .bold)).foregroundStyle(accent.primary)
+                    Image(systemName: "sparkles").font(.pretendard(size: 16)).foregroundStyle(accent.primary)
+                    Text("이번 달 한눈에").font(.pretendard(size: 13, weight: .bold)).foregroundStyle(accent.primary)
                 }
                 summaryText.padding(.top, 10)
                 HStack(spacing: 8) {
@@ -53,12 +53,12 @@ struct HomeSummaryCard: View {
         } else if gameOverCount > 0 {
             t = t + Text(" ") + Text("\(gameOverCount)개 게임").bold().foregroundColor(dangerText) + Text("이 한도를 넘었어요.")
         }
-        return t.font(.system(size: 14)).foregroundColor(GLGColor.textPrimary)
+        return t.font(.pretendard(size: 14)).foregroundColor(GLGColor.textPrimary)
     }
 
     private func chip(_ text: String, _ action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            Text(text).font(.system(size: 12, weight: .bold)).foregroundStyle(accent.primary)
+            Text(text).font(.pretendard(size: 12, weight: .bold)).foregroundStyle(accent.primary)
                 .padding(.horizontal, 13).padding(.vertical, 7)
                 .background(accent.primary.opacity(0.10), in: Capsule())
                 .overlay(Capsule().stroke(accent.primary.opacity(0.3), lineWidth: 1))
@@ -74,16 +74,16 @@ struct TodayTaskCard: View {
         GLGCard(cornerRadius: 24, padding: 16) {
             VStack(alignment: .leading, spacing: 0) {
                 HStack(spacing: 6) {
-                    Image(systemName: "checklist").font(.system(size: 15)).foregroundStyle(accent.primary)
-                    Text("오늘 할 일").font(.system(size: 13, weight: .bold)).foregroundStyle(accent.primary)
+                    Image(systemName: "checklist").font(.pretendard(size: 15)).foregroundStyle(accent.primary)
+                    Text("오늘 할 일").font(.pretendard(size: 13, weight: .bold)).foregroundStyle(accent.primary)
                     if !tasks.isEmpty {
-                        Text("\(tasks.count)").font(.system(size: 11, weight: .bold)).foregroundStyle(accent.primary)
+                        Text("\(tasks.count)").font(.pretendard(size: 11, weight: .bold)).foregroundStyle(accent.primary)
                             .padding(.horizontal, 7).padding(.vertical, 1).background(accent.primary.opacity(0.14), in: Capsule())
                     }
                 }
                 .padding(.bottom, 12)
                 if tasks.isEmpty {
-                    Text("오늘 챙길 건 다 끝냈어요 🎉 여유롭게 즐기세요").font(.system(size: 14))
+                    Text("오늘 챙길 건 다 끝냈어요 🎉 여유롭게 즐기세요").font(.pretendard(size: 14))
                 } else {
                     ForEach(Array(tasks.enumerated()), id: \.element.id) { i, t in
                         if i > 0 { Divider().padding(.vertical, 10) }
@@ -98,13 +98,13 @@ struct TodayTaskCard: View {
         let busy = t.busyable && inProgress
         return Button(action: t.action) {
             HStack(spacing: 10) {
-                Image(systemName: t.icon).font(.system(size: 18)).foregroundStyle(tint)
-                Text(t.message).font(.system(size: 14)).foregroundStyle(GLGColor.textPrimary).frame(maxWidth: .infinity, alignment: .leading).lineLimit(2)
+                Image(systemName: t.icon).font(.pretendard(size: 18)).foregroundStyle(tint)
+                Text(t.message).font(.pretendard(size: 14)).foregroundStyle(GLGColor.textPrimary).frame(maxWidth: .infinity, alignment: .leading).lineLimit(2)
                 if busy { ProgressView().controlSize(.mini).tint(tint) }
                 else {
                     HStack(spacing: 2) {
-                        Text(t.cta).font(.system(size: 11, weight: .bold)).foregroundStyle(tint)
-                        Image(systemName: "chevron.right").font(.system(size: 11)).foregroundStyle(tint)
+                        Text(t.cta).font(.pretendard(size: 11, weight: .bold)).foregroundStyle(tint)
+                        Image(systemName: "chevron.right").font(.pretendard(size: 11)).foregroundStyle(tint)
                     }
                     .padding(.leading, 10).padding(.trailing, 7).padding(.vertical, 4)
                     .background(tint.opacity(0.12), in: Capsule())
@@ -120,8 +120,8 @@ struct TodayTaskSkeleton: View {
         GLGCard(cornerRadius: 24, padding: 16) {
             VStack(alignment: .leading, spacing: 12) {
                 HStack(spacing: 6) {
-                    Image(systemName: "checklist").font(.system(size: 15)).foregroundStyle(accent.primary.opacity(0.5))
-                    Text("오늘 할 일").font(.system(size: 13, weight: .bold)).foregroundStyle(accent.primary.opacity(0.5))
+                    Image(systemName: "checklist").font(.pretendard(size: 15)).foregroundStyle(accent.primary.opacity(0.5))
+                    Text("오늘 할 일").font(.pretendard(size: 13, weight: .bold)).foregroundStyle(accent.primary.opacity(0.5))
                 }
                 ForEach(0..<3, id: \.self) { i in
                     if i > 0 { Divider() }
@@ -145,24 +145,24 @@ struct GameStatusSection: View {
         GLGCard(cornerRadius: 26, padding: 18) {
             if !store.hoyolabConfig.isLinked {
                 VStack(spacing: 0) {
-                    ZStack { Circle().fill(accent.primary.opacity(0.12)).frame(width: 48, height: 48); Image(systemName: "link").font(.system(size: 22)).foregroundStyle(accent.primary) }
-                    Text("HoYoLAB 연동이 필요해요").font(.system(size: 14, weight: .bold)).padding(.top, 10)
-                    Text("실시간 노트를 보려면 연동하세요").font(.system(size: 12)).foregroundStyle(GLGColor.textSecondary).padding(.top, 4)
+                    ZStack { Circle().fill(accent.primary.opacity(0.12)).frame(width: 48, height: 48); Image(systemName: "link").font(.pretendard(size: 22)).foregroundStyle(accent.primary) }
+                    Text("HoYoLAB 연동이 필요해요").font(.pretendard(size: 14, weight: .bold)).padding(.top, 10)
+                    Text("실시간 노트를 보려면 연동하세요").font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary).padding(.top, 4)
                     GLGButton(title: "HoYoLAB 연동하러 가기", action: onConfig).padding(.top, 14)
                 }
                 .frame(maxWidth: .infinity)
             } else {
                 VStack(alignment: .leading, spacing: 0) {
-                    Text("실시간 노트").font(.system(size: 14, weight: .bold))
+                    Text("실시간 노트").font(.pretendard(size: 14, weight: .bold))
                     if !store.liveNotes.isEmpty {
                         VStack(spacing: 8) { ForEach(Array(store.liveNotes.enumerated()), id: \.offset) { _, n in NoteCapsule(note: n) } }.padding(.top, 12)
                     } else if store.isRefreshing {
                         HStack(spacing: 8) {
                             ProgressView().controlSize(.small)
-                            Text("실시간 노트 불러오는 중…").font(.system(size: 12)).foregroundStyle(GLGColor.textSecondary)
+                            Text("실시간 노트 불러오는 중…").font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary)
                         }.padding(.top, 10)
                     } else {
-                        Text("표시할 노트가 없어요").font(.system(size: 12)).foregroundStyle(GLGColor.textSecondary).padding(.top, 8)
+                        Text("표시할 노트가 없어요").font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary).padding(.top, 8)
                     }
                 }
             }
@@ -176,15 +176,15 @@ struct NoteCapsule: View {
     var body: some View {
         let full = note.maxResin > 0 && note.currentResin >= note.maxResin
         HStack(spacing: 10) {
-            Image(systemName: "bolt.fill").font(.system(size: 18)).foregroundStyle(full ? dangerText : accent.primary)
+            Image(systemName: "bolt.fill").font(.pretendard(size: 18)).foregroundStyle(full ? dangerText : accent.primary)
             VStack(alignment: .leading, spacing: 0) {
-                Text(GameData.shared.byName(name: note.game).shortName).font(.system(size: 13, weight: .bold)).lineLimit(1)
-                Text(note.resinLabel).font(.system(size: 10)).foregroundStyle(GLGColor.textSecondary).lineLimit(1)
+                Text(GameData.shared.byName(name: note.game).shortName).font(.pretendard(size: 13, weight: .bold)).lineLimit(1)
+                Text(note.resinLabel).font(.pretendard(size: 10)).foregroundStyle(GLGColor.textSecondary).lineLimit(1)
             }
             Spacer()
-            Text("\(note.currentResin)/\(note.maxResin)").font(.system(size: 14, weight: .bold)).foregroundStyle(full ? dangerText : GLGColor.textPrimary)
+            Text("\(note.currentResin)/\(note.maxResin)").font(.pretendard(size: 14, weight: .bold)).foregroundStyle(full ? dangerText : GLGColor.textPrimary)
             if full {
-                Text("가득참").font(.system(size: 11, weight: .bold)).foregroundStyle(dangerText)
+                Text("가득참").font(.pretendard(size: 11, weight: .bold)).foregroundStyle(dangerText)
                     .padding(.horizontal, 9).padding(.vertical, 3).background(dangerText.opacity(0.12), in: Capsule())
             }
         }
@@ -203,11 +203,11 @@ struct BannerCapsule: View {
         return HStack(spacing: 10) {
             Circle().fill(Color(argb64: banner.gameColor)).frame(width: 8, height: 8)
             VStack(alignment: .leading, spacing: 0) {
-                Text(banner.name).font(.system(size: 13, weight: .bold)).lineLimit(1)
-                Text("\(GameData.shared.byNameOrNull(name: banner.game)?.shortName ?? banner.game) · 픽업").font(.system(size: 10)).foregroundStyle(GLGColor.textSecondary).lineLimit(1)
+                Text(banner.name).font(.pretendard(size: 13, weight: .bold)).lineLimit(1)
+                Text("\(GameData.shared.byNameOrNull(name: banner.game)?.shortName ?? banner.game) · 픽업").font(.pretendard(size: 10)).foregroundStyle(GLGColor.textSecondary).lineLimit(1)
             }
             Spacer()
-            Text(GameInfoKt.dhLabel(targetMillis: banner.endMillis, nowMillis: nowMs())).font(.system(size: 11, weight: .bold)).foregroundStyle(chipColor).lineLimit(1)
+            Text(GameInfoKt.dhLabel(targetMillis: banner.endMillis, nowMillis: nowMs())).font(.pretendard(size: 11, weight: .bold)).foregroundStyle(chipColor).lineLimit(1)
                 .padding(.horizontal, 9).padding(.vertical, 3).background(chipColor.opacity(0.14), in: Capsule())
         }
         .padding(.horizontal, 16).padding(.vertical, 11)
@@ -227,29 +227,29 @@ struct SpendingBudgetSection: View {
             VStack(alignment: .leading, spacing: 0) {
                 HStack(alignment: .top) {
                     VStack(alignment: .leading, spacing: 0) {
-                        Text("이번 달 지출").font(.system(size: 12)).foregroundStyle(GLGColor.textSecondary)
-                        Text("\(store_year)년 \(store_month)월").font(.system(size: 14, weight: .medium))
+                        Text("이번 달 지출").font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary)
+                        Text("\(store_year)년 \(store_month)월").font(.pretendard(size: 14, weight: .medium))
                     }
                     Spacer()
-                    Button(action: onEdit) { Image(systemName: "pencil").font(.system(size: 16)).foregroundStyle(GLGColor.textSecondary) }.buttonStyle(.plain)
+                    Button(action: onEdit) { Image(systemName: "pencil").font(.pretendard(size: 16)).foregroundStyle(GLGColor.textSecondary) }.buttonStyle(.plain)
                 }
-                Text(won(monthlyTotal)).font(.system(size: 32, weight: .bold)).padding(.top, 4)
+                Text(won(monthlyTotal)).font(.pretendard(size: 32, weight: .bold)).padding(.top, 4)
                 if budget > 0 {
                     budgetBar(ratio, over).padding(.top, 16)
                     HStack {
-                        Text(over ? "\(won(monthlyTotal - budget)) 초과" : "\(won(budget - monthlyTotal)) 남음").font(.system(size: 11)).foregroundStyle(over ? dangerText : GLGColor.textSecondary)
+                        Text(over ? "\(won(monthlyTotal - budget)) 초과" : "\(won(budget - monthlyTotal)) 남음").font(.pretendard(size: 11)).foregroundStyle(over ? dangerText : GLGColor.textSecondary)
                         Spacer()
-                        Text("예산 \(pct)% 사용").font(.system(size: 11)).foregroundStyle(GLGColor.textSecondary)
+                        Text("예산 \(pct)% 사용").font(.pretendard(size: 11)).foregroundStyle(GLGColor.textSecondary)
                     }.padding(.top, 8)
                 } else {
                     Button(action: onEdit) {
-                        HStack(spacing: 8) { Image(systemName: "banknote").font(.system(size: 16)).foregroundStyle(accent.primary); Text("월 예산 미설정 — 탭하여 설정하면 사용률이 표시돼요").font(.system(size: 12)).foregroundStyle(GLGColor.textSecondary) }
+                        HStack(spacing: 8) { Image(systemName: "banknote").font(.pretendard(size: 16)).foregroundStyle(accent.primary); Text("월 예산 미설정 — 탭하여 설정하면 사용률이 표시돼요").font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary) }
                             .padding(12).frame(maxWidth: .infinity, alignment: .leading).background(accent.primary.opacity(0.06), in: RoundedRectangle(cornerRadius: 12))
                     }.buttonStyle(.plain).padding(.top, 16)
                 }
                 if !perGame.isEmpty {
                     Divider().padding(.top, 18)
-                    HStack { Text("게임별 예산").font(.system(size: 13, weight: .bold)); Spacer(); Text("한도 설정 ›").font(.system(size: 11)).foregroundStyle(GLGColor.textSecondary).onTapGesture { onEdit() } }.padding(.top, 14)
+                    HStack { Text("게임별 예산").font(.pretendard(size: 13, weight: .bold)); Spacer(); Text("한도 설정 ›").font(.pretendard(size: 11)).foregroundStyle(GLGColor.textSecondary).onTapGesture { onEdit() } }.padding(.top, 14)
                     VStack(spacing: 11) { ForEach(Array(perGame.enumerated()), id: \.offset) { _, gs in gameBudgetRow(gs) } }.padding(.top, 12)
                 }
             }
@@ -273,10 +273,10 @@ struct SpendingBudgetSection: View {
         let ratio = hasLimit ? min(max(Double(gs.spent)/Double(gs.limit), 0), 1) : 0
         return VStack(spacing: 5) {
             HStack {
-                HStack(spacing: 7) { Circle().fill(Color(argb64: gs.game.color)).frame(width: 8, height: 8); Text(gs.game.shortName).font(.system(size: 13)) }
+                HStack(spacing: 7) { Circle().fill(Color(argb64: gs.game.color)).frame(width: 8, height: 8); Text(gs.game.shortName).font(.pretendard(size: 13)) }
                 Spacer()
                 Text(hasLimit ? "\(won(gs.spent)) / \(won(gs.limit))" : "\(won(gs.spent)) · 한도 없음")
-                    .font(.system(size: 12, weight: over ? .bold : .regular)).foregroundStyle(over ? dangerText : GLGColor.textSecondary)
+                    .font(.pretendard(size: 12, weight: over ? .bold : .regular)).foregroundStyle(over ? dangerText : GLGColor.textSecondary)
             }
             if hasLimit {
                 GeometryReader { geo in
@@ -304,8 +304,8 @@ struct GachaSummarySection: View {
         GLGCard(cornerRadius: 24, padding: 20) {
             VStack(alignment: .leading, spacing: 0) {
                 HStack {
-                    HStack(spacing: 6) { Image(systemName: "die.face.5.fill").font(.system(size: 16)).foregroundStyle(accent.primary); Text("가챠 요약").font(.system(size: 16, weight: .bold)) }
-                    Spacer(); Image(systemName: "chevron.right").font(.system(size: 14)).foregroundStyle(GLGColor.textSecondary)
+                    HStack(spacing: 6) { Image(systemName: "die.face.5.fill").font(.pretendard(size: 16)).foregroundStyle(accent.primary); Text("가챠 요약").font(.pretendard(size: 16, weight: .bold)) }
+                    Spacer(); Image(systemName: "chevron.right").font(.pretendard(size: 14)).foregroundStyle(GLGColor.textSecondary)
                 }
                 // 다음 픽업(구 '가챠 현황') — 비용 인텔리전스 포함
                 nextMini.frame(maxWidth: .infinity).padding(.top, 14)
@@ -320,15 +320,15 @@ struct GachaSummarySection: View {
                         if let g = s.byGame[gk] {
                             HStack(spacing: 8) {
                                 Circle().fill(gachaGameInfo(gk).color).frame(width: 8, height: 8)
-                                Text(gachaGameInfo(gk).short).font(.system(size: 13, weight: .medium)); Spacer()
-                                Text("\(num(Int(g.total)))뽑 · 5성 \(g.five)" + (g.avgPity > 0 ? " · 평균천장 \(g.avgPity)" : "")).font(.system(size: 11)).foregroundStyle(GLGColor.textSecondary)
+                                Text(gachaGameInfo(gk).short).font(.pretendard(size: 13, weight: .medium)); Spacer()
+                                Text("\(num(Int(g.total)))뽑 · 5성 \(g.five)" + (g.avgPity > 0 ? " · 평균천장 \(g.avgPity)" : "")).font(.pretendard(size: 11)).foregroundStyle(GLGColor.textSecondary)
                             }.padding(.top, 10)
                         }
                     }
                 } else {
-                    Text("가챠 기록을 가져오면 통계 요약이 표시돼요").font(.system(size: 12)).foregroundStyle(GLGColor.textSecondary).padding(.top, 16)
+                    Text("가챠 기록을 가져오면 통계 요약이 표시돼요").font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary).padding(.top, 16)
                     Button(action: onImport) {
-                        HStack(spacing: 6) { Image(systemName: "square.and.arrow.down").font(.system(size: 14)); Text("가챠 기록 가져오기").font(.system(size: 12, weight: .bold)) }
+                        HStack(spacing: 6) { Image(systemName: "square.and.arrow.down").font(.pretendard(size: 14)); Text("가챠 기록 가져오기").font(.pretendard(size: 12, weight: .bold)) }
                             .foregroundStyle(accent.primary).padding(.horizontal, 13).padding(.vertical, 7).background(accent.primary.opacity(0.10), in: Capsule())
                     }.buttonStyle(.plain).padding(.top, 12)
                 }
@@ -338,18 +338,18 @@ struct GachaSummarySection: View {
     }
     private var nextMini: some View {
         miniCard {
-            Text("다음 픽업").font(.system(size: 11)).foregroundStyle(GLGColor.textSecondary)
+            Text("다음 픽업").font(.pretendard(size: 11)).foregroundStyle(GLGColor.textSecondary)
             if let b = nextBanner {
                 let urgent = b.dDay(nowMillis: nowMs()) <= 3
-                HStack(spacing: 6) { Circle().fill(Color(argb64: b.gameColor)).frame(width: 8, height: 8); Text(b.name).font(.system(size: 13, weight: .bold)).lineLimit(1) }
-                Text(GameData.shared.byNameOrNull(name: b.game)?.shortName ?? b.game).font(.system(size: 11)).foregroundStyle(GLGColor.textSecondary).lineLimit(1)
-                Text(GameInfoKt.dhLabel(targetMillis: b.endMillis, nowMillis: nowMs())).font(.system(size: 10, weight: .bold)).foregroundStyle(urgent ? warnText : accent.primary).lineLimit(1)
+                HStack(spacing: 6) { Circle().fill(Color(argb64: b.gameColor)).frame(width: 8, height: 8); Text(b.name).font(.pretendard(size: 13, weight: .bold)).lineLimit(1) }
+                Text(GameData.shared.byNameOrNull(name: b.game)?.shortName ?? b.game).font(.pretendard(size: 11)).foregroundStyle(GLGColor.textSecondary).lineLimit(1)
+                Text(GameInfoKt.dhLabel(targetMillis: b.endMillis, nowMillis: nowMs())).font(.pretendard(size: 10, weight: .bold)).foregroundStyle(urgent ? warnText : accent.primary).lineLimit(1)
                     .padding(.horizontal, 8).padding(.vertical, 2).background((urgent ? warnText : accent.primary).opacity(0.14), in: Capsule())
                 if let plan = nextBannerPlan {
-                    Text("확정 최대 \(plan.maxPulls)연").font(.system(size: 11, weight: .bold)).lineLimit(1)
-                    Text("약 \(won(plan.wonCost))").font(.system(size: 10)).foregroundStyle(GLGColor.textSecondary).lineLimit(1)
+                    Text("확정 최대 \(plan.maxPulls)연").font(.pretendard(size: 11, weight: .bold)).lineLimit(1)
+                    Text("약 \(won(plan.wonCost))").font(.pretendard(size: 10)).foregroundStyle(GLGColor.textSecondary).lineLimit(1)
                 }
-            } else { Text("예정 없음").font(.system(size: 15, weight: .bold)).foregroundStyle(GLGColor.textSecondary) }
+            } else { Text("예정 없음").font(.pretendard(size: 15, weight: .bold)).foregroundStyle(GLGColor.textSecondary) }
         }
     }
     private func miniCard<C: View>(@ViewBuilder _ content: () -> C) -> some View {
@@ -358,7 +358,7 @@ struct GachaSummarySection: View {
             .background(.white, in: RoundedRectangle(cornerRadius: 16)).overlay(RoundedRectangle(cornerRadius: 16).stroke(GLGColor.divider, lineWidth: 1))
     }
     private func infoCol(_ v: String, _ l: String) -> some View {
-        VStack(spacing: 2) { Text(v).font(.system(size: 15, weight: .bold)); Text(l).font(.system(size: 10)).foregroundStyle(GLGColor.textSecondary) }.frame(maxWidth: .infinity)
+        VStack(spacing: 2) { Text(v).font(.pretendard(size: 15, weight: .bold)); Text(l).font(.pretendard(size: 10)).foregroundStyle(GLGColor.textSecondary) }.frame(maxWidth: .infinity)
     }
 }
 
@@ -367,13 +367,13 @@ struct TokenExpiredBanner: View {
     @Environment(\.glgAccent) private var accent
     var body: some View {
         HStack(spacing: 12) {
-            Image(systemName: "exclamationmark.triangle.fill").font(.system(size: 22)).foregroundStyle(accent.primary)
+            Image(systemName: "exclamationmark.triangle.fill").font(.pretendard(size: 22)).foregroundStyle(accent.primary)
             VStack(alignment: .leading, spacing: 0) {
-                Text("HoYoLAB 토큰이 만료된 것 같아요").font(.system(size: 13, weight: .bold))
-                Text("재연동하지 않으면 자동 출석이 안 돼요").font(.system(size: 11)).foregroundStyle(GLGColor.textSecondary)
+                Text("HoYoLAB 토큰이 만료된 것 같아요").font(.pretendard(size: 13, weight: .bold))
+                Text("재연동하지 않으면 자동 출석이 안 돼요").font(.pretendard(size: 11)).foregroundStyle(GLGColor.textSecondary)
             }
             Spacer()
-            Button(action: onReconnect) { Text("재연동").font(.system(size: 13, weight: .bold)).foregroundStyle(.white).padding(.horizontal, 14).padding(.vertical, 9).background(accent.primary, in: RoundedRectangle(cornerRadius: 10)) }.buttonStyle(.plain)
+            Button(action: onReconnect) { Text("재연동").font(.pretendard(size: 13, weight: .bold)).foregroundStyle(.white).padding(.horizontal, 14).padding(.vertical, 9).background(accent.primary, in: RoundedRectangle(cornerRadius: 10)) }.buttonStyle(.plain)
         }
         .padding(.horizontal, 16).padding(.vertical, 12)
         .background(accent.primary.opacity(0.10), in: RoundedRectangle(cornerRadius: 20))
@@ -389,9 +389,9 @@ struct NotificationDetailView: View {
         Group {
             if alerts.isEmpty {
                 VStack(spacing: 8) {
-                    Image(systemName: "bell.slash").font(.system(size: 44)).foregroundStyle(Color(.systemGray3))
-                    Text("새로운 알림이 없어요 🎉").font(.system(size: 14)).foregroundStyle(GLGColor.textSecondary)
-                    Text("예산·픽업 배너·출석 알림이 여기에 모여요").font(.system(size: 12)).foregroundStyle(Color(.systemGray3))
+                    Image(systemName: "bell.slash").font(.pretendard(size: 44)).foregroundStyle(Color(.systemGray3))
+                    Text("새로운 알림이 없어요 🎉").font(.pretendard(size: 14)).foregroundStyle(GLGColor.textSecondary)
+                    Text("예산·픽업 배너·출석 알림이 여기에 모여요").font(.pretendard(size: 12)).foregroundStyle(Color(.systemGray3))
                 }.frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 ScrollView {
@@ -417,13 +417,13 @@ struct NotificationDetailView: View {
         return Button { switch a.kind { case .banner, .attendance: onGameInfo(); default: onBudget() } } label: {
             GLGCard(cornerRadius: 18, padding: 16) {
                 HStack(spacing: 12) {
-                    ZStack { Circle().fill(tint.opacity(0.12)).frame(width: 38, height: 38); Image(systemName: icon).font(.system(size: 18)).foregroundStyle(tint) }
+                    ZStack { Circle().fill(tint.opacity(0.12)).frame(width: 38, height: 38); Image(systemName: icon).font(.pretendard(size: 18)).foregroundStyle(tint) }
                     VStack(alignment: .leading, spacing: 3) {
-                        Text(a.message).font(.system(size: 13, weight: .medium))
-                        Text(hint).font(.system(size: 11, weight: .semibold)).foregroundStyle(accent.primary)
+                        Text(a.message).font(.pretendard(size: 13, weight: .medium))
+                        Text(hint).font(.pretendard(size: 11, weight: .semibold)).foregroundStyle(accent.primary)
                     }
                     Spacer()
-                    Image(systemName: "chevron.right").font(.system(size: 14)).foregroundStyle(Color(.systemGray3))
+                    Image(systemName: "chevron.right").font(.pretendard(size: 14)).foregroundStyle(Color(.systemGray3))
                 }
             }
         }.buttonStyle(.plain)
@@ -440,13 +440,13 @@ struct HomeCardEditSheet: View {
             List {
                 ForEach(Array(list.enumerated()), id: \.offset) { i, c in
                     HStack {
-                        Text(HomeCards.shared.labels[c.id] ?? c.id).font(.system(size: 14, weight: .medium))
+                        Text(HomeCards.shared.labels[c.id] ?? c.id).font(.pretendard(size: 14, weight: .medium))
                         Spacer()
                         Toggle("", isOn: Binding(get: { c.visible }, set: { v in list[i] = HomeCardItem(id: c.id, visible: v) })).labelsHidden().tint(GLGTheme.accent(store.accentIndex).primary)
                     }
                 }
                 .onMove { from, to in list.move(fromOffsets: from, toOffset: to) }
-                Text("프로필·게임 현황 카드는 항상 표시돼요.").font(.system(size: 11)).foregroundStyle(GLGColor.textSecondary)
+                Text("프로필·게임 현황 카드는 항상 표시돼요.").font(.pretendard(size: 11)).foregroundStyle(GLGColor.textSecondary)
             }
             .environment(\.editMode, .constant(.active))
             .navigationTitle("홈 카드 편집").navigationBarTitleDisplayMode(.inline)
