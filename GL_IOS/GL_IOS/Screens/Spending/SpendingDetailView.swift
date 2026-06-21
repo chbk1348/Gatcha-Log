@@ -34,17 +34,17 @@ struct SpendingDetailView: View {
                     VStack(alignment: .leading, spacing: 0) {
                         HStack(spacing: 12) {
                             Circle().fill(Color(argb64: s.gameColor)).frame(width: 44, height: 44)
-                                .overlay(Image(systemName: "yensign").font(.system(size: 18, weight: .bold)).foregroundStyle(.white))
+                                .overlay(Image(systemName: "yensign").font(.pretendard(size: 18, weight: .bold)).foregroundStyle(.white))
                             HStack(spacing: 8) {
-                                Text(s.gameName).font(.system(size: 16, weight: .bold))
+                                Text(s.gameName).font(.pretendard(size: 16, weight: .bold))
                                 if s.isSubscription {
                                     GLGBadge(label: "정기", color: Color(argb64: s.gameColor))
                                 }
                             }
                             Spacer()
                         }
-                        Text(won(s.amount)).font(.system(size: 32, weight: .bold)).padding(.top, 14)
-                        Text(s.dateLabel).font(.system(size: 13)).foregroundStyle(GLGColor.textSecondary).padding(.top, 6)
+                        Text(won(s.amount)).font(.pretendard(size: 32, weight: .bold)).padding(.top, 14)
+                        Text(s.dateLabel).font(.pretendard(size: 13)).foregroundStyle(GLGColor.textSecondary).padding(.top, 6)
                     }
                 }
                 // 상세 정보
@@ -63,7 +63,7 @@ struct SpendingDetailView: View {
                         if !s.tags.isEmpty {
                             Divider()
                             VStack(alignment: .leading, spacing: 8) {
-                                Text("태그").font(.system(size: 13)).foregroundStyle(GLGColor.textSecondary)
+                                Text("태그").font(.pretendard(size: 13)).foregroundStyle(GLGColor.textSecondary)
                                 HStack(spacing: 6) { ForEach(s.tags, id: \.self) { TagChip(tag: $0) } }
                             }
                             .frame(maxWidth: .infinity, alignment: .leading).padding(.vertical, 12)
@@ -91,9 +91,9 @@ struct SpendingDetailView: View {
 
     private func detailRow(_ label: String, _ value: String) -> some View {
         HStack(alignment: .top) {
-            Text(label).font(.system(size: 13)).foregroundStyle(GLGColor.textSecondary).frame(width: 80, alignment: .leading)
+            Text(label).font(.pretendard(size: 13)).foregroundStyle(GLGColor.textSecondary).frame(width: 80, alignment: .leading)
             Spacer(minLength: 12)
-            Text(value).font(.system(size: 14, weight: .medium)).multilineTextAlignment(.trailing)
+            Text(value).font(.pretendard(size: 14, weight: .medium)).multilineTextAlignment(.trailing)
         }
         .padding(.vertical, 12)
     }

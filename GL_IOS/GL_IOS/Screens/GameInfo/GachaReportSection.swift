@@ -16,15 +16,15 @@ struct GachaReportSection: View {
         VStack(alignment: .leading, spacing: 0) {
             HStack {
                 HStack(spacing: 6) {
-                    Text("가챠 효율 리포트").font(.system(size: 16, weight: .bold))
-                    Text("Beta").font(.system(size: 9, weight: .bold)).foregroundStyle(accent.primary)
+                    Text("가챠 효율 리포트").font(.pretendard(size: 16, weight: .bold))
+                    Text("Beta").font(.pretendard(size: 9, weight: .bold)).foregroundStyle(accent.primary)
                         .padding(.horizontal, 6).padding(.vertical, 1)
                         .background(accent.primary.opacity(0.12), in: RoundedRectangle(cornerRadius: 6))
                 }
                 Spacer()
                 if stats != nil {
                     Button { store.clearGachaRecords() } label: {
-                        Text("초기화").font(.system(size: 12, weight: .bold)).foregroundStyle(GLGColor.textSecondary)
+                        Text("초기화").font(.pretendard(size: 12, weight: .bold)).foregroundStyle(GLGColor.textSecondary)
                     }.buttonStyle(.plain)
                 }
             }
@@ -46,10 +46,10 @@ struct GachaReportSection: View {
     private var emptyState: some View {
         VStack(spacing: 0) {
             ZStack { Circle().fill(accent.primary.opacity(0.12)).frame(width: 52, height: 52)
-                Image(systemName: "square.and.arrow.up").font(.system(size: 24)).foregroundStyle(accent.primary) }
-            Text("아직 가챠 기록이 없어요").font(.system(size: 14, weight: .bold)).padding(.top, 12)
+                Image(systemName: "square.and.arrow.up").font(.pretendard(size: 24)).foregroundStyle(accent.primary) }
+            Text("아직 가챠 기록이 없어요").font(.pretendard(size: 14, weight: .bold)).padding(.top, 12)
             Text("UIGF(원신·젠레스) / SRGF·UIGF(스타레일) 표준 JSON을 가져오면\n5성 단가 · 평균 천장 · 획득 히스토리를 분석해 드려요.")
-                .font(.system(size: 12)).foregroundStyle(GLGColor.textSecondary).multilineTextAlignment(.center).padding(.top, 6)
+                .font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary).multilineTextAlignment(.center).padding(.top, 6)
             GLGButton(title: "가챠 기록 JSON 가져오기") { importing = true }.padding(.top, 16)
         }
         .frame(maxWidth: .infinity)
@@ -84,10 +84,10 @@ struct GachaReportSection: View {
             VStack(alignment: .leading, spacing: 0) {
                 // 헤더 — 배지 + 게임명
                 HStack(spacing: 10) {
-                    Text(reportAbbr(gk)).font(.system(size: 11, weight: .heavy)).foregroundStyle(.white)
+                    Text(reportAbbr(gk)).font(.pretendard(size: 11, weight: .heavy)).foregroundStyle(.white)
                         .padding(.horizontal, 7).padding(.vertical, 4)
                         .background(info.color, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
-                    Text(info.short).font(.system(size: 15, weight: .bold))
+                    Text(info.short).font(.pretendard(size: 15, weight: .bold))
                     Spacer()
                 }
                 .padding(.bottom, 10)
@@ -102,9 +102,9 @@ struct GachaReportSection: View {
                 // 운 분포 바
                 if Int(g.five) > 0 {
                     HStack {
-                        Text("운 분포 (천장 구간)").font(.system(size: 11)).foregroundStyle(GLGColor.textSecondary)
+                        Text("운 분포 (천장 구간)").font(.pretendard(size: 11)).foregroundStyle(GLGColor.textSecondary)
                         Spacer()
-                        Text("5성 \(num(Int(g.five)))개").font(.system(size: 11)).foregroundStyle(GLGColor.textSecondary)
+                        Text("5성 \(num(Int(g.five)))개").font(.pretendard(size: 11)).foregroundStyle(GLGColor.textSecondary)
                     }
                     .padding(.bottom, 6)
                     GeometryReader { geo in
@@ -122,12 +122,12 @@ struct GachaReportSection: View {
                 }
                 // 최근 5성
                 if !g.recentFive.isEmpty {
-                    Text("최근 5성").font(.system(size: 13, weight: .bold)).foregroundStyle(GLGColor.textSecondary).padding(.top, 14).padding(.bottom, 8)
+                    Text("최근 5성").font(.pretendard(size: 13, weight: .bold)).foregroundStyle(GLGColor.textSecondary).padding(.top, 14).padding(.bottom, 8)
                     FlexibleRow(Array(g.recentFive.enumerated().map { IdxFive(i: $0.offset, name: $0.element.name, pity: Int($0.element.pity)) })) { item in
                         let c: Color = item.pity <= 40 ? lucky : (item.pity >= 75 ? unluckyC : GLGColor.textPrimary)
                         HStack(spacing: 5) {
-                            Text(item.name).font(.system(size: 11, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
-                            Text("\(item.pity)").font(.system(size: 10, weight: .heavy)).foregroundStyle(c)
+                            Text(item.name).font(.pretendard(size: 11, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
+                            Text("\(item.pity)").font(.pretendard(size: 10, weight: .heavy)).foregroundStyle(c)
                         }
                         .padding(.horizontal, 9).padding(.vertical, 5)
                         .background(Color(hex: 0xFFF3F4F8), in: Capsule())
@@ -138,9 +138,9 @@ struct GachaReportSection: View {
                     Divider().padding(.top, 13)
                     Button { onOpenDashboard() } label: {
                         HStack {
-                            Text("상세 대시보드 (월별·풀별 추이)").font(.system(size: 13, weight: .bold)).foregroundStyle(accent.primary)
+                            Text("상세 대시보드 (월별·풀별 추이)").font(.pretendard(size: 13, weight: .bold)).foregroundStyle(accent.primary)
                             Spacer()
-                            Image(systemName: "chevron.right").font(.system(size: 12, weight: .semibold)).foregroundStyle(accent.primary)
+                            Image(systemName: "chevron.right").font(.pretendard(size: 12, weight: .semibold)).foregroundStyle(accent.primary)
                         }
                         .padding(.vertical, 12)
                     }.buttonStyle(.plain)
@@ -151,15 +151,15 @@ struct GachaReportSection: View {
 
     private func statCol(_ value: String, _ label: String, _ color: Color = GLGColor.textPrimary) -> some View {
         VStack(spacing: 2) {
-            Text(value).font(.system(size: 20, weight: .bold)).foregroundStyle(color).lineLimit(1).minimumScaleFactor(0.6)
-            Text(label).font(.system(size: 10)).foregroundStyle(GLGColor.textSecondary).lineLimit(1)
+            Text(value).font(.pretendard(size: 20, weight: .bold)).foregroundStyle(color).lineLimit(1).minimumScaleFactor(0.6)
+            Text(label).font(.pretendard(size: 10)).foregroundStyle(GLGColor.textSecondary).lineLimit(1)
         }
         .frame(maxWidth: .infinity)
     }
     private func legendItem(_ c: Color, _ text: String) -> some View {
         HStack(spacing: 4) {
             RoundedRectangle(cornerRadius: 2).fill(c).frame(width: 8, height: 8)
-            Text(text).font(.system(size: 10)).foregroundStyle(GLGColor.textSecondary)
+            Text(text).font(.pretendard(size: 10)).foregroundStyle(GLGColor.textSecondary)
         }
     }
     private func reportAbbr(_ gk: String) -> String {
@@ -228,7 +228,7 @@ struct ProfileShowcaseSection: View {
     var body: some View {
         let hasUid = !defaultUid(game).isEmpty || !uid.isEmpty
         return VStack(alignment: .leading, spacing: 0) {
-            Text("프로필 쇼케이스").font(.system(size: 16, weight: .bold)).padding(.bottom, 12)
+            Text("프로필 쇼케이스").font(.pretendard(size: 16, weight: .bold)).padding(.bottom, 12)
             GLGCard(cornerRadius: 24, padding: 16) {
                 VStack(alignment: .leading, spacing: 0) {
                     HStack(spacing: 8) {
@@ -250,7 +250,7 @@ struct ProfileShowcaseSection: View {
                     }
                     .padding(.top, 12)
                     Text("게임 내 '프로필 표시(쇼케이스)'에 올린 캐릭터만 조회돼요. 조회한 UID는 이 기기에 저장돼 다음엔 자동으로 불러와요.")
-                        .font(.system(size: 11)).foregroundStyle(Color(.systemGray3)).padding(.top, 8)
+                        .font(.pretendard(size: 11)).foregroundStyle(Color(.systemGray3)).padding(.top, 8)
                     resultView
                 }
             }
@@ -273,14 +273,14 @@ struct ProfileShowcaseSection: View {
             HStack(spacing: 10) {
                 ZStack {
                     RoundedRectangle(cornerRadius: 10, style: .continuous).fill(accent.primary.opacity(0.12)).frame(width: 38, height: 38)
-                    Image(systemName: "link").font(.system(size: 16, weight: .semibold)).foregroundStyle(accent.primary)
+                    Image(systemName: "link").font(.pretendard(size: 16, weight: .semibold)).foregroundStyle(accent.primary)
                 }
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("HoYoLAB 연동하고 UID 자동 가져오기").font(.system(size: 13, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
-                    Text("연동하면 UID 입력 없이 바로 조회돼요").font(.system(size: 11)).foregroundStyle(GLGColor.textSecondary)
+                    Text("HoYoLAB 연동하고 UID 자동 가져오기").font(.pretendard(size: 13, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
+                    Text("연동하면 UID 입력 없이 바로 조회돼요").font(.pretendard(size: 11)).foregroundStyle(GLGColor.textSecondary)
                 }
                 Spacer(minLength: 6)
-                Image(systemName: "chevron.right").font(.system(size: 13, weight: .semibold)).foregroundStyle(GLGColor.textSecondary)
+                Image(systemName: "chevron.right").font(.pretendard(size: 13, weight: .semibold)).foregroundStyle(GLGColor.textSecondary)
             }
             .padding(12)
             .background(accent.primary.opacity(0.06), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
@@ -292,15 +292,15 @@ struct ProfileShowcaseSection: View {
         if store.enkaLoading {
             ProgressView().tint(accent.primary).frame(maxWidth: .infinity).padding(.vertical, 16)
         } else if let err = store.enkaResult?.error {
-            Text(err).font(.system(size: 13)).foregroundStyle(Color(hex: 0xFFDC2626)).padding(.top, 14)
+            Text(err).font(.pretendard(size: 13)).foregroundStyle(Color(hex: 0xFFDC2626)).padding(.top, 14)
         } else if let p = store.enkaResult?.profile {
             VStack(alignment: .leading, spacing: 0) {
                 Divider().padding(.vertical, 14)
-                Text(p.nickname.isEmpty ? "이름 없음" : p.nickname).font(.system(size: 17, weight: .bold))
-                Text("Lv.\(p.level) · 월드 레벨 \(p.worldLevel)").font(.system(size: 12)).foregroundStyle(GLGColor.textSecondary).padding(.top, 2)
-                if !p.signature.isEmpty { Text(p.signature).font(.system(size: 12)).foregroundStyle(GLGColor.textSecondary).padding(.top, 4) }
+                Text(p.nickname.isEmpty ? "이름 없음" : p.nickname).font(.pretendard(size: 17, weight: .bold))
+                Text("Lv.\(p.level) · 월드 레벨 \(p.worldLevel)").font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary).padding(.top, 2)
+                if !p.signature.isEmpty { Text(p.signature).font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary).padding(.top, 4) }
                 if p.chars.isEmpty {
-                    Text("쇼케이스에 등록된 캐릭터가 없어요").font(.system(size: 12)).foregroundStyle(GLGColor.textSecondary).padding(.top, 14)
+                    Text("쇼케이스에 등록된 캐릭터가 없어요").font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary).padding(.top, 14)
                 } else {
                     let cols = [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())]
                     LazyVGrid(columns: cols, spacing: 8) {
@@ -324,30 +324,30 @@ struct ProfileShowcaseSection: View {
                     AsyncImage(url: u) { $0.resizable().scaledToFill() } placeholder: { Color.clear }
                         .clipShape(RoundedRectangle(cornerRadius: 12))
                 } else {
-                    Text(String(c.name.prefix(1))).font(.system(size: 22, weight: .bold)).foregroundStyle(color)
+                    Text(String(c.name.prefix(1))).font(.pretendard(size: 22, weight: .bold)).foregroundStyle(color)
                 }
                 VStack {
                     HStack {
                         Spacer()
                         if let r = rankLabel {
-                            Text(r).font(.system(size: 9, weight: .bold)).foregroundStyle(.white)
+                            Text(r).font(.pretendard(size: 9, weight: .bold)).foregroundStyle(.white)
                                 .padding(.horizontal, 5).padding(.vertical, 1).background(color)
                                 .clipShape(RoundedCorner(radius: 8, corners: [.bottomLeft]))
                         }
                     }
                     Spacer()
                     HStack {
-                        Text("Lv.\(c.level)").font(.system(size: 9, weight: .bold)).foregroundStyle(.white)
+                        Text("Lv.\(c.level)").font(.pretendard(size: 9, weight: .bold)).foregroundStyle(.white)
                             .padding(.horizontal, 5).padding(.vertical, 1).background(Color.black.opacity(0.8))
                             .clipShape(RoundedCorner(radius: 8, corners: [.topRight]))
                         Spacer()
                     }
                 }
             }
-            Text(c.name).font(.system(size: 12, weight: .bold)).lineLimit(1)
+            Text(c.name).font(.pretendard(size: 12, weight: .bold)).lineLimit(1)
             HStack(spacing: 0) {
-                Text(String(repeating: "★", count: min(max(Int(c.rarity), 1), 5))).font(.system(size: 9)).foregroundStyle(color)
-                if !c.element.isEmpty { Text(" · \(c.element)").font(.system(size: 10)).foregroundStyle(GLGColor.textSecondary).lineLimit(1) }
+                Text(String(repeating: "★", count: min(max(Int(c.rarity), 1), 5))).font(.pretendard(size: 9)).foregroundStyle(color)
+                if !c.element.isEmpty { Text(" · \(c.element)").font(.pretendard(size: 10)).foregroundStyle(GLGColor.textSecondary).lineLimit(1) }
             }
         }
         .padding(8)
@@ -356,7 +356,7 @@ struct ProfileShowcaseSection: View {
 
     private func gameTab(_ label: String, _ selected: Bool, _ color: Color, _ action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            Text(label).font(.system(size: 12, weight: .bold)).foregroundStyle(selected ? .white : GLGColor.textSecondary)
+            Text(label).font(.pretendard(size: 12, weight: .bold)).foregroundStyle(selected ? .white : GLGColor.textSecondary)
                 .padding(.horizontal, 14).padding(.vertical, 6)
                 .background(selected ? color : Color(hex: 0xFFF2F2F6), in: Capsule())
         }.buttonStyle(.plain)

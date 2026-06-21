@@ -83,7 +83,7 @@ struct AddSpendingView: View {
     private var packageCard: some View {
         sectionCard {
             label("빠른 상품 선택")
-            Text("선택하면 금액·재화명이 자동 입력돼요").font(.system(size: 12)).foregroundStyle(GLGColor.textSecondary).padding(.top, 2)
+            Text("선택하면 금액·재화명이 자동 입력돼요").font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary).padding(.top, 2)
             let packages = GameData.shared.packagesFor(game: game)
             let cols = [GridItem(.flexible(), spacing: 8), GridItem(.flexible(), spacing: 8)]
             LazyVGrid(columns: cols, spacing: 8) {
@@ -93,10 +93,10 @@ struct AddSpendingView: View {
                         selectedPkg = pkg.name; amount = "\(pkg.price)"; itemName = pkg.name; isSubscription = (pkg.bonus == "월정액")
                     } label: {
                         VStack(spacing: 3) {
-                            Text(pkg.name).font(.system(size: 13, weight: .bold)).foregroundStyle(GLGColor.textPrimary).lineLimit(1)
+                            Text(pkg.name).font(.pretendard(size: 13, weight: .bold)).foregroundStyle(GLGColor.textPrimary).lineLimit(1)
                             HStack(spacing: 5) {
-                                if let b = pkg.bonus { Text(b).font(.system(size: 10, weight: .bold)).foregroundStyle(accent.primary) }
-                                Text(won(pkg.price)).font(.system(size: 11, weight: .medium)).foregroundStyle(GLGColor.textSecondary)
+                                if let b = pkg.bonus { Text(b).font(.pretendard(size: 10, weight: .bold)).foregroundStyle(accent.primary) }
+                                Text(won(pkg.price)).font(.pretendard(size: 11, weight: .medium)).foregroundStyle(GLGColor.textSecondary)
                             }
                         }
                         .frame(maxWidth: .infinity).padding(.horizontal, 12).padding(.vertical, 9)
@@ -115,12 +115,12 @@ struct AddSpendingView: View {
         sectionCard {
             Button { showDate = true } label: {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("날짜").font(.system(size: 11, weight: .semibold)).foregroundStyle(GLGColor.textSecondary)
+                    Text("날짜").font(.pretendard(size: 11, weight: .semibold)).foregroundStyle(GLGColor.textSecondary)
                     HStack {
                         Text(DateUtil.shared.labelWithWeekday(millis: dateMillis)).foregroundStyle(GLGColor.textPrimary)
                         Spacer(); Image(systemName: "calendar").foregroundStyle(accent.primary)
                     }
-                    .font(.system(size: 15)).glgPillField()
+                    .font(.pretendard(size: 15)).glgPillField()
                 }
             }.buttonStyle(.plain)
             label("결제 수단").padding(.top, 14)
@@ -153,8 +153,8 @@ struct AddSpendingView: View {
             field("메모", "이벤트 구입", $memo).padding(.top, 14)
             HStack {
                 VStack(alignment: .leading, spacing: 0) {
-                    Text("구독(월정액·패스)으로 기록").font(.system(size: 15, weight: .medium))
-                    Text("정기 결제 항목으로 분류됩니다").font(.system(size: 12)).foregroundStyle(GLGColor.textSecondary)
+                    Text("구독(월정액·패스)으로 기록").font(.pretendard(size: 15, weight: .medium))
+                    Text("정기 결제 항목으로 분류됩니다").font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary)
                 }
                 Spacer()
                 Toggle("", isOn: $isSubscription).labelsHidden().tint(accent.primary)
@@ -209,13 +209,13 @@ struct AddSpendingView: View {
             .padding(16).frame(maxWidth: .infinity, alignment: .leading)
             .glgGlass(in: RoundedRectangle(cornerRadius: 22, style: .continuous))
     }
-    private func label(_ t: String) -> some View { Text(t).font(.system(size: 14, weight: .bold)).foregroundStyle(GLGColor.textSecondary) }
+    private func label(_ t: String) -> some View { Text(t).font(.pretendard(size: 14, weight: .bold)).foregroundStyle(GLGColor.textSecondary) }
     private func field(_ label: String, _ ph: String, _ text: Binding<String>, number: Bool = false) -> some View {
         VStack(alignment: .leading, spacing: 5) {
-            if !label.isEmpty { Text(label).font(.system(size: 11, weight: .semibold)).foregroundStyle(GLGColor.textSecondary) }
+            if !label.isEmpty { Text(label).font(.pretendard(size: 11, weight: .semibold)).foregroundStyle(GLGColor.textSecondary) }
             TextField(ph, text: text)
                 .textFieldStyle(.plain)
-                .font(.system(size: 15))
+                .font(.pretendard(size: 15))
                 .keyboardType(number ? .numberPad : .default)
                 .glgPillField()
                 .onChange(of: text.wrappedValue) { _, newValue in if number { text.wrappedValue = newValue.filter(\.isNumber) } }

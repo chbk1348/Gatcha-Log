@@ -8,6 +8,7 @@ import androidx.compose.foundation.interaction.InteractionSource
 import androidx.compose.foundation.interaction.PressInteraction
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.LocalRippleConfiguration
+import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
@@ -21,8 +22,21 @@ import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.node.DelegatableNode
 import androidx.compose.ui.node.DrawModifierNode
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.Font
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Density
+import com.gatcha.log.R
 import kotlinx.coroutines.launch
+
+/** 전역 글꼴 — Pretendard. 모든 Text 가 LocalTextStyle 로 상속(개별 fontFamily 미지정). */
+val Pretendard = FontFamily(
+    Font(R.font.pretendard_regular, FontWeight.Normal),
+    Font(R.font.pretendard_medium, FontWeight.Medium),
+    Font(R.font.pretendard_semibold, FontWeight.SemiBold),
+    Font(R.font.pretendard_bold, FontWeight.Bold),
+)
 
 /**
  * 앱 전체 강조색. MyPage 테마 선택에 따라 바뀌며, 화면들은 [LocalAccent] 를 통해 읽는다.
@@ -107,6 +121,8 @@ fun GatchaLogTheme(
         LocalRippleConfiguration provides null,
         // 기기 폰트 크기 영향 제거(고정 1.0)
         LocalDensity provides fixedDensity,
+        // 전역 글꼴 Pretendard — 개별 fontFamily 미지정 Text 전부 상속
+        LocalTextStyle provides LocalTextStyle.current.copy(fontFamily = Pretendard),
     ) {
         MaterialTheme(
             colorScheme = colorScheme,

@@ -14,7 +14,7 @@ struct GachaRatePage: View {
             VStack(alignment: .leading, spacing: 16) {
                 bannerTabs
                 ForEach(GachaRateData.shared.games, id: \.key) { g in gameCard(g) }
-                Text("빠른 비교").font(.system(size: 16, weight: .bold)).padding(.top, 4).padding(.leading, 2)
+                Text("빠른 비교").font(.pretendard(size: 16, weight: .bold)).padding(.top, 4).padding(.leading, 2)
                 compareCard
                 Color.clear.frame(height: 12)
             }
@@ -33,7 +33,7 @@ struct GachaRatePage: View {
                 let label = (pair.second as? String) ?? ""
                 let sel = key == bannerType
                 Button { withAnimation(.snappy(duration: 0.2)) { bannerType = key } } label: {
-                    Text(label).font(.system(size: 13, weight: .bold))
+                    Text(label).font(.pretendard(size: 13, weight: .bold))
                         .foregroundStyle(sel ? .white : GLGColor.textSecondary)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 9)
@@ -52,8 +52,8 @@ struct GachaRatePage: View {
             VStack(alignment: .leading, spacing: 0) {
                 HStack(spacing: 8) {
                     Circle().fill(Color(argb64: game.color)).frame(width: 10, height: 10)
-                    Text(game.name).font(.system(size: 15, weight: .bold))
-                    Text(game.grade).font(.system(size: 10, weight: .bold)).foregroundStyle(.white)
+                    Text(game.name).font(.pretendard(size: 15, weight: .bold))
+                    Text(game.grade).font(.pretendard(size: 10, weight: .bold)).foregroundStyle(.white)
                         .padding(.horizontal, 8).padding(.vertical, 2).background(Color(argb64: game.color), in: Capsule())
                     Spacer()
                     if let b = banner { carryoverBadge(b) }
@@ -72,17 +72,17 @@ struct GachaRatePage: View {
                     .padding(.top, 12)
                     let g = GachaRateData.shared.guaranteeInfo(grade: game.grade, banner: b)
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(g.title).font(.system(size: 12, weight: .bold)).foregroundStyle(accent.primary)
-                        if !g.detail.isEmpty { Text(g.detail).font(.system(size: 11)).foregroundStyle(GLGColor.textSecondary) }
+                        Text(g.title).font(.pretendard(size: 12, weight: .bold)).foregroundStyle(accent.primary)
+                        if !g.detail.isEmpty { Text(g.detail).font(.pretendard(size: 11)).foregroundStyle(GLGColor.textSecondary) }
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.horizontal, 11).padding(.vertical, 9)
                     .background(accent.primary.opacity(0.06), in: RoundedRectangle(cornerRadius: 12))
                     .padding(.top, 10)
                 } else {
-                    Text("이 배너 타입이 없습니다.").font(.system(size: 12)).foregroundStyle(GLGColor.textSecondary).padding(.top, 10)
+                    Text("이 배너 타입이 없습니다.").font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary).padding(.top, 10)
                 }
-                Text("기준: 버전 \(game.version)").font(.system(size: 10)).foregroundStyle(GLGColor.textSecondary.opacity(0.7))
+                Text("기준: 버전 \(game.version)").font(.pretendard(size: 10)).foregroundStyle(GLGColor.textSecondary.opacity(0.7))
                     .frame(maxWidth: .infinity, alignment: .trailing).padding(.top, 10)
             }
         }
@@ -92,7 +92,7 @@ struct GachaRatePage: View {
         if let badge = GachaRateData.shared.carryoverBadge(banner: banner),
            let label = badge.first as? String, let kind = badge.second as? CarryoverKind {
             let (bg, fg) = carryoverColors(kind.name)
-            Text(label).font(.system(size: 10, weight: .bold)).foregroundStyle(fg)
+            Text(label).font(.pretendard(size: 10, weight: .bold)).foregroundStyle(fg)
                 .padding(.horizontal, 8).padding(.vertical, 3).background(bg, in: Capsule())
         }
     }
@@ -107,9 +107,9 @@ struct GachaRatePage: View {
 
     private func statBox(_ label: String, _ value: String, _ sub: String, _ game: GachaGameRate) -> some View {
         VStack(alignment: .leading, spacing: 3) {
-            Text(label).font(.system(size: 10, weight: .semibold)).foregroundStyle(GLGColor.textSecondary)
-            Text(value).font(.system(size: 15, weight: .bold)).lineLimit(1)
-            Text(sub).font(.system(size: 10)).foregroundStyle(GLGColor.textSecondary.opacity(0.8))
+            Text(label).font(.pretendard(size: 10, weight: .semibold)).foregroundStyle(GLGColor.textSecondary)
+            Text(value).font(.pretendard(size: 15, weight: .bold)).lineLimit(1)
+            Text(sub).font(.pretendard(size: 10)).foregroundStyle(GLGColor.textSecondary.opacity(0.8))
         }
         .frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 11).padding(.vertical, 10)
         .background(Color(argb64: game.color).opacity(0.06), in: RoundedRectangle(cornerRadius: 12))
@@ -157,7 +157,7 @@ struct GachaRatePage: View {
                     HStack(spacing: 0) {
                         HStack(spacing: 5) {
                             Circle().fill(r.color).frame(width: 7, height: 7)
-                            Text(r.short).font(.system(size: 11, weight: .medium)).lineLimit(1)
+                            Text(r.short).font(.pretendard(size: 11, weight: .medium)).lineLimit(1)
                         }.frame(maxWidth: .infinity, alignment: .leading)
                         dataCell(r.grade)
                         dataCell(r.base.map { pctStr($0, 3) } ?? "—")
@@ -177,13 +177,13 @@ struct GachaRatePage: View {
         return Button {
             if sortCol == col { sortAsc.toggle() } else { sortCol = col; sortAsc = true }
         } label: {
-            Text(label + arrow).font(.system(size: 10, weight: .bold)).foregroundStyle(active ? accent.primary : GLGColor.textSecondary)
+            Text(label + arrow).font(.pretendard(size: 10, weight: .bold)).foregroundStyle(active ? accent.primary : GLGColor.textSecondary)
                 .lineLimit(1).frame(maxWidth: .infinity, alignment: .leading)
         }
         .buttonStyle(.plain)
     }
     private func dataCell(_ text: String) -> some View {
-        Text(text).font(.system(size: 11)).foregroundStyle(GLGColor.textSecondary).lineLimit(1)
+        Text(text).font(.pretendard(size: 11)).foregroundStyle(GLGColor.textSecondary).lineLimit(1)
             .frame(maxWidth: .infinity, alignment: .leading)
     }
 }

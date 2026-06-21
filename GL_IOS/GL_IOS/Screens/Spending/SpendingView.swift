@@ -79,13 +79,13 @@ struct SpendingView: View {
         let total = store.monthlyTotal()
         let diff = total - store.prevMonthTotal()
         return HStack(spacing: 5) {
-            Image(systemName: "chart.pie.fill").font(.system(size: 12)).foregroundStyle(accent.primary)
-            Text("\(store.displayMonth)월").font(.system(size: 11, weight: .semibold)).foregroundStyle(GLGColor.textSecondary)
-            Text(won(total)).font(.system(size: 15, weight: .bold))
+            Image(systemName: "chart.pie.fill").font(.pretendard(size: 12)).foregroundStyle(accent.primary)
+            Text("\(store.displayMonth)월").font(.pretendard(size: 11, weight: .semibold)).foregroundStyle(GLGColor.textSecondary)
+            Text(won(total)).font(.pretendard(size: 15, weight: .bold))
             Spacer(minLength: 10)
             if total > 0 || store.prevMonthTotal() > 0 {
                 Text("지난달 " + (diff == 0 ? "동일" : (diff > 0 ? "+" : "-") + won(abs(diff))))
-                    .font(.system(size: 11, weight: .semibold))
+                    .font(.pretendard(size: 11, weight: .semibold))
                     .foregroundStyle(diff > 0 ? GLGColor.dangerText : (diff < 0 ? accent.primary : GLGColor.textSecondary))
             }
         }
@@ -109,8 +109,8 @@ struct SpendingView: View {
         let active = activeFilterCount > 0
         return Button { showFilter = true } label: {
             HStack(spacing: 4) {
-                Image(systemName: "slider.horizontal.3").font(.system(size: 11, weight: .semibold))
-                Text(active ? "필터 \(activeFilterCount)" : "필터").font(.system(size: 12, weight: .medium))
+                Image(systemName: "slider.horizontal.3").font(.pretendard(size: 11, weight: .semibold))
+                Text(active ? "필터 \(activeFilterCount)" : "필터").font(.pretendard(size: 12, weight: .medium))
             }
             .foregroundStyle(active ? .white : Color(.darkGray))
             .padding(.horizontal, 14).padding(.vertical, 8)
@@ -144,9 +144,9 @@ struct SpendingView: View {
 
     private var emptyState: some View {
         VStack(spacing: 6) {
-            Image(systemName: "doc.text").font(.system(size: 44)).foregroundStyle(Color(.systemGray3))
-            Text("아직 기록된 지출이 없어요").font(.system(size: 14)).foregroundStyle(GLGColor.textSecondary)
-            Text("+ 버튼으로 첫 지출을 기록해보세요").font(.system(size: 12)).foregroundStyle(Color(.systemGray3))
+            Image(systemName: "doc.text").font(.pretendard(size: 44)).foregroundStyle(Color(.systemGray3))
+            Text("아직 기록된 지출이 없어요").font(.pretendard(size: 14)).foregroundStyle(GLGColor.textSecondary)
+            Text("+ 버튼으로 첫 지출을 기록해보세요").font(.pretendard(size: 12)).foregroundStyle(Color(.systemGray3))
         }
         .frame(maxWidth: .infinity).padding(.vertical, 48)
     }
@@ -240,9 +240,9 @@ struct DateHeader: View {
     @Environment(\.glgAccent) private var accent
     var body: some View {
         HStack {
-            Text(date).font(.system(size: 12, weight: .bold)).foregroundStyle(GLGColor.textSecondary)
+            Text(date).font(.pretendard(size: 12, weight: .bold)).foregroundStyle(GLGColor.textSecondary)
             Spacer()
-            Text(won(total)).font(.system(size: 12, weight: .bold)).foregroundStyle(accent.primary)
+            Text(won(total)).font(.pretendard(size: 12, weight: .bold)).foregroundStyle(accent.primary)
         }
         .padding(.vertical, 8)
     }
@@ -266,19 +266,19 @@ struct HistoryItem: View {
             HStack(spacing: 13) {
                 // 게임 색 배지 (약칭)
                 Text(abbr)
-                    .font(.system(size: 13, weight: .heavy)).foregroundStyle(gameColor)
+                    .font(.pretendard(size: 13, weight: .heavy)).foregroundStyle(gameColor)
                     .frame(width: 44, height: 44)
                     .background(gameColor.opacity(0.14), in: RoundedRectangle(cornerRadius: 13, style: .continuous))
 
                 VStack(alignment: .leading, spacing: 4) {
                     HStack(spacing: 6) {
-                        Text(spending.gameName).font(.system(size: 15, weight: .bold)).lineLimit(1)
+                        Text(spending.gameName).font(.pretendard(size: 15, weight: .bold)).lineLimit(1)
                         if spending.isSubscription {
                             GLGBadge(label: "정기", color: gameColor)
                         }
                     }
                     if !subtitle.isEmpty {
-                        Text(subtitle).font(.system(size: 12)).foregroundStyle(GLGColor.textSecondary).lineLimit(1)
+                        Text(subtitle).font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary).lineLimit(1)
                     }
                     if !spending.tags.isEmpty {
                         HStack(spacing: 5) {
@@ -291,8 +291,8 @@ struct HistoryItem: View {
                 Spacer(minLength: 8)
 
                 HStack(spacing: 4) {
-                    Text(won(spending.amount)).font(.system(size: 16, weight: .bold)).lineLimit(1)
-                    Image(systemName: "chevron.right").font(.system(size: 12, weight: .semibold))
+                    Text(won(spending.amount)).font(.pretendard(size: 16, weight: .bold)).lineLimit(1)
+                    Image(systemName: "chevron.right").font(.pretendard(size: 12, weight: .semibold))
                         .foregroundStyle(Color(.tertiaryLabel))
                 }
             }

@@ -27,7 +27,7 @@ struct GiftCodePage: View {
             VStack(alignment: .leading, spacing: 16) {
                 if games.isEmpty {
                     GLGCard(cornerRadius: 20, padding: 16) {
-                        Text("HoYoLAB 연동 후 UID가 있어야 코드를 교환할 수 있어요").font(.system(size: 13)).foregroundStyle(GLGColor.textSecondary)
+                        Text("HoYoLAB 연동 후 UID가 있어야 코드를 교환할 수 있어요").font(.pretendard(size: 13)).foregroundStyle(GLGColor.textSecondary)
                     }
                 } else {
                     gameTabs
@@ -72,34 +72,34 @@ struct GiftCodePage: View {
 
     private var activeHeader: some View {
         HStack {
-            Text("활성 코드 (자동 수집)").font(.system(size: 13, weight: .bold)).foregroundStyle(GLGColor.textSecondary)
+            Text("활성 코드 (자동 수집)").font(.pretendard(size: 13, weight: .bold)).foregroundStyle(GLGColor.textSecondary)
             Spacer()
             Button { store.loadActiveCodes(selected) } label: {
                 if store.codesLoading { ProgressView().controlSize(.mini).tint(accent.primary) }
-                else { Image(systemName: "arrow.clockwise").font(.system(size: 14)).foregroundStyle(accent.primary) }
+                else { Image(systemName: "arrow.clockwise").font(.pretendard(size: 14)).foregroundStyle(accent.primary) }
             }.buttonStyle(.plain).disabled(store.codesLoading)
         }
     }
 
     @ViewBuilder private var codeList: some View {
         if store.codesLoading && store.activeCodes.isEmpty {
-            Text("코드 불러오는 중…").font(.system(size: 12)).foregroundStyle(GLGColor.textSecondary).padding(.vertical, 6)
+            Text("코드 불러오는 중…").font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary).padding(.vertical, 6)
         } else if store.activeCodes.isEmpty {
-            Text("지금은 활성 코드가 없어요").font(.system(size: 12)).foregroundStyle(GLGColor.textSecondary).padding(.vertical, 6)
+            Text("지금은 활성 코드가 없어요").font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary).padding(.vertical, 6)
         } else {
             let unredeemed = store.activeCodes.filter { !store.redeemedCodes.contains($0.code) }.sorted { $0.highlight && !$1.highlight }
             let redeemed = store.activeCodes.filter { store.redeemedCodes.contains($0.code) }
             VStack(spacing: 0) {
                 if unredeemed.isEmpty {
-                    Text("받을 수 있는 새 코드가 없어요").font(.system(size: 12)).foregroundStyle(GLGColor.textSecondary).padding(.vertical, 6)
+                    Text("받을 수 있는 새 코드가 없어요").font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary).padding(.vertical, 6)
                 } else {
                     ForEach(Array(unredeemed.enumerated()), id: \.offset) { _, c in codeRow(c, redeemed: false) }
                 }
                 if !redeemed.isEmpty {
                     Button { showRedeemed.toggle() } label: {
                         HStack(spacing: 4) {
-                            Image(systemName: showRedeemed ? "chevron.up" : "chevron.down").font(.system(size: 14)).foregroundStyle(GLGColor.textSecondary)
-                            Text("이미 받은 코드 \(redeemed.count)개").font(.system(size: 12, weight: .medium)).foregroundStyle(GLGColor.textSecondary)
+                            Image(systemName: showRedeemed ? "chevron.up" : "chevron.down").font(.pretendard(size: 14)).foregroundStyle(GLGColor.textSecondary)
+                            Text("이미 받은 코드 \(redeemed.count)개").font(.pretendard(size: 12, weight: .medium)).foregroundStyle(GLGColor.textSecondary)
                         }
                         .frame(maxWidth: .infinity, alignment: .leading).padding(.vertical, 8)
                     }.buttonStyle(.plain)
@@ -115,20 +115,20 @@ struct GiftCodePage: View {
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 6) {
                     if highlight {
-                        HStack(spacing: 3) { Image(systemName: "megaphone.fill").font(.system(size: 9)); Text("공방").font(.system(size: 9, weight: .bold)) }
+                        HStack(spacing: 3) { Image(systemName: "megaphone.fill").font(.pretendard(size: 9)); Text("공방").font(.pretendard(size: 9, weight: .bold)) }
                             .foregroundStyle(.white).padding(.horizontal, 6).padding(.vertical, 2).background(accent.primary, in: RoundedRectangle(cornerRadius: 6))
                     }
-                    Text(c.code).font(.system(size: 14, weight: .bold)).foregroundStyle(redeemed ? GLGColor.textSecondary : GLGColor.textPrimary)
+                    Text(c.code).font(.pretendard(size: 14, weight: .bold)).foregroundStyle(redeemed ? GLGColor.textSecondary : GLGColor.textPrimary)
                         .strikethrough(redeemed).lineLimit(1)
                 }
-                if !c.rewards.isEmpty { Text(c.rewards).font(.system(size: 11)).foregroundStyle(GLGColor.textSecondary).lineLimit(2) }
+                if !c.rewards.isEmpty { Text(c.rewards).font(.pretendard(size: 11)).foregroundStyle(GLGColor.textSecondary).lineLimit(2) }
             }
             Spacer(minLength: 8)
             if redeemed {
-                HStack(spacing: 3) { Image(systemName: "checkmark").font(.system(size: 13)).foregroundStyle(accent.primary); Text("받음").font(.system(size: 11, weight: .bold)).foregroundStyle(accent.primary) }
+                HStack(spacing: 3) { Image(systemName: "checkmark").font(.pretendard(size: 13)).foregroundStyle(accent.primary); Text("받음").font(.pretendard(size: 11, weight: .bold)).foregroundStyle(accent.primary) }
             } else {
                 Button { store.redeemGiftCode(gameKey: selected, code: c.code) } label: {
-                    Text("교환").font(.system(size: 12, weight: .bold)).foregroundStyle(highlight ? .white : accent.primary)
+                    Text("교환").font(.pretendard(size: 12, weight: .bold)).foregroundStyle(highlight ? .white : accent.primary)
                         .padding(.horizontal, 12).padding(.vertical, 6)
                         .background(highlight ? accent.primary : accent.primary.opacity(0.12), in: Capsule())
                 }.buttonStyle(.plain).disabled(loading)
@@ -148,12 +148,12 @@ struct GiftCodePage: View {
 
     private var directInput: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("직접 입력 (새 코드)").font(.system(size: 11, weight: .semibold)).foregroundStyle(GLGColor.textSecondary)
+            Text("직접 입력 (새 코드)").font(.pretendard(size: 11, weight: .semibold)).foregroundStyle(GLGColor.textSecondary)
             TextField("예: GENSHINGIFT", text: $code).textFieldStyle(.plain).glgPillField().autocapitalization(.allCharacters)
                 .onChange(of: code) { _, newValue in code = newValue.uppercased().filter { $0.isLetter || $0.isNumber } }
             if !code.isEmpty {
                 Button { store.redeemGiftCode(gameKey: selected, code: code.trimmingCharacters(in: .whitespaces)); code = "" } label: {
-                    Text("이 코드 교환").font(.system(size: 12, weight: .bold)).foregroundStyle(accent.primary)
+                    Text("이 코드 교환").font(.pretendard(size: 12, weight: .bold)).foregroundStyle(accent.primary)
                         .padding(.horizontal, 14).padding(.vertical, 7)
                         .background(accent.primary.opacity(0.12), in: RoundedRectangle(cornerRadius: 16))
                         .overlay(RoundedRectangle(cornerRadius: 16).stroke(accent.primary.opacity(0.4), lineWidth: 1))
@@ -164,14 +164,14 @@ struct GiftCodePage: View {
 
     @ViewBuilder private var statusText: some View {
         if store.redeemState is RedeemStateLoading {
-            Text("교환 중…").font(.system(size: 12)).foregroundStyle(GLGColor.textSecondary)
+            Text("교환 중…").font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary)
         } else if let done = store.redeemState as? RedeemStateDone {
-            Text(done.message).font(.system(size: 12, weight: .medium)).foregroundStyle(done.success ? accent.primary : GLGColor.dangerText)
+            Text(done.message).font(.pretendard(size: 12, weight: .medium)).foregroundStyle(done.success ? accent.primary : GLGColor.dangerText)
         } else {
             Text(cfg.cookieToken.isEmpty && cfg.webCookie.isEmpty
                  ? "교환하려면 HoYoLAB 재연동(이메일 로그인)이 필요해요. 보상은 게임 우편함으로 와요."
                  : "코드를 눌러 교환하거나 '모두 교환'을 누르세요. 보상은 게임 우편함으로 와요.")
-                .font(.system(size: 11)).foregroundStyle(GLGColor.textSecondary)
+                .font(.pretendard(size: 11)).foregroundStyle(GLGColor.textSecondary)
         }
     }
 }

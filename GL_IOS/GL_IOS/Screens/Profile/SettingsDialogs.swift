@@ -34,9 +34,9 @@ struct BudgetSheet: View {
                         HStack(spacing: 10) {
                             Circle().fill(Color(argb64: game.color)).frame(width: 10, height: 10)
                             VStack(alignment: .leading, spacing: 2) {
-                                Text(game.shortName).font(.system(size: 14, weight: .medium))
+                                Text(game.shortName).font(.pretendard(size: 14, weight: .medium))
                                 Text("이번 달 \(won(spent))")
-                                    .font(.system(size: 11))
+                                    .font(.pretendard(size: 11))
                                     .foregroundStyle(over ? GLGColor.dangerText : GLGColor.textSecondary)
                                     .fontWeight(over ? .bold : .regular)
                             }
@@ -120,13 +120,13 @@ struct CreditsSheet: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 12) {
                     Text("본 앱은 개인이 만든 비상업·비공식 팬 프로젝트로 HoYoverse와 무관하며 공식 서비스가 아닙니다.")
-                        .font(.system(size: 13)).foregroundStyle(GLGColor.textSecondary)
+                        .font(.pretendard(size: 13)).foregroundStyle(GLGColor.textSecondary)
                     creditRow("게임 콘텐츠 · 아이콘 저작권",
                               "© HoYoverse (miHoYo / Cognosphere) — 원신 · 붕괴: 스타레일 · 젠레스 존 제로\n© Kuro Games — 명조: 워더링 웨이브\n© Hypergryph / Yostar — 명일방주: 엔드필드")
                     creditRow("데이터 · 에셋 출처",
                               "enka.network · Project Amber (yatta.moe)\nHoYoLAB · ennead.cc")
                     Text("모든 게임 콘텐츠의 권리는 각 권리자에게 있으며, 권리자의 요청이 있을 경우 즉시 해당 자료를 삭제합니다.")
-                        .font(.system(size: 12)).foregroundStyle(GLGColor.textSecondary)
+                        .font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary)
                 }
                 .padding(20)
             }
@@ -139,8 +139,8 @@ struct CreditsSheet: View {
 
     private func creditRow(_ label: String, _ value: String) -> some View {
         VStack(alignment: .leading, spacing: 3) {
-            Text(label).font(.system(size: 13, weight: .bold)).foregroundStyle(accent.primary)
-            Text(value).font(.system(size: 12)).foregroundStyle(GLGColor.textSecondary)
+            Text(label).font(.pretendard(size: 13, weight: .bold)).foregroundStyle(accent.primary)
+            Text(value).font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary)
         }
     }
 }
@@ -158,11 +158,11 @@ struct UpdateLogSheet: View {
                 VStack(alignment: .leading, spacing: 16) {
                     ForEach(Array(UpdateLog.entries(currentVersion: version).enumerated()), id: \.offset) { _, entry in
                         VStack(alignment: .leading, spacing: 6) {
-                            Text(entry.version).font(.system(size: 14, weight: .bold)).foregroundStyle(accent.primary)
+                            Text(entry.version).font(.pretendard(size: 14, weight: .bold)).foregroundStyle(accent.primary)
                             ForEach(Array(entry.items.enumerated()), id: \.offset) { _, item in
                                 HStack(alignment: .top, spacing: 2) {
-                                    Text("· ").font(.system(size: 13)).foregroundStyle(GLGColor.textSecondary)
-                                    Text(item).font(.system(size: 13)).foregroundStyle(GLGColor.textSecondary)
+                                    Text("· ").font(.pretendard(size: 13)).foregroundStyle(GLGColor.textSecondary)
+                                    Text(item).font(.pretendard(size: 13)).foregroundStyle(GLGColor.textSecondary)
                                 }
                             }
                         }

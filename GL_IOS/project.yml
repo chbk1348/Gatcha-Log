@@ -51,6 +51,12 @@ targets:
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
         ITSAppUsesNonExemptEncryption: false
+        # 전역 글꼴 Pretendard (GL_IOS/Fonts/*.otf 번들)
+        UIAppFonts:
+          - Pretendard-Regular.otf
+          - Pretendard-Medium.otf
+          - Pretendard-SemiBold.otf
+          - Pretendard-Bold.otf
         # ── 구글 로그인 (웹 OAuth) — ASWebAuthenticationSession 리다이렉트 콜백 스킴 ──
         CFBundleURLTypes:
           - CFBundleURLSchemes:

@@ -70,8 +70,8 @@ struct GameInfoView: View {
                     }
                 } label: {
                     HStack(spacing: 4) {
-                        Text(gameFilterLabel).font(.system(size: 17, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
-                        Image(systemName: "chevron.down").font(.system(size: 12, weight: .semibold)).foregroundStyle(GLGColor.textSecondary)
+                        Text(gameFilterLabel).font(.pretendard(size: 17, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
+                        Image(systemName: "chevron.down").font(.pretendard(size: 12, weight: .semibold)).foregroundStyle(GLGColor.textSecondary)
                     }
                 }
             }
@@ -117,14 +117,14 @@ struct GameInfoView: View {
                 HStack(spacing: 14) {
                     ZStack {
                         RoundedRectangle(cornerRadius: 12, style: .continuous).fill(accent.primary.opacity(0.12)).frame(width: 44, height: 44)
-                        Image(systemName: icon).font(.system(size: 18, weight: .semibold)).foregroundStyle(accent.primary)
+                        Image(systemName: icon).font(.pretendard(size: 18, weight: .semibold)).foregroundStyle(accent.primary)
                     }
                     VStack(alignment: .leading, spacing: 3) {
-                        Text(title).font(.system(size: 15, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
-                        Text(sub).font(.system(size: 12)).foregroundStyle(GLGColor.textSecondary).lineLimit(1).minimumScaleFactor(0.85)
+                        Text(title).font(.pretendard(size: 15, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
+                        Text(sub).font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary).lineLimit(1).minimumScaleFactor(0.85)
                     }
                     Spacer(minLength: 8)
-                    Image(systemName: "chevron.right").font(.system(size: 14, weight: .semibold)).foregroundStyle(GLGColor.textSecondary)
+                    Image(systemName: "chevron.right").font(.pretendard(size: 14, weight: .semibold)).foregroundStyle(GLGColor.textSecondary)
                 }
             }
         }
@@ -239,9 +239,9 @@ private struct PickupGroupHeader: View {
     let count: Int
     var body: some View {
         HStack(spacing: 7) {
-            Text(isWeapon ? "무기" : "캐릭터").font(.system(size: 9, weight: .bold)).foregroundStyle(.white)
+            Text(isWeapon ? "무기" : "캐릭터").font(.pretendard(size: 9, weight: .bold)).foregroundStyle(.white)
                 .padding(.horizontal, 8).padding(.vertical, 3).background(isWeapon ? glWeap : glChar, in: Capsule())
-            Text("\(count)").font(.system(size: 11, weight: .bold)).foregroundStyle(GLGColor.textSecondary)
+            Text("\(count)").font(.pretendard(size: 11, weight: .bold)).foregroundStyle(GLGColor.textSecondary)
         }
         .padding(.top, 2).padding(.bottom, 10)
     }
@@ -257,8 +257,8 @@ private struct PickupMoreFooter: View {
         Button(action: onMore) {
             HStack(spacing: 4) {
                 Spacer()
-                Text("\(label) \(more)개 더보기").font(.system(size: 12, weight: .bold)).foregroundStyle(accent.primary)
-                Image(systemName: "chevron.right").font(.system(size: 11, weight: .bold)).foregroundStyle(accent.primary)
+                Text("\(label) \(more)개 더보기").font(.pretendard(size: 12, weight: .bold)).foregroundStyle(accent.primary)
+                Image(systemName: "chevron.right").font(.pretendard(size: 11, weight: .bold)).foregroundStyle(accent.primary)
                 Spacer()
             }
             .padding(.vertical, 9)
@@ -312,17 +312,17 @@ private struct PickupItem: View {
                     ZStack {
                         if isWeapon { RoundedRectangle(cornerRadius: 10, style: .continuous).fill(c) } else { Circle().fill(c) }
                         if isWeapon { SwordShape().fill(.white).frame(width: 14, height: 16) }
-                        else { Text(String(banner.name.prefix(1))).font(.system(size: 14, weight: .heavy)).foregroundStyle(.white) }
+                        else { Text(String(banner.name.prefix(1))).font(.pretendard(size: 14, weight: .heavy)).foregroundStyle(.white) }
                     }
                     .frame(width: 34, height: 34)
                     VStack(alignment: .leading, spacing: 1) {
-                        Text(banner.name).font(.system(size: 14, weight: .bold)).foregroundStyle(GLGColor.textPrimary).lineLimit(1)
-                        Text(sub).font(.system(size: 10, weight: .semibold)).foregroundStyle(GLGColor.textSecondary).lineLimit(1)
+                        Text(banner.name).font(.pretendard(size: 14, weight: .bold)).foregroundStyle(GLGColor.textPrimary).lineLimit(1)
+                        Text(sub).font(.pretendard(size: 10, weight: .semibold)).foregroundStyle(GLGColor.textSecondary).lineLimit(1)
                     }
                     Spacer(minLength: 8)
                     VStack(alignment: .trailing, spacing: 2) {
-                        Text(GameInfoKt.dhLabel(targetMillis: banner.endMillis, nowMillis: nowMs())).font(.system(size: 14, weight: .bold)).foregroundStyle(ddColor).lineLimit(1)
-                        Text("~" + DateUtil.shared.shortDate(millis: banner.endMillis)).font(.system(size: 9)).foregroundStyle(GLGColor.textSecondary)
+                        Text(GameInfoKt.dhLabel(targetMillis: banner.endMillis, nowMillis: nowMs())).font(.pretendard(size: 14, weight: .bold)).foregroundStyle(ddColor).lineLimit(1)
+                        Text("~" + DateUtil.shared.shortDate(millis: banner.endMillis)).font(.pretendard(size: 9)).foregroundStyle(GLGColor.textSecondary)
                     }
                 }
                 if !companions.isEmpty {
@@ -334,7 +334,7 @@ private struct PickupItem: View {
                                 SwordShape().fill(glWeap).frame(width: 9, height: 11)
                             }
                             .frame(width: 18, height: 18)
-                            Text("동반 무기 · \(w.name)").font(.system(size: 11, weight: .medium)).foregroundStyle(GLGColor.textSecondary).lineLimit(1)
+                            Text("동반 무기 · \(w.name)").font(.pretendard(size: 11, weight: .medium)).foregroundStyle(GLGColor.textSecondary).lineLimit(1)
                             Spacer(minLength: 0)
                         }
                         .padding(.top, 7)
@@ -350,9 +350,9 @@ private struct PickupItem: View {
                     .frame(height: 5).padding(.top, 10)
                     if urgent {
                         HStack {
-                            Text("\(Int((frac * 100).rounded()))% 경과 · 막바지").font(.system(size: 9, weight: .bold)).foregroundStyle(glUrgent)
+                            Text("\(Int((frac * 100).rounded()))% 경과 · 막바지").font(.pretendard(size: 9, weight: .bold)).foregroundStyle(glUrgent)
                             Spacer()
-                            Text("\(DateUtil.shared.shortDate(millis: banner.startMillis)) → \(DateUtil.shared.shortDate(millis: banner.endMillis))").font(.system(size: 9)).foregroundStyle(GLGColor.textSecondary)
+                            Text("\(DateUtil.shared.shortDate(millis: banner.startMillis)) → \(DateUtil.shared.shortDate(millis: banner.endMillis))").font(.pretendard(size: 9)).foregroundStyle(GLGColor.textSecondary)
                         }
                         .padding(.top, 5)
                     }
@@ -395,18 +395,18 @@ private struct ScheduleEntryRow: View {
         HStack(spacing: 12) {
             Circle().fill(e.color).frame(width: 9, height: 9)
             VStack(alignment: .leading, spacing: 3) {
-                Text(e.kind).font(.system(size: 9, weight: .bold)).foregroundStyle(scheduleKindColor(e.kind))
+                Text(e.kind).font(.pretendard(size: 9, weight: .bold)).foregroundStyle(scheduleKindColor(e.kind))
                     .padding(.horizontal, 6).padding(.vertical, 2)
                     .background(scheduleKindColor(e.kind).opacity(0.13), in: Capsule())
-                Text(e.title).font(.system(size: 14, weight: .semibold)).foregroundStyle(GLGColor.textPrimary).lineLimit(1)
+                Text(e.title).font(.pretendard(size: 14, weight: .semibold)).foregroundStyle(GLGColor.textPrimary).lineLimit(1)
                 if !e.sub.isEmpty {
-                    Text(e.sub).font(.system(size: 11)).foregroundStyle(GLGColor.textSecondary).lineLimit(1)
+                    Text(e.sub).font(.pretendard(size: 11)).foregroundStyle(GLGColor.textSecondary).lineLimit(1)
                 }
             }
             Spacer(minLength: 8)
             VStack(alignment: .trailing, spacing: 2) {
-                Text(GameInfoKt.dhLabel(targetMillis: e.target, nowMillis: nowMs())).font(.system(size: 15, weight: .bold)).foregroundStyle(ddColor).lineLimit(1)
-                Text((e.isStart ? "" : "~") + DateUtil.shared.shortDate(millis: e.target)).font(.system(size: 10)).foregroundStyle(GLGColor.textSecondary)
+                Text(GameInfoKt.dhLabel(targetMillis: e.target, nowMillis: nowMs())).font(.pretendard(size: 15, weight: .bold)).foregroundStyle(ddColor).lineLimit(1)
+                Text((e.isStart ? "" : "~") + DateUtil.shared.shortDate(millis: e.target)).font(.pretendard(size: 10)).foregroundStyle(GLGColor.textSecondary)
             }
         }
         .padding(.vertical, 11)
@@ -428,8 +428,8 @@ struct GameScheduleSection: View {
         let top = Array(items.prefix(3))
         let hasMore = items.count > 3
         VStack(alignment: .leading, spacing: 0) {
-            Text("게임 일정").font(.system(size: 16, weight: .bold)).padding(.bottom, 4)
-            Text("픽업 배너와 다가오는 패치·이벤트·콘텐츠를 모았어요.").font(.system(size: 11)).foregroundStyle(GLGColor.textSecondary).padding(.bottom, 12)
+            Text("게임 일정").font(.pretendard(size: 16, weight: .bold)).padding(.bottom, 4)
+            Text("픽업 배너와 다가오는 패치·이벤트·콘텐츠를 모았어요.").font(.pretendard(size: 11)).foregroundStyle(GLGColor.textSecondary).padding(.bottom, 12)
             // 픽업 배너 + 일정을 하나의 통합 카드에 담는다. 픽업 배너는 카드 안에서 단독 디자인(틴트 카드)으로 구분.
             GLGCard(cornerRadius: 20, padding: 16) {
                 VStack(spacing: 0) {
@@ -443,17 +443,17 @@ struct GameScheduleSection: View {
                             if i < top.count - 1 { Divider() }
                         }
                     } else if pickups.isEmpty {
-                        Text("예정된 일정이 없어요.").font(.system(size: 12)).foregroundStyle(GLGColor.textSecondary)
+                        Text("예정된 일정이 없어요.").font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary)
                             .frame(maxWidth: .infinity, alignment: .leading).padding(.vertical, 8)
                     }
                     if hasMore {
                         Divider()
                         Button(action: onSeeAll) {
                             HStack(spacing: 6) {
-                                Text("전체 일정 보기").font(.system(size: 13, weight: .bold)).foregroundStyle(accent.primary)
-                                Text("\(items.count + pickups.count)").font(.system(size: 12, weight: .bold)).foregroundStyle(accent.primary.opacity(0.6))
+                                Text("전체 일정 보기").font(.pretendard(size: 13, weight: .bold)).foregroundStyle(accent.primary)
+                                Text("\(items.count + pickups.count)").font(.pretendard(size: 12, weight: .bold)).foregroundStyle(accent.primary.opacity(0.6))
                                 Spacer()
-                                Image(systemName: "chevron.right").font(.system(size: 12, weight: .semibold)).foregroundStyle(accent.primary)
+                                Image(systemName: "chevron.right").font(.pretendard(size: 12, weight: .semibold)).foregroundStyle(accent.primary)
                             }
                             .padding(.top, 12)
                         }.buttonStyle(.plain)
@@ -478,10 +478,10 @@ struct GameSchedulePage: View {
         }
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
-                Text("게임 일정").font(.system(size: 22, weight: .bold)).padding(.bottom, 4)
-                Text("픽업 배너와 패치·이벤트·정기 콘텐츠를 게임별로 모았어요.").font(.system(size: 12)).foregroundStyle(GLGColor.textSecondary).padding(.bottom, 6)
+                Text("게임 일정").font(.pretendard(size: 22, weight: .bold)).padding(.bottom, 4)
+                Text("픽업 배너와 패치·이벤트·정기 콘텐츠를 게임별로 모았어요.").font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary).padding(.bottom, 6)
                 if games.isEmpty {
-                    Text("예정된 일정이 없어요.").font(.system(size: 13)).foregroundStyle(GLGColor.textSecondary)
+                    Text("예정된 일정이 없어요.").font(.pretendard(size: 13)).foregroundStyle(GLGColor.textSecondary)
                         .frame(maxWidth: .infinity, alignment: .center).padding(.top, 40)
                 } else {
                     ForEach(Array(games.enumerated()), id: \.offset) { _, g in
@@ -508,10 +508,10 @@ struct GamePickupPage: View {
         let pickups = filteredPickups(store.activeBanners, filter: filter)
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
-                Text("전체 픽업").font(.system(size: 22, weight: .bold)).padding(.bottom, 4)
-                Text("진행 중인 캐릭터·무기 픽업을 종료 임박순으로 모았어요.").font(.system(size: 12)).foregroundStyle(GLGColor.textSecondary).padding(.bottom, 14)
+                Text("전체 픽업").font(.pretendard(size: 22, weight: .bold)).padding(.bottom, 4)
+                Text("진행 중인 캐릭터·무기 픽업을 종료 임박순으로 모았어요.").font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary).padding(.bottom, 14)
                 if pickups.isEmpty {
-                    Text("진행 중인 픽업이 없어요.").font(.system(size: 13)).foregroundStyle(GLGColor.textSecondary)
+                    Text("진행 중인 픽업이 없어요.").font(.pretendard(size: 13)).foregroundStyle(GLGColor.textSecondary)
                         .frame(maxWidth: .infinity, alignment: .center).padding(.top, 40)
                 } else {
                     GLGCard(cornerRadius: 20, padding: 16) { PickupGroups(pickups: pickups) }
@@ -535,10 +535,10 @@ private struct GameScheduleGroup: View {
         let c = Color(argb64: game.color)
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 10) {
-                Text(game.abbr).font(.system(size: 12, weight: .heavy)).foregroundStyle(.white)
+                Text(game.abbr).font(.pretendard(size: 12, weight: .heavy)).foregroundStyle(.white)
                     .frame(minWidth: 30).padding(.horizontal, 8).padding(.vertical, 5)
                     .background(c, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-                Text(game.displayName).font(.system(size: 17, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
+                Text(game.displayName).font(.pretendard(size: 17, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
             }
             .padding(.top, 16).padding(.bottom, 10)
             GLGCard(cornerRadius: 20, padding: 16) {

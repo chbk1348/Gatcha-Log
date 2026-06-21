@@ -207,7 +207,7 @@ struct ContentView: View {
     private var legacyAddButton: some View {
         Button(action: { openAddSpending() }) {
             Image(systemName: "plus")
-                .font(.system(size: 19, weight: .semibold))
+                .font(.pretendard(size: 19, weight: .semibold))
                 .foregroundColor(.primary)
                 .frame(width: 48, height: 48)
                 .background { GLGVisualEffectBlur(style: .systemUltraThinMaterial).clipShape(Circle()) }
