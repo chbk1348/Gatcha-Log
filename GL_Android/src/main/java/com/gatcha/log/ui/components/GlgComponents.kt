@@ -52,7 +52,7 @@ import com.gatcha.log.ui.theme.TextSecondary
 //  Gatcha LOG 커스텀 디자인 토큰 (웹앱 스타일 이식)
 // ============================================================
 private val FieldShape = RoundedCornerShape(percent = 50)  // 알약(pill) 형태
-private val FieldBgIdle = Color(0xFFF6F6FA)
+private val FieldBgIdle = Color(0xFFFFFFFF)   // D · 입력필드 배경 흰색 고정(테두리로 구분)
 private val FieldBgFocus = Color(0xFFFFFFFF)
 private val FieldBorderIdle = Color(0x1F000000)   // rgba(0,0,0,0.12) — 약간의 아웃라인
 private val FieldText = Color(0xFF1A1C1E)
