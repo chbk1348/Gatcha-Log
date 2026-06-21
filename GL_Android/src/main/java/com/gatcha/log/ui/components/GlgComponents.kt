@@ -205,7 +205,12 @@ fun GlgBackButton(onClick: () -> Unit, modifier: Modifier = Modifier, size: Dp =
  * 이미 가로 16dp 패딩된 컨테이너(LazyColumn 등) 안에선 [modifier] 없이 사용.
  */
 @Composable
-fun GlgScreenHeader(title: String, onBack: () -> Unit, modifier: Modifier = Modifier) {
+fun GlgScreenHeader(
+    title: String,
+    onBack: () -> Unit,
+    modifier: Modifier = Modifier,
+    actions: @Composable RowScope.() -> Unit = {},
+) {
     Row(
         modifier = modifier.fillMaxWidth().padding(top = 12.dp, bottom = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -213,6 +218,13 @@ fun GlgScreenHeader(title: String, onBack: () -> Unit, modifier: Modifier = Modi
         GlgBackButton(onBack)
         Spacer(Modifier.width(10.dp))
         Text(title, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+        // 우측 액션 슬롯 — 제목을 좌측에 붙이고 액션은 우측 정렬.
+        Spacer(Modifier.weight(1f))
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            content = actions,
+        )
     }
 }
 

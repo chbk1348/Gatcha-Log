@@ -134,6 +134,45 @@ fun ListSkeleton(rows: Int = 3, titleWidth: Dp = 120.dp) {
     }
 }
 
+/** 보유 캐릭터 로스터 로딩 스켈레톤 — RosterCard 2열 그리드(기본 4장)와 동일 레이아웃. */
+@Composable
+fun RosterSkeleton(count: Int = 4) {
+    val rows = (count + 1) / 2
+    repeat(rows) { r ->
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            repeat(2) { c ->
+                if (r * 2 + c < count) {
+                    Box(Modifier.weight(1f)) { RosterSkeletonCard() }
+                } else {
+                    Spacer(Modifier.weight(1f))
+                }
+            }
+        }
+        if (r < rows - 1) Spacer(Modifier.height(10.dp))
+    }
+}
+
+@Composable
+private fun RosterSkeletonCard() {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(18.dp))
+            .background(Color.White)
+            .border(1.dp, DividerColor, RoundedCornerShape(18.dp))
+            .padding(11.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        SkeletonBox(Modifier.size(50.dp), RoundedCornerShape(14.dp))
+        Spacer(Modifier.width(11.dp))
+        Column(Modifier.weight(1f)) {
+            SkeletonBox(Modifier.fillMaxWidth().height(13.dp))
+            Spacer(Modifier.height(7.dp))
+            SkeletonBox(Modifier.width(48.dp).height(10.dp))
+        }
+    }
+}
+
 /** 실시간 노트 로딩 스켈레톤 (가로 카드들). */
 @Composable
 fun NoteSkeletonRow(count: Int = 3) {

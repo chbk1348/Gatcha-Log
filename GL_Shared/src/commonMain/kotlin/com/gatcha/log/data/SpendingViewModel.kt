@@ -45,6 +45,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.IO
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
@@ -242,6 +243,8 @@ class SpendingViewModel : ViewModel() {
         _enkaGiUid.value = repo.loadEnkaGiUid()
         _enkaHsrUid.value = repo.loadEnkaHsrUid()
         _enkaResult.value = null
+        _enkaResults.value = emptyMap()
+        seedEnkaDiskCache()   // 재시작/계정전환 시 디스크 캐시를 메모리로 — '내 캐릭터' 즉시 표시
         gachaRecords = repo.loadGachaRecords()
         _gachaStats.value = GachaReport.computeStats(gachaRecords)
         _gachaDashboard.value = GachaReport.computeDashboard(gachaRecords)
@@ -404,6 +407,10 @@ class SpendingViewModel : ViewModel() {
             if (uids.isNotEmpty()) {
                 applyGameUids(uids)
                 enkaUidsSynced = true
+                // 연동 직후 '내 캐릭터' 로스터를 강제 새로고침 — 토큰이 이제 있으므로,
+                // 토큰 없이 받아 캐시에 박혀 있던 쇼케이스(공개)만 결과를 전체 보유 로스터로 즉시 교체한다.
+                // (재설치 후 연동 1회로 '저장 다시' 없이 바로 전체 노출 — force=true 로 5분 TTL 무시.)
+                autoLoadEnkaSection(listOf("genshin", "hsr", "zzz"), force = true)
             }
             emitStatus(
                 if (uids.isNotEmpty()) "HoYoLAB 계정이 연동되었어요 ✓ (캐릭터 UID 자동 설정)"
@@ -600,6 +607,14 @@ class SpendingViewModel : ViewModel() {
     // 상시 섹션용 TTL 캐시 ("game:uid" → (시각, 결과)). Enka 429 방지 위해 5분 내 재요청 생략.
     private val enkaCache = mutableMapOf<String, Pair<Long, EnkaResult>>()
     private val enkaTtlMs = 5 * 60 * 1000L
+    // 디스크 캐시 유효기간 — 이보다 오래된 디스크 항목은 시드에서 제외(앱 재시작 즉시표시 한계).
+    private val enkaDiskTtlMs = 24 * 60 * 60 * 1000L
+
+    /** 디스크 캐시 → 메모리 캐시 시드(계정별). loadAll 에서 호출. */
+    private fun seedEnkaDiskCache() {
+        enkaCache.clear()
+        enkaCache.putAll(repo.loadEnkaCache(enkaDiskTtlMs))
+    }
 
     /** Enka UID 로 프로필 조회 + UID 계정별 영속(클라우드 동기화 포함). */
     fun loadEnkaProfile(game: String, uid: String) {
@@ -609,8 +624,8 @@ class SpendingViewModel : ViewModel() {
         viewModelScope.launch {
             _enkaLoading.value = true
             val cfg = _hoyolabConfig.value
-            val r = EnkaApi.fetchProfile(game, u, cfg.ltuid, cfg.ltoken)
-            if (r.profile != null) enkaCache["$game:$u"] = currentTimeMillis() to r
+            val r = withContext(Dispatchers.IO) { EnkaApi.fetchProfile(game, u, cfg.ltuid, cfg.ltoken) }
+            if (r.profile != null) { enkaCache["$game:$u"] = currentTimeMillis() to r; repo.saveEnkaCache(enkaCache) }
             _enkaResult.value = r
             _enkaLoading.value = false
         }
@@ -648,8 +663,8 @@ class SpendingViewModel : ViewModel() {
             }
             _enkaLoading.value = true
             val cfg = _hoyolabConfig.value
-            val r = EnkaApi.fetchProfile(game, uid, cfg.ltuid, cfg.ltoken)
-            if (r.profile != null) enkaCache[key] = currentTimeMillis() to r
+            val r = withContext(Dispatchers.IO) { EnkaApi.fetchProfile(game, uid, cfg.ltuid, cfg.ltoken) }
+            if (r.profile != null) { enkaCache[key] = currentTimeMillis() to r; repo.saveEnkaCache(enkaCache) }
             _enkaResult.value = r
             _enkaLoading.value = false
         }
@@ -657,6 +672,55 @@ class SpendingViewModel : ViewModel() {
 
     /** 게임 탭 전환 시 이전 결과 정리 */
     fun clearEnkaResult() { _enkaResult.value = null }
+
+    // ----- '내 캐릭터' 섹션 — 헤더 게임필터 연동(전체=3게임 동시 표시) -----
+    // 단일 _enkaResult 와 별개로 게임별 결과를 동시에 보관. enkaCache(5분 TTL)를 공유한다.
+    // 값은 non-null(iOS SKIE 브리징 단순화) — 미설정/빈 게임은 EnkaResult(null,null)로 채워 '빈 표시'.
+    private val _enkaResults = MutableStateFlow<Map<String, EnkaResult>>(emptyMap())
+    val enkaResults: StateFlow<Map<String, EnkaResult>> = _enkaResults.asStateFlow()
+    private val _enkaLoadingGames = MutableStateFlow<Set<String>>(emptySet())
+    val enkaLoadingGames: StateFlow<Set<String>> = _enkaLoadingGames.asStateFlow()
+
+    /**
+     * '내 캐릭터' 섹션용 — 지정 게임들의 로스터를 동시 보관. 캐시 적중분은 즉시 반영.
+     * 게임마다 호스트가 달라(enka.network / mihomo / HoYoLAB) 동시 호출해도 429와 무관하므로
+     * 미적중분을 **병렬**로 가져온다(총 지연 = 합 → 최댓값). 네트워크는 IO 디스패처로 분리해 메인 스레드 미점유.
+     * UID 미설정 게임은 빈 결과(섹션서 빈 표시).
+     */
+    fun autoLoadEnkaSection(games: List<String>, force: Boolean = false) {
+        viewModelScope.launch {
+            ensureEnkaUids() // 연동됐는데 UID 비면 1회 동기화
+            games.map { game ->
+                async {
+                    val uid = enkaUidFor(game)
+                    if (uid.isBlank()) {
+                        _enkaResults.update { it + (game to EnkaResult(profile = null, error = null)) }
+                        return@async
+                    }
+                    val key = "$game:$uid"
+                    val cached = enkaCache[key]   // 디스크 시드 포함
+                    val fresh = cached != null && currentTimeMillis() - cached.first < enkaTtlMs
+                    // 캐시(신선/오래됨 무관)가 있으면 즉시 표시 — stale-while-revalidate
+                    if (cached != null) {
+                        _enkaResults.update { it + (game to cached.second) }
+                        if (fresh && !force) return@async   // 신선하면 네트워크 생략
+                    } else {
+                        _enkaLoadingGames.update { it + game }   // 보여줄 캐시가 없을 때만 스피너
+                    }
+                    val cfg = _hoyolabConfig.value
+                    val r = withContext(Dispatchers.IO) { EnkaApi.fetchProfile(game, uid, cfg.ltuid, cfg.ltoken) }
+                    if (r.profile != null) {
+                        enkaCache[key] = currentTimeMillis() to r
+                        _enkaResults.update { it + (game to r) }   // 갱신분 반영
+                    } else if (cached == null) {
+                        _enkaResults.update { it + (game to r) }   // 캐시 없고 실패 → 에러 표시(캐시 있으면 기존 유지)
+                    }
+                    _enkaLoadingGames.update { it - game }
+                }
+            }.awaitAll()
+            repo.saveEnkaCache(enkaCache)   // 갱신된 캐시 디스크 영속(1회)
+        }
+    }
 
     // ----- 가챠 효율 리포트 (UIGF/SRGF) -----
     private var gachaRecords: List<GachaRecord> = emptyList()

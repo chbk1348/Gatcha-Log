@@ -136,56 +136,6 @@ struct TodayTaskSkeleton: View {
     }
 }
 
-// ── 가챠 현황 (다음 픽업) ──
-struct GachaStatusCard: View {
-    let nextBanner: GachaBanner?; let nextBannerPlan: BannerPlan?
-    let onOpen: () -> Void; let onImport: () -> Void
-    @Environment(\.glgAccent) private var accent
-    var body: some View {
-        GLGCard(cornerRadius: 24, padding: 16) {
-            VStack(alignment: .leading, spacing: 0) {
-                HStack {
-                    HStack(spacing: 6) { Image(systemName: "die.face.5.fill").font(.system(size: 16)).foregroundStyle(accent.primary); Text("가챠 현황").font(.system(size: 16, weight: .bold)) }
-                    Spacer()
-                    Image(systemName: "chevron.right").font(.system(size: 14)).foregroundStyle(GLGColor.textSecondary)
-                }
-                .padding(.bottom, 14)
-                if nextBanner == nil {
-                    Text("가챠 기록을 가져오면 픽업 정보가 표시돼요").font(.system(size: 12)).foregroundStyle(GLGColor.textSecondary)
-                    Button(action: onImport) {
-                        HStack(spacing: 6) { Image(systemName: "square.and.arrow.down").font(.system(size: 14)); Text("가챠 기록 가져오기").font(.system(size: 12, weight: .bold)) }
-                            .foregroundStyle(accent.primary).padding(.horizontal, 13).padding(.vertical, 7).background(accent.primary.opacity(0.10), in: Capsule())
-                    }.buttonStyle(.plain).padding(.top, 12)
-                } else {
-                    nextMini.frame(maxWidth: .infinity)
-                }
-            }
-        }
-        .contentShape(Rectangle()).onTapGesture { onOpen() }
-    }
-    private var nextMini: some View {
-        miniCard {
-            Text("다음 픽업").font(.system(size: 11)).foregroundStyle(GLGColor.textSecondary)
-            if let b = nextBanner {
-                let urgent = b.dDay(nowMillis: nowMs()) <= 3
-                HStack(spacing: 6) { Circle().fill(Color(argb64: b.gameColor)).frame(width: 8, height: 8); Text(b.name).font(.system(size: 13, weight: .bold)).lineLimit(1) }
-                Text(GameData.shared.byNameOrNull(name: b.game)?.shortName ?? b.game).font(.system(size: 11)).foregroundStyle(GLGColor.textSecondary).lineLimit(1)
-                Text(b.endShortLabel(nowMillis: nowMs())).font(.system(size: 10, weight: .bold)).foregroundStyle(urgent ? warnText : accent.primary)
-                    .padding(.horizontal, 8).padding(.vertical, 2).background((urgent ? warnText : accent.primary).opacity(0.14), in: Capsule())
-                if let plan = nextBannerPlan {
-                    Text("확정 최대 \(plan.maxPulls)연").font(.system(size: 11, weight: .bold)).lineLimit(1)
-                    Text("약 \(won(plan.wonCost))").font(.system(size: 10)).foregroundStyle(GLGColor.textSecondary).lineLimit(1)
-                }
-            } else { Text("예정 없음").font(.system(size: 15, weight: .bold)).foregroundStyle(GLGColor.textSecondary) }
-        }
-    }
-    private func miniCard<C: View>(@ViewBuilder _ content: () -> C) -> some View {
-        VStack(alignment: .leading, spacing: 4) { content() }
-            .frame(maxWidth: .infinity, alignment: .leading).padding(13)
-            .background(.white, in: RoundedRectangle(cornerRadius: 16)).overlay(RoundedRectangle(cornerRadius: 16).stroke(GLGColor.divider, lineWidth: 1))
-    }
-}
-
 // ── 실시간 노트 ──
 struct GameStatusSection: View {
     @ObservedObject var store: SpendingStore
@@ -257,7 +207,7 @@ struct BannerCapsule: View {
                 Text("\(GameData.shared.byNameOrNull(name: banner.game)?.shortName ?? banner.game) · 픽업").font(.system(size: 10)).foregroundStyle(GLGColor.textSecondary).lineLimit(1)
             }
             Spacer()
-            Text(banner.endShortLabel(nowMillis: nowMs())).font(.system(size: 11, weight: .bold)).foregroundStyle(chipColor)
+            Text(GameInfoKt.dhLabel(targetMillis: banner.endMillis, nowMillis: nowMs())).font(.system(size: 11, weight: .bold)).foregroundStyle(chipColor).lineLimit(1)
                 .padding(.horizontal, 9).padding(.vertical, 3).background(chipColor.opacity(0.14), in: Capsule())
         }
         .padding(.horizontal, 16).padding(.vertical, 11)
@@ -344,9 +294,11 @@ struct SpendingBudgetSection: View {
     }
 }
 
-// ── 가챠 요약 ──
+// ── 가챠 요약 (다음 픽업 + 통계) ──
 struct GachaSummarySection: View {
-    let stats: GachaStats?; let onOpen: () -> Void
+    let stats: GachaStats?
+    let nextBanner: GachaBanner?; let nextBannerPlan: BannerPlan?
+    let onOpen: () -> Void; let onImport: () -> Void
     @Environment(\.glgAccent) private var accent
     var body: some View {
         GLGCard(cornerRadius: 24, padding: 20) {
@@ -355,6 +307,8 @@ struct GachaSummarySection: View {
                     HStack(spacing: 6) { Image(systemName: "die.face.5.fill").font(.system(size: 16)).foregroundStyle(accent.primary); Text("가챠 요약").font(.system(size: 16, weight: .bold)) }
                     Spacer(); Image(systemName: "chevron.right").font(.system(size: 14)).foregroundStyle(GLGColor.textSecondary)
                 }
+                // 다음 픽업(구 '가챠 현황') — 비용 인텔리전스 포함
+                nextMini.frame(maxWidth: .infinity).padding(.top, 14)
                 if let s = stats {
                     let totalFive = s.byGame.values.reduce(0) { $0 + Int($1.five) }
                     HStack {
@@ -372,11 +326,36 @@ struct GachaSummarySection: View {
                         }
                     }
                 } else {
-                    Text("가챠 기록을 가져오면 요약이 표시돼요").font(.system(size: 12)).foregroundStyle(GLGColor.textSecondary).padding(.top, 16)
+                    Text("가챠 기록을 가져오면 통계 요약이 표시돼요").font(.system(size: 12)).foregroundStyle(GLGColor.textSecondary).padding(.top, 16)
+                    Button(action: onImport) {
+                        HStack(spacing: 6) { Image(systemName: "square.and.arrow.down").font(.system(size: 14)); Text("가챠 기록 가져오기").font(.system(size: 12, weight: .bold)) }
+                            .foregroundStyle(accent.primary).padding(.horizontal, 13).padding(.vertical, 7).background(accent.primary.opacity(0.10), in: Capsule())
+                    }.buttonStyle(.plain).padding(.top, 12)
                 }
             }
         }
         .contentShape(Rectangle()).onTapGesture { onOpen() }
+    }
+    private var nextMini: some View {
+        miniCard {
+            Text("다음 픽업").font(.system(size: 11)).foregroundStyle(GLGColor.textSecondary)
+            if let b = nextBanner {
+                let urgent = b.dDay(nowMillis: nowMs()) <= 3
+                HStack(spacing: 6) { Circle().fill(Color(argb64: b.gameColor)).frame(width: 8, height: 8); Text(b.name).font(.system(size: 13, weight: .bold)).lineLimit(1) }
+                Text(GameData.shared.byNameOrNull(name: b.game)?.shortName ?? b.game).font(.system(size: 11)).foregroundStyle(GLGColor.textSecondary).lineLimit(1)
+                Text(GameInfoKt.dhLabel(targetMillis: b.endMillis, nowMillis: nowMs())).font(.system(size: 10, weight: .bold)).foregroundStyle(urgent ? warnText : accent.primary).lineLimit(1)
+                    .padding(.horizontal, 8).padding(.vertical, 2).background((urgent ? warnText : accent.primary).opacity(0.14), in: Capsule())
+                if let plan = nextBannerPlan {
+                    Text("확정 최대 \(plan.maxPulls)연").font(.system(size: 11, weight: .bold)).lineLimit(1)
+                    Text("약 \(won(plan.wonCost))").font(.system(size: 10)).foregroundStyle(GLGColor.textSecondary).lineLimit(1)
+                }
+            } else { Text("예정 없음").font(.system(size: 15, weight: .bold)).foregroundStyle(GLGColor.textSecondary) }
+        }
+    }
+    private func miniCard<C: View>(@ViewBuilder _ content: () -> C) -> some View {
+        VStack(alignment: .leading, spacing: 4) { content() }
+            .frame(maxWidth: .infinity, alignment: .leading).padding(13)
+            .background(.white, in: RoundedRectangle(cornerRadius: 16)).overlay(RoundedRectangle(cornerRadius: 16).stroke(GLGColor.divider, lineWidth: 1))
     }
     private func infoCol(_ v: String, _ l: String) -> some View {
         VStack(spacing: 2) { Text(v).font(.system(size: 15, weight: .bold)); Text(l).font(.system(size: 10)).foregroundStyle(GLGColor.textSecondary) }.frame(maxWidth: .infinity)

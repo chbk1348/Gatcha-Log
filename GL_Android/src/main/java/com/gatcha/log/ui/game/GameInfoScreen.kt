@@ -49,7 +49,7 @@ import com.gatcha.log.ui.theme.*
 import kotlinx.coroutines.launch
 
 /** 게임정보 탭의 풀스크린 하위 페이지 (열리면 하단바·FAB 숨김) */
-private enum class GiSub { Main, HoyoLink, Dashboard, Rate, Calc, RechargeValue, Report, Gift, Schedule, CharStats, CharRoster }
+private enum class GiSub { Main, HoyoLink, Dashboard, Rate, Calc, RechargeValue, Report, Gift, Schedule, Pickups, CharStats, CharRoster }
 
 /** 화면 전환 push/pop 방향용 계층 깊이. Main=0, 하위 페이지=1, 캐릭터 상세(목록서 진입)=2. */
 private fun subDepth(s: GiSub): Int = when (s) {
@@ -203,6 +203,9 @@ fun GameInfoScreen(
             GiSub.Schedule -> SectionPage(onBack = { subPage = GiSub.Main }) {
                 GameScheduleFullContent(banners, events, challenges, gameFilter)
             }
+            GiSub.Pickups -> SectionPage(onBack = { subPage = GiSub.Main }) {
+                GamePickupFullContent(banners, gameFilter)
+            }
             GiSub.Main -> GlgPullToRefreshBox(
             isRefreshing = isRefreshing,
             onRefresh = { viewModel.refreshGameInfo(force = true) },
@@ -255,6 +258,7 @@ fun GameInfoScreen(
             item {
                 EnkaCharSection(
                     viewModel,
+                    gameFilter = gameFilter,
                     onOpenStats = { c, g -> statChar = c; statCharGame = g; statReturn = GiSub.Main; subPage = GiSub.CharStats },
                     // 더보기로 새로 진입 시엔 보유목록 상태(스크롤/필터) 초기화 — 상세→뒤로 복귀는 SaveableStateProvider 가 유지
                     onOpenAll = { g -> rosterGame = g; subPageStateHolder.removeState(GiSub.CharRoster); subPage = GiSub.CharRoster },
@@ -264,7 +268,7 @@ fun GameInfoScreen(
             // 통합 게임 일정 — 헤더 드롭다운(gameFilter) 연동.
             if (schedule.isNotEmpty()) {
                 item { Spacer(Modifier.height(20.dp)) }
-                item { GameScheduleSection(schedule, banners, gameFilter) { subPage = GiSub.Schedule } }
+                item { GameScheduleSection(schedule, banners, gameFilter, onSeeAll = { subPage = GiSub.Schedule }, onSeePickups = { subPage = GiSub.Pickups }) }
             }
             // 전투 진행도·수입 일지(게임 필터 연동). 픽업 배너는 게임 일정으로 통합돼 제외.
             item { Spacer(Modifier.height(20.dp)) }
