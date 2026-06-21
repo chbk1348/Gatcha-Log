@@ -231,14 +231,7 @@ private func prevYM(_ y: Int, _ m: Int) -> (Int, Int) { m == 1 ? (y - 1, 12) : (
 struct GamePill: View {
     let label: String; let selected: Bool; let accent: Color; let action: () -> Void
     var body: some View {
-        Button(action: action) {
-            Text(label).font(.system(size: 12, weight: .medium))
-                .foregroundStyle(selected ? .white : Color(.darkGray))
-                .padding(.horizontal, 14).padding(.vertical, 8)
-                .background(selected ? accent : Color.white, in: Capsule())
-                .overlay(Capsule().stroke(selected ? accent : GLGColor.divider, lineWidth: 1))
-        }
-        .buttonStyle(.plain)
+        GLGChip(label: label, variant: .filter, selected: selected, color: accent, action: action)
     }
 }
 
@@ -313,11 +306,8 @@ struct HistoryItem: View {
 
 struct TagChip: View {
     let tag: String
-    @Environment(\.glgAccent) private var accent
     var body: some View {
-        Text("#\(tag)").font(.system(size: 11, weight: .semibold)).foregroundStyle(accent.primary)
-            .padding(.horizontal, 7).padding(.vertical, 3)
-            .background(accent.primary.opacity(0.12), in: RoundedRectangle(cornerRadius: 7))
+        GLGChip(label: tag, variant: .tag)
     }
 }
 

@@ -19,6 +19,7 @@
 		3B662407EC4D2EA457E26403 /* GameSegmentControl.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D2F3B501B160FF2E015D19D /* GameSegmentControl.swift */; };
 		3CEC973D3915C5EAA8F3144D /* GameInfoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11D16F5E46E7E8DC2FD63907 /* GameInfoView.swift */; };
 		407B2B835C63881B6D71A3D6 /* FirebaseFirestore in Frameworks */ = {isa = PBXBuildFile; productRef = 8271CA7956D21511F8C90ED4 /* FirebaseFirestore */; };
+		5037A67CE3B8E588DCC2F809 /* GLGChip.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEA0ECFE89434FBD76D2E252 /* GLGChip.swift */; };
 		57E3C89A46357C998CEAD839 /* GlassButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 607DE67679739531B7DC4652 /* GlassButton.swift */; };
 		63BB6DD0D19A0B7E102937BD /* HeaderButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 32BBA1BA7898178C15DF09E1 /* HeaderButton.swift */; };
 		753F215D683DBB9FEBA60F13 /* SpendingStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = C3BE8BD3C2DD8BC4F707DE6D /* SpendingStore.swift */; };
@@ -99,6 +100,7 @@
 		EC551FFC4A65F19F94A1987B /* SettingsDialogs.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsDialogs.swift; sourceTree = "<group>"; };
 		F1B20A3BE3C43A7ADDFEB789 /* MyPageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MyPageView.swift; sourceTree = "<group>"; };
 		F54315F0900C3C41178F8697 /* GL_IOS.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = GL_IOS.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		FEA0ECFE89434FBD76D2E252 /* GLGChip.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GLGChip.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -244,6 +246,7 @@
 				16692A76093EA64BC84CA502 /* Glass.swift */,
 				607DE67679739531B7DC4652 /* GlassButton.swift */,
 				CB188D8B07C1771A193CF288 /* GlassCard.swift */,
+				FEA0ECFE89434FBD76D2E252 /* GLGChip.swift */,
 				32BBA1BA7898178C15DF09E1 /* HeaderButton.swift */,
 				1E6A1754F38C5D6D3F9A2605 /* NotificationPermission.swift */,
 				10A462DEE6CE546DFBF6BBA9 /* PillField.swift */,
@@ -362,6 +365,7 @@
 				FEFECA4B17E26F1661161AC0 /* DailyHeroSection.swift in Sources */,
 				A0BA2909983C70B108A718ED /* EnkaCharSection.swift in Sources */,
 				966D49408353ADE28FB496BA /* Format.swift in Sources */,
+				5037A67CE3B8E588DCC2F809 /* GLGChip.swift in Sources */,
 				04D900E4303215C82AEA7A1B /* GachaCalculatorSection.swift in Sources */,
 				FE473FA3E330163CA197055C /* GachaDashboardView.swift in Sources */,
 				75C9F29B2B660EDD54766CA8 /* GachaRateSheet.swift in Sources */,

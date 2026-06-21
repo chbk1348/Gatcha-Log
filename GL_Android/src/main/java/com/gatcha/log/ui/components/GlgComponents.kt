@@ -18,6 +18,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalTextStyle
@@ -29,6 +30,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
@@ -41,7 +43,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import com.gatcha.log.ui.theme.DividerColor
 import com.gatcha.log.ui.theme.LocalAccent
+import com.gatcha.log.ui.theme.TextPrimary
+import com.gatcha.log.ui.theme.TextSecondary
 
 // ============================================================
 //  Gatcha LOG 커스텀 디자인 토큰 (웹앱 스타일 이식)
@@ -250,6 +255,90 @@ fun GlgTabHeader(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             content = actions,
         )
+    }
+}
+
+// ── 공통 칩 (디자인 시스템) ──────────────────────────────────────────────────
+/**
+ * 앱 전역 칩 — variant 로 4종 표현. 기존 FilterPill·ChoiceChip·TagChip·GlowChip 이 이 컴포넌트로 위임해
+ * 스타일 단일화(콜사이트·비주얼 불변). [color] 는 Filter/Choice/Tag=강조색, Glow=글로우색.
+ */
+enum class GlgChipVariant { Filter, Choice, Tag, Glow }
+
+@Composable
+fun GlgChip(
+    label: String,
+    modifier: Modifier = Modifier,
+    variant: GlgChipVariant = GlgChipVariant.Filter,
+    selected: Boolean = false,
+    enabled: Boolean = true,
+    color: Color = LocalAccent.current,
+    onClick: (() -> Unit)? = null,
+) {
+    when (variant) {
+        GlgChipVariant.Tag ->
+            // 표시 전용 — 강조색 12% 배경 + "#" 라벨.
+            Surface(modifier, color = color.copy(alpha = 0.12f), shape = RoundedCornerShape(7.dp)) {
+                Text(
+                    "#$label", fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = color,
+                    modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp),
+                )
+            }
+
+        GlgChipVariant.Glow -> {
+            // 원형 글래스 글로우 — 선택 시 글로우색 채움 + 그림자. 좌측 색 점.
+            val textColor = when {
+                selected -> color
+                !enabled -> Color.LightGray
+                else -> TextSecondary
+            }
+            Surface(
+                shape = CircleShape,
+                color = if (selected) color.copy(alpha = 0.12f) else Color.White.copy(alpha = 0.4f),
+                border = BorderStroke(if (selected) 1.5.dp else 1.dp, if (selected) color else Color.White.copy(alpha = 0.6f)),
+                modifier = modifier
+                    .then(if (enabled && onClick != null) Modifier.clickable { onClick() } else Modifier)
+                    .then(if (selected) Modifier.shadow(8.dp, CircleShape, ambientColor = color, spotColor = color) else Modifier),
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 15.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Box(Modifier.size(8.dp).clip(CircleShape).background(if (enabled) color else Color.LightGray))
+                    Spacer(Modifier.width(6.dp))
+                    Text(label, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = textColor)
+                }
+            }
+        }
+
+        else -> {
+            // Filter / Choice — 20dp 필. 선택=강조색 채움+흰 글자. Choice 는 비선택 배경이 옅은 회색 + 선택 시 체크.
+            val isChoice = variant == GlgChipVariant.Choice
+            val idleBg = if (isChoice) Color(0xFFF2F2F7) else Color.White
+            val idleText = if (isChoice) TextPrimary else Color.DarkGray
+            Surface(
+                modifier = if (onClick != null) modifier.clickable { onClick() } else modifier,
+                shape = RoundedCornerShape(20.dp),
+                color = if (selected) color else idleBg,
+                border = BorderStroke(1.dp, if (selected) color else DividerColor),
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    if (isChoice && selected) {
+                        Icon(Icons.Default.Check, null, tint = Color.White, modifier = Modifier.size(14.dp))
+                        Spacer(Modifier.width(4.dp))
+                    }
+                    Text(
+                        label,
+                        fontSize = if (isChoice) 14.sp else 12.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = if (selected) Color.White else idleText,
+                    )
+                }
+            }
+        }
     }
 }
 
