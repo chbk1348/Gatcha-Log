@@ -229,14 +229,6 @@ struct AddSpendingView: View {
         }
     }
     private func chip(_ label: String, _ selected: Bool, _ action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            HStack(spacing: 4) {
-                if selected { Image(systemName: "checkmark").font(.system(size: 12, weight: .bold)).foregroundStyle(.white) }
-                Text(label).font(.system(size: 14, weight: .medium)).foregroundStyle(selected ? .white : GLGColor.textPrimary)
-            }
-            .padding(.horizontal, 14).padding(.vertical, 8)
-            .background(selected ? accent.primary : Color(hex: 0xFFF2F2F7), in: Capsule())
-            .overlay(Capsule().stroke(selected ? accent.primary : GLGColor.divider, lineWidth: 1))
-        }.buttonStyle(.plain)
+        GLGChip(label: label, variant: .choice, selected: selected, action: action)
     }
 }

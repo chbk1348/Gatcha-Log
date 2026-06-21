@@ -41,6 +41,8 @@ import com.gatcha.log.data.PkgCategory
 import com.gatcha.log.data.category
 import com.gatcha.log.data.Spending
 import com.gatcha.log.ui.components.GlgButton
+import com.gatcha.log.ui.components.GlgChip
+import com.gatcha.log.ui.components.GlgChipVariant
 import com.gatcha.log.ui.components.GlgDatePickerDialog
 import com.gatcha.log.ui.components.GlgDialog
 import com.gatcha.log.ui.components.GlgFieldLabel
@@ -432,22 +434,5 @@ private fun PackageCard(pkg: GamePackage, isSelected: Boolean, modifier: Modifie
 
 @Composable
 private fun ChoiceChip(label: String, selected: Boolean, onClick: () -> Unit) {
-    val accent = LocalAccent.current
-    Surface(
-        modifier = Modifier.clickable { onClick() },
-        shape = RoundedCornerShape(20.dp),
-        color = if (selected) accent else ChipIdleBg,
-        border = BorderStroke(1.dp, if (selected) accent else DividerColor),
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            if (selected) {
-                Icon(Icons.Default.Check, null, tint = Color.White, modifier = Modifier.size(14.dp))
-                Spacer(Modifier.width(4.dp))
-            }
-            Text(label, fontSize = 14.sp, color = if (selected) Color.White else TextPrimary, fontWeight = FontWeight.Medium)
-        }
-    }
+    GlgChip(label = label, variant = GlgChipVariant.Choice, selected = selected, onClick = onClick)
 }

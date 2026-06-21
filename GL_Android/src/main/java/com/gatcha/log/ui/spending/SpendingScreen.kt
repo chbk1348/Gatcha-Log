@@ -21,6 +21,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ReceiptLong
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
+import com.gatcha.log.ui.components.GlgChip
+import com.gatcha.log.ui.components.GlgChipVariant
 import com.gatcha.log.ui.components.GlgPullToRefreshBox
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -340,20 +342,7 @@ fun GameFilterRow(selectedGame: String?, modifier: Modifier = Modifier, onGameSe
 
 @Composable
 internal fun FilterPill(label: String, selected: Boolean, accent: Color, onClick: () -> Unit) {
-    Surface(
-        modifier = Modifier.clickable { onClick() },
-        shape = RoundedCornerShape(20.dp),
-        color = if (selected) accent else Color.White,
-        border = androidx.compose.foundation.BorderStroke(1.dp, if (selected) accent else DividerColor),
-    ) {
-        Text(
-            label,
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
-            fontSize = 12.sp,
-            fontWeight = FontWeight.Medium,
-            color = if (selected) Color.White else Color.DarkGray,
-        )
-    }
+    GlgChip(label = label, variant = GlgChipVariant.Filter, selected = selected, color = accent, onClick = onClick)
 }
 
 @Composable
@@ -431,19 +420,7 @@ fun HistoryItem(spending: Spending, onClick: () -> Unit) {
 /** 지출 내역 태그 칩 — 강조색 옅은 배경 + 강조색 글자로 가독성 확보. */
 @Composable
 internal fun TagChip(tag: String) {
-    val accent = LocalAccent.current
-    Surface(
-        color = accent.copy(alpha = 0.12f),
-        shape = RoundedCornerShape(7.dp),
-    ) {
-        Text(
-            "#$tag",
-            fontSize = 11.sp,
-            fontWeight = FontWeight.SemiBold,
-            color = accent,
-            modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp),
-        )
-    }
+    GlgChip(label = tag, variant = GlgChipVariant.Tag)
 }
 
 @Composable

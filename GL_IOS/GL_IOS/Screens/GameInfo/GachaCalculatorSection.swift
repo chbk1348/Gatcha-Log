@@ -94,19 +94,7 @@ private struct GlowChip: View {
     let enabled: Bool
     let action: () -> Void
     var body: some View {
-        Button(action: { if enabled { action() } }) {
-            HStack(spacing: 6) {
-                Circle().fill(enabled ? glow : Color(.systemGray3)).frame(width: 7, height: 7)
-                Text(label).font(.system(size: 12.5, weight: .bold))
-                    .foregroundStyle(selected ? glow : (enabled ? GLGColor.textSecondary : Color(.systemGray3)))
-            }
-            .padding(.horizontal, 14).padding(.vertical, 8)
-            .background(selected ? glow.opacity(0.12) : Color.white.opacity(0.4), in: Capsule())
-            .overlay(Capsule().stroke(selected ? glow : Color.white.opacity(0.6), lineWidth: selected ? 1.5 : 1))
-            .shadow(color: selected ? glow.opacity(0.35) : .clear, radius: selected ? 6 : 0, y: selected ? 2 : 0)
-        }
-        .buttonStyle(.plain)
-        .disabled(!enabled)
+        GLGChip(label: label, variant: .glow, selected: selected, enabled: enabled, color: glow, action: action)
     }
 }
 
