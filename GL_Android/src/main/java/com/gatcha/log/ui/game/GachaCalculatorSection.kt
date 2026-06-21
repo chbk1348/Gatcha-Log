@@ -189,8 +189,9 @@ fun GachaCalculatorSection(pity: Map<String, PityState>) {
 
 // ============================================================ S4 글래스 글로우 칩 · 위젯 보조
 @Composable
+// 계산기 칩 — 공통 칩 버튼 단일 규격으로 통일(글로우/점 제거). 게임색은 선택 시 채움색으로 유지.
 private fun GlowChip(label: String, glow: Color, selected: Boolean, enabled: Boolean, onClick: () -> Unit) {
-    GlgChip(label = label, variant = GlgChipVariant.Glow, selected = selected, enabled = enabled, color = glow, onClick = onClick)
+    GlgChip(label = label, selected = selected, enabled = enabled, color = glow, onClick = onClick)
 }
 
 @Composable

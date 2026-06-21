@@ -94,7 +94,7 @@ private struct GlowChip: View {
     let enabled: Bool
     let action: () -> Void
     var body: some View {
-        GLGChip(label: label, variant: .glow, selected: selected, enabled: enabled, color: glow, action: action)
+        GLGChip(label: label, selected: selected, enabled: enabled, color: glow, action: action)
     }
 }
 

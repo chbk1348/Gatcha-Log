@@ -342,7 +342,7 @@ fun GameFilterRow(selectedGame: String?, modifier: Modifier = Modifier, onGameSe
 
 @Composable
 internal fun FilterPill(label: String, selected: Boolean, accent: Color, onClick: () -> Unit) {
-    GlgChip(label = label, variant = GlgChipVariant.Filter, selected = selected, color = accent, onClick = onClick)
+    GlgChip(label = label, selected = selected, color = accent, onClick = onClick)
 }
 
 @Composable

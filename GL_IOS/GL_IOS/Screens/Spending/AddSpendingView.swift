@@ -229,6 +229,6 @@ struct AddSpendingView: View {
         }
     }
     private func chip(_ label: String, _ selected: Bool, _ action: @escaping () -> Void) -> some View {
-        GLGChip(label: label, variant: .choice, selected: selected, action: action)
+        GLGChip(label: label, selected: selected, action: action)
     }
 }

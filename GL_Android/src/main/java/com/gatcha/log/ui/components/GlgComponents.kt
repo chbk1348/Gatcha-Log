@@ -260,85 +260,53 @@ fun GlgTabHeader(
 
 // ── 공통 칩 (디자인 시스템) ──────────────────────────────────────────────────
 /**
- * 앱 전역 칩 — variant 로 4종 표현. 기존 FilterPill·ChoiceChip·TagChip·GlowChip 이 이 컴포넌트로 위임해
- * 스타일 단일화(콜사이트·비주얼 불변). [color] 는 Filter/Choice/Tag=강조색, Glow=글로우색.
+ * 앱 전역 칩 — **단일 규격·디자인**. 두 종류뿐:
+ *  - [GlgChipVariant.Chip]  선택형 칩 버튼(필터·선택·계산기 게임/배너 등) — 20dp 필·h14/v8·13sp,
+ *    선택=[color] 채움+흰 글자 / 비선택=흰 배경+Divider 테두리+진회색 / 비활성=흐림.
+ *  - [GlgChipVariant.Tag]   표시 전용 태그 — [color] 12% 배경 + "#" 라벨.
+ * 모든 칩 버튼은 이 한 규격으로 통일한다([color]만 강조색/게임색으로 다름).
  */
-enum class GlgChipVariant { Filter, Choice, Tag, Glow }
+enum class GlgChipVariant { Chip, Tag }
 
 @Composable
 fun GlgChip(
     label: String,
     modifier: Modifier = Modifier,
-    variant: GlgChipVariant = GlgChipVariant.Filter,
+    variant: GlgChipVariant = GlgChipVariant.Chip,
     selected: Boolean = false,
     enabled: Boolean = true,
     color: Color = LocalAccent.current,
     onClick: (() -> Unit)? = null,
 ) {
-    when (variant) {
-        GlgChipVariant.Tag ->
-            // 표시 전용 — 강조색 12% 배경 + "#" 라벨.
-            Surface(modifier, color = color.copy(alpha = 0.12f), shape = RoundedCornerShape(7.dp)) {
-                Text(
-                    "#$label", fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = color,
-                    modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp),
-                )
-            }
-
-        GlgChipVariant.Glow -> {
-            // 원형 글래스 글로우 — 선택 시 글로우색 채움 + 그림자. 좌측 색 점.
-            val textColor = when {
-                selected -> color
-                !enabled -> Color.LightGray
-                else -> TextSecondary
-            }
-            Surface(
-                shape = CircleShape,
-                color = if (selected) color.copy(alpha = 0.12f) else Color.White.copy(alpha = 0.4f),
-                border = BorderStroke(if (selected) 1.5.dp else 1.dp, if (selected) color else Color.White.copy(alpha = 0.6f)),
-                modifier = modifier
-                    .then(if (enabled && onClick != null) Modifier.clickable { onClick() } else Modifier)
-                    .then(if (selected) Modifier.shadow(8.dp, CircleShape, ambientColor = color, spotColor = color) else Modifier),
-            ) {
-                Row(
-                    modifier = Modifier.padding(horizontal = 15.dp, vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Box(Modifier.size(8.dp).clip(CircleShape).background(if (enabled) color else Color.LightGray))
-                    Spacer(Modifier.width(6.dp))
-                    Text(label, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = textColor)
-                }
-            }
+    if (variant == GlgChipVariant.Tag) {
+        Surface(modifier, color = color.copy(alpha = 0.12f), shape = RoundedCornerShape(7.dp)) {
+            Text(
+                "#$label", fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = color,
+                modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp),
+            )
         }
-
-        else -> {
-            // Filter / Choice — 20dp 필. 선택=강조색 채움+흰 글자. Choice 는 비선택 배경이 옅은 회색 + 선택 시 체크.
-            val isChoice = variant == GlgChipVariant.Choice
-            val idleBg = if (isChoice) Color(0xFFF2F2F7) else Color.White
-            val idleText = if (isChoice) TextPrimary else Color.DarkGray
-            Surface(
-                modifier = if (onClick != null) modifier.clickable { onClick() } else modifier,
-                shape = RoundedCornerShape(20.dp),
-                color = if (selected) color else idleBg,
-                border = BorderStroke(1.dp, if (selected) color else DividerColor),
-            ) {
-                Row(
-                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    if (isChoice && selected) {
-                        Icon(Icons.Default.Check, null, tint = Color.White, modifier = Modifier.size(14.dp))
-                        Spacer(Modifier.width(4.dp))
-                    }
-                    Text(
-                        label,
-                        fontSize = if (isChoice) 14.sp else 12.sp,
-                        fontWeight = FontWeight.Medium,
-                        color = if (selected) Color.White else idleText,
-                    )
-                }
-            }
-        }
+        return
+    }
+    // 단일 규격 칩 버튼.
+    val textColor = when {
+        !enabled -> Color.LightGray
+        selected -> Color.White
+        else -> Color.DarkGray
+    }
+    val clickable = onClick != null && enabled
+    Surface(
+        modifier = if (clickable) modifier.clickable { onClick?.invoke() } else modifier,
+        shape = RoundedCornerShape(20.dp),
+        color = if (selected) color else Color.White,
+        border = BorderStroke(1.dp, if (selected) color else DividerColor),
+    ) {
+        Text(
+            label,
+            fontSize = 13.sp,
+            fontWeight = FontWeight.Medium,
+            color = textColor,
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+        )
     }
 }
 

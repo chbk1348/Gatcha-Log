@@ -434,5 +434,5 @@ private fun PackageCard(pkg: GamePackage, isSelected: Boolean, modifier: Modifie
 
 @Composable
 private fun ChoiceChip(label: String, selected: Boolean, onClick: () -> Unit) {
-    GlgChip(label = label, variant = GlgChipVariant.Choice, selected = selected, onClick = onClick)
+    GlgChip(label = label, selected = selected, onClick = onClick)
 }
