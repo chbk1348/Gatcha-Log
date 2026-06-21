@@ -13,11 +13,10 @@ extension View {
     /// - Parameters:
     ///   - shape: 글래스 패널 모양 (기본: 둥근 사각형)
     ///   - interactive: iOS 26 인터랙티브 글래스(탭 시 반응) 여부
-    // 유리 제거(전역) — 흰 배경 + 옅은 아웃라인. (구 Liquid Glass: glassEffect/ultraThinMaterial)
+    // D · Soft Modern 카드 — 흰 배경 위 연회색 솔리드 면(보더·그림자 없음). Android GlassCard 와 파리티.
     @ViewBuilder
     func glgGlass<S: Shape>(in shape: S, interactive: Bool = false) -> some View {
-        self.background(Color.white, in: shape)
-            .overlay(shape.stroke(Color.black.opacity(0.08), lineWidth: 1).allowsHitTesting(false))
+        self.background(Color(hex: 0xFFF6F7F9), in: shape)
     }
 
     /// 가독성이 더 필요한 패널(시트/다이얼로그 본문)용 — 흰 배경 + 아웃라인(전역 유리 제거).
@@ -73,33 +72,13 @@ struct GLGVisualEffectBlur: UIViewRepresentable {
     }
 }
 
-/// 앱 전역 배경 — 부드러운 민트→화이트 그라데이션 (Compose 의 GlassBackground 와 동일 톤).
-/// 강조색에 살짝 물든 상단을 위해 accent 를 옅게 섞는다.
+/// 앱 전역 배경 — D · Soft Modern: 솔리드 흰색(연회색 카드 대비 확보). Android GlassBackground 와 파리티.
 struct GLGBackground<Content: View>: View {
-    @Environment(\.glgAccent) private var accent
     @ViewBuilder var content: Content
 
     var body: some View {
         ZStack {
-            LinearGradient(
-                colors: [
-                    GLGColor.backgroundGradientStart,
-                    GLGColor.backgroundGradientEnd,
-                ],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-            .ignoresSafeArea()
-
-            // 상단 강조색 글로우 (아주 옅게)
-            RadialGradient(
-                colors: [accent.primary.opacity(0.10), .clear],
-                center: .top,
-                startRadius: 0,
-                endRadius: 380
-            )
-            .ignoresSafeArea()
-
+            Color.white.ignoresSafeArea()
             content
         }
     }
