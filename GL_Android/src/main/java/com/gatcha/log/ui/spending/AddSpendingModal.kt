@@ -375,26 +375,7 @@ private fun SectionRowLabel(text: String) {
 
 @Composable
 private fun GameSelectItem(game: Game, isSelected: Boolean, onClick: () -> Unit) {
-    Surface(
-        modifier = Modifier.clickable { onClick() },
-        shape = RoundedCornerShape(12.dp),
-        color = if (isSelected) game.color.toColor() else ChipIdleBg,
-        border = if (isSelected) null else BorderStroke(1.dp, DividerColor),
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 9.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Box(Modifier.size(7.dp).clip(CircleShape).background(if (isSelected) Color.White else game.color.toColor()))
-            Spacer(Modifier.width(8.dp))
-            Text(
-                game.shortName,
-                fontSize = 13.sp,
-                color = if (isSelected) Color.White else TextPrimary,
-                fontWeight = FontWeight.Bold,
-            )
-        }
-    }
+    GlgChip(label = game.shortName, selected = isSelected, color = game.color.toColor(), onClick = onClick)
 }
 
 @Composable

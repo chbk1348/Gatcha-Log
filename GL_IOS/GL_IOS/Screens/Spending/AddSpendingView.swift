@@ -70,16 +70,9 @@ struct AddSpendingView: View {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
                     ForEach(GameData.shared.games, id: \.key) { g in
-                        let sel = g.displayName == gameName
-                        Button { gameName = g.displayName; selectedPkg = nil } label: {
-                            HStack(spacing: 8) {
-                                Circle().fill(sel ? .white : Color(argb64: g.color)).frame(width: 7, height: 7)
-                                Text(g.shortName).font(.system(size: 13, weight: .bold)).foregroundStyle(sel ? .white : GLGColor.textPrimary)
-                            }
-                            .padding(.horizontal, 14).padding(.vertical, 9)
-                            .background(sel ? Color(argb64: g.color) : Color(hex: 0xFFF2F2F7), in: RoundedRectangle(cornerRadius: 12))
-                            .overlay(sel ? nil : RoundedRectangle(cornerRadius: 12).stroke(GLGColor.divider, lineWidth: 1))
-                        }.buttonStyle(.plain)
+                        GLGChip(label: g.shortName, selected: g.displayName == gameName, color: Color(argb64: g.color)) {
+                            gameName = g.displayName; selectedPkg = nil
+                        }
                     }
                 }
             }
