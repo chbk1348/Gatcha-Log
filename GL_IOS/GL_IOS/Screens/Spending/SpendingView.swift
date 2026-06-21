@@ -231,7 +231,7 @@ private func prevYM(_ y: Int, _ m: Int) -> (Int, Int) { m == 1 ? (y - 1, 12) : (
 struct GamePill: View {
     let label: String; let selected: Bool; let accent: Color; let action: () -> Void
     var body: some View {
-        GLGChip(label: label, variant: .filter, selected: selected, color: accent, action: action)
+        GLGChip(label: label, selected: selected, color: accent, action: action)
     }
 }
 
