@@ -56,7 +56,7 @@ import com.gatcha.log.ui.theme.TextPrimary
 import com.gatcha.log.ui.theme.TextSecondary
 import com.gatcha.log.util.won
 
-private val SheetBg = Color(0xFFF2F2F7)   // iOS 인셋-그룹 회색 배경
+private val SheetBg = Color.White   // D · 모달 배경 흰색(연회색 카드와 대비)
 private val CardBg = Color.White
 private val ChipIdleBg = Color(0xFFF2F2F7)
 

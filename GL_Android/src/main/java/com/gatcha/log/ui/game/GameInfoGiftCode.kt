@@ -27,6 +27,7 @@ import com.gatcha.log.data.HoyolabConfig
 import com.gatcha.log.data.api.GiftCode
 import com.gatcha.log.ui.components.GlassCard
 import com.gatcha.log.ui.components.GlgButton
+import com.gatcha.log.ui.components.GlgChip
 import com.gatcha.log.ui.components.GlgScreenHeader
 import com.gatcha.log.ui.components.GlgTextField
 import com.gatcha.log.data.RedeemState
@@ -76,20 +77,7 @@ internal fun GiftCodePage(
                 Spacer(Modifier.height(2.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     games.forEach { (key, label) ->
-                        val sel = key == selected
-                        Surface(
-                            modifier = Modifier.clickable { selected = key },
-                            shape = RoundedCornerShape(50),
-                            color = if (sel) accent else Color(0xF7FFFFFF),
-                            border = if (sel) null else BorderStroke(1.dp, DividerColor),
-                        ) {
-                            Text(
-                                label,
-                                modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp),
-                                fontSize = 13.sp, fontWeight = FontWeight.Bold,
-                                color = if (sel) Color.White else TextSecondary,
-                            )
-                        }
+                        GlgChip(label = label, selected = key == selected, color = accent) { selected = key }
                     }
                 }
                 // 활성 코드 카드
