@@ -29,12 +29,13 @@ struct GLGChip: View {
                 .padding(.horizontal, 7).padding(.vertical, 3)
                 .background(tint.opacity(0.12), in: RoundedRectangle(cornerRadius: 7))
         } else {
-            // 단일 규격 칩 버튼 (D · Soft Modern) — idle=연회색 채움(테두리 없음), 선택=tint 채움, 14pt 라운드.
+            // 단일 규격 칩 버튼 (D · Soft Modern) — idle=흰 배경+옅은 아웃라인, 선택=tint 채움, 14pt 라운드.
             let textColor: Color = !enabled ? Color(.systemGray3) : (selected ? .white : Color(hex: 0xFF4A5159))
             wrap {
                 Text(label).font(.system(size: 13, weight: .semibold)).foregroundStyle(textColor)
                     .padding(.horizontal, 14).padding(.vertical, 9)
-                    .background(selected ? tint : Color(hex: 0xFFEEF0F3), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    .background(selected ? tint : Color.white, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(selected ? Color.clear : Color(hex: 0xFFE3E5EA), lineWidth: 1))
             }
             .disabled(!enabled)
         }
