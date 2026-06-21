@@ -38,7 +38,7 @@ struct AddSpendingView: View {
                 }
                 .padding(16)
             }
-            .background(Color(hex: 0xFFF2F2F7))
+            .background(Color.white)
             .scrollDismissesKeyboard(.interactively)
             .navigationTitle(editing == nil ? "지출 추가" : "지출 수정")
             .navigationBarTitleDisplayMode(.inline)
@@ -177,7 +177,7 @@ struct AddSpendingView: View {
                 .opacity(amountValid ? 1 : 0.5).disabled(!amountValid)
         }
         .padding(.horizontal, 16).padding(.top, 12).padding(.bottom, 6)
-        .background(Color(hex: 0xFFF2F2F7))
+        .background(Color.white)
     }
 
     // ── 로직 ──

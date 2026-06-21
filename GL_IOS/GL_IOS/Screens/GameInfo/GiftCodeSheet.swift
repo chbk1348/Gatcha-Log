@@ -64,13 +64,7 @@ struct GiftCodePage: View {
     private var gameTabs: some View {
         HStack(spacing: 8) {
             ForEach(games, id: \.0) { key, label in
-                let sel = key == selected
-                Button { selected = key } label: {
-                    Text(label).font(.system(size: 13, weight: .bold)).foregroundStyle(sel ? .white : GLGColor.textSecondary)
-                        .padding(.horizontal, 14).padding(.vertical, 7)
-                        .background(sel ? accent.primary : Color.white.opacity(0.6), in: Capsule())
-                        .overlay(Capsule().stroke(GLGColor.divider, lineWidth: sel ? 0 : 1))
-                }.buttonStyle(.plain)
+                GLGChip(label: label, selected: key == selected) { selected = key }
             }
             Spacer(minLength: 0)
         }
