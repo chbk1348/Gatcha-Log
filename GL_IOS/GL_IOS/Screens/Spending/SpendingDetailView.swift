@@ -38,10 +38,7 @@ struct SpendingDetailView: View {
                             HStack(spacing: 8) {
                                 Text(s.gameName).font(.system(size: 16, weight: .bold))
                                 if s.isSubscription {
-                                    Text("정기").font(.system(size: 10))
-                                        .foregroundStyle(Color(argb64: s.gameColor))
-                                        .padding(.horizontal, 6).padding(.vertical, 2)
-                                        .background(Color(argb64: s.gameColor).opacity(0.12), in: RoundedRectangle(cornerRadius: 6))
+                                    GLGBadge(label: "정기", color: Color(argb64: s.gameColor))
                                 }
                             }
                             Spacer()

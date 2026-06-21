@@ -21,6 +21,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ReceiptLong
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
+import com.gatcha.log.ui.components.GlgBadge
 import com.gatcha.log.ui.components.GlgChip
 import com.gatcha.log.ui.components.GlgChipVariant
 import com.gatcha.log.ui.components.GlgPullToRefreshBox
@@ -390,9 +391,7 @@ fun HistoryItem(spending: Spending, onClick: () -> Unit) {
                     Text(spending.gameName, fontSize = 14.sp, fontWeight = FontWeight.Bold)
                     if (spending.isSubscription) {
                         Spacer(Modifier.width(6.dp))
-                        Surface(color = spending.gameColor.toColor().copy(alpha = 0.12f), shape = RoundedCornerShape(4.dp)) {
-                            Text("정기", fontSize = 9.sp, color = spending.gameColor.toColor(), modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp))
-                        }
+                        GlgBadge("정기", spending.gameColor.toColor())
                     }
                 }
                 Text(
