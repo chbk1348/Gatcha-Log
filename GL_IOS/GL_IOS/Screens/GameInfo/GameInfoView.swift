@@ -16,6 +16,7 @@ struct GameInfoView: View {
     @State private var showRecharge = false
     @State private var showReport = false
     @State private var showSchedule = false
+    @State private var showNews = false
     @State private var showPickups = false
     @State private var statChar: EnkaChar? = nil
     @State private var statGame = "genshin"
@@ -43,8 +44,8 @@ struct GameInfoView: View {
                 }
                 // 게임 주년 — 지원 게임의 다가오는 주년(임박 순).
                 section { AnniversarySection() }
-                // 공지·뉴스 — 게임별 최신 공지(탭하면 HoYoLab 열기).
-                section { NewsSection(store: store, filter: gameFilter) }
+                // 공지·뉴스 — 게임별 최신 공지(탭하면 HoYoLab 열기). 더보기로 전체 페이지.
+                section { NewsSection(store: store, filter: gameFilter, onSeeAll: { showNews = true }) }
                 section { GameTabbedSection(store: store, filter: gameFilter) }
                 section { navEntry(icon: "function", title: "가챠 계산기", sub: "재화 환산 · 확률 · 시뮬레이터 · 플래너") { showCalc = true } }
                 section { navEntry(icon: "wonsign.circle", title: "충전 가성비", sub: "충전 패키지 단가 비교 · 첫구매 반영") { showRecharge = true } }
@@ -97,6 +98,7 @@ struct GameInfoView: View {
         .navigationDestination(isPresented: $showGift) { GiftCodePage(store: store) }
         .navigationDestination(isPresented: $showDashboard) { GachaDashboardView(store: store) }
         .navigationDestination(isPresented: $showSchedule) { GameSchedulePage(store: store, filter: gameFilter) }
+        .navigationDestination(isPresented: $showNews) { NewsPage(store: store, filter: gameFilter) }
         .navigationDestination(isPresented: $showPickups) { GamePickupPage(store: store, filter: gameFilter) }
         .navigationDestination(isPresented: $showStats) { if let c = statChar { EnkaStatPage(char: c, game: statGame) } }
         .navigationDestination(isPresented: $showRoster) {
