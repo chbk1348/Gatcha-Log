@@ -46,7 +46,7 @@ struct NewsSection: View {
             let items = Array(all.prefix(maxCount))
             VStack(alignment: .leading, spacing: 10) {
                 Text("공지·뉴스").font(.pretendard(size: 16, weight: .bold))
-                GLGCard(cornerRadius: 24, padding: 16) {
+                GLGCard(cornerRadius: 24, padding: 0) {
                     VStack(spacing: 0) {
                         ForEach(Array(items.enumerated()), id: \.offset) { i, n in
                             if i > 0 { Divider() }
@@ -56,10 +56,13 @@ struct NewsSection: View {
                             Divider()
                             Button { onSeeAll() } label: {
                                 Text("더보기 (\(all.count))").font(.pretendard(size: 13, weight: .bold))
-                                    .foregroundStyle(accent.primary).frame(maxWidth: .infinity).padding(.vertical, 11)
+                                    .foregroundStyle(accent.primary).frame(maxWidth: .infinity).padding(.vertical, 12)
                             }.buttonStyle(.plain)
                         }
                     }
+                    .padding(.horizontal, 16).padding(.top, 16)
+                    // 더보기일 때 하단 여백 최소화(버튼 자체 패딩만), 없으면 기본 16.
+                    .padding(.bottom, all.count > maxCount ? 0 : 16)
                 }
             }
         }
