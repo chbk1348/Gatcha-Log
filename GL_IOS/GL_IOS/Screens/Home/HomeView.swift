@@ -13,33 +13,45 @@ struct HomeView: View {
     @State private var showHomeEdit = false
     @State private var importingGacha = false
     @State private var didStart = false
+    /// 콘텐츠 로드인 스태거 — 첫 표시 1회만 등장(스크롤 재진입 시 재애니메이션 방지용 인덱스 보관).
+    @State private var appeared: Set<Int> = []
 
     var body: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 16) {
-                if store.hoyoTokenExpired { TokenExpiredBanner { store.requestOpenHoyolabLink(); onSwitchTab(3) } }
+                if store.hoyoTokenExpired {
+                    TokenExpiredBanner { store.requestOpenHoyolabLink(); onSwitchTab(3) }
+                        .glgLoadIn(0, appeared: $appeared)
+                }
                 HomeSummaryCard(monthlyTotal: monthlyTotal, prevTotal: prevTotal,
                                 nextBanner: nextBanner, gameOverCount: gameOverBudget.count,
                                 onBudget: { showBudget = true }, onTip: { store.showStatus(savingTip) })
+                    .glgLoadIn(1, appeared: $appeared)
                 todayTask
-                GachaStatusCard(nextBanner: nextBanner, nextBannerPlan: nextBannerPlan,
-                                onOpen: { onSwitchTab(2) }, onImport: { importingGacha = true })
+                    .glgLoadIn(2, appeared: $appeared)
                 GameStatusSection(store: store, onConfig: { onSwitchTab(2) })
+                    .glgLoadIn(3, appeared: $appeared)
                 let rest = Array(soonBanners.dropFirst())
                 if !rest.isEmpty {
                     VStack(alignment: .leading, spacing: 8) {
-                        Text("픽업 배너").font(.system(size: 13, weight: .bold)).padding(.leading, 2)
+                        Text("픽업 배너").font(.pretendard(size: 13, weight: .bold)).padding(.leading, 2)
                         ForEach(Array(rest.enumerated()), id: \.offset) { _, b in BannerCapsule(banner: b) }
                     }
+                    .glgLoadIn(4, appeared: $appeared)
                 }
-                ForEach(store.homeCards.filter { $0.visible }, id: \.id) { card in
-                    if card.id == HomeCards.shared.SPENDING {
-                        SpendingBudgetSection(monthlyTotal: monthlyTotal, budget: store.budget, perGame: perGameSpend, onEdit: { showBudget = true })
-                    } else if card.id == HomeCards.shared.GACHA {
-                        GachaSummarySection(stats: store.gachaStats, onOpen: { onSwitchTab(2) })
+                ForEach(Array(store.homeCards.filter { $0.visible }.enumerated()), id: \.element.id) { i, card in
+                    Group {
+                        if card.id == HomeCards.shared.SPENDING {
+                            SpendingBudgetSection(monthlyTotal: monthlyTotal, budget: store.budget, perGame: perGameSpend, onEdit: { showBudget = true })
+                        } else if card.id == HomeCards.shared.GACHA {
+                            GachaSummarySection(stats: store.gachaStats, nextBanner: nextBanner, nextBannerPlan: nextBannerPlan,
+                                                onOpen: { onSwitchTab(2) }, onImport: { importingGacha = true })
+                        }
                     }
+                    .glgLoadIn(6 + i, appeared: $appeared)
                 }
                 homeEditButton
+                    .glgLoadIn(8, appeared: $appeared)
                 Color.clear.frame(height: 12)
             }
             .padding(.horizontal, 16)
@@ -101,8 +113,8 @@ struct HomeView: View {
     private var homeEditButton: some View {
         Button { showHomeEdit = true } label: {
             HStack(spacing: 6) {
-                Image(systemName: "slider.horizontal.3").font(.system(size: 16)).foregroundStyle(GLGColor.textSecondary)
-                Text("홈 카드 편집").font(.system(size: 13, weight: .medium)).foregroundStyle(GLGColor.textSecondary)
+                Image(systemName: "slider.horizontal.3").font(.pretendard(size: 16)).foregroundStyle(GLGColor.textSecondary)
+                Text("홈 카드 편집").font(.pretendard(size: 13, weight: .medium)).foregroundStyle(GLGColor.textSecondary)
             }
             .frame(maxWidth: .infinity).padding(.vertical, 12)
         }.buttonStyle(.plain)
@@ -176,7 +188,7 @@ func resolveTodayTasks(pendingAttendance: Int, resins: [ResinAlert], urgentBanne
     let pct = budget > 0 ? Int(monthlyTotal * 100 / budget) : 0
     if pendingAttendance > 0 { items.append(TodayItem(icon: "checkmark.circle", message: "출석 안 한 게임 \(pendingAttendance)개", cta: "한 번에 출석", urgent: false, busyable: true, action: onCheckInAll)) }
     for r in resins { items.append(TodayItem(icon: "bolt.fill", message: r.full ? "\(r.gameShort) \(r.label) 가득 참" : "\(r.gameShort) \(r.label) \(r.cur)/\(r.max) 곧 넘침", cta: "게임 정보", urgent: true, busyable: false, action: onResin)) }
-    if let b = urgentBanner { items.append(TodayItem(icon: "die.face.5", message: "\(b.name) 픽업 \(b.endShortLabel(nowMillis: nowMs())) 막바지", cta: "픽업 계획", urgent: true, busyable: false, action: onBanner)) }
+    if let b = urgentBanner { items.append(TodayItem(icon: "die.face.5", message: "\(b.name) 픽업 \(GameInfoKt.dhLabel(targetMillis: b.endMillis, nowMillis: nowMs())) 막바지", cta: "픽업 계획", urgent: true, busyable: false, action: onBanner)) }
     if budget > 0 && monthlyTotal > budget { items.append(TodayItem(icon: "banknote", message: "예산 \(pct - 100)% 초과", cta: "예산 점검", urgent: true, busyable: false, action: onBudget)) }
     else if budget > 0 && pct >= 90 { items.append(TodayItem(icon: "banknote", message: "예산 \(pct)% 사용", cta: "예산 점검", urgent: true, busyable: false, action: onBudget)) }
     return items

@@ -23,7 +23,7 @@
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
-	<string>27.28.1</string>
+	<string>27.30.0</string>
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>
@@ -34,9 +34,16 @@
 		</dict>
 	</array>
 	<key>CFBundleVersion</key>
-	<string>272801</string>
+	<string>273000</string>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
+	<key>UIAppFonts</key>
+	<array>
+		<string>Pretendard-Regular.otf</string>
+		<string>Pretendard-Medium.otf</string>
+		<string>Pretendard-SemiBold.otf</string>
+		<string>Pretendard-Bold.otf</string>
+	</array>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>fetch</string>

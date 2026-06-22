@@ -26,6 +26,10 @@ val DangerText = Color(0xFFD0021B)
 val ProgressEmpty = Color(0xFFE0E0E0)
 val DividerColor = Color(0xFFF0F0F0)
 
+// 스켈레톤 시머 토큰 — base(바탕)·highlight(흐르는 밝은 띠). iOS GLGColor.skeletonBase/Highlight 와 패리티.
+val SkeletonBase = Color(0xFFEAEAF0)
+val SkeletonHighlight = Color(0xFFF6F6FA)
+
 // 게임 색상 — 웹앱 GAMES 정의와 동일
 val GIColor = Color(0xFF4F8EF7)
 val HSRColor = Color(0xFFB06BFF)

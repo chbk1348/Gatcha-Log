@@ -42,7 +42,6 @@ final class SpendingStore: ObservableObject {
     @Published private(set) var notifyBudget: Bool = false
     @Published private(set) var notifyAttendance: Bool = false
     @Published private(set) var notifyResin: Bool = false
-    @Published private(set) var notifyWish: Bool = false
     @Published private(set) var nudgeOverspend: Bool = false
     @Published private(set) var nudgeThreshold: Int64 = 0
     @Published private(set) var pendingOpenHoyolabLink: Bool = false
@@ -57,17 +56,20 @@ final class SpendingStore: ObservableObject {
     @Published private(set) var liveNotes: [LiveNote] = []
     @Published private(set) var gameEvents: [GameEvent] = []
     @Published private(set) var challenges: [GameChallenge] = []
+    @Published private(set) var gameNews: [NewsItem] = []
     @Published private(set) var ledgers: [MonthlyLedger] = []
     @Published private(set) var combat: [CombatMode] = []
     @Published private(set) var attendanceToday: Set<String> = []
     @Published private(set) var checkingIn: String? = nil
     @Published private(set) var pity: [String: PityState] = [:]
-    @Published private(set) var wishlist: [String: [String]] = [:]
     // Phase 4 chunk ③ (가챠 도구)
     @Published private(set) var enkaGiUid: String = ""
     @Published private(set) var enkaHsrUid: String = ""
     @Published private(set) var enkaResult: EnkaResult? = nil
     @Published private(set) var enkaLoading: Bool = false
+    // '내 캐릭터' 섹션(헤더 필터 연동) — 게임별 결과/로딩 동시 보관
+    @Published private(set) var enkaResults: [String: EnkaResult] = [:]
+    @Published private(set) var enkaLoadingGames: Set<String> = []
     @Published private(set) var gachaDashboard: GachaDashboard? = nil
     @Published private(set) var redeemState: RedeemState = RedeemStateIdle.shared
     @Published private(set) var activeCodes: [GiftCode] = []
@@ -116,7 +118,6 @@ final class SpendingStore: ObservableObject {
         bind(vm.notifyBudget) { [weak self] in self?.notifyBudget = $0.boolValue }
         bind(vm.notifyAttendance) { [weak self] in self?.notifyAttendance = $0.boolValue }
         bind(vm.notifyResin) { [weak self] in self?.notifyResin = $0.boolValue }
-        bind(vm.notifyWish) { [weak self] in self?.notifyWish = $0.boolValue }
         bind(vm.nudgeOverspend) { [weak self] in self?.nudgeOverspend = $0.boolValue }
         bind(vm.nudgeThreshold) { [weak self] in self?.nudgeThreshold = $0.int64Value }
         bind(vm.pendingOpenHoyolabLink) { [weak self] in self?.pendingOpenHoyolabLink = $0.boolValue }
@@ -131,17 +132,19 @@ final class SpendingStore: ObservableObject {
         bind(vm.liveNotes) { [weak self] in self?.liveNotes = $0 }
         bind(vm.gameEvents) { [weak self] in self?.gameEvents = $0 }
         bind(vm.challenges) { [weak self] in self?.challenges = $0 }
+        bind(vm.gameNews) { [weak self] in self?.gameNews = $0 }
         bind(vm.ledgers) { [weak self] in self?.ledgers = $0 }
         bind(vm.combat) { [weak self] in self?.combat = $0 }
         bind(vm.attendanceToday) { [weak self] in self?.attendanceToday = $0 }
         bind(vm.checkingIn) { [weak self] in self?.checkingIn = $0 }
         bind(vm.pity) { [weak self] in self?.pity = $0 }
-        bind(vm.wishlist) { [weak self] in self?.wishlist = $0 }
         // chunk ③
         bind(vm.enkaGiUid) { [weak self] in self?.enkaGiUid = $0 }
         bind(vm.enkaHsrUid) { [weak self] in self?.enkaHsrUid = $0 }
         bind(vm.enkaResult) { [weak self] in self?.enkaResult = $0 }
         bind(vm.enkaLoading) { [weak self] in self?.enkaLoading = $0.boolValue }
+        bind(vm.enkaResults) { [weak self] in self?.enkaResults = $0 }
+        bind(vm.enkaLoadingGames) { [weak self] in self?.enkaLoadingGames = $0 }
         bind(vm.gachaDashboard) { [weak self] in self?.gachaDashboard = $0 }
         bind(vm.redeemState) { [weak self] in self?.redeemState = $0 }
         bind(vm.activeCodes) { [weak self] in self?.activeCodes = $0 }
@@ -192,7 +195,6 @@ final class SpendingStore: ObservableObject {
     func setNotifyBudget(_ v: Bool) { vm.setNotifyBudget(v: v) }
     func setNotifyAttendance(_ v: Bool) { vm.setNotifyAttendance(v: v) }
     func setNotifyResin(_ v: Bool) { vm.setNotifyResin(v: v) }
-    func setNotifyWish(_ v: Bool) { vm.setNotifyWish(v: v) }
     func setAutoCheckIn(_ enabled: Bool) { vm.setAutoCheckIn(enabled: enabled) }
     func clearGachaRecords() { vm.clearGachaRecords() }
     func clearSpendings() { vm.clearSpendings() }
@@ -242,9 +244,6 @@ final class SpendingStore: ObservableObject {
     func refreshGameInfo(force: Bool = false) { vm.refreshGameInfo(force: force) }
     func attemptCheckIn(_ gameKey: String) { vm.attemptCheckIn(gameKey: gameKey) }
     func checkInAll() { vm.checkInAll() }
-    func addWish(gameKey: String, name: String) { vm.addWish(gameKey: gameKey, name: name) }
-    func removeWish(gameKey: String, name: String) { vm.removeWish(gameKey: gameKey, name: name) }
-    func isWishPickedUp(gameKey: String, name: String) -> Bool { vm.isWishPickedUp(gameKey: gameKey, name: name) }
     func adjustPity(gameKey: String, delta: Int) { vm.adjustPity(gameKey: gameKey, delta: Int32(delta)) }
     func setPityCount(gameKey: String, value: Int) { vm.setPityCount(gameKey: gameKey, value: Int32(value)) }
     func resetPity(gameKey: String) { vm.resetPity(gameKey: gameKey) }
@@ -252,6 +251,7 @@ final class SpendingStore: ObservableObject {
     // chunk ③
     func loadEnkaProfile(game: String, uid: String) { vm.loadEnkaProfile(game: game, uid: uid) }
     func autoLoadEnka(game: String, force: Bool = false) { vm.autoLoadEnka(game: game, force: force) }
+    func autoLoadEnkaSection(games: [String], force: Bool = false) { vm.autoLoadEnkaSection(games: games, force: force) }
     func clearEnkaResult() { vm.clearEnkaResult() }
     func importGachaFromContents(_ contents: [String]) { vm.importGachaFromContents(contents: contents) }
     func loadActiveCodes(_ gameKey: String) { vm.loadActiveCodes(gameKey: gameKey) }

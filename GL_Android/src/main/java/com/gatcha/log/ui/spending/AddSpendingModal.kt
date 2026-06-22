@@ -41,6 +41,8 @@ import com.gatcha.log.data.PkgCategory
 import com.gatcha.log.data.category
 import com.gatcha.log.data.Spending
 import com.gatcha.log.ui.components.GlgButton
+import com.gatcha.log.ui.components.GlgChip
+import com.gatcha.log.ui.components.GlgChipVariant
 import com.gatcha.log.ui.components.GlgDatePickerDialog
 import com.gatcha.log.ui.components.GlgDialog
 import com.gatcha.log.ui.components.GlgFieldLabel
@@ -54,7 +56,7 @@ import com.gatcha.log.ui.theme.TextPrimary
 import com.gatcha.log.ui.theme.TextSecondary
 import com.gatcha.log.util.won
 
-private val SheetBg = Color(0xFFF2F2F7)   // iOS 인셋-그룹 회색 배경
+private val SheetBg = Color.White   // D · 모달 배경 흰색(연회색 카드와 대비)
 private val CardBg = Color.White
 private val ChipIdleBg = Color(0xFFF2F2F7)
 
@@ -373,26 +375,7 @@ private fun SectionRowLabel(text: String) {
 
 @Composable
 private fun GameSelectItem(game: Game, isSelected: Boolean, onClick: () -> Unit) {
-    Surface(
-        modifier = Modifier.clickable { onClick() },
-        shape = RoundedCornerShape(12.dp),
-        color = if (isSelected) game.color.toColor() else ChipIdleBg,
-        border = if (isSelected) null else BorderStroke(1.dp, DividerColor),
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 9.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Box(Modifier.size(7.dp).clip(CircleShape).background(if (isSelected) Color.White else game.color.toColor()))
-            Spacer(Modifier.width(8.dp))
-            Text(
-                game.shortName,
-                fontSize = 13.sp,
-                color = if (isSelected) Color.White else TextPrimary,
-                fontWeight = FontWeight.Bold,
-            )
-        }
-    }
+    GlgChip(label = game.shortName, selected = isSelected, color = game.color.toColor(), onClick = onClick)
 }
 
 @Composable
@@ -432,22 +415,5 @@ private fun PackageCard(pkg: GamePackage, isSelected: Boolean, modifier: Modifie
 
 @Composable
 private fun ChoiceChip(label: String, selected: Boolean, onClick: () -> Unit) {
-    val accent = LocalAccent.current
-    Surface(
-        modifier = Modifier.clickable { onClick() },
-        shape = RoundedCornerShape(20.dp),
-        color = if (selected) accent else ChipIdleBg,
-        border = BorderStroke(1.dp, if (selected) accent else DividerColor),
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            if (selected) {
-                Icon(Icons.Default.Check, null, tint = Color.White, modifier = Modifier.size(14.dp))
-                Spacer(Modifier.width(4.dp))
-            }
-            Text(label, fontSize = 14.sp, color = if (selected) Color.White else TextPrimary, fontWeight = FontWeight.Medium)
-        }
-    }
+    GlgChip(label = label, selected = selected, onClick = onClick)
 }

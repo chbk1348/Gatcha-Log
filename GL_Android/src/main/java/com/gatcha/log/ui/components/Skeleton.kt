@@ -23,8 +23,12 @@ import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.gatcha.log.ui.theme.DividerColor
+import com.gatcha.log.ui.theme.GlgMotion
+import com.gatcha.log.ui.theme.SkeletonBase
+import com.gatcha.log.ui.theme.SkeletonHighlight
 
-private val ShimmerColors = listOf(Color(0xFFEAEAF0), Color(0xFFF6F6FA), Color(0xFFEAEAF0))
+// 시머 토큰 참조(색·주기). iOS GLGSkeleton 과 동일 스펙: base→highlight→base, ShimmerPeriod ms 리니어.
+private val ShimmerColors = listOf(SkeletonBase, SkeletonHighlight, SkeletonBase)
 
 /** 좌→우로 흐르는 시머 그라데이션 브러시. */
 @Composable
@@ -33,7 +37,7 @@ private fun shimmerBrush(): Brush {
     val x by transition.animateFloat(
         initialValue = 0f,
         targetValue = 1f,
-        animationSpec = infiniteRepeatable(tween(1100, easing = LinearEasing), RepeatMode.Restart),
+        animationSpec = infiniteRepeatable(tween(GlgMotion.ShimmerPeriod, easing = LinearEasing), RepeatMode.Restart),
         label = "shimmerX",
     )
     val span = 900f
@@ -130,6 +134,70 @@ fun ListSkeleton(rows: Int = 3, titleWidth: Dp = 120.dp) {
                 SkeletonBox(Modifier.width(40.dp).height(13.dp))
             }
             if (i < rows - 1) Box(Modifier.fillMaxWidth().height(1.dp).background(DividerColor))
+        }
+    }
+}
+
+/** 보유 캐릭터 로스터 로딩 스켈레톤 — RosterCard 2열 그리드(기본 4장)와 동일 레이아웃. */
+@Composable
+fun RosterSkeleton(count: Int = 4) {
+    val rows = (count + 1) / 2
+    repeat(rows) { r ->
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            repeat(2) { c ->
+                if (r * 2 + c < count) {
+                    Box(Modifier.weight(1f)) { RosterSkeletonCard() }
+                } else {
+                    Spacer(Modifier.weight(1f))
+                }
+            }
+        }
+        if (r < rows - 1) Spacer(Modifier.height(10.dp))
+    }
+}
+
+@Composable
+private fun RosterSkeletonCard() {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(18.dp))
+            .background(Color.White)
+            .border(1.dp, DividerColor, RoundedCornerShape(18.dp))
+            .padding(11.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        SkeletonBox(Modifier.size(50.dp), RoundedCornerShape(14.dp))
+        Spacer(Modifier.width(11.dp))
+        Column(Modifier.weight(1f)) {
+            SkeletonBox(Modifier.fillMaxWidth().height(13.dp))
+            Spacer(Modifier.height(7.dp))
+            SkeletonBox(Modifier.width(48.dp).height(10.dp))
+        }
+    }
+}
+
+/** 기프트코드 자동수집 로딩 스켈레톤 — 코드행(코드/보상 + 교환 버튼) N행. */
+@Composable
+fun GiftCodeSkeleton(rows: Int = 3) {
+    Column(
+        modifier = Modifier.padding(vertical = 6.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp),
+    ) {
+        repeat(rows) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(Modifier.weight(1f)) {
+                    SkeletonBox(Modifier.width(110.dp).height(14.dp))
+                    Spacer(Modifier.height(7.dp))
+                    SkeletonBox(Modifier.width(160.dp).height(11.dp))
+                }
+                Spacer(Modifier.width(8.dp))
+                SkeletonBox(Modifier.width(52.dp).height(28.dp), RoundedCornerShape(14.dp))
+            }
         }
     }
 }

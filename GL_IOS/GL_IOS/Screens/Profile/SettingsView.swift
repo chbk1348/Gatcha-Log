@@ -16,6 +16,7 @@ struct SettingsView: View {
     // 시트/다이얼로그 상태
     @State private var showBudget = false
     @State private var showNudge = false
+    @State private var nudgeText = ""
     @State private var showHoyolab = false
     @State private var showUplog = false
     @State private var showCredits = false
@@ -65,7 +66,14 @@ struct SettingsView: View {
             }
         }
         .sheet(isPresented: $showBudget) { BudgetSheet(store: store) }
-        .sheet(isPresented: $showNudge) { NudgeThresholdSheet(store: store) }
+        // 넛지 기준 금액 — 단일 입력이라 바텀시트 대신 중앙 모달(네이티브 alert + 입력 필드).
+        .alert("넛지 기준 금액", isPresented: $showNudge) {
+            TextField("기준 금액 (원)", text: $nudgeText).keyboardType(.numberPad)
+            Button("저장") { store.setNudgeThreshold(Int64(nudgeText.filter(\.isNumber)) ?? 0) }
+            Button("취소", role: .cancel) { }
+        } message: {
+            Text("단건 지출이 이 금액 이상이면 추가 전 한 번 더 확인해요.")
+        }
         .sheet(isPresented: $showUplog) { UpdateLogSheet(version: version) }
         .sheet(isPresented: $showCredits) { CreditsSheet() }
         .navigationDestination(isPresented: $showHoyolab) {
@@ -104,38 +112,39 @@ struct SettingsView: View {
         }
     }
 
-    // ── 섹션 카드 — 흰 배경 + 아웃라인(앱 카드 디자인). 선택적 제목·footer. ──
+    // ── 섹션 카드 — D · Soft Modern: 연회색 면 + 헤어라인(지출 추가 모달 sectionCard·Android GlassCard 와 동일 규격). 선택적 제목·footer. ──
     @ViewBuilder
     private func sectionCard<C: View>(_ title: String? = nil, footer: String? = nil, @ViewBuilder content: () -> C) -> some View {
         VStack(alignment: .leading, spacing: 7) {
             if let title {
-                Text(title).font(.system(size: 13, weight: .semibold))
+                Text(title).font(.pretendard(size: 13, weight: .semibold))
                     .foregroundStyle(GLGColor.textSecondary).padding(.leading, 4)
             }
             VStack(spacing: 0) { content() }
                 .padding(.horizontal, 16)
-                .background(.white, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-                .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(GLGColor.divider, lineWidth: 1))
+                .glgGlass(in: RoundedRectangle(cornerRadius: 22, style: .continuous))
             if let footer {
-                Text(footer).font(.system(size: 11)).foregroundStyle(GLGColor.textSecondary).padding(.horizontal, 4)
+                Text(footer).font(.pretendard(size: 11)).foregroundStyle(GLGColor.textSecondary).padding(.horizontal, 4)
             }
         }
     }
 
     // ── 테마 ──
     private var themeSection: some View {
-        sectionCard("테마 색상") {
-            HStack(spacing: 16) {
+        // 색상이 늘어 한 줄을 넘기므로 5열 그리드로 래핑(2행).
+        let cols = Array(repeating: GridItem(.flexible(), spacing: 12), count: 5)
+        return sectionCard("테마 색상") {
+            LazyVGrid(columns: cols, spacing: 16) {
                 ForEach(GLGTheme.palette) { opt in
                     VStack(spacing: 4) {
                         ZStack {
                             Circle().fill(opt.primary).frame(width: 40, height: 40)
                             if opt.index == store.accentIndex {
-                                Image(systemName: "checkmark").font(.system(size: 18, weight: .bold))
+                                Image(systemName: "checkmark").font(.pretendard(size: 18, weight: .bold))
                                     .foregroundStyle(.white)
                             }
                         }
-                        Text(opt.label).font(.system(size: 10))
+                        Text(opt.label).font(.pretendard(size: 10))
                             .foregroundStyle(opt.index == store.accentIndex ? opt.primary : GLGColor.textSecondary)
                     }
                     .onTapGesture { store.setAccentIndex(opt.index) }
@@ -159,7 +168,10 @@ struct SettingsView: View {
             if store.nudgeOverspend {
                 Divider()
                 navRow(icon: "checkmark.circle", title: "넛지 기준 금액",
-                       value: won(store.nudgeThreshold)) { showNudge = true }
+                       value: won(store.nudgeThreshold)) {
+                    nudgeText = store.nudgeThreshold > 0 ? "\(store.nudgeThreshold)" : ""
+                    showNudge = true
+                }
             }
             Divider()
             navRow(icon: "link", title: "HoYoLAB 계정 연동",
@@ -195,9 +207,6 @@ struct SettingsView: View {
             Divider()
             toggleRow("bolt.fill", "재화 가득참 알림", "레진·개척력·배터리가 가득 차면 알려줘요",
                       notifyBind(\.notifyResin, store.setNotifyResin))
-            Divider()
-            toggleRow("star.fill", "위시 픽업 알림", "위시리스트 캐릭터가 픽업 배너에 등장하면 알려줘요",
-                      notifyBind(\.notifyWish, store.setNotifyWish))
         }
     }
 
@@ -238,20 +247,51 @@ struct SettingsView: View {
             HStack {
                 rowLabel(icon: "info.circle", title: "앱 버전")
                 Spacer()
-                Text("v\(version)").font(.system(size: 12)).foregroundStyle(GLGColor.textSecondary)
+                Text("v\(version)").font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary)
             }
             .padding(.vertical, 13)
+            // 서명(프로비저닝) 만료 — 무료 계정 7일 서명. 만료 시각(초 단위) + 남은 시간 라이브 카운트다운.
+            if let exp = SigningInfo.expirationDate {
+                Divider()
+                signingExpiryRow(exp)
+            }
         }
+    }
+
+    /// 서명 만료 행 — 1초마다 갱신되는 남은 시간 표시.
+    private func signingExpiryRow(_ exp: Date) -> some View {
+        TimelineView(.periodic(from: .now, by: 1)) { ctx in
+            HStack(alignment: .top) {
+                rowLabel(icon: "checkmark.seal", title: "서명 만료")
+                Spacer()
+                VStack(alignment: .trailing, spacing: 2) {
+                    Text(SigningInfo.absFormatter.string(from: exp))
+                        .font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary)
+                    Text(remainingText(exp, now: ctx.date))
+                        .font(.pretendard(size: 12, weight: .semibold).monospacedDigit())
+                        .foregroundStyle(exp.timeIntervalSince(ctx.date) < 86_400 ? .red : accent.primary)
+                }
+            }
+            .padding(.vertical, 11)
+        }
+    }
+
+    /// 남은 시간 "N일 HH:MM:SS 남음" (시·분·초 단위). 만료 시 "만료됨".
+    private func remainingText(_ exp: Date, now: Date) -> String {
+        let secs = Int(exp.timeIntervalSince(now))
+        if secs <= 0 { return "만료됨" }
+        let d = secs / 86_400, h = (secs % 86_400) / 3600, m = (secs % 3600) / 60, s = secs % 60
+        return String(format: "%d일 %02d:%02d:%02d 남음", d, h, m, s)
     }
 
     // ── 행 헬퍼 ──
     private func rowLabel(icon: String, title: String, subtitle: String? = nil) -> some View {
         HStack(spacing: 12) {
-            Image(systemName: icon).font(.system(size: 18)).foregroundStyle(accent.primary).frame(width: 24)
+            Image(systemName: icon).font(.pretendard(size: 18)).foregroundStyle(accent.primary).frame(width: 24)
             VStack(alignment: .leading, spacing: 2) {
-                Text(title).font(.system(size: 14, weight: .medium))
+                Text(title).font(.pretendard(size: 14, weight: .medium))
                 if let subtitle {
-                    Text(subtitle).font(.system(size: 11)).foregroundStyle(GLGColor.textSecondary)
+                    Text(subtitle).font(.pretendard(size: 11)).foregroundStyle(GLGColor.textSecondary)
                 }
             }
         }
@@ -262,8 +302,8 @@ struct SettingsView: View {
             HStack {
                 rowLabel(icon: icon, title: title)
                 Spacer()
-                if let value { Text(value).font(.system(size: 12)).foregroundStyle(GLGColor.textSecondary) }
-                Image(systemName: "chevron.right").font(.system(size: 13, weight: .semibold))
+                if let value { Text(value).font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary) }
+                Image(systemName: "chevron.right").font(.pretendard(size: 13, weight: .semibold))
                     .foregroundStyle(Color(.tertiaryLabel))
             }
             .contentShape(Rectangle())
@@ -297,6 +337,32 @@ struct SettingsView: View {
             store.importBackupFromContent(text)
         }
     }
+}
+
+// ── 서명(프로비저닝) 만료 정보 ───────────────────────────────────────────────
+// 앱 번들의 embedded.mobileprovision(CMS 서명된 plist)에서 ExpirationDate 를 1회 파싱해 캐시.
+// 무료 Apple 계정은 7일마다 서명이 만료되므로, 설정에서 남은 시간을 확인해 재빌드 시점을 가늠한다.
+enum SigningInfo {
+    static let expirationDate: Date? = {
+        guard let url = Bundle.main.url(forResource: "embedded", withExtension: "mobileprovision"),
+              let data = try? Data(contentsOf: url),
+              // 바이트 위치 보존(round-trip)을 위해 isoLatin1 로 디코드 — 내부 plist 는 ASCII.
+              let raw = String(data: data, encoding: .isoLatin1) else { return nil }
+        guard let start = raw.range(of: "<?xml") ?? raw.range(of: "<plist"),
+              let end = raw.range(of: "</plist>") else { return nil }
+        let plistStr = String(raw[start.lowerBound..<end.upperBound])
+        guard let pData = plistStr.data(using: .isoLatin1),
+              let plist = try? PropertyListSerialization.propertyList(from: pData, format: nil) as? [String: Any]
+        else { return nil }
+        return plist["ExpirationDate"] as? Date
+    }()
+
+    static let absFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "yyyy-MM-dd HH:mm:ss"
+        f.locale = Locale(identifier: "ko_KR")
+        return f
+    }()
 }
 
 // ── 텍스트 파일 문서 (fileExporter/Importer 용) ──────────────────────────────

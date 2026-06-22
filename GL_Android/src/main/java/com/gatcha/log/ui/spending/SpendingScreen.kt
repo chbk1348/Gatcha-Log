@@ -4,7 +4,6 @@ import com.gatcha.log.data.SpendingViewModel
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
@@ -21,6 +20,11 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ReceiptLong
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
+import com.gatcha.log.ui.components.GlgBadge
+import com.gatcha.log.ui.components.ChipIdleBorder
+import com.gatcha.log.ui.components.ChipIdleText
+import com.gatcha.log.ui.components.GlgChip
+import com.gatcha.log.ui.components.GlgChipVariant
 import com.gatcha.log.ui.components.GlgPullToRefreshBox
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -30,6 +34,9 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.foundation.background
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -69,7 +76,8 @@ fun SpendingScreen(
 ) {
     val spendings by viewModel.spendings.collectAsState()
     val isRefreshing by viewModel.isRefreshing.collectAsState()
-    var selectedGameFilter by remember { mutableStateOf<String?>(null) }
+    // 게임 필터 — 다중 선택(빈 Set = 전체). 필터 바텀시트에서 토글.
+    var selectedGames by remember { mutableStateOf<Set<String>>(emptySet()) }
     var period by remember { mutableStateOf(PeriodFilter.ALL) }
     var paymentFilter by remember { mutableStateOf<String?>(null) }
     var typeFilter by remember { mutableStateOf(TypeFilter.ALL) }
@@ -90,7 +98,7 @@ fun SpendingScreen(
         c.get(Calendar.YEAR) to (c.get(Calendar.MONTH) + 1)
     }
     val activeFilterCount = listOf(
-        selectedGameFilter != null,
+        selectedGames.isNotEmpty(),
         period != PeriodFilter.ALL,
         paymentFilter != null,
         typeFilter != TypeFilter.ALL,
@@ -103,12 +111,12 @@ fun SpendingScreen(
         transitionSpec = {
             if (targetState !is SpendingScreenNav.List) {
                 // 하위 페이지 열기: 오른쪽에서 슬라이드 인 (push)
-                (slideInHorizontally(tween(300)) { w -> w } + fadeIn(tween(300))) togetherWith
-                    (slideOutHorizontally(tween(300)) { w -> -w / 4 } + fadeOut(tween(220)))
+                (slideInHorizontally(glgStandardSpec()) { w -> w } + fadeIn(glgStandardSpec())) togetherWith
+                    (slideOutHorizontally(glgStandardSpec()) { w -> -w / 4 } + fadeOut(glgShortSpec()))
             } else {
                 // 목록으로 복귀: 오른쪽으로 슬라이드 아웃 (pop)
-                (slideInHorizontally(tween(300)) { w -> -w / 4 } + fadeIn(tween(300))) togetherWith
-                    (slideOutHorizontally(tween(300)) { w -> w } + fadeOut(tween(220)))
+                (slideInHorizontally(glgStandardSpec()) { w -> -w / 4 } + fadeIn(glgStandardSpec())) togetherWith
+                    (slideOutHorizontally(glgStandardSpec()) { w -> w } + fadeOut(glgShortSpec()))
             }
         },
         label = "spendingNav",
@@ -140,33 +148,35 @@ fun SpendingScreen(
             SpendingScreenNav.List -> Unit
         }
 
-    GlgPullToRefreshBox(
-        isRefreshing = isRefreshing,
-        onRefresh = { viewModel.refreshSpending() },
-        modifier = Modifier.fillMaxSize(),
-    ) {
-        LazyColumn(state = listState, modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
-            item {
-                // 제목 문구("지출 분석") 제거 — 우측 액션 버튼만 유지.
-                GlgTabHeader("") {
-                    CalendarButton { nav = SpendingScreenNav.Calendar }
-                    InsightButton { nav = SpendingScreenNav.Insight }
-                    AnnualReportButton { nav = SpendingScreenNav.Annual }
-                }
-            }
-            item { MonthlySummaryCard(viewModel.displayMonth, monthlyTotal, prevMonthTotal) }
-            item { Spacer(Modifier.height(10.dp)) }
-            // 게임별 칩(스크롤) + 우측 고정 필터 버튼 — iOS HStack{gameFilterRow; filterButton} 와 동일 배치. ("지출 내역" 문구 제거)
-            item {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    GameFilterRow(selectedGameFilter, Modifier.weight(1f)) { selectedGameFilter = it }
-                    Spacer(Modifier.width(8.dp))
-                    FilterButton(activeFilterCount) { showFilterSheet.value = true }
-                }
-            }
+    // 월 지출 히어로 스크롤 축소(iOS 패리티) — 히어로를 리스트 위 오버레이로 두고, 리스트 첫 항목에
+    // '히어로 자리'(고정 높이)를 둬서 콜랩스해도 콘텐츠 maxOffset 이 바뀌지 않게 한다(최하단 떨림 방지).
+    // 콜랩스는 첫 항목(자리) 스크롤 오프셋 기준(자리가 충분히 높아 매끄럽게 보간).
+    val density = LocalDensity.current
+    val maxCollapsePx = with(density) { 64.dp.toPx() }
+    val collapse by remember {
+        derivedStateOf {
+            if (listState.firstVisibleItemIndex > 0) 1f
+            else (listState.firstVisibleItemScrollOffset / maxCollapsePx).coerceIn(0f, 1f)
+        }
+    }
+    // 펼친 히어로(헤더+카드) 높이 — 콜랩스 0일 때 측정해 '히어로 자리' spacer 로 사용. 측정 전 추정 기본값.
+    var heroOverlayPx by remember { mutableIntStateOf(0) }
+    val heroSpacerDp = if (heroOverlayPx > 0) with(density) { heroOverlayPx.toDp() } else 196.dp
+    // 로드인 스태거 — 행이 처음 보일 때 1회 등장(인덱스=정렬 리스트 내 위치).
+    val loadInSet = remember { mutableSetOf<Int>() }
+
+    Box(Modifier.fillMaxSize()) {
+        GlgPullToRefreshBox(
+            isRefreshing = isRefreshing,
+            onRefresh = { viewModel.refreshSpending() },
+            modifier = Modifier.fillMaxSize(),
+        ) {
+            LazyColumn(state = listState, modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
+                // 히어로 자리(고정) — 위에 히어로 오버레이가 뜬다.
+                item { Spacer(Modifier.height(heroSpacerDp)) }
 
             val filtered = spendings.filter { s ->
-                (selectedGameFilter == null || s.gameName == selectedGameFilter) &&
+                (selectedGames.isEmpty() || s.gameName in selectedGames) &&
                     (paymentFilter == null || s.paymentMethod == paymentFilter) &&
                     when (typeFilter) {
                         TypeFilter.ALL -> true
@@ -185,11 +195,14 @@ fun SpendingScreen(
                 item { EmptyState() }
             } else if (sortOrder == SortOrder.AMOUNT_DESC) {
                 // 금액순 — 날짜 그룹 없이 평면 리스트
-                items(filtered.sortedByDescending { it.amount }, key = { it.id }) { spending ->
-                    HistoryItem(
-                        spending = spending,
-                        onClick = { nav = SpendingScreenNav.Detail(spending) },
-                    )
+                val byAmount = filtered.sortedByDescending { it.amount }
+                items(byAmount, key = { it.id }) { spending ->
+                    Box(Modifier.glgLoadIn(byAmount.indexOf(spending).coerceAtLeast(0), loadInSet)) {
+                        HistoryItem(
+                            spending = spending,
+                            onClick = { nav = SpendingScreenNav.Detail(spending) },
+                        )
+                    }
                 }
             } else {
                 val sorted = if (sortOrder == SortOrder.DATE_ASC) filtered.sortedBy { it.dateMillis }
@@ -198,26 +211,49 @@ fun SpendingScreen(
                 grouped.forEach { (_, items) ->
                     item { DateHeader(items.first().dateLabel, items.sumOf { it.amount }) }
                     items(items, key = { it.id }) { spending ->
-                        HistoryItem(
-                            spending = spending,
-                            onClick = { nav = SpendingScreenNav.Detail(spending) },
-                        )
+                        Box(Modifier.glgLoadIn(sorted.indexOf(spending).coerceAtLeast(0), loadInSet)) {
+                            HistoryItem(
+                                spending = spending,
+                                onClick = { nav = SpendingScreenNav.Detail(spending) },
+                            )
+                        }
                     }
                 }
             }
             item { Spacer(Modifier.height(120.dp)) }
         }
     }
+        // 히어로 오버레이 — 헤더(액션+필터) + 월 지출 카드(축소). 흰 배경으로 아래 콘텐츠 가림. 콜랩스 0일 때 높이 측정 → 자리(spacer).
+        Column(
+            Modifier
+                .align(Alignment.TopStart)
+                .fillMaxWidth()
+                .background(Color.White)
+                .padding(horizontal = 16.dp)
+                .onSizeChanged { if (collapse == 0f) heroOverlayPx = it.height },
+        ) {
+            GlgTabHeader("") {
+                CalendarButton { nav = SpendingScreenNav.Calendar }
+                InsightButton { nav = SpendingScreenNav.Insight }
+                AnnualReportButton { nav = SpendingScreenNav.Annual }
+                FilterButton(activeFilterCount) { showFilterSheet.value = true }
+            }
+            MonthlySummaryCard(viewModel.displayMonth, monthlyTotal, prevMonthTotal, collapse)
+        }
+    }
     }
 
     if (showFilterSheet.value) {
         SpendingFilterSheet(
+            selectedGames = selectedGames,
+            onGameToggle = { g -> selectedGames = if (g in selectedGames) selectedGames - g else selectedGames + g },
+            onGamesClear = { selectedGames = emptySet() },
             period = period, onPeriod = { period = it },
             paymentFilter = paymentFilter, onPayment = { paymentFilter = it },
             typeFilter = typeFilter, onType = { typeFilter = it },
             sortOrder = sortOrder, onSort = { sortOrder = it },
             onReset = {
-                selectedGameFilter = null; period = PeriodFilter.ALL
+                selectedGames = emptySet(); period = PeriodFilter.ALL
                 paymentFilter = null; typeFilter = TypeFilter.ALL; sortOrder = SortOrder.DATE_DESC
             },
             onDismiss = { showFilterSheet.value = false },
@@ -233,35 +269,31 @@ private fun previousMonthTotal(spendings: List<Spending>): Long {
 }
 
 @Composable
-fun MonthlySummaryCard(month: Int, total: Long, prevTotal: Long) {
+fun MonthlySummaryCard(month: Int, total: Long, prevTotal: Long, collapse: Float = 0f) {
     val accent = LocalAccent.current
     val diff = total - prevTotal
     GlassCard(
         shape = RoundedCornerShape(24.dp),
         modifier = Modifier.fillMaxWidth(),
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            // 좌: 이번 달 총 지출 (1줄 컴팩트, 가운데 정렬)
+        // 히어로 섹션 — 이번 달 총 지출을 큰 숫자로 강조(좌측 정렬) + 지난달 대비. [collapse] 로 스크롤 축소.
+        Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = (18 - 7 * collapse).dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.PieChart, null, tint = accent, modifier = Modifier.size(18.dp))
+                Icon(Icons.Default.PieChart, null, tint = accent, modifier = Modifier.size(16.dp))
                 Spacer(Modifier.width(6.dp))
-                Text("${month}월", fontSize = 12.sp, fontWeight = FontWeight.Medium, color = TextSecondary)
-                Spacer(Modifier.width(8.dp))
-                Text(won(total), fontSize = 21.sp, fontWeight = FontWeight.Bold)
+                Text("${month}월 지출", fontSize = 13.sp, fontWeight = FontWeight.Medium, color = TextSecondary)
             }
-            // 우: 지난달 대비 증감
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("지난달", fontSize = 11.sp, color = TextSecondary)
-                Spacer(Modifier.width(6.dp))
+            Spacer(Modifier.height(8.dp))
+            Text(won(total), fontSize = (34 - 14 * collapse).sp, fontWeight = FontWeight.Black, color = TextPrimary, maxLines = 1)
+            if (total > 0 || prevTotal > 0) {
+                Spacer(Modifier.height((6 * (1f - collapse)).dp))
                 Text(
-                    (if (diff >= 0) "+" else "-") + won(kotlin.math.abs(diff)),
+                    "지난달 " + (if (diff == 0L) "동일" else (if (diff > 0) "+" else "-") + won(kotlin.math.abs(diff))),
                     fontSize = 13.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = if (diff > 0) DangerText else accent,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    modifier = Modifier.height((18 * (1f - collapse)).dp).graphicsLayer { alpha = 1f - collapse; clip = true },
+                    color = if (diff > 0) DangerText else if (diff < 0) accent else TextSecondary,
                 )
             }
         }
@@ -333,27 +365,15 @@ fun GameFilterRow(selectedGame: String?, modifier: Modifier = Modifier, onGameSe
     LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = modifier.padding(vertical = 8.dp)) {
         item { FilterPill("전체", selectedGame == null, accent) { onGameSelected(null) } }
         items(GameData.games) { game ->
-            FilterPill(game.shortName, selectedGame == game.displayName, accent) { onGameSelected(game.displayName) }
+            // 게임 칩은 단일 규격 유지, 선택됨 색만 게임별 대표색으로.
+            FilterPill(game.shortName, selectedGame == game.displayName, game.color.toColor()) { onGameSelected(game.displayName) }
         }
     }
 }
 
 @Composable
 internal fun FilterPill(label: String, selected: Boolean, accent: Color, onClick: () -> Unit) {
-    Surface(
-        modifier = Modifier.clickable { onClick() },
-        shape = RoundedCornerShape(20.dp),
-        color = if (selected) accent else Color.White,
-        border = androidx.compose.foundation.BorderStroke(1.dp, if (selected) accent else DividerColor),
-    ) {
-        Text(
-            label,
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
-            fontSize = 12.sp,
-            fontWeight = FontWeight.Medium,
-            color = if (selected) Color.White else Color.DarkGray,
-        )
-    }
+    GlgChip(label = label, selected = selected, color = accent, onClick = onClick)
 }
 
 @Composable
@@ -401,9 +421,7 @@ fun HistoryItem(spending: Spending, onClick: () -> Unit) {
                     Text(spending.gameName, fontSize = 14.sp, fontWeight = FontWeight.Bold)
                     if (spending.isSubscription) {
                         Spacer(Modifier.width(6.dp))
-                        Surface(color = spending.gameColor.toColor().copy(alpha = 0.12f), shape = RoundedCornerShape(4.dp)) {
-                            Text("정기", fontSize = 9.sp, color = spending.gameColor.toColor(), modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp))
-                        }
+                        GlgBadge("정기", spending.gameColor.toColor())
                     }
                 }
                 Text(
@@ -431,41 +449,30 @@ fun HistoryItem(spending: Spending, onClick: () -> Unit) {
 /** 지출 내역 태그 칩 — 강조색 옅은 배경 + 강조색 글자로 가독성 확보. */
 @Composable
 internal fun TagChip(tag: String) {
-    val accent = LocalAccent.current
-    Surface(
-        color = accent.copy(alpha = 0.12f),
-        shape = RoundedCornerShape(7.dp),
-    ) {
-        Text(
-            "#$tag",
-            fontSize = 11.sp,
-            fontWeight = FontWeight.SemiBold,
-            color = accent,
-            modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp),
-        )
-    }
+    GlgChip(label = tag, variant = GlgChipVariant.Tag)
 }
 
 @Composable
 private fun FilterButton(activeCount: Int, onClick: () -> Unit) {
     val accent = LocalAccent.current
     val active = activeCount > 0
+    // 공통 칩(GlgChip)과 동일 규격 — 14dp 라운드·흰 배경+옅은 아웃라인, 선택(필터 활성)=accent 채움. Tune 아이콘 유지.
     Surface(
-        shape = RoundedCornerShape(20.dp),
+        shape = RoundedCornerShape(14.dp),
         color = if (active) accent else Color.White,
-        border = androidx.compose.foundation.BorderStroke(1.dp, if (active) accent else DividerColor),
+        border = if (active) null else androidx.compose.foundation.BorderStroke(1.dp, ChipIdleBorder),
         modifier = Modifier.clickable { onClick() },
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 13.dp, vertical = 7.dp),
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 9.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Icon(Icons.Default.Tune, null, tint = if (active) Color.White else TextSecondary, modifier = Modifier.size(15.dp))
+            Icon(Icons.Default.Tune, null, tint = if (active) Color.White else ChipIdleText, modifier = Modifier.size(15.dp))
             Spacer(Modifier.width(5.dp))
             Text(
                 if (active) "필터 $activeCount" else "필터",
-                fontSize = 12.sp, fontWeight = FontWeight.Bold,
-                color = if (active) Color.White else Color.DarkGray,
+                fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
+                color = if (active) Color.White else ChipIdleText,
             )
         }
     }
@@ -474,6 +481,7 @@ private fun FilterButton(activeCount: Int, onClick: () -> Unit) {
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 private fun SpendingFilterSheet(
+    selectedGames: Set<String>, onGameToggle: (String) -> Unit, onGamesClear: () -> Unit,
     period: PeriodFilter, onPeriod: (PeriodFilter) -> Unit,
     paymentFilter: String?, onPayment: (String?) -> Unit,
     typeFilter: TypeFilter, onType: (TypeFilter) -> Unit,
@@ -496,6 +504,13 @@ private fun SpendingFilterSheet(
         ) {
             Text("상세 필터", fontSize = 20.sp, fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(18.dp))
+            // 게임 — 다중 선택(선택됨 색은 게임별 대표색). '전체'는 선택 해제.
+            FilterGroup("게임") {
+                FilterPill("전체", selectedGames.isEmpty(), accent) { onGamesClear() }
+                GameData.games.forEach { g ->
+                    FilterPill(g.shortName, g.displayName in selectedGames, g.color.toColor()) { onGameToggle(g.displayName) }
+                }
+            }
             FilterGroup("기간") {
                 PeriodFilter.entries.forEach { p -> FilterPill(p.label, period == p, accent) { onPeriod(p) } }
             }
@@ -521,14 +536,18 @@ private fun SpendingFilterSheet(
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun FilterGroup(title: String, content: @Composable FlowRowScope.() -> Unit) {
-    Text(title, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextSecondary)
+    // 섹션 카드형 — 제목(카드 위) + 연회색 카드 안에 칩 FlowRow. 지출 추가 모달 SectionCard 와 동일 규격.
+    Text(title, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextSecondary, modifier = Modifier.padding(start = 2.dp))
     Spacer(Modifier.height(8.dp))
-    FlowRow(
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-        content = content,
-    )
-    Spacer(Modifier.height(18.dp))
+    GlassCard(modifier = Modifier.fillMaxWidth()) {
+        FlowRow(
+            modifier = Modifier.padding(16.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+            content = content,
+        )
+    }
+    Spacer(Modifier.height(14.dp))
 }
 
 @Composable

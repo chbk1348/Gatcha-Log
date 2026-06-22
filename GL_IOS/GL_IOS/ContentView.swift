@@ -27,6 +27,15 @@ struct ContentView: View {
     /// 앱 강조색 — Kotlin 테마(accentIndex)와 연동된 탭 아이콘 틴트 (초기값: 민트)
     @State private var accent = Color(red: 0.204, green: 0.820, blue: 0.714)
 
+    /// 루트 상태(로그인→로딩→탭) — 크로스페이드 트랜지션 키. NavigationStack/스와이프백은 손대지 않고
+    /// 루트 교체만 부드럽게 한다(즉시 교체 → standard 페이드).
+    private enum RootPhase { case login, loading, tabs }
+    private var rootPhase: RootPhase {
+        if store.needsOnboarding { return .login }
+        if syncGateActive { return .loading }
+        return .tabs
+    }
+
     var body: some View {
         Group {
             if store.needsOnboarding {
@@ -34,6 +43,7 @@ struct ContentView: View {
                 // 로그인 완료 시 공유 VM 의 account 가 바뀌어 자동으로 탭 화면으로 전환.
                 LoginView(store: store)
                     .glgAccent(index: store.accentIndex)
+                    .transition(.opacity)
             } else if syncGateActive {
                 // 로그인 유저 초기 클라우드 동기화 게이트 — 완료 전 로컬 편집이 클라우드를 덮어쓰는 레이스 방지.
                 // 완료 시 syncLoadingDone 설정 → observeSyncGate 가 syncGateActive=false 로 전환해 탭 화면 진입.
@@ -42,6 +52,7 @@ struct ContentView: View {
                     syncGateActive = false
                 }
                 .glgAccent(index: store.accentIndex)
+                .transition(.opacity)
             } else {
                 mainTabs
                     // 지출 추가/수정 — Phase 6: SwiftUI 네이티브 폼 (구 ComposeView AddSpendingViewController 대체)
@@ -49,8 +60,11 @@ struct ContentView: View {
                         AddSpendingView(store: store, editing: editingSpending) { showAddSpending = false }
                             .presentationDragIndicator(.visible)
                     }
+                    .transition(.opacity)
             }
         }
+        // 루트 상태 전환(로그인→로딩→탭)만 standard 크로스페이드 — 네이티브 내비 UX 보존.
+        .animation(GLGMotion.standard(), value: rootPhase)
         .onAppear {
             // 테마(액센트) 변경 구독 — 마이페이지에서 테마를 바꾸면 탭바 틴트도 즉시 반영
             MainViewControllerKt.observeAccentColor { argb in
@@ -207,7 +221,7 @@ struct ContentView: View {
     private var legacyAddButton: some View {
         Button(action: { openAddSpending() }) {
             Image(systemName: "plus")
-                .font(.system(size: 19, weight: .semibold))
+                .font(.pretendard(size: 19, weight: .semibold))
                 .foregroundColor(.primary)
                 .frame(width: 48, height: 48)
                 .background { GLGVisualEffectBlur(style: .systemUltraThinMaterial).clipShape(Circle()) }

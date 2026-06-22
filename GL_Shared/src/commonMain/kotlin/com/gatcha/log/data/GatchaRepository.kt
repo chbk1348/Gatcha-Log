@@ -1,10 +1,18 @@
 package com.gatcha.log.data
 
+import com.gatcha.log.data.api.EnkaResult
 import com.gatcha.log.json.JSONArray
 import com.gatcha.log.json.JSONObject
 import com.gatcha.log.storage.KeyValueStore
 import com.gatcha.log.storage.SecureKeyValueStore
 import com.gatcha.log.util.currentTimeMillis
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
+
+/** Enka 프로필 결과 디스크 캐시 엔트리 — 타임스탬프 + 직렬화된 결과. */
+@Serializable
+private data class EnkaCacheEntry(val ts: Long, val result: EnkaResult)
 
 /**
  * 로컬 영속성 저장소 — :app 의 GatchaRepository 를 KMP 로 이식.
@@ -187,6 +195,27 @@ class GatchaRepository(accountId: String = "guest") {
         changed()
     }
 
+    // ---------------------------------------------------------------- Enka 프로필 결과 디스크 캐시
+    // 앱 재시작 시 '내 캐릭터'를 즉시 표시(stale-while-revalidate)하기 위한 로컬 전용 캐시.
+    // 클라우드 스냅샷 비포함(SECTION_* 미등록) · changed() 호출 안 함.
+    private val enkaJson = Json { ignoreUnknownKeys = true }
+
+    /** "game:uid" → (타임스탬프, 결과). [maxAgeMs] 보다 오래된 항목은 제외. */
+    fun loadEnkaCache(maxAgeMs: Long): Map<String, Pair<Long, EnkaResult>> {
+        val raw = prefs.getString(KEY_ENKA_CACHE, null) ?: return emptyMap()
+        return runCatching {
+            val now = currentTimeMillis()
+            enkaJson.decodeFromString<Map<String, EnkaCacheEntry>>(raw)
+                .filterValues { now - it.ts < maxAgeMs }
+                .mapValues { it.value.ts to it.value.result }
+        }.getOrDefault(emptyMap())
+    }
+
+    fun saveEnkaCache(cache: Map<String, Pair<Long, EnkaResult>>) {
+        val map = cache.mapValues { EnkaCacheEntry(it.value.first, it.value.second) }
+        runCatching { prefs.putString(KEY_ENKA_CACHE, enkaJson.encodeToString(map)) }
+    }
+
     // ---------------------------------------------------------------- 출석 (dayKey -> set<gameKey>)
     fun loadAttendance(): Map<String, Set<String>> {
         val raw = prefs.getString(KEY_ATTENDANCE, null) ?: return emptyMap()
@@ -208,26 +237,6 @@ class GatchaRepository(accountId: String = "guest") {
         changed()
     }
 
-    // ---------------------------------------------------------------- 위시리스트 (gameKey -> names)
-    fun loadWishlist(): Map<String, List<String>> {
-        val raw = prefs.getString(KEY_WISHLIST, null) ?: return emptyMap()
-        return runCatching {
-            val obj = JSONObject(raw)
-            buildMap {
-                obj.keys().forEach { g ->
-                    val arr = obj.getJSONArray(g)
-                    put(g, (0 until arr.length()).map { arr.getString(it) })
-                }
-            }
-        }.getOrDefault(emptyMap())
-    }
-
-    fun saveWishlist(map: Map<String, List<String>>) {
-        val obj = JSONObject()
-        map.forEach { (g, list) -> obj.put(g, JSONArray(list)) }
-        prefs.putString(KEY_WISHLIST, obj.toString())
-        changed()
-    }
 
     // ---------------------------------------------------------------- 천장 카운터 (gameKey -> PityState)
     fun loadPity(): Map<String, PityState> {
@@ -325,7 +334,6 @@ class GatchaRepository(accountId: String = "guest") {
         prefs.getString(KEY_ENKA_GI, null)?.let { o.put(KEY_ENKA_GI, it) }
         prefs.getString(KEY_ENKA_HSR, null)?.let { o.put(KEY_ENKA_HSR, it) }
         prefs.getString(KEY_ATTENDANCE, null)?.let { o.put(KEY_ATTENDANCE, JSONObject(it)) }
-        prefs.getString(KEY_WISHLIST, null)?.let { o.put(KEY_WISHLIST, JSONObject(it)) }
         prefs.getString(KEY_PITY, null)?.let { o.put(KEY_PITY, JSONObject(it)) }
         prefs.getString(KEY_EVENT_CHECKS, null)?.let { o.put(KEY_EVENT_CHECKS, JSONArray(it)) }
         prefs.getString(KEY_SUBS, null)?.let { o.put(KEY_SUBS, JSONArray(it)) }
@@ -351,7 +359,6 @@ class GatchaRepository(accountId: String = "guest") {
         if (o.has(KEY_ENKA_GI)) prefs.putString(KEY_ENKA_GI, o.getString(KEY_ENKA_GI))
         if (o.has(KEY_ENKA_HSR)) prefs.putString(KEY_ENKA_HSR, o.getString(KEY_ENKA_HSR))
         if (o.has(KEY_ATTENDANCE)) prefs.putString(KEY_ATTENDANCE, o.getJSONObject(KEY_ATTENDANCE).toString())
-        if (o.has(KEY_WISHLIST)) prefs.putString(KEY_WISHLIST, o.getJSONObject(KEY_WISHLIST).toString())
         if (o.has(KEY_PITY)) prefs.putString(KEY_PITY, o.getJSONObject(KEY_PITY).toString())
         if (o.has(KEY_EVENT_CHECKS)) prefs.putString(KEY_EVENT_CHECKS, o.getJSONArray(KEY_EVENT_CHECKS).toString())
         if (o.has(KEY_SUBS)) prefs.putString(KEY_SUBS, o.getJSONArray(KEY_SUBS).toString())
@@ -386,7 +393,6 @@ class GatchaRepository(accountId: String = "guest") {
     }
 
     private companion object {
-        const val KEY_WISHLIST = "wishlist"
         const val KEY_PITY = "pity"
         const val KEY_EVENT_CHECKS = "event_checks"
         const val KEY_REDEEMED = "redeemed_codes"
@@ -407,6 +413,7 @@ class GatchaRepository(accountId: String = "guest") {
         const val KEY_ATTENDANCE = "attendance"
         const val KEY_ENKA_GI = "enka_gi"
         const val KEY_ENKA_HSR = "enka_hsr"
+        const val KEY_ENKA_CACHE = "enka_cache"   // 로컬 전용(클라우드 스냅샷 비포함)
         const val KEY_GACHA = "gacha_records"
         const val KEY_SUBS = "subscriptions"
         const val KEY_HOME_CARDS = "home_cards"
@@ -416,10 +423,10 @@ class GatchaRepository(accountId: String = "guest") {
         val SECTION_SPENDING = listOf(KEY_SPENDINGS, KEY_BUDGET, KEY_BUDGET_GAMES, KEY_SUBS)
         val SECTION_GAME_INFO = listOf(
             KEY_HOYO_GI, KEY_HOYO_HSR, KEY_HOYO_ZZZ, KEY_ENKA_GI, KEY_ENKA_HSR,
-            KEY_ATTENDANCE, KEY_WISHLIST, KEY_PITY, KEY_EVENT_CHECKS, KEY_GACHA, KEY_REDEEMED,
+            KEY_ATTENDANCE, KEY_PITY, KEY_EVENT_CHECKS, KEY_GACHA, KEY_REDEEMED,
         )
         // 값 타입 분류(섹션 맵의 문자열 변환용) — 나머지 키는 문자열.
-        private val OBJECT_KEYS = setOf(KEY_BUDGET_GAMES, KEY_ATTENDANCE, KEY_WISHLIST, KEY_PITY)
+        private val OBJECT_KEYS = setOf(KEY_BUDGET_GAMES, KEY_ATTENDANCE, KEY_PITY)
         private val ARRAY_KEYS = setOf(KEY_SPENDINGS, KEY_EVENT_CHECKS, KEY_SUBS, KEY_GACHA, KEY_HOME_CARDS, KEY_REDEEMED)
     }
 }

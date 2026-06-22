@@ -14,7 +14,7 @@ struct SpendingInsightView: View {
             VStack(alignment: .leading, spacing: 14) {
                 if spendings.isEmpty {
                     Text("지출 기록이 쌓이면\n예산 페이스·게임별 추이·카테고리 비중을 분석해 드려요.")
-                        .font(.system(size: 13)).foregroundStyle(GLGColor.textSecondary)
+                        .font(.pretendard(size: 13)).foregroundStyle(GLGColor.textSecondary)
                         .multilineTextAlignment(.center).frame(maxWidth: .infinity).padding(.top, 40)
                 } else {
                     budgetPaceCard
@@ -46,8 +46,8 @@ struct SpendingInsightView: View {
             VStack(alignment: .leading, spacing: 0) {
                 cardTitle("\(store.displayMonth)월 예산 페이스", "\(dayOfMonth)일 경과 · \(remainingDays)일 남음")
                 HStack(alignment: .bottom, spacing: 8) {
-                    Text("월말 예상").font(.system(size: 12)).foregroundStyle(GLGColor.textSecondary)
-                    Text(won(projected)).font(.system(size: 24, weight: .bold)).foregroundStyle(accent.primary)
+                    Text("월말 예상").font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary)
+                    Text(won(projected)).font(.pretendard(size: 24, weight: .bold)).foregroundStyle(accent.primary)
                 }
                 .padding(.top, 14)
                 HStack(spacing: 8) {
@@ -69,11 +69,11 @@ struct SpendingInsightView: View {
                     let diff = abs(projected - budget)
                     Text(over ? "이 페이스면 예산을 \(won(diff)) 초과할 것 같아요"
                               : "이 페이스면 예산 안에서 \(won(diff)) 여유가 생겨요")
-                        .font(.system(size: 12, weight: .medium))
+                        .font(.pretendard(size: 12, weight: .medium))
                         .foregroundStyle(over ? GLGColor.dangerText : accent.primary).padding(.top, 8)
                 } else {
                     Text("예산을 설정하면 초과 여부를 예측해 드려요")
-                        .font(.system(size: 11)).foregroundStyle(GLGColor.textSecondary).padding(.top, 10)
+                        .font(.pretendard(size: 11)).foregroundStyle(GLGColor.textSecondary).padding(.top, 10)
                 }
             }
         }
@@ -81,8 +81,8 @@ struct SpendingInsightView: View {
 
     private func insightTile(_ value: String, _ label: String) -> some View {
         VStack(spacing: 3) {
-            Text(value).font(.system(size: 14, weight: .bold)).lineLimit(1).minimumScaleFactor(0.6)
-            Text(label).font(.system(size: 10)).foregroundStyle(GLGColor.textSecondary)
+            Text(value).font(.pretendard(size: 14, weight: .bold)).lineLimit(1).minimumScaleFactor(0.6)
+            Text(label).font(.pretendard(size: 10)).foregroundStyle(GLGColor.textSecondary)
         }
         .frame(maxWidth: .infinity).padding(.vertical, 10)
         .background(accent.primary.opacity(0.06), in: RoundedRectangle(cornerRadius: 12))
@@ -120,8 +120,8 @@ struct SpendingInsightView: View {
 
     private func cardTitle(_ title: String, _ sub: String?) -> some View {
         VStack(alignment: .leading, spacing: 2) {
-            Text(title).font(.system(size: 14, weight: .bold))
-            if let sub { Text(sub).font(.system(size: 11)).foregroundStyle(GLGColor.textSecondary) }
+            Text(title).font(.pretendard(size: 14, weight: .bold))
+            if let sub { Text(sub).font(.pretendard(size: 11)).foregroundStyle(GLGColor.textSecondary) }
         }
     }
 }
@@ -132,10 +132,10 @@ struct BreakdownRow: View {
     var body: some View {
         VStack(spacing: 4) {
             HStack {
-                Text(name).font(.system(size: 13, weight: .medium)).lineLimit(1)
+                Text(name).font(.pretendard(size: 13, weight: .medium)).lineLimit(1)
                 Spacer()
-                Text(won(amount)).font(.system(size: 13, weight: .bold))
-                Text("\(Int(frac*100))%").font(.system(size: 11)).foregroundStyle(GLGColor.textSecondary)
+                Text(won(amount)).font(.pretendard(size: 13, weight: .bold))
+                Text("\(Int(frac*100))%").font(.pretendard(size: 11)).foregroundStyle(GLGColor.textSecondary)
             }
             GeometryReader { geo in
                 ZStack(alignment: .leading) {
@@ -179,8 +179,8 @@ struct MonthlyTrendCard: View {
             return AnyView(GLGCard(cornerRadius: 20, padding: 16) {
                 VStack(alignment: .leading, spacing: 0) {
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("게임별 월 추이").font(.system(size: 14, weight: .bold))
-                        Text("\(year)년 · 누적 막대").font(.system(size: 11)).foregroundStyle(GLGColor.textSecondary)
+                        Text("게임별 월 추이").font(.pretendard(size: 14, weight: .bold))
+                        Text("\(year)년 · 누적 막대").font(.pretendard(size: 11)).foregroundStyle(GLGColor.textSecondary)
                     }
                     HStack(alignment: .bottom, spacing: 3) {
                         ForEach(0..<12, id: \.self) { m in
@@ -199,7 +199,7 @@ struct MonthlyTrendCard: View {
                                     .frame(maxWidth: .infinity).padding(.horizontal, 2)
                                     .clipShape(RoundedRectangle(cornerRadius: 3))
                                 }
-                                Text("\(m+1)").font(.system(size: 8)).foregroundStyle(GLGColor.textSecondary)
+                                Text("\(m+1)").font(.pretendard(size: 8)).foregroundStyle(GLGColor.textSecondary)
                             }
                             .frame(maxWidth: .infinity)
                         }
@@ -209,7 +209,7 @@ struct MonthlyTrendCard: View {
                     FlexibleRow(legend) { g in
                         HStack(spacing: 5) {
                             Circle().fill(colorOf(g)).frame(width: 8, height: 8)
-                            Text(g).font(.system(size: 11)).foregroundStyle(GLGColor.textSecondary)
+                            Text(g).font(.pretendard(size: 11)).foregroundStyle(GLGColor.textSecondary)
                         }
                     }
                     .padding(.top, 12)

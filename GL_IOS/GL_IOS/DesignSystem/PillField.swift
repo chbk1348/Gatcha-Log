@@ -8,7 +8,7 @@ extension View {
         self
             .padding(.horizontal, 18)
             .padding(.vertical, 12)
-            .background(Color(red: 0.965, green: 0.965, blue: 0.980), in: Capsule())   // = 0xF6F6FA (FieldBgIdle 동일)
-            .overlay(Capsule().stroke(Color.black.opacity(0.12), lineWidth: 1))         // 아웃라인 0.12 동일
+            .background(Color.white, in: Capsule())                                     // D · 입력필드 배경 흰색 고정
+            .overlay(Capsule().stroke(Color.black.opacity(0.12), lineWidth: 1))         // 아웃라인 0.12 유지
     }
 }

@@ -32,6 +32,8 @@ import com.gatcha.log.data.GachaGameRate
 import com.gatcha.log.data.GachaRateData
 import com.gatcha.log.data.PityState
 import com.gatcha.log.ui.components.GlassCard
+import com.gatcha.log.ui.components.GlgChip
+import com.gatcha.log.ui.components.GlgChipVariant
 import com.gatcha.log.ui.components.GlgDatePickerDialog
 import com.gatcha.log.ui.components.GlgSwitch
 import com.gatcha.log.ui.components.GlgTextField
@@ -187,28 +189,9 @@ fun GachaCalculatorSection(pity: Map<String, PityState>) {
 
 // ============================================================ S4 글래스 글로우 칩 · 위젯 보조
 @Composable
+// 계산기 칩 — 공통 칩 버튼 단일 규격으로 통일(글로우/점 제거). 게임색은 선택 시 채움색으로 유지.
 private fun GlowChip(label: String, glow: Color, selected: Boolean, enabled: Boolean, onClick: () -> Unit) {
-    val textColor = when {
-        selected -> glow
-        !enabled -> Color.LightGray
-        else -> TextSecondary
-    }
-    Surface(
-        shape = CircleShape,
-        color = if (selected) glow.copy(alpha = 0.12f) else Color.White.copy(alpha = 0.4f),
-        border = BorderStroke(if (selected) 1.5.dp else 1.dp, if (selected) glow else Color.White.copy(alpha = 0.6f)),
-        modifier = (if (enabled) Modifier.clickable { onClick() } else Modifier)
-            .then(if (selected) Modifier.shadow(8.dp, CircleShape, ambientColor = glow, spotColor = glow) else Modifier),
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 15.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Box(Modifier.size(8.dp).clip(CircleShape).background(if (enabled) glow else Color.LightGray))
-            Spacer(Modifier.width(6.dp))
-            Text(label, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = textColor)
-        }
-    }
+    GlgChip(label = label, selected = selected, enabled = enabled, color = glow, onClick = onClick)
 }
 
 @Composable

@@ -20,36 +20,48 @@ struct BudgetSheet: View {
 
     var body: some View {
         NavigationStack {
-            Form {
-                Section("전체 월 예산") {
-                    TextField("예산 (원)", text: $overall)
-                        .keyboardType(.numberPad)
-                        .onChange(of: overall) { _, newValue in overall = newValue.filter(\.isNumber) }
-                }
-                Section {
-                    ForEach(games, id: \.key) { game in
-                        let spent = monthlyTotals[game.key] ?? 0
-                        let limit = Int64(perGame[game.key] ?? "") ?? 0
-                        let over = limit > 0 && spent > limit
-                        HStack(spacing: 10) {
-                            Circle().fill(Color(argb64: game.color)).frame(width: 10, height: 10)
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(game.shortName).font(.system(size: 14, weight: .medium))
-                                Text("이번 달 \(won(spent))")
-                                    .font(.system(size: 11))
-                                    .foregroundStyle(over ? GLGColor.dangerText : GLGColor.textSecondary)
-                                    .fontWeight(over ? .bold : .regular)
+            ScrollView {
+                VStack(alignment: .leading, spacing: 14) {
+                    // 전체 월 예산 — 섹션 카드(지출 추가 모달과 동일 규격: 연회색 카드)
+                    budgetSection("전체 월 예산") {
+                        TextField("예산 (원)", text: $overall)
+                            .textFieldStyle(.plain)
+                            .keyboardType(.numberPad)
+                            .glgPillField()
+                            .onChange(of: overall) { _, newValue in overall = newValue.filter(\.isNumber) }
+                    }
+                    // 게임별 한도 — 섹션 카드
+                    budgetSection("게임별 한도 (선택)", footer: "비워두면 한도 없음 · 이번 달 사용액 함께 표시") {
+                        VStack(spacing: 12) {
+                            ForEach(games, id: \.key) { game in
+                                let spent = monthlyTotals[game.key] ?? 0
+                                let limit = Int64(perGame[game.key] ?? "") ?? 0
+                                let over = limit > 0 && spent > limit
+                                HStack(spacing: 10) {
+                                    Circle().fill(Color(argb64: game.color)).frame(width: 10, height: 10)
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(game.shortName).font(.pretendard(size: 14, weight: .medium))
+                                        Text("이번 달 \(won(spent))")
+                                            .font(.pretendard(size: 11))
+                                            .foregroundStyle(over ? GLGColor.dangerText : GLGColor.textSecondary)
+                                            .fontWeight(over ? .bold : .regular)
+                                    }
+                                    Spacer()
+                                    TextField("한도", text: bindGame(game.key))
+                                        .textFieldStyle(.plain)
+                                        .keyboardType(.numberPad)
+                                        .multilineTextAlignment(.trailing)
+                                        .glgPillField()
+                                        .frame(width: 120)
+                                }
                             }
-                            Spacer()
-                            TextField("한도", text: bindGame(game.key))
-                                .keyboardType(.numberPad)
-                                .multilineTextAlignment(.trailing)
-                                .frame(width: 110)
                         }
                     }
-                } header: { Text("게임별 한도 (선택)") }
-                footer: { Text("비워두면 한도 없음 · 이번 달 사용액 함께 표시") }
+                }
+                .padding(.horizontal, 16).padding(.top, 8).padding(.bottom, 16)
             }
+            .scrollIndicators(.hidden)
+            .background(Color.white)
             .navigationTitle("예산 관리")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -57,6 +69,21 @@ struct BudgetSheet: View {
                 ToolbarItem(placement: .confirmationAction) { Button("저장") { save() } }
             }
             .onAppear(perform: load)
+        }
+    }
+
+    // 예산 섹션 카드 — 제목(카드 위) + 연회색 카드(지출 추가 모달 sectionCard 와 동일 규격). 선택적 footer.
+    @ViewBuilder
+    private func budgetSection<C: View>(_ title: String, footer: String? = nil, @ViewBuilder content: () -> C) -> some View {
+        VStack(alignment: .leading, spacing: 7) {
+            Text(title).font(.pretendard(size: 13, weight: .semibold)).foregroundStyle(GLGColor.textSecondary).padding(.leading, 4)
+            content()
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(16)
+                .glgGlass(in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+            if let footer {
+                Text(footer).font(.pretendard(size: 11)).foregroundStyle(GLGColor.textSecondary).padding(.leading, 4)
+            }
         }
     }
 
@@ -78,36 +105,7 @@ struct BudgetSheet: View {
     }
 }
 
-// ── 넛지 기준 금액 ────────────────────────────────────────────────────────────
-
-struct NudgeThresholdSheet: View {
-    @ObservedObject var store: SpendingStore
-    @Environment(\.dismiss) private var dismiss
-    @State private var text: String = ""
-
-    var body: some View {
-        NavigationStack {
-            Form {
-                Section {
-                    TextField("기준 금액 (원)", text: $text)
-                        .keyboardType(.numberPad)
-                        .onChange(of: text) { _, newValue in text = newValue.filter(\.isNumber) }
-                } footer: {
-                    Text("단건 지출이 이 금액 이상이면 추가 전 한 번 더 확인해요.")
-                }
-            }
-            .navigationTitle("넛지 기준 금액")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("취소") { dismiss() } }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("저장") { store.setNudgeThreshold(Int64(text) ?? 0); dismiss() }
-                }
-            }
-            .onAppear { text = store.nudgeThreshold > 0 ? "\(store.nudgeThreshold)" : "" }
-        }
-    }
-}
+// 넛지 기준 금액 — 단일 입력이라 SettingsView 에서 네이티브 alert(중앙 모달)로 직접 노출(별도 시트 폐기).
 
 // ── 출처 · 저작권 ─────────────────────────────────────────────────────────────
 
@@ -120,13 +118,13 @@ struct CreditsSheet: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 12) {
                     Text("본 앱은 개인이 만든 비상업·비공식 팬 프로젝트로 HoYoverse와 무관하며 공식 서비스가 아닙니다.")
-                        .font(.system(size: 13)).foregroundStyle(GLGColor.textSecondary)
+                        .font(.pretendard(size: 13)).foregroundStyle(GLGColor.textSecondary)
                     creditRow("게임 콘텐츠 · 아이콘 저작권",
                               "© HoYoverse (miHoYo / Cognosphere) — 원신 · 붕괴: 스타레일 · 젠레스 존 제로\n© Kuro Games — 명조: 워더링 웨이브\n© Hypergryph / Yostar — 명일방주: 엔드필드")
                     creditRow("데이터 · 에셋 출처",
                               "enka.network · Project Amber (yatta.moe)\nHoYoLAB · ennead.cc")
                     Text("모든 게임 콘텐츠의 권리는 각 권리자에게 있으며, 권리자의 요청이 있을 경우 즉시 해당 자료를 삭제합니다.")
-                        .font(.system(size: 12)).foregroundStyle(GLGColor.textSecondary)
+                        .font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary)
                 }
                 .padding(20)
             }
@@ -139,8 +137,8 @@ struct CreditsSheet: View {
 
     private func creditRow(_ label: String, _ value: String) -> some View {
         VStack(alignment: .leading, spacing: 3) {
-            Text(label).font(.system(size: 13, weight: .bold)).foregroundStyle(accent.primary)
-            Text(value).font(.system(size: 12)).foregroundStyle(GLGColor.textSecondary)
+            Text(label).font(.pretendard(size: 13, weight: .bold)).foregroundStyle(accent.primary)
+            Text(value).font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary)
         }
     }
 }
@@ -158,11 +156,11 @@ struct UpdateLogSheet: View {
                 VStack(alignment: .leading, spacing: 16) {
                     ForEach(Array(UpdateLog.entries(currentVersion: version).enumerated()), id: \.offset) { _, entry in
                         VStack(alignment: .leading, spacing: 6) {
-                            Text(entry.version).font(.system(size: 14, weight: .bold)).foregroundStyle(accent.primary)
+                            Text(entry.version).font(.pretendard(size: 14, weight: .bold)).foregroundStyle(accent.primary)
                             ForEach(Array(entry.items.enumerated()), id: \.offset) { _, item in
                                 HStack(alignment: .top, spacing: 2) {
-                                    Text("· ").font(.system(size: 13)).foregroundStyle(GLGColor.textSecondary)
-                                    Text(item).font(.system(size: 13)).foregroundStyle(GLGColor.textSecondary)
+                                    Text("· ").font(.pretendard(size: 13)).foregroundStyle(GLGColor.textSecondary)
+                                    Text(item).font(.pretendard(size: 13)).foregroundStyle(GLGColor.textSecondary)
                                 }
                             }
                         }

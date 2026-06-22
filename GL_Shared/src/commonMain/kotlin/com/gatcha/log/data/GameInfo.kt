@@ -71,6 +71,44 @@ data class GachaBanner(
     }
 }
 
+/**
+ * 남은 시간을 "N일 H시간" 형태로 (게임 일정 표시용). 1일 미만이면 "H시간", 지난 경우 "종료".
+ * days·hours 모두 내림 — 예: 2일 5시간 남으면 "2일 5시간".
+ */
+fun dhLabel(targetMillis: Long, nowMillis: Long = currentTimeMillis()): String {
+    val diff = targetMillis - nowMillis
+    if (diff <= 0) return "종료"
+    val totalHours = (diff / (1000L * 60 * 60)).toInt()
+    val days = totalHours / 24
+    val hours = totalHours % 24
+    return if (days > 0) "${days}일 ${hours}시간" else "${hours}시간"
+}
+
+// ── 픽업 페어링 — 데이터 소스(ennead)에 캐릭터↔무기 연결이 없어, 같은 게임·같은 종료시각(=같은 페이즈)으로만 추정.
+// 단, 한 페이즈에 캐릭터·무기가 각각 1개뿐일 때만(명확한 1:1) 페어링한다. 그 외(원신 2캐+2무 등)는
+// 어느 무기가 누구 것인지 알 수 없으므로 페어링하지 않고 무기를 독립 노출한다(오표시 방지). HSR·ZZZ는 항상 1:1.
+
+/** 같은 페이즈(게임+종료시각)가 캐릭터 1·무기 1 의 명확한 1:1 인지. */
+private fun isOneToOnePhase(game: String, endMillis: Long, all: List<GachaBanner>): Boolean {
+    var chars = 0; var weapons = 0
+    for (b in all) {
+        if (b.game != game || b.endMillis != endMillis) continue
+        if (b.type == "weapon") weapons++ else chars++
+    }
+    return chars == 1 && weapons == 1
+}
+
+/** 캐릭터 픽업의 동반 무기 — 명확한 1:1 페이즈일 때만 그 무기 1개. 애매하면 빈 목록. */
+fun companionWeapons(character: GachaBanner, all: List<GachaBanner>): List<GachaBanner> {
+    if (character.type == "weapon") return emptyList()
+    if (!isOneToOnePhase(character.game, character.endMillis, all)) return emptyList()
+    return all.filter { it.type == "weapon" && it.game == character.game && it.endMillis == character.endMillis }
+}
+
+/** 독립 노출할 무기 — 1:1로 페어된(캐릭터 카드에 접힌) 무기만 제외하고 나머지는 모두 노출. */
+fun unpairedWeapons(all: List<GachaBanner>): List<GachaBanner> =
+    all.filter { it.type == "weapon" && !isOneToOnePhase(it.game, it.endMillis, all) }
+
 /** 진행 중인 게임 이벤트 (ennead.cc) */
 data class GameEvent(
     val game: String,

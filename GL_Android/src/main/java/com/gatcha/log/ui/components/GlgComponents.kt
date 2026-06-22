@@ -18,6 +18,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalTextStyle
@@ -29,6 +30,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
@@ -41,13 +43,16 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import com.gatcha.log.ui.theme.DividerColor
 import com.gatcha.log.ui.theme.LocalAccent
+import com.gatcha.log.ui.theme.TextPrimary
+import com.gatcha.log.ui.theme.TextSecondary
 
 // ============================================================
 //  Gatcha LOG 커스텀 디자인 토큰 (웹앱 스타일 이식)
 // ============================================================
 private val FieldShape = RoundedCornerShape(percent = 50)  // 알약(pill) 형태
-private val FieldBgIdle = Color(0xFFF6F6FA)
+private val FieldBgIdle = Color(0xFFFFFFFF)   // D · 입력필드 배경 흰색 고정(테두리로 구분)
 private val FieldBgFocus = Color(0xFFFFFFFF)
 private val FieldBorderIdle = Color(0x1F000000)   // rgba(0,0,0,0.12) — 약간의 아웃라인
 private val FieldText = Color(0xFF1A1C1E)
@@ -205,7 +210,12 @@ fun GlgBackButton(onClick: () -> Unit, modifier: Modifier = Modifier, size: Dp =
  * 이미 가로 16dp 패딩된 컨테이너(LazyColumn 등) 안에선 [modifier] 없이 사용.
  */
 @Composable
-fun GlgScreenHeader(title: String, onBack: () -> Unit, modifier: Modifier = Modifier) {
+fun GlgScreenHeader(
+    title: String,
+    onBack: () -> Unit,
+    modifier: Modifier = Modifier,
+    actions: @Composable RowScope.() -> Unit = {},
+) {
     Row(
         modifier = modifier.fillMaxWidth().padding(top = 12.dp, bottom = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -213,6 +223,13 @@ fun GlgScreenHeader(title: String, onBack: () -> Unit, modifier: Modifier = Modi
         GlgBackButton(onBack)
         Spacer(Modifier.width(10.dp))
         Text(title, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+        // 우측 액션 슬롯 — 제목을 좌측에 붙이고 액션은 우측 정렬.
+        Spacer(Modifier.weight(1f))
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            content = actions,
+        )
     }
 }
 
@@ -237,6 +254,73 @@ fun GlgTabHeader(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             content = actions,
+        )
+    }
+}
+
+// ── 공통 칩 (디자인 시스템) ──────────────────────────────────────────────────
+/**
+ * 앱 전역 칩 — **단일 규격·디자인**. 두 종류뿐:
+ *  - [GlgChipVariant.Chip]  선택형 칩 버튼(필터·선택·계산기 게임/배너 등) — 20dp 필·h14/v8·13sp,
+ *    선택=[color] 채움+흰 글자 / 비선택=흰 배경+Divider 테두리+진회색 / 비활성=흐림.
+ *  - [GlgChipVariant.Tag]   표시 전용 태그 — [color] 12% 배경 + "#" 라벨.
+ * 모든 칩 버튼은 이 한 규격으로 통일한다([color]만 강조색/게임색으로 다름).
+ */
+enum class GlgChipVariant { Chip, Tag }
+
+@Composable
+fun GlgChip(
+    label: String,
+    modifier: Modifier = Modifier,
+    variant: GlgChipVariant = GlgChipVariant.Chip,
+    selected: Boolean = false,
+    enabled: Boolean = true,
+    color: Color = LocalAccent.current,
+    onClick: (() -> Unit)? = null,
+) {
+    if (variant == GlgChipVariant.Tag) {
+        Surface(modifier, color = color.copy(alpha = 0.12f), shape = RoundedCornerShape(7.dp)) {
+            Text(
+                "#$label", fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = color,
+                modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp),
+            )
+        }
+        return
+    }
+    // 단일 규격 칩 버튼 (D · Soft Modern) — idle=흰 배경+옅은 아웃라인, 선택=color 채움, 14dp 라운드.
+    val textColor = when {
+        !enabled -> Color.LightGray
+        selected -> Color.White
+        else -> ChipIdleText
+    }
+    val clickable = onClick != null && enabled
+    Surface(
+        modifier = if (clickable) modifier.clickable { onClick?.invoke() } else modifier,
+        shape = RoundedCornerShape(14.dp),
+        color = if (selected) color else Color.White,
+        border = if (selected) null else BorderStroke(1.dp, ChipIdleBorder),
+    ) {
+        Text(
+            label,
+            fontSize = 13.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = textColor,
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 9.dp),
+        )
+    }
+}
+
+// D 칩 토큰 — idle 아웃라인/글자색. (칩 규격을 따르는 다른 버튼도 참조하도록 internal)
+internal val ChipIdleBorder = Color(0xFFE3E5EA)
+internal val ChipIdleText = Color(0xFF4A5159)
+
+/** 상태 표시 배지 — [color] 12% 배경 + [color] 라벨(작은 둥근 사각). 정기 결제 등 비대화형 표시용 단일 규격. */
+@Composable
+fun GlgBadge(label: String, color: Color, modifier: Modifier = Modifier) {
+    Surface(modifier, color = color.copy(alpha = 0.12f), shape = RoundedCornerShape(6.dp)) {
+        Text(
+            label, fontSize = 10.sp, fontWeight = FontWeight.Medium, color = color,
+            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
         )
     }
 }

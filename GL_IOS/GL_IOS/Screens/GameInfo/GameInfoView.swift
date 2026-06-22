@@ -16,6 +16,8 @@ struct GameInfoView: View {
     @State private var showRecharge = false
     @State private var showReport = false
     @State private var showSchedule = false
+    @State private var showNews = false
+    @State private var showPickups = false
     @State private var statChar: EnkaChar? = nil
     @State private var statGame = "genshin"
     @State private var showStats = false
@@ -30,15 +32,20 @@ struct GameInfoView: View {
                 DailyHeroSection(store: store, filter: gameFilter, onConfig: { showHoyolab = true })
                 // 내 캐릭터(보유 전체 로스터) — 데일리 다음 핵심 콘텐츠로 상단 배치
                 section {
-                    EnkaCharSection(store: store, onOpen: { c, g in statChar = c; statGame = g; showStats = true },
+                    EnkaCharSection(store: store, filter: gameFilter,
+                                    onOpen: { c, g in statChar = c; statGame = g; showStats = true },
                                     onOpenAll: { g in rosterGame = g; showRoster = true },
                                     onOpenHoyolab: { showHoyolab = true })
                 }
                 // 통합 게임 일정 — 패치·이벤트·정기 콘텐츠. 게임 분리는 상단 헤더 드롭다운(gameFilter)으로 필터.
                 let schedule = buildSchedule(banners: store.activeBanners, events: store.gameEvents, challenges: store.challenges)
                 if !schedule.isEmpty {
-                    section { GameScheduleSection(entries: schedule, banners: store.activeBanners, filter: gameFilter, onSeeAll: { showSchedule = true }) }
+                    section { GameScheduleSection(entries: schedule, banners: store.activeBanners, filter: gameFilter, onSeeAll: { showSchedule = true }, onSeePickups: { showPickups = true }) }
                 }
+                // 게임 주년 — 지원 게임의 다가오는 주년(임박 순).
+                section { AnniversarySection() }
+                // 공지·뉴스 — 게임별 최신 공지(탭하면 HoYoLab 열기). 더보기로 전체 페이지.
+                section { NewsSection(store: store, filter: gameFilter, onSeeAll: { showNews = true }) }
                 section { GameTabbedSection(store: store, filter: gameFilter) }
                 section { navEntry(icon: "function", title: "가챠 계산기", sub: "재화 환산 · 확률 · 시뮬레이터 · 플래너") { showCalc = true } }
                 section { navEntry(icon: "wonsign.circle", title: "충전 가성비", sub: "충전 패키지 단가 비교 · 첫구매 반영") { showRecharge = true } }
@@ -68,8 +75,8 @@ struct GameInfoView: View {
                     }
                 } label: {
                     HStack(spacing: 4) {
-                        Text(gameFilterLabel).font(.system(size: 17, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
-                        Image(systemName: "chevron.down").font(.system(size: 12, weight: .semibold)).foregroundStyle(GLGColor.textSecondary)
+                        Text(gameFilterLabel).font(.pretendard(size: 17, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
+                        Image(systemName: "chevron.down").font(.pretendard(size: 12, weight: .semibold)).foregroundStyle(GLGColor.textSecondary)
                     }
                 }
             }
@@ -91,6 +98,8 @@ struct GameInfoView: View {
         .navigationDestination(isPresented: $showGift) { GiftCodePage(store: store) }
         .navigationDestination(isPresented: $showDashboard) { GachaDashboardView(store: store) }
         .navigationDestination(isPresented: $showSchedule) { GameSchedulePage(store: store, filter: gameFilter) }
+        .navigationDestination(isPresented: $showNews) { NewsPage(store: store, filter: gameFilter) }
+        .navigationDestination(isPresented: $showPickups) { GamePickupPage(store: store, filter: gameFilter) }
         .navigationDestination(isPresented: $showStats) { if let c = statChar { EnkaStatPage(char: c, game: statGame) } }
         .navigationDestination(isPresented: $showRoster) {
             EnkaRosterPage(store: store, game: rosterGame)
@@ -114,14 +123,14 @@ struct GameInfoView: View {
                 HStack(spacing: 14) {
                     ZStack {
                         RoundedRectangle(cornerRadius: 12, style: .continuous).fill(accent.primary.opacity(0.12)).frame(width: 44, height: 44)
-                        Image(systemName: icon).font(.system(size: 18, weight: .semibold)).foregroundStyle(accent.primary)
+                        Image(systemName: icon).font(.pretendard(size: 18, weight: .semibold)).foregroundStyle(accent.primary)
                     }
                     VStack(alignment: .leading, spacing: 3) {
-                        Text(title).font(.system(size: 15, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
-                        Text(sub).font(.system(size: 12)).foregroundStyle(GLGColor.textSecondary).lineLimit(1).minimumScaleFactor(0.85)
+                        Text(title).font(.pretendard(size: 15, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
+                        Text(sub).font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary).lineLimit(1).minimumScaleFactor(0.85)
                     }
                     Spacer(minLength: 8)
-                    Image(systemName: "chevron.right").font(.system(size: 14, weight: .semibold)).foregroundStyle(GLGColor.textSecondary)
+                    Image(systemName: "chevron.right").font(.pretendard(size: 14, weight: .semibold)).foregroundStyle(GLGColor.textSecondary)
                 }
             }
         }
@@ -224,64 +233,143 @@ struct SwordShape: Shape {
     }
 }
 
-// 픽업 그룹 라벨 — 캐릭터/무기 구분 소제목.
-private struct PickupGroupLabel: View {
-    let isSword: Bool
-    let text: String
+private let glChar = Color(hex: 0xFF5B8DEF)
+private let glWeap = Color(hex: 0xFFE0883B)
+private let glUrgent = Color(hex: 0xFFE8634A)
+private let glTrack = Color(hex: 0xFFEDEFF3)
+private let glLine = Color(hex: 0xFFE6E7EC)
+
+// 픽업 그룹 헤더 — 종류 배지(캐릭터=블루 / 무기=앰버) + 개수.
+private struct PickupGroupHeader: View {
+    let isWeapon: Bool
+    let count: Int
     var body: some View {
-        HStack(spacing: 5) {
-            if isSword {
-                SwordShape().fill(GLGColor.textSecondary).frame(width: 12, height: 13)
-            } else {
-                Image(systemName: "person.fill").font(.system(size: 11, weight: .semibold)).foregroundStyle(GLGColor.textSecondary)
-            }
-            Text(text).font(.system(size: 12, weight: .bold)).foregroundStyle(GLGColor.textSecondary)
+        HStack(spacing: 7) {
+            Text(isWeapon ? "무기" : "캐릭터").font(.pretendard(size: 9, weight: .bold)).foregroundStyle(.white)
+                .padding(.horizontal, 8).padding(.vertical, 3).background(isWeapon ? glWeap : glChar, in: Capsule())
+            Text("\(count)").font(.pretendard(size: 11, weight: .bold)).foregroundStyle(GLGColor.textSecondary)
         }
-        .padding(.top, 2)
+        .padding(.top, 2).padding(.bottom, 10)
     }
 }
 
-// 픽업 배너를 캐릭터 픽업 / 무기 픽업 2그룹으로 분류 표시.
+// "{종류} N개 더보기 ›" 푸터 — 전체 픽업 페이지로.
+private struct PickupMoreFooter: View {
+    let label: String
+    let more: Int
+    let onMore: () -> Void
+    @Environment(\.glgAccent) private var accent
+    var body: some View {
+        Button(action: onMore) {
+            HStack(spacing: 4) {
+                Spacer()
+                Text("\(label) \(more)개 더보기").font(.pretendard(size: 12, weight: .bold)).foregroundStyle(accent.primary)
+                Image(systemName: "chevron.right").font(.pretendard(size: 11, weight: .bold)).foregroundStyle(accent.primary)
+                Spacer()
+            }
+            .padding(.vertical, 9)
+        }.buttonStyle(.plain)
+    }
+}
+
+// 픽업 배너를 캐릭터/무기 2그룹으로 분류. limit != nil이면 그룹별 상위 N개만 + 더보기 푸터.
 private struct PickupGroups: View {
     let pickups: [GachaBanner]
+    var limit: Int? = nil
+    var onMore: (() -> Void)? = nil
     var body: some View {
         let chars = pickups.filter { $0.type != "weapon" }
-        let weapons = pickups.filter { $0.type == "weapon" }
-        VStack(alignment: .leading, spacing: 8) {
+        let weapons = GameInfoKt.unpairedWeapons(all: pickups)   // 동반 무기는 캐릭터 카드에 접어 표시 → 독립 목록 제외
+        VStack(alignment: .leading, spacing: 0) {
             if !chars.isEmpty {
-                PickupGroupLabel(isSword: false, text: "캐릭터 픽업")
-                ForEach(Array(chars.enumerated()), id: \.offset) { _, b in PickupBannerCard(banner: b) }
+                PickupGroupHeader(isWeapon: false, count: chars.count)
+                ForEach(Array((limit != nil ? Array(chars.prefix(limit!)) : chars).enumerated()), id: \.offset) { _, b in
+                    PickupItem(banner: b, companions: GameInfoKt.companionWeapons(character: b, all: pickups))
+                }
+                if let limit, let onMore, chars.count > limit { PickupMoreFooter(label: "캐릭터", more: chars.count - limit, onMore: onMore) }
             }
             if !weapons.isEmpty {
-                PickupGroupLabel(isSword: true, text: "무기 픽업")
-                ForEach(Array(weapons.enumerated()), id: \.offset) { _, b in PickupBannerCard(banner: b) }
+                if !chars.isEmpty { Spacer().frame(height: 16) }
+                PickupGroupHeader(isWeapon: true, count: weapons.count)
+                ForEach(Array((limit != nil ? Array(weapons.prefix(limit!)) : weapons).enumerated()), id: \.offset) { _, b in PickupItem(banner: b) }
+                if let limit, let onMore, weapons.count > limit { PickupMoreFooter(label: "무기", more: weapons.count - limit, onMore: onMore) }
             }
         }
     }
 }
 
-// 픽업 배너 — 일정 목록과 구분되는 단독 디자인(게임색 틴트 알약/리스트). 한 줄 컴팩트.
-private struct PickupBannerCard: View {
+// 픽업 아이템 — 좌측 게임색 바 + 아바타 + 이름/버전 + 잔여(dhLabel) + 진행바. (design_pickup_list_final_mockup.html)
+private struct PickupItem: View {
     let banner: GachaBanner
+    var companions: [GachaBanner] = []
     var body: some View {
         let c = Color(argb64: banner.gameColor)
+        let isWeapon = banner.type == "weapon"
         let urgent = banner.dDay(nowMillis: nowMs()) <= 3
-        let ddColor = urgent ? Color(hex: 0xFFE8634A) : c
-        return HStack(spacing: 8) {
-            Text("픽업").font(.system(size: 9, weight: .bold)).foregroundStyle(.white)
-                .padding(.horizontal, 6).padding(.vertical, 2).background(c, in: Capsule())
-            if banner.type == "weapon" {
-                SwordShape().fill(c).frame(width: 11, height: 12)
-            } else {
-                Image(systemName: "person.fill").font(.system(size: 11, weight: .semibold)).foregroundStyle(c)
+        let ddColor = urgent ? glUrgent : c
+        let short = GameData.shared.byNameOrNull(name: banner.game)?.shortName ?? banner.game
+        let sub = banner.version.isEmpty ? short : "\(short) · v\(banner.version)"
+        let hasProg = banner.startMillis > 0 && banner.endMillis > banner.startMillis
+        let frac = hasProg ? min(max(Double(nowMs() - banner.startMillis) / Double(banner.endMillis - banner.startMillis), 0), 1) : 0
+        return HStack(spacing: 0) {
+            Rectangle().fill(c).frame(width: 3)
+            VStack(alignment: .leading, spacing: 0) {
+                HStack(spacing: 11) {
+                    ZStack {
+                        if isWeapon { RoundedRectangle(cornerRadius: 10, style: .continuous).fill(c) } else { Circle().fill(c) }
+                        if isWeapon { SwordShape().fill(.white).frame(width: 14, height: 16) }
+                        else { Text(String(banner.name.prefix(1))).font(.pretendard(size: 14, weight: .heavy)).foregroundStyle(.white) }
+                    }
+                    .frame(width: 34, height: 34)
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(banner.name).font(.pretendard(size: 14, weight: .bold)).foregroundStyle(GLGColor.textPrimary).lineLimit(1)
+                        Text(sub).font(.pretendard(size: 10, weight: .semibold)).foregroundStyle(GLGColor.textSecondary).lineLimit(1)
+                    }
+                    Spacer(minLength: 8)
+                    VStack(alignment: .trailing, spacing: 2) {
+                        Text(GameInfoKt.dhLabel(targetMillis: banner.endMillis, nowMillis: nowMs())).font(.pretendard(size: 14, weight: .bold)).foregroundStyle(ddColor).lineLimit(1)
+                        Text("~" + DateUtil.shared.shortDate(millis: banner.endMillis)).font(.pretendard(size: 9)).foregroundStyle(GLGColor.textSecondary)
+                    }
+                }
+                if !companions.isEmpty {
+                    Divider().opacity(0.6).padding(.top, 8)
+                    ForEach(Array(companions.enumerated()), id: \.offset) { _, w in
+                        HStack(spacing: 6) {
+                            ZStack {
+                                RoundedRectangle(cornerRadius: 6, style: .continuous).fill(glWeap.opacity(0.14))
+                                SwordShape().fill(glWeap).frame(width: 9, height: 11)
+                            }
+                            .frame(width: 18, height: 18)
+                            Text("동반 무기 · \(w.name)").font(.pretendard(size: 11, weight: .medium)).foregroundStyle(GLGColor.textSecondary).lineLimit(1)
+                            Spacer(minLength: 0)
+                        }
+                        .padding(.top, 7)
+                    }
+                }
+                if hasProg {
+                    GeometryReader { geo in
+                        ZStack(alignment: .leading) {
+                            Capsule().fill(glTrack)
+                            Capsule().fill(urgent ? glUrgent : c.opacity(0.35)).frame(width: geo.size.width * frac)
+                        }
+                    }
+                    .frame(height: 5).padding(.top, 10)
+                    if urgent {
+                        HStack {
+                            Text("\(Int((frac * 100).rounded()))% 경과 · 막바지").font(.pretendard(size: 9, weight: .bold)).foregroundStyle(glUrgent)
+                            Spacer()
+                            Text("\(DateUtil.shared.shortDate(millis: banner.startMillis)) → \(DateUtil.shared.shortDate(millis: banner.endMillis))").font(.pretendard(size: 9)).foregroundStyle(GLGColor.textSecondary)
+                        }
+                        .padding(.top, 5)
+                    }
+                }
             }
-            Text(banner.name).font(.system(size: 13, weight: .bold)).foregroundStyle(GLGColor.textPrimary).lineLimit(1)
-            Spacer(minLength: 6)
-            Text(banner.endShortLabel(nowMillis: nowMs())).font(.system(size: 11, weight: .bold)).foregroundStyle(ddColor)
+            .padding(.horizontal, 11).padding(.vertical, 10)
         }
-        .padding(.horizontal, 12).padding(.vertical, 9)
-        .background(c.opacity(0.06), in: Capsule())
-        .overlay(Capsule().stroke(c.opacity(0.18), lineWidth: 1))
+        .background(c.opacity(0.05))
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(glLine, lineWidth: 1))
+        .padding(.bottom, 9)
     }
 }
 
@@ -313,18 +401,18 @@ private struct ScheduleEntryRow: View {
         HStack(spacing: 12) {
             Circle().fill(e.color).frame(width: 9, height: 9)
             VStack(alignment: .leading, spacing: 3) {
-                Text(e.kind).font(.system(size: 9, weight: .bold)).foregroundStyle(scheduleKindColor(e.kind))
+                Text(e.kind).font(.pretendard(size: 9, weight: .bold)).foregroundStyle(scheduleKindColor(e.kind))
                     .padding(.horizontal, 6).padding(.vertical, 2)
                     .background(scheduleKindColor(e.kind).opacity(0.13), in: Capsule())
-                Text(e.title).font(.system(size: 14, weight: .semibold)).foregroundStyle(GLGColor.textPrimary).lineLimit(1)
+                Text(e.title).font(.pretendard(size: 14, weight: .semibold)).foregroundStyle(GLGColor.textPrimary).lineLimit(1)
                 if !e.sub.isEmpty {
-                    Text(e.sub).font(.system(size: 11)).foregroundStyle(GLGColor.textSecondary).lineLimit(1)
+                    Text(e.sub).font(.pretendard(size: 11)).foregroundStyle(GLGColor.textSecondary).lineLimit(1)
                 }
             }
             Spacer(minLength: 8)
             VStack(alignment: .trailing, spacing: 2) {
-                Text(d > 0 ? "D-\(d)" : (d == 0 ? "D-DAY" : "—")).font(.system(size: 15, weight: .bold)).foregroundStyle(ddColor)
-                Text((e.isStart ? "" : "~") + DateUtil.shared.shortDate(millis: e.target)).font(.system(size: 10)).foregroundStyle(GLGColor.textSecondary)
+                Text(GameInfoKt.dhLabel(targetMillis: e.target, nowMillis: nowMs())).font(.pretendard(size: 15, weight: .bold)).foregroundStyle(ddColor).lineLimit(1)
+                Text((e.isStart ? "" : "~") + DateUtil.shared.shortDate(millis: e.target)).font(.pretendard(size: 10)).foregroundStyle(GLGColor.textSecondary)
             }
         }
         .padding(.vertical, 11)
@@ -337,6 +425,7 @@ struct GameScheduleSection: View {
     let banners: [GachaBanner]
     let filter: String
     let onSeeAll: () -> Void
+    let onSeePickups: () -> Void
     @Environment(\.glgAccent) private var accent
 
     var body: some View {
@@ -345,13 +434,13 @@ struct GameScheduleSection: View {
         let top = Array(items.prefix(3))
         let hasMore = items.count > 3
         VStack(alignment: .leading, spacing: 0) {
-            Text("게임 일정").font(.system(size: 16, weight: .bold)).padding(.bottom, 4)
-            Text("픽업 배너와 다가오는 패치·이벤트·콘텐츠를 모았어요.").font(.system(size: 11)).foregroundStyle(GLGColor.textSecondary).padding(.bottom, 12)
+            Text("게임 일정").font(.pretendard(size: 16, weight: .bold)).padding(.bottom, 4)
+            Text("픽업 배너와 다가오는 패치·이벤트·콘텐츠를 모았어요.").font(.pretendard(size: 11)).foregroundStyle(GLGColor.textSecondary).padding(.bottom, 12)
             // 픽업 배너 + 일정을 하나의 통합 카드에 담는다. 픽업 배너는 카드 안에서 단독 디자인(틴트 카드)으로 구분.
             GLGCard(cornerRadius: 20, padding: 16) {
                 VStack(spacing: 0) {
                     if !pickups.isEmpty {
-                        PickupGroups(pickups: pickups)
+                        PickupGroups(pickups: pickups, limit: 3, onMore: onSeePickups)
                         if !top.isEmpty { Divider().padding(.vertical, 12) }
                     }
                     if !top.isEmpty {
@@ -360,17 +449,17 @@ struct GameScheduleSection: View {
                             if i < top.count - 1 { Divider() }
                         }
                     } else if pickups.isEmpty {
-                        Text("예정된 일정이 없어요.").font(.system(size: 12)).foregroundStyle(GLGColor.textSecondary)
+                        Text("예정된 일정이 없어요.").font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary)
                             .frame(maxWidth: .infinity, alignment: .leading).padding(.vertical, 8)
                     }
                     if hasMore {
                         Divider()
                         Button(action: onSeeAll) {
                             HStack(spacing: 6) {
-                                Text("전체 일정 보기").font(.system(size: 13, weight: .bold)).foregroundStyle(accent.primary)
-                                Text("\(items.count + pickups.count)").font(.system(size: 12, weight: .bold)).foregroundStyle(accent.primary.opacity(0.6))
+                                Text("전체 일정 보기").font(.pretendard(size: 13, weight: .bold)).foregroundStyle(accent.primary)
+                                Text("\(items.count + pickups.count)").font(.pretendard(size: 12, weight: .bold)).foregroundStyle(accent.primary.opacity(0.6))
                                 Spacer()
-                                Image(systemName: "chevron.right").font(.system(size: 12, weight: .semibold)).foregroundStyle(accent.primary)
+                                Image(systemName: "chevron.right").font(.pretendard(size: 12, weight: .semibold)).foregroundStyle(accent.primary)
                             }
                             .padding(.top, 12)
                         }.buttonStyle(.plain)
@@ -395,10 +484,10 @@ struct GameSchedulePage: View {
         }
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
-                Text("게임 일정").font(.system(size: 22, weight: .bold)).padding(.bottom, 4)
-                Text("픽업 배너와 패치·이벤트·정기 콘텐츠를 게임별로 모았어요.").font(.system(size: 12)).foregroundStyle(GLGColor.textSecondary).padding(.bottom, 6)
+                Text("게임 일정").font(.pretendard(size: 22, weight: .bold)).padding(.bottom, 4)
+                Text("픽업 배너와 패치·이벤트·정기 콘텐츠를 게임별로 모았어요.").font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary).padding(.bottom, 6)
                 if games.isEmpty {
-                    Text("예정된 일정이 없어요.").font(.system(size: 13)).foregroundStyle(GLGColor.textSecondary)
+                    Text("예정된 일정이 없어요.").font(.pretendard(size: 13)).foregroundStyle(GLGColor.textSecondary)
                         .frame(maxWidth: .infinity, alignment: .center).padding(.top, 40)
                 } else {
                     ForEach(Array(games.enumerated()), id: \.offset) { _, g in
@@ -406,6 +495,32 @@ struct GameSchedulePage: View {
                                           entries: entries.filter { $0.gameKey == g.key },
                                           pickups: pickups.filter { $0.game == g.displayName })
                     }
+                }
+            }
+            .padding(16)
+        }
+        .scrollIndicators(.hidden)
+        .background(GLGBackground { Color.clear })
+        .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+// ── 픽업 전용 전체 페이지 — 캐릭터/무기 그룹으로만 분리, 종료 임박순. (design_pickup_list_final_mockup.html ②) ──
+struct GamePickupPage: View {
+    @ObservedObject var store: SpendingStore
+    let filter: String
+
+    var body: some View {
+        let pickups = filteredPickups(store.activeBanners, filter: filter)
+        ScrollView {
+            VStack(alignment: .leading, spacing: 0) {
+                Text("전체 픽업").font(.pretendard(size: 22, weight: .bold)).padding(.bottom, 4)
+                Text("진행 중인 캐릭터·무기 픽업을 종료 임박순으로 모았어요.").font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary).padding(.bottom, 14)
+                if pickups.isEmpty {
+                    Text("진행 중인 픽업이 없어요.").font(.pretendard(size: 13)).foregroundStyle(GLGColor.textSecondary)
+                        .frame(maxWidth: .infinity, alignment: .center).padding(.top, 40)
+                } else {
+                    GLGCard(cornerRadius: 20, padding: 16) { PickupGroups(pickups: pickups) }
                 }
             }
             .padding(16)
@@ -426,10 +541,10 @@ private struct GameScheduleGroup: View {
         let c = Color(argb64: game.color)
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 10) {
-                Text(game.abbr).font(.system(size: 12, weight: .heavy)).foregroundStyle(.white)
+                Text(game.abbr).font(.pretendard(size: 12, weight: .heavy)).foregroundStyle(.white)
                     .frame(minWidth: 30).padding(.horizontal, 8).padding(.vertical, 5)
                     .background(c, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-                Text(game.displayName).font(.system(size: 17, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
+                Text(game.displayName).font(.pretendard(size: 17, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
             }
             .padding(.top, 16).padding(.bottom, 10)
             GLGCard(cornerRadius: 20, padding: 16) {
