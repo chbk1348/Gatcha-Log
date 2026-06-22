@@ -84,6 +84,8 @@ struct SpendingView: View {
                             .onAppear { if collapse == 0 { heroExpandedHeight = g.size.height } }
                     }
                 )
+                // 당겨서 새로고침 — 당겨내릴 때(overscroll) 히어로를 같이 내려 PTR 스피너가 헤더 바로 밑에 자연스럽게 드러나게.
+                .offset(y: max(0, -scrolledDown))
                 .allowsHitTesting(false)
         }
         .background(GLGBackground { Color.clear })
