@@ -24,7 +24,7 @@ object ZzzEventNames {
         "Assemble! Mock Exam Comeback Plan" to "집합! 모의고사 만회 작전",
         "Tales of the Hobbling Crow" to "절뚝이는 까마귀 이야기",
         "Art Is Bangboo!" to "예술은 방부!",
-        // 에이전트(확실)
+        // 에이전트(공식 한국어명)
         "Nicole" to "니콜",
         "Piper" to "파이퍼",
         "Corin" to "코린",
@@ -33,6 +33,10 @@ object ZzzEventNames {
         "Ellen" to "엘렌",
         "Lucy" to "루시",
         "Ben" to "벤",
+        "Velina" to "벨리나",
+        "Pulchra" to "펄크라",
+        "Sunna" to "수나",
+        "Ye Shunguang" to "엽빛나",
     )
 
     /** 원격(레포) 매핑을 받아 빌트인 위에 병합. 실패 시 빌트인만. JSON 은 평면 객체 {"영문":"한국어"}. */
