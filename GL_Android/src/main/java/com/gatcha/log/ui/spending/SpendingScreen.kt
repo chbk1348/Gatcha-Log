@@ -34,11 +34,9 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
-import androidx.compose.ui.input.nestedscroll.NestedScrollSource
-import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.foundation.background
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -150,38 +148,30 @@ fun SpendingScreen(
             SpendingScreenNav.List -> Unit
         }
 
-    // 월 지출 히어로 스크롤 축소 — nestedScroll로 스크롤량 누적(소비 없음), 상단 64dp 동안 보간.
+    // 월 지출 히어로 스크롤 축소(iOS 패리티) — 히어로를 리스트 위 오버레이로 두고, 리스트 첫 항목에
+    // '히어로 자리'(고정 높이)를 둬서 콜랩스해도 콘텐츠 maxOffset 이 바뀌지 않게 한다(최하단 떨림 방지).
+    // 콜랩스는 첫 항목(자리) 스크롤 오프셋 기준(자리가 충분히 높아 매끄럽게 보간).
     val density = LocalDensity.current
     val maxCollapsePx = with(density) { 64.dp.toPx() }
-    var collapsePx by remember { mutableFloatStateOf(0f) }
-    val heroNestedScroll = remember(maxCollapsePx) {
-        object : NestedScrollConnection {
-            override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
-                collapsePx = (collapsePx - available.y).coerceIn(0f, maxCollapsePx)
-                return Offset.Zero
-            }
+    val collapse by remember {
+        derivedStateOf {
+            if (listState.firstVisibleItemIndex > 0) 1f
+            else (listState.firstVisibleItemScrollOffset / maxCollapsePx).coerceIn(0f, 1f)
         }
     }
-    val collapse = if (maxCollapsePx > 0f) collapsePx / maxCollapsePx else 0f
+    // 펼친 히어로(헤더+카드) 높이 — 콜랩스 0일 때 측정해 '히어로 자리' spacer 로 사용. 측정 전 추정 기본값.
+    var heroOverlayPx by remember { mutableIntStateOf(0) }
+    val heroSpacerDp = if (heroOverlayPx > 0) with(density) { heroOverlayPx.toDp() } else 196.dp
 
-    Column(Modifier.fillMaxSize().nestedScroll(heroNestedScroll)) {
-        // 고정 헤더 — 액션 버튼 + 필터 버튼, 그 아래 월 지출 히어로(스크롤 시 축소).
-        Column(Modifier.padding(horizontal = 16.dp)) {
-            GlgTabHeader("") {
-                CalendarButton { nav = SpendingScreenNav.Calendar }
-                InsightButton { nav = SpendingScreenNav.Insight }
-                AnnualReportButton { nav = SpendingScreenNav.Annual }
-                FilterButton(activeFilterCount) { showFilterSheet.value = true }
-            }
-            MonthlySummaryCard(viewModel.displayMonth, monthlyTotal, prevMonthTotal, collapse)
-            Spacer(Modifier.height(10.dp))
-        }
+    Box(Modifier.fillMaxSize()) {
         GlgPullToRefreshBox(
             isRefreshing = isRefreshing,
             onRefresh = { viewModel.refreshSpending() },
             modifier = Modifier.fillMaxSize(),
         ) {
             LazyColumn(state = listState, modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
+                // 히어로 자리(고정) — 위에 히어로 오버레이가 뜬다.
+                item { Spacer(Modifier.height(heroSpacerDp)) }
 
             val filtered = spendings.filter { s ->
                 (selectedGames.isEmpty() || s.gameName in selectedGames) &&
@@ -226,6 +216,23 @@ fun SpendingScreen(
             item { Spacer(Modifier.height(120.dp)) }
         }
     }
+        // 히어로 오버레이 — 헤더(액션+필터) + 월 지출 카드(축소). 흰 배경으로 아래 콘텐츠 가림. 콜랩스 0일 때 높이 측정 → 자리(spacer).
+        Column(
+            Modifier
+                .align(Alignment.TopStart)
+                .fillMaxWidth()
+                .background(Color.White)
+                .padding(horizontal = 16.dp)
+                .onSizeChanged { if (collapse == 0f) heroOverlayPx = it.height },
+        ) {
+            GlgTabHeader("") {
+                CalendarButton { nav = SpendingScreenNav.Calendar }
+                InsightButton { nav = SpendingScreenNav.Insight }
+                AnnualReportButton { nav = SpendingScreenNav.Annual }
+                FilterButton(activeFilterCount) { showFilterSheet.value = true }
+            }
+            MonthlySummaryCard(viewModel.displayMonth, monthlyTotal, prevMonthTotal, collapse)
+        }
     }
     }
 
