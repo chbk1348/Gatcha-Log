@@ -217,7 +217,7 @@ internal fun CreditsDialog(onDismiss: () -> Unit) {
             )
             CreditRow(
                 "데이터 · 에셋 출처",
-                "enka.network · Project Amber (yatta.moe)\nHoYoLAB · ennead.cc",
+                "enka.network · HoYoLAB · ennead.cc\nProject Amber (yatta.moe) · Hakush.in",
             )
             Text(
                 "모든 게임 콘텐츠의 권리는 각 권리자에게 있으며, 권리자의 요청이 있을 경우 즉시 해당 자료를 삭제합니다.",

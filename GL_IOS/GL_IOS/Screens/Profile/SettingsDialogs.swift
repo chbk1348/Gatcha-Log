@@ -122,7 +122,7 @@ struct CreditsSheet: View {
                     creditRow("게임 콘텐츠 · 아이콘 저작권",
                               "© HoYoverse (miHoYo / Cognosphere) — 원신 · 붕괴: 스타레일 · 젠레스 존 제로\n© Kuro Games — 명조: 워더링 웨이브\n© Hypergryph / Yostar — 명일방주: 엔드필드")
                     creditRow("데이터 · 에셋 출처",
-                              "enka.network · Project Amber (yatta.moe)\nHoYoLAB · ennead.cc")
+                              "enka.network · HoYoLAB · ennead.cc\nProject Amber (yatta.moe) · Hakush.in")
                     Text("모든 게임 콘텐츠의 권리는 각 권리자에게 있으며, 권리자의 요청이 있을 경우 즉시 해당 자료를 삭제합니다.")
                         .font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary)
                 }
