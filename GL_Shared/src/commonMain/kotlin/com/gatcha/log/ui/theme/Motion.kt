@@ -24,6 +24,12 @@ object GlgMotion {
     /** 스켈레톤 시머 1회 주기(리니어 반복). 양 플랫폼 동일. 밀리초. */
     const val ShimmerPeriod: Int = 1100
 
+    /** 로드인 스태거 — 항목 간 시작 지연 step. 밀리초. */
+    const val StaggerStep: Int = 40
+
+    /** 로드인 스태거 최대 누적 지연(이보다 깊은 항목은 동일 지연). 밀리초. */
+    const val StaggerMax: Int = 240
+
     // ── Easing — cubic-bezier 제어점 (x1, y1, x2, y2) ──────────────────────────
     // standard: 진입·이동 기본(가속 후 감속). Material standard 와 동일 곡선.
     const val EasingStandardX1: Float = 0.4f
