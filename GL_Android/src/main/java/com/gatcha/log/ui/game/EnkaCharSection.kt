@@ -455,7 +455,7 @@ fun EnkaStatPage(c: EnkaChar, game: String, onBack: () -> Unit) {
 
 /** 명좌(원신)/성혼(스타레일)/의식(젠레스) 섹션 제목. */
 private fun effectsTitle(game: String): String = when (game) {
-    "genshin" -> "명좌"
+    "genshin" -> "운명의 자리"
     "zzz" -> "의식"
     else -> "성혼"
 }
