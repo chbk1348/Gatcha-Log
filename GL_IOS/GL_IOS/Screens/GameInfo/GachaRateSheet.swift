@@ -27,23 +27,15 @@ struct GachaRatePage: View {
     }
 
     private var bannerTabs: some View {
+        // 공통 칩 단일 규격(시스템 세그먼트 폐기) — 배너타입 선택.
         HStack(spacing: 8) {
             ForEach(Array(GachaRateData.shared.bannerTypes.enumerated()), id: \.offset) { _, pair in
                 let key = (pair.first as? String) ?? ""
                 let label = (pair.second as? String) ?? ""
-                let sel = key == bannerType
-                Button { withAnimation(.snappy(duration: 0.2)) { bannerType = key } } label: {
-                    Text(label).font(.pretendard(size: 13, weight: .bold))
-                        .foregroundStyle(sel ? .white : GLGColor.textSecondary)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 9)
-                        .background(sel ? accent.primary : Color.clear, in: Capsule())
-                }
-                .buttonStyle(.plain)
+                GLGChip(label: label, selected: key == bannerType) { withAnimation(.snappy(duration: 0.2)) { bannerType = key } }
             }
+            Spacer(minLength: 0)
         }
-        .padding(4)
-        .glgGlass(in: Capsule())
     }
 
     private func gameCard(_ game: GachaGameRate) -> some View {
