@@ -42,7 +42,6 @@ final class SpendingStore: ObservableObject {
     @Published private(set) var notifyBudget: Bool = false
     @Published private(set) var notifyAttendance: Bool = false
     @Published private(set) var notifyResin: Bool = false
-    @Published private(set) var notifyWish: Bool = false
     @Published private(set) var nudgeOverspend: Bool = false
     @Published private(set) var nudgeThreshold: Int64 = 0
     @Published private(set) var pendingOpenHoyolabLink: Bool = false
@@ -62,7 +61,6 @@ final class SpendingStore: ObservableObject {
     @Published private(set) var attendanceToday: Set<String> = []
     @Published private(set) var checkingIn: String? = nil
     @Published private(set) var pity: [String: PityState] = [:]
-    @Published private(set) var wishlist: [String: [String]] = [:]
     // Phase 4 chunk ③ (가챠 도구)
     @Published private(set) var enkaGiUid: String = ""
     @Published private(set) var enkaHsrUid: String = ""
@@ -119,7 +117,6 @@ final class SpendingStore: ObservableObject {
         bind(vm.notifyBudget) { [weak self] in self?.notifyBudget = $0.boolValue }
         bind(vm.notifyAttendance) { [weak self] in self?.notifyAttendance = $0.boolValue }
         bind(vm.notifyResin) { [weak self] in self?.notifyResin = $0.boolValue }
-        bind(vm.notifyWish) { [weak self] in self?.notifyWish = $0.boolValue }
         bind(vm.nudgeOverspend) { [weak self] in self?.nudgeOverspend = $0.boolValue }
         bind(vm.nudgeThreshold) { [weak self] in self?.nudgeThreshold = $0.int64Value }
         bind(vm.pendingOpenHoyolabLink) { [weak self] in self?.pendingOpenHoyolabLink = $0.boolValue }
@@ -139,7 +136,6 @@ final class SpendingStore: ObservableObject {
         bind(vm.attendanceToday) { [weak self] in self?.attendanceToday = $0 }
         bind(vm.checkingIn) { [weak self] in self?.checkingIn = $0 }
         bind(vm.pity) { [weak self] in self?.pity = $0 }
-        bind(vm.wishlist) { [weak self] in self?.wishlist = $0 }
         // chunk ③
         bind(vm.enkaGiUid) { [weak self] in self?.enkaGiUid = $0 }
         bind(vm.enkaHsrUid) { [weak self] in self?.enkaHsrUid = $0 }
@@ -197,7 +193,6 @@ final class SpendingStore: ObservableObject {
     func setNotifyBudget(_ v: Bool) { vm.setNotifyBudget(v: v) }
     func setNotifyAttendance(_ v: Bool) { vm.setNotifyAttendance(v: v) }
     func setNotifyResin(_ v: Bool) { vm.setNotifyResin(v: v) }
-    func setNotifyWish(_ v: Bool) { vm.setNotifyWish(v: v) }
     func setAutoCheckIn(_ enabled: Bool) { vm.setAutoCheckIn(enabled: enabled) }
     func clearGachaRecords() { vm.clearGachaRecords() }
     func clearSpendings() { vm.clearSpendings() }
@@ -247,9 +242,6 @@ final class SpendingStore: ObservableObject {
     func refreshGameInfo(force: Bool = false) { vm.refreshGameInfo(force: force) }
     func attemptCheckIn(_ gameKey: String) { vm.attemptCheckIn(gameKey: gameKey) }
     func checkInAll() { vm.checkInAll() }
-    func addWish(gameKey: String, name: String) { vm.addWish(gameKey: gameKey, name: name) }
-    func removeWish(gameKey: String, name: String) { vm.removeWish(gameKey: gameKey, name: name) }
-    func isWishPickedUp(gameKey: String, name: String) -> Bool { vm.isWishPickedUp(gameKey: gameKey, name: name) }
     func adjustPity(gameKey: String, delta: Int) { vm.adjustPity(gameKey: gameKey, delta: Int32(delta)) }
     func setPityCount(gameKey: String, value: Int) { vm.setPityCount(gameKey: gameKey, value: Int32(value)) }
     func resetPity(gameKey: String) { vm.resetPity(gameKey: gameKey) }

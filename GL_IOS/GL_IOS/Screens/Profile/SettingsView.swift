@@ -207,9 +207,6 @@ struct SettingsView: View {
             Divider()
             toggleRow("bolt.fill", "재화 가득참 알림", "레진·개척력·배터리가 가득 차면 알려줘요",
                       notifyBind(\.notifyResin, store.setNotifyResin))
-            Divider()
-            toggleRow("star.fill", "위시 픽업 알림", "위시리스트 캐릭터가 픽업 배너에 등장하면 알려줘요",
-                      notifyBind(\.notifyWish, store.setNotifyWish))
         }
     }
 

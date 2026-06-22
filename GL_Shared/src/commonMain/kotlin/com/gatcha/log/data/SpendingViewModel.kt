@@ -148,8 +148,6 @@ class SpendingViewModel : ViewModel() {
     val notifyAttendance: StateFlow<Boolean> = _notifyAttendance.asStateFlow()
     private val _notifyResin = MutableStateFlow(appSettings.notifyResin)
     val notifyResin: StateFlow<Boolean> = _notifyResin.asStateFlow()
-    private val _notifyWish = MutableStateFlow(appSettings.notifyWish)
-    val notifyWish: StateFlow<Boolean> = _notifyWish.asStateFlow()
 
     // 과소비 리플렉션 넛지(지출 추가 시점) — 토글 + 평소치 기준액
     private val _nudgeOverspend = MutableStateFlow(appSettings.nudgeOverspend)
@@ -194,7 +192,6 @@ class SpendingViewModel : ViewModel() {
     fun setNotifyBudget(v: Boolean) { appSettings.notifyBudget = v; _notifyBudget.value = v; applyNativeAfterNotifyChange(v) }
     fun setNotifyAttendance(v: Boolean) { appSettings.notifyAttendance = v; _notifyAttendance.value = v; applyNativeAfterNotifyChange(v) }
     fun setNotifyResin(v: Boolean) { appSettings.notifyResin = v; _notifyResin.value = v; applyNativeAfterNotifyChange(v) }
-    fun setNotifyWish(v: Boolean) { appSettings.notifyWish = v; _notifyWish.value = v; applyNativeAfterNotifyChange(v) }
 
     private fun applyNativeAfterNotifyChange(enabled: Boolean) {
         NativeScheduler.apply()
@@ -236,7 +233,6 @@ class SpendingViewModel : ViewModel() {
         _attendanceHistory.value = attendanceMap
         _attendanceToday.value = attendanceMap[todayKey()] ?: emptySet()
         _attendanceStreak.value = computeAttendanceStreak()
-        _wishlist.value = repo.loadWishlist()
         _pity.value = repo.loadPity()
         _eventChecks.value = repo.loadEventChecks()
         _readAlerts.value = repo.loadReadAlerts()
@@ -495,72 +491,12 @@ class SpendingViewModel : ViewModel() {
     private val _challenges = MutableStateFlow<List<GameChallenge>>(emptyList())
     val challenges: StateFlow<List<GameChallenge>> = _challenges.asStateFlow()
 
-    // 위시리스트 (gameKey -> 캐릭터 이름), 천장(gameKey -> PityState), 이벤트 체크
-    private val _wishlist = MutableStateFlow<Map<String, List<String>>>(emptyMap())
-    val wishlist: StateFlow<Map<String, List<String>>> = _wishlist.asStateFlow()
-
+    // 천장(gameKey -> PityState), 이벤트 체크
     private val _pity = MutableStateFlow<Map<String, PityState>>(emptyMap())
     val pity: StateFlow<Map<String, PityState>> = _pity.asStateFlow()
 
     private val _eventChecks = MutableStateFlow<Set<String>>(emptySet())
     val eventChecks: StateFlow<Set<String>> = _eventChecks.asStateFlow()
-
-    // ----- 위시리스트 -----
-    fun addWish(gameKey: String, name: String) {
-        val n = name.trim()
-        if (n.isEmpty()) return
-        val cur = _wishlist.value[gameKey].orEmpty()
-        if (cur.any { it.equals(n, ignoreCase = true) }) return
-        val updated = _wishlist.value + (gameKey to (cur + n))
-        _wishlist.value = updated
-        repo.saveWishlist(updated)
-    }
-
-    fun removeWish(gameKey: String, name: String) {
-        val cur = _wishlist.value[gameKey].orEmpty().filterNot { it == name }
-        val updated = _wishlist.value + (gameKey to cur)
-        _wishlist.value = updated
-        repo.saveWishlist(updated)
-    }
-
-    /** 위시 캐릭터가 현재 픽업 배너에 등장 중인지 */
-    fun isWishPickedUp(gameKey: String, name: String): Boolean {
-        val gameName = Game.entries.firstOrNull { it.key == gameKey }?.displayName ?: return false
-        return _activeBanners.value.any {
-            it.game == gameName && (it.name.contains(name) || name.contains(it.name))
-        }
-    }
-
-    /**
-     * 현재 활성 배너 vs 위시리스트 교차 검사. notifyWish 토글이 켜져 있고
-     * 직전 알림 키(배너 endMillis)와 다르면 알림 1회 발송. 배너 갱신/교체될 때마다 다시 알림.
-     */
-    private fun checkWishPickupsAndNotify() {
-        if (!appSettings.notifyWish) return
-        val wishes = _wishlist.value
-        val banners = _activeBanners.value
-        if (wishes.isEmpty() || banners.isEmpty()) return
-        wishes.forEach { (gameKey, names) ->
-            val gameName = Game.entries.firstOrNull { it.key == gameKey }?.displayName ?: return@forEach
-            val game = Game.entries.firstOrNull { it.key == gameKey } ?: return@forEach
-            names.forEach { name ->
-                val hit = banners.firstOrNull {
-                    it.game == gameName && (it.name.contains(name) || name.contains(it.name))
-                } ?: return@forEach
-                val tag = "wish_pickup:$gameKey:$name"
-                val sig = hit.endMillis.toString()
-                if (appSettings.lastNotified(tag) == sig) return@forEach
-                appSettings.setLastNotified(tag, sig)
-                val nid = com.gatcha.log.data.Notifier.ID_WISH_PICKUP_BASE +
-                    ((gameKey + name).hashCode() and 0x3FF)
-                com.gatcha.log.data.Notifier.notify(
-                    nid,
-                    "${game.shortName} 픽업 — $name",
-                    "${hit.name} 배너에 등장했어요. 천장 점검해보세요.",
-                )
-            }
-        }
-    }
 
     // ----- 천장 카운터 -----
     fun adjustPity(gameKey: String, delta: Int) = updatePity(gameKey) { it.copy(count = (it.count + delta).coerceAtLeast(0)) }
@@ -979,9 +915,6 @@ class SpendingViewModel : ViewModel() {
                         if (ledgers.isNotEmpty()) _ledgers.value = ledgers
                         if (combats.isNotEmpty()) _combat.value = combats
                     }
-
-                    // 위시 캐릭터가 새 픽업 배너에 등장하면 알림(설정 ON 인 경우만, 배너별 1회 dedup).
-                    runCatching { checkWishPickupsAndNotify() }
                 }
             } finally {
                 _isRefreshing.value = false
