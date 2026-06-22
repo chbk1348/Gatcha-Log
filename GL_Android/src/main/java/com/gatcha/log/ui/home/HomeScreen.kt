@@ -358,11 +358,13 @@ fun HomeContent(
         onRefresh = { viewModel.refreshGameInfo(force = true) },
         modifier = Modifier.fillMaxSize(),
     ) {
+    // 콘텐츠 로드인 스태거 — 첫 표시 1회만 등장(스크롤 재진입 시 재애니메이션 방지용 인덱스 보관).
+    val loadInSet = remember { mutableSetOf<Int>() }
     LazyColumn(state = listState, modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
         // HoYoLAB 토큰 만료 감지 시 최상단 배너 — 자동 출석에서 AUTH 실패가 누적되어
         // 사용자가 출석을 며칠씩 못 챙기는 사례 방지. CTA 한 번으로 재연동 진입.
         if (hoyoTokenExpired) {
-            item {
+            glgStaggerItem(0, loadInSet) {
                 TokenExpiredBanner(onReconnect = {
                     viewModel.requestOpenHoyolabLink()
                     onNavigateToMyPage()
@@ -370,7 +372,7 @@ fun HomeContent(
             }
         }
         // 슬림 헤더 (프로필·인사·연속·벨)
-        item {
+        glgStaggerItem(1, loadInSet) {
             HomeHeader(
                 photoUrl = account.photoUrl,
                 alertCount = unreadCount,
@@ -379,7 +381,7 @@ fun HomeContent(
         }
         item { Spacer(Modifier.height(12.dp)) }
         // M — 이번 달 한눈에 (인사이트 요약). 대표 지시로 헤더 바로 밑 최상단 배치.
-        item {
+        glgStaggerItem(2, loadInSet) {
             MonthlySummaryCard(
                 monthlyTotal = monthlyTotal,
                 prevTotal = prevTotal,
@@ -392,7 +394,7 @@ fun HomeContent(
             Spacer(Modifier.height(16.dp))
         }
         // 오늘 할 일 — 상태 기반 리스트(출석·재화·픽업·예산·천장). 각 항목 탭 시 해당 섹션으로 앵커링.
-        item {
+        glgStaggerItem(3, loadInSet) {
             // 로딩 중엔 스켈레톤, 배너·노트 로드 완료 시 전체 리스트를 한 번에 표출
             if (!gameInfoReady) {
                 TodayTaskSkeleton()
@@ -415,7 +417,7 @@ fun HomeContent(
             Spacer(Modifier.height(16.dp))
         }
         // 실시간 노트 (레진/배터리 등) — 출석은 '오늘 할 일'이 담당하므로 노트만 표시(중복 제거)
-        item {
+        glgStaggerItem(4, loadInSet) {
             GameStatusSection(
                 hoyolab = hoyolab,
                 liveNotes = liveNotes,
@@ -427,7 +429,7 @@ fun HomeContent(
         // 픽업 배너 캡슐 (임박 종료) — 가장 임박 1건은 가챠 요약 카드가 표시하므로 그 다음부터 노출
         val restBanners = soonBanners.drop(1)
         if (restBanners.isNotEmpty()) {
-            item {
+            glgStaggerItem(5, loadInSet) {
                 Column {
                     Text("픽업 배너", fontSize = 13.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 2.dp, bottom = 10.dp))
                     restBanners.forEachIndexed { i, b ->
@@ -439,8 +441,8 @@ fun HomeContent(
             }
         }
         // 사용자 구성(표시·순서)대로 본문 카드 렌더
-        homeCards.filter { it.visible }.forEach { card ->
-            item(key = card.id) {
+        homeCards.filter { it.visible }.forEachIndexed { idx, card ->
+            glgStaggerItem(6 + idx, loadInSet, key = card.id) {
                 when (card.id) {
                     // D — 지출 + 게임별 예산(N5)
                     HomeCards.SPENDING -> SpendingBudgetSection(
@@ -460,7 +462,7 @@ fun HomeContent(
                 Spacer(Modifier.height(16.dp))
             }
         }
-        item { HomeEditButton { showHomeEdit.value = true } }
+        glgStaggerItem(8, loadInSet) { HomeEditButton { showHomeEdit.value = true } }
         item { Spacer(Modifier.height(120.dp)) }
     }
     }
