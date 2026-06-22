@@ -12,4 +12,10 @@ val AccentPalette: List<AccentOption> = listOf(
     AccentOption("인디고", 0xFF4F46E5L, 0xFFA5B4FCL),
     AccentOption("블루", 0xFF3B82F6L, 0xFF93C5FDL),
     AccentOption("로즈", 0xFFF43F5EL, 0xFFFDA4AFL),
+    // 추가 5색 — 기존 인덱스(0~4) 보존 위해 끝에 append.
+    AccentOption("오렌지", 0xFFF97316L, 0xFFFDBA74L),
+    AccentOption("앰버", 0xFFF59E0BL, 0xFFFCD34DL),
+    AccentOption("그린", 0xFF22C55EL, 0xFF86EFACL),
+    AccentOption("시안", 0xFF06B6D4L, 0xFF67E8F9L),
+    AccentOption("핑크", 0xFFEC4899L, 0xFFF9A8D4L),
 )

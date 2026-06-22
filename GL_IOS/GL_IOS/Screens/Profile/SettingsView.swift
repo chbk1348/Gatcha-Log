@@ -131,8 +131,10 @@ struct SettingsView: View {
 
     // ── 테마 ──
     private var themeSection: some View {
-        sectionCard("테마 색상") {
-            HStack(spacing: 16) {
+        // 색상이 늘어 한 줄을 넘기므로 5열 그리드로 래핑(2행).
+        let cols = Array(repeating: GridItem(.flexible(), spacing: 12), count: 5)
+        return sectionCard("테마 색상") {
+            LazyVGrid(columns: cols, spacing: 16) {
                 ForEach(GLGTheme.palette) { opt in
                     VStack(spacing: 4) {
                         ZStack {

@@ -475,22 +475,34 @@ fun ThemeSection(selectedIndex: Int, onSelect: (Int) -> Unit) {
         shape = RoundedCornerShape(24.dp),
         modifier = Modifier.fillMaxWidth(),
     ) {
-        Row(
+        // 색상이 늘어 한 줄을 넘기므로 5개씩 끊어 2행으로 배치.
+        Column(
             modifier = Modifier.fillMaxWidth().padding(20.dp),
-            horizontalArrangement = Arrangement.spacedBy(16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            AccentPalette.forEachIndexed { index, option ->
-                Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.clickable { onSelect(index) }) {
-                    Box(
-                        modifier = Modifier.size(40.dp).clip(CircleShape).background(option.color.toColor()),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        if (index == selectedIndex) {
-                            Icon(Icons.Default.Check, null, tint = Color.White, modifier = Modifier.size(20.dp))
+            AccentPalette.chunked(5).forEachIndexed { rowIdx, rowOptions ->
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    rowOptions.forEachIndexed { colIdx, option ->
+                        val index = rowIdx * 5 + colIdx
+                        Column(
+                            modifier = Modifier.weight(1f).clickable { onSelect(index) },
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                        ) {
+                            Box(
+                                modifier = Modifier.size(40.dp).clip(CircleShape).background(option.color.toColor()),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                if (index == selectedIndex) {
+                                    Icon(Icons.Default.Check, null, tint = Color.White, modifier = Modifier.size(20.dp))
+                                }
+                            }
+                            Spacer(Modifier.height(4.dp))
+                            Text(option.label, fontSize = 10.sp, color = if (index == selectedIndex) option.color.toColor() else TextSecondary)
                         }
                     }
-                    Spacer(Modifier.height(4.dp))
-                    Text(option.label, fontSize = 10.sp, color = if (index == selectedIndex) option.color.toColor() else TextSecondary)
                 }
             }
         }
