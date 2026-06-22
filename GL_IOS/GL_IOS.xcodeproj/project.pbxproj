@@ -29,6 +29,7 @@
 		76C8B5CC8DB8D93A0C9CE484 /* LoginView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE2C3F8DE0C369D621CCC112 /* LoginView.swift */; };
 		76FA3F68B6DA27D846A2CDA7 /* GlassCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB188D8B07C1771A193CF288 /* GlassCard.swift */; };
 		808FA397C7B307AA83931954 /* PillField.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10A462DEE6CE546DFBF6BBA9 /* PillField.swift */; };
+		80AB71E69B0A2282D237A141 /* Motion.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3DAD28E0822C83C22585AFEA /* Motion.swift */; };
 		87BCB4BC1FDA9A8B97CB3D98 /* AddSpendingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 89BBE3C4BD9EFC3A287B0BBF /* AddSpendingView.swift */; };
 		90F00551956AF38F2548C694 /* AccountLoadingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30864BF6E1651C389D2661B1 /* AccountLoadingView.swift */; };
 		9511F660EE1953CE0F6FB9C4 /* GoogleWebOAuth.swift in Sources */ = {isa = PBXBuildFile; fileRef = 021C3B715D801AE05013FE3B /* GoogleWebOAuth.swift */; };
@@ -46,6 +47,7 @@
 		D1638799928C16B92E7BA17C /* Glass.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16692A76093EA64BC84CA502 /* Glass.swift */; };
 		D331E41E2017AA75D98B834C /* WishStarLogo.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C62B4370F153FD0F7557E0E /* WishStarLogo.swift */; };
 		D518B6D75F70EEA8A1332D03 /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = 27054819557D026D9CB4FE7D /* GoogleService-Info.plist */; };
+		E04926A07296AA0D760F37A8 /* GLGSkeleton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 716CDDC7D2BB3BEC9580864E /* GLGSkeleton.swift */; };
 		E137594B42AFFB5CE2A94CCD /* PretendardFont.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16C6E97312A4E81D64EB90F4 /* PretendardFont.swift */; };
 		E384711C3477C7DAD49E2A01 /* MyPageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1B20A3BE3C43A7ADDFEB789 /* MyPageView.swift */; };
 		ED52FDDCC5ADCAECF885F91A /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 340BBE9D7107D50A8AF32A5C /* ContentView.swift */; };
@@ -83,6 +85,7 @@
 		340BBE9D7107D50A8AF32A5C /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		3722E93D2F937C67F1B8BABD /* NetworkReachability.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkReachability.swift; sourceTree = "<group>"; };
 		3C72C21A249F1195F638CECF /* Pretendard-Regular.otf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Pretendard-Regular.otf"; sourceTree = "<group>"; };
+		3DAD28E0822C83C22585AFEA /* Motion.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Motion.swift; sourceTree = "<group>"; };
 		43857C0EDD6E6397211940A6 /* GameTabbedSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameTabbedSection.swift; sourceTree = "<group>"; };
 		4A3AE615BDC494C0880E998A /* GachaReportSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GachaReportSection.swift; sourceTree = "<group>"; };
 		4E67D38A3417978B0AEDC5AE /* SpendingDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpendingDetailView.swift; sourceTree = "<group>"; };
@@ -90,6 +93,7 @@
 		607DE67679739531B7DC4652 /* GlassButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlassButton.swift; sourceTree = "<group>"; };
 		68D6D7AAE7CA1EEF965F0455 /* GL_IOS.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = GL_IOS.entitlements; sourceTree = "<group>"; };
 		6A7AD50D44CC890634902ADD /* GachaDashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GachaDashboardView.swift; sourceTree = "<group>"; };
+		716CDDC7D2BB3BEC9580864E /* GLGSkeleton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GLGSkeleton.swift; sourceTree = "<group>"; };
 		762960D1C044CF4E4506D38C /* SpendingInsightView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpendingInsightView.swift; sourceTree = "<group>"; };
 		7A348DAF50519ABD14014AA0 /* SpendingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpendingView.swift; sourceTree = "<group>"; };
 		846F3D6CE1BD91FB25597AA6 /* GiftCodeSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GiftCodeSheet.swift; sourceTree = "<group>"; };
@@ -269,7 +273,9 @@
 				607DE67679739531B7DC4652 /* GlassButton.swift */,
 				CB188D8B07C1771A193CF288 /* GlassCard.swift */,
 				FEA0ECFE89434FBD76D2E252 /* GLGChip.swift */,
+				716CDDC7D2BB3BEC9580864E /* GLGSkeleton.swift */,
 				32BBA1BA7898178C15DF09E1 /* HeaderButton.swift */,
+				3DAD28E0822C83C22585AFEA /* Motion.swift */,
 				1E6A1754F38C5D6D3F9A2605 /* NotificationPermission.swift */,
 				10A462DEE6CE546DFBF6BBA9 /* PillField.swift */,
 				16C6E97312A4E81D64EB90F4 /* PretendardFont.swift */,
@@ -393,6 +399,7 @@
 				A0BA2909983C70B108A718ED /* EnkaCharSection.swift in Sources */,
 				966D49408353ADE28FB496BA /* Format.swift in Sources */,
 				5037A67CE3B8E588DCC2F809 /* GLGChip.swift in Sources */,
+				E04926A07296AA0D760F37A8 /* GLGSkeleton.swift in Sources */,
 				04D900E4303215C82AEA7A1B /* GachaCalculatorSection.swift in Sources */,
 				FE473FA3E330163CA197055C /* GachaDashboardView.swift in Sources */,
 				75C9F29B2B660EDD54766CA8 /* GachaRateSheet.swift in Sources */,
@@ -410,6 +417,7 @@
 				BEDE307204D0F9A558DFFEB0 /* HomeView.swift in Sources */,
 				BCE6291BF8A244C01AF6F8F1 /* HoyolabLinkView.swift in Sources */,
 				76C8B5CC8DB8D93A0C9CE484 /* LoginView.swift in Sources */,
+				80AB71E69B0A2282D237A141 /* Motion.swift in Sources */,
 				E384711C3477C7DAD49E2A01 /* MyPageView.swift in Sources */,
 				FD93CB902981C13F3C6FA712 /* NetworkReachability.swift in Sources */,
 				F937497C109F642AB75D1979 /* NotificationPermission.swift in Sources */,
