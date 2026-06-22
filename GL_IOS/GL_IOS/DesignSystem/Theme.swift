@@ -40,6 +40,10 @@ enum GLGColor {
     static let progressEmpty = Color(hex: 0xFFE0E0E0)
     static let divider = Color(hex: 0xFFF0F0F0)
 
+    // 스켈레톤 시머 토큰 (Android SkeletonBase/SkeletonHighlight 와 패리티)
+    static let skeletonBase = Color(hex: 0xFFEAEAF0)
+    static let skeletonHighlight = Color(hex: 0xFFF6F6FA)
+
     // 게임 색상 (웹앱 GAMES 정의와 동일)
     static let genshin = Color(hex: 0xFF4F8EF7)
     static let hsr = Color(hex: 0xFFB06BFF)

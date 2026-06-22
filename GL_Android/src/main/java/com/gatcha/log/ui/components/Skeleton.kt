@@ -23,8 +23,12 @@ import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.gatcha.log.ui.theme.DividerColor
+import com.gatcha.log.ui.theme.GlgMotion
+import com.gatcha.log.ui.theme.SkeletonBase
+import com.gatcha.log.ui.theme.SkeletonHighlight
 
-private val ShimmerColors = listOf(Color(0xFFEAEAF0), Color(0xFFF6F6FA), Color(0xFFEAEAF0))
+// 시머 토큰 참조(색·주기). iOS GLGSkeleton 과 동일 스펙: base→highlight→base, ShimmerPeriod ms 리니어.
+private val ShimmerColors = listOf(SkeletonBase, SkeletonHighlight, SkeletonBase)
 
 /** 좌→우로 흐르는 시머 그라데이션 브러시. */
 @Composable
@@ -33,7 +37,7 @@ private fun shimmerBrush(): Brush {
     val x by transition.animateFloat(
         initialValue = 0f,
         targetValue = 1f,
-        animationSpec = infiniteRepeatable(tween(1100, easing = LinearEasing), RepeatMode.Restart),
+        animationSpec = infiniteRepeatable(tween(GlgMotion.ShimmerPeriod, easing = LinearEasing), RepeatMode.Restart),
         label = "shimmerX",
     )
     val span = 900f
