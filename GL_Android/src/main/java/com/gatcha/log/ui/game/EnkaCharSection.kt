@@ -22,6 +22,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
@@ -578,23 +581,36 @@ private fun ArtifactCard(a: EnkaArtifact, accent: Color) {
                 }
             }
             if (a.subs.isNotEmpty()) {
-                Spacer(Modifier.height(10.dp))
-                Surface(color = Color(0xFFF1F1F6).copy(alpha = 0.5f), shape = RoundedCornerShape(14.dp)) {
-                    Column(Modifier.padding(6.dp)) {
-                        a.subs.chunked(2).forEach { row ->
-                            Row(Modifier.fillMaxWidth()) {
-                                row.forEach { s ->
-                                    Row(
-                                        Modifier.weight(1f).padding(horizontal = 10.dp, vertical = 8.dp),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically,
-                                    ) {
-                                        Text(s.label, fontSize = 11.sp, color = TextSecondary, maxLines = 1)
-                                        Text(s.value, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = if (s.crit) CritColor else TextPrimary, maxLines = 1)
-                                    }
+                Spacer(Modifier.height(9.dp))
+                // 부옵션 — 목업(design_enka_statsheet): 배경 박스 없이 상단 점선 구분선 + 2열 그리드.
+                Column(
+                    Modifier
+                        .fillMaxWidth()
+                        .drawBehind {
+                            drawLine(
+                                color = CardOutline,
+                                start = Offset(0f, 0f),
+                                end = Offset(size.width, 0f),
+                                strokeWidth = 1.dp.toPx(),
+                                pathEffect = PathEffect.dashPathEffect(floatArrayOf(4.dp.toPx(), 4.dp.toPx()), 0f),
+                            )
+                        }
+                        .padding(top = 9.dp),
+                    verticalArrangement = Arrangement.spacedBy(5.dp),
+                ) {
+                    a.subs.chunked(2).forEach { row ->
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            row.forEach { s ->
+                                Row(
+                                    Modifier.weight(1f),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    Text(s.label, fontSize = 11.sp, color = TextSecondary, maxLines = 1)
+                                    Text(s.value, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = if (s.crit) CritColor else TextPrimary, maxLines = 1)
                                 }
-                                if (row.size == 1) Spacer(Modifier.weight(1f))
                             }
+                            if (row.size == 1) Spacer(Modifier.weight(1f))
                         }
                     }
                 }
