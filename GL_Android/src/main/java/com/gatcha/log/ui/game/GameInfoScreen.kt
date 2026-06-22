@@ -70,6 +70,7 @@ fun GameInfoScreen(
     val banners by viewModel.activeBanners.collectAsState()
     val events by viewModel.gameEvents.collectAsState()
     val notes by viewModel.liveNotes.collectAsState()
+    val gameNews by viewModel.gameNews.collectAsState()
     val ledgers by viewModel.ledgers.collectAsState()
     val combat by viewModel.combat.collectAsState()
     val attendanceToday by viewModel.attendanceToday.collectAsState()
@@ -272,6 +273,9 @@ fun GameInfoScreen(
             // 게임 주년 — 지원 게임의 다가오는 주년(임박 순).
             item { Spacer(Modifier.height(20.dp)) }
             item { AnniversarySection() }
+            // 공지·뉴스 — 게임별 최신 공지(탭하면 HoYoLab 열기).
+            item { Spacer(Modifier.height(20.dp)) }
+            item { NewsSection(gameNews, gameFilter) }
             // 전투 진행도·수입 일지(게임 필터 연동). 픽업 배너는 게임 일정으로 통합돼 제외.
             item { Spacer(Modifier.height(20.dp)) }
             item {

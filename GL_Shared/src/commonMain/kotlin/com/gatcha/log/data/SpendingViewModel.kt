@@ -33,6 +33,8 @@ import com.gatcha.log.data.UserProfile
 import com.gatcha.log.data.api.EnkaApi
 import com.gatcha.log.data.api.EnkaResult
 import com.gatcha.log.data.api.EnneadApi
+import com.gatcha.log.data.api.NewsApi
+import com.gatcha.log.data.api.NewsItem
 import com.gatcha.log.data.api.HoyolabApi
 import com.gatcha.log.data.api.CodeResult
 import com.gatcha.log.data.api.GiftCode
@@ -491,6 +493,10 @@ class SpendingViewModel : ViewModel() {
     private val _challenges = MutableStateFlow<List<GameChallenge>>(emptyList())
     val challenges: StateFlow<List<GameChallenge>> = _challenges.asStateFlow()
 
+    // 게임 공지·뉴스(ennead news, 공개·한국어). 게임정보 공지 섹션용.
+    private val _gameNews = MutableStateFlow<List<NewsItem>>(emptyList())
+    val gameNews: StateFlow<List<NewsItem>> = _gameNews.asStateFlow()
+
     // 천장(gameKey -> PityState), 이벤트 체크
     private val _pity = MutableStateFlow<Map<String, PityState>>(emptyMap())
     val pity: StateFlow<Map<String, PityState>> = _pity.asStateFlow()
@@ -898,6 +904,12 @@ class SpendingViewModel : ViewModel() {
                     // ★ 배너+노트까지면 홈/오늘 할 일 준비 완료 — 즉시 표출(원장·전투는 뒤이어)
                     _gameInfoReady.value = true
                     lastGameInfoLoadAt = currentTimeMillis()
+
+                    // 게임 공지·뉴스(공개 API·인증 불필요) — 지원 게임 병렬, 최신순. 부가 콘텐츠라 준비 완료 뒤 로드.
+                    val newsDeferred = GameData.games.filter { it.newsSlug != null }
+                        .map { g -> async { NewsApi.notices(g) } }
+                    val news = newsDeferred.flatMap { it.await() }.sortedByDescending { it.createdAtMillis }
+                    if (news.isNotEmpty()) _gameNews.value = news
 
                     // 2) 게임 정보 탭 전용 — 월간 원장 + 전투 진행도(게임 간 병렬, 게임 내 순차로 단일 호스트 보호)
                     if (uids.isNotEmpty()) {

@@ -12,6 +12,7 @@
 		14AFD15B3420C392511D404A /* CalendarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A84E3B9B9790F13D3F75EE5E /* CalendarView.swift */; };
 		169ACD2F4B8A99D2183912C3 /* SettingsDialogs.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC551FFC4A65F19F94A1987B /* SettingsDialogs.swift */; };
 		17991733B1B0EC7204C21DEB /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = E167D2DF62218A027D330ECD /* Theme.swift */; };
+		1D250F6F9E0E2AD9495CE146 /* NewsSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 08F1ECE04BB2DA0CB5B2C723 /* NewsSection.swift */; };
 		204FDA5824E8A751CA6B0D81 /* RechargeValueSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2EA8EE4E1628239A1E3A7557 /* RechargeValueSection.swift */; };
 		21D7656AF322C290D874AFFA /* HomeComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 016E2C9FECC1E779E9DFEC65 /* HomeComponents.swift */; };
 		23F844366ABC2775F890F5C8 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2EAD6CB38E6E41AADF430D6E /* SettingsView.swift */; };
@@ -66,6 +67,7 @@
 		016E2C9FECC1E779E9DFEC65 /* HomeComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeComponents.swift; sourceTree = "<group>"; };
 		021C3B715D801AE05013FE3B /* GoogleWebOAuth.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoogleWebOAuth.swift; sourceTree = "<group>"; };
 		05DA476A730AFA37D40240E5 /* iOSApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = iOSApp.swift; sourceTree = "<group>"; };
+		08F1ECE04BB2DA0CB5B2C723 /* NewsSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NewsSection.swift; sourceTree = "<group>"; };
 		0AB3CC660B02C393DA32935B /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		0C62B4370F153FD0F7557E0E /* WishStarLogo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WishStarLogo.swift; sourceTree = "<group>"; };
 		10A462DEE6CE546DFBF6BBA9 /* PillField.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PillField.swift; sourceTree = "<group>"; };
@@ -166,6 +168,7 @@
 				43857C0EDD6E6397211940A6 /* GameTabbedSection.swift */,
 				846F3D6CE1BD91FB25597AA6 /* GiftCodeSheet.swift */,
 				24406A47C5595952918ABF5B /* HoyolabLinkView.swift */,
+				08F1ECE04BB2DA0CB5B2C723 /* NewsSection.swift */,
 				2EA8EE4E1628239A1E3A7557 /* RechargeValueSection.swift */,
 			);
 			path = GameInfo;
@@ -424,6 +427,7 @@
 				80AB71E69B0A2282D237A141 /* Motion.swift in Sources */,
 				E384711C3477C7DAD49E2A01 /* MyPageView.swift in Sources */,
 				FD93CB902981C13F3C6FA712 /* NetworkReachability.swift in Sources */,
+				1D250F6F9E0E2AD9495CE146 /* NewsSection.swift in Sources */,
 				F937497C109F642AB75D1979 /* NotificationPermission.swift in Sources */,
 				808FA397C7B307AA83931954 /* PillField.swift in Sources */,
 				E137594B42AFFB5CE2A94CCD /* PretendardFont.swift in Sources */,
