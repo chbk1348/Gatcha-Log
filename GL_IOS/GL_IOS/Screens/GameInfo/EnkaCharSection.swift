@@ -334,11 +334,11 @@ struct EnkaStatPage: View {
         }
     }
 
-    /// 섹션 제목 — 원신 명좌 · 스타레일 성혼 · 젠레스 의식.
+    /// 섹션 제목 — 원신 운명의 자리 · 스타레일 성혼 · 젠레스 형상 시네마.
     private var effectsTitle: String {
         switch game {
         case "genshin": return "운명의 자리"
-        case "zzz": return "의식"
+        case "zzz": return "형상 시네마"
         default: return "성혼"
         }
     }
