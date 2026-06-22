@@ -48,7 +48,7 @@ import com.gatcha.log.ui.theme.*
 import kotlinx.coroutines.launch
 
 /** 게임정보 탭의 풀스크린 하위 페이지 (열리면 하단바·FAB 숨김) */
-private enum class GiSub { Main, HoyoLink, Dashboard, Rate, Calc, RechargeValue, Report, Gift, Schedule, Pickups, CharStats, CharRoster }
+private enum class GiSub { Main, HoyoLink, Dashboard, Rate, Calc, RechargeValue, Report, Gift, Schedule, Pickups, News, CharStats, CharRoster }
 
 /** 화면 전환 push/pop 방향용 계층 깊이. Main=0, 하위 페이지=1, 캐릭터 상세(목록서 진입)=2. */
 private fun subDepth(s: GiSub): Int = when (s) {
@@ -206,6 +206,9 @@ fun GameInfoScreen(
             GiSub.Pickups -> SectionPage(onBack = { subPage = GiSub.Main }) {
                 GamePickupFullContent(banners, gameFilter)
             }
+            GiSub.News -> SectionPage(onBack = { subPage = GiSub.Main }) {
+                NewsFullContent(gameNews, gameFilter)
+            }
             GiSub.Main -> GlgPullToRefreshBox(
             isRefreshing = isRefreshing,
             onRefresh = { viewModel.refreshGameInfo(force = true) },
@@ -275,7 +278,7 @@ fun GameInfoScreen(
             item { AnniversarySection() }
             // 공지·뉴스 — 게임별 최신 공지(탭하면 HoYoLab 열기).
             item { Spacer(Modifier.height(20.dp)) }
-            item { NewsSection(gameNews, gameFilter) }
+            item { NewsSection(gameNews, gameFilter, onSeeAll = { subPage = GiSub.News }) }
             // 전투 진행도·수입 일지(게임 필터 연동). 픽업 배너는 게임 일정으로 통합돼 제외.
             item { Spacer(Modifier.height(20.dp)) }
             item {
