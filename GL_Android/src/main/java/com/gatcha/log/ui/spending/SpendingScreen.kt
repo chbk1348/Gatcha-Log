@@ -162,6 +162,8 @@ fun SpendingScreen(
     // 펼친 히어로(헤더+카드) 높이 — 콜랩스 0일 때 측정해 '히어로 자리' spacer 로 사용. 측정 전 추정 기본값.
     var heroOverlayPx by remember { mutableIntStateOf(0) }
     val heroSpacerDp = if (heroOverlayPx > 0) with(density) { heroOverlayPx.toDp() } else 196.dp
+    // 로드인 스태거 — 행이 처음 보일 때 1회 등장(인덱스=정렬 리스트 내 위치).
+    val loadInSet = remember { mutableSetOf<Int>() }
 
     Box(Modifier.fillMaxSize()) {
         GlgPullToRefreshBox(
@@ -193,11 +195,14 @@ fun SpendingScreen(
                 item { EmptyState() }
             } else if (sortOrder == SortOrder.AMOUNT_DESC) {
                 // 금액순 — 날짜 그룹 없이 평면 리스트
-                items(filtered.sortedByDescending { it.amount }, key = { it.id }) { spending ->
-                    HistoryItem(
-                        spending = spending,
-                        onClick = { nav = SpendingScreenNav.Detail(spending) },
-                    )
+                val byAmount = filtered.sortedByDescending { it.amount }
+                items(byAmount, key = { it.id }) { spending ->
+                    Box(Modifier.glgLoadIn(byAmount.indexOf(spending).coerceAtLeast(0), loadInSet)) {
+                        HistoryItem(
+                            spending = spending,
+                            onClick = { nav = SpendingScreenNav.Detail(spending) },
+                        )
+                    }
                 }
             } else {
                 val sorted = if (sortOrder == SortOrder.DATE_ASC) filtered.sortedBy { it.dateMillis }
@@ -206,10 +211,12 @@ fun SpendingScreen(
                 grouped.forEach { (_, items) ->
                     item { DateHeader(items.first().dateLabel, items.sumOf { it.amount }) }
                     items(items, key = { it.id }) { spending ->
-                        HistoryItem(
-                            spending = spending,
-                            onClick = { nav = SpendingScreenNav.Detail(spending) },
-                        )
+                        Box(Modifier.glgLoadIn(sorted.indexOf(spending).coerceAtLeast(0), loadInSet)) {
+                            HistoryItem(
+                                spending = spending,
+                                onClick = { nav = SpendingScreenNav.Detail(spending) },
+                            )
+                        }
                     }
                 }
             }

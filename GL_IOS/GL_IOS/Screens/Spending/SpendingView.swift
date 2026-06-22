@@ -28,6 +28,8 @@ struct SpendingView: View {
     // 펼친 히어로 높이(콜랩스 0일 때 측정). 콘텐츠 상단 자리(고정)로 써서 히어로 축소가 maxOffset 을
     // 바꾸지 않게 한다 → 최하단 떨림(피드백) 방지. 측정 전 추정 기본값.
     @State private var heroExpandedHeight: CGFloat = 132
+    // 로드인 스태거 — 행이 처음 보일 때 1회 등장(인덱스=정렬 리스트 내 위치).
+    @State private var appeared: Set<Int> = []
 
     private var activeFilterCount: Int {
         [!gameFilters.isEmpty, period != .all, paymentFilter != nil, typeFilter != .all, sortOrder != .dateDesc]
@@ -47,7 +49,10 @@ struct SpendingView: View {
                     if items.isEmpty {
                         emptyState
                     } else if sortOrder == .amountDesc {
-                        ForEach(items.sorted { $0.amount > $1.amount }, id: \.id) { historyLink($0) }
+                        let byAmount = items.sorted { $0.amount > $1.amount }
+                        ForEach(Array(byAmount.enumerated()), id: \.element.id) { i, s in
+                            historyLink(s).glgLoadIn(i, appeared: $appeared)
+                        }
                     } else {
                         let sorted = sortOrder == .dateAsc ? items.sorted { $0.dateMillis < $1.dateMillis }
                                                            : items.sorted { $0.dateMillis > $1.dateMillis }
@@ -55,7 +60,9 @@ struct SpendingView: View {
                         ForEach(groups, id: \.key) { group in
                             DateHeader(date: group.items.first?.dateLabel ?? "",
                                        total: group.items.reduce(0) { $0 + $1.amount })
-                            ForEach(group.items, id: \.id) { historyLink($0) }
+                            ForEach(group.items, id: \.id) { s in
+                                historyLink(s).glgLoadIn(sorted.firstIndex(where: { $0.id == s.id }) ?? 0, appeared: $appeared)
+                            }
                         }
                     }
                     Color.clear.frame(height: 8)
