@@ -16,7 +16,8 @@ private func newsRow(_ n: NewsItem, _ openURL: OpenURLAction) -> some View {
         if !n.url.isEmpty, let u = URL(string: n.url) { openURL(u) }
     } label: {
         HStack(spacing: 10) {
-            Circle().fill(Color(argb64: GameData.shared.colorFor(name: n.game))).frame(width: 8, height: 8)
+            GLGBadge(label: GameData.shared.games.first(where: { $0.displayName == n.game })?.abbr ?? "",
+                     color: Color(argb64: GameData.shared.colorFor(name: n.game)))
             VStack(alignment: .leading, spacing: 1) {
                 Text(n.title).font(.pretendard(size: 13, weight: .medium)).foregroundStyle(GLGColor.textPrimary)
                     .lineLimit(2).multilineTextAlignment(.leading)

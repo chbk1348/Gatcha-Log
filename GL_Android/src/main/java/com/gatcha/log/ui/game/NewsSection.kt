@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material3.Icon
@@ -21,7 +20,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.UriHandler
 import androidx.compose.ui.text.font.FontWeight
@@ -31,6 +29,7 @@ import com.gatcha.log.data.DateUtil
 import com.gatcha.log.data.GameData
 import com.gatcha.log.data.api.NewsItem
 import com.gatcha.log.ui.components.GlassCard
+import com.gatcha.log.ui.components.GlgBadge
 import com.gatcha.log.ui.theme.DividerColor
 import com.gatcha.log.ui.theme.LocalAccent
 import com.gatcha.log.ui.theme.TextPrimary
@@ -98,7 +97,8 @@ private fun NewsRow(n: NewsItem, uriHandler: UriHandler) {
             .padding(vertical = 11.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(Modifier.size(8.dp).clip(CircleShape).background(GameData.colorFor(n.game).toColor()))
+        val abbr = GameData.games.firstOrNull { it.displayName == n.game }?.abbr ?: ""
+        GlgBadge(abbr, GameData.colorFor(n.game).toColor())
         Spacer(Modifier.width(10.dp))
         Column(Modifier.weight(1f)) {
             Text(n.title, fontSize = 13.sp, fontWeight = FontWeight.Medium, color = TextPrimary, maxLines = 2)
