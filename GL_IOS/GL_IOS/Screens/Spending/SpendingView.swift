@@ -22,47 +22,60 @@ struct SpendingView: View {
     @State private var typeFilter: TypeFilter = .all
     @State private var sortOrder: SortOrder = .dateDesc
     @State private var showFilter = false
+    @State private var scrollY: CGFloat = 0
 
     private var activeFilterCount: Int {
         [gameFilter != nil, period != .all, paymentFilter != nil, typeFilter != .all, sortOrder != .dateDesc]
             .filter { $0 }.count
     }
 
-    var body: some View {
-        ScrollView {
-            LazyVStack(alignment: .leading, spacing: 0, pinnedViews: []) {
-                // 월 지출 히어로 — 큰 숫자 + 지난달 대비(상단 헤더 영역을 히어로 섹션으로)
-                monthHero
-                    .padding(.top, 4).padding(.bottom, 12)
-                // 게임별 필터(스크롤) + 우측 고정 필터 버튼
-                HStack(spacing: 8) {
-                    gameFilterRow
-                    filterButton
-                }
-                .padding(.top, 2)
+    /// 스크롤 진행에 따른 히어로 축소 정도(0=펼침, 1=접힘). 상단 70pt 스크롤 동안 보간.
+    private var collapse: CGFloat { min(max(-scrollY / 70, 0), 1) }
 
-                let items = filtered
-                if items.isEmpty {
-                    emptyState
-                } else if sortOrder == .amountDesc {
-                    ForEach(items.sorted { $0.amount > $1.amount }, id: \.id) { historyLink($0) }
-                } else {
-                    let sorted = sortOrder == .dateAsc ? items.sorted { $0.dateMillis < $1.dateMillis }
-                                                       : items.sorted { $0.dateMillis > $1.dateMillis }
-                    let groups = groupByDay(sorted)
-                    ForEach(groups, id: \.key) { group in
-                        DateHeader(date: group.items.first?.dateLabel ?? "",
-                                   total: group.items.reduce(0) { $0 + $1.amount })
-                        ForEach(group.items, id: \.id) { historyLink($0) }
-                    }
+    var body: some View {
+        VStack(spacing: 0) {
+            // 월 지출 히어로 — 스크롤 위에 고정, 스크롤하면 축소(상단 헤더 영역을 히어로 섹션으로)
+            monthHero
+                .padding(.horizontal, 16).padding(.top, 4).padding(.bottom, 10 - 4 * collapse)
+            ScrollView {
+                // 스크롤 오프셋 추적 — 히어로 축소 progress 계산용
+                GeometryReader { geo in
+                    Color.clear.preference(key: ScrollOffsetKey.self, value: geo.frame(in: .named("spendScroll")).minY)
                 }
-                Color.clear.frame(height: 8)
+                .frame(height: 0)
+                LazyVStack(alignment: .leading, spacing: 0, pinnedViews: []) {
+                    // 게임별 필터(스크롤) + 우측 고정 필터 버튼
+                    HStack(spacing: 8) {
+                        gameFilterRow
+                        filterButton
+                    }
+                    .padding(.top, 2)
+
+                    let items = filtered
+                    if items.isEmpty {
+                        emptyState
+                    } else if sortOrder == .amountDesc {
+                        ForEach(items.sorted { $0.amount > $1.amount }, id: \.id) { historyLink($0) }
+                    } else {
+                        let sorted = sortOrder == .dateAsc ? items.sorted { $0.dateMillis < $1.dateMillis }
+                                                           : items.sorted { $0.dateMillis > $1.dateMillis }
+                        let groups = groupByDay(sorted)
+                        ForEach(groups, id: \.key) { group in
+                            DateHeader(date: group.items.first?.dateLabel ?? "",
+                                       total: group.items.reduce(0) { $0 + $1.amount })
+                            ForEach(group.items, id: \.id) { historyLink($0) }
+                        }
+                    }
+                    Color.clear.frame(height: 8)
+                }
+                .padding(.horizontal, 16)
             }
-            .padding(.horizontal, 16)
+            .coordinateSpace(name: "spendScroll")
+            .onPreferenceChange(ScrollOffsetKey.self) { scrollY = $0 }
+            .scrollIndicators(.hidden)
+            .refreshable { store.refreshSpending() }
         }
-        .scrollIndicators(.hidden)
         .background(GLGBackground { Color.clear })
-        .refreshable { store.refreshSpending() }
         .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -75,24 +88,28 @@ struct SpendingView: View {
         .sheet(isPresented: $showFilter) { filterSheet }
     }
 
-    // 월 지출 히어로 — 이번 달 총 지출을 큰 숫자로 강조 + 지난달 대비.
+    // 월 지출 히어로 — 이번 달 총 지출을 큰 숫자로 강조 + 지난달 대비. 스크롤 시 [collapse] 로 축소.
     private var monthHero: some View {
         let total = store.monthlyTotal()
         let diff = total - store.prevMonthTotal()
+        let c = collapse
         return VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 6) {
                 Image(systemName: "chart.pie.fill").font(.pretendard(size: 13)).foregroundStyle(accent.primary)
                 Text("\(store.displayMonth)월 지출").font(.pretendard(size: 13, weight: .medium)).foregroundStyle(GLGColor.textSecondary)
             }
-            Text(won(total)).font(.pretendard(size: 34, weight: .heavy)).foregroundStyle(GLGColor.textPrimary).lineLimit(1)
+            Text(won(total)).font(.pretendard(size: 34 - 14 * c, weight: .heavy)).foregroundStyle(GLGColor.textPrimary).lineLimit(1)
             if total > 0 || store.prevMonthTotal() > 0 {
                 Text("지난달 " + (diff == 0 ? "동일" : (diff > 0 ? "+" : "-") + won(abs(diff))))
                     .font(.pretendard(size: 13, weight: .semibold))
                     .foregroundStyle(diff > 0 ? GLGColor.dangerText : (diff < 0 ? accent.primary : GLGColor.textSecondary))
+                    .opacity(1 - c)
+                    .frame(height: (1 - c) * 18, alignment: .top)
+                    .clipped()
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(20)
+        .padding(.horizontal, 20).padding(.vertical, 18 - 7 * c)
         .glgGlass(in: RoundedRectangle(cornerRadius: 24, style: .continuous))
     }
 
@@ -334,4 +351,10 @@ struct FlexibleRow<Data: RandomAccessCollection, Content: View>: View where Data
             HStack(spacing: 8) { ForEach(Array(data), id: \.self) { content($0) } }
         }
     }
+}
+
+/// 스크롤 오프셋 추적용 PreferenceKey — 월 지출 히어로 축소(collapse) 계산.
+private struct ScrollOffsetKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = nextValue() }
 }
