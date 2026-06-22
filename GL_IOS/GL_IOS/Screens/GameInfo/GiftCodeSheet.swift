@@ -83,7 +83,7 @@ struct GiftCodePage: View {
 
     @ViewBuilder private var codeList: some View {
         if store.codesLoading && store.activeCodes.isEmpty {
-            Text("코드 불러오는 중…").font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary).padding(.vertical, 6)
+            GLGGiftCodeSkeleton()
         } else if store.activeCodes.isEmpty {
             Text("지금은 활성 코드가 없어요").font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary).padding(.vertical, 6)
         } else {

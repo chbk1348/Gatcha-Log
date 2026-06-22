@@ -177,6 +177,31 @@ private fun RosterSkeletonCard() {
     }
 }
 
+/** 기프트코드 자동수집 로딩 스켈레톤 — 코드행(코드/보상 + 교환 버튼) N행. */
+@Composable
+fun GiftCodeSkeleton(rows: Int = 3) {
+    Column(
+        modifier = Modifier.padding(vertical = 6.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp),
+    ) {
+        repeat(rows) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(Modifier.weight(1f)) {
+                    SkeletonBox(Modifier.width(110.dp).height(14.dp))
+                    Spacer(Modifier.height(7.dp))
+                    SkeletonBox(Modifier.width(160.dp).height(11.dp))
+                }
+                Spacer(Modifier.width(8.dp))
+                SkeletonBox(Modifier.width(52.dp).height(28.dp), RoundedCornerShape(14.dp))
+            }
+        }
+    }
+}
+
 /** 실시간 노트 로딩 스켈레톤 (가로 카드들). */
 @Composable
 fun NoteSkeletonRow(count: Int = 3) {

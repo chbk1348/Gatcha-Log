@@ -25,6 +25,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import com.gatcha.log.data.HoyolabConfig
 import com.gatcha.log.data.api.GiftCode
+import com.gatcha.log.ui.components.GiftCodeSkeleton
 import com.gatcha.log.ui.components.GlassCard
 import com.gatcha.log.ui.components.GlgButton
 import com.gatcha.log.ui.components.GlgChip
@@ -95,7 +96,7 @@ internal fun GiftCodePage(
                         }
                         Spacer(Modifier.height(8.dp))
                         when {
-                            codesLoading && activeCodes.isEmpty() -> Text("코드 불러오는 중…", fontSize = 12.sp, color = TextSecondary, modifier = Modifier.padding(vertical = 6.dp))
+                            codesLoading && activeCodes.isEmpty() -> GiftCodeSkeleton()
                             activeCodes.isEmpty() -> Text("지금은 활성 코드가 없어요", fontSize = 12.sp, color = TextSecondary, modifier = Modifier.padding(vertical = 6.dp))
                             else -> {
                                 val unredeemed = activeCodes.filter { it.code !in redeemedCodes }.sortedByDescending { it.highlight }
