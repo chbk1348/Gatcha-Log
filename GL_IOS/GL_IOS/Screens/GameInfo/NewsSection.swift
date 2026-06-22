@@ -23,7 +23,7 @@ private func newsRow(_ n: NewsItem, _ openURL: OpenURLAction) -> some View {
                     .lineLimit(2).multilineTextAlignment(.leading)
                 Text(DateUtil.shared.shortDate(millis: n.createdAtMillis)).font(.pretendard(size: 11)).foregroundStyle(GLGColor.textSecondary)
             }
-            Spacer(minLength: 8)
+            .frame(maxWidth: .infinity, alignment: .leading) // 가로 폭 제약 — 긴 제목이 행을 넘쳐 좌우 스크롤되던 문제 방지
             Image(systemName: "arrow.up.right.square").font(.pretendard(size: 14)).foregroundStyle(GLGColor.textSecondary)
         }
         .padding(.vertical, 11)
