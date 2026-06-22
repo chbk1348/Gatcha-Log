@@ -16,7 +16,7 @@ struct SpendingView: View {
     let onEdit: (Spending) -> Void
     @Environment(\.glgAccent) private var accent
 
-    @State private var gameFilter: String? = nil
+    @State private var gameFilters: Set<String> = []
     @State private var period: PeriodFilter = .all
     @State private var paymentFilter: String? = nil
     @State private var typeFilter: TypeFilter = .all
@@ -25,7 +25,7 @@ struct SpendingView: View {
     @State private var scrollY: CGFloat = 0
 
     private var activeFilterCount: Int {
-        [gameFilter != nil, period != .all, paymentFilter != nil, typeFilter != .all, sortOrder != .dateDesc]
+        [!gameFilters.isEmpty, period != .all, paymentFilter != nil, typeFilter != .all, sortOrder != .dateDesc]
             .filter { $0 }.count
     }
 
@@ -44,13 +44,6 @@ struct SpendingView: View {
                 }
                 .frame(height: 0)
                 LazyVStack(alignment: .leading, spacing: 0, pinnedViews: []) {
-                    // 게임별 필터(스크롤) + 우측 고정 필터 버튼
-                    HStack(spacing: 8) {
-                        gameFilterRow
-                        filterButton
-                    }
-                    .padding(.top, 2)
-
                     let items = filtered
                     if items.isEmpty {
                         emptyState
@@ -83,6 +76,10 @@ struct SpendingView: View {
                 NavigationLink { CalendarView(store: store) } label: { Image(systemName: "calendar") }
                 NavigationLink { SpendingInsightView(store: store) } label: { Image(systemName: "chart.line.uptrend.xyaxis") }
                 NavigationLink { AnnualReportView(store: store) } label: { Image(systemName: "chart.bar.doc.horizontal") }
+                // 필터 버튼 — 헤더(툴바)로 이동. 활성 시 채움 아이콘.
+                Button { showFilter = true } label: {
+                    Image(systemName: activeFilterCount > 0 ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease.circle")
+                }
             }
         }
         .sheet(isPresented: $showFilter) { filterSheet }
@@ -124,34 +121,15 @@ struct SpendingView: View {
     }
 
 
-    // 공통 칩(GLGChip)과 동일 규격 — 14pt 라운드·흰 배경+옅은 아웃라인, 선택(필터 활성)=accent 채움. 슬라이더 아이콘 유지.
-    private var filterButton: some View {
-        let active = activeFilterCount > 0
-        return Button { showFilter = true } label: {
-            HStack(spacing: 5) {
-                Image(systemName: "slider.horizontal.3").font(.pretendard(size: 12, weight: .semibold))
-                Text(active ? "필터 \(activeFilterCount)" : "필터").font(.pretendard(size: 13, weight: .semibold))
+    // 게임 칩(필터 시트) — 다중 선택. '전체'=선택 해제, 게임=토글(선택 색은 게임별 대표색).
+    @ViewBuilder private func gameChip(_ key: String) -> some View {
+        if key.isEmpty {
+            GamePill(label: "전체", selected: gameFilters.isEmpty, accent: accent.primary) { gameFilters = [] }
+        } else if let g = GameData.shared.games.first(where: { $0.key == key }) {
+            GamePill(label: g.shortName, selected: gameFilters.contains(g.displayName), accent: Color(argb64: g.color)) {
+                if gameFilters.contains(g.displayName) { gameFilters.remove(g.displayName) }
+                else { gameFilters.insert(g.displayName) }
             }
-            .foregroundStyle(active ? .white : Color(hex: 0xFF4A5159))
-            .padding(.horizontal, 14).padding(.vertical, 9)
-            .background(active ? accent.primary : Color.white, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(active ? Color.clear : Color(hex: 0xFFE3E5EA), lineWidth: 1))
-        }
-        .buttonStyle(.plain)
-    }
-
-    private var gameFilterRow: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                GamePill(label: "전체", selected: gameFilter == nil, accent: accent.primary) { gameFilter = nil }
-                ForEach(GameData.shared.games, id: \.key) { g in
-                    // 게임 칩은 단일 규격 유지, 선택됨 색만 게임별 대표색으로.
-                    GamePill(label: g.shortName, selected: gameFilter == g.displayName, accent: Color(argb64: g.color)) {
-                        gameFilter = g.displayName
-                    }
-                }
-            }
-            .padding(.vertical, 8)
         }
     }
 
@@ -169,6 +147,10 @@ struct SpendingView: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 14) {
+                    // 게임 — 다중 선택(헤더 필터버튼 → 시트). 인라인 게임필터 행 폐지.
+                    filterSection("게임") {
+                        FlexibleRow([""] + GameData.shared.games.map { $0.key }) { key in gameChip(key) }
+                    }
                     filterSection("기간") { pillWrap(PeriodFilter.allCases, period) { period = $0 } label: { $0.rawValue } }
                     filterSection("결제 수단") {
                         VStack(alignment: .leading, spacing: 8) {
@@ -188,7 +170,7 @@ struct SpendingView: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("초기화") {
-                        gameFilter = nil; period = .all; paymentFilter = nil; typeFilter = .all; sortOrder = .dateDesc
+                        gameFilters = []; period = .all; paymentFilter = nil; typeFilter = .all; sortOrder = .dateDesc
                     }
                 }
                 ToolbarItem(placement: .confirmationAction) { Button("적용") { showFilter = false } }
@@ -225,7 +207,7 @@ struct SpendingView: View {
     // ── 필터링 ──
     private var filtered: [Spending] {
         store.spendings.filter { s in
-            (gameFilter == nil || s.gameName == gameFilter) &&
+            (gameFilters.isEmpty || gameFilters.contains(s.gameName)) &&
             (paymentFilter == nil || s.paymentMethod == paymentFilter) &&
             (typeFilter == .all || (typeFilter == .normal ? !s.isSubscription : s.isSubscription)) &&
             periodMatch(s)
