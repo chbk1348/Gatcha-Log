@@ -1,8 +1,25 @@
 {
-  "_comment": "젠레스 존 제로 이벤트명 영문→한국어 매핑. ennead ZZZ 데이터가 영문이라 한국어화용. 패치마다 새 이벤트 영문명(키)→한국어(값) 추가만 하면 앱 업데이트 없이 반영(앱이 raw 로 fetch). 매핑 없으면 원문 유지. _comment 키는 무시됨(이벤트명과 안 겹침).",
+  "_comment": "젠레스 존 제로 영문→한국어 매핑(이벤트·에이전트·W엔진 공용). ennead ZZZ 캘린더가 영문이라 한국어화용. 패치마다 새 이름(키=영문)→한국어(값) 추가만 하면 앱 업데이트 없이 반영(앱이 raw 로 fetch). 매핑 없으면 원문 유지. 아래 값들은 best-effort 번역이라 공식 명칭과 다르면 수정하세요. _comment 키는 무시됨.",
+
   "Gleaming Shadow Team Battle": "빛나는 그림자 협동전",
   "Celestial Nexus Intelligence Dossier": "천계 넥서스 정보 파일",
   "Assemble! Mock Exam Comeback Plan": "집합! 모의고사 만회 작전",
   "Tales of the Hobbling Crow": "절뚝이는 까마귀 이야기",
-  "Art Is Bangboo!": "예술은 방부!"
+  "Art Is Bangboo!": "예술은 방부!",
+
+  "Nicole": "니콜",
+  "Piper": "파이퍼",
+  "Corin": "코린",
+  "Velina": "벨리나",
+  "Ye Shunguang": "예 슌광",
+  "Sunna": "순나",
+  "Pulchra": "풀크라",
+
+  "Flawless Etiquette": "완벽한 매너",
+  "Jade Soul, Frozen Heart": "옥의 혼, 얼어붙은 심장",
+  "Collision Potential": "충돌 포텐셜",
+  "Money-Lover": "돈벌레",
+  "Decibel Monologue": "데시벨 모놀로그",
+  "Safe Household Saw": "가정용 안전 톱",
+  "Watch Your Fingers": "손가락 조심"
 }
