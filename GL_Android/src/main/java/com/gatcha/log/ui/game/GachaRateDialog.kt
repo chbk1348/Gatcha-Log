@@ -26,6 +26,7 @@ import com.gatcha.log.data.GachaBannerRate
 import com.gatcha.log.data.GachaGameRate
 import com.gatcha.log.data.GachaRateData
 import com.gatcha.log.ui.components.GlassCard
+import com.gatcha.log.ui.components.GlgChip
 import com.gatcha.log.ui.components.GlgScreenHeader
 import com.gatcha.log.ui.theme.DividerColor
 import com.gatcha.log.ui.theme.toColor
@@ -73,24 +74,10 @@ private fun SectionLabel(text: String) {
 @Composable
 private fun BannerTypeTabs(selected: String, onSelect: (String) -> Unit) {
     val accent = LocalAccent.current
+    // 공통 칩 단일 규격(시스템 세그먼트 폐기) — 배너타입 선택.
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         GachaRateData.bannerTypes.forEach { (key, label) ->
-            val isSel = key == selected
-            Surface(
-                modifier = Modifier.weight(1f).clickable { onSelect(key) },
-                shape = RoundedCornerShape(50),
-                color = if (isSel) accent else Color(0xF7FFFFFF),
-                border = if (isSel) null else androidx.compose.foundation.BorderStroke(1.dp, DividerColor),
-            ) {
-                Text(
-                    label,
-                    modifier = Modifier.padding(vertical = 9.dp),
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = if (isSel) Color.White else TextSecondary,
-                    textAlign = TextAlign.Center,
-                )
-            }
+            GlgChip(label = label, selected = key == selected, color = accent) { onSelect(key) }
         }
     }
 }

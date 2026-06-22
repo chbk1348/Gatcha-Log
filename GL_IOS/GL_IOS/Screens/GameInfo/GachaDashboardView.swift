@@ -40,15 +40,13 @@ struct GachaDashboardView: View {
         let cost = (spend > 0 && d.five > 0) ? spend / Int64(d.five) : 0
         return ScrollView {
             VStack(alignment: .leading, spacing: 14) {
+                // 공통 칩 단일 규격 — 게임 선택, 선택색은 게임별 대표색.
                 HStack(spacing: 8) {
                     ForEach(games, id: \.self) { g in
-                        let s = g == sel
-                        Button { selected = g } label: {
-                            Text(gachaGameInfo(g).short).font(.pretendard(size: 13, weight: .bold)).foregroundStyle(s ? .white : GLGColor.textSecondary)
-                                .padding(.horizontal, 16).padding(.vertical, 8)
-                                .background(s ? accent.primary : Color.black.opacity(0.05), in: Capsule())
-                        }.buttonStyle(.plain)
+                        let gColor = GameData.shared.games.first(where: { $0.key == g }).map { Color(argb64: $0.color) } ?? accent.primary
+                        GLGChip(label: gachaGameInfo(g).short, selected: g == sel, color: gColor) { selected = g }
                     }
+                    Spacer(minLength: 0)
                 }
                 // 요약
                 dashCard {

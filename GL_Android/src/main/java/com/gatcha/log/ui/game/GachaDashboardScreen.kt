@@ -29,6 +29,7 @@ import com.gatcha.log.data.DashFive
 import com.gatcha.log.data.GachaDashboard
 import com.gatcha.log.data.GachaReport
 import com.gatcha.log.ui.components.GlassCard
+import com.gatcha.log.ui.components.GlgChip
 import com.gatcha.log.ui.components.GlgScreenHeader
 import com.gatcha.log.ui.components.StatTile
 import com.gatcha.log.ui.theme.DividerColor
@@ -85,24 +86,11 @@ fun GachaDashboardScreen(
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
             Spacer(Modifier.height(2.dp))
-            // 게임 선택 칩
+            // 게임 선택 칩 — 공통 칩 단일 규격, 선택색은 게임별 대표색.
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 games.forEach { gk ->
-                    val (short, _, _) = GachaReport.gameInfo[gk] ?: Triple(gk, gk, Color.Gray)
-                    val sel = gk == selected
-                    Surface(
-                        shape = RoundedCornerShape(20.dp),
-                        color = if (sel) accent else Color(0x0D000000),
-                        modifier = Modifier.clickable { selected = gk },
-                    ) {
-                        Text(
-                            short,
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = if (sel) Color.White else TextSecondary,
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                        )
-                    }
+                    val (short, _, colorLong) = GachaReport.gameInfo[gk] ?: Triple(gk, gk, 0xFF888888L)
+                    GlgChip(label = short, selected = gk == selected, color = colorLong.toColor()) { selected = gk }
                 }
             }
 
