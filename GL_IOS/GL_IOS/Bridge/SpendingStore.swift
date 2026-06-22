@@ -56,6 +56,7 @@ final class SpendingStore: ObservableObject {
     @Published private(set) var liveNotes: [LiveNote] = []
     @Published private(set) var gameEvents: [GameEvent] = []
     @Published private(set) var challenges: [GameChallenge] = []
+    @Published private(set) var gameNews: [NewsItem] = []
     @Published private(set) var ledgers: [MonthlyLedger] = []
     @Published private(set) var combat: [CombatMode] = []
     @Published private(set) var attendanceToday: Set<String> = []
@@ -131,6 +132,7 @@ final class SpendingStore: ObservableObject {
         bind(vm.liveNotes) { [weak self] in self?.liveNotes = $0 }
         bind(vm.gameEvents) { [weak self] in self?.gameEvents = $0 }
         bind(vm.challenges) { [weak self] in self?.challenges = $0 }
+        bind(vm.gameNews) { [weak self] in self?.gameNews = $0 }
         bind(vm.ledgers) { [weak self] in self?.ledgers = $0 }
         bind(vm.combat) { [weak self] in self?.combat = $0 }
         bind(vm.attendanceToday) { [weak self] in self?.attendanceToday = $0 }
