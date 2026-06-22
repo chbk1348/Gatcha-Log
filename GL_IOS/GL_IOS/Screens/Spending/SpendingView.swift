@@ -38,11 +38,6 @@ struct SpendingView: View {
             monthHero
                 .padding(.horizontal, 16).padding(.top, 4).padding(.bottom, 10 - 4 * collapse)
             ScrollView {
-                // 스크롤 오프셋 추적 — 히어로 축소 progress 계산용
-                GeometryReader { geo in
-                    Color.clear.preference(key: ScrollOffsetKey.self, value: geo.frame(in: .named("spendScroll")).minY)
-                }
-                .frame(height: 0)
                 LazyVStack(alignment: .leading, spacing: 0, pinnedViews: []) {
                     let items = filtered
                     if items.isEmpty {
@@ -62,6 +57,12 @@ struct SpendingView: View {
                     Color.clear.frame(height: 8)
                 }
                 .padding(.horizontal, 16)
+                // 스크롤 오프셋 추적(콘텐츠 배경 GeometryReader — 0높이 형제보다 안정적) → 히어로 축소.
+                .background(
+                    GeometryReader { geo in
+                        Color.clear.preference(key: ScrollOffsetKey.self, value: geo.frame(in: .named("spendScroll")).minY)
+                    }
+                )
             }
             .coordinateSpace(name: "spendScroll")
             .onPreferenceChange(ScrollOffsetKey.self) { scrollY = $0 }
