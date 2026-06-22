@@ -104,7 +104,7 @@ struct SettingsView: View {
         }
     }
 
-    // ── 섹션 카드 — 흰 배경 + 아웃라인(앱 카드 디자인). 선택적 제목·footer. ──
+    // ── 섹션 카드 — D · Soft Modern: 연회색 면 + 헤어라인(지출 추가 모달 sectionCard·Android GlassCard 와 동일 규격). 선택적 제목·footer. ──
     @ViewBuilder
     private func sectionCard<C: View>(_ title: String? = nil, footer: String? = nil, @ViewBuilder content: () -> C) -> some View {
         VStack(alignment: .leading, spacing: 7) {
@@ -114,8 +114,7 @@ struct SettingsView: View {
             }
             VStack(spacing: 0) { content() }
                 .padding(.horizontal, 16)
-                .background(.white, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-                .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(GLGColor.divider, lineWidth: 1))
+                .glgGlass(in: RoundedRectangle(cornerRadius: 22, style: .continuous))
             if let footer {
                 Text(footer).font(.pretendard(size: 11)).foregroundStyle(GLGColor.textSecondary).padding(.horizontal, 4)
             }

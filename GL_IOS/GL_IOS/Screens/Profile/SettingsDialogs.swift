@@ -20,36 +20,48 @@ struct BudgetSheet: View {
 
     var body: some View {
         NavigationStack {
-            Form {
-                Section("전체 월 예산") {
-                    TextField("예산 (원)", text: $overall)
-                        .keyboardType(.numberPad)
-                        .onChange(of: overall) { _, newValue in overall = newValue.filter(\.isNumber) }
-                }
-                Section {
-                    ForEach(games, id: \.key) { game in
-                        let spent = monthlyTotals[game.key] ?? 0
-                        let limit = Int64(perGame[game.key] ?? "") ?? 0
-                        let over = limit > 0 && spent > limit
-                        HStack(spacing: 10) {
-                            Circle().fill(Color(argb64: game.color)).frame(width: 10, height: 10)
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(game.shortName).font(.pretendard(size: 14, weight: .medium))
-                                Text("이번 달 \(won(spent))")
-                                    .font(.pretendard(size: 11))
-                                    .foregroundStyle(over ? GLGColor.dangerText : GLGColor.textSecondary)
-                                    .fontWeight(over ? .bold : .regular)
+            ScrollView {
+                VStack(alignment: .leading, spacing: 14) {
+                    // 전체 월 예산 — 섹션 카드(지출 추가 모달과 동일 규격: 연회색 카드)
+                    budgetSection("전체 월 예산") {
+                        TextField("예산 (원)", text: $overall)
+                            .textFieldStyle(.plain)
+                            .keyboardType(.numberPad)
+                            .glgPillField()
+                            .onChange(of: overall) { _, newValue in overall = newValue.filter(\.isNumber) }
+                    }
+                    // 게임별 한도 — 섹션 카드
+                    budgetSection("게임별 한도 (선택)", footer: "비워두면 한도 없음 · 이번 달 사용액 함께 표시") {
+                        VStack(spacing: 12) {
+                            ForEach(games, id: \.key) { game in
+                                let spent = monthlyTotals[game.key] ?? 0
+                                let limit = Int64(perGame[game.key] ?? "") ?? 0
+                                let over = limit > 0 && spent > limit
+                                HStack(spacing: 10) {
+                                    Circle().fill(Color(argb64: game.color)).frame(width: 10, height: 10)
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(game.shortName).font(.pretendard(size: 14, weight: .medium))
+                                        Text("이번 달 \(won(spent))")
+                                            .font(.pretendard(size: 11))
+                                            .foregroundStyle(over ? GLGColor.dangerText : GLGColor.textSecondary)
+                                            .fontWeight(over ? .bold : .regular)
+                                    }
+                                    Spacer()
+                                    TextField("한도", text: bindGame(game.key))
+                                        .textFieldStyle(.plain)
+                                        .keyboardType(.numberPad)
+                                        .multilineTextAlignment(.trailing)
+                                        .glgPillField()
+                                        .frame(width: 120)
+                                }
                             }
-                            Spacer()
-                            TextField("한도", text: bindGame(game.key))
-                                .keyboardType(.numberPad)
-                                .multilineTextAlignment(.trailing)
-                                .frame(width: 110)
                         }
                     }
-                } header: { Text("게임별 한도 (선택)") }
-                footer: { Text("비워두면 한도 없음 · 이번 달 사용액 함께 표시") }
+                }
+                .padding(.horizontal, 16).padding(.top, 8).padding(.bottom, 16)
             }
+            .scrollIndicators(.hidden)
+            .background(Color.white)
             .navigationTitle("예산 관리")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -57,6 +69,21 @@ struct BudgetSheet: View {
                 ToolbarItem(placement: .confirmationAction) { Button("저장") { save() } }
             }
             .onAppear(perform: load)
+        }
+    }
+
+    // 예산 섹션 카드 — 제목(카드 위) + 연회색 카드(지출 추가 모달 sectionCard 와 동일 규격). 선택적 footer.
+    @ViewBuilder
+    private func budgetSection<C: View>(_ title: String, footer: String? = nil, @ViewBuilder content: () -> C) -> some View {
+        VStack(alignment: .leading, spacing: 7) {
+            Text(title).font(.pretendard(size: 13, weight: .semibold)).foregroundStyle(GLGColor.textSecondary).padding(.leading, 4)
+            content()
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(16)
+                .glgGlass(in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+            if let footer {
+                Text(footer).font(.pretendard(size: 11)).foregroundStyle(GLGColor.textSecondary).padding(.leading, 4)
+            }
         }
     }
 

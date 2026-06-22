@@ -155,16 +155,22 @@ struct SpendingView: View {
     // ── 필터 시트 ──
     private var filterSheet: some View {
         NavigationStack {
-            Form {
-                Section("기간") { pillWrap(PeriodFilter.allCases, period) { period = $0 } label: { $0.rawValue } }
-                Section("결제 수단") {
-                    HStack { GamePill(label: "전체", selected: paymentFilter == nil, accent: accent.primary) { paymentFilter = nil }; Spacer() }
-                    pillWrapStr(GameData.shared.paymentMethods, paymentFilter) { paymentFilter = $0 }
+            ScrollView {
+                VStack(alignment: .leading, spacing: 14) {
+                    filterSection("기간") { pillWrap(PeriodFilter.allCases, period) { period = $0 } label: { $0.rawValue } }
+                    filterSection("결제 수단") {
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack { GamePill(label: "전체", selected: paymentFilter == nil, accent: accent.primary) { paymentFilter = nil }; Spacer() }
+                            pillWrapStr(GameData.shared.paymentMethods, paymentFilter) { paymentFilter = $0 }
+                        }
+                    }
+                    filterSection("구분") { pillWrap(TypeFilter.allCases, typeFilter) { typeFilter = $0 } label: { $0.rawValue } }
+                    filterSection("정렬") { pillWrap(SortOrder.allCases, sortOrder) { sortOrder = $0 } label: { $0.rawValue } }
                 }
-                Section("구분") { pillWrap(TypeFilter.allCases, typeFilter) { typeFilter = $0 } label: { $0.rawValue } }
-                Section("정렬") { pillWrap(SortOrder.allCases, sortOrder) { sortOrder = $0 } label: { $0.rawValue } }
+                .padding(.horizontal, 16).padding(.top, 8).padding(.bottom, 16)
             }
-            .scrollContentBackground(.hidden)   // Form 불투명 배경 숨김 — 시트 글래스가 detent 전환에도 일관되게 보이도록
+            .scrollIndicators(.hidden)
+            .background(Color.white)
             .navigationTitle("상세 필터")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -178,6 +184,18 @@ struct SpendingView: View {
         }
         .presentationDetents([.medium, .large])
         .presentationBackground(Color.white)
+    }
+
+    // 필터 섹션 카드 — 제목(카드 위) + 연회색 카드(지출 추가 모달 sectionCard·Android FilterGroup 과 동일 규격).
+    @ViewBuilder
+    private func filterSection<C: View>(_ title: String, @ViewBuilder content: () -> C) -> some View {
+        VStack(alignment: .leading, spacing: 7) {
+            Text(title).font(.pretendard(size: 13, weight: .semibold)).foregroundStyle(GLGColor.textSecondary).padding(.leading, 4)
+            content()
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(16)
+                .glgGlass(in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+        }
     }
 
     private func pillWrap<T: Equatable & Hashable>(_ all: [T], _ sel: T, _ set: @escaping (T) -> Void,
