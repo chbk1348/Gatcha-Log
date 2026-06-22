@@ -64,7 +64,9 @@ struct GiftCodePage: View {
     private var gameTabs: some View {
         HStack(spacing: 8) {
             ForEach(games, id: \.0) { key, label in
-                GLGChip(label: label, selected: key == selected) { selected = key }
+                // 게임 칩 — 선택됨 색을 게임별 대표색으로(단일 규격 유지).
+                let gameColor = GameData.shared.games.first { $0.key == key }.map { Color(argb64: $0.color) } ?? accent.primary
+                GLGChip(label: label, selected: key == selected, color: gameColor) { selected = key }
             }
             Spacer(minLength: 0)
         }

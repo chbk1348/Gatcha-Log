@@ -23,6 +23,7 @@ import androidx.compose.ui.unit.sp
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import com.gatcha.log.data.GameData
 import com.gatcha.log.data.HoyolabConfig
 import com.gatcha.log.data.api.GiftCode
 import com.gatcha.log.ui.components.GiftCodeSkeleton
@@ -78,7 +79,9 @@ internal fun GiftCodePage(
                 Spacer(Modifier.height(2.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     games.forEach { (key, label) ->
-                        GlgChip(label = label, selected = key == selected, color = accent) { selected = key }
+                        // 게임 칩 — 선택됨 색을 게임별 대표색으로(단일 규격 유지).
+                        val gameColor = GameData.games.firstOrNull { it.key == key }?.color?.toColor() ?: accent
+                        GlgChip(label = label, selected = key == selected, color = gameColor) { selected = key }
                     }
                 }
                 // 활성 코드 카드
