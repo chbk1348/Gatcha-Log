@@ -15,7 +15,7 @@ data class CharEffect(val index: Int, val name: String, val desc: String)
  * 명좌/성혼/의식 단계별 효과 텍스트 조회. Enka/HoYoLAB 응답엔 효과 설명이 없어 외부 메타 API 로 보강한다.
  *  - genshin: gi.yatta.moe `data.constellation`(객체) → name·description
  *  - hsr     : sr.yatta.moe `data.eidolons`(객체) → name·description
- *  - zzz     : api.hakush.in `Talent`(의식, 구조 불확실) → Name·Desc(+Desc2)
+ *  - zzz     : hakush(static.nanoka.cc/api.hakush.in) → jsdelivr 미러 순차, `Talent` → Name·Desc(+Desc2)
  * 설명엔 <color>/<i>/<unbreak> 등 마크업·\n 이 섞여오므로 정규식으로 정리한다.
  * 실패/빈 응답이면 emptyList(앱이 죽지 않도록 모든 분기 graceful). 결과는 "$gameKey:$id" 키로 메모리 캐시.
  */
@@ -71,18 +71,44 @@ object CharEffectsApi {
         return out
     }
 
+    private var cachedZzzVer: String? = null
+
     /**
-     * 젠레스 의식(mindscape) — hakush.in. 구조가 불확실하므로 방어적으로 파싱:
-     *  - 컨테이너 키는 "Talent" 또는 "talent", data 래핑 유무 모두 시도.
-     *  - 컨테이너는 객체(키 순회) 또는 배열 둘 다 대응.
-     *  - 필드명은 Name/name, Desc/desc(+Desc2/desc2) 대소문자 변형 모두 시도.
-     * 어디서든 못 읽으면 빈 리스트.
+     * 젠레스 형상 시네마(mindscape) — 기기에서 닿는 소스가 이기도록 **다중 소스 순차 시도**.
+     *  1) static.nanoka.cc (hakush 라이브 CDN, 한국어) — manifest 로 현재 버전 해석 후 character/{id}.json
+     *  2) api.hakush.in (구 경로, 한국어) — 위가 막히거나 비면 폴백
+     *  3) cdn.jsdelivr.net 의 genshin-optimizer 캐시 미러(영문) — 항상 도달 가능한 최후 폴백
+     * 구조는 셋 다 동일: root.Talent(객체 "1"~"6") → {Level, Name, Desc, Desc2}. parseZzzBody 가 방어적으로 처리.
      */
     private suspend fun fetchZzz(id: Int): List<CharEffect> {
-        val res = Net.get("https://api.hakush.in/zzz/data/ko/character/$id.json", hakushHeaders)
-        if (!res.isOk) return emptyList()
-        val root = runCatching { JSONObject(res.body) }.getOrNull() ?: return emptyList()
-        // data 래핑이 있을 수도 있어 root + data 양쪽에서 Talent/talent 탐색.
+        nanokaVersion()?.let { ver ->
+            parseZzzBody(Net.get("https://static.nanoka.cc/zzz/$ver/ko/character/$id.json", hakushHeaders))
+                ?.let { if (it.isNotEmpty()) return it }
+        }
+        parseZzzBody(Net.get("https://api.hakush.in/zzz/data/ko/character/$id.json", hakushHeaders))
+            ?.let { if (it.isNotEmpty()) return it }
+        parseZzzBody(Net.get("https://cdn.jsdelivr.net/gh/Genshin-Optimizer/zzz-hakushin-data@master/character/$id.json", headers))
+            ?.let { if (it.isNotEmpty()) return it }
+        return emptyList()
+    }
+
+    /** static.nanoka.cc/manifest.json 의 zzz.live(없으면 latest) 버전 문자열. 1회 메모리 캐시. */
+    private suspend fun nanokaVersion(): String? {
+        cachedZzzVer?.let { return it }
+        val res = Net.get("https://static.nanoka.cc/manifest.json", hakushHeaders)
+        if (!res.isOk) return null
+        val zzz = runCatching { JSONObject(res.body).optJSONObject("zzz") }.getOrNull() ?: return null
+        val ver = zzz.optString("live").ifBlank { zzz.optString("latest") }
+        return ver.takeIf { it.isNotBlank() }?.also { cachedZzzVer = it }
+    }
+
+    /**
+     * hakush/nanoka/미러 응답 본문 → 형상 시네마 리스트. 응답 NG/파싱 실패면 null(다음 소스로), 성공이면 리스트(빌 수도).
+     * data 래핑·Talent/talent 키·객체/배열 변형을 모두 방어적으로 시도.
+     */
+    private fun parseZzzBody(res: NetResult): List<CharEffect>? {
+        if (!res.isOk) return null
+        val root = runCatching { JSONObject(res.body) }.getOrNull() ?: return null
         val containers = listOfNotNull(root, root.optJSONObject("data"))
         for (c in containers) {
             val asObj = c.optJSONObject("Talent") ?: c.optJSONObject("talent")
