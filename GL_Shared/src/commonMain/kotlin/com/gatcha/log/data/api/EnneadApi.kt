@@ -33,6 +33,20 @@ object EnneadApi {
             .getOrDefault(EnneadResult(emptyList(), emptyList()))
     }
 
+    /**
+     * 젠레스 존 제로 일정 — ennead `mihoyo/zenless/calendar` 의 **이벤트·도전만** 사용.
+     * (배너는 한국어 큐레이션 유지를 위해 ZzzBannerApi 수동 JSON 을 그대로 쓰므로 여기선 제외.)
+     * 주의: ennead 의 ZZZ 데이터는 ko-kr 요청에도 영문으로 온다(보상 폴리크롬은 숫자 필드).
+     */
+    suspend fun fetchZzzEvents(): EnneadResult {
+        val res = Net.get("https://api.ennead.cc/mihoyo/zenless/calendar?lang=ko-kr")
+        if (!res.isOk) return EnneadResult(emptyList(), emptyList())
+        return runCatching {
+            val r = parse(Game.ZZZ, JSONObject(res.body))
+            EnneadResult(emptyList(), r.events, r.challenges) // 배너 제외
+        }.getOrDefault(EnneadResult(emptyList(), emptyList()))
+    }
+
     private fun parse(game: Game, root: JSONObject): EnneadResult {
         val now = currentTimeMillis()
 
@@ -67,12 +81,7 @@ object EnneadApi {
             val e = eventsArr.optJSONObject(i) ?: continue
             val endMillis = e.optLong("end_time") * 1000
             if (endMillis <= now) continue
-            val reward = e.optJSONObject("special_reward")?.let { r ->
-                val n = r.optString("name")
-                val amt = r.optInt("amount", 0)
-                if (n.isNotBlank()) (if (amt > 0) "$n ×$amt" else n) else ""
-            } ?: ""
-            events += GameEvent(game.displayName, e.optString("name"), endMillis, reward)
+            events += GameEvent(game.displayName, e.optString("name"), endMillis, rewardOf(e))
         }
         events.sortBy { it.endMillis }
 
@@ -82,11 +91,7 @@ object EnneadApi {
             val c = chArr.optJSONObject(i) ?: continue
             val endMillis = c.optLong("end_time") * 1000
             if (endMillis <= now) continue
-            val reward = c.optJSONObject("special_reward")?.let { r ->
-                val n = r.optString("name")
-                val amt = r.optInt("amount", 0)
-                if (n.isNotBlank()) (if (amt > 0) "$n ×$amt" else n) else ""
-            } ?: ""
+            val reward = rewardOf(c)
             challenges += GameChallenge(
                 game = game.displayName,
                 name = c.optString("name"),
@@ -98,6 +103,18 @@ object EnneadApi {
         challenges.sortBy { it.endMillis }
 
         return EnneadResult(banners, events, challenges)
+    }
+
+    /** 이벤트/도전 보상 표기 — special_reward(원신·스타레일) 우선, 없으면 polychrome(젠레스 정수 필드). */
+    private fun rewardOf(o: JSONObject): String {
+        o.optJSONObject("special_reward")?.let { r ->
+            val n = r.optString("name")
+            val amt = r.optInt("amount", 0)
+            if (n.isNotBlank()) return if (amt > 0) "$n ×$amt" else n
+        }
+        val poly = o.optInt("polychrome", 0)
+        if (poly > 0) return "폴리크롬 ×$poly"
+        return ""
     }
 
     /** 캐릭터(characters/agents/items) 우선, 없으면 무기(weapons=원신 / light_cones=스타레일 광추) + 무기 여부 */
