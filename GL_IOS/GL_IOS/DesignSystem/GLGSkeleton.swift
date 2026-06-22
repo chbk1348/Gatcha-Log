@@ -39,3 +39,24 @@ struct GLGSkeleton: View {
         }
     }
 }
+
+/// 기프트코드 자동수집 로딩 스켈레톤 — 코드행(코드/보상 + 교환 버튼) N행. (Android GiftCodeSkeleton 패리티)
+struct GLGGiftCodeSkeleton: View {
+    var rows: Int = 3
+
+    var body: some View {
+        VStack(spacing: 14) {
+            ForEach(0..<rows, id: \.self) { _ in
+                HStack {
+                    VStack(alignment: .leading, spacing: 7) {
+                        GLGSkeleton().frame(width: 110, height: 14)
+                        GLGSkeleton().frame(width: 160, height: 11)
+                    }
+                    Spacer(minLength: 8)
+                    GLGSkeleton(cornerRadius: 14).frame(width: 52, height: 28)
+                }
+            }
+        }
+        .padding(.vertical, 6)
+    }
+}
