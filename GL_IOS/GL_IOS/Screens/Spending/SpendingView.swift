@@ -31,6 +31,9 @@ struct SpendingView: View {
     var body: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 0, pinnedViews: []) {
+                // 월 지출 히어로 — 큰 숫자 + 지난달 대비(상단 헤더 영역을 히어로 섹션으로)
+                monthHero
+                    .padding(.top, 4).padding(.bottom, 12)
                 // 게임별 필터(스크롤) + 우측 고정 필터 버튼
                 HStack(spacing: 8) {
                     gameFilterRow
@@ -63,8 +66,6 @@ struct SpendingView: View {
         .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            // 월 지출 내역 — 우측 버튼 직전까지 가로로 꽉 채워 노출
-            ToolbarItem(placement: .principal) { monthHeaderItem }
             ToolbarItemGroup(placement: .topBarTrailing) {
                 NavigationLink { CalendarView(store: store) } label: { Image(systemName: "calendar") }
                 NavigationLink { SpendingInsightView(store: store) } label: { Image(systemName: "chart.line.uptrend.xyaxis") }
@@ -74,23 +75,25 @@ struct SpendingView: View {
         .sheet(isPresented: $showFilter) { filterSheet }
     }
 
-    // 월 지출 내역 — 헤더에서 우측 버튼 직전까지 가로 꽉 채움(합계 좌측 · 지난달 대비 우측).
-    private var monthHeaderItem: some View {
+    // 월 지출 히어로 — 이번 달 총 지출을 큰 숫자로 강조 + 지난달 대비.
+    private var monthHero: some View {
         let total = store.monthlyTotal()
         let diff = total - store.prevMonthTotal()
-        return HStack(spacing: 5) {
-            Image(systemName: "chart.pie.fill").font(.pretendard(size: 12)).foregroundStyle(accent.primary)
-            Text("\(store.displayMonth)월").font(.pretendard(size: 11, weight: .semibold)).foregroundStyle(GLGColor.textSecondary)
-            Text(won(total)).font(.pretendard(size: 15, weight: .bold))
-            Spacer(minLength: 10)
+        return VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 6) {
+                Image(systemName: "chart.pie.fill").font(.pretendard(size: 13)).foregroundStyle(accent.primary)
+                Text("\(store.displayMonth)월 지출").font(.pretendard(size: 13, weight: .medium)).foregroundStyle(GLGColor.textSecondary)
+            }
+            Text(won(total)).font(.pretendard(size: 34, weight: .heavy)).foregroundStyle(GLGColor.textPrimary).lineLimit(1)
             if total > 0 || store.prevMonthTotal() > 0 {
                 Text("지난달 " + (diff == 0 ? "동일" : (diff > 0 ? "+" : "-") + won(abs(diff))))
-                    .font(.pretendard(size: 11, weight: .semibold))
+                    .font(.pretendard(size: 13, weight: .semibold))
                     .foregroundStyle(diff > 0 ? GLGColor.dangerText : (diff < 0 ? accent.primary : GLGColor.textSecondary))
             }
         }
-        .lineLimit(1)
-        .frame(maxWidth: .infinity)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(20)
+        .glgGlass(in: RoundedRectangle(cornerRadius: 24, style: .continuous))
     }
 
     @ViewBuilder
@@ -133,14 +136,6 @@ struct SpendingView: View {
             }
             .padding(.vertical, 8)
         }
-        // 필터 버튼 좌측(스크롤 우측 가장자리) 페이드 — 칩이 자연스럽게 사라지도록
-        .mask(
-            LinearGradient(stops: [
-                .init(color: .black, location: 0),
-                .init(color: .black, location: 0.9),
-                .init(color: .clear, location: 1.0),
-            ], startPoint: .leading, endPoint: .trailing)
-        )
     }
 
     private var emptyState: some View {

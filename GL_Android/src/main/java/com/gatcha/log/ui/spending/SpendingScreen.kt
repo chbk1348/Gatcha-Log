@@ -244,28 +244,22 @@ fun MonthlySummaryCard(month: Int, total: Long, prevTotal: Long) {
         shape = RoundedCornerShape(24.dp),
         modifier = Modifier.fillMaxWidth(),
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            // 좌: 이번 달 총 지출 (1줄 컴팩트, 가운데 정렬)
+        // 히어로 섹션 — 이번 달 총 지출을 큰 숫자로 강조(좌측 정렬) + 지난달 대비.
+        Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 18.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.PieChart, null, tint = accent, modifier = Modifier.size(18.dp))
+                Icon(Icons.Default.PieChart, null, tint = accent, modifier = Modifier.size(16.dp))
                 Spacer(Modifier.width(6.dp))
-                Text("${month}월", fontSize = 12.sp, fontWeight = FontWeight.Medium, color = TextSecondary)
-                Spacer(Modifier.width(8.dp))
-                Text(won(total), fontSize = 21.sp, fontWeight = FontWeight.Bold)
+                Text("${month}월 지출", fontSize = 13.sp, fontWeight = FontWeight.Medium, color = TextSecondary)
             }
-            // 우: 지난달 대비 증감
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("지난달", fontSize = 11.sp, color = TextSecondary)
-                Spacer(Modifier.width(6.dp))
+            Spacer(Modifier.height(8.dp))
+            Text(won(total), fontSize = 34.sp, fontWeight = FontWeight.Black, color = TextPrimary, maxLines = 1)
+            if (total > 0 || prevTotal > 0) {
+                Spacer(Modifier.height(6.dp))
                 Text(
-                    (if (diff >= 0) "+" else "-") + won(kotlin.math.abs(diff)),
+                    "지난달 " + (if (diff == 0L) "동일" else (if (diff > 0) "+" else "-") + won(kotlin.math.abs(diff))),
                     fontSize = 13.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = if (diff > 0) DangerText else accent,
+                    fontWeight = FontWeight.SemiBold,
+                    color = if (diff > 0) DangerText else if (diff < 0) accent else TextSecondary,
                 )
             }
         }
