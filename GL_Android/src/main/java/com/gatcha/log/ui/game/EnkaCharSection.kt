@@ -473,9 +473,6 @@ private fun CharEffectsSection(c: EnkaChar, game: String) {
         effects = CharEffectsApi.fetch(game, c.id)
         loading = false
     }
-    // 로드 중엔 자리(제목+스피너) 표시, 빈 결과 확정 시 섹션 통째로 숨김.
-    if (!loading && effects.isEmpty()) return
-
     Spacer(Modifier.height(16.dp))
     SecLabel(effectsTitle(game))
     when {
@@ -488,19 +485,21 @@ private fun CharEffectsSection(c: EnkaChar, game: String) {
             // rank: 원신 명함=0(돌파 없음), 비공개 rank=-1 → 활성 0개 처리.
             val active = c.rank.coerceAtLeast(0)
             val gameColor = gameAccentColor(game)
+            // 설명을 못 받아도(예: ZZZ 의식 소스 미도달) rank 기준 1~6 단계 노드는 항상 표시(이름/설명만 빈 값).
+            val nodes = if (effects.isNotEmpty()) effects else (1..6).map { CharEffect(it, "", "") }
             var expanded by remember(c.id, game) { mutableStateOf(-1) }
             GlassCard(modifier = Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(7.dp)) {
-                    effects.forEachIndexed { i, e ->
+                    nodes.forEachIndexed { i, e ->
                         EffectNode(
                             effect = e,
                             isActive = e.index <= active,
                             gameColor = gameColor,
                             fallbackLabel = effectsTitle(game),
                             expanded = expanded == i,
-                            onToggle = { expanded = if (expanded == i) -1 else i },
+                            onToggle = { if (e.desc.isNotBlank()) expanded = if (expanded == i) -1 else i },
                         )
-                        if (i < effects.lastIndex) Spacer(Modifier.height(4.dp))
+                        if (i < nodes.lastIndex) Spacer(Modifier.height(4.dp))
                     }
                 }
             }
