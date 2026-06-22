@@ -310,9 +310,9 @@ fun GlgChip(
     }
 }
 
-// D 칩 토큰 — idle 아웃라인/글자색.
-private val ChipIdleBorder = Color(0xFFE3E5EA)
-private val ChipIdleText = Color(0xFF4A5159)
+// D 칩 토큰 — idle 아웃라인/글자색. (칩 규격을 따르는 다른 버튼도 참조하도록 internal)
+internal val ChipIdleBorder = Color(0xFFE3E5EA)
+internal val ChipIdleText = Color(0xFF4A5159)
 
 /** 상태 표시 배지 — [color] 12% 배경 + [color] 라벨(작은 둥근 사각). 정기 결제 등 비대화형 표시용 단일 규격. */
 @Composable

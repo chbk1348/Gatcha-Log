@@ -104,18 +104,18 @@ struct SpendingView: View {
     }
 
 
-    // 게임별 필터 핀(GamePill)과 동일한 크기·스타일
+    // 공통 칩(GLGChip)과 동일 규격 — 14pt 라운드·흰 배경+옅은 아웃라인, 선택(필터 활성)=accent 채움. 슬라이더 아이콘 유지.
     private var filterButton: some View {
         let active = activeFilterCount > 0
         return Button { showFilter = true } label: {
-            HStack(spacing: 4) {
-                Image(systemName: "slider.horizontal.3").font(.pretendard(size: 11, weight: .semibold))
-                Text(active ? "필터 \(activeFilterCount)" : "필터").font(.pretendard(size: 12, weight: .medium))
+            HStack(spacing: 5) {
+                Image(systemName: "slider.horizontal.3").font(.pretendard(size: 12, weight: .semibold))
+                Text(active ? "필터 \(activeFilterCount)" : "필터").font(.pretendard(size: 13, weight: .semibold))
             }
-            .foregroundStyle(active ? .white : Color(.darkGray))
-            .padding(.horizontal, 14).padding(.vertical, 8)
-            .background(active ? accent.primary : Color.white, in: Capsule())
-            .overlay(Capsule().stroke(active ? accent.primary : GLGColor.divider, lineWidth: 1))
+            .foregroundStyle(active ? .white : Color(hex: 0xFF4A5159))
+            .padding(.horizontal, 14).padding(.vertical, 9)
+            .background(active ? accent.primary : Color.white, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(active ? Color.clear : Color(hex: 0xFFE3E5EA), lineWidth: 1))
         }
         .buttonStyle(.plain)
     }
@@ -125,7 +125,8 @@ struct SpendingView: View {
             HStack(spacing: 8) {
                 GamePill(label: "전체", selected: gameFilter == nil, accent: accent.primary) { gameFilter = nil }
                 ForEach(GameData.shared.games, id: \.key) { g in
-                    GamePill(label: g.shortName, selected: gameFilter == g.displayName, accent: accent.primary) {
+                    // 게임 칩은 단일 규격 유지, 선택됨 색만 게임별 대표색으로.
+                    GamePill(label: g.shortName, selected: gameFilter == g.displayName, accent: Color(argb64: g.color)) {
                         gameFilter = g.displayName
                     }
                 }

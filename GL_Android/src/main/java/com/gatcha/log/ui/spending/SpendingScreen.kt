@@ -21,6 +21,8 @@ import androidx.compose.material.icons.automirrored.filled.ReceiptLong
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import com.gatcha.log.ui.components.GlgBadge
+import com.gatcha.log.ui.components.ChipIdleBorder
+import com.gatcha.log.ui.components.ChipIdleText
 import com.gatcha.log.ui.components.GlgChip
 import com.gatcha.log.ui.components.GlgChipVariant
 import com.gatcha.log.ui.components.GlgPullToRefreshBox
@@ -335,7 +337,8 @@ fun GameFilterRow(selectedGame: String?, modifier: Modifier = Modifier, onGameSe
     LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = modifier.padding(vertical = 8.dp)) {
         item { FilterPill("전체", selectedGame == null, accent) { onGameSelected(null) } }
         items(GameData.games) { game ->
-            FilterPill(game.shortName, selectedGame == game.displayName, accent) { onGameSelected(game.displayName) }
+            // 게임 칩은 단일 규격 유지, 선택됨 색만 게임별 대표색으로.
+            FilterPill(game.shortName, selectedGame == game.displayName, game.color.toColor()) { onGameSelected(game.displayName) }
         }
     }
 }
@@ -425,22 +428,23 @@ internal fun TagChip(tag: String) {
 private fun FilterButton(activeCount: Int, onClick: () -> Unit) {
     val accent = LocalAccent.current
     val active = activeCount > 0
+    // 공통 칩(GlgChip)과 동일 규격 — 14dp 라운드·흰 배경+옅은 아웃라인, 선택(필터 활성)=accent 채움. Tune 아이콘 유지.
     Surface(
-        shape = RoundedCornerShape(20.dp),
+        shape = RoundedCornerShape(14.dp),
         color = if (active) accent else Color.White,
-        border = androidx.compose.foundation.BorderStroke(1.dp, if (active) accent else DividerColor),
+        border = if (active) null else androidx.compose.foundation.BorderStroke(1.dp, ChipIdleBorder),
         modifier = Modifier.clickable { onClick() },
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 13.dp, vertical = 7.dp),
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 9.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Icon(Icons.Default.Tune, null, tint = if (active) Color.White else TextSecondary, modifier = Modifier.size(15.dp))
+            Icon(Icons.Default.Tune, null, tint = if (active) Color.White else ChipIdleText, modifier = Modifier.size(15.dp))
             Spacer(Modifier.width(5.dp))
             Text(
                 if (active) "필터 $activeCount" else "필터",
-                fontSize = 12.sp, fontWeight = FontWeight.Bold,
-                color = if (active) Color.White else Color.DarkGray,
+                fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
+                color = if (active) Color.White else ChipIdleText,
             )
         }
     }
