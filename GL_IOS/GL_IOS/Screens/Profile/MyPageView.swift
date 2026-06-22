@@ -12,32 +12,38 @@ private struct MonthPoint: Identifiable { let id = UUID(); let month: Int; let a
 struct MyPageView: View {
     @ObservedObject var store: SpendingStore
     @Environment(\.glgAccent) private var accent
+    @State private var appeared: Set<Int> = []
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
                 // ① 프로필 헤더
                 ProfileHeader(store: store).padding(.top, 4)
+                    .glgLoadIn(0, appeared: $appeared)
 
                 // ② 이번 달 지출 KPI
                 Spacer().frame(height: 13)
                 MonthlyKpiCard(monthly: store.monthlyTotal(), total: totalSpent,
                                dailyAvg: dailyAvg, gameCount: gameCount, prevMonthly: prevMonthly)
+                    .glgLoadIn(1, appeared: $appeared)
 
                 // ③ 월별 지출 추이
                 Spacer().frame(height: 13)
                 SectionLabel("월별 지출 추이")
                 MyPageMonthlyTrendCard(points: monthlyTrend)
+                    .glgLoadIn(2, appeared: $appeared)
 
                 // ④ 활동 메트릭 2×2
                 Spacer().frame(height: 11)
                 SectionLabel("활동")
                 metricGrid
+                    .glgLoadIn(3, appeared: $appeared)
 
                 // ⑤ 게임별 지출
                 Spacer().frame(height: 13)
                 SectionLabel("게임별 지출")
                 GameDonutCard(spendings: store.spendings)
+                    .glgLoadIn(4, appeared: $appeared)
             }
             .padding(.horizontal, 16)
             .padding(.bottom, 12)

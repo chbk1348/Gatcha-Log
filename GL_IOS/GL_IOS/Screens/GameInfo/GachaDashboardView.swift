@@ -7,6 +7,7 @@ struct GachaDashboardView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.glgAccent) private var accent
     @State private var selected: String? = nil
+    @State private var appeared: Set<Int> = []
 
     private let gold = Color(hex: 0xFFF5B301)
     private let purple = Color(hex: 0xFF9C6ADE)
@@ -49,7 +50,7 @@ struct GachaDashboardView: View {
                     Spacer(minLength: 0)
                 }
                 // 요약
-                dashCard {
+                dashCard(0) {
                     HStack(spacing: 8) {
                         tile(num(Int(d.total)), "총 뽑기")
                         tile(num(Int(d.five)), "획득 5성")
@@ -58,7 +59,7 @@ struct GachaDashboardView: View {
                     }
                 }
                 // 등급 비율
-                dashCard {
+                dashCard(1) {
                     cardTitle("등급 비율", "총 \(num(Int(d.total)))뽑")
                     stackBar([(Int(d.five), gold), (Int(d.four), purple), (Int(d.three), blue)]).padding(.top, 12)
                     HStack(spacing: 8) {
@@ -69,7 +70,7 @@ struct GachaDashboardView: View {
                 }
                 // 천장 분포
                 if d.five > 0 {
-                    dashCard {
+                    dashCard(2) {
                         cardTitle("5성 천장 분포", "최소 \(d.minPity) · 평균 \(d.avgPity) · 최대 \(d.maxPity)")
                         barRow(d.pityBuckets.map { Int(truncating: $0) }, ["10","20","30","40","50","60","70","80","90"], info.color).padding(.top, 14)
                         Text("가로축 = 5성이 나온 뽑기 횟수(천장) 구간").font(.pretendard(size: 10)).foregroundStyle(GLGColor.textSecondary).padding(.top, 6)
@@ -77,7 +78,7 @@ struct GachaDashboardView: View {
                 }
                 // 월별 추이
                 if !d.monthly.isEmpty {
-                    dashCard {
+                    dashCard(3) {
                         cardTitle("월별 뽑기 추이", "최근 \(d.monthly.count)개월")
                         barRow(d.monthly.map { Int(truncating: ($0.second as NSNumber?) ?? 0) },
                                d.monthly.map { String(((($0.first as? String) ?? "")).suffix(2)) }, accent.primary).padding(.top, 14)
@@ -85,7 +86,7 @@ struct GachaDashboardView: View {
                 }
                 // 픽업 vs 상시
                 if d.limited + d.standard > 0 {
-                    dashCard {
+                    dashCard(4) {
                         cardTitle("픽업 vs 상시", "한정 풀과 상시 풀 비중")
                         stackBar([(Int(d.limited), accent.primary), (Int(d.standard), Color(hex: 0xFFB8BDC6))]).padding(.top, 12)
                         HStack(spacing: 8) {
@@ -96,7 +97,7 @@ struct GachaDashboardView: View {
                 }
                 // 5성 타임라인
                 if !d.fiveStars.isEmpty {
-                    dashCard {
+                    dashCard(5) {
                         cardTitle("5성 타임라인", "최근 획득 순")
                         let shown = Array(d.fiveStars.prefix(30))
                         VStack(spacing: 0) {
@@ -118,8 +119,9 @@ struct GachaDashboardView: View {
         .scrollIndicators(.hidden)
     }
 
-    private func dashCard<C: View>(@ViewBuilder _ content: () -> C) -> some View {
+    private func dashCard<C: View>(_ index: Int, @ViewBuilder _ content: () -> C) -> some View {
         GLGCard(cornerRadius: 20, padding: 16) { VStack(alignment: .leading, spacing: 0) { content() } }
+            .glgLoadIn(index, appeared: $appeared)
     }
     private func cardTitle(_ t: String, _ s: String?) -> some View {
         VStack(alignment: .leading, spacing: 2) {
