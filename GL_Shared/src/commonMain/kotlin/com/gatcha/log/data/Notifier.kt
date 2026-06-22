@@ -13,7 +13,6 @@ expect object Notifier {
     val ID_ATTEND: Int
     val ID_AUTO_CHECKIN: Int
     val ID_RESIN_BASE: Int        // + game.ordinal
-    val ID_WISH_PICKUP_BASE: Int  // 위시 픽업: 캐릭터 이름 해시로 분산
     val ID_BUDGET_GAME_BASE: Int  // 게임별 예산 초과/임박. + game.ordinal
 
     fun notify(id: Int, title: String, text: String)

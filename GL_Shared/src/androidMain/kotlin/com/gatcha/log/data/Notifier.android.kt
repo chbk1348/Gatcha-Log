@@ -25,7 +25,6 @@ actual object Notifier {
     actual val ID_ATTEND: Int = 2002
     actual val ID_AUTO_CHECKIN: Int = 2003
     actual val ID_RESIN_BASE: Int = 2100
-    actual val ID_WISH_PICKUP_BASE: Int = 2200
     actual val ID_BUDGET_GAME_BASE: Int = 3300
 
     private fun ensureChannel(ctx: Context) {
