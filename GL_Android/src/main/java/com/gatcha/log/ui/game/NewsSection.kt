@@ -36,10 +36,13 @@ import com.gatcha.log.ui.theme.toColor
 
 /** 공지·뉴스 — 게임별 최신 공지(제목·날짜), 탭하면 HoYoLab 아티클 열기. 게임 필터 연동. */
 @Composable
-fun NewsSection(news: List<NewsItem>, gameFilter: String?, max: Int = 5) {
+fun NewsSection(news: List<NewsItem>, gameFilter: String, max: Int = 5) {
     val uriHandler = LocalUriHandler.current
+    // 헤더 드롭다운 규칙: "all"=전체, 그 외는 게임 키 → 해당 게임 displayName 매칭(일정 섹션과 동일).
     val items = remember(news, gameFilter) {
-        (if (gameFilter == null) news else news.filter { it.game == gameFilter }).take(max)
+        val filtered = if (gameFilter == "all") news
+        else GameData.games.firstOrNull { it.key == gameFilter }?.let { g -> news.filter { it.game == g.displayName } } ?: news
+        filtered.take(max)
     }
     if (items.isEmpty()) return
     Text("공지·뉴스", fontSize = 16.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 2.dp, bottom = 10.dp))
