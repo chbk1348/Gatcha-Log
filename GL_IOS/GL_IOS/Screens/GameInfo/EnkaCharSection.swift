@@ -461,18 +461,19 @@ struct EnkaStatPage: View {
                     .padding(.horizontal, 7).padding(.vertical, 2).background(enkaGold.opacity(0.16), in: RoundedRectangle(cornerRadius: 7))
             }
             if !a.subs.isEmpty {
-                LazyVGrid(columns: g2, spacing: 4) {
-                    ForEach(Array(a.subs.enumerated()), id: \.offset) { _, s in
-                        HStack(spacing: 6) {
-                            Text(s.label).font(.pretendard(size: 11)).foregroundStyle(GLGColor.textSecondary).lineLimit(1)
-                            Spacer(minLength: 4)
-                            Text(s.value).font(.pretendard(size: 12, weight: .bold)).foregroundStyle(s.crit ? enkaCrit : GLGColor.textPrimary).lineLimit(1)
+                // 부옵션 — 목업(design_enka_statsheet): 배경 박스 없이 상단 점선 구분선 + 2열 그리드.
+                VStack(spacing: 9) {
+                    DashHLine().stroke(Color.black.opacity(0.08), style: StrokeStyle(lineWidth: 1, dash: [4, 4])).frame(height: 1)
+                    LazyVGrid(columns: g2, spacing: 5) {
+                        ForEach(Array(a.subs.enumerated()), id: \.offset) { _, s in
+                            HStack(spacing: 6) {
+                                Text(s.label).font(.pretendard(size: 11)).foregroundStyle(GLGColor.textSecondary).lineLimit(1)
+                                Spacer(minLength: 4)
+                                Text(s.value).font(.pretendard(size: 12, weight: .bold)).foregroundStyle(s.crit ? enkaCrit : GLGColor.textPrimary).lineLimit(1)
+                            }
                         }
-                        .padding(.horizontal, 10).padding(.vertical, 8)
                     }
                 }
-                .padding(4)
-                .background(Color(hex: 0xFFF1F1F6).opacity(0.5), in: RoundedRectangle(cornerRadius: 14))
             }
         }
         .padding(13).frame(maxWidth: .infinity, alignment: .leading)
@@ -490,5 +491,15 @@ struct EnkaStatPage: View {
     private func secLabel(_ t: String) -> some View {
         Text(t).font(.pretendard(size: 13, weight: .bold)).foregroundStyle(GLGColor.textSecondary)
             .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+/// 가로 점선 구분선 — 부옵션 영역 상단 구분(목업 .subs border-top dashed).
+private struct DashHLine: Shape {
+    func path(in rect: CGRect) -> Path {
+        var p = Path()
+        p.move(to: CGPoint(x: 0, y: rect.midY))
+        p.addLine(to: CGPoint(x: rect.width, y: rect.midY))
+        return p
     }
 }
