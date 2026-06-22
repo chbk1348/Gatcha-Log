@@ -51,7 +51,8 @@ fun NewsSection(news: List<NewsItem>, gameFilter: String, onSeeAll: () -> Unit, 
     val items = all.take(max)
     Text("공지·뉴스", fontSize = 16.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 2.dp, bottom = 10.dp))
     GlassCard(modifier = Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp)) {
+        // 하단 패딩은 더보기 행이 직접 제공(여백 최소화), 더보기 없으면 Spacer 로 기본 여백 유지.
+        Column(Modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
             items.forEachIndexed { i, n ->
                 if (i > 0) Box(Modifier.fillMaxWidth().height(1.dp).background(DividerColor))
                 NewsRow(n, uriHandler)
@@ -59,11 +60,13 @@ fun NewsSection(news: List<NewsItem>, gameFilter: String, onSeeAll: () -> Unit, 
             if (all.size > max) {
                 Box(Modifier.fillMaxWidth().height(1.dp).background(DividerColor))
                 Row(
-                    modifier = Modifier.fillMaxWidth().clickable { onSeeAll() }.padding(vertical = 11.dp),
+                    modifier = Modifier.fillMaxWidth().clickable { onSeeAll() }.padding(vertical = 12.dp),
                     horizontalArrangement = Arrangement.Center,
                 ) {
                     Text("더보기 (${all.size})", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = accent)
                 }
+            } else {
+                Spacer(Modifier.height(16.dp))
             }
         }
     }
