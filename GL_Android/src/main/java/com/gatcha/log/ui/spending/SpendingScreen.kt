@@ -500,14 +500,18 @@ private fun SpendingFilterSheet(
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun FilterGroup(title: String, content: @Composable FlowRowScope.() -> Unit) {
-    Text(title, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextSecondary)
+    // 섹션 카드형 — 제목(카드 위) + 연회색 카드 안에 칩 FlowRow. 지출 추가 모달 SectionCard 와 동일 규격.
+    Text(title, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextSecondary, modifier = Modifier.padding(start = 2.dp))
     Spacer(Modifier.height(8.dp))
-    FlowRow(
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-        content = content,
-    )
-    Spacer(Modifier.height(18.dp))
+    GlassCard(modifier = Modifier.fillMaxWidth()) {
+        FlowRow(
+            modifier = Modifier.padding(16.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+            content = content,
+        )
+    }
+    Spacer(Modifier.height(14.dp))
 }
 
 @Composable
