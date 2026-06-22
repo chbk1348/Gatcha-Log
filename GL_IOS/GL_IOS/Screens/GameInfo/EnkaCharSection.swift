@@ -282,6 +282,11 @@ struct EnkaStatPage: View {
 
     private let g2 = [GridItem(.flexible()), GridItem(.flexible())]
 
+    // 명좌/성혼/의식 단계별 효과 — 외부 메타 API 비동기 로드.
+    @State private var effects: [CharEffect] = []
+    @State private var effectsLoading = true
+    @State private var expandedEffect: Int? = nil
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
@@ -311,12 +316,104 @@ struct EnkaStatPage: View {
                         }
                     }
                 }
+                // 명좌/성혼/의식 — 로드 중엔 스피너, 빈 결과면 섹션 숨김.
+                if effectsLoading || !effects.isEmpty {
+                    section(effectsTitle) { effectsCard }
+                }
             }
             .padding(16).padding(.bottom, 20)
         }
         .background(GLGBackground { Color.clear })
         .navigationTitle(char.name)
         .navigationBarTitleDisplayMode(.inline)
+        // 캐릭터/게임 바뀌면 효과 재조회(캐시 적중 시 즉시).
+        .task(id: char.id) {
+            effectsLoading = true
+            expandedEffect = nil
+            let r = (try? await CharEffectsApi.shared.fetch(gameKey: game, id: char.id)) ?? []
+            effects = r
+            effectsLoading = false
+        }
+    }
+
+    /// 섹션 제목 — 원신 명좌 · 스타레일 성혼 · 젠레스 의식.
+    private var effectsTitle: String {
+        switch game {
+        case "genshin": return "명좌"
+        case "zzz": return "의식"
+        default: return "성혼"
+        }
+    }
+
+    /// 게임 강조색(인게임 톤): 원신 골드 · 스타레일 퍼플 · 젠레스 옐로.
+    private var effectGameColor: Color {
+        switch game {
+        case "genshin": return Color(hex: 0xFFD8A12E)
+        case "zzz": return Color(hex: 0xFFF5A623)
+        default: return Color(hex: 0xFFB06BFF)
+        }
+    }
+
+    /// 단계별 효과 카드 — 로딩 스피너 또는 노드 리스트(활성=게임색/비활성=잠금, 탭 펼침).
+    @ViewBuilder
+    private var effectsCard: some View {
+        if effectsLoading {
+            HStack { Spacer(); ProgressView().tint(accent.primary); Spacer() }
+                .padding(.vertical, 18)
+                .frame(maxWidth: .infinity)
+                .glgGlass(in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+        } else {
+            // rank: 원신 명함=0, 비공개=-1 → 활성 0개. index ≤ active 가 활성.
+            let active = max(Int(char.rank), 0)
+            VStack(spacing: 4) {
+                ForEach(Array(effects.enumerated()), id: \.offset) { i, e in
+                    effectNode(e, isActive: Int(e.index) <= active, idx: i)
+                }
+            }
+            .padding(7)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .glgGlass(in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+        }
+    }
+
+    /// 단계 노드 1개 — 번호 배지(활성=게임색 채움/비활성=잠금) + 효과명 + 탭 펼침 설명.
+    @ViewBuilder
+    private func effectNode(_ e: CharEffect, isActive: Bool, idx: Int) -> some View {
+        let expanded = expandedEffect == idx
+        let gc = effectGameColor
+        VStack(alignment: .leading, spacing: 7) {
+            HStack(spacing: 10) {
+                Text("\(e.index)").font(.pretendard(size: 12, weight: .heavy))
+                    .foregroundStyle(isActive ? AnyShapeStyle(.white) : AnyShapeStyle(GLGColor.textSecondary.opacity(0.6)))
+                    .frame(width: 26, height: 26)
+                    .background(isActive ? AnyShapeStyle(gc) : AnyShapeStyle(Color.clear), in: Circle())
+                    .overlay(Circle().strokeBorder(GLGColor.textSecondary.opacity(0.35), lineWidth: isActive ? 0 : 1))
+                Text(e.name.isEmpty ? "\(effectsTitle) \(e.index)" : e.name)
+                    .font(.pretendard(size: 12.5, weight: .bold))
+                    .foregroundStyle(isActive ? GLGColor.textPrimary : GLGColor.textSecondary)
+                    .opacity(isActive ? 1 : 0.6)
+                    .lineLimit(expanded ? nil : 1)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                if !isActive {
+                    Text("잠금").font(.pretendard(size: 9, weight: .bold)).foregroundStyle(GLGColor.textSecondary.opacity(0.55))
+                }
+                Image(systemName: expanded ? "chevron.up" : "chevron.down")
+                    .font(.pretendard(size: 10)).foregroundStyle(GLGColor.textSecondary)
+            }
+            if expanded && !e.desc.isEmpty {
+                Text(e.desc).font(.pretendard(size: 11.5)).foregroundStyle(GLGColor.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .opacity(isActive ? 1 : 0.7)
+                    .padding(.leading, 36)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+        .padding(.horizontal, 7).padding(.vertical, 8)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(expanded ? AnyShapeStyle(gc.opacity(0.06)) : AnyShapeStyle(Color.clear),
+                    in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .contentShape(Rectangle())
+        .onTapGesture { expandedEffect = expanded ? nil : idx }
     }
 
     /// 섹션 라벨 + 콘텐츠 묶음 — 라벨↔카드는 좁게, 섹션 간은 넓게(시각 리듬 통일).
