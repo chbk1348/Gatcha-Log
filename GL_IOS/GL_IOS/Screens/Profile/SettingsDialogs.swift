@@ -105,36 +105,7 @@ struct BudgetSheet: View {
     }
 }
 
-// ── 넛지 기준 금액 ────────────────────────────────────────────────────────────
-
-struct NudgeThresholdSheet: View {
-    @ObservedObject var store: SpendingStore
-    @Environment(\.dismiss) private var dismiss
-    @State private var text: String = ""
-
-    var body: some View {
-        NavigationStack {
-            Form {
-                Section {
-                    TextField("기준 금액 (원)", text: $text)
-                        .keyboardType(.numberPad)
-                        .onChange(of: text) { _, newValue in text = newValue.filter(\.isNumber) }
-                } footer: {
-                    Text("단건 지출이 이 금액 이상이면 추가 전 한 번 더 확인해요.")
-                }
-            }
-            .navigationTitle("넛지 기준 금액")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("취소") { dismiss() } }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("저장") { store.setNudgeThreshold(Int64(text) ?? 0); dismiss() }
-                }
-            }
-            .onAppear { text = store.nudgeThreshold > 0 ? "\(store.nudgeThreshold)" : "" }
-        }
-    }
-}
+// 넛지 기준 금액 — 단일 입력이라 SettingsView 에서 네이티브 alert(중앙 모달)로 직접 노출(별도 시트 폐기).
 
 // ── 출처 · 저작권 ─────────────────────────────────────────────────────────────
 
