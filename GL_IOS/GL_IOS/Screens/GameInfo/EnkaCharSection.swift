@@ -316,10 +316,8 @@ struct EnkaStatPage: View {
                         }
                     }
                 }
-                // 명좌/성혼/의식 — 로드 중엔 스피너, 빈 결과면 섹션 숨김.
-                if effectsLoading || !effects.isEmpty {
-                    section(effectsTitle) { effectsCard }
-                }
+                // 운명의 자리/성혼/의식 — 항상 노출(활성/비활성). 이름·설명은 조회 성공 시에만 채움.
+                section(effectsTitle) { effectsCard }
             }
             .padding(16).padding(.bottom, 20)
         }
@@ -365,8 +363,10 @@ struct EnkaStatPage: View {
         } else {
             // rank: 원신 명함=0, 비공개=-1 → 활성 0개. index ≤ active 가 활성.
             let active = max(Int(char.rank), 0)
+            // 조회 실패/빈 결과(예: 젠레스)면 일반 노드 6개로 폴백 — 활성/비활성만이라도 표시.
+            let nodes = effects.isEmpty ? (1...6).map { CharEffect(index: Int32($0), name: "", desc: "") } : effects
             VStack(spacing: 4) {
-                ForEach(Array(effects.enumerated()), id: \.offset) { i, e in
+                ForEach(Array(nodes.enumerated()), id: \.offset) { i, e in
                     effectNode(e, isActive: Int(e.index) <= active, idx: i)
                 }
             }
