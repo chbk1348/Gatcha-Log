@@ -36,6 +36,7 @@ import com.gatcha.log.ui.theme.DividerColor
 import com.gatcha.log.ui.theme.LocalAccent
 import com.gatcha.log.ui.theme.TextPrimary
 import com.gatcha.log.ui.theme.TextSecondary
+import com.gatcha.log.ui.theme.glgLoadIn
 import com.gatcha.log.ui.theme.toColor
 import com.gatcha.log.util.num
 import com.gatcha.log.util.won
@@ -66,6 +67,7 @@ fun GachaDashboardScreen(
             ?: emptyList()
     }
     var selected by remember(games) { mutableStateOf(games.firstOrNull()) }
+    val loadInSet = remember { mutableSetOf<Int>() }
 
     Column(Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
         GlgScreenHeader("가챠 통계", onBack)
@@ -100,7 +102,7 @@ fun GachaDashboardScreen(
             val cost = if (spend > 0 && d.five > 0) spend / d.five else 0L
 
             // 1) 요약
-            DashCard {
+            DashCard(0, loadInSet) {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     StatTile(num(d.total), "총 뽑기", Modifier.weight(1f))
                     StatTile(num(d.five), "획득 5성", Modifier.weight(1f))
@@ -110,7 +112,7 @@ fun GachaDashboardScreen(
             }
 
             // 2) 등급 비율
-            DashCard {
+            DashCard(1, loadInSet) {
                 CardTitle("등급 비율", "총 ${num(d.total)}뽑")
                 Spacer(Modifier.height(12.dp))
                 Row(Modifier.fillMaxWidth().height(14.dp).clip(CircleShape)) {
@@ -128,7 +130,7 @@ fun GachaDashboardScreen(
 
             // 3) 5성 천장 분포
             if (d.five > 0) {
-                DashCard {
+                DashCard(2, loadInSet) {
                     CardTitle("5성 천장 분포", "최소 ${d.minPity} · 평균 ${d.avgPity} · 최대 ${d.maxPity}")
                     Spacer(Modifier.height(14.dp))
                     BarRow(
@@ -143,7 +145,7 @@ fun GachaDashboardScreen(
 
             // 4) 월별 뽑기 추이
             if (d.monthly.isNotEmpty()) {
-                DashCard {
+                DashCard(3, loadInSet) {
                     CardTitle("월별 뽑기 추이", "최근 ${d.monthly.size}개월")
                     Spacer(Modifier.height(14.dp))
                     BarRow(
@@ -156,7 +158,7 @@ fun GachaDashboardScreen(
 
             // 5) 픽업 vs 상시
             if (d.limited + d.standard > 0) {
-                DashCard {
+                DashCard(4, loadInSet) {
                     CardTitle("픽업 vs 상시", "한정 풀과 상시 풀 비중")
                     Spacer(Modifier.height(12.dp))
                     Row(Modifier.fillMaxWidth().height(14.dp).clip(CircleShape)) {
@@ -173,7 +175,7 @@ fun GachaDashboardScreen(
 
             // 6) 5성 타임라인
             if (d.fiveStars.isNotEmpty()) {
-                DashCard {
+                DashCard(5, loadInSet) {
                     CardTitle("5성 타임라인", "최근 획득 순")
                     Spacer(Modifier.height(10.dp))
                     val shown = d.fiveStars.take(30)
@@ -194,8 +196,8 @@ fun GachaDashboardScreen(
 }
 
 @Composable
-private fun DashCard(content: @Composable ColumnScope.() -> Unit) {
-    GlassCard(shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth()) {
+private fun DashCard(index: Int, loadInSet: MutableSet<Int>, content: @Composable ColumnScope.() -> Unit) {
+    GlassCard(shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth().glgLoadIn(index, loadInSet)) {
         Column(Modifier.padding(16.dp), content = content)
     }
 }

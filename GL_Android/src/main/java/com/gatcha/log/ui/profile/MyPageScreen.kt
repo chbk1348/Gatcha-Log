@@ -59,6 +59,7 @@ fun MyPageScreen(
     val gachaStats by viewModel.gachaStats.collectAsState()
 
     val showSettings = remember { mutableStateOf(false) }
+    val loadInSet = remember { mutableSetOf<Int>() }
 
     // 설정 페이지에서 시스템/제스처 뒤로가기 시 홈이 아니라 마이페이지로 복귀
     BackHandler(enabled = showSettings.value) { showSettings.value = false }
@@ -117,37 +118,41 @@ fun MyPageScreen(
         }
         // ① 프로필 헤더 (흰 카드)
         item {
-            ProfileHeader(
-                name = if (account.isGuest) "게스트" else profile.name,
-                photoUrl = if (account.isGuest) null else account.photoUrl,
-                isGuest = account.isGuest,
-                onLogin = { viewModel.signIn() },
-                onLogout = { viewModel.signOut() },
-            )
+            Box(Modifier.fillMaxWidth().glgLoadIn(0, loadInSet)) {
+                ProfileHeader(
+                    name = if (account.isGuest) "게스트" else profile.name,
+                    photoUrl = if (account.isGuest) null else account.photoUrl,
+                    isGuest = account.isGuest,
+                    onLogin = { viewModel.signIn() },
+                    onLogout = { viewModel.signOut() },
+                )
+            }
         }
         item { Spacer(Modifier.height(13.dp)) }
 
         // ② 이번 달 지출 KPI
         item {
-            MonthlyKpiCard(
-                monthly = monthlyTotal,
-                total = total,
-                dailyAvg = dailyAvg,
-                gameCount = games,
-                prevMonthly = prevMonthly,
-            )
+            Box(Modifier.fillMaxWidth().glgLoadIn(1, loadInSet)) {
+                MonthlyKpiCard(
+                    monthly = monthlyTotal,
+                    total = total,
+                    dailyAvg = dailyAvg,
+                    gameCount = games,
+                    prevMonthly = prevMonthly,
+                )
+            }
         }
         item { Spacer(Modifier.height(13.dp)) }
 
         // ③ 월별 지출 추이 (관리 섹션 대체)
         item { SectionLabel("월별 지출 추이") }
-        item { MonthlyTrendCard(monthlyTrend) }
+        item { Box(Modifier.fillMaxWidth().glgLoadIn(2, loadInSet)) { MonthlyTrendCard(monthlyTrend) } }
         item { Spacer(Modifier.height(11.dp)) }
 
         // ④ 활동 메트릭 2×2
         item { SectionLabel("활동") }
         item {
-            Column(verticalArrangement = Arrangement.spacedBy(11.dp)) {
+            Column(Modifier.fillMaxWidth().glgLoadIn(3, loadInSet), verticalArrangement = Arrangement.spacedBy(11.dp)) {
                 Row(horizontalArrangement = Arrangement.spacedBy(11.dp)) {
                     MetricTile(Icons.Default.LocalFireDepartment, "${attendanceStreak}일", "연속 출석", Modifier.weight(1f), tint = Color(0xFFFF7A45))
                     MetricTile(Icons.Default.Casino, "${gachaTotal}회", "가챠 기록", Modifier.weight(1f))
@@ -162,7 +167,7 @@ fun MyPageScreen(
 
         // ⑤ 게임별 지출 (도넛)
         item { SectionLabel("게임별 지출") }
-        item { GameDonutCard(spendings) }
+        item { Box(Modifier.fillMaxWidth().glgLoadIn(4, loadInSet)) { GameDonutCard(spendings) } }
     }
     }
 }

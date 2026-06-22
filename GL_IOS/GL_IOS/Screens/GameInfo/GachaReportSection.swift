@@ -8,6 +8,7 @@ struct GachaReportSection: View {
     let onOpenDashboard: () -> Void
     @Environment(\.glgAccent) private var accent
     @State private var importing = false
+    @State private var appeared: Set<Int> = []
 
     private var stats: GachaStats? { store.gachaStats }
     private var spend: [String: Int64] { store.gachaSpendByGame() }
@@ -68,9 +69,11 @@ struct GachaReportSection: View {
             ForEach(Array(games.enumerated()), id: \.offset) { idx, gk in
                 if let g = s.byGame[gk] {
                     gameCard(gk, g, labels: poolLabels[gk] ?? [:], showDash: idx == 0)
+                        .glgLoadIn(idx, appeared: $appeared)
                 }
             }
             GLGButton(title: "기록 추가 가져오기") { importing = true }
+                .glgLoadIn(games.count, appeared: $appeared)
         }
     }
 

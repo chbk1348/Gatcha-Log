@@ -17,6 +17,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -31,6 +32,7 @@ import com.gatcha.log.ui.components.GlassCard
 import com.gatcha.log.ui.components.GlgButton
 import com.gatcha.log.ui.components.GlgOutlineButton
 import com.gatcha.log.ui.theme.DividerColor
+import com.gatcha.log.ui.theme.glgLoadIn
 import com.gatcha.log.ui.theme.toColor
 import com.gatcha.log.ui.theme.LocalAccent
 import com.gatcha.log.ui.theme.TextPrimary
@@ -115,24 +117,28 @@ private fun EmptyState(onImport: () -> Unit) {
 @Composable
 private fun ReportContent(stats: GachaStats, spendByGameKey: Map<String, Long>, onImport: () -> Unit, onOpenDashboard: () -> Unit) {
     val games = stats.byGame.keys.sortedBy { GachaReport.gameOrder.indexOf(it).let { i -> if (i < 0) 99 else i } }
+    val loadInSet = remember { mutableSetOf<Int>() }
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
         games.forEachIndexed { idx, gk ->
             val g = stats.byGame[gk] ?: return@forEachIndexed
-            GameCard(gk, g, spendByGameKey[gk] ?: 0L, showDash = idx == 0, onOpenDashboard)
+            GameCard(gk, g, spendByGameKey[gk] ?: 0L, showDash = idx == 0, onOpenDashboard, idx, loadInSet)
         }
-        GlgButton("기록 추가 가져오기", onClick = onImport, modifier = Modifier.fillMaxWidth(), height = 46.dp)
+        GlgButton(
+            "기록 추가 가져오기", onClick = onImport,
+            modifier = Modifier.fillMaxWidth().glgLoadIn(games.size, loadInSet), height = 46.dp,
+        )
     }
 }
 
 // design_gachareport_mockup.html(B) — 게임 카드: 배지+4통계+운분포 바+최근5성, 첫 카드에 대시보드 진입.
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun GameCard(gk: String, g: GachaGameStat, spend: Long, showDash: Boolean, onOpenDashboard: () -> Unit) {
+private fun GameCard(gk: String, g: GachaGameStat, spend: Long, showDash: Boolean, onOpenDashboard: () -> Unit, index: Int, loadInSet: MutableSet<Int>) {
     val accent = LocalAccent.current
     val (shortName, _, color) = GachaReport.gameInfo[gk] ?: Triple(gk, gk, 0xFF888888L)
     val cost = if (spend > 0 && g.five > 0) spend / g.five else 0L
     val dist = g.luckDist
-    GlassCard(shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth()) {
+    GlassCard(shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth().glgLoadIn(index, loadInSet)) {
         Column(Modifier.padding(16.dp)) {
             // 헤더 — 배지 + 게임명
             Row(verticalAlignment = Alignment.CenterVertically) {
