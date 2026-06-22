@@ -40,6 +40,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.gatcha.log.data.DateUtil
 import com.gatcha.log.data.GachaBanner
+import com.gatcha.log.data.dhLabel
 import com.gatcha.log.data.Game
 import com.gatcha.log.data.GameData
 import com.gatcha.log.data.LiveNote
@@ -240,7 +241,7 @@ private fun buildMonthlySummary(
         val d = nextBanner.dDay()
         parts += buildAnnotatedString {
             withStyle(mint) { append(nextBanner.name) }; append(" 픽업 ")
-            withStyle(if (d <= 3) warn else mint) { append(nextBanner.endShortLabel()) }
+            withStyle(if (d <= 3) warn else mint) { append(dhLabel(nextBanner.endMillis)) }
             append(if (d <= 3) ", 막바지예요." else " 진행 중이에요.")
         }
     } else if (gameOverCount > 0) {
@@ -443,8 +444,8 @@ fun BannerCapsule(banner: GachaBanner) {
             Spacer(Modifier.width(8.dp))
             Surface(color = chipColor.copy(alpha = 0.14f), shape = RoundedCornerShape(999.dp)) {
                 Text(
-                    banner.endShortLabel(),
-                    fontSize = 11.sp, fontWeight = FontWeight.Bold, color = chipColor,
+                    dhLabel(banner.endMillis),
+                    fontSize = 11.sp, fontWeight = FontWeight.Bold, color = chipColor, maxLines = 1,
                     modifier = Modifier.padding(horizontal = 9.dp, vertical = 3.dp),
                 )
             }
@@ -496,7 +497,7 @@ fun resolveTodayTasks(
         ))
     }
     if (urgentBanner != null) {
-        add(TodayItem(Icons.Default.Casino, "${urgentBanner.name} 픽업 ${urgentBanner.endShortLabel()} 막바지", "픽업 계획", true, false, onBanner))
+        add(TodayItem(Icons.Default.Casino, "${urgentBanner.name} 픽업 ${dhLabel(urgentBanner.endMillis)} 막바지", "픽업 계획", true, false, onBanner))
     }
     if (budget > 0 && monthlyTotal > budget)
         add(TodayItem(Icons.Default.Savings, "예산 ${budgetPct - 100}% 초과", "예산 점검", true, false, onBudget))
@@ -609,50 +610,6 @@ private fun PityTier.shortLabel(): String = when (this) {
     PityTier.Safe -> "모으는 중"
 }
 
-/**
- * 가챠 현황 카드 — 좌: 가장 임박한 천장, 우: 가장 임박한 픽업. 읽기 전용(탭 → 게임정보 탭).
- * 데이터 없을 때는 가챠 기록 가져오기 CTA. (입력은 게임정보 탭 PitySection 담당)
- */
-@Composable
-fun GachaStatusCard(
-    nextBanner: GachaBanner?,
-    nextBannerPlan: BannerPlan?,
-    onOpen: () -> Unit,
-    onImport: () -> Unit,
-) {
-    val accent = LocalAccent.current
-    GlassCard(shape = RoundedCornerShape(24.dp), modifier = Modifier.fillMaxWidth().clickable { onOpen() }) {
-        Column(Modifier.padding(16.dp)) {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.Casino, null, tint = accent, modifier = Modifier.size(18.dp))
-                    Spacer(Modifier.width(6.dp))
-                    Text("가챠 현황", fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                }
-                Icon(Icons.Default.ChevronRight, "가챠 상세", tint = TextSecondary, modifier = Modifier.size(20.dp))
-            }
-            Spacer(Modifier.height(14.dp))
-            if (nextBanner == null) {
-                Text("가챠 기록을 가져오면 픽업 정보가 표시돼요", fontSize = 12.sp, color = TextSecondary)
-                Spacer(Modifier.height(12.dp))
-                Surface(
-                    shape = RoundedCornerShape(999.dp),
-                    color = accent.copy(alpha = 0.10f),
-                    modifier = Modifier.clickable { onImport() },
-                ) {
-                    Row(Modifier.padding(horizontal = 13.dp, vertical = 7.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.FileDownload, null, tint = accent, modifier = Modifier.size(15.dp))
-                        Spacer(Modifier.width(6.dp))
-                        Text("가챠 기록 가져오기", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = accent)
-                    }
-                }
-            } else {
-                NextBannerMini(nextBanner, nextBannerPlan, Modifier.fillMaxWidth())
-            }
-        }
-    }
-}
-
 @Composable
 private fun PityMini(p: PityHighlight?, modifier: Modifier) {
     Surface(
@@ -689,7 +646,7 @@ private fun PityMini(p: PityHighlight?, modifier: Modifier) {
 }
 
 @Composable
-private fun NextBannerMini(b: GachaBanner?, plan: BannerPlan?, modifier: Modifier) {
+fun NextBannerMini(b: GachaBanner?, plan: BannerPlan?, modifier: Modifier) {
     Surface(
         shape = RoundedCornerShape(16.dp),
         color = Color.White,
@@ -714,7 +671,7 @@ private fun NextBannerMini(b: GachaBanner?, plan: BannerPlan?, modifier: Modifie
                 Spacer(Modifier.height(6.dp))
                 val c = if (urgent) WarningText else LocalAccent.current
                 Surface(color = c.copy(alpha = 0.14f), shape = RoundedCornerShape(999.dp)) {
-                    Text(b.endShortLabel(), fontSize = 10.sp, fontWeight = FontWeight.Bold, color = c, modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp))
+                    Text(dhLabel(b.endMillis), fontSize = 10.sp, fontWeight = FontWeight.Bold, color = c, maxLines = 1, modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp))
                 }
                 // 픽업 확정 비용 인텔리전스 — 천장 누적·확률·1뽑 단가로 산출(가챠×지출 결합)
                 if (plan != null) {

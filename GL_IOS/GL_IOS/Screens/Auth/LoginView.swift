@@ -22,10 +22,10 @@ struct LoginView: View {
                 WishStarLogo(boxSize: 84)
                 Spacer().frame(height: 20)
                 Text("Gatcha LOG")
-                    .font(.system(size: 28, weight: .bold))
+                    .font(.pretendard(size: 28, weight: .bold))
                 Spacer().frame(height: 6)
                 Text("가챠 지출을 똑똑하게 관리하세요")
-                    .font(.system(size: 14))
+                    .font(.pretendard(size: 14))
                     .foregroundStyle(GLGColor.textSecondary)
 
                 Spacer().frame(height: 36)
@@ -45,12 +45,12 @@ struct LoginView: View {
 
                 Spacer().frame(height: 20)
                 Text("로그인하면 데이터가 구글 계정에 안전하게 저장·동기화됩니다.")
-                    .font(.system(size: 11))
+                    .font(.pretendard(size: 11))
                     .foregroundStyle(.gray)
                     .multilineTextAlignment(.center)
                 Spacer().frame(height: 10)
                 Text("앱을 다시 설치했나요? 이전에 쓰던 구글 계정으로 로그인하면 클라우드에 저장된 데이터가 복원돼요.")
-                    .font(.system(size: 11))
+                    .font(.pretendard(size: 11))
                     .foregroundStyle(accent.primary)
                     .multilineTextAlignment(.center)
             }
@@ -72,12 +72,12 @@ private struct FeatureRow: View {
                     .fill(accent.primary.opacity(0.12))
                     .frame(width: 40, height: 40)
                 Image(systemName: icon)
-                    .font(.system(size: 18))
+                    .font(.pretendard(size: 18))
                     .foregroundStyle(accent.primary)
             }
             VStack(alignment: .leading, spacing: 2) {
-                Text(title).font(.system(size: 14, weight: .bold))
-                Text(desc).font(.system(size: 12)).foregroundStyle(GLGColor.textSecondary)
+                Text(title).font(.pretendard(size: 14, weight: .bold))
+                Text(desc).font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary)
             }
             Spacer(minLength: 0)
         }

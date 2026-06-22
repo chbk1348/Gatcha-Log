@@ -34,20 +34,17 @@ struct SpendingDetailView: View {
                     VStack(alignment: .leading, spacing: 0) {
                         HStack(spacing: 12) {
                             Circle().fill(Color(argb64: s.gameColor)).frame(width: 44, height: 44)
-                                .overlay(Image(systemName: "yensign").font(.system(size: 18, weight: .bold)).foregroundStyle(.white))
+                                .overlay(Image(systemName: "yensign").font(.pretendard(size: 18, weight: .bold)).foregroundStyle(.white))
                             HStack(spacing: 8) {
-                                Text(s.gameName).font(.system(size: 16, weight: .bold))
+                                Text(s.gameName).font(.pretendard(size: 16, weight: .bold))
                                 if s.isSubscription {
-                                    Text("정기").font(.system(size: 10))
-                                        .foregroundStyle(Color(argb64: s.gameColor))
-                                        .padding(.horizontal, 6).padding(.vertical, 2)
-                                        .background(Color(argb64: s.gameColor).opacity(0.12), in: RoundedRectangle(cornerRadius: 6))
+                                    GLGBadge(label: "정기", color: Color(argb64: s.gameColor))
                                 }
                             }
                             Spacer()
                         }
-                        Text(won(s.amount)).font(.system(size: 32, weight: .bold)).padding(.top, 14)
-                        Text(s.dateLabel).font(.system(size: 13)).foregroundStyle(GLGColor.textSecondary).padding(.top, 6)
+                        Text(won(s.amount)).font(.pretendard(size: 32, weight: .bold)).padding(.top, 14)
+                        Text(s.dateLabel).font(.pretendard(size: 13)).foregroundStyle(GLGColor.textSecondary).padding(.top, 6)
                     }
                 }
                 // 상세 정보
@@ -66,20 +63,13 @@ struct SpendingDetailView: View {
                         if !s.tags.isEmpty {
                             Divider()
                             VStack(alignment: .leading, spacing: 8) {
-                                Text("태그").font(.system(size: 13)).foregroundStyle(GLGColor.textSecondary)
+                                Text("태그").font(.pretendard(size: 13)).foregroundStyle(GLGColor.textSecondary)
                                 HStack(spacing: 6) { ForEach(s.tags, id: \.self) { TagChip(tag: $0) } }
                             }
                             .frame(maxWidth: .infinity, alignment: .leading).padding(.vertical, 12)
                         }
                     }
                 }
-                // 액션
-                HStack(spacing: 10) {
-                    GLGOutlineButton(title: "삭제") { confirmDelete = true }
-                    // 수정 시 상세페이지를 닫지 않음 — 편집 시트를 위에 띄우고, 닫으면 상세로 복귀(갱신 내용 표시)
-                    GLGButton(title: "수정") { onEdit(s) }
-                }
-                .padding(.top, 4)
                 Color.clear.frame(height: 24)
             }
             .padding(.horizontal, 16).padding(.vertical, 8)
@@ -89,13 +79,21 @@ struct SpendingDetailView: View {
             Button("취소", role: .cancel) {}
             Button("삭제", role: .destructive) { store.deleteSpending(s.id); dismiss() }
         } message: { Text("삭제하면 되돌릴 수 없어요.") }
+        // 수정·삭제를 네비게이션 헤더 우측으로 이동(하단 버튼 제거).
+        .toolbar {
+            ToolbarItemGroup(placement: .topBarTrailing) {
+                // 수정 시 상세페이지를 닫지 않음 — 편집 시트를 위에 띄우고, 닫으면 상세로 복귀(갱신 내용 표시)
+                Button("수정") { onEdit(s) }
+                Button("삭제", role: .destructive) { confirmDelete = true }
+            }
+        }
     }
 
     private func detailRow(_ label: String, _ value: String) -> some View {
         HStack(alignment: .top) {
-            Text(label).font(.system(size: 13)).foregroundStyle(GLGColor.textSecondary).frame(width: 80, alignment: .leading)
+            Text(label).font(.pretendard(size: 13)).foregroundStyle(GLGColor.textSecondary).frame(width: 80, alignment: .leading)
             Spacer(minLength: 12)
-            Text(value).font(.system(size: 14, weight: .medium)).multilineTextAlignment(.trailing)
+            Text(value).font(.pretendard(size: 14, weight: .medium)).multilineTextAlignment(.trailing)
         }
         .padding(.vertical, 12)
     }

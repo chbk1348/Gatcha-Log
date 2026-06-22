@@ -25,10 +25,6 @@ class AppSettings {
         get() = prefs.getBoolean(KEY_NOTIFY_BUDGET, false)
         set(v) { prefs.putBoolean(KEY_NOTIFY_BUDGET, v) }
 
-    var notifyWish: Boolean
-        get() = prefs.getBoolean(KEY_NOTIFY_WISH, false)
-        set(v) { prefs.putBoolean(KEY_NOTIFY_WISH, v) }
-
     /** 과소비 리플렉션 넛지(지출 추가 시점) — 예산·평소치 초과면 저장 직전 한 번 더 확인. 기본 ON. */
     var nudgeOverspend: Boolean
         get() = prefs.getBoolean(KEY_NUDGE, true)
@@ -49,7 +45,7 @@ class AppSettings {
         set(v) { prefs.putBoolean(KEY_HOYO_EXPIRED, v) }
 
     /** 백그라운드 주기 작업이 필요한지(하나라도 켜져 있으면 스케줄 유지). */
-    fun needsPeriodicWork(): Boolean = autoCheckIn || notifyResin || notifyAttendance || notifyBudget || notifyWish
+    fun needsPeriodicWork(): Boolean = autoCheckIn || notifyResin || notifyAttendance || notifyBudget
 
     /** 알림 중복 방지용 마지막 발송 키 저장/조회 (예: "budget:2026-05"). */
     fun lastNotified(tag: String): String = prefs.getString("notif_last_$tag", "") ?: ""
@@ -61,7 +57,6 @@ class AppSettings {
         private const val KEY_NOTIFY_RESIN = "notify_resin"
         private const val KEY_NOTIFY_ATTEND = "notify_attendance"
         private const val KEY_NOTIFY_BUDGET = "notify_budget"
-        private const val KEY_NOTIFY_WISH = "notify_wish_pickup"
         private const val KEY_HOYO_EXPIRED = "hoyo_token_expired"
         private const val KEY_NUDGE = "nudge_overspend"
         private const val KEY_NUDGE_THRESHOLD = "nudge_threshold"

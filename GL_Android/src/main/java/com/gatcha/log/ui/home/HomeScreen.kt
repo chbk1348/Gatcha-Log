@@ -7,9 +7,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.EnterExitState
-import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
@@ -47,6 +45,7 @@ import kotlinx.coroutines.launch
 import java.util.Calendar
 import com.gatcha.log.data.DateUtil
 import com.gatcha.log.data.GameData
+import com.gatcha.log.data.GachaBanner
 import com.gatcha.log.data.GachaReport
 import com.gatcha.log.data.GachaStats
 import com.gatcha.log.data.HomeCards
@@ -137,13 +136,13 @@ fun HomeScreen(viewModel: SpendingViewModel = viewModel()) {
     // 닫을 땐 같은 위치로 줄며 라운드가 다시 차올라 FAB 로 흡수되는 느낌.
     AnimatedContent(
         targetState = showAddSpendingSheet.value,
-        transitionSpec = { fadeIn(tween(200)) togetherWith fadeOut(tween(260)) },
+        transitionSpec = { fadeIn(glgStandardSpec()) togetherWith fadeOut(glgShortSpec()) },
         label = "rootPage",
     ) { addPage ->
         if (addPage) {
             // 등장 0→1 / 퇴장 1→0. 스케일(0.35→1, FAB 우하단 피벗) + 모서리 라운드(32→0dp)로 morph.
             val morph by transition.animateFloat(
-                transitionSpec = { tween(durationMillis = 360, easing = FastOutSlowInEasing) },
+                transitionSpec = { glgEmphasisSpec() },
                 label = "fabMorph",
             ) { state -> if (state == EnterExitState.Visible) 1f else 0f }
             Box(
@@ -180,8 +179,8 @@ fun HomeScreen(viewModel: SpendingViewModel = viewModel()) {
                     // 하위 페이지(연간 리포트·알림 상세 등)에서는 하단바·FAB를 아래로 슬라이드해 숨김
                     AnimatedVisibility(
                         visible = !subPageActive,
-                        enter = slideInVertically(tween(280)) { it } + fadeIn(tween(280)),
-                        exit = slideOutVertically(tween(280)) { it } + fadeOut(tween(220)),
+                        enter = slideInVertically(glgStandardSpec()) { it } + fadeIn(glgStandardSpec()),
+                        exit = slideOutVertically(glgStandardSpec()) { it } + fadeOut(glgShortSpec()),
                     ) {
                         BottomNavBar(
                             selectedTab = selectedTab,
@@ -202,8 +201,8 @@ fun HomeScreen(viewModel: SpendingViewModel = viewModel()) {
                             transitionSpec = {
                                 // 탭 인덱스 방향에 따라 좌/우로 슬라이드 + 페이드
                                 val dir = if (targetState > initialState) 1 else -1
-                                (slideInHorizontally(tween(260)) { w -> dir * w / 4 } + fadeIn(tween(260))) togetherWith
-                                    (slideOutHorizontally(tween(260)) { w -> -dir * w / 4 } + fadeOut(tween(180)))
+                                (slideInHorizontally(glgStandardSpec()) { w -> dir * w / 4 } + fadeIn(glgStandardSpec())) togetherWith
+                                    (slideOutHorizontally(glgStandardSpec()) { w -> -dir * w / 4 } + fadeOut(glgShortSpec()))
                             },
                             label = "tab",
                         ) { tab ->
@@ -334,12 +333,12 @@ fun HomeContent(
         transitionSpec = {
             if (targetState) {
                 // 알림 열기: 오른쪽에서 슬라이드 인 (push)
-                (slideInHorizontally(tween(300)) { w -> w } + fadeIn(tween(300))) togetherWith
-                    (slideOutHorizontally(tween(300)) { w -> -w / 4 } + fadeOut(tween(220)))
+                (slideInHorizontally(glgStandardSpec()) { w -> w } + fadeIn(glgStandardSpec())) togetherWith
+                    (slideOutHorizontally(glgStandardSpec()) { w -> -w / 4 } + fadeOut(glgShortSpec()))
             } else {
                 // 홈 복귀: 오른쪽으로 슬라이드 아웃 (pop)
-                (slideInHorizontally(tween(300)) { w -> -w / 4 } + fadeIn(tween(300))) togetherWith
-                    (slideOutHorizontally(tween(300)) { w -> w } + fadeOut(tween(220)))
+                (slideInHorizontally(glgStandardSpec()) { w -> -w / 4 } + fadeIn(glgStandardSpec())) togetherWith
+                    (slideOutHorizontally(glgStandardSpec()) { w -> w } + fadeOut(glgShortSpec()))
             }
         },
         label = "notif",
@@ -359,11 +358,13 @@ fun HomeContent(
         onRefresh = { viewModel.refreshGameInfo(force = true) },
         modifier = Modifier.fillMaxSize(),
     ) {
+    // 콘텐츠 로드인 스태거 — 첫 표시 1회만 등장(스크롤 재진입 시 재애니메이션 방지용 인덱스 보관).
+    val loadInSet = remember { mutableSetOf<Int>() }
     LazyColumn(state = listState, modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
         // HoYoLAB 토큰 만료 감지 시 최상단 배너 — 자동 출석에서 AUTH 실패가 누적되어
         // 사용자가 출석을 며칠씩 못 챙기는 사례 방지. CTA 한 번으로 재연동 진입.
         if (hoyoTokenExpired) {
-            item {
+            glgStaggerItem(0, loadInSet) {
                 TokenExpiredBanner(onReconnect = {
                     viewModel.requestOpenHoyolabLink()
                     onNavigateToMyPage()
@@ -371,7 +372,7 @@ fun HomeContent(
             }
         }
         // 슬림 헤더 (프로필·인사·연속·벨)
-        item {
+        glgStaggerItem(1, loadInSet) {
             HomeHeader(
                 photoUrl = account.photoUrl,
                 alertCount = unreadCount,
@@ -380,7 +381,7 @@ fun HomeContent(
         }
         item { Spacer(Modifier.height(12.dp)) }
         // M — 이번 달 한눈에 (인사이트 요약). 대표 지시로 헤더 바로 밑 최상단 배치.
-        item {
+        glgStaggerItem(2, loadInSet) {
             MonthlySummaryCard(
                 monthlyTotal = monthlyTotal,
                 prevTotal = prevTotal,
@@ -393,7 +394,7 @@ fun HomeContent(
             Spacer(Modifier.height(16.dp))
         }
         // 오늘 할 일 — 상태 기반 리스트(출석·재화·픽업·예산·천장). 각 항목 탭 시 해당 섹션으로 앵커링.
-        item {
+        glgStaggerItem(3, loadInSet) {
             // 로딩 중엔 스켈레톤, 배너·노트 로드 완료 시 전체 리스트를 한 번에 표출
             if (!gameInfoReady) {
                 TodayTaskSkeleton()
@@ -415,18 +416,8 @@ fun HomeContent(
             }
             Spacer(Modifier.height(16.dp))
         }
-        // G — 가챠 현황 미니카드 (천장 + 다음 픽업, 읽기전용). 가챠 정체성 고정 노출.
-        item {
-            GachaStatusCard(
-                nextBanner = nextBanner,
-                nextBannerPlan = nextBannerPlan,
-                onOpen = onNavigateToGameInfo,
-                onImport = { gachaPicker.launch(arrayOf("*/*")) },
-            )
-            Spacer(Modifier.height(16.dp))
-        }
         // 실시간 노트 (레진/배터리 등) — 출석은 '오늘 할 일'이 담당하므로 노트만 표시(중복 제거)
-        item {
+        glgStaggerItem(4, loadInSet) {
             GameStatusSection(
                 hoyolab = hoyolab,
                 liveNotes = liveNotes,
@@ -435,10 +426,10 @@ fun HomeContent(
             )
             Spacer(Modifier.height(16.dp))
         }
-        // 픽업 배너 캡슐 (임박 종료) — 가장 임박 1건은 G 카드가 표시하므로 그 다음부터 노출
+        // 픽업 배너 캡슐 (임박 종료) — 가장 임박 1건은 가챠 요약 카드가 표시하므로 그 다음부터 노출
         val restBanners = soonBanners.drop(1)
         if (restBanners.isNotEmpty()) {
-            item {
+            glgStaggerItem(5, loadInSet) {
                 Column {
                     Text("픽업 배너", fontSize = 13.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 2.dp, bottom = 10.dp))
                     restBanners.forEachIndexed { i, b ->
@@ -450,8 +441,8 @@ fun HomeContent(
             }
         }
         // 사용자 구성(표시·순서)대로 본문 카드 렌더
-        homeCards.filter { it.visible }.forEach { card ->
-            item(key = card.id) {
+        homeCards.filter { it.visible }.forEachIndexed { idx, card ->
+            glgStaggerItem(6 + idx, loadInSet, key = card.id) {
                 when (card.id) {
                     // D — 지출 + 게임별 예산(N5)
                     HomeCards.SPENDING -> SpendingBudgetSection(
@@ -460,12 +451,18 @@ fun HomeContent(
                         perGame = perGameSpend,
                         onEditBudget = { showBudgetDialog.value = true },
                     )
-                    HomeCards.GACHA -> GachaSummarySection(stats = gachaStats, onOpen = onNavigateToGameInfo)
+                    HomeCards.GACHA -> GachaSummarySection(
+                        stats = gachaStats,
+                        nextBanner = nextBanner,
+                        nextBannerPlan = nextBannerPlan,
+                        onOpen = onNavigateToGameInfo,
+                        onImport = { gachaPicker.launch(arrayOf("*/*")) },
+                    )
                 }
                 Spacer(Modifier.height(16.dp))
             }
         }
-        item { HomeEditButton { showHomeEdit.value = true } }
+        glgStaggerItem(8, loadInSet) { HomeEditButton { showHomeEdit.value = true } }
         item { Spacer(Modifier.height(120.dp)) }
     }
     }
@@ -586,9 +583,18 @@ fun GameStatusSection(
     }
 }
 
-/** 홈 가챠 요약 카드 — 탭하면 게임 정보(가챠 통계 대시보드)로 이동. */
+/**
+ * 홈 가챠 요약 카드 — 다음 픽업(구 '가챠 현황' 통합) + 가챠 통계 요약. 탭하면 게임 정보로 이동.
+ * 기록이 없으면 가져오기 CTA 노출.
+ */
 @Composable
-fun GachaSummarySection(stats: GachaStats?, onOpen: () -> Unit) {
+fun GachaSummarySection(
+    stats: GachaStats?,
+    nextBanner: GachaBanner?,
+    nextBannerPlan: BannerPlan?,
+    onOpen: () -> Unit,
+    onImport: () -> Unit,
+) {
     val accent = LocalAccent.current
     GlassCard(shape = RoundedCornerShape(24.dp), modifier = Modifier.fillMaxWidth().clickable { onOpen() }) {
         Column(Modifier.padding(20.dp)) {
@@ -600,9 +606,24 @@ fun GachaSummarySection(stats: GachaStats?, onOpen: () -> Unit) {
                 }
                 Icon(Icons.Default.ChevronRight, "가챠 통계 보기", tint = TextSecondary, modifier = Modifier.size(20.dp))
             }
+            // 다음 픽업(구 '가챠 현황') — 비용 인텔리전스 포함
+            Spacer(Modifier.height(14.dp))
+            NextBannerMini(nextBanner, nextBannerPlan, Modifier.fillMaxWidth())
             Spacer(Modifier.height(16.dp))
             if (stats == null) {
-                Text("가챠 기록을 가져오면 요약이 표시돼요", fontSize = 12.sp, color = TextSecondary)
+                Text("가챠 기록을 가져오면 통계 요약이 표시돼요", fontSize = 12.sp, color = TextSecondary)
+                Spacer(Modifier.height(12.dp))
+                Surface(
+                    shape = RoundedCornerShape(999.dp),
+                    color = accent.copy(alpha = 0.10f),
+                    modifier = Modifier.clickable { onImport() },
+                ) {
+                    Row(Modifier.padding(horizontal = 13.dp, vertical = 7.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.FileDownload, null, tint = accent, modifier = Modifier.size(15.dp))
+                        Spacer(Modifier.width(6.dp))
+                        Text("가챠 기록 가져오기", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = accent)
+                    }
+                }
             } else {
                 val totalFive = stats.byGame.values.sumOf { it.five }
                 Row(Modifier.fillMaxWidth()) {

@@ -34,7 +34,7 @@ struct WishStarLogo: View {
                 .frame(width: boxSize, height: boxSize)
                 .overlay(
                     Image(systemName: "sparkles")
-                        .font(.system(size: boxSize * 0.42, weight: .semibold))
+                        .font(.pretendard(size: boxSize * 0.42, weight: .semibold))
                         .foregroundStyle(Color(hex: 0xFF34D1B6))
                 )
                 .scaleEffect(entered ? 1 : 0)

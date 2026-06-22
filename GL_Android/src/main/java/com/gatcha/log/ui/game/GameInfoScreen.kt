@@ -1,7 +1,6 @@
 package com.gatcha.log.ui.game
 
 import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
@@ -49,7 +48,7 @@ import com.gatcha.log.ui.theme.*
 import kotlinx.coroutines.launch
 
 /** 게임정보 탭의 풀스크린 하위 페이지 (열리면 하단바·FAB 숨김) */
-private enum class GiSub { Main, HoyoLink, Dashboard, Rate, Calc, RechargeValue, Report, Gift, Schedule, CharStats, CharRoster }
+private enum class GiSub { Main, HoyoLink, Dashboard, Rate, Calc, RechargeValue, Report, Gift, Schedule, Pickups, News, CharStats, CharRoster }
 
 /** 화면 전환 push/pop 방향용 계층 깊이. Main=0, 하위 페이지=1, 캐릭터 상세(목록서 진입)=2. */
 private fun subDepth(s: GiSub): Int = when (s) {
@@ -71,6 +70,7 @@ fun GameInfoScreen(
     val banners by viewModel.activeBanners.collectAsState()
     val events by viewModel.gameEvents.collectAsState()
     val notes by viewModel.liveNotes.collectAsState()
+    val gameNews by viewModel.gameNews.collectAsState()
     val ledgers by viewModel.ledgers.collectAsState()
     val combat by viewModel.combat.collectAsState()
     val attendanceToday by viewModel.attendanceToday.collectAsState()
@@ -143,11 +143,11 @@ fun GameInfoScreen(
         transitionSpec = {
             // 계층 깊이로 push/pop 방향 결정 (Main=0 < 하위=1 < 상세(CharStats)=2)
             if (subDepth(targetState) >= subDepth(initialState)) {
-                (slideInHorizontally(tween(300)) { it } + fadeIn(tween(300))) togetherWith
-                    (slideOutHorizontally(tween(300)) { -it / 4 } + fadeOut(tween(220)))
+                (slideInHorizontally(glgStandardSpec()) { it } + fadeIn(glgStandardSpec())) togetherWith
+                    (slideOutHorizontally(glgStandardSpec()) { -it / 4 } + fadeOut(glgShortSpec()))
             } else {
-                (slideInHorizontally(tween(300)) { -it / 4 } + fadeIn(tween(300))) togetherWith
-                    (slideOutHorizontally(tween(300)) { it } + fadeOut(tween(220)))
+                (slideInHorizontally(glgStandardSpec()) { -it / 4 } + fadeIn(glgStandardSpec())) togetherWith
+                    (slideOutHorizontally(glgStandardSpec()) { it } + fadeOut(glgShortSpec()))
             }
         },
         label = "giSubPage",
@@ -203,6 +203,12 @@ fun GameInfoScreen(
             GiSub.Schedule -> SectionPage(onBack = { subPage = GiSub.Main }) {
                 GameScheduleFullContent(banners, events, challenges, gameFilter)
             }
+            GiSub.Pickups -> SectionPage(onBack = { subPage = GiSub.Main }) {
+                GamePickupFullContent(banners, gameFilter)
+            }
+            GiSub.News -> SectionPage(onBack = { subPage = GiSub.Main }) {
+                NewsFullContent(gameNews, gameFilter)
+            }
             GiSub.Main -> GlgPullToRefreshBox(
             isRefreshing = isRefreshing,
             onRefresh = { viewModel.refreshGameInfo(force = true) },
@@ -255,6 +261,7 @@ fun GameInfoScreen(
             item {
                 EnkaCharSection(
                     viewModel,
+                    gameFilter = gameFilter,
                     onOpenStats = { c, g -> statChar = c; statCharGame = g; statReturn = GiSub.Main; subPage = GiSub.CharStats },
                     // 더보기로 새로 진입 시엔 보유목록 상태(스크롤/필터) 초기화 — 상세→뒤로 복귀는 SaveableStateProvider 가 유지
                     onOpenAll = { g -> rosterGame = g; subPageStateHolder.removeState(GiSub.CharRoster); subPage = GiSub.CharRoster },
@@ -264,8 +271,14 @@ fun GameInfoScreen(
             // 통합 게임 일정 — 헤더 드롭다운(gameFilter) 연동.
             if (schedule.isNotEmpty()) {
                 item { Spacer(Modifier.height(20.dp)) }
-                item { GameScheduleSection(schedule, banners, gameFilter) { subPage = GiSub.Schedule } }
+                item { GameScheduleSection(schedule, banners, gameFilter, onSeeAll = { subPage = GiSub.Schedule }, onSeePickups = { subPage = GiSub.Pickups }) }
             }
+            // 게임 주년 — 지원 게임의 다가오는 주년(임박 순).
+            item { Spacer(Modifier.height(20.dp)) }
+            item { AnniversarySection() }
+            // 공지·뉴스 — 게임별 최신 공지(탭하면 HoYoLab 열기).
+            item { Spacer(Modifier.height(20.dp)) }
+            item { NewsSection(gameNews, gameFilter, onSeeAll = { subPage = GiSub.News }) }
             // 전투 진행도·수입 일지(게임 필터 연동). 픽업 배너는 게임 일정으로 통합돼 제외.
             item { Spacer(Modifier.height(20.dp)) }
             item {

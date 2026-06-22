@@ -23,10 +23,13 @@ import androidx.compose.ui.unit.sp
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import com.gatcha.log.data.GameData
 import com.gatcha.log.data.HoyolabConfig
 import com.gatcha.log.data.api.GiftCode
+import com.gatcha.log.ui.components.GiftCodeSkeleton
 import com.gatcha.log.ui.components.GlassCard
 import com.gatcha.log.ui.components.GlgButton
+import com.gatcha.log.ui.components.GlgChip
 import com.gatcha.log.ui.components.GlgScreenHeader
 import com.gatcha.log.ui.components.GlgTextField
 import com.gatcha.log.data.RedeemState
@@ -76,20 +79,9 @@ internal fun GiftCodePage(
                 Spacer(Modifier.height(2.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     games.forEach { (key, label) ->
-                        val sel = key == selected
-                        Surface(
-                            modifier = Modifier.clickable { selected = key },
-                            shape = RoundedCornerShape(50),
-                            color = if (sel) accent else Color(0xF7FFFFFF),
-                            border = if (sel) null else BorderStroke(1.dp, DividerColor),
-                        ) {
-                            Text(
-                                label,
-                                modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp),
-                                fontSize = 13.sp, fontWeight = FontWeight.Bold,
-                                color = if (sel) Color.White else TextSecondary,
-                            )
-                        }
+                        // 게임 칩 — 선택됨 색을 게임별 대표색으로(단일 규격 유지).
+                        val gameColor = GameData.games.firstOrNull { it.key == key }?.color?.toColor() ?: accent
+                        GlgChip(label = label, selected = key == selected, color = gameColor) { selected = key }
                     }
                 }
                 // 활성 코드 카드
@@ -107,7 +99,7 @@ internal fun GiftCodePage(
                         }
                         Spacer(Modifier.height(8.dp))
                         when {
-                            codesLoading && activeCodes.isEmpty() -> Text("코드 불러오는 중…", fontSize = 12.sp, color = TextSecondary, modifier = Modifier.padding(vertical = 6.dp))
+                            codesLoading && activeCodes.isEmpty() -> GiftCodeSkeleton()
                             activeCodes.isEmpty() -> Text("지금은 활성 코드가 없어요", fontSize = 12.sp, color = TextSecondary, modifier = Modifier.padding(vertical = 6.dp))
                             else -> {
                                 val unredeemed = activeCodes.filter { it.code !in redeemedCodes }.sortedByDescending { it.highlight }

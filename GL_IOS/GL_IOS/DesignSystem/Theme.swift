@@ -40,6 +40,10 @@ enum GLGColor {
     static let progressEmpty = Color(hex: 0xFFE0E0E0)
     static let divider = Color(hex: 0xFFF0F0F0)
 
+    // 스켈레톤 시머 토큰 (Android SkeletonBase/SkeletonHighlight 와 패리티)
+    static let skeletonBase = Color(hex: 0xFFEAEAF0)
+    static let skeletonHighlight = Color(hex: 0xFFF6F6FA)
+
     // 게임 색상 (웹앱 GAMES 정의와 동일)
     static let genshin = Color(hex: 0xFF4F8EF7)
     static let hsr = Color(hex: 0xFFB06BFF)
@@ -63,6 +67,12 @@ enum GLGTheme {
         GLGAccent(index: 2, label: "인디고", primary: Color(hex: 0xFF4F46E5), secondary: Color(hex: 0xFFA5B4FC)),
         GLGAccent(index: 3, label: "블루", primary: Color(hex: 0xFF3B82F6), secondary: Color(hex: 0xFF93C5FD)),
         GLGAccent(index: 4, label: "로즈", primary: Color(hex: 0xFFF43F5E), secondary: Color(hex: 0xFFFDA4AF)),
+        // 추가 5색 — 기존 인덱스(0~4) 보존 위해 끝에 append. (Color.kt AccentPalette 와 동일)
+        GLGAccent(index: 5, label: "오렌지", primary: Color(hex: 0xFFF97316), secondary: Color(hex: 0xFFFDBA74)),
+        GLGAccent(index: 6, label: "앰버", primary: Color(hex: 0xFFF59E0B), secondary: Color(hex: 0xFFFCD34D)),
+        GLGAccent(index: 7, label: "그린", primary: Color(hex: 0xFF22C55E), secondary: Color(hex: 0xFF86EFAC)),
+        GLGAccent(index: 8, label: "시안", primary: Color(hex: 0xFF06B6D4), secondary: Color(hex: 0xFF67E8F9)),
+        GLGAccent(index: 9, label: "핑크", primary: Color(hex: 0xFFEC4899), secondary: Color(hex: 0xFFF9A8D4)),
     ]
 
     /// 인덱스 → 강조색 (범위를 벗어나면 민트로 폴백 — Kotlin getOrElse 동작과 동일).

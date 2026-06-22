@@ -34,11 +34,22 @@ private func enkaRankLabel(_ c: EnkaChar, _ game: String) -> String? {
     }
 }
 
-/// 게임정보 탭 상시 섹션 — Enka 쇼케이스 로스터(2열). 캐릭터 탭 → [onOpen].
+private func enkaGameLabel(_ game: String) -> String {
+    switch game {
+    case "genshin": return "원신"
+    case "hsr": return "스타레일"
+    case "zzz": return "젠레스"
+    default: return game
+    }
+}
+
+/// 게임정보 탭 상시 섹션 — Enka 쇼케이스 로스터(2열). 헤더 게임필터([filter])에 연동.
+/// "all"=원신·스타레일·젠레스를 게임별 블록으로 모두 표시, 특정 게임=해당 게임만. 캐릭터 탭 → [onOpen].
 struct EnkaCharSection: View {
     @ObservedObject var store: SpendingStore
     @Environment(\.glgAccent) private var accent
-    @State private var game = "genshin"
+    /// 헤더 게임필터("all" | game.key)
+    let filter: String
     let onOpen: (EnkaChar, String) -> Void
     /// 더보기 → 보유 캐릭터 전체 페이지(게임 전달)
     var onOpenAll: (String) -> Void = { _ in }
@@ -46,27 +57,56 @@ struct EnkaCharSection: View {
     var onOpenHoyolab: () -> Void = {}
 
     private let cols = [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)]
+    private static let enkaGames = ["genshin", "hsr", "zzz"]
+
+    /// 표시 대상 게임 — 전체면 3게임, 특정 게임이면 그 게임(Enka 미지원이면 비표시).
+    private var games: [String] {
+        filter == "all" ? Self.enkaGames : (Self.enkaGames.contains(filter) ? [filter] : [])
+    }
 
     var body: some View {
-        let chars = store.enkaResult?.profile?.chars ?? []
         let linked = store.hoyolabConfig.isLinked
+        // 클라우드서 복원된 UID 가 있는데 토큰만 없으면 = 재설치/재로그인. 토큰은 보안상 기기에만 저장돼 동기화 안 됨.
+        let hadProfile = !store.enkaGiUid.isEmpty || !store.enkaHsrUid.isEmpty || !store.hoyolabConfig.zzzUid.isEmpty
         VStack(alignment: .leading, spacing: 11) {
             HStack(spacing: 8) {
-                Text("내 캐릭터").font(.system(size: 16, weight: .bold))
-                Text("상시").font(.system(size: 9, weight: .bold)).foregroundStyle(Color(hex: 0xFF15803D))
+                Text("내 캐릭터").font(.pretendard(size: 16, weight: .bold))
+                Text("상시").font(.pretendard(size: 9, weight: .bold)).foregroundStyle(Color(hex: 0xFF15803D))
                     .padding(.horizontal, 7).padding(.vertical, 2).background(Color(hex: 0xFF16A34A).opacity(0.12), in: Capsule())
                 Spacer()
-                gchip("원신", game == "genshin") { switchGame("genshin") }
-                gchip("스타레일", game == "hsr") { switchGame("hsr") }
-                gchip("젠레스", game == "zzz") { switchGame("zzz") }
             }
             if !linked {
-                linkPrompt
+                linkPrompt(reLink: hadProfile)
+            } else {
+                // 전체 보기일 땐 게임별 라벨로 구분. 단일 게임이면 라벨 생략(섹션 제목으로 충분).
+                let showLabels = games.count > 1
+                ForEach(Array(games.enumerated()), id: \.offset) { _, g in
+                    gameBlock(g, showLabel: showLabels)
+                }
+            }
+        }
+        // 필터 변경 시 해당 게임들 로드(캐시 적중분 즉시, 미적중분 순차 호출).
+        .task(id: filter) { if !games.isEmpty { store.autoLoadEnkaSection(games: games, force: false) } }
+    }
+
+    /// '내 캐릭터' 단일 게임 블록 — (라벨) + 대표 4명 그리드 + 더보기. 로딩 시 스켈레톤.
+    @ViewBuilder
+    private func gameBlock(_ game: String, showLabel: Bool) -> some View {
+        let result = store.enkaResults[game]
+        let loading = store.enkaLoadingGames.contains(game)
+        let chars = result?.profile?.chars ?? []
+        VStack(alignment: .leading, spacing: 10) {
+            if showLabel {
+                HStack(spacing: 7) {
+                    Circle().fill(accent.primary).frame(width: 8, height: 8)
+                    Text(enkaGameLabel(game)).font(.pretendard(size: 13, weight: .bold)).foregroundStyle(GLGColor.textSecondary)
+                }
+            }
+            if chars.isEmpty && (result == nil || loading) {
+                // 로드 전(result nil)·로딩 중엔 스켈레톤, 로드 완료 후에만 빈/에러 표시
+                rosterSkeleton
             } else if chars.isEmpty {
-                // 전환 직후·로드 전(result nil)·로딩 중엔 로딩 표시, 로드 완료 후에만 빈/에러 표시
-                hint(store.enkaResult == nil || store.enkaLoading
-                    ? "불러오는 중…"
-                    : (store.enkaResult?.error ?? "표시할 캐릭터가 없어요 (인게임 쇼케이스 공개 확인)"))
+                hint(result?.error ?? "표시할 캐릭터가 없어요 (인게임 쇼케이스 공개 확인)")
             } else {
                 // 대표 4명만 표시, 그 이상은 더보기로 전체 페이지 진입
                 LazyVGrid(columns: cols, spacing: 10) {
@@ -77,10 +117,10 @@ struct EnkaCharSection: View {
                 if chars.count > 4 {
                     Button { onOpenAll(game) } label: {
                         HStack(spacing: 5) {
-                            Text("더보기").font(.system(size: 13, weight: .bold))
-                            Text("\(chars.count)").font(.system(size: 11, weight: .bold)).foregroundStyle(GLGColor.textSecondary)
+                            Text("더보기").font(.pretendard(size: 13, weight: .bold))
+                            Text("\(chars.count)").font(.pretendard(size: 11, weight: .bold)).foregroundStyle(GLGColor.textSecondary)
                             Spacer()
-                            Image(systemName: "chevron.right").font(.system(size: 12, weight: .bold))
+                            Image(systemName: "chevron.right").font(.pretendard(size: 12, weight: .bold))
                         }
                         .foregroundStyle(accent.primary)
                         .padding(.horizontal, 14).padding(.vertical, 12)
@@ -90,36 +130,45 @@ struct EnkaCharSection: View {
                 }
             }
         }
-        .task { store.autoLoadEnka(game: game, force: false) }
     }
 
-    /// 탭 전환: 이전 게임 결과를 즉시 비워 잔류 표시를 막고, 새 게임을 로드(캐시 적중 시 동기 반영).
-    private func switchGame(_ g: String) {
-        guard g != game else { return }
-        game = g
-        store.clearEnkaResult()
-        store.autoLoadEnka(game: g, force: false)
+    /// 로딩 스켈레톤 — 로스터 카드(초상+이름/레벨) 2열×2행 플레이스홀더.
+    private var rosterSkeleton: some View {
+        LazyVGrid(columns: cols, spacing: 10) {
+            ForEach(0..<4, id: \.self) { _ in
+                HStack(spacing: 11) {
+                    RoundedRectangle(cornerRadius: 14).fill(Color.black.opacity(0.06)).frame(width: 50, height: 50)
+                    VStack(alignment: .leading, spacing: 7) {
+                        RoundedRectangle(cornerRadius: 4).fill(Color.black.opacity(0.06)).frame(height: 13).frame(maxWidth: .infinity)
+                        RoundedRectangle(cornerRadius: 4).fill(Color.black.opacity(0.06)).frame(width: 48, height: 10)
+                    }
+                    Spacer(minLength: 0)
+                }
+                .padding(11)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .glgGlass(in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+            }
+        }
     }
 
-    private func gchip(_ t: String, _ on: Bool, _ act: @escaping () -> Void) -> some View {
-        Button(action: act) {
-            Text(t).font(.system(size: 12, weight: .bold))
-                .foregroundStyle(on ? AnyShapeStyle(.white) : AnyShapeStyle(GLGColor.textSecondary))
-                .padding(.horizontal, 12).padding(.vertical, 6)
-                .background(on ? AnyShapeStyle(accent.primary) : AnyShapeStyle(Color.white), in: Capsule())
-                .overlay(on ? nil : Capsule().stroke(Color.black.opacity(0.08), lineWidth: 1))
-        }.buttonStyle(.plain)
-    }
     private func hint(_ t: String) -> some View {
-        Text(t).font(.system(size: 12)).foregroundStyle(GLGColor.textSecondary).padding(.vertical, 12)
+        Text(t).font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary).padding(.vertical, 12)
     }
 
-    /// HoYoLAB 미연동 안내 + 연동 버튼.
-    private var linkPrompt: some View {
+    /// HoYoLAB 미연동 안내 + 연동 버튼. [reLink]=재설치/재로그인(복원된 UID 존재) 시 토큰 재연동 안내.
+    private func linkPrompt(reLink: Bool) -> some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("HoYoLAB을 연동하면 보유 캐릭터가 자동으로 표시돼요").font(.system(size: 12)).foregroundStyle(GLGColor.textSecondary)
+            if reLink {
+                // 재설치/재로그인 — 데이터(소비·UID)는 복원됐지만 토큰은 보안상 기기 전용이라 사라짐.
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("HoYoLAB 재연동이 필요해요").font(.pretendard(size: 13, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
+                    Text("보안상 로그인 토큰은 기기에만 저장돼요. 재연동하면 보유 캐릭터가 바로 복원됩니다.").font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary)
+                }
+            } else {
+                Text("HoYoLAB을 연동하면 보유 캐릭터가 자동으로 표시돼요").font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary)
+            }
             Button { onOpenHoyolab() } label: {
-                Text("HoYoLAB 연동하기").font(.system(size: 13, weight: .bold)).foregroundStyle(.white)
+                Text(reLink ? "HoYoLAB 재연동하기" : "HoYoLAB 연동하기").font(.pretendard(size: 13, weight: .bold)).foregroundStyle(.white)
                     .padding(.horizontal, 14).padding(.vertical, 9)
                     .background(accent.primary, in: Capsule())
             }.buttonStyle(.plain)
@@ -139,17 +188,17 @@ func enkaRosterCard(_ c: EnkaChar, _ game: String) -> some View {
                 AsyncImage(url: u) { $0.resizable().scaledToFill() } placeholder: { Color.clear }
                     .frame(width: 50, height: 50).clipShape(RoundedRectangle(cornerRadius: 14))
             } else {
-                Text(String(c.name.prefix(1))).font(.system(size: 20, weight: .bold)).foregroundStyle(rc)
+                Text(String(c.name.prefix(1))).font(.pretendard(size: 20, weight: .bold)).foregroundStyle(rc)
             }
         }
         VStack(alignment: .leading, spacing: 3) {
-            Text(c.name).font(.system(size: 13, weight: .bold)).foregroundStyle(GLGColor.textPrimary).lineLimit(1)
+            Text(c.name).font(.pretendard(size: 13, weight: .bold)).foregroundStyle(GLGColor.textPrimary).lineLimit(1)
             HStack(spacing: 5) {
-                Text("Lv.\(c.level)").font(.system(size: 11)).foregroundStyle(GLGColor.textSecondary)
+                Text("Lv.\(c.level)").font(.pretendard(size: 11)).foregroundStyle(GLGColor.textSecondary)
                 if !c.element.isEmpty { Circle().fill(enkaElementColor(c.element)).frame(width: 7, height: 7) }
             }
             if let rank = enkaRankLabel(c, game) {
-                Text(rank).font(.system(size: 9, weight: .bold)).foregroundStyle(Color(hex: 0xFF9C6F12))
+                Text(rank).font(.pretendard(size: 9, weight: .bold)).foregroundStyle(Color(hex: 0xFF9C6F12))
                     .padding(.horizontal, 6).padding(.vertical, 1).background(enkaGold.opacity(0.16), in: Capsule())
             }
         }
@@ -190,6 +239,8 @@ struct EnkaRosterPage: View {
             .padding(16)
         }
         .background(GLGBackground { Color.clear })
+        // 전체 보기/탭 어떤 경로로 진입해도 해당 게임 결과 보장(캐시 적중 시 즉시 반영).
+        .task { store.autoLoadEnka(game: game, force: false) }
         .navigationTitle("보유 캐릭터 · " + (game == "genshin" ? "원신" : game == "zzz" ? "젠레스" : "스타레일"))
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -280,24 +331,24 @@ struct EnkaStatPage: View {
     private func setCard(_ s: EnkaSet) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 6) {
-                Text(s.name).font(.system(size: 13, weight: .bold)).foregroundStyle(GLGColor.textPrimary).lineLimit(1)
+                Text(s.name).font(.pretendard(size: 13, weight: .bold)).foregroundStyle(GLGColor.textPrimary).lineLimit(1)
                 if !s.kind.isEmpty {
-                    Text(s.kind).font(.system(size: 9.5, weight: .bold)).foregroundStyle(GLGColor.textSecondary)
+                    Text(s.kind).font(.pretendard(size: 9.5, weight: .bold)).foregroundStyle(GLGColor.textSecondary)
                         .padding(.horizontal, 5).padding(.vertical, 1.5)
                         .background(GLGColor.textSecondary.opacity(0.12), in: RoundedRectangle(cornerRadius: 5, style: .continuous))
                 }
                 Spacer(minLength: 4)
-                Text("\(s.count)").font(.system(size: 10.5, weight: .bold)).foregroundStyle(accent.primary)
+                Text("\(s.count)").font(.pretendard(size: 10.5, weight: .bold)).foregroundStyle(accent.primary)
                     .padding(.horizontal, 7).padding(.vertical, 2).background(accent.primary.opacity(0.14), in: Capsule())
             }
             ForEach(Array(s.effects.enumerated()), id: \.offset) { _, e in
                 HStack(alignment: .top, spacing: 8) {
-                    Text("\(e.pieces)").font(.system(size: 10, weight: .heavy))
+                    Text("\(e.pieces)").font(.pretendard(size: 10, weight: .heavy))
                         .foregroundStyle(e.active ? AnyShapeStyle(.white) : AnyShapeStyle(GLGColor.textSecondary))
                         .frame(width: 18, height: 18)
                         .background(e.active ? AnyShapeStyle(accent.primary) : AnyShapeStyle(Color.clear), in: Circle())
                         .overlay(Circle().strokeBorder(GLGColor.textSecondary.opacity(0.35), lineWidth: e.active ? 0 : 1))
-                    Text(e.text).font(.system(size: 11)).foregroundStyle(GLGColor.textSecondary)
+                    Text(e.text).font(.pretendard(size: 11)).foregroundStyle(GLGColor.textSecondary)
                         .fixedSize(horizontal: false, vertical: true).frame(maxWidth: .infinity, alignment: .leading)
                 }
                 .opacity(e.active ? 1 : 0.45)
@@ -310,7 +361,7 @@ struct EnkaStatPage: View {
     /// 광추/무기·유물 미장착 안내 카드.
     private func emptyEquipNote(_ text: String) -> some View {
         Text(text)
-            .font(.system(size: 12)).foregroundStyle(GLGColor.textSecondary)
+            .font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary)
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(14)
             .glgGlass(in: RoundedRectangle(cornerRadius: 22, style: .continuous))
@@ -326,11 +377,11 @@ struct EnkaStatPage: View {
                         AsyncImage(url: u) { $0.resizable().scaledToFill() } placeholder: { Color.clear }
                             .frame(width: 64, height: 64).clipShape(RoundedRectangle(cornerRadius: 18))
                     } else {
-                        Text(String(char.name.prefix(1))).font(.system(size: 26, weight: .bold)).foregroundStyle(ec)
+                        Text(String(char.name.prefix(1))).font(.pretendard(size: 26, weight: .bold)).foregroundStyle(ec)
                     }
                 }
                 .overlay(RoundedRectangle(cornerRadius: 18).stroke(ec.opacity(0.35), lineWidth: 1.5))
-                Text(char.name).font(.system(size: 20, weight: .bold)).lineLimit(1)
+                Text(char.name).font(.pretendard(size: 20, weight: .bold)).lineLimit(1)
                 Spacer(minLength: 0)
             }
             Divider().overlay(Color.black.opacity(0.06)).padding(.top, 13).padding(.bottom, 11)
@@ -348,7 +399,7 @@ struct EnkaStatPage: View {
     private func weaponCard(_ w: EnkaWeapon) -> some View {
         HStack(spacing: 11) {
             VStack(alignment: .leading, spacing: 6) {
-                Text(w.name).font(.system(size: 14, weight: .bold)).lineLimit(1)
+                Text(w.name).font(.pretendard(size: 14, weight: .bold)).lineLimit(1)
                 HStack(spacing: 8) {
                     miniPill("Lv.\(w.level)")
                     if let m = w.main { statInline(m) }
@@ -356,7 +407,7 @@ struct EnkaStatPage: View {
                 }
             }
             Spacer(minLength: 0)
-            Text(w.refinement > 0 ? "R\(w.refinement)" : "—").font(.system(size: 11, weight: .bold)).foregroundStyle(.white)
+            Text(w.refinement > 0 ? "R\(w.refinement)" : "—").font(.pretendard(size: 11, weight: .bold)).foregroundStyle(.white)
                 .padding(.horizontal, 8).padding(.vertical, 3).background(accent.primary, in: RoundedRectangle(cornerRadius: 8))
         }
         .padding(14).frame(maxWidth: .infinity, alignment: .leading)
@@ -364,13 +415,13 @@ struct EnkaStatPage: View {
     }
 
     private func miniPill(_ t: String) -> some View {
-        Text(t).font(.system(size: 10.5, weight: .bold)).foregroundStyle(GLGColor.textSecondary)
+        Text(t).font(.pretendard(size: 10.5, weight: .bold)).foregroundStyle(GLGColor.textSecondary)
             .padding(.horizontal, 7).padding(.vertical, 2).background(Color(hex: 0xFFF1F1F6), in: Capsule())
     }
     private func statInline(_ s: EnkaStatLine) -> some View {
         HStack(spacing: 3) {
-            Text(s.label).font(.system(size: 10.5)).foregroundStyle(GLGColor.textSecondary)
-            Text(s.value).font(.system(size: 11.5, weight: .bold)).foregroundStyle(s.crit ? enkaCrit : GLGColor.textPrimary)
+            Text(s.label).font(.pretendard(size: 10.5)).foregroundStyle(GLGColor.textSecondary)
+            Text(s.value).font(.pretendard(size: 11.5, weight: .bold)).foregroundStyle(s.crit ? enkaCrit : GLGColor.textPrimary)
         }
     }
 
@@ -378,9 +429,9 @@ struct EnkaStatPage: View {
         LazyVGrid(columns: g2, spacing: 0) {
             ForEach(Array(char.stats.enumerated()), id: \.offset) { _, s in
                 HStack {
-                    Text(s.label).font(.system(size: 11.5)).foregroundStyle(GLGColor.textSecondary).lineLimit(1)
+                    Text(s.label).font(.pretendard(size: 11.5)).foregroundStyle(GLGColor.textSecondary).lineLimit(1)
                     Spacer()
-                    Text(s.value).font(.system(size: 13, weight: .bold)).foregroundStyle(s.crit ? enkaCrit : GLGColor.textPrimary).lineLimit(1)
+                    Text(s.value).font(.pretendard(size: 13, weight: .bold)).foregroundStyle(s.crit ? enkaCrit : GLGColor.textPrimary).lineLimit(1)
                 }.padding(.horizontal, 11).padding(.vertical, 9)
             }
         }
@@ -391,32 +442,38 @@ struct EnkaStatPage: View {
     private func artifactCard(_ a: EnkaArtifact) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .top, spacing: 9) {
-                Text(a.slot).font(.system(size: 11, weight: .bold)).foregroundStyle(GLGColor.textSecondary)
+                if let icon = a.iconUrl, let u = URL(string: icon) {
+                    AsyncImage(url: u) { $0.resizable().scaledToFit() } placeholder: { Color.clear }
+                        .frame(width: 40, height: 40).padding(2)
+                        .background(Color(hex: 0xFFF1F1F6), in: RoundedRectangle(cornerRadius: 10))
+                }
+                Text(a.slot).font(.pretendard(size: 11, weight: .bold)).foregroundStyle(GLGColor.textSecondary)
                     .padding(.horizontal, 8).padding(.vertical, 5).background(Color(hex: 0xFFF1F1F6), in: RoundedRectangle(cornerRadius: 8))
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(a.main.label).font(.system(size: 10.5)).foregroundStyle(GLGColor.textSecondary).lineLimit(1)
-                    Text(a.main.value).font(.system(size: 16, weight: .heavy)).foregroundStyle(a.main.crit ? enkaCrit : accent.primary).lineLimit(1)
+                    Text(a.main.label).font(.pretendard(size: 10.5)).foregroundStyle(GLGColor.textSecondary).lineLimit(1)
+                    Text(a.main.value).font(.pretendard(size: 16, weight: .heavy)).foregroundStyle(a.main.crit ? enkaCrit : accent.primary).lineLimit(1)
                     if !a.setName.isEmpty {
-                        Text(a.setName).font(.system(size: 9.5)).foregroundStyle(GLGColor.textSecondary).lineLimit(1)
+                        Text(a.setName).font(.pretendard(size: 9.5)).foregroundStyle(GLGColor.textSecondary).lineLimit(1)
                     }
                 }
                 Spacer(minLength: 0)
-                Text("+\(a.level)").font(.system(size: 10, weight: .bold)).foregroundStyle(Color(hex: 0xFF9C6F12))
+                Text("+\(a.level)").font(.pretendard(size: 10, weight: .bold)).foregroundStyle(Color(hex: 0xFF9C6F12))
                     .padding(.horizontal, 7).padding(.vertical, 2).background(enkaGold.opacity(0.16), in: RoundedRectangle(cornerRadius: 7))
             }
             if !a.subs.isEmpty {
-                LazyVGrid(columns: g2, spacing: 4) {
-                    ForEach(Array(a.subs.enumerated()), id: \.offset) { _, s in
-                        HStack(spacing: 6) {
-                            Text(s.label).font(.system(size: 11)).foregroundStyle(GLGColor.textSecondary).lineLimit(1)
-                            Spacer(minLength: 4)
-                            Text(s.value).font(.system(size: 12, weight: .bold)).foregroundStyle(s.crit ? enkaCrit : GLGColor.textPrimary).lineLimit(1)
+                // 부옵션 — 목업(design_enka_statsheet): 배경 박스 없이 상단 점선 구분선 + 2열 그리드.
+                VStack(spacing: 9) {
+                    DashHLine().stroke(Color.black.opacity(0.08), style: StrokeStyle(lineWidth: 1, dash: [4, 4])).frame(height: 1)
+                    LazyVGrid(columns: g2, spacing: 5) {
+                        ForEach(Array(a.subs.enumerated()), id: \.offset) { _, s in
+                            HStack(spacing: 6) {
+                                Text(s.label).font(.pretendard(size: 11)).foregroundStyle(GLGColor.textSecondary).lineLimit(1)
+                                Spacer(minLength: 4)
+                                Text(s.value).font(.pretendard(size: 12, weight: .bold)).foregroundStyle(s.crit ? enkaCrit : GLGColor.textPrimary).lineLimit(1)
+                            }
                         }
-                        .padding(.horizontal, 10).padding(.vertical, 8)
                     }
                 }
-                .padding(4)
-                .background(Color(hex: 0xFFF1F1F6).opacity(0.5), in: RoundedRectangle(cornerRadius: 14))
             }
         }
         .padding(13).frame(maxWidth: .infinity, alignment: .leading)
@@ -426,13 +483,23 @@ struct EnkaStatPage: View {
     /// 프로필 속성 1줄 — 라벨(보조색, 좌) : 값(굵게, 우).
     private func infoRow(_ label: String, _ value: String, _ valueColor: Color) -> some View {
         HStack {
-            Text(label).font(.system(size: 12.5)).foregroundStyle(GLGColor.textSecondary)
+            Text(label).font(.pretendard(size: 12.5)).foregroundStyle(GLGColor.textSecondary)
             Spacer(minLength: 8)
-            Text(value).font(.system(size: 13, weight: .bold)).foregroundStyle(valueColor).lineLimit(1)
+            Text(value).font(.pretendard(size: 13, weight: .bold)).foregroundStyle(valueColor).lineLimit(1)
         }
     }
     private func secLabel(_ t: String) -> some View {
-        Text(t).font(.system(size: 13, weight: .bold)).foregroundStyle(GLGColor.textSecondary)
+        Text(t).font(.pretendard(size: 13, weight: .bold)).foregroundStyle(GLGColor.textSecondary)
             .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+/// 가로 점선 구분선 — 부옵션 영역 상단 구분(목업 .subs border-top dashed).
+private struct DashHLine: Shape {
+    func path(in rect: CGRect) -> Path {
+        var p = Path()
+        p.move(to: CGPoint(x: 0, y: rect.midY))
+        p.addLine(to: CGPoint(x: rect.width, y: rect.midY))
+        return p
     }
 }

@@ -22,6 +22,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
@@ -35,6 +38,7 @@ import com.gatcha.log.data.api.EnkaSet
 import com.gatcha.log.data.api.EnkaStatLine
 import com.gatcha.log.data.api.EnkaWeapon
 import com.gatcha.log.ui.components.GlassCard
+import com.gatcha.log.ui.components.RosterSkeleton
 import com.gatcha.log.ui.theme.LocalAccent
 import com.gatcha.log.ui.theme.TextPrimary
 import com.gatcha.log.ui.theme.TextSecondary
@@ -60,37 +64,43 @@ private fun elementColor(el: String): Color = when (el) {
     else -> Color(0xFF8A9099)
 }
 
+private fun gameLabel(game: String): String = when (game) {
+    "genshin" -> "원신"
+    "hsr" -> "스타레일"
+    "zzz" -> "젠레스"
+    else -> game
+}
+
 /**
- * 게임정보 탭 상시 섹션 — Enka 쇼케이스 캐릭터 로스터(2열 그리드).
- * 게임 토글(원신/스타레일)로 해당 UID 자동 로드(5분 캐시). 캐릭터 탭 → [onOpenStats].
+ * 게임정보 탭 상시 섹션 — Enka 쇼케이스 캐릭터 로스터(2열 그리드). 헤더 게임필터([gameFilter])에 연동.
+ * "all"=원신·스타레일·젠레스를 게임별 블록으로 모두 표시, 특정 게임=해당 게임만. 캐릭터 탭 → [onOpenStats].
  */
 @Composable
 fun EnkaCharSection(
     viewModel: SpendingViewModel,
+    gameFilter: String,
     onOpenStats: (EnkaChar, String) -> Unit,
     onOpenAll: (String) -> Unit = {},
     onOpenHoyolab: () -> Unit = {},
 ) {
     val accent = LocalAccent.current
-    var game by rememberSaveable { mutableStateOf("genshin") } // 스크롤/탭 왕복에도 게임 선택 유지
-    val result by viewModel.enkaResult.collectAsState()
-    val loading by viewModel.enkaLoading.collectAsState()
+    val results by viewModel.enkaResults.collectAsState()
+    val loadingGames by viewModel.enkaLoadingGames.collectAsState()
     val hoyolab by viewModel.hoyolabConfig.collectAsState()
+    val giUid by viewModel.enkaGiUid.collectAsState()
+    val hsrUid by viewModel.enkaHsrUid.collectAsState()
 
-    // 진입 시 1회 자동 로드(TTL 캐시). 전환은 switchGame 에서 즉시 처리.
-    LaunchedEffect(Unit) { viewModel.autoLoadEnka(game) }
-
-    // 탭 전환: 이전 게임 결과를 즉시 비워 잔류 표시를 막고, 새 게임 로드(캐시 적중 시 동기 반영)
-    val switchGame: (String) -> Unit = { g ->
-        if (g != game) {
-            game = g
-            viewModel.clearEnkaResult()
-            viewModel.autoLoadEnka(g)
-        }
+    // 표시 대상 게임 — 전체면 3게임, 아니면 헤더가 고른 게임 1개(Enka 미지원 게임이면 비표시).
+    val games = remember(gameFilter) {
+        if (gameFilter == "all") listOf("genshin", "hsr", "zzz")
+        else listOf(gameFilter).filter { it in setOf("genshin", "hsr", "zzz") }
     }
+    // 필터 변경 시 해당 게임들 로드(캐시 적중분 즉시 반영, 미적중분 순차 호출).
+    LaunchedEffect(games) { if (games.isNotEmpty()) viewModel.autoLoadEnkaSection(games) }
 
     val linked = hoyolab.isLinked
-    val chars = result?.profile?.chars.orEmpty()
+    // 클라우드서 복원된 UID 가 있는데 토큰만 없으면 = 재설치/재로그인. 토큰은 보안상 기기에만 저장돼 동기화 안 됨.
+    val hadProfile = giUid.isNotBlank() || hsrUid.isNotBlank() || hoyolab.zzzUid.isNotBlank()
 
     Column {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -99,21 +109,55 @@ fun EnkaCharSection(
             Surface(color = Color(0xFF16A34A).copy(alpha = 0.12f), shape = RoundedCornerShape(999.dp)) {
                 Text("상시", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = Color(0xFF15803D), modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp))
             }
-            Spacer(Modifier.weight(1f))
-            GameChip("원신", game == "genshin", accent) { switchGame("genshin") }
-            Spacer(Modifier.width(6.dp))
-            GameChip("스타레일", game == "hsr", accent) { switchGame("hsr") }
-            Spacer(Modifier.width(6.dp))
-            GameChip("젠레스", game == "zzz", accent) { switchGame("zzz") }
         }
         Spacer(Modifier.height(11.dp))
 
+        if (!linked) {
+            LinkPrompt(accent, hadProfile, onOpenHoyolab)
+        } else {
+            // 전체 보기일 땐 게임별 라벨로 구분. 단일 게임이면 라벨 생략(섹션 제목으로 충분).
+            val showLabels = games.size > 1
+            games.forEachIndexed { i, g ->
+                if (i > 0) Spacer(Modifier.height(18.dp))
+                GameRosterBlock(
+                    game = g,
+                    showLabel = showLabels,
+                    result = results[g],
+                    loading = g in loadingGames,
+                    accent = accent,
+                    onOpenStats = onOpenStats,
+                    onOpenAll = onOpenAll,
+                )
+            }
+        }
+    }
+}
+
+/** '내 캐릭터' 단일 게임 블록 — (라벨) + 대표 4명 그리드 + 더보기. 로딩 시 스켈레톤. */
+@Composable
+private fun GameRosterBlock(
+    game: String,
+    showLabel: Boolean,
+    result: com.gatcha.log.data.api.EnkaResult?,
+    loading: Boolean,
+    accent: Color,
+    onOpenStats: (EnkaChar, String) -> Unit,
+    onOpenAll: (String) -> Unit,
+) {
+    val chars = result?.profile?.chars.orEmpty()
+    Column {
+        if (showLabel) {
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 9.dp)) {
+                Box(Modifier.size(8.dp).clip(RoundedCornerShape(999.dp)).background(accent))
+                Spacer(Modifier.width(7.dp))
+                Text(gameLabel(game), fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextSecondary)
+            }
+        }
         when {
-            !linked -> LinkPrompt(accent, onOpenHoyolab)
-            // 전환 직후·로드 전(result null)·로딩 중엔 로딩 표시, 로드 완료 후에만 빈/에러 표시
+            // 로드 전(result null)·로딩 중엔 스켈레톤, 로드 완료 후에만 빈/에러 표시
+            chars.isEmpty() && (result == null || loading) -> RosterSkeleton()
             chars.isEmpty() -> Hint(
-                if (result == null || loading) "불러오는 중…"
-                else result?.error ?: "표시할 캐릭터가 없어요 (인게임 쇼케이스 공개 확인)",
+                result?.error ?: "표시할 캐릭터가 없어요 (인게임 쇼케이스 공개 확인)",
             )
             else -> {
                 // 대표 4명만 표시, 그 이상은 더보기로 전체 페이지 진입
@@ -164,6 +208,8 @@ fun EnkaRosterPage(
     onOpenStats: (EnkaChar, String) -> Unit,
 ) {
     BackHandler { onBack() }
+    // 전체 보기/탭 왕복 어떤 경로로 진입해도 해당 게임 결과를 보장(캐시 적중 시 즉시 반영).
+    LaunchedEffect(game) { viewModel.autoLoadEnka(game) }
     val result by viewModel.enkaResult.collectAsState()
     var rarityFilter by rememberSaveable { mutableStateOf(0) } // 0=전체, 5, 4
     var elementFilter by rememberSaveable { mutableStateOf("") } // ""=전체
@@ -234,33 +280,24 @@ private fun FilterChip(label: String, current: String, items: List<Pair<String, 
 }
 
 @Composable
-private fun GameChip(label: String, on: Boolean, accent: Color, onClick: () -> Unit) {
-    Surface(
-        color = if (on) accent else Color.White,
-        shape = RoundedCornerShape(999.dp),
-        border = if (on) null else androidx.compose.foundation.BorderStroke(1.dp, CardOutline),
-        modifier = Modifier.clickable { onClick() },
-    ) {
-        Text(
-            label, fontSize = 12.sp, fontWeight = FontWeight.Bold,
-            color = if (on) Color.White else TextSecondary,
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-        )
-    }
-}
-
-@Composable
 private fun Hint(text: String) {
     Text(text, fontSize = 12.sp, color = TextSecondary, modifier = Modifier.padding(vertical = 12.dp))
 }
 
 @Composable
-private fun LinkPrompt(accent: Color, onOpenHoyolab: () -> Unit) {
+private fun LinkPrompt(accent: Color, reLink: Boolean, onOpenHoyolab: () -> Unit) {
     Column(Modifier.padding(vertical = 8.dp)) {
-        Text("HoYoLAB을 연동하면 보유 캐릭터가 자동으로 표시돼요", fontSize = 12.sp, color = TextSecondary)
+        if (reLink) {
+            // 재설치/재로그인 — 데이터(소비·UID)는 복원됐지만 토큰은 보안상 기기 전용이라 사라짐.
+            Text("HoYoLAB 재연동이 필요해요", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+            Spacer(Modifier.height(4.dp))
+            Text("보안상 로그인 토큰은 기기에만 저장돼요. 재연동하면 보유 캐릭터가 바로 복원됩니다.", fontSize = 12.sp, color = TextSecondary)
+        } else {
+            Text("HoYoLAB을 연동하면 보유 캐릭터가 자동으로 표시돼요", fontSize = 12.sp, color = TextSecondary)
+        }
         Spacer(Modifier.height(10.dp))
         Surface(color = accent, shape = RoundedCornerShape(999.dp), modifier = Modifier.clickable { onOpenHoyolab() }) {
-            Text("HoYoLAB 연동하기", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White, modifier = Modifier.padding(horizontal = 14.dp, vertical = 9.dp))
+            Text(if (reLink) "HoYoLAB 재연동하기" else "HoYoLAB 연동하기", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White, modifier = Modifier.padding(horizontal = 14.dp, vertical = 9.dp))
         }
     }
 }
@@ -518,6 +555,16 @@ private fun ArtifactCard(a: EnkaArtifact, accent: Color) {
     GlassCard(modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(13.dp)) {
             Row(verticalAlignment = Alignment.Top) {
+                if (a.iconUrl != null) {
+                    Box(
+                        Modifier.size(40.dp).clip(RoundedCornerShape(10.dp)).background(Color(0xFFF1F1F6)),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        AsyncImage(model = a.iconUrl, contentDescription = a.slot, contentScale = ContentScale.Fit,
+                            modifier = Modifier.fillMaxSize().padding(2.dp))
+                    }
+                    Spacer(Modifier.width(9.dp))
+                }
                 Surface(color = Color(0xFFF1F1F6), shape = RoundedCornerShape(8.dp)) {
                     Text(a.slot, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextSecondary, modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp))
                 }
@@ -534,23 +581,36 @@ private fun ArtifactCard(a: EnkaArtifact, accent: Color) {
                 }
             }
             if (a.subs.isNotEmpty()) {
-                Spacer(Modifier.height(10.dp))
-                Surface(color = Color(0xFFF1F1F6).copy(alpha = 0.5f), shape = RoundedCornerShape(14.dp)) {
-                    Column(Modifier.padding(6.dp)) {
-                        a.subs.chunked(2).forEach { row ->
-                            Row(Modifier.fillMaxWidth()) {
-                                row.forEach { s ->
-                                    Row(
-                                        Modifier.weight(1f).padding(horizontal = 10.dp, vertical = 8.dp),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically,
-                                    ) {
-                                        Text(s.label, fontSize = 11.sp, color = TextSecondary, maxLines = 1)
-                                        Text(s.value, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = if (s.crit) CritColor else TextPrimary, maxLines = 1)
-                                    }
+                Spacer(Modifier.height(9.dp))
+                // 부옵션 — 목업(design_enka_statsheet): 배경 박스 없이 상단 점선 구분선 + 2열 그리드.
+                Column(
+                    Modifier
+                        .fillMaxWidth()
+                        .drawBehind {
+                            drawLine(
+                                color = CardOutline,
+                                start = Offset(0f, 0f),
+                                end = Offset(size.width, 0f),
+                                strokeWidth = 1.dp.toPx(),
+                                pathEffect = PathEffect.dashPathEffect(floatArrayOf(4.dp.toPx(), 4.dp.toPx()), 0f),
+                            )
+                        }
+                        .padding(top = 9.dp),
+                    verticalArrangement = Arrangement.spacedBy(5.dp),
+                ) {
+                    a.subs.chunked(2).forEach { row ->
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            row.forEach { s ->
+                                Row(
+                                    Modifier.weight(1f),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    Text(s.label, fontSize = 11.sp, color = TextSecondary, maxLines = 1)
+                                    Text(s.value, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = if (s.crit) CritColor else TextPrimary, maxLines = 1)
                                 }
-                                if (row.size == 1) Spacer(Modifier.weight(1f))
                             }
+                            if (row.size == 1) Spacer(Modifier.weight(1f))
                         }
                     }
                 }

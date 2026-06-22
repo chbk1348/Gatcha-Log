@@ -8,11 +8,11 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -30,7 +30,6 @@ import androidx.compose.ui.unit.sp
 import com.gatcha.log.data.GameData
 import com.gatcha.log.ui.theme.DangerText
 import com.gatcha.log.ui.theme.toColor
-import com.gatcha.log.ui.theme.DividerColor
 import com.gatcha.log.ui.theme.TextSecondary
 import com.gatcha.log.util.won
 
@@ -68,49 +67,56 @@ fun BudgetDialog(
             onConfirm(overallText.toLongOrNull() ?: 0L, perGame)
         },
     ) {
-        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text("전체 월 예산", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextSecondary)
-            Spacer(Modifier.height(6.dp))
-            GlgTextField(
-                value = overallText,
-                onValueChange = { v -> overallText = v.filter { it.isDigit() } },
-                label = "예산 (원)",
-                placeholder = "0",
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                modifier = Modifier.fillMaxWidth(),
-            )
-            Spacer(Modifier.height(14.dp))
-            HorizontalDivider(color = DividerColor)
-            Spacer(Modifier.height(12.dp))
-            Text("게임별 한도 (선택)", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextSecondary)
-            Text("비워두면 한도 없음 · 이번 달 사용액 함께 표시", fontSize = 11.sp, color = TextSecondary)
-            Spacer(Modifier.height(8.dp))
-            GameData.games.forEach { game ->
-                val spent = monthlyTotals[game.key] ?: 0L
-                val limit = perGameText[game.key]?.toLongOrNull() ?: 0L
-                val over = limit > 0 && spent > limit
-                Row(
-                    modifier = Modifier.fillMaxWidth().height(56.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                ) {
-                    Box(Modifier.size(10.dp).clip(CircleShape).background(game.color.toColor()))
-                    Column(Modifier.weight(1f)) {
-                        Text(game.shortName, fontSize = 14.sp, fontWeight = FontWeight.Medium)
-                        Text(
-                            "이번 달 ${won(spent)}",
-                            fontSize = 11.sp,
-                            color = if (over) DangerText else TextSecondary,
-                            fontWeight = if (over) FontWeight.Bold else FontWeight.Normal,
-                        )
-                    }
+        Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            // 전체 월 예산 — 섹션 카드(지출 추가 모달과 동일 규격: 연회색 카드)
+            GlassCard(modifier = Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(16.dp)) {
+                    Text("전체 월 예산", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextSecondary)
+                    Spacer(Modifier.height(8.dp))
                     GlgTextField(
-                        value = perGameText[game.key].orEmpty(),
-                        onValueChange = { v -> perGameText[game.key] = v.filter { it.isDigit() } },
-                        placeholder = "한도",
+                        value = overallText,
+                        onValueChange = { v -> overallText = v.filter { it.isDigit() } },
+                        label = "예산 (원)",
+                        placeholder = "0",
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        modifier = Modifier.width(120.dp),
+                        modifier = Modifier.fillMaxWidth(),
                     )
+                }
+            }
+            // 게임별 한도 — 섹션 카드
+            GlassCard(modifier = Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(16.dp)) {
+                    Text("게임별 한도 (선택)", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextSecondary)
+                    Text("비워두면 한도 없음 · 이번 달 사용액 함께 표시", fontSize = 11.sp, color = TextSecondary)
+                    Spacer(Modifier.height(8.dp))
+                    GameData.games.forEach { game ->
+                        val spent = monthlyTotals[game.key] ?: 0L
+                        val limit = perGameText[game.key]?.toLongOrNull() ?: 0L
+                        val over = limit > 0 && spent > limit
+                        Row(
+                            modifier = Modifier.fillMaxWidth().height(56.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        ) {
+                            Box(Modifier.size(10.dp).clip(CircleShape).background(game.color.toColor()))
+                            Column(Modifier.weight(1f)) {
+                                Text(game.shortName, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                                Text(
+                                    "이번 달 ${won(spent)}",
+                                    fontSize = 11.sp,
+                                    color = if (over) DangerText else TextSecondary,
+                                    fontWeight = if (over) FontWeight.Bold else FontWeight.Normal,
+                                )
+                            }
+                            GlgTextField(
+                                value = perGameText[game.key].orEmpty(),
+                                onValueChange = { v -> perGameText[game.key] = v.filter { it.isDigit() } },
+                                placeholder = "한도",
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                modifier = Modifier.width(120.dp),
+                            )
+                        }
+                    }
                 }
             }
         }

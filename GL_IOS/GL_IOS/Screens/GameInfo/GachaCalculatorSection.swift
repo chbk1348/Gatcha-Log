@@ -94,19 +94,7 @@ private struct GlowChip: View {
     let enabled: Bool
     let action: () -> Void
     var body: some View {
-        Button(action: { if enabled { action() } }) {
-            HStack(spacing: 6) {
-                Circle().fill(enabled ? glow : Color(.systemGray3)).frame(width: 7, height: 7)
-                Text(label).font(.system(size: 12.5, weight: .bold))
-                    .foregroundStyle(selected ? glow : (enabled ? GLGColor.textSecondary : Color(.systemGray3)))
-            }
-            .padding(.horizontal, 14).padding(.vertical, 8)
-            .background(selected ? glow.opacity(0.12) : Color.white.opacity(0.4), in: Capsule())
-            .overlay(Capsule().stroke(selected ? glow : Color.white.opacity(0.6), lineWidth: selected ? 1.5 : 1))
-            .shadow(color: selected ? glow.opacity(0.35) : .clear, radius: selected ? 6 : 0, y: selected ? 2 : 0)
-        }
-        .buttonStyle(.plain)
-        .disabled(!enabled)
+        GLGChip(label: label, selected: selected, enabled: enabled, color: glow, action: action)
     }
 }
 
@@ -151,10 +139,10 @@ private struct ResultsCard: View {
                     (Text("보유분 \(c.possible)회로 ").foregroundStyle(GLGColor.textPrimary)
                         + Text("\(c.prob)%").bold().foregroundStyle(probColor)
                         + Text(" 확보 가능").foregroundStyle(GLGColor.textPrimary))
-                        .font(.system(size: 14, weight: .semibold)).padding(.top, 4)
+                        .font(.pretendard(size: 14, weight: .semibold)).padding(.top, 4)
                     ProgressView(value: Double(c.prob) / 100).tint(probColor).padding(.top, 11)
                 } else {
-                    Text("재화를 입력하면 확보 확률을 계산해요").font(.system(size: 12)).foregroundStyle(GLGColor.textSecondary).padding(.top, 4)
+                    Text("재화를 입력하면 확보 확률을 계산해요").font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary).padding(.top, 4)
                 }
                 divider
                 head("💎 필요 재화")
@@ -174,7 +162,7 @@ private struct ResultsCard: View {
     }
 
     private func head(_ t: String) -> some View {
-        Text(t).font(.system(size: 13, weight: .bold)).frame(maxWidth: .infinity, alignment: .leading)
+        Text(t).font(.pretendard(size: 13, weight: .bold)).frame(maxWidth: .infinity, alignment: .leading)
     }
     private var divider: some View {
         Divider().overlay(Color.black.opacity(0.06)).padding(.vertical, 14)
@@ -205,8 +193,8 @@ private struct ToolsRow: View {
     private func tile(_ icon: String, _ label: String, _ action: @escaping () -> Void) -> some View {
         Button(action: action) {
             VStack(spacing: 5) {
-                Text(icon).font(.system(size: 22))
-                Text(label).font(.system(size: 11, weight: .bold)).foregroundStyle(GLGColor.textSecondary)
+                Text(icon).font(.pretendard(size: 22))
+                Text(label).font(.pretendard(size: 11, weight: .bold)).foregroundStyle(GLGColor.textSecondary)
             }
             .frame(maxWidth: .infinity).padding(.vertical, 14)
             .background(Color.white, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
@@ -258,10 +246,10 @@ private struct Simulator: View {
         let pityColor: Color = tier == .reached ? badRed : (tier == .imminent ? warnAmber : (tier == .caution ? gold5 : accent.primary))
         return VStack(alignment: .leading, spacing: 0) {
             HStack {
-                Text("천장 \(pity5) / \(hp)").font(.system(size: 13, weight: .bold))
+                Text("천장 \(pity5) / \(hp)").font(.pretendard(size: 13, weight: .bold))
                 Spacer()
                 if banner.has5050 && !banner.no5050 {
-                    Text(guaranteed ? "다음 5★ 픽업 확정" : "50/50").font(.system(size: 10, weight: .bold))
+                    Text(guaranteed ? "다음 5★ 픽업 확정" : "50/50").font(.pretendard(size: 10, weight: .bold))
                         .foregroundStyle(guaranteed ? okGreen : GLGColor.textSecondary)
                         .padding(.horizontal, 7).padding(.vertical, 3)
                         .background((guaranteed ? okGreen : GLGColor.textSecondary).opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
@@ -293,11 +281,11 @@ private struct Simulator: View {
             }
             .padding(.top, 14)
             Button(action: reset) {
-                Text("초기화").font(.system(size: 13, weight: .bold)).foregroundStyle(GLGColor.textSecondary)
+                Text("초기화").font(.pretendard(size: 13, weight: .bold)).foregroundStyle(GLGColor.textSecondary)
                     .frame(maxWidth: .infinity).padding(.vertical, 11).background(Color(hex: 0xFFF2F2F6), in: RoundedRectangle(cornerRadius: 12))
             }.buttonStyle(.plain).padding(.top, 12)
             Text("실제 확률·소프트/하드 천장 기반 시뮬레이션이에요. 결과는 체험용이며 실제 뽑기와 무관해요.")
-                .font(.system(size: 10)).foregroundStyle(GLGColor.textSecondary).padding(.top, 4)
+                .font(.pretendard(size: 10)).foregroundStyle(GLGColor.textSecondary).padding(.top, 4)
         }
         .onChange(of: game.key) { reset() }
     }
@@ -327,15 +315,15 @@ private struct Simulator: View {
     private func resultChip(_ r: PullResult) -> some View {
         let color = r.tier == 5 ? gold5 : (r.tier == 4 ? purple4 : gray3)
         return VStack(spacing: 0) {
-            Text("\(r.tier)★").font(.system(size: r.tier >= 4 ? 13 : 11, weight: .bold)).foregroundStyle(r.tier == 3 ? GLGColor.textSecondary : color)
-            if r.tier == 5 { Text(r.pickup ? "픽업" : "픽뚫").font(.system(size: 7, weight: .bold)).foregroundStyle(r.pickup ? okGreen : badRed) }
+            Text("\(r.tier)★").font(.pretendard(size: r.tier >= 4 ? 13 : 11, weight: .bold)).foregroundStyle(r.tier == 3 ? GLGColor.textSecondary : color)
+            if r.tier == 5 { Text(r.pickup ? "픽업" : "픽뚫").font(.pretendard(size: 7, weight: .bold)).foregroundStyle(r.pickup ? okGreen : badRed) }
         }
         .frame(width: r.tier >= 4 ? 40 : 34, height: r.tier >= 4 ? 40 : 34)
         .background(color.opacity(r.tier == 3 ? 0.18 : 0.16), in: RoundedRectangle(cornerRadius: 10))
     }
     private func pullButton(_ label: String, _ action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            Text(label).font(.system(size: 14, weight: .bold)).foregroundStyle(.white)
+            Text(label).font(.pretendard(size: 14, weight: .bold)).foregroundStyle(.white)
                 .frame(maxWidth: .infinity).padding(.vertical, 13).background(accent.primary, in: RoundedRectangle(cornerRadius: 12))
         }.buttonStyle(.plain)
     }
@@ -360,7 +348,7 @@ private struct Planner: View {
                     Spacer()
                     Image(systemName: "calendar").foregroundStyle(accent.primary)
                 }
-                .font(.system(size: 14)).padding(12)
+                .font(.pretendard(size: 14)).padding(12)
                 .background(Color(hex: 0xFFF2F2F6), in: RoundedRectangle(cornerRadius: 10))
             }.buttonStyle(.plain)
             NumField(label: "현재 보유 뽑기 수", placeholder: "0", text: $currentPulls).padding(.top, 10)
@@ -372,7 +360,7 @@ private struct Planner: View {
                 plannerResult(d)
             } else {
                 Text("목표 날짜를 선택하면 무료 재화로 모을 수 있는 뽑기 수와 달성 가능 여부를 계산해요.")
-                    .font(.system(size: 12)).foregroundStyle(GLGColor.textSecondary).padding(.top, 14)
+                    .font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary).padding(.top, 14)
             }
         }
         .sheet(isPresented: $showPicker) {
@@ -405,7 +393,7 @@ private struct Planner: View {
             ResultBox(label: "필요 뽑기 (\(qty)개·천장 기준)", value: "\(totalNeeded)회", sub: "보유+무료 \(totalAvailable)회").frame(maxWidth: .infinity)
         }
         .padding(.top, 14)
-        Text(msg).font(.system(size: 13, weight: .bold)).foregroundStyle(color)
+        Text(msg).font(.pretendard(size: 13, weight: .bold)).foregroundStyle(color)
             .frame(maxWidth: .infinity, alignment: .leading).padding(14)
             .background(color.opacity(0.1), in: RoundedRectangle(cornerRadius: 12)).padding(.top, 12)
     }
@@ -416,7 +404,7 @@ private struct NumField: View {
     let label: String; let placeholder: String; @Binding var text: String
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text(label).font(.system(size: 11, weight: .semibold)).foregroundStyle(GLGColor.textSecondary)
+            Text(label).font(.pretendard(size: 11, weight: .semibold)).foregroundStyle(GLGColor.textSecondary)
             TextField(placeholder, text: $text).keyboardType(.numberPad).textFieldStyle(.plain).glgPillField()
                 .onChange(of: text) { _, newValue in text = newValue.filter(\.isNumber) }
         }
@@ -427,7 +415,7 @@ private struct CalcToggleRow: View {
     let label: String; @Binding var isOn: Bool
     @Environment(\.glgAccent) private var accent
     var body: some View {
-        Toggle(isOn: $isOn) { Text(label).font(.system(size: 13)) }.tint(accent.primary)
+        Toggle(isOn: $isOn) { Text(label).font(.pretendard(size: 13)) }.tint(accent.primary)
     }
 }
 
@@ -436,11 +424,11 @@ private struct QtyRow: View {
     @Environment(\.glgAccent) private var accent
     var body: some View {
         HStack(spacing: 10) {
-            Text("목표 개수").font(.system(size: 12)).foregroundStyle(GLGColor.textSecondary)
+            Text("목표 개수").font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary)
             HStack(spacing: 6) {
                 ForEach(1...3, id: \.self) { q in
                     Button { qty = q } label: {
-                        Text("\(q)").font(.system(size: 13, weight: .bold)).foregroundStyle(q == qty ? .white : GLGColor.textSecondary)
+                        Text("\(q)").font(.pretendard(size: 13, weight: .bold)).foregroundStyle(q == qty ? .white : GLGColor.textSecondary)
                             .frame(width: 34, height: 34).background(q == qty ? accent.primary : Color(hex: 0xFFF2F2F6), in: Circle())
                     }.buttonStyle(.plain)
                 }
@@ -453,9 +441,9 @@ private struct ResultBox: View {
     let label: String; let value: String; let sub: String
     var body: some View {
         VStack(alignment: .leading, spacing: 3) {
-            Text(label).font(.system(size: 10, weight: .semibold)).foregroundStyle(Color.black.opacity(0.35))
-            Text(value).font(.system(size: 17, weight: .bold)).lineLimit(1).minimumScaleFactor(0.6)
-            if !sub.isEmpty { Text(sub).font(.system(size: 10)).foregroundStyle(Color.black.opacity(0.35)) }
+            Text(label).font(.pretendard(size: 10, weight: .semibold)).foregroundStyle(Color.black.opacity(0.35))
+            Text(value).font(.pretendard(size: 17, weight: .bold)).lineLimit(1).minimumScaleFactor(0.6)
+            if !sub.isEmpty { Text(sub).font(.pretendard(size: 10)).foregroundStyle(Color.black.opacity(0.35)) }
         }
         .frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 12).padding(.vertical, 11)
         .background(Color.black.opacity(0.03), in: RoundedRectangle(cornerRadius: 12))
@@ -466,10 +454,10 @@ private struct ScenarioBox: View {
     let title: String; let sub: String; let pulls: String; let currency: String; let color: Color
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Text(title).font(.system(size: 11, weight: .bold)).foregroundStyle(color)
-            Text(sub).font(.system(size: 10)).foregroundStyle(GLGColor.textSecondary).lineLimit(1)
-            Text(pulls).font(.system(size: 16, weight: .bold)).padding(.top, 6)
-            Text(currency).font(.system(size: 10)).foregroundStyle(GLGColor.textSecondary).lineLimit(1)
+            Text(title).font(.pretendard(size: 11, weight: .bold)).foregroundStyle(color)
+            Text(sub).font(.pretendard(size: 10)).foregroundStyle(GLGColor.textSecondary).lineLimit(1)
+            Text(pulls).font(.pretendard(size: 16, weight: .bold)).padding(.top, 6)
+            Text(currency).font(.pretendard(size: 10)).foregroundStyle(GLGColor.textSecondary).lineLimit(1)
         }
         .frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 12).padding(.vertical, 11)
         .background(color.opacity(0.08), in: RoundedRectangle(cornerRadius: 12))

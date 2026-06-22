@@ -12,32 +12,38 @@ private struct MonthPoint: Identifiable { let id = UUID(); let month: Int; let a
 struct MyPageView: View {
     @ObservedObject var store: SpendingStore
     @Environment(\.glgAccent) private var accent
+    @State private var appeared: Set<Int> = []
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
                 // ① 프로필 헤더
                 ProfileHeader(store: store).padding(.top, 4)
+                    .glgLoadIn(0, appeared: $appeared)
 
                 // ② 이번 달 지출 KPI
                 Spacer().frame(height: 13)
                 MonthlyKpiCard(monthly: store.monthlyTotal(), total: totalSpent,
                                dailyAvg: dailyAvg, gameCount: gameCount, prevMonthly: prevMonthly)
+                    .glgLoadIn(1, appeared: $appeared)
 
                 // ③ 월별 지출 추이
                 Spacer().frame(height: 13)
                 SectionLabel("월별 지출 추이")
                 MyPageMonthlyTrendCard(points: monthlyTrend)
+                    .glgLoadIn(2, appeared: $appeared)
 
                 // ④ 활동 메트릭 2×2
                 Spacer().frame(height: 11)
                 SectionLabel("활동")
                 metricGrid
+                    .glgLoadIn(3, appeared: $appeared)
 
                 // ⑤ 게임별 지출
                 Spacer().frame(height: 13)
                 SectionLabel("게임별 지출")
                 GameDonutCard(spendings: store.spendings)
+                    .glgLoadIn(4, appeared: $appeared)
             }
             .padding(.horizontal, 16)
             .padding(.bottom, 12)
@@ -99,7 +105,7 @@ private struct SectionLabel: View {
     let text: String
     init(_ text: String) { self.text = text }
     var body: some View {
-        Text(text).font(.system(size: 13, weight: .bold))
+        Text(text).font(.pretendard(size: 13, weight: .bold))
             .foregroundStyle(GLGColor.textSecondary)
             .padding(.top, 4).padding(.bottom, 10).padding(.leading, 2)
     }
@@ -122,7 +128,7 @@ private struct ProfileHeader: View {
 
                 VStack(alignment: .leading, spacing: 4) {
                     Text(isGuest ? "게스트" : store.profile.name)
-                        .font(.system(size: 16, weight: .bold))
+                        .font(.pretendard(size: 16, weight: .bold))
                         .foregroundStyle(GLGColor.textPrimary).lineLimit(1)
                     syncChip
                 }
@@ -132,7 +138,7 @@ private struct ProfileHeader: View {
                     // 계정 단일화: 로그아웃을 마이페이지 헤더로 일원화 (설정의 중복 계정 카드 제거)
                     Button { store.signOut() } label: {
                         Text("로그아웃")
-                            .font(.system(size: 11, weight: .bold))
+                            .font(.pretendard(size: 11, weight: .bold))
                             .foregroundStyle(GLGColor.textSecondary)
                             .padding(.horizontal, 11).padding(.vertical, 7)
                             .overlay(RoundedRectangle(cornerRadius: 11)
@@ -145,7 +151,7 @@ private struct ProfileHeader: View {
             if isGuest {
                 Button { store.signIn() } label: {
                     Text("Google로 로그인")
-                        .font(.system(size: 14, weight: .bold))
+                        .font(.pretendard(size: 14, weight: .bold))
                         .foregroundStyle(.white)
                         .frame(maxWidth: .infinity).padding(.vertical, 12)
                         .background(accent.primary, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
@@ -162,9 +168,9 @@ private struct ProfileHeader: View {
         let color: Color = isGuest ? GLGColor.textSecondary : Color(hex: 0xFF15803D)
         return HStack(spacing: 4) {
             Image(systemName: isGuest ? "icloud.slash.fill" : "checkmark.icloud.fill")
-                .font(.system(size: 11))
+                .font(.pretendard(size: 11))
             Text(isGuest ? "게스트 · 동기화 꺼짐" : "구글 계정 동기화")
-                .font(.system(size: 11, weight: .bold))
+                .font(.pretendard(size: 11, weight: .bold))
         }
         .foregroundStyle(color)
         .padding(.horizontal, 8).padding(.vertical, 3)
@@ -185,12 +191,12 @@ private struct MonthlyKpiCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack {
-                Text("이번 달 지출").font(.system(size: 12, weight: .bold))
+                Text("이번 달 지출").font(.pretendard(size: 12, weight: .bold))
                     .foregroundStyle(GLGColor.textSecondary)
                 Spacer()
                 trendPill
             }
-            Text(won(monthly)).font(.system(size: 34, weight: .black))
+            Text(won(monthly)).font(.pretendard(size: 34, weight: .black))
                 .foregroundStyle(accent.primary)
                 .lineLimit(1).minimumScaleFactor(0.6).padding(.top, 6)
 
@@ -211,9 +217,9 @@ private struct MonthlyKpiCard: View {
 
     private func kpiCell(_ v: String, _ k: String) -> some View {
         VStack(spacing: 2) {
-            Text(v).font(.system(size: 14, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
+            Text(v).font(.pretendard(size: 14, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
                 .lineLimit(1).minimumScaleFactor(0.7)
-            Text(k).font(.system(size: 10)).foregroundStyle(GLGColor.textSecondary)
+            Text(k).font(.pretendard(size: 10)).foregroundStyle(GLGColor.textSecondary)
         }
         .frame(maxWidth: .infinity)
     }
@@ -228,7 +234,7 @@ private struct MonthlyKpiCard: View {
             let down = delta <= 0
             let color = down ? Color(hex: 0xFF15803D) : Color(hex: 0xFFDC2626)
             Text("\(down ? "▼" : "▲") \(abs(delta))% · 지난달")
-                .font(.system(size: 10, weight: .bold)).foregroundStyle(color)
+                .font(.pretendard(size: 10, weight: .bold)).foregroundStyle(color)
                 .padding(.horizontal, 9).padding(.vertical, 3)
                 .background(color.opacity(0.12), in: Capsule())
         }
@@ -253,7 +259,7 @@ private struct MyPageMonthlyTrendCard: View {
                         .frame(width: 18, height: max(90 * frac, 3))
                     Spacer().frame(height: 7)
                     Text("\(p.month)월")
-                        .font(.system(size: 10, weight: isCurrent ? .bold : .regular))
+                        .font(.pretendard(size: 10, weight: isCurrent ? .bold : .regular))
                         .foregroundStyle(isCurrent ? accent.primary : GLGColor.textSecondary)
                 }
                 .frame(maxWidth: .infinity)
@@ -280,13 +286,13 @@ private struct MetricTile: View {
         VStack(alignment: .leading, spacing: 0) {
             ZStack {
                 RoundedRectangle(cornerRadius: 10).fill(c.opacity(0.12)).frame(width: 32, height: 32)
-                Image(systemName: icon).font(.system(size: 16)).foregroundStyle(c)
+                Image(systemName: icon).font(.pretendard(size: 16)).foregroundStyle(c)
             }
             Spacer().frame(height: 9)
-            Text(value).font(.system(size: 18, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
+            Text(value).font(.pretendard(size: 18, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
                 .lineLimit(1).minimumScaleFactor(0.7)
             Spacer().frame(height: 2)
-            Text(label).font(.system(size: 11)).foregroundStyle(GLGColor.textSecondary).lineLimit(1)
+            Text(label).font(.pretendard(size: 11)).foregroundStyle(GLGColor.textSecondary).lineLimit(1)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(14)
@@ -316,7 +322,7 @@ private struct GameDonutCard: View {
         Group {
             if slices.isEmpty || total <= 0 {
                 Text("아직 지출 기록이 없어요")
-                    .font(.system(size: 13)).foregroundStyle(GLGColor.textSecondary)
+                    .font(.pretendard(size: 13)).foregroundStyle(GLGColor.textSecondary)
                     .frame(maxWidth: .infinity, alignment: .leading).padding(20)
             } else {
                 HStack(spacing: 16) {
@@ -326,10 +332,10 @@ private struct GameDonutCard: View {
                             let pct = Int(Double(s.amount) / Double(total) * 100)
                             HStack(spacing: 8) {
                                 RoundedRectangle(cornerRadius: 3).fill(s.color).frame(width: 9, height: 9)
-                                Text(s.game).font(.system(size: 12, weight: .medium)).lineLimit(1)
+                                Text(s.game).font(.pretendard(size: 12, weight: .medium)).lineLimit(1)
                                 Spacer(minLength: 0)
-                                Text(won(s.amount)).font(.system(size: 12, weight: .bold)).lineLimit(1)
-                                Text("\(pct)%").font(.system(size: 10)).foregroundStyle(GLGColor.textSecondary)
+                                Text(won(s.amount)).font(.pretendard(size: 12, weight: .bold)).lineLimit(1)
+                                Text("\(pct)%").font(.pretendard(size: 10)).foregroundStyle(GLGColor.textSecondary)
                             }
                         }
                     }
@@ -350,8 +356,8 @@ private struct GameDonutCard: View {
                     .padding(9)
             }
             VStack(spacing: 0) {
-                Text("총 지출").font(.system(size: 9)).foregroundStyle(GLGColor.textSecondary)
-                Text(won(total)).font(.system(size: 11, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
+                Text("총 지출").font(.pretendard(size: 9)).foregroundStyle(GLGColor.textSecondary)
+                Text(won(total)).font(.pretendard(size: 11, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
                     .lineLimit(1).minimumScaleFactor(0.6)
             }
         }
@@ -396,7 +402,7 @@ struct ProfileAvatarView: View {
         ZStack {
             Circle().fill(GLGColor.progressEmpty)
             Image(systemName: "person.fill")
-                .font(.system(size: size * 0.5))
+                .font(.pretendard(size: size * 0.5))
                 .foregroundStyle(GLGColor.navUnselected)
         }
     }

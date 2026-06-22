@@ -1,5 +1,6 @@
 package com.gatcha.log.ui.spending
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -14,19 +15,21 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.gatcha.log.data.Spending
 import com.gatcha.log.ui.components.CurrencyIcon
+import com.gatcha.log.ui.components.GlgBadge
 import com.gatcha.log.ui.components.GameCurrency
 import com.gatcha.log.ui.components.GlassCard
-import com.gatcha.log.ui.components.GlgButton
 import com.gatcha.log.ui.components.GlgDialog
-import com.gatcha.log.ui.components.GlgOutlineButton
 import com.gatcha.log.ui.components.GlgScreenHeader
 import com.gatcha.log.ui.theme.DividerColor
+import com.gatcha.log.ui.theme.LocalAccent
 import com.gatcha.log.ui.theme.toColor
 import com.gatcha.log.ui.theme.TextSecondary
 import com.gatcha.log.util.won
@@ -43,7 +46,11 @@ fun SpendingDetailScreen(
     var confirmDelete by remember { mutableStateOf(false) }
 
     Column(Modifier.fillMaxSize()) {
-        GlgScreenHeader("지출 상세", onBack, Modifier.padding(horizontal = 16.dp))
+        GlgScreenHeader("지출 상세", onBack, Modifier.padding(horizontal = 16.dp)) {
+            // 수정·삭제를 헤더 우측 액션으로 이동(하단 버튼 제거).
+            HeaderTextButton("수정", LocalAccent.current) { onEdit() }
+            HeaderTextButton("삭제", DangerRed) { confirmDelete = true }
+        }
         Column(
             // 하단바 미노출 페이지 — 바 높이 여백 대신 시스템 네비 인셋만 확보
             Modifier.fillMaxSize().navigationBarsPadding().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 8.dp),
@@ -59,9 +66,7 @@ fun SpendingDetailScreen(
                                 Text(spending.gameName, fontSize = 16.sp, fontWeight = FontWeight.Bold)
                                 if (spending.isSubscription) {
                                     Spacer(Modifier.width(8.dp))
-                                    Surface(color = spending.gameColor.toColor().copy(alpha = 0.12f), shape = RoundedCornerShape(6.dp)) {
-                                        Text("정기", fontSize = 10.sp, color = spending.gameColor.toColor(), modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
-                                    }
+                                    GlgBadge("정기", spending.gameColor.toColor())
                                 }
                             }
                             GameCurrency.forGame(spending.gameName)?.let {
@@ -108,12 +113,6 @@ fun SpendingDetailScreen(
                     }
                 }
             }
-            Spacer(Modifier.height(16.dp))
-            // 액션 (삭제 / 수정)
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                GlgOutlineButton("삭제", onClick = { confirmDelete = true }, modifier = Modifier.weight(1f))
-                GlgButton("수정", onClick = onEdit, modifier = Modifier.weight(1.4f))
-            }
             Spacer(Modifier.height(24.dp))
         }
     }
@@ -129,6 +128,23 @@ fun SpendingDetailScreen(
             Text("삭제하면 되돌릴 수 없어요.", fontSize = 13.sp, color = TextSecondary)
         }
     }
+}
+
+/** 헤더 우측 액션용 컴팩트 텍스트 버튼. */
+private val DangerRed = Color(0xFFDC2626)
+
+@Composable
+private fun HeaderTextButton(text: String, color: Color, onClick: () -> Unit) {
+    Text(
+        text,
+        fontSize = 15.sp,
+        fontWeight = FontWeight.SemiBold,
+        color = color,
+        modifier = Modifier
+            .clip(RoundedCornerShape(8.dp))
+            .clickable { onClick() }
+            .padding(horizontal = 10.dp, vertical = 6.dp),
+    )
 }
 
 @Composable

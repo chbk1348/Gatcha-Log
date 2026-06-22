@@ -33,6 +33,8 @@ import com.gatcha.log.data.UserProfile
 import com.gatcha.log.data.api.EnkaApi
 import com.gatcha.log.data.api.EnkaResult
 import com.gatcha.log.data.api.EnneadApi
+import com.gatcha.log.data.api.NewsApi
+import com.gatcha.log.data.api.NewsItem
 import com.gatcha.log.data.api.HoyolabApi
 import com.gatcha.log.data.api.CodeResult
 import com.gatcha.log.data.api.GiftCode
@@ -45,6 +47,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.IO
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
@@ -147,8 +150,6 @@ class SpendingViewModel : ViewModel() {
     val notifyAttendance: StateFlow<Boolean> = _notifyAttendance.asStateFlow()
     private val _notifyResin = MutableStateFlow(appSettings.notifyResin)
     val notifyResin: StateFlow<Boolean> = _notifyResin.asStateFlow()
-    private val _notifyWish = MutableStateFlow(appSettings.notifyWish)
-    val notifyWish: StateFlow<Boolean> = _notifyWish.asStateFlow()
 
     // 과소비 리플렉션 넛지(지출 추가 시점) — 토글 + 평소치 기준액
     private val _nudgeOverspend = MutableStateFlow(appSettings.nudgeOverspend)
@@ -193,7 +194,6 @@ class SpendingViewModel : ViewModel() {
     fun setNotifyBudget(v: Boolean) { appSettings.notifyBudget = v; _notifyBudget.value = v; applyNativeAfterNotifyChange(v) }
     fun setNotifyAttendance(v: Boolean) { appSettings.notifyAttendance = v; _notifyAttendance.value = v; applyNativeAfterNotifyChange(v) }
     fun setNotifyResin(v: Boolean) { appSettings.notifyResin = v; _notifyResin.value = v; applyNativeAfterNotifyChange(v) }
-    fun setNotifyWish(v: Boolean) { appSettings.notifyWish = v; _notifyWish.value = v; applyNativeAfterNotifyChange(v) }
 
     private fun applyNativeAfterNotifyChange(enabled: Boolean) {
         NativeScheduler.apply()
@@ -235,13 +235,14 @@ class SpendingViewModel : ViewModel() {
         _attendanceHistory.value = attendanceMap
         _attendanceToday.value = attendanceMap[todayKey()] ?: emptySet()
         _attendanceStreak.value = computeAttendanceStreak()
-        _wishlist.value = repo.loadWishlist()
         _pity.value = repo.loadPity()
         _eventChecks.value = repo.loadEventChecks()
         _readAlerts.value = repo.loadReadAlerts()
         _enkaGiUid.value = repo.loadEnkaGiUid()
         _enkaHsrUid.value = repo.loadEnkaHsrUid()
         _enkaResult.value = null
+        _enkaResults.value = emptyMap()
+        seedEnkaDiskCache()   // 재시작/계정전환 시 디스크 캐시를 메모리로 — '내 캐릭터' 즉시 표시
         gachaRecords = repo.loadGachaRecords()
         _gachaStats.value = GachaReport.computeStats(gachaRecords)
         _gachaDashboard.value = GachaReport.computeDashboard(gachaRecords)
@@ -404,6 +405,10 @@ class SpendingViewModel : ViewModel() {
             if (uids.isNotEmpty()) {
                 applyGameUids(uids)
                 enkaUidsSynced = true
+                // 연동 직후 '내 캐릭터' 로스터를 강제 새로고침 — 토큰이 이제 있으므로,
+                // 토큰 없이 받아 캐시에 박혀 있던 쇼케이스(공개)만 결과를 전체 보유 로스터로 즉시 교체한다.
+                // (재설치 후 연동 1회로 '저장 다시' 없이 바로 전체 노출 — force=true 로 5분 TTL 무시.)
+                autoLoadEnkaSection(listOf("genshin", "hsr", "zzz"), force = true)
             }
             emitStatus(
                 if (uids.isNotEmpty()) "HoYoLAB 계정이 연동되었어요 ✓ (캐릭터 UID 자동 설정)"
@@ -488,72 +493,16 @@ class SpendingViewModel : ViewModel() {
     private val _challenges = MutableStateFlow<List<GameChallenge>>(emptyList())
     val challenges: StateFlow<List<GameChallenge>> = _challenges.asStateFlow()
 
-    // 위시리스트 (gameKey -> 캐릭터 이름), 천장(gameKey -> PityState), 이벤트 체크
-    private val _wishlist = MutableStateFlow<Map<String, List<String>>>(emptyMap())
-    val wishlist: StateFlow<Map<String, List<String>>> = _wishlist.asStateFlow()
+    // 게임 공지·뉴스(ennead news, 공개·한국어). 게임정보 공지 섹션용.
+    private val _gameNews = MutableStateFlow<List<NewsItem>>(emptyList())
+    val gameNews: StateFlow<List<NewsItem>> = _gameNews.asStateFlow()
 
+    // 천장(gameKey -> PityState), 이벤트 체크
     private val _pity = MutableStateFlow<Map<String, PityState>>(emptyMap())
     val pity: StateFlow<Map<String, PityState>> = _pity.asStateFlow()
 
     private val _eventChecks = MutableStateFlow<Set<String>>(emptySet())
     val eventChecks: StateFlow<Set<String>> = _eventChecks.asStateFlow()
-
-    // ----- 위시리스트 -----
-    fun addWish(gameKey: String, name: String) {
-        val n = name.trim()
-        if (n.isEmpty()) return
-        val cur = _wishlist.value[gameKey].orEmpty()
-        if (cur.any { it.equals(n, ignoreCase = true) }) return
-        val updated = _wishlist.value + (gameKey to (cur + n))
-        _wishlist.value = updated
-        repo.saveWishlist(updated)
-    }
-
-    fun removeWish(gameKey: String, name: String) {
-        val cur = _wishlist.value[gameKey].orEmpty().filterNot { it == name }
-        val updated = _wishlist.value + (gameKey to cur)
-        _wishlist.value = updated
-        repo.saveWishlist(updated)
-    }
-
-    /** 위시 캐릭터가 현재 픽업 배너에 등장 중인지 */
-    fun isWishPickedUp(gameKey: String, name: String): Boolean {
-        val gameName = Game.entries.firstOrNull { it.key == gameKey }?.displayName ?: return false
-        return _activeBanners.value.any {
-            it.game == gameName && (it.name.contains(name) || name.contains(it.name))
-        }
-    }
-
-    /**
-     * 현재 활성 배너 vs 위시리스트 교차 검사. notifyWish 토글이 켜져 있고
-     * 직전 알림 키(배너 endMillis)와 다르면 알림 1회 발송. 배너 갱신/교체될 때마다 다시 알림.
-     */
-    private fun checkWishPickupsAndNotify() {
-        if (!appSettings.notifyWish) return
-        val wishes = _wishlist.value
-        val banners = _activeBanners.value
-        if (wishes.isEmpty() || banners.isEmpty()) return
-        wishes.forEach { (gameKey, names) ->
-            val gameName = Game.entries.firstOrNull { it.key == gameKey }?.displayName ?: return@forEach
-            val game = Game.entries.firstOrNull { it.key == gameKey } ?: return@forEach
-            names.forEach { name ->
-                val hit = banners.firstOrNull {
-                    it.game == gameName && (it.name.contains(name) || name.contains(it.name))
-                } ?: return@forEach
-                val tag = "wish_pickup:$gameKey:$name"
-                val sig = hit.endMillis.toString()
-                if (appSettings.lastNotified(tag) == sig) return@forEach
-                appSettings.setLastNotified(tag, sig)
-                val nid = com.gatcha.log.data.Notifier.ID_WISH_PICKUP_BASE +
-                    ((gameKey + name).hashCode() and 0x3FF)
-                com.gatcha.log.data.Notifier.notify(
-                    nid,
-                    "${game.shortName} 픽업 — $name",
-                    "${hit.name} 배너에 등장했어요. 천장 점검해보세요.",
-                )
-            }
-        }
-    }
 
     // ----- 천장 카운터 -----
     fun adjustPity(gameKey: String, delta: Int) = updatePity(gameKey) { it.copy(count = (it.count + delta).coerceAtLeast(0)) }
@@ -600,6 +549,14 @@ class SpendingViewModel : ViewModel() {
     // 상시 섹션용 TTL 캐시 ("game:uid" → (시각, 결과)). Enka 429 방지 위해 5분 내 재요청 생략.
     private val enkaCache = mutableMapOf<String, Pair<Long, EnkaResult>>()
     private val enkaTtlMs = 5 * 60 * 1000L
+    // 디스크 캐시 유효기간 — 이보다 오래된 디스크 항목은 시드에서 제외(앱 재시작 즉시표시 한계).
+    private val enkaDiskTtlMs = 24 * 60 * 60 * 1000L
+
+    /** 디스크 캐시 → 메모리 캐시 시드(계정별). loadAll 에서 호출. */
+    private fun seedEnkaDiskCache() {
+        enkaCache.clear()
+        enkaCache.putAll(repo.loadEnkaCache(enkaDiskTtlMs))
+    }
 
     /** Enka UID 로 프로필 조회 + UID 계정별 영속(클라우드 동기화 포함). */
     fun loadEnkaProfile(game: String, uid: String) {
@@ -609,8 +566,8 @@ class SpendingViewModel : ViewModel() {
         viewModelScope.launch {
             _enkaLoading.value = true
             val cfg = _hoyolabConfig.value
-            val r = EnkaApi.fetchProfile(game, u, cfg.ltuid, cfg.ltoken)
-            if (r.profile != null) enkaCache["$game:$u"] = currentTimeMillis() to r
+            val r = withContext(Dispatchers.IO) { EnkaApi.fetchProfile(game, u, cfg.ltuid, cfg.ltoken) }
+            if (r.profile != null) { enkaCache["$game:$u"] = currentTimeMillis() to r; repo.saveEnkaCache(enkaCache) }
             _enkaResult.value = r
             _enkaLoading.value = false
         }
@@ -648,8 +605,8 @@ class SpendingViewModel : ViewModel() {
             }
             _enkaLoading.value = true
             val cfg = _hoyolabConfig.value
-            val r = EnkaApi.fetchProfile(game, uid, cfg.ltuid, cfg.ltoken)
-            if (r.profile != null) enkaCache[key] = currentTimeMillis() to r
+            val r = withContext(Dispatchers.IO) { EnkaApi.fetchProfile(game, uid, cfg.ltuid, cfg.ltoken) }
+            if (r.profile != null) { enkaCache[key] = currentTimeMillis() to r; repo.saveEnkaCache(enkaCache) }
             _enkaResult.value = r
             _enkaLoading.value = false
         }
@@ -657,6 +614,55 @@ class SpendingViewModel : ViewModel() {
 
     /** 게임 탭 전환 시 이전 결과 정리 */
     fun clearEnkaResult() { _enkaResult.value = null }
+
+    // ----- '내 캐릭터' 섹션 — 헤더 게임필터 연동(전체=3게임 동시 표시) -----
+    // 단일 _enkaResult 와 별개로 게임별 결과를 동시에 보관. enkaCache(5분 TTL)를 공유한다.
+    // 값은 non-null(iOS SKIE 브리징 단순화) — 미설정/빈 게임은 EnkaResult(null,null)로 채워 '빈 표시'.
+    private val _enkaResults = MutableStateFlow<Map<String, EnkaResult>>(emptyMap())
+    val enkaResults: StateFlow<Map<String, EnkaResult>> = _enkaResults.asStateFlow()
+    private val _enkaLoadingGames = MutableStateFlow<Set<String>>(emptySet())
+    val enkaLoadingGames: StateFlow<Set<String>> = _enkaLoadingGames.asStateFlow()
+
+    /**
+     * '내 캐릭터' 섹션용 — 지정 게임들의 로스터를 동시 보관. 캐시 적중분은 즉시 반영.
+     * 게임마다 호스트가 달라(enka.network / mihomo / HoYoLAB) 동시 호출해도 429와 무관하므로
+     * 미적중분을 **병렬**로 가져온다(총 지연 = 합 → 최댓값). 네트워크는 IO 디스패처로 분리해 메인 스레드 미점유.
+     * UID 미설정 게임은 빈 결과(섹션서 빈 표시).
+     */
+    fun autoLoadEnkaSection(games: List<String>, force: Boolean = false) {
+        viewModelScope.launch {
+            ensureEnkaUids() // 연동됐는데 UID 비면 1회 동기화
+            games.map { game ->
+                async {
+                    val uid = enkaUidFor(game)
+                    if (uid.isBlank()) {
+                        _enkaResults.update { it + (game to EnkaResult(profile = null, error = null)) }
+                        return@async
+                    }
+                    val key = "$game:$uid"
+                    val cached = enkaCache[key]   // 디스크 시드 포함
+                    val fresh = cached != null && currentTimeMillis() - cached.first < enkaTtlMs
+                    // 캐시(신선/오래됨 무관)가 있으면 즉시 표시 — stale-while-revalidate
+                    if (cached != null) {
+                        _enkaResults.update { it + (game to cached.second) }
+                        if (fresh && !force) return@async   // 신선하면 네트워크 생략
+                    } else {
+                        _enkaLoadingGames.update { it + game }   // 보여줄 캐시가 없을 때만 스피너
+                    }
+                    val cfg = _hoyolabConfig.value
+                    val r = withContext(Dispatchers.IO) { EnkaApi.fetchProfile(game, uid, cfg.ltuid, cfg.ltoken) }
+                    if (r.profile != null) {
+                        enkaCache[key] = currentTimeMillis() to r
+                        _enkaResults.update { it + (game to r) }   // 갱신분 반영
+                    } else if (cached == null) {
+                        _enkaResults.update { it + (game to r) }   // 캐시 없고 실패 → 에러 표시(캐시 있으면 기존 유지)
+                    }
+                    _enkaLoadingGames.update { it - game }
+                }
+            }.awaitAll()
+            repo.saveEnkaCache(enkaCache)   // 갱신된 캐시 디스크 영속(1회)
+        }
+    }
 
     // ----- 가챠 효율 리포트 (UIGF/SRGF) -----
     private var gachaRecords: List<GachaRecord> = emptyList()
@@ -870,7 +876,8 @@ class SpendingViewModel : ViewModel() {
                     // 1) 홈/오늘 할 일 의존 최소셋 — 배너(ennead 2게임 + ZZZ) + 실시간 노트를 모두 동시에
                     val enneadDeferred = GameData.games.filter { it.enneadKey != null }
                         .map { game -> async { EnneadApi.fetch(game) } }
-                    val zzzDeferred = async { com.gatcha.log.data.api.ZzzBannerApi.fetch() }
+                    // ZZZ 픽업·일정 — ennead zenless 캘린더에서 배너+이벤트+도전 자동(수동 JSON 폐기, 에이전트명 한국어 매핑).
+                    val zzzDeferred = async { EnneadApi.fetchZzz() }
                     val noteDeferred = uids.map { (key, uid) ->
                         async { HoyolabApi.getLiveNote(cfg.ltuid, cfg.ltoken, key, uid).note }
                     }
@@ -884,7 +891,7 @@ class SpendingViewModel : ViewModel() {
                         events += r.events
                         challenges += r.challenges
                     }
-                    banners += zzzDeferred.await()
+                    zzzDeferred.await().let { banners += it.banners; events += it.events; challenges += it.challenges }
                     if (banners.isNotEmpty()) _activeBanners.value = banners.sortedBy { it.dDay() }
                     _gameEvents.value = events.sortedBy { it.endMillis }
                     _challenges.value = challenges.sortedBy { it.endMillis }
@@ -895,6 +902,12 @@ class SpendingViewModel : ViewModel() {
                     // ★ 배너+노트까지면 홈/오늘 할 일 준비 완료 — 즉시 표출(원장·전투는 뒤이어)
                     _gameInfoReady.value = true
                     lastGameInfoLoadAt = currentTimeMillis()
+
+                    // 게임 공지·뉴스(공개 API·인증 불필요) — 지원 게임 병렬, 최신순. 부가 콘텐츠라 준비 완료 뒤 로드.
+                    val newsDeferred = GameData.games.filter { it.newsSlug != null }
+                        .map { g -> async { NewsApi.notices(g) } }
+                    val news = newsDeferred.flatMap { it.await() }.sortedByDescending { it.createdAtMillis }
+                    if (news.isNotEmpty()) _gameNews.value = news
 
                     // 2) 게임 정보 탭 전용 — 월간 원장 + 전투 진행도(게임 간 병렬, 게임 내 순차로 단일 호스트 보호)
                     if (uids.isNotEmpty()) {
@@ -915,9 +928,6 @@ class SpendingViewModel : ViewModel() {
                         if (ledgers.isNotEmpty()) _ledgers.value = ledgers
                         if (combats.isNotEmpty()) _combat.value = combats
                     }
-
-                    // 위시 캐릭터가 새 픽업 배너에 등장하면 알림(설정 ON 인 경우만, 배너별 1회 dedup).
-                    runCatching { checkWishPickupsAndNotify() }
                 }
             } finally {
                 _isRefreshing.value = false

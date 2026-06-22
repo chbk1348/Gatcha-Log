@@ -20,7 +20,7 @@ struct CalendarView: View {
                 HStack {
                     monthNav("chevron.left") { shift(-1) }
                     Spacer()
-                    Text("\(y)년 \(m)월").font(.system(size: 18, weight: .bold))
+                    Text("\(y)년 \(m)월").font(.pretendard(size: 18, weight: .bold))
                     Spacer()
                     monthNav("chevron.right") { shift(1) }
                 }
@@ -59,7 +59,7 @@ struct CalendarView: View {
 
     private func monthNav(_ icon: String, _ action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            Image(systemName: icon).font(.system(size: 18)).foregroundStyle(accent.primary)
+            Image(systemName: icon).font(.pretendard(size: 18)).foregroundStyle(accent.primary)
                 .frame(width: 36, height: 36)
                 .background(accent.primary.opacity(0.10), in: Circle())
         }
@@ -69,8 +69,8 @@ struct CalendarView: View {
     private func summaryPill(_ label: String, _ value: String) -> some View {
         GLGCard(cornerRadius: 16, padding: 0) {
             VStack(alignment: .leading, spacing: 2) {
-                Text(label).font(.system(size: 11)).foregroundStyle(GLGColor.textSecondary)
-                Text(value).font(.system(size: 16, weight: .bold)).foregroundStyle(accent.primary)
+                Text(label).font(.pretendard(size: 11)).foregroundStyle(GLGColor.textSecondary)
+                Text(value).font(.pretendard(size: 16, weight: .bold)).foregroundStyle(accent.primary)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 14).padding(.vertical, 10)
@@ -80,7 +80,7 @@ struct CalendarView: View {
     private var weekdayHeader: some View {
         HStack(spacing: 2) {
             ForEach(Array(["일","월","화","수","목","금","토"].enumerated()), id: \.offset) { i, l in
-                Text(l).font(.system(size: 11, weight: .bold))
+                Text(l).font(.pretendard(size: 11, weight: .bold))
                     .foregroundStyle(i == 0 ? GLGColor.dangerText : GLGColor.textSecondary)
                     .frame(maxWidth: .infinity)
             }
@@ -89,10 +89,10 @@ struct CalendarView: View {
 
     private var legend: some View {
         HStack(spacing: 14) {
-            HStack(spacing: 3) { RoundedRectangle(cornerRadius: 3).fill(accent.primary.opacity(0.18)).frame(width: 10, height: 10); Text("지출").font(.system(size: 11)).foregroundStyle(GLGColor.textSecondary) }
-            HStack(spacing: 3) { Circle().fill(Color(argb64: GameData.shared.colorFor(name: "원신"))).frame(width: 6, height: 6); Text("출석").font(.system(size: 11)).foregroundStyle(GLGColor.textSecondary) }
-            HStack(spacing: 3) { Text("▲").font(.system(size: 9)).foregroundStyle(accent.primary); Text("배너 시작").font(.system(size: 11)).foregroundStyle(GLGColor.textSecondary) }
-            HStack(spacing: 3) { Text("▼").font(.system(size: 9)).foregroundStyle(accent.primary); Text("종료").font(.system(size: 11)).foregroundStyle(GLGColor.textSecondary) }
+            HStack(spacing: 3) { RoundedRectangle(cornerRadius: 3).fill(accent.primary.opacity(0.18)).frame(width: 10, height: 10); Text("지출").font(.pretendard(size: 11)).foregroundStyle(GLGColor.textSecondary) }
+            HStack(spacing: 3) { Circle().fill(Color(argb64: GameData.shared.colorFor(name: "원신"))).frame(width: 6, height: 6); Text("출석").font(.pretendard(size: 11)).foregroundStyle(GLGColor.textSecondary) }
+            HStack(spacing: 3) { Text("▲").font(.pretendard(size: 9)).foregroundStyle(accent.primary); Text("배너 시작").font(.pretendard(size: 11)).foregroundStyle(GLGColor.textSecondary) }
+            HStack(spacing: 3) { Text("▼").font(.pretendard(size: 9)).foregroundStyle(accent.primary); Text("종료").font(.pretendard(size: 11)).foregroundStyle(GLGColor.textSecondary) }
             Spacer()
         }
         .padding(.horizontal, 4)
@@ -188,12 +188,12 @@ private struct DayCell: View {
             // 배너 마커
             if !bannerStart.isEmpty || !bannerEnd.isEmpty {
                 HStack(spacing: 1) {
-                    ForEach(Array(bannerStart.prefix(2).enumerated()), id: \.offset) { _, c in Text("▲").font(.system(size: 7)).foregroundStyle(c) }
-                    ForEach(Array(bannerEnd.prefix(2).enumerated()), id: \.offset) { _, c in Text("▼").font(.system(size: 7)).foregroundStyle(c) }
+                    ForEach(Array(bannerStart.prefix(2).enumerated()), id: \.offset) { _, c in Text("▲").font(.pretendard(size: 7)).foregroundStyle(c) }
+                    ForEach(Array(bannerEnd.prefix(2).enumerated()), id: \.offset) { _, c in Text("▼").font(.pretendard(size: 7)).foregroundStyle(c) }
                 }
             } else { Color.clear.frame(height: 9) }
             // 날짜
-            Text("\(day)").font(.system(size: 12, weight: isToday ? .bold : .medium))
+            Text("\(day)").font(.pretendard(size: 12, weight: isToday ? .bold : .medium))
                 .foregroundStyle(isToday ? .white : (weekdayIndex == 0 ? GLGColor.dangerText : GLGColor.textPrimary))
                 .frame(width: 20, height: 20)
                 .background(isToday ? accent : .clear, in: Circle())
@@ -208,7 +208,7 @@ private struct DayCell: View {
             }
             // 지출
             if spend > 0 {
-                Text(compactAmount(spend)).font(.system(size: 8, weight: .bold)).foregroundStyle(accent).padding(.top, 1)
+                Text(compactAmount(spend)).font(.pretendard(size: 8, weight: .bold)).foregroundStyle(accent).padding(.top, 1)
             }
         }
         .frame(maxWidth: .infinity, minHeight: 56)

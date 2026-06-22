@@ -2,7 +2,6 @@ package com.gatcha.log.ui.profile
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
@@ -60,6 +59,7 @@ fun MyPageScreen(
     val gachaStats by viewModel.gachaStats.collectAsState()
 
     val showSettings = remember { mutableStateOf(false) }
+    val loadInSet = remember { mutableSetOf<Int>() }
 
     // 설정 페이지에서 시스템/제스처 뒤로가기 시 홈이 아니라 마이페이지로 복귀
     BackHandler(enabled = showSettings.value) { showSettings.value = false }
@@ -91,12 +91,12 @@ fun MyPageScreen(
         transitionSpec = {
             if (targetState) {
                 // 설정 열기: 오른쪽에서 슬라이드 인 (push)
-                (slideInHorizontally(tween(300)) { w -> w } + fadeIn(tween(300))) togetherWith
-                    (slideOutHorizontally(tween(300)) { w -> -w / 4 } + fadeOut(tween(220)))
+                (slideInHorizontally(glgStandardSpec()) { w -> w } + fadeIn(glgStandardSpec())) togetherWith
+                    (slideOutHorizontally(glgStandardSpec()) { w -> -w / 4 } + fadeOut(glgShortSpec()))
             } else {
                 // 마이페이지 복귀: 오른쪽으로 슬라이드 아웃 (pop)
-                (slideInHorizontally(tween(300)) { w -> -w / 4 } + fadeIn(tween(300))) togetherWith
-                    (slideOutHorizontally(tween(300)) { w -> w } + fadeOut(tween(220)))
+                (slideInHorizontally(glgStandardSpec()) { w -> -w / 4 } + fadeIn(glgStandardSpec())) togetherWith
+                    (slideOutHorizontally(glgStandardSpec()) { w -> w } + fadeOut(glgShortSpec()))
             }
         },
         label = "mypageSettings",
@@ -118,37 +118,41 @@ fun MyPageScreen(
         }
         // ① 프로필 헤더 (흰 카드)
         item {
-            ProfileHeader(
-                name = if (account.isGuest) "게스트" else profile.name,
-                photoUrl = if (account.isGuest) null else account.photoUrl,
-                isGuest = account.isGuest,
-                onLogin = { viewModel.signIn() },
-                onLogout = { viewModel.signOut() },
-            )
+            Box(Modifier.fillMaxWidth().glgLoadIn(0, loadInSet)) {
+                ProfileHeader(
+                    name = if (account.isGuest) "게스트" else profile.name,
+                    photoUrl = if (account.isGuest) null else account.photoUrl,
+                    isGuest = account.isGuest,
+                    onLogin = { viewModel.signIn() },
+                    onLogout = { viewModel.signOut() },
+                )
+            }
         }
         item { Spacer(Modifier.height(13.dp)) }
 
         // ② 이번 달 지출 KPI
         item {
-            MonthlyKpiCard(
-                monthly = monthlyTotal,
-                total = total,
-                dailyAvg = dailyAvg,
-                gameCount = games,
-                prevMonthly = prevMonthly,
-            )
+            Box(Modifier.fillMaxWidth().glgLoadIn(1, loadInSet)) {
+                MonthlyKpiCard(
+                    monthly = monthlyTotal,
+                    total = total,
+                    dailyAvg = dailyAvg,
+                    gameCount = games,
+                    prevMonthly = prevMonthly,
+                )
+            }
         }
         item { Spacer(Modifier.height(13.dp)) }
 
         // ③ 월별 지출 추이 (관리 섹션 대체)
         item { SectionLabel("월별 지출 추이") }
-        item { MonthlyTrendCard(monthlyTrend) }
+        item { Box(Modifier.fillMaxWidth().glgLoadIn(2, loadInSet)) { MonthlyTrendCard(monthlyTrend) } }
         item { Spacer(Modifier.height(11.dp)) }
 
         // ④ 활동 메트릭 2×2
         item { SectionLabel("활동") }
         item {
-            Column(verticalArrangement = Arrangement.spacedBy(11.dp)) {
+            Column(Modifier.fillMaxWidth().glgLoadIn(3, loadInSet), verticalArrangement = Arrangement.spacedBy(11.dp)) {
                 Row(horizontalArrangement = Arrangement.spacedBy(11.dp)) {
                     MetricTile(Icons.Default.LocalFireDepartment, "${attendanceStreak}일", "연속 출석", Modifier.weight(1f), tint = Color(0xFFFF7A45))
                     MetricTile(Icons.Default.Casino, "${gachaTotal}회", "가챠 기록", Modifier.weight(1f))
@@ -163,7 +167,7 @@ fun MyPageScreen(
 
         // ⑤ 게임별 지출 (도넛)
         item { SectionLabel("게임별 지출") }
-        item { GameDonutCard(spendings) }
+        item { Box(Modifier.fillMaxWidth().glgLoadIn(4, loadInSet)) { GameDonutCard(spendings) } }
     }
     }
 }
@@ -476,22 +480,34 @@ fun ThemeSection(selectedIndex: Int, onSelect: (Int) -> Unit) {
         shape = RoundedCornerShape(24.dp),
         modifier = Modifier.fillMaxWidth(),
     ) {
-        Row(
+        // 색상이 늘어 한 줄을 넘기므로 5개씩 끊어 2행으로 배치.
+        Column(
             modifier = Modifier.fillMaxWidth().padding(20.dp),
-            horizontalArrangement = Arrangement.spacedBy(16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            AccentPalette.forEachIndexed { index, option ->
-                Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.clickable { onSelect(index) }) {
-                    Box(
-                        modifier = Modifier.size(40.dp).clip(CircleShape).background(option.color.toColor()),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        if (index == selectedIndex) {
-                            Icon(Icons.Default.Check, null, tint = Color.White, modifier = Modifier.size(20.dp))
+            AccentPalette.chunked(5).forEachIndexed { rowIdx, rowOptions ->
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    rowOptions.forEachIndexed { colIdx, option ->
+                        val index = rowIdx * 5 + colIdx
+                        Column(
+                            modifier = Modifier.weight(1f).clickable { onSelect(index) },
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                        ) {
+                            Box(
+                                modifier = Modifier.size(40.dp).clip(CircleShape).background(option.color.toColor()),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                if (index == selectedIndex) {
+                                    Icon(Icons.Default.Check, null, tint = Color.White, modifier = Modifier.size(20.dp))
+                                }
+                            }
+                            Spacer(Modifier.height(4.dp))
+                            Text(option.label, fontSize = 10.sp, color = if (index == selectedIndex) option.color.toColor() else TextSecondary)
                         }
                     }
-                    Spacer(Modifier.height(4.dp))
-                    Text(option.label, fontSize = 10.sp, color = if (index == selectedIndex) option.color.toColor() else TextSecondary)
                 }
             }
         }

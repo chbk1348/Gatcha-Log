@@ -70,7 +70,7 @@ struct DailyHeroSection: View {
                     HStack {
                         HStack(spacing: 7) {
                             Circle().fill(gameColor).frame(width: 8, height: 8)
-                            Text(game.shortName).font(.system(size: 16, weight: .bold)).foregroundStyle(gameColor)
+                            Text(game.shortName).font(.pretendard(size: 16, weight: .bold)).foregroundStyle(gameColor)
                         }
                         Spacer()
                         focusedCheckControl(game.key, checked: checked, inProgress: inProgress)
@@ -78,17 +78,17 @@ struct DailyHeroSection: View {
                     Spacer().frame(height: 12)
                     Divider()
                     Spacer().frame(height: 12)
-                    Text("실시간 노트").font(.system(size: 12, weight: .bold)).foregroundStyle(GLGColor.textSecondary)
+                    Text("실시간 노트").font(.pretendard(size: 12, weight: .bold)).foregroundStyle(GLGColor.textSecondary)
                     Spacer().frame(height: 8)
                     if let n = note, n.maxResin > 0 {
                         HStack(alignment: .firstTextBaseline, spacing: 5) {
-                            Text("\(n.currentResin)").font(.system(size: 30, weight: .bold))
-                            Text("/ \(n.maxResin) \(n.resinLabel)").font(.system(size: 13)).foregroundStyle(GLGColor.textSecondary)
+                            Text("\(n.currentResin)").font(.pretendard(size: 30, weight: .bold))
+                            Text("/ \(n.maxResin) \(n.resinLabel)").font(.pretendard(size: 13)).foregroundStyle(GLGColor.textSecondary)
                         }
                         if !n.resinRecoveryTime.isEmpty {
                             HStack(spacing: 3) {
-                                Image(systemName: "bolt.fill").font(.system(size: 11)).foregroundStyle(accent.primary)
-                                Text("\(n.resinRecoveryTime) 후 가득 참").font(.system(size: 12)).foregroundStyle(GLGColor.textSecondary)
+                                Image(systemName: "bolt.fill").font(.pretendard(size: 11)).foregroundStyle(accent.primary)
+                                Text("\(n.resinRecoveryTime) 후 가득 참").font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary)
                             }
                             .padding(.top, 2)
                         }
@@ -101,7 +101,7 @@ struct DailyHeroSection: View {
                         }
                     } else {
                         Text(uid(for: game.key).isEmpty ? "UID 미등록 — 설정에서 등록하세요" : "실시간 노트 동기화 중…")
-                            .font(.system(size: 12)).foregroundStyle(GLGColor.textSecondary)
+                            .font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary)
                     }
                 }
             }
@@ -111,12 +111,12 @@ struct DailyHeroSection: View {
             GLGCard(cornerRadius: 24, padding: 16) {
                 VStack(alignment: .leading, spacing: 0) {
                     HStack {
-                        Text("\(game.shortName) 출석").font(.system(size: 16, weight: .bold))
+                        Text("\(game.shortName) 출석").font(.pretendard(size: 16, weight: .bold))
                         Spacer()
                         Button { withAnimation { expanded.toggle() } } label: {
                             HStack(spacing: 2) {
-                                Text(expanded ? "접기" : "한 달 보기").font(.system(size: 11, weight: .bold))
-                                Image(systemName: expanded ? "chevron.up" : "chevron.down").font(.system(size: 11))
+                                Text(expanded ? "접기" : "한 달 보기").font(.pretendard(size: 11, weight: .bold))
+                                Image(systemName: expanded ? "chevron.up" : "chevron.down").font(.pretendard(size: 11))
                             }
                             .foregroundStyle(accent.primary)
                         }
@@ -136,12 +136,12 @@ struct DailyHeroSection: View {
     @ViewBuilder
     private func focusedCheckControl(_ key: String, checked: Bool, inProgress: Bool) -> some View {
         if inProgress {
-            HStack(spacing: 6) { ProgressView().controlSize(.mini).tint(accent.primary); Text("처리 중").font(.system(size: 11, weight: .bold)).foregroundStyle(GLGColor.textSecondary) }
+            HStack(spacing: 6) { ProgressView().controlSize(.mini).tint(accent.primary); Text("처리 중").font(.pretendard(size: 11, weight: .bold)).foregroundStyle(GLGColor.textSecondary) }
         } else if checked {
-            HStack(spacing: 4) { Image(systemName: "checkmark.circle.fill").font(.system(size: 16)).foregroundStyle(accent.primary); Text("출석완료").font(.system(size: 12, weight: .bold)).foregroundStyle(accent.primary) }
+            HStack(spacing: 4) { Image(systemName: "checkmark.circle.fill").font(.pretendard(size: 16)).foregroundStyle(accent.primary); Text("출석완료").font(.pretendard(size: 12, weight: .bold)).foregroundStyle(accent.primary) }
         } else {
             Button { store.attemptCheckIn(key) } label: {
-                Text("출석").font(.system(size: 12, weight: .bold)).foregroundStyle(accent.primary)
+                Text("출석").font(.pretendard(size: 12, weight: .bold)).foregroundStyle(accent.primary)
                     .padding(.horizontal, 16).padding(.vertical, 7)
                     .background(accent.primary.opacity(0.12), in: Capsule())
             }
@@ -151,8 +151,8 @@ struct DailyHeroSection: View {
 
     private func focusedNoteChip(_ stat: NoteStat) -> some View {
         HStack(spacing: 4) {
-            Text(stat.label).font(.system(size: 10)).foregroundStyle(GLGColor.textSecondary)
-            Text(stat.value).font(.system(size: 11, weight: .bold)).foregroundStyle(stat.highlight ? accent.primary : GLGColor.textPrimary)
+            Text(stat.label).font(.pretendard(size: 10)).foregroundStyle(GLGColor.textSecondary)
+            Text(stat.value).font(.pretendard(size: 11, weight: .bold)).foregroundStyle(stat.highlight ? accent.primary : GLGColor.textPrimary)
         }
         .lineLimit(1).fixedSize()
         .padding(.horizontal, 8).padding(.vertical, 4)
@@ -171,10 +171,10 @@ struct DailyHeroSection: View {
     private var headerRow: some View {
         HStack {
             HStack(spacing: 6) {
-                Image(systemName: "bolt.fill").font(.system(size: 16)).foregroundStyle(accent.primary)
-                Text("오늘의 데일리").font(.system(size: 16, weight: .bold)).lineLimit(1)
+                Image(systemName: "bolt.fill").font(.pretendard(size: 16)).foregroundStyle(accent.primary)
+                Text("오늘의 데일리").font(.pretendard(size: 16, weight: .bold)).lineLimit(1)
                 if store.attendanceStreak > 0 {
-                    Text("🔥 \(store.attendanceStreak)일 연속").font(.system(size: 11, weight: .bold))
+                    Text("🔥 \(store.attendanceStreak)일 연속").font(.pretendard(size: 11, weight: .bold))
                         .foregroundStyle(accent.primary)
                         .padding(.horizontal, 7).padding(.vertical, 2)
                         .background(accent.primary.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
@@ -187,9 +187,9 @@ struct DailyHeroSection: View {
                         if store.checkingIn != nil {
                             ProgressView().controlSize(.mini).tint(accent.primary)
                         } else {
-                            Image(systemName: "checkmark.circle").font(.system(size: 14))
+                            Image(systemName: "checkmark.circle").font(.pretendard(size: 14))
                         }
-                        Text("전체 출석").font(.system(size: 12, weight: .bold))
+                        Text("전체 출석").font(.pretendard(size: 12, weight: .bold))
                     }
                     .foregroundStyle(accent.primary)
                     .padding(.horizontal, 11).padding(.vertical, 6)
@@ -202,12 +202,12 @@ struct DailyHeroSection: View {
 
     private var attendanceHeader: some View {
         HStack {
-            Text("최근 출석").font(.system(size: 12, weight: .bold)).foregroundStyle(GLGColor.textSecondary)
+            Text("최근 출석").font(.pretendard(size: 12, weight: .bold)).foregroundStyle(GLGColor.textSecondary)
             Spacer()
             Button { withAnimation { expanded.toggle() } } label: {
                 HStack(spacing: 2) {
-                    Text(expanded ? "접기" : "한 달 보기").font(.system(size: 11, weight: .bold))
-                    Image(systemName: expanded ? "chevron.up" : "chevron.down").font(.system(size: 11))
+                    Text(expanded ? "접기" : "한 달 보기").font(.pretendard(size: 11, weight: .bold))
+                    Image(systemName: expanded ? "chevron.up" : "chevron.down").font(.pretendard(size: 11))
                 }
                 .foregroundStyle(accent.primary)
             }
@@ -220,11 +220,11 @@ struct DailyHeroSection: View {
             VStack(spacing: 0) {
                 ZStack {
                     Circle().fill(accent.primary.opacity(0.12)).frame(width: 56, height: 56)
-                    Image(systemName: "link").font(.system(size: 26)).foregroundStyle(accent.primary)
+                    Image(systemName: "link").font(.pretendard(size: 26)).foregroundStyle(accent.primary)
                 }
-                Text("HoYoLAB 연동이 필요해요").font(.system(size: 16, weight: .bold)).padding(.top, 12)
+                Text("HoYoLAB 연동이 필요해요").font(.pretendard(size: 16, weight: .bold)).padding(.top, 12)
                 Text("연동하면 실시간 노트(레진·개척력·배터리)와\n출석체크를 한곳에서 관리할 수 있어요.")
-                    .font(.system(size: 12)).foregroundStyle(GLGColor.textSecondary)
+                    .font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary)
                     .multilineTextAlignment(.center).padding(.top, 6)
                 GLGButton(title: "HoYoLAB 연동하기", action: onConfig).padding(.top, 18)
             }
@@ -256,16 +256,16 @@ private struct WeekAttendanceStrip: View {
                 let isToday = idx == 6
                 let level = attendLevel(count)
                 VStack(spacing: 5) {
-                    Text(dow).font(.system(size: 10, weight: isToday ? .bold : .regular))
+                    Text(dow).font(.pretendard(size: 10, weight: isToday ? .bold : .regular))
                         .foregroundStyle(isToday ? accent.primary : GLGColor.textSecondary)
                     ZStack {
                         Circle().fill(fillColor(level))
                             .frame(width: 34, height: 34)
                             .overlay(isToday ? Circle().stroke(accent.primary, lineWidth: 2) : nil)
                         if level == .full {
-                            Image(systemName: "checkmark").font(.system(size: 14, weight: .bold)).foregroundStyle(.white)
+                            Image(systemName: "checkmark").font(.pretendard(size: 14, weight: .bold)).foregroundStyle(.white)
                         } else {
-                            Text("\(dayNum)").font(.system(size: 12, weight: .bold))
+                            Text("\(dayNum)").font(.pretendard(size: 12, weight: .bold))
                                 .foregroundStyle(level == .partial ? accent.primary : GLGColor.textSecondary)
                         }
                     }
@@ -300,14 +300,14 @@ private struct MonthAttendanceCalendar: View {
             HStack {
                 Button { monthOffset -= 1 } label: { Image(systemName: "chevron.left").foregroundStyle(GLGColor.textSecondary) }.buttonStyle(.plain)
                 Spacer()
-                Text("\(year)년 \(monthNum)월").font(.system(size: 15, weight: .bold))
+                Text("\(year)년 \(monthNum)월").font(.pretendard(size: 15, weight: .bold))
                 Spacer()
                 Button { if monthOffset < 0 { monthOffset += 1 } } label: {
                     Image(systemName: "chevron.right").foregroundStyle(monthOffset < 0 ? GLGColor.textSecondary : Color(.systemGray3))
                 }.buttonStyle(.plain).disabled(monthOffset >= 0)
             }
             .padding(.bottom, 12)
-            HStack { ForEach(["일","월","화","수","목","금","토"], id: \.self) { Text($0).font(.system(size: 11)).foregroundStyle(GLGColor.textSecondary).frame(maxWidth: .infinity) } }
+            HStack { ForEach(["일","월","화","수","목","금","토"], id: \.self) { Text($0).font(.pretendard(size: 11)).foregroundStyle(GLGColor.textSecondary).frame(maxWidth: .infinity) } }
             .padding(.bottom, 6)
             ForEach(Array(rows.enumerated()), id: \.offset) { _, week in
                 HStack {
@@ -317,7 +317,7 @@ private struct MonthAttendanceCalendar: View {
                             let key = String(format: "%04d-%02d-%02d", year, monthNum, day)
                             let level = attendLevel(history[key]?.count ?? 0)
                             let isToday = key == todayKey
-                            Text("\(day)").font(.system(size: 12, weight: level != .none || isToday ? .bold : .regular))
+                            Text("\(day)").font(.pretendard(size: 12, weight: level != .none || isToday ? .bold : .regular))
                                 .foregroundStyle(dayColor(level, isToday))
                                 .frame(width: 32, height: 32)
                                 .background(bgColor(level), in: Circle())
@@ -349,7 +349,7 @@ private struct MonthAttendanceCalendar: View {
         switch l { case .full: return accent.primary; case .partial: return accent.primary.opacity(0.30); case .none: return .clear }
     }
     private func legendDot(_ c: Color, _ label: String) -> some View {
-        HStack(spacing: 5) { Circle().fill(c).frame(width: 12, height: 12); Text(label).font(.system(size: 11)).foregroundStyle(GLGColor.textSecondary) }
+        HStack(spacing: 5) { Circle().fill(c).frame(width: 12, height: 12); Text(label).font(.pretendard(size: 11)).foregroundStyle(GLGColor.textSecondary) }
     }
 }
 
@@ -365,22 +365,22 @@ private struct DailyGameRow: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 12) {
-                Text(game.abbr).font(.system(size: 11, weight: .bold)).foregroundStyle(Color(argb64: game.color))
+                Text(game.abbr).font(.pretendard(size: 11, weight: .bold)).foregroundStyle(Color(argb64: game.color))
                     .frame(width: 40, height: 40)
                     .background(Color(argb64: game.color).opacity(0.15), in: RoundedRectangle(cornerRadius: 10))
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(game.shortName).font(.system(size: 14, weight: .bold))
+                    Text(game.shortName).font(.pretendard(size: 14, weight: .bold))
                     if let n = note, n.maxResin > 0 {
                         HStack(spacing: 3) {
-                            Image(systemName: "bolt.fill").font(.system(size: 11)).foregroundStyle(accent.primary)
-                            Text("\(n.resinLabel) \(n.currentResin)/\(n.maxResin)").font(.system(size: 12)).foregroundStyle(GLGColor.textSecondary).lineLimit(1)
+                            Image(systemName: "bolt.fill").font(.pretendard(size: 11)).foregroundStyle(accent.primary)
+                            Text("\(n.resinLabel) \(n.currentResin)/\(n.maxResin)").font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary).lineLimit(1)
                             if !n.resinRecoveryTime.isEmpty {
-                                Text("· \(n.resinRecoveryTime)").font(.system(size: 11)).foregroundStyle(Color(.systemGray3)).lineLimit(1)
+                                Text("· \(n.resinRecoveryTime)").font(.pretendard(size: 11)).foregroundStyle(Color(.systemGray3)).lineLimit(1)
                             }
                         }
                     } else {
                         Text(uid.isEmpty ? "UID 미등록 — 설정에서 등록하세요" : "실시간 노트 동기화 중…")
-                            .font(.system(size: 11)).foregroundStyle(GLGColor.textSecondary)
+                            .font(.pretendard(size: 11)).foregroundStyle(GLGColor.textSecondary)
                     }
                 }
                 Spacer(minLength: 8)
@@ -402,12 +402,12 @@ private struct DailyGameRow: View {
 
     @ViewBuilder private var checkInControl: some View {
         if inProgress {
-            HStack(spacing: 6) { ProgressView().controlSize(.mini).tint(accent.primary); Text("처리 중").font(.system(size: 11, weight: .bold)).foregroundStyle(GLGColor.textSecondary) }
+            HStack(spacing: 6) { ProgressView().controlSize(.mini).tint(accent.primary); Text("처리 중").font(.pretendard(size: 11, weight: .bold)).foregroundStyle(GLGColor.textSecondary) }
         } else if checked {
-            HStack(spacing: 4) { Image(systemName: "checkmark.circle.fill").font(.system(size: 18)).foregroundStyle(accent.primary); Text("완료").font(.system(size: 12, weight: .bold)).foregroundStyle(accent.primary) }
+            HStack(spacing: 4) { Image(systemName: "checkmark.circle.fill").font(.pretendard(size: 18)).foregroundStyle(accent.primary); Text("완료").font(.pretendard(size: 12, weight: .bold)).foregroundStyle(accent.primary) }
         } else {
             Button(action: onCheckIn) {
-                Text("출석").font(.system(size: 11, weight: .bold)).foregroundStyle(accent.primary)
+                Text("출석").font(.pretendard(size: 11, weight: .bold)).foregroundStyle(accent.primary)
                     .padding(.horizontal, 16).padding(.vertical, 7)
                     .background(accent.primary.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
             }
@@ -417,8 +417,8 @@ private struct DailyGameRow: View {
 
     private func noteChip(_ stat: NoteStat) -> some View {
         HStack(spacing: 4) {
-            Text(stat.label).font(.system(size: 10)).foregroundStyle(GLGColor.textSecondary)
-            Text(stat.value).font(.system(size: 11, weight: .bold)).foregroundStyle(stat.highlight ? accent.primary : GLGColor.textPrimary)
+            Text(stat.label).font(.pretendard(size: 10)).foregroundStyle(GLGColor.textSecondary)
+            Text(stat.value).font(.pretendard(size: 11, weight: .bold)).foregroundStyle(stat.highlight ? accent.primary : GLGColor.textPrimary)
         }
         .lineLimit(1)
         .fixedSize()  // 칩 내부 텍스트는 줄바꿈 없이 고유 너비 유지 — 줄바꿈은 FlowLayout 이 칩 단위로 처리
