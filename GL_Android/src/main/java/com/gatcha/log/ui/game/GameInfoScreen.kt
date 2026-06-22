@@ -269,6 +269,9 @@ fun GameInfoScreen(
                 item { Spacer(Modifier.height(20.dp)) }
                 item { GameScheduleSection(schedule, banners, gameFilter, onSeeAll = { subPage = GiSub.Schedule }, onSeePickups = { subPage = GiSub.Pickups }) }
             }
+            // 게임 주년 — 지원 게임의 다가오는 주년(임박 순).
+            item { Spacer(Modifier.height(20.dp)) }
+            item { AnniversarySection() }
             // 전투 진행도·수입 일지(게임 필터 연동). 픽업 배너는 게임 일정으로 통합돼 제외.
             item { Spacer(Modifier.height(20.dp)) }
             item {
