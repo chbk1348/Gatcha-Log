@@ -16,6 +16,7 @@ struct SettingsView: View {
     // 시트/다이얼로그 상태
     @State private var showBudget = false
     @State private var showNudge = false
+    @State private var nudgeText = ""
     @State private var showHoyolab = false
     @State private var showUplog = false
     @State private var showCredits = false
@@ -65,7 +66,14 @@ struct SettingsView: View {
             }
         }
         .sheet(isPresented: $showBudget) { BudgetSheet(store: store) }
-        .sheet(isPresented: $showNudge) { NudgeThresholdSheet(store: store) }
+        // 넛지 기준 금액 — 단일 입력이라 바텀시트 대신 중앙 모달(네이티브 alert + 입력 필드).
+        .alert("넛지 기준 금액", isPresented: $showNudge) {
+            TextField("기준 금액 (원)", text: $nudgeText).keyboardType(.numberPad)
+            Button("저장") { store.setNudgeThreshold(Int64(nudgeText.filter(\.isNumber)) ?? 0) }
+            Button("취소", role: .cancel) { }
+        } message: {
+            Text("단건 지출이 이 금액 이상이면 추가 전 한 번 더 확인해요.")
+        }
         .sheet(isPresented: $showUplog) { UpdateLogSheet(version: version) }
         .sheet(isPresented: $showCredits) { CreditsSheet() }
         .navigationDestination(isPresented: $showHoyolab) {
@@ -158,7 +166,10 @@ struct SettingsView: View {
             if store.nudgeOverspend {
                 Divider()
                 navRow(icon: "checkmark.circle", title: "넛지 기준 금액",
-                       value: won(store.nudgeThreshold)) { showNudge = true }
+                       value: won(store.nudgeThreshold)) {
+                    nudgeText = store.nudgeThreshold > 0 ? "\(store.nudgeThreshold)" : ""
+                    showNudge = true
+                }
             }
             Divider()
             navRow(icon: "link", title: "HoYoLAB 계정 연동",
