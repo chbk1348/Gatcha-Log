@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 import Shared
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -22,22 +23,25 @@ struct SpendingView: View {
     @State private var typeFilter: TypeFilter = .all
     @State private var sortOrder: SortOrder = .dateDesc
     @State private var showFilter = false
-    @State private var scrollY: CGFloat = 0
+    // 히어로 축소 — 하부 UIScrollView 의 '아래로 스크롤한 양'(0=최상단). ScrollOffsetReader 가 KVO로 갱신.
+    @State private var scrolledDown: CGFloat = 0
+    // 펼친 히어로 높이(콜랩스 0일 때 측정). 콘텐츠 상단 자리(고정)로 써서 히어로 축소가 maxOffset 을
+    // 바꾸지 않게 한다 → 최하단 떨림(피드백) 방지. 측정 전 추정 기본값.
+    @State private var heroExpandedHeight: CGFloat = 132
 
     private var activeFilterCount: Int {
         [!gameFilters.isEmpty, period != .all, paymentFilter != nil, typeFilter != .all, sortOrder != .dateDesc]
             .filter { $0 }.count
     }
 
-    /// 스크롤 진행에 따른 히어로 축소 정도(0=펼침, 1=접힘). 상단 70pt 스크롤 동안 보간.
-    private var collapse: CGFloat { min(max(-scrollY / 70, 0), 1) }
+    /// 스크롤 진행에 따른 히어로 축소 정도(0=펼침, 1=접힘). 상단 64pt 스크롤 동안 보간.
+    private var collapse: CGFloat { min(max(scrolledDown / 64, 0), 1) }
 
     var body: some View {
-        VStack(spacing: 0) {
-            // 월 지출 히어로 — 스크롤 위에 고정, 스크롤하면 축소(상단 헤더 영역을 히어로 섹션으로)
-            monthHero
-                .padding(.horizontal, 16).padding(.top, 4).padding(.bottom, 10 - 4 * collapse)
-            ScrollView {
+        ScrollView {
+            VStack(spacing: 0) {
+                // 히어로 자리(고정 높이) — 콜랩스해도 콘텐츠 maxOffset 불변(최하단 떨림 방지). 위에 히어로를 오버레이.
+                Color.clear.frame(height: heroExpandedHeight)
                 LazyVStack(alignment: .leading, spacing: 0, pinnedViews: []) {
                     let items = filtered
                     if items.isEmpty {
@@ -57,17 +61,23 @@ struct SpendingView: View {
                     Color.clear.frame(height: 8)
                 }
                 .padding(.horizontal, 16)
-                // 스크롤 오프셋 추적(콘텐츠 배경 GeometryReader — 0높이 형제보다 안정적) → 히어로 축소.
+            }
+            // 하부 UIScrollView contentOffset 직접 추적(KVO) — GeometryReader가 이 레이아웃서 오프셋을 안정적으로 보고하지 못해 폴백.
+            .background(ScrollOffsetReader { scrolledDown = $0 })
+        }
+        .scrollIndicators(.hidden)
+        .refreshable { store.refreshSpending() }
+        // 월 지출 히어로 — 스크롤 위 오버레이(자리는 위 Spacer 가 고정). 스크롤하면 축소. 탭 요소 없어 hitTest 통과.
+        .overlay(alignment: .top) {
+            monthHero
+                .padding(.horizontal, 16).padding(.top, 4).padding(.bottom, 10 - 4 * collapse)
                 .background(
-                    GeometryReader { geo in
-                        Color.clear.preference(key: ScrollOffsetKey.self, value: geo.frame(in: .named("spendScroll")).minY)
+                    GeometryReader { g in
+                        Color.clear.onChange(of: g.size.height) { h in if collapse == 0 { heroExpandedHeight = h } }
+                            .onAppear { if collapse == 0 { heroExpandedHeight = g.size.height } }
                     }
                 )
-            }
-            .coordinateSpace(name: "spendScroll")
-            .onPreferenceChange(ScrollOffsetKey.self) { scrollY = $0 }
-            .scrollIndicators(.hidden)
-            .refreshable { store.refreshSpending() }
+                .allowsHitTesting(false)
         }
         .background(GLGBackground { Color.clear })
         .navigationTitle("")
@@ -336,8 +346,50 @@ struct FlexibleRow<Data: RandomAccessCollection, Content: View>: View where Data
     }
 }
 
-/// 스크롤 오프셋 추적용 PreferenceKey — 월 지출 히어로 축소(collapse) 계산.
-private struct ScrollOffsetKey: PreferenceKey {
-    static var defaultValue: CGFloat = 0
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = nextValue() }
+/// 하부 UIScrollView 의 contentOffset.y(+adjustedContentInset.top) 를 KVO로 직접 읽어 콜백.
+/// SwiftUI GeometryReader 가 이 레이아웃에서 스크롤 오프셋을 안정적으로 보고하지 못해 사용하는 폴백.
+/// 0 = 최상단, 양수 = 아래로 스크롤한 양.
+private struct ScrollOffsetReader: UIViewRepresentable {
+    let onChange: (CGFloat) -> Void
+
+    func makeUIView(context: Context) -> UIView {
+        let v = UIView(frame: .zero)
+        v.backgroundColor = .clear
+        v.isUserInteractionEnabled = false
+        DispatchQueue.main.async { context.coordinator.attach(from: v) }
+        return v
+    }
+
+    func updateUIView(_ uiView: UIView, context: Context) {
+        if context.coordinator.scrollView == nil {
+            DispatchQueue.main.async { context.coordinator.attach(from: uiView) }
+        }
+    }
+
+    func makeCoordinator() -> Coordinator { Coordinator(onChange: onChange) }
+
+    final class Coordinator: NSObject {
+        let onChange: (CGFloat) -> Void
+        weak var scrollView: UIScrollView?
+        private var obs: NSKeyValueObservation?
+        // 최초(최상단) contentOffset.y 를 기준으로 정규화. adjustedContentInset 은 히어로 축소로
+        // 레이아웃이 바뀔 때마다 재계산돼 피드백 진동을 유발하므로 쓰지 않는다(raw offset 은 스크롤로만 변함).
+        private var baseline: CGFloat?
+        init(onChange: @escaping (CGFloat) -> Void) { self.onChange = onChange }
+
+        func attach(from view: UIView) {
+            var v: UIView? = view.superview
+            while let cur = v, !(cur is UIScrollView) { v = cur.superview }
+            guard let sv = v as? UIScrollView else { return }
+            scrollView = sv
+            obs = sv.observe(\.contentOffset, options: [.new, .initial]) { [weak self] sv, _ in
+                guard let self else { return }
+                let y = sv.contentOffset.y
+                if self.baseline == nil { self.baseline = y }
+                self.onChange(y - (self.baseline ?? y))
+            }
+        }
+
+        deinit { obs?.invalidate() }
+    }
 }
