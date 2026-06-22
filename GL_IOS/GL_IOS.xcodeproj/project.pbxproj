@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		04D900E4303215C82AEA7A1B /* GachaCalculatorSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = BFE5396217B0F6A1F487F364 /* GachaCalculatorSection.swift */; };
+		1431B09C96CB6ADF4D51B094 /* AnniversarySection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 75EFB2FF99DCA036AE774E6A /* AnniversarySection.swift */; };
 		14AFD15B3420C392511D404A /* CalendarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A84E3B9B9790F13D3F75EE5E /* CalendarView.swift */; };
 		169ACD2F4B8A99D2183912C3 /* SettingsDialogs.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC551FFC4A65F19F94A1987B /* SettingsDialogs.swift */; };
 		17991733B1B0EC7204C21DEB /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = E167D2DF62218A027D330ECD /* Theme.swift */; };
@@ -94,6 +95,7 @@
 		68D6D7AAE7CA1EEF965F0455 /* GL_IOS.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = GL_IOS.entitlements; sourceTree = "<group>"; };
 		6A7AD50D44CC890634902ADD /* GachaDashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GachaDashboardView.swift; sourceTree = "<group>"; };
 		716CDDC7D2BB3BEC9580864E /* GLGSkeleton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GLGSkeleton.swift; sourceTree = "<group>"; };
+		75EFB2FF99DCA036AE774E6A /* AnniversarySection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnniversarySection.swift; sourceTree = "<group>"; };
 		762960D1C044CF4E4506D38C /* SpendingInsightView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpendingInsightView.swift; sourceTree = "<group>"; };
 		7A348DAF50519ABD14014AA0 /* SpendingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpendingView.swift; sourceTree = "<group>"; };
 		846F3D6CE1BD91FB25597AA6 /* GiftCodeSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GiftCodeSheet.swift; sourceTree = "<group>"; };
@@ -152,6 +154,7 @@
 		4EBB86011748B1CC9AC8FB0E /* GameInfo */ = {
 			isa = PBXGroup;
 			children = (
+				75EFB2FF99DCA036AE774E6A /* AnniversarySection.swift */,
 				1684DC3A94F3A86481854D57 /* DailyHeroSection.swift */,
 				B8E1563A89FD1762C317ABC2 /* EnkaCharSection.swift */,
 				BFE5396217B0F6A1F487F364 /* GachaCalculatorSection.swift */,
@@ -392,6 +395,7 @@
 			files = (
 				90F00551956AF38F2548C694 /* AccountLoadingView.swift in Sources */,
 				87BCB4BC1FDA9A8B97CB3D98 /* AddSpendingView.swift in Sources */,
+				1431B09C96CB6ADF4D51B094 /* AnniversarySection.swift in Sources */,
 				98B4EF7E15CE5D1D3F10446D /* AnnualReportView.swift in Sources */,
 				14AFD15B3420C392511D404A /* CalendarView.swift in Sources */,
 				ED52FDDCC5ADCAECF885F91A /* ContentView.swift in Sources */,
