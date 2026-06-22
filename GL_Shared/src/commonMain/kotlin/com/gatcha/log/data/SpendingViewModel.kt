@@ -876,9 +876,8 @@ class SpendingViewModel : ViewModel() {
                     // 1) 홈/오늘 할 일 의존 최소셋 — 배너(ennead 2게임 + ZZZ) + 실시간 노트를 모두 동시에
                     val enneadDeferred = GameData.games.filter { it.enneadKey != null }
                         .map { game -> async { EnneadApi.fetch(game) } }
-                    val zzzDeferred = async { com.gatcha.log.data.api.ZzzBannerApi.fetch() }
-                    // ZZZ 일정 — 배너는 위 수동 JSON(한국어) 유지, 이벤트·도전만 ennead(zenless)에서.
-                    val zzzEventsDeferred = async { EnneadApi.fetchZzzEvents() }
+                    // ZZZ 픽업·일정 — ennead zenless 캘린더에서 배너+이벤트+도전 자동(수동 JSON 폐기, 에이전트명 한국어 매핑).
+                    val zzzDeferred = async { EnneadApi.fetchZzz() }
                     val noteDeferred = uids.map { (key, uid) ->
                         async { HoyolabApi.getLiveNote(cfg.ltuid, cfg.ltoken, key, uid).note }
                     }
@@ -892,8 +891,7 @@ class SpendingViewModel : ViewModel() {
                         events += r.events
                         challenges += r.challenges
                     }
-                    banners += zzzDeferred.await()
-                    zzzEventsDeferred.await().let { events += it.events; challenges += it.challenges }
+                    zzzDeferred.await().let { banners += it.banners; events += it.events; challenges += it.challenges }
                     if (banners.isNotEmpty()) _activeBanners.value = banners.sortedBy { it.dDay() }
                     _gameEvents.value = events.sortedBy { it.endMillis }
                     _challenges.value = challenges.sortedBy { it.endMillis }

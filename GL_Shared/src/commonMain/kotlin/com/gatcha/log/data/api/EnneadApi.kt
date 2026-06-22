@@ -34,21 +34,21 @@ object EnneadApi {
     }
 
     /**
-     * 젠레스 존 제로 일정 — ennead `mihoyo/zenless/calendar` 의 **이벤트·도전만** 사용.
-     * (배너는 한국어 큐레이션 유지를 위해 ZzzBannerApi 수동 JSON 을 그대로 쓰므로 여기선 제외.)
-     * 주의: ennead 의 ZZZ 데이터는 ko-kr 요청에도 영문으로 온다(보상 폴리크롬은 숫자 필드).
+     * 젠레스 존 제로 일정 — ennead `mihoyo/zenless/calendar` 의 **픽업 배너 + 이벤트 + 도전** 전부.
+     * 수동 JSON 대신 캘린더에서 자동으로 받는다(항상 최신·버전 포함). ennead ZZZ 데이터는 ko-kr 요청에도
+     * 영문이라(에이전트·W엔진·이벤트명) [ZzzEventNames] 한국어 매핑(빌트인+원격) 적용, 매핑 없으면 원문 유지.
+     * 보상 폴리크롬은 숫자 필드([rewardOf] 처리).
      */
-    suspend fun fetchZzzEvents(): EnneadResult {
+    suspend fun fetchZzz(): EnneadResult {
         val res = Net.get("https://api.ennead.cc/mihoyo/zenless/calendar?lang=ko-kr")
         if (!res.isOk) return EnneadResult(emptyList(), emptyList())
         return runCatching {
             val r = parse(Game.ZZZ, JSONObject(res.body))
-            // 영문 이벤트명 → 한국어 매핑(빌트인+원격). 매핑 없으면 원문 유지.
-            val names = ZzzEventNames.map()
+            val ko = ZzzEventNames.map() // 에이전트·W엔진·이벤트 공용 en→ko
             EnneadResult(
-                emptyList(), // 배너 제외(ZzzBannerApi 한국어 유지)
-                r.events.map { it.copy(name = names[it.name] ?: it.name) },
-                r.challenges.map { it.copy(name = names[it.name] ?: it.name) },
+                r.banners.map { it.copy(name = ko[it.name] ?: it.name) },
+                r.events.map { it.copy(name = ko[it.name] ?: it.name) },
+                r.challenges.map { it.copy(name = ko[it.name] ?: it.name) },
             )
         }.getOrDefault(EnneadResult(emptyList(), emptyList()))
     }
@@ -129,7 +129,7 @@ object EnneadApi {
             val arr = b.optJSONArray(key)
             if (arr != null && arr.length() > 0) return arr to false
         }
-        for (key in listOf("weapons", "light_cones")) {
+        for (key in listOf("weapons", "light_cones", "w_engines")) {
             val arr = b.optJSONArray(key)
             if (arr != null && arr.length() > 0) return arr to true
         }
