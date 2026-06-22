@@ -24,6 +24,13 @@ object CharEffectsApi {
     // EnkaApi.headers 와 동일 — 일부 메타 호스트는 User-Agent 가 없으면 403/429.
     private val headers = mapOf("User-Agent" to "Gatcha-LOG-Android/1.0", "Accept" to "application/json")
 
+    // hakush(api.hakush.in)는 Cloudflare 뒤라 커스텀 UA 를 403 으로 막을 수 있어 브라우저 UA + Referer 사용.
+    private val hakushHeaders = mapOf(
+        "User-Agent" to "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1",
+        "Accept" to "application/json",
+        "Referer" to "https://zzz.hakush.in/",
+    )
+
     private val cache = mutableMapOf<String, List<CharEffect>>()
 
     /** [gameKey] = Game.key("genshin"/"hsr"/"zzz"), [id] = EnkaChar.id. 효과 단계 오름차순 리스트. */
@@ -72,7 +79,7 @@ object CharEffectsApi {
      * 어디서든 못 읽으면 빈 리스트.
      */
     private suspend fun fetchZzz(id: Int): List<CharEffect> {
-        val res = Net.get("https://api.hakush.in/zzz/data/ko/character/$id.json", headers)
+        val res = Net.get("https://api.hakush.in/zzz/data/ko/character/$id.json", hakushHeaders)
         if (!res.isOk) return emptyList()
         val root = runCatching { JSONObject(res.body) }.getOrNull() ?: return emptyList()
         // data 래핑이 있을 수도 있어 root + data 양쪽에서 Talent/talent 탐색.
