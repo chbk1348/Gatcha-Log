@@ -43,7 +43,13 @@ object EnneadApi {
         if (!res.isOk) return EnneadResult(emptyList(), emptyList())
         return runCatching {
             val r = parse(Game.ZZZ, JSONObject(res.body))
-            EnneadResult(emptyList(), r.events, r.challenges) // 배너 제외
+            // 영문 이벤트명 → 한국어 매핑(빌트인+원격). 매핑 없으면 원문 유지.
+            val names = ZzzEventNames.map()
+            EnneadResult(
+                emptyList(), // 배너 제외(ZzzBannerApi 한국어 유지)
+                r.events.map { it.copy(name = names[it.name] ?: it.name) },
+                r.challenges.map { it.copy(name = names[it.name] ?: it.name) },
+            )
         }.getOrDefault(EnneadResult(emptyList(), emptyList()))
     }
 

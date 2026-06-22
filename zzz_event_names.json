@@ -1,0 +1,8 @@
+{
+  "_comment": "젠레스 존 제로 이벤트명 영문→한국어 매핑. ennead ZZZ 데이터가 영문이라 한국어화용. 패치마다 새 이벤트 영문명(키)→한국어(값) 추가만 하면 앱 업데이트 없이 반영(앱이 raw 로 fetch). 매핑 없으면 원문 유지. _comment 키는 무시됨(이벤트명과 안 겹침).",
+  "Gleaming Shadow Team Battle": "빛나는 그림자 협동전",
+  "Celestial Nexus Intelligence Dossier": "천계 넥서스 정보 파일",
+  "Assemble! Mock Exam Comeback Plan": "집합! 모의고사 만회 작전",
+  "Tales of the Hobbling Crow": "절뚝이는 까마귀 이야기",
+  "Art Is Bangboo!": "예술은 방부!"
+}
