@@ -7,9 +7,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.EnterExitState
-import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
@@ -138,13 +136,13 @@ fun HomeScreen(viewModel: SpendingViewModel = viewModel()) {
     // 닫을 땐 같은 위치로 줄며 라운드가 다시 차올라 FAB 로 흡수되는 느낌.
     AnimatedContent(
         targetState = showAddSpendingSheet.value,
-        transitionSpec = { fadeIn(tween(200)) togetherWith fadeOut(tween(260)) },
+        transitionSpec = { fadeIn(glgStandardSpec()) togetherWith fadeOut(glgShortSpec()) },
         label = "rootPage",
     ) { addPage ->
         if (addPage) {
             // 등장 0→1 / 퇴장 1→0. 스케일(0.35→1, FAB 우하단 피벗) + 모서리 라운드(32→0dp)로 morph.
             val morph by transition.animateFloat(
-                transitionSpec = { tween(durationMillis = 360, easing = FastOutSlowInEasing) },
+                transitionSpec = { glgEmphasisSpec() },
                 label = "fabMorph",
             ) { state -> if (state == EnterExitState.Visible) 1f else 0f }
             Box(
@@ -181,8 +179,8 @@ fun HomeScreen(viewModel: SpendingViewModel = viewModel()) {
                     // 하위 페이지(연간 리포트·알림 상세 등)에서는 하단바·FAB를 아래로 슬라이드해 숨김
                     AnimatedVisibility(
                         visible = !subPageActive,
-                        enter = slideInVertically(tween(280)) { it } + fadeIn(tween(280)),
-                        exit = slideOutVertically(tween(280)) { it } + fadeOut(tween(220)),
+                        enter = slideInVertically(glgStandardSpec()) { it } + fadeIn(glgStandardSpec()),
+                        exit = slideOutVertically(glgStandardSpec()) { it } + fadeOut(glgShortSpec()),
                     ) {
                         BottomNavBar(
                             selectedTab = selectedTab,
@@ -203,8 +201,8 @@ fun HomeScreen(viewModel: SpendingViewModel = viewModel()) {
                             transitionSpec = {
                                 // 탭 인덱스 방향에 따라 좌/우로 슬라이드 + 페이드
                                 val dir = if (targetState > initialState) 1 else -1
-                                (slideInHorizontally(tween(260)) { w -> dir * w / 4 } + fadeIn(tween(260))) togetherWith
-                                    (slideOutHorizontally(tween(260)) { w -> -dir * w / 4 } + fadeOut(tween(180)))
+                                (slideInHorizontally(glgStandardSpec()) { w -> dir * w / 4 } + fadeIn(glgStandardSpec())) togetherWith
+                                    (slideOutHorizontally(glgStandardSpec()) { w -> -dir * w / 4 } + fadeOut(glgShortSpec()))
                             },
                             label = "tab",
                         ) { tab ->
@@ -335,12 +333,12 @@ fun HomeContent(
         transitionSpec = {
             if (targetState) {
                 // 알림 열기: 오른쪽에서 슬라이드 인 (push)
-                (slideInHorizontally(tween(300)) { w -> w } + fadeIn(tween(300))) togetherWith
-                    (slideOutHorizontally(tween(300)) { w -> -w / 4 } + fadeOut(tween(220)))
+                (slideInHorizontally(glgStandardSpec()) { w -> w } + fadeIn(glgStandardSpec())) togetherWith
+                    (slideOutHorizontally(glgStandardSpec()) { w -> -w / 4 } + fadeOut(glgShortSpec()))
             } else {
                 // 홈 복귀: 오른쪽으로 슬라이드 아웃 (pop)
-                (slideInHorizontally(tween(300)) { w -> -w / 4 } + fadeIn(tween(300))) togetherWith
-                    (slideOutHorizontally(tween(300)) { w -> w } + fadeOut(tween(220)))
+                (slideInHorizontally(glgStandardSpec()) { w -> -w / 4 } + fadeIn(glgStandardSpec())) togetherWith
+                    (slideOutHorizontally(glgStandardSpec()) { w -> w } + fadeOut(glgShortSpec()))
             }
         },
         label = "notif",

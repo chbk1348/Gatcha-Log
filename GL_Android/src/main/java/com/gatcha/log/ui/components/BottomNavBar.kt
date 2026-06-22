@@ -1,7 +1,6 @@
 package com.gatcha.log.ui.components
 
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -30,13 +29,14 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.gatcha.log.ui.theme.DividerColor
 import com.gatcha.log.ui.theme.NavUnselected
+import com.gatcha.log.ui.theme.glgStandardSpec
 
 @Composable
 fun BottomNavBar(selectedTab: Int, onTabSelected: (Int) -> Unit, onAddClick: () -> Unit, accent: Color, showFab: Boolean) {
     // 단일 진행값으로 FAB 와 하단바(알약)를 함께 확장/축소 애니메이션
     val fab by animateFloatAsState(
         targetValue = if (showFab) 1f else 0f,
-        animationSpec = tween(durationMillis = 320),
+        animationSpec = glgStandardSpec(),
         label = "fab",
     )
     Box(

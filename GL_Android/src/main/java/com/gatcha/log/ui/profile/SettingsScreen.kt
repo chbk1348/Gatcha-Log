@@ -5,7 +5,6 @@ import android.content.Intent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
@@ -44,6 +43,8 @@ import com.gatcha.log.util.SafIO
 import kotlinx.coroutines.launch
 import com.gatcha.log.ui.theme.DividerColor
 import com.gatcha.log.ui.theme.LocalAccent
+import com.gatcha.log.ui.theme.glgShortSpec
+import com.gatcha.log.ui.theme.glgStandardSpec
 import com.gatcha.log.ui.theme.TextSecondary
 import com.gatcha.log.util.won
 
@@ -106,11 +107,11 @@ fun SettingsScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
         targetState = showHoyolab.value,
         transitionSpec = {
             if (targetState) {
-                (slideInHorizontally(tween(300)) { it } + fadeIn(tween(300))) togetherWith
-                    (slideOutHorizontally(tween(300)) { -it / 4 } + fadeOut(tween(220)))
+                (slideInHorizontally(glgStandardSpec()) { it } + fadeIn(glgStandardSpec())) togetherWith
+                    (slideOutHorizontally(glgStandardSpec()) { -it / 4 } + fadeOut(glgShortSpec()))
             } else {
-                (slideInHorizontally(tween(300)) { -it / 4 } + fadeIn(tween(300))) togetherWith
-                    (slideOutHorizontally(tween(300)) { it } + fadeOut(tween(220)))
+                (slideInHorizontally(glgStandardSpec()) { -it / 4 } + fadeIn(glgStandardSpec())) togetherWith
+                    (slideOutHorizontally(glgStandardSpec()) { it } + fadeOut(glgShortSpec()))
             }
         },
         label = "hoyoLink",
