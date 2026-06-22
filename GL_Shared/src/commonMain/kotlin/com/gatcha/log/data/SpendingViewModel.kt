@@ -871,6 +871,8 @@ class SpendingViewModel : ViewModel() {
                     val enneadDeferred = GameData.games.filter { it.enneadKey != null }
                         .map { game -> async { EnneadApi.fetch(game) } }
                     val zzzDeferred = async { com.gatcha.log.data.api.ZzzBannerApi.fetch() }
+                    // ZZZ 일정 — 배너는 위 수동 JSON(한국어) 유지, 이벤트·도전만 ennead(zenless)에서.
+                    val zzzEventsDeferred = async { EnneadApi.fetchZzzEvents() }
                     val noteDeferred = uids.map { (key, uid) ->
                         async { HoyolabApi.getLiveNote(cfg.ltuid, cfg.ltoken, key, uid).note }
                     }
@@ -885,6 +887,7 @@ class SpendingViewModel : ViewModel() {
                         challenges += r.challenges
                     }
                     banners += zzzDeferred.await()
+                    zzzEventsDeferred.await().let { events += it.events; challenges += it.challenges }
                     if (banners.isNotEmpty()) _activeBanners.value = banners.sortedBy { it.dDay() }
                     _gameEvents.value = events.sortedBy { it.endMillis }
                     _challenges.value = challenges.sortedBy { it.endMillis }
