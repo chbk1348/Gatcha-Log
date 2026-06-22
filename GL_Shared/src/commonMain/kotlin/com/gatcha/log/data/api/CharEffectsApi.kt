@@ -117,7 +117,9 @@ object CharEffectsApi {
 
     /** 마크업 태그(<color>/<i>/<unbreak> 등) 제거 + 줄바꿈/공백 정리. (EnkaApi.cleanName 동일 규칙) */
     private fun clean(raw: String): String =
-        raw.replace(Regex("<[^>]*>"), "")
+        raw.replace(Regex("<[^>]*>"), "")               // 마크업 태그(<color>/<i>/<unbreak>)
+            .replace(Regex("\\{[^}]*}"), "")            // {LINK#…}/{/LINK} 등 중괄호 참조 태그 제거(라벨은 보존)
+            .replace(Regex("#\\d+\\[[^\\]]*]%?"), "")    // yatta 미보간 자리표시자(#1[i]% 등) 제거
             .replace("\\n", " ")
             .replace(Regex("\\s+"), " ")
             .trim()
