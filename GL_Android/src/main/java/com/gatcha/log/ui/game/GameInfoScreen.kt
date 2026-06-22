@@ -1,7 +1,6 @@
 package com.gatcha.log.ui.game
 
 import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
@@ -143,11 +142,11 @@ fun GameInfoScreen(
         transitionSpec = {
             // 계층 깊이로 push/pop 방향 결정 (Main=0 < 하위=1 < 상세(CharStats)=2)
             if (subDepth(targetState) >= subDepth(initialState)) {
-                (slideInHorizontally(tween(300)) { it } + fadeIn(tween(300))) togetherWith
-                    (slideOutHorizontally(tween(300)) { -it / 4 } + fadeOut(tween(220)))
+                (slideInHorizontally(glgStandardSpec()) { it } + fadeIn(glgStandardSpec())) togetherWith
+                    (slideOutHorizontally(glgStandardSpec()) { -it / 4 } + fadeOut(glgShortSpec()))
             } else {
-                (slideInHorizontally(tween(300)) { -it / 4 } + fadeIn(tween(300))) togetherWith
-                    (slideOutHorizontally(tween(300)) { it } + fadeOut(tween(220)))
+                (slideInHorizontally(glgStandardSpec()) { -it / 4 } + fadeIn(glgStandardSpec())) togetherWith
+                    (slideOutHorizontally(glgStandardSpec()) { it } + fadeOut(glgShortSpec()))
             }
         },
         label = "giSubPage",

@@ -4,7 +4,6 @@ import com.gatcha.log.data.SpendingViewModel
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
@@ -106,12 +105,12 @@ fun SpendingScreen(
         transitionSpec = {
             if (targetState !is SpendingScreenNav.List) {
                 // 하위 페이지 열기: 오른쪽에서 슬라이드 인 (push)
-                (slideInHorizontally(tween(300)) { w -> w } + fadeIn(tween(300))) togetherWith
-                    (slideOutHorizontally(tween(300)) { w -> -w / 4 } + fadeOut(tween(220)))
+                (slideInHorizontally(glgStandardSpec()) { w -> w } + fadeIn(glgStandardSpec())) togetherWith
+                    (slideOutHorizontally(glgStandardSpec()) { w -> -w / 4 } + fadeOut(glgShortSpec()))
             } else {
                 // 목록으로 복귀: 오른쪽으로 슬라이드 아웃 (pop)
-                (slideInHorizontally(tween(300)) { w -> -w / 4 } + fadeIn(tween(300))) togetherWith
-                    (slideOutHorizontally(tween(300)) { w -> w } + fadeOut(tween(220)))
+                (slideInHorizontally(glgStandardSpec()) { w -> -w / 4 } + fadeIn(glgStandardSpec())) togetherWith
+                    (slideOutHorizontally(glgStandardSpec()) { w -> w } + fadeOut(glgShortSpec()))
             }
         },
         label = "spendingNav",
