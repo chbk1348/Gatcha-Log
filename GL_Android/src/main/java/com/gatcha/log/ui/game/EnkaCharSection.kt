@@ -497,7 +497,7 @@ private fun CharEffectsSection(c: EnkaChar, game: String) {
                             gameColor = gameColor,
                             fallbackLabel = effectsTitle(game),
                             expanded = expanded == i,
-                            onToggle = { if (e.desc.isNotBlank()) expanded = if (expanded == i) -1 else i },
+                            onToggle = { expanded = if (expanded == i) -1 else i }, // 항상 토글(iOS 패리티). desc 없으면 펼친 영역에 안내.
                         )
                         if (i < nodes.lastIndex) Spacer(Modifier.height(4.dp))
                     }
@@ -563,13 +563,13 @@ private fun EffectNode(
             Spacer(Modifier.width(6.dp))
             Text(if (expanded) "▴" else "▾", fontSize = 11.sp, color = TextSecondary)
         }
-        if (expanded && effect.desc.isNotBlank()) {
+        if (expanded) {
             Spacer(Modifier.height(7.dp))
             Text(
-                effect.desc,
+                effect.desc.ifBlank { "효과 설명을 불러오지 못했어요" },
                 fontSize = 11.5.sp,
                 color = TextSecondary,
-                modifier = Modifier.padding(start = 36.dp).alpha(if (isActive) 1f else 0.7f),
+                modifier = Modifier.padding(start = 36.dp).alpha(if (effect.desc.isBlank()) 0.5f else if (isActive) 1f else 0.7f),
             )
         }
     }
