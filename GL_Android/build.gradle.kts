@@ -4,6 +4,8 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.plugin.compose")
+    // Baseline Profile 소비 — :baselineprofile 이 생성한 프로파일을 release APK 에 동봉.
+    id("androidx.baselineprofile")
 }
 
 // 릴리스 서명 자격증명: local.properties(레포 제외) 또는 환경변수에서 읽는다. 코드/레포에는 절대 두지 않는다.
@@ -108,6 +110,18 @@ kotlin {
     }
 }
 
+// Baseline Profile 생성용 벤치마크 변형(plugin 이 만든 nonMinifiedRelease/benchmarkRelease)은
+// 실제 release 키(local.properties) 대신 debug 키로 서명한다 — ① 테스트 빌드에 실키 불필요,
+// ② 기기에 깔린 debug 빌드와 서명을 맞춰 재설치 충돌(INSTALL_FAILED_UPDATE_INCOMPATIBLE) 회피.
+androidComponents {
+    onVariants(selector().withBuildType("nonMinifiedRelease")) { v ->
+        v.signingConfig.setConfig(android.signingConfigs.getByName("debug"))
+    }
+    onVariants(selector().withBuildType("benchmarkRelease")) { v ->
+        v.signingConfig.setConfig(android.signingConfigs.getByName("debug"))
+    }
+}
+
 dependencies {
     // 공유 KMP 모듈 — 비즈니스 로직(데이터/리포지토리/API/동기화)의 정본. 레거시 P3 통합.
     implementation(project(":GL_Shared"))
@@ -127,6 +141,8 @@ dependencies {
 
     // Baseline Profile 설치기 — release APK 에 동봉된 프로파일을 기기에 적용해 핫패스 AOT 컴파일.
     implementation("androidx.profileinstaller:profileinstaller:1.4.1")
+    // :baselineprofile 모듈이 생성한 프로파일을 이 앱의 release 빌드에 주입.
+    baselineProfile(project(":baselineprofile"))
 
     // 네트워크 이미지 로딩(구글 프로필 사진 등)
     implementation("io.coil-kt:coil-compose:2.7.0")
