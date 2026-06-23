@@ -5,7 +5,13 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -47,9 +53,23 @@ fun SpendingDetailScreen(
 
     Column(Modifier.fillMaxSize()) {
         GlgScreenHeader("지출 상세", onBack, Modifier.padding(horizontal = 16.dp)) {
-            // 수정·삭제를 헤더 우측 액션으로 이동(하단 버튼 제거).
-            HeaderTextButton("수정", LocalAccent.current) { onEdit() }
-            HeaderTextButton("삭제", DangerRed) { confirmDelete = true }
+            // 수정·삭제를 헤더 우측 ⋮ 드롭다운 메뉴로 통합(Android). iOS 는 기존 액션 유지.
+            var menuOpen by remember { mutableStateOf(false) }
+            Box {
+                IconButton(onClick = { menuOpen = true }) {
+                    Icon(Icons.Default.MoreVert, contentDescription = "더보기", tint = TextSecondary)
+                }
+                DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                    DropdownMenuItem(
+                        text = { Text("수정", color = LocalAccent.current, fontWeight = FontWeight.SemiBold) },
+                        onClick = { menuOpen = false; onEdit() },
+                    )
+                    DropdownMenuItem(
+                        text = { Text("삭제", color = DangerRed, fontWeight = FontWeight.SemiBold) },
+                        onClick = { menuOpen = false; confirmDelete = true },
+                    )
+                }
+            }
         }
         Column(
             // 하단바 미노출 페이지 — 바 높이 여백 대신 시스템 네비 인셋만 확보
@@ -130,22 +150,7 @@ fun SpendingDetailScreen(
     }
 }
 
-/** 헤더 우측 액션용 컴팩트 텍스트 버튼. */
 private val DangerRed = Color(0xFFDC2626)
-
-@Composable
-private fun HeaderTextButton(text: String, color: Color, onClick: () -> Unit) {
-    Text(
-        text,
-        fontSize = 15.sp,
-        fontWeight = FontWeight.SemiBold,
-        color = color,
-        modifier = Modifier
-            .clip(RoundedCornerShape(8.dp))
-            .clickable { onClick() }
-            .padding(horizontal = 10.dp, vertical = 6.dp),
-    )
-}
 
 @Composable
 private fun DetailRow(label: String, value: String) {
