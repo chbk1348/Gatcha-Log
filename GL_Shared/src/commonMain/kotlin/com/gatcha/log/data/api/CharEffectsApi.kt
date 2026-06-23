@@ -151,8 +151,10 @@ object CharEffectsApi {
     /** 마크업 태그(<color>/<i>/<unbreak> 등) 제거 + 줄바꿈/공백 정리. (EnkaApi.cleanName 동일 규칙) */
     private fun clean(raw: String): String =
         raw.replace(Regex("<[^>]*>"), "")               // 마크업 태그(<color>/<i>/<unbreak>)
-            .replace(Regex("\\{[^}]*}"), "")            // {LINK#…}/{/LINK} 등 중괄호 참조 태그 제거(라벨은 보존)
-            .replace(Regex("#\\d+\\[[^\\]]*]%?"), "")    // yatta 미보간 자리표시자(#1[i]% 등) 제거
+            // {LINK#…}/{/LINK} 등 중괄호 참조 태그 제거(라벨은 보존). 닫는 }·]도 반드시 이스케이프 —
+            // Android 정규식 엔진(ICU)은 비이스케이프 } 를 양화자 메타로 보고 PatternSyntaxException 을 던진다(Java/iOS는 허용).
+            .replace(Regex("\\{[^}]*\\}"), "")
+            .replace(Regex("#\\d+\\[[^\\]]*\\]%?"), "")  // yatta 미보간 자리표시자(#1[i]% 등) 제거
             .replace("\\n", " ")
             .replace(Regex("\\s+"), " ")
             .trim()

@@ -400,10 +400,12 @@ struct EnkaStatPage: View {
                 Image(systemName: expanded ? "chevron.up" : "chevron.down")
                     .font(.pretendard(size: 10)).foregroundStyle(GLGColor.textSecondary)
             }
-            if expanded && !e.desc.isEmpty {
-                Text(e.desc).font(.pretendard(size: 11.5)).foregroundStyle(GLGColor.textSecondary)
+            if expanded {
+                // 토글은 항상 동작(Android 패리티). 설명을 못 받았으면 빈 화면 대신 안내 문구.
+                Text(e.desc.isEmpty ? "효과 설명을 불러오지 못했어요" : e.desc)
+                    .font(.pretendard(size: 11.5)).foregroundStyle(GLGColor.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
-                    .opacity(isActive ? 1 : 0.7)
+                    .opacity(e.desc.isEmpty ? 0.5 : (isActive ? 1 : 0.7))
                     .padding(.leading, 36)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
