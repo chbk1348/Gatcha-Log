@@ -177,8 +177,8 @@ fun SpendingScreen(
     // 펼친 히어로(헤더+카드) 높이 — 콜랩스 0일 때 측정해 '히어로 자리' spacer 로 사용. 측정 전 추정 기본값.
     var heroOverlayPx by remember { mutableIntStateOf(0) }
     val heroSpacerDp = if (heroOverlayPx > 0) with(density) { heroOverlayPx.toDp() } else 196.dp
-    // 로드인 스태거 — 행이 처음 보일 때 1회 등장(인덱스=정렬 리스트 내 위치).
-    val loadInSet = remember { mutableSetOf<Int>() }
+    // 로드인 스태거 — 앱 진입 후 1회만 등장(인덱스=정렬 리스트 내 위치). 탭 재진입 재생 방지(세션 영속).
+    val loadInSet = rememberGlgLoadInSet("spending")
 
     Box(Modifier.fillMaxSize()) {
         GlgPullToRefreshBox(

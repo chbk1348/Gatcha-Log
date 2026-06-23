@@ -33,6 +33,7 @@ import com.gatcha.log.ui.components.GlgButton
 import com.gatcha.log.ui.components.GlgOutlineButton
 import com.gatcha.log.ui.theme.DividerColor
 import com.gatcha.log.ui.theme.glgLoadIn
+import com.gatcha.log.ui.theme.rememberGlgLoadInSet
 import com.gatcha.log.ui.theme.toColor
 import com.gatcha.log.ui.theme.LocalAccent
 import com.gatcha.log.ui.theme.TextPrimary
@@ -117,7 +118,8 @@ private fun EmptyState(onImport: () -> Unit) {
 @Composable
 private fun ReportContent(stats: GachaStats, spendByGameKey: Map<String, Long>, onImport: () -> Unit, onOpenDashboard: () -> Unit) {
     val games = stats.byGame.keys.sortedBy { GachaReport.gameOrder.indexOf(it).let { i -> if (i < 0) 99 else i } }
-    val loadInSet = remember { mutableSetOf<Int>() }
+    // 로드인 스태거 — 앱 진입 후 1회만(게임 정보 탭 재진입 재생 방지, 세션 영속).
+    val loadInSet = rememberGlgLoadInSet("gachaReport")
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
         games.forEachIndexed { idx, gk ->
             val g = stats.byGame[gk] ?: return@forEachIndexed
