@@ -11,6 +11,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
@@ -32,6 +33,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.gatcha.log.data.SpendingViewModel
+import com.gatcha.log.data.api.CharEffect
+import com.gatcha.log.data.api.CharEffectsApi
 import com.gatcha.log.data.api.EnkaArtifact
 import com.gatcha.log.data.api.EnkaChar
 import com.gatcha.log.data.api.EnkaSet
@@ -443,6 +446,131 @@ fun EnkaStatPage(c: EnkaChar, game: String, onBack: () -> Unit) {
                     if (i < c.sets.lastIndex) Spacer(Modifier.height(10.dp))
                 }
             }
+        }
+
+        // 명좌/성혼/의식 단계별 효과 — 외부 메타 API 비동기 로드. 빈 결과면 섹션 자체 숨김.
+        CharEffectsSection(c, game)
+    }
+}
+
+/** 운명의 자리(원신)/성혼(스타레일)/형상 시네마(젠레스) 섹션 제목. */
+private fun effectsTitle(game: String): String = when (game) {
+    "genshin" -> "운명의 자리"
+    "zzz" -> "형상 시네마"
+    else -> "성혼"
+}
+
+/**
+ * 단계별 효과 섹션 — index ≤ rank=활성(게임색 강조), index > rank=비활성(흐림/잠금).
+ * 노드 탭 시 효과 설명 펼침(게임 인게임 명좌/성혼 화면 UX). 로딩 중 스피너, 빈 결과면 섹션 숨김.
+ */
+@Composable
+private fun CharEffectsSection(c: EnkaChar, game: String) {
+    var effects by remember(c.id, game) { mutableStateOf<List<CharEffect>>(emptyList()) }
+    var loading by remember(c.id, game) { mutableStateOf(true) }
+    LaunchedEffect(c.id, game) {
+        loading = true
+        effects = CharEffectsApi.fetch(game, c.id)
+        loading = false
+    }
+    Spacer(Modifier.height(16.dp))
+    SecLabel(effectsTitle(game))
+    when {
+        loading -> GlassCard(modifier = Modifier.fillMaxWidth()) {
+            Box(Modifier.fillMaxWidth().padding(vertical = 18.dp), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator(modifier = Modifier.size(22.dp), strokeWidth = 2.dp, color = LocalAccent.current)
+            }
+        }
+        else -> {
+            // rank: 원신 명함=0(돌파 없음), 비공개 rank=-1 → 활성 0개 처리.
+            val active = c.rank.coerceAtLeast(0)
+            val gameColor = gameAccentColor(game)
+            // 설명을 못 받아도(예: ZZZ 의식 소스 미도달) rank 기준 1~6 단계 노드는 항상 표시(이름/설명만 빈 값).
+            val nodes = if (effects.isNotEmpty()) effects else (1..6).map { CharEffect(it, "", "") }
+            var expanded by remember(c.id, game) { mutableStateOf(-1) }
+            GlassCard(modifier = Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(7.dp)) {
+                    nodes.forEachIndexed { i, e ->
+                        EffectNode(
+                            effect = e,
+                            isActive = e.index <= active,
+                            gameColor = gameColor,
+                            fallbackLabel = effectsTitle(game),
+                            expanded = expanded == i,
+                            onToggle = { expanded = if (expanded == i) -1 else i }, // 항상 토글(iOS 패리티). desc 없으면 펼친 영역에 안내.
+                        )
+                        if (i < nodes.lastIndex) Spacer(Modifier.height(4.dp))
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** 게임 강조색(인게임 톤): 원신 골드 · 스타레일 퍼플 · 젠레스 옐로. */
+private fun gameAccentColor(game: String): Color = when (game) {
+    "genshin" -> Color(0xFFD8A12E)
+    "zzz" -> Color(0xFFF5A623)
+    else -> Color(0xFFB06BFF)
+}
+
+/** 단계 노드 1개 — 번호 배지(활성=게임색 채움/비활성=잠금) + 효과명 + 탭 펼침 설명. */
+@Composable
+private fun EffectNode(
+    effect: CharEffect,
+    isActive: Boolean,
+    gameColor: Color,
+    fallbackLabel: String,
+    expanded: Boolean,
+    onToggle: () -> Unit,
+) {
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .then(if (expanded) Modifier.background(gameColor.copy(alpha = 0.06f)) else Modifier)
+            .clickable { onToggle() }
+            .padding(horizontal = 7.dp, vertical = 8.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                Modifier.size(26.dp).then(
+                    if (isActive) Modifier.background(gameColor, RoundedCornerShape(999.dp))
+                    else Modifier.border(1.dp, TextSecondary.copy(alpha = 0.35f), RoundedCornerShape(999.dp)),
+                ),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    "${effect.index}",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Black,
+                    color = if (isActive) Color.White else TextSecondary.copy(alpha = 0.6f),
+                )
+            }
+            Spacer(Modifier.width(10.dp))
+            Text(
+                effect.name.ifBlank { "$fallbackLabel ${effect.index}" },
+                fontSize = 12.5.sp,
+                fontWeight = FontWeight.Bold,
+                color = if (isActive) TextPrimary else TextSecondary,
+                maxLines = if (expanded) Int.MAX_VALUE else 1,
+                modifier = Modifier.weight(1f).alpha(if (isActive) 1f else 0.6f),
+            )
+            if (!isActive) {
+                Spacer(Modifier.width(6.dp))
+                Text("잠금", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = TextSecondary.copy(alpha = 0.55f))
+            }
+            Spacer(Modifier.width(6.dp))
+            Text(if (expanded) "▴" else "▾", fontSize = 11.sp, color = TextSecondary)
+        }
+        if (expanded) {
+            Spacer(Modifier.height(7.dp))
+            Text(
+                effect.desc.ifBlank { "효과 설명을 불러오지 못했어요" },
+                fontSize = 11.5.sp,
+                color = TextSecondary,
+                modifier = Modifier.padding(start = 36.dp).alpha(if (effect.desc.isBlank()) 0.5f else if (isActive) 1f else 0.7f),
+            )
         }
     }
 }

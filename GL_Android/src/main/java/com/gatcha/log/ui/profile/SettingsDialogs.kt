@@ -22,7 +22,19 @@ internal fun UplogDialog(versionName: String, onDismiss: () -> Unit) {
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
             UplogEntry(
-                "v${versionName.ifBlank { "27.27.0" }}",
+                "v${versionName.ifBlank { "27.30.0" }}",
+                listOf(
+                    "앱 전체 디자인을 새로 단장했어요 — 카드·칩·버튼을 통일하고, 화면이 부드럽게 떠오르는 모션과 로딩 스켈레톤을 더했어요",
+                    "전역 글꼴을 Pretendard로 적용하고, 기기 글꼴 크기와 무관하게 일관된 레이아웃을 유지해요",
+                    "지출 내역 상단 ‘이번 달 지출’을 히어로 영역으로 — 스크롤하면 자연스럽게 접혀요",
+                    "게임 정보에 ‘주년’ 섹션과 ‘공지·뉴스’ 섹션을 추가했어요 (공지는 ‘더보기’로 전체 보기)",
+                    "젠레스 존 제로 이벤트 일정을 한국어로 보여드려요",
+                    "캐릭터 상세에 ‘돌파 효과’(운명의 자리·성혼·형상 시네마)를 활성/비활성과 설명까지 추가했어요",
+                    "예산 관리·설정·상세 필터 화면을 카드형으로 정리했어요",
+                ),
+            )
+            UplogEntry(
+                "v27.27.0",
                 listOf(
                     "마이페이지를 대시보드로 새단장했어요 — 이번 달 지출·월별 추이·활동 지표·게임별 비중을 한눈에 봐요",
                     "내부 구조를 정리해 안정성과 iOS·안드로이드 동작 일관성을 높였어요",
@@ -217,7 +229,7 @@ internal fun CreditsDialog(onDismiss: () -> Unit) {
             )
             CreditRow(
                 "데이터 · 에셋 출처",
-                "enka.network · Project Amber (yatta.moe)\nHoYoLAB · ennead.cc",
+                "enka.network · HoYoLAB · ennead.cc\nProject Amber (yatta.moe) · Hakush.in",
             )
             Text(
                 "모든 게임 콘텐츠의 권리는 각 권리자에게 있으며, 권리자의 요청이 있을 경우 즉시 해당 자료를 삭제합니다.",
