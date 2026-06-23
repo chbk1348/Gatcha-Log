@@ -27,6 +27,8 @@ import com.gatcha.log.ui.components.GlgChip
 import com.gatcha.log.ui.components.GlgChipVariant
 import com.gatcha.log.ui.components.GlgPullToRefreshBox
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -83,11 +85,24 @@ fun SpendingScreen(
     var typeFilter by remember { mutableStateOf(TypeFilter.ALL) }
     var sortOrder by remember { mutableStateOf(SortOrder.DATE_DESC) }
     val showFilterSheet = remember { mutableStateOf(false) }
-    var nav by remember { mutableStateOf<SpendingScreenNav>(SpendingScreenNav.List) }
+    // 지출 추가/수정 에디터는 루트 페이지 전환이라 이 화면이 컴포지션에서 빠진다 → 상세 진입 후
+    // 에디터를 그냥 닫으면 nav 가 List 로 초기화돼 리스트로 튕기던 문제. 열린 상세 id 를
+    // rememberSaveable 로 보존해, 재진입(에디터 닫힘·탭 복귀) 시 상세로 복원한다(iOS 내비 스택과 동일).
+    var savedDetailId by rememberSaveable { mutableStateOf<String?>(null) }
+    var nav by remember {
+        val restored: SpendingScreenNav = savedDetailId
+            ?.let { id -> spendings.firstOrNull { it.id == id } }
+            ?.let { sp -> SpendingScreenNav.Detail(sp) }
+            ?: SpendingScreenNav.List
+        mutableStateOf(restored)
+    }
     // 하위 페이지(연간 리포트·지출 상세)에서 시스템 뒤로가기 시 앱 종료가 아니라 목록으로 복귀
     BackHandler(enabled = nav != SpendingScreenNav.List) { nav = SpendingScreenNav.List }
-    // 하위 페이지가 열리면 상위(Scaffold)에 알려 하단바·FAB를 숨김
-    LaunchedEffect(nav) { onSubPageChange(nav != SpendingScreenNav.List) }
+    // 하위 페이지가 열리면 상위(Scaffold)에 알려 하단바·FAB를 숨김 + 열린 상세 id 보존(에디터 왕복 복원용)
+    LaunchedEffect(nav) {
+        onSubPageChange(nav != SpendingScreenNav.List)
+        savedDetailId = (nav as? SpendingScreenNav.Detail)?.spending?.id
+    }
 
     val monthlyTotal = remember(spendings) { viewModel.monthlyTotal() }
     val prevMonthTotal = remember(spendings) { previousMonthTotal(spendings) }
@@ -490,9 +505,17 @@ private fun SpendingFilterSheet(
     onDismiss: () -> Unit,
 ) {
     val accent = LocalAccent.current
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val scope = rememberCoroutineScope()
+    // '적용'은 onDismiss 를 바로 호출하면 시트가 애니메이션 없이 사라진다 →
+    // sheetState.hide() 로 슬라이드다운 애니메이션 후 닫는다(스크림/드래그 닫힘과 동일한 모션).
+    val animatedDismiss = {
+        scope.launch { sheetState.hide() }.invokeOnCompletion { if (!sheetState.isVisible) onDismiss() }
+        Unit
+    }
     ModalBottomSheet(
         onDismissRequest = onDismiss,
-        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        sheetState = sheetState,
         containerColor = Color.White,
         contentWindowInsets = { WindowInsets(0, 0, 0, 0) },
     ) {
@@ -527,7 +550,7 @@ private fun SpendingFilterSheet(
             Spacer(Modifier.height(8.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 GlgOutlineButton("초기화", onReset, Modifier.weight(1f))
-                GlgButton("적용", onDismiss, Modifier.weight(1.4f))
+                GlgButton("적용", animatedDismiss, Modifier.weight(1.4f))
             }
         }
     }
