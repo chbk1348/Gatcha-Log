@@ -19,3 +19,5 @@ rootProject.name = "GatchaLOG"
 include(":GL_Android")
 // KMP(iOS) 마이그레이션용 공유 모듈 — :GL_Android 과 독립적으로 빌드됨
 include(":GL_Shared")
+// Baseline Profile 생성 전용 테스트 모듈(Macrobenchmark). release 빌드에만 영향, 평소 빌드 무관.
+include(":baselineprofile")
