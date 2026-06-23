@@ -359,20 +359,20 @@ private fun HeaderPillButton(
     }
 }
 
-/** 연간 리포트 진입 버튼. */
+/** 연간 리포트 진입 버튼 — 아이콘 전용(iOS 파리티). */
 @Composable
 private fun AnnualReportButton(onClick: () -> Unit) =
-    HeaderPillButton(Icons.Default.Assessment, "연간 리포트", null, onClick)
+    HeaderPillButton(Icons.Default.Assessment, null, "연간 리포트", onClick)
 
 /** 캘린더 진입 버튼 — 공간 절약을 위해 아이콘 전용(높이는 동일). */
 @Composable
 private fun CalendarButton(onClick: () -> Unit) =
     HeaderPillButton(Icons.Default.CalendarMonth, null, "캘린더", onClick)
 
-/** 인사이트 진입 버튼. */
+/** 인사이트 진입 버튼 — 아이콘 전용(iOS 파리티). */
 @Composable
 private fun InsightButton(onClick: () -> Unit) =
-    HeaderPillButton(Icons.Default.Insights, "인사이트", null, onClick)
+    HeaderPillButton(Icons.Default.Insights, null, "인사이트", onClick)
 
 @Composable
 fun GameFilterRow(selectedGame: String?, modifier: Modifier = Modifier, onGameSelected: (String?) -> Unit) {

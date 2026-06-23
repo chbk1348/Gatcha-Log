@@ -320,9 +320,8 @@ private fun GachaRateButton(onClick: () -> Unit) {
             modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Icon(Icons.Default.Percent, contentDescription = null, tint = accent, modifier = Modifier.size(14.dp))
-            Spacer(Modifier.width(5.dp))
-            Text("확률표", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = accent)
+            // 아이콘 전용(텍스트 제거) — 라벨은 접근성용 contentDescription 으로만 보존.
+            Icon(Icons.Default.Percent, contentDescription = "확률표", tint = accent, modifier = Modifier.size(14.dp))
         }
     }
 }
