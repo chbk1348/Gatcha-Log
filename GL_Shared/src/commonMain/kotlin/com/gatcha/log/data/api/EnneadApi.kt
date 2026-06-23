@@ -34,19 +34,18 @@ object EnneadApi {
     }
 
     /**
-     * 젠레스 존 제로 일정 — ennead `mihoyo/zenless/calendar` 의 **픽업 배너 + 이벤트 + 도전** 전부.
-     * 수동 JSON 대신 캘린더에서 자동으로 받는다(항상 최신·버전 포함). ennead ZZZ 데이터는 ko-kr 요청에도
-     * 영문이라(에이전트·W엔진·이벤트명) [ZzzEventNames] 한국어 매핑(빌트인+원격) 적용, 매핑 없으면 원문 유지.
-     * 보상 폴리크롬은 숫자 필드([rewardOf] 처리).
+     * 젠레스 존 제로 일정 — ennead `mihoyo/zenless/calendar` 의 **이벤트 + 도전만**(픽업 배너 기능 제거).
+     * ennead ZZZ 데이터는 ko-kr 요청에도 영문이라 이벤트명에 [ZzzEventNames] 한국어 매핑(빌트인+원격) 적용,
+     * 매핑 없으면 원문 유지. 보상 폴리크롬은 숫자 필드([rewardOf] 처리).
      */
     suspend fun fetchZzz(): EnneadResult {
         val res = Net.get("https://api.ennead.cc/mihoyo/zenless/calendar?lang=ko-kr")
         if (!res.isOk) return EnneadResult(emptyList(), emptyList())
         return runCatching {
             val r = parse(Game.ZZZ, JSONObject(res.body))
-            val ko = ZzzEventNames.map() // 에이전트·W엔진·이벤트 공용 en→ko
+            val ko = ZzzEventNames.map() // 이벤트명 en→ko
             EnneadResult(
-                r.banners.map { it.copy(name = ko[it.name] ?: it.name) },
+                emptyList(), // 픽업 배너 제외(기능 제거)
                 r.events.map { it.copy(name = ko[it.name] ?: it.name) },
                 r.challenges.map { it.copy(name = ko[it.name] ?: it.name) },
             )

@@ -122,7 +122,7 @@ struct CreditsSheet: View {
                     creditRow("게임 콘텐츠 · 아이콘 저작권",
                               "© HoYoverse (miHoYo / Cognosphere) — 원신 · 붕괴: 스타레일 · 젠레스 존 제로\n© Kuro Games — 명조: 워더링 웨이브\n© Hypergryph / Yostar — 명일방주: 엔드필드")
                     creditRow("데이터 · 에셋 출처",
-                              "enka.network · Project Amber (yatta.moe)\nHoYoLAB · ennead.cc")
+                              "enka.network · HoYoLAB · ennead.cc\nProject Amber (yatta.moe) · Hakush.in")
                     Text("모든 게임 콘텐츠의 권리는 각 권리자에게 있으며, 권리자의 요청이 있을 경우 즉시 해당 자료를 삭제합니다.")
                         .font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary)
                 }
@@ -182,6 +182,15 @@ private enum UpdateLog {
     // iOS 전용 업데이트 로그 — Android 와 별도 작성/관리. (iOS 릴리스 태그: vX.Y.Z-ios)
     static func entries(currentVersion: String) -> [Entry] {
         [
+            Entry(version: "v27.30.0", items: [
+                "앱 전체 디자인을 새로 단장했어요 — 카드·칩·버튼을 통일하고, 화면이 부드럽게 떠오르는 모션과 로딩 스켈레톤을 더했어요",
+                "전역 글꼴을 Pretendard로 적용하고, 기기 글꼴 크기와 무관하게 일관된 레이아웃을 유지해요",
+                "지출 내역 상단 ‘이번 달 지출’을 히어로 영역으로 — 스크롤하면 자연스럽게 접혀요",
+                "게임 정보에 ‘주년’ 섹션과 ‘공지·뉴스’ 섹션을 추가했어요 (공지는 ‘더보기’로 전체 보기)",
+                "젠레스 존 제로 이벤트 일정을 한국어로 보여드려요",
+                "캐릭터 상세에 ‘돌파 효과’(운명의 자리·성혼·형상 시네마)를 활성/비활성과 설명까지 추가했어요",
+                "예산 관리·설정·상세 필터 화면을 카드형으로 정리했어요",
+            ]),
             Entry(version: "v27.27.0", items: [
                 "마이페이지를 대시보드로 새단장했어요 — 이번 달 지출·월별 추이·활동 지표·게임별 비중을 한눈에 봐요",
                 "내부 구조를 정리해 안정성과 iOS·안드로이드 동작 일관성을 높였어요",
