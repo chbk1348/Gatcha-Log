@@ -59,7 +59,8 @@ fun MyPageScreen(
     val gachaStats by viewModel.gachaStats.collectAsState()
 
     val showSettings = remember { mutableStateOf(false) }
-    val loadInSet = remember { mutableSetOf<Int>() }
+    // 로드인 스태거 — 앱 진입 후 1회만(탭 재진입 재생 방지, 세션 영속).
+    val loadInSet = rememberGlgLoadInSet("mypage")
 
     // 설정 페이지에서 시스템/제스처 뒤로가기 시 홈이 아니라 마이페이지로 복귀
     BackHandler(enabled = showSettings.value) { showSettings.value = false }

@@ -358,8 +358,8 @@ fun HomeContent(
         onRefresh = { viewModel.refreshGameInfo(force = true) },
         modifier = Modifier.fillMaxSize(),
     ) {
-    // 콘텐츠 로드인 스태거 — 첫 표시 1회만 등장(스크롤 재진입 시 재애니메이션 방지용 인덱스 보관).
-    val loadInSet = remember { mutableSetOf<Int>() }
+    // 콘텐츠 로드인 스태거 — 앱 진입 후 1회만 등장(스크롤·탭 재진입 시 재애니메이션 방지). 세션 영속 집합.
+    val loadInSet = rememberGlgLoadInSet("home")
     LazyColumn(state = listState, modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
         // HoYoLAB 토큰 만료 감지 시 최상단 배너 — 자동 출석에서 AUTH 실패가 누적되어
         // 사용자가 출석을 며칠씩 못 챙기는 사례 방지. CTA 한 번으로 재연동 진입.
