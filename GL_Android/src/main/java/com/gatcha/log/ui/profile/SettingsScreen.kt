@@ -250,6 +250,34 @@ fun SettingsScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
                     }
                 }
             }
+            // 토글은 켰는데 시스템 알림 권한이 꺼져 있으면 안내(영구 거부 시 시스템 다이얼로그가 안 떠서 사용자가 인지 못 함).
+            val notifOn = notifyBudget || notifyAttendance || notifyResin
+            val notifEnabled = remember(notifyBudget, notifyAttendance, notifyResin) {
+                com.gatcha.log.data.Notifier.notificationsEnabled()
+            }
+            if (notifOn && !notifEnabled) {
+                Spacer(Modifier.height(8.dp))
+                GlassCard(shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth()) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Icon(Icons.Default.NotificationsOff, null, tint = Color(0xFFFB8C00), modifier = Modifier.size(20.dp))
+                        Spacer(Modifier.width(12.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text("알림 권한이 꺼져 있어요", fontSize = 13.sp, fontWeight = FontWeight.Medium, color = Color(0xFFFB8C00))
+                            Text("권한이 막혀 있어 알림이 표시되지 않아요. 시스템 설정에서 알림을 켜주세요.", fontSize = 11.sp, color = TextSecondary)
+                        }
+                        Spacer(Modifier.width(8.dp))
+                        GlgButton(
+                            "설정",
+                            onClick = { openAppNotificationSettings(context) },
+                            modifier = Modifier.width(72.dp),
+                            height = 36.dp,
+                        )
+                    }
+                }
+            }
         }
 
         // 화면(테마) — 1층 하단으로 이동
@@ -468,6 +496,18 @@ private fun shareCsvFile(context: Context, csv: String) {
         putExtra(Intent.EXTRA_TEXT, csv)
     }
     context.startActivity(Intent.createChooser(intent, "지출 내역 내보내기"))
+}
+
+/** 이 앱의 시스템 알림 설정 화면을 연다(권한 영구 거부 시 사용자가 직접 켜도록). */
+private fun openAppNotificationSettings(context: Context) {
+    val intent = if (Build.VERSION.SDK_INT >= 26) {
+        Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+            .putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, context.packageName)
+    } else {
+        Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
+            .setData(android.net.Uri.fromParts("package", context.packageName, null))
+    }
+    runCatching { context.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
 }
 
 /** 빌드 타입(디버그/릴리스) 구분칩 — 어떤 빌드가 설치됐는지 한눈에. */

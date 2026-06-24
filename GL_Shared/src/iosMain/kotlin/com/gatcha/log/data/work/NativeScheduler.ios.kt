@@ -27,16 +27,23 @@ import platform.Foundation.dateByAddingTimeInterval
 private const val TASK_ID = "com.gatcha.log.ios.checkin"
 private const val REFRESH_INTERVAL_SECONDS = 6.0 * 3600.0
 
-/** 자동 출석 1회 실행 — 백그라운드/즉시 실행 공용. HoYoLAB 미연동이면 내부에서 no-op. */
+/**
+ * 자동 출석 + 로컬 알림 점검 1회 — 백그라운드/즉시 실행 공용. HoYoLAB 미연동이면 출석은 내부에서 no-op.
+ * 알림 점검([NotificationChecker])은 Android(GatchaWorker)와 동일 로직으로 패리티 유지.
+ */
 private suspend fun runCheckIn() {
     val settings = AppSettings()
     val repo = GatchaRepository(AppSettings.currentAccountId())
+    val cfg = repo.loadHoyolab()
     AutoCheckInRunner.run(
         settings = settings,
         repo = repo,
-        cfg = repo.loadHoyolab(),
+        cfg = cfg,
         postFailureNotification = true,
     )
+    runCatching { NotificationChecker.run(settings, repo, cfg) }
+    // 출석 리마인더 예약형 갱신(다음 18:00) — BGTask 정시 비보장을 보완.
+    runCatching { AttendanceReminder.reschedule(settings, repo, cfg) }
 }
 
 @OptIn(ExperimentalForeignApi::class)
