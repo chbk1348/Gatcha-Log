@@ -94,10 +94,12 @@ struct SettingsView: View {
         } message: {
             Text("단건 지출이 이 금액 이상이면 추가 전 한 번 더 확인해요.")
         }
-        .sheet(isPresented: $showUplog) { UpdateLogSheet(version: version) }
         .sheet(isPresented: $showCredits) { CreditsSheet() }
         .navigationDestination(isPresented: $showHoyolab) {
             HoyolabLinkView(store: store) { showHoyolab = false }
+        }
+        .navigationDestination(isPresented: $showUplog) {
+            UpdateLogPage(version: version)
         }
         // 가챠 초기화 — 1단계(백업 권장)
         .alert("가챠 기록 초기화", isPresented: $confirmClearGacha) {
