@@ -44,6 +44,11 @@ class AppSettings {
         get() = prefs.getBoolean(KEY_HOYO_EXPIRED, false)
         set(v) { prefs.putBoolean(KEY_HOYO_EXPIRED, v) }
 
+    /** 앱 첫 실행 시 알림 권한을 1회 자동 요청했는지(중복 프롬프트 방지). */
+    var notifPermAsked: Boolean
+        get() = prefs.getBoolean(KEY_NOTIF_PERM_ASKED, false)
+        set(v) { prefs.putBoolean(KEY_NOTIF_PERM_ASKED, v) }
+
     /** 백그라운드 주기 작업이 필요한지(하나라도 켜져 있으면 스케줄 유지). */
     fun needsPeriodicWork(): Boolean = autoCheckIn || notifyResin || notifyAttendance || notifyBudget
 
@@ -60,6 +65,7 @@ class AppSettings {
         private const val KEY_HOYO_EXPIRED = "hoyo_token_expired"
         private const val KEY_NUDGE = "nudge_overspend"
         private const val KEY_NUDGE_THRESHOLD = "nudge_threshold"
+        private const val KEY_NOTIF_PERM_ASKED = "notif_perm_asked"
 
         /** 현재 로그인 계정 id(gatcha_auth). 비로그인=guest. 백그라운드 컴포넌트가 계정별 저장소를 열 때 사용. */
         fun currentAccountId(): String =
