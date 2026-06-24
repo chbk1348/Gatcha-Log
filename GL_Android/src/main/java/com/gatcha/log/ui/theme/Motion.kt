@@ -54,10 +54,25 @@ fun <T> glgEmphasisSpec(durationMs: Int = GlgMotion.DurationLong): FiniteAnimati
 // ── 콘텐츠 로드인 스태거 ──────────────────────────────────────────────────────
 
 /**
+ * 앱 세션(프로세스) 동안 화면 태그별 "이미 로드인한 인덱스" 집합을 영속 보관하는 레지스트리.
+ * 탭 전환으로 화면이 컴포지션에서 빠졌다 다시 들어와도(= `remember` 가 리셋돼도) 같은 집합을 돌려줘
+ * 로드인 스태거가 **앱 진입 후 1회만** 재생되게 한다(매 탭 클릭 재생 방지). 프로세스 재시작 시 초기화.
+ */
+private val glgLoadInRegistry = mutableMapOf<String, MutableSet<Int>>()
+
+/**
+ * [glgLoadIn]/[glgStaggerItem] 에 넘길 "이미 애니메이션한 인덱스" 집합을 화면 [tag] 로 세션 영속 발급.
+ * 탭(홈·지출·게임정보·마이페이지 등) 재진입 시에도 1회만 로드인하도록, 화면별 고유 [tag] 를 준다.
+ */
+@Composable
+fun rememberGlgLoadInSet(tag: String): MutableSet<Int> =
+    remember(tag) { glgLoadInRegistry.getOrPut(tag) { mutableSetOf() } }
+
+/**
  * 콘텐츠 로드인 — 항목이 **처음 표시될 때 1회** alpha 0→1 + 살짝 위(16dp)에서 내려오며 등장.
  *
- * [animated] 에 [index] 를 기록해, LazyColumn 재활용으로 스크롤 재진입해도 다시 애니메이션하지 않는다.
- * 호출부에서 `remember { mutableSetOf<Int>() }` 를 하나 만들어 모든 항목에 공유 전달.
+ * [animated] 에 [index] 를 기록해, LazyColumn 재활용으로 스크롤 재진입하거나 탭을 오가도 다시 애니메이션하지 않는다.
+ * 호출부에서 [rememberGlgLoadInSet] 로 화면 태그별 세션 영속 집합을 만들어 모든 항목에 공유 전달.
  * delay = index*[GlgMotion.StaggerStep] (최대 [GlgMotion.StaggerMax]) — 순차 등장 스태거.
  */
 fun Modifier.glgLoadIn(index: Int, animated: MutableSet<Int>): Modifier = composed {
