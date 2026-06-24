@@ -35,7 +35,15 @@ object ChangeLog {
     const val periodLabel: String = "2026.05.23 ~ 06.24"
 
     val entries: List<ChangeEntry> = buildList {
-        add(ChangeEntry("27.30.0", "2026.06.24", milestone = true, featured = true, items = listOf(
+        add(ChangeEntry("27.31.0", "2026.06.24", milestone = true, featured = true, items = listOf(
+            fix("알림이 제때 오지 않던 문제를 대폭 개선 — 예산·출석·재화 알림을 iOS에서도 정상 발송하고 권한·정시성을 보강했어요"),
+            new("픽업 마감 알림 — 진행 중인 픽업이 끝나기 전에 미리 알려드려요"),
+            new("지출 일괄 편집 — 여러 건을 한 번에 선택해 게임·날짜·태그를 바꾸거나 삭제할 수 있어요"),
+            imp("업데이트 기록을 전용 페이지로 개편 — 분류 필터(신규·개선·수정·보안)·타임라인"),
+            imp("앱 첫 실행 시 알림 권한을 안내해요"),
+            imp("헤더 버튼·선택 바 등 UI를 더 일관되게 다듬었어요"),
+        )))
+        add(ChangeEntry("27.30.0", "2026.06.24", milestone = true, items = listOf(
             imp("앱 전체 디자인을 새로 단장 — 카드·칩·버튼을 통일하고, 부드럽게 떠오르는 모션과 로딩 스켈레톤을 더했어요"),
             imp("전역 글꼴을 Pretendard로 적용하고, 기기 글꼴 크기와 무관하게 일관된 레이아웃을 유지해요"),
             new("지출 내역 상단 ‘이번 달 지출’을 히어로 영역으로 — 스크롤하면 자연스럽게 접혀요"),
