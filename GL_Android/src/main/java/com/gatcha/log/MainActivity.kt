@@ -1,11 +1,16 @@
 package com.gatcha.log
 
+import android.Manifest
 import android.content.Context
+import android.content.pm.PackageManager
 import android.content.res.Configuration
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
 import androidx.compose.material3.Text
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -27,6 +32,10 @@ import com.gatcha.log.data.work.AndroidWorkScheduler
 
 class MainActivity : ComponentActivity() {
 
+    /** 첫 실행 시 알림 권한(POST_NOTIFICATIONS, Android 13+) 1회 요청용 런처. */
+    private val notifPermLauncher =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
+
     /**
      * 기기 글꼴 크기(접근성 폰트 스케일)와 무관하게 앱 전체를 고정 크기로 렌더한다.
      * base context 의 fontScale 을 1.0 으로 고정하면, 메인 화면은 물론 거기서 파생되는
@@ -42,6 +51,19 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         // 자동 출석·알림 주기 작업을 설정 상태에 맞춰 동기화(재부팅·재설치 후 복구 포함)
         runCatching { AndroidWorkScheduler.apply(applicationContext) }
+        // 앱 첫 실행 시 알림 권한 1회 자동 요청(Android 13+). 이후엔 설정에서만 유도.
+        runCatching {
+            val settings = AppSettings()
+            if (!settings.notifPermAsked) {
+                settings.notifPermAsked = true
+                if (Build.VERSION.SDK_INT >= 33 &&
+                    ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) !=
+                    PackageManager.PERMISSION_GRANTED
+                ) {
+                    notifPermLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                }
+            }
+        }
         // 6시간 주기 워커가 도즈모드·배터리 절약으로 며칠씩 안 돌 수 있어, 앱 실행 시
         // 오늘 미출석 게임이 남아있으면 즉시 1회 트리거(자동 출석 토글이 켜진 경우만).
         runCatching {
