@@ -4,12 +4,16 @@ import com.gatcha.log.data.SpendingViewModel
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -25,6 +29,7 @@ import com.gatcha.log.ui.components.ChipIdleBorder
 import com.gatcha.log.ui.components.ChipIdleText
 import com.gatcha.log.ui.components.GlgChip
 import com.gatcha.log.ui.components.GlgChipVariant
+import com.gatcha.log.ui.components.GlgCircleIconButton
 import com.gatcha.log.ui.components.GlgPullToRefreshBox
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -104,7 +109,7 @@ fun SpendingScreen(
     // 하위 페이지(연간 리포트·지출 상세)에서 시스템 뒤로가기 시 앱 종료가 아니라 목록으로 복귀
     BackHandler(enabled = nav != SpendingScreenNav.List) { nav = SpendingScreenNav.List }
     BackHandler(enabled = selectionMode) { exitSelection() }
-    // 하위 페이지가 열리면 상위(Scaffold)에 알려 하단바·FAB를 숨김 + 열린 상세 id 보존(에디터 왕복 복원용)
+    // 하위 페이지가 열리면 상위(Scaffold)에 알려 하단바·FAB를 숨김 + 상세 id 보존. (선택 모드는 탭바 유지 — 그 위에 선택 바 노출)
     LaunchedEffect(nav) {
         onSubPageChange(nav != SpendingScreenNav.List)
         savedDetailId = (nav as? SpendingScreenNav.Detail)?.spending?.id
@@ -241,7 +246,13 @@ fun SpendingScreen(
                         Box(Modifier.glgLoadIn(sorted.indexOf(spending).coerceAtLeast(0), loadInSet)) {
                             HistoryItem(
                                 spending = spending,
-                                onClick = { nav = SpendingScreenNav.Detail(spending) },
+                                selectionMode = selectionMode,
+                                selected = spending.id in selectedIds,
+                                onClick = {
+                                    if (selectionMode) {
+                                        selectedIds = if (spending.id in selectedIds) selectedIds - spending.id else selectedIds + spending.id
+                                    } else nav = SpendingScreenNav.Detail(spending)
+                                },
                             )
                         }
                     }
@@ -260,21 +271,28 @@ fun SpendingScreen(
                 .onSizeChanged { if (collapse == 0f) heroOverlayPx = it.height },
         ) {
             GlgTabHeader("") {
-                CalendarButton { nav = SpendingScreenNav.Calendar }
-                InsightButton { nav = SpendingScreenNav.Insight }
-                AnnualReportButton { nav = SpendingScreenNav.Annual }
-                SelectButton { selectionMode = true; selectedIds = emptySet() }
-                FilterButton(activeFilterCount) { showFilterSheet.value = true }
+                GlgCircleIconButton(Icons.Default.CalendarMonth, "캘린더", outlined = true) { nav = SpendingScreenNav.Calendar }
+                GlgCircleIconButton(Icons.Default.Insights, "인사이트", outlined = true) { nav = SpendingScreenNav.Insight }
+                GlgCircleIconButton(Icons.Default.Assessment, "연간 리포트", outlined = true) { nav = SpendingScreenNav.Annual }
+                GlgCircleIconButton(Icons.Default.Checklist, "선택", outlined = true) { selectionMode = true; selectedIds = emptySet() }
+                GlgCircleIconButton(Icons.Default.Tune, "필터", outlined = true, badgeCount = activeFilterCount) { showFilterSheet.value = true }
             }
             MonthlySummaryCard(viewModel.displayMonth, monthlyTotal, prevMonthTotal, collapse)
         }
-        if (selectionMode) {
+        AnimatedVisibility(
+            visible = selectionMode,
+            enter = slideInVertically(glgStandardSpec()) { it } + fadeIn(glgStandardSpec()),
+            exit = slideOutVertically(glgShortSpec()) { it } + fadeOut(glgShortSpec()),
+            modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth(),
+        ) {
             SelectionActionBar(
                 count = selectedIds.size,
-                onEdit = { if (selectedIds.isNotEmpty()) showBulkEdit.value = true },
-                onDelete = { if (selectedIds.isNotEmpty()) { viewModel.deleteSpendings(selectedIds); exitSelection() } },
+                onEdit = { if (selectedIds.isNotEmpty()) showBulkEdit.value = true else viewModel.showStatus("선택된 항목이 없어요") },
+                onDelete = {
+                    if (selectedIds.isNotEmpty()) { viewModel.deleteSpendings(selectedIds); exitSelection() }
+                    else viewModel.showStatus("선택된 항목이 없어요")
+                },
                 onCancel = { exitSelection() },
-                modifier = Modifier.align(Alignment.BottomCenter),
             )
         }
     }
@@ -356,62 +374,6 @@ fun SummaryItem(label: String, value: String, valueColor: Color) {
         Text(value, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = valueColor)
     }
 }
-
-/**
- * 지출 분석 헤더 우측 진입 알약 버튼 (캘린더·인사이트·연간 리포트 공용).
- * 세 버튼의 높이·아이콘 크기를 강제로 통일한다(고정 높이 + 동일 아이콘 14dp).
- * [label] 이 null 이면 아이콘 전용(캘린더)으로 폭만 줄인다.
- */
-@Composable
-private fun HeaderPillButton(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    label: String?,
-    contentDescription: String?,
-    onClick: () -> Unit,
-) {
-    val accent = LocalAccent.current
-    // 게임 정보 탭의 헤더 알약(GachaRateButton)과 100% 동일한 스펙(shape 11·color 0.10·border 1.5/0.30·
-    // padding h12 v7·아이콘 14dp·텍스트 12sp). 아이콘 전용(캘린더)은 0폭 텍스트로 높이만 동일하게 맞춘다.
-    Surface(
-        shape = RoundedCornerShape(11.dp),
-        color = accent.copy(alpha = 0.10f),
-        border = androidx.compose.foundation.BorderStroke(1.5.dp, accent.copy(alpha = 0.30f)),
-        modifier = Modifier.clickable { onClick() },
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Icon(icon, contentDescription, tint = accent, modifier = Modifier.size(14.dp))
-            if (label != null) {
-                Spacer(Modifier.width(5.dp))
-                Text(label, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = accent)
-            } else {
-                Text("", fontSize = 12.sp, fontWeight = FontWeight.Bold) // 높이 동일화용 0폭 텍스트
-            }
-        }
-    }
-}
-
-/** 연간 리포트 진입 버튼 — 아이콘 전용(iOS 파리티). */
-@Composable
-private fun AnnualReportButton(onClick: () -> Unit) =
-    HeaderPillButton(Icons.Default.Assessment, null, "연간 리포트", onClick)
-
-/** 캘린더 진입 버튼 — 공간 절약을 위해 아이콘 전용(높이는 동일). */
-@Composable
-private fun CalendarButton(onClick: () -> Unit) =
-    HeaderPillButton(Icons.Default.CalendarMonth, null, "캘린더", onClick)
-
-/** 인사이트 진입 버튼 — 아이콘 전용(iOS 파리티). */
-@Composable
-private fun InsightButton(onClick: () -> Unit) =
-    HeaderPillButton(Icons.Default.Insights, null, "인사이트", onClick)
-
-/** 선택 모드 진입 버튼 — 아이콘 전용(다중 선택→일괄 편집/삭제). */
-@Composable
-private fun SelectButton(onClick: () -> Unit) =
-    HeaderPillButton(Icons.Default.Checklist, null, "선택", onClick)
 
 @Composable
 fun GameFilterRow(selectedGame: String?, modifier: Modifier = Modifier, onGameSelected: (String?) -> Unit) {
@@ -515,32 +477,6 @@ internal fun TagChip(tag: String) {
     GlgChip(label = tag, variant = GlgChipVariant.Tag)
 }
 
-@Composable
-private fun FilterButton(activeCount: Int, onClick: () -> Unit) {
-    val accent = LocalAccent.current
-    val active = activeCount > 0
-    // 공통 칩(GlgChip)과 동일 규격 — 14dp 라운드·흰 배경+옅은 아웃라인, 선택(필터 활성)=accent 채움. Tune 아이콘 유지.
-    Surface(
-        shape = RoundedCornerShape(14.dp),
-        color = if (active) accent else Color.White,
-        border = if (active) null else androidx.compose.foundation.BorderStroke(1.dp, ChipIdleBorder),
-        modifier = Modifier.clickable { onClick() },
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 9.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Icon(Icons.Default.Tune, null, tint = if (active) Color.White else ChipIdleText, modifier = Modifier.size(15.dp))
-            Spacer(Modifier.width(5.dp))
-            Text(
-                if (active) "필터 $activeCount" else "필터",
-                fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
-                color = if (active) Color.White else ChipIdleText,
-            )
-        }
-    }
-}
-
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 private fun SpendingFilterSheet(
@@ -621,7 +557,7 @@ private fun FilterGroup(title: String, content: @Composable FlowRowScope.() -> U
     Spacer(Modifier.height(14.dp))
 }
 
-/** 선택 모드 하단 액션 바 — 선택 개수 + 삭제/일괄 편집/취소. */
+/** 선택 모드 하단 액션 바 — 떠 있는 알약(Capsule) 형태. 선택 개수 + 취소/삭제/일괄 편집. */
 @Composable
 private fun SelectionActionBar(
     count: Int,
@@ -630,18 +566,42 @@ private fun SelectionActionBar(
     onCancel: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Surface(modifier = modifier.fillMaxWidth(), color = Color.White, shadowElevation = 12.dp) {
+    Surface(
+        // 하단 탭바 바로 위에 붙도록 띄우고, 좌우 16dp 마진의 넓은 알약. 하단바 스타일(그림자 X, 보더 O).
+        modifier = modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 16.dp).padding(bottom = 80.dp),
+        shape = RoundedCornerShape(50),
+        color = Color.White,
+        shadowElevation = 0.dp,
+        border = BorderStroke(1.dp, DividerColor),
+    ) {
         Row(
-            modifier = Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 16.dp, vertical = 12.dp),
+            modifier = Modifier.fillMaxWidth().padding(start = 18.dp, end = 12.dp, top = 8.dp, bottom = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            Text("${count}건 선택", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+            Text("${count}건", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
             Spacer(Modifier.weight(1f))
-            GlgOutlineButton("취소", onCancel)
-            GlgOutlineButton("삭제", onDelete)
-            GlgButton("일괄 편집", onEdit)
+            PillActionButton("취소", filled = false, onClick = onCancel)
+            PillActionButton("삭제", filled = false, onClick = onDelete)
+            PillActionButton("일괄 편집", filled = true, onClick = onEdit)
         }
+    }
+}
+
+/** 선택 바 전용 컴팩트 알약 버튼 — filled=강조 채움, 아니면 흰 배경+아웃라인. */
+@Composable
+private fun PillActionButton(text: String, filled: Boolean, onClick: () -> Unit) {
+    val accent = LocalAccent.current
+    val shape = RoundedCornerShape(50)
+    Box(
+        modifier = Modifier
+            .clip(shape)
+            .then(if (filled) Modifier.background(accent) else Modifier.background(Color.White).border(1.dp, ChipIdleBorder, shape))
+            .clickable { onClick() }
+            .padding(horizontal = 14.dp, vertical = 7.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(text, color = if (filled) Color.White else ChipIdleText, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
     }
 }
 
