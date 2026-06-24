@@ -367,7 +367,7 @@ fun SettingsScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
         )
     }
     if (showUplog.value) {
-        UplogDialog(versionName) { showUplog.value = false }
+        UpdateLogScreen(onBack = { showUplog.value = false })
     }
     if (showCredits.value) {
         CreditsDialog { showCredits.value = false }

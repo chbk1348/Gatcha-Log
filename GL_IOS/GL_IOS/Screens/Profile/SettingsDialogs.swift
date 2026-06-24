@@ -145,98 +145,158 @@ struct CreditsSheet: View {
 
 // ── 업데이트 로그 ─────────────────────────────────────────────────────────────
 
-struct UpdateLogSheet: View {
+/// 업데이트 로그 — 06_ChangeLog.html 목업 디자인(히어로·필터칩·featured·마일스톤 타임라인·분류 뱃지).
+/// 데이터는 공통 정본 `ChangeLog`(KMP)에서 읽어 Android와 동일하다.
+struct UpdateLogPage: View {
     let version: String
-    @Environment(\.dismiss) private var dismiss
     @Environment(\.glgAccent) private var accent
+    @State private var filter: String? = nil   // ChangeKind.key("new"/"imp"/"fix"/"sec"), nil=전체
+
+    private let cText = Color(hex: 0xFF15181C)
+    private let cItem = Color(hex: 0xFF2A2E34)
+    private let cLine = Color(hex: 0xFFE3E5EA)
+
+    private var entries: [ChangeEntry] {
+        let all = ChangeLog.shared.entries
+        guard let f = filter else { return all }
+        return all.filter { e in e.items.contains { $0.kind.key == f } }
+    }
 
     var body: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
-                    ForEach(Array(UpdateLog.entries(currentVersion: version).enumerated()), id: \.offset) { _, entry in
-                        VStack(alignment: .leading, spacing: 6) {
-                            Text(entry.version).font(.pretendard(size: 14, weight: .bold)).foregroundStyle(accent.primary)
-                            ForEach(Array(entry.items.enumerated()), id: \.offset) { _, item in
-                                HStack(alignment: .top, spacing: 2) {
-                                    Text("· ").font(.pretendard(size: 13)).foregroundStyle(GLGColor.textSecondary)
-                                    Text(item).font(.pretendard(size: 13)).foregroundStyle(GLGColor.textSecondary)
-                                }
-                            }
-                        }
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: 0, pinnedViews: [.sectionHeaders]) {
+                hero
+                Section {
+                    Color.clear.frame(height: 14)
+                    ForEach(entries, id: \.version) { entry in releaseCard(entry) }
+                    if entries.isEmpty {
+                        Text("해당 분류의 변경 사항이 없어요")
+                            .font(.pretendard(size: 14)).foregroundStyle(GLGColor.textSecondary)
+                            .frame(maxWidth: .infinity).padding(.vertical, 40).padding(.horizontal, 18)
                     }
-                }
-                .padding(20)
+                } header: { filterBar }
             }
-            .background(GLGBackground { Color.clear })
-            .navigationTitle("업데이트 로그")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar { ToolbarItem(placement: .confirmationAction) { Button("확인") { dismiss() } } }
+            .padding(.bottom, 40)
+        }
+        .background(Color.white)
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar(.hidden, for: .tabBar)
+        // 반투명 네비바로 스크롤 콘텐츠가 필터바 위로 비치는 것 방지 — 불투명 흰 배경 고정.
+        .toolbarBackground(.visible, for: .navigationBar)
+        .toolbarBackground(Color.white, for: .navigationBar)
+    }
+
+    // ── 히어로 ──
+    private var hero: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            (Text("업데이트 ").foregroundColor(cText) + Text("기록").foregroundColor(accent.primary))
+                .font(.pretendard(size: 28, weight: .heavy)).padding(.top, 12)
+            Text("사용자 관점으로 정리한 전체 변경 이력")
+                .font(.pretendard(size: 13, weight: .medium)).foregroundStyle(GLGColor.textSecondary).padding(.top, 6)
+            HStack(spacing: 20) {
+                metaCol("\(ChangeLog.shared.entries.count)개", "전체 버전")
+                metaCol(ChangeLog.shared.periodLabel, "업데이트 기간")
+            }.padding(.top, 14)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 18)
+        .padding(.bottom, 14)
+    }
+
+    private func metaCol(_ value: String, _ label: String) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(value).font(.pretendard(size: 15, weight: .bold)).foregroundStyle(cText)
+            Text(label).font(.pretendard(size: 13)).foregroundStyle(GLGColor.textSecondary)
         }
     }
-}
 
-private enum UpdateLog {
-    struct Entry { let version: String; let items: [String] }
+    // ── 스티키 필터칩 ──
+    private var filterBar: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                GLGChip(label: "전체", selected: filter == nil) { filter = nil }
+                GLGChip(label: "신규", selected: filter == "new", color: kindColors("new").0) { filter = "new" }
+                GLGChip(label: "개선", selected: filter == "imp", color: kindColors("imp").0) { filter = "imp" }
+                GLGChip(label: "수정", selected: filter == "fix", color: kindColors("fix").0) { filter = "fix" }
+                GLGChip(label: "보안", selected: filter == "sec", color: kindColors("sec").0) { filter = "sec" }
+            }
+            .padding(.horizontal, 18)
+            .padding(.vertical, 10)
+        }
+        .background(Color.white)
+        .overlay(alignment: .bottom) { Rectangle().fill(cLine).frame(height: 1) }
+    }
 
-    // iOS 전용 업데이트 로그 — Android 와 별도 작성/관리. (iOS 릴리스 태그: vX.Y.Z-ios)
-    static func entries(currentVersion: String) -> [Entry] {
-        [
-            Entry(version: "v27.30.0", items: [
-                "앱 전체 디자인을 새로 단장했어요 — 카드·칩·버튼을 통일하고, 화면이 부드럽게 떠오르는 모션과 로딩 스켈레톤을 더했어요",
-                "전역 글꼴을 Pretendard로 적용하고, 기기 글꼴 크기와 무관하게 일관된 레이아웃을 유지해요",
-                "지출 내역 상단 ‘이번 달 지출’을 히어로 영역으로 — 스크롤하면 자연스럽게 접혀요",
-                "게임 정보에 ‘주년’ 섹션과 ‘공지·뉴스’ 섹션을 추가했어요 (공지는 ‘더보기’로 전체 보기)",
-                "젠레스 존 제로 이벤트 일정을 한국어로 보여드려요",
-                "캐릭터 상세에 ‘돌파 효과’(운명의 자리·성혼·형상 시네마)를 활성/비활성과 설명까지 추가했어요",
-                "예산 관리·설정·상세 필터 화면을 카드형으로 정리했어요",
-            ]),
-            Entry(version: "v27.28.1", items: [
-                "구글 로그인이 더 편해졌어요 — 기기에 구글 계정이 없어도 로그인되고, 로그인 후 브라우저가 자동으로 닫혀요",
-                "캐릭터 상세를 새로 단장했어요 — 속성·운명의 길과 세트 효과까지 한눈에",
-                "스타레일 ‘환락’ 운명의 길을 새로 표시해요",
-                "젠레스 존 제로 3.0에 대응했어요 — ‘바람’ 속성과 W-엔진 표기 추가",
-                "보유 캐릭터 목록의 필터·정렬과 동선을 보강했어요",
-                "클라우드 동기화 안정성을 개선하고 내부 데이터 구조를 정리했어요",
-            ]),
-            Entry(version: "v27.28.0", items: [
-                "‘내 캐릭터’ — 보유 캐릭터 전체를 스탯·무기·유물까지 한눈에 봐요 (원신·스타레일·젠레스)",
-                "젠레스 존 제로 캐릭터를 지원해요 — 음동기·드라이브 디스크까지",
-                "HoYoLAB 연동만 하면 캐릭터 UID가 자동으로 설정돼요",
-                "캐릭터 목록 등급 필터(전체·5성·4성)와 대표 4명·더보기를 더했어요",
-                "캐릭터·광추·음동기 이름과 스탯을 공식 한국어로 표기해요",
-                "내부 안정성과 성능을 개선했어요",
-            ]),
-            Entry(version: "v27.27.0", items: [
-                "마이페이지를 대시보드로 새단장했어요 — 이번 달 지출·월별 추이·활동 지표·게임별 비중을 한눈에 봐요",
-                "내부 구조를 정리해 안정성과 iOS·안드로이드 동작 일관성을 높였어요",
-            ]),
-            Entry(version: "v27.26.0", items: [
-                "충전 가성비 비교를 추가했어요 — 호요 3종 패키지의 단가·뽑 환산을 한눈에 비교해요",
-                "게임 정보에서 스타레일 광추(돌파) 픽업 배너도 무기처럼 표시해요",
-                "구글 로그인 안정성을 다듬었어요 — 인증 도중 종료돼도 계정 저장소가 어긋나지 않아요",
-                "내부 구조를 정리해 안정성과 동작 속도를 개선했어요",
-            ]),
-            Entry(version: "v27.25.0", items: [
-                "통합 계산기를 새 대시보드로 개편했어요 — 게임·배너 선택부터 확보 확률·필요 재화·시나리오까지 한 화면에서",
-                "가챠 효율 리포트를 개편했어요 — 게임별 카드와 운(행운) 분포를 한눈에",
-                "게임 정보 탭 2.0 — 페이지 구성과 상단 게임 드롭다운으로 정리하고 디자인을 통일했어요",
-                "게임 일정을 통합했어요 — 픽업 배너·게임별 그룹·패치 전반/후반 구분을 상단에 모았어요",
-                "프로필 쇼케이스 — 캐릭터 정보를 자동으로 불러오고, HoYoLAB 연동·타임아웃 재시도를 더했어요",
-                "로딩 화면을 개편했어요 — 동기화가 끝날 때까지 깔끔하게 대기해요",
-                "구글 로그인을 웹 로그인 방식으로 바꿨어요 — 기기에 구글 계정이 없어도 로그인할 수 있어요",
-                "카드 디자인을 깔끔한 흰 배경으로 다듬어 화면 전환·스크롤을 더 가볍게 했어요",
-                "세부 화면 상단에 제목을 표시하고, 입력 시트 배경을 통일했어요",
-                "천장 카운터·위시리스트를 정리하고, 알림 토스트가 화면마다 중복되던 문제를 고쳤어요",
-                "클라우드 동기화 안정성과 속도를 개선했어요 (중복 전송 생략·용량 경고)",
-                "iOS를 네이티브(SwiftUI)로 전환하는 작업을 마무리했어요",
-            ]),
-            Entry(version: "v27.20.0", items: [
-                "마이페이지를 새로 정리했어요 — 계정 정보를 상단 프로필 카드 한 곳으로 모았어요 (로그인·로그아웃도 여기서)",
-                "설정을 ‘자주 쓰는 설정 · 데이터·계정 · 앱 정보’ 순으로 정리했어요",
-                "실수 방지 — 가챠 기록 초기화·지출 전체 삭제는 2단계로 확인하고, 삭제 전 백업을 권장해드려요",
-                "입력창을 알약형 디자인으로 깔끔하게 다듬었어요",
-            ]),
-        ]
+    // ── 릴리스 카드 ──
+    @ViewBuilder
+    private func releaseCard(_ entry: ChangeEntry) -> some View {
+        let items = filter == nil ? entry.items : entry.items.filter { $0.kind.key == filter }
+        if !items.isEmpty {
+            VStack(alignment: .leading, spacing: 0) {
+                if entry.featured {
+                    Text("최신 버전").font(.pretendard(size: 11.5, weight: .bold)).foregroundStyle(.white)
+                        .padding(.horizontal, 10).padding(.vertical, 4)
+                        .background(Color(hex: 0xFF15C7A8), in: Capsule()).padding(.bottom, 10)
+                }
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    (Text(entry.milestone && !entry.featured ? "★ " : "").foregroundColor(accent.primary)
+                        + Text("v\(entry.version)").foregroundColor(cText))
+                        .font(.pretendard(size: entry.featured ? 24 : 18, weight: .heavy))
+                    Text(entry.date).font(.pretendard(size: 12.5, weight: .medium)).foregroundStyle(GLGColor.textSecondary)
+                    Spacer()
+                    if let pill = entry.pill { pillView(pill, false) }
+                    if entry.securityPill { pillView("보안 필수", true) }
+                }.padding(.bottom, 10)
+                ForEach(Array(items.enumerated()), id: \.offset) { _, item in
+                    let c = kindColors(item.kind.key)
+                    HStack(alignment: .top, spacing: 10) {
+                        Text(item.kind.label).font(.pretendard(size: 10.5, weight: .bold)).foregroundStyle(c.2)
+                            .frame(minWidth: 34).padding(.horizontal, 7).padding(.vertical, 2)
+                            .background(c.1, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+                        Text(item.text).font(.pretendard(size: 14)).foregroundStyle(cItem)
+                        Spacer(minLength: 0)
+                    }.padding(.vertical, 5)
+                }
+            }
+            .padding(entry.featured ? 22 : 18)
+            .background(cardBackground(entry))
+            .overlay(cardBorder(entry))
+            .padding(.horizontal, 18)
+            .padding(.bottom, 12)
+        }
+    }
+
+    @ViewBuilder
+    private func cardBackground(_ e: ChangeEntry) -> some View {
+        let shape = RoundedRectangle(cornerRadius: 24, style: .continuous)
+        if e.featured {
+            shape.fill(LinearGradient(colors: [Color(hex: 0xFFF1FBF9), .white], startPoint: .topLeading, endPoint: .bottomTrailing))
+        } else if e.milestone {
+            shape.fill(Color(hex: 0xFFF6F7F9))
+        } else {
+            shape.fill(Color.white)
+        }
+    }
+
+    @ViewBuilder
+    private func cardBorder(_ e: ChangeEntry) -> some View {
+        let shape = RoundedRectangle(cornerRadius: 24, style: .continuous)
+        if e.featured { shape.stroke(Color(hex: 0xFFE5F8F4), lineWidth: 1) }
+        else if !e.milestone { shape.stroke(cLine, lineWidth: 1) }
+    }
+
+    private func pillView(_ text: String, _ sec: Bool) -> some View {
+        Text(text).font(.pretendard(size: 11, weight: .bold))
+            .foregroundStyle(sec ? Color(hex: 0xFFD43A3A) : Color(hex: 0xFF0E9C84))
+            .padding(.horizontal, 9).padding(.vertical, 3)
+            .background(sec ? Color(hex: 0xFFFDECEC) : Color(hex: 0xFFE5F8F4), in: Capsule())
+    }
+
+    // 분류별 색(점, 뱃지 배경, 뱃지 글자) — 목업 고정값.
+    private func kindColors(_ key: String) -> (Color, Color, Color) {
+        if key == "imp" { return (Color(hex: 0xFF3B82F6), Color(hex: 0xFFE8F0FE), Color(hex: 0xFF2563EB)) }
+        if key == "fix" { return (Color(hex: 0xFFF59E0B), Color(hex: 0xFFFEF3DD), Color(hex: 0xFFB45309)) }
+        if key == "sec" { return (Color(hex: 0xFFEF4444), Color(hex: 0xFFFDECEC), Color(hex: 0xFFD43A3A)) }
+        return (Color(hex: 0xFF15C7A8), Color(hex: 0xFFE5F8F4), Color(hex: 0xFF0E9C84)) // new
     }
 }
