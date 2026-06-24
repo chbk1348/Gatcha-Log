@@ -229,7 +229,10 @@ struct SettingsView: View {
             Divider()
             toggleRow("bolt.fill", "재화 가득참 알림", "레진·개척력·배터리가 가득 차면 알려줘요",
                       notifyBind(\.notifyResin, store.setNotifyResin))
-            if notifBlocked && (store.notifyBudget || store.notifyAttendance || store.notifyResin) {
+            Divider()
+            toggleRow("calendar.badge.clock", "픽업 마감 알림", "진행 중인 픽업이 끝나기 전에 알려줘요",
+                      notifyBind(\.notifyPickup, store.setNotifyPickup))
+            if notifBlocked && (store.notifyBudget || store.notifyAttendance || store.notifyResin || store.notifyPickup) {
                 Divider()
                 Button { openSystemSettings() } label: {
                     HStack(spacing: 12) {

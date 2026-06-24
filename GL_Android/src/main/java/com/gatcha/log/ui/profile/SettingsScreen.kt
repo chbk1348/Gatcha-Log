@@ -61,6 +61,7 @@ fun SettingsScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
     val notifyBudget by viewModel.notifyBudget.collectAsState()
     val notifyAttendance by viewModel.notifyAttendance.collectAsState()
     val notifyResin by viewModel.notifyResin.collectAsState()
+    val notifyPickup by viewModel.notifyPickup.collectAsState()
     val nudgeOverspend by viewModel.nudgeOverspend.collectAsState()
     val nudgeThreshold by viewModel.nudgeThreshold.collectAsState()
     val gachaStats by viewModel.gachaStats.collectAsState()
@@ -248,10 +249,14 @@ fun SettingsScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
                     SettingsToggleRow(Icons.Default.Bolt, "재화 가득참 알림", "레진·개척력·배터리가 가득 차면 알려줘요", notifyResin) { on ->
                         if (on) ensureNotifPerm(); viewModel.setNotifyResin(on)
                     }
+                    HorizontalDivider(color = DividerColor, modifier = Modifier.padding(horizontal = 16.dp))
+                    SettingsToggleRow(Icons.Default.Event, "픽업 마감 알림", "진행 중인 픽업이 끝나기 전에 알려줘요", notifyPickup) { on ->
+                        if (on) ensureNotifPerm(); viewModel.setNotifyPickup(on)
+                    }
                 }
             }
             // 토글은 켰는데 시스템 알림 권한이 꺼져 있으면 안내(영구 거부 시 시스템 다이얼로그가 안 떠서 사용자가 인지 못 함).
-            val notifOn = notifyBudget || notifyAttendance || notifyResin
+            val notifOn = notifyBudget || notifyAttendance || notifyResin || notifyPickup
             val notifEnabled = remember(notifyBudget, notifyAttendance, notifyResin) {
                 com.gatcha.log.data.Notifier.notificationsEnabled()
             }

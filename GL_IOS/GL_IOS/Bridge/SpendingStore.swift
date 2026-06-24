@@ -42,6 +42,7 @@ final class SpendingStore: ObservableObject {
     @Published private(set) var notifyBudget: Bool = false
     @Published private(set) var notifyAttendance: Bool = false
     @Published private(set) var notifyResin: Bool = false
+    @Published private(set) var notifyPickup: Bool = false
     @Published private(set) var nudgeOverspend: Bool = false
     @Published private(set) var nudgeThreshold: Int64 = 0
     @Published private(set) var pendingOpenHoyolabLink: Bool = false
@@ -118,6 +119,7 @@ final class SpendingStore: ObservableObject {
         bind(vm.notifyBudget) { [weak self] in self?.notifyBudget = $0.boolValue }
         bind(vm.notifyAttendance) { [weak self] in self?.notifyAttendance = $0.boolValue }
         bind(vm.notifyResin) { [weak self] in self?.notifyResin = $0.boolValue }
+        bind(vm.notifyPickup) { [weak self] in self?.notifyPickup = $0.boolValue }
         bind(vm.nudgeOverspend) { [weak self] in self?.nudgeOverspend = $0.boolValue }
         bind(vm.nudgeThreshold) { [weak self] in self?.nudgeThreshold = $0.int64Value }
         bind(vm.pendingOpenHoyolabLink) { [weak self] in self?.pendingOpenHoyolabLink = $0.boolValue }
@@ -195,6 +197,12 @@ final class SpendingStore: ObservableObject {
     func setNotifyBudget(_ v: Bool) { vm.setNotifyBudget(v: v) }
     func setNotifyAttendance(_ v: Bool) { vm.setNotifyAttendance(v: v) }
     func setNotifyResin(_ v: Bool) { vm.setNotifyResin(v: v) }
+    func setNotifyPickup(_ v: Bool) { vm.setNotifyPickup(v: v) }
+    func deleteSpendings(_ ids: Set<String>) { vm.deleteSpendings(ids: ids) }
+    /// 선택 지출 일괄 변경(게임/날짜/추가 태그). nil·빈값은 미변경.
+    func bulkEditSpendings(ids: Set<String>, gameName: String?, dateMillis: Int64?, addTags: [String]) {
+        vm.bulkEditSpendings(ids: ids, gameName: gameName, dateMillis: dateMillis.map { KotlinLong(value: $0) }, addTags: addTags)
+    }
     func setAutoCheckIn(_ enabled: Bool) { vm.setAutoCheckIn(enabled: enabled) }
     func clearGachaRecords() { vm.clearGachaRecords() }
     func clearSpendings() { vm.clearSpendings() }
