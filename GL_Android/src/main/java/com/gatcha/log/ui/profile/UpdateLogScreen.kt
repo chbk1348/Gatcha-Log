@@ -175,14 +175,15 @@ private fun ReleaseCard(entry: ChangeEntry, filter: ChangeKind?) {
         }
         Spacer(Modifier.height(10.dp))
         items.forEach { item ->
-            Row(Modifier.padding(vertical = 5.dp)) {
+            Row(Modifier.padding(vertical = 5.dp), verticalAlignment = Alignment.Top) {
                 val st = styleOf(item.kind)
                 Box(
                     Modifier.clip(RoundedCornerShape(7.dp)).background(st.badgeBg)
-                        .padding(horizontal = 7.dp, vertical = 2.dp).widthIn(min = 34.dp),
-                ) { Text(item.kind.label, color = st.badgeFg, fontSize = 10.5.sp, fontWeight = FontWeight.Bold, textAlign = androidx.compose.ui.text.style.TextAlign.Center, modifier = Modifier.fillMaxWidth()) }
+                        .widthIn(min = 34.dp).padding(horizontal = 7.dp, vertical = 2.dp),
+                    contentAlignment = Alignment.Center,
+                ) { Text(item.kind.label, color = st.badgeFg, fontSize = 10.5.sp, fontWeight = FontWeight.Bold, maxLines = 1) }
                 Spacer(Modifier.width(10.dp))
-                Text(item.text, fontSize = 14.sp, color = CItemText, lineHeight = 20.sp)
+                Text(item.text, fontSize = 14.sp, color = CItemText, lineHeight = 20.sp, modifier = Modifier.weight(1f))
             }
         }
     }
