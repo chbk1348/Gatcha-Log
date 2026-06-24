@@ -38,6 +38,23 @@ struct SettingsView: View {
         (Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String) ?? "—"
     }
 
+    /// 빌드 종류(DEBUG/RELEASE) 구분 태그 — 어떤 빌드가 설치됐는지 한눈에(Android BuildVariantChip 파리티).
+    private var buildVariantChip: some View {
+        #if DEBUG
+        let label = "DEBUG"
+        let color = Color(hex: 0xFFFF7A45)
+        #else
+        let label = "RELEASE"
+        let color = accent.primary
+        #endif
+        return Text(label)
+            .font(.pretendard(size: 10, weight: .bold))
+            .foregroundStyle(color)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 2)
+            .background(color.opacity(0.15), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+    }
+
     var body: some View {
         ScrollView {
             VStack(spacing: 18) {
@@ -247,6 +264,7 @@ struct SettingsView: View {
             HStack {
                 rowLabel(icon: "info.circle", title: "앱 버전")
                 Spacer()
+                buildVariantChip
                 Text("v\(version)").font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary)
             }
             .padding(.vertical, 13)

@@ -59,7 +59,8 @@ fun MyPageScreen(
     val gachaStats by viewModel.gachaStats.collectAsState()
 
     val showSettings = remember { mutableStateOf(false) }
-    val loadInSet = remember { mutableSetOf<Int>() }
+    // 로드인 스태거 — 앱 진입 후 1회만(탭 재진입 재생 방지, 세션 영속).
+    val loadInSet = rememberGlgLoadInSet("mypage")
 
     // 설정 페이지에서 시스템/제스처 뒤로가기 시 홈이 아니라 마이페이지로 복귀
     BackHandler(enabled = showSettings.value) { showSettings.value = false }
@@ -116,7 +117,7 @@ fun MyPageScreen(
                 GlgCircleIconButton(Icons.Default.Settings, "설정", outlined = true) { showSettings.value = true }
             }
         }
-        // ① 프로필 헤더 (흰 카드)
+        // ① 프로필 헤더 (연회색 카드)
         item {
             Box(Modifier.fillMaxWidth().glgLoadIn(0, loadInSet)) {
                 ProfileHeader(
@@ -178,10 +179,10 @@ private fun SectionLabel(text: String) {
 }
 
 // ============================================================
-//  마이페이지 대시보드 컴포넌트 — 흰 카드 + 아웃라인 (iOS glgGlass 파리티)
+//  마이페이지 대시보드 컴포넌트 — 연회색 섹션 카드 (iOS glgGlass 파리티 · F6F7F9)
 // ============================================================
 
-/** 흰 배경 + 옅은 아웃라인 카드 (iOS glgGlass 대응 · 글래스 제거). */
+/** 연회색 섹션 카드 — 앱 공통 카드 규격(GlassCard/iOS glgGlass 동일: F6F7F9 · 헤어라인). */
 @Composable
 private fun OutlineCard(
     modifier: Modifier = Modifier,
@@ -191,8 +192,8 @@ private fun OutlineCard(
     Surface(
         modifier = modifier,
         shape = shape,
-        color = Color.White,
-        border = BorderStroke(1.dp, Color.Black.copy(alpha = 0.08f)),
+        color = Color(0xFFF6F7F9),
+        border = BorderStroke(1.dp, Color.Black.copy(alpha = 0.06f)),
         shadowElevation = 0.dp,
         content = content,
     )
@@ -371,7 +372,7 @@ private fun MonthlyTrendCard(trend: List<MonthPoint>) {
     }
 }
 
-/** ④ 활동 메트릭 타일 (흰 카드 · 아이콘+값+라벨). */
+/** ④ 활동 메트릭 타일 (연회색 카드 · 아이콘+값+라벨). */
 @Composable
 private fun MetricTile(icon: ImageVector, value: String, label: String, modifier: Modifier, tint: Color? = null) {
     val accent = LocalAccent.current
