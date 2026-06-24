@@ -19,14 +19,19 @@ import java.util.concurrent.TimeUnit
 object AndroidWorkScheduler {
     private const val PERIODIC = "gatcha_periodic_work"
 
+    // 알림 점검은 로컬 데이터(예산 등)도 다루므로 네트워크를 요구하지 않는다.
+    // 네트워크가 필요한 작업(자동출석·재화 note)은 워커 내부에서 실패 시 graceful 하게 스킵된다.
+    // → 오프라인이어도 예산 알림이 누락되지 않음.
+    private val noNetworkConstraint =
+        Constraints.Builder().setRequiredNetworkType(NetworkType.NOT_REQUIRED).build()
+
     /** 설정 상태에 맞춰 주기 작업을 켜거나 끈다. */
     fun apply(context: Context) {
         val wm = WorkManager.getInstance(context)
         if (AppSettings().needsPeriodicWork()) {
-            val req = PeriodicWorkRequestBuilder<GatchaWorker>(6, TimeUnit.HOURS)
-                .setConstraints(
-                    Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build(),
-                )
+            // 6h→4h: "18시 이후" 같은 시각 조건 슬롯 확보 확률을 높인다(배터리 trade-off 수용).
+            val req = PeriodicWorkRequestBuilder<GatchaWorker>(4, TimeUnit.HOURS)
+                .setConstraints(noNetworkConstraint)
                 .build()
             wm.enqueueUniquePeriodicWork(PERIODIC, ExistingPeriodicWorkPolicy.UPDATE, req)
         } else {
@@ -37,9 +42,7 @@ object AndroidWorkScheduler {
     /** 즉시 1회 실행(설정 켠 직후 바로 출석 시도). */
     fun runNow(context: Context) {
         val req = OneTimeWorkRequestBuilder<GatchaWorker>()
-            .setConstraints(
-                Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build(),
-            )
+            .setConstraints(noNetworkConstraint)
             .build()
         WorkManager.getInstance(context).enqueue(req)
     }

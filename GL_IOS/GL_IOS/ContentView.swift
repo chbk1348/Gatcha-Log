@@ -83,6 +83,12 @@ struct ContentView: View {
                 MainViewControllerKt.setSelectedTab(tab: Int32(newValue))
             }
         }
+        // 알림 탭 → 해당 탭으로 이동(AppDelegate.didReceive 가 glgOpenTab 으로 탭 인덱스 전달).
+        .onReceive(NotificationCenter.default.publisher(for: .glgOpenTab)) { note in
+            if let tab = note.object as? Int, !syncGateActive, !store.needsOnboarding {
+                selectedTab = tab
+            }
+        }
         // 전역 단일 토스트 — 화면마다 붙이면 탭/페이지마다 중복 표시되므로 앱 루트에서 한 번만 노출·소비.
         .glgToast(message: store.statusMessage, bottomPadding: 64) { store.clearStatus() }
         // 네트워크 미연결 — 앱 진입·로딩·새로고침 공통 얼럿 모달(앱 루트에 한 번만).

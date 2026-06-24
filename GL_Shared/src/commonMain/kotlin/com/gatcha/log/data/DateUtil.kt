@@ -59,6 +59,9 @@ object DateUtil {
     fun hoyoDayKey(millis: Long = currentTimeMillis()): String =
         local(millis, hoyoTz).let { "${it.year}-${pad2(it.month.number)}-${pad2(it.day)}" }
 
+    /** 출석 기준(베이징 UTC+8) 시(0~23) — 출석 리마인더 시각 판정용(java.util.Calendar 대체). */
+    fun hoyoHour(millis: Long = currentTimeMillis()): Int = local(millis, hoyoTz).hour
+
     /**
      * 출석 기준일에서 [daysAgo]일 전의 날짜 키 — 연속 출석(streak) 계산용.
      * :app 의 hoyoCalendar() + Calendar.add(DAY_OF_YEAR, -n) 패턴을 대체.
