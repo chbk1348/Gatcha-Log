@@ -23,6 +23,10 @@ struct SpendingView: View {
     @State private var typeFilter: TypeFilter = .all
     @State private var sortOrder: SortOrder = .dateDesc
     @State private var showFilter = false
+    // 선택 모드(다중 선택) — 일괄 편집/삭제.
+    @State private var selectionMode = false
+    @State private var selectedIds: Set<String> = []
+    @State private var showBulkEdit = false
     // 히어로 축소 — 하부 UIScrollView 의 '아래로 스크롤한 양'(0=최상단). ScrollOffsetReader 가 KVO로 갱신.
     @State private var scrolledDown: CGFloat = 0
     // 펼친 히어로 높이(콜랩스 0일 때 측정). 콘텐츠 상단 자리(고정)로 써서 히어로 축소가 maxOffset 을
@@ -93,16 +97,28 @@ struct SpendingView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItemGroup(placement: .topBarTrailing) {
-                NavigationLink { CalendarView(store: store) } label: { Image(systemName: "calendar") }
-                NavigationLink { SpendingInsightView(store: store) } label: { Image(systemName: "chart.line.uptrend.xyaxis") }
-                NavigationLink { AnnualReportView(store: store) } label: { Image(systemName: "chart.bar.doc.horizontal") }
-                // 필터 버튼 — 헤더(툴바)로 이동. 활성 시 채움 아이콘.
-                Button { showFilter = true } label: {
-                    Image(systemName: activeFilterCount > 0 ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease.circle")
+                if selectionMode {
+                    Button("취소") { selectionMode = false; selectedIds = [] }
+                } else {
+                    NavigationLink { CalendarView(store: store) } label: { Image(systemName: "calendar") }
+                    NavigationLink { SpendingInsightView(store: store) } label: { Image(systemName: "chart.line.uptrend.xyaxis") }
+                    NavigationLink { AnnualReportView(store: store) } label: { Image(systemName: "chart.bar.doc.horizontal") }
+                    Button { selectionMode = true; selectedIds = [] } label: { Image(systemName: "checklist") }
+                    // 필터 버튼 — 헤더(툴바)로 이동. 활성 시 채움 아이콘.
+                    Button { showFilter = true } label: {
+                        Image(systemName: activeFilterCount > 0 ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease.circle")
+                    }
                 }
             }
         }
+        .overlay(alignment: .bottom) { if selectionMode { selectionBar } }
         .sheet(isPresented: $showFilter) { filterSheet }
+        .sheet(isPresented: $showBulkEdit) {
+            BulkEditSheet(store: store, count: selectedIds.count) { game, dateMillis, tags in
+                store.bulkEditSpendings(ids: selectedIds, gameName: game, dateMillis: dateMillis, addTags: tags)
+                showBulkEdit = false; selectionMode = false; selectedIds = []
+            }
+        }
     }
 
     // 월 지출 히어로 — 이번 달 총 지출을 큰 숫자로 강조 + 지난달 대비. 스크롤 시 [collapse] 로 축소.
@@ -132,12 +148,37 @@ struct SpendingView: View {
 
     @ViewBuilder
     private func historyLink(_ s: Spending) -> some View {
-        NavigationLink {
-            SpendingDetailView(store: store, spendingId: s.id, onEdit: onEdit)
-        } label: {
-            HistoryItem(spending: s)
+        if selectionMode {
+            Button {
+                if selectedIds.contains(s.id) { selectedIds.remove(s.id) } else { selectedIds.insert(s.id) }
+            } label: {
+                HistoryItem(spending: s, selectionMode: true, selected: selectedIds.contains(s.id))
+            }
+            .buttonStyle(.plain)
+        } else {
+            NavigationLink {
+                SpendingDetailView(store: store, spendingId: s.id, onEdit: onEdit)
+            } label: {
+                HistoryItem(spending: s)
+            }
+            .buttonStyle(.plain)
         }
-        .buttonStyle(.plain)
+    }
+
+    // 선택 모드 하단 액션 바 — 선택 개수 + 삭제/일괄 편집.
+    private var selectionBar: some View {
+        HStack(spacing: 8) {
+            Text("\(selectedIds.count)건 선택").font(.pretendard(size: 14, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
+            Spacer()
+            Button("삭제") {
+                if !selectedIds.isEmpty { store.deleteSpendings(selectedIds); selectionMode = false; selectedIds = [] }
+            }
+            .buttonStyle(.bordered).tint(GLGColor.dangerText)
+            Button("일괄 편집") { if !selectedIds.isEmpty { showBulkEdit = true } }
+                .buttonStyle(.borderedProminent).tint(accent.primary)
+        }
+        .padding(.horizontal, 16).padding(.vertical, 12)
+        .background(Color.white.shadow(.drop(color: .black.opacity(0.12), radius: 8, y: -2)))
     }
 
 
@@ -283,6 +324,8 @@ struct DateHeader: View {
 
 struct HistoryItem: View {
     let spending: Spending
+    var selectionMode: Bool = false
+    var selected: Bool = false
     @Environment(\.glgAccent) private var accent
 
     private var gameColor: Color { Color(argb64: spending.gameColor) }
@@ -297,6 +340,10 @@ struct HistoryItem: View {
     var body: some View {
         GLGCard(cornerRadius: 20, padding: 14) {
             HStack(spacing: 13) {
+                if selectionMode {
+                    Image(systemName: selected ? "checkmark.circle.fill" : "circle")
+                        .font(.pretendard(size: 22)).foregroundStyle(selected ? accent.primary : Color(.systemGray3))
+                }
                 // 게임 색 배지 (약칭)
                 Text(abbr)
                     .font(.pretendard(size: 13, weight: .heavy)).foregroundStyle(gameColor)
@@ -325,8 +372,10 @@ struct HistoryItem: View {
 
                 HStack(spacing: 4) {
                     Text(won(spending.amount)).font(.pretendard(size: 16, weight: .bold)).lineLimit(1)
-                    Image(systemName: "chevron.right").font(.pretendard(size: 12, weight: .semibold))
-                        .foregroundStyle(Color(.tertiaryLabel))
+                    if !selectionMode {
+                        Image(systemName: "chevron.right").font(.pretendard(size: 12, weight: .semibold))
+                            .foregroundStyle(Color(.tertiaryLabel))
+                    }
                 }
             }
         }
@@ -338,6 +387,89 @@ struct TagChip: View {
     let tag: String
     var body: some View {
         GLGChip(label: tag, variant: .tag)
+    }
+}
+
+/// 지출 일괄 편집 시트 — 게임/날짜 변경 + 태그 추가. ‘변경 안 함’으로 둔 항목은 미변경.
+private struct BulkEditSheet: View {
+    @ObservedObject var store: SpendingStore
+    let count: Int
+    let onApply: (String?, Int64?, [String]) -> Void
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.glgAccent) private var accent
+    @State private var game: String? = nil
+    @State private var date: Date? = nil
+    @State private var tags: Set<String> = []
+    @State private var showDate = false
+
+    private func label(_ d: Date) -> String {
+        let f = DateFormatter(); f.locale = Locale(identifier: "ko_KR"); f.dateFormat = "M월 d일"
+        return f.string(from: d)
+    }
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 14) {
+                    Text("선택한 \(count)건만 바뀌고, ‘변경 안 함’으로 둔 항목은 그대로예요.")
+                        .font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary)
+                    section("게임") {
+                        FlexibleRow([""] + GameData.shared.games.map { $0.key }) { key in
+                            if key.isEmpty {
+                                GamePill(label: "변경 안 함", selected: game == nil, accent: accent.primary) { game = nil }
+                            } else if let g = GameData.shared.games.first(where: { $0.key == key }) {
+                                GamePill(label: g.shortName, selected: game == g.displayName, accent: Color(argb64: g.color)) { game = g.displayName }
+                            }
+                        }
+                    }
+                    section("날짜") {
+                        HStack(spacing: 8) {
+                            GamePill(label: date.map { label($0) } ?? "변경 안 함", selected: date != nil, accent: accent.primary) { showDate = true }
+                            if date != nil { GamePill(label: "지우기", selected: false, accent: accent.primary) { date = nil } }
+                        }
+                    }
+                    section("태그 추가") {
+                        FlexibleRow(GameData.shared.suggestedTags) { t in
+                            GamePill(label: t, selected: tags.contains(t), accent: accent.primary) {
+                                if tags.contains(t) { tags.remove(t) } else { tags.insert(t) }
+                            }
+                        }
+                    }
+                }
+                .padding(16)
+            }
+            .background(Color.white)
+            .navigationTitle("일괄 편집").navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("취소") { dismiss() } }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("적용") { onApply(game, date.map { Int64($0.timeIntervalSince1970 * 1000) }, Array(tags)) }
+                }
+            }
+            .sheet(isPresented: $showDate) {
+                NavigationStack {
+                    DatePicker("날짜", selection: Binding(get: { date ?? Date() }, set: { date = $0 }), displayedComponents: .date)
+                        .datePickerStyle(.graphical).padding()
+                        .navigationTitle("날짜 선택").navigationBarTitleDisplayMode(.inline)
+                        .toolbar { ToolbarItem(placement: .confirmationAction) { Button("확인") { showDate = false } } }
+                }
+                .presentationDetents([.medium])
+                .presentationBackground(Color.white)
+            }
+        }
+        .presentationDetents([.medium, .large])
+        .presentationBackground(Color.white)
+    }
+
+    @ViewBuilder
+    private func section<C: View>(_ title: String, @ViewBuilder content: () -> C) -> some View {
+        VStack(alignment: .leading, spacing: 7) {
+            Text(title).font(.pretendard(size: 13, weight: .semibold)).foregroundStyle(GLGColor.textSecondary).padding(.leading, 4)
+            content()
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(16)
+                .glgGlass(in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+        }
     }
 }
 

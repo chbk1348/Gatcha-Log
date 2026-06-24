@@ -85,6 +85,11 @@ fun SpendingScreen(
     var typeFilter by remember { mutableStateOf(TypeFilter.ALL) }
     var sortOrder by remember { mutableStateOf(SortOrder.DATE_DESC) }
     val showFilterSheet = remember { mutableStateOf(false) }
+    // 선택 모드(다중 선택) — 일괄 편집/삭제용.
+    var selectionMode by remember { mutableStateOf(false) }
+    var selectedIds by remember { mutableStateOf<Set<String>>(emptySet()) }
+    val showBulkEdit = remember { mutableStateOf(false) }
+    fun exitSelection() { selectionMode = false; selectedIds = emptySet() }
     // 지출 추가/수정 에디터는 루트 페이지 전환이라 이 화면이 컴포지션에서 빠진다 → 상세 진입 후
     // 에디터를 그냥 닫으면 nav 가 List 로 초기화돼 리스트로 튕기던 문제. 열린 상세 id 를
     // rememberSaveable 로 보존해, 재진입(에디터 닫힘·탭 복귀) 시 상세로 복원한다(iOS 내비 스택과 동일).
@@ -98,6 +103,7 @@ fun SpendingScreen(
     }
     // 하위 페이지(연간 리포트·지출 상세)에서 시스템 뒤로가기 시 앱 종료가 아니라 목록으로 복귀
     BackHandler(enabled = nav != SpendingScreenNav.List) { nav = SpendingScreenNav.List }
+    BackHandler(enabled = selectionMode) { exitSelection() }
     // 하위 페이지가 열리면 상위(Scaffold)에 알려 하단바·FAB를 숨김 + 열린 상세 id 보존(에디터 왕복 복원용)
     LaunchedEffect(nav) {
         onSubPageChange(nav != SpendingScreenNav.List)
@@ -215,7 +221,13 @@ fun SpendingScreen(
                     Box(Modifier.glgLoadIn(byAmount.indexOf(spending).coerceAtLeast(0), loadInSet)) {
                         HistoryItem(
                             spending = spending,
-                            onClick = { nav = SpendingScreenNav.Detail(spending) },
+                            selectionMode = selectionMode,
+                            selected = spending.id in selectedIds,
+                            onClick = {
+                                if (selectionMode) {
+                                    selectedIds = if (spending.id in selectedIds) selectedIds - spending.id else selectedIds + spending.id
+                                } else nav = SpendingScreenNav.Detail(spending)
+                            },
                         )
                     }
                 }
@@ -251,9 +263,19 @@ fun SpendingScreen(
                 CalendarButton { nav = SpendingScreenNav.Calendar }
                 InsightButton { nav = SpendingScreenNav.Insight }
                 AnnualReportButton { nav = SpendingScreenNav.Annual }
+                SelectButton { selectionMode = true; selectedIds = emptySet() }
                 FilterButton(activeFilterCount) { showFilterSheet.value = true }
             }
             MonthlySummaryCard(viewModel.displayMonth, monthlyTotal, prevMonthTotal, collapse)
+        }
+        if (selectionMode) {
+            SelectionActionBar(
+                count = selectedIds.size,
+                onEdit = { if (selectedIds.isNotEmpty()) showBulkEdit.value = true },
+                onDelete = { if (selectedIds.isNotEmpty()) { viewModel.deleteSpendings(selectedIds); exitSelection() } },
+                onCancel = { exitSelection() },
+                modifier = Modifier.align(Alignment.BottomCenter),
+            )
         }
     }
     }
@@ -272,6 +294,18 @@ fun SpendingScreen(
                 paymentFilter = null; typeFilter = TypeFilter.ALL; sortOrder = SortOrder.DATE_DESC
             },
             onDismiss = { showFilterSheet.value = false },
+        )
+    }
+
+    if (showBulkEdit.value) {
+        BulkEditSheet(
+            count = selectedIds.size,
+            onApply = { game, dateMillis, tags ->
+                viewModel.bulkEditSpendings(selectedIds, game, dateMillis, tags)
+                showBulkEdit.value = false
+                exitSelection()
+            },
+            onDismiss = { showBulkEdit.value = false },
         )
     }
 }
@@ -374,6 +408,11 @@ private fun CalendarButton(onClick: () -> Unit) =
 private fun InsightButton(onClick: () -> Unit) =
     HeaderPillButton(Icons.Default.Insights, null, "인사이트", onClick)
 
+/** 선택 모드 진입 버튼 — 아이콘 전용(다중 선택→일괄 편집/삭제). */
+@Composable
+private fun SelectButton(onClick: () -> Unit) =
+    HeaderPillButton(Icons.Default.Checklist, null, "선택", onClick)
+
 @Composable
 fun GameFilterRow(selectedGame: String?, modifier: Modifier = Modifier, onGameSelected: (String?) -> Unit) {
     val accent = LocalAccent.current
@@ -405,7 +444,7 @@ fun DateHeader(date: String, total: Long) {
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun HistoryItem(spending: Spending, onClick: () -> Unit) {
+fun HistoryItem(spending: Spending, onClick: () -> Unit, selectionMode: Boolean = false, selected: Boolean = false) {
     val accent = LocalAccent.current
 
     GlassCard(
@@ -427,6 +466,13 @@ fun HistoryItem(spending: Spending, onClick: () -> Unit) {
                 .padding(16.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
+            if (selectionMode) {
+                Icon(
+                    if (selected) Icons.Default.CheckCircle else Icons.Default.RadioButtonUnchecked,
+                    null, tint = if (selected) accent else TextSecondary, modifier = Modifier.size(22.dp),
+                )
+                Spacer(Modifier.width(12.dp))
+            }
             if (hasCurrencyIcon) {
                 CurrencyIcon(spending.gameName, size = 30.dp)
                 Spacer(Modifier.width(12.dp))
@@ -454,9 +500,11 @@ fun HistoryItem(spending: Spending, onClick: () -> Unit) {
                 }
             }
             Text(won(spending.amount), fontSize = 14.sp, fontWeight = FontWeight.Bold)
-            Spacer(Modifier.width(4.dp))
-            // 상세 진입은 행 전체 클릭(.clickable)으로 처리 — iOS 처럼 chevron 인디케이터만 표시.
-            Icon(Icons.Default.ChevronRight, contentDescription = null, tint = TextSecondary, modifier = Modifier.size(18.dp))
+            if (!selectionMode) {
+                Spacer(Modifier.width(4.dp))
+                // 상세 진입은 행 전체 클릭(.clickable)으로 처리 — iOS 처럼 chevron 인디케이터만 표시.
+                Icon(Icons.Default.ChevronRight, contentDescription = null, tint = TextSecondary, modifier = Modifier.size(18.dp))
+            }
         }
     }
 }
@@ -571,6 +619,82 @@ private fun FilterGroup(title: String, content: @Composable FlowRowScope.() -> U
         )
     }
     Spacer(Modifier.height(14.dp))
+}
+
+/** 선택 모드 하단 액션 바 — 선택 개수 + 삭제/일괄 편집/취소. */
+@Composable
+private fun SelectionActionBar(
+    count: Int,
+    onEdit: () -> Unit,
+    onDelete: () -> Unit,
+    onCancel: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Surface(modifier = modifier.fillMaxWidth(), color = Color.White, shadowElevation = 12.dp) {
+        Row(
+            modifier = Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Text("${count}건 선택", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+            Spacer(Modifier.weight(1f))
+            GlgOutlineButton("취소", onCancel)
+            GlgOutlineButton("삭제", onDelete)
+            GlgButton("일괄 편집", onEdit)
+        }
+    }
+}
+
+/** 일괄 편집 시트 — 게임/날짜 변경 + 태그 추가. 비워둔 항목은 미변경. */
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+@Composable
+private fun BulkEditSheet(count: Int, onApply: (String?, Long?, List<String>) -> Unit, onDismiss: () -> Unit) {
+    val accent = LocalAccent.current
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    var game by remember { mutableStateOf<String?>(null) }
+    var dateMillis by remember { mutableStateOf<Long?>(null) }
+    var tags by remember { mutableStateOf<Set<String>>(emptySet()) }
+    val showDate = remember { mutableStateOf(false) }
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        containerColor = Color.White,
+        contentWindowInsets = { WindowInsets(0, 0, 0, 0) },
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 16.dp).navigationBarsPadding(),
+        ) {
+            Text("일괄 편집 · ${count}건", fontSize = 20.sp, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(4.dp))
+            Text("선택한 항목만 바뀌고, ‘변경 안 함’으로 둔 항목은 그대로예요.", fontSize = 12.sp, color = TextSecondary)
+            Spacer(Modifier.height(18.dp))
+            FilterGroup("게임") {
+                FilterPill("변경 안 함", game == null, accent) { game = null }
+                GameData.games.forEach { g -> FilterPill(g.shortName, game == g.displayName, g.color.toColor()) { game = g.displayName } }
+            }
+            FilterGroup("날짜") {
+                FilterPill(dateMillis?.let { DateUtil.label(it) } ?: "변경 안 함", dateMillis != null, accent) { showDate.value = true }
+                if (dateMillis != null) FilterPill("지우기", false, accent) { dateMillis = null }
+            }
+            FilterGroup("태그 추가") {
+                GameData.suggestedTags.forEach { t -> FilterPill(t, t in tags, accent) { tags = if (t in tags) tags - t else tags + t } }
+            }
+            Spacer(Modifier.height(8.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                GlgOutlineButton("취소", onDismiss, Modifier.weight(1f))
+                GlgButton("적용", { onApply(game, dateMillis, tags.toList()) }, Modifier.weight(1.4f))
+            }
+        }
+    }
+    if (showDate.value) {
+        val dps = rememberDatePickerState(initialSelectedDateMillis = dateMillis ?: System.currentTimeMillis())
+        DatePickerDialog(
+            onDismissRequest = { showDate.value = false },
+            confirmButton = { TextButton({ dateMillis = dps.selectedDateMillis; showDate.value = false }) { Text("확인") } },
+            dismissButton = { TextButton({ showDate.value = false }) { Text("취소") } },
+        ) { DatePicker(state = dps) }
+    }
 }
 
 @Composable
