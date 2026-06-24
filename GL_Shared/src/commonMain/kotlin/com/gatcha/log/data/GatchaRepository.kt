@@ -316,6 +316,38 @@ class GatchaRepository(accountId: String = "guest") {
         changed() // 스냅샷(클라우드/파일 백업)에 포함되므로 변경 시 동기화 트리거
     }
 
+    // ---------------------------------------------------------------- 픽업 배너 캐시 (로컬 전용 — 백그라운드 마감 알림 점검용)
+    /** 최근 로드한 활성 픽업 배너. 백그라운드(NotificationChecker)가 네트워크 없이 마감 임박을 판정하도록 캐시. */
+    fun loadActiveBanners(): List<GachaBanner> {
+        val raw = prefs.getString(KEY_BANNERS, null) ?: return emptyList()
+        return runCatching {
+            val arr = JSONArray(raw)
+            (0 until arr.length()).map { i ->
+                val o = arr.getJSONObject(i)
+                GachaBanner(
+                    game = o.optString("game", ""),
+                    name = o.optString("name", ""),
+                    type = o.optString("type", "character"),
+                    endMillis = o.optLong("endMillis", 0L),
+                    startMillis = o.optLong("startMillis", 0L),
+                    version = o.optString("version", ""),
+                )
+            }
+        }.getOrDefault(emptyList())
+    }
+
+    /** 배너 캐시 저장. 로컬 전용이라 클라우드 동기화([changed])를 트리거하지 않는다. */
+    fun saveActiveBanners(list: List<GachaBanner>) {
+        val arr = JSONArray()
+        list.forEach { b ->
+            arr.put(JSONObject().apply {
+                put("game", b.game); put("name", b.name); put("type", b.type)
+                put("endMillis", b.endMillis); put("startMillis", b.startMillis); put("version", b.version)
+            })
+        }
+        prefs.putString(KEY_BANNERS, arr.toString())
+    }
+
     // ---------------------------------------------------------------- 스냅샷 (전체 데이터 직렬화 — 클라우드/파일 백업 공용)
     /** 계정의 모든 데이터를 단일 JSON 으로 직렬화(Firestore 저장·파일 백업용). */
     fun exportSnapshotJson(): String {
@@ -414,6 +446,7 @@ class GatchaRepository(accountId: String = "guest") {
         const val KEY_ENKA_GI = "enka_gi"
         const val KEY_ENKA_HSR = "enka_hsr"
         const val KEY_ENKA_CACHE = "enka_cache"   // 로컬 전용(클라우드 스냅샷 비포함)
+        const val KEY_BANNERS = "active_banners"  // 로컬 전용(픽업 마감 알림 점검 캐시)
         const val KEY_GACHA = "gacha_records"
         const val KEY_SUBS = "subscriptions"
         const val KEY_HOME_CARDS = "home_cards"

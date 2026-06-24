@@ -90,5 +90,26 @@ object NotificationChecker {
                 }
             }
         }
+
+        // ④ 픽업 마감 임박 (로컬 배너 캐시) — 게임별 1회, D-3/D-1 레벨.
+        if (settings.notifyPickup) {
+            val now = currentTimeMillis()
+            repo.loadActiveBanners().filter { it.endMillis > now }
+                .groupBy { it.game }
+                .forEach { (gameName, list) ->
+                    val minD = list.minOf { it.dDay(now) }
+                    val level = when { minD <= 1 -> "d1"; minD <= 3 -> "d3"; else -> null } ?: return@forEach
+                    val tag = "pickup:$gameName"
+                    if (settings.lastNotified(tag) != level) {
+                        settings.setLastNotified(tag, level)
+                        val game = GameData.byNameOrNull(gameName)
+                        val shortName = game?.shortName ?: gameName
+                        val nid = Notifier.ID_PICKUP_BASE + (game?.ordinal ?: 0)
+                        val names = list.filter { it.dDay(now) <= 3 }.joinToString(", ") { it.name }
+                        val whenLabel = if (minD <= 1) "오늘·내일 종료" else "D-$minD 종료"
+                        Notifier.notify(nid, "$shortName 픽업 마감 임박", "$names — $whenLabel 전 마지막 기회예요")
+                    }
+                }
+        }
     }
 }
