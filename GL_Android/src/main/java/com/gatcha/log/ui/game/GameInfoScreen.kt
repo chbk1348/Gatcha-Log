@@ -228,7 +228,7 @@ fun GameInfoScreen(
                 ) {
                     GameFilterDropdown(selected = gameFilter, onSelect = { gameFilter = it })
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        GachaRateButton { subPage = GiSub.Rate }
+                        GlgCircleIconButton(Icons.Default.Percent, "확률표", outlined = true) { subPage = GiSub.Rate }
                         if (hoyolab.isLinked) {
                             GlgCircleIconButton(Icons.Default.Redeem, "리딤코드", outlined = true) { subPage = GiSub.Gift }
                         }
@@ -304,26 +304,6 @@ fun GameInfoScreen(
         }
     }
 
-}
-
-/** 헤더 "가챠 확률표" 알약 버튼 (웹앱 gi-rate-btn 이식) */
-@Composable
-private fun GachaRateButton(onClick: () -> Unit) {
-    val accent = LocalAccent.current
-    Surface(
-        modifier = Modifier.clickable { onClick() },
-        shape = RoundedCornerShape(11.dp),
-        color = accent.copy(alpha = 0.10f),
-        border = BorderStroke(1.5.dp, accent.copy(alpha = 0.30f)),
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            // 아이콘 전용(텍스트 제거) — 라벨은 접근성용 contentDescription 으로만 보존.
-            Icon(Icons.Default.Percent, contentDescription = "확률표", tint = accent, modifier = Modifier.size(14.dp))
-        }
-    }
 }
 
 /** 페이지로 분류된 섹션 진입 카드 (아이콘 + 제목 + 설명 + 셰브론). */
