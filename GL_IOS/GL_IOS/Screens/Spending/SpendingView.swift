@@ -111,7 +111,12 @@ struct SpendingView: View {
                 }
             }
         }
-        .overlay(alignment: .bottom) { if selectionMode { selectionBar } }
+        .overlay(alignment: .bottom) {
+            if selectionMode {
+                selectionBar.transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+        }
+        .animation(GLGMotion.standard(), value: selectionMode)
         .sheet(isPresented: $showFilter) { filterSheet }
         .sheet(isPresented: $showBulkEdit) {
             BulkEditSheet(store: store, count: selectedIds.count) { game, dateMillis, tags in
@@ -171,14 +176,20 @@ struct SpendingView: View {
             Text("\(selectedIds.count)건 선택").font(.pretendard(size: 14, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
             Spacer()
             Button("삭제") {
-                if !selectedIds.isEmpty { store.deleteSpendings(selectedIds); selectionMode = false; selectedIds = [] }
+                if selectedIds.isEmpty { store.showStatus("선택된 항목이 없어요") }
+                else { store.deleteSpendings(selectedIds); selectionMode = false; selectedIds = [] }
             }
             .buttonStyle(.bordered).tint(GLGColor.dangerText)
-            Button("일괄 편집") { if !selectedIds.isEmpty { showBulkEdit = true } }
-                .buttonStyle(.borderedProminent).tint(accent.primary)
+            Button("일괄 편집") {
+                if selectedIds.isEmpty { store.showStatus("선택된 항목이 없어요") } else { showBulkEdit = true }
+            }
+            .buttonStyle(.borderedProminent).tint(accent.primary)
         }
         .padding(.horizontal, 16).padding(.vertical, 12)
-        .background(Color.white.shadow(.drop(color: .black.opacity(0.12), radius: 8, y: -2)))
+        // 시스템 글래스(iOS26 Liquid Glass, 폴백 ultraThinMaterial) — 떠 있는 라운드 바(레이아웃 유지).
+        .modifier(SystemGlassBar())
+        .padding(.horizontal, 16)
+        .padding(.bottom, 8)
     }
 
 
@@ -387,6 +398,18 @@ struct TagChip: View {
     let tag: String
     var body: some View {
         GLGChip(label: tag, variant: .tag)
+    }
+}
+
+/// 시스템 글래스 배경 — iOS 26 Liquid Glass(.glassEffect), 그 이하 ultraThinMaterial 폴백.
+private struct SystemGlassBar: ViewModifier {
+    func body(content: Content) -> some View {
+        let shape = Capsule(style: .continuous)
+        if #available(iOS 26.0, *) {
+            content.glassEffect(.regular, in: shape)
+        } else {
+            content.background(.ultraThinMaterial, in: shape)
+        }
     }
 }
 
