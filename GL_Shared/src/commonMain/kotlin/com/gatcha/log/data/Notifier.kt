@@ -14,6 +14,7 @@ expect object Notifier {
     val ID_AUTO_CHECKIN: Int
     val ID_RESIN_BASE: Int        // + game.ordinal
     val ID_BUDGET_GAME_BASE: Int  // 게임별 예산 초과/임박. + game.ordinal
+    val ID_PICKUP_BASE: Int       // 픽업 마감 임박. + game.ordinal
 
     fun notify(id: Int, title: String, text: String)
 

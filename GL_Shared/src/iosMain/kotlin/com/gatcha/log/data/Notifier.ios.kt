@@ -20,6 +20,7 @@ actual object Notifier {
     actual val ID_AUTO_CHECKIN: Int = 2003
     actual val ID_RESIN_BASE: Int = 2100
     actual val ID_BUDGET_GAME_BASE: Int = 3300
+    actual val ID_PICKUP_BASE: Int = 3400
 
     // getNotificationSettings 는 비동기(콜백) → 동기 notificationsEnabled() 용으로 마지막 상태를 캐시.
     private var cachedEnabled: Boolean = false

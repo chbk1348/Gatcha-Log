@@ -150,6 +150,8 @@ class SpendingViewModel : ViewModel() {
     val notifyAttendance: StateFlow<Boolean> = _notifyAttendance.asStateFlow()
     private val _notifyResin = MutableStateFlow(appSettings.notifyResin)
     val notifyResin: StateFlow<Boolean> = _notifyResin.asStateFlow()
+    private val _notifyPickup = MutableStateFlow(appSettings.notifyPickup)
+    val notifyPickup: StateFlow<Boolean> = _notifyPickup.asStateFlow()
 
     // 과소비 리플렉션 넛지(지출 추가 시점) — 토글 + 평소치 기준액
     private val _nudgeOverspend = MutableStateFlow(appSettings.nudgeOverspend)
@@ -194,6 +196,7 @@ class SpendingViewModel : ViewModel() {
     fun setNotifyBudget(v: Boolean) { appSettings.notifyBudget = v; _notifyBudget.value = v; applyNativeAfterNotifyChange(v) }
     fun setNotifyAttendance(v: Boolean) { appSettings.notifyAttendance = v; _notifyAttendance.value = v; applyNativeAfterNotifyChange(v) }
     fun setNotifyResin(v: Boolean) { appSettings.notifyResin = v; _notifyResin.value = v; applyNativeAfterNotifyChange(v) }
+    fun setNotifyPickup(v: Boolean) { appSettings.notifyPickup = v; _notifyPickup.value = v; applyNativeAfterNotifyChange(v) }
 
     private fun applyNativeAfterNotifyChange(enabled: Boolean) {
         NativeScheduler.apply()
@@ -340,6 +343,25 @@ class SpendingViewModel : ViewModel() {
 
     fun deleteSpendings(ids: Set<String>) = _spendings.update { current ->
         current.filter { it.id !in ids }.also(repo::saveSpendings)
+    }
+
+    /**
+     * 선택한 지출들의 일부 필드를 일괄 변경. null/빈 인자는 해당 필드 미변경.
+     * 게임 변경 시 게임색(gameColor)도 함께 보정. 태그는 기존에 추가(중복 제거).
+     */
+    fun bulkEditSpendings(ids: Set<String>, gameName: String?, dateMillis: Long?, addTags: List<String>) {
+        if (ids.isEmpty()) return
+        _spendings.update { current ->
+            current.map { s ->
+                if (s.id !in ids) s else s.copy(
+                    gameName = gameName ?: s.gameName,
+                    gameColor = gameName?.let { GameData.colorFor(it) } ?: s.gameColor,
+                    dateMillis = dateMillis ?: s.dateMillis,
+                    tags = if (addTags.isEmpty()) s.tags else (s.tags + addTags).distinct(),
+                )
+            }.sortedByDescending { it.dateMillis }.also(repo::saveSpendings)
+        }
+        emitStatus("${ids.size}건 일괄 수정했어요")
     }
 
     /** 모든 지출 기록 삭제. */
@@ -892,7 +914,11 @@ class SpendingViewModel : ViewModel() {
                         challenges += r.challenges
                     }
                     zzzDeferred.await().let { banners += it.banners; events += it.events; challenges += it.challenges }
-                    if (banners.isNotEmpty()) _activeBanners.value = banners.sortedBy { it.dDay() }
+                    if (banners.isNotEmpty()) {
+                        _activeBanners.value = banners.sortedBy { it.dDay() }
+                        // 백그라운드 픽업 마감 알림 점검용 로컬 캐시(네트워크 없이 판정).
+                        runCatching { repo.saveActiveBanners(banners) }
+                    }
                     _gameEvents.value = events.sortedBy { it.endMillis }
                     _challenges.value = challenges.sortedBy { it.endMillis }
 
