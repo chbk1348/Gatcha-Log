@@ -1,5 +1,6 @@
 import SwiftUI
 import UniformTypeIdentifiers
+import UserNotifications
 import Shared
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -20,6 +21,8 @@ struct SettingsView: View {
     @State private var showHoyolab = false
     @State private var showUplog = false
     @State private var showCredits = false
+    // 알림 토글은 켰는데 시스템 알림 권한이 거부된 상태(안내 표시용). 비동기 조회라 @State 로 캐시.
+    @State private var notifBlocked = false
     // 파괴작업은 2단계 확인: 1차(백업 권장) → 2차(최종 확인)
     @State private var confirmClearGacha = false
     @State private var confirmClearGacha2 = false
@@ -224,6 +227,42 @@ struct SettingsView: View {
             Divider()
             toggleRow("bolt.fill", "재화 가득참 알림", "레진·개척력·배터리가 가득 차면 알려줘요",
                       notifyBind(\.notifyResin, store.setNotifyResin))
+            if notifBlocked && (store.notifyBudget || store.notifyAttendance || store.notifyResin) {
+                Divider()
+                Button { openSystemSettings() } label: {
+                    HStack(spacing: 12) {
+                        Image(systemName: "bell.slash.fill").font(.pretendard(size: 18))
+                            .foregroundStyle(Color(hex: 0xFFFB8C00)).frame(width: 24)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("알림 권한이 꺼져 있어요").font(.pretendard(size: 14, weight: .medium))
+                                .foregroundStyle(Color(hex: 0xFFFB8C00))
+                            Text("권한이 막혀 있어 알림이 표시되지 않아요. 설정에서 알림을 켜주세요.")
+                                .font(.pretendard(size: 11)).foregroundStyle(GLGColor.textSecondary)
+                        }
+                        Spacer()
+                        Image(systemName: "chevron.right").font(.pretendard(size: 13, weight: .semibold))
+                            .foregroundStyle(Color(.tertiaryLabel))
+                    }
+                    .contentShape(Rectangle()).padding(.vertical, 10)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .onAppear(perform: refreshNotifBlocked)
+    }
+
+    /// 시스템 알림 권한 상태를 조회해 notifBlocked 갱신(거부/미결정이면 차단으로 간주).
+    private func refreshNotifBlocked() {
+        UNUserNotificationCenter.current().getNotificationSettings { settings in
+            let ok = settings.authorizationStatus == .authorized || settings.authorizationStatus == .provisional
+            DispatchQueue.main.async { notifBlocked = !ok }
+        }
+    }
+
+    /// 이 앱의 시스템 설정 화면 열기(권한 직접 변경 유도).
+    private func openSystemSettings() {
+        if let url = URL(string: UIApplication.openSettingsURLString) {
+            UIApplication.shared.open(url)
         }
     }
 
