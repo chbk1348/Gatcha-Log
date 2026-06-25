@@ -4,6 +4,8 @@ build/
 
 # xcodebuild derivedData (로컬 빌드 산출물)
 build-rel/
+build_rel/
+GL_IOS/build_rel/
 
 # Android / Studio
 .idea/
