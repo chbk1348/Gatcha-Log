@@ -2,7 +2,7 @@ import SwiftUI
 import UniformTypeIdentifiers
 import Shared
 
-// 홈 — 헤더·이번달 요약·오늘 할 일·가챠 현황·실시간 노트·픽업 배너·지출/예산·가챠 요약·알림.
+// 홈 — 헤더·지출/예산·오늘 할 일·이번주 일정·게임 소식·알림. (실시간 노트는 오늘 할 일과 중복이라 제거)
 // (Compose HomeContent + HomeRedesign 대응) VM 의존 최다. 시작 시 refreshGameInfo 트리거 보존.
 struct HomeView: View {
     @ObservedObject var store: SpendingStore
@@ -18,40 +18,27 @@ struct HomeView: View {
 
     var body: some View {
         ScrollView {
-            LazyVStack(alignment: .leading, spacing: 16) {
+            LazyVStack(alignment: .leading, spacing: 12) {
                 if store.hoyoTokenExpired {
                     TokenExpiredBanner { store.requestOpenHoyolabLink(); onSwitchTab(3) }
                         .glgLoadIn(0, appeared: $appeared)
                 }
-                HomeSummaryCard(monthlyTotal: monthlyTotal, prevTotal: prevTotal,
-                                nextBanner: nextBanner, gameOverCount: gameOverBudget.count,
-                                onBudget: { showBudget = true }, onTip: { store.showStatus(savingTip) })
+                // 홈 허브 — 정보 중복 없이: 지출/예산 · 오늘 할 일 · 이번주 일정 · 게임 소식
+                DashboardSpendCard(monthlyTotal: monthlyTotal, budget: store.budget, onTap: { onSwitchTab(1) })
                     .glgLoadIn(1, appeared: $appeared)
-                todayTask
-                    .glgLoadIn(2, appeared: $appeared)
-                GameStatusSection(store: store, onConfig: { onSwitchTab(2) })
-                    .glgLoadIn(3, appeared: $appeared)
-                let rest = Array(soonBanners.dropFirst())
-                if !rest.isEmpty {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("픽업 배너").font(.pretendard(size: 13, weight: .bold)).padding(.leading, 2)
-                        ForEach(Array(rest.enumerated()), id: \.offset) { _, b in BannerCapsule(banner: b) }
-                    }
-                    .glgLoadIn(4, appeared: $appeared)
+                if !store.gameInfoReady || !todayTasks.isEmpty {
+                    todayTask.glgLoadIn(2, appeared: $appeared)
                 }
-                ForEach(Array(store.homeCards.filter { $0.visible }.enumerated()), id: \.element.id) { i, card in
-                    Group {
-                        if card.id == HomeCards.shared.SPENDING {
-                            SpendingBudgetSection(monthlyTotal: monthlyTotal, budget: store.budget, perGame: perGameSpend, onEdit: { showBudget = true })
-                        } else if card.id == HomeCards.shared.GACHA {
-                            GachaSummarySection(stats: store.gachaStats, nextBanner: nextBanner, nextBannerPlan: nextBannerPlan,
-                                                onOpen: { onSwitchTab(2) }, onImport: { importingGacha = true })
-                        }
-                    }
-                    .glgLoadIn(6 + i, appeared: $appeared)
+                if !store.gameInfoReady {
+                    // 게임 정보 로딩 중 — 일정·소식 카드 자리에 스켈레톤(빈 화면 대신 골격 노출)
+                    DashCardSkeleton(rows: 3).glgLoadIn(3, appeared: $appeared)
+                    DashCardSkeleton(rows: 2).glgLoadIn(4, appeared: $appeared)
+                } else {
+                    DashboardScheduleCard(events: store.gameEvents, challenges: store.challenges, onTap: { store.requestGameInfoAnchor(.schedule); onSwitchTab(2) })
+                        .glgLoadIn(3, appeared: $appeared)
+                    DashboardNewsCard(news: store.gameNews, anniversaries: GameAnniversary.shared.upcoming(nowMillis: nowMs()), onTap: { store.requestGameInfoAnchor(.news); onSwitchTab(2) })
+                        .glgLoadIn(4, appeared: $appeared)
                 }
-                homeEditButton
-                    .glgLoadIn(8, appeared: $appeared)
                 Color.clear.frame(height: 12)
             }
             .padding(.horizontal, 16)
@@ -143,17 +130,6 @@ struct HomeView: View {
             return (spent <= 0 && limit <= 0) ? nil : GameSpend(game: g, spent: spent, limit: limit)
         }.sorted { $0.spent > $1.spent }
     }
-    private var soonBanners: [GachaBanner] {
-        store.activeBanners.filter { (0...7).contains(Int($0.dDay(nowMillis: nowMs()))) }.sorted { $0.dDay(nowMillis: nowMs()) < $1.dDay(nowMillis: nowMs()) }.prefix(4).map { $0 }
-    }
-    private var nextBanner: GachaBanner? { soonBanners.first }
-    private var nextBannerPlan: BannerPlan? {
-        guard let b = nextBanner, let g = GameData.shared.byNameOrNull(name: b.game),
-              let rate = GachaRateData.shared.byKey(key: g.key)?.character else { return nil }
-        let st = store.pity[g.key]
-        let pulls = store.maxPullsToSecure(count: Int(st?.count ?? 0), guaranteed: st?.guaranteed ?? false, banner: rate)
-        return BannerPlan(maxPulls: pulls, wonCost: Int64(pulls) * Int64(rate.wonPerPull))
-    }
     private var savingTip: String {
         if store.budget > 0 && monthlyTotal > store.budget { return "이번 달은 예산을 넘겼어요. 다음 픽업까지 무·저과금으로 천장을 모아보세요." }
         if !gameOverBudget.isEmpty { return "\(gameOverBudget[0]) 한도를 넘었어요. 게임별 예산을 점검해보세요." }
@@ -166,11 +142,11 @@ struct HomeView: View {
         let resins = store.liveNotes.filter { $0.maxResin > 0 && $0.resinRatio >= 0.85 }
             .sorted { $0.resinRatio > $1.resinRatio }
             .map { ResinAlert(gameShort: GameData.shared.byName(name: $0.game).shortName, label: $0.resinLabel, cur: Int($0.currentResin), max: Int($0.maxResin), full: $0.currentResin >= $0.maxResin) }
-        let urgentBanner = soonBanners.first { $0.dDay(nowMillis: nowMs()) <= 3 }
+        // 픽업은 '이번주 일정' 카드·게임 정보 페이지에서 확인 — 오늘 할 일에서는 제외
         return resolveTodayTasks(
             pendingAttendance: GameData.shared.attendanceGames.filter { !store.attendanceToday.contains($0.key) }.count,
-            resins: resins, urgentBanner: urgentBanner, budget: store.budget, monthlyTotal: monthlyTotal,
-            onCheckInAll: { store.checkInAll() }, onResin: { onSwitchTab(2) }, onBanner: { onSwitchTab(2) }, onBudget: { showBudget = true })
+            resins: resins, urgentBanner: nil, budget: store.budget, monthlyTotal: monthlyTotal,
+            onCheckInAll: { store.checkInAll() }, onResin: { store.requestGameInfoAnchor(.notes); onSwitchTab(2) }, onBanner: { store.requestGameInfoAnchor(.schedule); onSwitchTab(2) }, onBudget: { showBudget = true })
     }
 }
 

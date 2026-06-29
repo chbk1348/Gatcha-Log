@@ -102,7 +102,6 @@ struct SpendingView: View {
                 } else {
                     NavigationLink { CalendarView(store: store) } label: { Image(systemName: "calendar") }
                     NavigationLink { SpendingInsightView(store: store) } label: { Image(systemName: "chart.line.uptrend.xyaxis") }
-                    NavigationLink { AnnualReportView(store: store) } label: { Image(systemName: "chart.bar.doc.horizontal") }
                     Button { selectionMode = true; selectedIds = [] } label: { Image(systemName: "checklist") }
                     // 필터 버튼 — 헤더(툴바)로 이동. 활성 시 채움 아이콘.
                     Button { showFilter = true } label: {
@@ -157,14 +156,14 @@ struct SpendingView: View {
             Button {
                 if selectedIds.contains(s.id) { selectedIds.remove(s.id) } else { selectedIds.insert(s.id) }
             } label: {
-                HistoryItem(spending: s, selectionMode: true, selected: selectedIds.contains(s.id))
+                HistoryItem(spending: s, selectionMode: true, selected: selectedIds.contains(s.id), compact: store.spendingCompact)
             }
             .buttonStyle(.plain)
         } else {
             NavigationLink {
                 SpendingDetailView(store: store, spendingId: s.id, onEdit: onEdit)
             } label: {
-                HistoryItem(spending: s)
+                HistoryItem(spending: s, compact: store.spendingCompact)
             }
             .buttonStyle(.plain)
         }
@@ -337,6 +336,7 @@ struct HistoryItem: View {
     let spending: Spending
     var selectionMode: Bool = false
     var selected: Bool = false
+    var compact: Bool = false
     @Environment(\.glgAccent) private var accent
 
     private var gameColor: Color { Color(argb64: spending.gameColor) }
@@ -347,42 +347,52 @@ struct HistoryItem: View {
         [spending.itemName.isEmpty ? nil : spending.itemName, spending.paymentMethod.isEmpty ? nil : spending.paymentMethod]
             .compactMap { $0 }.joined(separator: " · ")
     }
+    /// 컴팩트: 게임명 · 아이템 한 줄.
+    private var compactTitle: String {
+        let item = spending.itemName.isEmpty ? nil : spending.itemName
+        return spending.gameName + (item != nil ? "  ·  \(item!)" : "")
+    }
 
     var body: some View {
-        GLGCard(cornerRadius: 20, padding: 14) {
-            HStack(spacing: 13) {
+        GLGCard(cornerRadius: 20, padding: compact ? 10 : 14) {
+            HStack(spacing: compact ? 10 : 13) {
                 if selectionMode {
                     Image(systemName: selected ? "checkmark.circle.fill" : "circle")
                         .font(.pretendard(size: 22)).foregroundStyle(selected ? accent.primary : Color(.systemGray3))
                 }
                 // 게임 색 배지 (약칭)
                 Text(abbr)
-                    .font(.pretendard(size: 13, weight: .heavy)).foregroundStyle(gameColor)
-                    .frame(width: 44, height: 44)
-                    .background(gameColor.opacity(0.14), in: RoundedRectangle(cornerRadius: 13, style: .continuous))
+                    .font(.pretendard(size: compact ? 11 : 13, weight: .heavy)).foregroundStyle(gameColor)
+                    .frame(width: compact ? 30 : 44, height: compact ? 30 : 44)
+                    .background(gameColor.opacity(0.14), in: RoundedRectangle(cornerRadius: compact ? 9 : 13, style: .continuous))
 
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack(spacing: 6) {
-                        Text(spending.gameName).font(.pretendard(size: 15, weight: .bold)).lineLimit(1)
-                        if spending.isSubscription {
-                            GLGBadge(label: "정기", color: gameColor)
+                if compact {
+                    // 한 줄(태그·결제수단·정기뱃지 숨김)
+                    Text(compactTitle).font(.pretendard(size: 13, weight: .bold)).lineLimit(1)
+                } else {
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack(spacing: 6) {
+                            Text(spending.gameName).font(.pretendard(size: 15, weight: .bold)).lineLimit(1)
+                            if spending.isSubscription {
+                                GLGBadge(label: "정기", color: gameColor)
+                            }
                         }
-                    }
-                    if !subtitle.isEmpty {
-                        Text(subtitle).font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary).lineLimit(1)
-                    }
-                    if !spending.tags.isEmpty {
-                        HStack(spacing: 5) {
-                            ForEach(spending.tags.prefix(3), id: \.self) { TagChip(tag: $0) }
+                        if !subtitle.isEmpty {
+                            Text(subtitle).font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary).lineLimit(1)
                         }
-                        .padding(.top, 1)
+                        if !spending.tags.isEmpty {
+                            HStack(spacing: 5) {
+                                ForEach(spending.tags.prefix(3), id: \.self) { TagChip(tag: $0) }
+                            }
+                            .padding(.top, 1)
+                        }
                     }
                 }
 
                 Spacer(minLength: 8)
 
                 HStack(spacing: 4) {
-                    Text(won(spending.amount)).font(.pretendard(size: 16, weight: .bold)).lineLimit(1)
+                    Text(won(spending.amount)).font(.pretendard(size: compact ? 14 : 16, weight: .bold)).lineLimit(1)
                     if !selectionMode {
                         Image(systemName: "chevron.right").font(.pretendard(size: 12, weight: .semibold))
                             .foregroundStyle(Color(.tertiaryLabel))
@@ -390,7 +400,7 @@ struct HistoryItem: View {
                 }
             }
         }
-        .padding(.vertical, 4)
+        .padding(.vertical, compact ? 2 : 4)
     }
 }
 

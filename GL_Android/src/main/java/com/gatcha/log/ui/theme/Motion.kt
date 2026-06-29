@@ -1,22 +1,34 @@
 package com.gatcha.log.ui.theme
 
+import android.app.ActivityManager
+import android.content.Context
+import android.os.PowerManager
+import android.provider.Settings
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.Easing
 import androidx.compose.animation.core.FiniteAnimationSpec
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.composed
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 
 /**
@@ -51,6 +63,46 @@ fun <T> glgShortSpec(durationMs: Int = GlgMotion.DurationShort): FiniteAnimation
 fun <T> glgEmphasisSpec(durationMs: Int = GlgMotion.DurationLong): FiniteAnimationSpec<T> =
     tween(durationMs, easing = GlgEasingEmphasis)
 
+// ── 저사양·접근성 모션 감속 + 공유 시머 클럭 ──────────────────────────────────
+
+/** 모션 감속 플래그 — 저사양(저RAM)·접근성(애니 끄기)·절전. 테마 루트에서 기기값으로 제공, 기본 false. */
+val LocalReduceMotion = staticCompositionLocalOf { false }
+
+/**
+ * 공유 시머 위상(0→1 선형 반복). 스켈레톤 박스마다 독립 무한 트랜지션을 만드는 대신
+ * 앱 전역에서 클럭 1개를 공유해 저사양 단말의 프레임 부하를 줄인다. 박스는 draw 단계에서만 읽음.
+ */
+val LocalShimmerPhase = staticCompositionLocalOf<State<Float>> { mutableStateOf(0f) }
+
+/** 기기 상태로 모션 감속 여부 판정 — 저RAM·애니 비활성(스케일 0)·절전. (세션 내 1회 산정) */
+@Composable
+fun rememberReduceMotion(): Boolean {
+    val context = LocalContext.current
+    return remember(context) {
+        val am = context.getSystemService(Context.ACTIVITY_SERVICE) as? ActivityManager
+        val pm = context.getSystemService(Context.POWER_SERVICE) as? PowerManager
+        val animScale = Settings.Global.getFloat(
+            context.contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f,
+        )
+        (am?.isLowRamDevice == true) || animScale == 0f || (pm?.isPowerSaveMode == true)
+    }
+}
+
+/** 공유 시머 위상 클럭 — 감속 시 정지(정적 0f), 아니면 단일 무한 트랜지션. */
+@Composable
+fun rememberShimmerPhase(reduceMotion: Boolean): State<Float> {
+    if (reduceMotion) return remember { mutableStateOf(0f) }
+    val transition = rememberInfiniteTransition(label = "shimmer")
+    return transition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            tween(GlgMotion.ShimmerPeriod, easing = LinearEasing), RepeatMode.Restart,
+        ),
+        label = "shimmerPhase",
+    )
+}
+
 // ── 콘텐츠 로드인 스태거 ──────────────────────────────────────────────────────
 
 /**
@@ -76,6 +128,11 @@ fun rememberGlgLoadInSet(tag: String): MutableSet<Int> =
  * delay = index*[GlgMotion.StaggerStep] (최대 [GlgMotion.StaggerMax]) — 순차 등장 스태거.
  */
 fun Modifier.glgLoadIn(index: Int, animated: MutableSet<Int>): Modifier = composed {
+    // 모션 감속(저사양·접근성·절전) — 스태거·슬라이드 없이 즉시 표시
+    if (LocalReduceMotion.current) {
+        remember { animated.add(index); true }
+        return@composed Modifier
+    }
     val already = remember { index in animated }
     var shown by remember { mutableStateOf(already) }
     val progress by animateFloatAsState(

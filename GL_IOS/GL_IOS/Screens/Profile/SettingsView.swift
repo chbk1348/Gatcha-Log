@@ -65,6 +65,7 @@ struct SettingsView: View {
                 budgetLinkSection
                 automationSection
                 notificationSection
+                displaySection
                 themeSection
                 // 2층: 데이터·계정
                 dataSection
@@ -152,6 +153,15 @@ struct SettingsView: View {
     }
 
     // ── 테마 ──
+    // ── 표시 ──
+    private var displaySection: some View {
+        sectionCard("표시") {
+            toggleRow("list.bullet", "지출 내역 컴팩트 보기",
+                      "지출 목록을 한 줄로 빽빽하게 표시해요 (태그·결제수단 숨김)",
+                      bind(\.spendingCompact, store.setSpendingCompact))
+        }
+    }
+
     private var themeSection: some View {
         // 색상이 늘어 한 줄을 넘기므로 5열 그리드로 래핑(2행).
         let cols = Array(repeating: GridItem(.flexible(), spacing: 12), count: 5)

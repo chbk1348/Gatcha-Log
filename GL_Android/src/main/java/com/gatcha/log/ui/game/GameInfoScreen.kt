@@ -120,17 +120,17 @@ fun GameInfoScreen(
     val codesLoading by viewModel.codesLoading.collectAsState()
     val redeemedCodes by viewModel.redeemedCodes.collectAsState()
 
-    // 오늘 할 일/요약에서 넘어온 경우 해당 섹션으로 스크롤 앵커링(1회성).
-    // 아이템 순서: 0 헤더 · 1 실시간노트(NOTES) · 2 spacer · 3 배너(BANNER) · 4 spacer ·
-    // (패치 표시 시 5·6) · 위시 · spacer · 천장(PITY).
+    // 홈 대시보드 카드에서 넘어온 경우 해당 섹션으로 스크롤 앵커링(1회성).
+    // LazyColumn item 순서: 0 헤더 · 1 실시간노트(NOTES) · 2 spacer · 3 내캐릭터 ·
+    // [일정 있을 때 4 spacer · 5 게임일정(SCHEDULE)] · spacer · 주년 · spacer · 공지(NEWS) · …
     val pendingAnchor by viewModel.pendingGameInfoAnchor.collectAsState()
     LaunchedEffect(pendingAnchor) {
         val anchor = pendingAnchor ?: return@LaunchedEffect
-        val patchVisible = !(banners.isEmpty() && isRefreshing)
+        val scheduleShown = schedule.isNotEmpty()
         val index = when (anchor) {
             GameInfoAnchor.NOTES -> 1
-            GameInfoAnchor.BANNER -> 3
-            GameInfoAnchor.PITY -> if (patchVisible) 9 else 7
+            GameInfoAnchor.SCHEDULE -> if (scheduleShown) 5 else 1  // 일정 미표시 시 상단(노트)로 폴백
+            GameInfoAnchor.NEWS -> if (scheduleShown) 9 else 7
         }
         listState.animateScrollToItem(index)
         viewModel.consumeGameInfoAnchor()

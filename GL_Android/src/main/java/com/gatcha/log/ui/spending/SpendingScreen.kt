@@ -40,11 +40,15 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.foundation.background
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.gatcha.log.data.DateUtil
@@ -64,10 +68,9 @@ private enum class PeriodFilter(val label: String) { ALL("전체"), THIS_MONTH("
 private enum class TypeFilter(val label: String) { ALL("전체"), NORMAL("일반"), SUBSCRIPTION("구독") }
 private enum class SortOrder(val label: String) { DATE_DESC("최신순"), DATE_ASC("오래된순"), AMOUNT_DESC("금액 높은순") }
 
-/** 지출 탭 내 하위 페이지 네비게이션 상태 (List=목록, Annual=연간 리포트, Detail=지출 상세). */
+/** 지출 탭 내 하위 페이지 네비게이션 상태 (List=목록, Insight=인사이트(연간 리포트 포함), Detail=지출 상세). */
 private sealed interface SpendingScreenNav {
     data object List : SpendingScreenNav
-    data object Annual : SpendingScreenNav
     data object Insight : SpendingScreenNav
     data object Calendar : SpendingScreenNav
     data class Detail(val spending: Spending) : SpendingScreenNav
@@ -83,6 +86,7 @@ fun SpendingScreen(
 ) {
     val spendings by viewModel.spendings.collectAsState()
     val isRefreshing by viewModel.isRefreshing.collectAsState()
+    val compact by viewModel.spendingCompact.collectAsState()
     // 게임 필터 — 다중 선택(빈 Set = 전체). 필터 바텀시트에서 토글.
     var selectedGames by remember { mutableStateOf<Set<String>>(emptySet()) }
     var period by remember { mutableStateOf(PeriodFilter.ALL) }
@@ -148,10 +152,6 @@ fun SpendingScreen(
         label = "spendingNav",
     ) { navState ->
         when (navState) {
-            is SpendingScreenNav.Annual -> {
-                AnnualReportScreen(viewModel, onBack = { nav = SpendingScreenNav.List })
-                return@AnimatedContent
-            }
             is SpendingScreenNav.Insight -> {
                 SpendingInsightScreen(viewModel, onBack = { nav = SpendingScreenNav.List })
                 return@AnimatedContent
@@ -228,6 +228,7 @@ fun SpendingScreen(
                             spending = spending,
                             selectionMode = selectionMode,
                             selected = spending.id in selectedIds,
+                            compact = compact,
                             onClick = {
                                 if (selectionMode) {
                                     selectedIds = if (spending.id in selectedIds) selectedIds - spending.id else selectedIds + spending.id
@@ -248,6 +249,7 @@ fun SpendingScreen(
                                 spending = spending,
                                 selectionMode = selectionMode,
                                 selected = spending.id in selectedIds,
+                                compact = compact,
                                 onClick = {
                                     if (selectionMode) {
                                         selectedIds = if (spending.id in selectedIds) selectedIds - spending.id else selectedIds + spending.id
@@ -273,7 +275,6 @@ fun SpendingScreen(
             GlgTabHeader("") {
                 GlgCircleIconButton(Icons.Default.CalendarMonth, "캘린더", outlined = true) { nav = SpendingScreenNav.Calendar }
                 GlgCircleIconButton(Icons.Default.Insights, "인사이트", outlined = true) { nav = SpendingScreenNav.Insight }
-                GlgCircleIconButton(Icons.Default.Assessment, "연간 리포트", outlined = true) { nav = SpendingScreenNav.Annual }
                 GlgCircleIconButton(Icons.Default.Checklist, "선택", outlined = true) { selectionMode = true; selectedIds = emptySet() }
                 GlgCircleIconButton(Icons.Default.Tune, "필터", outlined = true, badgeCount = activeFilterCount) { showFilterSheet.value = true }
             }
@@ -406,12 +407,12 @@ fun DateHeader(date: String, total: Long) {
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun HistoryItem(spending: Spending, onClick: () -> Unit, selectionMode: Boolean = false, selected: Boolean = false) {
+fun HistoryItem(spending: Spending, onClick: () -> Unit, selectionMode: Boolean = false, selected: Boolean = false, compact: Boolean = false) {
     val accent = LocalAccent.current
 
     GlassCard(
         shape = RoundedCornerShape(18.dp),
-        modifier = Modifier.fillMaxWidth().padding(vertical = 5.dp),
+        modifier = Modifier.fillMaxWidth().padding(vertical = if (compact) 3.dp else 5.dp),
     ) {
         // 재화 아이콘 미지원 게임(zzz·명조·엔드필드·이환)은 원형 폴백 대신 카드 좌측 게임색 세로 막대.
         val hasCurrencyIcon = GameCurrency.forGame(spending.gameName)?.iconUrl != null
@@ -425,7 +426,7 @@ fun HistoryItem(spending: Spending, onClick: () -> Unit, selectionMode: Boolean 
                     } else Modifier,
                 )
                 .clickable { onClick() }
-                .padding(16.dp),
+                .padding(if (compact) 11.dp else 16.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             if (selectionMode) {
@@ -436,31 +437,43 @@ fun HistoryItem(spending: Spending, onClick: () -> Unit, selectionMode: Boolean 
                 Spacer(Modifier.width(12.dp))
             }
             if (hasCurrencyIcon) {
-                CurrencyIcon(spending.gameName, size = 30.dp)
-                Spacer(Modifier.width(12.dp))
+                CurrencyIcon(spending.gameName, size = if (compact) 22.dp else 30.dp)
+                Spacer(Modifier.width(if (compact) 10.dp else 12.dp))
             }
-            Column(Modifier.weight(1f)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(spending.gameName, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                    if (spending.isSubscription) {
-                        Spacer(Modifier.width(6.dp))
-                        GlgBadge("정기", spending.gameColor.toColor())
-                    }
-                }
+            if (compact) {
+                // 컴팩트: 게임명 · 아이템 한 줄(태그·결제수단·정기뱃지 숨김).
+                val sub = spending.itemName.ifBlank { null }
                 Text(
-                    listOfNotNull(spending.itemName.ifBlank { null }, spending.paymentMethod).joinToString(" · "),
-                    fontSize = 11.sp, color = TextSecondary,
+                    spending.gameName + (if (sub != null) "  ·  $sub" else ""),
+                    fontSize = 13.sp, fontWeight = FontWeight.Bold,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f),
                 )
-                if (spending.tags.isNotEmpty()) {
-                    Spacer(Modifier.height(5.dp))
-                    FlowRow(
-                        horizontalArrangement = Arrangement.spacedBy(5.dp),
-                        verticalArrangement = Arrangement.spacedBy(5.dp),
-                    ) {
-                        spending.tags.forEach { tag -> TagChip(tag) }
+            } else {
+                Column(Modifier.weight(1f)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(spending.gameName, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                        if (spending.isSubscription) {
+                            Spacer(Modifier.width(6.dp))
+                            GlgBadge("정기", spending.gameColor.toColor())
+                        }
+                    }
+                    Text(
+                        listOfNotNull(spending.itemName.ifBlank { null }, spending.paymentMethod).joinToString(" · "),
+                        fontSize = 11.sp, color = TextSecondary,
+                    )
+                    if (spending.tags.isNotEmpty()) {
+                        Spacer(Modifier.height(5.dp))
+                        FlowRow(
+                            horizontalArrangement = Arrangement.spacedBy(5.dp),
+                            verticalArrangement = Arrangement.spacedBy(5.dp),
+                        ) {
+                            spending.tags.forEach { tag -> TagChip(tag) }
+                        }
                     }
                 }
             }
+            Spacer(Modifier.width(8.dp))
             Text(won(spending.amount), fontSize = 14.sp, fontWeight = FontWeight.Bold)
             if (!selectionMode) {
                 Spacer(Modifier.width(4.dp))
@@ -497,6 +510,11 @@ private fun SpendingFilterSheet(
         scope.launch { sheetState.hide() }.invokeOnCompletion { if (!sheetState.isVisible) onDismiss() }
         Unit
     }
+    // 시트가 상태바를 침범하지 않도록 콘텐츠 높이에 상한을 둔다.
+    // ModalBottomSheet 의 content 슬롯은 wrap-content(높이 무제한)라, 상한이 없으면
+    // skipPartiallyExpanded 로 시트가 화면 끝(상태바 위)까지 자라고 weight 스크롤도 동작하지 않는다.
+    // 화면 높이의 90% 로 제한 → 상단에 여백이 남아 상태바를 넘지 않고, 넘치면 내부 스크롤로 처리.
+    val maxSheetHeight = LocalConfiguration.current.screenHeightDp.dp * 0.9f
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
@@ -506,36 +524,46 @@ private fun SpendingFilterSheet(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 16.dp)
+                .heightIn(max = maxSheetHeight)
+                .padding(start = 20.dp, end = 20.dp, top = 4.dp)
                 .navigationBarsPadding(),
         ) {
             Text("상세 필터", fontSize = 20.sp, fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(18.dp))
-            // 게임 — 다중 선택(선택됨 색은 게임별 대표색). '전체'는 선택 해제.
-            FilterGroup("게임") {
-                FilterPill("전체", selectedGames.isEmpty(), accent) { onGamesClear() }
-                GameData.games.forEach { g ->
-                    FilterPill(g.shortName, g.displayName in selectedGames, g.color.toColor()) { onGameToggle(g.displayName) }
+            // 필터 그룹 — 내용이 시트 최대 높이를 넘으면 이 영역만 내부 스크롤(헤더/하단 버튼은 고정).
+            // weight(1f, fill = false): 짧으면 필요한 만큼만, 길면 남은 높이까지 차지 후 스크롤.
+            Column(
+                modifier = Modifier
+                    .weight(1f, fill = false)
+                    .verticalScroll(rememberScrollState()),
+            ) {
+                // 게임 — 다중 선택(선택됨 색은 게임별 대표색). '전체'는 선택 해제.
+                FilterGroup("게임") {
+                    FilterPill("전체", selectedGames.isEmpty(), accent) { onGamesClear() }
+                    GameData.games.forEach { g ->
+                        FilterPill(g.shortName, g.displayName in selectedGames, g.color.toColor()) { onGameToggle(g.displayName) }
+                    }
+                }
+                FilterGroup("기간") {
+                    PeriodFilter.entries.forEach { p -> FilterPill(p.label, period == p, accent) { onPeriod(p) } }
+                }
+                FilterGroup("결제 수단") {
+                    FilterPill("전체", paymentFilter == null, accent) { onPayment(null) }
+                    GameData.paymentMethods.forEach { m -> FilterPill(m, paymentFilter == m, accent) { onPayment(m) } }
+                }
+                FilterGroup("구분") {
+                    TypeFilter.entries.forEach { t -> FilterPill(t.label, typeFilter == t, accent) { onType(t) } }
+                }
+                FilterGroup("정렬") {
+                    SortOrder.entries.forEach { s -> FilterPill(s.label, sortOrder == s, accent) { onSort(s) } }
                 }
             }
-            FilterGroup("기간") {
-                PeriodFilter.entries.forEach { p -> FilterPill(p.label, period == p, accent) { onPeriod(p) } }
-            }
-            FilterGroup("결제 수단") {
-                FilterPill("전체", paymentFilter == null, accent) { onPayment(null) }
-                GameData.paymentMethods.forEach { m -> FilterPill(m, paymentFilter == m, accent) { onPayment(m) } }
-            }
-            FilterGroup("구분") {
-                TypeFilter.entries.forEach { t -> FilterPill(t.label, typeFilter == t, accent) { onType(t) } }
-            }
-            FilterGroup("정렬") {
-                SortOrder.entries.forEach { s -> FilterPill(s.label, sortOrder == s, accent) { onSort(s) } }
-            }
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(16.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 GlgOutlineButton("초기화", onReset, Modifier.weight(1f))
                 GlgButton("적용", animatedDismiss, Modifier.weight(1.4f))
             }
+            Spacer(Modifier.height(8.dp))
         }
     }
 }

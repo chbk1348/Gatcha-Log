@@ -113,9 +113,15 @@ fun GatchaLogTheme(
     val systemDensity = LocalDensity.current
     val fixedDensity = remember(systemDensity.density) { Density(systemDensity.density, fontScale = 1f) }
 
+    // 저사양·접근성·절전 모션 감속 + 전역 공유 시머 클럭(스켈레톤 박스 1클럭 공유)
+    val reduceMotion = rememberReduceMotion()
+    val shimmerPhase = rememberShimmerPhase(reduceMotion)
+
     CompositionLocalProvider(
         LocalAccent provides accent.color.toColor(),
         LocalAccentSecondary provides accent.secondary.toColor(),
+        LocalReduceMotion provides reduceMotion,
+        LocalShimmerPhase provides shimmerPhase,
         // 회색 박스/리플 대신 "눌린 느낌"(축소) 인디케이션을 전역 적용
         LocalIndication provides PressScaleIndication,
         LocalRippleConfiguration provides null,

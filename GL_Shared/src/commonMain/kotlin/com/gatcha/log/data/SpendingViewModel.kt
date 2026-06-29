@@ -161,6 +161,11 @@ class SpendingViewModel : ViewModel() {
     fun setNudgeOverspend(v: Boolean) { appSettings.nudgeOverspend = v; _nudgeOverspend.value = v }
     fun setNudgeThreshold(v: Long) { appSettings.nudgeThreshold = v; _nudgeThreshold.value = v }
 
+    // 지출 내역 컴팩트(한 줄) 표시 토글. 기본 false(기존).
+    private val _spendingCompact = MutableStateFlow(appSettings.spendingCompact)
+    val spendingCompact: StateFlow<Boolean> = _spendingCompact.asStateFlow()
+    fun setSpendingCompact(v: Boolean) { appSettings.spendingCompact = v; _spendingCompact.value = v }
+
     /**
      * N6 과소비 넛지 판정 — 지출 저장 직전 호출. 경고가 필요하면 메시지, 아니면 null.
      * 우선순위: 게임별 한도 초과 예상 → 전체 예산 초과 예상 → 단건 큰 금액(평소치 초과).
@@ -1308,4 +1313,7 @@ class SpendingViewModel : ViewModel() {
 }
 
 /** 오늘 할 일 → 게임 정보 탭 진입 시 스크롤할 섹션. NOTES=실시간 노트, BANNER=배너, PITY=천장. */
-enum class GameInfoAnchor { NOTES, BANNER, PITY }
+// 홈 대시보드 카드 → 게임 정보 탭의 해당 섹션으로 스크롤 앵커링.
+// 레이아웃 개편(v27.32.0)으로 단독 배너/천장 섹션이 통합 '게임 일정'으로 합쳐짐 →
+// NOTES(실시간 노트/출석) · SCHEDULE(통합 게임 일정=픽업+패치/이벤트) · NEWS(공지·주년).
+enum class GameInfoAnchor { NOTES, SCHEDULE, NEWS }

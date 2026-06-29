@@ -16,6 +16,14 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.Flag
 import androidx.compose.material.icons.filled.NotificationsNone
+import androidx.compose.material.icons.filled.TrackChanges
+import androidx.compose.material.icons.filled.Speed
+import androidx.compose.material.icons.filled.Checklist
+import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Calculate
+import androidx.compose.material.icons.filled.Insights
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.material.icons.filled.Savings
 import androidx.compose.material.icons.filled.TaskAlt
 import androidx.compose.material3.CircularProgressIndicator
@@ -43,6 +51,13 @@ import com.gatcha.log.data.GachaBanner
 import com.gatcha.log.data.dhLabel
 import com.gatcha.log.data.Game
 import com.gatcha.log.data.GameData
+import com.gatcha.log.data.GachaRateData
+import com.gatcha.log.data.PityState
+import com.gatcha.log.data.GameEvent
+import com.gatcha.log.data.GameChallenge
+import com.gatcha.log.data.AnniversaryInfo
+import com.gatcha.log.data.api.NewsItem
+import androidx.compose.material.icons.filled.Celebration
 import com.gatcha.log.data.LiveNote
 import com.gatcha.log.data.PityTier
 import com.gatcha.log.ui.components.GlassCard
@@ -594,6 +609,26 @@ fun TodayTaskSkeleton(rows: Int = 3) {
     }
 }
 
+/** 대시보드 리스트 카드 로딩 스켈레톤 — 헤더 + 행 N개. '이번 주 일정'·'게임 소식' 카드와 동일 형태. */
+@Composable
+fun DashCardSkeleton(rows: Int = 3) {
+    GlassCard(shape = RoundedCornerShape(22.dp), modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(16.dp)) {
+            SkeletonBox(Modifier.width(90.dp).height(15.dp))
+            repeat(rows) {
+                Spacer(Modifier.height(13.dp))
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    SkeletonBox(Modifier.size(8.dp), CircleShape)
+                    Spacer(Modifier.width(9.dp))
+                    SkeletonBox(Modifier.weight(1f).height(13.dp))
+                    Spacer(Modifier.width(8.dp))
+                    SkeletonBox(Modifier.width(34.dp).height(12.dp))
+                }
+            }
+        }
+    }
+}
+
 // ── 가챠 현황 미니카드 (천장 + 다음 픽업, 읽기전용) ───────────────────────────
 /** 천장 단계별 강조색. Safe 는 옅은 회색(평온). */
 private fun PityTier.accentColor(): Color = when (this) {
@@ -678,6 +713,169 @@ fun NextBannerMini(b: GachaBanner?, plan: BannerPlan?, modifier: Modifier) {
                     Spacer(Modifier.height(7.dp))
                     Text("확정 최대 ${plan.maxPulls}연", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextPrimary, maxLines = 1)
                     Text("약 ${won(plan.wonCost)}", fontSize = 10.sp, color = TextSecondary, maxLines = 1)
+                }
+            }
+        }
+    }
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// 홈 대시보드 개편(27.32.0) — 깔끔한 KPI 중심 레이아웃
+// ════════════════════════════════════════════════════════════════════════════
+
+@Composable
+fun DashSpendCard(monthlyTotal: Long, budget: Long, onTap: () -> Unit) {
+    val accent = LocalAccent.current
+    val cal = java.util.Calendar.getInstance()
+    val day = cal.get(java.util.Calendar.DAY_OF_MONTH)
+    val days = cal.getActualMaximum(java.util.Calendar.DAY_OF_MONTH)
+    val month = cal.get(java.util.Calendar.MONTH) + 1
+    val remain = (days - day).coerceAtLeast(0)
+    val pct = if (budget > 0) (monthlyTotal * 100 / budget).toInt() else 0
+    val frac = if (budget > 0) (monthlyTotal.toFloat() / budget).coerceIn(0f, 1f) else 0f
+    val over = budget > 0 && monthlyTotal > budget
+    GlassCard(shape = RoundedCornerShape(22.dp), modifier = Modifier.fillMaxWidth().clickable { onTap() }) {
+        Column(Modifier.padding(18.dp)) {
+            Text("${month}월 지출", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = TextSecondary)
+            Row(verticalAlignment = Alignment.Bottom) {
+                Text(won(monthlyTotal), fontSize = 28.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+                if (budget > 0) {
+                    Spacer(Modifier.width(6.dp))
+                    Text("/ 예산 ${won(budget)}", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = TextSecondary)
+                }
+            }
+            if (budget > 0) {
+                Spacer(Modifier.height(12.dp))
+                Box(Modifier.fillMaxWidth().height(9.dp).clip(CircleShape).background(ProgressEmpty)) {
+                    Box(Modifier.fillMaxWidth(frac).fillMaxHeight().clip(CircleShape).background(if (over) DangerText else accent))
+                }
+                Spacer(Modifier.height(8.dp))
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text(if (over) "예산 ${pct - 100}% 초과" else "예산의 ${pct}% 사용", fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold, color = if (over) DangerText else accent)
+                    Text("남은 ${remain}일", fontSize = 11.5.sp, color = TextSecondary)
+                }
+            } else {
+                Spacer(Modifier.height(10.dp))
+                Text("예산을 정하면 페이스를 알려드려요", fontSize = 12.sp, color = TextSecondary)
+            }
+        }
+    }
+}
+
+@Composable
+fun DashKpiGrid(nextDDay: Int?, pityValue: String, pityLabel: String, todayCount: Int, unread: Int) {
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            DashKpiTile(Icons.Default.TrackChanges, if (nextDDay != null) "D-$nextDDay" else "없음", "다음 픽업", Color(0xFF15C7A8), Modifier.weight(1f))
+            DashKpiTile(Icons.Default.Speed, pityValue, pityLabel, Color(0xFFF59E0B), Modifier.weight(1f))
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            DashKpiTile(Icons.Default.Checklist, "${todayCount}건", "오늘 할 일", Color(0xFF3B82F6), Modifier.weight(1f))
+            DashKpiTile(Icons.Default.Notifications, "${unread}건", "안 읽은 알림", Color(0xFFEF4444), Modifier.weight(1f))
+        }
+    }
+}
+
+@Composable
+private fun DashKpiTile(icon: ImageVector, value: String, label: String, tint: Color, modifier: Modifier) {
+    GlassCard(shape = RoundedCornerShape(16.dp), modifier = modifier) {
+        Row(Modifier.padding(13.dp), verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.size(38.dp).clip(RoundedCornerShape(11.dp)).background(tint.copy(alpha = 0.14f)), contentAlignment = Alignment.Center) {
+                Icon(icon, null, tint = tint, modifier = Modifier.size(20.dp))
+            }
+            Spacer(Modifier.width(11.dp))
+            Column {
+                Text(value, fontSize = 17.sp, fontWeight = FontWeight.Bold, color = TextPrimary, maxLines = 1)
+                Text(label, fontSize = 11.sp, color = TextSecondary, maxLines = 1)
+            }
+        }
+    }
+}
+
+@Composable
+fun DashQuickRow(onSpend: () -> Unit, onCalc: () -> Unit, onInsight: () -> Unit) {
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        DashQuickBtn(Icons.Default.Add, "지출 추가", onSpend, Modifier.weight(1f))
+        DashQuickBtn(Icons.Default.Calculate, "가챠 계산기", onCalc, Modifier.weight(1f))
+        DashQuickBtn(Icons.Default.Insights, "인사이트", onInsight, Modifier.weight(1f))
+    }
+}
+
+@Composable
+private fun DashQuickBtn(icon: ImageVector, label: String, onClick: () -> Unit, modifier: Modifier) {
+    val accent = LocalAccent.current
+    GlassCard(shape = RoundedCornerShape(16.dp), modifier = modifier.clickable { onClick() }) {
+        Column(Modifier.fillMaxWidth().padding(vertical = 14.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            Icon(icon, null, tint = accent, modifier = Modifier.size(22.dp))
+            Spacer(Modifier.height(6.dp))
+            Text(label, fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold, color = TextPrimary, maxLines = 1)
+        }
+    }
+}
+
+/** 이번 주 게임 일정 — 이벤트·정기콘텐츠 마감 임박(픽업과 별개). */
+@Composable
+fun DashScheduleCard(events: List<GameEvent>, challenges: List<GameChallenge>, onTap: () -> Unit) {
+    val accent = LocalAccent.current
+    val now = System.currentTimeMillis()
+    val items = (events.map { Triple(it.game, it.name, it.endMillis to it.dDayLabel()) } +
+        challenges.map { Triple(it.game, it.name, it.endMillis to it.dDayLabel()) })
+        .filter { it.third.first > now }.sortedBy { it.third.first }.take(3)
+    if (items.isEmpty()) return
+    GlassCard(shape = RoundedCornerShape(22.dp), modifier = Modifier.fillMaxWidth().clickable { onTap() }) {
+        Column(Modifier.padding(16.dp)) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text("이번 주 일정", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+                Spacer(Modifier.weight(1f))
+                Text("전체 ›", fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold, color = accent)
+            }
+            items.forEach { row ->
+                Spacer(Modifier.height(11.dp))
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.size(8.dp).clip(CircleShape).background(GameData.colorFor(row.first).toColor()))
+                    Spacer(Modifier.width(9.dp))
+                    Text(row.second, fontSize = 13.sp, fontWeight = FontWeight.Medium, color = TextPrimary, maxLines = 1, modifier = Modifier.weight(1f))
+                    Spacer(Modifier.width(6.dp))
+                    Text(row.third.second, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = accent)
+                }
+            }
+        }
+    }
+}
+
+/** 게임 소식 — 다가오는 주년 + 최신 공지. */
+@Composable
+fun DashNewsCard(news: List<NewsItem>, anniversaries: List<AnniversaryInfo>, onTap: () -> Unit) {
+    val accent = LocalAccent.current
+    val amber = Color(0xFFF59E0B)
+    val anni = anniversaries.firstOrNull { it.daysUntil <= 60 }
+    val topNews = news.sortedByDescending { it.createdAtMillis }.take(2)
+    if (anni == null && topNews.isEmpty()) return
+    GlassCard(shape = RoundedCornerShape(22.dp), modifier = Modifier.fillMaxWidth().clickable { onTap() }) {
+        Column(Modifier.padding(16.dp)) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text("게임 소식", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+                Spacer(Modifier.weight(1f))
+                Text("전체 ›", fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold, color = accent)
+            }
+            if (anni != null) {
+                Spacer(Modifier.height(12.dp))
+                Row(
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(amber.copy(alpha = 0.10f)).padding(11.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(Icons.Default.Celebration, null, tint = amber, modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text("${anni.game.shortName} ${anni.ordinal}주년", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = TextPrimary, modifier = Modifier.weight(1f))
+                    Text(if (anni.daysUntil == 0) "오늘" else "D-${anni.daysUntil}", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = amber)
+                }
+            }
+            topNews.forEach { n ->
+                Spacer(Modifier.height(11.dp))
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.size(8.dp).clip(CircleShape).background(GameData.colorFor(n.game).toColor()))
+                    Spacer(Modifier.width(9.dp))
+                    Text(n.title, fontSize = 13.sp, fontWeight = FontWeight.Medium, color = TextPrimary, maxLines = 1)
                 }
             }
         }

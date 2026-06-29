@@ -35,9 +35,9 @@ import com.gatcha.log.ui.theme.ProgressEmpty
 import com.gatcha.log.ui.theme.TextSecondary
 import com.gatcha.log.util.won
 
-/** 연간 리포트 전체 페이지 — 뒤로가기 헤더 + 연도 선택 + 월별/게임별 분석. */
+/** 연간 리포트 — 연도 선택 + 월별/게임별 분석. 지출 인사이트의 '연간' 탭에 임베드되는 콘텐츠(헤더·스크롤은 부모 제공). */
 @Composable
-fun AnnualReportScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
+fun AnnualReportContent(viewModel: SpendingViewModel) {
     val accent = LocalAccent.current
     val spendings by viewModel.spendings.collectAsState()
 
@@ -56,19 +56,12 @@ fun AnnualReportScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
     val months = if (selectedYear == viewModel.displayYear) viewModel.displayMonth else monthly.count { it > 0 }.coerceAtLeast(1)
     val avg = if (months > 0) total / months else 0L
 
-    Column(Modifier.fillMaxSize()) {
-        GlgScreenHeader("연간 리포트", onBack, Modifier.padding(horizontal = 16.dp))
-        Column(
-            // 하단바 미노출 페이지 — 바 높이 여백 대신 시스템 네비 인셋만 확보
-            Modifier.fillMaxSize().navigationBarsPadding().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 8.dp),
-        ) {
-            if (years.size > 1) {
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    items(years) { y -> FilterPill("${y}년", y == selectedYear, accent) { selectedYear = y } }
-                }
-                Spacer(Modifier.height(14.dp))
-            }
-            GlassCard(shape = RoundedCornerShape(24.dp), modifier = Modifier.fillMaxWidth()) {
+    if (years.size > 1) {
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            items(years) { y -> FilterPill("${y}년", y == selectedYear, accent) { selectedYear = y } }
+        }
+    }
+    GlassCard(shape = RoundedCornerShape(24.dp), modifier = Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp)) {
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                         InfoColumn(won(total), "총 지출", Modifier.weight(1f))
@@ -92,9 +85,6 @@ fun AnnualReportScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
                     }
                 }
             }
-            Spacer(Modifier.height(24.dp))
-        }
-    }
 }
 
 @Composable

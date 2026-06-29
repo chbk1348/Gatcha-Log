@@ -27,9 +27,11 @@ struct GameInfoView: View {
     @State private var gameFilter = "all"
 
     var body: some View {
+        ScrollViewReader { proxy in
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
-                DailyHeroSection(store: store, filter: gameFilter, onConfig: { showHoyolab = true })
+                // 홈 카드 딥링크 스크롤 앵커 — id 문자열은 Kotlin GameInfoAnchor 의 .name(NOTES/SCHEDULE/NEWS)과 일치해야 함.
+                DailyHeroSection(store: store, filter: gameFilter, onConfig: { showHoyolab = true }).id("NOTES")
                 // 내 캐릭터(보유 전체 로스터) — 데일리 다음 핵심 콘텐츠로 상단 배치
                 section {
                     EnkaCharSection(store: store, filter: gameFilter,
@@ -40,12 +42,12 @@ struct GameInfoView: View {
                 // 통합 게임 일정 — 패치·이벤트·정기 콘텐츠. 게임 분리는 상단 헤더 드롭다운(gameFilter)으로 필터.
                 let schedule = buildSchedule(banners: store.activeBanners, events: store.gameEvents, challenges: store.challenges)
                 if !schedule.isEmpty {
-                    section { GameScheduleSection(entries: schedule, banners: store.activeBanners, filter: gameFilter, onSeeAll: { showSchedule = true }, onSeePickups: { showPickups = true }) }
+                    section { GameScheduleSection(entries: schedule, banners: store.activeBanners, filter: gameFilter, onSeeAll: { showSchedule = true }, onSeePickups: { showPickups = true }) }.id("SCHEDULE")
                 }
                 // 게임 주년 — 지원 게임의 다가오는 주년(임박 순).
                 section { AnniversarySection() }
                 // 공지·뉴스 — 게임별 최신 공지(탭하면 HoYoLab 열기). 더보기로 전체 페이지.
-                section { NewsSection(store: store, filter: gameFilter, onSeeAll: { showNews = true }) }
+                section { NewsSection(store: store, filter: gameFilter, onSeeAll: { showNews = true }) }.id("NEWS")
                 section { GameTabbedSection(store: store, filter: gameFilter) }
                 section { navEntry(icon: "function", title: "가챠 계산기", sub: "재화 환산 · 확률 · 시뮬레이터 · 플래너") { showCalc = true } }
                 section { navEntry(icon: "wonsign.circle", title: "충전 가성비", sub: "충전 패키지 단가 비교 · 첫구매 반영") { showRecharge = true } }
@@ -55,6 +57,9 @@ struct GameInfoView: View {
             .padding(.horizontal, 16)
         }
         .scrollIndicators(.hidden)
+        // 홈 카드 딥링크 — 진입 시점(onAppear)·이미 떠 있는 상태에서 재요청(onChange) 모두 처리.
+        .onAppear { scrollToPendingAnchor(proxy) }
+        .onChange(of: store.pendingGameInfoAnchor) { _, _ in scrollToPendingAnchor(proxy) }
         .background(GLGBackground { Color.clear })
         .refreshable { store.refreshGameInfo(force: true) }
         // 초기 진입 시 로드 + HoYoLAB 연동(config)이 늦게 링크되면 그 순간 강제 갱신(실시간 노트 표출)
@@ -103,6 +108,16 @@ struct GameInfoView: View {
         .navigationDestination(isPresented: $showStats) { if let c = statChar { EnkaStatPage(char: c, game: statGame) } }
         .navigationDestination(isPresented: $showRoster) {
             EnkaRosterPage(store: store, game: rosterGame)
+        }
+        }  // ScrollViewReader
+    }
+
+    // 대기 중인 앵커가 있으면 해당 섹션으로 스크롤 후 소비(1회성). 탭 전환 직후 레이아웃 완료를 위해 다음 런루프에 실행.
+    private func scrollToPendingAnchor(_ proxy: ScrollViewProxy) {
+        guard let anchor = store.pendingGameInfoAnchor else { return }
+        DispatchQueue.main.async {
+            withAnimation(.easeInOut(duration: 0.35)) { proxy.scrollTo(anchor.name, anchor: .top) }
+            store.consumeGameInfoAnchor()
         }
     }
 
