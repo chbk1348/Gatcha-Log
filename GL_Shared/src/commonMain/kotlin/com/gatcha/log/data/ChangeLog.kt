@@ -32,10 +32,17 @@ data class ChangeEntry(
 object ChangeLog {
 
     /** 헤더 메타 — 업데이트 기간 라벨. */
-    const val periodLabel: String = "2026.05.23 ~ 06.24"
+    const val periodLabel: String = "2026.05.23 ~ 06.29"
 
     val entries: List<ChangeEntry> = buildList {
-        add(ChangeEntry("27.31.0", "2026.06.24", milestone = true, featured = true, items = listOf(
+        add(ChangeEntry("27.32.0", "2026.06.29", milestone = true, featured = true, items = listOf(
+            new("지출 인사이트 강화 — 카테고리·요일·결제 패턴 등 새 분석 카드로 소비 흐름을 한눈에"),
+            imp("연간 리포트를 지출 인사이트 안 세그먼트 토글로 통합 — 한 화면에서 기간만 전환해 보세요"),
+            new("지출 내역 표시 방식 선택 — 컴팩트(한 줄 요약)·기존(카드) 중 설정에서 고를 수 있어요"),
+            imp("홈 대시보드 개편 — 지출·예산, 오늘 할 일, 가챠 현황, 이번 주 일정, 게임 소식을 중복 없이 한 허브로"),
+            imp("모션·로딩 스켈레톤·아이콘을 더 다듬어 화면 전환이 한결 매끄러워요"),
+        )))
+        add(ChangeEntry("27.31.0", "2026.06.24", milestone = true, items = listOf(
             fix("알림이 제때 오지 않던 문제를 대폭 개선 — 예산·출석·재화 알림을 iOS에서도 정상 발송하고 권한·정시성을 보강했어요"),
             new("픽업 마감 알림 — 진행 중인 픽업이 끝나기 전에 미리 알려드려요"),
             new("지출 일괄 편집 — 여러 건을 한 번에 선택해 게임·날짜·태그를 바꾸거나 삭제할 수 있어요"),
