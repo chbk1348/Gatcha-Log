@@ -425,12 +425,33 @@ class SpendingViewModel : ViewModel() {
         return result
     }
 
-    fun deleteSpending(id: String) = _spendings.update { current ->
-        current.filter { it.id != id }.also(repo::saveSpendings)
+    fun deleteSpending(id: String) {
+        val removed = _spendings.value.firstOrNull { it.id == id }
+        _spendings.update { current -> current.filter { it.id != id }.also(repo::saveSpendings) }
+        removed?.let { unlinkSubscriptionIfOrphaned(it) }
     }
 
-    fun deleteSpendings(ids: Set<String>) = _spendings.update { current ->
-        current.filter { it.id !in ids }.also(repo::saveSpendings)
+    fun deleteSpendings(ids: Set<String>) {
+        val removed = _spendings.value.filter { it.id in ids }
+        _spendings.update { current -> current.filter { it.id !in ids }.also(repo::saveSpendings) }
+        removed.forEach { unlinkSubscriptionIfOrphaned(it) }
+    }
+
+    /**
+     * A안 삭제 연동: '구독으로 기록'한 지출이 삭제됐을 때, 그 구독을 백업하는 다른 구독표시 지출이
+     * 더 없으면 매칭되는 정기결제(Subscription)도 함께 제거. (매달 기록한 구독은 마지막 1건 삭제 시에만 제거)
+     */
+    private fun unlinkSubscriptionIfOrphaned(removed: Spending) {
+        if (!removed.isSubscription) return
+        val name = subscriptionName(removed)
+        val stillBacked = _spendings.value.any {
+            it.isSubscription && subscriptionName(it) == name && it.gameName == removed.gameName && it.amount == removed.amount
+        }
+        if (stillBacked) return
+        val match = _subscriptions.value.firstOrNull {
+            it.name == name && it.gameName == removed.gameName && it.amount == removed.amount
+        } ?: return
+        deleteSubscription(match.id)
     }
 
     /**
