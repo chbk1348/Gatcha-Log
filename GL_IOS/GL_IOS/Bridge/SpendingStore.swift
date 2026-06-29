@@ -86,6 +86,14 @@ final class SpendingStore: ObservableObject {
     @Published private(set) var hoyoTokenExpired: Bool = false
     @Published private(set) var readAlerts: Set<String> = []
 
+    // ── Phase 6 (27.33.0 알림 설정 — 정기결제 갱신·방해금지·데일리 요약) ──
+    @Published private(set) var notifySubscription: Bool = false
+    @Published private(set) var notifyDndEnabled: Bool = false
+    @Published private(set) var notifyDndStartHour: Int = 23
+    @Published private(set) var notifyDndEndHour: Int = 8
+    @Published private(set) var notifyDailySummary: Bool = false
+    @Published private(set) var notifyDailySummaryHour: Int = 21
+
     private var tasks: [Task<Void, Never>] = []
 
     init() {
@@ -162,6 +170,13 @@ final class SpendingStore: ObservableObject {
         bind(vm.gameInfoReady) { [weak self] in self?.gameInfoReady = $0.boolValue }
         bind(vm.hoyoTokenExpired) { [weak self] in self?.hoyoTokenExpired = $0.boolValue }
         bind(vm.readAlerts) { [weak self] in self?.readAlerts = $0 }
+        // Phase 6 (알림 설정)
+        bind(vm.notifySubscription) { [weak self] in self?.notifySubscription = $0.boolValue }
+        bind(vm.notifyDndEnabled) { [weak self] in self?.notifyDndEnabled = $0.boolValue }
+        bind(vm.notifyDndStartHour) { [weak self] in self?.notifyDndStartHour = Int($0.int32Value) }
+        bind(vm.notifyDndEndHour) { [weak self] in self?.notifyDndEndHour = Int($0.int32Value) }
+        bind(vm.notifyDailySummary) { [weak self] in self?.notifyDailySummary = $0.boolValue }
+        bind(vm.notifyDailySummaryHour) { [weak self] in self?.notifyDailySummaryHour = Int($0.int32Value) }
     }
 
     /// StateFlow(SKIE AsyncSequence)를 구독해 메인 액터에서 [apply] 로 반영한다.
@@ -204,6 +219,13 @@ final class SpendingStore: ObservableObject {
     func setNotifyAttendance(_ v: Bool) { vm.setNotifyAttendance(v: v) }
     func setNotifyResin(_ v: Bool) { vm.setNotifyResin(v: v) }
     func setNotifyPickup(_ v: Bool) { vm.setNotifyPickup(v: v) }
+    // Phase 6 (27.33.0) — 정기결제 갱신·방해금지·데일리 요약
+    func setNotifySubscription(_ v: Bool) { vm.setNotifySubscription(v: v) }
+    func setNotifyDndEnabled(_ v: Bool) { vm.setNotifyDndEnabled(v: v) }
+    func setNotifyDndStartHour(_ v: Int) { vm.setNotifyDndStartHour(v: Int32(v)) }
+    func setNotifyDndEndHour(_ v: Int) { vm.setNotifyDndEndHour(v: Int32(v)) }
+    func setNotifyDailySummary(_ v: Bool) { vm.setNotifyDailySummary(v: v) }
+    func setNotifyDailySummaryHour(_ v: Int) { vm.setNotifyDailySummaryHour(v: Int32(v)) }
     func deleteSpendings(_ ids: Set<String>) { vm.deleteSpendings(ids: ids) }
     /// 선택 지출 일괄 변경(게임/날짜/추가 태그). nil·빈값은 미변경.
     func bulkEditSpendings(ids: Set<String>, gameName: String?, dateMillis: Int64?, addTags: [String]) {
@@ -240,6 +262,10 @@ final class SpendingStore: ObservableObject {
     func addSubscription(_ sub: Shared.Subscription) { vm.addSubscription(sub: sub) }
     func updateSubscription(_ sub: Shared.Subscription) { vm.updateSubscription(sub: sub) }
     func deleteSubscription(_ id: String) { vm.deleteSubscription(id: id) }
+    /// 아직 정기결제로 등록 안 된 '구독 표시' 지출 건수.
+    var unlinkedSubCount: Int { Int(vm.unlinkedSubscriptionSpendingCount()) }
+    /// '구독 표시' 지출을 정기결제로 일괄 등록(중복 제외). subscriptions 는 VM StateFlow bind 로 자동 갱신.
+    func importSubscriptionsFromSpendings() { _ = vm.importSubscriptionsFromSpendings() }
     /// 지출 수정 진입 — 편집 대상 설정(모달 열기는 ContentView 가 담당).
     func prepareEdit(_ spending: Spending) { MainViewControllerKt.prepareEditSpending(spending: spending) }
     /// 지출 추가/수정 저장 (Spending 생성은 Kotlin 헬퍼).

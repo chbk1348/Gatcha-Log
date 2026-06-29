@@ -26,6 +26,7 @@
 		57E3C89A46357C998CEAD839 /* GlassButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 607DE67679739531B7DC4652 /* GlassButton.swift */; };
 		5A20E9FA5EC5B018222B4775 /* Pretendard-Bold.otf in Resources */ = {isa = PBXBuildFile; fileRef = EDA6932189E1AD9D46B8D081 /* Pretendard-Bold.otf */; };
 		63BB6DD0D19A0B7E102937BD /* HeaderButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 32BBA1BA7898178C15DF09E1 /* HeaderButton.swift */; };
+		69FEE9E24FEB8301D5F8DA75 /* SubscriptionCenterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1DC14C41EE7ECD2B59515D4 /* SubscriptionCenterView.swift */; };
 		753F215D683DBB9FEBA60F13 /* SpendingStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = C3BE8BD3C2DD8BC4F707DE6D /* SpendingStore.swift */; };
 		75C9F29B2B660EDD54766CA8 /* GachaRateSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2A52426EBEF59CD4BBBCA778 /* GachaRateSheet.swift */; };
 		76C8B5CC8DB8D93A0C9CE484 /* LoginView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE2C3F8DE0C369D621CCC112 /* LoginView.swift */; };
@@ -113,6 +114,7 @@
 		CB188D8B07C1771A193CF288 /* GlassCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlassCard.swift; sourceTree = "<group>"; };
 		CD62F3658FFD16B833EF98AA /* Toast.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Toast.swift; sourceTree = "<group>"; };
 		E167D2DF62218A027D330ECD /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
+		E1DC14C41EE7ECD2B59515D4 /* SubscriptionCenterView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionCenterView.swift; sourceTree = "<group>"; };
 		EBE3389ACB5917724A4C6DD5 /* Pretendard-SemiBold.otf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Pretendard-SemiBold.otf"; sourceTree = "<group>"; };
 		EC551FFC4A65F19F94A1987B /* SettingsDialogs.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsDialogs.swift; sourceTree = "<group>"; };
 		EDA6932189E1AD9D46B8D081 /* Pretendard-Bold.otf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Pretendard-Bold.otf"; sourceTree = "<group>"; };
@@ -195,6 +197,7 @@
 				4E67D38A3417978B0AEDC5AE /* SpendingDetailView.swift */,
 				762960D1C044CF4E4506D38C /* SpendingInsightView.swift */,
 				7A348DAF50519ABD14014AA0 /* SpendingView.swift */,
+				E1DC14C41EE7ECD2B59515D4 /* SubscriptionCenterView.swift */,
 			);
 			path = Spending;
 			sourceTree = "<group>";
@@ -438,6 +441,7 @@
 				39F1A4E784F62CEA98CDDCD1 /* SpendingInsightView.swift in Sources */,
 				753F215D683DBB9FEBA60F13 /* SpendingStore.swift in Sources */,
 				311A9FB837CB5310C4AB5714 /* SpendingView.swift in Sources */,
+				69FEE9E24FEB8301D5F8DA75 /* SubscriptionCenterView.swift in Sources */,
 				17991733B1B0EC7204C21DEB /* Theme.swift in Sources */,
 				BF372FCD149E818166E7F9E3 /* Toast.swift in Sources */,
 				D331E41E2017AA75D98B834C /* WishStarLogo.swift in Sources */,

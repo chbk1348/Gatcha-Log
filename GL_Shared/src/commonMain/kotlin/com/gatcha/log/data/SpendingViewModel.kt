@@ -353,6 +353,7 @@ class SpendingViewModel : ViewModel() {
         _spendings.update { current ->
             (listOf(spending) + current).sortedByDescending { it.dateMillis }.also(repo::saveSpendings)
         }
+        autoLinkSubscription(spending)
         emitStatus("지출이 저장되었어요")
     }
 
@@ -362,7 +363,66 @@ class SpendingViewModel : ViewModel() {
                 .sortedByDescending { it.dateMillis }
                 .also(repo::saveSpendings)
         }
+        autoLinkSubscription(updated)
         emitStatus("지출이 수정되었어요")
+    }
+
+    /** 정기결제용 표시명 — 아이템명 우선, 없으면 "<게임> 정기결제". */
+    private fun subscriptionName(s: Spending): String =
+        s.itemName.ifBlank { "${GameData.byNameOrNull(s.gameName)?.shortName ?: s.gameName} 정기결제" }
+
+    /** 같은 구독이 이미 등록돼 있는지(이름·게임·금액 기준). */
+    private fun List<Subscription>.hasMatch(name: String, s: Spending): Boolean =
+        any { it.name == name && it.gameName == s.gameName && it.amount == s.amount }
+
+    /**
+     * A안: '구독으로 기록'한 지출을 정기결제(Subscription)로 자동 등록.
+     * 결제일=지출 날짜의 일. 동일 구독이 이미 있으면 중복 등록하지 않는다.
+     */
+    private fun autoLinkSubscription(spending: Spending) {
+        if (!spending.isSubscription) return
+        val name = subscriptionName(spending)
+        if (_subscriptions.value.hasMatch(name, spending)) return
+        addSubscription(
+            Subscription(
+                name = name,
+                gameName = spending.gameName,
+                amount = spending.amount,
+                billingDay = DateUtil.dayOfMonth(spending.dateMillis).coerceIn(1, 31),
+            ),
+        )
+    }
+
+    /** 지출 내역의 '구독' 표시 항목 중 아직 정기결제로 등록되지 않은 건수(중복 이름·게임·금액 제외). */
+    fun unlinkedSubscriptionSpendingCount(): Int = collectUnlinkedSubscriptions().size
+
+    /** 지출 내역의 '구독' 표시 항목을 정기결제로 일괄 등록(중복 제외). 새로 등록한 건수 반환. */
+    fun importSubscriptionsFromSpendings(): Int {
+        val toAdd = collectUnlinkedSubscriptions()
+        if (toAdd.isEmpty()) return 0
+        _subscriptions.value = (_subscriptions.value + toAdd).sortedBy { it.billingDay }
+        repo.saveSubscriptions(_subscriptions.value)
+        emitStatus("정기결제 ${toAdd.size}건을 가져왔어요")
+        return toAdd.size
+    }
+
+    /** 미등록 구독표시 지출 → Subscription 후보(이름·게임·금액 중복 제거, 최신 결제일 우선). */
+    private fun collectUnlinkedSubscriptions(): List<Subscription> {
+        val existing = _subscriptions.value
+        val result = mutableListOf<Subscription>()
+        _spendings.value.filter { it.isSubscription }
+            .sortedByDescending { it.dateMillis }
+            .forEach { s ->
+                val name = subscriptionName(s)
+                if (existing.hasMatch(name, s) || result.hasMatch(name, s)) return@forEach
+                result += Subscription(
+                    name = name,
+                    gameName = s.gameName,
+                    amount = s.amount,
+                    billingDay = DateUtil.dayOfMonth(s.dateMillis).coerceIn(1, 31),
+                )
+            }
+        return result
     }
 
     fun deleteSpending(id: String) = _spendings.update { current ->

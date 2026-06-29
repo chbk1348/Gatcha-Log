@@ -85,6 +85,9 @@ object DateUtil {
 
     fun month(millis: Long): Int = local(millis).month.number
 
+    /** 일(1~31) — 정기결제 결제일 산출용. */
+    fun dayOfMonth(millis: Long): Int = local(millis).day
+
     /** 한국어 요일(월~일) — 임의 시각용(지출 통계 등). */
     fun weekdayKo(millis: Long): String = local(millis).dayOfWeek.koLabel
 

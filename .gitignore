@@ -48,3 +48,5 @@ DerivedData/
 
 # iOS IPA 빌드 산출물
 GL_IOS/build/
+build_reldev/
+GL_IOS/build_reldev/

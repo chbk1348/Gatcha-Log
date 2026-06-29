@@ -183,11 +183,25 @@ struct SpendingInsightView: View {
     // ── 신규) 정기결제 요약 ──
     @ViewBuilder private var subscriptionCard: some View {
         let subs = store.subscriptions
-        if !subs.isEmpty {
-            let total = subs.reduce(Int64(0)) { $0 + $1.amount }
-            GLGCard(cornerRadius: 20, padding: 16) {
-                VStack(alignment: .leading, spacing: 0) {
+        let total = subs.reduce(Int64(0)) { $0 + $1.amount }
+        GLGCard(cornerRadius: 20, padding: 16) {
+            VStack(alignment: .leading, spacing: 0) {
+                HStack {
                     cardTitle("정기결제 요약", nil)
+                    Spacer()
+                    NavigationLink {
+                        SubscriptionCenterView(store: store)
+                    } label: {
+                        Text("관리").font(.pretendard(size: 12.5, weight: .bold)).foregroundStyle(accent.primary)
+                            .padding(.horizontal, 12).padding(.vertical, 6)
+                            .background(accent.primary.opacity(0.12), in: RoundedRectangle(cornerRadius: 10))
+                    }.buttonStyle(.plain)
+                }
+                if subs.isEmpty {
+                    Text("월정액·패스를 등록하고 갱신일을 관리하세요")
+                        .font(.pretendard(size: 13)).foregroundStyle(GLGColor.textSecondary)
+                        .padding(.top, 10)
+                } else {
                     HStack(alignment: .bottom) {
                         Text("월 정기결제 \(subs.count)건").font(.pretendard(size: 13)).foregroundStyle(GLGColor.textSecondary)
                         Spacer()

@@ -65,6 +65,8 @@ struct SettingsView: View {
                 budgetLinkSection
                 automationSection
                 notificationSection
+                dndSection
+                dailySummarySection
                 displaySection
                 themeSection
                 // 2층: 데이터·계정
@@ -242,7 +244,10 @@ struct SettingsView: View {
             Divider()
             toggleRow("calendar.badge.clock", "픽업 마감 알림", "진행 중인 픽업이 끝나기 전에 알려줘요",
                       notifyBind(\.notifyPickup, store.setNotifyPickup))
-            if notifBlocked && (store.notifyBudget || store.notifyAttendance || store.notifyResin || store.notifyPickup) {
+            Divider()
+            toggleRow("arrow.triangle.2.circlepath", "정기결제 갱신", "구독 결제 하루 전(D-1)에 알려줘요",
+                      notifyBind(\.notifySubscription, store.setNotifySubscription))
+            if notifBlocked && (store.notifyBudget || store.notifyAttendance || store.notifyResin || store.notifyPickup || store.notifySubscription) {
                 Divider()
                 Button { openSystemSettings() } label: {
                     HStack(spacing: 12) {
@@ -264,6 +269,74 @@ struct SettingsView: View {
             }
         }
         .onAppear(perform: refreshNotifBlocked)
+    }
+
+    // ── 방해금지 (27.33.0 신규) — 목업 design_notification_dnd_summary_mockup.html ──
+    private var dndSection: some View {
+        sectionCard("방해금지", footer: "자정을 넘는 시간대도 지원 · 기준은 기기 로컬 시각이에요 (출석=베이징과 별개)") {
+            Toggle(isOn: notifyBind(\.notifyDndEnabled, store.setNotifyDndEnabled)) {
+                rowLabel(icon: "moon.fill", title: "방해금지 시간",
+                         subtitle: "이 시간대엔 알림을 보내지 않아요")
+            }.tint(accent.primary).padding(.vertical, 10)
+            if store.notifyDndEnabled {
+                Divider()
+                HStack(spacing: 10) {
+                    hourBox(label: "시작", hour: store.notifyDndStartHour) { store.setNotifyDndStartHour($0) }
+                    Text("~").font(.pretendard(size: 16, weight: .bold)).foregroundStyle(GLGColor.textSecondary)
+                    hourBox(label: "종료", hour: store.notifyDndEndHour) { store.setNotifyDndEndHour($0) }
+                }
+                .padding(.vertical, 12)
+            }
+        }
+    }
+
+    // ── 데일리 요약 (27.33.0 신규) ──
+    private var dailySummarySection: some View {
+        sectionCard("데일리 요약",
+                    footer: "요약 ON이면 그날 개별 알림은 묶어 한 건으로 보내요. OFF면 기존처럼 개별 발송돼요.") {
+            Toggle(isOn: notifyBind(\.notifyDailySummary, store.setNotifyDailySummary)) {
+                rowLabel(icon: "envelope.fill", title: "하루 한 번 요약",
+                         subtitle: "흩어진 알림을 묶어 1건으로 보내요")
+            }.tint(accent.primary).padding(.vertical, 10)
+            if store.notifyDailySummary {
+                Divider()
+                HStack {
+                    Text("요약 보낼 시각").font(.pretendard(size: 14, weight: .medium))
+                    Spacer()
+                    hourMenu(hour: store.notifyDailySummaryHour) { store.setNotifyDailySummaryHour($0) }
+                }
+                .padding(.vertical, 13)
+            }
+        }
+    }
+
+    /// 시(0~23) 선택 박스 — 라벨 + "HH:00" 큰 글자 (DnD 시작/종료용).
+    private func hourBox(label: String, hour: Int, _ onPick: @escaping (Int) -> Void) -> some View {
+        Menu {
+            Picker("", selection: Binding(get: { hour }, set: { onPick($0) })) {
+                ForEach(0..<24, id: \.self) { h in Text(String(format: "%02d:00", h)).tag(h) }
+            }
+        } label: {
+            VStack(spacing: 2) {
+                Text(label).font(.pretendard(size: 10.5, weight: .semibold)).foregroundStyle(GLGColor.textSecondary)
+                Text(String(format: "%02d:00", hour)).font(.pretendard(size: 20, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
+            }
+            .frame(maxWidth: .infinity).padding(.vertical, 11)
+            .background(Color.black.opacity(0.03), in: RoundedRectangle(cornerRadius: 14))
+        }
+    }
+
+    /// 시(0~23) 선택 메뉴 — "HH:00" 필 (요약 시각용).
+    private func hourMenu(hour: Int, _ onPick: @escaping (Int) -> Void) -> some View {
+        Menu {
+            Picker("", selection: Binding(get: { hour }, set: { onPick($0) })) {
+                ForEach(0..<24, id: \.self) { h in Text(String(format: "%02d:00", h)).tag(h) }
+            }
+        } label: {
+            Text(String(format: "%02d:00", hour)).font(.pretendard(size: 16, weight: .bold)).foregroundStyle(accent.primary)
+                .padding(.horizontal, 14).padding(.vertical, 7)
+                .background(Color.black.opacity(0.04), in: RoundedRectangle(cornerRadius: 12))
+        }
     }
 
     /// 시스템 알림 권한 상태를 조회해 notifBlocked 갱신(거부/미결정이면 차단으로 간주).

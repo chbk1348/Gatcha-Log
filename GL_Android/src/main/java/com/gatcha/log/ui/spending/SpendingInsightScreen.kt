@@ -47,6 +47,11 @@ private val EtcColor = Color(0xFFB8BDC6)
 /** 지출 인사이트 — 예산 페이스 예측 + 게임별 월 추이 + 카테고리(결제수단·태그) 비중. */
 @Composable
 fun SpendingInsightScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
+    var showSubCenter by remember { mutableStateOf(false) }
+    if (showSubCenter) {
+        SubscriptionCenterScreen(viewModel, onBack = { showSubCenter = false })
+        return
+    }
     BackHandler { onBack() }
     val accent = LocalAccent.current
     val spendings by viewModel.spendings.collectAsState()
@@ -83,7 +88,7 @@ fun SpendingInsightScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
                 PaymentBreakdownCard(spendings, accent)
                 PlatformBreakdownCard(spendings, accent)
                 TagBreakdownCard(spendings, accent)
-                SubscriptionSummaryCard(subscriptions, accent)
+                SubscriptionSummaryCard(subscriptions, accent, onManage = { showSubCenter = true })
             } else {
                 AnnualReportContent(viewModel)
             }
@@ -261,11 +266,24 @@ private fun PlatformBreakdownCard(spendings: List<Spending>, accent: Color) {
 
 // ---------------------------------------------------------------- 신규) 정기결제 요약
 @Composable
-private fun SubscriptionSummaryCard(subs: List<Subscription>, accent: Color) {
-    if (subs.isEmpty()) return
+private fun SubscriptionSummaryCard(subs: List<Subscription>, accent: Color, onManage: () -> Unit) {
     val total = subs.sumOf { it.amount }
     DashCard {
-        CardTitle("정기결제 요약")
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.weight(1f)) { CardTitle("정기결제 요약") }
+            Surface(
+                color = accent.copy(alpha = 0.12f),
+                shape = RoundedCornerShape(10.dp),
+                modifier = Modifier.clickable { onManage() },
+            ) {
+                Text("관리", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = accent, modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp))
+            }
+        }
+        if (subs.isEmpty()) {
+            Spacer(Modifier.height(10.dp))
+            Text("월정액·패스를 등록하고 갱신일을 관리하세요", fontSize = 13.sp, color = TextSecondary)
+            return@DashCard
+        }
         Spacer(Modifier.height(10.dp))
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
             Text("월 정기결제 ${subs.size}건", fontSize = 13.sp, color = TextSecondary)
