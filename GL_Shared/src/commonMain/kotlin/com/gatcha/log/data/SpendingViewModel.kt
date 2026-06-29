@@ -883,8 +883,19 @@ class SpendingViewModel : ViewModel() {
     }
 
     fun deleteSubscription(id: String) {
+        val removed = _subscriptions.value.firstOrNull { it.id == id }
         _subscriptions.value = _subscriptions.value.filterNot { it.id == id }
         repo.saveSubscriptions(_subscriptions.value)
+        // A안 연동: 이 정기결제를 백업하던 '구독으로 기록' 지출도 함께 삭제.
+        // (raw 삭제 — deleteSpendings 경유 금지: unlinkSubscriptionIfOrphaned 재호출 루프 방지)
+        removed?.let { sub ->
+            val ids = _spendings.value.filter {
+                it.isSubscription && subscriptionName(it) == sub.name && it.gameName == sub.gameName && it.amount == sub.amount
+            }.map { it.id }.toSet()
+            if (ids.isNotEmpty()) {
+                _spendings.update { current -> current.filter { it.id !in ids }.also(repo::saveSpendings) }
+            }
+        }
     }
 
     // ----- 이벤트 체크리스트 -----
