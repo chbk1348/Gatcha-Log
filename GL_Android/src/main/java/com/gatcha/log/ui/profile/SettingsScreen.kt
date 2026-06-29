@@ -10,9 +10,15 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -45,6 +51,7 @@ import com.gatcha.log.ui.theme.DividerColor
 import com.gatcha.log.ui.theme.LocalAccent
 import com.gatcha.log.ui.theme.glgShortSpec
 import com.gatcha.log.ui.theme.glgStandardSpec
+import com.gatcha.log.ui.theme.TextPrimary
 import com.gatcha.log.ui.theme.TextSecondary
 import com.gatcha.log.util.won
 
@@ -62,6 +69,12 @@ fun SettingsScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
     val notifyAttendance by viewModel.notifyAttendance.collectAsState()
     val notifyResin by viewModel.notifyResin.collectAsState()
     val notifyPickup by viewModel.notifyPickup.collectAsState()
+    val notifySubscription by viewModel.notifySubscription.collectAsState()
+    val notifyDndEnabled by viewModel.notifyDndEnabled.collectAsState()
+    val notifyDndStartHour by viewModel.notifyDndStartHour.collectAsState()
+    val notifyDndEndHour by viewModel.notifyDndEndHour.collectAsState()
+    val notifyDailySummary by viewModel.notifyDailySummary.collectAsState()
+    val notifyDailySummaryHour by viewModel.notifyDailySummaryHour.collectAsState()
     val nudgeOverspend by viewModel.nudgeOverspend.collectAsState()
     val nudgeThreshold by viewModel.nudgeThreshold.collectAsState()
     val spendingCompact by viewModel.spendingCompact.collectAsState()
@@ -86,6 +99,10 @@ fun SettingsScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
     val showBudget = remember { mutableStateOf(false) }
     val showNudgeThreshold = remember { mutableStateOf(false) }
     val showHoyolab = remember { mutableStateOf(false) }
+    // 알림 시각 피커(0~23시) — 방해금지 시작/종료, 데일리 요약 시각
+    val showDndStartPicker = remember { mutableStateOf(false) }
+    val showDndEndPicker = remember { mutableStateOf(false) }
+    val showSummaryPicker = remember { mutableStateOf(false) }
 
     // 홈 만료 배너 CTA → 마이페이지 → 설정 → HoYoLAB 연동까지 자동 진입(C4 흐름).
     val pendingOpenHoyolab by viewModel.pendingOpenHoyolabLink.collectAsState()
@@ -270,6 +287,10 @@ fun SettingsScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
                     SettingsToggleRow(Icons.Default.Event, "픽업 마감 알림", "진행 중인 픽업이 끝나기 전에 알려줘요", notifyPickup) { on ->
                         if (on) ensureNotifPerm(); viewModel.setNotifyPickup(on)
                     }
+                    HorizontalDivider(color = DividerColor, modifier = Modifier.padding(horizontal = 16.dp))
+                    SettingsToggleRow(Icons.Default.Autorenew, "정기결제 갱신 알림", "구독 결제 하루 전(D-1)에 알려줘요", notifySubscription) { on ->
+                        if (on) ensureNotifPerm(); viewModel.setNotifySubscription(on)
+                    }
                 }
             }
             // 토글은 켰는데 시스템 알림 권한이 꺼져 있으면 안내(영구 거부 시 시스템 다이얼로그가 안 떠서 사용자가 인지 못 함).
@@ -300,6 +321,66 @@ fun SettingsScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
                     }
                 }
             }
+        }
+
+        // 방해금지 — 지정한 시간대엔 알림을 억제
+        item { Spacer(Modifier.height(20.dp)) }
+        item { SectionTitle("방해금지") }
+        item {
+            GlassCard(shape = RoundedCornerShape(24.dp), modifier = Modifier.fillMaxWidth()) {
+                Column {
+                    SettingsToggleRow(
+                        Icons.Default.Bedtime,
+                        "방해금지 시간",
+                        "이 시간대엔 알림을 보내지 않아요",
+                        notifyDndEnabled,
+                    ) { viewModel.setNotifyDndEnabled(it) }
+                    if (notifyDndEnabled) {
+                        HorizontalDivider(color = DividerColor, modifier = Modifier.padding(horizontal = 16.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(16.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        ) {
+                            HourBox("시작", notifyDndStartHour, Modifier.weight(1f)) { showDndStartPicker.value = true }
+                            Text("~", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = TextSecondary)
+                            HourBox("종료", notifyDndEndHour, Modifier.weight(1f)) { showDndEndPicker.value = true }
+                        }
+                        Text(
+                            "자정을 넘는 시간대도 지원 · 기준 기기 로컬 시각",
+                            fontSize = 11.sp, color = TextSecondary,
+                            modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 14.dp),
+                        )
+                    }
+                }
+            }
+        }
+
+        // 데일리 요약 — 흩어진 알림을 묶어 하루 한 번 발송
+        item { Spacer(Modifier.height(20.dp)) }
+        item { SectionTitle("데일리 요약") }
+        item {
+            GlassCard(shape = RoundedCornerShape(24.dp), modifier = Modifier.fillMaxWidth()) {
+                Column {
+                    SettingsToggleRow(
+                        Icons.Default.MarkEmailRead,
+                        "하루 한 번 요약",
+                        "흩어진 알림을 묶어 1건으로 보내요",
+                        notifyDailySummary,
+                    ) { on ->
+                        if (on) ensureNotifPerm(); viewModel.setNotifyDailySummary(on)
+                    }
+                    if (notifyDailySummary) {
+                        HorizontalDivider(color = DividerColor, modifier = Modifier.padding(horizontal = 16.dp))
+                        SettingsItem("요약 보낼 시각", Icons.Default.Schedule, value = hourLabel(notifyDailySummaryHour)) { showSummaryPicker.value = true }
+                    }
+                }
+            }
+            Text(
+                "요약을 켜면 그날 개별 알림은 묶어 한 건으로 발송하고, 끄면 기존처럼 개별 발송해요.",
+                fontSize = 11.sp, color = TextSecondary,
+                modifier = Modifier.padding(top = 8.dp, start = 4.dp, end = 4.dp),
+            )
         }
 
         // 화면(테마) — 1층 하단으로 이동
@@ -387,6 +468,21 @@ fun SettingsScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
             onDismiss = { showNudgeThreshold.value = false },
             onConfirm = { viewModel.setNudgeThreshold(it); showNudgeThreshold.value = false },
         )
+    }
+    if (showDndStartPicker.value) {
+        HourPickerDialog("방해금지 시작 시각", notifyDndStartHour, { showDndStartPicker.value = false }) {
+            viewModel.setNotifyDndStartHour(it); showDndStartPicker.value = false
+        }
+    }
+    if (showDndEndPicker.value) {
+        HourPickerDialog("방해금지 종료 시각", notifyDndEndHour, { showDndEndPicker.value = false }) {
+            viewModel.setNotifyDndEndHour(it); showDndEndPicker.value = false
+        }
+    }
+    if (showSummaryPicker.value) {
+        HourPickerDialog("요약 보낼 시각", notifyDailySummaryHour, { showSummaryPicker.value = false }) {
+            viewModel.setNotifyDailySummaryHour(it); showSummaryPicker.value = false
+        }
     }
     if (showUplog.value) {
         UpdateLogScreen(onBack = { showUplog.value = false })
@@ -508,6 +604,68 @@ private fun SettingsToggleRow(icon: ImageVector, title: String, subtitle: String
         }
         Spacer(Modifier.width(8.dp))
         GlgSwitch(checked, onToggle)
+    }
+}
+
+/** "HH:00" 형식 라벨 (0~23시). */
+private fun hourLabel(hour: Int): String = "${hour.coerceIn(0, 23).toString().padStart(2, '0')}:00"
+
+/** 방해금지 시작/종료용 시각 박스 — 라벨 + 큰 시각, 탭하면 피커. */
+@Composable
+private fun HourBox(label: String, hour: Int, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    Column(
+        modifier = modifier
+            .clip(RoundedCornerShape(14.dp))
+            .background(Color(0xFFF6F7F9))
+            .clickable { onClick() }
+            .padding(vertical = 11.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Text(label, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = TextSecondary)
+        Spacer(Modifier.height(2.dp))
+        Text(hourLabel(hour), fontSize = 20.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+    }
+}
+
+/** 0~23시 선택 다이얼로그 — 6열 그리드 칩. */
+@Composable
+private fun HourPickerDialog(title: String, current: Int, onDismiss: () -> Unit, onConfirm: (Int) -> Unit) {
+    val accent = LocalAccent.current
+    var selected by remember { mutableStateOf(current.coerceIn(0, 23)) }
+    GlgDialog(
+        title = title,
+        onDismiss = onDismiss,
+        confirmText = "저장",
+        onConfirm = { onConfirm(selected) },
+    ) {
+        Column(
+            modifier = Modifier.heightIn(max = 360.dp).verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            (0..23).chunked(6).forEach { row ->
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    row.forEach { h ->
+                        val sel = h == selected
+                        Box(
+                            modifier = Modifier.weight(1f)
+                                .clip(RoundedCornerShape(11.dp))
+                                .background(if (sel) accent else Color(0xFFF6F7F9))
+                                .clickable { selected = h }
+                                .padding(vertical = 10.dp),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Text(
+                                h.toString().padStart(2, '0'),
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = if (sel) Color.White else TextPrimary,
+                                textAlign = TextAlign.Center,
+                            )
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 
