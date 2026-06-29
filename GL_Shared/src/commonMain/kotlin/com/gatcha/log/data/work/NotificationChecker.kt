@@ -10,15 +10,34 @@ import com.gatcha.log.data.api.HoyolabApi
 import com.gatcha.log.util.currentTimeMillis
 
 /**
- * 로컬 알림 점검 — 예산(전체+게임별)/출석 리마인더/재화 가득참.
+ * 로컬 알림 점검 — 예산(전체+게임별)/출석 리마인더/재화 가득참/픽업 마감/정기결제 갱신.
  *
  * 기존 :GL_Android 의 GatchaWorker.checkNotifications 로직을 commonMain 으로 끌어올린 것.
  * → Android(WorkManager)·iOS(BGTaskScheduler) 양쪽에서 동일하게 호출(패리티).
  * 각 토글이 켜져 있을 때만, dedup 키로 중복 발송을 막는다(키 문자열·포맷은 구버전과 동일 — 발송 이력 호환).
+ *
+ * 27.33.0:
+ * - 데일리 요약 ON → 개별 알림을 억제하고, 정한 시각에 그날 상태를 1건으로 묶어 발송.
+ * - 방해금지(DnD) ON → 조용한 시간대엔 개별 알림 보류(dedup 미설정 → 시간대 벗어나면 다음 주기에 발송).
  */
 object NotificationChecker {
 
     suspend fun run(settings: AppSettings, repo: GatchaRepository, cfg: HoyolabConfig) {
+        val now = currentTimeMillis()
+
+        // 데일리 요약 모드: 개별 알림 억제, 정한 시각에 1건 통합 발송(하루 1회).
+        if (settings.notifyDailySummary) {
+            maybeSendDailySummary(settings, repo, cfg, now)
+            return
+        }
+
+        // 방해금지: 조용한 시간대엔 개별 알림 보류(다음 주기에 재평가).
+        if (isQuietNow(settings, now)) return
+
+        runIndividualChecks(settings, repo, cfg)
+    }
+
+    private suspend fun runIndividualChecks(settings: AppSettings, repo: GatchaRepository, cfg: HoyolabConfig) {
         // ① 예산 임박/초과 (로컬 데이터) — 월·레벨 단위 1회. 전체 예산 + 게임별 한도.
         if (settings.notifyBudget) {
             val now = currentTimeMillis()
@@ -111,5 +130,110 @@ object NotificationChecker {
                     }
                 }
         }
+
+        // ⑤ 정기결제 갱신 임박 (로컬 구독 목록) — D-1/오늘, 구독별 월 1회.
+        if (settings.notifySubscription) {
+            val now = currentTimeMillis()
+            val ym = "${DateUtil.year(now)}-${DateUtil.month(now)}"
+            repo.loadSubscriptions().forEachIndexed { idx, sub ->
+                val d = sub.dDay(now)
+                if (d <= 1) {
+                    val tag = "sub:${sub.id}"
+                    if (settings.lastNotified(tag) != ym) {
+                        settings.setLastNotified(tag, ym)
+                        val whenLabel = if (d <= 0) "오늘" else "내일"
+                        Notifier.notify(
+                            Notifier.ID_SUBSCRIPTION_BASE + (idx % 64),
+                            "정기결제 갱신 $whenLabel",
+                            "${sub.name} ₩${won(sub.amount)} 결제 예정이에요",
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    /** 방해금지 시간대 내인지(기기 로컬 시각 기준). start>end면 자정 넘김(예: 23~8)으로 처리. */
+    private fun isQuietNow(settings: AppSettings, now: Long): Boolean {
+        if (!settings.notifyDndEnabled) return false
+        val h = DateUtil.localHour(now)
+        val start = settings.notifyDndStartHour
+        val end = settings.notifyDndEndHour
+        if (start == end) return false
+        return if (start < end) h in start until end else h >= start || h < end
+    }
+
+    /** 데일리 요약 — 정한 시각 이후 하루 1회, 그날 상태를 재계산해 1건으로 발송. */
+    private suspend fun maybeSendDailySummary(settings: AppSettings, repo: GatchaRepository, cfg: HoyolabConfig, now: Long) {
+        if (DateUtil.localHour(now) < settings.notifyDailySummaryHour) return
+        val dayKey = DateUtil.dayKey(now)
+        if (settings.lastNotified("summary") == dayKey) return
+        val lines = buildSummaryLines(settings, repo, cfg, now)
+        settings.setLastNotified("summary", dayKey) // 빈 내용이어도 오늘은 더 띄우지 않음
+        if (lines.isEmpty()) return
+        Notifier.notify(Notifier.ID_DAILY_SUMMARY, "오늘의 가챠 요약", lines.joinToString("\n• ", prefix = "• "))
+    }
+
+    /** 요약 본문 줄 — 켜진 토글에 한해 그날 상태를 한 줄씩 모은다(개별 알림과 동일 데이터 소스). */
+    private suspend fun buildSummaryLines(settings: AppSettings, repo: GatchaRepository, cfg: HoyolabConfig, now: Long): List<String> {
+        val lines = mutableListOf<String>()
+        val y = DateUtil.year(now); val m = DateUtil.month(now)
+
+        if (settings.notifyBudget) {
+            val budget = repo.loadBudget()
+            if (budget > 0) {
+                val total = repo.loadSpendings().filter { DateUtil.isSameMonth(it.dateMillis, y, m) }.sumOf { it.amount }
+                val pct = (total * 100 / budget).toInt()
+                if (pct >= 90) {
+                    lines += if (total > budget) "이번 달 예산 초과 (${pct}%)"
+                    else "이번 달 예산 ${pct}% 사용 · ₩${won((budget - total).coerceAtLeast(0))} 남음"
+                }
+            }
+        }
+        if (settings.notifyAttendance && cfg.isLinked && DateUtil.hoyoHour(now) >= 18) {
+            val done = repo.loadAttendance()[DateUtil.hoyoDayKey(now)] ?: emptySet()
+            val pending = GameData.attendanceGames.filter { it.key !in done }
+            if (pending.isNotEmpty()) lines += "미출석 ${pending.size}개 · ${pending.joinToString(", ") { it.shortName }}"
+        }
+        if (settings.notifyResin && cfg.isLinked) {
+            val uids = mapOf("genshin" to cfg.genshinUid, "hsr" to cfg.hsrUid, "zzz" to cfg.zzzUid)
+            val full = mutableListOf<String>()
+            for (game in GameData.attendanceGames) {
+                val uid = uids[game.key].orEmpty()
+                if (uid.isBlank()) continue
+                val note = HoyolabApi.getLiveNote(cfg.ltuid, cfg.ltoken, game.key, uid).note ?: continue
+                if (note.maxResin > 0 && note.currentResin >= note.maxResin) full += game.shortName
+            }
+            if (full.isNotEmpty()) lines += "재화 가득참 · ${full.joinToString(", ")}"
+        }
+        if (settings.notifyPickup) {
+            repo.loadActiveBanners().filter { it.endMillis > now }
+                .groupBy { it.game }
+                .forEach { (gameName, list) ->
+                    val minD = list.minOf { it.dDay(now) }
+                    if (minD <= 3) {
+                        val shortName = GameData.byNameOrNull(gameName)?.shortName ?: gameName
+                        lines += "픽업 마감 ${if (minD <= 1) "임박" else "D-$minD"} · $shortName"
+                    }
+                }
+        }
+        if (settings.notifySubscription) {
+            repo.loadSubscriptions().filter { it.dDay(now) <= 1 }.forEach { sub ->
+                lines += "${if (sub.dDay(now) <= 0) "오늘" else "내일"} 결제 · ${sub.name} ₩${won(sub.amount)}"
+            }
+        }
+        return lines
+    }
+
+    /** 천 단위 콤마(비음수 금액). */
+    private fun won(v: Long): String {
+        val s = v.toString()
+        val sb = StringBuilder()
+        val n = s.length
+        for (i in 0 until n) {
+            if (i > 0 && (n - i) % 3 == 0) sb.append(',')
+            sb.append(s[i])
+        }
+        return sb.toString()
     }
 }

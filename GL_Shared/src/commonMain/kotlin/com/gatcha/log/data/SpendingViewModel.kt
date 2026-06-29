@@ -152,6 +152,22 @@ class SpendingViewModel : ViewModel() {
     val notifyResin: StateFlow<Boolean> = _notifyResin.asStateFlow()
     private val _notifyPickup = MutableStateFlow(appSettings.notifyPickup)
     val notifyPickup: StateFlow<Boolean> = _notifyPickup.asStateFlow()
+    private val _notifySubscription = MutableStateFlow(appSettings.notifySubscription)
+    val notifySubscription: StateFlow<Boolean> = _notifySubscription.asStateFlow()
+
+    // 방해금지(DnD) — 조용한 시간대 알림 보류
+    private val _notifyDndEnabled = MutableStateFlow(appSettings.notifyDndEnabled)
+    val notifyDndEnabled: StateFlow<Boolean> = _notifyDndEnabled.asStateFlow()
+    private val _notifyDndStartHour = MutableStateFlow(appSettings.notifyDndStartHour)
+    val notifyDndStartHour: StateFlow<Int> = _notifyDndStartHour.asStateFlow()
+    private val _notifyDndEndHour = MutableStateFlow(appSettings.notifyDndEndHour)
+    val notifyDndEndHour: StateFlow<Int> = _notifyDndEndHour.asStateFlow()
+
+    // 데일리 요약 — 정한 시각에 1건 통합
+    private val _notifyDailySummary = MutableStateFlow(appSettings.notifyDailySummary)
+    val notifyDailySummary: StateFlow<Boolean> = _notifyDailySummary.asStateFlow()
+    private val _notifyDailySummaryHour = MutableStateFlow(appSettings.notifyDailySummaryHour)
+    val notifyDailySummaryHour: StateFlow<Int> = _notifyDailySummaryHour.asStateFlow()
 
     // 과소비 리플렉션 넛지(지출 추가 시점) — 토글 + 평소치 기준액
     private val _nudgeOverspend = MutableStateFlow(appSettings.nudgeOverspend)
@@ -202,6 +218,13 @@ class SpendingViewModel : ViewModel() {
     fun setNotifyAttendance(v: Boolean) { appSettings.notifyAttendance = v; _notifyAttendance.value = v; applyNativeAfterNotifyChange(v) }
     fun setNotifyResin(v: Boolean) { appSettings.notifyResin = v; _notifyResin.value = v; applyNativeAfterNotifyChange(v) }
     fun setNotifyPickup(v: Boolean) { appSettings.notifyPickup = v; _notifyPickup.value = v; applyNativeAfterNotifyChange(v) }
+    fun setNotifySubscription(v: Boolean) { appSettings.notifySubscription = v; _notifySubscription.value = v; applyNativeAfterNotifyChange(v) }
+
+    fun setNotifyDndEnabled(v: Boolean) { appSettings.notifyDndEnabled = v; _notifyDndEnabled.value = v; NativeScheduler.apply() }
+    fun setNotifyDndStartHour(v: Int) { appSettings.notifyDndStartHour = v; _notifyDndStartHour.value = appSettings.notifyDndStartHour }
+    fun setNotifyDndEndHour(v: Int) { appSettings.notifyDndEndHour = v; _notifyDndEndHour.value = appSettings.notifyDndEndHour }
+    fun setNotifyDailySummary(v: Boolean) { appSettings.notifyDailySummary = v; _notifyDailySummary.value = v; applyNativeAfterNotifyChange(v) }
+    fun setNotifyDailySummaryHour(v: Int) { appSettings.notifyDailySummaryHour = v; _notifyDailySummaryHour.value = appSettings.notifyDailySummaryHour }
 
     private fun applyNativeAfterNotifyChange(enabled: Boolean) {
         NativeScheduler.apply()

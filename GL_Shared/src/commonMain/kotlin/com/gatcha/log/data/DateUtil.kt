@@ -62,6 +62,9 @@ object DateUtil {
     /** 출석 기준(베이징 UTC+8) 시(0~23) — 출석 리마인더 시각 판정용(java.util.Calendar 대체). */
     fun hoyoHour(millis: Long = currentTimeMillis()): Int = local(millis, hoyoTz).hour
 
+    /** 기기 로컬 시(0~23) — 방해금지(DnD)·데일리 요약 시각 판정용(출석 베이징과 별개). */
+    fun localHour(millis: Long = currentTimeMillis()): Int = local(millis).hour
+
     /**
      * 출석 기준일에서 [daysAgo]일 전의 날짜 키 — 연속 출석(streak) 계산용.
      * :app 의 hoyoCalendar() + Calendar.add(DAY_OF_YEAR, -n) 패턴을 대체.
