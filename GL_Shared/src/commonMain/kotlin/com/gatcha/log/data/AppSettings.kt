@@ -29,6 +29,36 @@ class AppSettings {
         get() = prefs.getBoolean(KEY_NOTIFY_PICKUP, false)
         set(v) { prefs.putBoolean(KEY_NOTIFY_PICKUP, v) }
 
+    /** 정기결제 갱신일 알림(결제 하루 전). 기본 ON — 새는 고정비 안내. */
+    var notifySubscription: Boolean
+        get() = prefs.getBoolean(KEY_NOTIFY_SUB, true)
+        set(v) { prefs.putBoolean(KEY_NOTIFY_SUB, v) }
+
+    // ── 방해금지(DnD) — 조용한 시간대엔 알림 보류. 기준 기기 로컬 시각(출석 베이징과 별개). ──
+    var notifyDndEnabled: Boolean
+        get() = prefs.getBoolean(KEY_DND_ENABLED, false)
+        set(v) { prefs.putBoolean(KEY_DND_ENABLED, v) }
+
+    /** 방해금지 시작 시(0~23). 기본 23시. */
+    var notifyDndStartHour: Int
+        get() = prefs.getInt(KEY_DND_START, 23)
+        set(v) { prefs.putInt(KEY_DND_START, v.coerceIn(0, 23)) }
+
+    /** 방해금지 종료 시(0~23). 기본 8시. start>end면 자정 넘김으로 처리. */
+    var notifyDndEndHour: Int
+        get() = prefs.getInt(KEY_DND_END, 8)
+        set(v) { prefs.putInt(KEY_DND_END, v.coerceIn(0, 23)) }
+
+    // ── 데일리 요약 — 흩어진 알림을 정한 시각에 1건으로 묶어 발송(opt-in). ──
+    var notifyDailySummary: Boolean
+        get() = prefs.getBoolean(KEY_SUMMARY_ENABLED, false)
+        set(v) { prefs.putBoolean(KEY_SUMMARY_ENABLED, v) }
+
+    /** 데일리 요약 발송 시각(0~23). 기본 21시. */
+    var notifyDailySummaryHour: Int
+        get() = prefs.getInt(KEY_SUMMARY_HOUR, 21)
+        set(v) { prefs.putInt(KEY_SUMMARY_HOUR, v.coerceIn(0, 23)) }
+
     /** 과소비 리플렉션 넛지(지출 추가 시점) — 예산·평소치 초과면 저장 직전 한 번 더 확인. 기본 ON. */
     var nudgeOverspend: Boolean
         get() = prefs.getBoolean(KEY_NUDGE, true)
@@ -59,7 +89,9 @@ class AppSettings {
         set(v) { prefs.putBoolean(KEY_SPENDING_COMPACT, v) }
 
     /** 백그라운드 주기 작업이 필요한지(하나라도 켜져 있으면 스케줄 유지). */
-    fun needsPeriodicWork(): Boolean = autoCheckIn || notifyResin || notifyAttendance || notifyBudget || notifyPickup
+    fun needsPeriodicWork(): Boolean =
+        autoCheckIn || notifyResin || notifyAttendance || notifyBudget || notifyPickup ||
+            notifySubscription || notifyDailySummary
 
     /** 알림 중복 방지용 마지막 발송 키 저장/조회 (예: "budget:2026-05"). */
     fun lastNotified(tag: String): String = prefs.getString("notif_last_$tag", "") ?: ""
@@ -77,6 +109,12 @@ class AppSettings {
         private const val KEY_NUDGE_THRESHOLD = "nudge_threshold"
         private const val KEY_NOTIF_PERM_ASKED = "notif_perm_asked"
         private const val KEY_SPENDING_COMPACT = "spending_compact"
+        private const val KEY_NOTIFY_SUB = "notify_subscription"
+        private const val KEY_DND_ENABLED = "notify_dnd_enabled"
+        private const val KEY_DND_START = "notify_dnd_start"
+        private const val KEY_DND_END = "notify_dnd_end"
+        private const val KEY_SUMMARY_ENABLED = "notify_daily_summary"
+        private const val KEY_SUMMARY_HOUR = "notify_daily_summary_hour"
 
         /** 현재 로그인 계정 id(gatcha_auth). 비로그인=guest. 백그라운드 컴포넌트가 계정별 저장소를 열 때 사용. */
         fun currentAccountId(): String =

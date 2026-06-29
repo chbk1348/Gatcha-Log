@@ -21,6 +21,8 @@ actual object Notifier {
     actual val ID_RESIN_BASE: Int = 2100
     actual val ID_BUDGET_GAME_BASE: Int = 3300
     actual val ID_PICKUP_BASE: Int = 3400
+    actual val ID_SUBSCRIPTION_BASE: Int = 3500
+    actual val ID_DAILY_SUMMARY: Int = 2004
 
     // getNotificationSettings 는 비동기(콜백) → 동기 notificationsEnabled() 용으로 마지막 상태를 캐시.
     private var cachedEnabled: Boolean = false
