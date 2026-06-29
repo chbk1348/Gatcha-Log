@@ -1,8 +1,9 @@
 import SwiftUI
 import Shared
 
-// 연간 리포트 — 연도 선택 + 총/평균/기록 + 월별 막대 + 게임별 분석. (Compose AnnualReportScreen 대응)
-struct AnnualReportView: View {
+// 연간 리포트 — 연도 선택 + 총/평균/기록 + 월별 막대 + 게임별 분석.
+// 지출 인사이트의 '연간' 탭에 임베드되는 콘텐츠(스크롤·네비타이틀은 부모 제공).
+struct AnnualReportContent: View {
     @ObservedObject var store: SpendingStore
     @Environment(\.glgAccent) private var accent
     @State private var selectedYear: Int = 0
@@ -30,19 +31,17 @@ struct AnnualReportView: View {
     }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 0) {
-                if years.count > 1 {
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: 8) {
-                            ForEach(years, id: \.self) { y in
-                                GamePill(label: "\(y)년", selected: y == year, accent: accent.primary) { selectedYear = y }
-                            }
+        VStack(alignment: .leading, spacing: 14) {
+            if years.count > 1 {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(years, id: \.self) { y in
+                            GamePill(label: "\(y)년", selected: y == year, accent: accent.primary) { selectedYear = y }
                         }
                     }
-                    .padding(.bottom, 14)
                 }
-                GLGCard(cornerRadius: 24, padding: 16) {
+            }
+            GLGCard(cornerRadius: 24, padding: 16) {
                     VStack(alignment: .leading, spacing: 0) {
                         HStack {
                             infoCol(won(total), "총 지출")
@@ -64,14 +63,7 @@ struct AnnualReportView: View {
                         }
                     }
                 }
-                Color.clear.frame(height: 24)
-            }
-            .padding(.horizontal, 16).padding(.vertical, 8)
         }
-        .scrollIndicators(.hidden)
-        .background(GLGBackground { Color.clear })
-        .navigationTitle("연간 리포트")
-        .navigationBarTitleDisplayMode(.inline)
     }
 
     private func infoCol(_ value: String, _ label: String) -> some View {

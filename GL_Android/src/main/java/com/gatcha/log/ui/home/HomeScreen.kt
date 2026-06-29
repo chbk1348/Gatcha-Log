@@ -211,6 +211,7 @@ fun HomeScreen(viewModel: SpendingViewModel = viewModel()) {
                                     viewModel,
                                     onNavigateToGameInfo = { onTabClick(2) },
                                     onNavigateToMyPage = { onTabClick(3) },
+                                    onNavigateToSpending = { onTabClick(1) },
                                     listState = tabListStates[0],
                                     onSubPageChange = { subPageActive = it },
                                 )
@@ -254,6 +255,7 @@ fun HomeContent(
     viewModel: SpendingViewModel,
     onNavigateToGameInfo: () -> Unit,
     onNavigateToMyPage: () -> Unit = {},
+    onNavigateToSpending: () -> Unit = {},
     listState: LazyListState = rememberLazyListState(),
     onSubPageChange: (Boolean) -> Unit = {},
 ) {
@@ -271,9 +273,12 @@ fun HomeContent(
     val account by viewModel.account.collectAsState()
     val gachaStats by viewModel.gachaStats.collectAsState()
     val homeCards by viewModel.homeCards.collectAsState()
-    val pity by viewModel.pity.collectAsState()
     val gameInfoReady by viewModel.gameInfoReady.collectAsState()
     val hoyoTokenExpired by viewModel.hoyoTokenExpired.collectAsState()
+    val gameEvents by viewModel.gameEvents.collectAsState()
+    val gameChallenges by viewModel.challenges.collectAsState()
+    val gameNews by viewModel.gameNews.collectAsState()
+    val anniversaries = remember { com.gatcha.log.data.GameAnniversary.upcoming() }
     // 홈 진입·복귀 시 워커가 백그라운드에서 바꾼 플래그를 다시 읽어 배너에 반영.
     LaunchedEffect(Unit) { viewModel.refreshHoyoTokenExpired() }
 
@@ -303,13 +308,6 @@ fun HomeContent(
         computePerGameSpend(viewModel.monthlyTotalsByGame(), gameBudgets)
     }
 
-    // 임박 픽업 배너 — 7일 이내 종료, D-day 오름차순, 최대 4 (홈 캡슐 노출)
-    val soonBanners = remember(banners) { computeSoonBanners(banners) }
-    val nextBanner = soonBanners.firstOrNull()
-
-    // 다음 픽업 확정 비용(가챠×지출) — 천장 누적·확률·1뽑 단가로 산출
-    val nextBannerPlan = remember(nextBanner, pity) { computeNextBannerPlan(nextBanner, pity) }
-
     // 재화 임박 경보 — 85% 이상(가득 직전)인 게임 '전부'(원신뿐 아니라 스타레일·젠레스 등). 가장 찬 순.
     val resinAlerts = remember(liveNotes) { computeResinAlerts(liveNotes) }
 
@@ -321,6 +319,19 @@ fun HomeContent(
     val showNotifications = remember { mutableStateOf(false) }
     val showBudgetDialog = remember { mutableStateOf(false) }
     val showHomeEdit = remember { mutableStateOf(false) }
+
+    // 오늘 할 일 목록(대시보드 KPI '오늘 할 일' 카운트 + 카드 공용)
+    val todayTasks = if (gameInfoReady) resolveTodayTasks(
+        pendingAttendance = GameData.attendanceGames.count { it.key !in attendanceToday },
+        resins = resinAlerts,
+        urgentBanner = null,  // 픽업은 '이번주 일정' 카드·게임 정보 페이지에서 확인(중복 제거)
+        budget = budget,
+        monthlyTotal = monthlyTotal,
+        onCheckInAll = { viewModel.checkInAll() },
+        onResin = { viewModel.requestGameInfoAnchor(GameInfoAnchor.NOTES); onNavigateToGameInfo() },
+        onBanner = { viewModel.requestGameInfoAnchor(GameInfoAnchor.SCHEDULE); onNavigateToGameInfo() },
+        onBudget = { showBudgetDialog.value = true },
+    ) else emptyList()
 
     // 알림 상세 페이지에서 시스템 뒤로가기 시 홈으로 복귀
     BackHandler(enabled = showNotifications.value) { showNotifications.value = false }
@@ -380,89 +391,38 @@ fun HomeContent(
             )
         }
         item { Spacer(Modifier.height(12.dp)) }
-        // M — 이번 달 한눈에 (인사이트 요약). 대표 지시로 헤더 바로 밑 최상단 배치.
+        // 홈 허브 — 정보 중복 없이: 지출/예산 · 오늘 할 일 · 이번주 일정 · 게임 소식
         glgStaggerItem(2, loadInSet) {
-            MonthlySummaryCard(
-                monthlyTotal = monthlyTotal,
-                prevTotal = prevTotal,
-                budget = budget,
-                nextBanner = nextBanner,
-                gameOverCount = gameOverBudget.size,
-                onBudget = { showBudgetDialog.value = true },
-                onTip = { viewModel.showStatus(savingTip) },
-            )
-            Spacer(Modifier.height(16.dp))
+            DashSpendCard(monthlyTotal, budget) { onNavigateToSpending() }
+            Spacer(Modifier.height(12.dp))
         }
-        // 오늘 할 일 — 상태 기반 리스트(출석·재화·픽업·예산·천장). 각 항목 탭 시 해당 섹션으로 앵커링.
-        glgStaggerItem(3, loadInSet) {
-            // 로딩 중엔 스켈레톤, 배너·노트 로드 완료 시 전체 리스트를 한 번에 표출
-            if (!gameInfoReady) {
-                TodayTaskSkeleton()
-            } else {
-                TodayTaskCard(
-                    tasks = resolveTodayTasks(
-                        pendingAttendance = GameData.attendanceGames.count { it.key !in attendanceToday },
-                        resins = resinAlerts,
-                        urgentBanner = soonBanners.firstOrNull { it.dDay() <= 3 },
-                        budget = budget,
-                        monthlyTotal = monthlyTotal,
-                        onCheckInAll = { viewModel.checkInAll() },
-                        onResin = { viewModel.requestGameInfoAnchor(GameInfoAnchor.NOTES); onNavigateToGameInfo() },
-                        onBanner = { viewModel.requestGameInfoAnchor(GameInfoAnchor.BANNER); onNavigateToGameInfo() },
-                        onBudget = { showBudgetDialog.value = true },
-                    ),
-                    inProgress = checkingIn != null,
-                )
+        if (!gameInfoReady || todayTasks.isNotEmpty()) {
+            glgStaggerItem(3, loadInSet) {
+                if (!gameInfoReady) TodayTaskSkeleton()
+                else TodayTaskCard(tasks = todayTasks, inProgress = checkingIn != null)
+                Spacer(Modifier.height(12.dp))
             }
-            Spacer(Modifier.height(16.dp))
         }
-        // 실시간 노트 (레진/배터리 등) — 출석은 '오늘 할 일'이 담당하므로 노트만 표시(중복 제거)
-        glgStaggerItem(4, loadInSet) {
-            GameStatusSection(
-                hoyolab = hoyolab,
-                liveNotes = liveNotes,
-                isRefreshing = isRefreshing,
-                onConfigClick = onNavigateToGameInfo,
-            )
-            Spacer(Modifier.height(16.dp))
-        }
-        // 픽업 배너 캡슐 (임박 종료) — 가장 임박 1건은 가챠 요약 카드가 표시하므로 그 다음부터 노출
-        val restBanners = soonBanners.drop(1)
-        if (restBanners.isNotEmpty()) {
+        if (!gameInfoReady) {
+            // 게임 정보 로딩 중 — 일정·소식 카드 자리에 스켈레톤(빈 화면 대신 골격 노출)
+            glgStaggerItem(4, loadInSet) {
+                DashCardSkeleton(rows = 3)
+                Spacer(Modifier.height(12.dp))
+            }
             glgStaggerItem(5, loadInSet) {
-                Column {
-                    Text("픽업 배너", fontSize = 13.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 2.dp, bottom = 10.dp))
-                    restBanners.forEachIndexed { i, b ->
-                        if (i > 0) Spacer(Modifier.height(8.dp))
-                        BannerCapsule(b)
-                    }
-                }
-                Spacer(Modifier.height(16.dp))
+                DashCardSkeleton(rows = 2)
+                Spacer(Modifier.height(12.dp))
+            }
+        } else {
+            glgStaggerItem(4, loadInSet) {
+                DashScheduleCard(gameEvents, gameChallenges) { viewModel.requestGameInfoAnchor(GameInfoAnchor.SCHEDULE); onNavigateToGameInfo() }
+                Spacer(Modifier.height(12.dp))
+            }
+            glgStaggerItem(5, loadInSet) {
+                DashNewsCard(gameNews, anniversaries) { viewModel.requestGameInfoAnchor(GameInfoAnchor.NEWS); onNavigateToGameInfo() }
+                Spacer(Modifier.height(12.dp))
             }
         }
-        // 사용자 구성(표시·순서)대로 본문 카드 렌더
-        homeCards.filter { it.visible }.forEachIndexed { idx, card ->
-            glgStaggerItem(6 + idx, loadInSet, key = card.id) {
-                when (card.id) {
-                    // D — 지출 + 게임별 예산(N5)
-                    HomeCards.SPENDING -> SpendingBudgetSection(
-                        monthlyTotal = monthlyTotal,
-                        budget = budget,
-                        perGame = perGameSpend,
-                        onEditBudget = { showBudgetDialog.value = true },
-                    )
-                    HomeCards.GACHA -> GachaSummarySection(
-                        stats = gachaStats,
-                        nextBanner = nextBanner,
-                        nextBannerPlan = nextBannerPlan,
-                        onOpen = onNavigateToGameInfo,
-                        onImport = { gachaPicker.launch(arrayOf("*/*")) },
-                    )
-                }
-                Spacer(Modifier.height(16.dp))
-            }
-        }
-        glgStaggerItem(8, loadInSet) { HomeEditButton { showHomeEdit.value = true } }
         item { Spacer(Modifier.height(120.dp)) }
     }
     }

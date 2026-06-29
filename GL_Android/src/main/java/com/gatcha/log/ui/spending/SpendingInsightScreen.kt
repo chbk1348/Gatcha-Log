@@ -11,10 +11,13 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.foundation.clickable
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -25,6 +28,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.gatcha.log.data.GameData
 import com.gatcha.log.data.Spending
+import com.gatcha.log.data.Subscription
+import com.gatcha.log.data.SpendingInsightStats
 import com.gatcha.log.ui.components.GlassCard
 import com.gatcha.log.ui.components.GlgScreenHeader
 import com.gatcha.log.ui.components.StatTile
@@ -46,6 +51,7 @@ fun SpendingInsightScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
     val accent = LocalAccent.current
     val spendings by viewModel.spendings.collectAsState()
     val budget by viewModel.budget.collectAsState()
+    val subscriptions by viewModel.subscriptions.collectAsState()
     val year = viewModel.displayYear
     val month = viewModel.displayMonth
     val monthTotal = remember(spendings) { viewModel.monthlyTotal() }
@@ -67,10 +73,20 @@ fun SpendingInsightScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
                 return@Column
             }
 
-            BudgetPaceCard(monthTotal, budget, month, accent)
-            MonthlyTrendCard(spendings, year, accent)
-            PaymentBreakdownCard(spendings, accent)
-            TagBreakdownCard(spendings, accent)
+            var tab by remember { mutableStateOf(0) }
+            InsightTabToggle(tab, { tab = it }, accent)
+            if (tab == 0) {
+                BudgetPaceCard(monthTotal, budget, month, accent)
+                MoMCard(spendings, year, month, accent)
+                PaymentStatsCard(spendings, year, month)
+                MonthlyTrendCard(spendings, year, accent)
+                PaymentBreakdownCard(spendings, accent)
+                PlatformBreakdownCard(spendings, accent)
+                TagBreakdownCard(spendings, accent)
+                SubscriptionSummaryCard(subscriptions, accent)
+            } else {
+                AnnualReportContent(viewModel)
+            }
             Spacer(Modifier.height(8.dp))
         }
     }
@@ -118,6 +134,61 @@ private fun BudgetPaceCard(monthTotal: Long, budget: Long, month: Int, accent: C
         } else {
             Spacer(Modifier.height(10.dp))
             Text("예산을 설정하면 초과 여부를 예측해 드려요", fontSize = 11.sp, color = TextSecondary)
+        }
+    }
+}
+
+// ---------------------------------------------------------------- 신규) 전월 대비 (MoM)
+@Composable
+private fun MoMCard(spendings: List<Spending>, year: Int, month: Int, accent: Color) {
+    val mom = remember(spendings, year, month) { SpendingInsightStats.momComparison(spendings, year, month) }
+    val warn = Color(0xFFF59E0B)
+    val up = mom.delta > 0
+    DashCard {
+        CardTitle("전월 대비", "이번 달 vs 지난 달 지출")
+        Spacer(Modifier.height(12.dp))
+        Row(verticalAlignment = Alignment.Bottom) {
+            Text(won(mom.thisMonth), fontSize = 24.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+            Spacer(Modifier.width(10.dp))
+            if (mom.percent >= 0) {
+                val clr = if (up) warn else accent
+                Surface(color = clr.copy(alpha = 0.12f), shape = RoundedCornerShape(9.dp)) {
+                    Text(
+                        "${if (up) "▲" else "▼"} ${kotlin.math.abs(mom.percent)}% · ${if (up) "+" else "-"}${won(kotlin.math.abs(mom.delta))}",
+                        fontSize = 12.sp, fontWeight = FontWeight.Bold, color = clr,
+                        modifier = Modifier.padding(horizontal = 9.dp, vertical = 4.dp),
+                    )
+                }
+            } else {
+                Text("지난달 기록 없음", fontSize = 12.sp, color = TextSecondary)
+            }
+        }
+        if (mom.topGame.isNotBlank() && mom.topGameDelta != 0L) {
+            Spacer(Modifier.height(12.dp))
+            Text(
+                "증감 가장 큰 게임 · ${mom.topGame} ${if (mom.topGameDelta > 0) "+" else "-"}${won(kotlin.math.abs(mom.topGameDelta))}",
+                fontSize = 12.sp, color = TextSecondary,
+            )
+        }
+    }
+}
+
+// ---------------------------------------------------------------- 신규) 결제 통계
+@Composable
+private fun PaymentStatsCard(spendings: List<Spending>, year: Int, month: Int) {
+    val stats = remember(spendings, year, month) { SpendingInsightStats.paymentStats(spendings, year, month) }
+    if (stats.count == 0) return
+    DashCard {
+        CardTitle("결제 통계", "${month}월 기준")
+        Spacer(Modifier.height(12.dp))
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            StatTile("${stats.count}건", "결제 건수", Modifier.weight(1f), valueFontSize = 14.sp)
+            StatTile(won(stats.average), "평균 결제액", Modifier.weight(1f), valueFontSize = 14.sp)
+        }
+        Spacer(Modifier.height(8.dp))
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            StatTile(won(stats.maxAmount), "최고 단건", Modifier.weight(1f), valueFontSize = 14.sp)
+            StatTile(if (stats.topWeekday.isNotBlank()) "${stats.topWeekday}요일" else "—", "최다 결제", Modifier.weight(1f), valueFontSize = 14.sp)
         }
     }
 }
@@ -174,6 +245,51 @@ private fun PaymentBreakdownCard(spendings: List<Spending>, accent: Color) {
     }
 }
 
+// ---------------------------------------------------------------- 신규) 충전 플랫폼별 비중
+@Composable
+private fun PlatformBreakdownCard(spendings: List<Spending>, accent: Color) {
+    val rows = remember(spendings) { SpendingInsightStats.platformBreakdown(spendings) }
+    if (rows.isEmpty()) return
+    DashCard {
+        CardTitle("충전 플랫폼별 비중")
+        Spacer(Modifier.height(12.dp))
+        rows.forEach { r ->
+            BreakdownRow(r.name, r.amount, if (r.total > 0) r.amount.toFloat() / r.total else 0f, accent)
+        }
+    }
+}
+
+// ---------------------------------------------------------------- 신규) 정기결제 요약
+@Composable
+private fun SubscriptionSummaryCard(subs: List<Subscription>, accent: Color) {
+    if (subs.isEmpty()) return
+    val total = subs.sumOf { it.amount }
+    DashCard {
+        CardTitle("정기결제 요약")
+        Spacer(Modifier.height(10.dp))
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
+            Text("월 정기결제 ${subs.size}건", fontSize = 13.sp, color = TextSecondary)
+            Spacer(Modifier.weight(1f))
+            Text("${won(total)} / 월", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = accent)
+        }
+        subs.take(5).forEach { s ->
+            Spacer(Modifier.height(11.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.size(8.dp).clip(CircleShape).background(GameData.colorFor(s.gameName).toColor()))
+                Spacer(Modifier.width(9.dp))
+                Text(s.name, fontSize = 13.sp, fontWeight = FontWeight.Medium, color = TextPrimary, maxLines = 1, modifier = Modifier.weight(1f))
+                Text(won(s.amount), fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.width(8.dp))
+                Text("D-${s.dDay()}", fontSize = 11.sp, color = TextSecondary)
+            }
+        }
+        if (subs.size > 5) {
+            Spacer(Modifier.height(8.dp))
+            Text("+${subs.size - 5}건", fontSize = 11.sp, color = TextSecondary)
+        }
+    }
+}
+
 // ---------------------------------------------------------------- 4) 태그별 지출
 @Composable
 private fun TagBreakdownCard(spendings: List<Spending>, accent: Color) {
@@ -190,6 +306,28 @@ private fun TagBreakdownCard(spendings: List<Spending>, accent: Color) {
 }
 
 // ---------------------------------------------------------------- 공통 UI
+/** 월간 인사이트 / 연간 리포트 세그먼트 토글. */
+@Composable
+private fun InsightTabToggle(tab: Int, onTab: (Int) -> Unit, accent: Color) {
+    val labels = listOf("월간 인사이트", "연간 리포트")
+    Row(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(13.dp)).background(Color(0xFFF1F1F4)).padding(4.dp),
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        labels.forEachIndexed { i, label ->
+            val sel = i == tab
+            Box(
+                Modifier.weight(1f).clip(RoundedCornerShape(10.dp))
+                    .background(if (sel) Color.White else Color.Transparent)
+                    .clickable { onTab(i) }.padding(vertical = 9.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(label, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = if (sel) TextPrimary else TextSecondary)
+            }
+        }
+    }
+}
+
 @Composable
 private fun DashCard(content: @Composable ColumnScope.() -> Unit) {
     GlassCard(shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth()) {

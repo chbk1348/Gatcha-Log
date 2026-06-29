@@ -44,8 +44,11 @@ final class SpendingStore: ObservableObject {
     @Published private(set) var notifyResin: Bool = false
     @Published private(set) var notifyPickup: Bool = false
     @Published private(set) var nudgeOverspend: Bool = false
+    @Published private(set) var spendingCompact: Bool = false
     @Published private(set) var nudgeThreshold: Int64 = 0
     @Published private(set) var pendingOpenHoyolabLink: Bool = false
+    /// 홈 카드 → 게임 정보 탭 진입 시 스크롤할 섹션 앵커(1회성). nil 이면 없음.
+    @Published private(set) var pendingGameInfoAnchor: GameInfoAnchor? = nil
 
     // ── Phase 3 (지출) ──
     @Published private(set) var isRefreshing: Bool = false
@@ -121,8 +124,10 @@ final class SpendingStore: ObservableObject {
         bind(vm.notifyResin) { [weak self] in self?.notifyResin = $0.boolValue }
         bind(vm.notifyPickup) { [weak self] in self?.notifyPickup = $0.boolValue }
         bind(vm.nudgeOverspend) { [weak self] in self?.nudgeOverspend = $0.boolValue }
+        bind(vm.spendingCompact) { [weak self] in self?.spendingCompact = $0.boolValue }
         bind(vm.nudgeThreshold) { [weak self] in self?.nudgeThreshold = $0.int64Value }
         bind(vm.pendingOpenHoyolabLink) { [weak self] in self?.pendingOpenHoyolabLink = $0.boolValue }
+        bind(vm.pendingGameInfoAnchor) { [weak self] in self?.pendingGameInfoAnchor = $0 }
 
         // Phase 3
         bind(vm.isRefreshing) { [weak self] in self?.isRefreshing = $0.boolValue }
@@ -193,6 +198,7 @@ final class SpendingStore: ObservableObject {
         vm.setBudgets(overall: overall, perGame: perGame.mapValues { KotlinLong(value: $0) })
     }
     func setNudgeOverspend(_ v: Bool) { vm.setNudgeOverspend(v: v) }
+    func setSpendingCompact(_ v: Bool) { vm.setSpendingCompact(v: v) }
     func setNudgeThreshold(_ v: Int64) { vm.setNudgeThreshold(v: v) }
     func setNotifyBudget(_ v: Bool) { vm.setNotifyBudget(v: v) }
     func setNotifyAttendance(_ v: Bool) { vm.setNotifyAttendance(v: v) }
@@ -209,6 +215,9 @@ final class SpendingStore: ObservableObject {
     func checkForUpdate(manual: Bool = true) { vm.checkForUpdate(manual: manual) }
     func updateHoyolabConfig(_ config: HoyolabConfig) { vm.updateHoyolabConfig(config: config) }
     func consumePendingOpenHoyolabLink() { vm.consumePendingOpenHoyolabLink() }
+    /// 홈 카드 → 게임 정보 탭 스크롤 앵커 요청/소비.
+    func requestGameInfoAnchor(_ anchor: GameInfoAnchor) { vm.requestGameInfoAnchor(anchor: anchor) }
+    func consumeGameInfoAnchor() { vm.consumeGameInfoAnchor() }
 
     /// 백업 스냅샷 JSON (없으면 nil).
     func exportBackupContent() -> String? { vm.exportBackupContent() }

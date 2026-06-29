@@ -7,35 +7,40 @@ import SwiftUI
 // GLGMotion.shimmerPeriod(1100ms) 리니어 무한 반복. 콘텐츠 첫 로딩 플레이스홀더용.
 // (액션 스피너 — 출석·체크인 — 는 대상 아님: ProgressView 유지.)
 //
+// 위상은 뷰마다 repeatForever 애니메이션 컨트롤러를 두는 대신 TimelineView(.animation)
+// 가 시스템 타임라인에서 1개 클럭을 샘플링 → 모든 스켈레톤이 동기화되고 저사양 부하↓.
+// 모션 감속(접근성 '동작 줄이기'·저전력) 시엔 시머를 멈춘 정적 회색 면.
+//
 // 사용: `GLGSkeleton().frame(width: 140, height: 18)` 처럼 크기는 호출부에서 frame 으로 지정.
 // ════════════════════════════════════════════════════════════════════════════
 
 struct GLGSkeleton: View {
     var cornerRadius: CGFloat = 6
 
-    @State private var phase: CGFloat = -1
+    @Environment(\.glgReduceMotion) private var reduceMotion
 
     var body: some View {
         GeometryReader { geo in
             let w = geo.size.width
             RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                 .fill(GLGColor.skeletonBase)
-                .overlay(
-                    LinearGradient(
-                        colors: [GLGColor.skeletonBase, GLGColor.skeletonHighlight, GLGColor.skeletonBase],
-                        startPoint: .leading,
-                        endPoint: .trailing
-                    )
-                    .frame(width: w * 0.6)
-                    // -1.6w → +1.6w 로 쓸어 지나가며 박스를 완전히 통과.
-                    .offset(x: phase * w * 1.6)
-                )
+                .overlay {
+                    if !reduceMotion {
+                        TimelineView(.animation) { ctx in
+                            // 절대 시간에서 0→1 위상 산출(모든 박스 동일 클럭). -1.6w→+1.6w 스윕.
+                            let t = ctx.date.timeIntervalSinceReferenceDate
+                            let p = CGFloat((t.truncatingRemainder(dividingBy: GLGMotion.shimmerPeriod)) / GLGMotion.shimmerPeriod)
+                            LinearGradient(
+                                colors: [GLGColor.skeletonBase, GLGColor.skeletonHighlight, GLGColor.skeletonBase],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                            .frame(width: w * 0.6)
+                            .offset(x: (p * 2 - 1) * w * 1.6)
+                        }
+                    }
+                }
                 .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
-        }
-        .onAppear {
-            withAnimation(.linear(duration: GLGMotion.shimmerPeriod).repeatForever(autoreverses: false)) {
-                phase = 1
-            }
         }
     }
 }

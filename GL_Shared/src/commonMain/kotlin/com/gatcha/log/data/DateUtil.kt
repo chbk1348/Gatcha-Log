@@ -82,6 +82,9 @@ object DateUtil {
 
     fun month(millis: Long): Int = local(millis).month.number
 
+    /** 한국어 요일(월~일) — 임의 시각용(지출 통계 등). */
+    fun weekdayKo(millis: Long): String = local(millis).dayOfWeek.koLabel
+
     fun isSameMonth(millis: Long, year: Int, month: Int): Boolean =
         year(millis) == year && month(millis) == month
 

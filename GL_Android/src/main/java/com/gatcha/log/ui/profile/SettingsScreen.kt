@@ -64,6 +64,7 @@ fun SettingsScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
     val notifyPickup by viewModel.notifyPickup.collectAsState()
     val nudgeOverspend by viewModel.nudgeOverspend.collectAsState()
     val nudgeThreshold by viewModel.nudgeThreshold.collectAsState()
+    val spendingCompact by viewModel.spendingCompact.collectAsState()
     val gachaStats by viewModel.gachaStats.collectAsState()
     val spendings by viewModel.spendings.collectAsState()
     val versionName = remember { com.gatcha.log.data.api.UpdateChecker.currentVersionName() }
@@ -150,6 +151,22 @@ fun SettingsScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
                     }
                     HorizontalDivider(color = DividerColor, modifier = Modifier.padding(horizontal = 16.dp))
                     SettingsItem("HoYoLAB 계정 연동", Icons.Default.Link, value = if (hoyolab.isLinked) "연동됨" else "미연동") { showHoyolab.value = true }
+                }
+            }
+        }
+
+        // 표시
+        item { Spacer(Modifier.height(20.dp)) }
+        item { SectionTitle("표시") }
+        item {
+            GlassCard(shape = RoundedCornerShape(24.dp), modifier = Modifier.fillMaxWidth()) {
+                Column {
+                    SettingsToggleRow(
+                        Icons.Default.ViewAgenda,
+                        "지출 내역 컴팩트 보기",
+                        "지출 목록을 한 줄로 빽빽하게 표시해요 (태그·결제수단 숨김)",
+                        spendingCompact,
+                    ) { viewModel.setSpendingCompact(it) }
                 }
             }
         }

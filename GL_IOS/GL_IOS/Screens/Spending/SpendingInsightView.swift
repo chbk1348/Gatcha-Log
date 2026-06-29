@@ -5,6 +5,7 @@ import Shared
 struct SpendingInsightView: View {
     @ObservedObject var store: SpendingStore
     @Environment(\.glgAccent) private var accent
+    @State private var tab = 0   // 0=월간 인사이트, 1=연간 리포트
 
     private var spendings: [Spending] { store.spendings }
     private var monthTotal: Int64 { store.monthlyTotal() }
@@ -17,10 +18,19 @@ struct SpendingInsightView: View {
                         .font(.pretendard(size: 13)).foregroundStyle(GLGColor.textSecondary)
                         .multilineTextAlignment(.center).frame(maxWidth: .infinity).padding(.top, 40)
                 } else {
-                    budgetPaceCard
-                    MonthlyTrendCard(spendings: spendings, year: store.displayYear)
-                    breakdownCard("결제수단별 비중", nil, paymentRows)
-                    breakdownCard("태그별 지출", "여러 태그가 달린 지출은 중복 집계돼요", tagRows)
+                    insightToggle
+                    if tab == 0 {
+                        budgetPaceCard
+                        momCard
+                        paymentStatsCard
+                        MonthlyTrendCard(spendings: spendings, year: store.displayYear)
+                        breakdownCard("결제수단별 비중", nil, paymentRows)
+                        breakdownCard("충전 플랫폼별 비중", nil, platformRows)
+                        breakdownCard("태그별 지출", "여러 태그가 달린 지출은 중복 집계돼요", tagRows)
+                        subscriptionCard
+                    } else {
+                        AnnualReportContent(store: store)
+                    }
                 }
                 Color.clear.frame(height: 8)
             }
@@ -86,6 +96,118 @@ struct SpendingInsightView: View {
         }
         .frame(maxWidth: .infinity).padding(.vertical, 10)
         .background(accent.primary.opacity(0.06), in: RoundedRectangle(cornerRadius: 12))
+    }
+
+    // ── 월간 인사이트 / 연간 리포트 세그먼트 토글 ──
+    private var insightToggle: some View {
+        HStack(spacing: 4) {
+            ForEach(Array(["월간 인사이트", "연간 리포트"].enumerated()), id: \.offset) { i, label in
+                let sel = i == tab
+                Text(label)
+                    .font(.pretendard(size: 13, weight: .bold))
+                    .foregroundStyle(sel ? GLGColor.textPrimary : GLGColor.textSecondary)
+                    .frame(maxWidth: .infinity).padding(.vertical, 9)
+                    .background(sel ? Color.white : Color.clear, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    .contentShape(Rectangle())
+                    .onTapGesture { tab = i }
+            }
+        }
+        .padding(4)
+        .background(Color(hex: 0xFFF1F1F4), in: RoundedRectangle(cornerRadius: 13, style: .continuous))
+    }
+
+    // ── 신규) 전월 대비 ──
+    private var momCard: some View {
+        let mom = SpendingInsightStats.shared.momComparison(spendings: spendings, year: Int32(store.displayYear), month: Int32(store.displayMonth))
+        let up = mom.delta > 0
+        let warn = Color(hex: 0xFFF59E0B)
+        return GLGCard(cornerRadius: 20, padding: 16) {
+            VStack(alignment: .leading, spacing: 0) {
+                cardTitle("전월 대비", "이번 달 vs 지난 달 지출")
+                HStack(alignment: .bottom, spacing: 10) {
+                    Text(won(mom.thisMonth)).font(.pretendard(size: 24, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
+                    if mom.percent >= 0 {
+                        Text("\(up ? "▲" : "▼") \(abs(Int(mom.percent)))% · \(up ? "+" : "-")\(won(abs(mom.delta)))")
+                            .font(.pretendard(size: 12, weight: .bold)).foregroundStyle(up ? warn : accent.primary)
+                            .padding(.horizontal, 9).padding(.vertical, 4)
+                            .background((up ? warn : accent.primary).opacity(0.12), in: RoundedRectangle(cornerRadius: 9))
+                    } else {
+                        Text("지난달 기록 없음").font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary)
+                    }
+                    Spacer(minLength: 0)
+                }.padding(.top, 12)
+                if !mom.topGame.isEmpty && mom.topGameDelta != 0 {
+                    Text("증감 가장 큰 게임 · \(mom.topGame) \(mom.topGameDelta > 0 ? "+" : "-")\(won(abs(mom.topGameDelta)))")
+                        .font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary).padding(.top, 12)
+                }
+            }
+        }
+    }
+
+    // ── 신규) 결제 통계 ──
+    @ViewBuilder private var paymentStatsCard: some View {
+        let stats = SpendingInsightStats.shared.paymentStats(spendings: spendings, year: Int32(store.displayYear), month: Int32(store.displayMonth))
+        if stats.count > 0 {
+            GLGCard(cornerRadius: 20, padding: 16) {
+                VStack(alignment: .leading, spacing: 0) {
+                    cardTitle("결제 통계", "\(store.displayMonth)월 기준")
+                    HStack(spacing: 10) {
+                        statTile("\(stats.count)건", "결제 건수")
+                        statTile(won(stats.average), "평균 결제액")
+                    }.padding(.top, 12)
+                    HStack(spacing: 10) {
+                        statTile(won(stats.maxAmount), "최고 단건")
+                        statTile(stats.topWeekday.isEmpty ? "—" : "\(stats.topWeekday)요일", "최다 결제")
+                    }.padding(.top, 8)
+                }
+            }
+        }
+    }
+
+    private func statTile(_ value: String, _ label: String) -> some View {
+        VStack(spacing: 3) {
+            Text(value).font(.pretendard(size: 14, weight: .bold)).foregroundStyle(GLGColor.textPrimary).lineLimit(1)
+            Text(label).font(.pretendard(size: 11)).foregroundStyle(GLGColor.textSecondary)
+        }
+        .frame(maxWidth: .infinity).padding(.vertical, 11)
+        .background(Color.black.opacity(0.03), in: RoundedRectangle(cornerRadius: 12))
+    }
+
+    // ── 신규) 충전 플랫폼별 비중 ──
+    private var platformRows: [(String, Int64, Double)] {
+        SpendingInsightStats.shared.platformBreakdown(spendings: spendings).map {
+            ($0.name, $0.amount, $0.total > 0 ? Double($0.amount) / Double($0.total) : 0)
+        }
+    }
+
+    // ── 신규) 정기결제 요약 ──
+    @ViewBuilder private var subscriptionCard: some View {
+        let subs = store.subscriptions
+        if !subs.isEmpty {
+            let total = subs.reduce(Int64(0)) { $0 + $1.amount }
+            GLGCard(cornerRadius: 20, padding: 16) {
+                VStack(alignment: .leading, spacing: 0) {
+                    cardTitle("정기결제 요약", nil)
+                    HStack(alignment: .bottom) {
+                        Text("월 정기결제 \(subs.count)건").font(.pretendard(size: 13)).foregroundStyle(GLGColor.textSecondary)
+                        Spacer()
+                        Text("\(won(total)) / 월").font(.pretendard(size: 16, weight: .bold)).foregroundStyle(accent.primary)
+                    }.padding(.top, 10)
+                    ForEach(Array(subs.prefix(5).enumerated()), id: \.offset) { _, s in
+                        HStack(spacing: 9) {
+                            Circle().fill(Color(argb64: s.gameColor)).frame(width: 8, height: 8)
+                            Text(s.name).font(.pretendard(size: 13, weight: .medium)).foregroundStyle(GLGColor.textPrimary).lineLimit(1)
+                            Spacer()
+                            Text(won(s.amount)).font(.pretendard(size: 13, weight: .bold))
+                            Text("D-\(s.dDay(nowMillis: nowMs()))").font(.pretendard(size: 11)).foregroundStyle(GLGColor.textSecondary)
+                        }.padding(.top, 11)
+                    }
+                    if subs.count > 5 {
+                        Text("+\(subs.count - 5)건").font(.pretendard(size: 11)).foregroundStyle(GLGColor.textSecondary).padding(.top, 8)
+                    }
+                }
+            }
+        }
     }
 
     // ── 3·4) 결제수단·태그 비중 ──

@@ -53,6 +53,11 @@ class AppSettings {
         get() = prefs.getBoolean(KEY_NOTIF_PERM_ASKED, false)
         set(v) { prefs.putBoolean(KEY_NOTIF_PERM_ASKED, v) }
 
+    /** 지출 내역 목록을 컴팩트(한 줄)로 표시. 기본 false(기존 — 아이템·결제수단·태그 노출). */
+    var spendingCompact: Boolean
+        get() = prefs.getBoolean(KEY_SPENDING_COMPACT, false)
+        set(v) { prefs.putBoolean(KEY_SPENDING_COMPACT, v) }
+
     /** 백그라운드 주기 작업이 필요한지(하나라도 켜져 있으면 스케줄 유지). */
     fun needsPeriodicWork(): Boolean = autoCheckIn || notifyResin || notifyAttendance || notifyBudget || notifyPickup
 
@@ -71,6 +76,7 @@ class AppSettings {
         private const val KEY_NUDGE = "nudge_overspend"
         private const val KEY_NUDGE_THRESHOLD = "nudge_threshold"
         private const val KEY_NOTIF_PERM_ASKED = "notif_perm_asked"
+        private const val KEY_SPENDING_COMPACT = "spending_compact"
 
         /** 현재 로그인 계정 id(gatcha_auth). 비로그인=guest. 백그라운드 컴포넌트가 계정별 저장소를 열 때 사용. */
         fun currentAccountId(): String =

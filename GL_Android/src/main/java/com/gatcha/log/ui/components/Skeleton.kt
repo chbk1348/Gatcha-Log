@@ -1,21 +1,15 @@
 package com.gatcha.log.ui.components
 
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -23,35 +17,44 @@ import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.gatcha.log.ui.theme.DividerColor
-import com.gatcha.log.ui.theme.GlgMotion
+import com.gatcha.log.ui.theme.LocalReduceMotion
+import com.gatcha.log.ui.theme.LocalShimmerPhase
 import com.gatcha.log.ui.theme.SkeletonBase
 import com.gatcha.log.ui.theme.SkeletonHighlight
 
 // 시머 토큰 참조(색·주기). iOS GLGSkeleton 과 동일 스펙: base→highlight→base, ShimmerPeriod ms 리니어.
 private val ShimmerColors = listOf(SkeletonBase, SkeletonHighlight, SkeletonBase)
 
-/** 좌→우로 흐르는 시머 그라데이션 브러시. */
-@Composable
-private fun shimmerBrush(): Brush {
-    val transition = rememberInfiniteTransition(label = "shimmer")
-    val x by transition.animateFloat(
-        initialValue = 0f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(tween(GlgMotion.ShimmerPeriod, easing = LinearEasing), RepeatMode.Restart),
-        label = "shimmerX",
-    )
-    val span = 900f
-    return Brush.linearGradient(
-        colors = ShimmerColors,
-        start = Offset((x - 0.35f) * span, 0f),
-        end = Offset(x * span, 0f),
-    )
-}
-
-/** 시머가 흐르는 플레이스홀더 박스. 크기는 [modifier] 로 지정. */
+/**
+ * 시머가 흐르는 플레이스홀더 박스. 크기는 [modifier] 로 지정.
+ *
+ * 위상은 [LocalShimmerPhase] 전역 공유 클럭에서 읽어 draw 단계에서만 반영 → 박스마다 독립
+ * 무한 트랜지션을 만들지 않아 저사양 단말 부하가 낮다. 모션 감속 시엔 정적 회색 면.
+ */
 @Composable
 fun SkeletonBox(modifier: Modifier = Modifier, shape: Shape = RoundedCornerShape(6.dp)) {
-    Box(modifier.clip(shape).background(shimmerBrush()))
+    if (LocalReduceMotion.current) {
+        Box(modifier.clip(shape).background(SkeletonBase))
+        return
+    }
+    val phase = LocalShimmerPhase.current
+    Box(
+        modifier
+            .clip(shape)
+            .drawWithCache {
+                val span = 900f
+                onDrawBehind {
+                    val x = phase.value
+                    drawRect(
+                        Brush.linearGradient(
+                            colors = ShimmerColors,
+                            start = Offset((x - 0.35f) * span, 0f),
+                            end = Offset(x * span, 0f),
+                        ),
+                    )
+                }
+            },
+    )
 }
 
 @Composable

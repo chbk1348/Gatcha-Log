@@ -136,6 +136,25 @@ struct TodayTaskSkeleton: View {
     }
 }
 
+/// 대시보드 리스트 카드 로딩 스켈레톤 — 헤더 + 행 N개. '이번 주 일정'·'게임 소식' 카드와 동일 형태. (Android DashCardSkeleton 패리티)
+struct DashCardSkeleton: View {
+    var rows: Int = 3
+    var body: some View {
+        GLGCard(cornerRadius: 22, padding: 16) {
+            VStack(alignment: .leading, spacing: 0) {
+                GLGSkeleton().frame(width: 90, height: 15)
+                ForEach(0..<rows, id: \.self) { _ in
+                    HStack(spacing: 9) {
+                        Circle().fill(GLGColor.skeletonBase).frame(width: 8, height: 8)
+                        GLGSkeleton().frame(maxWidth: .infinity).frame(height: 13)
+                        GLGSkeleton().frame(width: 34, height: 12)
+                    }.padding(.top, 13)
+                }
+            }
+        }
+    }
+}
+
 // ── 실시간 노트 ──
 struct GameStatusSection: View {
     @ObservedObject var store: SpendingStore
@@ -455,6 +474,201 @@ struct HomeCardEditSheet: View {
                 ToolbarItem(placement: .confirmationAction) { Button("저장") { store.setHomeCards(list); dismiss() } }
             }
             .onAppear { list = store.homeCards }
+        }
+    }
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// 홈 대시보드 개편(27.32.0) — 깔끔한 KPI 중심 레이아웃
+// ════════════════════════════════════════════════════════════════════════════
+
+/// 히어로 — 이번 달 지출/예산 게이지.
+struct DashboardSpendCard: View {
+    let monthlyTotal: Int64
+    let budget: Int64
+    let onTap: () -> Void
+    @Environment(\.glgAccent) private var accent
+
+    var body: some View {
+        let cal = Calendar.current
+        let now = Date()
+        let month = cal.component(.month, from: now)
+        let day = cal.component(.day, from: now)
+        let days = cal.range(of: .day, in: .month, for: now)?.count ?? 30
+        let remain = max(days - day, 0)
+        let pct = budget > 0 ? Int(monthlyTotal * 100 / budget) : 0
+        let frac = budget > 0 ? min(Double(monthlyTotal) / Double(budget), 1) : 0
+        let over = budget > 0 && monthlyTotal > budget
+        let danger = Color(hex: 0xFFEF4444)
+        return GLGCard(cornerRadius: 22, padding: 18) {
+            VStack(alignment: .leading, spacing: 0) {
+                Text("\(month)월 지출").font(.pretendard(size: 12, weight: .semibold)).foregroundStyle(GLGColor.textSecondary)
+                HStack(alignment: .firstTextBaseline, spacing: 5) {
+                    Text(won(monthlyTotal)).font(.pretendard(size: 28, weight: .bold))
+                    if budget > 0 {
+                        Text("/ 예산 \(won(budget))").font(.pretendard(size: 13, weight: .semibold)).foregroundStyle(GLGColor.textSecondary)
+                    }
+                }.padding(.top, 2)
+                if budget > 0 {
+                    GeometryReader { geo in
+                        ZStack(alignment: .leading) {
+                            Capsule().fill(GLGColor.progressEmpty)
+                            Capsule().fill(over ? danger : accent.primary).frame(width: geo.size.width * frac)
+                        }
+                    }.frame(height: 9).padding(.top, 12)
+                    HStack {
+                        Text(over ? "예산 \(pct - 100)% 초과" : "예산의 \(pct)% 사용")
+                            .font(.pretendard(size: 11.5, weight: .semibold)).foregroundStyle(over ? danger : accent.primary)
+                        Spacer()
+                        Text("남은 \(remain)일").font(.pretendard(size: 11.5)).foregroundStyle(GLGColor.textSecondary)
+                    }.padding(.top, 8)
+                } else {
+                    Text("예산을 정하면 페이스를 알려드려요").font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary).padding(.top, 10)
+                }
+            }
+        }
+        .contentShape(Rectangle())
+        .onTapGesture { onTap() }
+    }
+}
+
+/// KPI 2×2 그리드.
+struct DashboardKpiGrid: View {
+    let nextDDay: Int?
+    let pityValue: String
+    let pityLabel: String
+    let todayCount: Int
+    let unread: Int
+
+    var body: some View {
+        let cols = [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)]
+        return LazyVGrid(columns: cols, spacing: 10) {
+            KpiTile(icon: "target", value: nextDDay != nil ? "D-\(nextDDay!)" : "없음", label: "다음 픽업", tint: Color(hex: 0xFF15C7A8))
+            KpiTile(icon: "speedometer", value: pityValue, label: pityLabel, tint: Color(hex: 0xFFF59E0B))
+            KpiTile(icon: "checklist", value: "\(todayCount)건", label: "오늘 할 일", tint: Color(hex: 0xFF3B82F6))
+            KpiTile(icon: "bell.fill", value: "\(unread)건", label: "안 읽은 알림", tint: Color(hex: 0xFFEF4444))
+        }
+    }
+}
+
+struct KpiTile: View {
+    let icon: String; let value: String; let label: String; let tint: Color
+    var body: some View {
+        GLGCard(cornerRadius: 16, padding: 13) {
+            HStack(spacing: 11) {
+                Image(systemName: icon).font(.system(size: 16, weight: .semibold)).foregroundStyle(tint)
+                    .frame(width: 38, height: 38)
+                    .background(tint.opacity(0.14), in: RoundedRectangle(cornerRadius: 11, style: .continuous))
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(value).font(.pretendard(size: 17, weight: .bold)).lineLimit(1).minimumScaleFactor(0.7)
+                    Text(label).font(.pretendard(size: 11)).foregroundStyle(GLGColor.textSecondary).lineLimit(1)
+                }
+                Spacer(minLength: 0)
+            }
+        }
+    }
+}
+
+/// 빠른 실행 3열.
+struct DashboardQuickRow: View {
+    let onSpend: () -> Void; let onCalc: () -> Void; let onInsight: () -> Void
+    var body: some View {
+        HStack(spacing: 10) {
+            QuickBtn(icon: "plus", label: "지출 추가", action: onSpend)
+            QuickBtn(icon: "function", label: "가챠 계산기", action: onCalc)
+            QuickBtn(icon: "chart.line.uptrend.xyaxis", label: "인사이트", action: onInsight)
+        }
+    }
+}
+
+struct QuickBtn: View {
+    let icon: String; let label: String; let action: () -> Void
+    @Environment(\.glgAccent) private var accent
+    var body: some View {
+        Button(action: action) {
+            VStack(spacing: 6) {
+                Image(systemName: icon).font(.system(size: 18, weight: .semibold)).foregroundStyle(accent.primary)
+                Text(label).font(.pretendard(size: 11.5, weight: .semibold)).foregroundStyle(GLGColor.textPrimary)
+            }
+            .frame(maxWidth: .infinity).padding(.vertical, 14)
+            .glgGlass(in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        }.buttonStyle(.plain)
+    }
+}
+
+/// 이번 주 게임 일정 — 이벤트·정기콘텐츠 마감 임박(픽업과 별개).
+struct DashboardScheduleCard: View {
+    let events: [GameEvent]; let challenges: [GameChallenge]; let onTap: () -> Void
+    @Environment(\.glgAccent) private var accent
+    var body: some View {
+        let now = nowMs()
+        let raw: [(String, String, Int64, String)] =
+            events.map { ($0.game, $0.name, $0.endMillis, $0.dDayLabel(nowMillis: now)) }
+            + challenges.map { ($0.game, $0.name, $0.endMillis, $0.dDayLabel(nowMillis: now)) }
+        let items = Array(raw.filter { $0.2 > now }.sorted { $0.2 < $1.2 }.prefix(3))
+        return Group {
+            if !items.isEmpty {
+                GLGCard(cornerRadius: 22, padding: 16) {
+                    VStack(alignment: .leading, spacing: 0) {
+                        HStack {
+                            Text("이번 주 일정").font(.pretendard(size: 14, weight: .bold))
+                            Spacer()
+                            Text("전체 ›").font(.pretendard(size: 11.5, weight: .semibold)).foregroundStyle(accent.primary)
+                        }
+                        ForEach(Array(items.enumerated()), id: \.offset) { _, it in
+                            HStack(spacing: 9) {
+                                Circle().fill(Color(argb64: GameData.shared.colorFor(name: it.0))).frame(width: 8, height: 8)
+                                Text(it.1).font(.pretendard(size: 13, weight: .medium)).foregroundStyle(GLGColor.textPrimary).lineLimit(1)
+                                Spacer(minLength: 6)
+                                Text(it.3).font(.pretendard(size: 11, weight: .bold)).foregroundStyle(accent.primary)
+                            }.padding(.top, 11)
+                        }
+                    }
+                }
+                .contentShape(Rectangle()).onTapGesture { onTap() }
+            }
+        }
+    }
+}
+
+/// 게임 소식 — 다가오는 주년 + 최신 공지.
+struct DashboardNewsCard: View {
+    let news: [NewsItem]; let anniversaries: [AnniversaryInfo]; let onTap: () -> Void
+    @Environment(\.glgAccent) private var accent
+    var body: some View {
+        let anni = anniversaries.first { $0.daysUntil <= 60 }
+        let topNews = Array(news.sorted { $0.createdAtMillis > $1.createdAtMillis }.prefix(2))
+        let amber = Color(hex: 0xFFF59E0B)
+        return Group {
+            if anni != nil || !topNews.isEmpty {
+                GLGCard(cornerRadius: 22, padding: 16) {
+                    VStack(alignment: .leading, spacing: 0) {
+                        HStack {
+                            Text("게임 소식").font(.pretendard(size: 14, weight: .bold))
+                            Spacer()
+                            Text("전체 ›").font(.pretendard(size: 11.5, weight: .semibold)).foregroundStyle(accent.primary)
+                        }
+                        if let a = anni {
+                            HStack(spacing: 8) {
+                                Image(systemName: "party.popper.fill").font(.system(size: 13)).foregroundStyle(amber)
+                                Text("\(a.game.shortName) \(a.ordinal)주년").font(.pretendard(size: 13, weight: .semibold)).foregroundStyle(GLGColor.textPrimary)
+                                Spacer(minLength: 6)
+                                Text(a.daysUntil == 0 ? "오늘" : "D-\(a.daysUntil)").font(.pretendard(size: 11, weight: .bold)).foregroundStyle(amber)
+                            }
+                            .padding(11).frame(maxWidth: .infinity)
+                            .background(amber.opacity(0.10), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                            .padding(.top, 12)
+                        }
+                        ForEach(Array(topNews.enumerated()), id: \.offset) { _, n in
+                            HStack(spacing: 9) {
+                                Circle().fill(Color(argb64: GameData.shared.colorFor(name: n.game))).frame(width: 8, height: 8)
+                                Text(n.title).font(.pretendard(size: 13, weight: .medium)).foregroundStyle(GLGColor.textPrimary).lineLimit(1)
+                            }.padding(.top, 11)
+                        }
+                    }
+                }
+                .contentShape(Rectangle()).onTapGesture { onTap() }
+            }
         }
     }
 }

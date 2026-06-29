@@ -1,4 +1,14 @@
 import SwiftUI
+import Foundation
+
+// ── 저사양·접근성 모션 감속 (Android LocalReduceMotion 패리티) ─────────────────
+
+extension EnvironmentValues {
+    /// 모션 감속 — 접근성 '동작 줄이기' 또는 저전력 모드. 스켈레톤 시머·로드인 스태거를 끈다.
+    var glgReduceMotion: Bool {
+        accessibilityReduceMotion || ProcessInfo.processInfo.isLowPowerModeEnabled
+    }
+}
 
 // ════════════════════════════════════════════════════════════════════════════
 // 공통 모션 토큰 — commonMain GlgMotion 미러. (값은 Kotlin 정의와 동일하게 유지할 것)
@@ -36,6 +46,7 @@ struct GLGLoadIn: ViewModifier {
     let index: Int
     @Binding var appeared: Set<Int>
     @State private var shown: Bool
+    @Environment(\.glgReduceMotion) private var reduceMotion
 
     init(index: Int, appeared: Binding<Set<Int>>) {
         self.index = index
@@ -51,6 +62,11 @@ struct GLGLoadIn: ViewModifier {
             .onAppear {
                 guard !appeared.contains(index) else { return }
                 appeared.insert(index)
+                // 모션 감속(접근성·저전력) — 스태거·슬라이드 없이 즉시 표시
+                if reduceMotion {
+                    shown = true
+                    return
+                }
                 let delay = min(Double(index) * GLGMotion.staggerStep, GLGMotion.staggerMax)
                 withAnimation(GLGMotion.standard().delay(delay)) { shown = true }
             }

@@ -6,6 +6,8 @@ build/
 build-rel/
 build_rel/
 GL_IOS/build_rel/
+build_dev/
+GL_IOS/build_dev/
 
 # Android / Studio
 .idea/
