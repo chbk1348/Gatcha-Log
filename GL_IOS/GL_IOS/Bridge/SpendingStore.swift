@@ -85,6 +85,7 @@ final class SpendingStore: ObservableObject {
     @Published private(set) var gameInfoReady: Bool = false
     @Published private(set) var hoyoTokenExpired: Bool = false
     @Published private(set) var readAlerts: Set<String> = []
+    @Published private(set) var dismissedAlerts: Set<String> = []
 
     // ── Phase 6 (27.33.0 알림 설정 — 정기결제 갱신·방해금지·데일리 요약) ──
     @Published private(set) var notifySubscription: Bool = false
@@ -170,6 +171,7 @@ final class SpendingStore: ObservableObject {
         bind(vm.gameInfoReady) { [weak self] in self?.gameInfoReady = $0.boolValue }
         bind(vm.hoyoTokenExpired) { [weak self] in self?.hoyoTokenExpired = $0.boolValue }
         bind(vm.readAlerts) { [weak self] in self?.readAlerts = $0 }
+        bind(vm.dismissedAlerts) { [weak self] in self?.dismissedAlerts = $0 }
         // Phase 6 (알림 설정)
         bind(vm.notifySubscription) { [weak self] in self?.notifySubscription = $0.boolValue }
         bind(vm.notifyDndEnabled) { [weak self] in self?.notifyDndEnabled = $0.boolValue }
@@ -303,6 +305,8 @@ final class SpendingStore: ObservableObject {
     func resetRedeem() { vm.resetRedeem() }
     // Phase 5
     func markAlertsRead(_ keys: [String]) { vm.markAlertsRead(keys: keys) }
+    func dismissAlert(_ key: String) { vm.dismissAlert(key: key) }
+    func dismissAlerts(_ keys: [String]) { vm.dismissAlerts(keys: keys) }
     func requestOpenHoyolabLink() { vm.requestOpenHoyolabLink() }
     func setHomeCards(_ list: [HomeCardItem]) { vm.setHomeCards(list: list) }
     func refreshHoyoTokenExpired() { vm.refreshHoyoTokenExpired() }

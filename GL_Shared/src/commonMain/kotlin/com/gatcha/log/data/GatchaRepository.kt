@@ -302,6 +302,22 @@ class GatchaRepository(accountId: String = "guest") {
         prefs.putString(KEY_READ_ALERTS, JSONArray(keys.toList()).toString())
     }
 
+    // ---------------------------------------------------------------- 삭제(dismiss)한 홈 알림 키 — 로컬 전용(기기별 UI 상태)
+    // 계산형 알림이라 조건이 유지되면 다시 뜨므로, 사용자가 지운 알림은 키로 영구 보관해 재노출을 막는다.
+    // 키에 기간(월·날짜·배너명)이 들어 있어 다음 기간엔 자연 만료된다(readAlerts 와 동일 규칙).
+    fun loadDismissedAlerts(): Set<String> {
+        val raw = prefs.getString(KEY_DISMISSED_ALERTS, null) ?: return emptySet()
+        return runCatching {
+            val arr = JSONArray(raw)
+            (0 until arr.length()).map { arr.getString(it) }.toSet()
+        }.getOrDefault(emptySet())
+    }
+
+    fun saveDismissedAlerts(keys: Set<String>) {
+        // 스냅샷 미포함(로컬 전용) → changed() 미호출
+        prefs.putString(KEY_DISMISSED_ALERTS, JSONArray(keys.toList()).toString())
+    }
+
     // ---------------------------------------------------------------- 구독 관리 (정기결제)
     fun loadSubscriptions(): List<Subscription> = Subscriptions.fromJsonArray(prefs.getString(KEY_SUBS, null))
     fun saveSubscriptions(list: List<Subscription>) {
@@ -429,6 +445,7 @@ class GatchaRepository(accountId: String = "guest") {
         const val KEY_EVENT_CHECKS = "event_checks"
         const val KEY_REDEEMED = "redeemed_codes"
         const val KEY_READ_ALERTS = "read_alerts"
+        const val KEY_DISMISSED_ALERTS = "dismissed_alerts"
         const val KEY_SPENDINGS = "spendings"
         const val KEY_BUDGET = "budget"
         const val KEY_BUDGET_GAMES = "budget_games"

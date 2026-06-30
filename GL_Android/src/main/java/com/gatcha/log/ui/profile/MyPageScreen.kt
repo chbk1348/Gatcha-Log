@@ -475,39 +475,33 @@ private fun currentDayOfMonth(): Int = Calendar.getInstance().get(Calendar.DAY_O
 // ============================================================
 
 @Composable
-fun ThemeSection(selectedIndex: Int, onSelect: (Int) -> Unit) {
-    Text("테마 색상", fontSize = 16.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 12.dp))
-    GlassCard(
-        shape = RoundedCornerShape(24.dp),
-        modifier = Modifier.fillMaxWidth(),
+fun ThemeColorGrid(selectedIndex: Int, onSelect: (Int) -> Unit) {
+    // 색상이 늘어 한 줄을 넘기므로 5개씩 끊어 2행으로 배치. (제목·카드는 호출부에서 — UI 섹션 카드에 임베드)
+    Column(
+        modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        // 색상이 늘어 한 줄을 넘기므로 5개씩 끊어 2행으로 배치.
-        Column(
-            modifier = Modifier.fillMaxWidth().padding(20.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-        ) {
-            AccentPalette.chunked(5).forEachIndexed { rowIdx, rowOptions ->
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
-                    rowOptions.forEachIndexed { colIdx, option ->
-                        val index = rowIdx * 5 + colIdx
-                        Column(
-                            modifier = Modifier.weight(1f).clickable { onSelect(index) },
-                            horizontalAlignment = Alignment.CenterHorizontally,
+        AccentPalette.chunked(5).forEachIndexed { rowIdx, rowOptions ->
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                rowOptions.forEachIndexed { colIdx, option ->
+                    val index = rowIdx * 5 + colIdx
+                    Column(
+                        modifier = Modifier.weight(1f).clickable { onSelect(index) },
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                    ) {
+                        Box(
+                            modifier = Modifier.size(40.dp).clip(CircleShape).background(option.color.toColor()),
+                            contentAlignment = Alignment.Center,
                         ) {
-                            Box(
-                                modifier = Modifier.size(40.dp).clip(CircleShape).background(option.color.toColor()),
-                                contentAlignment = Alignment.Center,
-                            ) {
-                                if (index == selectedIndex) {
-                                    Icon(Icons.Default.Check, null, tint = Color.White, modifier = Modifier.size(20.dp))
-                                }
+                            if (index == selectedIndex) {
+                                Icon(Icons.Default.Check, null, tint = Color.White, modifier = Modifier.size(20.dp))
                             }
-                            Spacer(Modifier.height(4.dp))
-                            Text(option.label, fontSize = 10.sp, color = if (index == selectedIndex) option.color.toColor() else TextSecondary)
                         }
+                        Spacer(Modifier.height(4.dp))
+                        Text(option.label, fontSize = 10.sp, color = if (index == selectedIndex) option.color.toColor() else TextSecondary)
                     }
                 }
             }

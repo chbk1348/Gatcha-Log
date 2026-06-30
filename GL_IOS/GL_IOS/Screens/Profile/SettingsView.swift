@@ -1,6 +1,5 @@
 import SwiftUI
 import UniformTypeIdentifiers
-import UserNotifications
 import Shared
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -19,23 +18,10 @@ struct SettingsView: View {
     @State private var showNudge = false
     @State private var nudgeText = ""
     @State private var showHoyolab = false
+    @State private var showNotifSettings = false
+    @State private var showDataManagement = false
     @State private var showUplog = false
     @State private var showCredits = false
-    // 알림 토글은 켰는데 시스템 알림 권한이 거부된 상태(안내 표시용). 비동기 조회라 @State 로 캐시.
-    @State private var notifBlocked = false
-    // 파괴작업은 2단계 확인: 1차(백업 권장) → 2차(최종 확인)
-    @State private var confirmClearGacha = false
-    @State private var confirmClearGacha2 = false
-    @State private var confirmClearSpend = false
-    @State private var confirmClearSpend2 = false
-    @State private var confirmImport = false
-    // 파일 내보내기/가져오기
-    @State private var exportCsv = false
-    @State private var exportBackup = false
-    @State private var importBackup = false
-    @State private var exportDoc = TextDocument("")
-    @State private var exportName = "export.txt"
-    @State private var exportType: UTType = .plainText
 
     private var version: String {
         (Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String) ?? "—"
@@ -61,18 +47,13 @@ struct SettingsView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 18) {
-                // 1층: 자주 쓰는 설정 (계정은 마이페이지 히어로로 일원화 — 중복 카드 제거)
-                budgetLinkSection
-                automationSection
-                notificationSection
-                dndSection
-                dailySummarySection
+                // 1) 알림  2) UI  3) 예산·연동  4) 데이터 관리  5) 나머지(자동화·테마·정보)
+                // (계정은 마이페이지 히어로로 일원화 — 중복 카드 제거)
+                notificationLinkSection
                 displaySection
-                themeSection
-                // 2층: 데이터·계정
-                dataSection
-                backupSection
-                // 3층: 앱 정보
+                budgetLinkSection
+                dataManagementLinkSection
+                automationSection
                 infoSection
             }
             .padding(16)
@@ -101,39 +82,14 @@ struct SettingsView: View {
         .navigationDestination(isPresented: $showHoyolab) {
             HoyolabLinkView(store: store) { showHoyolab = false }
         }
+        .navigationDestination(isPresented: $showNotifSettings) {
+            NotificationSettingsView(store: store)
+        }
+        .navigationDestination(isPresented: $showDataManagement) {
+            DataManagementView(store: store)
+        }
         .navigationDestination(isPresented: $showUplog) {
             UpdateLogPage(version: version)
-        }
-        // 가챠 초기화 — 1단계(백업 권장)
-        .alert("가챠 기록 초기화", isPresented: $confirmClearGacha) {
-            Button("취소", role: .cancel) {}
-            Button("계속") { confirmClearGacha2 = true }
-        } message: { Text("가져온 모든 가챠 기록을 삭제합니다. 되돌릴 수 없으니, 먼저 ‘데이터 → 백업 파일 내보내기’로 백업을 권장해요.") }
-        // 가챠 초기화 — 2단계(최종 확인)
-        .alert("정말 초기화할까요?", isPresented: $confirmClearGacha2) {
-            Button("취소", role: .cancel) {}
-            Button("초기화", role: .destructive) { store.clearGachaRecords() }
-        } message: { Text("이 작업은 되돌릴 수 없어요. 가챠 기록을 모두 삭제합니다.") }
-        // 지출 전체 삭제 — 1단계(백업 권장)
-        .alert("지출 전체 삭제", isPresented: $confirmClearSpend) {
-            Button("취소", role: .cancel) {}
-            Button("계속") { confirmClearSpend2 = true }
-        } message: { Text("모든 지출 기록(\(store.spendings.count)건)을 삭제합니다. 되돌릴 수 없으니, 먼저 ‘데이터 → 백업 파일 내보내기’로 백업을 권장해요.") }
-        // 지출 전체 삭제 — 2단계(최종 확인)
-        .alert("정말 삭제할까요?", isPresented: $confirmClearSpend2) {
-            Button("취소", role: .cancel) {}
-            Button("삭제", role: .destructive) { store.clearSpendings() }
-        } message: { Text("이 작업은 되돌릴 수 없어요. 지출 기록(\(store.spendings.count)건)을 모두 삭제합니다.") }
-        .alert("백업 파일에서 복원", isPresented: $confirmImport) {
-            Button("취소", role: .cancel) {}
-            Button("파일 선택") { importBackup = true }
-        } message: { Text("백업 파일을 선택해 복원할까요? 백업에 들어 있는 항목은 현재 데이터를 덮어씁니다.") }
-        .fileExporter(isPresented: $exportCsv, document: TextDocument(store.buildCsv()),
-                      contentType: .commaSeparatedText, defaultFilename: "gatchalog-spending") { _ in }
-        .fileExporter(isPresented: $exportBackup, document: TextDocument(store.exportBackupContent() ?? ""),
-                      contentType: .json, defaultFilename: "gatchalog-backup") { _ in }
-        .fileImporter(isPresented: $importBackup, allowedContentTypes: [.json]) { result in
-            if case .success(let url) = result { readBackup(url) }
         }
     }
 
@@ -154,20 +110,20 @@ struct SettingsView: View {
         }
     }
 
-    // ── 테마 ──
-    // ── 표시 ──
+    // ── UI — 표시(컴팩트) + 테마 색상을 한 섹션으로 통합 ──
     private var displaySection: some View {
-        sectionCard("표시") {
+        // 색상이 늘어 한 줄을 넘기므로 5열 그리드로 래핑(2행).
+        let cols = Array(repeating: GridItem(.flexible(), spacing: 12), count: 5)
+        return sectionCard("UI") {
             toggleRow("list.bullet", "지출 내역 컴팩트 보기",
                       "지출 목록을 한 줄로 빽빽하게 표시해요 (태그·결제수단 숨김)",
                       bind(\.spendingCompact, store.setSpendingCompact))
-        }
-    }
-
-    private var themeSection: some View {
-        // 색상이 늘어 한 줄을 넘기므로 5열 그리드로 래핑(2행).
-        let cols = Array(repeating: GridItem(.flexible(), spacing: 12), count: 5)
-        return sectionCard("테마 색상") {
+            Divider()
+            HStack {
+                rowLabel(icon: "paintpalette", title: "테마 색상")
+                Spacer()
+            }
+            .padding(.top, 12)
             LazyVGrid(columns: cols, spacing: 16) {
                 ForEach(GLGTheme.palette) { opt in
                     VStack(spacing: 4) {
@@ -185,7 +141,8 @@ struct SettingsView: View {
                 }
             }
             .frame(maxWidth: .infinity)
-            .padding(.vertical, 14)
+            .padding(.top, 10)
+            .padding(.bottom, 14)
         }
     }
 
@@ -230,153 +187,19 @@ struct SettingsView: View {
         }
     }
 
-    // ── 알림 ──
-    private var notificationSection: some View {
+    // ── 알림 — 항목별 알림·방해금지·데일리 요약을 모은 하위 페이지로 진입 ──
+    private var notificationLinkSection: some View {
         sectionCard("알림") {
-            toggleRow("banknote", "예산 알림", "이번 달 예산 90%·초과 시 알려줘요",
-                      notifyBind(\.notifyBudget, store.setNotifyBudget))
-            Divider()
-            toggleRow("calendar.badge.checkmark", "출석 리마인더", "저녁까지 미출석이면 알려줘요",
-                      notifyBind(\.notifyAttendance, store.setNotifyAttendance))
-            Divider()
-            toggleRow("bolt.fill", "재화 가득참 알림", "레진·개척력·배터리가 가득 차면 알려줘요",
-                      notifyBind(\.notifyResin, store.setNotifyResin))
-            Divider()
-            toggleRow("calendar.badge.clock", "픽업 마감 알림", "진행 중인 픽업이 끝나기 전에 알려줘요",
-                      notifyBind(\.notifyPickup, store.setNotifyPickup))
-            Divider()
-            toggleRow("arrow.triangle.2.circlepath", "정기결제 갱신", "구독 결제 하루 전(D-1)에 알려줘요",
-                      notifyBind(\.notifySubscription, store.setNotifySubscription))
-            if notifBlocked && (store.notifyBudget || store.notifyAttendance || store.notifyResin || store.notifyPickup || store.notifySubscription) {
-                Divider()
-                Button { openSystemSettings() } label: {
-                    HStack(spacing: 12) {
-                        Image(systemName: "bell.slash.fill").font(.pretendard(size: 18))
-                            .foregroundStyle(Color(hex: 0xFFFB8C00)).frame(width: 24)
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("알림 권한이 꺼져 있어요").font(.pretendard(size: 14, weight: .medium))
-                                .foregroundStyle(Color(hex: 0xFFFB8C00))
-                            Text("권한이 막혀 있어 알림이 표시되지 않아요. 설정에서 알림을 켜주세요.")
-                                .font(.pretendard(size: 11)).foregroundStyle(GLGColor.textSecondary)
-                        }
-                        Spacer()
-                        Image(systemName: "chevron.right").font(.pretendard(size: 13, weight: .semibold))
-                            .foregroundStyle(Color(.tertiaryLabel))
-                    }
-                    .contentShape(Rectangle()).padding(.vertical, 10)
-                }
-                .buttonStyle(.plain)
-            }
-        }
-        .onAppear(perform: refreshNotifBlocked)
-    }
-
-    // ── 방해금지 (27.33.0 신규) — 목업 design_notification_dnd_summary_mockup.html ──
-    private var dndSection: some View {
-        sectionCard("방해금지", footer: "자정을 넘는 시간대도 지원 · 기준은 기기 로컬 시각이에요 (출석=베이징과 별개)") {
-            Toggle(isOn: notifyBind(\.notifyDndEnabled, store.setNotifyDndEnabled)) {
-                rowLabel(icon: "moon.fill", title: "방해금지 시간",
-                         subtitle: "이 시간대엔 알림을 보내지 않아요")
-            }.tint(accent.primary).padding(.vertical, 10)
-            if store.notifyDndEnabled {
-                Divider()
-                HStack(spacing: 10) {
-                    hourBox(label: "시작", hour: store.notifyDndStartHour) { store.setNotifyDndStartHour($0) }
-                    Text("~").font(.pretendard(size: 16, weight: .bold)).foregroundStyle(GLGColor.textSecondary)
-                    hourBox(label: "종료", hour: store.notifyDndEndHour) { store.setNotifyDndEndHour($0) }
-                }
-                .padding(.vertical, 12)
-            }
+            navRow(icon: "bell.badge", title: "알림 설정",
+                   value: "방해금지 · 요약 · 항목별") { showNotifSettings = true }
         }
     }
 
-    // ── 데일리 요약 (27.33.0 신규) ──
-    private var dailySummarySection: some View {
-        sectionCard("데일리 요약",
-                    footer: "요약 ON이면 그날 개별 알림은 묶어 한 건으로 보내요. OFF면 기존처럼 개별 발송돼요.") {
-            Toggle(isOn: notifyBind(\.notifyDailySummary, store.setNotifyDailySummary)) {
-                rowLabel(icon: "envelope.fill", title: "하루 한 번 요약",
-                         subtitle: "흩어진 알림을 묶어 1건으로 보내요")
-            }.tint(accent.primary).padding(.vertical, 10)
-            if store.notifyDailySummary {
-                Divider()
-                HStack {
-                    Text("요약 보낼 시각").font(.pretendard(size: 14, weight: .medium))
-                    Spacer()
-                    hourMenu(hour: store.notifyDailySummaryHour) { store.setNotifyDailySummaryHour($0) }
-                }
-                .padding(.vertical, 13)
-            }
-        }
-    }
-
-    /// 시(0~23) 선택 박스 — 라벨 + "HH:00" 큰 글자 (DnD 시작/종료용).
-    private func hourBox(label: String, hour: Int, _ onPick: @escaping (Int) -> Void) -> some View {
-        Menu {
-            Picker("", selection: Binding(get: { hour }, set: { onPick($0) })) {
-                ForEach(0..<24, id: \.self) { h in Text(String(format: "%02d:00", h)).tag(h) }
-            }
-        } label: {
-            VStack(spacing: 2) {
-                Text(label).font(.pretendard(size: 10.5, weight: .semibold)).foregroundStyle(GLGColor.textSecondary)
-                Text(String(format: "%02d:00", hour)).font(.pretendard(size: 20, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
-            }
-            .frame(maxWidth: .infinity).padding(.vertical, 11)
-            .background(Color.black.opacity(0.03), in: RoundedRectangle(cornerRadius: 14))
-        }
-    }
-
-    /// 시(0~23) 선택 메뉴 — "HH:00" 필 (요약 시각용).
-    private func hourMenu(hour: Int, _ onPick: @escaping (Int) -> Void) -> some View {
-        Menu {
-            Picker("", selection: Binding(get: { hour }, set: { onPick($0) })) {
-                ForEach(0..<24, id: \.self) { h in Text(String(format: "%02d:00", h)).tag(h) }
-            }
-        } label: {
-            Text(String(format: "%02d:00", hour)).font(.pretendard(size: 16, weight: .bold)).foregroundStyle(accent.primary)
-                .padding(.horizontal, 14).padding(.vertical, 7)
-                .background(Color.black.opacity(0.04), in: RoundedRectangle(cornerRadius: 12))
-        }
-    }
-
-    /// 시스템 알림 권한 상태를 조회해 notifBlocked 갱신(거부/미결정이면 차단으로 간주).
-    private func refreshNotifBlocked() {
-        UNUserNotificationCenter.current().getNotificationSettings { settings in
-            let ok = settings.authorizationStatus == .authorized || settings.authorizationStatus == .provisional
-            DispatchQueue.main.async { notifBlocked = !ok }
-        }
-    }
-
-    /// 이 앱의 시스템 설정 화면 열기(권한 직접 변경 유도).
-    private func openSystemSettings() {
-        if let url = URL(string: UIApplication.openSettingsURLString) {
-            UIApplication.shared.open(url)
-        }
-    }
-
-    // ── 데이터 ──
-    private var dataSection: some View {
-        sectionCard("데이터") {
-            navRow(icon: "square.and.arrow.down", title: "지출 내역 내보내기 (CSV)") { exportCsv = true }
-            Divider()
-            navRow(icon: "trash", title: "가챠 기록 초기화",
-                   value: store.gachaStats.map { "\($0.total)건" } ?? "없음") {
-                if store.gachaStats != nil { confirmClearGacha = true }
-            }
-            Divider()
-            navRow(icon: "trash.fill", title: "지출 전체 삭제", value: "\(store.spendings.count)건") {
-                if !store.spendings.isEmpty { confirmClearSpend = true }
-            }
-        }
-    }
-
-    // ── 백업·복원 ──
-    private var backupSection: some View {
-        sectionCard("백업·복원",
-                    footer: "구글 로그인 없이도 전체 데이터(가챠 기록 포함)를 파일로 저장해 두면, 앱을 재설치하거나 기기를 바꿔도 복원할 수 있어요.") {
-            navRow(icon: "arrow.up.doc", title: "백업 파일 내보내기", value: "전체 데이터") { exportBackup = true }
-            Divider()
-            navRow(icon: "arrow.down.doc", title: "백업 파일에서 복원") { confirmImport = true }
+    // ── 데이터 관리 — 백업·복원/내보내기/위험 구역을 모은 하위 페이지로 진입 ──
+    private var dataManagementLinkSection: some View {
+        sectionCard("데이터 관리") {
+            navRow(icon: "externaldrive", title: "데이터 관리",
+                   value: "백업·복원 · 초기화") { showDataManagement = true }
         }
     }
 
@@ -465,22 +288,6 @@ struct SettingsView: View {
     /// store 의 읽기전용 @Published + setter 를 Toggle 용 Binding 으로.
     private func bind(_ keyPath: KeyPath<SpendingStore, Bool>, _ setter: @escaping (Bool) -> Void) -> Binding<Bool> {
         Binding(get: { store[keyPath: keyPath] }, set: { setter($0) })
-    }
-
-    /// 알림 토글용 — 켤 때 iOS 알림 권한을 요청한다.
-    private func notifyBind(_ keyPath: KeyPath<SpendingStore, Bool>, _ setter: @escaping (Bool) -> Void) -> Binding<Bool> {
-        Binding(get: { store[keyPath: keyPath] }, set: { on in
-            if on { NotificationPermission.request() }
-            setter(on)
-        })
-    }
-
-    private func readBackup(_ url: URL) {
-        let scoped = url.startAccessingSecurityScopedResource()
-        defer { if scoped { url.stopAccessingSecurityScopedResource() } }
-        if let text = try? String(contentsOf: url, encoding: .utf8) {
-            store.importBackupFromContent(text)
-        }
     }
 }
 
