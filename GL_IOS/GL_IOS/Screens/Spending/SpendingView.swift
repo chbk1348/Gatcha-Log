@@ -53,20 +53,21 @@ struct SpendingView: View {
                     if items.isEmpty {
                         emptyState
                     } else if sortOrder == .amountDesc {
+                        // 금액순 — 날짜 그룹이 없으므로 항목별 단일 카드(헤더 없음).
                         let byAmount = items.sorted { $0.amount > $1.amount }
                         ForEach(Array(byAmount.enumerated()), id: \.element.id) { i, s in
-                            historyLink(s).glgLoadIn(i, appeared: $appeared)
+                            dayCard(dateLabel: nil, total: 0, items: [s]).glgLoadIn(i, appeared: $appeared)
                         }
                     } else {
+                        // 같은 날짜끼리 한 카드로 묶음 — 카드 상단 날짜·합계 헤더 + first-end 행들.
                         let sorted = sortOrder == .dateAsc ? items.sorted { $0.dateMillis < $1.dateMillis }
                                                            : items.sorted { $0.dateMillis > $1.dateMillis }
                         let groups = groupByDay(sorted)
-                        ForEach(groups, id: \.key) { group in
-                            DateHeader(date: group.items.first?.dateLabel ?? "",
-                                       total: group.items.reduce(0) { $0 + $1.amount })
-                            ForEach(group.items, id: \.id) { s in
-                                historyLink(s).glgLoadIn(sorted.firstIndex(where: { $0.id == s.id }) ?? 0, appeared: $appeared)
-                            }
+                        ForEach(Array(groups.enumerated()), id: \.element.key) { gi, group in
+                            dayCard(dateLabel: group.items.first?.dateLabel,
+                                    total: group.items.reduce(0) { $0 + $1.amount },
+                                    items: group.items)
+                                .glgLoadIn(gi, appeared: $appeared)
                         }
                     }
                     Color.clear.frame(height: 8)
@@ -150,20 +151,44 @@ struct SpendingView: View {
         .glgGlass(in: RoundedRectangle(cornerRadius: 24, style: .continuous))
     }
 
+    /// 같은 날짜 지출을 한 카드로 묶은 그룹 카드 — 상단 날짜·합계 헤더(first-end) + 구분선 + 지출 행들.
+    /// dateLabel 이 nil 이면 헤더 없이 행만(금액순 평면 리스트의 단일 항목 카드).
+    private func dayCard(dateLabel: String?, total: Int64, items: [Spending]) -> some View {
+        GLGCard(cornerRadius: 18, padding: 0) {
+            VStack(spacing: 0) {
+                if let dateLabel {
+                    HStack {
+                        Text(dateLabel).font(.pretendard(size: 12, weight: .bold)).foregroundStyle(GLGColor.textSecondary)
+                        Spacer()
+                        Text(won(total)).font(.pretendard(size: 12, weight: .bold)).foregroundStyle(accent.primary)
+                    }
+                    .padding(.horizontal, 16).padding(.top, 13).padding(.bottom, 9)
+                    Divider()
+                }
+                ForEach(Array(items.enumerated()), id: \.element.id) { idx, s in
+                    if idx > 0 { Divider() }
+                    historyRow(s)
+                }
+            }
+        }
+        .padding(.vertical, store.spendingCompact ? 4 : 6)
+    }
+
+    /// 카드 안에 들어가는 지출 한 건 행 — 일반 모드=상세로 NavigationLink, 선택 모드=선택 토글.
     @ViewBuilder
-    private func historyLink(_ s: Spending) -> some View {
+    private func historyRow(_ s: Spending) -> some View {
         if selectionMode {
             Button {
                 if selectedIds.contains(s.id) { selectedIds.remove(s.id) } else { selectedIds.insert(s.id) }
             } label: {
-                HistoryItem(spending: s, selectionMode: true, selected: selectedIds.contains(s.id), compact: store.spendingCompact)
+                SpendingRow(spending: s, selectionMode: true, selected: selectedIds.contains(s.id), compact: store.spendingCompact)
             }
             .buttonStyle(.plain)
         } else {
             NavigationLink {
                 SpendingDetailView(store: store, spendingId: s.id, onEdit: onEdit)
             } label: {
-                HistoryItem(spending: s, compact: store.spendingCompact)
+                SpendingRow(spending: s, compact: store.spendingCompact)
             }
             .buttonStyle(.plain)
         }
@@ -319,20 +344,8 @@ struct GamePill: View {
     }
 }
 
-struct DateHeader: View {
-    let date: String; let total: Int64
-    @Environment(\.glgAccent) private var accent
-    var body: some View {
-        HStack {
-            Text(date).font(.pretendard(size: 12, weight: .bold)).foregroundStyle(GLGColor.textSecondary)
-            Spacer()
-            Text(won(total)).font(.pretendard(size: 12, weight: .bold)).foregroundStyle(accent.primary)
-        }
-        .padding(.vertical, 8)
-    }
-}
-
-struct HistoryItem: View {
+/// 지출 한 건 행(first-end) — 좌측: 게임색 배지 + 게임명·아이템·태그, 우측: 금액·셰브론. 카드(SpendingDayCard) 안에 들어가는 행.
+struct SpendingRow: View {
     let spending: Spending
     var selectionMode: Bool = false
     var selected: Bool = false
@@ -354,53 +367,53 @@ struct HistoryItem: View {
     }
 
     var body: some View {
-        GLGCard(cornerRadius: 20, padding: compact ? 10 : 14) {
-            HStack(spacing: compact ? 10 : 13) {
-                if selectionMode {
-                    Image(systemName: selected ? "checkmark.circle.fill" : "circle")
-                        .font(.pretendard(size: 22)).foregroundStyle(selected ? accent.primary : Color(.systemGray3))
-                }
-                // 게임 색 배지 (약칭)
-                Text(abbr)
-                    .font(.pretendard(size: compact ? 11 : 13, weight: .heavy)).foregroundStyle(gameColor)
-                    .frame(width: compact ? 30 : 44, height: compact ? 30 : 44)
-                    .background(gameColor.opacity(0.14), in: RoundedRectangle(cornerRadius: compact ? 9 : 13, style: .continuous))
+        HStack(spacing: compact ? 10 : 13) {
+            if selectionMode {
+                Image(systemName: selected ? "checkmark.circle.fill" : "circle")
+                    .font(.pretendard(size: 22)).foregroundStyle(selected ? accent.primary : Color(.systemGray3))
+            }
+            // 게임 색 배지 (약칭)
+            Text(abbr)
+                .font(.pretendard(size: compact ? 11 : 13, weight: .heavy)).foregroundStyle(gameColor)
+                .frame(width: compact ? 30 : 40, height: compact ? 30 : 40)
+                .background(gameColor.opacity(0.14), in: RoundedRectangle(cornerRadius: compact ? 9 : 12, style: .continuous))
 
-                if compact {
-                    // 한 줄(태그·결제수단·정기뱃지 숨김)
-                    Text(compactTitle).font(.pretendard(size: 13, weight: .bold)).lineLimit(1)
-                } else {
-                    VStack(alignment: .leading, spacing: 4) {
-                        HStack(spacing: 6) {
-                            Text(spending.gameName).font(.pretendard(size: 15, weight: .bold)).lineLimit(1)
-                            if spending.isSubscription {
-                                GLGBadge(label: "정기", color: gameColor)
-                            }
-                        }
-                        if !subtitle.isEmpty {
-                            Text(subtitle).font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary).lineLimit(1)
-                        }
-                        if !spending.tags.isEmpty {
-                            HStack(spacing: 5) {
-                                ForEach(spending.tags.prefix(3), id: \.self) { TagChip(tag: $0) }
-                            }
-                            .padding(.top, 1)
+            if compact {
+                // 한 줄(태그·결제수단·정기뱃지 숨김)
+                Text(compactTitle).font(.pretendard(size: 13, weight: .bold)).lineLimit(1)
+            } else {
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(spacing: 6) {
+                        Text(spending.gameName).font(.pretendard(size: 15, weight: .bold)).lineLimit(1)
+                        if spending.isSubscription {
+                            GLGBadge(label: "정기", color: gameColor)
                         }
                     }
-                }
-
-                Spacer(minLength: 8)
-
-                HStack(spacing: 4) {
-                    Text(won(spending.amount)).font(.pretendard(size: compact ? 14 : 16, weight: .bold)).lineLimit(1)
-                    if !selectionMode {
-                        Image(systemName: "chevron.right").font(.pretendard(size: 12, weight: .semibold))
-                            .foregroundStyle(Color(.tertiaryLabel))
+                    if !subtitle.isEmpty {
+                        Text(subtitle).font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary).lineLimit(1)
+                    }
+                    if !spending.tags.isEmpty {
+                        HStack(spacing: 5) {
+                            ForEach(spending.tags.prefix(3), id: \.self) { TagChip(tag: $0) }
+                        }
+                        .padding(.top, 1)
                     }
                 }
             }
+
+            Spacer(minLength: 8)
+
+            HStack(spacing: 4) {
+                Text(won(spending.amount)).font(.pretendard(size: compact ? 14 : 16, weight: .bold)).lineLimit(1)
+                if !selectionMode {
+                    Image(systemName: "chevron.right").font(.pretendard(size: 12, weight: .semibold))
+                        .foregroundStyle(Color(.tertiaryLabel))
+                }
+            }
         }
-        .padding(.vertical, compact ? 2 : 4)
+        .padding(.horizontal, 16)
+        .padding(.vertical, compact ? 11 : 14)
+        .contentShape(Rectangle())
     }
 }
 

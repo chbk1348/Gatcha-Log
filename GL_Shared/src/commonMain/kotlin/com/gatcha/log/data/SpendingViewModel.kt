@@ -269,6 +269,7 @@ class SpendingViewModel : ViewModel() {
         _pity.value = repo.loadPity()
         _eventChecks.value = repo.loadEventChecks()
         _readAlerts.value = repo.loadReadAlerts()
+        _dismissedAlerts.value = repo.loadDismissedAlerts()
         _enkaGiUid.value = repo.loadEnkaGiUid()
         _enkaHsrUid.value = repo.loadEnkaHsrUid()
         _enkaResult.value = null
@@ -940,6 +941,26 @@ class SpendingViewModel : ViewModel() {
         if (next != _readAlerts.value) {
             _readAlerts.value = next
             repo.saveReadAlerts(next)
+        }
+    }
+
+    /** 사용자가 삭제(dismiss)한 홈 알림 키 집합 — 계산형 알림이라 조건이 유지돼도 다시 안 뜨게 영구 저장(로컬 전용). */
+    private val _dismissedAlerts = MutableStateFlow<Set<String>>(emptySet())
+    val dismissedAlerts: StateFlow<Set<String>> = _dismissedAlerts.asStateFlow()
+    /** 알림 1건 삭제 — 키를 dismiss 집합에 추가하고 영구 저장. */
+    fun dismissAlert(key: String) {
+        val next = _dismissedAlerts.value + key
+        if (next != _dismissedAlerts.value) {
+            _dismissedAlerts.value = next
+            repo.saveDismissedAlerts(next)
+        }
+    }
+    /** 알림 여러 건 삭제(전체 삭제용). */
+    fun dismissAlerts(keys: Collection<String>) {
+        val next = _dismissedAlerts.value + keys
+        if (next != _dismissedAlerts.value) {
+            _dismissedAlerts.value = next
+            repo.saveDismissedAlerts(next)
         }
     }
 

@@ -311,9 +311,11 @@ fun HomeContent(
     // 재화 임박 경보 — 85% 이상(가득 직전)인 게임 '전부'(원신뿐 아니라 스타레일·젠레스 등). 가장 찬 순.
     val resinAlerts = remember(liveNotes) { computeResinAlerts(liveNotes) }
 
-    // 알림 계산 + 읽음(넛징) 상태
-    val alerts = buildAlerts(monthlyTotal, budget, gameOverBudget, banners.map { it.dDay() to it.name }, attendanceToday, "${viewModel.displayYear}-${viewModel.displayMonth}")
+    // 알림 계산 + 읽음(넛징)/삭제(dismiss) 상태 — 사용자가 지운 알림은 제외하고 노출
     val readAlerts by viewModel.readAlerts.collectAsState()
+    val dismissedAlerts by viewModel.dismissedAlerts.collectAsState()
+    val alerts = buildAlerts(monthlyTotal, budget, gameOverBudget, banners.map { it.dDay() to it.name }, attendanceToday, "${viewModel.displayYear}-${viewModel.displayMonth}")
+        .filter { it.key !in dismissedAlerts }
     val unreadCount = alerts.count { it.key !in readAlerts }
 
     val showNotifications = remember { mutableStateOf(false) }
@@ -360,6 +362,8 @@ fun HomeContent(
                 onBack = { showNotifications.value = false },
                 onBudget = { showNotifications.value = false; showBudgetDialog.value = true },
                 onGameInfo = { showNotifications.value = false; onNavigateToGameInfo() },
+                onDismiss = { viewModel.dismissAlert(it.key) },
+                onDismissAll = { viewModel.dismissAlerts(alerts.map { a -> a.key }) },
             )
             return@AnimatedContent
         }
@@ -627,13 +631,15 @@ private fun HomeEditButton(onClick: () -> Unit) {
     }
 }
 
-/** 알림 상세 페이지 (홈) — 액션형: 알림 탭 시 관련 화면으로 이동. */
+/** 알림 상세 페이지 (홈) — 액션형: 알림 탭 시 관련 화면으로 이동. 각 알림은 삭제(X) 가능. */
 @Composable
 private fun NotificationDetailScreen(
     alerts: List<HomeAlert>,
     onBack: () -> Unit,
     onBudget: () -> Unit,
     onGameInfo: () -> Unit,
+    onDismiss: (HomeAlert) -> Unit,
+    onDismissAll: () -> Unit,
 ) {
     Column(Modifier.fillMaxSize()) {
         GlgScreenHeader("알림", onBack, Modifier.padding(horizontal = 16.dp))
@@ -649,18 +655,35 @@ private fun NotificationDetailScreen(
                 Text("예산·픽업 배너·출석 알림이 여기에 모여요", color = Color.LightGray, fontSize = 12.sp)
             }
         } else {
+            // 우측 정렬 '모두 지우기' — 한 번에 전체 dismiss
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+                horizontalArrangement = Arrangement.End,
+            ) {
+                Text(
+                    "모두 지우기",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = TextSecondary,
+                    modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable { onDismissAll() }.padding(horizontal = 8.dp, vertical = 6.dp),
+                )
+            }
             LazyColumn(
                 // 하단바 미노출 페이지 — 시스템 네비 인셋만 확보
-                modifier = Modifier.fillMaxSize().navigationBarsPadding().padding(horizontal = 16.dp, vertical = 8.dp),
+                modifier = Modifier.fillMaxSize().navigationBarsPadding().padding(horizontal = 16.dp, vertical = 4.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                items(alerts) { alert ->
-                    NotificationCard(alert) {
-                        when (alert.kind) {
-                            AlertKind.BUDGET_OVER, AlertKind.BUDGET_NEAR, AlertKind.BUDGET_GAME_OVER -> onBudget()
-                            AlertKind.BANNER, AlertKind.ATTENDANCE -> onGameInfo()
-                        }
-                    }
+                items(alerts, key = { it.key }) { alert ->
+                    NotificationCard(
+                        alert,
+                        onClick = {
+                            when (alert.kind) {
+                                AlertKind.BUDGET_OVER, AlertKind.BUDGET_NEAR, AlertKind.BUDGET_GAME_OVER -> onBudget()
+                                AlertKind.BANNER, AlertKind.ATTENDANCE -> onGameInfo()
+                            }
+                        },
+                        onDismiss = { onDismiss(alert) },
+                    )
                 }
                 item { Spacer(Modifier.height(24.dp)) }
             }
@@ -669,7 +692,7 @@ private fun NotificationDetailScreen(
 }
 
 @Composable
-private fun NotificationCard(alert: HomeAlert, onClick: () -> Unit) {
+private fun NotificationCard(alert: HomeAlert, onClick: () -> Unit, onDismiss: () -> Unit) {
     val accent = LocalAccent.current
     // 종류별 아이콘·색·이동 안내문
     val icon: ImageVector; val tint: Color; val hint: String
@@ -682,7 +705,7 @@ private fun NotificationCard(alert: HomeAlert, onClick: () -> Unit) {
     }
     GlassCard(shape = RoundedCornerShape(18.dp), modifier = Modifier.fillMaxWidth()) {
         Row(
-            modifier = Modifier.fillMaxWidth().clickable { onClick() }.padding(16.dp),
+            modifier = Modifier.fillMaxWidth().clickable { onClick() }.padding(start = 16.dp, top = 12.dp, bottom = 12.dp, end = 6.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Box(
@@ -697,8 +720,10 @@ private fun NotificationCard(alert: HomeAlert, onClick: () -> Unit) {
                 Spacer(Modifier.height(3.dp))
                 Text(hint, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = accent)
             }
-            Spacer(Modifier.width(8.dp))
-            Icon(Icons.Default.ChevronRight, null, tint = Color.LightGray, modifier = Modifier.size(20.dp))
+            // 삭제(X) — 탭하면 이 알림만 지움(다시 안 뜸). 행 클릭(이동)과 분리.
+            IconButton(onClick = onDismiss, modifier = Modifier.size(36.dp)) {
+                Icon(Icons.Default.Close, contentDescription = "알림 삭제", tint = Color.LightGray, modifier = Modifier.size(18.dp))
+            }
         }
     }
 }

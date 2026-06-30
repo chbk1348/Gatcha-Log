@@ -402,6 +402,7 @@ struct TokenExpiredBanner: View {
 // ── 알림 상세 (push) ──
 struct NotificationDetailView: View {
     let alerts: [HomeAlert]; let onBudget: () -> Void; let onGameInfo: () -> Void
+    let onDismiss: (HomeAlert) -> Void; let onDismissAll: () -> Void
     @Environment(\.dismiss) private var dismiss
     @Environment(\.glgAccent) private var accent
     var body: some View {
@@ -422,6 +423,16 @@ struct NotificationDetailView: View {
         }
         .background(GLGBackground { Color.clear })
         .navigationTitle("알림").navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            // 모두 지우기 — 한 번에 전체 dismiss
+            if !alerts.isEmpty {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("모두 지우기") { onDismissAll() }
+                        .font(.pretendard(size: 13, weight: .semibold))
+                        .tint(GLGColor.textSecondary)
+                }
+            }
+        }
     }
     private func card(_ a: HomeAlert) -> some View {
         let (icon, tint, hint): (String, Color, String) = {
@@ -433,19 +444,27 @@ struct NotificationDetailView: View {
             case .attendance: return ("checkmark.circle", accent.primary, "출석하러 가기")
             }
         }()
-        return Button { switch a.kind { case .banner, .attendance: onGameInfo(); default: onBudget() } } label: {
-            GLGCard(cornerRadius: 18, padding: 16) {
-                HStack(spacing: 12) {
-                    ZStack { Circle().fill(tint.opacity(0.12)).frame(width: 38, height: 38); Image(systemName: icon).font(.pretendard(size: 18)).foregroundStyle(tint) }
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text(a.message).font(.pretendard(size: 13, weight: .medium))
-                        Text(hint).font(.pretendard(size: 11, weight: .semibold)).foregroundStyle(accent.primary)
+        return GLGCard(cornerRadius: 18, padding: 16) {
+            HStack(spacing: 12) {
+                // 본문 탭 → 관련 화면 이동
+                Button { switch a.kind { case .banner, .attendance: onGameInfo(); default: onBudget() } } label: {
+                    HStack(spacing: 12) {
+                        ZStack { Circle().fill(tint.opacity(0.12)).frame(width: 38, height: 38); Image(systemName: icon).font(.pretendard(size: 18)).foregroundStyle(tint) }
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(a.message).font(.pretendard(size: 13, weight: .medium))
+                            Text(hint).font(.pretendard(size: 11, weight: .semibold)).foregroundStyle(accent.primary)
+                        }
+                        Spacer(minLength: 0)
                     }
-                    Spacer()
-                    Image(systemName: "chevron.right").font(.pretendard(size: 14)).foregroundStyle(Color(.systemGray3))
-                }
+                    .contentShape(Rectangle())
+                }.buttonStyle(.plain)
+                // 삭제(X) — 이 알림만 지움(다시 안 뜸). 본문 탭(이동)과 분리.
+                Button { onDismiss(a) } label: {
+                    Image(systemName: "xmark").font(.pretendard(size: 14, weight: .semibold))
+                        .foregroundStyle(Color(.systemGray3)).frame(width: 28, height: 28)
+                }.buttonStyle(.plain)
             }
-        }.buttonStyle(.plain)
+        }
     }
 }
 

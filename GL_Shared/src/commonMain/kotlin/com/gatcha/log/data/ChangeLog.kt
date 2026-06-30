@@ -32,10 +32,21 @@ data class ChangeEntry(
 object ChangeLog {
 
     /** 헤더 메타 — 업데이트 기간 라벨. */
-    const val periodLabel: String = "2026.05.23 ~ 06.29"
+    const val periodLabel: String = "2026.05.23 ~ 06.30"
 
     val entries: List<ChangeEntry> = buildList {
-        add(ChangeEntry("27.32.0", "2026.06.29", milestone = true, featured = true, items = listOf(
+        add(ChangeEntry("27.33.0", "2026.06.30", milestone = true, featured = true, items = listOf(
+            new("정기결제 관리 센터 — 구독을 한 곳에서 추가·관리하고 갱신일을 미리 챙겨요"),
+            new("알림을 한 곳에 모은 ‘알림 설정’ 페이지 — 항목별 알림·방해금지·데일리 요약을 모아서 관리해요"),
+            new("방해금지 시간 — 지정한 시간대엔 알림을 보내지 않아요 (자정 넘김 지원)"),
+            new("데일리 요약 — 흩어진 알림을 정한 시각에 하루 한 건으로 묶어 보내요"),
+            new("지출을 ‘구독으로 기록’하면 정기결제와 자동 연동 — 한쪽을 지우면 다른 쪽도 함께 정리돼요"),
+            imp("설정을 알림·UI·예산/연동·데이터 관리 순으로 재정리 — 백업·복원·초기화를 ‘데이터 관리’ 한 페이지로 모으고, 되돌릴 수 없는 작업은 ‘위험 구역’으로 분리했어요"),
+            imp("설정 ‘UI’에서 테마 색상과 지출 컴팩트 보기를 한 곳에서 골라요"),
+            imp("지출 내역을 같은 날짜끼리 한 카드로 묶어 보기 깔끔하게 개편"),
+            new("홈 알림에서 개별 알림 삭제·모두 지우기를 추가했어요"),
+        )))
+        add(ChangeEntry("27.32.0", "2026.06.29", milestone = true, items = listOf(
             new("지출 인사이트 강화 — 카테고리·요일·결제 패턴 등 새 분석 카드로 소비 흐름을 한눈에"),
             imp("연간 리포트를 지출 인사이트 안 세그먼트 토글로 통합 — 한 화면에서 기간만 전환해 보세요"),
             new("지출 내역 표시 방식 선택 — 컴팩트(한 줄 요약)·기존(카드) 중 설정에서 고를 수 있어요"),

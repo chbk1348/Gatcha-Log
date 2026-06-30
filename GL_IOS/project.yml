@@ -40,9 +40,9 @@ targets:
       path: GL_IOS/Info.plist
       properties:
         CFBundleDisplayName: Gatcha-Log
-        # 앱 버전 — Android(app/build.gradle.kts)와 동일한 규칙: versionName "27.32.0" / versionCode 273200
-        CFBundleShortVersionString: "27.32.0"
-        CFBundleVersion: "273200"
+        # 앱 버전 — Android(app/build.gradle.kts)와 동일한 규칙: versionName "27.33.0" / versionCode 273300
+        CFBundleShortVersionString: "27.33.0"
+        CFBundleVersion: "273300"
         # Compose Multiplatform 필수 — 없으면 시작 시 PlistSanityCheck 크래시 (120Hz 허용)
         CADisableMinimumFrameDurationOnPhone: true
         UILaunchScreen: {}

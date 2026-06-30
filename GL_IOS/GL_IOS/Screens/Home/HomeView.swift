@@ -57,7 +57,11 @@ struct HomeView: View {
             }
             ToolbarItem(placement: .topBarTrailing) {
                 NavigationLink {
-                    NotificationDetailView(alerts: alerts, onBudget: { showBudget = true }, onGameInfo: { onSwitchTab(2) })
+                    NotificationDetailView(alerts: alerts,
+                                           onBudget: { showBudget = true },
+                                           onGameInfo: { onSwitchTab(2) },
+                                           onDismiss: { store.dismissAlert($0.key) },
+                                           onDismissAll: { store.dismissAlerts(alerts.map { $0.key }) })
                 } label: {
                     Image(systemName: unreadCount > 0 ? "bell.badge" : "bell")
                 }
@@ -136,7 +140,8 @@ struct HomeView: View {
         if store.budget <= 0 { return "월 예산을 정하면 페이스를 알려드려요. 보통 한 달 결제액의 80% 선이 적당해요." }
         return "천장이 가까운 게임부터 모으면 50/50 손해를 줄일 수 있어요."
     }
-    private var alerts: [HomeAlert] { buildAlerts(monthlyTotal: monthlyTotal, budget: store.budget, gameOver: gameOverBudget, banners: store.activeBanners, attendanceToday: store.attendanceToday, monthKey: "\(store.displayYear)-\(store.displayMonth)") }
+    // 사용자가 삭제(dismiss)한 알림은 제외하고 노출(계산형 알림이라 dismiss 키로 재노출 차단)
+    private var alerts: [HomeAlert] { buildAlerts(monthlyTotal: monthlyTotal, budget: store.budget, gameOver: gameOverBudget, banners: store.activeBanners, attendanceToday: store.attendanceToday, monthKey: "\(store.displayYear)-\(store.displayMonth)").filter { !store.dismissedAlerts.contains($0.key) } }
     private var unreadCount: Int { alerts.filter { !store.readAlerts.contains($0.key) }.count }
     private var todayTasks: [TodayItem] {
         let resins = store.liveNotes.filter { $0.maxResin > 0 && $0.resinRatio >= 0.85 }

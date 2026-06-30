@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ReceiptLong
@@ -217,44 +218,42 @@ fun SpendingScreen(
                     }
             }
 
+            val onItemClick: (Spending) -> Unit = { sp ->
+                if (selectionMode) {
+                    selectedIds = if (sp.id in selectedIds) selectedIds - sp.id else selectedIds + sp.id
+                } else nav = SpendingScreenNav.Detail(sp)
+            }
             if (filtered.isEmpty()) {
                 item { EmptyState() }
             } else if (sortOrder == SortOrder.AMOUNT_DESC) {
-                // 금액순 — 날짜 그룹 없이 평면 리스트
+                // 금액순 — 날짜 그룹이 없으므로 항목별 단일 카드(헤더 없음).
                 val byAmount = filtered.sortedByDescending { it.amount }
-                items(byAmount, key = { it.id }) { spending ->
-                    Box(Modifier.glgLoadIn(byAmount.indexOf(spending).coerceAtLeast(0), loadInSet)) {
-                        HistoryItem(
-                            spending = spending,
-                            selectionMode = selectionMode,
-                            selected = spending.id in selectedIds,
-                            compact = compact,
-                            onClick = {
-                                if (selectionMode) {
-                                    selectedIds = if (spending.id in selectedIds) selectedIds - spending.id else selectedIds + spending.id
-                                } else nav = SpendingScreenNav.Detail(spending)
-                            },
-                        )
+                byAmount.forEachIndexed { idx, spending ->
+                    item(key = spending.id) {
+                        Box(Modifier.glgLoadIn(idx, loadInSet)) {
+                            SpendingDayCard(
+                                dateLabel = null, dayTotal = 0L,
+                                items = listOf(spending),
+                                selectionMode = selectionMode, selectedIds = selectedIds,
+                                compact = compact, onItemClick = onItemClick,
+                            )
+                        }
                     }
                 }
             } else {
+                // 같은 날짜끼리 한 카드로 묶음 — 카드 상단에 날짜·합계 헤더, 아래로 first-end 행들.
                 val sorted = if (sortOrder == SortOrder.DATE_ASC) filtered.sortedBy { it.dateMillis }
                 else filtered.sortedByDescending { it.dateMillis }
-                val grouped = sorted.groupBy { it.dayKey }
-                grouped.forEach { (_, items) ->
-                    item { DateHeader(items.first().dateLabel, items.sumOf { it.amount }) }
-                    items(items, key = { it.id }) { spending ->
-                        Box(Modifier.glgLoadIn(sorted.indexOf(spending).coerceAtLeast(0), loadInSet)) {
-                            HistoryItem(
-                                spending = spending,
-                                selectionMode = selectionMode,
-                                selected = spending.id in selectedIds,
-                                compact = compact,
-                                onClick = {
-                                    if (selectionMode) {
-                                        selectedIds = if (spending.id in selectedIds) selectedIds - spending.id else selectedIds + spending.id
-                                    } else nav = SpendingScreenNav.Detail(spending)
-                                },
+                val groups = sorted.groupBy { it.dayKey }.values.toList()
+                groups.forEachIndexed { gi, dayItems ->
+                    item(key = dayItems.first().dayKey) {
+                        Box(Modifier.glgLoadIn(gi, loadInSet)) {
+                            SpendingDayCard(
+                                dateLabel = dayItems.first().dateLabel,
+                                dayTotal = dayItems.sumOf { it.amount },
+                                items = dayItems,
+                                selectionMode = selectionMode, selectedIds = selectedIds,
+                                compact = compact, onItemClick = onItemClick,
                             )
                         }
                     }
@@ -393,93 +392,117 @@ internal fun FilterPill(label: String, selected: Boolean, accent: Color, onClick
     GlgChip(label = label, selected = selected, color = accent, onClick = onClick)
 }
 
+/**
+ * 같은 날짜 지출을 한 카드로 묶은 그룹 카드 — 상단에 날짜·합계 헤더(first-end), 아래로 지출 행들(구분선 분리).
+ * dateLabel 이 null 이면 헤더 없이 행만(금액순 평면 리스트의 단일 항목 카드).
+ */
 @Composable
-fun DateHeader(date: String, total: Long) {
+private fun SpendingDayCard(
+    dateLabel: String?,
+    dayTotal: Long,
+    items: List<Spending>,
+    selectionMode: Boolean,
+    selectedIds: Set<String>,
+    compact: Boolean,
+    onItemClick: (Spending) -> Unit,
+) {
     val accent = LocalAccent.current
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
+    GlassCard(
+        shape = RoundedCornerShape(18.dp),
+        modifier = Modifier.fillMaxWidth().padding(vertical = if (compact) 4.dp else 6.dp),
     ) {
-        Text(date, fontSize = 12.sp, color = TextSecondary, fontWeight = FontWeight.Bold)
-        Text(won(total), fontSize = 12.sp, color = accent, fontWeight = FontWeight.Bold)
+        Column {
+            if (dateLabel != null) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 13.dp, bottom = 9.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(dateLabel, fontSize = 12.sp, color = TextSecondary, fontWeight = FontWeight.Bold)
+                    Text(won(dayTotal), fontSize = 12.sp, color = accent, fontWeight = FontWeight.Bold)
+                }
+                HorizontalDivider(color = DividerColor)
+            }
+            items.forEachIndexed { idx, sp ->
+                if (idx > 0) HorizontalDivider(color = DividerColor)
+                SpendingRow(sp, selectionMode, sp.id in selectedIds, compact) { onItemClick(sp) }
+            }
+        }
     }
 }
 
+/** 지출 한 건 행(first-end) — 좌측: 재화 아이콘/게임색 + 게임명·아이템·태그, 우측: 금액·셰브론. 카드 안에 들어가는 행. */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun HistoryItem(spending: Spending, onClick: () -> Unit, selectionMode: Boolean = false, selected: Boolean = false, compact: Boolean = false) {
+private fun SpendingRow(spending: Spending, selectionMode: Boolean, selected: Boolean, compact: Boolean, onClick: () -> Unit) {
     val accent = LocalAccent.current
-
-    GlassCard(
-        shape = RoundedCornerShape(18.dp),
-        modifier = Modifier.fillMaxWidth().padding(vertical = if (compact) 3.dp else 5.dp),
+    val hasCurrencyIcon = GameCurrency.forGame(spending.gameName)?.iconUrl != null
+    val iconSize = if (compact) 22.dp else 30.dp
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onClick() }
+            .padding(horizontal = 16.dp, vertical = if (compact) 10.dp else 13.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        // 재화 아이콘 미지원 게임(zzz·명조·엔드필드·이환)은 원형 폴백 대신 카드 좌측 게임색 세로 막대.
-        val hasCurrencyIcon = GameCurrency.forGame(spending.gameName)?.iconUrl != null
-        val barPx = with(LocalDensity.current) { 5.dp.toPx() }
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .then(
-                    if (!hasCurrencyIcon) {
-                        Modifier.drawBehind { drawRect(spending.gameColor.toColor(), size = Size(barPx, size.height)) }
-                    } else Modifier,
-                )
-                .clickable { onClick() }
-                .padding(if (compact) 11.dp else 16.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            if (selectionMode) {
-                Icon(
-                    if (selected) Icons.Default.CheckCircle else Icons.Default.RadioButtonUnchecked,
-                    null, tint = if (selected) accent else TextSecondary, modifier = Modifier.size(22.dp),
-                )
-                Spacer(Modifier.width(12.dp))
+        if (selectionMode) {
+            Icon(
+                if (selected) Icons.Default.CheckCircle else Icons.Default.RadioButtonUnchecked,
+                null, tint = if (selected) accent else TextSecondary, modifier = Modifier.size(22.dp),
+            )
+            Spacer(Modifier.width(12.dp))
+        }
+        // 리딩 — 재화 아이콘(있으면) 또는 게임색 원형 도트(미지원 게임).
+        if (hasCurrencyIcon) {
+            CurrencyIcon(spending.gameName, size = iconSize)
+        } else {
+            Box(
+                Modifier.size(iconSize).clip(CircleShape).background(spending.gameColor.toColor().copy(alpha = 0.16f)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Box(Modifier.size(if (compact) 8.dp else 11.dp).clip(CircleShape).background(spending.gameColor.toColor()))
             }
-            if (hasCurrencyIcon) {
-                CurrencyIcon(spending.gameName, size = if (compact) 22.dp else 30.dp)
-                Spacer(Modifier.width(if (compact) 10.dp else 12.dp))
-            }
-            if (compact) {
-                // 컴팩트: 게임명 · 아이템 한 줄(태그·결제수단·정기뱃지 숨김).
-                val sub = spending.itemName.ifBlank { null }
-                Text(
-                    spending.gameName + (if (sub != null) "  ·  $sub" else ""),
-                    fontSize = 13.sp, fontWeight = FontWeight.Bold,
-                    maxLines = 1, overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f),
-                )
-            } else {
-                Column(Modifier.weight(1f)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(spending.gameName, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                        if (spending.isSubscription) {
-                            Spacer(Modifier.width(6.dp))
-                            GlgBadge("정기", spending.gameColor.toColor())
-                        }
+        }
+        Spacer(Modifier.width(if (compact) 10.dp else 12.dp))
+        if (compact) {
+            // 컴팩트: 게임명 · 아이템 한 줄(태그·결제수단·정기뱃지 숨김).
+            val sub = spending.itemName.ifBlank { null }
+            Text(
+                spending.gameName + (if (sub != null) "  ·  $sub" else ""),
+                fontSize = 13.sp, fontWeight = FontWeight.Bold,
+                maxLines = 1, overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f),
+            )
+        } else {
+            Column(Modifier.weight(1f)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(spending.gameName, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                    if (spending.isSubscription) {
+                        Spacer(Modifier.width(6.dp))
+                        GlgBadge("정기", spending.gameColor.toColor())
                     }
-                    Text(
-                        listOfNotNull(spending.itemName.ifBlank { null }, spending.paymentMethod).joinToString(" · "),
-                        fontSize = 11.sp, color = TextSecondary,
-                    )
-                    if (spending.tags.isNotEmpty()) {
-                        Spacer(Modifier.height(5.dp))
-                        FlowRow(
-                            horizontalArrangement = Arrangement.spacedBy(5.dp),
-                            verticalArrangement = Arrangement.spacedBy(5.dp),
-                        ) {
-                            spending.tags.forEach { tag -> TagChip(tag) }
-                        }
+                }
+                Text(
+                    listOfNotNull(spending.itemName.ifBlank { null }, spending.paymentMethod).joinToString(" · "),
+                    fontSize = 11.sp, color = TextSecondary,
+                )
+                if (spending.tags.isNotEmpty()) {
+                    Spacer(Modifier.height(5.dp))
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(5.dp),
+                        verticalArrangement = Arrangement.spacedBy(5.dp),
+                    ) {
+                        spending.tags.forEach { tag -> TagChip(tag) }
                     }
                 }
             }
-            Spacer(Modifier.width(8.dp))
-            Text(won(spending.amount), fontSize = 14.sp, fontWeight = FontWeight.Bold)
-            if (!selectionMode) {
-                Spacer(Modifier.width(4.dp))
-                // 상세 진입은 행 전체 클릭(.clickable)으로 처리 — iOS 처럼 chevron 인디케이터만 표시.
-                Icon(Icons.Default.ChevronRight, contentDescription = null, tint = TextSecondary, modifier = Modifier.size(18.dp))
-            }
+        }
+        Spacer(Modifier.width(8.dp))
+        Text(won(spending.amount), fontSize = 14.sp, fontWeight = FontWeight.Bold)
+        if (!selectionMode) {
+            Spacer(Modifier.width(4.dp))
+            // 상세 진입은 행 전체 클릭(.clickable)으로 처리 — iOS 처럼 chevron 인디케이터만 표시.
+            Icon(Icons.Default.ChevronRight, contentDescription = null, tint = TextSecondary, modifier = Modifier.size(18.dp))
         }
     }
 }
