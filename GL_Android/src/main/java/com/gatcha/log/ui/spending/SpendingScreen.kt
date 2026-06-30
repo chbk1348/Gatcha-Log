@@ -19,7 +19,6 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ReceiptLong
@@ -55,8 +54,6 @@ import androidx.compose.ui.unit.sp
 import com.gatcha.log.data.DateUtil
 import com.gatcha.log.data.GameData
 import com.gatcha.log.data.Spending
-import com.gatcha.log.ui.components.CurrencyIcon
-import com.gatcha.log.ui.components.GameCurrency
 import com.gatcha.log.ui.components.GlassCard
 import com.gatcha.log.ui.components.GlgButton
 import com.gatcha.log.ui.components.GlgTabHeader
@@ -262,22 +259,25 @@ fun SpendingScreen(
             item { Spacer(Modifier.height(120.dp)) }
         }
     }
-        // 히어로 오버레이 — 헤더(액션+필터) + 월 지출 카드(축소). 흰 배경으로 아래 콘텐츠 가림. 콜랩스 0일 때 높이 측정 → 자리(spacer).
+        // 히어로 오버레이 — 헤더(액션+필터) + 월 지출 카드(축소). iOS 와 동일하게 헤더만 불투명 배경,
+        // 카드는 떠 있고 좌우·하단은 투명 → 리스트가 카드 밑으로 자연스럽게 슬라이드되며 비친다. 콜랩스 0일 때 높이 측정 → 자리(spacer).
         Column(
             Modifier
                 .align(Alignment.TopStart)
                 .fillMaxWidth()
-                .background(Color.White)
-                .padding(horizontal = 16.dp)
                 .onSizeChanged { if (collapse == 0f) heroOverlayPx = it.height },
         ) {
-            GlgTabHeader("") {
-                GlgCircleIconButton(Icons.Default.CalendarMonth, "캘린더", outlined = true) { nav = SpendingScreenNav.Calendar }
-                GlgCircleIconButton(Icons.Default.Insights, "인사이트", outlined = true) { nav = SpendingScreenNav.Insight }
-                GlgCircleIconButton(Icons.Default.Checklist, "선택", outlined = true) { selectionMode = true; selectedIds = emptySet() }
-                GlgCircleIconButton(Icons.Default.Tune, "필터", outlined = true, badgeCount = activeFilterCount) { showFilterSheet.value = true }
+            Box(Modifier.fillMaxWidth().background(Color.White).padding(horizontal = 16.dp)) {
+                GlgTabHeader("") {
+                    GlgCircleIconButton(Icons.Default.CalendarMonth, "캘린더", outlined = true) { nav = SpendingScreenNav.Calendar }
+                    GlgCircleIconButton(Icons.Default.Insights, "인사이트", outlined = true) { nav = SpendingScreenNav.Insight }
+                    GlgCircleIconButton(Icons.Default.Checklist, "선택", outlined = true) { selectionMode = true; selectedIds = emptySet() }
+                    GlgCircleIconButton(Icons.Default.Tune, "필터", outlined = true, badgeCount = activeFilterCount) { showFilterSheet.value = true }
+                }
             }
-            MonthlySummaryCard(viewModel.displayMonth, monthlyTotal, prevMonthTotal, collapse)
+            Box(Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
+                MonthlySummaryCard(viewModel.displayMonth, monthlyTotal, prevMonthTotal, collapse)
+            }
         }
         AnimatedVisibility(
             visible = selectionMode,
@@ -436,8 +436,7 @@ private fun SpendingDayCard(
 @Composable
 private fun SpendingRow(spending: Spending, selectionMode: Boolean, selected: Boolean, compact: Boolean, onClick: () -> Unit) {
     val accent = LocalAccent.current
-    val hasCurrencyIcon = GameCurrency.forGame(spending.gameName)?.iconUrl != null
-    val iconSize = if (compact) 22.dp else 30.dp
+    val iconSize = if (compact) 30.dp else 40.dp
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -452,16 +451,13 @@ private fun SpendingRow(spending: Spending, selectionMode: Boolean, selected: Bo
             )
             Spacer(Modifier.width(12.dp))
         }
-        // 리딩 — 재화 아이콘(있으면) 또는 게임색 원형 도트(미지원 게임).
-        if (hasCurrencyIcon) {
-            CurrencyIcon(spending.gameName, size = iconSize)
-        } else {
-            Box(
-                Modifier.size(iconSize).clip(CircleShape).background(spending.gameColor.toColor().copy(alpha = 0.16f)),
-                contentAlignment = Alignment.Center,
-            ) {
-                Box(Modifier.size(if (compact) 8.dp else 11.dp).clip(CircleShape).background(spending.gameColor.toColor()))
-            }
+        // 리딩 — 게임색 약칭 배지(iOS SpendingRow 와 통일: 라운드 사각 + 게임색 14% 배경 + 약칭).
+        val abbr = GameData.byNameOrNull(spending.gameName)?.abbr ?: spending.gameName.take(2)
+        Box(
+            Modifier.size(iconSize).clip(RoundedCornerShape(if (compact) 9.dp else 12.dp)).background(spending.gameColor.toColor().copy(alpha = 0.14f)),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(abbr, fontSize = if (compact) 11.sp else 13.sp, fontWeight = FontWeight.Black, color = spending.gameColor.toColor())
         }
         Spacer(Modifier.width(if (compact) 10.dp else 12.dp))
         if (compact) {

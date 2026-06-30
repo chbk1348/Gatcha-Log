@@ -1,7 +1,9 @@
 package com.gatcha.log.ui.spending
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -25,7 +27,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.gatcha.log.data.Spending
-import com.gatcha.log.ui.components.CurrencyIcon
 import com.gatcha.log.ui.components.GlgBadge
 import com.gatcha.log.ui.components.GameCurrency
 import com.gatcha.log.ui.components.GlassCard
@@ -76,7 +77,13 @@ fun SpendingDetailScreen(
             GlassCard(shape = RoundedCornerShape(24.dp), modifier = Modifier.fillMaxWidth()) {
                 Column(Modifier.fillMaxWidth().padding(20.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        CurrencyIcon(spending.gameName, size = 44.dp)
+                        // 게임색 솔리드 원 + 흰색 통화 기호 (iOS SpendingDetailView 와 통일).
+                        Box(
+                            Modifier.size(44.dp).clip(CircleShape).background(spending.gameColor.toColor()),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Text("₩", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                        }
                         Spacer(Modifier.width(12.dp))
                         Column(Modifier.weight(1f)) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
