@@ -40,15 +40,18 @@ struct DailyHeroSection: View {
                         }
                     }
                 }
-                // 게임별 카드: 실시간 노트 + 출석 (게임당 한 장)
-                ForEach(Array(attendanceGames.enumerated()), id: \.offset) { _, game in
-                    GLGCard(cornerRadius: 20, padding: 16) {
-                        DailyGameRow(game: game,
-                                     note: store.liveNotes.first { GameData.shared.byNameOrNull(name: $0.game)?.key == game.key },
-                                     uid: uid(for: game.key),
-                                     checked: store.attendanceToday.contains(game.key),
-                                     inProgress: store.checkingIn == game.key) {
-                            store.attemptCheckIn(game.key)
+                // 게임별 통합 카드: 3개 게임(실시간 노트 + 출석)을 한 카드에 구분선으로 묶음
+                GLGCard(cornerRadius: 20, padding: 16) {
+                    VStack(spacing: 0) {
+                        ForEach(Array(attendanceGames.enumerated()), id: \.offset) { idx, game in
+                            if idx > 0 { Divider() }
+                            DailyGameRow(game: game,
+                                         note: store.liveNotes.first { GameData.shared.byNameOrNull(name: $0.game)?.key == game.key },
+                                         uid: uid(for: game.key),
+                                         checked: store.attendanceToday.contains(game.key),
+                                         inProgress: store.checkingIn == game.key) {
+                                store.attemptCheckIn(game.key)
+                            }
                         }
                     }
                 }

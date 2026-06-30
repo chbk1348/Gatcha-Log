@@ -10,9 +10,6 @@ import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -32,6 +29,7 @@ import com.gatcha.log.ui.components.CurrencyIcon
 import com.gatcha.log.ui.components.GlgBadge
 import com.gatcha.log.ui.components.GameCurrency
 import com.gatcha.log.ui.components.GlassCard
+import com.gatcha.log.ui.components.GlgCircleIconButton
 import com.gatcha.log.ui.components.GlgDialog
 import com.gatcha.log.ui.components.GlgScreenHeader
 import com.gatcha.log.ui.theme.DividerColor
@@ -54,11 +52,10 @@ fun SpendingDetailScreen(
     Column(Modifier.fillMaxSize()) {
         GlgScreenHeader("지출 상세", onBack, Modifier.padding(horizontal = 16.dp)) {
             // 수정·삭제를 헤더 우측 ⋮ 드롭다운 메뉴로 통합(Android). iOS 는 기존 액션 유지.
+            // 버튼은 다른 헤더 액션과 동일한 아웃라인 원형(GlgCircleIconButton)로 통일.
             var menuOpen by remember { mutableStateOf(false) }
             Box {
-                IconButton(onClick = { menuOpen = true }) {
-                    Icon(Icons.Default.MoreVert, contentDescription = "더보기", tint = TextSecondary)
-                }
+                GlgCircleIconButton(Icons.Default.MoreVert, "더보기", outlined = true) { menuOpen = true }
                 DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
                     DropdownMenuItem(
                         text = { Text("수정", color = LocalAccent.current, fontWeight = FontWeight.SemiBold) },

@@ -6,11 +6,14 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ReceiptLong
 import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -22,12 +25,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.gatcha.log.data.DateUtil
-import com.gatcha.log.data.Game
 import com.gatcha.log.data.GachaBanner
 import com.gatcha.log.data.GameData
 import com.gatcha.log.data.Spending
@@ -43,7 +48,8 @@ import com.gatcha.log.util.won
 import java.util.Calendar
 
 /**
- * N3 통합 캘린더 — 월 달력 한 화면에 일별 지출 합계·출석 체크·픽업 배너 시작/종료를 합성.
+ * 통합 캘린더 — **타임라인 형식**. 선택한 달에서 활동(지출·출석·픽업 배너 시작/종료)이 있는 날만
+ * 세로 타임라인 노드로 모아, 일별 지출 내역·출석·배너 이벤트를 한눈에. (월 그리드 → 타임라인 대개편)
  * 지출(Spending)·출석(attendanceHistory)·활성 배너(activeBanners)를 모두 "yyyy-MM-dd" 키로 매칭한다.
  */
 @Composable
@@ -62,11 +68,13 @@ fun CalendarScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
         year = c.get(Calendar.YEAR); month = c.get(Calendar.MONTH) + 1
     }
 
-    // 이번 달 일자 집계 — day(1..N) → 값. 모두 "yyyy-MM-dd" 키 기준.
-    val data = remember(spendings, attendance, banners, year, month) {
-        buildMonthData(spendings, attendance, banners, year, month)
-    }
     val todayKey = remember { DateUtil.dayKey(System.currentTimeMillis()) }
+    // 활동이 있는 날만, 최신순(말일→1일) 타임라인 노드로.
+    val days = remember(spendings, attendance, banners, year, month) {
+        buildTimeline(spendings, attendance, banners, year, month, todayKey)
+    }
+    val monthTotal = remember(days) { days.sumOf { it.spendTotal } }
+    val attendedDays = remember(days) { days.count { it.attended.isNotEmpty() } }
 
     LazyColumn(
         modifier = Modifier.fillMaxSize().navigationBarsPadding().padding(horizontal = 16.dp),
@@ -88,54 +96,115 @@ fun CalendarScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
         item {
             // 월 요약(총 지출·출석일수)
             Row(
-                modifier = Modifier.fillMaxWidth().padding(bottom = 10.dp),
+                modifier = Modifier.fillMaxWidth().padding(top = 4.dp, bottom = 14.dp),
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                SummaryPill("총 지출", won(data.monthSpendTotal), accent, Modifier.weight(1f))
-                SummaryPill("출석", "${data.attendedDayCount}일", accent, Modifier.weight(1f))
+                SummaryPill("총 지출", won(monthTotal), accent, Modifier.weight(1f))
+                SummaryPill("출석", "${attendedDays}일", accent, Modifier.weight(1f))
             }
         }
-        item {
-            GlassCard(shape = RoundedCornerShape(24.dp), modifier = Modifier.fillMaxWidth()) {
-                Column(Modifier.padding(12.dp)) {
-                    WeekdayHeader()
-                    Spacer(Modifier.height(4.dp))
-                    CalendarGrid(year, month, data, todayKey, accent)
-                }
+        if (days.isEmpty()) {
+            item { EmptyTimeline() }
+        } else {
+            itemsIndexed(days, key = { _, d -> d.day }) { idx, d ->
+                TimelineDayItem(
+                    day = d,
+                    isFirst = idx == 0,
+                    isLast = idx == days.lastIndex,
+                    accent = accent,
+                )
             }
         }
-        item { Spacer(Modifier.height(14.dp)); CalendarLegend(accent) }
     }
 }
 
-/** 달력 격자 — 첫 주 빈칸 + 1..말일. 한 줄(7칸)씩 Row 로 렌더. */
+/** 타임라인 한 노드 — 왼쪽 날짜/레일(점·선) + 오른쪽 그날 활동 카드. */
 @Composable
-private fun CalendarGrid(year: Int, month: Int, data: MonthData, todayKey: String, accent: Color) {
-    val cal = Calendar.getInstance().apply { set(year, month - 1, 1) }
-    val firstWeekday = cal.get(Calendar.DAY_OF_WEEK) - 1 // 0=일 .. 6=토
-    val daysInMonth = cal.getActualMaximum(Calendar.DAY_OF_MONTH)
-    // 앞쪽 빈칸 + 날짜를 7칸 단위로 끊어 주(週) 리스트로.
-    val cells = buildList {
-        repeat(firstWeekday) { add(0) }
-        for (d in 1..daysInMonth) add(d)
+private fun TimelineDayItem(day: TimelineDay, isFirst: Boolean, isLast: Boolean, accent: Color) {
+    val weekdayKo = arrayOf("일", "월", "화", "수", "목", "금", "토")[day.weekdayIndex]
+    val dateColor = when {
+        day.isToday -> accent
+        day.weekdayIndex == 0 -> DangerText
+        else -> TextPrimary
     }
-    cells.chunked(7).forEach { week ->
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-            for (i in 0 until 7) {
-                val day = week.getOrElse(i) { 0 }
-                Box(Modifier.weight(1f)) {
-                    if (day > 0) {
-                        val key = "%04d-%02d-%02d".format(year, month, day)
-                        DayCell(
-                            day = day,
-                            weekdayIndex = i,
-                            isToday = key == todayKey,
-                            spend = data.spendByDay[day] ?: 0L,
-                            attended = data.attendByDay[day].orEmpty(),
-                            bannerStart = data.bannerStartByDay[day].orEmpty(),
-                            bannerEnd = data.bannerEndByDay[day].orEmpty(),
-                            accent = accent,
-                        )
+    Row(modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
+        // 날짜
+        Column(
+            modifier = Modifier.width(34.dp).padding(top = 2.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Text("${day.day}", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = dateColor)
+            Text(weekdayKo, fontSize = 10.sp, color = if (day.isToday) accent else TextSecondary)
+        }
+        Spacer(Modifier.width(8.dp))
+        // 레일 — 점(노드) + 연결선. 선은 점 위/아래로 이어 연속.
+        Box(
+            modifier = Modifier
+                .width(16.dp)
+                .fillMaxHeight()
+                .drawBehind {
+                    val cx = size.width / 2
+                    val dotY = 10.dp.toPx()
+                    drawLine(
+                        color = DividerColor,
+                        start = Offset(cx, if (isFirst) dotY else 0f),
+                        end = Offset(cx, if (isLast) dotY else size.height),
+                        strokeWidth = 2.dp.toPx(),
+                    )
+                },
+            contentAlignment = Alignment.TopCenter,
+        ) {
+            Box(
+                Modifier
+                    .padding(top = 4.dp)
+                    .size(12.dp)
+                    .clip(CircleShape)
+                    .background(if (day.isToday) accent else Color.White)
+                    .drawBehind {
+                        // 강조 링(오늘=채움, 그 외=흰 채움+테두리)
+                        drawCircle(color = accent, radius = size.minDimension / 2, style = androidx.compose.ui.graphics.drawscope.Stroke(width = 2.dp.toPx()))
+                    },
+            )
+        }
+        Spacer(Modifier.width(10.dp))
+        // 활동 카드
+        Column(Modifier.weight(1f).padding(bottom = 14.dp)) {
+            GlassCard(shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth()) {
+                Column(Modifier.fillMaxWidth().padding(14.dp)) {
+                    var needsGap = false
+                    // 지출
+                    if (day.spendings.isNotEmpty()) {
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                            Text("지출 ${day.spendings.size}건", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextSecondary)
+                            Text(won(day.spendTotal), fontSize = 15.sp, fontWeight = FontWeight.Bold, color = accent)
+                        }
+                        Spacer(Modifier.height(8.dp))
+                        day.spendings.forEachIndexed { i, sp ->
+                            if (i > 0) Spacer(Modifier.height(6.dp))
+                            SpendLine(sp)
+                        }
+                        needsGap = true
+                    }
+                    // 출석
+                    if (day.attended.isNotEmpty()) {
+                        if (needsGap) { Spacer(Modifier.height(10.dp)); HorizontalDivider(color = DividerColor); Spacer(Modifier.height(10.dp)) }
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+                                day.attended.take(5).forEach { gk ->
+                                    val c = GameData.games.firstOrNull { it.key == gk }?.color?.toColor() ?: TextSecondary
+                                    Box(Modifier.size(7.dp).clip(CircleShape).background(c))
+                                }
+                            }
+                            Spacer(Modifier.width(8.dp))
+                            Text("출석 ${day.attended.size}개", fontSize = 12.sp, color = TextSecondary, fontWeight = FontWeight.Medium)
+                        }
+                        needsGap = true
+                    }
+                    // 배너 시작/종료
+                    if (day.bannerStart.isNotEmpty() || day.bannerEnd.isNotEmpty()) {
+                        if (needsGap) { Spacer(Modifier.height(10.dp)); HorizontalDivider(color = DividerColor); Spacer(Modifier.height(10.dp)) }
+                        day.bannerStart.forEach { BannerLine("▲", "${it.name} 픽업 시작", it.gameColor.toColor()) }
+                        day.bannerEnd.forEach { BannerLine("▼", "${it.name} 픽업 종료", it.gameColor.toColor()) }
                     }
                 }
             }
@@ -143,77 +212,30 @@ private fun CalendarGrid(year: Int, month: Int, data: MonthData, todayKey: Strin
     }
 }
 
+/** 지출 한 줄 — 게임색 점 + 게임·아이템 + 금액 (first-end). */
 @Composable
-private fun DayCell(
-    day: Int,
-    weekdayIndex: Int,
-    isToday: Boolean,
-    spend: Long,
-    attended: Set<String>,
-    bannerStart: List<GachaBanner>,
-    bannerEnd: List<GachaBanner>,
-    accent: Color,
-) {
-    val dayColor = when {
-        isToday -> Color.White
-        weekdayIndex == 0 -> DangerText        // 일요일
-        else -> TextPrimary
-    }
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .heightIn(min = 56.dp)
-            .clip(RoundedCornerShape(8.dp))
-            .background(if (spend > 0) accent.copy(alpha = 0.07f) else Color.Transparent)
-            .padding(vertical = 4.dp, horizontal = 2.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        // 배너 시작(▲)·종료(▼) 마커 — 게임색
-        if (bannerStart.isNotEmpty() || bannerEnd.isNotEmpty()) {
-            Row(horizontalArrangement = Arrangement.spacedBy(1.dp)) {
-                bannerStart.take(2).forEach { Text("▲", fontSize = 7.sp, color = it.gameColor.toColor()) }
-                bannerEnd.take(2).forEach { Text("▼", fontSize = 7.sp, color = it.gameColor.toColor()) }
-            }
-        } else {
-            Spacer(Modifier.height(9.dp))
-        }
-        // 날짜 숫자 (오늘이면 강조색 원 배경)
-        Box(
-            modifier = Modifier.size(20.dp).clip(CircleShape).background(if (isToday) accent else Color.Transparent),
-            contentAlignment = Alignment.Center,
-        ) {
-            Text("$day", fontSize = 12.sp, fontWeight = if (isToday) FontWeight.Bold else FontWeight.Medium, color = dayColor)
-        }
-        // 출석 게임 색 점 (최대 4)
-        if (attended.isNotEmpty()) {
-            Row(horizontalArrangement = Arrangement.spacedBy(2.dp), modifier = Modifier.padding(top = 2.dp)) {
-                attended.take(4).forEach { gk ->
-                    val c = GameData.games.firstOrNull { it.key == gk }?.color?.toColor() ?: TextSecondary
-                    Box(Modifier.size(4.dp).clip(CircleShape).background(c))
-                }
-            }
-        }
-        // 지출 합계 (컴팩트)
-        if (spend > 0) {
-            Text(compactAmount(spend), fontSize = 8.sp, color = accent, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 1.dp))
-        }
+private fun SpendLine(sp: Spending) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Box(Modifier.size(8.dp).clip(CircleShape).background(sp.gameColor.toColor()))
+        Spacer(Modifier.width(8.dp))
+        Text(
+            listOfNotNull(sp.gameName, sp.itemName.ifBlank { null }).joinToString(" · "),
+            fontSize = 13.sp, fontWeight = FontWeight.Medium,
+            maxLines = 1, overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f),
+        )
+        Spacer(Modifier.width(8.dp))
+        Text(won(sp.amount), fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
     }
 }
 
+/** 배너 시작/종료 한 줄 — ▲/▼ 마커(게임색) + 문구. */
 @Composable
-private fun WeekdayHeader() {
-    val labels = listOf("일", "월", "화", "수", "목", "금", "토")
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-        labels.forEachIndexed { i, l ->
-            Text(
-                l,
-                modifier = Modifier.weight(1f),
-                fontSize = 11.sp,
-                fontWeight = FontWeight.Bold,
-                color = if (i == 0) DangerText else TextSecondary,
-                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-            )
-        }
+private fun BannerLine(marker: String, text: String, color: Color) {
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 1.dp)) {
+        Text(marker, fontSize = 10.sp, color = color, fontWeight = FontWeight.Bold)
+        Spacer(Modifier.width(6.dp))
+        Text(text, fontSize = 12.sp, color = TextSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
 
@@ -239,33 +261,29 @@ private fun SummaryPill(label: String, value: String, accent: Color, modifier: M
 }
 
 @Composable
-private fun CalendarLegend(accent: Color) {
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp),
-        horizontalArrangement = Arrangement.spacedBy(14.dp),
-        verticalAlignment = Alignment.CenterVertically,
+private fun EmptyTimeline() {
+    Column(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 56.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        LegendItem { Box(Modifier.size(10.dp).clip(RoundedCornerShape(3.dp)).background(accent.copy(alpha = 0.18f))); Text(" 지출", fontSize = 11.sp, color = TextSecondary) }
-        LegendItem { Box(Modifier.size(6.dp).clip(CircleShape).background(Game.GENSHIN.color.toColor())); Text(" 출석", fontSize = 11.sp, color = TextSecondary) }
-        LegendItem { Text("▲", fontSize = 9.sp, color = accent); Text(" 배너 시작", fontSize = 11.sp, color = TextSecondary) }
-        LegendItem { Text("▼", fontSize = 9.sp, color = accent); Text(" 종료", fontSize = 11.sp, color = TextSecondary) }
+        Icon(Icons.AutoMirrored.Filled.ReceiptLong, null, tint = Color.LightGray, modifier = Modifier.size(44.dp))
+        Spacer(Modifier.height(12.dp))
+        Text("이번 달 활동이 없어요", color = TextSecondary, fontSize = 14.sp)
+        Text("지출·출석·픽업 일정이 이 타임라인에 모여요", color = Color.LightGray, fontSize = 12.sp)
     }
-}
-
-@Composable
-private fun LegendItem(content: @Composable () -> Unit) {
-    Row(verticalAlignment = Alignment.CenterVertically) { content() }
 }
 
 // ----------------------------------------------------------------- 집계 모델
 
-private data class MonthData(
-    val spendByDay: Map<Int, Long>,
-    val attendByDay: Map<Int, Set<String>>,
-    val bannerStartByDay: Map<Int, List<GachaBanner>>,
-    val bannerEndByDay: Map<Int, List<GachaBanner>>,
-    val monthSpendTotal: Long,
-    val attendedDayCount: Int,
+private data class TimelineDay(
+    val day: Int,
+    val weekdayIndex: Int,
+    val isToday: Boolean,
+    val spendings: List<Spending>,
+    val spendTotal: Long,
+    val attended: Set<String>,
+    val bannerStart: List<GachaBanner>,
+    val bannerEnd: List<GachaBanner>,
 )
 
 /** day-of-month (1..31) 추출 — millis 가 [year]/[month] 에 속하면 일자, 아니면 null. */
@@ -275,19 +293,20 @@ private fun dayInMonth(millis: Long, year: Int, month: Int): Int? {
     return Calendar.getInstance().apply { timeInMillis = millis }.get(Calendar.DAY_OF_MONTH)
 }
 
-private fun buildMonthData(
+/** 활동(지출·출석·배너)이 있는 날만 모아 최신순(말일→1일) 타임라인 노드 리스트로. */
+private fun buildTimeline(
     spendings: List<Spending>,
     attendance: Map<String, Set<String>>,
     banners: List<GachaBanner>,
     year: Int,
     month: Int,
-): MonthData {
-    val prefix = "%04d-%02d".format(year, month) // "2026-05"
-    val spendByDay = HashMap<Int, Long>()
+    todayKey: String,
+): List<TimelineDay> {
+    val prefix = "%04d-%02d".format(year, month)
+    val spendByDay = HashMap<Int, MutableList<Spending>>()
     spendings.forEach { s ->
-        dayInMonth(s.dateMillis, year, month)?.let { d -> spendByDay[d] = (spendByDay[d] ?: 0L) + s.amount }
+        dayInMonth(s.dateMillis, year, month)?.let { d -> spendByDay.getOrPut(d) { mutableListOf() }.add(s) }
     }
-    // 출석 키는 "yyyy-MM-dd" → 이번 달 것만 골라 일자 추출.
     val attendByDay = HashMap<Int, Set<String>>()
     attendance.forEach { (key, games) ->
         if (key.startsWith(prefix) && games.isNotEmpty()) {
@@ -300,23 +319,22 @@ private fun buildMonthData(
         dayInMonth(b.startMillis, year, month)?.let { d -> bannerStartByDay.getOrPut(d) { mutableListOf() }.add(b) }
         dayInMonth(b.endMillis, year, month)?.let { d -> bannerEndByDay.getOrPut(d) { mutableListOf() }.add(b) }
     }
-    return MonthData(
-        spendByDay = spendByDay,
-        attendByDay = attendByDay,
-        bannerStartByDay = bannerStartByDay,
-        bannerEndByDay = bannerEndByDay,
-        monthSpendTotal = spendByDay.values.sum(),
-        attendedDayCount = attendByDay.size,
-    )
-}
 
-/** 칸에 들어갈 컴팩트 금액 — "1.2만", "3천", "500". */
-private fun compactAmount(v: Long): String = when {
-    v >= 10_000 -> {
-        val man = v / 10_000
-        val rem = (v % 10_000) / 1_000
-        if (rem == 0L) "${man}만" else "$man.${rem}만"
+    val activeDays = (spendByDay.keys + attendByDay.keys + bannerStartByDay.keys + bannerEndByDay.keys).toSortedSet()
+    val cal = Calendar.getInstance()
+    return activeDays.sortedDescending().map { d ->
+        cal.set(year, month - 1, d)
+        val weekdayIndex = cal.get(Calendar.DAY_OF_WEEK) - 1
+        val daySpendings = (spendByDay[d] ?: emptyList()).sortedByDescending { it.amount }
+        TimelineDay(
+            day = d,
+            weekdayIndex = weekdayIndex,
+            isToday = "%04d-%02d-%02d".format(year, month, d) == todayKey,
+            spendings = daySpendings,
+            spendTotal = daySpendings.sumOf { it.amount },
+            attended = attendByDay[d].orEmpty(),
+            bannerStart = bannerStartByDay[d].orEmpty(),
+            bannerEnd = bannerEndByDay[d].orEmpty(),
+        )
     }
-    v >= 1_000 -> "${v / 1_000}천"
-    else -> "$v"
 }
