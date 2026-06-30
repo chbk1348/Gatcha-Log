@@ -167,17 +167,18 @@ internal fun DailyHeroSection(
                 }
             }
         }
-        // 게임별 카드: 실시간 노트 + 출석 (게임당 한 장)
-        GameData.attendanceGames.forEach { game ->
-            val note = notes.firstOrNull { GameData.byNameOrNull(it.game)?.key == game.key }
-            val uid = when (game.key) {
-                "genshin" -> hoyolab.genshinUid
-                "hsr" -> hoyolab.hsrUid
-                "zzz" -> hoyolab.zzzUid
-                else -> ""
-            }
-            GlassCard(shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth()) {
-                Column(Modifier.padding(horizontal = 16.dp, vertical = 6.dp)) {
+        // 게임별 통합 카드: 3개 게임(실시간 노트 + 출석)을 한 카드에 구분선으로 묶음
+        GlassCard(shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(horizontal = 16.dp)) {
+                GameData.attendanceGames.forEachIndexed { idx, game ->
+                    val note = notes.firstOrNull { GameData.byNameOrNull(it.game)?.key == game.key }
+                    val uid = when (game.key) {
+                        "genshin" -> hoyolab.genshinUid
+                        "hsr" -> hoyolab.hsrUid
+                        "zzz" -> hoyolab.zzzUid
+                        else -> ""
+                    }
+                    if (idx > 0) HorizontalDivider(color = DividerColor)
                     DailyGameRow(game, note, uid, game.key in attendanceToday, checkingIn == game.key) { onCheckIn(game.key) }
                 }
             }
