@@ -40,6 +40,8 @@ import com.gatcha.log.data.api.EnkaChar
 import com.gatcha.log.data.api.EnkaSet
 import com.gatcha.log.data.api.EnkaStatLine
 import com.gatcha.log.data.api.EnkaWeapon
+import com.gatcha.log.data.api.KeyStatRules
+import com.gatcha.log.data.api.StatTok
 import com.gatcha.log.ui.components.GlassCard
 import com.gatcha.log.ui.components.RosterSkeleton
 import com.gatcha.log.ui.theme.LocalAccent
@@ -359,6 +361,8 @@ private fun rankLabelFor(c: EnkaChar, game: String): String? = when (game) {
 fun EnkaStatPage(c: EnkaChar, game: String, onBack: () -> Unit) {
     BackHandler { onBack() }
     val accent = LocalAccent.current
+    // 캐릭별 주요 스탯 집합(속성/운명의길/직업/예외맵 기반). 강조 시 치명과 함께 대조.
+    val keySet = remember(c.id, game) { KeyStatRules.keyStats(game, c.element, c.path, c.specialty, c.id) }
     val wepLabel = if (game == "genshin") "무기" else if (game == "zzz") "W-엔진" else "광추"
     val artLabel = if (game == "genshin") "성유물" else if (game == "zzz") "드라이브 디스크" else "유물"
     Column(
@@ -415,7 +419,7 @@ fun EnkaStatPage(c: EnkaChar, game: String, onBack: () -> Unit) {
             Column(Modifier.padding(4.dp)) {
                 c.stats.chunked(2).forEach { row ->
                     Row(Modifier.fillMaxWidth()) {
-                        row.forEach { s -> Box(Modifier.weight(1f)) { StatCell(s) } }
+                        row.forEach { s -> Box(Modifier.weight(1f)) { StatCell(s, keySet) } }
                         if (row.size == 1) Spacer(Modifier.weight(1f))
                     }
                 }
@@ -429,7 +433,7 @@ fun EnkaStatPage(c: EnkaChar, game: String, onBack: () -> Unit) {
             EmptyEquipNote(if (game == "genshin") "성유물이 장착되지 않았습니다." else if (game == "zzz") "드라이브 디스크가 장착되지 않았습니다." else "유물이 장착되지 않았습니다.")
         } else {
             c.artifacts.forEachIndexed { i, a ->
-                ArtifactCard(a, accent)
+                ArtifactCard(a, accent, keySet)
                 if (i < c.artifacts.lastIndex) Spacer(Modifier.height(10.dp))
             }
         }
@@ -670,16 +674,20 @@ private fun StatInline(s: EnkaStatLine) {
     }
 }
 
+/** 캐릭별 주요 스탯이면(치명 포함) 강조색, 아니면 기본색. */
+private fun keyOr(keySet: Set<StatTok>, s: EnkaStatLine, default: Color): Color =
+    if (s.crit || KeyStatRules.isKey(keySet, s.label)) CritColor else default
+
 @Composable
-private fun StatCell(s: EnkaStatLine) {
+private fun StatCell(s: EnkaStatLine, keySet: Set<StatTok>) {
     Row(Modifier.fillMaxWidth().padding(horizontal = 11.dp, vertical = 9.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
         Text(s.label, fontSize = 11.5.sp, color = TextSecondary, maxLines = 1)
-        Text(s.value, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = if (s.crit) CritColor else TextPrimary, maxLines = 1)
+        Text(s.value, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = keyOr(keySet, s, TextPrimary), maxLines = 1)
     }
 }
 
 @Composable
-private fun ArtifactCard(a: EnkaArtifact, accent: Color) {
+private fun ArtifactCard(a: EnkaArtifact, accent: Color, keySet: Set<StatTok>) {
     GlassCard(modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(13.dp)) {
             Row(verticalAlignment = Alignment.Top) {
@@ -699,7 +707,7 @@ private fun ArtifactCard(a: EnkaArtifact, accent: Color) {
                 Spacer(Modifier.width(9.dp))
                 Column(Modifier.weight(1f)) {
                     Text(a.main.label, fontSize = 10.5.sp, color = TextSecondary, maxLines = 1)
-                    Text(a.main.value, fontSize = 16.sp, fontWeight = FontWeight.Black, color = if (a.main.crit) CritColor else accent, maxLines = 1)
+                    Text(a.main.value, fontSize = 16.sp, fontWeight = FontWeight.Black, color = keyOr(keySet, a.main, accent), maxLines = 1)
                     if (a.setName.isNotBlank()) {
                         Text(a.setName, fontSize = 9.5.sp, color = TextSecondary, maxLines = 1)
                     }
@@ -735,7 +743,7 @@ private fun ArtifactCard(a: EnkaArtifact, accent: Color) {
                                     verticalAlignment = Alignment.CenterVertically,
                                 ) {
                                     Text(s.label, fontSize = 11.sp, color = TextSecondary, maxLines = 1)
-                                    Text(s.value, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = if (s.crit) CritColor else TextPrimary, maxLines = 1)
+                                    Text(s.value, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = keyOr(keySet, s, TextPrimary), maxLines = 1)
                                 }
                             }
                             if (row.size == 1) Spacer(Modifier.weight(1f))
