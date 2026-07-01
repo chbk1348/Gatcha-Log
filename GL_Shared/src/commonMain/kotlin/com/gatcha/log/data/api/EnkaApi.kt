@@ -16,6 +16,8 @@ data class EnkaChar(
     val element: String = "",
     /** 스타레일 운명의 길(파멸·수렵 등). 다른 게임은 빈 문자열. */
     val path: String = "",
+    /** 젠레스 직업(강공·격파·이상·지원·방어). 다른 게임은 빈 문자열. 주요 스탯 강조에 사용. */
+    val specialty: String = "",
     /** 캐릭터 상세 공개 시에만 채워짐(풀 스탯시트). 비공개면 false → 로스터만 표시. */
     val detailed: Boolean = false,
     val stats: List<EnkaStatLine> = emptyList(),
@@ -857,6 +859,16 @@ object EnkaApi {
         else -> ""
     }
 
+    /** ZZZ avatar_profession(int) → KR 직업. (1 강공·2 격파·3 이상·4 지원·5 방어) 미상=빈 문자열. */
+    private fun zzzSpecialtyKo(t: Int): String = when (t) {
+        1 -> "강공"
+        2 -> "격파"
+        3 -> "이상"
+        4 -> "지원"
+        5 -> "방어"
+        else -> ""
+    }
+
     /** ZZZ 스탯명 영문→KR(응답이 계정 언어라 영문일 수 있음). property_map 부재 보완. 미매칭은 원문 유지. */
     private fun zzzKrStat(en: String): String = when (en.trim()) {
         "HP" -> "HP"
@@ -890,6 +902,7 @@ object EnkaApi {
             rarity = if (o.optString("rarity") == "S") 5 else 4, // S→5★ / A→4★ (색·필터 호환)
             iconUrl = o.optString("role_square_url").ifBlank { o.optString("group_icon_path") }.takeIf { it.startsWith("http") },
             element = zzzElementKo(o.optInt("element_type")),
+            specialty = zzzSpecialtyKo(o.optInt("avatar_profession").takeIf { it != 0 } ?: o.optInt("profession")),
             detailed = true,
             stats = zzzStats(o.optJSONArray("properties")),
             weapon = zzzWeapon(o.optJSONObject("weapon")),

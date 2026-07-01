@@ -524,13 +524,20 @@ struct EnkaStatPage: View {
         }
     }
 
+    // 캐릭별 주요 스탯이면(치명 포함) 강조. 룰은 속성/운명의길/직업/예외맵 기반(commonMain).
+    private func isKeyStat(_ s: EnkaStatLine) -> Bool {
+        if s.crit { return true }
+        let ks = KeyStatRules.shared.keyStats(gameKey: game, element: char.element, path: char.path, specialty: char.specialty, charId: char.id)
+        return KeyStatRules.shared.isKey(keySet: ks, label: s.label)
+    }
+
     private var statGrid: some View {
         LazyVGrid(columns: g2, spacing: 0) {
             ForEach(Array(char.stats.enumerated()), id: \.offset) { _, s in
                 HStack {
                     Text(s.label).font(.pretendard(size: 11.5)).foregroundStyle(GLGColor.textSecondary).lineLimit(1)
                     Spacer()
-                    Text(s.value).font(.pretendard(size: 13, weight: .bold)).foregroundStyle(s.crit ? enkaCrit : GLGColor.textPrimary).lineLimit(1)
+                    Text(s.value).font(.pretendard(size: 13, weight: .bold)).foregroundStyle(isKeyStat(s) ? enkaCrit : GLGColor.textPrimary).lineLimit(1)
                 }.padding(.horizontal, 11).padding(.vertical, 9)
             }
         }
@@ -550,7 +557,7 @@ struct EnkaStatPage: View {
                     .padding(.horizontal, 8).padding(.vertical, 5).background(Color(hex: 0xFFF1F1F6), in: RoundedRectangle(cornerRadius: 8))
                 VStack(alignment: .leading, spacing: 2) {
                     Text(a.main.label).font(.pretendard(size: 10.5)).foregroundStyle(GLGColor.textSecondary).lineLimit(1)
-                    Text(a.main.value).font(.pretendard(size: 16, weight: .heavy)).foregroundStyle(a.main.crit ? enkaCrit : accent.primary).lineLimit(1)
+                    Text(a.main.value).font(.pretendard(size: 16, weight: .heavy)).foregroundStyle(isKeyStat(a.main) ? enkaCrit : accent.primary).lineLimit(1)
                     if !a.setName.isEmpty {
                         Text(a.setName).font(.pretendard(size: 9.5)).foregroundStyle(GLGColor.textSecondary).lineLimit(1)
                     }
@@ -568,7 +575,7 @@ struct EnkaStatPage: View {
                             HStack(spacing: 6) {
                                 Text(s.label).font(.pretendard(size: 11)).foregroundStyle(GLGColor.textSecondary).lineLimit(1)
                                 Spacer(minLength: 4)
-                                Text(s.value).font(.pretendard(size: 12, weight: .bold)).foregroundStyle(s.crit ? enkaCrit : GLGColor.textPrimary).lineLimit(1)
+                                Text(s.value).font(.pretendard(size: 12, weight: .bold)).foregroundStyle(isKeyStat(s) ? enkaCrit : GLGColor.textPrimary).lineLimit(1)
                             }
                         }
                     }
