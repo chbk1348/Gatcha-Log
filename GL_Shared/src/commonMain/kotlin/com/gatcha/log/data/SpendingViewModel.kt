@@ -699,8 +699,12 @@ class SpendingViewModel : ViewModel() {
             _enkaLoading.value = true
             val cfg = _hoyolabConfig.value
             val r = withContext(Dispatchers.IO) { EnkaApi.fetchProfile(game, u, cfg.ltuid, cfg.ltoken) }
-            if (r.profile != null) { enkaCache["$game:$u"] = currentTimeMillis() to r; repo.saveEnkaCache(enkaCache) }
-            _enkaResult.value = r
+            val cached = enkaCache["$game:$u"]
+            when {
+                r.profile != null -> { enkaCache["$game:$u"] = currentTimeMillis() to r; repo.saveEnkaCache(enkaCache); _enkaResult.value = r }
+                cached != null -> _enkaResult.value = cached.second   // 실패(토큰만료 등) 시 마지막 정상 로스터 유지 — stale-while-revalidate
+                else -> _enkaResult.value = r                          // 표시할 캐시 없을 때만 에러 표시
+            }
             _enkaLoading.value = false
         }
     }
@@ -738,8 +742,11 @@ class SpendingViewModel : ViewModel() {
             _enkaLoading.value = true
             val cfg = _hoyolabConfig.value
             val r = withContext(Dispatchers.IO) { EnkaApi.fetchProfile(game, uid, cfg.ltuid, cfg.ltoken) }
-            if (r.profile != null) { enkaCache[key] = currentTimeMillis() to r; repo.saveEnkaCache(enkaCache) }
-            _enkaResult.value = r
+            when {
+                r.profile != null -> { enkaCache[key] = currentTimeMillis() to r; repo.saveEnkaCache(enkaCache); _enkaResult.value = r }
+                cached != null -> _enkaResult.value = cached.second   // 실패 시 기존 캐시(신선/오래됨 무관) 유지 — 목록 사라짐 방지
+                else -> _enkaResult.value = r                          // 캐시 없을 때만 에러 표시
+            }
             _enkaLoading.value = false
         }
     }

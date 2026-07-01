@@ -17,9 +17,17 @@ internal data class BudgetPace(
     val remainingDays: Int,
 )
 
-/** 경과 일수 기준 단순 선형 추정(이번 달 예상 지출·하루 평균·남은 일수). */
+/** 예상 지출 산정 시 신뢰할 최소 경과일(워밍업). 월초엔 표본이 적어 run-rate가 크게 증폭되므로 분모에 하한을 둔다. */
+private const val PACE_WARMUP_DAYS = 7
+
+/**
+ * 경과 일수 기준 선형 추정(이번 달 예상 지출·하루 평균·남은 일수).
+ * 월말 예상은 워밍업(7일) 완화 적용: 경과일이 7일 미만이면 분모를 7로 하한 처리해 월초 과대추정을 억제한다.
+ * (배율 = daysInMonth / max(dayOfMonth, 7) ≥ 1 이므로 예상값은 항상 현재 지출 이상. 7일 경과 후엔 순수 run-rate와 동일)
+ */
 internal fun computeBudgetPace(monthTotal: Long, dayOfMonth: Int, daysInMonth: Int): BudgetPace {
-    val projected = if (dayOfMonth > 0) monthTotal * daysInMonth / dayOfMonth else monthTotal
+    val effectiveDays = maxOf(dayOfMonth, minOf(daysInMonth, PACE_WARMUP_DAYS))
+    val projected = if (dayOfMonth > 0) monthTotal * daysInMonth / effectiveDays else monthTotal
     val dailyAvg = if (dayOfMonth > 0) monthTotal / dayOfMonth else 0L
     val remainingDays = (daysInMonth - dayOfMonth).coerceAtLeast(0)
     return BudgetPace(projected, dailyAvg, remainingDays)

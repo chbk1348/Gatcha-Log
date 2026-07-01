@@ -31,6 +31,7 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import com.gatcha.log.ui.components.GlgPullToRefreshBox
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -88,6 +89,9 @@ fun HomeScreen(viewModel: SpendingViewModel = viewModel()) {
         rememberLazyListState(), rememberLazyListState(),
     )
     val tabScope = rememberCoroutineScope()
+    // 지출 편집 에디터는 홈 전체를 스왑(dispose)하므로, 지출 화면의 저장상태(열린 상세 id 등)를
+    // 홀더로 붙잡아 에디터 닫힘·탭 복귀 시 상세 페이지가 유지되게 한다. (holder 는 HomeScreen 본문에 존치돼 스왑에도 살아남음)
+    val homeStateHolder = rememberSaveableStateHolder()
     val onTabClick: (Int) -> Unit = { tab ->
         val sameTab = tab == selectedTab
         selectedTab = tab
@@ -215,7 +219,9 @@ fun HomeScreen(viewModel: SpendingViewModel = viewModel()) {
                                     listState = tabListStates[0],
                                     onSubPageChange = { subPageActive = it },
                                 )
-                                1 -> SpendingScreen(viewModel, onEditSpending = { openEditor(it) }, listState = tabListStates[1], onSubPageChange = { subPageActive = it })
+                                1 -> homeStateHolder.SaveableStateProvider("spendingTab") {
+                                    SpendingScreen(viewModel, onEditSpending = { openEditor(it) }, listState = tabListStates[1], onSubPageChange = { subPageActive = it })
+                                }
                                 2 -> GameInfoScreen(viewModel, listState = tabListStates[2], onSubPageChange = { subPageActive = it })
                                 3 -> MyPageScreen(viewModel, listState = tabListStates[3], onSubPageChange = { subPageActive = it })
                             }

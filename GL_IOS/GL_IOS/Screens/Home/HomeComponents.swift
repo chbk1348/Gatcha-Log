@@ -201,7 +201,7 @@ struct NoteCapsule: View {
                 Text(note.resinLabel).font(.pretendard(size: 10)).foregroundStyle(GLGColor.textSecondary).lineLimit(1)
             }
             Spacer()
-            Text("\(note.currentResin)/\(note.maxResin)").font(.pretendard(size: 14, weight: .bold)).foregroundStyle(full ? dangerText : GLGColor.textPrimary)
+            Text(verbatim: "\(note.currentResin)/\(note.maxResin)").font(.pretendard(size: 14, weight: .bold)).foregroundStyle(full ? dangerText : GLGColor.textPrimary)
             if full {
                 Text("가득참").font(.pretendard(size: 11, weight: .bold)).foregroundStyle(dangerText)
                     .padding(.horizontal, 9).padding(.vertical, 3).background(dangerText.opacity(0.12), in: Capsule())
@@ -247,7 +247,7 @@ struct SpendingBudgetSection: View {
                 HStack(alignment: .top) {
                     VStack(alignment: .leading, spacing: 0) {
                         Text("이번 달 지출").font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary)
-                        Text("\(store_year)년 \(store_month)월").font(.pretendard(size: 14, weight: .medium))
+                        Text(verbatim: "\(store_year)년 \(store_month)월").font(.pretendard(size: 14, weight: .medium))
                     }
                     Spacer()
                     Button(action: onEdit) { Image(systemName: "pencil").font(.pretendard(size: 16)).foregroundStyle(GLGColor.textSecondary) }.buttonStyle(.plain)
@@ -365,7 +365,7 @@ struct GachaSummarySection: View {
                 Text(GameInfoKt.dhLabel(targetMillis: b.endMillis, nowMillis: nowMs())).font(.pretendard(size: 10, weight: .bold)).foregroundStyle(urgent ? warnText : accent.primary).lineLimit(1)
                     .padding(.horizontal, 8).padding(.vertical, 2).background((urgent ? warnText : accent.primary).opacity(0.14), in: Capsule())
                 if let plan = nextBannerPlan {
-                    Text("확정 최대 \(plan.maxPulls)연").font(.pretendard(size: 11, weight: .bold)).lineLimit(1)
+                    Text(verbatim: "확정 최대 \(plan.maxPulls)연").font(.pretendard(size: 11, weight: .bold)).lineLimit(1)
                     Text("약 \(won(plan.wonCost))").font(.pretendard(size: 10)).foregroundStyle(GLGColor.textSecondary).lineLimit(1)
                 }
             } else { Text("예정 없음").font(.pretendard(size: 15, weight: .bold)).foregroundStyle(GLGColor.textSecondary) }
