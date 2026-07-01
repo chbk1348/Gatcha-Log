@@ -85,8 +85,8 @@ struct DailyHeroSection: View {
                     Spacer().frame(height: 8)
                     if let n = note, n.maxResin > 0 {
                         HStack(alignment: .firstTextBaseline, spacing: 5) {
-                            Text("\(n.currentResin)").font(.pretendard(size: 30, weight: .bold))
-                            Text("/ \(n.maxResin) \(n.resinLabel)").font(.pretendard(size: 13)).foregroundStyle(GLGColor.textSecondary)
+                            Text(verbatim: "\(n.currentResin)").font(.pretendard(size: 30, weight: .bold))
+                            Text(verbatim: "/ \(n.maxResin) \(n.resinLabel)").font(.pretendard(size: 13)).foregroundStyle(GLGColor.textSecondary)
                         }
                         if !n.resinRecoveryTime.isEmpty {
                             HStack(spacing: 3) {
@@ -303,7 +303,7 @@ private struct MonthAttendanceCalendar: View {
             HStack {
                 Button { monthOffset -= 1 } label: { Image(systemName: "chevron.left").foregroundStyle(GLGColor.textSecondary) }.buttonStyle(.plain)
                 Spacer()
-                Text("\(year)년 \(monthNum)월").font(.pretendard(size: 15, weight: .bold))
+                Text(verbatim: "\(year)년 \(monthNum)월").font(.pretendard(size: 15, weight: .bold))
                 Spacer()
                 Button { if monthOffset < 0 { monthOffset += 1 } } label: {
                     Image(systemName: "chevron.right").foregroundStyle(monthOffset < 0 ? GLGColor.textSecondary : Color(.systemGray3))
@@ -376,7 +376,7 @@ private struct DailyGameRow: View {
                     if let n = note, n.maxResin > 0 {
                         HStack(spacing: 3) {
                             Image(systemName: "bolt.fill").font(.pretendard(size: 11)).foregroundStyle(accent.primary)
-                            Text("\(n.resinLabel) \(n.currentResin)/\(n.maxResin)").font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary).lineLimit(1)
+                            Text(verbatim: "\(n.resinLabel) \(n.currentResin)/\(n.maxResin)").font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary).lineLimit(1)
                             if !n.resinRecoveryTime.isEmpty {
                                 Text("· \(n.resinRecoveryTime)").font(.pretendard(size: 11)).foregroundStyle(Color(.systemGray3)).lineLimit(1)
                             }

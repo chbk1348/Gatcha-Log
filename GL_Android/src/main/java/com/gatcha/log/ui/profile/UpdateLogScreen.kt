@@ -9,10 +9,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -30,6 +26,7 @@ import androidx.compose.ui.unit.sp
 import com.gatcha.log.data.ChangeEntry
 import com.gatcha.log.data.ChangeKind
 import com.gatcha.log.data.ChangeLog
+import com.gatcha.log.ui.components.GlgBackButton
 import com.gatcha.log.ui.components.GlgChip
 
 // 목업(06_ChangeLog.html) 색 토큰 — 분류 의미색은 디자인 고정값을 그대로 사용(패리티).
@@ -74,9 +71,7 @@ internal fun UpdateLogScreen(onBack: () -> Unit) {
         item {
             Column(Modifier.padding(horizontal = 18.dp)) {
                 Spacer(Modifier.height(8.dp).statusBarsPadding())
-                IconButton(onClick = onBack, modifier = Modifier.offset(x = (-12).dp)) {
-                    Icon(Icons.AutoMirrored.Filled.ArrowBack, "뒤로", tint = CText)
-                }
+                GlgBackButton(onBack)
                 Spacer(Modifier.height(4.dp))
                 Row {
                     Text("업데이트 ", fontSize = 28.sp, fontWeight = FontWeight.ExtraBold, color = CText)

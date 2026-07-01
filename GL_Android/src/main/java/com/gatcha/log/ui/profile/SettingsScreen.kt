@@ -2,6 +2,7 @@ package com.gatcha.log.ui.profile
 
 import android.content.Context
 import android.content.Intent
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
@@ -93,12 +94,23 @@ fun SettingsScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
     val showUplog = remember { mutableStateOf(false) }
     val showCredits = remember { mutableStateOf(false) }
 
-    // 설정 하위 페이지 스택: 0=메인, 1=알림 설정, 2=데이터 관리, 3=HoYoLAB 연동. 깊어지면 우→좌 슬라이드 push/pop.
+    // 설정 하위 페이지 스택: 0=메인, 1=알림 설정, 2=데이터 관리, 3=HoYoLAB 연동, 4=업데이트 로그. 깊어지면 우→좌 슬라이드 push/pop.
     val subPage = when {
+        showUplog.value -> 4
         showHoyolab.value -> 3
         showData.value -> 2
         showNotif.value -> 1
         else -> 0
+    }
+    // 하위 페이지가 열려 있으면 시스템 back 제스쳐를 이 계층에서 pop 처리 —
+    // 자체 핸들러가 없으면 MyPageScreen 의 BackHandler 로 새어 마이페이지로 튕긴다.
+    BackHandler(enabled = subPage > 0) {
+        when {
+            showUplog.value -> showUplog.value = false
+            showHoyolab.value -> showHoyolab.value = false
+            showData.value -> showData.value = false
+            showNotif.value -> showNotif.value = false
+        }
     }
     AnimatedContent(
         targetState = subPage,
@@ -113,7 +125,9 @@ fun SettingsScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
         },
         label = "settingsPage",
     ) { page ->
-        if (page == 3) {
+        if (page == 4) {
+            UpdateLogScreen(onBack = { showUplog.value = false })
+        } else if (page == 3) {
             HoyolabLinkScreen(
                 config = hoyolab,
                 onSave = { viewModel.updateHoyolabConfig(it); showHoyolab.value = false },
@@ -313,9 +327,6 @@ fun SettingsScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
             onDismiss = { showNudgeThreshold.value = false },
             onConfirm = { viewModel.setNudgeThreshold(it); showNudgeThreshold.value = false },
         )
-    }
-    if (showUplog.value) {
-        UpdateLogScreen(onBack = { showUplog.value = false })
     }
     if (showCredits.value) {
         CreditsDialog { showCredits.value = false }

@@ -72,7 +72,7 @@ fun GameTabbedSection(
 @Composable
 private fun GameContentBlock(label: String, content: @Composable () -> Unit) {
     Column {
-        Text(label, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextSecondary, modifier = Modifier.padding(start = 2.dp, bottom = 8.dp))
+        Text(label, fontSize = 16.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 2.dp, bottom = 10.dp))
         content()
     }
 }

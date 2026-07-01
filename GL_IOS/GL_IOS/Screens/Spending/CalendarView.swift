@@ -21,7 +21,7 @@ struct CalendarView: View {
                 HStack {
                     monthNav("chevron.left") { shift(-1) }
                     Spacer()
-                    Text("\(y)년 \(m)월").font(.pretendard(size: 18, weight: .bold))
+                    Text(verbatim: "\(y)년 \(m)월").font(.pretendard(size: 18, weight: .bold))
                     Spacer()
                     monthNav("chevron.right") { shift(1) }
                 }

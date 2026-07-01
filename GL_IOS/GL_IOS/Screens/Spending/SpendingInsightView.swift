@@ -49,7 +49,10 @@ struct SpendingInsightView: View {
         let dayOfMonth = cal.component(.day, from: now)
         let daysInMonth = cal.range(of: .day, in: .month, for: now)?.count ?? 30
         let budget = store.budget
-        let projected = dayOfMonth > 0 ? monthTotal * Int64(daysInMonth) / Int64(dayOfMonth) : monthTotal
+        // 월말 예상: 워밍업(7일) 완화 — 경과일이 7일 미만이면 분모를 7로 하한 처리해 월초 run-rate 과대추정을 억제.
+        // (배율 = daysInMonth / max(dayOfMonth, 7) ≥ 1 이라 예상값은 항상 현재 지출 이상. 7일 경과 후엔 순수 run-rate와 동일)
+        let effectiveDays = max(dayOfMonth, min(daysInMonth, 7))
+        let projected = dayOfMonth > 0 ? monthTotal * Int64(daysInMonth) / Int64(effectiveDays) : monthTotal
         let dailyAvg = dayOfMonth > 0 ? monthTotal / Int64(dayOfMonth) : 0
         let remainingDays = max(daysInMonth - dayOfMonth, 0)
         return GLGCard(cornerRadius: 20, padding: 16) {
@@ -316,7 +319,7 @@ struct MonthlyTrendCard: View {
                 VStack(alignment: .leading, spacing: 0) {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("게임별 월 추이").font(.pretendard(size: 14, weight: .bold))
-                        Text("\(year)년 · 누적 막대").font(.pretendard(size: 11)).foregroundStyle(GLGColor.textSecondary)
+                        Text(verbatim: "\(year)년 · 누적 막대").font(.pretendard(size: 11)).foregroundStyle(GLGColor.textSecondary)
                     }
                     HStack(alignment: .bottom, spacing: 3) {
                         ForEach(0..<12, id: \.self) { m in
