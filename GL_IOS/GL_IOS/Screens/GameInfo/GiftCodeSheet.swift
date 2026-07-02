@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 import Shared
 
 // 리딤코드 — 페이지 형식(네비게이션 푸시). 활성 코드 자동 수집 + 교환(단건/모두) + 직접 입력.
@@ -126,6 +127,7 @@ struct GiftCodePage: View {
                 if !c.rewards.isEmpty { Text(c.rewards).font(.pretendard(size: 11)).foregroundStyle(GLGColor.textSecondary).lineLimit(2) }
             }
             Spacer(minLength: 8)
+            CopyCodeButton(code: c.code)
             if redeemed {
                 HStack(spacing: 3) { Image(systemName: "checkmark").font(.pretendard(size: 13)).foregroundStyle(accent.primary); Text("받음").font(.pretendard(size: 11, weight: .bold)).foregroundStyle(accent.primary) }
             } else {
@@ -175,5 +177,25 @@ struct GiftCodePage: View {
                  : "코드를 눌러 교환하거나 '모두 교환'을 누르세요. 보상은 게임 우편함으로 와요.")
                 .font(.pretendard(size: 11)).foregroundStyle(GLGColor.textSecondary)
         }
+    }
+}
+
+// 리딤코드 복사 버튼 — accent 틴트 pill(‘교환’ 버튼과 동일 톤). 탭하면 클립보드 저장 + 잠깐 ‘복사됨’ 표시.
+private struct CopyCodeButton: View {
+    let code: String
+    @Environment(\.glgAccent) private var accent
+    @State private var copied = false
+    var body: some View {
+        Button {
+            UIPasteboard.general.string = code
+            withAnimation(.easeOut(duration: 0.15)) { copied = true }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { withAnimation { copied = false } }
+        } label: {
+            // '교환' 버튼과 동일 규격(텍스트 전용 · Capsule · accent 0.12 틴트 · h12 v6 · 12 bold).
+            Text(copied ? "복사됨" : "복사").font(.pretendard(size: 12, weight: .bold))
+                .foregroundStyle(accent.primary)
+                .padding(.horizontal, 12).padding(.vertical, 6)
+                .background(accent.primary.opacity(0.12), in: Capsule())
+        }.buttonStyle(.plain)
     }
 }

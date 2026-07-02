@@ -211,6 +211,8 @@ private fun CodeRow(c: GiftCode, redeemed: Boolean, accent: Color, enabled: Bool
                 if (c.rewards.isNotBlank()) Text(c.rewards, fontSize = 11.sp, color = TextSecondary, maxLines = 2)
             }
             Spacer(Modifier.width(8.dp))
+            CopyCodeButton(c.code, accent)
+            Spacer(Modifier.width(6.dp))
             if (redeemed) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Default.Check, null, tint = accent, modifier = Modifier.size(16.dp))
@@ -238,5 +240,37 @@ private fun CodeRow(c: GiftCode, redeemed: Boolean, accent: Color, enabled: Bool
         ) { inner() }
     } else {
         inner()
+    }
+}
+
+/**
+ * 리딤코드 복사 버튼 — accent 틴트 pill(‘교환’ 버튼과 동일 톤). 탭하면 클립보드 저장 +
+ * 아이콘이 잠깐 체크로 바뀌고 토스트로 안내.
+ */
+@Composable
+private fun CopyCodeButton(code: String, accent: Color) {
+    val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
+    val context = androidx.compose.ui.platform.LocalContext.current
+    var copied by remember { mutableStateOf(false) }
+    LaunchedEffect(copied) {
+        if (copied) { kotlinx.coroutines.delay(1200); copied = false }
+    }
+    // '교환' 버튼과 동일 규격(radius 16 · accent 0.12 틴트 · border 0.4 · h12 v6 · 12sp bold).
+    Surface(
+        shape = RoundedCornerShape(16.dp),
+        color = accent.copy(alpha = 0.12f),
+        border = BorderStroke(1.dp, accent.copy(alpha = 0.4f)),
+        modifier = Modifier.clickable {
+            clipboard.setText(androidx.compose.ui.text.AnnotatedString(code))
+            copied = true
+            android.widget.Toast.makeText(context, "코드를 복사했어요", android.widget.Toast.LENGTH_SHORT).show()
+        },
+    ) {
+        // 교환 버튼과 동일하게 텍스트 전용(아이콘 없음)으로 크기 일치.
+        Text(
+            if (copied) "복사됨" else "복사",
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+            fontSize = 12.sp, fontWeight = FontWeight.Bold, color = accent,
+        )
     }
 }

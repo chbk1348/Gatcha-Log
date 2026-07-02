@@ -78,10 +78,9 @@ struct EnkaCharSection: View {
             if !linked {
                 linkPrompt(reLink: hadProfile)
             } else {
-                // 전체 보기일 땐 게임별 라벨로 구분. 단일 게임이면 라벨 생략(섹션 제목으로 충분).
-                let showLabels = games.count > 1
+                // 게임별로 한 카드씩 — 각 게임 로스터를 카드로 묶고 게임 라벨을 카드 헤더로 표시.
                 ForEach(Array(games.enumerated()), id: \.offset) { _, g in
-                    gameBlock(g, showLabel: showLabels)
+                    gameBlock(g, showLabel: true)
                 }
             }
         }
@@ -95,11 +94,15 @@ struct EnkaCharSection: View {
         let result = store.enkaResults[game]
         let loading = store.enkaLoadingGames.contains(game)
         let chars = result?.profile?.chars ?? []
+        GLGCard(cornerRadius: 24, padding: 16) {
         VStack(alignment: .leading, spacing: 10) {
             if showLabel {
                 HStack(spacing: 7) {
                     Circle().fill(accent.primary).frame(width: 8, height: 8)
-                    Text(enkaGameLabel(game)).font(.pretendard(size: 13, weight: .bold)).foregroundStyle(GLGColor.textSecondary)
+                    Text(enkaGameLabel(game)).font(.pretendard(size: 14, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
+                    if !chars.isEmpty {
+                        Text("\(chars.count)").font(.pretendard(size: 12, weight: .bold)).foregroundStyle(GLGColor.textSecondary)
+                    }
                 }
             }
             if chars.isEmpty && (result == nil || loading) {
@@ -115,20 +118,15 @@ struct EnkaCharSection: View {
                     }
                 }
                 if chars.count > 4 {
+                    // 뉴스 섹션과 동일한 '더보기' 스타일 — 구분선 + 가운데 정렬 accent 텍스트.
+                    Divider()
                     Button { onOpenAll(game) } label: {
-                        HStack(spacing: 5) {
-                            Text("더보기").font(.pretendard(size: 13, weight: .bold))
-                            Text("\(chars.count)").font(.pretendard(size: 11, weight: .bold)).foregroundStyle(GLGColor.textSecondary)
-                            Spacer()
-                            Image(systemName: "chevron.right").font(.pretendard(size: 12, weight: .bold))
-                        }
-                        .foregroundStyle(accent.primary)
-                        .padding(.horizontal, 14).padding(.vertical, 12)
-                        .frame(maxWidth: .infinity)
-                        .glgGlass(in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                        Text("더보기 (\(chars.count))").font(.pretendard(size: 12.5, weight: .bold))
+                            .foregroundStyle(accent.primary).frame(maxWidth: .infinity).padding(.top, 8).padding(.bottom, 2)
                     }.buttonStyle(.plain)
                 }
             }
+        }
         }
     }
 
@@ -206,7 +204,9 @@ func enkaRosterCard(_ c: EnkaChar, _ game: String) -> some View {
     }
     .padding(11)
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
-    .glgGlass(in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+    // 게임 카드(글래스 회색 표면) 안에서 대비를 주려 흰 배경 타일 — 전체 페이지에서도 떠 보인다.
+    .background(Color.white, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+    .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).stroke(Color.black.opacity(0.08), lineWidth: 1))
 }
 
 /// 보유 캐릭터 전체 목록 페이지 — 탭 시 스탯 상세로 랜딩(뒤로 가면 이 목록으로 복귀).
@@ -218,6 +218,7 @@ struct EnkaRosterPage: View {
     @State private var rarity = 0 // 0=전체, 5, 4
     @State private var element = "" // ""=전체
     @State private var path = "" // ""=전체 (HSR)
+    @State private var query = ""
 
     private let cols = [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)]
 
@@ -225,12 +226,19 @@ struct EnkaRosterPage: View {
         let all = store.enkaResult?.profile?.chars ?? []
         let elements = distinct(all.map { $0.element })
         let paths = distinct(all.map { $0.path })
+        let q = query.trimmingCharacters(in: .whitespaces)
         let chars = all.filter {
             (rarity == 0 || Int($0.rarity) == rarity)
                 && (element.isEmpty || $0.element == element)
                 && (path.isEmpty || $0.path == path)
+                && (q.isEmpty || $0.name.localizedCaseInsensitiveContains(q))
         }
         ScrollView {
+            if chars.isEmpty && !all.isEmpty {
+                Text(q.isEmpty ? "조건에 맞는 캐릭터가 없어요" : "‘\(q)’ 검색 결과가 없어요")
+                    .font(.pretendard(size: 13)).foregroundStyle(GLGColor.textSecondary)
+                    .frame(maxWidth: .infinity).padding(.top, 40)
+            }
             LazyVGrid(columns: cols, spacing: 10) {
                 ForEach(Array(chars.enumerated()), id: \.offset) { _, c in
                     Button { statChar = c; showStat = true } label: { enkaRosterCard(c, game) }.buttonStyle(.plain)
@@ -238,6 +246,7 @@ struct EnkaRosterPage: View {
             }
             .padding(16)
         }
+        .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always), prompt: "캐릭터 이름 검색")
         .background(GLGBackground { Color.clear })
         // 전체 보기/탭 어떤 경로로 진입해도 해당 게임 결과 보장(캐시 적중 시 즉시 반영).
         .task { store.autoLoadEnka(game: game, force: false) }
