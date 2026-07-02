@@ -136,7 +136,7 @@ private fun MetaCol(value: String, label: String) {
 
 @Composable
 private fun ReleaseCard(entry: ChangeEntry, filter: ChangeKind?) {
-    val items = if (filter == null) entry.items else entry.items.filter { it.kind == filter }
+    val items = if (filter == null) entry.orderedItems else entry.orderedItems.filter { it.kind == filter }
     if (items.isEmpty()) return
 
     val shape = RoundedCornerShape(24.dp)

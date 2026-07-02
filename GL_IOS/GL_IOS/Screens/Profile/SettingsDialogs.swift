@@ -230,7 +230,7 @@ struct UpdateLogPage: View {
     // ── 릴리스 카드 ──
     @ViewBuilder
     private func releaseCard(_ entry: ChangeEntry) -> some View {
-        let items = filter == nil ? entry.items : entry.items.filter { $0.kind.key == filter }
+        let items = filter == nil ? entry.orderedItems : entry.orderedItems.filter { $0.kind.key == filter }
         if !items.isEmpty {
             VStack(alignment: .leading, spacing: 0) {
                 if entry.featured {

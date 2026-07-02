@@ -27,6 +27,9 @@ data class ChangeEntry(
 ) {
     /** 이 릴리스에 포함된 분류 집합(필터칩 매칭용). */
     val kinds: Set<ChangeKind> get() = items.map { it.kind }.toSet()
+
+    /** 항목을 분류 태그 순(신규→개선→수정→보안)으로 정렬해 노출 — 태그 순서 통일. */
+    val orderedItems: List<ChangeItem> get() = items.sortedBy { it.kind.ordinal }
 }
 
 object ChangeLog {
