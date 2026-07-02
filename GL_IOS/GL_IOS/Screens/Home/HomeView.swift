@@ -39,6 +39,11 @@ struct HomeView: View {
                     DashboardNewsCard(news: store.gameNews, anniversaries: GameAnniversary.shared.upcoming(nowMillis: nowMs()), onTap: { store.requestGameInfoAnchor(.news); onSwitchTab(2) })
                         .glgLoadIn(4, appeared: $appeared)
                 }
+                // 목표·동기 — 저축 플래너 · 절약 챌린지 (27.35)
+                NavigationLink { SavingsPlannerView(store: store) } label: { PickupPlannerHomeCard(store: store) }
+                    .buttonStyle(.plain).glgLoadIn(5, appeared: $appeared)
+                NavigationLink { SavingsChallengeView(store: store) } label: { SavingsChallengeHomeCard(store: store) }
+                    .buttonStyle(.plain).glgLoadIn(6, appeared: $appeared)
                 Color.clear.frame(height: 12)
             }
             .padding(.horizontal, 16)

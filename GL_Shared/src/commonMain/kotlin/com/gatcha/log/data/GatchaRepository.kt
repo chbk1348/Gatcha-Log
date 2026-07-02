@@ -325,6 +325,41 @@ class GatchaRepository(accountId: String = "guest") {
         changed()
     }
 
+    // ---------------------------------------------------------------- 저축 플래너 · 절약 챌린지 (27.35)
+    /** 게임별 보유 재화 입력(gameKey → 재화량). 저축 플래너 필요분 차감용. */
+    fun loadSavingsHeld(): Map<String, Int> {
+        val raw = prefs.getString(KEY_SAVINGS_HELD, null) ?: return emptyMap()
+        return runCatching {
+            val o = JSONObject(raw)
+            buildMap { o.keys().forEach { k -> o.optInt(k, 0).takeIf { it > 0 }?.let { put(k, it) } } }
+        }.getOrDefault(emptyMap())
+    }
+
+    fun saveSavingsHeld(map: Map<String, Int>) {
+        val o = JSONObject()
+        map.forEach { (k, v) -> if (v > 0) o.put(k, v) }
+        prefs.putString(KEY_SAVINGS_HELD, o.toString())
+        changed()
+    }
+
+    /** 최고 무지출 스트릭(일) — 단조 증가 기록. */
+    fun loadBestNoSpend(): Int = prefs.getInt(KEY_BEST_NOSPEND, 0)
+    fun saveBestNoSpend(days: Int) { prefs.putInt(KEY_BEST_NOSPEND, days); changed() }
+
+    /** 획득한 절약 배지 id 집합 — 단조 증가. */
+    fun loadEarnedBadges(): Set<String> {
+        val raw = prefs.getString(KEY_BADGES, null) ?: return emptySet()
+        return runCatching {
+            val arr = JSONArray(raw)
+            (0 until arr.length()).map { arr.getString(it) }.toSet()
+        }.getOrDefault(emptySet())
+    }
+
+    fun saveEarnedBadges(ids: Set<String>) {
+        prefs.putString(KEY_BADGES, JSONArray(ids.toList()).toString())
+        changed()
+    }
+
     // ---------------------------------------------------------------- 가챠 기록 (UIGF/SRGF)
     fun loadGachaRecords(): List<GachaRecord> = GachaReport.fromJsonArray(prefs.getString(KEY_GACHA, null))
     fun saveGachaRecords(records: List<GachaRecord>) {
@@ -388,6 +423,9 @@ class GatchaRepository(accountId: String = "guest") {
         prefs.getString(KEY_GACHA, null)?.let { o.put(KEY_GACHA, JSONArray(it)) }
         prefs.getString(KEY_HOME_CARDS, null)?.let { o.put(KEY_HOME_CARDS, JSONArray(it)) }
         prefs.getString(KEY_REDEEMED, null)?.let { o.put(KEY_REDEEMED, JSONArray(it)) }
+        prefs.getString(KEY_SAVINGS_HELD, null)?.let { o.put(KEY_SAVINGS_HELD, JSONObject(it)) }
+        o.put(KEY_BEST_NOSPEND, loadBestNoSpend())
+        prefs.getString(KEY_BADGES, null)?.let { o.put(KEY_BADGES, JSONArray(it)) }
         return o.toString()
     }
 
@@ -419,6 +457,14 @@ class GatchaRepository(accountId: String = "guest") {
             val merged = loadRedeemedCodes() + incoming
             prefs.putString(KEY_REDEEMED, JSONArray(merged.toList()).toString())
         }
+        if (o.has(KEY_SAVINGS_HELD)) prefs.putString(KEY_SAVINGS_HELD, o.getJSONObject(KEY_SAVINGS_HELD).toString())
+        // 최고 스트릭·배지는 **단조 증가**로 병합(스냅샷이 로컬 기록을 되돌리지 않도록).
+        if (o.has(KEY_BEST_NOSPEND)) prefs.putInt(KEY_BEST_NOSPEND, maxOf(loadBestNoSpend(), o.getInt(KEY_BEST_NOSPEND)))
+        if (o.has(KEY_BADGES)) {
+            val arr = o.getJSONArray(KEY_BADGES)
+            val incoming = (0 until arr.length()).map { arr.getString(it) }
+            prefs.putString(KEY_BADGES, JSONArray((loadEarnedBadges() + incoming).toList()).toString())
+        }
     }
 
     /**
@@ -430,7 +476,7 @@ class GatchaRepository(accountId: String = "guest") {
         val o = JSONObject(exportSnapshotJson())
         fun valueString(k: String): String = when (k) {
             KEY_BUDGET -> o.getLong(k).toString()
-            KEY_ACCENT -> o.getInt(k).toString()
+            KEY_ACCENT, KEY_BEST_NOSPEND -> o.getInt(k).toString()
             in OBJECT_KEYS -> o.getJSONObject(k).toString()
             in ARRAY_KEYS -> o.getJSONArray(k).toString()
             else -> o.getString(k)
@@ -467,17 +513,20 @@ class GatchaRepository(accountId: String = "guest") {
         const val KEY_GACHA = "gacha_records"
         const val KEY_SUBS = "subscriptions"
         const val KEY_HOME_CARDS = "home_cards"
+        const val KEY_SAVINGS_HELD = "savings_held"   // 저축 플래너 보유 재화(gameKey→Int)
+        const val KEY_BEST_NOSPEND = "best_nospend"    // 최고 무지출 스트릭(일)
+        const val KEY_BADGES = "badges"                // 획득 절약 배지 id 집합
 
         // 클라우드 섹션 분리 — 스냅샷 키를 유저정보/지출/게임정보로 분배(토큰·read_alerts 는 스냅샷 비포함).
         val SECTION_USER_INFO = listOf(KEY_PROFILE_NAME, KEY_PROFILE_EMAIL, KEY_ACCENT, KEY_HOME_CARDS)
-        val SECTION_SPENDING = listOf(KEY_SPENDINGS, KEY_BUDGET, KEY_BUDGET_GAMES, KEY_SUBS)
+        val SECTION_SPENDING = listOf(KEY_SPENDINGS, KEY_BUDGET, KEY_BUDGET_GAMES, KEY_SUBS, KEY_BEST_NOSPEND, KEY_BADGES)
         val SECTION_GAME_INFO = listOf(
             KEY_HOYO_GI, KEY_HOYO_HSR, KEY_HOYO_ZZZ, KEY_ENKA_GI, KEY_ENKA_HSR,
-            KEY_ATTENDANCE, KEY_PITY, KEY_EVENT_CHECKS, KEY_GACHA, KEY_REDEEMED,
+            KEY_ATTENDANCE, KEY_PITY, KEY_EVENT_CHECKS, KEY_GACHA, KEY_REDEEMED, KEY_SAVINGS_HELD,
         )
         // 값 타입 분류(섹션 맵의 문자열 변환용) — 나머지 키는 문자열.
-        private val OBJECT_KEYS = setOf(KEY_BUDGET_GAMES, KEY_ATTENDANCE, KEY_PITY)
-        private val ARRAY_KEYS = setOf(KEY_SPENDINGS, KEY_EVENT_CHECKS, KEY_SUBS, KEY_GACHA, KEY_HOME_CARDS, KEY_REDEEMED)
+        private val OBJECT_KEYS = setOf(KEY_BUDGET_GAMES, KEY_ATTENDANCE, KEY_PITY, KEY_SAVINGS_HELD)
+        private val ARRAY_KEYS = setOf(KEY_SPENDINGS, KEY_EVENT_CHECKS, KEY_SUBS, KEY_GACHA, KEY_HOME_CARDS, KEY_REDEEMED, KEY_BADGES)
     }
 }
 

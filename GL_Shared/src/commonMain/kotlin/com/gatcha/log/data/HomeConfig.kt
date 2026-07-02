@@ -10,11 +10,15 @@ data class HomeCardItem(val id: String, val visible: Boolean)
 object HomeCards {
     const val SPENDING = "spending"
     const val GACHA = "gacha"
+    const val PICKUP_PLANNER = "pickup_planner"
+    const val SAVINGS_CHALLENGE = "savings_challenge"
 
     /** id → 사용자에게 보일 라벨 (등록 순서 = 기본 노출 순서) */
     val labels: Map<String, String> = linkedMapOf(
         SPENDING to "지출 요약",
         GACHA to "가챠 요약",
+        PICKUP_PLANNER to "픽업 대비 저축 계획",
+        SAVINGS_CHALLENGE to "절약 챌린지",
     )
 
     val default: List<HomeCardItem> = labels.keys.map { HomeCardItem(it, true) }

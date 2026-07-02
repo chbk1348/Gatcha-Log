@@ -66,6 +66,13 @@ object DateUtil {
     fun localHour(millis: Long = currentTimeMillis()): Int = local(millis).hour
 
     /**
+     * 로컬 오늘로부터 [daysAgo]일 전의 로컬 날짜 키 "yyyy-MM-dd" — 무지출 스트릭(지출은 로컬 기준) 계산용.
+     * (한국(KST) 등 DST 없는 TZ 기준. millis 산술.)
+     */
+    fun localDayKeyAgo(daysAgo: Int, nowMillis: Long = currentTimeMillis()): String =
+        dayKey(nowMillis - daysAgo * 86_400_000L)
+
+    /**
      * 출석 기준일에서 [daysAgo]일 전의 날짜 키 — 연속 출석(streak) 계산용.
      * :app 의 hoyoCalendar() + Calendar.add(DAY_OF_YEAR, -n) 패턴을 대체.
      * (UTC+8 은 DST 가 없어 millis 산술로 안전)
