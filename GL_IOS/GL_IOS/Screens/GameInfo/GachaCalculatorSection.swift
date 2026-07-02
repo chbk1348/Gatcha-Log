@@ -2,7 +2,7 @@ import SwiftUI
 import Shared
 
 // 계산기 2.0 — B 대시보드 레이아웃. 탭 제거, 입력→확률→재화→시나리오 위젯 세로 나열.
-// 게임/배너 칩은 커스텀 글래스 글로우 칩(S4). 시뮬·플래너는 시트로 진입.
+// 게임/배너 칩은 커스텀 글래스 글로우 칩(S4).
 struct GachaCalculatorSection: View {
     @Environment(\.glgAccent) private var accent
     @State private var gameKey = "genshin"
@@ -11,9 +11,6 @@ struct GachaCalculatorSection: View {
     @State private var pityStr = ""
     @State private var guaranteed = false
     @State private var qty = 1
-    @State private var sheet: CalcSheet? = nil
-
-    enum CalcSheet: Int, Identifiable { case sim, plan; var id: Int { rawValue } }
 
     private var game: GachaGameRate { GachaRateData.shared.byKey(key: gameKey) ?? GachaRateData.shared.games[0] }
     private var banner: GachaBannerRate { game.banner(type: bannerType) ?? game.character ?? game.standard ?? game.games_firstBanner }
@@ -37,19 +34,6 @@ struct GachaCalculatorSection: View {
     var body: some View {
         stack
             .onChange(of: gameKey) { if game.banner(type: bannerType) == nil { bannerType = "character" } }
-            .sheet(item: $sheet) { s in
-                NavigationStack {
-                    ScrollView {
-                        Group {
-                            if s == .sim { Simulator(game: game, banner: banner) } else { Planner(game: game, banner: banner) }
-                        }.padding(16)
-                    }
-                    .navigationTitle(s == .sim ? "뽑기 시뮬" : "목표 플래너")
-                    .navigationBarTitleDisplayMode(.inline)
-                    .toolbar { ToolbarItem(placement: .confirmationAction) { Button("닫기") { sheet = nil } } }
-                }
-                .presentationDetents([.large])
-            }
     }
 
     // 거대 단일 body 가 게임 탭마다 제네릭 메타데이터를 재해석하던 문제 → 위젯을 독립 View 구조체로 분리해
@@ -78,7 +62,6 @@ struct GachaCalculatorSection: View {
 
             InputCard(banner: banner, currency: $currency, pityStr: $pityStr, guaranteed: $guaranteed, qty: $qty).padding(.top, 13)
             ResultsCard(c: calc, banner: banner, qty: qty, guaranteed: guaranteed).padding(.top, 13)
-            ToolsRow(onSim: { sheet = .sim }, onPlan: { sheet = .plan }).padding(.top, 13)
         }
     }
 }
@@ -180,29 +163,6 @@ private struct ResultsCard: View {
     }
 }
 
-// ── 보조 도구 진입 (솔리드 타일) ──
-private struct ToolsRow: View {
-    let onSim: () -> Void
-    let onPlan: () -> Void
-    var body: some View {
-        HStack(spacing: 8) {
-            tile("🎲", "뽑기 시뮬", onSim)
-            tile("🗓️", "목표 플래너", onPlan)
-        }
-    }
-    private func tile(_ icon: String, _ label: String, _ action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            VStack(spacing: 5) {
-                Text(icon).font(.pretendard(size: 22))
-                Text(label).font(.pretendard(size: 11, weight: .bold)).foregroundStyle(GLGColor.textSecondary)
-            }
-            .frame(maxWidth: .infinity).padding(.vertical, 14)
-            .background(Color.white, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).stroke(Color.black.opacity(0.08), lineWidth: 1))
-        }.buttonStyle(.plain)
-    }
-}
-
 private extension GachaGameRate {
     /// character/standard 모두 nil 인 비정상 케이스 폴백(컴파일 안전용).
     var games_firstBanner: GachaBannerRate { character ?? standard ?? weapon! }
@@ -212,192 +172,6 @@ private extension GachaGameRate {
 private let okGreen = Color(hex: 0xFF16A34A)
 private let warnAmber = Color(hex: 0xFFD97706)
 private let badRed = Color(hex: 0xFFDC2626)
-private let gold5 = Color(hex: 0xFFE0A93B)
-private let purple4 = Color(hex: 0xFF9B59B6)
-private let gray3 = Color(hex: 0xFFB6B9C0)
-
-// 천장 티어 — 시뮬레이터 진행도 색/라벨 판단용. (천장 카운터(WishPitySection) 제거 후 이관)
-enum PityTierS { case safe, caution, imminent, reached }
-func pityTier(count: Int, soft: Int, hard: Int) -> PityTierS {
-    if count >= hard { return .reached }
-    if count >= soft { return .imminent }
-    if count >= soft - 10 { return .caution }
-    return .safe
-}
-
-// ── 시뮬레이터 ──
-private struct Simulator: View {
-    let game: GachaGameRate; let banner: GachaBannerRate
-    @Environment(\.glgAccent) private var accent
-    @State private var pity5 = 0
-    @State private var pity4 = 0
-    @State private var guaranteed = false
-    @State private var total = 0
-    @State private var fiveCount = 0
-    @State private var pickupCount = 0
-    @State private var fourCount = 0
-    @State private var lastBatch: [PullResult] = []
-
-    struct PullResult: Identifiable { let id = UUID(); let tier: Int; let pickup: Bool }
-
-    var body: some View {
-        let hp = Int(banner.hardPity)
-        let tier = pityTier(count: pity5, soft: Int(banner.softPity), hard: hp)
-        let pityColor: Color = tier == .reached ? badRed : (tier == .imminent ? warnAmber : (tier == .caution ? gold5 : accent.primary))
-        return VStack(alignment: .leading, spacing: 0) {
-            HStack {
-                Text("천장 \(pity5) / \(hp)").font(.pretendard(size: 13, weight: .bold))
-                Spacer()
-                if banner.has5050 && !banner.no5050 {
-                    Text(guaranteed ? "다음 5★ 픽업 확정" : "50/50").font(.pretendard(size: 10, weight: .bold))
-                        .foregroundStyle(guaranteed ? okGreen : GLGColor.textSecondary)
-                        .padding(.horizontal, 7).padding(.vertical, 3)
-                        .background((guaranteed ? okGreen : GLGColor.textSecondary).opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
-                }
-            }
-            ProgressView(value: min(max(Double(pity5)/Double(hp), 0), 1)).tint(pityColor).padding(.top, 6)
-            if !lastBatch.isEmpty {
-                LazyVGrid(columns: Array(repeating: GridItem(.adaptive(minimum: 38), spacing: 6), count: 1), alignment: .leading, spacing: 6) {
-                    ForEach(lastBatch) { resultChip($0) }
-                }
-                .padding(.top, 14)
-            }
-            HStack(spacing: 8) {
-                pullButton("1회 뽑기") { pull(1) }
-                pullButton("10연차") { pull(10) }
-            }
-            .padding(.top, 14)
-            let avgPer = fiveCount > 0 ? fixed(Double(total)/Double(fiveCount), 1) : "—"
-            VStack(spacing: 8) {
-                HStack(spacing: 8) {
-                    ResultBox(label: "총 뽑기", value: "\(total)회", sub: "≈ \(num(total * Int(banner.perPull))) \(banner.currency)")
-                    ResultBox(label: "5★ 획득", value: "\(fiveCount)개", sub: banner.has5050 && !banner.no5050 ? "픽업 \(pickupCount) · 픽뚫 \(fiveCount - pickupCount)" : "픽업 \(pickupCount)")
-                }
-                HStack(spacing: 8) {
-                    ResultBox(label: "4★ 획득", value: "\(fourCount)개", sub: "")
-                    ResultBox(label: "평균 천장", value: avgPer == "—" ? "—" : "\(avgPer)회", sub: "5★ 1개당")
-                }
-                ResultBox(label: "누적 추정 비용", value: won(Int64(total) * Int64(banner.wonPerPull)), sub: "현금 충전 환산").frame(maxWidth: .infinity)
-            }
-            .padding(.top, 14)
-            Button(action: reset) {
-                Text("초기화").font(.pretendard(size: 13, weight: .bold)).foregroundStyle(GLGColor.textSecondary)
-                    .frame(maxWidth: .infinity).padding(.vertical, 11).background(Color(hex: 0xFFF2F2F6), in: RoundedRectangle(cornerRadius: 12))
-            }.buttonStyle(.plain).padding(.top, 12)
-            Text("실제 확률·소프트/하드 천장 기반 시뮬레이션이에요. 결과는 체험용이며 실제 뽑기와 무관해요.")
-                .font(.pretendard(size: 10)).foregroundStyle(GLGColor.textSecondary).padding(.top, 4)
-        }
-        .onChange(of: game.key) { reset() }
-    }
-
-    private func rollOnce() -> PullResult {
-        let p5 = GachaRateData.shared.rateAt(pity: Int32(pity5), b: banner)
-        if Double.random(in: 0..<1) < p5 {
-            let pickup: Bool
-            if banner.no5050 || !banner.has5050 { pickup = true }
-            else if guaranteed { guaranteed = false; pickup = true }
-            else if Double.random(in: 0..<1) < 0.5 { pickup = true }
-            else { guaranteed = true; pickup = false }
-            pity5 = 0; pity4 = 0; fiveCount += 1; if pickup { pickupCount += 1 }
-            return PullResult(tier: 5, pickup: pickup)
-        }
-        pity5 += 1; pity4 += 1
-        if pity4 >= 10 || Double.random(in: 0..<1) < 0.051 { pity4 = 0; fourCount += 1; return PullResult(tier: 4, pickup: false) }
-        return PullResult(tier: 3, pickup: false)
-    }
-    private func pull(_ n: Int) {
-        var r: [PullResult] = []; for _ in 0..<n { r.append(rollOnce()) }
-        total += n; lastBatch = r
-    }
-    private func reset() {
-        pity5 = 0; pity4 = 0; guaranteed = false; total = 0; fiveCount = 0; pickupCount = 0; fourCount = 0; lastBatch = []
-    }
-    private func resultChip(_ r: PullResult) -> some View {
-        let color = r.tier == 5 ? gold5 : (r.tier == 4 ? purple4 : gray3)
-        return VStack(spacing: 0) {
-            Text("\(r.tier)★").font(.pretendard(size: r.tier >= 4 ? 13 : 11, weight: .bold)).foregroundStyle(r.tier == 3 ? GLGColor.textSecondary : color)
-            if r.tier == 5 { Text(r.pickup ? "픽업" : "픽뚫").font(.pretendard(size: 7, weight: .bold)).foregroundStyle(r.pickup ? okGreen : badRed) }
-        }
-        .frame(width: r.tier >= 4 ? 40 : 34, height: r.tier >= 4 ? 40 : 34)
-        .background(color.opacity(r.tier == 3 ? 0.18 : 0.16), in: RoundedRectangle(cornerRadius: 10))
-    }
-    private func pullButton(_ label: String, _ action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Text(label).font(.pretendard(size: 14, weight: .bold)).foregroundStyle(.white)
-                .frame(maxWidth: .infinity).padding(.vertical, 13).background(accent.primary, in: RoundedRectangle(cornerRadius: 12))
-        }.buttonStyle(.plain)
-    }
-}
-
-// ── 플래너 ──
-private struct Planner: View {
-    let game: GachaGameRate; let banner: GachaBannerRate
-    @Environment(\.glgAccent) private var accent
-    @State private var date: Date? = nil
-    @State private var showPicker = false
-    @State private var currentPulls = ""
-    @State private var passOn = false
-    @State private var qty = 1
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Button { showPicker = true } label: {
-                HStack {
-                    Text(date.map { DateUtil.shared.label(millis: Int64($0.timeIntervalSince1970 * 1000)) } ?? "목표 날짜 선택")
-                        .foregroundStyle(date == nil ? Color(.placeholderText) : GLGColor.textPrimary)
-                    Spacer()
-                    Image(systemName: "calendar").foregroundStyle(accent.primary)
-                }
-                .font(.pretendard(size: 14)).padding(12)
-                .background(Color(hex: 0xFFF2F2F6), in: RoundedRectangle(cornerRadius: 10))
-            }.buttonStyle(.plain)
-            NumField(label: "현재 보유 뽑기 수", placeholder: "0", text: $currentPulls).padding(.top, 10)
-            if game.pass != nil {
-                CalcToggleRow(label: "\(game.pass?.name ?? "패스") 적용", isOn: $passOn).padding(.top, 10)
-            }
-            QtyRow(qty: $qty).padding(.top, 8)
-            if let d = date {
-                plannerResult(d)
-            } else {
-                Text("목표 날짜를 선택하면 무료 재화로 모을 수 있는 뽑기 수와 달성 가능 여부를 계산해요.")
-                    .font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary).padding(.top, 14)
-            }
-        }
-        .sheet(isPresented: $showPicker) {
-            NavigationStack {
-                DatePicker("목표 날짜", selection: Binding(get: { date ?? Date() }, set: { date = $0 }), displayedComponents: .date)
-                    .datePickerStyle(.graphical).padding()
-                    .toolbar { ToolbarItem(placement: .confirmationAction) { Button("확인") { showPicker = false } } }
-            }
-            .presentationDetents([.medium])
-        }
-    }
-
-    @ViewBuilder private func plannerResult(_ d: Date) -> some View {
-        let days = Int(DateUtil.shared.daysBetween(fromMillis: nowMs(), toMillis: Int64(d.timeIntervalSince1970 * 1000)))
-        let weeks = days / 7
-        let dailyPerDay = Double(game.dailyFree) / Double(banner.perPull)
-        let weeklyPerWeek = Double(game.weeklyFree) / Double(banner.perPull)
-        let passPerDay = (passOn && game.pass != nil) ? Double(game.pass!.dailyCrystal) / Double(banner.perPull) : 0
-        let freePulls = Int(Double(days) * (dailyPerDay + passPerDay) + Double(weeks) * weeklyPerWeek)
-        let totalAvailable = (Int(currentPulls) ?? 0) + freePulls
-        let totalNeeded = Int(banner.hardPity) * qty
-        let (msg, color): (String, Color) = totalAvailable >= totalNeeded ? ("확보 가능 — 여유 \(totalAvailable - totalNeeded)회", okGreen)
-            : (Double(totalAvailable) >= Double(totalNeeded) * 0.7 ? ("뽑기 부족 — \(totalNeeded - totalAvailable)회 모자람", warnAmber)
-               : ("달성 불가 — \(totalNeeded - totalAvailable)회 부족", badRed))
-        VStack(spacing: 8) {
-            HStack(spacing: 8) {
-                ResultBox(label: "남은 일수", value: "\(days)일", sub: "주 \(weeks)회 보너스")
-                ResultBox(label: "무료 확보 뽑기", value: "\(freePulls)회", sub: "데일리+주간 누적")
-            }
-            ResultBox(label: "필요 뽑기 (\(qty)개·천장 기준)", value: "\(totalNeeded)회", sub: "보유+무료 \(totalAvailable)회").frame(maxWidth: .infinity)
-        }
-        .padding(.top, 14)
-        Text(msg).font(.pretendard(size: 13, weight: .bold)).foregroundStyle(color)
-            .frame(maxWidth: .infinity, alignment: .leading).padding(14)
-            .background(color.opacity(0.1), in: RoundedRectangle(cornerRadius: 12)).padding(.top, 12)
-    }
-}
 
 // ── 공용 작은 컴포넌트 ──
 private struct NumField: View {

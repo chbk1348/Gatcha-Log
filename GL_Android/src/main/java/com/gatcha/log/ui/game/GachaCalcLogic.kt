@@ -1,7 +1,6 @@
 package com.gatcha.log.ui.game
 
 import com.gatcha.log.data.GachaBannerRate
-import com.gatcha.log.data.GachaGameRate
 import kotlin.math.ceil
 import kotlin.math.roundToInt
 
@@ -9,7 +8,6 @@ import kotlin.math.roundToInt
  * 통합 계산기(GachaCalculatorSection)의 순수 파생 계산 모음 — @Composable 본문에서 분리해 단위 테스트 가능하게 함.
  *
  * 기존 inline 계산 블록을 동작·결과 동일하게 그대로 옮긴 것이라 UI/수치 변화 없음.
- * 시뮬레이터의 RNG roll 은 난수·상태 의존이라 여기서 제외(컴포저블에 유지).
  */
 
 /** 재화 환산(보유 → 뽑기) 결과 — 표시값은 호출부에서 num()/won() 포맷. */
@@ -71,36 +69,4 @@ internal fun computeScenario(banner: GachaBannerRate, pityVal: Int, guaranteed: 
         worstPulls = maxOf(1, worstSingle) * qty
     }
     return ScenarioResult(bestPulls, worstPulls, bestSub, worstSub)
-}
-
-/** 뽑기 플래너 결과(무료 누적·보유+무료·필요 뽑기 수). days/weeks 는 표시용 동봉. */
-internal data class PlannerResult(
-    val days: Int,
-    val weeks: Int,
-    val freePulls: Int,
-    val totalAvailable: Int,
-    val totalNeeded: Int,
-)
-
-/**
- * 남은 [days]일 동안 데일리/주간 무료 재화로 모을 수 있는 뽑기 수와 필요량을 산출.
- * 날짜 차이(days)는 플랫폼 타임존 의존이라 호출부에서 계산해 주입한다.
- */
-internal fun computePlanner(
-    days: Int,
-    game: GachaGameRate,
-    banner: GachaBannerRate,
-    currentPulls: Int,
-    passOn: Boolean,
-    qty: Int,
-): PlannerResult {
-    val weeks = days / 7
-    val dailyPerDay = game.dailyFree.toDouble() / banner.perPull
-    val weeklyPerWeek = game.weeklyFree.toDouble() / banner.perPull
-    val pass = game.pass
-    val passPerDay = if (passOn && pass != null) pass.dailyCrystal.toDouble() / banner.perPull else 0.0
-    val freePulls = (days * (dailyPerDay + passPerDay) + weeks * weeklyPerWeek).toInt()
-    val totalAvailable = currentPulls + freePulls
-    val totalNeeded = banner.hardPity * qty
-    return PlannerResult(days, weeks, freePulls, totalAvailable, totalNeeded)
 }

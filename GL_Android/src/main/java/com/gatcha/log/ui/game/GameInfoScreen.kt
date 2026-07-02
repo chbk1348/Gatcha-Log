@@ -48,7 +48,7 @@ import com.gatcha.log.ui.theme.*
 import kotlinx.coroutines.launch
 
 /** 게임정보 탭의 풀스크린 하위 페이지 (열리면 하단바·FAB 숨김) */
-private enum class GiSub { Main, HoyoLink, Dashboard, Rate, Calc, RechargeValue, Report, Gift, Schedule, Pickups, News, CharStats, CharRoster }
+private enum class GiSub { Main, HoyoLink, Dashboard, Rate, Calc, Report, Gift, Schedule, Pickups, News, CharStats, CharRoster }
 
 /** 화면 전환 push/pop 방향용 계층 깊이. Main=0, 하위 페이지=1, 캐릭터 상세(목록서 진입)=2. */
 private fun subDepth(s: GiSub): Int = when (s) {
@@ -179,7 +179,6 @@ fun GameInfoScreen(
                 onOpenStats = { c, g -> statChar = c; statCharGame = g; statReturn = GiSub.CharRoster; subPage = GiSub.CharStats },
             )
             GiSub.Calc -> SectionPage(onBack = { subPage = GiSub.Main }) { GachaCalculatorSection(pity) }
-            GiSub.RechargeValue -> SectionPage(onBack = { subPage = GiSub.Main }) { RechargeValueSection() }
             GiSub.Report -> SectionPage(onBack = { subPage = GiSub.Main }) {
                 GachaReportSection(
                     stats = gachaStats,
@@ -292,9 +291,7 @@ fun GameInfoScreen(
             }
             // 페이지로 분류된 섹션(계산기·프로필·리포트) — 진입 카드
             item { Spacer(Modifier.height(20.dp)) }
-            item { NavEntryCard(Icons.Default.Calculate, "가챠 계산기", "재화 환산 · 확률 · 시뮬레이터 · 플래너") { subPage = GiSub.Calc } }
-            item { Spacer(Modifier.height(12.dp)) }
-            item { NavEntryCard(Icons.Default.Savings, "충전 가성비", "패키지 단가 비교 · 첫구매 반영 · 뽑 환산") { subPage = GiSub.RechargeValue } }
+            item { NavEntryCard(Icons.Default.Calculate, "가챠 계산기", "재화 환산 · 확률 · 시나리오") { subPage = GiSub.Calc } }
             item { Spacer(Modifier.height(12.dp)) }
             item { NavEntryCard(Icons.Default.BarChart, "가챠 효율 리포트", "UIGF/SRGF 분석 · 단가 · 천장 분포") { subPage = GiSub.Report } }
             item { Spacer(Modifier.height(20.dp)) }
