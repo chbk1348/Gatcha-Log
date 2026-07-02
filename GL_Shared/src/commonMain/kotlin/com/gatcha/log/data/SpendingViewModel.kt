@@ -281,6 +281,8 @@ class SpendingViewModel : ViewModel() {
         _subscriptions.value = repo.loadSubscriptions()
         _redeemedCodes.value = repo.loadRedeemedCodes()
         _homeCards.value = repo.loadHomeCards()
+        _savingsHeld.value = repo.loadSavingsHeld()
+        refreshSavings()
     }
 
     // ----------------------------------------------------------------- 계정 (구글 로그인 — Credential Manager)
@@ -355,6 +357,7 @@ class SpendingViewModel : ViewModel() {
             (listOf(spending) + current).sortedByDescending { it.dateMillis }.also(repo::saveSpendings)
         }
         autoLinkSubscription(spending)
+        refreshChallenge()
         emitStatus("지출이 저장되었어요")
     }
 
@@ -365,6 +368,7 @@ class SpendingViewModel : ViewModel() {
                 .also(repo::saveSpendings)
         }
         autoLinkSubscription(updated)
+        refreshChallenge()
         emitStatus("지출이 수정되었어요")
     }
 
@@ -430,12 +434,14 @@ class SpendingViewModel : ViewModel() {
         val removed = _spendings.value.firstOrNull { it.id == id }
         _spendings.update { current -> current.filter { it.id != id }.also(repo::saveSpendings) }
         removed?.let { unlinkSubscriptionIfOrphaned(it) }
+        refreshChallenge()
     }
 
     fun deleteSpendings(ids: Set<String>) {
         val removed = _spendings.value.filter { it.id in ids }
         _spendings.update { current -> current.filter { it.id !in ids }.also(repo::saveSpendings) }
         removed.forEach { unlinkSubscriptionIfOrphaned(it) }
+        refreshChallenge()
     }
 
     /**
@@ -471,6 +477,7 @@ class SpendingViewModel : ViewModel() {
                 )
             }.sortedByDescending { it.dateMillis }.also(repo::saveSpendings)
         }
+        refreshChallenge()
         emitStatus("${ids.size}건 일괄 수정했어요")
     }
 
@@ -478,12 +485,14 @@ class SpendingViewModel : ViewModel() {
     fun clearSpendings() {
         _spendings.value = emptyList()
         repo.saveSpendings(emptyList())
+        refreshChallenge()
     }
 
     // ----------------------------------------------------------------- 예산
     fun setBudget(value: Long) {
         _budget.value = value
         repo.saveBudget(value)
+        refreshChallenge()
     }
 
     /** 게임별 한도 설정. value 0 이면 해당 게임 한도 해제. */
@@ -501,6 +510,7 @@ class SpendingViewModel : ViewModel() {
         val cleaned = perGame.filterValues { it > 0 }
         _gameBudgets.value = cleaned
         repo.saveGameBudgets(cleaned)
+        refreshChallenge()
     }
 
     /** 이번 달 게임별 지출 합계(gameKey → 금액). */
@@ -648,6 +658,7 @@ class SpendingViewModel : ViewModel() {
         val updated = _pity.value + (gameKey to next)
         _pity.value = updated
         repo.savePity(updated)
+        refreshPlans()
         // 임박 단계 상승 시 1회 토스트(리셋·후퇴는 무시).
         val banner = com.gatcha.log.data.GachaRateData.byKey(gameKey)?.character
         if (banner != null) {
@@ -667,6 +678,45 @@ class SpendingViewModel : ViewModel() {
             }
         }
     }
+
+    // ----------------------------------------------------------------- 저축 플래너 · 절약 챌린지 (27.35)
+    /** 게임별 보유 재화(gameKey → 재화량) — 저축 플래너 필요분 차감용. */
+    private val _savingsHeld = MutableStateFlow<Map<String, Int>>(emptyMap())
+    val savingsHeld: StateFlow<Map<String, Int>> = _savingsHeld.asStateFlow()
+
+    /** 진행 중 픽업별 저축 계획(임박 순). activeBanners·pity·보유재화에서 파생. */
+    private val _savingsPlans = MutableStateFlow<List<SavingsPlan>>(emptyList())
+    val savingsPlans: StateFlow<List<SavingsPlan>> = _savingsPlans.asStateFlow()
+
+    /** 절약 챌린지·스트릭·배지 상태. 지출·예산에서 파생(결정형). */
+    private val _challenge = MutableStateFlow(SavingsChallenge.evaluate(emptyList(), 0L, 0, emptySet()))
+    val challenge: StateFlow<ChallengeSummary> = _challenge.asStateFlow()
+
+    /** 보유 재화 입력/해제(0 = 해제). */
+    fun setHeldCurrency(gameKey: String, value: Int) {
+        val updated = _savingsHeld.value.toMutableMap()
+        if (value > 0) updated[gameKey] = value else updated.remove(gameKey)
+        _savingsHeld.value = updated
+        repo.saveSavingsHeld(updated)
+        refreshPlans()
+    }
+
+    private fun refreshPlans() {
+        _savingsPlans.value = SavingsPlanner.build(_activeBanners.value, _pity.value, _savingsHeld.value)
+    }
+
+    /** 지출·예산 변경 시 챌린지 재평가 + 최고 스트릭·배지 단조 영속. */
+    private fun refreshChallenge() {
+        val prevBest = repo.loadBestNoSpend()
+        val prevBadges = repo.loadEarnedBadges()
+        val summary = SavingsChallenge.evaluate(_spendings.value, _budget.value, prevBest, prevBadges)
+        if (summary.bestStreak > prevBest) repo.saveBestNoSpend(summary.bestStreak)
+        val earned = SavingsChallenge.earnedIds(summary)
+        if (earned != prevBadges) repo.saveEarnedBadges(earned)
+        _challenge.value = summary
+    }
+
+    private fun refreshSavings() { refreshPlans(); refreshChallenge() }
 
     // ----- Enka 프로필 쇼케이스 -----
     private val _enkaGiUid = MutableStateFlow("")
@@ -1066,6 +1116,7 @@ class SpendingViewModel : ViewModel() {
                         _activeBanners.value = banners.sortedBy { it.dDay() }
                         // 백그라운드 픽업 마감 알림 점검용 로컬 캐시(네트워크 없이 판정).
                         runCatching { repo.saveActiveBanners(banners) }
+                        refreshPlans()   // 새 픽업 목록으로 저축 계획 갱신
                     }
                     _gameEvents.value = events.sortedBy { it.endMillis }
                     _challenges.value = challenges.sortedBy { it.endMillis }

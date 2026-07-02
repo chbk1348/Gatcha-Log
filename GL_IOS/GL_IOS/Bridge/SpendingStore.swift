@@ -66,6 +66,8 @@ final class SpendingStore: ObservableObject {
     @Published private(set) var attendanceToday: Set<String> = []
     @Published private(set) var checkingIn: String? = nil
     @Published private(set) var pity: [String: PityState] = [:]
+    @Published private(set) var savingsPlans: [SavingsPlan] = []
+    @Published private(set) var challenge: ChallengeSummary? = nil
     // Phase 4 chunk ③ (가챠 도구)
     @Published private(set) var enkaGiUid: String = ""
     @Published private(set) var enkaHsrUid: String = ""
@@ -154,6 +156,9 @@ final class SpendingStore: ObservableObject {
         bind(vm.attendanceToday) { [weak self] in self?.attendanceToday = $0 }
         bind(vm.checkingIn) { [weak self] in self?.checkingIn = $0 }
         bind(vm.pity) { [weak self] in self?.pity = $0 }
+        // 저축 플래너 · 절약 챌린지 (27.35)
+        bind(vm.savingsPlans) { [weak self] in self?.savingsPlans = $0 }
+        bind(vm.challenge) { [weak self] in self?.challenge = $0 }
         // chunk ③
         bind(vm.enkaGiUid) { [weak self] in self?.enkaGiUid = $0 }
         bind(vm.enkaHsrUid) { [weak self] in self?.enkaHsrUid = $0 }
@@ -293,6 +298,7 @@ final class SpendingStore: ObservableObject {
     func setPityCount(gameKey: String, value: Int) { vm.setPityCount(gameKey: gameKey, value: Int32(value)) }
     func resetPity(gameKey: String) { vm.resetPity(gameKey: gameKey) }
     func setPityGuaranteed(gameKey: String, _ g: Bool) { vm.setPityGuaranteed(gameKey: gameKey, g: g) }
+    func setHeldCurrency(gameKey: String, value: Int) { vm.setHeldCurrency(gameKey: gameKey, value: Int32(value)) }
     // chunk ③
     func loadEnkaProfile(game: String, uid: String) { vm.loadEnkaProfile(game: game, uid: uid) }
     func autoLoadEnka(game: String, force: Bool = false) { vm.autoLoadEnka(game: game, force: force) }

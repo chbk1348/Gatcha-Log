@@ -47,6 +47,10 @@ import java.util.Calendar
 import com.gatcha.log.data.DateUtil
 import com.gatcha.log.data.GameData
 import com.gatcha.log.data.GachaBanner
+import com.gatcha.log.ui.savings.PickupPlannerHomeCard
+import com.gatcha.log.ui.savings.SavingsChallengeHomeCard
+import com.gatcha.log.ui.savings.SavingsPlannerScreen
+import com.gatcha.log.ui.savings.SavingsChallengeScreen
 import com.gatcha.log.data.GachaReport
 import com.gatcha.log.data.GachaStats
 import com.gatcha.log.data.HomeCards
@@ -279,6 +283,8 @@ fun HomeContent(
     val account by viewModel.account.collectAsState()
     val gachaStats by viewModel.gachaStats.collectAsState()
     val homeCards by viewModel.homeCards.collectAsState()
+    val savingsPlans by viewModel.savingsPlans.collectAsState()
+    val challenge by viewModel.challenge.collectAsState()
     val gameInfoReady by viewModel.gameInfoReady.collectAsState()
     val hoyoTokenExpired by viewModel.hoyoTokenExpired.collectAsState()
     val gameEvents by viewModel.gameEvents.collectAsState()
@@ -327,6 +333,18 @@ fun HomeContent(
     val showNotifications = remember { mutableStateOf(false) }
     val showBudgetDialog = remember { mutableStateOf(false) }
     val showHomeEdit = remember { mutableStateOf(false) }
+
+    // 저축 플래너·절약 챌린지 하위 화면(홈 카드 진입). 0=없음 1=플래너 2=챌린지.
+    var savingsScreen by remember { mutableStateOf(0) }
+    BackHandler(enabled = savingsScreen != 0) { savingsScreen = 0 }
+    LaunchedEffect(savingsScreen) { onSubPageChange(savingsScreen != 0) }
+    if (savingsScreen != 0) {
+        when (savingsScreen) {
+            1 -> SavingsPlannerScreen(viewModel) { savingsScreen = 0 }
+            2 -> SavingsChallengeScreen(viewModel) { savingsScreen = 0 }
+        }
+        return
+    }
 
     // 오늘 할 일 목록(대시보드 KPI '오늘 할 일' 카운트 + 카드 공용)
     val todayTasks = if (gameInfoReady) resolveTodayTasks(
@@ -432,6 +450,15 @@ fun HomeContent(
                 DashNewsCard(gameNews, anniversaries) { viewModel.requestGameInfoAnchor(GameInfoAnchor.NEWS); onNavigateToGameInfo() }
                 Spacer(Modifier.height(12.dp))
             }
+        }
+        // 목표·동기 — 저축 플래너 · 절약 챌린지 (27.35)
+        glgStaggerItem(6, loadInSet) {
+            PickupPlannerHomeCard(savingsPlans) { savingsScreen = 1 }
+            Spacer(Modifier.height(12.dp))
+        }
+        glgStaggerItem(7, loadInSet) {
+            SavingsChallengeHomeCard(challenge) { savingsScreen = 2 }
+            Spacer(Modifier.height(12.dp))
         }
         item { Spacer(Modifier.height(120.dp)) }
     }
