@@ -32,10 +32,18 @@ data class ChangeEntry(
 object ChangeLog {
 
     /** 헤더 메타 — 업데이트 기간 라벨. */
-    const val periodLabel: String = "2026.05.23 ~ 06.30"
+    const val periodLabel: String = "2026.05.23 ~ 07.02"
 
     val entries: List<ChangeEntry> = buildList {
-        add(ChangeEntry("27.33.0", "2026.06.30", milestone = true, featured = true, items = listOf(
+        add(ChangeEntry("27.35.0", "2026.07.02", milestone = true, featured = true, items = listOf(
+            new("픽업 대비 저축 플래너 — 원하는 픽업까지 필요한 재화·예산을 계산하고 ‘하루 얼마씩’ 모으면 되는지 알려드려요"),
+            new("절약 챌린지 — 무지출 스트릭·이번 달 챌린지·배지 컬렉션으로 아끼는 재미를 더했어요"),
+            new("보유 캐릭터 목록에서 이름으로 검색할 수 있어요"),
+            new("리딤코드를 한 번에 복사하는 버튼을 추가했어요"),
+            imp("‘내 캐릭터’를 게임별 카드로 정리하고, 카드 안 캐릭터가 더 잘 보이도록 다듬었어요"),
+            imp("계산기를 정리했어요 — 자주 쓰지 않는 뽑기 시뮬·목표 플래너·충전 가성비를 덜어 더 가볍게 (재화 환산·확보 확률·시나리오는 그대로)"),
+        )))
+        add(ChangeEntry("27.33.0", "2026.06.30", milestone = true, items = listOf(
             new("정기결제 관리 센터 — 구독을 한 곳에서 추가·관리하고 갱신일을 미리 챙겨요"),
             new("알림을 한 곳에 모은 ‘알림 설정’ 페이지 — 항목별 알림·방해금지·데일리 요약을 모아서 관리해요"),
             new("방해금지 시간 — 지정한 시간대엔 알림을 보내지 않아요 (자정 넘김 지원)"),
