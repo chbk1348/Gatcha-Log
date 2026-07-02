@@ -9,7 +9,7 @@
 Google Apps Script 웹앱에서 출발해 **Kotlin Multiplatform + Compose Multiplatform**으로
 **Android · iOS** 를 모두 지원하는 네이티브 앱으로 발전한 프로젝트입니다.
 
-[![Release](https://img.shields.io/github/v/release/chbk1348/Gatcha-Log?label=release&color=3DDC84)](https://github.com/chbk1348/Gatcha-Log/releases/latest)
+[![Release](https://img.shields.io/github/v/release/chbk1348/Gatcha-Log?sort=semver&label=release&color=3DDC84)](https://github.com/chbk1348/Gatcha-Log/releases/latest)
 ![Platform](https://img.shields.io/badge/Platform-Android%20%C2%B7%20iOS-3DDC84?logo=android&logoColor=white)
 ![Kotlin](https://img.shields.io/badge/Kotlin-2.3.21-7F52FF?logo=kotlin&logoColor=white)
 ![Compose](https://img.shields.io/badge/Compose%20Multiplatform-1.11-4285F4?logo=jetpackcompose&logoColor=white)
