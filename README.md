@@ -31,17 +31,21 @@ Google Apps Script 웹앱에서 출발해 **Kotlin Multiplatform + Compose Multi
 - 지출 추가/수정/삭제 — 게임·결제수단·태그·메모 분류
 - **월 예산** 사용률·지난 달 대비 + **지출 인사이트**(예산 페이스 예측·게임별 월 추이·결제수단/태그 비중)
 - **연간 리포트** — 연도 선택 · 월별 추이 차트 · 게임별 집계
-- **구독 관리** — 월정액·패스 정기결제 + 다음 결제 D-Day
+- **정기결제 관리 센터** — 월정액·패스 구독을 한 곳에서 관리 · 다음 갱신 D-Day · 갱신일 알림 · 지출 '구독으로 기록' 자동 연동
 - CSV 내보내기 · 파일 백업 · 데이터 초기화
+
+### 🎯 목표 · 동기 부여
+- **픽업 대비 저축 플래너** — 진행 중 픽업까지 필요한 뽑기·재화·원화를 역산해 **‘하루 얼마씩’ 모으면 확보**인지 계산 (현재 천장·50/50·보유 재화 반영)
+- **절약 챌린지 · 스트릭** — 무지출 연속일 · 이번 달 챌린지(주간 무지출·예산 내·전월 대비 절약) · 달성 배지 컬렉션
 
 ### 🎮 게임 정보 · HoYoLAB 연동 (원신 · 스타레일 · 젠레스)
 - **실시간 노트** — 레진·개척력·배터리 + 파견·주간 보스·시뮬레이션 우주 등 부가 통계
 - **자동 출석체크** — 백그라운드로 매일 자동 출석, 결과 알림 (Android: WorkManager / iOS: BGTaskScheduler)
-- **리딤(선물) 코드** — 활성 코드 목록 + 앱에서 바로 교환(보상은 게임 우편함)
+- **리딤(선물) 코드** — 활성 코드 목록 + 앱에서 바로 교환(보상은 게임 우편함) · 코드 복사
 - **월간 수입 일지** — 원석·폴리크롬 등 이번 달 재화 수입 + 수입원 비중
 - **전투 콘텐츠 진행도** — 나선 비경·현실 속 환상극·혼돈의 기억 등
 - **자동 연동** — 로그인 한 번으로 토큰·게임 UID 자동 수집
-- **내 캐릭터 — 보유 전체 스탯시트** — 연동 계정의 **보유 캐릭터 전체(쇼케이스 밖 포함)** 를 핵심 스탯·무기(광추/음동기)·성유물(유물/드라이브 디스크)까지 풀 상세로 조회. 대표 4명 + 더보기 → 보유 목록(등급 필터) → 캐릭터 상세 (원신·스타레일·젠레스)
+- **내 캐릭터 — 보유 전체 스탯시트** — 연동 계정의 **보유 캐릭터 전체(쇼케이스 밖 포함)** 를 핵심 스탯·무기(광추/음동기)·성유물(유물/드라이브 디스크)까지 풀 상세로 조회. 대표 4명 + 더보기 → 보유 목록(등급·속성 필터 · **이름 검색**) → 캐릭터 상세 (원신·스타레일·젠레스). 전체 보기는 게임별 카드로 정리
 
 ### 🗓 배너 · 일정
 - **픽업 배너 D-Day**(전반/후반 · 버전), **패치 일정**(버전 시작·종료 날짜)
@@ -51,11 +55,12 @@ Google Apps Script 웹앱에서 출발해 **Kotlin Multiplatform + Compose Multi
 
 ### 🎲 가챠 도구 (6개 게임)
 - **가챠 확률표** — 소프트/하드 천장·픽업 확률 통계
-- **통합 계산기** — 재화 환산 · 확보 확률 · 뽑기 플래너(목표일까지 무료 재화 누적·달성 판정)
+- **통합 계산기** — 재화 환산 · 확보 확률 · 시나리오(최선·최악 뽑기 수)
 - **가챠 효율 리포트** — UIGF v4 / SRGF JSON 가져오기 → 천장 분포·월별 추이·픽업 비율·5성 타임라인·평균 천장·운 분석
 
 ### 🔔 알림
-- 예산 초과 · 출석 미완료 · 재화 가득 · 위시 픽업 로컬 알림 (항목별 토글)
+- 예산 초과 · 출석 미완료 · 재화 가득 · 위시 픽업 · 픽업 마감 · **정기결제 갱신** 로컬 알림 (항목별 토글)
+- **방해금지(DnD) 시간대** — 지정 시간엔 알림 억제(자정 넘김 지원) · **데일리 요약** — 하루 1건 통합 알림
 
 ### ☁️ 계정 · 백업 · 동기화
 - **Google 로그인** + **Firebase Firestore** 클라우드 동기화 — **Android ↔ iOS 데이터 완전 호환**
@@ -71,11 +76,11 @@ Google Apps Script 웹앱에서 출발해 **Kotlin Multiplatform + Compose Multi
 | 영역 | 사용 기술 |
 |---|---|
 | 공유 코드 (KMP) | Kotlin 2.3.21 · Compose Multiplatform 1.11 (Material 3) · kotlinx-{coroutines, serialization, datetime} · Ktor |
-| Android | Jetpack Compose · AGP 9.2.1 · compileSdk 35 / minSdk 24 · WorkManager · Credential Manager |
+| Android | Jetpack Compose · AGP 9.2.1 · compileSdk 36 / minSdk 24 · WorkManager · Credential Manager |
 | iOS | SwiftUI(네이티브 탭바·iOS 26 리퀴드 글래스) · BGTaskScheduler · GoogleSignIn SDK · Xcode 26 / iOS 16+ |
 | 클라우드 | Firebase Auth + Cloud Firestore (Android: Firebase SDK / iOS: GitLive KMP + Firebase iOS SDK) |
 | 로컬 저장 | Android: SharedPreferences(토큰은 EncryptedSharedPreferences) / iOS: UserDefaults(토큰은 Keychain) |
-| 빌드 | Gradle 9.4.1 · XcodeGen |
+| 빌드 | Gradle 9.5.0 · XcodeGen |
 
 ---
 
