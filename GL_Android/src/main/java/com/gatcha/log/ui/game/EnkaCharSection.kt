@@ -11,6 +11,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -43,7 +44,9 @@ import com.gatcha.log.data.api.EnkaWeapon
 import com.gatcha.log.data.api.KeyStatRules
 import com.gatcha.log.data.api.StatTok
 import com.gatcha.log.ui.components.GlassCard
+import com.gatcha.log.ui.components.GlgTextField
 import com.gatcha.log.ui.components.RosterSkeleton
+import com.gatcha.log.ui.theme.DividerColor
 import com.gatcha.log.ui.theme.LocalAccent
 import com.gatcha.log.ui.theme.TextPrimary
 import com.gatcha.log.ui.theme.TextSecondary
@@ -120,13 +123,12 @@ fun EnkaCharSection(
         if (!linked) {
             LinkPrompt(accent, hadProfile, onOpenHoyolab)
         } else {
-            // 전체 보기일 땐 게임별 라벨로 구분. 단일 게임이면 라벨 생략(섹션 제목으로 충분).
-            val showLabels = games.size > 1
+            // 게임별로 한 카드씩 — 각 게임 로스터를 카드로 묶고 게임 라벨을 카드 헤더로 표시.
             games.forEachIndexed { i, g ->
-                if (i > 0) Spacer(Modifier.height(18.dp))
+                if (i > 0) Spacer(Modifier.height(12.dp))
                 GameRosterBlock(
                     game = g,
-                    showLabel = showLabels,
+                    showLabel = true,
                     result = results[g],
                     loading = g in loadingGames,
                     accent = accent,
@@ -150,55 +152,52 @@ private fun GameRosterBlock(
     onOpenAll: (String) -> Unit,
 ) {
     val chars = result?.profile?.chars.orEmpty()
-    Column {
-        if (showLabel) {
-            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 9.dp)) {
-                Box(Modifier.size(8.dp).clip(RoundedCornerShape(999.dp)).background(accent))
-                Spacer(Modifier.width(7.dp))
-                Text(gameLabel(game), fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextSecondary)
-            }
-        }
-        when {
-            // 로드 전(result null)·로딩 중엔 스켈레톤, 로드 완료 후에만 빈/에러 표시
-            chars.isEmpty() && (result == null || loading) -> RosterSkeleton()
-            chars.isEmpty() -> Hint(
-                result?.error ?: "표시할 캐릭터가 없어요 (인게임 쇼케이스 공개 확인)",
-            )
-            else -> {
-                // 대표 4명만 표시, 그 이상은 더보기로 전체 페이지 진입
-                chars.take(4).chunked(2).forEach { row ->
-                    Row(Modifier.fillMaxWidth().height(IntrinsicSize.Max), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        row.forEach { c ->
-                            Box(Modifier.weight(1f).fillMaxHeight()) { RosterCard(c, game, Modifier.fillMaxHeight()) { onOpenStats(c, game) } }
-                        }
-                        if (row.size == 1) Spacer(Modifier.weight(1f))
+    GlassCard(shape = RoundedCornerShape(24.dp), modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(16.dp)) {
+            if (showLabel) {
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 12.dp)) {
+                    Box(Modifier.size(8.dp).clip(RoundedCornerShape(999.dp)).background(accent))
+                    Spacer(Modifier.width(7.dp))
+                    Text(gameLabel(game), fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+                    if (chars.isNotEmpty()) {
+                        Spacer(Modifier.width(6.dp))
+                        Text("${chars.size}", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextSecondary)
                     }
-                    Spacer(Modifier.height(10.dp))
                 }
-                if (chars.size > 4) MoreButton(chars.size, accent) { onOpenAll(game) }
+            }
+            when {
+                // 로드 전(result null)·로딩 중엔 스켈레톤, 로드 완료 후에만 빈/에러 표시
+                chars.isEmpty() && (result == null || loading) -> RosterSkeleton()
+                chars.isEmpty() -> Hint(
+                    result?.error ?: "표시할 캐릭터가 없어요 (인게임 쇼케이스 공개 확인)",
+                )
+                else -> {
+                    // 대표 4명만 표시, 그 이상은 더보기로 전체 페이지 진입
+                    chars.take(4).chunked(2).forEach { row ->
+                        Row(Modifier.fillMaxWidth().height(IntrinsicSize.Max), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            row.forEach { c ->
+                                Box(Modifier.weight(1f).fillMaxHeight()) { RosterCard(c, game, Modifier.fillMaxHeight()) { onOpenStats(c, game) } }
+                            }
+                            if (row.size == 1) Spacer(Modifier.weight(1f))
+                        }
+                        Spacer(Modifier.height(10.dp))
+                    }
+                    if (chars.size > 4) MoreButton(chars.size, accent) { onOpenAll(game) }
+                }
             }
         }
     }
 }
 
+// 뉴스 섹션과 동일한 '더보기' 스타일 — 카드 내부 구분선 + 가운데 정렬 accent 텍스트.
 @Composable
 private fun MoreButton(count: Int, accent: Color, onClick: () -> Unit) {
-    Surface(
-        color = Color.White,
-        shape = RoundedCornerShape(14.dp),
-        border = androidx.compose.foundation.BorderStroke(1.dp, CardOutline),
-        modifier = Modifier.fillMaxWidth().clickable { onClick() },
+    Box(Modifier.fillMaxWidth().height(1.dp).background(DividerColor))
+    Row(
+        modifier = Modifier.fillMaxWidth().clickable { onClick() }.padding(top = 10.dp, bottom = 2.dp),
+        horizontalArrangement = Arrangement.Center,
     ) {
-        Row(
-            Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text("더보기", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = accent)
-            Spacer(Modifier.width(5.dp))
-            Text("$count", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextSecondary)
-            Spacer(Modifier.weight(1f))
-            Text("›", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = accent)
-        }
+        Text("더보기 ($count)", fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = accent)
     }
 }
 
@@ -219,13 +218,16 @@ fun EnkaRosterPage(
     var rarityFilter by rememberSaveable { mutableStateOf(0) } // 0=전체, 5, 4
     var elementFilter by rememberSaveable { mutableStateOf("") } // ""=전체
     var pathFilter by rememberSaveable { mutableStateOf("") } // ""=전체 (HSR)
+    var query by rememberSaveable { mutableStateOf("") }
     val all = result?.profile?.chars.orEmpty()
     val elements = all.mapNotNull { it.element.ifBlank { null } }.distinct()
     val paths = all.mapNotNull { it.path.ifBlank { null } }.distinct()
+    val q = query.trim()
     val chars = all.filter {
         (rarityFilter == 0 || it.rarity == rarityFilter) &&
             (elementFilter.isBlank() || it.element == elementFilter) &&
-            (pathFilter.isBlank() || it.path == pathFilter)
+            (pathFilter.isBlank() || it.path == pathFilter) &&
+            (q.isBlank() || it.name.contains(q, ignoreCase = true))
     }
     val title = "보유 캐릭터 · " + if (game == "genshin") "원신" else if (game == "zzz") "젠레스" else "스타레일"
     Column(
@@ -238,6 +240,14 @@ fun EnkaRosterPage(
             Spacer(Modifier.width(10.dp))
             Text(title, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
         }
+        // 이름 검색
+        GlgTextField(
+            value = query,
+            onValueChange = { query = it },
+            placeholder = "캐릭터 이름 검색",
+            trailingIcon = Icons.Default.Search,
+            modifier = Modifier.fillMaxWidth().padding(bottom = 10.dp),
+        )
         // 필터 칩 — 등급 · 속성 · 운명의길(스타레일)
         Row(
             Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(bottom = 10.dp),
@@ -248,6 +258,9 @@ fun EnkaRosterPage(
             if (game == "hsr" && paths.isNotEmpty()) {
                 FilterChip("운명의길", pathFilter.ifBlank { "전체" }, listOf<Pair<String, () -> Unit>>("전체" to { pathFilter = "" }) + paths.map { p -> p to { pathFilter = p } })
             }
+        }
+        if (chars.isEmpty() && all.isNotEmpty()) {
+            Hint(if (q.isNotBlank()) "‘$q’ 검색 결과가 없어요" else "조건에 맞는 캐릭터가 없어요")
         }
         chars.chunked(2).forEach { row ->
             Row(Modifier.fillMaxWidth().height(IntrinsicSize.Max), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -311,7 +324,14 @@ private fun LinkPrompt(accent: Color, reLink: Boolean, onOpenHoyolab: () -> Unit
 @Composable
 private fun RosterCard(c: EnkaChar, game: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
     val rarityColor = if (c.rarity >= 5) Gold else Purple
-    GlassCard(shape = RoundedCornerShape(18.dp), modifier = modifier.clickable { onClick() }) {
+    // 게임 카드(글래스 회색 표면) 안에서 대비를 주려 흰 배경 타일 — 전체 페이지에서도 떠 보인다.
+    Box(
+        modifier
+            .clip(RoundedCornerShape(18.dp))
+            .background(Color.White)
+            .border(1.dp, CardOutline, RoundedCornerShape(18.dp))
+            .clickable { onClick() },
+    ) {
         Row(Modifier.fillMaxWidth().padding(11.dp), verticalAlignment = Alignment.CenterVertically) {
             Box(
                 Modifier.size(50.dp).clip(RoundedCornerShape(14.dp)).background(rarityColor.copy(alpha = 0.14f)),
