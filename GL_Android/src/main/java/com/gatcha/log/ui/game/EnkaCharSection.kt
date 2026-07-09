@@ -95,20 +95,19 @@ fun EnkaCharSection(
     val results by viewModel.enkaResults.collectAsState()
     val loadingGames by viewModel.enkaLoadingGames.collectAsState()
     val hoyolab by viewModel.hoyolabConfig.collectAsState()
-    val giUid by viewModel.enkaGiUid.collectAsState()
-    val hsrUid by viewModel.enkaHsrUid.collectAsState()
 
     // 표시 대상 게임 — 전체면 3게임, 아니면 헤더가 고른 게임 1개(Enka 미지원 게임이면 비표시).
     val games = remember(gameFilter) {
         if (gameFilter == "all") listOf("genshin", "hsr", "zzz")
         else listOf(gameFilter).filter { it in setOf("genshin", "hsr", "zzz") }
     }
+
+    // 미연동(=HoYoLAB 연동 프롬프트가 뜰 상황)이면 '내 캐릭터' 영역 전체를 숨긴다(헤더·'상시' 배지 포함).
+    // 연동 유도는 데일리/프로필 섹션의 프롬프트가 담당하며, 연동되면 자동으로 로스터가 나타난다.
+    if (!hoyolab.isLinked) return
+
     // 필터 변경 시 해당 게임들 로드(캐시 적중분 즉시 반영, 미적중분 순차 호출).
     LaunchedEffect(games) { if (games.isNotEmpty()) viewModel.autoLoadEnkaSection(games) }
-
-    val linked = hoyolab.isLinked
-    // 클라우드서 복원된 UID 가 있는데 토큰만 없으면 = 재설치/재로그인. 토큰은 보안상 기기에만 저장돼 동기화 안 됨.
-    val hadProfile = giUid.isNotBlank() || hsrUid.isNotBlank() || hoyolab.zzzUid.isNotBlank()
 
     Column {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -120,22 +119,18 @@ fun EnkaCharSection(
         }
         Spacer(Modifier.height(11.dp))
 
-        if (!linked) {
-            LinkPrompt(accent, hadProfile, onOpenHoyolab)
-        } else {
-            // 게임별로 한 카드씩 — 각 게임 로스터를 카드로 묶고 게임 라벨을 카드 헤더로 표시.
-            games.forEachIndexed { i, g ->
-                if (i > 0) Spacer(Modifier.height(12.dp))
-                GameRosterBlock(
-                    game = g,
-                    showLabel = true,
-                    result = results[g],
-                    loading = g in loadingGames,
-                    accent = accent,
-                    onOpenStats = onOpenStats,
-                    onOpenAll = onOpenAll,
-                )
-            }
+        // 게임별로 한 카드씩 — 각 게임 로스터를 카드로 묶고 게임 라벨을 카드 헤더로 표시.
+        games.forEachIndexed { i, g ->
+            if (i > 0) Spacer(Modifier.height(12.dp))
+            GameRosterBlock(
+                game = g,
+                showLabel = true,
+                result = results[g],
+                loading = g in loadingGames,
+                accent = accent,
+                onOpenStats = onOpenStats,
+                onOpenAll = onOpenAll,
+            )
         }
     }
 }
@@ -300,24 +295,6 @@ private fun FilterChip(label: String, current: String, items: List<Pair<String, 
 @Composable
 private fun Hint(text: String) {
     Text(text, fontSize = 12.sp, color = TextSecondary, modifier = Modifier.padding(vertical = 12.dp))
-}
-
-@Composable
-private fun LinkPrompt(accent: Color, reLink: Boolean, onOpenHoyolab: () -> Unit) {
-    Column(Modifier.padding(vertical = 8.dp)) {
-        if (reLink) {
-            // 재설치/재로그인 — 데이터(소비·UID)는 복원됐지만 토큰은 보안상 기기 전용이라 사라짐.
-            Text("HoYoLAB 재연동이 필요해요", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
-            Spacer(Modifier.height(4.dp))
-            Text("보안상 로그인 토큰은 기기에만 저장돼요. 재연동하면 보유 캐릭터가 바로 복원됩니다.", fontSize = 12.sp, color = TextSecondary)
-        } else {
-            Text("HoYoLAB을 연동하면 보유 캐릭터가 자동으로 표시돼요", fontSize = 12.sp, color = TextSecondary)
-        }
-        Spacer(Modifier.height(10.dp))
-        Surface(color = accent, shape = RoundedCornerShape(999.dp), modifier = Modifier.clickable { onOpenHoyolab() }) {
-            Text(if (reLink) "HoYoLAB 재연동하기" else "HoYoLAB 연동하기", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White, modifier = Modifier.padding(horizontal = 14.dp, vertical = 9.dp))
-        }
-    }
 }
 
 /** 로스터 카드 — 초상 + 이름 + Lv·우정/원소·명좌. 탭 가능. */
