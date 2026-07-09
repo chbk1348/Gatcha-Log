@@ -192,16 +192,21 @@ object EnkaApi {
 
     private suspend fun fetchHsr(uid: String, ltuid: String = "", ltoken: String = ""): EnkaResult {
         val res = Net.get("https://api.mihomo.me/sr_info_parsed/$uid?lang=kr", headers)
-        errorFor(res.code)?.let { return EnkaResult(null, it) }
+        val mihomoErr = errorFor(res.code)
+        // mihomo(HSR 파싱 API)가 죽어도(예: 500 장애) 연동돼 있으면 HoYoLAB 로스터로 폴백 → '조회 실패' 대신 목록 유지.
+        // 미연동이면 쇼케이스 소스가 mihomo 뿐이라 폴백 불가 → 원래 에러 노출.
+        if (mihomoErr != null && (ltuid.isBlank() || ltoken.isBlank())) return EnkaResult(null, mihomoErr)
         ensureHsrSetData() // 로스터(쇼케이스 밖) 세트 효과 계산용 메타
         // 본인 계정 연동 시: HoYoLAB avatar/info 로 보유 전체 캐릭터(쇼케이스 밖 포함)
         val hoyoData = HoyolabApi.fetchHsrAvatarInfo(ltuid, ltoken, uid)
         val hoyoList = hoyoData?.optJSONArray("avatar_list")
+        // mihomo 실패 + HoYoLAB 목록도 비면 폴백 불가 → 원래 에러 노출.
+        if (mihomoErr != null && (hoyoList == null || hoyoList.length() == 0)) return EnkaResult(null, mihomoErr)
         val propMap = hsrPropMap(hoyoData?.optJSONObject("property_info")) // property_type → KR 스탯명
         return runCatching {
-            val json = JSONObject(res.body)
-            val player = json.optJSONObject("player")
-            val list = json.optJSONArray("characters") ?: JSONArray()
+            val json = if (mihomoErr == null) JSONObject(res.body) else null
+            val player = json?.optJSONObject("player")
+            val list = json?.optJSONArray("characters") ?: JSONArray()
             // mihomo 쇼케이스 캐릭터(풍부한 KR 파싱) — id 색인
             val showcase = linkedMapOf<Int, EnkaChar>()
             for (i in 0 until list.length()) {
