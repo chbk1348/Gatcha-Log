@@ -43,6 +43,7 @@ import com.gatcha.log.data.GameData
 import com.gatcha.log.data.GameEvent
 import com.gatcha.log.data.companionWeapons
 import com.gatcha.log.data.dhLabel
+import com.gatcha.log.data.isCollabBanner
 import com.gatcha.log.data.unpairedWeapons
 import com.gatcha.log.ui.components.GlassCard
 import com.gatcha.log.ui.theme.DividerColor
@@ -135,6 +136,15 @@ val SwordIcon: ImageVector = ImageVector.Builder("Sword", 24.dp, 24.dp, 24f, 24f
 private val Track = Color(0xFFEDEFF3)
 private val CharBadge = Color(0xFF5B8DEF)
 private val WeapBadge = Color(0xFFE0883B)
+private val CollabBadge = Color(0xFF6D5AE6)
+
+// 콜라보 배너 표식 — 이름 옆 작은 알약. (스타레일 × Fate 등)
+@Composable
+private fun CollabChip() {
+    Surface(color = CollabBadge, shape = RoundedCornerShape(999.dp)) {
+        Text("콜라보", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = Color.White, modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp))
+    }
+}
 
 // 픽업 그룹 헤더 — 종류 배지(캐릭터=블루 / 무기=앰버) + 개수.
 @Composable
@@ -215,7 +225,10 @@ fun PickupItem(banner: GachaBanner, companions: List<GachaBanner> = emptyList())
                     else Text(banner.name.take(1), fontSize = 14.sp, fontWeight = FontWeight.Black, color = Color.White)
                 }
                 Column(Modifier.weight(1f)) {
-                    Text(banner.name, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TextPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                        Text(banner.name, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TextPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+                        if (isCollabBanner(banner)) CollabChip()
+                    }
                     Text(sub, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, color = TextSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
                 Column(horizontalAlignment = Alignment.End) {
@@ -356,7 +369,10 @@ private fun FeaturedVersionCard(vg: VersionGroup) {
                                 else Text(it.name.take(1), fontSize = 15.sp, fontWeight = FontWeight.Black, color = Color.White)
                             }
                             Column(Modifier.weight(1f)) {
-                                Text(it.name, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TextPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                                    Text(it.name, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TextPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+                                    if (isCollabBanner(it)) CollabChip()
+                                }
                                 if (comp != null) Text("＋ ${comp.name}", fontSize = 10.sp, fontWeight = FontWeight.SemiBold, color = WeapBadge, maxLines = 1, overflow = TextOverflow.Ellipsis)
                             }
                         }
@@ -393,23 +409,24 @@ private fun SlimVersionRow(vg: VersionGroup) {
         if (chars.isNotEmpty()) add("캐릭터 ${chars.size}")
         if (weaps.isNotEmpty()) add("무기 ${weaps.size}")
     }.joinToString(" · ")
-    Row(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp))
-            .border(1.dp, DividerColor, RoundedCornerShape(14.dp))
-            .padding(horizontal = 13.dp, vertical = 11.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
-    ) {
-        Surface(color = c, shape = RoundedCornerShape(8.dp)) {
-            Text(vg.game.abbr, fontSize = 11.sp, fontWeight = FontWeight.Black, color = Color.White, modifier = Modifier.padding(horizontal = 7.dp, vertical = 4.dp))
-        }
-        Column(Modifier.weight(1f)) {
-            Text(title, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text("${vg.game.displayName} · $counts", fontSize = 10.sp, color = TextSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
-        }
-        Column(horizontalAlignment = Alignment.End) {
-            Text(dhLabel(vg.nearestEnd), fontSize = 13.sp, fontWeight = FontWeight.Bold, color = ddColor, maxLines = 1)
-            if (vg.start > 0) Text("${DateUtil.shortDate(vg.start)}~${DateUtil.shortDate(vg.end)}", fontSize = 9.sp, color = TextSecondary, maxLines = 1)
+    GlassCard(shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth()) {
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = 13.dp, vertical = 11.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Surface(color = c, shape = RoundedCornerShape(8.dp)) {
+                Text(vg.game.abbr, fontSize = 11.sp, fontWeight = FontWeight.Black, color = Color.White, modifier = Modifier.padding(horizontal = 7.dp, vertical = 4.dp))
+            }
+            if (vg.pickups.any { isCollabBanner(it) }) CollabChip()
+            Column(Modifier.weight(1f)) {
+                Text(title, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text("${vg.game.displayName} · $counts", fontSize = 10.sp, color = TextSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+            Column(horizontalAlignment = Alignment.End) {
+                Text(dhLabel(vg.nearestEnd), fontSize = 13.sp, fontWeight = FontWeight.Bold, color = ddColor, maxLines = 1)
+                if (vg.start > 0) Text("${DateUtil.shortDate(vg.start)}~${DateUtil.shortDate(vg.end)}", fontSize = 9.sp, color = TextSecondary, maxLines = 1)
+            }
         }
     }
 }
@@ -422,25 +439,27 @@ private fun CompactVersionSection(vg: VersionGroup) {
     val ddColor = if (d in 0..3) Urgent else c
     val chars = vg.pickups.filter { it.type != "weapon" }
     val weaps = unpairedWeapons(vg.pickups)
-    Column(Modifier.fillMaxWidth()) {
-        Row(
-            Modifier.fillMaxWidth().padding(top = 10.dp, bottom = 7.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            Box(Modifier.size(3.dp, 14.dp).clip(RoundedCornerShape(2.dp)).background(c))
-            Text(
-                if (vg.version.isNotBlank()) "${vg.game.abbr} · v${vg.version}" else "${vg.game.abbr} · ${vg.game.displayName}",
-                fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextPrimary, maxLines = 1,
-            )
-            Spacer(Modifier.weight(1f))
-            Column(horizontalAlignment = Alignment.End) {
-                Text(dhLabel(vg.nearestEnd), fontSize = 12.sp, fontWeight = FontWeight.Bold, color = ddColor, maxLines = 1)
-                if (vg.start > 0) Text("${DateUtil.shortDate(vg.start)}~${DateUtil.shortDate(vg.end)}", fontSize = 9.sp, color = TextSecondary, maxLines = 1)
+    GlassCard(shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp)) {
+            Row(
+                Modifier.fillMaxWidth().padding(bottom = 7.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Box(Modifier.size(3.dp, 14.dp).clip(RoundedCornerShape(2.dp)).background(c))
+                Text(
+                    if (vg.version.isNotBlank()) "${vg.game.abbr} · v${vg.version}" else "${vg.game.abbr} · ${vg.game.displayName}",
+                    fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextPrimary, maxLines = 1,
+                )
+                Spacer(Modifier.weight(1f))
+                Column(horizontalAlignment = Alignment.End) {
+                    Text(dhLabel(vg.nearestEnd), fontSize = 12.sp, fontWeight = FontWeight.Bold, color = ddColor, maxLines = 1)
+                    if (vg.start > 0) Text("${DateUtil.shortDate(vg.start)}~${DateUtil.shortDate(vg.end)}", fontSize = 9.sp, color = TextSecondary, maxLines = 1)
+                }
             }
+            chars.forEach { CompactPickupRow(it, companionWeapons(it, vg.pickups)) }
+            weaps.forEach { CompactPickupRow(it, emptyList()) }
         }
-        chars.forEach { CompactPickupRow(it, companionWeapons(it, vg.pickups)) }
-        weaps.forEach { CompactPickupRow(it, emptyList()) }
     }
 }
 
@@ -468,7 +487,8 @@ private fun CompactPickupRow(banner: GachaBanner, companions: List<GachaBanner>)
             }
             Column(Modifier.weight(1f)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(banner.name, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(banner.name, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+                    if (isCollabBanner(banner)) { Spacer(Modifier.width(5.dp)); CollabChip() }
                     companions.firstOrNull()?.let {
                         Spacer(Modifier.width(4.dp))
                         Text("＋${it.name}", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = WeapBadge, maxLines = 1)
@@ -578,7 +598,7 @@ fun GameScheduleFullContent(
     if (groups.isEmpty() && extras.isEmpty()) {
         Text("예정된 일정이 없어요.", fontSize = 13.sp, color = TextSecondary, modifier = Modifier.fillMaxWidth().padding(top = 40.dp))
     } else {
-        groups.forEachIndexed { i, vg -> if (i > 0) Spacer(Modifier.height(6.dp)); CompactVersionSection(vg) }
+        groups.forEachIndexed { i, vg -> if (i > 0) Spacer(Modifier.height(12.dp)); CompactVersionSection(vg) }
         if (extras.isNotEmpty()) {
             Row(
                 Modifier.padding(top = 18.dp, bottom = 10.dp),
