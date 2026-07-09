@@ -619,6 +619,7 @@ private struct CompactVersionSection: View {
 private struct CompactPickupRow: View {
     let banner: GachaBanner
     var companions: [GachaBanner] = []
+    var showCollab: Bool = true
     var body: some View {
         let c = Color(argb64: banner.gameColor)
         let isWeapon = banner.type == "weapon"
@@ -636,7 +637,7 @@ private struct CompactPickupRow: View {
                 VStack(alignment: .leading, spacing: 1) {
                     HStack(spacing: 4) {
                         Text(banner.name).font(.pretendard(size: 13, weight: .bold)).foregroundStyle(GLGColor.textPrimary).lineLimit(1)
-                        if GameInfoKt.isCollabBanner(banner: banner) { CollabChip() }
+                        if showCollab && GameInfoKt.isCollabBanner(banner: banner) { CollabChip() }
                         if let comp = companions.first {
                             Text("＋\(comp.name)").font(.pretendard(size: 9, weight: .bold)).foregroundStyle(glWeap).lineLimit(1)
                         }
@@ -654,6 +655,50 @@ private struct CompactPickupRow: View {
     }
 }
 
+// 콜라보 강조 카드 — 게임 일정 최상단. 활성 콜라보(스타레일×Fate 등)를 일반 버전과 분리해 부각(보라 accent).
+private struct CollabScheduleCard: View {
+    let groups: [VersionGroupIOS]
+    private var title: String {
+        for g in groups { for b in g.pickups { if let t = GameInfoKt.collabTitle(banner: b) { return t } } }
+        return "콜라보 픽업"
+    }
+    var body: some View {
+        GLGCard(cornerRadius: 20, padding: 16) {
+            VStack(alignment: .leading, spacing: 0) {
+                HStack(spacing: 8) {
+                    CollabChip()
+                    Text(title).font(.pretendard(size: 14, weight: .bold)).foregroundStyle(GLGColor.textPrimary).lineLimit(1)
+                    Spacer(minLength: 0)
+                }
+                ForEach(Array(groups.enumerated()), id: \.offset) { _, vg in
+                    let chars = vg.pickups.filter { $0.type != "weapon" }
+                    let weaps = GameInfoKt.unpairedWeapons(all: vg.pickups)
+                    let d = Int((vg.nearestEnd - nowMs()) / 86_400_000)
+                    let ddColor = (0...3).contains(d) ? glUrgent : glCollab
+                    Spacer().frame(height: 12)
+                    HStack(spacing: 8) {
+                        RoundedRectangle(cornerRadius: 2).fill(glCollab).frame(width: 3, height: 14)
+                        Text(vg.version.isEmpty ? "\(vg.game.abbr) · \(vg.game.displayName)" : "\(vg.game.abbr) · v\(vg.version)")
+                            .font(.pretendard(size: 13, weight: .bold)).foregroundStyle(GLGColor.textPrimary).lineLimit(1)
+                        Spacer(minLength: 8)
+                        VStack(alignment: .trailing, spacing: 1) {
+                            Text(GameInfoKt.dhLabel(targetMillis: vg.nearestEnd, nowMillis: nowMs())).font(.pretendard(size: 12, weight: .bold)).foregroundStyle(ddColor).lineLimit(1)
+                            if vg.start > 0 { Text("\(DateUtil.shared.shortDate(millis: vg.start))~\(DateUtil.shared.shortDate(millis: vg.end))").font(.pretendard(size: 9)).foregroundStyle(GLGColor.textSecondary).lineLimit(1) }
+                        }
+                    }
+                    .padding(.bottom, 3)
+                    ForEach(Array(chars.enumerated()), id: \.offset) { _, b in
+                        CompactPickupRow(banner: b, companions: GameInfoKt.companionWeapons(character: b, all: vg.pickups), showCollab: false)
+                    }
+                    ForEach(Array(weaps.enumerated()), id: \.offset) { _, b in
+                        CompactPickupRow(banner: b, companions: [], showCollab: false)
+                    }
+                }
+            }
+        }
+    }
+}
+
 // 통합 일정 — 헤더 드롭다운(filter)으로 게임 분리. 픽업 배너(단독 디자인) + 상위 3개 일정, 초과 시 전체 페이지로.
 struct GameScheduleSection: View {
     let entries: [ScheduleEntry]
@@ -664,7 +709,9 @@ struct GameScheduleSection: View {
     @Environment(\.glgAccent) private var accent
 
     var body: some View {
-        let groups = buildVersionGroups(banners, filter: filter)
+        let allGroups = buildVersionGroups(banners, filter: filter)
+        let collabGroups = allGroups.filter { g in g.pickups.contains { GameInfoKt.isCollabBanner(banner: $0) } }
+        let groups = allGroups.filter { g in !g.pickups.contains { GameInfoKt.isCollabBanner(banner: $0) } }
         let extras = filteredEntries(entries, filter: filter).filter { $0.kind != "패치" }.sorted { $0.target < $1.target }
         let topGroups = Array(groups.prefix(3))
         let topExtras = Array(extras.prefix(2))
@@ -672,12 +719,16 @@ struct GameScheduleSection: View {
         VStack(alignment: .leading, spacing: 0) {
             Text("게임 일정").font(.pretendard(size: 16, weight: .bold)).padding(.bottom, 4)
             Text("픽업 배너를 버전별로 모았어요. 이벤트·정기 콘텐츠도 함께.").font(.pretendard(size: 11)).foregroundStyle(GLGColor.textSecondary).padding(.bottom, 12)
-            if groups.isEmpty && extras.isEmpty {
+            if allGroups.isEmpty && extras.isEmpty {
                 GLGCard(cornerRadius: 20, padding: 16) {
                     Text("예정된 일정이 없어요.").font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
             } else {
+                if !collabGroups.isEmpty {
+                    CollabScheduleCard(groups: collabGroups)
+                    if !topGroups.isEmpty || !topExtras.isEmpty { Spacer().frame(height: 12) }
+                }
                 if let featured = topGroups.first {
                     FeaturedVersionCard(vg: featured)
                     ForEach(Array(topGroups.dropFirst().enumerated()), id: \.offset) { _, vg in
@@ -721,7 +772,9 @@ struct GameSchedulePage: View {
     let filter: String
 
     var body: some View {
-        let groups = buildVersionGroups(store.activeBanners, filter: filter)
+        let allGroups = buildVersionGroups(store.activeBanners, filter: filter)
+        let collabGroups = allGroups.filter { g in g.pickups.contains { GameInfoKt.isCollabBanner(banner: $0) } }
+        let groups = allGroups.filter { g in !g.pickups.contains { GameInfoKt.isCollabBanner(banner: $0) } }
         // 버전 없는 일정(이벤트·정기 콘텐츠)은 하단 별도 카드로. 패치 종료는 버전 카드가 대신하므로 제외.
         let extras = filteredEntries(buildSchedule(banners: store.activeBanners, events: store.gameEvents, challenges: store.challenges), filter: filter)
             .filter { $0.kind != "패치" }.sorted { $0.target < $1.target }
@@ -729,10 +782,14 @@ struct GameSchedulePage: View {
             VStack(alignment: .leading, spacing: 0) {
                 Text("게임 일정").font(.pretendard(size: 22, weight: .bold)).padding(.bottom, 4)
                 Text("픽업 배너를 버전별로 모으고, 이벤트·정기 콘텐츠를 아래에 정리했어요.").font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary).padding(.bottom, 6)
-                if groups.isEmpty && extras.isEmpty {
+                if allGroups.isEmpty && extras.isEmpty {
                     Text("예정된 일정이 없어요.").font(.pretendard(size: 13)).foregroundStyle(GLGColor.textSecondary)
                         .frame(maxWidth: .infinity, alignment: .center).padding(.top, 40)
                 } else {
+                    if !collabGroups.isEmpty {
+                        CollabScheduleCard(groups: collabGroups)
+                        if !groups.isEmpty { Spacer().frame(height: 12) }
+                    }
                     ForEach(Array(groups.enumerated()), id: \.offset) { i, vg in
                         CompactVersionSection(vg: vg).padding(.top, i > 0 ? 12 : 0)
                     }
