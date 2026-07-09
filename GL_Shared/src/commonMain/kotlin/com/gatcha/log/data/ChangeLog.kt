@@ -35,10 +35,23 @@ data class ChangeEntry(
 object ChangeLog {
 
     /** 헤더 메타 — 업데이트 기간 라벨. */
-    const val periodLabel: String = "2026.05.23 ~ 07.02"
+    const val periodLabel: String = "2026.05.23 ~ 07.09"
 
     val entries: List<ChangeEntry> = buildList {
-        add(ChangeEntry("27.35.0", "2026.07.02", milestone = true, featured = true, items = listOf(
+        add(ChangeEntry("27.36.0", "2026.07.09", milestone = true, featured = true, items = listOf(
+            new("게임 일정을 버전별 카드로 새단장 — 임박한 픽업은 D-day 링으로 크게, 전체 일정은 촘촘하게, 버전 시작·종료일까지 한눈에"),
+            new("콜라보 픽업 전용 섹션 — 스타레일 × Fate 같은 콜라보를 일반 배너와 분리해 눈에 잘 띄게"),
+            new("저축 플래너에서 안 뽑을 픽업을 숨길 수 있어요"),
+            imp("클라우드 동기화 안전장치 — 네트워크가 불안정할 때 지출이 사라지지 않도록 보강했어요"),
+            imp("HoYoLAB 미연동 시 ‘내 캐릭터’·게임 정보의 빈 영역을 감춰 화면을 깔끔하게"),
+            imp("화면 진입 애니메이션을 없애 더 즉각적으로 반응해요"),
+            imp("지출 목록 스크롤이 더 부드러워졌어요"),
+            imp("가챠 확률표 페이지를 정리했어요 (천장·확률은 계산기에서 그대로 확인)"),
+            fix("테마 색상을 고르면 설정을 나가지 않아도 바로 반영돼요"),
+            fix("스타레일 캐릭터 조회가 서버 오류(500)일 때도 보유 목록이 보이도록 개선"),
+            fix("‘더보기’·‘전체 일정’ 카드를 아무 곳이나 눌러도 열려요"),
+        )))
+        add(ChangeEntry("27.35.0", "2026.07.02", milestone = true, items = listOf(
             new("픽업 대비 저축 플래너 — 원하는 픽업까지 필요한 재화·예산을 계산하고 ‘하루 얼마씩’ 모으면 되는지 알려드려요"),
             new("절약 챌린지 — 무지출 스트릭·이번 달 챌린지·배지 컬렉션으로 아끼는 재미를 더했어요"),
             new("보유 캐릭터 목록에서 이름으로 검색할 수 있어요"),
