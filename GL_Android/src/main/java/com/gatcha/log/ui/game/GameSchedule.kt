@@ -42,6 +42,7 @@ import com.gatcha.log.data.GameChallenge
 import com.gatcha.log.data.GameData
 import com.gatcha.log.data.GameEvent
 import com.gatcha.log.data.companionWeapons
+import com.gatcha.log.data.collabTitle
 import com.gatcha.log.data.dhLabel
 import com.gatcha.log.data.isCollabBanner
 import com.gatcha.log.data.unpairedWeapons
@@ -465,7 +466,7 @@ private fun CompactVersionSection(vg: VersionGroup) {
 
 // 컴팩트 픽업 행 — 상단 구분선 + 아바타 30 + 이름(+동반무기) + 잔여. 카드 여백 없이 밀도↑. (③ 전체 페이지)
 @Composable
-private fun CompactPickupRow(banner: GachaBanner, companions: List<GachaBanner>) {
+private fun CompactPickupRow(banner: GachaBanner, companions: List<GachaBanner>, showCollab: Boolean = true) {
     val c = banner.gameColor.toColor()
     val isWeapon = banner.type == "weapon"
     val ddColor = if (banner.dDay() <= 3) Urgent else c
@@ -488,7 +489,7 @@ private fun CompactPickupRow(banner: GachaBanner, companions: List<GachaBanner>)
             Column(Modifier.weight(1f)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(banner.name, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
-                    if (isCollabBanner(banner)) { Spacer(Modifier.width(5.dp)); CollabChip() }
+                    if (showCollab && isCollabBanner(banner)) { Spacer(Modifier.width(5.dp)); CollabChip() }
                     companions.firstOrNull()?.let {
                         Spacer(Modifier.width(4.dp))
                         Text("＋${it.name}", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = WeapBadge, maxLines = 1)
@@ -504,6 +505,45 @@ private fun CompactPickupRow(banner: GachaBanner, companions: List<GachaBanner>)
     }
 }
 
+// 콜라보 강조 카드 — 게임 일정 최상단. 활성 콜라보(스타레일×Fate 등)를 일반 버전과 분리해 부각(보라 accent).
+@Composable
+private fun CollabScheduleCard(groups: List<VersionGroup>) {
+    val title = groups.firstNotNullOfOrNull { g -> g.pickups.firstNotNullOfOrNull { collabTitle(it) } } ?: "콜라보 픽업"
+    GlassCard(shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.fillMaxWidth().padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                CollabChip()
+                Text(title, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TextPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+            groups.forEach { vg ->
+                Spacer(Modifier.height(12.dp))
+                val chars = vg.pickups.filter { it.type != "weapon" }
+                val weaps = unpairedWeapons(vg.pickups)
+                val d = ((vg.nearestEnd - System.currentTimeMillis()) / 86_400_000L).toInt()
+                val ddColor = if (d in 0..3) Urgent else CollabBadge
+                Row(
+                    Modifier.fillMaxWidth().padding(bottom = 3.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Box(Modifier.size(3.dp, 14.dp).clip(RoundedCornerShape(2.dp)).background(CollabBadge))
+                    Text(
+                        if (vg.version.isNotBlank()) "${vg.game.abbr} · v${vg.version}" else "${vg.game.abbr} · ${vg.game.displayName}",
+                        fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextPrimary, maxLines = 1,
+                    )
+                    Spacer(Modifier.weight(1f))
+                    Column(horizontalAlignment = Alignment.End) {
+                        Text(dhLabel(vg.nearestEnd), fontSize = 12.sp, fontWeight = FontWeight.Bold, color = ddColor, maxLines = 1)
+                        if (vg.start > 0) Text("${DateUtil.shortDate(vg.start)}~${DateUtil.shortDate(vg.end)}", fontSize = 9.sp, color = TextSecondary, maxLines = 1)
+                    }
+                }
+                chars.forEach { CompactPickupRow(it, companionWeapons(it, vg.pickups), showCollab = false) }
+                weaps.forEach { CompactPickupRow(it, emptyList(), showCollab = false) }
+            }
+        }
+    }
+}
+
 // 통합 게임 일정 섹션 — 픽업을 버전 카드로 요약(임박 3개) + 이벤트·콘텐츠 미리보기, 초과 시 전체 페이지로.
 @Composable
 fun GameScheduleSection(
@@ -514,17 +554,23 @@ fun GameScheduleSection(
     onSeePickups: () -> Unit,
 ) {
     val accent = LocalAccent.current
-    val groups = buildVersionGroups(banners, filter)
+    val allGroups = buildVersionGroups(banners, filter)
+    val collabGroups = allGroups.filter { g -> g.pickups.any { isCollabBanner(it) } }
+    val groups = allGroups.filterNot { g -> g.pickups.any { isCollabBanner(it) } }
     val extras = filteredEntries(entries, filter).filter { it.kind != "패치" }.sortedBy { it.target }
     val topGroups = groups.take(3)
     val topExtras = extras.take(2)
     Text("게임 일정", fontSize = 16.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 4.dp))
     Text("픽업 배너를 버전별로 모았어요. 이벤트·정기 콘텐츠도 함께.", fontSize = 11.sp, color = TextSecondary, modifier = Modifier.padding(bottom = 12.dp))
-    if (groups.isEmpty() && extras.isEmpty()) {
+    if (allGroups.isEmpty() && extras.isEmpty()) {
         GlassCard(shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth()) {
             Text("예정된 일정이 없어요.", fontSize = 12.sp, color = TextSecondary, modifier = Modifier.padding(16.dp))
         }
     } else {
+        if (collabGroups.isNotEmpty()) {
+            CollabScheduleCard(collabGroups)
+            if (topGroups.isNotEmpty() || topExtras.isNotEmpty()) Spacer(Modifier.height(12.dp))
+        }
         if (topGroups.isNotEmpty()) {
             FeaturedVersionCard(topGroups.first())
             topGroups.drop(1).forEach { Spacer(Modifier.height(9.dp)); SlimVersionRow(it) }
@@ -589,15 +635,21 @@ fun GameScheduleFullContent(
     challenges: List<GameChallenge>,
     filter: String,
 ) {
-    val groups = buildVersionGroups(banners, filter)
+    val allGroups = buildVersionGroups(banners, filter)
+    val collabGroups = allGroups.filter { g -> g.pickups.any { isCollabBanner(it) } }
+    val groups = allGroups.filterNot { g -> g.pickups.any { isCollabBanner(it) } }
     // 버전 없는 일정(이벤트·정기 콘텐츠)은 하단 별도 카드로. 패치 종료는 버전 카드가 대신하므로 제외.
     val extras = filteredEntries(buildSchedule(banners, events, challenges), filter)
         .filter { it.kind != "패치" }.sortedBy { it.target }
     Text("게임 일정", fontSize = 22.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 4.dp))
     Text("픽업 배너를 버전별로 모으고, 이벤트·정기 콘텐츠를 아래에 정리했어요.", fontSize = 12.sp, color = TextSecondary, modifier = Modifier.padding(bottom = 6.dp))
-    if (groups.isEmpty() && extras.isEmpty()) {
+    if (allGroups.isEmpty() && extras.isEmpty()) {
         Text("예정된 일정이 없어요.", fontSize = 13.sp, color = TextSecondary, modifier = Modifier.fillMaxWidth().padding(top = 40.dp))
     } else {
+        if (collabGroups.isNotEmpty()) {
+            CollabScheduleCard(collabGroups)
+            if (groups.isNotEmpty()) Spacer(Modifier.height(12.dp))
+        }
         groups.forEachIndexed { i, vg -> if (i > 0) Spacer(Modifier.height(12.dp)); CompactVersionSection(vg) }
         if (extras.isNotEmpty()) {
             Row(
