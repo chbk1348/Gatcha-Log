@@ -87,7 +87,7 @@ fun LoginScreen(viewModel: SpendingViewModel) {
             Spacer(Modifier.height(36.dp))
             Column(verticalArrangement = Arrangement.spacedBy(14.dp), modifier = Modifier.fillMaxWidth()) {
                 FeatureRow(Icons.Default.Bolt, "실시간 노트·출석", "레진·개척력·배터리와 출석을 한곳에서")
-                FeatureRow(Icons.Default.Percent, "확률표·통합 계산기", "천장·확보 확률·뽑기 플래너까지")
+                FeatureRow(Icons.Default.Percent, "통합 계산기", "천장·확보 확률·뽑기 플래너까지")
                 FeatureRow(Icons.Default.CloudSync, "구글 계정 동기화", "기기를 바꿔도 데이터 그대로")
             }
 

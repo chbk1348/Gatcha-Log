@@ -32,7 +32,7 @@ struct LoginView: View {
                 VStack(spacing: 14) {
                     FeatureRow(icon: "bolt.fill", title: "실시간 노트·출석",
                                desc: "레진·개척력·배터리와 출석을 한곳에서")
-                    FeatureRow(icon: "percent", title: "확률표·통합 계산기",
+                    FeatureRow(icon: "percent", title: "통합 계산기",
                                desc: "천장·확보 확률·뽑기 플래너까지")
                     FeatureRow(icon: "icloud.and.arrow.up.fill", title: "구글 계정 동기화",
                                desc: "기기를 바꿔도 데이터 그대로")
