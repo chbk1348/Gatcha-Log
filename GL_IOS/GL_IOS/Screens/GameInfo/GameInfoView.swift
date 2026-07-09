@@ -152,6 +152,7 @@ struct GameInfoView: View {
                     Image(systemName: "chevron.right").font(.pretendard(size: 14, weight: .semibold)).foregroundStyle(GLGColor.textSecondary)
                 }
             }
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
     }
@@ -296,6 +297,7 @@ private struct PickupMoreFooter: View {
                 Spacer()
             }
             .padding(.vertical, 9)
+            .contentShape(Rectangle())
         }.buttonStyle(.plain)
     }
 }
@@ -750,16 +752,17 @@ struct GameScheduleSection: View {
                 }
                 if hiddenMore > 0 {
                     Spacer().frame(height: 12)
-                    GLGCard(cornerRadius: 20, padding: 16) {
-                        Button(action: onSeeAll) {
+                    Button(action: onSeeAll) {
+                        GLGCard(cornerRadius: 20, padding: 16) {
                             HStack(spacing: 6) {
                                 Text("전체 일정 보기").font(.pretendard(size: 13, weight: .bold)).foregroundStyle(accent.primary)
                                 Text("+\(hiddenMore)").font(.pretendard(size: 12, weight: .bold)).foregroundStyle(accent.primary.opacity(0.6))
                                 Spacer()
                                 Image(systemName: "chevron.right").font(.pretendard(size: 12, weight: .semibold)).foregroundStyle(accent.primary)
                             }
-                        }.buttonStyle(.plain)
-                    }
+                        }
+                        .contentShape(Rectangle())
+                    }.buttonStyle(.plain)
                 }
             }
         }
