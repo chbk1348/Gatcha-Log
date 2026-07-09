@@ -282,6 +282,7 @@ class SpendingViewModel : ViewModel() {
         _redeemedCodes.value = repo.loadRedeemedCodes()
         _homeCards.value = repo.loadHomeCards()
         _savingsHeld.value = repo.loadSavingsHeld()
+        _savingsHidden.value = repo.loadSavingsHidden()
         refreshSavings()
     }
 
@@ -431,6 +432,7 @@ class SpendingViewModel : ViewModel() {
     }
 
     fun deleteSpending(id: String) {
+        repo.addDeletedSpendingIds(setOf(id)) // tombstone — 삭제를 다른 기기에 전파(합집합 병합 방어)
         val removed = _spendings.value.firstOrNull { it.id == id }
         _spendings.update { current -> current.filter { it.id != id }.also(repo::saveSpendings) }
         removed?.let { unlinkSubscriptionIfOrphaned(it) }
@@ -438,6 +440,7 @@ class SpendingViewModel : ViewModel() {
     }
 
     fun deleteSpendings(ids: Set<String>) {
+        repo.addDeletedSpendingIds(ids) // tombstone — 삭제 전파
         val removed = _spendings.value.filter { it.id in ids }
         _spendings.update { current -> current.filter { it.id !in ids }.also(repo::saveSpendings) }
         removed.forEach { unlinkSubscriptionIfOrphaned(it) }
@@ -684,9 +687,17 @@ class SpendingViewModel : ViewModel() {
     private val _savingsHeld = MutableStateFlow<Map<String, Int>>(emptyMap())
     val savingsHeld: StateFlow<Map<String, Int>> = _savingsHeld.asStateFlow()
 
-    /** 진행 중 픽업별 저축 계획(임박 순). activeBanners·pity·보유재화에서 파생. */
+    /** "안 뽑는" 픽업 목표로 숨긴 키 집합(SavingsPlan.key) — 미노출 처리. */
+    private val _savingsHidden = MutableStateFlow<Set<String>>(emptySet())
+    val savingsHidden: StateFlow<Set<String>> = _savingsHidden.asStateFlow()
+
+    /** 진행 중 픽업별 저축 계획(임박 순, 숨긴 목표 제외). activeBanners·pity·보유재화에서 파생. */
     private val _savingsPlans = MutableStateFlow<List<SavingsPlan>>(emptyList())
     val savingsPlans: StateFlow<List<SavingsPlan>> = _savingsPlans.asStateFlow()
+
+    /** 숨김 처리된(안 뽑는) 픽업 목표 — 헤더 버튼으로 펼쳐 보고 다시 표시할 수 있게. */
+    private val _hiddenSavingsPlans = MutableStateFlow<List<SavingsPlan>>(emptyList())
+    val hiddenSavingsPlans: StateFlow<List<SavingsPlan>> = _hiddenSavingsPlans.asStateFlow()
 
     /** 절약 챌린지·스트릭·배지 상태. 지출·예산에서 파생(결정형). */
     private val _challenge = MutableStateFlow(SavingsChallenge.evaluate(emptyList(), 0L, 0, emptySet()))
@@ -701,8 +712,20 @@ class SpendingViewModel : ViewModel() {
         refreshPlans()
     }
 
+    /** 픽업 목표 숨김/해제 토글(안 뽑는 목표 미노출). */
+    fun setSavingsHidden(key: String, hidden: Boolean) {
+        val updated = _savingsHidden.value.toMutableSet()
+        if (hidden) updated.add(key) else updated.remove(key)
+        _savingsHidden.value = updated
+        repo.saveSavingsHidden(updated)
+        refreshPlans()
+    }
+
     private fun refreshPlans() {
-        _savingsPlans.value = SavingsPlanner.build(_activeBanners.value, _pity.value, _savingsHeld.value)
+        val all = SavingsPlanner.build(_activeBanners.value, _pity.value, _savingsHeld.value)
+        val hidden = _savingsHidden.value
+        _savingsPlans.value = all.filterNot { it.key in hidden }
+        _hiddenSavingsPlans.value = all.filter { it.key in hidden }
     }
 
     /** 지출·예산 변경 시 챌린지 재평가 + 최고 스트릭·배지 단조 영속. */
@@ -1183,11 +1206,16 @@ class SpendingViewModel : ViewModel() {
                         // 로컬 변경을 먼저 클라우드에 반영(PTR 이 옛 클라우드로 덮어쓰지 않게)
                         withTimeoutOrNull(SYNC_TIMEOUT_MS) { cloudPush(uid) }
                     } else {
-                        val remote = withTimeoutOrNull(SYNC_TIMEOUT_MS) { CloudSync.pull(uid) }
-                        if (remote != null) repo.importSnapshotJson(remote)
-                        carryOverGuestHoyolab()
-                        loadAll()
-                        withTimeoutOrNull(SYNC_TIMEOUT_MS) { cloudPush(uid) }
+                        // pull 실패(네트워크)면 push 금지 — 빈/구 로컬로 클라우드 덮어쓰기 방지.
+                        when (val outcome = withTimeoutOrNull(SYNC_TIMEOUT_MS) { CloudSync.pullOutcome(uid) }) {
+                            is CloudSync.PullOutcome.Loaded -> {
+                                outcome.json?.let { repo.importSnapshotJson(it) }
+                                carryOverGuestHoyolab()
+                                loadAll()
+                                withTimeoutOrNull(SYNC_TIMEOUT_MS) { cloudPush(uid) }
+                            }
+                            else -> { emitNetworkAlert(); loadAll() }
+                        }
                     }
                 }
             }
@@ -1467,14 +1495,23 @@ class SpendingViewModel : ViewModel() {
         _initialSyncing.value = true
         syncJob?.cancel()
         try {
-            // 오프라인 안전장치: 응답 없으면 타임아웃 후 로컬로 진행(로딩 90% 갇힘 방지)
-            val remote = withTimeoutOrNull(SYNC_TIMEOUT_MS) { CloudSync.pull(uid) }
-            if (remote != null) repo.importSnapshotJson(remote)
-            // 원격/계정에 호요랩 연동이 없고 게스트에 있으면 계정으로 승계(귀속 누락 복구)
-            carryOverGuestHoyolab()
-            loadAll()
-            // 병합 결과를 다시 업로드 → 유실됐던 호요랩 토큰 등을 클라우드에 자가 복구
-            withTimeoutOrNull(SYNC_TIMEOUT_MS) { cloudPush(uid) }
+            // pull 은 성공(문서 없음 포함)과 실패(네트워크/타임아웃)를 구분한다. **실패면 push 를 생략**해
+            // 멀쩡한 클라우드를 빈/구 로컬로 덮어쓰지 않는다(이번 유실 사고 재발 방지).
+            when (val outcome = withTimeoutOrNull(SYNC_TIMEOUT_MS) { CloudSync.pullOutcome(uid) }) {
+                is CloudSync.PullOutcome.Loaded -> {
+                    outcome.json?.let { repo.importSnapshotJson(it) }
+                    // 원격/계정에 호요랩 연동이 없고 게스트에 있으면 계정으로 승계(귀속 누락 복구)
+                    carryOverGuestHoyolab()
+                    loadAll()
+                    // 병합 결과를 다시 업로드 → 유실됐던 호요랩 토큰 등을 클라우드에 자가 복구
+                    withTimeoutOrNull(SYNC_TIMEOUT_MS) { cloudPush(uid) }
+                }
+                else -> {
+                    // Failed 또는 타임아웃(null) → 상태 불명이므로 push 금지, 로컬 유지 + 안내.
+                    emitNetworkAlert()
+                    loadAll()
+                }
+            }
         } finally {
             _initialSyncing.value = false
         }

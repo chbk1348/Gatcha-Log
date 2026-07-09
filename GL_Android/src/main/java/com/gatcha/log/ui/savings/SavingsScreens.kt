@@ -20,6 +20,8 @@ import androidx.compose.material.icons.filled.LocalFireDepartment
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Savings
 import androidx.compose.material.icons.filled.TrackChanges
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material.icons.filled.WorkspacePremium
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -39,6 +41,7 @@ import com.gatcha.log.data.ChallengeSummary
 import com.gatcha.log.data.SavingsPlan
 import com.gatcha.log.data.SpendingViewModel
 import com.gatcha.log.ui.components.GlassCard
+import com.gatcha.log.ui.components.GlgCircleIconButton
 import com.gatcha.log.ui.components.GlgDialog
 import com.gatcha.log.ui.components.GlgScreenHeader
 import com.gatcha.log.ui.components.GlgTextField
@@ -85,12 +88,23 @@ fun SavingsPlannerScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
     BackHandler { onBack() }
     val accent = LocalAccent.current
     val plans by viewModel.savingsPlans.collectAsState()
+    val hiddenPlans by viewModel.hiddenSavingsPlans.collectAsState()
     var editTarget by remember { mutableStateOf<SavingsPlan?>(null) }
+    var showHidden by remember { mutableStateOf(false) }
 
     val hero = plans.firstOrNull { !it.secured } ?: plans.firstOrNull()
 
     Column(Modifier.fillMaxSize()) {
-        GlgScreenHeader("저축 플래너", onBack, Modifier.padding(horizontal = 16.dp))
+        GlgScreenHeader("저축 플래너", onBack, Modifier.padding(horizontal = 16.dp)) {
+            if (hiddenPlans.isNotEmpty()) {
+                GlgCircleIconButton(
+                    icon = if (showHidden) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                    contentDescription = if (showHidden) "숨긴 목표 접기" else "숨긴 목표 보기",
+                    badgeCount = if (showHidden) 0 else hiddenPlans.size,
+                    outlined = showHidden,
+                ) { showHidden = !showHidden }
+            }
+        }
         Column(
             Modifier.fillMaxSize().navigationBarsPadding().verticalScroll(rememberScrollState())
                 .padding(horizontal = 16.dp, vertical = 8.dp),
@@ -128,6 +142,11 @@ fun SavingsPlannerScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
                     fontSize = 11.sp, color = TextSecondary, modifier = Modifier.padding(horizontal = 4.dp),
                 )
             }
+
+            // ③ 숨긴(안 뽑는) 목표 — 헤더 버튼으로 펼침. 다시 표시 가능.
+            if (showHidden && hiddenPlans.isNotEmpty()) {
+                HiddenPlansCard(hiddenPlans, accent) { viewModel.setSavingsHidden(it.key, false) }
+            }
         }
     }
 
@@ -139,6 +158,10 @@ fun SavingsPlannerScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
                 viewModel.setPityCount(plan.gameKey, pity)
                 viewModel.setPityGuaranteed(plan.gameKey, guaranteed)
                 viewModel.setHeldCurrency(plan.gameKey, held)
+                editTarget = null
+            },
+            onHide = {
+                viewModel.setSavingsHidden(plan.key, true)
                 editTarget = null
             },
         )
@@ -224,6 +247,7 @@ private fun PlanInputDialog(
     plan: SavingsPlan,
     onDismiss: () -> Unit,
     onConfirm: (pity: Int, guaranteed: Boolean, held: Int) -> Unit,
+    onHide: () -> Unit,
 ) {
     val accent = LocalAccent.current
     var pity by remember { mutableStateOf(plan.currentPity.toString()) }
@@ -254,6 +278,50 @@ private fun PlanInputDialog(
             Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
                 SegChip("50:50 (미확정)", !guaranteed, accent, Modifier.weight(1f)) { guaranteed = false }
                 SegChip("픽업 확정", guaranteed, accent, Modifier.weight(1f)) { guaranteed = true }
+            }
+            Box(Modifier.fillMaxWidth().height(1.dp).background(DividerColor))
+            Row(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).clickable { onHide() }.padding(vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(Icons.Default.VisibilityOff, null, tint = TextSecondary, modifier = Modifier.size(16.dp))
+                Spacer(Modifier.width(7.dp))
+                Text("이 픽업은 안 뽑아요 · 목록에서 숨기기", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextSecondary)
+            }
+        }
+    }
+}
+
+/** 숨긴(안 뽑는) 픽업 목표 — 헤더 버튼으로 펼침. 각 항목 '다시 표시'로 복귀. */
+@Composable
+private fun HiddenPlansCard(hidden: List<SavingsPlan>, accent: Color, onUnhide: (SavingsPlan) -> Unit) {
+    GlassCard(modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.VisibilityOff, null, tint = TextSecondary, modifier = Modifier.size(16.dp))
+                Spacer(Modifier.width(6.dp))
+                Text("숨긴 목표", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+                Spacer(Modifier.weight(1f))
+                Text("${hidden.size}개", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextSecondary)
+            }
+            Spacer(Modifier.height(4.dp))
+            hidden.forEachIndexed { i, p ->
+                Row(Modifier.fillMaxWidth().padding(vertical = 11.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.size(9.dp).clip(RoundedCornerShape(50)).background(p.gameColor.toColor()))
+                    Spacer(Modifier.width(11.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text(p.pickupName, fontSize = 13.5.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+                        Text(
+                            "${p.game} · ${if (p.type == "weapon") "무기" else "캐릭터"}",
+                            fontSize = 11.sp, color = TextSecondary,
+                        )
+                    }
+                    Box(
+                        Modifier.clip(RoundedCornerShape(9.dp)).background(accent.copy(alpha = 0.14f))
+                            .clickable { onUnhide(p) }.padding(horizontal = 11.dp, vertical = 6.dp),
+                    ) { Text("다시 표시", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = accent) }
+                }
+                if (i < hidden.lastIndex) Box(Modifier.fillMaxWidth().height(1.dp).background(DividerColor))
             }
         }
     }

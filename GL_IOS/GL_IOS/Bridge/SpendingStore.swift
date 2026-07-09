@@ -67,6 +67,7 @@ final class SpendingStore: ObservableObject {
     @Published private(set) var checkingIn: String? = nil
     @Published private(set) var pity: [String: PityState] = [:]
     @Published private(set) var savingsPlans: [SavingsPlan] = []
+    @Published private(set) var hiddenSavingsPlans: [SavingsPlan] = []
     @Published private(set) var challenge: ChallengeSummary? = nil
     // Phase 4 chunk ③ (가챠 도구)
     @Published private(set) var enkaGiUid: String = ""
@@ -158,6 +159,7 @@ final class SpendingStore: ObservableObject {
         bind(vm.pity) { [weak self] in self?.pity = $0 }
         // 저축 플래너 · 절약 챌린지 (27.35)
         bind(vm.savingsPlans) { [weak self] in self?.savingsPlans = $0 }
+        bind(vm.hiddenSavingsPlans) { [weak self] in self?.hiddenSavingsPlans = $0 }
         bind(vm.challenge) { [weak self] in self?.challenge = $0 }
         // chunk ③
         bind(vm.enkaGiUid) { [weak self] in self?.enkaGiUid = $0 }
@@ -299,6 +301,7 @@ final class SpendingStore: ObservableObject {
     func resetPity(gameKey: String) { vm.resetPity(gameKey: gameKey) }
     func setPityGuaranteed(gameKey: String, _ g: Bool) { vm.setPityGuaranteed(gameKey: gameKey, g: g) }
     func setHeldCurrency(gameKey: String, value: Int) { vm.setHeldCurrency(gameKey: gameKey, value: Int32(value)) }
+    func setSavingsHidden(key: String, hidden: Bool) { vm.setSavingsHidden(key: key, hidden: hidden) }
     // chunk ③
     func loadEnkaProfile(game: String, uid: String) { vm.loadEnkaProfile(game: game, uid: uid) }
     func autoLoadEnka(game: String, force: Bool = false) { vm.autoLoadEnka(game: game, force: force) }

@@ -36,7 +36,7 @@ private func badgeSymbol(_ id: String) -> String {
 /// SavingsPlan(Kotlin) 은 Identifiable 이 아니라 .sheet(item:) 용 래퍼.
 private struct PlanEdit: Identifiable {
     let plan: SavingsPlan
-    var id: String { "\(plan.gameKey):\(plan.type):\(plan.pickupName)" }
+    var id: String { plan.key }
 }
 
 // ══════════════════════════════════════════════════════════════ A. 저축 플래너
@@ -45,8 +45,10 @@ struct SavingsPlannerView: View {
     @ObservedObject var store: SpendingStore
     @Environment(\.glgAccent) private var accent
     @State private var editing: PlanEdit? = nil
+    @State private var showHidden = false
 
     private var plans: [SavingsPlan] { store.savingsPlans }
+    private var hidden: [SavingsPlan] { store.hiddenSavingsPlans }
     private var hero: SavingsPlan? { plans.first { !$0.secured } ?? plans.first }
 
     var body: some View {
@@ -61,6 +63,7 @@ struct SavingsPlannerView: View {
                         .font(.pretendard(size: 11)).foregroundStyle(GLGColor.textSecondary)
                         .padding(.horizontal, 4)
                 }
+                if showHidden && !hidden.isEmpty { hiddenCard }
             }
             .padding(.horizontal, 16).padding(.vertical, 8)
         }
@@ -68,8 +71,53 @@ struct SavingsPlannerView: View {
         .background(GLGBackground { Color.clear })
         .navigationTitle("저축 플래너")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            if !hidden.isEmpty {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button { showHidden.toggle() } label: {
+                        Image(systemName: showHidden ? "eye.slash" : "eye")
+                            .overlay(alignment: .topTrailing) {
+                                if !showHidden {
+                                    Text("\(hidden.count)").font(.pretendard(size: 9, weight: .bold)).foregroundStyle(.white)
+                                        .padding(3).background(accent.primary, in: Circle()).offset(x: 9, y: -9)
+                                }
+                            }
+                    }
+                    .accessibilityLabel(showHidden ? "숨긴 목표 접기" : "숨긴 목표 보기")
+                }
+            }
+        }
         .sheet(item: $editing) { target in
             PlanInputSheet(store: store, plan: target.plan) { editing = nil }
+        }
+    }
+
+    private var hiddenCard: some View {
+        GLGCard(cornerRadius: 24, padding: 16) {
+            VStack(alignment: .leading, spacing: 0) {
+                HStack(spacing: 6) {
+                    Image(systemName: "eye.slash").font(.system(size: 13)).foregroundStyle(GLGColor.textSecondary)
+                    Text("숨긴 목표").font(.pretendard(size: 14, weight: .bold))
+                    Spacer()
+                    Text("\(hidden.count)개").font(.pretendard(size: 11, weight: .bold)).foregroundStyle(GLGColor.textSecondary)
+                }
+                ForEach(Array(hidden.enumerated()), id: \.offset) { idx, p in
+                    HStack(spacing: 11) {
+                        Circle().fill(Color(argb64: p.gameColor)).frame(width: 9, height: 9)
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text(p.pickupName).font(.pretendard(size: 13.5, weight: .semibold)).foregroundStyle(GLGColor.textPrimary).lineLimit(1)
+                            Text("\(p.game) · \(p.type == "weapon" ? "무기" : "캐릭터")").font(.pretendard(size: 11)).foregroundStyle(GLGColor.textSecondary)
+                        }
+                        Spacer()
+                        Button { store.setSavingsHidden(key: p.key, hidden: false) } label: {
+                            Text("다시 표시").font(.pretendard(size: 12, weight: .bold)).foregroundStyle(accent.primary)
+                                .padding(.horizontal, 11).padding(.vertical, 6)
+                                .background(accent.primary.opacity(0.14), in: RoundedRectangle(cornerRadius: 9))
+                        }.buttonStyle(.plain)
+                    }.padding(.vertical, 11)
+                    if idx < hidden.count - 1 { Divider() }
+                }
+            }
         }
     }
 
@@ -208,6 +256,17 @@ struct PlanInputSheet: View {
                         GLGChip(label: "50:50 (미확정)", selected: !guaranteed, color: accent.primary) { guaranteed = false }
                         GLGChip(label: "픽업 확정", selected: guaranteed, color: accent.primary) { guaranteed = true }
                     }
+                    Divider().padding(.top, 4)
+                    Button {
+                        store.setSavingsHidden(key: plan.key, hidden: true)
+                        onClose()
+                    } label: {
+                        HStack(spacing: 7) {
+                            Image(systemName: "eye.slash").font(.system(size: 14)).foregroundStyle(GLGColor.textSecondary)
+                            Text("이 픽업은 안 뽑아요 · 목록에서 숨기기").font(.pretendard(size: 12, weight: .bold)).foregroundStyle(GLGColor.textSecondary)
+                            Spacer()
+                        }.contentShape(Rectangle())
+                    }.buttonStyle(.plain)
                 }
                 .padding(16)
             }
