@@ -27,72 +27,50 @@ struct SpendingView: View {
     @State private var selectionMode = false
     @State private var selectedIds: Set<String> = []
     @State private var showBulkEdit = false
-    // 히어로 축소 — 하부 UIScrollView 의 '아래로 스크롤한 양'(0=최상단). ScrollOffsetReader 가 KVO로 갱신.
-    @State private var scrolledDown: CGFloat = 0
-    // 펼친 히어로 높이(콜랩스 0일 때 측정). 콘텐츠 상단 자리(고정)로 써서 히어로 축소가 maxOffset 을
-    // 바꾸지 않게 한다 → 최하단 떨림(피드백) 방지. 측정 전 추정 기본값.
-    @State private var heroExpandedHeight: CGFloat = 132
     // 로드인 스태거 — 행이 처음 보일 때 1회 등장(인덱스=정렬 리스트 내 위치).
     @State private var appeared: Set<Int> = []
+    // 성능: 필터/정렬/그룹 결과를 캐시 — 스크롤(콜랩스)로 body 가 매 프레임 재평가돼도 리스트를
+    // 다시 필터·정렬·그룹하지 않는다. 데이터/필터/정렬이 바뀔 때만 recompute 로 갱신.
+    @State private var displayGroups: [DayGroup] = []
+    @State private var listIsEmpty = true
 
     private var activeFilterCount: Int {
         [!gameFilters.isEmpty, period != .all, paymentFilter != nil, typeFilter != .all, sortOrder != .dateDesc]
             .filter { $0 }.count
     }
 
-    /// 스크롤 진행에 따른 히어로 축소 정도(0=펼침, 1=접힘). 상단 64pt 스크롤 동안 보간.
-    private var collapse: CGFloat { min(max(scrolledDown / 64, 0), 1) }
-
     var body: some View {
         ScrollView {
-            VStack(spacing: 0) {
-                // 히어로 자리(고정 높이) — 콜랩스해도 콘텐츠 maxOffset 불변(최하단 떨림 방지). 위에 히어로를 오버레이.
-                Color.clear.frame(height: heroExpandedHeight)
-                LazyVStack(alignment: .leading, spacing: 0, pinnedViews: []) {
-                    let items = filtered
-                    if items.isEmpty {
-                        emptyState
-                    } else if sortOrder == .amountDesc {
-                        // 금액순 — 날짜 그룹이 없으므로 항목별 단일 카드(헤더 없음).
-                        let byAmount = items.sorted { $0.amount > $1.amount }
-                        ForEach(Array(byAmount.enumerated()), id: \.element.id) { i, s in
-                            dayCard(dateLabel: nil, total: 0, items: [s]).glgLoadIn(i, appeared: $appeared)
-                        }
-                    } else {
-                        // 같은 날짜끼리 한 카드로 묶음 — 카드 상단 날짜·합계 헤더 + first-end 행들.
-                        let sorted = sortOrder == .dateAsc ? items.sorted { $0.dateMillis < $1.dateMillis }
-                                                           : items.sorted { $0.dateMillis > $1.dateMillis }
-                        let groups = groupByDay(sorted)
-                        ForEach(Array(groups.enumerated()), id: \.element.key) { gi, group in
-                            dayCard(dateLabel: group.items.first?.dateLabel,
-                                    total: group.items.reduce(0) { $0 + $1.amount },
-                                    items: group.items)
-                                .glgLoadIn(gi, appeared: $appeared)
-                        }
-                    }
-                    Color.clear.frame(height: 8)
+            LazyVStack(alignment: .leading, spacing: 0, pinnedViews: []) {
+                // 월 지출 헤더 — 일반 스크롤 헤더(콜랩스 없음). 스크롤 시 자연스럽게 위로 밀려 올라간다.
+                // 필터 적용 중(총액이 필터 리스트와 불일치)이거나 선택 모드일 땐 숨긴다.
+                if activeFilterCount == 0 && !selectionMode {
+                    monthHeader
+                        .padding(.top, 4).padding(.bottom, 10)
                 }
-                .padding(.horizontal, 16)
+                if listIsEmpty {
+                    emptyState
+                } else {
+                    // 미리 계산된 displayGroups 순회만(매 프레임 재필터·재정렬·재그룹 없음).
+                    ForEach(Array(displayGroups.enumerated()), id: \.element.key) { gi, group in
+                        dayCard(dateLabel: group.dateLabel, total: group.total, items: group.items)
+                            .glgLoadIn(gi, appeared: $appeared)
+                    }
+                }
+                Color.clear.frame(height: 8)
             }
-            // 하부 UIScrollView contentOffset 직접 추적(KVO) — GeometryReader가 이 레이아웃서 오프셋을 안정적으로 보고하지 못해 폴백.
-            .background(ScrollOffsetReader { scrolledDown = $0 })
+            .padding(.horizontal, 16)
         }
         .scrollIndicators(.hidden)
         .refreshable { store.refreshSpending() }
-        // 월 지출 히어로 — 스크롤 위 오버레이(자리는 위 Spacer 가 고정). 스크롤하면 축소. 탭 요소 없어 hitTest 통과.
-        .overlay(alignment: .top) {
-            monthHero
-                .padding(.horizontal, 16).padding(.top, 4).padding(.bottom, 10 - 4 * collapse)
-                .background(
-                    GeometryReader { g in
-                        Color.clear.onChange(of: g.size.height) { h in if collapse == 0 { heroExpandedHeight = h } }
-                            .onAppear { if collapse == 0 { heroExpandedHeight = g.size.height } }
-                    }
-                )
-                // 당겨서 새로고침 — 당겨내릴 때(overscroll) 히어로를 같이 내려 PTR 스피너가 헤더 바로 밑에 자연스럽게 드러나게.
-                .offset(y: max(0, -scrolledDown))
-                .allowsHitTesting(false)
-        }
+        // 그룹 재계산 — 데이터/필터/정렬 변화 시에만(스크롤과 무관). $spendings 는 새 값을 전달받아 사용.
+        .onAppear { recompute(store.spendings) }
+        .onReceive(store.$spendings) { recompute($0) }
+        .onChange(of: gameFilters) { _, _ in recompute(store.spendings) }
+        .onChange(of: period) { _, _ in recompute(store.spendings) }
+        .onChange(of: paymentFilter) { _, _ in recompute(store.spendings) }
+        .onChange(of: typeFilter) { _, _ in recompute(store.spendings) }
+        .onChange(of: sortOrder) { _, _ in recompute(store.spendings) }
         .background(GLGBackground { Color.clear })
         .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
@@ -111,7 +89,9 @@ struct SpendingView: View {
                 }
             }
         }
-        .overlay(alignment: .bottom) {
+        // 선택 하단바 — overlay 가 아닌 safeAreaInset 으로 배치해 스크롤 콘텐츠를 그만큼 위로 인셋한다.
+        // (overlay 는 콘텐츠를 안 밀어 최하단 항목이 바에 가려져 선택 불가였음)
+        .safeAreaInset(edge: .bottom, spacing: 0) {
             if selectionMode {
                 selectionBar.transition(.move(edge: .bottom).combined(with: .opacity))
             }
@@ -126,30 +106,6 @@ struct SpendingView: View {
         }
     }
 
-    // 월 지출 히어로 — 이번 달 총 지출을 큰 숫자로 강조 + 지난달 대비. 스크롤 시 [collapse] 로 축소.
-    private var monthHero: some View {
-        let total = store.monthlyTotal()
-        let diff = total - store.prevMonthTotal()
-        let c = collapse
-        return VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 6) {
-                Image(systemName: "chart.pie.fill").font(.pretendard(size: 13)).foregroundStyle(accent.primary)
-                Text("\(store.displayMonth)월 지출").font(.pretendard(size: 13, weight: .medium)).foregroundStyle(GLGColor.textSecondary)
-            }
-            Text(won(total)).font(.pretendard(size: 34 - 14 * c, weight: .heavy)).foregroundStyle(GLGColor.textPrimary).lineLimit(1)
-            if total > 0 || store.prevMonthTotal() > 0 {
-                Text("지난달 " + (diff == 0 ? "동일" : (diff > 0 ? "+" : "-") + won(abs(diff))))
-                    .font(.pretendard(size: 13, weight: .semibold))
-                    .foregroundStyle(diff > 0 ? GLGColor.dangerText : (diff < 0 ? accent.primary : GLGColor.textSecondary))
-                    .opacity(1 - c)
-                    .frame(height: (1 - c) * 18, alignment: .top)
-                    .clipped()
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, 20).padding(.vertical, 18 - 7 * c)
-        .glgGlass(in: RoundedRectangle(cornerRadius: 24, style: .continuous))
-    }
 
     /// 같은 날짜 지출을 한 카드로 묶은 그룹 카드 — 상단 날짜·합계 헤더(first-end) + 구분선 + 지출 행들.
     /// dateLabel 이 nil 이면 헤더 없이 행만(금액순 평면 리스트의 단일 항목 카드).
@@ -229,6 +185,27 @@ struct SpendingView: View {
         }
     }
 
+    // 월 지출 헤더 — 이번 달 총 지출 + 지난달 대비. 일반 스크롤 헤더(콜랩스 없음 → 스크롤 시 비용 0).
+    private var monthHeader: some View {
+        let total = store.monthlyTotal()
+        let diff = total - store.prevMonthTotal()
+        return VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 6) {
+                Image(systemName: "chart.pie.fill").font(.pretendard(size: 13)).foregroundStyle(accent.primary)
+                Text("\(store.displayMonth)월 지출").font(.pretendard(size: 13, weight: .medium)).foregroundStyle(GLGColor.textSecondary)
+            }
+            Text(won(total)).font(.pretendard(size: 34, weight: .heavy)).foregroundStyle(GLGColor.textPrimary).lineLimit(1)
+            if total > 0 || store.prevMonthTotal() > 0 {
+                Text("지난달 " + (diff == 0 ? "동일" : (diff > 0 ? "+" : "-") + won(abs(diff))))
+                    .font(.pretendard(size: 13, weight: .semibold))
+                    .foregroundStyle(diff > 0 ? GLGColor.dangerText : (diff < 0 ? accent.primary : GLGColor.textSecondary))
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 20).padding(.vertical, 18)
+        .glgGlass(in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+    }
+
     private var emptyState: some View {
         VStack(spacing: 6) {
             Image(systemName: "doc.text").font(.pretendard(size: 44)).foregroundStyle(Color(.systemGray3))
@@ -301,12 +278,26 @@ struct SpendingView: View {
     }
 
     // ── 필터링 ──
-    private var filtered: [Spending] {
-        store.spendings.filter { s in
+    private func filteredList(_ list: [Spending]) -> [Spending] {
+        list.filter { s in
             (gameFilters.isEmpty || gameFilters.contains(s.gameName)) &&
             (paymentFilter == nil || s.paymentMethod == paymentFilter) &&
             (typeFilter == .all || (typeFilter == .normal ? !s.isSubscription : s.isSubscription)) &&
             periodMatch(s)
+        }
+    }
+    // 필터→정렬→그룹→합계를 한 번에 계산해 캐시(displayGroups). 스크롤이 아니라 데이터/필터 변화 때만 호출.
+    private func recompute(_ list: [Spending]) {
+        let items = filteredList(list)
+        listIsEmpty = items.isEmpty
+        switch sortOrder {
+        case .amountDesc:
+            displayGroups = items.sorted { $0.amount > $1.amount }
+                .map { DayGroup(key: $0.id, items: [$0], dateLabel: nil, total: 0) }
+        case .dateAsc:
+            displayGroups = groupByDay(items.sorted { $0.dateMillis < $1.dateMillis })
+        default:
+            displayGroups = groupByDay(items.sorted { $0.dateMillis > $1.dateMillis })
         }
     }
     private func periodMatch(_ s: Spending) -> Bool {
@@ -320,7 +311,7 @@ struct SpendingView: View {
         }
     }
 
-    private struct DayGroup { let key: String; let items: [Spending] }
+    private struct DayGroup { let key: String; let items: [Spending]; let dateLabel: String?; let total: Int64 }
     private func groupByDay(_ list: [Spending]) -> [DayGroup] {
         var order: [String] = []
         var map: [String: [Spending]] = [:]
@@ -328,7 +319,10 @@ struct SpendingView: View {
             if map[s.dayKey] == nil { order.append(s.dayKey) }
             map[s.dayKey, default: []].append(s)
         }
-        return order.map { DayGroup(key: $0, items: map[$0] ?? []) }
+        return order.map { key in
+            let its = map[key] ?? []
+            return DayGroup(key: key, items: its, dateLabel: its.first?.dateLabel, total: its.reduce(0) { $0 + $1.amount })
+        }
     }
 }
 
@@ -533,50 +527,3 @@ struct FlexibleRow<Data: RandomAccessCollection, Content: View>: View where Data
     }
 }
 
-/// 하부 UIScrollView 의 contentOffset.y(+adjustedContentInset.top) 를 KVO로 직접 읽어 콜백.
-/// SwiftUI GeometryReader 가 이 레이아웃에서 스크롤 오프셋을 안정적으로 보고하지 못해 사용하는 폴백.
-/// 0 = 최상단, 양수 = 아래로 스크롤한 양.
-private struct ScrollOffsetReader: UIViewRepresentable {
-    let onChange: (CGFloat) -> Void
-
-    func makeUIView(context: Context) -> UIView {
-        let v = UIView(frame: .zero)
-        v.backgroundColor = .clear
-        v.isUserInteractionEnabled = false
-        DispatchQueue.main.async { context.coordinator.attach(from: v) }
-        return v
-    }
-
-    func updateUIView(_ uiView: UIView, context: Context) {
-        if context.coordinator.scrollView == nil {
-            DispatchQueue.main.async { context.coordinator.attach(from: uiView) }
-        }
-    }
-
-    func makeCoordinator() -> Coordinator { Coordinator(onChange: onChange) }
-
-    final class Coordinator: NSObject {
-        let onChange: (CGFloat) -> Void
-        weak var scrollView: UIScrollView?
-        private var obs: NSKeyValueObservation?
-        // 최초(최상단) contentOffset.y 를 기준으로 정규화. adjustedContentInset 은 히어로 축소로
-        // 레이아웃이 바뀔 때마다 재계산돼 피드백 진동을 유발하므로 쓰지 않는다(raw offset 은 스크롤로만 변함).
-        private var baseline: CGFloat?
-        init(onChange: @escaping (CGFloat) -> Void) { self.onChange = onChange }
-
-        func attach(from view: UIView) {
-            var v: UIView? = view.superview
-            while let cur = v, !(cur is UIScrollView) { v = cur.superview }
-            guard let sv = v as? UIScrollView else { return }
-            scrollView = sv
-            obs = sv.observe(\.contentOffset, options: [.new, .initial]) { [weak self] sv, _ in
-                guard let self else { return }
-                let y = sv.contentOffset.y
-                if self.baseline == nil { self.baseline = y }
-                self.onChange(y - (self.baseline ?? y))
-            }
-        }
-
-        deinit { obs?.invalidate() }
-    }
-}
