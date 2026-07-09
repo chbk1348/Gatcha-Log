@@ -433,6 +433,194 @@ private struct ScheduleEntryRow: View {
     }
 }
 
+// D-day 링 — 진행률만큼 채운 원형 스트로크 + 중앙 잔여(일/시간). (design_version_card_mockup.html ④)
+private struct DdayRing: View {
+    let days: Int; let hours: Int; let frac: Double; let color: Color
+    var body: some View {
+        ZStack {
+            Circle().stroke(glTrack, lineWidth: 8)
+            Circle().trim(from: 0, to: max(0, min(frac, 1)))
+                .stroke(color, style: StrokeStyle(lineWidth: 8, lineCap: .round))
+                .rotationEffect(.degrees(-90))
+            VStack(spacing: 0) {
+                Text(days > 0 ? "\(days)일" : "\(hours)시간").font(.pretendard(size: 15, weight: .heavy)).foregroundStyle(color).lineLimit(1)
+                if days > 0 { Text("\(hours)시간").font(.pretendard(size: 8)).foregroundStyle(GLGColor.textSecondary).lineLimit(1) }
+            }
+        }
+        .frame(width: 70, height: 70)
+    }
+}
+
+// 피처드 버전 카드 — 섹션 최상단, 가장 임박한 버전. D-day 링 + 대표 캐릭터(+동반무기) + 경과. (④ 섹션 요약)
+private struct FeaturedVersionCard: View {
+    let vg: VersionGroupIOS
+    var body: some View {
+        let c = Color(argb64: vg.game.color)
+        let d = Int((vg.nearestEnd - nowMs()) / 86_400_000)
+        let urgent = (0...3).contains(d)
+        let ddColor = urgent ? glUrgent : c
+        let totalH = max((vg.nearestEnd - nowMs()) / 3_600_000, 0)
+        let days = Int(totalH / 24); let hours = Int(totalH % 24)
+        let lead = vg.pickups.min { $0.endMillis < $1.endMillis }
+        let frac: Double = {
+            if let lead, lead.startMillis > 0, lead.endMillis > lead.startMillis {
+                return min(max(Double(nowMs() - lead.startMillis) / Double(lead.endMillis - lead.startMillis), 0), 1)
+            }
+            return 0
+        }()
+        let chars = vg.pickups.filter { $0.type != "weapon" }
+        let items = chars.isEmpty ? vg.pickups : chars
+        return GLGCard(cornerRadius: 20, padding: 15) {
+            VStack(alignment: .leading, spacing: 0) {
+                HStack(spacing: 8) {
+                    Text(vg.game.abbr).font(.pretendard(size: 11, weight: .heavy)).foregroundStyle(.white)
+                        .padding(.horizontal, 7).padding(.vertical, 4)
+                        .background(c, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    Text(vg.version.isEmpty ? vg.game.displayName : "버전 \(vg.version)").font(.pretendard(size: 15, weight: .bold)).foregroundStyle(GLGColor.textPrimary).lineLimit(1)
+                    Spacer(minLength: 8)
+                    if urgent {
+                        Text("막바지").font(.pretendard(size: 9, weight: .bold)).foregroundStyle(.white)
+                            .padding(.horizontal, 8).padding(.vertical, 3).background(glUrgent, in: Capsule())
+                    }
+                }
+                .padding(.bottom, 12)
+                HStack(spacing: 14) {
+                    DdayRing(days: days, hours: hours, frac: frac, color: ddColor)
+                    VStack(alignment: .leading, spacing: 0) {
+                        ForEach(Array(items.prefix(2).enumerated()), id: \.offset) { i, it in
+                            if i > 0 { Spacer().frame(height: 8) }
+                            let isW = it.type == "weapon"
+                            let comp = isW ? nil : GameInfoKt.companionWeapons(character: it, all: vg.pickups).first
+                            HStack(spacing: 9) {
+                                ZStack {
+                                    if isW { RoundedRectangle(cornerRadius: 10, style: .continuous).fill(c) } else { Circle().fill(c) }
+                                    if isW { SwordShape().fill(.white).frame(width: 15, height: 17) }
+                                    else { Text(String(it.name.prefix(1))).font(.pretendard(size: 15, weight: .heavy)).foregroundStyle(.white) }
+                                }
+                                .frame(width: 34, height: 34)
+                                VStack(alignment: .leading, spacing: 1) {
+                                    Text(it.name).font(.pretendard(size: 14, weight: .bold)).foregroundStyle(GLGColor.textPrimary).lineLimit(1)
+                                    if let comp { Text("＋ \(comp.name)").font(.pretendard(size: 10, weight: .semibold)).foregroundStyle(glWeap).lineLimit(1) }
+                                }
+                                Spacer(minLength: 0)
+                            }
+                        }
+                        if items.count > 2 {
+                            Spacer().frame(height: 6)
+                            Text("외 \(items.count - 2)").font(.pretendard(size: 10)).foregroundStyle(GLGColor.textSecondary)
+                        }
+                        if let lead, lead.startMillis > 0, lead.endMillis > lead.startMillis {
+                            Spacer().frame(height: 8)
+                            Text("\(DateUtil.shared.shortDate(millis: lead.startMillis)) → \(DateUtil.shared.shortDate(millis: lead.endMillis)) · \(Int((frac * 100).rounded()))% 경과")
+                                .font(.pretendard(size: 10)).foregroundStyle(GLGColor.textSecondary).lineLimit(1)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// 슬림 버전 행 — 피처드 아래 나머지 버전(요약 1줄). abbr + "vN · 이름들" + 잔여. (④ 세컨더리)
+private struct SlimVersionRow: View {
+    let vg: VersionGroupIOS
+    var body: some View {
+        let c = Color(argb64: vg.game.color)
+        let d = Int((vg.nearestEnd - nowMs()) / 86_400_000)
+        let ddColor = (0...3).contains(d) ? glUrgent : c
+        let chars = vg.pickups.filter { $0.type != "weapon" }
+        let weaps = GameInfoKt.unpairedWeapons(all: vg.pickups)
+        let names0 = chars.map { $0.name }.joined(separator: " · ")
+        let names = names0.isEmpty ? weaps.map { $0.name }.joined(separator: " · ") : names0
+        let title = vg.version.isEmpty ? names : "v\(vg.version) · \(names)"
+        let counts: String = {
+            var p: [String] = []
+            if !chars.isEmpty { p.append("캐릭터 \(chars.count)") }
+            if !weaps.isEmpty { p.append("무기 \(weaps.count)") }
+            return p.joined(separator: " · ")
+        }()
+        return HStack(spacing: 10) {
+            Text(vg.game.abbr).font(.pretendard(size: 11, weight: .heavy)).foregroundStyle(.white)
+                .padding(.horizontal, 7).padding(.vertical, 4)
+                .background(c, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+            VStack(alignment: .leading, spacing: 1) {
+                Text(title).font(.pretendard(size: 13, weight: .bold)).foregroundStyle(GLGColor.textPrimary).lineLimit(1)
+                Text("\(vg.game.displayName) · \(counts)").font(.pretendard(size: 10)).foregroundStyle(GLGColor.textSecondary).lineLimit(1)
+            }
+            Spacer(minLength: 8)
+            Text(GameInfoKt.dhLabel(targetMillis: vg.nearestEnd, nowMillis: nowMs())).font(.pretendard(size: 13, weight: .bold)).foregroundStyle(ddColor).lineLimit(1)
+        }
+        .padding(.horizontal, 13).padding(.vertical, 11)
+        .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(glLine, lineWidth: 1))
+    }
+}
+
+// 컴팩트 버전 섹션(전체 페이지) — 버전 소제목(좌측 틱) + 촘촘한 픽업 행. (③ 전체 페이지)
+private struct CompactVersionSection: View {
+    let vg: VersionGroupIOS
+    var body: some View {
+        let c = Color(argb64: vg.game.color)
+        let d = Int((vg.nearestEnd - nowMs()) / 86_400_000)
+        let ddColor = (0...3).contains(d) ? glUrgent : c
+        let chars = vg.pickups.filter { $0.type != "weapon" }
+        let weaps = GameInfoKt.unpairedWeapons(all: vg.pickups)
+        return VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 8) {
+                RoundedRectangle(cornerRadius: 2).fill(c).frame(width: 3, height: 14)
+                Text(vg.version.isEmpty ? "\(vg.game.abbr) · \(vg.game.displayName)" : "\(vg.game.abbr) · v\(vg.version)")
+                    .font(.pretendard(size: 13, weight: .bold)).foregroundStyle(GLGColor.textPrimary).lineLimit(1)
+                Spacer(minLength: 8)
+                Text(GameInfoKt.dhLabel(targetMillis: vg.nearestEnd, nowMillis: nowMs())).font(.pretendard(size: 12, weight: .bold)).foregroundStyle(ddColor).lineLimit(1)
+            }
+            .padding(.top, 10).padding(.bottom, 7)
+            ForEach(Array(chars.enumerated()), id: \.offset) { _, b in
+                CompactPickupRow(banner: b, companions: GameInfoKt.companionWeapons(character: b, all: vg.pickups))
+            }
+            ForEach(Array(weaps.enumerated()), id: \.offset) { _, b in
+                CompactPickupRow(banner: b, companions: [])
+            }
+        }
+    }
+}
+
+// 컴팩트 픽업 행 — 상단 구분선 + 아바타 30 + 이름(+동반무기) + 잔여. 카드 여백 없이 밀도↑. (③ 전체 페이지)
+private struct CompactPickupRow: View {
+    let banner: GachaBanner
+    var companions: [GachaBanner] = []
+    var body: some View {
+        let c = Color(argb64: banner.gameColor)
+        let isWeapon = banner.type == "weapon"
+        let ddColor = banner.dDay(nowMillis: nowMs()) <= 3 ? glUrgent : c
+        let short = GameData.shared.byNameOrNull(name: banner.game)?.shortName ?? banner.game
+        return VStack(spacing: 0) {
+            Divider()
+            HStack(spacing: 10) {
+                ZStack {
+                    if isWeapon { RoundedRectangle(cornerRadius: 9, style: .continuous).fill(glWeap.opacity(0.16)) } else { Circle().fill(c) }
+                    if isWeapon { SwordShape().fill(glWeap).frame(width: 12, height: 14) }
+                    else { Text(String(banner.name.prefix(1))).font(.pretendard(size: 13, weight: .heavy)).foregroundStyle(.white) }
+                }
+                .frame(width: 30, height: 30)
+                VStack(alignment: .leading, spacing: 1) {
+                    HStack(spacing: 4) {
+                        Text(banner.name).font(.pretendard(size: 13, weight: .bold)).foregroundStyle(GLGColor.textPrimary).lineLimit(1)
+                        if let comp = companions.first {
+                            Text("＋\(comp.name)").font(.pretendard(size: 9, weight: .bold)).foregroundStyle(glWeap).lineLimit(1)
+                        }
+                    }
+                    Text("\(short) · \(isWeapon ? "무기" : "캐릭터")").font(.pretendard(size: 10)).foregroundStyle(GLGColor.textSecondary).lineLimit(1)
+                }
+                Spacer(minLength: 8)
+                VStack(alignment: .trailing, spacing: 2) {
+                    Text(GameInfoKt.dhLabel(targetMillis: banner.endMillis, nowMillis: nowMs())).font(.pretendard(size: 12, weight: .bold)).foregroundStyle(ddColor).lineLimit(1)
+                    Text("~" + DateUtil.shared.shortDate(millis: banner.endMillis)).font(.pretendard(size: 9)).foregroundStyle(GLGColor.textSecondary)
+                }
+            }
+            .padding(.vertical, 7)
+        }
+    }
+}
+
 // 통합 일정 — 헤더 드롭다운(filter)으로 게임 분리. 픽업 배너(단독 디자인) + 상위 3개 일정, 초과 시 전체 페이지로.
 struct GameScheduleSection: View {
     let entries: [ScheduleEntry]
@@ -457,11 +645,15 @@ struct GameScheduleSection: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
             } else {
-                ForEach(Array(topGroups.enumerated()), id: \.offset) { i, vg in
-                    VersionCard(vg: vg)
-                    if i < topGroups.count - 1 || !topExtras.isEmpty { Spacer().frame(height: 12) }
+                if let featured = topGroups.first {
+                    FeaturedVersionCard(vg: featured)
+                    ForEach(Array(topGroups.dropFirst().enumerated()), id: \.offset) { _, vg in
+                        Spacer().frame(height: 9)
+                        SlimVersionRow(vg: vg)
+                    }
                 }
                 if !topExtras.isEmpty {
+                    if !topGroups.isEmpty { Spacer().frame(height: 12) }
                     GLGCard(cornerRadius: 20, padding: 16) {
                         VStack(alignment: .leading, spacing: 0) {
                             Text("이벤트 · 정기 콘텐츠").font(.pretendard(size: 12, weight: .bold)).foregroundStyle(GLGColor.textPrimary).padding(.bottom, 2)
@@ -508,8 +700,8 @@ struct GameSchedulePage: View {
                     Text("예정된 일정이 없어요.").font(.pretendard(size: 13)).foregroundStyle(GLGColor.textSecondary)
                         .frame(maxWidth: .infinity, alignment: .center).padding(.top, 40)
                 } else {
-                    ForEach(Array(groups.enumerated()), id: \.offset) { _, vg in
-                        VersionCard(vg: vg).padding(.top, 12)
+                    ForEach(Array(groups.enumerated()), id: \.offset) { i, vg in
+                        CompactVersionSection(vg: vg).padding(.top, i > 0 ? 6 : 0)
                     }
                     if !extras.isEmpty {
                         HStack(spacing: 8) {
@@ -590,36 +782,3 @@ private func buildVersionGroups(_ banners: [GachaBanner], filter: String) -> [Ve
     return groups.sorted { $0.nearestEnd < $1.nearestEnd }
 }
 
-// 버전 카드 — 헤더(게임 배지 + 버전/게임명 + 종료 임박 D-day) + 캐릭터/무기 픽업 그룹.
-private struct VersionCard: View {
-    let vg: VersionGroupIOS
-
-    var body: some View {
-        let c = Color(argb64: vg.game.color)
-        let d = Int((vg.nearestEnd - nowMs()) / 86_400_000)
-        let ddColor = (0...3).contains(d) ? glUrgent : c
-        GLGCard(cornerRadius: 20, padding: 16) {
-            VStack(alignment: .leading, spacing: 0) {
-                HStack(spacing: 9) {
-                    Text(vg.game.abbr).font(.pretendard(size: 11, weight: .heavy)).foregroundStyle(.white)
-                        .frame(minWidth: 28).padding(.horizontal, 7).padding(.vertical, 4)
-                        .background(c, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-                    VStack(alignment: .leading, spacing: 1) {
-                        if !vg.version.isEmpty {
-                            Text("v\(vg.version)").font(.pretendard(size: 16, weight: .bold)).foregroundStyle(GLGColor.textPrimary).lineLimit(1)
-                            Text(vg.game.displayName).font(.pretendard(size: 11, weight: .semibold)).foregroundStyle(GLGColor.textSecondary).lineLimit(1)
-                        } else {
-                            Text(vg.game.displayName).font(.pretendard(size: 16, weight: .bold)).foregroundStyle(GLGColor.textPrimary).lineLimit(1)
-                            Text("픽업").font(.pretendard(size: 11, weight: .semibold)).foregroundStyle(GLGColor.textSecondary)
-                        }
-                    }
-                    Spacer(minLength: 8)
-                    Text(GameInfoKt.dhLabel(targetMillis: vg.nearestEnd, nowMillis: nowMs())).font(.pretendard(size: 15, weight: .bold)).foregroundStyle(ddColor).lineLimit(1)
-                }
-                .padding(.bottom, 12)
-                Divider().padding(.bottom, 12)
-                PickupGroups(pickups: vg.pickups)
-            }
-        }
-    }
-}
