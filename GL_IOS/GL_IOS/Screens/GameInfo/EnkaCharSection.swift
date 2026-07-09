@@ -65,27 +65,24 @@ struct EnkaCharSection: View {
     }
 
     var body: some View {
-        let linked = store.hoyolabConfig.isLinked
-        // 클라우드서 복원된 UID 가 있는데 토큰만 없으면 = 재설치/재로그인. 토큰은 보안상 기기에만 저장돼 동기화 안 됨.
-        let hadProfile = !store.enkaGiUid.isEmpty || !store.enkaHsrUid.isEmpty || !store.hoyolabConfig.zzzUid.isEmpty
-        VStack(alignment: .leading, spacing: 11) {
-            HStack(spacing: 8) {
-                Text("내 캐릭터").font(.pretendard(size: 16, weight: .bold))
-                Text("상시").font(.pretendard(size: 9, weight: .bold)).foregroundStyle(Color(hex: 0xFF15803D))
-                    .padding(.horizontal, 7).padding(.vertical, 2).background(Color(hex: 0xFF16A34A).opacity(0.12), in: Capsule())
-                Spacer()
-            }
-            if !linked {
-                linkPrompt(reLink: hadProfile)
-            } else {
+        // 미연동(=HoYoLAB 연동 프롬프트가 뜰 상황)이면 '내 캐릭터' 영역 전체를 숨긴다(헤더·'상시' 배지 포함).
+        // 연동 유도는 데일리/프로필 섹션의 프롬프트가 담당하며, 연동되면 자동으로 로스터가 나타난다.
+        if store.hoyolabConfig.isLinked {
+            VStack(alignment: .leading, spacing: 11) {
+                HStack(spacing: 8) {
+                    Text("내 캐릭터").font(.pretendard(size: 16, weight: .bold))
+                    Text("상시").font(.pretendard(size: 9, weight: .bold)).foregroundStyle(Color(hex: 0xFF15803D))
+                        .padding(.horizontal, 7).padding(.vertical, 2).background(Color(hex: 0xFF16A34A).opacity(0.12), in: Capsule())
+                    Spacer()
+                }
                 // 게임별로 한 카드씩 — 각 게임 로스터를 카드로 묶고 게임 라벨을 카드 헤더로 표시.
                 ForEach(Array(games.enumerated()), id: \.offset) { _, g in
                     gameBlock(g, showLabel: true)
                 }
             }
+            // 필터 변경 시 해당 게임들 로드(캐시 적중분 즉시, 미적중분 순차 호출).
+            .task(id: filter) { if !games.isEmpty { store.autoLoadEnkaSection(games: games, force: false) } }
         }
-        // 필터 변경 시 해당 게임들 로드(캐시 적중분 즉시, 미적중분 순차 호출).
-        .task(id: filter) { if !games.isEmpty { store.autoLoadEnkaSection(games: games, force: false) } }
     }
 
     /// '내 캐릭터' 단일 게임 블록 — (라벨) + 대표 4명 그리드 + 더보기. 로딩 시 스켈레톤.
@@ -153,26 +150,6 @@ struct EnkaCharSection: View {
         Text(t).font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary).padding(.vertical, 12)
     }
 
-    /// HoYoLAB 미연동 안내 + 연동 버튼. [reLink]=재설치/재로그인(복원된 UID 존재) 시 토큰 재연동 안내.
-    private func linkPrompt(reLink: Bool) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            if reLink {
-                // 재설치/재로그인 — 데이터(소비·UID)는 복원됐지만 토큰은 보안상 기기 전용이라 사라짐.
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("HoYoLAB 재연동이 필요해요").font(.pretendard(size: 13, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
-                    Text("보안상 로그인 토큰은 기기에만 저장돼요. 재연동하면 보유 캐릭터가 바로 복원됩니다.").font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary)
-                }
-            } else {
-                Text("HoYoLAB을 연동하면 보유 캐릭터가 자동으로 표시돼요").font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary)
-            }
-            Button { onOpenHoyolab() } label: {
-                Text(reLink ? "HoYoLAB 재연동하기" : "HoYoLAB 연동하기").font(.pretendard(size: 13, weight: .bold)).foregroundStyle(.white)
-                    .padding(.horizontal, 14).padding(.vertical, 9)
-                    .background(accent.primary, in: Capsule())
-            }.buttonStyle(.plain)
-        }
-        .padding(.vertical, 8).frame(maxWidth: .infinity, alignment: .leading)
-    }
 }
 
 /// 로스터 카드(섹션·보유 페이지 공용). [game] 은 명좌/성혼 라벨 표기용.
