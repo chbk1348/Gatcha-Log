@@ -287,6 +287,7 @@ fun GameInfoScreen(
                     ledgers = ledgers,
                     isRefreshing = isRefreshing,
                     filter = gameFilter,
+                    linked = viewModel.hoyolabConfig.collectAsState().value.isLinked,
                 )
             }
             // 페이지로 분류된 섹션(계산기·프로필·리포트) — 진입 카드

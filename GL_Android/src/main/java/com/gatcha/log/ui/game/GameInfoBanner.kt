@@ -38,6 +38,7 @@ fun GameTabbedSection(
     ledgers: List<MonthlyLedger>,
     isRefreshing: Boolean,
     filter: String = "all",
+    linked: Boolean = true,
 ) {
     val games = GameData.attendanceGames // 원신·스타레일·젠레스
     val shown = if (filter == "all") games else games.filter { it.key == filter }
@@ -47,6 +48,7 @@ fun GameTabbedSection(
     val allEmpty = combatGames.isEmpty() && ledgerList.isEmpty()
     Column(verticalArrangement = Arrangement.spacedBy(20.dp)) {
         when {
+            allEmpty && !linked -> Unit    // 호요랩 미연동: 전투/일지 데이터가 없어 빈 상태 카드도 미노출
             allEmpty && isRefreshing -> BannerSkeleton()
             allEmpty -> GlassCard(shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth()) {
                 Box(Modifier.fillMaxWidth().padding(28.dp), contentAlignment = Alignment.Center) {

@@ -18,8 +18,11 @@ struct GameTabbedSection: View {
         }
         let ledgers = shownGames.compactMap { g in store.ledgers.first { $0.game == g.displayName } }
         let allEmpty = combatGames.isEmpty && ledgers.isEmpty
+        let linked = store.hoyolabConfig.isLinked
         return VStack(alignment: .leading, spacing: 20) {
-            if allEmpty {
+            if allEmpty && !linked {
+                EmptyView()   // 호요랩 미연동: 전투/일지 데이터가 없어 빈 상태 카드도 미노출
+            } else if allEmpty {
                 GLGCard(cornerRadius: 20, padding: 28) {
                     Text("표시할 게임 정보가 아직 없어요").font(.pretendard(size: 13)).foregroundStyle(GLGColor.textSecondary)
                         .frame(maxWidth: .infinity)
