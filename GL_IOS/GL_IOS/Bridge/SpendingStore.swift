@@ -207,8 +207,12 @@ final class SpendingStore: ObservableObject {
     func signIn() { vm.signIn() }
     /// 로그아웃.
     func signOut() { vm.signOut() }
-    /// 강조색 변경.
-    func setAccentIndex(_ index: Int) { vm.setAccentIndex(index: Int32(index)) }
+    /// 강조색 변경. 낙관적 즉시 반영 — SKIE StateFlow bind 콜백이 한 런루프 지연될 수 있어,
+    /// @Published 를 곧바로 갱신해 설정 화면 체크마크·전역 accent 가 탭 즉시 바뀌게 한다(설정 이탈 없이).
+    func setAccentIndex(_ index: Int) {
+        accentIndex = index
+        vm.setAccentIndex(index: Int32(index))
+    }
     /// 프로필 이름 변경.
     func setProfileName(_ name: String) { vm.setProfileName(name: name) }
     /// 상태 토스트 소비.
