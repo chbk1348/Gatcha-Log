@@ -48,7 +48,7 @@ import com.gatcha.log.ui.theme.*
 import kotlinx.coroutines.launch
 
 /** 게임정보 탭의 풀스크린 하위 페이지 (열리면 하단바·FAB 숨김) */
-private enum class GiSub { Main, HoyoLink, Dashboard, Rate, Calc, Report, Gift, Schedule, Pickups, News, CharStats, CharRoster }
+private enum class GiSub { Main, HoyoLink, Dashboard, Calc, Report, Gift, Schedule, Pickups, News, CharStats, CharRoster }
 
 /** 화면 전환 push/pop 방향용 계층 깊이. Main=0, 하위 페이지=1, 캐릭터 상세(목록서 진입)=2. */
 private fun subDepth(s: GiSub): Int = when (s) {
@@ -169,7 +169,6 @@ fun GameInfoScreen(
                 spendByGameKey = gachaSpendByGame,
                 onBack = { subPage = GiSub.Main },
             )
-            GiSub.Rate -> GachaRatePage(onBack = { subPage = GiSub.Main })
             GiSub.CharStats -> {
                 val c = statChar
                 if (c != null) EnkaStatPage(c, statCharGame) { subPage = statReturn }
@@ -228,7 +227,6 @@ fun GameInfoScreen(
                 ) {
                     GameFilterDropdown(selected = gameFilter, onSelect = { gameFilter = it })
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        GlgCircleIconButton(Icons.Default.Percent, "확률표", outlined = true) { subPage = GiSub.Rate }
                         if (hoyolab.isLinked) {
                             GlgCircleIconButton(Icons.Default.Redeem, "리딤코드", outlined = true) { subPage = GiSub.Gift }
                         }

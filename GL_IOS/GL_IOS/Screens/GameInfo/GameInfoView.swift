@@ -8,7 +8,6 @@ struct GameInfoView: View {
     @ObservedObject var store: SpendingStore
     @Environment(\.glgAccent) private var accent
     @State private var showHoyolab = false
-    @State private var showRate = false
     @State private var showGift = false
     @State private var showDashboard = false
     // 페이지로 분류된 섹션(계산기·리포트·프로필) — 진입 카드 탭 시 푸시.
@@ -91,7 +90,6 @@ struct GameInfoView: View {
                 }
             }
             ToolbarItemGroup(placement: .topBarTrailing) {
-                Button { showRate = true } label: { Image(systemName: "percent") }
                 if store.hoyolabConfig.isLinked { Button { showGift = true } label: { Image(systemName: "gift") } }
                 Button { store.refreshGameInfo(force: true) } label: { Image(systemName: "arrow.clockwise") }
                     .disabled(store.isRefreshing)
@@ -101,7 +99,6 @@ struct GameInfoView: View {
         .navigationDestination(isPresented: $showHoyolab) {
             HoyolabLinkView(store: store) { showHoyolab = false }
         }
-        .navigationDestination(isPresented: $showRate) { GachaRatePage() }
         .navigationDestination(isPresented: $showCalc) { sectionPage("계산기") { GachaCalculatorSection() } }
         .navigationDestination(isPresented: $showReport) { sectionPage("가챠 리포트") { GachaReportSection(store: store, onOpenDashboard: { showDashboard = true }) } }
         .navigationDestination(isPresented: $showGift) { GiftCodePage(store: store) }

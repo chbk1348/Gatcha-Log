@@ -28,7 +28,6 @@
 		63BB6DD0D19A0B7E102937BD /* HeaderButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 32BBA1BA7898178C15DF09E1 /* HeaderButton.swift */; };
 		69FEE9E24FEB8301D5F8DA75 /* SubscriptionCenterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1DC14C41EE7ECD2B59515D4 /* SubscriptionCenterView.swift */; };
 		753F215D683DBB9FEBA60F13 /* SpendingStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = C3BE8BD3C2DD8BC4F707DE6D /* SpendingStore.swift */; };
-		75C9F29B2B660EDD54766CA8 /* GachaRateSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2A52426EBEF59CD4BBBCA778 /* GachaRateSheet.swift */; };
 		76C8B5CC8DB8D93A0C9CE484 /* LoginView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE2C3F8DE0C369D621CCC112 /* LoginView.swift */; };
 		76FA3F68B6DA27D846A2CDA7 /* GlassCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB188D8B07C1771A193CF288 /* GlassCard.swift */; };
 		808FA397C7B307AA83931954 /* PillField.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10A462DEE6CE546DFBF6BBA9 /* PillField.swift */; };
@@ -83,7 +82,6 @@
 		1E6A1754F38C5D6D3F9A2605 /* NotificationPermission.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationPermission.swift; sourceTree = "<group>"; };
 		24406A47C5595952918ABF5B /* HoyolabLinkView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HoyolabLinkView.swift; sourceTree = "<group>"; };
 		27054819557D026D9CB4FE7D /* GoogleService-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = "GoogleService-Info.plist"; sourceTree = "<group>"; };
-		2A52426EBEF59CD4BBBCA778 /* GachaRateSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GachaRateSheet.swift; sourceTree = "<group>"; };
 		2EAD6CB38E6E41AADF430D6E /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		30864BF6E1651C389D2661B1 /* AccountLoadingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountLoadingView.swift; sourceTree = "<group>"; };
 		32BBA1BA7898178C15DF09E1 /* HeaderButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HeaderButton.swift; sourceTree = "<group>"; };
@@ -167,7 +165,6 @@
 				B8E1563A89FD1762C317ABC2 /* EnkaCharSection.swift */,
 				BFE5396217B0F6A1F487F364 /* GachaCalculatorSection.swift */,
 				6A7AD50D44CC890634902ADD /* GachaDashboardView.swift */,
-				2A52426EBEF59CD4BBBCA778 /* GachaRateSheet.swift */,
 				4A3AE615BDC494C0880E998A /* GachaReportSection.swift */,
 				11D16F5E46E7E8DC2FD63907 /* GameInfoView.swift */,
 				1D2F3B501B160FF2E015D19D /* GameSegmentControl.swift */,
@@ -427,7 +424,6 @@
 				E04926A07296AA0D760F37A8 /* GLGSkeleton.swift in Sources */,
 				04D900E4303215C82AEA7A1B /* GachaCalculatorSection.swift in Sources */,
 				FE473FA3E330163CA197055C /* GachaDashboardView.swift in Sources */,
-				75C9F29B2B660EDD54766CA8 /* GachaRateSheet.swift in Sources */,
 				AC21306B60B6E218C753C1A5 /* GachaReportSection.swift in Sources */,
 				3CEC973D3915C5EAA8F3144D /* GameInfoView.swift in Sources */,
 				3B662407EC4D2EA457E26403 /* GameSegmentControl.swift in Sources */,
