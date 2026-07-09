@@ -509,9 +509,10 @@ private struct FeaturedVersionCard: View {
                             Spacer().frame(height: 6)
                             Text("외 \(items.count - 2)").font(.pretendard(size: 10)).foregroundStyle(GLGColor.textSecondary)
                         }
-                        if let lead, lead.startMillis > 0, lead.endMillis > lead.startMillis {
+                        if vg.start > 0 {
+                            let vFrac = vg.end > vg.start ? min(max(Double(nowMs() - vg.start) / Double(vg.end - vg.start), 0), 1) : 0
                             Spacer().frame(height: 8)
-                            Text("\(DateUtil.shared.shortDate(millis: lead.startMillis)) → \(DateUtil.shared.shortDate(millis: lead.endMillis)) · \(Int((frac * 100).rounded()))% 경과")
+                            Text("\(DateUtil.shared.shortDate(millis: vg.start)) ~ \(DateUtil.shared.shortDate(millis: vg.end)) · \(Int((vFrac * 100).rounded()))% 경과")
                                 .font(.pretendard(size: 10)).foregroundStyle(GLGColor.textSecondary).lineLimit(1)
                         }
                     }
@@ -548,7 +549,10 @@ private struct SlimVersionRow: View {
                 Text("\(vg.game.displayName) · \(counts)").font(.pretendard(size: 10)).foregroundStyle(GLGColor.textSecondary).lineLimit(1)
             }
             Spacer(minLength: 8)
-            Text(GameInfoKt.dhLabel(targetMillis: vg.nearestEnd, nowMillis: nowMs())).font(.pretendard(size: 13, weight: .bold)).foregroundStyle(ddColor).lineLimit(1)
+            VStack(alignment: .trailing, spacing: 1) {
+                Text(GameInfoKt.dhLabel(targetMillis: vg.nearestEnd, nowMillis: nowMs())).font(.pretendard(size: 13, weight: .bold)).foregroundStyle(ddColor).lineLimit(1)
+                if vg.start > 0 { Text("\(DateUtil.shared.shortDate(millis: vg.start))~\(DateUtil.shared.shortDate(millis: vg.end))").font(.pretendard(size: 9)).foregroundStyle(GLGColor.textSecondary).lineLimit(1) }
+            }
         }
         .padding(.horizontal, 13).padding(.vertical, 11)
         .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(glLine, lineWidth: 1))
@@ -570,7 +574,10 @@ private struct CompactVersionSection: View {
                 Text(vg.version.isEmpty ? "\(vg.game.abbr) · \(vg.game.displayName)" : "\(vg.game.abbr) · v\(vg.version)")
                     .font(.pretendard(size: 13, weight: .bold)).foregroundStyle(GLGColor.textPrimary).lineLimit(1)
                 Spacer(minLength: 8)
-                Text(GameInfoKt.dhLabel(targetMillis: vg.nearestEnd, nowMillis: nowMs())).font(.pretendard(size: 12, weight: .bold)).foregroundStyle(ddColor).lineLimit(1)
+                VStack(alignment: .trailing, spacing: 1) {
+                    Text(GameInfoKt.dhLabel(targetMillis: vg.nearestEnd, nowMillis: nowMs())).font(.pretendard(size: 12, weight: .bold)).foregroundStyle(ddColor).lineLimit(1)
+                    if vg.start > 0 { Text("\(DateUtil.shared.shortDate(millis: vg.start))~\(DateUtil.shared.shortDate(millis: vg.end))").font(.pretendard(size: 9)).foregroundStyle(GLGColor.textSecondary).lineLimit(1) }
+                }
             }
             .padding(.top, 10).padding(.bottom, 7)
             ForEach(Array(chars.enumerated()), id: \.offset) { _, b in
@@ -760,6 +767,8 @@ private struct VersionGroupIOS {
     let version: String
     let pickups: [GachaBanner]
     let nearestEnd: Int64
+    let start: Int64   // 버전 시작일 = 픽업 시작 중 가장 이른 값(0 제외)
+    let end: Int64     // 버전 종료일 = 픽업 종료 중 가장 늦은 값
 }
 
 // 필터 적용 픽업을 (게임, 버전)으로 묶어 임박순 정렬. 버전이 비면 게임명만.
@@ -776,8 +785,10 @@ private func buildVersionGroups(_ banners: [GachaBanner], filter: String) -> [Ve
         guard let list = map[key], let first = list.first,
               let g = GameData.shared.byNameOrNull(name: first.game) else { continue }
         let nearest = list.map { $0.endMillis }.min() ?? 0
+        let start = list.filter { $0.startMillis > 0 }.map { $0.startMillis }.min() ?? 0
+        let end = list.map { $0.endMillis }.max() ?? 0
         groups.append(VersionGroupIOS(game: g, version: first.version,
-                                      pickups: list.sorted { $0.endMillis < $1.endMillis }, nearestEnd: nearest))
+                                      pickups: list.sorted { $0.endMillis < $1.endMillis }, nearestEnd: nearest, start: start, end: end))
     }
     return groups.sorted { $0.nearestEnd < $1.nearestEnd }
 }

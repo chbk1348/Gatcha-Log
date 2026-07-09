@@ -365,10 +365,11 @@ private fun FeaturedVersionCard(vg: VersionGroup) {
                         Spacer(Modifier.height(6.dp))
                         Text("외 ${items.size - 2}", fontSize = 10.sp, color = TextSecondary)
                     }
-                    if (lead != null && lead.startMillis > 0 && lead.endMillis > lead.startMillis) {
+                    if (vg.start > 0) {
+                        val vFrac = if (vg.end > vg.start) ((now - vg.start).toFloat() / (vg.end - vg.start)).coerceIn(0f, 1f) else 0f
                         Spacer(Modifier.height(8.dp))
                         Text(
-                            "${DateUtil.shortDate(lead.startMillis)} → ${DateUtil.shortDate(lead.endMillis)} · ${(frac * 100).roundToInt()}% 경과",
+                            "${DateUtil.shortDate(vg.start)} ~ ${DateUtil.shortDate(vg.end)} · ${(vFrac * 100).roundToInt()}% 경과",
                             fontSize = 10.sp, color = TextSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis,
                         )
                     }
@@ -406,7 +407,10 @@ private fun SlimVersionRow(vg: VersionGroup) {
             Text(title, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text("${vg.game.displayName} · $counts", fontSize = 10.sp, color = TextSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
-        Text(dhLabel(vg.nearestEnd), fontSize = 13.sp, fontWeight = FontWeight.Bold, color = ddColor, maxLines = 1)
+        Column(horizontalAlignment = Alignment.End) {
+            Text(dhLabel(vg.nearestEnd), fontSize = 13.sp, fontWeight = FontWeight.Bold, color = ddColor, maxLines = 1)
+            if (vg.start > 0) Text("${DateUtil.shortDate(vg.start)}~${DateUtil.shortDate(vg.end)}", fontSize = 9.sp, color = TextSecondary, maxLines = 1)
+        }
     }
 }
 
@@ -430,7 +434,10 @@ private fun CompactVersionSection(vg: VersionGroup) {
                 fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextPrimary, maxLines = 1,
             )
             Spacer(Modifier.weight(1f))
-            Text(dhLabel(vg.nearestEnd), fontSize = 12.sp, fontWeight = FontWeight.Bold, color = ddColor, maxLines = 1)
+            Column(horizontalAlignment = Alignment.End) {
+                Text(dhLabel(vg.nearestEnd), fontSize = 12.sp, fontWeight = FontWeight.Bold, color = ddColor, maxLines = 1)
+                if (vg.start > 0) Text("${DateUtil.shortDate(vg.start)}~${DateUtil.shortDate(vg.end)}", fontSize = 9.sp, color = TextSecondary, maxLines = 1)
+            }
         }
         chars.forEach { CompactPickupRow(it, companionWeapons(it, vg.pickups)) }
         weaps.forEach { CompactPickupRow(it, emptyList()) }
@@ -536,6 +543,8 @@ data class VersionGroup(
     val version: String,
     val pickups: List<GachaBanner>,
     val nearestEnd: Long,
+    val start: Long,   // 버전 시작일 = 픽업 시작 중 가장 이른 값(0 제외)
+    val end: Long,     // 버전 종료일 = 픽업 종료 중 가장 늦은 값
 )
 
 // 필터 적용 픽업을 (게임, 버전)으로 묶어 임박순 정렬. 버전이 비면 게임명만.
@@ -544,7 +553,11 @@ fun buildVersionGroups(banners: List<GachaBanner>, filter: String): List<Version
         .groupBy { it.game to it.version }
         .mapNotNull { (key, list) ->
             val game = GameData.byNameOrNull(key.first) ?: return@mapNotNull null
-            VersionGroup(game, key.second, list.sortedBy { it.endMillis }, list.minOf { it.endMillis })
+            VersionGroup(
+                game, key.second, list.sortedBy { it.endMillis }, list.minOf { it.endMillis },
+                start = list.filter { it.startMillis > 0 }.minOfOrNull { it.startMillis } ?: 0L,
+                end = list.maxOf { it.endMillis },
+            )
         }
         .sortedBy { it.nearestEnd }
 
