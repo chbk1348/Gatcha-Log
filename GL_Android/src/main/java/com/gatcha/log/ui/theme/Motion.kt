@@ -10,7 +10,6 @@ import androidx.compose.animation.core.FiniteAnimationSpec
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
@@ -18,18 +17,12 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.State
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.composed
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.unit.dp
 
 /**
  * 공통 모션 토큰의 Compose 표현 — shared [GlgMotion] 미러 변환.
@@ -121,40 +114,12 @@ fun rememberGlgLoadInSet(tag: String): MutableSet<Int> =
     remember(tag) { glgLoadInRegistry.getOrPut(tag) { mutableSetOf() } }
 
 /**
- * 콘텐츠 로드인 — 항목이 **처음 표시될 때 1회** alpha 0→1 + 살짝 위(16dp)에서 내려오며 등장.
- *
- * [animated] 에 [index] 를 기록해, LazyColumn 재활용으로 스크롤 재진입하거나 탭을 오가도 다시 애니메이션하지 않는다.
- * 호출부에서 [rememberGlgLoadInSet] 로 화면 태그별 세션 영속 집합을 만들어 모든 항목에 공유 전달.
- * delay = index*[GlgMotion.StaggerStep] (최대 [GlgMotion.StaggerMax]) — 순차 등장 스태거.
+ * 콘텐츠 로드인 — **비활성(2026-07-09).** 앱 전체 로드인 등장(페이드인+슬라이드업) 애니메이션 제거 요청으로
+ * 무력화했다. 호출부(각 화면)를 그대로 두기 위해 시그니처만 보존하고 즉시 표시(변형 없음)로 통과시킨다.
+ * 되살리려면 이 커밋 이전 이력의 alpha/translationY 스태거 구현 참고.
  */
-fun Modifier.glgLoadIn(index: Int, animated: MutableSet<Int>): Modifier = composed {
-    // 모션 감속(저사양·접근성·절전) — 스태거·슬라이드 없이 즉시 표시
-    if (LocalReduceMotion.current) {
-        remember { animated.add(index); true }
-        return@composed Modifier
-    }
-    val already = remember { index in animated }
-    var shown by remember { mutableStateOf(already) }
-    val progress by animateFloatAsState(
-        targetValue = if (shown) 1f else 0f,
-        animationSpec = tween(
-            durationMillis = GlgMotion.DurationStandard,
-            delayMillis = if (already) 0 else (index * GlgMotion.StaggerStep).coerceAtMost(GlgMotion.StaggerMax),
-            easing = GlgEasingStandard,
-        ),
-        label = "glgLoadIn",
-    )
-    LaunchedEffect(Unit) {
-        if (!already) {
-            animated.add(index)
-            shown = true
-        }
-    }
-    graphicsLayer {
-        alpha = progress
-        translationY = (1f - progress) * 16.dp.toPx()
-    }
-}
+@Suppress("UNUSED_PARAMETER")
+fun Modifier.glgLoadIn(index: Int, animated: MutableSet<Int>): Modifier = this
 
 /**
  * [LazyListScope.item] 을 [glgLoadIn] 로드인 스태거로 감싼다(콘텐츠 카드 등장용).
