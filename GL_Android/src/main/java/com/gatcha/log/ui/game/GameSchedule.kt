@@ -288,7 +288,7 @@ fun ScheduleEntryRow(e: ScheduleEntry) {
     }
 }
 
-// 통합 게임 일정 섹션 — 헤더 드롭다운(filter)으로 게임 분리. 픽업 알약 전부 + 상위 3개 일정, 초과 시 전체 페이지로.
+// 통합 게임 일정 섹션 — 픽업을 버전 카드로 요약(임박 3개) + 이벤트·콘텐츠 미리보기, 초과 시 전체 페이지로.
 @Composable
 fun GameScheduleSection(
     entries: List<ScheduleEntry>,
@@ -298,31 +298,37 @@ fun GameScheduleSection(
     onSeePickups: () -> Unit,
 ) {
     val accent = LocalAccent.current
-    val items = filteredEntries(entries, filter)
-    val pickups = filteredPickups(banners, filter)
-    val top = items.take(3)
+    val groups = buildVersionGroups(banners, filter)
+    val extras = filteredEntries(entries, filter).filter { it.kind != "패치" }.sortedBy { it.target }
+    val topGroups = groups.take(3)
+    val topExtras = extras.take(2)
     Text("게임 일정", fontSize = 16.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 4.dp))
-    Text("픽업 배너와 다가오는 패치·이벤트·콘텐츠를 모았어요.", fontSize = 11.sp, color = TextSecondary, modifier = Modifier.padding(bottom = 12.dp))
-    GlassCard(shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp)) {
-            if (pickups.isNotEmpty()) {
-                PickupGroups(pickups, limit = 3, onMore = onSeePickups)
-                if (top.isNotEmpty()) { Spacer(Modifier.height(4.dp)); HorizontalDivider(color = DividerColor); Spacer(Modifier.height(4.dp)) }
+    Text("픽업 배너를 버전별로 모았어요. 이벤트·정기 콘텐츠도 함께.", fontSize = 11.sp, color = TextSecondary, modifier = Modifier.padding(bottom = 12.dp))
+    if (groups.isEmpty() && extras.isEmpty()) {
+        GlassCard(shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth()) {
+            Text("예정된 일정이 없어요.", fontSize = 12.sp, color = TextSecondary, modifier = Modifier.padding(16.dp))
+        }
+    } else {
+        topGroups.forEachIndexed { i, vg -> VersionCard(vg); if (i < topGroups.lastIndex || topExtras.isNotEmpty()) Spacer(Modifier.height(12.dp)) }
+        if (topExtras.isNotEmpty()) {
+            GlassCard(shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(16.dp)) {
+                    Text("이벤트 · 정기 콘텐츠", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextPrimary, modifier = Modifier.padding(bottom = 2.dp))
+                    topExtras.forEachIndexed { i, e -> ScheduleEntryRow(e); if (i < topExtras.lastIndex) HorizontalDivider(color = DividerColor) }
+                }
             }
-            if (top.isNotEmpty()) {
-                top.forEachIndexed { i, e -> ScheduleEntryRow(e); if (i < top.lastIndex) HorizontalDivider(color = DividerColor) }
-            } else if (pickups.isEmpty()) {
-                Text("예정된 일정이 없어요.", fontSize = 12.sp, color = TextSecondary, modifier = Modifier.padding(vertical = 8.dp))
-            }
-            if (items.size > 3) {
-                HorizontalDivider(color = DividerColor)
+        }
+        val hiddenMore = (groups.size - topGroups.size) + (extras.size - topExtras.size)
+        if (hiddenMore > 0) {
+            Spacer(Modifier.height(12.dp))
+            GlassCard(shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth()) {
                 Row(
-                    Modifier.fillMaxWidth().clickable { onSeeAll() }.padding(top = 12.dp),
+                    Modifier.fillMaxWidth().clickable { onSeeAll() }.padding(16.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text("전체 일정 보기", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = accent)
                     Spacer(Modifier.width(6.dp))
-                    Text("${items.size + pickups.size}", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = accent.copy(alpha = 0.6f))
+                    Text("+$hiddenMore", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = accent.copy(alpha = 0.6f))
                     Spacer(Modifier.weight(1f))
                     Icon(Icons.Default.ChevronRight, null, tint = accent, modifier = Modifier.size(16.dp))
                 }
@@ -331,31 +337,57 @@ fun GameScheduleSection(
     }
 }
 
-// 게임 단위 그룹 — 게임 배지(약어 색칩 + 게임명) 헤더 + 해당 게임의 픽업/일정 카드.
-@Composable
-private fun GameScheduleGroup(game: Game, entries: List<ScheduleEntry>, pickups: List<GachaBanner>) {
-    Row(
-        Modifier.padding(top = 16.dp, bottom = 10.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
-    ) {
-        Surface(color = game.color.toColor(), shape = RoundedCornerShape(8.dp)) {
-            Text(game.abbr, fontSize = 12.sp, fontWeight = FontWeight.Black, color = Color.White, modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp))
+// 버전 단위 묶음 — (게임, 버전) 하나당 카드 한 장. 픽업 종료 임박순으로 카드 정렬.
+data class VersionGroup(
+    val game: Game,
+    val version: String,
+    val pickups: List<GachaBanner>,
+    val nearestEnd: Long,
+)
+
+// 필터 적용 픽업을 (게임, 버전)으로 묶어 임박순 정렬. 버전이 비면 게임명만.
+fun buildVersionGroups(banners: List<GachaBanner>, filter: String): List<VersionGroup> =
+    filteredPickups(banners, filter)
+        .groupBy { it.game to it.version }
+        .mapNotNull { (key, list) ->
+            val game = GameData.byNameOrNull(key.first) ?: return@mapNotNull null
+            VersionGroup(game, key.second, list.sortedBy { it.endMillis }, list.minOf { it.endMillis })
         }
-        Text(game.displayName, fontSize = 17.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
-    }
+        .sortedBy { it.nearestEnd }
+
+// 버전 카드 — 헤더(게임 배지 + 게임명 + 버전 + 종료 임박 D-day) + 캐릭터/무기 픽업 그룹.
+@Composable
+private fun VersionCard(vg: VersionGroup) {
+    val d = ((vg.nearestEnd - System.currentTimeMillis()) / 86_400_000L).toInt()
+    val ddColor = if (d in 0..3) Urgent else vg.game.color.toColor()
     GlassCard(shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp)) {
-            if (pickups.isNotEmpty()) {
-                PickupGroups(pickups)
-                if (entries.isNotEmpty()) { Spacer(Modifier.height(4.dp)); HorizontalDivider(color = DividerColor); Spacer(Modifier.height(4.dp)) }
+            Row(
+                Modifier.fillMaxWidth().padding(bottom = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(9.dp),
+            ) {
+                Surface(color = vg.game.color.toColor(), shape = RoundedCornerShape(8.dp)) {
+                    Text(vg.game.abbr, fontSize = 11.sp, fontWeight = FontWeight.Black, color = Color.White, modifier = Modifier.padding(horizontal = 7.dp, vertical = 4.dp))
+                }
+                Column(Modifier.weight(1f)) {
+                    if (vg.version.isNotBlank()) {
+                        Text("v${vg.version}", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = TextPrimary, maxLines = 1)
+                        Text(vg.game.displayName, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = TextSecondary, maxLines = 1)
+                    } else {
+                        Text(vg.game.displayName, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = TextPrimary, maxLines = 1)
+                        Text("픽업", fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = TextSecondary)
+                    }
+                }
+                Text(dhLabel(vg.nearestEnd), fontSize = 15.sp, fontWeight = FontWeight.Bold, color = ddColor, maxLines = 1)
             }
-            entries.forEachIndexed { i, e -> ScheduleEntryRow(e); if (i < entries.lastIndex) HorizontalDivider(color = DividerColor) }
+            HorizontalDivider(color = DividerColor, modifier = Modifier.padding(bottom = 12.dp))
+            PickupGroups(vg.pickups)
         }
     }
 }
 
-// 전체 게임 일정 페이지 콘텐츠 (SectionPage 안에서 호스팅 — 헤더/스크롤은 SectionPage 제공). 게임별 그룹 분리.
+// 전체 게임 일정 페이지 콘텐츠 (SectionPage 안에서 호스팅 — 헤더/스크롤은 SectionPage 제공). 버전별 카드 + 이벤트·콘텐츠 카드.
 @Composable
 fun GameScheduleFullContent(
     banners: List<GachaBanner>,
@@ -363,16 +395,30 @@ fun GameScheduleFullContent(
     challenges: List<GameChallenge>,
     filter: String,
 ) {
-    val entries = filteredEntries(buildSchedule(banners, events, challenges), filter)
-    val pickups = filteredPickups(banners, filter)
-    val games = GameData.games.filter { g -> entries.any { it.gameKey == g.key } || pickups.any { it.game == g.displayName } }
+    val groups = buildVersionGroups(banners, filter)
+    // 버전 없는 일정(이벤트·정기 콘텐츠)은 하단 별도 카드로. 패치 종료는 버전 카드가 대신하므로 제외.
+    val extras = filteredEntries(buildSchedule(banners, events, challenges), filter)
+        .filter { it.kind != "패치" }.sortedBy { it.target }
     Text("게임 일정", fontSize = 22.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 4.dp))
-    Text("픽업 배너와 패치·이벤트·정기 콘텐츠를 게임별로 모았어요.", fontSize = 12.sp, color = TextSecondary, modifier = Modifier.padding(bottom = 6.dp))
-    if (games.isEmpty()) {
+    Text("픽업 배너를 버전별로 모으고, 이벤트·정기 콘텐츠를 아래에 정리했어요.", fontSize = 12.sp, color = TextSecondary, modifier = Modifier.padding(bottom = 6.dp))
+    if (groups.isEmpty() && extras.isEmpty()) {
         Text("예정된 일정이 없어요.", fontSize = 13.sp, color = TextSecondary, modifier = Modifier.fillMaxWidth().padding(top = 40.dp))
     } else {
-        games.forEach { g ->
-            GameScheduleGroup(g, entries.filter { it.gameKey == g.key }, pickups.filter { it.game == g.displayName })
+        groups.forEach { vg -> Spacer(Modifier.height(12.dp)); VersionCard(vg) }
+        if (extras.isNotEmpty()) {
+            Row(
+                Modifier.padding(top = 18.dp, bottom = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Text("이벤트 · 정기 콘텐츠", fontSize = 17.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+                Text("${extras.size}", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextSecondary)
+            }
+            GlassCard(shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(16.dp)) {
+                    extras.forEachIndexed { i, e -> ScheduleEntryRow(e); if (i < extras.lastIndex) HorizontalDivider(color = DividerColor) }
+                }
+            }
         }
     }
 }

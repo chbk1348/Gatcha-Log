@@ -189,6 +189,35 @@ fun SpendingScreen(
     // 로드인 스태거 — 앱 진입 후 1회만 등장(인덱스=정렬 리스트 내 위치). 탭 재진입 재생 방지(세션 영속).
     val loadInSet = rememberGlgLoadInSet("spending")
 
+    // 성능: 필터/정렬/그룹은 입력이 바뀔 때만 재계산(remember). 스크롤 콜랩스로 화면이 매 프레임
+    // 재구성돼도 리스트 전체를 다시 훑지 않는다 — 지출 항목이 많을수록 스크롤 버벅임을 크게 줄인다.
+    val filtered = remember(spendings, selectedGames, paymentFilter, typeFilter, period, viewModel.displayYear, viewModel.displayMonth, lastY, lastM) {
+        spendings.filter { s ->
+            (selectedGames.isEmpty() || s.gameName in selectedGames) &&
+                (paymentFilter == null || s.paymentMethod == paymentFilter) &&
+                when (typeFilter) {
+                    TypeFilter.ALL -> true
+                    TypeFilter.NORMAL -> !s.isSubscription
+                    TypeFilter.SUBSCRIPTION -> s.isSubscription
+                } &&
+                when (period) {
+                    PeriodFilter.ALL -> true
+                    PeriodFilter.THIS_MONTH -> DateUtil.isSameMonth(s.dateMillis, viewModel.displayYear, viewModel.displayMonth)
+                    PeriodFilter.LAST_MONTH -> DateUtil.isSameMonth(s.dateMillis, lastY, lastM)
+                    PeriodFilter.THIS_YEAR -> DateUtil.isSameYear(s.dateMillis, viewModel.displayYear)
+                }
+        }
+    }
+    // 표시 그룹 — 금액순=항목별 단일 그룹, 날짜순=같은 날짜 묶음. 정렬/필터 바뀔 때만 재계산.
+    val amountMode = sortOrder == SortOrder.AMOUNT_DESC
+    val dayGroups: List<List<Spending>> = remember(filtered, sortOrder) {
+        when (sortOrder) {
+            SortOrder.AMOUNT_DESC -> filtered.sortedByDescending { it.amount }.map { listOf(it) }
+            SortOrder.DATE_ASC -> filtered.sortedBy { it.dateMillis }.groupBy { it.dayKey }.values.toList()
+            else -> filtered.sortedByDescending { it.dateMillis }.groupBy { it.dayKey }.values.toList()
+        }
+    }
+
     Box(Modifier.fillMaxSize()) {
         GlgPullToRefreshBox(
             isRefreshing = isRefreshing,
@@ -199,22 +228,6 @@ fun SpendingScreen(
                 // 히어로 자리(고정) — 위에 히어로 오버레이가 뜬다.
                 item { Spacer(Modifier.height(heroSpacerDp)) }
 
-            val filtered = spendings.filter { s ->
-                (selectedGames.isEmpty() || s.gameName in selectedGames) &&
-                    (paymentFilter == null || s.paymentMethod == paymentFilter) &&
-                    when (typeFilter) {
-                        TypeFilter.ALL -> true
-                        TypeFilter.NORMAL -> !s.isSubscription
-                        TypeFilter.SUBSCRIPTION -> s.isSubscription
-                    } &&
-                    when (period) {
-                        PeriodFilter.ALL -> true
-                        PeriodFilter.THIS_MONTH -> DateUtil.isSameMonth(s.dateMillis, viewModel.displayYear, viewModel.displayMonth)
-                        PeriodFilter.LAST_MONTH -> DateUtil.isSameMonth(s.dateMillis, lastY, lastM)
-                        PeriodFilter.THIS_YEAR -> DateUtil.isSameYear(s.dateMillis, viewModel.displayYear)
-                    }
-            }
-
             val onItemClick: (Spending) -> Unit = { sp ->
                 if (selectionMode) {
                     selectedIds = if (sp.id in selectedIds) selectedIds - sp.id else selectedIds + sp.id
@@ -222,32 +235,14 @@ fun SpendingScreen(
             }
             if (filtered.isEmpty()) {
                 item { EmptyState() }
-            } else if (sortOrder == SortOrder.AMOUNT_DESC) {
-                // 금액순 — 날짜 그룹이 없으므로 항목별 단일 카드(헤더 없음).
-                val byAmount = filtered.sortedByDescending { it.amount }
-                byAmount.forEachIndexed { idx, spending ->
-                    item(key = spending.id) {
-                        Box(Modifier.glgLoadIn(idx, loadInSet)) {
-                            SpendingDayCard(
-                                dateLabel = null, dayTotal = 0L,
-                                items = listOf(spending),
-                                selectionMode = selectionMode, selectedIds = selectedIds,
-                                compact = compact, onItemClick = onItemClick,
-                            )
-                        }
-                    }
-                }
             } else {
-                // 같은 날짜끼리 한 카드로 묶음 — 카드 상단에 날짜·합계 헤더, 아래로 first-end 행들.
-                val sorted = if (sortOrder == SortOrder.DATE_ASC) filtered.sortedBy { it.dateMillis }
-                else filtered.sortedByDescending { it.dateMillis }
-                val groups = sorted.groupBy { it.dayKey }.values.toList()
-                groups.forEachIndexed { gi, dayItems ->
-                    item(key = dayItems.first().dayKey) {
+                // 미리 계산된 dayGroups 를 순회만 한다(매 프레임 재정렬·재그룹 없음).
+                dayGroups.forEachIndexed { gi, dayItems ->
+                    item(key = if (amountMode) dayItems.first().id else dayItems.first().dayKey) {
                         Box(Modifier.glgLoadIn(gi, loadInSet)) {
                             SpendingDayCard(
-                                dateLabel = dayItems.first().dateLabel,
-                                dayTotal = dayItems.sumOf { it.amount },
+                                dateLabel = if (amountMode) null else dayItems.first().dateLabel,
+                                dayTotal = if (amountMode) 0L else dayItems.sumOf { it.amount },
                                 items = dayItems,
                                 selectionMode = selectionMode, selectedIds = selectedIds,
                                 compact = compact, onItemClick = onItemClick,

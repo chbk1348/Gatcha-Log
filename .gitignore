@@ -50,3 +50,5 @@ DerivedData/
 GL_IOS/build/
 build_reldev/
 GL_IOS/build_reldev/
+build_sim/
+GL_IOS/build_sim/
