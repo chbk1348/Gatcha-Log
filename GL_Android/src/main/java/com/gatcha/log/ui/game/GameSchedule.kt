@@ -1,5 +1,6 @@
 package com.gatcha.log.ui.game
 
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -25,6 +26,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.vector.path
 import androidx.compose.ui.text.font.FontWeight
@@ -288,6 +291,192 @@ fun ScheduleEntryRow(e: ScheduleEntry) {
     }
 }
 
+// D-day 링 — 진행률만큼 채운 원형 스트로크 + 중앙 잔여(일/시간). (design_version_card_mockup.html ④)
+@Composable
+private fun DdayRing(days: Int, hours: Int, frac: Float, color: Color) {
+    Box(Modifier.size(70.dp), contentAlignment = Alignment.Center) {
+        Canvas(Modifier.size(70.dp)) {
+            val sw = 8.dp.toPx()
+            val topLeft = androidx.compose.ui.geometry.Offset(sw / 2, sw / 2)
+            val arc = androidx.compose.ui.geometry.Size(size.width - sw, size.height - sw)
+            drawArc(Track, 0f, 360f, false, topLeft, arc, style = Stroke(sw))
+            drawArc(color, -90f, frac.coerceIn(0f, 1f) * 360f, false, topLeft, arc, style = Stroke(sw, cap = StrokeCap.Round))
+        }
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(if (days > 0) "${days}일" else "${hours}시간", fontSize = 15.sp, fontWeight = FontWeight.Black, color = color, maxLines = 1)
+            if (days > 0) Text("${hours}시간", fontSize = 8.sp, color = TextSecondary, maxLines = 1)
+        }
+    }
+}
+
+// 피처드 버전 카드 — 섹션 최상단, 가장 임박한 버전. D-day 링 + 대표 캐릭터(+동반무기) + 경과. (④ 섹션 요약)
+@Composable
+private fun FeaturedVersionCard(vg: VersionGroup) {
+    val now = System.currentTimeMillis()
+    val d = ((vg.nearestEnd - now) / 86_400_000L).toInt()
+    val urgent = d in 0..3
+    val c = vg.game.color.toColor()
+    val ddColor = if (urgent) Urgent else c
+    val totalH = ((vg.nearestEnd - now) / 3_600_000L).coerceAtLeast(0L)
+    val days = (totalH / 24).toInt(); val hours = (totalH % 24).toInt()
+    val lead = vg.pickups.minByOrNull { it.endMillis }
+    val frac = if (lead != null && lead.startMillis > 0 && lead.endMillis > lead.startMillis)
+        ((now - lead.startMillis).toFloat() / (lead.endMillis - lead.startMillis)).coerceIn(0f, 1f) else 0f
+    val chars = vg.pickups.filter { it.type != "weapon" }
+    val items = chars.ifEmpty { vg.pickups }
+    GlassCard(shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(15.dp)) {
+            Row(
+                Modifier.fillMaxWidth().padding(bottom = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Surface(color = c, shape = RoundedCornerShape(8.dp)) {
+                    Text(vg.game.abbr, fontSize = 11.sp, fontWeight = FontWeight.Black, color = Color.White, modifier = Modifier.padding(horizontal = 7.dp, vertical = 4.dp))
+                }
+                Text(if (vg.version.isNotBlank()) "버전 ${vg.version}" else vg.game.displayName, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TextPrimary, maxLines = 1)
+                Spacer(Modifier.weight(1f))
+                if (urgent) Surface(color = Urgent, shape = RoundedCornerShape(999.dp)) {
+                    Text("막바지", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = Color.White, modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp))
+                }
+            }
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                DdayRing(days, hours, frac, ddColor)
+                Column(Modifier.weight(1f)) {
+                    items.take(2).forEachIndexed { i, it ->
+                        if (i > 0) Spacer(Modifier.height(8.dp))
+                        val isW = it.type == "weapon"
+                        val comp = if (isW) null else companionWeapons(it, vg.pickups).firstOrNull()
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(9.dp)) {
+                            Box(
+                                Modifier.size(34.dp).clip(if (isW) RoundedCornerShape(10.dp) else CircleShape).background(c),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                if (isW) Icon(SwordIcon, null, tint = Color.White, modifier = Modifier.size(17.dp))
+                                else Text(it.name.take(1), fontSize = 15.sp, fontWeight = FontWeight.Black, color = Color.White)
+                            }
+                            Column(Modifier.weight(1f)) {
+                                Text(it.name, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TextPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                if (comp != null) Text("＋ ${comp.name}", fontSize = 10.sp, fontWeight = FontWeight.SemiBold, color = WeapBadge, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            }
+                        }
+                    }
+                    if (items.size > 2) {
+                        Spacer(Modifier.height(6.dp))
+                        Text("외 ${items.size - 2}", fontSize = 10.sp, color = TextSecondary)
+                    }
+                    if (lead != null && lead.startMillis > 0 && lead.endMillis > lead.startMillis) {
+                        Spacer(Modifier.height(8.dp))
+                        Text(
+                            "${DateUtil.shortDate(lead.startMillis)} → ${DateUtil.shortDate(lead.endMillis)} · ${(frac * 100).roundToInt()}% 경과",
+                            fontSize = 10.sp, color = TextSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+// 슬림 버전 행 — 피처드 아래 나머지 버전(요약 1줄). abbr + "vN · 이름들" + 잔여. (④ 세컨더리)
+@Composable
+private fun SlimVersionRow(vg: VersionGroup) {
+    val d = ((vg.nearestEnd - System.currentTimeMillis()) / 86_400_000L).toInt()
+    val c = vg.game.color.toColor()
+    val ddColor = if (d in 0..3) Urgent else c
+    val chars = vg.pickups.filter { it.type != "weapon" }
+    val weaps = unpairedWeapons(vg.pickups)
+    val names = chars.joinToString(" · ") { it.name }.ifEmpty { weaps.joinToString(" · ") { it.name } }
+    val title = if (vg.version.isNotBlank()) "v${vg.version} · $names" else names
+    val counts = buildList {
+        if (chars.isNotEmpty()) add("캐릭터 ${chars.size}")
+        if (weaps.isNotEmpty()) add("무기 ${weaps.size}")
+    }.joinToString(" · ")
+    Row(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp))
+            .border(1.dp, DividerColor, RoundedCornerShape(14.dp))
+            .padding(horizontal = 13.dp, vertical = 11.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Surface(color = c, shape = RoundedCornerShape(8.dp)) {
+            Text(vg.game.abbr, fontSize = 11.sp, fontWeight = FontWeight.Black, color = Color.White, modifier = Modifier.padding(horizontal = 7.dp, vertical = 4.dp))
+        }
+        Column(Modifier.weight(1f)) {
+            Text(title, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text("${vg.game.displayName} · $counts", fontSize = 10.sp, color = TextSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+        Text(dhLabel(vg.nearestEnd), fontSize = 13.sp, fontWeight = FontWeight.Bold, color = ddColor, maxLines = 1)
+    }
+}
+
+// 컴팩트 버전 섹션(전체 페이지) — 버전 소제목(좌측 틱) + 촘촘한 픽업 행. (③ 전체 페이지)
+@Composable
+private fun CompactVersionSection(vg: VersionGroup) {
+    val d = ((vg.nearestEnd - System.currentTimeMillis()) / 86_400_000L).toInt()
+    val c = vg.game.color.toColor()
+    val ddColor = if (d in 0..3) Urgent else c
+    val chars = vg.pickups.filter { it.type != "weapon" }
+    val weaps = unpairedWeapons(vg.pickups)
+    Column(Modifier.fillMaxWidth()) {
+        Row(
+            Modifier.fillMaxWidth().padding(top = 10.dp, bottom = 7.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Box(Modifier.size(3.dp, 14.dp).clip(RoundedCornerShape(2.dp)).background(c))
+            Text(
+                if (vg.version.isNotBlank()) "${vg.game.abbr} · v${vg.version}" else "${vg.game.abbr} · ${vg.game.displayName}",
+                fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextPrimary, maxLines = 1,
+            )
+            Spacer(Modifier.weight(1f))
+            Text(dhLabel(vg.nearestEnd), fontSize = 12.sp, fontWeight = FontWeight.Bold, color = ddColor, maxLines = 1)
+        }
+        chars.forEach { CompactPickupRow(it, companionWeapons(it, vg.pickups)) }
+        weaps.forEach { CompactPickupRow(it, emptyList()) }
+    }
+}
+
+// 컴팩트 픽업 행 — 상단 구분선 + 아바타 30 + 이름(+동반무기) + 잔여. 카드 여백 없이 밀도↑. (③ 전체 페이지)
+@Composable
+private fun CompactPickupRow(banner: GachaBanner, companions: List<GachaBanner>) {
+    val c = banner.gameColor.toColor()
+    val isWeapon = banner.type == "weapon"
+    val ddColor = if (banner.dDay() <= 3) Urgent else c
+    val short = GameData.byNameOrNull(banner.game)?.shortName ?: banner.game
+    Column {
+        HorizontalDivider(color = DividerColor)
+        Row(
+            Modifier.fillMaxWidth().padding(vertical = 7.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Box(
+                Modifier.size(30.dp).clip(if (isWeapon) RoundedCornerShape(9.dp) else CircleShape)
+                    .background(if (isWeapon) WeapBadge.copy(alpha = 0.16f) else c),
+                contentAlignment = Alignment.Center,
+            ) {
+                if (isWeapon) Icon(SwordIcon, null, tint = WeapBadge, modifier = Modifier.size(14.dp))
+                else Text(banner.name.take(1), fontSize = 13.sp, fontWeight = FontWeight.Black, color = Color.White)
+            }
+            Column(Modifier.weight(1f)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(banner.name, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    companions.firstOrNull()?.let {
+                        Spacer(Modifier.width(4.dp))
+                        Text("＋${it.name}", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = WeapBadge, maxLines = 1)
+                    }
+                }
+                Text("$short · ${if (isWeapon) "무기" else "캐릭터"}", fontSize = 10.sp, color = TextSecondary, maxLines = 1)
+            }
+            Column(horizontalAlignment = Alignment.End) {
+                Text(dhLabel(banner.endMillis), fontSize = 12.sp, fontWeight = FontWeight.Bold, color = ddColor, maxLines = 1)
+                Text("~" + DateUtil.shortDate(banner.endMillis), fontSize = 9.sp, color = TextSecondary, maxLines = 1)
+            }
+        }
+    }
+}
+
 // 통합 게임 일정 섹션 — 픽업을 버전 카드로 요약(임박 3개) + 이벤트·콘텐츠 미리보기, 초과 시 전체 페이지로.
 @Composable
 fun GameScheduleSection(
@@ -309,8 +498,12 @@ fun GameScheduleSection(
             Text("예정된 일정이 없어요.", fontSize = 12.sp, color = TextSecondary, modifier = Modifier.padding(16.dp))
         }
     } else {
-        topGroups.forEachIndexed { i, vg -> VersionCard(vg); if (i < topGroups.lastIndex || topExtras.isNotEmpty()) Spacer(Modifier.height(12.dp)) }
+        if (topGroups.isNotEmpty()) {
+            FeaturedVersionCard(topGroups.first())
+            topGroups.drop(1).forEach { Spacer(Modifier.height(9.dp)); SlimVersionRow(it) }
+        }
         if (topExtras.isNotEmpty()) {
+            if (topGroups.isNotEmpty()) Spacer(Modifier.height(12.dp))
             GlassCard(shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp)) {
                     Text("이벤트 · 정기 콘텐츠", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextPrimary, modifier = Modifier.padding(bottom = 2.dp))
@@ -355,38 +548,6 @@ fun buildVersionGroups(banners: List<GachaBanner>, filter: String): List<Version
         }
         .sortedBy { it.nearestEnd }
 
-// 버전 카드 — 헤더(게임 배지 + 게임명 + 버전 + 종료 임박 D-day) + 캐릭터/무기 픽업 그룹.
-@Composable
-private fun VersionCard(vg: VersionGroup) {
-    val d = ((vg.nearestEnd - System.currentTimeMillis()) / 86_400_000L).toInt()
-    val ddColor = if (d in 0..3) Urgent else vg.game.color.toColor()
-    GlassCard(shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp)) {
-            Row(
-                Modifier.fillMaxWidth().padding(bottom = 12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(9.dp),
-            ) {
-                Surface(color = vg.game.color.toColor(), shape = RoundedCornerShape(8.dp)) {
-                    Text(vg.game.abbr, fontSize = 11.sp, fontWeight = FontWeight.Black, color = Color.White, modifier = Modifier.padding(horizontal = 7.dp, vertical = 4.dp))
-                }
-                Column(Modifier.weight(1f)) {
-                    if (vg.version.isNotBlank()) {
-                        Text("v${vg.version}", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = TextPrimary, maxLines = 1)
-                        Text(vg.game.displayName, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = TextSecondary, maxLines = 1)
-                    } else {
-                        Text(vg.game.displayName, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = TextPrimary, maxLines = 1)
-                        Text("픽업", fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = TextSecondary)
-                    }
-                }
-                Text(dhLabel(vg.nearestEnd), fontSize = 15.sp, fontWeight = FontWeight.Bold, color = ddColor, maxLines = 1)
-            }
-            HorizontalDivider(color = DividerColor, modifier = Modifier.padding(bottom = 12.dp))
-            PickupGroups(vg.pickups)
-        }
-    }
-}
-
 // 전체 게임 일정 페이지 콘텐츠 (SectionPage 안에서 호스팅 — 헤더/스크롤은 SectionPage 제공). 버전별 카드 + 이벤트·콘텐츠 카드.
 @Composable
 fun GameScheduleFullContent(
@@ -404,7 +565,7 @@ fun GameScheduleFullContent(
     if (groups.isEmpty() && extras.isEmpty()) {
         Text("예정된 일정이 없어요.", fontSize = 13.sp, color = TextSecondary, modifier = Modifier.fillMaxWidth().padding(top = 40.dp))
     } else {
-        groups.forEach { vg -> Spacer(Modifier.height(12.dp)); VersionCard(vg) }
+        groups.forEachIndexed { i, vg -> if (i > 0) Spacer(Modifier.height(6.dp)); CompactVersionSection(vg) }
         if (extras.isNotEmpty()) {
             Row(
                 Modifier.padding(top = 18.dp, bottom = 10.dp),
