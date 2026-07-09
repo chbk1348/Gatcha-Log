@@ -288,6 +288,25 @@ class GatchaRepository(accountId: String = "guest") {
         changed() // 스냅샷 포함 → 변경 시 클라우드 동기화 트리거
     }
 
+    /**
+     * 삭제된 지출 id(tombstone). 지출은 import 시 id 합집합으로 병합하므로(구/스테일 스냅샷이 최신 항목을
+     * 지우지 못하게), 실제 삭제는 이 tombstone 으로만 전파한다. 단조 누적, 상한 2000(오래된 것부터 폐기).
+     */
+    fun loadDeletedSpendingIds(): Set<String> {
+        val raw = prefs.getString(KEY_DELETED_SPENDINGS, null) ?: return emptySet()
+        return runCatching {
+            val arr = JSONArray(raw)
+            (0 until arr.length()).map { arr.getString(it) }.toSet()
+        }.getOrDefault(emptySet())
+    }
+
+    /** tombstone 합집합 추가(단조). changed() 는 호출부(saveSpendings)가 트리거하므로 여기선 생략. */
+    fun addDeletedSpendingIds(ids: Set<String>) {
+        if (ids.isEmpty()) return
+        val merged = (loadDeletedSpendingIds() + ids).toList().let { if (it.size > 2000) it.takeLast(2000) else it }
+        prefs.putString(KEY_DELETED_SPENDINGS, JSONArray(merged).toString())
+    }
+
     // ---------------------------------------------------------------- 읽은 홈 알림 넛징 키 — 로컬 전용(기기별 UI 상태)
     fun loadReadAlerts(): Set<String> {
         val raw = prefs.getString(KEY_READ_ALERTS, null) ?: return emptySet()
@@ -339,6 +358,20 @@ class GatchaRepository(accountId: String = "guest") {
         val o = JSONObject()
         map.forEach { (k, v) -> if (v > 0) o.put(k, v) }
         prefs.putString(KEY_SAVINGS_HELD, o.toString())
+        changed()
+    }
+
+    /** "안 뽑는" 픽업 목표 숨김 키 집합(SavingsPlan.key). 저축 플래너에서 미노출 처리용. */
+    fun loadSavingsHidden(): Set<String> {
+        val raw = prefs.getString(KEY_SAVINGS_HIDDEN, null) ?: return emptySet()
+        return runCatching {
+            val arr = JSONArray(raw)
+            (0 until arr.length()).map { arr.getString(it) }.toSet()
+        }.getOrDefault(emptySet())
+    }
+
+    fun saveSavingsHidden(keys: Set<String>) {
+        prefs.putString(KEY_SAVINGS_HIDDEN, JSONArray(keys.toList()).toString())
         changed()
     }
 
@@ -404,6 +437,7 @@ class GatchaRepository(accountId: String = "guest") {
     fun exportSnapshotJson(): String {
         val o = JSONObject()
         prefs.getString(KEY_SPENDINGS, null)?.let { o.put(KEY_SPENDINGS, JSONArray(it)) }
+        prefs.getString(KEY_DELETED_SPENDINGS, null)?.let { o.put(KEY_DELETED_SPENDINGS, JSONArray(it)) }
         o.put(KEY_BUDGET, loadBudget())
         prefs.getString(KEY_BUDGET_GAMES, null)?.let { o.put(KEY_BUDGET_GAMES, JSONObject(it)) }
         prefs.getString(KEY_PROFILE_NAME, null)?.let { o.put(KEY_PROFILE_NAME, it) }
@@ -424,6 +458,7 @@ class GatchaRepository(accountId: String = "guest") {
         prefs.getString(KEY_HOME_CARDS, null)?.let { o.put(KEY_HOME_CARDS, JSONArray(it)) }
         prefs.getString(KEY_REDEEMED, null)?.let { o.put(KEY_REDEEMED, JSONArray(it)) }
         prefs.getString(KEY_SAVINGS_HELD, null)?.let { o.put(KEY_SAVINGS_HELD, JSONObject(it)) }
+        prefs.getString(KEY_SAVINGS_HIDDEN, null)?.let { o.put(KEY_SAVINGS_HIDDEN, JSONArray(it)) }
         o.put(KEY_BEST_NOSPEND, loadBestNoSpend())
         prefs.getString(KEY_BADGES, null)?.let { o.put(KEY_BADGES, JSONArray(it)) }
         return o.toString()
@@ -432,7 +467,30 @@ class GatchaRepository(accountId: String = "guest") {
     /** Firestore/백업 파일에서 받은 스냅샷 JSON 을 로컬에 반영. (onChange 미발생 → 푸시 루프 방지) */
     fun importSnapshotJson(json: String) {
         val o = runCatching { JSONObject(json) }.getOrNull() ?: return
-        if (o.has(KEY_SPENDINGS)) prefs.putString(KEY_SPENDINGS, o.getJSONArray(KEY_SPENDINGS).toString())
+        // 지출: id 기준 합집합 병합 + 삭제 tombstone 적용 — 구/스테일 스냅샷이 최신 로컬 지출을 덮어 삭제하지
+        // 못하게 한다. 실제 삭제는 tombstone(deleted_spendings)으로만 전파. (이번 유실 사고 재발 방지)
+        run {
+            val incomingTomb: Set<String> = if (o.has(KEY_DELETED_SPENDINGS)) {
+                val t = o.getJSONArray(KEY_DELETED_SPENDINGS)
+                (0 until t.length()).map { t.getString(it) }.toSet()
+            } else emptySet()
+            if (incomingTomb.isNotEmpty()) addDeletedSpendingIds(incomingTomb) // tombstone 합집합 영속(삭제 전파)
+            val tomb = loadDeletedSpendingIds()
+            if (o.has(KEY_SPENDINGS) || tomb.isNotEmpty()) {
+                val byId = LinkedHashMap<String, JSONObject>()
+                prefs.getString(KEY_SPENDINGS, null)?.let { localRaw ->
+                    val local = JSONArray(localRaw)
+                    for (i in 0 until local.length()) { val obj = local.getJSONObject(i); byId[obj.getString("id")] = obj }
+                }
+                if (o.has(KEY_SPENDINGS)) {
+                    val incoming = o.getJSONArray(KEY_SPENDINGS)
+                    for (i in 0 until incoming.length()) { val obj = incoming.getJSONObject(i); byId[obj.getString("id")] = obj } // 같은 id 는 원격 우선
+                }
+                val result = JSONArray()
+                byId.forEach { (id, obj) -> if (id !in tomb) result.put(obj) }
+                prefs.putString(KEY_SPENDINGS, result.toString())
+            }
+        }
         if (o.has(KEY_BUDGET)) prefs.putLong(KEY_BUDGET, o.getLong(KEY_BUDGET))
         if (o.has(KEY_BUDGET_GAMES)) prefs.putString(KEY_BUDGET_GAMES, o.getJSONObject(KEY_BUDGET_GAMES).toString())
         if (o.has(KEY_PROFILE_NAME)) prefs.putString(KEY_PROFILE_NAME, o.getString(KEY_PROFILE_NAME))
@@ -458,6 +516,7 @@ class GatchaRepository(accountId: String = "guest") {
             prefs.putString(KEY_REDEEMED, JSONArray(merged.toList()).toString())
         }
         if (o.has(KEY_SAVINGS_HELD)) prefs.putString(KEY_SAVINGS_HELD, o.getJSONObject(KEY_SAVINGS_HELD).toString())
+        if (o.has(KEY_SAVINGS_HIDDEN)) prefs.putString(KEY_SAVINGS_HIDDEN, o.getJSONArray(KEY_SAVINGS_HIDDEN).toString())
         // 최고 스트릭·배지는 **단조 증가**로 병합(스냅샷이 로컬 기록을 되돌리지 않도록).
         if (o.has(KEY_BEST_NOSPEND)) prefs.putInt(KEY_BEST_NOSPEND, maxOf(loadBestNoSpend(), o.getInt(KEY_BEST_NOSPEND)))
         if (o.has(KEY_BADGES)) {
@@ -493,6 +552,7 @@ class GatchaRepository(accountId: String = "guest") {
         const val KEY_READ_ALERTS = "read_alerts"
         const val KEY_DISMISSED_ALERTS = "dismissed_alerts"
         const val KEY_SPENDINGS = "spendings"
+        const val KEY_DELETED_SPENDINGS = "deleted_spendings" // 삭제된 지출 id tombstone(합집합 병합 방어 — 삭제 전파용)
         const val KEY_BUDGET = "budget"
         const val KEY_BUDGET_GAMES = "budget_games"
         const val KEY_PROFILE_NAME = "profile_name"
@@ -514,19 +574,20 @@ class GatchaRepository(accountId: String = "guest") {
         const val KEY_SUBS = "subscriptions"
         const val KEY_HOME_CARDS = "home_cards"
         const val KEY_SAVINGS_HELD = "savings_held"   // 저축 플래너 보유 재화(gameKey→Int)
+        const val KEY_SAVINGS_HIDDEN = "savings_hidden" // 저축 플래너 숨긴 목표 키 집합(SavingsPlan.key)
         const val KEY_BEST_NOSPEND = "best_nospend"    // 최고 무지출 스트릭(일)
         const val KEY_BADGES = "badges"                // 획득 절약 배지 id 집합
 
         // 클라우드 섹션 분리 — 스냅샷 키를 유저정보/지출/게임정보로 분배(토큰·read_alerts 는 스냅샷 비포함).
         val SECTION_USER_INFO = listOf(KEY_PROFILE_NAME, KEY_PROFILE_EMAIL, KEY_ACCENT, KEY_HOME_CARDS)
-        val SECTION_SPENDING = listOf(KEY_SPENDINGS, KEY_BUDGET, KEY_BUDGET_GAMES, KEY_SUBS, KEY_BEST_NOSPEND, KEY_BADGES)
+        val SECTION_SPENDING = listOf(KEY_SPENDINGS, KEY_DELETED_SPENDINGS, KEY_BUDGET, KEY_BUDGET_GAMES, KEY_SUBS, KEY_BEST_NOSPEND, KEY_BADGES)
         val SECTION_GAME_INFO = listOf(
             KEY_HOYO_GI, KEY_HOYO_HSR, KEY_HOYO_ZZZ, KEY_ENKA_GI, KEY_ENKA_HSR,
-            KEY_ATTENDANCE, KEY_PITY, KEY_EVENT_CHECKS, KEY_GACHA, KEY_REDEEMED, KEY_SAVINGS_HELD,
+            KEY_ATTENDANCE, KEY_PITY, KEY_EVENT_CHECKS, KEY_GACHA, KEY_REDEEMED, KEY_SAVINGS_HELD, KEY_SAVINGS_HIDDEN,
         )
         // 값 타입 분류(섹션 맵의 문자열 변환용) — 나머지 키는 문자열.
         private val OBJECT_KEYS = setOf(KEY_BUDGET_GAMES, KEY_ATTENDANCE, KEY_PITY, KEY_SAVINGS_HELD)
-        private val ARRAY_KEYS = setOf(KEY_SPENDINGS, KEY_EVENT_CHECKS, KEY_SUBS, KEY_GACHA, KEY_HOME_CARDS, KEY_REDEEMED, KEY_BADGES)
+        private val ARRAY_KEYS = setOf(KEY_SPENDINGS, KEY_DELETED_SPENDINGS, KEY_EVENT_CHECKS, KEY_SUBS, KEY_GACHA, KEY_HOME_CARDS, KEY_REDEEMED, KEY_BADGES, KEY_SAVINGS_HIDDEN)
     }
 }
 

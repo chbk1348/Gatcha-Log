@@ -34,7 +34,10 @@ data class SavingsPlan(
     val progressPercent: Int,    // 0..100
     val dailyGoal: Long,         // 하루 저축 목표(원). secured면 0
     val secured: Boolean,        // 보유만으로 확보 가능
-)
+) {
+    /** 픽업 식별 키 — "안 뽑는" 목표 숨김 저장/조회용(gameKey|type|pickupName). 세션 간 안정. */
+    val key: String get() = "$gameKey|$type|$pickupName"
+}
 
 object SavingsPlanner {
 

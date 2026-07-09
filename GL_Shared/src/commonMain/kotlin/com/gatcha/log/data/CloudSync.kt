@@ -79,6 +79,29 @@ object CloudSync {
     }.getOrNull()
 
     /**
+     * pull 결과 — **성공(문서 없음 포함)과 실패(네트워크/에러)를 구분**한다.
+     * 방어 목적: 네트워크 오류로 pull 이 실패했을 때 그것을 "빈 클라우드"로 오인해 로컬을 push 하면
+     * 멀쩡한 클라우드 데이터를 빈 값으로 덮어쓰는 사고가 난다. [Loaded]=진짜 상태(신규 유저면 json=null),
+     * [Failed]=불확실 → **호출부는 절대 push 하지 말 것**.
+     */
+    sealed class PullOutcome {
+        /** 문서를 확실히 읽음. json=null 이면 문서/필드 부재(신규 유저) → seed 가능. */
+        data class Loaded(val json: String?) : PullOutcome()
+        /** 네트워크/에러로 읽지 못함 → 상태 불명. push 금지. */
+        object Failed : PullOutcome()
+    }
+
+    /** [pull] 의 실패-구분 버전. 문서 부재(exists=false)는 Loaded(null), 예외는 Failed. */
+    suspend fun pullOutcome(uid: String): PullOutcome = runCatching {
+        val snap = Firebase.firestore.collection(COLLECTION).document(uid).get()
+        if (!snap.exists) PullOutcome.Loaded(null)
+        else PullOutcome.Loaded(snap.get<String?>(FIELD_DATA))
+    }.getOrElse {
+        println("GatchaCloudSync: pullOutcome 실패 — ${it::class.simpleName}: ${it.message}")
+        PullOutcome.Failed
+    }
+
+    /**
      * uid 문서에 스냅샷 JSON(평문) 저장. 실패 시 false 반환(set 미적용 → 기존 문서 보존, 손상 없음).
      * 1MB 초과 등으로 실패해도 클라우드 데이터를 비우지 않는다.
      */
