@@ -73,7 +73,6 @@ fun GameInfoScreen(
     val gameNews by viewModel.gameNews.collectAsState()
     val ledgers by viewModel.ledgers.collectAsState()
     val combat by viewModel.combat.collectAsState()
-    val hoyolab by viewModel.hoyolabConfig.collectAsState()
     val attendanceToday by viewModel.attendanceToday.collectAsState()
     val attendanceHistory by viewModel.attendanceHistory.collectAsState()
     val hoyolab by viewModel.hoyolabConfig.collectAsState()
