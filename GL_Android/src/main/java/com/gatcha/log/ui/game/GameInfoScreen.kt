@@ -73,6 +73,7 @@ fun GameInfoScreen(
     val gameNews by viewModel.gameNews.collectAsState()
     val ledgers by viewModel.ledgers.collectAsState()
     val combat by viewModel.combat.collectAsState()
+    val hoyolab by viewModel.hoyolabConfig.collectAsState()
     val attendanceToday by viewModel.attendanceToday.collectAsState()
     val attendanceHistory by viewModel.attendanceHistory.collectAsState()
     val hoyolab by viewModel.hoyolabConfig.collectAsState()
@@ -255,17 +256,19 @@ fun GameInfoScreen(
                     onConfigClick = { subPage = GiSub.HoyoLink },
                 )
             }
-            // 내 캐릭터(보유 전체 로스터) — 데일리 다음 핵심 콘텐츠로 상단 배치
-            item { Spacer(Modifier.height(20.dp)) }
-            item {
-                EnkaCharSection(
-                    viewModel,
-                    gameFilter = gameFilter,
-                    onOpenStats = { c, g -> statChar = c; statCharGame = g; statReturn = GiSub.Main; subPage = GiSub.CharStats },
-                    // 더보기로 새로 진입 시엔 보유목록 상태(스크롤/필터) 초기화 — 상세→뒤로 복귀는 SaveableStateProvider 가 유지
-                    onOpenAll = { g -> rosterGame = g; subPageStateHolder.removeState(GiSub.CharRoster); subPage = GiSub.CharRoster },
-                    onOpenHoyolab = { subPage = GiSub.HoyoLink },
-                )
+            // 내 캐릭터(보유 전체 로스터) — 데일리 다음. 미연동이면 섹션·상단 여백까지 통째 생략(빈 여백 방지).
+            if (hoyolab.isLinked) {
+                item { Spacer(Modifier.height(20.dp)) }
+                item {
+                    EnkaCharSection(
+                        viewModel,
+                        gameFilter = gameFilter,
+                        onOpenStats = { c, g -> statChar = c; statCharGame = g; statReturn = GiSub.Main; subPage = GiSub.CharStats },
+                        // 더보기로 새로 진입 시엔 보유목록 상태(스크롤/필터) 초기화 — 상세→뒤로 복귀는 SaveableStateProvider 가 유지
+                        onOpenAll = { g -> rosterGame = g; subPageStateHolder.removeState(GiSub.CharRoster); subPage = GiSub.CharRoster },
+                        onOpenHoyolab = { subPage = GiSub.HoyoLink },
+                    )
+                }
             }
             // 통합 게임 일정 — 헤더 드롭다운(gameFilter) 연동.
             if (schedule.isNotEmpty()) {
@@ -278,17 +281,19 @@ fun GameInfoScreen(
             // 공지·뉴스 — 게임별 최신 공지(탭하면 HoYoLab 열기).
             item { Spacer(Modifier.height(20.dp)) }
             item { NewsSection(gameNews, gameFilter, onSeeAll = { subPage = GiSub.News }) }
-            // 전투 진행도·수입 일지(게임 필터 연동). 픽업 배너는 게임 일정으로 통합돼 제외.
-            item { Spacer(Modifier.height(20.dp)) }
-            item {
-                GameTabbedSection(
-                    banners = banners,
-                    combat = combat,
-                    ledgers = ledgers,
-                    isRefreshing = isRefreshing,
-                    filter = gameFilter,
-                    linked = viewModel.hoyolabConfig.collectAsState().value.isLinked,
-                )
+            // 전투 진행도·수입 일지. 미연동이면 데이터가 없어 섹션·상단 여백까지 통째 생략.
+            if (hoyolab.isLinked) {
+                item { Spacer(Modifier.height(20.dp)) }
+                item {
+                    GameTabbedSection(
+                        banners = banners,
+                        combat = combat,
+                        ledgers = ledgers,
+                        isRefreshing = isRefreshing,
+                        filter = gameFilter,
+                        linked = hoyolab.isLinked,
+                    )
+                }
             }
             // 페이지로 분류된 섹션(계산기·프로필·리포트) — 진입 카드
             item { Spacer(Modifier.height(20.dp)) }

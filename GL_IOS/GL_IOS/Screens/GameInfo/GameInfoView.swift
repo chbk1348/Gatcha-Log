@@ -34,11 +34,14 @@ struct GameInfoView: View {
                 // 홈 카드 딥링크 스크롤 앵커 — id 문자열은 Kotlin GameInfoAnchor 의 .name(NOTES/SCHEDULE/NEWS)과 일치해야 함.
                 DailyHeroSection(store: store, filter: gameFilter, onConfig: { showHoyolab = true }).id("NOTES")
                 // 내 캐릭터(보유 전체 로스터) — 데일리 다음 핵심 콘텐츠로 상단 배치
-                section {
-                    EnkaCharSection(store: store, filter: gameFilter,
-                                    onOpen: { c, g in statChar = c; statGame = g; showStats = true },
-                                    onOpenAll: { g in rosterGame = g; showRoster = true },
-                                    onOpenHoyolab: { showHoyolab = true })
+                // 미연동이면 섹션·상단 여백까지 통째 생략(빈 여백 방지).
+                if store.hoyolabConfig.isLinked {
+                    section {
+                        EnkaCharSection(store: store, filter: gameFilter,
+                                        onOpen: { c, g in statChar = c; statGame = g; showStats = true },
+                                        onOpenAll: { g in rosterGame = g; showRoster = true },
+                                        onOpenHoyolab: { showHoyolab = true })
+                    }
                 }
                 // 통합 게임 일정 — 패치·이벤트·정기 콘텐츠. 게임 분리는 상단 헤더 드롭다운(gameFilter)으로 필터.
                 let schedule = buildSchedule(banners: store.activeBanners, events: store.gameEvents, challenges: store.challenges)
@@ -49,7 +52,9 @@ struct GameInfoView: View {
                 section { AnniversarySection() }
                 // 공지·뉴스 — 게임별 최신 공지(탭하면 HoYoLab 열기). 더보기로 전체 페이지.
                 section { NewsSection(store: store, filter: gameFilter, onSeeAll: { showNews = true }) }.id("NEWS")
-                section { GameTabbedSection(store: store, filter: gameFilter) }
+                if store.hoyolabConfig.isLinked {
+                    section { GameTabbedSection(store: store, filter: gameFilter) }
+                }
                 section { navEntry(icon: "function", title: "가챠 계산기", sub: "재화 환산 · 확률 · 시나리오") { showCalc = true } }
                 section { navEntry(icon: "chart.bar.xaxis", title: "가챠 효율 리포트", sub: "UIGF/SRGF 분석 · 단가 · 천장 분포") { showReport = true } }
                 Color.clear.frame(height: 12)
@@ -252,6 +257,15 @@ private let glWeap = Color(hex: 0xFFE0883B)
 private let glUrgent = Color(hex: 0xFFE8634A)
 private let glTrack = Color(hex: 0xFFEDEFF3)
 private let glLine = Color(hex: 0xFFE6E7EC)
+private let glCollab = Color(hex: 0xFF6D5AE6)
+
+// 콜라보 배너 표식 — 이름 옆 작은 알약. (스타레일 × Fate 등)
+private struct CollabChip: View {
+    var body: some View {
+        Text("콜라보").font(.pretendard(size: 9, weight: .bold)).foregroundStyle(.white)
+            .padding(.horizontal, 6).padding(.vertical, 1).background(glCollab, in: Capsule())
+    }
+}
 
 // 픽업 그룹 헤더 — 종류 배지(캐릭터=블루 / 무기=앰버) + 개수.
 private struct PickupGroupHeader: View {
@@ -336,7 +350,10 @@ private struct PickupItem: View {
                     }
                     .frame(width: 34, height: 34)
                     VStack(alignment: .leading, spacing: 1) {
-                        Text(banner.name).font(.pretendard(size: 14, weight: .bold)).foregroundStyle(GLGColor.textPrimary).lineLimit(1)
+                        HStack(spacing: 5) {
+                            Text(banner.name).font(.pretendard(size: 14, weight: .bold)).foregroundStyle(GLGColor.textPrimary).lineLimit(1)
+                            if GameInfoKt.isCollabBanner(banner: banner) { CollabChip() }
+                        }
                         Text(sub).font(.pretendard(size: 10, weight: .semibold)).foregroundStyle(GLGColor.textSecondary).lineLimit(1)
                     }
                     Spacer(minLength: 8)
@@ -499,7 +516,10 @@ private struct FeaturedVersionCard: View {
                                 }
                                 .frame(width: 34, height: 34)
                                 VStack(alignment: .leading, spacing: 1) {
-                                    Text(it.name).font(.pretendard(size: 14, weight: .bold)).foregroundStyle(GLGColor.textPrimary).lineLimit(1)
+                                    HStack(spacing: 5) {
+                                        Text(it.name).font(.pretendard(size: 14, weight: .bold)).foregroundStyle(GLGColor.textPrimary).lineLimit(1)
+                                        if GameInfoKt.isCollabBanner(banner: it) { CollabChip() }
+                                    }
                                     if let comp { Text("＋ \(comp.name)").font(.pretendard(size: 10, weight: .semibold)).foregroundStyle(glWeap).lineLimit(1) }
                                 }
                                 Spacer(minLength: 0)
@@ -540,22 +560,24 @@ private struct SlimVersionRow: View {
             if !weaps.isEmpty { p.append("무기 \(weaps.count)") }
             return p.joined(separator: " · ")
         }()
-        return HStack(spacing: 10) {
-            Text(vg.game.abbr).font(.pretendard(size: 11, weight: .heavy)).foregroundStyle(.white)
-                .padding(.horizontal, 7).padding(.vertical, 4)
-                .background(c, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-            VStack(alignment: .leading, spacing: 1) {
-                Text(title).font(.pretendard(size: 13, weight: .bold)).foregroundStyle(GLGColor.textPrimary).lineLimit(1)
-                Text("\(vg.game.displayName) · \(counts)").font(.pretendard(size: 10)).foregroundStyle(GLGColor.textSecondary).lineLimit(1)
+        return GLGCard(cornerRadius: 14, padding: 0) {
+            HStack(spacing: 10) {
+                Text(vg.game.abbr).font(.pretendard(size: 11, weight: .heavy)).foregroundStyle(.white)
+                    .padding(.horizontal, 7).padding(.vertical, 4)
+                    .background(c, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                if vg.pickups.contains(where: { GameInfoKt.isCollabBanner(banner: $0) }) { CollabChip() }
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(title).font(.pretendard(size: 13, weight: .bold)).foregroundStyle(GLGColor.textPrimary).lineLimit(1)
+                    Text("\(vg.game.displayName) · \(counts)").font(.pretendard(size: 10)).foregroundStyle(GLGColor.textSecondary).lineLimit(1)
+                }
+                Spacer(minLength: 8)
+                VStack(alignment: .trailing, spacing: 1) {
+                    Text(GameInfoKt.dhLabel(targetMillis: vg.nearestEnd, nowMillis: nowMs())).font(.pretendard(size: 13, weight: .bold)).foregroundStyle(ddColor).lineLimit(1)
+                    if vg.start > 0 { Text("\(DateUtil.shared.shortDate(millis: vg.start))~\(DateUtil.shared.shortDate(millis: vg.end))").font(.pretendard(size: 9)).foregroundStyle(GLGColor.textSecondary).lineLimit(1) }
+                }
             }
-            Spacer(minLength: 8)
-            VStack(alignment: .trailing, spacing: 1) {
-                Text(GameInfoKt.dhLabel(targetMillis: vg.nearestEnd, nowMillis: nowMs())).font(.pretendard(size: 13, weight: .bold)).foregroundStyle(ddColor).lineLimit(1)
-                if vg.start > 0 { Text("\(DateUtil.shared.shortDate(millis: vg.start))~\(DateUtil.shared.shortDate(millis: vg.end))").font(.pretendard(size: 9)).foregroundStyle(GLGColor.textSecondary).lineLimit(1) }
-            }
+            .padding(.horizontal, 13).padding(.vertical, 11)
         }
-        .padding(.horizontal, 13).padding(.vertical, 11)
-        .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(glLine, lineWidth: 1))
     }
 }
 
@@ -568,24 +590,27 @@ private struct CompactVersionSection: View {
         let ddColor = (0...3).contains(d) ? glUrgent : c
         let chars = vg.pickups.filter { $0.type != "weapon" }
         let weaps = GameInfoKt.unpairedWeapons(all: vg.pickups)
-        return VStack(alignment: .leading, spacing: 0) {
-            HStack(spacing: 8) {
-                RoundedRectangle(cornerRadius: 2).fill(c).frame(width: 3, height: 14)
-                Text(vg.version.isEmpty ? "\(vg.game.abbr) · \(vg.game.displayName)" : "\(vg.game.abbr) · v\(vg.version)")
-                    .font(.pretendard(size: 13, weight: .bold)).foregroundStyle(GLGColor.textPrimary).lineLimit(1)
-                Spacer(minLength: 8)
-                VStack(alignment: .trailing, spacing: 1) {
-                    Text(GameInfoKt.dhLabel(targetMillis: vg.nearestEnd, nowMillis: nowMs())).font(.pretendard(size: 12, weight: .bold)).foregroundStyle(ddColor).lineLimit(1)
-                    if vg.start > 0 { Text("\(DateUtil.shared.shortDate(millis: vg.start))~\(DateUtil.shared.shortDate(millis: vg.end))").font(.pretendard(size: 9)).foregroundStyle(GLGColor.textSecondary).lineLimit(1) }
+        return GLGCard(cornerRadius: 20, padding: 0) {
+            VStack(alignment: .leading, spacing: 0) {
+                HStack(spacing: 8) {
+                    RoundedRectangle(cornerRadius: 2).fill(c).frame(width: 3, height: 14)
+                    Text(vg.version.isEmpty ? "\(vg.game.abbr) · \(vg.game.displayName)" : "\(vg.game.abbr) · v\(vg.version)")
+                        .font(.pretendard(size: 13, weight: .bold)).foregroundStyle(GLGColor.textPrimary).lineLimit(1)
+                    Spacer(minLength: 8)
+                    VStack(alignment: .trailing, spacing: 1) {
+                        Text(GameInfoKt.dhLabel(targetMillis: vg.nearestEnd, nowMillis: nowMs())).font(.pretendard(size: 12, weight: .bold)).foregroundStyle(ddColor).lineLimit(1)
+                        if vg.start > 0 { Text("\(DateUtil.shared.shortDate(millis: vg.start))~\(DateUtil.shared.shortDate(millis: vg.end))").font(.pretendard(size: 9)).foregroundStyle(GLGColor.textSecondary).lineLimit(1) }
+                    }
+                }
+                .padding(.bottom, 7)
+                ForEach(Array(chars.enumerated()), id: \.offset) { _, b in
+                    CompactPickupRow(banner: b, companions: GameInfoKt.companionWeapons(character: b, all: vg.pickups))
+                }
+                ForEach(Array(weaps.enumerated()), id: \.offset) { _, b in
+                    CompactPickupRow(banner: b, companions: [])
                 }
             }
-            .padding(.top, 10).padding(.bottom, 7)
-            ForEach(Array(chars.enumerated()), id: \.offset) { _, b in
-                CompactPickupRow(banner: b, companions: GameInfoKt.companionWeapons(character: b, all: vg.pickups))
-            }
-            ForEach(Array(weaps.enumerated()), id: \.offset) { _, b in
-                CompactPickupRow(banner: b, companions: [])
-            }
+            .padding(.horizontal, 14).padding(.vertical, 12)
         }
     }
 }
@@ -611,6 +636,7 @@ private struct CompactPickupRow: View {
                 VStack(alignment: .leading, spacing: 1) {
                     HStack(spacing: 4) {
                         Text(banner.name).font(.pretendard(size: 13, weight: .bold)).foregroundStyle(GLGColor.textPrimary).lineLimit(1)
+                        if GameInfoKt.isCollabBanner(banner: banner) { CollabChip() }
                         if let comp = companions.first {
                             Text("＋\(comp.name)").font(.pretendard(size: 9, weight: .bold)).foregroundStyle(glWeap).lineLimit(1)
                         }
@@ -708,7 +734,7 @@ struct GameSchedulePage: View {
                         .frame(maxWidth: .infinity, alignment: .center).padding(.top, 40)
                 } else {
                     ForEach(Array(groups.enumerated()), id: \.offset) { i, vg in
-                        CompactVersionSection(vg: vg).padding(.top, i > 0 ? 6 : 0)
+                        CompactVersionSection(vg: vg).padding(.top, i > 0 ? 12 : 0)
                     }
                     if !extras.isEmpty {
                         HStack(spacing: 8) {

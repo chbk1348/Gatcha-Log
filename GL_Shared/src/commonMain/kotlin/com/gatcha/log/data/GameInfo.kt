@@ -84,6 +84,18 @@ fun dhLabel(targetMillis: Long, nowMillis: Long = currentTimeMillis()): String {
     return if (days > 0) "${days}일 ${hours}시간" else "${hours}시간"
 }
 
+// ── 콜라보 배너 판정 — ennead 에 콜라보 플래그가 없어 이름 화이트리스트로 결정형 판별.
+//    현재: 스타레일 × Fate/stay night [Unlimited Blade Works](4.4~, 2026-07). 새 콜라보 추가 시 이 집합만 갱신.
+//    (Rin 은 로컬라이즈가 "린"만 올 수 있어 오탐 위험 → "토오사카" 토큰으로 커버. 실데이터 확인 후 조정 가능.)
+private val COLLAB_NAME_TOKENS = listOf(
+    "길가메시", "토오사카", "아처", "에미야", "세이버",              // ko
+    "gilgamesh", "tohsaka", "toosaka", "archer", "emiya", "saber",  // en
+)
+
+/** 콜라보 픽업 배너 여부 — 배너 이름에 콜라보 캐릭터 토큰이 포함되면 true. */
+fun isCollabBanner(banner: GachaBanner): Boolean =
+    COLLAB_NAME_TOKENS.any { banner.name.contains(it, ignoreCase = true) }
+
 // ── 픽업 페어링 — 데이터 소스(ennead)에 캐릭터↔무기 연결이 없어, 같은 게임·같은 종료시각(=같은 페이즈)으로만 추정.
 // 단, 한 페이즈에 캐릭터·무기가 각각 1개뿐일 때만(명확한 1:1) 페어링한다. 그 외(원신 2캐+2무 등)는
 // 어느 무기가 누구 것인지 알 수 없으므로 페어링하지 않고 무기를 독립 노출한다(오표시 방지). HSR·ZZZ는 항상 1:1.
