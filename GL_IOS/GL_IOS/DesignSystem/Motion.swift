@@ -39,38 +39,19 @@ enum GLGMotion {
 
 // ── 콘텐츠 로드인 스태거 — Android glgLoadIn 패리티 ────────────────────────────
 
-/// 콘텐츠가 **처음 표시될 때 1회** opacity 0→1 + 살짝 위(12pt)에서 내려오며 등장.
-/// [appeared] 에 [index] 를 기록해, LazyVStack 재생성으로 스크롤 재진입해도 다시 애니메이션하지 않는다.
-/// 호출부에서 `@State var appeared: Set<Int> = []` 를 하나 만들어 모든 항목에 공유 전달.
+/// 콘텐츠 로드인 — **비활성(2026-07-09).** 앱 전체 로드인 등장(페이드인+슬라이드업) 애니메이션 제거
+/// 요청으로 무력화했다. 호출부(각 화면)를 그대로 두기 위해 시그니처만 보존하고 즉시 표시(변형 없음)로 통과시킨다.
+/// 되살리려면 이 커밋 이전 이력의 opacity/offset 스태거 구현 참고.
 struct GLGLoadIn: ViewModifier {
     let index: Int
     @Binding var appeared: Set<Int>
-    @State private var shown: Bool
-    @Environment(\.glgReduceMotion) private var reduceMotion
 
     init(index: Int, appeared: Binding<Set<Int>>) {
         self.index = index
         self._appeared = appeared
-        // 이미 등장한 항목이면 처음부터 표시(애니메이션·플리커 없음) — Android remember{index in set} 과 동일.
-        self._shown = State(initialValue: appeared.wrappedValue.contains(index))
     }
 
-    func body(content: Content) -> some View {
-        content
-            .opacity(shown ? 1 : 0)
-            .offset(y: shown ? 0 : 12)
-            .onAppear {
-                guard !appeared.contains(index) else { return }
-                appeared.insert(index)
-                // 모션 감속(접근성·저전력) — 스태거·슬라이드 없이 즉시 표시
-                if reduceMotion {
-                    shown = true
-                    return
-                }
-                let delay = min(Double(index) * GLGMotion.staggerStep, GLGMotion.staggerMax)
-                withAnimation(GLGMotion.standard().delay(delay)) { shown = true }
-            }
-    }
+    func body(content: Content) -> some View { content }
 }
 
 extension View {
