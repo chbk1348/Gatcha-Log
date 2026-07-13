@@ -35,10 +35,18 @@ data class ChangeEntry(
 object ChangeLog {
 
     /** 헤더 메타 — 업데이트 기간 라벨. */
-    const val periodLabel: String = "2026.05.23 ~ 07.09"
+    const val periodLabel: String = "2026.05.23 ~ 07.13"
 
     val entries: List<ChangeEntry> = buildList {
-        add(ChangeEntry("27.36.0", "2026.07.09", milestone = true, featured = true, items = listOf(
+        add(ChangeEntry("27.37.0", "2026.07.13", featured = true, securityPill = true, items = listOf(
+            sec("계정 토큰 보관을 더 안전하게 — 암호화 저장소를 쓸 수 없는 기기에서 토큰이 평문으로 저장되던 문제를 막았어요"),
+            fix("HoYoLAB 연동 정보가 저장되지 않았는데도 저장된 것처럼 보이던 경우를 바로잡았어요"),
+            fix("선물코드를 못 불러왔을 때 ‘코드 없음’ 대신 사유와 ‘다시 시도’ 버튼을 보여드려요"),
+            fix("게임 공지를 일시적으로 못 불러와도 기존 목록이 사라지지 않아요"),
+            imp("가챠 계산기 결과가 Android·iOS에서 항상 같은 값이 되도록 계산을 하나로 합쳤어요"),
+            imp("앱 내부 정리 — 쓰이지 않던 코드를 걷어내고 빌드 검증을 강화했어요"),
+        )))
+        add(ChangeEntry("27.36.0", "2026.07.09", milestone = true, items = listOf(
             new("게임 일정을 버전별 카드로 새단장 — 임박한 픽업은 D-day 링으로 크게, 전체 일정은 촘촘하게, 버전 시작·종료일까지 한눈에"),
             new("콜라보 픽업 전용 섹션 — 스타레일 × Fate 같은 콜라보를 일반 배너와 분리해 눈에 잘 띄게"),
             new("저축 플래너에서 안 뽑을 픽업을 숨길 수 있어요"),
