@@ -38,7 +38,11 @@ object ChangeLog {
     const val periodLabel: String = "2026.05.23 ~ 07.13"
 
     val entries: List<ChangeEntry> = buildList {
-        add(ChangeEntry("27.37.0", "2026.07.13", featured = true, securityPill = true, items = listOf(
+        add(ChangeEntry("27.38.0", "2026.07.13", featured = true, items = listOf(
+            new("새 공지 알림 — 게임에 새 공지가 올라오면 알려드려요 (설정 → 알림 설정에서 켜기)"),
+            imp("구글 로그인이 더 빨라졌어요 — 브라우저 대신 계정 시트에서 탭 한 번으로 로그인해요 (Android)"),
+        )))
+        add(ChangeEntry("27.37.0", "2026.07.13", securityPill = true, items = listOf(
             sec("계정 토큰 보관을 더 안전하게 — 암호화 저장소를 쓸 수 없는 기기에서 토큰이 평문으로 저장되던 문제를 막았어요"),
             fix("HoYoLAB 연동 정보가 저장되지 않았는데도 저장된 것처럼 보이던 경우를 바로잡았어요"),
             fix("선물코드를 못 불러왔을 때 ‘코드 없음’ 대신 사유와 ‘다시 시도’ 버튼을 보여드려요"),
