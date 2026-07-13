@@ -45,7 +45,10 @@ struct NotificationSettingsView: View {
             Divider()
             toggleRow("arrow.triangle.2.circlepath", "정기결제 갱신", "구독 결제 하루 전(D-1)에 알려줘요",
                       notifyBind(\.notifySubscription, store.setNotifySubscription))
-            if notifBlocked && (store.notifyBudget || store.notifyAttendance || store.notifyResin || store.notifyPickup || store.notifySubscription) {
+            Divider()
+            toggleRow("megaphone.fill", "새 공지 알림", "게임에 새 공지가 올라오면 알려줘요",
+                      notifyBind(\.notifyNews, store.setNotifyNews))
+            if notifBlocked && (store.notifyBudget || store.notifyAttendance || store.notifyResin || store.notifyPickup || store.notifySubscription || store.notifyNews) {
                 Divider()
                 Button { openSystemSettings() } label: {
                     HStack(spacing: 12) {

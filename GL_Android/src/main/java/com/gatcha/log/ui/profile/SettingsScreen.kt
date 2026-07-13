@@ -528,6 +528,7 @@ private fun NotificationSettingsScreen(viewModel: SpendingViewModel, onBack: () 
     val notifyResin by viewModel.notifyResin.collectAsState()
     val notifyPickup by viewModel.notifyPickup.collectAsState()
     val notifySubscription by viewModel.notifySubscription.collectAsState()
+    val notifyNews by viewModel.notifyNews.collectAsState()
     val notifyDndEnabled by viewModel.notifyDndEnabled.collectAsState()
     val notifyDndStartHour by viewModel.notifyDndStartHour.collectAsState()
     val notifyDndEndHour by viewModel.notifyDndEndHour.collectAsState()
@@ -575,6 +576,10 @@ private fun NotificationSettingsScreen(viewModel: SpendingViewModel, onBack: () 
                     HorizontalDivider(color = DividerColor, modifier = Modifier.padding(horizontal = 16.dp))
                     SettingsToggleRow(Icons.Default.Autorenew, "정기결제 갱신 알림", "구독 결제 하루 전(D-1)에 알려줘요", notifySubscription) { on ->
                         if (on) ensureNotifPerm(); viewModel.setNotifySubscription(on)
+                    }
+                    HorizontalDivider(color = DividerColor, modifier = Modifier.padding(horizontal = 16.dp))
+                    SettingsToggleRow(Icons.Default.Campaign, "새 공지 알림", "게임에 새 공지가 올라오면 알려줘요", notifyNews) { on ->
+                        if (on) ensureNotifPerm(); viewModel.setNotifyNews(on)
                     }
                 }
             }
