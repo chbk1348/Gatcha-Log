@@ -11,6 +11,11 @@ plugins {
 }
 
 kotlin {
+    // expect/actual class 는 아직 Beta 라 선언마다 경고를 낸다(KT-61573). 설계상 의도된 사용이라 억제.
+    compilerOptions {
+        freeCompilerArgs.add("-Xexpect-actual-classes")
+    }
+
     // ── Android 타겟 ──────────────────────────────────────────────
     android {
         namespace = "com.gatcha.log.shared"
@@ -21,6 +26,10 @@ kotlin {
             // GitLive Firebase(2.4.0) 등 일부 의존성이 JVM 17 바이트코드라 인라인 충돌(JVM_11 시 CloudSync 컴파일 실패) → 17
             jvmTarget.set(JvmTarget.JVM_17)
         }
+
+        // commonTest 를 JVM 호스트에서 실행 (:GL_Shared:testAndroidHostTest).
+        // 없으면 commonTest 가 iOS 시뮬레이터 타깃에서만 돌 수 있어 CI 에서 사실상 미실행 상태가 된다.
+        withHostTest {}
     }
 
     // ── iOS 타겟 (실기기 + Apple Silicon 시뮬레이터) ──────────────
@@ -61,8 +70,9 @@ kotlin {
             // Firebase BoM — GitLive(KMP) firebase-* 의 Android 변형이 요구하는
             // com.google.firebase:* 버전을 고정 (:GL_Android 과 동일 BoM). 없으면 androidCompileClasspath 해석 실패.
             implementation(project.dependencies.platform("com.google.firebase:firebase-bom:34.14.0"))
-            // 보안 토큰 저장(EncryptedSharedPreferences) — :GL_Android 과 동일 (SecureKeyValueStore actual)
-            implementation("androidx.security:security-crypto:1.1.0-alpha06")
+            // 보안 토큰 저장(EncryptedSharedPreferences) — :GL_Android 과 동일 버전 유지 (SecureKeyValueStore actual).
+            // 두 모듈이 같은 APK 에 링크되므로 어긋나면 Gradle 이 한쪽으로 resolve 해 의도치 않은 버전이 실린다.
+            implementation("androidx.security:security-crypto:1.1.0")
             // 알림(NotificationCompat) — Notifier actual
             implementation("androidx.core:core-ktx:1.15.0")
         }
