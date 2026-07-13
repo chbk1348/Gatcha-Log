@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  테마 아이콘(모노크롬) 레이어 — Android 13+ 에서 시스템이 배경/전경을 단색으로 틴트한다.
+
+  전경(ic_launcher_foreground)을 그대로 재사용하면 트랙(회색 링)까지 같은 색으로 칠해져
+  게이지의 빈 구간이 사라지고 통짜 원이 된다 → 트랙을 뺀 실루엣을 따로 둔다.
+  색은 시스템이 무시하므로 알파(형태)만 의미가 있다.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- 게이지 (12시 → 시계방향 270도) -->
+    <path
+        android:pathData="M54,26 A28,28 0 1,1 26,54"
+        android:strokeColor="#FF000000"
+        android:strokeWidth="8.5"
+        android:strokeLineCap="round"
+        android:fillColor="@android:color/transparent" />
+
+    <!-- 중앙 별 -->
+    <path
+        android:pathData="M54,38 l5,11 11,5 -11,5 -5,11 -5,-11 -11,-5 11,-5 z"
+        android:fillColor="#FF000000" />
+</vector>

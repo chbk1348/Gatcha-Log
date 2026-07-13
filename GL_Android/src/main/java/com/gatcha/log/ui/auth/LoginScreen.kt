@@ -78,7 +78,7 @@ fun LoginScreen(viewModel: SpendingViewModel) {
             modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 28.dp),
         )
         Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
-            WishStarLogo(boxSize = 84.dp)
+            AppMarkLogo(boxSize = 84.dp)
             Spacer(Modifier.height(20.dp))
             Text("Gatcha LOG", fontSize = 28.sp, fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(6.dp))
@@ -133,17 +133,17 @@ private fun FeatureRow(icon: ImageVector, title: String, desc: String) {
 }
 
 /**
- * 앱 아이콘(다크 네이비 스퀘어클 + 민트 위시 스타) 로고 + 애니메이션. 로그인·로딩 화면 공용.
- * 진입 팝(바운스 스케일·페이드) + 무한 호흡 펄스 + 글로우 헤일로.
+ * 앱 마크(화이트 스퀘어클 + 민트 글로우 + 천장 게이지 링 + 네이비 별) + 애니메이션. 로그인·로딩 화면 공용.
+ * 진입 팝(바운스 스케일·페이드) + 무한 호흡 펄스 + 글로우 헤일로. 런처 아이콘과 동일한 디자인을 쓴다.
  */
 @Composable
-private fun WishStarLogo(boxSize: Dp, modifier: Modifier = Modifier) {
+private fun AppMarkLogo(boxSize: Dp, modifier: Modifier = Modifier) {
     val accent = LocalAccent.current
     val enter = remember { Animatable(0f) }
     LaunchedEffect(Unit) {
         enter.animateTo(1f, spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow))
     }
-    val infinite = rememberInfiniteTransition(label = "wishLogo")
+    val infinite = rememberInfiniteTransition(label = "appMarkLogo")
     val pulse by infinite.animateFloat(
         initialValue = 1f, targetValue = 1.05f,
         animationSpec = infiniteRepeatable(tween(1400), RepeatMode.Reverse), label = "pulse",
@@ -162,19 +162,25 @@ private fun WishStarLogo(boxSize: Dp, modifier: Modifier = Modifier) {
             Modifier.size(boxSize * 1.4f).scale(haloScale).clip(CircleShape)
                 .background(accent.copy(alpha = haloAlpha * enter.value)),
         )
-        // 스퀘어클 네이비 배경 + 위시 스타 foreground (런처 마스크처럼 1.5x로 채우고 넘침은 클립)
+        // 앱 아이콘과 동일한 마크 — 스퀘어클 화이트 배경 + 민트 글로우 위에 게이지 링 + 별.
+        // (foreground 는 어댑티브 안전영역 기준이라 확대하지 않는다 — 키우면 링이 잘린다)
         Box(
             Modifier.size(boxSize)
                 .scale(enter.value * pulse)
                 .alpha(enter.value)
                 .clip(RoundedCornerShape(boxSize * 0.27f))
-                .background(Brush.linearGradient(listOf(Color(0xFF2B3F70), Color(0xFF0F1A33)))),
+                .background(Color.White)
+                .background(
+                    Brush.radialGradient(
+                        listOf(Color(0xFF34D1B6).copy(alpha = 0.18f), Color.Transparent),
+                    ),
+                ),
             contentAlignment = Alignment.Center,
         ) {
             Image(
                 painter = painterResource(R.drawable.ic_launcher_foreground),
                 contentDescription = null,
-                modifier = Modifier.fillMaxSize().scale(1.5f),
+                modifier = Modifier.fillMaxSize(),
             )
         }
     }
@@ -215,7 +221,7 @@ fun AccountLoadingScreen(loading: Boolean, onFinished: () -> Unit) {
                     drawArc(accent, spin, 90f, false, Offset(inset, inset), arc, style = Stroke(sw, cap = StrokeCap.Round))
                 }
                 Box(Modifier.size(60.dp).clip(CircleShape).background(Brush.radialGradient(listOf(accent.copy(alpha = 0.35f), Color.Transparent))))
-                WishStarLogo(boxSize = 48.dp, modifier = Modifier.scale(pulse))
+                AppMarkLogo(boxSize = 48.dp, modifier = Modifier.scale(pulse))
             }
             Spacer(Modifier.height(26.dp))
             Row {

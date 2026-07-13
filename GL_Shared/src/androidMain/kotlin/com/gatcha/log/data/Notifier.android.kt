@@ -23,6 +23,12 @@ actual object Notifier {
     private const val CHANNEL = "gatcha_alerts_v2"
     private const val LEGACY_CHANNEL = "gatcha_alerts"
 
+    /**
+     * 상태바 알림 아이콘 리소스 ID — :GL_Android 가 GatchaApp 에서 등록한다(shared 는 :GL_Android 의 R 을 못 본다).
+     * 미등록이면 런처 아이콘으로 폴백하지만, 런처 아이콘은 불투명이라 상태바에서 흰 덩어리로 보인다.
+     */
+    var smallIconRes: Int? = null
+
     actual val ID_BUDGET: Int = 2001
     actual val ID_ATTEND: Int = 2002
     actual val ID_AUTO_CHECKIN: Int = 2003
@@ -61,8 +67,11 @@ actual object Notifier {
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
         val n = NotificationCompat.Builder(ctx, CHANNEL)
-            .setSmallIcon(ctx.applicationInfo.icon)
-            .setColor(0xFF7B5BFA.toInt())
+            // Android 는 small icon 의 **알파만** 쓰고 색은 무시한다 → 불투명 배경을 가진 런처 아이콘을
+            // 그대로 넣으면 상태바에 흰 사각형 덩어리로 뜬다. :GL_Android 가 등록한 전용 모노크롬
+            // 아이콘(ic_stat_gatcha)을 쓰고, 미등록 시에만 런처 아이콘으로 폴백한다.
+            .setSmallIcon(smallIconRes ?: ctx.applicationInfo.icon)
+            .setColor(0xFF34D1B6.toInt()) // 브랜드 민트 (구 보라 0xFF7B5BFA 잔재 정리)
             .setContentTitle(title)
             .setContentText(text)
             .setStyle(NotificationCompat.BigTextStyle().bigText(text))

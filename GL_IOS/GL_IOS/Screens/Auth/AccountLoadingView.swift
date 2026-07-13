@@ -33,7 +33,7 @@ struct AccountLoadingView: View {
                         .stroke(accent.primary, style: StrokeStyle(lineWidth: 3, lineCap: .round))
                         .frame(width: 84, height: 84)
                         .rotationEffect(.degrees(spin))
-                    WishStarLogo(boxSize: 48)
+                    AppMarkLogo(boxSize: 48)
                         .scaleEffect(pulse)
                         .shadow(color: accent.primary.opacity(0.55), radius: 16)
                 }
