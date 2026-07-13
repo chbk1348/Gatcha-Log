@@ -762,57 +762,6 @@ fun DashSpendCard(monthlyTotal: Long, budget: Long, onTap: () -> Unit) {
     }
 }
 
-@Composable
-fun DashKpiGrid(nextDDay: Int?, pityValue: String, pityLabel: String, todayCount: Int, unread: Int) {
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            DashKpiTile(Icons.Default.TrackChanges, if (nextDDay != null) "D-$nextDDay" else "없음", "다음 픽업", Color(0xFF15C7A8), Modifier.weight(1f))
-            DashKpiTile(Icons.Default.Speed, pityValue, pityLabel, Color(0xFFF59E0B), Modifier.weight(1f))
-        }
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            DashKpiTile(Icons.Default.Checklist, "${todayCount}건", "오늘 할 일", Color(0xFF3B82F6), Modifier.weight(1f))
-            DashKpiTile(Icons.Default.Notifications, "${unread}건", "안 읽은 알림", Color(0xFFEF4444), Modifier.weight(1f))
-        }
-    }
-}
-
-@Composable
-private fun DashKpiTile(icon: ImageVector, value: String, label: String, tint: Color, modifier: Modifier) {
-    GlassCard(shape = RoundedCornerShape(16.dp), modifier = modifier) {
-        Row(Modifier.padding(13.dp), verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.size(38.dp).clip(RoundedCornerShape(11.dp)).background(tint.copy(alpha = 0.14f)), contentAlignment = Alignment.Center) {
-                Icon(icon, null, tint = tint, modifier = Modifier.size(20.dp))
-            }
-            Spacer(Modifier.width(11.dp))
-            Column {
-                Text(value, fontSize = 17.sp, fontWeight = FontWeight.Bold, color = TextPrimary, maxLines = 1)
-                Text(label, fontSize = 11.sp, color = TextSecondary, maxLines = 1)
-            }
-        }
-    }
-}
-
-@Composable
-fun DashQuickRow(onSpend: () -> Unit, onCalc: () -> Unit, onInsight: () -> Unit) {
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        DashQuickBtn(Icons.Default.Add, "지출 추가", onSpend, Modifier.weight(1f))
-        DashQuickBtn(Icons.Default.Calculate, "가챠 계산기", onCalc, Modifier.weight(1f))
-        DashQuickBtn(Icons.Default.Insights, "인사이트", onInsight, Modifier.weight(1f))
-    }
-}
-
-@Composable
-private fun DashQuickBtn(icon: ImageVector, label: String, onClick: () -> Unit, modifier: Modifier) {
-    val accent = LocalAccent.current
-    GlassCard(shape = RoundedCornerShape(16.dp), modifier = modifier.clickable { onClick() }) {
-        Column(Modifier.fillMaxWidth().padding(vertical = 14.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-            Icon(icon, null, tint = accent, modifier = Modifier.size(22.dp))
-            Spacer(Modifier.height(6.dp))
-            Text(label, fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold, color = TextPrimary, maxLines = 1)
-        }
-    }
-}
-
 /** 이번 주 게임 일정 — 이벤트·정기콘텐츠 마감 임박(픽업과 별개). */
 @Composable
 fun DashScheduleCard(events: List<GameEvent>, challenges: List<GameChallenge>, onTap: () -> Unit) {
