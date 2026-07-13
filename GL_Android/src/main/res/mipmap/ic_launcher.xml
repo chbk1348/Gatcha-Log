@@ -1,34 +1,48 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- 레거시 런처(API 26 미만)용 아이콘 — 어댑티브(ic_launcher_background/foreground)와 동일 디자인.
+     W4: 화이트 + 민트 글로우 배경 위 천장 게이지 링 + 네이비 별. v27.38.0 개편. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:aapt="http://schemas.android.com/aapt"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <!-- 라운드 사각형 배경 (다크 네이비 그라데이션) -->
+    <!-- 라운드 사각형 화이트 바탕 -->
+    <path android:pathData="M24,4 L84,4 A20,20 0 0 1 104,24 L104,84 A20,20 0 0 1 84,104 L24,104 A20,20 0 0 1 4,84 L4,24 A20,20 0 0 1 24,4 Z" android:fillColor="#FFFFFFFF" />
+    <!-- 민트 글로우 -->
     <path android:pathData="M24,4 L84,4 A20,20 0 0 1 104,24 L104,84 A20,20 0 0 1 84,104 L24,104 A20,20 0 0 1 4,84 L4,24 A20,20 0 0 1 24,4 Z">
         <aapt:attr name="android:fillColor">
             <gradient
-                android:type="linear"
-                android:startX="4" android:startY="4"
-                android:endX="104" android:endY="104"
-                android:startColor="#FF2B3F70"
-                android:endColor="#FF0F1A33" />
+                android:type="radial"
+                android:centerX="54" android:centerY="56" android:gradientRadius="60"
+                android:startColor="#2E34D1B6"
+                android:endColor="#0034D1B6" />
         </aapt:attr>
     </path>
-    <!-- 위시 스타 꼬리 (진행축 따라 좌하단 테이퍼링) -->
-    <path android:pathData="M48,59 L41,66" android:strokeColor="#FF7FFBE6" android:strokeWidth="6" android:strokeLineCap="round" />
-    <path android:pathData="M38,69 L33,74" android:strokeColor="#FF7FFBE6" android:strokeWidth="5" android:strokeLineCap="round" android:strokeAlpha="0.7" />
-    <path android:pathData="M30,77 L26,81" android:strokeColor="#FF7FFBE6" android:strokeWidth="4" android:strokeLineCap="round" android:strokeAlpha="0.45" />
-    <!-- 메인 스파클 (우상단, 민트 그라데이션) -->
-    <path android:pathData="M62,27 C63.19,39.31 67.69,43.82 80.01,45 C67.69,46.19 63.19,50.69 62,63.01 C60.81,50.69 56.31,46.19 43.99,45 C56.31,43.82 60.81,39.31 62,27 Z">
-        <aapt:attr name="android:fillColor">
+
+    <!-- 트랙 -->
+    <path
+        android:pathData="M26,54 A28,28 0 1,1 82,54 A28,28 0 1,1 26,54"
+        android:strokeColor="#FFE1EDEA"
+        android:strokeWidth="8.5"
+        android:fillColor="@android:color/transparent" />
+    <!-- 게이지 (12시 → 시계방향 270도) -->
+    <path
+        android:pathData="M54,26 A28,28 0 1,1 26,54"
+        android:strokeWidth="8.5"
+        android:strokeLineCap="round"
+        android:fillColor="@android:color/transparent">
+        <aapt:attr name="android:strokeColor">
             <gradient
                 android:type="linear"
-                android:startX="0" android:startY="8"
-                android:endX="0" android:endY="100"
+                android:startX="26" android:startY="26"
+                android:endX="82" android:endY="82"
                 android:startColor="#FF7FFBE6"
-                android:endColor="#FF34D1B6" />
+                android:endColor="#FF14B8A6" />
         </aapt:attr>
     </path>
+    <!-- 중앙 별 -->
+    <path
+        android:pathData="M54,38 l5,11 11,5 -11,5 -5,11 -5,-11 -11,-5 11,-5 z"
+        android:fillColor="#FF0F1A33" />
 </vector>
