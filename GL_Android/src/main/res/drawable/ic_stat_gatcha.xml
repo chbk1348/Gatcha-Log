@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  상태바 알림 아이콘 (small icon).
+
+  ⚠️ Android 는 알림 small icon 의 **알파 채널만** 사용하고 색은 전부 무시한다(시스템이 단색 틴트).
+     그래서 런처 아이콘(불투명 흰 배경)을 그대로 쓰면 상태바에 **흰 사각형 덩어리**로 뜬다.
+     → 배경 없이 실루엣(게이지 링 + 별)만 흰색으로 그린다. 트랙은 뺀다(단색이면 링이 통짜 원이 됨).
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108"
+    android:tint="#FFFFFFFF">
+
+    <!-- 게이지 (12시 → 시계방향 270도) -->
+    <path
+        android:pathData="M54,26 A28,28 0 1,1 26,54"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="9"
+        android:strokeLineCap="round"
+        android:fillColor="@android:color/transparent" />
+
+    <!-- 중앙 별 -->
+    <path
+        android:pathData="M54,38 l5,11 11,5 -11,5 -5,11 -5,-11 -11,-5 11,-5 z"
+        android:fillColor="#FFFFFFFF" />
+</vector>

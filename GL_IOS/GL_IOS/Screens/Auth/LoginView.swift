@@ -19,7 +19,7 @@ struct LoginView: View {
             .ignoresSafeArea()
 
             VStack(spacing: 0) {
-                WishStarLogo(boxSize: 84)
+                AppMarkLogo(boxSize: 84)
                 Spacer().frame(height: 20)
                 Text("Gatcha LOG")
                     .font(.pretendard(size: 28, weight: .bold))

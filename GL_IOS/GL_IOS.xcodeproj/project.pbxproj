@@ -21,6 +21,7 @@
 		3CEC973D3915C5EAA8F3144D /* GameInfoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11D16F5E46E7E8DC2FD63907 /* GameInfoView.swift */; };
 		407B2B835C63881B6D71A3D6 /* FirebaseFirestore in Frameworks */ = {isa = PBXBuildFile; productRef = 8271CA7956D21511F8C90ED4 /* FirebaseFirestore */; };
 		415A00FEEAB1D76CB2E99B6D /* SavingsViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = D298448CBEF9192C0613F700 /* SavingsViews.swift */; };
+		4BAE0AF1CFCBD6A920A5E1E6 /* AppMarkLogo.swift in Sources */ = {isa = PBXBuildFile; fileRef = F22E3DACB374BECF7DBF2B1C /* AppMarkLogo.swift */; };
 		5037A67CE3B8E588DCC2F809 /* GLGChip.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEA0ECFE89434FBD76D2E252 /* GLGChip.swift */; };
 		53DA02B1AA33DC0B59A484D3 /* Pretendard-Medium.otf in Resources */ = {isa = PBXBuildFile; fileRef = B0AC89C74883ECB4D4534D65 /* Pretendard-Medium.otf */; };
 		57E3C89A46357C998CEAD839 /* GlassButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 607DE67679739531B7DC4652 /* GlassButton.swift */; };
@@ -48,7 +49,6 @@
 		BF372FCD149E818166E7F9E3 /* Toast.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD62F3658FFD16B833EF98AA /* Toast.swift */; };
 		C3230B40CF73F7F63798F61D /* Pretendard-SemiBold.otf in Resources */ = {isa = PBXBuildFile; fileRef = EBE3389ACB5917724A4C6DD5 /* Pretendard-SemiBold.otf */; };
 		D1638799928C16B92E7BA17C /* Glass.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16692A76093EA64BC84CA502 /* Glass.swift */; };
-		D331E41E2017AA75D98B834C /* WishStarLogo.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C62B4370F153FD0F7557E0E /* WishStarLogo.swift */; };
 		D518B6D75F70EEA8A1332D03 /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = 27054819557D026D9CB4FE7D /* GoogleService-Info.plist */; };
 		E04926A07296AA0D760F37A8 /* GLGSkeleton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 716CDDC7D2BB3BEC9580864E /* GLGSkeleton.swift */; };
 		E137594B42AFFB5CE2A94CCD /* PretendardFont.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16C6E97312A4E81D64EB90F4 /* PretendardFont.swift */; };
@@ -71,7 +71,6 @@
 		05DA476A730AFA37D40240E5 /* iOSApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = iOSApp.swift; sourceTree = "<group>"; };
 		08F1ECE04BB2DA0CB5B2C723 /* NewsSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NewsSection.swift; sourceTree = "<group>"; };
 		0AB3CC660B02C393DA32935B /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
-		0C62B4370F153FD0F7557E0E /* WishStarLogo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WishStarLogo.swift; sourceTree = "<group>"; };
 		10A462DEE6CE546DFBF6BBA9 /* PillField.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PillField.swift; sourceTree = "<group>"; };
 		11D16F5E46E7E8DC2FD63907 /* GameInfoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameInfoView.swift; sourceTree = "<group>"; };
 		16692A76093EA64BC84CA502 /* Glass.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Glass.swift; sourceTree = "<group>"; };
@@ -121,6 +120,7 @@
 		EC551FFC4A65F19F94A1987B /* SettingsDialogs.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsDialogs.swift; sourceTree = "<group>"; };
 		EDA6932189E1AD9D46B8D081 /* Pretendard-Bold.otf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Pretendard-Bold.otf"; sourceTree = "<group>"; };
 		F1B20A3BE3C43A7ADDFEB789 /* MyPageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MyPageView.swift; sourceTree = "<group>"; };
+		F22E3DACB374BECF7DBF2B1C /* AppMarkLogo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppMarkLogo.swift; sourceTree = "<group>"; };
 		F54315F0900C3C41178F8697 /* GL_IOS.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = GL_IOS.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		FEA0ECFE89434FBD76D2E252 /* GLGChip.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GLGChip.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -207,8 +207,8 @@
 			isa = PBXGroup;
 			children = (
 				30864BF6E1651C389D2661B1 /* AccountLoadingView.swift */,
+				F22E3DACB374BECF7DBF2B1C /* AppMarkLogo.swift */,
 				AE2C3F8DE0C369D621CCC112 /* LoginView.swift */,
-				0C62B4370F153FD0F7557E0E /* WishStarLogo.swift */,
 			);
 			path = Auth;
 			sourceTree = "<group>";
@@ -414,6 +414,7 @@
 				87BCB4BC1FDA9A8B97CB3D98 /* AddSpendingView.swift in Sources */,
 				1431B09C96CB6ADF4D51B094 /* AnniversarySection.swift in Sources */,
 				98B4EF7E15CE5D1D3F10446D /* AnnualReportView.swift in Sources */,
+				4BAE0AF1CFCBD6A920A5E1E6 /* AppMarkLogo.swift in Sources */,
 				14AFD15B3420C392511D404A /* CalendarView.swift in Sources */,
 				ED52FDDCC5ADCAECF885F91A /* ContentView.swift in Sources */,
 				FEFECA4B17E26F1661161AC0 /* DailyHeroSection.swift in Sources */,
@@ -456,7 +457,6 @@
 				69FEE9E24FEB8301D5F8DA75 /* SubscriptionCenterView.swift in Sources */,
 				17991733B1B0EC7204C21DEB /* Theme.swift in Sources */,
 				BF372FCD149E818166E7F9E3 /* Toast.swift in Sources */,
-				D331E41E2017AA75D98B834C /* WishStarLogo.swift in Sources */,
 				A7BFA61A876C89B76798AD9A /* iOSApp.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

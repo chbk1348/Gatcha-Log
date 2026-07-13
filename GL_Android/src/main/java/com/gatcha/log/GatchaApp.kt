@@ -24,6 +24,10 @@ class GatchaApp : Application() {
         AppContext.init(this)
         ActivityHolder.registerWith(this)
 
+        // 상태바 알림 아이콘 — shared 는 :GL_Android 의 R 을 못 보므로 여기서 주입.
+        // (런처 아이콘은 불투명 배경이라 알파만 쓰는 상태바에서 흰 사각형이 된다)
+        com.gatcha.log.data.Notifier.smallIconRes = R.drawable.ic_stat_gatcha
+
         // 구글 로그인 — Credential Manager 우선, 실패 시 웹 OAuth 폴백 (Activity 는 ActivityHolder 에서)
         AndroidGoogleSignIn.provider = { autoSelectOnly ->
             AndroidGoogleSignInProvider.signIn(autoSelectOnly)
