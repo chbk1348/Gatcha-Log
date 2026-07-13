@@ -154,6 +154,8 @@ class SpendingViewModel : ViewModel() {
     val notifyPickup: StateFlow<Boolean> = _notifyPickup.asStateFlow()
     private val _notifySubscription = MutableStateFlow(appSettings.notifySubscription)
     val notifySubscription: StateFlow<Boolean> = _notifySubscription.asStateFlow()
+    private val _notifyNews = MutableStateFlow(appSettings.notifyNews)
+    val notifyNews: StateFlow<Boolean> = _notifyNews.asStateFlow()
 
     // 방해금지(DnD) — 조용한 시간대 알림 보류
     private val _notifyDndEnabled = MutableStateFlow(appSettings.notifyDndEnabled)
@@ -219,6 +221,7 @@ class SpendingViewModel : ViewModel() {
     fun setNotifyResin(v: Boolean) { appSettings.notifyResin = v; _notifyResin.value = v; applyNativeAfterNotifyChange(v) }
     fun setNotifyPickup(v: Boolean) { appSettings.notifyPickup = v; _notifyPickup.value = v; applyNativeAfterNotifyChange(v) }
     fun setNotifySubscription(v: Boolean) { appSettings.notifySubscription = v; _notifySubscription.value = v; applyNativeAfterNotifyChange(v) }
+    fun setNotifyNews(v: Boolean) { appSettings.notifyNews = v; _notifyNews.value = v; applyNativeAfterNotifyChange(v) }
 
     fun setNotifyDndEnabled(v: Boolean) { appSettings.notifyDndEnabled = v; _notifyDndEnabled.value = v; NativeScheduler.apply() }
     fun setNotifyDndStartHour(v: Int) { appSettings.notifyDndStartHour = v; _notifyDndStartHour.value = appSettings.notifyDndStartHour }

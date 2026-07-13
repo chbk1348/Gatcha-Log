@@ -31,6 +31,7 @@ actual object Notifier {
     actual val ID_PICKUP_BASE: Int = 3400
     actual val ID_SUBSCRIPTION_BASE: Int = 3500
     actual val ID_DAILY_SUMMARY: Int = 2004
+    actual val ID_NEWS_BASE: Int = 3600
 
     private fun ensureChannel(ctx: Context) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {

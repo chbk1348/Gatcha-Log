@@ -7,6 +7,7 @@ import com.gatcha.log.data.GatchaRepository
 import com.gatcha.log.data.HoyolabConfig
 import com.gatcha.log.data.Notifier
 import com.gatcha.log.data.api.HoyolabApi
+import com.gatcha.log.data.api.NewsApi
 import com.gatcha.log.util.currentTimeMillis
 
 /**
@@ -148,6 +149,33 @@ object NotificationChecker {
                             "${sub.name} ₩${won(sub.amount)} 결제 예정이에요",
                         )
                     }
+                }
+            }
+        }
+
+        // ⑥ 새 게임 공지 — 게임별로 '마지막으로 알린 공지 시각'보다 새 글이 올라왔을 때만.
+        if (settings.notifyNews) {
+            GameData.games.filter { it.newsSlug != null }.forEach { game ->
+                // 실패(null)면 조용히 건너뛴다 — 네트워크 오류를 '새 공지 없음'으로 오해하지 않는다.
+                val notices = NewsApi.notices(game) ?: return@forEach
+                val latest = notices.maxByOrNull { it.createdAtMillis } ?: return@forEach
+                val tag = "news:${game.key}"
+                val lastSeen = settings.lastNotified(tag).toLongOrNull()
+
+                if (lastSeen == null) {
+                    // 최초 1회는 기준선만 잡는다 — 안 그러면 켜자마자 과거 공지로 알림이 쏟아진다.
+                    settings.setLastNotified(tag, latest.createdAtMillis.toString())
+                    return@forEach
+                }
+                if (latest.createdAtMillis > lastSeen) {
+                    settings.setLastNotified(tag, latest.createdAtMillis.toString())
+                    val newCount = notices.count { it.createdAtMillis > lastSeen }
+                    val more = if (newCount > 1) " 외 ${newCount - 1}건" else ""
+                    Notifier.notify(
+                        Notifier.ID_NEWS_BASE + game.ordinal,
+                        "${game.shortName} 새 공지",
+                        latest.title + more,
+                    )
                 }
             }
         }

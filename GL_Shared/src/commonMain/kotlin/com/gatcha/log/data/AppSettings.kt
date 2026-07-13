@@ -29,6 +29,11 @@ class AppSettings {
         get() = prefs.getBoolean(KEY_NOTIFY_PICKUP, false)
         set(v) { prefs.putBoolean(KEY_NOTIFY_PICKUP, v) }
 
+    /** 새 게임 공지 알림. 기본 OFF — 공지는 잦을 수 있어 원하는 사람만 켠다. */
+    var notifyNews: Boolean
+        get() = prefs.getBoolean(KEY_NOTIFY_NEWS, false)
+        set(v) { prefs.putBoolean(KEY_NOTIFY_NEWS, v) }
+
     /** 정기결제 갱신일 알림(결제 하루 전). 기본 ON — 새는 고정비 안내. */
     var notifySubscription: Boolean
         get() = prefs.getBoolean(KEY_NOTIFY_SUB, true)
@@ -110,6 +115,7 @@ class AppSettings {
         private const val KEY_NOTIF_PERM_ASKED = "notif_perm_asked"
         private const val KEY_SPENDING_COMPACT = "spending_compact"
         private const val KEY_NOTIFY_SUB = "notify_subscription"
+        private const val KEY_NOTIFY_NEWS = "notify_news"
         private const val KEY_DND_ENABLED = "notify_dnd_enabled"
         private const val KEY_DND_START = "notify_dnd_start"
         private const val KEY_DND_END = "notify_dnd_end"
