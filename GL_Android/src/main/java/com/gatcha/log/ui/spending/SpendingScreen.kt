@@ -363,26 +363,6 @@ fun MonthlySummaryCard(month: Int, total: Long, prevTotal: Long, collapse: Float
 }
 
 @Composable
-fun SummaryItem(label: String, value: String, valueColor: Color) {
-    Column {
-        Text(label, fontSize = 12.sp, color = TextSecondary)
-        Text(value, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = valueColor)
-    }
-}
-
-@Composable
-fun GameFilterRow(selectedGame: String?, modifier: Modifier = Modifier, onGameSelected: (String?) -> Unit) {
-    val accent = LocalAccent.current
-    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = modifier.padding(vertical = 8.dp)) {
-        item { FilterPill("전체", selectedGame == null, accent) { onGameSelected(null) } }
-        items(GameData.games) { game ->
-            // 게임 칩은 단일 규격 유지, 선택됨 색만 게임별 대표색으로.
-            FilterPill(game.shortName, selectedGame == game.displayName, game.color.toColor()) { onGameSelected(game.displayName) }
-        }
-    }
-}
-
-@Composable
 internal fun FilterPill(label: String, selected: Boolean, accent: Color, onClick: () -> Unit) {
     GlgChip(label = label, selected = selected, color = accent, onClick = onClick)
 }
