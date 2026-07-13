@@ -154,7 +154,12 @@ dependencies {
     // 백그라운드 작업 — 자동 출석체크·알림 점검(WorkManager)
     implementation("androidx.work:work-runtime-ktx:2.11.2")
 
-    // 구글 로그인 — 브라우저 웹 OAuth(PKCE)를 인앱 Custom Tabs 로 표시. (Credential Manager 제거)
+    // 구글 로그인 — 하이브리드(v27.38.0):
+    //  1순위 Credential Manager(네이티브 계정 시트), 실패·GMS 부재 시 2순위 웹 OAuth(PKCE + Custom Tabs).
+    //  웹 OAuth 는 폴백으로 계속 살려둔다 — GMS 가 온전치 않은 기기(커스텀 ROM)에서 유일한 경로.
+    implementation("androidx.credentials:credentials:1.5.0")
+    implementation("androidx.credentials:credentials-play-services-auth:1.5.0")
+    implementation("com.google.android.libraries.identity.googleid:googleid:1.1.1")
     implementation("androidx.browser:browser:1.8.0")
 
     // Firebase — 구글 계정 귀속 클라우드 저장(Firestore) + 인증.

@@ -48,6 +48,13 @@ data class PlatformSignInResult(
 internal expect suspend fun platformGoogleSignIn(autoSelectOnly: Boolean): PlatformSignInResult?
 
 /**
+ * 플랫폼 인증 상태 정리(로그아웃 시).
+ * - Android: Credential Manager `clearCredentialState()` — 안 하면 다음 로그인에서 계정 선택 없이 자동 재로그인.
+ * - iOS: 없음(웹 OAuth 세션은 브라우저가 관리) → no-op.
+ */
+internal expect suspend fun platformSignOut()
+
+/**
  * 계정 상태 영속화 — :app 의 AuthManager 를 KMP 로 이식.
  *
  * 4단계 현재: 게스트(로컬) 모드만 동작. 저장 키는 :app 과 동일("gatcha_auth").
@@ -105,6 +112,9 @@ class AuthManager {
 
     /** 로그아웃 → 미로그인 sentinel 로 전환(루트 게이트가 로그인 화면 표시). */
     suspend fun signOut() {
+        // 플랫폼 인증 상태 정리 — Android 는 Credential Manager 상태를 비워야
+        // 다음 로그인에서 계정 선택 화면이 다시 뜬다(안 그러면 같은 계정으로 자동 재로그인).
+        runCatching { platformSignOut() }
         runCatching { CloudSync.signOut() }
         lastIdToken = null
         lastAccessToken = null

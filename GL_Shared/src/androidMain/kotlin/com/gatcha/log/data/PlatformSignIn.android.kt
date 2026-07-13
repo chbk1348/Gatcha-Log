@@ -20,7 +20,14 @@ object AndroidGoogleSignIn {
      * 반환 null = 로그인 불가/취소(자동선택 계정 없음 포함). provider 미등록 시에도 null.
      */
     var provider: (suspend (autoSelectOnly: Boolean) -> PlatformSignInResult?)? = null
+
+    /** :app 이 등록하는 로그아웃 정리(Credential Manager 상태 비우기). 미등록이면 no-op. */
+    var signOutProvider: (suspend () -> Unit)? = null
 }
 
 internal actual suspend fun platformGoogleSignIn(autoSelectOnly: Boolean): PlatformSignInResult? =
     AndroidGoogleSignIn.provider?.invoke(autoSelectOnly)
+
+internal actual suspend fun platformSignOut() {
+    AndroidGoogleSignIn.signOutProvider?.invoke()
+}

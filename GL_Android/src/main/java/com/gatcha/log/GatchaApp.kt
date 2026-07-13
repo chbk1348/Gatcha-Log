@@ -24,10 +24,11 @@ class GatchaApp : Application() {
         AppContext.init(this)
         ActivityHolder.registerWith(this)
 
-        // 구글 로그인 — Credential Manager / 웹 OAuth (Activity 컨텍스트는 ActivityHolder 에서)
+        // 구글 로그인 — Credential Manager 우선, 실패 시 웹 OAuth 폴백 (Activity 는 ActivityHolder 에서)
         AndroidGoogleSignIn.provider = { autoSelectOnly ->
             AndroidGoogleSignInProvider.signIn(autoSelectOnly)
         }
+        AndroidGoogleSignIn.signOutProvider = { AndroidGoogleSignInProvider.signOut() }
         // 백그라운드 주기 작업 — WorkManager
         AndroidNativeScheduler.applyProvider = { AndroidWorkScheduler.apply(applicationContext) }
         AndroidNativeScheduler.runNowProvider = { AndroidWorkScheduler.runNow(applicationContext) }
