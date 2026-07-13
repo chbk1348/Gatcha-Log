@@ -15,10 +15,10 @@ fun md5Hex(input: String): String {
         ByteArray(8) { i -> ((origLenBits ushr (8 * i)) and 0xFF).toByte() }
 
     // 초기 상태
-    var a0 = 0x67452301.toInt()
+    var a0 = 0x67452301
     var b0 = 0xefcdab89.toInt()
     var c0 = 0x98badcfe.toInt()
-    var d0 = 0x10325476.toInt()
+    var d0 = 0x10325476
 
     val s = intArrayOf(
         7, 12, 17, 22, 7, 12, 17, 22, 7, 12, 17, 22, 7, 12, 17, 22,

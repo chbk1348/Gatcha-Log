@@ -137,13 +137,5 @@ object GameData {
             GamePackage("오리지늄 상자", "×388", 93_000),
             GamePackage("오리지늄 수레", "×400", 153_000),
         )
-        else -> listOf(
-            GamePackage("월정액", "월정액", 5_900),
-            GamePackage("배틀패스", "패스", 12_000),
-            GamePackage("소액 패키지", null, 1_200),
-            GamePackage("중형 패키지", null, 19_000),
-            GamePackage("대형 패키지", null, 37_000),
-            GamePackage("최대 패키지", null, 119_000),
-        )
     }
 }

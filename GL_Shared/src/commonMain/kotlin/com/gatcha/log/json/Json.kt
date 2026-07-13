@@ -87,7 +87,6 @@ class JSONObject {
         is JsonPrimitive -> el.content
         is JsonObject -> JSONObject(el)
         is JsonArray -> JSONArray(el)
-        else -> null
     }
 
     fun optJSONObject(key: String): JSONObject? = (map[key] as? JsonObject)?.let { JSONObject(it) }
