@@ -38,8 +38,10 @@ import com.gatcha.log.ui.theme.toColor
 import com.gatcha.log.ui.theme.LocalAccent
 import com.gatcha.log.ui.theme.TextPrimary
 import com.gatcha.log.ui.theme.TextSecondary
+import com.gatcha.log.util.gachaAbbr
 import com.gatcha.log.util.num
 import com.gatcha.log.util.won
+import com.gatcha.log.util.wonShort
 
 @Composable
 fun GachaReportSection(
@@ -86,8 +88,7 @@ fun GachaReportSection(
 private val Lucky = Color(0xFF2BB673)
 private val Avg = Color(0xFFE0A93B)
 private val Unlucky = Color(0xFFE8634A)
-private fun reportAbbr(gk: String) = when (gk) { "genshin" -> "GI"; "hsr", "starrail" -> "HSR"; "zzz" -> "ZZZ"; else -> gk.uppercase() }
-private fun wonShort(v: Long): String = if (v >= 10000) "%.1f만".format(v / 10000.0) else won(v)
+// 약칭·축약통화는 commonMain(util/Format.kt) 공유 — iOS 와 같은 소스를 쓴다.
 
 @Composable
 private fun EmptyState(onImport: () -> Unit) {
@@ -145,7 +146,7 @@ private fun GameCard(gk: String, g: GachaGameStat, spend: Long, showDash: Boolea
             // 헤더 — 배지 + 게임명
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Surface(color = color.toColor(), shape = RoundedCornerShape(7.dp)) {
-                    Text(reportAbbr(gk), fontSize = 11.sp, fontWeight = FontWeight.Black, color = Color.White, modifier = Modifier.padding(horizontal = 7.dp, vertical = 4.dp))
+                    Text(gachaAbbr(gk), fontSize = 11.sp, fontWeight = FontWeight.Black, color = Color.White, modifier = Modifier.padding(horizontal = 7.dp, vertical = 4.dp))
                 }
                 Spacer(Modifier.width(10.dp))
                 Text(shortName, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
