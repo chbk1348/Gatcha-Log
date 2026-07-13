@@ -111,14 +111,18 @@ kotlin {
 }
 
 // Baseline Profile 생성용 벤치마크 변형(plugin 이 만든 nonMinifiedRelease/benchmarkRelease)은
-// 실제 release 키(local.properties) 대신 debug 키로 서명한다 — ① 테스트 빌드에 실키 불필요,
-// ② 기기에 깔린 debug 빌드와 서명을 맞춰 재설치 충돌(INSTALL_FAILED_UPDATE_INCOMPATIBLE) 회피.
+// **release 서명 설정**을 그대로 쓴다.
+// 예전엔 debug 키로 서명했는데(테스트 빌드에 실키 불필요), 기기에 릴리즈 서명 앱이 깔려 있으면
+// 프로파일 생성 설치가 INSTALL_FAILED_UPDATE_INCOMPATIBLE 로 실패하고 앱을 지워야만(=사용자 데이터 유실)
+// 진행할 수 있었다. 서명을 맞추면 덮어쓰기 설치가 되어 데이터가 보존된다.
+// (release signingConfig 는 local.properties 에 RELEASE_* 가 없으면 debug 키로 폴백하므로,
+//  실키가 없는 환경에서도 그대로 동작한다.)
 androidComponents {
     onVariants(selector().withBuildType("nonMinifiedRelease")) { v ->
-        v.signingConfig.setConfig(android.signingConfigs.getByName("debug"))
+        v.signingConfig.setConfig(android.signingConfigs.getByName("release"))
     }
     onVariants(selector().withBuildType("benchmarkRelease")) { v ->
-        v.signingConfig.setConfig(android.signingConfigs.getByName("debug"))
+        v.signingConfig.setConfig(android.signingConfigs.getByName("release"))
     }
 }
 
