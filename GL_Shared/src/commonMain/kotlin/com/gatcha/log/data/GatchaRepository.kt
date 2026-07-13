@@ -147,23 +147,40 @@ class GatchaRepository(accountId: String = "guest") {
         webCookie = securePrefs.getString(KEY_HOYO_WEBCOOKIE, "") ?: "",
     )
 
-    fun saveHoyolab(config: HoyolabConfig) {
-        securePrefs.putString(KEY_HOYO_LTUID, config.ltuid)
-        securePrefs.putString(KEY_HOYO_LTOKEN, config.ltoken)
-        securePrefs.putString(KEY_HOYO_COOKIETOKEN, config.cookieToken)
-        securePrefs.putString(KEY_HOYO_WEBCOOKIE, config.webCookie)
+    /**
+     * @return 토큰이 암호화 저장소에 실제로 들어갔는지. false 면 보안 저장소를 못 써서
+     * **토큰이 저장되지 않았다**(평문 폴백 없음) — 호출부는 [secureStorageError] 를 사용자에게 알려야 한다.
+     */
+    fun saveHoyolab(config: HoyolabConfig): Boolean {
+        val tokens = listOf(
+            KEY_HOYO_LTUID to config.ltuid,
+            KEY_HOYO_LTOKEN to config.ltoken,
+            KEY_HOYO_COOKIETOKEN to config.cookieToken,
+            KEY_HOYO_WEBCOOKIE to config.webCookie,
+        )
+        val hasToken = tokens.any { (_, v) -> v.isNotBlank() }
+        val secureOk = tokens.map { (k, v) -> securePrefs.putString(k, v) }.all { it }
+
         prefs.putString(KEY_HOYO_GI, config.genshinUid)
         prefs.putString(KEY_HOYO_HSR, config.hsrUid)
         prefs.putString(KEY_HOYO_ZZZ, config.zzzUid)
         changed()
+        return !hasToken || secureOk
     }
+
+    /** 보안 저장소(EncryptedSharedPreferences/Keychain)를 못 쓰는 사유. 정상이면 null. */
+    val secureStorageError: String? get() = securePrefs.lastError
 
     /** 평문 prefs 에 남아있던 기존 토큰을 최초 1회 암호화 저장소로 이전하고 평문 키는 삭제한다. */
     private fun migrateLegacyTokens() {
         val legacyKeys = listOf(KEY_HOYO_LTUID, KEY_HOYO_LTOKEN, KEY_HOYO_COOKIETOKEN, KEY_HOYO_WEBCOOKIE)
         if (legacyKeys.none { prefs.contains(it) }) return
-        legacyKeys.forEach { k -> prefs.getString(k, null)?.let { securePrefs.putString(k, it) } }
-        legacyKeys.forEach { prefs.remove(it) }
+        // 암호화 저장에 실패하면 평문 키를 지우지 않는다 — 지우면 토큰이 통째로 증발한다.
+        val moved = legacyKeys.all { k ->
+            val v = prefs.getString(k, null) ?: return@all true
+            securePrefs.putString(k, v)
+        }
+        if (moved) legacyKeys.forEach { prefs.remove(it) }
     }
 
     // ---------------------------------------------------------------- 테마 강조색

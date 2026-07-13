@@ -77,6 +77,13 @@ actual class SecureKeyValueStore actual constructor(private val name: String) {
     var lastAddStatus: Int = 0
         private set
 
+    private var error: String? = null
+
+    /** Keychain 쓰기가 한 번이라도 실패했으면 false — 그 뒤로는 토큰이 저장되지 않는 상태다. */
+    actual val isSecure: Boolean get() = error == null
+
+    actual val lastError: String? get() = error
+
     actual fun getString(key: String, default: String?): String? = memScoped {
         val query = CFDictionaryCreateMutable(null, 5, kCFTypeDictionaryKeyCallBacks.ptr, kCFTypeDictionaryValueCallBacks.ptr)
         val serviceRef = CFBridgingRetain(name as NSString)
@@ -101,11 +108,11 @@ actual class SecureKeyValueStore actual constructor(private val name: String) {
         }
     }
 
-    actual fun putString(key: String, value: String) {
+    actual fun putString(key: String, value: String): Boolean {
         // Keychain 은 update 가 번거로워 삭제 후 추가 (단일 토큰 저장 용도라 충분)
         remove(key)
 
-        val data = (value as NSString).dataUsingEncoding(NSUTF8StringEncoding) ?: return
+        val data = (value as NSString).dataUsingEncoding(NSUTF8StringEncoding) ?: return false
         val query = CFDictionaryCreateMutable(null, 5, kCFTypeDictionaryKeyCallBacks.ptr, kCFTypeDictionaryValueCallBacks.ptr)
         val serviceRef = CFBridgingRetain(name as NSString)
         val accountRef = CFBridgingRetain(key as NSString)
@@ -117,18 +124,23 @@ actual class SecureKeyValueStore actual constructor(private val name: String) {
         CFDictionaryAddValue(query, kSecAttrAccessible, kSecAttrAccessibleAfterFirstUnlock)
 
         lastAddStatus = SecItemAdd(query, null)
-        if (lastAddStatus != errSecSuccess) {
-            // 진단용 — Keychain 쓰기 실패를 무음으로 넘기면 HoYoLAB 토큰이 통째로 사라져
+        val ok = lastAddStatus == errSecSuccess
+        if (!ok) {
+            // Keychain 쓰기 실패를 무음으로 넘기면 HoYoLAB 토큰이 통째로 사라져
             // 연동 기능 전체가 조용히 죽는다. -34018 = errSecMissingEntitlement
             // (사이드로드 재서명으로 keychain-access-groups entitlement 가 깨진 경우 발생).
             // 시스템 로그에서 "GatchaKeychain" 으로 검색.
+            error = "Keychain 저장 실패 (status=$lastAddStatus)"
             println("GatchaKeychain: SecItemAdd 실패 status=$lastAddStatus (service=$name, key=$key)")
+        } else {
+            error = null
         }
 
         CFRelease(query)
         CFRelease(serviceRef)
         CFRelease(accountRef)
         CFRelease(dataRef)
+        return ok
     }
 
     actual fun contains(key: String): Boolean = getString(key, null) != null
