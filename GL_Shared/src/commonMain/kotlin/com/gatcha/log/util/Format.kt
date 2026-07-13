@@ -29,6 +29,20 @@ fun fixed(value: Double, digits: Int): String {
     return "$sign$intPart.$fracPart"
 }
 
+/**
+ * 축약 통화 — 10,000 이상은 "1.3만"(반올림), 미만은 "5,000원".
+ * 가챠 리포트 '5성 단가' 등 좁은 칸용. 양 플랫폼이 이 함수를 공유한다(표기 갈림 방지).
+ */
+fun wonShort(v: Long): String = if (v >= 10_000) "${fixed(v / 10_000.0, 1)}만" else won(v)
+
+/** 가챠 리포트 게임 키(genshin/hsr/starrail/zzz) → 약칭(GI/HSR/ZZZ). */
+fun gachaAbbr(key: String): String = when (key) {
+    "genshin" -> "GI"
+    "hsr", "starrail" -> "HSR"
+    "zzz" -> "ZZZ"
+    else -> key.uppercase()
+}
+
 /** 천 단위 콤마 삽입 (예: -1234567 → "-1,234,567") */
 private fun Long.withCommas(): String {
     val negative = this < 0

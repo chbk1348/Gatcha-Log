@@ -64,12 +64,6 @@ enum DateMillis {
     }
 }
 
-/// 달력 칸 컴팩트 금액 — "1.2만", "3천", "500".
-func compactAmount(_ v: Int64) -> String {
-    if v >= 10_000 {
-        let man = v / 10_000, rem = (v % 10_000) / 1_000
-        return rem == 0 ? "\(man)만" : "\(man).\(rem)만"
-    }
-    if v >= 1_000 { return "\(v / 1_000)천" }
-    return "\(v)"
-}
+// (제거) compactAmount — 호출부 없는 사문화 코드였고, 만 단위를 버림 처리해
+// Android 의 반올림 표기(util/Format.kt wonShort)와도 어긋나 있었다. 축약 표기가 필요하면
+// 공유 소스인 FormatKt.wonShort(v:) 를 쓸 것.

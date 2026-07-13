@@ -15,20 +15,15 @@ struct GachaCalculatorSection: View {
     private var game: GachaGameRate { GachaRateData.shared.byKey(key: gameKey) ?? GachaRateData.shared.games[0] }
     private var banner: GachaBannerRate { game.banner(type: bannerType) ?? game.character ?? game.standard ?? game.games_firstBanner }
 
-    // 파생 계산 묶음 (CalcResult 는 파일 스코프 — 서브뷰에 값으로 전달)
+    // 파생 계산 묶음 — 계산 자체는 commonMain(GachaCalc.kt)이 단일 소스. Swift 는 표시용으로만 감싼다.
+    // (예전엔 같은 식이 Kotlin·Swift 두 벌로 복붙돼 한쪽 튜닝이 반대편에 반영되지 않았다.)
     private var calc: CalcResult {
         let cur = Int(currency) ?? 0
-        let perPull = Int(banner.perPull)
-        let pity = min(max(Int(pityStr) ?? 0, 0), Int(banner.hardPity) - 1)
-        let possible = perPull > 0 ? cur / perPull : 0
-        let pullsToHard = max(Int(banner.hardPity) - pity, 0)
-        let currencyToHard = pullsToHard * perPull
-        let additionalNeeded = max(currencyToHard - cur, 0)
-        let additionalPulls = perPull > 0 ? Int(ceil(Double(additionalNeeded) / Double(perPull))) : 0
-        let estCost = Int64(additionalPulls) * Int64(banner.wonPerPull)
-        let p = GachaRateData.shared.pickupProb(n: Int32(possible), startPity: Int32(pity), b: banner, guaranteed: guaranteed)
-        return CalcResult(cur: cur, pity: pity, possible: possible, pullsToHard: pullsToHard, currencyToHard: currencyToHard,
-                          additionalNeeded: additionalNeeded, prob: Int((p * 100).rounded()), estCost: estCost)
+        let c = GachaCalcKt.computeCurrencyCalc(currency: Int32(cur), pityRaw: Int32(Int(pityStr) ?? 0), banner: banner)
+        let p = GachaRateData.shared.pickupProb(n: c.possiblePulls, startPity: c.pity, b: banner, guaranteed: guaranteed)
+        return CalcResult(cur: cur, pity: Int(c.pity), possible: Int(c.possiblePulls), pullsToHard: Int(c.pullsToHard),
+                          currencyToHard: Int(c.currencyToHard), additionalNeeded: Int(c.additionalNeeded),
+                          prob: Int((p * 100).rounded()), estCost: Int64(c.estCost))
     }
 
     var body: some View {
@@ -150,16 +145,10 @@ private struct ResultsCard: View {
     private var divider: some View {
         Divider().overlay(Color.black.opacity(0.06)).padding(.vertical, 14)
     }
+    // 시나리오 계산도 commonMain(GachaCalc.kt) 단일 소스 — 천장·50/50 상수가 여기서 갈라지지 않도록.
     private func scenario() -> (bestPulls: Int, worstPulls: Int, bestSub: String, worstSub: String) {
-        let hp = Int(banner.hardPity), sp = Int(banner.softPity), pityVal = c.pity
-        if banner.no5050 || !banner.has5050 {
-            return (Int((Double(sp) * 0.7).rounded()) * qty, hp * qty, "조기 획득", "천장 도달")
-        }
-        let avgSingle = Int((Double(hp) * 0.83).rounded())
-        let bestSingle = guaranteed ? max(1, avgSingle - pityVal) : max(1, Int((Double(avgSingle) * 0.6).rounded()) - pityVal)
-        let worstSingle = guaranteed ? hp - pityVal : (hp - pityVal) + hp
-        return (max(1, bestSingle) * qty, max(1, worstSingle) * qty,
-                guaranteed ? "보장 + 빠른 획득" : "50/50 성공", "50/50 실패 → 천장")
+        let s = GachaCalcKt.computeScenario(banner: banner, pity: Int32(c.pity), guaranteed: guaranteed, qty: Int32(qty))
+        return (Int(s.bestPulls), Int(s.worstPulls), s.bestSub, s.worstSub)
     }
 }
 

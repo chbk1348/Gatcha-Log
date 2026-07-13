@@ -22,6 +22,8 @@ import androidx.compose.ui.unit.sp
 import com.gatcha.log.data.GachaBannerRate
 import com.gatcha.log.data.GachaRateData
 import com.gatcha.log.data.PityState
+import com.gatcha.log.data.computeCurrencyCalc
+import com.gatcha.log.data.computeScenario
 import com.gatcha.log.ui.components.GlassCard
 import com.gatcha.log.ui.components.GlgChip
 import com.gatcha.log.ui.components.GlgSwitch
@@ -82,7 +84,7 @@ fun GachaCalculatorSection(pity: Map<String, PityState>) {
     // 파생 계산 (순수 함수 → GachaCalcLogic.kt)
     val cur = currency.toIntOrNull() ?: 0
     val c = computeCurrencyCalc(cur, pityStr.toIntOrNull() ?: 0, banner)
-    val prob = (GachaRateData.pickupProb(c.possiblePulls, c.pityVal, banner, guaranteed) * 100).roundToInt()
+    val prob = (GachaRateData.pickupProb(c.possiblePulls, c.pity, banner, guaranteed) * 100).roundToInt()
     val probColor = when {
         prob >= 70 -> OkGreen
         prob >= 40 -> WarnAmber
@@ -110,7 +112,7 @@ fun GachaCalculatorSection(pity: Map<String, PityState>) {
 
     // 결과 카드 (확률·재화·시나리오 통합 — 글래스 표면 1장으로 합쳐 전환 시 재합성 비용 최소화)
     Spacer(Modifier.height(13.dp))
-    val s = computeScenario(banner, c.pityVal, guaranteed, qty)
+    val s = computeScenario(banner, c.pity, guaranteed, qty)
     GlassCard(shape = RoundedCornerShape(24.dp), modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp)) {
             // 확보 확률
