@@ -531,7 +531,11 @@ class SpendingViewModel : ViewModel() {
     // ----------------------------------------------------------------- HoYoLAB
     fun updateHoyolabConfig(config: HoyolabConfig) {
         _hoyolabConfig.value = config
-        repo.saveHoyolab(config)
+        // 보안 저장소를 못 쓰면 토큰은 저장되지 않는다(평문 폴백 금지) — 조용히 넘기지 않고 알린다.
+        if (!repo.saveHoyolab(config)) {
+            emitStatus("보안 저장소를 쓸 수 없어 토큰을 저장하지 못했어요 — 앱을 재설치하거나 기기를 재시작해주세요")
+            return
+        }
         // 새 토큰이 들어왔으면 만료 플래그 자동 클리어 — 홈 상단 배너 즉시 사라짐.
         if (config.isLinked && config.ltoken.isNotBlank()) {
             appSettings.hoyoTokenExpired = false
@@ -1154,7 +1158,10 @@ class SpendingViewModel : ViewModel() {
                     // 게임 공지·뉴스(공개 API·인증 불필요) — 지원 게임 병렬, 최신순. 부가 콘텐츠라 준비 완료 뒤 로드.
                     val newsDeferred = GameData.games.filter { it.newsSlug != null }
                         .map { g -> async { NewsApi.notices(g) } }
-                    val news = newsDeferred.flatMap { it.await() }.sortedByDescending { it.createdAtMillis }
+                    // 실패(null)한 게임은 건너뛴다 — 빈 목록으로 합쳐지면 '공지 없음'처럼 보인다.
+                    val news = newsDeferred.mapNotNull { it.await() }
+                        .flatten()
+                        .sortedByDescending { it.createdAtMillis }
                     if (news.isNotEmpty()) _gameNews.value = news
 
                     // 2) 게임 정보 탭 전용 — 월간 원장 + 전투 진행도(게임 간 병렬, 게임 내 순차로 단일 호스트 보호)
@@ -1287,11 +1294,22 @@ class SpendingViewModel : ViewModel() {
     private val _redeemedCodes = MutableStateFlow<Set<String>>(emptySet())
     val redeemedCodes: StateFlow<Set<String>> = _redeemedCodes.asStateFlow()
 
+    /** 코드 수집 실패(네트워크·파싱). true 면 '코드 없음'이 아니라 '못 불러옴' — 화면은 재시도를 제공한다. */
+    private val _codesFailed = MutableStateFlow(false)
+    val codesFailed: StateFlow<Boolean> = _codesFailed.asStateFlow()
+
     /** 게임의 현재 활성 선물코드를 자동 수집해 [activeCodes] 로 노출. */
     fun loadActiveCodes(gameKey: String) {
         viewModelScope.launch {
             _codesLoading.value = true
-            _activeCodes.value = withContext(Dispatchers.IO) { GiftCodeApi.activeCodes(gameKey) }
+            val codes = withContext(Dispatchers.IO) { GiftCodeApi.activeCodes(gameKey) }
+            // 실패(null)면 기존 목록을 지우지 않고 실패 상태만 세운다 — 빈 목록으로 위장하지 않는다.
+            if (codes == null) {
+                _codesFailed.value = true
+            } else {
+                _codesFailed.value = false
+                _activeCodes.value = codes
+            }
             _codesLoading.value = false
         }
     }

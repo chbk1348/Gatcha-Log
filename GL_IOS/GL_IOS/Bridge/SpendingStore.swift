@@ -81,6 +81,8 @@ final class SpendingStore: ObservableObject {
     @Published private(set) var redeemState: RedeemState = RedeemStateIdle.shared
     @Published private(set) var activeCodes: [GiftCode] = []
     @Published private(set) var codesLoading: Bool = false
+    /// 코드 수집 실패 — '활성 코드 없음'과 구분(재시도 UI 표시용).
+    @Published private(set) var codesFailed: Bool = false
     @Published private(set) var redeemedCodes: Set<String> = []
 
     // Phase 5 (홈)
@@ -172,6 +174,7 @@ final class SpendingStore: ObservableObject {
         bind(vm.redeemState) { [weak self] in self?.redeemState = $0 }
         bind(vm.activeCodes) { [weak self] in self?.activeCodes = $0 }
         bind(vm.codesLoading) { [weak self] in self?.codesLoading = $0.boolValue }
+        bind(vm.codesFailed) { [weak self] in self?.codesFailed = $0.boolValue }
         bind(vm.redeemedCodes) { [weak self] in self?.redeemedCodes = $0 }
         // Phase 5
         bind(vm.homeCards) { [weak self] in self?.homeCards = $0 }
