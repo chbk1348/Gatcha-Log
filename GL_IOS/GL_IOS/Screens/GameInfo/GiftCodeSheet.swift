@@ -87,6 +87,15 @@ struct GiftCodePage: View {
     @ViewBuilder private var codeList: some View {
         if store.codesLoading && store.activeCodes.isEmpty {
             GLGGiftCodeSkeleton()
+        } else if store.codesFailed && store.activeCodes.isEmpty {
+            // 수집 실패는 '코드 없음'과 다르다 — 사유를 밝히고 재시도를 준다. (Android 파리티)
+            VStack(alignment: .leading, spacing: 6) {
+                Text("코드를 불러오지 못했어요").font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary)
+                Button { store.loadActiveCodes(selected) } label: {
+                    Text("다시 시도").font(.pretendard(size: 12, weight: .bold)).foregroundStyle(accent.primary)
+                }.buttonStyle(.plain)
+            }
+            .padding(.vertical, 6)
         } else if store.activeCodes.isEmpty {
             Text("지금은 활성 코드가 없어요").font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary).padding(.vertical, 6)
         } else {

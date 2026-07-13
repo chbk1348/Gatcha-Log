@@ -23,10 +23,11 @@ data class NewsItem(
  * 엔드포인트: `https://api.ennead.cc/mihoyo/{slug}/news/notices?lang=ko-kr` (top-level 배열).
  */
 object NewsApi {
-    suspend fun notices(game: Game): List<NewsItem> {
+    /** @return 성공 시 공지 목록, **네트워크·파싱 실패 시 null**(빈 목록과 구분 — 호출부가 기존 값을 유지할 수 있게). */
+    suspend fun notices(game: Game): List<NewsItem>? {
         val slug = game.newsSlug ?: return emptyList()
         val res = Net.get("https://api.ennead.cc/mihoyo/$slug/news/notices?lang=ko-kr")
-        if (!res.isOk) return emptyList()
+        if (!res.isOk) return null
         return runCatching {
             val arr = JSONArray(res.body)
             (0 until arr.length()).mapNotNull { i ->
@@ -41,6 +42,6 @@ object NewsApi {
                     url = o.optString("url"),
                 )
             }
-        }.getOrDefault(emptyList())
+        }.getOrNull()
     }
 }

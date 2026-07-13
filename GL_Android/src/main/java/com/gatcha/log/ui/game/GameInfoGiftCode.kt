@@ -12,6 +12,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -42,6 +43,7 @@ internal fun GiftCodePage(
     state: RedeemState,
     activeCodes: List<GiftCode>,
     codesLoading: Boolean,
+    codesFailed: Boolean,
     redeemedCodes: Set<String>,
     onLoadCodes: (String) -> Unit,
     onRedeem: (String, String) -> Unit,
@@ -100,6 +102,12 @@ internal fun GiftCodePage(
                         Spacer(Modifier.height(8.dp))
                         when {
                             codesLoading && activeCodes.isEmpty() -> GiftCodeSkeleton()
+                            // 수집 실패는 '코드 없음'과 다르다 — 사유를 밝히고 재시도를 준다.
+                            codesFailed && activeCodes.isEmpty() -> Column(Modifier.padding(vertical = 6.dp)) {
+                                Text("코드를 불러오지 못했어요", fontSize = 12.sp, color = TextSecondary)
+                                Spacer(Modifier.height(6.dp))
+                                GlgButton("다시 시도", onClick = { onLoadCodes(selected) }, height = 34.dp, modifier = Modifier.width(96.dp))
+                            }
                             activeCodes.isEmpty() -> Text("지금은 활성 코드가 없어요", fontSize = 12.sp, color = TextSecondary, modifier = Modifier.padding(vertical = 6.dp))
                             else -> {
                                 val unredeemed = activeCodes.filter { it.code !in redeemedCodes }.sortedByDescending { it.highlight }
@@ -249,8 +257,10 @@ private fun CodeRow(c: GiftCode, redeemed: Boolean, accent: Color, enabled: Bool
  */
 @Composable
 private fun CopyCodeButton(code: String, accent: Color) {
-    val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
+    // LocalClipboardManager 는 deprecated → LocalClipboard(suspend setClipEntry) 사용.
+    val clipboard = androidx.compose.ui.platform.LocalClipboard.current
     val context = androidx.compose.ui.platform.LocalContext.current
+    val scope = rememberCoroutineScope()
     var copied by remember { mutableStateOf(false) }
     LaunchedEffect(copied) {
         if (copied) { kotlinx.coroutines.delay(1200); copied = false }
@@ -261,7 +271,10 @@ private fun CopyCodeButton(code: String, accent: Color) {
         color = accent.copy(alpha = 0.12f),
         border = BorderStroke(1.dp, accent.copy(alpha = 0.4f)),
         modifier = Modifier.clickable {
-            clipboard.setText(androidx.compose.ui.text.AnnotatedString(code))
+            scope.launch {
+                val clip = android.content.ClipData.newPlainText("선물코드", code)
+                clipboard.setClipEntry(androidx.compose.ui.platform.ClipEntry(clip))
+            }
             copied = true
             android.widget.Toast.makeText(context, "코드를 복사했어요", android.widget.Toast.LENGTH_SHORT).show()
         },

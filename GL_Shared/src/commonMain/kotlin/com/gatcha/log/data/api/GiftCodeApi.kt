@@ -20,11 +20,16 @@ object GiftCodeApi {
 
     private val GAME = mapOf("genshin" to "genshin", "hsr" to "hkrpg", "zzz" to "nap")
 
-    /** 게임키(genshin/hsr/zzz)의 현재 활성 코드 목록. */
-    suspend fun activeCodes(gameKey: String): List<GiftCode> {
+    /**
+     * 게임키(genshin/hsr/zzz)의 현재 활성 코드 목록.
+     *
+     * @return 성공 시 목록(활성 코드가 없으면 빈 목록), **네트워크·파싱 실패 시 null**.
+     * 예전엔 실패도 빈 목록이라 화면에 "코드 없음"으로 표시돼, 못 불러온 건지 진짜 없는 건지 구분할 수 없었다.
+     */
+    suspend fun activeCodes(gameKey: String): List<GiftCode>? {
         val g = GAME[gameKey] ?: return emptyList()
         val res = Net.get("https://hoyo-codes.seria.moe/codes?game=$g")
-        if (!res.isOk) return emptyList()
+        if (!res.isOk) return null
         return runCatching {
             val arr = JSONObject(res.body).optJSONArray("codes") ?: return emptyList()
             (0 until arr.length()).mapNotNull { i ->
@@ -36,7 +41,7 @@ object GiftCodeApi {
                     GiftCode(code, formatItems(items), isLivestream(items))
                 }
             }.distinctBy { it.code }
-        }.getOrDefault(emptyList())
+        }.getOrNull()   // 파싱 실패도 '실패'로 구분 (빈 목록으로 위장하지 않음)
     }
 
     /**

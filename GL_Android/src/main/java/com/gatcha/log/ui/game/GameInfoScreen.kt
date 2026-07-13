@@ -118,6 +118,7 @@ fun GameInfoScreen(
     val redeemState by viewModel.redeemState.collectAsState()
     val activeCodes by viewModel.activeCodes.collectAsState()
     val codesLoading by viewModel.codesLoading.collectAsState()
+    val codesFailed by viewModel.codesFailed.collectAsState()
     val redeemedCodes by viewModel.redeemedCodes.collectAsState()
 
     // 홈 대시보드 카드에서 넘어온 경우 해당 섹션으로 스크롤 앵커링(1회성).
@@ -192,6 +193,7 @@ fun GameInfoScreen(
                 state = redeemState,
                 activeCodes = activeCodes,
                 codesLoading = codesLoading,
+                codesFailed = codesFailed,
                 redeemedCodes = redeemedCodes,
                 onLoadCodes = { key -> viewModel.loadActiveCodes(key) },
                 onRedeem = { key, c -> viewModel.redeemGiftCode(key, c) },
