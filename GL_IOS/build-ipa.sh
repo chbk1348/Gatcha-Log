@@ -32,6 +32,13 @@ VERSION=$(grep "CFBundleShortVersionString" project.yml | sed 's/.*"\(.*\)".*/\1
 IPA_NAME="Gatcha-Log-${VERSION}.ipa"
 
 echo "═══ 1/3 미서명 아카이브 빌드 (v${VERSION}) ═══"
+# 로그는 파일로 받는다. 예전엔 xcodebuild 를 grep 에 파이프했는데,
+#   ① `warning: [^d]` 패턴이 `warning: deprecated…` 를 통째로 걸러내 경고가 안 보였고
+#   ② `|| true` 가 xcodebuild 의 실패 종료코드를 삼켰다.
+# 실제 exit code + "ARCHIVE SUCCEEDED" 문자열 양쪽으로 검증한다.
+BUILD_LOG="build/xcodebuild-archive.log"
+mkdir -p build
+set +e
 xcodebuild archive \
   -project GL_IOS.xcodeproj \
   -scheme GL_IOS \
@@ -41,10 +48,22 @@ xcodebuild archive \
   CODE_SIGN_IDENTITY="" \
   CODE_SIGNING_REQUIRED=NO \
   CODE_SIGNING_ALLOWED=NO \
-  | grep -E "error:|warning: [^d]|ARCHIVE|BUILD" || true
+  > "$BUILD_LOG" 2>&1
+XCODE_EXIT=$?
+set -e
+
+echo "── 경고 (${BUILD_LOG}) ──"
+grep -E "warning:" "$BUILD_LOG" | sort -u | head -30 || echo "  (없음)"
+
+if [ $XCODE_EXIT -ne 0 ] || ! grep -q "ARCHIVE SUCCEEDED" "$BUILD_LOG"; then
+  echo "❌ 아카이브 실패 (exit=$XCODE_EXIT)"
+  grep -E "error:|BUILD FAILED|ARCHIVE FAILED" "$BUILD_LOG" | head -20
+  echo "   전체 로그: $BUILD_LOG"
+  exit 1
+fi
 
 if [ ! -d "$ARCHIVE_PATH/Products/Applications/Gatcha-Log.app" ]; then
-  echo "❌ 아카이브 실패 — 앱 번들이 없습니다"
+  echo "❌ 아카이브 실패 — 앱 번들이 없습니다 (로그: $BUILD_LOG)"
   exit 1
 fi
 

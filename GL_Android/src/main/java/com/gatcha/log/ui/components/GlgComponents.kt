@@ -295,7 +295,7 @@ fun GlgChip(
     }
     val clickable = onClick != null && enabled
     Surface(
-        modifier = if (clickable) modifier.clickable { onClick?.invoke() } else modifier,
+        modifier = if (clickable) modifier.clickable { onClick() } else modifier,
         shape = RoundedCornerShape(14.dp),
         color = if (selected) color else Color.White,
         border = if (selected) null else BorderStroke(1.dp, ChipIdleBorder),
