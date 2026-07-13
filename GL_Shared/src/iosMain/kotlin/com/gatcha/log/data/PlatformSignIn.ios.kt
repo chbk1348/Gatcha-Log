@@ -50,3 +50,8 @@ internal actual suspend fun platformGoogleSignIn(autoSelectOnly: Boolean): Platf
         }
     }
 }
+
+/** iOS 는 로그아웃 시 정리할 플랫폼 인증 상태가 없다(웹 OAuth 세션은 브라우저가 관리). */
+internal actual suspend fun platformSignOut() {
+    // no-op
+}
