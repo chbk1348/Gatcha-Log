@@ -19,6 +19,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
@@ -128,15 +129,14 @@ private fun DrawScope.drawBrandStar(width: Float) {
     drawPath(path, BrandNavy)
 }
 
-/** 앱 아이콘과 같은 그라운드 — 화이트 + 중앙 민트 글로우. 스플래시·온보딩·로딩이 공유해 이음매를 없앤다. */
+/**
+ * 앱 아이콘과 같은 그라운드 — **순백**. 스플래시·온보딩·로딩이 공유해 이음매를 없앤다.
+ *
+ * v27.40.0 까지는 중앙에 민트 글로우(alpha 0.16 radial)를 깔았는데, v27.41.0 에서 아이콘을 순백으로
+ * 정리하면서 화면 그라운드도 같이 맞췄다. 색은 링·별이 낸다.
+ */
 @Composable
-fun brandGroundBrush(): Brush {
-    val accent = LocalAccent.current
-    return Brush.radialGradient(
-        colors = listOf(accent.copy(alpha = 0.16f), Color.White),
-        radius = 900f,
-    )
-}
+fun brandGroundBrush(): Brush = SolidColor(Color.White)
 
 /** 온보딩 하단 페이지 인디케이터 — 현재 페이지만 캡슐로 늘어난다. */
 @Composable
