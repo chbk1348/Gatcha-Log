@@ -25,6 +25,7 @@
 		4555A80BB2A3E811ABE1E7B6 /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF8DB30C236AF02D78678047 /* OnboardingView.swift */; };
 		4BAE0AF1CFCBD6A920A5E1E6 /* AppMarkLogo.swift in Sources */ = {isa = PBXBuildFile; fileRef = F22E3DACB374BECF7DBF2B1C /* AppMarkLogo.swift */; };
 		5037A67CE3B8E588DCC2F809 /* GLGChip.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEA0ECFE89434FBD76D2E252 /* GLGChip.swift */; };
+		516633AC40C13ACD8FEE9995 /* ImageViewer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2362CDCB428FA687B73D5535 /* ImageViewer.swift */; };
 		53DA02B1AA33DC0B59A484D3 /* Pretendard-Medium.otf in Resources */ = {isa = PBXBuildFile; fileRef = B0AC89C74883ECB4D4534D65 /* Pretendard-Medium.otf */; };
 		57E3C89A46357C998CEAD839 /* GlassButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 607DE67679739531B7DC4652 /* GlassButton.swift */; };
 		5A20E9FA5EC5B018222B4775 /* Pretendard-Bold.otf in Resources */ = {isa = PBXBuildFile; fileRef = EDA6932189E1AD9D46B8D081 /* Pretendard-Bold.otf */; };
@@ -83,6 +84,7 @@
 		1B23BEFE8CD250421E457609 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		1D2F3B501B160FF2E015D19D /* GameSegmentControl.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameSegmentControl.swift; sourceTree = "<group>"; };
 		1E6A1754F38C5D6D3F9A2605 /* NotificationPermission.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationPermission.swift; sourceTree = "<group>"; };
+		2362CDCB428FA687B73D5535 /* ImageViewer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageViewer.swift; sourceTree = "<group>"; };
 		24406A47C5595952918ABF5B /* HoyolabLinkView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HoyolabLinkView.swift; sourceTree = "<group>"; };
 		27054819557D026D9CB4FE7D /* GoogleService-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = "GoogleService-Info.plist"; sourceTree = "<group>"; };
 		2EAD6CB38E6E41AADF430D6E /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
@@ -307,6 +309,7 @@
 				FEA0ECFE89434FBD76D2E252 /* GLGChip.swift */,
 				716CDDC7D2BB3BEC9580864E /* GLGSkeleton.swift */,
 				32BBA1BA7898178C15DF09E1 /* HeaderButton.swift */,
+				2362CDCB428FA687B73D5535 /* ImageViewer.swift */,
 				3DAD28E0822C83C22585AFEA /* Motion.swift */,
 				1E6A1754F38C5D6D3F9A2605 /* NotificationPermission.swift */,
 				10A462DEE6CE546DFBF6BBA9 /* PillField.swift */,
@@ -460,6 +463,7 @@
 				21D7656AF322C290D874AFFA /* HomeComponents.swift in Sources */,
 				BEDE307204D0F9A558DFFEB0 /* HomeView.swift in Sources */,
 				BCE6291BF8A244C01AF6F8F1 /* HoyolabLinkView.swift in Sources */,
+				516633AC40C13ACD8FEE9995 /* ImageViewer.swift in Sources */,
 				76C8B5CC8DB8D93A0C9CE484 /* LoginView.swift in Sources */,
 				80AB71E69B0A2282D237A141 /* Motion.swift in Sources */,
 				E384711C3477C7DAD49E2A01 /* MyPageView.swift in Sources */,

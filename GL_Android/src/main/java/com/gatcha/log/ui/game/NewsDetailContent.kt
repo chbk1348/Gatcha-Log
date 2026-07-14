@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material3.Icon
@@ -21,6 +22,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -38,6 +42,7 @@ import com.gatcha.log.data.api.NewsItem
 import com.gatcha.log.ui.components.GameTagSize
 import com.gatcha.log.ui.components.GlgGameTag
 import com.gatcha.log.ui.components.GlassCard
+import com.gatcha.log.ui.components.GlgImageViewer
 import com.gatcha.log.ui.components.GlgBadge
 import com.gatcha.log.ui.components.SkeletonBox
 import com.gatcha.log.ui.theme.DividerColor
@@ -67,6 +72,16 @@ fun NewsDetailContent(viewModel: SpendingViewModel, item: NewsItem) {
 
     LaunchedEffect(item.id) { viewModel.loadNewsArticle(item) }
 
+    // 본문 이미지 탭 → 전체화면 뷰어(확대·저장). 공지 이미지는 대개 표·수치라 본문 폭에선 안 읽힌다.
+    var viewerUrl by remember { mutableStateOf<String?>(null) }
+    viewerUrl?.let { url ->
+        GlgImageViewer(
+            url = url,
+            onDismiss = { viewerUrl = null },
+            onSaved = { viewModel.showStatus(it) },
+        )
+    }
+
     Column(Modifier.fillMaxWidth().padding(top = 4.dp)) {
         // 머리말 — 게임 배지 · 제목 · 게시일
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -80,6 +95,11 @@ fun NewsDetailContent(viewModel: SpendingViewModel, item: NewsItem) {
 
         GlassCard(modifier = Modifier.fillMaxWidth()) {
             Column(Modifier.padding(16.dp)) {
+                // 본문은 길게 눌러 드래그 선택·복사할 수 있다(공지의 코드·일정·수치를 옮겨 적을 일이 잦다).
+                // Compose Text 는 기본적으로 선택이 안 되므로 SelectionContainer 로 감싼다.
+                // 감싸는 범위는 본문뿐 — '브라우저에서 보기'까지 넣으면 버튼이 선택 대상이 되어 탭이 무뎌진다.
+                SelectionContainer {
+                Column {
                 when {
                     loading -> NewsBodySkeleton()
 
@@ -100,7 +120,8 @@ fun NewsDetailContent(viewModel: SpendingViewModel, item: NewsItem) {
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .padding(bottom = 12.dp)
-                                    .clip(RoundedCornerShape(12.dp)),
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .clickable { viewerUrl = block.url },
                             )
                         }
                     }
@@ -115,7 +136,8 @@ fun NewsDetailContent(viewModel: SpendingViewModel, item: NewsItem) {
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .padding(bottom = 12.dp)
-                                    .clip(RoundedCornerShape(12.dp)),
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .clickable { viewerUrl = item.bannerUrl },
                             )
                         }
                         if (item.summary.isNotBlank()) {
@@ -143,6 +165,8 @@ fun NewsDetailContent(viewModel: SpendingViewModel, item: NewsItem) {
                             )
                         }
                     }
+                }
+                }
                 }
 
                 // 원문 링크 — 본문을 잘 받았더라도 항상 남겨둔다(표·동영상 등 앱이 못 살리는 요소가 있다).

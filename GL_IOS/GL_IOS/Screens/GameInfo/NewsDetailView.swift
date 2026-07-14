@@ -18,6 +18,9 @@ struct NewsDetailView: View {
     @Environment(\.openURL) private var openURL
     @Environment(\.glgAccent) private var accent
 
+    /// 본문 이미지 탭 → 전체화면 뷰어(확대·저장). 공지 이미지는 대개 표·수치라 본문 폭에선 안 읽힌다.
+    @State private var viewerUrl: String? = nil
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
@@ -48,6 +51,8 @@ struct NewsDetailView: View {
                                         .foregroundStyle(GLGColor.textPrimary)
                                         .lineSpacing(5)
                                         .fixedSize(horizontal: false, vertical: true)
+                                        // 길게 눌러 선택·복사 — 공지의 코드·일정·수치를 옮겨 적을 일이 잦다.
+                                        .textSelection(.enabled)
                                 } else if let image = block as? NewsBlockImage {
                                     bodyImage(image.url)
                                 }
@@ -61,6 +66,7 @@ struct NewsDetailView: View {
                                     .foregroundStyle(GLGColor.textPrimary)
                                     .lineSpacing(5)
                                     .fixedSize(horizontal: false, vertical: true)
+                                    .textSelection(.enabled)
                                 Text("본문 전체는 브라우저에서 볼 수 있어요.")
                                     .font(.pretendard(size: 11))
                                     .foregroundStyle(GLGColor.textSecondary)
@@ -98,6 +104,14 @@ struct NewsDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
         .task(id: item.id) { store.loadNewsArticle(item) }
         .onDisappear { store.clearNewsArticle() }
+        .fullScreenCover(isPresented: Binding(
+            get: { viewerUrl != nil },
+            set: { if !$0 { viewerUrl = nil } }
+        )) {
+            if let u = viewerUrl {
+                GLGImageViewer(url: u, onDismiss: { viewerUrl = nil }, onSaved: { store.showStatus($0) })
+            }
+        }
     }
 
     /// 본문 이미지 — 폭에 맞춰 늘리고, 받아오는 동안엔 자리만 잡아 레이아웃이 튀지 않게.
@@ -114,6 +128,8 @@ struct NewsDetailView: View {
         }
         .frame(maxWidth: .infinity)
         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .contentShape(Rectangle())
+        .onTapGesture { viewerUrl = url }
     }
 
     /// 본문 로딩 — 문단 모양 스켈레톤(문단 끝줄만 짧게 해서 진짜 텍스트처럼 보이게).
