@@ -6,6 +6,7 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import androidx.core.app.NotificationCompat
@@ -61,7 +62,14 @@ actual object Notifier {
             return
         }
         ensureChannel(ctx)
-        val intent = ctx.packageManager.getLaunchIntentForPackage(ctx.packageName) ?: return
+        // 알림 탭 = 앱 복귀지, 앱 재실행이 아니다.
+        // getLaunchIntentForPackage 는 런처 아이콘을 누른 것과 같은 인텐트(ACTION_MAIN/LAUNCHER)라,
+        // 그대로 쓰면 이미 떠 있는 화면 위에 액티비티가 새로 뜬다 → 로딩 게이트부터 다시 시작되어
+        // 앱이 재시작한 것처럼 보인다. SINGLE_TOP 으로 기존 인스턴스를 재사용한다.
+        // (근본 보강: MainActivity 는 manifest 에서 launchMode=singleTask)
+        val intent = ctx.packageManager.getLaunchIntentForPackage(ctx.packageName)?.apply {
+            addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
+        } ?: return
         val pi = PendingIntent.getActivity(
             ctx, id, intent,
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
