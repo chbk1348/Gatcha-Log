@@ -16,6 +16,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.gatcha.log.data.CombatMode
 import com.gatcha.log.data.Game
+import com.gatcha.log.ui.components.GameTagSize
+import com.gatcha.log.ui.components.GlgGameTag
 import com.gatcha.log.ui.components.GlassCard
 import com.gatcha.log.ui.theme.DividerColor
 import com.gatcha.log.ui.theme.LocalAccent
@@ -29,7 +31,7 @@ internal fun CombatGameCard(game: Game, modes: List<CombatMode>) {
     GlassCard(shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 2.dp)) {
-                Box(Modifier.size(10.dp).background(game.color.toColor(), CircleShape))
+                GlgGameTag(game.displayName, size = GameTagSize.Small)
                 Spacer(Modifier.width(8.dp))
                 Text(game.shortName, fontWeight = FontWeight.Bold, fontSize = 15.sp)
             }

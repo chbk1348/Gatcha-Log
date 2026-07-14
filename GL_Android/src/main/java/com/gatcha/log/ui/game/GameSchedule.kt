@@ -46,6 +46,8 @@ import com.gatcha.log.data.collabTitle
 import com.gatcha.log.data.dhLabel
 import com.gatcha.log.data.isCollabBanner
 import com.gatcha.log.data.unpairedWeapons
+import com.gatcha.log.ui.components.GameTagSize
+import com.gatcha.log.ui.components.GlgGameTag
 import com.gatcha.log.ui.components.GlassCard
 import com.gatcha.log.ui.theme.DividerColor
 import com.gatcha.log.ui.theme.LocalAccent
@@ -289,7 +291,9 @@ fun ScheduleEntryRow(e: ScheduleEntry) {
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Box(Modifier.size(9.dp).clip(CircleShape).background(e.color))
+        // 게임 태그 — 예전엔 9dp 컬러 닷뿐이라 색을 외우지 않으면 어느 게임인지 알 수 없었다.
+        // (gameShort 를 만들어두고도 렌더에 쓰지 않고 있었다)
+        GlgGameTag(e.gameShort, size = GameTagSize.Small)
         Column(Modifier.weight(1f)) {
             Surface(color = kc.copy(alpha = 0.13f), shape = RoundedCornerShape(999.dp)) {
                 Text(e.kind, fontSize = 9.sp, fontWeight = FontWeight.Bold, color = kc, modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
@@ -345,9 +349,7 @@ private fun FeaturedVersionCard(vg: VersionGroup) {
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                Surface(color = c, shape = RoundedCornerShape(8.dp)) {
-                    Text(vg.game.abbr, fontSize = 11.sp, fontWeight = FontWeight.Black, color = Color.White, modifier = Modifier.padding(horizontal = 7.dp, vertical = 4.dp))
-                }
+                GlgGameTag(vg.game.displayName, size = GameTagSize.Small)
                 Text(if (vg.version.isNotBlank()) "버전 ${vg.version}" else vg.game.displayName, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TextPrimary, maxLines = 1)
                 Spacer(Modifier.weight(1f))
                 if (urgent) Surface(color = Urgent, shape = RoundedCornerShape(999.dp)) {
@@ -416,9 +418,7 @@ private fun SlimVersionRow(vg: VersionGroup) {
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            Surface(color = c, shape = RoundedCornerShape(8.dp)) {
-                Text(vg.game.abbr, fontSize = 11.sp, fontWeight = FontWeight.Black, color = Color.White, modifier = Modifier.padding(horizontal = 7.dp, vertical = 4.dp))
-            }
+            GlgGameTag(vg.game.displayName, size = GameTagSize.Small)
             if (vg.pickups.any { isCollabBanner(it) }) CollabChip()
             Column(Modifier.weight(1f)) {
                 Text(title, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)

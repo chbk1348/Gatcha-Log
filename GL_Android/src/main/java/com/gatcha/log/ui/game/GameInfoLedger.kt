@@ -17,6 +17,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.gatcha.log.data.GameData
 import com.gatcha.log.data.MonthlyLedger
+import com.gatcha.log.ui.components.GameTagSize
+import com.gatcha.log.ui.components.GlgGameTag
 import com.gatcha.log.ui.components.GlassCard
 import com.gatcha.log.ui.theme.LocalAccent
 import com.gatcha.log.ui.theme.ProgressEmpty
@@ -31,7 +33,7 @@ internal fun LedgerCard(ledger: MonthlyLedger) {
     GlassCard(shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(Modifier.size(10.dp).background(ledger.gameColor.toColor(), CircleShape))
+                GlgGameTag(ledger.game, size = GameTagSize.Small)
                 Spacer(Modifier.width(8.dp))
                 Text(GameData.byName(ledger.game).shortName, fontWeight = FontWeight.Bold, fontSize = 15.sp)
                 if (ledger.month > 0) {

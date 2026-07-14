@@ -145,7 +145,7 @@ struct DashCardSkeleton: View {
                 GLGSkeleton().frame(width: 90, height: 15)
                 ForEach(0..<rows, id: \.self) { _ in
                     HStack(spacing: 9) {
-                        Circle().fill(GLGColor.skeletonBase).frame(width: 8, height: 8)
+                        GLGSkeleton(cornerRadius: 9).frame(width: 28, height: 28)
                         GLGSkeleton().frame(maxWidth: .infinity).frame(height: 13)
                         GLGSkeleton().frame(width: 34, height: 12)
                     }.padding(.top, 13)
@@ -220,7 +220,7 @@ struct BannerCapsule: View {
         let urgent = banner.dDay(nowMillis: nowMs()) <= 3
         let chipColor = urgent ? warnText : accent.primary
         return HStack(spacing: 10) {
-            Circle().fill(Color(argb64: banner.gameColor)).frame(width: 8, height: 8)
+            GLGGameTag(game: banner.game, size: .small)
             VStack(alignment: .leading, spacing: 0) {
                 Text(banner.name).font(.pretendard(size: 13, weight: .bold)).lineLimit(1)
                 Text("\(GameData.shared.byNameOrNull(name: banner.game)?.shortName ?? banner.game) · 픽업").font(.pretendard(size: 10)).foregroundStyle(GLGColor.textSecondary).lineLimit(1)
@@ -292,7 +292,7 @@ struct SpendingBudgetSection: View {
         let ratio = hasLimit ? min(max(Double(gs.spent)/Double(gs.limit), 0), 1) : 0
         return VStack(spacing: 5) {
             HStack {
-                HStack(spacing: 7) { Circle().fill(Color(argb64: gs.game.color)).frame(width: 8, height: 8); Text(gs.game.shortName).font(.pretendard(size: 13)) }
+                HStack(spacing: 8) { GLGGameTag(game: gs.game.displayName, size: .small); Text(gs.game.shortName).font(.pretendard(size: 13)) }
                 Spacer()
                 Text(hasLimit ? "\(won(gs.spent)) / \(won(gs.limit))" : "\(won(gs.spent)) · 한도 없음")
                     .font(.pretendard(size: 12, weight: over ? .bold : .regular)).foregroundStyle(over ? dangerText : GLGColor.textSecondary)
@@ -568,7 +568,7 @@ struct DashboardScheduleCard: View {
                         }
                         ForEach(Array(items.enumerated()), id: \.offset) { _, it in
                             HStack(spacing: 9) {
-                                Circle().fill(Color(argb64: GameData.shared.colorFor(name: it.0))).frame(width: 8, height: 8)
+                                GLGGameTag(game: it.0, size: .small)
                                 Text(it.1).font(.pretendard(size: 13, weight: .medium)).foregroundStyle(GLGColor.textPrimary).lineLimit(1)
                                 Spacer(minLength: 6)
                                 Text(it.3).font(.pretendard(size: 11, weight: .bold)).foregroundStyle(accent.primary)
@@ -612,7 +612,7 @@ struct DashboardNewsCard: View {
                         }
                         ForEach(Array(topNews.enumerated()), id: \.offset) { _, n in
                             HStack(spacing: 9) {
-                                Circle().fill(Color(argb64: GameData.shared.colorFor(name: n.game))).frame(width: 8, height: 8)
+                                GLGGameTag(game: n.game, size: .small)
                                 Text(n.title).font(.pretendard(size: 13, weight: .medium)).foregroundStyle(GLGColor.textPrimary).lineLimit(1)
                             }.padding(.top, 11)
                         }

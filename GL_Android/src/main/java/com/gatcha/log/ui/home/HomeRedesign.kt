@@ -60,6 +60,8 @@ import com.gatcha.log.data.api.NewsItem
 import androidx.compose.material.icons.filled.Celebration
 import com.gatcha.log.data.LiveNote
 import com.gatcha.log.data.PityTier
+import com.gatcha.log.ui.components.GameTagSize
+import com.gatcha.log.ui.components.GlgGameTag
 import com.gatcha.log.ui.components.GlassCard
 import com.gatcha.log.ui.components.GlgCircleIconButton
 import com.gatcha.log.ui.components.ProfileAvatar
@@ -405,8 +407,8 @@ private fun GameBudgetRow(gs: GameSpend, accent: Color, accent2: Color) {
     Column {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(Modifier.size(8.dp).clip(CircleShape).background(gs.game.color.toColor()))
-                Spacer(Modifier.width(7.dp))
+                GlgGameTag(gs.game.displayName, size = GameTagSize.Small)
+                Spacer(Modifier.width(8.dp))
                 Text(gs.game.shortName, fontSize = 13.sp)
             }
             Text(
@@ -450,7 +452,7 @@ fun BannerCapsule(banner: GachaBanner) {
         modifier = Modifier.fillMaxWidth(),
     ) {
         Row(Modifier.padding(horizontal = 16.dp, vertical = 11.dp), verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.size(8.dp).clip(CircleShape).background(color))
+            GlgGameTag(banner.game, size = GameTagSize.Small)
             Spacer(Modifier.width(10.dp))
             Column(Modifier.weight(1f)) {
                 Text(banner.name, fontSize = 13.sp, fontWeight = FontWeight.Bold, maxLines = 1)
@@ -618,7 +620,7 @@ fun DashCardSkeleton(rows: Int = 3) {
             repeat(rows) {
                 Spacer(Modifier.height(13.dp))
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    SkeletonBox(Modifier.size(8.dp), CircleShape)
+                    SkeletonBox(Modifier.size(28.dp), RoundedCornerShape(9.dp))
                     Spacer(Modifier.width(9.dp))
                     SkeletonBox(Modifier.weight(1f).height(13.dp))
                     Spacer(Modifier.width(8.dp))
@@ -697,8 +699,8 @@ fun NextBannerMini(b: GachaBanner?, plan: BannerPlan?, modifier: Modifier) {
                 val d = b.dDay()
                 val urgent = d <= 3
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(Modifier.size(8.dp).clip(CircleShape).background(b.gameColor.toColor()))
-                    Spacer(Modifier.width(6.dp))
+                    GlgGameTag(b.game, size = GameTagSize.Small)
+                    Spacer(Modifier.width(8.dp))
                     Text(b.name, fontSize = 13.sp, fontWeight = FontWeight.Bold, maxLines = 1)
                 }
                 Spacer(Modifier.height(6.dp))
@@ -781,7 +783,7 @@ fun DashScheduleCard(events: List<GameEvent>, challenges: List<GameChallenge>, o
             items.forEach { row ->
                 Spacer(Modifier.height(11.dp))
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    Box(Modifier.size(8.dp).clip(CircleShape).background(GameData.colorFor(row.first).toColor()))
+                    GlgGameTag(row.first, size = GameTagSize.Small)
                     Spacer(Modifier.width(9.dp))
                     Text(row.second, fontSize = 13.sp, fontWeight = FontWeight.Medium, color = TextPrimary, maxLines = 1, modifier = Modifier.weight(1f))
                     Spacer(Modifier.width(6.dp))
@@ -822,7 +824,7 @@ fun DashNewsCard(news: List<NewsItem>, anniversaries: List<AnniversaryInfo>, onT
             topNews.forEach { n ->
                 Spacer(Modifier.height(11.dp))
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    Box(Modifier.size(8.dp).clip(CircleShape).background(GameData.colorFor(n.game).toColor()))
+                    GlgGameTag(n.game, size = GameTagSize.Small)
                     Spacer(Modifier.width(9.dp))
                     Text(n.title, fontSize = 13.sp, fontWeight = FontWeight.Medium, color = TextPrimary, maxLines = 1)
                 }

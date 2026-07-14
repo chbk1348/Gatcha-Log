@@ -31,6 +31,8 @@ import com.gatcha.log.data.GameData
 import com.gatcha.log.data.HoyolabConfig
 import com.gatcha.log.data.LiveNote
 import com.gatcha.log.data.NoteStat
+import com.gatcha.log.ui.components.GameTagSize
+import com.gatcha.log.ui.components.GlgGameTag
 import com.gatcha.log.ui.components.GlassCard
 import com.gatcha.log.ui.components.GlgButton
 import com.gatcha.log.ui.theme.*
@@ -209,8 +211,8 @@ private fun FocusedGameDaily(
                 Column(Modifier.padding(16.dp)) {
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Box(Modifier.size(8.dp).clip(CircleShape).background(game.color.toColor()))
-                            Spacer(Modifier.width(7.dp))
+                            GlgGameTag(game.displayName, size = GameTagSize.Small)
+                            Spacer(Modifier.width(8.dp))
                             Text(game.shortName, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = game.color.toColor())
                         }
                         FocusedCheckControl(checked, inProgress, onCheckIn)
