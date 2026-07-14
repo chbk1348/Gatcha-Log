@@ -244,6 +244,7 @@ fun GlgScreenHeader(
 fun GlgTabHeader(
     title: String,
     modifier: Modifier = Modifier,
+    leading: @Composable RowScope.() -> Unit = {},
     actions: @Composable RowScope.() -> Unit = {},
 ) {
     Row(
@@ -251,7 +252,14 @@ fun GlgTabHeader(
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(title, fontSize = 24.sp, fontWeight = FontWeight.Bold)
+        // 좌측 — 제목, 또는 제목이 없는 탭에서는 [leading] 액션(예: 지출 탭의 캘린더·인사이트).
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            if (title.isNotEmpty()) Text(title, fontSize = 24.sp, fontWeight = FontWeight.Bold)
+            leading()
+        }
         Row(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp),
