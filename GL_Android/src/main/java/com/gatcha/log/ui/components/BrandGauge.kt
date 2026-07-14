@@ -41,8 +41,20 @@ import com.gatcha.log.ui.theme.LocalAccentSecondary
 /** 아이콘 별 색 — 화이트 바탕에서 대비를 잡는 네이비(ic_launcher_foreground 와 동일값). */
 val BrandNavy = Color(0xFF0F1A33)
 
-/** 게이지 트랙(아직 채워지지 않은 구간) — 아이콘과 동일한 연회색-민트. */
+/**
+ * 게이지 트랙(아직 채워지지 않은 구간) — 아이콘과 동일한 연회색-민트.
+ *
+ * 링 안에서 쓸 때는 이 고정색 대신 [brandTrackColor] 를 쓴다. 아이콘은 민트로 고정이지만 앱 강조색은
+ * 사용자가 바꾸므로, 트랙만 민트빛으로 남으면 (예: 핑크 테마에서) 진행 구간과 색이 어긋나 보인다.
+ */
 val BrandTrack = Color(0xFFE1EDEA)
+
+/**
+ * 테마를 따라가는 게이지 트랙 — 강조색의 옅은 톤.
+ * 기본(민트)에서는 [BrandTrack] 과 사실상 같은 색이라 아이콘과의 일관성도 유지된다.
+ */
+@Composable
+fun brandTrackColor(): Color = LocalAccent.current.copy(alpha = 0.16f)
 
 /**
  * 게이지 링. [progress] 0f~1f 만큼 12시에서 시계방향으로 차오른다.
@@ -65,13 +77,14 @@ fun BrandGaugeRing(
 ) {
     val accent = LocalAccent.current
     val accent2 = LocalAccentSecondary.current
+    val track = brandTrackColor()
     Box(modifier.size(size), contentAlignment = Alignment.Center) {
         Canvas(Modifier.size(size)) {
             val stroke = this.size.minDimension * strokeRatio
             val inset = stroke / 2f
             val arcSize = Size(this.size.width - stroke, this.size.height - stroke)
 
-            drawArc(BrandTrack, 0f, 360f, false, Offset(inset, inset), arcSize, style = Stroke(stroke))
+            drawArc(track, 0f, 360f, false, Offset(inset, inset), arcSize, style = Stroke(stroke))
             if (progress > 0f) {
                 drawArc(
                     brush = Brush.linearGradient(listOf(accent2, accent)),
