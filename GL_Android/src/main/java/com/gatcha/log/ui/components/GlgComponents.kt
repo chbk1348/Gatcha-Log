@@ -342,7 +342,8 @@ fun GlgOutlineButton(
     val borderColor by animateColorAsState(if (pressed) accent.copy(alpha = 0.5f) else GhostBorder, label = "outBtnBorder")
     val bg by animateColorAsState(if (pressed) accent.copy(alpha = 0.08f) else Color.Transparent, label = "outBtnBg")
     val textColor by animateColorAsState(if (pressed) accent else GhostText, label = "outBtnText")
-    val shape = RoundedCornerShape(14.dp)
+    // 알약(캡슐) — 주 버튼(GlgButton)·iOS 와 동일. 나란히 놓이는 '취소 + 저장하기' 짝의 모서리가 맞아야 한다.
+    val shape = CircleShape
     Box(
         modifier = modifier
             .height(height)
