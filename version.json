@@ -1,11 +1,14 @@
 {
-  "versionCode": 273800,
-  "versionName": "27.38.0",
+  "versionCode": 273700,
+  "versionName": "27.37.0",
   "url": "https://github.com/chbk1348/Gatcha-Log/releases/latest",
   "apkUrl": "https://github.com/chbk1348/Gatcha-Log/releases/latest/download/app-release.apk",
-  "sha256": "42ac70b7fa54c39c372ad1169e36a0d8f35e3d6f6d9863a919dc04d531ec61e1",
+  "sha256": "700a59c254ce8738ed530c550871a12bc7cde412717b98b797d08f17c60025e1",
   "notes": [
-    "새 공지 알림 — 게임에 새 공지가 올라오면 알려드려요 (설정 → 알림 설정에서 켜기)",
-    "구글 로그인이 더 빨라졌어요 — 브라우저 대신 계정 시트에서 탭 한 번으로 로그인해요 (Android)"
+    "계정 토큰 보관을 더 안전하게 — 암호화 저장소를 쓸 수 없는 기기에서 토큰이 평문으로 저장되던 문제를 막았어요",
+    "선물코드를 못 불러왔을 때 '코드 없음' 대신 사유와 '다시 시도' 버튼을 보여드려요",
+    "게임 공지를 일시적으로 못 불러와도 기존 목록이 사라지지 않아요",
+    "가챠 계산기 결과가 Android·iOS에서 항상 같은 값이 되도록 계산을 하나로 합쳤어요",
+    "앱 내부 정리 — 쓰이지 않던 코드를 걷어내고 빌드 검증을 강화했어요"
   ]
 }
