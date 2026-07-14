@@ -74,6 +74,7 @@ struct OnboardingView: View {
                             withAnimation(GLGMotion.standard()) { page += 1 }
                         }
                     } label: {
+                        // 알약(캡슐) — 앱의 다른 주 버튼(GLGButton = .buttonBorderShape(.capsule))과 같은 모양.
                         Text(isLast ? "알림 켜고 시작하기" : "다음")
                             .font(.pretendard(size: 15, weight: .bold))
                             .foregroundStyle(.white)
@@ -84,7 +85,7 @@ struct OnboardingView: View {
                                     colors: [accent.secondary, accent.primary],
                                     startPoint: .leading, endPoint: .trailing
                                 ),
-                                in: RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                in: Capsule()
                             )
                     }
 

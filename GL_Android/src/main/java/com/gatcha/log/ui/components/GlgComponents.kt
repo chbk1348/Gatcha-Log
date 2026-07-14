@@ -169,7 +169,9 @@ fun GlgButton(
     } else {
         SolidColor(Color(0xFFD8D8DE))
     }
-    val shape = RoundedCornerShape(14.dp)
+    // 알약(캡슐) — iOS 와 동일. iOS 는 GLGButton 이 .buttonBorderShape(.capsule) 을 쓰고,
+    // Android 도 GlgOutlineButton 은 이미 캡슐이었다. 주 버튼만 각진 사각형으로 남아 어긋나 있었다.
+    val shape = CircleShape
     Box(
         modifier = modifier
             .height(height)
