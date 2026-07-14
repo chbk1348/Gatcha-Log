@@ -37,6 +37,8 @@
 	<string>274100</string>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>공지 이미지를 사진 앱에 저장하기 위해 사용해요.</string>
 	<key>UIAppFonts</key>
 	<array>
 		<string>Pretendard-Regular.otf</string>

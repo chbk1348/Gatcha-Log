@@ -57,6 +57,8 @@ targets:
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
         ITSAppUsesNonExemptEncryption: false
+        # 공지 본문 이미지 저장(추가 전용) — 문구가 없으면 저장 시도 순간 크래시한다.
+        NSPhotoLibraryAddUsageDescription: 공지 이미지를 사진 앱에 저장하기 위해 사용해요.
         # 전역 글꼴 Pretendard (GL_IOS/Fonts/*.otf 번들)
         UIAppFonts:
           - Pretendard-Regular.otf
