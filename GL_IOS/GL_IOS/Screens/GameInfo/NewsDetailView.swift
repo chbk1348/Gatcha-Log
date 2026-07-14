@@ -46,13 +46,8 @@ struct NewsDetailView: View {
                             // 본문 로드 성공 — 문단과 이미지를 원문 순서대로.
                             ForEach(Array(article.blocks.enumerated()), id: \.offset) { _, block in
                                 if let text = block as? NewsBlockText {
-                                    Text(text.text)
-                                        .font(.pretendard(size: 14))
-                                        .foregroundStyle(GLGColor.textPrimary)
-                                        .lineSpacing(5)
-                                        .fixedSize(horizontal: false, vertical: true)
-                                        // 길게 눌러 선택·복사 — 공지의 코드·일정·수치를 옮겨 적을 일이 잦다.
-                                        .textSelection(.enabled)
+                                    // 길게 눌러 원하는 구간만 드래그 선택 → 복사.
+                                    GLGSelectableText(text: text.text)
                                 } else if let image = block as? NewsBlockImage {
                                     bodyImage(image.url)
                                 }
@@ -61,12 +56,7 @@ struct NewsDetailView: View {
                             // 폴백 — 본문을 못 받았을 때. 배너 + 줄바꿈 없는 평문이라도 보여준다(빈 화면보다 낫다).
                             if !item.bannerUrl.isEmpty { bodyImage(item.bannerUrl) }
                             if !item.summary.isEmpty {
-                                Text(item.summary)
-                                    .font(.pretendard(size: 14))
-                                    .foregroundStyle(GLGColor.textPrimary)
-                                    .lineSpacing(5)
-                                    .fixedSize(horizontal: false, vertical: true)
-                                    .textSelection(.enabled)
+                                GLGSelectableText(text: item.summary)
                                 Text("본문 전체는 브라우저에서 볼 수 있어요.")
                                     .font(.pretendard(size: 11))
                                     .foregroundStyle(GLGColor.textSecondary)
