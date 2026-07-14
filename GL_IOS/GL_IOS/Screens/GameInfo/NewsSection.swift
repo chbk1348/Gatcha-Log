@@ -10,21 +10,23 @@ private func filterNews(_ news: [NewsItem], _ filter: String) -> [NewsItem] {
     return news
 }
 
+/// 공지 행 — 탭하면 외부 브라우저가 아니라 앱 안의 상세 페이지로 push 한다.
 @ViewBuilder
-private func newsRow(_ n: NewsItem, _ openURL: OpenURLAction) -> some View {
-    Button {
-        if !n.url.isEmpty, let u = URL(string: n.url) { openURL(u) }
+private func newsRow(_ n: NewsItem, _ store: SpendingStore) -> some View {
+    NavigationLink {
+        NewsDetailView(store: store, item: n)
     } label: {
         HStack(spacing: 10) {
-            GLGBadge(label: GameData.shared.games.first(where: { $0.displayName == n.game })?.abbr ?? "",
-                     color: Color(argb64: GameData.shared.colorFor(name: n.game)))
+            GLGGameTag(game: n.game, size: .small)
             VStack(alignment: .leading, spacing: 1) {
                 Text(n.title).font(.pretendard(size: 13, weight: .medium)).foregroundStyle(GLGColor.textPrimary)
                     .lineLimit(2).multilineTextAlignment(.leading)
                 Text(DateUtil.shared.shortDate(millis: n.createdAtMillis)).font(.pretendard(size: 11)).foregroundStyle(GLGColor.textSecondary)
             }
             .frame(maxWidth: .infinity, alignment: .leading) // 가로 폭 제약 — 긴 제목이 행을 넘쳐 좌우 스크롤되던 문제 방지
-            Image(systemName: "arrow.up.right.square").font(.pretendard(size: 14)).foregroundStyle(GLGColor.textSecondary)
+            // 앱 안에서 열리므로 외부링크 아이콘이 아니라 상세로 들어가는 셰브론.
+            Image(systemName: "chevron.right").font(.pretendard(size: 13, weight: .semibold))
+                .foregroundStyle(Color(.tertiaryLabel))
         }
         .padding(.vertical, 11)
     }
@@ -37,7 +39,6 @@ struct NewsSection: View {
     let filter: String
     var onSeeAll: () -> Void = {}
     var maxCount: Int = 5
-    @Environment(\.openURL) private var openURL
     @Environment(\.glgAccent) private var accent
 
     var body: some View {
@@ -50,7 +51,7 @@ struct NewsSection: View {
                     VStack(spacing: 0) {
                         ForEach(Array(items.enumerated()), id: \.offset) { i, n in
                             if i > 0 { Divider() }
-                            newsRow(n, openURL)
+                            newsRow(n, store)
                         }
                         if all.count > maxCount {
                             Divider()
@@ -73,7 +74,6 @@ struct NewsSection: View {
 struct NewsPage: View {
     @ObservedObject var store: SpendingStore
     let filter: String
-    @Environment(\.openURL) private var openURL
 
     var body: some View {
         let all = filterNews(store.gameNews, filter)
@@ -86,7 +86,7 @@ struct NewsPage: View {
                         VStack(spacing: 0) {
                             ForEach(Array(all.enumerated()), id: \.offset) { i, n in
                                 if i > 0 { Divider() }
-                                newsRow(n, openURL)
+                                newsRow(n, store)
                             }
                         }
                     }

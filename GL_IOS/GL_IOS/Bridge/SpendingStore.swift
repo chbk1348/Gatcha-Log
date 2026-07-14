@@ -61,6 +61,10 @@ final class SpendingStore: ObservableObject {
     @Published private(set) var gameEvents: [GameEvent] = []
     @Published private(set) var challenges: [GameChallenge] = []
     @Published private(set) var gameNews: [NewsItem] = []
+    /// 공지 본문(상세 페이지) — 실패해도 화면을 비우지 않고 NewsItem.summary 로 폴백한다.
+    @Published private(set) var newsArticle: NewsArticle? = nil
+    @Published private(set) var newsArticleLoading: Bool = false
+    @Published private(set) var newsArticleFailed: Bool = false
     @Published private(set) var ledgers: [MonthlyLedger] = []
     @Published private(set) var combat: [CombatMode] = []
     @Published private(set) var attendanceToday: Set<String> = []
@@ -155,6 +159,9 @@ final class SpendingStore: ObservableObject {
         bind(vm.gameEvents) { [weak self] in self?.gameEvents = $0 }
         bind(vm.challenges) { [weak self] in self?.challenges = $0 }
         bind(vm.gameNews) { [weak self] in self?.gameNews = $0 }
+        bind(vm.newsArticle) { [weak self] in self?.newsArticle = $0 }
+        bind(vm.newsArticleLoading) { [weak self] in self?.newsArticleLoading = $0.boolValue }
+        bind(vm.newsArticleFailed) { [weak self] in self?.newsArticleFailed = $0.boolValue }
         bind(vm.ledgers) { [weak self] in self?.ledgers = $0 }
         bind(vm.combat) { [weak self] in self?.combat = $0 }
         bind(vm.attendanceToday) { [weak self] in self?.attendanceToday = $0 }
@@ -233,6 +240,10 @@ final class SpendingStore: ObservableObject {
     func setNudgeOverspend(_ v: Bool) { vm.setNudgeOverspend(v: v) }
     func setSpendingCompact(_ v: Bool) { vm.setSpendingCompact(v: v) }
     func setNudgeThreshold(_ v: Int64) { vm.setNudgeThreshold(v: v) }
+    /// 공지 상세 진입 — 본문 로드. 이탈 시 clearNewsArticle() 로 정리한다.
+    func loadNewsArticle(_ item: NewsItem) { vm.loadNewsArticle(item: item) }
+    func clearNewsArticle() { vm.clearNewsArticle() }
+
     func setNotifyBudget(_ v: Bool) { vm.setNotifyBudget(v: v) }
     func setNotifyAttendance(_ v: Bool) { vm.setNotifyAttendance(v: v) }
     func setNotifyResin(_ v: Bool) { vm.setNotifyResin(v: v) }
