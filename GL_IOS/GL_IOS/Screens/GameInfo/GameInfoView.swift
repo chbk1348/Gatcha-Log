@@ -89,10 +89,25 @@ struct GameInfoView: View {
                     }
                 }
             }
-            ToolbarItemGroup(placement: .topBarTrailing) {
-                if store.hoyolabConfig.isLinked { Button { showGift = true } label: { Image(systemName: "gift") } }
+            // 버튼마다 ToolbarItem 을 따로 두고 사이에 ToolbarSpacer 를 넣는다 —
+            // iOS 26 은 인접한 툴바 아이템을 하나의 글래스 캡슐로 묶어버리므로, 스페이서로 갈라야
+            // 버튼이 각각 독립된 원형으로 떨어진다. (지출 탭 헤더와 동일)
+            if store.hoyolabConfig.isLinked {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button { showGift = true } label: { Image(systemName: "gift") }
+                }
+                if #available(iOS 26.0, *) {
+                    ToolbarSpacer(.fixed, placement: .topBarTrailing)
+                }
+            }
+            ToolbarItem(placement: .topBarTrailing) {
                 Button { store.refreshGameInfo(force: true) } label: { Image(systemName: "arrow.clockwise") }
                     .disabled(store.isRefreshing)
+            }
+            if #available(iOS 26.0, *) {
+                ToolbarSpacer(.fixed, placement: .topBarTrailing)
+            }
+            ToolbarItem(placement: .topBarTrailing) {
                 Button { showHoyolab = true } label: { Image(systemName: "gearshape") }
             }
         }
@@ -429,7 +444,8 @@ private struct ScheduleEntryRow: View {
         let urgent = d >= 0 && d <= 3
         let ddColor = urgent ? Color(hex: 0xFFE8634A) : accent.primary
         HStack(spacing: 12) {
-            Circle().fill(e.color).frame(width: 9, height: 9)
+            // 게임 태그 — 예전엔 컬러 닷뿐이라 색을 외우지 않으면 어느 게임인지 알 수 없었다.
+            GLGGameTag(game: e.gameShort, size: .small)
             VStack(alignment: .leading, spacing: 3) {
                 Text(e.kind).font(.pretendard(size: 9, weight: .bold)).foregroundStyle(scheduleKindColor(e.kind))
                     .padding(.horizontal, 6).padding(.vertical, 2)
@@ -489,9 +505,7 @@ private struct FeaturedVersionCard: View {
         return GLGCard(cornerRadius: 20, padding: 15) {
             VStack(alignment: .leading, spacing: 0) {
                 HStack(spacing: 8) {
-                    Text(vg.game.abbr).font(.pretendard(size: 11, weight: .heavy)).foregroundStyle(.white)
-                        .padding(.horizontal, 7).padding(.vertical, 4)
-                        .background(c, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    GLGGameTag(game: vg.game.displayName, size: .small)
                     Text(vg.version.isEmpty ? vg.game.displayName : "버전 \(vg.version)").font(.pretendard(size: 15, weight: .bold)).foregroundStyle(GLGColor.textPrimary).lineLimit(1)
                     Spacer(minLength: 8)
                     if urgent {
@@ -561,9 +575,7 @@ private struct SlimVersionRow: View {
         }()
         return GLGCard(cornerRadius: 14, padding: 0) {
             HStack(spacing: 10) {
-                Text(vg.game.abbr).font(.pretendard(size: 11, weight: .heavy)).foregroundStyle(.white)
-                    .padding(.horizontal, 7).padding(.vertical, 4)
-                    .background(c, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                GLGGameTag(game: vg.game.displayName, size: .small)
                 if vg.pickups.contains(where: { GameInfoKt.isCollabBanner(banner: $0) }) { CollabChip() }
                 VStack(alignment: .leading, spacing: 1) {
                     Text(title).font(.pretendard(size: 13, weight: .bold)).foregroundStyle(GLGColor.textPrimary).lineLimit(1)

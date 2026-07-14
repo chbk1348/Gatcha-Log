@@ -263,9 +263,15 @@ fun SpendingScreen(
                 .onSizeChanged { if (collapse == 0f) heroOverlayPx = it.height },
         ) {
             Box(Modifier.fillMaxWidth().background(Color.White).padding(horizontal = 16.dp)) {
-                GlgTabHeader("") {
-                    GlgCircleIconButton(Icons.Default.CalendarMonth, "캘린더", outlined = true) { nav = SpendingScreenNav.Calendar }
-                    GlgCircleIconButton(Icons.Default.Insights, "인사이트", outlined = true) { nav = SpendingScreenNav.Insight }
+                // 좌측 = 보기 전환(캘린더·인사이트), 우측 = 목록 조작(선택·필터).
+                // 성격이 다른 버튼 4개가 우측에 뭉쳐 있어 무엇이 무엇인지 구분되지 않던 걸 갈랐다.
+                GlgTabHeader(
+                    "",
+                    leading = {
+                        GlgCircleIconButton(Icons.Default.CalendarMonth, "캘린더", outlined = true) { nav = SpendingScreenNav.Calendar }
+                        GlgCircleIconButton(Icons.Default.Insights, "인사이트", outlined = true) { nav = SpendingScreenNav.Insight }
+                    },
+                ) {
                     GlgCircleIconButton(Icons.Default.Checklist, "선택", outlined = true) { selectionMode = true; selectedIds = emptySet() }
                     GlgCircleIconButton(Icons.Default.Tune, "필터", outlined = true, badgeCount = activeFilterCount) { showFilterSheet.value = true }
                 }

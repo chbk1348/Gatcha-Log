@@ -74,15 +74,38 @@ struct SpendingView: View {
         .background(GLGBackground { Color.clear })
         .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
+        // 좌측 = 보기 전환(캘린더·인사이트), 우측 = 목록 조작(선택·필터).
+        // 성격이 다른 버튼 4개가 우측에 뭉쳐 있어 무엇이 무엇인지 구분되지 않던 걸 갈랐다.
+        //
+        // 버튼마다 ToolbarItem 을 따로 두고 그 사이에 ToolbarSpacer 를 넣는다 —
+        // iOS 26 은 인접한 툴바 아이템을 **하나의 글래스 캡슐로 묶어** 버리므로, 스페이서로 갈라야
+        // 버튼이 각각 독립된 원형으로 떨어진다. (iOS 25 이하는 원래 묶이지 않아 스페이서가 불필요)
         .toolbar {
-            ToolbarItemGroup(placement: .topBarTrailing) {
-                if selectionMode {
-                    Button("취소") { selectionMode = false; selectedIds = [] }
-                } else {
+            if !selectionMode {
+                ToolbarItem(placement: .topBarLeading) {
                     NavigationLink { CalendarView(store: store) } label: { Image(systemName: "calendar") }
+                }
+                if #available(iOS 26.0, *) {
+                    ToolbarSpacer(.fixed, placement: .topBarLeading)
+                }
+                ToolbarItem(placement: .topBarLeading) {
                     NavigationLink { SpendingInsightView(store: store) } label: { Image(systemName: "chart.line.uptrend.xyaxis") }
+                }
+            }
+
+            if selectionMode {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("취소") { selectionMode = false; selectedIds = [] }
+                }
+            } else {
+                ToolbarItem(placement: .topBarTrailing) {
                     Button { selectionMode = true; selectedIds = [] } label: { Image(systemName: "checklist") }
-                    // 필터 버튼 — 헤더(툴바)로 이동. 활성 시 채움 아이콘.
+                }
+                if #available(iOS 26.0, *) {
+                    ToolbarSpacer(.fixed, placement: .topBarTrailing)
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    // 필터 — 활성 시 채움 아이콘.
                     Button { showFilter = true } label: {
                         Image(systemName: activeFilterCount > 0 ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease.circle")
                     }
