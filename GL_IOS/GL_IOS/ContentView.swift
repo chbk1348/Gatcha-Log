@@ -24,25 +24,46 @@ struct ContentView: View {
     /// 초기 클라우드 동기화 게이트(로딩 화면) 활성 여부 — 게이트 동안 탭바·추가 버튼 숨김
     @State private var syncGateActive: Bool = MainViewControllerKt.isSyncGateActive()
 
+    /// 첫 실행 온보딩(앱 소개 4페이지) 필요 여부 — 로그인보다 앞. 기기 단위 플래그라 재설치 전까지 1회만.
+    /// (기존 유저는 AppSettings.onboardingDone 기본값이 notifPermAsked 라, 업데이트해도 다시 보지 않는다)
+    @State private var needsIntro: Bool = !AppSettings().onboardingDone
+
     /// 앱 강조색 — Kotlin 테마(accentIndex)와 연동된 탭 아이콘 틴트 (초기값: 민트)
     @State private var accent = Color(red: 0.204, green: 0.820, blue: 0.714)
 
-    /// 루트 상태(로그인→로딩→탭) — 크로스페이드 트랜지션 키. NavigationStack/스와이프백은 손대지 않고
+    /// 루트 상태(온보딩→로그인→로딩→탭) — 크로스페이드 트랜지션 키. NavigationStack/스와이프백은 손대지 않고
     /// 루트 교체만 부드럽게 한다(즉시 교체 → standard 페이드).
-    private enum RootPhase { case login, loading, tabs }
+    private enum RootPhase { case intro, login, loading, tabs }
     private var rootPhase: RootPhase {
-        if store.needsOnboarding { return .login }
+        if needsIntro { return .intro }
+        if store.needsLogin { return .login }
         if syncGateActive { return .loading }
         return .tabs
     }
 
+    /// 로그인 전(온보딩·로그인) 화면의 강조색 — **사용자 테마를 따르지 않고 브랜드 민트로 고정**(index 0).
+    ///
+    /// 테마는 계정에 딸린 설정이라 로그인 이후에 불러오는 게 맞다. 그런데 iOS 는 앱을 지워도 Keychain 이
+    /// 남아 재설치 후 자동 로그인되고, 클라우드에서 강조색까지 복원된다 — 그러면 아직 로그인 화면인데
+    /// 남의 테마 색이 칠해지고, 테마를 읽을 수 없는 런치스크린(항상 아이콘 민트)과도 어긋난다.
+    /// 로그인 전 구간은 앱 아이콘의 색으로 통일한다.
+    private let preLoginAccent = 0
+
     var body: some View {
         Group {
-            if store.needsOnboarding {
-                // Phase 1 — SwiftUI 네이티브 로그인/온보딩 (구 ComposeView LoginViewController 대체).
+            if needsIntro {
+                // 첫 실행 온보딩 — 앱 아이콘의 게이지 링을 페이지마다 다른 의미로 변주해 소개하고,
+                // 마지막 페이지에서 맥락과 함께 알림 권한을 요청한다.
+                OnboardingView { requestNotification in
+                    finishOnboarding(requestNotification: requestNotification)
+                }
+                .glgAccent(index: preLoginAccent)
+                .transition(.opacity)
+            } else if store.needsLogin {
+                // Phase 1 — SwiftUI 네이티브 로그인 (구 ComposeView LoginViewController 대체).
                 // 로그인 완료 시 공유 VM 의 account 가 바뀌어 자동으로 탭 화면으로 전환.
                 LoginView(store: store)
-                    .glgAccent(index: store.accentIndex)
+                    .glgAccent(index: preLoginAccent)
                     .transition(.opacity)
             } else if syncGateActive {
                 // 로그인 유저 초기 클라우드 동기화 게이트 — 완료 전 로컬 편집이 클라우드를 덮어쓰는 레이스 방지.
@@ -85,7 +106,7 @@ struct ContentView: View {
         }
         // 알림 탭 → 해당 탭으로 이동(AppDelegate.didReceive 가 glgOpenTab 으로 탭 인덱스 전달).
         .onReceive(NotificationCenter.default.publisher(for: .glgOpenTab)) { note in
-            if let tab = note.object as? Int, !syncGateActive, !store.needsOnboarding {
+            if let tab = note.object as? Int, !syncGateActive, !needsIntro, !store.needsLogin {
                 selectedTab = tab
             }
         }
@@ -106,6 +127,29 @@ struct ContentView: View {
     private func openAddSpending() {
         editingSpending = nil
         showAddSpending = true
+    }
+
+    /**
+     온보딩 종료 — 다시 뜨지 않도록 플래그를 굳히고, 알림을 켜기로 했으면 실제로 켠다.
+
+     [requestNotification] 은 OS 권한만이 아니라 **앱 내부 알림 토글까지** 함께 켠다.
+     권한만 받고 토글이 전부 꺼진 채로 두면 "알림 켜고 시작하기"를 눌러도 알림이 한 건도 오지 않는다.
+     켜는 항목은 온보딩 ④에서 약속한 것과 같다 — 픽업 마감·예산 초과·재화(레진) 가득 참.
+     (VM 세터가 네이티브 스케줄 갱신까지 처리)
+
+     "나중에 할게요"면 프롬프트를 띄우지 않으므로 notifPermAsked 도 건드리지 않는다 — 그 플래그는
+     "OS 프롬프트를 실제로 띄운 적 있는가"라서, 안 띄우고 true 로 만들면 이후 '영구 거부' 판별이 틀어진다.
+     */
+    private func finishOnboarding(requestNotification: Bool) {
+        AppSettings().onboardingDone = true
+        if requestNotification {
+            store.setNotifyPickup(true)
+            store.setNotifyBudget(true)
+            store.setNotifyResin(true)
+            AppSettings().notifPermAsked = true
+            NotificationPermission.request()
+        }
+        needsIntro = false
     }
 
     // ── 탭 구성 ─────────────────────────────────────────────────────────

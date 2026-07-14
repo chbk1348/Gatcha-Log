@@ -21,6 +21,7 @@
 		3CEC973D3915C5EAA8F3144D /* GameInfoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11D16F5E46E7E8DC2FD63907 /* GameInfoView.swift */; };
 		407B2B835C63881B6D71A3D6 /* FirebaseFirestore in Frameworks */ = {isa = PBXBuildFile; productRef = 8271CA7956D21511F8C90ED4 /* FirebaseFirestore */; };
 		415A00FEEAB1D76CB2E99B6D /* SavingsViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = D298448CBEF9192C0613F700 /* SavingsViews.swift */; };
+		4555A80BB2A3E811ABE1E7B6 /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF8DB30C236AF02D78678047 /* OnboardingView.swift */; };
 		4BAE0AF1CFCBD6A920A5E1E6 /* AppMarkLogo.swift in Sources */ = {isa = PBXBuildFile; fileRef = F22E3DACB374BECF7DBF2B1C /* AppMarkLogo.swift */; };
 		5037A67CE3B8E588DCC2F809 /* GLGChip.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEA0ECFE89434FBD76D2E252 /* GLGChip.swift */; };
 		53DA02B1AA33DC0B59A484D3 /* Pretendard-Medium.otf in Resources */ = {isa = PBXBuildFile; fileRef = B0AC89C74883ECB4D4534D65 /* Pretendard-Medium.otf */; };
@@ -34,6 +35,7 @@
 		808FA397C7B307AA83931954 /* PillField.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10A462DEE6CE546DFBF6BBA9 /* PillField.swift */; };
 		80AB71E69B0A2282D237A141 /* Motion.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3DAD28E0822C83C22585AFEA /* Motion.swift */; };
 		87BCB4BC1FDA9A8B97CB3D98 /* AddSpendingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 89BBE3C4BD9EFC3A287B0BBF /* AddSpendingView.swift */; };
+		89EC1FB90A1E22C63ECF76C0 /* BrandGauge.swift in Sources */ = {isa = PBXBuildFile; fileRef = A70059D3F4D8FA5EA58BB8CD /* BrandGauge.swift */; };
 		90E8A999D475D408D16A1403 /* NotificationSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C54C8FB382375CEA96A2F41B /* NotificationSettingsView.swift */; };
 		90F00551956AF38F2548C694 /* AccountLoadingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30864BF6E1651C389D2661B1 /* AccountLoadingView.swift */; };
 		9511F660EE1953CE0F6FB9C4 /* GoogleWebOAuth.swift in Sources */ = {isa = PBXBuildFile; fileRef = 021C3B715D801AE05013FE3B /* GoogleWebOAuth.swift */; };
@@ -103,11 +105,13 @@
 		846F3D6CE1BD91FB25597AA6 /* GiftCodeSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GiftCodeSheet.swift; sourceTree = "<group>"; };
 		89BBE3C4BD9EFC3A287B0BBF /* AddSpendingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddSpendingView.swift; sourceTree = "<group>"; };
 		9EF5B679DF4C422B518B851A /* Format.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Format.swift; sourceTree = "<group>"; };
+		A70059D3F4D8FA5EA58BB8CD /* BrandGauge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrandGauge.swift; sourceTree = "<group>"; };
 		A84E3B9B9790F13D3F75EE5E /* CalendarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarView.swift; sourceTree = "<group>"; };
 		AE2C3F8DE0C369D621CCC112 /* LoginView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginView.swift; sourceTree = "<group>"; };
 		B0AC89C74883ECB4D4534D65 /* Pretendard-Medium.otf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Pretendard-Medium.otf"; sourceTree = "<group>"; };
 		B5ED3CFA3D2AA76242DA2D87 /* HomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeView.swift; sourceTree = "<group>"; };
 		B8E1563A89FD1762C317ABC2 /* EnkaCharSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EnkaCharSection.swift; sourceTree = "<group>"; };
+		BF8DB30C236AF02D78678047 /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
 		BFE5396217B0F6A1F487F364 /* GachaCalculatorSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GachaCalculatorSection.swift; sourceTree = "<group>"; };
 		C3BE8BD3C2DD8BC4F707DE6D /* SpendingStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpendingStore.swift; sourceTree = "<group>"; };
 		C54C8FB382375CEA96A2F41B /* NotificationSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationSettingsView.swift; sourceTree = "<group>"; };
@@ -182,6 +186,7 @@
 				7742DC5B0B9AFCA2F93DFAAE /* Auth */,
 				4EBB86011748B1CC9AC8FB0E /* GameInfo */,
 				85BE891B6935DDA4524EAAC8 /* Home */,
+				D5C4FB337C9554698982BCB3 /* Onboarding */,
 				7FE6AC10232961B6787E677A /* Profile */,
 				B04F3FA285F330B9CEA59B55 /* Savings */,
 				53756ED15DE7C5166506660F /* Spending */,
@@ -288,6 +293,7 @@
 		C87EC8D816454657A9B81FA8 /* DesignSystem */ = {
 			isa = PBXGroup;
 			children = (
+				A70059D3F4D8FA5EA58BB8CD /* BrandGauge.swift */,
 				9EF5B679DF4C422B518B851A /* Format.swift */,
 				16692A76093EA64BC84CA502 /* Glass.swift */,
 				607DE67679739531B7DC4652 /* GlassButton.swift */,
@@ -303,6 +309,14 @@
 				CD62F3658FFD16B833EF98AA /* Toast.swift */,
 			);
 			path = DesignSystem;
+			sourceTree = "<group>";
+		};
+		D5C4FB337C9554698982BCB3 /* Onboarding */ = {
+			isa = PBXGroup;
+			children = (
+				BF8DB30C236AF02D78678047 /* OnboardingView.swift */,
+			);
+			path = Onboarding;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -415,6 +429,7 @@
 				1431B09C96CB6ADF4D51B094 /* AnniversarySection.swift in Sources */,
 				98B4EF7E15CE5D1D3F10446D /* AnnualReportView.swift in Sources */,
 				4BAE0AF1CFCBD6A920A5E1E6 /* AppMarkLogo.swift in Sources */,
+				89EC1FB90A1E22C63ECF76C0 /* BrandGauge.swift in Sources */,
 				14AFD15B3420C392511D404A /* CalendarView.swift in Sources */,
 				ED52FDDCC5ADCAECF885F91A /* ContentView.swift in Sources */,
 				FEFECA4B17E26F1661161AC0 /* DailyHeroSection.swift in Sources */,
@@ -445,6 +460,7 @@
 				1D250F6F9E0E2AD9495CE146 /* NewsSection.swift in Sources */,
 				F937497C109F642AB75D1979 /* NotificationPermission.swift in Sources */,
 				90E8A999D475D408D16A1403 /* NotificationSettingsView.swift in Sources */,
+				4555A80BB2A3E811ABE1E7B6 /* OnboardingView.swift in Sources */,
 				808FA397C7B307AA83931954 /* PillField.swift in Sources */,
 				E137594B42AFFB5CE2A94CCD /* PretendardFont.swift in Sources */,
 				415A00FEEAB1D76CB2E99B6D /* SavingsViews.swift in Sources */,

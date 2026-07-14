@@ -1,7 +1,12 @@
 package com.gatcha.log.ui.profile
 
+import android.app.Activity
 import android.content.Context
+import android.content.ContextWrapper
 import android.content.Intent
+import android.content.pm.PackageManager
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -45,6 +50,7 @@ import com.gatcha.log.ui.components.GlgTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.input.KeyboardType
 import com.gatcha.log.ui.game.HoyolabLinkScreen
+import com.gatcha.log.data.AppSettings
 import com.gatcha.log.data.SpendingViewModel
 import com.gatcha.log.util.SafIO
 import kotlinx.coroutines.launch
@@ -73,9 +79,7 @@ fun SettingsScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
 
     // 알림 권한(Android 13+) — 자동 출석 ON 등 알림을 동반하는 토글을 켤 때 요청
     val notifPermLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
-    val ensureNotifPerm: () -> Unit = {
-        if (Build.VERSION.SDK_INT >= 33) notifPermLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
-    }
+    val ensureNotifPerm: () -> Unit = { requestNotifPermIfNeeded(context, notifPermLauncher::launch) }
 
     val showBudget = remember { mutableStateOf(false) }
     val showNudgeThreshold = remember { mutableStateOf(false) }
@@ -535,11 +539,14 @@ private fun NotificationSettingsScreen(viewModel: SpendingViewModel, onBack: () 
     val notifyDailySummary by viewModel.notifyDailySummary.collectAsState()
     val notifyDailySummaryHour by viewModel.notifyDailySummaryHour.collectAsState()
 
-    // 알림 권한(Android 13+) — 알림 토글 켤 때 요청
-    val notifPermLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
-    val ensureNotifPerm: () -> Unit = {
-        if (Build.VERSION.SDK_INT >= 33) notifPermLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+    // 알림 권한(Android 13+) — 알림 토글 켤 때 요청.
+    // permRefresh: 권한 요청/화면 복귀 후 권한 상태를 다시 읽게 하는 트리거(권한은 Compose 상태가 아니라 OS 상태).
+    var permRefresh by remember { mutableIntStateOf(0) }
+    val notifPermLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
+        permRefresh++
     }
+    val ensureNotifPerm: () -> Unit = { requestNotifPermIfNeeded(context, notifPermLauncher::launch) }
+    val activity = remember(context) { context.findActivity() }
 
     // 알림 시각 피커(0~23시) — 방해금지 시작/종료, 데일리 요약 시각
     val showDndStartPicker = remember { mutableStateOf(false) }
@@ -583,10 +590,23 @@ private fun NotificationSettingsScreen(viewModel: SpendingViewModel, onBack: () 
                     }
                 }
             }
-            // 토글은 켰는데 시스템 알림 권한이 꺼져 있으면 안내(영구 거부 시 시스템 다이얼로그가 안 떠서 사용자가 인지 못 함).
+            // 토글은 켰는데 시스템 알림 권한이 꺼져 있으면 안내.
             val notifOn = notifyBudget || notifyAttendance || notifyResin || notifyPickup
-            val notifEnabled = remember(notifyBudget, notifyAttendance, notifyResin) {
+            val notifEnabled = remember(notifyBudget, notifyAttendance, notifyResin, permRefresh) {
                 com.gatcha.log.data.Notifier.notificationsEnabled()
+            }
+            // OS 프롬프트를 아직 띄울 수 있는가 — 띄울 수 있으면 시스템 설정으로 보내지 말고 바로 권한을 요청한다.
+            //
+            // shouldShowRequestPermissionRationale 은 "한 번도 안 물어봄"과 "두 번 거부해서 영구 차단"을
+            // 똑같이 false 로 답한다. notifPermAsked(프롬프트를 실제로 띄운 적 있는지)로 둘을 가른다.
+            // 영구 거부·앱 알림 자체가 꺼진 경우엔 프롬프트가 아예 안 뜨므로 시스템 설정 말고는 방법이 없다.
+            val canPromptNotifPerm = remember(permRefresh) {
+                Build.VERSION.SDK_INT >= 33 && (
+                    !AppSettings().notifPermAsked ||
+                        (activity != null && ActivityCompat.shouldShowRequestPermissionRationale(
+                            activity, android.Manifest.permission.POST_NOTIFICATIONS,
+                        ))
+                    )
             }
             if (notifOn && !notifEnabled) {
                 Spacer(Modifier.height(8.dp))
@@ -599,12 +619,18 @@ private fun NotificationSettingsScreen(viewModel: SpendingViewModel, onBack: () 
                         Spacer(Modifier.width(12.dp))
                         Column(Modifier.weight(1f)) {
                             Text("알림 권한이 꺼져 있어요", fontSize = 13.sp, fontWeight = FontWeight.Medium, color = Color(0xFFFB8C00))
-                            Text("권한이 막혀 있어 알림이 표시되지 않아요. 시스템 설정에서 알림을 켜주세요.", fontSize = 11.sp, color = TextSecondary)
+                            Text(
+                                if (canPromptNotifPerm) "알림을 받으려면 권한을 허용해주세요."
+                                else "권한이 막혀 있어 알림이 표시되지 않아요. 시스템 설정에서 알림을 켜주세요.",
+                                fontSize = 11.sp, color = TextSecondary,
+                            )
                         }
                         Spacer(Modifier.width(8.dp))
                         GlgButton(
-                            "설정",
-                            onClick = { openAppNotificationSettings(context) },
+                            if (canPromptNotifPerm) "허용" else "설정",
+                            onClick = {
+                                if (canPromptNotifPerm) ensureNotifPerm() else openAppNotificationSettings(context)
+                            },
                             modifier = Modifier.width(72.dp),
                             height = 36.dp,
                         )
@@ -809,6 +835,30 @@ private fun shareCsvFile(context: Context, csv: String) {
         putExtra(Intent.EXTRA_TEXT, csv)
     }
     context.startActivity(Intent.createChooser(intent, "지출 내역 내보내기"))
+}
+
+/** Compose 의 LocalContext 는 ContextWrapper 로 감싸여 올 수 있어, 호스트 Activity 를 되짚어 찾는다. */
+private fun Context.findActivity(): Activity? {
+    var c: Context? = this
+    while (c is ContextWrapper) {
+        if (c is Activity) return c
+        c = c.baseContext
+    }
+    return null
+}
+
+/**
+ * Android 13+ 에서 아직 권한이 없을 때만 OS 프롬프트를 띄운다(12 이하는 권한 개념 자체가 없음).
+ * 실제로 띄웠을 때만 notifPermAsked 를 남긴다 — 이 플래그가 '영구 거부' 판별의 근거다(AppSettings 참고).
+ */
+private fun requestNotifPermIfNeeded(context: Context, launchPermission: (String) -> Unit) {
+    if (Build.VERSION.SDK_INT >= 33 &&
+        ContextCompat.checkSelfPermission(context, android.Manifest.permission.POST_NOTIFICATIONS) !=
+        PackageManager.PERMISSION_GRANTED
+    ) {
+        AppSettings().notifPermAsked = true
+        launchPermission(android.Manifest.permission.POST_NOTIFICATIONS)
+    }
 }
 
 /** 이 앱의 시스템 알림 설정 화면을 연다(권한 영구 거부 시 사용자가 직접 켜도록). */

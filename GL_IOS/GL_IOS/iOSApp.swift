@@ -31,8 +31,9 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
         //    (예산 초과·출석 완료·재화 넛지)이 배너로 표시되지 않고 무음으로 사라진다.
         UNUserNotificationCenter.current().delegate = self
 
-        // 3-1. 앱 첫 실행 시 알림 권한 노출 — request()는 notDetermined(=첫 실행)일 때만 프롬프트.
-        NotificationPermission.request()
+        // 3-1. 앱 시작 시 알림 권한 자동 요청은 없앴다(v27.38.0) — 켜자마자 맥락 없이 뜨던 팝업이었다.
+        //      신규 유저는 온보딩 ④에서 맥락과 함께 요청하고, 기존 유저는 이미 물어본 적이 있으며,
+        //      그 외에는 알림 설정 화면의 안내 배너에서 직접 허용할 수 있다.
 
         // 4. Kotlin(AuthManager)에 구글 로그인 플로우 등록 — 웹 OAuth(ASWebAuthenticationSession+PKCE).
         //    SDK(GIDSignIn) 대신 사파리 웹 로그인으로 id_token/access_token 을 받아 그대로 전달.
