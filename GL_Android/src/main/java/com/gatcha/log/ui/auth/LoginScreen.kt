@@ -1,10 +1,10 @@
 package com.gatcha.log.ui.auth
 
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.LinearOutSlowInEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.spring
@@ -24,18 +24,11 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.foundation.Canvas
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
-import com.gatcha.log.ui.theme.DividerColor
 import kotlinx.coroutines.delay
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -44,13 +37,14 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.gatcha.log.R
+import com.gatcha.log.ui.components.BrandGaugeRing
+import com.gatcha.log.ui.components.BrandStar
 import com.gatcha.log.ui.components.GlgButton
-import com.gatcha.log.ui.components.GlgOutlineButton
 import com.gatcha.log.ui.components.GlgStatusToast
+import com.gatcha.log.ui.components.brandGroundBrush
 import com.gatcha.log.data.SpendingViewModel
 import com.gatcha.log.ui.theme.LocalAccent
 import com.gatcha.log.ui.theme.LocalAccentSecondary
-import com.gatcha.log.ui.theme.ProgressEmpty
 import com.gatcha.log.ui.theme.TextSecondary
 
 /** 앱 최초 진입 로그인 화면 — Google 로그인 전용(게스트 모드 없음). */
@@ -188,40 +182,51 @@ private fun AppMarkLogo(boxSize: Dp, modifier: Modifier = Modifier) {
 
 /**
  * 기존 로그인 유저 진입 시 — 계정 데이터를 불러오는 중 로딩 화면.
- * 0→100% 프로그레스바: [loading] 중에는 90%까지 부드럽게 차오르고, 완료되면 100%로 채운 뒤 [onFinished] 호출.
+ *
+ * v27.38.0 개편: 회전 스피너 링을 없애고 **앱 아이콘의 게이지 링이 차오르는 것 자체를 로딩**으로 쓴다.
+ * (기존엔 바깥 스피너 링 + 마크 안의 게이지 링이 겹쳐 링이 두 겹이었고, 바깥 것은 아무 의미가 없었다)
+ *
+ * 진행률: 클라우드 pull 은 실제 퍼센트를 알 수 없으므로 90%까지 천천히 차오르다,
+ * [loading] 이 끝나면 100%로 스냅하고 [onFinished] 를 호출한다.
  */
 @Composable
 fun AccountLoadingScreen(loading: Boolean, onFinished: () -> Unit) {
     val accent = LocalAccent.current
-
-    // 디자인: design_loading_mockup.html(A) — 브랜드 위시 스타 + 회전 링 + 3단계 진행 도트.
     var done by remember { mutableStateOf(false) }
-    LaunchedEffect(loading) {
-        if (!loading) { done = true; delay(420); onFinished() }
+
+    val progress = remember { Animatable(0f) }
+    // 미완료 구간 — 느리게 90%까지. (완료 애니메이션이 이 코루틴을 취소하고 이어받는다)
+    LaunchedEffect(Unit) {
+        progress.animateTo(0.9f, tween(2600, easing = LinearOutSlowInEasing))
     }
+    LaunchedEffect(loading) {
+        if (!loading) {
+            done = true
+            progress.animateTo(1f, tween(420))
+            delay(240)
+            onFinished()
+        }
+    }
+
     val anim = rememberInfiniteTransition(label = "load")
-    val spin by anim.animateFloat(0f, 360f, infiniteRepeatable(tween(1000, easing = LinearEasing), RepeatMode.Restart), label = "spin")
-    val pulse by anim.animateFloat(1f, 1.08f, infiniteRepeatable(tween(1100), RepeatMode.Reverse), label = "pulse")
+    val pulse by anim.animateFloat(
+        1f, 1.09f,
+        infiniteRepeatable(tween(1100), RepeatMode.Reverse),
+        label = "starPulse",
+    )
 
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Brush.verticalGradient(listOf(Color(0xFFEAFBF6), Color(0xFFF2F3F7))))
+            .background(brandGroundBrush())
             .systemBarsPadding()
             .padding(horizontal = 36.dp),
         contentAlignment = Alignment.Center,
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
-            // 회전 링 + 브랜드 위시 스타(펄스 글로우)
-            Box(contentAlignment = Alignment.Center, modifier = Modifier.size(84.dp)) {
-                Canvas(Modifier.size(84.dp)) {
-                    val sw = 3.dp.toPx(); val inset = sw / 2
-                    val arc = Size(size.width - sw, size.height - sw)
-                    drawArc(accent.copy(alpha = 0.18f), 0f, 360f, false, Offset(inset, inset), arc, style = Stroke(sw))
-                    drawArc(accent, spin, 90f, false, Offset(inset, inset), arc, style = Stroke(sw, cap = StrokeCap.Round))
-                }
-                Box(Modifier.size(60.dp).clip(CircleShape).background(Brush.radialGradient(listOf(accent.copy(alpha = 0.35f), Color.Transparent))))
-                AppMarkLogo(boxSize = 48.dp, modifier = Modifier.scale(pulse))
+            // 링 = 진행률, 중앙 별 = 호흡. 스퀘어클 배경을 벗겨 스플래시에서 이어지는 것처럼 보이게 한다.
+            BrandGaugeRing(progress = progress.value, size = 148.dp) {
+                BrandStar(size = 58.dp, modifier = Modifier.scale(pulse))
             }
             Spacer(Modifier.height(26.dp))
             Row {
@@ -231,21 +236,24 @@ fun AccountLoadingScreen(loading: Boolean, onFinished: () -> Unit) {
             Spacer(Modifier.height(10.dp))
             Text(if (done) "동기화 완료" else "계정 데이터를 불러오는 중…", fontSize = 13.sp, color = TextSecondary)
 
-            // 3단계 진행 도트
-            Spacer(Modifier.height(28.dp))
+            // 진행률은 링이 이미 말해주므로, 단계는 한 줄 텍스트로만 압축(기존 3단계 도트 대체).
+            Spacer(Modifier.height(22.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
-                StepDot(active = true, current = false)
-                StepBar(filled = true)
-                StepDot(active = true, current = !done)
-                StepBar(filled = done)
-                StepDot(active = done, current = false)
-            }
-            Spacer(Modifier.height(12.dp))
-            Row {
-                Text("연동 확인 · ", fontSize = 11.sp, color = TextSecondary)
-                Text("클라우드 불러오기", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = if (done) TextSecondary else accent)
-                Text(" · ", fontSize = 11.sp, color = TextSecondary)
-                Text("완료", fontSize = 11.sp, fontWeight = if (done) FontWeight.Bold else FontWeight.Normal, color = if (done) accent else TextSecondary)
+                Text("연동 확인", fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFFA3AEAA))
+                StageSeparator()
+                Text(
+                    "클라우드 불러오기",
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = if (done) Color(0xFFA3AEAA) else accent,
+                )
+                StageSeparator()
+                Text(
+                    "완료",
+                    fontSize = 11.sp,
+                    fontWeight = if (done) FontWeight.Bold else FontWeight.SemiBold,
+                    color = if (done) accent else Color(0xFFA3AEAA),
+                )
             }
         }
         Text(
@@ -257,16 +265,12 @@ fun AccountLoadingScreen(loading: Boolean, onFinished: () -> Unit) {
 }
 
 @Composable
-private fun StepDot(active: Boolean, current: Boolean) {
-    val accent = LocalAccent.current
-    Box(contentAlignment = Alignment.Center, modifier = Modifier.size(16.dp)) {
-        if (current) Box(Modifier.size(16.dp).clip(CircleShape).background(accent.copy(alpha = 0.2f)))
-        Box(Modifier.size(8.dp).clip(CircleShape).background(if (active) accent else DividerColor))
-    }
-}
-
-@Composable
-private fun StepBar(filled: Boolean) {
-    val accent = LocalAccentSecondary.current
-    Box(Modifier.width(34.dp).height(2.dp).clip(CircleShape).background(if (filled) accent else DividerColor))
+private fun StageSeparator() {
+    Box(
+        Modifier
+            .padding(horizontal = 6.dp)
+            .size(3.dp)
+            .clip(CircleShape)
+            .background(Color(0xFFD4DCD9)),
+    )
 }

@@ -45,7 +45,13 @@ targets:
         CFBundleVersion: "273800"
         # Compose Multiplatform 필수 — 없으면 시작 시 PlistSanityCheck 크래시 (120Hz 허용)
         CADisableMinimumFrameDurationOnPhone: true
-        UILaunchScreen: {}
+        # 런치스크린(v27.38.0) — 예전엔 빈 dict 라 실행 직후 아무것도 없는 흰 화면이 떴다.
+        # 화이트 바탕 + 아이콘의 게이지 링 마크(민트 글로우는 PNG 에 구워 넣음 — GL_IOS/scripts/GenLaunchMark.swift).
+        # 앱 첫 화면(온보딩·로딩)의 BrandGround 와 같은 그라운드라 이음매 없이 넘어간다.
+        UILaunchScreen:
+          UIColorName: LaunchBackground
+          UIImageName: LaunchMark
+          UIImageRespectsSafeAreaInsets: false
         # 모바일·세로 전용 앱 — 전체화면 필요 선언으로 iPad 멀티태스킹용 전방향 지원 경고 해소
         UIRequiresFullScreen: true
         UISupportedInterfaceOrientations:

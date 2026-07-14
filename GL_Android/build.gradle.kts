@@ -131,6 +131,8 @@ dependencies {
     implementation(project(":GL_Shared"))
 
     implementation("androidx.core:core-ktx:1.15.0") // compileSdk 35 호환 (1.19.0은 compileSdk 37 요구)
+    // 시스템 스플래시 — Android 12+ 네이티브 스플래시를 쓰고, 11 이하는 동일 화면으로 백포트.
+    implementation("androidx.core:core-splashscreen:1.0.1")
     // 인증 토큰 암호화 저장(EncryptedSharedPreferences / Android Keystore) — HoYoLAB 토큰 전용
     implementation("androidx.security:security-crypto:1.1.0")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.10.0")

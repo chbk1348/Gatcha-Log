@@ -84,25 +84,4 @@ struct AppMarkLogo: View {
     }
 }
 
-/// 4각 별 — 아이콘 벡터의 별(M54,38 l5,11 11,5 …)과 동일 비율.
-private struct FourPointStar: Shape {
-    func path(in rect: CGRect) -> Path {
-        let w = rect.width, h = rect.height
-        let cx = rect.midX, cy = rect.midY
-        let outer = w / 2                 // 꼭짓점까지
-        let inner = w * (5.0 / 32.0)      // 오목한 지점 (벡터의 5/32 비율)
-
-        var p = Path()
-        p.move(to: CGPoint(x: cx, y: cy - outer))            // 위
-        p.addLine(to: CGPoint(x: cx + inner, y: cy - inner))
-        p.addLine(to: CGPoint(x: cx + outer, y: cy))         // 오른쪽
-        p.addLine(to: CGPoint(x: cx + inner, y: cy + inner))
-        p.addLine(to: CGPoint(x: cx, y: cy + outer))         // 아래
-        p.addLine(to: CGPoint(x: cx - inner, y: cy + inner))
-        p.addLine(to: CGPoint(x: cx - outer, y: cy))         // 왼쪽
-        p.addLine(to: CGPoint(x: cx - inner, y: cy - inner))
-        p.closeSubpath()
-        _ = h
-        return p
-    }
-}
+// 4각 별(FourPointStar)은 DesignSystem/BrandGauge.swift 로 옮겼다 — 온보딩·로딩·런치마크가 함께 쓴다.

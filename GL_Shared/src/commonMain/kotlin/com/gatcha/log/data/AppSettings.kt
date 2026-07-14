@@ -83,10 +83,37 @@ class AppSettings {
         get() = prefs.getBoolean(KEY_HOYO_EXPIRED, false)
         set(v) { prefs.putBoolean(KEY_HOYO_EXPIRED, v) }
 
-    /** 앱 첫 실행 시 알림 권한을 1회 자동 요청했는지(중복 프롬프트 방지). */
+    /**
+     * OS 알림 권한 프롬프트를 **실제로 띄운 적** 있는지.
+     *
+     * Android 의 '영구 거부' 판별에 쓴다: shouldShowRequestPermissionRationale 은 "한 번도 안 물어봄"과
+     * "두 번 거부해서 영구 차단됨"을 똑같이 false 로 답한다. 이 플래그로 둘을 가른다 —
+     * 물어본 적 있는데 rationale 도 false 면 영구 거부(= 프롬프트가 더는 안 뜨므로 시스템 설정으로만 켤 수 있음).
+     *
+     * 그러므로 프롬프트를 띄우지 않은 경로(온보딩 "나중에 할게요")에서는 절대 true 로 만들면 안 된다.
+     */
     var notifPermAsked: Boolean
         get() = prefs.getBoolean(KEY_NOTIF_PERM_ASKED, false)
         set(v) { prefs.putBoolean(KEY_NOTIF_PERM_ASKED, v) }
+
+    /**
+     * 첫 실행 온보딩(앱 소개 4페이지)을 마쳤는지. 로그인보다 앞에 오는 기기 단위 게이트.
+     *
+     * 기본값이 [hasUsedAppBefore] 인 이유: 이 키가 없던 버전에서 업데이트한 기존 유저에게 온보딩이
+     * 새삼 뜨면 안 된다. 저장된 키가 없으면 "앱을 써본 적 있는가"로 판정한다.
+     */
+    var onboardingDone: Boolean
+        get() = prefs.getBoolean(KEY_ONBOARDING_DONE, hasUsedAppBefore())
+        set(v) { prefs.putBoolean(KEY_ONBOARDING_DONE, v) }
+
+    /**
+     * 온보딩 키가 생기기(v27.38.0) 전부터 앱을 써온 유저인지 — 온보딩 재노출 방지용 마이그레이션 판정.
+     *
+     * **로그인 이력**이 1순위 기준이다. 이 앱은 구글 로그인이 필수라 계정이 저장돼 있으면 확실한 기존 유저다.
+     * [notifPermAsked] 는 Android 에서만 기록됐고 iOS 는 OS 권한 상태에만 의존했어서, 이것만 보면
+     * **기존 iOS 유저 전원이 온보딩을 다시 보게 된다**(전부 false). 보조 기준으로만 쓴다.
+     */
+    private fun hasUsedAppBefore(): Boolean = currentAccountId() != "guest" || notifPermAsked
 
     /** 지출 내역 목록을 컴팩트(한 줄)로 표시. 기본 false(기존 — 아이템·결제수단·태그 노출). */
     var spendingCompact: Boolean
@@ -113,6 +140,7 @@ class AppSettings {
         private const val KEY_NUDGE = "nudge_overspend"
         private const val KEY_NUDGE_THRESHOLD = "nudge_threshold"
         private const val KEY_NOTIF_PERM_ASKED = "notif_perm_asked"
+        private const val KEY_ONBOARDING_DONE = "onboarding_done"
         private const val KEY_SPENDING_COMPACT = "spending_compact"
         private const val KEY_NOTIFY_SUB = "notify_subscription"
         private const val KEY_NOTIFY_NEWS = "notify_news"

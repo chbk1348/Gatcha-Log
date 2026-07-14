@@ -4,4 +4,21 @@
         <item name="android:statusBarColor">@android:color/transparent</item>
         <item name="android:navigationBarColor">@android:color/transparent</item>
     </style>
+
+    <!--
+      시스템 스플래시(v27.38.0) — 런처 아이콘의 게이지 링을 그대로 띄운다.
+      배경이 아이콘과 같은 화이트라, 스플래시가 사라지면서 앱 첫 화면(온보딩·로딩)의
+      화이트 + 민트 글로우 그라운드로 이음매 없이 넘어간다.
+
+      아이콘은 ic_launcher_foreground 재사용 — 런처 아이콘과 형태가 어긋나면 "아이콘이 스플래시로
+      확대되는" 시스템 전환이 어색해진다. foreground 는 어댑티브 안전영역(링 최외곽 64.5/108 = 59.7%)
+      안에 있어 스플래시 가시 영역(캔버스의 약 2/3)에서도 잘리지 않는다.
+
+      MainActivity 에만 건다. installSplashScreen() 이 postSplashScreenTheme 로 앱 테마를 되돌린다.
+    -->
+    <style name="Theme.GatchaLog.Splash" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">@android:color/white</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/ic_launcher_foreground</item>
+        <item name="postSplashScreenTheme">@style/Theme.GatchaLog</item>
+    </style>
 </resources>

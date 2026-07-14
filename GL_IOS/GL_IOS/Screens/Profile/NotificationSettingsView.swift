@@ -12,6 +12,10 @@ struct NotificationSettingsView: View {
     @Environment(\.glgAccent) private var accent
     // 알림 토글은 켰는데 시스템 알림 권한이 거부된 상태(안내 표시용). 비동기 조회라 @State 로 캐시.
     @State private var notifBlocked = false
+    /// 권한 상태 — .notDetermined 면 아직 OS 프롬프트를 띄울 수 있으므로 시스템 설정으로 보내지 않고 바로 요청한다.
+    /// (.denied 는 프롬프트가 다시 뜨지 않아 시스템 설정 말고는 방법이 없다)
+    @State private var authStatus: UNAuthorizationStatus = .notDetermined
+    private var canPromptNotifPerm: Bool { authStatus == .notDetermined }
 
     var body: some View {
         ScrollView {
@@ -50,19 +54,29 @@ struct NotificationSettingsView: View {
                       notifyBind(\.notifyNews, store.setNotifyNews))
             if notifBlocked && (store.notifyBudget || store.notifyAttendance || store.notifyResin || store.notifyPickup || store.notifySubscription || store.notifyNews) {
                 Divider()
-                Button { openSystemSettings() } label: {
+                // 아직 프롬프트를 띄울 수 있으면(.notDetermined) 시스템 설정으로 보내지 말고 여기서 바로 요청한다.
+                Button {
+                    if canPromptNotifPerm {
+                        NotificationPermission.request { refreshNotifBlocked() }
+                    } else {
+                        openSystemSettings()
+                    }
+                } label: {
                     HStack(spacing: 12) {
                         Image(systemName: "bell.slash.fill").font(.pretendard(size: 18))
                             .foregroundStyle(Color(hex: 0xFFFB8C00)).frame(width: 24)
                         VStack(alignment: .leading, spacing: 2) {
                             Text("알림 권한이 꺼져 있어요").font(.pretendard(size: 14, weight: .medium))
                                 .foregroundStyle(Color(hex: 0xFFFB8C00))
-                            Text("권한이 막혀 있어 알림이 표시되지 않아요. 설정에서 알림을 켜주세요.")
+                            Text(canPromptNotifPerm
+                                 ? "알림을 받으려면 권한을 허용해주세요."
+                                 : "권한이 막혀 있어 알림이 표시되지 않아요. 설정에서 알림을 켜주세요.")
                                 .font(.pretendard(size: 11)).foregroundStyle(GLGColor.textSecondary)
                         }
                         Spacer()
-                        Image(systemName: "chevron.right").font(.pretendard(size: 13, weight: .semibold))
-                            .foregroundStyle(Color(.tertiaryLabel))
+                        Text(canPromptNotifPerm ? "허용" : "설정")
+                            .font(.pretendard(size: 13, weight: .semibold))
+                            .foregroundStyle(accent.primary)
                     }
                     .contentShape(Rectangle()).padding(.vertical, 10)
                 }
@@ -157,11 +171,11 @@ struct NotificationSettingsView: View {
         }
     }
 
-    /// 시스템 알림 권한 상태를 조회해 notifBlocked 갱신(거부/미결정이면 차단으로 간주).
+    /// 시스템 알림 권한 상태를 조회해 notifBlocked·authStatus 갱신(거부/미결정이면 차단으로 간주).
     private func refreshNotifBlocked() {
-        UNUserNotificationCenter.current().getNotificationSettings { settings in
-            let ok = settings.authorizationStatus == .authorized || settings.authorizationStatus == .provisional
-            DispatchQueue.main.async { notifBlocked = !ok }
+        NotificationPermission.status { status in
+            authStatus = status
+            notifBlocked = !(status == .authorized || status == .provisional)
         }
     }
 
@@ -193,7 +207,7 @@ struct NotificationSettingsView: View {
     /// 알림 토글용 — 켤 때 iOS 알림 권한을 요청한다.
     private func notifyBind(_ keyPath: KeyPath<SpendingStore, Bool>, _ setter: @escaping (Bool) -> Void) -> Binding<Bool> {
         Binding(get: { store[keyPath: keyPath] }, set: { on in
-            if on { NotificationPermission.request() }
+            if on { NotificationPermission.request { refreshNotifBlocked() } }
             setter(on)
         })
     }
