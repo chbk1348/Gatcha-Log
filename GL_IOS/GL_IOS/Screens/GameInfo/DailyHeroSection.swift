@@ -72,7 +72,7 @@ struct DailyHeroSection: View {
                 VStack(alignment: .leading, spacing: 0) {
                     HStack {
                         HStack(spacing: 7) {
-                            Circle().fill(gameColor).frame(width: 8, height: 8)
+                            GLGGameTag(game: game.displayName, size: .small)
                             Text(game.shortName).font(.pretendard(size: 16, weight: .bold)).foregroundStyle(gameColor)
                         }
                         Spacer()

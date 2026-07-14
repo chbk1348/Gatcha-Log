@@ -61,7 +61,7 @@ private struct CombatCard: View {
     var body: some View {
         GLGCard(cornerRadius: 20, padding: 16) {
             VStack(alignment: .leading, spacing: 0) {
-                HStack(spacing: 8) { Circle().fill(Color(argb64: game.color)).frame(width: 10, height: 10); Text(game.shortName).font(.pretendard(size: 15, weight: .bold)) }
+                HStack(spacing: 8) { GLGGameTag(game: game.displayName, size: .small); Text(game.shortName).font(.pretendard(size: 15, weight: .bold)) }
                     .padding(.bottom, 2)
                 ForEach(Array(modes.enumerated()), id: \.offset) { i, m in
                     combatRow(m)
@@ -104,7 +104,7 @@ struct LedgerCard: View {
         GLGCard(cornerRadius: 20, padding: 16) {
             VStack(alignment: .leading, spacing: 0) {
                 HStack(spacing: 8) {
-                    Circle().fill(Color(argb64: ledger.gameColor)).frame(width: 10, height: 10)
+                    GLGGameTag(game: ledger.game, size: .small)
                     Text(GameData.shared.byName(name: ledger.game).shortName).font(.pretendard(size: 15, weight: .bold))
                     if ledger.month > 0 { Text("\(ledger.month)월").font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary) }
                 }

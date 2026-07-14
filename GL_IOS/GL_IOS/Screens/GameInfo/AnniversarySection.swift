@@ -15,9 +15,10 @@ struct AnniversarySection: View {
                         ForEach(Array(list.enumerated()), id: \.offset) { i, a in
                             if i > 0 { Divider() }
                             HStack(spacing: 10) {
-                                Circle().fill(Color(argb64: a.game.color)).frame(width: 10, height: 10)
+                                GLGGameTag(game: a.game.displayName, size: .small)
                                 VStack(alignment: .leading, spacing: 1) {
-                                    Text(a.game.displayName).font(.pretendard(size: 14, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
+                                    // 이름은 shortName 으로 — 다른 섹션은 전부 shortName 인데 여기만 displayName 이었다.
+                                    Text(a.game.shortName).font(.pretendard(size: 14, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
                                     Text("\(a.ordinal)주년").font(.pretendard(size: 11)).foregroundStyle(GLGColor.textSecondary)
                                 }
                                 Spacer(minLength: 8)

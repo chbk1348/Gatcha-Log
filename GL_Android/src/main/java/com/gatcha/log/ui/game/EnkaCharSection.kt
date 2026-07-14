@@ -43,6 +43,8 @@ import com.gatcha.log.data.api.EnkaStatLine
 import com.gatcha.log.data.api.EnkaWeapon
 import com.gatcha.log.data.api.KeyStatRules
 import com.gatcha.log.data.api.StatTok
+import com.gatcha.log.ui.components.GameTagSize
+import com.gatcha.log.ui.components.GlgGameTag
 import com.gatcha.log.ui.components.GlassCard
 import com.gatcha.log.ui.components.GlgTextField
 import com.gatcha.log.ui.components.RosterSkeleton
@@ -151,8 +153,9 @@ private fun GameRosterBlock(
         Column(Modifier.padding(16.dp)) {
             if (showLabel) {
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 12.dp)) {
-                    Box(Modifier.size(8.dp).clip(RoundedCornerShape(999.dp)).background(accent))
-                    Spacer(Modifier.width(7.dp))
+                    // 게임 태그 — 예전엔 닷이 앱 강조색이라 세 게임이 전부 같은 색이었다(구분 불가).
+                    GlgGameTag(game, size = GameTagSize.Small)
+                    Spacer(Modifier.width(8.dp))
                     Text(gameLabel(game), fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
                     if (chars.isNotEmpty()) {
                         Spacer(Modifier.width(6.dp))

@@ -21,6 +21,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.gatcha.log.data.GameAnniversary
+import com.gatcha.log.ui.components.GameTagSize
+import com.gatcha.log.ui.components.GlgGameTag
 import com.gatcha.log.ui.components.GlassCard
 import com.gatcha.log.ui.theme.DividerColor
 import com.gatcha.log.ui.theme.LocalAccent
@@ -43,10 +45,11 @@ fun AnniversarySection() {
                     modifier = Modifier.fillMaxWidth().padding(vertical = 11.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Box(Modifier.size(10.dp).clip(CircleShape).background(a.game.color.toColor()))
+                    GlgGameTag(a.game.displayName, size = GameTagSize.Small)
                     Spacer(Modifier.width(10.dp))
                     Column(Modifier.weight(1f)) {
-                        Text(a.game.displayName, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TextPrimary, maxLines = 1)
+                        // 이름은 shortName 으로 — 다른 섹션은 전부 shortName 인데 여기만 displayName 이었다.
+                        Text(a.game.shortName, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TextPrimary, maxLines = 1)
                         Text("${a.ordinal}주년", fontSize = 11.sp, color = TextSecondary)
                     }
                     if (a.daysUntil == 0) {

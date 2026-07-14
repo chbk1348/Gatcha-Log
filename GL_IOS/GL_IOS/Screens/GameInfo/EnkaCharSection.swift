@@ -95,7 +95,8 @@ struct EnkaCharSection: View {
         VStack(alignment: .leading, spacing: 10) {
             if showLabel {
                 HStack(spacing: 7) {
-                    Circle().fill(accent.primary).frame(width: 8, height: 8)
+                    // 게임 태그 — 예전엔 닷이 앱 강조색이라 세 게임이 전부 같은 색이었다(구분 불가).
+                    GLGGameTag(game: game, size: .small)
                     Text(enkaGameLabel(game)).font(.pretendard(size: 14, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
                     if !chars.isEmpty {
                         Text("\(chars.count)").font(.pretendard(size: 12, weight: .bold)).foregroundStyle(GLGColor.textSecondary)
