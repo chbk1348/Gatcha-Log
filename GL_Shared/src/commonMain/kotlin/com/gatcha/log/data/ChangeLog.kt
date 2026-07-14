@@ -35,16 +35,20 @@ data class ChangeEntry(
 object ChangeLog {
 
     /** 헤더 메타 — 업데이트 기간 라벨. */
-    const val periodLabel: String = "2026.05.23 ~ 07.13"
+    const val periodLabel: String = "2026.05.23 ~ 07.14"
 
     val entries: List<ChangeEntry> = buildList {
-        add(ChangeEntry("27.38.0", "2026.07.13", featured = true, items = listOf(
+        // 27.38.0·27.39.0 은 배포하지 않고 27.40.0 으로 통합했다(코드만 올라가 있었음).
+        add(ChangeEntry("27.40.0", "2026.07.14", featured = true, items = listOf(
             new("앱 아이콘을 새로 그렸어요 — 천장 게이지 링"),
             new("첫 실행 안내 — 앱을 처음 켜면 무엇을 할 수 있는지 4장으로 소개해드려요"),
             imp("앱을 켤 때 나오는 화면을 새단장했어요 — 게이지 링이 차오르며 불러오는 중임을 알려드려요"),
             imp("알림 권한을 앱을 켜자마자 묻지 않고, 무엇을 알려드릴지 설명한 뒤에 여쭤봐요"),
             new("새 공지 알림 — 게임에 새 공지가 올라오면 알려드려요 (설정 → 알림 설정에서 켜기)"),
             imp("구글 로그인이 더 빨라졌어요 — 브라우저 대신 계정 시트에서 탭 한 번으로 로그인해요 (Android)"),
+            fix("지출을 수정할 때 가끔 빈 '지출 추가' 화면이 뜨던 문제를 바로잡았어요"),
+            fix("지출 추가·수정 화면과 알림 문구가 고른 테마 색을 따르지 않던 문제를 바로잡았어요 (iOS)"),
+            imp("버튼 모양을 알약으로 통일했어요"),
         )))
         add(ChangeEntry("27.37.0", "2026.07.13", securityPill = true, items = listOf(
             sec("계정 토큰 보관을 더 안전하게 — 암호화 저장소를 쓸 수 없는 기기에서 토큰이 평문으로 저장되던 문제를 막았어요"),
