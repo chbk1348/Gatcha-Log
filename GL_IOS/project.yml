@@ -40,6 +40,12 @@ targets:
       path: GL_IOS/Info.plist
       properties:
         CFBundleDisplayName: Gatcha-Log
+        # 한국어 전용 앱 — 지원 언어를 선언하지 않으면 **시스템 UI 문자열이 영어로 떨어진다**
+        # (텍스트 선택 시 뜨는 복사·전체 선택 메뉴, 사진 권한 시트 등 UIKit 기본 UI).
+        # 기본값 $(DEVELOPMENT_LANGUAGE) 는 영어라, 한국어를 개발 지역·지원 언어로 못박는다.
+        CFBundleDevelopmentRegion: ko
+        CFBundleLocalizations:
+          - ko
         # 앱 버전 — Android(app/build.gradle.kts)와 동일한 규칙: versionName "27.33.0" / versionCode 273300
         CFBundleShortVersionString: "27.41.0"
         CFBundleVersion: "274100"
