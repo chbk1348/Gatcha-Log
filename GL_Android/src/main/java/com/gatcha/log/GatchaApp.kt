@@ -24,6 +24,10 @@ class GatchaApp : Application() {
         AppContext.init(this)
         ActivityHolder.registerWith(this)
 
+        // 온보딩 노출 판정을 굳힌다(기존 유저 = 온보딩 완료로 확정). 로그아웃으로 계정 id 가 지워져도
+        // 판정이 뒤집히지 않게 하려면, 매번 계산하지 말고 첫 실행에 한 번 파일에 박아야 한다.
+        runCatching { com.gatcha.log.data.AppSettings().freezeOnboardingVerdict() }
+
         // 상태바 알림 아이콘 — shared 는 :GL_Android 의 R 을 못 보므로 여기서 주입.
         // (런처 아이콘은 불투명 배경이라 알파만 쓰는 상태바에서 흰 사각형이 된다)
         com.gatcha.log.data.Notifier.smallIconRes = R.drawable.ic_stat_gatcha

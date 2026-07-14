@@ -35,6 +35,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -547,6 +550,17 @@ private fun NotificationSettingsScreen(viewModel: SpendingViewModel, onBack: () 
     }
     val ensureNotifPerm: () -> Unit = { requestNotifPermIfNeeded(context, notifPermLauncher::launch) }
     val activity = remember(context) { context.findActivity() }
+
+    // 시스템 설정에서 알림을 켜고 돌아오면 배너가 사라져야 한다. 권한은 Compose 상태가 아니라 OS 상태라
+    // 화면에 돌아올 때(ON_RESUME) 다시 읽어야 한다 — 안 그러면 켜고 와도 "알림 권한이 꺼져 있어요"가 남는다.
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) permRefresh++
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
 
     // 알림 시각 피커(0~23시) — 방해금지 시작/종료, 데일리 요약 시각
     val showDndStartPicker = remember { mutableStateOf(false) }

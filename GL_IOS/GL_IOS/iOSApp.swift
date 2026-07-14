@@ -17,6 +17,10 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
             FirebaseApp.configure()
         }
 
+        // 1-1. 온보딩 노출 판정을 굳힌다(기존 유저 = 온보딩 완료로 확정). 로그아웃하면 계정 id 가 지워지므로,
+        //      매번 계산하면 기존 유저가 로그아웃하는 순간 온보딩이 다시 뜬다. 첫 실행에 한 번 파일에 박는다.
+        AppSettings().freezeOnboardingVerdict()
+
         // 2. 자동 출석 백그라운드 태스크 등록 (Kotlin BGTaskScheduler 핸들러)
         NativeScheduler_iosKt.registerBackgroundTask()
 
