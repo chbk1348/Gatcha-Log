@@ -10,6 +10,9 @@ import Shared
 struct NotificationSettingsView: View {
     @ObservedObject var store: SpendingStore
     @Environment(\.glgAccent) private var accent
+    /// 시스템 설정에서 알림을 켜고 돌아오면 배너가 사라져야 한다. 권한은 SwiftUI 상태가 아니라 OS 상태라
+    /// 앱이 다시 활성화될 때 재조회한다 — 안 그러면 켜고 와도 "알림 권한이 꺼져 있어요"가 남는다.
+    @Environment(\.scenePhase) private var scenePhase
     // 알림 토글은 켰는데 시스템 알림 권한이 거부된 상태(안내 표시용). 비동기 조회라 @State 로 캐시.
     @State private var notifBlocked = false
     /// 권한 상태 — .notDetermined 면 아직 OS 프롬프트를 띄울 수 있으므로 시스템 설정으로 보내지 않고 바로 요청한다.
@@ -30,6 +33,9 @@ struct NotificationSettingsView: View {
         .background(GLGBackground { Color.clear })
         .navigationTitle("알림 설정")
         .navigationBarTitleDisplayMode(.inline)
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active { refreshNotifBlocked() }
+        }
     }
 
     // ── 알림 — 항목별 토글 ──

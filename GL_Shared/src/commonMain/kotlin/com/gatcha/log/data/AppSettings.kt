@@ -115,6 +115,22 @@ class AppSettings {
      */
     private fun hasUsedAppBefore(): Boolean = currentAccountId() != "guest" || notifPermAsked
 
+    /**
+     * 앱 시작 시 1회 호출 — [hasUsedAppBefore] 판정을 파일에 **굳힌다**.
+     *
+     * 굳히지 않으면 판정이 매번 다시 계산되는데, 그 근거인 계정 id 는 **로그아웃하면 지워진다**
+     * (AuthManager.signOut). 그러면 기존 유저가 로그아웃하는 순간 "앱을 써본 적 없는 사람"이 되어
+     * 온보딩이 다시 뜬다. iOS 는 notifPermAsked 를 기록한 적이 없어(전부 false) 곧바로 이 함정에 빠진다.
+     *
+     * 온보딩을 마친 유저는 [onboardingDone] 에 true 가 명시 저장되므로 영향받지 않는다.
+     * 진짜 신규 설치는 hasUsedAppBefore()=false 라 아무것도 쓰지 않고 정상적으로 온보딩을 탄다.
+     */
+    fun freezeOnboardingVerdict() {
+        if (!prefs.getBoolean(KEY_ONBOARDING_DONE, false) && hasUsedAppBefore()) {
+            prefs.putBoolean(KEY_ONBOARDING_DONE, true)
+        }
+    }
+
     /** 지출 내역 목록을 컴팩트(한 줄)로 표시. 기본 false(기존 — 아이템·결제수단·태그 노출). */
     var spendingCompact: Boolean
         get() = prefs.getBoolean(KEY_SPENDING_COMPACT, false)
