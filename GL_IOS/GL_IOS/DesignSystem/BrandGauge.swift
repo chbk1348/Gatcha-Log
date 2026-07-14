@@ -15,7 +15,13 @@ enum BrandMark {
     /// 아이콘 별 색 — 화이트 바탕에서 대비를 잡는 네이비(ic_launcher_foreground 와 동일값).
     static let navy = Color(hex: 0xFF0F1A33)
     /// 게이지 트랙(아직 채워지지 않은 구간) — 아이콘과 동일한 연회색-민트.
+    ///
+    /// 링 안에서는 이 고정색 대신 강조색의 옅은 톤([trackColor])을 쓴다. 아이콘은 민트로 고정이지만
+    /// 앱 강조색은 사용자가 바꾸므로, 트랙만 민트빛으로 남으면 (예: 핑크 테마에서) 진행 구간과 색이 어긋나 보인다.
     static let track = Color(hex: 0xFFE1EDEA)
+
+    /// 테마를 따라가는 게이지 트랙. 기본(민트)에서는 [track] 과 사실상 같은 색이라 아이콘과의 일관성도 유지된다.
+    static func trackColor(_ accent: GLGAccent) -> Color { accent.primary.opacity(0.16) }
 
     /// 선 굵기 / 링 지름.
     ///
@@ -38,7 +44,7 @@ struct BrandGaugeRing<Content: View>: View {
 
         ZStack {
             Circle()
-                .stroke(BrandMark.track, lineWidth: line)
+                .stroke(BrandMark.trackColor(accent), lineWidth: line)
                 .frame(width: ring, height: ring)
 
             Circle()
