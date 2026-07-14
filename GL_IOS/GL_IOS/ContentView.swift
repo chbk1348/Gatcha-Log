@@ -147,6 +147,11 @@ struct ContentView: View {
         } message: {
             Text(store.networkAlert ?? "")
         }
+        // 강조색을 **최상위에서** 주입한다. 예전엔 탭 콘텐츠에만 걸어서, 탭 바깥에 붙는 것들
+        // (지출 추가/수정 시트·전역 토스트·네트워크 얼럿)이 주입이 없는 환경을 물려받아
+        // 사용자가 무슨 테마를 골랐든 항상 기본 민트로 떴다.
+        // 로그인 전 화면은 더 안쪽에서 preLoginAccent 로 덮어쓰므로(가까운 쪽이 이긴다) 그대로 민트로 남는다.
+        .glgAccent(index: store.accentIndex)
     }
 
     /// '+' (지출 추가) 모달 열기 — 신규 추가(편집 대상 없음).
