@@ -34,6 +34,7 @@ import com.gatcha.log.data.api.EnkaApi
 import com.gatcha.log.data.api.EnkaResult
 import com.gatcha.log.data.api.EnneadApi
 import com.gatcha.log.data.api.NewsApi
+import com.gatcha.log.data.api.NewsArticle
 import com.gatcha.log.data.api.NewsItem
 import com.gatcha.log.data.api.HoyolabApi
 import com.gatcha.log.data.api.CodeResult
@@ -649,6 +650,41 @@ class SpendingViewModel : ViewModel() {
     private val _gameNews = MutableStateFlow<List<NewsItem>>(emptyList())
     val gameNews: StateFlow<List<NewsItem>> = _gameNews.asStateFlow()
 
+    // ── 공지 본문(상세 페이지) ──────────────────────────────────────────────
+    // 목록에서 공지를 열면 HoYoLab 아티클 API 로 본문을 받아 온다. 실패해도 화면은 비우지 않는다 —
+    // 목록이 이미 갖고 있는 summary(줄바꿈 없는 평문)로 폴백하고, '브라우저에서 보기'를 함께 제공한다.
+    private val _newsArticle = MutableStateFlow<NewsArticle?>(null)
+    val newsArticle: StateFlow<NewsArticle?> = _newsArticle.asStateFlow()
+
+    private val _newsArticleLoading = MutableStateFlow(false)
+    val newsArticleLoading: StateFlow<Boolean> = _newsArticleLoading.asStateFlow()
+
+    /** 본문 로드 실패(네트워크·파싱) — UI 는 summary 폴백을 보여준다. */
+    private val _newsArticleFailed = MutableStateFlow(false)
+    val newsArticleFailed: StateFlow<Boolean> = _newsArticleFailed.asStateFlow()
+
+    /** 공지 상세 진입 — 본문을 받아 온다. 같은 글을 다시 열면 재요청하지 않는다. */
+    fun loadNewsArticle(item: NewsItem) {
+        // 다른 글로 이동했으면 이전 본문이 잠깐 비치면 안 되므로 먼저 비운다.
+        if (_newsArticle.value?.let { it.title != item.title } != false) _newsArticle.value = null
+        _newsArticleFailed.value = false
+        if (item.id.isBlank()) { _newsArticleFailed.value = true; return }
+        _newsArticleLoading.value = true
+        viewModelScope.launch {
+            val article = NewsApi.article(item.id)
+            _newsArticle.value = article
+            _newsArticleFailed.value = article == null
+            _newsArticleLoading.value = false
+        }
+    }
+
+    /** 공지 상세 이탈 — 다음 진입 때 이전 글이 비치지 않도록 정리. */
+    fun clearNewsArticle() {
+        _newsArticle.value = null
+        _newsArticleLoading.value = false
+        _newsArticleFailed.value = false
+    }
+
     // 천장(gameKey -> PityState), 이벤트 체크
     private val _pity = MutableStateFlow<Map<String, PityState>>(emptyMap())
     val pity: StateFlow<Map<String, PityState>> = _pity.asStateFlow()
@@ -1171,7 +1207,7 @@ class SpendingViewModel : ViewModel() {
                     if (uids.isNotEmpty()) {
                         val rest = uids.map { (key, uid) ->
                             async {
-                                val ledger = HoyolabApi.getMonthlyLedger(cfg.ltuid, cfg.ltoken, key, uid)?.takeIf { it.hasData }
+                                val ledger = HoyolabApi.getMonthlyLedger(cfg.ltuid, cfg.ltoken, cfg.webCookie, key, uid)?.takeIf { it.hasData }
                                 val combat = HoyolabApi.getCombat(cfg.ltuid, cfg.ltoken, key, uid)
                                 ledger to combat
                             }

@@ -43,17 +43,18 @@ import com.gatcha.log.ui.components.GlgTabHeader
 import com.gatcha.log.data.GameInfoAnchor
 import com.gatcha.log.data.SpendingViewModel
 import com.gatcha.log.data.api.EnkaChar
+import com.gatcha.log.data.api.NewsItem
 import com.gatcha.log.util.SafIO
 import com.gatcha.log.ui.theme.*
 import kotlinx.coroutines.launch
 
 /** 게임정보 탭의 풀스크린 하위 페이지 (열리면 하단바·FAB 숨김) */
-private enum class GiSub { Main, HoyoLink, Dashboard, Calc, Report, Gift, Schedule, Pickups, News, CharStats, CharRoster }
+private enum class GiSub { Main, HoyoLink, Dashboard, Calc, Report, Gift, Schedule, Pickups, News, NewsDetail, CharStats, CharRoster }
 
-/** 화면 전환 push/pop 방향용 계층 깊이. Main=0, 하위 페이지=1, 캐릭터 상세(목록서 진입)=2. */
+/** 화면 전환 push/pop 방향용 계층 깊이. Main=0, 하위 페이지=1, 상세(목록서 진입)=2. */
 private fun subDepth(s: GiSub): Int = when (s) {
     GiSub.Main -> 0
-    GiSub.CharStats -> 2
+    GiSub.CharStats, GiSub.NewsDetail -> 2
     else -> 1
 }
 
@@ -114,6 +115,14 @@ fun GameInfoScreen(
     var rosterGame by remember { mutableStateOf("genshin") }
     // 스탯 상세에서 뒤로 갈 위치(섹션=Main, 보유목록=CharRoster)
     var statReturn by remember { mutableStateOf(GiSub.Main) }
+    // 공지 상세 — 대상 글과, 뒤로 갈 위치(섹션=Main, 전체목록=News)
+    var newsItem by remember { mutableStateOf<NewsItem?>(null) }
+    var newsReturn by remember { mutableStateOf(GiSub.Main) }
+    val openNews: (NewsItem, GiSub) -> Unit = { n, from ->
+        newsItem = n
+        newsReturn = from
+        subPage = GiSub.NewsDetail
+    }
     LaunchedEffect(subPage) { onSubPageChange(subPage != GiSub.Main) }
     val redeemState by viewModel.redeemState.collectAsState()
     val activeCodes by viewModel.activeCodes.collectAsState()
@@ -206,8 +215,15 @@ fun GameInfoScreen(
             GiSub.Pickups -> SectionPage(onBack = { subPage = GiSub.Main }) {
                 GamePickupFullContent(banners, gameFilter)
             }
+            GiSub.NewsDetail -> SectionPage(
+                onBack = { subPage = newsReturn; viewModel.clearNewsArticle() },
+            ) {
+                val n = newsItem
+                if (n != null) NewsDetailContent(viewModel, n)
+            }
+
             GiSub.News -> SectionPage(onBack = { subPage = GiSub.Main }) {
-                NewsFullContent(gameNews, gameFilter)
+                NewsFullContent(gameNews, gameFilter, onOpen = { openNews(it, GiSub.News) })
             }
             GiSub.Main -> GlgPullToRefreshBox(
             isRefreshing = isRefreshing,
@@ -279,7 +295,13 @@ fun GameInfoScreen(
             item { AnniversarySection() }
             // 공지·뉴스 — 게임별 최신 공지(탭하면 HoYoLab 열기).
             item { Spacer(Modifier.height(20.dp)) }
-            item { NewsSection(gameNews, gameFilter, onSeeAll = { subPage = GiSub.News }) }
+            item {
+                NewsSection(
+                    gameNews, gameFilter,
+                    onSeeAll = { subPage = GiSub.News },
+                    onOpen = { openNews(it, GiSub.Main) },
+                )
+            }
             // 전투 진행도·수입 일지. 미연동이면 데이터가 없어 섹션·상단 여백까지 통째 생략.
             if (hoyolab.isLinked) {
                 item { Spacer(Modifier.height(20.dp)) }
