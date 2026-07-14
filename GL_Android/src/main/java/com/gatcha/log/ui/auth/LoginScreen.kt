@@ -156,19 +156,14 @@ private fun AppMarkLogo(boxSize: Dp, modifier: Modifier = Modifier) {
             Modifier.size(boxSize * 1.4f).scale(haloScale).clip(CircleShape)
                 .background(accent.copy(alpha = haloAlpha * enter.value)),
         )
-        // 앱 아이콘과 동일한 마크 — 스퀘어클 화이트 배경 + 민트 글로우 위에 게이지 링 + 별.
+        // 앱 아이콘과 동일한 마크 — 순백 스퀘어클 위에 게이지 링 + 별. (v27.41.0: 민트 글로우 제거)
         // (foreground 는 어댑티브 안전영역 기준이라 확대하지 않는다 — 키우면 링이 잘린다)
         Box(
             Modifier.size(boxSize)
                 .scale(enter.value * pulse)
                 .alpha(enter.value)
                 .clip(RoundedCornerShape(boxSize * 0.27f))
-                .background(Color.White)
-                .background(
-                    Brush.radialGradient(
-                        listOf(Color(0xFF34D1B6).copy(alpha = 0.18f), Color.Transparent),
-                    ),
-                ),
+                .background(Color.White),
             contentAlignment = Alignment.Center,
         ) {
             Image(

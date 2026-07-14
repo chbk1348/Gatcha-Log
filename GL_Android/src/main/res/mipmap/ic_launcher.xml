@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- 레거시 런처(API 26 미만)용 아이콘 — 어댑티브(ic_launcher_background/foreground)와 동일 디자인.
-     W4: 화이트 + 민트 글로우 배경 위 천장 게이지 링 + 네이비 별. v27.38.0 개편. -->
+     순백 배경 위 천장 게이지 링 + 네이비 별. v27.41.0 (민트 글로우 제거). -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:aapt="http://schemas.android.com/aapt"
     android:width="108dp"
@@ -9,16 +9,6 @@
     android:viewportHeight="108">
     <!-- 라운드 사각형 화이트 바탕 -->
     <path android:pathData="M24,4 L84,4 A20,20 0 0 1 104,24 L104,84 A20,20 0 0 1 84,104 L24,104 A20,20 0 0 1 4,84 L4,24 A20,20 0 0 1 24,4 Z" android:fillColor="#FFFFFFFF" />
-    <!-- 민트 글로우 -->
-    <path android:pathData="M24,4 L84,4 A20,20 0 0 1 104,24 L104,84 A20,20 0 0 1 84,104 L24,104 A20,20 0 0 1 4,84 L4,24 A20,20 0 0 1 24,4 Z">
-        <aapt:attr name="android:fillColor">
-            <gradient
-                android:type="radial"
-                android:centerX="54" android:centerY="56" android:gradientRadius="60"
-                android:startColor="#2E34D1B6"
-                android:endColor="#0034D1B6" />
-        </aapt:attr>
-    </path>
 
     <!-- 트랙 -->
     <path

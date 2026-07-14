@@ -17,7 +17,6 @@ struct AppMarkLogo: View {
     @State private var entered = false
     @State private var pulsing = false
 
-    private let mint = Color(hex: 0xFF34D1B6)
     private let mintLight = Color(hex: 0xFF7FFBE6)
     private let mintDeep = Color(hex: 0xFF14B8A6)
     private let navy = Color(hex: 0xFF0F1A33)
@@ -32,17 +31,9 @@ struct AppMarkLogo: View {
                 .scaleEffect(pulsing ? 1.2 : 0.9)
                 .opacity(entered ? 1 : 0)
 
-            // 스퀘어클 — 화이트 바탕 + 민트 글로우 (아이콘 배경과 동일)
+            // 스퀘어클 — 순백 바탕 (아이콘 배경과 동일. v27.41.0: 민트 글로우 제거)
             RoundedRectangle(cornerRadius: boxSize * 0.27, style: .continuous)
                 .fill(.white)
-                .overlay(
-                    RadialGradient(
-                        colors: [mint.opacity(0.18), mint.opacity(0)],
-                        center: .center,
-                        startRadius: 0,
-                        endRadius: boxSize * 0.55
-                    )
-                )
                 .overlay(mark)
                 .clipShape(RoundedRectangle(cornerRadius: boxSize * 0.27, style: .continuous))
                 .frame(width: boxSize, height: boxSize)

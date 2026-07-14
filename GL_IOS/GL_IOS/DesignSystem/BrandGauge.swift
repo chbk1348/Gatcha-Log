@@ -105,22 +105,14 @@ struct FourPointStar: Shape {
     }
 }
 
-/// 앱 아이콘과 같은 그라운드 — 화이트 + 중앙 민트 글로우.
+/// 앱 아이콘과 같은 그라운드 — **순백**.
 /// 런치스크린·온보딩·로딩이 공유해 화면이 바뀌어도 배경이 이어져 보이게 한다.
+///
+/// v27.40.0 까지는 중앙에 민트 글로우(alpha 0.16 radial)를 깔았는데, v27.41.0 에서 아이콘을 순백으로
+/// 정리하면서 화면 그라운드도 같이 맞췄다. 색은 링·별이 낸다.
 struct BrandGround: View {
-    @Environment(\.glgAccent) private var accent
-
     var body: some View {
-        ZStack {
-            Color.white
-            RadialGradient(
-                colors: [accent.primary.opacity(0.16), accent.primary.opacity(0)],
-                center: UnitPoint(x: 0.5, y: 0.42),
-                startRadius: 0,
-                endRadius: 340
-            )
-        }
-        .ignoresSafeArea()
+        Color.white.ignoresSafeArea()
     }
 }
 

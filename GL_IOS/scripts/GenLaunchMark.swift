@@ -20,8 +20,8 @@ import UniformTypeIdentifiers
 
 // ── 디자인 상수 ─────────────────────────────────────────────────────────────
 
-let canvas: CGFloat = 300      // 글로우까지 포함한 이미지 전체 크기(pt)
 let markSize: CGFloat = 148    // 링 캔버스(pt) — AccountLoadingView·온보딩의 링과 같은 크기
+let canvas: CGFloat = markSize // 이미지 전체 크기(pt). 배경은 투명 — 런치스크린 배경색이 비친다
 let strokeRatio: CGFloat = 0.083
 let starRatio: CGFloat = 58.0 / 148.0
 let gaugeSweep: CGFloat = 0.75 // 270° — 아이콘과 동일
@@ -35,7 +35,6 @@ func rgb(_ hex: UInt32, _ alpha: CGFloat = 1) -> CGColor {
     )
 }
 
-let mint = rgb(0x34D1B6)      // 브랜드 민트 — 글로우
 let mintLight = rgb(0x7FFBE6) // 게이지 그라디언트 시작
 let mintDeep = rgb(0x14B8A6)  // 게이지 그라디언트 끝
 let navy = rgb(0x0F1A33)      // 별
@@ -55,19 +54,9 @@ func render(scale: CGFloat) -> CGImage? {
     ctx.scaleBy(x: scale, y: scale)
     let center = CGPoint(x: canvas / 2, y: canvas / 2)
 
-    // 1. 민트 글로우 — 앱 진입 후의 BrandGround(화이트 + 중앙 민트 radial)와 이어지도록 배경에 깔아둔다.
-    //    런치스크린 배경색은 단색(LaunchBackground=화이트)이라, 글로우는 이미지에 구워 넣어야 한다.
-    if let glow = CGGradient(
-        colorsSpace: CGColorSpaceCreateDeviceRGB(),
-        colors: [mint.copy(alpha: 0.16)!, mint.copy(alpha: 0)!] as CFArray,
-        locations: [0, 1]
-    ) {
-        ctx.drawRadialGradient(
-            glow, startCenter: center, startRadius: 0,
-            endCenter: center, endRadius: canvas / 2,
-            options: []
-        )
-    }
+    // 배경은 그리지 않는다(투명) — 런치스크린 배경색(LaunchBackground=순백)이 그대로 비친다.
+    // v27.40.0 까지는 여기에 민트 글로우를 구워 넣어 앱 진입 후의 BrandGround 와 맞췄는데,
+    // v27.41.0 에서 아이콘·그라운드를 순백으로 정리하면서 글로우를 걷어냈다.
 
     let line = markSize * strokeRatio
     let ring = markSize - line // 획이 캔버스 밖으로 삐져나가지 않도록
