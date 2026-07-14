@@ -47,6 +47,21 @@ object HoyolabApi {
     // 공통 헤더 값 — 호출별로 흩어져 있던 매직 문자열을 단일 출처로 모은다.
     private const val APP_VERSION = "2.55.0"
     private const val LANG = "ko-kr"
+
+    /**
+     * 쿠키의 언어 설정을 한국어로 못박는다.
+     *
+     * HoYoLAB 웹 API 는 응답 언어를 **쿠키의 mi18nLang** 으로 정하고, 그게 `lang=ko-kr` 쿼리와
+     * `x-rpc-language` 헤더를 이긴다. 로그인 WebView 가 캡처한 브라우저 원본 쿠키(webCookie)에는
+     * 사이트 언어가 그대로 실려 오는데(대개 en-us), 그 쿠키로 원장을 부르면 재화·수입 항목이 영어로 온다.
+     * 쿠키를 보내는 단일 지점에서 갈아끼워 모든 호출이 한국어로 오게 한다.
+     */
+    private fun koreanCookie(cookie: String): String {
+        val lang = Regex("mi18nLang=[^;]*")
+        if (lang.containsMatchIn(cookie)) return lang.replace(cookie, "mi18nLang=$LANG")
+        val base = cookie.trimEnd().trimEnd(';')
+        return if (base.isBlank()) "mi18nLang=$LANG" else "$base; mi18nLang=$LANG"
+    }
     /** game_record 계열(dailyNote/note/combat/uid/zzz-ledger)이 쓰는 모바일 BBS UA. */
     private const val UA_BBS = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) miHoYoBBS/2.55.0"
     /** 출석·교환·원신일지 등 웹 act 계열이 쓰는 데스크톱 Chrome UA. */
@@ -86,7 +101,7 @@ object HoyolabApi {
      */
     private class HoyoHeaders {
         private val h = linkedMapOf<String, String>()
-        fun withCookie(cookie: String) = apply { h["Cookie"] = cookie }
+        fun withCookie(cookie: String) = apply { h["Cookie"] = koreanCookie(cookie) }
         fun withDS(query: String, body: String = "") = apply { h["DS"] = makeDS(query, body) }
         /** game_record 계열 공통 3종: app_version + client_type + language. */
         fun withRpc(clientType: Int) = apply {
@@ -556,59 +571,89 @@ object HoyolabApi {
         val goldLabel: String,
     )
 
-    // 원신 여행자의 일지만 spec 기반(month_data.current_*). HSR srledger 는 ltoken 인증 거부(-100)라 제외.
+    // 응답 구조(month_data.current_*)를 공유하는 게임들. 스타레일도 같은 구조다 — 예전엔 "ltoken 인증 거부(-100)"
+    // 라는 이유로 빼뒀는데, 실제 원인은 **재구성 쿠키에 v2 신원(account_mid_v2·cookie_token_v2)이 없는 것**이었다.
+    // 선물코드 교환(redeemCode)이 이미 같은 이유로 로그인 WebView 가 캡처한 원본 쿠키를 쓰고 있다.
     private val LEDGER = mapOf(
         "genshin" to LedgerSpec(
             "https://sg-hk4e-api.hoyolab.com/event/ysledgeros/month_info",
             "current_primogems", "원석", "current_mora", "모라",
         ),
+        "hsr" to LedgerSpec(
+            "https://sg-public-api.hoyolab.com/event/srledger/month_info",
+            "current_hcoin", "성옥", "current_rails_pass", "성궤 통행증",
+        ),
     )
 
     /**
-     * 이번 달 재화 수입 통계. 원신=여행자의 일지(spec), 젠레스=폴리크롬 일지(별도 shape).
-     * 이미 보유한 ltuid/ltoken 쿠키로 인증한다. 응답이 비거나 오류면 null → 호출부에서 무시.
+     * 이번 달 재화 수입 통계. 원신=여행자의 일지, 스타레일=개척 월력, 젠레스=폴리크롬 일지(별도 shape).
+     *
+     * 인증은 **후보를 순서대로 시도**한다:
+     *  1순위 [webCookie] — 로그인 WebView 가 캡처한 브라우저 원본 쿠키(account_mid_v2·cookie_token_v2 포함).
+     *  2순위 재구성 쿠키(ltuid/ltoken + account_id_v2) — 구버전 연동으로 원본 쿠키가 없는 경우.
+     * 스타레일은 1순위가 아니면 -100 으로 거부된다. 원신·젠레스는 어느 쪽이든 통과하므로 순서가 무해하다.
+     *
+     * 응답이 비거나 모든 후보가 실패하면 null → 호출부에서 무시(해당 게임 카드 미표시).
      */
-    suspend fun getMonthlyLedger(ltuid: String, ltoken: String, gameKey: String, uid: String): MonthlyLedger? {
+    suspend fun getMonthlyLedger(ltuid: String, ltoken: String, webCookie: String, gameKey: String, uid: String): MonthlyLedger? {
         if (gameKey == "zzz") return getZzzLedger(ltuid, ltoken, uid)
         val spec = LEDGER[gameKey] ?: return null
         if (ltuid.isBlank() || ltoken.isBlank() || uid.isBlank()) return null
 
         val region = inferServer(gameKey, uid)
         val query = "month=&lang=ko-kr&region=$region&uid=$uid" // month 비우면 이번 달
-        val headers = HoyoHeaders()
-            .withCookie(cookieFull(ltuid, ltoken))
-            .withDS(query)
-            .withRpc(5)
-            .withUserAgent(UA_WEB)
-            .build()
 
-        return Net.get("${spec.endpoint}?$query", headers).parse<MonthlyLedger?>(
-            onNetwork = { null },
-            onParse = { null },
-        ) { retcode, _, json ->
-            if (retcode != 0) return@parse null
-            val data = json.getJSONObject("data")
-            val md = data.optJSONObject("month_data") ?: return@parse null
+        val cookies = listOfNotNull(
+            webCookie.takeIf { it.isNotBlank() },
+            cookieFull(ltuid, ltoken) + " account_id=$ltuid; account_id_v2=$ltuid;",
+        )
+        for (cookie in cookies) {
+            val headers = HoyoHeaders()
+                .withCookie(cookie)
+                .withDS(query)
+                .withRpc(5)
+                .withUserAgent(UA_WEB)
+                .build()
 
-            val lastField = "last_" + spec.premiumField.removePrefix("current_")
-            val breakdown = md.optJSONArray("group_by")?.let { arr ->
-                (0 until arr.length()).mapNotNull { i ->
-                    val o = arr.optJSONObject(i) ?: return@mapNotNull null
-                    LedgerEntry(o.optString("action"), o.optLong("num"), o.optInt("percent"))
-                }
-            }.orEmpty()
+            var code = -999
+            val ledger = Net.get("${spec.endpoint}?$query", headers).parse<MonthlyLedger?>(
+                onNetwork = { null },
+                onParse = { null },
+            ) { retcode, _, json ->
+                code = retcode
+                if (retcode != 0) return@parse null
+                val data = json.getJSONObject("data")
+                val md = data.optJSONObject("month_data") ?: return@parse null
 
-            MonthlyLedger(
-                game = gameFor(gameKey).displayName,
-                month = data.optInt("data_month"),
-                premium = md.optLong(spec.premiumField),
-                premiumLabel = spec.premiumLabel,
-                premiumLastMonth = md.optLong(lastField),
-                gold = spec.goldField?.let { md.optLong(it) } ?: 0L,
-                goldLabel = spec.goldLabel,
-                breakdown = breakdown.sortedByDescending { it.num },
-            )
+                val lastField = "last_" + spec.premiumField.removePrefix("current_")
+                val breakdown = md.optJSONArray("group_by")?.let { arr ->
+                    (0 until arr.length()).mapNotNull { j ->
+                        val o = arr.optJSONObject(j) ?: return@mapNotNull null
+                        // 수입 항목명이 게임마다 다른 필드에 담겨 온다:
+                        //   원신    action="모험"          (한국어, action_name 없음)
+                        //   스타레일 action="abyss_reward" (영어 키) · action_name="망각의 정원 보상" (한국어)
+                        // action 만 읽으면 스타레일이 영어 키로 노출된다. 한국어를 담은 쪽을 우선한다.
+                        val label = o.optString("action_name").ifBlank { o.optString("action") }
+                        LedgerEntry(label, o.optLong("num"), o.optInt("percent"))
+                    }
+                }.orEmpty()
+
+                MonthlyLedger(
+                    game = gameFor(gameKey).displayName,
+                    month = data.optInt("data_month"),
+                    premium = md.optLong(spec.premiumField),
+                    premiumLabel = spec.premiumLabel,
+                    premiumLastMonth = md.optLong(lastField),
+                    gold = spec.goldField?.let { md.optLong(it) } ?: 0L,
+                    goldLabel = spec.goldLabel,
+                    breakdown = breakdown.sortedByDescending { it.num },
+                )
+            }
+            if (ledger != null) return ledger
+            // 인증 거부(-100/-1071)면 다음 쿠키 후보로. 그 외 오류는 재시도해도 같은 답이 온다.
+            if (code != -100 && code != -1071) return null
         }
+        return null
     }
 
     /** 젠레스 폴리크롬 일지 (nap_ledger). month_data.list[] + income_components[] 의 별도 shape. */
