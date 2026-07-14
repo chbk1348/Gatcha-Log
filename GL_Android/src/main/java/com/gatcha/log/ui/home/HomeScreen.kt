@@ -76,11 +76,27 @@ import com.gatcha.log.ui.components.BottomNavBar
 import com.gatcha.log.ui.theme.*
 import com.gatcha.log.util.num
 
+/**
+ * 지출 에디터 페이지의 대상. 홀더 자체의 존재(null 아님)가 곧 "에디터가 열려 있다"이고,
+ * [spending] 이 null 이면 신규 추가, 있으면 그 지출의 수정이다.
+ *
+ * Spending? 를 그대로 상태로 쓰지 않는 이유: null 이 "닫힘"과 "신규 추가" 두 가지를 뜻하게 되어 구분이 안 된다.
+ */
+private data class SpendingEditorTarget(val spending: Spending?)
+
 @Composable
 fun HomeScreen(viewModel: SpendingViewModel = viewModel()) {
     var selectedTab by remember { mutableIntStateOf(0) }
-    val showAddSpendingSheet = remember { mutableStateOf(false) }
-    val spendingToEdit = remember { mutableStateOf<Spending?>(null) }
+
+    /**
+     * 지출 추가/수정 에디터 — **표시 여부와 대상을 한 상태로 합쳤다**(null = 닫힘).
+     *
+     * 예전엔 showAddSpendingSheet(Boolean) + spendingToEdit(Spending?) 두 개였다. 닫을 때 둘 다 지우는데,
+     * AnimatedContent 는 퇴장 애니메이션 동안 나가는 페이지를 계속 컴포즈한다 — 그 페이지가 null 이 된
+     * spendingToEdit 를 읽어 **'수정'에서 '추가'로 뒤바뀌며 빈 폼이 번쩍였다**.
+     * 대상을 AnimatedContent 의 targetState 로 올리면, 나가는 페이지는 자기 대상(수정)을 그대로 들고 나간다.
+     */
+    val spendingEditor = remember { mutableStateOf<SpendingEditorTarget?>(null) }
     val accent = LocalAccent.current
 
     // 풀스크린 하위 페이지(알림 상세·연간 리포트·지출 상세·HoYoLAB 연동·설정)가 열렸는지.
@@ -107,9 +123,9 @@ fun HomeScreen(viewModel: SpendingViewModel = viewModel()) {
     }
 
 
+    // 대상 = 표시 여부. 한 번에 확정된다(null 지출 = 신규 추가).
     val openEditor: (Spending?) -> Unit = { target ->
-        spendingToEdit.value = target
-        showAddSpendingSheet.value = true
+        spendingEditor.value = SpendingEditorTarget(target)
     }
 
     // 앱 시작 시 1회 API 새로고침 (ennead 배너·이벤트 + HoYoLAB 노트) + 업데이트 확인.
@@ -143,11 +159,11 @@ fun HomeScreen(viewModel: SpendingViewModel = viewModel()) {
     // 컨테이너 트랜스폼 morph: FAB(우하단 accent 원)에서 페이지가 스케일 + 모서리 라운드가 풀리며 펼쳐지고,
     // 닫을 땐 같은 위치로 줄며 라운드가 다시 차올라 FAB 로 흡수되는 느낌.
     AnimatedContent(
-        targetState = showAddSpendingSheet.value,
+        targetState = spendingEditor.value,
         transitionSpec = { fadeIn(glgStandardSpec()) togetherWith fadeOut(glgShortSpec()) },
         label = "rootPage",
-    ) { addPage ->
-        if (addPage) {
+    ) { editorTarget ->
+        if (editorTarget != null) {
             // 등장 0→1 / 퇴장 1→0. 스케일(0.35→1, FAB 우하단 피벗) + 모서리 라운드(32→0dp)로 morph.
             val morph by transition.animateFloat(
                 transitionSpec = { glgEmphasisSpec() },
@@ -165,18 +181,17 @@ fun HomeScreen(viewModel: SpendingViewModel = viewModel()) {
                         shape = RoundedCornerShape((32f * (1f - morph)).dp)
                     },
             ) {
+                // 이 페이지의 대상은 editorTarget 으로 고정 — 상태(spendingEditor)를 다시 읽지 않는다.
+                // 다시 읽으면 닫히는 순간 null 이 되어 퇴장 애니메이션 중에 '추가' 폼으로 뒤바뀐다.
+                val editing = editorTarget.spending
                 AddSpendingModal(
-                    spendingToEdit = spendingToEdit.value,
-                    nudgeMessage = { game, amount -> viewModel.overspendNudge(game, amount, spendingToEdit.value?.id) },
-                    onDismiss = {
-                        showAddSpendingSheet.value = false
-                        spendingToEdit.value = null
-                    },
+                    spendingToEdit = editing,
+                    nudgeMessage = { game, amount -> viewModel.overspendNudge(game, amount, editing?.id) },
+                    onDismiss = { spendingEditor.value = null },
                     onSave = { spending ->
-                        if (spendingToEdit.value == null) viewModel.addSpending(spending)
+                        if (editing == null) viewModel.addSpending(spending)
                         else viewModel.updateSpending(spending)
-                        showAddSpendingSheet.value = false
-                        spendingToEdit.value = null
+                        spendingEditor.value = null
                     },
                 )
             }

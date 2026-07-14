@@ -14,9 +14,35 @@ struct ContentView: View {
     /// Kotlin SpendingViewModel 브리지(공유 VM). 온보딩 게이트·강조색을 SwiftUI 에서 직접 구독.
     @StateObject private var store = SpendingStore()
     @State private var selectedTab: Int = 0
-    @State private var showAddSpending: Bool = false
-    /// 지출 추가/수정 시트의 편집 대상 (nil = 신규 추가). Phase 6 — SwiftUI 폼으로 교체하며 로컬 상태로 관리.
-    @State private var editingSpending: Spending? = nil
+
+    /// 지출 추가/수정 시트 — **표시 여부와 대상을 한 상태로 합쳤다**(nil = 닫힘).
+    ///
+    /// 예전엔 showAddSpending(Bool) + editingSpending(Spending?) 두 개였는데, `.sheet(isPresented:)` 는
+    /// 표시 시점에 내용을 만들면서 아직 반영되지 않은 editingSpending(=nil)을 집어갈 수 있었다.
+    /// 그러면 '수정'을 눌렀는데 빈 '추가' 폼이 뜬다 — 타이밍에 따라 갈려 간헐적으로 재현됐다.
+    /// AddSpendingView 의 didInit 가드가 nil 로 한 번 초기화되면 필드를 다시 채우지 않아 증상이 굳었다.
+    /// `.sheet(item:)` 은 대상 값을 표시 시점에 확정해 넘기므로 이 경합 자체가 성립하지 않는다.
+    @State private var spendingSheet: SpendingSheetTarget? = nil
+
+    /// 지출 시트의 대상. `.sheet(item:)` 에 넘기기 위해 Identifiable.
+    private enum SpendingSheetTarget: Identifiable {
+        case add
+        case edit(Spending)
+
+        var id: String {
+            switch self {
+            case .add: return "add"
+            case .edit(let spending): return "edit-\(spending.id)"
+            }
+        }
+
+        var spending: Spending? {
+            switch self {
+            case .add: return nil
+            case .edit(let spending): return spending
+            }
+        }
+    }
     /// 서브페이지(연간 리포트·알림 상세 등)가 열린 탭 집합 — 해당 탭에서만 탭바 숨김.
     /// (전역 단일 플래그는 탭 전환 시 상태가 어긋나므로 탭별로 독립 관리)
     @State private var tabsWithSubPage: Set<Int> = []
@@ -77,8 +103,8 @@ struct ContentView: View {
             } else {
                 mainTabs
                     // 지출 추가/수정 — Phase 6: SwiftUI 네이티브 폼 (구 ComposeView AddSpendingViewController 대체)
-                    .sheet(isPresented: $showAddSpending, onDismiss: { editingSpending = nil }) {
-                        AddSpendingView(store: store, editing: editingSpending) { showAddSpending = false }
+                    .sheet(item: $spendingSheet) { target in
+                        AddSpendingView(store: store, editing: target.spending) { spendingSheet = nil }
                             .presentationDragIndicator(.visible)
                     }
                     .transition(.opacity)
@@ -125,8 +151,7 @@ struct ContentView: View {
 
     /// '+' (지출 추가) 모달 열기 — 신규 추가(편집 대상 없음).
     private func openAddSpending() {
-        editingSpending = nil
-        showAddSpending = true
+        spendingSheet = .add
     }
 
     /**
@@ -240,8 +265,7 @@ struct ContentView: View {
     private var spendingTabContent: some View {
         NavigationStack {
             SpendingView(store: store, onEdit: { spending in
-                editingSpending = spending    // 편집 대상 설정
-                showAddSpending = true        // ContentView 의 시트 오픈
+                spendingSheet = .edit(spending)   // 대상 = 표시 여부. 한 번에 확정된다.
             })
         }
         .glgAccent(index: store.accentIndex)
