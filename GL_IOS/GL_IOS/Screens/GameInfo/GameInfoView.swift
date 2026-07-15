@@ -21,6 +21,9 @@ struct GameInfoView: View {
     @State private var showStats = false
     @State private var rosterGame = "genshin"
     @State private var showRoster = false
+    // 공지 상세 — 뉴스 행 탭 시 선택 후 push(destination형 NavigationLink 혼용 버그 회피, 파일 내 다른 페이지와 동일 패턴).
+    @State private var selectedNews: NewsItem? = nil
+    @State private var showNewsDetail = false
     // Segmented 레이아웃 — 상단 게임 세그먼트 선택값("all" | game.key). 하위 섹션들이 이 값으로 필터된다.
     @State private var gameFilter = "all"
 
@@ -50,7 +53,7 @@ struct GameInfoView: View {
                 // 게임 주년 — 지원 게임의 다가오는 주년(임박 순).
                 section { AnniversarySection() }
                 // 공지·뉴스 — 게임별 최신 공지(탭하면 HoYoLab 열기). 더보기로 전체 페이지.
-                section { NewsSection(store: store, filter: gameFilter, onSeeAll: { showNews = true }) }.id("NEWS")
+                section { NewsSection(store: store, filter: gameFilter, onSeeAll: { showNews = true }, onOpenNews: { selectedNews = $0; showNewsDetail = true }) }.id("NEWS")
                 if store.hoyolabConfig.isLinked {
                     section { GameTabbedSection(store: store, filter: gameFilter) }
                 }
@@ -120,6 +123,9 @@ struct GameInfoView: View {
         .navigationDestination(isPresented: $showDashboard) { GachaDashboardView(store: store) }
         .navigationDestination(isPresented: $showSchedule) { GameSchedulePage(store: store, filter: gameFilter) }
         .navigationDestination(isPresented: $showNews) { NewsPage(store: store, filter: gameFilter) }
+        .navigationDestination(isPresented: $showNewsDetail) {
+            if let n = selectedNews { NewsDetailView(store: store, item: n) }
+        }
         .navigationDestination(isPresented: $showPickups) { GamePickupPage(store: store, filter: gameFilter) }
         .navigationDestination(isPresented: $showStats) { if let c = statChar { EnkaStatPage(char: c, game: statGame) } }
         .navigationDestination(isPresented: $showRoster) {

@@ -663,8 +663,17 @@ class SpendingViewModel : ViewModel() {
     private val _newsArticleFailed = MutableStateFlow(false)
     val newsArticleFailed: StateFlow<Boolean> = _newsArticleFailed.asStateFlow()
 
-    /** 공지 상세 진입 — 본문을 받아 온다. 같은 글을 다시 열면 재요청하지 않는다. */
+    /** 현재 로드했거나 로드 중인 공지 id — 같은 글 재진입(탭 전환 복귀 포함) 시 재요청을 막는 기준. */
+    private var newsArticleItemId: String? = null
+
+    /**
+     * 공지 상세 진입 — 본문을 받아 온다.
+     * 같은 글을 다시 열면(탭 전환 후 복귀, 화면 재구성 등) 재요청하지 않는다 — 그러지 않으면
+     * loading 이 다시 켜지며 스켈레톤이 깜빡이고 스크롤이 튄다. 단, 이전에 실패했으면 재시도한다.
+     */
     fun loadNewsArticle(item: NewsItem) {
+        if (newsArticleItemId == item.id && !_newsArticleFailed.value) return
+        newsArticleItemId = item.id
         // 다른 글로 이동했으면 이전 본문이 잠깐 비치면 안 되므로 먼저 비운다.
         if (_newsArticle.value?.let { it.title != item.title } != false) _newsArticle.value = null
         _newsArticleFailed.value = false
@@ -680,6 +689,7 @@ class SpendingViewModel : ViewModel() {
 
     /** 공지 상세 이탈 — 다음 진입 때 이전 글이 비치지 않도록 정리. */
     fun clearNewsArticle() {
+        newsArticleItemId = null
         _newsArticle.value = null
         _newsArticleLoading.value = false
         _newsArticleFailed.value = false
