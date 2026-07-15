@@ -52,9 +52,9 @@ struct SpendingDetailView: View {
                     VStack(spacing: 0) {
                         detailRow("항목", s.itemName.isEmpty ? "—" : s.itemName)
                         Divider()
-                        // 재화양 — 항목명 끝의 개수(×N·보너스 재화 반영). 패스·월정액 등 숫자 없으면 생략.
+                        // 재화양 — 항목명 끝의 개수(×N·보너스 재화 반영) + 아래에 작게 환산 뽑기 수.
                         if let amt = GameDataKt.currencyAmountOrNull(gameName: s.gameName, itemName: s.itemName) {
-                            detailRow("재화양", amt)
+                            detailRow("재화양", amt, sub: GameDataKt.currencyPullsOrNull(gameName: s.gameName, itemName: s.itemName))
                             Divider()
                         }
                         detailRow("결제 수단", s.paymentMethod.isEmpty ? "—" : s.paymentMethod)
@@ -94,11 +94,15 @@ struct SpendingDetailView: View {
         }
     }
 
-    private func detailRow(_ label: String, _ value: String) -> some View {
+    private func detailRow(_ label: String, _ value: String, sub: String? = nil) -> some View {
         HStack(alignment: .top) {
             Text(label).font(.pretendard(size: 13)).foregroundStyle(GLGColor.textSecondary).frame(width: 80, alignment: .leading)
             Spacer(minLength: 12)
-            Text(value).font(.pretendard(size: 14, weight: .medium)).multilineTextAlignment(.trailing)
+            VStack(alignment: .trailing, spacing: 2) {
+                Text(value).font(.pretendard(size: 14, weight: .medium)).multilineTextAlignment(.trailing)
+                // 재화양 아래 작게 — 환산 뽑기 수.
+                if let sub { Text(sub).font(.pretendard(size: 11)).foregroundStyle(GLGColor.textSecondary) }
+            }
         }
         .padding(.vertical, 12)
     }
