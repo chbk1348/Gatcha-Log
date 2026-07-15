@@ -38,6 +38,7 @@ import com.gatcha.log.ui.theme.LocalAccent
 import com.gatcha.log.ui.theme.toColor
 import com.gatcha.log.ui.theme.TextSecondary
 import com.gatcha.log.data.currencyAmountOrNull
+import com.gatcha.log.data.currencyPullsOrNull
 import com.gatcha.log.util.won
 
 /** 지출 상세 페이지 — 전체 정보 + 수정/삭제(확인 다이얼로그). */
@@ -112,9 +113,9 @@ fun SpendingDetailScreen(
                 Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 6.dp)) {
                     DetailRow("항목", spending.itemName.ifBlank { "—" })
                     HorizontalDivider(color = DividerColor)
-                    // 재화양 — 항목명 끝의 개수(×N·보너스 재화 반영). 패스·월정액 등 숫자 없으면 생략.
+                    // 재화양 — 항목명 끝의 개수(×N·보너스 재화 반영) + 아래에 작게 환산 뽑기 수.
                     currencyAmountOrNull(spending.gameName, spending.itemName)?.let { amt ->
-                        DetailRow("재화양", amt)
+                        DetailRow("재화양", amt, sub = currencyPullsOrNull(spending.gameName, spending.itemName))
                         HorizontalDivider(color = DividerColor)
                     }
                     DetailRow("결제 수단", spending.paymentMethod.ifBlank { "—" })
@@ -163,13 +164,17 @@ fun SpendingDetailScreen(
 private val DangerRed = Color(0xFFDC2626)
 
 @Composable
-private fun DetailRow(label: String, value: String) {
+private fun DetailRow(label: String, value: String, sub: String? = null) {
     Row(
         modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp),
         verticalAlignment = Alignment.Top,
     ) {
         Text(label, fontSize = 13.sp, color = TextSecondary, modifier = Modifier.width(80.dp))
         Spacer(Modifier.width(12.dp))
-        Text(value, fontSize = 14.sp, fontWeight = FontWeight.Medium, textAlign = TextAlign.End, modifier = Modifier.weight(1f))
+        Column(Modifier.weight(1f), horizontalAlignment = Alignment.End) {
+            Text(value, fontSize = 14.sp, fontWeight = FontWeight.Medium, textAlign = TextAlign.End)
+            // 재화양 아래 작게 — 환산 뽑기 수.
+            if (sub != null) Text(sub, fontSize = 11.sp, color = TextSecondary, textAlign = TextAlign.End, modifier = Modifier.padding(top = 2.dp))
+        }
     }
 }

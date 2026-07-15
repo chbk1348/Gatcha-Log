@@ -2,29 +2,52 @@ package com.gatcha.log.data
 
 import com.gatcha.log.util.num
 
+private class CurrencyAmountCalc(val label: String, val pulls: String?)
+
 /**
- * 지출 항목명 + 게임에서 재화 총 수량("330개")을 계산 — 지출 상세 '재화양' + N번 구매 총량 표시용.
+ * 지출 항목명 + 게임에서 재화 총량과 환산 뽑기 수를 계산 — 지출 상세 '재화양' + N번 구매 총량 표시.
  *
- * "창세의 결정 300"        → 상품 매칭 → 기본 300 + 보너스 30(+30) = "330개"
- * "창세의 결정 300 ×3"     → (300 + 30) × 3 = "990개"  (구매 횟수 반영)
- * 상품과 매칭되지 않으면(직접 입력 등) 보너스 없이 항목명 끝 숫자만. 끝에 숫자가 없으면(패스·월정액) null.
+ * label: "창세의 결정 330"(기본 300 + "+30" 보너스), "창세의 결정 990"(×3 구매), "오리지늄 세트 26"(엔드필드 "×26")
+ * pulls: "약 6뽑 가능"(재화 ÷ 1뽑 재화). 뽑기 1회 미만이면 null.
+ * 재화 개수를 못 구하면(패스·월정액) 전체 null.
  */
-fun currencyAmountOrNull(gameName: String, itemName: String): String? {
+private fun currencyCalc(gameName: String, itemName: String): CurrencyAmountCalc? {
     val s = itemName.trim()
-    // 끝의 "×N"(구매 횟수) 분리
+    // 끝의 "×N"(구매 횟수) 분리 — 상품 보너스의 "×N"(개수)과 다르다.
     val multMatch = Regex("×\\s*(\\d+)\\s*$").find(s)
     val mult = multMatch?.groupValues?.get(1)?.toLongOrNull() ?: 1L
     val base = (if (multMatch != null) s.substring(0, multMatch.range.first) else s).trim()
-    val countMatch = Regex("(\\d+)\\s*$").find(base) ?: return null
-    val count = countMatch.groupValues[1].toLongOrNull() ?: return null
-    // 상품과 이름이 일치하면 "+N" 보너스 재화까지 더한다(월정액·패스·×N 등은 보너스 아님).
-    val bonus = GameData.byNameOrNull(gameName)
-        ?.let { g -> GameData.packagesFor(g).firstOrNull { it.name == base } }
-        ?.bonus
-        ?.let { Regex("^\\+(\\d+)$").find(it.trim())?.groupValues?.get(1)?.toLongOrNull() }
-        ?: 0L
-    return "${num((count + bonus) * mult)}개"
+
+    val game = GameData.byNameOrNull(gameName)
+    val bonus = game?.let { g -> GameData.packagesFor(g).firstOrNull { it.name == base } }?.bonus?.trim()
+
+    // 재화 개수(1회분): ① 이름 끝 숫자(+"+N" 보너스) ② 이름에 숫자가 없으면 보너스 "×N"(엔드필드)
+    val nameCountMatch = Regex("(\\d+)\\s*$").find(base)
+    val nameCount = nameCountMatch?.groupValues?.get(1)?.toLongOrNull()
+    val plusBonus = bonus?.let { Regex("^\\+(\\d+)$").find(it)?.groupValues?.get(1)?.toLongOrNull() }
+    val timesCount = bonus?.let { Regex("^×(\\d+)$").find(it)?.groupValues?.get(1)?.toLongOrNull() }
+    val unitCount = when {
+        nameCount != null -> nameCount + (plusBonus ?: 0L)
+        timesCount != null -> timesCount
+        else -> return null
+    }
+    val totalCount = unitCount * mult
+
+    // 재화명 = 이름에서 끝 숫자를 뗀 앞부분(엔드필드처럼 숫자가 없으면 이름 그대로).
+    val name = if (nameCountMatch != null) base.substring(0, nameCountMatch.range.first).trim() else base
+    val label = if (name.isEmpty()) num(totalCount) else "$name ${num(totalCount)}"
+
+    // 약 N뽑 — 게임 1뽑 재화(perPull)로 환산. 뽑기 1회 미만이면 생략.
+    val perPull = game?.key?.let { GachaRateData.byKey(it)?.character?.perPull } ?: 160
+    val pulls = if (perPull > 0) totalCount / perPull else 0L
+    return CurrencyAmountCalc(label, if (pulls >= 1) "약 ${pulls}뽑 가능" else null)
 }
+
+/** 재화양 라벨("창세의 결정 990"). 재화 개수를 못 구하면 null. */
+fun currencyAmountOrNull(gameName: String, itemName: String): String? = currencyCalc(gameName, itemName)?.label
+
+/** 환산 뽑기 문구("약 6뽑 가능"). 뽑기 1회 미만이거나 재화 개수를 못 구하면 null. */
+fun currencyPullsOrNull(gameName: String, itemName: String): String? = currencyCalc(gameName, itemName)?.pulls
 
 /**
  * 지원 게임 정의. 웹앱(Gatcha LOG)의 GAMES / _ATT_META 정의를 네이티브로 옮긴 것.

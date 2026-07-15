@@ -6,6 +6,7 @@ build/
 build-rel/
 build_rel/
 GL_IOS/build_rel/
+GL_IOS/build_release/
 build_dev/
 GL_IOS/build_dev/
 
