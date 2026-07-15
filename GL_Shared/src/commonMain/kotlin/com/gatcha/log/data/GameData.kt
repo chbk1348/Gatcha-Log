@@ -1,5 +1,31 @@
 package com.gatcha.log.data
 
+import com.gatcha.log.util.num
+
+/**
+ * 지출 항목명 + 게임에서 재화 총 수량("330개")을 계산 — 지출 상세 '재화양' + N번 구매 총량 표시용.
+ *
+ * "창세의 결정 300"        → 상품 매칭 → 기본 300 + 보너스 30(+30) = "330개"
+ * "창세의 결정 300 ×3"     → (300 + 30) × 3 = "990개"  (구매 횟수 반영)
+ * 상품과 매칭되지 않으면(직접 입력 등) 보너스 없이 항목명 끝 숫자만. 끝에 숫자가 없으면(패스·월정액) null.
+ */
+fun currencyAmountOrNull(gameName: String, itemName: String): String? {
+    val s = itemName.trim()
+    // 끝의 "×N"(구매 횟수) 분리
+    val multMatch = Regex("×\\s*(\\d+)\\s*$").find(s)
+    val mult = multMatch?.groupValues?.get(1)?.toLongOrNull() ?: 1L
+    val base = (if (multMatch != null) s.substring(0, multMatch.range.first) else s).trim()
+    val countMatch = Regex("(\\d+)\\s*$").find(base) ?: return null
+    val count = countMatch.groupValues[1].toLongOrNull() ?: return null
+    // 상품과 이름이 일치하면 "+N" 보너스 재화까지 더한다(월정액·패스·×N 등은 보너스 아님).
+    val bonus = GameData.byNameOrNull(gameName)
+        ?.let { g -> GameData.packagesFor(g).firstOrNull { it.name == base } }
+        ?.bonus
+        ?.let { Regex("^\\+(\\d+)$").find(it.trim())?.groupValues?.get(1)?.toLongOrNull() }
+        ?: 0L
+    return "${num((count + bonus) * mult)}개"
+}
+
 /**
  * 지원 게임 정의. 웹앱(Gatcha LOG)의 GAMES / _ATT_META 정의를 네이티브로 옮긴 것.
  * color 값은 웹앱과 동일하게 맞춤.
@@ -77,6 +103,7 @@ object GameData {
         Game.GENSHIN -> listOf(
             GamePackage("공월의 축복", "월정액", 5_900),
             GamePackage("기행", "패스", 12_000),
+            GamePackage("진주의 노래", "패스", 25_000),   // 기행 상급(즉시 +10레벨)
             GamePackage("창세의 결정 60", null, 1_200),
             GamePackage("창세의 결정 300", "+30", 6_500),
             GamePackage("창세의 결정 980", "+110", 19_000),
@@ -87,6 +114,7 @@ object GameData {
         Game.HSR -> listOf(
             GamePackage("열차 보급 허가증", "월정액", 5_900),
             GamePackage("무명의 영광", "패스", 12_000),
+            GamePackage("무명객의 휘장", "패스", 25_000),   // 무명의 영광 상급(즉시 +10레벨)
             GamePackage("오래된 꿈 60", null, 1_200),
             GamePackage("오래된 꿈 300", "+30", 6_500),
             GamePackage("오래된 꿈 980", "+110", 19_000),
@@ -97,6 +125,7 @@ object GameData {
         Game.ZZZ -> listOf(
             GamePackage("인터노트 멤버십", "월정액", 5_900),
             GamePackage("정시 보너스", "패스", 12_000),
+            GamePackage("정시 보너스 프리미엄", "패스", 25_000),   // 리두 펀드 프리미엄 플랜(즉시 +10레벨)
             GamePackage("모노크롬 60", null, 1_200),
             GamePackage("모노크롬 300", "+30", 6_500),
             GamePackage("모노크롬 980", "+110", 19_000),

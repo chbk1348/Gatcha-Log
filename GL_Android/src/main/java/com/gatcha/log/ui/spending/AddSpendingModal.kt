@@ -14,10 +14,12 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Savings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -27,6 +29,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import com.gatcha.log.ui.components.GlassCard
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
@@ -39,6 +42,7 @@ import com.gatcha.log.data.GameData
 import com.gatcha.log.data.GamePackage
 import com.gatcha.log.data.PkgCategory
 import com.gatcha.log.data.category
+import com.gatcha.log.data.currencyAmountOrNull
 import com.gatcha.log.data.Spending
 import com.gatcha.log.ui.components.GlgButton
 import com.gatcha.log.ui.components.GlgChip
@@ -83,16 +87,30 @@ fun AddSpendingModal(
         mutableStateListOf<String>().apply { spendingToEdit?.tags?.let { addAll(it) } }
     }
     var isSubscription by remember(spendingToEdit) { mutableStateOf(spendingToEdit?.isSubscription ?: false) }
-    var selectedPackage by remember(spendingToEdit) { mutableStateOf<GamePackage?>(null) }
+    // 수정 진입 시 저장된 항목명("창세의 결정 300 ×3")에서 상품·구매 횟수를 복원 → 스텝퍼가 그대로 노출.
+    var selectedPackage by remember(spendingToEdit) { mutableStateOf(detectEditPackage(spendingToEdit)) }
+    // 한 번에 같은 상품을 여러 번 산 경우 — 횟수만큼 금액·재화를 곱해 한 건으로 기록.
+    var quantity by remember(spendingToEdit) { mutableIntStateOf(detectEditQuantity(spendingToEdit)) }
     val showDatePicker = remember { mutableStateOf(false) }
     // N6 과소비 넛지 — 저장 직전 경고 메시지(있으면 확인 다이얼로그 노출 후 그래도 추가 시 저장).
     var nudgeMsg by remember { mutableStateOf<String?>(null) }
 
     fun applyPackage(pkg: GamePackage) {
         selectedPackage = pkg
+        quantity = 1
         amount = pkg.price.toString()
         itemName = pkg.name
         isSubscription = pkg.bonus == "월정액"
+    }
+
+    // 구매 횟수 변경 — 선택된 상품 기준으로 금액·재화명을 N배로 다시 계산.
+    fun setQuantity(q: Int) {
+        val qty = q.coerceIn(1, 99)
+        quantity = qty
+        selectedPackage?.let { pkg ->
+            amount = (pkg.price * qty).toString()
+            itemName = if (qty > 1) "${pkg.name} ×$qty" else pkg.name
+        }
     }
 
     fun buildSpending(): Spending {
@@ -213,10 +231,25 @@ fun AddSpendingModal(
                                 }
                             }
                         }
+                        // 구매 횟수 — 상품을 골랐을 때만. 한 번에 여러 번 산 경우 금액·재화를 곱한다.
+                        selectedPackage?.let { pkg ->
+                            Spacer(Modifier.height(14.dp))
+                            QuantityStepper(
+                                quantity = quantity,
+                                unitPrice = pkg.price,
+                                currencyTotal = currencyAmountOrNull(game.displayName, itemName),
+                                onChange = { setQuantity(it) },
+                            )
+                        }
                         Spacer(Modifier.height(14.dp))
                         GlgTextField(
                             value = amount,
-                            onValueChange = { input -> amount = input.filter { it.isDigit() } },
+                            onValueChange = { input ->
+                                amount = input.filter { it.isDigit() }
+                                // 금액을 직접 손대면 자동 곱 상태를 해제(스텝퍼 계산과 어긋나지 않게).
+                                selectedPackage = null
+                                quantity = 1
+                            },
                             label = "금액 (원)",
                             placeholder = "0",
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
@@ -417,3 +450,64 @@ private fun PackageCard(pkg: GamePackage, isSelected: Boolean, modifier: Modifie
 private fun ChoiceChip(label: String, selected: Boolean, onClick: () -> Unit) {
     GlgChip(label = label, selected = selected, onClick = onClick)
 }
+
+/** 구매 횟수 스텝퍼 — 단가·재화 총량을 함께 보여줘 '몇 번 사서 얼마·재화 얼마인지' 검증 가능하게. */
+@Composable
+private fun QuantityStepper(quantity: Int, unitPrice: Long, currencyTotal: String?, onChange: (Int) -> Unit) {
+    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Column(Modifier.weight(1f)) {
+            SectionRowLabel("구매 횟수")
+            if (quantity > 1) {
+                Text(
+                    "${won(unitPrice)} × $quantity = ${won(unitPrice * quantity)}",
+                    fontSize = 12.sp, color = TextSecondary, fontWeight = FontWeight.Medium,
+                    modifier = Modifier.padding(top = 2.dp),
+                )
+                // 재화 양도 확인 — 상품명 끝의 개수를 N배해 총 재화량을 명시.
+                currencyTotal?.let {
+                    Text("재화 총 $it", fontSize = 12.sp, color = TextSecondary, modifier = Modifier.padding(top = 1.dp))
+                }
+            } else {
+                Text("한 번에 여러 번 샀다면 횟수를 올리세요", fontSize = 12.sp, color = TextSecondary, modifier = Modifier.padding(top = 2.dp))
+            }
+        }
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            StepperBtn(Icons.Default.Remove, enabled = quantity > 1) { onChange(quantity - 1) }
+            Text(
+                "$quantity", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = TextPrimary,
+                textAlign = TextAlign.Center, modifier = Modifier.widthIn(min = 28.dp),
+            )
+            StepperBtn(Icons.Default.Add, enabled = quantity < 99) { onChange(quantity + 1) }
+        }
+    }
+}
+
+@Composable
+private fun StepperBtn(icon: ImageVector, enabled: Boolean, onClick: () -> Unit) {
+    val accent = LocalAccent.current
+    Surface(
+        modifier = Modifier.size(34.dp).clickable(enabled = enabled) { onClick() },
+        shape = CircleShape,
+        color = if (enabled) accent.copy(alpha = 0.10f) else ChipIdleBg,
+        border = BorderStroke(1.dp, if (enabled) accent.copy(alpha = 0.5f) else Color.Black.copy(alpha = 0.06f)),
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            Icon(icon, null, tint = if (enabled) accent else TextSecondary.copy(alpha = 0.4f), modifier = Modifier.size(18.dp))
+        }
+    }
+}
+
+/** 수정 진입 시 항목명 끝의 "×N" 에서 구매 횟수 복원. 없으면 1. */
+private fun detectEditQuantity(s: Spending?): Int {
+    val name = s?.itemName?.trim() ?: return 1
+    val m = Regex("×\\s*(\\d+)\\s*$").find(name) ?: return 1
+    return m.groupValues[1].toIntOrNull()?.coerceIn(1, 99) ?: 1
+}
+
+/** 수정 진입 시 항목명(×N 제거)이 해당 게임의 상품과 일치하면 그 상품을 복원 → 스텝퍼 노출. */
+private fun detectEditPackage(s: Spending?): GamePackage? {
+    val name = s?.itemName?.trim() ?: return null
+    val base = name.replace(Regex("\\s*×\\s*\\d+\\s*$"), "").trim()
+    return GameData.packagesFor(GameData.byName(s.gameName)).firstOrNull { it.name == base }
+}
+
