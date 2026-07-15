@@ -11,11 +11,14 @@ private func filterNews(_ news: [NewsItem], _ filter: String) -> [NewsItem] {
 }
 
 /// 공지 행 — 탭하면 외부 브라우저가 아니라 앱 안의 상세 페이지로 push 한다.
+///
+/// ⚠️ NavigationLink { destination } 형식을 쓰면 안 된다 — 상위 GameInfoView 가 하위 이동 전부를
+/// `.navigationDestination(isPresented:)` 로 처리하는데, 같은 NavigationStack 에서 두 방식을 섞으면
+/// destination형 NavigationLink 가 조용히 안 먹히는 SwiftUI 버그가 있다(게임정보 탭 뉴스 행이 안 눌리던 원인).
+/// 그래서 여기선 Button 으로 선택만 올려보내고, 실제 push 는 호스트가 navigationDestination 으로 한다.
 @ViewBuilder
-private func newsRow(_ n: NewsItem, _ store: SpendingStore) -> some View {
-    NavigationLink {
-        NewsDetailView(store: store, item: n)
-    } label: {
+private func newsRow(_ n: NewsItem, onOpen: @escaping (NewsItem) -> Void) -> some View {
+    Button { onOpen(n) } label: {
         HStack(spacing: 10) {
             GLGGameTag(game: n.game, size: .small)
             VStack(alignment: .leading, spacing: 1) {
@@ -29,6 +32,7 @@ private func newsRow(_ n: NewsItem, _ store: SpendingStore) -> some View {
                 .foregroundStyle(Color(.tertiaryLabel))
         }
         .padding(.vertical, 11)
+        .contentShape(Rectangle()) // 태그·날짜 사이 빈 여백까지 탭 되게(행 전체가 탭 타깃)
     }
     .buttonStyle(.plain)
 }
@@ -38,6 +42,7 @@ struct NewsSection: View {
     @ObservedObject var store: SpendingStore
     let filter: String
     var onSeeAll: () -> Void = {}
+    var onOpenNews: (NewsItem) -> Void = { _ in }
     var maxCount: Int = 5
     @Environment(\.glgAccent) private var accent
 
@@ -51,7 +56,7 @@ struct NewsSection: View {
                     VStack(spacing: 0) {
                         ForEach(Array(items.enumerated()), id: \.offset) { i, n in
                             if i > 0 { Divider() }
-                            newsRow(n, store)
+                            newsRow(n, onOpen: onOpenNews)
                         }
                         if all.count > maxCount {
                             Divider()
@@ -74,6 +79,9 @@ struct NewsSection: View {
 struct NewsPage: View {
     @ObservedObject var store: SpendingStore
     let filter: String
+    // 상세 push 는 navigationDestination 으로 — NewsSection 과 동일한 이유(destination형 NavigationLink 회피).
+    @State private var selectedNews: NewsItem? = nil
+    @State private var showDetail = false
 
     var body: some View {
         let all = filterNews(store.gameNews, filter)
@@ -86,7 +94,7 @@ struct NewsPage: View {
                         VStack(spacing: 0) {
                             ForEach(Array(all.enumerated()), id: \.offset) { i, n in
                                 if i > 0 { Divider() }
-                                newsRow(n, store)
+                                newsRow(n, onOpen: { selectedNews = $0; showDetail = true })
                             }
                         }
                     }
@@ -98,5 +106,8 @@ struct NewsPage: View {
         .background(GLGBackground { Color.clear })
         .navigationTitle("공지·뉴스")
         .navigationBarTitleDisplayMode(.inline)
+        .navigationDestination(isPresented: $showDetail) {
+            if let n = selectedNews { NewsDetailView(store: store, item: n) }
+        }
     }
 }

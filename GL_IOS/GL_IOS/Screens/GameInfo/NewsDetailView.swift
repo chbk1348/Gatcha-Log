@@ -21,6 +21,12 @@ struct NewsDetailView: View {
     /// 본문 이미지 탭 → 전체화면 뷰어(확대·저장). 공지 이미지는 대개 표·수치라 본문 폭에선 안 읽힌다.
     @State private var viewerUrl: String? = nil
 
+    /// 본문 제목이 헤더 위로 스크롤돼 사라졌는지 — true 면 네비 바에 제목을 노출.
+    @State private var showBarTitle = false
+
+    /// 스크롤 위치 추적용 좌표공간 이름.
+    private static let scrollSpace = "newsDetailScroll"
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
@@ -36,6 +42,13 @@ struct NewsDetailView: View {
                     .font(.pretendard(size: 20, weight: .bold))
                     .foregroundStyle(GLGColor.textPrimary)
                     .fixedSize(horizontal: false, vertical: true)
+                    // 본문 제목이 헤더 위로 사라지는 순간을 감지 → 그때 네비 바에 제목을 띄운다.
+                    .background(GeometryReader { geo in
+                        Color.clear.preference(
+                            key: NewsTitleOffsetKey.self,
+                            value: geo.frame(in: .named(Self.scrollSpace)).maxY
+                        )
+                    })
                 Spacer().frame(height: 16)
 
                 GLGCard(cornerRadius: 24, padding: 16) {
@@ -88,12 +101,30 @@ struct NewsDetailView: View {
             }
             .padding(16)
         }
+        .coordinateSpace(name: Self.scrollSpace)
+        .onPreferenceChange(NewsTitleOffsetKey.self) { maxY in
+            // 제목 하단이 헤더(스크롤 영역 상단) 위로 올라가면 노출. 8pt 여유로 살짝 겹칠 때 자연스럽게 전환.
+            let shouldShow = maxY < 8
+            if shouldShow != showBarTitle {
+                withAnimation(.easeInOut(duration: 0.2)) { showBarTitle = shouldShow }
+            }
+        }
         .scrollIndicators(.hidden)
         .background(GLGBackground { Color.clear })
-        .navigationTitle("공지")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .principal) {
+                // 상단에선 "공지", 스크롤로 본문 제목이 사라지면 그 제목을 헤더에 표시.
+                Text(showBarTitle ? item.title : "공지")
+                    .font(.pretendard(size: 16, weight: .semibold))
+                    .foregroundStyle(GLGColor.textPrimary)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+            }
+        }
+        // 같은 글이면 loadNewsArticle 이 조기 반환하므로 탭 전환 후 복귀해도 재요청·스켈레톤 없음.
+        // (일부러 clearNewsArticle 를 onDisappear 에 걸지 않는다 — 탭 전환 때 발동해 본문이 비워지던 원인)
         .task(id: item.id) { store.loadNewsArticle(item) }
-        .onDisappear { store.clearNewsArticle() }
         .fullScreenCover(isPresented: Binding(
             get: { viewerUrl != nil },
             set: { if !$0 { viewerUrl = nil } }
@@ -135,5 +166,13 @@ struct NewsDetailView: View {
                 }
             }
         }
+    }
+}
+
+/// 본문 제목의 스크롤 위치(좌표공간 기준 maxY)를 body 밖으로 전달 — 헤더 제목 노출 판정용.
+private struct NewsTitleOffsetKey: PreferenceKey {
+    static var defaultValue: CGFloat = .greatestFiniteMagnitude
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = min(value, nextValue())
     }
 }
