@@ -311,18 +311,17 @@ object EnkaApi {
     private suspend fun ensureHsrSetData() {
         if (hsrSetMetaCache != null && hsrRelicSetCache != null) return
         runCatching {
-            val sets = JSONObject(Net.get("https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/index_new/kr/relic_sets.json", headers).body)
-            val nameToSet = mutableMapOf<String, String>()
-            val meta = buildMap {
-                sets.keys().forEach { k ->
-                    val o = sets.optJSONObject(k) ?: return@forEach
-                    val name = o.optString("name")
-                    val da = o.optJSONArray("desc")
-                    val descs = if (da != null) (0 until da.length()).map { da.optString(it) } else emptyList()
-                    put(k, name to descs)
-                    if (name.isNotBlank()) nameToSet[name] = k // 세트명 → set_id
-                }
+            val krMeta = loadHsrSetMeta("kr")
+            // 신규 세트(예: 4.4)는 KR 인덱스에 이름·효과가 아직 비어 오는 경우가 있다(Mar-7th 가 EN 을 먼저 채움).
+            // 그런 세트만 EN 으로 메워 '세트 효과 없음'을 막는다 — KR 이 채워지면 자동으로 한글로 돌아온다.
+            val needsFallback = krMeta.any { (_, v) -> v.first.isBlank() || v.second.all { it.isBlank() } }
+            val enMeta = if (needsFallback) runCatching { loadHsrSetMeta("en") }.getOrNull().orEmpty() else emptyMap()
+            val meta = krMeta.mapValues { (id, kr) ->
+                if (kr.first.isBlank() || kr.second.all { it.isBlank() }) enMeta[id] ?: kr else kr
             }
+            val nameToSet = mutableMapOf<String, String>()
+            meta.forEach { (id, v) -> if (v.first.isNotBlank()) nameToSet[v.first] = id } // 세트명 → set_id
+
             val relics = JSONObject(Net.get("https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/index_new/kr/relics.json", headers).body)
             val r2s = buildMap {
                 relics.keys().forEach { k ->
@@ -336,6 +335,19 @@ object EnkaApi {
             hsrSetMetaCache = meta
             hsrRelicSetCache = r2s
             hsrSetNameCache = nameToSet
+        }
+    }
+
+    /** StarRailRes relic_sets.json(지정 언어) → set_id → (세트명, desc[2/4세트]). */
+    private suspend fun loadHsrSetMeta(lang: String): Map<String, Pair<String, List<String>>> {
+        val sets = JSONObject(Net.get("https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/index_new/$lang/relic_sets.json", headers).body)
+        return buildMap {
+            sets.keys().forEach { k ->
+                val o = sets.optJSONObject(k) ?: return@forEach
+                val da = o.optJSONArray("desc")
+                val descs = if (da != null) (0 until da.length()).map { da.optString(it) } else emptyList()
+                put(k, o.optString("name") to descs)
+            }
         }
     }
 
@@ -380,21 +392,29 @@ object EnkaApi {
      * 종류(kind): set_id ≥ 300 = "장신구"(차원 구체·연결 매듭), 그 외 = "유물".
      */
     private fun hsrSets(c: JSONObject): List<EnkaSet> = buildList {
+        // 신규 세트(4.4 등)는 mihomo 응답의 이름·효과가 KR 미번역으로 비어 올 수 있다 → StarRailRes 메타(EN 폴백 포함)로 보완.
+        val meta = hsrSetMetaCache.orEmpty()
         val rs = c.optJSONArray("relic_sets") ?: return@buildList
         val grouped = linkedMapOf<String, MutableList<JSONObject>>()
         for (i in 0 until rs.length()) {
             val s = rs.optJSONObject(i) ?: continue
             val id = s.optString("id")
-            if (id.isBlank() || s.optString("name").isBlank()) continue
+            if (id.isBlank()) continue // 이름이 비어도 메타로 채우므로 id 만 있으면 통과
             grouped.getOrPut(id) { mutableListOf() }.add(s)
         }
         grouped.forEach { (id, rows) ->
+            val metaDescs = meta[id]?.second.orEmpty()
             val effects = rows.mapNotNull { s ->
-                val text = cleanName(s.optString("desc")).takeIf { it.isNotBlank() } ?: return@mapNotNull null
-                EnkaSetEffect(s.optInt("num"), text, true)
+                val num = s.optInt("num")
+                val text = cleanName(s.optString("desc")).takeIf { it.isNotBlank() }
+                    ?: metaDescs.getOrNull(num / 2 - 1)?.let { cleanName(it) }?.takeIf { it.isNotBlank() }
+                    ?: return@mapNotNull null
+                EnkaSetEffect(num, text, true)
             }.sortedBy { it.pieces }
+            if (effects.isEmpty()) return@forEach
+            val name = rows.first().optString("name").takeIf { it.isNotBlank() } ?: meta[id]?.first.orEmpty()
             val kind = if ((id.toIntOrNull() ?: 0) >= 300) "장신구" else "유물"
-            add(EnkaSet(rows.first().optString("name"), rows.maxOf { it.optInt("num") }, effects, kind))
+            add(EnkaSet(name, rows.maxOf { it.optInt("num") }, effects, kind))
         }
     }
 

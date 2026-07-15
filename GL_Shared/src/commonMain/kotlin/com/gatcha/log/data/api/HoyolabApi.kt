@@ -563,6 +563,9 @@ object HoyolabApi {
 
     // ----------------------------------------------------------------- 월간 수입 일지
     /** 게임별 일지 엔드포인트 + 재화 필드. 동일 응답 구조(month_data.current_*)를 공유하는 게임만. */
+    /** data_month 정규화 — YYYYMM(예: 202607)이면 월(7)만, 이미 월(1~12)이면 그대로. */
+    private fun normalizeLedgerMonth(raw: Int): Int = if (raw > 12) raw % 100 else raw
+
     private data class LedgerSpec(
         val endpoint: String,
         val premiumField: String,   // 예: "current_primogems"
@@ -640,7 +643,8 @@ object HoyolabApi {
 
                 MonthlyLedger(
                     game = gameFor(gameKey).displayName,
-                    month = data.optInt("data_month"),
+                    // 원신 data_month=7(월) · 스타레일 data_month=202607(YYYYMM). YYYYMM 이면 월만 뽑는다.
+                    month = normalizeLedgerMonth(data.optInt("data_month")),
                     premium = md.optLong(spec.premiumField),
                     premiumLabel = spec.premiumLabel,
                     premiumLastMonth = md.optLong(lastField),
