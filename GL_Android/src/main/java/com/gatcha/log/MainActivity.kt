@@ -79,7 +79,9 @@ class MainActivity : ComponentActivity() {
             val account by viewModel.account.collectAsState()
             val initialSyncing by viewModel.initialSyncing.collectAsState()
             val networkAlert by viewModel.networkAlert.collectAsState()
-            var loadingDone by rememberSaveable { mutableStateOf(false) }
+            // 로컬 데이터가 이미 있으면(재실행) 로딩 게이트를 건너뛰고 즉시 진입 — 동기화는 백그라운드.
+            // 첫 로그인·재설치(로컬 없음)에서만 게이지 링 로딩 화면을 보여준다.
+            var loadingDone by rememberSaveable { mutableStateOf(viewModel.hasLocalData) }
             var onboardingDone by rememberSaveable { mutableStateOf(AppSettings().onboardingDone) }
 
             // 로그인 전(온보딩·로그인) 화면은 **사용자 테마를 따르지 않고 브랜드 민트로 고정**(index 0).

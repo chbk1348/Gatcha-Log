@@ -45,9 +45,13 @@ fun setSelectedTab(tab: Int) {
 }
 
 /** 초기 동기화 게이트 활성 여부 — Swift 가 탭바·추가 버튼 숨김 초기값으로 사용 */
+// 로컬 데이터가 이미 있으면(재실행) 로딩 게이트를 건너뛰고 즉시 앱을 보여준다 — 동기화는 백그라운드.
+// 첫 로그인·재설치(로컬 없음)에서만 게이트가 활성.
 @Suppress("unused")
 fun isSyncGateActive(): Boolean =
-    !IosAppState.viewModel.account.value.isGuest && !IosAppState.syncLoadingDone.value
+    !IosAppState.viewModel.account.value.isGuest &&
+        !IosAppState.syncLoadingDone.value &&
+        !IosAppState.viewModel.hasLocalData
 
 // observeSyncGate 콜백·컬렉터 시작 가드 — SwiftUI 의 onAppear 는 루트 뷰가 다시 나타날 때마다
 // 호출되므로, 가드 없이 매번 collect 를 시작하면 무한 코루틴이 누적된다 (observeAccentColor 와 동일 패턴).
@@ -74,7 +78,7 @@ fun observeSyncGate(onChange: (Boolean) -> Unit) {
         syncGateCollectorStarted = true
         CoroutineScope(Dispatchers.Main).launch {
             combine(IosAppState.viewModel.account, IosAppState.syncLoadingDone) { account, done ->
-                !account.isGuest && !done
+                !account.isGuest && !done && !IosAppState.viewModel.hasLocalData
             }.collect { syncGateObserver?.invoke(it) }
         }
     }

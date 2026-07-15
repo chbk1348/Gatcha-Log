@@ -1489,6 +1489,14 @@ class SpendingViewModel : ViewModel() {
     private val _initialSyncing = MutableStateFlow(cloudConfigured && CloudSync.currentUid() != null)
     val initialSyncing: StateFlow<Boolean> = _initialSyncing.asStateFlow()
 
+    /**
+     * 로컬에 이미 사용자 데이터가 있는지 — 재실행 시 초기 동기화 로딩 게이트를 건너뛰는 기준.
+     * 지출·구독·가챠 중 하나라도 있으면 '써 오던 기기'로 보고 앱을 즉시 보여주고, 클라우드 동기화는
+     * 백그라운드로 돌린다(유실 방지 pull-전-push-금지는 그대로). 첫 로그인·재설치(로컬 없음)에서만 로딩 화면.
+     */
+    val hasLocalData: Boolean
+        get() = _spendings.value.isNotEmpty() || _subscriptions.value.isNotEmpty() || gachaRecords.isNotEmpty()
+
     /** 데이터 변경 시 디바운스(1.5s) 후 Firestore 에 전체 스냅샷 푸시. */
     private fun scheduleCloudSync() {
         if (!cloudConfigured) return
