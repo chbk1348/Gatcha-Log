@@ -42,7 +42,8 @@ Google Apps Script 웹앱에서 출발해 **Kotlin Multiplatform + Compose Multi
 - **실시간 노트** — 레진·개척력·배터리 + 파견·주간 보스·시뮬레이션 우주 등 부가 통계
 - **자동 출석체크** — 백그라운드로 매일 자동 출석, 결과 알림 (Android: WorkManager / iOS: BGTaskScheduler)
 - **리딤(선물) 코드** — 활성 코드 목록 + 앱에서 바로 교환(보상은 게임 우편함) · 코드 복사
-- **월간 수입 일지** — 원석·폴리크롬 등 이번 달 재화 수입 + 수입원 비중
+- **인앱 공지 · 게임 소식** — 새 공지를 앱 안에서 바로 읽기(본문·인라인 이미지) · 이미지 확대·저장 · 본문 부분 선택 복사(브라우저로 나가지 않음)
+- **월간 수입 일지** — 원석·성옥·폴리크롬 등 이번 달 재화 수입 + 수입원 비중 (원신·스타레일·젠레스 3게임 모두 지원)
 - **전투 콘텐츠 진행도** — 나선 비경·현실 속 환상극·혼돈의 기억 등
 - **자동 연동** — 로그인 한 번으로 토큰·게임 UID 자동 수집
 - **내 캐릭터 — 보유 전체 스탯시트** — 연동 계정의 **보유 캐릭터 전체(쇼케이스 밖 포함)** 를 핵심 스탯·무기(광추/음동기)·성유물(유물/드라이브 디스크)까지 풀 상세로 조회. 대표 4명 + 더보기 → 보유 목록(등급·속성 필터 · **이름 검색**) → 캐릭터 상세 (원신·스타레일·젠레스). 전체 보기는 게임별 카드로 정리
@@ -59,7 +60,7 @@ Google Apps Script 웹앱에서 출발해 **Kotlin Multiplatform + Compose Multi
 - **가챠 효율 리포트** — UIGF v4 / SRGF JSON 가져오기 → 천장 분포·월별 추이·픽업 비율·5성 타임라인·평균 천장·운 분석
 
 ### 🔔 알림
-- 예산 초과 · 출석 미완료 · 재화 가득 · 위시 픽업 · 픽업 마감 · **정기결제 갱신** 로컬 알림 (항목별 토글)
+- 예산 초과 · 출석 미완료 · 재화 가득 · 위시 픽업 · 픽업 마감 · **정기결제 갱신** · **새 공지** 로컬 알림 (항목별 토글)
 - **방해금지(DnD) 시간대** — 지정 시간엔 알림 억제(자정 넘김 지원) · **데일리 요약** — 하루 1건 통합 알림
 
 ### ☁️ 계정 · 백업 · 동기화
@@ -76,7 +77,7 @@ Google Apps Script 웹앱에서 출발해 **Kotlin Multiplatform + Compose Multi
 | 영역 | 사용 기술 |
 |---|---|
 | 공유 코드 (KMP) | Kotlin 2.3.21 · Compose Multiplatform 1.11 (Material 3) · kotlinx-{coroutines, serialization, datetime} · Ktor |
-| Android | Jetpack Compose · AGP 9.2.1 · compileSdk 36 / minSdk 24 · WorkManager · Credential Manager |
+| Android | Jetpack Compose · AGP 9.3.0 · compileSdk 36 / minSdk 24 · WorkManager · Credential Manager |
 | iOS | SwiftUI(네이티브 탭바·iOS 26 리퀴드 글래스) · BGTaskScheduler · GoogleSignIn SDK · Xcode 26 / iOS 16+ |
 | 클라우드 | Firebase Auth + Cloud Firestore (Android: Firebase SDK / iOS: GitLive KMP + Firebase iOS SDK) |
 | 로컬 저장 | Android: SharedPreferences(토큰은 EncryptedSharedPreferences) / iOS: UserDefaults(토큰은 Keychain) |
@@ -139,9 +140,10 @@ iOS 용 IPA 는 **미서명** 상태로 배포됩니다 — [Sideloadly](https:/
 ## 🎨 디자인
 - **카드 — 흰 배경 + 아웃라인** (Android · iOS 동일, 22dp 라운드 · 그림자 없는 평면 카드 — 가독성·스크롤 성능 우선)
 - **iOS 26 리퀴드 글래스** — 탭바·헤더 버튼 등 시스템 크롬은 iOS 네이티브 글래스(UIGlassEffect) 유지
-- 다크 네이비 위시 스타 앱 아이콘 (양 플랫폼 동일)
+- **천장 게이지 링 앱 아이콘** — 깔끔한 흰 배경(양 플랫폼 동일 · 시작 화면도 동일 톤)
 - 커스텀 입력·버튼 · "눌린 느낌" 인디케이션 · 로딩/화면 전환 애니메이션
 - 테마 색상 5종 (민트·퍼플·인디고·블루·로즈) — iOS 네이티브 탭바 틴트까지 연동
+- **게임 태그 통일** — 홈·게임 정보 어디서나 같은 배지(GI·HSR·ZZZ)로 게임 식별
 - 기기 글꼴 크기와 무관한 고정 레이아웃(접근성 폰트 스케일 1.0 고정)
 
 ---
