@@ -20,6 +20,8 @@ struct AddSpendingView: View {
     @State private var selectedTags: [String] = []
     @State private var isSubscription = false
     @State private var selectedPkg: String? = nil
+    // 한 번에 같은 상품을 여러 번 산 경우 — 횟수만큼 금액·재화를 곱해 한 건으로 기록.
+    @State private var quantity: Int = 1
     @State private var showDate = false
     @State private var nudgeMsg: String? = nil
     @State private var didInit = false
@@ -71,7 +73,7 @@ struct AddSpendingView: View {
                 HStack(spacing: 8) {
                     ForEach(GameData.shared.games, id: \.key) { g in
                         GLGChip(label: g.shortName, selected: g.displayName == gameName, color: Color(argb64: g.color)) {
-                            gameName = g.displayName; selectedPkg = nil
+                            gameName = g.displayName; selectedPkg = nil; quantity = 1
                         }
                     }
                 }
@@ -90,7 +92,7 @@ struct AddSpendingView: View {
                 ForEach(Array(packages.enumerated()), id: \.offset) { _, pkg in
                     let sel = selectedPkg == pkg.name
                     Button {
-                        selectedPkg = pkg.name; amount = "\(pkg.price)"; itemName = pkg.name; isSubscription = (pkg.bonus == "월정액")
+                        selectedPkg = pkg.name; quantity = 1; amount = "\(pkg.price)"; itemName = pkg.name; isSubscription = (pkg.bonus == "월정액")
                     } label: {
                         VStack(spacing: 3) {
                             Text(pkg.name).font(.pretendard(size: 13, weight: .bold)).foregroundStyle(GLGColor.textPrimary).lineLimit(1)
@@ -106,9 +108,64 @@ struct AddSpendingView: View {
                 }
             }
             .padding(.top, 10)
-            field("금액 (원)", "0", $amount, number: true).padding(.top, 14)
+            // 구매 횟수 — 상품을 골랐을 때만. 한 번에 여러 번 산 경우 금액·재화를 곱한다.
+            if let pkg = selectedPackage {
+                quantityStepper(pkg).padding(.top, 14)
+            }
+            amountField.padding(.top, 14)
             field("재화명", "결정석 60", $itemName).padding(.top, 12)
         }
+    }
+
+    // 금액 입력 — 사용자가 직접 고치면(커스텀 Binding set 은 사용자 입력 때만 호출) 자동 곱 상태를 해제.
+    private var amountField: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            Text("금액 (원)").font(.pretendard(size: 11, weight: .semibold)).foregroundStyle(GLGColor.textSecondary)
+            TextField("0", text: Binding(
+                get: { amount },
+                set: { newValue in
+                    amount = newValue.filter(\.isNumber)
+                    selectedPkg = nil; quantity = 1
+                }
+            ))
+            .textFieldStyle(.plain).font(.pretendard(size: 15)).keyboardType(.numberPad).glgPillField()
+        }
+    }
+
+    // 구매 횟수 스텝퍼 — 단가·재화 총량을 함께 보여줘 '몇 번 사서 얼마·재화 얼마인지' 검증 가능하게.
+    private func quantityStepper(_ pkg: GamePackage) -> some View {
+        HStack(alignment: .center) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("구매 횟수").font(.pretendard(size: 14, weight: .bold)).foregroundStyle(GLGColor.textSecondary)
+                if quantity > 1 {
+                    Text("\(won(pkg.price)) × \(quantity) = \(won(pkg.price * Int64(quantity)))")
+                        .font(.pretendard(size: 12, weight: .medium)).foregroundStyle(GLGColor.textSecondary)
+                    // 재화 양도 확인 — 상품명 끝의 개수 × 횟수 + 보너스 재화까지 총량 명시.
+                    if let cur = GameDataKt.currencyAmountOrNull(gameName: gameName, itemName: itemName) {
+                        Text("재화 총 \(cur)").font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary)
+                    }
+                } else {
+                    Text("한 번에 여러 번 샀다면 횟수를 올리세요").font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary)
+                }
+            }
+            Spacer(minLength: 8)
+            HStack(spacing: 6) {
+                stepperBtn("minus", enabled: quantity > 1) { setQuantity(quantity - 1) }
+                Text("\(quantity)").font(.pretendard(size: 16, weight: .bold)).foregroundStyle(GLGColor.textPrimary).frame(minWidth: 28)
+                stepperBtn("plus", enabled: quantity < 99) { setQuantity(quantity + 1) }
+            }
+        }
+    }
+
+    private func stepperBtn(_ symbol: String, enabled: Bool, _ action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: symbol).font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(enabled ? accent.primary : GLGColor.textSecondary.opacity(0.4))
+                .frame(width: 34, height: 34)
+                .background(enabled ? accent.primary.opacity(0.10) : Color(.systemGray6), in: Circle())
+                .overlay(Circle().stroke(enabled ? accent.primary.opacity(0.5) : Color.black.opacity(0.06), lineWidth: 1))
+        }
+        .buttonStyle(.plain).disabled(!enabled)
     }
 
     private var dateCard: some View {
@@ -174,6 +231,36 @@ struct AddSpendingView: View {
     }
 
     // ── 로직 ──
+    private var selectedPackage: GamePackage? {
+        guard let name = selectedPkg else { return nil }
+        return GameData.shared.packagesFor(game: game).first { $0.name == name }
+    }
+
+    // 구매 횟수 변경 — 선택된 상품 기준으로 금액·재화명을 N배로 다시 계산.
+    private func setQuantity(_ q: Int) {
+        let qty = min(max(q, 1), 99)
+        quantity = qty
+        if let pkg = selectedPackage {
+            amount = "\(pkg.price * Int64(qty))"
+            itemName = qty > 1 ? "\(pkg.name) ×\(qty)" : pkg.name
+        }
+    }
+
+    // 수정 진입 시 항목명 끝 "×N" 에서 구매 횟수 복원. 없으면 1.
+    private func detectQuantity(_ name: String) -> Int {
+        guard let r = name.range(of: "×\\s*\\d+\\s*$", options: .regularExpression) else { return 1 }
+        let digits = name[r].filter(\.isNumber)
+        return min(max(Int(digits) ?? 1, 1), 99)
+    }
+
+    // 항목명에서 끝의 "×N" 을 떼어낸 기본 상품명.
+    private func stripMult(_ name: String) -> String {
+        if let r = name.range(of: "\\s*×\\s*\\d+\\s*$", options: .regularExpression) {
+            return String(name[..<r.lowerBound]).trimmingCharacters(in: .whitespaces)
+        }
+        return name.trimmingCharacters(in: .whitespaces)
+    }
+
     private func prefill() {
         guard !didInit else { return }; didInit = true
         if let e = editing {
@@ -181,6 +268,12 @@ struct AddSpendingView: View {
             paymentMethod = e.paymentMethod.isEmpty ? "카드" : e.paymentMethod
             chargePlatform = e.chargePlatform
             itemName = e.itemName; memo = e.memo; selectedTags = e.tags; isSubscription = e.isSubscription
+            // 저장된 항목명("창세의 결정 300 ×3")에서 상품·구매 횟수 복원 → 스텝퍼 노출.
+            quantity = detectQuantity(e.itemName)
+            let base = stripMult(e.itemName)
+            if GameData.shared.packagesFor(game: GameData.shared.byName(name: e.gameName)).contains(where: { $0.name == base }) {
+                selectedPkg = base
+            }
         } else {
             dateMillis = nowMs()
         }

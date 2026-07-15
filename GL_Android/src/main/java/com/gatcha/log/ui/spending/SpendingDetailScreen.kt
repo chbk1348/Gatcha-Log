@@ -37,6 +37,7 @@ import com.gatcha.log.ui.theme.DividerColor
 import com.gatcha.log.ui.theme.LocalAccent
 import com.gatcha.log.ui.theme.toColor
 import com.gatcha.log.ui.theme.TextSecondary
+import com.gatcha.log.data.currencyAmountOrNull
 import com.gatcha.log.util.won
 
 /** 지출 상세 페이지 — 전체 정보 + 수정/삭제(확인 다이얼로그). */
@@ -111,6 +112,11 @@ fun SpendingDetailScreen(
                 Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 6.dp)) {
                     DetailRow("항목", spending.itemName.ifBlank { "—" })
                     HorizontalDivider(color = DividerColor)
+                    // 재화양 — 항목명 끝의 개수(×N·보너스 재화 반영). 패스·월정액 등 숫자 없으면 생략.
+                    currencyAmountOrNull(spending.gameName, spending.itemName)?.let { amt ->
+                        DetailRow("재화양", amt)
+                        HorizontalDivider(color = DividerColor)
+                    }
                     DetailRow("결제 수단", spending.paymentMethod.ifBlank { "—" })
                     HorizontalDivider(color = DividerColor)
                     if (spending.chargePlatform.isNotBlank()) {

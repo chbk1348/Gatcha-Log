@@ -52,6 +52,11 @@ struct SpendingDetailView: View {
                     VStack(spacing: 0) {
                         detailRow("항목", s.itemName.isEmpty ? "—" : s.itemName)
                         Divider()
+                        // 재화양 — 항목명 끝의 개수(×N·보너스 재화 반영). 패스·월정액 등 숫자 없으면 생략.
+                        if let amt = GameDataKt.currencyAmountOrNull(gameName: s.gameName, itemName: s.itemName) {
+                            detailRow("재화양", amt)
+                            Divider()
+                        }
                         detailRow("결제 수단", s.paymentMethod.isEmpty ? "—" : s.paymentMethod)
                         Divider()
                         if !s.chargePlatform.isEmpty {
