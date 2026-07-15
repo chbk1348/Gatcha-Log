@@ -6,7 +6,7 @@
   링은 굵은 단일 획이라 32px 로 줄여도 형태가 무너지지 않는다.
 
   ⚠️ 어댑티브 아이콘 안전영역: 108dp 중 중앙 66dp 만 항상 보인다(런처 마스크가 바깥을 자름).
-     링 최외곽 = r28 + strokeWidth 8.5/2 = 32.25 → 지름 64.5dp ≤ 66dp 안에 들어간다.
+     링 최외곽 = r23 + strokeWidth 7/2 = 26.5 → 지름 53dp ≤ 66dp (링이 너무 커 보여 축소, 여백 확보).
      이 반지름을 키우면 원형 마스크에서 링이 잘린다.
 -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
@@ -18,29 +18,29 @@
 
     <!-- 트랙(미완성 구간) — "아직 채우는 중"을 그대로 말한다 -->
     <path
-        android:pathData="M26,54 A28,28 0 1,1 82,54 A28,28 0 1,1 26,54"
+        android:pathData="M31,54 A23,23 0 1,1 77,54 A23,23 0 1,1 31,54"
         android:strokeColor="#FFE1EDEA"
-        android:strokeWidth="8.5"
+        android:strokeWidth="7"
         android:fillColor="@android:color/transparent" />
 
     <!-- 게이지(진행 구간) — 12시에서 시계방향 270도, 라운드 캡 -->
     <path
-        android:pathData="M54,26 A28,28 0 1,1 26,54"
-        android:strokeWidth="8.5"
+        android:pathData="M54,31 A23,23 0 1,1 31,54"
+        android:strokeWidth="7"
         android:strokeLineCap="round"
         android:fillColor="@android:color/transparent">
         <aapt:attr name="android:strokeColor">
             <gradient
                 android:type="linear"
-                android:startX="26" android:startY="26"
-                android:endX="82" android:endY="82"
+                android:startX="31" android:startY="31"
+                android:endX="77" android:endY="77"
                 android:startColor="#FF7FFBE6"
                 android:endColor="#FF14B8A6" />
         </aapt:attr>
     </path>
 
-    <!-- 중앙 별 — 화이트 배경 위 대비 확보를 위해 네이비 -->
+    <!-- 중앙 별 — 화이트 배경 위 대비 확보를 위해 네이비 (링과 함께 축소, 폭 26) -->
     <path
-        android:pathData="M54,38 l5,11 11,5 -11,5 -5,11 -5,-11 -11,-5 11,-5 z"
+        android:pathData="M54,41 L58.06,49.94 67,54 58.06,58.06 54,67 49.94,58.06 41,54 49.94,49.94 Z"
         android:fillColor="#FF0F1A33" />
 </vector>

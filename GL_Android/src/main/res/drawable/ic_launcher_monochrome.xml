@@ -12,16 +12,16 @@
     android:viewportWidth="108"
     android:viewportHeight="108">
 
-    <!-- 게이지 (12시 → 시계방향 270도) -->
+    <!-- 게이지 (12시 → 시계방향 270도) — 전경과 동일 축소(r23·획7) -->
     <path
-        android:pathData="M54,26 A28,28 0 1,1 26,54"
+        android:pathData="M54,31 A23,23 0 1,1 31,54"
         android:strokeColor="#FF000000"
-        android:strokeWidth="8.5"
+        android:strokeWidth="7"
         android:strokeLineCap="round"
         android:fillColor="@android:color/transparent" />
 
-    <!-- 중앙 별 -->
+    <!-- 중앙 별 (폭 26) -->
     <path
-        android:pathData="M54,38 l5,11 11,5 -11,5 -5,11 -5,-11 -11,-5 11,-5 z"
+        android:pathData="M54,41 L58.06,49.94 67,54 58.06,58.06 54,67 49.94,58.06 41,54 49.94,49.94 Z"
         android:fillColor="#FF000000" />
 </vector>
