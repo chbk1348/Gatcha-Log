@@ -33,6 +33,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.vectorResource
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.Lifecycle
@@ -43,6 +45,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import android.os.Build
 import com.gatcha.log.BuildConfig
+import com.gatcha.log.R
 import com.gatcha.log.ui.components.BudgetDialog
 import com.gatcha.log.ui.components.GlassCard
 import com.gatcha.log.ui.components.GlgButton
@@ -65,10 +68,14 @@ import com.gatcha.log.ui.theme.TextPrimary
 import com.gatcha.log.ui.theme.TextSecondary
 import com.gatcha.log.util.won
 
+/** 프로젝트 저장소 홈. 업데이트 체크(UpdateChecker)·OTA 는 같은 저장소의 raw/releases 경로를 쓴다. */
+private const val GITHUB_REPO_URL = "https://github.com/chbk1348/Gatcha-Log"
+
 @Composable
 fun SettingsScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
     val accent = LocalAccent.current
     val context = LocalContext.current
+    val uriHandler = LocalUriHandler.current
     val budget by viewModel.budget.collectAsState()
     val gameBudgets by viewModel.gameBudgets.collectAsState()
     val accentIndex by viewModel.accentIndex.collectAsState()
@@ -311,6 +318,10 @@ fun SettingsScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
                     SettingsItem("업데이트 로그", Icons.Default.NewReleases) { showUplog.value = true }
                     HorizontalDivider(color = DividerColor, modifier = Modifier.padding(horizontal = 16.dp))
                     SettingsItem("출처 · 저작권", Icons.Default.Copyright) { showCredits.value = true }
+                    HorizontalDivider(color = DividerColor, modifier = Modifier.padding(horizontal = 16.dp))
+                    SettingsItem("GitHub", ImageVector.vectorResource(R.drawable.ic_github)) {
+                        uriHandler.openUri(GITHUB_REPO_URL)
+                    }
                     HorizontalDivider(color = DividerColor, modifier = Modifier.padding(horizontal = 16.dp))
                     SettingsItem("앱 버전", Icons.Default.Info, value = "v$versionName", trailing = { BuildVariantChip() }) {}
                 }

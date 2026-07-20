@@ -12,6 +12,10 @@ struct SettingsView: View {
     @ObservedObject var store: SpendingStore
     @Environment(\.glgAccent) private var accent
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.openURL) private var openURL
+
+    /// 프로젝트 저장소 홈. OTA·릴리즈는 같은 저장소의 raw/releases 경로를 쓴다.
+    private static let githubRepoURL = "https://github.com/chbk1348/Gatcha-Log"
 
     // 시트/다이얼로그 상태
     @State private var showBudget = false
@@ -212,6 +216,8 @@ struct SettingsView: View {
             Divider()
             navRow(icon: "c.circle", title: "출처 · 저작권") { showCredits = true }
             Divider()
+            linkRow(asset: "GitHubMark", title: "GitHub", url: Self.githubRepoURL)
+            Divider()
             HStack {
                 rowLabel(icon: "info.circle", title: "앱 버전")
                 Spacer()
@@ -266,6 +272,20 @@ struct SettingsView: View {
         }
     }
 
+    /// 에셋 카탈로그의 커스텀 벡터(template)를 쓰는 행 라벨. SF Symbols 에 없는 브랜드 마크(GitHub 등)용.
+    private func rowLabel(asset: String, title: String) -> some View {
+        HStack(spacing: 12) {
+            Image(asset)
+                .renderingMode(.template)
+                .resizable()
+                .scaledToFit()
+                .frame(width: 18, height: 18)
+                .foregroundStyle(accent.primary)
+                .frame(width: 24)
+            Text(title).font(.pretendard(size: 14, weight: .medium))
+        }
+    }
+
     private func navRow(icon: String, title: String, value: String? = nil, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             HStack {
@@ -273,6 +293,23 @@ struct SettingsView: View {
                 Spacer()
                 if let value { Text(value).font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary) }
                 Image(systemName: "chevron.right").font(.pretendard(size: 13, weight: .semibold))
+                    .foregroundStyle(Color(.tertiaryLabel))
+            }
+            .contentShape(Rectangle())
+            .padding(.vertical, 13)
+        }
+        .buttonStyle(.plain)
+    }
+
+    /// 커스텀 에셋 아이콘 + 외부 링크 행. 시스템 브라우저로 나가므로 chevron 대신 arrow.up.right 표시.
+    private func linkRow(asset: String, title: String, url: String) -> some View {
+        Button {
+            if let u = URL(string: url) { openURL(u) }
+        } label: {
+            HStack {
+                rowLabel(asset: asset, title: title)
+                Spacer()
+                Image(systemName: "arrow.up.right").font(.pretendard(size: 13, weight: .semibold))
                     .foregroundStyle(Color(.tertiaryLabel))
             }
             .contentShape(Rectangle())
