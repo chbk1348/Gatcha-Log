@@ -41,8 +41,8 @@ struct SpendingView: View {
 
     var body: some View {
         ScrollView {
-            LazyVStack(alignment: .leading, spacing: 0, pinnedViews: []) {
-                // 월 지출 헤더 — 일반 스크롤 헤더(콜랩스 없음). 스크롤 시 자연스럽게 위로 밀려 올라간다.
+            VStack(alignment: .leading, spacing: 0) {
+                // 월 지출 헤더 — 일반 스크롤 헤더(콜랩스 없음). 넓은 화면에서도 카드 그리드 위에 전체폭으로.
                 // 필터 적용 중(총액이 필터 리스트와 불일치)이거나 선택 모드일 땐 숨긴다.
                 if activeFilterCount == 0 && !selectionMode {
                     monthHeader
@@ -51,11 +51,18 @@ struct SpendingView: View {
                 if listIsEmpty {
                     emptyState
                 } else {
+                    // 넓은 화면(iPad)=날짜 카드 메이슨리(짧은 열 우선 채움 → 빈 영역 없음), iPhone=기존 세로 1열.
+                    // 가중치=그 날짜 카드의 지출 건수(+헤더) → 높이 비례로 좌우 균형.
                     // 미리 계산된 displayGroups 순회만(매 프레임 재필터·재정렬·재그룹 없음).
-                    ForEach(Array(displayGroups.enumerated()), id: \.element.key) { gi, group in
-                        dayCard(dateLabel: group.dateLabel, total: group.total, items: group.items)
-                            .glgLoadIn(gi, appeared: $appeared)
-                    }
+                    GLGColumnMasonry(
+                        cards: displayGroups.enumerated().map { gi, group in
+                            GLGMasonryCard(id: group.key, weight: Double(group.items.count) + 1) {
+                                dayCard(dateLabel: group.dateLabel, total: group.total, items: group.items)
+                                    .glgLoadIn(gi, appeared: $appeared)
+                            }
+                        },
+                        spacing: 8, stackSpacing: 0
+                    )
                 }
                 Color.clear.frame(height: 8)
             }

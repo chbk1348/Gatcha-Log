@@ -15,51 +15,76 @@ struct HomeView: View {
     @State private var didStart = false
     /// 콘텐츠 로드인 스태거 — 첫 표시 1회만 등장(스크롤 재진입 시 재애니메이션 방지용 인덱스 보관).
     @State private var appeared: Set<Int> = []
+    /// 헤더 프로필 탭 시 뜨는 계정 메뉴(마이페이지·로그아웃)
+    @State private var showAccountMenu = false
+
+    /// iPad = 분할뷰 detail 안이라 상단바 처리 방식이 다르다(HomeTopBarStyle).
+    private var isPad: Bool { UIDevice.current.userInterfaceIdiom == .pad }
 
     var body: some View {
+      GeometryReader { geo in
         ScrollView {
-            LazyVStack(alignment: .leading, spacing: 12) {
-                if store.hoyoTokenExpired {
-                    TokenExpiredBanner { store.requestOpenHoyolabLink(); onSwitchTab(3) }
-                        .glgLoadIn(0, appeared: $appeared)
-                }
-                // 홈 허브 — 정보 중복 없이: 지출/예산 · 오늘 할 일 · 이번주 일정 · 게임 소식
-                DashboardSpendCard(monthlyTotal: monthlyTotal, budget: store.budget, onTap: { onSwitchTab(1) })
-                    .glgLoadIn(1, appeared: $appeared)
-                if !store.gameInfoReady || !todayTasks.isEmpty {
-                    todayTask.glgLoadIn(2, appeared: $appeared)
-                }
-                if !store.gameInfoReady {
-                    // 게임 정보 로딩 중 — 일정·소식 카드 자리에 스켈레톤(빈 화면 대신 골격 노출)
-                    DashCardSkeleton(rows: 3).glgLoadIn(3, appeared: $appeared)
-                    DashCardSkeleton(rows: 2).glgLoadIn(4, appeared: $appeared)
-                } else {
-                    DashboardScheduleCard(events: store.gameEvents, challenges: store.challenges, onTap: { store.requestGameInfoAnchor(.schedule); onSwitchTab(2) })
-                        .glgLoadIn(3, appeared: $appeared)
-                    DashboardNewsCard(news: store.gameNews, anniversaries: GameAnniversary.shared.upcoming(nowMillis: nowMs()), onTap: { store.requestGameInfoAnchor(.news); onSwitchTab(2) })
-                        .glgLoadIn(4, appeared: $appeared)
-                }
-                // 목표·동기 — 저축 플래너 · 절약 챌린지 (27.35)
-                NavigationLink { SavingsPlannerView(store: store) } label: { PickupPlannerHomeCard(store: store) }
-                    .buttonStyle(.plain).glgLoadIn(5, appeared: $appeared)
-                NavigationLink { SavingsChallengeView(store: store) } label: { SavingsChallengeHomeCard(store: store) }
-                    .buttonStyle(.plain).glgLoadIn(6, appeared: $appeared)
-                Color.clear.frame(height: 12)
+            if isPad {
+                // iPad — 히어로 섹션 이전(재구성 전) 홈으로 리버트: 지출 카드·오늘 할 일·일정·소식·저축.
+                legacyHomeContent
+            } else {
+                // iPhone — Figma Make 재구성 홈(그라데이션 히어로 + 퀵액션 + 최근 지출).
+                newHomeContent(topInset: geo.safeAreaInsets.top)
             }
-            .padding(.horizontal, 16)
         }
         .scrollIndicators(.hidden)
+        // iPhone: 스크롤을 상단바 뒤까지 확장해 '투명해진 내비바' 뒤로 실제 그라데이션을 노출.
+        // iPad: 그라데이션을 아예 끄므로(흰 히어로) 기본 내비바와 자연스럽게 어울린다 — 특별 처리 없음.
+        .modifier(HomeTopBarStyle(isPad: isPad))
+        // 히어로 그라데이션 = ScrollView 고정 배경(스크롤 콘텐츠가 아님) → PTR 당김·스크롤에도 그대로 고정.
+        // 하단은 라운드 클립 대신 '완전 투명'으로 페이드해 흰 배경과의 경계선을 없앤다(부드럽게 사라짐).
+        .background(alignment: .top) {
+            if !isPad {
+                AmbientHeroGradient(secondary: accent.secondary, primary: accent.primary)
+                    .frame(height: geo.safeAreaInsets.top + 254)
+                    .clipped()   // 글로우가 그라데이션 영역 밖(흰 콘텐츠)으로 새지 않게
+                    .ignoresSafeArea(edges: .top)
+            }
+        }
         .background(GLGBackground { Color.clear })
         .refreshable { store.refreshGameInfo(force: true) }
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            // 프로필 사진만 헤더 좌측에 노출 (탭하면 마이페이지). 시스템 글래스 squircle 크롬 없이 순수 원형.
+            // 프로필 사진(좌) — 탭하면 마이페이지.
             ToolbarItem(placement: .topBarLeading) {
-                Button { onSwitchTab(3) } label: {
+                // Button 대신 onTapGesture — 툴바가 라벨을 강조색으로 틴트해 글자가 안 보이던 문제 회피.
+                HStack(spacing: 8) {
                     ProfileAvatarView(photoUrl: store.account.isGuest ? nil : store.account.photoUrl, size: 32)
+                    Text(nickname)
+                        .font(.pretendard(size: 15, weight: .bold))
+                        .foregroundStyle(GLGColor.textPrimary)
+                        .lineLimit(1)
+                        .fixedSize(horizontal: true, vertical: false)   // 툴바가 폭을 0으로 압축하지 않게
+                        .padding(.trailing, 8)
                 }
-                .buttonStyle(.plain)
+                .contentShape(Rectangle())
+                .onTapGesture { showAccountMenu = true }
+                // 버튼 바로 아래 드롭다운(팝오버) — 하단 액션시트 대신 버튼에 붙게.
+                .popover(isPresented: $showAccountMenu, arrowEdge: .top) {
+                    Button {
+                        showAccountMenu = false
+                        if store.account.isGuest { store.signIn() } else { store.signOut() }
+                    } label: {
+                        HStack(spacing: 10) {
+                            Image(systemName: store.account.isGuest ? "person.crop.circle.badge.plus" : "rectangle.portrait.and.arrow.right")
+                            Text(store.account.isGuest ? "로그인" : "로그아웃").font(.pretendard(size: 15, weight: .semibold))
+                            Spacer(minLength: 0)
+                        }
+                        .foregroundStyle(store.account.isGuest ? GLGColor.textPrimary : GLGColor.dangerText)
+                        .padding(.horizontal, 18).padding(.vertical, 14)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .frame(width: 190)
+                    .presentationCompactAdaptation(.popover)
+                }
             }
+            // 알림(우).
             ToolbarItem(placement: .topBarTrailing) {
                 NavigationLink {
                     NotificationDetailView(alerts: alerts,
@@ -93,16 +118,89 @@ struct HomeView: View {
         .onChange(of: store.hoyolabConfig.isLinked) { _, linked in
             if linked { store.refreshGameInfo(force: true) }
         }
+      }
     }
 
+    // iPhone — Figma Make 재구성 홈(그라데이션 히어로 + 퀵액션 + 최근 지출 + 일정/소식 + 나를 위한).
+    @ViewBuilder
+    private func newHomeContent(topInset: CGFloat) -> some View {
+        VStack(spacing: 16) {
+            // 히어로 — 이번 달 지출 / 예산 현황 캐러셀. 그라데이션을 상태바·내비바 뒤까지 확장.
+            // 그라데이션은 히어로 자체가 아니라 ScrollView '고정' 배경으로 그린다(PTR·스크롤에도 안 움직이게).
+            HeroBalanceCard(monthlyTotal: monthlyTotal, prevTotal: prevTotal, budget: store.budget,
+                            onBudget: { showBudget = true }, topPad: topInset, showGradient: false)
+                .glgLoadIn(1, appeared: $appeared)
 
-    private var todayTask: some View {
-        Group {
-            if !store.gameInfoReady {
-                TodayTaskSkeleton()
-            } else {
-                TodayTaskCard(tasks: todayTasks, inProgress: store.checkingIn != nil)
+            VStack(alignment: .leading, spacing: 16) {
+                if store.hoyoTokenExpired {
+                    TokenExpiredBanner { store.requestOpenHoyolabLink(); onSwitchTab(3) }
+                        .glgLoadIn(0, appeared: $appeared)
+                }
+                if !store.gameInfoReady || !todayTasks.isEmpty {
+                    todayTaskView(titleOutside: true).glgLoadIn(3, appeared: $appeared)
+                }
+                RecentSpendCard(spendings: store.spendings, onSeeAll: { onSwitchTab(1) })
+                    .glgLoadIn(4, appeared: $appeared)
+                if !store.gameInfoReady {
+                    DashCardSkeleton(rows: 3).glgLoadIn(5, appeared: $appeared)
+                    DashCardSkeleton(rows: 2).glgLoadIn(6, appeared: $appeared)
+                } else {
+                    DashboardScheduleCard(events: store.gameEvents, challenges: store.challenges, onTap: { store.requestGameInfoAnchor(.schedule); onSwitchTab(2) }, titleOutside: true)
+                        .glgLoadIn(5, appeared: $appeared)
+                    DashboardNewsCard(news: store.gameNews, anniversaries: GameAnniversary.shared.upcoming(nowMillis: nowMs()), onTap: { store.requestGameInfoAnchor(.news); onSwitchTab(2) }, titleOutside: true)
+                        .glgLoadIn(6, appeared: $appeared)
+                }
+                HomeSectionHeader(title: "나를 위한").glgLoadIn(7, appeared: $appeared)
+                NavigationLink { SavingsPlannerView(store: store) } label: { PickupPlannerHomeCard(store: store) }
+                    .buttonStyle(.plain).glgLoadIn(8, appeared: $appeared)
+                NavigationLink { SavingsChallengeView(store: store) } label: { SavingsChallengeHomeCard(store: store) }
+                    .buttonStyle(.plain).glgLoadIn(9, appeared: $appeared)
             }
+            .padding(.horizontal, 16)
+            .padding(.bottom, 16)
+            .glgReadableWidth(600)
+        }
+    }
+
+    // iPad — 히어로 섹션 이전(재구성 전) 대시보드 홈. 지출 카드·오늘 할 일·이번주 일정·게임 소식·저축.
+    @ViewBuilder
+    private var legacyHomeContent: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            if store.hoyoTokenExpired {
+                TokenExpiredBanner { store.requestOpenHoyolabLink(); onSwitchTab(3) }
+                    .glgLoadIn(0, appeared: $appeared)
+            }
+            DashboardSpendCard(monthlyTotal: monthlyTotal, budget: store.budget, onTap: { onSwitchTab(1) })
+                .glgLoadIn(1, appeared: $appeared)
+            if !store.gameInfoReady || !todayTasks.isEmpty {
+                todayTaskView(titleOutside: false).glgLoadIn(2, appeared: $appeared)
+            }
+            if !store.gameInfoReady {
+                DashCardSkeleton(rows: 3).glgLoadIn(3, appeared: $appeared)
+                DashCardSkeleton(rows: 2).glgLoadIn(4, appeared: $appeared)
+            } else {
+                DashboardScheduleCard(events: store.gameEvents, challenges: store.challenges, onTap: { store.requestGameInfoAnchor(.schedule); onSwitchTab(2) })
+                    .glgLoadIn(3, appeared: $appeared)
+                DashboardNewsCard(news: store.gameNews, anniversaries: GameAnniversary.shared.upcoming(nowMillis: nowMs()), onTap: { store.requestGameInfoAnchor(.news); onSwitchTab(2) })
+                    .glgLoadIn(4, appeared: $appeared)
+            }
+            NavigationLink { SavingsPlannerView(store: store) } label: { PickupPlannerHomeCard(store: store) }
+                .buttonStyle(.plain).glgLoadIn(5, appeared: $appeared)
+            NavigationLink { SavingsChallengeView(store: store) } label: { SavingsChallengeHomeCard(store: store) }
+                .buttonStyle(.plain).glgLoadIn(6, appeared: $appeared)
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, 4)
+        .padding(.bottom, 16)
+        .glgReadableWidth(600)
+    }
+
+    @ViewBuilder
+    private func todayTaskView(titleOutside: Bool) -> some View {
+        if !store.gameInfoReady {
+            TodayTaskSkeleton(titleOutside: titleOutside)
+        } else {
+            TodayTaskCard(tasks: todayTasks, inProgress: store.checkingIn != nil, titleOutside: titleOutside)
         }
     }
 
@@ -117,6 +215,11 @@ struct HomeView: View {
     }
 
     // ── 파생 ──
+    /// 헤더 닉네임 — 게스트/빈 값 폴백.
+    private var nickname: String {
+        if store.account.isGuest { return "게스트" }
+        return store.profile.name.isEmpty ? "회원" : store.profile.name
+    }
     private var greeting: String {
         let h = Calendar.current.component(.hour, from: Date())
         switch h { case 5...10: return "좋은 아침이에요"; case 11...16: return "좋은 오후예요"; case 17...21: return "좋은 저녁이에요"; default: return "오늘도 수고했어요" }

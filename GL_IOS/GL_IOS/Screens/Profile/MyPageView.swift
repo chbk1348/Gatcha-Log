@@ -47,6 +47,7 @@ struct MyPageView: View {
             }
             .padding(.horizontal, 16)
             .padding(.bottom, 12)
+            .glgReadableWidth(720)
         }
         .scrollIndicators(.hidden)
         .background(GLGBackground { Color.clear })

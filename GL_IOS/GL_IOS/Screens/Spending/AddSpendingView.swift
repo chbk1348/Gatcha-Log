@@ -39,6 +39,7 @@ struct AddSpendingView: View {
                     tagCard
                 }
                 .padding(16)
+                .glgReadableWidth(640)
             }
             .background(Color.white)
             .scrollDismissesKeyboard(.interactively)

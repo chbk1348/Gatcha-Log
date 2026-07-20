@@ -62,6 +62,8 @@ struct GameInfoView: View {
                 Color.clear.frame(height: 12)
             }
             .padding(.horizontal, 16)
+            // 넓은 화면(iPad)에서 섹션이 끝까지 늘어나지 않도록 최대폭 제한+중앙정렬(iPhone 영향 없음).
+            .glgReadableWidth(720)
         }
         .scrollIndicators(.hidden)
         // 홈 카드 딥링크 — 진입 시점(onAppear)·이미 떠 있는 상태에서 재요청(onChange) 모두 처리.
@@ -180,6 +182,7 @@ struct GameInfoView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) { content() }
                 .padding(16)
+                .glgReadableWidth(720)
         }
         .scrollIndicators(.hidden)
         .background(GLGBackground { Color.clear })
@@ -829,6 +832,7 @@ struct GameSchedulePage: View {
                 }
             }
             .padding(16)
+            .glgReadableWidth(720)
         }
         .scrollIndicators(.hidden)
         .background(GLGBackground { Color.clear })
@@ -855,6 +859,7 @@ struct GamePickupPage: View {
                 }
             }
             .padding(16)
+            .glgReadableWidth(720)
         }
         .scrollIndicators(.hidden)
         .background(GLGBackground { Color.clear })

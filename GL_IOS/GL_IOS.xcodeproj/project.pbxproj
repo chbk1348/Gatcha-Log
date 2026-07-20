@@ -43,6 +43,7 @@
 		9511F660EE1953CE0F6FB9C4 /* GoogleWebOAuth.swift in Sources */ = {isa = PBXBuildFile; fileRef = 021C3B715D801AE05013FE3B /* GoogleWebOAuth.swift */; };
 		966D49408353ADE28FB496BA /* Format.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9EF5B679DF4C422B518B851A /* Format.swift */; };
 		98B4EF7E15CE5D1D3F10446D /* AnnualReportView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5964E551478F1EBAFEFA8CAD /* AnnualReportView.swift */; };
+		9AF2A41D7FD816CDB806B5AB /* AdaptiveLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F47E41FAFDD2FD2F4E72EEE /* AdaptiveLayout.swift */; };
 		A0BA2909983C70B108A718ED /* EnkaCharSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = B8E1563A89FD1762C317ABC2 /* EnkaCharSection.swift */; };
 		A2F4158A73805AFB736EF6D0 /* SpendingDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E67D38A3417978B0AEDC5AE /* SpendingDetailView.swift */; };
 		A7BFA61A876C89B76798AD9A /* iOSApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 05DA476A730AFA37D40240E5 /* iOSApp.swift */; };
@@ -55,6 +56,7 @@
 		BF372FCD149E818166E7F9E3 /* Toast.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD62F3658FFD16B833EF98AA /* Toast.swift */; };
 		C3230B40CF73F7F63798F61D /* Pretendard-SemiBold.otf in Resources */ = {isa = PBXBuildFile; fileRef = EBE3389ACB5917724A4C6DD5 /* Pretendard-SemiBold.otf */; };
 		D1638799928C16B92E7BA17C /* Glass.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16692A76093EA64BC84CA502 /* Glass.swift */; };
+		D3C86098452712BF2EF2F566 /* HomeRedesign.swift in Sources */ = {isa = PBXBuildFile; fileRef = D68A3D0581AB9E49D5412A97 /* HomeRedesign.swift */; };
 		D518B6D75F70EEA8A1332D03 /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = 27054819557D026D9CB4FE7D /* GoogleService-Info.plist */; };
 		E04926A07296AA0D760F37A8 /* GLGSkeleton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 716CDDC7D2BB3BEC9580864E /* GLGSkeleton.swift */; };
 		E137594B42AFFB5CE2A94CCD /* PretendardFont.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16C6E97312A4E81D64EB90F4 /* PretendardFont.swift */; };
@@ -100,6 +102,7 @@
 		4A3AE615BDC494C0880E998A /* GachaReportSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GachaReportSection.swift; sourceTree = "<group>"; };
 		4E67D38A3417978B0AEDC5AE /* SpendingDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpendingDetailView.swift; sourceTree = "<group>"; };
 		5964E551478F1EBAFEFA8CAD /* AnnualReportView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnnualReportView.swift; sourceTree = "<group>"; };
+		5F47E41FAFDD2FD2F4E72EEE /* AdaptiveLayout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdaptiveLayout.swift; sourceTree = "<group>"; };
 		607DE67679739531B7DC4652 /* GlassButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlassButton.swift; sourceTree = "<group>"; };
 		68D6D7AAE7CA1EEF965F0455 /* GL_IOS.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = GL_IOS.entitlements; sourceTree = "<group>"; };
 		6A7AD50D44CC890634902ADD /* GachaDashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GachaDashboardView.swift; sourceTree = "<group>"; };
@@ -125,6 +128,7 @@
 		CB188D8B07C1771A193CF288 /* GlassCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlassCard.swift; sourceTree = "<group>"; };
 		CD62F3658FFD16B833EF98AA /* Toast.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Toast.swift; sourceTree = "<group>"; };
 		D298448CBEF9192C0613F700 /* SavingsViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SavingsViews.swift; sourceTree = "<group>"; };
+		D68A3D0581AB9E49D5412A97 /* HomeRedesign.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeRedesign.swift; sourceTree = "<group>"; };
 		E167D2DF62218A027D330ECD /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
 		E1DC14C41EE7ECD2B59515D4 /* SubscriptionCenterView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionCenterView.swift; sourceTree = "<group>"; };
 		EBE3389ACB5917724A4C6DD5 /* Pretendard-SemiBold.otf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Pretendard-SemiBold.otf"; sourceTree = "<group>"; };
@@ -262,6 +266,7 @@
 			isa = PBXGroup;
 			children = (
 				016E2C9FECC1E779E9DFEC65 /* HomeComponents.swift */,
+				D68A3D0581AB9E49D5412A97 /* HomeRedesign.swift */,
 				B5ED3CFA3D2AA76242DA2D87 /* HomeView.swift */,
 			);
 			path = Home;
@@ -302,6 +307,7 @@
 		C87EC8D816454657A9B81FA8 /* DesignSystem */ = {
 			isa = PBXGroup;
 			children = (
+				5F47E41FAFDD2FD2F4E72EEE /* AdaptiveLayout.swift */,
 				A70059D3F4D8FA5EA58BB8CD /* BrandGauge.swift */,
 				9EF5B679DF4C422B518B851A /* Format.swift */,
 				439879BBC52F89415C2831E6 /* GameTag.swift */,
@@ -437,6 +443,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				90F00551956AF38F2548C694 /* AccountLoadingView.swift in Sources */,
+				9AF2A41D7FD816CDB806B5AB /* AdaptiveLayout.swift in Sources */,
 				87BCB4BC1FDA9A8B97CB3D98 /* AddSpendingView.swift in Sources */,
 				1431B09C96CB6ADF4D51B094 /* AnniversarySection.swift in Sources */,
 				98B4EF7E15CE5D1D3F10446D /* AnnualReportView.swift in Sources */,
@@ -464,6 +471,7 @@
 				9511F660EE1953CE0F6FB9C4 /* GoogleWebOAuth.swift in Sources */,
 				63BB6DD0D19A0B7E102937BD /* HeaderButton.swift in Sources */,
 				21D7656AF322C290D874AFFA /* HomeComponents.swift in Sources */,
+				D3C86098452712BF2EF2F566 /* HomeRedesign.swift in Sources */,
 				BEDE307204D0F9A558DFFEB0 /* HomeView.swift in Sources */,
 				BCE6291BF8A244C01AF6F8F1 /* HoyolabLinkView.swift in Sources */,
 				516633AC40C13ACD8FEE9995 /* ImageViewer.swift in Sources */,

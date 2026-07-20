@@ -107,16 +107,12 @@ fun MyPageScreen(
             return@AnimatedContent
         }
 
+    Box(Modifier.fillMaxSize()) {
     LazyColumn(
         state = listState,
         modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
-        contentPadding = PaddingValues(bottom = 120.dp),
+        contentPadding = PaddingValues(top = 80.dp, bottom = 120.dp),
     ) {
-        item {
-            GlgTabHeader("마이페이지") {
-                GlgCircleIconButton(Icons.Default.Settings, "설정", outlined = true) { showSettings.value = true }
-            }
-        }
         // ① 프로필 헤더 (연회색 카드)
         item {
             Box(Modifier.fillMaxWidth().glgLoadIn(0, loadInSet)) {
@@ -169,6 +165,29 @@ fun MyPageScreen(
         // ⑤ 게임별 지출 (도넛)
         item { SectionLabel("게임별 지출") }
         item { Box(Modifier.fillMaxWidth().glgLoadIn(4, loadInSet)) { GameDonutCard(spendings) } }
+    }
+    // 헤더 오버레이 — 투명 바, 설정 버튼만 불투명. 콘텐츠가 버튼 아래로 지나간다.
+    Box(Modifier.align(Alignment.TopStart).fillMaxWidth().padding(horizontal = 16.dp)) {
+        val headerAccent = LocalAccent.current
+        GlgTabHeader(
+            "",
+            leading = {
+                // 제목도 헤더 버튼 톤의 불투명 알약(콘텐츠 비침 방지)
+                Box(
+                    Modifier
+                        .clip(RoundedCornerShape(999.dp))
+                        .background(Color.White)
+                        .background(headerAccent.copy(alpha = 0.10f))
+                        .border(1.5.dp, headerAccent.copy(alpha = 0.30f), RoundedCornerShape(999.dp))
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                ) {
+                    Text("마이페이지", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = headerAccent)
+                }
+            },
+        ) {
+            GlgCircleIconButton(Icons.Default.Settings, "설정", outlined = true, solidBackground = true) { showSettings.value = true }
+        }
+    }
     }
     }
 }
