@@ -137,6 +137,7 @@ fun HomeScreen(viewModel: SpendingViewModel = viewModel()) {
     }
     val updateInfo by viewModel.updateInfo.collectAsState()
     val updateProgress by viewModel.updateProgress.collectAsState()
+    val signingOut by viewModel.signingOut.collectAsState()
     val statusMessage by viewModel.statusMessage.collectAsState()
 
     // 루트 뒤로가기 방어 로직 (시스템/제스처 back):
@@ -266,6 +267,9 @@ fun HomeScreen(viewModel: SpendingViewModel = viewModel()) {
 
                         // 인앱 업데이트 다운로드 진행 오버레이
                         updateProgress?.let { p -> UpdateProgressOverlay(p) }
+
+                        // 로그아웃 진행 오버레이 — 네트워크 대기 동안 피드백이 없던 문제
+                        if (signingOut) SignOutOverlay()
 
                         // 전역 커스텀 토스트 (모든 탭 위에 표시)
                         // 하단바가 있을 땐 바 높이(100dp)만큼 띄우고, 하단바 없는 하위 페이지에선 24dp만 띄움

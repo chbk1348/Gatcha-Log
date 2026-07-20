@@ -335,11 +335,26 @@ class SpendingViewModel : ViewModel() {
         return true
     }
 
+    /**
+     * 로그아웃 — Firebase signOut·플랫폼 인증 정리는 네트워크를 타서 수 초가 걸릴 수 있다.
+     * 그 동안 UI 가 아무 반응이 없으면 "눌린 건지" 알 수 없으므로 [signingOut] 으로 진행 상태를 알린다.
+     *
+     * 느린/끊긴 망에서 로딩이 영원히 걸리지 않도록 [SYNC_TIMEOUT_MS] 로 감싼다 — 타임아웃돼도
+     * 로컬 계정 상태는 게스트로 내려 로그아웃은 성립시킨다(서버 세션은 다음 온라인에 정리).
+     */
     fun signOut() {
+        if (_signingOut.value) return          // 연타 방지 — 이미 진행 중이면 무시
         viewModelScope.launch {
-            authManager.signOut()
-            switchAccount(Account.GUEST)
-            emitStatus("로그아웃되었어요")
+            _signingOut.value = true
+            try {
+                // ★ 인증을 끊기 전에 대기 중인 클라우드 push 를 먼저 밀어낸다(아래 flush 주석 참고).
+                flushPendingCloudSync()
+                val done = withTimeoutOrNull(SYNC_TIMEOUT_MS) { authManager.signOut() } != null
+                switchAccount(Account.GUEST)
+                emitStatus(if (done) "로그아웃되었어요" else "로그아웃했어요 (서버 정리는 나중에 완료돼요)")
+            } finally {
+                _signingOut.value = false
+            }
         }
     }
 
@@ -1489,6 +1504,10 @@ class SpendingViewModel : ViewModel() {
     private val _initialSyncing = MutableStateFlow(cloudConfigured && CloudSync.currentUid() != null)
     val initialSyncing: StateFlow<Boolean> = _initialSyncing.asStateFlow()
 
+    /** 로그아웃 진행 중 — 양 플랫폼이 오버레이 스피너를 띄우는 데 쓴다. [signOut] 참고. */
+    private val _signingOut = MutableStateFlow(false)
+    val signingOut: StateFlow<Boolean> = _signingOut.asStateFlow()
+
     /**
      * 로컬에 이미 사용자 데이터가 있는지 — 재실행 시 초기 동기화 로딩 게이트를 건너뛰는 기준.
      * 지출·구독·가챠 중 하나라도 있으면 '써 오던 기기'로 보고 앱을 즉시 보여주고, 클라우드 동기화는
@@ -1500,12 +1519,37 @@ class SpendingViewModel : ViewModel() {
     /** 데이터 변경 시 디바운스(1.5s) 후 Firestore 에 전체 스냅샷 푸시. */
     private fun scheduleCloudSync() {
         if (!cloudConfigured) return
+        // 게스트 데이터는 절대 올리지 않는다. switchAccount(GUEST) 가 게스트 repo 에 onChange 를 다시
+        // 붙이는데, 로그아웃이 타임아웃돼 Firebase uid 가 아직 살아있으면 게스트 스냅샷이 직전 계정
+        // 문서를 덮어쓸 수 있다. 계정 기준으로 먼저 차단해 그 레이스를 원천 차단.
+        if (account.value.isGuest) return
         val uid = CloudSync.currentUid() ?: return
         syncJob?.cancel()
         syncJob = viewModelScope.launch {
             delay(1500)
             cloudPush(uid)
         }
+    }
+
+    /**
+     * 대기 중인 디바운스 push 를 **즉시** 밀어낸다 — 로그아웃처럼 인증이 끊기기 직전에 호출한다.
+     *
+     * [scheduleCloudSync] 는 1.5초 디바운스라, 마지막 편집 직후 로그아웃하면 아직 delay 중인
+     * syncJob 이 인증 해제와 함께 무의미해져 **그 1.5초 안의 변경분이 유실**됐다.
+     * (2026-07-03 지출 유실 사고와 같은 계열의 구멍)
+     *
+     * 디바운스 대기는 취소하되 push 자체는 지금 수행한다 — job.join() 으로 기다리면 남은 delay 만큼
+     * 로그아웃이 늦어지므로, 대기를 건너뛰고 곧바로 올리는 편이 빠르고 결과도 같다.
+     */
+    private suspend fun flushPendingCloudSync() {
+        val job = syncJob ?: return
+        if (!job.isActive) return
+        job.cancel()                       // 남은 delay 는 버리고
+        syncJob = null
+        if (!cloudConfigured) return
+        if (account.value.isGuest) return
+        val uid = CloudSync.currentUid() ?: return
+        withTimeoutOrNull(SYNC_TIMEOUT_MS) { cloudPush(uid) }   // 지금 올린다
     }
 
     /** 마지막으로 Firestore 에 성공적으로 push 한 스냅샷(중복 쓰기 생략용). */

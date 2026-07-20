@@ -13,6 +13,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -85,6 +88,37 @@ internal fun UpdateDialog(info: UpdateInfo, onDownload: () -> Unit, onDismiss: (
 }
 
 /** 인앱 업데이트 다운로드 진행 오버레이 (완료되면 시스템 설치 화면으로 이어짐). */
+/**
+ * 로그아웃 진행 오버레이 — Firebase signOut 이 네트워크를 타서 수 초 걸릴 수 있어,
+ * 그 동안 화면을 덮어 "처리 중"을 알리고 중복 탭도 막는다. [UpdateProgressOverlay] 와 같은 톤.
+ */
+@Composable
+internal fun SignOutOverlay() {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color(0x66000000))
+            // 뒤 화면 탭 차단 — 로그아웃 중 다른 조작이 끼어들지 않게.
+            .clickable(enabled = true, indication = null, interactionSource = remember { MutableInteractionSource() }) {},
+        contentAlignment = Alignment.Center,
+    ) {
+        GlassCard(shape = RoundedCornerShape(24.dp)) {
+            Column(
+                modifier = Modifier.padding(horizontal = 32.dp, vertical = 24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(28.dp),
+                    strokeWidth = 3.dp,
+                    color = LocalAccent.current,
+                )
+                Spacer(Modifier.height(14.dp))
+                Text("로그아웃 중", fontSize = 15.sp, fontWeight = FontWeight.Bold)
+            }
+        }
+    }
+}
+
 @Composable
 internal fun UpdateProgressOverlay(progress: Float) {
     Box(
