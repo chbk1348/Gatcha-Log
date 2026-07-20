@@ -48,13 +48,11 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.ui.draw.clipToBounds
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.Description
-import androidx.compose.material.icons.filled.Login
-import androidx.compose.material.icons.filled.Logout
+import androidx.compose.material.icons.automirrored.filled.Login
+import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.Remove
 import com.gatcha.log.data.Spending
 import androidx.compose.ui.Alignment
@@ -83,6 +81,8 @@ import com.gatcha.log.data.api.NewsItem
 import androidx.compose.material.icons.filled.Celebration
 import com.gatcha.log.data.LiveNote
 import com.gatcha.log.data.PityTier
+import com.gatcha.log.ui.components.GlgDropdownMenu
+import com.gatcha.log.ui.components.GlgDropdownItem
 import com.gatcha.log.ui.components.GameTagSize
 import com.gatcha.log.ui.components.GlgGameTag
 import com.gatcha.log.ui.components.GlassCard
@@ -155,22 +155,11 @@ fun HomeHeader(
                 Spacer(Modifier.width(8.dp))
                 Text(nickname, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = accent, maxLines = 1)
             }
-            DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                DropdownMenuItem(
-                    text = {
-                        Text(
-                            if (isGuest) "로그인" else "로그아웃",
-                            color = if (isGuest) TextPrimary else DangerText,
-                            fontWeight = FontWeight.SemiBold,
-                        )
-                    },
-                    leadingIcon = {
-                        Icon(
-                            if (isGuest) Icons.Default.Login else Icons.Default.Logout,
-                            null,
-                            tint = if (isGuest) TextPrimary else DangerText,
-                        )
-                    },
+            GlgDropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                GlgDropdownItem(
+                    text = if (isGuest) "로그인" else "로그아웃",
+                    icon = if (isGuest) Icons.AutoMirrored.Filled.Login else Icons.AutoMirrored.Filled.Logout,
+                    danger = !isGuest,
                     onClick = { menuOpen = false; if (isGuest) onSignIn() else onSignOut() },
                 )
             }

@@ -13,8 +13,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -33,6 +31,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import com.gatcha.log.ui.components.GlgDropdownMenu
+import com.gatcha.log.ui.components.GlgDropdownItem
 import com.gatcha.log.data.SpendingViewModel
 import com.gatcha.log.data.api.CharEffect
 import com.gatcha.log.data.api.CharEffectsApi
@@ -287,9 +287,9 @@ private fun FilterChip(label: String, current: String, items: List<Pair<String, 
                 Text("▾", fontSize = 10.sp, color = TextSecondary)
             }
         }
-        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+        GlgDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
             items.forEach { (disp, act) ->
-                DropdownMenuItem(text = { Text(disp) }, onClick = { act(); expanded = false })
+                GlgDropdownItem(text = disp, onClick = { act(); expanded = false })
             }
         }
     }

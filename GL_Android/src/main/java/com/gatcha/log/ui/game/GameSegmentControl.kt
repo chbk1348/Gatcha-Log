@@ -12,8 +12,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -27,6 +25,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.gatcha.log.ui.components.GlgDropdownMenu
+import com.gatcha.log.ui.components.GlgDropdownItem
 import com.gatcha.log.data.GameData
 import com.gatcha.log.ui.theme.LocalAccent
 
@@ -59,16 +59,16 @@ fun GameFilterDropdown(
             Text(label, fontSize = 20.sp, fontWeight = FontWeight.Bold, color = accent)
             Icon(Icons.Default.ArrowDropDown, contentDescription = "게임 선택", tint = accent, modifier = Modifier.size(26.dp))
         }
-        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+        GlgDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
             val items = buildList {
                 add("all" to "전체")
                 GameData.attendanceGames.forEach { add(it.key to it.shortName) }
             }
             items.forEach { (key, lbl) ->
-                DropdownMenuItem(
-                    text = { Text(lbl, fontWeight = if (key == selected) FontWeight.Bold else FontWeight.Normal, color = if (key == selected) accent else androidx.compose.ui.graphics.Color.Unspecified) },
+                GlgDropdownItem(
+                    text = lbl,
+                    selected = key == selected,
                     onClick = { onSelect(key); expanded = false },
-                    trailingIcon = if (key == selected) { { Icon(Icons.Default.Check, null, tint = accent) } } else null,
                 )
             }
         }
