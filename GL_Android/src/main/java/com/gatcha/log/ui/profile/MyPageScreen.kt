@@ -38,6 +38,7 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import java.util.Calendar
 import com.gatcha.log.data.Spending
+import com.gatcha.log.ui.components.GlgTabHeaderHeight
 import com.gatcha.log.ui.components.GlassCard
 import com.gatcha.log.ui.components.GlgCircleIconButton
 import com.gatcha.log.ui.components.GlgTabHeader
@@ -111,7 +112,7 @@ fun MyPageScreen(
     LazyColumn(
         state = listState,
         modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
-        contentPadding = PaddingValues(top = 80.dp, bottom = 120.dp),
+        contentPadding = PaddingValues(top = GlgTabHeaderHeight, bottom = 120.dp),
     ) {
         // ① 프로필 헤더 (연회색 카드)
         item {
@@ -179,9 +180,11 @@ fun MyPageScreen(
                         .background(Color.White)
                         .background(headerAccent.copy(alpha = 0.10f))
                         .border(1.5.dp, headerAccent.copy(alpha = 0.30f), RoundedCornerShape(999.dp))
+                        // 16sp 텍스트 + vertical 8dp ≈ 39dp — 헤더 버튼(40dp) 안에 들어와야
+                        // GlgTabHeaderHeight(80dp) 를 넘지 않는다.
                         .padding(horizontal = 16.dp, vertical = 8.dp),
                 ) {
-                    Text("마이페이지", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = headerAccent)
+                    Text("마이페이지", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = headerAccent)
                 }
             },
         ) {

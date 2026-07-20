@@ -247,8 +247,16 @@ fun GlgScreenHeader(
 }
 
 /**
- * 탭(루트) 화면 공통 헤더 — 큰 제목 + 우측 액션 슬롯. 홈을 제외한 지출·게임정보·마이페이지가 공유해
+ * 탭(루트) 헤더의 고정 높이. 4개 탭이 모두 이 높이를 쓰고, 각 탭의 스크롤 인셋(contentPadding
+ * 또는 Spacer)도 이 값을 참조한다 — 헤더 높이를 바꾸면 여기 한 곳만 고치면 된다.
+ */
+val GlgTabHeaderHeight = 80.dp
+
+/**
+ * 탭(루트) 화면 공통 헤더 — 큰 제목 + 우측 액션 슬롯. 지출·게임정보·마이페이지가 공유하고,
+ * 홈은 자체 [HomeHeader] 를 쓰되 같은 [GlgTabHeaderHeight] 로 맞춘다.
  * 제목 크기(24sp)·여백(top 24·bottom 16)·액션 간격(8dp)을 통일한다.
+ * 높이는 [GlgTabHeaderHeight] 로 고정 — leading 콘텐츠(알약 제목 등)가 커도 탭 간 높이가 어긋나지 않는다.
  * 가로 16dp 패딩된 컨테이너(LazyColumn item) 안에서 [modifier] 없이 사용.
  */
 @Composable
@@ -259,7 +267,7 @@ fun GlgTabHeader(
     actions: @Composable RowScope.() -> Unit = {},
 ) {
     Row(
-        modifier = modifier.fillMaxWidth().padding(top = 24.dp, bottom = 16.dp),
+        modifier = modifier.fillMaxWidth().height(GlgTabHeaderHeight).padding(top = 24.dp, bottom = 16.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
     ) {

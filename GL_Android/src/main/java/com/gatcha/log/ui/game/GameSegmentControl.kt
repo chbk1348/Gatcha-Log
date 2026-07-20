@@ -56,8 +56,8 @@ fun GameFilterDropdown(
                 .padding(start = 14.dp, end = 6.dp, top = 6.dp, bottom = 6.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(label, fontSize = 20.sp, fontWeight = FontWeight.Bold, color = accent)
-            Icon(Icons.Default.ArrowDropDown, contentDescription = "게임 선택", tint = accent, modifier = Modifier.size(26.dp))
+            Text(label, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = accent)
+            Icon(Icons.Default.ArrowDropDown, contentDescription = "게임 선택", tint = accent, modifier = Modifier.size(22.dp))
         }
         GlgDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
             val items = buildList {

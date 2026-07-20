@@ -83,6 +83,7 @@ import com.gatcha.log.data.LiveNote
 import com.gatcha.log.data.PityTier
 import com.gatcha.log.ui.components.GlgDropdownMenu
 import com.gatcha.log.ui.components.GlgDropdownItem
+import com.gatcha.log.ui.components.GlgTabHeaderHeight
 import com.gatcha.log.ui.components.GameTagSize
 import com.gatcha.log.ui.components.GlgGameTag
 import com.gatcha.log.ui.components.GlassCard
@@ -137,7 +138,11 @@ fun HomeHeader(
     val accent = LocalAccent.current
     var menuOpen by remember { mutableStateOf(false) }
     Row(
-        modifier = Modifier.fillMaxWidth().padding(start = 4.dp, end = 2.dp, top = 8.dp, bottom = 4.dp),
+        // 다른 탭(GlgTabHeader)과 동일한 높이·세로 여백. 가로만 홈 고유(알약이 좌측 끝에 붙는 레이아웃).
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(GlgTabHeaderHeight)
+            .padding(start = 4.dp, end = 2.dp, top = 24.dp, bottom = 16.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box {
