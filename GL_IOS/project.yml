@@ -39,7 +39,7 @@ targets:
     info:
       path: GL_IOS/Info.plist
       properties:
-        CFBundleDisplayName: Gatcha-Log
+        CFBundleDisplayName: Gatcha Log
         # 한국어 전용 앱 — 지원 언어를 선언하지 않으면 **시스템 UI 문자열이 영어로 떨어진다**
         # (텍스트 선택 시 뜨는 복사·전체 선택 메뉴, 사진 권한 시트 등 UIKit 기본 UI).
         # 기본값 $(DEVELOPMENT_LANGUAGE) 는 영어라, 한국어를 개발 지역·지원 언어로 못박는다.
@@ -58,10 +58,17 @@ targets:
           UIColorName: LaunchBackground
           UIImageName: LaunchMark
           UIImageRespectsSafeAreaInsets: false
-        # 모바일·세로 전용 앱 — 전체화면 필요 선언으로 iPad 멀티태스킹용 전방향 지원 경고 해소
+        # iPhone = 세로 전용(모바일 UX). iPad = 전방향(가로 지원) — ContentView 가 iPad 에서
+        # NavigationSplitView 사이드바 레이아웃으로 전환한다(ContentView.iPadSplit).
+        # 전체화면 필요 선언 유지 → iPad 멀티태스킹(Split View/Slide Over) 대신 회전만 허용.
         UIRequiresFullScreen: true
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
+        UISupportedInterfaceOrientations~ipad:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
         ITSAppUsesNonExemptEncryption: false
         # 공지 본문 이미지 저장(추가 전용) — 문구가 없으면 저장 시도 순간 크래시한다.
         NSPhotoLibraryAddUsageDescription: 공지 이미지를 사진 앱에 저장하기 위해 사용해요.

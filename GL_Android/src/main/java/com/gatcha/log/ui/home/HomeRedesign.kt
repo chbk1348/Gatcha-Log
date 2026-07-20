@@ -2,6 +2,7 @@ package com.gatcha.log.ui.home
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
@@ -34,6 +35,28 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material.icons.filled.ArrowUpward
+import androidx.compose.material.icons.filled.ArrowDownward
+import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.filled.Login
+import androidx.compose.material.icons.filled.Logout
+import androidx.compose.material.icons.filled.Remove
+import com.gatcha.log.data.Spending
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -102,15 +125,55 @@ data class GameSpend(val game: Game, val spent: Long, val limit: Long)
 @Composable
 fun HomeHeader(
     photoUrl: String?,
+    nickname: String,
+    isGuest: Boolean,
     alertCount: Int,
     onBellClick: () -> Unit,
+    onSignOut: () -> Unit,
+    onSignIn: () -> Unit,
 ) {
-    // 인사말·이름·연속출석 문구 제거 — 아바타와 알림벨만 노출 (대표 지시, Android 전용)
+    // 프로필(아바타+닉네임) 탭 → 로그아웃 드롭다운. 우측 알림벨.
+    // 프로필은 다른 헤더 버튼(알림벨)과 동일 톤의 알약 버튼 — accent 10% 배경 + accent 30% 아웃라인.
+    val accent = LocalAccent.current
+    var menuOpen by remember { mutableStateOf(false) }
     Row(
         modifier = Modifier.fillMaxWidth().padding(start = 4.dp, end = 2.dp, top = 8.dp, bottom = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        ProfileAvatar(photoUrl = photoUrl, size = 46.dp)
+        Box {
+            Row(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(999.dp))
+                    .background(accent.copy(alpha = 0.10f))
+                    .border(1.5.dp, accent.copy(alpha = 0.30f), RoundedCornerShape(999.dp))
+                    .clickable { menuOpen = true }
+                    .padding(start = 5.dp, end = 12.dp, top = 5.dp, bottom = 5.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                ProfileAvatar(photoUrl = photoUrl, size = 30.dp)
+                Spacer(Modifier.width(8.dp))
+                Text(nickname, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = accent, maxLines = 1)
+            }
+            DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                DropdownMenuItem(
+                    text = {
+                        Text(
+                            if (isGuest) "로그인" else "로그아웃",
+                            color = if (isGuest) TextPrimary else DangerText,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                    },
+                    leadingIcon = {
+                        Icon(
+                            if (isGuest) Icons.Default.Login else Icons.Default.Logout,
+                            null,
+                            tint = if (isGuest) TextPrimary else DangerText,
+                        )
+                    },
+                    onClick = { menuOpen = false; if (isGuest) onSignIn() else onSignOut() },
+                )
+            }
+        }
         Spacer(Modifier.weight(1f))
         GlgCircleIconButton(
             Icons.Default.NotificationsNone,
@@ -119,6 +182,215 @@ fun HomeHeader(
             outlined = true,
             onClick = onBellClick,
         )
+    }
+}
+
+// ── 섹션 헤더 (카드 바깥 큰 제목) ────────────────────────────────────────────
+/** 카드 '바깥' 위에 놓는 큰 섹션 제목(+옵션 카운트/전체보기). 홈 재구성 공통. */
+@Composable
+fun HomeSectionHeader(title: String, count: Int? = null, actionTitle: String? = null, onAction: (() -> Unit)? = null) {
+    val accent = LocalAccent.current
+    Row(Modifier.fillMaxWidth().padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text(title, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+        if (count != null) {
+            Spacer(Modifier.width(7.dp))
+            Surface(color = accent.copy(alpha = 0.14f), shape = RoundedCornerShape(999.dp)) {
+                Text("$count", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = accent, modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp))
+            }
+        }
+        Spacer(Modifier.weight(1f))
+        if (actionTitle != null && onAction != null) {
+            Text(
+                actionTitle, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = accent,
+                modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable { onAction() }.padding(horizontal = 6.dp, vertical = 4.dp),
+            )
+        }
+    }
+}
+
+// ── 히어로: 이번 달 지출 / 예산 캐러셀 (Figma Make 참고) ───────────────────────
+@Composable
+fun HeroBalanceCard(monthlyTotal: Long, prevTotal: Long, budget: Long, onBudget: () -> Unit) {
+    val accent = LocalAccent.current
+    val month = java.util.Calendar.getInstance().get(java.util.Calendar.MONTH) + 1
+    val pagerState = rememberPagerState(pageCount = { 2 })
+    Column(
+        Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 4.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        HorizontalPager(state = pagerState, modifier = Modifier.fillMaxWidth().height(176.dp)) { page ->
+            Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+                if (page == 0) HeroSpendPage(month, monthlyTotal, prevTotal, budget, onBudget, accent)
+                else HeroBudgetPage(monthlyTotal, budget, onBudget, accent)
+            }
+        }
+        Spacer(Modifier.height(12.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            repeat(2) { i ->
+                val active = pagerState.currentPage == i
+                Box(
+                    Modifier.height(6.dp).width(if (active) 18.dp else 6.dp).clip(CircleShape)
+                        .background(if (active) accent else accent.copy(alpha = 0.24f)),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun HeroSpendPage(month: Int, monthlyTotal: Long, prevTotal: Long, budget: Long, onBudget: () -> Unit, accent: Color) {
+    val diff = monthlyTotal - prevTotal
+    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(7.dp)) {
+        Text("${month}월 지출", fontSize = 13.sp, fontWeight = FontWeight.Medium, color = TextSecondary)
+        Text(won(monthlyTotal), fontSize = 38.sp, fontWeight = FontWeight.Bold, color = TextPrimary, maxLines = 1)
+        if (monthlyTotal > 0 || prevTotal > 0) {
+            val col = if (diff > 0) DangerText else if (diff < 0) accent else TextSecondary
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+                Icon(
+                    if (diff > 0) Icons.Default.ArrowUpward else if (diff < 0) Icons.Default.ArrowDownward else Icons.Default.Remove,
+                    null, tint = col, modifier = Modifier.size(12.dp),
+                )
+                Text(
+                    if (diff == 0L) "지난달과 동일" else "지난달 대비 ${if (diff > 0) "+" else "-"}${won(kotlin.math.abs(diff))}",
+                    fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = col,
+                )
+            }
+        }
+        Spacer(Modifier.height(3.dp))
+        HeroPill(if (budget > 0) "예산 관리" else "예산 설정", onBudget)
+    }
+}
+
+@Composable
+private fun HeroBudgetPage(monthlyTotal: Long, budget: Long, onBudget: () -> Unit, accent: Color) {
+    val over = budget > 0 && monthlyTotal > budget
+    val pct = if (budget > 0) (monthlyTotal * 100 / budget).toInt() else 0
+    val frac = if (budget > 0) (monthlyTotal.toFloat() / budget).coerceIn(0f, 1f) else 0f
+    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(7.dp)) {
+        Text("이번 달 예산", fontSize = 13.sp, fontWeight = FontWeight.Medium, color = TextSecondary)
+        if (budget > 0) {
+            Text(
+                if (over) "${won(monthlyTotal - budget)} 초과" else "${won(budget - monthlyTotal)} 남음",
+                fontSize = 34.sp, fontWeight = FontWeight.Bold, color = if (over) DangerText else TextPrimary, maxLines = 1,
+            )
+            Box(
+                Modifier.padding(horizontal = 44.dp).fillMaxWidth().height(8.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.65f)),
+            ) {
+                Box(Modifier.fillMaxWidth(if (over) 1f else frac).fillMaxHeight().clip(CircleShape).background(if (over) DangerText else accent))
+            }
+            Text(
+                if (over) "예산 ${pct - 100}% 초과" else "예산의 ${pct}% 사용",
+                fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = if (over) DangerText else accent,
+            )
+        } else {
+            Text("미설정", fontSize = 30.sp, fontWeight = FontWeight.Bold, color = TextSecondary)
+            HeroPill("예산 설정하기", onBudget)
+        }
+    }
+}
+
+@Composable
+private fun HeroPill(text: String, onClick: () -> Unit) {
+    Surface(
+        shape = RoundedCornerShape(999.dp),
+        color = Color.White,
+        border = BorderStroke(1.dp, Color.Black.copy(alpha = 0.05f)),
+        modifier = Modifier.clip(RoundedCornerShape(999.dp)).clickable { onClick() },
+    ) {
+        Text(text, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextPrimary, modifier = Modifier.padding(horizontal = 18.dp, vertical = 9.dp))
+    }
+}
+
+// ── 히어로 고정 그라데이션 배경 + 은은한 글로우(느린 좌우 드리프트) ───────────
+/** 스크롤과 무관하게 상단에 '고정'되는 그라데이션 + 천천히 떠다니는 글로우. 하단은 완전 투명 페이드. */
+@Composable
+fun HeroGradientBackground(modifier: Modifier = Modifier) {
+    val accent = LocalAccent.current
+    val accent2 = LocalAccentSecondary.current
+    val transition = rememberInfiniteTransition(label = "heroGlow")
+    val drift by transition.animateFloat(
+        initialValue = -84f, targetValue = 84f,
+        animationSpec = infiniteRepeatable(tween(5000, easing = FastOutSlowInEasing), RepeatMode.Reverse),
+        label = "drift",
+    )
+    Box(modifier.clipToBounds()) {
+        Box(
+            Modifier.fillMaxSize().background(
+                Brush.verticalGradient(
+                    0.0f to accent2.copy(alpha = 0.45f),
+                    0.62f to accent2.copy(alpha = 0.14f),
+                    1.0f to accent2.copy(alpha = 0f),
+                ),
+            ),
+        )
+        // 은은한 글로우 — 흐릿한 원(radial)이 상단에서 좌우로 드리프트.
+        // 하단 클립(선) 방지: 글로우가 박스 하단 훨씬 위에서 완전 투명이 되도록 작게·위로 배치.
+        Box(
+            Modifier.align(Alignment.TopCenter).offset(x = drift.dp, y = (-10).dp).size(240.dp)
+                .background(Brush.radialGradient(listOf(accent.copy(alpha = 0.18f), Color.Transparent))),
+        )
+    }
+}
+
+// ── 최근 지출 (목업 Transaction 리스트) ──────────────────────────────────────
+@Composable
+fun RecentSpendCard(spendings: List<Spending>, onSeeAll: () -> Unit) {
+    val recent = spendings.sortedByDescending { it.dateMillis }.take(4)
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        HomeSectionHeader("최근 지출", actionTitle = if (recent.isEmpty()) null else "전체보기", onAction = onSeeAll)
+        GlassCard(shape = RoundedCornerShape(22.dp), modifier = Modifier.fillMaxWidth()) {
+            Column(Modifier.fillMaxWidth()) {
+                if (recent.isEmpty()) {
+                    Column(
+                        Modifier.fillMaxWidth().padding(vertical = 22.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                    ) {
+                        Icon(Icons.Default.Description, null, tint = Color.LightGray, modifier = Modifier.size(30.dp))
+                        Spacer(Modifier.height(6.dp))
+                        Text("아직 기록된 지출이 없어요", fontSize = 13.sp, color = TextSecondary)
+                        Text("+ 지출 추가로 첫 기록을 남겨보세요", fontSize = 11.sp, color = Color.LightGray)
+                    }
+                } else {
+                    recent.forEachIndexed { i, s ->
+                        if (i > 0) HorizontalDivider(color = DividerColor, modifier = Modifier.padding(start = 64.dp))
+                        RecentSpendRow(s)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun RecentSpendRow(s: Spending) {
+    val color = s.gameColor.toColor()
+    val abbr = GameData.byNameOrNull(s.gameName)?.abbr ?: s.gameName.take(2)
+    val subtitle = listOfNotNull(s.dateLabel, s.itemName.ifBlank { null }).joinToString(" · ")
+    Row(
+        Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            Modifier.size(36.dp).clip(RoundedCornerShape(11.dp)).background(color.copy(alpha = 0.14f)),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(abbr, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = color, maxLines = 1)
+        }
+        Spacer(Modifier.width(12.dp))
+        Column(Modifier.weight(1f)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(s.gameName, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TextPrimary, maxLines = 1)
+                if (s.isSubscription) {
+                    Spacer(Modifier.width(5.dp))
+                    Surface(color = color.copy(alpha = 0.14f), shape = RoundedCornerShape(999.dp)) {
+                        Text("정기", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = color, modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp))
+                    }
+                }
+            }
+            if (subtitle.isNotEmpty()) Text(subtitle, fontSize = 11.sp, color = TextSecondary, maxLines = 1)
+        }
+        Spacer(Modifier.width(8.dp))
+        Text(won(s.amount), fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TextPrimary, maxLines = 1)
     }
 }
 
@@ -522,36 +794,50 @@ fun resolveTodayTasks(
         add(TodayItem(Icons.Default.Savings, "예산 ${budgetPct}% 사용", "예산 점검", true, false, onBudget))
 }
 
-/** 오늘 할 일 카드 — 활성 항목을 전부 리스트로. 각 행 탭 시 해당 액션. 없으면 격려 한 줄. */
+/** 오늘 할 일 카드 — 활성 항목을 전부 리스트로. titleOutside=true 면 제목을 카드 바깥 큰 헤더로. */
 @Composable
-fun TodayTaskCard(tasks: List<TodayItem>, inProgress: Boolean) {
+fun TodayTaskCard(tasks: List<TodayItem>, inProgress: Boolean, titleOutside: Boolean = false) {
     val accent = LocalAccent.current
-    GlassCard(shape = RoundedCornerShape(24.dp), modifier = Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.TaskAlt, null, tint = accent, modifier = Modifier.size(16.dp))
-                Spacer(Modifier.width(6.dp))
-                Text("오늘 할 일", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = accent)
-                if (tasks.isNotEmpty()) {
+    if (titleOutside) {
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            HomeSectionHeader("오늘 할 일", count = if (tasks.isEmpty()) null else tasks.size)
+            GlassCard(shape = RoundedCornerShape(24.dp), modifier = Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(16.dp)) { TodayTaskBody(tasks, inProgress) }
+            }
+        }
+    } else {
+        GlassCard(shape = RoundedCornerShape(24.dp), modifier = Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(16.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.TaskAlt, null, tint = accent, modifier = Modifier.size(16.dp))
                     Spacer(Modifier.width(6.dp))
-                    Surface(color = accent.copy(alpha = 0.14f), shape = RoundedCornerShape(999.dp)) {
-                        Text("${tasks.size}", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = accent, modifier = Modifier.padding(horizontal = 7.dp, vertical = 1.dp))
+                    Text("오늘 할 일", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = accent)
+                    if (tasks.isNotEmpty()) {
+                        Spacer(Modifier.width(6.dp))
+                        Surface(color = accent.copy(alpha = 0.14f), shape = RoundedCornerShape(999.dp)) {
+                            Text("${tasks.size}", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = accent, modifier = Modifier.padding(horizontal = 7.dp, vertical = 1.dp))
+                        }
                     }
                 }
+                Spacer(Modifier.height(12.dp))
+                TodayTaskBody(tasks, inProgress)
             }
-            Spacer(Modifier.height(12.dp))
-            if (tasks.isEmpty()) {
-                Text("오늘 챙길 건 다 끝냈어요 🎉 여유롭게 즐기세요", fontSize = 14.sp, color = TextPrimary)
-            } else {
-                tasks.forEachIndexed { i, t ->
-                    if (i > 0) {
-                        Spacer(Modifier.height(10.dp))
-                        HorizontalDivider(color = DividerColor)
-                        Spacer(Modifier.height(10.dp))
-                    }
-                    TodayRow(t, inProgress)
-                }
+        }
+    }
+}
+
+@Composable
+private fun TodayTaskBody(tasks: List<TodayItem>, inProgress: Boolean) {
+    if (tasks.isEmpty()) {
+        Text("오늘 챙길 건 다 끝냈어요 🎉 여유롭게 즐기세요", fontSize = 14.sp, color = TextPrimary)
+    } else {
+        tasks.forEachIndexed { i, t ->
+            if (i > 0) {
+                Spacer(Modifier.height(10.dp))
+                HorizontalDivider(color = DividerColor)
+                Spacer(Modifier.height(10.dp))
             }
+            TodayRow(t, inProgress)
         }
     }
 }
@@ -581,32 +867,46 @@ private fun TodayRow(t: TodayItem, inProgress: Boolean) {
     }
 }
 
-/** 오늘 할 일 로딩 스켈레톤 — 헤더 + 시머 행 N개. 로딩 완료 시 실제 리스트로 한 번에 교체. */
+/** 오늘 할 일 로딩 스켈레톤 — 헤더 + 시머 행 N개. titleOutside=true 면 제목을 카드 바깥으로. */
 @Composable
-fun TodayTaskSkeleton(rows: Int = 3) {
+fun TodayTaskSkeleton(rows: Int = 3, titleOutside: Boolean = false) {
     val accent = LocalAccent.current
-    GlassCard(shape = RoundedCornerShape(24.dp), modifier = Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.TaskAlt, null, tint = accent.copy(alpha = 0.5f), modifier = Modifier.size(16.dp))
-                Spacer(Modifier.width(6.dp))
-                Text("오늘 할 일", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = accent.copy(alpha = 0.5f))
+    if (titleOutside) {
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            HomeSectionHeader("오늘 할 일")
+            GlassCard(shape = RoundedCornerShape(24.dp), modifier = Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(16.dp)) { TodaySkeletonRows(rows) }
             }
-            Spacer(Modifier.height(12.dp))
-            repeat(rows) { i ->
-                if (i > 0) {
-                    Spacer(Modifier.height(10.dp))
-                    HorizontalDivider(color = DividerColor)
-                    Spacer(Modifier.height(10.dp))
+        }
+    } else {
+        GlassCard(shape = RoundedCornerShape(24.dp), modifier = Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(16.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.TaskAlt, null, tint = accent.copy(alpha = 0.5f), modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text("오늘 할 일", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = accent.copy(alpha = 0.5f))
                 }
-                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    SkeletonBox(Modifier.size(18.dp), CircleShape)
-                    Spacer(Modifier.width(10.dp))
-                    SkeletonBox(Modifier.weight(1f).height(13.dp))
-                    Spacer(Modifier.width(8.dp))
-                    SkeletonBox(Modifier.width(56.dp).height(22.dp), RoundedCornerShape(999.dp))
-                }
+                Spacer(Modifier.height(12.dp))
+                TodaySkeletonRows(rows)
             }
+        }
+    }
+}
+
+@Composable
+private fun TodaySkeletonRows(rows: Int) {
+    repeat(rows) { i ->
+        if (i > 0) {
+            Spacer(Modifier.height(10.dp))
+            HorizontalDivider(color = DividerColor)
+            Spacer(Modifier.height(10.dp))
+        }
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            SkeletonBox(Modifier.size(18.dp), CircleShape)
+            Spacer(Modifier.width(10.dp))
+            SkeletonBox(Modifier.weight(1f).height(13.dp))
+            Spacer(Modifier.width(8.dp))
+            SkeletonBox(Modifier.width(56.dp).height(22.dp), RoundedCornerShape(999.dp))
         }
     }
 }
@@ -764,70 +1064,101 @@ fun DashSpendCard(monthlyTotal: Long, budget: Long, onTap: () -> Unit) {
     }
 }
 
-/** 이번 주 게임 일정 — 이벤트·정기콘텐츠 마감 임박(픽업과 별개). */
+/** 이번 주 게임 일정 — titleOutside=true 면 제목을 카드 바깥 큰 헤더로. */
 @Composable
-fun DashScheduleCard(events: List<GameEvent>, challenges: List<GameChallenge>, onTap: () -> Unit) {
+fun DashScheduleCard(events: List<GameEvent>, challenges: List<GameChallenge>, titleOutside: Boolean = false, onTap: () -> Unit) {
     val accent = LocalAccent.current
     val now = System.currentTimeMillis()
     val items = (events.map { Triple(it.game, it.name, it.endMillis to it.dDayLabel()) } +
         challenges.map { Triple(it.game, it.name, it.endMillis to it.dDayLabel()) })
         .filter { it.third.first > now }.sortedBy { it.third.first }.take(3)
     if (items.isEmpty()) return
-    GlassCard(shape = RoundedCornerShape(22.dp), modifier = Modifier.fillMaxWidth().clickable { onTap() }) {
-        Column(Modifier.padding(16.dp)) {
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Text("이번 주 일정", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
-                Spacer(Modifier.weight(1f))
-                Text("전체 ›", fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold, color = accent)
+    if (titleOutside) {
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            HomeSectionHeader("이번 주 일정", actionTitle = "전체", onAction = onTap)
+            GlassCard(shape = RoundedCornerShape(22.dp), modifier = Modifier.fillMaxWidth().clickable { onTap() }) {
+                Column(Modifier.padding(16.dp)) { ScheduleRows(items, accent) }
             }
-            items.forEach { row ->
-                Spacer(Modifier.height(11.dp))
+        }
+    } else {
+        GlassCard(shape = RoundedCornerShape(22.dp), modifier = Modifier.fillMaxWidth().clickable { onTap() }) {
+            Column(Modifier.padding(16.dp)) {
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    GlgGameTag(row.first, size = GameTagSize.Small)
-                    Spacer(Modifier.width(9.dp))
-                    Text(row.second, fontSize = 13.sp, fontWeight = FontWeight.Medium, color = TextPrimary, maxLines = 1, modifier = Modifier.weight(1f))
-                    Spacer(Modifier.width(6.dp))
-                    Text(row.third.second, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = accent)
+                    Text("이번 주 일정", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+                    Spacer(Modifier.weight(1f))
+                    Text("전체 ›", fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold, color = accent)
                 }
+                Spacer(Modifier.height(11.dp))
+                ScheduleRows(items, accent)
             }
         }
     }
 }
 
-/** 게임 소식 — 다가오는 주년 + 최신 공지. */
 @Composable
-fun DashNewsCard(news: List<NewsItem>, anniversaries: List<AnniversaryInfo>, onTap: () -> Unit) {
+private fun ScheduleRows(items: List<Triple<String, String, Pair<Long, String>>>, accent: Color) {
+    Column(verticalArrangement = Arrangement.spacedBy(11.dp)) {
+        items.forEach { row ->
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                GlgGameTag(row.first, size = GameTagSize.Small)
+                Spacer(Modifier.width(9.dp))
+                Text(row.second, fontSize = 13.sp, fontWeight = FontWeight.Medium, color = TextPrimary, maxLines = 1, modifier = Modifier.weight(1f))
+                Spacer(Modifier.width(6.dp))
+                Text(row.third.second, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = accent)
+            }
+        }
+    }
+}
+
+/** 게임 소식 — titleOutside=true 면 제목을 카드 바깥 큰 헤더로. */
+@Composable
+fun DashNewsCard(news: List<NewsItem>, anniversaries: List<AnniversaryInfo>, titleOutside: Boolean = false, onTap: () -> Unit) {
     val accent = LocalAccent.current
-    val amber = Color(0xFFF59E0B)
     val anni = anniversaries.firstOrNull { it.daysUntil <= 60 }
     val topNews = news.sortedByDescending { it.createdAtMillis }.take(2)
     if (anni == null && topNews.isEmpty()) return
-    GlassCard(shape = RoundedCornerShape(22.dp), modifier = Modifier.fillMaxWidth().clickable { onTap() }) {
-        Column(Modifier.padding(16.dp)) {
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Text("게임 소식", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
-                Spacer(Modifier.weight(1f))
-                Text("전체 ›", fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold, color = accent)
+    if (titleOutside) {
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            HomeSectionHeader("게임 소식", actionTitle = "전체", onAction = onTap)
+            GlassCard(shape = RoundedCornerShape(22.dp), modifier = Modifier.fillMaxWidth().clickable { onTap() }) {
+                Column(Modifier.padding(16.dp)) { NewsBody(anni, topNews) }
             }
-            if (anni != null) {
-                Spacer(Modifier.height(12.dp))
-                Row(
-                    Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(amber.copy(alpha = 0.10f)).padding(11.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Icon(Icons.Default.Celebration, null, tint = amber, modifier = Modifier.size(16.dp))
-                    Spacer(Modifier.width(8.dp))
-                    Text("${anni.game.shortName} ${anni.ordinal}주년", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = TextPrimary, modifier = Modifier.weight(1f))
-                    Text(if (anni.daysUntil == 0) "오늘" else "D-${anni.daysUntil}", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = amber)
-                }
-            }
-            topNews.forEach { n ->
-                Spacer(Modifier.height(11.dp))
+        }
+    } else {
+        GlassCard(shape = RoundedCornerShape(22.dp), modifier = Modifier.fillMaxWidth().clickable { onTap() }) {
+            Column(Modifier.padding(16.dp)) {
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    GlgGameTag(n.game, size = GameTagSize.Small)
-                    Spacer(Modifier.width(9.dp))
-                    Text(n.title, fontSize = 13.sp, fontWeight = FontWeight.Medium, color = TextPrimary, maxLines = 1)
+                    Text("게임 소식", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+                    Spacer(Modifier.weight(1f))
+                    Text("전체 ›", fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold, color = accent)
                 }
+                Spacer(Modifier.height(12.dp))
+                NewsBody(anni, topNews)
+            }
+        }
+    }
+}
+
+@Composable
+private fun NewsBody(anni: AnniversaryInfo?, topNews: List<NewsItem>) {
+    val amber = Color(0xFFF59E0B)
+    Column(verticalArrangement = Arrangement.spacedBy(11.dp)) {
+        if (anni != null) {
+            Row(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(amber.copy(alpha = 0.10f)).padding(11.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(Icons.Default.Celebration, null, tint = amber, modifier = Modifier.size(16.dp))
+                Spacer(Modifier.width(8.dp))
+                Text("${anni.game.shortName} ${anni.ordinal}주년", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = TextPrimary, modifier = Modifier.weight(1f))
+                Text(if (anni.daysUntil == 0) "오늘" else "D-${anni.daysUntil}", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = amber)
+            }
+        }
+        topNews.forEach { n ->
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                GlgGameTag(n.game, size = GameTagSize.Small)
+                Spacer(Modifier.width(9.dp))
+                Text(n.title, fontSize = 13.sp, fontWeight = FontWeight.Medium, color = TextPrimary, maxLines = 1)
             }
         }
     }
