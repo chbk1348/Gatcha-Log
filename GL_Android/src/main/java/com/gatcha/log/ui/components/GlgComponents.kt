@@ -43,7 +43,18 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import androidx.compose.ui.window.Popup
+import androidx.compose.ui.window.PopupProperties
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.updateTransition
+import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.IntOffset
+import com.gatcha.log.ui.theme.DangerText
 import com.gatcha.log.ui.theme.DividerColor
+import com.gatcha.log.ui.theme.glgShortSpec
 import com.gatcha.log.ui.theme.LocalAccent
 import com.gatcha.log.ui.theme.TextPrimary
 import com.gatcha.log.ui.theme.TextSecondary
@@ -501,5 +512,101 @@ fun GlgSwitch(checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
                 .clip(CircleShape)
                 .background(Color.White),
         )
+    }
+}
+
+// ── 드롭다운 메뉴 ────────────────────────────────────────────────────────────
+/**
+ * 앱 공통 드롭다운 메뉴 — Material3 [androidx.compose.material3.DropdownMenu] 대체.
+ *
+ * 시스템 메뉴를 쓰지 않는 이유: M3 기본 메뉴는 서피스 톤·모서리(3dp)·타이포가 앱 디자인
+ * (흰 불투명 + 20dp 라운드 + accent 30% 아웃라인 + Pretendard)과 어긋나고, 배경이 반투명이라
+ * 헤더 오버레이 아래 콘텐츠가 비쳤다. [GlgDropdownItem] 과 함께 사용한다.
+ *
+ * 앵커(호출한 Box) 기준으로 아래에 뜨고, 오른쪽 정렬이 필요하면 [alignEnd] 를 켠다.
+ */
+@Composable
+fun GlgDropdownMenu(
+    expanded: Boolean,
+    onDismissRequest: () -> Unit,
+    modifier: Modifier = Modifier,
+    alignEnd: Boolean = false,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    if (!expanded) return
+    val accent = LocalAccent.current
+    Popup(
+        alignment = if (alignEnd) Alignment.TopEnd else Alignment.TopStart,
+        offset = IntOffset(0, with(LocalDensity.current) { 6.dp.roundToPx() }),
+        onDismissRequest = onDismissRequest,
+        properties = PopupProperties(focusable = true),
+    ) {
+        // 등장 모션 — 앵커 쪽(위)에서 살짝 펼쳐지듯 스케일 + 페이드.
+        val transition = updateTransition(targetState = true, label = "glgMenu")
+        val scale by transition.animateFloat(transitionSpec = { glgShortSpec() }, label = "scale") { 0.92f + 0.08f * if (it) 1f else 0f }
+        val alpha by transition.animateFloat(transitionSpec = { glgShortSpec() }, label = "alpha") { if (it) 1f else 0f }
+        Surface(
+            shape = RoundedCornerShape(20.dp),
+            color = Color.White,                                   // 불투명 — 아래 콘텐츠 비침 방지
+            border = BorderStroke(1.5.dp, accent.copy(alpha = 0.30f)),
+            shadowElevation = 12.dp,
+            modifier = modifier
+                .graphicsLayer {
+                    scaleX = scale; scaleY = scale; this.alpha = alpha
+                    transformOrigin = TransformOrigin(if (alignEnd) 1f else 0f, 0f)
+                }
+                .widthIn(min = 160.dp, max = 280.dp),
+        ) {
+            // width(IntrinsicSize.Max) 가 없으면 항목의 fillMaxWidth 가 Popup 의 최대 제약
+            // (= 화면 폭)까지 늘어나 메뉴가 좌우로 꽉 찬다. 가장 긴 항목 기준으로 폭을 잡는다.
+            Column(
+                Modifier.width(IntrinsicSize.Max).padding(vertical = 6.dp),
+                content = content,
+            )
+        }
+    }
+}
+
+/**
+ * [GlgDropdownMenu] 의 항목 한 줄. 선택된 항목은 accent 볼드 + 우측 체크로 표시하고,
+ * 파괴적 동작(로그아웃·삭제)은 [danger] 로 빨간 톤을 준다.
+ */
+@Composable
+fun GlgDropdownItem(
+    text: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    icon: ImageVector? = null,
+    selected: Boolean = false,
+    danger: Boolean = false,
+) {
+    val accent = LocalAccent.current
+    val tint = when {
+        danger -> DangerText
+        selected -> accent
+        else -> TextPrimary
+    }
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 11.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        if (icon != null) {
+            Icon(icon, null, tint = tint, modifier = Modifier.size(18.dp))
+            Spacer(Modifier.width(10.dp))
+        }
+        Text(
+            text,
+            fontSize = 14.sp,
+            fontWeight = if (selected || danger) FontWeight.SemiBold else FontWeight.Medium,
+            color = tint,
+            modifier = Modifier.weight(1f),
+        )
+        if (selected) {
+            Spacer(Modifier.width(10.dp))
+            Icon(Icons.Default.Check, null, tint = accent, modifier = Modifier.size(18.dp))
+        }
     }
 }

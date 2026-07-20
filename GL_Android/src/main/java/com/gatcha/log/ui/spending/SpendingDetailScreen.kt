@@ -8,9 +8,9 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -26,6 +26,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.gatcha.log.ui.components.GlgDropdownMenu
+import com.gatcha.log.ui.components.GlgDropdownItem
 import com.gatcha.log.data.Spending
 import com.gatcha.log.ui.components.GlgBadge
 import com.gatcha.log.ui.components.GameCurrency
@@ -59,13 +61,16 @@ fun SpendingDetailScreen(
             var menuOpen by remember { mutableStateOf(false) }
             Box {
                 GlgCircleIconButton(Icons.Default.MoreVert, "더보기", outlined = true) { menuOpen = true }
-                DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                    DropdownMenuItem(
-                        text = { Text("수정", color = LocalAccent.current, fontWeight = FontWeight.SemiBold) },
+                GlgDropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }, alignEnd = true) {
+                    GlgDropdownItem(
+                        text = "수정",
+                        icon = Icons.Default.Edit,
                         onClick = { menuOpen = false; onEdit() },
                     )
-                    DropdownMenuItem(
-                        text = { Text("삭제", color = DangerRed, fontWeight = FontWeight.SemiBold) },
+                    GlgDropdownItem(
+                        text = "삭제",
+                        icon = Icons.Default.Delete,
+                        danger = true,
                         onClick = { menuOpen = false; confirmDelete = true },
                     )
                 }
