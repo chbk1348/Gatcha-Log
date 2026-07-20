@@ -69,26 +69,41 @@ struct HomeSummaryCard: View {
 // ── 오늘 할 일 ──
 struct TodayTaskCard: View {
     let tasks: [TodayItem]; let inProgress: Bool
+    /// true 면 제목을 카드 바깥 위(큰 헤더)로. false(iPad 레거시)면 카드 안 헤더 유지.
+    var titleOutside: Bool = false
     @Environment(\.glgAccent) private var accent
     var body: some View {
-        GLGCard(cornerRadius: 24, padding: 16) {
-            VStack(alignment: .leading, spacing: 0) {
-                HStack(spacing: 6) {
-                    Image(systemName: "checklist").font(.pretendard(size: 15)).foregroundStyle(accent.primary)
-                    Text("오늘 할 일").font(.pretendard(size: 13, weight: .bold)).foregroundStyle(accent.primary)
-                    if !tasks.isEmpty {
-                        Text("\(tasks.count)").font(.pretendard(size: 11, weight: .bold)).foregroundStyle(accent.primary)
-                            .padding(.horizontal, 7).padding(.vertical, 1).background(accent.primary.opacity(0.14), in: Capsule())
+        if titleOutside {
+            VStack(alignment: .leading, spacing: 10) {
+                HomeSectionHeader(title: "오늘 할 일", count: tasks.isEmpty ? nil : tasks.count)
+                GLGCard(cornerRadius: 24, padding: 16) { content }
+            }
+        } else {
+            GLGCard(cornerRadius: 24, padding: 16) {
+                VStack(alignment: .leading, spacing: 0) {
+                    HStack(spacing: 6) {
+                        Image(systemName: "checklist").font(.pretendard(size: 15)).foregroundStyle(accent.primary)
+                        Text("오늘 할 일").font(.pretendard(size: 13, weight: .bold)).foregroundStyle(accent.primary)
+                        if !tasks.isEmpty {
+                            Text("\(tasks.count)").font(.pretendard(size: 11, weight: .bold)).foregroundStyle(accent.primary)
+                                .padding(.horizontal, 7).padding(.vertical, 1).background(accent.primary.opacity(0.14), in: Capsule())
+                        }
                     }
+                    .padding(.bottom, 12)
+                    content
                 }
-                .padding(.bottom, 12)
-                if tasks.isEmpty {
-                    Text("오늘 챙길 건 다 끝냈어요 🎉 여유롭게 즐기세요").font(.pretendard(size: 14))
-                } else {
-                    ForEach(Array(tasks.enumerated()), id: \.element.id) { i, t in
-                        if i > 0 { Divider().padding(.vertical, 10) }
-                        row(t)
-                    }
+            }
+        }
+    }
+    @ViewBuilder private var content: some View {
+        if tasks.isEmpty {
+            Text("오늘 챙길 건 다 끝냈어요 🎉 여유롭게 즐기세요").font(.pretendard(size: 14))
+                .frame(maxWidth: .infinity, alignment: .leading)
+        } else {
+            VStack(alignment: .leading, spacing: 0) {
+                ForEach(Array(tasks.enumerated()), id: \.element.id) { i, t in
+                    if i > 0 { Divider().padding(.vertical, 10) }
+                    row(t)
                 }
             }
         }
@@ -115,21 +130,34 @@ struct TodayTaskCard: View {
 }
 
 struct TodayTaskSkeleton: View {
+    var titleOutside: Bool = false
     @Environment(\.glgAccent) private var accent
     var body: some View {
-        GLGCard(cornerRadius: 24, padding: 16) {
-            VStack(alignment: .leading, spacing: 12) {
-                HStack(spacing: 6) {
-                    Image(systemName: "checklist").font(.pretendard(size: 15)).foregroundStyle(accent.primary.opacity(0.5))
-                    Text("오늘 할 일").font(.pretendard(size: 13, weight: .bold)).foregroundStyle(accent.primary.opacity(0.5))
-                }
-                ForEach(0..<3, id: \.self) { i in
-                    if i > 0 { Divider() }
-                    HStack(spacing: 10) {
-                        Circle().fill(Color.black.opacity(0.06)).frame(width: 18, height: 18)
-                        RoundedRectangle(cornerRadius: 4).fill(Color.black.opacity(0.06)).frame(height: 13).frame(maxWidth: .infinity)
-                        RoundedRectangle(cornerRadius: 999).fill(Color.black.opacity(0.06)).frame(width: 56, height: 22)
+        if titleOutside {
+            VStack(alignment: .leading, spacing: 10) {
+                HomeSectionHeader(title: "오늘 할 일")
+                GLGCard(cornerRadius: 24, padding: 16) { rows }
+            }
+        } else {
+            GLGCard(cornerRadius: 24, padding: 16) {
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack(spacing: 6) {
+                        Image(systemName: "checklist").font(.pretendard(size: 15)).foregroundStyle(accent.primary.opacity(0.5))
+                        Text("오늘 할 일").font(.pretendard(size: 13, weight: .bold)).foregroundStyle(accent.primary.opacity(0.5))
                     }
+                    rows
+                }
+            }
+        }
+    }
+    private var rows: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            ForEach(0..<3, id: \.self) { i in
+                if i > 0 { Divider() }
+                HStack(spacing: 10) {
+                    Circle().fill(Color.black.opacity(0.06)).frame(width: 18, height: 18)
+                    RoundedRectangle(cornerRadius: 4).fill(Color.black.opacity(0.06)).frame(height: 13).frame(maxWidth: .infinity)
+                    RoundedRectangle(cornerRadius: 999).fill(Color.black.opacity(0.06)).frame(width: 56, height: 22)
                 }
             }
         }
@@ -550,6 +578,7 @@ struct QuickBtn: View {
 /// 이번 주 게임 일정 — 이벤트·정기콘텐츠 마감 임박(픽업과 별개).
 struct DashboardScheduleCard: View {
     let events: [GameEvent]; let challenges: [GameChallenge]; let onTap: () -> Void
+    var titleOutside: Bool = false
     @Environment(\.glgAccent) private var accent
     var body: some View {
         let now = nowMs()
@@ -559,24 +588,37 @@ struct DashboardScheduleCard: View {
         let items = Array(raw.filter { $0.2 > now }.sorted { $0.2 < $1.2 }.prefix(3))
         return Group {
             if !items.isEmpty {
-                GLGCard(cornerRadius: 22, padding: 16) {
-                    VStack(alignment: .leading, spacing: 0) {
-                        HStack {
-                            Text("이번 주 일정").font(.pretendard(size: 14, weight: .bold))
-                            Spacer()
-                            Text("전체 ›").font(.pretendard(size: 11.5, weight: .semibold)).foregroundStyle(accent.primary)
-                        }
-                        ForEach(Array(items.enumerated()), id: \.offset) { _, it in
-                            HStack(spacing: 9) {
-                                GLGGameTag(game: it.0, size: .small)
-                                Text(it.1).font(.pretendard(size: 13, weight: .medium)).foregroundStyle(GLGColor.textPrimary).lineLimit(1)
-                                Spacer(minLength: 6)
-                                Text(it.3).font(.pretendard(size: 11, weight: .bold)).foregroundStyle(accent.primary)
-                            }.padding(.top, 11)
+                if titleOutside {
+                    VStack(alignment: .leading, spacing: 10) {
+                        HomeSectionHeader(title: "이번 주 일정", actionTitle: "전체", action: onTap)
+                        GLGCard(cornerRadius: 22, padding: 16) { rows(items) }
+                            .contentShape(Rectangle()).onTapGesture { onTap() }
+                    }
+                } else {
+                    GLGCard(cornerRadius: 22, padding: 16) {
+                        VStack(alignment: .leading, spacing: 0) {
+                            HStack {
+                                Text("이번 주 일정").font(.pretendard(size: 14, weight: .bold))
+                                Spacer()
+                                Text("전체 ›").font(.pretendard(size: 11.5, weight: .semibold)).foregroundStyle(accent.primary)
+                            }
+                            rows(items).padding(.top, 11)
                         }
                     }
+                    .contentShape(Rectangle()).onTapGesture { onTap() }
                 }
-                .contentShape(Rectangle()).onTapGesture { onTap() }
+            }
+        }
+    }
+    @ViewBuilder private func rows(_ items: [(String, String, Int64, String)]) -> some View {
+        VStack(alignment: .leading, spacing: 11) {
+            ForEach(Array(items.enumerated()), id: \.offset) { _, it in
+                HStack(spacing: 9) {
+                    GLGGameTag(game: it.0, size: .small)
+                    Text(it.1).font(.pretendard(size: 13, weight: .medium)).foregroundStyle(GLGColor.textPrimary).lineLimit(1)
+                    Spacer(minLength: 6)
+                    Text(it.3).font(.pretendard(size: 11, weight: .bold)).foregroundStyle(accent.primary)
+                }
             }
         }
     }
@@ -585,40 +627,53 @@ struct DashboardScheduleCard: View {
 /// 게임 소식 — 다가오는 주년 + 최신 공지.
 struct DashboardNewsCard: View {
     let news: [NewsItem]; let anniversaries: [AnniversaryInfo]; let onTap: () -> Void
+    var titleOutside: Bool = false
     @Environment(\.glgAccent) private var accent
     var body: some View {
         let anni = anniversaries.first { $0.daysUntil <= 60 }
         let topNews = Array(news.sorted { $0.createdAtMillis > $1.createdAtMillis }.prefix(2))
-        let amber = Color(hex: 0xFFF59E0B)
         return Group {
             if anni != nil || !topNews.isEmpty {
-                GLGCard(cornerRadius: 22, padding: 16) {
-                    VStack(alignment: .leading, spacing: 0) {
-                        HStack {
-                            Text("게임 소식").font(.pretendard(size: 14, weight: .bold))
-                            Spacer()
-                            Text("전체 ›").font(.pretendard(size: 11.5, weight: .semibold)).foregroundStyle(accent.primary)
-                        }
-                        if let a = anni {
-                            HStack(spacing: 8) {
-                                Image(systemName: "party.popper.fill").font(.system(size: 13)).foregroundStyle(amber)
-                                Text("\(a.game.shortName) \(a.ordinal)주년").font(.pretendard(size: 13, weight: .semibold)).foregroundStyle(GLGColor.textPrimary)
-                                Spacer(minLength: 6)
-                                Text(a.daysUntil == 0 ? "오늘" : "D-\(a.daysUntil)").font(.pretendard(size: 11, weight: .bold)).foregroundStyle(amber)
+                if titleOutside {
+                    VStack(alignment: .leading, spacing: 10) {
+                        HomeSectionHeader(title: "게임 소식", actionTitle: "전체", action: onTap)
+                        GLGCard(cornerRadius: 22, padding: 16) { newsBody(anni: anni, topNews: topNews) }
+                            .contentShape(Rectangle()).onTapGesture { onTap() }
+                    }
+                } else {
+                    GLGCard(cornerRadius: 22, padding: 16) {
+                        VStack(alignment: .leading, spacing: 0) {
+                            HStack {
+                                Text("게임 소식").font(.pretendard(size: 14, weight: .bold))
+                                Spacer()
+                                Text("전체 ›").font(.pretendard(size: 11.5, weight: .semibold)).foregroundStyle(accent.primary)
                             }
-                            .padding(11).frame(maxWidth: .infinity)
-                            .background(amber.opacity(0.10), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-                            .padding(.top, 12)
-                        }
-                        ForEach(Array(topNews.enumerated()), id: \.offset) { _, n in
-                            HStack(spacing: 9) {
-                                GLGGameTag(game: n.game, size: .small)
-                                Text(n.title).font(.pretendard(size: 13, weight: .medium)).foregroundStyle(GLGColor.textPrimary).lineLimit(1)
-                            }.padding(.top, 11)
+                            newsBody(anni: anni, topNews: topNews).padding(.top, 12)
                         }
                     }
+                    .contentShape(Rectangle()).onTapGesture { onTap() }
                 }
-                .contentShape(Rectangle()).onTapGesture { onTap() }
+            }
+        }
+    }
+    @ViewBuilder private func newsBody(anni: AnniversaryInfo?, topNews: [NewsItem]) -> some View {
+        let amber = Color(hex: 0xFFF59E0B)
+        VStack(alignment: .leading, spacing: 11) {
+            if let a = anni {
+                HStack(spacing: 8) {
+                    Image(systemName: "party.popper.fill").font(.system(size: 13)).foregroundStyle(amber)
+                    Text("\(a.game.shortName) \(a.ordinal)주년").font(.pretendard(size: 13, weight: .semibold)).foregroundStyle(GLGColor.textPrimary)
+                    Spacer(minLength: 6)
+                    Text(a.daysUntil == 0 ? "오늘" : "D-\(a.daysUntil)").font(.pretendard(size: 11, weight: .bold)).foregroundStyle(amber)
+                }
+                .padding(11).frame(maxWidth: .infinity)
+                .background(amber.opacity(0.10), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            }
+            ForEach(Array(topNews.enumerated()), id: \.offset) { _, n in
+                HStack(spacing: 9) {
+                    GLGGameTag(game: n.game, size: .small)
+                    Text(n.title).font(.pretendard(size: 13, weight: .medium)).foregroundStyle(GLGColor.textPrimary).lineLimit(1)
+                }
             }
         }
     }

@@ -262,18 +262,18 @@ fun SpendingScreen(
                 .fillMaxWidth()
                 .onSizeChanged { if (collapse == 0f) heroOverlayPx = it.height },
         ) {
-            Box(Modifier.fillMaxWidth().background(Color.White).padding(horizontal = 16.dp)) {
+            // 헤더 바 배경 없음(투명) — 리스트가 버튼 아래로 지나가고, 버튼만 불투명(solidBackground).
+            Box(Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
                 // 좌측 = 보기 전환(캘린더·인사이트), 우측 = 목록 조작(선택·필터).
-                // 성격이 다른 버튼 4개가 우측에 뭉쳐 있어 무엇이 무엇인지 구분되지 않던 걸 갈랐다.
                 GlgTabHeader(
                     "",
                     leading = {
-                        GlgCircleIconButton(Icons.Default.CalendarMonth, "캘린더", outlined = true) { nav = SpendingScreenNav.Calendar }
-                        GlgCircleIconButton(Icons.Default.Insights, "인사이트", outlined = true) { nav = SpendingScreenNav.Insight }
+                        GlgCircleIconButton(Icons.Default.CalendarMonth, "캘린더", outlined = true, solidBackground = true) { nav = SpendingScreenNav.Calendar }
+                        GlgCircleIconButton(Icons.Default.Insights, "인사이트", outlined = true, solidBackground = true) { nav = SpendingScreenNav.Insight }
                     },
                 ) {
-                    GlgCircleIconButton(Icons.Default.Checklist, "선택", outlined = true) { selectionMode = true; selectedIds = emptySet() }
-                    GlgCircleIconButton(Icons.Default.Tune, "필터", outlined = true, badgeCount = activeFilterCount) { showFilterSheet.value = true }
+                    GlgCircleIconButton(Icons.Default.Checklist, "선택", outlined = true, solidBackground = true) { selectionMode = true; selectedIds = emptySet() }
+                    GlgCircleIconButton(Icons.Default.Tune, "필터", outlined = true, badgeCount = activeFilterCount, solidBackground = true) { showFilterSheet.value = true }
                 }
             }
             Box(Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {

@@ -101,7 +101,8 @@ struct ContentView: View {
                 .glgAccent(index: store.accentIndex)
                 .transition(.opacity)
             } else {
-                mainTabs
+                // 로그인 후 메인 — iPad 는 사이드바 분할뷰, iPhone 은 하단 탭바.
+                authenticatedRoot
                     // 지출 추가/수정 — Phase 6: SwiftUI 네이티브 폼 (구 ComposeView AddSpendingViewController 대체)
                     .sheet(item: $spendingSheet) { target in
                         AddSpendingView(store: store, editing: target.spending) { spendingSheet = nil }
@@ -182,7 +183,17 @@ struct ContentView: View {
         needsIntro = false
     }
 
-    // ── 탭 구성 ─────────────────────────────────────────────────────────
+    // ── 메인 셸: 시스템 탭바(iPhone·iPad 공통) ──────────────────────────
+
+    /// 현재 기기가 iPad 인가. iPad 는 가로 회전 지원 + 지출 추가를 우측 하단 FAB 로 제공.
+    private var isPad: Bool { UIDevice.current.userInterfaceIdiom == .pad }
+
+    @ViewBuilder
+    private var authenticatedRoot: some View {
+        mainTabs
+    }
+
+    // ── 탭 구성 (iPhone·iPad 공통 시스템 탭바) ────────────────────────────
 
     @ViewBuilder
     private var mainTabs: some View {
@@ -195,9 +206,9 @@ struct ContentView: View {
                 Tab("지출", systemImage: "creditcard.fill", value: 1) { spendingTabContent }
                 Tab("게임 정보", systemImage: "gamecontroller.fill", value: 2) { gameInfoTabContent }
                 Tab("마이페이지", systemImage: "person.fill", value: 3) { myPageTabContent }
-                // 분리된 원형 버튼 — 탭 전환 대신 지출 추가 모달을 연다 (onChange 에서 가로챔)
+                // iPhone: 탭바에서 분리된 원형 '추가' 버튼(.search 역할). iPad 는 우측 하단 FAB 로 대신한다.
                 // 초기 동기화 게이트(로딩 화면) 동안에는 표시하지 않음
-                if !syncGateActive {
+                if !syncGateActive && !isPad {
                     Tab(value: 4, role: .search) { Color.clear } label: {
                         Label("추가", systemImage: "plus")
                     }
@@ -210,6 +221,12 @@ struct ContentView: View {
                     // "추가" 는 탭이 아니라 액션 — 모달 열고 이전 탭으로 복귀
                     selectedTab = oldValue
                     openAddSpending()
+                }
+            }
+            // iPad: 지출 추가를 우측 하단 시스템 FAB 로.
+            .overlay(alignment: .bottomTrailing) {
+                if isPad && !syncGateActive {
+                    fabAddButton.padding(.trailing, 24).padding(.bottom, 24)
                 }
             }
         } else {
@@ -306,6 +323,19 @@ struct ContentView: View {
                 .background { GLGVisualEffectBlur(style: .systemUltraThinMaterial).clipShape(Circle()) }
                 .shadow(color: .black.opacity(0.15), radius: 10, y: 4)
         }
+    }
+
+    // ── iPad: 우측 하단 지출 추가 FAB (강조색 채움 원형 + 흰 '+') ─────────────
+    private var fabAddButton: some View {
+        Button(action: { openAddSpending() }) {
+            Image(systemName: "plus")
+                .font(.system(size: 24, weight: .semibold))
+                .foregroundStyle(.white)
+                .frame(width: 60, height: 60)
+                .background(accent, in: Circle())
+                .shadow(color: accent.opacity(0.4), radius: 14, y: 6)
+        }
+        .accessibilityLabel("지출 추가")
     }
 }
 

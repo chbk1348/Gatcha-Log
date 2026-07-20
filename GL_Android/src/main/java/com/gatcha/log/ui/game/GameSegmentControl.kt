@@ -1,5 +1,8 @@
 package com.gatcha.log.ui.game
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
@@ -42,12 +45,19 @@ fun GameFilterDropdown(
     else GameData.attendanceGames.firstOrNull { it.key == selected }?.shortName ?: "전체"
 
     Box(modifier) {
+        // 헤더 버튼 톤의 불투명 알약 — 흰 베이스 + accent 10% + accent 30% 아웃라인(콘텐츠 비침 방지).
         Row(
-            modifier = Modifier.clip(RoundedCornerShape(10.dp)).clickable { expanded = true }.padding(vertical = 2.dp, horizontal = 2.dp),
+            modifier = Modifier
+                .clip(RoundedCornerShape(999.dp))
+                .background(Color.White)
+                .background(accent.copy(alpha = 0.10f))
+                .border(1.5.dp, accent.copy(alpha = 0.30f), RoundedCornerShape(999.dp))
+                .clickable { expanded = true }
+                .padding(start = 14.dp, end = 6.dp, top = 6.dp, bottom = 6.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(label, fontSize = 24.sp, fontWeight = FontWeight.Bold)
-            Icon(Icons.Default.ArrowDropDown, contentDescription = "게임 선택", modifier = Modifier.size(28.dp))
+            Text(label, fontSize = 20.sp, fontWeight = FontWeight.Bold, color = accent)
+            Icon(Icons.Default.ArrowDropDown, contentDescription = "게임 선택", tint = accent, modifier = Modifier.size(26.dp))
         }
         DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
             val items = buildList {

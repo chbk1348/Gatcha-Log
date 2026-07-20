@@ -57,6 +57,7 @@ struct SettingsView: View {
                 infoSection
             }
             .padding(16)
+            .glgReadableWidth(640)
         }
         .scrollIndicators(.hidden)
         .background(GLGBackground { Color.clear })
