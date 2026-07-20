@@ -30,6 +30,8 @@ final class SpendingStore: ObservableObject {
     /// 네트워크 미연결 경고 — 얼럿 모달용(nil 이 아니면 표시). 토스트(statusMessage)와 분리.
     @Published private(set) var networkAlert: String?
     @Published private(set) var initialSyncing: Bool
+    /// 로그아웃 진행 중 — 네트워크 대기 동안 오버레이를 띄운다(Android SignOutOverlay 대응).
+    @Published private(set) var signingOut: Bool = false
 
     // ── Phase 2 (마이페이지/설정) ──
     @Published private(set) var spendings: [Spending] = []
@@ -129,6 +131,7 @@ final class SpendingStore: ObservableObject {
         bind(vm.statusMessage) { [weak self] in self?.statusMessage = $0 }
         bind(vm.networkAlert) { [weak self] in self?.networkAlert = $0 }
         bind(vm.initialSyncing) { [weak self] in self?.initialSyncing = $0.boolValue }
+        bind(vm.signingOut) { [weak self] in self?.signingOut = $0.boolValue }
 
         // Phase 2
         bind(vm.spendings) { [weak self] in self?.spendings = $0 }

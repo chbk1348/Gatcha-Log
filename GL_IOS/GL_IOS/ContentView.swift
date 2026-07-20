@@ -111,6 +111,23 @@ struct ContentView: View {
                     .transition(.opacity)
             }
         }
+        // 로그아웃 진행 오버레이 — Firebase signOut 네트워크 대기 동안 피드백이 없던 문제.
+        // 앱 루트에 한 번만(토스트와 동일 원칙). Android SignOutOverlay 와 대응.
+        .overlay {
+            if store.signingOut {
+                ZStack {
+                    Color.black.opacity(0.4).ignoresSafeArea()
+                    VStack(spacing: 14) {
+                        ProgressView().controlSize(.large).tint(accent)
+                        Text("로그아웃 중").font(.pretendard(size: 15, weight: .bold))
+                    }
+                    .padding(.horizontal, 32).padding(.vertical, 24)
+                    .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 24))
+                }
+                .transition(.opacity)
+            }
+        }
+        .animation(GLGMotion.standard(), value: store.signingOut)
         // 루트 상태 전환(로그인→로딩→탭)만 standard 크로스페이드 — 네이티브 내비 UX 보존.
         .animation(GLGMotion.standard(), value: rootPhase)
         .onAppear {
