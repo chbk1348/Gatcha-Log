@@ -225,7 +225,8 @@ fun GameInfoScreen(
             GiSub.News -> SectionPage(onBack = { subPage = GiSub.Main }) {
                 NewsFullContent(gameNews, gameFilter, onOpen = { openNews(it, GiSub.News) })
             }
-            GiSub.Main -> GlgPullToRefreshBox(
+            GiSub.Main -> Box(Modifier.fillMaxSize()) {
+            GlgPullToRefreshBox(
             isRefreshing = isRefreshing,
             onRefresh = { viewModel.refreshGameInfo(force = true) },
             modifier = Modifier.fillMaxSize(),
@@ -235,27 +236,8 @@ fun GameInfoScreen(
                 modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
                 contentPadding = PaddingValues(bottom = 120.dp),
             ) {
-            // 헤더 — 좌측 게임 드롭다운 + 우측 액션 버튼들 (게임 세그먼트를 헤더로 이관)
-            item {
-                Row(
-                    Modifier.fillMaxWidth().padding(top = 24.dp, bottom = 16.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    GameFilterDropdown(selected = gameFilter, onSelect = { gameFilter = it })
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        if (hoyolab.isLinked) {
-                            GlgCircleIconButton(Icons.Default.Redeem, "리딤코드", outlined = true) { subPage = GiSub.Gift }
-                        }
-                        GlgCircleIconButton(Icons.Default.Refresh, "새로고침", enabled = !isRefreshing, outlined = true) {
-                            viewModel.refreshGameInfo(force = true)
-                        }
-                        GlgCircleIconButton(Icons.Default.Settings, "HoYoLAB 설정", outlined = true) {
-                            subPage = GiSub.HoyoLink
-                        }
-                    }
-                }
-            }
+            // 헤더 자리(고정) — item 0 은 앵커 인덱스 유지용 스페이서. 실제 헤더는 아래 오버레이.
+            item { Spacer(Modifier.height(80.dp)) }
             // 최상단 히어로 — 실시간 노트 + 출석체크 통합
             item {
                 DailyHeroSection(
@@ -324,6 +306,28 @@ fun GameInfoScreen(
             item { Spacer(Modifier.height(20.dp)) }
         }
     }
+            // 헤더 오버레이 — 투명 바, 버튼만 불투명. 콘텐츠가 버튼 아래로 지나간다.
+            Box(Modifier.align(Alignment.TopStart).fillMaxWidth().padding(horizontal = 16.dp)) {
+                Row(
+                    Modifier.fillMaxWidth().padding(top = 24.dp, bottom = 16.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    GameFilterDropdown(selected = gameFilter, onSelect = { gameFilter = it })
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        if (hoyolab.isLinked) {
+                            GlgCircleIconButton(Icons.Default.Redeem, "리딤코드", outlined = true, solidBackground = true) { subPage = GiSub.Gift }
+                        }
+                        GlgCircleIconButton(Icons.Default.Refresh, "새로고침", enabled = !isRefreshing, outlined = true, solidBackground = true) {
+                            viewModel.refreshGameInfo(force = true)
+                        }
+                        GlgCircleIconButton(Icons.Default.Settings, "HoYoLAB 설정", outlined = true, solidBackground = true) {
+                            subPage = GiSub.HoyoLink
+                        }
+                    }
+                }
+            }
+            }
         }
         }
     }

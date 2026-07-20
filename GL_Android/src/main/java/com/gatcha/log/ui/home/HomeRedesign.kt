@@ -144,7 +144,8 @@ fun HomeHeader(
             Row(
                 modifier = Modifier
                     .clip(RoundedCornerShape(999.dp))
-                    .background(accent.copy(alpha = 0.10f))
+                    .background(Color.White)                     // 불투명 베이스(콘텐츠 비침 방지)
+                    .background(accent.copy(alpha = 0.10f))      // 위에 accent 틴트
                     .border(1.5.dp, accent.copy(alpha = 0.30f), RoundedCornerShape(999.dp))
                     .clickable { menuOpen = true }
                     .padding(start = 5.dp, end = 12.dp, top = 5.dp, bottom = 5.dp),
@@ -180,6 +181,7 @@ fun HomeHeader(
             contentDescription = "알림",
             badgeCount = alertCount,
             outlined = true,
+            solidBackground = true,
             onClick = onBellClick,
         )
     }

@@ -423,10 +423,16 @@ fun HomeContent(
         onRefresh = { viewModel.refreshGameInfo(force = true) },
         modifier = Modifier.fillMaxSize(),
     ) {
+    Box(Modifier.fillMaxSize()) {
     // 히어로 그라데이션은 HomeScreen(Scaffold 레벨)에서 상태바 뒤까지 그린다.
     // 콘텐츠 로드인 스태거 — 앱 진입 후 1회만 등장(스크롤·탭 재진입 시 재애니메이션 방지). 세션 영속 집합.
     val loadInSet = rememberGlgLoadInSet("home")
-    LazyColumn(state = listState, modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
+    // 헤더는 투명 오버레이(아래) — 콘텐츠가 헤더 버튼 '아래로' 지나가도록 상단 여백만큼 인셋.
+    LazyColumn(
+        state = listState,
+        modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
+        contentPadding = PaddingValues(top = 56.dp),
+    ) {
         // HoYoLAB 토큰 만료 감지 시 최상단 배너.
         if (hoyoTokenExpired) {
             glgStaggerItem(0, loadInSet) {
@@ -435,18 +441,6 @@ fun HomeContent(
                     onNavigateToMyPage()
                 })
             }
-        }
-        // 헤더 (프로필+닉네임+로그아웃 · 알림벨)
-        glgStaggerItem(1, loadInSet) {
-            HomeHeader(
-                photoUrl = account.photoUrl,
-                nickname = nickname,
-                isGuest = account.isGuest,
-                alertCount = unreadCount,
-                onBellClick = { showNotifications.value = true; viewModel.markAlertsRead(alerts.map { it.key }) },
-                onSignOut = { viewModel.signOut() },
-                onSignIn = { viewModel.signIn() },
-            )
         }
         // 히어로 — 이번 달 지출 / 예산 캐러셀 (Figma Make 참고)
         glgStaggerItem(2, loadInSet) {
@@ -496,6 +490,19 @@ fun HomeContent(
             Spacer(Modifier.height(12.dp))
         }
         item { Spacer(Modifier.height(120.dp)) }
+    }
+    // 헤더 오버레이 — 박스 배경 없음(투명). 콘텐츠가 이 버튼들 아래로 스크롤되어 지나간다.
+    Box(Modifier.fillMaxWidth().align(Alignment.TopCenter).padding(horizontal = 16.dp)) {
+        HomeHeader(
+            photoUrl = account.photoUrl,
+            nickname = nickname,
+            isGuest = account.isGuest,
+            alertCount = unreadCount,
+            onBellClick = { showNotifications.value = true; viewModel.markAlertsRead(alerts.map { it.key }) },
+            onSignOut = { viewModel.signOut() },
+            onSignIn = { viewModel.signIn() },
+        )
+    }
     }
     }
     }
