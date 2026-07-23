@@ -56,6 +56,7 @@
 		BF372FCD149E818166E7F9E3 /* Toast.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD62F3658FFD16B833EF98AA /* Toast.swift */; };
 		C3230B40CF73F7F63798F61D /* Pretendard-SemiBold.otf in Resources */ = {isa = PBXBuildFile; fileRef = EBE3389ACB5917724A4C6DD5 /* Pretendard-SemiBold.otf */; };
 		D1638799928C16B92E7BA17C /* Glass.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16692A76093EA64BC84CA502 /* Glass.swift */; };
+		D29010B2FCC6ADC85F2CC6E8 /* HoyolandSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = E487840A2C618D74E853EFC7 /* HoyolandSection.swift */; };
 		D3C86098452712BF2EF2F566 /* HomeRedesign.swift in Sources */ = {isa = PBXBuildFile; fileRef = D68A3D0581AB9E49D5412A97 /* HomeRedesign.swift */; };
 		D518B6D75F70EEA8A1332D03 /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = 27054819557D026D9CB4FE7D /* GoogleService-Info.plist */; };
 		E04926A07296AA0D760F37A8 /* GLGSkeleton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 716CDDC7D2BB3BEC9580864E /* GLGSkeleton.swift */; };
@@ -131,6 +132,7 @@
 		D68A3D0581AB9E49D5412A97 /* HomeRedesign.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeRedesign.swift; sourceTree = "<group>"; };
 		E167D2DF62218A027D330ECD /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
 		E1DC14C41EE7ECD2B59515D4 /* SubscriptionCenterView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionCenterView.swift; sourceTree = "<group>"; };
+		E487840A2C618D74E853EFC7 /* HoyolandSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HoyolandSection.swift; sourceTree = "<group>"; };
 		EBE3389ACB5917724A4C6DD5 /* Pretendard-SemiBold.otf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Pretendard-SemiBold.otf"; sourceTree = "<group>"; };
 		EC551FFC4A65F19F94A1987B /* SettingsDialogs.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsDialogs.swift; sourceTree = "<group>"; };
 		EDA6932189E1AD9D46B8D081 /* Pretendard-Bold.otf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Pretendard-Bold.otf"; sourceTree = "<group>"; };
@@ -187,6 +189,7 @@
 				43857C0EDD6E6397211940A6 /* GameTabbedSection.swift */,
 				846F3D6CE1BD91FB25597AA6 /* GiftCodeSheet.swift */,
 				24406A47C5595952918ABF5B /* HoyolabLinkView.swift */,
+				E487840A2C618D74E853EFC7 /* HoyolandSection.swift */,
 				FAB28B37B0E20AFF6F250226 /* NewsDetailView.swift */,
 				08F1ECE04BB2DA0CB5B2C723 /* NewsSection.swift */,
 			);
@@ -474,6 +477,7 @@
 				D3C86098452712BF2EF2F566 /* HomeRedesign.swift in Sources */,
 				BEDE307204D0F9A558DFFEB0 /* HomeView.swift in Sources */,
 				BCE6291BF8A244C01AF6F8F1 /* HoyolabLinkView.swift in Sources */,
+				D29010B2FCC6ADC85F2CC6E8 /* HoyolandSection.swift in Sources */,
 				516633AC40C13ACD8FEE9995 /* ImageViewer.swift in Sources */,
 				76C8B5CC8DB8D93A0C9CE484 /* LoginView.swift in Sources */,
 				80AB71E69B0A2282D237A141 /* Motion.swift in Sources */,

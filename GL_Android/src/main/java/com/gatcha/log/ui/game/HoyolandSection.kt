@@ -1,0 +1,200 @@
+package com.gatcha.log.ui.game
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.Celebration
+import androidx.compose.material.icons.filled.Place
+import androidx.compose.material3.Icon
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.gatcha.log.ui.components.GlassCard
+import com.gatcha.log.ui.components.GlgBadge
+import com.gatcha.log.ui.components.GlgOutlineButton
+import com.gatcha.log.ui.theme.DividerColor
+import com.gatcha.log.ui.theme.LocalAccent
+import com.gatcha.log.ui.theme.TextPrimary
+import com.gatcha.log.ui.theme.TextSecondary
+
+// ── 호요랜드(호요버스 한국 오프라인 행사) 대비용 플레이스홀더 ──────────────────
+// 장소는 아직 미확정(예상: 일산 킨텍스 제2전시장). 일정·예매도 미정.
+// 정보가 확정되면 shared 의 HoyolandEvent 모델 + 로더로 실데이터를 채우고,
+// 없으면 이 티저/예상 정보로 폴백한다(NewsSection / GameScheduleSection 과 동일 패리티).
+// iOS 대응 = HoyolandSection.swift.
+
+/** 예상 장소 — 확정 전까지 "(예상)"으로 표기. */
+private const val VENUE_NAME = "일산 킨텍스 제2전시장"
+private const val VENUE_ADDRESS = "경기도 고양시 일산서구 킨텍스로 217-60"
+private const val VENUE_MAP_URL = "https://map.naver.com/p/search/%ED%82%A8%ED%85%8D%EC%8A%A4%20%EC%A0%9C2%EC%A0%84%EC%8B%9C%EC%9E%A5"
+
+/** 게임정보 탭에 임베드되는 요약 카드 — 내용이 보이는 카드형, 탭하면 상세(HoyolandDetailContent)로 이동. */
+@Composable
+fun HoyolandSection(onOpen: () -> Unit) {
+    val accent = LocalAccent.current
+    Text("호요랜드", fontSize = 16.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 2.dp, bottom = 10.dp))
+    GlassCard(modifier = Modifier.fillMaxWidth().clickable { onOpen() }) {
+        Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        Modifier.size(44.dp).clip(RoundedCornerShape(12.dp)).background(accent.copy(alpha = 0.12f)),
+                        contentAlignment = Alignment.Center,
+                    ) { Icon(Icons.Default.Celebration, contentDescription = null, tint = accent, modifier = Modifier.size(22.dp)) }
+                    Spacer(Modifier.width(14.dp))
+                    Column(Modifier.weight(1f)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("호요버스 오프라인 행사", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+                            Spacer(Modifier.width(8.dp))
+                            GlgBadge("준비 중", accent)
+                        }
+                        Spacer(Modifier.height(3.dp))
+                        Text("호요버스가 준비하는 대규모 오프라인 행사", fontSize = 12.sp, color = TextSecondary)
+                    }
+                }
+                Spacer(Modifier.height(14.dp))
+                Box(Modifier.fillMaxWidth().height(1.dp).background(DividerColor))
+                Spacer(Modifier.height(14.dp))
+                HoyolandInfoRow("장소", "$VENUE_NAME (예상)")
+                Spacer(Modifier.height(8.dp))
+                HoyolandInfoRow("일정", "미정")
+            }
+            Spacer(Modifier.width(8.dp))
+            Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null, tint = TextSecondary, modifier = Modifier.size(18.dp))
+        }
+    }
+}
+
+/** 호요랜드 상세 페이지 — 예상 장소(킨텍스 제2전시장) 안내 + 지도 바로가기 + 미정 정보. */
+@Composable
+fun HoyolandDetailContent() {
+    val accent = LocalAccent.current
+    val uriHandler = LocalUriHandler.current
+    Text("호요랜드", fontSize = 22.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 4.dp, bottom = 4.dp))
+    Text("호요버스 오프라인 행사", fontSize = 13.sp, color = TextSecondary, modifier = Modifier.padding(bottom = 14.dp))
+
+    // 장소 카드
+    GlassCard(modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    Modifier.size(40.dp).clip(RoundedCornerShape(11.dp)).background(accent.copy(alpha = 0.12f)),
+                    contentAlignment = Alignment.Center,
+                ) { Icon(Icons.Default.Place, contentDescription = null, tint = accent, modifier = Modifier.size(20.dp)) }
+                Spacer(Modifier.width(12.dp))
+                Column(Modifier.weight(1f)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("장소", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+                        Spacer(Modifier.width(8.dp))
+                        GlgBadge("예상", accent)
+                    }
+                    Spacer(Modifier.height(2.dp))
+                    Text(VENUE_NAME, fontSize = 13.sp, fontWeight = FontWeight.Medium, color = TextPrimary)
+                }
+            }
+            Spacer(Modifier.height(10.dp))
+            Text(VENUE_ADDRESS, fontSize = 12.sp, color = TextSecondary)
+            Spacer(Modifier.height(14.dp))
+            GlgOutlineButton("지도에서 보기", onClick = { uriHandler.openUri(VENUE_MAP_URL) }, height = 46.dp)
+        }
+    }
+
+    Spacer(Modifier.height(14.dp))
+
+    // 미정 정보 카드
+    GlassCard(modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(16.dp)) {
+            HoyolandInfoRow("일정", "미정")
+            Spacer(Modifier.height(10.dp))
+            Box(Modifier.fillMaxWidth().height(1.dp).background(DividerColor))
+            Spacer(Modifier.height(10.dp))
+            HoyolandInfoRow("예매", "미정")
+        }
+    }
+
+    Spacer(Modifier.height(20.dp))
+
+    // 지난 행사 참고 — 실제 개최 이력(최신순). 예상 장소 근거이자 다음 행사 규모 가늠용.
+    Text("지난 행사", fontSize = 16.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 2.dp, bottom = 10.dp))
+    HoyolandPastEventCard(
+        "호요랜드 2025",
+        listOf(
+            "기간" to "2025.10.9 ~ 10.12 (4일)",
+            "장소" to "일산 킨텍스 제2전시장 9·10홀",
+            "규모" to "약 26,000㎡ · 티켓 3만 6천 장 완판",
+            "관람객" to "약 3만 2천 명 (4일)",
+            "참여 IP" to "원신 · 붕괴3rd · 스타레일 · 젠레스 · 미해결사건부",
+            "구성" to "체험존 · 굿즈 · 푸드 · 창작전시/DIY · 무대",
+        ),
+    )
+    Spacer(Modifier.height(12.dp))
+    HoyolandPastEventCard(
+        "호요랜드 2024 (첫 개최)",
+        listOf(
+            "기간" to "2024.10.31 ~ 11.3 (4일)",
+            "장소" to "일산 킨텍스 제2전시장 7·8홀",
+            "관람객" to "5만 명 이상 (4일)",
+            "참여 IP" to "원신 · 붕괴3rd · 스타레일 · 젠레스 · 미해결사건부",
+            "구성" to "미니게임 · 포토존 · 코스프레 퍼레이드 · 팬사인회 · 무대",
+        ),
+    )
+
+    Spacer(Modifier.height(14.dp))
+    Text(
+        "장소는 지난 2024·2025 개최지 기준 예상이며, 공식 일정·장소·예매가 확정되면 여기에서 바로 업데이트됩니다.",
+        fontSize = 11.sp, color = TextSecondary, modifier = Modifier.padding(horizontal = 2.dp),
+    )
+}
+
+/** 지난 행사 1건 카드 — 제목 + "종료" 배지 + 팩트 목록. */
+@Composable
+private fun HoyolandPastEventCard(title: String, facts: List<Pair<String, String>>) {
+    GlassCard(modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(title, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+                Spacer(Modifier.width(8.dp))
+                GlgBadge("종료", TextSecondary)
+            }
+            Spacer(Modifier.height(12.dp))
+            facts.forEachIndexed { i, (label, value) ->
+                if (i > 0) Spacer(Modifier.height(8.dp))
+                HoyolandFactRow(label, value)
+            }
+        }
+    }
+}
+
+/** 라벨(고정폭) + 값(줄바꿈 허용) — 지난 행사 팩트용. */
+@Composable
+private fun HoyolandFactRow(label: String, value: String) {
+    Row(Modifier.fillMaxWidth()) {
+        Text(label, fontSize = 13.sp, color = TextSecondary, modifier = Modifier.width(64.dp))
+        Text(value, fontSize = 13.sp, fontWeight = FontWeight.Medium, color = TextPrimary, modifier = Modifier.weight(1f))
+    }
+}
+
+@Composable
+private fun HoyolandInfoRow(label: String, value: String) {
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Text(label, fontSize = 13.sp, color = TextSecondary, modifier = Modifier.width(48.dp))
+        Text(value, fontSize = 13.sp, fontWeight = FontWeight.Medium, color = TextPrimary)
+    }
+}

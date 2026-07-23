@@ -16,6 +16,7 @@ struct GameInfoView: View {
     @State private var showSchedule = false
     @State private var showNews = false
     @State private var showPickups = false
+    @State private var showHoyoland = false
     @State private var statChar: EnkaChar? = nil
     @State private var statGame = "genshin"
     @State private var showStats = false
@@ -52,6 +53,8 @@ struct GameInfoView: View {
                 }
                 // 게임 주년 — 지원 게임의 다가오는 주년(임박 순).
                 section { AnniversarySection() }
+                // 호요랜드 — 호요버스 한국 오프라인 행사(플레이스홀더). 탭하면 예상 장소·지난 행사 상세로.
+                section { HoyolandSection(onOpen: { showHoyoland = true }) }
                 // 공지·뉴스 — 게임별 최신 공지(탭하면 HoYoLab 열기). 더보기로 전체 페이지.
                 section { NewsSection(store: store, filter: gameFilter, onSeeAll: { showNews = true }, onOpenNews: { selectedNews = $0; showNewsDetail = true }) }.id("NEWS")
                 if store.hoyolabConfig.isLinked {
@@ -129,6 +132,7 @@ struct GameInfoView: View {
             if let n = selectedNews { NewsDetailView(store: store, item: n) }
         }
         .navigationDestination(isPresented: $showPickups) { GamePickupPage(store: store, filter: gameFilter) }
+        .navigationDestination(isPresented: $showHoyoland) { HoyolandDetailView() }
         .navigationDestination(isPresented: $showStats) { if let c = statChar { EnkaStatPage(char: c, game: statGame) } }
         .navigationDestination(isPresented: $showRoster) {
             EnkaRosterPage(store: store, game: rosterGame)
