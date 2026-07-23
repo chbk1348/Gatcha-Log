@@ -805,7 +805,7 @@ struct GameSchedulePage: View {
             .filter { $0.kind != "패치" }.sorted { $0.target < $1.target }
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
-                Text("게임 일정").font(.pretendard(size: 22, weight: .bold)).padding(.bottom, 4)
+                // 페이지 타이틀은 네비게이션 바(뒤로가기 + 타이틀)로 — Android 상세 헤더와 동일 형식.
                 Text("픽업 배너를 버전별로 모으고, 이벤트·정기 콘텐츠를 아래에 정리했어요.").font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary).padding(.bottom, 6)
                 if allGroups.isEmpty && extras.isEmpty {
                     Text("예정된 일정이 없어요.").font(.pretendard(size: 13)).foregroundStyle(GLGColor.textSecondary)
@@ -840,6 +840,7 @@ struct GameSchedulePage: View {
         }
         .scrollIndicators(.hidden)
         .background(GLGBackground { Color.clear })
+        .navigationTitle("게임 일정")
         .navigationBarTitleDisplayMode(.inline)
     }
 }
@@ -853,7 +854,7 @@ struct GamePickupPage: View {
         let pickups = filteredPickups(store.activeBanners, filter: filter)
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
-                Text("전체 픽업").font(.pretendard(size: 22, weight: .bold)).padding(.bottom, 4)
+                // 페이지 타이틀은 네비게이션 바(뒤로가기 + 타이틀)로 — Android 상세 헤더와 동일 형식.
                 Text("진행 중인 캐릭터·무기 픽업을 종료 임박순으로 모았어요.").font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary).padding(.bottom, 14)
                 if pickups.isEmpty {
                     Text("진행 중인 픽업이 없어요.").font(.pretendard(size: 13)).foregroundStyle(GLGColor.textSecondary)
@@ -867,6 +868,7 @@ struct GamePickupPage: View {
         }
         .scrollIndicators(.hidden)
         .background(GLGBackground { Color.clear })
+        .navigationTitle("전체 픽업")
         .navigationBarTitleDisplayMode(.inline)
     }
 }

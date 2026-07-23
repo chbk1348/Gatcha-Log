@@ -48,7 +48,7 @@ struct GiftCodePage: View {
         .scrollIndicators(.hidden)
         .background(GLGBackground { Color.clear })
         .navigationTitle("리딤코드")
-        .navigationBarTitleDisplayMode(.large)
+        .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Button(loading ? "교환 중…" : "모두 교환") { store.redeemAllCodes(selected) }

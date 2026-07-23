@@ -84,12 +84,18 @@ struct SpendingDetailView: View {
             Button("취소", role: .cancel) {}
             Button("삭제", role: .destructive) { store.deleteSpending(s.id); dismiss() }
         } message: { Text("삭제하면 되돌릴 수 없어요.") }
-        // 수정·삭제를 네비게이션 헤더 우측으로 이동(하단 버튼 제거).
+        // 수정·삭제를 네비 헤더 우측 아이콘으로. 각각 별도 ToolbarItem + ToolbarSpacer 로 분리 —
+        // iOS 26 은 인접 툴바 아이템을 하나의 글래스 캡슐로 묶으므로 스페이서로 갈라 독립 원형 버튼으로.
         .toolbar {
-            ToolbarItemGroup(placement: .topBarTrailing) {
-                // 수정 시 상세페이지를 닫지 않음 — 편집 시트를 위에 띄우고, 닫으면 상세로 복귀(갱신 내용 표시)
-                Button("수정") { onEdit(s) }
-                Button("삭제", role: .destructive) { confirmDelete = true }
+            // 수정 시 상세페이지를 닫지 않음 — 편집 시트를 위에 띄우고, 닫으면 상세로 복귀(갱신 내용 표시)
+            ToolbarItem(placement: .topBarTrailing) {
+                Button { onEdit(s) } label: { Image(systemName: "pencil") }
+            }
+            if #available(iOS 26.0, *) {
+                ToolbarSpacer(.fixed, placement: .topBarTrailing)
+            }
+            ToolbarItem(placement: .topBarTrailing) {
+                Button(role: .destructive) { confirmDelete = true } label: { Image(systemName: "trash") }
             }
         }
     }

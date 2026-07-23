@@ -15,8 +15,6 @@ struct HomeView: View {
     @State private var didStart = false
     /// 콘텐츠 로드인 스태거 — 첫 표시 1회만 등장(스크롤 재진입 시 재애니메이션 방지용 인덱스 보관).
     @State private var appeared: Set<Int> = []
-    /// 헤더 프로필 탭 시 뜨는 계정 메뉴(마이페이지·로그아웃)
-    @State private var showAccountMenu = false
 
     /// iPad = 분할뷰 detail 안이라 상단바 처리 방식이 다르다(HomeTopBarStyle).
     private var isPad: Bool { UIDevice.current.userInterfaceIdiom == .pad }
@@ -52,37 +50,32 @@ struct HomeView: View {
         .toolbar {
             // 프로필 사진(좌) — 탭하면 마이페이지.
             ToolbarItem(placement: .topBarLeading) {
-                // Button 대신 onTapGesture — 툴바가 라벨을 강조색으로 틴트해 글자가 안 보이던 문제 회피.
-                HStack(spacing: 8) {
-                    ProfileAvatarView(photoUrl: store.account.isGuest ? nil : store.account.photoUrl, size: 32)
-                    Text(nickname)
-                        .font(.pretendard(size: 15, weight: .bold))
-                        .foregroundStyle(GLGColor.textPrimary)
-                        .lineLimit(1)
-                        .fixedSize(horizontal: true, vertical: false)   // 툴바가 폭을 0으로 압축하지 않게
-                        .padding(.trailing, 8)
-                }
-                .contentShape(Rectangle())
-                .onTapGesture { showAccountMenu = true }
-                // 버튼 바로 아래 드롭다운(팝오버) — 하단 액션시트 대신 버튼에 붙게.
-                .popover(isPresented: $showAccountMenu, arrowEdge: .top) {
-                    Button {
-                        showAccountMenu = false
-                        if store.account.isGuest { store.signIn() } else { store.signOut() }
-                    } label: {
-                        HStack(spacing: 10) {
-                            Image(systemName: store.account.isGuest ? "person.crop.circle.badge.plus" : "rectangle.portrait.and.arrow.right")
-                            Text(store.account.isGuest ? "로그인" : "로그아웃").font(.pretendard(size: 15, weight: .semibold))
-                            Spacer(minLength: 0)
+                // 네이티브 Menu 드롭다운 — 예전 .popover 는 iPhone(TabView 위)에서 하단 탭바 아이콘이
+                // 사라지는 SwiftUI 버그가 있었다. Menu 는 그 문제가 없다. .tint 로 라벨이 강조색으로
+                // 틴트돼 닉네임이 안 보이던 문제도 방지.
+                Menu {
+                    if store.account.isGuest {
+                        Button { store.signIn() } label: {
+                            Label("로그인", systemImage: "person.crop.circle.badge.plus")
                         }
-                        .foregroundStyle(store.account.isGuest ? GLGColor.textPrimary : GLGColor.dangerText)
-                        .padding(.horizontal, 18).padding(.vertical, 14)
-                        .contentShape(Rectangle())
+                    } else {
+                        Button(role: .destructive) { store.signOut() } label: {
+                            Label("로그아웃", systemImage: "rectangle.portrait.and.arrow.right")
+                        }
                     }
-                    .buttonStyle(.plain)
-                    .frame(width: 190)
-                    .presentationCompactAdaptation(.popover)
+                } label: {
+                    HStack(spacing: 8) {
+                        ProfileAvatarView(photoUrl: store.account.isGuest ? nil : store.account.photoUrl, size: 32)
+                        Text(nickname)
+                            .font(.pretendard(size: 15, weight: .bold))
+                            .foregroundStyle(GLGColor.textPrimary)
+                            .lineLimit(1)
+                            .fixedSize(horizontal: true, vertical: false)   // 툴바가 폭을 0으로 압축하지 않게
+                            .padding(.trailing, 8)
+                    }
+                    .contentShape(Rectangle())
                 }
+                .tint(GLGColor.textPrimary)
             }
             // 알림(우).
             ToolbarItem(placement: .topBarTrailing) {
