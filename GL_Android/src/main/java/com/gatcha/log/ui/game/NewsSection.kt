@@ -75,7 +75,8 @@ fun NewsSection(news: List<NewsItem>, gameFilter: String, onSeeAll: () -> Unit, 
 @Composable
 fun NewsFullContent(news: List<NewsItem>, gameFilter: String, onOpen: (NewsItem) -> Unit) {
     val all = filterNews(news, gameFilter)
-    Text("공지·뉴스", fontSize = 22.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 4.dp, bottom = 14.dp))
+    // 페이지 타이틀은 SectionPage 헤더에서 표시. (중복 제거)
+    Spacer(Modifier.height(4.dp))
     if (all.isEmpty()) {
         Text("공지가 없어요", fontSize = 13.sp, color = TextSecondary, modifier = Modifier.padding(vertical = 24.dp))
         return

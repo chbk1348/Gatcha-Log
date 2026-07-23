@@ -60,17 +60,22 @@ internal fun UpdateLogScreen(onBack: () -> Unit) {
         if (filter == null) entries else entries.filter { filter in it.kinds }
     }
 
+    // 흰 배경은 바깥 Box 가 상단 끝(상태바 뒤)까지 채우고, 리스트는 statusBarsPadding 으로 내려서
+    // 스티키 필터 헤더까지 상태바 아래에 고정한다(stickyHeader 는 contentPadding top 을 무시하고
+    // 뷰포트 최상단에 붙으므로 contentPadding 이 아니라 뷰포트 자체를 인셋해야 함).
+    Box(Modifier.fillMaxSize().background(Color.White)) {
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color.White)
+            .statusBarsPadding()
             .navigationBarsPadding(),
         contentPadding = PaddingValues(bottom = 40.dp),
     ) {
         // ── 뒤로 + 히어로 ──
         item {
             Column(Modifier.padding(horizontal = 18.dp)) {
-                Spacer(Modifier.height(8.dp).statusBarsPadding())
+                // 상태바 인셋은 LazyColumn contentPadding 이 처리 — 여기선 8dp 여백만.
+                Spacer(Modifier.height(8.dp))
                 GlgBackButton(onBack)
                 Spacer(Modifier.height(4.dp))
                 Row {
@@ -123,6 +128,7 @@ internal fun UpdateLogScreen(onBack: () -> Unit) {
         items(shown, key = { it.version }) { entry ->
             ReleaseCard(entry, filter)
         }
+    }
     }
 }
 

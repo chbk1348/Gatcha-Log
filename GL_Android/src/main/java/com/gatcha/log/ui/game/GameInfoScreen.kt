@@ -188,8 +188,8 @@ fun GameInfoScreen(
                 onBack = { subPage = GiSub.Main },
                 onOpenStats = { c, g -> statChar = c; statCharGame = g; statReturn = GiSub.CharRoster; subPage = GiSub.CharStats },
             )
-            GiSub.Calc -> SectionPage(onBack = { subPage = GiSub.Main }) { GachaCalculatorSection(pity) }
-            GiSub.Report -> SectionPage(onBack = { subPage = GiSub.Main }) {
+            GiSub.Calc -> SectionPage("가챠 계산기", onBack = { subPage = GiSub.Main }) { GachaCalculatorSection(pity) }
+            GiSub.Report -> SectionPage("가챠 효율 리포트", onBack = { subPage = GiSub.Main }) {
                 GachaReportSection(
                     stats = gachaStats,
                     spendByGameKey = gachaSpendByGame,
@@ -210,23 +210,24 @@ fun GameInfoScreen(
                 onRedeemAll = { key -> viewModel.redeemAllCodes(key) },
                 onBack = { subPage = GiSub.Main; viewModel.resetRedeem() },
             )
-            GiSub.Schedule -> SectionPage(onBack = { subPage = GiSub.Main }) {
+            GiSub.Schedule -> SectionPage("게임 일정", onBack = { subPage = GiSub.Main }) {
                 GameScheduleFullContent(banners, events, challenges, gameFilter)
             }
-            GiSub.Pickups -> SectionPage(onBack = { subPage = GiSub.Main }) {
+            GiSub.Pickups -> SectionPage("전체 픽업", onBack = { subPage = GiSub.Main }) {
                 GamePickupFullContent(banners, gameFilter)
             }
             GiSub.NewsDetail -> SectionPage(
+                "공지",
                 onBack = { subPage = newsReturn; viewModel.clearNewsArticle() },
             ) {
                 val n = newsItem
                 if (n != null) NewsDetailContent(viewModel, n)
             }
 
-            GiSub.News -> SectionPage(onBack = { subPage = GiSub.Main }) {
+            GiSub.News -> SectionPage("공지·뉴스", onBack = { subPage = GiSub.Main }) {
                 NewsFullContent(gameNews, gameFilter, onOpen = { openNews(it, GiSub.News) })
             }
-            GiSub.Hoyoland -> SectionPage(onBack = { subPage = GiSub.Main }) {
+            GiSub.Hoyoland -> SectionPage("호요랜드", onBack = { subPage = GiSub.Main }) {
                 HoyolandDetailContent()
             }
             GiSub.Main -> Box(Modifier.fillMaxSize()) {
@@ -363,11 +364,14 @@ private fun NavEntryCard(icon: ImageVector, title: String, sub: String, onClick:
 
 /** 페이지로 분류된 섹션 래퍼 — 뒤로가기 + 섹션 자체 콘텐츠 스크롤. (섹션 내부 헤더 사용) */
 @Composable
-private fun SectionPage(onBack: () -> Unit, content: @Composable () -> Unit) {
+private fun SectionPage(title: String, onBack: () -> Unit, content: @Composable () -> Unit) {
     BackHandler { onBack() }
     Column(Modifier.fillMaxSize().statusBarsPadding().padding(horizontal = 16.dp)) {
+        // 뒤로가기 + 타이틀(모든 상세 페이지 공통 노출).
         Row(Modifier.fillMaxWidth().padding(top = 12.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
             GlgBackButton(onBack)
+            Spacer(Modifier.width(10.dp))
+            Text(title, fontSize = 22.sp, fontWeight = FontWeight.Bold)
         }
         Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) {
             content()

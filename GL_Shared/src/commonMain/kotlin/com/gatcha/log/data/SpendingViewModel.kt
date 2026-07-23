@@ -1116,16 +1116,26 @@ class SpendingViewModel : ViewModel() {
     private val _updateInfo = MutableStateFlow<UpdateInfo?>(null)
     val updateInfo: StateFlow<UpdateInfo?> = _updateInfo.asStateFlow()
 
+    /**
+     * 강제 업데이트 여부 — 현재 버전이 매니페스트의 minVersionCode 미만.
+     * true 면 UI 는 닫을 수 없는 업데이트 화면을 띄운다(데이터 꼬임 방지·구버전 유지보수 종료).
+     */
+    private val _forceUpdate = MutableStateFlow(false)
+    val forceUpdate: StateFlow<Boolean> = _forceUpdate.asStateFlow()
+
     /** 원격 version.json 과 현재 버전 비교. [manual] 이면 최신일 때 토스트로 알림. */
     fun checkForUpdate(manual: Boolean = false) {
         viewModelScope.launch {
             val info = UpdateChecker.check()
-            if (info != null) _updateInfo.value = info
-            else if (manual) emitStatus("이미 최신 버전이에요")
+            if (info != null) {
+                _updateInfo.value = info
+                _forceUpdate.value = UpdateChecker.currentVersionCode() < info.minVersionCode
+            } else if (manual) emitStatus("이미 최신 버전이에요")
         }
     }
 
-    fun dismissUpdate() { _updateInfo.value = null }
+    /** 강제 업데이트일 땐 닫히지 않는다(구버전 계속 사용 차단). */
+    fun dismissUpdate() { if (!_forceUpdate.value) _updateInfo.value = null }
 
     /** 인앱 업데이트 다운로드 진행률(0~1). null = 진행 중 아님. */
     private val _updateProgress = MutableStateFlow<Float?>(null)

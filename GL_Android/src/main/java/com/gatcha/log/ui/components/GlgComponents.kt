@@ -398,12 +398,21 @@ fun GlgDialog(
     onConfirm: () -> Unit,
     dismissText: String? = "취소",
     confirmEnabled: Boolean = true,
+    /** false 면 백버튼·외부 탭으로 닫히지 않는다(강제 업데이트 등 필수 다이얼로그용). */
+    dismissable: Boolean = true,
     content: @Composable () -> Unit,
 ) {
     // 화면이 짧은 단말에서 입력칸이 많으면 다이얼로그가 화면을 넘쳐 하단 버튼이 가려지던 문제 방지:
     // 최대 높이를 화면의 90%로 제한하고, 제목·액션 버튼은 고정한 채 가운데 본문만 스크롤.
     val maxDialogHeight = (LocalConfiguration.current.screenHeightDp * 0.90f).dp
-    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(
+            usePlatformDefaultWidth = false,
+            dismissOnBackPress = dismissable,
+            dismissOnClickOutside = dismissable,
+        ),
+    ) {
         Box(Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) {
             androidx.compose.material3.Surface(
                 shape = RoundedCornerShape(24.dp),
