@@ -70,7 +70,7 @@ struct HoyolandDetailView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
-                Text("호요랜드").font(.pretendard(size: 22, weight: .bold))
+                // 페이지 타이틀은 네비게이션 바(뒤로가기 + 타이틀)로 — Android 상세 헤더와 동일 형식.
                 Text("호요버스 오프라인 행사").font(.pretendard(size: 13)).foregroundStyle(GLGColor.textSecondary)
                     .padding(.top, 2).padding(.bottom, 14)
 
@@ -149,7 +149,7 @@ struct HoyolandDetailView: View {
         }
         .scrollIndicators(.hidden)
         .background(GLGBackground { Color.clear })
-        .navigationTitle("")
+        .navigationTitle("호요랜드")
         .navigationBarTitleDisplayMode(.inline)
     }
 }
