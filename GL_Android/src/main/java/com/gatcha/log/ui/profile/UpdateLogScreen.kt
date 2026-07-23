@@ -3,12 +3,17 @@ package com.gatcha.log.ui.profile
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -59,6 +64,10 @@ internal fun UpdateLogScreen(onBack: () -> Unit) {
     val shown = remember(filter) {
         if (filter == null) entries else entries.filter { filter in it.kinds }
     }
+    // 강제 업데이트 지원 버전(minSupportedVersionCode 이상)은 펼쳐서, 그 미만(지원 종료)은 접기/펼치기.
+    val supported = remember(shown) { shown.filter { it.versionCode >= ChangeLog.minSupportedVersionCode } }
+    val unsupported = remember(shown) { shown.filter { it.versionCode < ChangeLog.minSupportedVersionCode } }
+    var showOld by remember { mutableStateOf(false) }
 
     // 흰 배경은 바깥 Box 가 상단 끝(상태바 뒤)까지 채우고, 리스트는 statusBarsPadding 으로 내려서
     // 스티키 필터 헤더까지 상태바 아래에 고정한다(stickyHeader 는 contentPadding top 을 무시하고
@@ -125,8 +134,36 @@ internal fun UpdateLogScreen(onBack: () -> Unit) {
             }
         }
 
-        items(shown, key = { it.version }) { entry ->
+        items(supported, key = { it.version }) { entry ->
             ReleaseCard(entry, filter)
+        }
+
+        // 지원 종료 버전 — 기본 접힘, '펼치기'로 열람.
+        if (unsupported.isNotEmpty()) {
+            item {
+                Row(
+                    Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 2.dp)
+                        .clip(RoundedCornerShape(16.dp))
+                        .clickable { showOld = !showOld }
+                        .background(CCard)
+                        .padding(horizontal = 16.dp, vertical = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text("지원 종료 버전 ${unsupported.size}개", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = CTextSub)
+                    Spacer(Modifier.weight(1f))
+                    Text(if (showOld) "접기" else "펼치기", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = CAccent)
+                    Spacer(Modifier.width(2.dp))
+                    Icon(
+                        if (showOld) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                        contentDescription = null, tint = CAccent, modifier = Modifier.size(20.dp),
+                    )
+                }
+            }
+            if (showOld) {
+                items(unsupported, key = { it.version }) { entry ->
+                    ReleaseCard(entry, filter)
+                }
+            }
         }
     }
     }

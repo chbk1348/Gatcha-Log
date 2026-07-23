@@ -151,6 +151,7 @@ struct UpdateLogPage: View {
     let version: String
     @Environment(\.glgAccent) private var accent
     @State private var filter: String? = nil   // ChangeKind.key("new"/"imp"/"fix"/"sec"), nil=전체
+    @State private var showOld = false          // 지원 종료(강제 업데이트 대상) 버전 펼침 여부
 
     private let cText = Color(hex: 0xFF15181C)
     private let cItem = Color(hex: 0xFF2A2E34)
@@ -161,6 +162,9 @@ struct UpdateLogPage: View {
         guard let f = filter else { return all }
         return all.filter { e in e.items.contains { $0.kind.key == f } }
     }
+    // 강제 업데이트 지원 버전(minSupportedVersionCode 이상)은 펼쳐서, 그 미만(지원 종료)은 접기/펼치기.
+    private var supported: [ChangeEntry] { entries.filter { $0.versionCode >= ChangeLog.shared.minSupportedVersionCode } }
+    private var unsupported: [ChangeEntry] { entries.filter { $0.versionCode < ChangeLog.shared.minSupportedVersionCode } }
 
     var body: some View {
         ScrollView {
@@ -168,7 +172,29 @@ struct UpdateLogPage: View {
                 hero
                 Section {
                     Color.clear.frame(height: 14)
-                    ForEach(entries, id: \.version) { entry in releaseCard(entry) }
+                    ForEach(supported, id: \.version) { entry in releaseCard(entry) }
+                    // 지원 종료 버전 — 기본 접힘, '펼치기'로 열람.
+                    if !unsupported.isEmpty {
+                        Button { withAnimation(GLGMotion.standard()) { showOld.toggle() } } label: {
+                            HStack(spacing: 2) {
+                                Text("지원 종료 버전 \(unsupported.count)개")
+                                    .font(.pretendard(size: 14, weight: .bold)).foregroundStyle(GLGColor.textSecondary)
+                                Spacer()
+                                Text(showOld ? "접기" : "펼치기")
+                                    .font(.pretendard(size: 13, weight: .semibold)).foregroundStyle(accent.primary)
+                                Image(systemName: showOld ? "chevron.up" : "chevron.down")
+                                    .font(.pretendard(size: 12, weight: .semibold)).foregroundStyle(accent.primary)
+                            }
+                            .padding(.horizontal, 16).padding(.vertical, 14)
+                            .background(Color(hex: 0xFFF3F4F7), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                            .padding(.horizontal, 18).padding(.vertical, 2)
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        if showOld {
+                            ForEach(unsupported, id: \.version) { entry in releaseCard(entry) }
+                        }
+                    }
                     if entries.isEmpty {
                         Text("해당 분류의 변경 사항이 없어요")
                             .font(.pretendard(size: 14)).foregroundStyle(GLGColor.textSecondary)

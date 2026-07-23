@@ -25,6 +25,16 @@ data class ChangeEntry(
     val securityPill: Boolean = false, // "보안 필수" 강조
     val items: List<ChangeItem>,
 ) {
+    /** "27.41.0" → 274100 (major*10000 + minor*100 + patch*10). version.json versionCode 규칙과 동일. */
+    val versionCode: Long
+        get() {
+            val p = version.split(".")
+            val major = p.getOrNull(0)?.toLongOrNull() ?: 0
+            val minor = p.getOrNull(1)?.toLongOrNull() ?: 0
+            val patch = p.getOrNull(2)?.toLongOrNull() ?: 0
+            return major * 10000 + minor * 100 + patch * 10
+        }
+
     /** 이 릴리스에 포함된 분류 집합(필터칩 매칭용). */
     val kinds: Set<ChangeKind> get() = items.map { it.kind }.toSet()
 
@@ -36,6 +46,12 @@ object ChangeLog {
 
     /** 헤더 메타 — 업데이트 기간 라벨. */
     const val periodLabel: String = "2026.05.23 ~ 07.23"
+
+    /**
+     * 강제 업데이트 최소 지원 버전코드(version.json 의 minVersionCode 와 동일하게 유지).
+     * 업데이트 로그에서 이 값 미만(지원 종료) 버전은 기본 접힌 채 '펼치기'로 표시한다.
+     */
+    const val minSupportedVersionCode: Long = 273000
 
     val entries: List<ChangeEntry> = buildList {
         add(ChangeEntry("27.41.0", "2026.07.23", featured = true, items = listOf(
