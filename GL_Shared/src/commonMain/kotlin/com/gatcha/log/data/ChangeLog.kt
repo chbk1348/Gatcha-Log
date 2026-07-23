@@ -38,7 +38,7 @@ object ChangeLog {
     const val periodLabel: String = "2026.05.23 ~ 07.23"
 
     val entries: List<ChangeEntry> = buildList {
-        add(ChangeEntry("27.41.0", "2026.07.23", items = listOf(
+        add(ChangeEntry("27.41.0", "2026.07.23", featured = true, items = listOf(
             new("공지를 앱 안에서 바로 읽어요 — 목록에서 탭하면 본문과 이미지가 그대로 열려요 (브라우저로 나가지 않아요)"),
             new("스타레일 이번 달 수입 일지가 나와요 — 원신·젠레스에 이어 세 게임 모두 지원해요"),
             new("호요랜드를 미리 만나요 — 게임 정보에 호요버스 오프라인 행사(호요랜드) 소개와 지난 행사(2024·2025) 기록을 담았어요"),
@@ -54,7 +54,7 @@ object ChangeLog {
             fix("알림 화면 배경을 깔끔한 흰색으로 고정했어요 (Android)"),
         )))
         // 27.38.0·27.39.0 은 배포하지 않고 27.40.0 으로 통합했다(코드만 올라가 있었음).
-        add(ChangeEntry("27.40.0", "2026.07.14", featured = true, items = listOf(
+        add(ChangeEntry("27.40.0", "2026.07.14", items = listOf(
             new("앱 아이콘을 새로 그렸어요 — 천장 게이지 링"),
             new("첫 실행 안내 — 앱을 처음 켜면 무엇을 할 수 있는지 4장으로 소개해드려요"),
             imp("앱을 켤 때 나오는 화면을 새단장했어요 — 게이지 링이 차오르며 불러오는 중임을 알려드려요"),
