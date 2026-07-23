@@ -142,7 +142,7 @@ fun HomeHeader(
         modifier = Modifier
             .fillMaxWidth()
             .height(GlgTabHeaderHeight)
-            .padding(start = 4.dp, end = 2.dp, top = 24.dp, bottom = 16.dp),
+            .padding(start = 4.dp, end = 2.dp, top = 12.dp, bottom = 16.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box {
@@ -152,8 +152,9 @@ fun HomeHeader(
                     .background(Color.White)                     // 불투명 베이스(콘텐츠 비침 방지)
                     .background(accent.copy(alpha = 0.10f))      // 위에 accent 틴트
                     .border(1.5.dp, accent.copy(alpha = 0.30f), RoundedCornerShape(999.dp))
+                    .height(44.dp)                               // 헤더 원형 버튼(44dp)과 높이 통일
                     .clickable { menuOpen = true }
-                    .padding(start = 5.dp, end = 12.dp, top = 5.dp, bottom = 5.dp),
+                    .padding(start = 5.dp, end = 12.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 ProfileAvatar(photoUrl = photoUrl, size = 30.dp)

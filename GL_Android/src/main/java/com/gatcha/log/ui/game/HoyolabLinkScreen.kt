@@ -49,7 +49,7 @@ fun HoyolabLinkScreen(config: HoyolabConfig, onSave: (HoyolabConfig) -> Unit, on
     val scope = rememberCoroutineScope()
     BackHandler { onBack() }
 
-    Column(Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
+    Column(Modifier.fillMaxSize().statusBarsPadding().padding(horizontal = 16.dp)) {
         // 헤더 — 뒤로 + 제목 + 저장(우측 이관)
         Row(
             Modifier.fillMaxWidth().padding(top = 12.dp, bottom = 8.dp),

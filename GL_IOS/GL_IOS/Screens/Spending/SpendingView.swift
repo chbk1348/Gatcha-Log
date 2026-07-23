@@ -42,12 +42,7 @@ struct SpendingView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
-                // 월 지출 헤더 — 일반 스크롤 헤더(콜랩스 없음). 넓은 화면에서도 카드 그리드 위에 전체폭으로.
-                // 필터 적용 중(총액이 필터 리스트와 불일치)이거나 선택 모드일 땐 숨긴다.
-                if activeFilterCount == 0 && !selectionMode {
-                    monthHeader
-                        .padding(.top, 4).padding(.bottom, 10)
-                }
+                // "N월 지출" 요약 헤더는 지출 인사이트 '월간' 탭으로 이동(MonthSummaryHeader).
                 if listIsEmpty {
                     emptyState
                 } else {
@@ -213,27 +208,6 @@ struct SpendingView: View {
                 else { gameFilters.insert(g.displayName) }
             }
         }
-    }
-
-    // 월 지출 헤더 — 이번 달 총 지출 + 지난달 대비. 일반 스크롤 헤더(콜랩스 없음 → 스크롤 시 비용 0).
-    private var monthHeader: some View {
-        let total = store.monthlyTotal()
-        let diff = total - store.prevMonthTotal()
-        return VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 6) {
-                Image(systemName: "chart.pie.fill").font(.pretendard(size: 13)).foregroundStyle(accent.primary)
-                Text("\(store.displayMonth)월 지출").font(.pretendard(size: 13, weight: .medium)).foregroundStyle(GLGColor.textSecondary)
-            }
-            Text(won(total)).font(.pretendard(size: 34, weight: .heavy)).foregroundStyle(GLGColor.textPrimary).lineLimit(1)
-            if total > 0 || store.prevMonthTotal() > 0 {
-                Text("지난달 " + (diff == 0 ? "동일" : (diff > 0 ? "+" : "-") + won(abs(diff))))
-                    .font(.pretendard(size: 13, weight: .semibold))
-                    .foregroundStyle(diff > 0 ? GLGColor.dangerText : (diff < 0 ? accent.primary : GLGColor.textSecondary))
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, 20).padding(.vertical, 18)
-        .glgGlass(in: RoundedRectangle(cornerRadius: 24, style: .continuous))
     }
 
     private var emptyState: some View {

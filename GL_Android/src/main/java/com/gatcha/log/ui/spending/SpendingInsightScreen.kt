@@ -81,6 +81,8 @@ fun SpendingInsightScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
             var tab by remember { mutableStateOf(0) }
             InsightTabToggle(tab, { tab = it }, accent)
             if (tab == 0) {
+                // "N월 지출" 요약(지출 목록 상단에서 이동) — 월간 인사이트 맨 위.
+                MonthlySummaryCard(month, monthTotal, viewModel.prevMonthTotal())
                 BudgetPaceCard(monthTotal, budget, month, accent)
                 MoMCard(spendings, year, month, accent)
                 PaymentStatsCard(spendings, year, month)
