@@ -50,7 +50,7 @@ import com.gatcha.log.ui.theme.*
 import kotlinx.coroutines.launch
 
 /** 게임정보 탭의 풀스크린 하위 페이지 (열리면 하단바·FAB 숨김) */
-private enum class GiSub { Main, HoyoLink, Dashboard, Calc, Report, Gift, Schedule, Pickups, News, NewsDetail, CharStats, CharRoster }
+private enum class GiSub { Main, HoyoLink, Dashboard, Calc, Report, Gift, Schedule, Pickups, News, NewsDetail, CharStats, CharRoster, Hoyoland }
 
 /** 화면 전환 push/pop 방향용 계층 깊이. Main=0, 하위 페이지=1, 상세(목록서 진입)=2. */
 private fun subDepth(s: GiSub): Int = when (s) {
@@ -226,6 +226,9 @@ fun GameInfoScreen(
             GiSub.News -> SectionPage(onBack = { subPage = GiSub.Main }) {
                 NewsFullContent(gameNews, gameFilter, onOpen = { openNews(it, GiSub.News) })
             }
+            GiSub.Hoyoland -> SectionPage(onBack = { subPage = GiSub.Main }) {
+                HoyolandDetailContent()
+            }
             GiSub.Main -> Box(Modifier.fillMaxSize()) {
             GlgPullToRefreshBox(
             isRefreshing = isRefreshing,
@@ -276,6 +279,9 @@ fun GameInfoScreen(
             // 게임 주년 — 지원 게임의 다가오는 주년(임박 순).
             item { Spacer(Modifier.height(20.dp)) }
             item { AnniversarySection() }
+            // 호요랜드 — 호요버스 한국 오프라인 행사(플레이스홀더). 정보 확정 전 "준비 중" 티저.
+            item { Spacer(Modifier.height(20.dp)) }
+            item { HoyolandSection(onOpen = { subPage = GiSub.Hoyoland }) }
             // 공지·뉴스 — 게임별 최신 공지(탭하면 HoYoLab 열기).
             item { Spacer(Modifier.height(20.dp)) }
             item {
