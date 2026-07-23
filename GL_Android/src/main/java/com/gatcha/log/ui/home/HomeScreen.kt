@@ -654,7 +654,7 @@ private fun NotificationDetailScreen(
     onDismiss: (HomeAlert) -> Unit,
     onDismissAll: () -> Unit,
 ) {
-    Column(Modifier.fillMaxSize()) {
+    Column(Modifier.fillMaxSize().background(Color.White)) {
         GlgScreenHeader("알림", onBack, Modifier.padding(horizontal = 16.dp))
         if (alerts.isEmpty()) {
             Column(

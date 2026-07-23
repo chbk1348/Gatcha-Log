@@ -46,6 +46,7 @@ import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupProperties
 import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.MutableTransitionState
 import androidx.compose.animation.core.updateTransition
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.ui.graphics.TransformOrigin
@@ -542,7 +543,11 @@ fun GlgDropdownMenu(
     alignEnd: Boolean = false,
     content: @Composable ColumnScope.() -> Unit,
 ) {
-    if (!expanded) return
+    // 열림/닫힘 모션 — 상태를 별도로 추적해 닫힐 때도 퇴장 애니메이션 후 언마운트한다.
+    // (currentState=false && targetState=false 일 때만 완전히 사라짐)
+    val visibleState = remember { MutableTransitionState(false) }
+    visibleState.targetState = expanded
+    if (!visibleState.currentState && !visibleState.targetState) return
     val accent = LocalAccent.current
     Popup(
         alignment = if (alignEnd) Alignment.TopEnd else Alignment.TopStart,
@@ -550,19 +555,23 @@ fun GlgDropdownMenu(
         onDismissRequest = onDismissRequest,
         properties = PopupProperties(focusable = true),
     ) {
-        // 등장 모션 — 앵커 쪽(위)에서 살짝 펼쳐지듯 스케일 + 페이드.
-        val transition = updateTransition(targetState = true, label = "glgMenu")
-        val scale by transition.animateFloat(transitionSpec = { glgShortSpec() }, label = "scale") { 0.92f + 0.08f * if (it) 1f else 0f }
+        // 등장/퇴장 모션 — 앵커 쪽(위)에서 펼쳐지듯 스케일 + 페이드(닫힐 땐 역재생).
+        val transition = updateTransition(visibleState, label = "glgMenu")
+        val scale by transition.animateFloat(transitionSpec = { glgShortSpec() }, label = "scale") { if (it) 1f else 0.92f }
         val alpha by transition.animateFloat(transitionSpec = { glgShortSpec() }, label = "alpha") { if (it) 1f else 0f }
         Surface(
             shape = RoundedCornerShape(20.dp),
             color = Color.White,                                   // 불투명 — 아래 콘텐츠 비침 방지
             border = BorderStroke(1.5.dp, accent.copy(alpha = 0.30f)),
-            shadowElevation = 12.dp,
+            // 그림자를 scale/alpha 와 같은 graphicsLayer 에 합쳐 그린다 — 애니메이션 중 그림자가
+            // 별도 레이어로 따로 스케일·페이드되며 엉성해지던 문제 해결(메뉴와 하나로 부드럽게).
             modifier = modifier
                 .graphicsLayer {
                     scaleX = scale; scaleY = scale; this.alpha = alpha
                     transformOrigin = TransformOrigin(if (alignEnd) 1f else 0f, 0f)
+                    shadowElevation = 12.dp.toPx() * alpha        // 페이드와 함께 그림자도 서서히
+                    shape = RoundedCornerShape(20.dp)
+                    clip = false
                 }
                 .widthIn(min = 160.dp, max = 280.dp),
         ) {
