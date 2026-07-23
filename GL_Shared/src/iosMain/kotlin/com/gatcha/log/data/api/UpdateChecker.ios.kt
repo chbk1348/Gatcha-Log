@@ -3,8 +3,8 @@ package com.gatcha.log.data.api
 import platform.Foundation.NSBundle
 
 /**
- * iOS 업데이트 확인 — App Store 가 업데이트를 담당하므로 인앱 업데이트는 항상 없음(null).
- * 버전 표시는 NSBundle 의 Info.plist 값을 사용.
+ * iOS 업데이트 확인 — 사이드로딩 배포라 인앱 자동 설치는 불가하지만, 강제 업데이트 판정을 위해
+ * version.json 을 조회한다(설치는 릴리스 페이지로 유도). 버전은 NSBundle(Info.plist) 값.
  */
 actual object UpdateChecker {
 
@@ -15,6 +15,5 @@ actual object UpdateChecker {
     actual fun currentVersionName(): String =
         (NSBundle.mainBundle.objectForInfoDictionaryKey("CFBundleShortVersionString") as? String) ?: ""
 
-    /** iOS 는 인앱 업데이트 미지원 (App Store 정책) — 항상 null. */
-    actual suspend fun check(): UpdateInfo? = null
+    actual suspend fun check(): UpdateInfo? = fetchUpdateInfo(currentVersionCode())
 }

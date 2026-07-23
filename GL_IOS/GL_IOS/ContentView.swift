@@ -128,6 +128,37 @@ struct ContentView: View {
             }
         }
         .animation(GLGMotion.standard(), value: store.signingOut)
+        // 강제 업데이트 — 현재 버전이 최소 지원 버전 미만이면 앱 전체를 덮는 닫히지 않는 화면.
+        // (데이터 꼬임 방지·구버전 유지보수 종료. iOS 는 사이드로딩이라 '지금 업데이트'가 릴리스 페이지를 연다.)
+        .overlay {
+            if store.forceUpdate {
+                ZStack {
+                    Color(.systemBackground).ignoresSafeArea()
+                    VStack(spacing: 16) {
+                        Image(systemName: "arrow.down.circle.fill")
+                            .font(.system(size: 52, weight: .semibold)).foregroundStyle(accent)
+                        Text("필수 업데이트").font(.pretendard(size: 22, weight: .heavy))
+                            .foregroundStyle(GLGColor.textPrimary)
+                        Text("데이터 꼬임을 막기 위해 이전 버전 지원이 종료됐어요.\n계속하려면 업데이트가 필요해요.")
+                            .font(.pretendard(size: 14)).foregroundStyle(GLGColor.textSecondary)
+                            .multilineTextAlignment(.center).lineSpacing(3)
+                        if !store.updateVersionName.isEmpty {
+                            Text("최신 버전 v\(store.updateVersionName)")
+                                .font(.pretendard(size: 13, weight: .semibold)).foregroundStyle(accent)
+                        }
+                        Button { store.startInAppUpdate() } label: {
+                            Text("지금 업데이트").font(.pretendard(size: 16, weight: .bold))
+                                .foregroundStyle(.white).frame(maxWidth: .infinity).padding(.vertical, 15)
+                                .background(accent, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                        }
+                        .padding(.top, 6)
+                    }
+                    .padding(.horizontal, 36)
+                }
+                .transition(.opacity)
+            }
+        }
+        .animation(GLGMotion.standard(), value: store.forceUpdate)
         // 루트 상태 전환(로그인→로딩→탭)만 standard 크로스페이드 — 네이티브 내비 UX 보존.
         .animation(GLGMotion.standard(), value: rootPhase)
         .onAppear {
@@ -140,6 +171,8 @@ struct ContentView: View {
                 syncGateActive = active.boolValue
             }
         }
+        // 실행 시 원격 매니페스트로 강제 업데이트 여부 확인(구버전이면 store.forceUpdate=true).
+        .task { store.checkForUpdate(manual: false) }
         // 현재 탭 인덱스를 Kotlin 과 동기화 — 토스트를 보이는 탭에서만 컴포즈하기 위함
         // (탭 4(추가 버튼)는 실제 탭이 아니므로 제외)
         // iOS 16 호환을 위해 1-파라미터 onChange 사용 (2-파라미터 버전은 iOS 17+)

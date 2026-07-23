@@ -136,6 +136,7 @@ fun HomeScreen(viewModel: SpendingViewModel = viewModel()) {
         viewModel.checkForUpdate()
     }
     val updateInfo by viewModel.updateInfo.collectAsState()
+    val forceUpdate by viewModel.forceUpdate.collectAsState()
     val updateProgress by viewModel.updateProgress.collectAsState()
     val signingOut by viewModel.signingOut.collectAsState()
     val statusMessage by viewModel.statusMessage.collectAsState()
@@ -264,6 +265,7 @@ fun HomeScreen(viewModel: SpendingViewModel = viewModel()) {
                                 info = info,
                                 onDownload = { viewModel.startInAppUpdate() },
                                 onDismiss = { viewModel.dismissUpdate() },
+                                force = forceUpdate,
                             )
                         }
 

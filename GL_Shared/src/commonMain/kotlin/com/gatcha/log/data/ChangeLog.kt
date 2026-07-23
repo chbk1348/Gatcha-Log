@@ -35,9 +35,19 @@ data class ChangeEntry(
 object ChangeLog {
 
     /** 헤더 메타 — 업데이트 기간 라벨. */
-    const val periodLabel: String = "2026.05.23 ~ 07.14"
+    const val periodLabel: String = "2026.05.23 ~ 07.23"
 
     val entries: List<ChangeEntry> = buildList {
+        add(ChangeEntry("27.42.0", "2026.07.23", items = listOf(
+            new("호요랜드를 미리 만나요 — 게임 정보에 호요버스 오프라인 행사(호요랜드) 소개와 지난 행사(2024·2025) 기록을 담았어요"),
+            imp("이번 달 지출 요약을 '지출 인사이트 > 월간' 맨 위로 옮겨 예산·통계와 한곳에서 봐요"),
+            imp("지출 목록 화면을 더 넓게 — 위로 스크롤하면 상단이 은은하게 흐려지며 내용이 지나가요 (Android)"),
+            imp("화면이 상태바 뒤까지 이어져 더 시원해졌어요 (Android)"),
+            imp("홈·지출·게임 정보·마이페이지 헤더 버튼 크기와 간격을 통일했어요 (Android)"),
+            imp("상세 화면마다 제목을 헤더에 표시해 지금 어느 화면인지 한눈에 보여요 (Android)"),
+            imp("메뉴가 열리고 닫힐 때 부드러운 애니메이션을 더했어요 (Android)"),
+            fix("알림 화면 배경을 깔끔한 흰색으로 고정했어요 (Android)"),
+        )))
         add(ChangeEntry("27.41.0", "2026.07.14", items = listOf(
             new("공지를 앱 안에서 바로 읽어요 — 목록에서 탭하면 본문과 이미지가 그대로 열려요 (브라우저로 나가지 않아요)"),
             new("스타레일 이번 달 수입 일지가 나와요 — 원신·젠레스에 이어 세 게임 모두 지원해요"),

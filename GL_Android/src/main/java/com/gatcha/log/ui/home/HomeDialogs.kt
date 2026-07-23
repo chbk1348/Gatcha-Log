@@ -64,16 +64,23 @@ internal fun HomeCardEditDialog(cards: List<HomeCardItem>, onDismiss: () -> Unit
 }
 
 @Composable
-internal fun UpdateDialog(info: UpdateInfo, onDownload: () -> Unit, onDismiss: () -> Unit) {
+internal fun UpdateDialog(info: UpdateInfo, onDownload: () -> Unit, onDismiss: () -> Unit, force: Boolean = false) {
+    val ver = if (info.versionName.isNotBlank()) " (v${info.versionName})" else ""
     GlgDialog(
-        title = "업데이트 있어요" + if (info.versionName.isNotBlank()) " (v${info.versionName})" else "",
+        title = if (force) "필수 업데이트$ver" else "업데이트 있어요$ver",
         onDismiss = onDismiss,
         confirmText = "다운로드 후 설치",
         onConfirm = onDownload,
-        dismissText = "나중에",
+        // 강제 업데이트는 '나중에' 없이 다운로드만, 닫기 불가.
+        dismissText = if (force) null else "나중에",
+        dismissable = !force,
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("앱에서 바로 받아 설치할 수 있어요. (설치 후 임시 파일은 자동 삭제)", fontSize = 13.sp, color = TextSecondary)
+            Text(
+                if (force) "데이터 꼬임을 막기 위해 이전 버전 지원이 종료됐어요. 계속하려면 업데이트가 필요해요."
+                else "앱에서 바로 받아 설치할 수 있어요. (설치 후 임시 파일은 자동 삭제)",
+                fontSize = 13.sp, color = TextSecondary,
+            )
             if (info.notes.isNotEmpty()) {
                 Spacer(Modifier.height(2.dp))
                 info.notes.forEach { n ->

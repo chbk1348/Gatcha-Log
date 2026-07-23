@@ -33,6 +33,11 @@ final class SpendingStore: ObservableObject {
     /// 로그아웃 진행 중 — 네트워크 대기 동안 오버레이를 띄운다(Android SignOutOverlay 대응).
     @Published private(set) var signingOut: Bool = false
 
+    /// 강제 업데이트 — 현재 버전이 최소 지원 버전 미만. true 면 앱 위에 닫히지 않는 업데이트 화면을 덮는다.
+    @Published private(set) var forceUpdate: Bool = false
+    /// 업데이트 대상 버전명(강제 업데이트 화면 표시용).
+    @Published private(set) var updateVersionName: String = ""
+
     // ── Phase 2 (마이페이지/설정) ──
     @Published private(set) var spendings: [Spending] = []
     @Published private(set) var budget: Int64 = 0
@@ -132,6 +137,8 @@ final class SpendingStore: ObservableObject {
         bind(vm.networkAlert) { [weak self] in self?.networkAlert = $0 }
         bind(vm.initialSyncing) { [weak self] in self?.initialSyncing = $0.boolValue }
         bind(vm.signingOut) { [weak self] in self?.signingOut = $0.boolValue }
+        bind(vm.forceUpdate) { [weak self] in self?.forceUpdate = $0.boolValue }
+        bind(vm.updateInfo) { [weak self] in self?.updateVersionName = $0?.versionName ?? "" }
 
         // Phase 2
         bind(vm.spendings) { [weak self] in self?.spendings = $0 }
@@ -268,6 +275,8 @@ final class SpendingStore: ObservableObject {
     func clearGachaRecords() { vm.clearGachaRecords() }
     func clearSpendings() { vm.clearSpendings() }
     func checkForUpdate(manual: Bool = true) { vm.checkForUpdate(manual: manual) }
+    /// 강제 업데이트 화면의 '지금 업데이트' — iOS 는 릴리스 페이지를 연다(사이드로딩).
+    func startInAppUpdate() { vm.startInAppUpdate() }
     func updateHoyolabConfig(_ config: HoyolabConfig) { vm.updateHoyolabConfig(config: config) }
     func consumePendingOpenHoyolabLink() { vm.consumePendingOpenHoyolabLink() }
     /// 홈 카드 → 게임 정보 탭 스크롤 앵커 요청/소비.

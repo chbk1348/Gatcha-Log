@@ -87,8 +87,8 @@ fun HoyolandSection(onOpen: () -> Unit) {
 fun HoyolandDetailContent() {
     val accent = LocalAccent.current
     val uriHandler = LocalUriHandler.current
-    Text("호요랜드", fontSize = 22.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 4.dp, bottom = 4.dp))
-    Text("호요버스 오프라인 행사", fontSize = 13.sp, color = TextSecondary, modifier = Modifier.padding(bottom = 14.dp))
+    // 페이지 타이틀은 SectionPage 헤더에서 표시. 여기선 부제만.
+    Text("호요버스 오프라인 행사", fontSize = 13.sp, color = TextSecondary, modifier = Modifier.padding(top = 4.dp, bottom = 14.dp))
 
     // 장소 카드
     GlassCard(modifier = Modifier.fillMaxWidth()) {

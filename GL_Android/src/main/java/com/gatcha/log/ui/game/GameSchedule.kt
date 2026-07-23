@@ -673,8 +673,8 @@ fun GameScheduleFullContent(
 @Composable
 fun GamePickupFullContent(banners: List<GachaBanner>, filter: String) {
     val pickups = filteredPickups(banners, filter)
-    Text("전체 픽업", fontSize = 22.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 4.dp))
-    Text("진행 중인 캐릭터·무기 픽업을 종료 임박순으로 모았어요.", fontSize = 12.sp, color = TextSecondary, modifier = Modifier.padding(bottom = 14.dp))
+    // 페이지 타이틀은 SectionPage 헤더에서 표시. 여기선 부제만.
+    Text("진행 중인 캐릭터·무기 픽업을 종료 임박순으로 모았어요.", fontSize = 12.sp, color = TextSecondary, modifier = Modifier.padding(top = 4.dp, bottom = 14.dp))
     if (pickups.isEmpty()) {
         Text("진행 중인 픽업이 없어요.", fontSize = 13.sp, color = TextSecondary, modifier = Modifier.fillMaxWidth().padding(top = 40.dp))
     } else {
