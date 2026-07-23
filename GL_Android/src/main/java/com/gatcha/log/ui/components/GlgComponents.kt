@@ -230,7 +230,8 @@ fun GlgScreenHeader(
     actions: @Composable RowScope.() -> Unit = {},
 ) {
     Row(
-        modifier = modifier.fillMaxWidth().padding(top = 12.dp, bottom = 8.dp),
+        // edge-to-edge: 하위 페이지 헤더가 상태바 인셋을 직접 소유(공용 상단 패딩 없음).
+        modifier = modifier.fillMaxWidth().statusBarsPadding().padding(top = 12.dp, bottom = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         GlgBackButton(onBack)
@@ -250,7 +251,7 @@ fun GlgScreenHeader(
  * 탭(루트) 헤더의 고정 높이. 4개 탭이 모두 이 높이를 쓰고, 각 탭의 스크롤 인셋(contentPadding
  * 또는 Spacer)도 이 값을 참조한다 — 헤더 높이를 바꾸면 여기 한 곳만 고치면 된다.
  */
-val GlgTabHeaderHeight = 80.dp
+val GlgTabHeaderHeight = 72.dp
 
 /**
  * 탭(루트) 화면 공통 헤더 — 큰 제목 + 우측 액션 슬롯. 지출·게임정보·마이페이지가 공유하고,
@@ -267,7 +268,7 @@ fun GlgTabHeader(
     actions: @Composable RowScope.() -> Unit = {},
 ) {
     Row(
-        modifier = modifier.fillMaxWidth().height(GlgTabHeaderHeight).padding(top = 24.dp, bottom = 16.dp),
+        modifier = modifier.fillMaxWidth().height(GlgTabHeaderHeight).padding(top = 12.dp, bottom = 16.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -445,7 +446,7 @@ fun GlgCircleIconButton(
     icon: ImageVector,
     contentDescription: String,
     modifier: Modifier = Modifier,
-    size: Dp = 40.dp,
+    size: Dp = 44.dp,
     loading: Boolean = false,
     enabled: Boolean = true,
     badgeCount: Int = 0,
@@ -470,7 +471,7 @@ fun GlgCircleIconButton(
             if (loading) {
                 CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp, color = accent)
             } else {
-                Icon(icon, contentDescription = contentDescription, tint = accent, modifier = Modifier.size(18.dp))
+                Icon(icon, contentDescription = contentDescription, tint = accent, modifier = Modifier.size(20.dp))
             }
         }
         if (badgeCount > 0) {

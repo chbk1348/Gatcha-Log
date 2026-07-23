@@ -235,13 +235,14 @@ fun GameInfoScreen(
             onRefresh = { viewModel.refreshGameInfo(force = true) },
             modifier = Modifier.fillMaxSize(),
         ) {
+            val topInset = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
             LazyColumn(
                 state = listState,
                 modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
                 contentPadding = PaddingValues(bottom = 120.dp),
             ) {
-            // 헤더 자리(고정) — item 0 은 앵커 인덱스 유지용 스페이서. 실제 헤더는 아래 오버레이.
-            item { Spacer(Modifier.height(GlgTabHeaderHeight)) }
+            // 헤더 자리(고정) — item 0 은 앵커 인덱스 유지용 스페이서. 실제 헤더는 아래 오버레이. (상태바+헤더)
+            item { Spacer(Modifier.height(GlgTabHeaderHeight + topInset)) }
             // 최상단 히어로 — 실시간 노트 + 출석체크 통합
             item {
                 DailyHeroSection(
@@ -313,8 +314,8 @@ fun GameInfoScreen(
             item { Spacer(Modifier.height(20.dp)) }
         }
     }
-            // 헤더 오버레이 — 투명 바, 버튼만 불투명. 콘텐츠가 버튼 아래로 지나간다.
-            Box(Modifier.align(Alignment.TopStart).fillMaxWidth().padding(horizontal = 16.dp)) {
+            // 헤더 오버레이 — 투명 바, 버튼만 불투명. 콘텐츠가 버튼 아래로 지나간다. 상태바 인셋 적용.
+            Box(Modifier.align(Alignment.TopStart).fillMaxWidth().statusBarsPadding().padding(horizontal = 16.dp)) {
                 GlgTabHeader(
                     "",
                     leading = { GameFilterDropdown(selected = gameFilter, onSelect = { gameFilter = it }) },
@@ -364,7 +365,7 @@ private fun NavEntryCard(icon: ImageVector, title: String, sub: String, onClick:
 @Composable
 private fun SectionPage(onBack: () -> Unit, content: @Composable () -> Unit) {
     BackHandler { onBack() }
-    Column(Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
+    Column(Modifier.fillMaxSize().statusBarsPadding().padding(horizontal = 16.dp)) {
         Row(Modifier.fillMaxWidth().padding(top = 12.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
             GlgBackButton(onBack)
         }

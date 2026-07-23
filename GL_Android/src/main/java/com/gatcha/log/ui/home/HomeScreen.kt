@@ -227,8 +227,10 @@ fun HomeScreen(viewModel: SpendingViewModel = viewModel()) {
                                 .align(Alignment.TopCenter),
                         )
                     }
-                    // 콘텐츠는 하단바 아래까지 확장(상단 인셋만 적용)
-                    Box(modifier = Modifier.fillMaxSize().padding(top = paddingValues.calculateTopPadding())) {
+                    // 전 화면 edge-to-edge(상단 인셋 없음). 각 화면이 자기 상단 인셋을 소유한다 —
+                    // 메인 탭 헤더/하위 페이지 헤더 모두 statusBarsPadding 으로 직접 처리(전환 중 레이아웃
+                    // 점프 방지). 리스트는 상태바 뒤로 스크롤된다.
+                    Box(modifier = Modifier.fillMaxSize()) {
                         AnimatedContent(
                             targetState = selectedTab,
                             modifier = Modifier.fillMaxSize(),
@@ -432,11 +434,12 @@ fun HomeContent(
     // 히어로 그라데이션은 HomeScreen(Scaffold 레벨)에서 상태바 뒤까지 그린다.
     // 콘텐츠 로드인 스태거 — 앱 진입 후 1회만 등장(스크롤·탭 재진입 시 재애니메이션 방지). 세션 영속 집합.
     val loadInSet = rememberGlgLoadInSet("home")
-    // 헤더는 투명 오버레이(아래) — 콘텐츠가 헤더 버튼 '아래로' 지나가도록 상단 여백만큼 인셋.
+    // 헤더는 투명 오버레이(아래) — 콘텐츠가 헤더 버튼 '아래로' 지나가도록 (상태바+헤더)만큼 인셋.
+    val topInset = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     LazyColumn(
         state = listState,
         modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
-        contentPadding = PaddingValues(top = GlgTabHeaderHeight),
+        contentPadding = PaddingValues(top = GlgTabHeaderHeight + topInset),
     ) {
         // HoYoLAB 토큰 만료 감지 시 최상단 배너.
         if (hoyoTokenExpired) {
@@ -496,8 +499,8 @@ fun HomeContent(
         }
         item { Spacer(Modifier.height(120.dp)) }
     }
-    // 헤더 오버레이 — 박스 배경 없음(투명). 콘텐츠가 이 버튼들 아래로 스크롤되어 지나간다.
-    Box(Modifier.fillMaxWidth().align(Alignment.TopCenter).padding(horizontal = 16.dp)) {
+    // 헤더 오버레이 — 박스 배경 없음(투명). 콘텐츠가 이 버튼들 아래로 스크롤되어 지나간다. 상태바 인셋 적용.
+    Box(Modifier.fillMaxWidth().align(Alignment.TopCenter).statusBarsPadding().padding(horizontal = 16.dp)) {
         HomeHeader(
             photoUrl = account.photoUrl,
             nickname = nickname,

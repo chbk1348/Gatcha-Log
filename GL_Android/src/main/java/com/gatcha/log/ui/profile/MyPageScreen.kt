@@ -108,11 +108,12 @@ fun MyPageScreen(
             return@AnimatedContent
         }
 
+    val topInset = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     Box(Modifier.fillMaxSize()) {
     LazyColumn(
         state = listState,
         modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
-        contentPadding = PaddingValues(top = GlgTabHeaderHeight, bottom = 120.dp),
+        contentPadding = PaddingValues(top = GlgTabHeaderHeight + topInset, bottom = 120.dp),
     ) {
         // ① 프로필 헤더 (연회색 카드)
         item {
@@ -167,8 +168,8 @@ fun MyPageScreen(
         item { SectionLabel("게임별 지출") }
         item { Box(Modifier.fillMaxWidth().glgLoadIn(4, loadInSet)) { GameDonutCard(spendings) } }
     }
-    // 헤더 오버레이 — 투명 바, 설정 버튼만 불투명. 콘텐츠가 버튼 아래로 지나간다.
-    Box(Modifier.align(Alignment.TopStart).fillMaxWidth().padding(horizontal = 16.dp)) {
+    // 헤더 오버레이 — 투명 바, 설정 버튼만 불투명. 콘텐츠가 버튼 아래로 지나간다. 상태바 인셋 적용.
+    Box(Modifier.align(Alignment.TopStart).fillMaxWidth().statusBarsPadding().padding(horizontal = 16.dp)) {
         val headerAccent = LocalAccent.current
         GlgTabHeader(
             "",
@@ -180,9 +181,9 @@ fun MyPageScreen(
                         .background(Color.White)
                         .background(headerAccent.copy(alpha = 0.10f))
                         .border(1.5.dp, headerAccent.copy(alpha = 0.30f), RoundedCornerShape(999.dp))
-                        // 16sp 텍스트 + vertical 8dp ≈ 39dp — 헤더 버튼(40dp) 안에 들어와야
-                        // GlgTabHeaderHeight(80dp) 를 넘지 않는다.
-                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                        .height(44.dp) // 헤더 원형 버튼(GlgCircleIconButton 44dp)과 높이 통일
+                        .padding(horizontal = 16.dp),
+                    contentAlignment = Alignment.Center,
                 ) {
                     Text("마이페이지", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = headerAccent)
                 }

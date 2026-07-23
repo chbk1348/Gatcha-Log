@@ -20,6 +20,8 @@ struct SpendingInsightView: View {
                 } else {
                     insightToggle
                     if tab == 0 {
+                        // "N월 지출" 요약(지출 목록 상단에서 이동) — 월간 인사이트 맨 위.
+                        MonthSummaryHeader(store: store)
                         budgetPaceCard
                         momCard
                         paymentStatsCard
@@ -357,5 +359,33 @@ struct MonthlyTrendCard: View {
         } else {
             return AnyView(EmptyView())
         }
+    }
+}
+
+/// "N월 지출" 요약 헤더 — 이번 달 총 지출 + 지난달 대비. (지출 목록 상단에서 인사이트 월간 탭으로 이동)
+/// SpendingView·SpendingInsightView 양쪽에서 재사용하기 위해 별도 View 로 추출.
+struct MonthSummaryHeader: View {
+    @ObservedObject var store: SpendingStore
+    @Environment(\.glgAccent) private var accent
+
+    var body: some View {
+        let total = store.monthlyTotal()
+        let prev = store.prevMonthTotal()
+        let diff = total - prev
+        return VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 6) {
+                Image(systemName: "chart.pie.fill").font(.pretendard(size: 13)).foregroundStyle(accent.primary)
+                Text("\(store.displayMonth)월 지출").font(.pretendard(size: 13, weight: .medium)).foregroundStyle(GLGColor.textSecondary)
+            }
+            Text(won(total)).font(.pretendard(size: 34, weight: .heavy)).foregroundStyle(GLGColor.textPrimary).lineLimit(1)
+            if total > 0 || prev > 0 {
+                Text("지난달 " + (diff == 0 ? "동일" : (diff > 0 ? "+" : "-") + won(abs(diff))))
+                    .font(.pretendard(size: 13, weight: .semibold))
+                    .foregroundStyle(diff > 0 ? GLGColor.dangerText : (diff < 0 ? accent.primary : GLGColor.textSecondary))
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 20).padding(.vertical, 18)
+        .glgGlass(in: RoundedRectangle(cornerRadius: 24, style: .continuous))
     }
 }

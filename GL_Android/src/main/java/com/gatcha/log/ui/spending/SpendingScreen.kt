@@ -39,14 +39,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Size
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.foundation.background
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -57,6 +57,7 @@ import com.gatcha.log.data.Spending
 import com.gatcha.log.ui.components.GlassCard
 import com.gatcha.log.ui.components.GlgButton
 import com.gatcha.log.ui.components.GlgTabHeader
+import com.gatcha.log.ui.components.GlgTabHeaderHeight
 import com.gatcha.log.ui.components.GlgOutlineButton
 import com.gatcha.log.ui.theme.*
 import com.gatcha.log.util.won
@@ -117,8 +118,6 @@ fun SpendingScreen(
         savedDetailId = (nav as? SpendingScreenNav.Detail)?.spending?.id
     }
 
-    val monthlyTotal = remember(spendings) { viewModel.monthlyTotal() }
-    val prevMonthTotal = remember(spendings) { previousMonthTotal(spendings) }
 
     // 지난 달 연/월 계산
     val (lastY, lastM) = remember {
@@ -172,20 +171,10 @@ fun SpendingScreen(
             SpendingScreenNav.List -> Unit
         }
 
-    // 월 지출 히어로 스크롤 축소(iOS 패리티) — 히어로를 리스트 위 오버레이로 두고, 리스트 첫 항목에
-    // '히어로 자리'(고정 높이)를 둬서 콜랩스해도 콘텐츠 maxOffset 이 바뀌지 않게 한다(최하단 떨림 방지).
-    // 콜랩스는 첫 항목(자리) 스크롤 오프셋 기준(자리가 충분히 높아 매끄럽게 보간).
-    val density = LocalDensity.current
-    val maxCollapsePx = with(density) { 64.dp.toPx() }
-    val collapse by remember {
-        derivedStateOf {
-            if (listState.firstVisibleItemIndex > 0) 1f
-            else (listState.firstVisibleItemScrollOffset / maxCollapsePx).coerceIn(0f, 1f)
-        }
-    }
-    // 펼친 히어로(헤더+카드) 높이 — 콜랩스 0일 때 측정해 '히어로 자리' spacer 로 사용. 측정 전 추정 기본값.
-    var heroOverlayPx by remember { mutableIntStateOf(0) }
-    val heroSpacerDp = if (heroOverlayPx > 0) with(density) { heroOverlayPx.toDp() } else 196.dp
+    // 헤더(액션 바)를 리스트 위 오버레이로 고정하고, 리스트 첫 항목에 '헤더 자리'((상태바+헤더) 높이)를 둔다.
+    // 다른 탭(게임정보/마이페이지)과 동일한 고정 인셋 방식 — 예전엔 월지출 히어로(가변 높이)라 측정했지만
+    // 이제 고정 헤더뿐이라 측정 폐기(측정값이 인셋과 얽혀 탭마다 간격이 어긋나던 문제 해결).
+    val heroSpacerDp = GlgTabHeaderHeight + WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     // 로드인 스태거 — 앱 진입 후 1회만 등장(인덱스=정렬 리스트 내 위치). 탭 재진입 재생 방지(세션 영속).
     val loadInSet = rememberGlgLoadInSet("spending")
 
@@ -217,6 +206,12 @@ fun SpendingScreen(
             else -> filtered.sortedByDescending { it.dateMillis }.groupBy { it.dayKey }.values.toList()
         }
     }
+
+    // 상단 스크림 — 리스트가 액션 바 아래로 스크롤될 때만 배경색 그라데이션으로 페이드(최상단에선 숨김).
+    val scrolled by remember {
+        derivedStateOf { listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 0 }
+    }
+    val topScrimAlpha by animateFloatAsState(if (scrolled) 0.5f else 0f, label = "topScrim")
 
     Box(Modifier.fillMaxSize()) {
         GlgPullToRefreshBox(
@@ -254,13 +249,28 @@ fun SpendingScreen(
             item { Spacer(Modifier.height(120.dp)) }
         }
     }
-        // 히어로 오버레이 — 헤더(액션+필터) + 월 지출 카드(축소). iOS 와 동일하게 헤더만 불투명 배경,
-        // 카드는 떠 있고 좌우·하단은 투명 → 리스트가 카드 밑으로 자연스럽게 슬라이드되며 비친다. 콜랩스 0일 때 높이 측정 → 자리(spacer).
+        // 상단 스크림 — 헤더(버튼) 아래에 깔려, 스크롤될 때만 배경색으로 리스트를 페이드아웃시킨다.
+        Box(
+            Modifier
+                .align(Alignment.TopStart)
+                .fillMaxWidth()
+                .height(heroSpacerDp)
+                .graphicsLayer { alpha = topScrimAlpha }
+                .background(
+                    Brush.verticalGradient(
+                        0f to BackgroundGradientStart,
+                        0.6f to BackgroundGradientStart,
+                        1f to Color.Transparent,
+                    ),
+                ),
+        )
+        // 헤더 오버레이 — 액션 바(보기 전환/목록 조작)만. 헤더만 불투명(버튼), 좌우·하단 투명 →
+        // 리스트가 버튼 아래로 자연스럽게 슬라이드되며 비친다. 높이 측정 → 리스트 첫 항목 자리(spacer).
         Column(
             Modifier
                 .align(Alignment.TopStart)
                 .fillMaxWidth()
-                .onSizeChanged { if (collapse == 0f) heroOverlayPx = it.height },
+                .statusBarsPadding(),
         ) {
             // 헤더 바 배경 없음(투명) — 리스트가 버튼 아래로 지나가고, 버튼만 불투명(solidBackground).
             Box(Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
@@ -275,9 +285,6 @@ fun SpendingScreen(
                     GlgCircleIconButton(Icons.Default.Checklist, "선택", outlined = true, solidBackground = true) { selectionMode = true; selectedIds = emptySet() }
                     GlgCircleIconButton(Icons.Default.Tune, "필터", outlined = true, badgeCount = activeFilterCount, solidBackground = true) { showFilterSheet.value = true }
                 }
-            }
-            Box(Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
-                MonthlySummaryCard(viewModel.displayMonth, monthlyTotal, prevMonthTotal, collapse)
             }
         }
         AnimatedVisibility(
@@ -327,13 +334,6 @@ fun SpendingScreen(
             onDismiss = { showBulkEdit.value = false },
         )
     }
-}
-
-private fun previousMonthTotal(spendings: List<Spending>): Long {
-    val cal = Calendar.getInstance().apply { add(Calendar.MONTH, -1) }
-    val y = cal.get(Calendar.YEAR)
-    val m = cal.get(Calendar.MONTH) + 1
-    return spendings.filter { DateUtil.isSameMonth(it.dateMillis, y, m) }.sumOf { it.amount }
 }
 
 @Composable

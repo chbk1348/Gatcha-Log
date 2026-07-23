@@ -6,6 +6,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -52,8 +53,9 @@ fun GameFilterDropdown(
                 .background(Color.White)
                 .background(accent.copy(alpha = 0.10f))
                 .border(1.5.dp, accent.copy(alpha = 0.30f), RoundedCornerShape(999.dp))
+                .height(44.dp) // 헤더 원형 버튼(GlgCircleIconButton 44dp)과 높이 통일
                 .clickable { expanded = true }
-                .padding(start = 14.dp, end = 6.dp, top = 6.dp, bottom = 6.dp),
+                .padding(start = 14.dp, end = 6.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(label, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = accent)
