@@ -7,6 +7,7 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -28,6 +29,7 @@ import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
@@ -174,39 +176,12 @@ private fun GameRosterBlock(
                 chars.isEmpty() -> Hint(
                     result?.error ?: "표시할 캐릭터가 없어요 (인게임 쇼케이스 공개 확인)",
                 )
-                else -> {
-                    // 대표 4명만 표시, 그 이상은 더보기로 전체 페이지 진입
-                    chars.take(4).chunked(2).forEach { row ->
-                        Row(Modifier.fillMaxWidth().height(IntrinsicSize.Max), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                            row.forEach { c ->
-                                Box(Modifier.weight(1f).fillMaxHeight()) { RosterCard(c, game, Modifier.fillMaxHeight()) { onOpenStats(c, game) } }
-                            }
-                            if (row.size == 1) Spacer(Modifier.weight(1f))
-                        }
-                        Spacer(Modifier.height(10.dp))
-                    }
-                    if (chars.size > 4) MoreButton(chars.size, accent) { onOpenAll(game) }
-                }
+                else -> RosterRow(chars, game, accent, onOpenStats, onOpenAll)
             }
         }
     }
 }
 
-// 뉴스 섹션과 동일한 '더보기' 스타일 — 카드 내부 구분선 + 가운데 정렬 accent 텍스트.
-@Composable
-private fun MoreButton(count: Int, accent: Color, onClick: () -> Unit) {
-    Box(Modifier.fillMaxWidth().height(1.dp).background(DividerColor))
-    Row(
-        modifier = Modifier.fillMaxWidth().clickable { onClick() }.padding(top = 10.dp, bottom = 2.dp),
-        horizontalArrangement = Arrangement.Center,
-    ) {
-        Text("더보기 ($count)", fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = accent)
-    }
-}
-
-/**
- * 보유 캐릭터 전체 목록 페이지 — 더보기 진입. 캐릭터 탭 → 스탯 상세([onOpenStats]).
- */
 @Composable
 fun EnkaRosterPage(
     viewModel: SpendingViewModel,
@@ -305,7 +280,85 @@ private fun Hint(text: String) {
     Text(text, fontSize = 12.sp, color = TextSecondary, modifier = Modifier.padding(vertical = 12.dp))
 }
 
-/** 로스터 카드 — 초상 + 이름 + Lv·우정/원소·명좌. 탭 가능. */
+/**
+ * 로스터 한 줄 — 초상 + 이름만, 한 행에 최대 [ROSTER_SLOTS] 칸. **가로 스크롤 없음.**
+ *
+ * 예전엔 게임마다 2×2 큰 카드였다. 게임이 3개면 그것만으로 화면 세 개 분량이라
+ * 아래 섹션(게임 일정·공지)이 한참 밀렸다. 한 줄로 눌러 스크롤을 3분의 1로 줄인다.
+ * 인원이 칸보다 많으면 마지막 칸을 "+N"으로 바꿔 전체 페이지로 보낸다 —
+ * 좌우로 밀어서 찾게 하지 않는다(밀 수 있다는 걸 알아채기 어렵고, 몇 명인지도 안 보인다).
+ */
+private const val ROSTER_SLOTS = 6
+
+@Composable
+private fun RosterRow(
+    chars: List<EnkaChar>,
+    game: String,
+    accent: Color,
+    onOpenStats: (EnkaChar, String) -> Unit,
+    onOpenAll: (String) -> Unit,
+) {
+    val overflow = chars.size > ROSTER_SLOTS
+    // 넘치면 마지막 칸은 "+N" — 앞의 (칸-1)명만 보여준다.
+    val shown = if (overflow) chars.take(ROSTER_SLOTS - 1) else chars.take(ROSTER_SLOTS)
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        shown.forEach { c ->
+            Box(Modifier.weight(1f)) { RosterSlot(c, Modifier) { onOpenStats(c, game) } }
+        }
+        if (overflow) {
+            Box(Modifier.weight(1f)) { MoreSlot(chars.size - shown.size, accent) { onOpenAll(game) } }
+        }
+        // 인원이 칸보다 적어도 칸 폭은 고정 — 두 명뿐인 게임의 초상이 혼자 커지지 않게.
+        repeat(ROSTER_SLOTS - shown.size - if (overflow) 1 else 0) { Spacer(Modifier.weight(1f)) }
+    }
+}
+
+/** 한 칸 — 원형 초상 + 이름 두 줄. 그 외 정보(레벨·돌파)는 상세에서 본다. */
+@Composable
+private fun RosterSlot(c: EnkaChar, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    val rarityColor = if (c.rarity >= 5) Gold else Purple
+    Column(
+        modifier.clip(RoundedCornerShape(12.dp)).clickable { onClick() }.padding(vertical = 4.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Box(
+            Modifier.size(44.dp).clip(CircleShape).background(rarityColor.copy(alpha = 0.14f)),
+            contentAlignment = Alignment.Center,
+        ) {
+            if (c.iconUrl != null) {
+                AsyncImage(model = c.iconUrl, contentDescription = c.name, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+            } else {
+                Text(c.name.take(1), fontSize = 17.sp, fontWeight = FontWeight.Bold, color = rarityColor)
+            }
+        }
+        Spacer(Modifier.height(5.dp))
+        Text(
+            c.name, fontSize = 9.5.sp, fontWeight = FontWeight.Bold, color = TextPrimary,
+            maxLines = 2, overflow = TextOverflow.Ellipsis, lineHeight = 11.sp,
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+        )
+    }
+}
+
+/** 남은 인원 칸 — 누르면 전체 로스터 페이지로. */
+@Composable
+private fun MoreSlot(rest: Int, accent: Color, onClick: () -> Unit) {
+    Column(
+        Modifier.clip(RoundedCornerShape(12.dp)).clickable { onClick() }.padding(vertical = 4.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Box(
+            Modifier.size(44.dp).clip(CircleShape).background(accent.copy(alpha = 0.12f)),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text("+$rest", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = accent)
+        }
+        Spacer(Modifier.height(5.dp))
+        Text("전체", fontSize = 9.5.sp, fontWeight = FontWeight.Bold, color = accent, maxLines = 1)
+    }
+}
+
+/** 로스터 카드 — 초상 + 이름 + Lv·우정/원소·명좌. 탭 가능. (전체 로스터 페이지 전용) */
 @Composable
 private fun RosterCard(c: EnkaChar, game: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
     val rarityColor = if (c.rarity >= 5) Gold else Purple

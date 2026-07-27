@@ -111,20 +111,7 @@ struct EnkaCharSection: View {
             } else if chars.isEmpty {
                 hint(result?.error ?? "표시할 캐릭터가 없어요 (인게임 쇼케이스 공개 확인)")
             } else {
-                // 대표 4명만 표시, 그 이상은 더보기로 전체 페이지 진입
-                LazyVGrid(columns: cols, spacing: 10) {
-                    ForEach(Array(chars.prefix(4).enumerated()), id: \.offset) { _, c in
-                        Button { onOpen(c, game) } label: { enkaRosterCard(c, game) }.buttonStyle(.plain)
-                    }
-                }
-                if chars.count > 4 {
-                    // 뉴스 섹션과 동일한 '더보기' 스타일 — 구분선 + 가운데 정렬 accent 텍스트.
-                    Divider()
-                    Button { onOpenAll(game) } label: {
-                        Text("더보기 (\(chars.count))").font(.pretendard(size: 12.5, weight: .bold))
-                            .foregroundStyle(accent.primary).frame(maxWidth: .infinity).padding(.top, 8).padding(.bottom, 2)
-                    }.buttonStyle(.plain)
-                }
+                RosterRow(chars: chars, game: game, onOpen: onOpen, onOpenAll: onOpenAll)
             }
         }
         }
@@ -153,6 +140,83 @@ struct EnkaCharSection: View {
         Text(t).font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary).padding(.vertical, 12)
     }
 
+}
+
+/// 로스터 한 줄 — 초상 + 이름만, 한 행에 최대 [slots] 칸. **가로 스크롤 없음.**
+///
+/// 예전엔 게임마다 2×2 큰 카드였다. 게임이 3개면 그것만으로 화면 세 개 분량이라
+/// 아래 섹션(게임 일정·공지)이 한참 밀렸다. 한 줄로 눌러 스크롤을 3분의 1로 줄인다.
+/// 인원이 칸보다 많으면 마지막 칸을 "+N"으로 바꿔 전체 페이지로 보낸다 —
+/// 좌우로 밀어서 찾게 하지 않는다(밀 수 있다는 걸 알아채기 어렵고, 몇 명인지도 안 보인다).
+private struct RosterRow: View {
+    let chars: [EnkaChar]
+    let game: String
+    let onOpen: (EnkaChar, String) -> Void
+    let onOpenAll: (String) -> Void
+    @Environment(\.glgAccent) private var accent
+
+    private let slots = 6
+
+    var body: some View {
+        let overflow = chars.count > slots
+        // 넘치면 마지막 칸은 "+N" — 앞의 (칸-1)명만 보여준다.
+        let shown = Array(chars.prefix(overflow ? slots - 1 : slots))
+        HStack(alignment: .top, spacing: 6) {
+            ForEach(Array(shown.enumerated()), id: \.offset) { _, c in
+                Button { onOpen(c, game) } label: { RosterSlot(c: c) }
+                    .buttonStyle(.plain).frame(maxWidth: .infinity)
+            }
+            if overflow {
+                Button { onOpenAll(game) } label: { MoreSlot(rest: chars.count - shown.count) }
+                    .buttonStyle(.plain).frame(maxWidth: .infinity)
+            }
+            // 인원이 칸보다 적어도 칸 폭은 고정 — 두 명뿐인 게임의 초상이 혼자 커지지 않게.
+            ForEach(0..<max(0, slots - shown.count - (overflow ? 1 : 0)), id: \.self) { _ in
+                Color.clear.frame(maxWidth: .infinity).frame(height: 1)
+            }
+        }
+    }
+}
+
+/// 한 칸 — 원형 초상 + 이름(최대 2줄). 그 외 정보(레벨·돌파)는 상세에서 본다.
+private struct RosterSlot: View {
+    let c: EnkaChar
+    var body: some View {
+        let rc = c.rarity >= 5 ? enkaGold : Color(hex: 0xFF9B6BD6)
+        VStack(spacing: 5) {
+            ZStack {
+                Circle().fill(rc.opacity(0.14))
+                if let icon = c.iconUrl, let u = URL(string: icon) {
+                    AsyncImage(url: u) { $0.resizable().scaledToFill() } placeholder: { Color.clear }
+                        .clipShape(Circle())
+                } else {
+                    Text(String(c.name.prefix(1))).font(.pretendard(size: 17, weight: .bold)).foregroundStyle(rc)
+                }
+            }
+            .frame(width: 44, height: 44)
+            Text(c.name)
+                .font(.pretendard(size: 9.5, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
+                .multilineTextAlignment(.center).lineLimit(2).fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(.vertical, 4).contentShape(Rectangle())
+    }
+}
+
+/// 남은 인원 칸 — 누르면 전체 로스터 페이지로.
+private struct MoreSlot: View {
+    let rest: Int
+    @Environment(\.glgAccent) private var accent
+    var body: some View {
+        VStack(spacing: 5) {
+            ZStack {
+                Circle().fill(accent.primary.opacity(0.12))
+                Text("+\(rest)").font(.pretendard(size: 13, weight: .bold)).foregroundStyle(accent.primary)
+            }
+            .frame(width: 44, height: 44)
+            Text("전체").font(.pretendard(size: 9.5, weight: .bold)).foregroundStyle(accent.primary).lineLimit(1)
+        }
+        .padding(.vertical, 4).contentShape(Rectangle())
+    }
 }
 
 /// 로스터 카드(섹션·보유 페이지 공용). [game] 은 명좌/성혼 라벨 표기용.
