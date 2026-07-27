@@ -7,6 +7,7 @@ import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -22,6 +23,9 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -268,12 +272,19 @@ fun GameInfoScreen(
                 HoyolandDetailContent()
             }
             GiSub.Main -> Box(Modifier.fillMaxSize()) {
+            val topInset = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+            // 상단 스크림 — 콘텐츠가 헤더(버튼) 아래로 스크롤될 때만 배경색 그라데이션으로 살짝 흐린다.
+            // 최상단에선 숨겨 화면을 넓게 쓰고, 스크롤 중에는 버튼 뒤로 지나가는 글자가 겹쳐 읽히지 않게 한다.
+            // (지출 탭과 같은 규격)
+            val scrolled by remember {
+                derivedStateOf { listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 0 }
+            }
+            val topScrimAlpha by animateFloatAsState(if (scrolled) 0.5f else 0f, label = "topScrim")
             GlgPullToRefreshBox(
             isRefreshing = isRefreshing,
             onRefresh = { viewModel.refreshGameInfo(force = true) },
             modifier = Modifier.fillMaxSize(),
         ) {
-            val topInset = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
             LazyColumn(
                 state = listState,
                 modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
@@ -340,6 +351,21 @@ fun GameInfoScreen(
             item { Spacer(Modifier.height(20.dp)) }
         }
     }
+            // 상단 스크림 — 헤더(버튼) 아래에 깔린다.
+            Box(
+                Modifier
+                    .align(Alignment.TopStart)
+                    .fillMaxWidth()
+                    .height(GlgTabHeaderHeight + topInset)
+                    .graphicsLayer { alpha = topScrimAlpha }
+                    .background(
+                        Brush.verticalGradient(
+                            0f to BackgroundGradientStart,
+                            0.6f to BackgroundGradientStart,
+                            1f to Color.Transparent,
+                        ),
+                    ),
+            )
             // 헤더 오버레이 — 투명 바, 버튼만 불투명. 콘텐츠가 버튼 아래로 지나간다. 상태바 인셋 적용.
             Box(Modifier.align(Alignment.TopStart).fillMaxWidth().statusBarsPadding().padding(horizontal = 16.dp)) {
                 GlgTabHeader(
