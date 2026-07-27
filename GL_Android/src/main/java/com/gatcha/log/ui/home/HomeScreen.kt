@@ -38,6 +38,7 @@ import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -183,6 +184,10 @@ fun HomeScreen(viewModel: SpendingViewModel = viewModel()) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
+                    // 퇴장 중인 페이지는 아래로 내린다 — AnimatedContent 는 전환 동안 두 화면을 함께
+                    // 합성하므로, 닫히는 편집 페이지가 위에 남아 있으면 그 사이 눌린 '+' 탭을 가로챈다
+                    // (지출 추가 버튼이 간헐적으로 안 먹던 원인 중 하나).
+                    .zIndex(if (editorTarget == spendingEditor.value) 1f else 0f)
                     .graphicsLayer {
                         val s = 0.35f + 0.65f * morph
                         scaleX = s

@@ -69,11 +69,17 @@ fun BottomNavBar(selectedTab: Int, onTabSelected: (Int) -> Unit, onAddClick: () 
                 }
             }
 
-            // FAB: 폭(64*fab)·스케일·투명도를 같은 진행값으로 줄여 하단바와 동시에 사라짐/등장
+            // FAB: 폭·크기·투명도를 같은 진행값으로 줄여 하단바와 동시에 사라짐/등장.
+            //
+            // ⚠️ 예전엔 부모 폭만 (64*fab) 로 줄이고 버튼은 requiredSize(64.dp) 로 고정한 뒤
+            // graphicsLayer 로 스케일했다. 그러면 **보이는 크기와 터치 영역이 어긋난다** —
+            // 레이어 스케일은 히트 테스트 좌표까지 함께 줄이므로, 애니메이션 중(탭 전환·하위 페이지
+            // 복귀 직후)에 버튼을 눌러도 반응이 없는 경우가 생겼다. 지금은 버튼 자체의 크기를
+            // 애니메이션해 보이는 영역과 터치 영역을 항상 일치시킨다.
             Box(
                 modifier = Modifier
                     .width((64 * fab).dp)
-                    .graphicsLayer { alpha = fab; scaleX = fab; scaleY = fab },
+                    .graphicsLayer { alpha = fab },
                 contentAlignment = Alignment.Center,
             ) {
                 if (fab > 0.01f) {
@@ -83,7 +89,7 @@ fun BottomNavBar(selectedTab: Int, onTabSelected: (Int) -> Unit, onAddClick: () 
                         contentColor = Color.White,
                         shape = CircleShape,
                         modifier = Modifier
-                            .requiredSize(64.dp)
+                            .requiredSize((64 * fab).dp)
                             // 입체감: accent 틴트 드롭 섀도(떠 있는 느낌). Material elevation 대신
                             // Modifier.shadow 로 줘서 FAB 스케일 애니메이션 중 깜빡임 없이 함께 스케일됨.
                             .shadow(12.dp, CircleShape, clip = false, ambientColor = accent.copy(alpha = 0.4f), spotColor = accent.copy(alpha = 0.6f)),
@@ -95,7 +101,7 @@ fun BottomNavBar(selectedTab: Int, onTabSelected: (Int) -> Unit, onAddClick: () 
                             hoveredElevation = 0.dp,
                         ),
                     ) {
-                        Icon(Icons.Default.Add, contentDescription = "지출 추가", modifier = Modifier.size(32.dp))
+                        Icon(Icons.Default.Add, contentDescription = "지출 추가", modifier = Modifier.size((32 * fab).dp))
                     }
                 }
             }
