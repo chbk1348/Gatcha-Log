@@ -17,6 +17,7 @@ import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -34,6 +35,7 @@ import com.gatcha.log.ui.components.GlgPullToRefreshBox
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -450,6 +452,12 @@ fun HomeContent(
     val loadInSet = rememberGlgLoadInSet("home")
     // 헤더는 투명 오버레이(아래) — 콘텐츠가 헤더 버튼 '아래로' 지나가도록 (상태바+헤더)만큼 인셋.
     val topInset = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+    // 상단 스크림 — 콘텐츠가 헤더(버튼) 아래로 스크롤될 때만 배경색 그라데이션으로 살짝 흐린다.
+    // 최상단에선 숨겨 화면을 넓게 쓴다. (지출·게임 정보 탭과 같은 규격)
+    val scrolled by remember {
+        derivedStateOf { listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 0 }
+    }
+    val topScrimAlpha by animateFloatAsState(if (scrolled) 0.72f else 0f, label = "topScrim")
     LazyColumn(
         state = listState,
         modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
@@ -513,6 +521,21 @@ fun HomeContent(
         }
         item { Spacer(Modifier.height(120.dp)) }
     }
+    // 상단 스크림 — 헤더(버튼) 아래에 깔린다.
+    Box(
+        Modifier
+            .align(Alignment.TopCenter)
+            .fillMaxWidth()
+            .height(GlgTabHeaderHeight + topInset)
+            .graphicsLayer { alpha = topScrimAlpha }
+            .background(
+                Brush.verticalGradient(
+                    0f to BackgroundGradientStart,
+                    0.72f to BackgroundGradientStart,
+                    1f to Color.Transparent,
+                ),
+            ),
+    )
     // 헤더 오버레이 — 박스 배경 없음(투명). 콘텐츠가 이 버튼들 아래로 스크롤되어 지나간다. 상태바 인셋 적용.
     Box(Modifier.fillMaxWidth().align(Alignment.TopCenter).statusBarsPadding().padding(horizontal = 16.dp)) {
         HomeHeader(
