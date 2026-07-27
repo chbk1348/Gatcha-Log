@@ -63,8 +63,6 @@ struct GameInfoView: View {
                 if !schedule.isEmpty {
                     section { GameScheduleSection(entries: schedule, banners: store.activeBanners, filter: gameFilter, onSeeAll: { showSchedule = true }) }.id("SCHEDULE")
                 }
-                // 게임 주년 — 지원 게임의 다가오는 주년(임박 순).
-                section { AnniversarySection() }
                 // 호요랜드 — 호요버스 한국 오프라인 행사(플레이스홀더). 탭하면 예상 장소·지난 행사 상세로.
                 section { HoyolandSection(onOpen: { showHoyoland = true }) }
                 // 공지·뉴스 — 게임별 최신 공지(탭하면 HoYoLab 열기). 더보기로 전체 페이지.
@@ -345,10 +343,20 @@ private struct GameLineRow: View {
 
 // ── 상세 페이지: 마감 날짜 타임라인 ─────────────────────────────────────────
 
-/// 전체 게임 일정 페이지 — 요약 3칸 → 종료 미정 고정 카드 → 마감일 타임라인.
+/// 전체 게임 일정 페이지 — [일정 | 주년] 세그먼트 탭.
+/// 일정=요약 3칸 + 종료 미정 카드 + 마감일 타임라인, 주년=다가오는 게임 주년.
+///
+/// 주년은 원래 게임 정보 탭 본문의 독립 섹션이었다. 1년에 몇 번 볼 정보가 상시 자리를 차지하고 있었고,
+/// 성격도 '언제 뭐가 있나'라 일정과 같아서 여기 탭으로 합쳤다.
 struct GameSchedulePage: View {
     @ObservedObject var store: SpendingStore
     let filter: String
+    @State private var tab = 0
+
+    private var scheduleTitle: some View {
+        Text("마감이 가까운 순서로 정리했어요.")
+            .font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary).padding(.bottom, 14)
+    }
 
     var body: some View {
         let all = ScheduleLogic.shared.buildSchedule(banners: store.activeBanners, events: store.gameEvents, challenges: store.challenges)
@@ -359,8 +367,17 @@ struct GameSchedulePage: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
                 // 페이지 타이틀은 네비게이션 바(뒤로가기 + 타이틀)로 — Android 상세 헤더와 동일 형식.
-                Text("마감이 가까운 순서로 정리했어요.")
-                    .font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary).padding(.bottom, 14)
+                Picker("보기", selection: $tab) {
+                    Text("일정").tag(0)
+                    Text("주년").tag(1)
+                }
+                .pickerStyle(.segmented)
+                .padding(.bottom, 14)
+
+                if tab == 1 {
+                    AnniversaryContent()
+                } else {
+                scheduleTitle
                 if days.isEmpty && undated.isEmpty {
                     Text("예정된 일정이 없어요.")
                         .font(.pretendard(size: 13)).foregroundStyle(GLGColor.textSecondary)
@@ -379,6 +396,7 @@ struct GameSchedulePage: View {
                             DayNode(d: d, isLast: i == days.count - 1)
                         }
                     }
+                }
                 }
             }
             .padding(16)

@@ -30,13 +30,19 @@ import com.gatcha.log.ui.theme.TextPrimary
 import com.gatcha.log.ui.theme.TextSecondary
 import com.gatcha.log.ui.theme.toColor
 
-/** 게임 주년 — 지원 게임의 다가오는 주년을 임박 순으로 표시(회차 + D-day). */
+/**
+ * 게임 주년 — 지원 게임의 다가오는 주년을 임박 순으로 표시(회차 + D-day).
+ * 게임 일정 상세 페이지의 '주년' 탭 본문(제목은 탭이 대신하므로 여기선 카드만).
+ */
 @Composable
-fun AnniversarySection() {
+fun AnniversaryContent() {
     val accent = LocalAccent.current
     val items = remember { GameAnniversary.upcoming() }
-    if (items.isEmpty()) return
-    Text("게임 주년", fontSize = 16.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 2.dp, bottom = 10.dp))
+    if (items.isEmpty()) {
+        Text("예정된 주년이 없어요.", fontSize = 13.sp, color = TextSecondary, modifier = Modifier.fillMaxWidth().padding(top = 40.dp))
+        return
+    }
+    Text("다가오는 순서예요.", fontSize = 12.sp, color = TextSecondary, modifier = Modifier.padding(bottom = 12.dp))
     GlassCard(modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp)) {
             items.forEachIndexed { i, a ->
