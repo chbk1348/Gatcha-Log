@@ -174,7 +174,8 @@ fun SpendingScreen(
     // 헤더(액션 바)를 리스트 위 오버레이로 고정하고, 리스트 첫 항목에 '헤더 자리'((상태바+헤더) 높이)를 둔다.
     // 다른 탭(게임정보/마이페이지)과 동일한 고정 인셋 방식 — 예전엔 월지출 히어로(가변 높이)라 측정했지만
     // 이제 고정 헤더뿐이라 측정 폐기(측정값이 인셋과 얽혀 탭마다 간격이 어긋나던 문제 해결).
-    val heroSpacerDp = GlgTabHeaderHeight + WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+    val statusBarDp = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+    val heroSpacerDp = GlgTabHeaderHeight + statusBarDp
     // 로드인 스태거 — 앱 진입 후 1회만 등장(인덱스=정렬 리스트 내 위치). 탭 재진입 재생 방지(세션 영속).
     val loadInSet = rememberGlgLoadInSet("spending")
 
@@ -249,12 +250,13 @@ fun SpendingScreen(
             item { Spacer(Modifier.height(120.dp)) }
         }
     }
-        // 상단 스크림 — 헤더(버튼) 아래에 깔려, 스크롤될 때만 배경색으로 리스트를 페이드아웃시킨다.
+        // 상단 스크림 — **상태바 영역만** 덮는다. 스크롤될 때만 나타나 상태바 글자와 콘텐츠가 겹쳐 읽히는 걸 막는다.
+        // (헤더 버튼 줄은 덮지 않는다 — 콘텐츠가 버튼 아래로 지나가는 연출을 유지)
         Box(
             Modifier
                 .align(Alignment.TopStart)
                 .fillMaxWidth()
-                .height(heroSpacerDp)
+                .height(statusBarDp)
                 .graphicsLayer { alpha = topScrimAlpha }
                 .background(
                     Brush.verticalGradient(
