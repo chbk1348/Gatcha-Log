@@ -453,8 +453,9 @@ private fun CompactPickupRow(banner: GachaBanner, companions: List<GachaBanner>,
 }
 
 // 콜라보 강조 카드 — 게임 일정 최상단. 활성 콜라보(스타레일×Fate 등)를 일반 버전과 분리해 부각(보라 accent).
+// 카드에는 **콜라보 픽업만** 싣는다(같은 버전의 일반 픽업은 아래 버전 카드로). 전체 목록은 픽업 페이지에서.
 @Composable
-private fun CollabScheduleCard(groups: List<VersionGroup>) {
+private fun CollabScheduleCard(groups: List<VersionGroup>, onSeePickups: (() -> Unit)? = null) {
     val title = groups.firstNotNullOfOrNull { g -> g.pickups.firstNotNullOfOrNull { collabTitle(it) } } ?: "콜라보 픽업"
     GlassCard(shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.fillMaxWidth().padding(16.dp)) {
@@ -487,6 +488,19 @@ private fun CollabScheduleCard(groups: List<VersionGroup>) {
                 chars.forEach { CompactPickupRow(it, companionWeapons(it, vg.pickups), showCollab = false) }
                 weaps.forEach { CompactPickupRow(it, emptyList(), showCollab = false) }
             }
+            // 같은 버전의 일반 픽업까지 한 번에 보려면 픽업 전체 페이지로. (이미 상세 페이지면 생략)
+            if (onSeePickups != null) {
+                Spacer(Modifier.height(4.dp))
+                Row(
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).clickable { onSeePickups() }.padding(vertical = 9.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center,
+                ) {
+                    Text("픽업 전체 보기", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = CollabBadge)
+                    Spacer(Modifier.width(4.dp))
+                    Icon(Icons.Default.ChevronRight, null, tint = CollabBadge, modifier = Modifier.size(14.dp))
+                }
+            }
         }
     }
 }
@@ -515,7 +529,7 @@ fun GameScheduleSection(
         }
     } else {
         if (collabGroups.isNotEmpty()) {
-            CollabScheduleCard(collabGroups)
+            CollabScheduleCard(collabGroups, onSeePickups)
             if (topGroups.isNotEmpty() || topExtras.isNotEmpty()) Spacer(Modifier.height(12.dp))
         }
         if (topGroups.isNotEmpty()) {

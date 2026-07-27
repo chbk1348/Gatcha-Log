@@ -142,9 +142,44 @@ object ScheduleLogic {
 
     /** 콜라보 픽업이 포함된 버전 그룹(별도 섹션으로 분리 표시). */
     fun collabGroups(groups: List<VersionGroup>): List<VersionGroup> =
-        groups.filter { g -> g.pickups.any { isCollabBanner(it) } }
+        groups.mapNotNull { g -> regroup(g, collabPickupsOf(g)) }
 
-    /** 콜라보를 제외한 일반 버전 그룹. */
+    /**
+     * 콜라보를 제외한 일반 버전 그룹.
+     * 콜라보가 낀 버전이라도 **나머지 일반 픽업은 그대로 남긴다** — 예전엔 그룹을 통째로 빼서
+     * 스타레일 4.4 처럼 콜라보와 일반 픽업이 같은 버전이면 일반 픽업(스파키·히메코 등)이
+     * 일정 섹션에서 사라졌다.
+     */
     fun regularGroups(groups: List<VersionGroup>): List<VersionGroup> =
-        groups.filterNot { g -> g.pickups.any { isCollabBanner(it) } }
+        groups.mapNotNull { g ->
+            val collab = collabPickupsOf(g).toSet()
+            regroup(g, g.pickups.filterNot { it in collab })
+        }
+
+    /**
+     * 그룹 안에서 콜라보에 속하는 픽업만.
+     *
+     * 이름 화이트리스트([isCollabBanner])는 캐릭터만 잡으므로, **같은 페이즈(시작·종료가 같은)**
+     * 픽업까지 함께 묶는다 — 콜라보 전용 무기/광추는 이름에 캐릭터명이 안 들어가기 때문이다.
+     * (스타레일 4.4 Fate = 토오사카 린·길가메시 + 전용 광추 2종이 같은 시작·종료를 공유)
+     */
+    private fun collabPickupsOf(g: VersionGroup): List<GachaBanner> {
+        val phases = g.pickups.filter { isCollabBanner(it) }
+            .map { Triple(it.game, it.startMillis, it.endMillis) }
+            .toSet()
+        if (phases.isEmpty()) return emptyList()
+        return g.pickups.filter { Triple(it.game, it.startMillis, it.endMillis) in phases }
+    }
+
+    /** 픽업 부분집합으로 그룹을 다시 만든다(날짜 집계도 그 부분집합 기준). 비면 null. */
+    private fun regroup(g: VersionGroup, picks: List<GachaBanner>): VersionGroup? {
+        if (picks.isEmpty()) return null
+        val dated = picks.filter { !it.isEndUnknown }
+        return g.copy(
+            pickups = picks,
+            nearestEnd = dated.minOfOrNull { it.endMillis } ?: 0L,
+            start = picks.filter { it.startMillis > 0 }.minOfOrNull { it.startMillis } ?: 0L,
+            end = dated.maxOfOrNull { it.endMillis } ?: 0L,
+        )
+    }
 }
