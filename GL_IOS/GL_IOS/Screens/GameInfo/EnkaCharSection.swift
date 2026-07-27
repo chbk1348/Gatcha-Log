@@ -58,7 +58,6 @@ struct EnkaCharSection: View {
     /// 미연동 시 HoYoLAB 연동 페이지 열기
     var onOpenHoyolab: () -> Void = {}
 
-    private let cols = [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)]
     private static let enkaGames = ["genshin", "hsr", "zzz"]
 
     /// 표시 대상 게임 — 전체면 3게임, 특정 게임이면 그 게임(Enka 미지원이면 비표시).
@@ -113,21 +112,20 @@ struct EnkaCharSection: View {
         }
     }
 
-    /// 로딩 스켈레톤 — 로스터 카드(초상+이름/레벨) 2열×2행 플레이스홀더.
+    /// 로딩 스켈레톤 — 실제 로스터와 **같은 한 줄 배치**(원형 초상 + 이름 두 줄).
+    /// 레이아웃이 다르면 로딩이 끝나는 순간 화면이 튀므로 칸 수·크기·간격을 실물과 맞춘다.
     private var rosterSkeleton: some View {
-        LazyVGrid(columns: cols, spacing: 10) {
-            ForEach(0..<4, id: \.self) { _ in
-                HStack(spacing: 11) {
-                    RoundedRectangle(cornerRadius: 14).fill(Color.black.opacity(0.06)).frame(width: 50, height: 50)
-                    VStack(alignment: .leading, spacing: 7) {
-                        RoundedRectangle(cornerRadius: 4).fill(Color.black.opacity(0.06)).frame(height: 13).frame(maxWidth: .infinity)
-                        RoundedRectangle(cornerRadius: 4).fill(Color.black.opacity(0.06)).frame(width: 48, height: 10)
-                    }
-                    Spacer(minLength: 0)
+        HStack(alignment: .top, spacing: 6) {
+            ForEach(0..<6, id: \.self) { _ in
+                VStack(spacing: 5) {
+                    Circle().fill(Color.black.opacity(0.06)).frame(width: 44, height: 44)
+                    RoundedRectangle(cornerRadius: 4).fill(Color.black.opacity(0.06)).frame(height: 9)
+                    // 이름은 최대 두 줄까지 흐르므로 둘째 줄은 짧게 — 실물의 들쭉날쭉함을 흉내낸다.
+                    RoundedRectangle(cornerRadius: 4).fill(Color.black.opacity(0.06))
+                        .frame(height: 9).padding(.horizontal, 8)
                 }
-                .padding(11)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .glgGlass(in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 4)
             }
         }
     }
