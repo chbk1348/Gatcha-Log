@@ -197,15 +197,22 @@ fun GlgButton(
     }
 }
 
-/** 하위 페이지 공통 뒤로가기 버튼 — 회색 배경 + 아웃라인(고스트 톤). */
+/**
+ * 하위 페이지 공통 뒤로가기 버튼.
+ *
+ * 규격은 탭 헤더의 원형 아이콘 버튼([GlgCircleIconButton])과 맞춘다 — 44dp 원, 흰 베이스 위
+ * 옅은 틴트, 1.5dp 아웃라인, 20dp 아이콘. 예전엔 40dp·1dp 라 같은 화면에서 헤더 버튼과
+ * 미묘하게 크기가 달라 보였다. **색은 고스트 톤 그대로** 유지한다(강조색 버튼과 역할이 다르다).
+ */
 @Composable
-fun GlgBackButton(onClick: () -> Unit, modifier: Modifier = Modifier, size: Dp = 40.dp) {
+fun GlgBackButton(onClick: () -> Unit, modifier: Modifier = Modifier, size: Dp = 44.dp) {
     Box(
         modifier = modifier
             .size(size)
             .clip(CircleShape)
+            .background(Color.White)
             .background(Color(0xFFF2F2F6))
-            .border(1.dp, GhostBorder, CircleShape)
+            .border(1.5.dp, GhostBorder, CircleShape)
             .clickable { onClick() },
         contentAlignment = Alignment.Center,
     ) {
