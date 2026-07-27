@@ -22,13 +22,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.gatcha.log.data.GachaReport
 import com.gatcha.log.data.GachaStats
 import com.gatcha.log.ui.components.GlassCard
+import com.gatcha.log.ui.components.openExternalLink
 import com.gatcha.log.ui.components.GlgButton
 import com.gatcha.log.ui.components.GlgOutlineButton
 import com.gatcha.log.ui.theme.DividerColor
@@ -92,7 +93,7 @@ private val Unlucky = Color(0xFFE8634A)
 
 @Composable
 private fun EmptyState(onImport: () -> Unit) {
-    val uriHandler = LocalUriHandler.current
+    val ctx = LocalContext.current
     Column(Modifier.fillMaxWidth().padding(vertical = 8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
         Box(Modifier.size(52.dp).clip(CircleShape).background(LocalAccent.current.copy(alpha = 0.12f)), contentAlignment = Alignment.Center) {
             Icon(Icons.Default.FileUpload, null, tint = LocalAccent.current, modifier = Modifier.size(26.dp))
@@ -111,7 +112,7 @@ private fun EmptyState(onImport: () -> Unit) {
         Text(
             "UIGF/SRGF가 뭔가요?",
             fontSize = 12.sp, color = LocalAccent.current, fontWeight = FontWeight.Medium,
-            modifier = Modifier.clickable { uriHandler.openUri("https://uigf.org/") },
+            modifier = Modifier.clickable { openExternalLink(ctx, "https://uigf.org/") },
         )
     }
 }

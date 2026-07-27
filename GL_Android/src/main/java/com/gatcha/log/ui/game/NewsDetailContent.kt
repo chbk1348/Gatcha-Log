@@ -29,7 +29,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -42,6 +42,7 @@ import com.gatcha.log.data.api.NewsItem
 import com.gatcha.log.ui.components.GameTagSize
 import com.gatcha.log.ui.components.GlgGameTag
 import com.gatcha.log.ui.components.GlassCard
+import com.gatcha.log.ui.components.openExternalLink
 import com.gatcha.log.ui.components.GlgImageViewer
 import com.gatcha.log.ui.components.GlgBadge
 import com.gatcha.log.ui.components.SkeletonBox
@@ -65,7 +66,7 @@ import com.gatcha.log.ui.theme.toColor
 @Composable
 fun NewsDetailContent(viewModel: SpendingViewModel, item: NewsItem) {
     val accent = LocalAccent.current
-    val uriHandler = LocalUriHandler.current
+    val ctx = LocalContext.current
     val article by viewModel.newsArticle.collectAsState()
     val loading by viewModel.newsArticleLoading.collectAsState()
     val failed by viewModel.newsArticleFailed.collectAsState()
@@ -176,7 +177,7 @@ fun NewsDetailContent(viewModel: SpendingViewModel, item: NewsItem) {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clickable { uriHandler.openUri(item.url) }
+                            .clickable { openExternalLink(ctx, item.url) }
                             .padding(top = 4.dp, bottom = 2.dp),
                         horizontalArrangement = Arrangement.Center,
                         verticalAlignment = Alignment.CenterVertically,
