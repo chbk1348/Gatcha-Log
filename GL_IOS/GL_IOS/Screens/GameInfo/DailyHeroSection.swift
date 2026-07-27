@@ -270,22 +270,41 @@ private struct WeekAttendanceStrip: View {
                 VStack(spacing: 5) {
                     Text(dow).font(.pretendard(size: 10, weight: isToday ? .bold : .regular))
                         .foregroundStyle(isToday ? accent.primary : GLGColor.textSecondary)
-                    ZStack {
-                        Circle().fill(fillColor(level))
-                            .frame(width: 34, height: 34)
-                            .overlay(isToday ? Circle().stroke(accent.primary, lineWidth: 2) : nil)
-                        if level == .full {
-                            Image(systemName: "checkmark").font(.pretendard(size: 14, weight: .bold)).foregroundStyle(.white)
-                        } else {
+                    // 날짜는 **항상** 보여준다 — 예전엔 전체 출석한 날을 체크 아이콘으로 덮어버려
+                    // 정작 며칠인지 알 수 없었다. 완료 표시는 채움색 + 우상단 작은 체크로 한다.
+                    ZStack(alignment: .topTrailing) {
+                        ZStack {
+                            Circle().fill(fillColor(level))
+                                .overlay(isToday ? Circle().stroke(accent.primary, lineWidth: 2) : nil)
                             Text("\(dayNum)").font(.pretendard(size: 12, weight: .bold))
-                                .foregroundStyle(level == .partial ? accent.primary : GLGColor.textSecondary)
+                                .foregroundStyle(dayNumColor(level))
+                        }
+                        .frame(width: 34, height: 34)
+                        if level == .full {
+                            ZStack {
+                                Circle().fill(Color.white)
+                                Image(systemName: "checkmark").font(.pretendard(size: 8, weight: .black))
+                                    .foregroundStyle(accent.primary)
+                            }
+                            .frame(width: 13, height: 13)
+                            .offset(x: 1, y: -1)
                         }
                     }
+                    .frame(width: 34, height: 34)
                 }
                 .frame(maxWidth: .infinity)
             }
         }
     }
+    /// 날짜 숫자 색 — 채움이 진한 '전체 출석'만 흰색.
+    private func dayNumColor(_ l: AttendLevel) -> Color {
+        switch l {
+        case .full: return .white
+        case .partial: return accent.primary
+        default: return GLGColor.textSecondary
+        }
+    }
+
     private func fillColor(_ l: AttendLevel) -> Color {
         switch l {
         case .full: return accent.primary
