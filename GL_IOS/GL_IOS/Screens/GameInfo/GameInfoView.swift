@@ -15,7 +15,6 @@ struct GameInfoView: View {
     @State private var showReport = false
     @State private var showSchedule = false
     @State private var showNews = false
-    @State private var showPickups = false
     @State private var showHoyoland = false
     @State private var statChar: EnkaChar? = nil
     @State private var statGame = "genshin"
@@ -49,7 +48,7 @@ struct GameInfoView: View {
                 // 통합 게임 일정 — 패치·이벤트·정기 콘텐츠. 게임 분리는 상단 헤더 드롭다운(gameFilter)으로 필터.
                 let schedule = ScheduleLogic.shared.buildSchedule(banners: store.activeBanners, events: store.gameEvents, challenges: store.challenges)
                 if !schedule.isEmpty {
-                    section { GameScheduleSection(entries: schedule, banners: store.activeBanners, filter: gameFilter, onSeeAll: { showSchedule = true }, onSeePickups: { showPickups = true }) }.id("SCHEDULE")
+                    section { GameScheduleSection(entries: schedule, banners: store.activeBanners, filter: gameFilter, onSeeAll: { showSchedule = true }) }.id("SCHEDULE")
                 }
                 // 게임 주년 — 지원 게임의 다가오는 주년(임박 순).
                 section { AnniversarySection() }
@@ -131,7 +130,6 @@ struct GameInfoView: View {
         .navigationDestination(isPresented: $showNewsDetail) {
             if let n = selectedNews { NewsDetailView(store: store, item: n) }
         }
-        .navigationDestination(isPresented: $showPickups) { GamePickupPage(store: store, filter: gameFilter) }
         .navigationDestination(isPresented: $showHoyoland) { HoyolandDetailView() }
         .navigationDestination(isPresented: $showStats) { if let c = statChar { EnkaStatPage(char: c, game: statGame) } }
         .navigationDestination(isPresented: $showRoster) {
@@ -242,66 +240,6 @@ private struct CollabChip: View {
     var body: some View {
         Text("콜라보").font(.pretendard(size: 9, weight: .bold)).foregroundStyle(.white)
             .padding(.horizontal, 6).padding(.vertical, 1).background(glCollab, in: Capsule())
-    }
-}
-
-// 픽업 그룹 헤더 — 종류 배지(캐릭터=블루 / 무기=앰버) + 개수.
-private struct PickupGroupHeader: View {
-    let isWeapon: Bool
-    let count: Int
-    var body: some View {
-        HStack(spacing: 7) {
-            Text(isWeapon ? "무기" : "캐릭터").font(.pretendard(size: 9, weight: .bold)).foregroundStyle(.white)
-                .padding(.horizontal, 8).padding(.vertical, 3).background(isWeapon ? glWeap : glChar, in: Capsule())
-            Text("\(count)").font(.pretendard(size: 11, weight: .bold)).foregroundStyle(GLGColor.textSecondary)
-        }
-        .padding(.top, 2).padding(.bottom, 10)
-    }
-}
-
-// "{종류} N개 더보기 ›" 푸터 — 전체 픽업 페이지로.
-private struct PickupMoreFooter: View {
-    let label: String
-    let more: Int
-    let onMore: () -> Void
-    @Environment(\.glgAccent) private var accent
-    var body: some View {
-        Button(action: onMore) {
-            HStack(spacing: 4) {
-                Spacer()
-                Text("\(label) \(more)개 더보기").font(.pretendard(size: 12, weight: .bold)).foregroundStyle(accent.primary)
-                Image(systemName: "chevron.right").font(.pretendard(size: 11, weight: .bold)).foregroundStyle(accent.primary)
-                Spacer()
-            }
-            .padding(.vertical, 9)
-            .contentShape(Rectangle())
-        }.buttonStyle(.plain)
-    }
-}
-
-// 픽업 배너를 캐릭터/무기 2그룹으로 분류. limit != nil이면 그룹별 상위 N개만 + 더보기 푸터.
-private struct PickupGroups: View {
-    let pickups: [GachaBanner]
-    var limit: Int? = nil
-    var onMore: (() -> Void)? = nil
-    var body: some View {
-        let chars = pickups.filter { $0.type != "weapon" }
-        let weapons = GameInfoKt.unpairedWeapons(all: pickups)   // 동반 무기는 캐릭터 카드에 접어 표시 → 독립 목록 제외
-        VStack(alignment: .leading, spacing: 0) {
-            if !chars.isEmpty {
-                PickupGroupHeader(isWeapon: false, count: chars.count)
-                ForEach(Array((limit != nil ? Array(chars.prefix(limit!)) : chars).enumerated()), id: \.offset) { _, b in
-                    PickupItem(banner: b, companions: GameInfoKt.companionWeapons(character: b, all: pickups))
-                }
-                if let limit, let onMore, chars.count > limit { PickupMoreFooter(label: "캐릭터", more: chars.count - limit, onMore: onMore) }
-            }
-            if !weapons.isEmpty {
-                if !chars.isEmpty { Spacer().frame(height: 16) }
-                PickupGroupHeader(isWeapon: true, count: weapons.count)
-                ForEach(Array((limit != nil ? Array(weapons.prefix(limit!)) : weapons).enumerated()), id: \.offset) { _, b in PickupItem(banner: b) }
-                if let limit, let onMore, weapons.count > limit { PickupMoreFooter(label: "무기", more: weapons.count - limit, onMore: onMore) }
-            }
-        }
     }
 }
 
@@ -568,11 +506,13 @@ private struct CompactVersionSection: View {
                     }
                 }
                 .padding(.bottom, 7)
+                // 전체 일정 페이지의 픽업은 진행바·동반무기가 보이는 큰 카드로.
+                // (전용 '전체 픽업' 페이지를 없애면서 그 디자인을 여기로 합쳤다.)
                 ForEach(Array(chars.enumerated()), id: \.offset) { _, b in
-                    CompactPickupRow(banner: b, companions: GameInfoKt.companionWeapons(character: b, all: vg.pickups))
+                    PickupItem(banner: b, companions: GameInfoKt.companionWeapons(character: b, all: vg.pickups))
                 }
                 ForEach(Array(weaps.enumerated()), id: \.offset) { _, b in
-                    CompactPickupRow(banner: b, companions: [])
+                    PickupItem(banner: b)
                 }
             }
             .padding(.horizontal, 14).padding(.vertical, 12)
@@ -626,7 +566,7 @@ private struct CompactPickupRow: View {
 // 카드에는 **콜라보 픽업만** 싣는다(같은 버전의 일반 픽업은 아래 버전 카드로). 전체 목록은 픽업 페이지에서.
 private struct CollabScheduleCard: View {
     let groups: [VersionGroup]
-    var onSeePickups: (() -> Void)? = nil
+    var onSeeAll: (() -> Void)? = nil
     private var title: String {
         for g in groups { for b in g.pickups { if let t = GameInfoKt.collabTitle(banner: b) { return t } } }
         return "콜라보 픽업"
@@ -663,12 +603,12 @@ private struct CollabScheduleCard: View {
                         CompactPickupRow(banner: b, companions: [], showCollab: false)
                     }
                 }
-                // 같은 버전의 일반 픽업까지 한 번에 보려면 픽업 전체 페이지로. (이미 상세 페이지면 생략)
-                if let onSeePickups {
-                    Button(action: onSeePickups) {
+                // 같은 버전의 일반 픽업까지 한 번에 보려면 전체 일정 페이지로. (이미 상세 페이지면 생략)
+                if let onSeeAll {
+                    Button(action: onSeeAll) {
                         HStack(spacing: 4) {
                             Spacer(minLength: 0)
-                            Text("픽업 전체 보기").font(.pretendard(size: 12, weight: .bold)).foregroundStyle(glCollab)
+                            Text("전체 일정 보기").font(.pretendard(size: 12, weight: .bold)).foregroundStyle(glCollab)
                             Image(systemName: "chevron.right").font(.pretendard(size: 11, weight: .bold)).foregroundStyle(glCollab)
                             Spacer(minLength: 0)
                         }
@@ -687,7 +627,6 @@ struct GameScheduleSection: View {
     let banners: [GachaBanner]
     let filter: String
     let onSeeAll: () -> Void
-    let onSeePickups: () -> Void
     @Environment(\.glgAccent) private var accent
 
     var body: some View {
@@ -708,7 +647,7 @@ struct GameScheduleSection: View {
                 }
             } else {
                 if !collabGroups.isEmpty {
-                    CollabScheduleCard(groups: collabGroups, onSeePickups: onSeePickups)
+                    CollabScheduleCard(groups: collabGroups, onSeeAll: onSeeAll)
                     if !topGroups.isEmpty || !topExtras.isEmpty { Spacer().frame(height: 12) }
                 }
                 if let featured = topGroups.first {
@@ -799,34 +738,6 @@ struct GameSchedulePage: View {
         .scrollIndicators(.hidden)
         .background(GLGBackground { Color.clear })
         .navigationTitle("게임 일정")
-        .navigationBarTitleDisplayMode(.inline)
-    }
-}
-
-// ── 픽업 전용 전체 페이지 — 캐릭터/무기 그룹으로만 분리, 종료 임박순. (design_pickup_list_final_mockup.html ②) ──
-struct GamePickupPage: View {
-    @ObservedObject var store: SpendingStore
-    let filter: String
-
-    var body: some View {
-        let pickups = filteredPickups(store.activeBanners, filter: filter)
-        ScrollView {
-            VStack(alignment: .leading, spacing: 0) {
-                // 페이지 타이틀은 네비게이션 바(뒤로가기 + 타이틀)로 — Android 상세 헤더와 동일 형식.
-                Text("진행 중인 캐릭터·무기 픽업을 종료 임박순으로 모았어요.").font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary).padding(.bottom, 14)
-                if pickups.isEmpty {
-                    Text("진행 중인 픽업이 없어요.").font(.pretendard(size: 13)).foregroundStyle(GLGColor.textSecondary)
-                        .frame(maxWidth: .infinity, alignment: .center).padding(.top, 40)
-                } else {
-                    GLGCard(cornerRadius: 20, padding: 16) { PickupGroups(pickups: pickups) }
-                }
-            }
-            .padding(16)
-            .glgReadableWidth(720)
-        }
-        .scrollIndicators(.hidden)
-        .background(GLGBackground { Color.clear })
-        .navigationTitle("전체 픽업")
         .navigationBarTitleDisplayMode(.inline)
     }
 }
