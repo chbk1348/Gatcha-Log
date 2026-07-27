@@ -317,7 +317,8 @@ private fun EntryCard(e: ScheduleEntry) {
         Modifier.fillMaxWidth()
             .clip(RoundedCornerShape(14.dp))
             .background(Color.White)
-            .border(1.dp, DividerColor, RoundedCornerShape(14.dp))
+            // 아웃라인에 게임색 — 타임라인에서 어느 게임 일정인지 배지를 읽기 전에 구분된다.
+            .border(1.dp, gc.copy(alpha = 0.35f), RoundedCornerShape(14.dp))
             .padding(horizontal = 12.dp, vertical = 10.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
