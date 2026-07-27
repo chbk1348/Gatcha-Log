@@ -5,7 +5,7 @@ import Shared
 // (Compose GameInfoScreen 대응) ⚠️ chunk ② — 가챠 계산기/리포트/대시보드/프로필/확률표·리딤코드 다이얼로그는 chunk ③.
 // HoYoLAB 연동은 네이티브 HoyolabLinkView 를 시트로 호스팅.
 struct GameInfoView: View {
-    @ObservedObject var store: SpendingStore
+    var store: SpendingStore
     @Environment(\.glgAccent) private var accent
     @State private var showHoyolab = false
     @State private var showGift = false
@@ -365,9 +365,10 @@ private struct GameLineRow: View {
 /// 주년은 원래 게임 정보 탭 본문의 독립 섹션이었다. 1년에 몇 번 볼 정보가 상시 자리를 차지하고 있었고,
 /// 성격도 '언제 뭐가 있나'라 일정과 같아서 여기 탭으로 합쳤다.
 struct GameSchedulePage: View {
-    @ObservedObject var store: SpendingStore
+    var store: SpendingStore
     let filter: String
     @State private var tab = 0
+    @State private var sched = SchedulePageData()
 
     private var scheduleTitle: some View {
         Text("마감이 가까운 순서로 정리했어요.")
@@ -375,11 +376,6 @@ struct GameSchedulePage: View {
     }
 
     var body: some View {
-        let all = ScheduleLogic.shared.buildSchedule(banners: store.activeBanners, events: store.gameEvents, challenges: store.challenges)
-        let entries = ScheduleLogic.shared.filteredEntries(entries: all, filter: filter)
-        let days = ScheduleLogic.shared.buildDays(entries: entries, nowMillis: nowMs())
-        let undated = ScheduleLogic.shared.undatedPickups(banners: store.activeBanners, filter: filter)
-        let summary = ScheduleLogic.shared.summarize(banners: store.activeBanners, entries: all, filter: filter, nowMillis: nowMs())
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
                 // 페이지 타이틀은 네비게이션 바(뒤로가기 + 타이틀)로 — Android 상세 헤더와 동일 형식.
@@ -394,12 +390,15 @@ struct GameSchedulePage: View {
                     AnniversaryContent()
                 } else {
                 scheduleTitle
+                let days = sched.days
+                let undated = sched.undated
+                let summary = sched.summary
                 if days.isEmpty && undated.isEmpty {
                     Text("예정된 일정이 없어요.")
                         .font(.pretendard(size: 13)).foregroundStyle(GLGColor.textSecondary)
                         .frame(maxWidth: .infinity, alignment: .center).padding(.top, 40)
                 } else {
-                    SummaryStrip(s: summary)
+                    if let summary { SummaryStrip(s: summary) }
                     Spacer().frame(height: 16)
                     if !undated.isEmpty {
                         UndatedPinCard(pickups: undated)
@@ -422,6 +421,32 @@ struct GameSchedulePage: View {
         .background(GLGBackground { Color.clear })
         .navigationTitle("게임 일정")
         .navigationBarTitleDisplayMode(.inline)
+        // 일정 집계는 필터/원본이 바뀔 때만. 예전엔 body 첫 줄에서 5종을 조건 없이 계산해,
+        // '주년' 탭을 보고 있어도(그때는 하나도 안 쓰는데) 세그먼트를 누를 때마다 전부 다시 돌았다.
+        .task(id: scheduleKey) { sched = Self.buildSchedule(store: store, filter: filter) }
+    }
+
+    /// 일정 탭이 쓰는 집계 묶음.
+    struct SchedulePageData {
+        var days: [ScheduleDay] = []
+        var undated: [GachaBanner] = []
+        var summary: ScheduleSummary? = nil
+    }
+
+    /// 재계산 트리거 — 원본 3종과 필터가 바뀔 때만 다시 만든다.
+    private var scheduleKey: String {
+        "\(filter)|\(store.activeBanners.count)|\(store.gameEvents.count)|\(store.challenges.count)"
+    }
+
+    private static func buildSchedule(store: SpendingStore, filter: String) -> SchedulePageData {
+        let now = nowMs()
+        let all = ScheduleLogic.shared.buildSchedule(banners: store.activeBanners, events: store.gameEvents, challenges: store.challenges)
+        let entries = ScheduleLogic.shared.filteredEntries(entries: all, filter: filter)
+        return SchedulePageData(
+            days: ScheduleLogic.shared.buildDays(entries: entries, nowMillis: now),
+            undated: ScheduleLogic.shared.undatedPickups(banners: store.activeBanners, filter: filter),
+            summary: ScheduleLogic.shared.summarize(banners: store.activeBanners, entries: all, filter: filter, nowMillis: now)
+        )
     }
 }
 

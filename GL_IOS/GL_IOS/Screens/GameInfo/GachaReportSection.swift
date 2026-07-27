@@ -4,11 +4,10 @@ import Shared
 
 // 가챠 효율 리포트 — UIGF/SRGF JSON 가져오기 + 게임별 단가·출현율·풀별·최근5성. (Compose GachaReportSection 대응)
 struct GachaReportSection: View {
-    @ObservedObject var store: SpendingStore
+    var store: SpendingStore
     let onOpenDashboard: () -> Void
     @Environment(\.glgAccent) private var accent
     @State private var importing = false
-    @State private var appeared: Set<Int> = []
 
     private var stats: GachaStats? { store.gachaStats }
     private var spend: [String: Int64] { store.gachaSpendByGame() }
@@ -69,11 +68,9 @@ struct GachaReportSection: View {
             ForEach(Array(games.enumerated()), id: \.offset) { idx, gk in
                 if let g = s.byGame[gk] {
                     gameCard(gk, g, labels: poolLabels[gk] ?? [:], showDash: idx == 0)
-                        .glgLoadIn(idx, appeared: $appeared)
                 }
             }
             GLGButton(title: "기록 추가 가져오기") { importing = true }
-                .glgLoadIn(games.count, appeared: $appeared)
         }
     }
 

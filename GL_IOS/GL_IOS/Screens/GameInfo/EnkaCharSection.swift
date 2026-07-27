@@ -48,7 +48,7 @@ private func enkaGameLabel(_ game: String) -> String {
 /// 게임정보 탭 섹션 — Enka 쇼케이스 로스터(게임당 한 줄). 헤더 게임필터([filter])에 연동.
 /// "all"=원신·스타레일·젠레스를 게임별 블록으로 모두 표시, 특정 게임=해당 게임만. 캐릭터 탭 → [onOpen].
 struct EnkaCharSection: View {
-    @ObservedObject var store: SpendingStore
+    var store: SpendingStore
     @Environment(\.glgAccent) private var accent
     /// 헤더 게임필터("all" | game.key)
     let filter: String
@@ -181,7 +181,7 @@ private struct RosterSlot: View {
             ZStack {
                 Circle().fill(rc.opacity(0.14))
                 if let icon = c.iconUrl, let u = URL(string: icon) {
-                    AsyncImage(url: u) { $0.resizable().scaledToFill() } placeholder: { Color.clear }
+                    GLGRemoteImage(url: u, side: 44)
                         .clipShape(Circle())
                 } else {
                     Text(String(c.name.prefix(1))).font(.pretendard(size: 17, weight: .bold)).foregroundStyle(rc)
@@ -221,7 +221,7 @@ func enkaRosterCard(_ c: EnkaChar, _ game: String) -> some View {
         ZStack {
             RoundedRectangle(cornerRadius: 14).fill(rc.opacity(0.14)).frame(width: 50, height: 50)
             if let icon = c.iconUrl, let u = URL(string: icon) {
-                AsyncImage(url: u) { $0.resizable().scaledToFill() } placeholder: { Color.clear }
+                GLGRemoteImage(url: u, side: 50)
                     .frame(width: 50, height: 50).clipShape(RoundedRectangle(cornerRadius: 14))
             } else {
                 Text(String(c.name.prefix(1))).font(.pretendard(size: 20, weight: .bold)).foregroundStyle(rc)
@@ -249,7 +249,7 @@ func enkaRosterCard(_ c: EnkaChar, _ game: String) -> some View {
 
 /// 보유 캐릭터 전체 목록 페이지 — 탭 시 스탯 상세로 랜딩(뒤로 가면 이 목록으로 복귀).
 struct EnkaRosterPage: View {
-    @ObservedObject var store: SpendingStore
+    var store: SpendingStore
     let game: String
     @State private var statChar: EnkaChar? = nil
     @State private var showStat = false
@@ -312,7 +312,15 @@ struct EnkaRosterPage: View {
                 }
             }
         }
-        .navigationDestination(isPresented: $showStat) { if let c = statChar { EnkaStatPage(char: c, game: game) } }
+        // overrides/onSetOverride 를 반드시 넘긴다 — 빠뜨리면 기본값(빈 맵 + 빈 클로저)이 들어가
+        // 이 경로로 들어온 캐릭터만 유효옵션 사용자 설정이 무시되고 '저장'도 아무 일도 하지 않는다.
+        .navigationDestination(isPresented: $showStat) {
+            if let c = statChar {
+                EnkaStatPage(char: c, game: game,
+                             overrides: store.keyStatOverrides,
+                             onSetOverride: { k, v in store.setKeyStatOverride(k, v) })
+            }
+        }
     }
 
     private func distinct(_ xs: [String]) -> [String] {
@@ -356,12 +364,15 @@ struct EnkaStatPage: View {
                         keyStatEditor
                         Spacer().frame(height: 16)
                         // 유효 점수 순 정렬 — 산식은 GL_Shared ArtifactScoring 단일 소스(Android 와 동일).
-                        let artScore = ArtifactScoring.shared.scoreChar(artifacts: char.artifacts, keySet: keySet, gameKey: game)
+                        // 점수는 캐릭터·유효옵션이 바뀔 때만 다시 낸다(아래 cachedScore). 예전엔 computed 라
+                        // 화면이 다시 그려질 때마다 성유물 전체를 재채점했다 — 유효옵션 칩을 누를 때마다도.
+                        if let artScore = cachedScore {
                         VStack(spacing: 10) {
                             critScoreSummary(artScore)
                             ForEach(Array(artScore.ranked.enumerated()), id: \.offset) { i, r in
                                 artifactCard(r.artifact, score: r.score, rank: i + 1)
                             }
+                        }
                         }
                     }
                 }
@@ -385,12 +396,19 @@ struct EnkaStatPage: View {
         .navigationTitle(char.name)
         .navigationBarTitleDisplayMode(.inline)
         // 캐릭터/게임 바뀌면 효과 재조회(캐시 적중 시 즉시).
+        // 유효옵션 판정은 캐릭터 또는 사용자 설정이 바뀔 때만 다시 한다.
         .task(id: char.id) {
+            applyVerdict(KeyStatRulesKt.resolveKeyStats(gameKey: game, char: char, overrides: overrides))
             effectsLoading = true
             expandedEffect = nil
             let r = (try? await CharEffectsApi.shared.fetch(gameKey: game, id: char.id)) ?? []
+            // 뒤로 갔다 다른 캐릭터로 다시 들어오면 늦게 도착한 이전 응답이 새 캐릭터를 덮을 수 있다.
+            guard !Task.isCancelled else { return }
             effects = r
             effectsLoading = false
+        }
+        .onChange(of: overrides) { _, new in
+            applyVerdict(KeyStatRulesKt.resolveKeyStats(gameKey: game, char: char, overrides: new))
         }
     }
 
@@ -533,7 +551,7 @@ struct EnkaStatPage: View {
                 ZStack {
                     RoundedRectangle(cornerRadius: 18).fill(ec.opacity(0.16)).frame(width: 64, height: 64)
                     if let icon = char.iconUrl, let u = URL(string: icon) {
-                        AsyncImage(url: u) { $0.resizable().scaledToFill() } placeholder: { Color.clear }
+                        GLGRemoteImage(url: u, side: 64)
                             .frame(width: 64, height: 64).clipShape(RoundedRectangle(cornerRadius: 18))
                     } else {
                         Text(String(char.name.prefix(1))).font(.pretendard(size: 26, weight: .bold)).foregroundStyle(ec)
@@ -585,10 +603,24 @@ struct EnkaStatPage: View {
     }
 
     /// 유효옵션 — 사용자가 고른 값이 있으면 그것, 없으면 앱 룰 추정, 둘 다 없으면 판정 불가.
+    ///
+    /// **캐시한다.** 예전엔 computed 라 읽을 때마다 `resolveKeyStats` 가 다시 돌았는데,
+    /// `keySet` 이 이걸 읽고 스탯·성유물·부옵션이 줄마다 또 읽어서 한 화면에 70회 넘게 실행됐다.
+    /// 유효옵션 칩을 한 번 누를 때마다 그 전부가 다시 돌았다.
+    @State private var cachedVerdict: KeyStatVerdict? = nil
+    /// 성유물 채점 결과 — 유효옵션이 정해져야 나오므로 [cachedVerdict] 와 함께 갱신한다.
+    @State private var cachedScore: CharArtifactScore? = nil
+
     private var verdict: KeyStatVerdict {
-        KeyStatRulesKt.resolveKeyStats(gameKey: game, char: char, overrides: overrides)
+        cachedVerdict ?? KeyStatRulesKt.resolveKeyStats(gameKey: game, char: char, overrides: overrides)
     }
     private var keySet: Set<StatTok> { verdict.stats }
+
+    /// 유효옵션 판정과 그에 따른 성유물 점수를 함께 갱신 — 둘이 어긋나면 '빨간 강조'와 점수가 안 맞는다.
+    private func applyVerdict(_ v: KeyStatVerdict) {
+        cachedVerdict = v
+        cachedScore = ArtifactScoring.shared.scoreChar(artifacts: char.artifacts, keySet: v.stats, gameKey: game)
+    }
 
     /// 유효옵션 편집 카드 — 앱 룰은 추정이라 오차가 유효 점수로 그대로 드러난다.
     /// 무엇을 기준으로 쟀는지 보여주고 사용자가 덮어쓸 수 있게 한다.
@@ -754,7 +786,7 @@ struct EnkaStatPage: View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .top, spacing: 9) {
                 if let icon = a.iconUrl, let u = URL(string: icon) {
-                    AsyncImage(url: u) { $0.resizable().scaledToFit() } placeholder: { Color.clear }
+                    GLGRemoteImage(url: u, side: 40, contentMode: .fit)
                         .frame(width: 40, height: 40).padding(2)
                         .background(Color(hex: 0xFFF1F1F6), in: RoundedRectangle(cornerRadius: 10))
                 }

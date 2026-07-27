@@ -63,6 +63,14 @@ data class TodayTask(
     val ctaLabel: String,
     val urgent: Boolean,
     val busyable: Boolean,
+    /**
+     * 목록 식별자 — 종류만으로는 부족하다. RESIN·COMBAT 은 해당되는 게임마다 한 줄씩 나오므로
+     * 종류를 키로 쓰면 서로 충돌한다(중복 표시·누락).
+     *
+     * 그렇다고 [message] 를 쓸 수도 없다 — 수치(12/180)·D-day 가 들어 있어 갱신될 때마다 키가 바뀌고,
+     * 그러면 목록이 매번 전부 새로 그려진다. 값이 아니라 **대상**으로 만든다.
+     */
+    val key: String,
 )
 
 /** 알림 종류 — 카드 아이콘/색/이동 동작을 결정. */
@@ -184,25 +192,25 @@ object HomeLogic {
     ): List<TodayTask> = buildList {
         val budgetPct = if (budget > 0) (monthlyTotal * 100 / budget).toInt() else 0
         if (pendingAttendance > 0) {
-            add(TodayTask(TodayTaskKind.ATTENDANCE, "출석 안 한 게임 ${pendingAttendance}개", "한 번에 출석", urgent = false, busyable = true))
+            add(TodayTask(TodayTaskKind.ATTENDANCE, "출석 안 한 게임 ${pendingAttendance}개", "한 번에 출석", urgent = false, busyable = true, key = "attendance"))
         }
         // 가득/임박한 게임을 전부 — 원신뿐 아니라 스타레일·젠레스 등 해당되는 모든 게임
         resins.forEach { r ->
             val msg = if (r.full) "${r.gameShort} ${r.label} 가득 참" else "${r.gameShort} ${r.label} ${r.cur}/${r.max} 곧 넘침"
-            add(TodayTask(TodayTaskKind.RESIN, msg, "게임 정보", urgent = true, busyable = false))
+            add(TodayTask(TodayTaskKind.RESIN, msg, "게임 정보", urgent = true, busyable = false, key = "resin:${r.gameShort}"))
         }
         // 시즌 마감 임박 + 미클리어 — 만회에 플레이 시간이 필요하므로 픽업보다 먼저 알린다.
         combats.forEach { c ->
             val whenLabel = if (c.dDay == 0) "오늘 마감" else "D-${c.dDay}"
-            add(TodayTask(TodayTaskKind.COMBAT, "${c.gameShort} ${c.mode} ${c.stars}/${c.maxStars} · $whenLabel", "전투 콘텐츠", urgent = true, busyable = false))
+            add(TodayTask(TodayTaskKind.COMBAT, "${c.gameShort} ${c.mode} ${c.stars}/${c.maxStars} · $whenLabel", "전투 콘텐츠", urgent = true, busyable = false, key = "combat:${c.gameShort}:${c.mode}"))
         }
         if (urgentBanner != null) {
-            add(TodayTask(TodayTaskKind.BANNER, "${urgentBanner.name} 픽업 ${dhLabel(urgentBanner.endMillis, nowMillis)} 막바지", "픽업 계획", urgent = true, busyable = false))
+            add(TodayTask(TodayTaskKind.BANNER, "${urgentBanner.name} 픽업 ${dhLabel(urgentBanner.endMillis, nowMillis)} 막바지", "픽업 계획", urgent = true, busyable = false, key = "banner:${urgentBanner.name}"))
         }
         if (budget > 0 && monthlyTotal > budget) {
-            add(TodayTask(TodayTaskKind.BUDGET, "예산 ${budgetPct - 100}% 초과", "예산 점검", urgent = true, busyable = false))
+            add(TodayTask(TodayTaskKind.BUDGET, "예산 ${budgetPct - 100}% 초과", "예산 점검", urgent = true, busyable = false, key = "budget"))
         } else if (budget > 0 && budgetPct >= 90) {
-            add(TodayTask(TodayTaskKind.BUDGET, "예산 ${budgetPct}% 사용", "예산 점검", urgent = true, busyable = false))
+            add(TodayTask(TodayTaskKind.BUDGET, "예산 ${budgetPct}% 사용", "예산 점검", urgent = true, busyable = false, key = "budget"))
         }
     }
 
