@@ -19,8 +19,16 @@ struct SubscriptionCenterView: View {
     private let amber = Color(hex: 0xFFF59E0B)
 
     /// dDay 오름차순 정렬된 구독 목록.
-    private var sorted: [Shared.Subscription] {
-        store.subscriptions.sorted { $0.dDay(nowMillis: nowMs()) < $1.dDay(nowMillis: nowMs()) }
+    /// 마감 임박순 목록.
+    ///
+    /// **한 번만 정렬한다.** 예전엔 computed 라 히어로·목록·행마다(`sorted.count`) 다시 정렬됐고,
+    /// 비교자가 `dDay(nowMillis:)` 라 비교 한 번이 브리지 호출 두 번이었다 — 목록이 길수록 급격히 나빠졌다.
+    /// 비교 시점마다 `nowMs()` 를 새로 읽던 것도 없앤다(자정 경계에서 정렬이 흔들릴 수 있었다).
+    @State private var sorted: [Shared.Subscription] = []
+
+    private func resort() {
+        let now = nowMs()
+        sorted = store.subscriptions.sorted { $0.dDay(nowMillis: now) < $1.dDay(nowMillis: now) }
     }
     private var monthlyTotal: Int64 { store.subscriptions.reduce(0) { $0 + $1.amount } }
 
@@ -51,6 +59,7 @@ struct SubscriptionCenterView: View {
         .sheet(item: $editing) { target in
             SubscriptionEditSheet(store: store, initial: target.subscription) { editing = nil }
         }
+        .task(id: store.subscriptions) { resort() }
     }
 
     // ── 빈 상태 ──
@@ -135,9 +144,10 @@ struct SubscriptionCenterView: View {
                             .background(accent.primary.opacity(0.12), in: RoundedRectangle(cornerRadius: 10))
                     }.buttonStyle(.plain)
                 }.padding(.bottom, 4)
-                ForEach(Array(sorted.enumerated()), id: \.element.id) { idx, sub in
+                let rows = sorted
+                ForEach(Array(rows.enumerated()), id: \.element.id) { idx, sub in
                     Button { editing = .edit(sub) } label: { subRow(sub) }.buttonStyle(.plain)
-                    if idx < sorted.count - 1 { Divider() }
+                    if idx < rows.count - 1 { Divider() }
                 }
             }
         }

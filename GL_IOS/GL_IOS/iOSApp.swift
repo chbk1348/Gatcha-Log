@@ -26,15 +26,24 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
 
         // 2-0. 출석 리마인더 예약형 갱신 — 앱 열 때마다 다음 베이징 18:00(로컬 환산) 1회 예약.
         //      BGTask 정시 비보장을 보완(UNCalendarNotificationTrigger 가 OS 정시 발송 보장).
-        AttendanceReminder_iosKt.rescheduleAttendanceReminder()
+        //
+        //      **첫 프레임 이후로 미룬다.** 이 한 줄이 저장소를 새로 열고 출석 이력·배너·전투·정기결제·
+        //      실시간 노트 JSON 을 동기로 파싱한다. 예약 시각은 '다음 18:00' 이라 몇 백 ms 늦어도 결과가 같은데,
+        //      그 비용을 런치스크린 뒤 공백에 얹을 이유가 없다.
+        DispatchQueue.main.async {
+            AttendanceReminder_iosKt.rescheduleAttendanceReminder()
+        }
 
         // 2-1. 네트워크 연결 감지 시작 — Kotlin NetworkMonitor.online 을 NWPathMonitor 로 지속 갱신.
         NetworkReachability.shared.start()
 
-        // 2-2. 이미지 캐시 — AsyncImage 는 URLSession.shared 의 URLCache 에 의존하는데 기본값이
-        //      메모리 512KB / 디스크 10MB 수준이라 캐릭터 초상·성유물 아이콘이 화면을 오갈 때마다
-        //      재요청·재디코드된다. 로컬 캐시만 키우면 되므로 서버·의존성 추가가 없다.
-        URLCache.shared = URLCache(memoryCapacity: 32 * 1024 * 1024,
+        // 2-2. 이미지 캐시 — 기본 URLCache 는 메모리 512KB / 디스크 10MB 수준이라 캐릭터 초상·성유물
+        //      아이콘이 화면을 오갈 때마다 재요청된다. 디스크만 넉넉히 키운다.
+        //
+        //      메모리는 일부러 작게 잡는다 — 목록 이미지는 GLGImageCache(디코딩본 48MB)가 이미 들고 있어서,
+        //      URLCache 메모리까지 크면 같은 이미지를 압축본·디코딩본으로 두 번 상주시키게 된다.
+        //      디스크 캐시는 앱 재시작 후 첫 로드에 여전히 유효하므로 그대로 둔다.
+        URLCache.shared = URLCache(memoryCapacity: 8 * 1024 * 1024,
                                    diskCapacity: 128 * 1024 * 1024)
 
         // 3. 알림 델리게이트 — 이게 없으면 앱이 포그라운드일 때 발생한 로컬 알림

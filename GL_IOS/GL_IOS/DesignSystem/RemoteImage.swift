@@ -53,9 +53,10 @@ struct GLGRemoteImage: View {
         self.url = url
         self.side = side
         self.contentMode = contentMode
-        let px = Int((side * UIScreen.main.scale).rounded())
+        let px = Int((side * UITraitCollection.current.displayScale).rounded())
         self.maxPixel = px
         // 뷰가 만들어지는 시점에 캐시를 확인한다 — .task 로 넘기면 한 프레임은 빈 화면이 스친다.
+        // (아래 .task 가 다시 확인하므로 여기는 '첫 프레임 깜빡임 방지' 용도만이다)
         _image = State(initialValue: url.flatMap { GLGImageCache.shared.image(for: $0, maxPixel: px) })
     }
 
@@ -67,24 +68,36 @@ struct GLGRemoteImage: View {
                 Color.clear
             }
         }
-        .task(id: url) { await load() }
+        .task(id: url) { await load(url) }
     }
 
-    private func load() async {
-        guard image == nil, let url else { return }
-        if let cached = GLGImageCache.shared.image(for: url, maxPixel: maxPixel) {
+    /// url 이 바뀔 때마다 처음부터 다시 판단한다.
+    ///
+    /// ⚠️ 여기서 `image` 를 먼저 비우는 것이 중요하다. 목록에서 셀은 **재활용**되므로 같은 자리에 다른 URL 이
+    /// 들어올 수 있는데, 그때 이전 이미지를 그대로 두면 남의 초상이 남는다(검색·필터로 목록이 바뀔 때 특히).
+    /// init 의 `State(initialValue:)` 는 그 자리가 **처음 만들어질 때만** 반영되므로 여기서 못 지운다.
+    @MainActor
+    private func load(_ target: URL?) async {
+        guard let target else { image = nil; return }
+        if let cached = GLGImageCache.shared.image(for: target, maxPixel: maxPixel) {
             image = cached
             return
         }
-        let px = maxPixel
-        let decoded: UIImage? = await Task.detached(priority: .userInitiated) {
-            // URLCache(iOSApp 에서 32MB/128MB 로 설정)를 타므로 두 번째부터는 네트워크를 안 쓴다.
-            guard let (data, _) = try? await URLSession.shared.data(from: url) else { return nil }
-            return Self.downsample(data, maxPixel: px)
-        }.value
+        image = nil
+        let decoded = await Self.fetch(target, maxPixel: maxPixel)
+        // 셀이 화면 밖으로 나갔거나 URL 이 또 바뀌었으면 버린다(.task 가 취소해 준다).
+        guard !Task.isCancelled, target == url else { return }
         guard let decoded else { return }
-        GLGImageCache.shared.store(decoded, for: url, maxPixel: px)
+        GLGImageCache.shared.store(decoded, for: target, maxPixel: maxPixel)
         image = decoded
+    }
+
+    /// 네트워크·디코딩 — `nonisolated` 라 메인 액터 밖(협력 스레드)에서 실행된다.
+    /// `.task` 의 자식이므로 취소도 전달된다(`Task.detached` 는 취소가 끊긴다).
+    private nonisolated static func fetch(_ url: URL, maxPixel: Int) async -> UIImage? {
+        // URLCache(iOSApp 에서 32MB/128MB 로 설정)를 타므로 두 번째부터는 네트워크를 안 쓴다.
+        guard let (data, _) = try? await URLSession.shared.data(from: url) else { return nil }
+        return downsample(data, maxPixel: maxPixel)
     }
 
     /// 표시 크기에 맞춰 축소 디코딩 — 44pt 초상에 1024px 원본을 통째로 펼치지 않는다.

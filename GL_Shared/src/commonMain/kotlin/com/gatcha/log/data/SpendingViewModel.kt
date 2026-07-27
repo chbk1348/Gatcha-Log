@@ -54,6 +54,7 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
+import kotlinx.coroutines.yield
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -234,8 +235,9 @@ class SpendingViewModel : ViewModel() {
         val prev = if (prevInMonth) editRecord.amount else 0L
         val prevSameGame = prevInMonth && editRecord.gameName == game.displayName
 
-        val gameNow = monthlyTotalsByGame()[game.key] ?: 0L
-        val monthNow = monthlyTotal()
+        // 이미 계산해 둔 파생값을 쓴다 — 예전엔 여기서 지출 전체를 두 번 더 훑었다(저장 버튼 경로).
+        val gameNow = _currentMonthTotalsByGame.value[game.key] ?: 0L
+        val monthNow = _currentMonthTotal.value
         val projectedGame = gameNow - (if (prevSameGame) prev else 0L) + amount
         val projectedMonth = monthNow - prev + amount
 
@@ -367,9 +369,7 @@ class SpendingViewModel : ViewModel() {
         _enkaResult.value = null
         _enkaResults.value = emptyMap()
         seedEnkaDiskCache()   // 재시작/계정전환 시 디스크 캐시를 메모리로 — '내 캐릭터' 즉시 표시
-        gachaRecords = repo.loadGachaRecords()
-        _gachaStats.value = GachaReport.computeStats(gachaRecords)
-        _gachaDashboard.value = GachaReport.computeDashboard(gachaRecords)
+        loadGachaDeferred()
         _subscriptions.value = repo.loadSubscriptions()
         _redeemedCodes.value = repo.loadRedeemedCodes()
         _homeCards.value = repo.loadHomeCards()
@@ -377,6 +377,27 @@ class SpendingViewModel : ViewModel() {
         _savingsHidden.value = repo.loadSavingsHidden()
         refreshSavings()
         recomputeSpendingDerived()   // 첫 프레임이 0원으로 그려지지 않게 동기로 한 번
+    }
+
+    /**
+     * 가챠 기록 로드 + 통계 산출을 **한 프레임 뒤로** 미룬다.
+     *
+     * 기록이 수만 건이면 파싱 한 번에 전수 순회 두 번([GachaReport.computeStats]·[GachaReport.computeDashboard])이
+     * 붙는데, 이게 앱 시작 경로에서 첫 화면이 그려지기 전에 동기로 돌고 있었다. 데이터가 늘수록 시작이
+     * 선형으로 느려지는 유일한 구간이었다.
+     *
+     * 홈은 이 값을 읽지 않는다 — 소비처는 마이페이지·가챠 리포트·데이터 관리뿐이고,
+     * 두 StateFlow 모두 초기값이 null 이라 늦게 도착해도 화면이 깨지지 않는다.
+     *
+     * 매번 저장소에서 다시 읽으므로 그 사이에 가져오기/초기화가 일어나도 결과가 어긋나지 않는다.
+     */
+    private fun loadGachaDeferred() {
+        viewModelScope.launch {
+            yield()   // Main.immediate 라 양보하지 않으면 그대로 이어서 실행된다
+            gachaRecords = repo.loadGachaRecords()
+            _gachaStats.value = GachaReport.computeStats(gachaRecords)
+            _gachaDashboard.value = GachaReport.computeDashboard(gachaRecords)
+        }
     }
 
     // ----------------------------------------------------------------- 계정 (구글 로그인 — Credential Manager)
@@ -1174,6 +1195,18 @@ class SpendingViewModel : ViewModel() {
     private var lastGameInfoLoadAt = 0L
     private val gameInfoFreshMs = 5 * 60 * 1000L
 
+    /**
+     * 게임 정보 새로고침 진행 여부 — **[_isRefreshing] 과 별개로 둔다.**
+     *
+     * 예전엔 둘이 같은 플래그였는데, 지출 탭 당겨서 새로고침([refreshSpending])이 그 플래그를 내려버려
+     * 진행 중이던 게임 정보 새로고침의 중복 차단이 풀렸다. 그러면 18건짜리 요청 세트가 겹쳐 나간다.
+     * [_isRefreshing] 은 UI 스피너 표시용으로 그대로 두고, 중복 차단만 이 플래그가 맡는다.
+     */
+    private var _gameInfoRefreshing = false
+
+    /** 지출 탭 당겨서 새로고침 진행 여부 — 연타로 pull/push 가 겹치지 않게. */
+    private var _spendingRefreshing = false
+
     /** 일회성 토스트 메시지 (UI 가 소비 후 clearStatus 호출) */
     private val _statusMessage = MutableStateFlow<String?>(null)
     val statusMessage: StateFlow<String?> = _statusMessage.asStateFlow()
@@ -1284,9 +1317,10 @@ class SpendingViewModel : ViewModel() {
      * try/finally 로 예외 시에도 _isRefreshing 해제 + 스켈레톤 영구 고착 방지.
      */
     fun refreshGameInfo(force: Boolean = false) {
-        if (_isRefreshing.value) return // 동시 새로고침 차단
+        if (_gameInfoRefreshing) return // 동시 새로고침 차단
         if (!force && _gameInfoReady.value && currentTimeMillis() - lastGameInfoLoadAt < gameInfoFreshMs) return
         viewModelScope.launch {
+            _gameInfoRefreshing = true
             _isRefreshing.value = true
             try {
                 // 오프라인이면 12초 타임아웃을 기다리지 않고 즉시 안내(앱 진입·새로고침 공통).
@@ -1326,7 +1360,6 @@ class SpendingViewModel : ViewModel() {
                         _activeBanners.value = banners.sortedWith(compareBy({ it.isEndUnknown }, { it.dDay() }))
                         // 백그라운드 픽업 마감 알림 점검용 로컬 캐시(네트워크 없이 판정).
                         runCatching { repo.saveActiveBanners(banners) }
-                        rescheduleTimedAlerts()   // 픽업 마감 예약 갱신
                         refreshPlans()   // 새 픽업 목록으로 저축 계획 갱신
                     }
                     _gameEvents.value = events.sortedBy { it.endMillis }
@@ -1337,7 +1370,6 @@ class SpendingViewModel : ViewModel() {
                         _liveNotes.value = notes
                         // 재화가 가득 차는 시각을 알림 예약에 쓰려면 로컬 캐시가 필요하다(네트워크 없이 계산).
                         runCatching { repo.saveLiveNotes(notes) }
-                        rescheduleTimedAlerts()
                         recordTaskProgress(notes)
                     }
 
@@ -1375,13 +1407,16 @@ class SpendingViewModel : ViewModel() {
                             _combat.value = combats
                             // 백그라운드 시즌 마감 알림이 네트워크 없이 판정하도록 로컬 캐시(배너 캐시와 동일 패턴).
                             runCatching { repo.saveCombatModes(combats) }
-                            rescheduleTimedAlerts()   // 시즌 마감 예약 갱신
                         }
                     }
                 }
             } finally {
+                _gameInfoRefreshing = false
                 _isRefreshing.value = false
                 _gameInfoReady.value = true // 예외로 1)단계 못 미쳐도 스켈레톤 영구 고착 방지
+                // 예약 알림은 여기서 **한 번만** 갱신한다. 예전엔 배너·노트·전투 각 단계에서 따로 불러
+                // 새로고침 1회에 3번 돌았고, 매번 prefs 4키를 읽고 대기 알림을 최대 48건 교체했다.
+                rescheduleTimedAlerts()
             }
         }
     }
@@ -1395,8 +1430,11 @@ class SpendingViewModel : ViewModel() {
      * pull/push 는 오프라인 멈춤 방지를 위해 타임아웃으로 감싼다.
      */
     fun refreshSpending() {
+        if (_spendingRefreshing) return   // 당겨서 새로고침 연타 = pull/push 동시 실행 + loadAll 중복
         viewModelScope.launch {
+            _spendingRefreshing = true
             _isRefreshing.value = true
+            try {
             if (cloudConfigured && !NetworkMonitor.isOnline()) {
                 // 오프라인 — 클라우드 동기화는 건너뛰고 로컬만 갱신하며 안내.
                 emitNetworkAlert()
@@ -1413,16 +1451,23 @@ class SpendingViewModel : ViewModel() {
                             is CloudSync.PullOutcome.Loaded -> {
                                 outcome.json?.let { repo.importSnapshotJson(it) }
                                 carryOverGuestHoyolab()
-                                loadAll()
+                                // cloudPush 는 repo(prefs)에서 직접 스냅샷을 만들므로 여기서 loadAll() 을
+                                // 먼저 돌릴 필요가 없다. 아래에서 어차피 한 번 부른다.
                                 withTimeoutOrNull(SYNC_TIMEOUT_MS) { cloudPush(uid) }
                             }
-                            else -> { emitNetworkAlert(); loadAll() }
+                            else -> emitNetworkAlert()
                         }
                     }
                 }
             }
+            // 어느 분기로 왔든 여기서 한 번만 — 예전엔 분기 안에서도 불러 PTR 1회에 loadAll() 이 두 번 돌았다.
+            // loadAll() 은 prefs 20여 키 파싱 + 저장소 읽기 다수를 포함한다.
             loadAll()
-            _isRefreshing.value = false
+            } finally {
+                // 예외로 빠져나가도 가드를 반드시 푼다 — 안 그러면 새로고침이 영구히 막힌다.
+                _isRefreshing.value = false
+                _spendingRefreshing = false
+            }
         }
     }
 
@@ -1764,12 +1809,16 @@ class SpendingViewModel : ViewModel() {
      *  - 실패 시 lastPushedSnapshot 을 갱신하지 않아 다음 변경에서 재시도된다.
      */
     private suspend fun cloudPush(uid: String): Boolean {
-        val json = repo.exportSnapshotJson()
+        // 스냅샷은 **한 번만** 만들어 전체 문서(문자열)와 섹션 분해(객체)에 함께 쓴다.
+        // 예전엔 exportSnapshotJson() 과 exportCloudSections() 가 각자 스냅샷을 만들어,
+        // push 1회에 스냅샷 생성 2회 + 전량 재파싱 1회가 일어났다(수백 KB 를 메인 스레드에서).
+        val snapshot = repo.exportSnapshot()
+        val json = snapshot.toString()
         if (json == lastPushedSnapshot) return true   // 변경 없음 → write 생략
         if (json.length > CLOUD_DOC_WARN_BYTES) {
             emitStatus("클라우드 백업 용량이 한계에 근접했어요 (${json.length / 1024}KB / 1MB) — 오래된 뽑기 기록 정리를 권장해요")
         }
-        val s = repo.exportCloudSections()
+        val s = repo.exportCloudSections(snapshot)
         val ok = CloudSync.push(uid, json, s.userInfo, s.spending, s.gameInfo)
         if (ok) lastPushedSnapshot = json
         return ok
