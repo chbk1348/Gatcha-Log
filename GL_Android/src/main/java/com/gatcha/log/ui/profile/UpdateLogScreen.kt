@@ -54,7 +54,7 @@ private fun styleOf(k: ChangeKind): KindStyle = when (k) {
 
 /**
  * 업데이트 로그 풀스크린 페이지 — 06_ChangeLog.html 목업 디자인.
- * 히어로 헤더 + 스티키 필터칩(전체·신규·개선·수정·보안) + 최신 featured 카드 + 마일스톤(★) 타임라인.
+ * 헤더(뒤로+제목) + 스티키 필터칩(전체·신규·개선·수정·보안) + 최신 featured 카드 + 마일스톤(★) 타임라인.
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -80,33 +80,19 @@ internal fun UpdateLogScreen(onBack: () -> Unit) {
             .navigationBarsPadding(),
         contentPadding = PaddingValues(bottom = 40.dp),
     ) {
-        // ── 뒤로 + 히어로 ──
+        // ── 헤더(뒤로 + 페이지명) ──
+        // 히어로(큰 '업데이트 기록' 제목 + 부제 + 메타 2칸)는 걷어냈다 — 헤더 제목과 같은 말을 반복하면서
+        // 첫 화면의 절반을 차지해, 정작 봐야 할 최신 버전이 스크롤 아래로 밀려 있었다.
         item {
             Column(Modifier.padding(horizontal = 18.dp)) {
                 // 상태바 인셋은 LazyColumn contentPadding 이 처리 — 여기선 8dp 여백만.
                 Spacer(Modifier.height(8.dp))
-                // 헤더 = 뒤로 + 페이지명(설정 메뉴 항목과 같은 "업데이트 로그"). 아래 히어로 제목과 역할이 다르다.
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     GlgBackButton(onBack)
                     Spacer(Modifier.width(10.dp))
                     Text("업데이트 로그", fontSize = 17.sp, fontWeight = FontWeight.Bold, color = CText)
                 }
-                Spacer(Modifier.height(4.dp))
-                Row {
-                    Text("업데이트 ", fontSize = 28.sp, fontWeight = FontWeight.ExtraBold, color = CText)
-                    Text("기록", fontSize = 28.sp, fontWeight = FontWeight.ExtraBold, color = CAccent)
-                }
-                Spacer(Modifier.height(6.dp))
-                Text(
-                    "사용자 관점으로 정리한 전체 변경 이력",
-                    fontSize = 13.sp, color = CTextSub, fontWeight = FontWeight.Medium,
-                )
-                Spacer(Modifier.height(14.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(20.dp)) {
-                    MetaCol("${entries.size}개", "전체 버전")
-                    MetaCol(ChangeLog.periodLabel, "업데이트 기간")
-                }
-                Spacer(Modifier.height(12.dp))
+                Spacer(Modifier.height(8.dp))
             }
         }
 
@@ -171,14 +157,6 @@ internal fun UpdateLogScreen(onBack: () -> Unit) {
             }
         }
     }
-    }
-}
-
-@Composable
-private fun MetaCol(value: String, label: String) {
-    Column {
-        Text(value, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = CText)
-        Text(label, fontSize = 13.sp, color = CTextSub)
     }
 }
 

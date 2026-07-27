@@ -145,7 +145,7 @@ struct CreditsSheet: View {
 
 // ── 업데이트 로그 ─────────────────────────────────────────────────────────────
 
-/// 업데이트 로그 — 06_ChangeLog.html 목업 디자인(히어로·필터칩·featured·마일스톤 타임라인·분류 뱃지).
+/// 업데이트 로그 — 06_ChangeLog.html 목업 디자인(필터칩·featured·마일스톤 타임라인·분류 뱃지).
 /// 데이터는 공통 정본 `ChangeLog`(KMP)에서 읽어 Android와 동일하다.
 struct UpdateLogPage: View {
     let version: String
@@ -168,8 +168,9 @@ struct UpdateLogPage: View {
 
     var body: some View {
         ScrollView {
+            // 히어로(큰 '업데이트 기록' 제목 + 부제 + 메타 2칸)는 걷어냈다 — 네비게이션 바 제목과 같은 말을
+            // 반복하면서 첫 화면의 절반을 차지해, 정작 봐야 할 최신 버전이 스크롤 아래로 밀려 있었다.
             LazyVStack(alignment: .leading, spacing: 0, pinnedViews: [.sectionHeaders]) {
-                hero
                 Section {
                     Color.clear.frame(height: 14)
                     ForEach(supported, id: \.version) { entry in releaseCard(entry) }
@@ -212,30 +213,6 @@ struct UpdateLogPage: View {
         // 반투명 네비바로 스크롤 콘텐츠가 필터바 위로 비치는 것 방지 — 불투명 흰 배경 고정.
         .toolbarBackground(.visible, for: .navigationBar)
         .toolbarBackground(Color.white, for: .navigationBar)
-    }
-
-    // ── 히어로 ──
-    private var hero: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            (Text("업데이트 ").foregroundColor(cText) + Text("기록").foregroundColor(accent.primary))
-                .font(.pretendard(size: 28, weight: .heavy)).padding(.top, 12)
-            Text("사용자 관점으로 정리한 전체 변경 이력")
-                .font(.pretendard(size: 13, weight: .medium)).foregroundStyle(GLGColor.textSecondary).padding(.top, 6)
-            HStack(spacing: 20) {
-                metaCol("\(ChangeLog.shared.entries.count)개", "전체 버전")
-                metaCol(ChangeLog.shared.periodLabel, "업데이트 기간")
-            }.padding(.top, 14)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, 18)
-        .padding(.bottom, 14)
-    }
-
-    private func metaCol(_ value: String, _ label: String) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(value).font(.pretendard(size: 15, weight: .bold)).foregroundStyle(cText)
-            Text(label).font(.pretendard(size: 13)).foregroundStyle(GLGColor.textSecondary)
-        }
     }
 
     // ── 스티키 필터칩 ──
