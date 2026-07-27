@@ -325,7 +325,12 @@ struct EnkaRosterPage: View {
 struct EnkaStatPage: View {
     let char: EnkaChar
     let game: String
+    /// 캐릭터별 유효옵션 사용자 설정(키=keyStatOverrideKey). 앱 룰보다 우선.
+    var overrides: [String: Set<String>] = [:]
+    var onSetOverride: (String, Set<String>) -> Void = { _, _ in }
     @Environment(\.glgAccent) private var accent
+    @State private var editingKeyStats = false
+    @State private var picked: Set<String> = []
 
     private let g2 = [GridItem(.flexible()), GridItem(.flexible())]
 
@@ -347,6 +352,9 @@ struct EnkaStatPage: View {
                     if char.artifacts.isEmpty {
                         emptyEquipNote(game == "genshin" ? "성유물이 장착되지 않았습니다." : game == "zzz" ? "드라이브 디스크가 장착되지 않았습니다." : "유물이 장착되지 않았습니다.")
                     } else {
+                        // 유효옵션 — 점수의 기준이라 무엇으로 쟀는지 밝히고, 틀리면 바로 고칠 수 있게 한다.
+                        keyStatEditor
+                        Spacer().frame(height: 16)
                         // 유효 점수 순 정렬 — 산식은 GL_Shared ArtifactScoring 단일 소스(Android 와 동일).
                         let artScore = ArtifactScoring.shared.scoreChar(artifacts: char.artifacts, keySet: keySet, gameKey: game)
                         VStack(spacing: 10) {
@@ -576,9 +584,111 @@ struct EnkaStatPage: View {
         }
     }
 
-    /// 캐릭별 유효옵션 집합. 룰은 속성/운명의길/직업/예외맵 기반(commonMain).
-    private var keySet: Set<StatTok> {
-        KeyStatRules.shared.keyStats(gameKey: game, element: char.element, path: char.path, specialty: char.specialty, charId: char.id)
+    /// 유효옵션 — 사용자가 고른 값이 있으면 그것, 없으면 앱 룰 추정, 둘 다 없으면 판정 불가.
+    private var verdict: KeyStatVerdict {
+        KeyStatRulesKt.resolveKeyStats(gameKey: game, char: char, overrides: overrides)
+    }
+    private var keySet: Set<StatTok> { verdict.stats }
+
+    /// 유효옵션 편집 카드 — 앱 룰은 추정이라 오차가 유효 점수로 그대로 드러난다.
+    /// 무엇을 기준으로 쟀는지 보여주고 사용자가 덮어쓸 수 있게 한다.
+    private var keyStatEditor: some View {
+        let v = verdict
+        let selectable = KeyStatRules.shared.selectableStats(gameKey: game)
+        return VStack(alignment: .leading, spacing: 0) {
+            secLabel("유효옵션")
+            VStack(alignment: .leading, spacing: 0) {
+                HStack {
+                    Text(sourceTitle(v.source))
+                        .font(.pretendard(size: 12, weight: .bold))
+                        .foregroundStyle(v.source == .user ? accent.primary : GLGColor.textSecondary)
+                    Spacer()
+                    Button(editingKeyStats ? "취소" : "바꾸기") {
+                        if editingKeyStats { editingKeyStats = false }
+                        else { picked = Set(v.stats.map { $0.name }); editingKeyStats = true }
+                    }
+                    .font(.pretendard(size: 12, weight: .bold)).foregroundStyle(accent.primary)
+                    .buttonStyle(.plain)
+                }
+                Text(sourceHint(v.source))
+                    .font(.pretendard(size: 11)).foregroundStyle(GLGColor.textSecondary).padding(.top, 4)
+
+                if editingKeyStats {
+                    chipGrid(selectable.map { ($0, picked.contains($0.name)) }) { tok in
+                        if picked.contains(tok.name) { picked.remove(tok.name) } else { picked.insert(tok.name) }
+                    }
+                    HStack(spacing: 8) {
+                        Button("저장") {
+                            onSetOverride(KeyStatRulesKt.keyStatOverrideKey(gameKey: game, charId: char.id), picked)
+                            editingKeyStats = false
+                        }
+                        .font(.pretendard(size: 12, weight: .bold)).foregroundStyle(.white)
+                        .padding(.horizontal, 14).padding(.vertical, 8)
+                        .background(accent.primary, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                        .buttonStyle(.plain)
+                        // 설정 해제 = 빈 집합 저장 → 앱 룰 추정으로 되돌아간다.
+                        if v.source == .user {
+                            Button("기본값으로") {
+                                onSetOverride(KeyStatRulesKt.keyStatOverrideKey(gameKey: game, charId: char.id), [])
+                                editingKeyStats = false
+                            }
+                            .font(.pretendard(size: 12, weight: .bold)).foregroundStyle(GLGColor.textSecondary)
+                            .padding(.horizontal, 14).padding(.vertical, 8)
+                            .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(Color.black.opacity(0.08), lineWidth: 1))
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(.top, 4)
+                } else if !v.stats.isEmpty {
+                    chipGrid(v.stats.map { ($0, true) }, readOnly: true) { _ in }
+                }
+            }
+            .padding(14)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .glgGlass(in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+        }
+    }
+
+    private func sourceTitle(_ s: KeyStatSource) -> String {
+        switch s {
+        case .user: return "직접 설정함"
+        case .rule: return "앱이 추정한 값"
+        default: return "판정할 수 없어요"
+        }
+    }
+
+    private func sourceHint(_ s: KeyStatSource) -> String {
+        switch s {
+        case .user: return "이 캐릭터는 아래 옵션만 점수에 넣어요."
+        case .rule: return "역할을 추정한 값이에요. 다르면 바꿔 주세요."
+        default: return "이 캐릭터의 역할 정보가 없어 점수를 낼 수 없어요. 직접 골라 주세요."
+        }
+    }
+
+    @ViewBuilder
+    private func chipGrid(_ items: [(StatTok, Bool)], readOnly: Bool = false, onTap: @escaping (StatTok) -> Void) -> some View {
+        let rows = stride(from: 0, to: items.count, by: 3).map { Array(items[$0..<min($0 + 3, items.count)]) }
+        VStack(alignment: .leading, spacing: 6) {
+            ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
+                HStack(spacing: 6) {
+                    ForEach(Array(row.enumerated()), id: \.offset) { _, item in
+                        let (tok, on) = item
+                        Text(KeyStatRulesKt.statLabel(t: tok))
+                            .font(.pretendard(size: 11.5, weight: .bold))
+                            .foregroundStyle(on ? .white : GLGColor.textSecondary)
+                            .padding(.horizontal, 11).padding(.vertical, 7)
+                            .background(on ? (readOnly ? enkaCrit : accent.primary) : Color.white,
+                                        in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                            .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                .stroke(on ? Color.clear : Color.black.opacity(0.08), lineWidth: 1))
+                            .contentShape(Rectangle())
+                            .onTapGesture { if !readOnly { onTap(tok) } }
+                    }
+                    Spacer(minLength: 0)
+                }
+            }
+        }
+        .padding(.top, 10)
     }
 
     /// 이 캐릭터의 유효옵션인가. 점수 산식과 **같은 함수**를 써서

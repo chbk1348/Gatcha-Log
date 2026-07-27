@@ -732,6 +732,21 @@ class SpendingViewModel : ViewModel() {
     private val _liveNotes = MutableStateFlow<List<LiveNote>>(emptyList())
     val liveNotes: StateFlow<List<LiveNote>> = _liveNotes.asStateFlow()
 
+    /**
+     * 캐릭터별 유효옵션 사용자 설정(키=keyStatOverrideKey). 앱 룰보다 우선한다.
+     * 룰은 추정일 뿐이라 틀릴 수 있고, 그 오차가 유효 점수로 바로 드러나기 때문이다.
+     */
+    private val _keyStatOverrides = MutableStateFlow<Map<String, Set<String>>>(emptyMap())
+    val keyStatOverrides: StateFlow<Map<String, Set<String>>> = _keyStatOverrides.asStateFlow()
+
+    /** 유효옵션 설정 저장. 빈 집합이면 설정 해제(앱 룰 추정으로 되돌아간다). */
+    fun setKeyStatOverride(key: String, stats: Set<String>) {
+        val next = _keyStatOverrides.value.toMutableMap()
+        if (stats.isEmpty()) next.remove(key) else next[key] = stats
+        _keyStatOverrides.value = next
+        runCatching { repo.saveKeyStatOverrides(next) }
+    }
+
     /** 게임별 일일·주간 숙제 완주율(관측 기록 파생). 기록이 없는 게임은 목록에 없다. */
     private val _taskStats = MutableStateFlow<List<TaskStats>>(emptyList())
     val taskStats: StateFlow<List<TaskStats>> = _taskStats.asStateFlow()
@@ -1773,6 +1788,7 @@ class SpendingViewModel : ViewModel() {
         repo.onChange = { scheduleCloudSync() }
         loadAll()
         loadTaskStats()   // 노트를 받기 전에도 지난 완주율은 보여준다
+        runCatching { _keyStatOverrides.value = repo.loadKeyStatOverrides() }
         bootstrapAuthAndSync()
     }
 }

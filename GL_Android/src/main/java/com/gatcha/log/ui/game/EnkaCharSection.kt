@@ -48,10 +48,16 @@ import com.gatcha.log.data.api.EnkaSet
 import com.gatcha.log.data.api.EnkaStatLine
 import com.gatcha.log.data.api.EnkaWeapon
 import com.gatcha.log.data.api.KeyStatRules
+import com.gatcha.log.data.api.KeyStatSource
+import com.gatcha.log.data.api.KeyStatVerdict
+import com.gatcha.log.data.api.keyStatOverrideKey
+import com.gatcha.log.data.api.resolveKeyStats
+import com.gatcha.log.data.api.statLabel
 import com.gatcha.log.data.api.StatTok
 import com.gatcha.log.ui.components.GameTagSize
 import com.gatcha.log.ui.components.GlgGameTag
 import com.gatcha.log.ui.components.GlassCard
+import com.gatcha.log.ui.components.GlgChip
 import com.gatcha.log.ui.components.GlgTextField
 import com.gatcha.log.ui.components.RosterSkeleton
 import com.gatcha.log.ui.theme.DividerColor
@@ -275,6 +281,90 @@ private fun Hint(text: String) {
 }
 
 /**
+ * 유효옵션 편집 카드 — 점수의 기준을 밝히고 직접 고칠 수 있게 한다.
+ *
+ * 앱 룰은 추정이다. 원신은 예외 목록에 없으면 '치명+공격%+원소피해'가 기본값이고,
+ * 스타레일·젠레스는 운명의 길·직업을 못 읽으면 판정 자체가 불가하다. 그 오차가 유효 점수로
+ * 그대로 드러나므로, 무엇을 기준으로 쟀는지 보여주고 사용자가 덮어쓸 수 있어야 한다.
+ */
+@Composable
+private fun KeyStatEditor(
+    game: String,
+    char: EnkaChar,
+    verdict: KeyStatVerdict,
+    accent: Color,
+    onSet: (Set<StatTok>) -> Unit,
+) {
+    var editing by remember(char.id) { mutableStateOf(false) }
+    val selectable = remember(game) { KeyStatRules.selectableStats(game) }
+    // 편집 중 선택 상태 — 판정 불가면 빈 집합에서 시작.
+    var picked by remember(char.id, verdict) { mutableStateOf(verdict.stats) }
+
+    SecLabel("유효옵션")
+    GlassCard(modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(14.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    when (verdict.source) {
+                        KeyStatSource.USER -> "직접 설정함"
+                        KeyStatSource.RULE -> "앱이 추정한 값"
+                        KeyStatSource.NONE -> "판정할 수 없어요"
+                    },
+                    fontSize = 12.sp, fontWeight = FontWeight.Bold,
+                    color = if (verdict.source == KeyStatSource.USER) accent else TextSecondary,
+                )
+                Spacer(Modifier.weight(1f))
+                Text(
+                    if (editing) "취소" else "바꾸기",
+                    fontSize = 12.sp, fontWeight = FontWeight.Bold, color = accent,
+                    modifier = Modifier.clip(RoundedCornerShape(8.dp))
+                        .clickable { if (editing) { picked = verdict.stats; editing = false } else editing = true }
+                        .padding(horizontal = 6.dp, vertical = 3.dp),
+                )
+            }
+            Spacer(Modifier.height(4.dp))
+            Text(
+                when (verdict.source) {
+                    KeyStatSource.USER -> "이 캐릭터는 아래 옵션만 점수에 넣어요."
+                    KeyStatSource.RULE -> "역할을 추정한 값이에요. 다르면 바꿔 주세요."
+                    KeyStatSource.NONE -> "이 캐릭터의 역할 정보가 없어 점수를 낼 수 없어요. 직접 골라 주세요."
+                },
+                fontSize = 11.sp, color = TextSecondary,
+            )
+
+            if (editing) {
+                Spacer(Modifier.height(10.dp))
+                selectable.chunked(3).forEach { row ->
+                    Row(Modifier.padding(bottom = 6.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        row.forEach { tok ->
+                            GlgChip(
+                                statLabel(tok),
+                                selected = tok in picked,
+                                color = accent,
+                            ) { picked = if (tok in picked) picked - tok else picked + tok }
+                        }
+                    }
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    GlgChip("저장", selected = true, color = accent) { onSet(picked); editing = false }
+                    // 설정 해제 = 빈 집합 저장 → 앱 룰 추정으로 되돌아간다.
+                    if (verdict.source == KeyStatSource.USER) {
+                        GlgChip("기본값으로") { onSet(emptySet()); editing = false }
+                    }
+                }
+            } else if (verdict.stats.isNotEmpty()) {
+                Spacer(Modifier.height(10.dp))
+                verdict.stats.toList().chunked(3).forEach { row ->
+                    Row(Modifier.padding(bottom = 6.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        row.forEach { tok -> GlgChip(statLabel(tok), selected = true, color = CritColor) }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
  * 로스터 한 줄 — 초상 + 이름만, 한 행에 최대 [ROSTER_SLOTS] 칸. **가로 스크롤 없음.**
  *
  * 예전엔 게임마다 2×2 큰 카드였다. 게임이 3개면 그것만으로 화면 세 개 분량이라
@@ -410,11 +500,19 @@ private fun rankLabelFor(c: EnkaChar, game: String): String? = when (game) {
  * 자체 뒤로가기 헤더 포함.
  */
 @Composable
-fun EnkaStatPage(c: EnkaChar, game: String, onBack: () -> Unit) {
+fun EnkaStatPage(
+    c: EnkaChar,
+    game: String,
+    /** 캐릭터별 유효옵션 사용자 설정(키=keyStatOverrideKey). 앱 룰보다 우선. */
+    overrides: Map<String, Set<String>> = emptyMap(),
+    onSetOverride: (String, Set<String>) -> Unit = { _, _ -> },
+    onBack: () -> Unit,
+) {
     BackHandler { onBack() }
     val accent = LocalAccent.current
-    // 캐릭별 주요 스탯 집합(속성/운명의길/직업/예외맵 기반). 강조 시 치명과 함께 대조.
-    val keySet = remember(c.id, game) { KeyStatRules.keyStats(game, c.element, c.path, c.specialty, c.id) }
+    // 유효옵션 — 사용자가 고른 값이 있으면 그것, 없으면 앱 룰 추정, 둘 다 없으면 판정 불가.
+    val verdict = remember(c.id, game, overrides) { resolveKeyStats(game, c, overrides) }
+    val keySet = verdict.stats
     val wepLabel = if (game == "genshin") "무기" else if (game == "zzz") "W-엔진" else "광추"
     val artLabel = if (game == "genshin") "성유물" else if (game == "zzz") "드라이브 디스크" else "유물"
     Column(
@@ -477,6 +575,16 @@ fun EnkaStatPage(c: EnkaChar, game: String, onBack: () -> Unit) {
                 }
             }
         }
+        Spacer(Modifier.height(16.dp))
+
+        // 유효옵션 — 점수의 기준이라 무엇으로 쟀는지 밝히고, 틀리면 바로 고칠 수 있게 한다.
+        KeyStatEditor(
+            game = game,
+            char = c,
+            verdict = verdict,
+            accent = accent,
+            onSet = { stats -> onSetOverride(keyStatOverrideKey(game, c.id), stats.map { it.name }.toSet()) },
+        )
         Spacer(Modifier.height(16.dp))
 
         // 성유물 / 유물 — 캐릭터 유효옵션 기준 유효 점수 순으로 정렬해 잘 뽑힌 것부터 보여준다.

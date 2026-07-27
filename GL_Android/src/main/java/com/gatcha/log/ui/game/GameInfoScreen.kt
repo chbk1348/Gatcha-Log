@@ -115,6 +115,7 @@ fun GameInfoScreen(
     // 통합 게임 일정(패치·이벤트·콘텐츠 병합) — 데일리 아래 첫 섹션.
     val schedule = remember(banners, events, challenges) { ScheduleLogic.buildSchedule(banners, events, challenges) }
     val taskStats by viewModel.taskStats.collectAsState()
+    val keyStatOverrides by viewModel.keyStatOverrides.collectAsState()
     // 게임정보 하위 풀스크린 페이지(연동 / 가챠 통계) — 열리면 상위(Scaffold)에 알려 하단바·FAB 숨김
     var subPage by remember { mutableStateOf(GiSub.Main) }
     // Enka 캐릭터 스탯 페이지 랜딩 대상
@@ -216,7 +217,13 @@ fun GameInfoScreen(
             )
             GiSub.CharStats -> {
                 val c = statChar
-                if (c != null) EnkaStatPage(c, statCharGame) { subPage = statReturn }
+                if (c != null) {
+                    EnkaStatPage(
+                        c, statCharGame,
+                        overrides = keyStatOverrides,
+                        onSetOverride = { k, v -> viewModel.setKeyStatOverride(k, v) },
+                    ) { subPage = statReturn }
+                }
             }
             GiSub.CharRoster -> EnkaRosterPage(
                 viewModel, rosterGame,
