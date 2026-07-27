@@ -115,9 +115,12 @@ fun HoyolandDetailContent() {
             Spacer(Modifier.height(10.dp))
             Text(VENUE_ADDRESS, fontSize = 12.sp, color = TextSecondary)
             Spacer(Modifier.height(14.dp))
+            // 카드 폭을 꽉 채운다 — GlgOutlineButton 은 기본이 내용 크기라, 너비를 안 주면
+            // 버튼이 "지도에서 보기" 글자 길이만큼만 나온다(다른 호출부는 전부 weight 로 폭을 준다).
             GlgOutlineButton(
                 "지도에서 보기",
                 onClick = { openExternalLink(ctx, VENUE_MAP_URL, VENUE_MAP_FALLBACK_URL) },
+                modifier = Modifier.fillMaxWidth(),
                 height = 46.dp,
             )
         }
