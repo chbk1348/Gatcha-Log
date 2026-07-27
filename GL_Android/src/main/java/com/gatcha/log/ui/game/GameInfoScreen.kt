@@ -51,7 +51,7 @@ import com.gatcha.log.ui.theme.*
 import kotlinx.coroutines.launch
 
 /** 게임정보 탭의 풀스크린 하위 페이지 (열리면 하단바·FAB 숨김) */
-private enum class GiSub { Main, HoyoLink, Dashboard, Calc, Report, Gift, Schedule, News, NewsDetail, CharStats, CharRoster, Hoyoland }
+private enum class GiSub { Main, HoyoLink, Dashboard, Calc, Report, Gift, Schedule, News, NewsDetail, CharStats, CharRoster, Hoyoland, GameContent }
 
 /** 화면 전환 push/pop 방향용 계층 깊이. Main=0, 하위 페이지=1, 상세(목록서 진입)=2. */
 private fun subDepth(s: GiSub): Int = when (s) {
@@ -162,12 +162,16 @@ fun GameInfoScreen(
         cursor += 2                                          // 호요랜드
         val newsIdx = cursor + 2
         cursor += 2                                          // 공지
-        val combatIdx = if (linked) cursor + 2 else notesIdx // 전투 진행도(미연동이면 섹션 자체가 없음)
+        // 전투 진행도는 본문 섹션이 아니라 데일리에서 들어가는 상세 페이지로 옮겼다 → 스크롤 대신 페이지 진입.
+        if (anchor == GameInfoAnchor.COMBAT) {
+            subPage = GiSub.GameContent
+            viewModel.consumeGameInfoAnchor()
+            return@LaunchedEffect
+        }
         val index = when (anchor) {
-            GameInfoAnchor.NOTES -> notesIdx
             GameInfoAnchor.SCHEDULE -> scheduleIdx
             GameInfoAnchor.NEWS -> newsIdx
-            GameInfoAnchor.COMBAT -> combatIdx
+            else -> notesIdx
         }
         listState.animateScrollToItem(index)
         viewModel.consumeGameInfoAnchor()
@@ -236,6 +240,16 @@ fun GameInfoScreen(
                 onRedeemAll = { key -> viewModel.redeemAllCodes(key) },
                 onBack = { subPage = GiSub.Main; viewModel.resetRedeem() },
             )
+            GiSub.GameContent -> SectionPage("전투 · 수입 일지", onBack = { subPage = GiSub.Main }) {
+                GameTabbedSection(
+                    banners = banners,
+                    combat = combat,
+                    ledgers = ledgers,
+                    isRefreshing = isRefreshing,
+                    filter = gameFilter,
+                    linked = hoyolab.isLinked,
+                )
+            }
             GiSub.Schedule -> SectionPage("게임 일정", onBack = { subPage = GiSub.Main }) {
                 GameScheduleFullContent(banners, events, challenges, gameFilter)
             }
@@ -280,6 +294,7 @@ fun GameInfoScreen(
                     onCheckIn = { viewModel.attemptCheckIn(it) },
                     onCheckInAll = { viewModel.checkInAll() },
                     onConfigClick = { subPage = GiSub.HoyoLink },
+                    onOpenGameContent = { subPage = GiSub.GameContent },
                 )
             }
             // 숙제 완주율 — 데일리 바로 아래(같은 '오늘 뭐 했나' 맥락). 기록이 없으면 섹션 자체가 안 뜬다.
@@ -318,21 +333,6 @@ fun GameInfoScreen(
                     onOpen = { openNews(it, GiSub.Main) },
                 )
             }
-            // 전투 진행도·수입 일지. 미연동이면 데이터가 없어 섹션·상단 여백까지 통째 생략.
-            if (hoyolab.isLinked) {
-                item { Spacer(Modifier.height(20.dp)) }
-                item {
-                    GameTabbedSection(
-                        banners = banners,
-                        combat = combat,
-                        ledgers = ledgers,
-                        isRefreshing = isRefreshing,
-                        filter = gameFilter,
-                        linked = hoyolab.isLinked,
-                    )
-                }
-            }
-            // 페이지로 분류된 섹션(계산기·프로필·리포트) — 진입 카드
             item { Spacer(Modifier.height(20.dp)) }
             item { NavEntryCard(Icons.Default.Calculate, "가챠 계산기", "재화 환산 · 확률 · 시나리오") { subPage = GiSub.Calc } }
             item { Spacer(Modifier.height(12.dp)) }
