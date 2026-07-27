@@ -361,7 +361,7 @@ fun GameInfoScreen(
                     .background(
                         Brush.verticalGradient(
                             0f to Color.White,
-                            0.88f to Color.White,
+                            0.35f to Color.White,
                             1f to Color.Transparent,
                         ),
                     ),
