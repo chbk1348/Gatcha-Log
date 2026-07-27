@@ -20,6 +20,7 @@ import com.gatcha.log.data.HomeCards
 import com.gatcha.log.data.AppSettings
 import com.gatcha.log.data.work.AutoCheckInRunner
 import com.gatcha.log.data.work.NativeScheduler
+import com.gatcha.log.data.work.ScheduledAlerts
 import com.gatcha.log.data.GameData
 import com.gatcha.log.data.GameEvent
 import com.gatcha.log.data.PityState
@@ -267,7 +268,17 @@ class SpendingViewModel : ViewModel() {
 
     private fun applyNativeAfterNotifyChange(enabled: Boolean) {
         NativeScheduler.apply()
+        rescheduleTimedAlerts()
         if (enabled) NativeScheduler.runNow()
+    }
+
+    /**
+     * 확정 시각 알림(픽업·시즌 마감·정기결제·재화 가득참·데일리 요약) 사전 예약 갱신.
+     * iOS 는 이 예약 덕분에 앱을 안 열어도 정시에 알림이 오고, Android 는 주기 워커가 이미
+     * 커버하므로 no-op 이다([AlertScheduler]).
+     */
+    private fun rescheduleTimedAlerts() {
+        runCatching { ScheduledAlerts.reschedule(appSettings, repo) }
     }
 
     /**
@@ -1271,13 +1282,19 @@ class SpendingViewModel : ViewModel() {
                         _activeBanners.value = banners.sortedWith(compareBy({ it.isEndUnknown }, { it.dDay() }))
                         // 백그라운드 픽업 마감 알림 점검용 로컬 캐시(네트워크 없이 판정).
                         runCatching { repo.saveActiveBanners(banners) }
+                        rescheduleTimedAlerts()   // 픽업 마감 예약 갱신
                         refreshPlans()   // 새 픽업 목록으로 저축 계획 갱신
                     }
                     _gameEvents.value = events.sortedBy { it.endMillis }
                     _challenges.value = challenges.sortedBy { it.endMillis }
 
                     val notes = noteDeferred.mapNotNull { it.await() }
-                    if (notes.isNotEmpty()) _liveNotes.value = notes
+                    if (notes.isNotEmpty()) {
+                        _liveNotes.value = notes
+                        // 재화가 가득 차는 시각을 알림 예약에 쓰려면 로컬 캐시가 필요하다(네트워크 없이 계산).
+                        runCatching { repo.saveLiveNotes(notes) }
+                        rescheduleTimedAlerts()
+                    }
 
                     // ★ 배너+노트까지면 홈/오늘 할 일 준비 완료 — 즉시 표출(원장·전투는 뒤이어)
                     _gameInfoReady.value = true
@@ -1313,6 +1330,7 @@ class SpendingViewModel : ViewModel() {
                             _combat.value = combats
                             // 백그라운드 시즌 마감 알림이 네트워크 없이 판정하도록 로컬 캐시(배너 캐시와 동일 패턴).
                             runCatching { repo.saveCombatModes(combats) }
+                            rescheduleTimedAlerts()   // 시즌 마감 예약 갱신
                         }
                     }
                 }
