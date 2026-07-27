@@ -20,6 +20,8 @@ private func enkaElementColor(_ el: String) -> Color {
 }
 private let enkaCrit = Color(hex: 0xFFE0533D)
 private let enkaGold = Color(hex: 0xFFD8A12E)
+/// 낮은 치명 점수(교체 후보) 표시색 — Android WarningText 와 동일 값.
+private let enkaWarn = Color(hex: 0xFFB37400)
 
 private func enkaRankLabel(_ c: EnkaChar, _ game: String) -> String? {
     switch game {
@@ -287,8 +289,13 @@ struct EnkaStatPage: View {
                     if char.artifacts.isEmpty {
                         emptyEquipNote(game == "genshin" ? "성유물이 장착되지 않았습니다." : game == "zzz" ? "드라이브 디스크가 장착되지 않았습니다." : "유물이 장착되지 않았습니다.")
                     } else {
+                        // 치명 점수(CV) 순 정렬 — 산식은 GL_Shared ArtifactScoring 단일 소스(Android 와 동일).
+                        let artScore = ArtifactScoring.shared.scoreChar(artifacts: char.artifacts)
                         VStack(spacing: 10) {
-                            ForEach(Array(char.artifacts.enumerated()), id: \.offset) { _, a in artifactCard(a) }
+                            critScoreSummary(artScore)
+                            ForEach(Array(artScore.ranked.enumerated()), id: \.offset) { i, r in
+                                artifactCard(r.artifact, score: r.score, rank: i + 1)
+                            }
                         }
                     }
                 }
@@ -532,7 +539,37 @@ struct EnkaStatPage: View {
         .glgGlass(in: RoundedRectangle(cornerRadius: 22, style: .continuous))
     }
 
-    private func artifactCard(_ a: EnkaArtifact) -> some View {
+    /// 등급 색 — 상위는 강조색, 중간은 보조 텍스트, 하위는 경고색(교체 후보 신호).
+    private func gradeColor(_ grade: ArtifactGrade) -> Color {
+        switch grade {
+        case .excellent, .good: return accent.primary
+        case .fair:             return GLGColor.textSecondary
+        default:                return enkaWarn
+        }
+    }
+
+    /// 치명 점수 요약 — 합계·장당 평균·등급. CV = 치확×2 + 치피(서브 옵션만).
+    private func critScoreSummary(_ s: CharArtifactScore) -> some View {
+        let c = gradeColor(s.grade)
+        return HStack(spacing: 7) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("치명 점수").font(.pretendard(size: 10.5)).foregroundStyle(GLGColor.textSecondary)
+                Text("서브 옵션 치확×2 + 치피").font(.pretendard(size: 9.5)).foregroundStyle(GLGColor.textSecondary)
+            }
+            Spacer(minLength: 0)
+            Text(ArtifactScoring.shared.cvLabel(cv: s.totalCv))
+                .font(.pretendard(size: 18, weight: .heavy)).foregroundStyle(c)
+            Text("장당 \(ArtifactScoring.shared.cvLabel(cv: s.averageCv)) · \(s.grade.label)")
+                .font(.pretendard(size: 10, weight: .bold)).foregroundStyle(c)
+                .padding(.horizontal, 7).padding(.vertical, 3)
+                .background(c.opacity(0.14), in: RoundedRectangle(cornerRadius: 7))
+        }
+        .padding(.horizontal, 13).padding(.vertical, 11)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .glgGlass(in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+    }
+
+    private func artifactCard(_ a: EnkaArtifact, score: ArtifactScore, rank: Int) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .top, spacing: 9) {
                 if let icon = a.iconUrl, let u = URL(string: icon) {
@@ -550,8 +587,18 @@ struct EnkaStatPage: View {
                     }
                 }
                 Spacer(minLength: 0)
-                Text("+\(a.level)").font(.pretendard(size: 10, weight: .bold)).foregroundStyle(Color(hex: 0xFF9C6F12))
-                    .padding(.horizontal, 7).padding(.vertical, 2).background(enkaGold.opacity(0.16), in: RoundedRectangle(cornerRadius: 7))
+                VStack(alignment: .trailing, spacing: 4) {
+                    Text("+\(a.level)").font(.pretendard(size: 10, weight: .bold)).foregroundStyle(Color(hex: 0xFF9C6F12))
+                        .padding(.horizontal, 7).padding(.vertical, 2).background(enkaGold.opacity(0.16), in: RoundedRectangle(cornerRadius: 7))
+                    // 치명 점수 — 치명 서브 옵션이 없으면 순위가 무의미하므로 배지를 숨긴다.
+                    if !score.isEmpty {
+                        let gc = gradeColor(score.grade)
+                        Text("\(rank)위 · CV \(ArtifactScoring.shared.cvLabel(cv: score.cv))")
+                            .font(.pretendard(size: 10, weight: .bold)).foregroundStyle(gc)
+                            .padding(.horizontal, 7).padding(.vertical, 2)
+                            .background(gc.opacity(0.14), in: RoundedRectangle(cornerRadius: 7))
+                    }
+                }
             }
             if !a.subs.isEmpty {
                 // 부옵션 — 목업(design_enka_statsheet): 배경 박스 없이 상단 점선 구분선 + 2열 그리드.

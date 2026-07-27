@@ -34,6 +34,10 @@ import coil.compose.AsyncImage
 import com.gatcha.log.ui.components.GlgDropdownMenu
 import com.gatcha.log.ui.components.GlgDropdownItem
 import com.gatcha.log.data.SpendingViewModel
+import com.gatcha.log.data.api.ArtifactGrade
+import com.gatcha.log.data.api.ArtifactScore
+import com.gatcha.log.data.api.ArtifactScoring
+import com.gatcha.log.data.api.CharArtifactScore
 import com.gatcha.log.data.api.CharEffect
 import com.gatcha.log.data.api.CharEffectsApi
 import com.gatcha.log.data.api.EnkaArtifact
@@ -52,6 +56,7 @@ import com.gatcha.log.ui.theme.DividerColor
 import com.gatcha.log.ui.theme.LocalAccent
 import com.gatcha.log.ui.theme.TextPrimary
 import com.gatcha.log.ui.theme.TextSecondary
+import com.gatcha.log.ui.theme.WarningText
 
 private val CardOutline = Color.Black.copy(alpha = 0.08f)
 private val CritColor = Color(0xFFE0533D)
@@ -427,14 +432,17 @@ fun EnkaStatPage(c: EnkaChar, game: String, onBack: () -> Unit) {
         }
         Spacer(Modifier.height(16.dp))
 
-        // 성유물 / 유물
+        // 성유물 / 유물 — 치명 점수(CV) 순으로 정렬해 잘 뽑힌 것부터 보여준다.
+        val artScore = remember(c.artifacts) { ArtifactScoring.scoreChar(c.artifacts) }
         SecLabel(artLabel)
         if (c.artifacts.isEmpty()) {
             EmptyEquipNote(if (game == "genshin") "성유물이 장착되지 않았습니다." else if (game == "zzz") "드라이브 디스크가 장착되지 않았습니다." else "유물이 장착되지 않았습니다.")
         } else {
-            c.artifacts.forEachIndexed { i, a ->
-                ArtifactCard(a, accent, keySet)
-                if (i < c.artifacts.lastIndex) Spacer(Modifier.height(10.dp))
+            CritScoreSummary(artScore, accent)
+            Spacer(Modifier.height(10.dp))
+            artScore.ranked.forEachIndexed { i, r ->
+                ArtifactCard(r.artifact, r.score, rank = i + 1, accent = accent, keySet = keySet)
+                if (i < artScore.ranked.lastIndex) Spacer(Modifier.height(10.dp))
             }
         }
 
@@ -687,7 +695,41 @@ private fun StatCell(s: EnkaStatLine, keySet: Set<StatTok>) {
 }
 
 @Composable
-private fun ArtifactCard(a: EnkaArtifact, accent: Color, keySet: Set<StatTok>) {
+/** 등급 색 — 상위는 강조색, 중간은 보조 텍스트, 하위는 경고색(교체 후보 신호). */
+private fun gradeColor(grade: ArtifactGrade, accent: Color): Color = when (grade) {
+    ArtifactGrade.EXCELLENT, ArtifactGrade.GOOD -> accent
+    ArtifactGrade.FAIR -> TextSecondary
+    ArtifactGrade.POOR, ArtifactGrade.BAD -> WarningText
+}
+
+/**
+ * 치명 점수 요약 — 합계·장당 평균·등급.
+ * CV = 치확×2 + 치피(서브 옵션만). 메인 옵션은 사용자가 고르는 값이라 제외한다.
+ */
+@Composable
+private fun CritScoreSummary(s: CharArtifactScore, accent: Color) {
+    val c = gradeColor(s.grade, accent)
+    GlassCard(modifier = Modifier.fillMaxWidth()) {
+        Row(Modifier.padding(horizontal = 13.dp, vertical = 11.dp), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text("치명 점수", fontSize = 10.5.sp, color = TextSecondary)
+                Text("서브 옵션 치확×2 + 치피", fontSize = 9.5.sp, color = TextSecondary)
+            }
+            Text(ArtifactScoring.cvLabel(s.totalCv), fontSize = 18.sp, fontWeight = FontWeight.Black, color = c)
+            Spacer(Modifier.width(7.dp))
+            Surface(color = c.copy(alpha = 0.14f), shape = RoundedCornerShape(7.dp)) {
+                Text(
+                    "장당 ${ArtifactScoring.cvLabel(s.averageCv)} · ${s.grade.label}",
+                    fontSize = 10.sp, fontWeight = FontWeight.Bold, color = c,
+                    modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ArtifactCard(a: EnkaArtifact, score: ArtifactScore, rank: Int, accent: Color, keySet: Set<StatTok>) {
     GlassCard(modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(13.dp)) {
             Row(verticalAlignment = Alignment.Top) {
@@ -712,8 +754,21 @@ private fun ArtifactCard(a: EnkaArtifact, accent: Color, keySet: Set<StatTok>) {
                         Text(a.setName, fontSize = 9.5.sp, color = TextSecondary, maxLines = 1)
                     }
                 }
-                Surface(color = Gold.copy(alpha = 0.16f), shape = RoundedCornerShape(7.dp)) {
-                    Text("+${a.level}", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color(0xFF9C6F12), modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp))
+                Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Surface(color = Gold.copy(alpha = 0.16f), shape = RoundedCornerShape(7.dp)) {
+                        Text("+${a.level}", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color(0xFF9C6F12), modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp))
+                    }
+                    // 치명 점수 — 치명 서브 옵션이 없으면 순위가 무의미하므로 배지를 숨긴다.
+                    if (!score.isEmpty) {
+                        val gc = gradeColor(score.grade, accent)
+                        Surface(color = gc.copy(alpha = 0.14f), shape = RoundedCornerShape(7.dp)) {
+                            Text(
+                                "${rank}위 · CV ${ArtifactScoring.cvLabel(score.cv)}",
+                                fontSize = 10.sp, fontWeight = FontWeight.Bold, color = gc,
+                                modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp),
+                            )
+                        }
+                    }
                 }
             }
             if (a.subs.isNotEmpty()) {
