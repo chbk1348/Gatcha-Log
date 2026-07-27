@@ -86,7 +86,7 @@ struct GiftCodePage: View {
 
     @ViewBuilder private var codeList: some View {
         if store.codesLoading && store.activeCodes.isEmpty {
-            GLGGiftCodeSkeleton()
+            GLGShimmerClock { GLGGiftCodeSkeleton() }
         } else if store.codesFailed && store.activeCodes.isEmpty {
             // 수집 실패는 '코드 없음'과 다르다 — 사유를 밝히고 재시도를 준다. (Android 파리티)
             VStack(alignment: .leading, spacing: 6) {

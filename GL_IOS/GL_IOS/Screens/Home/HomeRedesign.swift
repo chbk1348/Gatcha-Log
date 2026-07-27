@@ -193,7 +193,14 @@ struct AmbientHeroGradient: View {
     let secondary: Color
     let primary: Color
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// 앱이 백그라운드/비활성일 때는 애니메이션을 멈춘다.
+    ///
+    /// 240pt 원에 `blur(radius: 56)` 를 먹인 뒤 5초 주기로 무한 반복하는 구조라, 프레임마다 가우시안
+    /// 블러를 다시 그리는 것과 같다. 홈 뷰는 탭을 옮겨도 살아 있으므로 예전엔 앱이 켜져 있는 내내 돌았다.
+    /// **보일 때의 모습은 그대로 두고**, 화면에 없거나 앱이 내려가 있을 때만 멈춘다.
+    @Environment(\.scenePhase) private var scenePhase
     @State private var drift = false
+    @State private var onScreen = false
 
     var body: some View {
         ZStack(alignment: .top) {
@@ -210,9 +217,16 @@ struct AmbientHeroGradient: View {
                 .frame(width: 240, height: 240)
                 .blur(radius: 56)
                 .offset(x: drift ? 84 : -84, y: 66)
-                .animation(reduceMotion ? nil : .easeInOut(duration: 5).repeatForever(autoreverses: true), value: drift)
+                .animation(animating ? .easeInOut(duration: 5).repeatForever(autoreverses: true) : nil, value: drift)
         }
-        .onAppear { drift = true }
+        // 블러 원을 별도 레이어로 굽는다 — 매 프레임 합성 대신 래스터를 옮기는 형태가 된다.
+        .drawingGroup()
+        .onAppear { onScreen = true; drift = true }
+        .onDisappear { onScreen = false }
+    }
+
+    private var animating: Bool {
+        !reduceMotion && onScreen && scenePhase == .active
     }
 }
 

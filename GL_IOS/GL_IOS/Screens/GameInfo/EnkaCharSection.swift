@@ -364,12 +364,15 @@ struct EnkaStatPage: View {
                         keyStatEditor
                         Spacer().frame(height: 16)
                         // 유효 점수 순 정렬 — 산식은 GL_Shared ArtifactScoring 단일 소스(Android 와 동일).
-                        let artScore = ArtifactScoring.shared.scoreChar(artifacts: char.artifacts, keySet: keySet, gameKey: game)
+                        // 점수는 캐릭터·유효옵션이 바뀔 때만 다시 낸다(아래 cachedScore). 예전엔 computed 라
+                        // 화면이 다시 그려질 때마다 성유물 전체를 재채점했다 — 유효옵션 칩을 누를 때마다도.
+                        if let artScore = cachedScore {
                         VStack(spacing: 10) {
                             critScoreSummary(artScore)
                             ForEach(Array(artScore.ranked.enumerated()), id: \.offset) { i, r in
                                 artifactCard(r.artifact, score: r.score, rank: i + 1)
                             }
+                        }
                         }
                     }
                 }
@@ -395,7 +398,7 @@ struct EnkaStatPage: View {
         // 캐릭터/게임 바뀌면 효과 재조회(캐시 적중 시 즉시).
         // 유효옵션 판정은 캐릭터 또는 사용자 설정이 바뀔 때만 다시 한다.
         .task(id: char.id) {
-            cachedVerdict = KeyStatRulesKt.resolveKeyStats(gameKey: game, char: char, overrides: overrides)
+            applyVerdict(KeyStatRulesKt.resolveKeyStats(gameKey: game, char: char, overrides: overrides))
             effectsLoading = true
             expandedEffect = nil
             let r = (try? await CharEffectsApi.shared.fetch(gameKey: game, id: char.id)) ?? []
@@ -405,7 +408,7 @@ struct EnkaStatPage: View {
             effectsLoading = false
         }
         .onChange(of: overrides) { _, new in
-            cachedVerdict = KeyStatRulesKt.resolveKeyStats(gameKey: game, char: char, overrides: new)
+            applyVerdict(KeyStatRulesKt.resolveKeyStats(gameKey: game, char: char, overrides: new))
         }
     }
 
@@ -605,11 +608,19 @@ struct EnkaStatPage: View {
     /// `keySet` 이 이걸 읽고 스탯·성유물·부옵션이 줄마다 또 읽어서 한 화면에 70회 넘게 실행됐다.
     /// 유효옵션 칩을 한 번 누를 때마다 그 전부가 다시 돌았다.
     @State private var cachedVerdict: KeyStatVerdict? = nil
+    /// 성유물 채점 결과 — 유효옵션이 정해져야 나오므로 [cachedVerdict] 와 함께 갱신한다.
+    @State private var cachedScore: CharArtifactScore? = nil
 
     private var verdict: KeyStatVerdict {
         cachedVerdict ?? KeyStatRulesKt.resolveKeyStats(gameKey: game, char: char, overrides: overrides)
     }
     private var keySet: Set<StatTok> { verdict.stats }
+
+    /// 유효옵션 판정과 그에 따른 성유물 점수를 함께 갱신 — 둘이 어긋나면 '빨간 강조'와 점수가 안 맞는다.
+    private func applyVerdict(_ v: KeyStatVerdict) {
+        cachedVerdict = v
+        cachedScore = ArtifactScoring.shared.scoreChar(artifacts: char.artifacts, keySet: v.stats, gameKey: game)
+    }
 
     /// 유효옵션 편집 카드 — 앱 룰은 추정이라 오차가 유효 점수로 그대로 드러난다.
     /// 무엇을 기준으로 쟀는지 보여주고 사용자가 덮어쓸 수 있게 한다.

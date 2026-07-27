@@ -158,6 +158,14 @@ object DateUtil {
     fun isSameMonth(millis: Long, year: Int, month: Int): Boolean =
         year(millis) == year && month(millis) == month
 
+    /**
+     * 연·월을 한 값으로 (2026년 7월 → 202607).
+     *
+     * [year] 와 [month] 를 따로 부르면 시각→로컬 변환이 두 번 일어난다. 월별 집계처럼 지출을 통째로
+     * 훑는 자리에서는 그 두 배가 그대로 비용이 되므로, 한 번의 변환으로 둘을 같이 얻는다.
+     */
+    fun yearMonthKey(millis: Long): Int = local(millis).let { it.year * 100 + it.month.number }
+
     fun isSameYear(millis: Long, year: Int): Boolean = year(millis) == year
 
     // ----------------------------------------------------------------- 출석 달력(베이징 UTC+8) 헬퍼

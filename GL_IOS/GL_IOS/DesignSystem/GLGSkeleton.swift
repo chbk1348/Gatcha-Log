@@ -14,10 +14,51 @@ import SwiftUI
 // 사용: `GLGSkeleton().frame(width: 140, height: 18)` 처럼 크기는 호출부에서 frame 으로 지정.
 // ════════════════════════════════════════════════════════════════════════════
 
+// 시머 위상(0→1)을 환경으로 내려보낸다.
+//
+// 예전엔 GLGSkeleton 하나하나가 자기 TimelineView 를 들고 있었다. DashCardSkeleton(rows:3) 한 장이
+// GLGSkeleton 10개라, 홈 로딩 중엔 TimelineView 가 20개 넘게 동시에 돌며 각자 GeometryReader 레이아웃
+// 패스까지 유발했다. 위상은 절대 시간에서 나오는 **같은 값**이므로 위에서 한 번만 계산해 내려주면 된다.
+private struct GLGShimmerPhaseKey: EnvironmentKey {
+    static let defaultValue: CGFloat? = nil
+}
+
+extension EnvironmentValues {
+    /// 상위 [GLGShimmerClock] 이 내려준 시머 위상. nil 이면 각 스켈레톤이 자기 클럭을 쓴다.
+    var glgShimmerPhase: CGFloat? {
+        get { self[GLGShimmerPhaseKey.self] }
+        set { self[GLGShimmerPhaseKey.self] = newValue }
+    }
+}
+
+/// 스켈레톤이 여러 개 뜨는 화면을 이걸로 감싸면 시머 클럭을 하나만 돌린다.
+/// 감싸지 않아도 동작은 같다(각자 클럭) — 성능만 달라진다.
+struct GLGShimmerClock<Content: View>: View {
+    @Environment(\.glgReduceMotion) private var reduceMotion
+    @ViewBuilder var content: Content
+
+    var body: some View {
+        if reduceMotion {
+            content
+        } else {
+            TimelineView(.periodic(from: .now, by: 1.0 / 30.0)) { ctx in
+                content.environment(\.glgShimmerPhase, GLGSkeleton.phase(at: ctx.date))
+            }
+        }
+    }
+}
+
 struct GLGSkeleton: View {
     var cornerRadius: CGFloat = 6
 
     @Environment(\.glgReduceMotion) private var reduceMotion
+    @Environment(\.glgShimmerPhase) private var sharedPhase
+
+    /// 절대 시간에서 0→1 위상 — 모든 박스가 같은 값을 쓰므로 어디서 계산해도 결과가 같다.
+    static func phase(at date: Date) -> CGFloat {
+        let t = date.timeIntervalSinceReferenceDate
+        return CGFloat((t.truncatingRemainder(dividingBy: GLGMotion.shimmerPeriod)) / GLGMotion.shimmerPeriod)
+    }
 
     var body: some View {
         GeometryReader { geo in
@@ -26,25 +67,31 @@ struct GLGSkeleton: View {
                 .fill(GLGColor.skeletonBase)
                 .overlay {
                     if !reduceMotion {
-                        // .animation(디스플레이 리프레시 = ProMotion 120Hz)이 아니라 30Hz 고정.
-                        // 시머는 1.1초 주기 저주파 스윕이라 30fps 로도 육안 차이가 없는데, 로딩 구간에는
-                        // 스켈레톤이 10여 개 동시에 떠 네트워크·파싱과 프레임 예산을 다툰다.
-                        TimelineView(.periodic(from: .now, by: 1.0 / 30.0)) { ctx in
-                            // 절대 시간에서 0→1 위상 산출(모든 박스 동일 클럭). -1.6w→+1.6w 스윕.
-                            let t = ctx.date.timeIntervalSinceReferenceDate
-                            let p = CGFloat((t.truncatingRemainder(dividingBy: GLGMotion.shimmerPeriod)) / GLGMotion.shimmerPeriod)
-                            LinearGradient(
-                                colors: [GLGColor.skeletonBase, GLGColor.skeletonHighlight, GLGColor.skeletonBase],
-                                startPoint: .leading,
-                                endPoint: .trailing
-                            )
-                            .frame(width: w * 0.6)
-                            .offset(x: (p * 2 - 1) * w * 1.6)
+                        if let sharedPhase {
+                            sweep(width: w, phase: sharedPhase)
+                        } else {
+                            // 상위에 GLGShimmerClock 이 없을 때만 자기 클럭을 돈다.
+                            // .animation(= ProMotion 120Hz)이 아니라 30Hz 고정 — 1.1초 주기 저주파
+                            // 스윕이라 육안 차이가 없는데 로딩 구간엔 프레임 예산을 네트워크·파싱과 다툰다.
+                            TimelineView(.periodic(from: .now, by: 1.0 / 30.0)) { ctx in
+                                sweep(width: w, phase: Self.phase(at: ctx.date))
+                            }
                         }
                     }
                 }
                 .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
         }
+    }
+
+    /// base→highlight→base 가로 그라데이션이 -1.6w → +1.6w 로 흐른다.
+    private func sweep(width w: CGFloat, phase p: CGFloat) -> some View {
+        LinearGradient(
+            colors: [GLGColor.skeletonBase, GLGColor.skeletonHighlight, GLGColor.skeletonBase],
+            startPoint: .leading,
+            endPoint: .trailing
+        )
+        .frame(width: w * 0.6)
+        .offset(x: (p * 2 - 1) * w * 1.6)
     }
 }
 

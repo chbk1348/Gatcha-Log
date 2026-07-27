@@ -369,6 +369,7 @@ class SpendingViewModel : ViewModel() {
         _enkaResult.value = null
         _enkaResults.value = emptyMap()
         seedEnkaDiskCache()   // 재시작/계정전환 시 디스크 캐시를 메모리로 — '내 캐릭터' 즉시 표시
+        seedGameInfoDiskCache()
         loadGachaDeferred()
         _subscriptions.value = repo.loadSubscriptions()
         _redeemedCodes.value = repo.loadRedeemedCodes()
@@ -377,6 +378,32 @@ class SpendingViewModel : ViewModel() {
         _savingsHidden.value = repo.loadSavingsHidden()
         refreshSavings()
         recomputeSpendingDerived()   // 첫 프레임이 0원으로 그려지지 않게 동기로 한 번
+    }
+
+    /**
+     * 배너·실시간 노트·전투 진행도의 **로컬 캐시를 시작 시 읽어** 홈을 즉시 채운다.
+     *
+     * 이 세 가지는 백그라운드 알림 판정용으로 이미 디스크에 저장하고 있었는데(saveActiveBanners 등),
+     * 정작 앱을 켤 때는 읽지 않아서 **네트워크 응답 18건이 다 올 때까지 홈이 스켈레톤**이었다.
+     * 저장해 둔 걸 그대로 쓰면 그 대기가 사라진다.
+     *
+     * [_gameInfoReady] 도 함께 올린다 — 값만 채우고 이 플래그가 false 면 화면은 계속 스켈레톤을 그린다.
+     * 갱신은 [refreshGameInfo] 가 곧바로 이어서 하므로(lastGameInfoLoadAt 이 0 이라 신선도 검사에 걸리지 않는다)
+     * 잠깐 지난 값이 보였다가 실제 값으로 바뀌는, '내 캐릭터'와 같은 방식이 된다.
+     */
+    private fun seedGameInfoDiskCache() {
+        runCatching {
+            val banners = repo.loadActiveBanners()
+            val notes = repo.loadLiveNotes()
+            val combats = repo.loadCombatModes()
+            if (banners.isNotEmpty()) {
+                _activeBanners.value = banners.sortedWith(compareBy({ it.isEndUnknown }, { it.dDay() }))
+            }
+            if (notes.isNotEmpty()) _liveNotes.value = notes
+            if (combats.isNotEmpty()) _combat.value = combats
+            // 보여줄 게 하나라도 있으면 스켈레톤 대신 캐시를 그린다.
+            if (banners.isNotEmpty() || notes.isNotEmpty()) _gameInfoReady.value = true
+        }
     }
 
     /**
@@ -483,20 +510,21 @@ class SpendingViewModel : ViewModel() {
 
     // ----------------------------------------------------------------- 지출
     fun addSpending(spending: Spending) {
-        _spendings.update { current ->
-            (listOf(spending) + current).sortedByDescending { it.dateMillis }.also(repo::saveSpendings)
-        }
+        // 상태 갱신과 저장을 분리한다 — update {} 블록은 CAS 재시도 시 통째로 다시 실행되므로
+        // 그 안에 저장을 넣으면 디스크 쓰기와 클라우드 푸시 예약이 한 번 더 일어날 수 있다.
+        val next = (listOf(spending) + _spendings.value).sortedByDescending { it.dateMillis }
+        _spendings.value = next
+        repo.saveSpendings(next)
         autoLinkSubscription(spending)
         refreshChallenge()
         emitStatus("지출이 저장되었어요")
     }
 
     fun updateSpending(updated: Spending) {
-        _spendings.update { current ->
-            current.map { if (it.id == updated.id) updated else it }
-                .sortedByDescending { it.dateMillis }
-                .also(repo::saveSpendings)
-        }
+        val next = _spendings.value.map { if (it.id == updated.id) updated else it }
+            .sortedByDescending { it.dateMillis }
+        _spendings.value = next
+        repo.saveSpendings(next)
         autoLinkSubscription(updated)
         refreshChallenge()
         emitStatus("지출이 수정되었어요")
@@ -563,7 +591,9 @@ class SpendingViewModel : ViewModel() {
     fun deleteSpending(id: String) {
         repo.addDeletedSpendingIds(setOf(id)) // tombstone — 삭제를 다른 기기에 전파(합집합 병합 방어)
         val removed = _spendings.value.firstOrNull { it.id == id }
-        _spendings.update { current -> current.filter { it.id != id }.also(repo::saveSpendings) }
+        val next = _spendings.value.filter { it.id != id }
+        _spendings.value = next
+        repo.saveSpendings(next)
         removed?.let { unlinkSubscriptionIfOrphaned(it) }
         refreshChallenge()
     }
@@ -571,7 +601,9 @@ class SpendingViewModel : ViewModel() {
     fun deleteSpendings(ids: Set<String>) {
         repo.addDeletedSpendingIds(ids) // tombstone — 삭제 전파
         val removed = _spendings.value.filter { it.id in ids }
-        _spendings.update { current -> current.filter { it.id !in ids }.also(repo::saveSpendings) }
+        val next = _spendings.value.filter { it.id !in ids }
+        _spendings.value = next
+        repo.saveSpendings(next)
         removed.forEach { unlinkSubscriptionIfOrphaned(it) }
         refreshChallenge()
     }
@@ -599,16 +631,16 @@ class SpendingViewModel : ViewModel() {
      */
     fun bulkEditSpendings(ids: Set<String>, gameName: String?, dateMillis: Long?, addTags: List<String>) {
         if (ids.isEmpty()) return
-        _spendings.update { current ->
-            current.map { s ->
-                if (s.id !in ids) s else s.copy(
-                    gameName = gameName ?: s.gameName,
-                    gameColor = gameName?.let { GameData.colorFor(it) } ?: s.gameColor,
-                    dateMillis = dateMillis ?: s.dateMillis,
-                    tags = if (addTags.isEmpty()) s.tags else (s.tags + addTags).distinct(),
-                )
-            }.sortedByDescending { it.dateMillis }.also(repo::saveSpendings)
-        }
+        val next = _spendings.value.map { s ->
+            if (s.id !in ids) s else s.copy(
+                gameName = gameName ?: s.gameName,
+                gameColor = gameName?.let { GameData.colorFor(it) } ?: s.gameColor,
+                dateMillis = dateMillis ?: s.dateMillis,
+                tags = if (addTags.isEmpty()) s.tags else (s.tags + addTags).distinct(),
+            )
+        }.sortedByDescending { it.dateMillis }
+        _spendings.value = next
+        repo.saveSpendings(next)
         refreshChallenge()
         emitStatus("${ids.size}건 일괄 수정했어요")
     }
@@ -654,7 +686,9 @@ class SpendingViewModel : ViewModel() {
 
     // ----------------------------------------------------------------- 프로필
     fun setProfileName(name: String) {
-        _profile.update { it.copy(name = name).also(repo::saveProfile) }
+        val next = _profile.value.copy(name = name)
+        _profile.value = next
+        repo.saveProfile(next)
     }
 
     // ----------------------------------------------------------------- HoYoLAB
@@ -1191,7 +1225,9 @@ class SpendingViewModel : ViewModel() {
                 it.isSubscription && subscriptionName(it) == sub.name && it.gameName == sub.gameName && it.amount == sub.amount
             }.map { it.id }.toSet()
             if (ids.isNotEmpty()) {
-                _spendings.update { current -> current.filter { it.id !in ids }.also(repo::saveSpendings) }
+                val next = _spendings.value.filter { it.id !in ids }
+                _spendings.value = next
+                repo.saveSpendings(next)
             }
         }
     }
