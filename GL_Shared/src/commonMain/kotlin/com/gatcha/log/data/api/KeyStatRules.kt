@@ -95,10 +95,12 @@ object KeyStatRules {
  */
 internal fun normStat(raw: String): StatTok {
     val s = raw.trim()
-    // 1) 치명 — 피해 일반 분기보다 먼저
-    if (s.contains("치명")) {
-        if (s.contains("확률")) return CRIT_RATE
-        if (s.contains("피해")) return CRIT_DMG
+    // 1) 치명 — 피해 일반 분기보다 먼저.
+    //    ZZZ 는 응답이 계정 언어라 zzzKrStat 매핑을 못 타고 영문("CRIT Rate"/"CRIT DMG")이 그대로 올 수 있다.
+    //    바깥 조건에 CRIT 을 요구하므로 "Ice DMG Bonus" 같은 속성 피해는 여기 걸리지 않는다.
+    if (s.contains("치명") || s.contains("CRIT", ignoreCase = true)) {
+        if (s.contains("확률") || s.contains("Rate", ignoreCase = true)) return CRIT_RATE
+        if (s.contains("피해") || s.contains("DMG", ignoreCase = true)) return CRIT_DMG
     }
     // 2) 피해 보너스 — 물리 vs 원소/속성
     if (s.contains("피해")) {
