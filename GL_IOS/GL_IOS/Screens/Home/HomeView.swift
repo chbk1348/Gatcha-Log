@@ -5,7 +5,7 @@ import Shared
 // 홈 — 헤더·지출/예산·오늘 할 일·이번주 일정·게임 소식·알림. (실시간 노트는 오늘 할 일과 중복이라 제거)
 // (Compose HomeContent + HomeRedesign 대응) VM 의존 최다. 시작 시 refreshGameInfo 트리거 보존.
 struct HomeView: View {
-    @ObservedObject var store: SpendingStore
+    var store: SpendingStore
     let onSwitchTab: (Int) -> Void
     @Environment(\.glgAccent) private var accent
 
@@ -13,8 +13,6 @@ struct HomeView: View {
     @State private var showHomeEdit = false
     @State private var importingGacha = false
     @State private var didStart = false
-    /// 콘텐츠 로드인 스태거 — 첫 표시 1회만 등장(스크롤 재진입 시 재애니메이션 방지용 인덱스 보관).
-    @State private var appeared: Set<Int> = []
 
     /// iPad = 분할뷰 detail 안이라 상단바 처리 방식이 다르다(HomeTopBarStyle).
     private var isPad: Bool { UIDevice.current.userInterfaceIdiom == .pad }
@@ -122,32 +120,30 @@ struct HomeView: View {
             // 그라데이션은 히어로 자체가 아니라 ScrollView '고정' 배경으로 그린다(PTR·스크롤에도 안 움직이게).
             HeroBalanceCard(monthlyTotal: monthlyTotal, prevTotal: prevTotal, budget: store.budget,
                             onBudget: { showBudget = true }, topPad: topInset, showGradient: false)
-                .glgLoadIn(1, appeared: $appeared)
 
             VStack(alignment: .leading, spacing: 16) {
                 if store.hoyoTokenExpired {
                     TokenExpiredBanner { store.requestOpenHoyolabLink(); onSwitchTab(3) }
-                        .glgLoadIn(0, appeared: $appeared)
                 }
                 if !store.gameInfoReady || !todayTasks.isEmpty {
-                    todayTaskView(titleOutside: true).glgLoadIn(3, appeared: $appeared)
+                    todayTaskView(titleOutside: true)
                 }
                 RecentSpendCard(spendings: store.spendings, onSeeAll: { onSwitchTab(1) })
-                    .glgLoadIn(4, appeared: $appeared)
                 if !store.gameInfoReady {
-                    DashCardSkeleton(rows: 3).glgLoadIn(5, appeared: $appeared)
-                    DashCardSkeleton(rows: 2).glgLoadIn(6, appeared: $appeared)
+                    // 스켈레톤이 여러 개 동시에 뜨는 구간 — 시머 클럭을 하나만 돌린다.
+                    GLGShimmerClock {
+                        DashCardSkeleton(rows: 3)
+                        DashCardSkeleton(rows: 2)
+                    }
                 } else {
                     DashboardScheduleCard(events: store.gameEvents, challenges: store.challenges, onTap: { store.requestGameInfoAnchor(.schedule); onSwitchTab(2) }, titleOutside: true)
-                        .glgLoadIn(5, appeared: $appeared)
                     DashboardNewsCard(news: store.gameNews, anniversaries: GameAnniversary.shared.upcoming(nowMillis: nowMs()), onTap: { store.requestGameInfoAnchor(.news); onSwitchTab(2) }, titleOutside: true)
-                        .glgLoadIn(6, appeared: $appeared)
                 }
-                HomeSectionHeader(title: "나를 위한").glgLoadIn(7, appeared: $appeared)
+                HomeSectionHeader(title: "나를 위한")
                 NavigationLink { SavingsPlannerView(store: store) } label: { PickupPlannerHomeCard(store: store) }
-                    .buttonStyle(.plain).glgLoadIn(8, appeared: $appeared)
+                    .buttonStyle(.plain)
                 NavigationLink { SavingsChallengeView(store: store) } label: { SavingsChallengeHomeCard(store: store) }
-                    .buttonStyle(.plain).glgLoadIn(9, appeared: $appeared)
+                    .buttonStyle(.plain)
             }
             .padding(.horizontal, 16)
             .padding(.bottom, 16)
@@ -161,26 +157,24 @@ struct HomeView: View {
         VStack(alignment: .leading, spacing: 16) {
             if store.hoyoTokenExpired {
                 TokenExpiredBanner { store.requestOpenHoyolabLink(); onSwitchTab(3) }
-                    .glgLoadIn(0, appeared: $appeared)
             }
             DashboardSpendCard(monthlyTotal: monthlyTotal, budget: store.budget, onTap: { onSwitchTab(1) })
-                .glgLoadIn(1, appeared: $appeared)
             if !store.gameInfoReady || !todayTasks.isEmpty {
-                todayTaskView(titleOutside: false).glgLoadIn(2, appeared: $appeared)
+                todayTaskView(titleOutside: false)
             }
             if !store.gameInfoReady {
-                DashCardSkeleton(rows: 3).glgLoadIn(3, appeared: $appeared)
-                DashCardSkeleton(rows: 2).glgLoadIn(4, appeared: $appeared)
+                GLGShimmerClock {
+                    DashCardSkeleton(rows: 3)
+                    DashCardSkeleton(rows: 2)
+                }
             } else {
                 DashboardScheduleCard(events: store.gameEvents, challenges: store.challenges, onTap: { store.requestGameInfoAnchor(.schedule); onSwitchTab(2) })
-                    .glgLoadIn(3, appeared: $appeared)
                 DashboardNewsCard(news: store.gameNews, anniversaries: GameAnniversary.shared.upcoming(nowMillis: nowMs()), onTap: { store.requestGameInfoAnchor(.news); onSwitchTab(2) })
-                    .glgLoadIn(4, appeared: $appeared)
             }
             NavigationLink { SavingsPlannerView(store: store) } label: { PickupPlannerHomeCard(store: store) }
-                .buttonStyle(.plain).glgLoadIn(5, appeared: $appeared)
+                .buttonStyle(.plain)
             NavigationLink { SavingsChallengeView(store: store) } label: { SavingsChallengeHomeCard(store: store) }
-                .buttonStyle(.plain).glgLoadIn(6, appeared: $appeared)
+                .buttonStyle(.plain)
         }
         .padding(.horizontal, 16)
         .padding(.top, 4)
@@ -213,15 +207,15 @@ struct HomeView: View {
         if store.account.isGuest { return "게스트" }
         return store.profile.name.isEmpty ? "회원" : store.profile.name
     }
-    private var monthlyTotal: Int64 { store.monthlyTotal() }
-    private var prevTotal: Int64 { store.prevMonthTotal() }
+    private var monthlyTotal: Int64 { store.monthlyTotal }
+    private var prevTotal: Int64 { store.prevMonthTotal }
     // 아래 파생값은 전부 GL_Shared HomeLogic 이 단일 소스 — Android 와 문구·우선순위가 갈리지 않도록.
     private var gameOverBudget: [String] {
         HomeLogic.shared.gameOverBudget(gameBudgets: store.gameBudgets.mapValues { KotlinLong(value: $0) },
-                                        totalsByGame: store.monthlyTotalsByGame().mapValues { KotlinLong(value: $0) })
+                                        totalsByGame: store.monthlyTotalsByGame.mapValues { KotlinLong(value: $0) })
     }
     private var perGameSpend: [GameSpend] {
-        HomeLogic.shared.perGameSpend(totalsByGame: store.monthlyTotalsByGame().mapValues { KotlinLong(value: $0) },
+        HomeLogic.shared.perGameSpend(totalsByGame: store.monthlyTotalsByGame.mapValues { KotlinLong(value: $0) },
                                       gameBudgets: store.gameBudgets.mapValues { KotlinLong(value: $0) })
     }
     private var savingTip: String {
@@ -257,7 +251,11 @@ struct HomeView: View {
 // 여기엔 SwiftUI 표현(SF Symbol·탭 이동 클로저)만 남는다.
 
 /// 오늘 할 일 한 줄. busyable=전체출석처럼 진행 중 스피너가 필요한 항목.
-struct TodayItem: Identifiable { let id = UUID(); let icon: String; let message: String; let cta: String; let urgent: Bool; let busyable: Bool; let action: () -> Void }
+///
+/// id 는 shared 가 만든 [TodayTask.key] 를 그대로 쓴다 — UUID 를 쓰면 todayTasks 가 computed 라
+/// body 평가마다 새 id 가 생겨 ForEach 가 매번 '전부 삭제 + 전부 삽입'으로 처리한다(행 재생성).
+/// 종류(kind)로는 안 된다 — 수지·전투 콘텐츠는 해당되는 게임마다 한 줄씩 나와 서로 충돌한다.
+struct TodayItem: Identifiable { let id: String; let icon: String; let message: String; let cta: String; let urgent: Bool; let busyable: Bool; let action: () -> Void }
 
 extension Array where Element == TodayTask {
     /// shared [TodayTask] → SwiftUI 표시 모델. 종류별 아이콘·탭 동작 매핑.
@@ -273,7 +271,7 @@ extension Array where Element == TodayTask {
             case .banner:     icon = "die.face.5";       action = onBanner
             case .budget:     icon = "banknote";         action = onBudget
             }
-            return TodayItem(icon: icon, message: t.message, cta: t.ctaLabel, urgent: t.urgent, busyable: t.busyable, action: action)
+            return TodayItem(id: t.key, icon: icon, message: t.message, cta: t.ctaLabel, urgent: t.urgent, busyable: t.busyable, action: action)
         }
     }
 }

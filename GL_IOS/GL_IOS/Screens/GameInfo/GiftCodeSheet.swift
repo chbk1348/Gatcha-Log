@@ -5,7 +5,7 @@ import Shared
 // 리딤코드 — 페이지 형식(네비게이션 푸시). 활성 코드 자동 수집 + 교환(단건/모두) + 직접 입력.
 // (Compose GiftCodePage 대응) 시트 → 페이지로 전환하며 글래스 카드로 디자인 개선.
 struct GiftCodePage: View {
-    @ObservedObject var store: SpendingStore
+    var store: SpendingStore
     @Environment(\.glgAccent) private var accent
     @State private var selected = "genshin"
     @State private var code = ""
@@ -86,7 +86,7 @@ struct GiftCodePage: View {
 
     @ViewBuilder private var codeList: some View {
         if store.codesLoading && store.activeCodes.isEmpty {
-            GLGGiftCodeSkeleton()
+            GLGShimmerClock { GLGGiftCodeSkeleton() }
         } else if store.codesFailed && store.activeCodes.isEmpty {
             // 수집 실패는 '코드 없음'과 다르다 — 사유를 밝히고 재시도를 준다. (Android 파리티)
             VStack(alignment: .leading, spacing: 6) {

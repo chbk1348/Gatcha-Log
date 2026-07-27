@@ -22,7 +22,17 @@ import kotlin.time.Instant
 @OptIn(ExperimentalTime::class)
 object DateUtil {
 
-    private val localTz: TimeZone get() = TimeZone.currentSystemDefault()
+    /**
+     * 로컬 타임존 — **캐시한다.** getter 로 두면 접근할 때마다 시스템 조회가 일어나는데,
+     * [isSameMonth] 한 번이 이 값을 2회 읽으므로 지출 1,000건 필터에 조회가 4,000회 발생했다.
+     * 타임존은 실제로 거의 안 바뀌므로 캐시하고, 바뀔 수 있는 시점(앱 포그라운드 복귀)에만 [refreshTimeZone] 으로 갱신한다.
+     */
+    private var localTz: TimeZone = TimeZone.currentSystemDefault()
+
+    /** 시스템 타임존 재조회 — 앱이 포그라운드로 돌아올 때 호출(여행·자동 시간대 변경 반영). */
+    fun refreshTimeZone() {
+        localTz = TimeZone.currentSystemDefault()
+    }
 
     // HoYoLAB 출석은 베이징 표준시(UTC+8) 자정에 초기화됨 → 출석 날짜는 로컬이 아닌 베이징 기준으로 계산.
     private val hoyoTz: TimeZone = TimeZone.of("UTC+8")
@@ -147,6 +157,14 @@ object DateUtil {
 
     fun isSameMonth(millis: Long, year: Int, month: Int): Boolean =
         year(millis) == year && month(millis) == month
+
+    /**
+     * 연·월을 한 값으로 (2026년 7월 → 202607).
+     *
+     * [year] 와 [month] 를 따로 부르면 시각→로컬 변환이 두 번 일어난다. 월별 집계처럼 지출을 통째로
+     * 훑는 자리에서는 그 두 배가 그대로 비용이 되므로, 한 번의 변환으로 둘을 같이 얻는다.
+     */
+    fun yearMonthKey(millis: Long): Int = local(millis).let { it.year * 100 + it.month.number }
 
     fun isSameYear(millis: Long, year: Int): Boolean = year(millis) == year
 

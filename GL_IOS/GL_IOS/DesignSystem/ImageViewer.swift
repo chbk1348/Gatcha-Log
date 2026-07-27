@@ -22,23 +22,25 @@ struct GLGImageViewer: View {
     @State private var offset: CGSize = .zero
     @State private var lastOffset: CGSize = .zero
     @State private var image: UIImage? = nil
+    @State private var failed = false
 
     var body: some View {
         ZStack {
             Color.black.ignoresSafeArea()
 
-            AsyncImage(url: URL(string: url)) { phase in
-                switch phase {
-                case .success(let img):
-                    img.resizable().scaledToFit()
+            // AsyncImage 를 쓰지 않는다 — 저장 버튼에 쓸 원본 UIImage 가 어차피 필요해서 preload() 가
+            // 같은 URL 을 따로 받고 있었다. 그러면 다운로드 2회·디코딩 2회다. 받은 것을 그대로 그린다.
+            Group {
+                if let image {
+                    Image(uiImage: image).resizable().scaledToFit()
                         .scaleEffect(scale)
                         .offset(offset)
                         .gesture(zoom.simultaneously(with: pan))
                         .onTapGesture(count: 2) { reset() } // 두 번 탭 = 원래 크기로
-                case .failure:
+                } else if failed {
                     Text("이미지를 불러오지 못했어요")
                         .font(.pretendard(size: 14)).foregroundStyle(.white.opacity(0.7))
-                default:
+                } else {
                     ProgressView().tint(.white)
                 }
             }
@@ -86,12 +88,16 @@ struct GLGImageViewer: View {
         }
     }
 
-    /// 저장에 쓸 원본 바이트를 미리 받아 둔다 — AsyncImage 가 그린 Image 로는 UIImage 를 꺼낼 수 없다.
+    /// 원본을 한 번만 받아 화면 표시와 저장에 함께 쓴다.
+    /// 전체화면 뷰어라 축소 디코딩(GLGRemoteImage)은 쓰지 않는다 — 확대해서 보는 화면이다.
     private func preload() async {
-        guard image == nil, let u = URL(string: url) else { return }
-        if let (data, _) = try? await URLSession.shared.data(from: u) {
-            image = UIImage(data: data)
+        guard image == nil, let u = URL(string: url) else { failed = true; return }
+        guard let (data, _) = try? await URLSession.shared.data(from: u),
+              let decoded = UIImage(data: data) else {
+            failed = true
+            return
         }
+        image = decoded
     }
 
     private func save() {

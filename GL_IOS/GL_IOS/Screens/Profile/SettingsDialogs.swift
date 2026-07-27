@@ -8,7 +8,7 @@ import Shared
 // ── 예산 관리 ────────────────────────────────────────────────────────────────
 
 struct BudgetSheet: View {
-    @ObservedObject var store: SpendingStore
+    var store: SpendingStore
     @Environment(\.dismiss) private var dismiss
     @Environment(\.glgAccent) private var accent
 
@@ -16,7 +16,7 @@ struct BudgetSheet: View {
     @State private var perGame: [String: String] = [:]
 
     private let games = GameData.shared.games
-    private var monthlyTotals: [String: Int64] { store.monthlyTotalsByGame() }
+    private var monthlyTotals: [String: Int64] { store.monthlyTotalsByGame }
 
     var body: some View {
         NavigationStack {

@@ -9,7 +9,7 @@ import Shared
 // ════════════════════════════════════════════════════════════════════════════
 
 struct SettingsView: View {
-    @ObservedObject var store: SpendingStore
+    var store: SpendingStore
     @Environment(\.glgAccent) private var accent
     @Environment(\.dismiss) private var dismiss
     @Environment(\.openURL) private var openURL

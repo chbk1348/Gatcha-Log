@@ -54,9 +54,11 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
+import kotlinx.coroutines.yield
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
@@ -233,8 +235,9 @@ class SpendingViewModel : ViewModel() {
         val prev = if (prevInMonth) editRecord.amount else 0L
         val prevSameGame = prevInMonth && editRecord.gameName == game.displayName
 
-        val gameNow = monthlyTotalsByGame()[game.key] ?: 0L
-        val monthNow = monthlyTotal()
+        // 이미 계산해 둔 파생값을 쓴다 — 예전엔 여기서 지출 전체를 두 번 더 훑었다(저장 버튼 경로).
+        val gameNow = _currentMonthTotalsByGame.value[game.key] ?: 0L
+        val monthNow = _currentMonthTotal.value
         val projectedGame = gameNow - (if (prevSameGame) prev else 0L) + amount
         val projectedMonth = monthNow - prev + amount
 
@@ -312,6 +315,8 @@ class SpendingViewModel : ViewModel() {
      * 전환할 때마다 HoYoLAB 을 두드리면 안 되므로 [FOREGROUND_CHECK_MIN_INTERVAL_MS] 간격을 둔다.
      */
     fun onAppForeground() {
+        DateUtil.refreshTimeZone()    // 캐시된 로컬 타임존 갱신(여행·자동 시간대 변경) — 알림 조건과 무관하게 항상
+        recomputeSpendingDerived()    // 앱을 켜 둔 채 달이 바뀌면 지출은 그대로여서 '이번 달'이 안 갱신된다
         if (!appSettings.needsPeriodicWork()) return
         val now = currentTimeMillis()
         if (now - appSettings.lastForegroundCheckMillis < FOREGROUND_CHECK_MIN_INTERVAL_MS) return
@@ -364,15 +369,62 @@ class SpendingViewModel : ViewModel() {
         _enkaResult.value = null
         _enkaResults.value = emptyMap()
         seedEnkaDiskCache()   // 재시작/계정전환 시 디스크 캐시를 메모리로 — '내 캐릭터' 즉시 표시
-        gachaRecords = repo.loadGachaRecords()
-        _gachaStats.value = GachaReport.computeStats(gachaRecords)
-        _gachaDashboard.value = GachaReport.computeDashboard(gachaRecords)
+        seedGameInfoDiskCache()
+        loadGachaDeferred()
         _subscriptions.value = repo.loadSubscriptions()
         _redeemedCodes.value = repo.loadRedeemedCodes()
         _homeCards.value = repo.loadHomeCards()
         _savingsHeld.value = repo.loadSavingsHeld()
         _savingsHidden.value = repo.loadSavingsHidden()
         refreshSavings()
+        recomputeSpendingDerived()   // 첫 프레임이 0원으로 그려지지 않게 동기로 한 번
+    }
+
+    /**
+     * 배너·실시간 노트·전투 진행도의 **로컬 캐시를 시작 시 읽어** 홈을 즉시 채운다.
+     *
+     * 이 세 가지는 백그라운드 알림 판정용으로 이미 디스크에 저장하고 있었는데(saveActiveBanners 등),
+     * 정작 앱을 켤 때는 읽지 않아서 **네트워크 응답 18건이 다 올 때까지 홈이 스켈레톤**이었다.
+     * 저장해 둔 걸 그대로 쓰면 그 대기가 사라진다.
+     *
+     * [_gameInfoReady] 도 함께 올린다 — 값만 채우고 이 플래그가 false 면 화면은 계속 스켈레톤을 그린다.
+     * 갱신은 [refreshGameInfo] 가 곧바로 이어서 하므로(lastGameInfoLoadAt 이 0 이라 신선도 검사에 걸리지 않는다)
+     * 잠깐 지난 값이 보였다가 실제 값으로 바뀌는, '내 캐릭터'와 같은 방식이 된다.
+     */
+    private fun seedGameInfoDiskCache() {
+        runCatching {
+            val banners = repo.loadActiveBanners()
+            val notes = repo.loadLiveNotes()
+            val combats = repo.loadCombatModes()
+            if (banners.isNotEmpty()) {
+                _activeBanners.value = banners.sortedWith(compareBy({ it.isEndUnknown }, { it.dDay() }))
+            }
+            if (notes.isNotEmpty()) _liveNotes.value = notes
+            if (combats.isNotEmpty()) _combat.value = combats
+            // 보여줄 게 하나라도 있으면 스켈레톤 대신 캐시를 그린다.
+            if (banners.isNotEmpty() || notes.isNotEmpty()) _gameInfoReady.value = true
+        }
+    }
+
+    /**
+     * 가챠 기록 로드 + 통계 산출을 **한 프레임 뒤로** 미룬다.
+     *
+     * 기록이 수만 건이면 파싱 한 번에 전수 순회 두 번([GachaReport.computeStats]·[GachaReport.computeDashboard])이
+     * 붙는데, 이게 앱 시작 경로에서 첫 화면이 그려지기 전에 동기로 돌고 있었다. 데이터가 늘수록 시작이
+     * 선형으로 느려지는 유일한 구간이었다.
+     *
+     * 홈은 이 값을 읽지 않는다 — 소비처는 마이페이지·가챠 리포트·데이터 관리뿐이고,
+     * 두 StateFlow 모두 초기값이 null 이라 늦게 도착해도 화면이 깨지지 않는다.
+     *
+     * 매번 저장소에서 다시 읽으므로 그 사이에 가져오기/초기화가 일어나도 결과가 어긋나지 않는다.
+     */
+    private fun loadGachaDeferred() {
+        viewModelScope.launch {
+            yield()   // Main.immediate 라 양보하지 않으면 그대로 이어서 실행된다
+            gachaRecords = repo.loadGachaRecords()
+            _gachaStats.value = GachaReport.computeStats(gachaRecords)
+            _gachaDashboard.value = GachaReport.computeDashboard(gachaRecords)
+        }
     }
 
     // ----------------------------------------------------------------- 계정 (구글 로그인 — Credential Manager)
@@ -458,20 +510,21 @@ class SpendingViewModel : ViewModel() {
 
     // ----------------------------------------------------------------- 지출
     fun addSpending(spending: Spending) {
-        _spendings.update { current ->
-            (listOf(spending) + current).sortedByDescending { it.dateMillis }.also(repo::saveSpendings)
-        }
+        // 상태 갱신과 저장을 분리한다 — update {} 블록은 CAS 재시도 시 통째로 다시 실행되므로
+        // 그 안에 저장을 넣으면 디스크 쓰기와 클라우드 푸시 예약이 한 번 더 일어날 수 있다.
+        val next = (listOf(spending) + _spendings.value).sortedByDescending { it.dateMillis }
+        _spendings.value = next
+        repo.saveSpendings(next)
         autoLinkSubscription(spending)
         refreshChallenge()
         emitStatus("지출이 저장되었어요")
     }
 
     fun updateSpending(updated: Spending) {
-        _spendings.update { current ->
-            current.map { if (it.id == updated.id) updated else it }
-                .sortedByDescending { it.dateMillis }
-                .also(repo::saveSpendings)
-        }
+        val next = _spendings.value.map { if (it.id == updated.id) updated else it }
+            .sortedByDescending { it.dateMillis }
+        _spendings.value = next
+        repo.saveSpendings(next)
         autoLinkSubscription(updated)
         refreshChallenge()
         emitStatus("지출이 수정되었어요")
@@ -538,7 +591,9 @@ class SpendingViewModel : ViewModel() {
     fun deleteSpending(id: String) {
         repo.addDeletedSpendingIds(setOf(id)) // tombstone — 삭제를 다른 기기에 전파(합집합 병합 방어)
         val removed = _spendings.value.firstOrNull { it.id == id }
-        _spendings.update { current -> current.filter { it.id != id }.also(repo::saveSpendings) }
+        val next = _spendings.value.filter { it.id != id }
+        _spendings.value = next
+        repo.saveSpendings(next)
         removed?.let { unlinkSubscriptionIfOrphaned(it) }
         refreshChallenge()
     }
@@ -546,7 +601,9 @@ class SpendingViewModel : ViewModel() {
     fun deleteSpendings(ids: Set<String>) {
         repo.addDeletedSpendingIds(ids) // tombstone — 삭제 전파
         val removed = _spendings.value.filter { it.id in ids }
-        _spendings.update { current -> current.filter { it.id !in ids }.also(repo::saveSpendings) }
+        val next = _spendings.value.filter { it.id !in ids }
+        _spendings.value = next
+        repo.saveSpendings(next)
         removed.forEach { unlinkSubscriptionIfOrphaned(it) }
         refreshChallenge()
     }
@@ -574,16 +631,16 @@ class SpendingViewModel : ViewModel() {
      */
     fun bulkEditSpendings(ids: Set<String>, gameName: String?, dateMillis: Long?, addTags: List<String>) {
         if (ids.isEmpty()) return
-        _spendings.update { current ->
-            current.map { s ->
-                if (s.id !in ids) s else s.copy(
-                    gameName = gameName ?: s.gameName,
-                    gameColor = gameName?.let { GameData.colorFor(it) } ?: s.gameColor,
-                    dateMillis = dateMillis ?: s.dateMillis,
-                    tags = if (addTags.isEmpty()) s.tags else (s.tags + addTags).distinct(),
-                )
-            }.sortedByDescending { it.dateMillis }.also(repo::saveSpendings)
-        }
+        val next = _spendings.value.map { s ->
+            if (s.id !in ids) s else s.copy(
+                gameName = gameName ?: s.gameName,
+                gameColor = gameName?.let { GameData.colorFor(it) } ?: s.gameColor,
+                dateMillis = dateMillis ?: s.dateMillis,
+                tags = if (addTags.isEmpty()) s.tags else (s.tags + addTags).distinct(),
+            )
+        }.sortedByDescending { it.dateMillis }
+        _spendings.value = next
+        repo.saveSpendings(next)
         refreshChallenge()
         emitStatus("${ids.size}건 일괄 수정했어요")
     }
@@ -629,7 +686,9 @@ class SpendingViewModel : ViewModel() {
 
     // ----------------------------------------------------------------- 프로필
     fun setProfileName(name: String) {
-        _profile.update { it.copy(name = name).also(repo::saveProfile) }
+        val next = _profile.value.copy(name = name)
+        _profile.value = next
+        repo.saveProfile(next)
     }
 
     // ----------------------------------------------------------------- HoYoLAB
@@ -984,15 +1043,20 @@ class SpendingViewModel : ViewModel() {
                 _enkaResult.value = cached.second
                 return@launch
             }
+            if (!enkaInFlight.add(key)) return@launch   // 같은 조회가 이미 진행 중
             _enkaLoading.value = true
-            val cfg = _hoyolabConfig.value
-            val r = withContext(Dispatchers.IO) { EnkaApi.fetchProfile(game, uid, cfg.ltuid, cfg.ltoken) }
-            when {
-                r.profile != null -> { enkaCache[key] = currentTimeMillis() to r; repo.saveEnkaCache(enkaCache); _enkaResult.value = r }
-                cached != null -> _enkaResult.value = cached.second   // 실패 시 기존 캐시(신선/오래됨 무관) 유지 — 목록 사라짐 방지
-                else -> _enkaResult.value = r                          // 캐시 없을 때만 에러 표시
+            try {
+                val cfg = _hoyolabConfig.value
+                val r = withContext(Dispatchers.IO) { EnkaApi.fetchProfile(game, uid, cfg.ltuid, cfg.ltoken) }
+                when {
+                    r.profile != null -> { enkaCache[key] = currentTimeMillis() to r; repo.saveEnkaCache(enkaCache); _enkaResult.value = r }
+                    cached != null -> _enkaResult.value = cached.second   // 실패 시 기존 캐시(신선/오래됨 무관) 유지 — 목록 사라짐 방지
+                    else -> _enkaResult.value = r                          // 캐시 없을 때만 에러 표시
+                }
+            } finally {
+                enkaInFlight.remove(key)
+                _enkaLoading.value = false
             }
-            _enkaLoading.value = false
         }
     }
 
@@ -1006,6 +1070,16 @@ class SpendingViewModel : ViewModel() {
     val enkaResults: StateFlow<Map<String, EnkaResult>> = _enkaResults.asStateFlow()
     private val _enkaLoadingGames = MutableStateFlow<Set<String>>(emptySet())
     val enkaLoadingGames: StateFlow<Set<String>> = _enkaLoadingGames.asStateFlow()
+
+    /**
+     * 네트워크 조회가 진행 중인 게임(키 = "게임:uid").
+     *
+     * '내 캐릭터' 섹션은 게임 필터가 바뀔 때마다 다시 요청한다. 캐시가 신선하면 그 전에 빠져나가지만,
+     * 캐시가 없거나 만료된 상태에서 필터를 몇 번 건드리면 같은 조회가 통째로 겹친다.
+     * 특히 젠레스는 서버가 다건 조회(id_list)를 거부해 **에이전트 1명당 1요청**이라, 보유 50명이면
+     * 한 세트가 51건이다. 겹치면 그대로 배가 된다.
+     */
+    private val enkaInFlight = mutableSetOf<String>()
 
     /**
      * '내 캐릭터' 섹션용 — 지정 게임들의 로스터를 동시 보관. 캐시 적중분은 즉시 반영.
@@ -1033,6 +1107,8 @@ class SpendingViewModel : ViewModel() {
                     } else {
                         _enkaLoadingGames.update { it + game }   // 보여줄 캐시가 없을 때만 스피너
                     }
+                    if (!enkaInFlight.add(key)) return@async   // 같은 조회가 이미 진행 중
+                    try {
                     val cfg = _hoyolabConfig.value
                     val r = withContext(Dispatchers.IO) { EnkaApi.fetchProfile(game, uid, cfg.ltuid, cfg.ltoken) }
                     if (r.profile != null) {
@@ -1041,7 +1117,10 @@ class SpendingViewModel : ViewModel() {
                     } else if (cached == null) {
                         _enkaResults.update { it + (game to r) }   // 캐시 없고 실패 → 에러 표시(캐시 있으면 기존 유지)
                     }
-                    _enkaLoadingGames.update { it - game }
+                    } finally {
+                        enkaInFlight.remove(key)
+                        _enkaLoadingGames.update { it - game }
+                    }
                 }
             }.awaitAll()
             repo.saveEnkaCache(enkaCache)   // 갱신된 캐시 디스크 영속(1회)
@@ -1146,7 +1225,9 @@ class SpendingViewModel : ViewModel() {
                 it.isSubscription && subscriptionName(it) == sub.name && it.gameName == sub.gameName && it.amount == sub.amount
             }.map { it.id }.toSet()
             if (ids.isNotEmpty()) {
-                _spendings.update { current -> current.filter { it.id !in ids }.also(repo::saveSpendings) }
+                val next = _spendings.value.filter { it.id !in ids }
+                _spendings.value = next
+                repo.saveSpendings(next)
             }
         }
     }
@@ -1169,6 +1250,18 @@ class SpendingViewModel : ViewModel() {
     /** 마지막 게임정보 성공 로드 시각 — freshness 캐시(재진입 시 불필요한 재요청 생략). */
     private var lastGameInfoLoadAt = 0L
     private val gameInfoFreshMs = 5 * 60 * 1000L
+
+    /**
+     * 게임 정보 새로고침 진행 여부 — **[_isRefreshing] 과 별개로 둔다.**
+     *
+     * 예전엔 둘이 같은 플래그였는데, 지출 탭 당겨서 새로고침([refreshSpending])이 그 플래그를 내려버려
+     * 진행 중이던 게임 정보 새로고침의 중복 차단이 풀렸다. 그러면 18건짜리 요청 세트가 겹쳐 나간다.
+     * [_isRefreshing] 은 UI 스피너 표시용으로 그대로 두고, 중복 차단만 이 플래그가 맡는다.
+     */
+    private var _gameInfoRefreshing = false
+
+    /** 지출 탭 당겨서 새로고침 진행 여부 — 연타로 pull/push 가 겹치지 않게. */
+    private var _spendingRefreshing = false
 
     /** 일회성 토스트 메시지 (UI 가 소비 후 clearStatus 호출) */
     private val _statusMessage = MutableStateFlow<String?>(null)
@@ -1280,9 +1373,10 @@ class SpendingViewModel : ViewModel() {
      * try/finally 로 예외 시에도 _isRefreshing 해제 + 스켈레톤 영구 고착 방지.
      */
     fun refreshGameInfo(force: Boolean = false) {
-        if (_isRefreshing.value) return // 동시 새로고침 차단
+        if (_gameInfoRefreshing) return // 동시 새로고침 차단
         if (!force && _gameInfoReady.value && currentTimeMillis() - lastGameInfoLoadAt < gameInfoFreshMs) return
         viewModelScope.launch {
+            _gameInfoRefreshing = true
             _isRefreshing.value = true
             try {
                 // 오프라인이면 12초 타임아웃을 기다리지 않고 즉시 안내(앱 진입·새로고침 공통).
@@ -1299,12 +1393,15 @@ class SpendingViewModel : ViewModel() {
                     ).filterValues { it.isNotBlank() } else emptyMap()
 
                     // 1) 홈/오늘 할 일 의존 최소셋 — 배너(ennead 2게임 + ZZZ) + 실시간 노트를 모두 동시에
+                    // async(Dispatchers.IO) — 응답 본문 디코딩과 JSON 파싱을 메인 스레드 밖에서 한다.
+                    // 예전엔 부모 컨텍스트(Main.immediate)를 그대로 상속해서, 캘린더·공지처럼 수백 KB 짜리
+                    // 응답 18건의 파싱이 전부 UI 스레드에서 재개됐다. 상태 대입은 await 뒤라 그대로 메인이다.
                     val enneadDeferred = GameData.games.filter { it.enneadKey != null }
-                        .map { game -> async { EnneadApi.fetch(game) } }
+                        .map { game -> async(Dispatchers.IO) { EnneadApi.fetch(game) } }
                     // ZZZ 픽업·일정 — ennead zenless 캘린더에서 배너+이벤트+도전 자동(수동 JSON 폐기, 에이전트명 한국어 매핑).
-                    val zzzDeferred = async { EnneadApi.fetchZzz() }
+                    val zzzDeferred = async(Dispatchers.IO) { EnneadApi.fetchZzz() }
                     val noteDeferred = uids.map { (key, uid) ->
-                        async { HoyolabApi.getLiveNote(cfg.ltuid, cfg.ltoken, key, uid).note }
+                        async(Dispatchers.IO) { HoyolabApi.getLiveNote(cfg.ltuid, cfg.ltoken, key, uid).note }
                     }
 
                     val banners = mutableListOf<GachaBanner>()
@@ -1322,7 +1419,6 @@ class SpendingViewModel : ViewModel() {
                         _activeBanners.value = banners.sortedWith(compareBy({ it.isEndUnknown }, { it.dDay() }))
                         // 백그라운드 픽업 마감 알림 점검용 로컬 캐시(네트워크 없이 판정).
                         runCatching { repo.saveActiveBanners(banners) }
-                        rescheduleTimedAlerts()   // 픽업 마감 예약 갱신
                         refreshPlans()   // 새 픽업 목록으로 저축 계획 갱신
                     }
                     _gameEvents.value = events.sortedBy { it.endMillis }
@@ -1333,7 +1429,6 @@ class SpendingViewModel : ViewModel() {
                         _liveNotes.value = notes
                         // 재화가 가득 차는 시각을 알림 예약에 쓰려면 로컬 캐시가 필요하다(네트워크 없이 계산).
                         runCatching { repo.saveLiveNotes(notes) }
-                        rescheduleTimedAlerts()
                         recordTaskProgress(notes)
                     }
 
@@ -1343,7 +1438,7 @@ class SpendingViewModel : ViewModel() {
 
                     // 게임 공지·뉴스(공개 API·인증 불필요) — 지원 게임 병렬, 최신순. 부가 콘텐츠라 준비 완료 뒤 로드.
                     val newsDeferred = GameData.games.filter { it.newsSlug != null }
-                        .map { g -> async { NewsApi.notices(g) } }
+                        .map { g -> async(Dispatchers.IO) { NewsApi.notices(g) } }
                     // 실패(null)한 게임은 건너뛴다 — 빈 목록으로 합쳐지면 '공지 없음'처럼 보인다.
                     val news = newsDeferred.mapNotNull { it.await() }
                         .flatten()
@@ -1353,7 +1448,7 @@ class SpendingViewModel : ViewModel() {
                     // 2) 게임 정보 탭 전용 — 월간 원장 + 전투 진행도(게임 간 병렬, 게임 내 순차로 단일 호스트 보호)
                     if (uids.isNotEmpty()) {
                         val rest = uids.map { (key, uid) ->
-                            async {
+                            async(Dispatchers.IO) {
                                 val ledger = HoyolabApi.getMonthlyLedger(cfg.ltuid, cfg.ltoken, cfg.webCookie, key, uid)?.takeIf { it.hasData }
                                 val combat = HoyolabApi.getCombat(cfg.ltuid, cfg.ltoken, key, uid)
                                 ledger to combat
@@ -1371,13 +1466,16 @@ class SpendingViewModel : ViewModel() {
                             _combat.value = combats
                             // 백그라운드 시즌 마감 알림이 네트워크 없이 판정하도록 로컬 캐시(배너 캐시와 동일 패턴).
                             runCatching { repo.saveCombatModes(combats) }
-                            rescheduleTimedAlerts()   // 시즌 마감 예약 갱신
                         }
                     }
                 }
             } finally {
+                _gameInfoRefreshing = false
                 _isRefreshing.value = false
                 _gameInfoReady.value = true // 예외로 1)단계 못 미쳐도 스켈레톤 영구 고착 방지
+                // 예약 알림은 여기서 **한 번만** 갱신한다. 예전엔 배너·노트·전투 각 단계에서 따로 불러
+                // 새로고침 1회에 3번 돌았고, 매번 prefs 4키를 읽고 대기 알림을 최대 48건 교체했다.
+                rescheduleTimedAlerts()
             }
         }
     }
@@ -1391,8 +1489,11 @@ class SpendingViewModel : ViewModel() {
      * pull/push 는 오프라인 멈춤 방지를 위해 타임아웃으로 감싼다.
      */
     fun refreshSpending() {
+        if (_spendingRefreshing) return   // 당겨서 새로고침 연타 = pull/push 동시 실행 + loadAll 중복
         viewModelScope.launch {
+            _spendingRefreshing = true
             _isRefreshing.value = true
+            try {
             if (cloudConfigured && !NetworkMonitor.isOnline()) {
                 // 오프라인 — 클라우드 동기화는 건너뛰고 로컬만 갱신하며 안내.
                 emitNetworkAlert()
@@ -1409,16 +1510,23 @@ class SpendingViewModel : ViewModel() {
                             is CloudSync.PullOutcome.Loaded -> {
                                 outcome.json?.let { repo.importSnapshotJson(it) }
                                 carryOverGuestHoyolab()
-                                loadAll()
+                                // cloudPush 는 repo(prefs)에서 직접 스냅샷을 만들므로 여기서 loadAll() 을
+                                // 먼저 돌릴 필요가 없다. 아래에서 어차피 한 번 부른다.
                                 withTimeoutOrNull(SYNC_TIMEOUT_MS) { cloudPush(uid) }
                             }
-                            else -> { emitNetworkAlert(); loadAll() }
+                            else -> emitNetworkAlert()
                         }
                     }
                 }
             }
+            // 어느 분기로 왔든 여기서 한 번만 — 예전엔 분기 안에서도 불러 PTR 1회에 loadAll() 이 두 번 돌았다.
+            // loadAll() 은 prefs 20여 키 파싱 + 저장소 읽기 다수를 포함한다.
             loadAll()
-            _isRefreshing.value = false
+            } finally {
+                // 예외로 빠져나가도 가드를 반드시 푼다 — 안 그러면 새로고침이 영구히 막힌다.
+                _isRefreshing.value = false
+                _spendingRefreshing = false
+            }
         }
     }
 
@@ -1574,6 +1682,77 @@ class SpendingViewModel : ViewModel() {
         _attendanceStreak.value = computeAttendanceStreak()
     }
 
+    // ── 파생 StateFlow(이번 달) ────────────────────────────────────────────────
+    //
+    // 아래 monthlyTotal()/monthlyTotalsByGame()/prevMonthTotal() 은 부를 때마다 지출 전체를 훑는다.
+    // 화면(특히 홈)이 이걸 그리는 도중에 호출하고 있어 한 번 그릴 때마다 전체 스캔이 4~6회 일어났고,
+    // iOS 는 그 스캔 하나하나가 KMP 브리지 왕복이라 비용이 더 컸다. 값이 바뀔 때 한 번만 계산해 흘려보낸다.
+    //
+    // 계산 함수 자체는 그대로 둔다 — 특정 연/월을 지정하는 호출(월별 추이 차트 등)이 남아 있고,
+    // 화면 코드가 새 StateFlow 로 옮겨가지 않은 곳도 지금까지처럼 동작해야 한다.
+    private val _currentMonthTotal = MutableStateFlow(0L)
+
+    /** 이번 달 총 지출. */
+    val currentMonthTotal: StateFlow<Long> = _currentMonthTotal.asStateFlow()
+
+    private val _previousMonthTotal = MutableStateFlow(0L)
+
+    /** 전월 총 지출(MoM 비교용). */
+    val previousMonthTotal: StateFlow<Long> = _previousMonthTotal.asStateFlow()
+
+    private val _currentMonthTotalsByGame = MutableStateFlow<Map<String, Long>>(emptyMap())
+
+    /** 이번 달 게임별 지출 합계(gameKey → 금액). */
+    val currentMonthTotalsByGame: StateFlow<Map<String, Long>> = _currentMonthTotalsByGame.asStateFlow()
+
+    private val _unlinkedSubCount = MutableStateFlow(0)
+
+    /** 아직 정기결제로 등록되지 않은 '구독 표시' 지출 건수. */
+    val unlinkedSubCount: StateFlow<Int> = _unlinkedSubCount.asStateFlow()
+
+    private val _recentMonthlyTotals = MutableStateFlow<List<Long>>(emptyList())
+
+    /** 최근 [RECENT_MONTHS] 개월 총 지출 — 오래된 달 → 이번 달 순. 마이페이지 월별 추이 차트용. */
+    val recentMonthlyTotals: StateFlow<List<Long>> = _recentMonthlyTotals.asStateFlow()
+
+    /**
+     * 최근 [RECENT_MONTHS] 개월 지출을 **한 번만 훑어** 달별로 합산한다.
+     *
+     * 화면에서 monthlyTotal(year, month) 를 6번 부르면 지출 전체를 6번 훑는다(게다가 iOS 는 매번 브리지 왕복).
+     * 여기서 한 번에 만들어 둔다.
+     */
+    private fun computeRecentMonthlyTotals(): List<Long> {
+        val months = (RECENT_MONTHS - 1 downTo 0).map { back ->
+            var y = currentYear
+            var m = currentMonth - back
+            while (m <= 0) { m += 12; y -= 1 }
+            y to m
+        }
+        val sums = LongArray(months.size)
+        _spendings.value.forEach { s ->
+            val y = DateUtil.year(s.dateMillis)
+            val m = DateUtil.month(s.dateMillis)
+            val idx = months.indexOfFirst { it.first == y && it.second == m }
+            if (idx >= 0) sums[idx] += s.amount
+        }
+        return sums.toList()
+    }
+
+    /**
+     * '이번 달' 파생값을 다시 계산한다.
+     *
+     * 호출 지점을 늘리지 않으려고 [init] 에서 _spendings·_subscriptions 를 구독해 자동으로 돌리고,
+     * [loadAll] 끝에서 **동기로 한 번 더** 부른다. 구독 콜백은 한 런루프 뒤에 오는데, 그 사이에
+     * 화면이 먼저 그려지면 첫 프레임에 0원이 스쳤다가 바뀐다 — 시작 직후엔 그 틈이 보인다.
+     */
+    private fun recomputeSpendingDerived() {
+        _currentMonthTotal.value = monthlyTotal()
+        _previousMonthTotal.value = prevMonthTotal()
+        _currentMonthTotalsByGame.value = monthlyTotalsByGame()
+        _unlinkedSubCount.value = unlinkedSubscriptionSpendingCount()
+        _recentMonthlyTotals.value = computeRecentMonthlyTotals()
+    }
+
     // ----------------------------------------------------------------- 파생 통계
     fun monthlyTotal(year: Int = currentYear, month: Int = currentMonth): Long =
         _spendings.value.filter { DateUtil.isSameMonth(it.dateMillis, year, month) }.sumOf { it.amount }
@@ -1689,12 +1868,16 @@ class SpendingViewModel : ViewModel() {
      *  - 실패 시 lastPushedSnapshot 을 갱신하지 않아 다음 변경에서 재시도된다.
      */
     private suspend fun cloudPush(uid: String): Boolean {
-        val json = repo.exportSnapshotJson()
+        // 스냅샷은 **한 번만** 만들어 전체 문서(문자열)와 섹션 분해(객체)에 함께 쓴다.
+        // 예전엔 exportSnapshotJson() 과 exportCloudSections() 가 각자 스냅샷을 만들어,
+        // push 1회에 스냅샷 생성 2회 + 전량 재파싱 1회가 일어났다(수백 KB 를 메인 스레드에서).
+        val snapshot = repo.exportSnapshot()
+        val json = snapshot.toString()
         if (json == lastPushedSnapshot) return true   // 변경 없음 → write 생략
         if (json.length > CLOUD_DOC_WARN_BYTES) {
             emitStatus("클라우드 백업 용량이 한계에 근접했어요 (${json.length / 1024}KB / 1MB) — 오래된 뽑기 기록 정리를 권장해요")
         }
-        val s = repo.exportCloudSections()
+        val s = repo.exportCloudSections(snapshot)
         val ok = CloudSync.push(uid, json, s.userInfo, s.spending, s.gameInfo)
         if (ok) lastPushedSnapshot = json
         return ok
@@ -1770,6 +1953,8 @@ class SpendingViewModel : ViewModel() {
         const val CLOUD_DOC_WARN_BYTES = 900_000
         /** 포그라운드 알림 점검 최소 간격(ms) — 탭 전환마다 HoYoLAB 을 두드리지 않도록. */
         const val FOREGROUND_CHECK_MIN_INTERVAL_MS = 15L * 60 * 1000
+        /** 월별 지출 추이 차트가 보여주는 개월 수. */
+        const val RECENT_MONTHS = 6
     }
 
     /**
@@ -1789,6 +1974,10 @@ class SpendingViewModel : ViewModel() {
         loadAll()
         loadTaskStats()   // 노트를 받기 전에도 지난 완주율은 보여준다
         runCatching { _keyStatOverrides.value = repo.loadKeyStatOverrides() }
+        // 지출·정기결제가 바뀌면 파생값을 자동으로 다시 계산 — 갱신 지점(13곳)마다 따로 부르지 않는다.
+        viewModelScope.launch {
+            combine(_spendings, _subscriptions) { _, _ -> Unit }.collect { recomputeSpendingDerived() }
+        }
         bootstrapAuthAndSync()
     }
 }

@@ -42,7 +42,7 @@ private struct PlanEdit: Identifiable {
 // ══════════════════════════════════════════════════════════════ A. 저축 플래너
 
 struct SavingsPlannerView: View {
-    @ObservedObject var store: SpendingStore
+    var store: SpendingStore
     @Environment(\.glgAccent) private var accent
     @State private var editing: PlanEdit? = nil
     @State private var showHidden = false
@@ -222,7 +222,7 @@ struct SavingsPlannerView: View {
 
 // ── 내 상태 입력 시트 ──
 struct PlanInputSheet: View {
-    @ObservedObject var store: SpendingStore
+    var store: SpendingStore
     let plan: SavingsPlan
     let onClose: () -> Void
     @Environment(\.glgAccent) private var accent
@@ -301,7 +301,7 @@ struct PlanInputSheet: View {
 // ══════════════════════════════════════════════════════════════ H. 절약 챌린지
 
 struct SavingsChallengeView: View {
-    @ObservedObject var store: SpendingStore
+    var store: SpendingStore
     @Environment(\.glgAccent) private var accent
 
     private var summary: ChallengeSummary? { store.challenge }
@@ -427,7 +427,7 @@ struct SavingsChallengeView: View {
 // ══════════════════════════════════════════════════════════════ 홈 진입 카드
 
 struct PickupPlannerHomeCard: View {
-    @ObservedObject var store: SpendingStore
+    var store: SpendingStore
     @Environment(\.glgAccent) private var accent
     private var top: SavingsPlan? { store.savingsPlans.first { !$0.secured } ?? store.savingsPlans.first }
 
@@ -461,7 +461,7 @@ struct PickupPlannerHomeCard: View {
 }
 
 struct SavingsChallengeHomeCard: View {
-    @ObservedObject var store: SpendingStore
+    var store: SpendingStore
     @Environment(\.glgAccent) private var accent
 
     var body: some View {

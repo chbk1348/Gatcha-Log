@@ -6,7 +6,7 @@ import SwiftUI
 // ════════════════════════════════════════════════════════════════════════════
 
 struct LoginView: View {
-    @ObservedObject var store: SpendingStore
+    var store: SpendingStore
     @Environment(\.glgAccent) private var accent
 
     var body: some View {

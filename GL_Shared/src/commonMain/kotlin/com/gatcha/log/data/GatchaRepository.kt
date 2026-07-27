@@ -137,7 +137,17 @@ class GatchaRepository(accountId: String = "guest") {
     // ---------------------------------------------------------------- HoYoLAB
     // 토큰(ltuid/ltoken/cookieToken/webCookie)은 암호화 저장소[securePrefs]에, UID 는 평문 [prefs]에 둔다.
     // 토큰은 스냅샷(클라우드/백업)에 포함되지 않으므로 기기 밖으로 나가지 않는다.
-    fun loadHoyolab(): HoyolabConfig = HoyolabConfig(
+    /**
+     * [loadHoyolab] 결과 캐시.
+     *
+     * 토큰 4개가 보안 저장소(iOS Keychain / Android EncryptedSharedPreferences)에 있는데,
+     * Keychain 읽기는 건당 securityd IPC 라 싸지 않다. loadAll 한 번이 4회를 왕복하고
+     * 당겨서 새로고침이면 계정 승계까지 얽혀 20회를 넘기기도 했다.
+     * 이 저장소 인스턴스는 계정마다 새로 만들어지므로(계정 전환 = 새 인스턴스) 인스턴스 캐시로 충분하다.
+     */
+    private var hoyolabCache: HoyolabConfig? = null
+
+    fun loadHoyolab(): HoyolabConfig = hoyolabCache ?: HoyolabConfig(
         ltuid = securePrefs.getString(KEY_HOYO_LTUID, "") ?: "",
         ltoken = securePrefs.getString(KEY_HOYO_LTOKEN, "") ?: "",
         genshinUid = prefs.getString(KEY_HOYO_GI, "") ?: "",
@@ -145,7 +155,7 @@ class GatchaRepository(accountId: String = "guest") {
         zzzUid = prefs.getString(KEY_HOYO_ZZZ, "") ?: "",
         cookieToken = securePrefs.getString(KEY_HOYO_COOKIETOKEN, "") ?: "",
         webCookie = securePrefs.getString(KEY_HOYO_WEBCOOKIE, "") ?: "",
-    )
+    ).also { hoyolabCache = it }
 
     /**
      * @return 토큰이 암호화 저장소에 실제로 들어갔는지. false 면 보안 저장소를 못 써서
@@ -164,6 +174,7 @@ class GatchaRepository(accountId: String = "guest") {
         prefs.putString(KEY_HOYO_GI, config.genshinUid)
         prefs.putString(KEY_HOYO_HSR, config.hsrUid)
         prefs.putString(KEY_HOYO_ZZZ, config.zzzUid)
+        hoyolabCache = if (secureOk) config else null   // 저장 실패 시엔 캐시하지 않고 다음에 다시 읽는다
         changed()
         return !hasToken || secureOk
     }
@@ -583,8 +594,15 @@ class GatchaRepository(accountId: String = "guest") {
     }
 
     // ---------------------------------------------------------------- 스냅샷 (전체 데이터 직렬화 — 클라우드/파일 백업 공용)
-    /** 계정의 모든 데이터를 단일 JSON 으로 직렬화(Firestore 저장·파일 백업용). */
-    fun exportSnapshotJson(): String {
+    /**
+     * 계정의 모든 데이터를 단일 JSON 객체로 모은다.
+     *
+     * 문자열이 아니라 [JSONObject] 를 돌려주는 형태를 따로 둔 이유 — 클라우드 push 는 같은 스냅샷을
+     * 전체 문서용(문자열)과 섹션별 분해용(객체) 두 가지로 쓴다. 예전엔 [exportCloudSections] 가
+     * `JSONObject(exportSnapshotJson())` 로 시작해서, **스냅샷을 통째로 한 번 더 만들고 그 결과를 다시
+     * 전량 파싱**했다. 여기서 한 번만 만들어 양쪽에 넘긴다.
+     */
+    fun exportSnapshot(): JSONObject {
         val o = JSONObject()
         prefs.getString(KEY_SPENDINGS, null)?.let { o.put(KEY_SPENDINGS, JSONArray(it)) }
         prefs.getString(KEY_DELETED_SPENDINGS, null)?.let { o.put(KEY_DELETED_SPENDINGS, JSONArray(it)) }
@@ -611,8 +629,11 @@ class GatchaRepository(accountId: String = "guest") {
         prefs.getString(KEY_SAVINGS_HIDDEN, null)?.let { o.put(KEY_SAVINGS_HIDDEN, JSONArray(it)) }
         o.put(KEY_BEST_NOSPEND, loadBestNoSpend())
         prefs.getString(KEY_BADGES, null)?.let { o.put(KEY_BADGES, JSONArray(it)) }
-        return o.toString()
+        return o
     }
+
+    /** 계정의 모든 데이터를 단일 JSON 문자열로 직렬화(Firestore 저장·파일 백업용). */
+    fun exportSnapshotJson(): String = exportSnapshot().toString()
 
     /** Firestore/백업 파일에서 받은 스냅샷 JSON 을 로컬에 반영. (onChange 미발생 → 푸시 루프 방지) */
     fun importSnapshotJson(json: String) {
@@ -649,6 +670,7 @@ class GatchaRepository(accountId: String = "guest") {
         if (o.has(KEY_HOYO_GI)) prefs.putString(KEY_HOYO_GI, o.getString(KEY_HOYO_GI))
         if (o.has(KEY_HOYO_HSR)) prefs.putString(KEY_HOYO_HSR, o.getString(KEY_HOYO_HSR))
         if (o.has(KEY_HOYO_ZZZ)) prefs.putString(KEY_HOYO_ZZZ, o.getString(KEY_HOYO_ZZZ))
+        hoyolabCache = null   // 스냅샷이 UID 를 덮어썼을 수 있다 — 다음 읽기에서 다시 만든다
         if (o.has(KEY_ACCENT)) prefs.putInt(KEY_ACCENT, o.getInt(KEY_ACCENT))
         if (o.has(KEY_ENKA_GI)) prefs.putString(KEY_ENKA_GI, o.getString(KEY_ENKA_GI))
         if (o.has(KEY_ENKA_HSR)) prefs.putString(KEY_ENKA_HSR, o.getString(KEY_ENKA_HSR))
@@ -681,8 +703,8 @@ class GatchaRepository(accountId: String = "guest") {
      * Firestore `users/{uid}` 의 userInfo/spending/gameInfo 필드로 저장돼 콘솔 가독성↑.
      * (읽기는 기존 `data` 전체 스냅샷 사용 — dual-write 호환)
      */
-    fun exportCloudSections(): CloudSections {
-        val o = JSONObject(exportSnapshotJson())
+    fun exportCloudSections(snapshot: JSONObject = exportSnapshot()): CloudSections {
+        val o = snapshot
         fun valueString(k: String): String = when (k) {
             KEY_BUDGET -> o.getLong(k).toString()
             KEY_ACCENT, KEY_BEST_NOSPEND -> o.getInt(k).toString()

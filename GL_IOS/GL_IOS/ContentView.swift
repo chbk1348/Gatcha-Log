@@ -12,7 +12,7 @@ import Shared
 ///  - iOS 16~25: 탭바 위 우측의 글래스 원형 버튼 (오버레이 폴백)
 struct ContentView: View {
     /// Kotlin SpendingViewModel 브리지(공유 VM). 온보딩 게이트·강조색을 SwiftUI 에서 직접 구독.
-    @StateObject private var store = SpendingStore()
+    @State private var store = SpendingStore.shared
     @State private var selectedTab: Int = 0
     /// 앱 복귀 감지 — 밀린 알림 점검 트리거(BGAppRefreshTask 는 실행 시점이 OS 재량이라 보조가 필요).
     @Environment(\.scenePhase) private var scenePhase

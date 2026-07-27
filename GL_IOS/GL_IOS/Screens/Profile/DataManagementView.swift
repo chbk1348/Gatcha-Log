@@ -8,7 +8,7 @@ import Shared
 // ════════════════════════════════════════════════════════════════════════════
 
 struct DataManagementView: View {
-    @ObservedObject var store: SpendingStore
+    var store: SpendingStore
     @Environment(\.glgAccent) private var accent
 
     // 파괴작업은 2단계 확인: 1차(백업 권장) → 2차(최종 확인)

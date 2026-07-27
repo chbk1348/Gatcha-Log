@@ -5,7 +5,7 @@ import Shared
 // HoYoLAB 계정 연동 — 로그인 자동 가져오기(WKWebView 쿠키 추출) + 수동 입력. (Compose HoyolabLinkScreen 대응)
 // ⚠️ P0 쿠키 로직(4도메인 병합·cookie_token_v2 재시도·SPA 1.5s 폴링)을 CookieWebView.ios.kt 에서 충실히 포팅.
 struct HoyolabLinkView: View {
-    @ObservedObject var store: SpendingStore
+    var store: SpendingStore
     let onClose: () -> Void
     @Environment(\.glgAccent) private var accent
 

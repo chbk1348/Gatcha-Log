@@ -4,38 +4,64 @@ import Shared
 // 연간 리포트 — 연도 선택 + 총/평균/기록 + 월별 막대 + 게임별 분석.
 // 지출 인사이트의 '연간' 탭에 임베드되는 콘텐츠(스크롤·네비타이틀은 부모 제공).
 struct AnnualReportContent: View {
-    @ObservedObject var store: SpendingStore
+    var store: SpendingStore
     @Environment(\.glgAccent) private var accent
     @State private var selectedYear: Int = 0
 
-    private var years: [Int] {
-        let ys = Set(store.spendings.map { DateMillis.comps($0.dateMillis).year } + [store.displayYear])
-        return ys.sorted(by: >)
+    // ── 집계 ────────────────────────────────────────────────────────────────
+    //
+    // 예전엔 years/yearItems/total/monthly/months/avg/byGame 이 전부 computed 였다.
+    // computed 는 읽을 때마다 다시 계산되는데 서로가 서로를 읽어서(avg→months→monthly→yearItems,
+    // 게임별 행마다 total) 한 번 그릴 때 지출 전체를 수십 번 훑었다. 연도 칩을 누를 때마다 그게 반복됐다.
+    // 지출·연도가 바뀔 때만 한 번 계산해 둔다.
+    private struct AnnualStats {
+        var years: [Int] = []
+        var year: Int = 0
+        var count: Int = 0
+        var total: Int64 = 0
+        var monthly: [Int64] = Array(repeating: 0, count: 12)
+        var avg: Int64 = 0
+        var byGame: [(String, Int64)] = []
     }
-    private var year: Int { selectedYear == 0 ? (years.first ?? store.displayYear) : selectedYear }
-    private var yearItems: [Spending] { store.spendings.filter { DateMillis.isSameYear($0.dateMillis, year) } }
-    private var total: Int64 { yearItems.reduce(0) { $0 + $1.amount } }
-    private var monthly: [Int64] {
-        var arr = [Int64](repeating: 0, count: 12)
-        for s in yearItems { let m = DateMillis.comps(s.dateMillis).month; if m >= 1 && m <= 12 { arr[m-1] += s.amount } }
-        return arr
-    }
-    private var months: Int {
-        year == store.displayYear ? store.displayMonth : max(monthly.filter { $0 > 0 }.count, 1)
-    }
-    private var avg: Int64 { months > 0 ? total / Int64(months) : 0 }
-    private var byGame: [(String, Int64)] {
-        Dictionary(grouping: yearItems, by: { $0.gameName })
-            .map { ($0.key, $0.value.reduce(0) { $0 + $1.amount }) }
-            .sorted { $0.1 > $1.1 }
+
+    @State private var stats = AnnualStats()
+
+    /// 재계산 트리거 — 지출 목록과 선택 연도.
+    private var statsKey: String { "\(store.spendings.count)|\(selectedYear)|\(store.displayYear)" }
+
+    private var year: Int { stats.year }
+
+    private static func compute(spendings: [Spending], selectedYear: Int,
+                                displayYear: Int, displayMonth: Int) -> AnnualStats {
+        var s = AnnualStats()
+        // 연도 목록·연도별 항목을 **한 번의 순회**로 만든다(예전엔 각각 전체를 훑었다).
+        var yearSet = Set<Int>([displayYear])
+        for sp in spendings { yearSet.insert(DateMillis.comps(sp.dateMillis).year) }
+        s.years = yearSet.sorted(by: >)
+        s.year = selectedYear == 0 ? (s.years.first ?? displayYear) : selectedYear
+
+        var byGame: [String: Int64] = [:]
+        for sp in spendings {
+            let c = DateMillis.comps(sp.dateMillis)
+            guard c.year == s.year else { continue }
+            s.count += 1
+            s.total += sp.amount
+            if c.month >= 1 && c.month <= 12 { s.monthly[c.month - 1] += sp.amount }
+            byGame[sp.gameName, default: 0] += sp.amount
+        }
+        s.byGame = byGame.map { ($0.key, $0.value) }.sorted { $0.1 > $1.1 }
+
+        let months = s.year == displayYear ? displayMonth : max(s.monthly.filter { $0 > 0 }.count, 1)
+        s.avg = months > 0 ? s.total / Int64(months) : 0
+        return s
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            if years.count > 1 {
+            if stats.years.count > 1 {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 8) {
-                        ForEach(years, id: \.self) { y in
+                        ForEach(stats.years, id: \.self) { y in
                             GamePill(label: "\(y)년", selected: y == year, accent: accent.primary) { selectedYear = y }
                         }
                     }
@@ -44,25 +70,30 @@ struct AnnualReportContent: View {
             GLGCard(cornerRadius: 24, padding: 16) {
                     VStack(alignment: .leading, spacing: 0) {
                         HStack {
-                            infoCol(won(total), "총 지출")
-                            infoCol(won(avg), "월 평균")
-                            infoCol("\(yearItems.count)회", "총 기록")
+                            infoCol(won(stats.total), "총 지출")
+                            infoCol(won(stats.avg), "월 평균")
+                            infoCol("\(stats.count)회", "총 기록")
                         }
                         Text("월별 지출").font(.pretendard(size: 12, weight: .bold)).foregroundStyle(GLGColor.textSecondary).padding(.top, 18)
-                        MonthlyBars(monthly: monthly, currentMonth: year == store.displayYear ? store.displayMonth : nil)
+                        MonthlyBars(monthly: stats.monthly, currentMonth: year == store.displayYear ? store.displayMonth : nil)
                             .padding(.top, 10)
-                        if !byGame.isEmpty {
+                        if !stats.byGame.isEmpty {
                             Text("게임별 지출").font(.pretendard(size: 12, weight: .bold)).foregroundStyle(GLGColor.textSecondary).padding(.top, 18)
-                            ForEach(byGame, id: \.0) { (game, amt) in
+                            let total = stats.total
+                            ForEach(stats.byGame, id: \.0) { (game, amt) in
                                 GameBreakdownRow(game: game, amount: amt, frac: total > 0 ? Double(amt)/Double(total) : 0)
                                     .padding(.top, 10)
                             }
                         }
-                        if yearItems.isEmpty {
+                        if stats.count == 0 {
                             Text("이 해의 지출 기록이 없어요").font(.pretendard(size: 12)).foregroundStyle(Color(.systemGray3)).padding(.top, 8)
                         }
                     }
                 }
+        }
+        .task(id: statsKey) {
+            stats = Self.compute(spendings: store.spendings, selectedYear: selectedYear,
+                                 displayYear: store.displayYear, displayMonth: store.displayMonth)
         }
     }
 

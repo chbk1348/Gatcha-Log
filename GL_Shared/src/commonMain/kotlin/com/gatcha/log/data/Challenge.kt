@@ -81,17 +81,27 @@ object SavingsChallenge {
         }
         val best = maxOf(bestStreakStored, streak)
 
+        // ── 월별 합계를 **한 번의 순회**로 만든다.
+        //
+        // 예전엔 추적 월마다 지출 전체를 다시 필터했다(monthTotal·prevTotal 까지 하면 월 수 + 2회).
+        // isSameMonth 한 번이 시각→로컬 변환을 두 번 하므로, 12개월치를 보는 것만으로도
+        // 지출 500건 기준 변환이 만 번 단위로 불어났다. 지출을 저장할 때마다 이게 돌고 있었다.
+        val totalsByYm = HashMap<Int, Long>()
+        spendings.forEach { s ->
+            val k = DateUtil.yearMonthKey(s.dateMillis)
+            totalsByYm[k] = (totalsByYm[k] ?: 0L) + s.amount
+        }
+        fun totalOf(year: Int, month: Int): Long = totalsByYm[year * 100 + month] ?: 0L
+
         // ── 이번 달/전월 지출
         val y = DateUtil.year(nowMillis); val m = DateUtil.month(nowMillis)
-        val monthTotal = spendings.filter { DateUtil.isSameMonth(it.dateMillis, y, m) }.sumOf { it.amount }
+        val monthTotal = totalOf(y, m)
         val (py, pm) = if (m == 1) (y - 1) to 12 else y to (m - 1)
-        val prevTotal = spendings.filter { DateUtil.isSameMonth(it.dateMillis, py, pm) }.sumOf { it.amount }
+        val prevTotal = totalOf(py, pm)
 
         // ── 완료된(지난) 추적 월들 — 첫 지출 월 ~ 전월. 예산·절약 배지 판정용.
         val months = trackedMonths(spendings, y, m)
-        fun totalOf(ym: Pair<Int, Int>) =
-            spendings.filter { DateUtil.isSameMonth(it.dateMillis, ym.first, ym.second) }.sumOf { it.amount }
-        val monthTotals = months.map { totalOf(it) }
+        val monthTotals = months.map { totalOf(it.first, it.second) }
 
         val budgetAchievedAny = budget > 0 && monthTotals.isNotEmpty() &&
             months.indices.any { budget > 0 && monthTotals[it] <= budget }
