@@ -45,7 +45,7 @@ private func enkaGameLabel(_ game: String) -> String {
     }
 }
 
-/// 게임정보 탭 상시 섹션 — Enka 쇼케이스 로스터(2열). 헤더 게임필터([filter])에 연동.
+/// 게임정보 탭 섹션 — Enka 쇼케이스 로스터(게임당 한 줄). 헤더 게임필터([filter])에 연동.
 /// "all"=원신·스타레일·젠레스를 게임별 블록으로 모두 표시, 특정 게임=해당 게임만. 캐릭터 탭 → [onOpen].
 struct EnkaCharSection: View {
     @ObservedObject var store: SpendingStore
@@ -67,16 +67,12 @@ struct EnkaCharSection: View {
     }
 
     var body: some View {
-        // 미연동(=HoYoLAB 연동 프롬프트가 뜰 상황)이면 '내 캐릭터' 영역 전체를 숨긴다(헤더·'상시' 배지 포함).
+        // 미연동(=HoYoLAB 연동 프롬프트가 뜰 상황)이면 '내 캐릭터' 영역 전체를 숨긴다(헤더 포함).
         // 연동 유도는 데일리/프로필 섹션의 프롬프트가 담당하며, 연동되면 자동으로 로스터가 나타난다.
         if store.hoyolabConfig.isLinked {
             VStack(alignment: .leading, spacing: 11) {
-                HStack(spacing: 8) {
-                    Text("내 캐릭터").font(.pretendard(size: 16, weight: .bold))
-                    Text("상시").font(.pretendard(size: 9, weight: .bold)).foregroundStyle(Color(hex: 0xFF15803D))
-                        .padding(.horizontal, 7).padding(.vertical, 2).background(Color(hex: 0xFF16A34A).opacity(0.12), in: Capsule())
-                    Spacer()
-                }
+                Text("내 캐릭터").font(.pretendard(size: 16, weight: .bold))
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 // 게임별로 한 카드씩 — 각 게임 로스터를 카드로 묶고 게임 라벨을 카드 헤더로 표시.
                 ForEach(Array(games.enumerated()), id: \.offset) { _, g in
                     gameBlock(g, showLabel: true)
@@ -87,7 +83,7 @@ struct EnkaCharSection: View {
         }
     }
 
-    /// '내 캐릭터' 단일 게임 블록 — (라벨) + 대표 4명 그리드 + 더보기. 로딩 시 스켈레톤.
+    /// '내 캐릭터' 단일 게임 블록 — (라벨) + 한 줄 로스터. 로딩 시 스켈레톤.
     @ViewBuilder
     private func gameBlock(_ game: String, showLabel: Bool) -> some View {
         let result = store.enkaResults[game]

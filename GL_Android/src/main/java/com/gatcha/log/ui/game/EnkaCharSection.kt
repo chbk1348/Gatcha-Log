@@ -89,7 +89,7 @@ private fun gameLabel(game: String): String = when (game) {
 }
 
 /**
- * 게임정보 탭 상시 섹션 — Enka 쇼케이스 캐릭터 로스터(2열 그리드). 헤더 게임필터([gameFilter])에 연동.
+ * 게임정보 탭 섹션 — Enka 쇼케이스 캐릭터 로스터(게임당 한 줄). 헤더 게임필터([gameFilter])에 연동.
  * "all"=원신·스타레일·젠레스를 게임별 블록으로 모두 표시, 특정 게임=해당 게임만. 캐릭터 탭 → [onOpenStats].
  */
 @Composable
@@ -111,7 +111,7 @@ fun EnkaCharSection(
         else listOf(gameFilter).filter { it in setOf("genshin", "hsr", "zzz") }
     }
 
-    // 미연동(=HoYoLAB 연동 프롬프트가 뜰 상황)이면 '내 캐릭터' 영역 전체를 숨긴다(헤더·'상시' 배지 포함).
+    // 미연동(=HoYoLAB 연동 프롬프트가 뜰 상황)이면 '내 캐릭터' 영역 전체를 숨긴다(헤더 포함).
     // 연동 유도는 데일리/프로필 섹션의 프롬프트가 담당하며, 연동되면 자동으로 로스터가 나타난다.
     if (!hoyolab.isLinked) return
 
@@ -119,13 +119,7 @@ fun EnkaCharSection(
     LaunchedEffect(games) { if (games.isNotEmpty()) viewModel.autoLoadEnkaSection(games) }
 
     Column {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("내 캐릭터", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
-            Spacer(Modifier.width(8.dp))
-            Surface(color = Color(0xFF16A34A).copy(alpha = 0.12f), shape = RoundedCornerShape(999.dp)) {
-                Text("상시", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = Color(0xFF15803D), modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp))
-            }
-        }
+        Text("내 캐릭터", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
         Spacer(Modifier.height(11.dp))
 
         // 게임별로 한 카드씩 — 각 게임 로스터를 카드로 묶고 게임 라벨을 카드 헤더로 표시.
@@ -144,7 +138,7 @@ fun EnkaCharSection(
     }
 }
 
-/** '내 캐릭터' 단일 게임 블록 — (라벨) + 대표 4명 그리드 + 더보기. 로딩 시 스켈레톤. */
+/** '내 캐릭터' 단일 게임 블록 — (라벨) + 한 줄 로스터. 로딩 시 스켈레톤. */
 @Composable
 private fun GameRosterBlock(
     game: String,
