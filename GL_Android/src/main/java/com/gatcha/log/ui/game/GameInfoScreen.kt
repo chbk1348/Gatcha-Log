@@ -278,11 +278,11 @@ fun GameInfoScreen(
                     if (n != null && n.url.isNotBlank()) {
                         // 공유 — **링크만** 보낸다. 본문은 앱이 재구성한 것이라 그대로 보낼 수 없고,
                         // 제목을 붙이면 받는 쪽 미리보기와 중복돼 지저분해진다.
-                        GlgCircleIconButton(Icons.Default.Share, "공유", outlined = true, size = 40.dp) {
+                        GlgCircleIconButton(Icons.Default.Share, "공유", outlined = true) {
                             shareText(context, n.url)
                         }
                         // 브라우저 — 표·동영상처럼 앱이 못 살리는 요소는 원문에서 봐야 한다.
-                        GlgCircleIconButton(Icons.AutoMirrored.Filled.OpenInNew, "브라우저에서 보기", outlined = true, size = 40.dp) {
+                        GlgCircleIconButton(Icons.AutoMirrored.Filled.OpenInNew, "브라우저에서 보기", outlined = true) {
                             openExternalLink(context, n.url)
                         }
                     }
