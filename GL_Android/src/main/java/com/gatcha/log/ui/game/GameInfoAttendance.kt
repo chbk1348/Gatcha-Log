@@ -378,15 +378,26 @@ private fun WeekAttendanceStrip(history: Map<String, Set<String>>) {
                         .then(if (isToday) Modifier.border(2.dp, accent, CircleShape) else Modifier),
                     contentAlignment = Alignment.Center,
                 ) {
+                    // 날짜는 **항상** 보여준다 — 예전엔 전체 출석한 날을 체크 아이콘으로 덮어버려
+                    // 정작 며칠인지 알 수 없었다. 완료 표시는 채움색 + 우상단 작은 체크로 한다.
+                    Text(
+                        "$dayNum",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = when (level) {
+                            AttendLevel.FULL -> Color.White
+                            AttendLevel.PARTIAL -> accent
+                            AttendLevel.NONE -> TextSecondary
+                        },
+                    )
                     if (level == AttendLevel.FULL) {
-                        Icon(Icons.Default.Check, null, tint = Color.White, modifier = Modifier.size(16.dp))
-                    } else {
-                        Text(
-                            "$dayNum",
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = if (level == AttendLevel.PARTIAL) accent else TextSecondary,
-                        )
+                        Box(
+                            Modifier.align(Alignment.TopEnd).offset(x = 1.dp, y = (-1).dp)
+                                .size(13.dp).clip(CircleShape).background(Color.White),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Icon(Icons.Default.Check, null, tint = accent, modifier = Modifier.size(9.dp))
+                        }
                     }
                 }
             }
