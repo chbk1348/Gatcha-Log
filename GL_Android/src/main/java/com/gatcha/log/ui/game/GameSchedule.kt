@@ -14,6 +14,10 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -37,6 +41,7 @@ import com.gatcha.log.data.ScheduleSummary
 import com.gatcha.log.data.collabTitle
 import com.gatcha.log.data.isCollabBanner
 import com.gatcha.log.ui.components.GlassCard
+import com.gatcha.log.ui.components.GlgChip
 import com.gatcha.log.ui.theme.DividerColor
 import com.gatcha.log.ui.theme.LocalAccent
 import com.gatcha.log.ui.theme.TextPrimary
@@ -162,7 +167,10 @@ private fun GameLineRow(line: GameScheduleLine) {
 
 /**
  * 전체 게임 일정 페이지 콘텐츠 (SectionPage 안에서 호스팅 — 헤더/스크롤은 SectionPage 제공).
- * 요약 3칸 → 종료 미정 고정 카드 → 마감일 타임라인.
+ * [일정 | 주년] 탭 — 일정=요약 3칸 + 종료 미정 카드 + 마감일 타임라인, 주년=다가오는 게임 주년.
+ *
+ * 주년은 원래 게임 정보 탭 본문의 독립 섹션이었다. 1년에 몇 번 볼 정보가 상시 자리를 차지하고 있었고,
+ * 성격도 '언제 뭐가 있나'라 일정과 같아서 여기 탭으로 합쳤다.
  */
 @Composable
 fun GameScheduleFullContent(
@@ -171,13 +179,25 @@ fun GameScheduleFullContent(
     challenges: List<GameChallenge>,
     filter: String,
 ) {
+    var tab by remember { mutableStateOf(0) }
+    Row(
+        Modifier.fillMaxWidth().padding(top = 4.dp, bottom = 14.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        GlgChip("일정", selected = tab == 0) { tab = 0 }
+        GlgChip("주년", selected = tab == 1) { tab = 1 }
+    }
+    if (tab == 1) {
+        AnniversaryContent()
+        return
+    }
     val all = ScheduleLogic.buildSchedule(banners, events, challenges)
     val entries = ScheduleLogic.filteredEntries(all, filter)
     val days = ScheduleLogic.buildDays(entries)
     val undated = ScheduleLogic.undatedPickups(banners, filter)
     val summary = ScheduleLogic.summarize(banners, all, filter)
 
-    Text("마감이 가까운 순서로 정리했어요.", fontSize = 12.sp, color = TextSecondary, modifier = Modifier.padding(top = 4.dp, bottom = 14.dp))
+    Text("마감이 가까운 순서로 정리했어요.", fontSize = 12.sp, color = TextSecondary, modifier = Modifier.padding(bottom = 14.dp))
 
     if (days.isEmpty() && undated.isEmpty()) {
         Text("예정된 일정이 없어요.", fontSize = 13.sp, color = TextSecondary, modifier = Modifier.fillMaxWidth().padding(top = 40.dp))

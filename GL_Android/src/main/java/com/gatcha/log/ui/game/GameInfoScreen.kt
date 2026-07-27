@@ -306,9 +306,6 @@ fun GameInfoScreen(
                 item { Spacer(Modifier.height(20.dp)) }
                 item { GameScheduleSection(schedule, banners, gameFilter, onSeeAll = { subPage = GiSub.Schedule }) }
             }
-            // 게임 주년 — 지원 게임의 다가오는 주년(임박 순).
-            item { Spacer(Modifier.height(20.dp)) }
-            item { AnniversarySection() }
             // 호요랜드 — 호요버스 한국 오프라인 행사(플레이스홀더). 정보 확정 전 "준비 중" 티저.
             item { Spacer(Modifier.height(20.dp)) }
             item { HoyolandSection(onOpen = { subPage = GiSub.Hoyoland }) }
