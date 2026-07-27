@@ -85,7 +85,12 @@ internal fun UpdateLogScreen(onBack: () -> Unit) {
             Column(Modifier.padding(horizontal = 18.dp)) {
                 // 상태바 인셋은 LazyColumn contentPadding 이 처리 — 여기선 8dp 여백만.
                 Spacer(Modifier.height(8.dp))
-                GlgBackButton(onBack)
+                // 헤더 = 뒤로 + 페이지명(설정 메뉴 항목과 같은 "업데이트 로그"). 아래 히어로 제목과 역할이 다르다.
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    GlgBackButton(onBack)
+                    Spacer(Modifier.width(10.dp))
+                    Text("업데이트 로그", fontSize = 17.sp, fontWeight = FontWeight.Bold, color = CText)
+                }
                 Spacer(Modifier.height(4.dp))
                 Row {
                     Text("업데이트 ", fontSize = 28.sp, fontWeight = FontWeight.ExtraBold, color = CText)
