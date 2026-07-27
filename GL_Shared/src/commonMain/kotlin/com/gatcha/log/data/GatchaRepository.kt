@@ -137,7 +137,17 @@ class GatchaRepository(accountId: String = "guest") {
     // ---------------------------------------------------------------- HoYoLAB
     // 토큰(ltuid/ltoken/cookieToken/webCookie)은 암호화 저장소[securePrefs]에, UID 는 평문 [prefs]에 둔다.
     // 토큰은 스냅샷(클라우드/백업)에 포함되지 않으므로 기기 밖으로 나가지 않는다.
-    fun loadHoyolab(): HoyolabConfig = HoyolabConfig(
+    /**
+     * [loadHoyolab] 결과 캐시.
+     *
+     * 토큰 4개가 보안 저장소(iOS Keychain / Android EncryptedSharedPreferences)에 있는데,
+     * Keychain 읽기는 건당 securityd IPC 라 싸지 않다. loadAll 한 번이 4회를 왕복하고
+     * 당겨서 새로고침이면 계정 승계까지 얽혀 20회를 넘기기도 했다.
+     * 이 저장소 인스턴스는 계정마다 새로 만들어지므로(계정 전환 = 새 인스턴스) 인스턴스 캐시로 충분하다.
+     */
+    private var hoyolabCache: HoyolabConfig? = null
+
+    fun loadHoyolab(): HoyolabConfig = hoyolabCache ?: HoyolabConfig(
         ltuid = securePrefs.getString(KEY_HOYO_LTUID, "") ?: "",
         ltoken = securePrefs.getString(KEY_HOYO_LTOKEN, "") ?: "",
         genshinUid = prefs.getString(KEY_HOYO_GI, "") ?: "",
@@ -145,7 +155,7 @@ class GatchaRepository(accountId: String = "guest") {
         zzzUid = prefs.getString(KEY_HOYO_ZZZ, "") ?: "",
         cookieToken = securePrefs.getString(KEY_HOYO_COOKIETOKEN, "") ?: "",
         webCookie = securePrefs.getString(KEY_HOYO_WEBCOOKIE, "") ?: "",
-    )
+    ).also { hoyolabCache = it }
 
     /**
      * @return 토큰이 암호화 저장소에 실제로 들어갔는지. false 면 보안 저장소를 못 써서
@@ -164,6 +174,7 @@ class GatchaRepository(accountId: String = "guest") {
         prefs.putString(KEY_HOYO_GI, config.genshinUid)
         prefs.putString(KEY_HOYO_HSR, config.hsrUid)
         prefs.putString(KEY_HOYO_ZZZ, config.zzzUid)
+        hoyolabCache = if (secureOk) config else null   // 저장 실패 시엔 캐시하지 않고 다음에 다시 읽는다
         changed()
         return !hasToken || secureOk
     }
@@ -659,6 +670,7 @@ class GatchaRepository(accountId: String = "guest") {
         if (o.has(KEY_HOYO_GI)) prefs.putString(KEY_HOYO_GI, o.getString(KEY_HOYO_GI))
         if (o.has(KEY_HOYO_HSR)) prefs.putString(KEY_HOYO_HSR, o.getString(KEY_HOYO_HSR))
         if (o.has(KEY_HOYO_ZZZ)) prefs.putString(KEY_HOYO_ZZZ, o.getString(KEY_HOYO_ZZZ))
+        hoyolabCache = null   // 스냅샷이 UID 를 덮어썼을 수 있다 — 다음 읽기에서 다시 만든다
         if (o.has(KEY_ACCENT)) prefs.putInt(KEY_ACCENT, o.getInt(KEY_ACCENT))
         if (o.has(KEY_ENKA_GI)) prefs.putString(KEY_ENKA_GI, o.getString(KEY_ENKA_GI))
         if (o.has(KEY_ENKA_HSR)) prefs.putString(KEY_ENKA_HSR, o.getString(KEY_ENKA_HSR))

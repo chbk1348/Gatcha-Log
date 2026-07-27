@@ -130,8 +130,11 @@ struct HomeView: View {
                 }
                 RecentSpendCard(spendings: store.spendings, onSeeAll: { onSwitchTab(1) })
                 if !store.gameInfoReady {
-                    DashCardSkeleton(rows: 3)
-                    DashCardSkeleton(rows: 2)
+                    // 스켈레톤이 여러 개 동시에 뜨는 구간 — 시머 클럭을 하나만 돌린다.
+                    GLGShimmerClock {
+                        DashCardSkeleton(rows: 3)
+                        DashCardSkeleton(rows: 2)
+                    }
                 } else {
                     DashboardScheduleCard(events: store.gameEvents, challenges: store.challenges, onTap: { store.requestGameInfoAnchor(.schedule); onSwitchTab(2) }, titleOutside: true)
                     DashboardNewsCard(news: store.gameNews, anniversaries: GameAnniversary.shared.upcoming(nowMillis: nowMs()), onTap: { store.requestGameInfoAnchor(.news); onSwitchTab(2) }, titleOutside: true)
@@ -160,8 +163,10 @@ struct HomeView: View {
                 todayTaskView(titleOutside: false)
             }
             if !store.gameInfoReady {
-                DashCardSkeleton(rows: 3)
-                DashCardSkeleton(rows: 2)
+                GLGShimmerClock {
+                    DashCardSkeleton(rows: 3)
+                    DashCardSkeleton(rows: 2)
+                }
             } else {
                 DashboardScheduleCard(events: store.gameEvents, challenges: store.challenges, onTap: { store.requestGameInfoAnchor(.schedule); onSwitchTab(2) })
                 DashboardNewsCard(news: store.gameNews, anniversaries: GameAnniversary.shared.upcoming(nowMillis: nowMs()), onTap: { store.requestGameInfoAnchor(.news); onSwitchTab(2) })

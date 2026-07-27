@@ -34,20 +34,42 @@ private fun parse(text: String): JsonElement = try {
 }
 
 class JSONObject {
-    private val map: MutableMap<String, JsonElement>
+    /**
+     * 내용. **쓰기가 처음 일어날 때만 가변 복사본으로 바꾼다(copy-on-write).**
+     *
+     * 예전엔 생성자마다 `toMutableMap()` 으로 통째로 복사했다. org.json 은 하위 객체를 O(1) 참조로
+     * 돌려주는데 여기서는 `getJSONObject`/`optJSONArray` 한 번이 O(n) 복사였다 —
+     * 지출 1건마다 태그 배열을, 캐릭터 1명마다 스탯·유물 배열을 복사하는 식으로 파싱 비용이 상수배로 불었다.
+     * 실제로 이 레이어는 대부분 읽기 전용으로 쓰이므로, 복사는 정말 쓸 때만 한다.
+     */
+    private var map: Map<String, JsonElement>
+
+    /** [map] 이 이 인스턴스가 소유한 가변 복사본인지. false 면 원본을 그대로 보고 있다. */
+    private var owned = false
 
     constructor() {
         map = mutableMapOf()
+        owned = true
     }
 
     constructor(text: String) {
         val el = parse(text)
         if (el !is JsonObject) throw JSONException("JSONObject 가 아님")
-        map = el.toMutableMap()
+        map = el
     }
 
     internal constructor(obj: JsonObject) {
-        map = obj.toMutableMap()
+        map = obj
+    }
+
+    /** 쓰기 직전에 호출 — 원본을 보고 있었다면 이 시점에 복사한다. */
+    private fun mut(): MutableMap<String, JsonElement> {
+        if (!owned) {
+            map = map.toMutableMap()
+            owned = true
+        }
+        @Suppress("UNCHECKED_CAST")
+        return map as MutableMap<String, JsonElement>
     }
 
     fun has(key: String): Boolean = map.containsKey(key) && map[key] !is JsonNull
@@ -113,13 +135,13 @@ class JSONObject {
 
     // ---- put (빌더 — org.json 과 동일하게 체이닝 지원) ----
 
-    fun put(key: String, value: String): JSONObject = apply { map[key] = JsonPrimitive(value) }
-    fun put(key: String, value: Int): JSONObject = apply { map[key] = JsonPrimitive(value) }
-    fun put(key: String, value: Long): JSONObject = apply { map[key] = JsonPrimitive(value) }
-    fun put(key: String, value: Boolean): JSONObject = apply { map[key] = JsonPrimitive(value) }
-    fun put(key: String, value: Double): JSONObject = apply { map[key] = JsonPrimitive(value) }
-    fun put(key: String, value: JSONObject): JSONObject = apply { map[key] = value.toJsonElement() }
-    fun put(key: String, value: JSONArray): JSONObject = apply { map[key] = value.toJsonElement() }
+    fun put(key: String, value: String): JSONObject = apply { mut()[key] = JsonPrimitive(value) }
+    fun put(key: String, value: Int): JSONObject = apply { mut()[key] = JsonPrimitive(value) }
+    fun put(key: String, value: Long): JSONObject = apply { mut()[key] = JsonPrimitive(value) }
+    fun put(key: String, value: Boolean): JSONObject = apply { mut()[key] = JsonPrimitive(value) }
+    fun put(key: String, value: Double): JSONObject = apply { mut()[key] = JsonPrimitive(value) }
+    fun put(key: String, value: JSONObject): JSONObject = apply { mut()[key] = value.toJsonElement() }
+    fun put(key: String, value: JSONArray): JSONObject = apply { mut()[key] = value.toJsonElement() }
 
     internal fun toJsonElement(): JsonObject = JsonObject(map)
 
@@ -127,25 +149,41 @@ class JSONObject {
 }
 
 class JSONArray {
-    private val list: MutableList<JsonElement>
+    /** 내용. [JSONObject.map] 과 같은 이유로 copy-on-write. */
+    private var list: List<JsonElement>
+
+    /** [list] 가 이 인스턴스가 소유한 가변 복사본인지. */
+    private var owned = false
 
     constructor() {
         list = mutableListOf()
+        owned = true
     }
 
     constructor(text: String) {
         val el = parse(text)
         if (el !is JsonArray) throw JSONException("JSONArray 가 아님")
-        list = el.toMutableList()
+        list = el
     }
 
     /** org.json 의 JSONArray(Collection) — 문자열 컬렉션을 배열로 */
     constructor(values: Collection<String>) {
         list = values.map { JsonPrimitive(it) }.toMutableList()
+        owned = true
     }
 
     internal constructor(arr: JsonArray) {
-        list = arr.toMutableList()
+        list = arr
+    }
+
+    /** 쓰기 직전에 호출 — 원본을 보고 있었다면 이 시점에 복사한다. */
+    private fun mut(): MutableList<JsonElement> {
+        if (!owned) {
+            list = list.toMutableList()
+            owned = true
+        }
+        @Suppress("UNCHECKED_CAST")
+        return list as MutableList<JsonElement>
     }
 
     fun length(): Int = list.size
@@ -162,10 +200,10 @@ class JSONArray {
     fun optString(index: Int, fallback: String = ""): String =
         (list.getOrNull(index) as? JsonPrimitive)?.content ?: fallback
 
-    fun put(value: JSONObject): JSONArray = apply { list.add(value.toJsonElement()) }
-    fun put(value: String): JSONArray = apply { list.add(JsonPrimitive(value)) }
-    fun put(value: Int): JSONArray = apply { list.add(JsonPrimitive(value)) }
-    fun put(value: Long): JSONArray = apply { list.add(JsonPrimitive(value)) }
+    fun put(value: JSONObject): JSONArray = apply { mut().add(value.toJsonElement()) }
+    fun put(value: String): JSONArray = apply { mut().add(JsonPrimitive(value)) }
+    fun put(value: Int): JSONArray = apply { mut().add(JsonPrimitive(value)) }
+    fun put(value: Long): JSONArray = apply { mut().add(JsonPrimitive(value)) }
 
     internal fun toJsonElement(): JsonArray = JsonArray(list)
 
