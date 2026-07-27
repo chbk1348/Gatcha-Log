@@ -116,26 +116,26 @@ internal fun DailyHeroSection(
         return
     }
 
-    // 전체 모드 — 요약 카드 + 게임별 개별 카드 분리 (재디자인)
+    // 전체 모드 — 섹션 제목(카드 밖) + 요약 카드 + 게임별 개별 카드 분리
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        // 요약 카드: 연속·전체출석 + 최근 출석 스트립
-        GlassCard(shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth()) {
-            Column(Modifier.padding(16.dp)) {
-                Row(
-                    Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.Bolt, null, tint = accent, modifier = Modifier.size(18.dp))
-                        Spacer(Modifier.width(6.dp))
-                        Text("오늘의 데일리", fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                        if (streak > 0) {
-                            Spacer(Modifier.width(8.dp))
-                            StreakChip(streak)
-                        }
+        Column {
+            // 제목은 카드 밖으로 — 다른 섹션(내 캐릭터·게임 일정·숙제 완주율)과 같은 규격.
+            // 액션(전체 출석)은 제목 줄 우측에 함께 둔다.
+            Row(
+                Modifier.fillMaxWidth().padding(start = 2.dp, bottom = 11.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.Bolt, null, tint = accent, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text("오늘의 데일리", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                    if (streak > 0) {
+                        Spacer(Modifier.width(8.dp))
+                        StreakChip(streak)
                     }
-                    if (pendingCount > 0) {
+                }
+                if (pendingCount > 0) {
                         Surface(
                             shape = RoundedCornerShape(999.dp),
                             color = accent.copy(alpha = 0.12f),
@@ -153,7 +153,9 @@ internal fun DailyHeroSection(
                         }
                     }
                 }
-                Spacer(Modifier.height(14.dp))
+            // 요약 카드: 최근 출석 스트립(+한 달 보기)
+            GlassCard(shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(16.dp)) {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                     Text("최근 출석", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextSecondary)
                     Row(
@@ -172,6 +174,7 @@ internal fun DailyHeroSection(
                         MonthAttendanceCalendar(attendanceHistory)
                     }
                 }
+            }
             }
         }
         // 게임별 통합 카드: 3개 게임(실시간 노트 + 출석)을 한 카드에 구분선으로 묶음
