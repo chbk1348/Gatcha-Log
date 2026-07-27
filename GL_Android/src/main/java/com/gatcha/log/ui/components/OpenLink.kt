@@ -33,3 +33,22 @@ private fun tryOpen(ctx: Context, url: String): Boolean = try {
     // 보안 정책·잘못된 스킴 등 그 외 실패도 앱을 죽이지 않는다.
     false
 }
+
+/**
+ * 텍스트 공유 — 시스템 공유 시트(ACTION_SEND).
+ *
+ * 공지 본문은 앱이 원문 응답을 재구성해 그린 것이라 그대로 보낼 수 없다. 제목 + 원문 링크를 보낸다.
+ * 공유 앱이 하나도 없으면(드묾) 예외를 삼키고 안내만 띄운다.
+ */
+fun shareText(ctx: Context, text: String) {
+    val send = Intent(Intent.ACTION_SEND).apply {
+        type = "text/plain"
+        putExtra(Intent.EXTRA_TEXT, text)
+    }
+    val chooser = Intent.createChooser(send, null).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    try {
+        ctx.startActivity(chooser)
+    } catch (e: Exception) {
+        Toast.makeText(ctx, "공유할 수 있는 앱이 없어요", Toast.LENGTH_SHORT).show()
+    }
+}
