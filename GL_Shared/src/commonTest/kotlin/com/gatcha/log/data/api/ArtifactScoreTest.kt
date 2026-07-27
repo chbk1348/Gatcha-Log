@@ -5,8 +5,8 @@ import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 /**
- * 치명 점수(CV) 산식 — 3게임(원신·스타레일·젠레스) 라벨 표기가 달라도 같은 점수가 나와야 한다.
- * 값이 표시 문자열("62.2%")이라 파싱 경계도 함께 고정한다.
+ * 유효 점수(유효 롤) 산식 — 캐릭터별 유효옵션만, 스탯별 최대 강화량으로 나눠 환산한다.
+ * 3게임(원신·스타레일·젠레스) 라벨 표기와 강화 단위가 달라도 한 축에서 비교돼야 한다.
  */
 class ArtifactScoreTest {
 
@@ -19,37 +19,68 @@ class ArtifactScoreTest {
             subs = subs.map { EnkaStatLine(it.first, it.second) },
         )
 
+    private val giCrit = setOf(StatTok.CRIT_RATE, StatTok.CRIT_DMG, StatTok.ATK_PCT, StatTok.ELEM_DMG)
+
     // ── 산식 ────────────────────────────────────────────────────────────────
 
     @Test
-    fun cvWeightsCritRateTwiceCritDamage() {
-        val s = ArtifactScoring.score(art("치명타 확률" to "7.8%", "치명타 피해" to "14.0%"))
-        assertEquals(7.8, s.critRate)
-        assertEquals(14.0, s.critDmg)
-        assertEquals(7.8 * 2 + 14.0, s.cv)
+    fun rollsAreSubstatValueDividedByMaxRoll() {
+        // 원신 치확 최대 롤 3.89 / 치피 최대 롤 7.77.
+        val s = ArtifactScoring.score(art("치명타 확률" to "7.78%", "치명타 피해" to "15.54%"), giCrit, "genshin")
+        assertEquals(4.0, s.rolls, 0.0001)   // 2롤 + 2롤
     }
 
     @Test
-    fun cvSumsRepeatedCritLines() {
-        // 같은 스탯이 여러 줄로 오는 응답도 합산해야 한다.
-        val s = ArtifactScoring.score(art("치명타 확률" to "3.9%", "치명타 확률" to "3.9%"))
-        assertEquals(7.8, s.critRate)
-        assertEquals(15.6, s.cv)
-    }
-
-    @Test
-    fun mainStatCritIsExcludedFromCv() {
-        // 메인 옵션은 사용자가 고르는 값 → '굴림 운'을 재는 CV 에서 제외(커뮤니티 표준).
-        val s = ArtifactScoring.score(art("공격력(%)" to "5.8%", main = "치명타 피해" to "62.2%"))
-        assertEquals(0.0, s.cv)
+    fun onlyKeyStatsOfThatCharacterCount() {
+        // 힐러(풍요) 유효옵션 = HP%·치유·속도 → 치명타는 아무리 잘 떠도 0점.
+        val healer = setOf(StatTok.HP_PCT, StatTok.HEAL, StatTok.SPD)
+        val s = ArtifactScoring.score(art("치명타 확률" to "12.9%", "치명타 피해" to "25.9%"), healer, "hsr")
+        assertEquals(0.0, s.rolls)
         assertTrue(s.isEmpty)
     }
 
     @Test
-    fun nonCritSubstatsAreIgnored() {
-        val s = ArtifactScoring.score(art("HP(고정)" to "1,234", "원소 마스터리" to "40", "속도" to "5"))
-        assertEquals(0.0, s.cv)
+    fun differentStatUnitsAreComparableAfterRollConversion() {
+        // 스타레일 속도(1롤 2.6)와 치명타 피해(1롤 6.48)는 값 크기가 다르지만 롤로는 같은 2롤.
+        val harmony = setOf(StatTok.SPD, StatTok.EHR, StatTok.ATK_PCT, StatTok.BREAK)
+        val hunt = setOf(StatTok.CRIT_RATE, StatTok.CRIT_DMG, StatTok.ATK_PCT, StatTok.SPD)
+        val spd = ArtifactScoring.score(art("속도" to "5.2"), harmony, "hsr")
+        val cd = ArtifactScoring.score(art("치명타 피해" to "12.96%"), hunt, "hsr")
+        assertEquals(2.0, spd.rolls, 0.0001)
+        assertEquals(2.0, cd.rolls, 0.0001)
+    }
+
+    @Test
+    fun sameStatScoresDifferentlyPerGameTable() {
+        // 치확 1롤: 원신 3.89 · 스타레일 3.24 · 젠레스 2.4.
+        val subs = arrayOf("치명타 확률" to "9.72%")
+        val gi = ArtifactScoring.score(art(*subs), giCrit, "genshin").rolls
+        val hsr = ArtifactScoring.score(art(*subs), giCrit, "hsr").rolls
+        val zzz = ArtifactScoring.score(art(*subs), giCrit, "zzz").rolls
+        assertEquals(9.72 / 3.89, gi, 0.0001)
+        assertEquals(3.0, hsr, 0.0001)
+        assertEquals(9.72 / 2.4, zzz, 0.0001)
+    }
+
+    @Test
+    fun mainStatIsExcludedFromScore() {
+        // 메인 옵션은 사용자가 고르는 값 → '굴림 운'을 재는 점수에서 제외(커뮤니티 표준).
+        val s = ArtifactScoring.score(art("효과 저항" to "5.8%", main = "치명타 피해" to "62.2%"), giCrit, "genshin")
+        assertEquals(0.0, s.rolls)
         assertTrue(s.isEmpty)
+    }
+
+    @Test
+    fun mainOnlyStatsScoreZeroEvenWhenInKeySet() {
+        // 원소 피해·치유는 메인 전용이라 최대 롤값 표에 없다 → 0 (크래시 없이 무시).
+        val s = ArtifactScoring.score(art("화염 원소 피해 보너스" to "46.6%"), giCrit, "genshin")
+        assertEquals(0.0, s.rolls)
+    }
+
+    @Test
+    fun repeatedLinesOfSameStatAreSummed() {
+        val s = ArtifactScoring.score(art("치명타 확률" to "3.89%", "치명타 확률" to "3.89%"), giCrit, "genshin")
+        assertEquals(2.0, s.rolls, 0.0001)
     }
 
     // ── 게임별 라벨 흡수 ─────────────────────────────────────────────────────
@@ -57,22 +88,34 @@ class ArtifactScoreTest {
     @Test
     fun sameScoreAcrossGameLabelVariants() {
         // ZZZ 는 계정 언어에 따라 영문 라벨이 그대로 올 수 있다(zzzKrStat 미매칭분).
-        val ko = ArtifactScoring.score(art("치명타 확률" to "6.0%", "치명타 피해" to "12.0%"))
-        val en = ArtifactScoring.score(art("CRIT Rate" to "6.0%", "CRIT DMG" to "12.0%"))
-        assertEquals(ko.cv, en.cv)
-        assertEquals(24.0, ko.cv)
+        val ko = ArtifactScoring.score(art("치명타 확률" to "4.8%", "치명타 피해" to "9.6%"), giCrit, "zzz")
+        val en = ArtifactScoring.score(art("CRIT Rate" to "4.8%", "CRIT DMG" to "9.6%"), giCrit, "zzz")
+        assertEquals(ko.rolls, en.rolls)
+        assertEquals(4.0, ko.rolls, 0.0001)   // 치확 2롤 + 치피 2롤
+    }
+
+    // ── 유효옵션 판정(UI 빨간 강조와 동일 소스) ───────────────────────────────
+
+    @Test
+    fun isEffectiveMatchesKeyStatRules() {
+        val harmony = setOf(StatTok.SPD, StatTok.EHR)
+        assertTrue(ArtifactScoring.isEffective(harmony, "속도"))
+        assertTrue(ArtifactScoring.isEffective(harmony, "효과 적중"))
+        // 치명타는 화합 캐릭 유효옵션이 아니다 — 강조도 점수도 빠져야 한다.
+        assertTrue(!ArtifactScoring.isEffective(harmony, "치명타 피해"))
+        assertTrue(!ArtifactScoring.isEffective(harmony, "알 수 없는 스탯"))
     }
 
     // ── 등급 밴드 ───────────────────────────────────────────────────────────
 
     @Test
     fun gradeBandsAreInclusiveAtBoundaries() {
-        assertEquals(ArtifactGrade.EXCELLENT, ArtifactScoring.gradeOf(40.0))
-        assertEquals(ArtifactGrade.GOOD, ArtifactScoring.gradeOf(39.9))
-        assertEquals(ArtifactGrade.GOOD, ArtifactScoring.gradeOf(30.0))
-        assertEquals(ArtifactGrade.FAIR, ArtifactScoring.gradeOf(20.0))
-        assertEquals(ArtifactGrade.POOR, ArtifactScoring.gradeOf(10.0))
-        assertEquals(ArtifactGrade.BAD, ArtifactScoring.gradeOf(9.9))
+        assertEquals(ArtifactGrade.EXCELLENT, ArtifactScoring.gradeOf(6.0))
+        assertEquals(ArtifactGrade.GOOD, ArtifactScoring.gradeOf(5.9))
+        assertEquals(ArtifactGrade.GOOD, ArtifactScoring.gradeOf(4.5))
+        assertEquals(ArtifactGrade.FAIR, ArtifactScoring.gradeOf(3.0))
+        assertEquals(ArtifactGrade.POOR, ArtifactScoring.gradeOf(1.5))
+        assertEquals(ArtifactGrade.BAD, ArtifactScoring.gradeOf(1.4))
         assertEquals(ArtifactGrade.BAD, ArtifactScoring.gradeOf(0.0))
     }
 
@@ -80,22 +123,22 @@ class ArtifactScoreTest {
 
     @Test
     fun scoreCharRanksDescendingAndAveragesPerPiece() {
-        val low = art("치명타 피해" to "5.0%")     // cv 5
-        val high = art("치명타 확률" to "10.0%")   // cv 20
-        val mid = art("치명타 피해" to "12.0%")    // cv 12
-        val res = ArtifactScoring.scoreChar(listOf(low, high, mid))
-        assertEquals(listOf(20.0, 12.0, 5.0), res.ranked.map { it.score.cv })
-        assertEquals(37.0, res.totalCv)
+        val low = art("치명타 피해" to "7.77%")     // 1롤
+        val high = art("치명타 확률" to "11.67%")   // 3롤
+        val mid = art("치명타 피해" to "15.54%")    // 2롤
+        val res = ArtifactScoring.scoreChar(listOf(low, high, mid), giCrit, "genshin")
+        assertEquals(listOf(3.0, 2.0, 1.0), res.ranked.map { (it.score.rolls * 10).toInt() / 10.0 })
+        assertEquals(6.0, res.totalRolls, 0.0001)
         // 등급은 합계가 아니라 장당 평균 기준(게임별 칸 수 차이 흡수)
-        assertEquals(37.0 / 3, res.averageCv)
+        assertEquals(2.0, res.averageRolls, 0.0001)
         assertEquals(ArtifactGrade.POOR, res.grade)
     }
 
     @Test
     fun scoreCharHandlesEmptyList() {
-        val res = ArtifactScoring.scoreChar(emptyList())
-        assertEquals(0.0, res.totalCv)
-        assertEquals(0.0, res.averageCv)
+        val res = ArtifactScoring.scoreChar(emptyList(), giCrit, "genshin")
+        assertEquals(0.0, res.totalRolls)
+        assertEquals(0.0, res.averageRolls)
         assertTrue(res.ranked.isEmpty())
         assertEquals(ArtifactGrade.BAD, res.grade)
     }
@@ -113,10 +156,10 @@ class ArtifactScoreTest {
     }
 
     @Test
-    fun cvLabelKeepsOneDecimal() {
-        assertEquals("23.4", ArtifactScoring.cvLabel(23.44))
-        assertEquals("23.5", ArtifactScoring.cvLabel(23.46))
-        assertEquals("24.0", ArtifactScoring.cvLabel(23.96))
-        assertEquals("0.0", ArtifactScoring.cvLabel(0.0))
+    fun rollLabelKeepsOneDecimal() {
+        assertEquals("5.4", ArtifactScoring.rollLabel(5.44))
+        assertEquals("5.5", ArtifactScoring.rollLabel(5.46))
+        assertEquals("6.0", ArtifactScoring.rollLabel(5.96))
+        assertEquals("0.0", ArtifactScoring.rollLabel(0.0))
     }
 }

@@ -289,8 +289,8 @@ struct EnkaStatPage: View {
                     if char.artifacts.isEmpty {
                         emptyEquipNote(game == "genshin" ? "성유물이 장착되지 않았습니다." : game == "zzz" ? "드라이브 디스크가 장착되지 않았습니다." : "유물이 장착되지 않았습니다.")
                     } else {
-                        // 치명 점수(CV) 순 정렬 — 산식은 GL_Shared ArtifactScoring 단일 소스(Android 와 동일).
-                        let artScore = ArtifactScoring.shared.scoreChar(artifacts: char.artifacts)
+                        // 유효 점수 순 정렬 — 산식은 GL_Shared ArtifactScoring 단일 소스(Android 와 동일).
+                        let artScore = ArtifactScoring.shared.scoreChar(artifacts: char.artifacts, keySet: keySet, gameKey: game)
                         VStack(spacing: 10) {
                             critScoreSummary(artScore)
                             ForEach(Array(artScore.ranked.enumerated()), id: \.offset) { i, r in
@@ -518,18 +518,27 @@ struct EnkaStatPage: View {
         }
     }
 
-    // 캐릭별 주요 스탯이면(치명 포함) 강조. 룰은 속성/운명의길/직업/예외맵 기반(commonMain).
+    /// 캐릭별 유효옵션 집합. 룰은 속성/운명의길/직업/예외맵 기반(commonMain).
+    private var keySet: Set<StatTok> {
+        KeyStatRules.shared.keyStats(gameKey: game, element: char.element, path: char.path, specialty: char.specialty, charId: char.id)
+    }
+
+    /// 이 캐릭터의 유효옵션인가. 점수 산식과 **같은 함수**를 써서
+    /// "빨갛게 강조된 옵션 = 점수에 들어간 옵션"이 항상 일치하도록 한다.
     private func isKeyStat(_ s: EnkaStatLine) -> Bool {
-        if s.crit { return true }
-        let ks = KeyStatRules.shared.keyStats(gameKey: game, element: char.element, path: char.path, specialty: char.specialty, charId: char.id)
-        return KeyStatRules.shared.isKey(keySet: ks, label: s.label)
+        ArtifactScoring.shared.isEffective(keySet: keySet, label: s.label)
+    }
+
+    /// 유효옵션은 값뿐 아니라 라벨까지 빨갛게 — 한 줄이 통째로 눈에 들어오도록.
+    private func keyLabelColor(_ s: EnkaStatLine) -> Color {
+        isKeyStat(s) ? enkaCrit.opacity(0.85) : GLGColor.textSecondary
     }
 
     private var statGrid: some View {
         LazyVGrid(columns: g2, spacing: 0) {
             ForEach(Array(char.stats.enumerated()), id: \.offset) { _, s in
                 HStack {
-                    Text(s.label).font(.pretendard(size: 11.5)).foregroundStyle(GLGColor.textSecondary).lineLimit(1)
+                    Text(s.label).font(.pretendard(size: 11.5)).foregroundStyle(keyLabelColor(s)).lineLimit(1)
                     Spacer()
                     Text(s.value).font(.pretendard(size: 13, weight: .bold)).foregroundStyle(isKeyStat(s) ? enkaCrit : GLGColor.textPrimary).lineLimit(1)
                 }.padding(.horizontal, 11).padding(.vertical, 9)
@@ -548,21 +557,25 @@ struct EnkaStatPage: View {
         }
     }
 
-    /// 치명 점수 요약 — 합계·장당 평균·등급. CV = 치확×2 + 치피(서브 옵션만).
+    /// 유효 점수 요약 — 합계·장당 평균·등급.
+    /// 서브 옵션 중 **이 캐릭터 유효옵션만** 최대 강화량으로 나눠 '유효 롤'로 환산한 값이다.
     private func critScoreSummary(_ s: CharArtifactScore) -> some View {
         let c = gradeColor(s.grade)
-        return HStack(spacing: 7) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text("치명 점수").font(.pretendard(size: 10.5)).foregroundStyle(GLGColor.textSecondary)
-                Text("서브 옵션 치확×2 + 치피").font(.pretendard(size: 9.5)).foregroundStyle(GLGColor.textSecondary)
+        return VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 7) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("유효 점수").font(.pretendard(size: 10.5)).foregroundStyle(GLGColor.textSecondary)
+                    Text("유효옵션 강화 횟수 환산(장당 최대 9)").font(.pretendard(size: 9.5)).foregroundStyle(GLGColor.textSecondary)
+                }
+                Spacer(minLength: 0)
+                Text(ArtifactScoring.shared.rollLabel(rolls: s.totalRolls))
+                    .font(.pretendard(size: 18, weight: .heavy)).foregroundStyle(c)
+                Text("장당 \(ArtifactScoring.shared.rollLabel(rolls: s.averageRolls)) · \(s.grade.label)")
+                    .font(.pretendard(size: 10, weight: .bold)).foregroundStyle(c)
+                    .padding(.horizontal, 7).padding(.vertical, 3)
+                    .background(c.opacity(0.14), in: RoundedRectangle(cornerRadius: 7))
             }
-            Spacer(minLength: 0)
-            Text(ArtifactScoring.shared.cvLabel(cv: s.totalCv))
-                .font(.pretendard(size: 18, weight: .heavy)).foregroundStyle(c)
-            Text("장당 \(ArtifactScoring.shared.cvLabel(cv: s.averageCv)) · \(s.grade.label)")
-                .font(.pretendard(size: 10, weight: .bold)).foregroundStyle(c)
-                .padding(.horizontal, 7).padding(.vertical, 3)
-                .background(c.opacity(0.14), in: RoundedRectangle(cornerRadius: 7))
+            Text("빨간색 = 이 캐릭터 유효옵션").font(.pretendard(size: 9.5, weight: .bold)).foregroundStyle(enkaCrit)
         }
         .padding(.horizontal, 13).padding(.vertical, 11)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -580,7 +593,7 @@ struct EnkaStatPage: View {
                 Text(a.slot).font(.pretendard(size: 11, weight: .bold)).foregroundStyle(GLGColor.textSecondary)
                     .padding(.horizontal, 8).padding(.vertical, 5).background(Color(hex: 0xFFF1F1F6), in: RoundedRectangle(cornerRadius: 8))
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(a.main.label).font(.pretendard(size: 10.5)).foregroundStyle(GLGColor.textSecondary).lineLimit(1)
+                    Text(a.main.label).font(.pretendard(size: 10.5)).foregroundStyle(keyLabelColor(a.main)).lineLimit(1)
                     Text(a.main.value).font(.pretendard(size: 16, weight: .heavy)).foregroundStyle(isKeyStat(a.main) ? enkaCrit : accent.primary).lineLimit(1)
                     if !a.setName.isEmpty {
                         Text(a.setName).font(.pretendard(size: 9.5)).foregroundStyle(GLGColor.textSecondary).lineLimit(1)
@@ -590,10 +603,10 @@ struct EnkaStatPage: View {
                 VStack(alignment: .trailing, spacing: 4) {
                     Text("+\(a.level)").font(.pretendard(size: 10, weight: .bold)).foregroundStyle(Color(hex: 0xFF9C6F12))
                         .padding(.horizontal, 7).padding(.vertical, 2).background(enkaGold.opacity(0.16), in: RoundedRectangle(cornerRadius: 7))
-                    // 치명 점수 — 치명 서브 옵션이 없으면 순위가 무의미하므로 배지를 숨긴다.
+                    // 유효 점수 — 유효옵션이 하나도 안 붙었으면 순위가 무의미하므로 배지를 숨긴다.
                     if !score.isEmpty {
                         let gc = gradeColor(score.grade)
-                        Text("\(rank)위 · CV \(ArtifactScoring.shared.cvLabel(cv: score.cv))")
+                        Text("\(rank)위 · 유효 \(ArtifactScoring.shared.rollLabel(rolls: score.rolls))")
                             .font(.pretendard(size: 10, weight: .bold)).foregroundStyle(gc)
                             .padding(.horizontal, 7).padding(.vertical, 2)
                             .background(gc.opacity(0.14), in: RoundedRectangle(cornerRadius: 7))
@@ -607,7 +620,7 @@ struct EnkaStatPage: View {
                     LazyVGrid(columns: g2, spacing: 5) {
                         ForEach(Array(a.subs.enumerated()), id: \.offset) { _, s in
                             HStack(spacing: 6) {
-                                Text(s.label).font(.pretendard(size: 11)).foregroundStyle(GLGColor.textSecondary).lineLimit(1)
+                                Text(s.label).font(.pretendard(size: 11)).foregroundStyle(keyLabelColor(s)).lineLimit(1)
                                 Spacer(minLength: 4)
                                 Text(s.value).font(.pretendard(size: 12, weight: .bold)).foregroundStyle(isKeyStat(s) ? enkaCrit : GLGColor.textPrimary).lineLimit(1)
                             }
