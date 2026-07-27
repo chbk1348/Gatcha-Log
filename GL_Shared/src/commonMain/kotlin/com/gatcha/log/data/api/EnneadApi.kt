@@ -20,6 +20,11 @@ data class EnneadResult(
  */
 object EnneadApi {
 
+    private const val DAY_MS = 24L * 60 * 60 * 1000
+
+    /** 종료 미정 배너를 시작일로부터 몇 일까지 살려둘지 — 통상 버전 주기(6주)보다 넉넉하게. */
+    private const val UNKNOWN_END_MAX_DAYS = 60L
+
     suspend fun fetch(game: Game): EnneadResult {
         val key = game.enneadKey ?: return EnneadResult(emptyList(), emptyList())
 
@@ -60,8 +65,12 @@ object EnneadApi {
         for (i in 0 until bannersArr.length()) {
             val b = bannersArr.optJSONObject(i) ?: continue
             val endMillis = b.optLong("end_time") * 1000
-            if (endMillis <= now) continue
             val startMillis = b.optLong("start_time") * 1000
+            // 종료 시각 미공지(end_time=0)인 배너는 버리지 않고 '종료 미정'으로 살린다.
+            // 실제 사례: 스타레일 4.4 Fate 콜라보 — 시작만 뜨고 종료가 0 이라 통째로 필터링되고 있었다.
+            // 다만 상류가 끝내 안 채우면 영원히 남으므로, 시작 후 [UNKNOWN_END_MAX_DAYS] 지나면 내린다.
+            if (endMillis in 1..now) continue
+            if (endMillis <= 0L && (startMillis <= 0L || now - startMillis > UNKNOWN_END_MAX_DAYS * DAY_MS)) continue
             val version = b.optString("version")
 
             val (items, isWeapon) = firstItems(b)

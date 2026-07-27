@@ -20,6 +20,7 @@ import com.gatcha.log.data.HomeCards
 import com.gatcha.log.data.AppSettings
 import com.gatcha.log.data.work.AutoCheckInRunner
 import com.gatcha.log.data.work.NativeScheduler
+import com.gatcha.log.data.work.ScheduledAlerts
 import com.gatcha.log.data.GameData
 import com.gatcha.log.data.GameEvent
 import com.gatcha.log.data.PityState
@@ -120,6 +121,38 @@ class SpendingViewModel : ViewModel() {
     val pendingGameInfoAnchor: StateFlow<GameInfoAnchor?> = _pendingGameInfoAnchor.asStateFlow()
     fun requestGameInfoAnchor(anchor: GameInfoAnchor) { _pendingGameInfoAnchor.value = anchor }
     fun consumeGameInfoAnchor() { _pendingGameInfoAnchor.value = null }
+
+    // ── 알림 딥링크 ─────────────────────────────────────────────────────────
+    // 알림을 탭하면 앱만 열리고 끝이라 "무슨 공지인지" 다시 찾아 들어가야 했다.
+    // 알림에 실어 보낸 링크를 여기로 넘기면 탭 전환 + 상세 진입까지 이어진다.
+
+    /** 이동해야 할 탭 인덱스(0홈·1지출·2게임정보·3마이). UI 가 소비 후 [consumePendingTab]. */
+    private val _pendingTab = MutableStateFlow<Int?>(null)
+    val pendingTab: StateFlow<Int?> = _pendingTab.asStateFlow()
+    fun consumePendingTab() { _pendingTab.value = null }
+
+    /** 열어야 할 공지 id. 목록이 아직 없으면 UI 가 로드를 기다렸다가 연다. */
+    private val _pendingNewsId = MutableStateFlow<String?>(null)
+    val pendingNewsId: StateFlow<String?> = _pendingNewsId.asStateFlow()
+    fun consumePendingNews() { _pendingNewsId.value = null }
+
+    /**
+     * 알림 페이로드의 딥링크 처리. 형식은 `"news:<공지 id>"` 처럼 `종류:인자`.
+     * 모르는 형식이면 무시한다(구버전 알림이 남아 있어도 안전).
+     */
+    fun handleNotificationLink(link: String) {
+        val kind = link.substringBefore(':')
+        val arg = link.substringAfter(':', "")
+        when (kind) {
+            "news" -> {
+                if (arg.isBlank()) return
+                _pendingNewsId.value = arg
+                _pendingGameInfoAnchor.value = GameInfoAnchor.NEWS
+                _pendingTab.value = 2
+                refreshGameInfo()   // 목록이 비어 있으면 채운다 — 상세를 열려면 원본 항목이 필요하다
+            }
+        }
+    }
     private val _autoCheckIn = MutableStateFlow(appSettings.autoCheckIn)
     val autoCheckIn: StateFlow<Boolean> = _autoCheckIn.asStateFlow()
     fun setAutoCheckIn(enabled: Boolean) {
@@ -157,6 +190,8 @@ class SpendingViewModel : ViewModel() {
     val notifySubscription: StateFlow<Boolean> = _notifySubscription.asStateFlow()
     private val _notifyNews = MutableStateFlow(appSettings.notifyNews)
     val notifyNews: StateFlow<Boolean> = _notifyNews.asStateFlow()
+    private val _notifyCombat = MutableStateFlow(appSettings.notifyCombat)
+    val notifyCombat: StateFlow<Boolean> = _notifyCombat.asStateFlow()
 
     // 방해금지(DnD) — 조용한 시간대 알림 보류
     private val _notifyDndEnabled = MutableStateFlow(appSettings.notifyDndEnabled)
@@ -223,6 +258,7 @@ class SpendingViewModel : ViewModel() {
     fun setNotifyPickup(v: Boolean) { appSettings.notifyPickup = v; _notifyPickup.value = v; applyNativeAfterNotifyChange(v) }
     fun setNotifySubscription(v: Boolean) { appSettings.notifySubscription = v; _notifySubscription.value = v; applyNativeAfterNotifyChange(v) }
     fun setNotifyNews(v: Boolean) { appSettings.notifyNews = v; _notifyNews.value = v; applyNativeAfterNotifyChange(v) }
+    fun setNotifyCombat(v: Boolean) { appSettings.notifyCombat = v; _notifyCombat.value = v; applyNativeAfterNotifyChange(v) }
 
     fun setNotifyDndEnabled(v: Boolean) { appSettings.notifyDndEnabled = v; _notifyDndEnabled.value = v; NativeScheduler.apply() }
     fun setNotifyDndStartHour(v: Int) { appSettings.notifyDndStartHour = v; _notifyDndStartHour.value = appSettings.notifyDndStartHour }
@@ -232,7 +268,56 @@ class SpendingViewModel : ViewModel() {
 
     private fun applyNativeAfterNotifyChange(enabled: Boolean) {
         NativeScheduler.apply()
+        rescheduleTimedAlerts()
         if (enabled) NativeScheduler.runNow()
+    }
+
+    /**
+     * 확정 시각 알림(픽업·시즌 마감·정기결제·재화 가득참·데일리 요약) 사전 예약 갱신.
+     * iOS 는 이 예약 덕분에 앱을 안 열어도 정시에 알림이 오고, Android 는 주기 워커가 이미
+     * 커버하므로 no-op 이다([AlertScheduler]).
+     */
+    private fun rescheduleTimedAlerts() {
+        runCatching { ScheduledAlerts.reschedule(appSettings, repo) }
+    }
+
+    /**
+     * 받아온 실시간 노트를 숙제 관측 기록에 반영하고 완주율을 다시 계산한다.
+     * HoYoLAB 은 '지금 상태'만 주므로, 노트를 받는 이 순간이 유일한 관측 기회다.
+     */
+    private fun recordTaskProgress(notes: List<LiveNote>) {
+        runCatching {
+            val logs = repo.loadTaskLogs().toMutableMap()
+            notes.forEach { n ->
+                val key = GameData.byNameOrNull(n.game)?.key ?: return@forEach
+                logs[key] = TaskCompletion.record(logs[key] ?: GameTaskLog(), n)
+            }
+            repo.saveTaskLogs(logs)
+            _taskStats.value = TaskCompletion.allStats(logs)
+        }
+    }
+
+    /** 저장된 기록으로 완주율 복원(앱 시작 — 노트를 받기 전에도 지난 통계는 보여준다). */
+    private fun loadTaskStats() {
+        runCatching { _taskStats.value = TaskCompletion.allStats(repo.loadTaskLogs()) }
+    }
+
+    /**
+     * 앱이 포그라운드로 돌아왔을 때 밀린 알림을 1회 점검한다.
+     *
+     * 주기 작업만으로는 구멍이 크다 — iOS BGAppRefreshTask 는 실행 시점이 OS 재량이고 앱이 강제
+     * 종료돼 있으면 아예 안 돌며, Android 도 Doze 에서 늦어진다. 그래서 알림이 사실상 '토글을 켜는
+     * 순간'에만 오는 것처럼 보였다. 앱을 여는 순간을 보조 트리거로 쓴다.
+     *
+     * 전환할 때마다 HoYoLAB 을 두드리면 안 되므로 [FOREGROUND_CHECK_MIN_INTERVAL_MS] 간격을 둔다.
+     */
+    fun onAppForeground() {
+        if (!appSettings.needsPeriodicWork()) return
+        val now = currentTimeMillis()
+        if (now - appSettings.lastForegroundCheckMillis < FOREGROUND_CHECK_MIN_INTERVAL_MS) return
+        appSettings.lastForegroundCheckMillis = now
+        NativeScheduler.apply()   // 예약이 끊겨 있었다면 여기서 되살린다
+        NativeScheduler.runNow()
     }
 
     private val _accentIndex = MutableStateFlow(0)
@@ -646,6 +731,10 @@ class SpendingViewModel : ViewModel() {
     // 실시간 노트는 HoYoLAB 연동 시에만 실제 API 로 채워진다(미연동이면 비어 있음).
     private val _liveNotes = MutableStateFlow<List<LiveNote>>(emptyList())
     val liveNotes: StateFlow<List<LiveNote>> = _liveNotes.asStateFlow()
+
+    /** 게임별 일일·주간 숙제 완주율(관측 기록 파생). 기록이 없는 게임은 목록에 없다. */
+    private val _taskStats = MutableStateFlow<List<TaskStats>>(emptyList())
+    val taskStats: StateFlow<List<TaskStats>> = _taskStats.asStateFlow()
 
     // 월간 수입 일지(여행자의 일지·개척의 길). HoYoLAB 연동 시에만 채워진다.
     private val _ledgers = MutableStateFlow<List<MonthlyLedger>>(emptyList())
@@ -1214,16 +1303,24 @@ class SpendingViewModel : ViewModel() {
                     }
                     zzzDeferred.await().let { banners += it.banners; events += it.events; challenges += it.challenges }
                     if (banners.isNotEmpty()) {
-                        _activeBanners.value = banners.sortedBy { it.dDay() }
+                        // 종료 미정(end_time 미공지)은 임박도를 알 수 없으니 맨 뒤로 — dDay 가 큰 음수라 앞으로 튄다.
+                        _activeBanners.value = banners.sortedWith(compareBy({ it.isEndUnknown }, { it.dDay() }))
                         // 백그라운드 픽업 마감 알림 점검용 로컬 캐시(네트워크 없이 판정).
                         runCatching { repo.saveActiveBanners(banners) }
+                        rescheduleTimedAlerts()   // 픽업 마감 예약 갱신
                         refreshPlans()   // 새 픽업 목록으로 저축 계획 갱신
                     }
                     _gameEvents.value = events.sortedBy { it.endMillis }
                     _challenges.value = challenges.sortedBy { it.endMillis }
 
                     val notes = noteDeferred.mapNotNull { it.await() }
-                    if (notes.isNotEmpty()) _liveNotes.value = notes
+                    if (notes.isNotEmpty()) {
+                        _liveNotes.value = notes
+                        // 재화가 가득 차는 시각을 알림 예약에 쓰려면 로컬 캐시가 필요하다(네트워크 없이 계산).
+                        runCatching { repo.saveLiveNotes(notes) }
+                        rescheduleTimedAlerts()
+                        recordTaskProgress(notes)
+                    }
 
                     // ★ 배너+노트까지면 홈/오늘 할 일 준비 완료 — 즉시 표출(원장·전투는 뒤이어)
                     _gameInfoReady.value = true
@@ -1255,7 +1352,12 @@ class SpendingViewModel : ViewModel() {
                             combats += combat
                         }
                         if (ledgers.isNotEmpty()) _ledgers.value = ledgers
-                        if (combats.isNotEmpty()) _combat.value = combats
+                        if (combats.isNotEmpty()) {
+                            _combat.value = combats
+                            // 백그라운드 시즌 마감 알림이 네트워크 없이 판정하도록 로컬 캐시(배너 캐시와 동일 패턴).
+                            runCatching { repo.saveCombatModes(combats) }
+                            rescheduleTimedAlerts()   // 시즌 마감 예약 갱신
+                        }
                     }
                 }
             } finally {
@@ -1651,6 +1753,8 @@ class SpendingViewModel : ViewModel() {
         const val SYNC_TIMEOUT_MS = 8_000L
         /** Firestore 문서 1MB 한도 근접 경고 임계치(바이트). 초과 시 set 이 실패해 백업이 조용히 멈추므로 미리 안내. */
         const val CLOUD_DOC_WARN_BYTES = 900_000
+        /** 포그라운드 알림 점검 최소 간격(ms) — 탭 전환마다 HoYoLAB 을 두드리지 않도록. */
+        const val FOREGROUND_CHECK_MIN_INTERVAL_MS = 15L * 60 * 1000
     }
 
     /**
@@ -1668,6 +1772,7 @@ class SpendingViewModel : ViewModel() {
     init {
         repo.onChange = { scheduleCloudSync() }
         loadAll()
+        loadTaskStats()   // 노트를 받기 전에도 지난 완주율은 보여준다
         bootstrapAuthAndSync()
     }
 }
@@ -1676,4 +1781,4 @@ class SpendingViewModel : ViewModel() {
 // 홈 대시보드 카드 → 게임 정보 탭의 해당 섹션으로 스크롤 앵커링.
 // 레이아웃 개편(v27.32.0)으로 단독 배너/천장 섹션이 통합 '게임 일정'으로 합쳐짐 →
 // NOTES(실시간 노트/출석) · SCHEDULE(통합 게임 일정=픽업+패치/이벤트) · NEWS(공지·주년).
-enum class GameInfoAnchor { NOTES, SCHEDULE, NEWS }
+enum class GameInfoAnchor { NOTES, SCHEDULE, NEWS, COMBAT }

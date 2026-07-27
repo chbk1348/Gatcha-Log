@@ -53,12 +53,15 @@ struct NotificationSettingsView: View {
             toggleRow("calendar.badge.clock", "픽업 마감 알림", "진행 중인 픽업이 끝나기 전에 알려줘요",
                       notifyBind(\.notifyPickup, store.setNotifyPickup))
             Divider()
+            toggleRow("medal", "전투 시즌 마감 알림", "나선 비경·혼돈의 기억 등을 못 깬 채 시즌이 끝나기 전에 알려줘요",
+                      notifyBind(\.notifyCombat, store.setNotifyCombat))
+            Divider()
             toggleRow("arrow.triangle.2.circlepath", "정기결제 갱신", "구독 결제 하루 전(D-1)에 알려줘요",
                       notifyBind(\.notifySubscription, store.setNotifySubscription))
             Divider()
             toggleRow("megaphone.fill", "새 공지 알림", "게임에 새 공지가 올라오면 알려줘요",
                       notifyBind(\.notifyNews, store.setNotifyNews))
-            if notifBlocked && (store.notifyBudget || store.notifyAttendance || store.notifyResin || store.notifyPickup || store.notifySubscription || store.notifyNews) {
+            if notifBlocked && (store.notifyBudget || store.notifyAttendance || store.notifyResin || store.notifyPickup || store.notifyCombat || store.notifySubscription || store.notifyNews) {
                 Divider()
                 // 아직 프롬프트를 띄울 수 있으면(.notDetermined) 시스템 설정으로 보내지 말고 여기서 바로 요청한다.
                 Button {

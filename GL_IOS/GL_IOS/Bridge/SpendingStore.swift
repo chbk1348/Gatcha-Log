@@ -56,6 +56,9 @@ final class SpendingStore: ObservableObject {
     @Published private(set) var pendingOpenHoyolabLink: Bool = false
     /// 홈 카드 → 게임 정보 탭 진입 시 스크롤할 섹션 앵커(1회성). nil 이면 없음.
     @Published private(set) var pendingGameInfoAnchor: GameInfoAnchor? = nil
+    /// 알림 딥링크가 요청한 탭·공지(각각 ContentView / GameInfoView 가 소비).
+    @Published private(set) var pendingTab: Int? = nil
+    @Published private(set) var pendingNewsId: String? = nil
 
     // ── Phase 3 (지출) ──
     @Published private(set) var isRefreshing: Bool = false
@@ -68,6 +71,8 @@ final class SpendingStore: ObservableObject {
     @Published private(set) var gameEvents: [GameEvent] = []
     @Published private(set) var challenges: [GameChallenge] = []
     @Published private(set) var gameNews: [NewsItem] = []
+    /// 게임별 일일·주간 숙제 완주율(관측 기록 파생).
+    @Published private(set) var taskStats: [TaskStats] = []
     /// 공지 본문(상세 페이지) — 실패해도 화면을 비우지 않고 NewsItem.summary 로 폴백한다.
     @Published private(set) var newsArticle: NewsArticle? = nil
     @Published private(set) var newsArticleLoading: Bool = false
@@ -106,6 +111,7 @@ final class SpendingStore: ObservableObject {
     // ── Phase 6 (27.33.0 알림 설정 — 정기결제 갱신·방해금지·데일리 요약) ──
     @Published private(set) var notifySubscription: Bool = false
     @Published private(set) var notifyNews: Bool = false
+    @Published private(set) var notifyCombat: Bool = true
     @Published private(set) var notifyDndEnabled: Bool = false
     @Published private(set) var notifyDndStartHour: Int = 23
     @Published private(set) var notifyDndEndHour: Int = 8
@@ -157,6 +163,9 @@ final class SpendingStore: ObservableObject {
         bind(vm.nudgeThreshold) { [weak self] in self?.nudgeThreshold = $0.int64Value }
         bind(vm.pendingOpenHoyolabLink) { [weak self] in self?.pendingOpenHoyolabLink = $0.boolValue }
         bind(vm.pendingGameInfoAnchor) { [weak self] in self?.pendingGameInfoAnchor = $0 }
+        bind(vm.taskStats) { [weak self] in self?.taskStats = $0 }
+        bind(vm.pendingTab) { [weak self] in self?.pendingTab = $0?.intValue }
+        bind(vm.pendingNewsId) { [weak self] in self?.pendingNewsId = $0 }
 
         // Phase 3
         bind(vm.isRefreshing) { [weak self] in self?.isRefreshing = $0.boolValue }
@@ -203,6 +212,7 @@ final class SpendingStore: ObservableObject {
         // Phase 6 (알림 설정)
         bind(vm.notifySubscription) { [weak self] in self?.notifySubscription = $0.boolValue }
         bind(vm.notifyNews) { [weak self] in self?.notifyNews = $0.boolValue }
+        bind(vm.notifyCombat) { [weak self] in self?.notifyCombat = $0.boolValue }
         bind(vm.notifyDndEnabled) { [weak self] in self?.notifyDndEnabled = $0.boolValue }
         bind(vm.notifyDndStartHour) { [weak self] in self?.notifyDndStartHour = Int($0.int32Value) }
         bind(vm.notifyDndEndHour) { [weak self] in self?.notifyDndEndHour = Int($0.int32Value) }
@@ -261,6 +271,7 @@ final class SpendingStore: ObservableObject {
     // Phase 6 (27.33.0) — 정기결제 갱신·방해금지·데일리 요약
     func setNotifySubscription(_ v: Bool) { vm.setNotifySubscription(v: v) }
     func setNotifyNews(_ v: Bool) { vm.setNotifyNews(v: v) }
+    func setNotifyCombat(_ v: Bool) { vm.setNotifyCombat(v: v) }
     func setNotifyDndEnabled(_ v: Bool) { vm.setNotifyDndEnabled(v: v) }
     func setNotifyDndStartHour(_ v: Int) { vm.setNotifyDndStartHour(v: Int32(v)) }
     func setNotifyDndEndHour(_ v: Int) { vm.setNotifyDndEndHour(v: Int32(v)) }
@@ -327,6 +338,12 @@ final class SpendingStore: ObservableObject {
 
     // ── Phase 4 액션 ──────────────────────────────────────────────────────
     func refreshGameInfo(force: Bool = false) { vm.refreshGameInfo(force: force) }
+    /// 앱이 포그라운드로 돌아왔을 때 밀린 알림 1회 점검(BGTask 가 OS 재량이라 그것만으론 구멍이 크다).
+    func onAppForeground() { vm.onAppForeground() }
+    /// 알림 payload 의 딥링크 처리("news:<공지 id>") — 탭 전환 + 상세 진입 상태를 세운다.
+    func handleNotificationLink(_ link: String) { vm.handleNotificationLink(link: link) }
+    func consumePendingTab() { vm.consumePendingTab() }
+    func consumePendingNews() { vm.consumePendingNews() }
     func attemptCheckIn(_ gameKey: String) { vm.attemptCheckIn(gameKey: gameKey) }
     func checkInAll() { vm.checkInAll() }
     func adjustPity(gameKey: String, delta: Int) { vm.adjustPity(gameKey: gameKey, delta: Int32(delta)) }

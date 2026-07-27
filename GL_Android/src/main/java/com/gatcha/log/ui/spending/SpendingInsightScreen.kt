@@ -105,7 +105,7 @@ private fun BudgetPaceCard(monthTotal: Long, budget: Long, month: Int, accent: C
     val cal = remember { Calendar.getInstance() }
     val dayOfMonth = cal.get(Calendar.DAY_OF_MONTH)
     val daysInMonth = cal.getActualMaximum(Calendar.DAY_OF_MONTH)
-    val pace = computeBudgetPace(monthTotal, dayOfMonth, daysInMonth)
+    val pace = SpendingInsightStats.budgetPace(monthTotal, dayOfMonth, daysInMonth)
     val projected = pace.projected
 
     DashCard {
@@ -203,7 +203,7 @@ private fun PaymentStatsCard(spendings: List<Spending>, year: Int, month: Int) {
 // ---------------------------------------------------------------- 2) 게임별 월 추이 (올해, 누적 막대)
 @Composable
 private fun MonthlyTrendCard(spendings: List<Spending>, year: Int, accent: Color) {
-    val trend = remember(spendings, year) { computeMonthlyTrend(spendings, year) } ?: return
+    val trend = remember(spendings, year) { SpendingInsightStats.monthlyTrend(spendings, year) } ?: return
     val monthGame = trend.monthGame
     val maxMonth = trend.maxMonth
     val legend = trend.legend
@@ -241,13 +241,13 @@ private fun MonthlyTrendCard(spendings: List<Spending>, year: Int, accent: Color
 // ---------------------------------------------------------------- 3) 결제수단별 비중
 @Composable
 private fun PaymentBreakdownCard(spendings: List<Spending>, accent: Color) {
-    val rows = remember(spendings) { computePaymentBreakdown(spendings) }
+    val rows = remember(spendings) { SpendingInsightStats.paymentBreakdown(spendings) }
     if (rows.isEmpty()) return
     DashCard {
         CardTitle("결제수단별 비중")
         Spacer(Modifier.height(12.dp))
-        rows.forEach { (name, amt, total) ->
-            BreakdownRow(name, amt, if (total > 0) amt.toFloat() / total else 0f, accent)
+        rows.forEach { r ->
+            BreakdownRow(r.name, r.amount, if (r.total > 0) r.amount.toFloat() / r.total else 0f, accent)
         }
     }
 }
@@ -313,14 +313,14 @@ private fun SubscriptionSummaryCard(subs: List<Subscription>, accent: Color, onM
 // ---------------------------------------------------------------- 4) 태그별 지출
 @Composable
 private fun TagBreakdownCard(spendings: List<Spending>, accent: Color) {
-    val rows = remember(spendings) { computeTagBreakdown(spendings) }
+    val rows = remember(spendings) { SpendingInsightStats.tagBreakdown(spendings) }
     if (rows.isEmpty()) return
-    val maxTag = (rows.maxOfOrNull { it.second } ?: 1L).coerceAtLeast(1L)
     DashCard {
         CardTitle("태그별 지출", "여러 태그가 달린 지출은 중복 집계돼요")
         Spacer(Modifier.height(12.dp))
-        rows.forEach { (tag, amt) ->
-            BreakdownRow("#$tag", amt, amt.toFloat() / maxTag, accent)
+        // 태그는 중복 집계라 합계 비율이 100%를 넘을 수 있어, 막대 분모는 전체합이 아닌 최대 태그 금액(r.total).
+        rows.forEach { r ->
+            BreakdownRow("#${r.name}", r.amount, r.amount.toFloat() / r.total, accent)
         }
     }
 }

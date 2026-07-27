@@ -54,6 +54,8 @@ internal fun DailyHeroSection(
     onCheckIn: (String) -> Unit,
     onCheckInAll: () -> Unit,
     onConfigClick: () -> Unit,
+    /** 전투 진행도·수입 일지 상세로 — 데일리와 같은 '오늘 뭐 했나' 맥락이라 여기서 들어간다. */
+    onOpenGameContent: (() -> Unit)? = null,
 ) {
     val accent = LocalAccent.current
     var expanded by remember { mutableStateOf(false) }
@@ -97,40 +99,43 @@ internal fun DailyHeroSection(
             "zzz" -> hoyolab.zzzUid
             else -> ""
         }
-        FocusedGameDaily(
-            game = focused,
-            note = note,
-            uid = uid,
-            checked = focused.key in attendanceToday,
-            inProgress = checkingIn == focused.key,
-            history = attendanceHistory,
-            expanded = expanded,
-            onToggleExpand = { expanded = !expanded },
-            onCheckIn = { onCheckIn(focused.key) },
-        )
+        Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            FocusedGameDaily(
+                game = focused,
+                note = note,
+                uid = uid,
+                checked = focused.key in attendanceToday,
+                inProgress = checkingIn == focused.key,
+                history = attendanceHistory,
+                expanded = expanded,
+                onToggleExpand = { expanded = !expanded },
+                onCheckIn = { onCheckIn(focused.key) },
+            )
+            onOpenGameContent?.let { GameContentEntry(it) }
+        }
         return
     }
 
-    // 전체 모드 — 요약 카드 + 게임별 개별 카드 분리 (재디자인)
+    // 전체 모드 — 섹션 제목(카드 밖) + 요약 카드 + 게임별 개별 카드 분리
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        // 요약 카드: 연속·전체출석 + 최근 출석 스트립
-        GlassCard(shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth()) {
-            Column(Modifier.padding(16.dp)) {
-                Row(
-                    Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.Bolt, null, tint = accent, modifier = Modifier.size(18.dp))
-                        Spacer(Modifier.width(6.dp))
-                        Text("오늘의 데일리", fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                        if (streak > 0) {
-                            Spacer(Modifier.width(8.dp))
-                            StreakChip(streak)
-                        }
+        Column {
+            // 제목은 카드 밖으로 — 다른 섹션(내 캐릭터·게임 일정·숙제 완주율)과 같은 규격.
+            // 액션(전체 출석)은 제목 줄 우측에 함께 둔다.
+            Row(
+                Modifier.fillMaxWidth().padding(start = 2.dp, bottom = 11.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.Bolt, null, tint = accent, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text("오늘의 데일리", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                    if (streak > 0) {
+                        Spacer(Modifier.width(8.dp))
+                        StreakChip(streak)
                     }
-                    if (pendingCount > 0) {
+                }
+                if (pendingCount > 0) {
                         Surface(
                             shape = RoundedCornerShape(999.dp),
                             color = accent.copy(alpha = 0.12f),
@@ -148,7 +153,9 @@ internal fun DailyHeroSection(
                         }
                     }
                 }
-                Spacer(Modifier.height(14.dp))
+            // 요약 카드: 최근 출석 스트립(+한 달 보기)
+            GlassCard(shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(16.dp)) {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                     Text("최근 출석", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextSecondary)
                     Row(
@@ -168,6 +175,7 @@ internal fun DailyHeroSection(
                     }
                 }
             }
+            }
         }
         // 게임별 통합 카드: 3개 게임(실시간 노트 + 출석)을 한 카드에 구분선으로 묶음
         GlassCard(shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth()) {
@@ -184,6 +192,32 @@ internal fun DailyHeroSection(
                     DailyGameRow(game, note, uid, game.key in attendanceToday, checkingIn == game.key) { onCheckIn(game.key) }
                 }
             }
+        }
+        onOpenGameContent?.let { GameContentEntry(it) }
+    }
+}
+
+/**
+ * 전투 진행도·수입 일지 진입 행 — 데일리 바로 아래.
+ *
+ * 예전엔 게임 정보 탭 본문에 큰 섹션 두 개로 펼쳐져 있었다. 매일 보는 정보가 아닌데
+ * 화면을 길게 잡아먹어, 같은 '오늘 뭐 했나' 맥락인 데일리에서 들어가도록 접었다.
+ */
+@Composable
+private fun GameContentEntry(onClick: () -> Unit) {
+    val accent = LocalAccent.current
+    GlassCard(shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth().clickable { onClick() }) {
+        Row(Modifier.padding(horizontal = 16.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                Modifier.size(38.dp).clip(RoundedCornerShape(12.dp)).background(accent.copy(alpha = 0.12f)),
+                contentAlignment = Alignment.Center,
+            ) { Icon(Icons.Default.MilitaryTech, null, tint = accent, modifier = Modifier.size(20.dp)) }
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+                Text("전투 진행도 · 수입 일지", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TextPrimary, maxLines = 1)
+                Text("나선 비경·혼돈의 기억 클리어와 이번 달 재화 수입", fontSize = 11.sp, color = TextSecondary, maxLines = 1)
+            }
+            Icon(Icons.Default.ChevronRight, null, tint = TextSecondary, modifier = Modifier.size(18.dp))
         }
     }
 }
@@ -330,29 +364,48 @@ private fun WeekAttendanceStrip(history: Map<String, Set<String>>) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(dow, fontSize = 10.sp, color = if (isToday) accent else TextSecondary, fontWeight = if (isToday) FontWeight.Bold else FontWeight.Normal)
                 Spacer(Modifier.height(5.dp))
-                Box(
-                    Modifier
-                        .size(34.dp)
-                        .clip(CircleShape)
-                        .background(
-                            when (level) {
-                                AttendLevel.FULL -> accent
-                                AttendLevel.PARTIAL -> accent.copy(alpha = 0.30f)
-                                AttendLevel.NONE -> Color(0xFFF0F0F4)
-                            },
-                        )
-                        .then(if (isToday) Modifier.border(2.dp, accent, CircleShape) else Modifier),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    if (level == AttendLevel.FULL) {
-                        Icon(Icons.Default.Check, null, tint = Color.White, modifier = Modifier.size(16.dp))
-                    } else {
+                // 날짜는 **항상** 보여준다 — 예전엔 전체 출석한 날을 체크 아이콘으로 덮어버려
+                // 정작 며칠인지 알 수 없었다. 완료 표시는 채움색 + 우상단 작은 체크로 한다.
+                //
+                // 배지는 원 **바깥** Box 에 올린다 — 원에 clip(CircleShape) 이 걸려 있어
+                // 안쪽에 두면 모서리에 붙는 배지가 잘려 보이지 않는다.
+                Box(Modifier.size(34.dp), contentAlignment = Alignment.Center) {
+                    Box(
+                        Modifier
+                            .matchParentSize()
+                            .clip(CircleShape)
+                            .background(
+                                when (level) {
+                                    AttendLevel.FULL -> accent
+                                    AttendLevel.PARTIAL -> accent.copy(alpha = 0.30f)
+                                    AttendLevel.NONE -> Color(0xFFF0F0F4)
+                                },
+                            )
+                            .then(if (isToday) Modifier.border(2.dp, accent, CircleShape) else Modifier),
+                        contentAlignment = Alignment.Center,
+                    ) {
                         Text(
                             "$dayNum",
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Bold,
-                            color = if (level == AttendLevel.PARTIAL) accent else TextSecondary,
+                            color = when (level) {
+                                AttendLevel.FULL -> Color.White
+                                AttendLevel.PARTIAL -> accent
+                                AttendLevel.NONE -> TextSecondary
+                            },
                         )
+                    }
+                    if (level == AttendLevel.FULL) {
+                        Box(
+                            Modifier.align(Alignment.TopEnd)
+                                .size(14.dp)
+                                .clip(CircleShape)
+                                .background(Color.White)
+                                .border(1.dp, accent.copy(alpha = 0.35f), CircleShape),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Icon(Icons.Default.Check, null, tint = accent, modifier = Modifier.size(10.dp))
+                        }
                     }
                 }
             }

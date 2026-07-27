@@ -449,6 +449,112 @@ class GatchaRepository(accountId: String = "guest") {
         prefs.putString(KEY_BANNERS, arr.toString())
     }
 
+    // ---------------------------------------------------------------- 전투 진행도 캐시 (로컬 전용 — 시즌 마감 알림 점검용)
+    /** 최근 로드한 전투 콘텐츠 진행도. 백그라운드가 네트워크 없이 시즌 마감 임박을 판정하도록 캐시. */
+    fun loadCombatModes(): List<CombatMode> {
+        val raw = prefs.getString(KEY_COMBAT, null) ?: return emptyList()
+        return runCatching {
+            val arr = JSONArray(raw)
+            (0 until arr.length()).map { i ->
+                val o = arr.getJSONObject(i)
+                CombatMode(
+                    game = o.optString("game", ""),
+                    name = o.optString("name", ""),
+                    stars = o.optInt("stars", 0),
+                    maxStars = o.optInt("maxStars", 0),
+                    detail = o.optString("detail", ""),
+                    endMillis = o.optLong("endMillis", 0L),
+                    hasData = o.optBoolean("hasData", true),
+                )
+            }
+        }.getOrDefault(emptyList())
+    }
+
+    /** 전투 진행도 캐시 저장. 배너 캐시와 동일하게 로컬 전용(클라우드 동기화 미트리거). */
+    fun saveCombatModes(list: List<CombatMode>) {
+        val arr = JSONArray()
+        list.forEach { c ->
+            arr.put(JSONObject().apply {
+                put("game", c.game); put("name", c.name)
+                put("stars", c.stars); put("maxStars", c.maxStars)
+                put("detail", c.detail); put("endMillis", c.endMillis); put("hasData", c.hasData)
+            })
+        }
+        prefs.putString(KEY_COMBAT, arr.toString())
+    }
+
+    // ---------------------------------------------------------------- 실시간 노트 캐시 (로컬 전용 — 예약 알림 계산용)
+    /** 최근 받아온 실시간 노트. '재화가 가득 차는 시각'을 앱 실행 없이 예약하는 데 쓴다. */
+    fun loadLiveNotes(): List<LiveNote> {
+        val raw = prefs.getString(KEY_NOTES, null) ?: return emptyList()
+        return runCatching {
+            val arr = JSONArray(raw)
+            (0 until arr.length()).map { i ->
+                val o = arr.getJSONObject(i)
+                LiveNote(
+                    game = o.optString("game", ""),
+                    currentResin = o.optInt("cur", 0),
+                    maxResin = o.optInt("max", 0),
+                    resinFullAtMillis = o.optLong("fullAt", 0L),
+                    dailyTaskCount = o.optInt("daily", 0),
+                    maxDailyTaskCount = o.optInt("dailyMax", 0),
+                    weeklyDone = o.optInt("weekly", 0),
+                    weeklyTotal = o.optInt("weeklyMax", 0),
+                )
+            }
+        }.getOrDefault(emptyList())
+    }
+
+    /** 실시간 노트 캐시 저장. 배너·전투 캐시와 동일하게 로컬 전용(클라우드 동기화 미트리거). */
+    fun saveLiveNotes(list: List<LiveNote>) {
+        val arr = JSONArray()
+        list.forEach { n ->
+            arr.put(JSONObject().apply {
+                put("game", n.game)
+                put("cur", n.currentResin); put("max", n.maxResin)
+                put("fullAt", n.resinFullAtMillis)
+                put("daily", n.dailyTaskCount); put("dailyMax", n.maxDailyTaskCount)
+                put("weekly", n.weeklyDone); put("weeklyMax", n.weeklyTotal)
+            })
+        }
+        prefs.putString(KEY_NOTES, arr.toString())
+    }
+
+    // ---------------------------------------------------------------- 숙제 관측 기록 (로컬 전용 — 완주율 계산)
+    /**
+     * 게임별 일일·주간 숙제 완료 기록. HoYoLAB 은 '지금 상태'만 주므로 완주율을 내려면
+     * 앱이 노트를 받을 때마다 그날 결과를 여기 적어야 한다.
+     * **기기에서 관측한 기록**이라 클라우드 스냅샷에는 넣지 않는다(기기마다 켠 시점이 달라 병합이 무의미).
+     */
+    fun loadTaskLogs(): Map<String, GameTaskLog> {
+        val raw = prefs.getString(KEY_TASK_LOG, null) ?: return emptyMap()
+        return runCatching {
+            val root = JSONObject(raw)
+            buildMap {
+                root.keys().forEach { gameKey ->
+                    val o = root.optJSONObject(gameKey) ?: return@forEach
+                    put(gameKey, GameTaskLog(daily = boolMap(o.optJSONObject("d")), weekly = boolMap(o.optJSONObject("w"))))
+                }
+            }
+        }.getOrDefault(emptyMap())
+    }
+
+    fun saveTaskLogs(logs: Map<String, GameTaskLog>) {
+        val root = JSONObject()
+        logs.forEach { (gameKey, log) ->
+            root.put(gameKey, JSONObject().apply {
+                put("d", JSONObject().apply { log.daily.forEach { (k, v) -> put(k, v) } })
+                put("w", JSONObject().apply { log.weekly.forEach { (k, v) -> put(k, v) } })
+            })
+        }
+        prefs.putString(KEY_TASK_LOG, root.toString())
+    }
+
+    private fun boolMap(o: JSONObject?): Map<String, Boolean> {
+        o ?: return emptyMap()
+        return buildMap { o.keys().forEach { k -> put(k, o.optBoolean(k, false)) } }
+    }
+
     // ---------------------------------------------------------------- 스냅샷 (전체 데이터 직렬화 — 클라우드/파일 백업 공용)
     /** 계정의 모든 데이터를 단일 JSON 으로 직렬화(Firestore 저장·파일 백업용). */
     fun exportSnapshotJson(): String {
@@ -587,6 +693,9 @@ class GatchaRepository(accountId: String = "guest") {
         const val KEY_ENKA_HSR = "enka_hsr"
         const val KEY_ENKA_CACHE = "enka_cache"   // 로컬 전용(클라우드 스냅샷 비포함)
         const val KEY_BANNERS = "active_banners"  // 로컬 전용(픽업 마감 알림 점검 캐시)
+        const val KEY_COMBAT = "combat_modes"     // 로컬 전용(전투 시즌 마감 알림 점검 캐시)
+        const val KEY_NOTES = "live_notes"        // 로컬 전용(재화 가득참 예약 알림 계산 캐시)
+        const val KEY_TASK_LOG = "task_logs"      // 로컬 전용(일일·주간 숙제 완주율 관측 기록)
         const val KEY_GACHA = "gacha_records"
         const val KEY_SUBS = "subscriptions"
         const val KEY_HOME_CARDS = "home_cards"

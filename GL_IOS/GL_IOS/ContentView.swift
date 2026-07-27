@@ -14,6 +14,8 @@ struct ContentView: View {
     /// Kotlin SpendingViewModel 브리지(공유 VM). 온보딩 게이트·강조색을 SwiftUI 에서 직접 구독.
     @StateObject private var store = SpendingStore()
     @State private var selectedTab: Int = 0
+    /// 앱 복귀 감지 — 밀린 알림 점검 트리거(BGAppRefreshTask 는 실행 시점이 OS 재량이라 보조가 필요).
+    @Environment(\.scenePhase) private var scenePhase
 
     /// 지출 추가/수정 시트 — **표시 여부와 대상을 한 상태로 합쳤다**(nil = 닫힘).
     ///
@@ -203,6 +205,19 @@ struct ContentView: View {
         // 사용자가 무슨 테마를 골랐든 항상 기본 민트로 떴다.
         // 로그인 전 화면은 더 안쪽에서 preLoginAccent 로 덮어쓰므로(가까운 쪽이 이긴다) 그대로 민트로 남는다.
         .glgAccent(index: store.accentIndex)
+        // 앱으로 돌아올 때마다 밀린 알림 1회 점검 — BGAppRefreshTask 는 실행 시점이 OS 재량이고
+        // 앱이 강제 종료돼 있으면 아예 안 돌아, 그것만으론 알림이 토글 켤 때만 오는 것처럼 보였다.
+        // (실제 실행 여부·최소 간격은 공유 VM 이 판단한다.)
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active { store.onAppForeground() }
+        }
+        // 알림 딥링크 — AppDelegate 가 던진 링크를 공유 VM 에 넘긴다(상세 진입은 각 탭이 이어받음).
+        .onReceive(NotificationCenter.default.publisher(for: .glgDeepLink)) { note in
+            if let link = note.object as? String { store.handleNotificationLink(link) }
+        }
+        .onChange(of: store.pendingTab) { _, tab in
+            if let tab { selectedTab = tab; store.consumePendingTab() }
+        }
     }
 
     /// '+' (지출 추가) 모달 열기 — 신규 추가(편집 대상 없음).

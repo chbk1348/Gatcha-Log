@@ -51,6 +51,8 @@ object SavingsPlanner {
         held: Map<String, Int> = emptyMap(),
         nowMillis: Long = currentTimeMillis(),
     ): List<SavingsPlan> = banners.mapNotNull { b ->
+        // 종료 미정 픽업은 남은 일수를 모르니 일일 저축 목표를 역산할 수 없다 → 계획에서 제외.
+        if (b.isEndUnknown) return@mapNotNull null
         val gameKey = GameData.byNameOrNull(b.game)?.key ?: b.game
         val rate = GachaRateData.byKey(gameKey)?.banner(b.type) ?: return@mapNotNull null
 

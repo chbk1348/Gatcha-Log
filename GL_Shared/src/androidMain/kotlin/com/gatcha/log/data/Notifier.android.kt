@@ -39,6 +39,7 @@ actual object Notifier {
     actual val ID_SUBSCRIPTION_BASE: Int = 3500
     actual val ID_DAILY_SUMMARY: Int = 2004
     actual val ID_NEWS_BASE: Int = 3600
+    actual val ID_COMBAT_BASE: Int = 3700
 
     private fun ensureChannel(ctx: Context) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -53,7 +54,7 @@ actual object Notifier {
     }
 
     @SuppressLint("MissingPermission")
-    actual fun notify(id: Int, title: String, text: String) {
+    actual fun notify(id: Int, title: String, text: String, link: String) {
         val ctx = AppContext.appContext
         // Android 13+ 는 POST_NOTIFICATIONS 런타임 권한 필요 — 미허용이면 조용히 무시
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
@@ -69,6 +70,7 @@ actual object Notifier {
         // (근본 보강: MainActivity 는 manifest 에서 launchMode=singleTask)
         val intent = ctx.packageManager.getLaunchIntentForPackage(ctx.packageName)?.apply {
             addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
+            if (link.isNotBlank()) putExtra(EXTRA_LINK, link)
         } ?: return
         val pi = PendingIntent.getActivity(
             ctx, id, intent,
@@ -92,4 +94,7 @@ actual object Notifier {
 
     actual fun notificationsEnabled(): Boolean =
         NotificationManagerCompat.from(AppContext.appContext).areNotificationsEnabled()
+
+    /** 알림 탭으로 전달되는 딥링크 인텐트 extra 키 — MainActivity 가 읽어 VM 에 넘긴다. */
+    const val EXTRA_LINK = "gl_notification_link"
 }

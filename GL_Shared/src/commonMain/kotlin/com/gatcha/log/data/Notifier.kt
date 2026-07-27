@@ -18,8 +18,13 @@ expect object Notifier {
     val ID_SUBSCRIPTION_BASE: Int // 정기결제 갱신 임박. + (구독 인덱스)
     val ID_DAILY_SUMMARY: Int     // 데일리 요약(1건 통합)
     val ID_NEWS_BASE: Int         // 새 게임 공지. + game.ordinal
+    val ID_COMBAT_BASE: Int       // 전투 콘텐츠 시즌 마감 임박. + game.ordinal
 
-    fun notify(id: Int, title: String, text: String)
+    /**
+     * [link] = 알림 탭 시 이동할 딥링크(`"news:<공지 id>"` 형식). 빈 문자열이면 앱만 연다.
+     * 처리는 [SpendingViewModel.handleNotificationLink].
+     */
+    fun notify(id: Int, title: String, text: String, link: String = "")
 
     /**
      * 시스템 알림이 실제로 표시 가능한 상태인지(권한 허용 + 앱/채널 알림 켜짐).

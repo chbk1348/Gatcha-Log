@@ -255,6 +255,14 @@ fun GlgScreenHeader(
 val GlgTabHeaderHeight = 72.dp
 
 /**
+ * 상단 스크림이 상태바 **아래로 더 내려가는 높이**.
+ *
+ * 스크림을 상태바 높이에 딱 맞추면 남는 페이드 구간이 3~6dp 뿐이라 알파가 급히 끊겨
+ * 가로선처럼 보인다. 이만큼 더 내려 흐려지는 거리를 벌되, 헤더 버튼 줄(72dp)까지는 덮지 않는다.
+ */
+val GlgTopScrimFadeExtra = 20.dp
+
+/**
  * 탭(루트) 화면 공통 헤더 — 큰 제목 + 우측 액션 슬롯. 지출·게임정보·마이페이지가 공유하고,
  * 홈은 자체 [HomeHeader] 를 쓰되 같은 [GlgTabHeaderHeight] 로 맞춘다.
  * 제목 크기(24sp)·여백(top 24·bottom 16)·액션 간격(8dp)을 통일한다.

@@ -7,6 +7,8 @@ struct DailyHeroSection: View {
     @ObservedObject var store: SpendingStore
     var filter: String = "all"   // "all" | game.key — Segmented 세그먼트 선택값
     let onConfig: () -> Void
+    /// 전투 진행도·수입 일지 상세로 — 데일리와 같은 '오늘 뭐 했나' 맥락이라 여기서 들어간다.
+    var onOpenGameContent: (() -> Void)? = nil
     @Environment(\.glgAccent) private var accent
     @State private var expanded = false
 
@@ -22,15 +24,20 @@ struct DailyHeroSection: View {
             linkPrompt
         } else if let game = attendanceGames.first(where: { $0.key == filter }) {
             // Segmented — 특정 게임 선택: 목업 2번 지면(게임색 테두리 노트 카드 + 별도 출석 카드)
-            focusedGame(game)
+            VStack(alignment: .leading, spacing: 16) {
+                focusedGame(game)
+                if let onOpenGameContent { GameContentEntry(onTap: onOpenGameContent) }
+            }
         } else {
             // 전체 모드 — 요약 카드 + 게임별 개별 카드 분리 (재디자인)
             VStack(alignment: .leading, spacing: 16) {
-                // 요약 카드: 연속·전체출석 + 최근 출석 스트립
-                GLGCard(cornerRadius: 20, padding: 16) {
+                VStack(alignment: .leading, spacing: 11) {
+                    // 제목은 카드 밖으로 — 다른 섹션(내 캐릭터·게임 일정·숙제 완주율)과 같은 규격.
+                    // 액션(전체 출석)은 제목 줄 우측에 함께 둔다.
+                    headerRow
+                    // 요약 카드: 최근 출석 스트립(+한 달 보기)
+                    GLGCard(cornerRadius: 20, padding: 16) {
                     VStack(alignment: .leading, spacing: 0) {
-                        headerRow
-                        Spacer().frame(height: 14)
                         attendanceHeader
                         Spacer().frame(height: 10)
                         WeekAttendanceStrip(history: store.attendanceHistory)
@@ -38,6 +45,7 @@ struct DailyHeroSection: View {
                             Spacer().frame(height: 14)
                             MonthAttendanceCalendar(history: store.attendanceHistory)
                         }
+                    }
                     }
                 }
                 // 게임별 통합 카드: 3개 게임(실시간 노트 + 출석)을 한 카드에 구분선으로 묶음
@@ -55,6 +63,7 @@ struct DailyHeroSection: View {
                         }
                     }
                 }
+                if let onOpenGameContent { GameContentEntry(onTap: onOpenGameContent) }
             }
         }
     }
@@ -261,22 +270,41 @@ private struct WeekAttendanceStrip: View {
                 VStack(spacing: 5) {
                     Text(dow).font(.pretendard(size: 10, weight: isToday ? .bold : .regular))
                         .foregroundStyle(isToday ? accent.primary : GLGColor.textSecondary)
-                    ZStack {
-                        Circle().fill(fillColor(level))
-                            .frame(width: 34, height: 34)
-                            .overlay(isToday ? Circle().stroke(accent.primary, lineWidth: 2) : nil)
-                        if level == .full {
-                            Image(systemName: "checkmark").font(.pretendard(size: 14, weight: .bold)).foregroundStyle(.white)
-                        } else {
+                    // 날짜는 **항상** 보여준다 — 예전엔 전체 출석한 날을 체크 아이콘으로 덮어버려
+                    // 정작 며칠인지 알 수 없었다. 완료 표시는 채움색 + 우상단 작은 체크로 한다.
+                    ZStack(alignment: .topTrailing) {
+                        ZStack {
+                            Circle().fill(fillColor(level))
+                                .overlay(isToday ? Circle().stroke(accent.primary, lineWidth: 2) : nil)
                             Text("\(dayNum)").font(.pretendard(size: 12, weight: .bold))
-                                .foregroundStyle(level == .partial ? accent.primary : GLGColor.textSecondary)
+                                .foregroundStyle(dayNumColor(level))
+                        }
+                        .frame(width: 34, height: 34)
+                        if level == .full {
+                            ZStack {
+                                Circle().fill(Color.white)
+                                Image(systemName: "checkmark").font(.pretendard(size: 8, weight: .black))
+                                    .foregroundStyle(accent.primary)
+                            }
+                            .frame(width: 13, height: 13)
+                            .offset(x: 1, y: -1)
                         }
                     }
+                    .frame(width: 34, height: 34)
                 }
                 .frame(maxWidth: .infinity)
             }
         }
     }
+    /// 날짜 숫자 색 — 채움이 진한 '전체 출석'만 흰색.
+    private func dayNumColor(_ l: AttendLevel) -> Color {
+        switch l {
+        case .full: return .white
+        case .partial: return accent.primary
+        default: return GLGColor.textSecondary
+        }
+    }
+
     private func fillColor(_ l: AttendLevel) -> Color {
         switch l {
         case .full: return accent.primary
@@ -464,5 +492,41 @@ struct FlowLayout: Layout {
             x += size.width + spacing
             rowHeight = max(rowHeight, size.height)
         }
+    }
+}
+
+/// 전투 진행도·수입 일지 진입 행 — 데일리 바로 아래.
+///
+/// 예전엔 게임 정보 탭 본문에 큰 섹션 두 개로 펼쳐져 있었다. 매일 보는 정보가 아닌데
+/// 화면을 길게 잡아먹어, 같은 '오늘 뭐 했나' 맥락인 데일리에서 들어가도록 접었다.
+private struct GameContentEntry: View {
+    let onTap: () -> Void
+    @Environment(\.glgAccent) private var accent
+
+    var body: some View {
+        Button(action: onTap) {
+            HStack(spacing: 12) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 12, style: .continuous).fill(accent.primary.opacity(0.12))
+                    Image(systemName: "medal").font(.pretendard(size: 18, weight: .semibold))
+                        .foregroundStyle(accent.primary)
+                }
+                .frame(width: 38, height: 38)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("전투 진행도 · 수입 일지")
+                        .font(.pretendard(size: 14, weight: .bold)).foregroundStyle(GLGColor.textPrimary).lineLimit(1)
+                    Text("나선 비경·혼돈의 기억 클리어와 이번 달 재화 수입")
+                        .font(.pretendard(size: 11)).foregroundStyle(GLGColor.textSecondary).lineLimit(1)
+                }
+                Spacer(minLength: 8)
+                Image(systemName: "chevron.right").font(.pretendard(size: 13, weight: .semibold))
+                    .foregroundStyle(GLGColor.textSecondary)
+            }
+            .padding(.horizontal, 16).padding(.vertical, 14)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .glgGlass(in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
     }
 }

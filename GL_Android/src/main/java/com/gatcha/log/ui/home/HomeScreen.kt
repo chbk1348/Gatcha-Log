@@ -17,6 +17,7 @@ import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -30,10 +31,12 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import com.gatcha.log.ui.components.GlgTabHeaderHeight
+import com.gatcha.log.ui.components.GlgTopScrimFadeExtra as ScrimFadeExtra
 import com.gatcha.log.ui.components.GlgPullToRefreshBox
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -44,10 +47,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlinx.coroutines.launch
-import java.util.Calendar
-import com.gatcha.log.data.DateUtil
-import com.gatcha.log.data.GameData
-import com.gatcha.log.data.GachaBanner
+import com.gatcha.log.data.HomeAlert
+import com.gatcha.log.data.HomeAlertKind
+import com.gatcha.log.data.HomeLogic
 import com.gatcha.log.ui.savings.PickupPlannerHomeCard
 import com.gatcha.log.ui.savings.SavingsChallengeHomeCard
 import com.gatcha.log.ui.savings.SavingsPlannerScreen
@@ -99,6 +101,12 @@ fun HomeScreen(viewModel: SpendingViewModel = viewModel()) {
      */
     val spendingEditor = remember { mutableStateOf<SpendingEditorTarget?>(null) }
     val accent = LocalAccent.current
+
+    // 알림 딥링크 — VM 이 요청한 탭으로 이동(예: 공지 알림 탭 → 게임 정보). 상세 진입은 그 탭이 이어받는다.
+    val pendingTab by viewModel.pendingTab.collectAsState()
+    LaunchedEffect(pendingTab) {
+        pendingTab?.let { selectedTab = it; viewModel.consumePendingTab() }
+    }
 
     // 풀스크린 하위 페이지(알림 상세·연간 리포트·지출 상세·HoYoLAB 연동·설정)가 열렸는지.
     // 열려 있으면 하단바와 FAB를 숨긴다. 각 탭 콘텐츠가 자신의 하위 페이지 상태를 보고한다.
@@ -339,29 +347,33 @@ fun HomeContent(
         if (uris.isNotEmpty()) gachaScope.launch { viewModel.importGachaFromContents(SafIO.readTexts(gachaContext, uris)) }
     }
 
-    // 파생 계산은 HomeLogic.kt 의 순수 함수로 분리(테스트 가능·Composable 본문 경량화). remember 로 재계산 캐싱.
+    // 파생 계산은 GL_Shared HomeLogic 의 순수 함수(iOS 와 공유). remember 로 재계산 캐싱.
     // 게임별 한도 초과 게임(이번 달) — 알림센터 표시용
     val gameOverBudget = remember(spendings, gameBudgets) {
-        computeGameOverBudget(gameBudgets, viewModel.monthlyTotalsByGame())
+        HomeLogic.gameOverBudget(gameBudgets, viewModel.monthlyTotalsByGame())
     }
 
     // 절약 팁 — 상황별 실제 조언(M 카드 '절약 팁' 칩이 토스트로 노출)
     val savingTip = remember(budget, monthlyTotal, gameOverBudget) {
-        savingTipFor(budget, monthlyTotal, gameOverBudget)
+        HomeLogic.savingTip(budget, monthlyTotal, gameOverBudget)
     }
 
     // 게임별 이번 달 지출/한도 (D 섹션) — 지출 있거나 한도 설정된 게임만, 지출 내림차순
     val perGameSpend = remember(spendings, gameBudgets) {
-        computePerGameSpend(viewModel.monthlyTotalsByGame(), gameBudgets)
+        HomeLogic.perGameSpend(viewModel.monthlyTotalsByGame(), gameBudgets)
     }
 
     // 재화 임박 경보 — 85% 이상(가득 직전)인 게임 '전부'(원신뿐 아니라 스타레일·젠레스 등). 가장 찬 순.
-    val resinAlerts = remember(liveNotes) { computeResinAlerts(liveNotes) }
+    val resinAlerts = remember(liveNotes) { HomeLogic.resinAlerts(liveNotes) }
+
+    // 전투 콘텐츠 시즌 마감 임박(미클리어만) — '오늘 할 일'에 편입
+    val combatModes by viewModel.combat.collectAsState()
+    val combatDeadlines = remember(combatModes) { HomeLogic.combatDeadlines(combatModes) }
 
     // 알림 계산 + 읽음(넛징)/삭제(dismiss) 상태 — 사용자가 지운 알림은 제외하고 노출
     val readAlerts by viewModel.readAlerts.collectAsState()
     val dismissedAlerts by viewModel.dismissedAlerts.collectAsState()
-    val alerts = buildAlerts(monthlyTotal, budget, gameOverBudget, banners.map { it.dDay() to it.name }, attendanceToday, "${viewModel.displayYear}-${viewModel.displayMonth}")
+    val alerts = HomeLogic.buildAlerts(monthlyTotal, budget, gameOverBudget, banners, attendanceToday, "${viewModel.displayYear}-${viewModel.displayMonth}")
         .filter { it.key !in dismissedAlerts }
     val unreadCount = alerts.count { it.key !in readAlerts }
 
@@ -382,14 +394,17 @@ fun HomeContent(
     }
 
     // 오늘 할 일 목록(대시보드 KPI '오늘 할 일' 카운트 + 카드 공용)
-    val todayTasks = if (gameInfoReady) resolveTodayTasks(
-        pendingAttendance = GameData.attendanceGames.count { it.key !in attendanceToday },
+    val todayTasks = if (gameInfoReady) HomeLogic.resolveTodayTasks(
+        pendingAttendance = HomeLogic.pendingAttendanceCount(attendanceToday),
         resins = resinAlerts,
         urgentBanner = null,  // 픽업은 '이번주 일정' 카드·게임 정보 페이지에서 확인(중복 제거)
         budget = budget,
         monthlyTotal = monthlyTotal,
+        combats = combatDeadlines,
+    ).toTodayItems(
         onCheckInAll = { viewModel.checkInAll() },
         onResin = { viewModel.requestGameInfoAnchor(GameInfoAnchor.NOTES); onNavigateToGameInfo() },
+        onCombat = { viewModel.requestGameInfoAnchor(GameInfoAnchor.COMBAT); onNavigateToGameInfo() },
         onBanner = { viewModel.requestGameInfoAnchor(GameInfoAnchor.SCHEDULE); onNavigateToGameInfo() },
         onBudget = { showBudgetDialog.value = true },
     ) else emptyList()
@@ -438,6 +453,12 @@ fun HomeContent(
     val loadInSet = rememberGlgLoadInSet("home")
     // 헤더는 투명 오버레이(아래) — 콘텐츠가 헤더 버튼 '아래로' 지나가도록 (상태바+헤더)만큼 인셋.
     val topInset = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+    // 상단 스크림 — 콘텐츠가 헤더(버튼) 아래로 스크롤될 때만 배경색 그라데이션으로 살짝 흐린다.
+    // 최상단에선 숨겨 화면을 넓게 쓴다. (지출·게임 정보 탭과 같은 규격)
+    val scrolled by remember {
+        derivedStateOf { listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 0 }
+    }
+    val topScrimAlpha by animateFloatAsState(if (scrolled) 0.88f else 0f, label = "topScrim")
     LazyColumn(
         state = listState,
         modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
@@ -501,6 +522,21 @@ fun HomeContent(
         }
         item { Spacer(Modifier.height(120.dp)) }
     }
+    // 상단 스크림 — **상태바 영역만** 덮는다(헤더 버튼 줄은 그대로 투명).
+    Box(
+        Modifier
+            .align(Alignment.TopCenter)
+            .fillMaxWidth()
+            .height(topInset + ScrimFadeExtra)
+            .graphicsLayer { alpha = topScrimAlpha }
+            .background(
+                Brush.verticalGradient(
+                    0f to Color.White,
+                    0.35f to Color.White,
+                    1f to Color.Transparent,
+                ),
+            ),
+    )
     // 헤더 오버레이 — 박스 배경 없음(투명). 콘텐츠가 이 버튼들 아래로 스크롤되어 지나간다. 상태바 인셋 적용.
     Box(Modifier.fillMaxWidth().align(Alignment.TopCenter).statusBarsPadding().padding(horizontal = 16.dp)) {
         HomeHeader(
@@ -537,46 +573,9 @@ fun HomeContent(
 
 }
 
-/** 알림 종류 — 카드 아이콘/색/이동 동작을 결정 */
-private enum class AlertKind { BUDGET_OVER, BUDGET_NEAR, BUDGET_GAME_OVER, BANNER, ATTENDANCE }
-
-/** 구조화된 홈 알림 (종류 + 메시지). message 가 읽음 처리 키로도 쓰임. */
-private data class HomeAlert(val kind: AlertKind, val message: String, val key: String)
-
-private fun buildAlerts(
-    monthlyTotal: Long,
-    budget: Long,
-    gameOverBudget: List<String>,
-    bannerDDays: List<Pair<Int, String>>,
-    attendanceToday: Set<String>,
-    monthKey: String,
-): List<HomeAlert> = buildList {
-    // 읽음(넛징) 키는 메시지가 아니라 안정적 식별자로 — 메시지에 든 가변값(%·D-day·남은 개수)이
-    // 바뀌어도 한 번 확인하면 다시 안 뜨도록. 영구 저장돼도 자연 만료되게 기간을 키에 포함:
-    // 예산=종류+월, 출석=오늘 날짜, 배너=배너명(1회성).
-    if (budget > 0) {
-        val pct = (monthlyTotal * 100 / budget).toInt()
-        if (monthlyTotal > budget) add(HomeAlert(AlertKind.BUDGET_OVER, "이번 달 예산을 초과했어요 (${pct}%)", "budget_over:$monthKey"))
-        else if (pct >= 90) add(HomeAlert(AlertKind.BUDGET_NEAR, "이번 달 예산의 ${pct}%를 사용했어요", "budget_near:$monthKey"))
-    }
-    gameOverBudget.forEach { name ->
-        add(HomeAlert(AlertKind.BUDGET_GAME_OVER, "$name 이번 달 한도를 초과했어요", "budget_game_over:$name:$monthKey"))
-    }
-    bannerDDays.filter { it.first in 0..3 }.forEach { (d, name) ->
-        add(HomeAlert(AlertKind.BANNER, "$name 픽업 배너 종료 ${if (d == 0) "D-DAY" else "D-$d"}", "banner:$name"))
-    }
-    val pending = GameData.attendanceGames.count { it.key !in attendanceToday }
-    if (pending > 0) add(HomeAlert(AlertKind.ATTENDANCE, "오늘 출석체크가 ${pending}개 남아있어요", "attendance:${DateUtil.hoyoDayKey()}"))
-}
-
-/** 시간대별 인사말 */
-internal fun greetingForNow(): String =
-    when (Calendar.getInstance().get(Calendar.HOUR_OF_DAY)) {
-        in 5..10 -> "좋은 아침이에요"
-        in 11..16 -> "좋은 오후예요"
-        in 17..21 -> "좋은 저녁이에요"
-        else -> "오늘도 수고했어요"
-    }
+// 알림 목록 산출(AlertKind/HomeAlert/buildAlerts)은 GL_Shared HomeLogic 으로 이관 — iOS 와 단일 소스.
+// 아이콘·색·이동 동작 매핑만 아래 NotificationCard 에 남는다.
+// (시간대별 인사말 greetingForNow 는 양 플랫폼 모두 호출부가 없어 함께 제거)
 
 /** 실시간 노트 (HoYoLAB 레진/개척력/배터리 등). 출석·전체출석은 '오늘 할 일'이 담당하므로 여기선 노트만(중복 제거). */
 @Composable
@@ -693,8 +692,8 @@ private fun NotificationDetailScreen(
                         alert,
                         onClick = {
                             when (alert.kind) {
-                                AlertKind.BUDGET_OVER, AlertKind.BUDGET_NEAR, AlertKind.BUDGET_GAME_OVER -> onBudget()
-                                AlertKind.BANNER, AlertKind.ATTENDANCE -> onGameInfo()
+                                HomeAlertKind.BUDGET_OVER, HomeAlertKind.BUDGET_NEAR, HomeAlertKind.BUDGET_GAME_OVER -> onBudget()
+                                HomeAlertKind.BANNER, HomeAlertKind.ATTENDANCE -> onGameInfo()
                             }
                         },
                         onDismiss = { onDismiss(alert) },
@@ -712,11 +711,11 @@ private fun NotificationCard(alert: HomeAlert, onClick: () -> Unit, onDismiss: (
     // 종류별 아이콘·색·이동 안내문
     val icon: ImageVector; val tint: Color; val hint: String
     when (alert.kind) {
-        AlertKind.BUDGET_OVER -> { icon = Icons.Default.Savings; tint = DangerText; hint = "예산 설정하기" }
-        AlertKind.BUDGET_NEAR -> { icon = Icons.Default.Savings; tint = WarningText; hint = "예산 설정하기" }
-        AlertKind.BUDGET_GAME_OVER -> { icon = Icons.Default.Savings; tint = DangerText; hint = "예산 설정하기" }
-        AlertKind.BANNER -> { icon = Icons.Default.Bolt; tint = accent; hint = "게임 정보 보기" }
-        AlertKind.ATTENDANCE -> { icon = Icons.Default.CheckCircleOutline; tint = accent; hint = "출석하러 가기" }
+        HomeAlertKind.BUDGET_OVER -> { icon = Icons.Default.Savings; tint = DangerText; hint = "예산 설정하기" }
+        HomeAlertKind.BUDGET_NEAR -> { icon = Icons.Default.Savings; tint = WarningText; hint = "예산 설정하기" }
+        HomeAlertKind.BUDGET_GAME_OVER -> { icon = Icons.Default.Savings; tint = DangerText; hint = "예산 설정하기" }
+        HomeAlertKind.BANNER -> { icon = Icons.Default.Bolt; tint = accent; hint = "게임 정보 보기" }
+        HomeAlertKind.ATTENDANCE -> { icon = Icons.Default.CheckCircleOutline; tint = accent; hint = "출석하러 가기" }
     }
     GlassCard(shape = RoundedCornerShape(18.dp), modifier = Modifier.fillMaxWidth()) {
         Row(
