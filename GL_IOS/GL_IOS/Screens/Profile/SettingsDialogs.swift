@@ -216,18 +216,22 @@ struct UpdateLogPage: View {
     }
 
     // ── 스티키 필터칩 ──
+    /// 분류 필터 — iOS 시스템 세그먼트 컨트롤(가로 스크롤 칩에서 교체).
+    /// 항목이 다섯뿐이라 한 화면에 들어가고, 시스템 컨트롤이라 위치·크기·동작이 OS 표준을 따른다.
     private var filterBar: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                GLGChip(label: "전체", selected: filter == nil) { filter = nil }
-                GLGChip(label: "신규", selected: filter == "new", color: kindColors("new").0) { filter = "new" }
-                GLGChip(label: "개선", selected: filter == "imp", color: kindColors("imp").0) { filter = "imp" }
-                GLGChip(label: "수정", selected: filter == "fix", color: kindColors("fix").0) { filter = "fix" }
-                GLGChip(label: "보안", selected: filter == "sec", color: kindColors("sec").0) { filter = "sec" }
-            }
-            .padding(.horizontal, 18)
-            .padding(.vertical, 10)
+        Picker("분류", selection: Binding(
+            get: { filter ?? "" },
+            set: { filter = $0.isEmpty ? nil : $0 },
+        )) {
+            Text("전체").tag("")
+            Text("신규").tag("new")
+            Text("개선").tag("imp")
+            Text("수정").tag("fix")
+            Text("보안").tag("sec")
         }
+        .pickerStyle(.segmented)
+        .padding(.horizontal, 18)
+        .padding(.vertical, 10)
         .background(Color.white)
         .overlay(alignment: .bottom) { Rectangle().fill(cLine).frame(height: 1) }
     }
