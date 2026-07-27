@@ -171,13 +171,59 @@ final class SpendingStore {
         monthlyTotalsByGame = vm.currentMonthTotalsByGame.value.mapValues { $0.int64Value }
         unlinkedSubCount = Int(vm.unlinkedSubCount.value.int32Value)
         recentMonthlyTotals = vm.recentMonthlyTotals.value.map { $0.int64Value }
+        seedDeferredScalars()
         observe()
     }
 
     deinit { tasks.forEach { $0.cancel() } }
 
     // ── Flow 구독 ───────────────────────────────────────────────────────────
+    //
+    // 구독을 **첫 화면에 필요한 것 / 나중에 필요한 것**으로 나눈다.
+    //
+    // bind 한 건이 Swift Task 1개 + SKIE AsyncSequence 어댑터(Kotlin 쪽 collector 포함)를 만들고,
+    // 그 Task 들이 전부 MainActor 큐에 쌓인다. 78개를 한꺼번에 걸면 첫 프레임을 그리려는 body 평가가
+    // 그 뒤에 줄을 선다. 홈이 읽지 않는 도메인(가챠·선물코드·알림설정·저축 상세·공지 본문 등)은
+    // 첫 프레임을 그린 뒤에 걸어도 화면이 달라지지 않는다.
+    //
+    // 다만 **토글류(Bool·숫자 설정)는 늦게 도착하면 '꺼짐'으로 한 번 그려져 오해를 부른다.**
+    // 그래서 지연 대상 중 스칼라 값은 init 에서 현재 값을 동기로 한 번 읽어 채워 둔다([seedDeferred]).
+    // 목록형은 비어 있는 상태가 자연스러우므로(스켈레톤·빈 목록) 그대로 둔다.
     private func observe() {
+        observeCritical()
+        // 첫 프레임이 그려진 뒤에 나머지를 건다.
+        Task { @MainActor in
+            await Task.yield()
+            observeDeferred()
+        }
+    }
+
+    /// 지연 구독 대상 중 **설정 토글·숫자**의 현재 값을 미리 채운다.
+    ///
+    /// 구독은 첫 프레임 뒤에 걸리는데, 그 전에 설정 화면을 열면 스위치가 전부 '꺼짐'으로 한 번 그려진다.
+    /// 값 읽기(`.value`)는 Task 를 만들지 않아 구독보다 훨씬 싸므로, 오해를 부를 수 있는 스칼라만 시드한다.
+    /// 목록형(공지·원장·캐릭터 등)은 비어 있는 상태가 자연스러워 시드하지 않는다.
+    private func seedDeferredScalars() {
+        autoCheckIn = vm.autoCheckIn.value.boolValue
+        notifyBudget = vm.notifyBudget.value.boolValue
+        notifyAttendance = vm.notifyAttendance.value.boolValue
+        notifyResin = vm.notifyResin.value.boolValue
+        notifyPickup = vm.notifyPickup.value.boolValue
+        nudgeOverspend = vm.nudgeOverspend.value.boolValue
+        spendingCompact = vm.spendingCompact.value.boolValue
+        nudgeThreshold = vm.nudgeThreshold.value.int64Value
+        notifySubscription = vm.notifySubscription.value.boolValue
+        notifyNews = vm.notifyNews.value.boolValue
+        notifyCombat = vm.notifyCombat.value.boolValue
+        notifyDndEnabled = vm.notifyDndEnabled.value.boolValue
+        notifyDndStartHour = Int(vm.notifyDndStartHour.value.int32Value)
+        notifyDndEndHour = Int(vm.notifyDndEndHour.value.int32Value)
+        notifyDailySummary = vm.notifyDailySummary.value.boolValue
+        notifyDailySummaryHour = Int(vm.notifyDailySummaryHour.value.int32Value)
+    }
+
+    /// 첫 화면(루트 판정 + 홈 탭)이 실제로 읽는 것들.
+    private func observeCritical() {
         bind(vm.account) { [weak self] in self?.account = $0 }
         bind(vm.accentIndex) { [weak self] in self?.accentIndex = Int($0.int32Value) }
         bind(vm.profile) { [weak self] in self?.profile = $0 }
@@ -192,8 +238,6 @@ final class SpendingStore {
         bind(vm.currentMonthTotal) { [weak self] in self?.monthlyTotal = $0.int64Value }
         bind(vm.previousMonthTotal) { [weak self] in self?.prevMonthTotal = $0.int64Value }
         bind(vm.currentMonthTotalsByGame) { [weak self] in self?.monthlyTotalsByGame = $0.mapValues { $0.int64Value } }
-        bind(vm.unlinkedSubCount) { [weak self] in self?.unlinkedSubCount = Int($0.int32Value) }
-        bind(vm.recentMonthlyTotals) { [weak self] in self?.recentMonthlyTotals = $0.map { $0.int64Value } }
 
         // Phase 2
         bind(vm.spendings) { [weak self] in self?.spendings = $0 }
@@ -201,7 +245,34 @@ final class SpendingStore {
         bind(vm.gameBudgets) { [weak self] in self?.gameBudgets = $0.mapValues { $0.int64Value } }
         bind(vm.hoyolabConfig) { [weak self] in self?.hoyolabConfig = $0 }
         bind(vm.attendanceStreak) { [weak self] in self?.attendanceStreak = Int($0.int32Value) }
+
+        // 홈 카드·오늘 할 일·딥링크
+        bind(vm.isRefreshing) { [weak self] in self?.isRefreshing = $0.boolValue }
+        bind(vm.activeBanners) { [weak self] in self?.activeBanners = $0 }
+        bind(vm.liveNotes) { [weak self] in self?.liveNotes = $0 }
+        bind(vm.gameEvents) { [weak self] in self?.gameEvents = $0 }
+        bind(vm.challenges) { [weak self] in self?.challenges = $0 }
+        bind(vm.gameNews) { [weak self] in self?.gameNews = $0 }
+        bind(vm.combat) { [weak self] in self?.combat = $0 }
+        bind(vm.attendanceToday) { [weak self] in self?.attendanceToday = $0 }
+        bind(vm.checkingIn) { [weak self] in self?.checkingIn = $0 }
+        bind(vm.homeCards) { [weak self] in self?.homeCards = $0 }
+        bind(vm.gameInfoReady) { [weak self] in self?.gameInfoReady = $0.boolValue }
+        bind(vm.hoyoTokenExpired) { [weak self] in self?.hoyoTokenExpired = $0.boolValue }
+        bind(vm.readAlerts) { [weak self] in self?.readAlerts = $0 }
+        bind(vm.dismissedAlerts) { [weak self] in self?.dismissedAlerts = $0 }
+        bind(vm.savingsPlans) { [weak self] in self?.savingsPlans = $0 }
+        bind(vm.challenge) { [weak self] in self?.challenge = $0 }
+        bind(vm.pendingTab) { [weak self] in self?.pendingTab = $0?.intValue }
+        bind(vm.pendingNewsId) { [weak self] in self?.pendingNewsId = $0 }
+        bind(vm.pendingGameInfoAnchor) { [weak self] in self?.pendingGameInfoAnchor = $0 }
+    }
+
+    /// 첫 프레임 이후에 걸어도 되는 것들 — 해당 화면에 들어가기 전에는 읽히지 않는다.
+    private func observeDeferred() {
         bind(vm.gachaStats) { [weak self] in self?.gachaStats = $0 }
+        bind(vm.recentMonthlyTotals) { [weak self] in self?.recentMonthlyTotals = $0.map { $0.int64Value } }
+        bind(vm.unlinkedSubCount) { [weak self] in self?.unlinkedSubCount = Int($0.int32Value) }
         bind(vm.autoCheckIn) { [weak self] in self?.autoCheckIn = $0.boolValue }
         bind(vm.notifyBudget) { [weak self] in self?.notifyBudget = $0.boolValue }
         bind(vm.notifyAttendance) { [weak self] in self?.notifyAttendance = $0.boolValue }
@@ -211,37 +282,23 @@ final class SpendingStore {
         bind(vm.spendingCompact) { [weak self] in self?.spendingCompact = $0.boolValue }
         bind(vm.nudgeThreshold) { [weak self] in self?.nudgeThreshold = $0.int64Value }
         bind(vm.pendingOpenHoyolabLink) { [weak self] in self?.pendingOpenHoyolabLink = $0.boolValue }
-        bind(vm.pendingGameInfoAnchor) { [weak self] in self?.pendingGameInfoAnchor = $0 }
         bind(vm.taskStats) { [weak self] in self?.taskStats = $0 }
         bind(vm.keyStatOverrides) { [weak self] map in
             self?.keyStatOverrides = map.reduce(into: [:]) { acc, kv in acc[kv.key] = Set(kv.value) }
         }
-        bind(vm.pendingTab) { [weak self] in self?.pendingTab = $0?.intValue }
-        bind(vm.pendingNewsId) { [weak self] in self?.pendingNewsId = $0 }
 
         // Phase 3
-        bind(vm.isRefreshing) { [weak self] in self?.isRefreshing = $0.boolValue }
         bind(vm.subscriptions) { [weak self] in self?.subscriptions = $0 }
         bind(vm.attendanceHistory) { [weak self] in self?.attendanceHistory = $0 }
-        bind(vm.activeBanners) { [weak self] in self?.activeBanners = $0 }
 
         // Phase 4
-        bind(vm.liveNotes) { [weak self] in self?.liveNotes = $0 }
-        bind(vm.gameEvents) { [weak self] in self?.gameEvents = $0 }
-        bind(vm.challenges) { [weak self] in self?.challenges = $0 }
-        bind(vm.gameNews) { [weak self] in self?.gameNews = $0 }
         bind(vm.newsArticle) { [weak self] in self?.newsArticle = $0 }
         bind(vm.newsArticleLoading) { [weak self] in self?.newsArticleLoading = $0.boolValue }
         bind(vm.newsArticleFailed) { [weak self] in self?.newsArticleFailed = $0.boolValue }
         bind(vm.ledgers) { [weak self] in self?.ledgers = $0 }
-        bind(vm.combat) { [weak self] in self?.combat = $0 }
-        bind(vm.attendanceToday) { [weak self] in self?.attendanceToday = $0 }
-        bind(vm.checkingIn) { [weak self] in self?.checkingIn = $0 }
         bind(vm.pity) { [weak self] in self?.pity = $0 }
         // 저축 플래너 · 절약 챌린지 (27.35)
-        bind(vm.savingsPlans) { [weak self] in self?.savingsPlans = $0 }
         bind(vm.hiddenSavingsPlans) { [weak self] in self?.hiddenSavingsPlans = $0 }
-        bind(vm.challenge) { [weak self] in self?.challenge = $0 }
         // chunk ③
         bind(vm.enkaGiUid) { [weak self] in self?.enkaGiUid = $0 }
         bind(vm.enkaHsrUid) { [weak self] in self?.enkaHsrUid = $0 }
@@ -256,11 +313,6 @@ final class SpendingStore {
         bind(vm.codesFailed) { [weak self] in self?.codesFailed = $0.boolValue }
         bind(vm.redeemedCodes) { [weak self] in self?.redeemedCodes = $0 }
         // Phase 5
-        bind(vm.homeCards) { [weak self] in self?.homeCards = $0 }
-        bind(vm.gameInfoReady) { [weak self] in self?.gameInfoReady = $0.boolValue }
-        bind(vm.hoyoTokenExpired) { [weak self] in self?.hoyoTokenExpired = $0.boolValue }
-        bind(vm.readAlerts) { [weak self] in self?.readAlerts = $0 }
-        bind(vm.dismissedAlerts) { [weak self] in self?.dismissedAlerts = $0 }
         // Phase 6 (알림 설정)
         bind(vm.notifySubscription) { [weak self] in self?.notifySubscription = $0.boolValue }
         bind(vm.notifyNews) { [weak self] in self?.notifyNews = $0.boolValue }

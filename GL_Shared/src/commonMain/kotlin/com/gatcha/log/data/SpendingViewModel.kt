@@ -1009,15 +1009,20 @@ class SpendingViewModel : ViewModel() {
                 _enkaResult.value = cached.second
                 return@launch
             }
+            if (!enkaInFlight.add(key)) return@launch   // 같은 조회가 이미 진행 중
             _enkaLoading.value = true
-            val cfg = _hoyolabConfig.value
-            val r = withContext(Dispatchers.IO) { EnkaApi.fetchProfile(game, uid, cfg.ltuid, cfg.ltoken) }
-            when {
-                r.profile != null -> { enkaCache[key] = currentTimeMillis() to r; repo.saveEnkaCache(enkaCache); _enkaResult.value = r }
-                cached != null -> _enkaResult.value = cached.second   // 실패 시 기존 캐시(신선/오래됨 무관) 유지 — 목록 사라짐 방지
-                else -> _enkaResult.value = r                          // 캐시 없을 때만 에러 표시
+            try {
+                val cfg = _hoyolabConfig.value
+                val r = withContext(Dispatchers.IO) { EnkaApi.fetchProfile(game, uid, cfg.ltuid, cfg.ltoken) }
+                when {
+                    r.profile != null -> { enkaCache[key] = currentTimeMillis() to r; repo.saveEnkaCache(enkaCache); _enkaResult.value = r }
+                    cached != null -> _enkaResult.value = cached.second   // 실패 시 기존 캐시(신선/오래됨 무관) 유지 — 목록 사라짐 방지
+                    else -> _enkaResult.value = r                          // 캐시 없을 때만 에러 표시
+                }
+            } finally {
+                enkaInFlight.remove(key)
+                _enkaLoading.value = false
             }
-            _enkaLoading.value = false
         }
     }
 
@@ -1031,6 +1036,16 @@ class SpendingViewModel : ViewModel() {
     val enkaResults: StateFlow<Map<String, EnkaResult>> = _enkaResults.asStateFlow()
     private val _enkaLoadingGames = MutableStateFlow<Set<String>>(emptySet())
     val enkaLoadingGames: StateFlow<Set<String>> = _enkaLoadingGames.asStateFlow()
+
+    /**
+     * 네트워크 조회가 진행 중인 게임(키 = "게임:uid").
+     *
+     * '내 캐릭터' 섹션은 게임 필터가 바뀔 때마다 다시 요청한다. 캐시가 신선하면 그 전에 빠져나가지만,
+     * 캐시가 없거나 만료된 상태에서 필터를 몇 번 건드리면 같은 조회가 통째로 겹친다.
+     * 특히 젠레스는 서버가 다건 조회(id_list)를 거부해 **에이전트 1명당 1요청**이라, 보유 50명이면
+     * 한 세트가 51건이다. 겹치면 그대로 배가 된다.
+     */
+    private val enkaInFlight = mutableSetOf<String>()
 
     /**
      * '내 캐릭터' 섹션용 — 지정 게임들의 로스터를 동시 보관. 캐시 적중분은 즉시 반영.
@@ -1058,6 +1073,8 @@ class SpendingViewModel : ViewModel() {
                     } else {
                         _enkaLoadingGames.update { it + game }   // 보여줄 캐시가 없을 때만 스피너
                     }
+                    if (!enkaInFlight.add(key)) return@async   // 같은 조회가 이미 진행 중
+                    try {
                     val cfg = _hoyolabConfig.value
                     val r = withContext(Dispatchers.IO) { EnkaApi.fetchProfile(game, uid, cfg.ltuid, cfg.ltoken) }
                     if (r.profile != null) {
@@ -1066,7 +1083,10 @@ class SpendingViewModel : ViewModel() {
                     } else if (cached == null) {
                         _enkaResults.update { it + (game to r) }   // 캐시 없고 실패 → 에러 표시(캐시 있으면 기존 유지)
                     }
-                    _enkaLoadingGames.update { it - game }
+                    } finally {
+                        enkaInFlight.remove(key)
+                        _enkaLoadingGames.update { it - game }
+                    }
                 }
             }.awaitAll()
             repo.saveEnkaCache(enkaCache)   // 갱신된 캐시 디스크 영속(1회)
@@ -1337,12 +1357,15 @@ class SpendingViewModel : ViewModel() {
                     ).filterValues { it.isNotBlank() } else emptyMap()
 
                     // 1) 홈/오늘 할 일 의존 최소셋 — 배너(ennead 2게임 + ZZZ) + 실시간 노트를 모두 동시에
+                    // async(Dispatchers.IO) — 응답 본문 디코딩과 JSON 파싱을 메인 스레드 밖에서 한다.
+                    // 예전엔 부모 컨텍스트(Main.immediate)를 그대로 상속해서, 캘린더·공지처럼 수백 KB 짜리
+                    // 응답 18건의 파싱이 전부 UI 스레드에서 재개됐다. 상태 대입은 await 뒤라 그대로 메인이다.
                     val enneadDeferred = GameData.games.filter { it.enneadKey != null }
-                        .map { game -> async { EnneadApi.fetch(game) } }
+                        .map { game -> async(Dispatchers.IO) { EnneadApi.fetch(game) } }
                     // ZZZ 픽업·일정 — ennead zenless 캘린더에서 배너+이벤트+도전 자동(수동 JSON 폐기, 에이전트명 한국어 매핑).
-                    val zzzDeferred = async { EnneadApi.fetchZzz() }
+                    val zzzDeferred = async(Dispatchers.IO) { EnneadApi.fetchZzz() }
                     val noteDeferred = uids.map { (key, uid) ->
-                        async { HoyolabApi.getLiveNote(cfg.ltuid, cfg.ltoken, key, uid).note }
+                        async(Dispatchers.IO) { HoyolabApi.getLiveNote(cfg.ltuid, cfg.ltoken, key, uid).note }
                     }
 
                     val banners = mutableListOf<GachaBanner>()
@@ -1379,7 +1402,7 @@ class SpendingViewModel : ViewModel() {
 
                     // 게임 공지·뉴스(공개 API·인증 불필요) — 지원 게임 병렬, 최신순. 부가 콘텐츠라 준비 완료 뒤 로드.
                     val newsDeferred = GameData.games.filter { it.newsSlug != null }
-                        .map { g -> async { NewsApi.notices(g) } }
+                        .map { g -> async(Dispatchers.IO) { NewsApi.notices(g) } }
                     // 실패(null)한 게임은 건너뛴다 — 빈 목록으로 합쳐지면 '공지 없음'처럼 보인다.
                     val news = newsDeferred.mapNotNull { it.await() }
                         .flatten()
@@ -1389,7 +1412,7 @@ class SpendingViewModel : ViewModel() {
                     // 2) 게임 정보 탭 전용 — 월간 원장 + 전투 진행도(게임 간 병렬, 게임 내 순차로 단일 호스트 보호)
                     if (uids.isNotEmpty()) {
                         val rest = uids.map { (key, uid) ->
-                            async {
+                            async(Dispatchers.IO) {
                                 val ledger = HoyolabApi.getMonthlyLedger(cfg.ltuid, cfg.ltoken, cfg.webCookie, key, uid)?.takeIf { it.hasData }
                                 val combat = HoyolabApi.getCombat(cfg.ltuid, cfg.ltoken, key, uid)
                                 ledger to combat
