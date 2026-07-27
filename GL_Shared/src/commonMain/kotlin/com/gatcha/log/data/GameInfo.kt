@@ -41,13 +41,21 @@ data class GachaBanner(
 ) {
     val gameColor: Long get() = GameData.colorFor(game)
 
-    /** 종료까지 남은 일수. 음수면 종료됨. */
+    /**
+     * 종료 시각 **미정**(상류 ennead 가 `end_time` 을 아직 안 채운 경우).
+     * 실제 사례: 스타레일 4.4 Fate 콜라보 픽업 — 시작만 공지되고 종료가 미공지였다.
+     * 이때 D-day·진행바·마감 알림·저축 계획은 모두 계산 불가라 각 소비처가 이 값으로 걸러낸다.
+     */
+    val isEndUnknown: Boolean get() = endMillis <= 0L
+
+    /** 종료까지 남은 일수. 음수면 종료됨. 종료 미정이면 의미 없는 값이라 [isEndUnknown] 을 먼저 봐야 한다. */
     fun dDay(nowMillis: Long = currentTimeMillis()): Int {
         val diff = endMillis - nowMillis
         return ceil(diff / (1000.0 * 60 * 60 * 24)).toInt()
     }
 
     fun dDayLabel(nowMillis: Long = currentTimeMillis()): String {
+        if (isEndUnknown) return "종료 미정"
         val d = dDay(nowMillis)
         return when {
             d > 0 -> "D-$d"
@@ -64,10 +72,31 @@ data class GachaBanner(
 
     /** 임박 라벨 — D-1 이하(24시간 이내)면 '시간'으로, 그 외엔 D-N. */
     fun endShortLabel(nowMillis: Long = currentTimeMillis()): String {
+        if (isEndUnknown) return "종료 미정"
         val d = dDay(nowMillis)
         if (d > 1) return "D-$d"
         val h = hoursLeft(nowMillis)
         return if (h <= 0) "종료 임박" else "${h}시간 남음"
+    }
+
+    /** 픽업 카드의 남은 시간 표기 — "N일 H시간" / 종료 미정이면 "종료 미정". */
+    fun remainLabel(nowMillis: Long = currentTimeMillis()): String =
+        if (isEndUnknown) "종료 미정" else dhLabel(endMillis, nowMillis)
+
+    /** 종료일 표기("~2026.08.25") — 종료 미정이면 빈 문자열(호출부에서 줄 자체를 숨긴다). */
+    fun endDateLabel(): String = if (isEndUnknown) "" else "~" + DateUtil.shortDate(endMillis)
+
+    /** 마감 임박 강조(빨간색) 여부 — 종료 미정이면 임박도를 알 수 없으므로 false. */
+    fun isUrgent(nowMillis: Long = currentTimeMillis()): Boolean =
+        !isEndUnknown && dDay(nowMillis) <= 3
+
+    /** 진행바를 그릴 수 있는가 — 시작·종료가 모두 있어야 한다. */
+    val hasProgress: Boolean get() = startMillis > 0 && endMillis > startMillis
+
+    /** 진행률 0..1. [hasProgress] 가 false 면 0. */
+    fun progress(nowMillis: Long = currentTimeMillis()): Float {
+        if (!hasProgress) return 0f
+        return ((nowMillis - startMillis).toFloat() / (endMillis - startMillis)).coerceIn(0f, 1f)
     }
 }
 

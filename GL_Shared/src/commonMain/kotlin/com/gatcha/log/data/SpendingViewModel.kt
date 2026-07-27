@@ -1217,7 +1217,8 @@ class SpendingViewModel : ViewModel() {
                     }
                     zzzDeferred.await().let { banners += it.banners; events += it.events; challenges += it.challenges }
                     if (banners.isNotEmpty()) {
-                        _activeBanners.value = banners.sortedBy { it.dDay() }
+                        // 종료 미정(end_time 미공지)은 임박도를 알 수 없으니 맨 뒤로 — dDay 가 큰 음수라 앞으로 튄다.
+                        _activeBanners.value = banners.sortedWith(compareBy({ it.isEndUnknown }, { it.dDay() }))
                         // 백그라운드 픽업 마감 알림 점검용 로컬 캐시(네트워크 없이 판정).
                         runCatching { repo.saveActiveBanners(banners) }
                         refreshPlans()   // 새 픽업 목록으로 저축 계획 갱신
