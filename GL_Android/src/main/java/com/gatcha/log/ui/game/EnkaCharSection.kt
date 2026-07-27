@@ -57,6 +57,7 @@ import com.gatcha.log.data.api.StatTok
 import com.gatcha.log.ui.components.GameTagSize
 import com.gatcha.log.ui.components.GlgGameTag
 import com.gatcha.log.ui.components.GlassCard
+import com.gatcha.log.ui.components.GlgBackButton
 import com.gatcha.log.ui.components.GlgChip
 import com.gatcha.log.ui.components.GlgTextField
 import com.gatcha.log.ui.components.RosterSkeleton
@@ -212,9 +213,8 @@ fun EnkaRosterPage(
         Modifier.fillMaxSize().statusBarsPadding().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp).padding(bottom = 30.dp),
     ) {
         Row(Modifier.padding(vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-            Surface(color = Color.White, shape = RoundedCornerShape(999.dp), border = androidx.compose.foundation.BorderStroke(1.dp, CardOutline), modifier = Modifier.clickable { onBack() }) {
-                Icon(Icons.AutoMirrored.Filled.ArrowBack, "뒤로", tint = Color(0xFF4B4F57), modifier = Modifier.padding(8.dp).size(18.dp))
-            }
+            // 뒤로가기는 앱 공통 규격(GlgBackButton)으로 — 이 화면만 자체 구현이라 크기가 달랐다.
+            GlgBackButton(onBack)
             Spacer(Modifier.width(10.dp))
             Text(title, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
         }
@@ -520,9 +520,8 @@ fun EnkaStatPage(
     ) {
         // 뒤로가기 헤더
         Row(Modifier.padding(vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-            Surface(color = Color.White, shape = RoundedCornerShape(999.dp), border = androidx.compose.foundation.BorderStroke(1.dp, CardOutline), modifier = Modifier.clickable { onBack() }) {
-                Icon(Icons.AutoMirrored.Filled.ArrowBack, "뒤로", tint = Color(0xFF4B4F57), modifier = Modifier.padding(8.dp).size(18.dp))
-            }
+            // 뒤로가기는 앱 공통 규격(GlgBackButton)으로 — 이 화면만 자체 구현이라 크기가 달랐다.
+            GlgBackButton(onBack)
             Spacer(Modifier.width(10.dp))
             Text(c.name, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
         }
