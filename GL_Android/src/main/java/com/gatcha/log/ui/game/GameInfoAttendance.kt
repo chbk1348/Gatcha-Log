@@ -54,6 +54,8 @@ internal fun DailyHeroSection(
     onCheckIn: (String) -> Unit,
     onCheckInAll: () -> Unit,
     onConfigClick: () -> Unit,
+    /** 전투 진행도·수입 일지 상세로 — 데일리와 같은 '오늘 뭐 했나' 맥락이라 여기서 들어간다. */
+    onOpenGameContent: (() -> Unit)? = null,
 ) {
     val accent = LocalAccent.current
     var expanded by remember { mutableStateOf(false) }
@@ -97,17 +99,20 @@ internal fun DailyHeroSection(
             "zzz" -> hoyolab.zzzUid
             else -> ""
         }
-        FocusedGameDaily(
-            game = focused,
-            note = note,
-            uid = uid,
-            checked = focused.key in attendanceToday,
-            inProgress = checkingIn == focused.key,
-            history = attendanceHistory,
-            expanded = expanded,
-            onToggleExpand = { expanded = !expanded },
-            onCheckIn = { onCheckIn(focused.key) },
-        )
+        Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            FocusedGameDaily(
+                game = focused,
+                note = note,
+                uid = uid,
+                checked = focused.key in attendanceToday,
+                inProgress = checkingIn == focused.key,
+                history = attendanceHistory,
+                expanded = expanded,
+                onToggleExpand = { expanded = !expanded },
+                onCheckIn = { onCheckIn(focused.key) },
+            )
+            onOpenGameContent?.let { GameContentEntry(it) }
+        }
         return
     }
 
@@ -184,6 +189,32 @@ internal fun DailyHeroSection(
                     DailyGameRow(game, note, uid, game.key in attendanceToday, checkingIn == game.key) { onCheckIn(game.key) }
                 }
             }
+        }
+        onOpenGameContent?.let { GameContentEntry(it) }
+    }
+}
+
+/**
+ * 전투 진행도·수입 일지 진입 행 — 데일리 바로 아래.
+ *
+ * 예전엔 게임 정보 탭 본문에 큰 섹션 두 개로 펼쳐져 있었다. 매일 보는 정보가 아닌데
+ * 화면을 길게 잡아먹어, 같은 '오늘 뭐 했나' 맥락인 데일리에서 들어가도록 접었다.
+ */
+@Composable
+private fun GameContentEntry(onClick: () -> Unit) {
+    val accent = LocalAccent.current
+    GlassCard(shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth().clickable { onClick() }) {
+        Row(Modifier.padding(horizontal = 16.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                Modifier.size(38.dp).clip(RoundedCornerShape(12.dp)).background(accent.copy(alpha = 0.12f)),
+                contentAlignment = Alignment.Center,
+            ) { Icon(Icons.Default.MilitaryTech, null, tint = accent, modifier = Modifier.size(20.dp)) }
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+                Text("전투 진행도 · 수입 일지", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TextPrimary, maxLines = 1)
+                Text("나선 비경·혼돈의 기억 클리어와 이번 달 재화 수입", fontSize = 11.sp, color = TextSecondary, maxLines = 1)
+            }
+            Icon(Icons.Default.ChevronRight, null, tint = TextSecondary, modifier = Modifier.size(18.dp))
         }
     }
 }

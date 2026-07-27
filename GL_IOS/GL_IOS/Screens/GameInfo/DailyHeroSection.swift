@@ -7,6 +7,8 @@ struct DailyHeroSection: View {
     @ObservedObject var store: SpendingStore
     var filter: String = "all"   // "all" | game.key — Segmented 세그먼트 선택값
     let onConfig: () -> Void
+    /// 전투 진행도·수입 일지 상세로 — 데일리와 같은 '오늘 뭐 했나' 맥락이라 여기서 들어간다.
+    var onOpenGameContent: (() -> Void)? = nil
     @Environment(\.glgAccent) private var accent
     @State private var expanded = false
 
@@ -22,7 +24,10 @@ struct DailyHeroSection: View {
             linkPrompt
         } else if let game = attendanceGames.first(where: { $0.key == filter }) {
             // Segmented — 특정 게임 선택: 목업 2번 지면(게임색 테두리 노트 카드 + 별도 출석 카드)
-            focusedGame(game)
+            VStack(alignment: .leading, spacing: 16) {
+                focusedGame(game)
+                if let onOpenGameContent { GameContentEntry(onTap: onOpenGameContent) }
+            }
         } else {
             // 전체 모드 — 요약 카드 + 게임별 개별 카드 분리 (재디자인)
             VStack(alignment: .leading, spacing: 16) {
@@ -55,6 +60,7 @@ struct DailyHeroSection: View {
                         }
                     }
                 }
+                if let onOpenGameContent { GameContentEntry(onTap: onOpenGameContent) }
             }
         }
     }
@@ -464,5 +470,41 @@ struct FlowLayout: Layout {
             x += size.width + spacing
             rowHeight = max(rowHeight, size.height)
         }
+    }
+}
+
+/// 전투 진행도·수입 일지 진입 행 — 데일리 바로 아래.
+///
+/// 예전엔 게임 정보 탭 본문에 큰 섹션 두 개로 펼쳐져 있었다. 매일 보는 정보가 아닌데
+/// 화면을 길게 잡아먹어, 같은 '오늘 뭐 했나' 맥락인 데일리에서 들어가도록 접었다.
+private struct GameContentEntry: View {
+    let onTap: () -> Void
+    @Environment(\.glgAccent) private var accent
+
+    var body: some View {
+        Button(action: onTap) {
+            HStack(spacing: 12) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 12, style: .continuous).fill(accent.primary.opacity(0.12))
+                    Image(systemName: "medal").font(.pretendard(size: 18, weight: .semibold))
+                        .foregroundStyle(accent.primary)
+                }
+                .frame(width: 38, height: 38)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("전투 진행도 · 수입 일지")
+                        .font(.pretendard(size: 14, weight: .bold)).foregroundStyle(GLGColor.textPrimary).lineLimit(1)
+                    Text("나선 비경·혼돈의 기억 클리어와 이번 달 재화 수입")
+                        .font(.pretendard(size: 11)).foregroundStyle(GLGColor.textSecondary).lineLimit(1)
+                }
+                Spacer(minLength: 8)
+                Image(systemName: "chevron.right").font(.pretendard(size: 13, weight: .semibold))
+                    .foregroundStyle(GLGColor.textSecondary)
+            }
+            .padding(.horizontal, 16).padding(.vertical, 14)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .glgGlass(in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
     }
 }

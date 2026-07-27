@@ -16,6 +16,8 @@ struct GameInfoView: View {
     @State private var showSchedule = false
     @State private var showNews = false
     @State private var showHoyoland = false
+    /// 전투 진행도·수입 일지 상세(데일리에서 진입).
+    @State private var showGameContent = false
     @State private var statChar: EnkaChar? = nil
     @State private var statGame = "genshin"
     @State private var showStats = false
@@ -43,7 +45,9 @@ struct GameInfoView: View {
             // (VStack 이면 탭 전환 순간 7개 섹션 전부를 한꺼번에 빌드해 전환이 버벅였음)
             LazyVStack(alignment: .leading, spacing: 0) {
                 // 홈 카드 딥링크 스크롤 앵커 — id 문자열은 Kotlin GameInfoAnchor 의 .name(NOTES/SCHEDULE/NEWS)과 일치해야 함.
-                DailyHeroSection(store: store, filter: gameFilter, onConfig: { showHoyolab = true }).id("NOTES")
+                DailyHeroSection(store: store, filter: gameFilter,
+                                 onConfig: { showHoyolab = true },
+                                 onOpenGameContent: { showGameContent = true }).id("NOTES")
                 // 숙제 완주율 — 데일리 바로 아래(같은 '오늘 뭐 했나' 맥락). 기록이 없으면 섹션 자체가 안 뜬다.
                 if !store.taskStats.isEmpty {
                     section { TaskCompletionSection(stats: store.taskStats) }
@@ -67,9 +71,6 @@ struct GameInfoView: View {
                 section { HoyolandSection(onOpen: { showHoyoland = true }) }
                 // 공지·뉴스 — 게임별 최신 공지(탭하면 HoYoLab 열기). 더보기로 전체 페이지.
                 section { NewsSection(store: store, filter: gameFilter, onSeeAll: { showNews = true }, onOpenNews: { selectedNews = $0; showNewsDetail = true }) }.id("NEWS")
-                if store.hoyolabConfig.isLinked {
-                    section { GameTabbedSection(store: store, filter: gameFilter) }.id("COMBAT")
-                }
                 section { navEntry(icon: "function", title: "가챠 계산기", sub: "재화 환산 · 확률 · 시나리오") { showCalc = true } }
                 section { navEntry(icon: "chart.bar.xaxis", title: "가챠 효율 리포트", sub: "UIGF/SRGF 분석 · 단가 · 천장 분포") { showReport = true } }
                 Color.clear.frame(height: 12)
@@ -147,6 +148,9 @@ struct GameInfoView: View {
             if let n = selectedNews { NewsDetailView(store: store, item: n) }
         }
         .navigationDestination(isPresented: $showHoyoland) { HoyolandDetailView() }
+        .navigationDestination(isPresented: $showGameContent) {
+            sectionPage("전투 · 수입 일지") { GameTabbedSection(store: store, filter: gameFilter) }
+        }
         .navigationDestination(isPresented: $showStats) { if let c = statChar { EnkaStatPage(char: c, game: statGame) } }
         .navigationDestination(isPresented: $showRoster) {
             EnkaRosterPage(store: store, game: rosterGame)
@@ -157,6 +161,12 @@ struct GameInfoView: View {
     // 대기 중인 앵커가 있으면 해당 섹션으로 스크롤 후 소비(1회성). 탭 전환 직후 레이아웃 완료를 위해 다음 런루프에 실행.
     private func scrollToPendingAnchor(_ proxy: ScrollViewProxy) {
         guard let anchor = store.pendingGameInfoAnchor else { return }
+        // 전투 진행도는 본문 섹션이 아니라 데일리에서 들어가는 상세 페이지로 옮겼다 → 스크롤 대신 페이지 진입.
+        if anchor == .combat {
+            showGameContent = true
+            store.consumeGameInfoAnchor()
+            return
+        }
         DispatchQueue.main.async {
             withAnimation(.easeInOut(duration: 0.35)) { proxy.scrollTo(anchor.name, anchor: .top) }
             store.consumeGameInfoAnchor()
