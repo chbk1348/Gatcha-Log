@@ -4,6 +4,7 @@ import com.gatcha.log.data.api.StatTok.*
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class KeyStatRulesTest {
@@ -55,8 +56,10 @@ class KeyStatRulesTest {
         val anomaly = KeyStatRules.keyStats("zzz", "화염", specialty = "이상")
         assertTrue(ANOM_MASTERY in anomaly)
         assertFalse(CRIT_RATE in anomaly)
-        // 직업 미상 → 폴백(치명만)
-        assertEquals(setOf(CRIT_RATE, CRIT_DMG), KeyStatRules.keyStats("zzz", "화염", specialty = ""))
+        // 직업 미상 → **판정 불가**. 예전엔 치명타 2종으로 넘겨짚어, 치명타를 안 쓰는 캐릭터도
+        // 치명타가 유효옵션으로 잡히고 그게 그대로 유효 점수가 됐다.
+        assertNull(KeyStatRules.keyStatsOrNull("zzz", "화염", specialty = ""))
+        assertTrue(KeyStatRules.keyStats("zzz", "화염", specialty = "").isEmpty())
     }
 
     @Test

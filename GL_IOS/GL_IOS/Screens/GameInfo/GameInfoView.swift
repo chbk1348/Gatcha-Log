@@ -151,7 +151,13 @@ struct GameInfoView: View {
         .navigationDestination(isPresented: $showGameContent) {
             sectionPage("전투 · 수입 일지") { GameTabbedSection(store: store, filter: gameFilter) }
         }
-        .navigationDestination(isPresented: $showStats) { if let c = statChar { EnkaStatPage(char: c, game: statGame) } }
+        .navigationDestination(isPresented: $showStats) {
+            if let c = statChar {
+                EnkaStatPage(char: c, game: statGame,
+                             overrides: store.keyStatOverrides,
+                             onSetOverride: { k, v in store.setKeyStatOverride(k, v) })
+            }
+        }
         .navigationDestination(isPresented: $showRoster) {
             EnkaRosterPage(store: store, game: rosterGame)
         }

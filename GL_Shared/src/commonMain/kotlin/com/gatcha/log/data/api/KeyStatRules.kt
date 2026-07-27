@@ -29,24 +29,50 @@ enum class StatTok {
  */
 object KeyStatRules {
 
-    /** 정규화된 주요-스탯 토큰 집합. */
-    fun keyStats(
+    /**
+     * 룰로 판정한 유효옵션. **판정 근거가 없으면 null** — 치명타로 넘겨짚지 않는다.
+     *
+     * 예전엔 운명의 길·직업을 못 읽으면 치명타 2종으로 떨어졌다. 강조 표시용일 땐 큰 문제가
+     * 아니었지만, 이 집합이 유효 점수의 분자가 되면서 '치명타를 안 쓰는 캐릭터인데 치명타가
+     * 유효옵션'인 결과가 그대로 점수로 드러났다. 모르면 모른다고 하고 사용자가 정하게 한다.
+     */
+    fun keyStatsOrNull(
         gameKey: String,
         @Suppress("UNUSED_PARAMETER") element: String = "",
         path: String = "",
         specialty: String = "",
         charId: Int = 0,
-    ): Set<StatTok> = when (gameKey) {
-        "hsr", "starrail" -> HSR_BY_PATH[path] ?: FALLBACK
-        "zzz" -> ZZZ_BY_SPECIALTY[specialty] ?: FALLBACK
+    ): Set<StatTok>? = when (gameKey) {
+        "hsr", "starrail" -> HSR_BY_PATH[path]
+        "zzz" -> ZZZ_BY_SPECIALTY[specialty]
         else -> GI_EXCEPTIONS[charId] ?: GI_DEFAULT
     }
+
+    /** 정규화된 주요-스탯 토큰 집합. 판정 불가면 빈 집합(강조 대상 없음). */
+    fun keyStats(
+        gameKey: String,
+        element: String = "",
+        path: String = "",
+        specialty: String = "",
+        charId: Int = 0,
+    ): Set<StatTok> = keyStatsOrNull(gameKey, element, path, specialty, charId) ?: emptySet()
 
     /** UI 헬퍼 — 이 라벨이 강조 대상인가(정규화 실패=OTHER는 항상 false). */
     fun isKey(keySet: Set<StatTok>, label: String): Boolean =
         normStat(label).let { it != OTHER && it in keySet }
 
-    private val FALLBACK = setOf(CRIT_RATE, CRIT_DMG)
+    /** 게임별로 사용자가 고를 수 있는 유효옵션 후보(부옵션으로 붙는 스탯만). */
+    fun selectableStats(gameKey: String): List<StatTok> = when (gameKey) {
+        "hsr", "starrail" -> listOf(
+            CRIT_RATE, CRIT_DMG, ATK_PCT, HP_PCT, DEF_PCT, SPD, BREAK, EHR, RES,
+        )
+        "zzz" -> listOf(
+            CRIT_RATE, CRIT_DMG, ATK_PCT, HP_PCT, DEF_PCT, PEN, ANOM_PROF,
+        )
+        else -> listOf(
+            CRIT_RATE, CRIT_DMG, ATK_PCT, HP_PCT, DEF_PCT, EM, ER,
+        )
+    }
 
     private val HSR_BY_PATH: Map<String, Set<StatTok>> = mapOf(
         "파멸" to setOf(CRIT_RATE, CRIT_DMG, ATK_PCT, ELEM_DMG, BREAK, SPD),
@@ -126,4 +152,62 @@ internal fun normStat(raw: String): StatTok {
     if (s.contains("공격")) return if (pct) ATK_PCT else ATK
     if (s.contains("방어")) return if (pct) DEF_PCT else DEF
     return OTHER
+}
+
+/** 스탯 토큰의 한국어 표시명 — 유효옵션 직접 설정 UI 의 칩 라벨. */
+fun statLabel(t: StatTok): String = when (t) {
+    HP -> "HP"; HP_PCT -> "HP%"
+    ATK -> "공격력"; ATK_PCT -> "공격력%"
+    DEF -> "방어력"; DEF_PCT -> "방어력%"
+    EM -> "원소 마스터리"
+    CRIT_RATE -> "치명타 확률"; CRIT_DMG -> "치명타 피해"
+    ER -> "원소 충전 효율"
+    HEAL -> "치유 보너스"
+    PHYS_DMG -> "물리 피해"; ELEM_DMG -> "원소 피해"
+    SPD -> "속도"; BREAK -> "격파 특화"; EHR -> "효과 적중"; RES -> "효과 저항"
+    IMPACT -> "충격력"; ANOM_MASTERY -> "이상 숙련"; ANOM_PROF -> "이상 장악력"
+    PEN -> "관통"; ENERGY -> "에너지 회복"
+    OTHER -> "기타"
+}
+
+/**
+ * 유효옵션 판정 결과와 **그 출처**.
+ *
+ * 점수가 왜 그렇게 나왔는지 화면에서 밝히기 위해 출처를 함께 들고 다닌다 —
+ * 사용자가 직접 고른 것인지, 앱이 추정한 것인지, 아예 모르는 것인지.
+ */
+data class KeyStatVerdict(val stats: Set<StatTok>, val source: KeyStatSource) {
+    val isUnknown: Boolean get() = source == KeyStatSource.NONE
+}
+
+enum class KeyStatSource {
+    /** 사용자가 직접 고름 — 언제나 최우선. */
+    USER,
+
+    /** 앱 룰이 추정(원신 기본값·운명의 길·직업). */
+    RULE,
+
+    /** 판정 근거 없음 — 점수를 내지 않는다. */
+    NONE,
+}
+
+/** 유효옵션 저장 키 — "genshin:10000030" 처럼 게임+캐릭터로 고유. */
+fun keyStatOverrideKey(gameKey: String, charId: Int): String = "$gameKey:$charId"
+
+/**
+ * 사용자 설정 → 룰 순으로 유효옵션을 정한다.
+ * [overrides] 는 [keyStatOverrideKey] → 토큰 이름 집합(저장 형식이 문자열이라 여기서 파싱).
+ */
+fun resolveKeyStats(
+    gameKey: String,
+    char: EnkaChar,
+    overrides: Map<String, Set<String>>,
+): KeyStatVerdict {
+    overrides[keyStatOverrideKey(gameKey, char.id)]?.let { names ->
+        val stats = names.mapNotNull { n -> StatTok.entries.firstOrNull { it.name == n } }.toSet()
+        if (stats.isNotEmpty()) return KeyStatVerdict(stats, KeyStatSource.USER)
+    }
+    val rule = KeyStatRules.keyStatsOrNull(gameKey, char.element, char.path, char.specialty, char.id)
+    return if (rule == null) KeyStatVerdict(emptySet(), KeyStatSource.NONE)
+    else KeyStatVerdict(rule, KeyStatSource.RULE)
 }

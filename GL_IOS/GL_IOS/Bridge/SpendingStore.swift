@@ -73,6 +73,8 @@ final class SpendingStore: ObservableObject {
     @Published private(set) var gameNews: [NewsItem] = []
     /// 게임별 일일·주간 숙제 완주율(관측 기록 파생).
     @Published private(set) var taskStats: [TaskStats] = []
+    /// 캐릭터별 유효옵션 사용자 설정(키=keyStatOverrideKey).
+    @Published private(set) var keyStatOverrides: [String: Set<String>] = [:]
     /// 공지 본문(상세 페이지) — 실패해도 화면을 비우지 않고 NewsItem.summary 로 폴백한다.
     @Published private(set) var newsArticle: NewsArticle? = nil
     @Published private(set) var newsArticleLoading: Bool = false
@@ -164,6 +166,9 @@ final class SpendingStore: ObservableObject {
         bind(vm.pendingOpenHoyolabLink) { [weak self] in self?.pendingOpenHoyolabLink = $0.boolValue }
         bind(vm.pendingGameInfoAnchor) { [weak self] in self?.pendingGameInfoAnchor = $0 }
         bind(vm.taskStats) { [weak self] in self?.taskStats = $0 }
+        bind(vm.keyStatOverrides) { [weak self] map in
+            self?.keyStatOverrides = map.reduce(into: [:]) { acc, kv in acc[kv.key] = Set(kv.value) }
+        }
         bind(vm.pendingTab) { [weak self] in self?.pendingTab = $0?.intValue }
         bind(vm.pendingNewsId) { [weak self] in self?.pendingNewsId = $0 }
 
@@ -344,6 +349,8 @@ final class SpendingStore: ObservableObject {
     func handleNotificationLink(_ link: String) { vm.handleNotificationLink(link: link) }
     func consumePendingTab() { vm.consumePendingTab() }
     func consumePendingNews() { vm.consumePendingNews() }
+    /// 유효옵션 직접 설정 저장(빈 집합이면 해제 → 앱 룰 추정으로 되돌아간다).
+    func setKeyStatOverride(_ key: String, _ stats: Set<String>) { vm.setKeyStatOverride(key: key, stats: stats) }
     func attemptCheckIn(_ gameKey: String) { vm.attemptCheckIn(gameKey: gameKey) }
     func checkInAll() { vm.checkInAll() }
     func adjustPity(gameKey: String, delta: Int) { vm.adjustPity(gameKey: gameKey, delta: Int32(delta)) }

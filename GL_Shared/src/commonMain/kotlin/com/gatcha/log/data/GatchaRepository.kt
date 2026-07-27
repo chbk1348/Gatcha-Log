@@ -520,6 +520,33 @@ class GatchaRepository(accountId: String = "guest") {
         prefs.putString(KEY_NOTES, arr.toString())
     }
 
+    // ---------------------------------------------------------------- 유효옵션 사용자 설정
+    /**
+     * 캐릭터별 유효옵션 직접 설정. 키=[keyStatOverrideKey]("genshin:10000030"), 값=StatTok 이름 집합.
+     * 앱 룰은 추정일 뿐이라(특히 원신 기본값·미매핑 캐릭) 사용자가 덮어쓸 수 있어야 한다.
+     */
+    fun loadKeyStatOverrides(): Map<String, Set<String>> {
+        val raw = prefs.getString(KEY_KEYSTAT_OVERRIDE, null) ?: return emptyMap()
+        return runCatching {
+            val root = JSONObject(raw)
+            buildMap {
+                root.keys().forEach { k ->
+                    val arr = root.optJSONArray(k) ?: return@forEach
+                    put(k, (0 until arr.length()).mapNotNull { arr.optString(it).takeIf { s -> s.isNotBlank() } }.toSet())
+                }
+            }
+        }.getOrDefault(emptyMap())
+    }
+
+    fun saveKeyStatOverrides(map: Map<String, Set<String>>) {
+        val root = JSONObject()
+        map.forEach { (k, v) ->
+            if (v.isEmpty()) return@forEach   // 빈 집합 = 설정 해제 → 저장하지 않는다(룰로 되돌아감)
+            root.put(k, JSONArray().apply { v.forEach { put(it) } })
+        }
+        prefs.putString(KEY_KEYSTAT_OVERRIDE, root.toString())
+    }
+
     // ---------------------------------------------------------------- 숙제 관측 기록 (로컬 전용 — 완주율 계산)
     /**
      * 게임별 일일·주간 숙제 완료 기록. HoYoLAB 은 '지금 상태'만 주므로 완주율을 내려면
@@ -696,6 +723,7 @@ class GatchaRepository(accountId: String = "guest") {
         const val KEY_COMBAT = "combat_modes"     // 로컬 전용(전투 시즌 마감 알림 점검 캐시)
         const val KEY_NOTES = "live_notes"        // 로컬 전용(재화 가득참 예약 알림 계산 캐시)
         const val KEY_TASK_LOG = "task_logs"      // 로컬 전용(일일·주간 숙제 완주율 관측 기록)
+        const val KEY_KEYSTAT_OVERRIDE = "keystat_override"  // 캐릭터별 유효옵션 직접 설정
         const val KEY_GACHA = "gacha_records"
         const val KEY_SUBS = "subscriptions"
         const val KEY_HOME_CARDS = "home_cards"
