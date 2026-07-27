@@ -357,12 +357,23 @@ private fun EntryCard(e: ScheduleEntry) {
  */
 @Composable
 private fun PickupChips(pickups: List<GachaBanner>) {
-    val ordered = pickups.filter { it.type != "weapon" } + pickups.filter { it.type == "weapon" }
+    val chars = pickups.filter { it.type != "weapon" }
+    val weapons = pickups.filter { it.type == "weapon" }
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        ordered.chunked(2).forEach { row ->
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                row.forEach { b -> PickupChip(b, Modifier.weight(1f, fill = false)) }
-            }
+        ChipRows(chars)
+        // 캐릭터와 무기는 종류가 다르니 구분선으로 끊는다(둘 다 있을 때만).
+        if (chars.isNotEmpty() && weapons.isNotEmpty()) {
+            HorizontalDivider(color = DividerColor.copy(alpha = 0.7f), modifier = Modifier.padding(vertical = 1.dp))
+        }
+        ChipRows(weapons)
+    }
+}
+
+@Composable
+private fun ChipRows(list: List<GachaBanner>) {
+    list.chunked(2).forEach { row ->
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            row.forEach { b -> PickupChip(b, Modifier.weight(1f, fill = false)) }
         }
     }
 }
