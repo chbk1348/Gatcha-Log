@@ -157,6 +157,8 @@ class SpendingViewModel : ViewModel() {
     val notifySubscription: StateFlow<Boolean> = _notifySubscription.asStateFlow()
     private val _notifyNews = MutableStateFlow(appSettings.notifyNews)
     val notifyNews: StateFlow<Boolean> = _notifyNews.asStateFlow()
+    private val _notifyCombat = MutableStateFlow(appSettings.notifyCombat)
+    val notifyCombat: StateFlow<Boolean> = _notifyCombat.asStateFlow()
 
     // 방해금지(DnD) — 조용한 시간대 알림 보류
     private val _notifyDndEnabled = MutableStateFlow(appSettings.notifyDndEnabled)
@@ -223,6 +225,7 @@ class SpendingViewModel : ViewModel() {
     fun setNotifyPickup(v: Boolean) { appSettings.notifyPickup = v; _notifyPickup.value = v; applyNativeAfterNotifyChange(v) }
     fun setNotifySubscription(v: Boolean) { appSettings.notifySubscription = v; _notifySubscription.value = v; applyNativeAfterNotifyChange(v) }
     fun setNotifyNews(v: Boolean) { appSettings.notifyNews = v; _notifyNews.value = v; applyNativeAfterNotifyChange(v) }
+    fun setNotifyCombat(v: Boolean) { appSettings.notifyCombat = v; _notifyCombat.value = v; applyNativeAfterNotifyChange(v) }
 
     fun setNotifyDndEnabled(v: Boolean) { appSettings.notifyDndEnabled = v; _notifyDndEnabled.value = v; NativeScheduler.apply() }
     fun setNotifyDndStartHour(v: Int) { appSettings.notifyDndStartHour = v; _notifyDndStartHour.value = appSettings.notifyDndStartHour }
@@ -1255,7 +1258,11 @@ class SpendingViewModel : ViewModel() {
                             combats += combat
                         }
                         if (ledgers.isNotEmpty()) _ledgers.value = ledgers
-                        if (combats.isNotEmpty()) _combat.value = combats
+                        if (combats.isNotEmpty()) {
+                            _combat.value = combats
+                            // 백그라운드 시즌 마감 알림이 네트워크 없이 판정하도록 로컬 캐시(배너 캐시와 동일 패턴).
+                            runCatching { repo.saveCombatModes(combats) }
+                        }
                     }
                 }
             } finally {
@@ -1676,4 +1683,4 @@ class SpendingViewModel : ViewModel() {
 // 홈 대시보드 카드 → 게임 정보 탭의 해당 섹션으로 스크롤 앵커링.
 // 레이아웃 개편(v27.32.0)으로 단독 배너/천장 섹션이 통합 '게임 일정'으로 합쳐짐 →
 // NOTES(실시간 노트/출석) · SCHEDULE(통합 게임 일정=픽업+패치/이벤트) · NEWS(공지·주년).
-enum class GameInfoAnchor { NOTES, SCHEDULE, NEWS }
+enum class GameInfoAnchor { NOTES, SCHEDULE, NEWS, COMBAT }

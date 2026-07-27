@@ -547,6 +547,7 @@ private fun NotificationSettingsScreen(viewModel: SpendingViewModel, onBack: () 
     val notifyPickup by viewModel.notifyPickup.collectAsState()
     val notifySubscription by viewModel.notifySubscription.collectAsState()
     val notifyNews by viewModel.notifyNews.collectAsState()
+    val notifyCombat by viewModel.notifyCombat.collectAsState()
     val notifyDndEnabled by viewModel.notifyDndEnabled.collectAsState()
     val notifyDndStartHour by viewModel.notifyDndStartHour.collectAsState()
     val notifyDndEndHour by viewModel.notifyDndEndHour.collectAsState()
@@ -604,6 +605,10 @@ private fun NotificationSettingsScreen(viewModel: SpendingViewModel, onBack: () 
                     HorizontalDivider(color = DividerColor, modifier = Modifier.padding(horizontal = 16.dp))
                     SettingsToggleRow(Icons.Default.Event, "픽업 마감 알림", "진행 중인 픽업이 끝나기 전에 알려줘요", notifyPickup) { on ->
                         if (on) ensureNotifPerm(); viewModel.setNotifyPickup(on)
+                    }
+                    HorizontalDivider(color = DividerColor, modifier = Modifier.padding(horizontal = 16.dp))
+                    SettingsToggleRow(Icons.Default.MilitaryTech, "전투 시즌 마감 알림", "나선 비경·혼돈의 기억 등을 못 깬 채 시즌이 끝나기 전에 알려줘요", notifyCombat) { on ->
+                        if (on) ensureNotifPerm(); viewModel.setNotifyCombat(on)
                     }
                     HorizontalDivider(color = DividerColor, modifier = Modifier.padding(horizontal = 16.dp))
                     SettingsToggleRow(Icons.Default.Autorenew, "정기결제 갱신 알림", "구독 결제 하루 전(D-1)에 알려줘요", notifySubscription) { on ->

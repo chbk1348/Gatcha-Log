@@ -42,6 +42,7 @@ import com.gatcha.log.ui.components.GlgBackButton
 import com.gatcha.log.ui.components.GlgCircleIconButton
 import com.gatcha.log.ui.components.GlgTabHeader
 import com.gatcha.log.data.GameInfoAnchor
+import com.gatcha.log.data.ScheduleLogic
 import com.gatcha.log.data.SpendingViewModel
 import com.gatcha.log.data.api.EnkaChar
 import com.gatcha.log.data.api.NewsItem
@@ -107,7 +108,7 @@ fun GameInfoScreen(
     // Segmented 레이아웃 — 상단 게임 세그먼트 선택값("all" | game.key). 하위 섹션들이 이 값으로 필터된다.
     var gameFilter by remember { mutableStateOf("all") }
     // 통합 게임 일정(패치·이벤트·콘텐츠 병합) — 데일리 아래 첫 섹션.
-    val schedule = remember(banners, events, challenges) { buildSchedule(banners, events, challenges) }
+    val schedule = remember(banners, events, challenges) { ScheduleLogic.buildSchedule(banners, events, challenges) }
     // 게임정보 하위 풀스크린 페이지(연동 / 가챠 통계) — 열리면 상위(Scaffold)에 알려 하단바·FAB 숨김
     var subPage by remember { mutableStateOf(GiSub.Main) }
     // Enka 캐릭터 스탯 페이지 랜딩 대상
@@ -132,16 +133,30 @@ fun GameInfoScreen(
     val redeemedCodes by viewModel.redeemedCodes.collectAsState()
 
     // 홈 대시보드 카드에서 넘어온 경우 해당 섹션으로 스크롤 앵커링(1회성).
-    // LazyColumn item 순서: 0 헤더 · 1 실시간노트(NOTES) · 2 spacer · 3 내캐릭터 ·
-    // [일정 있을 때 4 spacer · 5 게임일정(SCHEDULE)] · spacer · 주년 · spacer · 공지(NEWS) · …
+    //
+    // 섹션은 아래 LazyColumn 에 [스페이서, 본문] 2칸씩 쌓이고 일부는 조건부(미연동·일정 없음)라,
+    // 앞 섹션이 빠지면 뒤 인덱스가 통째로 당겨진다. 그래서 하드코딩하지 않고 같은 순서로 누적 계산한다.
+    // (예전엔 하드코딩이라 호요랜드 섹션이 끼어든 뒤 NEWS 앵커가 호요랜드로 어긋나 있었다)
     val pendingAnchor by viewModel.pendingGameInfoAnchor.collectAsState()
     LaunchedEffect(pendingAnchor) {
         val anchor = pendingAnchor ?: return@LaunchedEffect
+        val linked = hoyolab.isLinked
         val scheduleShown = schedule.isNotEmpty()
+        var cursor = 1                                       // 0 헤더 스페이서 · 1 데일리
+        val notesIdx = cursor                                // 섹션이 없을 때의 공통 폴백
+        if (linked) cursor += 2                              // 내 캐릭터
+        val scheduleIdx = if (scheduleShown) cursor + 2 else notesIdx
+        if (scheduleShown) cursor += 2                       // 게임 일정
+        cursor += 2                                          // 주년
+        cursor += 2                                          // 호요랜드
+        val newsIdx = cursor + 2
+        cursor += 2                                          // 공지
+        val combatIdx = if (linked) cursor + 2 else notesIdx // 전투 진행도(미연동이면 섹션 자체가 없음)
         val index = when (anchor) {
-            GameInfoAnchor.NOTES -> 1
-            GameInfoAnchor.SCHEDULE -> if (scheduleShown) 5 else 1  // 일정 미표시 시 상단(노트)로 폴백
-            GameInfoAnchor.NEWS -> if (scheduleShown) 9 else 7
+            GameInfoAnchor.NOTES -> notesIdx
+            GameInfoAnchor.SCHEDULE -> scheduleIdx
+            GameInfoAnchor.NEWS -> newsIdx
+            GameInfoAnchor.COMBAT -> combatIdx
         }
         listState.animateScrollToItem(index)
         viewModel.consumeGameInfoAnchor()
