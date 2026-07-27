@@ -93,55 +93,6 @@ private fun CollabChip() {
     }
 }
 
-// 픽업 그룹 헤더 — 종류 배지(캐릭터=블루 / 무기=앰버) + 개수.
-@Composable
-private fun PickupGroupHeader(isWeapon: Boolean, count: Int) {
-    Row(
-        Modifier.padding(top = 2.dp, bottom = 10.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(7.dp),
-    ) {
-        Surface(color = if (isWeapon) WeapBadge else CharBadge, shape = RoundedCornerShape(999.dp)) {
-            Text(if (isWeapon) "무기" else "캐릭터", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = Color.White,
-                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp))
-        }
-        Text("$count", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextSecondary)
-    }
-}
-
-// "{종류} N개 더보기 ›" 푸터 — 전체 픽업 페이지로.
-@Composable
-private fun PickupMoreFooter(label: String, more: Int, onMore: () -> Unit) {
-    val accent = LocalAccent.current
-    Row(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).clickable { onMore() }.padding(vertical = 9.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.Center,
-    ) {
-        Text("$label ${more}개 더보기", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = accent)
-        Spacer(Modifier.width(4.dp))
-        Icon(Icons.Default.ChevronRight, null, tint = accent, modifier = Modifier.size(14.dp))
-    }
-}
-
-// 픽업 배너를 캐릭터/무기 2그룹으로 분류. limit != null이면 그룹별 상위 N개만 + 더보기 푸터.
-@Composable
-private fun PickupGroups(pickups: List<GachaBanner>, limit: Int? = null, onMore: (() -> Unit)? = null) {
-    val chars = pickups.filter { it.type != "weapon" }
-    val weapons = unpairedWeapons(pickups)   // 동반 무기는 캐릭터 카드에 접어 표시 → 독립 목록에선 제외
-    if (chars.isNotEmpty()) {
-        PickupGroupHeader(isWeapon = false, count = chars.size)
-        (if (limit != null) chars.take(limit) else chars).forEach { PickupItem(it, companionWeapons(it, pickups)) }
-        if (limit != null && chars.size > limit && onMore != null) PickupMoreFooter("캐릭터", chars.size - limit, onMore)
-    }
-    if (weapons.isNotEmpty()) {
-        if (chars.isNotEmpty()) Spacer(Modifier.height(16.dp))
-        PickupGroupHeader(isWeapon = true, count = weapons.size)
-        (if (limit != null) weapons.take(limit) else weapons).forEach { PickupItem(it) }
-        if (limit != null && weapons.size > limit && onMore != null) PickupMoreFooter("무기", weapons.size - limit, onMore)
-    }
-}
-
 // 픽업 아이템 — 좌측 게임색 바 + 아바타 + 이름/버전 + 잔여(dhLabel) + 진행바. (design_pickup_list_final_mockup.html)
 @Composable
 fun PickupItem(banner: GachaBanner, companions: List<GachaBanner> = emptyList()) {
@@ -403,8 +354,11 @@ private fun CompactVersionSection(vg: VersionGroup) {
                     if (vg.start > 0 && vg.end > 0) Text("${DateUtil.shortDate(vg.start)}~${DateUtil.shortDate(vg.end)}", fontSize = 9.sp, color = TextSecondary, maxLines = 1)
                 }
             }
-            chars.forEach { CompactPickupRow(it, companionWeapons(it, vg.pickups)) }
-            weaps.forEach { CompactPickupRow(it, emptyList()) }
+            // 전체 일정 페이지의 픽업은 진행바·동반무기가 보이는 큰 카드로.
+            // (전용 '전체 픽업' 페이지를 없애면서 그 디자인을 여기로 합쳤다 — 같은 목록을 두 화면이
+            //  다른 축으로 반복해서 보여주던 중복 제거.)
+            chars.forEach { PickupItem(it, companionWeapons(it, vg.pickups)) }
+            weaps.forEach { PickupItem(it) }
         }
     }
 }
@@ -455,7 +409,7 @@ private fun CompactPickupRow(banner: GachaBanner, companions: List<GachaBanner>,
 // 콜라보 강조 카드 — 게임 일정 최상단. 활성 콜라보(스타레일×Fate 등)를 일반 버전과 분리해 부각(보라 accent).
 // 카드에는 **콜라보 픽업만** 싣는다(같은 버전의 일반 픽업은 아래 버전 카드로). 전체 목록은 픽업 페이지에서.
 @Composable
-private fun CollabScheduleCard(groups: List<VersionGroup>, onSeePickups: (() -> Unit)? = null) {
+private fun CollabScheduleCard(groups: List<VersionGroup>, onSeeAll: (() -> Unit)? = null) {
     val title = groups.firstNotNullOfOrNull { g -> g.pickups.firstNotNullOfOrNull { collabTitle(it) } } ?: "콜라보 픽업"
     GlassCard(shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.fillMaxWidth().padding(16.dp)) {
@@ -488,15 +442,15 @@ private fun CollabScheduleCard(groups: List<VersionGroup>, onSeePickups: (() -> 
                 chars.forEach { CompactPickupRow(it, companionWeapons(it, vg.pickups), showCollab = false) }
                 weaps.forEach { CompactPickupRow(it, emptyList(), showCollab = false) }
             }
-            // 같은 버전의 일반 픽업까지 한 번에 보려면 픽업 전체 페이지로. (이미 상세 페이지면 생략)
-            if (onSeePickups != null) {
+            // 같은 버전의 일반 픽업까지 한 번에 보려면 전체 일정 페이지로. (이미 상세 페이지면 생략)
+            if (onSeeAll != null) {
                 Spacer(Modifier.height(4.dp))
                 Row(
-                    Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).clickable { onSeePickups() }.padding(vertical = 9.dp),
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).clickable { onSeeAll() }.padding(vertical = 9.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.Center,
                 ) {
-                    Text("픽업 전체 보기", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = CollabBadge)
+                    Text("전체 일정 보기", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = CollabBadge)
                     Spacer(Modifier.width(4.dp))
                     Icon(Icons.Default.ChevronRight, null, tint = CollabBadge, modifier = Modifier.size(14.dp))
                 }
@@ -512,7 +466,6 @@ fun GameScheduleSection(
     banners: List<GachaBanner>,
     filter: String,
     onSeeAll: () -> Unit,
-    onSeePickups: () -> Unit,
 ) {
     val accent = LocalAccent.current
     val allGroups = ScheduleLogic.buildVersionGroups(banners, filter)
@@ -529,7 +482,7 @@ fun GameScheduleSection(
         }
     } else {
         if (collabGroups.isNotEmpty()) {
-            CollabScheduleCard(collabGroups, onSeePickups)
+            CollabScheduleCard(collabGroups, onSeeAll)
             if (topGroups.isNotEmpty() || topExtras.isNotEmpty()) Spacer(Modifier.height(12.dp))
         }
         if (topGroups.isNotEmpty()) {
@@ -606,17 +559,3 @@ fun GameScheduleFullContent(
     }
 }
 
-// 픽업 전용 전체 페이지 콘텐츠 — 캐릭터/무기 그룹으로만 분리, 종료 임박순. (design_pickup_list_final_mockup.html ②)
-@Composable
-fun GamePickupFullContent(banners: List<GachaBanner>, filter: String) {
-    val pickups = ScheduleLogic.filteredPickups(banners, filter)
-    // 페이지 타이틀은 SectionPage 헤더에서 표시. 여기선 부제만.
-    Text("진행 중인 캐릭터·무기 픽업을 종료 임박순으로 모았어요.", fontSize = 12.sp, color = TextSecondary, modifier = Modifier.padding(top = 4.dp, bottom = 14.dp))
-    if (pickups.isEmpty()) {
-        Text("진행 중인 픽업이 없어요.", fontSize = 13.sp, color = TextSecondary, modifier = Modifier.fillMaxWidth().padding(top = 40.dp))
-    } else {
-        GlassCard(shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth()) {
-            Column(Modifier.padding(16.dp)) { PickupGroups(pickups) }
-        }
-    }
-}

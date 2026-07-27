@@ -51,7 +51,7 @@ import com.gatcha.log.ui.theme.*
 import kotlinx.coroutines.launch
 
 /** 게임정보 탭의 풀스크린 하위 페이지 (열리면 하단바·FAB 숨김) */
-private enum class GiSub { Main, HoyoLink, Dashboard, Calc, Report, Gift, Schedule, Pickups, News, NewsDetail, CharStats, CharRoster, Hoyoland }
+private enum class GiSub { Main, HoyoLink, Dashboard, Calc, Report, Gift, Schedule, News, NewsDetail, CharStats, CharRoster, Hoyoland }
 
 /** 화면 전환 push/pop 방향용 계층 깊이. Main=0, 하위 페이지=1, 상세(목록서 진입)=2. */
 private fun subDepth(s: GiSub): Int = when (s) {
@@ -228,9 +228,6 @@ fun GameInfoScreen(
             GiSub.Schedule -> SectionPage("게임 일정", onBack = { subPage = GiSub.Main }) {
                 GameScheduleFullContent(banners, events, challenges, gameFilter)
             }
-            GiSub.Pickups -> SectionPage("전체 픽업", onBack = { subPage = GiSub.Main }) {
-                GamePickupFullContent(banners, gameFilter)
-            }
             GiSub.NewsDetail -> SectionPage(
                 "공지",
                 onBack = { subPage = newsReturn; viewModel.clearNewsArticle() },
@@ -291,7 +288,7 @@ fun GameInfoScreen(
             // 통합 게임 일정 — 헤더 드롭다운(gameFilter) 연동.
             if (schedule.isNotEmpty()) {
                 item { Spacer(Modifier.height(20.dp)) }
-                item { GameScheduleSection(schedule, banners, gameFilter, onSeeAll = { subPage = GiSub.Schedule }, onSeePickups = { subPage = GiSub.Pickups }) }
+                item { GameScheduleSection(schedule, banners, gameFilter, onSeeAll = { subPage = GiSub.Schedule }) }
             }
             // 게임 주년 — 지원 게임의 다가오는 주년(임박 순).
             item { Spacer(Modifier.height(20.dp)) }
