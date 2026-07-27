@@ -28,7 +28,6 @@ import androidx.compose.ui.unit.sp
 import com.gatcha.log.data.DateUtil
 import com.gatcha.log.data.GachaBanner
 import com.gatcha.log.data.GameChallenge
-import com.gatcha.log.data.GameData
 import com.gatcha.log.data.GameEvent
 import com.gatcha.log.data.GameScheduleLine
 import com.gatcha.log.data.ScheduleDay
@@ -78,13 +77,6 @@ private fun CollabChip() {
     Surface(color = CollabBadge, shape = RoundedCornerShape(999.dp)) {
         Text("콜라보", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = Color.White, modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp))
     }
-}
-
-/** 게임별 무기 픽업 명칭 — 칩 하나로 묶어 표기할 때 쓴다. */
-private fun weaponLabel(gameKey: String): String = when (gameKey) {
-    "hsr" -> "광추"
-    "zzz" -> "음동기"
-    else -> "무기"
 }
 
 // ── 섹션 진입 카드 ──────────────────────────────────────────────────────────
@@ -240,9 +232,6 @@ private fun SummaryCell(value: Int, label: String, modifier: Modifier = Modifier
 @Composable
 private fun UndatedPinCard(pickups: List<GachaBanner>) {
     val title = pickups.firstNotNullOfOrNull { collabTitle(it) } ?: "종료 미정 픽업"
-    val gameKey = GameData.byNameOrNull(pickups.first().game)?.key ?: ""
-    val chars = pickups.filter { it.type != "weapon" }
-    val weapons = pickups.count { it.type == "weapon" }
     val started = pickups.filter { it.startMillis > 0 }.minOfOrNull { it.startMillis }
     Column(
         Modifier.fillMaxWidth()
@@ -260,7 +249,7 @@ private fun UndatedPinCard(pickups: List<GachaBanner>) {
             Text("${DateUtil.shortDate(started)} 시작", fontSize = 11.sp, color = TextSecondary)
         }
         Spacer(Modifier.height(10.dp))
-        PickupChips(chars, weapons, gameKey)
+        PickupChips(pickups)
         Spacer(Modifier.height(9.dp))
         Text(
             "종료 시각 미공지 — 확정되면 타임라인에 올라갑니다",
@@ -356,50 +345,50 @@ private fun EntryCard(e: ScheduleEntry) {
         }
         if (e.pickups.isNotEmpty()) {
             Spacer(Modifier.height(9.dp))
-            PickupChips(
-                chars = e.pickups.filter { it.type != "weapon" },
-                weapons = e.pickups.count { it.type == "weapon" },
-                gameKey = e.gameKey,
-            )
+            PickupChips(e.pickups)
         }
     }
 }
 
-/** 캐릭터 칩 + 무기는 "N종" 하나로 묶음. 2개씩 줄바꿈(FlowRow 실험 API 회피). */
+/**
+ * 픽업 칩 — 캐릭터 먼저, 무기(광추·음동기)는 그다음. 둘 다 **이름 그대로** 노출한다.
+ * ("무기 2종"처럼 개수로 뭉치면 정작 뭐가 픽업인지 알 수 없어 칩의 쓸모가 없다.)
+ * 2개씩 줄바꿈 — FlowRow 실험 API 회피.
+ */
 @Composable
-private fun PickupChips(chars: List<GachaBanner>, weapons: Int, gameKey: String) {
-    val items: List<Pair<GachaBanner?, String>> =
-        chars.map { it to it.name } + if (weapons > 0) listOf(null to "${weaponLabel(gameKey)} ${weapons}종") else emptyList()
+private fun PickupChips(pickups: List<GachaBanner>) {
+    val ordered = pickups.filter { it.type != "weapon" } + pickups.filter { it.type == "weapon" }
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        items.chunked(2).forEach { row ->
+        ordered.chunked(2).forEach { row ->
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                row.forEach { (banner, label) -> PickupChip(banner, label) }
+                row.forEach { b -> PickupChip(b, Modifier.weight(1f, fill = false)) }
             }
         }
     }
 }
 
 @Composable
-private fun PickupChip(banner: GachaBanner?, label: String) {
-    val c = banner?.gameColor?.toColor()
+private fun PickupChip(banner: GachaBanner, modifier: Modifier = Modifier) {
+    val isWeapon = banner.type == "weapon"
     Row(
-        Modifier.clip(RoundedCornerShape(999.dp))
+        modifier.clip(RoundedCornerShape(999.dp))
             .background(Color.White)
             .border(1.dp, DividerColor, RoundedCornerShape(999.dp))
             .padding(start = 3.dp, end = 10.dp, top = 3.dp, bottom = 3.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-        if (banner == null || c == null) {
+        // 무기도 캐릭터와 같은 원형 아바타 — 칩이 한 줄에 섞여도 형태가 어긋나지 않는다.
+        if (isWeapon) {
             Box(
-                Modifier.size(20.dp).clip(RoundedCornerShape(6.dp)).background(WeapBadge.copy(alpha = 0.16f)),
+                Modifier.size(20.dp).clip(CircleShape).background(WeapBadge.copy(alpha = 0.16f)),
                 contentAlignment = Alignment.Center,
             ) { Icon(SwordIcon, null, tint = WeapBadge, modifier = Modifier.size(12.dp)) }
         } else {
-            Box(Modifier.size(20.dp).clip(CircleShape).background(c), contentAlignment = Alignment.Center) {
+            Box(Modifier.size(20.dp).clip(CircleShape).background(banner.gameColor.toColor()), contentAlignment = Alignment.Center) {
                 Text(banner.name.take(1), fontSize = 10.sp, fontWeight = FontWeight.Black, color = Color.White)
             }
         }
-        Text(label, fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = TextPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(banner.name, fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = TextPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
