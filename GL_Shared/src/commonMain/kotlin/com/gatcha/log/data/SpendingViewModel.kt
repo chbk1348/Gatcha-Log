@@ -282,6 +282,27 @@ class SpendingViewModel : ViewModel() {
     }
 
     /**
+     * 받아온 실시간 노트를 숙제 관측 기록에 반영하고 완주율을 다시 계산한다.
+     * HoYoLAB 은 '지금 상태'만 주므로, 노트를 받는 이 순간이 유일한 관측 기회다.
+     */
+    private fun recordTaskProgress(notes: List<LiveNote>) {
+        runCatching {
+            val logs = repo.loadTaskLogs().toMutableMap()
+            notes.forEach { n ->
+                val key = GameData.byNameOrNull(n.game)?.key ?: return@forEach
+                logs[key] = TaskCompletion.record(logs[key] ?: GameTaskLog(), n)
+            }
+            repo.saveTaskLogs(logs)
+            _taskStats.value = TaskCompletion.allStats(logs)
+        }
+    }
+
+    /** 저장된 기록으로 완주율 복원(앱 시작 — 노트를 받기 전에도 지난 통계는 보여준다). */
+    private fun loadTaskStats() {
+        runCatching { _taskStats.value = TaskCompletion.allStats(repo.loadTaskLogs()) }
+    }
+
+    /**
      * 앱이 포그라운드로 돌아왔을 때 밀린 알림을 1회 점검한다.
      *
      * 주기 작업만으로는 구멍이 크다 — iOS BGAppRefreshTask 는 실행 시점이 OS 재량이고 앱이 강제
@@ -710,6 +731,10 @@ class SpendingViewModel : ViewModel() {
     // 실시간 노트는 HoYoLAB 연동 시에만 실제 API 로 채워진다(미연동이면 비어 있음).
     private val _liveNotes = MutableStateFlow<List<LiveNote>>(emptyList())
     val liveNotes: StateFlow<List<LiveNote>> = _liveNotes.asStateFlow()
+
+    /** 게임별 일일·주간 숙제 완주율(관측 기록 파생). 기록이 없는 게임은 목록에 없다. */
+    private val _taskStats = MutableStateFlow<List<TaskStats>>(emptyList())
+    val taskStats: StateFlow<List<TaskStats>> = _taskStats.asStateFlow()
 
     // 월간 수입 일지(여행자의 일지·개척의 길). HoYoLAB 연동 시에만 채워진다.
     private val _ledgers = MutableStateFlow<List<MonthlyLedger>>(emptyList())
@@ -1294,6 +1319,7 @@ class SpendingViewModel : ViewModel() {
                         // 재화가 가득 차는 시각을 알림 예약에 쓰려면 로컬 캐시가 필요하다(네트워크 없이 계산).
                         runCatching { repo.saveLiveNotes(notes) }
                         rescheduleTimedAlerts()
+                        recordTaskProgress(notes)
                     }
 
                     // ★ 배너+노트까지면 홈/오늘 할 일 준비 완료 — 즉시 표출(원장·전투는 뒤이어)
@@ -1746,6 +1772,7 @@ class SpendingViewModel : ViewModel() {
     init {
         repo.onChange = { scheduleCloudSync() }
         loadAll()
+        loadTaskStats()   // 노트를 받기 전에도 지난 완주율은 보여준다
         bootstrapAuthAndSync()
     }
 }

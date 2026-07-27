@@ -63,6 +63,7 @@
 		E137594B42AFFB5CE2A94CCD /* PretendardFont.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16C6E97312A4E81D64EB90F4 /* PretendardFont.swift */; };
 		E384711C3477C7DAD49E2A01 /* MyPageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1B20A3BE3C43A7ADDFEB789 /* MyPageView.swift */; };
 		EB541F0C793C06D68AF6A436 /* DataManagementView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A50A95EB3B8A24AECF92D8D /* DataManagementView.swift */; };
+		EC60C004B10BC14684E3258F /* TaskCompletionSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 85473AA00EECC1459C27D0DB /* TaskCompletionSection.swift */; };
 		ED52FDDCC5ADCAECF885F91A /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 340BBE9D7107D50A8AF32A5C /* ContentView.swift */; };
 		F1C09A1FD2BA56EE1E609282 /* FirebaseAuth in Frameworks */ = {isa = PBXBuildFile; productRef = D103EA39B0ABE88067BF7706 /* FirebaseAuth */; };
 		F937497C109F642AB75D1979 /* NotificationPermission.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E6A1754F38C5D6D3F9A2605 /* NotificationPermission.swift */; };
@@ -113,6 +114,7 @@
 		7A348DAF50519ABD14014AA0 /* SpendingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpendingView.swift; sourceTree = "<group>"; };
 		7A50A95EB3B8A24AECF92D8D /* DataManagementView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DataManagementView.swift; sourceTree = "<group>"; };
 		846F3D6CE1BD91FB25597AA6 /* GiftCodeSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GiftCodeSheet.swift; sourceTree = "<group>"; };
+		85473AA00EECC1459C27D0DB /* TaskCompletionSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskCompletionSection.swift; sourceTree = "<group>"; };
 		89BBE3C4BD9EFC3A287B0BBF /* AddSpendingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddSpendingView.swift; sourceTree = "<group>"; };
 		9EF5B679DF4C422B518B851A /* Format.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Format.swift; sourceTree = "<group>"; };
 		A70059D3F4D8FA5EA58BB8CD /* BrandGauge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrandGauge.swift; sourceTree = "<group>"; };
@@ -192,6 +194,7 @@
 				E487840A2C618D74E853EFC7 /* HoyolandSection.swift */,
 				FAB28B37B0E20AFF6F250226 /* NewsDetailView.swift */,
 				08F1ECE04BB2DA0CB5B2C723 /* NewsSection.swift */,
+				85473AA00EECC1459C27D0DB /* TaskCompletionSection.swift */,
 			);
 			path = GameInfo;
 			sourceTree = "<group>";
@@ -499,6 +502,7 @@
 				753F215D683DBB9FEBA60F13 /* SpendingStore.swift in Sources */,
 				311A9FB837CB5310C4AB5714 /* SpendingView.swift in Sources */,
 				69FEE9E24FEB8301D5F8DA75 /* SubscriptionCenterView.swift in Sources */,
+				EC60C004B10BC14684E3258F /* TaskCompletionSection.swift in Sources */,
 				17991733B1B0EC7204C21DEB /* Theme.swift in Sources */,
 				BF372FCD149E818166E7F9E3 /* Toast.swift in Sources */,
 				A7BFA61A876C89B76798AD9A /* iOSApp.swift in Sources */,
