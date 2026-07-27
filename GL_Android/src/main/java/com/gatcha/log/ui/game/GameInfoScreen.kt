@@ -109,6 +109,7 @@ fun GameInfoScreen(
     var gameFilter by remember { mutableStateOf("all") }
     // 통합 게임 일정(패치·이벤트·콘텐츠 병합) — 데일리 아래 첫 섹션.
     val schedule = remember(banners, events, challenges) { ScheduleLogic.buildSchedule(banners, events, challenges) }
+    val taskStats by viewModel.taskStats.collectAsState()
     // 게임정보 하위 풀스크린 페이지(연동 / 가챠 통계) — 열리면 상위(Scaffold)에 알려 하단바·FAB 숨김
     var subPage by remember { mutableStateOf(GiSub.Main) }
     // Enka 캐릭터 스탯 페이지 랜딩 대상
@@ -280,6 +281,11 @@ fun GameInfoScreen(
                     onCheckInAll = { viewModel.checkInAll() },
                     onConfigClick = { subPage = GiSub.HoyoLink },
                 )
+            }
+            // 숙제 완주율 — 데일리 바로 아래(같은 '오늘 뭐 했나' 맥락). 기록이 없으면 섹션 자체가 안 뜬다.
+            if (taskStats.isNotEmpty()) {
+                item { Spacer(Modifier.height(20.dp)) }
+                item { TaskCompletionSection(taskStats) }
             }
             // 내 캐릭터(보유 전체 로스터) — 데일리 다음. 미연동이면 섹션·상단 여백까지 통째 생략(빈 여백 방지).
             if (hoyolab.isLinked) {

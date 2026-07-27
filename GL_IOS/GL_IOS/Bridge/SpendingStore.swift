@@ -71,6 +71,8 @@ final class SpendingStore: ObservableObject {
     @Published private(set) var gameEvents: [GameEvent] = []
     @Published private(set) var challenges: [GameChallenge] = []
     @Published private(set) var gameNews: [NewsItem] = []
+    /// 게임별 일일·주간 숙제 완주율(관측 기록 파생).
+    @Published private(set) var taskStats: [TaskStats] = []
     /// 공지 본문(상세 페이지) — 실패해도 화면을 비우지 않고 NewsItem.summary 로 폴백한다.
     @Published private(set) var newsArticle: NewsArticle? = nil
     @Published private(set) var newsArticleLoading: Bool = false
@@ -161,6 +163,7 @@ final class SpendingStore: ObservableObject {
         bind(vm.nudgeThreshold) { [weak self] in self?.nudgeThreshold = $0.int64Value }
         bind(vm.pendingOpenHoyolabLink) { [weak self] in self?.pendingOpenHoyolabLink = $0.boolValue }
         bind(vm.pendingGameInfoAnchor) { [weak self] in self?.pendingGameInfoAnchor = $0 }
+        bind(vm.taskStats) { [weak self] in self?.taskStats = $0 }
         bind(vm.pendingTab) { [weak self] in self?.pendingTab = $0?.intValue }
         bind(vm.pendingNewsId) { [weak self] in self?.pendingNewsId = $0 }
 
