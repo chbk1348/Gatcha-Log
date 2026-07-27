@@ -28,8 +28,10 @@ object NotificationChecker {
         val now = currentTimeMillis()
 
         // 데일리 요약 모드: 개별 알림 억제, 정한 시각에 1건 통합 발송(하루 1회).
+        // 사전 예약 플랫폼(iOS)에서는 요약도 예약이 담당하므로 여기선 아무것도 하지 않는다
+        // — 둘 다 쏘면 같은 날 요약이 두 번 온다.
         if (settings.notifyDailySummary) {
-            maybeSendDailySummary(settings, repo, cfg, now)
+            if (!AlertScheduler.schedulesAhead) maybeSendDailySummary(settings, repo, cfg, now)
             return
         }
 
@@ -113,7 +115,8 @@ object NotificationChecker {
         }
 
         // ④ 픽업 마감 임박 (로컬 배너 캐시) — 게임별 1회, D-3/D-1 레벨.
-        if (settings.notifyPickup) {
+        //    iOS 는 [ScheduledAlerts] 가 같은 알림을 미리 예약하므로 여기선 건너뛴다(중복 방지).
+        if (settings.notifyPickup && !AlertScheduler.schedulesAhead) {
             val now = currentTimeMillis()
             repo.loadActiveBanners().filter { it.endMillis > now }
                 .groupBy { it.game }
@@ -134,7 +137,7 @@ object NotificationChecker {
         }
 
         // ⑤ 정기결제 갱신 임박 (로컬 구독 목록) — D-1/오늘, 구독별 월 1회.
-        if (settings.notifySubscription) {
+        if (settings.notifySubscription && !AlertScheduler.schedulesAhead) {
             val now = currentTimeMillis()
             val ym = "${DateUtil.year(now)}-${DateUtil.month(now)}"
             repo.loadSubscriptions().forEachIndexed { idx, sub ->
@@ -156,7 +159,7 @@ object NotificationChecker {
 
         // ⑥ 전투 콘텐츠 시즌 마감 임박 (로컬 진행도 캐시) — 게임+모드별 1회, D-3/D-1 레벨.
         //    놓치면 그 시즌 보상은 복구가 안 되므로 미클리어일 때만 알린다(판정은 HomeLogic 공유 룰).
-        if (settings.notifyCombat) {
+        if (settings.notifyCombat && !AlertScheduler.schedulesAhead) {
             val now = currentTimeMillis()
             HomeLogic.combatDeadlines(repo.loadCombatModes(), now).forEach { c ->
                 val level = if (c.dDay <= 1) "d1" else "d3"
@@ -246,7 +249,7 @@ object NotificationChecker {
             val pending = GameData.attendanceGames.filter { it.key !in done }
             if (pending.isNotEmpty()) lines += "미출석 ${pending.size}개 · ${pending.joinToString(", ") { it.shortName }}"
         }
-        if (settings.notifyResin && cfg.isLinked) {
+        if (settings.notifyResin && cfg.isLinked && !AlertScheduler.schedulesAhead) {
             val uids = mapOf("genshin" to cfg.genshinUid, "hsr" to cfg.hsrUid, "zzz" to cfg.zzzUid)
             val full = mutableListOf<String>()
             for (game in GameData.attendanceGames) {

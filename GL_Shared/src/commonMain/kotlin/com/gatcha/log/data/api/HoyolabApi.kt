@@ -182,6 +182,7 @@ object HoyolabApi {
                 currentResin = data.optInt("current_resin"),
                 maxResin = data.optInt("max_resin"),
                 resinRecoveryTime = formatRecovery(data.optString("resin_recovery_time").toLongOrNull() ?: 0),
+                resinFullAtMillis = fullAt(data.optString("resin_recovery_time").toLongOrNull() ?: 0),
                 dailyTaskCount = data.optInt("finished_task_num"),
                 maxDailyTaskCount = data.optInt("total_task_num"),
                 // 주간 보스는 '남은 할인 횟수'로 오므로 사용분으로 뒤집어 담는다(다 쓰면 done == total).
@@ -196,6 +197,7 @@ object HoyolabApi {
                 currentResin = data.optInt("current_stamina"),
                 maxResin = data.optInt("max_stamina"),
                 resinRecoveryTime = formatRecovery(data.optLong("stamina_recover_time")),
+                resinFullAtMillis = fullAt(data.optLong("stamina_recover_time")),
                 dailyTaskCount = data.optInt("current_train_score"),
                 maxDailyTaskCount = data.optInt("max_train_score"),
                 weeklyDone = data.optInt("current_rogue_score"),
@@ -212,6 +214,7 @@ object HoyolabApi {
                 currentResin = progress?.optInt("current") ?: 0,
                 maxResin = progress?.optInt("max") ?: 0,
                 resinRecoveryTime = formatRecovery(energy?.optLong("restore") ?: 0),
+                resinFullAtMillis = fullAt(energy?.optLong("restore") ?: 0),
                 dailyTaskCount = vitality?.optInt("current") ?: 0,
                 maxDailyTaskCount = vitality?.optInt("max") ?: 0,
                 weeklyDone = data.optJSONObject("weekly_task")?.optInt("cur_point") ?: 0,
@@ -827,6 +830,10 @@ object HoyolabApi {
         // md5Hex 는 com.gatcha.log.util 의 순수 Kotlin 구현 (JVM MessageDigest 와 동일 출력)
         return "$t,$r,${md5Hex(raw)}"
     }
+
+    /** 남은 초 → 가득 차는 시각(epoch millis). 0 이하면 0(이미 가득/미상). */
+    private fun fullAt(seconds: Long): Long =
+        if (seconds <= 0) 0L else currentTimeMillis() + seconds * 1000
 
     private fun formatRecovery(seconds: Long): String = when {
         seconds <= 0 -> "충전 완료"

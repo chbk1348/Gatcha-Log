@@ -483,6 +483,43 @@ class GatchaRepository(accountId: String = "guest") {
         prefs.putString(KEY_COMBAT, arr.toString())
     }
 
+    // ---------------------------------------------------------------- 실시간 노트 캐시 (로컬 전용 — 예약 알림 계산용)
+    /** 최근 받아온 실시간 노트. '재화가 가득 차는 시각'을 앱 실행 없이 예약하는 데 쓴다. */
+    fun loadLiveNotes(): List<LiveNote> {
+        val raw = prefs.getString(KEY_NOTES, null) ?: return emptyList()
+        return runCatching {
+            val arr = JSONArray(raw)
+            (0 until arr.length()).map { i ->
+                val o = arr.getJSONObject(i)
+                LiveNote(
+                    game = o.optString("game", ""),
+                    currentResin = o.optInt("cur", 0),
+                    maxResin = o.optInt("max", 0),
+                    resinFullAtMillis = o.optLong("fullAt", 0L),
+                    dailyTaskCount = o.optInt("daily", 0),
+                    maxDailyTaskCount = o.optInt("dailyMax", 0),
+                    weeklyDone = o.optInt("weekly", 0),
+                    weeklyTotal = o.optInt("weeklyMax", 0),
+                )
+            }
+        }.getOrDefault(emptyList())
+    }
+
+    /** 실시간 노트 캐시 저장. 배너·전투 캐시와 동일하게 로컬 전용(클라우드 동기화 미트리거). */
+    fun saveLiveNotes(list: List<LiveNote>) {
+        val arr = JSONArray()
+        list.forEach { n ->
+            arr.put(JSONObject().apply {
+                put("game", n.game)
+                put("cur", n.currentResin); put("max", n.maxResin)
+                put("fullAt", n.resinFullAtMillis)
+                put("daily", n.dailyTaskCount); put("dailyMax", n.maxDailyTaskCount)
+                put("weekly", n.weeklyDone); put("weeklyMax", n.weeklyTotal)
+            })
+        }
+        prefs.putString(KEY_NOTES, arr.toString())
+    }
+
     // ---------------------------------------------------------------- 스냅샷 (전체 데이터 직렬화 — 클라우드/파일 백업 공용)
     /** 계정의 모든 데이터를 단일 JSON 으로 직렬화(Firestore 저장·파일 백업용). */
     fun exportSnapshotJson(): String {
@@ -622,6 +659,7 @@ class GatchaRepository(accountId: String = "guest") {
         const val KEY_ENKA_CACHE = "enka_cache"   // 로컬 전용(클라우드 스냅샷 비포함)
         const val KEY_BANNERS = "active_banners"  // 로컬 전용(픽업 마감 알림 점검 캐시)
         const val KEY_COMBAT = "combat_modes"     // 로컬 전용(전투 시즌 마감 알림 점검 캐시)
+        const val KEY_NOTES = "live_notes"        // 로컬 전용(재화 가득참 예약 알림 계산 캐시)
         const val KEY_GACHA = "gacha_records"
         const val KEY_SUBS = "subscriptions"
         const val KEY_HOME_CARDS = "home_cards"

@@ -226,6 +226,11 @@ data class LiveNote(
     val currentResin: Int = 0,
     val maxResin: Int = 0,
     val resinRecoveryTime: String = "",
+    /**
+     * 재화가 가득 차는 시각(epoch millis). 0 이면 이미 가득이거나 값을 못 받은 것.
+     * 상류가 '남은 초'를 주므로 정확히 계산된다 → 앱을 안 켜도 그 시각에 알림이 오도록 미리 예약한다.
+     */
+    val resinFullAtMillis: Long = 0L,
     val dailyTaskCount: Int = 0,
     val maxDailyTaskCount: Int = 0,
     /**

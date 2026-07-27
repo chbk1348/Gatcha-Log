@@ -92,4 +92,6 @@ fun rescheduleAttendanceReminder() {
     val settings = AppSettings()
     val repo = GatchaRepository(AppSettings.currentAccountId())
     runCatching { AttendanceReminder.reschedule(settings, repo, repo.loadHoyolab()) }
+    // 앱 시작 시점에 확정 시각 알림도 함께 갱신 — 예약이 비어 있거나 낡았을 수 있다.
+    runCatching { ScheduledAlerts.reschedule(settings, repo) }
 }

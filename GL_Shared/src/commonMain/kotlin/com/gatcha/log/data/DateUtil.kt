@@ -9,6 +9,7 @@ import kotlinx.datetime.daysUntil
 import kotlinx.datetime.minus
 import kotlinx.datetime.number
 import kotlinx.datetime.plus
+import kotlinx.datetime.toInstant
 import kotlinx.datetime.toLocalDateTime
 import com.gatcha.log.util.currentTimeMillis
 import kotlin.time.ExperimentalTime
@@ -109,6 +110,22 @@ object DateUtil {
     /** 게임 주간 기준으로 [weeksAgo]주 전 주 키. */
     fun gameWeekKeyAgo(weeksAgo: Int, nowMillis: Long = currentTimeMillis()): String =
         gameWeekKey(nowMillis - weeksAgo * 7 * 86_400_000L)
+
+    /**
+     * [millis] 가 속한 **기기 로컬 날짜**의 [hour]시 정각(분·초 0)에 해당하는 epoch millis.
+     * 예약 알림을 "마감 사흘 전 아침 9시"처럼 사람이 볼 시각에 맞추는 데 쓴다.
+     */
+    fun localTimeOnDay(millis: Long, hour: Int): Long {
+        val d = local(millis).date
+        return LocalDateTime(d.year, d.month, d.day, hour, 0)
+            .toInstant(localTz).toEpochMilliseconds()
+    }
+
+    /** 로컬 시(0~23) — 예약 알림 트리거 구성용. */
+    fun hourOf(millis: Long): Int = local(millis).hour
+
+    /** 로컬 분(0~59) — 예약 알림 트리거 구성용. */
+    fun minuteOf(millis: Long): Int = local(millis).minute
 
     /** "5/20 09:00" (배너 기간 표시용) */
     fun shortDateTime(millis: Long): String =
