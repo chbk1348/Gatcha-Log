@@ -94,6 +94,114 @@ class ScheduleLogicTest {
         assertTrue(SavingsPlanner.build(listOf(unknown), emptyMap(), emptyMap(), base).isEmpty())
     }
 
+    // ── 상세: 마감 날짜 타임라인 ─────────────────────────────────────────────
+
+    @Test
+    fun buildDaysGroupsEntriesEndingOnSameDate() {
+        val gi = listOf(banner("A", 5, "6.7"), banner("B", 5, "6.7"))     // 같은 날 종료 → 한 페이즈
+        val ev = GameEvent(Game.GENSHIN.displayName, "이벤트", base + 5 * day)
+        val days = ScheduleLogic.buildDays(
+            ScheduleLogic.buildSchedule(gi, listOf(ev), emptyList()), base,
+        )
+        assertEquals(1, days.size)
+        assertEquals(2, days.first().entries.size)          // 픽업 종료 + 이벤트가 같은 날짜 노드에
+        assertEquals("패치", days.first().entries.first().kind)  // 픽업을 먼저 보여준다
+        assertEquals(5, days.first().dDay)
+    }
+
+    @Test
+    fun buildDaysSortsByRemainingDaysAndDropsPast() {
+        val ev1 = GameEvent(Game.GENSHIN.displayName, "늦게", base + 9 * day)
+        val ev2 = GameEvent(Game.GENSHIN.displayName, "빨리", base + 2 * day)
+        val past = GameEvent(Game.GENSHIN.displayName, "지남", base - 2 * day)
+        val days = ScheduleLogic.buildDays(
+            ScheduleLogic.buildSchedule(emptyList(), listOf(ev1, ev2, past), emptyList()), base,
+        )
+        assertEquals(listOf("빨리", "늦게"), days.map { it.entries.first().title })
+    }
+
+    @Test
+    fun scheduleDayMarksOnlyNearDeadlinesUrgent() {
+        val near = GameEvent(Game.GENSHIN.displayName, "임박", base + 3 * day)
+        val far = GameEvent(Game.GENSHIN.displayName, "여유", base + 4 * day)
+        val days = ScheduleLogic.buildDays(
+            ScheduleLogic.buildSchedule(emptyList(), listOf(near, far), emptyList()), base,
+        )
+        assertTrue(days.first().urgent)
+        assertTrue(!days.last().urgent)
+    }
+
+    @Test
+    fun patchEntryCarriesItsPickupsForTimelineChips() {
+        val entries = ScheduleLogic.buildSchedule(listOf(banner("콜롬비나", 5, "6.7"), banner("라이덴 쇼군", 5, "6.7")), emptyList(), emptyList())
+        val patch = entries.single { it.kind == "패치" }
+        assertEquals(listOf("콜롬비나", "라이덴 쇼군"), patch.pickups.map { it.name })
+    }
+
+    @Test
+    fun undatedPickupsAreExcludedFromTimelineAndPinnedInstead() {
+        val unknown = banner("토오사카 린", 0, "4.4", game = Game.HSR).copy(endMillis = 0L)
+        val list = listOf(unknown, banner("스파키", 9, "4.4", game = Game.HSR))
+        val days = ScheduleLogic.buildDays(ScheduleLogic.buildSchedule(list, emptyList(), emptyList()), base)
+        assertEquals(1, days.size)                                   // 종료 미정은 타임라인에 없다
+        assertEquals(listOf("토오사카 린"), ScheduleLogic.undatedPickups(list, "all").map { it.name })
+    }
+
+    @Test
+    fun summarizeCountsWeekDeadlinesPickupsAndExtras() {
+        val banners = listOf(banner("A", 5, "6.7"), banner("B", 20, "6.8"))
+        val events = listOf(
+            GameEvent(Game.GENSHIN.displayName, "이번주", base + 3 * day),
+            GameEvent(Game.GENSHIN.displayName, "나중", base + 30 * day),
+        )
+        val s = ScheduleLogic.summarize(
+            banners, ScheduleLogic.buildSchedule(banners, events, emptyList()), "all", base,
+        )
+        assertEquals(2, s.weekDeadlines)   // 5일 뒤 픽업 종료 + 3일 뒤 이벤트
+        assertEquals(2, s.activePickups)
+        assertEquals(2, s.extras)
+    }
+
+    // ── 섹션 진입 카드: 게임 한 줄 ───────────────────────────────────────────
+
+    @Test
+    fun gameLineSummarizesNearestVersionWithLeadCharacter() {
+        val list = listOf(
+            banner("콜롬비나", 15, "6.7"), banner("라이덴 쇼군", 15, "6.7"),
+            banner("무기", 15, "6.7", type = "weapon"),
+        )
+        val line = ScheduleLogic.gameLines(list, "all", base).single()
+        assertEquals("원신", line.shortName)
+        assertEquals("v6.7 · 콜롬비나 외 1", line.summary)   // 무기는 이름 요약에서 제외
+        assertEquals("D-15", line.remainLabel)
+        assertTrue(!line.urgent)
+        assertTrue(!line.hasCollab)
+    }
+
+    @Test
+    fun gameLineFlagsCollabAndUrgency() {
+        val list = collabAndRegular()
+        val line = ScheduleLogic.gameLines(list, "all", base).single()
+        assertEquals("스타레일", line.shortName)
+        assertTrue(line.hasCollab)
+        assertEquals("v4.4 · 스파키 외 1", line.summary)   // 임박한 일반 그룹 기준(콜라보는 종료 미정이라 뒤)
+    }
+
+    @Test
+    fun gameLineSkipsGamesWithoutPickups() {
+        // 젠레스는 상류에 픽업 데이터가 없다 → 줄 자체를 만들지 않는다.
+        val lines = ScheduleLogic.gameLines(listOf(banner("A", 5, "6.7")), "all", base)
+        assertEquals(listOf("원신"), lines.map { it.shortName })
+    }
+
+    @Test
+    fun gameLineShowsUnknownEndWhenAllPickupsUndated() {
+        val unknown = banner("토오사카 린", 0, "4.4", game = Game.HSR).copy(endMillis = 0L)
+        val line = ScheduleLogic.gameLines(listOf(unknown), "all", base).single()
+        assertEquals("종료 미정", line.remainLabel)
+        assertTrue(!line.urgent)
+    }
+
     // ── 콜라보 분리 ──────────────────────────────────────────────────────────
     // 스타레일 4.4 = Fate 콜라보 + 일반 픽업이 같은 버전. 카드가 버전 전체 목록이 되면 안 된다.
 
