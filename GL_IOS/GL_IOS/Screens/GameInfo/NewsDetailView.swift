@@ -80,22 +80,7 @@ struct NewsDetailView: View {
                             }
                         }
 
-                        // 원문 링크 — 본문을 잘 받았더라도 항상 남겨둔다(표·동영상 등 앱이 못 살리는 요소가 있다).
-                        if !item.url.isEmpty {
-                            Divider()
-                            Button {
-                                if let u = URL(string: item.url) { openURL(u) }
-                            } label: {
-                                HStack(spacing: 6) {
-                                    Text("브라우저에서 보기").font(.pretendard(size: 13, weight: .bold))
-                                    Image(systemName: "arrow.up.right.square").font(.pretendard(size: 13))
-                                }
-                                .foregroundStyle(accent.primary)
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 2)
-                            }
-                            .buttonStyle(.plain)
-                        }
+                        // 원문 링크·공유는 헤더 버튼으로 옮겼다 — 본문 끝까지 스크롤해야 보이던 걸 항상 닿는 자리로.
                     }
                 }
             }
@@ -120,6 +105,20 @@ struct NewsDetailView: View {
                     .foregroundStyle(GLGColor.textPrimary)
                     .lineLimit(1)
                     .truncationMode(.tail)
+            }
+            if let u = URL(string: item.url), !item.url.isEmpty {
+                // 공유 — **링크만** 보낸다. 본문은 앱이 재구성한 것이라 그대로 보낼 수 없고,
+                // 제목을 붙이면 받는 쪽 미리보기와 중복돼 지저분해진다.
+                ToolbarItem(placement: .topBarTrailing) {
+                    ShareLink(item: u) { Image(systemName: "square.and.arrow.up") }
+                }
+                if #available(iOS 26.0, *) {
+                    ToolbarSpacer(.fixed, placement: .topBarTrailing)
+                }
+                // 브라우저 — 표·동영상처럼 앱이 못 살리는 요소는 원문에서 봐야 한다.
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button { openURL(u) } label: { Image(systemName: "safari") }
+                }
             }
         }
         // 같은 글이면 loadNewsArticle 이 조기 반환하므로 탭 전환 후 복귀해도 재요청·스켈레톤 없음.

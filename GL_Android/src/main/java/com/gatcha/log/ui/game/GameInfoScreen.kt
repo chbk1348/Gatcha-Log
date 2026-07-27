@@ -11,10 +11,13 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import com.gatcha.log.ui.components.GlgTabHeaderHeight
@@ -43,6 +46,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import com.gatcha.log.ui.components.ListSkeleton
 import com.gatcha.log.ui.components.GlassCard
+import com.gatcha.log.ui.components.shareText
+import com.gatcha.log.ui.components.openExternalLink
 import com.gatcha.log.ui.components.GlgBackButton
 import com.gatcha.log.ui.components.GlgCircleIconButton
 import com.gatcha.log.ui.components.GlgTabHeader
@@ -268,6 +273,20 @@ fun GameInfoScreen(
             GiSub.NewsDetail -> SectionPage(
                 "공지",
                 onBack = { subPage = newsReturn; viewModel.clearNewsArticle() },
+                actions = {
+                    val n = newsItem
+                    if (n != null && n.url.isNotBlank()) {
+                        // 공유 — **링크만** 보낸다. 본문은 앱이 재구성한 것이라 그대로 보낼 수 없고,
+                        // 제목을 붙이면 받는 쪽 미리보기와 중복돼 지저분해진다.
+                        GlgCircleIconButton(Icons.Default.Share, "공유", outlined = true, size = 40.dp) {
+                            shareText(context, n.url)
+                        }
+                        // 브라우저 — 표·동영상처럼 앱이 못 살리는 요소는 원문에서 봐야 한다.
+                        GlgCircleIconButton(Icons.AutoMirrored.Filled.OpenInNew, "브라우저에서 보기", outlined = true, size = 40.dp) {
+                            openExternalLink(context, n.url)
+                        }
+                    }
+                },
             ) {
                 val n = newsItem
                 if (n != null) NewsDetailContent(viewModel, n)
@@ -423,14 +442,26 @@ private fun NavEntryCard(icon: ImageVector, title: String, sub: String, onClick:
 
 /** 페이지로 분류된 섹션 래퍼 — 뒤로가기 + 섹션 자체 콘텐츠 스크롤. (섹션 내부 헤더 사용) */
 @Composable
-private fun SectionPage(title: String, onBack: () -> Unit, content: @Composable () -> Unit) {
+private fun SectionPage(
+    title: String,
+    onBack: () -> Unit,
+    /** 헤더 우측 액션(공유·브라우저 등). 없으면 제목만. */
+    actions: @Composable RowScope.() -> Unit = {},
+    content: @Composable () -> Unit,
+) {
     BackHandler { onBack() }
     Column(Modifier.fillMaxSize().statusBarsPadding().padding(horizontal = 16.dp)) {
-        // 뒤로가기 + 타이틀(모든 상세 페이지 공통 노출).
+        // 뒤로가기 + 타이틀(모든 상세 페이지 공통 노출) + 우측 액션.
         Row(Modifier.fillMaxWidth().padding(top = 12.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
             GlgBackButton(onBack)
             Spacer(Modifier.width(10.dp))
-            Text(title, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+            Text(title, fontSize = 22.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+            Spacer(Modifier.weight(1f))
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                content = actions,
+            )
         }
         Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) {
             content()

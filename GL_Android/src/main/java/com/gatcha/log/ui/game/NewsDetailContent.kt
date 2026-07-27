@@ -170,28 +170,7 @@ fun NewsDetailContent(viewModel: SpendingViewModel, item: NewsItem) {
                 }
                 }
 
-                // 원문 링크 — 본문을 잘 받았더라도 항상 남겨둔다(표·동영상 등 앱이 못 살리는 요소가 있다).
-                if (item.url.isNotBlank()) {
-                    Box(Modifier.fillMaxWidth().height(1.dp).background(DividerColor))
-                    Spacer(Modifier.height(10.dp))
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { openExternalLink(ctx, item.url) }
-                            .padding(top = 4.dp, bottom = 2.dp),
-                        horizontalArrangement = Arrangement.Center,
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text("브라우저에서 보기", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = accent)
-                        Spacer(Modifier.width(6.dp))
-                        Icon(
-                            Icons.AutoMirrored.Filled.OpenInNew,
-                            null,
-                            tint = accent,
-                            modifier = Modifier.size(15.dp),
-                        )
-                    }
-                }
+                // 원문 링크·공유는 헤더 버튼으로 옮겼다 — 본문 끝까지 스크롤해야 보이던 걸 항상 닿는 자리로.
             }
         }
         Spacer(Modifier.height(8.dp))
