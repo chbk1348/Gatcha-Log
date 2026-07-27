@@ -102,6 +102,45 @@ class HomeLogicTest {
     }
 
     @Test
+    fun todayTaskKeysAreUniquePerRow() {
+        // key 는 목록 식별자다. 수지·전투 콘텐츠는 해당되는 게임마다 한 줄씩 나오므로
+        // 종류(kind)를 키로 쓰면 서로 충돌해 목록에 중복 표시·누락이 생긴다.
+        val tasks = HomeLogic.resolveTodayTasks(
+            pendingAttendance = 3,
+            resins = listOf(
+                ResinAlert("원신", "레진", 160, 160, "", full = true),
+                ResinAlert("스타레일", "개척력", 230, 240, "", full = false),
+                ResinAlert("젠레스", "배터리", 240, 240, "", full = true),
+            ),
+            urgentBanner = banner("한정", 1),
+            budget = 10_000, monthlyTotal = 20_000,
+            combats = listOf(
+                CombatDeadline("원신", "나선 비경", 27, 36, 2),
+                CombatDeadline("원신", "환상극", 0, 8, 1),      // 같은 게임의 다른 모드도 구분돼야 한다
+                CombatDeadline("스타레일", "혼돈의 기억", 30, 36, 3),
+            ),
+            nowMillis = now,
+        )
+        val keys = tasks.map { it.key }
+        assertEquals(keys.size, keys.toSet().size, "중복 key: $keys")
+        assertEquals(9, tasks.size)   // 출석1 + 수지3 + 전투3 + 픽업1 + 예산1
+    }
+
+    @Test
+    fun todayTaskKeysSurviveValueChanges() {
+        // key 에 수치·D-day 가 섞이면 갱신될 때마다 키가 바뀌어 목록이 통째로 다시 그려진다.
+        fun keysWith(cur: Int, dDay: Int, pending: Int) = HomeLogic.resolveTodayTasks(
+            pendingAttendance = pending,
+            resins = listOf(ResinAlert("원신", "레진", cur, 160, "", full = false)),
+            urgentBanner = null, budget = 10_000, monthlyTotal = 20_000,
+            combats = listOf(CombatDeadline("원신", "나선 비경", 27, 36, dDay)),
+            nowMillis = now,
+        ).map { it.key }
+
+        assertEquals(keysWith(120, 3, 2), keysWith(151, 1, 1))
+    }
+
+    @Test
     fun resolveTodayTasksShowsNearBudgetWarningInsteadOfOver() {
         val tasks = HomeLogic.resolveTodayTasks(0, emptyList(), null, budget = 10_000, monthlyTotal = 9_500, nowMillis = now)
         assertEquals(listOf(TodayTaskKind.BUDGET), tasks.map { it.kind })

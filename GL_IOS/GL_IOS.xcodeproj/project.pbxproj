@@ -56,6 +56,7 @@
 		BF372FCD149E818166E7F9E3 /* Toast.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD62F3658FFD16B833EF98AA /* Toast.swift */; };
 		C3230B40CF73F7F63798F61D /* Pretendard-SemiBold.otf in Resources */ = {isa = PBXBuildFile; fileRef = EBE3389ACB5917724A4C6DD5 /* Pretendard-SemiBold.otf */; };
 		D1638799928C16B92E7BA17C /* Glass.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16692A76093EA64BC84CA502 /* Glass.swift */; };
+		D258D0F696A2DE0A54983D75 /* RemoteImage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9DE3D98E8895CBF8B3C201DE /* RemoteImage.swift */; };
 		D29010B2FCC6ADC85F2CC6E8 /* HoyolandSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = E487840A2C618D74E853EFC7 /* HoyolandSection.swift */; };
 		D3C86098452712BF2EF2F566 /* HomeRedesign.swift in Sources */ = {isa = PBXBuildFile; fileRef = D68A3D0581AB9E49D5412A97 /* HomeRedesign.swift */; };
 		D518B6D75F70EEA8A1332D03 /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = 27054819557D026D9CB4FE7D /* GoogleService-Info.plist */; };
@@ -116,6 +117,7 @@
 		846F3D6CE1BD91FB25597AA6 /* GiftCodeSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GiftCodeSheet.swift; sourceTree = "<group>"; };
 		85473AA00EECC1459C27D0DB /* TaskCompletionSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskCompletionSection.swift; sourceTree = "<group>"; };
 		89BBE3C4BD9EFC3A287B0BBF /* AddSpendingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddSpendingView.swift; sourceTree = "<group>"; };
+		9DE3D98E8895CBF8B3C201DE /* RemoteImage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemoteImage.swift; sourceTree = "<group>"; };
 		9EF5B679DF4C422B518B851A /* Format.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Format.swift; sourceTree = "<group>"; };
 		A70059D3F4D8FA5EA58BB8CD /* BrandGauge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrandGauge.swift; sourceTree = "<group>"; };
 		A84E3B9B9790F13D3F75EE5E /* CalendarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarView.swift; sourceTree = "<group>"; };
@@ -328,6 +330,7 @@
 				1E6A1754F38C5D6D3F9A2605 /* NotificationPermission.swift */,
 				10A462DEE6CE546DFBF6BBA9 /* PillField.swift */,
 				16C6E97312A4E81D64EB90F4 /* PretendardFont.swift */,
+				9DE3D98E8895CBF8B3C201DE /* RemoteImage.swift */,
 				C6A123A37D43A8A1E98AF768 /* SelectableText.swift */,
 				E167D2DF62218A027D330ECD /* Theme.swift */,
 				CD62F3658FFD16B833EF98AA /* Toast.swift */,
@@ -493,6 +496,7 @@
 				4555A80BB2A3E811ABE1E7B6 /* OnboardingView.swift in Sources */,
 				808FA397C7B307AA83931954 /* PillField.swift in Sources */,
 				E137594B42AFFB5CE2A94CCD /* PretendardFont.swift in Sources */,
+				D258D0F696A2DE0A54983D75 /* RemoteImage.swift in Sources */,
 				415A00FEEAB1D76CB2E99B6D /* SavingsViews.swift in Sources */,
 				BC629DA3F2422EA4BC6CDB2D /* SelectableText.swift in Sources */,
 				169ACD2F4B8A99D2183912C3 /* SettingsDialogs.swift in Sources */,
