@@ -2,6 +2,7 @@ package com.gatcha.log
 
 import android.Manifest
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.res.Configuration
 import android.os.Build
@@ -14,12 +15,16 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.compose.material3.Text
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.gatcha.log.ui.auth.AccountLoadingScreen
 import com.gatcha.log.ui.components.GlgDialog
@@ -32,6 +37,7 @@ import com.gatcha.log.data.AppSettings
 import com.gatcha.log.data.DateUtil
 import com.gatcha.log.data.GameData
 import com.gatcha.log.data.GatchaRepository
+import com.gatcha.log.data.Notifier
 import com.gatcha.log.data.work.AndroidWorkScheduler
 
 class MainActivity : ComponentActivity() {
@@ -44,6 +50,16 @@ class MainActivity : ComponentActivity() {
     override fun attachBaseContext(newBase: Context) {
         val config = Configuration(newBase.resources.configuration).apply { fontScale = 1.0f }
         super.attachBaseContext(newBase.createConfigurationContext(config))
+    }
+
+    /** 알림 탭으로 들어온 딥링크(예: "news:123"). onCreate/onNewIntent 양쪽에서 채운다. */
+    private var pendingLink by mutableStateOf<String?>(null)
+
+    /** launchMode=singleTask 라 이미 떠 있는 상태에서 알림을 누르면 여기로만 들어온다. */
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        intent.getStringExtra(Notifier.EXTRA_LINK)?.let { pendingLink = it }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -67,8 +83,23 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+        intent?.getStringExtra(Notifier.EXTRA_LINK)?.let { pendingLink = it }
         setContent {
             val viewModel: SpendingViewModel = viewModel()
+            // 알림 딥링크 소비 — 탭 전환·상세 진입은 VM 상태(pendingTab/pendingNewsId)를 화면이 구독해 처리.
+            LaunchedEffect(pendingLink) {
+                pendingLink?.let { viewModel.handleNotificationLink(it); pendingLink = null }
+            }
+            // 앱으로 돌아올 때마다 밀린 알림 1회 점검 — 주기 워커가 도즈로 늦어져도 알림이 묻히지 않게.
+            // (실제 실행 여부·간격 제한은 VM 이 판단한다.)
+            val lifecycleOwner = LocalLifecycleOwner.current
+            DisposableEffect(lifecycleOwner) {
+                val observer = LifecycleEventObserver { _, event ->
+                    if (event == Lifecycle.Event.ON_RESUME) viewModel.onAppForeground()
+                }
+                lifecycleOwner.lifecycle.addObserver(observer)
+                onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+            }
             // 알림 권한 런처. Compose 런처라 Activity registerForActivityResult lint 회피.
             //
             // 앱 시작 시 자동 요청은 없앴다(v27.38.0) — 켜자마자 맥락 없이 뜨던 팝업이었다.

@@ -69,6 +69,13 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
         didReceive response: UNNotificationResponse,
         withCompletionHandler completionHandler: @escaping () -> Void
     ) {
+        // 딥링크가 실려 있으면 그쪽이 우선 — 탭 전환 + 상세 진입까지 공유 VM 이 처리한다.
+        if let link = response.notification.request.content.userInfo[Notifier.shared.KEY_LINK] as? String,
+           !link.isEmpty {
+            NotificationCenter.default.post(name: .glgDeepLink, object: link)
+            completionHandler()
+            return
+        }
         let id = response.notification.request.identifier
             .replacingOccurrences(of: "gatcha_alert_", with: "")
         if let nid = Int(id) {
@@ -87,6 +94,8 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
 extension Notification.Name {
     /// 알림 탭으로 특정 탭 열기 — object 에 탭 인덱스(Int). ContentView 가 구독해 selectedTab 갱신.
     static let glgOpenTab = Notification.Name("glgOpenTab")
+    /// 알림 딥링크 — object 에 링크 문자열("news:<id>"). ContentView 가 공유 VM 에 넘긴다.
+    static let glgDeepLink = Notification.Name("glgDeepLink")
 }
 
 @main

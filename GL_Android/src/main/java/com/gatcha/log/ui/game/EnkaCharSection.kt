@@ -7,6 +7,7 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -28,12 +29,17 @@ import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.gatcha.log.ui.components.GlgDropdownMenu
 import com.gatcha.log.ui.components.GlgDropdownItem
 import com.gatcha.log.data.SpendingViewModel
+import com.gatcha.log.data.api.ArtifactGrade
+import com.gatcha.log.data.api.ArtifactScore
+import com.gatcha.log.data.api.ArtifactScoring
+import com.gatcha.log.data.api.CharArtifactScore
 import com.gatcha.log.data.api.CharEffect
 import com.gatcha.log.data.api.CharEffectsApi
 import com.gatcha.log.data.api.EnkaArtifact
@@ -52,6 +58,7 @@ import com.gatcha.log.ui.theme.DividerColor
 import com.gatcha.log.ui.theme.LocalAccent
 import com.gatcha.log.ui.theme.TextPrimary
 import com.gatcha.log.ui.theme.TextSecondary
+import com.gatcha.log.ui.theme.WarningText
 
 private val CardOutline = Color.Black.copy(alpha = 0.08f)
 private val CritColor = Color(0xFFE0533D)
@@ -82,7 +89,7 @@ private fun gameLabel(game: String): String = when (game) {
 }
 
 /**
- * 게임정보 탭 상시 섹션 — Enka 쇼케이스 캐릭터 로스터(2열 그리드). 헤더 게임필터([gameFilter])에 연동.
+ * 게임정보 탭 섹션 — Enka 쇼케이스 캐릭터 로스터(게임당 한 줄). 헤더 게임필터([gameFilter])에 연동.
  * "all"=원신·스타레일·젠레스를 게임별 블록으로 모두 표시, 특정 게임=해당 게임만. 캐릭터 탭 → [onOpenStats].
  */
 @Composable
@@ -104,7 +111,7 @@ fun EnkaCharSection(
         else listOf(gameFilter).filter { it in setOf("genshin", "hsr", "zzz") }
     }
 
-    // 미연동(=HoYoLAB 연동 프롬프트가 뜰 상황)이면 '내 캐릭터' 영역 전체를 숨긴다(헤더·'상시' 배지 포함).
+    // 미연동(=HoYoLAB 연동 프롬프트가 뜰 상황)이면 '내 캐릭터' 영역 전체를 숨긴다(헤더 포함).
     // 연동 유도는 데일리/프로필 섹션의 프롬프트가 담당하며, 연동되면 자동으로 로스터가 나타난다.
     if (!hoyolab.isLinked) return
 
@@ -112,13 +119,7 @@ fun EnkaCharSection(
     LaunchedEffect(games) { if (games.isNotEmpty()) viewModel.autoLoadEnkaSection(games) }
 
     Column {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("내 캐릭터", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
-            Spacer(Modifier.width(8.dp))
-            Surface(color = Color(0xFF16A34A).copy(alpha = 0.12f), shape = RoundedCornerShape(999.dp)) {
-                Text("상시", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = Color(0xFF15803D), modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp))
-            }
-        }
+        Text("내 캐릭터", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
         Spacer(Modifier.height(11.dp))
 
         // 게임별로 한 카드씩 — 각 게임 로스터를 카드로 묶고 게임 라벨을 카드 헤더로 표시.
@@ -137,7 +138,7 @@ fun EnkaCharSection(
     }
 }
 
-/** '내 캐릭터' 단일 게임 블록 — (라벨) + 대표 4명 그리드 + 더보기. 로딩 시 스켈레톤. */
+/** '내 캐릭터' 단일 게임 블록 — (라벨) + 한 줄 로스터. 로딩 시 스켈레톤. */
 @Composable
 private fun GameRosterBlock(
     game: String,
@@ -169,39 +170,12 @@ private fun GameRosterBlock(
                 chars.isEmpty() -> Hint(
                     result?.error ?: "표시할 캐릭터가 없어요 (인게임 쇼케이스 공개 확인)",
                 )
-                else -> {
-                    // 대표 4명만 표시, 그 이상은 더보기로 전체 페이지 진입
-                    chars.take(4).chunked(2).forEach { row ->
-                        Row(Modifier.fillMaxWidth().height(IntrinsicSize.Max), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                            row.forEach { c ->
-                                Box(Modifier.weight(1f).fillMaxHeight()) { RosterCard(c, game, Modifier.fillMaxHeight()) { onOpenStats(c, game) } }
-                            }
-                            if (row.size == 1) Spacer(Modifier.weight(1f))
-                        }
-                        Spacer(Modifier.height(10.dp))
-                    }
-                    if (chars.size > 4) MoreButton(chars.size, accent) { onOpenAll(game) }
-                }
+                else -> RosterRow(chars, game, accent, onOpenStats, onOpenAll)
             }
         }
     }
 }
 
-// 뉴스 섹션과 동일한 '더보기' 스타일 — 카드 내부 구분선 + 가운데 정렬 accent 텍스트.
-@Composable
-private fun MoreButton(count: Int, accent: Color, onClick: () -> Unit) {
-    Box(Modifier.fillMaxWidth().height(1.dp).background(DividerColor))
-    Row(
-        modifier = Modifier.fillMaxWidth().clickable { onClick() }.padding(top = 10.dp, bottom = 2.dp),
-        horizontalArrangement = Arrangement.Center,
-    ) {
-        Text("더보기 ($count)", fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = accent)
-    }
-}
-
-/**
- * 보유 캐릭터 전체 목록 페이지 — 더보기 진입. 캐릭터 탭 → 스탯 상세([onOpenStats]).
- */
 @Composable
 fun EnkaRosterPage(
     viewModel: SpendingViewModel,
@@ -300,7 +274,85 @@ private fun Hint(text: String) {
     Text(text, fontSize = 12.sp, color = TextSecondary, modifier = Modifier.padding(vertical = 12.dp))
 }
 
-/** 로스터 카드 — 초상 + 이름 + Lv·우정/원소·명좌. 탭 가능. */
+/**
+ * 로스터 한 줄 — 초상 + 이름만, 한 행에 최대 [ROSTER_SLOTS] 칸. **가로 스크롤 없음.**
+ *
+ * 예전엔 게임마다 2×2 큰 카드였다. 게임이 3개면 그것만으로 화면 세 개 분량이라
+ * 아래 섹션(게임 일정·공지)이 한참 밀렸다. 한 줄로 눌러 스크롤을 3분의 1로 줄인다.
+ * 인원이 칸보다 많으면 마지막 칸을 "+N"으로 바꿔 전체 페이지로 보낸다 —
+ * 좌우로 밀어서 찾게 하지 않는다(밀 수 있다는 걸 알아채기 어렵고, 몇 명인지도 안 보인다).
+ */
+private const val ROSTER_SLOTS = 6
+
+@Composable
+private fun RosterRow(
+    chars: List<EnkaChar>,
+    game: String,
+    accent: Color,
+    onOpenStats: (EnkaChar, String) -> Unit,
+    onOpenAll: (String) -> Unit,
+) {
+    val overflow = chars.size > ROSTER_SLOTS
+    // 넘치면 마지막 칸은 "+N" — 앞의 (칸-1)명만 보여준다.
+    val shown = if (overflow) chars.take(ROSTER_SLOTS - 1) else chars.take(ROSTER_SLOTS)
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        shown.forEach { c ->
+            Box(Modifier.weight(1f)) { RosterSlot(c, Modifier) { onOpenStats(c, game) } }
+        }
+        if (overflow) {
+            Box(Modifier.weight(1f)) { MoreSlot(chars.size - shown.size, accent) { onOpenAll(game) } }
+        }
+        // 인원이 칸보다 적어도 칸 폭은 고정 — 두 명뿐인 게임의 초상이 혼자 커지지 않게.
+        repeat(ROSTER_SLOTS - shown.size - if (overflow) 1 else 0) { Spacer(Modifier.weight(1f)) }
+    }
+}
+
+/** 한 칸 — 원형 초상 + 이름 두 줄. 그 외 정보(레벨·돌파)는 상세에서 본다. */
+@Composable
+private fun RosterSlot(c: EnkaChar, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    val rarityColor = if (c.rarity >= 5) Gold else Purple
+    Column(
+        modifier.clip(RoundedCornerShape(12.dp)).clickable { onClick() }.padding(vertical = 4.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Box(
+            Modifier.size(44.dp).clip(CircleShape).background(rarityColor.copy(alpha = 0.14f)),
+            contentAlignment = Alignment.Center,
+        ) {
+            if (c.iconUrl != null) {
+                AsyncImage(model = c.iconUrl, contentDescription = c.name, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+            } else {
+                Text(c.name.take(1), fontSize = 17.sp, fontWeight = FontWeight.Bold, color = rarityColor)
+            }
+        }
+        Spacer(Modifier.height(5.dp))
+        Text(
+            c.name, fontSize = 9.5.sp, fontWeight = FontWeight.Bold, color = TextPrimary,
+            maxLines = 2, overflow = TextOverflow.Ellipsis, lineHeight = 11.sp,
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+        )
+    }
+}
+
+/** 남은 인원 칸 — 누르면 전체 로스터 페이지로. */
+@Composable
+private fun MoreSlot(rest: Int, accent: Color, onClick: () -> Unit) {
+    Column(
+        Modifier.clip(RoundedCornerShape(12.dp)).clickable { onClick() }.padding(vertical = 4.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Box(
+            Modifier.size(44.dp).clip(CircleShape).background(accent.copy(alpha = 0.12f)),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text("+$rest", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = accent)
+        }
+        Spacer(Modifier.height(5.dp))
+        Text("전체", fontSize = 9.5.sp, fontWeight = FontWeight.Bold, color = accent, maxLines = 1)
+    }
+}
+
+/** 로스터 카드 — 초상 + 이름 + Lv·우정/원소·명좌. 탭 가능. (전체 로스터 페이지 전용) */
 @Composable
 private fun RosterCard(c: EnkaChar, game: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
     val rarityColor = if (c.rarity >= 5) Gold else Purple
@@ -427,14 +479,17 @@ fun EnkaStatPage(c: EnkaChar, game: String, onBack: () -> Unit) {
         }
         Spacer(Modifier.height(16.dp))
 
-        // 성유물 / 유물
+        // 성유물 / 유물 — 캐릭터 유효옵션 기준 유효 점수 순으로 정렬해 잘 뽑힌 것부터 보여준다.
+        val artScore = remember(c.artifacts, keySet, game) { ArtifactScoring.scoreChar(c.artifacts, keySet, game) }
         SecLabel(artLabel)
         if (c.artifacts.isEmpty()) {
             EmptyEquipNote(if (game == "genshin") "성유물이 장착되지 않았습니다." else if (game == "zzz") "드라이브 디스크가 장착되지 않았습니다." else "유물이 장착되지 않았습니다.")
         } else {
-            c.artifacts.forEachIndexed { i, a ->
-                ArtifactCard(a, accent, keySet)
-                if (i < c.artifacts.lastIndex) Spacer(Modifier.height(10.dp))
+            CritScoreSummary(artScore, accent)
+            Spacer(Modifier.height(10.dp))
+            artScore.ranked.forEachIndexed { i, r ->
+                ArtifactCard(r.artifact, r.score, rank = i + 1, accent = accent, keySet = keySet)
+                if (i < artScore.ranked.lastIndex) Spacer(Modifier.height(10.dp))
             }
         }
 
@@ -674,20 +729,66 @@ private fun StatInline(s: EnkaStatLine) {
     }
 }
 
-/** 캐릭별 주요 스탯이면(치명 포함) 강조색, 아니면 기본색. */
+/**
+ * 이 캐릭터의 유효옵션이면 빨간색, 아니면 기본색.
+ * 판정은 점수 산식과 **같은 함수**([ArtifactScoring.isEffective])를 써서
+ * "빨갛게 강조된 옵션 = 점수에 들어간 옵션"이 항상 일치하도록 한다.
+ */
 private fun keyOr(keySet: Set<StatTok>, s: EnkaStatLine, default: Color): Color =
-    if (s.crit || KeyStatRules.isKey(keySet, s.label)) CritColor else default
+    if (ArtifactScoring.isEffective(keySet, s.label)) CritColor else default
+
+/** 유효옵션은 값뿐 아니라 라벨까지 빨갛게 — 한 줄이 통째로 눈에 들어오도록. */
+private fun keyLabelOr(keySet: Set<StatTok>, s: EnkaStatLine): Color =
+    if (ArtifactScoring.isEffective(keySet, s.label)) CritColor.copy(alpha = 0.85f) else TextSecondary
 
 @Composable
 private fun StatCell(s: EnkaStatLine, keySet: Set<StatTok>) {
     Row(Modifier.fillMaxWidth().padding(horizontal = 11.dp, vertical = 9.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-        Text(s.label, fontSize = 11.5.sp, color = TextSecondary, maxLines = 1)
+        Text(s.label, fontSize = 11.5.sp, color = keyLabelOr(keySet, s), maxLines = 1)
         Text(s.value, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = keyOr(keySet, s, TextPrimary), maxLines = 1)
     }
 }
 
 @Composable
-private fun ArtifactCard(a: EnkaArtifact, accent: Color, keySet: Set<StatTok>) {
+/** 등급 색 — 상위는 강조색, 중간은 보조 텍스트, 하위는 경고색(교체 후보 신호). */
+private fun gradeColor(grade: ArtifactGrade, accent: Color): Color = when (grade) {
+    ArtifactGrade.EXCELLENT, ArtifactGrade.GOOD -> accent
+    ArtifactGrade.FAIR -> TextSecondary
+    ArtifactGrade.POOR, ArtifactGrade.BAD -> WarningText
+}
+
+/**
+ * 유효 점수 요약 — 합계·장당 평균·등급.
+ * 서브 옵션 중 **이 캐릭터 유효옵션만** 최대 강화량으로 나눠 '유효 롤'로 환산한 값이다.
+ */
+@Composable
+private fun CritScoreSummary(s: CharArtifactScore, accent: Color) {
+    val c = gradeColor(s.grade, accent)
+    GlassCard(modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(horizontal = 13.dp, vertical = 11.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text("유효 점수", fontSize = 10.5.sp, color = TextSecondary)
+                    Text("유효옵션 강화 횟수 환산(장당 최대 9)", fontSize = 9.5.sp, color = TextSecondary)
+                }
+                Text(ArtifactScoring.rollLabel(s.totalRolls), fontSize = 18.sp, fontWeight = FontWeight.Black, color = c)
+                Spacer(Modifier.width(7.dp))
+                Surface(color = c.copy(alpha = 0.14f), shape = RoundedCornerShape(7.dp)) {
+                    Text(
+                        "장당 ${ArtifactScoring.rollLabel(s.averageRolls)} · ${s.grade.label}",
+                        fontSize = 10.sp, fontWeight = FontWeight.Bold, color = c,
+                        modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp),
+                    )
+                }
+            }
+            Spacer(Modifier.height(6.dp))
+            Text("빨간색 = 이 캐릭터 유효옵션", fontSize = 9.5.sp, fontWeight = FontWeight.Bold, color = CritColor)
+        }
+    }
+}
+
+@Composable
+private fun ArtifactCard(a: EnkaArtifact, score: ArtifactScore, rank: Int, accent: Color, keySet: Set<StatTok>) {
     GlassCard(modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(13.dp)) {
             Row(verticalAlignment = Alignment.Top) {
@@ -706,14 +807,27 @@ private fun ArtifactCard(a: EnkaArtifact, accent: Color, keySet: Set<StatTok>) {
                 }
                 Spacer(Modifier.width(9.dp))
                 Column(Modifier.weight(1f)) {
-                    Text(a.main.label, fontSize = 10.5.sp, color = TextSecondary, maxLines = 1)
+                    Text(a.main.label, fontSize = 10.5.sp, color = keyLabelOr(keySet, a.main), maxLines = 1)
                     Text(a.main.value, fontSize = 16.sp, fontWeight = FontWeight.Black, color = keyOr(keySet, a.main, accent), maxLines = 1)
                     if (a.setName.isNotBlank()) {
                         Text(a.setName, fontSize = 9.5.sp, color = TextSecondary, maxLines = 1)
                     }
                 }
-                Surface(color = Gold.copy(alpha = 0.16f), shape = RoundedCornerShape(7.dp)) {
-                    Text("+${a.level}", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color(0xFF9C6F12), modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp))
+                Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Surface(color = Gold.copy(alpha = 0.16f), shape = RoundedCornerShape(7.dp)) {
+                        Text("+${a.level}", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color(0xFF9C6F12), modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp))
+                    }
+                    // 유효 점수 — 유효옵션이 하나도 안 붙었으면 순위가 무의미하므로 배지를 숨긴다.
+                    if (!score.isEmpty) {
+                        val gc = gradeColor(score.grade, accent)
+                        Surface(color = gc.copy(alpha = 0.14f), shape = RoundedCornerShape(7.dp)) {
+                            Text(
+                                "${rank}위 · 유효 ${ArtifactScoring.rollLabel(score.rolls)}",
+                                fontSize = 10.sp, fontWeight = FontWeight.Bold, color = gc,
+                                modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp),
+                            )
+                        }
+                    }
                 }
             }
             if (a.subs.isNotEmpty()) {
@@ -742,7 +856,7 @@ private fun ArtifactCard(a: EnkaArtifact, accent: Color, keySet: Set<StatTok>) {
                                     horizontalArrangement = Arrangement.SpaceBetween,
                                     verticalAlignment = Alignment.CenterVertically,
                                 ) {
-                                    Text(s.label, fontSize = 11.sp, color = TextSecondary, maxLines = 1)
+                                    Text(s.label, fontSize = 11.sp, color = keyLabelOr(keySet, s), maxLines = 1)
                                     Text(s.value, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = keyOr(keySet, s, TextPrimary), maxLines = 1)
                                 }
                             }

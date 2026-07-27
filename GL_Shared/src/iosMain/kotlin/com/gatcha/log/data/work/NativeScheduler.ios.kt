@@ -44,6 +44,9 @@ private suspend fun runCheckIn() {
     runCatching { NotificationChecker.run(settings, repo, cfg) }
     // 출석 리마인더 예약형 갱신(다음 18:00) — BGTask 정시 비보장을 보완.
     runCatching { AttendanceReminder.reschedule(settings, repo, cfg) }
+    // 확정 시각 알림(픽업·시즌 마감·정기결제·재화 가득참·데일리 요약) 재예약 —
+    // 앱을 오래 안 열어도 OS 가 정시에 쏘도록.
+    runCatching { ScheduledAlerts.reschedule(settings, repo) }
 }
 
 @OptIn(ExperimentalForeignApi::class)
