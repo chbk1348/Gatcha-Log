@@ -4,11 +4,9 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.KeyboardArrowDown
@@ -98,11 +96,12 @@ internal fun UpdateLogScreen(onBack: () -> Unit) {
 
         // ── 스티키 필터칩 ──
         stickyHeader {
+            // 다섯 칩이 한 줄에 들어가므로 가로 스크롤을 걷고 가운데 정렬한다.
             Row(
                 Modifier.fillMaxWidth().background(Color.White)
-                    .padding(horizontal = 18.dp, vertical = 10.dp)
-                    .horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    .padding(horizontal = 14.dp, vertical = 10.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
                 GlgChip("전체", selected = filter == null) { filter = null }
                 GlgChip("신규", selected = filter == ChangeKind.NEW, color = styleOf(ChangeKind.NEW).dot) { filter = ChangeKind.NEW }
