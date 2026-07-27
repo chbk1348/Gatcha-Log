@@ -479,7 +479,8 @@ private struct DayNode: View {
 private struct EntryCard: View {
     let e: ScheduleEntry
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
+        let gc = Color(argb64: e.colorArgb)
+        return VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 7) {
                 Text(e.kind == "패치" ? "픽업" : e.kind)
                     .font(.pretendard(size: 9.5, weight: .bold)).foregroundStyle(.white)
@@ -489,7 +490,7 @@ private struct EntryCard: View {
                     .lineLimit(1).frame(maxWidth: .infinity, alignment: .leading)
                 Text(e.gameShort).font(.pretendard(size: 9.5, weight: .bold)).foregroundStyle(.white)
                     .padding(.horizontal, 7).padding(.vertical, 2)
-                    .background(Color(argb64: e.colorArgb), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+                    .background(gc, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
             }
             if !e.sub.isEmpty {
                 Text(e.sub).font(.pretendard(size: 10.5)).foregroundStyle(GLGColor.textSecondary)
@@ -502,7 +503,8 @@ private struct EntryCard: View {
         .padding(.horizontal, 12).padding(.vertical, 10)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color.white, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(glLine, lineWidth: 1))
+        // 아웃라인에 게임색 — 타임라인에서 어느 게임 일정인지 배지를 읽기 전에 구분된다.
+        .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(gc.opacity(0.35), lineWidth: 1))
     }
 }
 
