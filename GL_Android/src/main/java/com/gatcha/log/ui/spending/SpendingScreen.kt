@@ -58,6 +58,7 @@ import com.gatcha.log.ui.components.GlassCard
 import com.gatcha.log.ui.components.GlgButton
 import com.gatcha.log.ui.components.GlgTabHeader
 import com.gatcha.log.ui.components.GlgTabHeaderHeight
+import com.gatcha.log.ui.components.GlgTopScrimFadeExtra as ScrimFadeExtra
 import com.gatcha.log.ui.components.GlgOutlineButton
 import com.gatcha.log.ui.theme.*
 import com.gatcha.log.util.won
@@ -256,7 +257,7 @@ fun SpendingScreen(
             Modifier
                 .align(Alignment.TopStart)
                 .fillMaxWidth()
-                .height(statusBarDp)
+                .height(statusBarDp + ScrimFadeExtra)
                 .graphicsLayer { alpha = topScrimAlpha }
                 .background(
                     Brush.verticalGradient(
