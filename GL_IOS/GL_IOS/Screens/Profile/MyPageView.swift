@@ -383,11 +383,9 @@ struct ProfileAvatarView: View {
     var body: some View {
         Group {
             if let url = photoUrl, !url.isEmpty, let u = URL(string: url) {
-                AsyncImage(url: u) { img in
-                    img.resizable().scaledToFill()
-                } placeholder: {
-                    placeholder
-                }
+                // 툴바 프로필은 홈이 다시 그려질 때마다 만들어진다 — 디코딩 캐시가 없으면 매번 다시 불러온다.
+                GLGRemoteImage(url: u, side: size)
+                    .background(placeholder)
             } else {
                 placeholder
             }

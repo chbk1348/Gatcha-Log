@@ -247,9 +247,9 @@ struct HomeView: View {
 
 /// 오늘 할 일 한 줄. busyable=전체출석처럼 진행 중 스피너가 필요한 항목.
 ///
-/// id 는 **종류(kind)** 로 고정한다 — UUID 를 쓰면 todayTasks 가 computed 라 body 평가마다 새 id 가 생겨
-/// ForEach 가 매번 '전부 삭제 + 전부 삽입'으로 처리한다(행 재생성 → 탭 직후 제스처가 끊긴다).
-/// kind 는 attendance/resin/combat/banner/budget 각 화면당 1개씩이라 고유하다.
+/// id 는 shared 가 만든 [TodayTask.key] 를 그대로 쓴다 — UUID 를 쓰면 todayTasks 가 computed 라
+/// body 평가마다 새 id 가 생겨 ForEach 가 매번 '전부 삭제 + 전부 삽입'으로 처리한다(행 재생성).
+/// 종류(kind)로는 안 된다 — 수지·전투 콘텐츠는 해당되는 게임마다 한 줄씩 나와 서로 충돌한다.
 struct TodayItem: Identifiable { let id: String; let icon: String; let message: String; let cta: String; let urgent: Bool; let busyable: Bool; let action: () -> Void }
 
 extension Array where Element == TodayTask {
@@ -258,15 +258,15 @@ extension Array where Element == TodayTask {
                       onCombat: @escaping () -> Void, onBanner: @escaping () -> Void,
                       onBudget: @escaping () -> Void) -> [TodayItem] {
         map { t in
-            let icon: String, key: String, action: () -> Void
+            let icon: String, action: () -> Void
             switch t.kind {
-            case .attendance: icon = "checkmark.circle"; key = "attendance"; action = onCheckInAll
-            case .resin:      icon = "bolt.fill";        key = "resin";      action = onResin
-            case .combat:     icon = "medal";            key = "combat";     action = onCombat
-            case .banner:     icon = "die.face.5";       key = "banner";     action = onBanner
-            case .budget:     icon = "banknote";         key = "budget";     action = onBudget
+            case .attendance: icon = "checkmark.circle"; action = onCheckInAll
+            case .resin:      icon = "bolt.fill";        action = onResin
+            case .combat:     icon = "medal";            action = onCombat
+            case .banner:     icon = "die.face.5";       action = onBanner
+            case .budget:     icon = "banknote";         action = onBudget
             }
-            return TodayItem(id: key, icon: icon, message: t.message, cta: t.ctaLabel, urgent: t.urgent, busyable: t.busyable, action: action)
+            return TodayItem(id: t.key, icon: icon, message: t.message, cta: t.ctaLabel, urgent: t.urgent, busyable: t.busyable, action: action)
         }
     }
 }

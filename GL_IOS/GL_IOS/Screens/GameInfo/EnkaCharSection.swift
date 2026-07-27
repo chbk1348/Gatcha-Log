@@ -181,7 +181,7 @@ private struct RosterSlot: View {
             ZStack {
                 Circle().fill(rc.opacity(0.14))
                 if let icon = c.iconUrl, let u = URL(string: icon) {
-                    AsyncImage(url: u) { $0.resizable().scaledToFill() } placeholder: { Color.clear }
+                    GLGRemoteImage(url: u, side: 44)
                         .clipShape(Circle())
                 } else {
                     Text(String(c.name.prefix(1))).font(.pretendard(size: 17, weight: .bold)).foregroundStyle(rc)
@@ -221,7 +221,7 @@ func enkaRosterCard(_ c: EnkaChar, _ game: String) -> some View {
         ZStack {
             RoundedRectangle(cornerRadius: 14).fill(rc.opacity(0.14)).frame(width: 50, height: 50)
             if let icon = c.iconUrl, let u = URL(string: icon) {
-                AsyncImage(url: u) { $0.resizable().scaledToFill() } placeholder: { Color.clear }
+                GLGRemoteImage(url: u, side: 50)
                     .frame(width: 50, height: 50).clipShape(RoundedRectangle(cornerRadius: 14))
             } else {
                 Text(String(c.name.prefix(1))).font(.pretendard(size: 20, weight: .bold)).foregroundStyle(rc)
@@ -533,7 +533,7 @@ struct EnkaStatPage: View {
                 ZStack {
                     RoundedRectangle(cornerRadius: 18).fill(ec.opacity(0.16)).frame(width: 64, height: 64)
                     if let icon = char.iconUrl, let u = URL(string: icon) {
-                        AsyncImage(url: u) { $0.resizable().scaledToFill() } placeholder: { Color.clear }
+                        GLGRemoteImage(url: u, side: 64)
                             .frame(width: 64, height: 64).clipShape(RoundedRectangle(cornerRadius: 18))
                     } else {
                         Text(String(char.name.prefix(1))).font(.pretendard(size: 26, weight: .bold)).foregroundStyle(ec)
@@ -754,7 +754,7 @@ struct EnkaStatPage: View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .top, spacing: 9) {
                 if let icon = a.iconUrl, let u = URL(string: icon) {
-                    AsyncImage(url: u) { $0.resizable().scaledToFit() } placeholder: { Color.clear }
+                    GLGRemoteImage(url: u, side: 40, contentMode: .fit)
                         .frame(width: 40, height: 40).padding(2)
                         .background(Color(hex: 0xFFF1F1F6), in: RoundedRectangle(cornerRadius: 10))
                 }
