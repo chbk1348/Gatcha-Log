@@ -126,6 +126,16 @@ fun GameInfoScreen(
         subPage = GiSub.NewsDetail
     }
     LaunchedEffect(subPage) { onSubPageChange(subPage != GiSub.Main) }
+
+    // 공지 알림 딥링크 — 알림에 실린 id 로 목록에서 글을 찾아 상세를 연다.
+    // 알림을 탭한 직후엔 목록이 아직 비어 있을 수 있어(콜드 스타트) news 가 도착할 때까지 기다렸다 연다.
+    val pendingNewsId by viewModel.pendingNewsId.collectAsState()
+    LaunchedEffect(pendingNewsId, gameNews) {
+        val id = pendingNewsId ?: return@LaunchedEffect
+        val target = gameNews.firstOrNull { it.id == id } ?: return@LaunchedEffect
+        viewModel.consumePendingNews()
+        openNews(target, GiSub.Main)
+    }
     val redeemState by viewModel.redeemState.collectAsState()
     val activeCodes by viewModel.activeCodes.collectAsState()
     val codesLoading by viewModel.codesLoading.collectAsState()

@@ -27,6 +27,15 @@ struct GameInfoView: View {
     // Segmented 레이아웃 — 상단 게임 세그먼트 선택값("all" | game.key). 하위 섹션들이 이 값으로 필터된다.
     @State private var gameFilter = "all"
 
+    /// 알림으로 요청된 공지가 목록에 도착했으면 상세를 연다.
+    private func openPendingNewsIfReady() {
+        guard let id = store.pendingNewsId,
+              let target = store.gameNews.first(where: { $0.id == id }) else { return }
+        store.consumePendingNews()
+        selectedNews = target
+        showNewsDetail = true
+    }
+
     var body: some View {
         ScrollViewReader { proxy in
         ScrollView {
@@ -71,6 +80,11 @@ struct GameInfoView: View {
         // 홈 카드 딥링크 — 진입 시점(onAppear)·이미 떠 있는 상태에서 재요청(onChange) 모두 처리.
         .onAppear { scrollToPendingAnchor(proxy) }
         .onChange(of: store.pendingGameInfoAnchor) { _, _ in scrollToPendingAnchor(proxy) }
+        // 공지 알림 딥링크 — 알림에 실린 id 로 목록에서 글을 찾아 상세를 연다.
+        // 콜드 스타트면 목록이 아직 비어 있어, 도착(gameNews 갱신)할 때까지 기다렸다 연다.
+        .onAppear { openPendingNewsIfReady() }
+        .onChange(of: store.pendingNewsId) { _, _ in openPendingNewsIfReady() }
+        .onChange(of: store.gameNews) { _, _ in openPendingNewsIfReady() }
         .background(GLGBackground { Color.clear })
         .refreshable { store.refreshGameInfo(force: true) }
         // 초기 진입 시 로드 + HoYoLAB 연동(config)이 늦게 링크되면 그 순간 강제 갱신(실시간 노트 표출)

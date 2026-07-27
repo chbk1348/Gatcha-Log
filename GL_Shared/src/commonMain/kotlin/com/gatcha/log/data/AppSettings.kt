@@ -147,7 +147,15 @@ class AppSettings {
     /** 백그라운드 주기 작업이 필요한지(하나라도 켜져 있으면 스케줄 유지). */
     fun needsPeriodicWork(): Boolean =
         autoCheckIn || notifyResin || notifyAttendance || notifyBudget || notifyPickup ||
-            notifySubscription || notifyDailySummary
+            notifySubscription || notifyDailySummary || notifyNews || notifyCombat
+
+    /**
+     * 마지막 포그라운드 점검 시각 — 앱을 열 때마다 밀린 알림을 정리하되, 전환할 때마다
+     * HoYoLAB 을 두드리지 않도록 최소 간격을 두는 데 쓴다.
+     */
+    var lastForegroundCheckMillis: Long
+        get() = prefs.getLong(KEY_LAST_FG_CHECK, 0L)
+        set(v) { prefs.putLong(KEY_LAST_FG_CHECK, v) }
 
     /** 알림 중복 방지용 마지막 발송 키 저장/조회 (예: "budget:2026-05"). */
     fun lastNotified(tag: String): String = prefs.getString("notif_last_$tag", "") ?: ""
@@ -169,6 +177,7 @@ class AppSettings {
         private const val KEY_NOTIFY_SUB = "notify_subscription"
         private const val KEY_NOTIFY_NEWS = "notify_news"
         private const val KEY_NOTIFY_COMBAT = "notify_combat"
+        private const val KEY_LAST_FG_CHECK = "last_foreground_check"
         private const val KEY_DND_ENABLED = "notify_dnd_enabled"
         private const val KEY_DND_START = "notify_dnd_start"
         private const val KEY_DND_END = "notify_dnd_end"

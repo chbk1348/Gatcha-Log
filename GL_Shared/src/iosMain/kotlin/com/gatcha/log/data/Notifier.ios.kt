@@ -29,7 +29,10 @@ actual object Notifier {
     // getNotificationSettings 는 비동기(콜백) → 동기 notificationsEnabled() 용으로 마지막 상태를 캐시.
     private var cachedEnabled: Boolean = false
 
-    actual fun notify(id: Int, title: String, text: String) {
+    /** 알림 payload 의 딥링크 키 — Swift AppDelegate 가 같은 키로 읽는다. */
+    const val KEY_LINK = "gl_notification_link"
+
+    actual fun notify(id: Int, title: String, text: String, link: String) {
         val center = UNUserNotificationCenter.currentNotificationCenter()
         center.getNotificationSettingsWithCompletionHandler { settings ->
             val status = settings?.authorizationStatus
@@ -39,6 +42,8 @@ actual object Notifier {
             val content = UNMutableNotificationContent().apply {
                 setTitle(title)
                 setBody(text)
+                // 알림 탭 시 어디로 갈지 — AppDelegate 가 이 값을 읽어 VM 에 넘긴다.
+                if (link.isNotBlank()) setUserInfo(mapOf(KEY_LINK to link))
             }
             // trigger=null → 즉시 표시. 같은 identifier 는 갱신(누적 안 됨) — Android 와 동일한 동작.
             val request = UNNotificationRequest.requestWithIdentifier(

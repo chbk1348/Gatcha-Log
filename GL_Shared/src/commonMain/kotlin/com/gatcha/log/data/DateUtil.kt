@@ -80,6 +80,36 @@ object DateUtil {
     fun hoyoDayKeyAgo(daysAgo: Int): String =
         hoyoDayKey(currentTimeMillis() - daysAgo * 86_400_000L)
 
+    // ----------------------------------------------------------------- 게임 숙제 리셋(서버 04:00, UTC+8)
+    // 출석(hoyoDayKey)은 베이징 '자정' 기준이지만, 일일·주간 임무는 서버 04:00 에 리셋된다.
+    // 4시간을 당겨서 날짜를 잡으면 새벽 1시에 한 숙제가 전날 것으로 정확히 묶인다.
+
+    private const val RESET_SHIFT_MS = 4L * 60 * 60 * 1000
+
+    /** 게임 일일 리셋(04:00 UTC+8) 기준 날짜 키 "yyyy-MM-dd". */
+    fun gameDayKey(millis: Long = currentTimeMillis()): String = hoyoDayKey(millis - RESET_SHIFT_MS)
+
+    /** 게임 일일 기준으로 [daysAgo]일 전 날짜 키. */
+    fun gameDayKeyAgo(daysAgo: Int, nowMillis: Long = currentTimeMillis()): String =
+        gameDayKey(nowMillis - daysAgo * 86_400_000L)
+
+    /** 게임 주간 리셋(월요일 04:00 UTC+8) 기준 주 키 = 그 주 월요일의 날짜 키. */
+    fun gameWeekKey(millis: Long = currentTimeMillis()): String {
+        val d = local(millis - RESET_SHIFT_MS, hoyoTz).date
+        // 월=0 … 일=6 (kotlinx-datetime 버전에 따라 isoDayNumber 가 없어 when 으로 고정).
+        val fromMonday = when (d.dayOfWeek) {
+            DayOfWeek.MONDAY -> 0; DayOfWeek.TUESDAY -> 1; DayOfWeek.WEDNESDAY -> 2
+            DayOfWeek.THURSDAY -> 3; DayOfWeek.FRIDAY -> 4; DayOfWeek.SATURDAY -> 5
+            else -> 6
+        }
+        val monday = d.minus(fromMonday, DateTimeUnit.DAY)
+        return "${monday.year}-${pad2(monday.month.number)}-${pad2(monday.day)}"
+    }
+
+    /** 게임 주간 기준으로 [weeksAgo]주 전 주 키. */
+    fun gameWeekKeyAgo(weeksAgo: Int, nowMillis: Long = currentTimeMillis()): String =
+        gameWeekKey(nowMillis - weeksAgo * 7 * 86_400_000L)
+
     /** "5/20 09:00" (배너 기간 표시용) */
     fun shortDateTime(millis: Long): String =
         local(millis).let { "${it.month.number}/${pad2(it.day)} ${pad2(it.hour)}:${pad2(it.minute)}" }

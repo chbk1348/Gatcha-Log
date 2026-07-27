@@ -99,6 +99,12 @@ fun HomeScreen(viewModel: SpendingViewModel = viewModel()) {
     val spendingEditor = remember { mutableStateOf<SpendingEditorTarget?>(null) }
     val accent = LocalAccent.current
 
+    // 알림 딥링크 — VM 이 요청한 탭으로 이동(예: 공지 알림 탭 → 게임 정보). 상세 진입은 그 탭이 이어받는다.
+    val pendingTab by viewModel.pendingTab.collectAsState()
+    LaunchedEffect(pendingTab) {
+        pendingTab?.let { selectedTab = it; viewModel.consumePendingTab() }
+    }
+
     // 풀스크린 하위 페이지(알림 상세·연간 리포트·지출 상세·HoYoLAB 연동·설정)가 열렸는지.
     // 열려 있으면 하단바와 FAB를 숨긴다. 각 탭 콘텐츠가 자신의 하위 페이지 상태를 보고한다.
     var subPageActive by remember { mutableStateOf(false) }

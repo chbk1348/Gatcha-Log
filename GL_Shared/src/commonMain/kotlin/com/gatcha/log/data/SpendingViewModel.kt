@@ -120,6 +120,38 @@ class SpendingViewModel : ViewModel() {
     val pendingGameInfoAnchor: StateFlow<GameInfoAnchor?> = _pendingGameInfoAnchor.asStateFlow()
     fun requestGameInfoAnchor(anchor: GameInfoAnchor) { _pendingGameInfoAnchor.value = anchor }
     fun consumeGameInfoAnchor() { _pendingGameInfoAnchor.value = null }
+
+    // ── 알림 딥링크 ─────────────────────────────────────────────────────────
+    // 알림을 탭하면 앱만 열리고 끝이라 "무슨 공지인지" 다시 찾아 들어가야 했다.
+    // 알림에 실어 보낸 링크를 여기로 넘기면 탭 전환 + 상세 진입까지 이어진다.
+
+    /** 이동해야 할 탭 인덱스(0홈·1지출·2게임정보·3마이). UI 가 소비 후 [consumePendingTab]. */
+    private val _pendingTab = MutableStateFlow<Int?>(null)
+    val pendingTab: StateFlow<Int?> = _pendingTab.asStateFlow()
+    fun consumePendingTab() { _pendingTab.value = null }
+
+    /** 열어야 할 공지 id. 목록이 아직 없으면 UI 가 로드를 기다렸다가 연다. */
+    private val _pendingNewsId = MutableStateFlow<String?>(null)
+    val pendingNewsId: StateFlow<String?> = _pendingNewsId.asStateFlow()
+    fun consumePendingNews() { _pendingNewsId.value = null }
+
+    /**
+     * 알림 페이로드의 딥링크 처리. 형식은 `"news:<공지 id>"` 처럼 `종류:인자`.
+     * 모르는 형식이면 무시한다(구버전 알림이 남아 있어도 안전).
+     */
+    fun handleNotificationLink(link: String) {
+        val kind = link.substringBefore(':')
+        val arg = link.substringAfter(':', "")
+        when (kind) {
+            "news" -> {
+                if (arg.isBlank()) return
+                _pendingNewsId.value = arg
+                _pendingGameInfoAnchor.value = GameInfoAnchor.NEWS
+                _pendingTab.value = 2
+                refreshGameInfo()   // 목록이 비어 있으면 채운다 — 상세를 열려면 원본 항목이 필요하다
+            }
+        }
+    }
     private val _autoCheckIn = MutableStateFlow(appSettings.autoCheckIn)
     val autoCheckIn: StateFlow<Boolean> = _autoCheckIn.asStateFlow()
     fun setAutoCheckIn(enabled: Boolean) {
@@ -236,6 +268,24 @@ class SpendingViewModel : ViewModel() {
     private fun applyNativeAfterNotifyChange(enabled: Boolean) {
         NativeScheduler.apply()
         if (enabled) NativeScheduler.runNow()
+    }
+
+    /**
+     * 앱이 포그라운드로 돌아왔을 때 밀린 알림을 1회 점검한다.
+     *
+     * 주기 작업만으로는 구멍이 크다 — iOS BGAppRefreshTask 는 실행 시점이 OS 재량이고 앱이 강제
+     * 종료돼 있으면 아예 안 돌며, Android 도 Doze 에서 늦어진다. 그래서 알림이 사실상 '토글을 켜는
+     * 순간'에만 오는 것처럼 보였다. 앱을 여는 순간을 보조 트리거로 쓴다.
+     *
+     * 전환할 때마다 HoYoLAB 을 두드리면 안 되므로 [FOREGROUND_CHECK_MIN_INTERVAL_MS] 간격을 둔다.
+     */
+    fun onAppForeground() {
+        if (!appSettings.needsPeriodicWork()) return
+        val now = currentTimeMillis()
+        if (now - appSettings.lastForegroundCheckMillis < FOREGROUND_CHECK_MIN_INTERVAL_MS) return
+        appSettings.lastForegroundCheckMillis = now
+        NativeScheduler.apply()   // 예약이 끊겨 있었다면 여기서 되살린다
+        NativeScheduler.runNow()
     }
 
     private val _accentIndex = MutableStateFlow(0)
@@ -1659,6 +1709,8 @@ class SpendingViewModel : ViewModel() {
         const val SYNC_TIMEOUT_MS = 8_000L
         /** Firestore 문서 1MB 한도 근접 경고 임계치(바이트). 초과 시 set 이 실패해 백업이 조용히 멈추므로 미리 안내. */
         const val CLOUD_DOC_WARN_BYTES = 900_000
+        /** 포그라운드 알림 점검 최소 간격(ms) — 탭 전환마다 HoYoLAB 을 두드리지 않도록. */
+        const val FOREGROUND_CHECK_MIN_INTERVAL_MS = 15L * 60 * 1000
     }
 
     /**
