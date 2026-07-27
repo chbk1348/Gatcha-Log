@@ -94,6 +94,64 @@ class ScheduleLogicTest {
         assertTrue(SavingsPlanner.build(listOf(unknown), emptyMap(), emptyMap(), base).isEmpty())
     }
 
+    // ── 콜라보 분리 ──────────────────────────────────────────────────────────
+    // 스타레일 4.4 = Fate 콜라보 + 일반 픽업이 같은 버전. 카드가 버전 전체 목록이 되면 안 된다.
+
+    private fun hsr(name: String, endDays: Long, startDays: Long, type: String = "character") =
+        banner(name, endDays, "4.4", type = type, startDays = startDays, game = Game.HSR)
+
+    private fun collabAndRegular(): List<GachaBanner> = listOf(
+        hsr("토오사카 린", 0, 2).copy(endMillis = 0L),       // 콜라보(종료 미정)
+        hsr("길가메시", 0, 2).copy(endMillis = 0L),
+        hsr("고요히 빛나는 불티", 0, 2, "weapon").copy(endMillis = 0L),  // 콜라보 전용 광추(이름엔 단서 없음)
+        hsr("스파키", 9, -7),                                  // 같은 버전 일반 픽업
+        hsr("히메코•노바", 9, -7),
+    )
+
+    @Test
+    fun collabGroupKeepsOnlyCollabPickups() {
+        val groups = ScheduleLogic.buildVersionGroups(collabAndRegular(), "all")
+        val collab = ScheduleLogic.collabGroups(groups).single()
+        assertEquals(
+            listOf("토오사카 린", "길가메시", "고요히 빛나는 불티"),
+            collab.pickups.map { it.name },
+        )
+    }
+
+    @Test
+    fun collabPhaseWeaponIsIncludedEvenWithoutNameMatch() {
+        // 전용 광추는 이름 화이트리스트에 안 걸리지만 같은 시작·종료 페이즈라 함께 묶인다.
+        val groups = ScheduleLogic.buildVersionGroups(collabAndRegular(), "all")
+        val collab = ScheduleLogic.collabGroups(groups).single()
+        assertTrue(collab.pickups.any { it.name == "고요히 빛나는 불티" })
+        assertTrue(!isCollabBanner(collab.pickups.first { it.name == "고요히 빛나는 불티" }))
+    }
+
+    @Test
+    fun regularGroupKeepsNonCollabPickupsOfSameVersion() {
+        // 예전엔 콜라보가 낀 버전 그룹을 통째로 빼서 스파키·히메코가 일정에서 사라졌다.
+        val groups = ScheduleLogic.buildVersionGroups(collabAndRegular(), "all")
+        val regular = ScheduleLogic.regularGroups(groups).single()
+        assertEquals(listOf("스파키", "히메코•노바"), regular.pickups.map { it.name })
+        assertEquals(base + 9 * day, regular.nearestEnd)   // 날짜도 남은 픽업 기준으로 다시 잡힌다
+    }
+
+    @Test
+    fun collabGroupDatesComeFromCollabPickupsOnly() {
+        val groups = ScheduleLogic.buildVersionGroups(collabAndRegular(), "all")
+        val collab = ScheduleLogic.collabGroups(groups).single()
+        assertTrue(collab.isEndUnknown)                    // 콜라보 3종이 전부 종료 미정
+        assertEquals("종료 미정", collab.remainLabel(base))
+        assertEquals(base + 2 * day, collab.start)         // 일반 픽업의 이른 시작(-7일)을 끌어오지 않는다
+    }
+
+    @Test
+    fun groupWithoutCollabIsUntouched() {
+        val groups = ScheduleLogic.buildVersionGroups(listOf(banner("A", 5, "6.6"), banner("B", 2, "6.6")), "all")
+        assertTrue(ScheduleLogic.collabGroups(groups).isEmpty())
+        assertEquals(2, ScheduleLogic.regularGroups(groups).single().pickups.size)
+    }
+
     // ── 버전 묶음 ────────────────────────────────────────────────────────────
 
     @Test

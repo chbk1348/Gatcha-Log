@@ -623,8 +623,10 @@ private struct CompactPickupRow: View {
 }
 
 // 콜라보 강조 카드 — 게임 일정 최상단. 활성 콜라보(스타레일×Fate 등)를 일반 버전과 분리해 부각(보라 accent).
+// 카드에는 **콜라보 픽업만** 싣는다(같은 버전의 일반 픽업은 아래 버전 카드로). 전체 목록은 픽업 페이지에서.
 private struct CollabScheduleCard: View {
     let groups: [VersionGroup]
+    var onSeePickups: (() -> Void)? = nil
     private var title: String {
         for g in groups { for b in g.pickups { if let t = GameInfoKt.collabTitle(banner: b) { return t } } }
         return "콜라보 픽업"
@@ -661,6 +663,19 @@ private struct CollabScheduleCard: View {
                         CompactPickupRow(banner: b, companions: [], showCollab: false)
                     }
                 }
+                // 같은 버전의 일반 픽업까지 한 번에 보려면 픽업 전체 페이지로. (이미 상세 페이지면 생략)
+                if let onSeePickups {
+                    Button(action: onSeePickups) {
+                        HStack(spacing: 4) {
+                            Spacer(minLength: 0)
+                            Text("픽업 전체 보기").font(.pretendard(size: 12, weight: .bold)).foregroundStyle(glCollab)
+                            Image(systemName: "chevron.right").font(.pretendard(size: 11, weight: .bold)).foregroundStyle(glCollab)
+                            Spacer(minLength: 0)
+                        }
+                        .padding(.top, 13).contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                }
             }
         }
     }
@@ -693,7 +708,7 @@ struct GameScheduleSection: View {
                 }
             } else {
                 if !collabGroups.isEmpty {
-                    CollabScheduleCard(groups: collabGroups)
+                    CollabScheduleCard(groups: collabGroups, onSeePickups: onSeePickups)
                     if !topGroups.isEmpty || !topExtras.isEmpty { Spacer().frame(height: 12) }
                 }
                 if let featured = topGroups.first {
