@@ -26,7 +26,10 @@ struct GLGSkeleton: View {
                 .fill(GLGColor.skeletonBase)
                 .overlay {
                     if !reduceMotion {
-                        TimelineView(.animation) { ctx in
+                        // .animation(디스플레이 리프레시 = ProMotion 120Hz)이 아니라 30Hz 고정.
+                        // 시머는 1.1초 주기 저주파 스윕이라 30fps 로도 육안 차이가 없는데, 로딩 구간에는
+                        // 스켈레톤이 10여 개 동시에 떠 네트워크·파싱과 프레임 예산을 다툰다.
+                        TimelineView(.periodic(from: .now, by: 1.0 / 30.0)) { ctx in
                             // 절대 시간에서 0→1 위상 산출(모든 박스 동일 클럭). -1.6w→+1.6w 스윕.
                             let t = ctx.date.timeIntervalSinceReferenceDate
                             let p = CGFloat((t.truncatingRemainder(dividingBy: GLGMotion.shimmerPeriod)) / GLGMotion.shimmerPeriod)

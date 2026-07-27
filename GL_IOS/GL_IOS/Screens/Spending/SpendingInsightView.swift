@@ -3,12 +3,12 @@ import Shared
 
 // 지출 인사이트 — 예산 페이스 예측 + 게임별 월 추이 + 결제수단·태그 비중. (Compose SpendingInsightScreen 대응)
 struct SpendingInsightView: View {
-    @ObservedObject var store: SpendingStore
+    var store: SpendingStore
     @Environment(\.glgAccent) private var accent
     @State private var tab = 0   // 0=월간 인사이트, 1=연간 리포트
 
     private var spendings: [Spending] { store.spendings }
-    private var monthTotal: Int64 { store.monthlyTotal() }
+    private var monthTotal: Int64 { store.monthlyTotal }
 
     var body: some View {
         ScrollView {
@@ -348,12 +348,12 @@ struct MonthlyTrendCard: View {
 /// "N월 지출" 요약 헤더 — 이번 달 총 지출 + 지난달 대비. (지출 목록 상단에서 인사이트 월간 탭으로 이동)
 /// SpendingView·SpendingInsightView 양쪽에서 재사용하기 위해 별도 View 로 추출.
 struct MonthSummaryHeader: View {
-    @ObservedObject var store: SpendingStore
+    var store: SpendingStore
     @Environment(\.glgAccent) private var accent
 
     var body: some View {
-        let total = store.monthlyTotal()
-        let prev = store.prevMonthTotal()
+        let total = store.monthlyTotal
+        let prev = store.prevMonthTotal
         let diff = total - prev
         return VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 6) {

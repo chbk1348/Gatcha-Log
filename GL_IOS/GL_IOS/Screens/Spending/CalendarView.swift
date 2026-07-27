@@ -4,7 +4,7 @@ import Shared
 // 통합 캘린더 — **타임라인 형식**. 활동(지출·픽업 배너 시작/종료)이 있는 날은 노드로, 활동 없는 연속 구간은
 // 하나의 '활동 없음' 노드로 묶어 노출. (월 그리드 → 타임라인 대개편, Compose CalendarScreen 대응)
 struct CalendarView: View {
-    @ObservedObject var store: SpendingStore
+    var store: SpendingStore
     @Environment(\.glgAccent) private var accent
     @State private var year = 0
     @State private var month = 0

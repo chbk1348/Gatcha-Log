@@ -4,7 +4,7 @@ import Shared
 // 연간 리포트 — 연도 선택 + 총/평균/기록 + 월별 막대 + 게임별 분석.
 // 지출 인사이트의 '연간' 탭에 임베드되는 콘텐츠(스크롤·네비타이틀은 부모 제공).
 struct AnnualReportContent: View {
-    @ObservedObject var store: SpendingStore
+    var store: SpendingStore
     @Environment(\.glgAccent) private var accent
     @State private var selectedYear: Int = 0
 

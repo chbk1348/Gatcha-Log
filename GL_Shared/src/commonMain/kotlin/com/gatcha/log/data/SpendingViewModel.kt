@@ -57,6 +57,7 @@ import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
@@ -312,6 +313,8 @@ class SpendingViewModel : ViewModel() {
      * 전환할 때마다 HoYoLAB 을 두드리면 안 되므로 [FOREGROUND_CHECK_MIN_INTERVAL_MS] 간격을 둔다.
      */
     fun onAppForeground() {
+        DateUtil.refreshTimeZone()    // 캐시된 로컬 타임존 갱신(여행·자동 시간대 변경) — 알림 조건과 무관하게 항상
+        recomputeSpendingDerived()    // 앱을 켜 둔 채 달이 바뀌면 지출은 그대로여서 '이번 달'이 안 갱신된다
         if (!appSettings.needsPeriodicWork()) return
         val now = currentTimeMillis()
         if (now - appSettings.lastForegroundCheckMillis < FOREGROUND_CHECK_MIN_INTERVAL_MS) return
@@ -373,6 +376,7 @@ class SpendingViewModel : ViewModel() {
         _savingsHeld.value = repo.loadSavingsHeld()
         _savingsHidden.value = repo.loadSavingsHidden()
         refreshSavings()
+        recomputeSpendingDerived()   // 첫 프레임이 0원으로 그려지지 않게 동기로 한 번
     }
 
     // ----------------------------------------------------------------- 계정 (구글 로그인 — Credential Manager)
@@ -1574,6 +1578,77 @@ class SpendingViewModel : ViewModel() {
         _attendanceStreak.value = computeAttendanceStreak()
     }
 
+    // ── 파생 StateFlow(이번 달) ────────────────────────────────────────────────
+    //
+    // 아래 monthlyTotal()/monthlyTotalsByGame()/prevMonthTotal() 은 부를 때마다 지출 전체를 훑는다.
+    // 화면(특히 홈)이 이걸 그리는 도중에 호출하고 있어 한 번 그릴 때마다 전체 스캔이 4~6회 일어났고,
+    // iOS 는 그 스캔 하나하나가 KMP 브리지 왕복이라 비용이 더 컸다. 값이 바뀔 때 한 번만 계산해 흘려보낸다.
+    //
+    // 계산 함수 자체는 그대로 둔다 — 특정 연/월을 지정하는 호출(월별 추이 차트 등)이 남아 있고,
+    // 화면 코드가 새 StateFlow 로 옮겨가지 않은 곳도 지금까지처럼 동작해야 한다.
+    private val _currentMonthTotal = MutableStateFlow(0L)
+
+    /** 이번 달 총 지출. */
+    val currentMonthTotal: StateFlow<Long> = _currentMonthTotal.asStateFlow()
+
+    private val _previousMonthTotal = MutableStateFlow(0L)
+
+    /** 전월 총 지출(MoM 비교용). */
+    val previousMonthTotal: StateFlow<Long> = _previousMonthTotal.asStateFlow()
+
+    private val _currentMonthTotalsByGame = MutableStateFlow<Map<String, Long>>(emptyMap())
+
+    /** 이번 달 게임별 지출 합계(gameKey → 금액). */
+    val currentMonthTotalsByGame: StateFlow<Map<String, Long>> = _currentMonthTotalsByGame.asStateFlow()
+
+    private val _unlinkedSubCount = MutableStateFlow(0)
+
+    /** 아직 정기결제로 등록되지 않은 '구독 표시' 지출 건수. */
+    val unlinkedSubCount: StateFlow<Int> = _unlinkedSubCount.asStateFlow()
+
+    private val _recentMonthlyTotals = MutableStateFlow<List<Long>>(emptyList())
+
+    /** 최근 [RECENT_MONTHS] 개월 총 지출 — 오래된 달 → 이번 달 순. 마이페이지 월별 추이 차트용. */
+    val recentMonthlyTotals: StateFlow<List<Long>> = _recentMonthlyTotals.asStateFlow()
+
+    /**
+     * 최근 [RECENT_MONTHS] 개월 지출을 **한 번만 훑어** 달별로 합산한다.
+     *
+     * 화면에서 monthlyTotal(year, month) 를 6번 부르면 지출 전체를 6번 훑는다(게다가 iOS 는 매번 브리지 왕복).
+     * 여기서 한 번에 만들어 둔다.
+     */
+    private fun computeRecentMonthlyTotals(): List<Long> {
+        val months = (RECENT_MONTHS - 1 downTo 0).map { back ->
+            var y = currentYear
+            var m = currentMonth - back
+            while (m <= 0) { m += 12; y -= 1 }
+            y to m
+        }
+        val sums = LongArray(months.size)
+        _spendings.value.forEach { s ->
+            val y = DateUtil.year(s.dateMillis)
+            val m = DateUtil.month(s.dateMillis)
+            val idx = months.indexOfFirst { it.first == y && it.second == m }
+            if (idx >= 0) sums[idx] += s.amount
+        }
+        return sums.toList()
+    }
+
+    /**
+     * '이번 달' 파생값을 다시 계산한다.
+     *
+     * 호출 지점을 늘리지 않으려고 [init] 에서 _spendings·_subscriptions 를 구독해 자동으로 돌리고,
+     * [loadAll] 끝에서 **동기로 한 번 더** 부른다. 구독 콜백은 한 런루프 뒤에 오는데, 그 사이에
+     * 화면이 먼저 그려지면 첫 프레임에 0원이 스쳤다가 바뀐다 — 시작 직후엔 그 틈이 보인다.
+     */
+    private fun recomputeSpendingDerived() {
+        _currentMonthTotal.value = monthlyTotal()
+        _previousMonthTotal.value = prevMonthTotal()
+        _currentMonthTotalsByGame.value = monthlyTotalsByGame()
+        _unlinkedSubCount.value = unlinkedSubscriptionSpendingCount()
+        _recentMonthlyTotals.value = computeRecentMonthlyTotals()
+    }
+
     // ----------------------------------------------------------------- 파생 통계
     fun monthlyTotal(year: Int = currentYear, month: Int = currentMonth): Long =
         _spendings.value.filter { DateUtil.isSameMonth(it.dateMillis, year, month) }.sumOf { it.amount }
@@ -1770,6 +1845,8 @@ class SpendingViewModel : ViewModel() {
         const val CLOUD_DOC_WARN_BYTES = 900_000
         /** 포그라운드 알림 점검 최소 간격(ms) — 탭 전환마다 HoYoLAB 을 두드리지 않도록. */
         const val FOREGROUND_CHECK_MIN_INTERVAL_MS = 15L * 60 * 1000
+        /** 월별 지출 추이 차트가 보여주는 개월 수. */
+        const val RECENT_MONTHS = 6
     }
 
     /**
@@ -1789,6 +1866,10 @@ class SpendingViewModel : ViewModel() {
         loadAll()
         loadTaskStats()   // 노트를 받기 전에도 지난 완주율은 보여준다
         runCatching { _keyStatOverrides.value = repo.loadKeyStatOverrides() }
+        // 지출·정기결제가 바뀌면 파생값을 자동으로 다시 계산 — 갱신 지점(13곳)마다 따로 부르지 않는다.
+        viewModelScope.launch {
+            combine(_spendings, _subscriptions) { _, _ -> Unit }.collect { recomputeSpendingDerived() }
+        }
         bootstrapAuthAndSync()
     }
 }

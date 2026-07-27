@@ -5,7 +5,7 @@ import Shared
 // (Compose GameInfoScreen 대응) ⚠️ chunk ② — 가챠 계산기/리포트/대시보드/프로필/확률표·리딤코드 다이얼로그는 chunk ③.
 // HoYoLAB 연동은 네이티브 HoyolabLinkView 를 시트로 호스팅.
 struct GameInfoView: View {
-    @ObservedObject var store: SpendingStore
+    var store: SpendingStore
     @Environment(\.glgAccent) private var accent
     @State private var showHoyolab = false
     @State private var showGift = false
@@ -365,7 +365,7 @@ private struct GameLineRow: View {
 /// 주년은 원래 게임 정보 탭 본문의 독립 섹션이었다. 1년에 몇 번 볼 정보가 상시 자리를 차지하고 있었고,
 /// 성격도 '언제 뭐가 있나'라 일정과 같아서 여기 탭으로 합쳤다.
 struct GameSchedulePage: View {
-    @ObservedObject var store: SpendingStore
+    var store: SpendingStore
     let filter: String
     @State private var tab = 0
 

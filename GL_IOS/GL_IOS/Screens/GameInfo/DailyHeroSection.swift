@@ -4,7 +4,7 @@ import Shared
 // 데일리 히어로 — 실시간 노트(레진/개척력/배터리) + 출석체크(7일 스트립 + 월 달력 + 게임별).
 // (Compose DailyHeroSection 대응) HoYoLAB 미연동 시 연동 유도 카드.
 struct DailyHeroSection: View {
-    @ObservedObject var store: SpendingStore
+    var store: SpendingStore
     var filter: String = "all"   // "all" | game.key — Segmented 세그먼트 선택값
     let onConfig: () -> Void
     /// 전투 진행도·수입 일지 상세로 — 데일리와 같은 '오늘 뭐 했나' 맥락이라 여기서 들어간다.

@@ -39,7 +39,7 @@ private func newsRow(_ n: NewsItem, onOpen: @escaping (NewsItem) -> Void) -> som
 
 /// 공지·뉴스 섹션 — 게임별 최신 공지(상위 maxCount), 더 있으면 '더보기'로 전체 페이지.
 struct NewsSection: View {
-    @ObservedObject var store: SpendingStore
+    var store: SpendingStore
     let filter: String
     var onSeeAll: () -> Void = {}
     var onOpenNews: (NewsItem) -> Void = { _ in }
@@ -77,7 +77,7 @@ struct NewsSection: View {
 
 /// 공지·뉴스 전체 페이지.
 struct NewsPage: View {
-    @ObservedObject var store: SpendingStore
+    var store: SpendingStore
     let filter: String
     // 상세 push 는 navigationDestination 으로 — NewsSection 과 동일한 이유(destination형 NavigationLink 회피).
     @State private var selectedNews: NewsItem? = nil

@@ -20,17 +20,23 @@ import SwiftUI
 /// LazyVGrid 는 같은 행의 셀들을 가장 큰 카드 높이에 맞춰 정렬해, 높이가 제각각인 카드
 /// 목록(예: 날짜별 지출)에서는 짧은 카드 아래에 빈 공간이 생긴다. 메이슨리는 각 열을
 /// 독립 세로 스택으로 두고 '가장 짧은 열'에 다음 카드를 넣어 그 빈틈을 없앤다.
+///
+/// 뷰는 **클로저로 보관**한다. 즉시 `AnyView(view())` 로 만들면 카드 배열을 map 하는 시점에 전 카드의
+/// 뷰 트리가 한꺼번에 생성돼, 아래 LazyVStack 의 laziness 가 무의미해진다(지출 300건이면 300장을 미리 만든다).
 struct GLGMasonryCard: Identifiable {
     let id: AnyHashable
     /// 높이 추정치(상대값). 지출=행 수, 홈=카드별 대략치. 열 균형 배분에 쓴다.
     let weight: Double
-    let view: AnyView
+    private let make: () -> AnyView
 
-    init<V: View>(id: AnyHashable, weight: Double = 1, @ViewBuilder view: () -> V) {
+    init<V: View>(id: AnyHashable, weight: Double = 1, @ViewBuilder view: @escaping () -> V) {
         self.id = id
         self.weight = weight
-        self.view = AnyView(view())
+        self.make = { AnyView(view()) }
     }
+
+    /// 실제 뷰 — 렌더 시점에만 만들어진다.
+    var view: AnyView { make() }
 }
 
 /// 넓은 화면에서 카드들을 메이슨리(2열, 짧은 열 우선 채움)로, 컴팩트에서는 기존 세로 1열로.

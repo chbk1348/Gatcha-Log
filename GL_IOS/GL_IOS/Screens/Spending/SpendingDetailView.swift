@@ -3,7 +3,7 @@ import Shared
 
 // 지출 상세 — 전체 정보 + 수정/삭제. (Compose SpendingDetailScreen 대응)
 struct SpendingDetailView: View {
-    @ObservedObject var store: SpendingStore
+    var store: SpendingStore
     let spendingId: String
     let onEdit: (Spending) -> Void
     @Environment(\.dismiss) private var dismiss

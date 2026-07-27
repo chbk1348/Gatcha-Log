@@ -3,7 +3,7 @@ import Shared
 
 // 통합 게임 탭 — 선택 게임의 전투 진행도·수입 일지. (픽업 배너는 상단 '게임 일정'으로 통합돼 여기선 제외)
 struct GameTabbedSection: View {
-    @ObservedObject var store: SpendingStore
+    var store: SpendingStore
     var filter: String = "all"   // 상단 게임 세그먼트 선택값 — 자체 칩 제거, 이 값으로 노출 게임 결정
     @Environment(\.glgAccent) private var accent
 
