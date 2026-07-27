@@ -521,12 +521,12 @@ fun HomeContent(
         }
         item { Spacer(Modifier.height(120.dp)) }
     }
-    // 상단 스크림 — 헤더(버튼) 아래에 깔린다.
+    // 상단 스크림 — **상태바 영역만** 덮는다(헤더 버튼 줄은 그대로 투명).
     Box(
         Modifier
             .align(Alignment.TopCenter)
             .fillMaxWidth()
-            .height(GlgTabHeaderHeight + topInset)
+            .height(topInset)
             .graphicsLayer { alpha = topScrimAlpha }
             .background(
                 Brush.verticalGradient(
