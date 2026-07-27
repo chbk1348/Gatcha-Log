@@ -242,15 +242,6 @@ private struct CollabChip: View {
             .padding(.horizontal, 6).padding(.vertical, 1).background(glCollab, in: Capsule())
     }
 }
-/// 게임별 무기 픽업 명칭 — 칩 하나로 묶어 표기할 때 쓴다.
-private func weaponLabel(_ gameKey: String) -> String {
-    switch gameKey {
-    case "hsr": return "광추"
-    case "zzz": return "음동기"
-    default: return "무기"
-    }
-}
-
 // ── 섹션 진입 카드 ──────────────────────────────────────────────────────────
 
 /// 게임 정보 탭의 '게임 일정' 섹션 — 호요랜드 카드와 같은 규격의 진입 카드 한 장.
@@ -415,9 +406,6 @@ private struct UndatedPinCard: View {
     let pickups: [GachaBanner]
     var body: some View {
         let title = pickups.compactMap { GameInfoKt.collabTitle(banner: $0) }.first ?? "종료 미정 픽업"
-        let gameKey = GameData.shared.byNameOrNull(name: pickups[0].game)?.key ?? ""
-        let chars = pickups.filter { $0.type != "weapon" }
-        let weapons = pickups.filter { $0.type == "weapon" }.count
         let started = pickups.filter { $0.startMillis > 0 }.map { $0.startMillis }.min()
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 7) {
@@ -429,7 +417,7 @@ private struct UndatedPinCard: View {
                 Text("\(DateUtil.shared.shortDate(millis: started)) 시작")
                     .font(.pretendard(size: 11)).foregroundStyle(GLGColor.textSecondary).padding(.top, 3)
             }
-            PickupChips(chars: chars, weapons: weapons, gameKey: gameKey).padding(.top, 10)
+            PickupChips(pickups: pickups).padding(.top, 10)
             Text("종료 시각 미공지 — 확정되면 타임라인에 올라갑니다")
                 .font(.pretendard(size: 11, weight: .bold)).foregroundStyle(glCollab).padding(.top, 9)
         }
@@ -508,11 +496,7 @@ private struct EntryCard: View {
                     .lineLimit(1).padding(.top, 4)
             }
             if !e.pickups.isEmpty {
-                PickupChips(
-                    chars: e.pickups.filter { $0.type != "weapon" },
-                    weapons: e.pickups.filter { $0.type == "weapon" }.count,
-                    gameKey: e.gameKey
-                ).padding(.top, 9)
+                PickupChips(pickups: e.pickups).padding(.top, 9)
             }
         }
         .padding(.horizontal, 12).padding(.vertical, 10)
@@ -522,21 +506,18 @@ private struct EntryCard: View {
     }
 }
 
-/// 캐릭터 칩 + 무기는 "N종" 하나로 묶음. 2개씩 줄바꿈(Android PickupChips 와 동일 규칙).
+/// 픽업 칩 — 캐릭터 먼저, 무기(광추·음동기)는 그다음. 둘 다 **이름 그대로** 노출한다.
+/// ("무기 2종"처럼 개수로 뭉치면 정작 뭐가 픽업인지 알 수 없어 칩의 쓸모가 없다.)
+/// 2개씩 줄바꿈 — Android PickupChips 와 동일 규칙.
 private struct PickupChips: View {
-    let chars: [GachaBanner]
-    let weapons: Int
-    let gameKey: String
+    let pickups: [GachaBanner]
     var body: some View {
-        let items: [(GachaBanner?, String)] =
-            chars.map { ($0, $0.name) } + (weapons > 0 ? [(nil, "\(weaponLabel(gameKey)) \(weapons)종")] : [])
-        let rows = stride(from: 0, to: items.count, by: 2).map { Array(items[$0..<min($0 + 2, items.count)]) }
+        let ordered = pickups.filter { $0.type != "weapon" } + pickups.filter { $0.type == "weapon" }
+        let rows = stride(from: 0, to: ordered.count, by: 2).map { Array(ordered[$0..<min($0 + 2, ordered.count)]) }
         VStack(alignment: .leading, spacing: 6) {
             ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
                 HStack(spacing: 6) {
-                    ForEach(Array(row.enumerated()), id: \.offset) { _, item in
-                        PickupChip(banner: item.0, label: item.1)
-                    }
+                    ForEach(Array(row.enumerated()), id: \.offset) { _, b in PickupChip(banner: b) }
                     Spacer(minLength: 0)
                 }
             }
@@ -545,25 +526,26 @@ private struct PickupChips: View {
 }
 
 private struct PickupChip: View {
-    let banner: GachaBanner?
-    let label: String
+    let banner: GachaBanner
     var body: some View {
         HStack(spacing: 6) {
-            if let banner {
+            // 무기도 캐릭터와 같은 원형 아바타 — 칩이 한 줄에 섞여도 형태가 어긋나지 않는다.
+            if banner.type == "weapon" {
+                ZStack {
+                    Circle().fill(glWeap.opacity(0.16))
+                    SwordShape().fill(glWeap).frame(width: 10, height: 12)
+                }
+                .frame(width: 20, height: 20)
+            } else {
                 ZStack {
                     Circle().fill(Color(argb64: banner.gameColor))
                     Text(String(banner.name.prefix(1))).font(.pretendard(size: 10, weight: .heavy))
                         .foregroundStyle(.white)
                 }
                 .frame(width: 20, height: 20)
-            } else {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 6, style: .continuous).fill(glWeap.opacity(0.16))
-                    SwordShape().fill(glWeap).frame(width: 10, height: 12)
-                }
-                .frame(width: 20, height: 20)
             }
-            Text(label).font(.pretendard(size: 11.5, weight: .bold)).foregroundStyle(GLGColor.textPrimary).lineLimit(1)
+            Text(banner.name).font(.pretendard(size: 11.5, weight: .bold))
+                .foregroundStyle(GLGColor.textPrimary).lineLimit(1)
         }
         .padding(.leading, 3).padding(.trailing, 10).padding(.vertical, 3)
         .background(Color.white, in: Capsule())
