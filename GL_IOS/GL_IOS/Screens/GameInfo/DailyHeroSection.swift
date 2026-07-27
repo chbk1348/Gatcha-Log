@@ -31,11 +31,13 @@ struct DailyHeroSection: View {
         } else {
             // 전체 모드 — 요약 카드 + 게임별 개별 카드 분리 (재디자인)
             VStack(alignment: .leading, spacing: 16) {
-                // 요약 카드: 연속·전체출석 + 최근 출석 스트립
-                GLGCard(cornerRadius: 20, padding: 16) {
+                VStack(alignment: .leading, spacing: 11) {
+                    // 제목은 카드 밖으로 — 다른 섹션(내 캐릭터·게임 일정·숙제 완주율)과 같은 규격.
+                    // 액션(전체 출석)은 제목 줄 우측에 함께 둔다.
+                    headerRow
+                    // 요약 카드: 최근 출석 스트립(+한 달 보기)
+                    GLGCard(cornerRadius: 20, padding: 16) {
                     VStack(alignment: .leading, spacing: 0) {
-                        headerRow
-                        Spacer().frame(height: 14)
                         attendanceHeader
                         Spacer().frame(height: 10)
                         WeekAttendanceStrip(history: store.attendanceHistory)
@@ -43,6 +45,7 @@ struct DailyHeroSection: View {
                             Spacer().frame(height: 14)
                             MonthAttendanceCalendar(history: store.attendanceHistory)
                         }
+                    }
                     }
                 }
                 // 게임별 통합 카드: 3개 게임(실시간 노트 + 출석)을 한 카드에 구분선으로 묶음
