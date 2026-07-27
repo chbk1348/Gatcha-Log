@@ -110,7 +110,11 @@ struct NewsDetailView: View {
                 // 공유 — **링크만** 보낸다. 본문은 앱이 재구성한 것이라 그대로 보낼 수 없고,
                 // 제목을 붙이면 받는 쪽 미리보기와 중복돼 지저분해진다.
                 ToolbarItem(placement: .topBarTrailing) {
-                    ShareLink(item: u) { Image(systemName: "square.and.arrow.up") }
+                    // 공유 대상은 URL 하나뿐이지만, 미리보기 제목은 **앱이 가진 한국어 제목**으로 고정한다.
+                    // 지정하지 않으면 공유 시트가 링크 메타데이터를 직접 긁어와 영문 제목을 띄운다.
+                    ShareLink(item: u, preview: SharePreview(item.title)) {
+                        Image(systemName: "square.and.arrow.up")
+                    }
                 }
                 if #available(iOS 26.0, *) {
                     ToolbarSpacer(.fixed, placement: .topBarTrailing)
