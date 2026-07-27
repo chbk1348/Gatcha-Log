@@ -1,5 +1,7 @@
 package com.gatcha.log.data
 
+import com.gatcha.log.util.currentTimeMillis
+
 /**
  * 통합 게임 일정 — 패치(픽업 페이즈)·진행 이벤트·정기 콘텐츠를 하나의 모델로 합쳐 날짜순 정렬.
  *
@@ -36,7 +38,14 @@ data class VersionGroup(
     val start: Long,
     /** 버전 종료일 = 픽업 종료 중 가장 늦은 값. */
     val end: Long,
-)
+) {
+    /** 종료일이 있는 픽업이 하나도 없음(전부 종료 미공지) — D-day·진행바를 못 그린다. */
+    val isEndUnknown: Boolean get() = nearestEnd <= 0L
+
+    /** 카드 헤더의 남은 시간 표기 — 전부 종료 미정이면 "종료 미정". */
+    fun remainLabel(nowMillis: Long = currentTimeMillis()): String =
+        if (isEndUnknown) "종료 미정" else dhLabel(nearestEnd, nowMillis)
+}
 
 object ScheduleLogic {
 
@@ -63,7 +72,8 @@ object ScheduleLogic {
         // ① 픽업 페이즈
         for (game in GameData.games) {
             if (game.enneadKey == null) continue
-            val gb = banners.filter { it.game == game.displayName }
+            // 종료 미정 픽업은 '픽업 종료' 일정 줄을 만들 수 없다(날짜가 없음) → 페이즈 계산에서 제외.
+            val gb = banners.filter { it.game == game.displayName && !it.isEndUnknown }
             if (gb.isEmpty()) continue
             val phases = gb.groupBy { it.endMillis }.entries.sortedBy { it.key } // 종료일 오름차순 페이즈
             val versions = phases.map { it.value.firstOrNull()?.version ?: "" }
@@ -99,26 +109,36 @@ object ScheduleLogic {
     fun filteredEntries(entries: List<ScheduleEntry>, filter: String): List<ScheduleEntry> =
         if (filter == "all") entries else entries.filter { it.gameKey == filter }
 
-    /** 헤더 드롭다운(filter)에 맞춘 픽업 배너 — "all"이면 전체, 특정 게임이면 그 게임만. 종료 임박순. */
+    /**
+     * 헤더 드롭다운(filter)에 맞춘 픽업 배너 — "all"이면 전체, 특정 게임이면 그 게임만. 종료 임박순.
+     * 종료 미정(0)은 임박도를 알 수 없으니 맨 뒤로 — 안 그러면 0 이 가장 이른 값이라 제일 위로 올라온다.
+     */
     fun filteredPickups(banners: List<GachaBanner>, filter: String): List<GachaBanner> {
         val list = if (filter == "all") banners
         else GameData.games.firstOrNull { it.key == filter }?.let { g -> banners.filter { it.game == g.displayName } } ?: emptyList()
-        return list.sortedBy { it.endMillis }
+        return list.sortedWith(compareBy({ it.isEndUnknown }, { it.endMillis }))
     }
 
-    /** 필터 적용 픽업을 (게임, 버전)으로 묶어 임박순 정렬. 버전이 비면 게임명만. */
+    /**
+     * 필터 적용 픽업을 (게임, 버전)으로 묶어 임박순 정렬. 버전이 비면 게임명만.
+     * 종료 미정 픽업은 nearestEnd/end 집계에서 빼고(0 이 최솟값이 되어 정렬을 흐트러뜨림),
+     * 그룹 전체가 미정이면 nearestEnd=0 으로 두고 맨 뒤에 배치한다.
+     */
     fun buildVersionGroups(banners: List<GachaBanner>, filter: String): List<VersionGroup> =
         filteredPickups(banners, filter)
             .groupBy { it.game to it.version }
             .mapNotNull { (key, list) ->
                 val game = GameData.byNameOrNull(key.first) ?: return@mapNotNull null
+                val dated = list.filter { !it.isEndUnknown }
                 VersionGroup(
-                    game, key.second, list.sortedBy { it.endMillis }, list.minOf { it.endMillis },
+                    game, key.second,
+                    list.sortedWith(compareBy({ it.isEndUnknown }, { it.endMillis })),
+                    nearestEnd = dated.minOfOrNull { it.endMillis } ?: 0L,
                     start = list.filter { it.startMillis > 0 }.minOfOrNull { it.startMillis } ?: 0L,
-                    end = list.maxOf { it.endMillis },
+                    end = dated.maxOfOrNull { it.endMillis } ?: 0L,
                 )
             }
-            .sortedBy { it.nearestEnd }
+            .sortedWith(compareBy({ it.nearestEnd <= 0L }, { it.nearestEnd }))
 
     /** 콜라보 픽업이 포함된 버전 그룹(별도 섹션으로 분리 표시). */
     fun collabGroups(groups: List<VersionGroup>): List<VersionGroup> =

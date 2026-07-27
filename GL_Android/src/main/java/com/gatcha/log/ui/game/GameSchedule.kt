@@ -147,14 +147,12 @@ private fun PickupGroups(pickups: List<GachaBanner>, limit: Int? = null, onMore:
 fun PickupItem(banner: GachaBanner, companions: List<GachaBanner> = emptyList()) {
     val c = banner.gameColor.toColor()
     val isWeapon = banner.type == "weapon"
-    val urgent = banner.dDay() <= 3
+    val urgent = banner.isUrgent()
     val ddColor = if (urgent) Urgent else c
     val short = GameData.byNameOrNull(banner.game)?.shortName ?: banner.game
     val sub = if (banner.version.isBlank()) short else "$short · v${banner.version}"
-    val hasProg = banner.startMillis > 0 && banner.endMillis > banner.startMillis
-    val frac = if (hasProg)
-        ((System.currentTimeMillis() - banner.startMillis).toFloat() / (banner.endMillis - banner.startMillis)).coerceIn(0f, 1f)
-    else 0f
+    val hasProg = banner.hasProgress
+    val frac = banner.progress()
     Row(
         Modifier.fillMaxWidth().padding(bottom = 9.dp).height(IntrinsicSize.Min)
             .clip(RoundedCornerShape(14.dp))
@@ -179,8 +177,11 @@ fun PickupItem(banner: GachaBanner, companions: List<GachaBanner> = emptyList())
                     Text(sub, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, color = TextSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
                 Column(horizontalAlignment = Alignment.End) {
-                    Text(dhLabel(banner.endMillis), fontSize = 14.sp, fontWeight = FontWeight.Bold, color = ddColor, maxLines = 1)
-                    Text("~" + DateUtil.shortDate(banner.endMillis), fontSize = 9.sp, color = TextSecondary)
+                    Text(banner.remainLabel(), fontSize = 14.sp, fontWeight = FontWeight.Bold, color = ddColor, maxLines = 1)
+                    // 종료 미정이면 날짜 줄을 숨긴다(빈 문자열).
+                    if (banner.endDateLabel().isNotBlank()) {
+                        Text(banner.endDateLabel(), fontSize = 9.sp, color = TextSecondary)
+                    }
                 }
             }
             if (companions.isNotEmpty()) {
@@ -281,9 +282,9 @@ private fun FeaturedVersionCard(vg: VersionGroup) {
     val ddColor = if (urgent) Urgent else c
     val totalH = ((vg.nearestEnd - now) / 3_600_000L).coerceAtLeast(0L)
     val days = (totalH / 24).toInt(); val hours = (totalH % 24).toInt()
-    val lead = vg.pickups.minByOrNull { it.endMillis }
-    val frac = if (lead != null && lead.startMillis > 0 && lead.endMillis > lead.startMillis)
-        ((now - lead.startMillis).toFloat() / (lead.endMillis - lead.startMillis)).coerceIn(0f, 1f) else 0f
+    // 대표 픽업은 종료일이 있는 것 중 가장 임박한 것 — 종료 미정(0)이 최솟값으로 잡히면 안 된다.
+    val lead = vg.pickups.filter { !it.isEndUnknown }.minByOrNull { it.endMillis }
+    val frac = lead?.progress(now) ?: 0f
     val chars = vg.pickups.filter { it.type != "weapon" }
     val items = chars.ifEmpty { vg.pickups }
     GlassCard(shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth()) {
@@ -328,7 +329,7 @@ private fun FeaturedVersionCard(vg: VersionGroup) {
                         Spacer(Modifier.height(6.dp))
                         Text("외 ${items.size - 2}", fontSize = 10.sp, color = TextSecondary)
                     }
-                    if (vg.start > 0) {
+                    if (vg.start > 0 && vg.end > 0) {
                         val vFrac = if (vg.end > vg.start) ((now - vg.start).toFloat() / (vg.end - vg.start)).coerceIn(0f, 1f) else 0f
                         Spacer(Modifier.height(8.dp))
                         Text(
@@ -369,8 +370,8 @@ private fun SlimVersionRow(vg: VersionGroup) {
                 Text("${vg.game.displayName} · $counts", fontSize = 10.sp, color = TextSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
             Column(horizontalAlignment = Alignment.End) {
-                Text(dhLabel(vg.nearestEnd), fontSize = 13.sp, fontWeight = FontWeight.Bold, color = ddColor, maxLines = 1)
-                if (vg.start > 0) Text("${DateUtil.shortDate(vg.start)}~${DateUtil.shortDate(vg.end)}", fontSize = 9.sp, color = TextSecondary, maxLines = 1)
+                Text(vg.remainLabel(), fontSize = 13.sp, fontWeight = FontWeight.Bold, color = ddColor, maxLines = 1)
+                if (vg.start > 0 && vg.end > 0) Text("${DateUtil.shortDate(vg.start)}~${DateUtil.shortDate(vg.end)}", fontSize = 9.sp, color = TextSecondary, maxLines = 1)
             }
         }
     }
@@ -398,8 +399,8 @@ private fun CompactVersionSection(vg: VersionGroup) {
                 )
                 Spacer(Modifier.weight(1f))
                 Column(horizontalAlignment = Alignment.End) {
-                    Text(dhLabel(vg.nearestEnd), fontSize = 12.sp, fontWeight = FontWeight.Bold, color = ddColor, maxLines = 1)
-                    if (vg.start > 0) Text("${DateUtil.shortDate(vg.start)}~${DateUtil.shortDate(vg.end)}", fontSize = 9.sp, color = TextSecondary, maxLines = 1)
+                    Text(vg.remainLabel(), fontSize = 12.sp, fontWeight = FontWeight.Bold, color = ddColor, maxLines = 1)
+                    if (vg.start > 0 && vg.end > 0) Text("${DateUtil.shortDate(vg.start)}~${DateUtil.shortDate(vg.end)}", fontSize = 9.sp, color = TextSecondary, maxLines = 1)
                 }
             }
             chars.forEach { CompactPickupRow(it, companionWeapons(it, vg.pickups)) }
@@ -413,7 +414,7 @@ private fun CompactVersionSection(vg: VersionGroup) {
 private fun CompactPickupRow(banner: GachaBanner, companions: List<GachaBanner>, showCollab: Boolean = true) {
     val c = banner.gameColor.toColor()
     val isWeapon = banner.type == "weapon"
-    val ddColor = if (banner.dDay() <= 3) Urgent else c
+    val ddColor = if (banner.isUrgent()) Urgent else c
     val short = GameData.byNameOrNull(banner.game)?.shortName ?: banner.game
     Column {
         HorizontalDivider(color = DividerColor)
@@ -442,8 +443,10 @@ private fun CompactPickupRow(banner: GachaBanner, companions: List<GachaBanner>,
                 Text("$short · ${if (isWeapon) "무기" else "캐릭터"}", fontSize = 10.sp, color = TextSecondary, maxLines = 1)
             }
             Column(horizontalAlignment = Alignment.End) {
-                Text(dhLabel(banner.endMillis), fontSize = 12.sp, fontWeight = FontWeight.Bold, color = ddColor, maxLines = 1)
-                Text("~" + DateUtil.shortDate(banner.endMillis), fontSize = 9.sp, color = TextSecondary, maxLines = 1)
+                Text(banner.remainLabel(), fontSize = 12.sp, fontWeight = FontWeight.Bold, color = ddColor, maxLines = 1)
+                if (banner.endDateLabel().isNotBlank()) {
+                    Text(banner.endDateLabel(), fontSize = 9.sp, color = TextSecondary, maxLines = 1)
+                }
             }
         }
     }
@@ -477,8 +480,8 @@ private fun CollabScheduleCard(groups: List<VersionGroup>) {
                     )
                     Spacer(Modifier.weight(1f))
                     Column(horizontalAlignment = Alignment.End) {
-                        Text(dhLabel(vg.nearestEnd), fontSize = 12.sp, fontWeight = FontWeight.Bold, color = ddColor, maxLines = 1)
-                        if (vg.start > 0) Text("${DateUtil.shortDate(vg.start)}~${DateUtil.shortDate(vg.end)}", fontSize = 9.sp, color = TextSecondary, maxLines = 1)
+                        Text(vg.remainLabel(), fontSize = 12.sp, fontWeight = FontWeight.Bold, color = ddColor, maxLines = 1)
+                        if (vg.start > 0 && vg.end > 0) Text("${DateUtil.shortDate(vg.start)}~${DateUtil.shortDate(vg.end)}", fontSize = 9.sp, color = TextSecondary, maxLines = 1)
                     }
                 }
                 chars.forEach { CompactPickupRow(it, companionWeapons(it, vg.pickups), showCollab = false) }

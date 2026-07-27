@@ -37,6 +37,63 @@ class ScheduleLogicTest {
         assertTrue(ScheduleLogic.filteredPickups(listOf(banner("a", 1, "6.6")), "없는게임").isEmpty())
     }
 
+    // ── 종료 미정 픽업(상류 end_time 미공지) ──────────────────────────────────
+    // 실제 사례: 스타레일 4.4 Fate 콜라보 — 시작만 공지되고 종료가 0 이었다.
+
+    @Test
+    fun endUnknownPickupSortsLastNotFirst() {
+        // endMillis=0 을 그냥 정렬하면 '가장 임박한' 것으로 잡혀 맨 위로 올라온다.
+        val unknown = banner("콜라보", 0, "4.4").copy(endMillis = 0L)
+        val list = listOf(unknown, banner("늦게", 9, "4.4"), banner("빨리", 2, "4.4"))
+        assertEquals(listOf("빨리", "늦게", "콜라보"), ScheduleLogic.filteredPickups(list, "all").map { it.name })
+    }
+
+    @Test
+    fun endUnknownPickupIsExcludedFromVersionGroupDates() {
+        val unknown = banner("콜라보", 0, "4.4").copy(endMillis = 0L)
+        val g = ScheduleLogic.buildVersionGroups(listOf(unknown, banner("일반", 5, "4.4")), "all").single()
+        assertEquals(2, g.pickups.size)                  // 카드에는 남는다
+        assertEquals(base + 5 * day, g.nearestEnd)       // 날짜 집계에선 빠진다
+        assertEquals(base + 5 * day, g.end)
+        assertTrue(!g.isEndUnknown)
+    }
+
+    @Test
+    fun versionGroupWithOnlyUnknownEndsShowsUnknownLabel() {
+        val unknown = banner("콜라보", 0, "4.4").copy(endMillis = 0L)
+        val g = ScheduleLogic.buildVersionGroups(listOf(unknown), "all").single()
+        assertTrue(g.isEndUnknown)
+        assertEquals("종료 미정", g.remainLabel(base))
+    }
+
+    @Test
+    fun endUnknownPickupMakesNoScheduleRow() {
+        // 날짜가 없으니 '픽업 종료' 일정 줄을 만들 수 없다.
+        val unknown = banner("콜라보", 0, "4.4").copy(endMillis = 0L)
+        val rows = ScheduleLogic.buildSchedule(listOf(unknown), emptyList(), emptyList())
+        assertTrue(rows.isEmpty())
+    }
+
+    @Test
+    fun endUnknownBannerLabelsAndUrgencyAreSafe() {
+        val unknown = banner("콜라보", 0, "4.4").copy(endMillis = 0L)
+        assertTrue(unknown.isEndUnknown)
+        assertEquals("종료 미정", unknown.remainLabel(base))
+        assertEquals("종료 미정", unknown.dDayLabel(base))
+        assertEquals("종료 미정", unknown.endShortLabel(base))
+        assertEquals("", unknown.endDateLabel())          // 날짜 줄은 숨긴다
+        assertTrue(!unknown.isUrgent(base))               // 임박 강조(빨강) 오표시 방지
+        assertTrue(!unknown.hasProgress)                  // 진행바도 못 그린다
+        assertEquals(0f, unknown.progress(base))
+    }
+
+    @Test
+    fun endUnknownBannerIsSkippedBySavingsPlanner() {
+        // 남은 일수를 모르면 하루 저축 목표를 역산할 수 없다.
+        val unknown = banner("콜라보", 0, "4.4", game = Game.HSR).copy(endMillis = 0L)
+        assertTrue(SavingsPlanner.build(listOf(unknown), emptyMap(), emptyMap(), base).isEmpty())
+    }
+
     // ── 버전 묶음 ────────────────────────────────────────────────────────────
 
     @Test

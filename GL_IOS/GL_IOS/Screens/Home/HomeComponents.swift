@@ -245,7 +245,7 @@ struct BannerCapsule: View {
     let banner: GachaBanner
     @Environment(\.glgAccent) private var accent
     var body: some View {
-        let urgent = banner.dDay(nowMillis: nowMs()) <= 3
+        let urgent = banner.isUrgent(nowMillis: nowMs())
         let chipColor = urgent ? warnText : accent.primary
         return HStack(spacing: 10) {
             GLGGameTag(game: banner.game, size: .small)
@@ -254,7 +254,7 @@ struct BannerCapsule: View {
                 Text("\(GameData.shared.byNameOrNull(name: banner.game)?.shortName ?? banner.game) · 픽업").font(.pretendard(size: 10)).foregroundStyle(GLGColor.textSecondary).lineLimit(1)
             }
             Spacer()
-            Text(GameInfoKt.dhLabel(targetMillis: banner.endMillis, nowMillis: nowMs())).font(.pretendard(size: 11, weight: .bold)).foregroundStyle(chipColor).lineLimit(1)
+            Text(banner.remainLabel(nowMillis: nowMs())).font(.pretendard(size: 11, weight: .bold)).foregroundStyle(chipColor).lineLimit(1)
                 .padding(.horizontal, 9).padding(.vertical, 3).background(chipColor.opacity(0.14), in: Capsule())
         }
         .padding(.horizontal, 16).padding(.vertical, 11)

@@ -519,11 +519,11 @@ private fun buildMonthlySummary(
 
     // ③ 다음 픽업
     if (nextBanner != null) {
-        val d = nextBanner.dDay()
+        val urgent = nextBanner.isUrgent()
         parts += buildAnnotatedString {
             withStyle(mint) { append(nextBanner.name) }; append(" 픽업 ")
-            withStyle(if (d <= 3) warn else mint) { append(dhLabel(nextBanner.endMillis)) }
-            append(if (d <= 3) ", 막바지예요." else " 진행 중이에요.")
+            withStyle(if (urgent) warn else mint) { append(nextBanner.remainLabel()) }
+            append(if (urgent) ", 막바지예요." else " 진행 중이에요.")
         }
     } else if (gameOverCount > 0) {
         parts += buildAnnotatedString {
@@ -706,8 +706,7 @@ fun BannerCapsule(banner: GachaBanner) {
     // banner.game 은 displayName(예: "원신") — byNameOrNull 로 매핑
     val g = GameData.byNameOrNull(banner.game)
     val color = banner.gameColor.toColor()
-    val d = banner.dDay()
-    val urgent = d <= 3
+    val urgent = banner.isUrgent()
     val chipColor = if (urgent) WarningText else accent
     Surface(
         shape = RoundedCornerShape(999.dp),
@@ -725,7 +724,7 @@ fun BannerCapsule(banner: GachaBanner) {
             Spacer(Modifier.width(8.dp))
             Surface(color = chipColor.copy(alpha = 0.14f), shape = RoundedCornerShape(999.dp)) {
                 Text(
-                    dhLabel(banner.endMillis),
+                    banner.remainLabel(),
                     fontSize = 11.sp, fontWeight = FontWeight.Bold, color = chipColor, maxLines = 1,
                     modifier = Modifier.padding(horizontal = 9.dp, vertical = 3.dp),
                 )

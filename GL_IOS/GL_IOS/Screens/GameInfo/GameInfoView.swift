@@ -312,12 +312,12 @@ private struct PickupItem: View {
     var body: some View {
         let c = Color(argb64: banner.gameColor)
         let isWeapon = banner.type == "weapon"
-        let urgent = banner.dDay(nowMillis: nowMs()) <= 3
+        let urgent = banner.isUrgent(nowMillis: nowMs())
         let ddColor = urgent ? glUrgent : c
         let short = GameData.shared.byNameOrNull(name: banner.game)?.shortName ?? banner.game
         let sub = banner.version.isEmpty ? short : "\(short) · v\(banner.version)"
-        let hasProg = banner.startMillis > 0 && banner.endMillis > banner.startMillis
-        let frac = hasProg ? min(max(Double(nowMs() - banner.startMillis) / Double(banner.endMillis - banner.startMillis), 0), 1) : 0
+        let hasProg = banner.hasProgress
+        let frac = Double(banner.progress(nowMillis: nowMs()))
         return HStack(spacing: 0) {
             Rectangle().fill(c).frame(width: 3)
             VStack(alignment: .leading, spacing: 0) {
@@ -337,8 +337,11 @@ private struct PickupItem: View {
                     }
                     Spacer(minLength: 8)
                     VStack(alignment: .trailing, spacing: 2) {
-                        Text(GameInfoKt.dhLabel(targetMillis: banner.endMillis, nowMillis: nowMs())).font(.pretendard(size: 14, weight: .bold)).foregroundStyle(ddColor).lineLimit(1)
-                        Text("~" + DateUtil.shared.shortDate(millis: banner.endMillis)).font(.pretendard(size: 9)).foregroundStyle(GLGColor.textSecondary)
+                        Text(banner.remainLabel(nowMillis: nowMs())).font(.pretendard(size: 14, weight: .bold)).foregroundStyle(ddColor).lineLimit(1)
+                        // 종료 미정이면 날짜 줄을 숨긴다(빈 문자열).
+                        if !banner.endDateLabel().isEmpty {
+                            Text(banner.endDateLabel()).font(.pretendard(size: 9)).foregroundStyle(GLGColor.textSecondary)
+                        }
                     }
                 }
                 if !companions.isEmpty {
@@ -448,13 +451,9 @@ private struct FeaturedVersionCard: View {
         let ddColor = urgent ? glUrgent : c
         let totalH = max((vg.nearestEnd - nowMs()) / 3_600_000, 0)
         let days = Int(totalH / 24); let hours = Int(totalH % 24)
-        let lead = vg.pickups.min { $0.endMillis < $1.endMillis }
-        let frac: Double = {
-            if let lead, lead.startMillis > 0, lead.endMillis > lead.startMillis {
-                return min(max(Double(nowMs() - lead.startMillis) / Double(lead.endMillis - lead.startMillis), 0), 1)
-            }
-            return 0
-        }()
+        // 대표 픽업은 종료일이 있는 것 중 가장 임박한 것 — 종료 미정(0)이 최솟값으로 잡히면 안 된다.
+        let lead = vg.pickups.filter { !$0.isEndUnknown }.min { $0.endMillis < $1.endMillis }
+        let frac = Double(lead?.progress(nowMillis: nowMs()) ?? 0)
         let chars = vg.pickups.filter { $0.type != "weapon" }
         let items = chars.isEmpty ? vg.pickups : chars
         return GLGCard(cornerRadius: 20, padding: 15) {
@@ -497,7 +496,7 @@ private struct FeaturedVersionCard: View {
                             Spacer().frame(height: 6)
                             Text("외 \(items.count - 2)").font(.pretendard(size: 10)).foregroundStyle(GLGColor.textSecondary)
                         }
-                        if vg.start > 0 {
+                        if vg.start > 0 && vg.end > 0 {
                             let vFrac = vg.end > vg.start ? min(max(Double(nowMs() - vg.start) / Double(vg.end - vg.start), 0), 1) : 0
                             Spacer().frame(height: 8)
                             Text("\(DateUtil.shared.shortDate(millis: vg.start)) ~ \(DateUtil.shared.shortDate(millis: vg.end)) · \(Int((vFrac * 100).rounded()))% 경과")
@@ -538,8 +537,8 @@ private struct SlimVersionRow: View {
                 }
                 Spacer(minLength: 8)
                 VStack(alignment: .trailing, spacing: 1) {
-                    Text(GameInfoKt.dhLabel(targetMillis: vg.nearestEnd, nowMillis: nowMs())).font(.pretendard(size: 13, weight: .bold)).foregroundStyle(ddColor).lineLimit(1)
-                    if vg.start > 0 { Text("\(DateUtil.shared.shortDate(millis: vg.start))~\(DateUtil.shared.shortDate(millis: vg.end))").font(.pretendard(size: 9)).foregroundStyle(GLGColor.textSecondary).lineLimit(1) }
+                    Text(vg.remainLabel(nowMillis: nowMs())).font(.pretendard(size: 13, weight: .bold)).foregroundStyle(ddColor).lineLimit(1)
+                    if vg.start > 0 && vg.end > 0 { Text("\(DateUtil.shared.shortDate(millis: vg.start))~\(DateUtil.shared.shortDate(millis: vg.end))").font(.pretendard(size: 9)).foregroundStyle(GLGColor.textSecondary).lineLimit(1) }
                 }
             }
             .padding(.horizontal, 13).padding(.vertical, 11)
@@ -564,8 +563,8 @@ private struct CompactVersionSection: View {
                         .font(.pretendard(size: 13, weight: .bold)).foregroundStyle(GLGColor.textPrimary).lineLimit(1)
                     Spacer(minLength: 8)
                     VStack(alignment: .trailing, spacing: 1) {
-                        Text(GameInfoKt.dhLabel(targetMillis: vg.nearestEnd, nowMillis: nowMs())).font(.pretendard(size: 12, weight: .bold)).foregroundStyle(ddColor).lineLimit(1)
-                        if vg.start > 0 { Text("\(DateUtil.shared.shortDate(millis: vg.start))~\(DateUtil.shared.shortDate(millis: vg.end))").font(.pretendard(size: 9)).foregroundStyle(GLGColor.textSecondary).lineLimit(1) }
+                        Text(vg.remainLabel(nowMillis: nowMs())).font(.pretendard(size: 12, weight: .bold)).foregroundStyle(ddColor).lineLimit(1)
+                        if vg.start > 0 && vg.end > 0 { Text("\(DateUtil.shared.shortDate(millis: vg.start))~\(DateUtil.shared.shortDate(millis: vg.end))").font(.pretendard(size: 9)).foregroundStyle(GLGColor.textSecondary).lineLimit(1) }
                     }
                 }
                 .padding(.bottom, 7)
@@ -589,7 +588,7 @@ private struct CompactPickupRow: View {
     var body: some View {
         let c = Color(argb64: banner.gameColor)
         let isWeapon = banner.type == "weapon"
-        let ddColor = banner.dDay(nowMillis: nowMs()) <= 3 ? glUrgent : c
+        let ddColor = banner.isUrgent(nowMillis: nowMs()) ? glUrgent : c
         let short = GameData.shared.byNameOrNull(name: banner.game)?.shortName ?? banner.game
         return VStack(spacing: 0) {
             Divider()
@@ -612,8 +611,10 @@ private struct CompactPickupRow: View {
                 }
                 Spacer(minLength: 8)
                 VStack(alignment: .trailing, spacing: 2) {
-                    Text(GameInfoKt.dhLabel(targetMillis: banner.endMillis, nowMillis: nowMs())).font(.pretendard(size: 12, weight: .bold)).foregroundStyle(ddColor).lineLimit(1)
-                    Text("~" + DateUtil.shared.shortDate(millis: banner.endMillis)).font(.pretendard(size: 9)).foregroundStyle(GLGColor.textSecondary)
+                    Text(banner.remainLabel(nowMillis: nowMs())).font(.pretendard(size: 12, weight: .bold)).foregroundStyle(ddColor).lineLimit(1)
+                    if !banner.endDateLabel().isEmpty {
+                        Text(banner.endDateLabel()).font(.pretendard(size: 9)).foregroundStyle(GLGColor.textSecondary)
+                    }
                 }
             }
             .padding(.vertical, 7)
@@ -648,8 +649,8 @@ private struct CollabScheduleCard: View {
                             .font(.pretendard(size: 13, weight: .bold)).foregroundStyle(GLGColor.textPrimary).lineLimit(1)
                         Spacer(minLength: 8)
                         VStack(alignment: .trailing, spacing: 1) {
-                            Text(GameInfoKt.dhLabel(targetMillis: vg.nearestEnd, nowMillis: nowMs())).font(.pretendard(size: 12, weight: .bold)).foregroundStyle(ddColor).lineLimit(1)
-                            if vg.start > 0 { Text("\(DateUtil.shared.shortDate(millis: vg.start))~\(DateUtil.shared.shortDate(millis: vg.end))").font(.pretendard(size: 9)).foregroundStyle(GLGColor.textSecondary).lineLimit(1) }
+                            Text(vg.remainLabel(nowMillis: nowMs())).font(.pretendard(size: 12, weight: .bold)).foregroundStyle(ddColor).lineLimit(1)
+                            if vg.start > 0 && vg.end > 0 { Text("\(DateUtil.shared.shortDate(millis: vg.start))~\(DateUtil.shared.shortDate(millis: vg.end))").font(.pretendard(size: 9)).foregroundStyle(GLGColor.textSecondary).lineLimit(1) }
                         }
                     }
                     .padding(.bottom, 3)
