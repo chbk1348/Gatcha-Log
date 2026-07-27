@@ -22,13 +22,14 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.gatcha.log.ui.components.GlassCard
 import com.gatcha.log.ui.components.GlgBadge
 import com.gatcha.log.ui.components.GlgOutlineButton
+import com.gatcha.log.ui.components.openExternalLink
 import com.gatcha.log.ui.theme.DividerColor
 import com.gatcha.log.ui.theme.LocalAccent
 import com.gatcha.log.ui.theme.TextPrimary
@@ -44,6 +45,8 @@ import com.gatcha.log.ui.theme.TextSecondary
 private const val VENUE_NAME = "일산 킨텍스 제2전시장"
 private const val VENUE_ADDRESS = "경기도 고양시 일산서구 킨텍스로 217-60"
 private const val VENUE_MAP_URL = "https://map.naver.com/p/search/%ED%82%A8%ED%85%8D%EC%8A%A4%20%EC%A0%9C2%EC%A0%84%EC%8B%9C%EC%9E%A5"
+/** 네이버 지도가 안 열릴 때 폴백 — 어느 기기에나 있는 브라우저로 열리는 구글 지도 검색. */
+private const val VENUE_MAP_FALLBACK_URL = "https://www.google.com/maps/search/%EC%9D%BC%EC%82%B0+%ED%82%A8%ED%85%8D%EC%8A%A4+%EC%A0%9C2%EC%A0%84%EC%8B%9C%EC%9E%A5"
 
 /** 게임정보 탭에 임베드되는 요약 카드 — 내용이 보이는 카드형, 탭하면 상세(HoyolandDetailContent)로 이동. */
 @Composable
@@ -86,7 +89,7 @@ fun HoyolandSection(onOpen: () -> Unit) {
 @Composable
 fun HoyolandDetailContent() {
     val accent = LocalAccent.current
-    val uriHandler = LocalUriHandler.current
+    val ctx = LocalContext.current
     // 페이지 타이틀은 SectionPage 헤더에서 표시. 여기선 부제만.
     Text("호요버스 오프라인 행사", fontSize = 13.sp, color = TextSecondary, modifier = Modifier.padding(top = 4.dp, bottom = 14.dp))
 
@@ -112,7 +115,11 @@ fun HoyolandDetailContent() {
             Spacer(Modifier.height(10.dp))
             Text(VENUE_ADDRESS, fontSize = 12.sp, color = TextSecondary)
             Spacer(Modifier.height(14.dp))
-            GlgOutlineButton("지도에서 보기", onClick = { uriHandler.openUri(VENUE_MAP_URL) }, height = 46.dp)
+            GlgOutlineButton(
+                "지도에서 보기",
+                onClick = { openExternalLink(ctx, VENUE_MAP_URL, VENUE_MAP_FALLBACK_URL) },
+                height = 46.dp,
+            )
         }
     }
 

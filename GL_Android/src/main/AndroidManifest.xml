@@ -12,6 +12,19 @@
          (일일 출석)에 해당하므로 명시적으로 요청 가능. -->
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
 
+    <!-- Android 11+ 패키지 가시성 — 외부 링크(브라우저·지도 앱)를 조회/실행하려면 명시가 필요하다.
+         선언이 없으면 resolveActivity 가 null 을 돌려줘 링크 열기가 조용히 실패할 수 있다. -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="https" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="geo" />
+        </intent>
+    </queries>
+
     <application
         android:name=".GatchaApp"
         android:allowBackup="true"
