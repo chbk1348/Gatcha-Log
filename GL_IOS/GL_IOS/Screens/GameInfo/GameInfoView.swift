@@ -512,14 +512,25 @@ private struct EntryCard: View {
 private struct PickupChips: View {
     let pickups: [GachaBanner]
     var body: some View {
-        let ordered = pickups.filter { $0.type != "weapon" } + pickups.filter { $0.type == "weapon" }
-        let rows = stride(from: 0, to: ordered.count, by: 2).map { Array(ordered[$0..<min($0 + 2, ordered.count)]) }
+        let chars = pickups.filter { $0.type != "weapon" }
+        let weapons = pickups.filter { $0.type == "weapon" }
         VStack(alignment: .leading, spacing: 6) {
-            ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
-                HStack(spacing: 6) {
-                    ForEach(Array(row.enumerated()), id: \.offset) { _, b in PickupChip(banner: b) }
-                    Spacer(minLength: 0)
-                }
+            chipRows(chars)
+            // 캐릭터와 무기는 종류가 다르니 구분선으로 끊는다(둘 다 있을 때만).
+            if !chars.isEmpty && !weapons.isEmpty {
+                Divider().opacity(0.7).padding(.vertical, 1)
+            }
+            chipRows(weapons)
+        }
+    }
+
+    @ViewBuilder
+    private func chipRows(_ list: [GachaBanner]) -> some View {
+        let rows = stride(from: 0, to: list.count, by: 2).map { Array(list[$0..<min($0 + 2, list.count)]) }
+        ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
+            HStack(spacing: 6) {
+                ForEach(Array(row.enumerated()), id: \.offset) { _, b in PickupChip(banner: b) }
+                Spacer(minLength: 0)
             }
         }
     }
