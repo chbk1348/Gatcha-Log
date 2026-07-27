@@ -211,7 +211,7 @@ fun SpendingScreen(
     val scrolled by remember {
         derivedStateOf { listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 0 }
     }
-    val topScrimAlpha by animateFloatAsState(if (scrolled) 0.5f else 0f, label = "topScrim")
+    val topScrimAlpha by animateFloatAsState(if (scrolled) 0.72f else 0f, label = "topScrim")
 
     Box(Modifier.fillMaxSize()) {
         GlgPullToRefreshBox(
@@ -259,7 +259,7 @@ fun SpendingScreen(
                 .background(
                     Brush.verticalGradient(
                         0f to BackgroundGradientStart,
-                        0.6f to BackgroundGradientStart,
+                        0.72f to BackgroundGradientStart,
                         1f to Color.Transparent,
                     ),
                 ),
