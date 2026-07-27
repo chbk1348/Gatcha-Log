@@ -364,39 +364,47 @@ private fun WeekAttendanceStrip(history: Map<String, Set<String>>) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(dow, fontSize = 10.sp, color = if (isToday) accent else TextSecondary, fontWeight = if (isToday) FontWeight.Bold else FontWeight.Normal)
                 Spacer(Modifier.height(5.dp))
-                Box(
-                    Modifier
-                        .size(34.dp)
-                        .clip(CircleShape)
-                        .background(
-                            when (level) {
-                                AttendLevel.FULL -> accent
-                                AttendLevel.PARTIAL -> accent.copy(alpha = 0.30f)
-                                AttendLevel.NONE -> Color(0xFFF0F0F4)
+                // 날짜는 **항상** 보여준다 — 예전엔 전체 출석한 날을 체크 아이콘으로 덮어버려
+                // 정작 며칠인지 알 수 없었다. 완료 표시는 채움색 + 우상단 작은 체크로 한다.
+                //
+                // 배지는 원 **바깥** Box 에 올린다 — 원에 clip(CircleShape) 이 걸려 있어
+                // 안쪽에 두면 모서리에 붙는 배지가 잘려 보이지 않는다.
+                Box(Modifier.size(34.dp), contentAlignment = Alignment.Center) {
+                    Box(
+                        Modifier
+                            .matchParentSize()
+                            .clip(CircleShape)
+                            .background(
+                                when (level) {
+                                    AttendLevel.FULL -> accent
+                                    AttendLevel.PARTIAL -> accent.copy(alpha = 0.30f)
+                                    AttendLevel.NONE -> Color(0xFFF0F0F4)
+                                },
+                            )
+                            .then(if (isToday) Modifier.border(2.dp, accent, CircleShape) else Modifier),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(
+                            "$dayNum",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = when (level) {
+                                AttendLevel.FULL -> Color.White
+                                AttendLevel.PARTIAL -> accent
+                                AttendLevel.NONE -> TextSecondary
                             },
                         )
-                        .then(if (isToday) Modifier.border(2.dp, accent, CircleShape) else Modifier),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    // 날짜는 **항상** 보여준다 — 예전엔 전체 출석한 날을 체크 아이콘으로 덮어버려
-                    // 정작 며칠인지 알 수 없었다. 완료 표시는 채움색 + 우상단 작은 체크로 한다.
-                    Text(
-                        "$dayNum",
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = when (level) {
-                            AttendLevel.FULL -> Color.White
-                            AttendLevel.PARTIAL -> accent
-                            AttendLevel.NONE -> TextSecondary
-                        },
-                    )
+                    }
                     if (level == AttendLevel.FULL) {
                         Box(
-                            Modifier.align(Alignment.TopEnd).offset(x = 1.dp, y = (-1).dp)
-                                .size(13.dp).clip(CircleShape).background(Color.White),
+                            Modifier.align(Alignment.TopEnd)
+                                .size(14.dp)
+                                .clip(CircleShape)
+                                .background(Color.White)
+                                .border(1.dp, accent.copy(alpha = 0.35f), CircleShape),
                             contentAlignment = Alignment.Center,
                         ) {
-                            Icon(Icons.Default.Check, null, tint = accent, modifier = Modifier.size(9.dp))
+                            Icon(Icons.Default.Check, null, tint = accent, modifier = Modifier.size(10.dp))
                         }
                     }
                 }
