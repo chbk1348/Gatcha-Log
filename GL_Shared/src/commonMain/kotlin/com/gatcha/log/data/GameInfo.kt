@@ -228,6 +228,12 @@ data class LiveNote(
     val resinRecoveryTime: String = "",
     val dailyTaskCount: Int = 0,
     val maxDailyTaskCount: Int = 0,
+    /**
+     * 주간 숙제 진행 — 원신 주간 보스 할인 사용분·스타레일 시뮬레이션 우주 점수·젠레스 주간 임무.
+     * [weeklyTotal] 이 0 이면 그 게임이 주간 데이터를 안 준 것(완주율 집계에서 제외).
+     */
+    val weeklyDone: Int = 0,
+    val weeklyTotal: Int = 0,
     /** 게임별 부가 통계(탐사 파견·주간 보스 잔여·선계 화폐·예비 개척력·현상 의뢰 등) */
     val extras: List<NoteStat> = emptyList(),
 ) {

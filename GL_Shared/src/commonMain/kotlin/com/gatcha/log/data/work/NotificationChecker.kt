@@ -197,6 +197,7 @@ object NotificationChecker {
                         Notifier.ID_NEWS_BASE + game.ordinal,
                         "${game.shortName} 새 공지",
                         latest.title + more,
+                        link = "news:${latest.id}",
                     )
                 }
             }

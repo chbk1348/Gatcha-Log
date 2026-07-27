@@ -184,6 +184,9 @@ object HoyolabApi {
                 resinRecoveryTime = formatRecovery(data.optString("resin_recovery_time").toLongOrNull() ?: 0),
                 dailyTaskCount = data.optInt("finished_task_num"),
                 maxDailyTaskCount = data.optInt("total_task_num"),
+                // 주간 보스는 '남은 할인 횟수'로 오므로 사용분으로 뒤집어 담는다(다 쓰면 done == total).
+                weeklyDone = data.optInt("resin_discount_num_limit") - data.optInt("remain_resin_discount_num"),
+                weeklyTotal = data.optInt("resin_discount_num_limit"),
                 extras = genshinExtras(data),
             )
         },
@@ -195,6 +198,8 @@ object HoyolabApi {
                 resinRecoveryTime = formatRecovery(data.optLong("stamina_recover_time")),
                 dailyTaskCount = data.optInt("current_train_score"),
                 maxDailyTaskCount = data.optInt("max_train_score"),
+                weeklyDone = data.optInt("current_rogue_score"),
+                weeklyTotal = data.optInt("max_rogue_score"),
                 extras = hsrExtras(data),
             )
         },
@@ -209,6 +214,8 @@ object HoyolabApi {
                 resinRecoveryTime = formatRecovery(energy?.optLong("restore") ?: 0),
                 dailyTaskCount = vitality?.optInt("current") ?: 0,
                 maxDailyTaskCount = vitality?.optInt("max") ?: 0,
+                weeklyDone = data.optJSONObject("weekly_task")?.optInt("cur_point") ?: 0,
+                weeklyTotal = data.optJSONObject("weekly_task")?.optInt("max_point") ?: 0,
                 extras = zzzExtras(data),
             )
         },

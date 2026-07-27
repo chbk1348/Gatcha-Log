@@ -56,6 +56,9 @@ final class SpendingStore: ObservableObject {
     @Published private(set) var pendingOpenHoyolabLink: Bool = false
     /// 홈 카드 → 게임 정보 탭 진입 시 스크롤할 섹션 앵커(1회성). nil 이면 없음.
     @Published private(set) var pendingGameInfoAnchor: GameInfoAnchor? = nil
+    /// 알림 딥링크가 요청한 탭·공지(각각 ContentView / GameInfoView 가 소비).
+    @Published private(set) var pendingTab: Int? = nil
+    @Published private(set) var pendingNewsId: String? = nil
 
     // ── Phase 3 (지출) ──
     @Published private(set) var isRefreshing: Bool = false
@@ -158,6 +161,8 @@ final class SpendingStore: ObservableObject {
         bind(vm.nudgeThreshold) { [weak self] in self?.nudgeThreshold = $0.int64Value }
         bind(vm.pendingOpenHoyolabLink) { [weak self] in self?.pendingOpenHoyolabLink = $0.boolValue }
         bind(vm.pendingGameInfoAnchor) { [weak self] in self?.pendingGameInfoAnchor = $0 }
+        bind(vm.pendingTab) { [weak self] in self?.pendingTab = $0?.intValue }
+        bind(vm.pendingNewsId) { [weak self] in self?.pendingNewsId = $0 }
 
         // Phase 3
         bind(vm.isRefreshing) { [weak self] in self?.isRefreshing = $0.boolValue }
@@ -330,6 +335,12 @@ final class SpendingStore: ObservableObject {
 
     // ── Phase 4 액션 ──────────────────────────────────────────────────────
     func refreshGameInfo(force: Bool = false) { vm.refreshGameInfo(force: force) }
+    /// 앱이 포그라운드로 돌아왔을 때 밀린 알림 1회 점검(BGTask 가 OS 재량이라 그것만으론 구멍이 크다).
+    func onAppForeground() { vm.onAppForeground() }
+    /// 알림 payload 의 딥링크 처리("news:<공지 id>") — 탭 전환 + 상세 진입 상태를 세운다.
+    func handleNotificationLink(_ link: String) { vm.handleNotificationLink(link: link) }
+    func consumePendingTab() { vm.consumePendingTab() }
+    func consumePendingNews() { vm.consumePendingNews() }
     func attemptCheckIn(_ gameKey: String) { vm.attemptCheckIn(gameKey: gameKey) }
     func checkInAll() { vm.checkInAll() }
     func adjustPity(gameKey: String, delta: Int) { vm.adjustPity(gameKey: gameKey, delta: Int32(delta)) }
