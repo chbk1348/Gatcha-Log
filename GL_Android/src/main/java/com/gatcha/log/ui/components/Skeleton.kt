@@ -141,41 +141,25 @@ fun ListSkeleton(rows: Int = 3, titleWidth: Dp = 120.dp) {
     }
 }
 
-/** 보유 캐릭터 로스터 로딩 스켈레톤 — RosterCard 2열 그리드(기본 4장)와 동일 레이아웃. */
+/**
+ * '내 캐릭터' 로스터 로딩 스켈레톤 — 실제 로스터와 **같은 한 줄 배치**(원형 초상 + 이름 두 줄).
+ * 레이아웃이 다르면 로딩이 끝나는 순간 화면이 튀므로 칸 수·크기·간격을 실물과 맞춘다.
+ */
 @Composable
-fun RosterSkeleton(count: Int = 4) {
-    val rows = (count + 1) / 2
-    repeat(rows) { r ->
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            repeat(2) { c ->
-                if (r * 2 + c < count) {
-                    Box(Modifier.weight(1f)) { RosterSkeletonCard() }
-                } else {
-                    Spacer(Modifier.weight(1f))
-                }
+fun RosterSkeleton(count: Int = 6) {
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        repeat(count) {
+            Column(
+                Modifier.weight(1f).padding(vertical = 4.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                SkeletonBox(Modifier.size(44.dp), CircleShape)
+                Spacer(Modifier.height(5.dp))
+                SkeletonBox(Modifier.fillMaxWidth().height(9.dp))
+                Spacer(Modifier.height(3.dp))
+                // 이름은 최대 두 줄까지 흐르므로 둘째 줄은 짧게 — 실물의 들쭉날쭉함을 흉내낸다.
+                SkeletonBox(Modifier.fillMaxWidth(0.6f).height(9.dp))
             }
-        }
-        if (r < rows - 1) Spacer(Modifier.height(10.dp))
-    }
-}
-
-@Composable
-private fun RosterSkeletonCard() {
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(18.dp))
-            .background(Color.White)
-            .border(1.dp, DividerColor, RoundedCornerShape(18.dp))
-            .padding(11.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        SkeletonBox(Modifier.size(50.dp), RoundedCornerShape(14.dp))
-        Spacer(Modifier.width(11.dp))
-        Column(Modifier.weight(1f)) {
-            SkeletonBox(Modifier.fillMaxWidth().height(13.dp))
-            Spacer(Modifier.height(7.dp))
-            SkeletonBox(Modifier.width(48.dp).height(10.dp))
         }
     }
 }
