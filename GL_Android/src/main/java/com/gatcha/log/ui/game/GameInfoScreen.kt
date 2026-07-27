@@ -18,6 +18,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import com.gatcha.log.ui.components.GlgTabHeaderHeight
+import com.gatcha.log.ui.components.GlgTopScrimFadeExtra as ScrimFadeExtra
 import com.gatcha.log.ui.components.GlgPullToRefreshBox
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
@@ -356,7 +357,7 @@ fun GameInfoScreen(
                 Modifier
                     .align(Alignment.TopStart)
                     .fillMaxWidth()
-                    .height(topInset)
+                    .height(topInset + ScrimFadeExtra)
                     .graphicsLayer { alpha = topScrimAlpha }
                     .background(
                         Brush.verticalGradient(
