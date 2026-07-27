@@ -213,82 +213,72 @@ struct HomeView: View {
         if store.account.isGuest { return "게스트" }
         return store.profile.name.isEmpty ? "회원" : store.profile.name
     }
-    private var greeting: String {
-        let h = Calendar.current.component(.hour, from: Date())
-        switch h { case 5...10: return "좋은 아침이에요"; case 11...16: return "좋은 오후예요"; case 17...21: return "좋은 저녁이에요"; default: return "오늘도 수고했어요" }
-    }
     private var monthlyTotal: Int64 { store.monthlyTotal() }
     private var prevTotal: Int64 { store.prevMonthTotal() }
+    // 아래 파생값은 전부 GL_Shared HomeLogic 이 단일 소스 — Android 와 문구·우선순위가 갈리지 않도록.
     private var gameOverBudget: [String] {
-        if store.gameBudgets.isEmpty { return [] }
-        let totals = store.monthlyTotalsByGame()
-        return GameData.shared.games.compactMap { g in
-            let limit = store.gameBudgets[g.key] ?? 0
-            return (limit > 0 && (totals[g.key] ?? 0) > limit) ? g.shortName : nil
-        }
+        HomeLogic.shared.gameOverBudget(gameBudgets: store.gameBudgets.mapValues { KotlinLong(value: $0) },
+                                        totalsByGame: store.monthlyTotalsByGame().mapValues { KotlinLong(value: $0) })
     }
     private var perGameSpend: [GameSpend] {
-        let totals = store.monthlyTotalsByGame()
-        return GameData.shared.games.compactMap { g -> GameSpend? in
-            let spent = totals[g.key] ?? 0
-            let limit = store.gameBudgets[g.key] ?? 0
-            return (spent <= 0 && limit <= 0) ? nil : GameSpend(game: g, spent: spent, limit: limit)
-        }.sorted { $0.spent > $1.spent }
+        HomeLogic.shared.perGameSpend(totalsByGame: store.monthlyTotalsByGame().mapValues { KotlinLong(value: $0) },
+                                      gameBudgets: store.gameBudgets.mapValues { KotlinLong(value: $0) })
     }
     private var savingTip: String {
-        if store.budget > 0 && monthlyTotal > store.budget { return "이번 달은 예산을 넘겼어요. 다음 픽업까지 무·저과금으로 천장을 모아보세요." }
-        if !gameOverBudget.isEmpty { return "\(gameOverBudget[0]) 한도를 넘었어요. 게임별 예산을 점검해보세요." }
-        if store.budget <= 0 { return "월 예산을 정하면 페이스를 알려드려요. 보통 한 달 결제액의 80% 선이 적당해요." }
-        return "천장이 가까운 게임부터 모으면 50/50 손해를 줄일 수 있어요."
+        HomeLogic.shared.savingTip(budget: store.budget, monthlyTotal: monthlyTotal, gameOverBudget: gameOverBudget)
     }
     // 사용자가 삭제(dismiss)한 알림은 제외하고 노출(계산형 알림이라 dismiss 키로 재노출 차단)
-    private var alerts: [HomeAlert] { buildAlerts(monthlyTotal: monthlyTotal, budget: store.budget, gameOver: gameOverBudget, banners: store.activeBanners, attendanceToday: store.attendanceToday, monthKey: "\(store.displayYear)-\(store.displayMonth)").filter { !store.dismissedAlerts.contains($0.key) } }
+    private var alerts: [HomeAlert] {
+        HomeLogic.shared.buildAlerts(monthlyTotal: monthlyTotal, budget: store.budget, gameOverBudget: gameOverBudget,
+                                     banners: store.activeBanners, attendanceToday: store.attendanceToday,
+                                     monthKey: "\(store.displayYear)-\(store.displayMonth)", nowMillis: nowMs())
+            .filter { !store.dismissedAlerts.contains($0.key) }
+    }
     private var unreadCount: Int { alerts.filter { !store.readAlerts.contains($0.key) }.count }
     private var todayTasks: [TodayItem] {
-        let resins = store.liveNotes.filter { $0.maxResin > 0 && $0.resinRatio >= 0.85 }
-            .sorted { $0.resinRatio > $1.resinRatio }
-            .map { ResinAlert(gameShort: GameData.shared.byName(name: $0.game).shortName, label: $0.resinLabel, cur: Int($0.currentResin), max: Int($0.maxResin), full: $0.currentResin >= $0.maxResin) }
-        // 픽업은 '이번주 일정' 카드·게임 정보 페이지에서 확인 — 오늘 할 일에서는 제외
-        return resolveTodayTasks(
-            pendingAttendance: GameData.shared.attendanceGames.filter { !store.attendanceToday.contains($0.key) }.count,
-            resins: resins, urgentBanner: nil, budget: store.budget, monthlyTotal: monthlyTotal,
-            onCheckInAll: { store.checkInAll() }, onResin: { store.requestGameInfoAnchor(.notes); onSwitchTab(2) }, onBanner: { store.requestGameInfoAnchor(.schedule); onSwitchTab(2) }, onBudget: { showBudget = true })
+        // 픽업은 '이번주 일정' 카드·게임 정보 페이지에서 확인 — 오늘 할 일에서는 제외(urgentBanner: nil)
+        HomeLogic.shared.resolveTodayTasks(
+            pendingAttendance: HomeLogic.shared.pendingAttendanceCount(attendanceToday: store.attendanceToday),
+            resins: HomeLogic.shared.resinAlerts(liveNotes: store.liveNotes),
+            urgentBanner: nil, budget: store.budget, monthlyTotal: monthlyTotal,
+            combats: HomeLogic.shared.combatDeadlines(combats: store.combat, nowMillis: nowMs()),
+            nowMillis: nowMs()
+        ).toTodayItems(
+            onCheckInAll: { store.checkInAll() },
+            onResin: { store.requestGameInfoAnchor(.notes); onSwitchTab(2) },
+            onCombat: { store.requestGameInfoAnchor(.combat); onSwitchTab(2) },
+            onBanner: { store.requestGameInfoAnchor(.schedule); onSwitchTab(2) },
+            onBudget: { showBudget = true })
     }
 }
 
-// ── 데이터 ──
-struct GameSpend { let game: Game; let spent: Int64; let limit: Int64 }
-struct BannerPlan { let maxPulls: Int; let wonCost: Int64 }
-struct ResinAlert { let gameShort: String; let label: String; let cur: Int; let max: Int; let full: Bool }
+// ── 표시 모델 ──
+// 산출 로직과 데이터 모델(GameSpend·ResinAlert·TodayTask·HomeAlert)은 GL_Shared HomeLogic 으로 이관.
+// 여기엔 SwiftUI 표현(SF Symbol·탭 이동 클로저)만 남는다.
+
+/// 오늘 할 일 한 줄. busyable=전체출석처럼 진행 중 스피너가 필요한 항목.
 struct TodayItem: Identifiable { let id = UUID(); let icon: String; let message: String; let cta: String; let urgent: Bool; let busyable: Bool; let action: () -> Void }
-enum AlertKind { case budgetOver, budgetNear, budgetGameOver, banner, attendance }
-struct HomeAlert: Identifiable { let id = UUID(); let kind: AlertKind; let message: String; let key: String }
 
-func resolveTodayTasks(pendingAttendance: Int, resins: [ResinAlert], urgentBanner: GachaBanner?, budget: Int64, monthlyTotal: Int64,
-                       onCheckInAll: @escaping () -> Void, onResin: @escaping () -> Void, onBanner: @escaping () -> Void, onBudget: @escaping () -> Void) -> [TodayItem] {
-    var items: [TodayItem] = []
-    let pct = budget > 0 ? Int(monthlyTotal * 100 / budget) : 0
-    if pendingAttendance > 0 { items.append(TodayItem(icon: "checkmark.circle", message: "출석 안 한 게임 \(pendingAttendance)개", cta: "한 번에 출석", urgent: false, busyable: true, action: onCheckInAll)) }
-    for r in resins { items.append(TodayItem(icon: "bolt.fill", message: r.full ? "\(r.gameShort) \(r.label) 가득 참" : "\(r.gameShort) \(r.label) \(r.cur)/\(r.max) 곧 넘침", cta: "게임 정보", urgent: true, busyable: false, action: onResin)) }
-    if let b = urgentBanner { items.append(TodayItem(icon: "die.face.5", message: "\(b.name) 픽업 \(GameInfoKt.dhLabel(targetMillis: b.endMillis, nowMillis: nowMs())) 막바지", cta: "픽업 계획", urgent: true, busyable: false, action: onBanner)) }
-    if budget > 0 && monthlyTotal > budget { items.append(TodayItem(icon: "banknote", message: "예산 \(pct - 100)% 초과", cta: "예산 점검", urgent: true, busyable: false, action: onBudget)) }
-    else if budget > 0 && pct >= 90 { items.append(TodayItem(icon: "banknote", message: "예산 \(pct)% 사용", cta: "예산 점검", urgent: true, busyable: false, action: onBudget)) }
-    return items
+extension Array where Element == TodayTask {
+    /// shared [TodayTask] → SwiftUI 표시 모델. 종류별 아이콘·탭 동작 매핑.
+    func toTodayItems(onCheckInAll: @escaping () -> Void, onResin: @escaping () -> Void,
+                      onCombat: @escaping () -> Void, onBanner: @escaping () -> Void,
+                      onBudget: @escaping () -> Void) -> [TodayItem] {
+        map { t in
+            let icon: String, action: () -> Void
+            switch t.kind {
+            case .attendance: icon = "checkmark.circle"; action = onCheckInAll
+            case .resin:      icon = "bolt.fill";        action = onResin
+            case .combat:     icon = "medal";            action = onCombat
+            case .banner:     icon = "die.face.5";       action = onBanner
+            case .budget:     icon = "banknote";         action = onBudget
+            }
+            return TodayItem(icon: icon, message: t.message, cta: t.ctaLabel, urgent: t.urgent, busyable: t.busyable, action: action)
+        }
+    }
 }
 
-func buildAlerts(monthlyTotal: Int64, budget: Int64, gameOver: [String], banners: [GachaBanner], attendanceToday: Set<String>, monthKey: String) -> [HomeAlert] {
-    var r: [HomeAlert] = []
-    if budget > 0 {
-        let pct = Int(monthlyTotal * 100 / budget)
-        if monthlyTotal > budget { r.append(HomeAlert(kind: .budgetOver, message: "이번 달 예산을 초과했어요 (\(pct)%)", key: "budget_over:\(monthKey)")) }
-        else if pct >= 90 { r.append(HomeAlert(kind: .budgetNear, message: "이번 달 예산의 \(pct)%를 사용했어요", key: "budget_near:\(monthKey)")) }
-    }
-    for name in gameOver { r.append(HomeAlert(kind: .budgetGameOver, message: "\(name) 이번 달 한도를 초과했어요", key: "budget_game_over:\(name):\(monthKey)")) }
-    for b in banners where (0...3).contains(Int(b.dDay(nowMillis: nowMs()))) {
-        let d = Int(b.dDay(nowMillis: nowMs()))
-        r.append(HomeAlert(kind: .banner, message: "\(b.name) 픽업 배너 종료 \(d == 0 ? "D-DAY" : "D-\(d)")", key: "banner:\(b.name)"))
-    }
-    let pending = GameData.shared.attendanceGames.filter { !attendanceToday.contains($0.key) }.count
-    if pending > 0 { r.append(HomeAlert(kind: .attendance, message: "오늘 출석체크가 \(pending)개 남아있어요", key: "attendance:\(DateUtil.shared.hoyoDayKey(millis: nowMs()))")) }
-    return r
+/// ForEach 식별자 — 알림 키는 종류+기간으로 이미 고유하다.
+extension HomeAlert: @retroactive Identifiable {
+    public var id: String { key }
 }

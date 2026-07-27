@@ -4,6 +4,7 @@ import com.gatcha.log.data.AppSettings
 import com.gatcha.log.data.DateUtil
 import com.gatcha.log.data.GameData
 import com.gatcha.log.data.GatchaRepository
+import com.gatcha.log.data.HomeLogic
 import com.gatcha.log.data.HoyolabConfig
 import com.gatcha.log.data.Notifier
 import com.gatcha.log.data.api.HoyolabApi
@@ -153,7 +154,28 @@ object NotificationChecker {
             }
         }
 
-        // ⑥ 새 게임 공지 — 게임별로 '마지막으로 알린 공지 시각'보다 새 글이 올라왔을 때만.
+        // ⑥ 전투 콘텐츠 시즌 마감 임박 (로컬 진행도 캐시) — 게임+모드별 1회, D-3/D-1 레벨.
+        //    놓치면 그 시즌 보상은 복구가 안 되므로 미클리어일 때만 알린다(판정은 HomeLogic 공유 룰).
+        if (settings.notifyCombat) {
+            val now = currentTimeMillis()
+            HomeLogic.combatDeadlines(repo.loadCombatModes(), now).forEach { c ->
+                val level = if (c.dDay <= 1) "d1" else "d3"
+                val tag = "combat:${c.gameShort}:${c.mode}"
+                if (settings.lastNotified(tag) != level) {
+                    settings.setLastNotified(tag, level)
+                    val game = GameData.games.firstOrNull { it.shortName == c.gameShort }
+                    val nid = Notifier.ID_COMBAT_BASE + (game?.ordinal ?: 0)
+                    val whenLabel = if (c.dDay <= 0) "오늘 마감" else if (c.dDay == 1) "내일 마감" else "D-${c.dDay}"
+                    Notifier.notify(
+                        nid,
+                        "${c.gameShort} ${c.mode} 마감 임박",
+                        "${c.stars}/${c.maxStars} — $whenLabel 이에요. 시즌이 끝나면 보상이 사라져요",
+                    )
+                }
+            }
+        }
+
+        // ⑦ 새 게임 공지 — 게임별로 '마지막으로 알린 공지 시각'보다 새 글이 올라왔을 때만.
         if (settings.notifyNews) {
             GameData.games.filter { it.newsSlug != null }.forEach { game ->
                 // 실패(null)면 조용히 건너뛴다 — 네트워크 오류를 '새 공지 없음'으로 오해하지 않는다.
@@ -248,6 +270,11 @@ object NotificationChecker {
         if (settings.notifySubscription) {
             repo.loadSubscriptions().filter { it.dDay(now) <= 1 }.forEach { sub ->
                 lines += "${if (sub.dDay(now) <= 0) "오늘" else "내일"} 결제 · ${sub.name} ₩${won(sub.amount)}"
+            }
+        }
+        if (settings.notifyCombat) {
+            HomeLogic.combatDeadlines(repo.loadCombatModes(), now).forEach { c ->
+                lines += "${c.mode} 마감 ${if (c.dDay <= 0) "오늘" else "D-${c.dDay}"} · ${c.gameShort} ${c.stars}/${c.maxStars}"
             }
         }
         return lines

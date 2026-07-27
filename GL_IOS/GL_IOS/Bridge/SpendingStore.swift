@@ -106,6 +106,7 @@ final class SpendingStore: ObservableObject {
     // ── Phase 6 (27.33.0 알림 설정 — 정기결제 갱신·방해금지·데일리 요약) ──
     @Published private(set) var notifySubscription: Bool = false
     @Published private(set) var notifyNews: Bool = false
+    @Published private(set) var notifyCombat: Bool = true
     @Published private(set) var notifyDndEnabled: Bool = false
     @Published private(set) var notifyDndStartHour: Int = 23
     @Published private(set) var notifyDndEndHour: Int = 8
@@ -203,6 +204,7 @@ final class SpendingStore: ObservableObject {
         // Phase 6 (알림 설정)
         bind(vm.notifySubscription) { [weak self] in self?.notifySubscription = $0.boolValue }
         bind(vm.notifyNews) { [weak self] in self?.notifyNews = $0.boolValue }
+        bind(vm.notifyCombat) { [weak self] in self?.notifyCombat = $0.boolValue }
         bind(vm.notifyDndEnabled) { [weak self] in self?.notifyDndEnabled = $0.boolValue }
         bind(vm.notifyDndStartHour) { [weak self] in self?.notifyDndStartHour = Int($0.int32Value) }
         bind(vm.notifyDndEndHour) { [weak self] in self?.notifyDndEndHour = Int($0.int32Value) }
@@ -261,6 +263,7 @@ final class SpendingStore: ObservableObject {
     // Phase 6 (27.33.0) — 정기결제 갱신·방해금지·데일리 요약
     func setNotifySubscription(_ v: Bool) { vm.setNotifySubscription(v: v) }
     func setNotifyNews(_ v: Bool) { vm.setNotifyNews(v: v) }
+    func setNotifyCombat(_ v: Bool) { vm.setNotifyCombat(v: v) }
     func setNotifyDndEnabled(_ v: Bool) { vm.setNotifyDndEnabled(v: v) }
     func setNotifyDndStartHour(_ v: Int) { vm.setNotifyDndStartHour(v: Int32(v)) }
     func setNotifyDndEndHour(_ v: Int) { vm.setNotifyDndEndHour(v: Int32(v)) }

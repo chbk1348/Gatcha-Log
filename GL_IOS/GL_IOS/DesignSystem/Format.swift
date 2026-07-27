@@ -1,4 +1,5 @@
 import SwiftUI
+import Shared
 
 // ════════════════════════════════════════════════════════════════════════════
 // 포맷 헬퍼 — 금액(원) 표기, 게임 ARGB(Long) → Color.
@@ -49,18 +50,20 @@ extension Color {
     }
 }
 
-/// epoch millis(Int64) → 로컬 연/월/일. (Kotlin DateUtil 의 system tz 기준 집계와 맞춤)
+/// epoch millis(Int64) → 로컬 연/월/일.
+/// 계산 자체는 commonMain(DateUtil.kt)이 단일 소스 — Swift 는 Int32 변환만 감싼다.
+/// (예전엔 Calendar.current 로 따로 구현해 두 플랫폼의 월 경계 판정이 갈릴 수 있었다)
 enum DateMillis {
     static func comps(_ millis: Int64) -> (year: Int, month: Int, day: Int) {
-        let date = Date(timeIntervalSince1970: Double(millis) / 1000.0)
-        let c = Calendar.current.dateComponents([.year, .month, .day], from: date)
-        return (c.year ?? 0, c.month ?? 0, c.day ?? 0)
+        (Int(DateUtil.shared.year(millis: millis)),
+         Int(DateUtil.shared.month(millis: millis)),
+         Int(DateUtil.shared.dayOfMonth(millis: millis)))
     }
     static func isSameMonth(_ millis: Int64, _ year: Int, _ month: Int) -> Bool {
-        let c = comps(millis); return c.year == year && c.month == month
+        DateUtil.shared.isSameMonth(millis: millis, year: Int32(year), month: Int32(month))
     }
     static func isSameYear(_ millis: Int64, _ year: Int) -> Bool {
-        comps(millis).year == year
+        DateUtil.shared.isSameYear(millis: millis, year: Int32(year))
     }
 }
 

@@ -39,6 +39,14 @@ class AppSettings {
         get() = prefs.getBoolean(KEY_NOTIFY_SUB, true)
         set(v) { prefs.putBoolean(KEY_NOTIFY_SUB, v) }
 
+    /**
+     * 전투 콘텐츠 시즌 마감 알림(나선 비경·혼돈의 기억 등, D-3/D-1).
+     * 기본 ON — 놓치면 그 시즌 보상은 복구 불가라 사후 만회가 안 된다.
+     */
+    var notifyCombat: Boolean
+        get() = prefs.getBoolean(KEY_NOTIFY_COMBAT, true)
+        set(v) { prefs.putBoolean(KEY_NOTIFY_COMBAT, v) }
+
     // ── 방해금지(DnD) — 조용한 시간대엔 알림 보류. 기준 기기 로컬 시각(출석 베이징과 별개). ──
     var notifyDndEnabled: Boolean
         get() = prefs.getBoolean(KEY_DND_ENABLED, false)
@@ -160,6 +168,7 @@ class AppSettings {
         private const val KEY_SPENDING_COMPACT = "spending_compact"
         private const val KEY_NOTIFY_SUB = "notify_subscription"
         private const val KEY_NOTIFY_NEWS = "notify_news"
+        private const val KEY_NOTIFY_COMBAT = "notify_combat"
         private const val KEY_DND_ENABLED = "notify_dnd_enabled"
         private const val KEY_DND_START = "notify_dnd_start"
         private const val KEY_DND_END = "notify_dnd_end"

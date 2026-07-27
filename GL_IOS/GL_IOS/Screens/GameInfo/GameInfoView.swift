@@ -47,7 +47,7 @@ struct GameInfoView: View {
                     }
                 }
                 // 통합 게임 일정 — 패치·이벤트·정기 콘텐츠. 게임 분리는 상단 헤더 드롭다운(gameFilter)으로 필터.
-                let schedule = buildSchedule(banners: store.activeBanners, events: store.gameEvents, challenges: store.challenges)
+                let schedule = ScheduleLogic.shared.buildSchedule(banners: store.activeBanners, events: store.gameEvents, challenges: store.challenges)
                 if !schedule.isEmpty {
                     section { GameScheduleSection(entries: schedule, banners: store.activeBanners, filter: gameFilter, onSeeAll: { showSchedule = true }, onSeePickups: { showPickups = true }) }.id("SCHEDULE")
                 }
@@ -58,7 +58,7 @@ struct GameInfoView: View {
                 // 공지·뉴스 — 게임별 최신 공지(탭하면 HoYoLab 열기). 더보기로 전체 페이지.
                 section { NewsSection(store: store, filter: gameFilter, onSeeAll: { showNews = true }, onOpenNews: { selectedNews = $0; showNewsDetail = true }) }.id("NEWS")
                 if store.hoyolabConfig.isLinked {
-                    section { GameTabbedSection(store: store, filter: gameFilter) }
+                    section { GameTabbedSection(store: store, filter: gameFilter) }.id("COMBAT")
                 }
                 section { navEntry(icon: "function", title: "가챠 계산기", sub: "재화 환산 · 확률 · 시나리오") { showCalc = true } }
                 section { navEntry(icon: "chart.bar.xaxis", title: "가챠 효율 리포트", sub: "UIGF/SRGF 분석 · 단가 · 천장 분포") { showReport = true } }
@@ -196,65 +196,17 @@ struct GameInfoView: View {
 }
 
 // ── 통합 게임 일정 (패치·이벤트·정기 콘텐츠) ──
-// 패치(게임별 다음 시작/종료)·진행 이벤트·정기 콘텐츠를 하나의 모델로 합쳐 날짜순(임박순)으로 정렬한다.
-struct ScheduleEntry: Identifiable {
-    let id = UUID()
-    let gameKey: String
-    let gameShort: String
-    let color: Color
-    let kind: String          // "패치" | "이벤트" | "콘텐츠"
-    let title: String
-    let sub: String
-    let target: Int64         // 정렬 기준(밀리초): 패치=시작/종료, 이벤트·콘텐츠=종료
-    let isStart: Bool         // 패치 시작 여부(라벨·날짜 접두 분기)
-}
+// 모델(ScheduleEntry·VersionGroup)과 산출 로직(buildSchedule·filteredPickups·buildVersionGroups)은
+// GL_Shared ScheduleLogic 이 단일 소스 — 전반/후반 페이즈 판정이 Android 와 갈리지 않도록.
+// 여기엔 SwiftUI 렌더링과 ARGB→Color 변환만 남는다.
 
-func buildSchedule(banners: [GachaBanner], events: [GameEvent], challenges: [GameChallenge]) -> [ScheduleEntry] {
-    var out: [ScheduleEntry] = []
-    // ① 픽업 페이즈 — 게임별로 종료일 기준 페이즈(전반/후반) 분리해 'v6.6 전반 픽업 종료'처럼 표기.
-    // (ennead가 버전 종료 시각을 안 줘서 '버전' 대신 '픽업 페이즈' 기준. 전반/후반 판별 = 구 GameBannerCard 로직)
-    for game in GameData.shared.games where game.enneadKey != nil {
-        let gb = banners.filter { $0.game == game.displayName }
-        if gb.isEmpty { continue }
-        let color = Color(argb64: game.color)
-        let phases = Dictionary(grouping: gb, by: { $0.endMillis }).sorted { $0.key < $1.key }
-        let versions = phases.map { $0.value.first?.version ?? "" }
-        let lastVersion = versions.last
-        var totalByVer: [String: Int] = [:]; for v in versions { totalByVer[v, default: 0] += 1 }
-        var seen: [String: Int] = [:]
-        for (idx, ph) in phases.enumerated() {
-            let v = versions[idx]
-            let pos = seen[v] ?? 0; seen[v] = pos + 1
-            let phaseLabel: String
-            if (totalByVer[v] ?? 1) >= 2 { phaseLabel = pos == 0 ? "전반" : (pos == 1 ? "후반" : "\(pos + 1)페이즈") }
-            else { phaseLabel = (v == lastVersion) ? "전반" : "후반" }
-            let title = v.isEmpty ? "\(phaseLabel) 픽업 종료" : "v\(v) \(phaseLabel) 픽업 종료"
-            out.append(ScheduleEntry(gameKey: game.key, gameShort: game.shortName, color: color, kind: "패치", title: title, sub: "", target: ph.key, isStart: false))
-        }
-    }
-    // ② 진행 중인 이벤트
-    for ev in events {
-        let g = GameData.shared.byNameOrNull(name: ev.game)
-        out.append(ScheduleEntry(gameKey: g?.key ?? ev.game, gameShort: g?.shortName ?? ev.game,
-                                 color: Color(argb64: ev.gameColor), kind: "이벤트",
-                                 title: ev.name, sub: ev.reward, target: ev.endMillis, isStart: false))
-    }
-    // ③ 정기 콘텐츠
-    for ch in challenges {
-        let g = GameData.shared.byNameOrNull(name: ch.game)
-        out.append(ScheduleEntry(gameKey: g?.key ?? ch.game, gameShort: g?.shortName ?? ch.game,
-                                 color: Color(argb64: ch.gameColor), kind: "콘텐츠",
-                                 title: ch.name, sub: ch.reward, target: ch.endMillis, isStart: false))
-    }
-    return out.sorted { $0.target < $1.target }
+/// ForEach 식별자 — (종류, 제목, 대상시각) 조합으로 일정 한 줄을 구분한다.
+extension ScheduleEntry: @retroactive Identifiable {
+    public var id: String { "\(kind)|\(title)|\(target)" }
 }
 
 private func scheduleKindColor(_ kind: String) -> Color {
-    switch kind {
-    case "패치": return Color(hex: 0xFF6C8AE4)
-    case "이벤트": return Color(hex: 0xFFE0A93B)
-    default: return Color(hex: 0xFF2BB673)
-    }
+    Color(argb64: ScheduleLogic.shared.kindColorArgb(kind: kind))
 }
 
 // 무기(검) 아이콘 — SF Symbols에 검 심볼이 없어 커스텀 Shape로 정의(Android SwordIcon과 동일 24×24 좌표).
@@ -431,22 +383,12 @@ private struct PickupItem: View {
     }
 }
 
-// 헤더 드롭다운(filter)에 맞춘 픽업 배너 — "all"이면 전체, 특정 게임이면 그 게임만. 종료 임박순.
 private func filteredPickups(_ banners: [GachaBanner], filter: String) -> [GachaBanner] {
-    let list: [GachaBanner]
-    if filter == "all" {
-        list = banners
-    } else if let g = GameData.shared.games.first(where: { $0.key == filter }) {
-        list = banners.filter { $0.game == g.displayName }
-    } else {
-        list = []
-    }
-    return list.sorted { $0.endMillis < $1.endMillis }
+    ScheduleLogic.shared.filteredPickups(banners: banners, filter: filter)
 }
 
-// 헤더 드롭다운(filter)에 맞춘 일정 — "all"이면 전체, 특정 게임이면 그 게임만.
 private func filteredEntries(_ entries: [ScheduleEntry], filter: String) -> [ScheduleEntry] {
-    filter == "all" ? entries : entries.filter { $0.gameKey == filter }
+    ScheduleLogic.shared.filteredEntries(entries: entries, filter: filter)
 }
 
 private struct ScheduleEntryRow: View {
@@ -498,7 +440,7 @@ private struct DdayRing: View {
 
 // 피처드 버전 카드 — 섹션 최상단, 가장 임박한 버전. D-day 링 + 대표 캐릭터(+동반무기) + 경과. (④ 섹션 요약)
 private struct FeaturedVersionCard: View {
-    let vg: VersionGroupIOS
+    let vg: VersionGroup
     var body: some View {
         let c = Color(argb64: vg.game.color)
         let d = Int((vg.nearestEnd - nowMs()) / 86_400_000)
@@ -570,7 +512,7 @@ private struct FeaturedVersionCard: View {
 
 // 슬림 버전 행 — 피처드 아래 나머지 버전(요약 1줄). abbr + "vN · 이름들" + 잔여. (④ 세컨더리)
 private struct SlimVersionRow: View {
-    let vg: VersionGroupIOS
+    let vg: VersionGroup
     var body: some View {
         let c = Color(argb64: vg.game.color)
         let d = Int((vg.nearestEnd - nowMs()) / 86_400_000)
@@ -607,7 +549,7 @@ private struct SlimVersionRow: View {
 
 // 컴팩트 버전 섹션(전체 페이지) — 버전 소제목(좌측 틱) + 촘촘한 픽업 행. (③ 전체 페이지)
 private struct CompactVersionSection: View {
-    let vg: VersionGroupIOS
+    let vg: VersionGroup
     var body: some View {
         let c = Color(argb64: vg.game.color)
         let d = Int((vg.nearestEnd - nowMs()) / 86_400_000)
@@ -681,7 +623,7 @@ private struct CompactPickupRow: View {
 
 // 콜라보 강조 카드 — 게임 일정 최상단. 활성 콜라보(스타레일×Fate 등)를 일반 버전과 분리해 부각(보라 accent).
 private struct CollabScheduleCard: View {
-    let groups: [VersionGroupIOS]
+    let groups: [VersionGroup]
     private var title: String {
         for g in groups { for b in g.pickups { if let t = GameInfoKt.collabTitle(banner: b) { return t } } }
         return "콜라보 픽업"
@@ -734,8 +676,8 @@ struct GameScheduleSection: View {
 
     var body: some View {
         let allGroups = buildVersionGroups(banners, filter: filter)
-        let collabGroups = allGroups.filter { g in g.pickups.contains { GameInfoKt.isCollabBanner(banner: $0) } }
-        let groups = allGroups.filter { g in !g.pickups.contains { GameInfoKt.isCollabBanner(banner: $0) } }
+        let collabGroups = ScheduleLogic.shared.collabGroups(groups: allGroups)
+        let groups = ScheduleLogic.shared.regularGroups(groups: allGroups)
         let extras = filteredEntries(entries, filter: filter).filter { $0.kind != "패치" }.sorted { $0.target < $1.target }
         let topGroups = Array(groups.prefix(3))
         let topExtras = Array(extras.prefix(2))
@@ -798,10 +740,10 @@ struct GameSchedulePage: View {
 
     var body: some View {
         let allGroups = buildVersionGroups(store.activeBanners, filter: filter)
-        let collabGroups = allGroups.filter { g in g.pickups.contains { GameInfoKt.isCollabBanner(banner: $0) } }
-        let groups = allGroups.filter { g in !g.pickups.contains { GameInfoKt.isCollabBanner(banner: $0) } }
+        let collabGroups = ScheduleLogic.shared.collabGroups(groups: allGroups)
+        let groups = ScheduleLogic.shared.regularGroups(groups: allGroups)
         // 버전 없는 일정(이벤트·정기 콘텐츠)은 하단 별도 카드로. 패치 종료는 버전 카드가 대신하므로 제외.
-        let extras = filteredEntries(buildSchedule(banners: store.activeBanners, events: store.gameEvents, challenges: store.challenges), filter: filter)
+        let extras = filteredEntries(ScheduleLogic.shared.buildSchedule(banners: store.activeBanners, events: store.gameEvents, challenges: store.challenges), filter: filter)
             .filter { $0.kind != "패치" }.sorted { $0.target < $1.target }
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
@@ -873,35 +815,7 @@ struct GamePickupPage: View {
     }
 }
 
-// 버전 단위 묶음 — (게임, 버전) 하나당 카드 한 장. 픽업 종료 임박순으로 카드 정렬. (Android VersionGroup 패리티)
-private struct VersionGroupIOS {
-    let game: Game
-    let version: String
-    let pickups: [GachaBanner]
-    let nearestEnd: Int64
-    let start: Int64   // 버전 시작일 = 픽업 시작 중 가장 이른 값(0 제외)
-    let end: Int64     // 버전 종료일 = 픽업 종료 중 가장 늦은 값
-}
-
-// 필터 적용 픽업을 (게임, 버전)으로 묶어 임박순 정렬. 버전이 비면 게임명만.
-private func buildVersionGroups(_ banners: [GachaBanner], filter: String) -> [VersionGroupIOS] {
-    var map: [String: [GachaBanner]] = [:]
-    var order: [String] = []
-    for b in filteredPickups(banners, filter: filter) {
-        let key = "\(b.game)|\(b.version)"
-        if map[key] == nil { order.append(key) }
-        map[key, default: []].append(b)
-    }
-    var groups: [VersionGroupIOS] = []
-    for key in order {
-        guard let list = map[key], let first = list.first,
-              let g = GameData.shared.byNameOrNull(name: first.game) else { continue }
-        let nearest = list.map { $0.endMillis }.min() ?? 0
-        let start = list.filter { $0.startMillis > 0 }.map { $0.startMillis }.min() ?? 0
-        let end = list.map { $0.endMillis }.max() ?? 0
-        groups.append(VersionGroupIOS(game: g, version: first.version,
-                                      pickups: list.sorted { $0.endMillis < $1.endMillis }, nearestEnd: nearest, start: start, end: end))
-    }
-    return groups.sorted { $0.nearestEnd < $1.nearestEnd }
+private func buildVersionGroups(_ banners: [GachaBanner], filter: String) -> [VersionGroup] {
+    ScheduleLogic.shared.buildVersionGroups(banners: banners, filter: filter)
 }
 

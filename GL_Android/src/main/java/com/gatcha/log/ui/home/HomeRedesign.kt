@@ -25,6 +25,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Calculate
 import androidx.compose.material.icons.filled.Insights
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.material.icons.filled.MilitaryTech
 import androidx.compose.material.icons.filled.Savings
 import androidx.compose.material.icons.filled.TaskAlt
 import androidx.compose.material3.CircularProgressIndicator
@@ -70,10 +71,7 @@ import androidx.compose.ui.unit.sp
 import com.gatcha.log.data.DateUtil
 import com.gatcha.log.data.GachaBanner
 import com.gatcha.log.data.dhLabel
-import com.gatcha.log.data.Game
 import com.gatcha.log.data.GameData
-import com.gatcha.log.data.GachaRateData
-import com.gatcha.log.data.PityState
 import com.gatcha.log.data.GameEvent
 import com.gatcha.log.data.GameChallenge
 import com.gatcha.log.data.AnniversaryInfo
@@ -81,6 +79,12 @@ import com.gatcha.log.data.api.NewsItem
 import androidx.compose.material.icons.filled.Celebration
 import com.gatcha.log.data.LiveNote
 import com.gatcha.log.data.PityTier
+import com.gatcha.log.data.BannerPlan
+import com.gatcha.log.data.GameSpend
+import com.gatcha.log.data.PityHighlight
+import com.gatcha.log.data.ResinAlert
+import com.gatcha.log.data.TodayTask
+import com.gatcha.log.data.TodayTaskKind
 import com.gatcha.log.ui.components.GlgDropdownMenu
 import com.gatcha.log.ui.components.GlgDropdownItem
 import com.gatcha.log.ui.components.GlgTabHeaderHeight
@@ -110,17 +114,8 @@ import kotlin.random.Random
 // 데이터는 전부 기존 ViewModel 재사용 — 회귀 최소.
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** 천장 하이라이트 — 가장 임박한 게임 1종(요약·가챠 현황 카드에 공유). */
-data class PityHighlight(
-    val game: Game,
-    val count: Int,
-    val soft: Int,
-    val hard: Int,
-    val tier: PityTier,
-)
-
-/** 게임별 이번 달 지출/한도 (D 섹션). */
-data class GameSpend(val game: Game, val spent: Long, val limit: Long)
+// 표시 모델(PityHighlight·GameSpend·BannerPlan·ResinAlert)과 파생 계산은 GL_Shared
+// (data/HomeLogic.kt)로 이관 — iOS 와 단일 소스 공유. 여기엔 Compose 표현만 남긴다.
 
 // ── 슬림 헤더 ────────────────────────────────────────────────────────────────
 @Composable
@@ -740,11 +735,8 @@ fun BannerCapsule(banner: GachaBanner) {
 }
 
 // ── 오늘 할 일 (상태 기반 스마트 액션) ────────────────────────────────────────
-/** 재화(레진/개척력/배터리) 임박 경보. full=가득, recovery="약 N시간 후 충전". */
-data class ResinAlert(val gameShort: String, val label: String, val cur: Int, val max: Int, val recovery: String, val full: Boolean)
-
-/** 픽업 확정 계획 — 최악의 경우 필요한 뽑기 수와 원화 비용(가챠×지출 결합 지표). */
-data class BannerPlan(val maxPulls: Int, val wonCost: Long)
+// 항목 산출(우선순위·문구)은 GL_Shared HomeLogic.resolveTodayTasks 가 단일 소스.
+// 여기서는 종류(TodayTaskKind)에 아이콘과 탭 이동 동작만 붙인다.
 
 /** 오늘 할 일 한 줄. busyable=전체출석처럼 진행 중 스피너가 필요한 항목. */
 data class TodayItem(
@@ -756,39 +748,29 @@ data class TodayItem(
     val onAction: () -> Unit,
 )
 
-/**
- * 출석·재화·픽업·예산·천장 상태를 우선순위 순으로 훑어 **활성 할 일을 전부** 리스트로 산출.
- * 순서(시간 민감도): 미출석 → 재화 임박 → 픽업 막바지 → 예산 경고 → 천장 임박. 없으면 빈 리스트.
- */
-fun resolveTodayTasks(
-    pendingAttendance: Int,
-    resins: List<ResinAlert>,
-    urgentBanner: GachaBanner?,
-    budget: Long,
-    monthlyTotal: Long,
+/** shared [TodayTask] → Compose 표시 모델. 종류별 아이콘·클릭 동작 매핑. */
+fun List<TodayTask>.toTodayItems(
     onCheckInAll: () -> Unit,
     onResin: () -> Unit,
+    onCombat: () -> Unit,
     onBanner: () -> Unit,
     onBudget: () -> Unit,
-): List<TodayItem> = buildList {
-    val budgetPct = if (budget > 0) (monthlyTotal * 100 / budget).toInt() else 0
-    if (pendingAttendance > 0)
-        add(TodayItem(Icons.Default.DoneAll, "출석 안 한 게임 ${pendingAttendance}개", "한 번에 출석", false, true, onCheckInAll))
-    // 가득/임박한 게임을 전부 — 원신뿐 아니라 스타레일·젠레스 등 해당되는 모든 게임
-    resins.forEach { r ->
-        add(TodayItem(
-            Icons.Default.Bolt,
-            if (r.full) "${r.gameShort} ${r.label} 가득 참" else "${r.gameShort} ${r.label} ${r.cur}/${r.max} 곧 넘침",
-            "게임 정보", true, false, onResin,
-        ))
+): List<TodayItem> = map { t ->
+    val icon = when (t.kind) {
+        TodayTaskKind.ATTENDANCE -> Icons.Default.DoneAll
+        TodayTaskKind.RESIN -> Icons.Default.Bolt
+        TodayTaskKind.COMBAT -> Icons.Default.MilitaryTech
+        TodayTaskKind.BANNER -> Icons.Default.Casino
+        TodayTaskKind.BUDGET -> Icons.Default.Savings
     }
-    if (urgentBanner != null) {
-        add(TodayItem(Icons.Default.Casino, "${urgentBanner.name} 픽업 ${dhLabel(urgentBanner.endMillis)} 막바지", "픽업 계획", true, false, onBanner))
+    val action = when (t.kind) {
+        TodayTaskKind.ATTENDANCE -> onCheckInAll
+        TodayTaskKind.RESIN -> onResin
+        TodayTaskKind.COMBAT -> onCombat
+        TodayTaskKind.BANNER -> onBanner
+        TodayTaskKind.BUDGET -> onBudget
     }
-    if (budget > 0 && monthlyTotal > budget)
-        add(TodayItem(Icons.Default.Savings, "예산 ${budgetPct - 100}% 초과", "예산 점검", true, false, onBudget))
-    else if (budget > 0 && budgetPct >= 90)
-        add(TodayItem(Icons.Default.Savings, "예산 ${budgetPct}% 사용", "예산 점검", true, false, onBudget))
+    TodayItem(icon, t.message, t.ctaLabel, t.urgent, t.busyable, action)
 }
 
 /** 오늘 할 일 카드 — 활성 항목을 전부 리스트로. titleOutside=true 면 제목을 카드 바깥 큰 헤더로. */

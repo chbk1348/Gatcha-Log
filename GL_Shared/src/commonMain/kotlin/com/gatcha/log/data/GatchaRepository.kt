@@ -449,6 +449,40 @@ class GatchaRepository(accountId: String = "guest") {
         prefs.putString(KEY_BANNERS, arr.toString())
     }
 
+    // ---------------------------------------------------------------- 전투 진행도 캐시 (로컬 전용 — 시즌 마감 알림 점검용)
+    /** 최근 로드한 전투 콘텐츠 진행도. 백그라운드가 네트워크 없이 시즌 마감 임박을 판정하도록 캐시. */
+    fun loadCombatModes(): List<CombatMode> {
+        val raw = prefs.getString(KEY_COMBAT, null) ?: return emptyList()
+        return runCatching {
+            val arr = JSONArray(raw)
+            (0 until arr.length()).map { i ->
+                val o = arr.getJSONObject(i)
+                CombatMode(
+                    game = o.optString("game", ""),
+                    name = o.optString("name", ""),
+                    stars = o.optInt("stars", 0),
+                    maxStars = o.optInt("maxStars", 0),
+                    detail = o.optString("detail", ""),
+                    endMillis = o.optLong("endMillis", 0L),
+                    hasData = o.optBoolean("hasData", true),
+                )
+            }
+        }.getOrDefault(emptyList())
+    }
+
+    /** 전투 진행도 캐시 저장. 배너 캐시와 동일하게 로컬 전용(클라우드 동기화 미트리거). */
+    fun saveCombatModes(list: List<CombatMode>) {
+        val arr = JSONArray()
+        list.forEach { c ->
+            arr.put(JSONObject().apply {
+                put("game", c.game); put("name", c.name)
+                put("stars", c.stars); put("maxStars", c.maxStars)
+                put("detail", c.detail); put("endMillis", c.endMillis); put("hasData", c.hasData)
+            })
+        }
+        prefs.putString(KEY_COMBAT, arr.toString())
+    }
+
     // ---------------------------------------------------------------- 스냅샷 (전체 데이터 직렬화 — 클라우드/파일 백업 공용)
     /** 계정의 모든 데이터를 단일 JSON 으로 직렬화(Firestore 저장·파일 백업용). */
     fun exportSnapshotJson(): String {
@@ -587,6 +621,7 @@ class GatchaRepository(accountId: String = "guest") {
         const val KEY_ENKA_HSR = "enka_hsr"
         const val KEY_ENKA_CACHE = "enka_cache"   // 로컬 전용(클라우드 스냅샷 비포함)
         const val KEY_BANNERS = "active_banners"  // 로컬 전용(픽업 마감 알림 점검 캐시)
+        const val KEY_COMBAT = "combat_modes"     // 로컬 전용(전투 시즌 마감 알림 점검 캐시)
         const val KEY_GACHA = "gacha_records"
         const val KEY_SUBS = "subscriptions"
         const val KEY_HOME_CARDS = "home_cards"

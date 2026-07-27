@@ -51,12 +51,11 @@ struct SpendingInsightView: View {
         let dayOfMonth = cal.component(.day, from: now)
         let daysInMonth = cal.range(of: .day, in: .month, for: now)?.count ?? 30
         let budget = store.budget
-        // 월말 예상: 워밍업(7일) 완화 — 경과일이 7일 미만이면 분모를 7로 하한 처리해 월초 run-rate 과대추정을 억제.
-        // (배율 = daysInMonth / max(dayOfMonth, 7) ≥ 1 이라 예상값은 항상 현재 지출 이상. 7일 경과 후엔 순수 run-rate와 동일)
-        let effectiveDays = max(dayOfMonth, min(daysInMonth, 7))
-        let projected = dayOfMonth > 0 ? monthTotal * Int64(daysInMonth) / Int64(effectiveDays) : monthTotal
-        let dailyAvg = dayOfMonth > 0 ? monthTotal / Int64(dayOfMonth) : 0
-        let remainingDays = max(daysInMonth - dayOfMonth, 0)
+        // 월말 예상(워밍업 7일 완화 포함)은 GL_Shared SpendingInsightStats 가 단일 소스 — Android 와 동일 수치.
+        let pace = SpendingInsightStats.shared.budgetPace(monthTotal: monthTotal, dayOfMonth: Int32(dayOfMonth), daysInMonth: Int32(daysInMonth))
+        let projected = pace.projected
+        let dailyAvg = pace.dailyAvg
+        let remainingDays = Int(pace.remainingDays)
         return GLGCard(cornerRadius: 20, padding: 16) {
             VStack(alignment: .leading, spacing: 0) {
                 cardTitle("\(store.displayMonth)월 예산 페이스", "\(dayOfMonth)일 경과 · \(remainingDays)일 남음")
@@ -229,20 +228,17 @@ struct SpendingInsightView: View {
         }
     }
 
-    // ── 3·4) 결제수단·태그 비중 ──
+    // ── 3·4) 결제수단·태그 비중 ── (집계는 GL_Shared SpendingInsightStats 단일 소스)
     private var paymentRows: [(String, Int64, Double)] {
-        let total = spendings.reduce(0) { $0 + $1.amount }
-        return Dictionary(grouping: spendings, by: { $0.paymentMethod.isEmpty ? "기타" : $0.paymentMethod })
-            .map { ($0.key, $0.value.reduce(0) { $0 + $1.amount }) }
-            .sorted { $0.1 > $1.1 }
-            .map { ($0.0, $0.1, total > 0 ? Double($0.1)/Double(total) : 0) }
+        SpendingInsightStats.shared.paymentBreakdown(spendings: spendings).map {
+            ($0.name, $0.amount, $0.total > 0 ? Double($0.amount) / Double($0.total) : 0)
+        }
     }
+    // 태그는 중복 집계라 합계 비율이 100%를 넘을 수 있어, 막대 분모는 전체합이 아닌 최대 태그 금액(total).
     private var tagRows: [(String, Int64, Double)] {
-        var m: [String: Int64] = [:]
-        for s in spendings { for t in s.tags { m[t, default: 0] += s.amount } }
-        let sorted = m.sorted { $0.value > $1.value }.prefix(8)
-        let maxTag = max(sorted.first?.value ?? 1, 1)
-        return sorted.map { ("#\($0.key)", $0.value, Double($0.value)/Double(maxTag)) }
+        SpendingInsightStats.shared.tagBreakdown(spendings: spendings).map {
+            ("#\($0.name)", $0.amount, $0.total > 0 ? Double($0.amount) / Double($0.total) : 0)
+        }
     }
 
     @ViewBuilder
@@ -297,24 +293,11 @@ struct MonthlyTrendCard: View {
     private let etcColor = Color(hex: 0xFFB8BDC6)
 
     var body: some View {
-        let yearItems = spendings.filter { DateMillis.isSameYear($0.dateMillis, year) }
-        if !yearItems.isEmpty {
-            let topGames = Array(Dictionary(grouping: yearItems, by: { $0.gameName })
-                .mapValues { $0.reduce(0) { $0 + $1.amount } }
-                .sorted { $0.value > $1.value }.prefix(5).map { $0.key })
-            let hasEtc = yearItems.contains { !topGames.contains($0.gameName) }
-            let legend = topGames + (hasEtc ? ["기타"] : [])
-            // month(0..11) -> game -> amount
-            var monthGame = [[String: Int64]](repeating: [:], count: 12)
-            for s in yearItems {
-                let m = DateMillis.comps(s.dateMillis).month - 1
-                if m >= 0 && m < 12 {
-                    let key = topGames.contains(s.gameName) ? s.gameName : "기타"
-                    monthGame[m][key, default: 0] += s.amount
-                }
-            }
-            let monthTotals = monthGame.map { $0.values.reduce(0, +) }
-            let maxMonth = max(monthTotals.max() ?? 0, 1)
+        // 상위 5 + "기타" 묶음·월별 합계는 GL_Shared SpendingInsightStats 가 단일 소스(Android 와 동일 집계).
+        if let trend = SpendingInsightStats.shared.monthlyTrend(spendings: spendings, year: Int32(year)) {
+            let legend = trend.legend
+            let monthGame = trend.monthGame.map { $0.mapValues { $0.int64Value } }
+            let maxMonth = trend.maxMonth
             func colorOf(_ g: String) -> Color { g == "기타" ? etcColor : Color(argb64: GameData.shared.colorFor(name: g)) }
 
             return AnyView(GLGCard(cornerRadius: 20, padding: 16) {
