@@ -432,8 +432,8 @@ fun EnkaStatPage(c: EnkaChar, game: String, onBack: () -> Unit) {
         }
         Spacer(Modifier.height(16.dp))
 
-        // 성유물 / 유물 — 치명 점수(CV) 순으로 정렬해 잘 뽑힌 것부터 보여준다.
-        val artScore = remember(c.artifacts) { ArtifactScoring.scoreChar(c.artifacts) }
+        // 성유물 / 유물 — 캐릭터 유효옵션 기준 유효 점수 순으로 정렬해 잘 뽑힌 것부터 보여준다.
+        val artScore = remember(c.artifacts, keySet, game) { ArtifactScoring.scoreChar(c.artifacts, keySet, game) }
         SecLabel(artLabel)
         if (c.artifacts.isEmpty()) {
             EmptyEquipNote(if (game == "genshin") "성유물이 장착되지 않았습니다." else if (game == "zzz") "드라이브 디스크가 장착되지 않았습니다." else "유물이 장착되지 않았습니다.")
@@ -682,14 +682,22 @@ private fun StatInline(s: EnkaStatLine) {
     }
 }
 
-/** 캐릭별 주요 스탯이면(치명 포함) 강조색, 아니면 기본색. */
+/**
+ * 이 캐릭터의 유효옵션이면 빨간색, 아니면 기본색.
+ * 판정은 점수 산식과 **같은 함수**([ArtifactScoring.isEffective])를 써서
+ * "빨갛게 강조된 옵션 = 점수에 들어간 옵션"이 항상 일치하도록 한다.
+ */
 private fun keyOr(keySet: Set<StatTok>, s: EnkaStatLine, default: Color): Color =
-    if (s.crit || KeyStatRules.isKey(keySet, s.label)) CritColor else default
+    if (ArtifactScoring.isEffective(keySet, s.label)) CritColor else default
+
+/** 유효옵션은 값뿐 아니라 라벨까지 빨갛게 — 한 줄이 통째로 눈에 들어오도록. */
+private fun keyLabelOr(keySet: Set<StatTok>, s: EnkaStatLine): Color =
+    if (ArtifactScoring.isEffective(keySet, s.label)) CritColor.copy(alpha = 0.85f) else TextSecondary
 
 @Composable
 private fun StatCell(s: EnkaStatLine, keySet: Set<StatTok>) {
     Row(Modifier.fillMaxWidth().padding(horizontal = 11.dp, vertical = 9.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-        Text(s.label, fontSize = 11.5.sp, color = TextSecondary, maxLines = 1)
+        Text(s.label, fontSize = 11.5.sp, color = keyLabelOr(keySet, s), maxLines = 1)
         Text(s.value, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = keyOr(keySet, s, TextPrimary), maxLines = 1)
     }
 }
@@ -703,27 +711,31 @@ private fun gradeColor(grade: ArtifactGrade, accent: Color): Color = when (grade
 }
 
 /**
- * 치명 점수 요약 — 합계·장당 평균·등급.
- * CV = 치확×2 + 치피(서브 옵션만). 메인 옵션은 사용자가 고르는 값이라 제외한다.
+ * 유효 점수 요약 — 합계·장당 평균·등급.
+ * 서브 옵션 중 **이 캐릭터 유효옵션만** 최대 강화량으로 나눠 '유효 롤'로 환산한 값이다.
  */
 @Composable
 private fun CritScoreSummary(s: CharArtifactScore, accent: Color) {
     val c = gradeColor(s.grade, accent)
     GlassCard(modifier = Modifier.fillMaxWidth()) {
-        Row(Modifier.padding(horizontal = 13.dp, vertical = 11.dp), verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f)) {
-                Text("치명 점수", fontSize = 10.5.sp, color = TextSecondary)
-                Text("서브 옵션 치확×2 + 치피", fontSize = 9.5.sp, color = TextSecondary)
+        Column(Modifier.padding(horizontal = 13.dp, vertical = 11.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text("유효 점수", fontSize = 10.5.sp, color = TextSecondary)
+                    Text("유효옵션 강화 횟수 환산(장당 최대 9)", fontSize = 9.5.sp, color = TextSecondary)
+                }
+                Text(ArtifactScoring.rollLabel(s.totalRolls), fontSize = 18.sp, fontWeight = FontWeight.Black, color = c)
+                Spacer(Modifier.width(7.dp))
+                Surface(color = c.copy(alpha = 0.14f), shape = RoundedCornerShape(7.dp)) {
+                    Text(
+                        "장당 ${ArtifactScoring.rollLabel(s.averageRolls)} · ${s.grade.label}",
+                        fontSize = 10.sp, fontWeight = FontWeight.Bold, color = c,
+                        modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp),
+                    )
+                }
             }
-            Text(ArtifactScoring.cvLabel(s.totalCv), fontSize = 18.sp, fontWeight = FontWeight.Black, color = c)
-            Spacer(Modifier.width(7.dp))
-            Surface(color = c.copy(alpha = 0.14f), shape = RoundedCornerShape(7.dp)) {
-                Text(
-                    "장당 ${ArtifactScoring.cvLabel(s.averageCv)} · ${s.grade.label}",
-                    fontSize = 10.sp, fontWeight = FontWeight.Bold, color = c,
-                    modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp),
-                )
-            }
+            Spacer(Modifier.height(6.dp))
+            Text("빨간색 = 이 캐릭터 유효옵션", fontSize = 9.5.sp, fontWeight = FontWeight.Bold, color = CritColor)
         }
     }
 }
@@ -748,7 +760,7 @@ private fun ArtifactCard(a: EnkaArtifact, score: ArtifactScore, rank: Int, accen
                 }
                 Spacer(Modifier.width(9.dp))
                 Column(Modifier.weight(1f)) {
-                    Text(a.main.label, fontSize = 10.5.sp, color = TextSecondary, maxLines = 1)
+                    Text(a.main.label, fontSize = 10.5.sp, color = keyLabelOr(keySet, a.main), maxLines = 1)
                     Text(a.main.value, fontSize = 16.sp, fontWeight = FontWeight.Black, color = keyOr(keySet, a.main, accent), maxLines = 1)
                     if (a.setName.isNotBlank()) {
                         Text(a.setName, fontSize = 9.5.sp, color = TextSecondary, maxLines = 1)
@@ -758,12 +770,12 @@ private fun ArtifactCard(a: EnkaArtifact, score: ArtifactScore, rank: Int, accen
                     Surface(color = Gold.copy(alpha = 0.16f), shape = RoundedCornerShape(7.dp)) {
                         Text("+${a.level}", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color(0xFF9C6F12), modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp))
                     }
-                    // 치명 점수 — 치명 서브 옵션이 없으면 순위가 무의미하므로 배지를 숨긴다.
+                    // 유효 점수 — 유효옵션이 하나도 안 붙었으면 순위가 무의미하므로 배지를 숨긴다.
                     if (!score.isEmpty) {
                         val gc = gradeColor(score.grade, accent)
                         Surface(color = gc.copy(alpha = 0.14f), shape = RoundedCornerShape(7.dp)) {
                             Text(
-                                "${rank}위 · CV ${ArtifactScoring.cvLabel(score.cv)}",
+                                "${rank}위 · 유효 ${ArtifactScoring.rollLabel(score.rolls)}",
                                 fontSize = 10.sp, fontWeight = FontWeight.Bold, color = gc,
                                 modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp),
                             )
@@ -797,7 +809,7 @@ private fun ArtifactCard(a: EnkaArtifact, score: ArtifactScore, rank: Int, accen
                                     horizontalArrangement = Arrangement.SpaceBetween,
                                     verticalAlignment = Alignment.CenterVertically,
                                 ) {
-                                    Text(s.label, fontSize = 11.sp, color = TextSecondary, maxLines = 1)
+                                    Text(s.label, fontSize = 11.sp, color = keyLabelOr(keySet, s), maxLines = 1)
                                     Text(s.value, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = keyOr(keySet, s, TextPrimary), maxLines = 1)
                                 }
                             }
