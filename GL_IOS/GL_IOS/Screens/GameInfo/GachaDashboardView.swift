@@ -3,11 +3,10 @@ import Shared
 
 // 가챠 통계 대시보드 — 요약·등급비율·천장분포·월별추이·픽업vs상시·5성 타임라인. (Compose GachaDashboardScreen 대응)
 struct GachaDashboardView: View {
-    @ObservedObject var store: SpendingStore
+    var store: SpendingStore
     @Environment(\.dismiss) private var dismiss
     @Environment(\.glgAccent) private var accent
     @State private var selected: String? = nil
-    @State private var appeared: Set<Int> = []
 
     private let gold = Color(hex: 0xFFF5B301)
     private let purple = Color(hex: 0xFF9C6ADE)
@@ -121,7 +120,6 @@ struct GachaDashboardView: View {
 
     private func dashCard<C: View>(_ index: Int, @ViewBuilder _ content: () -> C) -> some View {
         GLGCard(cornerRadius: 20, padding: 16) { VStack(alignment: .leading, spacing: 0) { content() } }
-            .glgLoadIn(index, appeared: $appeared)
     }
     private func cardTitle(_ t: String, _ s: String?) -> some View {
         VStack(alignment: .leading, spacing: 2) {

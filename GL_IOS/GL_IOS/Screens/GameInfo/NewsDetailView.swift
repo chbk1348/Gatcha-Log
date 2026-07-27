@@ -12,7 +12,7 @@ import Shared
 // ════════════════════════════════════════════════════════════════════════════
 
 struct NewsDetailView: View {
-    @ObservedObject var store: SpendingStore
+    var store: SpendingStore
     let item: NewsItem
 
     @Environment(\.openURL) private var openURL

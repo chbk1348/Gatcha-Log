@@ -37,26 +37,9 @@ enum GLGMotion {
     }
 }
 
-// ── 콘텐츠 로드인 스태거 — Android glgLoadIn 패리티 ────────────────────────────
-
-/// 콘텐츠 로드인 — **비활성(2026-07-09).** 앱 전체 로드인 등장(페이드인+슬라이드업) 애니메이션 제거
-/// 요청으로 무력화했다. 호출부(각 화면)를 그대로 두기 위해 시그니처만 보존하고 즉시 표시(변형 없음)로 통과시킨다.
-/// 되살리려면 이 커밋 이전 이력의 opacity/offset 스태거 구현 참고.
-struct GLGLoadIn: ViewModifier {
-    let index: Int
-    @Binding var appeared: Set<Int>
-
-    init(index: Int, appeared: Binding<Set<Int>>) {
-        self.index = index
-        self._appeared = appeared
-    }
-
-    func body(content: Content) -> some View { content }
-}
-
-extension View {
-    /// 콘텐츠 로드인 스태거 적용([GLGLoadIn]). [appeared] 는 호출부에서 하나 만들어 모든 항목에 공유.
-    func glgLoadIn(_ index: Int, appeared: Binding<Set<Int>>) -> some View {
-        modifier(GLGLoadIn(index: index, appeared: appeared))
-    }
-}
+// ── 콘텐츠 로드인 스태거(glgLoadIn) — 제거됨 ──────────────────────────────────
+//
+// 2026-07-09 등장 애니메이션 제거 요청으로 본체가 `content` 를 그대로 돌려주는 빈 모디파이어가 됐고,
+// 그 상태로 호출부 31곳 + `@State appeared: Set<Int>` 5개가 남아 있었다. 아무 일도 하지 않으면서
+// 모디파이어 레이어와 바인딩 의존성만 만들고 있어 전부 걷어냈다(2026-07-27).
+// 되살리려면 이 커밋 이전 이력의 opacity/offset 스태거 구현 참고.

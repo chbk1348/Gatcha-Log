@@ -4,7 +4,7 @@ import Shared
 // 지출 추가/수정 폼 — 게임·빠른상품·금액·재화명·날짜·결제수단·태그·메모·구독 + 과소비 넛지.
 // (Compose AddSpendingModal 대응) ⚠️ 빠른상품 카테고리 필터는 생략(전체 표시). Spending 생성은 Kotlin saveSpending.
 struct AddSpendingView: View {
-    @ObservedObject var store: SpendingStore
+    var store: SpendingStore
     let editing: Spending?
     let onClose: () -> Void
     @Environment(\.glgAccent) private var accent

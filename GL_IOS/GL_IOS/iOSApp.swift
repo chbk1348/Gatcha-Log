@@ -31,6 +31,12 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
         // 2-1. 네트워크 연결 감지 시작 — Kotlin NetworkMonitor.online 을 NWPathMonitor 로 지속 갱신.
         NetworkReachability.shared.start()
 
+        // 2-2. 이미지 캐시 — AsyncImage 는 URLSession.shared 의 URLCache 에 의존하는데 기본값이
+        //      메모리 512KB / 디스크 10MB 수준이라 캐릭터 초상·성유물 아이콘이 화면을 오갈 때마다
+        //      재요청·재디코드된다. 로컬 캐시만 키우면 되므로 서버·의존성 추가가 없다.
+        URLCache.shared = URLCache(memoryCapacity: 32 * 1024 * 1024,
+                                   diskCapacity: 128 * 1024 * 1024)
+
         // 3. 알림 델리게이트 — 이게 없으면 앱이 포그라운드일 때 발생한 로컬 알림
         //    (예산 초과·출석 완료·재화 넛지)이 배너로 표시되지 않고 무음으로 사라진다.
         UNUserNotificationCenter.current().delegate = self

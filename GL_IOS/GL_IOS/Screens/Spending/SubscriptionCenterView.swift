@@ -10,7 +10,7 @@ import Shared
 // ════════════════════════════════════════════════════════════════════════════
 
 struct SubscriptionCenterView: View {
-    @ObservedObject var store: SpendingStore
+    var store: SpendingStore
     @Environment(\.glgAccent) private var accent
 
     /// 편집 시트 상태 — nil 이면 닫힘, .add 면 신규, .edit 면 기존 항목.
@@ -256,7 +256,7 @@ struct SubscriptionCenterView: View {
 
 // ── 추가/수정 시트 (Android SubscriptionDialog 파리티: 상품명·게임칩·금액·결제일·삭제) ──
 struct SubscriptionEditSheet: View {
-    @ObservedObject var store: SpendingStore
+    var store: SpendingStore
     let initial: Shared.Subscription?
     let onClose: () -> Void
     @Environment(\.glgAccent) private var accent

@@ -8,7 +8,7 @@ import Shared
 // ════════════════════════════════════════════════════════════════════════════
 
 struct NotificationSettingsView: View {
-    @ObservedObject var store: SpendingStore
+    var store: SpendingStore
     @Environment(\.glgAccent) private var accent
     /// 시스템 설정에서 알림을 켜고 돌아오면 배너가 사라져야 한다. 권한은 SwiftUI 상태가 아니라 OS 상태라
     /// 앱이 다시 활성화될 때 재조회한다 — 안 그러면 켜고 와도 "알림 권한이 꺼져 있어요"가 남는다.

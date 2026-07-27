@@ -7,43 +7,38 @@ import Shared
 // 계정 전환·내보내기·테마 등 관리 항목은 ⚙ 설정에서 처리.
 // ════════════════════════════════════════════════════════════════════════════
 
-private struct MonthPoint: Identifiable { let id = UUID(); let month: Int; let amount: Int64 }
+/// id 는 연-월로 고정한다 — UUID 를 쓰면 body 평가마다 새 id 가 생겨 차트 막대가 전부 재생성된다.
+private struct MonthPoint: Identifiable { let id: String; let month: Int; let amount: Int64 }
 
 struct MyPageView: View {
-    @ObservedObject var store: SpendingStore
+    var store: SpendingStore
     @Environment(\.glgAccent) private var accent
-    @State private var appeared: Set<Int> = []
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
                 // ① 프로필 헤더
                 ProfileHeader(store: store).padding(.top, 4)
-                    .glgLoadIn(0, appeared: $appeared)
 
                 // ② 이번 달 지출 KPI
                 Spacer().frame(height: 13)
-                MonthlyKpiCard(monthly: store.monthlyTotal(), total: totalSpent,
+                MonthlyKpiCard(monthly: store.monthlyTotal, total: totalSpent,
                                dailyAvg: dailyAvg, gameCount: gameCount, prevMonthly: prevMonthly)
-                    .glgLoadIn(1, appeared: $appeared)
 
                 // ③ 월별 지출 추이
                 Spacer().frame(height: 13)
                 SectionLabel("월별 지출 추이")
                 MyPageMonthlyTrendCard(points: monthlyTrend)
-                    .glgLoadIn(2, appeared: $appeared)
 
                 // ④ 활동 메트릭 2×2
                 Spacer().frame(height: 11)
                 SectionLabel("활동")
                 metricGrid
-                    .glgLoadIn(3, appeared: $appeared)
 
                 // ⑤ 게임별 지출
                 Spacer().frame(height: 13)
                 SectionLabel("게임별 지출")
                 GameDonutCard(spendings: store.spendings)
-                    .glgLoadIn(4, appeared: $appeared)
             }
             .padding(.horizontal, 16)
             .padding(.bottom, 12)
@@ -82,16 +77,16 @@ struct MyPageView: View {
     private var fiveStars: Int { store.gachaStats?.byGame.values.reduce(0) { $0 + Int($1.five) } ?? 0 }
     private var dailyAvg: Int64 {
         let day = Calendar.current.component(.day, from: Date())
-        return store.monthlyTotal() / Int64(max(day, 1))
+        return store.monthlyTotal / Int64(max(day, 1))
     }
-    private var prevMonthly: Int64 {
-        let ym = Self.yearMonth(monthsAgo: 1)
-        return store.monthlyTotal(year: ym.0, month: ym.1)
-    }
+    private var prevMonthly: Int64 { store.prevMonthTotal }
+    /// 월별 추이 — 합계는 Kotlin 이 지출을 한 번만 훑어 만들어 둔 값을 그대로 쓴다(오래된 달 → 이번 달 순).
+    /// 예전엔 여기서 monthlyTotal(year:month:) 를 6번 불러 전체 스캔 6회 + 브리지 왕복 6회가 발생했다.
     private var monthlyTrend: [MonthPoint] {
-        (0..<6).reversed().map { back in
-            let ym = Self.yearMonth(monthsAgo: back)
-            return MonthPoint(month: Int(ym.1), amount: store.monthlyTotal(year: ym.0, month: ym.1))
+        let totals = store.recentMonthlyTotals
+        return totals.indices.map { i in
+            let ym = Self.yearMonth(monthsAgo: totals.count - 1 - i)
+            return MonthPoint(id: "\(ym.0)-\(ym.1)", month: Int(ym.1), amount: totals[i])
         }
     }
     private static func yearMonth(monthsAgo: Int) -> (Int32, Int32) {
@@ -115,7 +110,7 @@ private struct SectionLabel: View {
 // ── ① 프로필 헤더 ────────────────────────────────────────────────────────────
 
 private struct ProfileHeader: View {
-    @ObservedObject var store: SpendingStore
+    var store: SpendingStore
     @Environment(\.glgAccent) private var accent
 
     private var account: Account { store.account }
@@ -306,8 +301,10 @@ private struct MetricTile: View {
 private struct GameDonutCard: View {
     let spendings: [Spending]
 
+    /// id 는 게임명으로 고정 — 그룹 키라 이미 고유하다. UUID 면 body 평가마다 도넛·범례가 통째로 재생성된다.
     private struct Slice: Identifiable {
-        let id = UUID(); let game: String; let amount: Int64; let color: Color
+        var id: String { game }
+        let game: String; let amount: Int64; let color: Color
     }
 
     private var slices: [Slice] {

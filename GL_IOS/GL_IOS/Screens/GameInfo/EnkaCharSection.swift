@@ -48,7 +48,7 @@ private func enkaGameLabel(_ game: String) -> String {
 /// 게임정보 탭 섹션 — Enka 쇼케이스 로스터(게임당 한 줄). 헤더 게임필터([filter])에 연동.
 /// "all"=원신·스타레일·젠레스를 게임별 블록으로 모두 표시, 특정 게임=해당 게임만. 캐릭터 탭 → [onOpen].
 struct EnkaCharSection: View {
-    @ObservedObject var store: SpendingStore
+    var store: SpendingStore
     @Environment(\.glgAccent) private var accent
     /// 헤더 게임필터("all" | game.key)
     let filter: String
@@ -249,7 +249,7 @@ func enkaRosterCard(_ c: EnkaChar, _ game: String) -> some View {
 
 /// 보유 캐릭터 전체 목록 페이지 — 탭 시 스탯 상세로 랜딩(뒤로 가면 이 목록으로 복귀).
 struct EnkaRosterPage: View {
-    @ObservedObject var store: SpendingStore
+    var store: SpendingStore
     let game: String
     @State private var statChar: EnkaChar? = nil
     @State private var showStat = false

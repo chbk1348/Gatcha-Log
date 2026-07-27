@@ -12,7 +12,7 @@ private enum TypeFilter: String, CaseIterable { case all="전체", normal="일�
 private enum SortOrder: String, CaseIterable { case dateDesc="최신순", dateAsc="오래된순", amountDesc="금액 높은순" }
 
 struct SpendingView: View {
-    @ObservedObject var store: SpendingStore
+    var store: SpendingStore
     /// 지출 수정 진입 — ContentView 가 편집 대상 설정 + AddSpending 모달을 연다.
     let onEdit: (Spending) -> Void
     @Environment(\.glgAccent) private var accent
@@ -27,8 +27,6 @@ struct SpendingView: View {
     @State private var selectionMode = false
     @State private var selectedIds: Set<String> = []
     @State private var showBulkEdit = false
-    // 로드인 스태거 — 행이 처음 보일 때 1회 등장(인덱스=정렬 리스트 내 위치).
-    @State private var appeared: Set<Int> = []
     // 성능: 필터/정렬/그룹 결과를 캐시 — 스크롤(콜랩스)로 body 가 매 프레임 재평가돼도 리스트를
     // 다시 필터·정렬·그룹하지 않는다. 데이터/필터/정렬이 바뀔 때만 recompute 로 갱신.
     @State private var displayGroups: [DayGroup] = []
@@ -53,7 +51,6 @@ struct SpendingView: View {
                         cards: displayGroups.enumerated().map { gi, group in
                             GLGMasonryCard(id: group.key, weight: Double(group.items.count) + 1) {
                                 dayCard(dateLabel: group.dateLabel, total: group.total, items: group.items)
-                                    .glgLoadIn(gi, appeared: $appeared)
                             }
                         },
                         spacing: 8, stackSpacing: 0
@@ -67,7 +64,7 @@ struct SpendingView: View {
         .refreshable { store.refreshSpending() }
         // 그룹 재계산 — 데이터/필터/정렬 변화 시에만(스크롤과 무관). $spendings 는 새 값을 전달받아 사용.
         .onAppear { recompute(store.spendings) }
-        .onReceive(store.$spendings) { recompute($0) }
+        .onChange(of: store.spendings) { _, new in recompute(new) }
         .onChange(of: gameFilters) { _, _ in recompute(store.spendings) }
         .onChange(of: period) { _, _ in recompute(store.spendings) }
         .onChange(of: paymentFilter) { _, _ in recompute(store.spendings) }
@@ -436,7 +433,7 @@ private struct SystemGlassBar: ViewModifier {
 
 /// 지출 일괄 편집 시트 — 게임/날짜 변경 + 태그 추가. ‘변경 안 함’으로 둔 항목은 미변경.
 private struct BulkEditSheet: View {
-    @ObservedObject var store: SpendingStore
+    var store: SpendingStore
     let count: Int
     let onApply: (String?, Int64?, [String]) -> Void
     @Environment(\.dismiss) private var dismiss
