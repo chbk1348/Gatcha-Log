@@ -583,8 +583,15 @@ class GatchaRepository(accountId: String = "guest") {
     }
 
     // ---------------------------------------------------------------- 스냅샷 (전체 데이터 직렬화 — 클라우드/파일 백업 공용)
-    /** 계정의 모든 데이터를 단일 JSON 으로 직렬화(Firestore 저장·파일 백업용). */
-    fun exportSnapshotJson(): String {
+    /**
+     * 계정의 모든 데이터를 단일 JSON 객체로 모은다.
+     *
+     * 문자열이 아니라 [JSONObject] 를 돌려주는 형태를 따로 둔 이유 — 클라우드 push 는 같은 스냅샷을
+     * 전체 문서용(문자열)과 섹션별 분해용(객체) 두 가지로 쓴다. 예전엔 [exportCloudSections] 가
+     * `JSONObject(exportSnapshotJson())` 로 시작해서, **스냅샷을 통째로 한 번 더 만들고 그 결과를 다시
+     * 전량 파싱**했다. 여기서 한 번만 만들어 양쪽에 넘긴다.
+     */
+    fun exportSnapshot(): JSONObject {
         val o = JSONObject()
         prefs.getString(KEY_SPENDINGS, null)?.let { o.put(KEY_SPENDINGS, JSONArray(it)) }
         prefs.getString(KEY_DELETED_SPENDINGS, null)?.let { o.put(KEY_DELETED_SPENDINGS, JSONArray(it)) }
@@ -611,8 +618,11 @@ class GatchaRepository(accountId: String = "guest") {
         prefs.getString(KEY_SAVINGS_HIDDEN, null)?.let { o.put(KEY_SAVINGS_HIDDEN, JSONArray(it)) }
         o.put(KEY_BEST_NOSPEND, loadBestNoSpend())
         prefs.getString(KEY_BADGES, null)?.let { o.put(KEY_BADGES, JSONArray(it)) }
-        return o.toString()
+        return o
     }
+
+    /** 계정의 모든 데이터를 단일 JSON 문자열로 직렬화(Firestore 저장·파일 백업용). */
+    fun exportSnapshotJson(): String = exportSnapshot().toString()
 
     /** Firestore/백업 파일에서 받은 스냅샷 JSON 을 로컬에 반영. (onChange 미발생 → 푸시 루프 방지) */
     fun importSnapshotJson(json: String) {
@@ -681,8 +691,8 @@ class GatchaRepository(accountId: String = "guest") {
      * Firestore `users/{uid}` 의 userInfo/spending/gameInfo 필드로 저장돼 콘솔 가독성↑.
      * (읽기는 기존 `data` 전체 스냅샷 사용 — dual-write 호환)
      */
-    fun exportCloudSections(): CloudSections {
-        val o = JSONObject(exportSnapshotJson())
+    fun exportCloudSections(snapshot: JSONObject = exportSnapshot()): CloudSections {
+        val o = snapshot
         fun valueString(k: String): String = when (k) {
             KEY_BUDGET -> o.getLong(k).toString()
             KEY_ACCENT, KEY_BEST_NOSPEND -> o.getInt(k).toString()

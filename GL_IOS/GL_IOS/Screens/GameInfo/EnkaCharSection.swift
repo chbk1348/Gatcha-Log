@@ -312,7 +312,15 @@ struct EnkaRosterPage: View {
                 }
             }
         }
-        .navigationDestination(isPresented: $showStat) { if let c = statChar { EnkaStatPage(char: c, game: game) } }
+        // overrides/onSetOverride 를 반드시 넘긴다 — 빠뜨리면 기본값(빈 맵 + 빈 클로저)이 들어가
+        // 이 경로로 들어온 캐릭터만 유효옵션 사용자 설정이 무시되고 '저장'도 아무 일도 하지 않는다.
+        .navigationDestination(isPresented: $showStat) {
+            if let c = statChar {
+                EnkaStatPage(char: c, game: game,
+                             overrides: store.keyStatOverrides,
+                             onSetOverride: { k, v in store.setKeyStatOverride(k, v) })
+            }
+        }
     }
 
     private func distinct(_ xs: [String]) -> [String] {
@@ -385,12 +393,19 @@ struct EnkaStatPage: View {
         .navigationTitle(char.name)
         .navigationBarTitleDisplayMode(.inline)
         // 캐릭터/게임 바뀌면 효과 재조회(캐시 적중 시 즉시).
+        // 유효옵션 판정은 캐릭터 또는 사용자 설정이 바뀔 때만 다시 한다.
         .task(id: char.id) {
+            cachedVerdict = KeyStatRulesKt.resolveKeyStats(gameKey: game, char: char, overrides: overrides)
             effectsLoading = true
             expandedEffect = nil
             let r = (try? await CharEffectsApi.shared.fetch(gameKey: game, id: char.id)) ?? []
+            // 뒤로 갔다 다른 캐릭터로 다시 들어오면 늦게 도착한 이전 응답이 새 캐릭터를 덮을 수 있다.
+            guard !Task.isCancelled else { return }
             effects = r
             effectsLoading = false
+        }
+        .onChange(of: overrides) { _, new in
+            cachedVerdict = KeyStatRulesKt.resolveKeyStats(gameKey: game, char: char, overrides: new)
         }
     }
 
@@ -585,8 +600,14 @@ struct EnkaStatPage: View {
     }
 
     /// 유효옵션 — 사용자가 고른 값이 있으면 그것, 없으면 앱 룰 추정, 둘 다 없으면 판정 불가.
+    ///
+    /// **캐시한다.** 예전엔 computed 라 읽을 때마다 `resolveKeyStats` 가 다시 돌았는데,
+    /// `keySet` 이 이걸 읽고 스탯·성유물·부옵션이 줄마다 또 읽어서 한 화면에 70회 넘게 실행됐다.
+    /// 유효옵션 칩을 한 번 누를 때마다 그 전부가 다시 돌았다.
+    @State private var cachedVerdict: KeyStatVerdict? = nil
+
     private var verdict: KeyStatVerdict {
-        KeyStatRulesKt.resolveKeyStats(gameKey: game, char: char, overrides: overrides)
+        cachedVerdict ?? KeyStatRulesKt.resolveKeyStats(gameKey: game, char: char, overrides: overrides)
     }
     private var keySet: Set<StatTok> { verdict.stats }
 
