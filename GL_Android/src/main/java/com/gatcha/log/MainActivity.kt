@@ -10,6 +10,8 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
+import android.graphics.Color as AndroidColor
+import androidx.activity.SystemBarStyle
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
@@ -67,7 +69,14 @@ class MainActivity : ComponentActivity() {
         // 앱 진입을 붙잡아두지는 않는다: 클라우드 동기화 대기는 AccountLoadingScreen(게이지 링)이 맡는다.
         installSplashScreen()
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
+        // 시스템 바 아이콘은 **항상 어두운 색**(라이트 배경용)으로 고정한다.
+        // 인자 없는 enableEdgeToEdge() 는 아이콘 색을 시스템 다크모드 설정에 맡긴다. 이 앱은
+        // 라이트 전용이라 기기가 다크모드면 흰 아이콘이 흰 배경 위에 놓여 상태바가 사라진 것처럼
+        // 보인다(공유 시트처럼 시스템 창이 겹쳤다 사라질 때 특히 두드러졌다).
+        enableEdgeToEdge(
+            statusBarStyle = SystemBarStyle.light(AndroidColor.TRANSPARENT, AndroidColor.TRANSPARENT),
+            navigationBarStyle = SystemBarStyle.light(AndroidColor.TRANSPARENT, AndroidColor.TRANSPARENT),
+        )
         // 자동 출석·알림 주기 작업을 설정 상태에 맞춰 동기화(재부팅·재설치 후 복구 포함)
         runCatching { AndroidWorkScheduler.apply(applicationContext) }
         // 6시간 주기 워커가 도즈모드·배터리 절약으로 며칠씩 안 돌 수 있어, 앱 실행 시
