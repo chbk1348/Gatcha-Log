@@ -24,7 +24,8 @@ class KeyStatRulesTest {
         // HSR
         assertEquals(ELEM_DMG, normStat("화염 피해"))
         assertEquals(BREAK, normStat("격파 특화"))
-        assertEquals(EHR, normStat("효과 적중"))
+        assertEquals(EHR, normStat("효과 명중"))
+        assertEquals(EHR, normStat("효과 적중"))   // 옛 표기 호환
         assertEquals(SPD, normStat("속도"))
         // ZZZ
         assertEquals(ELEM_DMG, normStat("냉기 속성 피해 보너스"))
@@ -140,6 +141,7 @@ class KeyStatRulesTest {
         assertEquals("에너지 자동 회복", statLabel(ENERGY, "zzz"))
         assertEquals("에너지 회복 효율", statLabel(ENERGY, "hsr"))
         assertEquals("이상 마스터리", statLabel(ANOM_MASTERY, "zzz"))
+        assertEquals("효과 명중", statLabel(EHR, "hsr"))   // '적중' 아님
         assertEquals("관통률", statLabel(PEN, "zzz"))
     }
 
