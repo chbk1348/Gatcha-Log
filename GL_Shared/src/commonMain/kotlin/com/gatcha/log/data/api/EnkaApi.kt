@@ -506,7 +506,7 @@ object EnkaApi {
             line("spd", "속도"),
             line("crit_rate", "치명타 확률", crit = true),
             line("crit_dmg", "치명타 피해", crit = true),
-            line("break_dmg", "격파 특화"),
+            line("break_dmg", "격파 특수효과"),
             elem?.let { line(it, "속성 피해") },
         )
     }
