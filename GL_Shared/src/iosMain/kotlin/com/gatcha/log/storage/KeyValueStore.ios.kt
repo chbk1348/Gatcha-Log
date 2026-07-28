@@ -15,7 +15,6 @@ import platform.CoreFoundation.kCFTypeDictionaryValueCallBacks
 import platform.Foundation.CFBridgingRelease
 import platform.Foundation.CFBridgingRetain
 import platform.Foundation.NSData
-import platform.Foundation.NSNumber
 import platform.Foundation.NSString
 import platform.Foundation.NSUTF8StringEncoding
 import platform.Foundation.NSUserDefaults
@@ -39,12 +38,12 @@ actual class KeyValueStore actual constructor(name: String) {
     // suiteName 으로 prefs 파일을 분리 (SharedPreferences 의 name 분리에 대응)
     private val defaults = NSUserDefaults(suiteName = name)
 
-    // 읽기는 objectForKey **한 번**으로 끝낸다.
+    // ⚠️ 읽기를 objectForKey 한 번으로 줄이려고 `as? NSNumber` 로 바꿨다가 **되돌렸다**(2026-07-28).
     //
-    // 예전엔 "키가 있나?"(objectForKey)와 "값은?"(boolForKey/integerForKey)을 따로 물어서 조회가
-    // 두 번씩 일어났다. AppSettings 는 모든 프로퍼티가 게터라 값을 캐시하지 않는데, 예를 들어
-    // needsPeriodicWork() 하나가 9개를 읽으므로 조회 18회였고 그게 포그라운드 복귀마다 돌았다.
-    // (NSNumber 로 받으면 Bool·Int·Long 을 같은 객체에서 꺼낼 수 있다)
+    // Kotlin/Native 가 `id` 로 받은 NSNumber 를 Kotlin NSNumber 로 주는지, 원시 타입으로 매핑하는지
+    // 실기기로 확인하지 않았다. 매핑이 다르면 캐스트가 조용히 null 이 되어 **모든 Int/Long/Boolean
+    // 설정이 기본값으로 읽힌다** — 예산이 0으로 읽히면 그대로 클라우드 스냅샷에 올라간다.
+    // 아끼는 건 조회 1회고 잃는 건 데이터다. 실측 근거가 생기면 그때 다시 본다.
 
     actual fun getString(key: String, default: String?): String? =
         (defaults.objectForKey(key) as? String) ?: default
@@ -52,17 +51,17 @@ actual class KeyValueStore actual constructor(name: String) {
     actual fun putString(key: String, value: String) = defaults.setObject(value, key)
 
     actual fun getBoolean(key: String, default: Boolean): Boolean =
-        (defaults.objectForKey(key) as? NSNumber)?.boolValue ?: default
+        if (defaults.objectForKey(key) != null) defaults.boolForKey(key) else default
 
     actual fun putBoolean(key: String, value: Boolean) = defaults.setBool(value, key)
 
     actual fun getLong(key: String, default: Long): Long =
-        (defaults.objectForKey(key) as? NSNumber)?.longLongValue ?: default
+        if (defaults.objectForKey(key) != null) defaults.integerForKey(key) else default
 
     actual fun putLong(key: String, value: Long) = defaults.setInteger(value, key)
 
     actual fun getInt(key: String, default: Int): Int =
-        (defaults.objectForKey(key) as? NSNumber)?.intValue ?: default
+        if (defaults.objectForKey(key) != null) defaults.integerForKey(key).toInt() else default
 
     actual fun putInt(key: String, value: Int) = defaults.setInteger(value.toLong(), key)
 
