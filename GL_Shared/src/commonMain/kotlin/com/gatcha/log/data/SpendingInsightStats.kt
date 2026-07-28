@@ -130,11 +130,17 @@ object SpendingInsightStats {
         val delta = thisTotal - lastTotal
         val percent = if (lastTotal > 0) ((delta * 100) / lastTotal).toInt() else -1
 
+        // 게임별 합계를 각 달에 한 번씩만 만든다. 예전엔 게임 1종마다 두 달치를 통째로 다시
+        // 필터해서 O(게임수 × 지출수) 였다(게임 10종·1,000건이면 20,000회 순회).
+        // groupingBy 는 LinkedHashMap 이라 첫 등장 순서가 유지된다 — 아래 동점 처리가 그 순서에 기댄다.
+        val thisByGame = thisItems.groupingBy { it.gameName }.fold(0L) { acc, s -> acc + s.amount }
+        val lastByGame = lastItems.groupingBy { it.gameName }.fold(0L) { acc, s -> acc + s.amount }
+
         var topGame = ""
         var topDelta = 0L
-        (thisItems.map { it.gameName } + lastItems.map { it.gameName }).toSet().forEach { g ->
-            val d = thisItems.filter { it.gameName == g }.sumOf { it.amount } -
-                lastItems.filter { it.gameName == g }.sumOf { it.amount }
+        // 이번 달 등장 순 → 지난달에만 있던 게임 순. 증감 절대값이 같으면 **먼저 나온 게임**이 이긴다(strict >).
+        (thisByGame.keys + lastByGame.keys).forEach { g ->
+            val d = (thisByGame[g] ?: 0L) - (lastByGame[g] ?: 0L)
             if (abs(d) > abs(topDelta)) { topDelta = d; topGame = g }
         }
         return MoMComparison(thisTotal, lastTotal, delta, percent, topGame, topDelta)
