@@ -409,9 +409,9 @@ class SpendingViewModel : ViewModel() {
     /**
      * 가챠 기록 로드 + 통계 산출을 **한 프레임 뒤로** 미룬다.
      *
-     * 기록이 수만 건이면 파싱 한 번에 전수 순회 두 번([GachaReport.computeStats]·[GachaReport.computeDashboard])이
-     * 붙는데, 이게 앱 시작 경로에서 첫 화면이 그려지기 전에 동기로 돌고 있었다. 데이터가 늘수록 시작이
-     * 선형으로 느려지는 유일한 구간이었다.
+     * 기록이 수만 건이면 파싱 한 번에 전수 순회가 붙는데, 이게 앱 시작 경로에서 첫 화면이 그려지기 전에
+     * 동기로 돌고 있었다. 데이터가 늘수록 시작이 선형으로 느려지는 유일한 구간이었다.
+     * (순회는 [GachaReport.computeAll] 로 통계·대시보드가 한 번에 나눠 쓴다 — 예전엔 각자 두 번이었다.)
      *
      * 홈은 이 값을 읽지 않는다 — 소비처는 마이페이지·가챠 리포트·데이터 관리뿐이고,
      * 두 StateFlow 모두 초기값이 null 이라 늦게 도착해도 화면이 깨지지 않는다.
@@ -422,8 +422,9 @@ class SpendingViewModel : ViewModel() {
         viewModelScope.launch {
             yield()   // Main.immediate 라 양보하지 않으면 그대로 이어서 실행된다
             gachaRecords = repo.loadGachaRecords()
-            _gachaStats.value = GachaReport.computeStats(gachaRecords)
-            _gachaDashboard.value = GachaReport.computeDashboard(gachaRecords)
+            val (stats, dash) = GachaReport.computeAll(gachaRecords)
+            _gachaStats.value = stats
+            _gachaDashboard.value = dash
         }
     }
 
@@ -1151,8 +1152,9 @@ class SpendingViewModel : ViewModel() {
             }
             gachaRecords = merged
             withContext(Dispatchers.IO) { repo.saveGachaRecords(merged) }
-            _gachaStats.value = GachaReport.computeStats(merged)
-            _gachaDashboard.value = GachaReport.computeDashboard(merged)
+            val (stats, dash) = GachaReport.computeAll(merged)
+            _gachaStats.value = stats
+            _gachaDashboard.value = dash
             emitStatus("가챠 기록 ${added}건 추가 (중복 ${skipped} 제외)")
         }
     }
