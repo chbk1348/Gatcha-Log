@@ -19,6 +19,7 @@ import androidx.compose.material.icons.automirrored.filled.ReceiptLong
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -61,7 +62,6 @@ fun MyPageScreen(
 
     val showSettings = remember { mutableStateOf(false) }
     // 로드인 스태거 — 앱 진입 후 1회만(탭 재진입 재생 방지, 세션 영속).
-    val loadInSet = rememberGlgLoadInSet("mypage")
 
     // 설정 페이지에서 시스템/제스처 뒤로가기 시 홈이 아니라 마이페이지로 복귀
     BackHandler(enabled = showSettings.value) { showSettings.value = false }
@@ -74,15 +74,26 @@ fun MyPageScreen(
         if (pendingOpenHoyolab) showSettings.value = true
     }
 
-    val monthlyTotal = remember(spendings) { viewModel.monthlyTotal() }
-    val total = remember(spendings) { spendings.sumOf { it.amount } }
-    val games = remember(spendings) { spendings.map { it.gameName }.distinct().size }
+    // 이번 달·전월·최근 6개월 합계는 **공유 VM 이 지출을 한 번만 훑어 만들어 둔 값**을 그대로 쓴다.
+    // 예전엔 monthlyTotal(y, m) 을 7번(전월 1 + 최근 6) 불러 지출 전체를 7번 훑었다.
+    // iOS 는 이미 같은 flow 를 쓰고 있었다 — 파리티도 함께 맞춘다.
+    val monthlyTotal by viewModel.currentMonthTotal.collectAsStateWithLifecycle()
+    val prevMonthly by viewModel.previousMonthTotal.collectAsStateWithLifecycle()
+    val recentTotals by viewModel.recentMonthlyTotals.collectAsStateWithLifecycle()
+    // 한 번의 순회로 총액·게임 수를 같이 낸다(예전엔 sumOf + map/distinct 로 두 번).
+    val (total, games) = remember(spendings) {
+        var sum = 0L
+        val names = HashSet<String>()
+        spendings.forEach { sum += it.amount; names += it.gameName }
+        sum to names.size
+    }
     val gachaTotal = gachaStats?.total ?: 0
     // ── 대시보드 파생 지표 (전부 기존 보유 데이터에서 계산) ──
     val dailyAvg = remember(monthlyTotal) { monthlyTotal / currentDayOfMonth().coerceAtLeast(1) }
-    val prevMonthly = remember(spendings) { val (y, m) = prevYearMonth(); viewModel.monthlyTotal(y, m) }
-    val monthlyTrend = remember(spendings) {
-        recentYearMonths(6).map { (y, m) -> MonthPoint(m, viewModel.monthlyTotal(y, m)) }
+    val monthlyTrend = remember(recentTotals) {
+        // recentMonthlyTotals 는 오래된 달 → 이번 달 순. 표시용 월 번호만 붙인다.
+        val months = recentYearMonths(recentTotals.size)
+        recentTotals.mapIndexed { i, v -> MonthPoint(months[i].second, v) }
     }
     val fiveStars = gachaStats?.byGame?.values?.sumOf { it.five } ?: 0
     val spendCount = spendings.size
@@ -117,7 +128,7 @@ fun MyPageScreen(
     ) {
         // ① 프로필 헤더 (연회색 카드)
         item {
-            Box(Modifier.fillMaxWidth().glgLoadIn(0, loadInSet)) {
+            Box(Modifier.fillMaxWidth()) {
                 ProfileHeader(
                     name = if (account.isGuest) "게스트" else profile.name,
                     photoUrl = if (account.isGuest) null else account.photoUrl,
@@ -131,7 +142,7 @@ fun MyPageScreen(
 
         // ② 이번 달 지출 KPI
         item {
-            Box(Modifier.fillMaxWidth().glgLoadIn(1, loadInSet)) {
+            Box(Modifier.fillMaxWidth()) {
                 MonthlyKpiCard(
                     monthly = monthlyTotal,
                     total = total,
@@ -145,13 +156,13 @@ fun MyPageScreen(
 
         // ③ 월별 지출 추이 (관리 섹션 대체)
         item { SectionLabel("월별 지출 추이") }
-        item { Box(Modifier.fillMaxWidth().glgLoadIn(2, loadInSet)) { MonthlyTrendCard(monthlyTrend) } }
+        item { Box(Modifier.fillMaxWidth()) { MonthlyTrendCard(monthlyTrend) } }
         item { Spacer(Modifier.height(11.dp)) }
 
         // ④ 활동 메트릭 2×2
         item { SectionLabel("활동") }
         item {
-            Column(Modifier.fillMaxWidth().glgLoadIn(3, loadInSet), verticalArrangement = Arrangement.spacedBy(11.dp)) {
+            Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(11.dp)) {
                 Row(horizontalArrangement = Arrangement.spacedBy(11.dp)) {
                     MetricTile(Icons.Default.LocalFireDepartment, "${attendanceStreak}일", "연속 출석", Modifier.weight(1f), tint = Color(0xFFFF7A45))
                     MetricTile(Icons.Default.Casino, "${gachaTotal}회", "가챠 기록", Modifier.weight(1f))
@@ -166,7 +177,7 @@ fun MyPageScreen(
 
         // ⑤ 게임별 지출 (도넛)
         item { SectionLabel("게임별 지출") }
-        item { Box(Modifier.fillMaxWidth().glgLoadIn(4, loadInSet)) { GameDonutCard(spendings) } }
+        item { Box(Modifier.fillMaxWidth()) { GameDonutCard(spendings) } }
     }
     // 헤더 오버레이 — 투명 바, 설정 버튼만 불투명. 콘텐츠가 버튼 아래로 지나간다. 상태바 인셋 적용.
     Box(Modifier.align(Alignment.TopStart).fillMaxWidth().statusBarsPadding().padding(horizontal = 16.dp)) {

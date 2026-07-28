@@ -283,8 +283,12 @@ private data class GapDays(val lowDay: Int, val highDay: Int) : TimelineEntry
 /** day-of-month (1..31) 추출 — millis 가 [year]/[month] 에 속하면 일자, 아니면 null. */
 private fun dayInMonth(millis: Long, year: Int, month: Int): Int? {
     if (millis <= 0L) return null
-    if (!DateUtil.isSameMonth(millis, year, month)) return null
-    return Calendar.getInstance().apply { timeInMillis = millis }.get(Calendar.DAY_OF_MONTH)
+    // 시각→로컬 변환 **1회**로 연·월·일을 한꺼번에 얻는다(yyyyMMdd).
+    // 예전엔 isSameMonth 로 한 번 변환하고, 일자를 얻으려고 지출 1건마다 Calendar 를 새로 만들었다
+    // — Calendar.getInstance() 는 단순 할당이 아니라 로케일·타임존을 조회한다.
+    val ymd = DateUtil.ymd(millis)
+    if (ymd / 100 != year * 100 + month) return null
+    return ymd % 100
 }
 
 /** 활동(지출·배너)이 있는 날은 노드로, 그 사이 빈 구간은 GapDays 로 묶어 최신순 타임라인 엔트리 리스트로. */

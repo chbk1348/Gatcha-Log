@@ -137,6 +137,10 @@ dependencies {
     implementation("androidx.security:security-crypto:1.1.0")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.10.0")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.10.0")
+    // collectAsStateWithLifecycle — 화면이 STOP 되면 수집을 멈춘다.
+    // collectAsState 는 컴포지션이 살아 있는 한 계속 collect 해서, 앱이 백그라운드에 있어도
+    // flow 구독이 전부 돌고 보이지도 않는 화면이 재구성됐다.
+    implementation("androidx.lifecycle:lifecycle-runtime-compose:2.10.0")
     implementation("androidx.activity:activity-compose:1.13.0")
     implementation(platform("androidx.compose:compose-bom:2026.05.01"))
     implementation("androidx.compose.ui:ui")

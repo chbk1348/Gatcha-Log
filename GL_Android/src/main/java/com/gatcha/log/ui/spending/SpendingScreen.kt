@@ -178,7 +178,6 @@ fun SpendingScreen(
     val statusBarDp = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     val heroSpacerDp = GlgTabHeaderHeight + statusBarDp
     // 로드인 스태거 — 앱 진입 후 1회만 등장(인덱스=정렬 리스트 내 위치). 탭 재진입 재생 방지(세션 영속).
-    val loadInSet = rememberGlgLoadInSet("spending")
 
     // 성능: 필터/정렬/그룹은 입력이 바뀔 때만 재계산(remember). 스크롤 콜랩스로 화면이 매 프레임
     // 재구성돼도 리스트 전체를 다시 훑지 않는다 — 지출 항목이 많을수록 스크롤 버벅임을 크게 줄인다.
@@ -236,7 +235,7 @@ fun SpendingScreen(
                 // 미리 계산된 dayGroups 를 순회만 한다(매 프레임 재정렬·재그룹 없음).
                 dayGroups.forEachIndexed { gi, dayItems ->
                     item(key = if (amountMode) dayItems.first().id else dayItems.first().dayKey) {
-                        Box(Modifier.glgLoadIn(gi, loadInSet)) {
+                        Box {
                             SpendingDayCard(
                                 dateLabel = if (amountMode) null else dayItems.first().dateLabel,
                                 dayTotal = if (amountMode) 0L else dayItems.sumOf { it.amount },
