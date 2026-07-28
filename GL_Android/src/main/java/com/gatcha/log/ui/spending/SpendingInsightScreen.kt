@@ -13,7 +13,6 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.foundation.clickable
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -26,6 +25,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.gatcha.log.data.GameData
 import com.gatcha.log.data.Spending
 import com.gatcha.log.data.Subscription
@@ -54,9 +54,9 @@ fun SpendingInsightScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
     }
     BackHandler { onBack() }
     val accent = LocalAccent.current
-    val spendings by viewModel.spendings.collectAsState()
-    val budget by viewModel.budget.collectAsState()
-    val subscriptions by viewModel.subscriptions.collectAsState()
+    val spendings by viewModel.spendings.collectAsStateWithLifecycle()
+    val budget by viewModel.budget.collectAsStateWithLifecycle()
+    val subscriptions by viewModel.subscriptions.collectAsStateWithLifecycle()
     val year = viewModel.displayYear
     val month = viewModel.displayMonth
     val monthTotal = remember(spendings) { viewModel.monthlyTotal() }

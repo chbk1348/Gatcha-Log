@@ -99,6 +99,7 @@ import com.gatcha.log.ui.theme.DangerText
 import com.gatcha.log.ui.theme.DividerColor
 import com.gatcha.log.ui.theme.LocalAccent
 import com.gatcha.log.ui.theme.LocalAccentSecondary
+import com.gatcha.log.ui.theme.LocalReduceMotion
 import com.gatcha.log.ui.theme.ProgressEmpty
 import com.gatcha.log.ui.theme.TextPrimary
 import com.gatcha.log.ui.theme.TextSecondary
@@ -299,12 +300,21 @@ private fun HeroPill(text: String, onClick: () -> Unit) {
 fun HeroGradientBackground(modifier: Modifier = Modifier) {
     val accent = LocalAccent.current
     val accent2 = LocalAccentSecondary.current
-    val transition = rememberInfiniteTransition(label = "heroGlow")
-    val drift by transition.animateFloat(
-        initialValue = -84f, targetValue = 84f,
-        animationSpec = infiniteRepeatable(tween(5000, easing = FastOutSlowInEasing), RepeatMode.Reverse),
-        label = "drift",
-    )
+    // 모션 감속(저RAM·절전·접근성 애니 끄기)이면 글로우를 고정한다 — 스켈레톤 시머는 이미 이 토큰을
+    // 지키는데 글로우만 안 지키고 있었다. 5초 주기 무한 애니메이션이라 저사양 단말에 그대로 부담이 된다.
+    // (탭을 벗어나면 호출부가 `selectedTab == 0` 으로 이 컴포저블을 통째로 폐기하므로,
+    //  '안 보일 때 멈춘다'는 iOS AmbientHeroGradient 의 onScreen 처리에 이미 대응된다)
+    val drift = if (LocalReduceMotion.current) {
+        0f
+    } else {
+        val transition = rememberInfiniteTransition(label = "heroGlow")
+        val d by transition.animateFloat(
+            initialValue = -84f, targetValue = 84f,
+            animationSpec = infiniteRepeatable(tween(5000, easing = FastOutSlowInEasing), RepeatMode.Reverse),
+            label = "drift",
+        )
+        d
+    }
     Box(modifier.clipToBounds()) {
         Box(
             Modifier.fillMaxSize().background(

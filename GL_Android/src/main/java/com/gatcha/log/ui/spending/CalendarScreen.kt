@@ -20,7 +20,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -32,6 +31,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.gatcha.log.data.DateUtil
 import com.gatcha.log.data.GachaBanner
 import com.gatcha.log.data.Spending
@@ -53,8 +53,8 @@ import java.util.Calendar
 @Composable
 fun CalendarScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
     val accent = LocalAccent.current
-    val spendings by viewModel.spendings.collectAsState()
-    val banners by viewModel.activeBanners.collectAsState()
+    val spendings by viewModel.spendings.collectAsStateWithLifecycle()
+    val banners by viewModel.activeBanners.collectAsStateWithLifecycle()
 
     // 표시 중인 연·월 (기본: 이번 달). month 는 1-base.
     var year by remember { mutableIntStateOf(viewModel.displayYear) }

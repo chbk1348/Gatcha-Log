@@ -19,7 +19,6 @@ import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.compose.material3.Text
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -28,6 +27,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.gatcha.log.ui.auth.AccountLoadingScreen
 import com.gatcha.log.ui.components.GlgDialog
 import com.gatcha.log.ui.auth.LoginScreen
@@ -115,10 +115,10 @@ class MainActivity : ComponentActivity() {
             // 신규 유저는 온보딩 ④에서 맥락과 함께 요청하고, 기존 유저는 이미 물어본 적이 있으며,
             // 그 외에는 알림 설정 화면의 안내 배너에서 직접 허용할 수 있다.
             val notifPermLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
-            val accentIndex by viewModel.accentIndex.collectAsState()
-            val account by viewModel.account.collectAsState()
-            val initialSyncing by viewModel.initialSyncing.collectAsState()
-            val networkAlert by viewModel.networkAlert.collectAsState()
+            val accentIndex by viewModel.accentIndex.collectAsStateWithLifecycle()
+            val account by viewModel.account.collectAsStateWithLifecycle()
+            val initialSyncing by viewModel.initialSyncing.collectAsStateWithLifecycle()
+            val networkAlert by viewModel.networkAlert.collectAsStateWithLifecycle()
             // 로컬 데이터가 이미 있으면(재실행) 로딩 게이트를 건너뛰고 즉시 진입 — 동기화는 백그라운드.
             // 첫 로그인·재설치(로컬 없음)에서만 게이지 링 로딩 화면을 보여준다.
             var loadingDone by rememberSaveable { mutableStateOf(viewModel.hasLocalData) }
