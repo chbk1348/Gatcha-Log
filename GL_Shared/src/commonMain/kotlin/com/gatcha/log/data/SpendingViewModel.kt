@@ -590,39 +590,46 @@ class SpendingViewModel : ViewModel() {
 
     fun deleteSpending(id: String) {
         repo.addDeletedSpendingIds(setOf(id)) // tombstone — 삭제를 다른 기기에 전파(합집합 병합 방어)
-        val removed = _spendings.value.firstOrNull { it.id == id }
-        val next = _spendings.value.filter { it.id != id }
+        val (removed, next) = _spendings.value.partition { it.id == id }
         _spendings.value = next
         repo.saveSpendings(next)
-        removed?.let { unlinkSubscriptionIfOrphaned(it) }
+        unlinkOrphanedSubscriptions(removed)
         refreshChallenge()
     }
 
     fun deleteSpendings(ids: Set<String>) {
         repo.addDeletedSpendingIds(ids) // tombstone — 삭제 전파
-        val removed = _spendings.value.filter { it.id in ids }
-        val next = _spendings.value.filter { it.id !in ids }
+        // partition 1회 — 예전엔 같은 목록을 filter 로 두 번 훑었다.
+        val (removed, next) = _spendings.value.partition { it.id in ids }
         _spendings.value = next
         repo.saveSpendings(next)
-        removed.forEach { unlinkSubscriptionIfOrphaned(it) }
+        unlinkOrphanedSubscriptions(removed)
         refreshChallenge()
     }
+
+    /** 구독 매칭 키 — 이름·게임·금액이 같으면 같은 구독으로 본다(등록·해제 판정 공통). */
+    private fun subKey(s: Spending): Triple<String, String, Long> =
+        Triple(subscriptionName(s), s.gameName, s.amount)
 
     /**
      * A안 삭제 연동: '구독으로 기록'한 지출이 삭제됐을 때, 그 구독을 백업하는 다른 구독표시 지출이
      * 더 없으면 매칭되는 정기결제(Subscription)도 함께 제거. (매달 기록한 구독은 마지막 1건 삭제 시에만 제거)
+     *
+     * 남은 지출의 구독 키를 **한 번의 순회**로 모아 두고 대조한다. 예전엔 삭제 항목마다 지출 전체를
+     * 다시 훑어서, 구독표시 지출 50건을 일괄 삭제하면 50 × 전체였다.
      */
-    private fun unlinkSubscriptionIfOrphaned(removed: Spending) {
-        if (!removed.isSubscription) return
-        val name = subscriptionName(removed)
-        val stillBacked = _spendings.value.any {
-            it.isSubscription && subscriptionName(it) == name && it.gameName == removed.gameName && it.amount == removed.amount
+    private fun unlinkOrphanedSubscriptions(removed: List<Spending>) {
+        val removedKeys = removed.asSequence().filter { it.isSubscription }.map { subKey(it) }.toSet()
+        if (removedKeys.isEmpty()) return
+        val stillBacked = _spendings.value.asSequence()
+            .filter { it.isSubscription }.map { subKey(it) }.toSet()
+        removedKeys.forEach { key ->
+            if (key in stillBacked) return@forEach
+            val match = _subscriptions.value.firstOrNull {
+                it.name == key.first && it.gameName == key.second && it.amount == key.third
+            } ?: return@forEach
+            deleteSubscription(match.id)
         }
-        if (stillBacked) return
-        val match = _subscriptions.value.firstOrNull {
-            it.name == name && it.gameName == removed.gameName && it.amount == removed.amount
-        } ?: return
-        deleteSubscription(match.id)
     }
 
     /**
@@ -1219,7 +1226,7 @@ class SpendingViewModel : ViewModel() {
         _subscriptions.value = _subscriptions.value.filterNot { it.id == id }
         repo.saveSubscriptions(_subscriptions.value)
         // A안 연동: 이 정기결제를 백업하던 '구독으로 기록' 지출도 함께 삭제.
-        // (raw 삭제 — deleteSpendings 경유 금지: unlinkSubscriptionIfOrphaned 재호출 루프 방지)
+        // (raw 삭제 — deleteSpendings 경유 금지: unlinkOrphanedSubscriptions 재호출 루프 방지)
         removed?.let { sub ->
             val ids = _spendings.value.filter {
                 it.isSubscription && subscriptionName(it) == sub.name && it.gameName == sub.gameName && it.amount == sub.amount
@@ -1764,12 +1771,18 @@ class SpendingViewModel : ViewModel() {
     fun prevMonthTotal(): Long =
         if (currentMonth == 1) monthlyTotal(currentYear - 1, 12) else monthlyTotal(currentYear, currentMonth - 1)
 
-    fun topGameThisMonth(): String? =
-        _spendings.value
-            .filter { DateUtil.isSameMonth(it.dateMillis, currentYear, currentMonth) }
+    fun topGameThisMonth(): String? {
+        // 연/월을 람다 **밖에서** 한 번만 읽는다. currentYear·currentMonth 는 게터라
+        // (get() = DateUtil.year(currentTimeMillis())) 람다 안에 두면 항목마다 시계 읽기 + 날짜 변환이
+        // 두 번씩 더 붙는다 — isSameMonth 자체 비용에 더해 항목당 4회가 된다.
+        val y = currentYear
+        val m = currentMonth
+        return _spendings.value
+            .filter { DateUtil.isSameMonth(it.dateMillis, y, m) }
             .groupBy { it.gameName }
             .maxByOrNull { entry -> entry.value.sumOf { it.amount } }
             ?.key
+    }
 
     /** CSV 내보내기용 문자열 */
     fun buildCsv(): String {

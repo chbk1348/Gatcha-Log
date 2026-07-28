@@ -6,7 +6,6 @@ import com.gatcha.log.util.currentTimeMillis
 import com.gatcha.log.util.randomUuid
 import kotlinx.datetime.DateTimeUnit
 import kotlinx.datetime.LocalDate
-import kotlinx.datetime.TimeZone
 import kotlinx.datetime.daysUntil
 import kotlinx.datetime.minus
 import kotlinx.datetime.plus
@@ -27,11 +26,14 @@ data class Subscription(
     /**
      * 다음 결제까지 남은 일수(오늘이면 0).
      * :app 의 Calendar 구현과 동일한 규칙 — 결제일이 그 달 일수보다 크면 말일로 당김.
+     *
+     * 타임존은 [DateUtil.timeZone] 캐시를 쓴다. 예전엔 여기서 `TimeZone.currentSystemDefault()` 를
+     * 직접 불렀는데, 이 함수는 **정렬 비교자**에서 호출된다(정기결제 센터·알림 예약·백그라운드 점검).
+     * 한 번의 정렬에 시스템 타임존 조회가 O(n log n)회 일어나고 있었다.
      */
     @OptIn(ExperimentalTime::class)
     fun dDay(nowMillis: Long = currentTimeMillis()): Int {
-        val tz = TimeZone.currentSystemDefault()
-        val today: LocalDate = Instant.fromEpochMilliseconds(nowMillis).toLocalDateTime(tz).date
+        val today: LocalDate = Instant.fromEpochMilliseconds(nowMillis).toLocalDateTime(DateUtil.timeZone).date
 
         var next = LocalDate(today.year, today.month, billingDay.coerceAtMost(today.daysInMonth()))
         if (next < today) {

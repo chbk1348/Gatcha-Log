@@ -4,6 +4,13 @@ import com.gatcha.log.util.num
 
 private class CurrencyAmountCalc(val label: String, val pulls: String?)
 
+// 정규식은 **파일 레벨에서 한 번만 컴파일**한다. 예전엔 [currencyCalc] 안에 있어서 호출 1회에 4개를
+// 새로 컴파일했다(패턴 파싱이라 매칭보다 비싸다). 지출 상세를 열 때마다 반복되던 비용이다.
+private val RE_TRAILING_MULT = Regex("×\\s*(\\d+)\\s*$")   // 끝의 "×N" = 구매 횟수
+private val RE_TRAILING_NUM = Regex("(\\d+)\\s*$")          // 끝의 숫자 = 재화 개수
+private val RE_BONUS_PLUS = Regex("^\\+(\\d+)$")            // 보너스 "+N"
+private val RE_BONUS_TIMES = Regex("^×(\\d+)$")             // 보너스 "×N"(엔드필드)
+
 /**
  * 지출 항목명 + 게임에서 재화 총량과 환산 뽑기 수를 계산 — 지출 상세 '재화양' + N번 구매 총량 표시.
  *
@@ -14,7 +21,7 @@ private class CurrencyAmountCalc(val label: String, val pulls: String?)
 private fun currencyCalc(gameName: String, itemName: String): CurrencyAmountCalc? {
     val s = itemName.trim()
     // 끝의 "×N"(구매 횟수) 분리 — 상품 보너스의 "×N"(개수)과 다르다.
-    val multMatch = Regex("×\\s*(\\d+)\\s*$").find(s)
+    val multMatch = RE_TRAILING_MULT.find(s)
     val mult = multMatch?.groupValues?.get(1)?.toLongOrNull() ?: 1L
     val base = (if (multMatch != null) s.substring(0, multMatch.range.first) else s).trim()
 
@@ -22,10 +29,10 @@ private fun currencyCalc(gameName: String, itemName: String): CurrencyAmountCalc
     val bonus = game?.let { g -> GameData.packagesFor(g).firstOrNull { it.name == base } }?.bonus?.trim()
 
     // 재화 개수(1회분): ① 이름 끝 숫자(+"+N" 보너스) ② 이름에 숫자가 없으면 보너스 "×N"(엔드필드)
-    val nameCountMatch = Regex("(\\d+)\\s*$").find(base)
+    val nameCountMatch = RE_TRAILING_NUM.find(base)
     val nameCount = nameCountMatch?.groupValues?.get(1)?.toLongOrNull()
-    val plusBonus = bonus?.let { Regex("^\\+(\\d+)$").find(it)?.groupValues?.get(1)?.toLongOrNull() }
-    val timesCount = bonus?.let { Regex("^×(\\d+)$").find(it)?.groupValues?.get(1)?.toLongOrNull() }
+    val plusBonus = bonus?.let { RE_BONUS_PLUS.find(it)?.groupValues?.get(1)?.toLongOrNull() }
+    val timesCount = bonus?.let { RE_BONUS_TIMES.find(it)?.groupValues?.get(1)?.toLongOrNull() }
     val unitCount = when {
         nameCount != null -> nameCount + (plusBonus ?: 0L)
         timesCount != null -> timesCount
@@ -114,8 +121,24 @@ object GameData {
     /** 추천 태그 칩 */
     val suggestedTags: List<String> = listOf("천장", "이벤트", "복각", "신캐", "무기", "월정액", "패스")
 
-    fun byNameOrNull(name: String): Game? =
-        games.firstOrNull { it.displayName == name || it.shortName == name || it.key == name }
+    /**
+     * 이름 → 게임 조회 인덱스. displayName·shortName·key 를 모두 키로 넣는다.
+     *
+     * 예전엔 [byNameOrNull] 이 목록을 선형 스캔하며 항목마다 문자열을 3번 비교했다. 이 조회가
+     * [colorFor]·[byName]·`Spending.gameColor`·`Subscription.gameColor` 의 뿌리라 **목록 행마다**
+     * 불리고, iOS `GameTag` 는 태그 하나를 그리는 데 두 번(약칭+색) 불렀다.
+     * 게임 목록은 컴파일 타임 고정이라 시작 시 한 번 만들어 두면 그 뒤로 O(1)이다.
+     *
+     * 키가 겹치면(예: 어떤 게임의 shortName == 다른 게임의 key) **먼저 선언된 게임이 이긴다** —
+     * 선형 스캔의 `firstOrNull` 과 같은 결과를 유지하려고 `putIfAbsent` 의미로 넣는다.
+     */
+    private val byAnyName: Map<String, Game> = buildMap {
+        games.forEach { g ->
+            listOf(g.displayName, g.shortName, g.key).forEach { k -> if (k !in this) put(k, g) }
+        }
+    }
+
+    fun byNameOrNull(name: String): Game? = byAnyName[name]
 
     fun byName(name: String): Game = byNameOrNull(name) ?: Game.GENSHIN
 
