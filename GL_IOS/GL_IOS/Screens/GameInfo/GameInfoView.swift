@@ -174,6 +174,10 @@ struct GameInfoView: View {
                 EnkaStatPage(char: c, game: statGame,
                              overrides: store.keyStatOverrides,
                              onSetOverride: { k, v in store.setKeyStatOverride(k, v) })
+                    // 캐릭터가 바뀌면 **다른 뷰**로 취급한다.
+                    // navigationDestination 은 같은 자리의 목적지를 재사용해서, A 를 보고 나온 뒤 B 로
+                    // 들어가면 A 의 유효옵션 칩이 한 번 그려졌다가 B 로 바뀌었다. id 를 걸면 새로 만든다.
+                    .id(c.id)
             }
         }
         .navigationDestination(isPresented: $showRoster) {
