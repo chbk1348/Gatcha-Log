@@ -15,7 +15,7 @@ enum class StatTok {
     HEAL,               // 치유(량) 보너스
     PHYS_DMG,           // 물리 피해 보너스
     ELEM_DMG,           // ○○ 원소/속성 피해(속성 무관 흡수)
-    SPD, BREAK, EHR, RES,                    // HSR: 속도/격파 특화/효과 명중/효과 저항
+    SPD, BREAK, EHR, RES,                    // HSR: 속도/격파 특수효과/효과 명중/효과 저항
     IMPACT, ANOM_MASTERY, ANOM_PROF, PEN, ENERGY,  // ZZZ: 충격력/이상 마스터리/이상 장악력/관통률/에너지
     OTHER,
 }
@@ -65,7 +65,7 @@ object KeyStatRules {
      * 게임별로 사용자가 고를 수 있는 유효옵션 후보 — **그 게임에 존재하는 전 항목.**
      *
      * 예전엔 '부옵션으로 붙는 스탯'만 추렸는데, 그러면 룰이 뽑은 유효옵션 중 목록에 없는 것
-     * (원신 원소 피해 보너스·스타레일 속도/격파 특화·젠레스 이상 마스터리 등)이 **화면에 안 보이면서
+     * (원신 원소 피해 보너스·스타레일 속도/격파 특수효과·젠레스 이상 마스터리 등)이 **화면에 안 보이면서
      * 선택된 상태로 남는다** — 사용자가 볼 수도 해제할 수도 없었다. 주스탯 전용·고정값까지 전부 낸다.
      *
      * 순서 = 화면 표시 순서([orderedKeyStats])다. 자주 쓰는 것부터 → 게임 고유 → 고정값 순.
@@ -196,7 +196,7 @@ fun statLabel(t: StatTok, gameKey: String = ""): String {
         HEAL -> if (hsr) "치유량 보너스" else "치유 보너스"
         PHYS_DMG -> "물리 피해 보너스"
         ELEM_DMG -> if (gi) "원소 피해 보너스" else "속성 피해 보너스"
-        SPD -> "속도"; BREAK -> "격파 특화"; EHR -> "효과 명중"; RES -> "효과 저항"
+        SPD -> "속도"; BREAK -> "격파 특수효과"; EHR -> "효과 명중"; RES -> "효과 저항"
         IMPACT -> "충격력"; ANOM_MASTERY -> "이상 마스터리"; ANOM_PROF -> "이상 장악력"
         PEN -> "관통률"
         ENERGY -> if (zzz) "에너지 자동 회복" else "에너지 회복 효율"
