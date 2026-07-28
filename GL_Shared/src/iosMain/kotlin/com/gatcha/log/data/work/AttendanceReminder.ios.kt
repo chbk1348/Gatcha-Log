@@ -1,6 +1,7 @@
 package com.gatcha.log.data.work
 
 import com.gatcha.log.data.AppSettings
+import com.gatcha.log.data.DateUtil
 import com.gatcha.log.data.GameData
 import com.gatcha.log.data.GatchaRepository
 import com.gatcha.log.data.HoyolabConfig
@@ -59,7 +60,7 @@ object AttendanceReminder {
         val targetInstant = LocalDateTime(
             targetBeijingDate.year, targetBeijingDate.month, targetBeijingDate.day, 18, 0,
         ).toInstant(beijingTz)
-        val localDt = targetInstant.toLocalDateTime(TimeZone.currentSystemDefault())
+        val localDt = targetInstant.toLocalDateTime(DateUtil.timeZone)   // 캐시된 타임존
 
         val comps = NSDateComponents().apply {
             year = localDt.year.toLong()

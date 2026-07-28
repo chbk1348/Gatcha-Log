@@ -35,6 +35,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.gatcha.log.data.BadgeState
 import com.gatcha.log.data.ChallengeProgress
 import com.gatcha.log.data.ChallengeSummary
@@ -87,8 +88,8 @@ private fun badgeIcon(id: String): ImageVector = when (id) {
 fun SavingsPlannerScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
     BackHandler { onBack() }
     val accent = LocalAccent.current
-    val plans by viewModel.savingsPlans.collectAsState()
-    val hiddenPlans by viewModel.hiddenSavingsPlans.collectAsState()
+    val plans by viewModel.savingsPlans.collectAsStateWithLifecycle()
+    val hiddenPlans by viewModel.hiddenSavingsPlans.collectAsStateWithLifecycle()
     var editTarget by remember { mutableStateOf<SavingsPlan?>(null) }
     var showHidden by remember { mutableStateOf(false) }
 
@@ -337,7 +338,7 @@ private fun HiddenPlansCard(hidden: List<SavingsPlan>, accent: Color, onUnhide: 
 fun SavingsChallengeScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
     BackHandler { onBack() }
     val accent = LocalAccent.current
-    val summary by viewModel.challenge.collectAsState()
+    val summary by viewModel.challenge.collectAsStateWithLifecycle()
 
     Column(Modifier.fillMaxSize()) {
         GlgScreenHeader("절약 챌린지", onBack, Modifier.padding(horizontal = 16.dp))
@@ -407,7 +408,7 @@ fun SavingsChallengeScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
 
 @Composable
 private fun WeekStrip(viewModel: SpendingViewModel, accent: Color) {
-    val spendings by viewModel.spendings.collectAsState()
+    val spendings by viewModel.spendings.collectAsStateWithLifecycle()
     val spentDays = remember(spendings) { spendings.map { it.dayKey }.toSet() }
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
         // 6일 전 → 오늘 순으로

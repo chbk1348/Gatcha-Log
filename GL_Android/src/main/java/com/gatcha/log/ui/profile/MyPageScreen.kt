@@ -19,6 +19,7 @@ import androidx.compose.material.icons.automirrored.filled.ReceiptLong
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -39,12 +40,14 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import java.util.Calendar
 import com.gatcha.log.data.Spending
 import com.gatcha.log.ui.components.GlgTabHeaderHeight
+import com.gatcha.log.ui.components.glgTabContentBottom
 import com.gatcha.log.ui.components.GlassCard
 import com.gatcha.log.ui.components.GlgCircleIconButton
 import com.gatcha.log.ui.components.GlgTabHeader
 import com.gatcha.log.ui.components.ProfileAvatar
 import com.gatcha.log.data.SpendingViewModel
 import com.gatcha.log.ui.theme.*
+import com.gatcha.log.util.percentShares
 import com.gatcha.log.util.won
 
 @Composable
@@ -53,15 +56,14 @@ fun MyPageScreen(
     listState: androidx.compose.foundation.lazy.LazyListState = androidx.compose.foundation.lazy.rememberLazyListState(),
     onSubPageChange: (Boolean) -> Unit = {},
 ) {
-    val spendings by viewModel.spendings.collectAsState()
-    val profile by viewModel.profile.collectAsState()
-    val account by viewModel.account.collectAsState()
-    val attendanceStreak by viewModel.attendanceStreak.collectAsState()
-    val gachaStats by viewModel.gachaStats.collectAsState()
+    val spendings by viewModel.spendings.collectAsStateWithLifecycle()
+    val profile by viewModel.profile.collectAsStateWithLifecycle()
+    val account by viewModel.account.collectAsStateWithLifecycle()
+    val attendanceStreak by viewModel.attendanceStreak.collectAsStateWithLifecycle()
+    val gachaStats by viewModel.gachaStats.collectAsStateWithLifecycle()
 
     val showSettings = remember { mutableStateOf(false) }
     // 로드인 스태거 — 앱 진입 후 1회만(탭 재진입 재생 방지, 세션 영속).
-    val loadInSet = rememberGlgLoadInSet("mypage")
 
     // 설정 페이지에서 시스템/제스처 뒤로가기 시 홈이 아니라 마이페이지로 복귀
     BackHandler(enabled = showSettings.value) { showSettings.value = false }
@@ -69,20 +71,31 @@ fun MyPageScreen(
     LaunchedEffect(showSettings.value) { onSubPageChange(showSettings.value) }
 
     // 홈 만료 배너 CTA 가 마이페이지 → 설정으로 자동 진입시키도록(C4 흐름).
-    val pendingOpenHoyolab by viewModel.pendingOpenHoyolabLink.collectAsState()
+    val pendingOpenHoyolab by viewModel.pendingOpenHoyolabLink.collectAsStateWithLifecycle()
     LaunchedEffect(pendingOpenHoyolab) {
         if (pendingOpenHoyolab) showSettings.value = true
     }
 
-    val monthlyTotal = remember(spendings) { viewModel.monthlyTotal() }
-    val total = remember(spendings) { spendings.sumOf { it.amount } }
-    val games = remember(spendings) { spendings.map { it.gameName }.distinct().size }
+    // 이번 달·전월·최근 6개월 합계는 **공유 VM 이 지출을 한 번만 훑어 만들어 둔 값**을 그대로 쓴다.
+    // 예전엔 monthlyTotal(y, m) 을 7번(전월 1 + 최근 6) 불러 지출 전체를 7번 훑었다.
+    // iOS 는 이미 같은 flow 를 쓰고 있었다 — 파리티도 함께 맞춘다.
+    val monthlyTotal by viewModel.currentMonthTotal.collectAsStateWithLifecycle()
+    val prevMonthly by viewModel.previousMonthTotal.collectAsStateWithLifecycle()
+    val recentTotals by viewModel.recentMonthlyTotals.collectAsStateWithLifecycle()
+    // 한 번의 순회로 총액·게임 수를 같이 낸다(예전엔 sumOf + map/distinct 로 두 번).
+    val (total, games) = remember(spendings) {
+        var sum = 0L
+        val names = HashSet<String>()
+        spendings.forEach { sum += it.amount; names += it.gameName }
+        sum to names.size
+    }
     val gachaTotal = gachaStats?.total ?: 0
     // ── 대시보드 파생 지표 (전부 기존 보유 데이터에서 계산) ──
     val dailyAvg = remember(monthlyTotal) { monthlyTotal / currentDayOfMonth().coerceAtLeast(1) }
-    val prevMonthly = remember(spendings) { val (y, m) = prevYearMonth(); viewModel.monthlyTotal(y, m) }
-    val monthlyTrend = remember(spendings) {
-        recentYearMonths(6).map { (y, m) -> MonthPoint(m, viewModel.monthlyTotal(y, m)) }
+    val monthlyTrend = remember(recentTotals) {
+        // recentMonthlyTotals 는 오래된 달 → 이번 달 순. 표시용 월 번호만 붙인다.
+        val months = recentYearMonths(recentTotals.size)
+        recentTotals.mapIndexed { i, v -> MonthPoint(months[i].second, v) }
     }
     val fiveStars = gachaStats?.byGame?.values?.sumOf { it.five } ?: 0
     val spendCount = spendings.size
@@ -113,11 +126,11 @@ fun MyPageScreen(
     LazyColumn(
         state = listState,
         modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
-        contentPadding = PaddingValues(top = GlgTabHeaderHeight + topInset, bottom = 120.dp),
+        contentPadding = PaddingValues(top = GlgTabHeaderHeight + topInset, bottom = glgTabContentBottom()),
     ) {
         // ① 프로필 헤더 (연회색 카드)
         item {
-            Box(Modifier.fillMaxWidth().glgLoadIn(0, loadInSet)) {
+            Box(Modifier.fillMaxWidth()) {
                 ProfileHeader(
                     name = if (account.isGuest) "게스트" else profile.name,
                     photoUrl = if (account.isGuest) null else account.photoUrl,
@@ -131,7 +144,7 @@ fun MyPageScreen(
 
         // ② 이번 달 지출 KPI
         item {
-            Box(Modifier.fillMaxWidth().glgLoadIn(1, loadInSet)) {
+            Box(Modifier.fillMaxWidth()) {
                 MonthlyKpiCard(
                     monthly = monthlyTotal,
                     total = total,
@@ -145,13 +158,13 @@ fun MyPageScreen(
 
         // ③ 월별 지출 추이 (관리 섹션 대체)
         item { SectionLabel("월별 지출 추이") }
-        item { Box(Modifier.fillMaxWidth().glgLoadIn(2, loadInSet)) { MonthlyTrendCard(monthlyTrend) } }
+        item { Box(Modifier.fillMaxWidth()) { MonthlyTrendCard(monthlyTrend) } }
         item { Spacer(Modifier.height(11.dp)) }
 
         // ④ 활동 메트릭 2×2
         item { SectionLabel("활동") }
         item {
-            Column(Modifier.fillMaxWidth().glgLoadIn(3, loadInSet), verticalArrangement = Arrangement.spacedBy(11.dp)) {
+            Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(11.dp)) {
                 Row(horizontalArrangement = Arrangement.spacedBy(11.dp)) {
                     MetricTile(Icons.Default.LocalFireDepartment, "${attendanceStreak}일", "연속 출석", Modifier.weight(1f), tint = Color(0xFFFF7A45))
                     MetricTile(Icons.Default.Casino, "${gachaTotal}회", "가챠 기록", Modifier.weight(1f))
@@ -166,7 +179,7 @@ fun MyPageScreen(
 
         // ⑤ 게임별 지출 (도넛)
         item { SectionLabel("게임별 지출") }
-        item { Box(Modifier.fillMaxWidth().glgLoadIn(4, loadInSet)) { GameDonutCard(spendings) } }
+        item { Box(Modifier.fillMaxWidth()) { GameDonutCard(spendings) } }
     }
     // 헤더 오버레이 — 투명 바, 설정 버튼만 불투명. 콘텐츠가 버튼 아래로 지나간다. 상태바 인셋 적용.
     Box(Modifier.align(Alignment.TopStart).fillMaxWidth().statusBarsPadding().padding(horizontal = 16.dp)) {
@@ -419,12 +432,20 @@ private fun MetricTile(icon: ImageVector, value: String, label: String, modifier
 /** ⑤ 게임별 지출 — 도넛 + 범례. */
 @Composable
 private fun GameDonutCard(spendings: List<Spending>) {
+    // 도넛·범례가 **같은 조각 목록**을 쓴다.
+    // 예전엔 도넛은 전 게임을 그리는데 범례는 상위 5개만 보여줘서, 6번째부터는 색만 있고 설명이 없었다.
+    // 6개 이상이면 나머지를 '기타'로 묶는다(게임별 월 추이 카드와 같은 규칙).
     val byGame = remember(spendings) {
-        spendings.groupBy { it.gameName }
+        val all = spendings.groupBy { it.gameName }
             .map { (g, list) -> GameSlice(g, list.sumOf { s -> s.amount }, list.first().gameColor.toColor()) }
             .sortedByDescending { it.amount }
+        if (all.size <= 5) all
+        else all.take(5) + GameSlice("기타", all.drop(5).sumOf { it.amount }, EtcSliceColor)
     }
-    val total = remember(spendings) { spendings.sumOf { it.amount } }
+    val total = remember(byGame) { byGame.sumOf { it.amount } }
+    // 퍼센트는 **합이 정확히 100이 되도록** 공유 로직으로 배분한다(최대 잔여법).
+    // 각자 내림하면 조각 수만큼 깎여 3조각일 때 97%처럼 보였다.
+    val pcts = remember(byGame) { percentShares(byGame.map { it.amount }) }
     OutlineCard(modifier = Modifier.fillMaxWidth()) {
         if (byGame.isEmpty() || total <= 0L) {
             Box(Modifier.padding(20.dp)) {
@@ -458,8 +479,8 @@ private fun GameDonutCard(spendings: List<Spending>) {
                 }
                 Spacer(Modifier.width(16.dp))
                 Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(9.dp)) {
-                    byGame.take(5).forEach { slice ->
-                        val pct = (slice.amount.toFloat() / total * 100).toInt()
+                    byGame.forEachIndexed { i, slice ->
+                        val pct = pcts[i]
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Box(Modifier.size(9.dp).clip(RoundedCornerShape(3.dp)).background(slice.color))
                             Spacer(Modifier.width(8.dp))
@@ -477,6 +498,9 @@ private fun GameDonutCard(spendings: List<Spending>) {
 
 private data class MonthPoint(val month: Int, val amount: Long)
 private data class GameSlice(val game: String, val amount: Long, val color: Color)
+
+/** '기타'(상위 5개 밖) 조각 색 — 게임별 월 추이 카드와 동일 회색. */
+private val EtcSliceColor = Color(0xFFB8BDC6)
 
 /** 최근 [count]개월 (year, month1-12) — 오래된→최신 순. */
 private fun recentYearMonths(count: Int): List<Pair<Int, Int>> =

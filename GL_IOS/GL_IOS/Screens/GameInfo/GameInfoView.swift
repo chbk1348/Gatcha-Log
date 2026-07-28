@@ -29,6 +29,20 @@ struct GameInfoView: View {
     // Segmented 레이아웃 — 상단 게임 세그먼트 선택값("all" | game.key). 하위 섹션들이 이 값으로 필터된다.
     @State private var gameFilter = "all"
 
+    /// 통합 일정 집계 — 원본 3종이 바뀔 때만 만든다(아래 `.task`).
+    /// 예전엔 LazyVStack 본문에서 계산해, 이 탭이 다시 그려질 때마다(구독 30개가 물려 있다) 반복됐다.
+    @State private var schedule: [ScheduleEntry] = []
+
+    private struct HomeScheduleKey: Equatable {
+        let banners: [GachaBanner]
+        let events: [GameEvent]
+        let challenges: [GameChallenge]
+    }
+
+    private var homeScheduleKey: HomeScheduleKey {
+        HomeScheduleKey(banners: store.activeBanners, events: store.gameEvents, challenges: store.challenges)
+    }
+
     /// 알림으로 요청된 공지가 목록에 도착했으면 상세를 연다.
     private func openPendingNewsIfReady() {
         guard let id = store.pendingNewsId,
@@ -63,7 +77,7 @@ struct GameInfoView: View {
                     }
                 }
                 // 통합 게임 일정 — 패치·이벤트·정기 콘텐츠. 게임 분리는 상단 헤더 드롭다운(gameFilter)으로 필터.
-                let schedule = ScheduleLogic.shared.buildSchedule(banners: store.activeBanners, events: store.gameEvents, challenges: store.challenges)
+                // 집계는 원본 3종이 바뀔 때만(아래 .task) — 예전엔 여기서 body 평가마다 다시 만들었다.
                 if !schedule.isEmpty {
                     section { GameScheduleSection(entries: schedule, banners: store.activeBanners, filter: gameFilter, onSeeAll: { showSchedule = true }) }.id("SCHEDULE")
                 }
@@ -92,6 +106,10 @@ struct GameInfoView: View {
         .refreshable { store.refreshGameInfo(force: true) }
         // 초기 진입 시 로드 + HoYoLAB 연동(config)이 늦게 링크되면 그 순간 강제 갱신(실시간 노트 표출)
         .task { store.refreshGameInfo() }
+        .task(id: homeScheduleKey) {
+            schedule = ScheduleLogic.shared.buildSchedule(
+                banners: store.activeBanners, events: store.gameEvents, challenges: store.challenges)
+        }
         .onChange(of: store.hoyolabConfig.isLinked) { _, linked in
             if linked { store.refreshGameInfo(force: true) }
         }
@@ -102,7 +120,7 @@ struct GameInfoView: View {
                 Menu {
                     Picker("게임 선택", selection: $gameFilter) {
                         Text("전체").tag("all")
-                        ForEach(Array(GameData.shared.attendanceGames.enumerated()), id: \.offset) { _, g in
+                        ForEach(Array(GLGGames.attendance.enumerated()), id: \.offset) { _, g in
                             Text(g.shortName).tag(g.key)
                         }
                     }
@@ -156,6 +174,10 @@ struct GameInfoView: View {
                 EnkaStatPage(char: c, game: statGame,
                              overrides: store.keyStatOverrides,
                              onSetOverride: { k, v in store.setKeyStatOverride(k, v) })
+                    // 캐릭터가 바뀌면 **다른 뷰**로 취급한다.
+                    // navigationDestination 은 같은 자리의 목적지를 재사용해서, A 를 보고 나온 뒤 B 로
+                    // 들어가면 A 의 유효옵션 칩이 한 번 그려졌다가 B 로 바뀌었다. id 를 걸면 새로 만든다.
+                    .id(c.id)
             }
         }
         .navigationDestination(isPresented: $showRoster) {
@@ -181,7 +203,7 @@ struct GameInfoView: View {
 
     // 헤더 좌측 게임 드롭다운 라벨
     private var gameFilterLabel: String {
-        gameFilter == "all" ? "전체" : (GameData.shared.attendanceGames.first { $0.key == gameFilter }?.shortName ?? "전체")
+        gameFilter == "all" ? "전체" : (GLGGames.attendance.first { $0.key == gameFilter }?.shortName ?? "전체")
     }
 
     @ViewBuilder private func section<C: View>(@ViewBuilder _ content: () -> C) -> some View {
@@ -434,8 +456,20 @@ struct GameSchedulePage: View {
     }
 
     /// 재계산 트리거 — 원본 3종과 필터가 바뀔 때만 다시 만든다.
-    private var scheduleKey: String {
-        "\(filter)|\(store.activeBanners.count)|\(store.gameEvents.count)|\(store.challenges.count)"
+    ///
+    /// ⚠️ 개수가 아니라 **목록 자체**를 키로 쓴다. 개수로 잡으면 새로고침이 같은 **개수의 새 배너**를
+    /// 내려줬을 때(종료 시각만 바뀐 경우 등) 일정 탭이 옛 값을 그대로 유지한다.
+    /// Swift `Array.==` 는 버퍼가 같으면 O(1)이라 변화 없는 평가에서는 비용이 없다.
+    private struct ScheduleKey: Equatable {
+        let filter: String
+        let banners: [GachaBanner]
+        let events: [GameEvent]
+        let challenges: [GameChallenge]
+    }
+
+    private var scheduleKey: ScheduleKey {
+        ScheduleKey(filter: filter, banners: store.activeBanners,
+                    events: store.gameEvents, challenges: store.challenges)
     }
 
     private static func buildSchedule(store: SpendingStore, filter: String) -> SchedulePageData {

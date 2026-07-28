@@ -72,7 +72,7 @@ struct AddSpendingView: View {
             label("게임")
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
-                    ForEach(GameData.shared.games, id: \.key) { g in
+                    ForEach(GLGGames.all, id: \.key) { g in
                         GLGChip(label: g.shortName, selected: g.displayName == gameName, color: Color(argb64: g.color)) {
                             gameName = g.displayName; selectedPkg = nil; quantity = 1
                         }

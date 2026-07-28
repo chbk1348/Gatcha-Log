@@ -4,7 +4,7 @@ import Shared
 /// 헤더 드롭다운 규칙: "all"=전체, 그 외는 게임 키 → 해당 게임 displayName 매칭(일정 섹션과 동일).
 private func filterNews(_ news: [NewsItem], _ filter: String) -> [NewsItem] {
     if filter == "all" { return news }
-    if let g = GameData.shared.games.first(where: { $0.key == filter }) {
+    if let g = GameData.shared.byNameOrNull(name: filter) {
         return news.filter { $0.game == g.displayName }
     }
     return news

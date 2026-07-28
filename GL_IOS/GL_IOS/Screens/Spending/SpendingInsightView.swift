@@ -10,6 +10,55 @@ struct SpendingInsightView: View {
     private var spendings: [Spending] { store.spendings }
     private var monthTotal: Int64 { store.monthlyTotal }
 
+    // ── 집계 캐시 ───────────────────────────────────────────────────────────
+    //
+    // 예전엔 전월 대비·결제 통계·결제수단/플랫폼/태그 비중·월 추이가 **전부 computed** 였다.
+    // body 를 한 번 평가할 때마다 지출 전체가 Kotlin 으로 여섯 번 넘어가고 그 안에서 전체 순회가
+    // 여섯 번 돌았다 — 세그먼트 토글을 누를 때마다 그게 반복됐다.
+    // Android 는 같은 카드들이 이미 remember 로 캐시돼 있다(SpendingInsightScreen) — 파리티가
+    // 깨진 쪽이 iOS 였다. 지출·연월이 바뀔 때만 한 번 계산한다.
+
+    /// 월간 인사이트 카드들이 쓰는 집계 묶음.
+    struct InsightStats {
+        var mom: MoMComparison? = nil
+        var payment: PaymentStats? = nil
+        var paymentRows: [(String, Int64, Double)] = []
+        var platformRows: [(String, Int64, Double)] = []
+        var tagRows: [(String, Int64, Double)] = []
+        var trend: MonthlyTrend? = nil
+    }
+
+    @State private var stats = InsightStats()
+
+    /// 재계산 트리거. 개수가 아니라 **목록 자체**를 키로 쓴다 — 금액만 수정해도 다시 계산돼야 한다.
+    private struct InsightKey: Equatable {
+        let spendings: [Spending]
+        let year: Int
+        let month: Int
+    }
+
+    private var insightKey: InsightKey {
+        InsightKey(spendings: store.spendings, year: store.displayYear, month: store.displayMonth)
+    }
+
+    /// 집계는 전부 GL_Shared `SpendingInsightStats` 단일 소스 — Android 와 같은 수치여야 한다.
+    private static func compute(spendings: [Spending], year: Int, month: Int) -> InsightStats {
+        guard !spendings.isEmpty else { return InsightStats() }
+        let s = SpendingInsightStats.shared
+        func rows(_ list: [BreakdownSlice], prefix: String = "") -> [(String, Int64, Double)] {
+            list.map { (prefix + $0.name, $0.amount, $0.total > 0 ? Double($0.amount) / Double($0.total) : 0) }
+        }
+        return InsightStats(
+            mom: s.momComparison(spendings: spendings, year: Int32(year), month: Int32(month)),
+            payment: s.paymentStats(spendings: spendings, year: Int32(year), month: Int32(month)),
+            paymentRows: rows(s.paymentBreakdown(spendings: spendings)),
+            platformRows: rows(s.platformBreakdown(spendings: spendings)),
+            // 태그는 중복 집계라 합계 비율이 100%를 넘을 수 있어, 막대 분모는 전체합이 아닌 최대 태그 금액(total).
+            tagRows: rows(s.tagBreakdown(spendings: spendings), prefix: "#"),
+            trend: s.monthlyTrend(spendings: spendings, year: Int32(year))
+        )
+    }
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 14) {
@@ -25,10 +74,12 @@ struct SpendingInsightView: View {
                         budgetPaceCard
                         momCard
                         paymentStatsCard
-                        MonthlyTrendCard(spendings: spendings, year: store.displayYear)
-                        breakdownCard("결제수단별 비중", nil, paymentRows)
-                        breakdownCard("충전 플랫폼별 비중", nil, platformRows)
-                        breakdownCard("태그별 지출", "여러 태그가 달린 지출은 중복 집계돼요", tagRows)
+                        if let trend = stats.trend {
+                            MonthlyTrendCard(trend: trend, year: store.displayYear)
+                        }
+                        breakdownCard("결제수단별 비중", nil, stats.paymentRows)
+                        breakdownCard("충전 플랫폼별 비중", nil, stats.platformRows)
+                        breakdownCard("태그별 지출", "여러 태그가 달린 지출은 중복 집계돼요", stats.tagRows)
                         subscriptionCard
                     } else {
                         AnnualReportContent(store: store)
@@ -42,6 +93,9 @@ struct SpendingInsightView: View {
         .background(GLGBackground { Color.clear })
         .navigationTitle("지출 인사이트")
         .navigationBarTitleDisplayMode(.inline)
+        .task(id: insightKey) {
+            stats = Self.compute(spendings: store.spendings, year: store.displayYear, month: store.displayMonth)
+        }
     }
 
     // ── 1) 예산 페이스 ──
@@ -121,11 +175,11 @@ struct SpendingInsightView: View {
     }
 
     // ── 신규) 전월 대비 ──
-    private var momCard: some View {
-        let mom = SpendingInsightStats.shared.momComparison(spendings: spendings, year: Int32(store.displayYear), month: Int32(store.displayMonth))
+    @ViewBuilder private var momCard: some View {
+        if let mom = stats.mom {
         let up = mom.delta > 0
         let warn = Color(hex: 0xFFF59E0B)
-        return GLGCard(cornerRadius: 20, padding: 16) {
+        GLGCard(cornerRadius: 20, padding: 16) {
             VStack(alignment: .leading, spacing: 0) {
                 cardTitle("전월 대비", "이번 달 vs 지난 달 지출")
                 HStack(alignment: .bottom, spacing: 10) {
@@ -146,22 +200,22 @@ struct SpendingInsightView: View {
                 }
             }
         }
+        }
     }
 
     // ── 신규) 결제 통계 ──
     @ViewBuilder private var paymentStatsCard: some View {
-        let stats = SpendingInsightStats.shared.paymentStats(spendings: spendings, year: Int32(store.displayYear), month: Int32(store.displayMonth))
-        if stats.count > 0 {
+        if let ps = stats.payment, ps.count > 0 {
             GLGCard(cornerRadius: 20, padding: 16) {
                 VStack(alignment: .leading, spacing: 0) {
                     cardTitle("결제 통계", "\(store.displayMonth)월 기준")
                     HStack(spacing: 10) {
-                        statTile("\(stats.count)건", "결제 건수")
-                        statTile(won(stats.average), "평균 결제액")
+                        statTile("\(ps.count)건", "결제 건수")
+                        statTile(won(ps.average), "평균 결제액")
                     }.padding(.top, 12)
                     HStack(spacing: 10) {
-                        statTile(won(stats.maxAmount), "최고 단건")
-                        statTile(stats.topWeekday.isEmpty ? "—" : "\(stats.topWeekday)요일", "최다 결제")
+                        statTile(won(ps.maxAmount), "최고 단건")
+                        statTile(ps.topWeekday.isEmpty ? "—" : "\(ps.topWeekday)요일", "최다 결제")
                     }.padding(.top, 8)
                 }
             }
@@ -175,13 +229,6 @@ struct SpendingInsightView: View {
         }
         .frame(maxWidth: .infinity).padding(.vertical, 11)
         .background(Color.black.opacity(0.03), in: RoundedRectangle(cornerRadius: 12))
-    }
-
-    // ── 신규) 충전 플랫폼별 비중 ──
-    private var platformRows: [(String, Int64, Double)] {
-        SpendingInsightStats.shared.platformBreakdown(spendings: spendings).map {
-            ($0.name, $0.amount, $0.total > 0 ? Double($0.amount) / Double($0.total) : 0)
-        }
     }
 
     // ── 신규) 정기결제 요약 ──
@@ -225,19 +272,6 @@ struct SpendingInsightView: View {
                     }
                 }
             }
-        }
-    }
-
-    // ── 3·4) 결제수단·태그 비중 ── (집계는 GL_Shared SpendingInsightStats 단일 소스)
-    private var paymentRows: [(String, Int64, Double)] {
-        SpendingInsightStats.shared.paymentBreakdown(spendings: spendings).map {
-            ($0.name, $0.amount, $0.total > 0 ? Double($0.amount) / Double($0.total) : 0)
-        }
-    }
-    // 태그는 중복 집계라 합계 비율이 100%를 넘을 수 있어, 막대 분모는 전체합이 아닌 최대 태그 금액(total).
-    private var tagRows: [(String, Int64, Double)] {
-        SpendingInsightStats.shared.tagBreakdown(spendings: spendings).map {
-            ("#\($0.name)", $0.amount, $0.total > 0 ? Double($0.amount) / Double($0.total) : 0)
         }
     }
 
@@ -286,21 +320,22 @@ struct BreakdownRow: View {
 }
 
 // 게임별 월 추이 — 올해, 누적 막대 (상위 5 게임 + 기타)
+//
+// 집계(trend)는 부모가 캐시해 넘긴다 — 예전엔 여기서 body 평가마다 직접 계산하고, 결과가 없을 때를
+// if/else 로 갈라 `AnyView` 로 감쌌다. 부모가 nil 을 걸러 주므로 둘 다 필요 없다.
 struct MonthlyTrendCard: View {
-    let spendings: [Spending]
+    let trend: MonthlyTrend
     let year: Int
     @Environment(\.glgAccent) private var accent
     private let etcColor = Color(hex: 0xFFB8BDC6)
 
     var body: some View {
-        // 상위 5 + "기타" 묶음·월별 합계는 GL_Shared SpendingInsightStats 가 단일 소스(Android 와 동일 집계).
-        if let trend = SpendingInsightStats.shared.monthlyTrend(spendings: spendings, year: Int32(year)) {
-            let legend = trend.legend
-            let monthGame = trend.monthGame.map { $0.mapValues { $0.int64Value } }
-            let maxMonth = trend.maxMonth
-            func colorOf(_ g: String) -> Color { g == "기타" ? etcColor : Color(argb64: GameData.shared.colorFor(name: g)) }
+        let legend = trend.legend
+        let monthGame = trend.monthGame.map { $0.mapValues { $0.int64Value } }
+        let maxMonth = trend.maxMonth
+        func colorOf(_ g: String) -> Color { g == "기타" ? etcColor : Color(argb64: GameData.shared.colorFor(name: g)) }
 
-            return AnyView(GLGCard(cornerRadius: 20, padding: 16) {
+        return GLGCard(cornerRadius: 20, padding: 16) {
                 VStack(alignment: .leading, spacing: 0) {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("게임별 월 추이").font(.pretendard(size: 14, weight: .bold))
@@ -338,9 +373,6 @@ struct MonthlyTrendCard: View {
                     }
                     .padding(.top, 12)
                 }
-            })
-        } else {
-            return AnyView(EmptyView())
         }
     }
 }

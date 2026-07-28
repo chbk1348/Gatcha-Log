@@ -15,8 +15,8 @@ enum class StatTok {
     HEAL,               // 치유(량) 보너스
     PHYS_DMG,           // 물리 피해 보너스
     ELEM_DMG,           // ○○ 원소/속성 피해(속성 무관 흡수)
-    SPD, BREAK, EHR, RES,                    // HSR: 속도/격파 특화/효과 적중/효과 저항
-    IMPACT, ANOM_MASTERY, ANOM_PROF, PEN, ENERGY,  // ZZZ: 충격력/이상 숙련/이상 장악력/관통/에너지
+    SPD, BREAK, EHR, RES,                    // HSR: 속도/격파 특수효과/효과 명중/효과 저항
+    IMPACT, ANOM_MASTERY, ANOM_PROF, PEN, ENERGY,  // ZZZ: 충격력/이상 마스터리/이상 장악력/관통률/에너지
     OTHER,
 }
 
@@ -61,16 +61,30 @@ object KeyStatRules {
     fun isKey(keySet: Set<StatTok>, label: String): Boolean =
         normStat(label).let { it != OTHER && it in keySet }
 
-    /** 게임별로 사용자가 고를 수 있는 유효옵션 후보(부옵션으로 붙는 스탯만). */
+    /**
+     * 게임별로 사용자가 고를 수 있는 유효옵션 후보 — **그 게임에 존재하는 전 항목.**
+     *
+     * 예전엔 '부옵션으로 붙는 스탯'만 추렸는데, 그러면 룰이 뽑은 유효옵션 중 목록에 없는 것
+     * (원신 원소 피해 보너스·스타레일 속도/격파 특수효과·젠레스 이상 마스터리 등)이 **화면에 안 보이면서
+     * 선택된 상태로 남는다** — 사용자가 볼 수도 해제할 수도 없었다. 주스탯 전용·고정값까지 전부 낸다.
+     *
+     * 순서 = 화면 표시 순서([orderedKeyStats])다. 자주 쓰는 것부터 → 게임 고유 → 고정값 순.
+     */
     fun selectableStats(gameKey: String): List<StatTok> = when (gameKey) {
         "hsr", "starrail" -> listOf(
-            CRIT_RATE, CRIT_DMG, ATK_PCT, HP_PCT, DEF_PCT, SPD, BREAK, EHR, RES,
+            CRIT_RATE, CRIT_DMG, ATK_PCT, HP_PCT, DEF_PCT,
+            SPD, BREAK, EHR, RES, ENERGY, ELEM_DMG, HEAL,
+            ATK, HP, DEF,
         )
         "zzz" -> listOf(
-            CRIT_RATE, CRIT_DMG, ATK_PCT, HP_PCT, DEF_PCT, PEN, ANOM_PROF,
+            CRIT_RATE, CRIT_DMG, ATK_PCT, HP_PCT, DEF_PCT,
+            IMPACT, ANOM_MASTERY, ANOM_PROF, PEN, ENERGY, ELEM_DMG,
+            ATK, HP, DEF,
         )
         else -> listOf(
-            CRIT_RATE, CRIT_DMG, ATK_PCT, HP_PCT, DEF_PCT, EM, ER,
+            CRIT_RATE, CRIT_DMG, ATK_PCT, HP_PCT, DEF_PCT,
+            EM, ER, ELEM_DMG, PHYS_DMG, HEAL,
+            ATK, HP, DEF,
         )
     }
 
@@ -135,11 +149,15 @@ internal fun normStat(raw: String): StatTok {
     // 3) 치유
     if (s.contains("치유")) return HEAL
     // 4) 파생/특수 스탯(구체어 우선)
-    if (s.contains("마스터리")) return EM
     if (s.contains("장악")) return ANOM_PROF
-    if (s.contains("이상") && s.contains("숙련")) return ANOM_MASTERY
+    // ⚠️ '이상 마스터리'(ZZZ)를 '원소 마스터리'(GI)보다 **먼저** 본다.
+    // 순서를 뒤집으면 ZZZ 의 이상 마스터리가 EM 으로 잡혀, 젠레스 유효옵션 후보에 없는 토큰이 되어
+    // 강조·유효 점수에서 통째로 빠진다. ('이상 숙련'은 옛 표기 — 남은 데이터 호환용으로 같이 받는다)
+    if (s.contains("이상") && (s.contains("마스터리") || s.contains("숙련"))) return ANOM_MASTERY
+    if (s.contains("마스터리")) return EM
     if (s.contains("격파")) return BREAK
-    if (s.contains("효과 적중") || s.contains("효과적중")) return EHR
+    // 인게임 표기는 "효과 명중". "적중"은 옛 표기라 남은 데이터 호환용으로 같이 받는다.
+    if (s.contains("명중") || s.contains("적중")) return EHR
     if (s.contains("효과 저항") || s.contains("효과저항")) return RES
     if (s.contains("속도")) return SPD
     if (s.contains("충격")) return IMPACT
@@ -154,20 +172,36 @@ internal fun normStat(raw: String): StatTok {
     return OTHER
 }
 
-/** 스탯 토큰의 한국어 표시명 — 유효옵션 직접 설정 UI 의 칩 라벨. */
-fun statLabel(t: StatTok): String = when (t) {
-    HP -> "HP"; HP_PCT -> "HP%"
-    ATK -> "공격력"; ATK_PCT -> "공격력%"
-    DEF -> "방어력"; DEF_PCT -> "방어력%"
-    EM -> "원소 마스터리"
-    CRIT_RATE -> "치명타 확률"; CRIT_DMG -> "치명타 피해"
-    ER -> "원소 충전 효율"
-    HEAL -> "치유 보너스"
-    PHYS_DMG -> "물리 피해"; ELEM_DMG -> "원소 피해"
-    SPD -> "속도"; BREAK -> "격파 특화"; EHR -> "효과 적중"; RES -> "효과 저항"
-    IMPACT -> "충격력"; ANOM_MASTERY -> "이상 숙련"; ANOM_PROF -> "이상 장악력"
-    PEN -> "관통"; ENERGY -> "에너지 회복"
-    OTHER -> "기타"
+/**
+ * 스탯 토큰의 표시명 — **인게임 옵션명 그대로.**
+ *
+ * 같은 개념이라도 게임마다 부르는 이름이 다르다(HSR '치유량 보너스' vs GI '치유 보너스',
+ * ZZZ '에너지 자동 회복' vs HSR '에너지 회복 효율'). 앱이 임의로 줄여 부르면 인게임 화면과
+ * 대조가 안 되므로 [gameKey] 로 갈라 실제 표기를 쓴다.
+ *
+ * 퍼센트 계열은 인게임에선 같은 이름이 두 번(고정값/비율) 나오지만, 칩에서는 구분이 안 되므로
+ * `%` 를 붙여 표기한다.
+ */
+fun statLabel(t: StatTok, gameKey: String = ""): String {
+    val gi = gameKey == "genshin"
+    val hsr = gameKey == "hsr" || gameKey == "starrail"
+    val zzz = gameKey == "zzz"
+    return when (t) {
+        HP -> "HP"; HP_PCT -> "HP%"
+        ATK -> "공격력"; ATK_PCT -> "공격력%"
+        DEF -> "방어력"; DEF_PCT -> "방어력%"
+        EM -> "원소 마스터리"
+        CRIT_RATE -> "치명타 확률"; CRIT_DMG -> "치명타 피해"
+        ER -> "원소 충전 효율"
+        HEAL -> if (hsr) "치유량 보너스" else "치유 보너스"
+        PHYS_DMG -> "물리 피해 보너스"
+        ELEM_DMG -> if (gi) "원소 피해 보너스" else "속성 피해 보너스"
+        SPD -> "속도"; BREAK -> "격파 특수효과"; EHR -> "효과 명중"; RES -> "효과 저항"
+        IMPACT -> "충격력"; ANOM_MASTERY -> "이상 마스터리"; ANOM_PROF -> "이상 장악력"
+        PEN -> "관통률"
+        ENERGY -> if (zzz) "에너지 자동 회복" else "에너지 회복 효율"
+        OTHER -> "기타"
+    }
 }
 
 /**
@@ -193,6 +227,24 @@ enum class KeyStatSource {
 
 /** 유효옵션 저장 키 — "genshin:10000030" 처럼 게임+캐릭터로 고유. */
 fun keyStatOverrideKey(gameKey: String, charId: Int): String = "$gameKey:$charId"
+
+/**
+ * 유효옵션을 **표시 순서가 고정된 목록**으로.
+ *
+ * [KeyStatVerdict.stats] 는 Set 이다. Kotlin 에서는 `setOf(...)` 가 LinkedHashSet 이라 선언 순서가
+ * 유지되지만, **iOS 로 넘어가면 Swift `Set` 이 되면서 그 순서가 사라진다** — 캐릭터 상세에 들어갈
+ * 때마다 유효옵션 칩이 뒤죽박죽으로 나왔다. 순서를 여기서 못 박아 양 플랫폼이 같게 보이도록 한다.
+ *
+ * 기준은 [KeyStatRules.selectableStats] 순서다. 편집 모드의 후보 칩과 **같은 배열**이라
+ * '바꾸기'를 눌러도 칩이 제자리에 있다. 후보에 없는 토큰(원소 피해·속도 등 부옵션이 아닌 것)은
+ * 뒤에 enum 선언 순으로 붙인다.
+ */
+fun orderedKeyStats(gameKey: String, stats: Set<StatTok>): List<StatTok> {
+    if (stats.isEmpty()) return emptyList()
+    val preferred = KeyStatRules.selectableStats(gameKey)
+    return preferred.filter { it in stats } +
+        stats.filter { it !in preferred }.sortedBy { it.ordinal }
+}
 
 /**
  * 사용자 설정 → 룰 순으로 유효옵션을 정한다.

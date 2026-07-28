@@ -12,7 +12,7 @@ struct DailyHeroSection: View {
     @Environment(\.glgAccent) private var accent
     @State private var expanded = false
 
-    private var attendanceGames: [Game] { GameData.shared.attendanceGames }
+    private var attendanceGames: [Game] { GLGGames.attendance }
     // 세그먼트로 특정 게임이 선택되면 그 게임만, "all"이면 전체.
     private var shownGames: [Game] {
         filter == "all" ? attendanceGames : attendanceGames.filter { $0.key == filter }
@@ -248,7 +248,7 @@ struct DailyHeroSection: View {
 // 출석 완료도
 enum AttendLevel { case none, partial, full }
 func attendLevel(_ count: Int) -> AttendLevel {
-    let total = Int(GameData.shared.attendanceGames.count)
+    let total = GLGGames.attendance.count
     if count <= 0 { return .none }
     if count >= total { return .full }
     return .partial

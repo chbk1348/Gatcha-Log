@@ -136,4 +136,84 @@ class SpendingInsightStatsTest {
         assertEquals("t10", rows.first().name)
         assertEquals("t3", rows.last().name)
     }
+
+    // ── 전월 대비(MoM) ───────────────────────────────────────────────────────
+    // 게임별 증감을 게임 수 × 지출 수로 돌던 것을 groupBy 로 바꾸면서, 여기 기대값을 고정한다.
+
+    @Test
+    fun momComparesTotalsAndPicksLargestAbsoluteGameDelta() {
+        val items = listOf(
+            spend("원신", 30_000, 7), spend("붕괴: 스타레일", 5_000, 7),
+            spend("원신", 10_000, 6), spend("붕괴: 스타레일", 4_000, 6),
+        )
+        val mom = SpendingInsightStats.momComparison(items, 2026, 7)
+        assertEquals(35_000L, mom.thisMonth)
+        assertEquals(14_000L, mom.lastMonth)
+        assertEquals(21_000L, mom.delta)
+        assertEquals(150, mom.percent)          // 21,000 / 14,000 = 150%
+        assertEquals("원신", mom.topGame)        // +20,000 vs +1,000
+        assertEquals(20_000L, mom.topGameDelta)
+    }
+
+    @Test
+    fun momPicksNegativeDeltaWhenItIsLargerInMagnitude() {
+        // 절대값 기준이라 '가장 많이 줄어든 게임'도 top 이 될 수 있다.
+        val items = listOf(
+            spend("원신", 1_000, 7),
+            spend("원신", 50_000, 6), spend("붕괴: 스타레일", 2_000, 6),
+        )
+        val mom = SpendingInsightStats.momComparison(items, 2026, 7)
+        assertEquals("원신", mom.topGame)
+        assertEquals(-49_000L, mom.topGameDelta)
+    }
+
+    @Test
+    fun momIncludesGamesPresentOnlyInPreviousMonth() {
+        // 이번 달엔 아예 안 쓴 게임도 후보다(전액 감소).
+        val items = listOf(spend("원신", 1_000, 7), spend("젠레스 존 제로", 9_000, 6))
+        val mom = SpendingInsightStats.momComparison(items, 2026, 7)
+        assertEquals("젠레스 존 제로", mom.topGame)
+        assertEquals(-9_000L, mom.topGameDelta)
+    }
+
+    @Test
+    fun momTieKeepsFirstEncounteredGame() {
+        // 증감 절대값이 같으면 **먼저 나온 게임**이 이긴다(비교가 strict >).
+        // 이번 달 등장 순 → 지난달에만 있던 게임 순. groupingBy 의 LinkedHashMap 순서에 기댄다.
+        val items = listOf(
+            spend("붕괴: 스타레일", 5_000, 7), spend("원신", 5_000, 7),
+        )
+        val mom = SpendingInsightStats.momComparison(items, 2026, 7)
+        assertEquals("붕괴: 스타레일", mom.topGame)
+        assertEquals(5_000L, mom.topGameDelta)
+    }
+
+    @Test
+    fun momPercentIsMinusOneWhenPreviousMonthIsZero() {
+        // 지난달 0 → 증감률을 낼 수 없다(신규). -1 이 '표시 생략' 신호.
+        val mom = SpendingInsightStats.momComparison(listOf(spend("원신", 1_000, 7)), 2026, 7)
+        assertEquals(0L, mom.lastMonth)
+        assertEquals(-1, mom.percent)
+    }
+
+    @Test
+    fun momOfJanuaryComparesAgainstPreviousDecember() {
+        val items = listOf(
+            Spending(gameName = "원신", amount = 3_000, dateMillis = at(2026, 1, 10)),
+            Spending(gameName = "원신", amount = 8_000, dateMillis = at(2025, 12, 20)),
+        )
+        val mom = SpendingInsightStats.momComparison(items, 2026, 1)
+        assertEquals(3_000L, mom.thisMonth)
+        assertEquals(8_000L, mom.lastMonth)
+    }
+
+    @Test
+    fun momOnEmptyInputIsAllZeros() {
+        val mom = SpendingInsightStats.momComparison(emptyList(), 2026, 7)
+        assertEquals(0L, mom.thisMonth)
+        assertEquals(0L, mom.lastMonth)
+        assertEquals(0L, mom.delta)
+        assertEquals("", mom.topGame)
+        assertEquals(0L, mom.topGameDelta)
+    }
 }

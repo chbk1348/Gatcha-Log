@@ -18,6 +18,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.gatcha.log.ui.theme.DividerColor
 import com.gatcha.log.ui.theme.LocalReduceMotion
+import com.gatcha.log.ui.theme.GlgShimmerActive
 import com.gatcha.log.ui.theme.LocalShimmerPhase
 import com.gatcha.log.ui.theme.SkeletonBase
 import com.gatcha.log.ui.theme.SkeletonHighlight
@@ -37,6 +38,9 @@ fun SkeletonBox(modifier: Modifier = Modifier, shape: Shape = RoundedCornerShape
         Box(modifier.clip(shape).background(SkeletonBase))
         return
     }
+    // 이 박스가 화면에 있는 동안만 공유 클럭이 돈다. 마지막 스켈레톤이 사라지면 클럭도 멎는다
+    // — 예전엔 로딩이 다 끝나도 앱이 살아 있는 내내 프레임을 발행했다.
+    GlgShimmerActive()
     val phase = LocalShimmerPhase.current
     Box(
         modifier

@@ -800,7 +800,7 @@ object HoyolabApi {
     private fun hsrTimeMillis(t: JSONObject): Long = runCatching {
         kotlinx.datetime.LocalDateTime(
             t.optInt("year"), t.optInt("month"), t.optInt("day"), t.optInt("hour"), t.optInt("minute"),
-        ).toInstant(kotlinx.datetime.TimeZone.currentSystemDefault()).toEpochMilliseconds()
+        ).toInstant(com.gatcha.log.data.DateUtil.timeZone).toEpochMilliseconds()
     }.getOrDefault(0L)
 
     // ----------------------------------------------------------------- 헬퍼

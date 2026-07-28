@@ -99,6 +99,7 @@ import com.gatcha.log.ui.theme.DangerText
 import com.gatcha.log.ui.theme.DividerColor
 import com.gatcha.log.ui.theme.LocalAccent
 import com.gatcha.log.ui.theme.LocalAccentSecondary
+import com.gatcha.log.ui.theme.LocalReduceMotion
 import com.gatcha.log.ui.theme.ProgressEmpty
 import com.gatcha.log.ui.theme.TextPrimary
 import com.gatcha.log.ui.theme.TextSecondary
@@ -204,7 +205,7 @@ fun HomeSectionHeader(title: String, count: Int? = null, actionTitle: String? = 
 @Composable
 fun HeroBalanceCard(monthlyTotal: Long, prevTotal: Long, budget: Long, onBudget: () -> Unit) {
     val accent = LocalAccent.current
-    val month = java.util.Calendar.getInstance().get(java.util.Calendar.MONTH) + 1
+    val month = remember { DateUtil.month(System.currentTimeMillis()) }
     val pagerState = rememberPagerState(pageCount = { 2 })
     Column(
         Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 4.dp),
@@ -299,12 +300,21 @@ private fun HeroPill(text: String, onClick: () -> Unit) {
 fun HeroGradientBackground(modifier: Modifier = Modifier) {
     val accent = LocalAccent.current
     val accent2 = LocalAccentSecondary.current
-    val transition = rememberInfiniteTransition(label = "heroGlow")
-    val drift by transition.animateFloat(
-        initialValue = -84f, targetValue = 84f,
-        animationSpec = infiniteRepeatable(tween(5000, easing = FastOutSlowInEasing), RepeatMode.Reverse),
-        label = "drift",
-    )
+    // 모션 감속(저RAM·절전·접근성 애니 끄기)이면 글로우를 고정한다 — 스켈레톤 시머는 이미 이 토큰을
+    // 지키는데 글로우만 안 지키고 있었다. 5초 주기 무한 애니메이션이라 저사양 단말에 그대로 부담이 된다.
+    // (탭을 벗어나면 호출부가 `selectedTab == 0` 으로 이 컴포저블을 통째로 폐기하므로,
+    //  '안 보일 때 멈춘다'는 iOS AmbientHeroGradient 의 onScreen 처리에 이미 대응된다)
+    val drift = if (LocalReduceMotion.current) {
+        0f
+    } else {
+        val transition = rememberInfiniteTransition(label = "heroGlow")
+        val d by transition.animateFloat(
+            initialValue = -84f, targetValue = 84f,
+            animationSpec = infiniteRepeatable(tween(5000, easing = FastOutSlowInEasing), RepeatMode.Reverse),
+            label = "drift",
+        )
+        d
+    }
     Box(modifier.clipToBounds()) {
         Box(
             Modifier.fillMaxSize().background(
@@ -327,7 +337,9 @@ fun HeroGradientBackground(modifier: Modifier = Modifier) {
 // ── 최근 지출 (목업 Transaction 리스트) ──────────────────────────────────────
 @Composable
 fun RecentSpendCard(spendings: List<Spending>, onSeeAll: () -> Unit) {
-    val recent = spendings.sortedByDescending { it.dateMillis }.take(4)
+    // 지출이 바뀔 때만 정렬한다. 예전엔 remember 가 없어 이 카드가 재구성될 때마다
+    // **지출 전체를 정렬**했다(4건만 쓰는데). 홈은 스크롤·애니메이션으로 재구성이 잦다.
+    val recent = remember(spendings) { spendings.sortedByDescending { it.dateMillis }.take(4) }
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         HomeSectionHeader("최근 지출", actionTitle = if (recent.isEmpty()) null else "전체보기", onAction = onSeeAll)
         GlassCard(shape = RoundedCornerShape(22.dp), modifier = Modifier.fillMaxWidth()) {
@@ -491,6 +503,8 @@ private fun buildMonthlySummary(
     }
 
     // ② 페이스/예산
+    // buildMonthlySummary 는 @Composable 이 아니라 remember 를 못 쓴다. 대신 Calendar 를 한 번만
+    // 만들어 두 값을 같이 꺼낸다(예전엔 그래도 매 호출 1개였지만, 여기선 그 이상 줄일 게 없다).
     val cal = java.util.Calendar.getInstance()
     val passed = cal.get(java.util.Calendar.DAY_OF_MONTH).coerceAtLeast(1)
     val totalDays = cal.getActualMaximum(java.util.Calendar.DAY_OF_MONTH)
@@ -1006,10 +1020,15 @@ fun NextBannerMini(b: GachaBanner?, plan: BannerPlan?, modifier: Modifier) {
 @Composable
 fun DashSpendCard(monthlyTotal: Long, budget: Long, onTap: () -> Unit) {
     val accent = LocalAccent.current
-    val cal = java.util.Calendar.getInstance()
-    val day = cal.get(java.util.Calendar.DAY_OF_MONTH)
-    val days = cal.getActualMaximum(java.util.Calendar.DAY_OF_MONTH)
-    val month = cal.get(java.util.Calendar.MONTH) + 1
+    // 날짜 값은 재구성마다 다시 만들지 않는다.
+    val (day, days, month) = remember {
+        val c = java.util.Calendar.getInstance()
+        Triple(
+            c.get(java.util.Calendar.DAY_OF_MONTH),
+            c.getActualMaximum(java.util.Calendar.DAY_OF_MONTH),
+            c.get(java.util.Calendar.MONTH) + 1,
+        )
+    }
     val remain = (days - day).coerceAtLeast(0)
     val pct = if (budget > 0) (monthlyTotal * 100 / budget).toInt() else 0
     val frac = if (budget > 0) (monthlyTotal.toFloat() / budget).coerceIn(0f, 1f) else 0f

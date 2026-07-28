@@ -2,7 +2,6 @@ package com.gatcha.log.data
 
 import com.gatcha.log.util.currentTimeMillis
 import kotlinx.datetime.LocalDate
-import kotlinx.datetime.TimeZone
 import kotlinx.datetime.daysUntil
 import kotlinx.datetime.toLocalDateTime
 import kotlin.time.ExperimentalTime
@@ -19,7 +18,7 @@ object GameAnniversary {
     @OptIn(ExperimentalTime::class)
     fun upcoming(nowMillis: Long = currentTimeMillis()): List<AnniversaryInfo> {
         val today = Instant.fromEpochMilliseconds(nowMillis)
-            .toLocalDateTime(TimeZone.currentSystemDefault()).date
+            .toLocalDateTime(DateUtil.timeZone).date   // 캐시된 타임존(시스템 조회 우회 금지)
         return Game.entries.mapNotNull { g ->
             val ymd = g.launchYmd ?: return@mapNotNull null
             val launch = LocalDate.parse(ymd)

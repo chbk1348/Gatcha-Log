@@ -306,6 +306,12 @@ struct SavingsChallengeView: View {
 
     private var summary: ChallengeSummary? { store.challenge }
 
+    /// 지출이 있었던 날짜 키 집합 — 최근 7일 스트립 판정용.
+    ///
+    /// 예전엔 [weekStrip] 안에서 만들었다. `dayKey` 는 게터라 항목마다 브리지 + 날짜 변환 +
+    /// 문자열 조립이 붙는데, 7칸을 칠하려고 **지출 전체를 body 평가마다** 훑고 있었다.
+    @State private var spentDays: Set<String> = []
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 14) {
@@ -321,6 +327,7 @@ struct SavingsChallengeView: View {
         .background(GLGBackground { Color.clear })
         .navigationTitle("절약 챌린지")
         .navigationBarTitleDisplayMode(.inline)
+        .task(id: store.spendings) { spentDays = Set(store.spendings.map { $0.dayKey }) }
     }
 
     private var heroCard: some View {
@@ -339,8 +346,7 @@ struct SavingsChallengeView: View {
     }
 
     private var weekStrip: some View {
-        let spentDays = Set(store.spendings.map { $0.dayKey })
-        return HStack(spacing: 7) {
+        HStack(spacing: 7) {
             ForEach((0...6).reversed(), id: \.self) { ago in
                 let key = DateUtil.shared.localDayKeyAgo(daysAgo: Int32(ago), nowMillis: nowMs())
                 let spent = spentDays.contains(key)
