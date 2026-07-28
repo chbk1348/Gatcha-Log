@@ -530,9 +530,8 @@ class SpendingViewModel : ViewModel() {
         emitStatus("지출이 수정되었어요")
     }
 
-    /** 정기결제용 표시명 — 아이템명 우선, 없으면 "<게임> 정기결제". */
-    private fun subscriptionName(s: Spending): String =
-        s.itemName.ifBlank { "${GameData.byNameOrNull(s.gameName)?.shortName ?: s.gameName} 정기결제" }
+    /** 정기결제용 표시명 — 규칙은 [SpendingDerived.subscriptionName] 단일 소스. */
+    private fun subscriptionName(s: Spending): String = SpendingDerived.subscriptionName(s)
 
     /** 같은 구독이 이미 등록돼 있는지(이름·게임·금액 기준). */
     private fun List<Subscription>.hasMatch(name: String, s: Spending): Boolean =
@@ -570,23 +569,11 @@ class SpendingViewModel : ViewModel() {
     }
 
     /** 미등록 구독표시 지출 → Subscription 후보(이름·게임·금액 중복 제거, 최신 결제일 우선). */
-    private fun collectUnlinkedSubscriptions(): List<Subscription> {
-        val existing = _subscriptions.value
-        val result = mutableListOf<Subscription>()
-        _spendings.value.filter { it.isSubscription }
-            .sortedByDescending { it.dateMillis }
-            .forEach { s ->
-                val name = subscriptionName(s)
-                if (existing.hasMatch(name, s) || result.hasMatch(name, s)) return@forEach
-                result += Subscription(
-                    name = name,
-                    gameName = s.gameName,
-                    amount = s.amount,
-                    billingDay = DateUtil.dayOfMonth(s.dateMillis).coerceIn(1, 31),
-                )
-            }
-        return result
-    }
+    private fun collectUnlinkedSubscriptions(): List<Subscription> =
+        SpendingDerived.unlinkedSubscriptions(
+            _spendings.value.filter { it.isSubscription },
+            _subscriptions.value,
+        )
 
     fun deleteSpending(id: String) {
         repo.addDeletedSpendingIds(setOf(id)) // tombstone — 삭제를 다른 기기에 전파(합집합 병합 방어)
@@ -1723,41 +1710,29 @@ class SpendingViewModel : ViewModel() {
     val recentMonthlyTotals: StateFlow<List<Long>> = _recentMonthlyTotals.asStateFlow()
 
     /**
-     * 최근 [RECENT_MONTHS] 개월 지출을 **한 번만 훑어** 달별로 합산한다.
-     *
-     * 화면에서 monthlyTotal(year, month) 를 6번 부르면 지출 전체를 6번 훑는다(게다가 iOS 는 매번 브리지 왕복).
-     * 여기서 한 번에 만들어 둔다.
-     */
-    private fun computeRecentMonthlyTotals(): List<Long> {
-        val months = (RECENT_MONTHS - 1 downTo 0).map { back ->
-            var y = currentYear
-            var m = currentMonth - back
-            while (m <= 0) { m += 12; y -= 1 }
-            y to m
-        }
-        val sums = LongArray(months.size)
-        _spendings.value.forEach { s ->
-            val y = DateUtil.year(s.dateMillis)
-            val m = DateUtil.month(s.dateMillis)
-            val idx = months.indexOfFirst { it.first == y && it.second == m }
-            if (idx >= 0) sums[idx] += s.amount
-        }
-        return sums.toList()
-    }
-
-    /**
      * '이번 달' 파생값을 다시 계산한다.
      *
      * 호출 지점을 늘리지 않으려고 [init] 에서 _spendings·_subscriptions 를 구독해 자동으로 돌리고,
      * [loadAll] 끝에서 **동기로 한 번 더** 부른다. 구독 콜백은 한 런루프 뒤에 오는데, 그 사이에
      * 화면이 먼저 그려지면 첫 프레임에 0원이 스쳤다가 바뀐다 — 시작 직후엔 그 틈이 보인다.
+     *
+     * 계산 자체는 [SpendingDerived] 가 **한 번의 순회**로 전부 만든다. 예전엔 이 함수가 다섯 값을
+     * 각각 계산해서 지출 전체를 8번 훑었다(항목마다 날짜 변환까지). 순수 함수로 빼 둔 덕에
+     * commonTest 로 회귀를 잡을 수 있다 — 이 ViewModel 자체는 플랫폼 저장소 의존이라 테스트가 안 된다.
      */
     private fun recomputeSpendingDerived() {
-        _currentMonthTotal.value = monthlyTotal()
-        _previousMonthTotal.value = prevMonthTotal()
-        _currentMonthTotalsByGame.value = monthlyTotalsByGame()
-        _unlinkedSubCount.value = unlinkedSubscriptionSpendingCount()
-        _recentMonthlyTotals.value = computeRecentMonthlyTotals()
+        val d = SpendingDerived.compute(
+            spendings = _spendings.value,
+            subscriptions = _subscriptions.value,
+            year = currentYear,
+            month = currentMonth,
+            recentMonths = RECENT_MONTHS,
+        )
+        _currentMonthTotal.value = d.currentMonthTotal
+        _previousMonthTotal.value = d.previousMonthTotal
+        _currentMonthTotalsByGame.value = d.currentMonthTotalsByGame
+        _unlinkedSubCount.value = d.unlinkedSubCount
+        _recentMonthlyTotals.value = d.recentMonthlyTotals
     }
 
     // ----------------------------------------------------------------- 파생 통계
