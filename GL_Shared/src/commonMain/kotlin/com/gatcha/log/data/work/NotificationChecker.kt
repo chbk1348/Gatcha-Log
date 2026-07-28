@@ -63,11 +63,16 @@ object NotificationChecker {
                 }
             }
 
-            // 게임별 한도 — 게임마다 별도 알림 ID·dedup 키
+            // 게임별 한도 — 게임마다 별도 알림 ID·dedup 키.
+            // 게임별 합계는 **한 번의 순회**로 만든다. 예전엔 한도가 걸린 게임마다 이번 달 지출을
+            // 통째로 다시 필터해서 O(게임수 × 지출수) 였다.
+            val monthByGame = monthSpendings
+                .groupingBy { GameData.byNameOrNull(it.gameName)?.key ?: it.gameName }
+                .fold(0L) { acc, s -> acc + s.amount }
             repo.loadGameBudgets().forEach { (gameKey, limit) ->
                 if (limit <= 0) return@forEach
-                val game = GameData.games.firstOrNull { it.key == gameKey } ?: return@forEach
-                val total = monthSpendings.filter { GameData.byNameOrNull(it.gameName)?.key == gameKey }.sumOf { it.amount }
+                val game = GameData.byNameOrNull(gameKey) ?: return@forEach
+                val total = monthByGame[gameKey] ?: 0L
                 val pct = (total * 100 / limit).toInt()
                 val level = when { total > limit -> "over"; pct >= 90 -> "near"; else -> null }
                 if (level != null) {
@@ -121,7 +126,9 @@ object NotificationChecker {
             repo.loadActiveBanners().filter { it.endMillis > now }
                 .groupBy { it.game }
                 .forEach { (gameName, list) ->
-                    val minD = list.minOf { it.dDay(now) }
+                    // dDay 를 배너당 한 번만 — 예전엔 minOf 와 filter 에서 각각 다시 계산했다.
+                    val withD = list.map { it to it.dDay(now) }
+                    val minD = withD.minOf { it.second }
                     val level = when { minD <= 1 -> "d1"; minD <= 3 -> "d3"; else -> null } ?: return@forEach
                     val tag = "pickup:$gameName"
                     if (settings.lastNotified(tag) != level) {
@@ -129,7 +136,7 @@ object NotificationChecker {
                         val game = GameData.byNameOrNull(gameName)
                         val shortName = game?.shortName ?: gameName
                         val nid = Notifier.ID_PICKUP_BASE + (game?.ordinal ?: 0)
-                        val names = list.filter { it.dDay(now) <= 3 }.joinToString(", ") { it.name }
+                        val names = withD.filter { it.second <= 3 }.joinToString(", ") { it.first.name }
                         val whenLabel = if (minD <= 1) "오늘·내일 종료" else "D-$minD 종료"
                         Notifier.notify(nid, "$shortName 픽업 마감 임박", "$names — $whenLabel 전 마지막 기회예요")
                     }
@@ -166,7 +173,7 @@ object NotificationChecker {
                 val tag = "combat:${c.gameShort}:${c.mode}"
                 if (settings.lastNotified(tag) != level) {
                     settings.setLastNotified(tag, level)
-                    val game = GameData.games.firstOrNull { it.shortName == c.gameShort }
+                    val game = GameData.byNameOrNull(c.gameShort)   // 이름 인덱스 — shortName 도 키다
                     val nid = Notifier.ID_COMBAT_BASE + (game?.ordinal ?: 0)
                     val whenLabel = if (c.dDay <= 0) "오늘 마감" else if (c.dDay == 1) "내일 마감" else "D-${c.dDay}"
                     Notifier.notify(
@@ -272,8 +279,10 @@ object NotificationChecker {
                 }
         }
         if (settings.notifySubscription) {
-            repo.loadSubscriptions().filter { it.dDay(now) <= 1 }.forEach { sub ->
-                lines += "${if (sub.dDay(now) <= 0) "오늘" else "내일"} 결제 · ${sub.name} ₩${won(sub.amount)}"
+            // dDay 를 구독당 한 번만(필터·문구에서 각각 계산하던 것). dDay 는 날짜 연산이라 공짜가 아니다.
+            repo.loadSubscriptions().forEach { sub ->
+                val d = sub.dDay(now)
+                if (d <= 1) lines += "${if (d <= 0) "오늘" else "내일"} 결제 · ${sub.name} ₩${won(sub.amount)}"
             }
         }
         if (settings.notifyCombat) {

@@ -1861,13 +1861,22 @@ class SpendingViewModel : ViewModel() {
         // 스냅샷은 **한 번만** 만들어 전체 문서(문자열)와 섹션 분해(객체)에 함께 쓴다.
         // 예전엔 exportSnapshotJson() 과 exportCloudSections() 가 각자 스냅샷을 만들어,
         // push 1회에 스냅샷 생성 2회 + 전량 재파싱 1회가 일어났다(수백 KB 를 메인 스레드에서).
-        val snapshot = repo.exportSnapshot()
-        val json = snapshot.toString()
+        //
+        // 그리고 **이 작업 전체가 IO 로 간다.** 스냅샷 생성은 저장된 JSON 문자열을 전부 파싱하고
+        // 결과를 다시 직렬화하는 일이라 수백 KB 급인데, viewModelScope 가 Main.immediate 라
+        // 지출을 저장할 때마다 1.5초 뒤 그게 UI 스레드에서 돌고 있었다.
+        // (직렬화 형식 자체는 건드리지 않는다 — lastPushedSnapshot 비교와 Firestore 중복 쓰기
+        //  생략이 바이트 동일성에 걸려 있다.)
+        val (snapshot, json) = withContext(Dispatchers.IO) {
+            val snap = repo.exportSnapshot()
+            snap to snap.toString()
+        }
         if (json == lastPushedSnapshot) return true   // 변경 없음 → write 생략
         if (json.length > CLOUD_DOC_WARN_BYTES) {
             emitStatus("클라우드 백업 용량이 한계에 근접했어요 (${json.length / 1024}KB / 1MB) — 오래된 뽑기 기록 정리를 권장해요")
         }
-        val s = repo.exportCloudSections(snapshot)
+        // 섹션 분해도 직렬화라 IO. 위 조기 반환 뒤에 두어 무변화 push 에서는 아예 돌지 않는다.
+        val s = withContext(Dispatchers.IO) { repo.exportCloudSections(snapshot) }
         val ok = CloudSync.push(uid, json, s.userInfo, s.spending, s.gameInfo)
         if (ok) lastPushedSnapshot = json
         return ok
