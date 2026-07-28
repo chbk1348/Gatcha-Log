@@ -15,7 +15,7 @@ struct BudgetSheet: View {
     @State private var overall: String = ""
     @State private var perGame: [String: String] = [:]
 
-    private let games = GameData.shared.games
+    private let games = GLGGames.all
     private var monthlyTotals: [String: Int64] { store.monthlyTotalsByGame }
 
     var body: some View {

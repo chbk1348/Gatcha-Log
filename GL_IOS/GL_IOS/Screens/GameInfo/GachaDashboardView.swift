@@ -43,7 +43,7 @@ struct GachaDashboardView: View {
                 // 공통 칩 단일 규격 — 게임 선택, 선택색은 게임별 대표색.
                 HStack(spacing: 8) {
                     ForEach(games, id: \.self) { g in
-                        let gColor = GameData.shared.games.first(where: { $0.key == g }).map { Color(argb64: $0.color) } ?? accent.primary
+                        let gColor = GameData.shared.byNameOrNull(name: g).map { Color(argb64: $0.color) } ?? accent.primary
                         GLGChip(label: gachaGameInfo(g).short, selected: g == sel, color: gColor) { selected = g }
                     }
                     Spacer(minLength: 0)

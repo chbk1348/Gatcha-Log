@@ -102,7 +102,7 @@ struct GameInfoView: View {
                 Menu {
                     Picker("게임 선택", selection: $gameFilter) {
                         Text("전체").tag("all")
-                        ForEach(Array(GameData.shared.attendanceGames.enumerated()), id: \.offset) { _, g in
+                        ForEach(Array(GLGGames.attendance.enumerated()), id: \.offset) { _, g in
                             Text(g.shortName).tag(g.key)
                         }
                     }
@@ -181,7 +181,7 @@ struct GameInfoView: View {
 
     // 헤더 좌측 게임 드롭다운 라벨
     private var gameFilterLabel: String {
-        gameFilter == "all" ? "전체" : (GameData.shared.attendanceGames.first { $0.key == gameFilter }?.shortName ?? "전체")
+        gameFilter == "all" ? "전체" : (GLGGames.attendance.first { $0.key == gameFilter }?.shortName ?? "전체")
     }
 
     @ViewBuilder private func section<C: View>(@ViewBuilder _ content: () -> C) -> some View {
@@ -434,8 +434,20 @@ struct GameSchedulePage: View {
     }
 
     /// 재계산 트리거 — 원본 3종과 필터가 바뀔 때만 다시 만든다.
-    private var scheduleKey: String {
-        "\(filter)|\(store.activeBanners.count)|\(store.gameEvents.count)|\(store.challenges.count)"
+    ///
+    /// ⚠️ 개수가 아니라 **목록 자체**를 키로 쓴다. 개수로 잡으면 새로고침이 같은 **개수의 새 배너**를
+    /// 내려줬을 때(종료 시각만 바뀐 경우 등) 일정 탭이 옛 값을 그대로 유지한다.
+    /// Swift `Array.==` 는 버퍼가 같으면 O(1)이라 변화 없는 평가에서는 비용이 없다.
+    private struct ScheduleKey: Equatable {
+        let filter: String
+        let banners: [GachaBanner]
+        let events: [GameEvent]
+        let challenges: [GameChallenge]
+    }
+
+    private var scheduleKey: ScheduleKey {
+        ScheduleKey(filter: filter, banners: store.activeBanners,
+                    events: store.gameEvents, challenges: store.challenges)
     }
 
     private static func buildSchedule(store: SpendingStore, filter: String) -> SchedulePageData {

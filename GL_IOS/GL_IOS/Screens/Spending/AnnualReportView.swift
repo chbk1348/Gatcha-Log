@@ -27,7 +27,25 @@ struct AnnualReportContent: View {
     @State private var stats = AnnualStats()
 
     /// 재계산 트리거 — 지출 목록과 선택 연도.
-    private var statsKey: String { "\(store.spendings.count)|\(selectedYear)|\(store.displayYear)" }
+    ///
+    /// ⚠️ **개수로 잡으면 안 된다.** 예전엔 `"\(store.spendings.count)|…"` 였는데, 그러면
+    /// 지출의 **금액·날짜만 수정했을 때 개수가 그대로라 재계산이 안 일어난다** — 연간 리포트가
+    /// 옛 수치를 그대로 들고 있게 된다(1건 삭제 + 1건 추가, 일괄 편집도 같은 함정).
+    ///
+    /// 목록 자체를 키로 쓴다. Swift `Array.==` 는 버퍼가 같으면 O(1)로 끝나므로, 변화가 없는
+    /// 대부분의 평가에서는 비용이 사실상 없다. `SubscriptionCenterView` 가 이미 같은 방식이다
+    /// (`.task(id: store.subscriptions)`).
+    private struct StatsKey: Equatable {
+        let spendings: [Spending]
+        let selectedYear: Int
+        let displayYear: Int
+        let displayMonth: Int
+    }
+
+    private var statsKey: StatsKey {
+        StatsKey(spendings: store.spendings, selectedYear: selectedYear,
+                 displayYear: store.displayYear, displayMonth: store.displayMonth)
+    }
 
     private var year: Int { stats.year }
 
