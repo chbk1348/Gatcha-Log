@@ -522,9 +522,10 @@ fun HomeContent(
             PickupPlannerHomeCard(savingsPlans) { savingsScreen = 1 }
             Spacer(Modifier.height(12.dp))
         }
+        // 마지막 카드 뒤에는 여백을 두지 않는다 — 탭바까지의 간격은 contentPadding(glgTabContentBottom)이
+        // 전담한다. 여기서 또 더하면 이 탭만 간격이 넓어진다(예전에 24dp 였다).
         glgCardItem() {
             SavingsChallengeHomeCard(challenge) { savingsScreen = 2 }
-            Spacer(Modifier.height(12.dp))
         }
     }
     // 상단 스크림 — **상태바 영역만** 덮는다(헤더 버튼 줄은 그대로 투명).
