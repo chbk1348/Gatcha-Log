@@ -21,6 +21,7 @@ import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import com.gatcha.log.ui.components.GlgTabHeaderHeight
+import com.gatcha.log.ui.components.glgTabContentBottom
 import com.gatcha.log.ui.components.GlgTopScrimFadeExtra as ScrimFadeExtra
 import com.gatcha.log.ui.components.GlgPullToRefreshBox
 import androidx.compose.runtime.*
@@ -316,7 +317,7 @@ fun GameInfoScreen(
             LazyColumn(
                 state = listState,
                 modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
-                contentPadding = PaddingValues(bottom = 120.dp),
+                contentPadding = PaddingValues(bottom = glgTabContentBottom()),
             ) {
             // 헤더 자리(고정) — item 0 은 앵커 인덱스 유지용 스페이서. 실제 헤더는 아래 오버레이. (상태바+헤더)
             item { Spacer(Modifier.height(GlgTabHeaderHeight + topInset)) }

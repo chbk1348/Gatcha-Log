@@ -313,6 +313,9 @@ private struct MetricTile: View {
 
 // ── ⑤ 게임별 지출 (도넛 + 범례) ──────────────────────────────────────────────
 
+/// '기타'(상위 5개 밖) 조각 색 — 게임별 월 추이 카드와 동일 회색.
+private let etcSliceColor = Color(hex: 0xFFB8BDC6)
+
 private struct GameDonutCard: View {
     let spendings: [Spending]
 
@@ -327,8 +330,12 @@ private struct GameDonutCard: View {
     // 8회 이상이었다. 지출이 바뀔 때만 한 번 만든다. (Android MyPageScreen 은 이미 remember 로 캐시)
     @State private var slices: [Slice] = []
     @State private var total: Int64 = 0
+    @State private var pcts: [Int] = []
 
-    private static func compute(_ spendings: [Spending]) -> (slices: [Slice], total: Int64) {
+    /// 도넛·범례가 **같은 조각 목록**을 쓴다.
+    /// 예전엔 도넛은 전 게임을 그리는데 범례는 상위 5개만 보여줘서, 6번째부터는 색만 있고 설명이 없었다.
+    /// 6개 이상이면 나머지를 '기타'로 묶는다(게임별 월 추이 카드와 같은 규칙).
+    private static func compute(_ spendings: [Spending]) -> (slices: [Slice], total: Int64, pcts: [Int]) {
         var sums: [String: Int64] = [:]
         var colors: [String: Int64] = [:]
         var sum: Int64 = 0
@@ -337,10 +344,17 @@ private struct GameDonutCard: View {
             if colors[s.gameName] == nil { colors[s.gameName] = s.gameColor }
             sum += s.amount
         }
-        let list = sums.map { Slice(game: $0.key, amount: $0.value,
+        var list = sums.map { Slice(game: $0.key, amount: $0.value,
                                     color: Color(argb64: colors[$0.key] ?? 0xFF8E8E93)) }
             .sorted { $0.amount > $1.amount }
-        return (list, sum)
+        if list.count > 5 {
+            let etc = list.dropFirst(5).reduce(Int64(0)) { $0 + $1.amount }
+            list = Array(list.prefix(5)) + [Slice(game: "기타", amount: etc, color: etcSliceColor)]
+        }
+        // 퍼센트는 **합이 정확히 100이 되도록** 공유 로직으로 배분한다(최대 잔여법).
+        // 각자 내림하면 조각 수만큼 깎여 3조각일 때 97%처럼 보였다.
+        let pcts = FormatKt.percentShares(values: list.map { KotlinLong(value: $0.amount) }).map { $0.intValue }
+        return (list, sum, pcts)
     }
 
     var body: some View {
@@ -353,8 +367,8 @@ private struct GameDonutCard: View {
                 HStack(spacing: 16) {
                     donut
                     VStack(spacing: 9) {
-                        ForEach(Array(slices.prefix(5))) { s in
-                            let pct = Int(Double(s.amount) / Double(total) * 100)
+                        ForEach(Array(slices.enumerated()), id: \.element.id) { i, s in
+                            let pct = i < pcts.count ? pcts[i] : 0
                             HStack(spacing: 8) {
                                 RoundedRectangle(cornerRadius: 3).fill(s.color).frame(width: 9, height: 9)
                                 Text(s.game).font(.pretendard(size: 12, weight: .medium)).lineLimit(1)
@@ -370,7 +384,7 @@ private struct GameDonutCard: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .glgGlass(in: RoundedRectangle(cornerRadius: 22, style: .continuous))
-        .task(id: spendings) { (slices, total) = Self.compute(spendings) }
+        .task(id: spendings) { (slices, total, pcts) = Self.compute(spendings) }
     }
 
     private var donut: some View {

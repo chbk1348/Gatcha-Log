@@ -40,12 +40,14 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import java.util.Calendar
 import com.gatcha.log.data.Spending
 import com.gatcha.log.ui.components.GlgTabHeaderHeight
+import com.gatcha.log.ui.components.glgTabContentBottom
 import com.gatcha.log.ui.components.GlassCard
 import com.gatcha.log.ui.components.GlgCircleIconButton
 import com.gatcha.log.ui.components.GlgTabHeader
 import com.gatcha.log.ui.components.ProfileAvatar
 import com.gatcha.log.data.SpendingViewModel
 import com.gatcha.log.ui.theme.*
+import com.gatcha.log.util.percentShares
 import com.gatcha.log.util.won
 
 @Composable
@@ -124,7 +126,7 @@ fun MyPageScreen(
     LazyColumn(
         state = listState,
         modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
-        contentPadding = PaddingValues(top = GlgTabHeaderHeight + topInset, bottom = 120.dp),
+        contentPadding = PaddingValues(top = GlgTabHeaderHeight + topInset, bottom = glgTabContentBottom()),
     ) {
         // ① 프로필 헤더 (연회색 카드)
         item {
@@ -430,12 +432,20 @@ private fun MetricTile(icon: ImageVector, value: String, label: String, modifier
 /** ⑤ 게임별 지출 — 도넛 + 범례. */
 @Composable
 private fun GameDonutCard(spendings: List<Spending>) {
+    // 도넛·범례가 **같은 조각 목록**을 쓴다.
+    // 예전엔 도넛은 전 게임을 그리는데 범례는 상위 5개만 보여줘서, 6번째부터는 색만 있고 설명이 없었다.
+    // 6개 이상이면 나머지를 '기타'로 묶는다(게임별 월 추이 카드와 같은 규칙).
     val byGame = remember(spendings) {
-        spendings.groupBy { it.gameName }
+        val all = spendings.groupBy { it.gameName }
             .map { (g, list) -> GameSlice(g, list.sumOf { s -> s.amount }, list.first().gameColor.toColor()) }
             .sortedByDescending { it.amount }
+        if (all.size <= 5) all
+        else all.take(5) + GameSlice("기타", all.drop(5).sumOf { it.amount }, EtcSliceColor)
     }
-    val total = remember(spendings) { spendings.sumOf { it.amount } }
+    val total = remember(byGame) { byGame.sumOf { it.amount } }
+    // 퍼센트는 **합이 정확히 100이 되도록** 공유 로직으로 배분한다(최대 잔여법).
+    // 각자 내림하면 조각 수만큼 깎여 3조각일 때 97%처럼 보였다.
+    val pcts = remember(byGame) { percentShares(byGame.map { it.amount }) }
     OutlineCard(modifier = Modifier.fillMaxWidth()) {
         if (byGame.isEmpty() || total <= 0L) {
             Box(Modifier.padding(20.dp)) {
@@ -469,8 +479,8 @@ private fun GameDonutCard(spendings: List<Spending>) {
                 }
                 Spacer(Modifier.width(16.dp))
                 Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(9.dp)) {
-                    byGame.take(5).forEach { slice ->
-                        val pct = (slice.amount.toFloat() / total * 100).toInt()
+                    byGame.forEachIndexed { i, slice ->
+                        val pct = pcts[i]
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Box(Modifier.size(9.dp).clip(RoundedCornerShape(3.dp)).background(slice.color))
                             Spacer(Modifier.width(8.dp))
@@ -488,6 +498,9 @@ private fun GameDonutCard(spendings: List<Spending>) {
 
 private data class MonthPoint(val month: Int, val amount: Long)
 private data class GameSlice(val game: String, val amount: Long, val color: Color)
+
+/** '기타'(상위 5개 밖) 조각 색 — 게임별 월 추이 카드와 동일 회색. */
+private val EtcSliceColor = Color(0xFFB8BDC6)
 
 /** 최근 [count]개월 (year, month1-12) — 오래된→최신 순. */
 private fun recentYearMonths(count: Int): List<Pair<Int, Int>> =

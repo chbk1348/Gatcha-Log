@@ -262,6 +262,24 @@ fun GlgScreenHeader(
 val GlgTabHeaderHeight = 72.dp
 
 /**
+ * 하단 탭바가 **화면을 가리는 높이** — 바 본체 64 + 위아래 여백 12×2. (기기 내비 인셋은 별도)
+ * BottomNavBar 의 실제 구성과 같이 움직여야 하므로 바꿀 땐 양쪽을 함께 본다.
+ */
+val GlgTabBarHeight = 88.dp
+
+/**
+ * 탭 콘텐츠의 하단 여백 — [GlgTabBarHeight] + **기기 내비게이션 바 인셋.**
+ *
+ * 예전엔 네 탭이 각자 `120.dp` 를 손으로 넣었고 인셋을 아무도 안 더했다. 그래서
+ * 3버튼 내비 기기(인셋 ~48dp)에서는 필요분이 136dp라 **마지막 항목이 탭바에 가렸고**,
+ * 제스처 내비(인셋 ~24dp)에서는 여백이 남았다 — 기기·탭마다 결과가 달랐다.
+ * 인셋을 포함해 한 곳에서 계산한다.
+ */
+@Composable
+fun glgTabContentBottom(): Dp =
+    GlgTabBarHeight + WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+
+/**
  * 상단 스크림이 상태바 **아래로 더 내려가는 높이**.
  *
  * 스크림을 상태바 높이에 딱 맞추면 남는 페이드 구간이 3~6dp 뿐이라 알파가 급히 끊겨

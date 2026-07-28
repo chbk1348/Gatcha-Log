@@ -59,6 +59,7 @@ import com.gatcha.log.ui.components.GlassCard
 import com.gatcha.log.ui.components.GlgButton
 import com.gatcha.log.ui.components.GlgTabHeader
 import com.gatcha.log.ui.components.GlgTabHeaderHeight
+import com.gatcha.log.ui.components.glgTabContentBottom
 import com.gatcha.log.ui.components.GlgTopScrimFadeExtra as ScrimFadeExtra
 import com.gatcha.log.ui.components.GlgOutlineButton
 import com.gatcha.log.ui.theme.*
@@ -221,7 +222,11 @@ fun SpendingScreen(
             onRefresh = { viewModel.refreshSpending() },
             modifier = Modifier.fillMaxSize(),
         ) {
-            LazyColumn(state = listState, modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
+            LazyColumn(
+                state = listState,
+                modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
+                contentPadding = PaddingValues(bottom = glgTabContentBottom()),
+            ) {
                 // 히어로 자리(고정) — 위에 히어로 오버레이가 뜬다.
                 item { Spacer(Modifier.height(heroSpacerDp)) }
 
@@ -248,7 +253,6 @@ fun SpendingScreen(
                     }
                 }
             }
-            item { Spacer(Modifier.height(120.dp)) }
         }
     }
         // 상단 스크림 — **상태바 영역만** 덮는다. 스크롤될 때만 나타나 상태바 글자와 콘텐츠가 겹쳐 읽히는 걸 막는다.

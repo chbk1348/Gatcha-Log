@@ -31,6 +31,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import com.gatcha.log.ui.components.GlgTabHeaderHeight
+import com.gatcha.log.ui.components.glgTabContentBottom
 import com.gatcha.log.ui.components.GlgTopScrimFadeExtra as ScrimFadeExtra
 import com.gatcha.log.ui.components.GlgPullToRefreshBox
 import androidx.compose.runtime.*
@@ -467,7 +468,7 @@ fun HomeContent(
     LazyColumn(
         state = listState,
         modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
-        contentPadding = PaddingValues(top = GlgTabHeaderHeight + topInset),
+        contentPadding = PaddingValues(top = GlgTabHeaderHeight + topInset, bottom = glgTabContentBottom()),
     ) {
         // HoYoLAB 토큰 만료 감지 시 최상단 배너.
         if (hoyoTokenExpired) {
@@ -525,7 +526,6 @@ fun HomeContent(
             SavingsChallengeHomeCard(challenge) { savingsScreen = 2 }
             Spacer(Modifier.height(12.dp))
         }
-        item { Spacer(Modifier.height(120.dp)) }
     }
     // 상단 스크림 — **상태바 영역만** 덮는다(헤더 버튼 줄은 그대로 투명).
     Box(
