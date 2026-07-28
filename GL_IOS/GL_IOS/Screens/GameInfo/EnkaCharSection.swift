@@ -319,6 +319,8 @@ struct EnkaRosterPage: View {
                 EnkaStatPage(char: c, game: game,
                              overrides: store.keyStatOverrides,
                              onSetOverride: { k, v in store.setKeyStatOverride(k, v) })
+                    // 캐릭터별로 다른 뷰 — 재사용되면 직전 캐릭터의 유효옵션이 한 프레임 남는다.
+                    .id(c.id)
             }
         }
     }
@@ -336,6 +338,30 @@ struct EnkaStatPage: View {
     /// 캐릭터별 유효옵션 사용자 설정(키=keyStatOverrideKey). 앱 룰보다 우선.
     var overrides: [String: Set<String>] = [:]
     var onSetOverride: (String, Set<String>) -> Void = { _, _ in }
+
+    /// 유효옵션 판정과 성유물 점수 — **뷰가 만들어질 때 한 번** 낸다.
+    ///
+    /// 예전엔 `@State` 에 담고 `.task` 에서 채웠는데, `.task` 는 첫 프레임 **뒤에** 돌아서
+    /// 상세에 들어가면 유효옵션·점수 없이 한 번 그려졌다가 뒤늦게 채워졌다 — 값이 "스륵"
+    /// 바뀌는 것처럼 보였다. 입력(char·game·overrides)이 전부 init 에 있으니 여기서 확정한다.
+    ///
+    /// 그렇다고 computed 로 되돌리면 안 된다 — `keySet` 을 스탯·성유물·부옵션이 줄마다 읽어서
+    /// 한 화면에 70회 넘게 돌던 게 원래 문제였다. 뷰 생성당 1회가 그 사이의 답이다.
+    private let verdict: KeyStatVerdict
+    private let artScore: CharArtifactScore
+
+    init(char: EnkaChar, game: String,
+         overrides: [String: Set<String>] = [:],
+         onSetOverride: @escaping (String, Set<String>) -> Void = { _, _ in }) {
+        self.char = char
+        self.game = game
+        self.overrides = overrides
+        self.onSetOverride = onSetOverride
+        let v = KeyStatRulesKt.resolveKeyStats(gameKey: game, char: char, overrides: overrides)
+        self.verdict = v
+        self.artScore = ArtifactScoring.shared.scoreChar(artifacts: char.artifacts, keySet: v.stats, gameKey: game)
+    }
+
     @Environment(\.glgAccent) private var accent
     @State private var editingKeyStats = false
     @State private var picked: Set<String> = []
@@ -356,23 +382,23 @@ struct EnkaStatPage: View {
                     else { emptyEquipNote(game == "genshin" ? "무기가 장착되지 않았습니다." : game == "zzz" ? "W-엔진이 장착되지 않았습니다." : "광추가 장착되지 않았습니다.") }
                 }
                 section("핵심 스탯") { statGrid }
+                // 유효옵션 — 점수의 기준이라 무엇으로 쟀는지 밝히고, 틀리면 바로 고칠 수 있게 한다.
+                //
+                // **성유물 섹션과 형제로 둔다.** 예전엔 성유물 섹션 '안에' 넣어서, 같은 서체의 제목
+                // ("드라이브 디스크" / "유효옵션")이 9pt 간격으로 겹쳐 보였다. Android 는 처음부터
+                // 두 섹션을 나란히 두고 있었다 — 그쪽에 맞춘다.
+                section("유효옵션") { keyStatEditor }
                 section(game == "genshin" ? "성유물" : game == "zzz" ? "드라이브 디스크" : "유물") {
                     if char.artifacts.isEmpty {
                         emptyEquipNote(game == "genshin" ? "성유물이 장착되지 않았습니다." : game == "zzz" ? "드라이브 디스크가 장착되지 않았습니다." : "유물이 장착되지 않았습니다.")
                     } else {
-                        // 유효옵션 — 점수의 기준이라 무엇으로 쟀는지 밝히고, 틀리면 바로 고칠 수 있게 한다.
-                        keyStatEditor
-                        Spacer().frame(height: 16)
                         // 유효 점수 순 정렬 — 산식은 GL_Shared ArtifactScoring 단일 소스(Android 와 동일).
-                        // 점수는 캐릭터·유효옵션이 바뀔 때만 다시 낸다(아래 cachedScore). 예전엔 computed 라
-                        // 화면이 다시 그려질 때마다 성유물 전체를 재채점했다 — 유효옵션 칩을 누를 때마다도.
-                        if let artScore = cachedScore {
+                        // 점수는 뷰 생성 시 한 번 낸다(위 artScore).
                         VStack(spacing: 10) {
                             critScoreSummary(artScore)
                             ForEach(Array(artScore.ranked.enumerated()), id: \.offset) { i, r in
                                 artifactCard(r.artifact, score: r.score, rank: i + 1)
                             }
-                        }
                         }
                     }
                 }
@@ -396,9 +422,8 @@ struct EnkaStatPage: View {
         .navigationTitle(char.name)
         .navigationBarTitleDisplayMode(.inline)
         // 캐릭터/게임 바뀌면 효과 재조회(캐시 적중 시 즉시).
-        // 유효옵션 판정은 캐릭터 또는 사용자 설정이 바뀔 때만 다시 한다.
+        // (유효옵션·성유물 점수는 init 에서 확정 — 첫 프레임부터 맞는 값이 보여야 한다)
         .task(id: char.id) {
-            applyVerdict(KeyStatRulesKt.resolveKeyStats(gameKey: game, char: char, overrides: overrides))
             effectsLoading = true
             expandedEffect = nil
             let r = (try? await CharEffectsApi.shared.fetch(gameKey: game, id: char.id)) ?? []
@@ -406,9 +431,6 @@ struct EnkaStatPage: View {
             guard !Task.isCancelled else { return }
             effects = r
             effectsLoading = false
-        }
-        .onChange(of: overrides) { _, new in
-            applyVerdict(KeyStatRulesKt.resolveKeyStats(gameKey: game, char: char, overrides: new))
         }
     }
 
@@ -602,34 +624,16 @@ struct EnkaStatPage: View {
         }
     }
 
-    /// 유효옵션 — 사용자가 고른 값이 있으면 그것, 없으면 앱 룰 추정, 둘 다 없으면 판정 불가.
-    ///
-    /// **캐시한다.** 예전엔 computed 라 읽을 때마다 `resolveKeyStats` 가 다시 돌았는데,
-    /// `keySet` 이 이걸 읽고 스탯·성유물·부옵션이 줄마다 또 읽어서 한 화면에 70회 넘게 실행됐다.
-    /// 유효옵션 칩을 한 번 누를 때마다 그 전부가 다시 돌았다.
-    @State private var cachedVerdict: KeyStatVerdict? = nil
-    /// 성유물 채점 결과 — 유효옵션이 정해져야 나오므로 [cachedVerdict] 와 함께 갱신한다.
-    @State private var cachedScore: CharArtifactScore? = nil
-
-    private var verdict: KeyStatVerdict {
-        cachedVerdict ?? KeyStatRulesKt.resolveKeyStats(gameKey: game, char: char, overrides: overrides)
-    }
+    /// 강조 대상 스탯 집합 — 유효옵션 판정([verdict], init 에서 확정)에서 꺼낸다.
     private var keySet: Set<StatTok> { verdict.stats }
-
-    /// 유효옵션 판정과 그에 따른 성유물 점수를 함께 갱신 — 둘이 어긋나면 '빨간 강조'와 점수가 안 맞는다.
-    private func applyVerdict(_ v: KeyStatVerdict) {
-        cachedVerdict = v
-        cachedScore = ArtifactScoring.shared.scoreChar(artifacts: char.artifacts, keySet: v.stats, gameKey: game)
-    }
 
     /// 유효옵션 편집 카드 — 앱 룰은 추정이라 오차가 유효 점수로 그대로 드러난다.
     /// 무엇을 기준으로 쟀는지 보여주고 사용자가 덮어쓸 수 있게 한다.
     private var keyStatEditor: some View {
         let v = verdict
         let selectable = KeyStatRules.shared.selectableStats(gameKey: game)
+        // 제목("유효옵션")은 바깥 section 이 그린다 — 여기서 또 그리면 제목이 두 겹으로 보인다.
         return VStack(alignment: .leading, spacing: 0) {
-            secLabel("유효옵션")
-            VStack(alignment: .leading, spacing: 0) {
                 HStack {
                     Text(sourceTitle(v.source))
                         .font(.pretendard(size: 12, weight: .bold))
@@ -646,39 +650,67 @@ struct EnkaStatPage: View {
                     .font(.pretendard(size: 11)).foregroundStyle(GLGColor.textSecondary).padding(.top, 4)
 
                 if editingKeyStats {
-                    chipGrid(selectable.map { ($0, picked.contains($0.name)) }) { tok in
-                        if picked.contains(tok.name) { picked.remove(tok.name) } else { picked.insert(tok.name) }
-                    }
+                    statCheckGrid(selectable)
+                    // 액션 버튼은 디자인 시스템의 **캡슐** 버튼을 쓴다.
+                    // 예전엔 둘 다 손으로 그린 반경 14 둥근 사각이라, '저장'은 선택된 칩과,
+                    // '기본값으로'는 선택 안 된 칩과 모양·색이 똑같아서 버튼으로 안 읽혔다.
                     HStack(spacing: 8) {
-                        Button("저장") {
+                        GLGButton(title: "저장") {
                             onSetOverride(KeyStatRulesKt.keyStatOverrideKey(gameKey: game, charId: char.id), picked)
                             editingKeyStats = false
                         }
-                        .font(.pretendard(size: 12, weight: .bold)).foregroundStyle(.white)
-                        .padding(.horizontal, 14).padding(.vertical, 8)
-                        .background(accent.primary, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-                        .buttonStyle(.plain)
                         // 설정 해제 = 빈 집합 저장 → 앱 룰 추정으로 되돌아간다.
                         if v.source == .user {
-                            Button("기본값으로") {
+                            GLGOutlineButton(title: "기본값으로") {
                                 onSetOverride(KeyStatRulesKt.keyStatOverrideKey(gameKey: game, charId: char.id), [])
                                 editingKeyStats = false
                             }
-                            .font(.pretendard(size: 12, weight: .bold)).foregroundStyle(GLGColor.textSecondary)
-                            .padding(.horizontal, 14).padding(.vertical, 8)
-                            .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(Color.black.opacity(0.08), lineWidth: 1))
-                            .buttonStyle(.plain)
                         }
                     }
-                    .padding(.top, 4)
+                    .padding(.top, 12)
                 } else if !v.stats.isEmpty {
-                    chipGrid(v.stats.map { ($0, true) }, readOnly: true) { _ in }
+                    // Set 을 그대로 map 하면 순서가 없다 — 상세에 들어올 때마다 칩이 뒤죽박죽이었다.
+                    // 순서는 공유 모듈이 정한다(Android 와 동일 배열, 편집 모드 후보 칩과도 같은 순서).
+                    chipGrid(KeyStatRulesKt.orderedKeyStats(gameKey: game, stats: v.stats).map { ($0, true) },
+                             readOnly: true) { _ in }
                 }
             }
-            .padding(14)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .glgGlass(in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .glgGlass(in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+    }
+
+    /// 유효옵션 선택 그리드 — **체크박스 2열.**
+    ///
+    /// 예전엔 읽기 전용 표시와 같은 칩이라 "지금 고르는 중"인지, 그냥 결과를 보고 있는지 구분이
+    /// 안 됐다. 체크박스는 다중 선택이라는 것도 함께 드러낸다.
+    /// 2열인 이유 — 옵션명이 인게임 표기('에너지 자동 회복'·'속성 피해 보너스')라 3열에선 잘린다.
+    private func statCheckGrid(_ items: [StatTok]) -> some View {
+        LazyVGrid(columns: g2, spacing: 8) {
+            ForEach(Array(items.enumerated()), id: \.offset) { _, tok in
+                let on = picked.contains(tok.name)
+                HStack(spacing: 7) {
+                    Image(systemName: on ? "checkmark.square.fill" : "square")
+                        .font(.pretendard(size: 15))
+                        .foregroundStyle(on ? accent.primary : Color(.tertiaryLabel))
+                    Text(KeyStatRulesKt.statLabel(t: tok, gameKey: game))
+                        .font(.pretendard(size: 12, weight: .semibold))
+                        .foregroundStyle(on ? GLGColor.textPrimary : GLGColor.textSecondary)
+                        .lineLimit(1).minimumScaleFactor(0.75)
+                    Spacer(minLength: 0)
+                }
+                .padding(.horizontal, 10).padding(.vertical, 9)
+                .background(on ? accent.primary.opacity(0.10) : Color.white,
+                            in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .stroke(on ? accent.primary.opacity(0.35) : Color.black.opacity(0.08), lineWidth: 1))
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    if on { picked.remove(tok.name) } else { picked.insert(tok.name) }
+                }
+            }
         }
+        .padding(.top, 10)
     }
 
     private func sourceTitle(_ s: KeyStatSource) -> String {
@@ -705,7 +737,7 @@ struct EnkaStatPage: View {
                 HStack(spacing: 6) {
                     ForEach(Array(row.enumerated()), id: \.offset) { _, item in
                         let (tok, on) = item
-                        Text(KeyStatRulesKt.statLabel(t: tok))
+                        Text(KeyStatRulesKt.statLabel(t: tok, gameKey: game))
                             .font(.pretendard(size: 11.5, weight: .bold))
                             .foregroundStyle(on ? .white : GLGColor.textSecondary)
                             .padding(.horizontal, 11).padding(.vertical, 7)
@@ -764,13 +796,15 @@ struct EnkaStatPage: View {
         return VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 7) {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("유효 점수").font(.pretendard(size: 10.5)).foregroundStyle(GLGColor.textSecondary)
-                    Text("유효옵션 강화 횟수 환산(장당 최대 9)").font(.pretendard(size: 9.5)).foregroundStyle(GLGColor.textSecondary)
+                    // 지표는 게임마다 다르다(원신=아카샤 CV / 그 외=유효 롤). 무엇으로 쟀는지 밝힌다 —
+                    // 숫자만 있으면 어느 사이트와 대조할 수 있는 값인지 알 수 없다.
+                    Text(s.metric.label).font(.pretendard(size: 10.5)).foregroundStyle(GLGColor.textSecondary)
+                    Text(s.metric.hint).font(.pretendard(size: 9.5)).foregroundStyle(GLGColor.textSecondary)
                 }
                 Spacer(minLength: 0)
-                Text(ArtifactScoring.shared.rollLabel(rolls: s.totalRolls))
+                Text(ArtifactScoring.shared.scoreLabel(value: s.total))
                     .font(.pretendard(size: 18, weight: .heavy)).foregroundStyle(c)
-                Text("장당 \(ArtifactScoring.shared.rollLabel(rolls: s.averageRolls)) · \(s.grade.label)")
+                Text("장당 \(ArtifactScoring.shared.scoreLabel(value: s.average)) · \(s.grade.label)")
                     .font(.pretendard(size: 10, weight: .bold)).foregroundStyle(c)
                     .padding(.horizontal, 7).padding(.vertical, 3)
                     .background(c.opacity(0.14), in: RoundedRectangle(cornerRadius: 7))
@@ -806,7 +840,7 @@ struct EnkaStatPage: View {
                     // 유효 점수 — 유효옵션이 하나도 안 붙었으면 순위가 무의미하므로 배지를 숨긴다.
                     if !score.isEmpty {
                         let gc = gradeColor(score.grade)
-                        Text("\(rank)위 · 유효 \(ArtifactScoring.shared.rollLabel(rolls: score.rolls))")
+                        Text("\(rank)위 · \(score.metric.label) \(ArtifactScoring.shared.scoreLabel(value: score.value))")
                             .font(.pretendard(size: 10, weight: .bold)).foregroundStyle(gc)
                             .padding(.horizontal, 7).padding(.vertical, 2)
                             .background(gc.opacity(0.14), in: RoundedRectangle(cornerRadius: 7))
