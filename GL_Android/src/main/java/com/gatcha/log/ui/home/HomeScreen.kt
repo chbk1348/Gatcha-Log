@@ -455,7 +455,6 @@ fun HomeContent(
     Box(Modifier.fillMaxSize()) {
     // 히어로 그라데이션은 HomeScreen(Scaffold 레벨)에서 상태바 뒤까지 그린다.
     // 콘텐츠 로드인 스태거 — 앱 진입 후 1회만 등장(스크롤·탭 재진입 시 재애니메이션 방지). 세션 영속 집합.
-    val loadInSet = rememberGlgLoadInSet("home")
     // 헤더는 투명 오버레이(아래) — 콘텐츠가 헤더 버튼 '아래로' 지나가도록 (상태바+헤더)만큼 인셋.
     val topInset = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     // 상단 스크림 — 콘텐츠가 헤더(버튼) 아래로 스크롤될 때만 배경색 그라데이션으로 살짝 흐린다.
@@ -471,7 +470,7 @@ fun HomeContent(
     ) {
         // HoYoLAB 토큰 만료 감지 시 최상단 배너.
         if (hoyoTokenExpired) {
-            glgStaggerItem(0, loadInSet) {
+            glgCardItem() {
                 TokenExpiredBanner(onReconnect = {
                     viewModel.requestOpenHoyolabLink()
                     onNavigateToMyPage()
@@ -479,49 +478,49 @@ fun HomeContent(
             }
         }
         // 히어로 — 이번 달 지출 / 예산 캐러셀 (Figma Make 참고)
-        glgStaggerItem(2, loadInSet) {
+        glgCardItem() {
             HeroBalanceCard(monthlyTotal, prevTotal, budget) { showBudgetDialog.value = true }
             Spacer(Modifier.height(16.dp))
         }
         if (!gameInfoReady || todayTasks.isNotEmpty()) {
-            glgStaggerItem(3, loadInSet) {
+            glgCardItem() {
                 if (!gameInfoReady) TodayTaskSkeleton(titleOutside = true)
                 else TodayTaskCard(tasks = todayTasks, inProgress = checkingIn != null, titleOutside = true)
                 Spacer(Modifier.height(16.dp))
             }
         }
         // 최근 지출
-        glgStaggerItem(4, loadInSet) {
+        glgCardItem() {
             RecentSpendCard(spendings) { onNavigateToSpending() }
             Spacer(Modifier.height(16.dp))
         }
         if (!gameInfoReady) {
-            glgStaggerItem(5, loadInSet) {
+            glgCardItem() {
                 DashCardSkeleton(rows = 3)
                 Spacer(Modifier.height(16.dp))
             }
-            glgStaggerItem(6, loadInSet) {
+            glgCardItem() {
                 DashCardSkeleton(rows = 2)
                 Spacer(Modifier.height(16.dp))
             }
         } else {
-            glgStaggerItem(5, loadInSet) {
+            glgCardItem() {
                 DashScheduleCard(gameEvents, gameChallenges, titleOutside = true) { viewModel.requestGameInfoAnchor(GameInfoAnchor.SCHEDULE); onNavigateToGameInfo() }
                 Spacer(Modifier.height(16.dp))
             }
-            glgStaggerItem(6, loadInSet) {
+            glgCardItem() {
                 DashNewsCard(gameNews, anniversaries, titleOutside = true) { viewModel.requestGameInfoAnchor(GameInfoAnchor.NEWS); onNavigateToGameInfo() }
                 Spacer(Modifier.height(16.dp))
             }
         }
         // 나를 위한 — 저축 플래너 · 절약 챌린지
-        glgStaggerItem(7, loadInSet) {
+        glgCardItem() {
             HomeSectionHeader("나를 위한")
             Spacer(Modifier.height(10.dp))
             PickupPlannerHomeCard(savingsPlans) { savingsScreen = 1 }
             Spacer(Modifier.height(12.dp))
         }
-        glgStaggerItem(8, loadInSet) {
+        glgCardItem() {
             SavingsChallengeHomeCard(challenge) { savingsScreen = 2 }
             Spacer(Modifier.height(12.dp))
         }

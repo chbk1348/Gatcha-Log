@@ -33,8 +33,6 @@ import com.gatcha.log.ui.components.openExternalLink
 import com.gatcha.log.ui.components.GlgButton
 import com.gatcha.log.ui.components.GlgOutlineButton
 import com.gatcha.log.ui.theme.DividerColor
-import com.gatcha.log.ui.theme.glgLoadIn
-import com.gatcha.log.ui.theme.rememberGlgLoadInSet
 import com.gatcha.log.ui.theme.toColor
 import com.gatcha.log.ui.theme.LocalAccent
 import com.gatcha.log.ui.theme.TextPrimary
@@ -120,16 +118,14 @@ private fun EmptyState(onImport: () -> Unit) {
 @Composable
 private fun ReportContent(stats: GachaStats, spendByGameKey: Map<String, Long>, onImport: () -> Unit, onOpenDashboard: () -> Unit) {
     val games = stats.byGame.keys.sortedBy { GachaReport.gameOrder.indexOf(it).let { i -> if (i < 0) 99 else i } }
-    // 로드인 스태거 — 앱 진입 후 1회만(게임 정보 탭 재진입 재생 방지, 세션 영속).
-    val loadInSet = rememberGlgLoadInSet("gachaReport")
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
         games.forEachIndexed { idx, gk ->
             val g = stats.byGame[gk] ?: return@forEachIndexed
-            GameCard(gk, g, spendByGameKey[gk] ?: 0L, showDash = idx == 0, onOpenDashboard, idx, loadInSet)
+            GameCard(gk, g, spendByGameKey[gk] ?: 0L, showDash = idx == 0, onOpenDashboard)
         }
         GlgButton(
             "기록 추가 가져오기", onClick = onImport,
-            modifier = Modifier.fillMaxWidth().glgLoadIn(games.size, loadInSet), height = 46.dp,
+            modifier = Modifier.fillMaxWidth(), height = 46.dp,
         )
     }
 }
@@ -137,12 +133,12 @@ private fun ReportContent(stats: GachaStats, spendByGameKey: Map<String, Long>, 
 // design_gachareport_mockup.html(B) — 게임 카드: 배지+4통계+운분포 바+최근5성, 첫 카드에 대시보드 진입.
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun GameCard(gk: String, g: GachaGameStat, spend: Long, showDash: Boolean, onOpenDashboard: () -> Unit, index: Int, loadInSet: MutableSet<Int>) {
+private fun GameCard(gk: String, g: GachaGameStat, spend: Long, showDash: Boolean, onOpenDashboard: () -> Unit) {
     val accent = LocalAccent.current
     val (shortName, _, color) = GachaReport.gameInfo[gk] ?: Triple(gk, gk, 0xFF888888L)
     val cost = if (spend > 0 && g.five > 0) spend / g.five else 0L
     val dist = g.luckDist
-    GlassCard(shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth().glgLoadIn(index, loadInSet)) {
+    GlassCard(shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp)) {
             // 헤더 — 배지 + 게임명
             Row(verticalAlignment = Alignment.CenterVertically) {
