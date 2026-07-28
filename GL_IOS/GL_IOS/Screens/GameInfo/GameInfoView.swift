@@ -29,6 +29,20 @@ struct GameInfoView: View {
     // Segmented 레이아웃 — 상단 게임 세그먼트 선택값("all" | game.key). 하위 섹션들이 이 값으로 필터된다.
     @State private var gameFilter = "all"
 
+    /// 통합 일정 집계 — 원본 3종이 바뀔 때만 만든다(아래 `.task`).
+    /// 예전엔 LazyVStack 본문에서 계산해, 이 탭이 다시 그려질 때마다(구독 30개가 물려 있다) 반복됐다.
+    @State private var schedule: [ScheduleEntry] = []
+
+    private struct HomeScheduleKey: Equatable {
+        let banners: [GachaBanner]
+        let events: [GameEvent]
+        let challenges: [GameChallenge]
+    }
+
+    private var homeScheduleKey: HomeScheduleKey {
+        HomeScheduleKey(banners: store.activeBanners, events: store.gameEvents, challenges: store.challenges)
+    }
+
     /// 알림으로 요청된 공지가 목록에 도착했으면 상세를 연다.
     private func openPendingNewsIfReady() {
         guard let id = store.pendingNewsId,
@@ -63,7 +77,7 @@ struct GameInfoView: View {
                     }
                 }
                 // 통합 게임 일정 — 패치·이벤트·정기 콘텐츠. 게임 분리는 상단 헤더 드롭다운(gameFilter)으로 필터.
-                let schedule = ScheduleLogic.shared.buildSchedule(banners: store.activeBanners, events: store.gameEvents, challenges: store.challenges)
+                // 집계는 원본 3종이 바뀔 때만(아래 .task) — 예전엔 여기서 body 평가마다 다시 만들었다.
                 if !schedule.isEmpty {
                     section { GameScheduleSection(entries: schedule, banners: store.activeBanners, filter: gameFilter, onSeeAll: { showSchedule = true }) }.id("SCHEDULE")
                 }
@@ -92,6 +106,10 @@ struct GameInfoView: View {
         .refreshable { store.refreshGameInfo(force: true) }
         // 초기 진입 시 로드 + HoYoLAB 연동(config)이 늦게 링크되면 그 순간 강제 갱신(실시간 노트 표출)
         .task { store.refreshGameInfo() }
+        .task(id: homeScheduleKey) {
+            schedule = ScheduleLogic.shared.buildSchedule(
+                banners: store.activeBanners, events: store.gameEvents, challenges: store.challenges)
+        }
         .onChange(of: store.hoyolabConfig.isLinked) { _, linked in
             if linked { store.refreshGameInfo(force: true) }
         }
