@@ -13,6 +13,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.CheckBox
+import androidx.compose.material.icons.outlined.CheckBoxOutlineBlank
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
@@ -46,6 +48,7 @@ import com.gatcha.log.data.api.EnkaArtifact
 import com.gatcha.log.data.api.EnkaChar
 import com.gatcha.log.data.api.EnkaSet
 import com.gatcha.log.data.api.EnkaStatLine
+import com.gatcha.log.data.api.orderedKeyStats
 import com.gatcha.log.data.api.EnkaWeapon
 import com.gatcha.log.data.api.KeyStatRules
 import com.gatcha.log.data.api.KeyStatSource
@@ -59,6 +62,8 @@ import com.gatcha.log.ui.components.GlgGameTag
 import com.gatcha.log.ui.components.GlassCard
 import com.gatcha.log.ui.components.GlgBackButton
 import com.gatcha.log.ui.components.GlgChip
+import com.gatcha.log.ui.components.GlgButton
+import com.gatcha.log.ui.components.GlgOutlineButton
 import com.gatcha.log.ui.components.GlgTextField
 import com.gatcha.log.ui.components.RosterSkeleton
 import com.gatcha.log.ui.theme.DividerColor
@@ -333,30 +338,68 @@ private fun KeyStatEditor(
             )
 
             if (editing) {
+                // 유효옵션 선택 — **체크박스 2열 그리드.**
+                // 예전엔 읽기 전용 표시와 같은 칩이라 '지금 고르는 중'인지 결과를 보는 중인지
+                // 구분이 안 됐다. 체크박스는 다중 선택이라는 것도 함께 드러낸다.
+                // 2열인 이유 — 옵션명이 인게임 표기('에너지 자동 회복' 등)라 3열에선 잘린다.
                 Spacer(Modifier.height(10.dp))
-                selectable.chunked(3).forEach { row ->
-                    Row(Modifier.padding(bottom = 6.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                selectable.chunked(2).forEach { row ->
+                    Row(
+                        Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
                         row.forEach { tok ->
-                            GlgChip(
-                                statLabel(tok),
-                                selected = tok in picked,
-                                color = accent,
-                            ) { picked = if (tok in picked) picked - tok else picked + tok }
+                            val on = tok in picked
+                            val shape = RoundedCornerShape(12.dp)
+                            Row(
+                                Modifier
+                                    .weight(1f)
+                                    .clip(shape)
+                                    .background(if (on) accent.copy(alpha = 0.10f) else Color.White)
+                                    .border(1.dp, if (on) accent.copy(alpha = 0.35f) else CardOutline, shape)
+                                    .clickable { picked = if (on) picked - tok else picked + tok }
+                                    .padding(horizontal = 10.dp, vertical = 9.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Icon(
+                                    if (on) Icons.Filled.CheckBox else Icons.Outlined.CheckBoxOutlineBlank,
+                                    contentDescription = null,
+                                    tint = if (on) accent else TextSecondary,
+                                    modifier = Modifier.size(17.dp),
+                                )
+                                Spacer(Modifier.width(7.dp))
+                                Text(
+                                    statLabel(tok, game),
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = if (on) TextPrimary else TextSecondary,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            }
                         }
+                        // 홀수 개면 마지막 칸을 비워 칸 폭을 유지한다(칩 하나가 혼자 늘어나지 않게).
+                        if (row.size == 1) Spacer(Modifier.weight(1f))
                     }
                 }
+                // 액션 버튼은 **캡슐 버튼**(GlgButton/GlgOutlineButton)을 쓴다.
+                // 예전엔 GlgChip 을 그대로 썼다 — 선택 칩과 완전히 같은 컴포넌트라 '저장'이
+                // 선택된 옵션 하나처럼 보였다. iOS 도 동일하게 맞췄다.
+                Spacer(Modifier.height(12.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    GlgChip("저장", selected = true, color = accent) { onSet(picked); editing = false }
+                    GlgButton("저장", { onSet(picked); editing = false }, Modifier.weight(1f), height = 44.dp)
                     // 설정 해제 = 빈 집합 저장 → 앱 룰 추정으로 되돌아간다.
                     if (verdict.source == KeyStatSource.USER) {
-                        GlgChip("기본값으로") { onSet(emptySet()); editing = false }
+                        GlgOutlineButton("기본값으로", { onSet(emptySet()); editing = false }, Modifier.weight(1f), height = 44.dp)
                     }
                 }
             } else if (verdict.stats.isNotEmpty()) {
                 Spacer(Modifier.height(10.dp))
-                verdict.stats.toList().chunked(3).forEach { row ->
+                // 표시 순서는 공유 모듈이 정한다 — iOS 는 Set 이 Swift Set 으로 브리지되며 순서가
+                // 사라져 칩이 매번 뒤죽박죽이었다. 양 플랫폼이 같은 배열을 쓰도록 맞춘다.
+                orderedKeyStats(game, verdict.stats).chunked(3).forEach { row ->
                     Row(Modifier.padding(bottom = 6.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        row.forEach { tok -> GlgChip(statLabel(tok), selected = true, color = CritColor) }
+                        row.forEach { tok -> GlgChip(statLabel(tok, game), selected = true, color = CritColor) }
                     }
                 }
             }
@@ -875,14 +918,16 @@ private fun CritScoreSummary(s: CharArtifactScore, accent: Color) {
         Column(Modifier.padding(horizontal = 13.dp, vertical = 11.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
-                    Text("유효 점수", fontSize = 10.5.sp, color = TextSecondary)
-                    Text("유효옵션 강화 횟수 환산(장당 최대 9)", fontSize = 9.5.sp, color = TextSecondary)
+                    // 지표는 게임마다 다르다(원신=아카샤 CV / 그 외=유효 롤). 무엇으로 쟀는지 밝힌다 —
+                    // 숫자만 있으면 어느 사이트와 대조할 수 있는 값인지 알 수 없다.
+                    Text(s.metric.label, fontSize = 10.5.sp, color = TextSecondary)
+                    Text(s.metric.hint, fontSize = 9.5.sp, color = TextSecondary)
                 }
-                Text(ArtifactScoring.rollLabel(s.totalRolls), fontSize = 18.sp, fontWeight = FontWeight.Black, color = c)
+                Text(ArtifactScoring.scoreLabel(s.total), fontSize = 18.sp, fontWeight = FontWeight.Black, color = c)
                 Spacer(Modifier.width(7.dp))
                 Surface(color = c.copy(alpha = 0.14f), shape = RoundedCornerShape(7.dp)) {
                     Text(
-                        "장당 ${ArtifactScoring.rollLabel(s.averageRolls)} · ${s.grade.label}",
+                        "장당 ${ArtifactScoring.scoreLabel(s.average)} · ${s.grade.label}",
                         fontSize = 10.sp, fontWeight = FontWeight.Bold, color = c,
                         modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp),
                     )
@@ -929,7 +974,7 @@ private fun ArtifactCard(a: EnkaArtifact, score: ArtifactScore, rank: Int, accen
                         val gc = gradeColor(score.grade, accent)
                         Surface(color = gc.copy(alpha = 0.14f), shape = RoundedCornerShape(7.dp)) {
                             Text(
-                                "${rank}위 · 유효 ${ArtifactScoring.rollLabel(score.rolls)}",
+                                "${rank}위 · ${score.metric.label} ${ArtifactScoring.scoreLabel(score.value)}",
                                 fontSize = 10.sp, fontWeight = FontWeight.Bold, color = gc,
                                 modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp),
                             )

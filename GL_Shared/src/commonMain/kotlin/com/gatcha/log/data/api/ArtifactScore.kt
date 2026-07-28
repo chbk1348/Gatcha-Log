@@ -3,25 +3,42 @@ package com.gatcha.log.data.api
 import com.gatcha.log.util.fixed
 
 /**
- * 유물/성유물/드라이브 디스크의 **유효 점수** 평가 — 순수 함수·오프라인.
+ * 유물/성유물/드라이브 디스크 평가 — 순수 함수·오프라인.
  *
- * 산식 = **유효 롤(Roll Value)**. 서브 옵션 값을 그 스탯의 *최대 1회 강화량*으로 나눠
- * "몇 번 굴러 붙었나"로 환산하고, **그 캐릭터의 유효옵션에 해당하는 스탯만** 합산한다.
- * 스탯마다 강화 단위가 달라(스타레일 속도 2.6 vs 치명타 피해 6.48) 값을 그대로 더하면
- * 비교가 안 되는데, 롤로 환산하면 한 축에서 비교된다.
+ * **게임마다 커뮤니티 표준이 다르다.** 하나로 통일하면 어느 한쪽이 반드시 그 게임 표준에서
+ * 멀어지므로, 각 게임 유저가 실제로 대조하는 사이트에 맞춘다([ScoreMetric]).
  *
- * 유효옵션 판정은 [KeyStatRules.keyStats] 재사용 — 원신은 캐릭 예외맵, 스타레일은 운명의 길,
- * 젠레스는 직업으로 유도한다. 그래서 힐러의 치명타나 딜러의 효과 저항은 점수에 안 들어간다.
+ * - **원신** — [akasha.cv](https://akasha.cv) 의 `CV = 치확×2 + 치피`
+ * - **스타레일·젠레스** — Otameta·ScoreMyRelic·ZenlessGrid 계열의 **유효 롤**
+ *   (부옵션 ÷ 최대 강화량 × 캐릭터 적합도). 우리 [KeyStatRules] 유효옵션 필터가 그 '적합도'다.
  *
- * 규칙:
- * - **서브 옵션만 계산한다.** 메인 옵션(성배 치확·모래 공퍼 등)은 사용자가 고르는 값이라
- *   '굴림 운'을 재는 취지에 맞지 않는다(커뮤니티 표준도 동일).
- * - 라벨 정규화는 [normStat] 재사용 — 게임별 표기 차이를 흡수한다.
+ * 공통 규칙:
+ * - **서브 옵션만 계산한다.** 메인 옵션(성배 치확·모래 공퍼 등)은 사용자가 골라서 맞추는 값이라
+ *   '굴림 운'을 재는 취지에 안 맞는다(양쪽 표준 모두 동일).
+ * - 라벨 정규화는 [normStat] 재사용 — 게임별·언어별 표기 차이를 흡수한다.
  * - 값은 "62.2%" 같은 표시 문자열이라 숫자만 파싱한다(천 단위 콤마·선행 기호 허용).
- * - 최대 강화량 표가 없는 스탯(메인 전용인 원소 피해·치유 등)은 0 — 점수만 낮아질 뿐 안 터진다.
+ *
+ * ⚠️ 게임마다 지표가 다르므로 **게임 간 점수 비교는 성립하지 않는다.** 화면에는 [ScoreMetric.label]
+ * 과 [ScoreMetric.hint] 로 무엇으로 쟀는지 반드시 함께 밝힌다.
  */
 
-/** 유효 점수 등급 밴드. 1장 최대 9롤 기준의 통상적인 체감 구간. */
+/**
+ * 점수 산식 — 게임별 커뮤니티 표준.
+ * 숫자만 보여주면 무엇과 비교할 수 있는 값인지 알 수 없어서, 지표 자체를 결과에 실어 나른다.
+ */
+enum class ScoreMetric(val label: String, val hint: String) {
+    /** 원신 — 아카샤 기준. 치확 1%를 치피 2%와 같게 보는 값(인게임 굴림 비율이 1:2라서). */
+    CRIT_VALUE("CV", "아카샤 기준 · 치확×2 + 치피"),
+
+    /** 스타레일·젠레스 — 부옵션을 최대 강화량으로 나눈 '몇 롤' 환산. 캐릭터 유효옵션만 합산. */
+    ROLL_VALUE("유효 롤", "캐릭터 유효옵션 기준"),
+}
+
+/** 이 게임이 쓰는 지표. */
+fun metricOf(gameKey: String): ScoreMetric =
+    if (gameKey == "genshin") ScoreMetric.CRIT_VALUE else ScoreMetric.ROLL_VALUE
+
+/** 등급 밴드 — 유물 1장 기준. 실제 구간값은 지표마다 다르다([ArtifactScoring.gradeOf]). */
 enum class ArtifactGrade(val label: String) {
     EXCELLENT("최상"),
     GOOD("상"),
@@ -30,13 +47,14 @@ enum class ArtifactGrade(val label: String) {
     BAD("최하"),
 }
 
-/** 유물 1장의 유효 점수. [rolls]=유효옵션에 붙은 강화 횟수 환산값. */
+/** 유물 1장의 점수. [value] 의 의미는 [metric] 에 달렸다(CV 또는 유효 롤). */
 data class ArtifactScore(
-    val rolls: Double,
+    val value: Double,
     val grade: ArtifactGrade,
+    val metric: ScoreMetric,
 ) {
-    /** 유효옵션이 하나도 안 붙었으면 true — UI 에서 순위 배지 대신 비워둘 때 사용. */
-    val isEmpty: Boolean get() = rolls <= 0.0
+    /** 점수가 0이면 true — UI 에서 순위 배지 대신 비워둘 때 사용. */
+    val isEmpty: Boolean get() = value <= 0.0
 }
 
 /** 유물 1장 + 그 점수(랭킹 표시용). */
@@ -48,10 +66,11 @@ data class RankedArtifact(val artifact: EnkaArtifact, val score: ArtifactScore)
  * 같은 잣대로 비교하기 위함이다.
  */
 data class CharArtifactScore(
-    val totalRolls: Double,
-    val averageRolls: Double,
+    val total: Double,
+    val average: Double,
     val grade: ArtifactGrade,
-    /** 유효 롤 내림차순 — 1위가 가장 잘 뽑힌 유물, 마지막이 교체 1순위 후보. */
+    val metric: ScoreMetric,
+    /** 점수 내림차순 — 1위가 가장 잘 뽑힌 유물, 마지막이 교체 1순위 후보. */
     val ranked: List<RankedArtifact>,
 )
 
@@ -101,8 +120,34 @@ object ArtifactScoring {
     fun isEffective(keySet: Set<StatTok>, label: String): Boolean =
         KeyStatRules.isKey(keySet, label)
 
-    /** 유물 1장의 유효 점수(서브 옵션 기준). */
+    /** 유물 1장의 점수(서브 옵션 기준). 산식은 게임이 정한다 — [metricOf]. */
     fun score(artifact: EnkaArtifact, keySet: Set<StatTok>, gameKey: String): ArtifactScore {
+        val metric = metricOf(gameKey)
+        val value = when (metric) {
+            ScoreMetric.CRIT_VALUE -> critValue(artifact)
+            ScoreMetric.ROLL_VALUE -> rollValue(artifact, keySet, gameKey)
+        }
+        return ArtifactScore(value, gradeOf(value, metric), metric)
+    }
+
+    /**
+     * 아카샤 CV — 치확×2 + 치피. **유효옵션과 무관하다**(치명타만 보는 지표라서).
+     * 서브 옵션만 센다: 메인의 치확/치피는 사용자가 고른 것이라 굴림 운이 아니다.
+     */
+    private fun critValue(artifact: EnkaArtifact): Double {
+        var cv = 0.0
+        artifact.subs.forEach { s ->
+            when (normStat(s.label)) {
+                StatTok.CRIT_RATE -> cv += parseStatValue(s.value) * 2
+                StatTok.CRIT_DMG -> cv += parseStatValue(s.value)
+                else -> Unit
+            }
+        }
+        return cv
+    }
+
+    /** 유효 롤 — 부옵션 값 ÷ 최대 1회 강화량. **캐릭터 유효옵션에 해당하는 스탯만** 합산. */
+    private fun rollValue(artifact: EnkaArtifact, keySet: Set<StatTok>, gameKey: String): Double {
         var rolls = 0.0
         artifact.subs.forEach { s ->
             val tok = normStat(s.label)
@@ -110,29 +155,43 @@ object ArtifactScoring {
             val max = maxRollOf(gameKey, tok) ?: return@forEach
             if (max > 0.0) rolls += parseStatValue(s.value) / max
         }
-        return ArtifactScore(rolls, gradeOf(rolls))
+        return rolls
     }
 
-    /** 캐릭터가 착용한 유물 전체를 채점하고 유효 롤 내림차순으로 정렬. 빈 목록이면 0점. */
+    /** 캐릭터가 착용한 유물 전체를 채점하고 점수 내림차순으로 정렬. 빈 목록이면 0점. */
     fun scoreChar(artifacts: List<EnkaArtifact>, keySet: Set<StatTok>, gameKey: String): CharArtifactScore {
+        val metric = metricOf(gameKey)
         val ranked = artifacts.map { RankedArtifact(it, score(it, keySet, gameKey)) }
-            .sortedByDescending { it.score.rolls }
-        val total = ranked.sumOf { it.score.rolls }
+            .sortedByDescending { it.score.value }
+        val total = ranked.sumOf { it.score.value }
         val avg = if (ranked.isEmpty()) 0.0 else total / ranked.size
-        return CharArtifactScore(total, avg, gradeOf(avg), ranked)
+        return CharArtifactScore(total, avg, gradeOf(avg, metric), metric, ranked)
     }
 
-    /** 유효 롤 → 등급 밴드. 1장 최대 9롤이라 6롤 이상이면 유효옵션이 대부분 붙은 것. */
-    fun gradeOf(rolls: Double): ArtifactGrade = when {
-        rolls >= 6.0 -> ArtifactGrade.EXCELLENT
-        rolls >= 4.5 -> ArtifactGrade.GOOD
-        rolls >= 3.0 -> ArtifactGrade.FAIR
-        rolls >= 1.5 -> ArtifactGrade.POOR
-        else -> ArtifactGrade.BAD
+    /**
+     * 점수 → 등급 밴드. **지표마다 스케일이 달라 구간도 다르다.**
+     *  - CV: 원신 커뮤니티 통상치(1장 40 이상이면 최상급).
+     *  - 유효 롤: 1장 최대 9롤이라 6롤 이상이면 유효옵션이 대부분 붙은 것.
+     */
+    fun gradeOf(value: Double, metric: ScoreMetric): ArtifactGrade = when (metric) {
+        ScoreMetric.CRIT_VALUE -> when {
+            value >= 40.0 -> ArtifactGrade.EXCELLENT
+            value >= 30.0 -> ArtifactGrade.GOOD
+            value >= 20.0 -> ArtifactGrade.FAIR
+            value >= 10.0 -> ArtifactGrade.POOR
+            else -> ArtifactGrade.BAD
+        }
+        ScoreMetric.ROLL_VALUE -> when {
+            value >= 6.0 -> ArtifactGrade.EXCELLENT
+            value >= 4.5 -> ArtifactGrade.GOOD
+            value >= 3.0 -> ArtifactGrade.FAIR
+            value >= 1.5 -> ArtifactGrade.POOR
+            else -> ArtifactGrade.BAD
+        }
     }
 
     /** 소수 1자리 표기 — "5.4". 양 플랫폼이 같은 표기를 쓰도록 공유 [fixed] 를 재사용한다. */
-    fun rollLabel(rolls: Double): String = fixed(rolls, 1)
+    fun scoreLabel(value: Double): String = fixed(value, 1)
 
     /**
      * 표시용 스탯 문자열에서 숫자만 뽑는다. "62.2%" → 62.2, "1,234" → 1234.0, "+5.4%" → 5.4.
