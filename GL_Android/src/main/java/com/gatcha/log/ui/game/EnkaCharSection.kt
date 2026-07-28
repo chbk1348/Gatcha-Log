@@ -6,6 +6,9 @@ import androidx.compose.foundation.clickable
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -215,38 +218,49 @@ fun EnkaRosterPage(
             (q.isBlank() || it.name.contains(q, ignoreCase = true))
     }
     val title = "보유 캐릭터 · " + if (game == "genshin") "원신" else if (game == "zzz") "젠레스" else "스타레일"
-    Column(
-        Modifier.fillMaxSize().statusBarsPadding().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp).padding(bottom = 30.dp),
+    // 캐릭터 줄은 보유 수에 비례한다(원신은 100명을 넘기는 계정도 있다).
+    // Column+verticalScroll 은 **화면 밖 카드까지 전부 즉시 구성**하므로 진입 비용이 보유 수만큼
+    // 커진다. LazyColumn 으로 화면에 보이는 줄만 만든다.
+    // (헤더·검색·필터는 개수가 고정이라 item 하나로 묶는다 — 스크롤 동작·여백은 그대로)
+    val rows = remember(chars) { chars.chunked(2) }
+    LazyColumn(
+        modifier = Modifier.fillMaxSize().statusBarsPadding(),
+        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 30.dp),
     ) {
-        Row(Modifier.padding(vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-            // 뒤로가기는 앱 공통 규격(GlgBackButton)으로 — 이 화면만 자체 구현이라 크기가 달랐다.
-            GlgBackButton(onBack)
-            Spacer(Modifier.width(10.dp))
-            Text(title, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
-        }
-        // 이름 검색
-        GlgTextField(
-            value = query,
-            onValueChange = { query = it },
-            placeholder = "캐릭터 이름 검색",
-            trailingIcon = Icons.Default.Search,
-            modifier = Modifier.fillMaxWidth().padding(bottom = 10.dp),
-        )
-        // 필터 칩 — 등급 · 속성 · 운명의길(스타레일)
-        Row(
-            Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(bottom = 10.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            FilterChip("등급", if (rarityFilter == 0) "전체" else "${rarityFilter}성", listOf<Pair<String, () -> Unit>>("전체" to { rarityFilter = 0 }, "5성" to { rarityFilter = 5 }, "4성" to { rarityFilter = 4 }))
-            FilterChip("속성", elementFilter.ifBlank { "전체" }, listOf<Pair<String, () -> Unit>>("전체" to { elementFilter = "" }) + elements.map { e -> e to { elementFilter = e } })
-            if (game == "hsr" && paths.isNotEmpty()) {
-                FilterChip("운명의길", pathFilter.ifBlank { "전체" }, listOf<Pair<String, () -> Unit>>("전체" to { pathFilter = "" }) + paths.map { p -> p to { pathFilter = p } })
+        item {
+            Column {
+                Row(Modifier.padding(vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                    // 뒤로가기는 앱 공통 규격(GlgBackButton)으로 — 이 화면만 자체 구현이라 크기가 달랐다.
+                    GlgBackButton(onBack)
+                    Spacer(Modifier.width(10.dp))
+                    Text(title, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+                }
+                // 이름 검색
+                GlgTextField(
+                    value = query,
+                    onValueChange = { query = it },
+                    placeholder = "캐릭터 이름 검색",
+                    trailingIcon = Icons.Default.Search,
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 10.dp),
+                )
+                // 필터 칩 — 등급 · 속성 · 운명의길(스타레일)
+                Row(
+                    Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(bottom = 10.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    FilterChip("등급", if (rarityFilter == 0) "전체" else "${rarityFilter}성", listOf<Pair<String, () -> Unit>>("전체" to { rarityFilter = 0 }, "5성" to { rarityFilter = 5 }, "4성" to { rarityFilter = 4 }))
+                    FilterChip("속성", elementFilter.ifBlank { "전체" }, listOf<Pair<String, () -> Unit>>("전체" to { elementFilter = "" }) + elements.map { e -> e to { elementFilter = e } })
+                    if (game == "hsr" && paths.isNotEmpty()) {
+                        FilterChip("운명의길", pathFilter.ifBlank { "전체" }, listOf<Pair<String, () -> Unit>>("전체" to { pathFilter = "" }) + paths.map { p -> p to { pathFilter = p } })
+                    }
+                }
+                if (chars.isEmpty() && all.isNotEmpty()) {
+                    Hint(if (q.isNotBlank()) "‘$q’ 검색 결과가 없어요" else "조건에 맞는 캐릭터가 없어요")
+                }
             }
         }
-        if (chars.isEmpty() && all.isNotEmpty()) {
-            Hint(if (q.isNotBlank()) "‘$q’ 검색 결과가 없어요" else "조건에 맞는 캐릭터가 없어요")
-        }
-        chars.chunked(2).forEach { row ->
+        // 키는 줄 첫 캐릭터 id — 검색·필터로 목록이 바뀌어도 같은 줄을 재사용한다.
+        items(rows, key = { it.first().id }) { row ->
             Row(Modifier.fillMaxWidth().height(IntrinsicSize.Max), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 row.forEach { c ->
                     Box(Modifier.weight(1f).fillMaxHeight()) { RosterCard(c, game, Modifier.fillMaxHeight()) { onOpenStats(c, game) } }
