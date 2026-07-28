@@ -34,6 +34,15 @@ object DateUtil {
         localTz = TimeZone.currentSystemDefault()
     }
 
+    /**
+     * 캐시된 로컬 타임존 — 모듈 내부에서 직접 `Instant`/`LocalDate` 변환이 필요할 때 쓴다.
+     *
+     * 이걸 두는 이유: [TimeZone.currentSystemDefault] 를 각자 부르면 위 캐시를 통째로 우회한다.
+     * 정렬 비교자처럼 **항목 수만큼 불리는 자리**에서는 그 차이가 그대로 비용이 된다
+     * (`Subscription.dDay` 가 실제로 그랬다 — 한 번의 정렬에 시스템 조회가 O(n log n)회).
+     */
+    internal val timeZone: TimeZone get() = localTz
+
     // HoYoLAB 출석은 베이징 표준시(UTC+8) 자정에 초기화됨 → 출석 날짜는 로컬이 아닌 베이징 기준으로 계산.
     private val hoyoTz: TimeZone = TimeZone.of("UTC+8")
 
@@ -155,8 +164,15 @@ object DateUtil {
     /** 한국어 요일(월~일) — 임의 시각용(지출 통계 등). */
     fun weekdayKo(millis: Long): String = local(millis).dayOfWeek.koLabel
 
+    /**
+     * [millis] 가 [year]년 [month]월에 속하는지.
+     *
+     * [yearMonthKey] 로 **한 번만** 변환한다 — 예전엔 [year] 와 [month] 를 따로 불러 시각→로컬 변환이
+     * 두 번 일어났다. 이 함수는 양 플랫폼의 월 필터 전부가 쓰는 자리라(지출 목록·인사이트·알림 점검)
+     * 지출 1,000건 필터 한 번에 변환 1,000회가 그대로 줄어든다.
+     */
     fun isSameMonth(millis: Long, year: Int, month: Int): Boolean =
-        year(millis) == year && month(millis) == month
+        yearMonthKey(millis) == year * 100 + month
 
     /**
      * 연·월을 한 값으로 (2026년 7월 → 202607).
@@ -165,6 +181,18 @@ object DateUtil {
      * 훑는 자리에서는 그 두 배가 그대로 비용이 되므로, 한 번의 변환으로 둘을 같이 얻는다.
      */
     fun yearMonthKey(millis: Long): Int = local(millis).let { it.year * 100 + it.month.number }
+
+    /**
+     * 연·월·일을 한 값으로 (2026년 7월 28일 → 20260728).
+     *
+     * [yearMonthKey] 와 같은 이유에 하나가 더 있다 — iOS 는 `year`·`month`·`dayOfMonth` 를 따로 부르면
+     * 변환 3회에 **브리지 왕복 3회**까지 붙는다(`DateMillis.comps` 가 그랬다). 캘린더 타임라인·연간
+     * 리포트처럼 지출을 통째로 훑으며 연·월·일이 다 필요한 자리에서 한 번으로 끝낸다.
+     *
+     * 자릿수 고정이라 `key / 10000`(연) · `key / 100 % 100`(월) · `key % 100`(일)로 되꺼낸다.
+     */
+    fun ymd(millis: Long): Int =
+        local(millis).let { it.year * 10_000 + it.month.number * 100 + it.day }
 
     fun isSameYear(millis: Long, year: Int): Boolean = year(millis) == year
 

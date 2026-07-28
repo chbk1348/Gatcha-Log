@@ -38,6 +38,13 @@ actual class KeyValueStore actual constructor(name: String) {
     // suiteName 으로 prefs 파일을 분리 (SharedPreferences 의 name 분리에 대응)
     private val defaults = NSUserDefaults(suiteName = name)
 
+    // ⚠️ 읽기를 objectForKey 한 번으로 줄이려고 `as? NSNumber` 로 바꿨다가 **되돌렸다**(2026-07-28).
+    //
+    // Kotlin/Native 가 `id` 로 받은 NSNumber 를 Kotlin NSNumber 로 주는지, 원시 타입으로 매핑하는지
+    // 실기기로 확인하지 않았다. 매핑이 다르면 캐스트가 조용히 null 이 되어 **모든 Int/Long/Boolean
+    // 설정이 기본값으로 읽힌다** — 예산이 0으로 읽히면 그대로 클라우드 스냅샷에 올라간다.
+    // 아끼는 건 조회 1회고 잃는 건 데이터다. 실측 근거가 생기면 그때 다시 본다.
+
     actual fun getString(key: String, default: String?): String? =
         (defaults.objectForKey(key) as? String) ?: default
 
@@ -49,7 +56,7 @@ actual class KeyValueStore actual constructor(name: String) {
     actual fun putBoolean(key: String, value: Boolean) = defaults.setBool(value, key)
 
     actual fun getLong(key: String, default: Long): Long =
-        if (defaults.objectForKey(key) != null) defaults.integerForKey(key).toLong() else default
+        if (defaults.objectForKey(key) != null) defaults.integerForKey(key) else default
 
     actual fun putLong(key: String, value: Long) = defaults.setInteger(value, key)
 

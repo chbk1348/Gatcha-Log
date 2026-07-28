@@ -12,8 +12,25 @@ struct CalendarView: View {
     private var y: Int { year == 0 ? store.displayYear : year }
     private var m: Int { month == 0 ? store.displayMonth : month }
 
+    // 타임라인은 지출·배너·연월이 바뀔 때만 만든다.
+    //
+    // 예전엔 body 첫 줄에서 buildEntries 를 통째로 돌렸다. 이 함수는 지출 1건마다 DateMillis.comps 를
+    // 부르므로 지출 1,000건이면 브리지·날짜 변환이 각각 수천 회였고, 그게 **body 평가마다** 반복됐다.
+    // (Android CalendarScreen 은 같은 함수를 이미 remember 로 캐시하고 있었다 — 파리티 역전)
+    @State private var entries: [TimelineEntry] = []
+
+    private struct EntriesKey: Equatable {
+        let spendings: [Spending]
+        let banners: [GachaBanner]
+        let year: Int
+        let month: Int
+    }
+
+    private var entriesKey: EntriesKey {
+        EntriesKey(spendings: store.spendings, banners: store.activeBanners, year: y, month: m)
+    }
+
     var body: some View {
-        let entries = buildEntries(spendings: store.spendings, banners: store.activeBanners, year: y, month: m)
         let monthTotal = entries.reduce(Int64(0)) { acc, e in if case .active(let d) = e { return acc + d.spendTotal }; return acc }
         ScrollView {
             VStack(spacing: 0) {
@@ -52,6 +69,9 @@ struct CalendarView: View {
         .background(GLGBackground { Color.clear })
         .navigationTitle("캘린더")
         .navigationBarTitleDisplayMode(.inline)
+        .task(id: entriesKey) {
+            entries = buildEntries(spendings: store.spendings, banners: store.activeBanners, year: y, month: m)
+        }
     }
 
     private func shift(_ delta: Int) {

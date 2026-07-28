@@ -409,9 +409,9 @@ class SpendingViewModel : ViewModel() {
     /**
      * 가챠 기록 로드 + 통계 산출을 **한 프레임 뒤로** 미룬다.
      *
-     * 기록이 수만 건이면 파싱 한 번에 전수 순회 두 번([GachaReport.computeStats]·[GachaReport.computeDashboard])이
-     * 붙는데, 이게 앱 시작 경로에서 첫 화면이 그려지기 전에 동기로 돌고 있었다. 데이터가 늘수록 시작이
-     * 선형으로 느려지는 유일한 구간이었다.
+     * 기록이 수만 건이면 파싱 한 번에 전수 순회가 붙는데, 이게 앱 시작 경로에서 첫 화면이 그려지기 전에
+     * 동기로 돌고 있었다. 데이터가 늘수록 시작이 선형으로 느려지는 유일한 구간이었다.
+     * (순회는 [GachaReport.computeAll] 로 통계·대시보드가 한 번에 나눠 쓴다 — 예전엔 각자 두 번이었다.)
      *
      * 홈은 이 값을 읽지 않는다 — 소비처는 마이페이지·가챠 리포트·데이터 관리뿐이고,
      * 두 StateFlow 모두 초기값이 null 이라 늦게 도착해도 화면이 깨지지 않는다.
@@ -422,8 +422,9 @@ class SpendingViewModel : ViewModel() {
         viewModelScope.launch {
             yield()   // Main.immediate 라 양보하지 않으면 그대로 이어서 실행된다
             gachaRecords = repo.loadGachaRecords()
-            _gachaStats.value = GachaReport.computeStats(gachaRecords)
-            _gachaDashboard.value = GachaReport.computeDashboard(gachaRecords)
+            val (stats, dash) = GachaReport.computeAll(gachaRecords)
+            _gachaStats.value = stats
+            _gachaDashboard.value = dash
         }
     }
 
@@ -530,9 +531,8 @@ class SpendingViewModel : ViewModel() {
         emitStatus("지출이 수정되었어요")
     }
 
-    /** 정기결제용 표시명 — 아이템명 우선, 없으면 "<게임> 정기결제". */
-    private fun subscriptionName(s: Spending): String =
-        s.itemName.ifBlank { "${GameData.byNameOrNull(s.gameName)?.shortName ?: s.gameName} 정기결제" }
+    /** 정기결제용 표시명 — 규칙은 [SpendingDerived.subscriptionName] 단일 소스. */
+    private fun subscriptionName(s: Spending): String = SpendingDerived.subscriptionName(s)
 
     /** 같은 구독이 이미 등록돼 있는지(이름·게임·금액 기준). */
     private fun List<Subscription>.hasMatch(name: String, s: Spending): Boolean =
@@ -570,59 +570,54 @@ class SpendingViewModel : ViewModel() {
     }
 
     /** 미등록 구독표시 지출 → Subscription 후보(이름·게임·금액 중복 제거, 최신 결제일 우선). */
-    private fun collectUnlinkedSubscriptions(): List<Subscription> {
-        val existing = _subscriptions.value
-        val result = mutableListOf<Subscription>()
-        _spendings.value.filter { it.isSubscription }
-            .sortedByDescending { it.dateMillis }
-            .forEach { s ->
-                val name = subscriptionName(s)
-                if (existing.hasMatch(name, s) || result.hasMatch(name, s)) return@forEach
-                result += Subscription(
-                    name = name,
-                    gameName = s.gameName,
-                    amount = s.amount,
-                    billingDay = DateUtil.dayOfMonth(s.dateMillis).coerceIn(1, 31),
-                )
-            }
-        return result
-    }
+    private fun collectUnlinkedSubscriptions(): List<Subscription> =
+        SpendingDerived.unlinkedSubscriptions(
+            _spendings.value.filter { it.isSubscription },
+            _subscriptions.value,
+        )
 
     fun deleteSpending(id: String) {
         repo.addDeletedSpendingIds(setOf(id)) // tombstone — 삭제를 다른 기기에 전파(합집합 병합 방어)
-        val removed = _spendings.value.firstOrNull { it.id == id }
-        val next = _spendings.value.filter { it.id != id }
+        val (removed, next) = _spendings.value.partition { it.id == id }
         _spendings.value = next
         repo.saveSpendings(next)
-        removed?.let { unlinkSubscriptionIfOrphaned(it) }
+        unlinkOrphanedSubscriptions(removed)
         refreshChallenge()
     }
 
     fun deleteSpendings(ids: Set<String>) {
         repo.addDeletedSpendingIds(ids) // tombstone — 삭제 전파
-        val removed = _spendings.value.filter { it.id in ids }
-        val next = _spendings.value.filter { it.id !in ids }
+        // partition 1회 — 예전엔 같은 목록을 filter 로 두 번 훑었다.
+        val (removed, next) = _spendings.value.partition { it.id in ids }
         _spendings.value = next
         repo.saveSpendings(next)
-        removed.forEach { unlinkSubscriptionIfOrphaned(it) }
+        unlinkOrphanedSubscriptions(removed)
         refreshChallenge()
     }
+
+    /** 구독 매칭 키 — 이름·게임·금액이 같으면 같은 구독으로 본다(등록·해제 판정 공통). */
+    private fun subKey(s: Spending): Triple<String, String, Long> =
+        Triple(subscriptionName(s), s.gameName, s.amount)
 
     /**
      * A안 삭제 연동: '구독으로 기록'한 지출이 삭제됐을 때, 그 구독을 백업하는 다른 구독표시 지출이
      * 더 없으면 매칭되는 정기결제(Subscription)도 함께 제거. (매달 기록한 구독은 마지막 1건 삭제 시에만 제거)
+     *
+     * 남은 지출의 구독 키를 **한 번의 순회**로 모아 두고 대조한다. 예전엔 삭제 항목마다 지출 전체를
+     * 다시 훑어서, 구독표시 지출 50건을 일괄 삭제하면 50 × 전체였다.
      */
-    private fun unlinkSubscriptionIfOrphaned(removed: Spending) {
-        if (!removed.isSubscription) return
-        val name = subscriptionName(removed)
-        val stillBacked = _spendings.value.any {
-            it.isSubscription && subscriptionName(it) == name && it.gameName == removed.gameName && it.amount == removed.amount
+    private fun unlinkOrphanedSubscriptions(removed: List<Spending>) {
+        val removedKeys = removed.asSequence().filter { it.isSubscription }.map { subKey(it) }.toSet()
+        if (removedKeys.isEmpty()) return
+        val stillBacked = _spendings.value.asSequence()
+            .filter { it.isSubscription }.map { subKey(it) }.toSet()
+        removedKeys.forEach { key ->
+            if (key in stillBacked) return@forEach
+            val match = _subscriptions.value.firstOrNull {
+                it.name == key.first && it.gameName == key.second && it.amount == key.third
+            } ?: return@forEach
+            deleteSubscription(match.id)
         }
-        if (stillBacked) return
-        val match = _subscriptions.value.firstOrNull {
-            it.name == name && it.gameName == removed.gameName && it.amount == removed.amount
-        } ?: return
-        deleteSubscription(match.id)
     }
 
     /**
@@ -1157,8 +1152,9 @@ class SpendingViewModel : ViewModel() {
             }
             gachaRecords = merged
             withContext(Dispatchers.IO) { repo.saveGachaRecords(merged) }
-            _gachaStats.value = GachaReport.computeStats(merged)
-            _gachaDashboard.value = GachaReport.computeDashboard(merged)
+            val (stats, dash) = GachaReport.computeAll(merged)
+            _gachaStats.value = stats
+            _gachaDashboard.value = dash
             emitStatus("가챠 기록 ${added}건 추가 (중복 ${skipped} 제외)")
         }
     }
@@ -1219,7 +1215,7 @@ class SpendingViewModel : ViewModel() {
         _subscriptions.value = _subscriptions.value.filterNot { it.id == id }
         repo.saveSubscriptions(_subscriptions.value)
         // A안 연동: 이 정기결제를 백업하던 '구독으로 기록' 지출도 함께 삭제.
-        // (raw 삭제 — deleteSpendings 경유 금지: unlinkSubscriptionIfOrphaned 재호출 루프 방지)
+        // (raw 삭제 — deleteSpendings 경유 금지: unlinkOrphanedSubscriptions 재호출 루프 방지)
         removed?.let { sub ->
             val ids = _spendings.value.filter {
                 it.isSubscription && subscriptionName(it) == sub.name && it.gameName == sub.gameName && it.amount == sub.amount
@@ -1716,41 +1712,29 @@ class SpendingViewModel : ViewModel() {
     val recentMonthlyTotals: StateFlow<List<Long>> = _recentMonthlyTotals.asStateFlow()
 
     /**
-     * 최근 [RECENT_MONTHS] 개월 지출을 **한 번만 훑어** 달별로 합산한다.
-     *
-     * 화면에서 monthlyTotal(year, month) 를 6번 부르면 지출 전체를 6번 훑는다(게다가 iOS 는 매번 브리지 왕복).
-     * 여기서 한 번에 만들어 둔다.
-     */
-    private fun computeRecentMonthlyTotals(): List<Long> {
-        val months = (RECENT_MONTHS - 1 downTo 0).map { back ->
-            var y = currentYear
-            var m = currentMonth - back
-            while (m <= 0) { m += 12; y -= 1 }
-            y to m
-        }
-        val sums = LongArray(months.size)
-        _spendings.value.forEach { s ->
-            val y = DateUtil.year(s.dateMillis)
-            val m = DateUtil.month(s.dateMillis)
-            val idx = months.indexOfFirst { it.first == y && it.second == m }
-            if (idx >= 0) sums[idx] += s.amount
-        }
-        return sums.toList()
-    }
-
-    /**
      * '이번 달' 파생값을 다시 계산한다.
      *
      * 호출 지점을 늘리지 않으려고 [init] 에서 _spendings·_subscriptions 를 구독해 자동으로 돌리고,
      * [loadAll] 끝에서 **동기로 한 번 더** 부른다. 구독 콜백은 한 런루프 뒤에 오는데, 그 사이에
      * 화면이 먼저 그려지면 첫 프레임에 0원이 스쳤다가 바뀐다 — 시작 직후엔 그 틈이 보인다.
+     *
+     * 계산 자체는 [SpendingDerived] 가 **한 번의 순회**로 전부 만든다. 예전엔 이 함수가 다섯 값을
+     * 각각 계산해서 지출 전체를 8번 훑었다(항목마다 날짜 변환까지). 순수 함수로 빼 둔 덕에
+     * commonTest 로 회귀를 잡을 수 있다 — 이 ViewModel 자체는 플랫폼 저장소 의존이라 테스트가 안 된다.
      */
     private fun recomputeSpendingDerived() {
-        _currentMonthTotal.value = monthlyTotal()
-        _previousMonthTotal.value = prevMonthTotal()
-        _currentMonthTotalsByGame.value = monthlyTotalsByGame()
-        _unlinkedSubCount.value = unlinkedSubscriptionSpendingCount()
-        _recentMonthlyTotals.value = computeRecentMonthlyTotals()
+        val d = SpendingDerived.compute(
+            spendings = _spendings.value,
+            subscriptions = _subscriptions.value,
+            year = currentYear,
+            month = currentMonth,
+            recentMonths = RECENT_MONTHS,
+        )
+        _currentMonthTotal.value = d.currentMonthTotal
+        _previousMonthTotal.value = d.previousMonthTotal
+        _currentMonthTotalsByGame.value = d.currentMonthTotalsByGame
+        _unlinkedSubCount.value = d.unlinkedSubCount
+        _recentMonthlyTotals.value = d.recentMonthlyTotals
     }
 
     // ----------------------------------------------------------------- 파생 통계
@@ -1764,12 +1748,18 @@ class SpendingViewModel : ViewModel() {
     fun prevMonthTotal(): Long =
         if (currentMonth == 1) monthlyTotal(currentYear - 1, 12) else monthlyTotal(currentYear, currentMonth - 1)
 
-    fun topGameThisMonth(): String? =
-        _spendings.value
-            .filter { DateUtil.isSameMonth(it.dateMillis, currentYear, currentMonth) }
+    fun topGameThisMonth(): String? {
+        // 연/월을 람다 **밖에서** 한 번만 읽는다. currentYear·currentMonth 는 게터라
+        // (get() = DateUtil.year(currentTimeMillis())) 람다 안에 두면 항목마다 시계 읽기 + 날짜 변환이
+        // 두 번씩 더 붙는다 — isSameMonth 자체 비용에 더해 항목당 4회가 된다.
+        val y = currentYear
+        val m = currentMonth
+        return _spendings.value
+            .filter { DateUtil.isSameMonth(it.dateMillis, y, m) }
             .groupBy { it.gameName }
             .maxByOrNull { entry -> entry.value.sumOf { it.amount } }
             ?.key
+    }
 
     /** CSV 내보내기용 문자열 */
     fun buildCsv(): String {
@@ -1871,13 +1861,22 @@ class SpendingViewModel : ViewModel() {
         // 스냅샷은 **한 번만** 만들어 전체 문서(문자열)와 섹션 분해(객체)에 함께 쓴다.
         // 예전엔 exportSnapshotJson() 과 exportCloudSections() 가 각자 스냅샷을 만들어,
         // push 1회에 스냅샷 생성 2회 + 전량 재파싱 1회가 일어났다(수백 KB 를 메인 스레드에서).
-        val snapshot = repo.exportSnapshot()
-        val json = snapshot.toString()
+        //
+        // 그리고 **이 작업 전체가 IO 로 간다.** 스냅샷 생성은 저장된 JSON 문자열을 전부 파싱하고
+        // 결과를 다시 직렬화하는 일이라 수백 KB 급인데, viewModelScope 가 Main.immediate 라
+        // 지출을 저장할 때마다 1.5초 뒤 그게 UI 스레드에서 돌고 있었다.
+        // (직렬화 형식 자체는 건드리지 않는다 — lastPushedSnapshot 비교와 Firestore 중복 쓰기
+        //  생략이 바이트 동일성에 걸려 있다.)
+        val (snapshot, json) = withContext(Dispatchers.IO) {
+            val snap = repo.exportSnapshot()
+            snap to snap.toString()
+        }
         if (json == lastPushedSnapshot) return true   // 변경 없음 → write 생략
         if (json.length > CLOUD_DOC_WARN_BYTES) {
             emitStatus("클라우드 백업 용량이 한계에 근접했어요 (${json.length / 1024}KB / 1MB) — 오래된 뽑기 기록 정리를 권장해요")
         }
-        val s = repo.exportCloudSections(snapshot)
+        // 섹션 분해도 직렬화라 IO. 위 조기 반환 뒤에 두어 무변화 push 에서는 아예 돌지 않는다.
+        val s = withContext(Dispatchers.IO) { repo.exportCloudSections(snapshot) }
         val ok = CloudSync.push(uid, json, s.userInfo, s.spending, s.gameInfo)
         if (ok) lastPushedSnapshot = json
         return ok

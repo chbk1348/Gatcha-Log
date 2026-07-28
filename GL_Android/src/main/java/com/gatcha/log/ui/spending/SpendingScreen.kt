@@ -51,6 +51,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.gatcha.log.data.DateUtil
 import com.gatcha.log.data.GameData
 import com.gatcha.log.data.Spending
@@ -58,6 +59,7 @@ import com.gatcha.log.ui.components.GlassCard
 import com.gatcha.log.ui.components.GlgButton
 import com.gatcha.log.ui.components.GlgTabHeader
 import com.gatcha.log.ui.components.GlgTabHeaderHeight
+import com.gatcha.log.ui.components.glgTabContentBottom
 import com.gatcha.log.ui.components.GlgTopScrimFadeExtra as ScrimFadeExtra
 import com.gatcha.log.ui.components.GlgOutlineButton
 import com.gatcha.log.ui.theme.*
@@ -84,9 +86,9 @@ fun SpendingScreen(
     listState: androidx.compose.foundation.lazy.LazyListState = androidx.compose.foundation.lazy.rememberLazyListState(),
     onSubPageChange: (Boolean) -> Unit = {},
 ) {
-    val spendings by viewModel.spendings.collectAsState()
-    val isRefreshing by viewModel.isRefreshing.collectAsState()
-    val compact by viewModel.spendingCompact.collectAsState()
+    val spendings by viewModel.spendings.collectAsStateWithLifecycle()
+    val isRefreshing by viewModel.isRefreshing.collectAsStateWithLifecycle()
+    val compact by viewModel.spendingCompact.collectAsStateWithLifecycle()
     // 게임 필터 — 다중 선택(빈 Set = 전체). 필터 바텀시트에서 토글.
     var selectedGames by remember { mutableStateOf<Set<String>>(emptySet()) }
     var period by remember { mutableStateOf(PeriodFilter.ALL) }
@@ -178,7 +180,6 @@ fun SpendingScreen(
     val statusBarDp = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     val heroSpacerDp = GlgTabHeaderHeight + statusBarDp
     // 로드인 스태거 — 앱 진입 후 1회만 등장(인덱스=정렬 리스트 내 위치). 탭 재진입 재생 방지(세션 영속).
-    val loadInSet = rememberGlgLoadInSet("spending")
 
     // 성능: 필터/정렬/그룹은 입력이 바뀔 때만 재계산(remember). 스크롤 콜랩스로 화면이 매 프레임
     // 재구성돼도 리스트 전체를 다시 훑지 않는다 — 지출 항목이 많을수록 스크롤 버벅임을 크게 줄인다.
@@ -221,7 +222,11 @@ fun SpendingScreen(
             onRefresh = { viewModel.refreshSpending() },
             modifier = Modifier.fillMaxSize(),
         ) {
-            LazyColumn(state = listState, modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
+            LazyColumn(
+                state = listState,
+                modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
+                contentPadding = PaddingValues(bottom = glgTabContentBottom()),
+            ) {
                 // 히어로 자리(고정) — 위에 히어로 오버레이가 뜬다.
                 item { Spacer(Modifier.height(heroSpacerDp)) }
 
@@ -236,7 +241,7 @@ fun SpendingScreen(
                 // 미리 계산된 dayGroups 를 순회만 한다(매 프레임 재정렬·재그룹 없음).
                 dayGroups.forEachIndexed { gi, dayItems ->
                     item(key = if (amountMode) dayItems.first().id else dayItems.first().dayKey) {
-                        Box(Modifier.glgLoadIn(gi, loadInSet)) {
+                        Box {
                             SpendingDayCard(
                                 dateLabel = if (amountMode) null else dayItems.first().dateLabel,
                                 dayTotal = if (amountMode) 0L else dayItems.sumOf { it.amount },
@@ -248,7 +253,6 @@ fun SpendingScreen(
                     }
                 }
             }
-            item { Spacer(Modifier.height(120.dp)) }
         }
     }
         // 상단 스크림 — **상태바 영역만** 덮는다. 스크롤될 때만 나타나 상태바 글자와 콘텐츠가 겹쳐 읽히는 걸 막는다.

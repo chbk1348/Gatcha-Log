@@ -30,6 +30,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.gatcha.log.data.GameData
 import com.gatcha.log.data.Subscription
 import com.gatcha.log.data.SpendingViewModel
@@ -59,9 +60,9 @@ private val DueAmber = Color(0xFFF59E0B)
 fun SubscriptionCenterScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
     BackHandler { onBack() }
     val accent = LocalAccent.current
-    val subscriptions by viewModel.subscriptions.collectAsState()
-    val spendings by viewModel.spendings.collectAsState()
-    val notifySub by viewModel.notifySubscription.collectAsState()
+    val subscriptions by viewModel.subscriptions.collectAsStateWithLifecycle()
+    val spendings by viewModel.spendings.collectAsStateWithLifecycle()
+    val notifySub by viewModel.notifySubscription.collectAsStateWithLifecycle()
 
     var showAdd by remember { mutableStateOf(false) }
     var editTarget by remember { mutableStateOf<Subscription?>(null) }

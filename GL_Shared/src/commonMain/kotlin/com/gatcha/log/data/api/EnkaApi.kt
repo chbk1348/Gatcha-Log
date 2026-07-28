@@ -4,6 +4,11 @@ import com.gatcha.log.json.JSONArray
 import com.gatcha.log.json.JSONObject
 import kotlinx.serialization.Serializable
 
+// [EnkaApi.cleanName] 이 쓰는 정규식 — 파일 레벨에서 한 번만 컴파일한다.
+// 예전엔 함수 안에 있어서, 메타 맵을 만들 때 **항목 수만큼**(수백~수천) 두 개를 다시 컴파일했다.
+private val RE_NAME_MARKUP = Regex("<[^>]*>")
+private val RE_NAME_WHITESPACE = Regex("\\s+")
+
 /** 쇼케이스 캐릭터 (id, 한글명, 레벨, 명좌/성혼 rank, 희귀도, 아이콘 URL, 한글 원소) */
 @Serializable
 data class EnkaChar(
@@ -501,7 +506,7 @@ object EnkaApi {
             line("spd", "속도"),
             line("crit_rate", "치명타 확률", crit = true),
             line("crit_dmg", "치명타 피해", crit = true),
-            line("break_dmg", "격파 특화"),
+            line("break_dmg", "격파 특수효과"),
             elem?.let { line(it, "속성 피해") },
         )
     }
@@ -580,7 +585,7 @@ object EnkaApi {
 
     /** Yatta 이름의 마크업 태그(<unbreak> 등) 제거 + 공백 정리 */
     private fun cleanName(raw: String): String =
-        raw.replace(Regex("<[^>]*>"), "").replace(Regex("\\s+"), " ").trim()
+        raw.replace(RE_NAME_MARKUP, "").replace(RE_NAME_WHITESPACE, " ").trim()
 
     /** 원신 원소 영문 → 한글. Yatta(Fire/Water…) + HoYoLAB(Pyro/Hydro…) 키 모두 지원. */
     private fun giElementKo(e: String): String = when (e) {

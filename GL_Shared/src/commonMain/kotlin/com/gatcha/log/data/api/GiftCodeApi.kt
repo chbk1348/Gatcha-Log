@@ -9,6 +9,13 @@ import com.gatcha.log.json.JSONObject
  */
 data class GiftCode(val code: String, val rewards: String, val highlight: Boolean = false)
 
+// 보상 문자열 파싱용 정규식 — 파일 레벨에서 한 번만 컴파일한다.
+// 예전엔 함수 안에 있어서 **코드 1건의 보상 토큰마다** 다시 컴파일됐다.
+private val RE_PROSE_AND = Regex("(?i)\\band\\b")
+private val RE_QTY_NAME = Regex("^([0-9][0-9,]*k?|[a-zA-Z]+)\\s+(.+)$")  // 선두 수량 + 나머지 이름
+private val RE_QTY_K = Regex("\\d+k")
+private val RE_QTY_DIGITS = Regex("\\d+")
+
 /**
  * 활성 리딤코드 자동 수집.
  *
@@ -90,12 +97,12 @@ object GiftCodeApi {
 
     /** "60 primogems and five adventurer's experience, ..." → [(이름, 수량)] */
     private fun parseProse(raw: String): List<Pair<String, String?>> {
-        val flattened = raw.replace(Regex("(?i)\\band\\b"), ",")
+        val flattened = raw.replace(RE_PROSE_AND, ",")
         return flattened.split(',').mapNotNull { seg ->
             val s = seg.trim().trimEnd('.')
             if (s.isEmpty()) return@mapNotNull null
             // 선두 수량(숫자/단어, 20k·20,000 포함) + 나머지 이름
-            val m = Regex("^([0-9][0-9,]*k?|[a-zA-Z]+)\\s+(.+)$").find(s)
+            val m = RE_QTY_NAME.find(s)
             if (m == null) s to null else m.groupValues[2].trim() to parseQty(m.groupValues[1])
         }
     }
@@ -104,8 +111,8 @@ object GiftCodeApi {
     private fun parseQty(tok: String): String {
         val t = tok.lowercase().trim().replace(",", "")
         return when {
-            t.matches(Regex("\\d+k")) -> (t.dropLast(1).toLong() * 1000).toString()
-            t.matches(Regex("\\d+")) -> t
+            t.matches(RE_QTY_K) -> (t.dropLast(1).toLong() * 1000).toString()
+            t.matches(RE_QTY_DIGITS) -> t
             else -> WORD_NUM[t]?.toString() ?: tok
         }
     }

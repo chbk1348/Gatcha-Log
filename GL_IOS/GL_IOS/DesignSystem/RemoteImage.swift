@@ -37,22 +37,47 @@ final class GLGImageCache {
     }
 }
 
+/// 진행 중인 다운로드를 URL 별로 합친다.
+///
+/// 같은 이미지가 여러 셀에 동시에 뜨면(같은 게임 아이콘, 목록 첫 진입 등) 셀마다 요청과 디코딩이
+/// 따로 돌았다. [GLGImageCache] 는 **완료된 뒤부터** 효과가 있어서 정작 첫 화면에서는 안 걸린다.
+private actor GLGImageInFlight {
+    static let shared = GLGImageInFlight()
+    private var tasks: [String: Task<UIImage?, Never>] = [:]
+
+    func image(for url: URL, maxPixel: Int, fetch: @escaping @Sendable () async -> UIImage?) async -> UIImage? {
+        let key = "\(url.absoluteString)|\(maxPixel)"
+        if let running = tasks[key] { return await running.value }
+        let task = Task { await fetch() }
+        tasks[key] = task
+        let result = await task.value
+        tasks[key] = nil
+        return result
+    }
+}
+
 /// 목록·카드용 원격 이미지. 표시 크기를 [side] 로 받아 그 크기에 맞춰 축소 디코딩한다.
 ///
-/// 원본 그대로 보여줘야 하는 곳(전체화면 뷰어·공지 본문 이미지)에는 쓰지 않는다 — 거기선 축소가 손해다.
-struct GLGRemoteImage: View {
+/// 원본 그대로 보여줘야 하는 곳(전체화면 뷰어)에는 쓰지 않는다 — 거기선 축소가 손해다.
+struct GLGRemoteImage<Placeholder: View>: View {
     private let url: URL?
     private let side: CGFloat
     private let contentMode: ContentMode
     private let maxPixel: Int
+    private let placeholder: () -> Placeholder
 
     @State private var image: UIImage?
 
-    /// - Parameter side: 실제로 그려질 한 변 크기(pt). 디코딩 목표 크기를 정하는 데 쓴다.
-    init(url: URL?, side: CGFloat, contentMode: ContentMode = .fill) {
+    /// - Parameters:
+    ///   - side: 실제로 그려질 한 변 크기(pt). 디코딩 목표 크기를 정하는 데 쓴다.
+    ///   - placeholder: 받아오는 동안 그릴 것. 기본은 빈 자리(`Color.clear`) —
+    ///     공지 본문처럼 높이가 확보돼야 레이아웃이 안 튀는 곳은 스켈레톤을 넘긴다.
+    init(url: URL?, side: CGFloat, contentMode: ContentMode = .fill,
+         @ViewBuilder placeholder: @escaping () -> Placeholder) {
         self.url = url
         self.side = side
         self.contentMode = contentMode
+        self.placeholder = placeholder
         let px = Int((side * UITraitCollection.current.displayScale).rounded())
         self.maxPixel = px
         // 뷰가 만들어지는 시점에 캐시를 확인한다 — .task 로 넘기면 한 프레임은 빈 화면이 스친다.
@@ -65,7 +90,7 @@ struct GLGRemoteImage: View {
             if let image {
                 Image(uiImage: image).resizable().aspectRatio(contentMode: contentMode)
             } else {
-                Color.clear
+                placeholder()
             }
         }
         .task(id: url) { await load(url) }
@@ -84,7 +109,11 @@ struct GLGRemoteImage: View {
             return
         }
         image = nil
-        let decoded = await Self.fetch(target, maxPixel: maxPixel)
+        // 같은 URL 을 이미 받고 있으면 그 결과를 나눠 쓴다(중복 다운로드·디코딩 방지).
+        let px = maxPixel
+        let decoded = await GLGImageInFlight.shared.image(for: target, maxPixel: px) {
+            await Self.fetch(target, maxPixel: px)
+        }
         // 셀이 화면 밖으로 나갔거나 URL 이 또 바뀌었으면 버린다(.task 가 취소해 준다).
         guard !Task.isCancelled, target == url else { return }
         guard let decoded else { return }
@@ -112,5 +141,12 @@ struct GLGRemoteImage: View {
         ] as [CFString: Any] as CFDictionary
         guard let cg = CGImageSourceCreateThumbnailAtIndex(src, 0, opts) else { return nil }
         return UIImage(cgImage: cg)
+    }
+}
+
+// 기본 placeholder(빈 자리) 편의 이니셜라이저 — 기존 호출부는 그대로 쓴다.
+extension GLGRemoteImage where Placeholder == Color {
+    init(url: URL?, side: CGFloat, contentMode: ContentMode = .fill) {
+        self.init(url: url, side: side, contentMode: contentMode) { Color.clear }
     }
 }

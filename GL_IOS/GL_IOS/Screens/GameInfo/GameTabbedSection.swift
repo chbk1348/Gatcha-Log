@@ -7,7 +7,7 @@ struct GameTabbedSection: View {
     var filter: String = "all"   // 상단 게임 세그먼트 선택값 — 자체 칩 제거, 이 값으로 노출 게임 결정
     @Environment(\.glgAccent) private var accent
 
-    private var games: [Game] { GameData.shared.attendanceGames }
+    private var games: [Game] { GLGGames.attendance }
     private var shownGames: [Game] { filter == "all" ? games : games.filter { $0.key == filter } }
 
     var body: some View {

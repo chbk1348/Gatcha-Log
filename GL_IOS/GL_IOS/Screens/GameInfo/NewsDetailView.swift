@@ -139,16 +139,14 @@ struct NewsDetailView: View {
     }
 
     /// 본문 이미지 — 폭에 맞춰 늘리고, 받아오는 동안엔 자리만 잡아 레이아웃이 튀지 않게.
+    ///
+    /// `AsyncImage` 를 쓰지 않는다 — **디코딩 결과를 들고 있지 않아서** 스크롤로 화면 밖에 나갔다
+    /// 들어오면 스켈레톤부터 다시 시작한다. 공지 본문은 이미지가 여러 장 이어지는 구조라 그게 눈에 띈다.
+    /// (전체화면 뷰어는 그대로 둔다 — 확대해서 보는 화면이라 축소 디코딩이 손해다)
     private func bodyImage(_ url: String) -> some View {
-        AsyncImage(url: URL(string: url)) { phase in
-            switch phase {
-            case .success(let image):
-                image.resizable().scaledToFit()
-            case .failure:
-                EmptyView()
-            default:
-                GLGSkeleton().frame(height: 160)
-            }
+        // 본문은 화면 폭이 상한이다. 디코딩 목표를 폭 기준으로 잡는다(원본이 작으면 그대로 둔다).
+        GLGRemoteImage(url: URL(string: url), side: UIScreen.main.bounds.width, contentMode: .fit) {
+            GLGSkeleton().frame(height: 160)
         }
         .frame(maxWidth: .infinity)
         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))

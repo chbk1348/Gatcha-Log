@@ -8,7 +8,7 @@ import Shared
 struct GameSegmentControl: View {
     @Binding var selected: String
 
-    private var games: [Game] { GameData.shared.attendanceGames }
+    private var games: [Game] { GLGGames.attendance }
 
     var body: some View {
         Picker("게임 선택", selection: $selected) {

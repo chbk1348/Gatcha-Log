@@ -103,6 +103,18 @@ android {
     }
 }
 
+// Compose 컴파일러 리포트 — 어떤 컴포저블이 skippable/restartable 인지, 어떤 파라미터가 unstable 인지
+// 산출한다. 릴리즈 산출물에는 영향이 없고, 켤 때만 파일이 생긴다:
+//   ./gradlew :GL_Android:assembleRelease -PcomposeReports
+// 결과: GL_Android/build/compose_compiler/*-composables.txt · *-classes.txt · *-module.json
+// (재구성 낭비를 찾을 때 Layout Inspector 의 Recomposition Count 와 함께 본다)
+composeCompiler {
+    if (project.hasProperty("composeReports")) {
+        reportsDestination.set(layout.buildDirectory.dir("compose_compiler"))
+        metricsDestination.set(layout.buildDirectory.dir("compose_compiler"))
+    }
+}
+
 // Kotlin 바이트코드도 17 — :GL_Shared(JVM_17, GitLive) 인라인 함수 소비 충돌 방지.
 kotlin {
     compilerOptions {
@@ -137,6 +149,10 @@ dependencies {
     implementation("androidx.security:security-crypto:1.1.0")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.10.0")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.10.0")
+    // collectAsStateWithLifecycle — 화면이 STOP 되면 수집을 멈춘다.
+    // collectAsState 는 컴포지션이 살아 있는 한 계속 collect 해서, 앱이 백그라운드에 있어도
+    // flow 구독이 전부 돌고 보이지도 않는 화면이 재구성됐다.
+    implementation("androidx.lifecycle:lifecycle-runtime-compose:2.10.0")
     implementation("androidx.activity:activity-compose:1.13.0")
     implementation(platform("androidx.compose:compose-bom:2026.05.01"))
     implementation("androidx.compose.ui:ui")

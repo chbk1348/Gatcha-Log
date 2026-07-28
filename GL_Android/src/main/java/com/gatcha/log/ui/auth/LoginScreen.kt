@@ -36,6 +36,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.gatcha.log.R
 import com.gatcha.log.ui.components.BrandGaugeRing
 import com.gatcha.log.ui.components.BrandStar
@@ -52,7 +53,7 @@ import com.gatcha.log.ui.theme.TextSecondary
 fun LoginScreen(viewModel: SpendingViewModel) {
     val accent = LocalAccent.current
     val accent2 = LocalAccentSecondary.current
-    val statusMessage by viewModel.statusMessage.collectAsState()
+    val statusMessage by viewModel.statusMessage.collectAsStateWithLifecycle()
 
     Box(
         modifier = Modifier

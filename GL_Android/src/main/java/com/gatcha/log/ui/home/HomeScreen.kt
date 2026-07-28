@@ -31,6 +31,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import com.gatcha.log.ui.components.GlgTabHeaderHeight
+import com.gatcha.log.ui.components.glgTabContentBottom
 import com.gatcha.log.ui.components.GlgTopScrimFadeExtra as ScrimFadeExtra
 import com.gatcha.log.ui.components.GlgPullToRefreshBox
 import androidx.compose.runtime.*
@@ -47,6 +48,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.launch
 import com.gatcha.log.data.HomeAlert
 import com.gatcha.log.data.HomeAlertKind
@@ -104,7 +106,7 @@ fun HomeScreen(viewModel: SpendingViewModel = viewModel()) {
     val accent = LocalAccent.current
 
     // 알림 딥링크 — VM 이 요청한 탭으로 이동(예: 공지 알림 탭 → 게임 정보). 상세 진입은 그 탭이 이어받는다.
-    val pendingTab by viewModel.pendingTab.collectAsState()
+    val pendingTab by viewModel.pendingTab.collectAsStateWithLifecycle()
     LaunchedEffect(pendingTab) {
         pendingTab?.let { selectedTab = it; viewModel.consumePendingTab() }
     }
@@ -144,11 +146,11 @@ fun HomeScreen(viewModel: SpendingViewModel = viewModel()) {
         viewModel.refreshGameInfo()
         viewModel.checkForUpdate()
     }
-    val updateInfo by viewModel.updateInfo.collectAsState()
-    val forceUpdate by viewModel.forceUpdate.collectAsState()
-    val updateProgress by viewModel.updateProgress.collectAsState()
-    val signingOut by viewModel.signingOut.collectAsState()
-    val statusMessage by viewModel.statusMessage.collectAsState()
+    val updateInfo by viewModel.updateInfo.collectAsStateWithLifecycle()
+    val forceUpdate by viewModel.forceUpdate.collectAsStateWithLifecycle()
+    val updateProgress by viewModel.updateProgress.collectAsStateWithLifecycle()
+    val signingOut by viewModel.signingOut.collectAsStateWithLifecycle()
+    val statusMessage by viewModel.statusMessage.collectAsStateWithLifecycle()
 
     // 루트 뒤로가기 방어 로직 (시스템/제스처 back):
     //  ① 하위 페이지(알림·연간리포트·지출상세)는 각자의 BackHandler 가 더 깊게 구성돼 먼저 처리
@@ -315,27 +317,27 @@ fun HomeContent(
     listState: LazyListState = rememberLazyListState(),
     onSubPageChange: (Boolean) -> Unit = {},
 ) {
-    val spendings by viewModel.spendings.collectAsState()
-    val budget by viewModel.budget.collectAsState()
-    val gameBudgets by viewModel.gameBudgets.collectAsState()
-    val profile by viewModel.profile.collectAsState()
-    val attendanceToday by viewModel.attendanceToday.collectAsState()
-    val banners by viewModel.activeBanners.collectAsState()
-    val liveNotes by viewModel.liveNotes.collectAsState()
-    val hoyolab by viewModel.hoyolabConfig.collectAsState()
-    val checkingIn by viewModel.checkingIn.collectAsState()
-    val isRefreshing by viewModel.isRefreshing.collectAsState()
-    val attendanceStreak by viewModel.attendanceStreak.collectAsState()
-    val account by viewModel.account.collectAsState()
-    val gachaStats by viewModel.gachaStats.collectAsState()
-    val homeCards by viewModel.homeCards.collectAsState()
-    val savingsPlans by viewModel.savingsPlans.collectAsState()
-    val challenge by viewModel.challenge.collectAsState()
-    val gameInfoReady by viewModel.gameInfoReady.collectAsState()
-    val hoyoTokenExpired by viewModel.hoyoTokenExpired.collectAsState()
-    val gameEvents by viewModel.gameEvents.collectAsState()
-    val gameChallenges by viewModel.challenges.collectAsState()
-    val gameNews by viewModel.gameNews.collectAsState()
+    val spendings by viewModel.spendings.collectAsStateWithLifecycle()
+    val budget by viewModel.budget.collectAsStateWithLifecycle()
+    val gameBudgets by viewModel.gameBudgets.collectAsStateWithLifecycle()
+    val profile by viewModel.profile.collectAsStateWithLifecycle()
+    val attendanceToday by viewModel.attendanceToday.collectAsStateWithLifecycle()
+    val banners by viewModel.activeBanners.collectAsStateWithLifecycle()
+    val liveNotes by viewModel.liveNotes.collectAsStateWithLifecycle()
+    val hoyolab by viewModel.hoyolabConfig.collectAsStateWithLifecycle()
+    val checkingIn by viewModel.checkingIn.collectAsStateWithLifecycle()
+    val isRefreshing by viewModel.isRefreshing.collectAsStateWithLifecycle()
+    val attendanceStreak by viewModel.attendanceStreak.collectAsStateWithLifecycle()
+    val account by viewModel.account.collectAsStateWithLifecycle()
+    val gachaStats by viewModel.gachaStats.collectAsStateWithLifecycle()
+    val homeCards by viewModel.homeCards.collectAsStateWithLifecycle()
+    val savingsPlans by viewModel.savingsPlans.collectAsStateWithLifecycle()
+    val challenge by viewModel.challenge.collectAsStateWithLifecycle()
+    val gameInfoReady by viewModel.gameInfoReady.collectAsStateWithLifecycle()
+    val hoyoTokenExpired by viewModel.hoyoTokenExpired.collectAsStateWithLifecycle()
+    val gameEvents by viewModel.gameEvents.collectAsStateWithLifecycle()
+    val gameChallenges by viewModel.challenges.collectAsStateWithLifecycle()
+    val gameNews by viewModel.gameNews.collectAsStateWithLifecycle()
     val anniversaries = remember { com.gatcha.log.data.GameAnniversary.upcoming() }
     // 홈 진입·복귀 시 워커가 백그라운드에서 바꾼 플래그를 다시 읽어 배너에 반영.
     LaunchedEffect(Unit) { viewModel.refreshHoyoTokenExpired() }
@@ -372,12 +374,12 @@ fun HomeContent(
     val resinAlerts = remember(liveNotes) { HomeLogic.resinAlerts(liveNotes) }
 
     // 전투 콘텐츠 시즌 마감 임박(미클리어만) — '오늘 할 일'에 편입
-    val combatModes by viewModel.combat.collectAsState()
+    val combatModes by viewModel.combat.collectAsStateWithLifecycle()
     val combatDeadlines = remember(combatModes) { HomeLogic.combatDeadlines(combatModes) }
 
     // 알림 계산 + 읽음(넛징)/삭제(dismiss) 상태 — 사용자가 지운 알림은 제외하고 노출
-    val readAlerts by viewModel.readAlerts.collectAsState()
-    val dismissedAlerts by viewModel.dismissedAlerts.collectAsState()
+    val readAlerts by viewModel.readAlerts.collectAsStateWithLifecycle()
+    val dismissedAlerts by viewModel.dismissedAlerts.collectAsStateWithLifecycle()
     val alerts = HomeLogic.buildAlerts(monthlyTotal, budget, gameOverBudget, banners, attendanceToday, "${viewModel.displayYear}-${viewModel.displayMonth}")
         .filter { it.key !in dismissedAlerts }
     val unreadCount = alerts.count { it.key !in readAlerts }
@@ -455,7 +457,6 @@ fun HomeContent(
     Box(Modifier.fillMaxSize()) {
     // 히어로 그라데이션은 HomeScreen(Scaffold 레벨)에서 상태바 뒤까지 그린다.
     // 콘텐츠 로드인 스태거 — 앱 진입 후 1회만 등장(스크롤·탭 재진입 시 재애니메이션 방지). 세션 영속 집합.
-    val loadInSet = rememberGlgLoadInSet("home")
     // 헤더는 투명 오버레이(아래) — 콘텐츠가 헤더 버튼 '아래로' 지나가도록 (상태바+헤더)만큼 인셋.
     val topInset = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     // 상단 스크림 — 콘텐츠가 헤더(버튼) 아래로 스크롤될 때만 배경색 그라데이션으로 살짝 흐린다.
@@ -467,11 +468,11 @@ fun HomeContent(
     LazyColumn(
         state = listState,
         modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
-        contentPadding = PaddingValues(top = GlgTabHeaderHeight + topInset),
+        contentPadding = PaddingValues(top = GlgTabHeaderHeight + topInset, bottom = glgTabContentBottom()),
     ) {
         // HoYoLAB 토큰 만료 감지 시 최상단 배너.
         if (hoyoTokenExpired) {
-            glgStaggerItem(0, loadInSet) {
+            glgCardItem() {
                 TokenExpiredBanner(onReconnect = {
                     viewModel.requestOpenHoyolabLink()
                     onNavigateToMyPage()
@@ -479,53 +480,53 @@ fun HomeContent(
             }
         }
         // 히어로 — 이번 달 지출 / 예산 캐러셀 (Figma Make 참고)
-        glgStaggerItem(2, loadInSet) {
+        glgCardItem() {
             HeroBalanceCard(monthlyTotal, prevTotal, budget) { showBudgetDialog.value = true }
             Spacer(Modifier.height(16.dp))
         }
         if (!gameInfoReady || todayTasks.isNotEmpty()) {
-            glgStaggerItem(3, loadInSet) {
+            glgCardItem() {
                 if (!gameInfoReady) TodayTaskSkeleton(titleOutside = true)
                 else TodayTaskCard(tasks = todayTasks, inProgress = checkingIn != null, titleOutside = true)
                 Spacer(Modifier.height(16.dp))
             }
         }
         // 최근 지출
-        glgStaggerItem(4, loadInSet) {
+        glgCardItem() {
             RecentSpendCard(spendings) { onNavigateToSpending() }
             Spacer(Modifier.height(16.dp))
         }
         if (!gameInfoReady) {
-            glgStaggerItem(5, loadInSet) {
+            glgCardItem() {
                 DashCardSkeleton(rows = 3)
                 Spacer(Modifier.height(16.dp))
             }
-            glgStaggerItem(6, loadInSet) {
+            glgCardItem() {
                 DashCardSkeleton(rows = 2)
                 Spacer(Modifier.height(16.dp))
             }
         } else {
-            glgStaggerItem(5, loadInSet) {
+            glgCardItem() {
                 DashScheduleCard(gameEvents, gameChallenges, titleOutside = true) { viewModel.requestGameInfoAnchor(GameInfoAnchor.SCHEDULE); onNavigateToGameInfo() }
                 Spacer(Modifier.height(16.dp))
             }
-            glgStaggerItem(6, loadInSet) {
+            glgCardItem() {
                 DashNewsCard(gameNews, anniversaries, titleOutside = true) { viewModel.requestGameInfoAnchor(GameInfoAnchor.NEWS); onNavigateToGameInfo() }
                 Spacer(Modifier.height(16.dp))
             }
         }
         // 나를 위한 — 저축 플래너 · 절약 챌린지
-        glgStaggerItem(7, loadInSet) {
+        glgCardItem() {
             HomeSectionHeader("나를 위한")
             Spacer(Modifier.height(10.dp))
             PickupPlannerHomeCard(savingsPlans) { savingsScreen = 1 }
             Spacer(Modifier.height(12.dp))
         }
-        glgStaggerItem(8, loadInSet) {
+        // 마지막 카드 뒤에는 여백을 두지 않는다 — 탭바까지의 간격은 contentPadding(glgTabContentBottom)이
+        // 전담한다. 여기서 또 더하면 이 탭만 간격이 넓어진다(예전에 24dp 였다).
+        glgCardItem() {
             SavingsChallengeHomeCard(challenge) { savingsScreen = 2 }
-            Spacer(Modifier.height(12.dp))
         }
-        item { Spacer(Modifier.height(120.dp)) }
     }
     // 상단 스크림 — **상태바 영역만** 덮는다(헤더 버튼 줄은 그대로 투명).
     Box(

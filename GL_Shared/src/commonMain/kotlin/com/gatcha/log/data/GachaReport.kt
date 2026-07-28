@@ -185,85 +185,141 @@ object GachaReport {
         return t.length.toString().padStart(3, '0') + t
     }
 
+    /** 5성 1건 — [computeStats]의 FiveEntry 와 [computeDashboard]의 DashFive 양쪽 재료. */
+    private class FiveHit(
+        val name: String,
+        val pool: String,
+        val pity: Int,
+        val id: String,
+        /** [bigId] 결과. 정렬 때 다시 만들지 않으려고 들고 다닌다. */
+        val sortKey: String,
+        val time: String,
+    )
+
+    /** 풀 하나를 id 순으로 훑은 결과 — 통계·대시보드가 공유하는 중간값. */
+    private class PoolWalk(
+        val pool: String,
+        val size: Int,
+        val five: Int,
+        val four: Int,
+        /** 마지막 5성 이후 누적(현재 천장). */
+        val pity: Int,
+        val pities: List<Int>,
+        val fives: List<FiveHit>,
+    )
+
+    /**
+     * 한 게임의 기록을 풀별로 나눠 id 순으로 훑는다. 통계·대시보드가 **같은 결과를 나눠 쓴다.**
+     *
+     * 정렬 키([bigId])는 정렬 **전에 한 번만** 만든다. 예전엔 `sortedBy { bigId(it.id) }` 였는데,
+     * 비교자는 O(n log n)회 불리고 [bigId] 는 호출 1회에 문자열을 네 개 만든다 —
+     * 기록 5만 건이면 문자열 할당이 백만 단위였고, 그게 통계·대시보드에서 각각 한 번씩 일어났다.
+     */
+    private fun walkPools(recs: List<GachaRecord>): List<PoolWalk> =
+        recs.groupBy { it.pool }.map { (pool, prs) ->
+            val sorted = prs.map { it to bigId(it.id) }.sortedBy { it.second }
+            var since = 0; var five = 0; var four = 0
+            val pities = mutableListOf<Int>()
+            val fives = mutableListOf<FiveHit>()
+            sorted.forEach { (r, key) ->
+                since++
+                when (r.rarity) {
+                    5 -> {
+                        five++; pities.add(since)
+                        fives.add(FiveHit(r.name, pool, since, r.id, key, r.time))
+                        since = 0
+                    }
+                    4 -> four++
+                }
+            }
+            PoolWalk(pool, prs.size, five, four, since, pities, fives)
+        }
+
     fun computeStats(records: List<GachaRecord>): GachaStats? {
         if (records.isEmpty()) return null
-        val byGame = records.groupBy { it.game }.mapValues { (_, recs) ->
-            val byPool = recs.groupBy { it.pool }
-            val poolStats = LinkedHashMap<String, GachaPoolStat>()
-            val allFive = mutableListOf<FiveEntry>()
-            val allPities = mutableListOf<Int>()
-            var gTotal = 0; var gFive = 0; var gFour = 0
-            byPool.forEach { (pool, prs) ->
-                val sorted = prs.sortedBy { bigId(it.id) }
-                var since = 0; var five = 0; var four = 0
-                val pities = mutableListOf<Int>()
-                sorted.forEach { r ->
-                    since++
-                    when (r.rarity) {
-                        5 -> { five++; pities.add(since); allFive.add(FiveEntry(r.name, pool, since, r.id)); since = 0 }
-                        4 -> four++
-                    }
-                }
-                poolStats[pool] = GachaPoolStat(prs.size, five, four, since, if (pities.isEmpty()) 0 else pities.average().roundToInt())
-                gTotal += prs.size; gFive += five; gFour += four
-                allPities += pities
-            }
-            GachaGameStat(
-                total = gTotal, five = gFive, four = gFour,
-                avgPity = if (allPities.isEmpty()) 0 else allPities.average().roundToInt(),
-                pools = poolStats,
-                recentFive = allFive.sortedByDescending { bigId(it.id) }.take(8),
-                luckDist = listOf(allPities.count { it <= 40 }, allPities.count { it in 41..74 }, allPities.count { it >= 75 }),
-            )
-        }
+        val byGame = records.groupBy { it.game }.mapValues { (_, recs) -> gameStat(walkPools(recs)) }
         return GachaStats(records.size, byGame)
+    }
+
+    private fun gameStat(walks: List<PoolWalk>): GachaGameStat {
+        val poolStats = LinkedHashMap<String, GachaPoolStat>()
+        val allFive = mutableListOf<FiveHit>()
+        val allPities = mutableListOf<Int>()
+        var gTotal = 0; var gFive = 0; var gFour = 0
+        walks.forEach { w ->
+            poolStats[w.pool] = GachaPoolStat(
+                w.size, w.five, w.four, w.pity,
+                if (w.pities.isEmpty()) 0 else w.pities.average().roundToInt(),
+            )
+            gTotal += w.size; gFive += w.five; gFour += w.four
+            allPities += w.pities
+            allFive += w.fives
+        }
+        return GachaGameStat(
+            total = gTotal, five = gFive, four = gFour,
+            avgPity = if (allPities.isEmpty()) 0 else allPities.average().roundToInt(),
+            pools = poolStats,
+            recentFive = allFive.sortedByDescending { it.sortKey }.take(8)
+                .map { FiveEntry(it.name, it.pool, it.pity, it.id) },
+            luckDist = listOf(allPities.count { it <= 40 }, allPities.count { it in 41..74 }, allPities.count { it >= 75 }),
+        )
     }
 
     /** 대시보드용 심화 통계 — 천장 분포, 월별 추이, 픽업/상시 비율, 5성 타임라인. */
     fun computeDashboard(records: List<GachaRecord>): GachaDashboard? {
         if (records.isEmpty()) return null
         val byGame = records.groupBy { it.game }.mapValues { (game, recs) ->
-            val byPool = recs.groupBy { it.pool }
-            val fives = mutableListOf<DashFive>()
-            val pities = mutableListOf<Int>()
-            var total = 0; var five = 0; var four = 0
-            var limited = 0; var standard = 0
-            byPool.forEach { (pool, prs) ->
-                val sorted = prs.sortedBy { bigId(it.id) }
-                var since = 0
-                sorted.forEach { r ->
-                    since++
-                    when (r.rarity) {
-                        5 -> { fives.add(DashFive(r.name, pool, since, r.time)); pities.add(since); five++; since = 0 }
-                        4 -> four++
-                    }
-                }
-                total += prs.size
-                if (pool == "permanent" || pool == "novice") standard += prs.size else limited += prs.size
-            }
-            // 천장 분포: 1-10 … 81-90 (90 초과는 마지막 칸으로)
-            val buckets = IntArray(9)
-            pities.forEach { p -> buckets[((p - 1) / 10).coerceIn(0, 8)]++ }
-            // 월별 뽑기 추이: "yyyy-MM" 그룹핑 → 최근 12개월
-            val monthly = recs.asSequence()
-                .map { it.time.take(7) }
-                .filter { it.length == 7 }
-                .groupingBy { it }.eachCount()
-                .toList().sortedBy { it.first }.takeLast(12)
-            GachaGameDash(
-                game = game,
-                total = total, five = five, four = four,
-                three = (total - five - four).coerceAtLeast(0),
-                avgPity = if (pities.isEmpty()) 0 else pities.average().roundToInt(),
-                minPity = pities.minOrNull() ?: 0,
-                maxPity = pities.maxOrNull() ?: 0,
-                fiveStars = fives.sortedByDescending { it.time },
-                pityBuckets = buckets.toList(),
-                monthly = monthly,
-                limited = limited, standard = standard,
-            )
+            gameDash(game, recs, walkPools(recs))
         }
         return GachaDashboard(byGame)
+    }
+
+    /**
+     * 통계와 대시보드를 **한 번의 순회로 함께** 만든다.
+     *
+     * 둘 다 같은 groupBy·같은 정렬·같은 천장 순회를 필요로 하는데, 예전엔 각자 처음부터 다시 했다.
+     * 앱 시작 경로에서 연달아 불리므로([SpendingViewModel] 의 가챠 지연 로드) 여기서 합친다.
+     */
+    fun computeAll(records: List<GachaRecord>): Pair<GachaStats?, GachaDashboard?> {
+        if (records.isEmpty()) return null to null
+        val byGameRecs = records.groupBy { it.game }
+        val walks = byGameRecs.mapValues { (_, recs) -> walkPools(recs) }
+        return GachaStats(records.size, walks.mapValues { (_, w) -> gameStat(w) }) to
+            GachaDashboard(byGameRecs.mapValues { (game, recs) -> gameDash(game, recs, walks.getValue(game)) })
+    }
+
+    private fun gameDash(game: String, recs: List<GachaRecord>, walks: List<PoolWalk>): GachaGameDash {
+        val fives = mutableListOf<FiveHit>()
+        val pities = mutableListOf<Int>()
+        var total = 0; var five = 0; var four = 0
+        var limited = 0; var standard = 0
+        walks.forEach { w ->
+            fives += w.fives
+            pities += w.pities
+            total += w.size; five += w.five; four += w.four
+            if (w.pool == "permanent" || w.pool == "novice") standard += w.size else limited += w.size
+        }
+        // 천장 분포: 1-10 … 81-90 (90 초과는 마지막 칸으로)
+        val buckets = IntArray(9)
+        pities.forEach { p -> buckets[((p - 1) / 10).coerceIn(0, 8)]++ }
+        // 월별 뽑기 추이: "yyyy-MM" 그룹핑 → 최근 12개월
+        val monthly = recs.asSequence()
+            .map { it.time.take(7) }
+            .filter { it.length == 7 }
+            .groupingBy { it }.eachCount()
+            .toList().sortedBy { it.first }.takeLast(12)
+        return GachaGameDash(
+            game = game,
+            total = total, five = five, four = four,
+            three = (total - five - four).coerceAtLeast(0),
+            avgPity = if (pities.isEmpty()) 0 else pities.average().roundToInt(),
+            minPity = pities.minOrNull() ?: 0,
+            maxPity = pities.maxOrNull() ?: 0,
+            fiveStars = fives.sortedByDescending { it.time }.map { DashFive(it.name, it.pool, it.pity, it.time) },
+            pityBuckets = buckets.toList(),
+            monthly = monthly,
+            limited = limited, standard = standard,
+        )
     }
 
     // ----------------------------------------------------------------- 직렬화 (로컬 저장)

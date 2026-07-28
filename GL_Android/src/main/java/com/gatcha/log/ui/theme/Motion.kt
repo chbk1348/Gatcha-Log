@@ -7,22 +7,24 @@ import android.provider.Settings
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.Easing
 import androidx.compose.animation.core.FiniteAnimationSpec
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.State
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.withFrameMillis
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import kotlinx.coroutines.flow.first
 
 /**
  * 공통 모션 토큰의 Compose 표현 — shared [GlgMotion] 미러 변환.
@@ -81,55 +83,70 @@ fun rememberReduceMotion(): Boolean {
     }
 }
 
-/** 공유 시머 위상 클럭 — 감속 시 정지(정적 0f), 아니면 단일 무한 트랜지션. */
-@Composable
-fun rememberShimmerPhase(reduceMotion: Boolean): State<Float> {
-    if (reduceMotion) return remember { mutableStateOf(0f) }
-    val transition = rememberInfiniteTransition(label = "shimmer")
-    return transition.animateFloat(
-        initialValue = 0f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            tween(GlgMotion.ShimmerPeriod, easing = LinearEasing), RepeatMode.Restart,
-        ),
-        label = "shimmerPhase",
-    )
+/**
+ * 화면에 떠 있는 스켈레톤 수 — 0이면 시머 클럭을 돌리지 않는다.
+ *
+ * 이게 없으면 클럭이 **앱이 살아 있는 내내** 돈다. [rememberShimmerPhase] 를 테마 루트에 걸어 두므로,
+ * 로딩이 다 끝나 스켈레톤이 하나도 없어도 프레임이 계속 발행되어 Compose 가 idle 로 내려가지 않는다
+ * (화면이 꺼진 채로도 그렸다). iOS 는 같은 클럭을 로딩 서브트리에만 감싸서 이 문제가 없었다.
+ */
+private object GlgShimmerClock {
+    private val users = mutableIntStateOf(0)
+    val active: Boolean get() = users.intValue > 0
+    fun acquire() { users.intValue++ }
+    fun release() { users.intValue-- }
 }
 
-// ── 콘텐츠 로드인 스태거 ──────────────────────────────────────────────────────
-
 /**
- * 앱 세션(프로세스) 동안 화면 태그별 "이미 로드인한 인덱스" 집합을 영속 보관하는 레지스트리.
- * 탭 전환으로 화면이 컴포지션에서 빠졌다 다시 들어와도(= `remember` 가 리셋돼도) 같은 집합을 돌려줘
- * 로드인 스태거가 **앱 진입 후 1회만** 재생되게 한다(매 탭 클릭 재생 방지). 프로세스 재시작 시 초기화.
- */
-private val glgLoadInRegistry = mutableMapOf<String, MutableSet<Int>>()
-
-/**
- * [glgLoadIn]/[glgStaggerItem] 에 넘길 "이미 애니메이션한 인덱스" 집합을 화면 [tag] 로 세션 영속 발급.
- * 탭(홈·지출·게임정보·마이페이지 등) 재진입 시에도 1회만 로드인하도록, 화면별 고유 [tag] 를 준다.
+ * 스켈레톤이 화면에 붙어 있는 동안 시머 클럭을 켠다. 스켈레톤 컴포저블이 직접 호출한다.
+ * 컴포지션에서 빠지면 자동으로 반납되어, 마지막 하나가 사라지는 순간 클럭이 멎는다.
  */
 @Composable
-fun rememberGlgLoadInSet(tag: String): MutableSet<Int> =
-    remember(tag) { glgLoadInRegistry.getOrPut(tag) { mutableSetOf() } }
+fun GlgShimmerActive() {
+    DisposableEffect(Unit) {
+        GlgShimmerClock.acquire()
+        onDispose { GlgShimmerClock.release() }
+    }
+}
 
 /**
- * 콘텐츠 로드인 — **비활성(2026-07-09).** 앱 전체 로드인 등장(페이드인+슬라이드업) 애니메이션 제거 요청으로
- * 무력화했다. 호출부(각 화면)를 그대로 두기 위해 시그니처만 보존하고 즉시 표시(변형 없음)로 통과시킨다.
- * 되살리려면 이 커밋 이전 이력의 alpha/translationY 스태거 구현 참고.
+ * 공유 시머 위상 클럭(0→1 선형 반복) — 감속 시 정지(정적 0f).
+ *
+ * **스켈레톤이 하나라도 있을 때만** 프레임을 요청한다. 예전엔 `rememberInfiniteTransition` 이라
+ * 살아 있는 한 무조건 돌았고, 그게 테마 루트에 걸려 있었다.
+ *
+ * 반환하는 State 객체는 계속 같은 것이라 이 함수는 재구성되지 않는다 — 값은 draw 단계에서만 읽힌다.
  */
-@Suppress("UNUSED_PARAMETER")
-fun Modifier.glgLoadIn(index: Int, animated: MutableSet<Int>): Modifier = this
+@Composable
+fun rememberShimmerPhase(reduceMotion: Boolean): State<Float> {
+    val phase = remember { mutableFloatStateOf(0f) }
+    if (reduceMotion) return phase
+    LaunchedEffect(Unit) {
+        val period = GlgMotion.ShimmerPeriod.toFloat()
+        while (true) {
+            // 스켈레톤이 없는 동안은 여기서 멈춰 있는다 — 프레임 요청 자체를 하지 않는다.
+            snapshotFlow { GlgShimmerClock.active }.first { it }
+            val start = withFrameMillis { it }
+            while (GlgShimmerClock.active) {
+                withFrameMillis { now -> phase.floatValue = ((now - start) % period.toLong()) / period }
+            }
+            phase.floatValue = 0f
+        }
+    }
+    return phase
+}
 
-/**
- * [LazyListScope.item] 을 [glgLoadIn] 로드인 스태거로 감싼다(콘텐츠 카드 등장용).
- * [animated] 는 호출부에서 하나 만들어 모든 항목에 공유. 항목 내용은 [Column] 으로 배치된다.
- */
-fun LazyListScope.glgStaggerItem(
-    index: Int,
-    animated: MutableSet<Int>,
+// ── 콘텐츠 카드 항목 ─────────────────────────────────────────────────────────
+//
+// 여기 있던 로드인 스태거(glgLoadIn·rememberGlgLoadInSet·glgLoadInRegistry)는 **2026-07-09 에
+// 무력화된 뒤 1년 가까이 `= this` 로 남아 있던 사문화 코드**였다. 시그니처만 살아 있어서
+// 화면마다 MutableSet<Int> 를 만들어 넘기고 인덱스를 세고 있었다. iOS 에서 걷어낸 것과 같은 코드.
+// 실제로 남은 동작은 "LazyColumn 항목을 Column 으로 감싼다" 하나뿐이라 그것만 남긴다.
+
+/** [LazyListScope.item] 을 [Column] 으로 감싼다(콘텐츠 카드 배치용). */
+fun LazyListScope.glgCardItem(
     key: Any? = null,
     content: @Composable ColumnScope.() -> Unit,
 ) {
-    item(key = key) { Column(Modifier.glgLoadIn(index, animated), content = content) }
+    item(key = key) { Column(content = content) }
 }

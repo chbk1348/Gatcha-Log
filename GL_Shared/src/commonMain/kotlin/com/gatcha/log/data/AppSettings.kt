@@ -184,8 +184,11 @@ class AppSettings {
         private const val KEY_SUMMARY_ENABLED = "notify_daily_summary"
         private const val KEY_SUMMARY_HOUR = "notify_daily_summary_hour"
 
+        /** 인증 저장소 — 호출마다 새로 만들지 않는다(iOS 는 NSUserDefaults 인스턴스 생성이 붙는다). */
+        private val authStore by lazy { KeyValueStore("gatcha_auth") }
+
         /** 현재 로그인 계정 id(gatcha_auth). 비로그인=guest. 백그라운드 컴포넌트가 계정별 저장소를 열 때 사용. */
         fun currentAccountId(): String =
-            KeyValueStore("gatcha_auth").getString("account_id", null) ?: "guest"
+            authStore.getString("account_id", null) ?: "guest"
     }
 }
