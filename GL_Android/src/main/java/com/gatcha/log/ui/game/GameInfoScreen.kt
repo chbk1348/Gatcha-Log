@@ -44,6 +44,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.gatcha.log.ui.components.ListSkeleton
 import com.gatcha.log.ui.components.GlassCard
 import com.gatcha.log.ui.components.shareText
@@ -80,28 +81,28 @@ fun GameInfoScreen(
     val accent = LocalAccent.current
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    val banners by viewModel.activeBanners.collectAsState()
-    val events by viewModel.gameEvents.collectAsState()
-    val notes by viewModel.liveNotes.collectAsState()
-    val gameNews by viewModel.gameNews.collectAsState()
-    val ledgers by viewModel.ledgers.collectAsState()
-    val combat by viewModel.combat.collectAsState()
-    val attendanceToday by viewModel.attendanceToday.collectAsState()
-    val attendanceHistory by viewModel.attendanceHistory.collectAsState()
-    val hoyolab by viewModel.hoyolabConfig.collectAsState()
-    val isRefreshing by viewModel.isRefreshing.collectAsState()
-    val challenges by viewModel.challenges.collectAsState()
-    val pity by viewModel.pity.collectAsState()
-    val checkingIn by viewModel.checkingIn.collectAsState()
-    val attendanceStreak by viewModel.attendanceStreak.collectAsState()
+    val banners by viewModel.activeBanners.collectAsStateWithLifecycle()
+    val events by viewModel.gameEvents.collectAsStateWithLifecycle()
+    val notes by viewModel.liveNotes.collectAsStateWithLifecycle()
+    val gameNews by viewModel.gameNews.collectAsStateWithLifecycle()
+    val ledgers by viewModel.ledgers.collectAsStateWithLifecycle()
+    val combat by viewModel.combat.collectAsStateWithLifecycle()
+    val attendanceToday by viewModel.attendanceToday.collectAsStateWithLifecycle()
+    val attendanceHistory by viewModel.attendanceHistory.collectAsStateWithLifecycle()
+    val hoyolab by viewModel.hoyolabConfig.collectAsStateWithLifecycle()
+    val isRefreshing by viewModel.isRefreshing.collectAsStateWithLifecycle()
+    val challenges by viewModel.challenges.collectAsStateWithLifecycle()
+    val pity by viewModel.pity.collectAsStateWithLifecycle()
+    val checkingIn by viewModel.checkingIn.collectAsStateWithLifecycle()
+    val attendanceStreak by viewModel.attendanceStreak.collectAsStateWithLifecycle()
     // statusMessage 토스트는 상위 HomeScreen 의 전역 GlgStatusToast 가 처리
-    val enkaGiUid by viewModel.enkaGiUid.collectAsState()
-    val enkaHsrUid by viewModel.enkaHsrUid.collectAsState()
-    val enkaResult by viewModel.enkaResult.collectAsState()
-    val enkaLoading by viewModel.enkaLoading.collectAsState()
-    val gachaStats by viewModel.gachaStats.collectAsState()
-    val gachaDashboard by viewModel.gachaDashboard.collectAsState()
-    val spendings by viewModel.spendings.collectAsState()
+    val enkaGiUid by viewModel.enkaGiUid.collectAsStateWithLifecycle()
+    val enkaHsrUid by viewModel.enkaHsrUid.collectAsStateWithLifecycle()
+    val enkaResult by viewModel.enkaResult.collectAsStateWithLifecycle()
+    val enkaLoading by viewModel.enkaLoading.collectAsStateWithLifecycle()
+    val gachaStats by viewModel.gachaStats.collectAsStateWithLifecycle()
+    val gachaDashboard by viewModel.gachaDashboard.collectAsStateWithLifecycle()
+    val spendings by viewModel.spendings.collectAsStateWithLifecycle()
     val gachaSpendByGame = remember(spendings) {
         val m = mutableMapOf<String, Long>()
         spendings.filter { !it.isSubscription }.forEach { sp ->
@@ -119,8 +120,8 @@ fun GameInfoScreen(
     var gameFilter by remember { mutableStateOf("all") }
     // 통합 게임 일정(패치·이벤트·콘텐츠 병합) — 데일리 아래 첫 섹션.
     val schedule = remember(banners, events, challenges) { ScheduleLogic.buildSchedule(banners, events, challenges) }
-    val taskStats by viewModel.taskStats.collectAsState()
-    val keyStatOverrides by viewModel.keyStatOverrides.collectAsState()
+    val taskStats by viewModel.taskStats.collectAsStateWithLifecycle()
+    val keyStatOverrides by viewModel.keyStatOverrides.collectAsStateWithLifecycle()
     // 게임정보 하위 풀스크린 페이지(연동 / 가챠 통계) — 열리면 상위(Scaffold)에 알려 하단바·FAB 숨김
     var subPage by remember { mutableStateOf(GiSub.Main) }
     // Enka 캐릭터 스탯 페이지 랜딩 대상
@@ -141,25 +142,25 @@ fun GameInfoScreen(
 
     // 공지 알림 딥링크 — 알림에 실린 id 로 목록에서 글을 찾아 상세를 연다.
     // 알림을 탭한 직후엔 목록이 아직 비어 있을 수 있어(콜드 스타트) news 가 도착할 때까지 기다렸다 연다.
-    val pendingNewsId by viewModel.pendingNewsId.collectAsState()
+    val pendingNewsId by viewModel.pendingNewsId.collectAsStateWithLifecycle()
     LaunchedEffect(pendingNewsId, gameNews) {
         val id = pendingNewsId ?: return@LaunchedEffect
         val target = gameNews.firstOrNull { it.id == id } ?: return@LaunchedEffect
         viewModel.consumePendingNews()
         openNews(target, GiSub.Main)
     }
-    val redeemState by viewModel.redeemState.collectAsState()
-    val activeCodes by viewModel.activeCodes.collectAsState()
-    val codesLoading by viewModel.codesLoading.collectAsState()
-    val codesFailed by viewModel.codesFailed.collectAsState()
-    val redeemedCodes by viewModel.redeemedCodes.collectAsState()
+    val redeemState by viewModel.redeemState.collectAsStateWithLifecycle()
+    val activeCodes by viewModel.activeCodes.collectAsStateWithLifecycle()
+    val codesLoading by viewModel.codesLoading.collectAsStateWithLifecycle()
+    val codesFailed by viewModel.codesFailed.collectAsStateWithLifecycle()
+    val redeemedCodes by viewModel.redeemedCodes.collectAsStateWithLifecycle()
 
     // 홈 대시보드 카드에서 넘어온 경우 해당 섹션으로 스크롤 앵커링(1회성).
     //
     // 섹션은 아래 LazyColumn 에 [스페이서, 본문] 2칸씩 쌓이고 일부는 조건부(미연동·일정 없음)라,
     // 앞 섹션이 빠지면 뒤 인덱스가 통째로 당겨진다. 그래서 하드코딩하지 않고 같은 순서로 누적 계산한다.
     // (예전엔 하드코딩이라 호요랜드 섹션이 끼어든 뒤 NEWS 앵커가 호요랜드로 어긋나 있었다)
-    val pendingAnchor by viewModel.pendingGameInfoAnchor.collectAsState()
+    val pendingAnchor by viewModel.pendingGameInfoAnchor.collectAsStateWithLifecycle()
     LaunchedEffect(pendingAnchor) {
         val anchor = pendingAnchor ?: return@LaunchedEffect
         val linked = hoyolab.isLinked

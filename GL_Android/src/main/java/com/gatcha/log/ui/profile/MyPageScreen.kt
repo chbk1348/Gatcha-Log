@@ -54,11 +54,11 @@ fun MyPageScreen(
     listState: androidx.compose.foundation.lazy.LazyListState = androidx.compose.foundation.lazy.rememberLazyListState(),
     onSubPageChange: (Boolean) -> Unit = {},
 ) {
-    val spendings by viewModel.spendings.collectAsState()
-    val profile by viewModel.profile.collectAsState()
-    val account by viewModel.account.collectAsState()
-    val attendanceStreak by viewModel.attendanceStreak.collectAsState()
-    val gachaStats by viewModel.gachaStats.collectAsState()
+    val spendings by viewModel.spendings.collectAsStateWithLifecycle()
+    val profile by viewModel.profile.collectAsStateWithLifecycle()
+    val account by viewModel.account.collectAsStateWithLifecycle()
+    val attendanceStreak by viewModel.attendanceStreak.collectAsStateWithLifecycle()
+    val gachaStats by viewModel.gachaStats.collectAsStateWithLifecycle()
 
     val showSettings = remember { mutableStateOf(false) }
     // 로드인 스태거 — 앱 진입 후 1회만(탭 재진입 재생 방지, 세션 영속).
@@ -69,7 +69,7 @@ fun MyPageScreen(
     LaunchedEffect(showSettings.value) { onSubPageChange(showSettings.value) }
 
     // 홈 만료 배너 CTA 가 마이페이지 → 설정으로 자동 진입시키도록(C4 흐름).
-    val pendingOpenHoyolab by viewModel.pendingOpenHoyolabLink.collectAsState()
+    val pendingOpenHoyolab by viewModel.pendingOpenHoyolabLink.collectAsStateWithLifecycle()
     LaunchedEffect(pendingOpenHoyolab) {
         if (pendingOpenHoyolab) showSettings.value = true
     }

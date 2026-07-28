@@ -51,6 +51,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.gatcha.log.data.DateUtil
 import com.gatcha.log.data.GameData
 import com.gatcha.log.data.Spending
@@ -84,9 +85,9 @@ fun SpendingScreen(
     listState: androidx.compose.foundation.lazy.LazyListState = androidx.compose.foundation.lazy.rememberLazyListState(),
     onSubPageChange: (Boolean) -> Unit = {},
 ) {
-    val spendings by viewModel.spendings.collectAsState()
-    val isRefreshing by viewModel.isRefreshing.collectAsState()
-    val compact by viewModel.spendingCompact.collectAsState()
+    val spendings by viewModel.spendings.collectAsStateWithLifecycle()
+    val isRefreshing by viewModel.isRefreshing.collectAsStateWithLifecycle()
+    val compact by viewModel.spendingCompact.collectAsStateWithLifecycle()
     // 게임 필터 — 다중 선택(빈 Set = 전체). 필터 바텀시트에서 토글.
     var selectedGames by remember { mutableStateOf<Set<String>>(emptySet()) }
     var period by remember { mutableStateOf(PeriodFilter.ALL) }

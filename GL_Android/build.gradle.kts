@@ -103,6 +103,18 @@ android {
     }
 }
 
+// Compose 컴파일러 리포트 — 어떤 컴포저블이 skippable/restartable 인지, 어떤 파라미터가 unstable 인지
+// 산출한다. 릴리즈 산출물에는 영향이 없고, 켤 때만 파일이 생긴다:
+//   ./gradlew :GL_Android:assembleRelease -PcomposeReports
+// 결과: GL_Android/build/compose_compiler/*-composables.txt · *-classes.txt · *-module.json
+// (재구성 낭비를 찾을 때 Layout Inspector 의 Recomposition Count 와 함께 본다)
+composeCompiler {
+    if (project.hasProperty("composeReports")) {
+        reportsDestination.set(layout.buildDirectory.dir("compose_compiler"))
+        metricsDestination.set(layout.buildDirectory.dir("compose_compiler"))
+    }
+}
+
 // Kotlin 바이트코드도 17 — :GL_Shared(JVM_17, GitLive) 인라인 함수 소비 충돌 방지.
 kotlin {
     compilerOptions {

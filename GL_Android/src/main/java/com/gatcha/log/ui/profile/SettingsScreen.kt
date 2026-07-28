@@ -55,6 +55,7 @@ import com.gatcha.log.ui.components.GlgSwitch
 import com.gatcha.log.ui.components.GlgTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.gatcha.log.ui.game.HoyolabLinkScreen
 import com.gatcha.log.data.AppSettings
 import com.gatcha.log.data.SpendingViewModel
@@ -76,14 +77,14 @@ fun SettingsScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
     val accent = LocalAccent.current
     val context = LocalContext.current
     val ctx = LocalContext.current
-    val budget by viewModel.budget.collectAsState()
-    val gameBudgets by viewModel.gameBudgets.collectAsState()
-    val accentIndex by viewModel.accentIndex.collectAsState()
-    val hoyolab by viewModel.hoyolabConfig.collectAsState()
-    val autoCheckIn by viewModel.autoCheckIn.collectAsState()
-    val nudgeOverspend by viewModel.nudgeOverspend.collectAsState()
-    val nudgeThreshold by viewModel.nudgeThreshold.collectAsState()
-    val spendingCompact by viewModel.spendingCompact.collectAsState()
+    val budget by viewModel.budget.collectAsStateWithLifecycle()
+    val gameBudgets by viewModel.gameBudgets.collectAsStateWithLifecycle()
+    val accentIndex by viewModel.accentIndex.collectAsStateWithLifecycle()
+    val hoyolab by viewModel.hoyolabConfig.collectAsStateWithLifecycle()
+    val autoCheckIn by viewModel.autoCheckIn.collectAsStateWithLifecycle()
+    val nudgeOverspend by viewModel.nudgeOverspend.collectAsStateWithLifecycle()
+    val nudgeThreshold by viewModel.nudgeThreshold.collectAsStateWithLifecycle()
+    val spendingCompact by viewModel.spendingCompact.collectAsStateWithLifecycle()
     val versionName = remember { com.gatcha.log.data.api.UpdateChecker.currentVersionName() }
     // 상태 메시지 토스트는 상위 HomeScreen 의 전역 GlgStatusToast 가 처리
 
@@ -98,7 +99,7 @@ fun SettingsScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
     val showData = remember { mutableStateOf(false) }
 
     // 홈 만료 배너 CTA → 마이페이지 → 설정 → HoYoLAB 연동까지 자동 진입(C4 흐름).
-    val pendingOpenHoyolab by viewModel.pendingOpenHoyolabLink.collectAsState()
+    val pendingOpenHoyolab by viewModel.pendingOpenHoyolabLink.collectAsStateWithLifecycle()
     LaunchedEffect(pendingOpenHoyolab) {
         if (pendingOpenHoyolab) {
             showHoyolab.value = true
@@ -359,8 +360,8 @@ fun SettingsScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
 private fun DataManagementScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    val gachaStats by viewModel.gachaStats.collectAsState()
-    val spendings by viewModel.spendings.collectAsState()
+    val gachaStats by viewModel.gachaStats.collectAsStateWithLifecycle()
+    val spendings by viewModel.spendings.collectAsStateWithLifecycle()
 
     // 백업 파일 내보내기/가져오기 (SAF)
     val exportBackupLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
@@ -541,18 +542,18 @@ private val DangerRed = Color(0xFFD32F2F)
 @Composable
 private fun NotificationSettingsScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
     val context = LocalContext.current
-    val notifyBudget by viewModel.notifyBudget.collectAsState()
-    val notifyAttendance by viewModel.notifyAttendance.collectAsState()
-    val notifyResin by viewModel.notifyResin.collectAsState()
-    val notifyPickup by viewModel.notifyPickup.collectAsState()
-    val notifySubscription by viewModel.notifySubscription.collectAsState()
-    val notifyNews by viewModel.notifyNews.collectAsState()
-    val notifyCombat by viewModel.notifyCombat.collectAsState()
-    val notifyDndEnabled by viewModel.notifyDndEnabled.collectAsState()
-    val notifyDndStartHour by viewModel.notifyDndStartHour.collectAsState()
-    val notifyDndEndHour by viewModel.notifyDndEndHour.collectAsState()
-    val notifyDailySummary by viewModel.notifyDailySummary.collectAsState()
-    val notifyDailySummaryHour by viewModel.notifyDailySummaryHour.collectAsState()
+    val notifyBudget by viewModel.notifyBudget.collectAsStateWithLifecycle()
+    val notifyAttendance by viewModel.notifyAttendance.collectAsStateWithLifecycle()
+    val notifyResin by viewModel.notifyResin.collectAsStateWithLifecycle()
+    val notifyPickup by viewModel.notifyPickup.collectAsStateWithLifecycle()
+    val notifySubscription by viewModel.notifySubscription.collectAsStateWithLifecycle()
+    val notifyNews by viewModel.notifyNews.collectAsStateWithLifecycle()
+    val notifyCombat by viewModel.notifyCombat.collectAsStateWithLifecycle()
+    val notifyDndEnabled by viewModel.notifyDndEnabled.collectAsStateWithLifecycle()
+    val notifyDndStartHour by viewModel.notifyDndStartHour.collectAsStateWithLifecycle()
+    val notifyDndEndHour by viewModel.notifyDndEndHour.collectAsStateWithLifecycle()
+    val notifyDailySummary by viewModel.notifyDailySummary.collectAsStateWithLifecycle()
+    val notifyDailySummaryHour by viewModel.notifyDailySummaryHour.collectAsStateWithLifecycle()
 
     // 알림 권한(Android 13+) — 알림 토글 켤 때 요청.
     // permRefresh: 권한 요청/화면 복귀 후 권한 상태를 다시 읽게 하는 트리거(권한은 Compose 상태가 아니라 OS 상태).

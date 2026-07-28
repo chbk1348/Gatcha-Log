@@ -34,6 +34,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import com.gatcha.log.ui.components.GlgDropdownMenu
 import com.gatcha.log.ui.components.GlgDropdownItem
@@ -113,9 +114,9 @@ fun EnkaCharSection(
     onOpenHoyolab: () -> Unit = {},
 ) {
     val accent = LocalAccent.current
-    val results by viewModel.enkaResults.collectAsState()
-    val loadingGames by viewModel.enkaLoadingGames.collectAsState()
-    val hoyolab by viewModel.hoyolabConfig.collectAsState()
+    val results by viewModel.enkaResults.collectAsStateWithLifecycle()
+    val loadingGames by viewModel.enkaLoadingGames.collectAsStateWithLifecycle()
+    val hoyolab by viewModel.hoyolabConfig.collectAsStateWithLifecycle()
 
     // 표시 대상 게임 — 전체면 3게임, 아니면 헤더가 고른 게임 1개(Enka 미지원 게임이면 비표시).
     val games = remember(gameFilter) {
@@ -198,7 +199,7 @@ fun EnkaRosterPage(
     BackHandler { onBack() }
     // 전체 보기/탭 왕복 어떤 경로로 진입해도 해당 게임 결과를 보장(캐시 적중 시 즉시 반영).
     LaunchedEffect(game) { viewModel.autoLoadEnka(game) }
-    val result by viewModel.enkaResult.collectAsState()
+    val result by viewModel.enkaResult.collectAsStateWithLifecycle()
     var rarityFilter by rememberSaveable { mutableStateOf(0) } // 0=전체, 5, 4
     var elementFilter by rememberSaveable { mutableStateOf("") } // ""=전체
     var pathFilter by rememberSaveable { mutableStateOf("") } // ""=전체 (HSR)

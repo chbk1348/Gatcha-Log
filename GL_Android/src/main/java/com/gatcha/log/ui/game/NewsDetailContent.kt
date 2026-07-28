@@ -20,7 +20,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -33,6 +32,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import com.gatcha.log.data.DateUtil
 import com.gatcha.log.data.GameData
@@ -67,9 +67,9 @@ import com.gatcha.log.ui.theme.toColor
 fun NewsDetailContent(viewModel: SpendingViewModel, item: NewsItem) {
     val accent = LocalAccent.current
     val ctx = LocalContext.current
-    val article by viewModel.newsArticle.collectAsState()
-    val loading by viewModel.newsArticleLoading.collectAsState()
-    val failed by viewModel.newsArticleFailed.collectAsState()
+    val article by viewModel.newsArticle.collectAsStateWithLifecycle()
+    val loading by viewModel.newsArticleLoading.collectAsStateWithLifecycle()
+    val failed by viewModel.newsArticleFailed.collectAsStateWithLifecycle()
 
     LaunchedEffect(item.id) { viewModel.loadNewsArticle(item) }
 
