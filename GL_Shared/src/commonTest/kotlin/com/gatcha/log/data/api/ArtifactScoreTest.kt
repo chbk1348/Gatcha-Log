@@ -143,7 +143,7 @@ class ArtifactScoreTest {
     fun isEffectiveMatchesKeyStatRules() {
         val harmony = setOf(StatTok.SPD, StatTok.EHR)
         assertTrue(ArtifactScoring.isEffective(harmony, "속도"))
-        assertTrue(ArtifactScoring.isEffective(harmony, "효과 적중"))
+        assertTrue(ArtifactScoring.isEffective(harmony, "효과 명중"))
         // 치명타는 화합 캐릭 유효옵션이 아니다 — 강조에서 빠져야 한다.
         assertTrue(!ArtifactScoring.isEffective(harmony, "치명타 피해"))
         assertTrue(!ArtifactScoring.isEffective(harmony, "알 수 없는 스탯"))
