@@ -199,7 +199,7 @@ struct SpendingView: View {
     @ViewBuilder private func gameChip(_ key: String) -> some View {
         if key.isEmpty {
             GamePill(label: "전체", selected: gameFilters.isEmpty, accent: accent.primary) { gameFilters = [] }
-        } else if let g = GameData.shared.games.first(where: { $0.key == key }) {
+        } else if let g = GameData.shared.byNameOrNull(name: key) {
             GamePill(label: g.shortName, selected: gameFilters.contains(g.displayName), accent: Color(argb64: g.color)) {
                 if gameFilters.contains(g.displayName) { gameFilters.remove(g.displayName) }
                 else { gameFilters.insert(g.displayName) }
@@ -223,7 +223,7 @@ struct SpendingView: View {
                 VStack(alignment: .leading, spacing: 14) {
                     // 게임 — 다중 선택(헤더 필터버튼 → 시트). 인라인 게임필터 행 폐지.
                     filterSection("게임") {
-                        FlexibleRow([""] + GameData.shared.games.map { $0.key }) { key in gameChip(key) }
+                        FlexibleRow([""] + GLGGames.keys) { key in gameChip(key) }
                     }
                     filterSection("기간") { pillWrap(PeriodFilter.allCases, period) { period = $0 } label: { $0.rawValue } }
                     filterSection("결제 수단") {
@@ -280,11 +280,17 @@ struct SpendingView: View {
 
     // ── 필터링 ──
     private func filteredList(_ list: [Spending]) -> [Spending] {
-        list.filter { s in
+        // 기간 판정에 쓸 연/월을 **항목 밖에서 한 번만** 읽는다.
+        // store.displayYear·displayMonth 는 KMP 게터라(시계 읽기 + 시각→로컬 변환) 항목마다 부르면
+        // 브리지 2회 + 변환 2회가 isSameMonth 비용 위에 그대로 얹힌다.
+        let dy = store.displayYear
+        let dm = store.displayMonth
+        let (ly, lm) = prevYM(dy, dm)
+        return list.filter { s in
             (gameFilters.isEmpty || gameFilters.contains(s.gameName)) &&
             (paymentFilter == nil || s.paymentMethod == paymentFilter) &&
             (typeFilter == .all || (typeFilter == .normal ? !s.isSubscription : s.isSubscription)) &&
-            periodMatch(s)
+            periodMatch(s, dy, dm, ly, lm)
         }
     }
     // 필터→정렬→그룹→합계를 한 번에 계산해 캐시(displayGroups). 스크롤이 아니라 데이터/필터 변화 때만 호출.
@@ -301,14 +307,12 @@ struct SpendingView: View {
             displayGroups = groupByDay(items.sorted { $0.dateMillis > $1.dateMillis })
         }
     }
-    private func periodMatch(_ s: Spending) -> Bool {
+    private func periodMatch(_ s: Spending, _ dy: Int, _ dm: Int, _ ly: Int, _ lm: Int) -> Bool {
         switch period {
         case .all: return true
-        case .thisMonth: return DateMillis.isSameMonth(s.dateMillis, store.displayYear, store.displayMonth)
-        case .lastMonth:
-            let (y, m) = prevYM(store.displayYear, store.displayMonth)
-            return DateMillis.isSameMonth(s.dateMillis, y, m)
-        case .thisYear: return DateMillis.isSameYear(s.dateMillis, store.displayYear)
+        case .thisMonth: return DateMillis.isSameMonth(s.dateMillis, dy, dm)
+        case .lastMonth: return DateMillis.isSameMonth(s.dateMillis, ly, lm)
+        case .thisYear: return DateMillis.isSameYear(s.dateMillis, dy)
         }
     }
 
@@ -317,8 +321,10 @@ struct SpendingView: View {
         var order: [String] = []
         var map: [String: [Spending]] = [:]
         for s in list {
-            if map[s.dayKey] == nil { order.append(s.dayKey) }
-            map[s.dayKey, default: []].append(s)
+            // dayKey 는 게터라 읽을 때마다 브리지 + 날짜 변환 + 문자열 조립이다. 항목당 한 번만 읽는다.
+            let key = s.dayKey
+            if map[key] == nil { order.append(key) }
+            map[key, default: []].append(s)
         }
         return order.map { key in
             let its = map[key] ?? []
@@ -455,10 +461,10 @@ private struct BulkEditSheet: View {
                     Text("선택한 \(count)건만 바뀌고, ‘변경 안 함’으로 둔 항목은 그대로예요.")
                         .font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary)
                     section("게임") {
-                        FlexibleRow([""] + GameData.shared.games.map { $0.key }) { key in
+                        FlexibleRow([""] + GLGGames.keys) { key in
                             if key.isEmpty {
                                 GamePill(label: "변경 안 함", selected: game == nil, accent: accent.primary) { game = nil }
-                            } else if let g = GameData.shared.games.first(where: { $0.key == key }) {
+                            } else if let g = GameData.shared.byNameOrNull(name: key) {
                                 GamePill(label: g.shortName, selected: game == g.displayName, accent: Color(argb64: g.color)) { game = g.displayName }
                             }
                         }

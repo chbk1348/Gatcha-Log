@@ -50,6 +50,7 @@ struct MyPageView: View {
         .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar { ToolbarItem(placement: .topBarTrailing) { settingsButton } }
+        .task(id: store.spendings) { totals = Self.computeTotals(store.spendings) }
     }
 
     private var metricGrid: some View {
@@ -70,9 +71,23 @@ struct MyPageView: View {
     }
 
     // ── 파생 통계 (전부 기존 보유 데이터에서 계산) ──
-    private var totalSpent: Int64 { store.spendings.reduce(0) { $0 + $1.amount } }
+    //
+    // totalSpent·gameCount 는 지출 전체를 훑는다. computed 로 두면 body 평가마다 다시 도는데,
+    // 이 화면은 출석 스트릭·가챠 통계·프로필 등 여러 값을 읽어서 재평가가 잦다.
+    // 지출이 바뀔 때만 계산한다.
+    private struct Totals: Equatable { var amount: Int64 = 0; var games: Int = 0 }
+    @State private var totals = Totals()
+
+    private static func computeTotals(_ spendings: [Spending]) -> Totals {
+        var sum: Int64 = 0
+        var names = Set<String>()
+        for s in spendings { sum += s.amount; names.insert(s.gameName) }   // 순회 1회
+        return Totals(amount: sum, games: names.count)
+    }
+
+    private var totalSpent: Int64 { totals.amount }
+    private var gameCount: Int { totals.games }
     private var gachaTotal: Int { Int(store.gachaStats?.total ?? 0) }
-    private var gameCount: Int { Set(store.spendings.map { $0.gameName }).count }
     private var spendCount: Int { store.spendings.count }
     private var fiveStars: Int { store.gachaStats?.byGame.values.reduce(0) { $0 + Int($1.five) } ?? 0 }
     private var dailyAvg: Int64 {
@@ -307,14 +322,26 @@ private struct GameDonutCard: View {
         let game: String; let amount: Int64; let color: Color
     }
 
-    private var slices: [Slice] {
-        Dictionary(grouping: spendings, by: { $0.gameName }).map { (name, list) in
-            Slice(game: name, amount: list.reduce(0) { $0 + $1.amount },
-                  color: Color(argb64: list.first?.gameColor ?? 0xFF8E8E93))
+    // 도넛·범례·중앙 금액이 전부 같은 집계를 쓰는데, computed 로 두면 body 를 한 번 그리는 동안
+    // slices 를 3번(빈 판정·범례·세그먼트), total 을 행마다 다시 계산했다 — 그룹핑 3회 + 전체 합산
+    // 8회 이상이었다. 지출이 바뀔 때만 한 번 만든다. (Android MyPageScreen 은 이미 remember 로 캐시)
+    @State private var slices: [Slice] = []
+    @State private var total: Int64 = 0
+
+    private static func compute(_ spendings: [Spending]) -> (slices: [Slice], total: Int64) {
+        var sums: [String: Int64] = [:]
+        var colors: [String: Int64] = [:]
+        var sum: Int64 = 0
+        for s in spendings {                       // 순회 1회
+            sums[s.gameName, default: 0] += s.amount
+            if colors[s.gameName] == nil { colors[s.gameName] = s.gameColor }
+            sum += s.amount
         }
-        .sorted { $0.amount > $1.amount }
+        let list = sums.map { Slice(game: $0.key, amount: $0.value,
+                                    color: Color(argb64: colors[$0.key] ?? 0xFF8E8E93)) }
+            .sorted { $0.amount > $1.amount }
+        return (list, sum)
     }
-    private var total: Int64 { spendings.reduce(0) { $0 + $1.amount } }
 
     var body: some View {
         Group {
@@ -343,6 +370,7 @@ private struct GameDonutCard: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .glgGlass(in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+        .task(id: spendings) { (slices, total) = Self.compute(spendings) }
     }
 
     private var donut: some View {
