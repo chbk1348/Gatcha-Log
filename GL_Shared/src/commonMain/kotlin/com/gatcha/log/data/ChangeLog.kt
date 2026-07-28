@@ -45,8 +45,7 @@ data class ChangeEntry(
 object ChangeLog {
 
     /** 헤더 메타 — 업데이트 기간 라벨. */
-    // ⚠️ 배포일이 확정되면 이 값과 27.42.0 entry 의 date 를 실제 배포일로 맞출 것(Zane).
-    const val periodLabel: String = "2026.05.23 ~ 07.28"
+    const val periodLabel: String = "2026.05.23 ~ 07.30"
 
     /**
      * 강제 업데이트 최소 지원 버전코드(version.json 의 minVersionCode 와 동일하게 유지).
@@ -55,7 +54,7 @@ object ChangeLog {
     const val minSupportedVersionCode: Long = 273000
 
     val entries: List<ChangeEntry> = buildList {
-        add(ChangeEntry("27.42.0", "2026.07.28", featured = true, items = listOf(
+        add(ChangeEntry("27.42.0", "2026.07.30", featured = true, items = listOf(
             // ── 신규 ──
             new("유물 점수 평가 — 원신은 아카샤 기준 CV(치명타 확률×2 + 치명타 피해), 스타레일·젠레스는 유효옵션 기준 유효 롤"),
             new("캐릭터 유효옵션 직접 설정 — 앱이 추정한 값을 원하는 대로 바꿀 수 있어요"),
@@ -80,10 +79,16 @@ object ChangeLog {
             imp("탭 전환·목록 스크롤 반응 속도 개선 (iOS)"),
             imp("캐릭터 초상·아이콘·공지 본문 이미지 캐싱으로 재로딩 제거 (iOS)"),
             imp("게임 정보 새로고침 중 화면 반응성 개선"),
+            imp("앱이 백그라운드에 있을 때 화면 갱신이 계속되던 동작 개선 (Android)"),
+            imp("로딩이 끝난 뒤에도 배경 애니메이션이 계속 돌던 문제 개선 (Android)"),
+            imp("보유 캐릭터 목록 진입 속도 개선 — 캐릭터가 많을수록 차이가 커요 (Android)"),
+            imp("홈·마이페이지 반응 속도 개선 (Android)"),
+            imp("탭 하단 여백을 기기 내비게이션 바에 맞게 조정 (Android)"),
             // ── 수정 ──
             // ⚠️ 27.42.0 개발 중에 생겼다 고쳐진 것은 여기 적지 않는다 — 유저가 겪은 적이 없다.
             //    (연간 리포트 갱신 누락·유효옵션 순서/직전 캐릭터 값 등은 전부 미출시분이라 제외)
             fix("젠레스 '이상 마스터리'가 캐릭터 상세에서 강조되지 않던 문제 수정"),
+            fix("마이페이지 게임별 지출 비율의 합이 100%가 되지 않던 문제 수정"),
             fix("스타레일 × Fate 콜라보 픽업이 표시되지 않던 문제 수정 (종료 미정 픽업 표시 지원)"),
             fix("공지·전투 시즌 알림만 켰을 때 알림이 발송되지 않던 문제 수정"),
             fix("콜라보 카드에 일반 픽업이 함께 표시되던 문제 수정"),
