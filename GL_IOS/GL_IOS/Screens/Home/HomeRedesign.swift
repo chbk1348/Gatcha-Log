@@ -35,7 +35,7 @@ struct HeroBalanceCard: View {
                 budgetPage.tag(1)
             }
             .tabViewStyle(.page(indexDisplayMode: .never))
-            .frame(height: 168)   // 콘텐츠(문구 2줄 + 월 표기 + 숫자 + 델타)가 잘리지 않도록 여유 확보
+            .frame(height: 154)   // 콘텐츠(숫자+델타+버튼)가 잘리지 않도록 여유 확보
 
             // 캐러셀 도트 — 현재 페이지는 캡슐로 늘어난다(목업의 페이지 인디케이터).
             HStack(spacing: 6) {
@@ -65,21 +65,8 @@ struct HeroBalanceCard: View {
     private func spendPage(month: Int) -> some View {
         let diff = monthlyTotal - prevTotal
         return VStack(spacing: 7) {
-            // 오늘의 한 줄 — **라벨 자리를 승격**해 쓴다.
-            //
-            // 히어로 위에 요소를 하나 더 얹는 방식(알약·맨 글자·카드)은 셋 다 겉돌았다. 무엇을 얹어도
-            // 히어로의 세로 구성(라벨 → 숫자 → 델타)과 따로 놀았기 때문이다. 그래서 **아무것도 더하지 않고**
-            // 기존 라벨 자리를 문구에 내주고, 월 표기는 그 아래 작은 글씨로 내렸다.
-            VStack(spacing: 3) {
-                Text(heroLine)
-                    .font(.pretendard(size: 15, weight: .bold))
-                    .foregroundStyle(GLGColor.textPrimary)
-                    .multilineTextAlignment(.center)
-                    .lineLimit(2)
-                    .padding(.horizontal, 24)
-                Text("\(month)월 지출")
-                    .font(.pretendard(size: 11, weight: .medium)).foregroundStyle(GLGColor.textSecondary)
-            }
+            Text("\(month)월 지출")
+                .font(.pretendard(size: 13, weight: .medium)).foregroundStyle(GLGColor.textSecondary)
             Text(won(monthlyTotal))
                 .font(.pretendard(size: 38, weight: .heavy)).foregroundStyle(GLGColor.textPrimary)
                 .lineLimit(1).minimumScaleFactor(0.5)
@@ -94,18 +81,6 @@ struct HeroBalanceCard: View {
             }
         }
         .frame(maxWidth: .infinity)
-    }
-
-    /// 프리셋 100종은 공유 모듈([HeroMessages])에 있어 Android 와 같은 문구가 나온다.
-    private var heroLine: String {
-        HeroMessages.shared.pick(
-            ctx: HeroMessageContext.companion.of(
-                monthlyTotal: monthlyTotal,
-                prevTotal: prevTotal,
-                budget: budget,
-                nowMillis: Int64(Date().timeIntervalSince1970 * 1000),
-            ),
-        )
     }
 
     // 페이지 2 — 예산 잔여/초과 + 사용률 바
