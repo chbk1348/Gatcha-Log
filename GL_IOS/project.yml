@@ -9,6 +9,10 @@ settings:
   base:
     # Xcode 15+ 스크립트 샌드박스가 Gradle 실행을 막으므로 비활성화
     ENABLE_USER_SCRIPT_SANDBOXING: "NO"
+    # Swift 6 언어 모드 — 액터 격리 위반을 **경고가 아니라 에러**로 잡는다.
+    # 5 모드에선 "메인 스레드 밖에서 디코딩한다"고 적어둔 코드가 실제로는 메인으로 돌아오는
+    # 위반이 경고로만 떠서 오래 방치됐다(RemoteImage.downsample). 컴파일러가 막게 한다.
+    SWIFT_VERSION: "6.0"
 
 # ── 외부 패키지 (SPM) ─────────────────────────────────────────────
 # Firebase iOS SDK: GitLive(Kotlin) firebase-auth/firestore 가 런타임에 사용하는 네이티브 SDK

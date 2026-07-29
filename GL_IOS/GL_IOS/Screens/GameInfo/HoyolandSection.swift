@@ -157,6 +157,7 @@ struct HoyolandDetailView: View {
 // MARK: - 공용 서브뷰
 
 /// 지난 행사 1건 카드 — 제목 + "종료" 배지 + 팩트 목록.
+@MainActor
 @ViewBuilder private func pastEventCard(_ title: String, _ facts: [(String, String)]) -> some View {
     GLGCard(cornerRadius: 24, padding: 16) {
         VStack(alignment: .leading, spacing: 0) {

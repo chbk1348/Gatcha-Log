@@ -23,7 +23,7 @@ final class GoogleWebOAuth: NSObject, ASWebAuthenticationPresentationContextProv
     }
 
     /// 웹 OAuth 로그인 → (idToken, accessToken, email, name, picture). 실패 시 nil.
-    func signIn(completion: @escaping (Tokens?) -> Void) {
+    func signIn(completion: @escaping @Sendable (Tokens?) -> Void) {
         let verifier = Self.randomURLSafe(64)
         let challenge = Self.codeChallenge(verifier)
         let redirectURI = "\(reversedClientID):/oauth2redirect"
@@ -57,7 +57,7 @@ final class GoogleWebOAuth: NSObject, ASWebAuthenticationPresentationContextProv
     }
 
     /// authorization_code → 토큰 교환 (PKCE, iOS 클라이언트는 시크릿 없음)
-    private func exchange(code: String, verifier: String, redirectURI: String, completion: @escaping (Tokens?) -> Void) {
+    private func exchange(code: String, verifier: String, redirectURI: String, completion: @escaping @Sendable (Tokens?) -> Void) {
         var req = URLRequest(url: URL(string: "https://oauth2.googleapis.com/token")!)
         req.httpMethod = "POST"
         req.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
@@ -99,7 +99,10 @@ final class GoogleWebOAuth: NSObject, ASWebAuthenticationPresentationContextProv
         cs.insert(charactersIn: "-._~")
         return s.addingPercentEncoding(withAllowedCharacters: cs) ?? s
     }
-    private static func decodeJWT(_ jwt: String) -> [String: Any] {
+    /// `nonisolated` — 순수 파싱이라 격리가 필요 없다. 표시가 없으면 이 타입의 메인 액터 격리를
+    /// 물려받아, URLSession 콜백(비격리)에서 부를 때 non-Sendable 결과를 액터 밖으로 내보내는
+    /// 위반이 된다(Swift 6 에러). 상태를 안 만지므로 어디서 불려도 안전하다.
+    private nonisolated static func decodeJWT(_ jwt: String) -> [String: Any] {
         let parts = jwt.split(separator: ".")
         guard parts.count >= 2 else { return [:] }
         var b64 = String(parts[1]).replacingOccurrences(of: "-", with: "+").replacingOccurrences(of: "_", with: "/")

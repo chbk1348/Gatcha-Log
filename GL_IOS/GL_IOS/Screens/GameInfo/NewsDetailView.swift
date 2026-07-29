@@ -172,7 +172,7 @@ struct NewsDetailView: View {
 
 /// 본문 제목의 스크롤 위치(좌표공간 기준 maxY)를 body 밖으로 전달 — 헤더 제목 노출 판정용.
 private struct NewsTitleOffsetKey: PreferenceKey {
-    static var defaultValue: CGFloat = .greatestFiniteMagnitude
+    static let defaultValue: CGFloat = .greatestFiniteMagnitude
     static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
         value = min(value, nextValue())
     }

@@ -362,7 +362,7 @@ enum SigningInfo {
 // ── 텍스트 파일 문서 (fileExporter/Importer 용) ──────────────────────────────
 
 struct TextDocument: FileDocument {
-    static var readableContentTypes: [UTType] = [.json, .commaSeparatedText, .plainText]
+    static let readableContentTypes: [UTType] = [.json, .commaSeparatedText, .plainText]
     var text: String
     init(_ text: String) { self.text = text }
     init(configuration: ReadConfiguration) throws {

@@ -63,7 +63,8 @@ struct GLGVisualEffectBlur: UIViewRepresentable {
                 object: nil,
                 queue: .main
             ) { [weak view] _ in
-                view?.effect = UIBlurEffect(style: style)
+                // 위에서 queue: .main 으로 등록했으니 실제로 메인에서 온다 — 컴파일러에 그 사실을 알린다.
+                MainActor.assumeIsolated { view?.effect = UIBlurEffect(style: style) }
             }
         }
 
