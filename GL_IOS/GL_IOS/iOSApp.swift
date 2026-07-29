@@ -28,8 +28,10 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
         //      BGTask 정시 비보장을 보완(UNCalendarNotificationTrigger 가 OS 정시 발송 보장).
         //
         //      **첫 프레임 이후로 미룬다.** 이 한 줄이 저장소를 새로 열고 출석 이력·배너·전투·정기결제·
-        //      실시간 노트 JSON 을 동기로 파싱한다. 예약 시각은 '다음 18:00' 이라 몇 백 ms 늦어도 결과가 같은데,
+        //      실시간 노트 JSON 을 파싱한다. 예약 시각은 '다음 18:00' 이라 몇 백 ms 늦어도 결과가 같은데,
         //      그 비용을 런치스크린 뒤 공백에 얹을 이유가 없다.
+        //      (2026-07-29 이후 Kotlin 쪽이 그 파싱·등록을 백그라운드 코루틴에서 처리하고 즉시 반환한다.
+        //       메인 스레드 비용은 사라졌지만, 호출 자체를 첫 프레임 뒤로 미루는 건 그대로 둔다.)
         DispatchQueue.main.async {
             AttendanceReminder_iosKt.rescheduleAttendanceReminder()
         }

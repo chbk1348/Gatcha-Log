@@ -49,6 +49,9 @@ import com.gatcha.log.ui.components.BudgetDialog
 import com.gatcha.log.ui.components.GlassCard
 import com.gatcha.log.ui.components.openExternalLink
 import com.gatcha.log.ui.components.GlgButton
+import androidx.compose.foundation.lazy.rememberLazyListState
+import com.gatcha.log.ui.components.GlgDetailHeaderOverlay
+import com.gatcha.log.ui.components.glgDetailContentTop
 import com.gatcha.log.ui.components.GlgScreenHeader
 import com.gatcha.log.ui.components.GlgDialog
 import com.gatcha.log.ui.components.GlgSwitch
@@ -85,6 +88,7 @@ fun SettingsScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
     val nudgeOverspend by viewModel.nudgeOverspend.collectAsStateWithLifecycle()
     val nudgeThreshold by viewModel.nudgeThreshold.collectAsStateWithLifecycle()
     val spendingCompact by viewModel.spendingCompact.collectAsStateWithLifecycle()
+    val heroGlow by viewModel.heroGlow.collectAsStateWithLifecycle()
     val versionName = remember { com.gatcha.log.data.api.UpdateChecker.currentVersionName() }
     // 상태 메시지 토스트는 상위 HomeScreen 의 전역 GlgStatusToast 가 처리
 
@@ -152,12 +156,18 @@ fun SettingsScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
             DataManagementScreen(viewModel, onBack = { showData.value = false })
         } else if (page == 1) {
             NotificationSettingsScreen(viewModel, onBack = { showNotif.value = false })
-        } else LazyColumn(
+        } else Box(Modifier.fillMaxSize()) {
+        // 탭 페이지와 같은 구조 — 콘텐츠는 상태바 뒤까지 스크롤되고, 헤더는 그 위에 고정된다.
+        val listState = rememberLazyListState()
+        val scrolled by remember {
+            derivedStateOf { listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 0 }
+        }
+        LazyColumn(
+            state = listState,
             // 하단바 미노출 페이지 — 바 높이 여백 대신 시스템 네비 인셋만 확보
             modifier = Modifier.fillMaxSize().navigationBarsPadding().padding(horizontal = 16.dp),
-            contentPadding = PaddingValues(bottom = 24.dp),
+            contentPadding = PaddingValues(top = glgDetailContentTop(), bottom = 24.dp),
         ) {
-            item { GlgScreenHeader("설정", onBack) }
 
         // 1) 알림 — 항목별 알림·방해금지·데일리 요약을 모은 하위 페이지로 진입
         item { SectionTitle("알림") }
@@ -181,6 +191,13 @@ fun SettingsScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
                         "지출 목록을 한 줄로 빽빽하게 표시해요 (태그·결제수단 숨김)",
                         spendingCompact,
                     ) { viewModel.setSpendingCompact(it) }
+                    HorizontalDivider(color = DividerColor, modifier = Modifier.padding(horizontal = 16.dp))
+                    SettingsToggleRow(
+                        Icons.Default.AutoAwesome,
+                        "홈 히어로 글로우",
+                        "홈 상단에서 은은하게 떠다니는 빛 효과예요. 끄면 그라데이션만 남아요",
+                        heroGlow,
+                    ) { viewModel.setHeroGlow(it) }
                     HorizontalDivider(color = DividerColor, modifier = Modifier.padding(horizontal = 16.dp))
                     Row(
                         modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 14.dp),
@@ -329,6 +346,8 @@ fun SettingsScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
             }
         }
         }
+        GlgDetailHeaderOverlay("설정", onBack, scrolled)
+        }
     }
 
     if (showBudget.value) {
@@ -378,12 +397,18 @@ private fun DataManagementScreen(viewModel: SpendingViewModel, onBack: () -> Uni
     val showClearSpend2 = remember { mutableStateOf(false) }
     val showImportBackup = remember { mutableStateOf(false) }
 
+    // 탭 페이지와 같은 구조 — 콘텐츠는 상태바 뒤까지 스크롤되고, 헤더는 그 위에 고정된다.
+    val listState = rememberLazyListState()
+    val scrolled by remember {
+        derivedStateOf { listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 0 }
+    }
+    Box(Modifier.fillMaxSize()) {
     LazyColumn(
+        state = listState,
         // 하단바 미노출 페이지 — 바 높이 여백 대신 시스템 네비 인셋만 확보
         modifier = Modifier.fillMaxSize().navigationBarsPadding().padding(horizontal = 16.dp),
-        contentPadding = PaddingValues(bottom = 24.dp),
+        contentPadding = PaddingValues(top = glgDetailContentTop(), bottom = 24.dp),
     ) {
-        item { GlgScreenHeader("데이터 관리", onBack) }
 
         // 백업·복원 — 데이터 보호가 가장 중요하므로 맨 위에 (재설치·기기 변경 대비)
         item { SectionTitle("백업·복원") }
@@ -441,6 +466,8 @@ private fun DataManagementScreen(viewModel: SpendingViewModel, onBack: () -> Uni
                 modifier = Modifier.padding(top = 8.dp, start = 4.dp, end = 4.dp),
             )
         }
+    }
+    GlgDetailHeaderOverlay("데이터 관리", onBack, scrolled)
     }
 
     // 가챠 기록 초기화 — 1단계(백업 권장 안내)
@@ -580,12 +607,18 @@ private fun NotificationSettingsScreen(viewModel: SpendingViewModel, onBack: () 
     val showDndEndPicker = remember { mutableStateOf(false) }
     val showSummaryPicker = remember { mutableStateOf(false) }
 
+    // 탭 페이지와 같은 구조 — 콘텐츠는 상태바 뒤까지 스크롤되고, 헤더는 그 위에 고정된다.
+    val listState = rememberLazyListState()
+    val scrolled by remember {
+        derivedStateOf { listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 0 }
+    }
+    Box(Modifier.fillMaxSize()) {
     LazyColumn(
+        state = listState,
         // 하단바 미노출 페이지 — 바 높이 여백 대신 시스템 네비 인셋만 확보
         modifier = Modifier.fillMaxSize().navigationBarsPadding().padding(horizontal = 16.dp),
-        contentPadding = PaddingValues(bottom = 24.dp),
+        contentPadding = PaddingValues(top = glgDetailContentTop(), bottom = 24.dp),
     ) {
-        item { GlgScreenHeader("알림 설정", onBack) }
 
         // 알림 — 항목별 토글
         item { SectionTitle("알림") }
@@ -729,6 +762,8 @@ private fun NotificationSettingsScreen(viewModel: SpendingViewModel, onBack: () 
                 modifier = Modifier.padding(top = 8.dp, start = 4.dp, end = 4.dp),
             )
         }
+    }
+    GlgDetailHeaderOverlay("알림 설정", onBack, scrolled)
     }
 
     if (showDndStartPicker.value) {

@@ -69,6 +69,8 @@ final class SpendingStore {
     private(set) var notifyPickup: Bool = false
     private(set) var nudgeOverspend: Bool = false
     private(set) var spendingCompact: Bool = false
+    /// 홈 히어로 글로우 애니메이션 사용 여부 — 끄면 그라데이션만 남는다.
+    private(set) var heroGlow: Bool = true
     private(set) var nudgeThreshold: Int64 = 0
     private(set) var pendingOpenHoyolabLink: Bool = false
     /// 홈 카드 → 게임 정보 탭 진입 시 스크롤할 섹션 앵커(1회성). nil 이면 없음.
@@ -211,6 +213,7 @@ final class SpendingStore {
         notifyPickup = vm.notifyPickup.value.boolValue
         nudgeOverspend = vm.nudgeOverspend.value.boolValue
         spendingCompact = vm.spendingCompact.value.boolValue
+        heroGlow = vm.heroGlow.value.boolValue
         nudgeThreshold = vm.nudgeThreshold.value.int64Value
         notifySubscription = vm.notifySubscription.value.boolValue
         notifyNews = vm.notifyNews.value.boolValue
@@ -280,6 +283,7 @@ final class SpendingStore {
         bind(vm.notifyPickup) { [weak self] in self?.notifyPickup = $0.boolValue }
         bind(vm.nudgeOverspend) { [weak self] in self?.nudgeOverspend = $0.boolValue }
         bind(vm.spendingCompact) { [weak self] in self?.spendingCompact = $0.boolValue }
+        bind(vm.heroGlow) { [weak self] in self?.heroGlow = $0.boolValue }
         bind(vm.nudgeThreshold) { [weak self] in self?.nudgeThreshold = $0.int64Value }
         bind(vm.pendingOpenHoyolabLink) { [weak self] in self?.pendingOpenHoyolabLink = $0.boolValue }
         bind(vm.taskStats) { [weak self] in self?.taskStats = $0 }
@@ -363,6 +367,7 @@ final class SpendingStore {
     }
     func setNudgeOverspend(_ v: Bool) { vm.setNudgeOverspend(v: v) }
     func setSpendingCompact(_ v: Bool) { vm.setSpendingCompact(v: v) }
+    func setHeroGlow(_ v: Bool) { vm.setHeroGlow(v: v) }
     func setNudgeThreshold(_ v: Int64) { vm.setNudgeThreshold(v: v) }
     /// 공지 상세 진입 — 본문 로드. 이탈 시 clearNewsArticle() 로 정리한다.
     func loadNewsArticle(_ item: NewsItem) { vm.loadNewsArticle(item: item) }

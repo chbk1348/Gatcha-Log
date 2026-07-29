@@ -12,5 +12,7 @@ package com.gatcha.log.data.work
  */
 actual object AlertScheduler {
     actual val schedulesAhead: Boolean = false
-    actual fun replaceAll(alerts: List<ScheduledAlert>) = Unit
+
+    // suspend 는 iOS 콜백을 기다리기 위한 것(expect 문서 참고) — 여기선 중단 지점이 없다.
+    actual suspend fun replaceAll(alerts: List<ScheduledAlert>) = Unit
 }

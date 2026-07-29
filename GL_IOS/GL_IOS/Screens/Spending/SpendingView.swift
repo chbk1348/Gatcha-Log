@@ -7,7 +7,7 @@ import Shared
 // (Compose SpendingScreen 대응) 분석 서브페이지는 NavigationStack push(시스템 back).
 // ════════════════════════════════════════════════════════════════════════════
 
-private enum PeriodFilter: String, CaseIterable { case all="전체", thisMonth="이번 달", lastMonth="지난 달", thisYear="올해" }
+private enum PeriodFilter: String, CaseIterable { case all="전체", thisMonth="이번 달", lastMonth="지난 달", thisYear="올해", custom="기간 지정" }
 private enum TypeFilter: String, CaseIterable { case all="전체", normal="일반", subscription="구독" }
 private enum SortOrder: String, CaseIterable { case dateDesc="최신순", dateAsc="오래된순", amountDesc="금액 높은순" }
 
@@ -19,6 +19,12 @@ struct SpendingView: View {
 
     @State private var gameFilters: Set<String> = []
     @State private var period: PeriodFilter = .all
+    // 기간 지정(직접 범위) — 기본값은 '최근 한 달'. 시작>끝이면 판정에서 뒤집어 쓴다.
+    @State private var customStart: Date = Calendar.current.date(byAdding: .month, value: -1, to: Date()) ?? Date()
+    @State private var customEnd: Date = Date()
+    @State private var showStartPicker = false
+    @State private var showEndPicker = false
+    @State private var showScrollTop = false
     @State private var paymentFilter: String? = nil
     @State private var typeFilter: TypeFilter = .all
     @State private var sortOrder: SortOrder = .dateDesc
@@ -38,8 +44,17 @@ struct SpendingView: View {
     }
 
     var body: some View {
+        ScrollViewReader { proxy in
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
+                // 맨 위로 버튼이 되돌아올 지점.
+                Color.clear.frame(height: 0).id(Self.topAnchor)
+                // 퀵필터 — 시트를 열지 않고 기간을 바꾸고, 걸린 필터를 바로 뗀다.
+                // 리스트가 비어도 **먼저** 그린다 — 필터 때문에 비었을 때 되돌릴 손잡이가 있어야 한다.
+                //
+                // 선택 모드에서도 **치우지 않는다.** 예전엔 숨겼는데, 선택을 켜는 순간 이 줄이 사라지며
+                // 리스트 전체가 위로 훅 밀려 올라가 화면이 튀었다(선택하려던 항목이 손가락 아래에서 이동).
+                quickFilters
                 // "N월 지출" 요약 헤더는 지출 인사이트 '월간' 탭으로 이동(MonthSummaryHeader).
                 if listIsEmpty {
                     emptyState
@@ -67,6 +82,8 @@ struct SpendingView: View {
         .onChange(of: store.spendings) { _, new in recompute(new) }
         .onChange(of: gameFilters) { _, _ in recompute(store.spendings) }
         .onChange(of: period) { _, _ in recompute(store.spendings) }
+        .onChange(of: customStart) { _, _ in if period == .custom { recompute(store.spendings) } }
+        .onChange(of: customEnd) { _, _ in if period == .custom { recompute(store.spendings) } }
         .onChange(of: paymentFilter) { _, _ in recompute(store.spendings) }
         .onChange(of: typeFilter) { _, _ in recompute(store.spendings) }
         .onChange(of: sortOrder) { _, _ in recompute(store.spendings) }
@@ -126,7 +143,46 @@ struct SpendingView: View {
                 showBulkEdit = false; selectionMode = false; selectedIds = []
             }
         }
+        // 맨 위로 — 한참 내려간 뒤에만 뜬다. 지출은 날짜 카드가 길어 아래로 많이 내려가는데,
+        // 되돌아오려면 계속 쓸어올려야 했다.
+        // 스크롤량 = contentOffset.y 를 **상단 인셋 기준으로 0 에 맞춘 값**.
+        // (최상단에서 contentOffset.y == -contentInsets.top 이므로 더하면 0 이 된다 →
+        //  내비바 높이가 기기마다 달라도 임계값이 흔들리지 않는다)
+        //
+        // ⚠️ 이 수정자는 **하위의 모든 스크롤뷰**에 걸린다. 퀵필터의 가로 ScrollView 도 걸려서
+        // 그쪽 contentOffset.y(항상 0)가 값을 덮어써 버튼이 영영 안 떴다.
+        // 세로로 넘치는 스크롤뷰만 취하고(가로 줄은 세로로 안 넘친다) 나머지는 NaN 으로 버린다.
+        .onScrollGeometryChange(for: CGFloat.self) { geo in
+            geo.contentSize.height > geo.containerSize.height + 1
+                ? geo.contentOffset.y + geo.contentInsets.top
+                : .nan
+        } action: { _, travelled in
+            guard !travelled.isNaN else { return }
+            let show = travelled > 240
+            if show != showScrollTop { withAnimation(GLGMotion.standard()) { showScrollTop = show } }
+        }
+        .overlay(alignment: .bottomTrailing) {
+            if showScrollTop && !selectionMode {
+                Button {
+                    withAnimation(GLGMotion.standard()) { proxy.scrollTo(Self.topAnchor, anchor: .top) }
+                } label: {
+                    // 콘텐츠 위에 떠 있는 단독 버튼이라 헤더 아이콘보다 크게 잡는다(누르기 쉬워야 한다).
+                    Image(systemName: "chevron.up")
+                        .font(.pretendard(size: 18, weight: .bold))
+                        .frame(width: 26, height: 26)
+                }
+                .glgGlassButton(circle: true, size: .large)
+                .tint(accent.primary)
+                .padding(.trailing, 16)
+                .padding(.bottom, 12)
+                .transition(.opacity.combined(with: .scale(scale: 0.8)))
+            }
+        }
+        }
     }
+
+    /// 맨 위로 버튼이 되돌아갈 앵커 id.
+    private static let topAnchor = "spendingTop"
 
 
     /// 같은 날짜 지출을 한 카드로 묶은 그룹 카드 — 상단 날짜·합계 헤더(first-end) + 구분선 + 지출 행들.
@@ -216,6 +272,164 @@ struct SpendingView: View {
         .frame(maxWidth: .infinity).padding(.vertical, 48)
     }
 
+    // ── 퀵필터 (리스트 상단) ──
+    //
+    // **드롭다운 3개**(기간·게임·정렬) + 걸린 나머지 필터 해제 줄.
+    // 칩을 축마다 늘어놓으면 기간만 5개라 줄이 금방 넘쳤다. 축 하나당 알약 하나로 접고, 열면
+    // 시스템 메뉴에서 고른다. 알약 라벨은 **기본값이면 축 이름, 아니면 고른 값** — 접힌 상태에서도
+    // 지금 뭐가 걸렸는지 읽힌다.
+    //
+    // 결제 수단·구분은 드롭다운으로 두지 않는다(자주 안 바뀐다). 걸려 있으면 아랫줄에 해제 칩으로 뜬다.
+    private var quickFilters: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            ScrollView(.horizontal) {
+                HStack(spacing: 6) {
+                    // 기간 — 단일 선택.
+                    quickMenu(label: period == .all ? "기간" : period.rawValue, active: period != .all) {
+                        ForEach(PeriodFilter.allCases, id: \.self) { p in
+                            Button { period = p } label: {
+                                if period == p { Label(p.rawValue, systemImage: "checkmark") } else { Text(p.rawValue) }
+                            }
+                        }
+                    }
+                    // 날짜 두 칸은 이 줄에 두지 않는다 — '기간 지정'일 때만 아랫줄로 펼친다.
+                    // 게임 — 다중 선택. iOS 메뉴는 고르면 닫히므로 여러 개는 다시 열어 켠다(시스템 동작).
+                    quickMenu(label: gameMenuLabel, active: !gameFilters.isEmpty) {
+                        Button { gameFilters = [] } label: {
+                            if gameFilters.isEmpty { Label("전체", systemImage: "checkmark") } else { Text("전체") }
+                        }
+                        ForEach(GLGGames.keys, id: \.self) { key in
+                            if let g = GameData.shared.byNameOrNull(name: key) {
+                                Button {
+                                    if gameFilters.contains(g.displayName) { gameFilters.remove(g.displayName) }
+                                    else { gameFilters.insert(g.displayName) }
+                                } label: {
+                                    if gameFilters.contains(g.displayName) { Label(g.shortName, systemImage: "checkmark") }
+                                    else { Text(g.shortName) }
+                                }
+                            }
+                        }
+                    }
+                    // 정렬 — 거르는 게 아니라 늘어놓는 방식이지만, 기간만큼 자주 바꾼다.
+                    quickMenu(label: sortOrder == .dateDesc ? "정렬" : sortOrder.rawValue, active: sortOrder != .dateDesc) {
+                        ForEach(SortOrder.allCases, id: \.self) { s in
+                            Button { sortOrder = s } label: {
+                                if sortOrder == s { Label(s.rawValue, systemImage: "checkmark") } else { Text(s.rawValue) }
+                            }
+                        }
+                    }
+                }
+                // 글래스 버튼은 글자 상자보다 크게 그려진다(하이라이트·그림자·눌림 효과).
+                // 여백이 빠듯하면 스크롤뷰가 그 바깥을 잘라 위아래가 깎여 보인다.
+                .padding(.vertical, 6)
+                .padding(.horizontal, 1)
+            }
+            .scrollIndicators(.hidden)
+            // 내용이 한 줄에 다 들어가면 좌우로 안 밀린다 — 안 넘칠 때도 스와이프가 먹으면
+            // 리스트를 만지려던 손가락이 헛돈다.
+            .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
+
+            // '기간 지정'을 고르면 아래로 펼쳐진다 — 평소엔 줄 자체가 없다.
+            //
+            // 닫힘은 **페이드만** 준다. 슬라이드로 닫으면 강조색으로 채워진 날짜 알약이 위쪽 줄을
+            // 타고 올라가며 색 덩어리로 스쳐 보였다(자리는 이미 접혔는데 그림만 남아 지나감).
+            if period == .custom {
+                customRangeRow.transition(
+                    .asymmetric(
+                        insertion: .move(edge: .top).combined(with: .opacity),
+                        removal: .opacity,
+                    ),
+                )
+            }
+
+            // 드롭다운에 없는 필터가 걸려 있으면 해제 칩. 없으면 줄 자체가 사라져 공간을 안 먹는다.
+            if hasOtherFilters {
+                ScrollView(.horizontal) {
+                    HStack(spacing: 6) {
+                        if let m = paymentFilter {
+                            GLGGlassChip(label: "\(m)  ✕", selected: true) { paymentFilter = nil }
+                        }
+                        if typeFilter != .all {
+                            GLGGlassChip(label: "\(typeFilter.rawValue)  ✕", selected: true) { typeFilter = .all }
+                        }
+                    }
+                    .padding(.vertical, 6)
+                    .padding(.horizontal, 1)
+                }
+                .scrollIndicators(.hidden)
+                .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
+            }
+        }
+        .padding(.bottom, 4)
+        .animation(GLGMotion.standard(), value: period)
+        // clipped() 는 쓰지 않는다 — 글래스 버튼의 하이라이트까지 잘려 위아래가 깎여 보인다.
+    }
+
+    /// 기간 지정 줄 — 시작 ~ 종료.
+    ///
+    /// 시스템 compact DatePicker 를 그대로 쓰면 **자기 크기를 스스로 정해서** 옆의 글래스 알약보다
+    /// 크게 뜬다(한 줄에 두 높이가 섞임). 날짜도 같은 알약으로 만들고 탭하면 달력을 팝오버로
+    /// 띄운다 — 크기가 구조적으로 같아진다.
+    private var customRangeRow: some View {
+        HStack(spacing: 6) {
+            GLGGlassChip(label: dateChipLabel(customStart), selected: true) { showStartPicker = true }
+                .popover(isPresented: $showStartPicker) { datePopover($customStart) }
+            Text("~").font(.pretendard(size: 12, weight: .semibold)).foregroundStyle(GLGColor.textSecondary)
+            GLGGlassChip(label: dateChipLabel(customEnd), selected: true) { showEndPicker = true }
+                .popover(isPresented: $showEndPicker) { datePopover($customEnd) }
+        }
+        .padding(.vertical, 4)
+        .padding(.horizontal, 1)
+    }
+
+    /// 달력 팝오버 — iPhone 도 시트가 아니라 팝오버로 붙인다(칩 바로 아래에서 고르고 닫는다).
+    private func datePopover(_ selection: Binding<Date>) -> some View {
+        DatePicker("", selection: selection, displayedComponents: .date)
+            .datePickerStyle(.graphical)
+            .labelsHidden()
+            .tint(accent.primary)
+            // 달력은 자기 고유 크기가 꽤 작아서, 그대로 두면 팝오버가 쪼그라들어 날짜를 찍기 어렵다.
+            // 시스템 달력이 편하게 보이는 최소치를 준다(가장 좁은 iPhone 폭에도 들어간다).
+            .frame(width: 320, height: 340)
+            .padding(12)
+            .presentationCompactAdaptation(.popover)
+    }
+
+    private static let dateChipFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "ko_KR")
+        f.dateFormat = "yyyy.MM.dd"
+        return f
+    }()
+    private func dateChipLabel(_ d: Date) -> String { Self.dateChipFormatter.string(from: d) }
+
+    /// 퀵필터 알약 하나 + 시스템 드롭다운 메뉴. 알약은 시스템 글래스([GLGGlassChip] 과 같은 스타일).
+    @ViewBuilder
+    private func quickMenu<C: View>(label: String, active: Bool, @ViewBuilder content: () -> C) -> some View {
+        Menu {
+            content()
+        } label: {
+            Text("\(label)  ▾")
+        }
+        .font(.pretendard(size: 12, weight: .bold))
+        .glgGlassChipStyle(selected: active)
+        .tint(accent.primary)
+    }
+
+    /// 접힌 상태에서도 몇 개가 걸렸는지 보이게 — 0개=축 이름, 1개=게임 약칭, 그 이상=개수.
+    private var gameMenuLabel: String {
+        if gameFilters.isEmpty { return "게임" }
+        if gameFilters.count == 1, let n = gameFilters.first {
+            return GameData.shared.byNameOrNull(name: n)?.shortName ?? n
+        }
+        return "게임 \(gameFilters.count)"
+    }
+
+    /// 드롭다운이 안 다루는 필터가 걸려 있는가 — 없으면 해제 줄을 아예 그리지 않는다.
+    private var hasOtherFilters: Bool {
+        paymentFilter != nil || typeFilter != .all
+    }
+
     // ── 필터 시트 ──
     private var filterSheet: some View {
         NavigationStack {
@@ -225,7 +439,16 @@ struct SpendingView: View {
                     filterSection("게임") {
                         FlexibleRow([""] + GLGGames.keys) { key in gameChip(key) }
                     }
-                    filterSection("기간") { pillWrap(PeriodFilter.allCases, period) { period = $0 } label: { $0.rawValue } }
+                    filterSection("기간") {
+                        VStack(alignment: .leading, spacing: 10) {
+                            pillWrap(PeriodFilter.allCases, period) { period = $0 } label: { $0.rawValue }
+                            // '기간 지정'을 고른 경우에만 날짜 두 칸을 편다 — 평소엔 시트가 길어지지 않는다.
+                            if period == .custom {
+                                Divider().overlay(GLGColor.divider)
+                                customRangePickers
+                            }
+                        }
+                    }
                     filterSection("결제 수단") {
                         VStack(alignment: .leading, spacing: 8) {
                             HStack { GamePill(label: "전체", selected: paymentFilter == nil, accent: accent.primary) { paymentFilter = nil }; Spacer() }
@@ -245,6 +468,8 @@ struct SpendingView: View {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("초기화") {
                         gameFilters = []; period = .all; paymentFilter = nil; typeFilter = .all; sortOrder = .dateDesc
+                        customStart = Calendar.current.date(byAdding: .month, value: -1, to: Date()) ?? Date()
+                        customEnd = Date()
                     }
                 }
                 ToolbarItem(placement: .confirmationAction) { Button("적용") { showFilter = false } }
@@ -252,6 +477,31 @@ struct SpendingView: View {
         }
         .presentationDetents([.medium, .large])
         .presentationBackground(Color.white)
+    }
+
+    // 기간 지정 — 시작·종료 날짜. 종료일은 **그날 전체를 포함**한다(자정 경계에서 하루가 빠져 보이지 않게).
+    private var customRangePickers: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            DatePicker(selection: $customStart, displayedComponents: .date) {
+                Text("시작").font(.pretendard(size: 13, weight: .semibold)).foregroundStyle(GLGColor.textSecondary)
+            }
+            DatePicker(selection: $customEnd, displayedComponents: .date) {
+                Text("종료").font(.pretendard(size: 13, weight: .semibold)).foregroundStyle(GLGColor.textSecondary)
+            }
+        }
+        .datePickerStyle(.compact)
+        .tint(accent.primary)
+    }
+
+    /// 기간 지정 범위를 밀리초 [시작, 끝) 으로. 시작>끝이면 뒤집어 준다(빈 결과 대신 의도대로).
+    private var customRangeMillis: (Int64, Int64) {
+        let cal = Calendar.current
+        let a = cal.startOfDay(for: customStart)
+        let b = cal.startOfDay(for: customEnd)
+        let lo = min(a, b)
+        let hiDay = max(a, b)
+        let hi = cal.date(byAdding: .day, value: 1, to: hiDay) ?? hiDay
+        return (Int64(lo.timeIntervalSince1970 * 1000), Int64(hi.timeIntervalSince1970 * 1000))
     }
 
     // 필터 섹션 카드 — 제목(카드 위) + 연회색 카드(지출 추가 모달 sectionCard·Android FilterGroup 과 동일 규격).
@@ -286,11 +536,13 @@ struct SpendingView: View {
         let dy = store.displayYear
         let dm = store.displayMonth
         let (ly, lm) = prevYM(dy, dm)
+        // 기간 지정 범위도 항목 밖에서 한 번만 — 항목마다 Calendar 연산을 반복할 이유가 없다.
+        let range = period == .custom ? customRangeMillis : (Int64(0), Int64(0))
         return list.filter { s in
             (gameFilters.isEmpty || gameFilters.contains(s.gameName)) &&
             (paymentFilter == nil || s.paymentMethod == paymentFilter) &&
             (typeFilter == .all || (typeFilter == .normal ? !s.isSubscription : s.isSubscription)) &&
-            periodMatch(s, dy, dm, ly, lm)
+            periodMatch(s, dy, dm, ly, lm, range)
         }
     }
     // 필터→정렬→그룹→합계를 한 번에 계산해 캐시(displayGroups). 스크롤이 아니라 데이터/필터 변화 때만 호출.
@@ -307,12 +559,13 @@ struct SpendingView: View {
             displayGroups = groupByDay(items.sorted { $0.dateMillis > $1.dateMillis })
         }
     }
-    private func periodMatch(_ s: Spending, _ dy: Int, _ dm: Int, _ ly: Int, _ lm: Int) -> Bool {
+    private func periodMatch(_ s: Spending, _ dy: Int, _ dm: Int, _ ly: Int, _ lm: Int, _ range: (Int64, Int64)) -> Bool {
         switch period {
         case .all: return true
         case .thisMonth: return DateMillis.isSameMonth(s.dateMillis, dy, dm)
         case .lastMonth: return DateMillis.isSameMonth(s.dateMillis, ly, lm)
         case .thisYear: return DateMillis.isSameYear(s.dateMillis, dy)
+        case .custom: return s.dateMillis >= range.0 && s.dateMillis < range.1
         }
     }
 

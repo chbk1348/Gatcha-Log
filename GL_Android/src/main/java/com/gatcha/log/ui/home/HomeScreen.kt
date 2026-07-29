@@ -73,6 +73,8 @@ import com.gatcha.log.util.SafIO
 import com.gatcha.log.ui.components.GlassBackground
 import com.gatcha.log.ui.components.GlassCard
 import com.gatcha.log.ui.components.GlgButton
+import com.gatcha.log.ui.components.GlgDetailHeaderOverlay
+import com.gatcha.log.ui.components.glgDetailContentTop
 import com.gatcha.log.ui.components.GlgScreenHeader
 import com.gatcha.log.ui.components.GlgStatusToast
 import com.gatcha.log.ui.components.NoteSkeletonRow
@@ -114,6 +116,9 @@ fun HomeScreen(viewModel: SpendingViewModel = viewModel()) {
     // 풀스크린 하위 페이지(알림 상세·연간 리포트·지출 상세·HoYoLAB 연동·설정)가 열렸는지.
     // 열려 있으면 하단바와 FAB를 숨긴다. 각 탭 콘텐츠가 자신의 하위 페이지 상태를 보고한다.
     var subPageActive by remember { mutableStateOf(false) }
+
+    // 히어로 글로우(움직이는 원) 사용 여부 — 설정에서 끌 수 있다. 끄면 그라데이션만 남는다.
+    val heroGlow by viewModel.heroGlow.collectAsStateWithLifecycle()
 
     // 탭별 스크롤 상태를 끌어올려, 하단바 탭 클릭 시 해당 페이지를 최상단으로 이동.
     val tabListStates = listOf(
@@ -236,11 +241,15 @@ fun HomeScreen(viewModel: SpendingViewModel = viewModel()) {
                 GlassBackground(modifier = Modifier.fillMaxSize()) {
                     // 홈 탭 히어로 그라데이션 — 상태바 뒤(edge-to-edge)까지 채우는 '고정' 배경. 홈에서만.
                     // 상단 인셋 바깥(패딩 Box 이전)에 그려야 상태바 뒤까지 확장된다.
-                    if (selectedTab == 0) {
+                    //
+                    // **하위 페이지에서는 끈다.** 홈에서 들어가는 상세(알림·저축 플래너 등)는 탭 인덱스가
+                    // 그대로 0 이라, 예전엔 상세 화면 뒤로도 히어로 글로우가 비쳤다. 상세는 흰 배경 고정이다.
+                    if (selectedTab == 0 && !subPageActive) {
                         HeroGradientBackground(
                             Modifier.fillMaxWidth()
                                 .height(paddingValues.calculateTopPadding() + 262.dp)
                                 .align(Alignment.TopCenter),
+                            glow = heroGlow,
                         )
                     }
                     // 전 화면 edge-to-edge(상단 인셋 없음). 각 화면이 자기 상단 인셋을 소유한다 —
@@ -661,8 +670,13 @@ private fun NotificationDetailScreen(
     onDismiss: (HomeAlert) -> Unit,
     onDismissAll: () -> Unit,
 ) {
-    Column(Modifier.fillMaxSize().background(Color.White)) {
-        GlgScreenHeader("알림", onBack, Modifier.padding(horizontal = 16.dp))
+    // 탭 페이지와 같은 구조 — 콘텐츠는 상태바 뒤까지 스크롤되고, 헤더는 그 위에 고정된다.
+    val listState = rememberLazyListState()
+    val scrolled by remember {
+        derivedStateOf { listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 0 }
+    }
+    Box(Modifier.fillMaxSize().background(Color.White)) {
+        Column(Modifier.fillMaxSize().padding(top = glgDetailContentTop())) {
         if (alerts.isEmpty()) {
             Column(
                 Modifier.fillMaxSize(),
@@ -689,6 +703,7 @@ private fun NotificationDetailScreen(
                 )
             }
             LazyColumn(
+                state = listState,
                 // 하단바 미노출 페이지 — 시스템 네비 인셋만 확보
                 modifier = Modifier.fillMaxSize().navigationBarsPadding().padding(horizontal = 16.dp, vertical = 4.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
@@ -708,6 +723,8 @@ private fun NotificationDetailScreen(
                 item { Spacer(Modifier.height(24.dp)) }
             }
         }
+        }
+        GlgDetailHeaderOverlay("알림", onBack, scrolled)
     }
 }
 

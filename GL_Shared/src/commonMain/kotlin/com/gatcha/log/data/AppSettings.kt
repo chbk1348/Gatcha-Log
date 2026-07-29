@@ -144,6 +144,17 @@ class AppSettings {
         get() = prefs.getBoolean(KEY_SPENDING_COMPACT, false)
         set(v) { prefs.putBoolean(KEY_SPENDING_COMPACT, v) }
 
+    /**
+     * 홈 히어로의 **글로우 애니메이션** 사용 여부. 기본 true.
+     *
+     * 5초 주기로 무한 반복하는 블러 원이라 저사양 단말에서는 계속 부담이 된다.
+     * 시스템 '동작 줄이기'와 별개로, 눈에 거슬리거나 배터리를 아끼고 싶은 사용자가 직접 끌 수 있게 한다.
+     * 끄면 그라데이션 배경은 그대로 두고 **움직이는 글로우만** 사라진다.
+     */
+    var heroGlow: Boolean
+        get() = prefs.getBoolean(KEY_HERO_GLOW, true)
+        set(v) { prefs.putBoolean(KEY_HERO_GLOW, v) }
+
     /** 백그라운드 주기 작업이 필요한지(하나라도 켜져 있으면 스케줄 유지). */
     fun needsPeriodicWork(): Boolean =
         autoCheckIn || notifyResin || notifyAttendance || notifyBudget || notifyPickup ||
@@ -174,6 +185,7 @@ class AppSettings {
         private const val KEY_NOTIF_PERM_ASKED = "notif_perm_asked"
         private const val KEY_ONBOARDING_DONE = "onboarding_done"
         private const val KEY_SPENDING_COMPACT = "spending_compact"
+        private const val KEY_HERO_GLOW = "hero_glow"
         private const val KEY_NOTIFY_SUB = "notify_subscription"
         private const val KEY_NOTIFY_NEWS = "notify_news"
         private const val KEY_NOTIFY_COMBAT = "notify_combat"

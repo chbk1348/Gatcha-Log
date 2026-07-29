@@ -16,7 +16,14 @@ data class EnneadResult(
 
 /**
  * ennead.cc 캘린더 API — 픽업 배너 / 이벤트 (원신·스타레일).
- * 인증 불필요. hoyoverse 경로 우선, 404 시 mihoyo 경로로 폴백 (웹앱 _fetchEnneadCalendar_ 와 동일).
+ * 인증 불필요. **mihoyo 경로 우선, 404 시 hoyoverse 경로로 폴백.**
+ *
+ * 2026-07-29 확인: `api.ennead.cc` 의 hoyoverse 경로가 전 게임 404 로 응답한다(호스트·TLS 는
+ * 정상이고 mihoyo 경로는 200). 원래는 hoyoverse 를 먼저 불렀는데, 그러면 새로고침마다 게임당
+ * 404 를 한 번씩 맞고(응답 ~1초) 다시 부르게 돼 순수한 낭비였다. 폴백은 지우지 않는다 — 경로가
+ * 되돌아올 수 있고, 남겨두는 비용이 0 이다(우선 경로가 200 이면 두 번째 요청은 아예 없다).
+ *
+ * (KDoc 에 `/` + `*` 조합을 쓰지 말 것 — Kotlin 블록 주석은 중첩돼서 주석이 안 닫힌다.)
  */
 object EnneadApi {
 
@@ -28,9 +35,9 @@ object EnneadApi {
     suspend fun fetch(game: Game): EnneadResult {
         val key = game.enneadKey ?: return EnneadResult(emptyList(), emptyList())
 
-        var res = Net.get("https://api.ennead.cc/hoyoverse/$key/calendar?lang=ko-kr")
+        var res = Net.get("https://api.ennead.cc/mihoyo/$key/calendar?lang=ko-kr")
         if (res.code == 404) {
-            res = Net.get("https://api.ennead.cc/mihoyo/$key/calendar?lang=ko-kr")
+            res = Net.get("https://api.ennead.cc/hoyoverse/$key/calendar?lang=ko-kr")
         }
         if (!res.isOk) return EnneadResult(emptyList(), emptyList())
 

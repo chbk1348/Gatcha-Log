@@ -25,7 +25,8 @@ struct GLGSection<Content: View>: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text(title)
-                .font(.subheadline.weight(.semibold))
+                // 시맨틱 스타일(.subheadline)은 시스템 서체 + Dynamic Type 스케일이라 쓰지 않는다.
+                .font(.pretendard(size: 15, weight: .semibold))
                 .foregroundStyle(GLGColor.textSecondary)
                 .padding(.leading, 4)
             GLGCard { content }

@@ -36,6 +36,8 @@ import com.gatcha.log.data.Subscription
 import com.gatcha.log.data.SpendingViewModel
 import com.gatcha.log.ui.components.GlassCard
 import com.gatcha.log.ui.components.GlgDialog
+import com.gatcha.log.ui.components.GlgDetailHeaderOverlay
+import com.gatcha.log.ui.components.glgDetailContentTop
 import com.gatcha.log.ui.components.GlgScreenHeader
 import com.gatcha.log.ui.components.GlgSwitch
 import com.gatcha.log.ui.components.GlgTextField
@@ -72,11 +74,13 @@ fun SubscriptionCenterScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
     val monthlyTotal = subscriptions.sumOf { it.amount }
     val next = sorted.firstOrNull()
 
-    Column(Modifier.fillMaxSize()) {
-        GlgScreenHeader("정기결제 관리", onBack, Modifier.padding(horizontal = 16.dp))
+    // 탭 페이지와 같은 구조 — 콘텐츠는 상태바 뒤까지 스크롤되고, 헤더는 그 위에 고정된다.
+    val scrollState = rememberScrollState()
+    Box(Modifier.fillMaxSize()) {
         Column(
-            Modifier.fillMaxSize().navigationBarsPadding().verticalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp, vertical = 8.dp),
+            Modifier.fillMaxSize().navigationBarsPadding().verticalScroll(scrollState)
+                .padding(horizontal = 16.dp)
+                .padding(top = glgDetailContentTop(), bottom = 8.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
             // ① 히어로 — 월 합계 + 구독 수 + 다음 갱신
@@ -191,6 +195,7 @@ fun SubscriptionCenterScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
             }
             Spacer(Modifier.height(8.dp))
         }
+        GlgDetailHeaderOverlay("정기결제 관리", onBack, scrolled = scrollState.value > 0)
     }
 
     if (showAdd) {

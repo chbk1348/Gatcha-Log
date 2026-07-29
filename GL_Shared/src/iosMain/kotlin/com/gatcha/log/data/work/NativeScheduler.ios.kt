@@ -46,6 +46,8 @@ private suspend fun runCheckIn() {
     runCatching { AttendanceReminder.reschedule(settings, repo, cfg) }
     // 확정 시각 알림(픽업·시즌 마감·정기결제·재화 가득참·데일리 요약) 재예약 —
     // 앱을 오래 안 열어도 OS 가 정시에 쏘도록.
+    // 이 호출은 **등록이 끝날 때까지 중단한다**. 호출자(BGTask 핸들러)가 완료 보고를 하는 순간
+    // OS 가 앱을 서스펜드하므로, 기다리지 않으면 예약이 걸리기 전에 프로세스가 멈춘다.
     runCatching { ScheduledAlerts.reschedule(settings, repo) }
 }
 

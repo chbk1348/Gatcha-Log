@@ -6,7 +6,12 @@ import com.gatcha.log.data.GameData
 import com.gatcha.log.data.GatchaRepository
 import com.gatcha.log.data.HoyolabConfig
 import com.gatcha.log.util.currentTimeMillis
+import kotlin.coroutines.resume
 import kotlinx.cinterop.ExperimentalForeignApi
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.datetime.DateTimeUnit
 import kotlinx.datetime.LocalDateTime
 import kotlinx.datetime.TimeZone
@@ -40,7 +45,7 @@ object AttendanceReminder {
     private const val ID = "gatcha_attend_reminder"
     private val beijingTz = TimeZone.of("UTC+8")
 
-    fun reschedule(settings: AppSettings, repo: GatchaRepository, cfg: HoyolabConfig) {
+    suspend fun reschedule(settings: AppSettings, repo: GatchaRepository, cfg: HoyolabConfig) {
         val center = UNUserNotificationCenter.currentNotificationCenter()
         center.removePendingNotificationRequestsWithIdentifiers(listOf(ID))
         if (!settings.notifyAttendance || !cfg.isLinked) return
@@ -76,7 +81,15 @@ object AttendanceReminder {
             setBody("오늘 출석 체크 잊지 마세요 — 아직 안 한 게임이 있으면 출석하세요.")
         }
         val request = UNNotificationRequest.requestWithIdentifier(ID, content, trigger)
-        center.addNotificationRequest(request, withCompletionHandler = null)
+        // 등록이 끝날 때까지 기다린다 — 예전엔 null 핸들러로 걸어두고 즉시 반환했다.
+        // BGTask 는 완료 보고 직후 앱을 서스펜드하므로, 기다리지 않으면 등록 전에 프로세스가 멈춰
+        // 리마인더가 통째로 유실될 수 있다([AlertScheduler.replaceAll] 과 같은 이유).
+        suspendCancellableCoroutine { cont ->
+            center.addNotificationRequest(request) { error ->
+                if (error != null) println("[GLG][sched] attend add failed: ${error.localizedDescription}")
+                cont.resume(Unit)
+            }
+        }
 
         // 예약한 날짜는 BGTask 즉시 알림과 겹치지 않도록 dedup 키를 선점.
         settings.setLastNotified("attend", targetKey)
@@ -92,7 +105,12 @@ object AttendanceReminder {
 fun rescheduleAttendanceReminder() {
     val settings = AppSettings()
     val repo = GatchaRepository(AppSettings.currentAccountId())
-    runCatching { AttendanceReminder.reschedule(settings, repo, repo.loadHoyolab()) }
-    // 앱 시작 시점에 확정 시각 알림도 함께 갱신 — 예약이 비어 있거나 낡았을 수 있다.
-    runCatching { ScheduledAlerts.reschedule(settings, repo) }
+    // 두 예약 모두 등록 완료까지 기다리는 suspend 라 코루틴이 필요하다.
+    // 여기는 포그라운드(앱 시작)라 앱이 서스펜드되지 않으므로 결과를 기다릴 필요는 없다
+    // — 기다려야 하는 쪽은 BGTask(NativeScheduler.ios) 다.
+    CoroutineScope(Dispatchers.Default).launch {
+        runCatching { AttendanceReminder.reschedule(settings, repo, repo.loadHoyolab()) }
+        // 앱 시작 시점에 확정 시각 알림도 함께 갱신 — 예약이 비어 있거나 낡았을 수 있다.
+        runCatching { ScheduledAlerts.reschedule(settings, repo) }
+    }
 }

@@ -31,6 +31,8 @@ import com.gatcha.log.ui.components.GiftCodeSkeleton
 import com.gatcha.log.ui.components.GlassCard
 import com.gatcha.log.ui.components.GlgButton
 import com.gatcha.log.ui.components.GlgChip
+import com.gatcha.log.ui.components.GlgDetailHeaderOverlay
+import com.gatcha.log.ui.components.glgDetailContentTop
 import com.gatcha.log.ui.components.GlgScreenHeader
 import com.gatcha.log.ui.components.GlgTextField
 import com.gatcha.log.data.RedeemState
@@ -67,10 +69,13 @@ internal fun GiftCodePage(
     LaunchedEffect(selected) { if (games.isNotEmpty()) onLoadCodes(selected) }
     val pending = activeCodes.count { it.code !in redeemedCodes }
 
-    Column(Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
-        GlgScreenHeader("리딤코드", onBack)
+    // 탭 페이지와 같은 구조 — 콘텐츠는 상태바 뒤까지 스크롤되고, 헤더는 그 위에 고정된다.
+    val scrollState = rememberScrollState()
+    Box(Modifier.fillMaxSize()) {
         Column(
-            Modifier.weight(1f).verticalScroll(rememberScrollState()),
+            Modifier.fillMaxSize().navigationBarsPadding().verticalScroll(scrollState)
+                .padding(horizontal = 16.dp)
+                .padding(top = glgDetailContentTop()),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
             if (games.isEmpty()) {
@@ -185,6 +190,7 @@ internal fun GiftCodePage(
                 Spacer(Modifier.height(24.dp))
             }
         }
+        GlgDetailHeaderOverlay("리딤코드", onBack, scrolled = scrollState.value > 0)
     }
 }
 

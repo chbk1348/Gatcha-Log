@@ -51,6 +51,9 @@ import com.gatcha.log.ui.components.GlassCard
 import com.gatcha.log.ui.components.shareText
 import com.gatcha.log.ui.components.openExternalLink
 import com.gatcha.log.ui.components.GlgBackButton
+import com.gatcha.log.ui.components.GlgDetailHeaderOverlay
+import com.gatcha.log.ui.components.glgDetailContentTop
+import com.gatcha.log.ui.components.GlgHeaderTitlePill
 import com.gatcha.log.ui.components.GlgCircleIconButton
 import com.gatcha.log.ui.components.GlgTabHeader
 import com.gatcha.log.data.GameInfoAnchor
@@ -280,11 +283,12 @@ fun GameInfoScreen(
                     if (n != null && n.url.isNotBlank()) {
                         // 공유 — **링크만** 보낸다. 본문은 앱이 재구성한 것이라 그대로 보낼 수 없고,
                         // 제목을 붙이면 받는 쪽 미리보기와 중복돼 지저분해진다.
-                        GlgCircleIconButton(Icons.Default.Share, "공유", outlined = true) {
+                        // solidBackground — 본문(공지 이미지)이 헤더 아래를 지나가므로 버튼이 비치면 안 된다.
+                        GlgCircleIconButton(Icons.Default.Share, "공유", outlined = true, solidBackground = true) {
                             shareText(context, n.url)
                         }
                         // 브라우저 — 표·동영상처럼 앱이 못 살리는 요소는 원문에서 봐야 한다.
-                        GlgCircleIconButton(Icons.AutoMirrored.Filled.OpenInNew, "브라우저에서 보기", outlined = true) {
+                        GlgCircleIconButton(Icons.AutoMirrored.Filled.OpenInNew, "브라우저에서 보기", outlined = true, solidBackground = true) {
                             openExternalLink(context, n.url)
                         }
                     }
@@ -452,22 +456,17 @@ private fun SectionPage(
     content: @Composable () -> Unit,
 ) {
     BackHandler { onBack() }
-    Column(Modifier.fillMaxSize().statusBarsPadding().padding(horizontal = 16.dp)) {
-        // 뒤로가기 + 타이틀(모든 상세 페이지 공통 노출) + 우측 액션.
-        Row(Modifier.fillMaxWidth().padding(top = 12.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-            GlgBackButton(onBack)
-            Spacer(Modifier.width(10.dp))
-            Text(title, fontSize = 22.sp, fontWeight = FontWeight.Bold, maxLines = 1)
-            Spacer(Modifier.weight(1f))
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                content = actions,
-            )
-        }
-        Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) {
+    // 탭 페이지와 같은 구조 — 콘텐츠는 상태바 뒤까지 스크롤되고, 헤더는 그 위에 고정된다.
+    val scrollState = rememberScrollState()
+    Box(Modifier.fillMaxSize()) {
+        Column(
+            Modifier.fillMaxSize().navigationBarsPadding().verticalScroll(scrollState)
+                .padding(horizontal = 16.dp)
+                .padding(top = glgDetailContentTop()),
+        ) {
             content()
             Spacer(Modifier.height(24.dp))
         }
+        GlgDetailHeaderOverlay(title, onBack, scrolled = scrollState.value > 0, actions = actions)
     }
 }

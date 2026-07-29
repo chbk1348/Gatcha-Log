@@ -35,7 +35,7 @@ struct HeroBalanceCard: View {
                 budgetPage.tag(1)
             }
             .tabViewStyle(.page(indexDisplayMode: .never))
-            .frame(height: 154)   // 콘텐츠(숫자+델타+버튼)가 잘리지 않도록 여유 확보
+            .frame(height: 168)   // 콘텐츠(문구 2줄 + 월 표기 + 숫자 + 델타)가 잘리지 않도록 여유 확보
 
             // 캐러셀 도트 — 현재 페이지는 캡슐로 늘어난다(목업의 페이지 인디케이터).
             HStack(spacing: 6) {
@@ -65,8 +65,21 @@ struct HeroBalanceCard: View {
     private func spendPage(month: Int) -> some View {
         let diff = monthlyTotal - prevTotal
         return VStack(spacing: 7) {
-            Text("\(month)월 지출")
-                .font(.pretendard(size: 13, weight: .medium)).foregroundStyle(GLGColor.textSecondary)
+            // 오늘의 한 줄 — **라벨 자리를 승격**해 쓴다.
+            //
+            // 히어로 위에 요소를 하나 더 얹는 방식(알약·맨 글자·카드)은 셋 다 겉돌았다. 무엇을 얹어도
+            // 히어로의 세로 구성(라벨 → 숫자 → 델타)과 따로 놀았기 때문이다. 그래서 **아무것도 더하지 않고**
+            // 기존 라벨 자리를 문구에 내주고, 월 표기는 그 아래 작은 글씨로 내렸다.
+            VStack(spacing: 3) {
+                Text(heroLine)
+                    .font(.pretendard(size: 15, weight: .bold))
+                    .foregroundStyle(GLGColor.textPrimary)
+                    .multilineTextAlignment(.center)
+                    .lineLimit(2)
+                    .padding(.horizontal, 24)
+                Text("\(month)월 지출")
+                    .font(.pretendard(size: 11, weight: .medium)).foregroundStyle(GLGColor.textSecondary)
+            }
             Text(won(monthlyTotal))
                 .font(.pretendard(size: 38, weight: .heavy)).foregroundStyle(GLGColor.textPrimary)
                 .lineLimit(1).minimumScaleFactor(0.5)
@@ -79,9 +92,20 @@ struct HeroBalanceCard: View {
                 }
                 .foregroundStyle(diff > 0 ? dangerRed : (diff < 0 ? accent.primary : GLGColor.textSecondary))
             }
-            pillButton(budget > 0 ? "예산 관리" : "예산 설정", action: onBudget).padding(.top, 3)
         }
         .frame(maxWidth: .infinity)
+    }
+
+    /// 프리셋 100종은 공유 모듈([HeroMessages])에 있어 Android 와 같은 문구가 나온다.
+    private var heroLine: String {
+        HeroMessages.shared.pick(
+            ctx: HeroMessageContext.companion.of(
+                monthlyTotal: monthlyTotal,
+                prevTotal: prevTotal,
+                budget: budget,
+                nowMillis: Int64(Date().timeIntervalSince1970 * 1000),
+            ),
+        )
     }
 
     // 페이지 2 — 예산 잔여/초과 + 사용률 바
@@ -192,6 +216,8 @@ private struct RecentSpendRow: View {
 struct AmbientHeroGradient: View {
     let secondary: Color
     let primary: Color
+    /// 설정에서 끌 수 있다 — 끄면 그라데이션만 남기고 움직이는 글로우 원을 아예 안 그린다.
+    var glow: Bool = true
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     /// 앱이 백그라운드/비활성일 때는 애니메이션을 멈춘다.
     ///
@@ -212,12 +238,14 @@ struct AmbientHeroGradient: View {
             ], startPoint: .top, endPoint: .bottom)
 
             // 은은한 글로우 — 흐릿한 원이 상단에서 좌우로 천천히 떠다닌다.
-            Circle()
-                .fill(primary.opacity(0.16))
-                .frame(width: 240, height: 240)
-                .blur(radius: 56)
-                .offset(x: drift ? 84 : -84, y: 66)
-                .animation(animating ? .easeInOut(duration: 5).repeatForever(autoreverses: true) : nil, value: drift)
+            if glow {
+                Circle()
+                    .fill(primary.opacity(0.16))
+                    .frame(width: 240, height: 240)
+                    .blur(radius: 56)
+                    .offset(x: drift ? 84 : -84, y: 66)
+                    .animation(animating ? .easeInOut(duration: 5).repeatForever(autoreverses: true) : nil, value: drift)
+            }
         }
         // 블러 원을 별도 레이어로 굽는다 — 매 프레임 합성 대신 래스터를 옮기는 형태가 된다.
         .drawingGroup()

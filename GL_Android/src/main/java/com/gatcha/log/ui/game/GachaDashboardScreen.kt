@@ -30,6 +30,8 @@ import com.gatcha.log.data.GachaDashboard
 import com.gatcha.log.data.GachaReport
 import com.gatcha.log.ui.components.GlassCard
 import com.gatcha.log.ui.components.GlgChip
+import com.gatcha.log.ui.components.GlgDetailHeaderOverlay
+import com.gatcha.log.ui.components.glgDetailContentTop
 import com.gatcha.log.ui.components.GlgScreenHeader
 import com.gatcha.log.ui.components.StatTile
 import com.gatcha.log.ui.theme.DividerColor
@@ -67,8 +69,10 @@ fun GachaDashboardScreen(
     }
     var selected by remember(games) { mutableStateOf(games.firstOrNull()) }
 
-    Column(Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
-        GlgScreenHeader("가챠 통계", onBack)
+    // 탭 페이지와 같은 구조 — 콘텐츠는 상태바 뒤까지 스크롤되고, 헤더는 그 위에 고정된다.
+    val scrollState = rememberScrollState()
+    Box(Modifier.fillMaxSize()) {
+        Column(Modifier.fillMaxSize().padding(horizontal = 16.dp).padding(top = glgDetailContentTop())) {
 
         val d = selected?.let { dashboard?.byGame?.get(it) }
         if (d == null) {
@@ -82,7 +86,7 @@ fun GachaDashboardScreen(
         }
 
         Column(
-            Modifier.weight(1f).verticalScroll(rememberScrollState()),
+            Modifier.weight(1f).verticalScroll(scrollState),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
             Spacer(Modifier.height(2.dp))
@@ -190,6 +194,8 @@ fun GachaDashboardScreen(
 
             Spacer(Modifier.navigationBarsPadding().height(8.dp))
         }
+        }
+        GlgDetailHeaderOverlay("가챠 통계", onBack, scrolled = scrollState.value > 0)
     }
 }
 

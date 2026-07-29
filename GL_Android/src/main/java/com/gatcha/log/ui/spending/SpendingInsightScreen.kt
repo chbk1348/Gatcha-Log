@@ -31,6 +31,8 @@ import com.gatcha.log.data.Spending
 import com.gatcha.log.data.Subscription
 import com.gatcha.log.data.SpendingInsightStats
 import com.gatcha.log.ui.components.GlassCard
+import com.gatcha.log.ui.components.GlgDetailHeaderOverlay
+import com.gatcha.log.ui.components.glgDetailContentTop
 import com.gatcha.log.ui.components.GlgScreenHeader
 import com.gatcha.log.ui.components.StatTile
 import com.gatcha.log.ui.theme.DangerText
@@ -61,11 +63,13 @@ fun SpendingInsightScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
     val month = viewModel.displayMonth
     val monthTotal = remember(spendings) { viewModel.monthlyTotal() }
 
-    Column(Modifier.fillMaxSize()) {
-        GlgScreenHeader("지출 인사이트", onBack, Modifier.padding(horizontal = 16.dp))
+    // 탭 페이지와 같은 구조 — 콘텐츠는 상태바 뒤까지 스크롤되고, 헤더는 그 위에 고정된다.
+    val scrollState = rememberScrollState()
+    Box(Modifier.fillMaxSize()) {
         Column(
-            Modifier.fillMaxSize().navigationBarsPadding().verticalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp, vertical = 8.dp),
+            Modifier.fillMaxSize().navigationBarsPadding().verticalScroll(scrollState)
+                .padding(horizontal = 16.dp)
+                .padding(top = glgDetailContentTop(), bottom = 8.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
             if (spendings.isEmpty()) {
@@ -96,6 +100,7 @@ fun SpendingInsightScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
             }
             Spacer(Modifier.height(8.dp))
         }
+        GlgDetailHeaderOverlay("지출 인사이트", onBack, scrolled = scrollState.value > 0)
     }
 }
 

@@ -34,6 +34,8 @@ import com.gatcha.log.ui.components.GameCurrency
 import com.gatcha.log.ui.components.GlassCard
 import com.gatcha.log.ui.components.GlgCircleIconButton
 import com.gatcha.log.ui.components.GlgDialog
+import com.gatcha.log.ui.components.GlgDetailHeaderOverlay
+import com.gatcha.log.ui.components.glgDetailContentTop
 import com.gatcha.log.ui.components.GlgScreenHeader
 import com.gatcha.log.ui.theme.DividerColor
 import com.gatcha.log.ui.theme.LocalAccent
@@ -54,31 +56,14 @@ fun SpendingDetailScreen(
 ) {
     var confirmDelete by remember { mutableStateOf(false) }
 
-    Column(Modifier.fillMaxSize()) {
-        GlgScreenHeader("지출 상세", onBack, Modifier.padding(horizontal = 16.dp)) {
-            // 수정·삭제를 헤더 우측 ⋮ 드롭다운 메뉴로 통합(Android). iOS 는 기존 액션 유지.
-            // 버튼은 다른 헤더 액션과 동일한 아웃라인 원형(GlgCircleIconButton)로 통일.
-            var menuOpen by remember { mutableStateOf(false) }
-            Box {
-                GlgCircleIconButton(Icons.Default.MoreVert, "더보기", outlined = true) { menuOpen = true }
-                GlgDropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }, alignEnd = true) {
-                    GlgDropdownItem(
-                        text = "수정",
-                        icon = Icons.Default.Edit,
-                        onClick = { menuOpen = false; onEdit() },
-                    )
-                    GlgDropdownItem(
-                        text = "삭제",
-                        icon = Icons.Default.Delete,
-                        danger = true,
-                        onClick = { menuOpen = false; confirmDelete = true },
-                    )
-                }
-            }
-        }
+    // 탭 페이지와 같은 구조 — 콘텐츠는 상태바 뒤까지 스크롤되고, 헤더는 그 위에 고정된다.
+    val scrollState = rememberScrollState()
+    Box(Modifier.fillMaxSize()) {
         Column(
             // 하단바 미노출 페이지 — 바 높이 여백 대신 시스템 네비 인셋만 확보
-            Modifier.fillMaxSize().navigationBarsPadding().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 8.dp),
+            Modifier.fillMaxSize().navigationBarsPadding().verticalScroll(scrollState)
+                .padding(horizontal = 16.dp)
+                .padding(top = glgDetailContentTop(), bottom = 8.dp),
         ) {
             // 요약 카드 (게임·금액·날짜)
             GlassCard(shape = RoundedCornerShape(24.dp), modifier = Modifier.fillMaxWidth()) {
@@ -150,6 +135,27 @@ fun SpendingDetailScreen(
                 }
             }
             Spacer(Modifier.height(24.dp))
+        }
+        GlgDetailHeaderOverlay("지출 상세", onBack, scrolled = scrollState.value > 0) {
+            // 수정·삭제를 헤더 우측 ⋮ 드롭다운 메뉴로 통합(Android). iOS 는 기존 액션 유지.
+            // 버튼은 다른 헤더 액션과 동일한 아웃라인 원형(GlgCircleIconButton)로 통일.
+            var menuOpen by remember { mutableStateOf(false) }
+            Box {
+                GlgCircleIconButton(Icons.Default.MoreVert, "더보기", outlined = true, solidBackground = true) { menuOpen = true }
+                GlgDropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }, alignEnd = true) {
+                    GlgDropdownItem(
+                        text = "수정",
+                        icon = Icons.Default.Edit,
+                        onClick = { menuOpen = false; onEdit() },
+                    )
+                    GlgDropdownItem(
+                        text = "삭제",
+                        icon = Icons.Default.Delete,
+                        danger = true,
+                        onClick = { menuOpen = false; confirmDelete = true },
+                    )
+                }
+            }
         }
     }
 
