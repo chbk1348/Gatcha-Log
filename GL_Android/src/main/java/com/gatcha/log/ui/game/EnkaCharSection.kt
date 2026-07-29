@@ -205,7 +205,12 @@ fun EnkaRosterPage(
     BackHandler { onBack() }
     // 전체 보기/탭 왕복 어떤 경로로 진입해도 해당 게임 결과를 보장(캐시 적중 시 즉시 반영).
     LaunchedEffect(game) { viewModel.autoLoadEnka(game) }
-    val result by viewModel.enkaResult.collectAsStateWithLifecycle()
+    // **게임 키로** 읽는다. 단일 슬롯(enkaResult)은 어느 게임 것인지 알 수 없어서, 다른 게임 결과나
+    // null 이 들어 있으면 목록이 빈 채로 떴다(뒤로 갔다 다시 들어오면 캐시 적중으로 그제야 보임).
+    val results by viewModel.enkaResults.collectAsStateWithLifecycle()
+    val loadingGames by viewModel.enkaLoadingGames.collectAsStateWithLifecycle()
+    val result = results[game]
+    val loading = game in loadingGames
     var rarityFilter by rememberSaveable { mutableStateOf(0) } // 0=전체, 5, 4
     var elementFilter by rememberSaveable { mutableStateOf("") } // ""=전체
     var pathFilter by rememberSaveable { mutableStateOf("") } // ""=전체 (HSR)
@@ -258,8 +263,11 @@ fun EnkaRosterPage(
                         FilterChip("운명의길", pathFilter.ifBlank { "전체" }, listOf<Pair<String, () -> Unit>>("전체" to { pathFilter = "" }) + paths.map { p -> p to { pathFilter = p } })
                     }
                 }
-                if (chars.isEmpty() && all.isNotEmpty()) {
-                    Hint(if (q.isNotBlank()) "‘$q’ 검색 결과가 없어요" else "조건에 맞는 캐릭터가 없어요")
+                when {
+                    // 아직 받아오는 중 — 빈 목록을 '없음'으로 보여주면 안 된다.
+                    all.isEmpty() && (loading || result == null) -> RosterSkeleton()
+                    all.isEmpty() -> Hint("표시할 캐릭터가 없어요")
+                    chars.isEmpty() -> Hint(if (q.isNotBlank()) "‘$q’ 검색 결과가 없어요" else "조건에 맞는 캐릭터가 없어요")
                 }
             }
         }

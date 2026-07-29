@@ -214,6 +214,7 @@ private struct MoreSlot: View {
 }
 
 /// 로스터 카드(섹션·보유 페이지 공용). [game] 은 명좌/성혼 라벨 표기용.
+@MainActor
 @ViewBuilder
 func enkaRosterCard(_ c: EnkaChar, _ game: String) -> some View {
     let rc = c.rarity >= 5 ? enkaGold : Color(hex: 0xFF9B6BD6)
@@ -260,8 +261,24 @@ struct EnkaRosterPage: View {
 
     private let cols = [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)]
 
+    /// 로딩 스켈레톤 — 실제 카드와 **같은 2열 배치**. 레이아웃이 다르면 로딩이 끝나는 순간 화면이 튄다.
+    private var rosterPageSkeleton: some View {
+        LazyVGrid(columns: cols, spacing: 10) {
+            ForEach(0..<6, id: \.self) { _ in
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .fill(Color.black.opacity(0.05))
+                    .frame(height: 132)
+            }
+        }
+        .padding(16)
+    }
+
     var body: some View {
-        let all = store.enkaResult?.profile?.chars ?? []
+        // **게임 키로** 읽는다. 단일 슬롯(enkaResult)은 어느 게임 것인지 알 수 없어서, 다른 게임 결과나
+        // nil 이 들어 있으면 목록이 빈 채로 떴다(뒤로 갔다 다시 들어오면 캐시 적중으로 그제야 보임).
+        let result = store.enkaResults[game]
+        let loading = store.enkaLoadingGames.contains(game)
+        let all = result?.profile?.chars ?? []
         let elements = distinct(all.map { $0.element })
         let paths = distinct(all.map { $0.path })
         let q = query.trimmingCharacters(in: .whitespaces)
@@ -272,7 +289,14 @@ struct EnkaRosterPage: View {
                 && (q.isEmpty || $0.name.localizedCaseInsensitiveContains(q))
         }
         ScrollView {
-            if chars.isEmpty && !all.isEmpty {
+            if all.isEmpty && (loading || result == nil) {
+                // 아직 받아오는 중 — 빈 목록을 '없음'으로 보여주면 안 된다.
+                rosterPageSkeleton
+            } else if all.isEmpty {
+                Text(result?.error ?? "표시할 캐릭터가 없어요 (인게임 쇼케이스 공개 확인)")
+                    .font(.pretendard(size: 13)).foregroundStyle(GLGColor.textSecondary)
+                    .frame(maxWidth: .infinity).padding(.top, 40)
+            } else if chars.isEmpty {
                 Text(q.isEmpty ? "조건에 맞는 캐릭터가 없어요" : "‘\(q)’ 검색 결과가 없어요")
                     .font(.pretendard(size: 13)).foregroundStyle(GLGColor.textSecondary)
                     .frame(maxWidth: .infinity).padding(.top, 40)
