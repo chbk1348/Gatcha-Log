@@ -3,8 +3,6 @@ package com.gatcha.log.ui.home
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
@@ -71,8 +69,6 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.gatcha.log.data.DateUtil
-import com.gatcha.log.data.HeroMessageContext
-import com.gatcha.log.data.HeroMessages
 import com.gatcha.log.data.GachaBanner
 import com.gatcha.log.data.dhLabel
 import com.gatcha.log.data.GameData
@@ -237,29 +233,8 @@ fun HeroBalanceCard(monthlyTotal: Long, prevTotal: Long, budget: Long, onBudget:
 @Composable
 private fun HeroSpendPage(month: Int, monthlyTotal: Long, prevTotal: Long, budget: Long, onBudget: () -> Unit, accent: Color) {
     val diff = monthlyTotal - prevTotal
-    // 오늘의 한 줄 — **라벨 자리를 승격**해 쓴다.
-    //
-    // 히어로 위에 요소를 하나 더 얹는 방식(알약·맨 글자·카드)은 셋 다 겉돌았다. 무엇을 얹어도
-    // 히어로의 세로 구성(라벨 → 숫자 → 델타)과 따로 놀았기 때문이다. 그래서 **아무것도 더하지 않고**
-    // 기존 라벨 자리를 문구에 내주고, 월 표기는 그 아래 작은 글씨로 내렸다.
-    // 문구는 [HeroMessages] 프리셋 — 같은 날·같은 상태면 항상 같은 문구다.
-    val line = remember(monthlyTotal, prevTotal, budget) {
-        HeroMessages.pick(HeroMessageContext.of(monthlyTotal, prevTotal, budget))
-    }
     Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(7.dp)) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(3.dp)) {
-            Text(
-                line,
-                fontSize = 15.sp,
-                fontWeight = FontWeight.Bold,
-                color = TextPrimary,
-                textAlign = TextAlign.Center,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp),
-            )
-            Text("${month}월 지출", fontSize = 11.sp, fontWeight = FontWeight.Medium, color = TextSecondary)
-        }
+        Text("${month}월 지출", fontSize = 13.sp, fontWeight = FontWeight.Medium, color = TextSecondary)
         Text(won(monthlyTotal), fontSize = 38.sp, fontWeight = FontWeight.Bold, color = TextPrimary, maxLines = 1)
         if (monthlyTotal > 0 || prevTotal > 0) {
             val col = if (diff > 0) DangerText else if (diff < 0) accent else TextSecondary
