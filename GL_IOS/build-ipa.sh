@@ -24,6 +24,53 @@ cd "$(dirname "$0")"
 # Xcode 빌드 환경에 JAVA_HOME 이 없으므로 지정 (Kotlin 프레임워크 빌드용)
 export JAVA_HOME="${JAVA_HOME:-/Applications/Android Studio.app/Contents/jbr/Contents/Home}"
 
+# ── iOS 27 SDK 툴체인 선택 ──────────────────────────────────────────────
+# ContentView 의 '추가' 버튼이 TabRole.prominent 를 쓰는데 이 심볼은 iOS 27 SDK 에만 있다.
+# #available 로 감싸도 컴파일 타임에는 심볼이 필요해서 26 SDK 로는 아예 빌드가 안 된다.
+# 시스템 툴체인(sudo xcode-select)은 건드리지 않고 DEVELOPER_DIR 로만 격리한다.
+REQUIRED_IOS_SDK="27.0"
+
+has_required_sdk() {  # $1 = <Xcode>.app/Contents/Developer
+  [ -d "$1" ] && DEVELOPER_DIR="$1" /usr/bin/xcodebuild -showsdks 2>/dev/null \
+    | grep -q "iphoneos${REQUIRED_IOS_SDK}"
+}
+
+if [ -n "${DEVELOPER_DIR:-}" ]; then
+  # 호출자가 지정했으면 존중하되, SDK 가 없으면 조용히 26 으로 빌드되게 두지 않는다
+  has_required_sdk "$DEVELOPER_DIR" || {
+    echo "❌ 지정된 DEVELOPER_DIR 에 iOS ${REQUIRED_IOS_SDK} SDK 가 없습니다: $DEVELOPER_DIR"
+    exit 1
+  }
+else
+  for app in /Applications/Xcode-beta.app $(ls -d /Applications/Xcode*.app 2>/dev/null | sort -Vr); do
+    if has_required_sdk "$app/Contents/Developer"; then
+      export DEVELOPER_DIR="$app/Contents/Developer"
+      break
+    fi
+  done
+  [ -n "${DEVELOPER_DIR:-}" ] || {
+    echo "❌ iOS ${REQUIRED_IOS_SDK} SDK 를 가진 Xcode 를 찾지 못했습니다."
+    echo "   설치된 Xcode:"
+    for app in $(ls -d /Applications/Xcode*.app 2>/dev/null); do
+      echo "     - $app: $(DEVELOPER_DIR="$app/Contents/Developer" /usr/bin/xcodebuild -version 2>/dev/null | head -1)"
+    done
+    exit 1
+  }
+fi
+echo "🛠  툴체인: $(/usr/bin/xcodebuild -version | head -1) ($DEVELOPER_DIR)"
+
+# 툴체인이 바뀌면 GL_Shared 부터 clean 한다.
+# KMP/SKIE 가 만든 Swift 모듈은 툴체인 포맷에 묶여 있어, 다른 Xcode 로 만든 산출물이 남아 있으면
+# "Unable to resolve Swift module dependency: 'Shared'" 로 아카이브가 깨진다.
+TOOLCHAIN_STAMP="../GL_Shared/build/.ios-toolchain-stamp"
+TOOLCHAIN_ID="$DEVELOPER_DIR|$(/usr/bin/xcodebuild -version | tr '\n' ' ')"
+if [ -d "../GL_Shared/build" ] && [ "$(cat "$TOOLCHAIN_STAMP" 2>/dev/null || true)" != "$TOOLCHAIN_ID" ]; then
+  echo "🧹 툴체인 변경 감지 — :GL_Shared:clean"
+  (cd .. && ./gradlew --quiet :GL_Shared:clean)
+fi
+mkdir -p "$(dirname "$TOOLCHAIN_STAMP")"
+printf '%s' "$TOOLCHAIN_ID" > "$TOOLCHAIN_STAMP"
+
 ARCHIVE_PATH="build/Gatcha-Log.xcarchive"
 IPA_DIR="build/ipa"
 
