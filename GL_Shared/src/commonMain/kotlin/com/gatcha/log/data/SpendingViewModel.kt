@@ -1029,41 +1029,63 @@ class SpendingViewModel : ViewModel() {
         else -> _hoyolabConfig.value.zzzUid // 젠레스: 연동 계정 UID
     }.trim()
 
+    /**
+     * 단일 화면(로스터·스탯)용 조회. 결과는 [_enkaResult] 와 **게임별 맵([_enkaResults]) 양쪽에** 싣는다.
+     *
+     * 맵에도 싣는 이유: 단일 슬롯은 게임 키가 없어 "지금 값이 어느 게임 것인지" 알 수 없다.
+     * 로스터를 원신으로 열었는데 슬롯에 스타레일 결과(혹은 null)가 들어 있으면 화면이 비어 보였다.
+     * 게다가 같은 조회가 이미 진행 중이면([enkaInFlight]) 이 호출은 **아무것도 싣지 않고 빠져나가**,
+     * 그 요청이 끝나도 슬롯은 갱신되지 않았다 — 뒤로 갔다 다시 들어오면(캐시 적중) 그제야 보이던 증상.
+     * 화면은 맵을 게임 키로 읽으면 되고, 진행 중이면 그 요청의 주인이 맵에 결과를 넣어 준다.
+     */
     fun autoLoadEnka(game: String, force: Boolean = false) {
         // 캐시 적중 시 동기 반영(탭 전환 즉시) — UID 가 이미 있는 경우만
         val uidNow = enkaUidFor(game)
         if (!force && uidNow.isNotBlank()) {
             val cached = enkaCache["$game:$uidNow"]
             if (cached != null && currentTimeMillis() - cached.first < enkaTtlMs) {
-                _enkaResult.value = cached.second
+                publishEnka(game, cached.second)
                 return
             }
         }
         viewModelScope.launch {
             ensureEnkaUids() // 연동됐는데 UID 비면 1회 동기화 → 기존 사용자도 자동 로드
             val uid = enkaUidFor(game)
-            if (uid.isBlank()) { _enkaResult.value = null; return@launch }
-            val key = "$game:$uid"
-            val cached = enkaCache[key]
-            if (!force && cached != null && currentTimeMillis() - cached.first < enkaTtlMs) {
-                _enkaResult.value = cached.second
+            if (uid.isBlank()) {
+                _enkaResult.value = null
+                _enkaResults.update { it + (game to EnkaResult(profile = null, error = null)) }
                 return@launch
             }
-            if (!enkaInFlight.add(key)) return@launch   // 같은 조회가 이미 진행 중
+            val key = "$game:$uid"
+            val cached = enkaCache[key]
+            if (cached != null) publishEnka(game, cached.second)   // 있으면 먼저 보여준다(stale-while-revalidate)
+            if (!force && cached != null && currentTimeMillis() - cached.first < enkaTtlMs) return@launch
+            // 같은 조회가 진행 중이면 그 요청이 맵에 결과를 실어 준다 — 여기서 더 할 일이 없다.
+            if (!enkaInFlight.add(key)) return@launch
             _enkaLoading.value = true
+            if (cached == null) _enkaLoadingGames.update { it + game }   // 보여줄 게 없을 때만 스피너
             try {
                 val cfg = _hoyolabConfig.value
                 val r = withContext(Dispatchers.IO) { EnkaApi.fetchProfile(game, uid, cfg.ltuid, cfg.ltoken) }
                 when {
-                    r.profile != null -> { enkaCache[key] = currentTimeMillis() to r; repo.saveEnkaCache(enkaCache); _enkaResult.value = r }
-                    cached != null -> _enkaResult.value = cached.second   // 실패 시 기존 캐시(신선/오래됨 무관) 유지 — 목록 사라짐 방지
-                    else -> _enkaResult.value = r                          // 캐시 없을 때만 에러 표시
+                    r.profile != null -> {
+                        enkaCache[key] = currentTimeMillis() to r; repo.saveEnkaCache(enkaCache); publishEnka(game, r)
+                    }
+                    // 실패 시 기존 캐시(신선/오래됨 무관) 유지 — 목록 사라짐 방지. 캐시 없을 때만 에러 표시.
+                    cached == null -> publishEnka(game, r)
                 }
             } finally {
                 enkaInFlight.remove(key)
                 _enkaLoading.value = false
+                _enkaLoadingGames.update { it - game }
             }
         }
+    }
+
+    /** 조회 결과를 단일 슬롯과 게임별 맵에 함께 싣는다(둘이 갈리면 화면마다 다른 걸 본다). */
+    private fun publishEnka(game: String, result: EnkaResult) {
+        _enkaResult.value = result
+        _enkaResults.update { it + (game to result) }
     }
 
     /** 게임 탭 전환 시 이전 결과 정리 */
