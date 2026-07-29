@@ -271,10 +271,10 @@ struct ContentView: View {
                 Tab("지출", systemImage: "creditcard.fill", value: 1) { spendingTabContent }
                 Tab("게임 정보", systemImage: "gamecontroller.fill", value: 2) { gameInfoTabContent }
                 Tab("마이페이지", systemImage: "person.fill", value: 3) { myPageTabContent }
-                // iPhone: 탭바에서 분리된 원형 '추가' 버튼(.search 역할). iPad 는 우측 하단 FAB 로 대신한다.
+                // iPhone: 탭바에서 분리된 원형 '추가' 버튼. iPad 는 우측 하단 FAB 로 대신한다.
                 // 초기 동기화 게이트(로딩 화면) 동안에는 표시하지 않음
                 if !syncGateActive && !isPad {
-                    Tab(value: 4, role: .search) { Color.clear } label: {
+                    Tab(value: 4, role: separatedActionRole) { Color.clear } label: {
                         Label("추가", systemImage: "plus")
                     }
                 }
@@ -320,6 +320,17 @@ struct ContentView: View {
                 }
             }
         }
+    }
+
+    /// '추가' 버튼을 탭바 캡슐에서 **분리된 원형 버튼**으로 띄우는 역할.
+    ///
+    /// iOS 26 에선 `.search` 가 그 배치(Mail 컴포즈 버튼)를 줬는데, iOS 27 SDK 로 링크하면
+    /// 검색 탭이 탭바 캡슐 안으로 합쳐져 '추가'가 5번째 탭처럼 붙어 보인다.
+    /// 27 부터는 같은 분리 배치를 주는 전용 역할 `.prominent` 가 생겼으므로 그쪽을 쓴다.
+    @available(iOS 26.0, *)
+    private var separatedActionRole: TabRole {
+        if #available(iOS 27.0, *) { return .prominent }
+        return .search
     }
 
     /// 탭별 서브페이지 상태 콜백 — 해당 탭의 탭바 숨김 상태만 갱신

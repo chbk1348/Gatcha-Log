@@ -15,21 +15,36 @@ on:
 
 jobs:
   build-ipa:
-    runs-on: macos-latest
+    # macos-latest(= macOS 26 arm64)의 최신 Xcode 는 26.6 이라 iOS 27 SDK 가 없다.
+    # iOS 27 SDK 가 있는 러너는 현재 public preview 인 `xcode-27` 이미지뿐이다.
+    # 참고: actions/runner-images#14404 · 정식 이미지에 27 이 들어오면 macos-latest 로 되돌린다.
+    runs-on: xcode-27
     timeout-minutes: 90
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # ContentView.swift 가 iOS 26 API(Tab·tabBarMinimizeBehavior)를 쓰므로
-      # 러너에 설치된 가장 최신 Xcode(iOS 26 SDK 포함)를 선택한다.
-      - name: Select latest Xcode
+      # ContentView.swift 의 '추가' 버튼이 TabRole.prominent 를 쓰는데 이 심볼은
+      # iOS 27 SDK 에만 있다(#available 로 감싸도 컴파일에는 심볼이 필요).
+      # 러너 이미지에 27 SDK 가 없으면 30분짜리 Kotlin 빌드를 돌린 뒤에야 깨지므로
+      # 여기서 먼저 확인하고 끊는다. 실제 선택은 build-ipa.sh 가 DEVELOPER_DIR 로 한다.
+      - name: Verify iOS 27 SDK is available
         run: |
-          LATEST_XCODE=$(ls -d /Applications/Xcode*.app | sort -V | tail -n 1)
-          echo "Selected: $LATEST_XCODE"
-          sudo xcode-select -s "$LATEST_XCODE"
-          xcodebuild -version
+          echo "── 러너에 설치된 Xcode ──"
+          FOUND=""
+          for app in /Applications/Xcode*.app; do
+            VER=$(DEVELOPER_DIR="$app/Contents/Developer" xcodebuild -version 2>/dev/null | head -1)
+            SDKS=$(DEVELOPER_DIR="$app/Contents/Developer" xcodebuild -showsdks 2>/dev/null \
+                     | grep -o 'iphoneos[0-9.]*' | tr '\n' ' ')
+            echo "  $app — $VER — SDK: ${SDKS:-none}"
+            case "$SDKS" in *iphoneos27.0*) FOUND="$app" ;; esac
+          done
+          if [ -z "$FOUND" ]; then
+            echo "::error::iOS 27.0 SDK 를 가진 Xcode 가 러너에 없습니다. macos 러너 이미지 갱신 대기 또는 self-hosted 필요."
+            exit 1
+          fi
+          echo "✅ iOS 27.0 SDK: $FOUND"
 
       # Kotlin 프레임워크(embedAndSignAppleFrameworkForXcode) 빌드용 JDK
       - name: Set up JDK 17
