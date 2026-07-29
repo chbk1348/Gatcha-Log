@@ -134,6 +134,14 @@ struct GameInfoView: View {
             // 버튼마다 ToolbarItem 을 따로 두고 사이에 ToolbarSpacer 를 넣는다 —
             // iOS 26 은 인접한 툴바 아이템을 하나의 글래스 캡슐로 묶어버리므로, 스페이서로 갈라야
             // 버튼이 각각 독립된 원형으로 떨어진다. (지출 탭 헤더와 동일)
+            // 순서: 새로고침 → 리딤코드 → 설정.
+            ToolbarItem(placement: .topBarTrailing) {
+                Button { store.refreshGameInfo(force: true) } label: { Image(systemName: "arrow.clockwise") }
+                    .disabled(store.isRefreshing)
+            }
+            if #available(iOS 26.0, *) {
+                ToolbarSpacer(.fixed, placement: .topBarTrailing)
+            }
             if store.hoyolabConfig.isLinked {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button { showGift = true } label: { Image(systemName: "gift") }
@@ -141,13 +149,6 @@ struct GameInfoView: View {
                 if #available(iOS 26.0, *) {
                     ToolbarSpacer(.fixed, placement: .topBarTrailing)
                 }
-            }
-            ToolbarItem(placement: .topBarTrailing) {
-                Button { store.refreshGameInfo(force: true) } label: { Image(systemName: "arrow.clockwise") }
-                    .disabled(store.isRefreshing)
-            }
-            if #available(iOS 26.0, *) {
-                ToolbarSpacer(.fixed, placement: .topBarTrailing)
             }
             ToolbarItem(placement: .topBarTrailing) {
                 Button { showHoyolab = true } label: { Image(systemName: "gearshape") }

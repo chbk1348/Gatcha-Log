@@ -405,11 +405,12 @@ fun GameInfoScreen(
                     "",
                     leading = { GameFilterDropdown(selected = gameFilter, onSelect = { gameFilter = it }) },
                 ) {
-                    if (hoyolab.isLinked) {
-                        GlgCircleIconButton(Icons.Default.Redeem, "리딤코드", outlined = true, solidBackground = true) { subPage = GiSub.Gift }
-                    }
+                    // 순서: 새로고침 → 리딤코드 → 설정.
                     GlgCircleIconButton(Icons.Default.Refresh, "새로고침", enabled = !isRefreshing, outlined = true, solidBackground = true) {
                         viewModel.refreshGameInfo(force = true)
+                    }
+                    if (hoyolab.isLinked) {
+                        GlgCircleIconButton(Icons.Default.Redeem, "리딤코드", outlined = true, solidBackground = true) { subPage = GiSub.Gift }
                     }
                     GlgCircleIconButton(Icons.Default.Settings, "HoYoLAB 설정", outlined = true, solidBackground = true) {
                         subPage = GiSub.HoyoLink
