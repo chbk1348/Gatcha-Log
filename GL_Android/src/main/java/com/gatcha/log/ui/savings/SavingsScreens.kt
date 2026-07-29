@@ -44,6 +44,8 @@ import com.gatcha.log.data.SpendingViewModel
 import com.gatcha.log.ui.components.GlassCard
 import com.gatcha.log.ui.components.GlgCircleIconButton
 import com.gatcha.log.ui.components.GlgDialog
+import com.gatcha.log.ui.components.GlgDetailHeaderOverlay
+import com.gatcha.log.ui.components.glgDetailContentTop
 import com.gatcha.log.ui.components.GlgScreenHeader
 import com.gatcha.log.ui.components.GlgTextField
 import com.gatcha.log.ui.theme.DividerColor
@@ -95,20 +97,13 @@ fun SavingsPlannerScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
 
     val hero = plans.firstOrNull { !it.secured } ?: plans.firstOrNull()
 
-    Column(Modifier.fillMaxSize()) {
-        GlgScreenHeader("저축 플래너", onBack, Modifier.padding(horizontal = 16.dp)) {
-            if (hiddenPlans.isNotEmpty()) {
-                GlgCircleIconButton(
-                    icon = if (showHidden) Icons.Default.VisibilityOff else Icons.Default.Visibility,
-                    contentDescription = if (showHidden) "숨긴 목표 접기" else "숨긴 목표 보기",
-                    badgeCount = if (showHidden) 0 else hiddenPlans.size,
-                    outlined = showHidden,
-                ) { showHidden = !showHidden }
-            }
-        }
+    // 탭 페이지와 같은 구조 — 콘텐츠는 상태바 뒤까지 스크롤되고, 헤더는 그 위에 고정된다.
+    val scrollState = rememberScrollState()
+    Box(Modifier.fillMaxSize()) {
         Column(
-            Modifier.fillMaxSize().navigationBarsPadding().verticalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp, vertical = 8.dp),
+            Modifier.fillMaxSize().navigationBarsPadding().verticalScroll(scrollState)
+                .padding(horizontal = 16.dp)
+                .padding(top = glgDetailContentTop(), bottom = 8.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
             if (plans.isEmpty()) {
@@ -147,6 +142,17 @@ fun SavingsPlannerScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
             // ③ 숨긴(안 뽑는) 목표 — 헤더 버튼으로 펼침. 다시 표시 가능.
             if (showHidden && hiddenPlans.isNotEmpty()) {
                 HiddenPlansCard(hiddenPlans, accent) { viewModel.setSavingsHidden(it.key, false) }
+            }
+        }
+        GlgDetailHeaderOverlay("저축 플래너", onBack, scrolled = scrollState.value > 0) {
+            if (hiddenPlans.isNotEmpty()) {
+                GlgCircleIconButton(
+                    icon = if (showHidden) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                    contentDescription = if (showHidden) "숨긴 목표 접기" else "숨긴 목표 보기",
+                    badgeCount = if (showHidden) 0 else hiddenPlans.size,
+                    outlined = showHidden,
+                    solidBackground = true,
+                ) { showHidden = !showHidden }
             }
         }
     }
@@ -340,11 +346,13 @@ fun SavingsChallengeScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
     val accent = LocalAccent.current
     val summary by viewModel.challenge.collectAsStateWithLifecycle()
 
-    Column(Modifier.fillMaxSize()) {
-        GlgScreenHeader("절약 챌린지", onBack, Modifier.padding(horizontal = 16.dp))
+    // 탭 페이지와 같은 구조 — 콘텐츠는 상태바 뒤까지 스크롤되고, 헤더는 그 위에 고정된다.
+    val scrollState = rememberScrollState()
+    Box(Modifier.fillMaxSize()) {
         Column(
-            Modifier.fillMaxSize().navigationBarsPadding().verticalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp, vertical = 8.dp),
+            Modifier.fillMaxSize().navigationBarsPadding().verticalScroll(scrollState)
+                .padding(horizontal = 16.dp)
+                .padding(top = glgDetailContentTop(), bottom = 8.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
             // ① HERO — 무지출 스트릭 + 최근 7일 스트립
@@ -403,6 +411,7 @@ fun SavingsChallengeScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
                 fontSize = 11.sp, color = TextSecondary, modifier = Modifier.padding(horizontal = 4.dp),
             )
         }
+        GlgDetailHeaderOverlay("절약 챌린지", onBack, scrolled = scrollState.value > 0)
     }
 }
 

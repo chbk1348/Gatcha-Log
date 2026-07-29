@@ -2,6 +2,7 @@ package com.gatcha.log.ui.profile
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
@@ -23,6 +24,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.lerp
@@ -43,7 +45,9 @@ import com.gatcha.log.ui.components.GlgTabHeaderHeight
 import com.gatcha.log.ui.components.glgTabContentBottom
 import com.gatcha.log.ui.components.GlassCard
 import com.gatcha.log.ui.components.GlgCircleIconButton
+import com.gatcha.log.ui.components.GlgHeaderTitlePill
 import com.gatcha.log.ui.components.GlgTabHeader
+import com.gatcha.log.ui.components.GlgTopScrimFadeExtra as ScrimFadeExtra
 import com.gatcha.log.ui.components.ProfileAvatar
 import com.gatcha.log.data.SpendingViewModel
 import com.gatcha.log.ui.theme.*
@@ -122,6 +126,12 @@ fun MyPageScreen(
         }
 
     val topInset = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+    // 상단 스크림 — 다른 탭(홈·지출·게임정보)과 동일 규격. 리스트가 헤더 아래로 스크롤될 때만
+    // 나타나 상태바 글자와 콘텐츠가 겹쳐 읽히는 걸 막는다(최상단에선 숨김).
+    val scrolled by remember {
+        derivedStateOf { listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 0 }
+    }
+    val topScrimAlpha by animateFloatAsState(if (scrolled) 0.88f else 0f, label = "topScrim")
     Box(Modifier.fillMaxSize()) {
     LazyColumn(
         state = listState,
@@ -182,25 +192,26 @@ fun MyPageScreen(
         item { Box(Modifier.fillMaxWidth()) { GameDonutCard(spendings) } }
     }
     // 헤더 오버레이 — 투명 바, 설정 버튼만 불투명. 콘텐츠가 버튼 아래로 지나간다. 상태바 인셋 적용.
+    // 상단 스크림 — **상태바 영역만** 덮는다(헤더 버튼 줄은 덮지 않아 콘텐츠가 버튼 아래로 지나가는 연출 유지).
+    Box(
+        Modifier
+            .align(Alignment.TopStart)
+            .fillMaxWidth()
+            .height(topInset + ScrimFadeExtra)
+            .graphicsLayer { alpha = topScrimAlpha }
+            .background(
+                Brush.verticalGradient(
+                    0f to Color.White,
+                    0.35f to Color.White,
+                    1f to Color.Transparent,
+                ),
+            ),
+    )
     Box(Modifier.align(Alignment.TopStart).fillMaxWidth().statusBarsPadding().padding(horizontal = 16.dp)) {
-        val headerAccent = LocalAccent.current
         GlgTabHeader(
             "",
-            leading = {
-                // 제목도 헤더 버튼 톤의 불투명 알약(콘텐츠 비침 방지)
-                Box(
-                    Modifier
-                        .clip(RoundedCornerShape(999.dp))
-                        .background(Color.White)
-                        .background(headerAccent.copy(alpha = 0.10f))
-                        .border(1.5.dp, headerAccent.copy(alpha = 0.30f), RoundedCornerShape(999.dp))
-                        .height(44.dp) // 헤더 원형 버튼(GlgCircleIconButton 44dp)과 높이 통일
-                        .padding(horizontal = 16.dp),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text("마이페이지", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = headerAccent)
-                }
-            },
+            // 제목도 헤더 버튼 톤의 불투명 알약(콘텐츠 비침 방지) — 하위 페이지 헤더와 같은 컴포넌트.
+            leading = { GlgHeaderTitlePill("마이페이지") },
         ) {
             GlgCircleIconButton(Icons.Default.Settings, "설정", outlined = true, solidBackground = true) { showSettings.value = true }
         }

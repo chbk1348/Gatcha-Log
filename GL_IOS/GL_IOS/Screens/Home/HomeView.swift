@@ -36,7 +36,7 @@ struct HomeView: View {
         // 하단은 라운드 클립 대신 '완전 투명'으로 페이드해 흰 배경과의 경계선을 없앤다(부드럽게 사라짐).
         .background(alignment: .top) {
             if !isPad {
-                AmbientHeroGradient(secondary: accent.secondary, primary: accent.primary)
+                AmbientHeroGradient(secondary: accent.secondary, primary: accent.primary, glow: store.heroGlow)
                     .frame(height: geo.safeAreaInsets.top + 254)
                     .clipped()   // 글로우가 그라데이션 영역 밖(흰 콘텐츠)으로 새지 않게
                     .ignoresSafeArea(edges: .top)

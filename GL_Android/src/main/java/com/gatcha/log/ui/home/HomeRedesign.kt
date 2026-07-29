@@ -3,6 +3,8 @@ package com.gatcha.log.ui.home
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
@@ -69,6 +71,8 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.gatcha.log.data.DateUtil
+import com.gatcha.log.data.HeroMessageContext
+import com.gatcha.log.data.HeroMessages
 import com.gatcha.log.data.GachaBanner
 import com.gatcha.log.data.dhLabel
 import com.gatcha.log.data.GameData
@@ -233,8 +237,29 @@ fun HeroBalanceCard(monthlyTotal: Long, prevTotal: Long, budget: Long, onBudget:
 @Composable
 private fun HeroSpendPage(month: Int, monthlyTotal: Long, prevTotal: Long, budget: Long, onBudget: () -> Unit, accent: Color) {
     val diff = monthlyTotal - prevTotal
+    // 오늘의 한 줄 — **라벨 자리를 승격**해 쓴다.
+    //
+    // 히어로 위에 요소를 하나 더 얹는 방식(알약·맨 글자·카드)은 셋 다 겉돌았다. 무엇을 얹어도
+    // 히어로의 세로 구성(라벨 → 숫자 → 델타)과 따로 놀았기 때문이다. 그래서 **아무것도 더하지 않고**
+    // 기존 라벨 자리를 문구에 내주고, 월 표기는 그 아래 작은 글씨로 내렸다.
+    // 문구는 [HeroMessages] 프리셋 — 같은 날·같은 상태면 항상 같은 문구다.
+    val line = remember(monthlyTotal, prevTotal, budget) {
+        HeroMessages.pick(HeroMessageContext.of(monthlyTotal, prevTotal, budget))
+    }
     Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(7.dp)) {
-        Text("${month}월 지출", fontSize = 13.sp, fontWeight = FontWeight.Medium, color = TextSecondary)
+        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(3.dp)) {
+            Text(
+                line,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Bold,
+                color = TextPrimary,
+                textAlign = TextAlign.Center,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp),
+            )
+            Text("${month}월 지출", fontSize = 11.sp, fontWeight = FontWeight.Medium, color = TextSecondary)
+        }
         Text(won(monthlyTotal), fontSize = 38.sp, fontWeight = FontWeight.Bold, color = TextPrimary, maxLines = 1)
         if (monthlyTotal > 0 || prevTotal > 0) {
             val col = if (diff > 0) DangerText else if (diff < 0) accent else TextSecondary
@@ -249,8 +274,6 @@ private fun HeroSpendPage(month: Int, monthlyTotal: Long, prevTotal: Long, budge
                 )
             }
         }
-        Spacer(Modifier.height(3.dp))
-        HeroPill(if (budget > 0) "예산 관리" else "예산 설정", onBudget)
     }
 }
 
@@ -297,14 +320,14 @@ private fun HeroPill(text: String, onClick: () -> Unit) {
 // ── 히어로 고정 그라데이션 배경 + 은은한 글로우(느린 좌우 드리프트) ───────────
 /** 스크롤과 무관하게 상단에 '고정'되는 그라데이션 + 천천히 떠다니는 글로우. 하단은 완전 투명 페이드. */
 @Composable
-fun HeroGradientBackground(modifier: Modifier = Modifier) {
+fun HeroGradientBackground(modifier: Modifier = Modifier, glow: Boolean = true) {
     val accent = LocalAccent.current
     val accent2 = LocalAccentSecondary.current
     // 모션 감속(저RAM·절전·접근성 애니 끄기)이면 글로우를 고정한다 — 스켈레톤 시머는 이미 이 토큰을
     // 지키는데 글로우만 안 지키고 있었다. 5초 주기 무한 애니메이션이라 저사양 단말에 그대로 부담이 된다.
     // (탭을 벗어나면 호출부가 `selectedTab == 0` 으로 이 컴포저블을 통째로 폐기하므로,
     //  '안 보일 때 멈춘다'는 iOS AmbientHeroGradient 의 onScreen 처리에 이미 대응된다)
-    val drift = if (LocalReduceMotion.current) {
+    val drift = if (LocalReduceMotion.current || !glow) {
         0f
     } else {
         val transition = rememberInfiniteTransition(label = "heroGlow")

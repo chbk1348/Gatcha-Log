@@ -10,6 +10,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.LocalRippleConfiguration
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Typography
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -37,6 +38,34 @@ val Pretendard = FontFamily(
     Font(R.font.pretendard_semibold, FontWeight.SemiBold),
     Font(R.font.pretendard_bold, FontWeight.Bold),
 )
+
+/**
+ * M3 컴포넌트용 타이포그래피 — 기본 스타일에 서체만 Pretendard 로 바꾼다.
+ *
+ * [LocalTextStyle] 은 스타일을 상속하는 `Text` 만 덮는다. M3 컴포넌트 일부(DatePickerDialog·
+ * TextButton 등)는 내부에서 `MaterialTheme.typography` 를 직접 깔기 때문에, 이걸 넘기지 않으면
+ * 그 경로가 `FontFamily.Default` 로 떨어져 **기기의 글꼴 스타일 설정(삼성 '글꼴' 등)이 그대로 들어온다.**
+ * 크기·자간·행간은 M3 기본값을 그대로 두고 서체만 고정한다.
+ */
+private val PretendardTypography: Typography = Typography().run {
+    Typography(
+        displayLarge = displayLarge.copy(fontFamily = Pretendard),
+        displayMedium = displayMedium.copy(fontFamily = Pretendard),
+        displaySmall = displaySmall.copy(fontFamily = Pretendard),
+        headlineLarge = headlineLarge.copy(fontFamily = Pretendard),
+        headlineMedium = headlineMedium.copy(fontFamily = Pretendard),
+        headlineSmall = headlineSmall.copy(fontFamily = Pretendard),
+        titleLarge = titleLarge.copy(fontFamily = Pretendard),
+        titleMedium = titleMedium.copy(fontFamily = Pretendard),
+        titleSmall = titleSmall.copy(fontFamily = Pretendard),
+        bodyLarge = bodyLarge.copy(fontFamily = Pretendard),
+        bodyMedium = bodyMedium.copy(fontFamily = Pretendard),
+        bodySmall = bodySmall.copy(fontFamily = Pretendard),
+        labelLarge = labelLarge.copy(fontFamily = Pretendard),
+        labelMedium = labelMedium.copy(fontFamily = Pretendard),
+        labelSmall = labelSmall.copy(fontFamily = Pretendard),
+    )
+}
 
 /**
  * 앱 전체 강조색. MyPage 테마 선택에 따라 바뀌며, 화면들은 [LocalAccent] 를 통해 읽는다.
@@ -132,6 +161,8 @@ fun GatchaLogTheme(
     ) {
         MaterialTheme(
             colorScheme = colorScheme,
+            // M3 컴포넌트가 LocalTextStyle 을 우회해 시스템 글꼴로 떨어지는 것을 막는다.
+            typography = PretendardTypography,
             content = content,
         )
     }

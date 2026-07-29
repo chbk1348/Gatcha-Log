@@ -1,5 +1,7 @@
 package com.gatcha.log.data
 
+import kotlin.coroutines.resume
+import kotlinx.coroutines.suspendCancellableCoroutine
 import platform.UserNotifications.UNAuthorizationStatusAuthorized
 import platform.UserNotifications.UNAuthorizationStatusProvisional
 import platform.UserNotifications.UNMutableNotificationContent
@@ -32,28 +34,46 @@ actual object Notifier {
     /** 알림 payload 의 딥링크 키 — Swift AppDelegate 가 같은 키로 읽는다. */
     const val KEY_LINK = "gl_notification_link"
 
-    actual fun notify(id: Int, title: String, text: String, link: String) {
+    /**
+     * 권한 조회 → 등록. **두 단계 모두 완료를 기다린다.**
+     *
+     * 예전엔 콜백만 걸어두고 즉시 반환했다. 백그라운드(BGTask)는 완료 보고 직후 앱을 서스펜드하므로
+     * 콜백이 돌기 전에 프로세스가 멈춰 알림이 조용히 유실됐다 — 앱이 살아 있는 포그라운드에서만
+     * 보이던 이유다([AlertScheduler] 예약 경로와 같은 결함).
+     */
+    actual suspend fun notify(id: Int, title: String, text: String, link: String) {
         val center = UNUserNotificationCenter.currentNotificationCenter()
-        center.getNotificationSettingsWithCompletionHandler { settings ->
-            val status = settings?.authorizationStatus
-            val enabled = status == UNAuthorizationStatusAuthorized || status == UNAuthorizationStatusProvisional
-            cachedEnabled = enabled
-            if (!enabled) return@getNotificationSettingsWithCompletionHandler
-            val content = UNMutableNotificationContent().apply {
-                setTitle(title)
-                setBody(text)
-                // 알림 탭 시 어디로 갈지 — AppDelegate 가 이 값을 읽어 VM 에 넘긴다.
-                if (link.isNotBlank()) setUserInfo(mapOf(KEY_LINK to link))
+        if (!awaitEnabled(center)) return
+        val content = UNMutableNotificationContent().apply {
+            setTitle(title)
+            setBody(text)
+            // 알림 탭 시 어디로 갈지 — AppDelegate 가 이 값을 읽어 VM 에 넘긴다.
+            if (link.isNotBlank()) setUserInfo(mapOf(KEY_LINK to link))
+        }
+        // trigger=null → 즉시 표시. 같은 identifier 는 갱신(누적 안 됨) — Android 와 동일한 동작.
+        val request = UNNotificationRequest.requestWithIdentifier(
+            identifier = "gatcha_alert_$id",
+            content = content,
+            trigger = null,
+        )
+        suspendCancellableCoroutine { cont ->
+            center.addNotificationRequest(request) { error ->
+                if (error != null) println("[GLG][notify] add failed $id: ${error.localizedDescription}")
+                cont.resume(Unit)
             }
-            // trigger=null → 즉시 표시. 같은 identifier 는 갱신(누적 안 됨) — Android 와 동일한 동작.
-            val request = UNNotificationRequest.requestWithIdentifier(
-                identifier = "gatcha_alert_$id",
-                content = content,
-                trigger = null,
-            )
-            center.addNotificationRequest(request, withCompletionHandler = null)
         }
     }
+
+    /** 현재 권한 상태(캐시도 갱신) — 조회가 콜백형이라 결과를 받을 때까지 중단한다. */
+    private suspend fun awaitEnabled(center: UNUserNotificationCenter): Boolean =
+        suspendCancellableCoroutine { cont ->
+            center.getNotificationSettingsWithCompletionHandler { settings ->
+                val status = settings?.authorizationStatus
+                val enabled = status == UNAuthorizationStatusAuthorized || status == UNAuthorizationStatusProvisional
+                cachedEnabled = enabled
+                cont.resume(enabled)
+            }
+        }
 
     actual fun notificationsEnabled(): Boolean {
         // 백그라운드로 캐시 갱신 후 직전 값 반환(다음 호출/렌더에 반영).

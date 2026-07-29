@@ -6,7 +6,9 @@ import com.gatcha.log.data.GameData
 import com.gatcha.log.data.GatchaRepository
 import com.gatcha.log.data.HomeLogic
 import com.gatcha.log.data.HoyolabConfig
+import com.gatcha.log.data.LiveNote
 import com.gatcha.log.data.Notifier
+import com.gatcha.log.data.subscriptionNotificationId
 import com.gatcha.log.data.api.HoyolabApi
 import com.gatcha.log.data.api.NewsApi
 import com.gatcha.log.util.currentTimeMillis
@@ -105,10 +107,12 @@ object NotificationChecker {
         if (settings.notifyResin && cfg.isLinked) {
             val today = DateUtil.hoyoDayKey()
             val uids = mapOf("genshin" to cfg.genshinUid, "hsr" to cfg.hsrUid, "zzz" to cfg.zzzUid)
+            val fresh = mutableListOf<LiveNote>()
             for (game in GameData.attendanceGames) {
                 val uid = uids[game.key].orEmpty()
                 if (uid.isBlank()) continue
                 val note = HoyolabApi.getLiveNote(cfg.ltuid, cfg.ltoken, game.key, uid).note ?: continue
+                fresh += note
                 if (note.maxResin > 0 && note.currentResin >= note.maxResin) {
                     val tag = "resin:${game.key}"
                     if (settings.lastNotified(tag) != today) {
@@ -116,6 +120,13 @@ object NotificationChecker {
                         Notifier.notify(Notifier.ID_RESIN_BASE + game.ordinal, "${game.shortName} 재화 가득참", "재화가 가득 찼어요 (${note.currentResin}/${note.maxResin})")
                     }
                 }
+            }
+            // 받아온 노트를 캐시에 남긴다. 이 직후 [ScheduledAlerts] 가 '가득 차는 시각'을 미리 예약하는데,
+            // 예전엔 여기서 받은 걸 쓰고 버려서 예약이 **항상 직전 세션의 캐시**로 만들어졌다
+            // (캐시를 쓰는 곳은 포그라운드 화면 로드뿐이었다) → 백그라운드에서는 예약이 갱신되지 않아
+            // "앱을 열어야만 알림이 오는" 상태가 됐다.
+            if (fresh.isNotEmpty()) {
+                runCatching { repo.saveLiveNotes(mergeLiveNotes(repo.loadLiveNotes(), fresh)) }
             }
         }
 
@@ -147,7 +158,7 @@ object NotificationChecker {
         if (settings.notifySubscription && !AlertScheduler.schedulesAhead) {
             val now = currentTimeMillis()
             val ym = "${DateUtil.year(now)}-${DateUtil.month(now)}"
-            repo.loadSubscriptions().forEachIndexed { idx, sub ->
+            repo.loadSubscriptions().forEach { sub ->
                 val d = sub.dDay(now)
                 if (d <= 1) {
                     val tag = "sub:${sub.id}"
@@ -155,7 +166,7 @@ object NotificationChecker {
                         settings.setLastNotified(tag, ym)
                         val whenLabel = if (d <= 0) "오늘" else "내일"
                         Notifier.notify(
-                            Notifier.ID_SUBSCRIPTION_BASE + (idx % 64),
+                            subscriptionNotificationId(sub.id),
                             "정기결제 갱신 $whenLabel",
                             "${sub.name} ₩${won(sub.amount)} 결제 예정이에요",
                         )
@@ -212,6 +223,19 @@ object NotificationChecker {
                 }
             }
         }
+    }
+
+    /**
+     * 실시간 노트 캐시 병합 — [fresh] 로 덮어쓰되, **이번에 못 받은 게임은 [cached] 값을 유지한다.**
+     *
+     * 통째로 교체하면 조회에 실패한 게임(네트워크 오류·UID 미등록)의 '가득 차는 시각'이 사라지고,
+     * [ScheduledAlerts] 가 그 게임 예약을 만들지 못해 알림이 조용히 없어진다.
+     */
+    internal fun mergeLiveNotes(cached: List<LiveNote>, fresh: List<LiveNote>): List<LiveNote> {
+        if (fresh.isEmpty()) return cached
+        val byGame = cached.associateByTo(LinkedHashMap()) { it.game }
+        fresh.forEach { byGame[it.game] = it }
+        return byGame.values.toList()
     }
 
     /** 방해금지 시간대 내인지(기기 로컬 시각 기준). start>end면 자정 넘김(예: 23~8)으로 처리. */

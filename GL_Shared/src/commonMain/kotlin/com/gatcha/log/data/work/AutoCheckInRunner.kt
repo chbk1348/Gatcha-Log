@@ -90,7 +90,7 @@ object AutoCheckInRunner {
     }
 
     /** 실패가 있으면 하루 1회 알림. AUTH 가 있으면 재연동 안내, 그 외엔 자동 재시도 안내. */
-    private fun maybeNotifyFailure(settings: AppSettings, o: Outcome, today: String) {
+    private suspend fun maybeNotifyFailure(settings: AppSettings, o: Outcome, today: String) {
         if (!o.hasAnyFail) return
         if (settings.lastNotified("auto_checkin_fail") == today) return
         settings.setLastNotified("auto_checkin_fail", today)

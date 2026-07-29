@@ -29,7 +29,11 @@ import androidx.compose.ui.unit.sp
 import com.gatcha.log.data.ChangeEntry
 import com.gatcha.log.data.ChangeKind
 import com.gatcha.log.data.ChangeLog
-import com.gatcha.log.ui.components.GlgBackButton
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.runtime.derivedStateOf
+import com.gatcha.log.ui.components.GlgDetailHeaderOverlay
+import com.gatcha.log.ui.components.glgDetailContentTop
+import com.gatcha.log.ui.components.GlgHeaderTitlePill
 import com.gatcha.log.ui.components.GlgChip
 
 // 목업(06_ChangeLog.html) 색 토큰 — 분류 의미색은 디자인 고정값을 그대로 사용(패리티).
@@ -70,29 +74,22 @@ internal fun UpdateLogScreen(onBack: () -> Unit) {
     // 흰 배경은 바깥 Box 가 상단 끝(상태바 뒤)까지 채우고, 리스트는 statusBarsPadding 으로 내려서
     // 스티키 필터 헤더까지 상태바 아래에 고정한다(stickyHeader 는 contentPadding top 을 무시하고
     // 뷰포트 최상단에 붙으므로 contentPadding 이 아니라 뷰포트 자체를 인셋해야 함).
+    // 탭 페이지와 같은 구조 — 헤더는 고정 오버레이, 리스트는 그 아래에서 시작한다.
+    // **뷰포트 자체를 인셋**한다(contentPadding 이 아니라) — stickyHeader 는 contentPadding top 을
+    // 무시하고 뷰포트 최상단에 붙으므로, 그러지 않으면 필터칩이 고정 헤더와 겹친다.
+    val listState = rememberLazyListState()
+    val scrolled by remember {
+        derivedStateOf { listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 0 }
+    }
     Box(Modifier.fillMaxSize().background(Color.White)) {
     LazyColumn(
+        state = listState,
         modifier = Modifier
             .fillMaxSize()
-            .statusBarsPadding()
+            .padding(top = glgDetailContentTop())
             .navigationBarsPadding(),
         contentPadding = PaddingValues(bottom = 40.dp),
     ) {
-        // ── 헤더(뒤로 + 페이지명) ──
-        // 히어로(큰 '업데이트 기록' 제목 + 부제 + 메타 2칸)는 걷어냈다 — 헤더 제목과 같은 말을 반복하면서
-        // 첫 화면의 절반을 차지해, 정작 봐야 할 최신 버전이 스크롤 아래로 밀려 있었다.
-        item {
-            Column(Modifier.padding(horizontal = 18.dp)) {
-                // 상태바 인셋은 LazyColumn contentPadding 이 처리 — 여기선 8dp 여백만.
-                Spacer(Modifier.height(8.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    GlgBackButton(onBack)
-                    Spacer(Modifier.width(10.dp))
-                    Text("업데이트 로그", fontSize = 17.sp, fontWeight = FontWeight.Bold, color = CText)
-                }
-                Spacer(Modifier.height(8.dp))
-            }
-        }
 
         // ── 스티키 필터칩 ──
         stickyHeader {
@@ -156,6 +153,7 @@ internal fun UpdateLogScreen(onBack: () -> Unit) {
             }
         }
     }
+    GlgDetailHeaderOverlay("업데이트 로그", onBack, scrolled)
     }
 }
 

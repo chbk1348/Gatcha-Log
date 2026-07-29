@@ -222,6 +222,11 @@ class SpendingViewModel : ViewModel() {
     val spendingCompact: StateFlow<Boolean> = _spendingCompact.asStateFlow()
     fun setSpendingCompact(v: Boolean) { appSettings.spendingCompact = v; _spendingCompact.value = v }
 
+    /** 홈 히어로 글로우 애니메이션 사용 여부 — 끄면 그라데이션은 그대로, 움직이는 글로우만 사라진다. */
+    private val _heroGlow = MutableStateFlow(appSettings.heroGlow)
+    val heroGlow: StateFlow<Boolean> = _heroGlow.asStateFlow()
+    fun setHeroGlow(v: Boolean) { appSettings.heroGlow = v; _heroGlow.value = v }
+
     /**
      * N6 과소비 넛지 판정 — 지출 저장 직전 호출. 경고가 필요하면 메시지, 아니면 null.
      * 우선순위: 게임별 한도 초과 예상 → 전체 예산 초과 예상 → 단건 큰 금액(평소치 초과).
@@ -279,9 +284,15 @@ class SpendingViewModel : ViewModel() {
      * 확정 시각 알림(픽업·시즌 마감·정기결제·재화 가득참·데일리 요약) 사전 예약 갱신.
      * iOS 는 이 예약 덕분에 앱을 안 열어도 정시에 알림이 오고, Android 는 주기 워커가 이미
      * 커버하므로 no-op 이다([AlertScheduler]).
+     *
+     * 예약 등록이 끝날 때까지 중단하는 suspend 라 스코프에 띄운다(호출부는 전부 non-suspend).
+     * 여기는 앱이 떠 있는 포그라운드라 결과를 기다릴 필요가 없다 — 기다려야 하는 쪽은 iOS BGTask 다.
+     * 로컬 캐시 4종을 읽어 목록을 만드므로 IO 로 보낸다.
      */
     private fun rescheduleTimedAlerts() {
-        runCatching { ScheduledAlerts.reschedule(appSettings, repo) }
+        viewModelScope.launch(Dispatchers.IO) {
+            runCatching { ScheduledAlerts.reschedule(appSettings, repo) }
+        }
     }
 
     /**

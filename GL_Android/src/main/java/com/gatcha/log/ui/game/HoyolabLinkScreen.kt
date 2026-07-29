@@ -26,6 +26,9 @@ import kotlinx.coroutines.withContext
 import androidx.compose.ui.draw.clip
 import com.gatcha.log.ui.components.GlgDialog
 import com.gatcha.log.ui.components.GlgBackButton
+import com.gatcha.log.ui.components.GlgDetailHeaderOverlay
+import com.gatcha.log.ui.components.glgDetailContentTop
+import com.gatcha.log.ui.components.GlgHeaderActionPill
 import com.gatcha.log.ui.components.GlgTextField
 import com.gatcha.log.ui.theme.LocalAccent
 import com.gatcha.log.ui.theme.TextSecondary
@@ -49,37 +52,13 @@ fun HoyolabLinkScreen(config: HoyolabConfig, onSave: (HoyolabConfig) -> Unit, on
     val scope = rememberCoroutineScope()
     BackHandler { onBack() }
 
-    Column(Modifier.fillMaxSize().statusBarsPadding().padding(horizontal = 16.dp)) {
-        // 헤더 — 뒤로 + 제목 + 저장(우측 이관)
-        Row(
-            Modifier.fillMaxWidth().padding(top = 12.dp, bottom = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            GlgBackButton(onBack)
-            Spacer(Modifier.width(10.dp))
-            Text("HoYoLAB 계정 연동", fontSize = 22.sp, fontWeight = FontWeight.Bold)
-            Spacer(Modifier.weight(1f))
-            Text(
-                "저장",
-                fontSize = 15.sp,
-                fontWeight = FontWeight.Bold,
-                color = accent,
-                modifier = Modifier
-                    .clip(RoundedCornerShape(8.dp))
-                    .clickable {
-                        onSave(
-                            HoyolabConfig(
-                                ltuid = ltuid.trim(), ltoken = ltoken.trim(),
-                                genshinUid = gi.trim(), hsrUid = hsr.trim(), zzzUid = zzz.trim(),
-                                cookieToken = cookieToken.trim(), webCookie = webCookie,
-                            ),
-                        )
-                    }
-                    .padding(horizontal = 10.dp, vertical = 6.dp),
-            )
-        }
+    // 탭 페이지와 같은 구조 — 콘텐츠는 상태바 뒤까지 스크롤되고, 헤더는 그 위에 고정된다.
+    val scrollState = rememberScrollState()
+    Box(Modifier.fillMaxSize()) {
         Column(
-            Modifier.weight(1f).verticalScroll(rememberScrollState()),
+            Modifier.fillMaxSize().navigationBarsPadding().verticalScroll(scrollState)
+                .padding(horizontal = 16.dp)
+                .padding(top = glgDetailContentTop()),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             // 비공식 연동 + 토큰 보관 위치 사전 고지 (로그인 직전)
@@ -118,6 +97,17 @@ fun HoyolabLinkScreen(config: HoyolabConfig, onSave: (HoyolabConfig) -> Unit, on
                 fontSize = 11.sp, color = TextSecondary,
             )
             Spacer(Modifier.height(24.dp))
+        }
+        GlgDetailHeaderOverlay("HoYoLAB 계정 연동", onBack, scrolled = scrollState.value > 0) {
+            GlgHeaderActionPill("저장") {
+                onSave(
+                    HoyolabConfig(
+                        ltuid = ltuid.trim(), ltoken = ltoken.trim(),
+                        genshinUid = gi.trim(), hsrUid = hsr.trim(), zzzUid = zzz.trim(),
+                        cookieToken = cookieToken.trim(), webCookie = webCookie,
+                    ),
+                )
+            }
         }
     }
 

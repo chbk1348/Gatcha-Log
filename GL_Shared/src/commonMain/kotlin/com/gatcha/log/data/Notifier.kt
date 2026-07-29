@@ -23,8 +23,12 @@ expect object Notifier {
     /**
      * [link] = 알림 탭 시 이동할 딥링크(`"news:<공지 id>"` 형식). 빈 문자열이면 앱만 연다.
      * 처리는 [SpendingViewModel.handleNotificationLink].
+     *
+     * **suspend 인 이유**: iOS 는 권한 조회·등록이 전부 콜백형이라 예전엔 요청만 걸고 즉시 반환했다.
+     * 그런데 백그라운드(BGTask)는 완료 보고 직후 앱을 서스펜드하므로, 콜백이 돌기 전에 프로세스가
+     * 멈춰 **알림이 조용히 유실됐다**. 이제 등록이 끝난 뒤에 반환한다(Android 는 동기라 무비용).
      */
-    fun notify(id: Int, title: String, text: String, link: String = "")
+    suspend fun notify(id: Int, title: String, text: String, link: String = "")
 
     /**
      * 시스템 알림이 실제로 표시 가능한 상태인지(권한 허용 + 앱/채널 알림 켜짐).
@@ -33,3 +37,13 @@ expect object Notifier {
      */
     fun notificationsEnabled(): Boolean
 }
+
+/**
+ * 정기결제 알림 ID — **구독 id 해시로 고정**한다.
+ *
+ * 예전엔 리스트 인덱스(`ID_SUBSCRIPTION_BASE + idx % 64`)를 썼다. 구독을 추가·삭제·정렬하면 같은
+ * 구독의 알림 ID 가 바뀌어, 이전 알림이 갱신되지 않고 쌓이거나 엉뚱한 구독의 알림을 덮어썼다.
+ * (dedup 키는 이미 `sub:<id>` 였는데 ID 만 인덱스였다.)
+ */
+internal fun subscriptionNotificationId(subId: String): Int =
+    Notifier.ID_SUBSCRIPTION_BASE + ((subId.hashCode() % 64) + 64) % 64

@@ -27,6 +27,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.gatcha.log.data.DateUtil
 import com.gatcha.log.data.GameData
 import com.gatcha.log.ui.components.GlassCard
+import com.gatcha.log.ui.components.GlgDetailHeaderOverlay
+import com.gatcha.log.ui.components.glgDetailContentTop
 import com.gatcha.log.ui.components.GlgScreenHeader
 import com.gatcha.log.ui.components.InfoColumn
 import com.gatcha.log.ui.theme.LocalAccent

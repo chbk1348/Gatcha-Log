@@ -65,6 +65,9 @@ import com.gatcha.log.ui.components.GameTagSize
 import com.gatcha.log.ui.components.GlgGameTag
 import com.gatcha.log.ui.components.GlassCard
 import com.gatcha.log.ui.components.GlgBackButton
+import androidx.compose.foundation.lazy.rememberLazyListState
+import com.gatcha.log.ui.components.GlgDetailHeaderOverlay
+import com.gatcha.log.ui.components.glgDetailContentTop
 import com.gatcha.log.ui.components.GlgChip
 import com.gatcha.log.ui.components.GlgButton
 import com.gatcha.log.ui.components.GlgOutlineButton
@@ -223,18 +226,19 @@ fun EnkaRosterPage(
     // 커진다. LazyColumn 으로 화면에 보이는 줄만 만든다.
     // (헤더·검색·필터는 개수가 고정이라 item 하나로 묶는다 — 스크롤 동작·여백은 그대로)
     val rows = remember(chars) { chars.chunked(2) }
+    // 탭 페이지와 같은 구조 — 콘텐츠는 상태바 뒤까지 스크롤되고, 헤더는 그 위에 고정된다.
+    val listState = rememberLazyListState()
+    val scrolled by remember {
+        derivedStateOf { listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 0 }
+    }
+    Box(Modifier.fillMaxSize()) {
     LazyColumn(
-        modifier = Modifier.fillMaxSize().statusBarsPadding(),
-        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 30.dp),
+        state = listState,
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = glgDetailContentTop(), bottom = 30.dp),
     ) {
         item {
             Column {
-                Row(Modifier.padding(vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-                    // 뒤로가기는 앱 공통 규격(GlgBackButton)으로 — 이 화면만 자체 구현이라 크기가 달랐다.
-                    GlgBackButton(onBack)
-                    Spacer(Modifier.width(10.dp))
-                    Text(title, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
-                }
                 // 이름 검색
                 GlgTextField(
                     value = query,
@@ -269,6 +273,8 @@ fun EnkaRosterPage(
             }
             Spacer(Modifier.height(10.dp))
         }
+    }
+    GlgDetailHeaderOverlay(title, onBack, scrolled)
     }
 }
 
@@ -573,16 +579,13 @@ fun EnkaStatPage(
     val keySet = verdict.stats
     val wepLabel = if (game == "genshin") "무기" else if (game == "zzz") "W-엔진" else "광추"
     val artLabel = if (game == "genshin") "성유물" else if (game == "zzz") "드라이브 디스크" else "유물"
+    // 탭 페이지와 같은 구조 — 콘텐츠는 상태바 뒤까지 스크롤되고, 헤더는 그 위에 고정된다.
+    val scrollState = rememberScrollState()
+    Box(Modifier.fillMaxSize()) {
     Column(
-        Modifier.fillMaxSize().statusBarsPadding().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp).padding(bottom = 30.dp),
+        Modifier.fillMaxSize().verticalScroll(scrollState).padding(horizontal = 16.dp)
+            .padding(top = glgDetailContentTop(), bottom = 30.dp),
     ) {
-        // 뒤로가기 헤더
-        Row(Modifier.padding(vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-            // 뒤로가기는 앱 공통 규격(GlgBackButton)으로 — 이 화면만 자체 구현이라 크기가 달랐다.
-            GlgBackButton(onBack)
-            Spacer(Modifier.width(10.dp))
-            Text(c.name, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
-        }
 
         // 캐릭터 헤더
         val ec = elementColor(c.element)
@@ -674,6 +677,8 @@ fun EnkaStatPage(
 
         // 명좌/성혼/의식 단계별 효과 — 외부 메타 API 비동기 로드. 빈 결과면 섹션 자체 숨김.
         CharEffectsSection(c, game)
+    }
+    GlgDetailHeaderOverlay(c.name, onBack, scrolled = scrollState.value > 0)
     }
 }
 
