@@ -173,7 +173,8 @@ struct HoyolabLoginWebView: UIViewRepresentable {
 
         func startPolling() {
             timer = Timer.scheduledTimer(withTimeInterval: 1.5, repeats: true) { [weak self] _ in
-                self?.collect(onlyIfChanged: true)
+                // scheduledTimer 는 현재(메인) 런루프에 등록된다 — 컴파일러에 그 사실을 알린다.
+                MainActor.assumeIsolated { self?.collect(onlyIfChanged: true) }
             }
         }
         func stopPolling() { timer?.invalidate(); timer = nil }

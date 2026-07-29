@@ -5,7 +5,10 @@ import UserNotifications
 
 /// 앱 델리게이트 — Firebase 초기화 + 백그라운드 태스크 등록 + 구글 로그인 브리지 + 알림 델리게이트.
 /// (BGTaskScheduler 등록은 앱 launch 완료 전에 해야 하므로 didFinishLaunching 에서 처리)
-class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDelegate {
+/// `@preconcurrency` — UNUserNotificationCenterDelegate 는 액터 표시가 없는 옛 프로토콜인데,
+/// 이 델리게이트 구현은 UI·공유 VM 을 만져 메인 액터에 묶여 있다. Swift 6 는 그 교차를 막으므로
+/// 프로토콜 쪽을 사전 동시성으로 받아들인다(호출은 실제로 메인에서 온다).
+class AppDelegate: NSObject, UIApplicationDelegate, @preconcurrency UNUserNotificationCenterDelegate {
     func application(
         _ application: UIApplication,
         didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
@@ -59,10 +62,13 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
         // 4. Kotlin(AuthManager)에 구글 로그인 플로우 등록 — 웹 OAuth(ASWebAuthenticationSession+PKCE).
         //    SDK(GIDSignIn) 대신 사파리 웹 로그인으로 id_token/access_token 을 받아 그대로 전달.
         IosGoogleSignIn.shared.provider = { callback in
+            // Kotlin 함수 타입에는 Sendable 표시가 없어 클로저 경계를 못 넘는다. 상자에 담아 나른다 —
+            // 실제 호출은 아래 두 DispatchQueue.main 안이라 **항상 메인**이다.
+            let box = GLGUncheckedBox(callback)
             DispatchQueue.main.async {
                 GoogleWebOAuth.shared.signIn { tokens in
                     DispatchQueue.main.async {
-                        _ = callback(tokens?.idToken, tokens?.accessToken, tokens?.email, tokens?.name, tokens?.picture)
+                        _ = box.value(tokens?.idToken, tokens?.accessToken, tokens?.email, tokens?.name, tokens?.picture)
                     }
                 }
             }
@@ -106,6 +112,13 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
         }
         completionHandler()
     }
+}
+
+/// Sendable 표시가 없는 값(주로 Kotlin 함수 타입)을 클로저 경계 너머로 나르는 상자.
+/// **호출부가 실제 스레드를 보장할 때만** 쓴다 — 컴파일러 검사를 끄는 것이지 안전해지는 게 아니다.
+struct GLGUncheckedBox<T>: @unchecked Sendable {
+    let value: T
+    init(_ value: T) { self.value = value }
 }
 
 extension Notification.Name {

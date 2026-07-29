@@ -16,7 +16,10 @@ import ImageIO
 // ════════════════════════════════════════════════════════════════════════════
 
 /// 디코딩된 이미지 캐시. NSCache 는 스레드 안전하고 메모리 압박 시 알아서 비운다.
-final class GLGImageCache {
+///
+/// `@unchecked Sendable` 인 근거: 저장 프로퍼티가 `let cache` 하나뿐이고, [NSCache] 자체가
+/// 스레드 안전이다. 어느 스레드에서 읽고 써도 경쟁이 없다(그래서 여기 쓴 것이다).
+final class GLGImageCache: @unchecked Sendable {
     static let shared = GLGImageCache()
 
     private let cache: NSCache<NSString, UIImage> = {
@@ -112,7 +115,7 @@ struct GLGRemoteImage<Placeholder: View>: View {
         // 같은 URL 을 이미 받고 있으면 그 결과를 나눠 쓴다(중복 다운로드·디코딩 방지).
         let px = maxPixel
         let decoded = await GLGImageInFlight.shared.image(for: target, maxPixel: px) {
-            await Self.fetch(target, maxPixel: px)
+            await glgFetchImage(target, maxPixel: px)
         }
         // 셀이 화면 밖으로 나갔거나 URL 이 또 바뀌었으면 버린다(.task 가 취소해 준다).
         guard !Task.isCancelled, target == url else { return }
@@ -121,27 +124,32 @@ struct GLGRemoteImage<Placeholder: View>: View {
         image = decoded
     }
 
-    /// 네트워크·디코딩 — `nonisolated` 라 메인 액터 밖(협력 스레드)에서 실행된다.
-    /// `.task` 의 자식이므로 취소도 전달된다(`Task.detached` 는 취소가 끊긴다).
-    private nonisolated static func fetch(_ url: URL, maxPixel: Int) async -> UIImage? {
-        // URLCache(iOSApp 에서 32MB/128MB 로 설정)를 타므로 두 번째부터는 네트워크를 안 쓴다.
-        guard let (data, _) = try? await URLSession.shared.data(from: url) else { return nil }
-        return downsample(data, maxPixel: maxPixel)
-    }
+}
 
-    /// 표시 크기에 맞춰 축소 디코딩 — 44pt 초상에 1024px 원본을 통째로 펼치지 않는다.
-    private static func downsample(_ data: Data, maxPixel: Int) -> UIImage? {
-        let srcOpts = [kCGImageSourceShouldCache: false] as CFDictionary
-        guard let src = CGImageSourceCreateWithData(data as CFData, srcOpts) else { return nil }
-        let opts = [
-            kCGImageSourceCreateThumbnailFromImageAlways: true,
-            kCGImageSourceCreateThumbnailWithTransform: true,
-            kCGImageSourceShouldCacheImmediately: true,   // 그리는 순간이 아니라 여기서 디코딩(메인 스레드 밖)
-            kCGImageSourceThumbnailMaxPixelSize: max(maxPixel, 1),
-        ] as [CFString: Any] as CFDictionary
-        guard let cg = CGImageSourceCreateThumbnailAtIndex(src, 0, opts) else { return nil }
-        return UIImage(cgImage: cg)
-    }
+/// 네트워크 + 축소 디코딩 — **제네릭 뷰 밖의 파일 스코프** 함수다.
+///
+/// 뷰 안의 `static` 으로 두면 클로저가 `Self`(= `GLGRemoteImage<Placeholder>`)를 통째로 캡처해,
+/// Sendable 이 아닌 제네릭 타입을 격리 경계 너머로 넘기는 경고가 난다. 이 일은 표시 타입과
+/// 아무 상관이 없으니 밖으로 뺀다.
+private func glgFetchImage(_ url: URL, maxPixel: Int) async -> UIImage? {
+    // URLCache(iOSApp 에서 32MB/128MB 로 설정)를 타므로 두 번째부터는 네트워크를 안 쓴다.
+    guard let (data, _) = try? await URLSession.shared.data(from: url) else { return nil }
+    return glgDownsample(data, maxPixel: maxPixel)
+}
+
+/// 표시 크기에 맞춰 축소 디코딩 — 44pt 초상에 1024px 원본을 통째로 펼치지 않는다.
+/// 파일 스코프라 격리가 없다 = 협력 스레드에서 그대로 돈다(메인을 안 막는다).
+private func glgDownsample(_ data: Data, maxPixel: Int) -> UIImage? {
+    let srcOpts = [kCGImageSourceShouldCache: false] as CFDictionary
+    guard let src = CGImageSourceCreateWithData(data as CFData, srcOpts) else { return nil }
+    let opts = [
+        kCGImageSourceCreateThumbnailFromImageAlways: true,
+        kCGImageSourceCreateThumbnailWithTransform: true,
+        kCGImageSourceShouldCacheImmediately: true,   // 그리는 순간이 아니라 여기서 디코딩(메인 스레드 밖)
+        kCGImageSourceThumbnailMaxPixelSize: max(maxPixel, 1),
+    ] as [CFString: Any] as CFDictionary
+    guard let cg = CGImageSourceCreateThumbnailAtIndex(src, 0, opts) else { return nil }
+    return UIImage(cgImage: cg)
 }
 
 // 기본 placeholder(빈 자리) 편의 이니셜라이저 — 기존 호출부는 그대로 쓴다.

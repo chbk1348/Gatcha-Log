@@ -16,6 +16,11 @@ private func filterNews(_ news: [NewsItem], _ filter: String) -> [NewsItem] {
 /// `.navigationDestination(isPresented:)` 로 처리하는데, 같은 NavigationStack 에서 두 방식을 섞으면
 /// destination형 NavigationLink 가 조용히 안 먹히는 SwiftUI 버그가 있다(게임정보 탭 뉴스 행이 안 눌리던 원인).
 /// 그래서 여기선 Button 으로 선택만 올려보내고, 실제 push 는 호스트가 navigationDestination 으로 한다.
+///
+/// `@MainActor` — 파일 스코프 함수라 표시가 없으면 비격리다. 그러면 Kotlin 타입([NewsItem], non-Sendable)과
+/// 콜백을 메인 액터인 Button 액션으로 넘기는 게 데이터 레이스로 잡힌다(Swift 6). 뷰를 만드는 함수이니
+/// 메인 액터가 맞다.
+@MainActor
 @ViewBuilder
 private func newsRow(_ n: NewsItem, onOpen: @escaping (NewsItem) -> Void) -> some View {
     Button { onOpen(n) } label: {
