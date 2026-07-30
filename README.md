@@ -11,9 +11,10 @@ Google Apps Script 웹앱에서 출발해 **Kotlin Multiplatform + Compose Multi
 
 [![Release](https://img.shields.io/github/v/release/chbk1348/Gatcha-Log?sort=semver&label=release&color=3DDC84)](https://github.com/chbk1348/Gatcha-Log/releases/latest)
 ![Platform](https://img.shields.io/badge/Platform-Android%20%C2%B7%20iOS-3DDC84?logo=android&logoColor=white)
+
 ![Kotlin](https://img.shields.io/badge/Kotlin-2.3.21-7F52FF?logo=kotlin&logoColor=white)
 ![Compose](https://img.shields.io/badge/Compose%20Multiplatform-1.11-4285F4?logo=jetpackcompose&logoColor=white)
-![SwiftUI](https://img.shields.io/badge/SwiftUI-iOS%2026%20Liquid%20Glass-0A84FF?logo=swift&logoColor=white)
+![SwiftUI](https://img.shields.io/badge/SwiftUI-Swift%206%20%C2%B7%20Liquid%20Glass-0A84FF?logo=swift&logoColor=white)
 ![Firebase](https://img.shields.io/badge/Firebase-Auth%20%2B%20Firestore-FFCA28?logo=firebase&logoColor=black)
 
 <br/>
@@ -83,7 +84,7 @@ Google Apps Script 웹앱에서 출발해 **Kotlin Multiplatform + Compose Multi
 |---|---|
 | 공유 코드 (KMP) | Kotlin 2.3.21 · Compose Multiplatform 1.11 (Material 3) · kotlinx-{coroutines, serialization, datetime} · Ktor |
 | Android | Jetpack Compose · AGP 9.3.1 · compileSdk 36 / minSdk 24 · WorkManager · Credential Manager |
-| iOS | SwiftUI(네이티브 탭바·iOS 26 리퀴드 글래스) · BGTaskScheduler · GoogleSignIn SDK · Xcode 26 / iOS 16+ |
+| iOS | SwiftUI(네이티브 탭바·리퀴드 글래스) · Swift 6 언어 모드 · BGTaskScheduler · GoogleSignIn SDK · Xcode 27(iOS 27 SDK) / iOS 18+ |
 | 클라우드 | Firebase Auth + Cloud Firestore (Android: Firebase SDK / iOS: GitLive KMP + Firebase iOS SDK) |
 | 로컬 저장 | Android: SharedPreferences(토큰은 EncryptedSharedPreferences) / iOS: UserDefaults(토큰은 Keychain) |
 | 빌드 | Gradle 9.5.0 · XcodeGen |
@@ -121,7 +122,7 @@ cd Gatcha-Log
 ./gradlew :GL_Android:installDebug    # 연결된 기기에 설치
 ```
 
-**iOS** (macOS + Xcode 26 필요)
+**iOS** (macOS + **Xcode 27 필요** — iOS 27 SDK)
 
 ```bash
 open GL_IOS/GL_IOS.xcodeproj      # Xcode 에서 열고 시뮬레이터/기기로 실행
@@ -129,6 +130,13 @@ open GL_IOS/GL_IOS.xcodeproj      # Xcode 에서 열고 시뮬레이터/기기�
 
 ./GL_IOS/build-ipa.sh             # 배포용 미서명 IPA 빌드 (build/Gatcha-Log-<버전>.ipa)
 ```
+
+> **Xcode 26 이하로는 빌드되지 않습니다.** 탭바의 분리형 '추가' 버튼이 iOS 27 SDK 에만 있는
+> `TabRole.prominent` 를 쓰기 때문이며, `#available` 로 감싸도 컴파일 시점에 심볼이 필요합니다.
+> `build-ipa.sh` 는 27 SDK 를 가진 Xcode 를 스스로 찾아 `DEVELOPER_DIR` 로 지정하고,
+> 못 찾으면 설치된 Xcode 목록을 출력하고 즉시 실패합니다(구버전으로 조용히 빌드되는 것 방지).
+> 툴체인을 바꿔 가며 빌드했다면 `./gradlew :GL_Shared:clean` 을 먼저 — KMP/SKIE 가 생성한
+> Swift 모듈이 툴체인 포맷에 묶여 있어 `Unable to resolve Swift module 'Shared'` 로 깨집니다.
 
 > JDK는 Android Studio 번들 JBR(OpenJDK 21) 사용 권장.
 > `google-services.json` 이 없어도 빌드됩니다(클라우드 비활성·로컬 모드로 동작).
@@ -144,7 +152,7 @@ iOS 용 IPA 는 **미서명** 상태로 배포됩니다 — [Sideloadly](https:/
 
 ## 🎨 디자인
 - **카드 — 흰 배경 + 아웃라인** (Android · iOS 동일, 22dp 라운드 · 그림자 없는 평면 카드 — 가독성·스크롤 성능 우선)
-- **iOS 26 리퀴드 글래스** — 탭바·헤더 버튼 등 시스템 크롬은 iOS 네이티브 글래스(UIGlassEffect) 유지
+- **리퀴드 글래스** — 탭바·헤더 버튼 등 시스템 크롬은 iOS 네이티브 글래스(UIGlassEffect) 유지
 - **천장 게이지 링 앱 아이콘** — 깔끔한 흰 배경(양 플랫폼 동일 · 시작 화면도 동일 톤)
 - 커스텀 입력·버튼 · "눌린 느낌" 인디케이션 · 로딩/화면 전환 애니메이션
 - 테마 색상 5종 (민트·퍼플·인디고·블루·로즈) — iOS 네이티브 탭바 틴트까지 연동
