@@ -939,12 +939,21 @@ private fun openAppNotificationSettings(context: Context) {
     runCatching { context.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
 }
 
-/** 빌드 타입(디버그/릴리스) 구분칩 — 어떤 빌드가 설치됐는지 한눈에. */
+/**
+ * 빌드 구분칩 — 어떤 빌드가 설치됐는지 한눈에.
+ *
+ * **EXPERIMENT(빨강)가 최우선**이다. 실험 빌드는 릴리스 구성으로 말아도 릴리스가 아니므로,
+ * RELEASE 로 보이면 배포본과 헷갈린다. 표식은 `BuildConfig.EXPERIMENT`(build.gradle.kts)가 정한다.
+ */
 @Composable
 private fun BuildVariantChip() {
     val isDebug = BuildConfig.DEBUG
-    val label = if (isDebug) "DEBUG" else "RELEASE"
-    val color = if (isDebug) Color(0xFFFF7A45) else LocalAccent.current
+    val label = if (BuildConfig.EXPERIMENT) "EXPERIMENT" else if (isDebug) "DEBUG" else "RELEASE"
+    val color = when {
+        BuildConfig.EXPERIMENT -> Color(0xFFE5342A) // 빨강 — 실험 빌드 경고
+        isDebug -> Color(0xFFFF7A45)
+        else -> LocalAccent.current
+    }
     Surface(color = color.copy(alpha = 0.15f), shape = RoundedCornerShape(6.dp)) {
         Text(
             label,
