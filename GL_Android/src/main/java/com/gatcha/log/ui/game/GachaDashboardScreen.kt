@@ -195,7 +195,7 @@ fun GachaDashboardScreen(
             Spacer(Modifier.navigationBarsPadding().height(8.dp))
         }
         }
-        GlgDetailHeaderOverlay("가챠 통계", onBack, scrolled = scrollState.value > 0)
+        GlgDetailHeaderOverlay("가챠 통계", onBack, scrollState = scrollState)
     }
 }
 
