@@ -56,3 +56,6 @@ GL_IOS/build_sim/
 # Xcode 27(iOS 27 SDK) 전용 derivedData — 26 툴체인 산출물(build/)과 분리해 둔다
 build_x27/
 GL_IOS/build_x27/
+# 같은 27 툴체인의 Release 구성(실기기 릴리즈 검증용) — Debug 산출물과 분리
+build_x27_rel/
+GL_IOS/build_x27_rel/

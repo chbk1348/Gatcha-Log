@@ -129,16 +129,7 @@ struct HomeView: View {
                     todayTaskView(titleOutside: true)
                 }
                 RecentSpendCard(spendings: store.spendings, onSeeAll: { onSwitchTab(1) })
-                if !store.gameInfoReady {
-                    // 스켈레톤이 여러 개 동시에 뜨는 구간 — 시머 클럭을 하나만 돌린다.
-                    GLGShimmerClock {
-                        DashCardSkeleton(rows: 3)
-                        DashCardSkeleton(rows: 2)
-                    }
-                } else {
-                    DashboardScheduleCard(events: store.gameEvents, challenges: store.challenges, onTap: { store.requestGameInfoAnchor(.schedule); onSwitchTab(2) }, titleOutside: true)
-                    DashboardNewsCard(news: store.gameNews, anniversaries: GameAnniversary.shared.upcoming(nowMillis: nowMs()), onTap: { store.requestGameInfoAnchor(.news); onSwitchTab(2) }, titleOutside: true)
-                }
+                dashboardSlots(titleOutside: true)
                 HomeSectionHeader(title: "나를 위한")
                 NavigationLink { SavingsPlannerView(store: store) } label: { PickupPlannerHomeCard(store: store) }
                     .buttonStyle(.plain)
@@ -162,15 +153,7 @@ struct HomeView: View {
             if !store.gameInfoReady || !todayTasks.isEmpty {
                 todayTaskView(titleOutside: false)
             }
-            if !store.gameInfoReady {
-                GLGShimmerClock {
-                    DashCardSkeleton(rows: 3)
-                    DashCardSkeleton(rows: 2)
-                }
-            } else {
-                DashboardScheduleCard(events: store.gameEvents, challenges: store.challenges, onTap: { store.requestGameInfoAnchor(.schedule); onSwitchTab(2) })
-                DashboardNewsCard(news: store.gameNews, anniversaries: GameAnniversary.shared.upcoming(nowMillis: nowMs()), onTap: { store.requestGameInfoAnchor(.news); onSwitchTab(2) })
-            }
+            dashboardSlots(titleOutside: false)
             NavigationLink { SavingsPlannerView(store: store) } label: { PickupPlannerHomeCard(store: store) }
                 .buttonStyle(.plain)
             NavigationLink { SavingsChallengeView(store: store) } label: { SavingsChallengeHomeCard(store: store) }
@@ -180,6 +163,40 @@ struct HomeView: View {
         .padding(.top, 4)
         .padding(.bottom, 16)
         .glgReadableWidth(600)
+    }
+
+    /// 이번 주 일정 · 게임 소식 — **카드마다 자기 데이터가 올 때까지 스켈레톤.**
+    ///
+    /// 예전엔 `gameInfoReady` 하나로 두 카드를 같이 묶었다. 배너·노트가 디스크 캐시로 즉시 차면서
+    /// 스켈레톤이 곧바로 걷히는데, 정작 이 두 카드는 데이터가 없으면 아무것도 안 그려서
+    /// 자리를 비웠다가 응답이 온 뒤 튀어나왔다. 출처가 다르니 게이트도 따로 본다.
+    @ViewBuilder
+    private func dashboardSlots(titleOutside: Bool) -> some View {
+        if store.scheduleReady && store.newsReady {
+            dashboardSlotBodies(titleOutside: titleOutside)
+        } else {
+            // 스켈레톤이 여러 개 동시에 뜨는 구간 — 시머 클럭을 하나만 돌린다.
+            GLGShimmerClock { dashboardSlotBodies(titleOutside: titleOutside) }
+        }
+    }
+
+    @ViewBuilder
+    private func dashboardSlotBodies(titleOutside: Bool) -> some View {
+        if store.scheduleReady {
+            DashboardScheduleCard(events: store.gameEvents, challenges: store.challenges,
+                                  onTap: { store.requestGameInfoAnchor(.schedule); onSwitchTab(2) },
+                                  titleOutside: titleOutside)
+        } else {
+            DashCardSkeleton(rows: 3)
+        }
+        if store.newsReady {
+            DashboardNewsCard(news: store.gameNews,
+                              anniversaries: GameAnniversary.shared.upcoming(nowMillis: nowMs()),
+                              onTap: { store.requestGameInfoAnchor(.news); onSwitchTab(2) },
+                              titleOutside: titleOutside)
+        } else {
+            DashCardSkeleton(rows: 2)
+        }
     }
 
     @ViewBuilder
