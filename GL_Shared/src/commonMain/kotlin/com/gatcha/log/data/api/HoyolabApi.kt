@@ -33,7 +33,18 @@ data class CheckInResult(
     enum class Reason { NONE, AUTH, NETWORK, OTHER }
 }
 /** [alreadyRedeemed] = 이미 계정에 귀속(수령)된 코드(retcode -2017/-2018). '받음' 처리 분기에 사용 — 메시지 문자열 매칭 금지. */
-data class CodeResult(val success: Boolean, val message: String, val alreadyRedeemed: Boolean = false)
+/**
+ * @param alreadyRedeemed 이 계정에 이미 귀속된 코드 — 실패지만 '받음'으로 표시한다.
+ * @param unusable **다시 시도해도 소용없는 코드**(만료·무효·수량 마감). 목록에서 아예 뺀다.
+ *   재시도 가치가 있는 실패(쿠키 만료·레이트리밋·네트워크)와 구분하는 게 핵심 — 그쪽을 빼버리면
+ *   멀쩡한 코드가 영영 사라진다.
+ */
+data class CodeResult(
+    val success: Boolean,
+    val message: String,
+    val alreadyRedeemed: Boolean = false,
+    val unusable: Boolean = false,
+)
 
 /**
  * HoYoLAB(OS) 실시간 노트 + 출석체크.
@@ -359,14 +370,35 @@ object HoyolabApi {
             when (retcode) {
                 0 -> CodeResult(true, "교환 완료! 게임 우편함을 확인하세요")
                 -2017, -2018 -> CodeResult(false, "이미 사용한 코드예요", alreadyRedeemed = true)
-                -2001 -> CodeResult(false, "만료된 코드예요")
-                -2003, -2004, -2014 -> CodeResult(false, "유효하지 않은 코드예요")
+                -2001 -> CodeResult(false, "만료된 코드예요", unusable = true)
+                -2003, -2004, -2014 -> CodeResult(false, "유효하지 않은 코드예요", unusable = true)
+                // 재시도 가치가 있는 실패 — 절대 unusable 로 두지 않는다.
                 -2016 -> CodeResult(false, "교환이 너무 잦아요. 잠시 후 다시 시도하세요")
                 -1071, -100 -> CodeResult(false, "쿠키 인증 필요 — HoYoLAB 재연동(쿠키 갱신)")
-                else -> CodeResult(false, msg.ifBlank { "교환 실패 ($retcode)" })
+                // 서버가 이유를 안 알려주고 거절한 경우(수량 마감 등). retcode == -1 은 응답에 retcode 가
+                // 아예 없었다는 뜻(parse 기본값)이라 '거절'로 볼 수 없으므로 제외한다.
+                else -> CodeResult(false, redeemFallbackMessage(retcode, msg), unusable = retcode != -1)
             }
         }
     }
+
+    /** 한글이 한 글자라도 있으면 서버가 실제로 한국어화해 준 메시지로 본다. */
+    private val RE_HANGUL = Regex("[가-힣]")
+
+    /**
+     * 매핑 안 된 retcode 의 사용자 문구.
+     *
+     * HoYoLAB 교환 API 는 일부 응답을 **한국어화하지 않고** 영문 상용구로 내려준다("Error found!" 등).
+     * 쿠키 언어를 ko-kr 로 못박아도(koreanCookie) 이 문구들은 그대로 온다 — 번역 대상이 아니라
+     * 서버 내부 기본값이기 때문이다. 그걸 그대로 노출하면 사용자에겐 원인도 조치도 알 수 없는
+     * 영어 한 줄만 남는다(2026-08-03 지적).
+     *
+     * 한글이 섞여 있으면 진짜 번역된 안내이므로 살리고, 아니면 우리 문구로 갈아끼운다.
+     * retcode 를 함께 보여줘야 새로 나타난 코드를 매핑 표에 추가할 수 있다.
+     */
+    private fun redeemFallbackMessage(retcode: Int, msg: String): String =
+        if (msg.isNotBlank() && RE_HANGUL.containsMatchIn(msg)) msg
+        else "교환할 수 없는 코드예요 (오류 $retcode)"
 
     // ----------------------------------------------------------------- 게임 UID 자동 조회
     /**
