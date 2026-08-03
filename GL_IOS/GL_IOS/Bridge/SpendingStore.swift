@@ -125,6 +125,9 @@ final class SpendingStore {
     // Phase 5 (홈)
     private(set) var homeCards: [HomeCardItem] = []
     private(set) var gameInfoReady: Bool = false
+    /// 일정·소식 카드 각각의 표출 준비 상태 — 출처가 달라 `gameInfoReady` 와 따로 둔다(VM 주석 참고).
+    private(set) var scheduleReady: Bool = false
+    private(set) var newsReady: Bool = false
     private(set) var hoyoTokenExpired: Bool = false
     private(set) var readAlerts: Set<String> = []
     private(set) var dismissedAlerts: Set<String> = []
@@ -261,6 +264,8 @@ final class SpendingStore {
         bind(vm.checkingIn) { [weak self] in self?.checkingIn = $0 }
         bind(vm.homeCards) { [weak self] in self?.homeCards = $0 }
         bind(vm.gameInfoReady) { [weak self] in self?.gameInfoReady = $0.boolValue }
+        bind(vm.scheduleReady) { [weak self] in self?.scheduleReady = $0.boolValue }
+        bind(vm.newsReady) { [weak self] in self?.newsReady = $0.boolValue }
         bind(vm.hoyoTokenExpired) { [weak self] in self?.hoyoTokenExpired = $0.boolValue }
         bind(vm.readAlerts) { [weak self] in self?.readAlerts = $0 }
         bind(vm.dismissedAlerts) { [weak self] in self?.dismissedAlerts = $0 }

@@ -407,11 +407,27 @@ class SpendingViewModel : ViewModel() {
             val banners = repo.loadActiveBanners()
             val notes = repo.loadLiveNotes()
             val combats = repo.loadCombatModes()
+            // 일정·소식도 함께 — 예전엔 이 둘만 캐시가 없어서, 배너·오늘 할 일은 캐시로 즉시 차는데
+            // 홈의 '이번주 일정'·'게임 소식' 카드만 네트워크가 올 때까지 빈 채로 남았다.
+            val events = repo.loadGameEvents()
+            val challenges = repo.loadChallenges()
+            val news = repo.loadGameNews()
             if (banners.isNotEmpty()) {
                 _activeBanners.value = banners.sortedWith(compareBy({ it.isEndUnknown }, { it.dDay() }))
             }
             if (notes.isNotEmpty()) _liveNotes.value = notes
             if (combats.isNotEmpty()) _combat.value = combats
+            // 이미 끝난 항목은 되살리지 않는다 — 캐시가 하루 이상 묵었을 때 지난 이벤트가 잠깐 보이는 걸 막는다.
+            val now = currentTimeMillis()
+            if (events.isNotEmpty() || challenges.isNotEmpty()) {
+                _gameEvents.value = events.filter { it.endMillis > now }.sortedBy { it.endMillis }
+                _challenges.value = challenges.filter { it.endMillis > now }.sortedBy { it.endMillis }
+                _scheduleReady.value = true   // 캐시가 있으면 스켈레톤 없이 바로 그린다
+            }
+            if (news.isNotEmpty()) {
+                _gameNews.value = news.sortedByDescending { it.createdAtMillis }
+                _newsReady.value = true
+            }
             // 보여줄 게 하나라도 있으면 스켈레톤 대신 캐시를 그린다.
             if (banners.isNotEmpty() || notes.isNotEmpty()) _gameInfoReady.value = true
         }
@@ -1276,9 +1292,26 @@ class SpendingViewModel : ViewModel() {
     /** 홈/오늘 할 일 표출 준비 완료(배너+실시간 노트 로드 후 true). 초기 로딩 스켈레톤 게이트. */
     private val _gameInfoReady = MutableStateFlow(false)
     val gameInfoReady: StateFlow<Boolean> = _gameInfoReady.asStateFlow()
+
+    /**
+     * 일정·공지 카드 **각각의** 표출 준비 상태 — 홈의 '이번 주 일정'·'게임 소식' 스켈레톤 게이트.
+     *
+     * [gameInfoReady] 하나로 두 카드를 같이 묶었더니, 배너·노트가 디스크 캐시로 즉시 차면서
+     * 스켈레톤이 바로 걷히는데 정작 이 두 카드는 데이터가 없어 **아무것도 안 그리다가**
+     * 응답이 온 뒤에야 튀어나왔다(= '느리게 노출'). 출처가 다르니 게이트도 따로 둔다.
+     *
+     * 한 번 true 가 되면 되돌리지 않는다 — 새로고침 때마다 스켈레톤이 깜빡이면 안 되고,
+     * 그때는 이미 있는 값을 그대로 보여주다 교체하는 게 맞다.
+     */
+    private val _scheduleReady = MutableStateFlow(false)
+    val scheduleReady: StateFlow<Boolean> = _scheduleReady.asStateFlow()
+    private val _newsReady = MutableStateFlow(false)
+    val newsReady: StateFlow<Boolean> = _newsReady.asStateFlow()
     /** 마지막 게임정보 성공 로드 시각 — freshness 캐시(재진입 시 불필요한 재요청 생략). */
     private var lastGameInfoLoadAt = 0L
     private val gameInfoFreshMs = 5 * 60 * 1000L
+    /** 일부 게임이 실패한 회차의 캐시 수명 — 짧게 잡아 다음 진입에 곧바로 다시 받는다(연타 폭주는 막는다). */
+    private val gameInfoRetryMs = 30 * 1000L
 
     /**
      * 게임 정보 새로고침 진행 여부 — **[_isRefreshing] 과 별개로 둔다.**
@@ -1400,6 +1433,13 @@ class SpendingViewModel : ViewModel() {
      * 게임 정보 탭 전용인 월간 원장·전투 진행도는 뒤이어 로드한다. [force]=false 면 최근(5분 내) 성공 로드가
      * 있을 때 재요청을 생략(재진입 시 즉시 표시). PTR·새로고침 버튼·재연동·계정전환은 force=true.
      * try/finally 로 예외 시에도 _isRefreshing 해제 + 스켈레톤 영구 고착 방지.
+     *
+     * **부분 실패는 부분만 반영한다** — 요청은 게임마다 따로 나가는데, 예전엔 성공한 응답만 모아 상태에
+     * 통째로 대입했다. 그래서 한 게임이 타임아웃 한 번 나면 그 게임의 배너·이벤트·공지가 화면에서
+     * 통째로 사라졌고(= 홈·게임 정보 탭 정보 간헐 미노출), 게다가 그 회차가 '성공'으로 기록돼 5분간
+     * 재요청도 생략돼서 수동 새로고침을 여러 번 하거나 앱을 재시작해야 다시 보였다.
+     * 지금은 응답을 받은 게임만 갈아끼우고([mergeByGame]) 나머지는 직전 값을 유지하며,
+     * ennead 가 하나라도 실패한 회차는 신선도를 [gameInfoRetryMs] 로 짧게 잡아 곧 다시 받는다.
      */
     fun refreshGameInfo(force: Boolean = false) {
         if (_gameInfoRefreshing) return // 동시 새로고침 차단
@@ -1413,6 +1453,11 @@ class SpendingViewModel : ViewModel() {
                     emitNetworkAlert()
                     return@launch
                 }
+                // ennead(공개 API·인증 불필요) 가 한 게임이라도 실패하면 신선도 캐시를 짧게 잡아 곧 재시도한다.
+                // HoYoLAB 계열(노트·원장·전투)은 여기 넣지 않는다 — 쿠키 만료·미연동처럼 **계속** 실패하는
+                // 사유가 흔해서, 그걸로 재시도를 걸면 탭을 오갈 때마다 18건짜리 요청 세트가 계속 나간다.
+                // 그쪽은 직전 값 유지([mergeByGame])만으로 화면이 비지 않는다.
+                var partial = false
                 coroutineScope {
                     val cfg = _hoyolabConfig.value
                     val uids = if (cfg.isLinked) mapOf(
@@ -1425,54 +1470,84 @@ class SpendingViewModel : ViewModel() {
                     // async(Dispatchers.IO) — 응답 본문 디코딩과 JSON 파싱을 메인 스레드 밖에서 한다.
                     // 예전엔 부모 컨텍스트(Main.immediate)를 그대로 상속해서, 캘린더·공지처럼 수백 KB 짜리
                     // 응답 18건의 파싱이 전부 UI 스레드에서 재개됐다. 상태 대입은 await 뒤라 그대로 메인이다.
-                    val enneadDeferred = GameData.games.filter { it.enneadKey != null }
+                    val calendarGames = GameData.games.filter { it.enneadKey != null }
+                    val enneadDeferred = calendarGames
                         .map { game -> async(Dispatchers.IO) { EnneadApi.fetch(game) } }
                     // ZZZ 픽업·일정 — ennead zenless 캘린더에서 배너+이벤트+도전 자동(수동 JSON 폐기, 에이전트명 한국어 매핑).
                     val zzzDeferred = async(Dispatchers.IO) { EnneadApi.fetchZzz() }
                     val noteDeferred = uids.map { (key, uid) ->
                         async(Dispatchers.IO) { HoyolabApi.getLiveNote(cfg.ltuid, cfg.ltoken, key, uid).note }
                     }
+                    // 공지도 **여기서 같이 쏜다**(await 만 아래에서). 예전엔 배너·노트를 다 받은 뒤에야
+                    // 요청이 나가서, 홈의 '게임 소식'만 한 왕복 늦게 채워졌다 — 의존 관계가 전혀 없는데도.
+                    val newsGames = GameData.games.filter { it.newsSlug != null }
+                    val newsDeferred = newsGames.map { g -> async(Dispatchers.IO) { NewsApi.notices(g) } }
 
+                    // 응답을 받은 게임만 새 값으로 갈아끼운다([mergeByGame]) — 실패한 게임은 직전 값 유지.
+                    // 예전엔 성공분만 모아 통째로 대입해서, 한 게임이 타임아웃 나면 그 게임 정보가 사라졌다.
+                    val calendarLoaded = mutableSetOf<String>()
                     val banners = mutableListOf<GachaBanner>()
                     val events = mutableListOf<GameEvent>()
                     val challenges = mutableListOf<GameChallenge>()
-                    enneadDeferred.forEach { d ->
-                        val r = d.await()
+                    calendarGames.forEachIndexed { i, game ->
+                        val r = enneadDeferred[i].await()
+                        if (r == null) { partial = true; return@forEachIndexed }
+                        calendarLoaded += game.displayName
                         banners += r.banners
                         events += r.events
                         challenges += r.challenges
                     }
-                    zzzDeferred.await().let { banners += it.banners; events += it.events; challenges += it.challenges }
-                    if (banners.isNotEmpty()) {
-                        // 종료 미정(end_time 미공지)은 임박도를 알 수 없으니 맨 뒤로 — dDay 가 큰 음수라 앞으로 튄다.
-                        _activeBanners.value = banners.sortedWith(compareBy({ it.isEndUnknown }, { it.dDay() }))
-                        // 백그라운드 픽업 마감 알림 점검용 로컬 캐시(네트워크 없이 판정).
-                        runCatching { repo.saveActiveBanners(banners) }
-                        refreshPlans()   // 새 픽업 목록으로 저축 계획 갱신
+                    val zzz = zzzDeferred.await()
+                    if (zzz == null) partial = true else {
+                        calendarLoaded += Game.ZZZ.displayName
+                        banners += zzz.banners; events += zzz.events; challenges += zzz.challenges
                     }
-                    _gameEvents.value = events.sortedBy { it.endMillis }
-                    _challenges.value = challenges.sortedBy { it.endMillis }
+                    if (calendarLoaded.isNotEmpty()) {
+                        // 종료 미정(end_time 미공지)은 임박도를 알 수 없으니 맨 뒤로 — dDay 가 큰 음수라 앞으로 튄다.
+                        _activeBanners.value = mergeByGame(_activeBanners.value, banners, calendarLoaded) { it.game }
+                            .sortedWith(compareBy({ it.isEndUnknown }, { it.dDay() }))
+                        // 백그라운드 픽업 마감 알림 점검용 로컬 캐시(네트워크 없이 판정).
+                        runCatching { repo.saveActiveBanners(_activeBanners.value) }
+                        refreshPlans()   // 새 픽업 목록으로 저축 계획 갱신
+                        _gameEvents.value = mergeByGame(_gameEvents.value, events, calendarLoaded) { it.game }
+                            .sortedBy { it.endMillis }
+                        _challenges.value = mergeByGame(_challenges.value, challenges, calendarLoaded) { it.game }
+                            .sortedBy { it.endMillis }
+                        // 다음 실행 때 홈 '이번주 일정'을 네트워크 없이 바로 그리기 위한 캐시(배너와 동일).
+                        runCatching { repo.saveGameEvents(_gameEvents.value); repo.saveChallenges(_challenges.value) }
+                    }
+                    // 전부 실패해 값이 없더라도 스켈레톤은 걷는다 — 안 그러면 영원히 로딩처럼 보인다.
+                    _scheduleReady.value = true
 
                     val notes = noteDeferred.mapNotNull { it.await() }
                     if (notes.isNotEmpty()) {
-                        _liveNotes.value = notes
+                        _liveNotes.value = mergeByGame(_liveNotes.value, notes, notes.map { it.game }.toSet()) { it.game }
+                            .sortedByGameOrder { it.game }
                         // 재화가 가득 차는 시각을 알림 예약에 쓰려면 로컬 캐시가 필요하다(네트워크 없이 계산).
-                        runCatching { repo.saveLiveNotes(notes) }
+                        runCatching { repo.saveLiveNotes(_liveNotes.value) }
                         recordTaskProgress(notes)
                     }
 
                     // ★ 배너+노트까지면 홈/오늘 할 일 준비 완료 — 즉시 표출(원장·전투는 뒤이어)
                     _gameInfoReady.value = true
-                    lastGameInfoLoadAt = currentTimeMillis()
 
-                    // 게임 공지·뉴스(공개 API·인증 불필요) — 지원 게임 병렬, 최신순. 부가 콘텐츠라 준비 완료 뒤 로드.
-                    val newsDeferred = GameData.games.filter { it.newsSlug != null }
-                        .map { g -> async(Dispatchers.IO) { NewsApi.notices(g) } }
-                    // 실패(null)한 게임은 건너뛴다 — 빈 목록으로 합쳐지면 '공지 없음'처럼 보인다.
-                    val news = newsDeferred.mapNotNull { it.await() }
-                        .flatten()
-                        .sortedByDescending { it.createdAtMillis }
-                    if (news.isNotEmpty()) _gameNews.value = news
+                    // 게임 공지·뉴스(공개 API·인증 불필요) — 위에서 이미 쏴 둔 요청을 여기서 수확한다.
+                    val newsLoaded = mutableSetOf<String>()
+                    val news = mutableListOf<NewsItem>()
+                    newsGames.forEachIndexed { i, game ->
+                        // 실패(null)한 게임은 직전 공지를 유지한다 — 빈 목록으로 합쳐지면 '공지 없음'처럼 보인다.
+                        val list = newsDeferred[i].await()
+                        if (list == null) { partial = true; return@forEachIndexed }
+                        newsLoaded += game.displayName
+                        news += list
+                    }
+                    if (newsLoaded.isNotEmpty()) {
+                        _gameNews.value = mergeByGame(_gameNews.value, news, newsLoaded) { it.game }
+                            .sortedByDescending { it.createdAtMillis }
+                        // 다음 실행 때 홈 '게임 소식'을 바로 그리기 위한 캐시(최신 N건·요약 절단 — 저장부 참고).
+                        runCatching { repo.saveGameNews(_gameNews.value) }
+                    }
+                    _newsReady.value = true
 
                     // 2) 게임 정보 탭 전용 — 월간 원장 + 전투 진행도(게임 간 병렬, 게임 내 순차로 단일 호스트 보호)
                     if (uids.isNotEmpty()) {
@@ -1490,18 +1565,28 @@ class SpendingViewModel : ViewModel() {
                             ledger?.let { ledgers += it }
                             combats += combat
                         }
-                        if (ledgers.isNotEmpty()) _ledgers.value = ledgers
+                        if (ledgers.isNotEmpty()) {
+                            _ledgers.value = mergeByGame(_ledgers.value, ledgers, ledgers.map { it.game }.toSet()) { it.game }
+                                .sortedByGameOrder { it.game }
+                        }
                         if (combats.isNotEmpty()) {
-                            _combat.value = combats
+                            _combat.value = mergeByGame(_combat.value, combats, combats.map { it.game }.toSet()) { it.game }
+                                .sortedByGameOrder { it.game }
                             // 백그라운드 시즌 마감 알림이 네트워크 없이 판정하도록 로컬 캐시(배너 캐시와 동일 패턴).
-                            runCatching { repo.saveCombatModes(combats) }
+                            runCatching { repo.saveCombatModes(_combat.value) }
                         }
                     }
                 }
+                // 전부 성공했을 때만 5분간 재요청을 생략한다. 일부라도 빠졌으면 짧게 잡아 다음 진입에 다시 받는다 —
+                // 예전엔 실패해도 5분을 캐시해서, 빠진 정보가 그 시간 동안 수동 새로고침 전까지 안 채워졌다.
+                lastGameInfoLoadAt = currentTimeMillis() - if (partial) gameInfoFreshMs - gameInfoRetryMs else 0L
             } finally {
                 _gameInfoRefreshing = false
                 _isRefreshing.value = false
-                _gameInfoReady.value = true // 예외로 1)단계 못 미쳐도 스켈레톤 영구 고착 방지
+                // 예외·오프라인으로 중간에 빠져나가도 스켈레톤이 영구 고착되지 않게 게이트를 모두 연다.
+                _gameInfoReady.value = true
+                _scheduleReady.value = true
+                _newsReady.value = true
                 // 예약 알림은 여기서 **한 번만** 갱신한다. 예전엔 배너·노트·전투 각 단계에서 따로 불러
                 // 새로고침 1회에 3번 돌았고, 매번 prefs 4키를 읽고 대기 알림을 최대 48건 교체했다.
                 rescheduleTimedAlerts()

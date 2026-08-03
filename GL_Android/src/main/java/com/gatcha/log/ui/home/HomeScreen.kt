@@ -343,6 +343,9 @@ fun HomeContent(
     val savingsPlans by viewModel.savingsPlans.collectAsStateWithLifecycle()
     val challenge by viewModel.challenge.collectAsStateWithLifecycle()
     val gameInfoReady by viewModel.gameInfoReady.collectAsStateWithLifecycle()
+    // 일정·소식은 출처가 달라 게이트도 따로다 — 배너·노트가 캐시로 즉시 차도 이 둘은 아직 로딩일 수 있다.
+    val scheduleReady by viewModel.scheduleReady.collectAsStateWithLifecycle()
+    val newsReady by viewModel.newsReady.collectAsStateWithLifecycle()
     val hoyoTokenExpired by viewModel.hoyoTokenExpired.collectAsStateWithLifecycle()
     val gameEvents by viewModel.gameEvents.collectAsStateWithLifecycle()
     val gameChallenges by viewModel.challenges.collectAsStateWithLifecycle()
@@ -505,24 +508,17 @@ fun HomeContent(
             RecentSpendCard(spendings) { onNavigateToSpending() }
             Spacer(Modifier.height(16.dp))
         }
-        if (!gameInfoReady) {
-            glgCardItem() {
-                DashCardSkeleton(rows = 3)
-                Spacer(Modifier.height(16.dp))
-            }
-            glgCardItem() {
-                DashCardSkeleton(rows = 2)
-                Spacer(Modifier.height(16.dp))
-            }
-        } else {
-            glgCardItem() {
-                DashScheduleCard(gameEvents, gameChallenges, titleOutside = true) { viewModel.requestGameInfoAnchor(GameInfoAnchor.SCHEDULE); onNavigateToGameInfo() }
-                Spacer(Modifier.height(16.dp))
-            }
-            glgCardItem() {
-                DashNewsCard(gameNews, anniversaries, titleOutside = true) { viewModel.requestGameInfoAnchor(GameInfoAnchor.NEWS); onNavigateToGameInfo() }
-                Spacer(Modifier.height(16.dp))
-            }
+        // 카드마다 자기 데이터가 올 때까지 스켈레톤 — 예전엔 gameInfoReady 하나로 묶여 있어서, 배너·노트가
+        // 캐시로 즉시 차면 스켈레톤이 걷히고 이 두 카드만 한동안 자리를 비웠다가 뒤늦게 튀어나왔다.
+        glgCardItem() {
+            if (!scheduleReady) DashCardSkeleton(rows = 3)
+            else DashScheduleCard(gameEvents, gameChallenges, titleOutside = true) { viewModel.requestGameInfoAnchor(GameInfoAnchor.SCHEDULE); onNavigateToGameInfo() }
+            Spacer(Modifier.height(16.dp))
+        }
+        glgCardItem() {
+            if (!newsReady) DashCardSkeleton(rows = 2)
+            else DashNewsCard(gameNews, anniversaries, titleOutside = true) { viewModel.requestGameInfoAnchor(GameInfoAnchor.NEWS); onNavigateToGameInfo() }
+            Spacer(Modifier.height(16.dp))
         }
         // 나를 위한 — 저축 플래너 · 절약 챌린지
         glgCardItem() {

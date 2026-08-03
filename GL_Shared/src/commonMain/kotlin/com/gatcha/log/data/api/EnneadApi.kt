@@ -32,27 +32,34 @@ object EnneadApi {
     /** 종료 미정 배너를 시작일로부터 몇 일까지 살려둘지 — 통상 버전 주기(6주)보다 넉넉하게. */
     private const val UNKNOWN_END_MAX_DAYS = 60L
 
-    suspend fun fetch(game: Game): EnneadResult {
+    /**
+     * @return 성공 시 캘린더, **네트워크·파싱 실패 시 null**([NewsApi.notices] 와 같은 규약).
+     *
+     * 빈 결과와 실패를 반드시 구분한다 — 호출부가 둘을 같게 보면, 한 게임이 타임아웃 났을 때
+     * '그 게임은 진행 중인 배너·이벤트가 없다'로 읽혀 화면에서 통째로 사라진다.
+     */
+    suspend fun fetch(game: Game): EnneadResult? {
         val key = game.enneadKey ?: return EnneadResult(emptyList(), emptyList())
 
         var res = Net.get("https://api.ennead.cc/mihoyo/$key/calendar?lang=ko-kr")
         if (res.code == 404) {
             res = Net.get("https://api.ennead.cc/hoyoverse/$key/calendar?lang=ko-kr")
         }
-        if (!res.isOk) return EnneadResult(emptyList(), emptyList())
+        if (!res.isOk) return null
 
-        return runCatching { parse(game, JSONObject(res.body)) }
-            .getOrDefault(EnneadResult(emptyList(), emptyList()))
+        return runCatching { parse(game, JSONObject(res.body)) }.getOrNull()
     }
 
     /**
      * 젠레스 존 제로 일정 — ennead `mihoyo/zenless/calendar` 의 **이벤트 + 도전만**(픽업 배너 기능 제거).
      * ennead ZZZ 데이터는 ko-kr 요청에도 영문이라 이벤트명에 [ZzzEventNames] 한국어 매핑(빌트인+원격) 적용,
      * 매핑 없으면 원문 유지. 보상 폴리크롬은 숫자 필드([rewardOf] 처리).
+     *
+     * @return [fetch] 와 동일 — 실패 시 null.
      */
-    suspend fun fetchZzz(): EnneadResult {
+    suspend fun fetchZzz(): EnneadResult? {
         val res = Net.get("https://api.ennead.cc/mihoyo/zenless/calendar?lang=ko-kr")
-        if (!res.isOk) return EnneadResult(emptyList(), emptyList())
+        if (!res.isOk) return null
         return runCatching {
             val r = parse(Game.ZZZ, JSONObject(res.body))
             val ko = ZzzEventNames.map() // 이벤트명 en→ko
@@ -61,7 +68,7 @@ object EnneadApi {
                 r.events.map { it.copy(name = ko[it.name] ?: it.name) },
                 r.challenges.map { it.copy(name = ko[it.name] ?: it.name) },
             )
-        }.getOrDefault(EnneadResult(emptyList(), emptyList()))
+        }.getOrNull()
     }
 
     private fun parse(game: Game, root: JSONObject): EnneadResult {

@@ -1,6 +1,7 @@
 package com.gatcha.log.data
 
 import com.gatcha.log.data.api.EnkaResult
+import com.gatcha.log.data.api.NewsItem
 import com.gatcha.log.json.JSONArray
 import com.gatcha.log.json.JSONObject
 import com.gatcha.log.storage.KeyValueStore
@@ -531,6 +532,88 @@ class GatchaRepository(accountId: String = "guest") {
         prefs.putString(KEY_NOTES, arr.toString())
     }
 
+    // ---------------------------------------------------------------- 일정·공지 캐시 (로컬 전용 — 홈 즉시 표출용)
+    /**
+     * 홈의 '이번주 일정'·'게임 소식' 카드는 배너·노트와 달리 **디스크 캐시가 없어서**, 앱을 켤 때마다
+     * ennead 응답이 올 때까지 빈 채로 있었다(배너·오늘 할 일은 캐시로 즉시 차는데 그 둘만 늦게 나타남).
+     * 배너 캐시와 같은 stale-while-revalidate 로 맞춘다 — 지난 값을 먼저 그리고 응답이 오면 교체.
+     */
+    fun loadGameEvents(): List<GameEvent> = readList(KEY_EVENTS) { o ->
+        GameEvent(
+            game = o.optString("game", ""),
+            name = o.optString("name", ""),
+            endMillis = o.optLong("endMillis", 0L),
+            reward = o.optString("reward", ""),
+        )
+    }
+
+    fun saveGameEvents(list: List<GameEvent>) = writeList(KEY_EVENTS, list) { e ->
+        JSONObject().apply {
+            put("game", e.game); put("name", e.name)
+            put("endMillis", e.endMillis); put("reward", e.reward)
+        }
+    }
+
+    fun loadChallenges(): List<GameChallenge> = readList(KEY_CHALLENGES) { o ->
+        GameChallenge(
+            game = o.optString("game", ""),
+            name = o.optString("name", ""),
+            typeName = o.optString("typeName", ""),
+            endMillis = o.optLong("endMillis", 0L),
+            reward = o.optString("reward", ""),
+        )
+    }
+
+    fun saveChallenges(list: List<GameChallenge>) = writeList(KEY_CHALLENGES, list) { c ->
+        JSONObject().apply {
+            put("game", c.game); put("name", c.name); put("typeName", c.typeName)
+            put("endMillis", c.endMillis); put("reward", c.reward)
+        }
+    }
+
+    fun loadGameNews(): List<NewsItem> = readList(KEY_NEWS) { o ->
+        NewsItem(
+            game = o.optString("game", ""),
+            id = o.optString("id", ""),
+            title = o.optString("title", ""),
+            createdAtMillis = o.optLong("createdAt", 0L),
+            bannerUrl = o.optString("banner", ""),
+            url = o.optString("url", ""),
+            summary = o.optString("summary", ""),
+        )
+    }
+
+    /**
+     * 공지 캐시 저장 — **최신 [NEWS_CACHE_MAX] 건만, [summary] 는 [NEWS_SUMMARY_MAX] 자로 잘라서.**
+     * 목록 API 가 주는 `description` 은 본문 전문(공지 하나가 수만 자)이라 그대로 담으면 prefs 에
+     * 메가바이트가 들어간다. 캐시의 목적은 홈 카드·목록을 먼저 그리는 것뿐이고, 상세 본문은
+     * 어차피 [com.gatcha.log.data.api.NewsApi.article] 로 따로 받는다.
+     */
+    fun saveGameNews(list: List<NewsItem>) =
+        writeList(KEY_NEWS, list.sortedByDescending { it.createdAtMillis }.take(NEWS_CACHE_MAX)) { n ->
+            JSONObject().apply {
+                put("game", n.game); put("id", n.id); put("title", n.title)
+                put("createdAt", n.createdAtMillis); put("banner", n.bannerUrl); put("url", n.url)
+                put("summary", n.summary.take(NEWS_SUMMARY_MAX))
+            }
+        }
+
+    /** 로컬 전용 리스트 캐시 읽기 — 형식이 깨졌으면 조용히 빈 목록(캐시는 없어도 그만이다). */
+    private fun <T> readList(key: String, item: (JSONObject) -> T): List<T> {
+        val raw = prefs.getString(key, null) ?: return emptyList()
+        return runCatching {
+            val arr = JSONArray(raw)
+            (0 until arr.length()).map { i -> item(arr.getJSONObject(i)) }
+        }.getOrDefault(emptyList())
+    }
+
+    /** 로컬 전용 리스트 캐시 쓰기 — 클라우드 동기화([changed])는 트리거하지 않는다. */
+    private fun <T> writeList(key: String, list: List<T>, item: (T) -> JSONObject) {
+        val arr = JSONArray()
+        list.forEach { arr.put(item(it)) }
+        prefs.putString(key, arr.toString())
+    }
+
     // ---------------------------------------------------------------- 유효옵션 사용자 설정
     /**
      * 캐릭터별 유효옵션 직접 설정. 키=[keyStatOverrideKey]("genshin:10000030"), 값=StatTok 이름 집합.
@@ -744,6 +827,14 @@ class GatchaRepository(accountId: String = "guest") {
         const val KEY_BANNERS = "active_banners"  // 로컬 전용(픽업 마감 알림 점검 캐시)
         const val KEY_COMBAT = "combat_modes"     // 로컬 전용(전투 시즌 마감 알림 점검 캐시)
         const val KEY_NOTES = "live_notes"        // 로컬 전용(재화 가득참 예약 알림 계산 캐시)
+        const val KEY_EVENTS = "game_events"      // 로컬 전용(홈 '이번주 일정' 즉시 표출 캐시)
+        const val KEY_CHALLENGES = "game_challenges" // 로컬 전용(홈 '이번주 일정' 즉시 표출 캐시)
+        const val KEY_NEWS = "game_news"          // 로컬 전용(홈 '게임 소식' 즉시 표출 캐시)
+
+        /** 공지 캐시 상한 — 홈 카드 3건 + 게임 정보 목록 첫 화면을 덮으면 충분하다. */
+        private const val NEWS_CACHE_MAX = 30
+        /** 공지 요약 캐시 길이 — 목록 카드에 보이는 만큼만(본문 전문은 상세에서 따로 받는다). */
+        private const val NEWS_SUMMARY_MAX = 200
         const val KEY_TASK_LOG = "task_logs"      // 로컬 전용(일일·주간 숙제 완주율 관측 기록)
         const val KEY_KEYSTAT_OVERRIDE = "keystat_override"  // 캐릭터별 유효옵션 직접 설정
         const val KEY_GACHA = "gacha_records"
