@@ -44,10 +44,12 @@ android {
         versionCode = 274200 // 27.42.0
         versionName = "27.42.0"
 
-        // ⚠️ 실험 빌드 표식(experiment/android-floating-toolbar). 설정 > 앱 버전에 빨간 EXPERIMENT 칩.
-        // **main 으로 가져갈 땐 false 로 되돌리거나 이 줄을 지울 것** — 실험 빌드가 릴리스로
-        // 오해되는 걸 막으려고 넣은 것이다.
-        buildConfigField("boolean", "EXPERIMENT", "true")
+        // 실험 빌드 표식 — true 면 시작 시 경고 다이얼로그 + 설정 > 앱 버전에 빨간 EXPERIMENT 칩.
+        //
+        // **main 은 항상 false.** 검증 안 된 UI·라이브러리를 얹은 로컬 빌드를 배포본과 구분하려고
+        // 만든 장치라, 배포 브랜치에서 켜져 있으면 모든 사용자가 매번 경고를 보게 된다.
+        // 실험할 땐 이 줄만 true 로 바꿔 빌드한다(코드는 그대로 살아 있다).
+        buildConfigField("boolean", "EXPERIMENT", "false")
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
