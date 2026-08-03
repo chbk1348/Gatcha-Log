@@ -2,6 +2,8 @@ package com.gatcha.log.baselineprofile
 
 import androidx.benchmark.macro.MacrobenchmarkScope
 import androidx.test.uiautomator.By
+import androidx.test.uiautomator.BySelector
+import androidx.test.uiautomator.StaleObjectException
 import androidx.test.uiautomator.Until
 
 /**
@@ -20,6 +22,9 @@ internal const val PACKAGE = "com.gatcha.log"
 /** UI 탐색 대기 시간. 실기기 콜드스타트 직후엔 첫 탐색이 느릴 수 있어 넉넉히 준다. */
 private const val FIND_TIMEOUT_MS = 3_000L
 
+/** 노드가 애니메이션으로 갈아치워질 때를 대비한 재시도 횟수. */
+private const val TAP_ATTEMPTS = 3
+
 /**
  * 바텀 네비 탭 전환.
  *
@@ -32,21 +37,37 @@ private const val FIND_TIMEOUT_MS = 3_000L
  *
  * @return 탭에 성공했으면 true
  */
-internal fun MacrobenchmarkScope.tapTab(label: String): Boolean {
-    val el = device.wait(Until.findObject(By.text(label)), FIND_TIMEOUT_MS)
-        ?: device.wait(Until.findObject(By.desc(label)), FIND_TIMEOUT_MS)
-        ?: return false
-    el.click()
-    device.waitForIdle()
-    return true
-}
+internal fun MacrobenchmarkScope.tapTab(label: String): Boolean =
+    tapAny(By.text(label), By.desc(label))
 
 /** contentDescription 으로 아이콘 버튼을 누른다. 찾았으면 true. */
-internal fun MacrobenchmarkScope.tapDesc(desc: String): Boolean {
-    val el = device.wait(Until.findObject(By.desc(desc)), FIND_TIMEOUT_MS) ?: return false
-    el.click()
-    device.waitForIdle()
-    return true
+internal fun MacrobenchmarkScope.tapDesc(desc: String): Boolean = tapAny(By.desc(desc))
+
+/**
+ * 주어진 선택자들을 순서대로 시도해 누른다.
+ *
+ * ⚠️ **찾은 다음 누르기까지의 사이에 노드가 사라질 수 있다.** 툴바는 라벨을
+ * `AnimatedVisibility` 로 늘렸다 줄이고 색도 `animateColorAsState` 로 굴리므로, 애니메이션이
+ * 도는 동안 접근성 노드가 재생성된다 → `UiObject2.click()` 이 `StaleObjectException` 으로 죽는다.
+ * (실제로 프로파일 재생성이 이걸로 실패했다, 2026-08-03)
+ *
+ * 그래서 **매 시도마다 다시 찾고**, 애니메이션이 가라앉을 시간을 준다.
+ */
+private fun MacrobenchmarkScope.tapAny(vararg selectors: BySelector): Boolean {
+    repeat(TAP_ATTEMPTS) {
+        device.waitForIdle()
+        val el = selectors.firstNotNullOfOrNull { device.wait(Until.findObject(it), FIND_TIMEOUT_MS) }
+        if (el != null) {
+            try {
+                el.click()
+                device.waitForIdle()
+                return true
+            } catch (_: StaleObjectException) {
+                // 애니메이션이 노드를 갈아치웠다 — 다음 시도에서 새로 찾는다.
+            }
+        }
+    }
+    return false
 }
 
 /** 현재 화면을 위/아래로 스크롤해 리스트 아이템·차트 등 콘텐츠 핫패스를 훑는다. */
