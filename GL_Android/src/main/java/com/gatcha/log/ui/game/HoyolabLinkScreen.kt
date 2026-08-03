@@ -98,7 +98,7 @@ fun HoyolabLinkScreen(config: HoyolabConfig, onSave: (HoyolabConfig) -> Unit, on
             )
             Spacer(Modifier.height(24.dp))
         }
-        GlgDetailHeaderOverlay("HoYoLAB 계정 연동", onBack, scrolled = scrollState.value > 0) {
+        GlgDetailHeaderOverlay("HoYoLAB 계정 연동", onBack, scrollState = scrollState) {
             GlgHeaderActionPill("저장") {
                 onSave(
                     HoyolabConfig(

@@ -66,6 +66,7 @@ import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.gatcha.log.data.DateUtil
@@ -302,32 +303,41 @@ fun HeroGradientBackground(modifier: Modifier = Modifier, glow: Boolean = true) 
     // 지키는데 글로우만 안 지키고 있었다. 5초 주기 무한 애니메이션이라 저사양 단말에 그대로 부담이 된다.
     // (탭을 벗어나면 호출부가 `selectedTab == 0` 으로 이 컴포저블을 통째로 폐기하므로,
     //  '안 보일 때 멈춘다'는 iOS AmbientHeroGradient 의 onScreen 처리에 이미 대응된다)
-    val drift = if (LocalReduceMotion.current || !glow) {
-        0f
+    // ⚠️ 애니메이션 값을 **State 인 채로** 들고 다닌다(`by` 로 풀지 않는다).
+    // 예전엔 여기서 값을 꺼내 `Modifier.offset(x = drift.dp)` 에 넘겼는데, 그러면 5초 주기
+    // 애니메이션이 **컴포지션 단계**에서 읽혀 홈 탭 전체가 초당 60번 재구성됐다.
+    // 아래 `offset { }`(람다 버전)은 **레이아웃 단계**에서 읽으므로 재구성이 아예 없다.
+    // 결과 화면은 완전히 동일하다.
+    val driftState = if (LocalReduceMotion.current || !glow) {
+        null
     } else {
         val transition = rememberInfiniteTransition(label = "heroGlow")
-        val d by transition.animateFloat(
+        transition.animateFloat(
             initialValue = -84f, targetValue = 84f,
             animationSpec = infiniteRepeatable(tween(5000, easing = FastOutSlowInEasing), RepeatMode.Reverse),
             label = "drift",
         )
-        d
+    }
+    // 브러시는 강조색이 바뀔 때만 다시 만든다 — 재구성마다 새로 만들 이유가 없다.
+    val baseBrush = remember(accent2) {
+        Brush.verticalGradient(
+            0.0f to accent2.copy(alpha = 0.45f),
+            0.62f to accent2.copy(alpha = 0.14f),
+            1.0f to accent2.copy(alpha = 0f),
+        )
+    }
+    val glowBrush = remember(accent) {
+        Brush.radialGradient(listOf(accent.copy(alpha = 0.18f), Color.Transparent))
     }
     Box(modifier.clipToBounds()) {
-        Box(
-            Modifier.fillMaxSize().background(
-                Brush.verticalGradient(
-                    0.0f to accent2.copy(alpha = 0.45f),
-                    0.62f to accent2.copy(alpha = 0.14f),
-                    1.0f to accent2.copy(alpha = 0f),
-                ),
-            ),
-        )
+        Box(Modifier.fillMaxSize().background(baseBrush))
         // 은은한 글로우 — 흐릿한 원(radial)이 상단에서 좌우로 드리프트.
         // 하단 클립(선) 방지: 글로우가 박스 하단 훨씬 위에서 완전 투명이 되도록 작게·위로 배치.
         Box(
-            Modifier.align(Alignment.TopCenter).offset(x = drift.dp, y = (-10).dp).size(240.dp)
-                .background(Brush.radialGradient(listOf(accent.copy(alpha = 0.18f), Color.Transparent))),
+            Modifier.align(Alignment.TopCenter)
+                .offset { IntOffset((driftState?.value ?: 0f).dp.roundToPx(), (-10).dp.roundToPx()) }
+                .size(240.dp)
+                .background(glowBrush),
         )
     }
 }
