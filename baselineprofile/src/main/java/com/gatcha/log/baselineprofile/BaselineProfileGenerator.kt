@@ -1,23 +1,30 @@
 package com.gatcha.log.baselineprofile
 
 import androidx.benchmark.macro.junit4.BaselineProfileRule
-import androidx.benchmark.macro.MacrobenchmarkScope
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import androidx.test.uiautomator.By
-import androidx.test.uiautomator.Until
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 
 /**
- * Baseline Profile 생성기 — 앱의 대표 사용자 여정(시작 → 4개 탭 순회 → 각 화면 스크롤)을 실행해
- * 핫 클래스/메서드를 수집한다. 결과는 :GL_Android 의 src/main/generated/baselineProfiles/ 로 들어가
- * release APK 에 동봉되고, profileinstaller 가 첫 실행 시 적용해 콜드스타트·스크롤을 AOT 로 가속한다.
+ * Baseline Profile 생성기 — 앱을 실제로 굴려 핫 클래스/메서드를 수집한다.
+ * 결과는 :GL_Android 의 src/release/generated/baselineProfiles/ 로 들어가 release APK 에 동봉되고,
+ * profileinstaller 가 첫 실행 시 적용해 콜드스타트·스크롤을 AOT 로 가속한다.
  *
  * 생성: `./gradlew :GL_Android:generateBaselineProfile` (USB 연결 실기기 1대 필요).
  *
- * Compose 라 testTag 가 없어 바텀 네비는 라벨 텍스트(접근성 시맨틱스)로 탐색하고, 못 찾으면 건너뛴다
- * (좌표 스크롤만으로도 시작·첫 렌더·리스트 스크롤 핫패스는 충분히 수집됨).
+ * 화면 조작 헬퍼는 [AppJourney.kt] 에 있다 — 벤치마크(측정)와 **같은 경로**를 밟게 하려고 공유한다.
+ *
+ * ## 왜 @Test 가 두 개인가 (2026-08-03)
+ *
+ * 예전엔 **전체 여정 하나**에 `includeInStartupProfile = true` 를 걸었다. 그 결과
+ * `startup-prof.txt` 가 `baseline-prof.txt` 와 **바이트 단위로 같아졌다**(md5 일치, 39,789줄).
+ *
+ * 시작 프로파일은 "시작에 정말 필요한 것"만 담아 **dex 안에서 그 코드를 앞쪽에 모아 두는**
+ * 레이아웃 최적화에 쓰인다. 전부가 시작 프로파일이면 모아 둘 것이 없다 — 최적화가 no-op 이 된다.
+ *
+ * 그래서 시작 경로([startup])와 전체 여정([journey])을 나눴다.
+ * **검증: 재생성 후 두 .txt 의 md5 가 서로 달라야 한다.** 같으면 이 분리가 깨진 것이다.
  */
 @RunWith(AndroidJUnit4::class)
 class BaselineProfileGenerator {
@@ -25,51 +32,42 @@ class BaselineProfileGenerator {
     @get:Rule
     val rule = BaselineProfileRule()
 
+    /**
+     * 시작 전용 — 앱 실행 후 홈 첫 렌더까지. 스크롤·탭 전환은 **의도적으로 하지 않는다**.
+     * 여기서 수집된 것만 startup-prof.txt 로 가서 dex 레이아웃을 결정한다.
+     */
     @Test
-    fun generate() = rule.collect(
+    fun startup() = rule.collect(
         packageName = PACKAGE,
         includeInStartupProfile = true,
     ) {
         pressHome()
         startActivityAndWait()
         device.waitForIdle()
+    }
 
-        // 홈(대시보드) — 인사이트/오늘 할 일/실시간 노트/지출 카드 로드인·스크롤
-        scrollFeed()
+    /**
+     * 대표 사용자 여정 — 4개 탭 순회 + 각 화면 스크롤 + 상세 페이지 1개.
+     * baseline-prof.txt 에만 반영된다(시작 프로파일 제외).
+     */
+    @Test
+    fun journey() = rule.collect(
+        packageName = PACKAGE,
+        includeInStartupProfile = false,
+    ) {
+        pressHome()
+        startActivityAndWait()
+        device.waitForIdle()
 
-        // 지출 → 게임 정보 → 마이페이지 순회(각 탭 콘텐츠 첫 렌더 + 스크롤)
-        tapTab("지출"); scrollFeed()
-        tapTab("게임 정보"); scrollFeed()
-        tapTab("마이페이지"); scrollFeed()
+        tourTabs()
 
-        // 홈 복귀
+        // 상세 페이지(스크롤 헤더 오버레이 경로)도 훑는다 — 탭 화면과 컴포저블 구성이 다르다.
+        if (openSpendingInsight()) {
+            scrollFeed()
+            device.pressBack()
+            device.waitForIdle()
+        }
         tapTab("홈")
         device.waitForIdle()
-    }
-
-    /** 바텀 네비 라벨로 탭 전환(시맨틱스 텍스트). 못 찾으면 무시 — 수집은 계속. */
-    private fun MacrobenchmarkScope.tapTab(label: String) {
-        val el = device.wait(Until.findObject(By.text(label)), 3_000)
-        el?.click()
-        device.waitForIdle()
-    }
-
-    /** 현재 화면을 위/아래로 스크롤해 리스트 아이템·차트 등 콘텐츠 핫패스를 훑는다. */
-    private fun MacrobenchmarkScope.scrollFeed() {
-        val w = device.displayWidth
-        val h = device.displayHeight
-        val cx = w / 2
-        repeat(3) {
-            device.swipe(cx, (h * 0.75).toInt(), cx, (h * 0.28).toInt(), 12)
-            device.waitForIdle()
-        }
-        repeat(2) {
-            device.swipe(cx, (h * 0.28).toInt(), cx, (h * 0.75).toInt(), 12)
-            device.waitForIdle()
-        }
-    }
-
-    private companion object {
-        const val PACKAGE = "com.gatcha.log"
     }
 }

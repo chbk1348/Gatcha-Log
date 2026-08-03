@@ -5,7 +5,11 @@ import com.gatcha.log.data.api.NewsItem
 import com.gatcha.log.json.JSONArray
 import com.gatcha.log.json.JSONObject
 import com.gatcha.log.storage.KeyValueStore
+import com.gatcha.log.storage.KvStore
 import com.gatcha.log.storage.SecureKeyValueStore
+import com.gatcha.log.storage.SecureStore
+import com.gatcha.log.storage.asKvStore
+import com.gatcha.log.storage.asSecureStore
 import com.gatcha.log.util.currentTimeMillis
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
@@ -16,22 +20,37 @@ import kotlinx.serialization.json.Json
 private data class EnkaCacheEntry(val ts: Long, val result: EnkaResult)
 
 /**
+ * 계정 id → 저장소 파일명 정규화. 함수 안에서 컴파일하면 repo 생성마다(= 앱 시작·계정 전환·
+ * 백그라운드 워커마다) 패턴 파싱을 다시 한다 — 정규식은 매칭보다 컴파일이 비싸다.
+ */
+private val SAFE_ID_RE = Regex("[^A-Za-z0-9]")
+
+/**
  * 로컬 영속성 저장소 — :app 의 GatchaRepository 를 KMP 로 이식.
  * SharedPreferences → KeyValueStore, EncryptedSharedPreferences → SecureKeyValueStore(iOS Keychain).
  * 저장 키·JSON 직렬화 형식은 :app 과 완전히 동일 (클라우드 스냅샷 상호 호환).
  *
  * [accountId] 별로 별도 저장소 파일을 사용해 계정마다 데이터가 완전히 분리된다.
  */
-class GatchaRepository(accountId: String = "guest") {
+class GatchaRepository(
+    accountId: String = "guest",
+    /**
+     * 저장소 생성자. 기본값은 플랫폼 구현([KeyValueStore])이고, **테스트에서만** 인메모리로 갈아끼운다.
+     * 이 이음매가 없으면 Android actual 이 `AppContext` 전역을 읽어 호스트 테스트에서 repo 를
+     * 만들 수조차 없다 — 스냅샷 바이트 동일성 같은 핵심 불변식이 무검증으로 남는다.
+     */
+    storeFactory: (String) -> KvStore = { KeyValueStore(it).asKvStore() },
+    secureFactory: (String) -> SecureStore = { SecureKeyValueStore(it).asSecureStore() },
+) {
 
-    private val safeId = accountId.ifBlank { "guest" }.replace(Regex("[^A-Za-z0-9]"), "_")
-    private val prefs = KeyValueStore("gatcha_log_$safeId")
+    private val safeId = accountId.ifBlank { "guest" }.replace(SAFE_ID_RE, "_")
+    private val prefs: KvStore = storeFactory("gatcha_log_$safeId")
 
     /**
      * 인증 토큰 전용 암호화 저장소 (Android Keystore / iOS Keychain).
      * 평문 [prefs] 와 분리해 토큰만 암호화 보관하며, 스냅샷(클라우드/백업)에는 절대 포함하지 않는다.
      */
-    private val securePrefs: SecureKeyValueStore by lazy { SecureKeyValueStore("gatcha_sec_$safeId") }
+    private val securePrefs: SecureStore by lazy { secureFactory("gatcha_sec_$safeId") }
 
     init { migrateLegacyTokens() }
 
