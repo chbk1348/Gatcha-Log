@@ -384,6 +384,7 @@ class SpendingViewModel : ViewModel() {
         loadGachaDeferred()
         _subscriptions.value = repo.loadSubscriptions()
         _redeemedCodes.value = repo.loadRedeemedCodes()
+        _unusableCodes.value = repo.loadUnusableCodes()
         _homeCards.value = repo.loadHomeCards()
         _savingsHeld.value = repo.loadSavingsHeld()
         _savingsHidden.value = repo.loadSavingsHidden()
@@ -1707,6 +1708,14 @@ class SpendingViewModel : ViewModel() {
     private val _redeemedCodes = MutableStateFlow<Set<String>>(emptySet())
     val redeemedCodes: StateFlow<Set<String>> = _redeemedCodes.asStateFlow()
 
+    /**
+     * 더는 못 받는 코드(만료·무효·수량 마감). [activeCodes] 에서 아예 걸러낸다.
+     *
+     * 자동수집 API(hoyo-codes)는 수량이 마감된 코드도 `status: OK` 로 계속 실어 보낸다.
+     * 그대로 두면 눌러봐야 실패만 하는 행이 목록에 남는다.
+     */
+    private val _unusableCodes = MutableStateFlow<Set<String>>(emptySet())
+
     /** 코드 수집 실패(네트워크·파싱). true 면 '코드 없음'이 아니라 '못 불러옴' — 화면은 재시도를 제공한다. */
     private val _codesFailed = MutableStateFlow(false)
     val codesFailed: StateFlow<Boolean> = _codesFailed.asStateFlow()
@@ -1721,7 +1730,8 @@ class SpendingViewModel : ViewModel() {
                 _codesFailed.value = true
             } else {
                 _codesFailed.value = false
-                _activeCodes.value = codes
+                // 수집 목록에는 이미 못 쓰게 된 코드가 계속 섞여 온다 — 받아올 때 걸러낸다.
+                _activeCodes.value = codes.filterNot { it.code.uppercase() in _unusableCodes.value }
             }
             _codesLoading.value = false
         }
@@ -1731,6 +1741,15 @@ class SpendingViewModel : ViewModel() {
         val s = _redeemedCodes.value + code.uppercase()
         _redeemedCodes.value = s
         repo.saveRedeemedCodes(s)
+    }
+
+    /** 더는 못 받는 코드 — 기억해 두고 지금 목록에서도 즉시 뺀다(다음 수집에서도 계속 걸러짐). */
+    private fun markUnusable(code: String) {
+        val c = code.uppercase()
+        val s = _unusableCodes.value + c
+        _unusableCodes.value = s
+        repo.saveUnusableCodes(s)
+        _activeCodes.value = _activeCodes.value.filterNot { it.code.uppercase() == c }
     }
 
     /** 교환 실행(검증 포함). 성공/이미사용이면 사용 표시. */
@@ -1750,6 +1769,9 @@ class SpendingViewModel : ViewModel() {
         val r = HoyolabApi.redeemCode(cfg.ltuid, cfg.ltoken, cfg.cookieToken, cfg.webCookie, gameKey, uid, code)
         // 교환 성공 또는 이미 계정 귀속(retcode -2017/-2018)이면 '받음' 표시 — 메시지 문자열 매칭 금지(확실 분기).
         if (r.success || r.alreadyRedeemed) markRedeemed(code)
+        // 다시 시도해도 소용없는 코드는 목록에서 뺀다. 재시도 가치가 있는 실패(쿠키·레이트리밋·네트워크)는
+        // unusable 이 아니므로 여기 안 걸린다 — 멀쩡한 코드가 사라지지 않게 하는 게 이 분기의 요점.
+        else if (r.unusable) markUnusable(code)
         return r
     }
 
