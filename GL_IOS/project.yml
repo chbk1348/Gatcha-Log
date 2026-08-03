@@ -122,6 +122,28 @@ targets:
           cd "$SRCROOT/.."
           ./gradlew :GL_Shared:embedAndSignAppleFrameworkForXcode
 
+  # 성능 측정 전용 UI 테스트 타깃 — 콜드 런치 실측(XCTApplicationLaunchMetric).
+  # 기능 테스트용이 아니다. 이 프로젝트엔 테스트 타깃이 아예 없어서 성능 1·2라운드가
+  # 전부 코드 판독으로만 진행됐고, 그래서 진단이 어긋난 전례가 있다.
+  # 실행은 실기기·Release 로: LaunchBenchmark.swift 주석 참고.
+  GL_IOSUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - GL_IOSUITests
+    dependencies:
+      - target: GL_IOS
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.gatcha.log.ios.uitests
+        TEST_TARGET_NAME: GL_IOS
+        # 앱 타깃은 Info.plist 파일을 직접 두지만(위 info:), 테스트 번들은 관리할 내용이 없다.
+        # 이걸 켜지 않으면 "target does not have an Info.plist file" 로 코드 서명이 실패한다.
+        GENERATE_INFOPLIST_FILE: "YES"
+        # 앱 타깃과 같은 개인 팀으로 서명 — 러너 앱도 기기에 설치돼야 한다.
+        CODE_SIGN_STYLE: Automatic
+        DEVELOPMENT_TEAM: CCTT9CBG38
+
 # 공유 스킴 — `xcodebuild -scheme GL_IOS` / 아카이브(build-ipa.sh) 용. xcodegen 재생성 후에도 유지.
 schemes:
   GL_IOS:
@@ -130,5 +152,10 @@ schemes:
         GL_IOS: all
     run:
       config: Debug
+    # 성능 측정은 Release 로 잰다 — Debug 는 최적화가 꺼져 있어 비용이 과장된다.
+    test:
+      config: Release
+      targets:
+        - GL_IOSUITests
     archive:
       config: Release
