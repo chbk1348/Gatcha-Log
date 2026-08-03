@@ -18,6 +18,10 @@ struct HomeView: View {
     private var isPad: Bool { UIDevice.current.userInterfaceIdiom == .pad }
 
     var body: some View {
+      // 홈 body 가 몇 번 평가되는지 세는 계측점. 홈은 관측 필드 ~25개를 읽어 재평가가 잦고,
+      // body 안에서 alerts·todayTasks 를 계산하므로 "몇 번 도는가"가 곧 비용이다.
+      // Instruments → Points of Interest 에서 확인한다(GLGPerf).
+      let _ = GLGPerf.event("homeBody")
       GeometryReader { geo in
         ScrollView {
             if isPad {

@@ -50,7 +50,13 @@ struct ContentView: View {
     @State private var tabsWithSubPage: Set<Int> = []
 
     /// 초기 클라우드 동기화 게이트(로딩 화면) 활성 여부 — 게이트 동안 탭바·추가 버튼 숨김
-    @State private var syncGateActive: Bool = MainViewControllerKt.isSyncGateActive()
+    ///
+    /// ⚠️ 이 한 줄이 **첫 프레임 이전에 SpendingViewModel 을 통째로 만든다** —
+    /// `IosAppState.viewModel`(lazy) → `init` → `loadAll()`(동기 저장소 읽기 ~20회 + JSON 파싱).
+    /// 콜드스타트 비용의 대부분이 여기 들어 있어서 signpost 를 걸었다(GLGPerf → Instruments).
+    @State private var syncGateActive: Bool = GLGPerf.interval("storeInit+loadAll") {
+        MainViewControllerKt.isSyncGateActive()
+    }
 
     /// 첫 실행 온보딩(앱 소개 4페이지) 필요 여부 — 로그인보다 앞. 기기 단위 플래그라 재설치 전까지 1회만.
     /// (기존 유저는 AppSettings.onboardingDone 기본값이 notifPermAsked 라, 업데이트해도 다시 보지 않는다)
