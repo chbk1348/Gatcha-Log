@@ -41,17 +41,22 @@ import com.gatcha.log.ui.theme.TextSecondary
 import kotlinx.coroutines.launch
 
 // ════════════════════════════════════════════════════════════════════════════
-// 첫 실행 온보딩 — 로그인보다 앞에 오는 4페이지. 재설치 전까지 다시 뜨지 않는다(AppSettings.onboardingDone).
+// 첫 실행 온보딩 — 로그인보다 앞에 오는 3페이지. 재설치 전까지 다시 뜨지 않는다(AppSettings.onboardingDone).
 //
-// 매 페이지가 앱 아이콘의 게이지 링을 **다른 의미로** 변주한다:
-//   ① 천장 게이지(차오름) → ② 예산 게이지(초과) → ③ D-day 링(줄어듦) → ④ 알림
-// 같은 형태를 세 번 다른 뜻으로 보여주면, 홈에 들어갔을 때 링을 이미 읽을 줄 알게 된다.
+//   ① 지출 기록(가계부) → ② 게임 정보 확인 → ③ 알림
 //
-// 알림 권한은 ④에서 맥락과 함께 요청한다 — 앱 켜자마자 이유 없이 뜨던 팝업을 여기로 옮겼다.
+// 예전엔 천장 게이지가 첫 페이지였다. 뺀 이유는 이 앱의 성격이 **가챠 계산기가 아니라
+// 지출 기록·가계부 + 게임 정보**에 가깝기 때문이다. 첫인상이 천장이면 실제로 매일 쓰는 기능
+// (지출 기록·게임 정보 확인)이 뒤로 밀린다. 천장 계산은 앱 안 계산기에 그대로 있다.
+//
+// ①②는 게이지 링을 서로 다른 뜻으로 변주한다(가로 예산 바 → 줄어드는 D-day 링).
+// 홈에 들어갔을 때 링을 이미 읽을 줄 알게 하려는 의도는 그대로다.
+//
+// 알림 권한은 ③에서 맥락과 함께 요청한다 — 앱 켜자마자 이유 없이 뜨던 팝업을 여기로 옮겼다.
 // (Compose/SwiftUI 패리티: GL_IOS/Screens/Onboarding/OnboardingView.swift)
 // ════════════════════════════════════════════════════════════════════════════
 
-private const val PAGE_COUNT = 4
+private const val PAGE_COUNT = 3
 
 /**
  * @param onFinish 온보딩 종료. [requestNotification] 이 true 면 호출부가 OS 알림 권한을 요청한다
@@ -100,9 +105,8 @@ fun OnboardingScreen(onFinish: (requestNotification: Boolean) -> Unit) {
                 ) {
                     Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
                         when (page) {
-                            0 -> PityArt()
-                            1 -> BudgetArt()
-                            2 -> ScheduleArt()
+                            0 -> BudgetArt()
+                            1 -> ScheduleArt()
                             else -> NotificationArt()
                         }
                     }
@@ -153,14 +157,12 @@ fun OnboardingScreen(onFinish: (requestNotification: Boolean) -> Unit) {
 @Composable
 private fun OnboardingCopy(page: Int) {
     val (title, desc) = when (page) {
-        0 -> "천장까지 몇 번 남았는지\n한눈에" to
-            "게임별 천장 규칙을 알아서 계산합니다.\n확정 픽업까지 남은 뽑기 수와 필요한 금액까지."
-        1 -> "얼마나 썼는지\n솔직하게 마주보기" to
-            "게임별·달별 지출과 예산을 기록합니다.\n예산을 넘기면 저장 직전에 한 번 더 물어봐요."
-        2 -> "픽업 마감을\n놓치지 않게" to
-            "픽업·이벤트·레진 회복 일정을 모아 보여줍니다.\n마감이 다가오면 남은 시간이 링으로 줄어들어요."
+        0 -> "게임에 쓴 돈,\n가계부처럼 기록해요" to
+            "게임별·달별 지출을 남기고 예산을 잡습니다.\n예산을 넘기면 저장 직전에 한 번 더 물어봐요."
+        1 -> "픽업도 공지도\n한 곳에서 확인" to
+            "픽업·이벤트 일정, 공지, 실시간 재화까지 모아 봅니다.\n마감이 다가오면 남은 시간이 링으로 줄어들어요."
         else -> "중요한 순간에만\n알려드릴게요" to
-            "픽업 마감, 예산 초과, 레진 가득 참.\n조용한 시간엔 보내지 않고, 언제든 끌 수 있어요."
+            "픽업 마감, 예산 초과, 재화 가득 참.\n조용한 시간엔 보내지 않고, 언제든 끌 수 있어요."
     }
     Text(
         title,
@@ -181,26 +183,7 @@ private fun OnboardingCopy(page: Int) {
 
 // ── 페이지별 일러스트 — 전부 실제 앱이 보여주는 것의 축약본 ────────────────────
 
-/** ① 천장 게이지 — 아이콘의 링을 그대로 확대. 아이콘이 무슨 뜻인지 첫 화면에서 알려준다. */
-@Composable
-private fun PityArt() {
-    val progress by animateFloatAsState(
-        targetValue = 0.87f,
-        animationSpec = tween(1100),
-        label = "pity",
-    )
-    BrandGaugeRing(progress = progress, size = 148.dp) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Row(verticalAlignment = Alignment.Bottom) {
-                Text("67", fontSize = 30.sp, fontWeight = FontWeight.Bold, color = BrandNavy)
-                Text("회", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = BrandNavy)
-            }
-            Text("천장까지 23회", fontSize = 10.sp, fontWeight = FontWeight.SemiBold, color = TextSecondary)
-        }
-    }
-}
-
-/** ② 예산 게이지 — 같은 게이지를 가로 바로 변주. 초과는 테라코타(민트 하나에 기대지 않는다). */
+/** ① 지출·예산 — 가계부 성격을 첫 화면에서 보여준다. 초과는 테라코타(민트 하나에 기대지 않는다). */
 @Composable
 private fun BudgetArt() {
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(9.dp)) {
@@ -256,7 +239,7 @@ private fun MiniBudgetCard(label: String, value: String, fill: Float, over: Bool
     }
 }
 
-/** ③ D-day 링 — 세 번째 변주. 이번엔 '줄어드는' 링. 같은 형태, 다른 의미. */
+/** ② 게임 정보 — 줄어드는 D-day 링 + 임박 항목. 예산 바와 같은 형태를 다른 뜻으로 쓴다. */
 @Composable
 private fun ScheduleArt() {
     val progress by animateFloatAsState(0.26f, tween(1100), label = "dday")
@@ -294,7 +277,7 @@ private fun MiniAlertChip(title: String, trailing: String) {
     }
 }
 
-/** ④ 알림 — 링 대신 종. 여기서 OS 권한을 요청하므로 일러스트도 권한 팝업의 예고편이 된다. */
+/** ③ 알림 — 링 대신 종. 여기서 OS 권한을 요청하므로 일러스트도 권한 팝업의 예고편이 된다. */
 @Composable
 private fun NotificationArt() {
     val accent = LocalAccent.current

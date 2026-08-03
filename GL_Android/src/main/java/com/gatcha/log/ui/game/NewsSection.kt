@@ -74,7 +74,9 @@ fun NewsSection(news: List<NewsItem>, gameFilter: String, onSeeAll: () -> Unit, 
 /** 공지·뉴스 전체 페이지 내용(SectionPage 안에 배치 — 자체 스크롤 없음). */
 @Composable
 fun NewsFullContent(news: List<NewsItem>, gameFilter: String, onOpen: (NewsItem) -> Unit) {
-    val all = filterNews(news, gameFilter)
+    // 공지 목록은 게임 수 × 30건까지 커진다(디스크 캐시 상한은 저장에만 걸린다).
+    // 필터는 입력이 바뀔 때만 — 재구성마다 전체를 다시 훑을 이유가 없다.
+    val all = remember(news, gameFilter) { filterNews(news, gameFilter) }
     // 페이지 타이틀은 SectionPage 헤더에서 표시. (중복 제거)
     Spacer(Modifier.height(4.dp))
     if (all.isEmpty()) {

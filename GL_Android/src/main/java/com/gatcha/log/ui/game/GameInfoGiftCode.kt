@@ -190,7 +190,7 @@ internal fun GiftCodePage(
                 Spacer(Modifier.height(24.dp))
             }
         }
-        GlgDetailHeaderOverlay("리딤코드", onBack, scrolled = scrollState.value > 0)
+        GlgDetailHeaderOverlay("리딤코드", onBack, scrollState = scrollState)
     }
 }
 

@@ -367,9 +367,15 @@ fun HomeContent(
     }
 
     // 파생 계산은 GL_Shared HomeLogic 의 순수 함수(iOS 와 공유). remember 로 재계산 캐싱.
+    //
+    // 게임별 이번 달 합계는 **공유 VM 이 이미 한 번의 순회로 만들어 둔다**(SpendingDerived.compute).
+    // 예전엔 여기서 `viewModel.monthlyTotalsByGame()` 을 두 번 불러(아래 perGameSpend 까지)
+    // 지출이 바뀔 때마다 전체를 두 번 더 훑었다. 값은 완전히 동일하다 — 같은 게임키 파생·같은 월 필터.
+    val monthlyTotalsByGame by viewModel.currentMonthTotalsByGame.collectAsStateWithLifecycle()
+
     // 게임별 한도 초과 게임(이번 달) — 알림센터 표시용
-    val gameOverBudget = remember(spendings, gameBudgets) {
-        HomeLogic.gameOverBudget(gameBudgets, viewModel.monthlyTotalsByGame())
+    val gameOverBudget = remember(monthlyTotalsByGame, gameBudgets) {
+        HomeLogic.gameOverBudget(gameBudgets, monthlyTotalsByGame)
     }
 
     // 절약 팁 — 상황별 실제 조언(M 카드 '절약 팁' 칩이 토스트로 노출)
@@ -378,8 +384,8 @@ fun HomeContent(
     }
 
     // 게임별 이번 달 지출/한도 (D 섹션) — 지출 있거나 한도 설정된 게임만, 지출 내림차순
-    val perGameSpend = remember(spendings, gameBudgets) {
-        HomeLogic.perGameSpend(viewModel.monthlyTotalsByGame(), gameBudgets)
+    val perGameSpend = remember(monthlyTotalsByGame, gameBudgets) {
+        HomeLogic.perGameSpend(monthlyTotalsByGame, gameBudgets)
     }
 
     // 재화 임박 경보 — 85% 이상(가득 직전)인 게임 '전부'(원신뿐 아니라 스타레일·젠레스 등). 가장 찬 순.
@@ -392,9 +398,15 @@ fun HomeContent(
     // 알림 계산 + 읽음(넛징)/삭제(dismiss) 상태 — 사용자가 지운 알림은 제외하고 노출
     val readAlerts by viewModel.readAlerts.collectAsStateWithLifecycle()
     val dismissedAlerts by viewModel.dismissedAlerts.collectAsStateWithLifecycle()
-    val alerts = HomeLogic.buildAlerts(monthlyTotal, budget, gameOverBudget, banners, attendanceToday, "${viewModel.displayYear}-${viewModel.displayMonth}")
-        .filter { it.key !in dismissedAlerts }
-    val unreadCount = alerts.count { it.key !in readAlerts }
+    // 이웃한 파생값은 전부 remember 로 감싸여 있는데 이 둘만 빠져 있었다 —
+    // 홈은 스크롤·애니메이션·플로우 방출로 재구성이 잦아 그때마다 알림 전량을 다시 만들었다.
+    // monthKey 는 게터 2개(시계 읽기 + 날짜 변환)라 람다 밖으로 뺀다.
+    val monthKey = "${viewModel.displayYear}-${viewModel.displayMonth}"
+    val alerts = remember(monthlyTotal, budget, gameOverBudget, banners, attendanceToday, monthKey, dismissedAlerts) {
+        HomeLogic.buildAlerts(monthlyTotal, budget, gameOverBudget, banners, attendanceToday, monthKey)
+            .filter { it.key !in dismissedAlerts }
+    }
+    val unreadCount = remember(alerts, readAlerts) { alerts.count { it.key !in readAlerts } }
 
     val showNotifications = remember { mutableStateOf(false) }
     val showBudgetDialog = remember { mutableStateOf(false) }
@@ -413,20 +425,31 @@ fun HomeContent(
     }
 
     // 오늘 할 일 목록(대시보드 KPI '오늘 할 일' 카운트 + 카드 공용)
-    val todayTasks = if (gameInfoReady) HomeLogic.resolveTodayTasks(
-        pendingAttendance = HomeLogic.pendingAttendanceCount(attendanceToday),
-        resins = resinAlerts,
-        urgentBanner = null,  // 픽업은 '이번주 일정' 카드·게임 정보 페이지에서 확인(중복 제거)
-        budget = budget,
-        monthlyTotal = monthlyTotal,
-        combats = combatDeadlines,
-    ).toTodayItems(
+    //
+    // 계산(공유 로직)과 UI 매핑을 나눈다. 계산은 입력이 바뀔 때만 — 예전엔 재구성마다 돌았다.
+    // 매핑(toTodayItems)은 remember 에 넣지 않는다: 콜백이 상위에서 새로 만들어질 수 있어
+    // 캐시하면 낡은 람다를 붙들게 된다. 항목이 몇 개뿐이라 매핑 자체는 싸다.
+    val todayRaw = remember(gameInfoReady, attendanceToday, resinAlerts, budget, monthlyTotal, combatDeadlines) {
+        if (gameInfoReady) {
+            HomeLogic.resolveTodayTasks(
+                pendingAttendance = HomeLogic.pendingAttendanceCount(attendanceToday),
+                resins = resinAlerts,
+                urgentBanner = null,  // 픽업은 '이번주 일정' 카드·게임 정보 페이지에서 확인(중복 제거)
+                budget = budget,
+                monthlyTotal = monthlyTotal,
+                combats = combatDeadlines,
+            )
+        } else {
+            emptyList()
+        }
+    }
+    val todayTasks = todayRaw.toTodayItems(
         onCheckInAll = { viewModel.checkInAll() },
         onResin = { viewModel.requestGameInfoAnchor(GameInfoAnchor.NOTES); onNavigateToGameInfo() },
         onCombat = { viewModel.requestGameInfoAnchor(GameInfoAnchor.COMBAT); onNavigateToGameInfo() },
         onBanner = { viewModel.requestGameInfoAnchor(GameInfoAnchor.SCHEDULE); onNavigateToGameInfo() },
         onBudget = { showBudgetDialog.value = true },
-    ) else emptyList()
+    )
 
     // 알림 상세 페이지에서 시스템 뒤로가기 시 홈으로 복귀
     BackHandler(enabled = showNotifications.value) { showNotifications.value = false }

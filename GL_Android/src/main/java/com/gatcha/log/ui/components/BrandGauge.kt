@@ -75,6 +75,26 @@ fun BrandGaugeRing(
     starRatio: Float = 0f,
     strokeRatio: Float = 0.083f,
     content: @Composable () -> Unit = {},
+) = BrandGaugeRing({ progress }, size, modifier, starRatio, strokeRatio, content)
+
+/**
+ * 진행률을 **람다로** 받는 버전 — 값이 매 프레임 바뀌는 애니메이션용.
+ *
+ * `progress: Float` 버전에 `animatable.value` 를 넘기면 그 값을 읽은 **호출부 화면 전체가
+ * 매 프레임 재구성**된다. 로딩 화면이 정확히 그랬다 — 초기 동기화가 도는 2.6초 동안
+ * 전체 화면이 초당 60번 다시 구성됐고, 하필 그때가 앱에서 가장 바쁜 순간이다.
+ *
+ * 람다는 아래 `Canvas` 의 draw 블록 **안에서** 호출되므로 상태 읽기가 draw 단계에 등록된다
+ * → 재구성 없이 **다시 그리기만** 한다. 그려지는 결과는 완전히 동일하다.
+ */
+@Composable
+fun BrandGaugeRing(
+    progress: () -> Float,
+    size: Dp,
+    modifier: Modifier = Modifier,
+    starRatio: Float = 0f,
+    strokeRatio: Float = 0.083f,
+    content: @Composable () -> Unit = {},
 ) {
     val accent = LocalAccent.current
     val accent2 = LocalAccentSecondary.current
@@ -84,13 +104,14 @@ fun BrandGaugeRing(
             val stroke = this.size.minDimension * strokeRatio
             val inset = stroke / 2f
             val arcSize = Size(this.size.width - stroke, this.size.height - stroke)
+            val p = progress()
 
             drawArc(track, 0f, 360f, false, Offset(inset, inset), arcSize, style = Stroke(stroke))
-            if (progress > 0f) {
+            if (p > 0f) {
                 drawArc(
                     brush = Brush.linearGradient(listOf(accent2, accent)),
                     startAngle = -90f,
-                    sweepAngle = 360f * progress.coerceIn(0f, 1f),
+                    sweepAngle = 360f * p.coerceIn(0f, 1f),
                     useCenter = false,
                     topLeft = Offset(inset, inset),
                     size = arcSize,

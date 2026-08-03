@@ -31,7 +31,11 @@ base {
 
 android {
     namespace = "com.gatcha.log"
-    compileSdk = 36
+    // ⚠️ 실험(experiment/android-floating-toolbar) — 36 → 37.
+    // material3 1.5.0-alpha25 의 AAR 메타데이터가 compileSdk 37 이상을 **강제**한다
+    // (checkReleaseAarMetadata 에서 11건 실패). Expressive 컴포넌트를 쓰려면 따라 올려야 한다.
+    // main 은 36 유지 — 145행 core-ktx 주석대로 37 요구 의존성을 일부러 피해 온 상태였다.
+    compileSdk = 37
 
     defaultConfig {
         applicationId = "com.gatcha.log"
@@ -39,6 +43,13 @@ android {
         targetSdk = 34
         versionCode = 274200 // 27.42.0
         versionName = "27.42.0"
+
+        // 실험 빌드 표식 — true 면 시작 시 경고 다이얼로그 + 설정 > 앱 버전에 빨간 EXPERIMENT 칩.
+        //
+        // **main 은 항상 false.** 검증 안 된 UI·라이브러리를 얹은 로컬 빌드를 배포본과 구분하려고
+        // 만든 장치라, 배포 브랜치에서 켜져 있으면 모든 사용자가 매번 경고를 보게 된다.
+        // 실험할 땐 이 줄만 true 로 바꿔 빌드한다(코드는 그대로 살아 있다).
+        buildConfigField("boolean", "EXPERIMENT", "false")
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -158,7 +169,10 @@ dependencies {
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.ui:ui-graphics")
     implementation("androidx.compose.ui:ui-tooling-preview")
-    implementation("androidx.compose.material3:material3")
+    // ⚠️ 실험(experiment/android-floating-toolbar) — BOM 을 벗어나 material3 만 1.5.0-alpha 로 올린다.
+    // Expressive 의 HorizontalFloatingToolbar 는 **1.4.0(BOM 고정판)에 아예 없다**(1.5.0-alpha 부터).
+    // alpha 라인은 릴리즈마다 API 가 바뀌므로 main 에 그대로 들이지 말 것 — 1.5.0 beta/stable 대기.
+    implementation("androidx.compose.material3:material3:1.5.0-alpha25")
     implementation("androidx.compose.material:material-icons-extended")
 
     // Baseline Profile 설치기 — release APK 에 동봉된 프로파일을 기기에 적용해 핫패스 AOT 컴파일.

@@ -136,7 +136,7 @@ fun SpendingDetailScreen(
             }
             Spacer(Modifier.height(24.dp))
         }
-        GlgDetailHeaderOverlay("지출 상세", onBack, scrolled = scrollState.value > 0) {
+        GlgDetailHeaderOverlay("지출 상세", onBack, scrollState = scrollState) {
             // 수정·삭제를 헤더 우측 ⋮ 드롭다운 메뉴로 통합(Android). iOS 는 기존 액션 유지.
             // 버튼은 다른 헤더 액션과 동일한 아웃라인 원형(GlgCircleIconButton)로 통일.
             var menuOpen by remember { mutableStateOf(false) }
