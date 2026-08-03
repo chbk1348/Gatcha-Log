@@ -54,27 +54,35 @@ struct GLGGlassChip: View {
 
     var body: some View {
         Button(action: action) { Text(label) }
-            .font(.pretendard(size: 12, weight: .bold))
+            .font(.pretendard(size: 13, weight: .bold))
             .glgGlassChipStyle(selected: selected)
             .tint(tint ?? accent.primary)
     }
 }
 
 extension View {
-    /// 시스템 글래스 칩 스타일. `controlSize(.small)` — 리스트 위에 얹히므로 작게 유지한다.
+    /// 시스템 글래스 칩 스타일. `controlSize(.regular)` — 손가락으로 집는 줄이라 `.small` 로는
+    /// 작다는 지적(2026-08-03)이 있어 한 단계 키웠다. 폭·높이는 시스템이 정한다.
+    ///
+    /// ⚠️ **`Menu` 라벨에는 `selected: true` 를 주지 말 것**(2026-08-03 실기기 확인).
+    /// iOS 26+ 는 메뉴를 소스 버튼에서 뽑아내듯 모프시키고 닫을 때 역재생하는데, 소스가
+    /// `.glassProminent`(강조색 채움) 캡슐이면 닫히는 내내 색 덩어리가 스쳐 보인다.
+    /// 시스템 애니메이션이라 `.transaction { $0.animation = nil }` 로도 못 막는다(시도·실패).
+    /// 메뉴 라벨에서 선택 상태를 알려야 하면 채움 말고 **색**으로 — 지출 퀵필터(`quickMenu`) 참고.
+    /// `Button` 은 모프 대상이 아니라 `selected: true` 를 그대로 써도 된다(✕ 해제 칩·날짜 알약).
     @ViewBuilder
     func glgGlassChipStyle(selected: Bool) -> some View {
         if #available(iOS 26.0, *) {
             if selected {
-                self.buttonStyle(.glassProminent).buttonBorderShape(.capsule).controlSize(.small)
+                self.buttonStyle(.glassProminent).buttonBorderShape(.capsule).controlSize(.regular)
             } else {
-                self.buttonStyle(.glass).buttonBorderShape(.capsule).controlSize(.small)
+                self.buttonStyle(.glass).buttonBorderShape(.capsule).controlSize(.regular)
             }
         } else {
             if selected {
-                self.buttonStyle(.borderedProminent).buttonBorderShape(.capsule).controlSize(.small)
+                self.buttonStyle(.borderedProminent).buttonBorderShape(.capsule).controlSize(.regular)
             } else {
-                self.buttonStyle(.bordered).buttonBorderShape(.capsule).controlSize(.small)
+                self.buttonStyle(.bordered).buttonBorderShape(.capsule).controlSize(.regular)
             }
         }
     }
