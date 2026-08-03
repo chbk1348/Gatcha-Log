@@ -20,11 +20,25 @@ internal const val PACKAGE = "com.gatcha.log"
 /** UI 탐색 대기 시간. 실기기 콜드스타트 직후엔 첫 탐색이 느릴 수 있어 넉넉히 준다. */
 private const val FIND_TIMEOUT_MS = 3_000L
 
-/** 바텀 네비 라벨로 탭 전환(시맨틱스 텍스트). 못 찾으면 무시. */
-internal fun MacrobenchmarkScope.tapTab(label: String) {
+/**
+ * 바텀 네비 탭 전환.
+ *
+ * ⚠️ **텍스트만으로는 못 찾는다.** 플로팅 툴바(`HorizontalFloatingToolbar`)는 **선택된 탭만**
+ * 라벨 텍스트를 그린다(`AnimatedVisibility(visible = selected)`) — 즉 가고 싶은 탭은 정의상
+ * 아직 선택돼 있지 않으므로 텍스트가 화면에 없다. 실제로 이것 때문에 탭 순회가 통째로
+ * no-op 이 됐다(2026-08-03).
+ *
+ * 아이콘의 `contentDescription` 은 항상 라벨과 같으므로(`BottomNavBar.kt:216`) 그쪽으로 폴백한다.
+ *
+ * @return 탭에 성공했으면 true
+ */
+internal fun MacrobenchmarkScope.tapTab(label: String): Boolean {
     val el = device.wait(Until.findObject(By.text(label)), FIND_TIMEOUT_MS)
-    el?.click()
+        ?: device.wait(Until.findObject(By.desc(label)), FIND_TIMEOUT_MS)
+        ?: return false
+    el.click()
     device.waitForIdle()
+    return true
 }
 
 /** contentDescription 으로 아이콘 버튼을 누른다. 찾았으면 true. */
@@ -72,6 +86,6 @@ internal fun MacrobenchmarkScope.tourTabs() {
  * @return 진입에 성공했으면 true
  */
 internal fun MacrobenchmarkScope.openSpendingInsight(): Boolean {
-    tapTab("지출")
+    if (!tapTab("지출")) return false
     return tapDesc("인사이트")
 }
