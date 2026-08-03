@@ -144,7 +144,7 @@ fun SavingsPlannerScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
                 HiddenPlansCard(hiddenPlans, accent) { viewModel.setSavingsHidden(it.key, false) }
             }
         }
-        GlgDetailHeaderOverlay("저축 플래너", onBack, scrolled = scrollState.value > 0) {
+        GlgDetailHeaderOverlay("저축 플래너", onBack, scrollState = scrollState) {
             if (hiddenPlans.isNotEmpty()) {
                 GlgCircleIconButton(
                     icon = if (showHidden) Icons.Default.VisibilityOff else Icons.Default.Visibility,
@@ -411,7 +411,7 @@ fun SavingsChallengeScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
                 fontSize = 11.sp, color = TextSecondary, modifier = Modifier.padding(horizontal = 4.dp),
             )
         }
-        GlgDetailHeaderOverlay("절약 챌린지", onBack, scrolled = scrollState.value > 0)
+        GlgDetailHeaderOverlay("절약 챌린지", onBack, scrollState = scrollState)
     }
 }
 

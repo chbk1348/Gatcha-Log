@@ -195,7 +195,7 @@ fun SubscriptionCenterScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
             }
             Spacer(Modifier.height(8.dp))
         }
-        GlgDetailHeaderOverlay("정기결제 관리", onBack, scrolled = scrollState.value > 0)
+        GlgDetailHeaderOverlay("정기결제 관리", onBack, scrollState = scrollState)
     }
 
     if (showAdd) {

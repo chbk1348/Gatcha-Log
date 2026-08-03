@@ -686,7 +686,7 @@ fun EnkaStatPage(
         // 명좌/성혼/의식 단계별 효과 — 외부 메타 API 비동기 로드. 빈 결과면 섹션 자체 숨김.
         CharEffectsSection(c, game)
     }
-    GlgDetailHeaderOverlay(c.name, onBack, scrolled = scrollState.value > 0)
+    GlgDetailHeaderOverlay(c.name, onBack, scrollState = scrollState)
     }
 }
 

@@ -468,6 +468,6 @@ private fun SectionPage(
             content()
             Spacer(Modifier.height(24.dp))
         }
-        GlgDetailHeaderOverlay(title, onBack, scrolled = scrollState.value > 0, actions = actions)
+        GlgDetailHeaderOverlay(title, onBack, scrollState = scrollState, actions = actions)
     }
 }

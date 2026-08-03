@@ -10,6 +10,7 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -25,6 +26,7 @@ import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -451,6 +453,32 @@ fun BoxScope.GlgDetailHeaderOverlay(
         modifier = Modifier.align(Alignment.TopStart).padding(horizontal = 16.dp),
         actions = actions,
     )
+}
+
+/**
+ * [GlgDetailHeaderOverlay] 의 스크롤 상태 버전 — **상세 페이지는 이쪽을 쓴다.**
+ *
+ * ## 왜 오버로드가 필요한가
+ *
+ * `scrolled = scrollState.value > 0` 처럼 호출부에서 직접 읽으면, 스크롤 값은 **1픽셀마다**
+ * 바뀌므로 그 값을 읽은 **화면 컴포저블 전체가 매 프레임 재구성**된다. 필요한 정보는
+ * `true/false` 하나뿐인데 값 전체를 구독하는 셈이다.
+ *
+ * LazyColumn 을 쓰는 탭 화면들은 이미 `derivedStateOf` 로 boolean 까지 좁혀 두고 있었는데
+ * (`HomeScreen.kt` 참고), `Column + verticalScroll` 상세 화면 10곳만 빠져 있었다.
+ * 그중 `GameInfoScreen` 의 `SectionPage` 하나가 하위 7페이지를 호스팅한다.
+ *
+ * 여기서 읽으면 재구성 범위가 **이 오버레이 안**으로 갇히고, 그마저 0↔1 경계에서만 일어난다.
+ */
+@Composable
+fun BoxScope.GlgDetailHeaderOverlay(
+    title: String,
+    onBack: () -> Unit,
+    scrollState: ScrollState,
+    actions: @Composable RowScope.() -> Unit = {},
+) {
+    val scrolled by remember(scrollState) { derivedStateOf { scrollState.value > 0 } }
+    GlgDetailHeaderOverlay(title = title, onBack = onBack, scrolled = scrolled, actions = actions)
 }
 
 /**

@@ -100,7 +100,7 @@ fun SpendingInsightScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
             }
             Spacer(Modifier.height(8.dp))
         }
-        GlgDetailHeaderOverlay("지출 인사이트", onBack, scrolled = scrollState.value > 0)
+        GlgDetailHeaderOverlay("지출 인사이트", onBack, scrollState = scrollState)
     }
 }
 

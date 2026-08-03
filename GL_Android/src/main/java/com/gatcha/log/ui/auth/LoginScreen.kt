@@ -26,6 +26,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -221,8 +222,14 @@ fun AccountLoadingScreen(loading: Boolean, onFinished: () -> Unit) {
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
             // 링 = 진행률, 중앙 별 = 호흡. 스퀘어클 배경을 벗겨 스플래시에서 이어지는 것처럼 보이게 한다.
-            BrandGaugeRing(progress = progress.value, size = 148.dp) {
-                BrandStar(size = 58.dp, modifier = Modifier.scale(pulse))
+            // 진행률·호흡을 **람다/그래픽스레이어로** 넘긴다. 예전엔 `progress.value` 와 `scale(pulse)` 를
+            // 컴포지션에서 읽어, 초기 동기화가 도는 2.6초 내내 이 화면 전체가 매 프레임 재구성됐다.
+            // 하필 그 순간이 앱에서 가장 바쁜 때(클라우드 pull)라 손해가 컸다. 보이는 결과는 동일하다.
+            BrandGaugeRing(progress = { progress.value }, size = 148.dp) {
+                BrandStar(
+                    size = 58.dp,
+                    modifier = Modifier.graphicsLayer { scaleX = pulse; scaleY = pulse },
+                )
             }
             Spacer(Modifier.height(26.dp))
             Row {

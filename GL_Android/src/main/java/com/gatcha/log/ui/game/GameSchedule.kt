@@ -191,11 +191,13 @@ fun GameScheduleFullContent(
         AnniversaryContent()
         return
     }
-    val all = ScheduleLogic.buildSchedule(banners, events, challenges)
-    val entries = ScheduleLogic.filteredEntries(all, filter)
-    val days = ScheduleLogic.buildDays(entries)
-    val undated = ScheduleLogic.undatedPickups(banners, filter)
-    val summary = ScheduleLogic.summarize(banners, all, filter)
+    // 일정 조립·필터·그룹핑은 입력이 바뀔 때만. GameInfoScreen 은 같은 호출을 이미 remember 로
+    // 감싸 두는데(:126) 이 전체 페이지만 빠져 있어, 스크롤·애니메이션 재구성마다 전부 다시 돌았다.
+    val all = remember(banners, events, challenges) { ScheduleLogic.buildSchedule(banners, events, challenges) }
+    val entries = remember(all, filter) { ScheduleLogic.filteredEntries(all, filter) }
+    val days = remember(entries) { ScheduleLogic.buildDays(entries) }
+    val undated = remember(banners, filter) { ScheduleLogic.undatedPickups(banners, filter) }
+    val summary = remember(banners, all, filter) { ScheduleLogic.summarize(banners, all, filter) }
 
     Text("마감이 가까운 순서로 정리했어요.", fontSize = 12.sp, color = TextSecondary, modifier = Modifier.padding(bottom = 14.dp))
 
