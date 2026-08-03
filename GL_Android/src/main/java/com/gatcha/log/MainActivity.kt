@@ -165,6 +165,30 @@ class MainActivity : ComponentActivity() {
                         Text(msg)
                     }
                 }
+
+                // 실험 빌드 경고 — 앱 시작 시 1회(experiment/android-floating-toolbar).
+                //
+                // `rememberSaveable` 이라 화면 회전·구성 변경에는 다시 안 뜨지만 프로세스가 새로 뜨면
+                // 다시 나온다 — "앱 시작 시 1회"가 의도다.
+                // 배포본에는 `BuildConfig.EXPERIMENT` 가 false 라 이 블록 자체가 죽는다.
+                if (BuildConfig.EXPERIMENT) {
+                    var experimentAcked by rememberSaveable { mutableStateOf(false) }
+                    if (!experimentAcked) {
+                        GlgDialog(
+                            title = "⚠️ 실험 빌드",
+                            onDismiss = { experimentAcked = true },
+                            confirmText = "확인하고 계속",
+                            onConfirm = { experimentAcked = true },
+                            dismissText = null,
+                        ) {
+                            Text(
+                                "정식 배포본이 아닙니다. 검증되지 않은 UI·라이브러리가 들어 있어 " +
+                                    "예기치 않은 동작이나 종료가 발생할 수 있어요.\n\n" +
+                                    "설정 > 앱 버전에 빨간 EXPERIMENT 표시가 있으면 이 빌드입니다.",
+                            )
+                        }
+                    }
+                }
             }
         }
     }
