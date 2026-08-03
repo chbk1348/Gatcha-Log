@@ -325,6 +325,25 @@ class GatchaRepository(
         changed() // 스냅샷 포함 → 변경 시 클라우드 동기화 트리거
     }
 
+    // ---------------------------------------------------------------- 교환 불가 선물코드 (목록에서 제거)
+    // 서버가 '더는 못 받는다'고 답한 코드(만료·무효·수량 마감). 자동수집 목록은 이런 코드를 계속
+    // 활성으로 실어 보내므로, 눌러봐야 실패만 하는 행을 남기지 않도록 걸러낸다.
+    //
+    // **클라우드 스냅샷에 넣지 않는다(로컬 전용).** '받음'과 달리 이건 계정 상태가 아니라 코드 자체의
+    // 상태라 기기 간에 옮길 이유가 없고, 어차피 다시 눌러보면 같은 답이 온다. 스냅샷 병합은 과거
+    // 지출 유실 사고가 났던 자리라 파생 가능한 데이터로 건드리지 않는다. (그래서 changed() 도 안 부른다)
+    fun loadUnusableCodes(): Set<String> {
+        val raw = prefs.getString(KEY_UNUSABLE, null) ?: return emptySet()
+        return runCatching {
+            val arr = JSONArray(raw)
+            (0 until arr.length()).map { arr.getString(it) }.toSet()
+        }.getOrDefault(emptySet())
+    }
+
+    fun saveUnusableCodes(codes: Set<String>) {
+        prefs.putString(KEY_UNUSABLE, JSONArray(codes.toList()).toString())
+    }
+
     /**
      * 삭제된 지출 id(tombstone). 지출은 import 시 id 합집합으로 병합하므로(구/스테일 스냅샷이 최신 항목을
      * 지우지 못하게), 실제 삭제는 이 tombstone 으로만 전파한다. 단조 누적, 상한 2000(오래된 것부터 폐기).
@@ -902,6 +921,7 @@ class GatchaRepository(
         const val KEY_PITY = "pity"
         const val KEY_EVENT_CHECKS = "event_checks"
         const val KEY_REDEEMED = "redeemed_codes"
+        const val KEY_UNUSABLE = "unusable_codes" // 로컬 전용(스냅샷 제외) — loadUnusableCodes 주석 참고
         const val KEY_READ_ALERTS = "read_alerts"
         const val KEY_DISMISSED_ALERTS = "dismissed_alerts"
         const val KEY_SPENDINGS = "spendings"
