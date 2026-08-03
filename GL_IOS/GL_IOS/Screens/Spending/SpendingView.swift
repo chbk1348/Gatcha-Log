@@ -403,17 +403,38 @@ struct SpendingView: View {
     }()
     private func dateChipLabel(_ d: Date) -> String { Self.dateChipFormatter.string(from: d) }
 
-    /// 퀵필터 알약 하나 + 시스템 드롭다운 메뉴. 알약은 시스템 글래스([GLGGlassChip] 과 같은 스타일).
-    @ViewBuilder
+    /// 퀵필터 알약 하나 + 시스템 드롭다운 메뉴.
+    ///
+    /// ⚠️ **걸린 필터를 `.glassProminent`(강조색 채움)로 그리지 말 것.** 2026-08-03 실기기 확인:
+    /// iOS 26+ 는 메뉴를 소스 버튼에서 뽑아내듯 모프시키고 닫을 때 역재생하는데, 소스가 강조색으로
+    /// 꽉 찬 캡슐이면 **닫히는 내내 색 덩어리가 스쳐 보인다**. 시스템 애니메이션이라 우리 트랜잭션
+    /// (`.transaction { $0.animation = nil }`)으로는 못 막는다 — 실제로 시도했고 효과 없었다.
+    /// 채움을 빼자 즉시 사라졌다.
+    ///
+    /// 그래서 걸림은 **채움이 아니라 색**으로 알린다 — 강조색 글자 + 앞의 점. 둘 다 값 변경이라
+    /// 뷰 교체가 없고, 모프가 통째로 스냅샷을 떠도 번질 색 면적이 없다.
+    /// (`GLGGlassChip` 은 `.glassProminent` 를 계속 쓰지만 **`Menu` 가 아니라 `Button`** 이라
+    ///  모프 대상이 아니다 — 그래서 ✕ 해제 칩·날짜 알약은 멀쩡하다)
     private func quickMenu<C: View>(label: String, active: Bool, @ViewBuilder content: () -> C) -> some View {
         Menu {
             content()
         } label: {
-            Text("\(label)  ▾")
+            HStack(spacing: 0) {
+                // 걸림 표시 점 — 안 걸렸으면 **폭 0** 이라 글자 왼쪽에 빈 자리가 남지 않는다.
+                //
+                // 점을 `if active` 로 넣었다 뺐다 하지 않는 이유: 그건 뷰 교체라 SwiftUI 가 지웠다
+                // 새로 만들고, 그 자리에 전환 애니메이션이 붙을 여지가 생긴다. 폭·여백을 **값으로**
+                // 0 과 5 사이에서 바꾸면 같은 뷰가 그대로 남아 그럴 일이 없다.
+                Circle()
+                    .fill(active ? accent.primary : Color.clear)
+                    .frame(width: active ? 6 : 0, height: 6)
+                    .padding(.trailing, active ? 5 : 0)
+                Text("\(label)  ▾")
+            }
         }
-        .font(.pretendard(size: 12, weight: .bold))
-        .glgGlassChipStyle(selected: active)
-        .tint(accent.primary)
+        .font(.pretendard(size: 13, weight: .bold))
+        .glgGlassChipStyle(selected: false)
+        .tint(active ? accent.primary : GLGColor.textSecondary)
     }
 
     /// 접힌 상태에서도 몇 개가 걸렸는지 보이게 — 0개=축 이름, 1개=게임 약칭, 그 이상=개수.
