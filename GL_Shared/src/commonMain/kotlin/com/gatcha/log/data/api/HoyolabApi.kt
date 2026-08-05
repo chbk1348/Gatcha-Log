@@ -1,11 +1,16 @@
 package com.gatcha.log.data.api
 
+import com.gatcha.log.data.CombatAvatar
+import com.gatcha.log.data.CombatClear
 import com.gatcha.log.data.CombatMode
+import com.gatcha.log.data.CombatRoom
+import com.gatcha.log.data.DateUtil
 import com.gatcha.log.data.Game
 import com.gatcha.log.data.LedgerEntry
 import com.gatcha.log.data.LiveNote
 import com.gatcha.log.data.MonthlyLedger
 import com.gatcha.log.data.NoteStat
+import com.gatcha.log.json.JSONArray
 import com.gatcha.log.json.JSONObject
 import com.gatcha.log.util.currentTimeMillis
 import kotlinx.coroutines.async
@@ -780,6 +785,186 @@ object HoyolabApi {
             }
             else -> emptyList()
         }
+    }
+
+    // ----------------------------------------------------------------- 엔드 콘텐츠 클리어 상세
+    /**
+     * **어떤 캐릭터로 깼는지** — 층·간별 편성. 이번 시즌(schedule_type=1)과 지난 시즌(=2)을 함께 받는다.
+     *
+     * [getCombat] 이 쓰는 것과 **같은 엔드포인트**다. 응답에 층별 투입 캐릭터가 이미 들어 있는데
+     * 그쪽은 별 개수만 뽑고 버렸다. 요약과 상세를 한 번에 만들지 않고 따로 두는 이유는,
+     * 상세는 지난 시즌까지 두 배로 받아야 해서 홈·게임정보 진입마다 부를 게 못 되기 때문이다.
+     *
+     * ZZZ 는 [getCombat] 과 마찬가지로 제외 — 엔드포인트가 다르고 challenge 헤더가 따로 필요하다.
+     */
+    suspend fun getCombatClears(ltuid: String, ltoken: String, gameKey: String, uid: String): List<CombatClear> {
+        if (ltuid.isBlank() || ltoken.isBlank() || uid.isBlank()) return emptyList()
+        val server = inferServer(gameKey, uid)
+        val cookie = "ltuid_v2=$ltuid; ltoken_v2=$ltoken; ltuid=$ltuid; ltoken=$ltoken;"
+        suspend fun fetch(base: String, query: String): JSONObject? {
+            val headers = HoyoHeaders()
+                .withCookie(cookie)
+                .withDS(query)
+                .withRpc(2)
+                .withUserAgent(UA_BBS)
+                .build()
+            val res = Net.get("$base?$query", headers)
+            return runCatching {
+                JSONObject(res.body).takeIf { it.optInt("retcode", -1) == 0 }?.optJSONObject("data")
+            }.getOrNull()
+        }
+        val game = gameFor(gameKey).displayName
+        // 시즌 2개(이번·지난)를 순차로 받는다. 병렬로 붙이면 HoYoLAB 이 레이트리밋을 걸어 통째로 비는 편이다.
+        val schedules = listOf(1 to true, 2 to false)
+        return when (gameKey) {
+            "genshin" -> buildList {
+                schedules.forEach { (type, current) ->
+                    fetch(
+                        "https://bbs-api-os.hoyolab.com/game_record/app/genshin/api/spiralAbyss",
+                        "role_id=$uid&schedule_type=$type&server=$server",
+                    )?.let { add(abyssClear(game, it, current)) }
+                }
+                // 환상극은 지난 기간을 schedule_type 으로 나누지 않는다 — data 배열에 함께 온다.
+                fetch(
+                    "https://bbs-api-os.hoyolab.com/game_record/app/genshin/api/role_combat",
+                    "need_detail=true&role_id=$uid&server=$server",
+                )?.let { d ->
+                    val arr = d.optJSONArray("data")
+                    for (i in 0 until (arr?.length() ?: 0)) {
+                        arr?.optJSONObject(i)?.let { add(roleCombatClear(game, it, current = i == 0)) }
+                    }
+                }
+            }
+            "hsr" -> buildList {
+                val modes = listOf(
+                    "challenge" to "혼돈의 기억",
+                    "challenge_story" to "허구 이야기",
+                    "challenge_boss" to "종말의 환영",
+                )
+                modes.forEach { (path, name) ->
+                    schedules.forEach { (type, current) ->
+                        fetch(
+                            "https://bbs-api-os.hoyolab.com/game_record/app/hkrpg/api/$path",
+                            "need_all=true&role_id=$uid&schedule_type=$type&server=$server",
+                        )?.let { add(hsrClear(game, name, it, current, starMax = if (path == "challenge") 3 else 0)) }
+                    }
+                }
+            }
+            else -> emptyList()
+        }.filter { it.rooms.isNotEmpty() }
+    }
+
+    /** 나선 비경: floors[] → levels[] → battles[](1=상반, 2=하반). */
+    private fun abyssClear(game: String, d: JSONObject, current: Boolean): CombatClear {
+        val rooms = mutableListOf<CombatRoom>()
+        val floors = d.optJSONArray("floors")
+        for (fi in 0 until (floors?.length() ?: 0)) {
+            val floor = floors?.optJSONObject(fi) ?: continue
+            val levels = floor.optJSONArray("levels")
+            for (li in 0 until (levels?.length() ?: 0)) {
+                val level = levels?.optJSONObject(li) ?: continue
+                val halves = level.optJSONArray("battles")
+                var first = emptyList<CombatAvatar>()
+                var second = emptyList<CombatAvatar>()
+                var stamp = 0L
+                for (bi in 0 until (halves?.length() ?: 0)) {
+                    val b = halves?.optJSONObject(bi) ?: continue
+                    val team = avatars(b.optJSONArray("avatars"))
+                    if (b.optInt("index") == 2) second = team else first = team
+                    stamp = maxOf(stamp, b.optString("timestamp").toLongOrNull() ?: 0L)
+                }
+                val room = CombatRoom(
+                    // 표기를 지어내지 않는다 — HoYoLAB 자신이 `max_floor` 를 "12-3" 으로 주고,
+                    // 앱의 전투 진행도 카드도 이미 그 문자열을 그대로 보여준다("최고 12-3").
+                    // 여기서만 "12층 3간" 같은 말을 만들면 같은 화면 안에서 표기가 갈린다.
+                    name = "${floor.optInt("index")}-${level.optInt("index")}",
+                    stars = level.optInt("star"),
+                    maxStars = level.optInt("max_star", 3),
+                    detail = if (stamp > 0) DateUtil.shortDateTime(stamp * 1000) else "",
+                    firstHalf = first,
+                    secondHalf = second,
+                )
+                if (!room.isEmpty) rooms += room
+            }
+        }
+        return CombatClear(game, "나선 비경", d.optString("start_time").seasonLabel(), current, rooms)
+    }
+
+    /** 현실 속 환상극: detail.rounds_data[] — 막마다 편성 하나. */
+    private fun roleCombatClear(game: String, cur: JSONObject, current: Boolean): CombatClear {
+        val rounds = cur.optJSONObject("detail")?.optJSONArray("rounds_data")
+        val rooms = mutableListOf<CombatRoom>()
+        for (i in 0 until (rounds?.length() ?: 0)) {
+            val r = rounds?.optJSONObject(i) ?: continue
+            val room = CombatRoom(
+                // 전투 진행도 카드가 이미 "최고 4막" 으로 쓰는 표기에 맞춘다.
+                name = "${r.optInt("round_id")}막",
+                stars = if (r.optBoolean("is_get_medal")) 1 else 0,
+                maxStars = 1,
+                detail = r.optString("finish_time").takeIf { it.isNotBlank() } ?: "",
+                firstHalf = avatars(r.optJSONArray("avatars")),
+            )
+            if (!room.isEmpty) rooms += room
+        }
+        val season = cur.optJSONObject("schedule")?.optString("schedule_id").orEmpty()
+        return CombatClear(game, "현실 속 환상극", season, current, rooms)
+    }
+
+    /** 스타레일 3종 공통: all_floor_detail[] → node_1 / node_2. */
+    /**
+     * 스타레일 3종 공통: all_floor_detail[] → node_1 / node_2.
+     *
+     * [starMax] 는 층당 만점. 혼돈의 기억만 3별 고정이고, 허구 이야기·종말의 환영은 점수 기반이라
+     * 층마다 별 수가 다르다(0 을 넘기면 화면이 "★4/3" 같은 엉터리 분모 대신 "★4" 로 그린다).
+     */
+    private fun hsrClear(game: String, mode: String, d: JSONObject, current: Boolean, starMax: Int): CombatClear {
+        val floors = d.optJSONArray("all_floor_detail")
+        val rooms = mutableListOf<CombatRoom>()
+        for (i in 0 until (floors?.length() ?: 0)) {
+            val f = floors?.optJSONObject(i) ?: continue
+            val room = CombatRoom(
+                name = f.optString("name").ifBlank { "${i + 1}층" },
+                stars = f.optInt("star_num"),
+                maxStars = starMax,
+                firstHalf = avatars(f.optJSONObject("node_1")?.optJSONArray("avatars")),
+                secondHalf = avatars(f.optJSONObject("node_2")?.optJSONArray("avatars")),
+            )
+            if (!room.isEmpty) rooms += room
+        }
+        // groups 에는 진행 중 시즌과 지난 시즌이 함께 온다. 지난 시즌 응답에 진행 중 시즌명을 붙이면
+        // 카드 제목과 층 이름이 어긋난다("창날과 기사 · 지난 시즌" 인데 층은 "망각과 한풍").
+        val groups = d.optJSONArray("groups")?.let { g ->
+            (0 until g.length()).mapNotNull { g.optJSONObject(it) }
+        }.orEmpty()
+        val group = if (current) {
+            groups.firstOrNull { it.optString("status") == "Running" } ?: groups.firstOrNull()
+        } else {
+            groups.firstOrNull { it.optString("status") != "Running" } ?: groups.lastOrNull()
+        }
+        return CombatClear(game, mode, group?.optString("name_mi18n").orEmpty(), current, rooms)
+    }
+
+    /** 전투 응답의 avatars 배열 → 모델. 원신·스타레일이 같은 필드명을 쓴다(id·icon·level·rarity). */
+    private fun avatars(arr: JSONArray?): List<CombatAvatar> = buildList {
+        for (i in 0 until (arr?.length() ?: 0)) {
+            val a = arr?.optJSONObject(i) ?: continue
+            val id = a.optInt("id")
+            if (id == 0) continue
+            add(
+                CombatAvatar(
+                    id = id,
+                    iconUrl = a.optString("icon"),
+                    level = a.optInt("level"),
+                    rarity = a.optInt("rarity"),
+                ),
+            )
+        }
+    }
+
+    /** 나선 비경은 시즌명을 안 주고 시작 시각(epoch 초)만 준다 — "M월 상/하반" 으로 만든다. */
+    private fun String.seasonLabel(): String {
+        val ms = toLongOrNull()?.times(1000) ?: return ""
+        return "${DateUtil.month(ms)}월 ${if (DateUtil.dayOfMonth(ms) < 16) "상반" else "하반"}"
     }
 
     private fun hsrMode(game: String, name: String, d: JSONObject, max: Int): CombatMode {
