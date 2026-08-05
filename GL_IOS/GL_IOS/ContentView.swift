@@ -214,8 +214,10 @@ struct ContentView: View {
         // 앱으로 돌아올 때마다 밀린 알림 1회 점검 — BGAppRefreshTask 는 실행 시점이 OS 재량이고
         // 앱이 강제 종료돼 있으면 아예 안 돌아, 그것만으론 알림이 토글 켤 때만 오는 것처럼 보였다.
         // (실제 실행 여부·최소 간격은 공유 VM 이 판단한다.)
+        // .inactive 는 제어센터·앱 전환기 미리보기에서도 스쳐 지나가므로 이탈로 치지 않는다 — .background 만 쓴다.
         .onChange(of: scenePhase) { _, phase in
             if phase == .active { store.onAppForeground() }
+            else if phase == .background { store.onAppBackground() }
         }
         // 알림 딥링크 — AppDelegate 가 던진 링크를 공유 VM 에 넘긴다(상세 진입은 각 탭이 이어받음).
         .onReceive(NotificationCenter.default.publisher(for: .glgDeepLink)) { note in

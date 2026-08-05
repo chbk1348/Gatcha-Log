@@ -192,11 +192,14 @@ private fun tabButtons(selectedTab: Int, accent: Color, onTabSelected: (Int) -> 
 @Composable
 private fun tabButton(icon: ImageVector, label: String, selected: Boolean, accent: Color, onClick: () -> Unit) {
     // ⚠️ 비선택 배경을 `Color.Transparent` 로 두지 말 것.
-    // `Color.Transparent` 는 **알파 0의 검정**이라, 밝은 회색으로 보간하면 중간 구간이
+    // `Color.Transparent` 는 **알파 0의 검정**이라, 밝은 배경으로 보간하면 중간 구간이
     // 반투명 검정을 지나며 순간적으로 탁하고 어둡게 뜬다(2026-08-03 "선택될 때 색이 이질적").
-    // 같은 회색의 알파만 0으로 두면 색상은 그대로고 투명도만 오르내린다.
+    // 같은 색의 알파만 0으로 두면 색상은 그대로고 투명도만 오르내린다.
+    //
+    // 알약 배경도 강조색을 옅게 깐다(중립 회색이 아니라) — 아이콘·라벨만 강조색이면 선택된 탭이
+    // 배경과 따로 놀아 보였다. 12% 는 라벨의 강조색을 덮지 않으면서 선택 영역만 물들이는 농도다.
     val bg by animateColorAsState(
-        targetValue = if (selected) DividerColor else DividerColor.copy(alpha = 0f),
+        targetValue = accent.copy(alpha = if (selected) 0.12f else 0f),
         animationSpec = glgStandardSpec(),
         label = "tabBg",
     )

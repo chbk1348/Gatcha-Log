@@ -921,3 +921,37 @@ fun GlgDropdownItem(
         }
     }
 }
+
+/**
+ * 작은 원·알약 안의 글자를 **시각적 정중앙**에 놓는다.
+ *
+ * `Alignment.Center` 는 글리프가 아니라 **텍스트 박스**를 가운데 둔다. 안드로이드 기본값인
+ * 폰트 패딩(`includeFontPadding=true`)과 행 높이가 위아래로 서로 다른 여백을 남겨서,
+ * 20dp 원 안의 10sp 한 글자는 눈에 띄게 아래로 처진다(2026-08-05 게임 일정 픽업 칩 지적).
+ *
+ * 폰트 패딩을 끄고 행 높이를 글자 크기에 맞춰 위아래로 잘라내면 글리프가 실제 중앙에 온다.
+ * 원 안에 글자를 넣는 자리는 전부 이걸 쓴다 — 자리마다 눈대중으로 패딩을 주면 다시 어긋난다.
+ */
+@Composable
+fun GlgBadgeText(
+    text: String,
+    fontSize: androidx.compose.ui.unit.TextUnit,
+    color: androidx.compose.ui.graphics.Color,
+    fontWeight: FontWeight = FontWeight.Bold,
+) {
+    Text(
+        text,
+        fontSize = fontSize,
+        fontWeight = fontWeight,
+        color = color,
+        maxLines = 1,
+        style = androidx.compose.material3.LocalTextStyle.current.copy(
+            lineHeight = fontSize,
+            platformStyle = androidx.compose.ui.text.PlatformTextStyle(includeFontPadding = false),
+            lineHeightStyle = androidx.compose.ui.text.style.LineHeightStyle(
+                alignment = androidx.compose.ui.text.style.LineHeightStyle.Alignment.Center,
+                trim = androidx.compose.ui.text.style.LineHeightStyle.Trim.Both,
+            ),
+        ),
+    )
+}

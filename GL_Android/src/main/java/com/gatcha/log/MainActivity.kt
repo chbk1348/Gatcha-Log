@@ -99,12 +99,17 @@ class MainActivity : ComponentActivity() {
             LaunchedEffect(pendingLink) {
                 pendingLink?.let { viewModel.handleNotificationLink(it); pendingLink = null }
             }
-            // 앱으로 돌아올 때마다 밀린 알림 1회 점검 — 주기 워커가 도즈로 늦어져도 알림이 묻히지 않게.
+            // 앱으로 돌아올 때마다 ① 오래 떠나 있었으면 데이터 갱신 ② 밀린 알림 1회 점검.
             // (실제 실행 여부·간격 제한은 VM 이 판단한다.)
+            // ON_STOP 으로 내려간 시각을 남겨야 VM 이 '얼마나 떠나 있었는지'를 잰다.
             val lifecycleOwner = LocalLifecycleOwner.current
             DisposableEffect(lifecycleOwner) {
                 val observer = LifecycleEventObserver { _, event ->
-                    if (event == Lifecycle.Event.ON_RESUME) viewModel.onAppForeground()
+                    when (event) {
+                        Lifecycle.Event.ON_RESUME -> viewModel.onAppForeground()
+                        Lifecycle.Event.ON_STOP -> viewModel.onAppBackground()
+                        else -> Unit
+                    }
                 }
                 lifecycleOwner.lifecycle.addObserver(observer)
                 onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }

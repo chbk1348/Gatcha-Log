@@ -61,24 +61,71 @@ object TaskCompletion {
     private const val KEEP_WEEKS = 30
 
     /**
+     * 미완(false)을 실패로 인정하기 시작하는 시점 — 게임 하루가 이만큼 지난 뒤.
+     *
+     * 18 = 리셋 6시간 전. 그 전의 미완은 "아직 안 함"이 아니라 **하는 중**이다.
+     */
+    private const val LATE_HOUR = 18
+
+    /**
      * 실시간 노트 한 건을 기록에 반영한다. 순수 함수 — 새 로그를 돌려준다.
-     * 진행 중(3/4)은 기록하되 false 로, 완료(4/4)면 true 로. **true 는 덮어쓰지 않는다.**
+     *
+     * 완료(4/4)면 true 로 남기고 **true 는 절대 덮어쓰지 않는다**(리셋 전에 다시 열어도 안 뒤집힘).
+     *
+     * 미완은 **하루의 늦은 시간대([LATE_HOUR] 이후)에 본 것만** false 로 남긴다.
+     * 예전엔 그날 첫 관측이면 시각과 무관하게 false 를 박았는데, 아침에 앱을 열어 0/4 가 찍히고
+     * 저녁에 다 하고서 앱을 다시 안 열면 그날이 영영 미완주로 굳었다 — **앱을 일찍 열수록
+     * 완주율이 떨어지는** 지표였다. 이른 관측은 아무것도 안 남기고, 그 상태로 하루가 끝나면
+     * 그날은 '판단 근거 없음'으로 분모에서 빠진다(안 켠 날을 빼는 기존 원칙과 같다).
      */
     fun record(log: GameTaskLog, note: LiveNote, nowMillis: Long = currentTimeMillis()): GameTaskLog {
         var daily = log.daily
         var weekly = log.weekly
+        val late = DateUtil.gameDayHour(nowMillis) >= LATE_HOUR
 
         if (note.maxDailyTaskCount > 0) {
             val key = DateUtil.gameDayKey(nowMillis)
             val done = note.dailyTaskCount >= note.maxDailyTaskCount
-            if (done || key !in daily) daily = daily + (key to (done || daily[key] == true))
+            if (done) daily = daily + (key to true)
+            else if (late && daily[key] != true) daily = daily + (key to false)
         }
+        // 주간은 리셋까지 남은 시간이 길어 '이른 관측' 문제가 하루 단위만큼 크지 않다. 다만 같은 이유로
+        // 주 초반의 미완을 실패로 적으면 안 되므로, **주간도 마지막 날의 늦은 시간대에만** 미완을 남긴다.
         if (note.weeklyTotal > 0) {
             val key = DateUtil.gameWeekKey(nowMillis)
             val done = note.weeklyDone >= note.weeklyTotal
-            if (done || key !in weekly) weekly = weekly + (key to (done || weekly[key] == true))
+            if (done) weekly = weekly + (key to true)
+            else if (late && DateUtil.gameWeekKey(nowMillis + 86_400_000L) != key && weekly[key] != true) {
+                weekly = weekly + (key to false)
+            }
         }
         return prune(GameTaskLog(daily, weekly), nowMillis)
+    }
+
+    /**
+     * 받아온 노트들을 저장소의 기록에 반영한다 — **포그라운드·백그라운드 공용 진입점.**
+     *
+     * 예전엔 이 일을 `SpendingViewModel` 만 했다. 그래서 관측이 "앱을 연 순간" 에만 생겼고,
+     * 백그라운드 워커는 같은 노트를 받아 캐시에까지 넣으면서도 숙제 기록은 남기지 않았다.
+     * 관측이 드물면 완주율은 그만큼 근거가 얇아진다.
+     */
+    fun recordAll(
+        repo: GatchaRepository,
+        notes: List<LiveNote>,
+        nowMillis: Long = currentTimeMillis(),
+    ): Map<String, GameTaskLog>? {
+        if (notes.isEmpty()) return null
+        val logs = repo.loadTaskLogs().toMutableMap()
+        var changed = false
+        notes.forEach { n ->
+            val key = GameData.byNameOrNull(n.game)?.key ?: return@forEach
+            val before = logs[key] ?: GameTaskLog()
+            val after = record(before, n, nowMillis)
+            if (after != before) { logs[key] = after; changed = true }
+        }
+        if (!changed) return null
+        repo.saveTaskLogs(logs)
+        return logs
     }
 
     /** 보관 한도를 넘은 오래된 기록 제거. */

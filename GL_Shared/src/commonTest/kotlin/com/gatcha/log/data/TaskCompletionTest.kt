@@ -15,6 +15,19 @@ class TaskCompletionTest {
     private val base = 1_800_000_000_000L
     private val day = 86_400_000L
 
+    /**
+     * [base] 는 게임 하루의 중반(리셋 12시간 뒤)이라 '이른 관측'이다.
+     * 미완을 실패로 인정하는 구간(리셋 6시간 전)에 들어가려면 6시간을 더한다.
+     */
+    private val lateBase = base + 6 * 3_600_000L
+
+    /** 이번 게임 주의 **마지막 날** 늦은 시각 — 주간 미완이 실패로 인정되는 유일한 구간. */
+    private val weekEndLate: Long = run {
+        var t = lateBase
+        while (DateUtil.gameWeekKey(t + day) == DateUtil.gameWeekKey(t)) t += day
+        t
+    }
+
     private fun note(daily: Int, dailyMax: Int, weekly: Int = 0, weeklyMax: Int = 0) =
         LiveNote(
             game = Game.GENSHIN.displayName,
@@ -30,10 +43,26 @@ class TaskCompletionTest {
 
     @Test
     fun recordMarksTodayDoneOnlyWhenAllTasksFinished() {
-        val partial = TaskCompletion.record(GameTaskLog(), note(3, 4), base)
-        assertEquals(false, partial.daily[DateUtil.gameDayKey(base)])
+        val partial = TaskCompletion.record(GameTaskLog(), note(3, 4), lateBase)
+        assertEquals(false, partial.daily[DateUtil.gameDayKey(lateBase)])
 
-        val full = TaskCompletion.record(partial, note(4, 4), base)
+        val full = TaskCompletion.record(partial, note(4, 4), lateBase)
+        assertEquals(true, full.daily[DateUtil.gameDayKey(lateBase)])
+    }
+
+    @Test
+    fun earlyMissIsNotRecordedAsFailure() {
+        // 하루 중반의 3/4 는 '안 했다'가 아니라 '하는 중'이다 — 아무것도 남기지 않는다.
+        // 예전엔 그날 첫 관측이면 시각과 무관하게 false 를 박아서, 아침에 앱을 열고 저녁에 다 한 뒤
+        // 다시 안 열면 그날이 미완주로 굳었다(= 앱을 일찍 열수록 완주율이 떨어졌다).
+        val partial = TaskCompletion.record(GameTaskLog(), note(3, 4), base)
+        assertTrue(partial.daily.isEmpty())
+    }
+
+    @Test
+    fun earlyDoneIsStillRecorded() {
+        // 완료는 시각과 무관하다 — 이른 관측이어도 true 는 남긴다.
+        val full = TaskCompletion.record(GameTaskLog(), note(4, 4), base)
         assertEquals(true, full.daily[DateUtil.gameDayKey(base)])
     }
 
@@ -58,8 +87,16 @@ class TaskCompletionTest {
         val out = TaskCompletion.record(GameTaskLog(), note(4, 4, weekly = 3, weeklyMax = 3), base)
         assertEquals(true, out.weekly[DateUtil.gameWeekKey(base)])
 
+        // 주 마지막 날의 늦은 시각에 본 미완만 실패다.
+        val partial = TaskCompletion.record(GameTaskLog(), note(4, 4, weekly = 1, weeklyMax = 3), weekEndLate)
+        assertEquals(false, partial.weekly[DateUtil.gameWeekKey(weekEndLate)])
+    }
+
+    @Test
+    fun weeklyMissMidWeekIsNotRecordedAsFailure() {
+        // 주 초·중반의 1/3 은 아직 할 시간이 남았다 — 실패로 적으면 주간 완주율이 늘 낮게 나온다.
         val partial = TaskCompletion.record(GameTaskLog(), note(4, 4, weekly = 1, weeklyMax = 3), base)
-        assertEquals(false, partial.weekly[DateUtil.gameWeekKey(base)])
+        assertTrue(partial.weekly.isEmpty())
     }
 
     // ── 완주율 ──────────────────────────────────────────────────────────────

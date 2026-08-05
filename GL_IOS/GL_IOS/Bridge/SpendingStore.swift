@@ -446,9 +446,12 @@ final class SpendingStore {
     var displayMonth: Int { Int(vm.displayMonth) }
 
     // ── Phase 4 액션 ──────────────────────────────────────────────────────
-    func refreshGameInfo(force: Bool = false) { vm.refreshGameInfo(force: force) }
-    /// 앱이 포그라운드로 돌아왔을 때 밀린 알림 1회 점검(BGTask 가 OS 재량이라 그것만으론 구멍이 크다).
+    // Kotlin 기본 인자는 Swift 로 안 넘어온다 — silent 를 명시해야 한다(사용자가 부른 새로고침이므로 false).
+    func refreshGameInfo(force: Bool = false) { vm.refreshGameInfo(force: force, silent: false) }
+    /// 앱 복귀 — 오래 떠나 있었으면 데이터 갱신 + 밀린 알림 1회 점검(BGTask 가 OS 재량이라 그것만으론 구멍이 크다).
     func onAppForeground() { vm.onAppForeground() }
+    /// 앱이 백그라운드로 내려간 시각 기록 — 복귀 시 '얼마나 떠나 있었는지' 판정에 쓴다.
+    func onAppBackground() { vm.onAppBackground() }
     /// 클리어 편성 조회 — 전용 페이지 진입 시에만(시즌 2개치라 무겁다).
     func refreshCombatClears(force: Bool = false) { vm.refreshCombatClears(force: force) }
     /// 알림 payload 의 딥링크 처리("news:<공지 id>") — 탭 전환 + 상세 진입 상태를 세운다.

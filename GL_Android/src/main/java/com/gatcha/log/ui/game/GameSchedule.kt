@@ -40,6 +40,7 @@ import com.gatcha.log.data.ScheduleLogic
 import com.gatcha.log.data.ScheduleSummary
 import com.gatcha.log.data.collabTitle
 import com.gatcha.log.data.isCollabBanner
+import com.gatcha.log.ui.components.GlgBadgeText
 import com.gatcha.log.ui.components.GlassCard
 import com.gatcha.log.ui.components.GlgChip
 import com.gatcha.log.ui.theme.DividerColor
@@ -420,7 +421,8 @@ private fun PickupChip(banner: GachaBanner, modifier: Modifier = Modifier) {
             ) { Icon(SwordIcon, null, tint = WeapBadge, modifier = Modifier.size(12.dp)) }
         } else {
             Box(Modifier.size(20.dp).clip(CircleShape).background(banner.gameColor.toColor()), contentAlignment = Alignment.Center) {
-                Text(banner.name.take(1), fontSize = 10.sp, fontWeight = FontWeight.Black, color = Color.White)
+                // 폰트 패딩 때문에 글자가 아래로 처지던 자리 — [GlgBadgeText] 가 글리프를 실제 중앙에 둔다.
+                GlgBadgeText(banner.name.take(1), fontSize = 10.sp, color = Color.White, fontWeight = FontWeight.Black)
             }
         }
         Text(banner.name, fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = TextPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
