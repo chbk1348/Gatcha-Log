@@ -96,6 +96,20 @@ fun SettingsScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
     val notifPermLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
     val ensureNotifPerm: () -> Unit = { requestNotifPermIfNeeded(context, notifPermLauncher::launch) }
 
+    // 배터리 최적화 화이트리스트는 **OS 상태**라 Compose 가 변화를 알 수 없다. 예전엔 자동 출석 토글이
+    // 바뀔 때만 다시 읽어서, 배너의 '허용'을 눌러 시스템 다이얼로그에서 허용하고 돌아와도
+    // "배터리 최적화로 자동 출석이 막힐 수 있어요" 가 그대로 남았다(이미 허용된 사람도 마찬가지).
+    // 화면에 돌아올 때(ON_RESUME) 다시 읽는다 — 알림 권한 배너가 쓰는 방식과 같다.
+    var batteryRefresh by remember { mutableStateOf(0) }
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) batteryRefresh++
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
     val showBudget = remember { mutableStateOf(false) }
     val showNudgeThreshold = remember { mutableStateOf(false) }
     val showHoyolab = remember { mutableStateOf(false) }
@@ -287,7 +301,8 @@ fun SettingsScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
         }
         // 배터리 최적화 상태 진단(자동 출석 ON 인데 화이트리스트 미등록이면 안내 + CTA)
         item {
-            val ignoring = remember(autoCheckIn) {
+            // batteryRefresh 를 키에 넣어야 허용하고 돌아왔을 때 다시 읽는다(위 DisposableEffect 참고).
+            val ignoring = remember(autoCheckIn, batteryRefresh) {
                 com.gatcha.log.data.BatteryOptimization.isIgnoring(context)
             }
             if (autoCheckIn && hoyolab.isLinked && !ignoring) {

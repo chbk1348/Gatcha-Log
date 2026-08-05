@@ -301,13 +301,9 @@ class SpendingViewModel : ViewModel() {
      */
     private fun recordTaskProgress(notes: List<LiveNote>) {
         runCatching {
-            val logs = repo.loadTaskLogs().toMutableMap()
-            notes.forEach { n ->
-                val key = GameData.byNameOrNull(n.game)?.key ?: return@forEach
-                logs[key] = TaskCompletion.record(logs[key] ?: GameTaskLog(), n)
-            }
-            repo.saveTaskLogs(logs)
-            _taskStats.value = TaskCompletion.allStats(logs)
+            // 기록 자체는 백그라운드 워커와 같은 진입점을 쓴다([TaskCompletion.recordAll]).
+            // 바뀐 게 없으면 null 이 오고, 그때는 통계도 다시 만들 필요가 없다.
+            TaskCompletion.recordAll(repo, notes)?.let { _taskStats.value = TaskCompletion.allStats(it) }
         }
     }
 
@@ -316,24 +312,71 @@ class SpendingViewModel : ViewModel() {
         runCatching { _taskStats.value = TaskCompletion.allStats(repo.loadTaskLogs()) }
     }
 
+    /** 백그라운드로 내려간 시각. 0 이면 '내려간 적 없음'(콜드 스타트 직후). */
+    private var backgroundedAtMillis = 0L
+
+    /** 직전 포그라운드 시점의 호요 기준 날짜 키 — 날짜가 넘어갔는지 판정용. */
+    private var lastForegroundDayKey = ""
+
     /**
-     * 앱이 포그라운드로 돌아왔을 때 밀린 알림을 1회 점검한다.
+     * 앱이 백그라운드로 내려갈 때. 체류 시간을 재려면 내려간 시각이 필요하다.
      *
-     * 주기 작업만으로는 구멍이 크다 — iOS BGAppRefreshTask 는 실행 시점이 OS 재량이고 앱이 강제
-     * 종료돼 있으면 아예 안 돌며, Android 도 Doze 에서 늦어진다. 그래서 알림이 사실상 '토글을 켜는
-     * 순간'에만 오는 것처럼 보였다. 앱을 여는 순간을 보조 트리거로 쓴다.
+     * '직전 포그라운드로부터의 경과'로 대신 재면, 앱을 두 시간 켜 두고 쓰다가 1분 내려갔다 온
+     * 경우까지 장시간 이탈로 오판한다(전체 새로고침이 헛돈다).
+     */
+    fun onAppBackground() {
+        backgroundedAtMillis = currentTimeMillis()
+    }
+
+    /**
+     * 앱이 포그라운드로 돌아왔을 때 ① 화면 데이터를 최신화하고 ② 밀린 알림을 1회 점검한다.
      *
+     * **① 장시간 이탈 후 갱신** — 백그라운드에 오래 있다 돌아오면 화면에 낡은 값이 그대로 남았다.
+     * 게임 정보 재조회([refreshGameInfo])는 화면 진입 시점에만 걸려 있는데, 백그라운드에 다녀와도
+     * 화면은 그대로 살아 있어 다시 불리지 않는다. 클라우드 pull 은 `init` 에서 한 번뿐이라 다른 기기의
+     * 변경도 안 들어오고, 출석·스트릭은 [loadAll] 때 굳은 값이라 자정을 넘겨도 어제 상태로 남았다.
+     * → [STALE_AFTER_MS] 이상 떠나 있었거나 날짜가 넘어갔으면 [refreshAfterLongBackground].
+     * 탭·스크롤 위치는 건드리지 않는다(데이터만 조용히 갈아끼운다).
+     *
+     * **② 알림 점검** — 주기 작업만으로는 구멍이 크다. iOS BGAppRefreshTask 는 실행 시점이 OS 재량이고
+     * 앱이 강제 종료돼 있으면 아예 안 돌며, Android 도 Doze 에서 늦어진다. 그래서 알림이 사실상
+     * '토글을 켜는 순간'에만 오는 것처럼 보였다. 앱을 여는 순간을 보조 트리거로 쓴다.
      * 전환할 때마다 HoYoLAB 을 두드리면 안 되므로 [FOREGROUND_CHECK_MIN_INTERVAL_MS] 간격을 둔다.
      */
     fun onAppForeground() {
         DateUtil.refreshTimeZone()    // 캐시된 로컬 타임존 갱신(여행·자동 시간대 변경) — 알림 조건과 무관하게 항상
         recomputeSpendingDerived()    // 앱을 켜 둔 채 달이 바뀌면 지출은 그대로여서 '이번 달'이 안 갱신된다
-        if (!appSettings.needsPeriodicWork()) return
+
         val now = currentTimeMillis()
+        val awayMs = if (backgroundedAtMillis == 0L) 0L else now - backgroundedAtMillis
+        val today = todayKey()
+        // 첫 호출(콜드 스타트)은 방금 로드한 직후라 갱신할 게 없다 — 키가 비었을 때는 롤오버로 치지 않는다.
+        val dayRolled = lastForegroundDayKey.isNotEmpty() && lastForegroundDayKey != today
+        lastForegroundDayKey = today
+        backgroundedAtMillis = 0L
+        if (awayMs >= STALE_AFTER_MS || dayRolled) refreshAfterLongBackground()
+
+        if (!appSettings.needsPeriodicWork()) return
         if (now - appSettings.lastForegroundCheckMillis < FOREGROUND_CHECK_MIN_INTERVAL_MS) return
         appSettings.lastForegroundCheckMillis = now
         NativeScheduler.apply()   // 예약이 끊겨 있었다면 여기서 되살린다
         NativeScheduler.runNow()
+    }
+
+    /**
+     * 장시간 이탈(또는 날짜 롤오버) 후 데이터 최신화. 화면 전환·로딩 게이트 없이 값만 갈아끼운다.
+     *
+     * 네트워크가 없으면 [refreshGameInfo] 가 얼럿을 띄우는데, 복귀할 때마다 팝업이 뜨면 방해만 된다.
+     * 사용자가 직접 누른 새로고침이 아니므로 `silent` 로 조용히 넘어간다(클라우드 pull 도 동일).
+     */
+    private fun refreshAfterLongBackground() {
+        // 날짜가 넘어갔으면 오늘 출석·스트릭이 어제 기준으로 남아 있다(loadAll 시점에 굳은 값).
+        _attendanceToday.value = attendanceMap[todayKey()] ?: emptySet()
+        _attendanceStreak.value = computeAttendanceStreak()
+        refreshGameInfo(force = true, silent = true)
+        if (cloudConfigured && CloudSync.currentUid() != null) {
+            viewModelScope.launch { cloudSyncPullOrSeed(quiet = true) }
+        }
     }
 
     private val _accentIndex = MutableStateFlow(0)
@@ -1509,7 +1552,7 @@ class SpendingViewModel : ViewModel() {
      * 지금은 응답을 받은 게임만 갈아끼우고([mergeByGame]) 나머지는 직전 값을 유지하며,
      * ennead 가 하나라도 실패한 회차는 신선도를 [gameInfoRetryMs] 로 짧게 잡아 곧 다시 받는다.
      */
-    fun refreshGameInfo(force: Boolean = false) {
+    fun refreshGameInfo(force: Boolean = false, silent: Boolean = false) {
         if (_gameInfoRefreshing) return // 동시 새로고침 차단
         if (!force && _gameInfoReady.value && currentTimeMillis() - lastGameInfoLoadAt < gameInfoFreshMs) return
         viewModelScope.launch {
@@ -1517,8 +1560,10 @@ class SpendingViewModel : ViewModel() {
             _isRefreshing.value = true
             try {
                 // 오프라인이면 12초 타임아웃을 기다리지 않고 즉시 안내(앱 진입·새로고침 공통).
+                // 단 사용자가 부른 게 아닌 자동 갱신(silent)은 조용히 물러난다 — 백그라운드에서 돌아올
+                // 때마다 오프라인 얼럿이 뜨면 방해만 된다.
                 if (!NetworkMonitor.isOnline()) {
-                    emitNetworkAlert()
+                    if (!silent) emitNetworkAlert()
                     return@launch
                 }
                 // ennead(공개 API·인증 불필요) 가 한 게임이라도 실패하면 신선도 캐시를 짧게 잡아 곧 재시도한다.
@@ -2096,17 +2141,19 @@ class SpendingViewModel : ViewModel() {
      * - 자가 복구: import 는 원격에 있는 키만 덮어쓰므로(로컬 전용 키는 보존), 원격에서 빠진 호요랩 토큰이
      *   로컬에 남아 있으면 그대로 보존 → 재업로드 시 클라우드에 복구된다.
      */
-    private suspend fun cloudSyncPullOrSeed() {
-        if (!cloudConfigured) { _initialSyncing.value = false; return }
-        val uid = CloudSync.currentUid() ?: run { _initialSyncing.value = false; return }
+    private suspend fun cloudSyncPullOrSeed(quiet: Boolean = false) {
+        if (!cloudConfigured) { if (!quiet) _initialSyncing.value = false; return }
+        val uid = CloudSync.currentUid() ?: run { if (!quiet) _initialSyncing.value = false; return }
         // 로딩 페이지 오프라인 분기: 8초 타임아웃을 기다리지 않고 즉시 로컬로 진행 + 얼럿 안내.
+        // quiet(백그라운드 복귀 갱신)은 로딩 게이트도 얼럿도 띄우지 않는다 — 화면을 그대로 두고 값만 바꾼다.
         if (!NetworkMonitor.isOnline()) {
+            if (quiet) return
             emitNetworkAlert()
             loadAll()
             _initialSyncing.value = false
             return
         }
-        _initialSyncing.value = true
+        if (!quiet) _initialSyncing.value = true
         syncJob?.cancel()
         try {
             // pull 은 성공(문서 없음 포함)과 실패(네트워크/타임아웃)를 구분한다. **실패면 push 를 생략**해
@@ -2122,12 +2169,11 @@ class SpendingViewModel : ViewModel() {
                 }
                 else -> {
                     // Failed 또는 타임아웃(null) → 상태 불명이므로 push 금지, 로컬 유지 + 안내.
-                    emitNetworkAlert()
-                    loadAll()
+                    if (!quiet) { emitNetworkAlert(); loadAll() }
                 }
             }
         } finally {
-            _initialSyncing.value = false
+            if (!quiet) _initialSyncing.value = false
         }
     }
 
@@ -2138,6 +2184,12 @@ class SpendingViewModel : ViewModel() {
         const val CLOUD_DOC_WARN_BYTES = 900_000
         /** 포그라운드 알림 점검 최소 간격(ms) — 탭 전환마다 HoYoLAB 을 두드리지 않도록. */
         const val FOREGROUND_CHECK_MIN_INTERVAL_MS = 15L * 60 * 1000
+
+        /**
+         * 이 시간 이상 백그라운드에 있었으면 복귀 시 데이터를 통째로 다시 받는다.
+         * 게임 정보 신선도(5분)보다 넉넉히 잡는다 — 알림 확인·다른 앱 잠깐 다녀오기 정도로는 돌지 않게.
+         */
+        const val STALE_AFTER_MS = 30L * 60 * 1000
 
         /** 엔드 콘텐츠 클리어 편성 신선도(ms). 시즌 단위로 바뀌는 데이터라 넉넉히 잡는다. */
         const val COMBAT_CLEAR_FRESH_MS = 30L * 60 * 1000

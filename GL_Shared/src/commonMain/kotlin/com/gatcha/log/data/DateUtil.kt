@@ -113,6 +113,14 @@ object DateUtil {
     fun gameDayKeyAgo(daysAgo: Int, nowMillis: Long = currentTimeMillis()): String =
         gameDayKey(nowMillis - daysAgo * 86_400_000L)
 
+    /**
+     * 게임 하루(리셋~다음 리셋) 안에서 지금까지 흐른 시간(시). 0 = 리셋 직후, 23 = 리셋 직전.
+     *
+     * [TaskCompletion] 이 "이 관측이 하루의 이른 시점인가 늦은 시점인가"를 판단하는 데 쓴다 —
+     * 아침에 본 미완은 아직 안 한 게 아니라 **하는 중**일 뿐이라 실패로 셀 수 없다.
+     */
+    fun gameDayHour(millis: Long = currentTimeMillis()): Int = hoyoHour(millis - RESET_SHIFT_MS)
+
     /** 게임 주간 리셋(월요일 04:00 UTC+8) 기준 주 키 = 그 주 월요일의 날짜 키. */
     fun gameWeekKey(millis: Long = currentTimeMillis()): String {
         val d = local(millis - RESET_SHIFT_MS, hoyoTz).date

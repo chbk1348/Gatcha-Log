@@ -39,6 +39,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
+import com.gatcha.log.ui.components.GlgBadgeText
 import com.gatcha.log.ui.components.GlgDropdownMenu
 import com.gatcha.log.ui.components.GlgDropdownItem
 import com.gatcha.log.data.SpendingViewModel
@@ -484,7 +485,7 @@ private fun RosterSlot(c: EnkaChar, modifier: Modifier = Modifier, onClick: () -
             if (c.iconUrl != null) {
                 AsyncImage(model = c.iconUrl, contentDescription = c.name, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
             } else {
-                Text(c.name.take(1), fontSize = 17.sp, fontWeight = FontWeight.Bold, color = rarityColor)
+                GlgBadgeText(c.name.take(1), fontSize = 17.sp, color = rarityColor)
             }
         }
         Spacer(Modifier.height(5.dp))
@@ -510,7 +511,13 @@ private fun MoreSlot(rest: Int, accent: Color, onClick: () -> Unit) {
             Text("+$rest", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = accent)
         }
         Spacer(Modifier.height(5.dp))
-        Text("전체", fontSize = 9.5.sp, fontWeight = FontWeight.Bold, color = accent, maxLines = 1)
+        // 옆 칸 이름과 **같은 행 높이·정렬**이어야 첫 줄 기준선이 맞는다. 기본 행 높이를 그대로 두면
+        // 9.5sp 글자에 붙는 여백이 달라 "전체"만 위아래로 어긋나 보인다(2026-08-05 지적).
+        Text(
+            "전체", fontSize = 9.5.sp, fontWeight = FontWeight.Bold, color = accent,
+            maxLines = 1, lineHeight = 11.sp,
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+        )
     }
 }
 
@@ -534,7 +541,7 @@ private fun RosterCard(c: EnkaChar, game: String, modifier: Modifier = Modifier,
                 if (c.iconUrl != null) {
                     AsyncImage(model = c.iconUrl, contentDescription = c.name, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
                 } else {
-                    Text(c.name.take(1), fontSize = 20.sp, fontWeight = FontWeight.Bold, color = rarityColor)
+                    GlgBadgeText(c.name.take(1), fontSize = 20.sp, color = rarityColor)
                 }
             }
             Spacer(Modifier.width(11.dp))
@@ -603,7 +610,7 @@ fun EnkaStatPage(
                     Box(contentAlignment = Alignment.Center) {
                         Box(Modifier.size(64.dp).clip(RoundedCornerShape(18.dp)).background(ec.copy(alpha = 0.16f)), contentAlignment = Alignment.Center) {
                             if (c.iconUrl != null) AsyncImage(model = c.iconUrl, contentDescription = c.name, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
-                            else Text(c.name.take(1), fontSize = 26.sp, fontWeight = FontWeight.Bold, color = ec)
+                            else GlgBadgeText(c.name.take(1), fontSize = 26.sp, color = ec)
                         }
                         // 원소색 링(이미지 위 오버레이)
                         Box(Modifier.size(64.dp).border(1.5.dp, ec.copy(alpha = 0.35f), RoundedCornerShape(18.dp)))
