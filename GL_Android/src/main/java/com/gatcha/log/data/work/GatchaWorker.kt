@@ -19,6 +19,13 @@ class GatchaWorker(appContext: Context, params: WorkerParameters) : CoroutineWor
         val cfg = repo.loadHoyolab()
         if (settings.autoCheckIn) runCatching { autoCheckIn(settings, repo, cfg) }
         runCatching { NotificationChecker.run(settings, repo, cfg) }
+        // 예약 알림(픽업 마감·재화 가득참 등) 재충전 — Android 도 사전 예약을 쓰게 되면서
+        // (AlertScheduler.schedulesAhead=true) [NotificationChecker] 는 그 종류를 건너뛴다.
+        // 여기서 다시 깔아주지 않으면 울린 예약이 그대로 비어 다음 회차가 안 걸린다.
+        // NotificationChecker 뒤에 두는 이유: 방금 갱신한 노트·배너 캐시로 예약을 계산하려고.
+        runCatching { ScheduledAlerts.reschedule(settings, repo) }
+        // 자동 출석 일일 알람도 자가 복구 — 알람이 유실됐거나(강제 종료 복귀) 아직 안 걸린 경우를 메운다.
+        runCatching { DailyCheckInAlarm.apply() }
         return Result.success()
     }
 

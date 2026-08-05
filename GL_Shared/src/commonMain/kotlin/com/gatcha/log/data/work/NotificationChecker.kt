@@ -8,6 +8,7 @@ import com.gatcha.log.data.HomeLogic
 import com.gatcha.log.data.HoyolabConfig
 import com.gatcha.log.data.LiveNote
 import com.gatcha.log.data.Notifier
+import com.gatcha.log.data.TaskCompletion
 import com.gatcha.log.data.subscriptionNotificationId
 import com.gatcha.log.data.api.HoyolabApi
 import com.gatcha.log.data.api.NewsApi
@@ -29,6 +30,17 @@ object NotificationChecker {
     suspend fun run(settings: AppSettings, repo: GatchaRepository, cfg: HoyolabConfig) {
         val now = currentTimeMillis()
 
+        // 실시간 노트는 **알림 토글·방해금지와 무관하게** 먼저 받는다.
+        //
+        // 예전엔 재화 알림 토글(notifyResin) 안에서만 조회했다. 그런데 이 노트는 재화 알림만의
+        // 재료가 아니다 — 재화 완충 예약([ScheduledAlerts])의 근거이자 숙제 완주율의 유일한
+        // 관측 기회다. 토글 하나를 끄면 그것들까지 같이 죽었고, 방해금지 시간대·데일리 요약
+        // 모드에서는 아래 return 에 걸려 아예 조회가 안 됐다.
+        val notes = fetchLiveNotes(repo, cfg)
+
+        // 숙제 완주율 관측 — 앱을 안 열어도 기록이 쌓인다(예전엔 포그라운드 ViewModel 전용이었다).
+        runCatching { TaskCompletion.recordAll(repo, notes, now) }
+
         // 데일리 요약 모드: 개별 알림 억제, 정한 시각에 1건 통합 발송(하루 1회).
         // 사전 예약 플랫폼(iOS)에서는 요약도 예약이 담당하므로 여기선 아무것도 하지 않는다
         // — 둘 다 쏘면 같은 날 요약이 두 번 온다.
@@ -40,10 +52,39 @@ object NotificationChecker {
         // 방해금지: 조용한 시간대엔 개별 알림 보류(다음 주기에 재평가).
         if (isQuietNow(settings, now)) return
 
-        runIndividualChecks(settings, repo, cfg)
+        runIndividualChecks(settings, repo, cfg, notes)
     }
 
-    private suspend fun runIndividualChecks(settings: AppSettings, repo: GatchaRepository, cfg: HoyolabConfig) {
+    /**
+     * 연동된 게임의 실시간 노트를 받아 캐시에 병합 저장하고, 이번에 받은 것만 돌려준다.
+     *
+     * 캐시에 남기는 이유: 이 직후 [ScheduledAlerts] 가 '가득 차는 시각'을 미리 예약하는데,
+     * 예전엔 받은 걸 쓰고 버려서 예약이 **항상 직전 세션의 캐시**로 만들어졌다
+     * (캐시를 쓰는 곳은 포그라운드 화면 로드뿐이었다) → 백그라운드에서는 예약이 갱신되지 않아
+     * "앱을 열어야만 알림이 오는" 상태가 됐다.
+     */
+    private suspend fun fetchLiveNotes(repo: GatchaRepository, cfg: HoyolabConfig): List<LiveNote> {
+        if (!cfg.isLinked) return emptyList()
+        val uids = mapOf("genshin" to cfg.genshinUid, "hsr" to cfg.hsrUid, "zzz" to cfg.zzzUid)
+        val fresh = mutableListOf<LiveNote>()
+        for (game in GameData.attendanceGames) {
+            val uid = uids[game.key].orEmpty()
+            if (uid.isBlank()) continue
+            val note = HoyolabApi.getLiveNote(cfg.ltuid, cfg.ltoken, game.key, uid).note ?: continue
+            fresh += note
+        }
+        if (fresh.isNotEmpty()) {
+            runCatching { repo.saveLiveNotes(mergeLiveNotes(repo.loadLiveNotes(), fresh)) }
+        }
+        return fresh
+    }
+
+    private suspend fun runIndividualChecks(
+        settings: AppSettings,
+        repo: GatchaRepository,
+        cfg: HoyolabConfig,
+        notes: List<LiveNote>,
+    ) {
         // ① 예산 임박/초과 (로컬 데이터) — 월·레벨 단위 1회. 전체 예산 + 게임별 한도.
         if (settings.notifyBudget) {
             val now = currentTimeMillis()
@@ -103,30 +144,20 @@ object NotificationChecker {
             }
         }
 
-        // ③ 재화 가득참 (실시간 노트) — 게임별 하루 1회
-        if (settings.notifyResin && cfg.isLinked) {
+        // ③ 재화 가득참 — 게임별 하루 1회. 조회·캐시는 [fetchLiveNotes] 가 이미 했고 여기선 판정만 한다.
+        if (settings.notifyResin) {
             val today = DateUtil.hoyoDayKey()
-            val uids = mapOf("genshin" to cfg.genshinUid, "hsr" to cfg.hsrUid, "zzz" to cfg.zzzUid)
-            val fresh = mutableListOf<LiveNote>()
-            for (game in GameData.attendanceGames) {
-                val uid = uids[game.key].orEmpty()
-                if (uid.isBlank()) continue
-                val note = HoyolabApi.getLiveNote(cfg.ltuid, cfg.ltoken, game.key, uid).note ?: continue
-                fresh += note
-                if (note.maxResin > 0 && note.currentResin >= note.maxResin) {
-                    val tag = "resin:${game.key}"
-                    if (settings.lastNotified(tag) != today) {
-                        settings.setLastNotified(tag, today)
-                        Notifier.notify(Notifier.ID_RESIN_BASE + game.ordinal, "${game.shortName} 재화 가득참", "재화가 가득 찼어요 (${note.currentResin}/${note.maxResin})")
-                    }
-                }
-            }
-            // 받아온 노트를 캐시에 남긴다. 이 직후 [ScheduledAlerts] 가 '가득 차는 시각'을 미리 예약하는데,
-            // 예전엔 여기서 받은 걸 쓰고 버려서 예약이 **항상 직전 세션의 캐시**로 만들어졌다
-            // (캐시를 쓰는 곳은 포그라운드 화면 로드뿐이었다) → 백그라운드에서는 예약이 갱신되지 않아
-            // "앱을 열어야만 알림이 오는" 상태가 됐다.
-            if (fresh.isNotEmpty()) {
-                runCatching { repo.saveLiveNotes(mergeLiveNotes(repo.loadLiveNotes(), fresh)) }
+            notes.forEach { note ->
+                val game = GameData.byNameOrNull(note.game) ?: return@forEach
+                if (note.maxResin <= 0 || note.currentResin < note.maxResin) return@forEach
+                val tag = "resin:${game.key}"
+                if (settings.lastNotified(tag) == today) return@forEach
+                settings.setLastNotified(tag, today)
+                Notifier.notify(
+                    Notifier.ID_RESIN_BASE + game.ordinal,
+                    "${game.shortName} 재화 가득참",
+                    "재화가 가득 찼어요 (${note.currentResin}/${note.maxResin})",
+                )
             }
         }
 
@@ -238,8 +269,13 @@ object NotificationChecker {
         return byGame.values.toList()
     }
 
-    /** 방해금지 시간대 내인지(기기 로컬 시각 기준). start>end면 자정 넘김(예: 23~8)으로 처리. */
-    private fun isQuietNow(settings: AppSettings, now: Long): Boolean {
+    /**
+     * 방해금지 시간대 내인지(기기 로컬 시각 기준). start>end면 자정 넘김(예: 23~8)으로 처리.
+     *
+     * [ScheduledAlerts] 도 쓴다 — 사전 예약은 발송 순간에 코드가 돌지 않아(OS·알람이 쏜다)
+     * 그때 걸러낼 수 없으므로, 예약을 만드는 시점에 이 판정으로 시각을 밀어둔다.
+     */
+    internal fun isQuietNow(settings: AppSettings, now: Long): Boolean {
         if (!settings.notifyDndEnabled) return false
         val h = DateUtil.localHour(now)
         val start = settings.notifyDndStartHour
@@ -248,9 +284,24 @@ object NotificationChecker {
         return if (start < end) h in start until end else h >= start || h < end
     }
 
-    /** 데일리 요약 — 정한 시각 이후 하루 1회, 그날 상태를 재계산해 1건으로 발송. */
-    private suspend fun maybeSendDailySummary(settings: AppSettings, repo: GatchaRepository, cfg: HoyolabConfig, now: Long) {
-        if (DateUtil.localHour(now) < settings.notifyDailySummaryHour) return
+    /**
+     * 데일리 요약 — 정한 시각 이후 하루 1회, 그날 상태를 재계산해 1건으로 발송.
+     *
+     * [skipHourCheck] 는 **예약 알람이 정시에 깨워서 부른 경우**다(Android). 예약은 이미 사용자가
+     * 정한 시각에 울리므로 시각 조건을 다시 볼 이유가 없고, 알람이 15분쯤 일찍 울리면
+     * (비정확 알람) 조건에 걸려 그날 요약이 통째로 날아간다.
+     *
+     * iOS 는 OS 가 직접 쏘는 구조라 발송 순간에 코드가 못 돌아 고정 문구뿐이다. Android 는
+     * 알람이 우리 프로세스를 깨우므로 여기서 **그날 실제 수치**를 계산해 보낼 수 있다.
+     */
+    internal suspend fun maybeSendDailySummary(
+        settings: AppSettings,
+        repo: GatchaRepository,
+        cfg: HoyolabConfig,
+        now: Long,
+        skipHourCheck: Boolean = false,
+    ) {
+        if (!skipHourCheck && DateUtil.localHour(now) < settings.notifyDailySummaryHour) return
         val dayKey = DateUtil.dayKey(now)
         if (settings.lastNotified("summary") == dayKey) return
         val lines = buildSummaryLines(settings, repo, cfg, now)
@@ -280,15 +331,12 @@ object NotificationChecker {
             val pending = GameData.attendanceGames.filter { it.key !in done }
             if (pending.isNotEmpty()) lines += "미출석 ${pending.size}개 · ${pending.joinToString(", ") { it.shortName }}"
         }
-        if (settings.notifyResin && cfg.isLinked && !AlertScheduler.schedulesAhead) {
-            val uids = mapOf("genshin" to cfg.genshinUid, "hsr" to cfg.hsrUid, "zzz" to cfg.zzzUid)
-            val full = mutableListOf<String>()
-            for (game in GameData.attendanceGames) {
-                val uid = uids[game.key].orEmpty()
-                if (uid.isBlank()) continue
-                val note = HoyolabApi.getLiveNote(cfg.ltuid, cfg.ltoken, game.key, uid).note ?: continue
-                if (note.maxResin > 0 && note.currentResin >= note.maxResin) full += game.shortName
-            }
+        if (settings.notifyResin && cfg.isLinked) {
+            // 캐시를 읽는다 — [run] 이 이 직전에 [fetchLiveNotes] 로 갱신해 뒀다.
+            // 예전엔 여기서 3게임을 다시 조회해서, 요약 1건 만드는 데 왕복이 두 배로 났다.
+            val full = repo.loadLiveNotes()
+                .filter { it.maxResin > 0 && it.currentResin >= it.maxResin }
+                .mapNotNull { GameData.byNameOrNull(it.game)?.shortName }
             if (full.isNotEmpty()) lines += "재화 가득참 · ${full.joinToString(", ")}"
         }
         if (settings.notifyPickup) {

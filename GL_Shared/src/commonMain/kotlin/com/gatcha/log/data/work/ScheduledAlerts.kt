@@ -73,6 +73,13 @@ object ScheduledAlerts {
     /** iOS 는 앱당 대기 알림 64건 한도 — 여유를 두고 자른다. */
     const val MAX_PENDING = 48
 
+    /**
+     * 데일리 요약 예약의 키. 이 예약만은 **문구가 발송 시점에야 정해진다**(그날 수치).
+     * Android 는 알람이 우리 코드를 깨우므로 [AlertScheduler] 가 이 키를 알아보고
+     * 고정 문구 대신 실제 요약을 만들어 보낸다.
+     */
+    const val KEY_DAILY_SUMMARY = "daily_summary"
+
     /** 마감 알림을 띄울 로컬 시각(시). 마감 시각이 새벽이어도 사람이 볼 시간에 울린다. */
     private const val ALERT_HOUR = 9
 
@@ -101,7 +108,7 @@ object ScheduledAlerts {
             return AlertPlan(
                 listOf(
                     ScheduledAlert(
-                        key = "daily_summary",
+                        key = KEY_DAILY_SUMMARY,
                         title = "오늘의 가챠 요약",
                         text = "출석·일일 임무·재화 상태를 확인할 시간이에요",
                         whenMillis = DateUtil.localTimeOnDay(nowMillis, settings.notifyDailySummaryHour),
@@ -122,7 +129,7 @@ object ScheduledAlerts {
                     val names = list.filter { it.endMillis == end }.joinToString(", ") { it.name }
                     var scheduledAny = false
                     LEAD_DAYS.forEach { lead ->
-                        val at = DateUtil.localTimeOnDay(end - lead * DAY_MS, ALERT_HOUR)
+                        val at = shiftOutOfQuiet(settings, DateUtil.localTimeOnDay(end - lead * DAY_MS, ALERT_HOUR))
                         if (at > nowMillis) {
                             scheduledAny = true
                             out += ScheduledAlert(
@@ -164,7 +171,7 @@ object ScheduledAlerts {
                     val shortName = game?.shortName ?: c.game
                     var scheduledAny = false
                     LEAD_DAYS.forEach { lead ->
-                        val at = DateUtil.localTimeOnDay(c.endMillis - lead * DAY_MS, ALERT_HOUR)
+                        val at = shiftOutOfQuiet(settings, DateUtil.localTimeOnDay(c.endMillis - lead * DAY_MS, ALERT_HOUR))
                         if (at > nowMillis) {
                             scheduledAny = true
                             out += ScheduledAlert(
@@ -205,7 +212,7 @@ object ScheduledAlerts {
             repo.loadSubscriptions().forEach { sub ->
                 val d = sub.dDay(nowMillis)
                 // 결제일(오늘로부터 d일 뒤)의 전날 09:00.
-                val at = DateUtil.localTimeOnDay(nowMillis + (d - 1) * DAY_MS, ALERT_HOUR)
+                val at = shiftOutOfQuiet(settings, DateUtil.localTimeOnDay(nowMillis + (d - 1) * DAY_MS, ALERT_HOUR))
                 if (at > nowMillis) {
                     out += ScheduledAlert(
                         key = "sub:${sub.id}",
@@ -236,18 +243,37 @@ object ScheduledAlerts {
             repo.loadLiveNotes().filter { it.resinFullAtMillis > nowMillis && it.maxResin > 0 }.forEach { n ->
                 val game = GameData.byNameOrNull(n.game)
                 val gameKey = game?.key ?: n.game
+                // 새벽에 가득 차는 경우가 흔하다 — 방해금지면 해제 시각으로 민다.
+                // dedup 값도 **민 뒤의 시각** 기준이어야 한다(예약이 책임지는 날짜와 어긋나면 중복 발송).
+                val at = shiftOutOfQuiet(settings, n.resinFullAtMillis)
                 out += ScheduledAlert(
                     key = "resin:$gameKey",
                     title = "${game?.shortName ?: n.game} 재화 가득참",
                     text = "${n.resinLabel}가 가득 찼어요 (${n.maxResin}/${n.maxResin})",
-                    whenMillis = n.resinFullAtMillis,
+                    whenMillis = at,
                     dedupTag = "resin:$gameKey",
-                    dedupValue = DateUtil.hoyoDayKey(n.resinFullAtMillis),
+                    dedupValue = DateUtil.hoyoDayKey(at),
                 )
             }
         }
 
         return AlertPlan(out.sortedBy { it.whenMillis }.take(MAX_PENDING), now)
+    }
+
+    /**
+     * 방해금지 시간대에 떨어지는 예약을 해제 시각으로 민다.
+     *
+     * 예약 알림은 **발송 순간에 우리 코드가 돌지 않는다**(iOS 는 OS 가, Android 는 알람이 쏜다).
+     * [NotificationChecker] 처럼 발송 직전에 걸러낼 수 없으므로 만들 때 미뤄 두는 수밖에 없다.
+     * 새벽에 가득 차는 재화 알림이 대표적이다 — 그대로 두면 자는 사람을 깨운다.
+     *
+     * 데일리 요약은 사용자가 시각을 직접 고른 것이므로 밀지 않는다(호출부에서 제외).
+     */
+    private fun shiftOutOfQuiet(settings: AppSettings, at: Long): Long {
+        if (!NotificationChecker.isQuietNow(settings, at)) return at
+        val end = DateUtil.localTimeOnDay(at, settings.notifyDndEndHour)
+        // 23~8 처럼 자정을 넘기는 설정에서 at 이 23:30 이면 같은 날 08:00 은 이미 지났다 → 다음 날.
+        return if (end > at) end else end + DAY_MS
     }
 
     /** D-day → [NotificationChecker] 와 동일한 알림 레벨. 3일보다 멀면 알릴 단계가 아니다. */
