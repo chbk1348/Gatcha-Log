@@ -59,3 +59,6 @@ GL_IOS/build_x27/
 # 같은 27 툴체인의 Release 구성(실기기 릴리즈 검증용) — Debug 산출물과 분리
 build_x27_rel/
 GL_IOS/build_x27_rel/
+
+# Firebase CLI 작업 로그
+.firebase/
