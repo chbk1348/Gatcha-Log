@@ -142,11 +142,15 @@ private struct SeasonBody: View {
             }
             if !roster.isEmpty {
                 sectionLabel("이 시즌 주력").padding(.bottom, 8)
-                HStack(spacing: 4) {
-                    ForEach(roster.prefix(6), id: \.id) { a in
+                // 6명을 좌우 끝까지 벌린다 — 왼쪽에 몰아두면 오른쪽이 통째로 비어 화면이 치우쳐 보인다.
+                // (Compose 패리티: CombatClearSection.kt 의 Arrangement.SpaceBetween)
+                HStack(spacing: 0) {
+                    ForEach(Array(roster.prefix(6).enumerated()), id: \.element.id) { i, a in
+                        if i > 0 { Spacer(minLength: 4) }
                         AvatarChip(avatar: a, count: usage[KotlinInt(int: a.id)]?.intValue ?? 0)
                     }
                 }
+                .frame(maxWidth: .infinity)
             }
             ForEach(Array(clear.rooms.enumerated()), id: \.offset) { i, room in
                 if i > 0 || !roster.isEmpty {
@@ -217,9 +221,15 @@ private struct HalfRow: View {
                     .frame(width: 28, alignment: .leading)
                     // 아이콘 줄의 세로 가운데에 맞춘다 — 위에 붙이면 라벨만 붕 떠 보인다.
                     .padding(.top, avatarSize / 2 - 7)
-                HStack(spacing: 4) {
-                    ForEach(team, id: \.id) { AvatarChip(avatar: $0, count: 0) }
+                // 4명이 남는 폭을 나눠 가지게 한다 — 왼쪽에 붙여 두면 오른쪽 절반이 비어 치우쳐 보인다.
+                // (Compose 패리티: CombatClearSection.kt 의 Arrangement.SpaceBetween)
+                HStack(spacing: 0) {
+                    ForEach(Array(team.enumerated()), id: \.element.id) { i, a in
+                        if i > 0 { Spacer(minLength: 4) }
+                        AvatarChip(avatar: a, count: 0)
+                    }
                 }
+                .frame(maxWidth: .infinity)
             }
         }
     }
