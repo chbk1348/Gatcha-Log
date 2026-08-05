@@ -67,6 +67,15 @@ class BaselineProfileGenerator {
             device.pressBack()
             device.waitForIdle()
         }
+
+        // 27.42.0 신규 — 클리어 편성. 게임 정보의 2단계 하위 페이지라 tourTabs 로는 안 밟힌다.
+        // SectionPage 가 BackHandler 를 걸어 두므로 pressBack 이 한 단계씩 pop 한다.
+        if (openCombatClears()) {
+            scrollFeed()
+            device.pressBack(); device.waitForIdle()   // → 전투 진행도 · 수입 일지
+            device.pressBack(); device.waitForIdle()   // → 게임 정보
+        }
+
         tapTab("홈")
         device.waitForIdle()
     }
