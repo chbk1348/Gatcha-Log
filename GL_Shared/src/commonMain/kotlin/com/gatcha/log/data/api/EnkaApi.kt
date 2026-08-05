@@ -507,7 +507,9 @@ object EnkaApi {
             line("crit_rate", "치명타 확률", crit = true),
             line("crit_dmg", "치명타 피해", crit = true),
             line("break_dmg", "격파 특수효과"),
-            elem?.let { line(it, "속성 피해") },
+            // 폴백은 속성별로 — 신규 캐릭터라 mihomo 가 name 을 비워 보내도 '화염 피해'처럼 나온다.
+            // 통짜 '속성 피해'면 physical_dmg 까지 그렇게 찍혀 normStat 이 PHYS_DMG 대신 ELEM_DMG 로 오분류했다.
+            elem?.let { line(it, hsrElementKo(it.removeSuffix("_dmg")) + " 피해") },
         )
     }
 
