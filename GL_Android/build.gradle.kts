@@ -64,7 +64,7 @@ android {
         applicationId = "com.gatcha.log"
         minSdk = 24
         targetSdk = 34
-        versionCode = 274200 // 27.42.0
+        versionCode = 274201 // 27.42.0 (274200 은 Firebase 설정 누락 결함본 — 회수)
         versionName = "27.42.0"
 
         // 실험 빌드 표식 — true 면 시작 시 경고 다이얼로그 + 설정 > 앱 버전에 빨간 EXPERIMENT 칩.
