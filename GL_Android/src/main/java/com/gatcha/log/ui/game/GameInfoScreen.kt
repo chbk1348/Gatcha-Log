@@ -66,12 +66,12 @@ import com.gatcha.log.ui.theme.*
 import kotlinx.coroutines.launch
 
 /** 게임정보 탭의 풀스크린 하위 페이지 (열리면 하단바·FAB 숨김) */
-private enum class GiSub { Main, HoyoLink, Dashboard, Calc, Report, Gift, Schedule, News, NewsDetail, CharStats, CharRoster, Hoyoland, GameContent }
+private enum class GiSub { Main, HoyoLink, Dashboard, Calc, Report, Gift, Schedule, News, NewsDetail, CharStats, CharRoster, Hoyoland, GameContent, CombatClear }
 
 /** 화면 전환 push/pop 방향용 계층 깊이. Main=0, 하위 페이지=1, 상세(목록서 진입)=2. */
 private fun subDepth(s: GiSub): Int = when (s) {
     GiSub.Main -> 0
-    GiSub.CharStats, GiSub.NewsDetail -> 2
+    GiSub.CharStats, GiSub.NewsDetail, GiSub.CombatClear -> 2
     else -> 1
 }
 
@@ -91,6 +91,8 @@ fun GameInfoScreen(
     val gameNews by viewModel.gameNews.collectAsStateWithLifecycle()
     val ledgers by viewModel.ledgers.collectAsStateWithLifecycle()
     val combat by viewModel.combat.collectAsStateWithLifecycle()
+    val combatClears by viewModel.combatClears.collectAsStateWithLifecycle()
+    val combatClearsLoading by viewModel.combatClearsLoading.collectAsStateWithLifecycle()
     val attendanceToday by viewModel.attendanceToday.collectAsStateWithLifecycle()
     val attendanceHistory by viewModel.attendanceHistory.collectAsStateWithLifecycle()
     val hoyolab by viewModel.hoyolabConfig.collectAsStateWithLifecycle()
@@ -269,6 +271,16 @@ fun GameInfoScreen(
                     ledgers = ledgers,
                     isRefreshing = isRefreshing,
                     filter = gameFilter,
+                    linked = hoyolab.isLinked,
+                    onOpenClears = { subPage = GiSub.CombatClear },
+                )
+            }
+            GiSub.CombatClear -> SectionPage("클리어 편성", onBack = { subPage = GiSub.GameContent }) {
+                // 진입할 때 받는다 — 시즌 2개치라 무거워서 게임정보 새로고침에 얹지 않았다.
+                LaunchedEffect(Unit) { viewModel.refreshCombatClears() }
+                CombatClearContent(
+                    clears = combatClears,
+                    loading = combatClearsLoading,
                     linked = hoyolab.isLinked,
                 )
             }

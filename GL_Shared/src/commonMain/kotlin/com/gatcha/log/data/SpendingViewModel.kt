@@ -407,6 +407,9 @@ class SpendingViewModel : ViewModel() {
             val banners = repo.loadActiveBanners()
             val notes = repo.loadLiveNotes()
             val combats = repo.loadCombatModes()
+            // 클리어 편성은 전용 페이지에서만 쓰지만, 여기서 미리 채워야 페이지가 빈 화면으로 열리지 않는다.
+            runCatching { repo.loadCombatClears() }.getOrNull()
+                ?.takeIf { it.isNotEmpty() }?.let { _combatClears.value = it }
             // 일정·소식도 함께 — 예전엔 이 둘만 캐시가 없어서, 배너·오늘 할 일은 캐시로 즉시 차는데
             // 홈의 '이번주 일정'·'게임 소식' 카드만 네트워크가 올 때까지 빈 채로 남았다.
             val events = repo.loadGameEvents()
@@ -839,6 +842,71 @@ class SpendingViewModel : ViewModel() {
     // 전투 콘텐츠 진행도(나선 비경·현실 속 환상극·혼돈의 기억·허구 이야기·종말의 환영).
     private val _combat = MutableStateFlow<List<CombatMode>>(emptyList())
     val combat: StateFlow<List<CombatMode>> = _combat.asStateFlow()
+
+    // ── 엔드 콘텐츠 클리어 편성(층·간별로 어떤 캐릭터를 썼는지) ──
+    // 시즌 2개치 × 모드 4~6개라 호출이 무겁다. 전용 페이지에 들어갈 때만 받고, 화면은 캐시부터 그린다.
+    private val _combatClears = MutableStateFlow<List<CombatClear>>(emptyList())
+    val combatClears: StateFlow<List<CombatClear>> = _combatClears.asStateFlow()
+
+    private val _combatClearsLoading = MutableStateFlow(false)
+    val combatClearsLoading: StateFlow<Boolean> = _combatClearsLoading.asStateFlow()
+
+    /** 마지막으로 클리어 편성을 받아온 시각 — 페이지 재진입마다 다시 받지 않게. */
+    private var lastCombatClearAt = 0L
+
+    /**
+     * 엔드 콘텐츠 클리어 편성 조회. 캐시가 신선하면(30분) 건너뛴다.
+     *
+     * 이름 채우기: HoYoLAB 전투 응답에는 캐릭터 **이름이 없다**(id·아이콘뿐). 이미 받아 둔
+     * 보유 캐릭터([enkaResults])가 같은 id 체계를 쓰므로 거기서 이름을 끌어온다.
+     */
+    fun refreshCombatClears(force: Boolean = false) {
+        if (_combatClearsLoading.value) return
+        val cfg = _hoyolabConfig.value
+        if (!cfg.isLinked) return
+        val now = currentTimeMillis()
+        if (!force && _combatClears.value.isNotEmpty() && now - lastCombatClearAt < COMBAT_CLEAR_FRESH_MS) return
+        viewModelScope.launch {
+            _combatClearsLoading.value = true
+            try {
+                val uids = mapOf("genshin" to cfg.genshinUid, "hsr" to cfg.hsrUid).filterValues { it.isNotBlank() }
+                val fetched = coroutineScope {
+                    uids.map { (key, uid) ->
+                        async(Dispatchers.IO) {
+                            runCatching { HoyolabApi.getCombatClears(cfg.ltuid, cfg.ltoken, key, uid) }
+                                .getOrDefault(emptyList())
+                        }
+                    }.awaitAll().flatten()
+                }
+                // 한 게임이라도 응답이 비면 옛 결과를 지우지 않는다 — 화면이 통째로 비는 것보다 낫다.
+                if (fetched.isEmpty()) return@launch
+                // 이름 출처는 두 겹이다. ①전체 캐릭터 메타(yatta) — 쇼케이스에 없는 캐릭터까지 덮는다.
+                // ②보유 캐릭터 캐시 — 메타에 아직 없는 신규 캐릭터를 보완한다(우선순위가 더 높다).
+                val metaNames = runCatching {
+                    coroutineScope {
+                        listOf(false, true)
+                            .map { hsr -> async(Dispatchers.IO) { EnkaApi.characterNames(hsr) } }
+                            .awaitAll()
+                            .fold(emptyMap<Int, String>()) { acc, m -> acc + m }
+                    }
+                }.getOrDefault(emptyMap())
+                val named = CombatClearLogic.withNames(fetched, metaNames + characterNamesById())
+                val grouped = CombatClearLogic.grouped(named)
+                _combatClears.value = grouped
+                lastCombatClearAt = currentTimeMillis()
+                runCatching { repo.saveCombatClears(grouped) }
+            } finally {
+                _combatClearsLoading.value = false
+            }
+        }
+    }
+
+    /** 보유 캐릭터 캐시에서 id → 이름 맵을 만든다(게임 구분 없이 — id 가 게임별로 겹치지 않는다). */
+    private fun characterNamesById(): Map<Int, String> =
+        _enkaResults.value.values
+            .mapNotNull { it.profile }
+            .flatMap { it.chars }
+            .associate { it.id to it.name }
 
     private val _gameEvents = MutableStateFlow<List<GameEvent>>(emptyList())
     val gameEvents: StateFlow<List<GameEvent>> = _gameEvents.asStateFlow()
@@ -2070,6 +2138,9 @@ class SpendingViewModel : ViewModel() {
         const val CLOUD_DOC_WARN_BYTES = 900_000
         /** 포그라운드 알림 점검 최소 간격(ms) — 탭 전환마다 HoYoLAB 을 두드리지 않도록. */
         const val FOREGROUND_CHECK_MIN_INTERVAL_MS = 15L * 60 * 1000
+
+        /** 엔드 콘텐츠 클리어 편성 신선도(ms). 시즌 단위로 바뀌는 데이터라 넉넉히 잡는다. */
+        const val COMBAT_CLEAR_FRESH_MS = 30L * 60 * 1000
         /** 월별 지출 추이 차트가 보여주는 개월 수. */
         const val RECENT_MONTHS = 6
     }

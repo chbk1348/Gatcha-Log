@@ -18,6 +18,8 @@ struct GameInfoView: View {
     @State private var showHoyoland = false
     /// 전투 진행도·수입 일지 상세(데일리에서 진입).
     @State private var showGameContent = false
+    /// '어떤 캐릭터로 깼는지'(층·간별 편성) — 전투 진행도에서 한 단계 더 들어간다.
+    @State private var showCombatClears = false
     @State private var statChar: EnkaChar? = nil
     @State private var statGame = "genshin"
     @State private var showStats = false
@@ -168,7 +170,13 @@ struct GameInfoView: View {
         }
         .navigationDestination(isPresented: $showHoyoland) { HoyolandDetailView() }
         .navigationDestination(isPresented: $showGameContent) {
-            sectionPage("전투 · 수입 일지") { GameTabbedSection(store: store, filter: gameFilter) }
+            sectionPage("전투 · 수입 일지") {
+                GameTabbedSection(store: store, filter: gameFilter,
+                                  onOpenClears: { showCombatClears = true })
+            }
+            .navigationDestination(isPresented: $showCombatClears) {
+                sectionPage("클리어 편성") { CombatClearSection(store: store) }
+            }
         }
         .navigationDestination(isPresented: $showStats) {
             if let c = statChar {

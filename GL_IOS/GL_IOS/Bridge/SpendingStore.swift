@@ -100,6 +100,9 @@ final class SpendingStore {
     private(set) var newsArticleFailed: Bool = false
     private(set) var ledgers: [MonthlyLedger] = []
     private(set) var combat: [CombatMode] = []
+    /// 엔드 콘텐츠 클리어 편성(층·간별로 어떤 캐릭터를 썼는지).
+    private(set) var combatClears: [CombatClear] = []
+    private(set) var combatClearsLoading: Bool = false
     private(set) var attendanceToday: Set<String> = []
     private(set) var checkingIn: String? = nil
     private(set) var pity: [String: PityState] = [:]
@@ -260,6 +263,8 @@ final class SpendingStore {
         bind(vm.challenges) { [weak self] in self?.challenges = $0 }
         bind(vm.gameNews) { [weak self] in self?.gameNews = $0 }
         bind(vm.combat) { [weak self] in self?.combat = $0 }
+        bind(vm.combatClears) { [weak self] in self?.combatClears = $0 }
+        bind(vm.combatClearsLoading) { [weak self] in self?.combatClearsLoading = $0.boolValue }
         bind(vm.attendanceToday) { [weak self] in self?.attendanceToday = $0 }
         bind(vm.checkingIn) { [weak self] in self?.checkingIn = $0 }
         bind(vm.homeCards) { [weak self] in self?.homeCards = $0 }
@@ -444,6 +449,8 @@ final class SpendingStore {
     func refreshGameInfo(force: Bool = false) { vm.refreshGameInfo(force: force) }
     /// 앱이 포그라운드로 돌아왔을 때 밀린 알림 1회 점검(BGTask 가 OS 재량이라 그것만으론 구멍이 크다).
     func onAppForeground() { vm.onAppForeground() }
+    /// 클리어 편성 조회 — 전용 페이지 진입 시에만(시즌 2개치라 무겁다).
+    func refreshCombatClears(force: Bool = false) { vm.refreshCombatClears(force: force) }
     /// 알림 payload 의 딥링크 처리("news:<공지 id>") — 탭 전환 + 상세 진입 상태를 세운다.
     func handleNotificationLink(_ link: String) { vm.handleNotificationLink(link: link) }
     func consumePendingTab() { vm.consumePendingTab() }

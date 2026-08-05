@@ -74,6 +74,7 @@
 		FB067A16E345B8B1746B2F26 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 1B23BEFE8CD250421E457609 /* Assets.xcassets */; };
 		FB2809BA2B0A65D312D7F479 /* Pretendard-Regular.otf in Resources */ = {isa = PBXBuildFile; fileRef = 3C72C21A249F1195F638CECF /* Pretendard-Regular.otf */; };
 		FD93CB902981C13F3C6FA712 /* NetworkReachability.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3722E93D2F937C67F1B8BABD /* NetworkReachability.swift */; };
+		FDB02BE156F3DD718824DF6B /* CombatClearSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 93E186FAED8474F05E404889 /* CombatClearSection.swift */; };
 		FE473FA3E330163CA197055C /* GachaDashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A7AD50D44CC890634902ADD /* GachaDashboardView.swift */; };
 		FEFECA4B17E26F1661161AC0 /* DailyHeroSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1684DC3A94F3A86481854D57 /* DailyHeroSection.swift */; };
 /* End PBXBuildFile section */
@@ -129,6 +130,7 @@
 		846F3D6CE1BD91FB25597AA6 /* GiftCodeSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GiftCodeSheet.swift; sourceTree = "<group>"; };
 		85473AA00EECC1459C27D0DB /* TaskCompletionSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskCompletionSection.swift; sourceTree = "<group>"; };
 		89BBE3C4BD9EFC3A287B0BBF /* AddSpendingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddSpendingView.swift; sourceTree = "<group>"; };
+		93E186FAED8474F05E404889 /* CombatClearSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CombatClearSection.swift; sourceTree = "<group>"; };
 		9DCA63DF57F1FB2FF1334148 /* LaunchBenchmark.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaunchBenchmark.swift; sourceTree = "<group>"; };
 		9DE3D98E8895CBF8B3C201DE /* RemoteImage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemoteImage.swift; sourceTree = "<group>"; };
 		9EF5B679DF4C422B518B851A /* Format.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Format.swift; sourceTree = "<group>"; };
@@ -207,6 +209,7 @@
 			isa = PBXGroup;
 			children = (
 				75EFB2FF99DCA036AE774E6A /* AnniversarySection.swift */,
+				93E186FAED8474F05E404889 /* CombatClearSection.swift */,
 				1684DC3A94F3A86481854D57 /* DailyHeroSection.swift */,
 				B8E1563A89FD1762C317ABC2 /* EnkaCharSection.swift */,
 				BFE5396217B0F6A1F487F364 /* GachaCalculatorSection.swift */,
@@ -517,6 +520,7 @@
 				4BAE0AF1CFCBD6A920A5E1E6 /* AppMarkLogo.swift in Sources */,
 				89EC1FB90A1E22C63ECF76C0 /* BrandGauge.swift in Sources */,
 				14AFD15B3420C392511D404A /* CalendarView.swift in Sources */,
+				FDB02BE156F3DD718824DF6B /* CombatClearSection.swift in Sources */,
 				ED52FDDCC5ADCAECF885F91A /* ContentView.swift in Sources */,
 				FEFECA4B17E26F1661161AC0 /* DailyHeroSection.swift in Sources */,
 				EB541F0C793C06D68AF6A436 /* DataManagementView.swift in Sources */,

@@ -5,6 +5,8 @@ import Shared
 struct GameTabbedSection: View {
     var store: SpendingStore
     var filter: String = "all"   // 상단 게임 세그먼트 선택값 — 자체 칩 제거, 이 값으로 노출 게임 결정
+    /// '어떤 캐릭터로 깼는지' 상세 진입. nil 이면 진입 행을 숨긴다.
+    var onOpenClears: (() -> Void)? = nil
     @Environment(\.glgAccent) private var accent
 
     private var games: [Game] { GLGGames.attendance }
@@ -32,6 +34,8 @@ struct GameTabbedSection: View {
                     contentBlock("전투 콘텐츠 진행도") {
                         VStack(alignment: .leading, spacing: 12) {
                             ForEach(Array(combatGames.enumerated()), id: \.offset) { _, p in CombatCard(game: p.0, modes: p.1) }
+                            // 진행도(몇 별인가) 바로 아래에 편성(누구로 깼나) 진입 — 같은 맥락이라 여기 둔다.
+                            if let onOpenClears { clearEntryRow(onOpenClears) }
                         }
                     }
                 }
@@ -44,6 +48,34 @@ struct GameTabbedSection: View {
                 }
             }
         }
+    }
+
+    /// '어떤 캐릭터로 깼는지' 진입 행. 편성은 층마다 8명씩 붙어 세로로 길어지므로 별도 페이지로 뺀다.
+    private func clearEntryRow(_ onTap: @escaping () -> Void) -> some View {
+        Button(action: onTap) {
+            GLGCard(cornerRadius: 20, padding: 14) {
+                HStack(spacing: 12) {
+                    Image(systemName: "person.3.fill")
+                        .font(.system(size: 16))
+                        .foregroundStyle(accent.primary)
+                        .frame(width: 38, height: 38)
+                        .background(RoundedRectangle(cornerRadius: 12).fill(accent.primary.opacity(0.12)))
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("클리어 편성")
+                            .font(.pretendard(size: 14, weight: .bold))
+                            .foregroundStyle(GLGColor.textPrimary)
+                        Text("나선 비경·혼돈의 기억을 어떤 캐릭터로 깼는지")
+                            .font(.pretendard(size: 11))
+                            .foregroundStyle(GLGColor.textSecondary)
+                    }
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(GLGColor.textSecondary)
+                }
+            }
+        }
+        .buttonStyle(.plain)
     }
 
     private func contentBlock<C: View>(_ label: String, @ViewBuilder content: () -> C) -> some View {

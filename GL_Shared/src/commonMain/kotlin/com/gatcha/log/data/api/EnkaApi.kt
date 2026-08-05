@@ -554,6 +554,16 @@ object EnkaApi {
     }
 
     // ----------------------------------------------------------------- 메타 매핑 (Yatta: 한글명·희귀도·아이콘·원소)
+    /**
+     * 캐릭터 id → 한글명 **전체 목록**(yatta). 최초 1회만 받아 캐시한다([avatarMeta]).
+     *
+     * 전투 편성처럼 HoYoLAB 이 id·아이콘만 주는 응답의 이름을 채우는 데 쓴다.
+     * 보유 캐릭터([EnkaChar])로는 못 메운다 — Enka 는 **쇼케이스에 올린 캐릭터만** 주므로
+     * 나선 비경에 넣은 캐릭터 대부분이 빠진다(2026-08-05 원신만 이름이 안 나오던 원인).
+     */
+    suspend fun characterNames(hsr: Boolean): Map<Int, String> =
+        runCatching { avatarMeta(hsr).mapValues { it.value.name } }.getOrDefault(emptyMap())
+
     private suspend fun avatarMeta(hsr: Boolean): Map<Int, AvatarMeta> {
         (if (hsr) hsrMeta else giMeta)?.let { return it }
         val url = if (hsr) "https://sr.yatta.moe/api/v2/kr/avatar" else "https://gi.yatta.moe/api/v2/kr/avatar"

@@ -514,6 +514,83 @@ class GatchaRepository(
         prefs.putString(KEY_COMBAT, arr.toString())
     }
 
+    // ------------------------------------------------- 엔드 콘텐츠 클리어 편성 캐시 (로컬 전용)
+    /**
+     * 층·간별로 어떤 캐릭터를 썼는지. **시즌 2개치를 3게임 × 3모드까지 받는 무거운 호출**이라
+     * 화면에 들어갈 때마다 부를 수 없다 — 받은 걸 캐시에 두고 화면은 캐시부터 그린다.
+     */
+    fun loadCombatClears(): List<CombatClear> {
+        val raw = prefs.getString(KEY_COMBAT_CLEAR, null) ?: return emptyList()
+        return runCatching {
+            val arr = JSONArray(raw)
+            (0 until arr.length()).map { i ->
+                val o = arr.getJSONObject(i)
+                CombatClear(
+                    game = o.optString("game", ""),
+                    mode = o.optString("mode", ""),
+                    season = o.optString("season", ""),
+                    current = o.optBoolean("current", true),
+                    rooms = o.optJSONArray("rooms").let { rs ->
+                        (0 until (rs?.length() ?: 0)).mapNotNull { ri ->
+                            val r = rs?.optJSONObject(ri) ?: return@mapNotNull null
+                            CombatRoom(
+                                name = r.optString("name", ""),
+                                stars = r.optInt("stars", 0),
+                                maxStars = r.optInt("maxStars", 0),
+                                detail = r.optString("detail", ""),
+                                firstHalf = avatarsFrom(r.optJSONArray("first")),
+                                secondHalf = avatarsFrom(r.optJSONArray("second")),
+                            )
+                        }
+                    },
+                )
+            }
+        }.getOrDefault(emptyList())
+    }
+
+    private fun avatarsFrom(arr: JSONArray?): List<CombatAvatar> =
+        (0 until (arr?.length() ?: 0)).mapNotNull { i ->
+            val a = arr?.optJSONObject(i) ?: return@mapNotNull null
+            CombatAvatar(
+                id = a.optInt("id", 0),
+                name = a.optString("name", ""),
+                iconUrl = a.optString("icon", ""),
+                level = a.optInt("level", 0),
+                rarity = a.optInt("rarity", 0),
+            )
+        }
+
+    private fun avatarsTo(list: List<CombatAvatar>): JSONArray {
+        val arr = JSONArray()
+        list.forEach { a ->
+            arr.put(JSONObject().apply {
+                put("id", a.id); put("name", a.name); put("icon", a.iconUrl)
+                put("level", a.level); put("rarity", a.rarity)
+            })
+        }
+        return arr
+    }
+
+    /** 클리어 편성 캐시 저장. 전투 진행도 캐시와 동일하게 로컬 전용(클라우드 동기화 미트리거). */
+    fun saveCombatClears(list: List<CombatClear>) {
+        val arr = JSONArray()
+        list.forEach { c ->
+            val rooms = JSONArray()
+            c.rooms.forEach { r ->
+                rooms.put(JSONObject().apply {
+                    put("name", r.name); put("stars", r.stars); put("maxStars", r.maxStars)
+                    put("detail", r.detail)
+                    put("first", avatarsTo(r.firstHalf)); put("second", avatarsTo(r.secondHalf))
+                })
+            }
+            arr.put(JSONObject().apply {
+                put("game", c.game); put("mode", c.mode); put("season", c.season)
+                put("current", c.current); put("rooms", rooms)
+            })
+        }
+        prefs.putString(KEY_COMBAT_CLEAR, arr.toString())
+    }
+
     // ---------------------------------------------------------------- 실시간 노트 캐시 (로컬 전용 — 예약 알림 계산용)
     /** 최근 받아온 실시간 노트. '재화가 가득 차는 시각'을 앱 실행 없이 예약하는 데 쓴다. */
     fun loadLiveNotes(): List<LiveNote> {
@@ -845,6 +922,7 @@ class GatchaRepository(
         const val KEY_ENKA_CACHE = "enka_cache"   // 로컬 전용(클라우드 스냅샷 비포함)
         const val KEY_BANNERS = "active_banners"  // 로컬 전용(픽업 마감 알림 점검 캐시)
         const val KEY_COMBAT = "combat_modes"     // 로컬 전용(전투 시즌 마감 알림 점검 캐시)
+        const val KEY_COMBAT_CLEAR = "combat_clears" // 로컬 전용(엔드 콘텐츠 클리어 편성 캐시)
         const val KEY_NOTES = "live_notes"        // 로컬 전용(재화 가득참 예약 알림 계산 캐시)
         const val KEY_EVENTS = "game_events"      // 로컬 전용(홈 '이번주 일정' 즉시 표출 캐시)
         const val KEY_CHALLENGES = "game_challenges" // 로컬 전용(홈 '이번주 일정' 즉시 표출 캐시)
