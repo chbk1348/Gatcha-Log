@@ -27,6 +27,9 @@ object AndroidWorkScheduler {
 
     /** 설정 상태에 맞춰 주기 작업을 켜거나 끈다. */
     fun apply(context: Context) {
+        // 자동 출석 일일 알람도 함께 동기화 — 주기 작업만으론 Doze·절전에서 며칠씩 밀린다.
+        // (토글이 꺼져 있으면 내부에서 알람을 취소한다)
+        runCatching { DailyCheckInAlarm.apply() }
         val wm = WorkManager.getInstance(context)
         if (AppSettings().needsPeriodicWork()) {
             // 6h→4h: "18시 이후" 같은 시각 조건 슬롯 확보 확률을 높인다(배터리 trade-off 수용).
