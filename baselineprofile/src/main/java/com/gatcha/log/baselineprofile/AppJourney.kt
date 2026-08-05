@@ -110,3 +110,33 @@ internal fun MacrobenchmarkScope.openSpendingInsight(): Boolean {
     if (!tapTab("지출")) return false
     return tapDesc("인사이트")
 }
+
+/**
+ * 게임 정보 탭 → 전투 진행도 · 수입 일지 → **클리어 편성**(2단계 하위 페이지) 진입.
+ *
+ * 이 경로를 따로 낸 이유: 클리어 편성은 탭이 아니라 `GiSub.CombatClear` 하위 페이지라
+ * [tourTabs] 의 탭 순회로는 **한 번도 안 밟힌다**. 27.42.0 에 새로 들어온 화면이므로
+ * 여정이 여기까지 들어오지 않으면 프로파일에 통째로 빠진다.
+ *
+ * 진입점 두 개 다 라벨 텍스트가 그대로 노출된다(`GameInfoAttendance.kt:217`·`GameInfoBanner.kt:110`)
+ * — 툴바와 달리 숨겨지지 않으므로 `By.text` 로 찾는다.
+ *
+ * @return 클리어 편성까지 들어갔으면 true
+ */
+internal fun MacrobenchmarkScope.openCombatClears(): Boolean {
+    if (!tapTab("게임 정보")) return false
+    if (!tapOrScrollTo("전투 진행도 · 수입 일지")) return false
+    return tapOrScrollTo("클리어 편성")
+}
+
+/**
+ * 텍스트를 눌러 보고, 못 찾으면 한 번 훑어 내린 뒤 다시 시도한다.
+ *
+ * 두 진입 카드 모두 화면 아래쪽 섹션에 있어 기기·데이터 상태에 따라 첫 화면에 안 보일 수 있다.
+ * 되돌아올 필요는 없으므로 위로 올리는 스와이프는 하지 않는다.
+ */
+private fun MacrobenchmarkScope.tapOrScrollTo(text: String): Boolean {
+    if (tapAny(By.text(text))) return true
+    scrollFeed(downSwipes = 2, upSwipes = 0)
+    return tapAny(By.text(text))
+}
