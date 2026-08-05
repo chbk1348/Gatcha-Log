@@ -355,6 +355,8 @@ class SpendingViewModel : ViewModel() {
         lastForegroundDayKey = today
         backgroundedAtMillis = 0L
         if (awayMs >= STALE_AFTER_MS || dayRolled) refreshAfterLongBackground()
+        // 짧게 다녀왔어도 클라우드는 당겨온다 — 다른 기기에서 넣은 지출이 바로 보이게. 게임 정보는 건드리지 않는다.
+        else if (awayMs >= CLOUD_STALE_AFTER_MS) cloudSyncQuiet()
 
         if (!appSettings.needsPeriodicWork()) return
         if (now - appSettings.lastForegroundCheckMillis < FOREGROUND_CHECK_MIN_INTERVAL_MS) return
@@ -374,6 +376,16 @@ class SpendingViewModel : ViewModel() {
         _attendanceToday.value = attendanceMap[todayKey()] ?: emptySet()
         _attendanceStreak.value = computeAttendanceStreak()
         refreshGameInfo(force = true, silent = true)
+        cloudSyncQuiet()
+    }
+
+    /**
+     * 클라우드 스냅샷만 조용히 다시 당겨온다(화면 전환·로딩 게이트·얼럿 없음).
+     *
+     * [refreshAfterLongBackground] 와 짧은 복귀([CLOUD_STALE_AFTER_MS]) 양쪽에서 쓴다.
+     * 병합은 id 기준 합집합이라 여러 번 돌아도 중복이 생기지 않는다.
+     */
+    private fun cloudSyncQuiet() {
         if (cloudConfigured && CloudSync.currentUid() != null) {
             viewModelScope.launch { cloudSyncPullOrSeed(quiet = true) }
         }
@@ -2190,6 +2202,18 @@ class SpendingViewModel : ViewModel() {
          * 게임 정보 신선도(5분)보다 넉넉히 잡는다 — 알림 확인·다른 앱 잠깐 다녀오기 정도로는 돌지 않게.
          */
         const val STALE_AFTER_MS = 30L * 60 * 1000
+
+        /**
+         * 클라우드 스냅샷만 다시 당겨오는 임계 — [STALE_AFTER_MS] 와 **따로 잡는다.**
+         *
+         * 폰 두 대를 번갈아 쓰면 한쪽에서 추가한 지출이 다른 쪽에 안 보인다는 지적이 반복됐다.
+         * 기기를 바꿔 드는 데는 보통 1분도 안 걸리는데 30분 임계에 걸려 pull 이 안 돌았다.
+         *
+         * 그렇다고 [STALE_AFTER_MS] 자체를 낮추면 [refreshAfterLongBackground] 가 함께 부르는
+         * `refreshGameInfo(force = true)` 까지 딸려 나가 **앱 전환마다 외부 게임 API(ennead·HoYoLAB·Enka)를
+         * 두드린다.** 클라우드 pull 은 문서 1건이라 비용이 다르므로 임계도 달라야 한다.
+         */
+        const val CLOUD_STALE_AFTER_MS = 20L * 1000
 
         /** 엔드 콘텐츠 클리어 편성 신선도(ms). 시즌 단위로 바뀌는 데이터라 넉넉히 잡는다. */
         const val COMBAT_CLEAR_FRESH_MS = 30L * 60 * 1000
