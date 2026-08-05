@@ -18,8 +18,31 @@ fun releaseProp(key: String): String? =
     (keystoreProps.getProperty(key) ?: System.getenv(key))?.takeIf { it.isNotBlank() }
 
 // google-services.json 이 있을 때만 Firebase 플러그인 적용 → json 없이도 빌드 가능(로컬 모드).
+//
+// ⚠️ 이 파일은 .gitignore 대상이라 **clone 한 머신에는 없다.** 없으면 플러그인이 조용히 안 붙고
+// google_app_id 등 리소스가 통째로 빠져 Firebase Auth·Firestore 가 초기화되지 않는다
+// (cloudConfigured=false → 로그인·클라우드 동기화 전면 불가). 빌드는 성공하므로 **아무도 모른다.**
+//
+// 2026-08-05: 실제로 이 상태의 APK 가 v27.42.0 으로 배포됐다. 디버그는 로컬 모드가 유용하니 그대로 두고,
+// **릴리즈만 빌드 자체를 실패시킨다.** 배포본이 조용히 반쪽이 되는 것보다 못 굽는 게 낫다.
 if (file("google-services.json").exists()) {
     apply(plugin = "com.google.gms.google-services")
+} else {
+    gradle.taskGraph.whenReady {
+        if (allTasks.any { it.project.path == ":GL_Android" && it.name.contains("Release") }) {
+            throw GradleException(
+                """
+                |google-services.json 이 없어 릴리즈를 빌드할 수 없습니다.
+                |
+                |  위치: ${projectDir}/google-services.json
+                |  받기: Firebase Console → 프로젝트 설정 → 내 앱 → Android(com.gatcha.log)
+                |
+                |이 파일 없이 구운 APK 는 로그인·클라우드 동기화가 동작하지 않습니다.
+                |(디버그 빌드는 로컬 모드로 계속 사용 가능합니다)
+                """.trimMargin()
+            )
+        }
+    }
 }
 
 // 산출물 APK 파일명을 모듈명(GL_Android)과 분리해 'app'으로 고정.
