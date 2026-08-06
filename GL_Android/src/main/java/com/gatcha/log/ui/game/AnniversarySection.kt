@@ -56,7 +56,8 @@ fun AnniversaryContent() {
                     Column(Modifier.weight(1f)) {
                         // 이름은 shortName 으로 — 다른 섹션은 전부 shortName 인데 여기만 displayName 이었다.
                         Text(a.game.shortName, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TextPrimary, maxLines = 1)
-                        Text("${a.ordinal}주년", fontSize = 11.sp, color = TextSecondary)
+                        // 회차만 있으면 어느 날짜 기준인지 알 수 없다 — 근거가 되는 출시일을 함께 둔다.
+                        Text("${a.ordinal}주년 · ${a.launchLabel} 출시", fontSize = 11.sp, color = TextSecondary, maxLines = 1)
                     }
                     if (a.daysUntil == 0) {
                         Text("오늘 🎉", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = accent)
