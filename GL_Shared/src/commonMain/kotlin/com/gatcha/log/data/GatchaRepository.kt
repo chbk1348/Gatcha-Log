@@ -218,21 +218,9 @@ class GatchaRepository(
     fun loadAccentIndex(): Int = prefs.getInt(KEY_ACCENT, 0)
     fun saveAccentIndex(index: Int) { prefs.putInt(KEY_ACCENT, index); changed() }
 
-    // ---------------------------------------------------------------- 홈 카드 구성(표시·순서)
-    fun loadHomeCards(): List<HomeCardItem> {
-        val s = prefs.getString(KEY_HOME_CARDS, null) ?: return HomeCards.default
-        val parsed = runCatching {
-            val arr = JSONArray(s)
-            (0 until arr.length()).map { val o = arr.getJSONObject(it); HomeCardItem(o.optString("id"), o.optBoolean("v", true)) }
-        }.getOrDefault(HomeCards.default)
-        return HomeCards.normalize(parsed)
-    }
-    fun saveHomeCards(list: List<HomeCardItem>) {
-        val arr = JSONArray()
-        list.forEach { arr.put(JSONObject().put("id", it.id).put("v", it.visible)) }
-        prefs.putString(KEY_HOME_CARDS, arr.toString())
-        changed()
-    }
+    // 홈 카드 구성(표시·순서)은 27.43.0 에서 제거했다 — 27.32.0 홈 대시보드 개편(`9779244`) 때
+    // 양 플랫폼 렌더 루프가 사라져 저장만 되고 화면엔 반영되지 않는 상태였다.
+    // KEY_HOME_CARDS 는 **스냅샷 통과용으로만** 남긴다(구버전 앱과 클라우드 공존).
 
     // ---------------------------------------------------------------- Enka 프로필 UID (게임별)
     fun loadEnkaGiUid(): String = prefs.getString(KEY_ENKA_GI, "") ?: ""

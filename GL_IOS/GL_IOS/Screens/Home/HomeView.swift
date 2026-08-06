@@ -10,7 +10,6 @@ struct HomeView: View {
     @Environment(\.glgAccent) private var accent
 
     @State private var showBudget = false
-    @State private var showHomeEdit = false
     @State private var importingGacha = false
     @State private var didStart = false
 
@@ -94,7 +93,6 @@ struct HomeView: View {
             }
         }
         .sheet(isPresented: $showBudget) { BudgetSheet(store: store) }
-        .sheet(isPresented: $showHomeEdit) { HomeCardEditSheet(store: store) }
         .fileImporter(isPresented: $importingGacha, allowedContentTypes: [.json], allowsMultipleSelection: true) { result in
             if case .success(let urls) = result {
                 let contents = urls.compactMap { url -> String? in
@@ -210,16 +208,6 @@ struct HomeView: View {
         } else {
             TodayTaskCard(tasks: todayTasks, inProgress: store.checkingIn != nil, titleOutside: titleOutside)
         }
-    }
-
-    private var homeEditButton: some View {
-        Button { showHomeEdit = true } label: {
-            HStack(spacing: 6) {
-                Image(systemName: "slider.horizontal.3").font(.pretendard(size: 16)).foregroundStyle(GLGColor.textSecondary)
-                Text("홈 카드 편집").font(.pretendard(size: 13, weight: .medium)).foregroundStyle(GLGColor.textSecondary)
-            }
-            .frame(maxWidth: .infinity).padding(.vertical, 12)
-        }.buttonStyle(.plain)
     }
 
     // ── 파생 ──

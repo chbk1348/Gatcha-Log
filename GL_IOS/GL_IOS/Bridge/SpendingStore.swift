@@ -126,7 +126,6 @@ final class SpendingStore {
     private(set) var redeemedCodes: Set<String> = []
 
     // Phase 5 (홈)
-    private(set) var homeCards: [HomeCardItem] = []
     private(set) var gameInfoReady: Bool = false
     /// 일정·소식 카드 각각의 표출 준비 상태 — 출처가 달라 `gameInfoReady` 와 따로 둔다(VM 주석 참고).
     private(set) var scheduleReady: Bool = false
@@ -267,7 +266,6 @@ final class SpendingStore {
         bind(vm.combatClearsLoading) { [weak self] in self?.combatClearsLoading = $0.boolValue }
         bind(vm.attendanceToday) { [weak self] in self?.attendanceToday = $0 }
         bind(vm.checkingIn) { [weak self] in self?.checkingIn = $0 }
-        bind(vm.homeCards) { [weak self] in self?.homeCards = $0 }
         bind(vm.gameInfoReady) { [weak self] in self?.gameInfoReady = $0.boolValue }
         bind(vm.scheduleReady) { [weak self] in self?.scheduleReady = $0.boolValue }
         bind(vm.newsReady) { [weak self] in self?.newsReady = $0.boolValue }
@@ -483,7 +481,6 @@ final class SpendingStore {
     func dismissAlert(_ key: String) { vm.dismissAlert(key: key) }
     func dismissAlerts(_ keys: [String]) { vm.dismissAlerts(keys: keys) }
     func requestOpenHoyolabLink() { vm.requestOpenHoyolabLink() }
-    func setHomeCards(_ list: [HomeCardItem]) { vm.setHomeCards(list: list) }
     func refreshHoyoTokenExpired() { vm.refreshHoyoTokenExpired() }
     func showStatus(_ msg: String) { vm.showStatus(msg: msg) }
     /// 초기 동기화 로딩 게이트 완료 표시 (AccountLoadingView 완료 시).

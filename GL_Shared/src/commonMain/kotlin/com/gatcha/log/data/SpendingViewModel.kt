@@ -15,8 +15,6 @@ import com.gatcha.log.data.GachaReport
 import com.gatcha.log.data.CombatMode
 import com.gatcha.log.data.GachaStats
 import com.gatcha.log.data.GachaDashboard
-import com.gatcha.log.data.HomeCardItem
-import com.gatcha.log.data.HomeCards
 import com.gatcha.log.data.AppSettings
 import com.gatcha.log.data.work.AutoCheckInRunner
 import com.gatcha.log.data.work.NativeScheduler
@@ -98,10 +96,6 @@ class SpendingViewModel : ViewModel() {
 
     private val _hoyolabConfig = MutableStateFlow(HoyolabConfig())
     val hoyolabConfig: StateFlow<HoyolabConfig> = _hoyolabConfig.asStateFlow()
-
-    private val _homeCards = MutableStateFlow(HomeCards.default)
-    val homeCards: StateFlow<List<HomeCardItem>> = _homeCards.asStateFlow()
-    fun setHomeCards(list: List<HomeCardItem>) { _homeCards.value = list; repo.saveHomeCards(list) }
 
     // 네이티브 설정(자동 출석체크 등) — 기기 단위, 계정 무관
     private val appSettings = AppSettings()
@@ -439,7 +433,6 @@ class SpendingViewModel : ViewModel() {
         loadGachaDeferred()
         _subscriptions.value = repo.loadSubscriptions()
         _redeemedCodes.value = repo.loadRedeemedCodes()
-        _homeCards.value = repo.loadHomeCards()
         _savingsHeld.value = repo.loadSavingsHeld()
         _savingsHidden.value = repo.loadSavingsHidden()
         refreshSavings()
