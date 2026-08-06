@@ -59,6 +59,9 @@ fun SpendingInsightScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
     val spendings by viewModel.spendings.collectAsStateWithLifecycle()
     val budget by viewModel.budget.collectAsStateWithLifecycle()
     val subscriptions by viewModel.subscriptions.collectAsStateWithLifecycle()
+    // 전월 합계는 VM 이 지출·정기결제 변경마다 한 번의 순회로 만들어 둔다.
+    // 여기서 prevMonthTotal() 을 부르면 재구성마다 지출 전체를 다시 훑는다.
+    val prevMonthTotal by viewModel.previousMonthTotal.collectAsStateWithLifecycle()
     val year = viewModel.displayYear
     val month = viewModel.displayMonth
     val monthTotal = remember(spendings) { viewModel.monthlyTotal() }
@@ -86,7 +89,7 @@ fun SpendingInsightScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
             InsightTabToggle(tab, { tab = it }, accent)
             if (tab == 0) {
                 // "N월 지출" 요약(지출 목록 상단에서 이동) — 월간 인사이트 맨 위.
-                MonthlySummaryCard(month, monthTotal, viewModel.prevMonthTotal())
+                MonthlySummaryCard(month, monthTotal, prevMonthTotal)
                 BudgetPaceCard(monthTotal, budget, month, accent)
                 MoMCard(spendings, year, month, accent)
                 PaymentStatsCard(spendings, year, month)

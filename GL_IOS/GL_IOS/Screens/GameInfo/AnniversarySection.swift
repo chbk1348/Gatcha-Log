@@ -24,7 +24,10 @@ struct AnniversaryContent: View {
                                 VStack(alignment: .leading, spacing: 1) {
                                     // 이름은 shortName 으로 — 다른 섹션은 전부 shortName 인데 여기만 displayName 이었다.
                                     Text(a.game.shortName).font(.pretendard(size: 14, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
-                                    Text("\(a.ordinal)주년").font(.pretendard(size: 11)).foregroundStyle(GLGColor.textSecondary)
+                                    // 회차만 있으면 어느 날짜 기준인지 알 수 없다 — 근거가 되는 출시일을 함께 둔다.
+                                    Text("\(a.ordinal)주년 · \(a.launchLabel) 출시")
+                                        .font(.pretendard(size: 11)).foregroundStyle(GLGColor.textSecondary)
+                                        .lineLimit(1)
                                 }
                                 Spacer(minLength: 8)
                                 if a.daysUntil == 0 {

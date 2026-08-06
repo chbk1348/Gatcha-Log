@@ -29,7 +29,12 @@ if (file("google-services.json").exists()) {
     apply(plugin = "com.google.gms.google-services")
 } else {
     gradle.taskGraph.whenReady {
-        if (allTasks.any { it.project.path == ":GL_Android" && it.name.contains("Release") }) {
+        // **APK/AAB 를 실제로 굽는 태스크만** 막는다. 이름에 "Release" 가 들어가기만 하면 막던 예전 판은
+        // `compileReleaseKotlin`(산출물 없음)까지 걸려서, json 이 없는 CI 러너에서 릴리즈 컴파일 검증이
+        // 통째로 죽었다 — 2026-08-05~08-06 Android CI 3연속 실패가 이것이다.
+        // 이름 완전일치를 쓴다: `packageReleaseResources` 는 리소스 병합이라 걸리면 안 된다.
+        val packagingTasks = setOf("packageRelease", "packageReleaseBundle")
+        if (allTasks.any { it.project.path == ":GL_Android" && it.name in packagingTasks }) {
             throw GradleException(
                 """
                 |google-services.json 이 없어 릴리즈를 빌드할 수 없습니다.
