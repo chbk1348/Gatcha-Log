@@ -22,6 +22,7 @@
 		407B2B835C63881B6D71A3D6 /* FirebaseFirestore in Frameworks */ = {isa = PBXBuildFile; productRef = 8271CA7956D21511F8C90ED4 /* FirebaseFirestore */; };
 		415A00FEEAB1D76CB2E99B6D /* SavingsViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = D298448CBEF9192C0613F700 /* SavingsViews.swift */; };
 		41B110450192D19FA4D5F232 /* GameTag.swift in Sources */ = {isa = PBXBuildFile; fileRef = 439879BBC52F89415C2831E6 /* GameTag.swift */; };
+		41BA11D397320A28DF713F55 /* StorageTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6BC1EE0970AA53D756A149E4 /* StorageTests.swift */; };
 		4555A80BB2A3E811ABE1E7B6 /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF8DB30C236AF02D78678047 /* OnboardingView.swift */; };
 		4BAE0AF1CFCBD6A920A5E1E6 /* AppMarkLogo.swift in Sources */ = {isa = PBXBuildFile; fileRef = F22E3DACB374BECF7DBF2B1C /* AppMarkLogo.swift */; };
 		5037A67CE3B8E588DCC2F809 /* GLGChip.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEA0ECFE89434FBD76D2E252 /* GLGChip.swift */; };
@@ -87,6 +88,13 @@
 			remoteGlobalIDString = DA3E2EEB6C3CA1BF23C0AD3C;
 			remoteInfo = GL_IOS;
 		};
+		D7C763495673295615A4DB4D /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = C01B6A49A012B23ACA4D1CF8 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = DA3E2EEB6C3CA1BF23C0AD3C;
+			remoteInfo = GL_IOS;
+		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
@@ -120,8 +128,10 @@
 		5964E551478F1EBAFEFA8CAD /* AnnualReportView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnnualReportView.swift; sourceTree = "<group>"; };
 		5F47E41FAFDD2FD2F4E72EEE /* AdaptiveLayout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdaptiveLayout.swift; sourceTree = "<group>"; };
 		607DE67679739531B7DC4652 /* GlassButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlassButton.swift; sourceTree = "<group>"; };
+		6367C84794DC1C3725F7FCD5 /* GL_IOSTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = GL_IOSTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		68D6D7AAE7CA1EEF965F0455 /* GL_IOS.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = GL_IOS.entitlements; sourceTree = "<group>"; };
 		6A7AD50D44CC890634902ADD /* GachaDashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GachaDashboardView.swift; sourceTree = "<group>"; };
+		6BC1EE0970AA53D756A149E4 /* StorageTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StorageTests.swift; sourceTree = "<group>"; };
 		716CDDC7D2BB3BEC9580864E /* GLGSkeleton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GLGSkeleton.swift; sourceTree = "<group>"; };
 		75EFB2FF99DCA036AE774E6A /* AnniversarySection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnniversarySection.swift; sourceTree = "<group>"; };
 		762960D1C044CF4E4506D38C /* SpendingInsightView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpendingInsightView.swift; sourceTree = "<group>"; };
@@ -181,6 +191,7 @@
 			isa = PBXGroup;
 			children = (
 				F54315F0900C3C41178F8697 /* GL_IOS.app */,
+				6367C84794DC1C3725F7FCD5 /* GL_IOSTests.xctest */,
 				FFB32546BFA3569C58B4338A /* GL_IOSUITests.xctest */,
 			);
 			name = Products;
@@ -324,6 +335,14 @@
 			path = Auth;
 			sourceTree = "<group>";
 		};
+		8952185E99DEE46789FE895A /* GL_IOSTests */ = {
+			isa = PBXGroup;
+			children = (
+				6BC1EE0970AA53D756A149E4 /* StorageTests.swift */,
+			);
+			path = GL_IOSTests;
+			sourceTree = "<group>";
+		};
 		A8BD5AA0544A3F3CBC1C2D20 /* Bridge */ = {
 			isa = PBXGroup;
 			children = (
@@ -344,6 +363,7 @@
 			isa = PBXGroup;
 			children = (
 				813651ADD017B88C598E55C0 /* GL_IOS */,
+				8952185E99DEE46789FE895A /* GL_IOSTests */,
 				256C0D32C55B2190F7ADC588 /* GL_IOSUITests */,
 				0FDF273AAA05F684579FB85C /* Products */,
 			);
@@ -386,6 +406,24 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		A801CFA63E2EF76C1A108400 /* GL_IOSTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 1A33BCCCBD27AEFE0425D983 /* Build configuration list for PBXNativeTarget "GL_IOSTests" */;
+			buildPhases = (
+				5C8591DA6ECC8F6FBF4FF89B /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				EBE7200FCE701985993EB68A /* PBXTargetDependency */,
+			);
+			name = GL_IOSTests;
+			packageProductDependencies = (
+			);
+			productName = GL_IOSTests;
+			productReference = 6367C84794DC1C3725F7FCD5 /* GL_IOSTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 		B1B59BAECB267FF38A7649D5 /* GL_IOSUITests */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = DEE62AF9DADB8B8DD72AB350 /* Build configuration list for PBXNativeTarget "GL_IOSUITests" */;
@@ -435,6 +473,10 @@
 				BuildIndependentTargetsInParallel = YES;
 				LastUpgradeCheck = 1430;
 				TargetAttributes = {
+					A801CFA63E2EF76C1A108400 = {
+						DevelopmentTeam = CCTT9CBG38;
+						ProvisioningStyle = Automatic;
+					};
 					B1B59BAECB267FF38A7649D5 = {
 						DevelopmentTeam = CCTT9CBG38;
 						ProvisioningStyle = Automatic;
@@ -464,6 +506,7 @@
 			projectRoot = "";
 			targets = (
 				DA3E2EEB6C3CA1BF23C0AD3C /* GL_IOS */,
+				A801CFA63E2EF76C1A108400 /* GL_IOSTests */,
 				B1B59BAECB267FF38A7649D5 /* GL_IOSUITests */,
 			);
 		};
@@ -576,6 +619,14 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		5C8591DA6ECC8F6FBF4FF89B /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				41BA11D397320A28DF713F55 /* StorageTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		F24C6FDD571804E51B75868A /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -591,6 +642,11 @@
 			isa = PBXTargetDependency;
 			target = DA3E2EEB6C3CA1BF23C0AD3C /* GL_IOS */;
 			targetProxy = 54DA937DDDA4FD2A6CA2B45C /* PBXContainerItemProxy */;
+		};
+		EBE7200FCE701985993EB68A /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = DA3E2EEB6C3CA1BF23C0AD3C /* GL_IOS */;
+			targetProxy = D7C763495673295615A4DB4D /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -739,6 +795,48 @@
 			};
 			name = Release;
 		};
+		AE026A20096FA0BEA2E06C37 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = CCTT9CBG38;
+				"EXCLUDED_ARCHS[sdk=iphonesimulator*]" = x86_64;
+				FRAMEWORK_SEARCH_PATHS = "$(SRCROOT)/../GL_Shared/build/xcode-frameworks/$(CONFIGURATION)/$(SDK_NAME)";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.gatcha.log.ios.tests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Gatcha-Log.app/Gatcha-Log";
+			};
+			name = Debug;
+		};
+		BD532E494DFAC87620C26EE9 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = CCTT9CBG38;
+				"EXCLUDED_ARCHS[sdk=iphonesimulator*]" = x86_64;
+				FRAMEWORK_SEARCH_PATHS = "$(SRCROOT)/../GL_Shared/build/xcode-frameworks/$(CONFIGURATION)/$(SDK_NAME)";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.gatcha.log.ios.tests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Gatcha-Log.app/Gatcha-Log";
+			};
+			name = Release;
+		};
 		C9D4321468AD31DA75A73869 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -808,6 +906,15 @@
 			buildConfigurations = (
 				5547D000E16BBEA7E69F506E /* Debug */,
 				06FC36CEC0BCCFB22DB29D7B /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		1A33BCCCBD27AEFE0425D983 /* Build configuration list for PBXNativeTarget "GL_IOSTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				AE026A20096FA0BEA2E06C37 /* Debug */,
+				BD532E494DFAC87620C26EE9 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;

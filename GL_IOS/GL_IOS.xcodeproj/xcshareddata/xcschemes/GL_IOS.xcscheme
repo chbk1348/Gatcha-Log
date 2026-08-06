@@ -44,6 +44,17 @@
             parallelizable = "NO">
             <BuildableReference
                BuildableIdentifier = "primary"
+               BlueprintIdentifier = "A801CFA63E2EF76C1A108400"
+               BuildableName = "GL_IOSTests.xctest"
+               BlueprintName = "GL_IOSTests"
+               ReferencedContainer = "container:GL_IOS.xcodeproj">
+            </BuildableReference>
+         </TestableReference>
+         <TestableReference
+            skipped = "NO"
+            parallelizable = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
                BlueprintIdentifier = "B1B59BAECB267FF38A7649D5"
                BuildableName = "GL_IOSUITests.xctest"
                BlueprintName = "GL_IOSUITests"
