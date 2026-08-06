@@ -210,34 +210,8 @@ struct NotificationDetailView: View {
     }
 }
 
-// ── 홈 카드 편집 ──
-struct HomeCardEditSheet: View {
-    var store: SpendingStore
-    @Environment(\.dismiss) private var dismiss
-    @State private var list: [HomeCardItem] = []
-    var body: some View {
-        NavigationStack {
-            List {
-                ForEach(Array(list.enumerated()), id: \.offset) { i, c in
-                    HStack {
-                        Text(HomeCards.shared.labels[c.id] ?? c.id).font(.pretendard(size: 14, weight: .medium))
-                        Spacer()
-                        Toggle("", isOn: Binding(get: { c.visible }, set: { v in list[i] = HomeCardItem(id: c.id, visible: v) })).labelsHidden().tint(GLGTheme.accent(store.accentIndex).primary)
-                    }
-                }
-                .onMove { from, to in list.move(fromOffsets: from, toOffset: to) }
-                Text("프로필·게임 현황 카드는 항상 표시돼요.").font(.pretendard(size: 11)).foregroundStyle(GLGColor.textSecondary)
-            }
-            .environment(\.editMode, .constant(.active))
-            .navigationTitle("홈 카드 편집").navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("취소") { dismiss() } }
-                ToolbarItem(placement: .confirmationAction) { Button("저장") { store.setHomeCards(list); dismiss() } }
-            }
-            .onAppear { list = store.homeCards }
-        }
-    }
-}
+// HomeCardEditSheet 은 27.43.0 에서 제거했다 — 27.32.0 홈 대시보드 개편 때 양 플랫폼 렌더 루프가
+// 사라져, 열 방법도 없고 열려도 홈이 설정을 안 읽는 상태였다. 상세는 GL_MD/Debt_27_43_0.md P0-1.
 
 // ════════════════════════════════════════════════════════════════════════════
 // 홈 대시보드 개편(27.32.0) — 깔끔한 KPI 중심 레이아웃

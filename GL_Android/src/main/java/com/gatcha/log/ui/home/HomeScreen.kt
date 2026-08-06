@@ -59,7 +59,6 @@ import com.gatcha.log.ui.savings.SavingsPlannerScreen
 import com.gatcha.log.ui.savings.SavingsChallengeScreen
 import com.gatcha.log.data.GachaReport
 import com.gatcha.log.data.GachaStats
-import com.gatcha.log.data.HomeCards
 import com.gatcha.log.data.HoyolabConfig
 import com.gatcha.log.data.LiveNote
 import com.gatcha.log.data.Spending
@@ -339,7 +338,6 @@ fun HomeContent(
     val attendanceStreak by viewModel.attendanceStreak.collectAsStateWithLifecycle()
     val account by viewModel.account.collectAsStateWithLifecycle()
     val gachaStats by viewModel.gachaStats.collectAsStateWithLifecycle()
-    val homeCards by viewModel.homeCards.collectAsStateWithLifecycle()
     val savingsPlans by viewModel.savingsPlans.collectAsStateWithLifecycle()
     val challenge by viewModel.challenge.collectAsStateWithLifecycle()
     val gameInfoReady by viewModel.gameInfoReady.collectAsStateWithLifecycle()
@@ -410,7 +408,6 @@ fun HomeContent(
 
     val showNotifications = remember { mutableStateOf(false) }
     val showBudgetDialog = remember { mutableStateOf(false) }
-    val showHomeEdit = remember { mutableStateOf(false) }
 
     // 저축 플래너·절약 챌린지 하위 화면(홈 카드 진입). 0=없음 1=플래너 2=챌린지.
     var savingsScreen by remember { mutableStateOf(0) }
@@ -597,14 +594,6 @@ fun HomeContent(
         )
     }
 
-    if (showHomeEdit.value) {
-        HomeCardEditDialog(
-            cards = homeCards,
-            onDismiss = { showHomeEdit.value = false },
-            onSave = { viewModel.setHomeCards(it); showHomeEdit.value = false },
-        )
-    }
-
 }
 
 // 알림 목록 산출(AlertKind/HomeAlert/buildAlerts)은 GL_Shared HomeLogic 으로 이관 — iOS 와 단일 소스.
@@ -662,20 +651,6 @@ fun GameStatusSection(
                 }
             }
         }
-    }
-}
-
-/** 홈 카드 편집 진입 — 리스트 하단의 잔잔한 텍스트 버튼. */
-@Composable
-private fun HomeEditButton(onClick: () -> Unit) {
-    Row(
-        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).clickable { onClick() }.padding(vertical = 12.dp),
-        horizontalArrangement = Arrangement.Center,
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Icon(Icons.Default.Tune, null, tint = TextSecondary, modifier = Modifier.size(16.dp))
-        Spacer(Modifier.width(6.dp))
-        Text("홈 카드 편집", fontSize = 13.sp, fontWeight = FontWeight.Medium, color = TextSecondary)
     }
 }
 
