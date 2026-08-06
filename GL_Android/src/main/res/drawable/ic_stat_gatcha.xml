@@ -5,6 +5,12 @@
   ⚠️ Android 는 알림 small icon 의 **알파 채널만** 사용하고 색은 전부 무시한다(시스템이 단색 틴트).
      그래서 런처 아이콘(불투명 흰 배경)을 그대로 쓰면 상태바에 **흰 사각형 덩어리**로 뜬다.
      → 배경 없이 실루엣(게이지 링 + 별)만 흰색으로 그린다. 트랙은 뺀다(단색이면 링이 통짜 원이 됨).
+
+  ⚠️ **여백을 런처 아이콘에서 베껴오지 말 것.** 108×108 은 원래 적응형 런처 아이콘 캔버스라
+     바깥이 블리드 영역이고 안쪽 72×72 만 안전 영역이다. 그 비율을 그대로 쓰면 상태바에서
+     **혼자 작아 보인다** — 상태바 아이콘엔 블리드가 없어서 여백이 그냥 낭비된다.
+     여기 아트워크는 108 캔버스의 **약 88%**(바깥지름 95)를 채운다 = 24dp 중 21dp.
+     시스템 아이콘(22dp 상당)과 나란히 놓았을 때 크기가 맞는 기준이다.
 -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="24dp"
@@ -13,16 +19,16 @@
     android:viewportHeight="108"
     android:tint="#FFFFFFFF">
 
-    <!-- 게이지 (12시 → 시계방향 270도) -->
+    <!-- 게이지 (12시 → 시계방향 270도). r=41 + 스트로크 절반 6.5 = 바깥반지름 47.5 -->
     <path
-        android:pathData="M54,26 A28,28 0 1,1 26,54"
+        android:pathData="M54,13 A41,41 0 1,1 13,54"
         android:strokeColor="#FFFFFFFF"
-        android:strokeWidth="9"
+        android:strokeWidth="13"
         android:strokeLineCap="round"
         android:fillColor="@android:color/transparent" />
 
-    <!-- 중앙 별 -->
+    <!-- 중앙 별 (중심 54,54 · 반경 23.4 — 링과 같은 비율로 확대) -->
     <path
-        android:pathData="M54,38 l5,11 11,5 -11,5 -5,11 -5,-11 -11,-5 11,-5 z"
+        android:pathData="M54,30.6 l7.3,16.1 16.1,7.3 -16.1,7.3 -7.3,16.1 -7.3,-16.1 -16.1,-7.3 16.1,-7.3 z"
         android:fillColor="#FFFFFFFF" />
 </vector>
