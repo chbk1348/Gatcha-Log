@@ -82,6 +82,9 @@ fun SettingsScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
     val ctx = LocalContext.current
     val budget by viewModel.budget.collectAsStateWithLifecycle()
     val gameBudgets by viewModel.gameBudgets.collectAsStateWithLifecycle()
+    // 예산 다이얼로그의 게임별 이번 달 합계 — VM 의 파생값을 쓴다.
+    // monthlyTotalsByGame() 을 직접 부르면 재구성마다 지출 전체 스캔 + groupBy 가 다시 돈다.
+    val monthlyTotalsByGame by viewModel.currentMonthTotalsByGame.collectAsStateWithLifecycle()
     val accentIndex by viewModel.accentIndex.collectAsStateWithLifecycle()
     val hoyolab by viewModel.hoyolabConfig.collectAsStateWithLifecycle()
     val autoCheckIn by viewModel.autoCheckIn.collectAsStateWithLifecycle()
@@ -369,7 +372,7 @@ fun SettingsScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
         BudgetDialog(
             overall = budget,
             gameBudgets = gameBudgets,
-            monthlyTotals = viewModel.monthlyTotalsByGame(),
+            monthlyTotals = monthlyTotalsByGame,
             onDismiss = { showBudget.value = false },
             onConfirm = { o, perGame -> viewModel.setBudgets(o, perGame); showBudget.value = false },
         )
