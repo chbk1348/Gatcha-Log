@@ -63,7 +63,8 @@ struct GameInfoView: View {
                 // 홈 카드 딥링크 스크롤 앵커 — id 문자열은 Kotlin GameInfoAnchor 의 .name(NOTES/SCHEDULE/NEWS)과 일치해야 함.
                 DailyHeroSection(store: store, filter: gameFilter,
                                  onConfig: { showHoyolab = true },
-                                 onOpenGameContent: { showGameContent = true }).id("NOTES")
+                                 onOpenGameContent: { showGameContent = true },
+                                 onOpenClears: { showCombatClears = true }).id("NOTES")
                 // 숙제 완주율 — 데일리 바로 아래(같은 '오늘 뭐 했나' 맥락). 기록이 없으면 섹션 자체가 안 뜬다.
                 if !store.taskStats.isEmpty {
                     section { TaskCompletionSection(stats: store.taskStats) }

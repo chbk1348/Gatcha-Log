@@ -139,6 +139,9 @@ fun GameInfoScreen(
     // 공지 상세 — 대상 글과, 뒤로 갈 위치(섹션=Main, 전체목록=News)
     var newsItem by remember { mutableStateOf<NewsItem?>(null) }
     var newsReturn by remember { mutableStateOf(GiSub.Main) }
+    // 클리어 편성 — 메인의 진입 카드와 '전투 · 수입 일지' 양쪽에서 들어온다. 뒤로 갈 위치를 기억해야
+    // 메인에서 들어왔는데 일지로 튀어나오는 일이 없다.
+    var clearsReturn by remember { mutableStateOf(GiSub.Main) }
     val openNews: (NewsItem, GiSub) -> Unit = { n, from ->
         newsItem = n
         newsReturn = from
@@ -272,10 +275,10 @@ fun GameInfoScreen(
                     isRefreshing = isRefreshing,
                     filter = gameFilter,
                     linked = hoyolab.isLinked,
-                    onOpenClears = { subPage = GiSub.CombatClear },
+                    onOpenClears = { clearsReturn = GiSub.GameContent; subPage = GiSub.CombatClear },
                 )
             }
-            GiSub.CombatClear -> SectionPage("클리어 편성", onBack = { subPage = GiSub.GameContent }) {
+            GiSub.CombatClear -> SectionPage("클리어 편성", onBack = { subPage = clearsReturn }) {
                 // 진입할 때 받는다 — 시즌 2개치라 무거워서 게임정보 새로고침에 얹지 않았다.
                 LaunchedEffect(Unit) { viewModel.refreshCombatClears() }
                 CombatClearContent(
@@ -351,6 +354,7 @@ fun GameInfoScreen(
                     onCheckInAll = { viewModel.checkInAll() },
                     onConfigClick = { subPage = GiSub.HoyoLink },
                     onOpenGameContent = { subPage = GiSub.GameContent },
+                    onOpenClears = { clearsReturn = GiSub.Main; subPage = GiSub.CombatClear },
                 )
             }
             // 숙제 완주율 — 데일리 바로 아래(같은 '오늘 뭐 했나' 맥락). 기록이 없으면 섹션 자체가 안 뜬다.

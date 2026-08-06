@@ -56,6 +56,8 @@ internal fun DailyHeroSection(
     onConfigClick: () -> Unit,
     /** 전투 진행도·수입 일지 상세로 — 데일리와 같은 '오늘 뭐 했나' 맥락이라 여기서 들어간다. */
     onOpenGameContent: (() -> Unit)? = null,
+    /** 클리어 편성으로 — 위 카드의 두 번째 줄. null 이면 줄 자체가 안 뜬다. */
+    onOpenClears: (() -> Unit)? = null,
 ) {
     val accent = LocalAccent.current
     var expanded by remember { mutableStateOf(false) }
@@ -111,7 +113,7 @@ internal fun DailyHeroSection(
                 onToggleExpand = { expanded = !expanded },
                 onCheckIn = { onCheckIn(focused.key) },
             )
-            onOpenGameContent?.let { GameContentEntry(it) }
+            onOpenGameContent?.let { GameContentEntry(it, onOpenClears) }
         }
         return
     }
@@ -193,7 +195,7 @@ internal fun DailyHeroSection(
                 }
             }
         }
-        onOpenGameContent?.let { GameContentEntry(it) }
+        onOpenGameContent?.let { GameContentEntry(it, onOpenClears) }
     }
 }
 
@@ -204,21 +206,53 @@ internal fun DailyHeroSection(
  * 화면을 길게 잡아먹어, 같은 '오늘 뭐 했나' 맥락인 데일리에서 들어가도록 접었다.
  */
 @Composable
-private fun GameContentEntry(onClick: () -> Unit) {
-    val accent = LocalAccent.current
-    GlassCard(shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth().clickable { onClick() }) {
-        Row(Modifier.padding(horizontal = 16.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
-            Box(
-                Modifier.size(38.dp).clip(RoundedCornerShape(12.dp)).background(accent.copy(alpha = 0.12f)),
-                contentAlignment = Alignment.Center,
-            ) { Icon(Icons.Default.MilitaryTech, null, tint = accent, modifier = Modifier.size(20.dp)) }
-            Spacer(Modifier.width(12.dp))
-            Column(Modifier.weight(1f)) {
-                Text("전투 진행도 · 수입 일지", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TextPrimary, maxLines = 1)
-                Text("나선 비경·혼돈의 기억 클리어와 이번 달 재화 수입", fontSize = 11.sp, color = TextSecondary, maxLines = 1)
+private fun GameContentEntry(onClick: () -> Unit, onClickClears: (() -> Unit)? = null) {
+    GlassCard(shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.fillMaxWidth()) {
+            GameContentRow(
+                icon = Icons.Default.MilitaryTech,
+                title = "전투 진행도 · 수입 일지",
+                sub = "주간 클리어 현황과 이번 달 재화 수입",
+                onClick = onClick,
+            )
+            // 클리어 편성은 예전에 이 페이지 안쪽 2단계라 못 찾았다. 같은 카드의 두 번째 줄로 꺼낸다 —
+            // 별도 카드로 띄우면 같은 맥락의 진입점이 화면에서 갈라진다.
+            if (onClickClears != null) {
+                HorizontalDivider(color = DividerColor.copy(alpha = 0.6f), modifier = Modifier.padding(horizontal = 16.dp))
+                GameContentRow(
+                    icon = Icons.Default.Groups,
+                    title = "클리어 편성",
+                    sub = "나선 비경 · 혼돈의 기억을 깬 캐릭터",
+                    onClick = onClickClears,
+                )
             }
-            Icon(Icons.Default.ChevronRight, null, tint = TextSecondary, modifier = Modifier.size(18.dp))
         }
+    }
+}
+
+/** [GameContentEntry] 의 한 줄. 카드를 공유하므로 클릭 영역은 줄 단위다. */
+@Composable
+private fun GameContentRow(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    title: String,
+    sub: String,
+    onClick: () -> Unit,
+) {
+    val accent = LocalAccent.current
+    Row(
+        Modifier.fillMaxWidth().clickable { onClick() }.padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            Modifier.size(38.dp).clip(RoundedCornerShape(12.dp)).background(accent.copy(alpha = 0.12f)),
+            contentAlignment = Alignment.Center,
+        ) { Icon(icon, null, tint = accent, modifier = Modifier.size(20.dp)) }
+        Spacer(Modifier.width(12.dp))
+        Column(Modifier.weight(1f)) {
+            Text(title, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TextPrimary, maxLines = 1)
+            Text(sub, fontSize = 11.sp, color = TextSecondary, maxLines = 1)
+        }
+        Icon(Icons.Default.ChevronRight, null, tint = TextSecondary, modifier = Modifier.size(18.dp))
     }
 }
 
