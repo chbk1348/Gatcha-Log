@@ -555,16 +555,41 @@ private fun RosterCard(c: EnkaChar, game: String, modifier: Modifier = Modifier,
                         Box(Modifier.size(7.dp).clip(RoundedCornerShape(999.dp)).background(elementColor(c.element)))
                     }
                 }
-                val rankLabel = rankLabelFor(c, game)
-                if (rankLabel != null) {
-                    Spacer(Modifier.height(5.dp))
-                    Surface(color = Gold.copy(alpha = 0.16f), shape = RoundedCornerShape(999.dp)) {
-                        Text(rankLabel, fontSize = 9.sp, fontWeight = FontWeight.Bold, color = Color(0xFF9C6F12), modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp))
-                    }
+                // 배지는 **항상** 그린다. 예전엔 돌파 정보가 없으면 통째로 빠져서 카드 높이가
+                // 줄마다 달라졌고, 한 줄 안에서도 짝이 안 맞는 쪽만 아래가 비어 보였다.
+                Spacer(Modifier.height(5.dp))
+                val badge = rankBadgeFor(c, game)
+                Surface(
+                    color = if (badge.owned) Gold.copy(alpha = 0.16f) else TextSecondary.copy(alpha = 0.10f),
+                    shape = RoundedCornerShape(999.dp),
+                ) {
+                    Text(
+                        badge.label, fontSize = 9.sp, fontWeight = FontWeight.Bold,
+                        color = if (badge.owned) Color(0xFF9C6F12) else TextSecondary,
+                        maxLines = 1,
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp),
+                    )
                 }
             }
         }
     }
+}
+
+/**
+ * 로스터 카드용 돌파 배지 — 값이 없어도 라벨을 만들어 **항상 한 줄을 차지**한다.
+ * [owned] 는 실제로 중복을 쌓았는지(금색 강조 여부). 0돌/비공개는 중립색이라
+ * "보유했다"는 신호가 흐려지지 않는다.
+ *
+ * 상세 화면의 '돌파' 행은 [rankLabelFor] 를 그대로 쓴다 — 거기선 값이 없으면 행 자체가 없는 게 맞다.
+ */
+private data class RankBadge(val label: String, val owned: Boolean)
+
+private fun rankBadgeFor(c: EnkaChar, game: String): RankBadge = when {
+    // 비공개(rank<0)는 "0돌"과 다르다. 모른다는 것을 그대로 표기한다.
+    c.rank < 0 -> RankBadge("비공개", owned = false)
+    game == "genshin" -> if (c.rank == 0) RankBadge("명함", false) else RankBadge("${c.rank}돌", true)
+    game == "zzz" -> RankBadge("형상 시네마 ${c.rank}", c.rank > 0)
+    else -> RankBadge("${c.rank}성혼", c.rank > 0)
 }
 
 private fun rankLabelFor(c: EnkaChar, game: String): String? = when (game) {
