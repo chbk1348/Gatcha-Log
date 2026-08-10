@@ -76,6 +76,11 @@ enum class Game(
     /** ennead news API 게임 슬러그(genshin·starrail·zenless). [newsSource] 가 ENNEAD 인 게임만 쓴다. */
     val newsSlug: String? = null,
     /**
+     * 영문 정식 명칭 — **표시용 표식**(지출 상세 히어로의 우측 코드 등)에 쓴다.
+     * 로직 키로 쓰지 말 것: 그건 [key] 다.
+     */
+    val englishName: String = "",
+    /**
      * 공지를 어느 API 에서 받는지. 미지원이면 null.
      *
      * 호요버스 3게임만 ennead 로 묶이고, 명조·엔드필드는 게임사별 공식/아카이브 경로를 따로 탄다.
@@ -83,12 +88,12 @@ enum class Game(
      */
     val newsSource: NewsSource? = null,
 ) {
-    GENSHIN("genshin", "원신", "원신", "GI", 0xFF4F8EF7L, "원석 +60", enneadKey = "genshin", launchYmd = "2020-09-28", newsSlug = "genshin", newsSource = NewsSource.ENNEAD),
-    HSR("hsr", "붕괴: 스타레일", "스타레일", "HSR", 0xFFB06BFFL, "성옥 +60", enneadKey = "starrail", launchYmd = "2023-04-26", newsSlug = "starrail", newsSource = NewsSource.ENNEAD),
-    ZZZ("zzz", "젠레스 존 제로", "젠레스", "ZZZ", 0xFFF5A623L, "폴리크롬 +60", launchYmd = "2024-07-04", newsSlug = "zenless", newsSource = NewsSource.ENNEAD),
-    WUWA("wuwa", "명조", "명조", "WW", 0xFFE5007FL, "", launchYmd = "2024-05-23", newsSource = NewsSource.WUWA),
-    ENDFIELD("endfield", "명일방주: 엔드필드", "엔드필드", "EF", 0xFF1CB8A8L, "", launchYmd = "2026-01-22", newsSource = NewsSource.ENDFIELD),
-    NTE("nte", "이환", "이환", "NTE", 0xFF6C5CE7L, "", launchYmd = "2026-04-29");
+    GENSHIN("genshin", "원신", "원신", "GI", 0xFF4F8EF7L, "원석 +60", enneadKey = "genshin", launchYmd = "2020-09-28", newsSlug = "genshin", englishName = "GENSHIN IMPACT", newsSource = NewsSource.ENNEAD),
+    HSR("hsr", "붕괴: 스타레일", "스타레일", "HSR", 0xFFB06BFFL, "성옥 +60", enneadKey = "starrail", launchYmd = "2023-04-26", newsSlug = "starrail", englishName = "HONKAI: STAR RAIL", newsSource = NewsSource.ENNEAD),
+    ZZZ("zzz", "젠레스 존 제로", "젠레스", "ZZZ", 0xFFF5A623L, "폴리크롬 +60", launchYmd = "2024-07-04", newsSlug = "zenless", englishName = "ZENLESS ZONE ZERO", newsSource = NewsSource.ENNEAD),
+    WUWA("wuwa", "명조", "명조", "WW", 0xFFE5007FL, "", launchYmd = "2024-05-23", englishName = "WUTHERING WAVES", newsSource = NewsSource.WUWA),
+    ENDFIELD("endfield", "명일방주: 엔드필드", "엔드필드", "EF", 0xFF1CB8A8L, "", launchYmd = "2026-01-22", englishName = "ARKNIGHTS: ENDFIELD", newsSource = NewsSource.ENDFIELD),
+    NTE("nte", "이환", "이환", "NTE", 0xFF6C5CE7L, "", launchYmd = "2026-04-29", englishName = "NEVERNESS TO EVERNESS");
 
     /** 출석체크가 지원되는 게임(원신·스타레일·젠레스) */
     val supportsAttendance: Boolean get() = attendanceReward.isNotEmpty()
