@@ -29,7 +29,6 @@ internal object WuwaNewsApi {
     // 공지 종류(`tag`) — 실제 응답을 훑어 확인한 값이다.
     // 1=일반 공지, 3=이벤트, 4=상점·코스튬, 5=도전, 6=상시 콘텐츠.
     private const val TAG_EVENT = 3
-    private const val TAG_SHOP = 4        // 기간 한정 판매 — 마감이 있으니 일정에 들어갈 값어치가 있다
     private const val TAG_CHALLENGE = 5
 
     /** 공지 원본 캐시 수명 — 한 번의 새로고침 안에서 공지·일정이 함께 읽을 만큼만. */
@@ -76,9 +75,18 @@ internal object WuwaNewsApi {
                 // 한국어가 아니거나(폴백 항목) 이미 끝난 건 넣지 않는다.
                 if (title.isBlank() || !isKoreanNotice(title) || end <= now) continue
                 when (o.optInt("tag")) {
-                    TAG_EVENT, TAG_SHOP -> events += GameEvent(Game.WUWA.displayName, title, end)
+                    // 이벤트 묶음에도 인게임 이벤트가 아닌 게 섞여 있다("[선행 체험] 기능 안내" 같은
+                    // 기능 소개). 명조 공지는 실제 이벤트면 제목에 '이벤트'를 붙이는 관례라 그걸로 가른다.
+                    // 다른 신호(category)는 공지/그 외 둘로만 나뉘어 변별력이 없다.
+                    TAG_EVENT -> if (title.contains("이벤트")) {
+                        events += GameEvent(Game.WUWA.displayName, title, end)
+                    }
                     TAG_CHALLENGE -> challenges += GameChallenge(Game.WUWA.displayName, title, "도전", end)
-                    // tag 1(공지)·6(상시 콘텐츠)은 마감이 없는 성격이라 일정에 넣지 않는다.
+                    // 나머지는 일정에 넣지 않는다:
+                    //   1=일반 공지, 6=상시 콘텐츠(마감 없음),
+                    //   4=상점·코스튬 — **판매는 이벤트가 아니다.** 호요 캘린더(ennead)도 순수 인게임
+                    //     이벤트만 주는데, 여기에 '기간 한정 할인 출시' 같은 걸 섞으면 게임마다 일정의
+                    //     의미가 달라진다.
                 }
             }
             events to challenges
