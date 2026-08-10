@@ -155,7 +155,7 @@ class ScheduleLogicTest {
             GameEvent(Game.GENSHIN.displayName, "나중", base + 30 * day),
         )
         val s = ScheduleLogic.summarize(
-            banners, ScheduleLogic.buildSchedule(banners, events, emptyList(), base), "all", base,
+            banners, ScheduleLogic.buildSchedule(banners, events, emptyList()), "all", base,
         )
         assertEquals(2, s.weekDeadlines)   // 5일 뒤 픽업 종료 + 3일 뒤 이벤트
         assertEquals(2, s.activePickups)
