@@ -183,6 +183,8 @@ fun SpendingScreen(
                 val live = spendings.firstOrNull { it.id == navState.spending.id } ?: navState.spending
                 SpendingDetailScreen(
                     spending = live,
+                    // 상대값(비중·평소·같은 항목 이력)의 모집단 — 상세 화면은 계산하지 않고 받기만 한다.
+                    all = spendings,
                     onBack = { nav = SpendingScreenNav.List },
                     onEdit = { onEditSpending(live) },
                     onDelete = { viewModel.deleteSpending(live.id); nav = SpendingScreenNav.List },
