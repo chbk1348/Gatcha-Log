@@ -89,7 +89,9 @@ struct GameInfoView: View {
                 // 공지·뉴스 — 게임별 최신 공지(탭하면 HoYoLab 열기). 더보기로 전체 페이지.
                 section { NewsSection(store: store, filter: gameFilter, onSeeAll: { showNews = true }, onOpenNews: { selectedNews = $0; showNewsDetail = true }) }.id("NEWS")
                 // 이환 캐릭터 도감 — 이 게임만 공지 API 가 없어 '공지·뉴스'에 못 낀다(NteCharSection 참고).
-                section { NteCharSection(store: store, filter: gameFilter) }
+                // `section {}` 을 쓰지 않는다 — 그 헬퍼는 Spacer 를 항상 내보내서, 데이터가 없을 때
+                // 빈 여백만 남는다. 상단 간격은 섹션이 직접 낸다.
+                NteCharSection(store: store, filter: gameFilter)
                 section { navEntry(icon: "function", title: "가챠 계산기", sub: "재화 환산 · 확률 · 시나리오") { showCalc = true } }
                 section { navEntry(icon: "chart.bar.xaxis", title: "가챠 효율 리포트", sub: "UIGF/SRGF 분석 · 단가 · 천장 분포") { showReport = true } }
                 Color.clear.frame(height: 12)

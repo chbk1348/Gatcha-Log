@@ -13,33 +13,37 @@ struct NteCharSection: View {
     var maxCount: Int = 6
 
     var body: some View {
-        // 정적 데이터라 화면이 살아 있는 동안 1회면 된다(중복 호출은 뷰모델이 막는다).
-        Group {
-            if filter == "all" || filter == Game.nte.key {
-                let chars = store.nteCharacters
-                if !chars.isEmpty {
-                    VStack(alignment: .leading, spacing: 10) {
-                        Text("이환 캐릭터").font(.pretendard(size: 16, weight: .bold))
-                        GLGCard(cornerRadius: 24, padding: 0) {
-                            VStack(spacing: 0) {
-                                ForEach(Array(chars.prefix(maxCount).enumerated()), id: \.offset) { i, c in
-                                    if i > 0 { Divider() }
-                                    charRow(c)
-                                }
-                                if chars.count > maxCount {
-                                    Divider()
-                                    Text("외 \(chars.count - maxCount)명")
-                                        .font(.pretendard(size: 12))
-                                        .foregroundStyle(GLGColor.textSecondary)
-                                        .padding(.vertical, 12)
-                                }
-                            }
-                            .padding(.horizontal, 16)
+        // ⚠️ 최상위는 **항상 렌더되는 컨테이너**여야 한다. 조건을 `Group` 바깥으로 빼서 내용이 없을 때
+        // EmptyView 로 접히면, 거기 붙은 `.task` 가 실행되지 않아 데이터를 영영 못 받는다
+        // (목록이 비었으니 로드가 안 되고, 로드가 안 되니 목록이 계속 빈 데드락).
+        // VStack 은 자식이 없어도 뷰로 남아 `.task` 가 돈다. Compose 쪽은 LaunchedEffect 를
+        // early return 앞에 둬서 같은 효과를 낸다.
+        VStack(alignment: .leading, spacing: 10) {
+            let chars = store.nteCharacters
+            if (filter == "all" || filter == Game.nte.key) && !chars.isEmpty {
+                // 앞 섹션과의 간격도 여기서 낸다 — 내용이 없을 때 빈 여백만 남지 않도록
+                // (호출부는 `section {}` 헬퍼를 쓰지 않는다).
+                Spacer().frame(height: 20)
+                Text("이환 캐릭터").font(.pretendard(size: 16, weight: .bold))
+                GLGCard(cornerRadius: 24, padding: 0) {
+                    VStack(spacing: 0) {
+                        ForEach(Array(chars.prefix(maxCount).enumerated()), id: \.offset) { i, c in
+                            if i > 0 { Divider() }
+                            charRow(c)
+                        }
+                        if chars.count > maxCount {
+                            Divider()
+                            Text("외 \(chars.count - maxCount)명")
+                                .font(.pretendard(size: 12))
+                                .foregroundStyle(GLGColor.textSecondary)
+                                .padding(.vertical, 12)
                         }
                     }
+                    .padding(.horizontal, 16)
                 }
             }
         }
+        // 정적 데이터라 화면이 살아 있는 동안 1회면 된다(중복 호출은 뷰모델이 막는다).
         .task { store.loadNteCharacters() }
     }
 
