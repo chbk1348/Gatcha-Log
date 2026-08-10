@@ -14,6 +14,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -33,6 +34,9 @@ import com.gatcha.log.data.DateUtil
 import com.gatcha.log.data.GachaBanner
 import com.gatcha.log.data.GameChallenge
 import com.gatcha.log.data.GameEvent
+import com.gatcha.log.data.dhLabel
+import com.gatcha.log.util.currentTimeMillis
+import kotlinx.coroutines.delay
 import com.gatcha.log.data.GameScheduleLine
 import com.gatcha.log.data.ScheduleDay
 import com.gatcha.log.data.ScheduleEntry
@@ -59,6 +63,9 @@ import com.gatcha.log.ui.theme.toColor
 // 모델·산출 로직(buildSchedule·buildDays·gameLines·summarize)은 GL_Shared ScheduleLogic 단일 소스.
 // 여기엔 Compose 렌더링과 ARGB→Color 변환만 남는다.
 // ============================================================
+
+/** 하루(ms) — 남은 시간 강조 기준. */
+private const val DAY_MS = 24L * 60 * 60 * 1000
 
 private fun scheduleKindColor(kind: String): Color = ScheduleLogic.kindColorArgb(kind).toColor()
 
@@ -218,8 +225,29 @@ fun GameScheduleFullContent(
     if (days.isNotEmpty()) {
         TodayMarker()
         Spacer(Modifier.height(14.dp))
-        days.forEachIndexed { i, d -> DayNode(d, isLast = i == days.lastIndex) }
+        // 남은 시간 갱신 기준 시각 — 카드마다 타이머를 두지 않고 여기서 한 번만 돌린다.
+        val now = rememberScheduleNow()
+        days.forEachIndexed { i, d -> DayNode(d, isLast = i == days.lastIndex, now = now) }
     }
+}
+
+/**
+ * 남은 시간 표시용 현재 시각 — **1분마다** 갱신한다.
+ *
+ * 표시 단위가 '일 시간'이라 초 단위로 돌 이유가 없다. 1분이면 '3일 5시간'이 바뀌는 순간을
+ * 늦어도 1분 안에 따라잡으면서, 화면이 떠 있는 동안의 재구성은 시간당 60번으로 묶인다.
+ * 화면을 벗어나면 코루틴이 취소되므로 백그라운드에서는 돌지 않는다.
+ */
+@Composable
+private fun rememberScheduleNow(): Long {
+    var now by remember { mutableStateOf(currentTimeMillis()) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            delay(60_000L)
+            now = currentTimeMillis()
+        }
+    }
+    return now
 }
 
 // 요약 3칸 — 이번 주 마감 / 진행 중 픽업 / 이벤트·콘텐츠.
@@ -301,7 +329,7 @@ private fun TodayMarker() {
 
 // 날짜 노드 — 좌측 날짜(일/월·요일/D-N) + 세로 연결선, 우측에 그날 끝나는 항목들.
 @Composable
-private fun DayNode(d: ScheduleDay, isLast: Boolean) {
+private fun DayNode(d: ScheduleDay, isLast: Boolean, now: Long) {
     Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
         Column(Modifier.width(46.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             Text("${d.day}", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
@@ -326,7 +354,7 @@ private fun DayNode(d: ScheduleDay, isLast: Boolean) {
         }
         Spacer(Modifier.width(13.dp))
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            d.entries.forEach { EntryCard(it) }
+            d.entries.forEach { EntryCard(it, now) }
         }
     }
     Spacer(Modifier.height(18.dp))
@@ -334,7 +362,7 @@ private fun DayNode(d: ScheduleDay, isLast: Boolean) {
 
 // 일정 카드 — 종류 배지 + 제목 + 게임 태그, 픽업이면 캐릭터 칩까지.
 @Composable
-private fun EntryCard(e: ScheduleEntry) {
+private fun EntryCard(e: ScheduleEntry, now: Long) {
     val gc = e.colorArgb.toColor()
     Column(
         Modifier.fillMaxWidth()
@@ -363,9 +391,23 @@ private fun EntryCard(e: ScheduleEntry) {
                 )
             }
         }
-        if (e.sub.isNotBlank()) {
-            Spacer(Modifier.height(4.dp))
-            Text(e.sub, fontSize = 10.5.sp, color = TextSecondary, maxLines = 1)
+        // 남은 시간 — 날짜 노드의 D-N 은 '며칠 남았나'만 알려 주지만, 마감 당일엔 몇 시간이
+        // 남았는지가 실제로 필요한 정보다(D-DAY 만으로는 지금 해야 하는지 판단이 안 된다).
+        val remain = dhLabel(e.target, now)
+        Spacer(Modifier.height(4.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            if (e.sub.isNotBlank()) {
+                Text(e.sub, fontSize = 10.5.sp, color = TextSecondary, maxLines = 1, modifier = Modifier.weight(1f, fill = false))
+                Spacer(Modifier.width(6.dp))
+            }
+            Spacer(Modifier.weight(1f))
+            Text(
+                if (remain == "종료") remain else "$remain 남음",
+                fontSize = 10.5.sp, fontWeight = FontWeight.Bold,
+                // 하루 안쪽이면 강조 — 오늘 안에 처리해야 하는 것만 눈에 띈다.
+                color = if (e.target - now in 1..DAY_MS) Urgent else TextSecondary,
+                maxLines = 1,
+            )
         }
         if (e.pickups.isNotEmpty()) {
             Spacer(Modifier.height(9.dp))
