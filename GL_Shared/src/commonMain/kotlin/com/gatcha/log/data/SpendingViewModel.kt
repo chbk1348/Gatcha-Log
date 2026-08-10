@@ -996,7 +996,7 @@ class SpendingViewModel : ViewModel() {
         if (item.id.isBlank()) { _newsArticleFailed.value = true; return }
         _newsArticleLoading.value = true
         viewModelScope.launch {
-            val article = NewsApi.article(item.id)
+            val article = NewsApi.article(item)
             _newsArticle.value = article
             _newsArticleFailed.value = article == null
             _newsArticleLoading.value = false
@@ -1010,6 +1010,7 @@ class SpendingViewModel : ViewModel() {
         _newsArticleLoading.value = false
         _newsArticleFailed.value = false
     }
+
 
     // 천장(gameKey -> PityState), 이벤트 체크
     private val _pity = MutableStateFlow<Map<String, PityState>>(emptyMap())
@@ -1598,7 +1599,7 @@ class SpendingViewModel : ViewModel() {
                     }
                     // 공지도 **여기서 같이 쏜다**(await 만 아래에서). 예전엔 배너·노트를 다 받은 뒤에야
                     // 요청이 나가서, 홈의 '게임 소식'만 한 왕복 늦게 채워졌다 — 의존 관계가 전혀 없는데도.
-                    val newsGames = GameData.games.filter { it.newsSlug != null }
+                    val newsGames = GameData.games.filter { it.newsSource != null }
                     val newsDeferred = newsGames.map { g -> async(Dispatchers.IO) { NewsApi.notices(g) } }
 
                     // 응답을 받은 게임만 새 값으로 갈아끼운다([mergeByGame]) — 실패한 게임은 직전 값 유지.
@@ -1623,13 +1624,16 @@ class SpendingViewModel : ViewModel() {
                     if (calendarLoaded.isNotEmpty()) {
                         // 종료 미정(end_time 미공지)은 임박도를 알 수 없으니 맨 뒤로 — dDay 가 큰 음수라 앞으로 튄다.
                         _activeBanners.value = mergeByGame(_activeBanners.value, banners, calendarLoaded) { it.game }
+                            .filter { it.game in SCHEDULE_GAMES }
                             .sortedWith(compareBy({ it.isEndUnknown }, { it.dDay() }))
                         // 백그라운드 픽업 마감 알림 점검용 로컬 캐시(네트워크 없이 판정).
                         runCatching { repo.saveActiveBanners(_activeBanners.value) }
                         refreshPlans()   // 새 픽업 목록으로 저축 계획 갱신
                         _gameEvents.value = mergeByGame(_gameEvents.value, events, calendarLoaded) { it.game }
+                            .filter { it.game in SCHEDULE_GAMES }
                             .sortedBy { it.endMillis }
                         _challenges.value = mergeByGame(_challenges.value, challenges, calendarLoaded) { it.game }
+                            .filter { it.game in SCHEDULE_GAMES }
                             .sortedBy { it.endMillis }
                         // 다음 실행 때 홈 '이번주 일정'을 네트워크 없이 바로 그리기 위한 캐시(배너와 동일).
                         runCatching { repo.saveGameEvents(_gameEvents.value); repo.saveChallenges(_challenges.value) }
@@ -2183,6 +2187,16 @@ class SpendingViewModel : ViewModel() {
     }
 
     private companion object {
+        /**
+         * 게임 일정을 받아오는 게임(표시명) — 그 밖의 항목은 병합 뒤 걸러낸다.
+         *
+         * [mergeByGame] 은 "응답이 없는 게임은 직전 값 유지"가 원칙이라, 일정 소스를 뗀 게임의
+         * 옛 항목이 캐시에 남아 **영원히 사라지지 않는다**(명조 일정을 걷어냈는데도 계속 보였다).
+         * 소스가 있는 게임만 통과시켜 캐시도 다음 저장 때 자연히 정리되게 한다.
+         */
+        val SCHEDULE_GAMES: Set<String> =
+            GameData.games.filter { it.enneadKey != null || it == Game.ZZZ }.map { it.displayName }.toSet()
+
         /** 클라우드 pull/push 최대 대기(ms). 오프라인 등으로 응답 없을 때 로딩 화면 갇힘 방지. */
         const val SYNC_TIMEOUT_MS = 8_000L
         /** Firestore 문서 1MB 한도 근접 경고 임계치(바이트). 초과 시 set 이 실패해 백업이 조용히 멈추므로 미리 안내. */

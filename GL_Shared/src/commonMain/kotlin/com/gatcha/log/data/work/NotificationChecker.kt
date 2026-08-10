@@ -229,7 +229,7 @@ object NotificationChecker {
 
         // ⑦ 새 게임 공지 — 게임별로 '마지막으로 알린 공지 시각'보다 새 글이 올라왔을 때만.
         if (settings.notifyNews) {
-            GameData.games.filter { it.newsSlug != null }.forEach { game ->
+            GameData.games.filter { it.newsSource != null }.forEach { game ->
                 // 실패(null)면 조용히 건너뛴다 — 네트워크 오류를 '새 공지 없음'으로 오해하지 않는다.
                 val notices = NewsApi.notices(game) ?: return@forEach
                 val latest = notices.maxByOrNull { it.createdAtMillis } ?: return@forEach

@@ -61,8 +61,8 @@ struct AddSpendingView: View {
             .presentationDetents([.medium])
         }
         .alert("잠깐, 다시 한 번 볼까요?", isPresented: Binding(get: { nudgeMsg != nil }, set: { if !$0 { nudgeMsg = nil } })) {
-            Button("다시 볼게요", role: .cancel) { nudgeMsg = nil }
-            Button("그래도 추가") { doSave() }
+            Button("다시 볼게요", role: .cancel) { nudgeMsg = nil }.glgAlertTint()
+            Button("그래도 추가") { doSave() }.glgAlertTint()
         } message: { Text(nudgeMsg ?? "") }
     }
 

@@ -31,9 +31,16 @@ struct SettingsView: View {
         (Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String) ?? "—"
     }
 
-    /// 빌드 종류(DEBUG/RELEASE) 구분 태그 — 어떤 빌드가 설치됐는지 한눈에(Android BuildVariantChip 파리티).
+    /// 빌드 종류 구분 태그 — 어떤 빌드가 설치됐는지 한눈에(Android BuildVariantChip 파리티).
+    ///
+    /// **EXPERIMENT(빨강)가 최우선**이다. 실험 빌드는 릴리스 구성으로 말아도 릴리스가 아니므로,
+    /// RELEASE 로 보이면 배포본과 헷갈린다. 표식은 project.yml 의
+    /// `SWIFT_ACTIVE_COMPILATION_CONDITIONS` 가 정한다.
     private var buildVariantChip: some View {
-        #if DEBUG
+        #if EXPERIMENT
+        let label = "EXPERIMENT"
+        let color = Color(hex: 0xFFE5342A) // 빨강 — 실험 빌드 경고
+        #elseif DEBUG
         let label = "DEBUG"
         let color = Color(hex: 0xFFFF7A45)
         #else
@@ -77,9 +84,9 @@ struct SettingsView: View {
         .sheet(isPresented: $showBudget) { BudgetSheet(store: store) }
         // 넛지 기준 금액 — 단일 입력이라 바텀시트 대신 중앙 모달(네이티브 alert + 입력 필드).
         .alert("넛지 기준 금액", isPresented: $showNudge) {
-            TextField("기준 금액 (원)", text: $nudgeText).keyboardType(.numberPad)
-            Button("저장") { store.setNudgeThreshold(Int64(nudgeText.filter(\.isNumber)) ?? 0) }
-            Button("취소", role: .cancel) { }
+            TextField("기준 금액 (원)", text: $nudgeText).keyboardType(.numberPad).glgAlertTint()
+            Button("저장") { store.setNudgeThreshold(Int64(nudgeText.filter(\.isNumber)) ?? 0) }.glgAlertTint()
+            Button("취소", role: .cancel) { }.glgAlertTint()
         } message: {
             Text("단건 지출이 이 금액 이상이면 추가 전 한 번 더 확인해요.")
         }
