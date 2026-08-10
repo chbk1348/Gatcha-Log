@@ -129,20 +129,56 @@ struct NewsPage: View {
     }
 
     /**
-     게임 필터 — **시스템 세그먼티드 컨트롤**([GameSegmentControl], 게임정보 헤더와 같은 것).
+     게임 필터 — **배치는 커스텀, 재질은 시스템 글래스**(`ALL / GI / HSR / ZZZ`).
 
-     직접 캡슐을 그리지 않는다. iOS 26 부터 시스템이 세그먼티드에 글래스 외형을 자동으로
-     입히는데, 커스텀으로 흉내 내면 OS 가 바뀔 때마다 우리만 뒤처진다.
+     `Picker(.segmented)` 가 아니다. 세그먼티드는 항목 폭을 **균등 분할**하고 높이도 시스템이
+     고정해서, 칸이 늘면 글자가 뭉개지고 통이 납작하다. 여기선 폭·높이를 우리가 잡고,
+     트랙과 선택 알약에 [glgSystemGlass] 로 시스템 재질만 입힌다 — 유리를 흉내 내지 않으므로
+     다크모드·대비 설정이 OS 를 따라온다.
 
-     라벨은 약칭(GI·HSR·EF) — 세그먼티드는 항목 폭을 균등 분할하므로 칸이 늘면 긴 이름이
-     뭉개진다. 목록 행의 게임 배지와 같은 표기라 눈으로도 이어진다.
+     라벨은 [Game.abbr] — 목록 행의 게임 배지(EF·WW·HSR)와 같은 표기라 눈으로 이어진다.
      Compose 쪽은 기존 GlgChip 을 유지한다 — 각 플랫폼 네이티브 UX 를 따른다.
      */
     @ViewBuilder
     private func gameSegments(_ games: [Game]) -> some View {
-        GameSegmentControl(selected: $chip, games: games, useAbbr: true)
-            // 카드 목록과 붙어 답답해 보여서 위아래로 숨통을 틔운다(위는 네비바 아래 여백).
-            .padding(.top, 6)
-            .padding(.bottom, 18)
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 4) {
+                segment(label: "ALL", key: "all", tint: nil)
+                ForEach(games, id: \.key) { g in
+                    segment(label: g.abbr, key: g.key, tint: Color(argb64: g.color))
+                }
+            }
+            .padding(5)
+            .glgSystemGlass(in: Capsule(style: .continuous))
+        }
+        // 카드 목록과 붙어 답답해 보여서 위아래로 숨통을 틔운다(위는 네비바 아래 여백).
+        .padding(.top, 8)
+        .padding(.bottom, 20)
+    }
+
+    /// 세그먼트 한 칸. 선택된 칸만 알약 배경 + 게임색 글자.
+    @ViewBuilder
+    private func segment(label: String, key: String, tint: Color?) -> some View {
+        let on = chip == key
+        Button {
+            // 같은 칸을 다시 누르면 전체로 — 'ALL' 까지 스크롤해 되돌아가지 않아도 되게.
+            withAnimation(.snappy(duration: 0.2)) { chip = (on && key != "all") ? "all" : key }
+        } label: {
+            Text(label)
+                .font(.pretendard(size: 14, weight: .semibold))
+                .foregroundStyle(on ? (tint ?? GLGColor.textPrimary) : GLGColor.textSecondary)
+                .padding(.horizontal, 18)
+                // 참고 이미지처럼 통을 도톰하게 — 시스템 세그먼티드보다 세로로 넉넉하다.
+                .padding(.vertical, 12)
+                // 선택 알약은 **불투명**하게 둔다 — 시스템 세그먼티드도 트랙만 반투명하고
+                // 선택 칸은 채워서 띄운다. 글래스 위에 글래스를 겹치면 둘 다 흐려진다.
+                .background {
+                    if on {
+                        Capsule(style: .continuous).fill(Color(.secondarySystemGroupedBackground))
+                            .shadow(color: .black.opacity(0.10), radius: 2, y: 1)
+                    }
+                }
+        }
+        .buttonStyle(.plain)
     }
 }
