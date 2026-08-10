@@ -106,13 +106,16 @@ struct NewsDetailView: View {
                     .lineLimit(1)
                     .truncationMode(.tail)
             }
-            if let u = URL(string: item.url), !item.url.isEmpty {
-                // 공유 — **링크만** 보낸다. 본문은 앱이 재구성한 것이라 그대로 보낼 수 없고,
-                // 제목을 붙이면 받는 쪽 미리보기와 중복돼 지저분해진다.
+            // 링크에 `lang=ko-kr` 을 붙인다 — 안 붙이면 받는 쪽에서 그 사람 기본 언어(대개 영문)로 열린다.
+            if let u = URL(string: NewsLogic.shared.shareUrl(item: item)), !item.url.isEmpty {
                 ToolbarItem(placement: .topBarTrailing) {
-                    // 공유 대상은 URL 하나뿐이지만, 미리보기 제목은 **앱이 가진 한국어 제목**으로 고정한다.
-                    // 지정하지 않으면 공유 시트가 링크 메타데이터를 직접 긁어와 영문 제목을 띄운다.
-                    ShareLink(item: u, preview: SharePreview(item.title)) {
+                    // ⚠️ **공유 대상은 URL 이어야 한다.** 제목까지 담으려고 String 을 넘겼더니
+                    // `public.plain-text` 로 나가서 카카오톡이 "공유할 수 없는 형식"으로 거부했다.
+                    // URL(`public.url`)은 어느 메신저든 받는다.
+                    // 제목은 message 로 딸려 보낸다 — 받는 앱이 쓰면 본문에 들어가고, 무시해도
+                    // 링크 공유 자체는 깨지지 않는다.
+                    ShareLink(item: u, message: Text(item.title),
+                              preview: SharePreview(item.title)) {
                         Image(systemName: "square.and.arrow.up")
                     }
                 }

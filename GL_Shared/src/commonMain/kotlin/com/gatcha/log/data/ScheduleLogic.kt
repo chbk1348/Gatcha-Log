@@ -114,7 +114,9 @@ object ScheduleLogic {
         val out = mutableListOf<ScheduleEntry>()
         // ① 픽업 페이즈
         for (game in GameData.games) {
-            if (game.enneadKey == null) continue
+            // ⚠️ `enneadKey` 로 거르지 않는다. 젠존제는 전용 경로([EnneadApi.fetchZzz])로 받아서
+            // 그 키가 없는데, 여기서 걸러지는 바람에 **배너가 들어와도 픽업 줄이 안 생겼다.**
+            // 배너 유무는 바로 아래에서 판단하므로 이 조건은 이중 방어였고, 실제로는 누락만 만들었다.
             // 종료 미정 픽업은 '픽업 종료' 일정 줄을 만들 수 없다(날짜가 없음) → 페이즈 계산에서 제외.
             val gb = banners.filter { it.game == game.displayName && !it.isEndUnknown }
             if (gb.isEmpty()) continue
@@ -205,6 +207,7 @@ object ScheduleLogic {
      */
     fun gameLines(
         banners: List<GachaBanner>,
+        entries: List<ScheduleEntry>,
         filter: String,
         nowMillis: Long = currentTimeMillis(),
     ): List<GameScheduleLine> =
@@ -213,9 +216,13 @@ object ScheduleLogic {
             val groups = buildVersionGroups(banners, game.key)
             // 요약은 일반 픽업 기준 — 콜라보는 뱃지로 따로 알리므로 이름 수에 섞지 않는다.
             // (콜라보만 진행 중인 게임이면 그거라도 보여준다.)
-            val lead = regularGroups(groups).firstOrNull() ?: groups.firstOrNull() ?: return@mapNotNull null
-            val named = lead.pickups.filter { it.type != "weapon" }.ifEmpty { lead.pickups }
-            val head = named.firstOrNull()?.name ?: return@mapNotNull null
+            val lead = regularGroups(groups).firstOrNull() ?: groups.firstOrNull()
+            val named = lead?.pickups?.filter { it.type != "weapon" }?.ifEmpty { lead.pickups }
+            val head = named?.firstOrNull()?.name
+            // 픽업이 없는 게임은 **일정 건수로 요약한다** — 예전엔 여기서 걸러내 행 자체가 없었다.
+            // 젠존제는 픽업 배너 기능을 뺐고(27.30.x), 명조는 애초에 배너 정보를 안 준다.
+            // 그런데 둘 다 이벤트·도전은 있어서, 일정이 있는데도 목록에서 게임이 통째로 빠져 보였다.
+            if (lead == null || head == null) return@mapNotNull scheduleOnlyLine(game, entries, nowMillis)
             val more = named.size - 1
             val who = if (more > 0) "$head 외 $more" else head
             GameScheduleLine(
@@ -228,6 +235,32 @@ object ScheduleLogic {
                 hasCollab = groups.any { g -> g.pickups.any { isCollabBanner(it) } },
             )
         }
+
+    /**
+     * 픽업이 없는 게임의 한 줄 — 남은 일정을 종류별로 세어 요약한다("이벤트 3 · 콘텐츠 1").
+     * 예정된 게 하나도 없으면 null(빈 줄을 만들지 않는다).
+     */
+    private fun scheduleOnlyLine(
+        game: Game,
+        entries: List<ScheduleEntry>,
+        nowMillis: Long,
+    ): GameScheduleLine? {
+        val mine = entries.filter { it.gameKey == game.key && it.target > nowMillis }
+        if (mine.isEmpty()) return null
+        val counts = mine.groupingBy { it.kind }.eachCount()
+        val summary = counts.entries.joinToString(" · ") { (kind, n) -> "$kind $n" }
+        val nearest = mine.minOf { it.target }
+        val d = maxOf(0, dDayOf(nearest, nowMillis))
+        return GameScheduleLine(
+            gameKey = game.key,
+            shortName = game.shortName,
+            colorArgb = game.color,
+            summary = summary,
+            remainLabel = "D-$d",
+            urgent = d in 0..3,
+            hasCollab = false,
+        )
+    }
 
     private fun dDayOf(target: Long, nowMillis: Long): Int =
         ceil((target - nowMillis) / (1000.0 * 60 * 60 * 24)).toInt()

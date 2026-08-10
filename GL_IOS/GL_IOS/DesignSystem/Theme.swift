@@ -96,11 +96,47 @@ extension EnvironmentValues {
 }
 
 extension View {
-    /// 강조색 인덱스로 환경값 + 시스템 tint 를 한 번에 주입한다.
+    /**
+     강조색 인덱스를 **환경값으로만** 주입한다.
+
+     ⚠️ 예전엔 여기서 `.tint(accent.primary)` 를 전역으로 깔았다. 그러면 앱이 그리지 않는
+     시스템 UI — 특히 **얼럿 버튼** — 까지 테마색으로 물든다. 민트·라임 같은 밝은 강조색은
+     얼럿의 흰 배경에서 대비가 낮아 글씨가 잘 안 보였다.
+
+     얼럿만 예외로 두는 방법이 없다(버튼마다 `.tint()` 를 걸어 봐도 전역 tint 를 못 이긴다.
+     `UIView.appearance(whenContainedInInstancesOf: [UIAlertController.self])` 도 SwiftUI
+     `.alert` 에는 닿지 않는다 — 둘 다 실제로 적용해 보고 확인). 그래서 전역 주입을 걷어낸다.
+
+     강조색이 필요한 시스템 컨트롤(Toggle·ProgressView·세그먼티드 등)에는 **그 자리에서**
+     `.tint(accent.primary)` 를 건다 — 앱 안 30여 곳이 이미 그렇게 하고 있었다.
+     커스텀 컴포넌트는 `@Environment(\.glgAccent)` 로 읽으므로 영향이 없다.
+     */
     func glgAccent(index: Int) -> some View {
         let accent = GLGTheme.accent(index)
         return self
             .environment(\.glgAccent, accent)
-            .tint(accent.primary)
+            // ⚠️ `.tint(nil)` 은 지우다 만 코드가 아니라 **상속을 끊는 장치**다.
+            // 탭바 아이콘 색을 주려고 `TabView` 에 건 `.tint(accent)` 가 탭 콘텐츠 전체로
+            // 흘러내려, 그 안에서 뜨는 얼럿까지 테마색으로 물들였다(전역 주입을 걷어낸 뒤에도
+            // '지출 전체 삭제' 얼럿이 그대로였던 이유). 여기서 기본값으로 되돌린다.
+            .tint(nil)
     }
+
+    /**
+     얼럿 버튼 색 — 앱 테마 강조색이 아니라 **시스템 파랑**.
+
+     앱 루트의 [glgAccent] 가 `.tint(강조색)` 를 전역으로 깔아서, 테마를 바꾸면 '취소'·'계속'
+     같은 얼럿 버튼까지 그 색으로 물든다. 얼럿은 OS 가 그리는 표준 UI 라 앱 테마를 따를 이유가
+     없고, 파괴적 동작(`role: .destructive`)의 빨강과 테마색이 나란히 놓이면 무엇이 위험한
+     선택인지 흐려진다.
+
+     `UIView.appearance(whenContainedInInstancesOf: [UIAlertController.self])` 로는 안 된다 —
+     SwiftUI 의 `.alert` 은 UIAlertController 를 거치지 않아 appearance proxy 가 닿지 않는다
+     (실제로 적용해 보고 확인). 버튼마다 직접 거는 수밖에 없다.
+
+     `role: .destructive` 버튼과 얼럿 안 TextField 에도 붙인다. destructive 는 시스템이 빨강으로
+     덮으므로 대개 무의미하지만, 얼럿 안의 것은 **하나도 빠짐없이** 거는 편이 낫다 —
+     빠진 하나가 강조색으로 남으면 그것만 눈에 띈다.
+     */
+    func glgAlertTint() -> some View { tint(Color(.systemBlue)) }
 }

@@ -40,27 +40,27 @@ struct DataManagementView: View {
         .navigationBarTitleDisplayMode(.inline)
         // 가챠 초기화 — 1단계(백업 권장)
         .alert("가챠 기록 초기화", isPresented: $confirmClearGacha) {
-            Button("취소", role: .cancel) {}
-            Button("계속") { confirmClearGacha2 = true }
+            Button("취소", role: .cancel) {}.glgAlertTint()
+            Button("계속") { confirmClearGacha2 = true }.glgAlertTint()
         } message: { Text("가져온 모든 가챠 기록을 삭제합니다. 되돌릴 수 없으니, 먼저 ‘백업 파일 내보내기’로 백업을 권장해요.") }
         // 가챠 초기화 — 2단계(최종 확인)
         .alert("정말 초기화할까요?", isPresented: $confirmClearGacha2) {
-            Button("취소", role: .cancel) {}
-            Button("초기화", role: .destructive) { store.clearGachaRecords() }
+            Button("취소", role: .cancel) {}.glgAlertTint()
+            Button("초기화", role: .destructive) { store.clearGachaRecords() }.glgAlertTint()
         } message: { Text("이 작업은 되돌릴 수 없어요. 가챠 기록을 모두 삭제합니다.") }
         // 지출 전체 삭제 — 1단계(백업 권장)
         .alert("지출 전체 삭제", isPresented: $confirmClearSpend) {
-            Button("취소", role: .cancel) {}
-            Button("계속") { confirmClearSpend2 = true }
+            Button("취소", role: .cancel) {}.glgAlertTint()
+            Button("계속") { confirmClearSpend2 = true }.glgAlertTint()
         } message: { Text("모든 지출 기록(\(store.spendings.count)건)을 삭제합니다. 되돌릴 수 없으니, 먼저 ‘백업 파일 내보내기’로 백업을 권장해요.") }
         // 지출 전체 삭제 — 2단계(최종 확인)
         .alert("정말 삭제할까요?", isPresented: $confirmClearSpend2) {
-            Button("취소", role: .cancel) {}
-            Button("삭제", role: .destructive) { store.clearSpendings() }
+            Button("취소", role: .cancel) {}.glgAlertTint()
+            Button("삭제", role: .destructive) { store.clearSpendings() }.glgAlertTint()
         } message: { Text("이 작업은 되돌릴 수 없어요. 지출 기록(\(store.spendings.count)건)을 모두 삭제합니다.") }
         .alert("백업 파일에서 복원", isPresented: $confirmImport) {
-            Button("취소", role: .cancel) {}
-            Button("파일 선택") { importBackup = true }
+            Button("취소", role: .cancel) {}.glgAlertTint()
+            Button("파일 선택") { importBackup = true }.glgAlertTint()
         } message: { Text("백업 파일을 선택해 복원할까요? 백업에 들어 있는 항목은 현재 데이터를 덮어씁니다.") }
         .fileExporter(isPresented: $exportCsv, document: TextDocument(store.buildCsv()),
                       contentType: .commaSeparatedText, defaultFilename: "gatchalog-spending") { _ in }

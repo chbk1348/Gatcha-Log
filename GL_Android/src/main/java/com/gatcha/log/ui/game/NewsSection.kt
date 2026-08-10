@@ -16,8 +16,13 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -25,8 +30,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.gatcha.log.data.DateUtil
 import com.gatcha.log.data.GameData
+import com.gatcha.log.data.NewsLogic
 import com.gatcha.log.data.api.NewsItem
 import com.gatcha.log.ui.components.GameTagSize
+import com.gatcha.log.ui.components.GlgChip
 import com.gatcha.log.ui.components.GlgGameTag
 import com.gatcha.log.ui.components.GlassCard
 import com.gatcha.log.ui.components.GlgBadge
@@ -47,7 +54,8 @@ fun NewsSection(news: List<NewsItem>, gameFilter: String, onSeeAll: () -> Unit, 
     val accent = LocalAccent.current
     val all = remember(news, gameFilter) { filterNews(news, gameFilter) }
     if (all.isEmpty()) return
-    val items = all.take(max)
+    // 그냥 take 하면 공지를 많이 올리는 게임(엔드필드)이 5칸을 다 먹는다 — 게임을 돌아가며 뽑는다.
+    val items = remember(all, max) { NewsLogic.previewTop(all, max) }
     Text("공지·뉴스", fontSize = 16.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 2.dp, bottom = 10.dp))
     GlassCard(modifier = Modifier.fillMaxWidth()) {
         // 하단 패딩은 더보기 행이 직접 제공(여백 최소화), 더보기 없으면 Spacer 로 기본 여백 유지.
@@ -76,9 +84,38 @@ fun NewsSection(news: List<NewsItem>, gameFilter: String, onSeeAll: () -> Unit, 
 fun NewsFullContent(news: List<NewsItem>, gameFilter: String, onOpen: (NewsItem) -> Unit) {
     // 공지 목록은 게임 수 × 30건까지 커진다(디스크 캐시 상한은 저장에만 걸린다).
     // 필터는 입력이 바뀔 때만 — 재구성마다 전체를 다시 훑을 이유가 없다.
-    val all = remember(news, gameFilter) { filterNews(news, gameFilter) }
-    // 페이지 타이틀은 SectionPage 헤더에서 표시. (중복 제거)
+    val headerFiltered = remember(news, gameFilter) { filterNews(news, gameFilter) }
+    // 페이지 안 게임 칩 — 헤더 드롭다운과 별개로 이 페이지에서만 좁혀 본다.
+    // 게임이 6개로 늘면서 한 화면에 여러 게임 공지가 섞여, 목록을 훑어 원하는 게임만 보기가 어려워졌다.
+    // 헤더가 이미 한 게임으로 좁힌 상태면 칩이 무의미하므로 그때는 감춘다.
+    var chip by remember(gameFilter) { mutableStateOf("all") }
+    val showChips = gameFilter == "all"
+    val all = remember(headerFiltered, chip, showChips) {
+        if (!showChips) headerFiltered else filterNews(headerFiltered, chip)
+    }
+    // 칩은 실제로 공지가 있는 게임만 — 소식이 없는 게임 칩을 눌러 빈 화면을 보게 두지 않는다.
+    val chipGames = remember(headerFiltered) {
+        GameData.games.filter { g -> headerFiltered.any { it.game == g.displayName } }
+    }
+
     Spacer(Modifier.height(4.dp))
+    if (showChips && chipGames.size > 1) {
+        Row(
+            modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            GlgChip(label = "전체", selected = chip == "all", onClick = { chip = "all" })
+            chipGames.forEach { g ->
+                GlgChip(
+                    label = g.shortName,
+                    selected = chip == g.key,
+                    color = g.color.toColor(),
+                    onClick = { chip = if (chip == g.key) "all" else g.key },
+                )
+            }
+        }
+        Spacer(Modifier.height(12.dp))
+    }
     if (all.isEmpty()) {
         Text("공지가 없어요", fontSize = 13.sp, color = TextSecondary, modifier = Modifier.padding(vertical = 24.dp))
         return

@@ -57,6 +57,7 @@ import com.gatcha.log.ui.components.GlgHeaderTitlePill
 import com.gatcha.log.ui.components.GlgCircleIconButton
 import com.gatcha.log.ui.components.GlgTabHeader
 import com.gatcha.log.data.GameInfoAnchor
+import com.gatcha.log.data.NewsLogic
 import com.gatcha.log.data.ScheduleLogic
 import com.gatcha.log.data.SpendingViewModel
 import com.gatcha.log.data.api.EnkaChar
@@ -296,15 +297,15 @@ fun GameInfoScreen(
                 actions = {
                     val n = newsItem
                     if (n != null && n.url.isNotBlank()) {
-                        // 공유 — **링크만** 보낸다. 본문은 앱이 재구성한 것이라 그대로 보낼 수 없고,
-                        // 제목을 붙이면 받는 쪽 미리보기와 중복돼 지저분해진다.
+                        // 공유 — 제목 + 링크(NewsLogic.shareText). 링크만 보내면 메신저에 URL 만
+                        // 덩그러니 뜬다 — HoYoLab 은 og: 태그가 없어 미리보기가 안 잡힌다.
                         // solidBackground — 본문(공지 이미지)이 헤더 아래를 지나가므로 버튼이 비치면 안 된다.
                         GlgCircleIconButton(Icons.Default.Share, "공유", outlined = true, solidBackground = true) {
-                            shareText(context, n.url)
+                            shareText(context, NewsLogic.shareText(n))
                         }
                         // 브라우저 — 표·동영상처럼 앱이 못 살리는 요소는 원문에서 봐야 한다.
                         GlgCircleIconButton(Icons.AutoMirrored.Filled.OpenInNew, "브라우저에서 보기", outlined = true, solidBackground = true) {
-                            openExternalLink(context, n.url)
+                            openExternalLink(context, NewsLogic.shareUrl(n))
                         }
                     }
                 },

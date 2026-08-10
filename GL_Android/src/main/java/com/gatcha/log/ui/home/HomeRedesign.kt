@@ -74,6 +74,7 @@ import com.gatcha.log.data.GachaBanner
 import com.gatcha.log.data.dhLabel
 import com.gatcha.log.data.GameData
 import com.gatcha.log.data.GameEvent
+import com.gatcha.log.data.NewsLogic
 import com.gatcha.log.data.GameChallenge
 import com.gatcha.log.data.AnniversaryInfo
 import com.gatcha.log.data.api.NewsItem
@@ -1120,7 +1121,8 @@ private fun ScheduleRows(items: List<Triple<String, String, Pair<Long, String>>>
 fun DashNewsCard(news: List<NewsItem>, anniversaries: List<AnniversaryInfo>, titleOutside: Boolean = false, onTap: () -> Unit) {
     val accent = LocalAccent.current
     val anni = anniversaries.firstOrNull { it.daysUntil <= 60 }
-    val topNews = news.sortedByDescending { it.createdAtMillis }.take(2)
+    // 홈은 2건뿐이라 최신순으로 자르면 한 게임이 둘 다 먹기 쉽다 — 게임을 번갈아 뽑는다.
+    val topNews = NewsLogic.previewTop(news, 2)
     if (anni == null && topNews.isEmpty()) return
     if (titleOutside) {
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {

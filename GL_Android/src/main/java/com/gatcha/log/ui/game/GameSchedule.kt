@@ -1,5 +1,11 @@
 package com.gatcha.log.ui.game
 
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -14,12 +20,14 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
@@ -33,6 +41,11 @@ import com.gatcha.log.data.DateUtil
 import com.gatcha.log.data.GachaBanner
 import com.gatcha.log.data.GameChallenge
 import com.gatcha.log.data.GameEvent
+import com.gatcha.log.data.hmsLabel
+import com.gatcha.log.data.isImminent
+import com.gatcha.log.data.dhLabel
+import com.gatcha.log.util.currentTimeMillis
+import kotlinx.coroutines.delay
 import com.gatcha.log.data.GameScheduleLine
 import com.gatcha.log.data.ScheduleDay
 import com.gatcha.log.data.ScheduleEntry
@@ -59,6 +72,25 @@ import com.gatcha.log.ui.theme.toColor
 // 모델·산출 로직(buildSchedule·buildDays·gameLines·summarize)은 GL_Shared ScheduleLogic 단일 소스.
 // 여기엔 Compose 렌더링과 ARGB→Color 변환만 남는다.
 // ============================================================
+
+/**
+ * 마감 임박 표시의 '사이렌' — 알파를 천천히 오가게 해 시선을 끈다.
+ *
+ * 색을 번갈아 칠하거나 크기를 키우는 방법도 있지만, 매초 숫자가 바뀌는 글자에 그걸 얹으면
+ * 흔들려 읽기 어렵다. 알파만 움직이면 글자 위치·폭이 그대로라 카운트다운을 읽는 데 방해가 없다.
+ * 0.45 아래로는 내리지 않는다 — 사라졌다 나타나는 것처럼 보이면 경고가 아니라 결함처럼 읽힌다.
+ */
+@Composable
+private fun Modifier.sirenPulse(): Modifier {
+    val transition = rememberInfiniteTransition(label = "siren")
+    val alpha by transition.animateFloat(
+        initialValue = 1f,
+        targetValue = 0.45f,
+        animationSpec = infiniteRepeatable(tween(650, easing = LinearEasing), RepeatMode.Reverse),
+        label = "sirenAlpha",
+    )
+    return this.alpha(alpha)
+}
 
 private fun scheduleKindColor(kind: String): Color = ScheduleLogic.kindColorArgb(kind).toColor()
 
@@ -99,7 +131,7 @@ fun GameScheduleSection(
     onSeeAll: () -> Unit,
 ) {
     val accent = LocalAccent.current
-    val lines = ScheduleLogic.gameLines(banners, filter)
+    val lines = ScheduleLogic.gameLines(banners, entries, filter)
     val summary = ScheduleLogic.summarize(banners, entries, filter)
     Text("게임 일정", fontSize = 16.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 2.dp, bottom = 4.dp))
     Text("픽업 배너와 이벤트 마감을 한곳에서.", fontSize = 11.sp, color = TextSecondary, modifier = Modifier.padding(start = 2.dp, bottom = 12.dp))
@@ -218,8 +250,35 @@ fun GameScheduleFullContent(
     if (days.isNotEmpty()) {
         TodayMarker()
         Spacer(Modifier.height(14.dp))
-        days.forEachIndexed { i, d -> DayNode(d, isLast = i == days.lastIndex) }
+        // 남은 시간 갱신 기준 시각 — 카드마다 타이머를 두지 않고 여기서 한 번만 돌린다.
+        // 24시간 안쪽 일정이 하나라도 있으면 초 단위로, 아니면 분 단위로 돈다.
+        val hasImminent = remember(days) {
+            days.any { d -> d.entries.any { isImminent(it.target) } }
+        }
+        val now = rememberScheduleNow(fast = hasImminent)
+        days.forEachIndexed { i, d -> DayNode(d, isLast = i == days.lastIndex, now = now) }
     }
+}
+
+/**
+ * 남은 시간 표시용 현재 시각.
+ *
+ * @param fast 초 단위로 갱신할지. 24시간 안쪽 일정이 있을 때만 켠다 — 며칠 남은 일정에
+ *   초를 세어 봐야 화면은 그대로인데 재구성만 60배로 늘어난다.
+ *
+ * 화면을 벗어나면 코루틴이 취소되므로 백그라운드에서는 돌지 않는다.
+ */
+@Composable
+private fun rememberScheduleNow(fast: Boolean): Long {
+    var now by remember { mutableStateOf(currentTimeMillis()) }
+    LaunchedEffect(fast) {
+        val period = if (fast) 1_000L else 60_000L
+        while (true) {
+            delay(period)
+            now = currentTimeMillis()
+        }
+    }
+    return now
 }
 
 // 요약 3칸 — 이번 주 마감 / 진행 중 픽업 / 이벤트·콘텐츠.
@@ -301,7 +360,7 @@ private fun TodayMarker() {
 
 // 날짜 노드 — 좌측 날짜(일/월·요일/D-N) + 세로 연결선, 우측에 그날 끝나는 항목들.
 @Composable
-private fun DayNode(d: ScheduleDay, isLast: Boolean) {
+private fun DayNode(d: ScheduleDay, isLast: Boolean, now: Long) {
     Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
         Column(Modifier.width(46.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             Text("${d.day}", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
@@ -326,7 +385,7 @@ private fun DayNode(d: ScheduleDay, isLast: Boolean) {
         }
         Spacer(Modifier.width(13.dp))
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            d.entries.forEach { EntryCard(it) }
+            d.entries.forEach { EntryCard(it, now) }
         }
     }
     Spacer(Modifier.height(18.dp))
@@ -334,7 +393,7 @@ private fun DayNode(d: ScheduleDay, isLast: Boolean) {
 
 // 일정 카드 — 종류 배지 + 제목 + 게임 태그, 픽업이면 캐릭터 칩까지.
 @Composable
-private fun EntryCard(e: ScheduleEntry) {
+private fun EntryCard(e: ScheduleEntry, now: Long) {
     val gc = e.colorArgb.toColor()
     Column(
         Modifier.fillMaxWidth()
@@ -363,9 +422,32 @@ private fun EntryCard(e: ScheduleEntry) {
                 )
             }
         }
-        if (e.sub.isNotBlank()) {
-            Spacer(Modifier.height(4.dp))
-            Text(e.sub, fontSize = 10.5.sp, color = TextSecondary, maxLines = 1)
+        // 남은 시간 — 날짜 노드의 D-N 은 '며칠 남았나'만 알려 주지만, 마감 당일엔 몇 시간이
+        // 남았는지가 실제로 필요한 정보다(D-DAY 만으로는 지금 해야 하는지 판단이 안 된다).
+        // 24시간 안쪽이면 초까지 세고 사이렌처럼 명멸시킨다.
+        val imminent = isImminent(e.target, now)
+        val remain = if (imminent) hmsLabel(e.target, now) else dhLabel(e.target, now)
+        Spacer(Modifier.height(4.dp))
+        // 남은 시간은 **오른쪽 끝 고정**. 예전엔 부제에 weight(fill=false) 를 주고 Spacer 에도
+        // weight 를 걸어, 남는 폭이 둘로 갈리면서 부제 길이에 따라 시간 위치가 카드마다 달라졌다.
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            if (e.sub.isNotBlank()) {
+                Text(
+                    e.sub, fontSize = 10.5.sp, color = TextSecondary,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f),
+                )
+            } else {
+                Spacer(Modifier.weight(1f))
+            }
+            Spacer(Modifier.width(8.dp))
+            Text(
+                if (remain == "종료") remain else "$remain 남음",
+                fontSize = 10.5.sp, fontWeight = FontWeight.Bold,
+                color = if (imminent) Urgent else TextSecondary,
+                maxLines = 1,
+                modifier = if (imminent) Modifier.sirenPulse() else Modifier,
+            )
         }
         if (e.pickups.isNotEmpty()) {
             Spacer(Modifier.height(9.dp))

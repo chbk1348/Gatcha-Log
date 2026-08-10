@@ -345,11 +345,11 @@ struct SubscriptionEditSheet: View {
                 }
             }
             .alert("이 구독을 삭제할까요?", isPresented: $confirmDelete) {
-                Button("취소", role: .cancel) {}
+                Button("취소", role: .cancel) {}.glgAlertTint()
                 Button("삭제", role: .destructive) {
                     if let id = initial?.id { store.deleteSubscription(id) }
                     onClose()
-                }
+                }.glgAlertTint()
             }
         }
         .onAppear(perform: prefill)

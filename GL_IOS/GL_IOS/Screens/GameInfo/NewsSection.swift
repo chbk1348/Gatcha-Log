@@ -54,7 +54,9 @@ struct NewsSection: View {
     var body: some View {
         let all = filterNews(store.gameNews, filter)
         if !all.isEmpty {
-            let items = Array(all.prefix(maxCount))
+            // 그냥 prefix 하면 공지를 많이 올리는 게임(엔드필드)이 목록을 다 먹는다 —
+            // 게임을 번갈아 뽑는 로직은 commonMain 단일 소스(Android 와 같은 함수).
+            let items = NewsLogic.shared.previewTop(news: all, max: Int32(maxCount))
             VStack(alignment: .leading, spacing: 10) {
                 Text("공지·뉴스").font(.pretendard(size: 16, weight: .bold))
                 GLGCard(cornerRadius: 24, padding: 0) {
@@ -87,11 +89,21 @@ struct NewsPage: View {
     // 상세 push 는 navigationDestination 으로 — NewsSection 과 동일한 이유(destination형 NavigationLink 회피).
     @State private var selectedNews: NewsItem? = nil
     @State private var showDetail = false
+    /// 페이지 안 게임 칩 — 헤더 드롭다운과 별개로 이 페이지에서만 좁혀 본다(Compose 쪽과 동일).
+    @State private var chip = "all"
 
     var body: some View {
-        let all = filterNews(store.gameNews, filter)
+        let headerFiltered = filterNews(store.gameNews, filter)
+        // 헤더가 이미 한 게임으로 좁힌 상태면 칩이 무의미하므로 그때는 감춘다.
+        let showChips = filter == "all"
+        let all = showChips ? filterNews(headerFiltered, chip) : headerFiltered
+        // 칩은 실제로 공지가 있는 게임만 — 소식이 없는 게임 칩을 눌러 빈 화면을 보게 두지 않는다.
+        let chipGames = GLGGames.all.filter { g in headerFiltered.contains { $0.game == g.displayName } }
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
+                if showChips && chipGames.count > 1 {
+                    gameSegments(chipGames).padding(.bottom, 14)
+                }
                 if all.isEmpty {
                     Text("공지가 없어요").font(.pretendard(size: 13)).foregroundStyle(GLGColor.textSecondary).padding(.vertical, 24)
                 } else {
@@ -114,5 +126,29 @@ struct NewsPage: View {
         .navigationDestination(isPresented: $showDetail) {
             if let n = selectedNews { NewsDetailView(store: store, item: n) }
         }
+    }
+
+    /**
+     게임 필터 — 본문 상단의 시스템 세그먼티드([Picker] `.segmented`).
+
+     툴바로 올리고 캡슐을 직접 그리는 등 여러 배치를 시도했지만, 게임일정 페이지와 같은
+     **기본형(본문 최상단 세그먼티드)** 으로 통일했다. 화면 폭을 그대로 쓰므로 칸이 늘어도
+     여유가 있고, 툴바 공유 글래스와 겹칠 일도 없다.
+
+     게임 라벨은 [Game.abbr] 다. `shortName`(원신·스타레일·젠레스·명조·엔드필드)은 6칸에
+     넣으면 너무 길고, 그보다 짧은 한국어 표기가 없다. 약칭은 **목록 행의 게임 배지와 같은
+     글자**라 필터와 결과가 눈으로 이어진다. '전체'만 한국어로 둔다.
+     Compose 쪽은 기존 GlgChip 을 유지한다 — 각 플랫폼 네이티브 UX 를 따른다.
+     */
+    @ViewBuilder
+    private func gameSegments(_ games: [Game]) -> some View {
+        Picker("게임 선택", selection: $chip.animation(.easeInOut(duration: 0.2))) {
+            Text("전체").tag("all")
+            ForEach(games, id: \.key) { g in
+                Text(g.abbr).tag(g.key)
+            }
+        }
+        .pickerStyle(.segmented)
+        .labelsHidden()
     }
 }

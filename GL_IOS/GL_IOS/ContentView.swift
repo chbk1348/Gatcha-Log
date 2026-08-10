@@ -17,6 +17,13 @@ struct ContentView: View {
     /// 앱 복귀 감지 — 밀린 알림 점검 트리거(BGAppRefreshTask 는 실행 시점이 OS 재량이라 보조가 필요).
     @Environment(\.scenePhase) private var scenePhase
 
+    /// 실험 빌드 경고 표시 여부 — 배포본에선 항상 false 라 얼럿이 뜨지 않는다.
+    #if EXPERIMENT
+    @State private var showExperimentAlert = true
+    #else
+    @State private var showExperimentAlert = false
+    #endif
+
     /// 지출 추가/수정 시트 — **표시 여부와 대상을 한 상태로 합쳤다**(nil = 닫힘).
     ///
     /// 예전엔 showAddSpending(Bool) + editingSpending(Spending?) 두 개였는데, `.sheet(isPresented:)` 는
@@ -202,9 +209,19 @@ struct ContentView: View {
             get: { store.networkAlert != nil },
             set: { if !$0 { store.clearNetworkAlert() } }
         )) {
-            Button("확인", role: .cancel) { store.clearNetworkAlert() }
+            Button("확인", role: .cancel) { store.clearNetworkAlert() }.glgAlertTint()
         } message: {
             Text(store.networkAlert ?? "")
+        }
+        // 실험 빌드 경고 — 앱 시작 시 1회(Android MainActivity 의 GlgDialog 파리티).
+        // @State 라 프로세스가 새로 뜨면 다시 나온다 — "앱 시작 시 1회"가 의도다.
+        // 배포본에는 EXPERIMENT 조건이 없어 이 블록 자체가 컴파일에서 빠진다.
+        .alert("⚠️ 실험 빌드", isPresented: $showExperimentAlert) {
+            Button("확인하고 계속", role: .cancel) { showExperimentAlert = false }.glgAlertTint()
+        } message: {
+            Text("정식 배포본이 아닙니다. 검증되지 않은 UI·라이브러리가 들어 있어 "
+                + "예기치 않은 동작이나 종료가 발생할 수 있어요.\n\n"
+                + "설정 > 앱 버전에 빨간 EXPERIMENT 표시가 있으면 이 빌드입니다.")
         }
         // 강조색을 **최상위에서** 주입한다. 예전엔 탭 콘텐츠에만 걸어서, 탭 바깥에 붙는 것들
         // (지출 추가/수정 시트·전역 토스트·네트워크 얼럿)이 주입이 없는 환경을 물려받아
