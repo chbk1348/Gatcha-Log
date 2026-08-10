@@ -8,6 +8,10 @@ struct SpendingDetailView: View {
     let onEdit: (Spending) -> Void
     @Environment(\.dismiss) private var dismiss
     @State private var confirmDelete = false
+    /// 히어로 실제 높이 — 스크롤이 이걸 넘어가면 헤더를 밝은 배경 모드로 되돌린다.
+    @State private var heroHeight: CGFloat = 0
+    /// 히어로를 지나쳤는가. 헤더 아이콘 색·바 배경이 여기에 달려 있다.
+    @State private var pastHero = false
 
     /// 편집 반영 위해 라이브 목록에서 재조회.
     private var spending: Spending? { store.spendings.first { $0.id == spendingId } }
@@ -35,9 +39,10 @@ struct SpendingDetailView: View {
         // iOS 26 은 `toolbarBackground(_:for:)` 가 더 이상 바의 유리를 걷어내지 못한다 —
         // 그대로 두면 히어로 그라데이션 위에 바 배경이 한 겹 더 얹혀 **헤더만 색이 달라 보인다**.
         // 새 API(`toolbarBackgroundVisibility`)로 확실히 숨긴다.
-        .modifier(GLGHiddenToolbarBackground())
-        // 그라데이션이 짙어 뒤로가기·수정·삭제 아이콘이 묻힌다 — 상단만 밝은 요소로 뒤집는다.
-        .toolbarColorScheme(.dark, for: .navigationBar)
+        .modifier(GLGHiddenToolbarBackground(hidden: !pastHero))
+        // 히어로가 파스텔이라 아이콘은 히어로 위에서도 **기본(어두운) 색**이 읽힌다 —
+        // 원색이었을 땐 흰색으로 뒤집어야 했고, 그러면 스크롤 후 흰 배경에서 아이콘이 사라졌다.
+        .animation(.easeInOut(duration: 0.18), value: pastHero)
     }
 
     private func content(_ s: Spending, topInset: CGFloat) -> some View {
@@ -78,6 +83,14 @@ struct SpendingDetailView: View {
         // 히어로 색이 상태바까지 이어지도록 스크롤 영역을 위로 올린다. 대신 히어로가
         // `topInset` 만큼 스스로 내려가므로 글자는 안전 영역 안에 남는다.
         .ignoresSafeArea(.container, edges: .top)
+        // 히어로 하단이 네비게이션 바 아래로 사라지는 순간을 경계로 삼는다.
+        // 바 높이(44)를 빼는 이유는, 히어로 끝이 바에 **가려지기 시작할 때** 색이 바뀌어야
+        // 아이콘이 흰 배경 위에 흰색으로 남는 한 프레임이 생기지 않기 때문이다.
+        .onScrollGeometryChange(for: Bool.self) { geo in
+            heroHeight > 0 && geo.contentOffset.y > heroHeight - topInset - 44
+        } action: { _, newValue in
+            pastHero = newValue
+        }
         .alert("이 지출을 삭제할까요?", isPresented: $confirmDelete) {
             Button("취소", role: .cancel) {}.glgAlertTint()
             Button("삭제", role: .destructive) { store.deleteSpending(s.id); dismiss() }.glgAlertTint()
@@ -108,39 +121,53 @@ struct SpendingDetailView: View {
     @ViewBuilder
     private func hero(_ s: Spending, topInset: CGFloat) -> some View {
         let base = Color(argb64: s.gameColor)
+        // 파스텔 배경 위에 얹는 글자색 — 게임색을 검정 쪽으로 눌러 같은 계열을 유지한다.
+        // 순수 검정으로 쓰면 배경과 따로 놀고, 원색 그대로면 옅은 배경에서 뭉갠다.
+        let ink = base.mix(with: .black, by: 0.55)
 
+        // 위에서 아래로 **무게가 줄어드는** 순서: 무엇(게임) → 얼마 → 무엇으로 환산 → 언제.
+        // 간격도 그 묶음을 따른다 — 금액·재화는 붙이고(3), 날짜는 떼어 놓는다(10).
         VStack(alignment: .leading, spacing: 0) {
-            HStack(spacing: 8) {
-                Text(s.gameName).font(.pretendard(size: 14, weight: .bold))
+            HStack(spacing: 7) {
+                Text(s.gameName)
+                    .font(.pretendard(size: 13, weight: .bold))
+                    .foregroundStyle(ink)
                 Text(s.isSubscription ? "정기" : "일반")
                     .font(.pretendard(size: 10, weight: .bold))
-                    .padding(.horizontal, 8).padding(.vertical, 2)
-                    .background(Color.white.opacity(0.22), in: Capsule())
+                    .foregroundStyle(ink)
+                    .padding(.horizontal, 8).padding(.vertical, 2.5)
+                    .background(Color.white.opacity(0.55), in: Capsule())
             }
-            .foregroundStyle(.white.opacity(0.95))
 
             Text(won(s.amount))
-                .font(.pretendard(size: 36, weight: .bold))
-                .foregroundStyle(.white)
-                .padding(.top, 12)
+                .font(.pretendard(size: 34, weight: .bold))
+                .foregroundStyle(GLGColor.textPrimary)
+                // 금액은 숫자가 커서 위쪽 여백이 실제보다 넓어 보인다 — 조금 당겨 붙인다.
+                .padding(.top, 10)
 
-            // 재화 환산을 금액 바로 아래로 — 가챠 앱에서 이 둘은 한 쌍이다(예전엔 상세 7행 중 2번째였다).
+            // 재화 환산은 금액에 **딸린 값**이라 바짝 붙인다(가챠 앱에서 이 둘은 한 쌍이다).
             if let amt = GameDataKt.currencyAmountOrNull(gameName: s.gameName, itemName: s.itemName) {
                 let pulls = GameDataKt.currencyPullsOrNull(gameName: s.gameName, itemName: s.itemName)
-                Text(pulls == nil ? amt : "\(amt) · \(pulls!)")
-                    .font(.pretendard(size: 14, weight: .bold))
-                    .foregroundStyle(.white.opacity(0.96))
-                    .padding(.top, 3)
+                HStack(spacing: 6) {
+                    Text(amt).font(.pretendard(size: 13.5, weight: .bold))
+                    if let p = pulls {
+                        Text(p)
+                            .font(.pretendard(size: 11.5, weight: .bold))
+                            .padding(.horizontal, 7).padding(.vertical, 2)
+                            .background(Color.white.opacity(0.55), in: Capsule())
+                    }
+                }
+                .foregroundStyle(ink)
+                .padding(.top, 3)
             }
 
             Text(heroSubtitle(s))
-                .font(.pretendard(size: 12))
-                .foregroundStyle(.white.opacity(0.82))
-                .padding(.top, 9)
-
+                .font(.pretendard(size: 11.5))
+                .foregroundStyle(ink.opacity(0.72))
+                .padding(.top, 10)
         }
         .padding(.horizontal, 20)
-        .padding(.bottom, 20)
+        .padding(.bottom, 22)
         // 상태바(topInset) 아래에서 시작한다. 뒤에 더하는 값은 네비게이션 바 높이(44)가 아니라
         // **뒤로가기 버튼과 겹치지 않을 만큼**이다 — 44 를 그대로 주면 아이콘과 게임명 사이가
         // 한 줄 비어 보인다. 좌측 상단이 비는 만큼 히어로가 위로 붙는다.
@@ -148,10 +175,13 @@ struct SpendingDetailView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             UnevenRoundedRectangle(bottomLeadingRadius: 28, bottomTrailingRadius: 28, style: .continuous)
+                // 파스텔 — 게임색을 흰색과 섞어 옅게 깐다. 원색을 그대로 쓰면 카드 위 흰 화면과
+                // 대비가 너무 세서 상세가 배너처럼 읽힌다. 색은 '어느 게임인가'만 말하면 된다.
                 .fill(LinearGradient(
-                    colors: [base, base.mix(with: .black, by: 0.30)],
+                    colors: [base.mix(with: .white, by: 0.62), base.mix(with: .white, by: 0.44)],
                     startPoint: .topLeading, endPoint: .bottomTrailing))
         )
+        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { heroHeight = $0 }
     }
 
     /**
