@@ -141,44 +141,38 @@ struct NewsPage: View {
      */
     @ViewBuilder
     private func gameSegments(_ games: [Game]) -> some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 4) {
-                segment(label: "ALL", key: "all", tint: nil)
-                ForEach(games, id: \.key) { g in
-                    segment(label: g.abbr, key: g.key, tint: Color(argb64: g.color))
-                }
+        HStack(spacing: 0) {
+            segment(label: "ALL", key: "all", tint: GLGColor.textPrimary)
+            ForEach(games, id: \.key) { g in
+                segment(label: g.abbr, key: g.key, tint: Color(argb64: g.color))
             }
-            .padding(5)
-            .glgSystemGlass(in: Capsule(style: .continuous))
         }
+        .padding(4)
+        .glgSystemGlass(in: Capsule(style: .continuous))
+        // 통 높이를 44 로 잡는다 — 터치 최소 크기이자, 참고 앱이 위아래로 넉넉해 보이는 이유다.
+        .frame(minHeight: 44)
         // 카드 목록과 붙어 답답해 보여서 위아래로 숨통을 틔운다(위는 네비바 아래 여백).
         .padding(.top, 8)
         .padding(.bottom, 20)
     }
 
-    /// 세그먼트 한 칸. 선택된 칸만 알약 배경 + 게임색 글자.
+    /// 세그먼트 한 칸. 선택 칸은 게임색으로 **채우고** 글자를 흰색으로 뒤집는다.
     @ViewBuilder
-    private func segment(label: String, key: String, tint: Color?) -> some View {
+    private func segment(label: String, key: String, tint: Color) -> some View {
         let on = chip == key
-        Button {
-            // 같은 칸을 다시 누르면 전체로 — 'ALL' 까지 스크롤해 되돌아가지 않아도 되게.
-            withAnimation(.snappy(duration: 0.2)) { chip = (on && key != "all") ? "all" : key }
-        } label: {
-            Text(label)
-                .font(.pretendard(size: 14, weight: .semibold))
-                .foregroundStyle(on ? (tint ?? GLGColor.textPrimary) : GLGColor.textSecondary)
-                .padding(.horizontal, 18)
-                // 참고 이미지처럼 통을 도톰하게 — 시스템 세그먼티드보다 세로로 넉넉하다.
-                .padding(.vertical, 12)
-                // 선택 알약은 **불투명**하게 둔다 — 시스템 세그먼티드도 트랙만 반투명하고
-                // 선택 칸은 채워서 띄운다. 글래스 위에 글래스를 겹치면 둘 다 흐려진다.
-                .background {
-                    if on {
-                        Capsule(style: .continuous).fill(Color(.secondarySystemGroupedBackground))
-                            .shadow(color: .black.opacity(0.10), radius: 2, y: 1)
-                    }
-                }
-        }
-        .buttonStyle(.plain)
+        Text(label)
+            .font(.pretendard(size: 13, weight: .semibold))
+            .foregroundStyle(on ? Color.white : GLGColor.textSecondary)
+            .fixedSize()
+            .frame(maxWidth: .infinity)   // 칸을 균등 분할 — 약칭이라 6게임까지 들어간다
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
+            .background { Capsule(style: .continuous).fill(on ? tint : .clear) }
+            .animation(.easeInOut(duration: 0.2), value: chip)
+            .contentShape(Capsule(style: .continuous))   // 글자 사이 여백까지 탭 되게
+            .onTapGesture {
+                // 같은 칸을 다시 누르면 전체로.
+                chip = (on && key != "all") ? "all" : key
+            }
     }
 }
