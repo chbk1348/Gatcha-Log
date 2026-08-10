@@ -129,47 +129,23 @@ struct NewsPage: View {
     }
 
     /**
-     게임 필터 — 시스템 세그먼트 톤의 가로 스크롤 바.
+     게임 필터 — **시스템 세그먼티드 컨트롤**(게임일정 페이지의 일정/주년 탭과 같은 것).
 
-     `Picker(.segmented)` 를 그대로 쓰지 않는 이유: 지원 게임이 6개라 한 줄에 균등 분할하면
-     글자가 뭉개진다(세그먼트는 항목 폭을 똑같이 나눈다). 그래서 **선택 표시는 시스템 세그먼트와
-     같은 흰 알약 + 그림자**로 두고, 배치만 가로 스크롤로 바꿨다.
+     항목 폭을 균등 분할하므로 게임이 늘면 글자가 좁아진다. 공지가 있는 게임만 노출하니
+     보통 3~5칸이고, 라벨도 약칭(원신·스타레일·젠레스·명조·엔드필드)이라 들어간다.
      Compose 쪽은 기존 GlgChip 을 유지한다 — 각 플랫폼 네이티브 UX 를 따른다.
      */
     @ViewBuilder
     private func gameSegments(_ games: [Game]) -> some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 2) {
-                segment(label: "전체", key: "all", tint: nil)
-                ForEach(games, id: \.key) { g in
-                    segment(label: g.shortName, key: g.key, tint: Color(argb64: g.color))
-                }
+        Picker("게임 선택", selection: $chip) {
+            Text("전체").tag("all")
+            ForEach(games, id: \.key) { g in
+                Text(g.shortName).tag(g.key)
             }
-            .padding(2)
-            .background(Color(.tertiarySystemFill), in: Capsule())
         }
-        .padding(.bottom, 12)
-    }
-
-    @ViewBuilder
-    private func segment(label: String, key: String, tint: Color?) -> some View {
-        let on = chip == key
-        Button {
-            // 같은 칸을 다시 누르면 전체로 — 스크롤해서 '전체'까지 되돌아가지 않아도 되게.
-            withAnimation(.snappy(duration: 0.2)) { chip = (on && key != "all") ? "all" : key }
-        } label: {
-            Text(label)
-                .font(.pretendard(size: 13, weight: on ? .semibold : .medium))
-                .foregroundStyle(on ? (tint ?? GLGColor.textPrimary) : GLGColor.textSecondary)
-                .padding(.horizontal, 14)
-                .padding(.vertical, 7)
-                .background {
-                    if on {
-                        Capsule().fill(Color(.secondarySystemGroupedBackground))
-                            .shadow(color: .black.opacity(0.12), radius: 2, y: 1)
-                    }
-                }
-        }
-        .buttonStyle(.plain)
+        .pickerStyle(.segmented)
+        // 카드 목록과 붙어 답답해 보여서 위아래로 숨통을 틔운다(위는 네비바 아래 여백).
+        .padding(.top, 6)
+        .padding(.bottom, 18)
     }
 }

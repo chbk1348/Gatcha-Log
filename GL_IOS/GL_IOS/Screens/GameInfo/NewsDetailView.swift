@@ -109,10 +109,12 @@ struct NewsDetailView: View {
             // 링크에 `lang=ko-kr` 을 붙인다 — 안 붙이면 받는 쪽에서 그 사람 기본 언어(대개 영문)로 열린다.
             if let u = URL(string: NewsLogic.shared.shareUrl(item: item)), !item.url.isEmpty {
                 ToolbarItem(placement: .topBarTrailing) {
-                    // **제목 + 링크**를 보낸다. 링크만 보내면 메신저에 URL 만 덩그러니 뜬다 —
-                    // HoYoLab 은 SPA 라 정적 HTML 에 og: 태그가 없어 미리보기가 안 잡힌다.
-                    // preview 는 iOS 공유 시트 안에서만 쓰이고 받는 쪽에는 전달되지 않는다.
-                    ShareLink(item: NewsLogic.shared.shareText(item: item),
+                    // ⚠️ **공유 대상은 URL 이어야 한다.** 제목까지 담으려고 String 을 넘겼더니
+                    // `public.plain-text` 로 나가서 카카오톡이 "공유할 수 없는 형식"으로 거부했다.
+                    // URL(`public.url`)은 어느 메신저든 받는다.
+                    // 제목은 message 로 딸려 보낸다 — 받는 앱이 쓰면 본문에 들어가고, 무시해도
+                    // 링크 공유 자체는 깨지지 않는다.
+                    ShareLink(item: u, message: Text(item.title),
                               preview: SharePreview(item.title)) {
                         Image(systemName: "square.and.arrow.up")
                     }
