@@ -2,6 +2,7 @@ package com.gatcha.log.data
 
 import com.gatcha.log.data.api.EnkaResult
 import com.gatcha.log.data.api.NewsItem
+import com.gatcha.log.data.api.NewsSource
 import com.gatcha.log.json.JSONArray
 import com.gatcha.log.json.JSONObject
 import com.gatcha.log.storage.KeyValueStore
@@ -664,6 +665,10 @@ class GatchaRepository(
             bannerUrl = o.optString("banner", ""),
             url = o.optString("url", ""),
             summary = o.optString("summary", ""),
+            // 출처를 잃으면 캐시에서 연 공지가 본문을 못 찾는다(호요 경로로 잘못 간다).
+            // 구버전 캐시엔 이 키가 없으므로 ENNEAD 로 떨어뜨린다 — 그때는 호요 3게임뿐이었다.
+            source = runCatching { NewsSource.valueOf(o.optString("source", "")) }.getOrDefault(NewsSource.ENNEAD),
+            bodyRef = o.optString("bodyRef", ""),
         )
     }
 
@@ -679,6 +684,7 @@ class GatchaRepository(
                 put("game", n.game); put("id", n.id); put("title", n.title)
                 put("createdAt", n.createdAtMillis); put("banner", n.bannerUrl); put("url", n.url)
                 put("summary", n.summary.take(NEWS_SUMMARY_MAX))
+                put("source", n.source.name); put("bodyRef", n.bodyRef)
             }
         }
 
