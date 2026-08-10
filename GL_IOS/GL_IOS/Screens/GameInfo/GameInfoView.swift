@@ -459,6 +459,8 @@ struct GameSchedulePage: View {
                 .labelsHidden()
                 .fixedSize()
             }
+            // 세그먼티드는 자체 배경이 있어 툴바 공유 글래스와 겹치면 바가 두 겹으로 보인다.
+            .glgNoSharedToolbarBackground()
         }
         // 일정 집계는 필터/원본이 바뀔 때만. 예전엔 body 첫 줄에서 5종을 조건 없이 계산해,
         // '주년' 탭을 보고 있어도(그때는 하나도 안 쓰는데) 세그먼트를 누를 때마다 전부 다시 돌았다.
