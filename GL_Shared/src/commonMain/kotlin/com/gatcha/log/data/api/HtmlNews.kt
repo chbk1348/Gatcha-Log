@@ -57,11 +57,15 @@ internal object HtmlNews {
 
     /** 태그를 걷어내고 줄바꿈을 살린 평문. 공백만 남으면 빈 문자열. */
     private fun plainText(raw: String): String {
-        val withBreaks = RE_BREAK.replace(raw, "\n")
+        // ⚠️ **소스 개행을 먼저 공백으로 눕힌다.** HTML 에서 소스의 줄바꿈은 렌더링상 공백일 뿐인데,
+        // 그대로 두면 `</div>` 를 개행으로 바꾼 분과 겹쳐 줄 간격이 두 배가 된다
+        // (명조 본문이 `<div>…</div>\n<div>…</div>` 구조라 문단마다 빈 줄이 하나씩 끼었다).
+        val flattened = raw.replace('\n', ' ').replace('\r', ' ').replace('\t', ' ')
+        val withBreaks = RE_BREAK.replace(flattened, "\n")
         val stripped = RE_TAG.replace(withBreaks, "")
         val decoded = decode(stripped)
-        return RE_BLANKS.replace(decoded, "\n\n")            // 빈 줄 3개 이상은 2개로
-            .lines().joinToString("\n") { it.trim() }        // 들여쓴 HTML 소스의 앞 공백 제거
+        return decoded.lines().joinToString("\n") { it.trim() }  // 줄 끝에 남은 공백 정리
+            .let { RE_BLANKS.replace(it, "\n\n") }               // 빈 줄 3개 이상은 2개로
             .trim()
     }
 
