@@ -77,9 +77,7 @@ android {
         // **main 은 항상 false.** 검증 안 된 UI·라이브러리를 얹은 로컬 빌드를 배포본과 구분하려고
         // 만든 장치라, 배포 브랜치에서 켜져 있으면 모든 사용자가 매번 경고를 보게 된다.
         // 실험할 땐 이 줄만 true 로 바꿔 빌드한다(코드는 그대로 살아 있다).
-        // ⚠️ 실험(experiment/non-hoyo-game-api) — 호요버스 외 3게임 API 를 붙여 보는 브랜치.
-        // **main 으로 가져갈 땐 false 로 되돌릴 것.**
-        buildConfigField("boolean", "EXPERIMENT", "true")
+        buildConfigField("boolean", "EXPERIMENT", "false")
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {

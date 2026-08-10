@@ -97,10 +97,10 @@ targets:
         PRODUCT_NAME: Gatcha-Log
         # 실험 빌드 표식 — 설정 > 앱 버전에 빨간 EXPERIMENT 칩(Android BuildConfig.EXPERIMENT 파리티).
         #
-        # ⚠️ 실험(experiment/non-hoyo-game-api) — 호요버스 외 3게임 API 를 붙여 보는 브랜치.
         # **main 은 항상 `$(inherited)` 만.** 검증 안 된 코드를 얹은 빌드가 배포본으로 오해되는 걸
         # 막으려는 장치라, 배포 브랜치에서 켜져 있으면 모든 사용자에게 실험 칩이 보인다.
-        SWIFT_ACTIVE_COMPILATION_CONDITIONS: "$(inherited) EXPERIMENT"
+        # 실험할 땐 뒤에 ` EXPERIMENT` 를 붙여 빌드한다.
+        SWIFT_ACTIVE_COMPILATION_CONDITIONS: "$(inherited)"
         # 앱 아이콘 (Assets.xcassets/AppIcon) — Android 앱과 동일한 위시스타 아이콘
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         # Intel 시뮬레이터(x86_64) 제외 — Kotlin 타깃이 iosSimulatorArm64(애플 실리콘)만 구성됨.
