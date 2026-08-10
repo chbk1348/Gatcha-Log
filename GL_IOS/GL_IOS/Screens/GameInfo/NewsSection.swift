@@ -118,18 +118,15 @@ struct NewsPage: View {
         }
         .scrollIndicators(.hidden)
         .background(GLGBackground { Color.clear })
-        .navigationTitle("공지·뉴스")
+        // 페이지 타이틀을 비운다 — 뒤로가기만 남기고 그 폭을 세그먼티드에 내준다.
+        // 어느 페이지인지는 들어온 경로(공지 섹션의 '더보기')로 분명하다.
+        .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
-        // 타이틀 바로 아래 고정 줄 — 툴바 안(타이틀 옆)에 두면 6게임이 들어갈 폭이 안 나온다.
-        // safeAreaInset 이라 목록을 스크롤해도 따라 내려가지 않고 제자리에 붙어 있는다.
-        .safeAreaInset(edge: .top, spacing: 0) {
+        .toolbar {
             if showChips && chipGames.count > 1 {
-                gameSegments(chipGames)
-                    .padding(.horizontal, 16)
-                    .padding(.top, 6)
-                    .padding(.bottom, 10)
-                    // 시스템 바 재질 — 아래 콘텐츠가 비쳐도 네비게이션 바와 한 덩어리로 이어진다.
-                    .background(.bar)
+                ToolbarItem(placement: .principal) { gameSegments(chipGames) }
+                    // 세그먼티드는 자체 배경이 있어 툴바 공유 글래스와 겹치면 바가 두 겹으로 보인다.
+                    .glgNoSharedToolbarBackground()
             }
         }
         .navigationDestination(isPresented: $showDetail) {
@@ -138,23 +135,22 @@ struct NewsPage: View {
     }
 
     /**
-     게임 필터 — 시스템 세그먼티드([Picker] `.segmented`).
+     게임 필터 — 헤더 툴바의 시스템 세그먼티드([Picker] `.segmented`).
 
      본문에 두고 캡슐을 직접 그리다가 참고 앱(pizza-studio/PizzaHelperUnited, MIT)의
      Today 페이지를 보고 바로잡았다. 유리처럼 보이던 재질도 위아래가 넉넉해 보이던 높이도
-     **커스텀이 아니라 시스템 세그먼티드가 바(bar) 위에 놓여서** 나오는 것이었다.
+     **커스텀이 아니라 시스템 세그먼티드가 툴바에 놓여서** 나오는 것이었다.
 
-     `.fixedSize()` 는 쓰지 않는다 — 참고 앱은 툴바 안(폭이 좁음)이라 내용 폭이 필요했지만,
-     여기는 타이틀 아래 한 줄을 통째로 쓰므로 균등 분할이 자연스럽다.
-     라벨은 [Game.abbr] — 목록 행의 게임 배지(EF·WW·HSR)와 같은 표기다.
+     타이틀 자리(`.principal`)에 놓고 페이지 타이틀은 비웠다 — 게임이 6개라 뒤로가기 옆
+     좁은 폭으로는 라벨이 뭉개진다. 라벨은 한국어 약칭([Game.shortName]).
      Compose 쪽은 기존 GlgChip 을 유지한다 — 각 플랫폼 네이티브 UX 를 따른다.
      */
     @ViewBuilder
     private func gameSegments(_ games: [Game]) -> some View {
         Picker("게임 선택", selection: $chip.animation(.easeInOut(duration: 0.2))) {
-            Text("ALL").tag("all")
+            Text("전체").tag("all")
             ForEach(games, id: \.key) { g in
-                Text(g.abbr).tag(g.key)
+                Text(g.shortName).tag(g.key)
             }
         }
         .pickerStyle(.segmented)
