@@ -172,12 +172,14 @@ struct GameInfoView: View {
         .navigationDestination(isPresented: $showHoyoland) { HoyolandDetailView() }
         .navigationDestination(isPresented: $showGameContent) {
             sectionPage("전투 · 수입 일지") {
-                GameTabbedSection(store: store, filter: gameFilter,
-                                  onOpenClears: { showCombatClears = true })
+                GameTabbedSection(store: store, filter: gameFilter)
             }
-            .navigationDestination(isPresented: $showCombatClears) {
-                sectionPage("클리어 편성") { CombatClearSection(store: store) }
-            }
+        }
+        // ⚠️ 이 destination 은 **최상위에** 있어야 한다. 예전엔 위 `showGameContent` 안에 중첩돼
+        // 있어서, 일지 페이지에 들어가 있을 때만 등록됐다 — 데일리 카드에서 눌러도 아무 일이
+        // 일어나지 않던 원인이다(상태만 true 로 바뀌고 push 할 destination 이 없었다).
+        .navigationDestination(isPresented: $showCombatClears) {
+            sectionPage("클리어 편성") { CombatClearSection(store: store) }
         }
         .navigationDestination(isPresented: $showStats) {
             if let c = statChar {
