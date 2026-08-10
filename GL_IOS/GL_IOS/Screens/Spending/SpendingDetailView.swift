@@ -123,7 +123,7 @@ struct SpendingDetailView: View {
         let base = Color(argb64: s.gameColor)
         // 파스텔 배경 위에 얹는 글자색 — 게임색을 검정 쪽으로 눌러 같은 계열을 유지한다.
         // 순수 검정으로 쓰면 배경과 따로 놀고, 원색 그대로면 옅은 배경에서 뭉갠다.
-        let ink = base.mix(with: .black, by: 0.55)
+        let ink = base.mix(with: .black, by: 0.62)
 
         // 위에서 아래로 **무게가 줄어드는** 순서: 무엇(게임) → 얼마 → 무엇으로 환산 → 언제.
         // 간격도 그 묶음을 따른다 — 금액·재화는 붙이고(3), 날짜는 떼어 놓는다(10).
@@ -136,7 +136,7 @@ struct SpendingDetailView: View {
                     .font(.pretendard(size: 10, weight: .bold))
                     .foregroundStyle(ink)
                     .padding(.horizontal, 8).padding(.vertical, 2.5)
-                    .background(Color.white.opacity(0.55), in: Capsule())
+                    .background(Color.white.opacity(0.75), in: Capsule())
             }
 
             Text(won(s.amount))
@@ -154,7 +154,7 @@ struct SpendingDetailView: View {
                         Text(p)
                             .font(.pretendard(size: 11.5, weight: .bold))
                             .padding(.horizontal, 7).padding(.vertical, 2)
-                            .background(Color.white.opacity(0.55), in: Capsule())
+                            .background(Color.white.opacity(0.75), in: Capsule())
                     }
                 }
                 .foregroundStyle(ink)
@@ -178,7 +178,7 @@ struct SpendingDetailView: View {
                 // 파스텔 — 게임색을 흰색과 섞어 옅게 깐다. 원색을 그대로 쓰면 카드 위 흰 화면과
                 // 대비가 너무 세서 상세가 배너처럼 읽힌다. 색은 '어느 게임인가'만 말하면 된다.
                 .fill(LinearGradient(
-                    colors: [base.mix(with: .white, by: 0.62), base.mix(with: .white, by: 0.44)],
+                    colors: [base.mix(with: .white, by: 0.80), base.mix(with: .white, by: 0.66)],
                     startPoint: .topLeading, endPoint: .bottomTrailing))
         )
         .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { heroHeight = $0 }
