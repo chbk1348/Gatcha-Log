@@ -95,16 +95,20 @@ struct GLGBackground<Content: View>: View {
  얹혀 **거기만 색이 달라 보인다**. 새 API 로 확실히 숨기고, 그 이하에서는 기존 API 로 폴백한다.
  */
 struct GLGHiddenToolbarBackground: ViewModifier {
+    /// 숨길지 여부. **색이 깔린 히어로 위에 있을 때만** 숨긴다 — 스크롤해 흰 배경으로 넘어가면
+    /// 바 배경을 되살려야 아이콘이 읽힌다.
+    var hidden: Bool = true
+
     func body(content: Content) -> some View {
         if #available(iOS 26.0, *) {
             content
-                .toolbarBackgroundVisibility(.hidden, for: .navigationBar)
+                .toolbarBackgroundVisibility(hidden ? .hidden : .automatic, for: .navigationBar)
                 // iOS 26 은 스크롤 콘텐츠가 바 아래를 지날 때 상단에 흐림 띠(scroll edge effect)를 깐다.
-                // 히어로처럼 **색이 상단까지 차 있는** 화면에서는 그 띠가 스크림처럼 얹혀 색을 흐린다.
-                // 맨 위에 있을 때는 가릴 콘텐츠도 없으므로 꺼 둔다.
-                .scrollEdgeEffectHidden(true, for: .top)
+                // 히어로처럼 **색이 상단까지 차 있는** 구간에서는 그 띠가 스크림처럼 얹혀 색을 흐린다.
+                // 히어로를 벗어나면 되살린다 — 그때는 흰 콘텐츠가 바 아래를 지나므로 띠가 제 몫을 한다.
+                .scrollEdgeEffectHidden(hidden, for: .top)
         } else {
-            content.toolbarBackground(.hidden, for: .navigationBar)
+            content.toolbarBackground(hidden ? .hidden : .automatic, for: .navigationBar)
         }
     }
 }
