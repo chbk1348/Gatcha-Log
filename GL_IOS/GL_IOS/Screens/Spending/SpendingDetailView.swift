@@ -125,10 +125,10 @@ struct SpendingDetailView: View {
         // 순수 검정으로 쓰면 배경과 따로 놀고, 원색 그대로면 옅은 배경에서 뭉갠다.
         let ink = base.mix(with: .black, by: 0.62)
 
-        // 위에서 아래로 **무게가 줄어드는** 순서: 무엇(게임) → 얼마 → 무엇으로 환산 → 언제.
-        // 간격도 그 묶음을 따른다 — 금액·재화는 붙이고(3), 날짜는 떼어 놓는다(10).
+        // 세 줄로 끝낸다 — ① 무엇(게임·영문 표식) ② 얼마 ③ 환산·언제.
+        // 정보의 무게가 위에서 아래로 줄고, 마지막 줄만 좌우로 갈라 단조로움을 깬다.
         VStack(alignment: .leading, spacing: 0) {
-            HStack(spacing: 7) {
+            HStack(alignment: .firstTextBaseline, spacing: 7) {
                 Text(s.gameName)
                     .font(.pretendard(size: 13, weight: .bold))
                     .foregroundStyle(ink)
@@ -137,6 +137,7 @@ struct SpendingDetailView: View {
                     .foregroundStyle(ink)
                     .padding(.horizontal, 8).padding(.vertical, 2.5)
                     .background(Color.white.opacity(0.75), in: Capsule())
+                    .alignmentGuide(.firstTextBaseline) { $0[VerticalAlignment.center] + 4 }
                 Spacer(minLength: 8)
                 // 게임 코드 — 읽으라고 넣은 글자가 아니라 **여백을 채우는 표식**이다.
                 // 우측 상단이 비어 히어로가 왼쪽으로 쏠려 보였다.
@@ -144,10 +145,10 @@ struct SpendingDetailView: View {
                 // ⚠️ 여기만 시스템 폰트를 쓴다(앱 전역은 Pretendard). 고정폭 자체가 디자인이라
                 // 자간이 일정해야 하는데 Pretendard 에는 monospaced 계열이 없다.
                 Text(gameCode(s.gameName))
-                    .font(.system(size: 9.5, weight: .semibold, design: .monospaced))
-                    .tracking(0.8)
-                    .foregroundStyle(ink.opacity(0.42))
-                    .lineLimit(1).minimumScaleFactor(0.75)
+                    .font(.system(size: 11.5, weight: .semibold, design: .monospaced))
+                    .tracking(0.6)
+                    .foregroundStyle(ink.opacity(0.45))
+                    .lineLimit(1).minimumScaleFactor(0.7)
             }
 
             Text(won(s.amount))
@@ -156,26 +157,7 @@ struct SpendingDetailView: View {
                 // 금액은 숫자가 커서 위쪽 여백이 실제보다 넓어 보인다 — 조금 당겨 붙인다.
                 .padding(.top, 10)
 
-            // 재화 환산은 금액에 **딸린 값**이라 바짝 붙인다(가챠 앱에서 이 둘은 한 쌍이다).
-            if let amt = GameDataKt.currencyAmountOrNull(gameName: s.gameName, itemName: s.itemName) {
-                let pulls = GameDataKt.currencyPullsOrNull(gameName: s.gameName, itemName: s.itemName)
-                HStack(spacing: 6) {
-                    Text(amt).font(.pretendard(size: 13.5, weight: .bold))
-                    if let p = pulls {
-                        Text(p)
-                            .font(.pretendard(size: 11.5, weight: .bold))
-                            .padding(.horizontal, 7).padding(.vertical, 2)
-                            .background(Color.white.opacity(0.75), in: Capsule())
-                    }
-                }
-                .foregroundStyle(ink)
-                .padding(.top, 3)
-            }
-
-            Text(heroSubtitle(s))
-                .font(.pretendard(size: 11.5))
-                .foregroundStyle(ink.opacity(0.72))
-                .padding(.top, 10)
+            heroFacts(s, ink: ink).padding(.top, 14)
         }
         .padding(.horizontal, 20)
         .padding(.bottom, 22)
@@ -262,6 +244,67 @@ struct SpendingDetailView: View {
             }
             .frame(height: 7)
         }
+    }
+
+    /**
+     히어로 하단 사실 박스 — 재화 · 뽑기 · 결제일 세 칸.
+
+     금액 아래에 흩어져 있던 값들을 한 판에 모은다. 라벨과 값을 위아래로 쌓아 두면
+     "무엇의 숫자인가"를 읽는 데 시선이 덜 든다.
+
+     재화 정보가 없는 지출(월정액·패스처럼 개수가 없는 상품)에서는 두 칸이 비어 판이 헐거워지므로,
+     그때는 박스를 접고 날짜만 한 줄로 둔다.
+     */
+    @ViewBuilder
+    private func heroFacts(_ s: Spending, ink: Color) -> some View {
+        let amt = GameDataKt.currencyAmountOrNull(gameName: s.gameName, itemName: s.itemName)
+        let pulls = GameDataKt.currencyPullsOrNull(gameName: s.gameName, itemName: s.itemName)
+        if let amt {
+            let parts = splitCurrency(amt)
+            HStack(spacing: 0) {
+                factCell(parts.0, parts.1, ink: ink)
+                factDivider(ink)
+                factCell("뽑기", pulls.map(shortPulls) ?? "—", ink: ink)
+                factDivider(ink)
+                factCell("결제일", DateUtil.shared.shortDate(millis: s.dateMillis), ink: ink)
+            }
+            .padding(.vertical, 11)
+            .frame(maxWidth: .infinity)
+            .background(Color.white.opacity(0.55), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        } else {
+            Text(heroSubtitle(s))
+                .font(.pretendard(size: 11.5))
+                .foregroundStyle(ink.opacity(0.72))
+        }
+    }
+
+    private func factCell(_ label: String, _ value: String, ink: Color) -> some View {
+        VStack(spacing: 3) {
+            Text(label)
+                .font(.pretendard(size: 10.5))
+                .foregroundStyle(ink.opacity(0.62))
+            Text(value)
+                .font(.pretendard(size: 13, weight: .bold))
+                .foregroundStyle(ink)
+                .lineLimit(1).minimumScaleFactor(0.7)
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    private func factDivider(_ ink: Color) -> some View {
+        Rectangle().fill(ink.opacity(0.14)).frame(width: 1, height: 24)
+    }
+
+    /// "원석 12,960" → ("원석", "12,960"). 마지막 공백을 기준으로 가른다 —
+    /// 재화명에 공백이 들어가는 상품이 있어(예: "오리지늄 세트") 앞쪽은 통째로 이름으로 둔다.
+    private func splitCurrency(_ label: String) -> (String, String) {
+        guard let idx = label.lastIndex(of: " ") else { return ("재화", label) }
+        return (String(label[label.startIndex..<idx]), String(label[label.index(after: idx)...]))
+    }
+
+    /// "약 81뽑 가능" → "약 81뽑". 칸이 좁아 뒤의 '가능'은 뺀다(라벨이 이미 '뽑기'다).
+    private func shortPulls(_ text: String) -> String {
+        text.replacingOccurrences(of: " 가능", with: "")
     }
 
     /// 히어로 우측 상단 표식 — 영문 정식 명칭(GENSHIN IMPACT · HONKAI: STAR RAIL …).
