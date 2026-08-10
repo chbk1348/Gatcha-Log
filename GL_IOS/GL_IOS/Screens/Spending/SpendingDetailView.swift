@@ -259,23 +259,27 @@ struct SpendingDetailView: View {
     private func heroFacts(_ s: Spending, ink: Color) -> some View {
         let amt = GameDataKt.currencyAmountOrNull(gameName: s.gameName, itemName: s.itemName)
         let pulls = GameDataKt.currencyPullsOrNull(gameName: s.gameName, itemName: s.itemName)
-        if let amt {
-            let parts = splitCurrency(amt)
-            HStack(spacing: 0) {
-                factCell(parts.0, parts.1, ink: ink)
-                factDivider(ink)
-                factCell("뽑기", pulls.map(shortPulls) ?? "—", ink: ink)
-                factDivider(ink)
-                factCell("결제일", DateUtil.shared.shortDate(millis: s.dateMillis), ink: ink)
+        // 재화 개수를 못 구하는 상품(월정액·패스처럼 개수가 없는 것)이 흔하다. 그때 박스를 통째로
+        // 감췄더니 **대부분의 지출에서 박스가 안 보였다** — 칸의 내용을 바꿔서라도 판은 유지한다.
+        let cells: [(String, String)] = {
+            if let amt {
+                let parts = splitCurrency(amt)
+                return [parts, ("뽑기", pulls.map(shortPulls) ?? "—")]
             }
-            .padding(.vertical, 11)
-            .frame(maxWidth: .infinity)
-            .background(Color.white.opacity(0.55), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-        } else {
-            Text(heroSubtitle(s))
-                .font(.pretendard(size: 11.5))
-                .foregroundStyle(ink.opacity(0.72))
+            return [("구분", s.isSubscription ? "정기" : "일반"),
+                    ("결제", s.paymentMethod.isEmpty ? "—" : s.paymentMethod)]
+        }()
+
+        HStack(spacing: 0) {
+            factCell(cells[0].0, cells[0].1, ink: ink)
+            factDivider(ink)
+            factCell(cells[1].0, cells[1].1, ink: ink)
+            factDivider(ink)
+            factCell("결제일", DateUtil.shared.shortDate(millis: s.dateMillis), ink: ink)
         }
+        .padding(.vertical, 11)
+        .frame(maxWidth: .infinity)
+        .background(Color.white.opacity(0.55), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 
     private func factCell(_ label: String, _ value: String, ink: Color) -> some View {
