@@ -111,7 +111,8 @@ struct GameInfoView: View {
         .task { store.refreshGameInfo() }
         .task(id: homeScheduleKey) {
             schedule = ScheduleLogic.shared.buildSchedule(
-                banners: store.activeBanners, events: store.gameEvents, challenges: store.challenges)
+                banners: store.activeBanners, events: store.gameEvents, challenges: store.challenges,
+                nowMillis: nowMs())
         }
         .onChange(of: store.hoyolabConfig.isLinked) { _, linked in
             if linked { store.refreshGameInfo(force: true) }
@@ -520,7 +521,8 @@ struct GameSchedulePage: View {
 
     private static func buildSchedule(store: SpendingStore, filter: String) -> SchedulePageData {
         let now = nowMs()
-        let all = ScheduleLogic.shared.buildSchedule(banners: store.activeBanners, events: store.gameEvents, challenges: store.challenges)
+        let all = ScheduleLogic.shared.buildSchedule(
+            banners: store.activeBanners, events: store.gameEvents, challenges: store.challenges, nowMillis: now)
         let entries = ScheduleLogic.shared.filteredEntries(entries: all, filter: filter)
         return SchedulePageData(
             days: ScheduleLogic.shared.buildDays(entries: entries, nowMillis: now),
@@ -635,7 +637,17 @@ private struct DayNode: View {
 // 일정 카드 — 종류 배지 + 제목 + 게임 태그, 픽업이면 캐릭터 칩까지.
 private struct EntryCard: View {
     let e: ScheduleEntry
+
     var body: some View {
+        // 방송 줄만 바깥으로 나간다(공식 채널 라이브 탭). 나머지 일정은 눌러도 갈 곳이 없다.
+        if let url = e.linkUrl.isEmpty ? nil : URL(string: e.linkUrl) {
+            Link(destination: url) { card }.buttonStyle(.plain)
+        } else {
+            card
+        }
+    }
+
+    private var card: some View {
         let gc = Color(argb64: e.colorArgb)
         return VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 7) {
@@ -645,6 +657,12 @@ private struct EntryCard: View {
                     .background(scheduleKindColor(e.kind), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
                 Text(e.title).font(.pretendard(size: 12.5, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
                     .lineLimit(1).frame(maxWidth: .infinity, alignment: .leading)
+                // 나갈 수 있는 줄이라는 표시. 배지 색만으로는 '눌러도 되는지'가 드러나지 않는다.
+                if !e.linkUrl.isEmpty {
+                    Image(systemName: "play.circle")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(scheduleKindColor(e.kind))
+                }
                 Text(e.gameShort).font(.pretendard(size: 9.5, weight: .bold)).foregroundStyle(.white)
                     .padding(.horizontal, 7).padding(.vertical, 2)
                     .background(gc, in: RoundedRectangle(cornerRadius: 6, style: .continuous))

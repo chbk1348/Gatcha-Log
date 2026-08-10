@@ -155,7 +155,7 @@ class ScheduleLogicTest {
             GameEvent(Game.GENSHIN.displayName, "나중", base + 30 * day),
         )
         val s = ScheduleLogic.summarize(
-            banners, ScheduleLogic.buildSchedule(banners, events, emptyList()), "all", base,
+            banners, ScheduleLogic.buildSchedule(banners, events, emptyList(), base), "all", base,
         )
         assertEquals(2, s.weekDeadlines)   // 5일 뒤 픽업 종료 + 3일 뒤 이벤트
         assertEquals(2, s.activePickups)
@@ -291,19 +291,22 @@ class ScheduleLogicTest {
     }
 
     // ── 통합 일정 (전반/후반 판정) ────────────────────────────────────────────
+    //
+    // 아래 검사들은 **픽업 페이즈 라벨**만 본다. buildSchedule 은 방송 줄(BroadcastSchedule)도
+    // 함께 내놓는데, 그건 배너 종료일에서 역산한 값이라 여기 관심사가 아니다 — kind 로 거른다.
 
     @Test
     fun buildScheduleLabelsTwoPhasesOfSameVersion() {
         // 한 버전에 페이즈 2개 → 종료 이른 쪽이 전반, 늦은 쪽이 후반.
         val banners = listOf(banner("전", 3, "6.6"), banner("후", 24, "6.6"))
-        val titles = ScheduleLogic.buildSchedule(banners, emptyList(), emptyList()).map { it.title }
+        val titles = ScheduleLogic.buildSchedule(banners, emptyList(), emptyList()).filter { it.kind == "패치" }.map { it.title }
         assertEquals(listOf("v6.6 전반 픽업 종료", "v6.6 후반 픽업 종료"), titles)
     }
 
     @Test
     fun buildScheduleLabelsThirdPhaseNumerically() {
         val banners = listOf(banner("1", 3, "6.6"), banner("2", 24, "6.6"), banner("3", 45, "6.6"))
-        val titles = ScheduleLogic.buildSchedule(banners, emptyList(), emptyList()).map { it.title }
+        val titles = ScheduleLogic.buildSchedule(banners, emptyList(), emptyList()).filter { it.kind == "패치" }.map { it.title }
         assertEquals(listOf("v6.6 전반 픽업 종료", "v6.6 후반 픽업 종료", "v6.6 3페이즈 픽업 종료"), titles)
     }
 
@@ -311,13 +314,13 @@ class ScheduleLogicTest {
     fun buildScheduleTreatsLatestSinglePhaseAsFirstHalf() {
         // 버전당 페이즈가 1개씩일 때: 최신 버전 = 전반(후반 미게시), 이전 버전 = 후반(전반 종료됨).
         val banners = listOf(banner("구", 3, "6.5"), banner("신", 24, "6.6"))
-        val titles = ScheduleLogic.buildSchedule(banners, emptyList(), emptyList()).map { it.title }
+        val titles = ScheduleLogic.buildSchedule(banners, emptyList(), emptyList()).filter { it.kind == "패치" }.map { it.title }
         assertEquals(listOf("v6.5 후반 픽업 종료", "v6.6 전반 픽업 종료"), titles)
     }
 
     @Test
     fun buildScheduleOmitsVersionPrefixWhenBlank() {
-        val titles = ScheduleLogic.buildSchedule(listOf(banner("무버전", 3, "")), emptyList(), emptyList()).map { it.title }
+        val titles = ScheduleLogic.buildSchedule(listOf(banner("무버전", 3, "")), emptyList(), emptyList()).filter { it.kind == "패치" }.map { it.title }
         assertEquals(listOf("전반 픽업 종료"), titles)
     }
 
@@ -328,10 +331,12 @@ class ScheduleLogicTest {
             events = listOf(GameEvent(game = gi.displayName, name = "이벤트", reward = "원석", endMillis = base + 2 * day)),
             challenges = listOf(GameChallenge(game = gi.displayName, name = "심경", typeName = "심연", reward = "원석", endMillis = base + 9 * day)),
         )
-        assertEquals(listOf("이벤트", "패치", "콘텐츠"), entries.map { it.kind })
-        assertEquals(listOf("이벤트", "v6.6 전반 픽업 종료", "심경"), entries.map { it.title })
-        assertEquals(gi.key, entries.first().gameKey)
-        assertEquals(gi.color, entries.first().colorArgb)   // 색은 ARGB Long 으로만 전달(플랫폼이 변환)
+        // 방송 줄은 이 검사의 관심사가 아니다(배너 종료일에서 역산한 별개 값) — 걸러 낸다.
+        val merged = entries.filter { it.kind != "방송" }
+        assertEquals(listOf("이벤트", "패치", "콘텐츠"), merged.map { it.kind })
+        assertEquals(listOf("이벤트", "v6.6 전반 픽업 종료", "심경"), merged.map { it.title })
+        assertEquals(gi.key, merged.first().gameKey)
+        assertEquals(gi.color, merged.first().colorArgb)   // 색은 ARGB Long 으로만 전달(플랫폼이 변환)
     }
 
     @Test
