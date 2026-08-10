@@ -129,23 +129,55 @@ struct NewsPage: View {
     }
 
     /**
-     게임 필터 — **시스템 세그먼티드 컨트롤**(게임일정 페이지의 일정/주년 탭과 같은 것).
+     게임 필터 — 캡슐 트랙 + 선택 알약(`ALL / GI / HSR / ZZZ` 형태).
 
-     항목 폭을 균등 분할하므로 게임이 늘면 글자가 좁아진다. 공지가 있는 게임만 노출하니
-     보통 3~5칸이고, 라벨도 약칭(원신·스타레일·젠레스·명조·엔드필드)이라 들어간다.
+     `Picker(.segmented)` 를 쓰지 않는 이유: 항목 폭을 **균등 분할**해서 게임이 늘수록
+     칸이 좁아지고, 트랙이 화면 폭을 꽉 채워 목록 카드와 붙어 보인다.
+     여기선 라벨을 [Game.abbr] 로 짧게 두고(목록 행의 게임 배지와 같은 표기라 눈으로 이어진다)
+     내용 폭에 맞춰 배치한다. 게임이 더 늘면 가로로 스크롤된다.
+
      Compose 쪽은 기존 GlgChip 을 유지한다 — 각 플랫폼 네이티브 UX 를 따른다.
      */
     @ViewBuilder
     private func gameSegments(_ games: [Game]) -> some View {
-        Picker("게임 선택", selection: $chip) {
-            Text("전체").tag("all")
-            ForEach(games, id: \.key) { g in
-                Text(g.shortName).tag(g.key)
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 4) {
+                segment(label: "ALL", key: "all", tint: nil)
+                ForEach(games, id: \.key) { g in
+                    segment(label: g.abbr, key: g.key, tint: Color(argb64: g.color))
+                }
+            }
+            .padding(4)
+            .background {
+                Capsule().fill(Color(.tertiarySystemFill))
+                    .overlay(Capsule().strokeBorder(GLGColor.divider, lineWidth: 1))
             }
         }
-        .pickerStyle(.segmented)
         // 카드 목록과 붙어 답답해 보여서 위아래로 숨통을 틔운다(위는 네비바 아래 여백).
         .padding(.top, 6)
         .padding(.bottom, 18)
+    }
+
+    /// 세그먼트 한 칸. 선택된 칸만 알약 배경 + 게임색 글자.
+    @ViewBuilder
+    private func segment(label: String, key: String, tint: Color?) -> some View {
+        let on = chip == key
+        Button {
+            // 같은 칸을 다시 누르면 전체로 — 'ALL' 까지 스크롤해 되돌아가지 않아도 되게.
+            withAnimation(.snappy(duration: 0.2)) { chip = (on && key != "all") ? "all" : key }
+        } label: {
+            Text(label)
+                .font(.pretendard(size: 13, weight: .semibold))
+                .foregroundStyle(on ? (tint ?? GLGColor.textPrimary) : GLGColor.textSecondary)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 8)
+                .background {
+                    if on {
+                        Capsule().fill(Color(.secondarySystemGroupedBackground))
+                            .shadow(color: .black.opacity(0.10), radius: 2, y: 1)
+                    }
+                }
+        }
+        .buttonStyle(.plain)
     }
 }
