@@ -294,6 +294,8 @@ struct SwordShape: Shape {
 
 private let glChar = Color(hex: 0xFF5B8DEF)
 private let glWeap = Color(hex: 0xFFE0883B)
+/// 하루(ms) — 남은 시간 강조 기준.
+private let glDayMS: Int64 = 24 * 60 * 60 * 1000
 private let glUrgent = Color(hex: 0xFFE8634A)
 private let glTrack = Color(hex: 0xFFEDEFF3)
 private let glLine = Color(hex: 0xFFE6E7EC)
@@ -613,9 +615,25 @@ private struct EntryCard: View {
                     .padding(.horizontal, 7).padding(.vertical, 2)
                     .background(gc, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
             }
-            if !e.sub.isEmpty {
-                Text(e.sub).font(.pretendard(size: 10.5)).foregroundStyle(GLGColor.textSecondary)
-                    .lineLimit(1).padding(.top, 4)
+            // 남은 시간 — 날짜 노드의 D-N 은 '며칠 남았나'만 알려 주지만, 마감 당일엔 몇 시간이
+            // 남았는지가 실제로 필요한 정보다(D-DAY 만으로는 지금 해야 하는지 판단이 안 된다).
+            // TimelineView 로 1분마다 다시 그린다 — 표시 단위가 '일 시간'이라 초 단위는 과하다.
+            TimelineView(.periodic(from: .now, by: 60)) { ctx in
+                let now = Int64(ctx.date.timeIntervalSince1970 * 1000)
+                let remain = dhLabel(targetMillis: e.target, nowMillis: now)
+                HStack(spacing: 6) {
+                    if !e.sub.isEmpty {
+                        Text(e.sub).font(.pretendard(size: 10.5)).foregroundStyle(GLGColor.textSecondary)
+                            .lineLimit(1)
+                    }
+                    Spacer(minLength: 0)
+                    Text(remain == "종료" ? remain : "\(remain) 남음")
+                        .font(.pretendard(size: 10.5, weight: .bold))
+                        // 하루 안쪽이면 강조 — 오늘 안에 처리해야 하는 것만 눈에 띈다.
+                        .foregroundStyle((e.target - now) > 0 && (e.target - now) <= glDayMS ? glUrgent : GLGColor.textSecondary)
+                        .lineLimit(1)
+                }
+                .padding(.top, 4)
             }
             if !e.pickups.isEmpty {
                 PickupChips(pickups: e.pickups).padding(.top, 9)
