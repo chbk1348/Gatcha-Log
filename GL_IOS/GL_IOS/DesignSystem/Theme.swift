@@ -103,4 +103,20 @@ extension View {
             .environment(\.glgAccent, accent)
             .tint(accent.primary)
     }
+
+    /**
+     얼럿 버튼 색 — 앱 테마 강조색이 아니라 **시스템 파랑**.
+
+     앱 루트의 [glgAccent] 가 `.tint(강조색)` 를 전역으로 깔아서, 테마를 바꾸면 '취소'·'계속'
+     같은 얼럿 버튼까지 그 색으로 물든다. 얼럿은 OS 가 그리는 표준 UI 라 앱 테마를 따를 이유가
+     없고, 파괴적 동작(`role: .destructive`)의 빨강과 테마색이 나란히 놓이면 무엇이 위험한
+     선택인지 흐려진다.
+
+     `UIView.appearance(whenContainedInInstancesOf: [UIAlertController.self])` 로는 안 된다 —
+     SwiftUI 의 `.alert` 은 UIAlertController 를 거치지 않아 appearance proxy 가 닿지 않는다
+     (실제로 적용해 보고 확인). 버튼마다 직접 거는 수밖에 없다.
+
+     `role: .destructive` 버튼에는 붙이지 않는다 — 시스템이 빨강으로 덮는다.
+     */
+    func glgAlertTint() -> some View { tint(Color(.systemBlue)) }
 }
