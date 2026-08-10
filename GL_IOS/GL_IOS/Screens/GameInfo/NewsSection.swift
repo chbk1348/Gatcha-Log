@@ -124,7 +124,8 @@ struct NewsPage: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             if showChips && chipGames.count > 1 {
-                ToolbarItem(placement: .principal) { gameSegments(chipGames) }
+                // 오른쪽 고정 — 가운데(.principal)에 두면 칸 수에 따라 위치가 흔들린다.
+                ToolbarItem(placement: .topBarTrailing) { gameSegments(chipGames) }
                     // 세그먼티드는 자체 배경이 있어 툴바 공유 글래스와 겹치면 바가 두 겹으로 보인다.
                     .glgNoSharedToolbarBackground()
             }
