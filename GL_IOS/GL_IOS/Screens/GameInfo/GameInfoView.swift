@@ -411,7 +411,13 @@ struct GameSchedulePage: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
                 // 페이지 타이틀은 네비게이션 바(뒤로가기 + 타이틀)로 — Android 상세 헤더와 동일 형식.
-                // 일정/주년 전환은 본문이 아니라 **헤더 툴바**에 있다(아래 toolbar 참고).
+                Picker("보기", selection: $tab.animation(.easeInOut(duration: 0.2))) {
+                    Text("일정").tag(0)
+                    Text("주년").tag(1)
+                }
+                .pickerStyle(.segmented)
+                .padding(.bottom, 14)
+
                 if tab == 1 {
                     AnniversaryContent()
                 } else {
@@ -447,23 +453,6 @@ struct GameSchedulePage: View {
         .background(GLGBackground { Color.clear })
         .navigationTitle("게임 일정")
         .navigationBarTitleDisplayMode(.inline)
-        // 일정/주년 전환을 헤더 툴바로 — 본문 첫 줄을 차지하지 않고, 스크롤해도 늘 손에 닿는다.
-        // `.fixedSize()` 로 균등 분할을 끈다(툴바는 폭이 좁아 두 칸이 과하게 벌어진다).
-        .toolbar {
-            ToolbarItem(placement: .primaryAction) {
-                Picker("보기", selection: $tab.animation(.easeInOut(duration: 0.2))) {
-                    // 라벨이 두 글자뿐이라 fixedSize 로는 통이 옹색하다. 좌우 여백을 라벨에 실어
-                    // 칸을 넓힌다(세그먼티드는 라벨 크기를 그대로 칸 폭으로 쓴다).
-                    Text("일정").padding(.horizontal, 22).tag(0)
-                    Text("주년").padding(.horizontal, 22).tag(1)
-                }
-                .pickerStyle(.segmented)
-                .labelsHidden()
-                .fixedSize()
-            }
-            // 세그먼티드는 자체 배경이 있어 툴바 공유 글래스와 겹치면 바가 두 겹으로 보인다.
-            .glgNoSharedToolbarBackground()
-        }
         // 일정 집계는 필터/원본이 바뀔 때만. 예전엔 body 첫 줄에서 5종을 조건 없이 계산해,
         // '주년' 탭을 보고 있어도(그때는 하나도 안 쓰는데) 세그먼트를 누를 때마다 전부 다시 돌았다.
         .task(id: scheduleKey) { sched = Self.buildSchedule(store: store, filter: filter) }
