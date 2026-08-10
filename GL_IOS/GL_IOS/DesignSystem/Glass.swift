@@ -26,6 +26,22 @@ extension View {
         self.background(Color.white, in: shape)
             .overlay(shape.stroke(Color.black.opacity(0.10), lineWidth: 1).allowsHitTesting(false))
     }
+
+    /**
+     **진짜 시스템 글래스** — iOS 26 Liquid Glass(`.glassEffect`), 그 이하 ultraThinMaterial 폴백.
+
+     [glgGlass] 와 용도가 다르다. 그쪽은 전역 유리를 걷어내며 **솔리드 면으로 굳힌 카드 토큰**이고,
+     이건 콘텐츠 위에 떠 있는 컨트롤(필터 바·플로팅 툴바)에 **시스템 재질을 그대로** 입힌다.
+     배치는 우리가 잡되 재질은 OS 것을 쓰므로, 다크모드·대비 증가·투명도 감소 설정이 자동으로 따라온다.
+     */
+    @ViewBuilder
+    func glgSystemGlass<S: Shape>(in shape: S) -> some View {
+        if #available(iOS 26.0, *) {
+            self.glassEffect(.regular, in: shape)
+        } else {
+            self.background(.ultraThinMaterial, in: shape)
+        }
+    }
 }
 
 // ════════════════════════════════════════════════════════════════════════════
