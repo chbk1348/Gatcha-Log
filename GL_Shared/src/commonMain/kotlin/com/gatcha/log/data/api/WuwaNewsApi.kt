@@ -1,10 +1,7 @@
 package com.gatcha.log.data.api
 
 import com.gatcha.log.data.Game
-import com.gatcha.log.data.GameChallenge
-import com.gatcha.log.data.GameEvent
 import com.gatcha.log.json.JSONObject
-import com.gatcha.log.util.currentTimeMillis
 
 /**
  * 명조(워더링 웨이브) 공지 — **Kuro Games 공식 게임 내 공지 CDN**. 인증 불필요.
@@ -26,13 +23,7 @@ internal object WuwaNewsApi {
     /** 다국어 사전에서 한국어 우선, 없으면 영어 → 중문 간체 순. 전부 없으면 빈 문자열. */
     private val LANG_FALLBACK = listOf("ko", "en", "zh-Hans")
 
-    // 공지 종류(`tag`) — 실제 응답을 훑어 확인한 값이다.
-    // 1=일반 공지, 3=이벤트, 4=상점·코스튬, 5=도전, 6=상시 콘텐츠.
-    private const val TAG_EVENT = 3
-    private const val TAG_CHALLENGE = 5
 
-    /** 공지 원본 캐시 수명 — 한 번의 새로고침 안에서 공지·일정이 함께 읽을 만큼만. */
-    private const val CACHE_MS = 60_000L
 
     /**
      * 활성 공지 목록.
@@ -51,63 +42,12 @@ internal object WuwaNewsApi {
         }.getOrNull()
     }
 
-    /**
-     * 게임 일정 — **공지 응답을 그대로 재사용한다**(추가 요청 없음).
-     *
-     * 명조는 ennead 같은 캘린더 API 가 없지만, 공지 항목에 이미 `startTimeMs`/`endTimeMs` 와
-     * 종류(`tag`)가 들어 있다. 게임 안에서 공지·이벤트를 한 채널로 뿌리기 때문이다.
-     *
-     * 진행 중인 것만 담는다 — 끝난 이벤트는 일정에 남을 이유가 없다.
-     *
-     * @return 성공 시 (이벤트, 도전) 쌍, 실패 시 null(호출부가 직전 값 유지).
-     */
-    suspend fun schedule(): Pair<List<GameEvent>, List<GameChallenge>>? {
-        val root = fetchNotice() ?: return null
-        return runCatching {
-            val events = mutableListOf<GameEvent>()
-            val challenges = mutableListOf<GameChallenge>()
-            val now = currentTimeMillis()
-            val arr = root.optJSONArray("game") ?: return@runCatching events to challenges
-            for (i in 0 until arr.length()) {
-                val o = arr.optJSONObject(i) ?: continue
-                val title = oneLineTitle(localized(o.optJSONObject("tabTitle")))
-                val end = o.optLong("endTimeMs")
-                // 한국어가 아니거나(폴백 항목) 이미 끝난 건 넣지 않는다.
-                if (title.isBlank() || !isKoreanNotice(title) || end <= now) continue
-                when (o.optInt("tag")) {
-                    // 이벤트 묶음에도 인게임 이벤트가 아닌 게 섞여 있다("[선행 체험] 기능 안내" 같은
-                    // 기능 소개). 명조 공지는 실제 이벤트면 제목에 '이벤트'를 붙이는 관례라 그걸로 가른다.
-                    // 다른 신호(category)는 공지/그 외 둘로만 나뉘어 변별력이 없다.
-                    TAG_EVENT -> if (title.contains("이벤트")) {
-                        events += GameEvent(Game.WUWA.displayName, title, end)
-                    }
-                    TAG_CHALLENGE -> challenges += GameChallenge(Game.WUWA.displayName, title, "도전", end)
-                    // 나머지는 일정에 넣지 않는다:
-                    //   1=일반 공지, 6=상시 콘텐츠(마감 없음),
-                    //   4=상점·코스튬 — **판매는 이벤트가 아니다.** 호요 캘린더(ennead)도 순수 인게임
-                    //     이벤트만 주는데, 여기에 '기간 한정 할인 출시' 같은 걸 섞으면 게임마다 일정의
-                    //     의미가 달라진다.
-                }
-            }
-            events to challenges
-        }.getOrNull()
-    }
-
-    /**
-     * 공지 원본 — 같은 새로고침 사이클에서 [notices] 와 [schedule] 이 함께 부르므로 **짧게 캐시**한다.
-     * 캐시가 없으면 44KB 응답을 두 번 받는다(내용도 같다).
-     */
+    /** 공지 원본. 네트워크·파싱 실패면 null. */
     private suspend fun fetchNotice(): JSONObject? {
-        val now = currentTimeMillis()
-        cached?.let { (at, body) -> if (now - at < CACHE_MS) return body }
         val res = Net.get(NOTICE_URL)
         if (!res.isOk) return null
-        val root = runCatching { JSONObject(res.body) }.getOrNull() ?: return null
-        cached = now to root
-        return root
+        return runCatching { JSONObject(res.body) }.getOrNull()
     }
-
-    private var cached: Pair<Long, JSONObject>? = null
 
     private fun parse(o: JSONObject?): NewsItem? {
         if (o == null) return null

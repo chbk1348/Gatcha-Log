@@ -33,7 +33,6 @@ import com.gatcha.log.data.api.EnkaApi
 import com.gatcha.log.data.api.EnkaResult
 import com.gatcha.log.data.api.EnneadApi
 import com.gatcha.log.data.api.NewsApi
-import com.gatcha.log.data.api.WuwaNewsApi
 import com.gatcha.log.data.api.NewsArticle
 import com.gatcha.log.data.api.NewsItem
 import com.gatcha.log.data.api.HoyolabApi
@@ -1595,9 +1594,6 @@ class SpendingViewModel : ViewModel() {
                         .map { game -> async(Dispatchers.IO) { EnneadApi.fetch(game) } }
                     // ZZZ 픽업·일정 — ennead zenless 캘린더에서 배너+이벤트+도전 자동(수동 JSON 폐기, 에이전트명 한국어 매핑).
                     val zzzDeferred = async(Dispatchers.IO) { EnneadApi.fetchZzz() }
-                    // 명조 일정 — 캘린더 API 가 없어 **공지 응답에서 뽑는다**(기간·종류가 그 안에 있다).
-                    // 아래 공지 요청과 같은 원본을 보므로 왕복이 늘지 않는다(WuwaNewsApi 가 짧게 캐시).
-                    val wuwaScheduleDeferred = async(Dispatchers.IO) { WuwaNewsApi.schedule() }
                     val noteDeferred = uids.map { (key, uid) ->
                         async(Dispatchers.IO) { HoyolabApi.getLiveNote(cfg.ltuid, cfg.ltoken, key, uid).note }
                     }
@@ -1619,12 +1615,6 @@ class SpendingViewModel : ViewModel() {
                         banners += r.banners
                         events += r.events
                         challenges += r.challenges
-                    }
-                    val wuwa = wuwaScheduleDeferred.await()
-                    if (wuwa == null) partial = true else {
-                        // 배너(픽업)는 없다 — 명조 공지에는 배너 정보가 없다. 이벤트·도전만 들어온다.
-                        calendarLoaded += Game.WUWA.displayName
-                        events += wuwa.first; challenges += wuwa.second
                     }
                     val zzz = zzzDeferred.await()
                     if (zzz == null) partial = true else {
