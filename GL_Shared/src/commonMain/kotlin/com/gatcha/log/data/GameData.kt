@@ -79,7 +79,7 @@ enum class Game(
      * 공지를 어느 API 에서 받는지. 미지원이면 null.
      *
      * 호요버스 3게임만 ennead 로 묶이고, 명조·엔드필드는 게임사별 공식/아카이브 경로를 따로 탄다.
-     * 이환은 공식 사이트가 정적 렌더라 공지 API 자체가 없어 null 이다(캐릭터 데이터만 [NteApi]).
+     * 이환은 공식 사이트가 정적 렌더라 공지 API 자체가 없어 null 이다.
      */
     val newsSource: NewsSource? = null,
 ) {

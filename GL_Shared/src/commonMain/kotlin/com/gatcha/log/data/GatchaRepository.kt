@@ -3,7 +3,6 @@ package com.gatcha.log.data
 import com.gatcha.log.data.api.EnkaResult
 import com.gatcha.log.data.api.NewsItem
 import com.gatcha.log.data.api.NewsSource
-import com.gatcha.log.data.api.NteCharacter
 import com.gatcha.log.json.JSONArray
 import com.gatcha.log.json.JSONObject
 import com.gatcha.log.storage.KeyValueStore
@@ -689,40 +688,6 @@ class GatchaRepository(
             }
         }
 
-    /**
-     * 이환 도감 캐시 읽기 — **받아올 때와 게임 버전이 같을 때만** 쓴다.
-     *
-     * 캐릭터 데이터는 버전당 한 번 바뀌는 정적 자료라 캐시 효과가 크다(21회 왕복을 통째로 아낀다).
-     * 다만 버전이 오르면 신규 캐릭터가 빠진 낡은 목록이 되므로, 그때는 캐시를 버리고 다시 받는다.
-     */
-    fun loadNteCharacters(version: String): List<NteCharacter> {
-        if (prefs.getString(KEY_NTE_CHARS_VER, null) != version) return emptyList()
-        return readList(KEY_NTE_CHARS) { o ->
-            val tags = o.optJSONArray("tags")
-            NteCharacter(
-                id = o.optString("id", ""),
-                name = o.optString("name", ""),
-                rarity = o.optInt("rarity", 0),
-                element = o.optString("element", ""),
-                tags = if (tags == null) emptyList() else (0 until tags.length()).map { tags.optString(it) },
-                desc = o.optString("desc", ""),
-                birthday = o.optString("birthday", ""),
-            )
-        }
-    }
-
-    /** 이환 도감 캐시 저장 — 받아온 게임 버전을 함께 적어 다음 실행 때 유효성을 판단한다. */
-    fun saveNteCharacters(version: String, list: List<NteCharacter>) {
-        writeList(KEY_NTE_CHARS, list) { c ->
-            JSONObject().apply {
-                put("id", c.id); put("name", c.name); put("rarity", c.rarity)
-                put("element", c.element); put("desc", c.desc); put("birthday", c.birthday)
-                put("tags", JSONArray().apply { c.tags.forEach { put(it) } })
-            }
-        }
-        prefs.putString(KEY_NTE_CHARS_VER, version)
-    }
-
     /** 로컬 전용 리스트 캐시 읽기 — 형식이 깨졌으면 조용히 빈 목록(캐시는 없어도 그만이다). */
     private fun <T> readList(key: String, item: (JSONObject) -> T): List<T> {
         val raw = prefs.getString(key, null) ?: return emptyList()
@@ -956,8 +921,6 @@ class GatchaRepository(
         const val KEY_EVENTS = "game_events"      // 로컬 전용(홈 '이번주 일정' 즉시 표출 캐시)
         const val KEY_CHALLENGES = "game_challenges" // 로컬 전용(홈 '이번주 일정' 즉시 표출 캐시)
         const val KEY_NEWS = "game_news"          // 로컬 전용(홈 '게임 소식' 즉시 표출 캐시)
-        const val KEY_NTE_CHARS = "nte_characters"    // 로컬 전용(이환 도감 즉시 표출 캐시)
-        const val KEY_NTE_CHARS_VER = "nte_characters_ver" // 위 캐시를 받아온 게임 버전
 
         /** 공지 캐시 상한 — 홈 카드 3건 + 게임 정보 목록 첫 화면을 덮으면 충분하다. */
         private const val NEWS_CACHE_MAX = 30
