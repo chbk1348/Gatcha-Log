@@ -15,7 +15,6 @@
 		1D250F6F9E0E2AD9495CE146 /* NewsSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 08F1ECE04BB2DA0CB5B2C723 /* NewsSection.swift */; };
 		21D7656AF322C290D874AFFA /* HomeComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 016E2C9FECC1E779E9DFEC65 /* HomeComponents.swift */; };
 		23F844366ABC2775F890F5C8 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2EAD6CB38E6E41AADF430D6E /* SettingsView.swift */; };
-		25C9A8622763DE47007146D7 /* ToolbarGlass.swift in Sources */ = {isa = PBXBuildFile; fileRef = B8AD14BE764545DD7B8B5CD5 /* ToolbarGlass.swift */; };
 		311A9FB837CB5310C4AB5714 /* SpendingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A348DAF50519ABD14014AA0 /* SpendingView.swift */; };
 		39F1A4E784F62CEA98CDDCD1 /* SpendingInsightView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 762960D1C044CF4E4506D38C /* SpendingInsightView.swift */; };
 		3B662407EC4D2EA457E26403 /* GameSegmentControl.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D2F3B501B160FF2E015D19D /* GameSegmentControl.swift */; };
@@ -150,7 +149,6 @@
 		AE2C3F8DE0C369D621CCC112 /* LoginView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginView.swift; sourceTree = "<group>"; };
 		B0AC89C74883ECB4D4534D65 /* Pretendard-Medium.otf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Pretendard-Medium.otf"; sourceTree = "<group>"; };
 		B5ED3CFA3D2AA76242DA2D87 /* HomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeView.swift; sourceTree = "<group>"; };
-		B8AD14BE764545DD7B8B5CD5 /* ToolbarGlass.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToolbarGlass.swift; sourceTree = "<group>"; };
 		B8E1563A89FD1762C317ABC2 /* EnkaCharSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EnkaCharSection.swift; sourceTree = "<group>"; };
 		BF8DB30C236AF02D78678047 /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
 		BFE5396217B0F6A1F487F364 /* GachaCalculatorSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GachaCalculatorSection.swift; sourceTree = "<group>"; };
@@ -393,7 +391,6 @@
 				C6A123A37D43A8A1E98AF768 /* SelectableText.swift */,
 				E167D2DF62218A027D330ECD /* Theme.swift */,
 				CD62F3658FFD16B833EF98AA /* Toast.swift */,
-				B8AD14BE764545DD7B8B5CD5 /* ToolbarGlass.swift */,
 			);
 			path = DesignSystem;
 			sourceTree = "<group>";
@@ -618,7 +615,6 @@
 				EC60C004B10BC14684E3258F /* TaskCompletionSection.swift in Sources */,
 				17991733B1B0EC7204C21DEB /* Theme.swift in Sources */,
 				BF372FCD149E818166E7F9E3 /* Toast.swift in Sources */,
-				25C9A8622763DE47007146D7 /* ToolbarGlass.swift in Sources */,
 				A7BFA61A876C89B76798AD9A /* iOSApp.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

@@ -101,6 +101,9 @@ struct NewsPage: View {
         let chipGames = GLGGames.all.filter { g in headerFiltered.contains { $0.game == g.displayName } }
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
+                if showChips && chipGames.count > 1 {
+                    gameSegments(chipGames).padding(.bottom, 14)
+                }
                 if all.isEmpty {
                     Text("공지가 없어요").font(.pretendard(size: 13)).foregroundStyle(GLGColor.textSecondary).padding(.vertical, 24)
                 } else {
@@ -118,32 +121,19 @@ struct NewsPage: View {
         }
         .scrollIndicators(.hidden)
         .background(GLGBackground { Color.clear })
-        // 페이지 타이틀을 비운다 — 뒤로가기만 남기고 그 폭을 세그먼티드에 내준다.
-        // 어느 페이지인지는 들어온 경로(공지 섹션의 '더보기')로 분명하다.
-        .navigationTitle("")
+        .navigationTitle("공지·뉴스")
         .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            if showChips && chipGames.count > 1 {
-                // 오른쪽 고정 — 가운데(.principal)에 두면 칸 수에 따라 위치가 흔들린다.
-                ToolbarItem(placement: .topBarTrailing) { gameSegments(chipGames) }
-                    // 세그먼티드는 자체 배경이 있어 툴바 공유 글래스와 겹치면 바가 두 겹으로 보인다.
-                    .glgNoSharedToolbarBackground()
-            }
-        }
         .navigationDestination(isPresented: $showDetail) {
             if let n = selectedNews { NewsDetailView(store: store, item: n) }
         }
     }
 
     /**
-     게임 필터 — 헤더 툴바의 시스템 세그먼티드([Picker] `.segmented`).
+     게임 필터 — 본문 상단의 시스템 세그먼티드([Picker] `.segmented`).
 
-     본문에 두고 캡슐을 직접 그리다가 참고 앱(pizza-studio/PizzaHelperUnited, MIT)의
-     Today 페이지를 보고 바로잡았다. 유리처럼 보이던 재질도 위아래가 넉넉해 보이던 높이도
-     **커스텀이 아니라 시스템 세그먼티드가 툴바에 놓여서** 나오는 것이었다.
-
-     타이틀 자리(`.principal`)에 놓고 페이지 타이틀은 비웠다 — 게임이 6개라 뒤로가기 옆
-     좁은 폭으로는 라벨이 뭉개진다.
+     툴바로 올리고 캡슐을 직접 그리는 등 여러 배치를 시도했지만, 게임일정 페이지와 같은
+     **기본형(본문 최상단 세그먼티드)** 으로 통일했다. 화면 폭을 그대로 쓰므로 칸이 늘어도
+     여유가 있고, 툴바 공유 글래스와 겹칠 일도 없다.
 
      게임 라벨은 [Game.abbr] 다. `shortName`(원신·스타레일·젠레스·명조·엔드필드)은 6칸에
      넣으면 너무 길고, 그보다 짧은 한국어 표기가 없다. 약칭은 **목록 행의 게임 배지와 같은
