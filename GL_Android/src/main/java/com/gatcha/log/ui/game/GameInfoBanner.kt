@@ -2,13 +2,10 @@ package com.gatcha.log.ui.game
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ChevronRight
-import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
@@ -31,8 +28,6 @@ import com.gatcha.log.data.PatchInfo
 import com.gatcha.log.ui.components.BannerSkeleton
 import com.gatcha.log.ui.components.GlassCard
 import com.gatcha.log.ui.theme.DividerColor
-import com.gatcha.log.ui.theme.LocalAccent
-import com.gatcha.log.ui.theme.TextPrimary
 import com.gatcha.log.ui.theme.TextSecondary
 
 // ============================================================ 통합 게임 탭 (배너·전투·일지)
@@ -45,8 +40,6 @@ fun GameTabbedSection(
     isRefreshing: Boolean,
     filter: String = "all",
     linked: Boolean = true,
-    /** '어떤 캐릭터로 깼는지' 상세 페이지 진입. null 이면 진입 행을 숨긴다. */
-    onOpenClears: (() -> Unit)? = null,
 ) {
     val games = GameData.attendanceGames // 원신·스타레일·젠레스
     val shown = if (filter == "all") games else games.filter { it.key == filter }
@@ -65,10 +58,11 @@ fun GameTabbedSection(
             }
             else -> {
                 if (combatGames.isNotEmpty()) GameContentBlock("전투 콘텐츠 진행도") {
+                    // 여기 있던 '클리어 편성' 진입 행은 걷어냈다 — 데일리 카드로 꺼내면서
+                    // 이 줄을 그대로 두는 바람에 **같은 진입점이 두 화면에 나란히** 보였다.
+                    // 진입은 데일리 카드 한 곳(GameInfoAttendance 의 GameContentEntry)으로 모은다.
                     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         combatGames.forEach { (g, c) -> CombatGameCard(g, c) }
-                        // 진행도(몇 별인가) 바로 아래에 편성(누구로 깼나) 진입 — 같은 맥락이라 여기 둔다.
-                        if (onOpenClears != null) ClearEntryRow(onOpenClears)
                     }
                 }
                 if (ledgerList.isNotEmpty()) GameContentBlock("이번 달 수입 일지") {
@@ -89,28 +83,5 @@ private fun GameContentBlock(label: String, content: @Composable () -> Unit) {
     }
 }
 
-
-/**
- * '어떤 캐릭터로 깼는지' 진입 행 — 전투 진행도 카드 바로 아래.
- *
- * 진행도(몇 별)와 편성(누구로)은 같은 데이터에서 나오지만 보는 목적이 다르다.
- * 편성은 층마다 8명씩 붙어 세로로 길어지므로 별도 페이지로 뺀다.
- */
-@Composable
-private fun ClearEntryRow(onClick: () -> Unit) {
-    val accent = LocalAccent.current
-    GlassCard(shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth().clickable { onClick() }) {
-        Row(Modifier.padding(horizontal = 16.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
-            Box(
-                Modifier.size(38.dp).clip(RoundedCornerShape(12.dp)).background(accent.copy(alpha = 0.12f)),
-                contentAlignment = Alignment.Center,
-            ) { Icon(Icons.Default.Groups, null, tint = accent, modifier = Modifier.size(20.dp)) }
-            Spacer(Modifier.width(12.dp))
-            Column(Modifier.weight(1f)) {
-                Text("클리어 편성", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TextPrimary, maxLines = 1)
-                Text("나선 비경·혼돈의 기억을 어떤 캐릭터로 깼는지", fontSize = 11.sp, color = TextSecondary, maxLines = 1)
-            }
-            Icon(Icons.Default.ChevronRight, null, tint = TextSecondary, modifier = Modifier.size(18.dp))
-        }
-    }
-}
+// '클리어 편성' 진입 행(ClearEntryRow)은 여기 있었다. 진입점을 데일리 카드 한 곳으로 모으면서
+// 호출부가 사라졌고, iOS 도 같은 이유로 걷어냈다(GameTabbedSection.swift).
