@@ -15,6 +15,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.filled.PlayCircleOutline
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
@@ -25,6 +26,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -395,12 +397,20 @@ private fun DayNode(d: ScheduleDay, isLast: Boolean, now: Long) {
 @Composable
 private fun EntryCard(e: ScheduleEntry, now: Long) {
     val gc = e.colorArgb.toColor()
+    // 방송 줄만 바깥으로 나간다(공식 채널 라이브 탭). 나머지 일정은 눌러도 갈 곳이 없다.
+    val uriHandler = LocalUriHandler.current
+    val clickable = if (e.linkUrl.isNotBlank()) {
+        Modifier.clickable { runCatching { uriHandler.openUri(e.linkUrl) } }
+    } else {
+        Modifier
+    }
     Column(
         Modifier.fillMaxWidth()
             .clip(RoundedCornerShape(14.dp))
             .background(Color.White)
             // 아웃라인에 게임색 — 타임라인에서 어느 게임 일정인지 배지를 읽기 전에 구분된다.
             .border(1.dp, gc.copy(alpha = 0.35f), RoundedCornerShape(14.dp))
+            .then(clickable)
             .padding(horizontal = 12.dp, vertical = 10.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
@@ -415,6 +425,13 @@ private fun EntryCard(e: ScheduleEntry, now: Long) {
                 e.title, fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = TextPrimary,
                 maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f),
             )
+            // 나갈 수 있는 줄이라는 표시. 배지 색만으로는 '눌러도 되는지'가 드러나지 않는다.
+            if (e.linkUrl.isNotBlank()) {
+                Icon(
+                    Icons.Default.PlayCircleOutline, "채널 열기",
+                    tint = scheduleKindColor(e.kind), modifier = Modifier.size(15.dp),
+                )
+            }
             Surface(color = gc, shape = RoundedCornerShape(6.dp)) {
                 Text(
                     e.gameShort, fontSize = 9.5.sp, fontWeight = FontWeight.Bold, color = Color.White,

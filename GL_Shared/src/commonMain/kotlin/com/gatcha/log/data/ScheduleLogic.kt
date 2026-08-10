@@ -20,7 +20,7 @@ data class ScheduleEntry(
     val gameShort: String,
     /** 게임 대표색 ARGB(0xAARRGGBB). */
     val colorArgb: Long,
-    val kind: String,        // "패치" | "이벤트" | "콘텐츠"
+    val kind: String,        // "패치" | "이벤트" | "콘텐츠" | "방송"
     val title: String,
     val sub: String,
     val target: Long,
@@ -28,6 +28,8 @@ data class ScheduleEntry(
     val isStart: Boolean,
     /** 이 줄이 픽업 페이즈 종료일 때 그 페이즈의 픽업들(타임라인 칩용). 그 외엔 빈 목록. */
     val pickups: List<GachaBanner> = emptyList(),
+    /** 눌렀을 때 열 외부 주소. 비어 있으면 누를 수 없는 줄이다(방송 줄만 채운다). */
+    val linkUrl: String = "",
 ) {
     /** 남은 일수(올림). 음수면 지남. */
     fun dDay(nowMillis: Long = currentTimeMillis()): Int =
@@ -96,6 +98,8 @@ object ScheduleLogic {
     fun kindColorArgb(kind: String): Long = when (kind) {
         "패치" -> 0xFF6C8AE4
         "이벤트" -> 0xFFE0A93B
+        // 방송은 유튜브로 나가는 유일한 줄이라 다른 것과 확실히 갈라 둔다.
+        "방송" -> 0xFFE0504A
         else -> 0xFF2BB673
     }
 
@@ -110,6 +114,7 @@ object ScheduleLogic {
         banners: List<GachaBanner>,
         events: List<GameEvent>,
         challenges: List<GameChallenge>,
+        nowMillis: Long = currentTimeMillis(),
     ): List<ScheduleEntry> {
         val out = mutableListOf<ScheduleEntry>()
         // ① 픽업 페이즈
@@ -147,6 +152,22 @@ object ScheduleLogic {
         for (ch in challenges) {
             val g = GameData.byNameOrNull(ch.game)
             out += ScheduleEntry(g?.key ?: ch.game, g?.shortName ?: ch.game, ch.gameColor, "콘텐츠", ch.name, ch.reward, ch.endMillis, false)
+        }
+        // ④ 버전 특별 방송 — 다른 줄이 '언제 끝나나'라면 이건 '언제 새 소식이 오나'다.
+        //    일시를 주는 API 가 없어 버전 시작일에서 역산한 **예상**이다([BroadcastSchedule]).
+        for (b in BroadcastSchedule.next(banners, nowMillis)) {
+            out += ScheduleEntry(
+                gameKey = b.gameKey,
+                gameShort = b.gameShort,
+                colorArgb = b.colorArgb,
+                kind = "방송",
+                title = "버전 특별 방송",
+                // 예상이라는 사실을 줄 안에서 말한다 — 화면마다 따로 붙이면 한쪽이 빠진다.
+                sub = if (b.isEstimate) "예상 · 공식 채널에서 생중계" else "공식 채널에서 생중계",
+                target = b.targetMillis,
+                isStart = true,   // 종료가 아니라 시작하는 일정이다(날짜 접두가 '~까지'가 되면 안 된다)
+                linkUrl = b.liveUrl,
+            )
         }
         return out.sortedBy { it.target }
     }
@@ -190,7 +211,10 @@ object ScheduleLogic {
         filter: String,
         nowMillis: Long = currentTimeMillis(),
     ): ScheduleSummary {
-        val ent = filteredEntries(entries, filter)
+        // 방송은 **끝나는 일정이 아니라 시작하는 일정**이라 세 칸 어디에도 들지 않는다.
+        // '이번 주 마감'에 넣으면 마감이 아닌 걸 마감으로 세고, '이벤트·콘텐츠'에 넣으면
+        // 게임 안에서 할 거리를 세는 칸에 방송이 섞인다.
+        val ent = filteredEntries(entries, filter).filter { it.kind != "방송" }
         return ScheduleSummary(
             weekDeadlines = ent.count { it.dDay(nowMillis) in 0..7 },
             activePickups = filteredPickups(banners, filter).size,
