@@ -352,7 +352,7 @@ struct GameScheduleSection: View {
     @Environment(\.glgAccent) private var accent
 
     var body: some View {
-        let lines = ScheduleLogic.shared.gameLines(banners: banners, filter: filter, nowMillis: nowMs())
+        let lines = ScheduleLogic.shared.gameLines(banners: banners, entries: entries, filter: filter, nowMillis: nowMs())
         let summary = ScheduleLogic.shared.summarize(banners: banners, entries: entries, filter: filter, nowMillis: nowMs())
         VStack(alignment: .leading, spacing: 0) {
             Text("게임 일정").font(.pretendard(size: 16, weight: .bold)).padding(.bottom, 4)

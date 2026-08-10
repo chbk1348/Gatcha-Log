@@ -131,7 +131,7 @@ fun GameScheduleSection(
     onSeeAll: () -> Unit,
 ) {
     val accent = LocalAccent.current
-    val lines = ScheduleLogic.gameLines(banners, filter)
+    val lines = ScheduleLogic.gameLines(banners, entries, filter)
     val summary = ScheduleLogic.summarize(banners, entries, filter)
     Text("게임 일정", fontSize = 16.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 2.dp, bottom = 4.dp))
     Text("픽업 배너와 이벤트 마감을 한곳에서.", fontSize = 11.sp, color = TextSecondary, modifier = Modifier.padding(start = 2.dp, bottom = 12.dp))
