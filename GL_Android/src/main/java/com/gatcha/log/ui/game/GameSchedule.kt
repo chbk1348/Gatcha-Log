@@ -1,5 +1,11 @@
 package com.gatcha.log.ui.game
 
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -21,6 +27,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
@@ -34,6 +41,8 @@ import com.gatcha.log.data.DateUtil
 import com.gatcha.log.data.GachaBanner
 import com.gatcha.log.data.GameChallenge
 import com.gatcha.log.data.GameEvent
+import com.gatcha.log.data.hmsLabel
+import com.gatcha.log.data.isImminent
 import com.gatcha.log.data.dhLabel
 import com.gatcha.log.util.currentTimeMillis
 import kotlinx.coroutines.delay
@@ -64,8 +73,24 @@ import com.gatcha.log.ui.theme.toColor
 // 여기엔 Compose 렌더링과 ARGB→Color 변환만 남는다.
 // ============================================================
 
-/** 하루(ms) — 남은 시간 강조 기준. */
-private const val DAY_MS = 24L * 60 * 60 * 1000
+/**
+ * 마감 임박 표시의 '사이렌' — 알파를 천천히 오가게 해 시선을 끈다.
+ *
+ * 색을 번갈아 칠하거나 크기를 키우는 방법도 있지만, 매초 숫자가 바뀌는 글자에 그걸 얹으면
+ * 흔들려 읽기 어렵다. 알파만 움직이면 글자 위치·폭이 그대로라 카운트다운을 읽는 데 방해가 없다.
+ * 0.45 아래로는 내리지 않는다 — 사라졌다 나타나는 것처럼 보이면 경고가 아니라 결함처럼 읽힌다.
+ */
+@Composable
+private fun Modifier.sirenPulse(): Modifier {
+    val transition = rememberInfiniteTransition(label = "siren")
+    val alpha by transition.animateFloat(
+        initialValue = 1f,
+        targetValue = 0.45f,
+        animationSpec = infiniteRepeatable(tween(650, easing = LinearEasing), RepeatMode.Reverse),
+        label = "sirenAlpha",
+    )
+    return this.alpha(alpha)
+}
 
 private fun scheduleKindColor(kind: String): Color = ScheduleLogic.kindColorArgb(kind).toColor()
 
@@ -226,24 +251,30 @@ fun GameScheduleFullContent(
         TodayMarker()
         Spacer(Modifier.height(14.dp))
         // 남은 시간 갱신 기준 시각 — 카드마다 타이머를 두지 않고 여기서 한 번만 돌린다.
-        val now = rememberScheduleNow()
+        // 24시간 안쪽 일정이 하나라도 있으면 초 단위로, 아니면 분 단위로 돈다.
+        val hasImminent = remember(days) {
+            days.any { d -> d.entries.any { isImminent(it.target) } }
+        }
+        val now = rememberScheduleNow(fast = hasImminent)
         days.forEachIndexed { i, d -> DayNode(d, isLast = i == days.lastIndex, now = now) }
     }
 }
 
 /**
- * 남은 시간 표시용 현재 시각 — **1분마다** 갱신한다.
+ * 남은 시간 표시용 현재 시각.
  *
- * 표시 단위가 '일 시간'이라 초 단위로 돌 이유가 없다. 1분이면 '3일 5시간'이 바뀌는 순간을
- * 늦어도 1분 안에 따라잡으면서, 화면이 떠 있는 동안의 재구성은 시간당 60번으로 묶인다.
+ * @param fast 초 단위로 갱신할지. 24시간 안쪽 일정이 있을 때만 켠다 — 며칠 남은 일정에
+ *   초를 세어 봐야 화면은 그대로인데 재구성만 60배로 늘어난다.
+ *
  * 화면을 벗어나면 코루틴이 취소되므로 백그라운드에서는 돌지 않는다.
  */
 @Composable
-private fun rememberScheduleNow(): Long {
+private fun rememberScheduleNow(fast: Boolean): Long {
     var now by remember { mutableStateOf(currentTimeMillis()) }
-    LaunchedEffect(Unit) {
+    LaunchedEffect(fast) {
+        val period = if (fast) 1_000L else 60_000L
         while (true) {
-            delay(60_000L)
+            delay(period)
             now = currentTimeMillis()
         }
     }
@@ -393,7 +424,9 @@ private fun EntryCard(e: ScheduleEntry, now: Long) {
         }
         // 남은 시간 — 날짜 노드의 D-N 은 '며칠 남았나'만 알려 주지만, 마감 당일엔 몇 시간이
         // 남았는지가 실제로 필요한 정보다(D-DAY 만으로는 지금 해야 하는지 판단이 안 된다).
-        val remain = dhLabel(e.target, now)
+        // 24시간 안쪽이면 초까지 세고 사이렌처럼 명멸시킨다.
+        val imminent = isImminent(e.target, now)
+        val remain = if (imminent) hmsLabel(e.target, now) else dhLabel(e.target, now)
         Spacer(Modifier.height(4.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
             if (e.sub.isNotBlank()) {
@@ -404,9 +437,9 @@ private fun EntryCard(e: ScheduleEntry, now: Long) {
             Text(
                 if (remain == "종료") remain else "$remain 남음",
                 fontSize = 10.5.sp, fontWeight = FontWeight.Bold,
-                // 하루 안쪽이면 강조 — 오늘 안에 처리해야 하는 것만 눈에 띈다.
-                color = if (e.target - now in 1..DAY_MS) Urgent else TextSecondary,
+                color = if (imminent) Urgent else TextSecondary,
                 maxLines = 1,
+                modifier = if (imminent) Modifier.sirenPulse() else Modifier,
             )
         }
         if (e.pickups.isNotEmpty()) {

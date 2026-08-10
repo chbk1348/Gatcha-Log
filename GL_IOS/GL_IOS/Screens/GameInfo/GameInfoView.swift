@@ -294,9 +294,41 @@ struct SwordShape: Shape {
 
 private let glChar = Color(hex: 0xFF5B8DEF)
 private let glWeap = Color(hex: 0xFFE0883B)
-/// 하루(ms) — 남은 시간 강조 기준.
-private let glDayMS: Int64 = 24 * 60 * 60 * 1000
 private let glUrgent = Color(hex: 0xFFE8634A)
+
+/// 현재 시각(ms) — 공유 로직(`isImminent`·`hmsLabel`)과 같은 단위로 맞춘다.
+private func nowMS() -> Int64 { Int64(Date().timeIntervalSince1970 * 1000) }
+
+private extension View {
+    /**
+     마감 임박 표시의 '사이렌' — 투명도를 천천히 오가게 해 시선을 끈다.
+
+     색을 번갈아 칠하거나 크기를 키우는 방법도 있지만, 매초 숫자가 바뀌는 글자에 그걸 얹으면
+     흔들려 읽기 어렵다. 투명도만 움직이면 글자 위치·폭이 그대로라 카운트다운을 읽는 데 방해가 없다.
+     0.45 아래로는 내리지 않는다 — 사라졌다 나타나는 것처럼 보이면 경고가 아니라 결함처럼 읽힌다.
+
+     ⚠️ `active` 가 false 면 애니메이션을 아예 걸지 않는다. `repeatForever` 는 값이 안 바뀌어도
+     계속 돌기 때문에, 임박하지 않은 카드까지 붙이면 화면 전체가 쉬지 않고 다시 그려진다.
+     */
+    @ViewBuilder
+    func sirenPulse(active: Bool) -> some View {
+        if active {
+            self.modifier(GLGSirenPulse())
+        } else {
+            self
+        }
+    }
+}
+
+private struct GLGSirenPulse: ViewModifier {
+    @State private var dim = false
+    func body(content: Content) -> some View {
+        content
+            .opacity(dim ? 0.45 : 1)
+            .animation(.easeInOut(duration: 0.65).repeatForever(autoreverses: true), value: dim)
+            .onAppear { dim = true }
+    }
+}
 private let glTrack = Color(hex: 0xFFEDEFF3)
 private let glLine = Color(hex: 0xFFE6E7EC)
 private let glCollab = Color(hex: 0xFF6D5AE6)
@@ -617,10 +649,17 @@ private struct EntryCard: View {
             }
             // 남은 시간 — 날짜 노드의 D-N 은 '며칠 남았나'만 알려 주지만, 마감 당일엔 몇 시간이
             // 남았는지가 실제로 필요한 정보다(D-DAY 만으로는 지금 해야 하는지 판단이 안 된다).
-            // TimelineView 로 1분마다 다시 그린다 — 표시 단위가 '일 시간'이라 초 단위는 과하다.
-            TimelineView(.periodic(from: .now, by: 60)) { ctx in
+            // 24시간 안쪽이면 초까지 세고 사이렌처럼 명멸시킨다.
+            //
+            // 갱신 주기를 항목마다 나눈다 — 며칠 남은 일정에 초를 세어 봐야 화면은 그대로인데
+            // 다시 그리는 횟수만 60배가 된다. TimelineView 는 시스템이 라이프사이클을 관리하므로
+            // 화면을 벗어나면 알아서 멈춘다.
+            TimelineView(.periodic(from: .now, by: isImminent(targetMillis: e.target, nowMillis: nowMS()) ? 1 : 60)) { ctx in
                 let now = Int64(ctx.date.timeIntervalSince1970 * 1000)
-                let remain = dhLabel(targetMillis: e.target, nowMillis: now)
+                let imminent = isImminent(targetMillis: e.target, nowMillis: now)
+                let remain = imminent
+                    ? hmsLabel(targetMillis: e.target, nowMillis: now)
+                    : dhLabel(targetMillis: e.target, nowMillis: now)
                 HStack(spacing: 6) {
                     if !e.sub.isEmpty {
                         Text(e.sub).font(.pretendard(size: 10.5)).foregroundStyle(GLGColor.textSecondary)
@@ -629,9 +668,9 @@ private struct EntryCard: View {
                     Spacer(minLength: 0)
                     Text(remain == "종료" ? remain : "\(remain) 남음")
                         .font(.pretendard(size: 10.5, weight: .bold))
-                        // 하루 안쪽이면 강조 — 오늘 안에 처리해야 하는 것만 눈에 띈다.
-                        .foregroundStyle((e.target - now) > 0 && (e.target - now) <= glDayMS ? glUrgent : GLGColor.textSecondary)
+                        .foregroundStyle(imminent ? glUrgent : GLGColor.textSecondary)
                         .lineLimit(1)
+                        .sirenPulse(active: imminent)
                 }
                 .padding(.top, 4)
             }
