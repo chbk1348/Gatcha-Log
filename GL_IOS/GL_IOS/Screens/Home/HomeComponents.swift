@@ -323,7 +323,8 @@ struct DashboardNewsCard: View {
     @Environment(\.glgAccent) private var accent
     var body: some View {
         let anni = anniversaries.first { $0.daysUntil <= 60 }
-        let topNews = Array(news.sorted { $0.createdAtMillis > $1.createdAtMillis }.prefix(2))
+        // 홈은 2건뿐이라 최신순으로 자르면 한 게임이 둘 다 먹기 쉽다 — 게임을 번갈아 뽑는다(공용 로직).
+        let topNews = NewsLogic.shared.previewTop(news: news, max: 2)
         return Group {
             if anni != nil || !topNews.isEmpty {
                 if titleOutside {

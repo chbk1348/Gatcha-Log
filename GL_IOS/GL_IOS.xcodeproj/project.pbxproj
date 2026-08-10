@@ -63,6 +63,7 @@
 		D29010B2FCC6ADC85F2CC6E8 /* HoyolandSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = E487840A2C618D74E853EFC7 /* HoyolandSection.swift */; };
 		D3C86098452712BF2EF2F566 /* HomeRedesign.swift in Sources */ = {isa = PBXBuildFile; fileRef = D68A3D0581AB9E49D5412A97 /* HomeRedesign.swift */; };
 		D518B6D75F70EEA8A1332D03 /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = 27054819557D026D9CB4FE7D /* GoogleService-Info.plist */; };
+		DA57603D203201D06E454373 /* NteCharSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB8952A8E149F71F05F27890 /* NteCharSection.swift */; };
 		E04926A07296AA0D760F37A8 /* GLGSkeleton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 716CDDC7D2BB3BEC9580864E /* GLGSkeleton.swift */; };
 		E137594B42AFFB5CE2A94CCD /* PretendardFont.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16C6E97312A4E81D64EB90F4 /* PretendardFont.swift */; };
 		E384711C3477C7DAD49E2A01 /* MyPageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1B20A3BE3C43A7ADDFEB789 /* MyPageView.swift */; };
@@ -150,6 +151,7 @@
 		B0AC89C74883ECB4D4534D65 /* Pretendard-Medium.otf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Pretendard-Medium.otf"; sourceTree = "<group>"; };
 		B5ED3CFA3D2AA76242DA2D87 /* HomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeView.swift; sourceTree = "<group>"; };
 		B8E1563A89FD1762C317ABC2 /* EnkaCharSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EnkaCharSection.swift; sourceTree = "<group>"; };
+		BB8952A8E149F71F05F27890 /* NteCharSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NteCharSection.swift; sourceTree = "<group>"; };
 		BF8DB30C236AF02D78678047 /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
 		BFE5396217B0F6A1F487F364 /* GachaCalculatorSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GachaCalculatorSection.swift; sourceTree = "<group>"; };
 		C3BE8BD3C2DD8BC4F707DE6D /* SpendingStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpendingStore.swift; sourceTree = "<group>"; };
@@ -234,6 +236,7 @@
 				E487840A2C618D74E853EFC7 /* HoyolandSection.swift */,
 				FAB28B37B0E20AFF6F250226 /* NewsDetailView.swift */,
 				08F1ECE04BB2DA0CB5B2C723 /* NewsSection.swift */,
+				BB8952A8E149F71F05F27890 /* NteCharSection.swift */,
 				85473AA00EECC1459C27D0DB /* TaskCompletionSection.swift */,
 			);
 			path = GameInfo;
@@ -598,6 +601,7 @@
 				1D250F6F9E0E2AD9495CE146 /* NewsSection.swift in Sources */,
 				F937497C109F642AB75D1979 /* NotificationPermission.swift in Sources */,
 				90E8A999D475D408D16A1403 /* NotificationSettingsView.swift in Sources */,
+				DA57603D203201D06E454373 /* NteCharSection.swift in Sources */,
 				4555A80BB2A3E811ABE1E7B6 /* OnboardingView.swift in Sources */,
 				66655B48380F2D5C59045C50 /* PerfSignpost.swift in Sources */,
 				808FA397C7B307AA83931954 /* PillField.swift in Sources */,
@@ -791,6 +795,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = com.gatcha.log.ios;
 				PRODUCT_NAME = "Gatcha-Log";
 				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "$(inherited) EXPERIMENT";
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
 			name = Release;
@@ -875,6 +880,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = com.gatcha.log.ios;
 				PRODUCT_NAME = "Gatcha-Log";
 				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "$(inherited) EXPERIMENT";
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
 			name = Debug;

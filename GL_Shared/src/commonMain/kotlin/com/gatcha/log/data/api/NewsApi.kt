@@ -42,6 +42,29 @@ data class NewsItem(
     val bodyRef: String = "",
 )
 
+/**
+ * 공지 제목 한 줄로 정리 — 목록 행은 2줄까지만 보여 주므로 원문 줄바꿈이 그대로 오면 잘린다.
+ *
+ * 명조·엔드필드는 제목에 줄바꿈을 넣어 부제를 다는데, **엔드필드는 그게 실제 개행이 아니라
+ * 백슬래시+n 두 글자로 들어오는 항목이 섞여 있다**(같은 응답 안에서도 제각각이다).
+ * 그대로 두면 목록에 `전쟁의 메아리\n섬망의 회상` 처럼 이스케이프가 노출된다.
+ */
+internal fun oneLineTitle(raw: String): String =
+    raw.replace("\\n", " ").replace('\n', ' ').replace('\r', ' ')
+        .split(' ').filter { it.isNotEmpty() }.joinToString(" ")
+
+/**
+ * 한국어 공지인지 — **제목에 한글이 한 글자라도 있으면** 한국어로 본다.
+ *
+ * 게임사가 ko 로 달라고 해도 번역이 안 끝난 항목은 원문(영/중)이 그대로 섞여 온다
+ * (엔드필드 `Known Issues Notice`, 명조의 지역 한정 공지 등). 읽을 수 없는 글이
+ * 목록 자리를 차지하면 정작 볼 공지가 밀리므로 받아올 때 걸러 낸다.
+ *
+ * 판정을 '한글 포함'으로 느슨하게 둔 이유: 한국어 공지도 제목 절반이 영문 고유명사인 경우가
+ * 흔하다(`Discord 게임 통계 위젯 지원!`). 비율로 재면 이런 정상 공지가 같이 떨어진다.
+ */
+internal fun isKoreanNotice(title: String): Boolean = title.any { it in '가'..'힣' }
+
 /** 공지 본문 블록 — 문단과 이미지가 원문 순서대로 섞여 있다. */
 sealed interface NewsBlock {
     data class Text(val text: String) : NewsBlock
@@ -79,7 +102,8 @@ object NewsApi {
             (0 until arr.length()).mapNotNull { i ->
                 val o = arr.optJSONObject(i) ?: return@mapNotNull null
                 val title = o.optString("title")
-                if (title.isBlank()) return@mapNotNull null
+                // ko-kr 로 요청해도 번역 전 원문이 섞여 오는 건 게임사 공통이다(엔드필드·명조와 같은 규칙).
+                if (title.isBlank() || !isKoreanNotice(title)) return@mapNotNull null
                 NewsItem(
                     game = game.displayName,
                     id = o.optString("id"),

@@ -34,15 +34,16 @@ internal object EndfieldNewsApi {
         val list = fetchList() ?: return null
         return list.mapNotNull { o ->
             val cid = o.optString("cid").trim()
-            val title = o.optString("title").trim()
-            if (cid.isBlank() || title.isBlank()) return@mapNotNull null
+            val title = oneLineTitle(o.optString("title"))
+            // 번역이 안 끝난 원문(영/중) 공지는 뺀다 — ko-kr 로 요청해도 섞여 온다.
+            if (cid.isBlank() || title.isBlank() || !isKoreanNotice(title)) return@mapNotNull null
             NewsItem(
                 game = Game.ENDFIELD.displayName,
                 id = cid,
                 title = title,
                 createdAtMillis = o.optLong("startAt") * 1000, // 초 단위로 온다
                 bannerUrl = o.optJSONObject("data")?.optString("url").orEmpty(),
-                url = "",   // 공개 퍼머링크 없음(게임 내 공지)
+                url = externalLink(o.optJSONObject("data")),
                 summary = o.optString("header"),
                 source = NewsSource.ENDFIELD,
                 bodyRef = cid,
@@ -56,16 +57,33 @@ internal object EndfieldNewsApi {
         val target = fetchList()?.firstOrNull { it.optString("cid") == cid } ?: return null
         val data = target.optJSONObject("data") ?: return null
 
-        // displayType=picture 인 항목은 본문 HTML 이 없고 이미지 한 장이 전부다.
+        // displayType=picture 인 항목(31건 중 8건)은 **본문 HTML 이 아예 없다** — 게임 안에서도
+        // 배너 이미지 한 장으로 끝나는 공지다. 이미지 + 머리말을 본문 삼아 보여준다.
+        // 머리말은 [item] 이 아니라 원본에서 읽는다 — 캐시를 거쳐 온 항목은 summary 가 잘려 있다.
         val html = data.optString("html")
         val blocks = if (html.isNotBlank()) HtmlNews.toBlocks(html) else buildList {
             val image = data.optString("url")
             if (image.isNotBlank()) add(NewsBlock.Image(image))
-            val header = item.summary.trim()
+            val header = target.optString("header").trim().ifEmpty { item.summary.trim() }
             if (header.isNotEmpty()) add(NewsBlock.Text(header))
+            // 8건 중 7건은 머리말조차 없다. 이미지 한 장만 덜렁 있으면 '본문이 안 나온 것'처럼 보이므로
+            // 원래 그런 공지라고 알려 준다(상세 헤더의 브라우저 버튼이 [externalLink] 로 살아 있다).
+            if (header.isEmpty()) add(NewsBlock.Text("이 공지는 이미지로만 제공돼요."))
         }
         if (blocks.isEmpty()) return null
-        return NewsArticle(title = target.optString("title").ifBlank { item.title }, blocks = blocks)
+        return NewsArticle(title = oneLineTitle(target.optString("title")).ifBlank { item.title }, blocks = blocks)
+    }
+
+    /**
+     * 항목의 바깥 링크 — 없으면 빈 문자열(그러면 상세 헤더의 공유·브라우저 버튼이 안 뜬다).
+     *
+     * `picture` 항목은 본문이 없고 이 링크로 넘기는 게 전부라, 이걸 살려야 사용자가 갈 곳이 생긴다.
+     * 다만 `?u8_token={u8_token}&server={server}` 처럼 **게임 클라이언트가 채워 넣는 자리표시자**가
+     * 박힌 링크는 그대로 열어도 로그인 오류 페이지만 나오므로 버린다.
+     */
+    private fun externalLink(data: JSONObject?): String {
+        val link = data?.optString("link").orEmpty().trim()
+        return if (link.startsWith("http") && !link.contains("{")) link else ""
     }
 
     /** 아카이브 응답의 `rsp.data.list`. 네트워크·파싱 실패면 null. */

@@ -45,8 +45,9 @@ internal object WuwaNewsApi {
     private fun parse(o: JSONObject?): NewsItem? {
         if (o == null) return null
         val id = o.optString("id").trim()
-        val title = localized(o.optJSONObject("tabTitle")).replace('\n', ' ').trim()
-        if (id.isBlank() || title.isBlank()) return null
+        val title = oneLineTitle(localized(o.optJSONObject("tabTitle")))
+        // 한국어 번역이 없어 폴백(en/zh)으로 채워진 항목은 뺀다 — 읽을 수 없는 글이 자리만 차지한다.
+        if (id.isBlank() || title.isBlank() || !isKoreanNotice(title)) return null
 
         // contentPrefix 는 CDN 3중화(back / back-aws / akamai)라 첫 항목만 쓴다.
         val prefix = o.optJSONArray("contentPrefix")?.optString(0).orEmpty().trimEnd('/')
@@ -78,7 +79,7 @@ internal object WuwaNewsApi {
                 val o = JSONObject(res.body)
                 val blocks = HtmlNews.toBlocks(o.optString("textContent"))
                 if (blocks.isEmpty()) null
-                else NewsArticle(title = o.optString("textTitle").ifBlank { item.title }, blocks = blocks)
+                else NewsArticle(title = oneLineTitle(o.optString("textTitle")).ifBlank { item.title }, blocks = blocks)
             }.getOrNull()
             if (article != null) return article
         }
