@@ -101,9 +101,6 @@ struct NewsPage: View {
         let chipGames = GLGGames.all.filter { g in headerFiltered.contains { $0.game == g.displayName } }
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
-                if showChips && chipGames.count > 1 {
-                    gameSegments(chipGames)
-                }
                 if all.isEmpty {
                     Text("공지가 없어요").font(.pretendard(size: 13)).foregroundStyle(GLGColor.textSecondary).padding(.vertical, 24)
                 } else {
@@ -123,56 +120,38 @@ struct NewsPage: View {
         .background(GLGBackground { Color.clear })
         .navigationTitle("공지·뉴스")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            if showChips && chipGames.count > 1 {
+                ToolbarItem(placement: .primaryAction) { gameSegments(chipGames) }
+            }
+        }
         .navigationDestination(isPresented: $showDetail) {
             if let n = selectedNews { NewsDetailView(store: store, item: n) }
         }
     }
 
     /**
-     게임 필터 — **배치는 커스텀, 재질은 시스템 글래스**(`ALL / GI / HSR / ZZZ`).
+     게임 필터 — **툴바에 올린 시스템 세그먼티드**.
 
-     `Picker(.segmented)` 가 아니다. 세그먼티드는 항목 폭을 **균등 분할**하고 높이도 시스템이
-     고정해서, 칸이 늘면 글자가 뭉개지고 통이 납작하다. 여기선 폭·높이를 우리가 잡고,
-     트랙과 선택 알약에 [glgSystemGlass] 로 시스템 재질만 입힌다 — 유리를 흉내 내지 않으므로
-     다크모드·대비 설정이 OS 를 따라온다.
+     본문에 두고 캡슐을 직접 그리다가 참고 앱(pizza-studio/PizzaHelperUnited, MIT)의
+     Today 페이지를 보고 바로잡았다. 거기선 `ToolbarItem(.primaryAction)` 안에
+     `Picker(.segmented)` 를 넣는다 — 우리가 유리처럼 보인다고 여겼던 재질도, 위아래가
+     넉넉해 보이던 높이도 **툴바 아이템이라서** 나오는 것이었다(iOS 26 이 자동으로 입힌다).
 
-     라벨은 [Game.abbr] — 목록 행의 게임 배지(EF·WW·HSR)와 같은 표기라 눈으로 이어진다.
+     `.fixedSize()` 가 핵심이다. 없으면 세그먼티드가 항목 폭을 균등 분할해 칸이 늘수록
+     글자가 뭉개진다. 라벨은 [Game.abbr] — 목록 행의 게임 배지(EF·WW·HSR)와 같은 표기다.
      Compose 쪽은 기존 GlgChip 을 유지한다 — 각 플랫폼 네이티브 UX 를 따른다.
      */
     @ViewBuilder
     private func gameSegments(_ games: [Game]) -> some View {
-        HStack(spacing: 0) {
-            segment(label: "ALL", key: "all", tint: GLGColor.textPrimary)
+        Picker("게임 선택", selection: $chip.animation(.easeInOut(duration: 0.2))) {
+            Text("ALL").tag("all")
             ForEach(games, id: \.key) { g in
-                segment(label: g.abbr, key: g.key, tint: Color(argb64: g.color))
+                Text(g.abbr).tag(g.key)
             }
         }
-        .padding(4)
-        .glgSystemGlass(in: Capsule(style: .continuous))
-        // 통 높이를 44 로 잡는다 — 터치 최소 크기이자, 참고 앱이 위아래로 넉넉해 보이는 이유다.
-        .frame(minHeight: 44)
-        // 카드 목록과 붙어 답답해 보여서 위아래로 숨통을 틔운다(위는 네비바 아래 여백).
-        .padding(.top, 8)
-        .padding(.bottom, 20)
-    }
-
-    /// 세그먼트 한 칸. 선택 칸은 게임색으로 **채우고** 글자를 흰색으로 뒤집는다.
-    @ViewBuilder
-    private func segment(label: String, key: String, tint: Color) -> some View {
-        let on = chip == key
-        Text(label)
-            .font(.pretendard(size: 13, weight: .semibold))
-            .foregroundStyle(on ? Color.white : GLGColor.textSecondary)
-            .fixedSize()
-            .frame(maxWidth: .infinity)   // 칸을 균등 분할 — 약칭이라 6게임까지 들어간다
-            .padding(.horizontal, 12)
-            .padding(.vertical, 6)
-            .background { Capsule(style: .continuous).fill(on ? tint : .clear) }
-            .animation(.easeInOut(duration: 0.2), value: chip)
-            .contentShape(Capsule(style: .continuous))   // 글자 사이 여백까지 탭 되게
-            .onTapGesture {
-                // 같은 칸을 다시 누르면 전체로.
-                chip = (on && key != "all") ? "all" : key
-            }
+        .pickerStyle(.segmented)
+        .labelsHidden()
+        .fixedSize()
     }
 }
