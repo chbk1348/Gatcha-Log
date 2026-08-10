@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 import Shared
 import FirebaseCore
 import UserNotifications
@@ -131,6 +132,19 @@ extension Notification.Name {
 @main
 struct iOSApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
+
+    init() {
+        // 얼럿 버튼만 **시스템 파랑**으로 되돌린다.
+        //
+        // 앱 루트에서 `.glgAccent(index:)` 가 `.tint(강조색)` 를 전역으로 깔기 때문에, 사용자가
+        // 테마를 바꾸면 '삭제'·'취소' 같은 시스템 얼럿 버튼까지 그 색으로 물든다. 얼럿은 OS 가
+        // 그리는 표준 UI 라 앱 테마를 따를 이유가 없고, 특히 파괴적 동작(role: .destructive)의
+        // 빨강과 테마색이 나란히 놓이면 무엇이 위험한 선택인지 흐려진다.
+        //
+        // SwiftUI `.alert` 은 내부적으로 UIAlertController 로 내려가므로, appearance proxy 로
+        // 그 안에서만 tint 를 되돌린다 — 얼럿 12곳을 일일이 고치지 않아도 된다.
+        UIView.appearance(whenContainedInInstancesOf: [UIAlertController.self]).tintColor = .systemBlue
+    }
 
     var body: some Scene {
         WindowGroup {
