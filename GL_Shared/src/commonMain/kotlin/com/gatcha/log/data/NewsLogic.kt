@@ -36,4 +36,36 @@ object NewsLogic {
         }
         return picked.sortedByDescending { it.createdAtMillis }
     }
+
+    /**
+     * 공유용 링크 — 호요버스 아티클에는 **언어 파라미터를 붙인다.**
+     *
+     * `hoyolab.com/article/{id}` 를 그대로 보내면 받는 쪽에서 그 사람의 기본 언어(대개 영문)로 열린다.
+     * 우리가 목록·본문을 ko-kr 로 보여줬는데 링크만 영문으로 열리면 다른 글처럼 보인다.
+     * 앱이 이미 출석 API 등에서 쓰는 `lang=ko-kr` 규약과 같다.
+     */
+    fun shareUrl(item: NewsItem): String {
+        val url = item.url
+        if (url.isBlank() || !url.contains("hoyolab.com/article/")) return url
+        if (url.contains("lang=")) return url
+        return url + (if (url.contains('?')) "&" else "?") + "lang=ko-kr"
+    }
+
+    /**
+     * 공유 텍스트 — **제목 + 링크**.
+     *
+     * 예전엔 링크만 보냈다. "받는 쪽 미리보기와 중복된다"는 이유였는데 **전제가 틀렸다** —
+     * HoYoLab 아티클은 SPA 라 정적 HTML 에 og: 태그가 아예 없고 description 은 사이트 공통
+     * 영문 문구뿐이다. 그래서 메신저에 링크만 덩그러니 뜨고 무슨 글인지 알 수가 없었다.
+     * 미리보기를 우리가 만들어 줄 수는 없으니, 제목만이라도 같이 보낸다.
+     */
+    fun shareText(item: NewsItem): String {
+        val url = shareUrl(item)
+        val title = item.title.trim()
+        return when {
+            title.isEmpty() -> url
+            url.isEmpty() -> title
+            else -> "$title\n$url"
+        }
+    }
 }
