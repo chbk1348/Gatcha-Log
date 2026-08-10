@@ -137,6 +137,17 @@ struct SpendingDetailView: View {
                     .foregroundStyle(ink)
                     .padding(.horizontal, 8).padding(.vertical, 2.5)
                     .background(Color.white.opacity(0.75), in: Capsule())
+                Spacer(minLength: 8)
+                // 게임 코드 — 읽으라고 넣은 글자가 아니라 **여백을 채우는 표식**이다.
+                // 우측 상단이 비어 히어로가 왼쪽으로 쏠려 보였다.
+                //
+                // ⚠️ 여기만 시스템 폰트를 쓴다(앱 전역은 Pretendard). 고정폭 자체가 디자인이라
+                // 자간이 일정해야 하는데 Pretendard 에는 monospaced 계열이 없다.
+                Text(gameCode(s.gameName))
+                    .font(.system(size: 9.5, weight: .semibold, design: .monospaced))
+                    .tracking(0.8)
+                    .foregroundStyle(ink.opacity(0.42))
+                    .lineLimit(1).minimumScaleFactor(0.75)
             }
 
             Text(won(s.amount))
@@ -173,6 +184,8 @@ struct SpendingDetailView: View {
         // 한 줄 비어 보인다. 좌측 상단이 비는 만큼 히어로가 위로 붙는다.
         .padding(.top, topInset + 26)
         .frame(maxWidth: .infinity, alignment: .leading)
+        // `padding(.top, -800)` — 스크롤을 아래로 당겼을 때(바운스) 히어로 위가 드러나
+        // 흰 배경이 비치던 걸 막는다. 배경만 위로 크게 빼므로 하단 라운드는 그대로다.
         .background(
             UnevenRoundedRectangle(bottomLeadingRadius: 28, bottomTrailingRadius: 28, style: .continuous)
                 // 파스텔 — 게임색을 흰색과 섞어 옅게 깐다. 원색을 그대로 쓰면 카드 위 흰 화면과
@@ -180,6 +193,7 @@ struct SpendingDetailView: View {
                 .fill(LinearGradient(
                     colors: [base.mix(with: .white, by: 0.80), base.mix(with: .white, by: 0.66)],
                     startPoint: .topLeading, endPoint: .bottomTrailing))
+                .padding(.top, -800)
         )
         .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { heroHeight = $0 }
     }
@@ -248,6 +262,12 @@ struct SpendingDetailView: View {
             }
             .frame(height: 7)
         }
+    }
+
+    /// 히어로 우측 상단 표식 — 영문 정식 명칭(GENSHIN IMPACT · HONKAI: STAR RAIL …).
+    /// 값은 공유 모델(`Game.englishName`)이 들고 있다 — Android 포팅 때 같은 값을 쓴다.
+    private func gameCode(_ gameName: String) -> String {
+        GameData.shared.byName(name: gameName).englishName
     }
 
     /// 히어로 부제 — 날짜만. 결제 수단·플랫폼은 아래 상세 카드가 맡는다(중복 표시 방지).
