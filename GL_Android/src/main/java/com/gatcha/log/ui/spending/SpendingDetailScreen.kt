@@ -88,9 +88,12 @@ fun SpendingDetailScreen(
             // 하단바 미노출 페이지 — 바 높이 여백 대신 시스템 네비 인셋만 확보.
             // 상단 인셋은 주지 않는다. 히어로가 상태바까지 색을 올리고 **스스로** 내려간다.
             Modifier.fillMaxSize().navigationBarsPadding().verticalScroll(scrollState),
+            // 카드 사이 간격은 여기 한 곳에서 준다. Spacer 를 손으로 끼우면 조건부 카드
+            // (같은 항목 이력)가 빠질 때 간격만 남아 빈 자리가 생긴다 — spacedBy 는 실제로
+            // 배치된 자식 사이에만 들어간다.
+            verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Hero(spending, Modifier.onSizeChanged { heroHeightPx = it.height })
-            Spacer(Modifier.height(12.dp))
             ShareCard(spending, all)
             SameItemCard(spending, all)
             // 상세 정보 — 히어로가 금액·재화·날짜·구분을 흡수했으므로 남은 것만.
