@@ -113,7 +113,13 @@ extension View {
      */
     func glgAccent(index: Int) -> some View {
         let accent = GLGTheme.accent(index)
-        return self.environment(\.glgAccent, accent)
+        return self
+            .environment(\.glgAccent, accent)
+            // ⚠️ `.tint(nil)` 은 지우다 만 코드가 아니라 **상속을 끊는 장치**다.
+            // 탭바 아이콘 색을 주려고 `TabView` 에 건 `.tint(accent)` 가 탭 콘텐츠 전체로
+            // 흘러내려, 그 안에서 뜨는 얼럿까지 테마색으로 물들였다(전역 주입을 걷어낸 뒤에도
+            // '지출 전체 삭제' 얼럿이 그대로였던 이유). 여기서 기본값으로 되돌린다.
+            .tint(nil)
     }
 
     /**
