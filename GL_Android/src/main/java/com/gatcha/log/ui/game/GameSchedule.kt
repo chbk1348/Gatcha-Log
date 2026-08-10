@@ -40,7 +40,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.gatcha.log.data.DateUtil
+import com.gatcha.log.data.BroadcastSchedule
 import com.gatcha.log.data.GachaBanner
+import com.gatcha.log.data.LiveBroadcast
 import com.gatcha.log.data.GameChallenge
 import com.gatcha.log.data.GameEvent
 import com.gatcha.log.data.hmsLabel
@@ -220,9 +222,14 @@ fun GameScheduleFullContent(
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         GlgChip("일정", selected = tab == 0) { tab = 0 }
-        GlgChip("주년", selected = tab == 1) { tab = 1 }
+        GlgChip("방송", selected = tab == 1) { tab = 1 }
+        GlgChip("주년", selected = tab == 2) { tab = 2 }
     }
     if (tab == 1) {
+        BroadcastContent(banners, filter)
+        return
+    }
+    if (tab == 2) {
         AnniversaryContent()
         return
     }
@@ -393,24 +400,105 @@ private fun DayNode(d: ScheduleDay, isLast: Boolean, now: Long) {
     Spacer(Modifier.height(18.dp))
 }
 
+// ── 방송 탭 ────────────────────────────────────────────────────────────────
+
+/**
+ * 버전 특별 방송 — 게임당 다음 한 회.
+ *
+ * 일정 타임라인과 나눈 이유: 저쪽은 '언제 끝나나'를 읽는 자리인데 방송은 시작하는 일정이고,
+ * 무엇보다 **역산한 예상**이라 확정된 마감들 사이에 섞이면 같은 무게로 읽힌다.
+ */
+@Composable
+private fun BroadcastContent(banners: List<GachaBanner>, filter: String) {
+    val all = remember(banners) { BroadcastSchedule.next(banners) }
+    val list = remember(all, filter) { if (filter == "all") all else all.filter { it.gameKey == filter } }
+
+    Text(
+        "버전 시작 12일 전 금요일 저녁이라는 관례로 계산한 예상 일정이에요. " +
+            "정확한 일시는 공식 채널 공지를 확인해 주세요.",
+        fontSize = 12.sp, color = TextSecondary, modifier = Modifier.padding(bottom = 14.dp),
+    )
+    if (list.isEmpty()) {
+        // 픽업 배너가 없으면 버전 시작일을 몰라 역산의 근거가 없다 — 추측해서 만들어내지 않는다.
+        Text(
+            "예상할 수 있는 방송이 없어요.",
+            fontSize = 13.sp, color = TextSecondary,
+            modifier = Modifier.fillMaxWidth().padding(top = 40.dp),
+        )
+        return
+    }
+    val hasImminent = remember(list) { list.any { isImminent(it.targetMillis) } }
+    val now = rememberScheduleNow(fast = hasImminent)
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        list.forEach { BroadcastCard(it, now) }
+    }
+}
+
+@Composable
+private fun BroadcastCard(b: LiveBroadcast, now: Long) {
+    val gc = b.colorArgb.toColor()
+    val uriHandler = LocalUriHandler.current
+    val imminent = isImminent(b.targetMillis, now)
+    Column(
+        Modifier.fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .background(Color.White)
+            .border(1.dp, gc.copy(alpha = 0.35f), RoundedCornerShape(14.dp))
+            .clickable { runCatching { uriHandler.openUri(b.liveUrl) } }
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+            Surface(color = gc, shape = RoundedCornerShape(6.dp)) {
+                Text(
+                    b.gameShort, fontSize = 9.5.sp, fontWeight = FontWeight.Bold, color = Color.White,
+                    modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp),
+                )
+            }
+            Text(
+                "버전 특별 방송", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextPrimary,
+                maxLines = 1, modifier = Modifier.weight(1f),
+            )
+            if (b.isEstimate) {
+                // 예상이라는 사실은 카드마다 붙인다 — 안내 문구를 지나쳐도 여기서 다시 만난다.
+                Surface(color = TextSecondary.copy(alpha = 0.12f), shape = RoundedCornerShape(6.dp)) {
+                    Text(
+                        "예상", fontSize = 9.5.sp, fontWeight = FontWeight.Bold, color = TextSecondary,
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                    )
+                }
+            }
+        }
+        Spacer(Modifier.height(8.dp))
+        Text(
+            DateUtil.shortDateTime(b.targetMillis) + " (" + DateUtil.weekdayKo(b.targetMillis) + ")",
+            fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = TextPrimary,
+        )
+        Spacer(Modifier.height(6.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(Icons.Default.PlayCircleOutline, null, tint = gc, modifier = Modifier.size(14.dp))
+            Spacer(Modifier.width(4.dp))
+            Text("공식 채널에서 생중계", fontSize = 10.5.sp, color = TextSecondary, modifier = Modifier.weight(1f))
+            Text(
+                if (imminent) hmsLabel(b.targetMillis, now) + " 뒤" else dhLabel(b.targetMillis, now) + " 뒤",
+                fontSize = 10.5.sp, fontWeight = FontWeight.Bold,
+                color = if (imminent) Urgent else TextSecondary,
+                maxLines = 1,
+                modifier = if (imminent) Modifier.sirenPulse() else Modifier,
+            )
+        }
+    }
+}
+
 // 일정 카드 — 종류 배지 + 제목 + 게임 태그, 픽업이면 캐릭터 칩까지.
 @Composable
 private fun EntryCard(e: ScheduleEntry, now: Long) {
     val gc = e.colorArgb.toColor()
-    // 방송 줄만 바깥으로 나간다(공식 채널 라이브 탭). 나머지 일정은 눌러도 갈 곳이 없다.
-    val uriHandler = LocalUriHandler.current
-    val clickable = if (e.linkUrl.isNotBlank()) {
-        Modifier.clickable { runCatching { uriHandler.openUri(e.linkUrl) } }
-    } else {
-        Modifier
-    }
     Column(
         Modifier.fillMaxWidth()
             .clip(RoundedCornerShape(14.dp))
             .background(Color.White)
             // 아웃라인에 게임색 — 타임라인에서 어느 게임 일정인지 배지를 읽기 전에 구분된다.
             .border(1.dp, gc.copy(alpha = 0.35f), RoundedCornerShape(14.dp))
-            .then(clickable)
             .padding(horizontal = 12.dp, vertical = 10.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
@@ -425,13 +513,6 @@ private fun EntryCard(e: ScheduleEntry, now: Long) {
                 e.title, fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = TextPrimary,
                 maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f),
             )
-            // 나갈 수 있는 줄이라는 표시. 배지 색만으로는 '눌러도 되는지'가 드러나지 않는다.
-            if (e.linkUrl.isNotBlank()) {
-                Icon(
-                    Icons.Default.PlayCircleOutline, "채널 열기",
-                    tint = scheduleKindColor(e.kind), modifier = Modifier.size(15.dp),
-                )
-            }
             Surface(color = gc, shape = RoundedCornerShape(6.dp)) {
                 Text(
                     e.gameShort, fontSize = 9.5.sp, fontWeight = FontWeight.Bold, color = Color.White,

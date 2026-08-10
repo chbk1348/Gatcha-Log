@@ -103,27 +103,23 @@ class BroadcastScheduleTest {
     }
 
     @Test
-    fun `일정에 방송 줄이 링크와 함께 들어간다`() {
+    fun `방송은 일정 타임라인에 섞이지 않는다`() {
+        // 타임라인은 '언제 끝나나'를 읽는 자리다. 예상값인 방송이 확정된 마감들 사이에 끼면
+        // 같은 무게로 읽힌다 — 별도 탭으로 뺐고, 그 경계를 여기서 지킨다.
         val entries = ScheduleLogic.buildSchedule(
             banners = listOf(giBanner(at(2026, 8, 12))),
             events = emptyList(),
             challenges = emptyList(),
-            nowMillis = at(2026, 7, 20),
         )
-        val row = entries.firstOrNull { it.kind == "방송" }
-        assertNotNull(row)
-        assertTrue(row.linkUrl.isNotEmpty(), "누를 수 없는 방송 줄은 의미가 없다")
-        assertTrue(row.isStart, "방송은 끝나는 일정이 아니라 시작하는 일정이다")
+        assertTrue(entries.none { it.kind == "방송" })
     }
 
     @Test
-    fun `방송은 요약 숫자에 섞이지 않는다`() {
+    fun `방송은 요약 숫자에도 잡히지 않는다`() {
         val banners = listOf(giBanner(at(2026, 8, 12)))
         val now = at(2026, 7, 26)   // 방송(7/31)이 일주일 안쪽인 시점
-        val entries = ScheduleLogic.buildSchedule(banners, emptyList(), emptyList(), now)
-        assertTrue(entries.any { it.kind == "방송" }, "전제: 이 시점엔 방송 줄이 있다")
+        val entries = ScheduleLogic.buildSchedule(banners, emptyList(), emptyList())
         val s = ScheduleLogic.summarize(banners, entries, "all", now)
-        // 방송을 세면 '이번 주 마감'이 1 늘어난다 — 마감이 아닌 것을 마감으로 세는 셈이다.
         assertEquals(0, s.weekDeadlines)
         assertEquals(0, s.extras)
     }
