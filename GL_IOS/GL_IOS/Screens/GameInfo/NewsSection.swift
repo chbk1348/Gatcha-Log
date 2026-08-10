@@ -142,7 +142,11 @@ struct NewsPage: View {
      **커스텀이 아니라 시스템 세그먼티드가 툴바에 놓여서** 나오는 것이었다.
 
      타이틀 자리(`.principal`)에 놓고 페이지 타이틀은 비웠다 — 게임이 6개라 뒤로가기 옆
-     좁은 폭으로는 라벨이 뭉개진다. 라벨은 한국어 약칭([Game.shortName]).
+     좁은 폭으로는 라벨이 뭉개진다.
+
+     게임 라벨은 [Game.abbr] 다. `shortName`(원신·스타레일·젠레스·명조·엔드필드)은 6칸에
+     넣으면 너무 길고, 그보다 짧은 한국어 표기가 없다. 약칭은 **목록 행의 게임 배지와 같은
+     글자**라 필터와 결과가 눈으로 이어진다. '전체'만 한국어로 둔다.
      Compose 쪽은 기존 GlgChip 을 유지한다 — 각 플랫폼 네이티브 UX 를 따른다.
      */
     @ViewBuilder
@@ -150,7 +154,7 @@ struct NewsPage: View {
         Picker("게임 선택", selection: $chip.animation(.easeInOut(duration: 0.2))) {
             Text("전체").tag("all")
             ForEach(games, id: \.key) { g in
-                Text(g.shortName).tag(g.key)
+                Text(g.abbr).tag(g.key)
             }
         }
         .pickerStyle(.segmented)

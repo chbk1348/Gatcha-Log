@@ -452,8 +452,10 @@ struct GameSchedulePage: View {
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 Picker("보기", selection: $tab.animation(.easeInOut(duration: 0.2))) {
-                    Text("일정").tag(0)
-                    Text("주년").tag(1)
+                    // 라벨이 두 글자뿐이라 fixedSize 로는 통이 옹색하다. 좌우 여백을 라벨에 실어
+                    // 칸을 조금 넓힌다(세그먼티드는 라벨 크기를 그대로 칸 폭으로 쓴다).
+                    Text("일정").padding(.horizontal, 10).tag(0)
+                    Text("주년").padding(.horizontal, 10).tag(1)
                 }
                 .pickerStyle(.segmented)
                 .labelsHidden()
