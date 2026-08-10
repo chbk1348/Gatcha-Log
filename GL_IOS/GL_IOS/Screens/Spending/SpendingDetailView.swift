@@ -81,7 +81,7 @@ struct SpendingDetailView: View {
         }
         .scrollIndicators(.hidden)
         .alert("이 지출을 삭제할까요?", isPresented: $confirmDelete) {
-            Button("취소", role: .cancel) {}
+            Button("취소", role: .cancel) {}.glgAlertTint()
             Button("삭제", role: .destructive) { store.deleteSpending(s.id); dismiss() }
         } message: { Text("삭제하면 되돌릴 수 없어요.") }
         // 수정·삭제를 네비 헤더 우측 아이콘으로. 각각 별도 ToolbarItem + ToolbarSpacer 로 분리 —

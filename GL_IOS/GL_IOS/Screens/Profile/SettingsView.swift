@@ -85,8 +85,8 @@ struct SettingsView: View {
         // 넛지 기준 금액 — 단일 입력이라 바텀시트 대신 중앙 모달(네이티브 alert + 입력 필드).
         .alert("넛지 기준 금액", isPresented: $showNudge) {
             TextField("기준 금액 (원)", text: $nudgeText).keyboardType(.numberPad)
-            Button("저장") { store.setNudgeThreshold(Int64(nudgeText.filter(\.isNumber)) ?? 0) }
-            Button("취소", role: .cancel) { }
+            Button("저장") { store.setNudgeThreshold(Int64(nudgeText.filter(\.isNumber)) ?? 0) }.glgAlertTint()
+            Button("취소", role: .cancel) { }.glgAlertTint()
         } message: {
             Text("단건 지출이 이 금액 이상이면 추가 전 한 번 더 확인해요.")
         }

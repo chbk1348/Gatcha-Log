@@ -209,7 +209,7 @@ struct ContentView: View {
             get: { store.networkAlert != nil },
             set: { if !$0 { store.clearNetworkAlert() } }
         )) {
-            Button("확인", role: .cancel) { store.clearNetworkAlert() }
+            Button("확인", role: .cancel) { store.clearNetworkAlert() }.glgAlertTint()
         } message: {
             Text(store.networkAlert ?? "")
         }
@@ -217,7 +217,7 @@ struct ContentView: View {
         // @State 라 프로세스가 새로 뜨면 다시 나온다 — "앱 시작 시 1회"가 의도다.
         // 배포본에는 EXPERIMENT 조건이 없어 이 블록 자체가 컴파일에서 빠진다.
         .alert("⚠️ 실험 빌드", isPresented: $showExperimentAlert) {
-            Button("확인하고 계속", role: .cancel) { showExperimentAlert = false }
+            Button("확인하고 계속", role: .cancel) { showExperimentAlert = false }.glgAlertTint()
         } message: {
             Text("정식 배포본이 아닙니다. 검증되지 않은 UI·라이브러리가 들어 있어 "
                 + "예기치 않은 동작이나 종료가 발생할 수 있어요.\n\n"

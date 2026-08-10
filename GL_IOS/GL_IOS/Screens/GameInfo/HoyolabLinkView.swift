@@ -70,8 +70,8 @@ struct HoyolabLinkView: View {
             gi = c.genshinUid; hsr = c.hsrUid; zzz = c.zzzUid
         }
         .alert("이메일 로그인 필수", isPresented: $showEmailGuide) {
-            Button("취소", role: .cancel) {}
-            Button("이메일로 로그인") { showLogin = true }
+            Button("취소", role: .cancel) {}.glgAlertTint()
+            Button("이메일로 로그인") { showLogin = true }.glgAlertTint()
         } message: {
             Text("토큰을 정상적으로 가져오려면 다음 화면에서 반드시 '이메일(비밀번호) 로그인'을 사용하세요.\n\n구글·애플 등 소셜 로그인은 cookie_token 등 일부 정보를 가져오지 못해 리딤코드 교환이 안 될 수 있어요.")
         }
