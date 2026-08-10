@@ -114,7 +114,9 @@ object ScheduleLogic {
         val out = mutableListOf<ScheduleEntry>()
         // ① 픽업 페이즈
         for (game in GameData.games) {
-            if (game.enneadKey == null) continue
+            // ⚠️ `enneadKey` 로 거르지 않는다. 젠존제는 전용 경로([EnneadApi.fetchZzz])로 받아서
+            // 그 키가 없는데, 여기서 걸러지는 바람에 **배너가 들어와도 픽업 줄이 안 생겼다.**
+            // 배너 유무는 바로 아래에서 판단하므로 이 조건은 이중 방어였고, 실제로는 누락만 만들었다.
             // 종료 미정 픽업은 '픽업 종료' 일정 줄을 만들 수 없다(날짜가 없음) → 페이즈 계산에서 제외.
             val gb = banners.filter { it.game == game.displayName && !it.isEndUnknown }
             if (gb.isEmpty()) continue

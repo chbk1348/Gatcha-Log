@@ -428,12 +428,19 @@ private fun EntryCard(e: ScheduleEntry, now: Long) {
         val imminent = isImminent(e.target, now)
         val remain = if (imminent) hmsLabel(e.target, now) else dhLabel(e.target, now)
         Spacer(Modifier.height(4.dp))
+        // 남은 시간은 **오른쪽 끝 고정**. 예전엔 부제에 weight(fill=false) 를 주고 Spacer 에도
+        // weight 를 걸어, 남는 폭이 둘로 갈리면서 부제 길이에 따라 시간 위치가 카드마다 달라졌다.
         Row(verticalAlignment = Alignment.CenterVertically) {
             if (e.sub.isNotBlank()) {
-                Text(e.sub, fontSize = 10.5.sp, color = TextSecondary, maxLines = 1, modifier = Modifier.weight(1f, fill = false))
-                Spacer(Modifier.width(6.dp))
+                Text(
+                    e.sub, fontSize = 10.5.sp, color = TextSecondary,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f),
+                )
+            } else {
+                Spacer(Modifier.weight(1f))
             }
-            Spacer(Modifier.weight(1f))
+            Spacer(Modifier.width(8.dp))
             Text(
                 if (remain == "종료") remain else "$remain 남음",
                 fontSize = 10.5.sp, fontWeight = FontWeight.Bold,
