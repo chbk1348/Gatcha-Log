@@ -35,8 +35,6 @@ import com.gatcha.log.data.api.EnneadApi
 import com.gatcha.log.data.api.NewsApi
 import com.gatcha.log.data.api.NewsArticle
 import com.gatcha.log.data.api.NewsItem
-import com.gatcha.log.data.api.NteApi
-import com.gatcha.log.data.api.NteCharacter
 import com.gatcha.log.data.api.HoyolabApi
 import com.gatcha.log.data.api.CodeResult
 import com.gatcha.log.data.api.GiftCode
@@ -1013,39 +1011,6 @@ class SpendingViewModel : ViewModel() {
         _newsArticleFailed.value = false
     }
 
-    // ----- 이환 캐릭터 도감 -----
-    // 이환만 공지 API 가 없어서(정적 사이트) '게임 소식' 대신 캐릭터 데이터가 붙는다.
-    private val _nteCharacters = MutableStateFlow<List<NteCharacter>>(emptyList())
-    val nteCharacters: StateFlow<List<NteCharacter>> = _nteCharacters.asStateFlow()
-    private var nteLoading = false
-
-    /**
-     * 이환 캐릭터 도감 로드 — **화면에서 1회만**. 새로고침 흐름에 넣지 않는 이유는
-     * [NteApi] 가 캐릭터 수만큼(현재 21회) 요청을 쏘기 때문이다. 게임 정보 탭을 열 때마다
-     * 스무 번씩 왕복시킬 값어치는 없다(버전당 한 번 바뀌는 정적 데이터).
-     *
-     * 캐시가 있으면 **먼저 그려 놓고** 네트워크는 타지 않는다. 병렬로 받아도 첫 실행에선
-     * 2초 남짓 걸리는데, 버전이 그대로면 내용이 같으므로 다시 받을 이유가 없다.
-     */
-    fun loadNteCharacters() {
-        if (nteLoading || _nteCharacters.value.isNotEmpty()) return
-        nteLoading = true
-        viewModelScope.launch {
-            val cached = withContext(Dispatchers.IO) {
-                val version = NteApi.version()
-                repo.loadNteCharacters(version).takeIf { it.isNotEmpty() }?.let { it to version }
-                    ?: NteApi.characters()?.let { fresh ->
-                        runCatching { repo.saveNteCharacters(version, fresh) }
-                        fresh to version
-                    }
-            }
-            // 실패(null)면 빈 목록을 대입하지 않는다 — 섹션이 '캐릭터 없음'으로 굳는다.
-            cached?.let { (list, _) ->
-                _nteCharacters.value = list.sortedWith(compareByDescending<NteCharacter> { it.rarity }.thenBy { it.name })
-            }
-            nteLoading = false
-        }
-    }
 
     // 천장(gameKey -> PityState), 이벤트 체크
     private val _pity = MutableStateFlow<Map<String, PityState>>(emptyMap())

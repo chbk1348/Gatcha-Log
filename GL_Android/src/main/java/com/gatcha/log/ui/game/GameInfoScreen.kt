@@ -393,9 +393,6 @@ fun GameInfoScreen(
                     onOpen = { openNews(it, GiSub.Main) },
                 )
             }
-            // 이환 캐릭터 도감 — 이 게임만 공지 API 가 없어 '공지·뉴스'에 못 낀다(NteCharSection KDoc).
-            // 상단 여백은 섹션이 직접 낸다 — 데이터가 없으면 통째로 사라져야 빈 여백이 안 남는다.
-            item { NteCharSection(viewModel, gameFilter) }
             item { Spacer(Modifier.height(20.dp)) }
             item { NavEntryCard(Icons.Default.Calculate, "가챠 계산기", "재화 환산 · 확률 · 시나리오") { subPage = GiSub.Calc } }
             item { Spacer(Modifier.height(12.dp)) }
