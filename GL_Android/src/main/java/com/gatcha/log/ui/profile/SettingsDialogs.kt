@@ -1,9 +1,12 @@
 package com.gatcha.log.ui.profile
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import com.gatcha.log.data.Credits
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -13,7 +16,12 @@ import com.gatcha.log.ui.theme.TextSecondary
 
 // 업데이트 로그는 풀스크린 [UpdateLogScreen] + 공통 정본 데이터(ChangeLog)로 이관됨.
 
-/** 출처·저작권 고지 — 비상업·비공식 팬 프로젝트, 게임 자료의 권리자 명시 + 권리자 요청 시 즉시 삭제. */
+/**
+ * 출처·저작권 고지 — 문구는 공유 정본([Credits])에서 읽는다(iOS 와 같은 내용).
+ *
+ * 출처를 전부 적으니 다이얼로그 한 화면에 안 들어간다. 높이를 제한하고 스크롤을 준다 —
+ * 줄여서 넣느니 길게 두고 넘기는 편이 낫다. 빠뜨린 출처가 없는 게 먼저다.
+ */
 @Composable
 internal fun CreditsDialog(onDismiss: () -> Unit) {
     GlgDialog(
@@ -23,25 +31,13 @@ internal fun CreditsDialog(onDismiss: () -> Unit) {
         onConfirm = onDismiss,
         dismissText = null,
     ) {
-        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text(
-                "본 앱은 개인이 만든 비상업·비공식 팬 프로젝트로 HoYoverse와 무관하며 공식 서비스가 아닙니다.",
-                fontSize = 13.sp, color = TextSecondary,
-            )
-            CreditRow(
-                "게임 콘텐츠 · 아이콘 저작권",
-                "© HoYoverse (miHoYo / Cognosphere) — 원신 · 붕괴: 스타레일 · 젠레스 존 제로\n" +
-                    "© Kuro Games — 명조: 워더링 웨이브\n" +
-                    "© Hypergryph / Yostar — 명일방주: 엔드필드",
-            )
-            CreditRow(
-                "데이터 · 에셋 출처",
-                "enka.network · HoYoLAB · ennead.cc\nProject Amber (yatta.moe) · Hakush.in",
-            )
-            Text(
-                "모든 게임 콘텐츠의 권리는 각 권리자에게 있으며, 권리자의 요청이 있을 경우 즉시 해당 자료를 삭제합니다.",
-                fontSize = 12.sp, color = TextSecondary,
-            )
+        Column(
+            modifier = Modifier.heightIn(max = 420.dp).verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            Text(Credits.disclaimer, fontSize = 13.sp, color = TextSecondary)
+            Credits.sections.forEach { CreditRow(it.label, it.body) }
+            Text(Credits.notice, fontSize = 12.sp, color = TextSecondary)
         }
     }
 }
