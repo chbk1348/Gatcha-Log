@@ -120,9 +120,16 @@ struct NewsPage: View {
         .background(GLGBackground { Color.clear })
         .navigationTitle("공지·뉴스")
         .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
+        // 타이틀 바로 아래 고정 줄 — 툴바 안(타이틀 옆)에 두면 6게임이 들어갈 폭이 안 나온다.
+        // safeAreaInset 이라 목록을 스크롤해도 따라 내려가지 않고 제자리에 붙어 있는다.
+        .safeAreaInset(edge: .top, spacing: 0) {
             if showChips && chipGames.count > 1 {
-                ToolbarItem(placement: .primaryAction) { gameSegments(chipGames) }
+                gameSegments(chipGames)
+                    .padding(.horizontal, 16)
+                    .padding(.top, 6)
+                    .padding(.bottom, 10)
+                    // 시스템 바 재질 — 아래 콘텐츠가 비쳐도 네비게이션 바와 한 덩어리로 이어진다.
+                    .background(.bar)
             }
         }
         .navigationDestination(isPresented: $showDetail) {
@@ -131,15 +138,15 @@ struct NewsPage: View {
     }
 
     /**
-     게임 필터 — **툴바에 올린 시스템 세그먼티드**.
+     게임 필터 — 시스템 세그먼티드([Picker] `.segmented`).
 
      본문에 두고 캡슐을 직접 그리다가 참고 앱(pizza-studio/PizzaHelperUnited, MIT)의
-     Today 페이지를 보고 바로잡았다. 거기선 `ToolbarItem(.primaryAction)` 안에
-     `Picker(.segmented)` 를 넣는다 — 우리가 유리처럼 보인다고 여겼던 재질도, 위아래가
-     넉넉해 보이던 높이도 **툴바 아이템이라서** 나오는 것이었다(iOS 26 이 자동으로 입힌다).
+     Today 페이지를 보고 바로잡았다. 유리처럼 보이던 재질도 위아래가 넉넉해 보이던 높이도
+     **커스텀이 아니라 시스템 세그먼티드가 바(bar) 위에 놓여서** 나오는 것이었다.
 
-     `.fixedSize()` 가 핵심이다. 없으면 세그먼티드가 항목 폭을 균등 분할해 칸이 늘수록
-     글자가 뭉개진다. 라벨은 [Game.abbr] — 목록 행의 게임 배지(EF·WW·HSR)와 같은 표기다.
+     `.fixedSize()` 는 쓰지 않는다 — 참고 앱은 툴바 안(폭이 좁음)이라 내용 폭이 필요했지만,
+     여기는 타이틀 아래 한 줄을 통째로 쓰므로 균등 분할이 자연스럽다.
+     라벨은 [Game.abbr] — 목록 행의 게임 배지(EF·WW·HSR)와 같은 표기다.
      Compose 쪽은 기존 GlgChip 을 유지한다 — 각 플랫폼 네이티브 UX 를 따른다.
      */
     @ViewBuilder
@@ -152,6 +159,5 @@ struct NewsPage: View {
         }
         .pickerStyle(.segmented)
         .labelsHidden()
-        .fixedSize()
     }
 }
