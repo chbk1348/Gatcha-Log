@@ -35,6 +35,8 @@ import com.gatcha.log.data.api.EnneadApi
 import com.gatcha.log.data.api.NewsApi
 import com.gatcha.log.data.api.NewsArticle
 import com.gatcha.log.data.api.NewsItem
+import com.gatcha.log.data.api.NteApi
+import com.gatcha.log.data.api.NteCharacter
 import com.gatcha.log.data.api.HoyolabApi
 import com.gatcha.log.data.api.CodeResult
 import com.gatcha.log.data.api.GiftCode
@@ -996,7 +998,7 @@ class SpendingViewModel : ViewModel() {
         if (item.id.isBlank()) { _newsArticleFailed.value = true; return }
         _newsArticleLoading.value = true
         viewModelScope.launch {
-            val article = NewsApi.article(item.id)
+            val article = NewsApi.article(item)
             _newsArticle.value = article
             _newsArticleFailed.value = article == null
             _newsArticleLoading.value = false
@@ -1009,6 +1011,28 @@ class SpendingViewModel : ViewModel() {
         _newsArticle.value = null
         _newsArticleLoading.value = false
         _newsArticleFailed.value = false
+    }
+
+    // ----- 이환 캐릭터 도감 -----
+    // 이환만 공지 API 가 없어서(정적 사이트) '게임 소식' 대신 캐릭터 데이터가 붙는다.
+    private val _nteCharacters = MutableStateFlow<List<NteCharacter>>(emptyList())
+    val nteCharacters: StateFlow<List<NteCharacter>> = _nteCharacters.asStateFlow()
+    private var nteLoading = false
+
+    /**
+     * 이환 캐릭터 도감 로드 — **화면에서 1회만**. 새로고침 흐름에 넣지 않는 이유는
+     * [NteApi] 가 캐릭터 수만큼(현재 21회) 요청을 쏘기 때문이다. 게임 정보 탭을 열 때마다
+     * 스무 번씩 왕복시킬 값어치는 없다(버전당 한 번 바뀌는 정적 데이터).
+     */
+    fun loadNteCharacters() {
+        if (nteLoading || _nteCharacters.value.isNotEmpty()) return
+        nteLoading = true
+        viewModelScope.launch {
+            val list = withContext(Dispatchers.IO) { NteApi.characters() }
+            // 실패(null)면 빈 목록을 대입하지 않는다 — 섹션이 '캐릭터 없음'으로 굳는다.
+            if (list != null) _nteCharacters.value = list.sortedWith(compareByDescending<NteCharacter> { it.rarity }.thenBy { it.name })
+            nteLoading = false
+        }
     }
 
     // 천장(gameKey -> PityState), 이벤트 체크
@@ -1598,7 +1622,7 @@ class SpendingViewModel : ViewModel() {
                     }
                     // 공지도 **여기서 같이 쏜다**(await 만 아래에서). 예전엔 배너·노트를 다 받은 뒤에야
                     // 요청이 나가서, 홈의 '게임 소식'만 한 왕복 늦게 채워졌다 — 의존 관계가 전혀 없는데도.
-                    val newsGames = GameData.games.filter { it.newsSlug != null }
+                    val newsGames = GameData.games.filter { it.newsSource != null }
                     val newsDeferred = newsGames.map { g -> async(Dispatchers.IO) { NewsApi.notices(g) } }
 
                     // 응답을 받은 게임만 새 값으로 갈아끼운다([mergeByGame]) — 실패한 게임은 직전 값 유지.
