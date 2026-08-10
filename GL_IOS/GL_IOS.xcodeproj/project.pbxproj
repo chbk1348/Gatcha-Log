@@ -791,7 +791,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = com.gatcha.log.ios;
 				PRODUCT_NAME = "Gatcha-Log";
 				SDKROOT = iphoneos;
-				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "$(inherited) EXPERIMENT";
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "$(inherited)";
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
 			name = Release;
@@ -876,7 +876,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = com.gatcha.log.ios;
 				PRODUCT_NAME = "Gatcha-Log";
 				SDKROOT = iphoneos;
-				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "$(inherited) EXPERIMENT";
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "$(inherited)";
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
 			name = Debug;
