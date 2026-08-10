@@ -102,16 +102,7 @@ struct NewsPage: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
                 if showChips && chipGames.count > 1 {
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: 8) {
-                            GLGChip(label: "전체", selected: chip == "all") { chip = "all" }
-                            ForEach(chipGames, id: \.key) { g in
-                                GLGChip(label: g.shortName, selected: chip == g.key,
-                                        color: Color(argb64: g.color)) { chip = chip == g.key ? "all" : g.key }
-                            }
-                        }
-                    }
-                    .padding(.bottom, 12)
+                    gameSegments(chipGames)
                 }
                 if all.isEmpty {
                     Text("공지가 없어요").font(.pretendard(size: 13)).foregroundStyle(GLGColor.textSecondary).padding(.vertical, 24)
@@ -135,5 +126,50 @@ struct NewsPage: View {
         .navigationDestination(isPresented: $showDetail) {
             if let n = selectedNews { NewsDetailView(store: store, item: n) }
         }
+    }
+
+    /**
+     게임 필터 — 시스템 세그먼트 톤의 가로 스크롤 바.
+
+     `Picker(.segmented)` 를 그대로 쓰지 않는 이유: 지원 게임이 6개라 한 줄에 균등 분할하면
+     글자가 뭉개진다(세그먼트는 항목 폭을 똑같이 나눈다). 그래서 **선택 표시는 시스템 세그먼트와
+     같은 흰 알약 + 그림자**로 두고, 배치만 가로 스크롤로 바꿨다.
+     Compose 쪽은 기존 GlgChip 을 유지한다 — 각 플랫폼 네이티브 UX 를 따른다.
+     */
+    @ViewBuilder
+    private func gameSegments(_ games: [Game]) -> some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 2) {
+                segment(label: "전체", key: "all", tint: nil)
+                ForEach(games, id: \.key) { g in
+                    segment(label: g.shortName, key: g.key, tint: Color(argb64: g.color))
+                }
+            }
+            .padding(2)
+            .background(Color(.tertiarySystemFill), in: Capsule())
+        }
+        .padding(.bottom, 12)
+    }
+
+    @ViewBuilder
+    private func segment(label: String, key: String, tint: Color?) -> some View {
+        let on = chip == key
+        Button {
+            // 같은 칸을 다시 누르면 전체로 — 스크롤해서 '전체'까지 되돌아가지 않아도 되게.
+            withAnimation(.snappy(duration: 0.2)) { chip = (on && key != "all") ? "all" : key }
+        } label: {
+            Text(label)
+                .font(.pretendard(size: 13, weight: on ? .semibold : .medium))
+                .foregroundStyle(on ? (tint ?? GLGColor.textPrimary) : GLGColor.textSecondary)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 7)
+                .background {
+                    if on {
+                        Capsule().fill(Color(.secondarySystemGroupedBackground))
+                            .shadow(color: .black.opacity(0.12), radius: 2, y: 1)
+                    }
+                }
+        }
+        .buttonStyle(.plain)
     }
 }

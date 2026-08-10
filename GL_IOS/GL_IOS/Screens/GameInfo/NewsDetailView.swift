@@ -106,13 +106,14 @@ struct NewsDetailView: View {
                     .lineLimit(1)
                     .truncationMode(.tail)
             }
-            if let u = URL(string: item.url), !item.url.isEmpty {
-                // 공유 — **링크만** 보낸다. 본문은 앱이 재구성한 것이라 그대로 보낼 수 없고,
-                // 제목을 붙이면 받는 쪽 미리보기와 중복돼 지저분해진다.
+            // 링크에 `lang=ko-kr` 을 붙인다 — 안 붙이면 받는 쪽에서 그 사람 기본 언어(대개 영문)로 열린다.
+            if let u = URL(string: NewsLogic.shared.shareUrl(item: item)), !item.url.isEmpty {
                 ToolbarItem(placement: .topBarTrailing) {
-                    // 공유 대상은 URL 하나뿐이지만, 미리보기 제목은 **앱이 가진 한국어 제목**으로 고정한다.
-                    // 지정하지 않으면 공유 시트가 링크 메타데이터를 직접 긁어와 영문 제목을 띄운다.
-                    ShareLink(item: u, preview: SharePreview(item.title)) {
+                    // **제목 + 링크**를 보낸다. 링크만 보내면 메신저에 URL 만 덩그러니 뜬다 —
+                    // HoYoLab 은 SPA 라 정적 HTML 에 og: 태그가 없어 미리보기가 안 잡힌다.
+                    // preview 는 iOS 공유 시트 안에서만 쓰이고 받는 쪽에는 전달되지 않는다.
+                    ShareLink(item: NewsLogic.shared.shareText(item: item),
+                              preview: SharePreview(item.title)) {
                         Image(systemName: "square.and.arrow.up")
                     }
                 }
