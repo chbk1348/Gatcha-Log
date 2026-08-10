@@ -86,3 +86,25 @@ struct GLGBackground<Content: View>: View {
         }
     }
 }
+
+/**
+ 네비게이션 바 배경 숨김 — iOS 26 대응.
+
+ `toolbarBackground(.hidden, for: .navigationBar)` 는 iOS 26 에서 바의 유리를 걷어내지 못한다.
+ 히어로처럼 색이 상태바까지 이어져야 하는 화면에서 그대로 두면, 바 영역에만 배경이 한 겹 더
+ 얹혀 **거기만 색이 달라 보인다**. 새 API 로 확실히 숨기고, 그 이하에서는 기존 API 로 폴백한다.
+ */
+struct GLGHiddenToolbarBackground: ViewModifier {
+    func body(content: Content) -> some View {
+        if #available(iOS 26.0, *) {
+            content
+                .toolbarBackgroundVisibility(.hidden, for: .navigationBar)
+                // iOS 26 은 스크롤 콘텐츠가 바 아래를 지날 때 상단에 흐림 띠(scroll edge effect)를 깐다.
+                // 히어로처럼 **색이 상단까지 차 있는** 화면에서는 그 띠가 스크림처럼 얹혀 색을 흐린다.
+                // 맨 위에 있을 때는 가릴 콘텐츠도 없으므로 꺼 둔다.
+                .scrollEdgeEffectHidden(true, for: .top)
+        } else {
+            content.toolbarBackground(.hidden, for: .navigationBar)
+        }
+    }
+}
