@@ -66,7 +66,11 @@ object NteApi {
             val res = Net.get("https://static.nanoka.cc/nte/$version/ko/character/$id.json", headers)
             if (!res.isOk) null else runCatching { parse(id, JSONObject(res.body)) }.getOrNull()
         }
-        return list.ifEmpty { null }
+        // 같은 캐릭터가 id 두 개로 올라와 있다(「제로」 = 1046·1051). 하나는 소개글이 비어 있는
+        // 껍데기라 그대로 두면 도감에 같은 이름이 나란히 두 줄 뜬다. 알맹이가 있는 쪽을 남긴다.
+        val deduped = list.groupBy { it.name }
+            .map { (_, dupes) -> dupes.maxByOrNull { it.desc.length + it.tags.size } ?: dupes.first() }
+        return deduped.ifEmpty { null }
     }
 
     private fun parse(id: String, o: JSONObject): NteCharacter? {

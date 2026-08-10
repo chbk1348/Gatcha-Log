@@ -90,6 +90,8 @@ final class SpendingStore {
     private(set) var gameEvents: [GameEvent] = []
     private(set) var challenges: [GameChallenge] = []
     private(set) var gameNews: [NewsItem] = []
+    /// 이환 캐릭터 도감 — 이 게임만 공지 API 가 없어 소식 대신 캐릭터가 붙는다(NteApi 참고).
+    private(set) var nteCharacters: [NteCharacter] = []
     /// 게임별 일일·주간 숙제 완주율(관측 기록 파생).
     private(set) var taskStats: [TaskStats] = []
     /// 캐릭터별 유효옵션 사용자 설정(키=keyStatOverrideKey).
@@ -261,6 +263,7 @@ final class SpendingStore {
         bind(vm.gameEvents) { [weak self] in self?.gameEvents = $0 }
         bind(vm.challenges) { [weak self] in self?.challenges = $0 }
         bind(vm.gameNews) { [weak self] in self?.gameNews = $0 }
+        bind(vm.nteCharacters) { [weak self] in self?.nteCharacters = $0 }
         bind(vm.combat) { [weak self] in self?.combat = $0 }
         bind(vm.combatClears) { [weak self] in self?.combatClears = $0 }
         bind(vm.combatClearsLoading) { [weak self] in self?.combatClearsLoading = $0.boolValue }
@@ -379,6 +382,8 @@ final class SpendingStore {
     func setNudgeThreshold(_ v: Int64) { vm.setNudgeThreshold(v: v) }
     /// 공지 상세 진입 — 본문 로드. 이탈 시 clearNewsArticle() 로 정리한다.
     func loadNewsArticle(_ item: NewsItem) { vm.loadNewsArticle(item: item) }
+    /// 이환 캐릭터 도감 로드 — 화면당 1회(중복 호출은 뷰모델이 막는다. 캐릭터 수만큼 요청이 나간다).
+    func loadNteCharacters() { vm.loadNteCharacters() }
     func clearNewsArticle() { vm.clearNewsArticle() }
 
     func setNotifyBudget(_ v: Bool) { vm.setNotifyBudget(v: v) }

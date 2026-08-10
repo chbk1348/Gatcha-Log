@@ -31,9 +31,16 @@ struct SettingsView: View {
         (Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String) ?? "—"
     }
 
-    /// 빌드 종류(DEBUG/RELEASE) 구분 태그 — 어떤 빌드가 설치됐는지 한눈에(Android BuildVariantChip 파리티).
+    /// 빌드 종류 구분 태그 — 어떤 빌드가 설치됐는지 한눈에(Android BuildVariantChip 파리티).
+    ///
+    /// **EXPERIMENT(빨강)가 최우선**이다. 실험 빌드는 릴리스 구성으로 말아도 릴리스가 아니므로,
+    /// RELEASE 로 보이면 배포본과 헷갈린다. 표식은 project.yml 의
+    /// `SWIFT_ACTIVE_COMPILATION_CONDITIONS` 가 정한다.
     private var buildVariantChip: some View {
-        #if DEBUG
+        #if EXPERIMENT
+        let label = "EXPERIMENT"
+        let color = Color(hex: 0xFFE5342A) // 빨강 — 실험 빌드 경고
+        #elseif DEBUG
         let label = "DEBUG"
         let color = Color(hex: 0xFFFF7A45)
         #else

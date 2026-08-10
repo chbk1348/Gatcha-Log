@@ -54,7 +54,9 @@ struct NewsSection: View {
     var body: some View {
         let all = filterNews(store.gameNews, filter)
         if !all.isEmpty {
-            let items = Array(all.prefix(maxCount))
+            // 그냥 prefix 하면 공지를 많이 올리는 게임(엔드필드)이 목록을 다 먹는다 —
+            // 게임을 번갈아 뽑는 로직은 commonMain 단일 소스(Android 와 같은 함수).
+            let items = NewsLogic.shared.previewTop(news: all, max: Int32(maxCount))
             VStack(alignment: .leading, spacing: 10) {
                 Text("공지·뉴스").font(.pretendard(size: 16, weight: .bold))
                 GLGCard(cornerRadius: 24, padding: 0) {
@@ -87,11 +89,30 @@ struct NewsPage: View {
     // 상세 push 는 navigationDestination 으로 — NewsSection 과 동일한 이유(destination형 NavigationLink 회피).
     @State private var selectedNews: NewsItem? = nil
     @State private var showDetail = false
+    /// 페이지 안 게임 칩 — 헤더 드롭다운과 별개로 이 페이지에서만 좁혀 본다(Compose 쪽과 동일).
+    @State private var chip = "all"
 
     var body: some View {
-        let all = filterNews(store.gameNews, filter)
+        let headerFiltered = filterNews(store.gameNews, filter)
+        // 헤더가 이미 한 게임으로 좁힌 상태면 칩이 무의미하므로 그때는 감춘다.
+        let showChips = filter == "all"
+        let all = showChips ? filterNews(headerFiltered, chip) : headerFiltered
+        // 칩은 실제로 공지가 있는 게임만 — 소식이 없는 게임 칩을 눌러 빈 화면을 보게 두지 않는다.
+        let chipGames = GLGGames.all.filter { g in headerFiltered.contains { $0.game == g.displayName } }
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
+                if showChips && chipGames.count > 1 {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 8) {
+                            GLGChip(label: "전체", selected: chip == "all") { chip = "all" }
+                            ForEach(chipGames, id: \.key) { g in
+                                GLGChip(label: g.shortName, selected: chip == g.key,
+                                        color: Color(argb64: g.color)) { chip = chip == g.key ? "all" : g.key }
+                            }
+                        }
+                    }
+                    .padding(.bottom, 12)
+                }
                 if all.isEmpty {
                     Text("공지가 없어요").font(.pretendard(size: 13)).foregroundStyle(GLGColor.textSecondary).padding(.vertical, 24)
                 } else {
