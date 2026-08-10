@@ -7,7 +7,6 @@ struct SpendingDetailView: View {
     let spendingId: String
     let onEdit: (Spending) -> Void
     @Environment(\.dismiss) private var dismiss
-    @Environment(\.glgAccent) private var accent
     @State private var confirmDelete = false
 
     /// 편집 반영 위해 라이브 목록에서 재조회.
@@ -70,16 +69,6 @@ struct SpendingDetailView: View {
                         }
                     }
                 }
-                .padding(.horizontal, 16)
-                // 같은 항목 또 기록 — 가챠 상품 재구매는 흔한 흐름인데 지금은 처음부터 다시 입력해야 했다.
-                Button { onEdit(prefillTemplate(s)) } label: {
-                    Text("같은 항목 또 기록")
-                        .font(.pretendard(size: 14, weight: .bold))
-                        .frame(maxWidth: .infinity).frame(height: 48)
-                        .foregroundStyle(.white)
-                        .background(accent.primary, in: RoundedRectangle(cornerRadius: 15, style: .continuous))
-                }
-                .buttonStyle(.plain)
                 .padding(.horizontal, 16)
                 Color.clear.frame(height: 24)
             }
@@ -152,9 +141,10 @@ struct SpendingDetailView: View {
         }
         .padding(.horizontal, 20)
         .padding(.bottom, 20)
-        // 상태바(topInset) + 네비게이션 바(44) 만큼 내려서 시작한다.
-        // 스크롤 영역이 위로 올라가 있으므로 이 패딩이 없으면 글자가 상태바에 잘린다.
-        .padding(.top, topInset + 44)
+        // 상태바(topInset) 아래에서 시작한다. 뒤에 더하는 값은 네비게이션 바 높이(44)가 아니라
+        // **뒤로가기 버튼과 겹치지 않을 만큼**이다 — 44 를 그대로 주면 아이콘과 게임명 사이가
+        // 한 줄 비어 보인다. 좌측 상단이 비는 만큼 히어로가 위로 붙는다.
+        .padding(.top, topInset + 26)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             UnevenRoundedRectangle(bottomLeadingRadius: 28, bottomTrailingRadius: 28, style: .continuous)
@@ -282,14 +272,6 @@ struct SpendingDetailView: View {
         }
     }
 
-    /// '같은 항목 또 기록' 용 프리필 — 금액·항목·결제 경로는 잇고 **날짜는 오늘**, id 는 새로 받는다.
-    private func prefillTemplate(_ s: Spending) -> Spending {
-        Spending(
-            id: "", gameName: s.gameName, amount: s.amount, dateMillis: nowMs(),
-            paymentMethod: s.paymentMethod, chargePlatform: s.chargePlatform,
-            itemName: s.itemName, memo: "", tags: s.tags,
-            isSubscription: s.isSubscription, gameColor: s.gameColor)
-    }
 
     private func detailRow(_ label: String, _ value: String, sub: String? = nil) -> some View {
         HStack(alignment: .top) {
