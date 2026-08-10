@@ -62,9 +62,12 @@ object EnneadApi {
         if (!res.isOk) return null
         return runCatching {
             val r = parse(Game.ZZZ, JSONObject(res.body))
-            val ko = ZzzEventNames.map() // 이벤트명 en→ko
+            val ko = ZzzEventNames.map() // 이벤트명·에이전트명 en→ko
             EnneadResult(
-                emptyList(), // 픽업 배너 제외(기능 제거)
+                // 픽업 배너 — 27.30.x 에서 뺐다가 되살렸다. 응답에는 계속 들어 있었는데
+                // 버리고 있어서, 젠존제만 게임 일정에 픽업 줄이 없었다.
+                // 매핑에 없는 신규 에이전트는 영문 그대로 나온다([ZzzEventNames] 에 추가하면 된다).
+                r.banners.map { it.copy(name = ko[it.name] ?: it.name) },
                 r.events.map { it.copy(name = ko[it.name] ?: it.name) },
                 r.challenges.map { it.copy(name = ko[it.name] ?: it.name) },
             )
