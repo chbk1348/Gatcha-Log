@@ -113,6 +113,36 @@ fun dhLabel(targetMillis: Long, nowMillis: Long = currentTimeMillis()): String {
     return if (days > 0) "${days}일 ${hours}시간" else "${hours}시간"
 }
 
+/** 하루(ms) — '초까지 세는' 구간의 경계. */
+const val DAY_MILLIS = 24L * 60 * 60 * 1000
+
+/**
+ * 마감이 [DAY_MILLIS] 안쪽인지 — 초 단위 카운트다운·긴박 강조를 켜는 기준.
+ * 이미 지난 것은 false(끝난 일정을 재촉할 이유가 없다).
+ */
+fun isImminent(targetMillis: Long, nowMillis: Long = currentTimeMillis()): Boolean {
+    val diff = targetMillis - nowMillis
+    return diff > 0 && diff <= DAY_MILLIS
+}
+
+/**
+ * 초까지 세는 카운트다운 — `"5:12:33"`, 한 시간 안쪽이면 `"12:33"`. 지났으면 `"종료"`.
+ *
+ * [dhLabel] 과 나눠 쓴다. 며칠 남은 일정에 초를 붙여 봐야 읽는 사람에게 의미가 없고,
+ * 반대로 **마감 당일에는 '몇 시간'만으로 지금 해야 하는지 판단이 안 된다.**
+ * 자리를 고정(`05:12:33`)해 숫자가 흔들리지 않게 한다 — 매초 바뀌는 값이라 폭이 변하면 눈에 거슬린다.
+ */
+fun hmsLabel(targetMillis: Long, nowMillis: Long = currentTimeMillis()): String {
+    val diff = targetMillis - nowMillis
+    if (diff <= 0) return "종료"
+    val total = diff / 1000
+    val h = total / 3600
+    val m = (total % 3600) / 60
+    val s = total % 60
+    fun pad(v: Long) = if (v < 10) "0$v" else "$v"
+    return if (h > 0) "${h}:${pad(m)}:${pad(s)}" else "${m}:${pad(s)}"
+}
+
 // ── 콜라보 배너 판정 — ennead 에 콜라보 플래그가 없어 이름 화이트리스트로 결정형 판별.
 //    현재: 스타레일 × Fate/stay night [Unlimited Blade Works](4.4~, 2026-07). 새 콜라보 추가 시 이 집합만 갱신.
 //    (Rin 은 로컬라이즈가 "린"만 올 수 있어 오탐 위험 → "토오사카" 토큰으로 커버. 실데이터 확인 후 조정 가능.)
