@@ -116,7 +116,9 @@ extension View {
      SwiftUI 의 `.alert` 은 UIAlertController 를 거치지 않아 appearance proxy 가 닿지 않는다
      (실제로 적용해 보고 확인). 버튼마다 직접 거는 수밖에 없다.
 
-     `role: .destructive` 버튼에는 붙이지 않는다 — 시스템이 빨강으로 덮는다.
+     `role: .destructive` 버튼과 얼럿 안 TextField 에도 붙인다. destructive 는 시스템이 빨강으로
+     덮으므로 대개 무의미하지만, 얼럿 안의 것은 **하나도 빠짐없이** 거는 편이 낫다 —
+     빠진 하나가 강조색으로 남으면 그것만 눈에 띈다.
      */
     func glgAlertTint() -> some View { tint(Color(.systemBlue)) }
 }

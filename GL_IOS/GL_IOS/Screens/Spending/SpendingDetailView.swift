@@ -82,7 +82,7 @@ struct SpendingDetailView: View {
         .scrollIndicators(.hidden)
         .alert("이 지출을 삭제할까요?", isPresented: $confirmDelete) {
             Button("취소", role: .cancel) {}.glgAlertTint()
-            Button("삭제", role: .destructive) { store.deleteSpending(s.id); dismiss() }
+            Button("삭제", role: .destructive) { store.deleteSpending(s.id); dismiss() }.glgAlertTint()
         } message: { Text("삭제하면 되돌릴 수 없어요.") }
         // 수정·삭제를 네비 헤더 우측 아이콘으로. 각각 별도 ToolbarItem + ToolbarSpacer 로 분리 —
         // iOS 26 은 인접 툴바 아이템을 하나의 글래스 캡슐로 묶으므로 스페이서로 갈라 독립 원형 버튼으로.

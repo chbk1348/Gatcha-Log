@@ -349,7 +349,7 @@ struct SubscriptionEditSheet: View {
                 Button("삭제", role: .destructive) {
                     if let id = initial?.id { store.deleteSubscription(id) }
                     onClose()
-                }
+                }.glgAlertTint()
             }
         }
         .onAppear(perform: prefill)
