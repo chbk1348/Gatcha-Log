@@ -346,7 +346,9 @@ private fun DailyEntryTiles(
             icon = Icons.Default.EventAvailable,
             title = "출석 체크",
             value = "${attendance.todayDone}/${attendance.todayTotal}",
-            sub = if (attendance.allDone) "오늘 완료" else "${attendance.pending}개 남음",
+            // 부제는 바닥 표시와 겹치지 않는 것만 — 바닥이 이미 '출석 완료 / 출석하기'를
+            // 말하고 있어 "오늘 완료"·"1개 남음"은 같은 말을 두 번 하는 자리였다.
+            sub = if (attendance.streak > 0) "연속 ${attendance.streak}일" else "이번 달 ${attendance.monthFullDays}일",
             highlight = !attendance.allDone,
             modifier = Modifier.weight(1f),
             onClick = onOpenAttendance,
@@ -359,6 +361,8 @@ private fun DailyEntryTiles(
                 TileButton("출석하기", inProgress = checkingIn != null, onClick = onCheckInAll)
             }
         }
+        // 나머지 두 칸도 **같은 구조**로 만든다 — 바닥 요소가 없으면 그 칸만 짧아진다.
+        // 이쪽은 누를 게 따로 없으니 카드 전체가 하나의 탭 영역이다(bottomTappable).
         if (onOpenGameContent != null) {
             EntryTile(
                 icon = Icons.Default.MilitaryTech,
@@ -366,8 +370,9 @@ private fun DailyEntryTiles(
                 value = "주간",
                 sub = "수입 일지",
                 modifier = Modifier.weight(1f),
+                bottomTappable = true,
                 onClick = onOpenGameContent,
-            )
+            ) { TileGhost("보기") }
         }
         if (onOpenClears != null) {
             EntryTile(
@@ -376,8 +381,9 @@ private fun DailyEntryTiles(
                 value = "편성",
                 sub = "나선 · 혼돈",
                 modifier = Modifier.weight(1f),
+                bottomTappable = true,
                 onClick = onOpenClears,
-            )
+            ) { TileGhost("보기") }
         }
     }
 }
@@ -391,18 +397,26 @@ private fun EntryTile(
     sub: String,
     modifier: Modifier = Modifier,
     highlight: Boolean = false,
+    /** 바닥 요소가 버튼이 아닐 때 true — 카드 전체가 하나의 탭 영역이 된다. */
+    bottomTappable: Boolean = false,
     onClick: () -> Unit,
     action: @Composable ColumnScope.() -> Unit = {},
 ) {
     val accent = LocalAccent.current
     val mark = if (highlight) DangerText else accent
-    GlassCard(shape = RoundedCornerShape(18.dp), modifier = modifier.fillMaxHeight()) {
+    GlassCard(
+        shape = RoundedCornerShape(18.dp),
+        modifier = modifier.fillMaxHeight()
+            .then(if (bottomTappable) Modifier.clickable { onClick() } else Modifier),
+    ) {
         Column(Modifier.fillMaxHeight()) {
-            // 진입 영역 — 아래 버튼과 겹치지 않도록 여기까지만 클릭을 받는다.
+            // 진입 영역 — 바닥이 버튼이면 여기까지만 클릭을 받는다(겹치면 어느 쪽이
+            // 먹었는지 눈으로 구분되지 않는다). 바닥이 표시뿐이면 카드 전체가 받는다.
             // 가운데 정렬 — 타일이 좁아 글자 길이가 제각각이라, 좌측 정렬이면 세 칸의
             // 글자가 서로 다른 지점에서 끝나 줄이 삐뚤어져 보인다.
             Column(
-                Modifier.fillMaxWidth().clickable { onClick() }
+                Modifier.fillMaxWidth()
+                    .then(if (bottomTappable) Modifier else Modifier.clickable { onClick() })
                     .padding(start = 10.dp, end = 10.dp, top = 13.dp, bottom = 11.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
@@ -430,6 +444,21 @@ private fun EntryTile(
                 content = action,
             )
         }
+    }
+}
+
+/** 진입만 하는 타일의 바닥 — 버튼과 같은 높이의 옅은 표시. 칸 높이를 맞추는 역할도 한다. */
+@Composable
+private fun TileGhost(label: String) {
+    Row(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp))
+            .background(Color(0xFFF2F3F6)).padding(vertical = 7.dp),
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(label, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextSecondary, maxLines = 1)
+        Spacer(Modifier.width(2.dp))
+        Icon(Icons.Default.ChevronRight, null, tint = TextSecondary, modifier = Modifier.size(13.dp))
     }
 }
 
