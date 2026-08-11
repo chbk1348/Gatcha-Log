@@ -31,21 +31,19 @@ import com.gatcha.log.ui.theme.DividerColor
 import com.gatcha.log.ui.theme.TextSecondary
 
 // ============================================================ 통합 게임 탭 (배너·전투·일지)
-/** 상단 게임 세그먼트(filter)로 선택된 게임의 픽업 배너·전투 진행도·수입 일지 표시. 자체 칩 제거. */
+/** 3게임의 전투 진행도·수입 일지 표시. */
 @Composable
 fun GameTabbedSection(
     banners: List<GachaBanner>,
     combat: List<CombatMode>,
     ledgers: List<MonthlyLedger>,
     isRefreshing: Boolean,
-    filter: String = "all",
     linked: Boolean = true,
 ) {
     val games = GameData.attendanceGames // 원신·스타레일·젠레스
-    val shown = if (filter == "all") games else games.filter { it.key == filter }
     // 전투 진행도·수입 일지를 섹션 타입별로 그룹화. 픽업 배너는 '게임 일정'으로 통합돼 제외.
-    val combatGames = shown.mapNotNull { g -> combat.filter { it.game == g.displayName }.takeIf { it.isNotEmpty() }?.let { g to it } }
-    val ledgerList = shown.mapNotNull { g -> ledgers.firstOrNull { it.game == g.displayName } }
+    val combatGames = games.mapNotNull { g -> combat.filter { it.game == g.displayName }.takeIf { it.isNotEmpty() }?.let { g to it } }
+    val ledgerList = games.mapNotNull { g -> ledgers.firstOrNull { it.game == g.displayName } }
     val allEmpty = combatGames.isEmpty() && ledgerList.isEmpty()
     Column(verticalArrangement = Arrangement.spacedBy(20.dp)) {
         when {

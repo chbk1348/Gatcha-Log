@@ -43,19 +43,18 @@ import com.gatcha.log.ui.theme.TextPrimary
 import com.gatcha.log.ui.theme.TextSecondary
 import com.gatcha.log.ui.theme.toColor
 
-/** 헤더 드롭다운 규칙: "all"=전체, 그 외는 게임 키 → 해당 게임 displayName 매칭(일정 섹션과 동일). */
-private fun filterNews(news: List<NewsItem>, gameFilter: String): List<NewsItem> =
-    if (gameFilter == "all") news
-    else GameData.games.firstOrNull { it.key == gameFilter }?.let { g -> news.filter { it.game == g.displayName } } ?: news
+/** 게임 칩 규칙: "all"=전체, 그 외는 게임 키 → 해당 게임 displayName 매칭. */
+private fun filterNews(news: List<NewsItem>, gameKey: String): List<NewsItem> =
+    if (gameKey == "all") news
+    else GameData.games.firstOrNull { it.key == gameKey }?.let { g -> news.filter { it.game == g.displayName } } ?: news
 
 /** 공지·뉴스 섹션 — 게임별 최신 공지(상위 [max]), 탭하면 앱 안에서 본문 열기. 더 있으면 '더보기'로 전체 페이지. */
 @Composable
-fun NewsSection(news: List<NewsItem>, gameFilter: String, onSeeAll: () -> Unit, onOpen: (NewsItem) -> Unit, max: Int = 5) {
+fun NewsSection(news: List<NewsItem>, onSeeAll: () -> Unit, onOpen: (NewsItem) -> Unit, max: Int = 5) {
     val accent = LocalAccent.current
-    val all = remember(news, gameFilter) { filterNews(news, gameFilter) }
-    if (all.isEmpty()) return
+    if (news.isEmpty()) return
     // 그냥 take 하면 공지를 많이 올리는 게임(엔드필드)이 5칸을 다 먹는다 — 게임을 돌아가며 뽑는다.
-    val items = remember(all, max) { NewsLogic.previewTop(all, max) }
+    val items = remember(news, max) { NewsLogic.previewTop(news, max) }
     Text("공지·뉴스", fontSize = 16.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 2.dp, bottom = 10.dp))
     GlassCard(modifier = Modifier.fillMaxWidth()) {
         // 하단 패딩은 더보기 행이 직접 제공(여백 최소화), 더보기 없으면 Spacer 로 기본 여백 유지.
@@ -64,13 +63,13 @@ fun NewsSection(news: List<NewsItem>, gameFilter: String, onSeeAll: () -> Unit, 
                 if (i > 0) Box(Modifier.fillMaxWidth().height(1.dp).background(DividerColor))
                 NewsRow(n, onOpen)
             }
-            if (all.size > max) {
+            if (news.size > max) {
                 Box(Modifier.fillMaxWidth().height(1.dp).background(DividerColor))
                 Row(
                     modifier = Modifier.fillMaxWidth().clickable { onSeeAll() }.padding(vertical = 12.dp),
                     horizontalArrangement = Arrangement.Center,
                 ) {
-                    Text("더보기 (${all.size})", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = accent)
+                    Text("더보기 (${news.size})", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = accent)
                 }
             } else {
                 Spacer(Modifier.height(16.dp))
@@ -81,25 +80,20 @@ fun NewsSection(news: List<NewsItem>, gameFilter: String, onSeeAll: () -> Unit, 
 
 /** 공지·뉴스 전체 페이지 내용(SectionPage 안에 배치 — 자체 스크롤 없음). */
 @Composable
-fun NewsFullContent(news: List<NewsItem>, gameFilter: String, onOpen: (NewsItem) -> Unit) {
+fun NewsFullContent(news: List<NewsItem>, onOpen: (NewsItem) -> Unit) {
+    // 페이지 안 게임 칩 — 게임별로 좁혀 보는 건 여기서만 한다.
+    // 게임이 6개로 늘면서 한 화면에 여러 게임 공지가 섞여, 목록을 훑어 원하는 게임만 보기가 어려워졌다.
+    var chip by remember { mutableStateOf("all") }
     // 공지 목록은 게임 수 × 30건까지 커진다(디스크 캐시 상한은 저장에만 걸린다).
     // 필터는 입력이 바뀔 때만 — 재구성마다 전체를 다시 훑을 이유가 없다.
-    val headerFiltered = remember(news, gameFilter) { filterNews(news, gameFilter) }
-    // 페이지 안 게임 칩 — 헤더 드롭다운과 별개로 이 페이지에서만 좁혀 본다.
-    // 게임이 6개로 늘면서 한 화면에 여러 게임 공지가 섞여, 목록을 훑어 원하는 게임만 보기가 어려워졌다.
-    // 헤더가 이미 한 게임으로 좁힌 상태면 칩이 무의미하므로 그때는 감춘다.
-    var chip by remember(gameFilter) { mutableStateOf("all") }
-    val showChips = gameFilter == "all"
-    val all = remember(headerFiltered, chip, showChips) {
-        if (!showChips) headerFiltered else filterNews(headerFiltered, chip)
-    }
+    val all = remember(news, chip) { filterNews(news, chip) }
     // 칩은 실제로 공지가 있는 게임만 — 소식이 없는 게임 칩을 눌러 빈 화면을 보게 두지 않는다.
-    val chipGames = remember(headerFiltered) {
-        GameData.games.filter { g -> headerFiltered.any { it.game == g.displayName } }
+    val chipGames = remember(news) {
+        GameData.games.filter { g -> news.any { it.game == g.displayName } }
     }
 
     Spacer(Modifier.height(4.dp))
-    if (showChips && chipGames.size > 1) {
+    if (chipGames.size > 1) {
         Row(
             modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
