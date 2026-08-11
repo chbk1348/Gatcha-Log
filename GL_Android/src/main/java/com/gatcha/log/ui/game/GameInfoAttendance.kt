@@ -27,6 +27,7 @@ import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.gatcha.log.data.DailyGameSummary
 import com.gatcha.log.data.DailyLogic
 import com.gatcha.log.data.DailyTask
 import com.gatcha.log.data.DateUtil
@@ -90,12 +91,15 @@ internal fun DailyHeroSection(
     val tasks = remember(all, filter) { if (filter == "all") all else all.filter { it.gameKey == filter } }
     val hero = remember(tasks) { DailyLogic.hero(tasks) }
     val rest = remember(tasks, hero) { tasks.filter { it !== hero } }
+    // 재화 카드는 **필터와 무관하게 3게임 전부** 보여준다 — 나란히 놓고 비교하는 게 이 카드의 쓸모다.
+    val summaries = remember(notes, attendanceToday, all) { DailyLogic.summaries(notes, attendanceToday, all) }
 
     Column {
         if (hero != null) UrgentHero(hero, headTop, streak) else CalmHero(tasks.size, headTop, streak)
 
         Column(Modifier.padding(horizontal = 16.dp)) {
-            Spacer(Modifier.height(16.dp))
+            ResinCard(summaries)
+            Spacer(Modifier.height(12.dp))
             if (rest.isNotEmpty()) {
                 GlassCard(shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth()) {
                     Column(Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
@@ -124,96 +128,72 @@ internal fun DailyHeroSection(
     }
 }
 
-/** 히어로 안쪽 여백 — 좌우는 섹션과 같은 16dp 에 4dp 를 더해 글자가 조금 안쪽에서 시작한다. */
-private val HeroPadH = 20.dp
-
 /**
- * 급한 일이 있을 때의 지면 — 그 게임 색을 파스텔로 깔고 문장 하나를 크게.
+ * 히어로 — **색면을 쓰지 않는다.**
  *
- * 지출 상세 히어로와 같은 방식이다: 배경은 상태바까지 이어지고(글자는 안전 영역 안),
- * 색은 게임색을 흰색과 섞어 옅게 깐다. 원색을 그대로 쓰면 아래 흰 카드와 대비가 세서
- * 화면이 배너처럼 읽힌다.
+ * 지출 상세 히어로가 게임색 파스텔 그라데이션을 상태바까지 깔아 지면을 지배하는 형태인데,
+ * 데일리까지 같은 판을 쓰면 두 화면이 구분되지 않는다. 여기는 글자와 여백만으로 세운다 —
+ * 색면이 없으니 아래 흰 카드와 층이 겹치지 않아 화면도 가벼워진다.
+ *
+ * 게임 구분은 짧은 색 막대 하나. 배경 대신 **글자 크기**가 위계를 만든다.
  */
 @Composable
 private fun UrgentHero(task: DailyTask, headTop: Dp, streak: Int) {
-    val base = task.colorArgb.toColor()
-    val ink = lerp(base, Color.Black, 0.62f)
-    Column(
-        Modifier
-            .fillMaxWidth()
-            .background(
-                Brush.linearGradient(listOf(lerp(base, Color.White, 0.80f), lerp(base, Color.White, 0.66f))),
-                RoundedCornerShape(bottomStart = 28.dp, bottomEnd = 28.dp),
-            )
-            .padding(top = headTop, bottom = 22.dp)
-            .padding(horizontal = HeroPadH),
-    ) {
-        HeroTopLine(task.gameShort, "지금", ink, streak)
-        Spacer(Modifier.height(10.dp))
+    HeroFrame(headTop) {
+        HeroKicker("${task.gameShort} · 지금", task.colorArgb.toColor(), streak)
+        Spacer(Modifier.height(12.dp))
         Text(
             task.label,
-            fontSize = 26.sp, fontWeight = FontWeight.Bold, color = TextPrimary,
-            lineHeight = 31.sp,
+            fontSize = 30.sp, fontWeight = FontWeight.Bold, color = TextPrimary,
+            lineHeight = 36.sp, letterSpacing = (-0.8).sp,
         )
         if (task.detail.isNotBlank()) {
-            Spacer(Modifier.height(6.dp))
-            Text(task.detail, fontSize = 12.5.sp, color = ink.copy(alpha = 0.72f))
+            Spacer(Modifier.height(8.dp))
+            Text(task.detail, fontSize = 13.sp, color = TextSecondary)
         }
     }
 }
 
-/**
- * 급한 일이 없을 때 — 같은 자리, 낮은 목소리.
- *
- * 브랜드 민트로 깔아 "어느 게임"이 아니라 "오늘 전체"를 말한다.
- */
+/** 급한 일이 없을 때 — 같은 자리, 낮은 목소리. 막대는 브랜드 민트. */
 @Composable
 private fun CalmHero(remaining: Int, headTop: Dp, streak: Int) {
-    val base = MintPrimary
-    val ink = lerp(base, Color.Black, 0.62f)
-    Column(
-        Modifier
-            .fillMaxWidth()
-            .background(
-                Brush.linearGradient(listOf(lerp(base, Color.White, 0.86f), lerp(base, Color.White, 0.74f))),
-                RoundedCornerShape(bottomStart = 28.dp, bottomEnd = 28.dp),
-            )
-            .padding(top = headTop, bottom = 22.dp)
-            .padding(horizontal = HeroPadH),
-    ) {
-        HeroTopLine("오늘의 데일리", null, ink, streak)
-        Spacer(Modifier.height(10.dp))
+    HeroFrame(headTop) {
+        HeroKicker("오늘의 데일리", MintPrimary, streak)
+        Spacer(Modifier.height(12.dp))
         Text(
             if (remaining > 0) "할 일 ${remaining}건 남았어요" else "오늘 할 일 끝났어요",
-            fontSize = 24.sp, fontWeight = FontWeight.Bold, color = TextPrimary,
+            fontSize = 27.sp, fontWeight = FontWeight.Bold, color = TextPrimary,
+            letterSpacing = (-0.6).sp,
         )
-        Spacer(Modifier.height(6.dp))
+        Spacer(Modifier.height(8.dp))
         Text(
             if (remaining > 0) "급한 건 없어요 — 아래에서 하나씩" else "재화도 넉넉하고 출석도 다 했어요",
-            fontSize = 12.5.sp, color = ink.copy(alpha = 0.72f),
+            fontSize = 13.sp, color = TextSecondary,
         )
     }
 }
 
-/** 히어로 첫 줄 — 무엇에 대한 이야기인가 + 연속 기록. */
+/** 히어로 공통 틀 — 배경 없음. 헤더(툴바) 아래에서 시작하고 좌우는 섹션과 같은 16dp. */
 @Composable
-private fun HeroTopLine(title: String, badge: String?, ink: Color, streak: Int) {
+private fun HeroFrame(headTop: Dp, content: @Composable ColumnScope.() -> Unit) {
+    Column(
+        Modifier.fillMaxWidth()
+            .padding(top = headTop, bottom = 22.dp)
+            .padding(horizontal = 16.dp),
+        content = content,
+    )
+}
+
+/** 히어로 첫 줄 — 짧은 색 막대 + 무엇에 대한 이야기인가 + 연속 기록. */
+@Composable
+private fun HeroKicker(title: String, color: Color, streak: Int) {
     Row(verticalAlignment = Alignment.CenterVertically) {
-        Text(title, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = ink)
-        if (badge != null) {
-            Spacer(Modifier.width(7.dp))
-            Text(
-                badge, fontSize = 10.sp, fontWeight = FontWeight.Bold, color = ink,
-                modifier = Modifier.clip(CircleShape).background(Color.White.copy(alpha = 0.75f))
-                    .padding(horizontal = 8.dp, vertical = 2.5.dp),
-            )
-        }
+        Box(Modifier.width(18.dp).height(3.dp).clip(CircleShape).background(color))
+        Spacer(Modifier.width(8.dp))
+        Text(title, fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = color)
         Spacer(Modifier.weight(1f))
         if (streak > 0) {
-            Text(
-                "연속 ${streak}일", fontSize = 11.sp, fontWeight = FontWeight.Bold,
-                color = ink.copy(alpha = 0.55f),
-            )
+            Text("연속 ${streak}일", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextSecondary)
         }
     }
 }
@@ -222,23 +202,14 @@ private fun HeroTopLine(title: String, badge: String?, ink: Color, streak: Int) 
 @Composable
 private fun LinkPrompt(headTop: Dp, onConfigClick: () -> Unit) {
     val accent = LocalAccent.current
-    Column(
-        Modifier
-            .fillMaxWidth()
-            .background(
-                Brush.linearGradient(listOf(lerp(MintPrimary, Color.White, 0.86f), lerp(MintPrimary, Color.White, 0.74f))),
-                RoundedCornerShape(bottomStart = 28.dp, bottomEnd = 28.dp),
-            )
-            .padding(top = headTop, bottom = 24.dp)
-            .padding(horizontal = HeroPadH),
-    ) {
-        Text("오늘의 데일리", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = lerp(MintPrimary, Color.Black, 0.62f))
-        Spacer(Modifier.height(10.dp))
-        Text("HoYoLAB 을 연동해 주세요", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
-        Spacer(Modifier.height(6.dp))
+    HeroFrame(headTop) {
+        HeroKicker("오늘의 데일리", accent, 0)
+        Spacer(Modifier.height(12.dp))
+        Text("HoYoLAB 을 연동해 주세요", fontSize = 25.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+        Spacer(Modifier.height(8.dp))
         Text(
             "연동하면 재화·일일 숙제·출석을 한곳에서 볼 수 있어요.",
-            fontSize = 12.5.sp, color = TextSecondary, lineHeight = 18.sp,
+            fontSize = 13.sp, color = TextSecondary, lineHeight = 19.sp,
         )
         Spacer(Modifier.height(16.dp))
         Box(
@@ -250,6 +221,61 @@ private fun LinkPrompt(headTop: Dp, onConfigClick: () -> Unit) {
         }
     }
 }
+
+/**
+ * 재화 카드 — 3게임을 **한 카드에 나란히**.
+ *
+ * 세로로 3행 쌓으면 여전히 세 덩어리로 읽힌다. 가로로 나란히 두면 눈이 한 번에 훑고
+ * 어느 게임이 차 있는지 비교된다 — 게임 수가 셋으로 고정이라 폭이 흔들리지 않는다.
+ */
+@Composable
+private fun ResinCard(items: List<DailyGameSummary>) {
+    GlassCard(shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.fillMaxWidth().padding(16.dp)) {
+            Text("재화", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextSecondary)
+            Spacer(Modifier.height(12.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                items.forEach { s -> ResinCell(s, Modifier.weight(1f)) }
+            }
+        }
+    }
+}
+
+/** 재화 한 칸 — 게임 약칭 · 현재/최대 · 게이지 · 언제 가득. */
+@Composable
+private fun ResinCell(s: DailyGameSummary, modifier: Modifier = Modifier) {
+    val color = s.colorArgb.toColor()
+    Column(modifier) {
+        Text(s.gameShort, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = color, maxLines = 1)
+        Spacer(Modifier.height(5.dp))
+        if (s.hasNote) {
+            Text(
+                s.resinValue,
+                fontSize = 14.sp, fontWeight = FontWeight.Bold,
+                color = if (s.resinFull) DangerText else TextPrimary, maxLines = 1,
+            )
+            Spacer(Modifier.height(7.dp))
+            LinearProgressIndicator(
+                progress = { s.resinRatio },
+                color = if (s.resinFull) DangerText else color,
+                trackColor = ProgressEmpty,
+                modifier = Modifier.fillMaxWidth().height(4.dp).clip(CircleShape),
+            )
+            Spacer(Modifier.height(6.dp))
+            Text(
+                if (s.resinFull) "가득" else s.resinRecovery.ifBlank { "—" },
+                fontSize = 10.5.sp, color = TextSecondary, maxLines = 1,
+            )
+        } else {
+            Text("—", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TextSecondary)
+            Spacer(Modifier.height(7.dp))
+            Box(Modifier.fillMaxWidth().height(4.dp).clip(CircleShape).background(ProgressEmpty))
+            Spacer(Modifier.height(6.dp))
+            Text("노트 없음", fontSize = 10.5.sp, color = TextSecondary, maxLines = 1)
+        }
+    }
+}
+
 
 /** 할 일 한 줄 — 앱이 대신 할 수 있는 것(출석)에만 버튼이 붙는다. */
 @Composable

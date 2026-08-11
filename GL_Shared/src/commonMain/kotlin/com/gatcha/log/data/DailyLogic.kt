@@ -157,6 +157,8 @@ object DailyLogic {
             gameShort = game.shortName,
             colorArgb = game.color,
             resin = if (note != null && note.maxResin > 0) "${note.resinLabel} ${note.currentResin}/${note.maxResin}" else "",
+            resinValue = if (note != null && note.maxResin > 0) "${note.currentResin}/${note.maxResin}" else "",
+            resinRecovery = note?.resinRecoveryTime.orEmpty(),
             resinRatio = note?.resinRatio ?: 0f,
             resinFull = note != null && note.maxResin > 0 && note.currentResin >= note.maxResin,
             pendingCount = mine.size,
@@ -171,7 +173,12 @@ data class DailyGameSummary(
     val gameKey: String,
     val gameShort: String,
     val colorArgb: Long,
+    /** "레진 152/160" — 재화명 포함. */
     val resin: String,
+    /** "152/160" — 재화명 없이 숫자만(칸이 좁은 카드용). */
+    val resinValue: String,
+    /** 상류가 주는 회복 안내("14시간 30분 후" 등). 없으면 빈 문자열. */
+    val resinRecovery: String,
     val resinRatio: Float,
     val resinFull: Boolean,
     val pendingCount: Int,
