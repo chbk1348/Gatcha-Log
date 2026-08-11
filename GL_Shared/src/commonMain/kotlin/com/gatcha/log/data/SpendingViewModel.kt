@@ -930,15 +930,22 @@ class SpendingViewModel : ViewModel() {
                 if (fetched.isEmpty()) return@launch
                 // 이름 출처는 두 겹이다. ①전체 캐릭터 메타(yatta) — 쇼케이스에 없는 캐릭터까지 덮는다.
                 // ②보유 캐릭터 캐시 — 메타에 아직 없는 신규 캐릭터를 보완한다(우선순위가 더 높다).
+                //
+                // ⚠️ 두 겹 모두 **게임별로** 유지한다. 캐릭터 id 공간이 게임마다 독립이라
+                // 하나로 합치면 스타레일 1xxx 와 젠레스 1xxx 가 충돌한다(달리아 → 이블린 사고).
                 val metaNames = runCatching {
                     coroutineScope {
-                        listOf(false, true)
-                            .map { hsr -> async(Dispatchers.IO) { EnkaApi.characterNames(hsr) } }
-                            .awaitAll()
-                            .fold(emptyMap<Int, String>()) { acc, m -> acc + m }
+                        val gi = async(Dispatchers.IO) { EnkaApi.characterNames(hsr = false) }
+                        val hsr = async(Dispatchers.IO) { EnkaApi.characterNames(hsr = true) }
+                        mapOf(Game.GENSHIN.key to gi.await(), Game.HSR.key to hsr.await())
                     }
                 }.getOrDefault(emptyMap())
-                val named = CombatClearLogic.withNames(fetched, metaNames + characterNamesById())
+                val ownedNames = characterNamesByGame()
+                // 게임별로 메타 위에 보유 캐시를 덮는다(신규 캐릭터가 메타보다 먼저 들어온다).
+                val namesByGame = (metaNames.keys + ownedNames.keys).associateWith { key ->
+                    metaNames[key].orEmpty() + ownedNames[key].orEmpty()
+                }
+                val named = CombatClearLogic.withNames(fetched, namesByGame)
                 val grouped = CombatClearLogic.grouped(named)
                 _combatClears.value = grouped
                 lastCombatClearAt = currentTimeMillis()
@@ -950,11 +957,17 @@ class SpendingViewModel : ViewModel() {
     }
 
     /** 보유 캐릭터 캐시에서 id → 이름 맵을 만든다(게임 구분 없이 — id 가 게임별로 겹치지 않는다). */
-    private fun characterNamesById(): Map<Int, String> =
-        _enkaResults.value.values
-            .mapNotNull { it.profile }
-            .flatMap { it.chars }
-            .associate { it.id to it.name }
+    /**
+     * 보유 캐릭터 캐시의 이름 — **게임 키별로** 나눠 준다.
+     *
+     * 예전엔 세 게임을 한 맵에 합쳤는데, 캐릭터 id 는 게임마다 독립이라 스타레일과 젠레스가
+     * 정면으로 겹친다. 합친 맵을 클리어 편성에 넘기는 바람에 스타레일 캐릭터 자리에
+     * 젠레스 이름이 찍혔다.
+     */
+    private fun characterNamesByGame(): Map<String, Map<Int, String>> =
+        _enkaResults.value.mapValues { (_, r) ->
+            r.profile?.chars?.associate { it.id to it.name }.orEmpty()
+        }
 
     private val _gameEvents = MutableStateFlow<List<GameEvent>>(emptyList())
     val gameEvents: StateFlow<List<GameEvent>> = _gameEvents.asStateFlow()
