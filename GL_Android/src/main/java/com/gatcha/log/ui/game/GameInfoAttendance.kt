@@ -22,8 +22,14 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.gatcha.log.data.DailyGameSummary
+import com.gatcha.log.data.DailyLogic
+import com.gatcha.log.data.DailyTask
 import com.gatcha.log.data.DateUtil
 import com.gatcha.log.data.HoyoCalendar
 import com.gatcha.log.data.Game
@@ -34,16 +40,30 @@ import com.gatcha.log.data.NoteStat
 import com.gatcha.log.ui.components.GameTagSize
 import com.gatcha.log.ui.components.GlgGameTag
 import com.gatcha.log.ui.components.GlassCard
+import com.gatcha.log.ui.components.GlgTabHeaderHeight
 import com.gatcha.log.ui.components.GlgButton
 import com.gatcha.log.ui.theme.*
 
-// ============================================================ 데일리 히어로 (실시간 노트 + 출석체크 통합)
+// ============================================================ 데일리 히어로 2.0
 /**
- * 최상단 히어로 카드. HoYoLAB 미연동 시에는 출석·실시간 노트를 숨기고 연동을 유도하고,
- * 연동되면 게임별 실시간 노트(레진/개척력/배터리)와 출석체크를 한 카드에 통합해 보여준다.
+ * 게임 정보 탭 최상단 지면.
+ *
+ * ## 왜 히어로인가
+ *
+ * 1.0 은 "지금 상태가 어떤가"에 답했다 — 게임 셋의 재화·출석을 같은 무게로 늘어놓고,
+ * 무엇부터 할지는 사용자가 세 줄을 읽고 판단하게 했다. 2.0 은 **판단을 앞으로 당긴다.**
+ * 가장 급한 하나가 지면을 지배하고(지출 상세 히어로와 같은 결), 나머지는 아래로 내려간다.
+ *
+ * 급한 게 없으면 히어로 대신 조용한 요약을 쓴다([DailyLogic.hero] 가 null). 안 급한 일을
+ * 크게 띄우면 다음에 진짜 급할 때 그 자리가 안 읽힌다.
+ *
+ * 판단 규칙은 전부 [DailyLogic] 에 있다 — 여기는 그리기만 한다.
+ *
+ * @param topInset 상태바 높이. 히어로 배경이 상태바까지 이어지고 글자는 그 아래에서 시작한다.
  */
 @Composable
 internal fun DailyHeroSection(
+    topInset: Dp,
     notes: List<LiveNote>,
     attendanceToday: Set<String>,
     attendanceHistory: Map<String, Set<String>>,
@@ -59,143 +79,294 @@ internal fun DailyHeroSection(
     /** 클리어 편성으로 — 위 카드의 두 번째 줄. null 이면 줄 자체가 안 뜬다. */
     onOpenClears: (() -> Unit)? = null,
 ) {
-    val accent = LocalAccent.current
-    var expanded by remember { mutableStateOf(false) }
-    val pendingCount = GameData.attendanceGames.count { it.key !in attendanceToday }
+    // 헤더(게임 필터 드롭다운·버튼 줄)가 히어로 위에 겹친다 — 그만큼 아래에서 시작한다.
+    val headTop = topInset + GlgTabHeaderHeight
 
     if (!hoyolab.isLinked) {
-        GlassCard(shape = RoundedCornerShape(24.dp), modifier = Modifier.fillMaxWidth()) {
-            Column(
-                Modifier.fillMaxWidth().padding(24.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                Box(
-                    Modifier.size(56.dp).clip(CircleShape).background(accent.copy(alpha = 0.12f)),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Icon(Icons.Default.Link, null, tint = accent, modifier = Modifier.size(28.dp))
-                }
-                Spacer(Modifier.height(12.dp))
-                Text("HoYoLAB 연동이 필요해요", fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                Spacer(Modifier.height(6.dp))
-                Text(
-                    "연동하면 실시간 노트(레진·개척력·배터리)와\n출석체크를 한곳에서 관리할 수 있어요.",
-                    fontSize = 12.sp, color = TextSecondary,
-                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                    lineHeight = 17.sp,
-                )
-                Spacer(Modifier.height(18.dp))
-                GlgButton("HoYoLAB 연동하기", onClick = onConfigClick, modifier = Modifier.fillMaxWidth())
-            }
-        }
+        LinkPrompt(headTop, onConfigClick)
         return
     }
 
-    // Segmented — 특정 게임 선택: 목업 2번 지면(게임색 테두리 노트 카드 + 별도 출석 카드)
-    val focused = if (filter != "all") GameData.attendanceGames.firstOrNull { it.key == filter } else null
-    if (focused != null) {
-        val note = notes.firstOrNull { GameData.byNameOrNull(it.game)?.key == focused.key }
-        val uid = when (focused.key) {
-            "genshin" -> hoyolab.genshinUid
-            "hsr" -> hoyolab.hsrUid
-            "zzz" -> hoyolab.zzzUid
-            else -> ""
-        }
-        Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            FocusedGameDaily(
-                game = focused,
-                note = note,
-                uid = uid,
-                checked = focused.key in attendanceToday,
-                inProgress = checkingIn == focused.key,
-                history = attendanceHistory,
-                expanded = expanded,
-                onToggleExpand = { expanded = !expanded },
-                onCheckIn = { onCheckIn(focused.key) },
-            )
-            onOpenGameContent?.let { GameContentEntry(it, onOpenClears) }
-        }
-        return
+    val all = remember(notes, attendanceToday) { DailyLogic.tasks(notes, attendanceToday) }
+    val tasks = remember(all, filter) { if (filter == "all") all else all.filter { it.gameKey == filter } }
+    val hero = remember(tasks) { DailyLogic.hero(tasks) }
+    val rest = remember(tasks, hero) { tasks.filter { it !== hero } }
+    val summaries = remember(notes, attendanceToday, all, filter) {
+        DailyLogic.summaries(notes, attendanceToday, all)
+            .filter { filter == "all" || it.gameKey == filter }
     }
 
-    // 전체 모드 — 섹션 제목(카드 밖) + 요약 카드 + 게임별 개별 카드 분리
-    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        Column {
-            // 제목은 카드 밖으로 — 다른 섹션(내 캐릭터·게임 일정·숙제 완주율)과 같은 규격.
-            // 액션(전체 출석)은 제목 줄 우측에 함께 둔다.
-            Row(
-                Modifier.fillMaxWidth().padding(start = 2.dp, bottom = 11.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.Bolt, null, tint = accent, modifier = Modifier.size(18.dp))
-                    Spacer(Modifier.width(6.dp))
-                    Text("오늘의 데일리", fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                    if (streak > 0) {
-                        Spacer(Modifier.width(8.dp))
-                        StreakChip(streak)
-                    }
-                }
-                if (pendingCount > 0) {
-                        Surface(
-                            shape = RoundedCornerShape(999.dp),
-                            color = accent.copy(alpha = 0.12f),
-                            modifier = Modifier.clickable(enabled = checkingIn == null) { onCheckInAll() },
-                        ) {
-                            Row(Modifier.padding(horizontal = 11.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-                                if (checkingIn != null) {
-                                    CircularProgressIndicator(Modifier.size(13.dp), strokeWidth = 2.dp, color = accent)
-                                } else {
-                                    Icon(Icons.Default.DoneAll, null, tint = accent, modifier = Modifier.size(15.dp))
-                                }
-                                Spacer(Modifier.width(5.dp))
-                                Text("전체 출석", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = accent)
-                            }
+    Column {
+        if (hero != null) UrgentHero(hero, headTop, streak) else CalmHero(tasks.size, headTop, streak)
+
+        Column(Modifier.padding(horizontal = 16.dp)) {
+            Spacer(Modifier.height(16.dp))
+            if (rest.isNotEmpty()) {
+                GlassCard(shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth()) {
+                    Column(Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
+                        Text(
+                            if (hero != null) "그다음" else "오늘 할 일",
+                            fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextSecondary,
+                            modifier = Modifier.padding(top = 10.dp, bottom = 2.dp),
+                        )
+                        rest.forEachIndexed { i, t ->
+                            if (i > 0) HorizontalDivider(color = DividerColor)
+                            TaskRow(t, inProgress = checkingIn == t.gameKey) { onCheckIn(t.gameKey) }
                         }
                     }
                 }
-            // 요약 카드: 최근 출석 스트립(+한 달 보기)
+                Spacer(Modifier.height(12.dp))
+            }
+
+            // 게임별 현황 — 할 일이 없는 게임도 한 줄은 남긴다(빠지면 "왜 없지?"를 확인하러 들어가야 한다).
             GlassCard(shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth()) {
-            Column(Modifier.padding(16.dp)) {
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                    Text("최근 출석", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextSecondary)
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable { expanded = !expanded }.padding(horizontal = 4.dp, vertical = 2.dp),
-                    ) {
-                        Text(if (expanded) "접기" else "한 달 보기", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = accent)
-                        Icon(if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore, null, tint = accent, modifier = Modifier.size(16.dp))
-                    }
-                }
-                Spacer(Modifier.height(10.dp))
-                WeekAttendanceStrip(attendanceHistory)
-                AnimatedVisibility(visible = expanded) {
-                    Column {
-                        Spacer(Modifier.height(14.dp))
-                        MonthAttendanceCalendar(attendanceHistory)
+                Column(Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
+                    Text(
+                        "게임별 현황", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextSecondary,
+                        modifier = Modifier.padding(top = 10.dp, bottom = 2.dp),
+                    )
+                    summaries.forEachIndexed { i, s ->
+                        if (i > 0) HorizontalDivider(color = DividerColor)
+                        SummaryRow(s)
                     }
                 }
             }
-            }
-        }
-        // 게임별 통합 카드: 3개 게임(실시간 노트 + 출석)을 한 카드에 구분선으로 묶음
-        GlassCard(shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth()) {
-            Column(Modifier.padding(horizontal = 16.dp)) {
-                GameData.attendanceGames.forEachIndexed { idx, game ->
-                    val note = notes.firstOrNull { GameData.byNameOrNull(it.game)?.key == game.key }
-                    val uid = when (game.key) {
-                        "genshin" -> hoyolab.genshinUid
-                        "hsr" -> hoyolab.hsrUid
-                        "zzz" -> hoyolab.zzzUid
-                        else -> ""
-                    }
-                    if (idx > 0) HorizontalDivider(color = DividerColor)
-                    DailyGameRow(game, note, uid, game.key in attendanceToday, checkingIn == game.key) { onCheckIn(game.key) }
-                }
+            Spacer(Modifier.height(12.dp))
+
+            // 출석 기록 — 기본 접힘. 자동 출석이 도는 이상 매일 볼 정보가 아니다.
+            AttendanceFold(attendanceHistory, streak, pending = all.count { it.kind == "출석" }, onCheckInAll = onCheckInAll, checkingIn = checkingIn)
+
+            onOpenGameContent?.let {
+                Spacer(Modifier.height(12.dp))
+                GameContentEntry(it, onOpenClears)
             }
         }
-        onOpenGameContent?.let { GameContentEntry(it, onOpenClears) }
+    }
+}
+
+/** 히어로 안쪽 여백 — 좌우는 섹션과 같은 16dp 에 4dp 를 더해 글자가 조금 안쪽에서 시작한다. */
+private val HeroPadH = 20.dp
+
+/**
+ * 급한 일이 있을 때의 지면 — 그 게임 색을 파스텔로 깔고 문장 하나를 크게.
+ *
+ * 지출 상세 히어로와 같은 방식이다: 배경은 상태바까지 이어지고(글자는 안전 영역 안),
+ * 색은 게임색을 흰색과 섞어 옅게 깐다. 원색을 그대로 쓰면 아래 흰 카드와 대비가 세서
+ * 화면이 배너처럼 읽힌다.
+ */
+@Composable
+private fun UrgentHero(task: DailyTask, headTop: Dp, streak: Int) {
+    val base = task.colorArgb.toColor()
+    val ink = lerp(base, Color.Black, 0.62f)
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .background(
+                Brush.linearGradient(listOf(lerp(base, Color.White, 0.80f), lerp(base, Color.White, 0.66f))),
+                RoundedCornerShape(bottomStart = 28.dp, bottomEnd = 28.dp),
+            )
+            .padding(top = headTop, bottom = 22.dp)
+            .padding(horizontal = HeroPadH),
+    ) {
+        HeroTopLine(task.gameShort, "지금", ink, streak)
+        Spacer(Modifier.height(10.dp))
+        Text(
+            task.label,
+            fontSize = 26.sp, fontWeight = FontWeight.Bold, color = TextPrimary,
+            lineHeight = 31.sp,
+        )
+        if (task.detail.isNotBlank()) {
+            Spacer(Modifier.height(6.dp))
+            Text(task.detail, fontSize = 12.5.sp, color = ink.copy(alpha = 0.72f))
+        }
+    }
+}
+
+/**
+ * 급한 일이 없을 때 — 같은 자리, 낮은 목소리.
+ *
+ * 브랜드 민트로 깔아 "어느 게임"이 아니라 "오늘 전체"를 말한다.
+ */
+@Composable
+private fun CalmHero(remaining: Int, headTop: Dp, streak: Int) {
+    val base = MintPrimary
+    val ink = lerp(base, Color.Black, 0.62f)
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .background(
+                Brush.linearGradient(listOf(lerp(base, Color.White, 0.86f), lerp(base, Color.White, 0.74f))),
+                RoundedCornerShape(bottomStart = 28.dp, bottomEnd = 28.dp),
+            )
+            .padding(top = headTop, bottom = 22.dp)
+            .padding(horizontal = HeroPadH),
+    ) {
+        HeroTopLine("오늘의 데일리", null, ink, streak)
+        Spacer(Modifier.height(10.dp))
+        Text(
+            if (remaining > 0) "할 일 ${remaining}건 남았어요" else "오늘 할 일 끝났어요",
+            fontSize = 24.sp, fontWeight = FontWeight.Bold, color = TextPrimary,
+        )
+        Spacer(Modifier.height(6.dp))
+        Text(
+            if (remaining > 0) "급한 건 없어요 — 아래에서 하나씩" else "재화도 넉넉하고 출석도 다 했어요",
+            fontSize = 12.5.sp, color = ink.copy(alpha = 0.72f),
+        )
+    }
+}
+
+/** 히어로 첫 줄 — 무엇에 대한 이야기인가 + 연속 기록. */
+@Composable
+private fun HeroTopLine(title: String, badge: String?, ink: Color, streak: Int) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text(title, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = ink)
+        if (badge != null) {
+            Spacer(Modifier.width(7.dp))
+            Text(
+                badge, fontSize = 10.sp, fontWeight = FontWeight.Bold, color = ink,
+                modifier = Modifier.clip(CircleShape).background(Color.White.copy(alpha = 0.75f))
+                    .padding(horizontal = 8.dp, vertical = 2.5.dp),
+            )
+        }
+        Spacer(Modifier.weight(1f))
+        if (streak > 0) {
+            Text(
+                "연속 ${streak}일", fontSize = 11.sp, fontWeight = FontWeight.Bold,
+                color = ink.copy(alpha = 0.55f),
+            )
+        }
+    }
+}
+
+/** 미연동 안내 — 좌측 정렬(중앙정렬 4단 스택은 빈 상태의 기본 슬롭이다). */
+@Composable
+private fun LinkPrompt(headTop: Dp, onConfigClick: () -> Unit) {
+    val accent = LocalAccent.current
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .background(
+                Brush.linearGradient(listOf(lerp(MintPrimary, Color.White, 0.86f), lerp(MintPrimary, Color.White, 0.74f))),
+                RoundedCornerShape(bottomStart = 28.dp, bottomEnd = 28.dp),
+            )
+            .padding(top = headTop, bottom = 24.dp)
+            .padding(horizontal = HeroPadH),
+    ) {
+        Text("오늘의 데일리", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = lerp(MintPrimary, Color.Black, 0.62f))
+        Spacer(Modifier.height(10.dp))
+        Text("HoYoLAB 을 연동해 주세요", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+        Spacer(Modifier.height(6.dp))
+        Text(
+            "연동하면 재화·일일 숙제·출석을 한곳에서 볼 수 있어요.",
+            fontSize = 12.5.sp, color = TextSecondary, lineHeight = 18.sp,
+        )
+        Spacer(Modifier.height(16.dp))
+        Box(
+            Modifier.clip(RoundedCornerShape(12.dp)).background(accent)
+                .clickable { onConfigClick() }
+                .padding(horizontal = 18.dp, vertical = 11.dp),
+        ) {
+            Text("연동하기", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White)
+        }
+    }
+}
+
+/** 할 일 한 줄 — 앱이 대신 할 수 있는 것(출석)에만 버튼이 붙는다. */
+@Composable
+private fun TaskRow(task: DailyTask, inProgress: Boolean, onCheckIn: () -> Unit) {
+    val accent = LocalAccent.current
+    Row(
+        Modifier.fillMaxWidth().padding(vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        GlgGameTag(task.gameShort, size = GameTagSize.Small)
+        Spacer(Modifier.width(10.dp))
+        Text(task.label, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TextPrimary, modifier = Modifier.weight(1f))
+        if (task.detail.isNotBlank()) {
+            Text(task.detail, fontSize = 12.sp, color = TextSecondary)
+            Spacer(Modifier.width(8.dp))
+        }
+        when {
+            !task.actionable -> Unit
+            inProgress -> CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp, color = accent)
+            else -> Box(
+                Modifier.clip(RoundedCornerShape(9.dp)).background(accent.copy(alpha = 0.14f))
+                    .clickable { onCheckIn() }.padding(horizontal = 14.dp, vertical = 7.dp),
+            ) { Text("출석", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = accent) }
+        }
+    }
+}
+
+/** 게임별 현황 한 줄 — 재화 게이지 + 남은 할 일 수. */
+@Composable
+private fun SummaryRow(s: DailyGameSummary) {
+    Column(Modifier.fillMaxWidth().padding(vertical = 11.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            GlgGameTag(s.gameShort, size = GameTagSize.Small)
+            Spacer(Modifier.width(10.dp))
+            Text(
+                if (s.resin.isNotBlank()) s.resin else "실시간 노트 없음",
+                fontSize = 12.5.sp, color = if (s.hasNote) TextPrimary else TextSecondary,
+                fontWeight = if (s.resinFull) FontWeight.Bold else FontWeight.Normal,
+                modifier = Modifier.weight(1f),
+            )
+            Text(
+                if (s.pendingCount > 0) "할 일 ${s.pendingCount}" else "완료",
+                fontSize = 11.5.sp, fontWeight = FontWeight.Bold,
+                color = if (s.pendingCount > 0) TextSecondary else MintPrimary,
+            )
+        }
+        if (s.hasNote) {
+            Spacer(Modifier.height(7.dp))
+            LinearProgressIndicator(
+                progress = { s.resinRatio },
+                color = if (s.resinFull) DangerText else s.colorArgb.toColor(),
+                trackColor = ProgressEmpty,
+                modifier = Modifier.fillMaxWidth().height(4.dp).clip(CircleShape),
+            )
+        }
+    }
+}
+
+/** 출석 기록 — 접힘. 펼치면 7일 스트립 + 월 달력. */
+@Composable
+private fun AttendanceFold(
+    history: Map<String, Set<String>>,
+    streak: Int,
+    pending: Int,
+    checkingIn: String?,
+    onCheckInAll: () -> Unit,
+) {
+    val accent = LocalAccent.current
+    var open by remember { mutableStateOf(false) }
+    GlassCard(shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.fillMaxWidth()) {
+            Row(
+                Modifier.fillMaxWidth().clickable { open = !open }.padding(horizontal = 16.dp, vertical = 13.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text("출석 기록", fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = TextSecondary, modifier = Modifier.weight(1f))
+                if (pending > 0) {
+                    Box(
+                        Modifier.clip(RoundedCornerShape(8.dp)).background(accent.copy(alpha = 0.14f))
+                            .clickable(enabled = checkingIn == null) { onCheckInAll() }
+                            .padding(horizontal = 10.dp, vertical = 5.dp),
+                    ) { Text("전체 출석", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = accent) }
+                    Spacer(Modifier.width(8.dp))
+                }
+                Icon(
+                    if (open) Icons.Default.ExpandLess else Icons.Default.ExpandMore, null,
+                    tint = TextSecondary, modifier = Modifier.size(18.dp),
+                )
+            }
+            AnimatedVisibility(visible = open) {
+                Column(Modifier.padding(start = 16.dp, end = 16.dp, bottom = 16.dp)) {
+                    WeekAttendanceStrip(history)
+                    Spacer(Modifier.height(14.dp))
+                    MonthAttendanceCalendar(history)
+                }
+            }
+        }
     }
 }
 
@@ -256,118 +427,8 @@ private fun GameContentRow(
     }
 }
 
-// ── Segmented 선택-게임 지면 (목업 2번): 게임색 테두리 노트 카드 + 별도 출석 카드 ──
-@OptIn(ExperimentalLayoutApi::class)
-@Composable
-private fun FocusedGameDaily(
-    game: Game,
-    note: LiveNote?,
-    uid: String,
-    checked: Boolean,
-    inProgress: Boolean,
-    history: Map<String, Set<String>>,
-    expanded: Boolean,
-    onToggleExpand: () -> Unit,
-    onCheckIn: () -> Unit,
-) {
-    val accent = LocalAccent.current
-    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        // 실시간 노트 카드 — 게임색 테두리
-        val shape = RoundedCornerShape(24.dp)
-        Box(Modifier.fillMaxWidth()) {
-            GlassCard(shape = shape, modifier = Modifier.fillMaxWidth()) {
-                Column(Modifier.padding(16.dp)) {
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            GlgGameTag(game.displayName, size = GameTagSize.Small)
-                            Spacer(Modifier.width(8.dp))
-                            Text(game.shortName, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = game.color.toColor())
-                        }
-                        FocusedCheckControl(checked, inProgress, onCheckIn)
-                    }
-                    Spacer(Modifier.height(12.dp))
-                    HorizontalDivider(color = DividerColor)
-                    Spacer(Modifier.height(12.dp))
-                    Text("실시간 노트", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextSecondary)
-                    Spacer(Modifier.height(8.dp))
-                    if (note != null && note.maxResin > 0) {
-                        Row(verticalAlignment = Alignment.Bottom) {
-                            Text("${note.currentResin}", fontSize = 30.sp, fontWeight = FontWeight.Bold)
-                            Spacer(Modifier.width(5.dp))
-                            Text("/ ${note.maxResin} ${note.resinLabel}", fontSize = 13.sp, color = TextSecondary, modifier = Modifier.padding(bottom = 4.dp))
-                        }
-                        if (note.resinRecoveryTime.isNotBlank()) {
-                            Spacer(Modifier.height(2.dp))
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Default.Bolt, null, tint = accent, modifier = Modifier.size(11.dp))
-                                Spacer(Modifier.width(3.dp))
-                                Text("${note.resinRecoveryTime} 후 가득 참", fontSize = 12.sp, color = TextSecondary)
-                            }
-                        }
-                        Spacer(Modifier.height(10.dp))
-                        LinearProgressIndicator(
-                            progress = { note.resinRatio },
-                            color = game.color.toColor(), trackColor = ProgressEmpty,
-                            modifier = Modifier.fillMaxWidth().height(6.dp).clip(CircleShape),
-                        )
-                        if (note.extras.isNotEmpty()) {
-                            Spacer(Modifier.height(10.dp))
-                            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                                note.extras.forEach { NoteStatChip(it) }
-                            }
-                        }
-                    } else {
-                        Text(if (uid.isBlank()) "UID 미등록 — 설정에서 등록하세요" else "실시간 노트 동기화 중…", fontSize = 12.sp, color = TextSecondary)
-                    }
-                }
-            }
-            Box(Modifier.matchParentSize().border(1.5.dp, game.color.toColor().copy(alpha = 0.4f), shape))
-        }
-        // 출석 카드
-        GlassCard(shape = RoundedCornerShape(24.dp), modifier = Modifier.fillMaxWidth()) {
-            Column(Modifier.padding(16.dp)) {
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                    Text("${game.shortName} 출석", fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable { onToggleExpand() }.padding(horizontal = 4.dp, vertical = 2.dp),
-                    ) {
-                        Text(if (expanded) "접기" else "한 달 보기", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = accent)
-                        Icon(if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore, null, tint = accent, modifier = Modifier.size(16.dp))
-                    }
-                }
-                Spacer(Modifier.height(12.dp))
-                WeekAttendanceStrip(history)
-                AnimatedVisibility(visible = expanded) {
-                    Column { Spacer(Modifier.height(14.dp)); MonthAttendanceCalendar(history) }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun FocusedCheckControl(checked: Boolean, inProgress: Boolean, onCheckIn: () -> Unit) {
-    val accent = LocalAccent.current
-    when {
-        inProgress -> Row(verticalAlignment = Alignment.CenterVertically) {
-            CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp, color = accent)
-            Spacer(Modifier.width(6.dp))
-            Text("처리 중", fontSize = 11.sp, color = TextSecondary, fontWeight = FontWeight.Bold)
-        }
-        checked -> Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.Default.CheckCircle, "완료", tint = accent, modifier = Modifier.size(18.dp))
-            Spacer(Modifier.width(4.dp))
-            Text("출석완료", fontSize = 12.sp, color = accent, fontWeight = FontWeight.Bold)
-        }
-        else -> Box(
-            Modifier.clip(RoundedCornerShape(999.dp)).background(accent.copy(alpha = 0.12f)).clickable { onCheckIn() }.padding(horizontal = 16.dp, vertical = 7.dp),
-            contentAlignment = Alignment.Center,
-        ) {
-            Text("출석", fontSize = 12.sp, color = accent, fontWeight = FontWeight.Bold)
-        }
-    }
-}
+// 게임 선택(Segmented) 전용 지면은 없앴다 — 전체/선택 두 갈래로 레이아웃이 갈려 있어
+// 한쪽만 고치는 실수가 반복됐다. 이제 필터는 목록을 줄일 뿐 지면 구조를 바꾸지 않는다.
 
 /** 출석 완료도: 모든 게임 출석=full, 일부=partial, 없음=none */
 private enum class AttendLevel { NONE, PARTIAL, FULL }
