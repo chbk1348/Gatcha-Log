@@ -793,7 +793,7 @@ private struct EntryCard: View {
     }
 }
 
-/// 픽업 칩 — 캐릭터 먼저, 무기(광추·음동기)는 그다음. 둘 다 **이름 그대로** 노출한다.
+/// 픽업 칩 — 캐릭터 먼저, 무기(광추·W-엔진)는 그다음. 둘 다 **이름 그대로** 노출한다.
 /// ("무기 2종"처럼 개수로 뭉치면 정작 뭐가 픽업인지 알 수 없어 칩의 쓸모가 없다.)
 /// 2개씩 줄바꿈 — Android PickupChips 와 동일 규칙.
 private struct PickupChips: View {

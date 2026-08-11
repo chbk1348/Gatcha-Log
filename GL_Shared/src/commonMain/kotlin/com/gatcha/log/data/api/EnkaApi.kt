@@ -989,7 +989,7 @@ object EnkaApi {
         }
     }
 
-    /** 음동기(W-Engine) — main_properties[0]=기초 공격력, properties[0]=상위 스탯, star=페이즈. */
+    /** W-엔진 — main_properties[0]=기초 공격력, properties[0]=상위 스탯, star=페이즈. */
     private fun zzzWeapon(w: JSONObject?): EnkaWeapon? {
         w ?: return null
         fun line(arr: JSONArray?) = arr?.optJSONObject(0)?.let {

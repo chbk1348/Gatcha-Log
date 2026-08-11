@@ -68,7 +68,16 @@ object EnneadApi {
         if (!res.isOk) return null
         // 픽업 배너 — 27.30.x 에서 뺐다가 되살렸다. 응답에는 계속 들어 있었는데
         // 버리고 있어서, 젠존제만 게임 일정에 픽업 줄이 없었다.
-        return runCatching { parse(Game.ZZZ, JSONObject(res.body)) }.getOrNull()
+        //
+        // 단 **W-엔진(무기)은 뺀다.** 상류가 신규 엔진을 못 따라온다 — 3.1 실측에서
+        // 시그리드용(id 14159)은 이름이 빈 문자열이었고, 레미엘용(id 14158)은
+        // 'Paradise Lost' 로 왔는데 공식은 「돌아온 날개의 시」(Ode of Resurrected Wings)였다.
+        // 번역 문제가 아니라 영문 이름부터 틀려서 매핑으로도 못 고친다.
+        // 에이전트 이름은 공식과 일치하므로 그쪽만 남긴다.
+        return runCatching {
+            val r = parse(Game.ZZZ, JSONObject(res.body))
+            r.copy(banners = r.banners.filter { it.type != "weapon" })
+        }.getOrNull()
     }
 
     private fun parse(game: Game, root: JSONObject): EnneadResult {

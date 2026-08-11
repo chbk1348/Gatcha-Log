@@ -477,7 +477,7 @@ object HoyolabApi {
         .build()
 
     /**
-     * ZZZ 보유 에이전트 전체 상세(avatar/info). basic 으로 id 수집 → info(id_list) 로 음동기·디스크·스탯.
+     * ZZZ 보유 에이전트 전체 상세(avatar/info). basic 으로 id 수집 → info(id_list) 로 W-엔진·디스크·스탯.
      * 본인 계정(ltuid/ltoken) 한정. 비연동/실패 시 null.
      */
     /** ZZZ 로드 실패 시 사용자 메시지(성공 시 null). 호출부가 그대로 노출. */
