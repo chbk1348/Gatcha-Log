@@ -400,9 +400,12 @@ private fun EntryTile(
     GlassCard(shape = RoundedCornerShape(18.dp), modifier = modifier.fillMaxHeight()) {
         Column(Modifier.fillMaxHeight()) {
             // 진입 영역 — 아래 버튼과 겹치지 않도록 여기까지만 클릭을 받는다.
+            // 가운데 정렬 — 타일이 좁아 글자 길이가 제각각이라, 좌측 정렬이면 세 칸의
+            // 글자가 서로 다른 지점에서 끝나 줄이 삐뚤어져 보인다.
             Column(
                 Modifier.fillMaxWidth().clickable { onClick() }
-                    .padding(start = 12.dp, end = 12.dp, top = 13.dp, bottom = 11.dp),
+                    .padding(start = 10.dp, end = 10.dp, top = 13.dp, bottom = 11.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 Box(
                     Modifier.size(30.dp).clip(RoundedCornerShape(10.dp)).background(mark.copy(alpha = 0.12f)),
@@ -416,10 +419,17 @@ private fun EntryTile(
                     color = if (highlight) DangerText else TextPrimary, maxLines = 1,
                 )
                 Spacer(Modifier.height(2.dp))
-                Text(sub, fontSize = 10.5.sp, color = TextSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(
+                    sub, fontSize = 10.5.sp, color = TextSecondary,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center,
+                )
             }
             Spacer(Modifier.weight(1f))
-            Column(Modifier.padding(start = 12.dp, end = 12.dp, bottom = 12.dp), content = action)
+            Column(
+                Modifier.padding(start = 10.dp, end = 10.dp, bottom = 12.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                content = action,
+            )
         }
     }
 }

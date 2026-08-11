@@ -286,10 +286,12 @@ private struct EntryTile<Action: View>: View {
 
     var body: some View {
         let mark = highlight ? GLGColor.dangerText : accent.primary
-        VStack(alignment: .leading, spacing: 0) {
+        VStack(alignment: .center, spacing: 0) {
             // 진입 영역 — 아래 버튼과 겹치지 않도록 여기까지만 탭을 받는다.
+            // 가운데 정렬 — 타일이 좁아 글자 길이가 제각각이라, 좌측 정렬이면 세 칸의
+            // 글자가 서로 다른 지점에서 끝나 줄이 삐뚤어져 보인다.
             Button(action: onTap) {
-                VStack(alignment: .leading, spacing: 0) {
+                VStack(alignment: .center, spacing: 0) {
                     ZStack {
                         RoundedRectangle(cornerRadius: 10, style: .continuous).fill(mark.opacity(0.12))
                         Image(systemName: icon).font(.pretendard(size: 15, weight: .semibold)).foregroundStyle(mark)
@@ -301,16 +303,16 @@ private struct EntryTile<Action: View>: View {
                         .foregroundStyle(highlight ? GLGColor.dangerText : GLGColor.textPrimary)
                         .lineLimit(1).padding(.top, 4)
                     Text(sub).font(.pretendard(size: 10.5)).foregroundStyle(GLGColor.textSecondary)
-                        .lineLimit(1).minimumScaleFactor(0.85).padding(.top, 2)
+                        .lineLimit(1).minimumScaleFactor(0.85).multilineTextAlignment(.center).padding(.top, 2)
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, 12).padding(.top, 13).padding(.bottom, 11)
+                .frame(maxWidth: .infinity)
+                .padding(.horizontal, 10).padding(.top, 13).padding(.bottom, 11)
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            action().padding(.horizontal, 12).padding(.bottom, 12)
+            action().padding(.horizontal, 10).padding(.bottom, 12)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(maxWidth: .infinity)
         .glgGlass(in: RoundedRectangle(cornerRadius: 18, style: .continuous))
     }
 }
