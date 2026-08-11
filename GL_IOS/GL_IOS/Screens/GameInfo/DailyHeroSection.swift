@@ -1,251 +1,247 @@
 import SwiftUI
 import Shared
 
-// 데일리 히어로 — 실시간 노트(레진/개척력/배터리) + 출석체크(7일 스트립 + 월 달력 + 게임별).
-// (Compose DailyHeroSection 대응) HoYoLAB 미연동 시 연동 유도 카드.
+// 데일리 히어로 2.0 — 급한 하나가 지면을 지배하고, 나머지는 아래로.
+// (Compose DailyHeroSection 대응) 판단 규칙은 전부 공유 DailyLogic 에 있다.
+//
+// 1.0 은 "지금 상태가 어떤가"에 답했다 — 게임 셋의 재화·출석을 같은 무게로 늘어놓고,
+// 무엇부터 할지는 사용자가 세 줄을 읽고 판단하게 했다. 2.0 은 판단을 앞으로 당긴다.
+
+/// 히어로 안쪽 좌우 여백 — 섹션(16)보다 4 더 들여 글자가 안쪽에서 시작한다.
+private let heroPadH: CGFloat = 20
+
 struct DailyHeroSection: View {
     var store: SpendingStore
-    var filter: String = "all"   // "all" | game.key — Segmented 세그먼트 선택값
+    var filter: String = "all"
     let onConfig: () -> Void
-    /// 전투 진행도·수입 일지 상세로 — 데일리와 같은 '오늘 뭐 했나' 맥락이라 여기서 들어간다.
     var onOpenGameContent: (() -> Void)? = nil
-    /// 클리어 편성으로 — 위 카드의 두 번째 줄.
     var onOpenClears: (() -> Void)? = nil
     @Environment(\.glgAccent) private var accent
-    @State private var expanded = false
 
-    private var attendanceGames: [Game] { GLGGames.attendance }
-    // 세그먼트로 특정 게임이 선택되면 그 게임만, "all"이면 전체.
-    private var shownGames: [Game] {
-        filter == "all" ? attendanceGames : attendanceGames.filter { $0.key == filter }
+    private var allTasks: [DailyTask] {
+        DailyLogic.shared.tasks(notes: store.liveNotes, attendanceToday: Set(store.attendanceToday), nowMillis: nowMs())
     }
-    private var pendingCount: Int { attendanceGames.filter { !store.attendanceToday.contains($0.key) }.count }
+    private var tasks: [DailyTask] {
+        filter == "all" ? allTasks : allTasks.filter { $0.gameKey == filter }
+    }
 
     var body: some View {
         if !store.hoyolabConfig.isLinked {
             linkPrompt
-        } else if let game = attendanceGames.first(where: { $0.key == filter }) {
-            // Segmented — 특정 게임 선택: 목업 2번 지면(게임색 테두리 노트 카드 + 별도 출석 카드)
-            VStack(alignment: .leading, spacing: 16) {
-                focusedGame(game)
-                if let onOpenGameContent { GameContentEntry(onTap: onOpenGameContent, onTapClears: onOpenClears) }
-            }
         } else {
-            // 전체 모드 — 요약 카드 + 게임별 개별 카드 분리 (재디자인)
-            VStack(alignment: .leading, spacing: 16) {
-                VStack(alignment: .leading, spacing: 11) {
-                    // 제목은 카드 밖으로 — 다른 섹션(내 캐릭터·게임 일정·숙제 완주율)과 같은 규격.
-                    // 액션(전체 출석)은 제목 줄 우측에 함께 둔다.
-                    headerRow
-                    // 요약 카드: 최근 출석 스트립(+한 달 보기)
-                    GLGCard(cornerRadius: 20, padding: 16) {
-                    VStack(alignment: .leading, spacing: 0) {
-                        attendanceHeader
-                        Spacer().frame(height: 10)
-                        WeekAttendanceStrip(history: store.attendanceHistory)
-                        if expanded {
-                            Spacer().frame(height: 14)
-                            MonthAttendanceCalendar(history: store.attendanceHistory)
-                        }
-                    }
-                    }
-                }
-                // 게임별 통합 카드: 3개 게임(실시간 노트 + 출석)을 한 카드에 구분선으로 묶음
-                GLGCard(cornerRadius: 20, padding: 16) {
-                    VStack(spacing: 0) {
-                        ForEach(Array(attendanceGames.enumerated()), id: \.offset) { idx, game in
-                            if idx > 0 { Divider() }
-                            DailyGameRow(game: game,
-                                         note: store.liveNotes.first { GameData.shared.byNameOrNull(name: $0.game)?.key == game.key },
-                                         uid: uid(for: game.key),
-                                         checked: store.attendanceToday.contains(game.key),
-                                         inProgress: store.checkingIn == game.key) {
-                                store.attemptCheckIn(game.key)
+            let all = allTasks
+            let list = tasks
+            let hero = DailyLogic.shared.hero(tasks: list)
+            let rest = list.filter { $0 !== hero }
+
+            VStack(alignment: .leading, spacing: 0) {
+                if let hero { urgentHero(hero) } else { calmHero(list.count) }
+
+                VStack(alignment: .leading, spacing: 12) {
+                    if !rest.isEmpty {
+                        GLGCard(cornerRadius: 20, padding: 16) {
+                            VStack(alignment: .leading, spacing: 0) {
+                                Text(hero != nil ? "그다음" : "오늘 할 일")
+                                    .font(.pretendard(size: 12, weight: .bold))
+                                    .foregroundStyle(GLGColor.textSecondary)
+                                    .padding(.bottom, 4)
+                                ForEach(Array(rest.enumerated()), id: \.offset) { i, t in
+                                    if i > 0 { Divider() }
+                                    taskRow(t)
+                                }
                             }
                         }
                     }
+                    AttendanceFold(history: store.attendanceHistory,
+                                   pending: all.filter { $0.kind == "출석" }.count,
+                                   onCheckInAll: { store.checkInAll() })
+                    if let onOpenGameContent {
+                        GameContentEntry(onTap: onOpenGameContent, onTapClears: onOpenClears)
+                    }
                 }
-                if let onOpenGameContent { GameContentEntry(onTap: onOpenGameContent, onTapClears: onOpenClears) }
+                .padding(.horizontal, 16)
+                .padding(.top, 16)
             }
         }
     }
 
-    // ── Segmented 선택-게임 지면 (목업 2번) ──
-    @ViewBuilder
-    private func focusedGame(_ game: Game) -> some View {
-        let note = store.liveNotes.first { GameData.shared.byNameOrNull(name: $0.game)?.key == game.key }
-        let checked = store.attendanceToday.contains(game.key)
-        let inProgress = store.checkingIn == game.key
-        let gameColor = Color(argb64: game.color)
-        VStack(alignment: .leading, spacing: 16) {
-            // 실시간 노트 카드 — 게임색 테두리
-            GLGCard(cornerRadius: 24, padding: 16) {
-                VStack(alignment: .leading, spacing: 0) {
-                    HStack {
-                        HStack(spacing: 7) {
-                            GLGGameTag(game: game.displayName, size: .small)
-                            Text(game.shortName).font(.pretendard(size: 16, weight: .bold)).foregroundStyle(gameColor)
-                        }
-                        Spacer()
-                        focusedCheckControl(game.key, checked: checked, inProgress: inProgress)
-                    }
-                    Spacer().frame(height: 12)
-                    Divider()
-                    Spacer().frame(height: 12)
-                    Text("실시간 노트").font(.pretendard(size: 12, weight: .bold)).foregroundStyle(GLGColor.textSecondary)
-                    Spacer().frame(height: 8)
-                    if let n = note, n.maxResin > 0 {
-                        HStack(alignment: .firstTextBaseline, spacing: 5) {
-                            Text(verbatim: "\(n.currentResin)").font(.pretendard(size: 30, weight: .bold))
-                            Text(verbatim: "/ \(n.maxResin) \(n.resinLabel)").font(.pretendard(size: 13)).foregroundStyle(GLGColor.textSecondary)
-                        }
-                        if !n.resinRecoveryTime.isEmpty {
-                            HStack(spacing: 3) {
-                                Image(systemName: "bolt.fill").font(.pretendard(size: 11)).foregroundStyle(accent.primary)
-                                Text("\(n.resinRecoveryTime) 후 가득 참").font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary)
-                            }
-                            .padding(.top, 2)
-                        }
-                        ProgressView(value: Double(n.resinRatio)).tint(gameColor).padding(.top, 10)
-                        if !n.extras.isEmpty {
-                            FlowLayout(spacing: 6, lineSpacing: 6) {
-                                ForEach(Array(n.extras.enumerated()), id: \.offset) { _, e in focusedNoteChip(e) }
-                            }
-                            .padding(.top, 10)
-                        }
-                    } else {
-                        Text(uid(for: game.key).isEmpty ? "UID 미등록 — 설정에서 등록하세요" : "실시간 노트 동기화 중…")
-                            .font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary)
-                    }
-                }
-            }
-            .overlay(RoundedRectangle(cornerRadius: 24, style: .continuous).stroke(gameColor.opacity(0.4), lineWidth: 1.5))
+    // ── 히어로 ──
 
-            // 출석 카드
-            GLGCard(cornerRadius: 24, padding: 16) {
-                VStack(alignment: .leading, spacing: 0) {
-                    HStack {
-                        Text("\(game.shortName) 출석").font(.pretendard(size: 16, weight: .bold))
-                        Spacer()
-                        Button { withAnimation { expanded.toggle() } } label: {
-                            HStack(spacing: 2) {
-                                Text(expanded ? "접기" : "한 달 보기").font(.pretendard(size: 11, weight: .bold))
-                                Image(systemName: expanded ? "chevron.up" : "chevron.down").font(.pretendard(size: 11))
-                            }
+    /// 급한 일이 있을 때 — 그 게임 색을 파스텔로 깔고 문장 하나를 크게.
+    /// 지출 상세 히어로와 같은 방식이다(원색을 그대로 쓰면 아래 흰 카드와 대비가 세서 배너처럼 읽힌다).
+    @ViewBuilder
+    private func urgentHero(_ t: DailyTask) -> some View {
+        let base = Color(argb64: t.colorArgb)
+        let ink = base.mix(with: .black, by: 0.62)
+        VStack(alignment: .leading, spacing: 0) {
+            heroTopLine(title: t.gameShort, badge: "지금", ink: ink)
+            Text(t.label)
+                .font(.pretendard(size: 26, weight: .bold))
+                .foregroundStyle(GLGColor.textPrimary)
+                .padding(.top, 10)
+            if !t.detail.isEmpty {
+                Text(t.detail)
+                    .font(.pretendard(size: 12.5))
+                    .foregroundStyle(ink.opacity(0.72))
+                    .padding(.top, 6)
+            }
+        }
+        .padding(.horizontal, heroPadH)
+        .padding(.top, 8).padding(.bottom, 22)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(heroBackground(base))
+    }
+
+    /// 급한 일이 없을 때 — 같은 자리, 낮은 목소리. 브랜드 민트로 "오늘 전체"를 말한다.
+    @ViewBuilder
+    private func calmHero(_ remaining: Int) -> some View {
+        let base = accent.primary
+        let ink = base.mix(with: .black, by: 0.62)
+        VStack(alignment: .leading, spacing: 0) {
+            heroTopLine(title: "오늘의 데일리", badge: nil, ink: ink)
+            Text(remaining > 0 ? "할 일 \(remaining)건 남았어요" : "오늘 할 일 끝났어요")
+                .font(.pretendard(size: 24, weight: .bold))
+                .foregroundStyle(GLGColor.textPrimary)
+                .padding(.top, 10)
+            Text(remaining > 0 ? "급한 건 없어요 — 아래에서 하나씩" : "재화도 넉넉하고 출석도 다 했어요")
+                .font(.pretendard(size: 12.5))
+                .foregroundStyle(ink.opacity(0.72))
+                .padding(.top, 6)
+        }
+        .padding(.horizontal, heroPadH)
+        .padding(.top, 8).padding(.bottom, 22)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(heroBackground(base, light: true))
+    }
+
+    private func heroBackground(_ base: Color, light: Bool = false) -> some View {
+        UnevenRoundedRectangle(bottomLeadingRadius: 28, bottomTrailingRadius: 28, style: .continuous)
+            .fill(LinearGradient(
+                colors: [base.mix(with: .white, by: light ? 0.86 : 0.80),
+                         base.mix(with: .white, by: light ? 0.74 : 0.66)],
+                startPoint: .topLeading, endPoint: .bottomTrailing))
+            // 위로 크게 빼서 스크롤 바운스 때 흰 배경이 비치지 않게 한다(지출 상세와 같은 처리).
+            .padding(.top, -800)
+    }
+
+    @ViewBuilder
+    private func heroTopLine(title: String, badge: String?, ink: Color) -> some View {
+        HStack(spacing: 7) {
+            Text(title).font(.pretendard(size: 13, weight: .bold)).foregroundStyle(ink)
+            if let badge {
+                Text(badge)
+                    .font(.pretendard(size: 10, weight: .bold)).foregroundStyle(ink)
+                    .padding(.horizontal, 8).padding(.vertical, 2.5)
+                    .background(Color.white.opacity(0.75), in: Capsule())
+            }
+            Spacer(minLength: 8)
+            if store.attendanceStreak > 0 {
+                Text("연속 \(store.attendanceStreak)일")
+                    .font(.pretendard(size: 11, weight: .bold))
+                    .foregroundStyle(ink.opacity(0.55))
+            }
+        }
+    }
+
+    // ── 목록 ──
+
+    /// 할 일 한 줄 — 앱이 대신 할 수 있는 것(출석)에만 버튼이 붙는다.
+    @ViewBuilder
+    private func taskRow(_ t: DailyTask) -> some View {
+        HStack(spacing: 10) {
+            GLGGameTag(game: t.gameShort, size: .small)
+            Text(t.label).font(.pretendard(size: 14, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            if !t.detail.isEmpty {
+                Text(t.detail).font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary)
+            }
+            if t.actionable {
+                if store.checkingIn == t.gameKey {
+                    ProgressView().controlSize(.small)
+                } else {
+                    Button { store.attemptCheckIn(t.gameKey) } label: {
+                        Text("출석").font(.pretendard(size: 11.5, weight: .bold))
                             .foregroundStyle(accent.primary)
-                        }
-                        .buttonStyle(.plain)
-                    }
-                    Spacer().frame(height: 12)
-                    WeekAttendanceStrip(history: store.attendanceHistory)
-                    if expanded {
-                        Spacer().frame(height: 14)
-                        MonthAttendanceCalendar(history: store.attendanceHistory)
-                    }
+                            .padding(.horizontal, 14).padding(.vertical, 7)
+                            .background(accent.primary.opacity(0.14),
+                                        in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+                    }.buttonStyle(.plain)
                 }
             }
         }
+        .padding(.vertical, 12)
     }
 
-    @ViewBuilder
-    private func focusedCheckControl(_ key: String, checked: Bool, inProgress: Bool) -> some View {
-        if inProgress {
-            HStack(spacing: 6) { ProgressView().controlSize(.mini).tint(accent.primary); Text("처리 중").font(.pretendard(size: 11, weight: .bold)).foregroundStyle(GLGColor.textSecondary) }
-        } else if checked {
-            HStack(spacing: 4) { Image(systemName: "checkmark.circle.fill").font(.pretendard(size: 16)).foregroundStyle(accent.primary); Text("출석완료").font(.pretendard(size: 12, weight: .bold)).foregroundStyle(accent.primary) }
-        } else {
-            Button { store.attemptCheckIn(key) } label: {
-                Text("출석").font(.pretendard(size: 12, weight: .bold)).foregroundStyle(accent.primary)
-                    .padding(.horizontal, 16).padding(.vertical, 7)
-                    .background(accent.primary.opacity(0.12), in: Capsule())
-            }
-            .buttonStyle(.plain)
-        }
-    }
-
-    private func focusedNoteChip(_ stat: NoteStat) -> some View {
-        HStack(spacing: 4) {
-            Text(stat.label).font(.pretendard(size: 10)).foregroundStyle(GLGColor.textSecondary)
-            Text(stat.value).font(.pretendard(size: 11, weight: .bold)).foregroundStyle(stat.highlight ? accent.primary : GLGColor.textPrimary)
-        }
-        .lineLimit(1).fixedSize()
-        .padding(.horizontal, 8).padding(.vertical, 4)
-        .background(stat.highlight ? accent.primary.opacity(0.14) : Color(hex: 0xFFF2F2F6), in: RoundedRectangle(cornerRadius: 8))
-    }
-
-    private func uid(for key: String) -> String {
-        switch key {
-        case "genshin": return store.hoyolabConfig.genshinUid
-        case "hsr": return store.hoyolabConfig.hsrUid
-        case "zzz": return store.hoyolabConfig.zzzUid
-        default: return ""
-        }
-    }
-
-    private var headerRow: some View {
-        HStack {
-            HStack(spacing: 6) {
-                Image(systemName: "bolt.fill").font(.pretendard(size: 16)).foregroundStyle(accent.primary)
-                Text("오늘의 데일리").font(.pretendard(size: 16, weight: .bold)).lineLimit(1)
-                if store.attendanceStreak > 0 {
-                    Text("🔥 \(store.attendanceStreak)일 연속").font(.pretendard(size: 11, weight: .bold))
-                        .foregroundStyle(accent.primary)
-                        .padding(.horizontal, 7).padding(.vertical, 2)
-                        .background(accent.primary.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
-                }
-            }
-            Spacer()
-            if pendingCount > 0 {
-                Button { store.checkInAll() } label: {
-                    HStack(spacing: 5) {
-                        if store.checkingIn != nil {
-                            ProgressView().controlSize(.mini).tint(accent.primary)
-                        } else {
-                            Image(systemName: "checkmark.circle").font(.pretendard(size: 14))
-                        }
-                        Text("전체 출석").font(.pretendard(size: 12, weight: .bold))
-                    }
-                    .foregroundStyle(accent.primary)
-                    .padding(.horizontal, 11).padding(.vertical, 6)
-                    .background(accent.primary.opacity(0.12), in: Capsule())
-                }
-                .buttonStyle(.plain).disabled(store.checkingIn != nil)
-            }
-        }
-    }
-
-    private var attendanceHeader: some View {
-        HStack {
-            Text("최근 출석").font(.pretendard(size: 12, weight: .bold)).foregroundStyle(GLGColor.textSecondary)
-            Spacer()
-            Button { withAnimation { expanded.toggle() } } label: {
-                HStack(spacing: 2) {
-                    Text(expanded ? "접기" : "한 달 보기").font(.pretendard(size: 11, weight: .bold))
-                    Image(systemName: expanded ? "chevron.up" : "chevron.down").font(.pretendard(size: 11))
-                }
-                .foregroundStyle(accent.primary)
-            }
-            .buttonStyle(.plain)
-        }
-    }
-
+    // ── 미연동 안내 — 좌측 정렬(중앙정렬 4단 스택은 빈 상태의 기본 슬롭이다) ──
     private var linkPrompt: some View {
-        GLGCard(cornerRadius: 24, padding: 24) {
-            VStack(spacing: 0) {
-                ZStack {
-                    Circle().fill(accent.primary.opacity(0.12)).frame(width: 56, height: 56)
-                    Image(systemName: "link").font(.pretendard(size: 26)).foregroundStyle(accent.primary)
-                }
-                Text("HoYoLAB 연동이 필요해요").font(.pretendard(size: 16, weight: .bold)).padding(.top, 12)
-                Text("연동하면 실시간 노트(레진·개척력·배터리)와\n출석체크를 한곳에서 관리할 수 있어요.")
-                    .font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary)
-                    .multilineTextAlignment(.center).padding(.top, 6)
-                GLGButton(title: "HoYoLAB 연동하기", action: onConfig).padding(.top, 18)
+        VStack(alignment: .leading, spacing: 0) {
+            Text("오늘의 데일리")
+                .font(.pretendard(size: 13, weight: .bold))
+                .foregroundStyle(accent.primary.mix(with: .black, by: 0.62))
+            Text("HoYoLAB 을 연동해 주세요")
+                .font(.pretendard(size: 22, weight: .bold))
+                .foregroundStyle(GLGColor.textPrimary).padding(.top, 10)
+            Text("연동하면 재화·일일 숙제·출석을 한곳에서 볼 수 있어요.")
+                .font(.pretendard(size: 12.5)).foregroundStyle(GLGColor.textSecondary).padding(.top, 6)
+            Button(action: onConfig) {
+                Text("연동하기").font(.pretendard(size: 13, weight: .bold)).foregroundStyle(.white)
+                    .padding(.horizontal, 18).padding(.vertical, 11)
+                    .background(accent.primary, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
             }
-            .frame(maxWidth: .infinity)
+            .buttonStyle(.plain)
+            .padding(.top, 16)
+        }
+        .padding(.horizontal, heroPadH)
+        .padding(.top, 8).padding(.bottom, 24)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(heroBackground(accent.primary, light: true))
+    }
+}
+
+/// 출석 기록 — 기본 접힘. 자동 출석이 도는 이상 매일 볼 정보가 아니다.
+private struct AttendanceFold: View {
+    let history: [String: Set<String>]
+    let pending: Int
+    let onCheckInAll: () -> Void
+    @Environment(\.glgAccent) private var accent
+    @State private var open = false
+
+    var body: some View {
+        GLGCard(cornerRadius: 20, padding: 0) {
+            VStack(alignment: .leading, spacing: 0) {
+                HStack(spacing: 8) {
+                    Text("출석 기록").font(.pretendard(size: 12.5, weight: .bold))
+                        .foregroundStyle(GLGColor.textSecondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    if pending > 0 {
+                        Button(action: onCheckInAll) {
+                            Text("전체 출석").font(.pretendard(size: 11, weight: .bold))
+                                .foregroundStyle(accent.primary)
+                                .padding(.horizontal, 10).padding(.vertical, 5)
+                                .background(accent.primary.opacity(0.14),
+                                            in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                        }.buttonStyle(.plain)
+                    }
+                    Image(systemName: open ? "chevron.up" : "chevron.down")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(GLGColor.textSecondary)
+                }
+                .padding(.horizontal, 16).padding(.vertical, 13)
+                .contentShape(Rectangle())
+                .onTapGesture { withAnimation(.easeInOut(duration: 0.22)) { open.toggle() } }
+
+                if open {
+                    VStack(alignment: .leading, spacing: 14) {
+                        WeekAttendanceStrip(history: history)
+                        MonthAttendanceCalendar(history: history)
+                    }
+                    .padding(.horizontal, 16).padding(.bottom, 16)
+                }
+            }
         }
     }
 }
+
 
 // 출석 완료도
 enum AttendLevel { case none, partial, full }
