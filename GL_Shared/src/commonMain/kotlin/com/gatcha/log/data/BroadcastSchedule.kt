@@ -1,5 +1,6 @@
 package com.gatcha.log.data
 
+import com.gatcha.log.data.api.NewsItem
 import com.gatcha.log.util.currentTimeMillis
 import kotlinx.datetime.DateTimeUnit
 import kotlinx.datetime.DayOfWeek
@@ -27,6 +28,21 @@ data class LiveBroadcast(
     val targetMillis: Long,
     val isEstimate: Boolean,
     val liveUrl: String,
+    /** 확정 공지 주소. 확정일 때만 채워진다 — 화면이 '공지 보기'로 연결한다. */
+    val noticeUrl: String = "",
+)
+
+/**
+ * 공지에서 읽어낸 **확정** 방송.
+ *
+ * @param version "4.5" 처럼 제목에서 뽑은 버전. 못 뽑으면 빈 문자열
+ * @param noticeUrl 근거가 된 공지 주소
+ */
+data class ConfirmedBroadcast(
+    val gameKey: String,
+    val version: String,
+    val targetMillis: Long,
+    val noticeUrl: String,
 )
 
 /**
@@ -84,9 +100,28 @@ object BroadcastSchedule {
      * @param banners 픽업 배너. 마지막 페이즈 종료일 = 다음 버전 시작일로 본다.
      * @return 임박순. 배너가 없어 버전 시작일을 모르는 게임은 빠진다.
      */
-    fun next(banners: List<GachaBanner>, nowMillis: Long = currentTimeMillis()): List<LiveBroadcast> =
+    fun next(
+        banners: List<GachaBanner>,
+        confirmed: List<ConfirmedBroadcast> = emptyList(),
+        nowMillis: Long = currentTimeMillis(),
+    ): List<LiveBroadcast> =
         byGame.mapNotNull { (key, cfg) ->
             val game = GameData.games.firstOrNull { it.key == key } ?: return@mapNotNull null
+
+            // 확정 공지가 있으면 그게 먼저다 — 역산은 공지가 없을 때 메우는 값일 뿐이다.
+            confirmed.firstOrNull { it.gameKey == key && it.targetMillis > nowMillis }?.let { c ->
+                return@mapNotNull LiveBroadcast(
+                    gameKey = game.key,
+                    gameShort = game.shortName,
+                    colorArgb = game.color,
+                    version = c.version,
+                    targetMillis = c.targetMillis,
+                    isEstimate = false,
+                    liveUrl = liveUrl(cfg.channelId),
+                    noticeUrl = c.noticeUrl,
+                )
+            }
+
             // 종료 미정 픽업(콜라보 등)은 날짜가 없어 버전 경계를 못 만든다.
             val phaseEnds = banners
                 .filter { it.game == game.displayName && !it.isEndUnknown }
@@ -107,6 +142,48 @@ object BroadcastSchedule {
                 liveUrl = liveUrl(cfg.channelId),
             )
         }.sortedBy { it.targetMillis }
+
+    /**
+     * 공지 목록에서 **확정 방송**을 골라낸다.
+     *
+     * 확정으로 인정하는 조건은 셋 다 만족할 때뿐이다:
+     * 1. 제목에 버전 번호(`4.5`)가 있다 — 젠레스 「연례 대공개」처럼 버전과 무관한 스페셜을 거른다
+     * 2. 제목에 방송을 뜻하는 말이 있다 — 「4.4 버전 프리뷰 토론실」 같은 부대 이벤트를 거른다
+     * 3. **본문 앞머리에 일시가 적혀 있다** — 없으면 확정할 값이 없으니 역산에 맡긴다
+     *
+     * 형식이 바뀌어 못 잡아도 손해가 없다. 그때는 조용히 예상값으로 남는다.
+     */
+    fun parseConfirmed(items: List<NewsItem>, nowMillis: Long = currentTimeMillis()): List<ConfirmedBroadcast> =
+        items.mapNotNull { item ->
+            val game = GameData.byNameOrNull(item.game) ?: return@mapNotNull null
+            if (game.key !in byGame) return@mapNotNull null
+            if (BROADCAST_WORDS.none { it in item.title }) return@mapNotNull null
+            val version = VERSION_RE.find(item.title)?.groupValues?.getOrNull(1) ?: return@mapNotNull null
+            // 앞머리로 한정한다 — 본문 뒤쪽에는 이벤트 기간 같은 다른 날짜가 얼마든지 있다.
+            val head = item.summary.take(DATE_SCAN_HEAD)
+            val at = DATE_RE.find(head)?.let { m ->
+                val (y, mo, d, h, mi) = m.destructured
+                runCatching {
+                    LocalDateTime(y.toInt(), mo.toInt(), d.toInt(), h.toInt(), mi.toInt())
+                        .toInstant(DateUtil.timeZone).toEpochMilliseconds()
+                }.getOrNull()
+            } ?: return@mapNotNull null
+            // 지난 방송 공지는 목록에 한동안 남는다 — 그걸 '다음 방송'이라고 내놓으면 안 된다.
+            if (at <= nowMillis) return@mapNotNull null
+            ConfirmedBroadcast(game.key, version, at, item.url)
+        }.sortedBy { it.targetMillis }
+
+    /** 제목이 방송 글임을 알리는 말. 게임·번역마다 표기가 달라 넉넉히 둔다. */
+    private val BROADCAST_WORDS = listOf("스페셜 프로그램", "특별 방송", "프리뷰 방송", "생방송", "라이브 스트리밍")
+
+    /** "4.5 버전" · "버전 4.5" 어느 쪽이든 버전 번호를 집는다. */
+    private val VERSION_RE = Regex("""(\d+\.\d+)""")
+
+    /** "2026/08/14 20:30" — 구분자는 / . - 를 모두 받는다. */
+    private val DATE_RE = Regex("""(\d{4})[/.\-](\d{1,2})[/.\-](\d{1,2})\s+(\d{1,2}):(\d{2})""")
+
+    /** 본문에서 일시를 찾을 때 훑는 앞부분 길이. */
+    private const val DATE_SCAN_HEAD = 80
 
     /**
      * [versionStart] 로부터 역산한 방송 시각 중 **아직 오지 않은 첫 회**.

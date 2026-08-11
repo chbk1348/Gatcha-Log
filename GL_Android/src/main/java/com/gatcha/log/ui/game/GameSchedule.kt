@@ -41,6 +41,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.gatcha.log.data.DateUtil
 import com.gatcha.log.data.BroadcastSchedule
+import com.gatcha.log.data.ConfirmedBroadcast
 import com.gatcha.log.data.GachaBanner
 import com.gatcha.log.data.LiveBroadcast
 import com.gatcha.log.data.GameChallenge
@@ -99,6 +100,8 @@ private fun Modifier.sirenPulse(): Modifier {
 private fun scheduleKindColor(kind: String): Color = ScheduleLogic.kindColorArgb(kind).toColor()
 
 private val Urgent = Color(0xFFE8634A)
+/** 확정 배지 — 예상(회색)과 확실히 갈라야 해서 채운 색을 쓴다. */
+private val ConfirmedGreen = Color(0xFF2BB673)
 private val Track = Color(0xFFEDEFF3)
 private val WeapBadge = Color(0xFFE0883B)
 private val CollabBadge = Color(0xFF6D5AE6)
@@ -214,6 +217,7 @@ fun GameScheduleFullContent(
     banners: List<GachaBanner>,
     events: List<GameEvent>,
     challenges: List<GameChallenge>,
+    confirmed: List<ConfirmedBroadcast>,
     filter: String,
 ) {
     var tab by remember { mutableStateOf(0) }
@@ -226,7 +230,7 @@ fun GameScheduleFullContent(
         GlgChip("주년", selected = tab == 2) { tab = 2 }
     }
     if (tab == 1) {
-        BroadcastContent(banners, filter)
+        BroadcastContent(banners, confirmed, filter)
         return
     }
     if (tab == 2) {
@@ -409,13 +413,18 @@ private fun DayNode(d: ScheduleDay, isLast: Boolean, now: Long) {
  * 무엇보다 **역산한 예상**이라 확정된 마감들 사이에 섞이면 같은 무게로 읽힌다.
  */
 @Composable
-private fun BroadcastContent(banners: List<GachaBanner>, filter: String) {
-    val all = remember(banners) { BroadcastSchedule.next(banners) }
+private fun BroadcastContent(banners: List<GachaBanner>, confirmed: List<ConfirmedBroadcast>, filter: String) {
+    val all = remember(banners, confirmed) { BroadcastSchedule.next(banners, confirmed) }
     val list = remember(all, filter) { if (filter == "all") all else all.filter { it.gameKey == filter } }
 
+    // 안내 문구는 목록 성격에 따라 바꾼다 — 전부 확정인데 '예상'이라고 하면 값을 깎아 읽게 된다.
+    val anyEstimate = list.any { it.isEstimate }
     Text(
-        "버전 시작 12일 전 금요일 저녁이라는 관례로 계산한 예상 일정이에요. " +
-            "정확한 일시는 공식 채널 공지를 확인해 주세요.",
+        if (anyEstimate) {
+            "공식 공지가 뜬 방송은 확정 일시로, 아직 안 뜬 방송은 관례(버전 시작 12일 전 금요일)로 계산한 예상이에요."
+        } else {
+            "공식 공지로 확정된 일시예요."
+        },
         fontSize = 12.sp, color = TextSecondary, modifier = Modifier.padding(bottom = 14.dp),
     )
     if (list.isEmpty()) {
@@ -455,14 +464,22 @@ private fun BroadcastCard(b: LiveBroadcast, now: Long) {
                 )
             }
             Text(
-                "버전 특별 방송", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextPrimary,
+                if (b.version.isBlank()) "버전 특별 방송" else "v${b.version} 특별 방송",
+                fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextPrimary,
                 maxLines = 1, modifier = Modifier.weight(1f),
             )
+            // 예상/확정은 카드마다 붙인다 — 안내 문구를 지나쳐도 여기서 다시 만난다.
             if (b.isEstimate) {
-                // 예상이라는 사실은 카드마다 붙인다 — 안내 문구를 지나쳐도 여기서 다시 만난다.
                 Surface(color = TextSecondary.copy(alpha = 0.12f), shape = RoundedCornerShape(6.dp)) {
                     Text(
                         "예상", fontSize = 9.5.sp, fontWeight = FontWeight.Bold, color = TextSecondary,
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                    )
+                }
+            } else {
+                Surface(color = ConfirmedGreen, shape = RoundedCornerShape(6.dp)) {
+                    Text(
+                        "확정", fontSize = 9.5.sp, fontWeight = FontWeight.Bold, color = Color.White,
                         modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
                     )
                 }

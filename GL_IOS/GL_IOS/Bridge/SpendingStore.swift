@@ -90,6 +90,8 @@ final class SpendingStore {
     private(set) var gameEvents: [GameEvent] = []
     private(set) var challenges: [GameChallenge] = []
     private(set) var gameNews: [NewsItem] = []
+    /// 공지에서 확인된 확정 방송. 비어 있으면 방송 탭이 역산 예상값을 쓴다.
+    private(set) var confirmedBroadcasts: [ConfirmedBroadcast] = []
     /// 게임별 일일·주간 숙제 완주율(관측 기록 파생).
     private(set) var taskStats: [TaskStats] = []
     /// 캐릭터별 유효옵션 사용자 설정(키=keyStatOverrideKey).
@@ -261,6 +263,7 @@ final class SpendingStore {
         bind(vm.gameEvents) { [weak self] in self?.gameEvents = $0 }
         bind(vm.challenges) { [weak self] in self?.challenges = $0 }
         bind(vm.gameNews) { [weak self] in self?.gameNews = $0 }
+        bind(vm.confirmedBroadcasts) { [weak self] in self?.confirmedBroadcasts = $0 }
         bind(vm.combat) { [weak self] in self?.combat = $0 }
         bind(vm.combatClears) { [weak self] in self?.combatClears = $0 }
         bind(vm.combatClearsLoading) { [weak self] in self?.combatClearsLoading = $0.boolValue }

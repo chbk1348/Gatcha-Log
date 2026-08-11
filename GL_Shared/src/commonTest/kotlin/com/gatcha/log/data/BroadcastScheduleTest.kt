@@ -1,5 +1,6 @@
 package com.gatcha.log.data
 
+import com.gatcha.log.data.api.NewsItem
 import kotlinx.datetime.DayOfWeek
 import kotlinx.datetime.LocalDateTime
 import kotlinx.datetime.TimeZone
@@ -9,6 +10,7 @@ import kotlinx.datetime.toLocalDateTime
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlin.time.ExperimentalTime
 import kotlin.time.Instant
@@ -154,5 +156,87 @@ class BroadcastScheduleTest {
         val s = ScheduleLogic.summarize(banners, entries, "all", now)
         assertEquals(0, s.weekDeadlines)
         assertEquals(0, s.extras)
+    }
+
+    // ── 확정 공지 파싱 ────────────────────────────────────────────────────────
+
+    private fun news(title: String, summary: String, game: Game = Game.HSR) = NewsItem(
+        game = game.displayName, id = "1", title = title,
+        createdAtMillis = 0L, bannerUrl = "", url = "https://www.hoyolab.com/article/1",
+        summary = summary,
+    )
+
+    @Test
+    fun `확정 공지에서 일시를 읽는다`() {
+        // 실제 공지(2026-08-10 게시): 제목·본문 형식을 그대로 옮겼다.
+        val item = news(
+            "〈붕괴: 스타레일〉 4.5 버전 「천성에 던진 승부수」 프리뷰 스페셜 프로그램",
+            "🕙 2026/08/14 20:30 (한국 시간) 〈붕괴: 스타레일〉 4.5 버전 「천성에 던진 승부수」 프리뷰 스페셜 프로그램이 방영됩니다.",
+        )
+        val c = BroadcastSchedule.parseConfirmed(listOf(item), nowMillis = at(2026, 8, 10)).singleOrNull()
+        assertNotNull(c)
+        assertEquals(Game.HSR.key, c.gameKey)
+        assertEquals("4.5", c.version)
+        val dt = local(c.targetMillis)
+        assertEquals(8, dt.month.number)
+        assertEquals(14, dt.day)
+        assertEquals(20, dt.hour)
+        assertEquals(30, dt.minute)
+    }
+
+    @Test
+    fun `확정이 있으면 역산을 밀어낸다`() {
+        val item = news(
+            "〈붕괴: 스타레일〉 4.5 버전 프리뷰 스페셜 프로그램",
+            "🕙 2026/08/14 20:30 (한국 시간)",
+        )
+        val confirmed = BroadcastSchedule.parseConfirmed(listOf(item), nowMillis = at(2026, 8, 10))
+        val b = BroadcastSchedule.next(
+            banners = listOf(banner(at(2026, 8, 25, hour = 23), Game.HSR)),
+            confirmed = confirmed,
+            nowMillis = at(2026, 8, 10),
+        ).first { it.gameKey == Game.HSR.key }
+        assertTrue(!b.isEstimate, "확정 공지가 있으면 '예상'이 아니다")
+        assertEquals("4.5", b.version)
+        assertTrue(b.noticeUrl.isNotEmpty(), "확정이면 근거 공지로 갈 수 있어야 한다")
+    }
+
+    @Test
+    fun `버전 없는 스페셜은 확정으로 보지 않는다`() {
+        // 젠레스 「연례 대공개」 — 제목에 '스페셜 프로그램'은 있지만 버전 방송이 아니다.
+        val item = news(
+            "🎁「파에톤 연례 대공개」 스페셜 프로그램 진행 중!",
+            "🕙 2026/08/20 20:00 (한국 시간)", game = Game.ZZZ,
+        )
+        assertTrue(BroadcastSchedule.parseConfirmed(listOf(item), nowMillis = at(2026, 8, 10)).isEmpty())
+    }
+
+    @Test
+    fun `방송이 아닌 버전 글은 거른다`() {
+        // 「4.4 버전 프리뷰 토론실」 — 버전 번호는 있지만 방송이 아니라 부대 이벤트다.
+        val item = news("[보상 이벤트] 4.4 버전 프리뷰 토론실! 기대되는 점은?", "🕙 2026/08/14 20:30")
+        assertTrue(BroadcastSchedule.parseConfirmed(listOf(item), nowMillis = at(2026, 8, 10)).isEmpty())
+    }
+
+    @Test
+    fun `일시가 없으면 확정하지 않는다`() {
+        // 확정할 값이 없으면 역산에 맡긴다 — 제목만 보고 날짜를 지어내지 않는다.
+        val item = news("〈붕괴: 스타레일〉 4.5 버전 프리뷰 스페셜 프로그램", "곧 방영됩니다. 많은 시청 바랍니다.")
+        assertTrue(BroadcastSchedule.parseConfirmed(listOf(item), nowMillis = at(2026, 8, 10)).isEmpty())
+    }
+
+    @Test
+    fun `지난 방송 공지는 다음 방송이 아니다`() {
+        // 방송이 끝나도 공지는 목록에 한동안 남는다.
+        val item = news("〈붕괴: 스타레일〉 4.4 버전 프리뷰 스페셜 프로그램", "🕙 2026/07/03 20:30 (한국 시간)")
+        assertTrue(BroadcastSchedule.parseConfirmed(listOf(item), nowMillis = at(2026, 8, 10)).isEmpty())
+    }
+
+    @Test
+    fun `본문 뒤쪽 날짜는 방송 일시로 오해하지 않는다`() {
+        // 앞머리에 일시가 없고 한참 뒤에 이벤트 기간이 적힌 글 — 그 날짜를 집으면 안 된다.
+        val filler = "안녕하세요 개척자님. 이번 버전에서는 다양한 콘텐츠가 준비되어 있습니다. ".repeat(3)
+        val item = news("〈붕괴: 스타레일〉 4.5 버전 프리뷰 스페셜 프로그램", filler + "이벤트 기간: 2026/09/01 05:00 ~")
+        assertTrue(BroadcastSchedule.parseConfirmed(listOf(item), nowMillis = at(2026, 8, 10)).isEmpty())
     }
 }

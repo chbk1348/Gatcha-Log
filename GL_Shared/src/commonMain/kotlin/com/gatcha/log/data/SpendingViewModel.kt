@@ -966,6 +966,14 @@ class SpendingViewModel : ViewModel() {
     private val _gameNews = MutableStateFlow<List<NewsItem>>(emptyList())
     val gameNews: StateFlow<List<NewsItem>> = _gameNews.asStateFlow()
 
+    /**
+     * 공지에서 확인된 **확정** 방송. 비어 있으면 화면은 역산 예상값을 쓴다.
+     *
+     * 캐시하지 않는다 — 방송은 지나가면 값이 없고, 다음 회차는 어차피 새 공지로 온다.
+     */
+    private val _confirmedBroadcasts = MutableStateFlow<List<ConfirmedBroadcast>>(emptyList())
+    val confirmedBroadcasts: StateFlow<List<ConfirmedBroadcast>> = _confirmedBroadcasts.asStateFlow()
+
     // ── 공지 본문(상세 페이지) ──────────────────────────────────────────────
     // 목록에서 공지를 열면 HoYoLab 아티클 API 로 본문을 받아 온다. 실패해도 화면은 비우지 않는다 —
     // 목록이 이미 갖고 있는 summary(줄바꿈 없는 평문)로 폴백하고, '브라우저에서 보기'를 함께 제공한다.
@@ -1601,6 +1609,9 @@ class SpendingViewModel : ViewModel() {
                     // 요청이 나가서, 홈의 '게임 소식'만 한 왕복 늦게 채워졌다 — 의존 관계가 전혀 없는데도.
                     val newsGames = GameData.games.filter { it.newsSource != null }
                     val newsDeferred = newsGames.map { g -> async(Dispatchers.IO) { NewsApi.notices(g) } }
+                    // 버전 특별 방송 확정 공지는 notices 가 아니라 info 카테고리에 올라온다.
+                    // 목록에는 안 섞고 방송 일시만 뽑아 쓴다([BroadcastSchedule.parseConfirmed]).
+                    val infoDeferred = newsGames.map { g -> async(Dispatchers.IO) { NewsApi.info(g) } }
 
                     // 응답을 받은 게임만 새 값으로 갈아끼운다([mergeByGame]) — 실패한 게임은 직전 값 유지.
                     // 예전엔 성공분만 모아 통째로 대입해서, 한 게임이 타임아웃 나면 그 게임 정보가 사라졌다.
@@ -1668,6 +1679,11 @@ class SpendingViewModel : ViewModel() {
                             .sortedByDescending { it.createdAtMillis }
                         // 다음 실행 때 홈 '게임 소식'을 바로 그리기 위한 캐시(최신 N건·요약 절단 — 저장부 참고).
                         runCatching { repo.saveGameNews(_gameNews.value) }
+                    }
+                    // 확정 방송 — 못 받아도 조용히 넘어간다. 그때는 역산 예상값이 그대로 쓰인다.
+                    val infoItems = infoDeferred.mapNotNull { it.await() }.flatten()
+                    if (infoItems.isNotEmpty()) {
+                        _confirmedBroadcasts.value = BroadcastSchedule.parseConfirmed(infoItems)
                     }
                     _newsReady.value = true
 
