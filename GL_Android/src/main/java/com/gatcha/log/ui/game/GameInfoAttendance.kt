@@ -351,13 +351,12 @@ private fun DailyEntryTiles(
             modifier = Modifier.weight(1f),
             onClick = onOpenAttendance,
         ) {
-            // 아직 안 한 게 있으면 여기서 바로 끝낸다 — 상세까지 들어갔다 나올 일이 아니다.
-            if (!attendance.allDone) {
-                TileButton(
-                    label = if (attendance.pending == 1) "출석" else "전체 출석",
-                    inProgress = checkingIn != null,
-                    onClick = onCheckInAll,
-                )
+            // 버튼 자리를 **항상** 채운다 — 다 하면 버튼이 사라지던 때는 "오늘 했나?"를
+            // 숫자(3/3)로 따져 읽어야 했고, 타일 높이도 그때만 줄어 세 칸이 어긋났다.
+            if (attendance.allDone) {
+                TileDone()
+            } else {
+                TileButton("출석하기", inProgress = checkingIn != null, onClick = onCheckInAll)
             }
         }
         if (onOpenGameContent != null) {
@@ -431,6 +430,22 @@ private fun EntryTile(
                 content = action,
             )
         }
+    }
+}
+
+/** 출석을 마친 상태 — 버튼과 같은 자리·같은 높이의 조용한 표시(누를 게 없다). */
+@Composable
+private fun TileDone() {
+    val accent = LocalAccent.current
+    Row(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp))
+            .background(accent.copy(alpha = 0.12f)).padding(vertical = 7.dp),
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(Icons.Default.Check, null, tint = accent, modifier = Modifier.size(13.dp))
+        Spacer(Modifier.width(4.dp))
+        Text("출석 완료", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = accent, maxLines = 1)
     }
 }
 
