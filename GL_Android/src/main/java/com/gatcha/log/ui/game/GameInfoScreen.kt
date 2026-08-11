@@ -333,16 +333,20 @@ fun GameInfoScreen(
             onRefresh = { viewModel.refreshGameInfo(force = true) },
             modifier = Modifier.fillMaxSize(),
         ) {
+            // 좌우 여백은 **섹션마다** 준다(GiSection). 예전엔 LazyColumn 이 통째로 들고 있었는데,
+            // 그러면 데일리 히어로가 화면 끝까지 못 간다 — 히어로는 색이 가장자리까지 닿아야 한다.
             LazyColumn(
                 state = listState,
-                modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
+                modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(bottom = glgTabContentBottom()),
             ) {
-            // 헤더 자리(고정) — item 0 은 앵커 인덱스 유지용 스페이서. 실제 헤더는 아래 오버레이. (상태바+헤더)
-            item { Spacer(Modifier.height(GlgTabHeaderHeight + topInset)) }
-            // 최상단 히어로 — 실시간 노트 + 출석체크 통합
+            // 앵커 인덱스 유지용 빈 item — 이 목록의 스크롤 앵커(홈 딥링크)가 인덱스로 계산되므로
+            // 없애면 뒤가 전부 하나씩 당겨진다. 상태바+헤더 높이는 히어로가 자기 배경과 함께 가진다.
+            item { Spacer(Modifier.height(0.dp)) }
+            // 최상단 히어로 — 급한 할 일이 지면을 지배한다(상태바까지 색이 이어짐)
             item {
                 DailyHeroSection(
+                    topInset = topInset,
                     notes = notes,
                     attendanceToday = attendanceToday,
                     attendanceHistory = attendanceHistory,
@@ -360,12 +364,13 @@ fun GameInfoScreen(
             // 숙제 완주율 — 데일리 바로 아래(같은 '오늘 뭐 했나' 맥락). 기록이 없으면 섹션 자체가 안 뜬다.
             if (taskStats.isNotEmpty()) {
                 item { Spacer(Modifier.height(20.dp)) }
-                item { TaskCompletionSection(taskStats) }
+                item { GiSection { TaskCompletionSection(taskStats) } }
             }
             // 내 캐릭터(보유 전체 로스터) — 데일리 다음. 미연동이면 섹션·상단 여백까지 통째 생략(빈 여백 방지).
             if (hoyolab.isLinked) {
                 item { Spacer(Modifier.height(20.dp)) }
                 item {
+                    GiSection {
                     EnkaCharSection(
                         viewModel,
                         gameFilter = gameFilter,
@@ -374,29 +379,32 @@ fun GameInfoScreen(
                         onOpenAll = { g -> rosterGame = g; subPageStateHolder.removeState(GiSub.CharRoster); subPage = GiSub.CharRoster },
                         onOpenHoyolab = { subPage = GiSub.HoyoLink },
                     )
+                    }
                 }
             }
             // 통합 게임 일정 — 헤더 드롭다운(gameFilter) 연동.
             if (schedule.isNotEmpty()) {
                 item { Spacer(Modifier.height(20.dp)) }
-                item { GameScheduleSection(schedule, banners, gameFilter, onSeeAll = { subPage = GiSub.Schedule }) }
+                item { GiSection { GameScheduleSection(schedule, banners, gameFilter, onSeeAll = { subPage = GiSub.Schedule }) } }
             }
             // 호요랜드 — 호요버스 한국 오프라인 행사(플레이스홀더). 정보 확정 전 "준비 중" 티저.
             item { Spacer(Modifier.height(20.dp)) }
-            item { HoyolandSection(onOpen = { subPage = GiSub.Hoyoland }) }
+            item { GiSection { HoyolandSection(onOpen = { subPage = GiSub.Hoyoland }) } }
             // 공지·뉴스 — 게임별 최신 공지(탭하면 HoYoLab 열기).
             item { Spacer(Modifier.height(20.dp)) }
             item {
-                NewsSection(
-                    gameNews, gameFilter,
-                    onSeeAll = { subPage = GiSub.News },
-                    onOpen = { openNews(it, GiSub.Main) },
-                )
+                GiSection {
+                    NewsSection(
+                        gameNews, gameFilter,
+                        onSeeAll = { subPage = GiSub.News },
+                        onOpen = { openNews(it, GiSub.Main) },
+                    )
+                }
             }
             item { Spacer(Modifier.height(20.dp)) }
-            item { NavEntryCard(Icons.Default.Calculate, "가챠 계산기", "재화 환산 · 확률 · 시나리오") { subPage = GiSub.Calc } }
+            item { GiSection { NavEntryCard(Icons.Default.Calculate, "가챠 계산기", "재화 환산 · 확률 · 시나리오") { subPage = GiSub.Calc } } }
             item { Spacer(Modifier.height(12.dp)) }
-            item { NavEntryCard(Icons.Default.BarChart, "가챠 효율 리포트", "UIGF/SRGF 분석 · 단가 · 천장 분포") { subPage = GiSub.Report } }
+            item { GiSection { NavEntryCard(Icons.Default.BarChart, "가챠 효율 리포트", "UIGF/SRGF 분석 · 단가 · 천장 분포") { subPage = GiSub.Report } } }
             // 목록 끝에는 여백을 두지 않는다 — 탭바까지의 간격은 contentPadding 이 전담(예전엔 32dp).
         }
     }
@@ -438,6 +446,18 @@ fun GameInfoScreen(
         }
     }
 
+}
+
+/**
+ * 게임 정보 탭 섹션의 좌우 여백.
+ *
+ * 예전엔 LazyColumn 이 `padding(horizontal = 16.dp)` 를 통째로 들고 있었다. 그러면 어떤 섹션도
+ * 화면 끝까지 못 간다 — 데일리 히어로는 색이 가장자리에 닿아야 해서 이 방식으로 바꿨다.
+ * 히어로만 이 래퍼 없이 전폭으로 그린다.
+ */
+@Composable
+private fun GiSection(content: @Composable () -> Unit) {
+    Box(Modifier.padding(horizontal = 16.dp)) { content() }
 }
 
 /** 페이지로 분류된 섹션 진입 카드 (아이콘 + 제목 + 설명 + 셰브론). */
