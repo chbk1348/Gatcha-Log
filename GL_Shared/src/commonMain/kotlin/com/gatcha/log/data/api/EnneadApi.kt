@@ -51,27 +51,24 @@ object EnneadApi {
     }
 
     /**
-     * 젠레스 존 제로 일정 — ennead `mihoyo/zenless/calendar` 의 **이벤트 + 도전만**(픽업 배너 기능 제거).
-     * ennead ZZZ 데이터는 ko-kr 요청에도 영문이라 이벤트명에 [ZzzEventNames] 한국어 매핑(빌트인+원격) 적용,
-     * 매핑 없으면 원문 유지. 보상 폴리크롬은 숫자 필드([rewardOf] 처리).
+     * 젠레스 존 제로 일정 — 응답 형태가 달라 [fetch] 와 따로 둔다.
+     *
+     * 필드명이 젠레스만 `agents`/`w_engines` 다(다른 게임은 `characters`/`weapons`·`light_cones`).
+     * 그건 [firstItems] 가 흡수한다. 보상은 폴리크롬 숫자 필드라 [rewardOf] 가 따로 다룬다.
+     *
+     * 예전엔 여기서 영문→한국어 이름 매핑을 씌웠다. ennead 가 ko-kr 요청에도 영문을 주던 시절의
+     * 장치인데, **지금은 에이전트·W엔진·이벤트가 전부 한국어로 온다**(레미엘·실낙원·충돌 위치 에너지…).
+     * 매핑 키가 영문이라 한 건도 안 맞으면서 새로고침마다 원격 JSON 만 받아 왔다 — 걷어냈다.
+     * 상류가 영문으로 되돌아가면 그때 다시 두면 된다.
      *
      * @return [fetch] 와 동일 — 실패 시 null.
      */
     suspend fun fetchZzz(): EnneadResult? {
         val res = Net.get("https://api.ennead.cc/mihoyo/zenless/calendar?lang=ko-kr")
         if (!res.isOk) return null
-        return runCatching {
-            val r = parse(Game.ZZZ, JSONObject(res.body))
-            val ko = ZzzEventNames.map() // 이벤트명·에이전트명 en→ko
-            EnneadResult(
-                // 픽업 배너 — 27.30.x 에서 뺐다가 되살렸다. 응답에는 계속 들어 있었는데
-                // 버리고 있어서, 젠존제만 게임 일정에 픽업 줄이 없었다.
-                // 매핑에 없는 신규 에이전트는 영문 그대로 나온다([ZzzEventNames] 에 추가하면 된다).
-                r.banners.map { it.copy(name = ko[it.name] ?: it.name) },
-                r.events.map { it.copy(name = ko[it.name] ?: it.name) },
-                r.challenges.map { it.copy(name = ko[it.name] ?: it.name) },
-            )
-        }.getOrNull()
+        // 픽업 배너 — 27.30.x 에서 뺐다가 되살렸다. 응답에는 계속 들어 있었는데
+        // 버리고 있어서, 젠존제만 게임 일정에 픽업 줄이 없었다.
+        return runCatching { parse(Game.ZZZ, JSONObject(res.body)) }.getOrNull()
     }
 
     private fun parse(game: Game, root: JSONObject): EnneadResult {
