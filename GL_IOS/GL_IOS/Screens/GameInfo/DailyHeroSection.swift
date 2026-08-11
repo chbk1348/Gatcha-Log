@@ -250,7 +250,9 @@ private struct DailyEntryTiles: View {
             EntryTile(icon: "calendar.badge.checkmark",
                       title: "출석 체크",
                       value: "\(summary.todayDone)/\(summary.todayTotal)",
-                      sub: summary.allDone ? "오늘 완료" : "\(summary.pending)개 남음",
+                      // 부제는 바닥 표시와 겹치지 않는 것만 — 바닥이 이미 '출석 완료 / 출석하기'를
+                      // 말하고 있어 "오늘 완료"·"1개 남음"은 같은 말을 두 번 하는 자리였다.
+                      sub: summary.streak > 0 ? "연속 \(summary.streak)일" : "이번 달 \(summary.monthFullDays)일",
                       highlight: !summary.allDone,
                       onTap: onOpenAttendance) {
                 // 버튼 자리를 **항상** 채운다 — 다 하면 버튼이 사라지던 때는 "오늘 했나?"를
@@ -261,15 +263,19 @@ private struct DailyEntryTiles: View {
                     TileButton(label: "출석하기", inProgress: checkingIn != nil, onTap: onCheckInAll)
                 }
             }
+            // 나머지 두 칸도 **같은 구조**로 만든다 — 바닥 요소가 없으면 그 칸만 짧아진다.
+            // 이쪽은 누를 게 따로 없으니 카드 전체가 하나의 탭 영역이다(bottomTappable).
             if let onOpenGameContent {
                 EntryTile(icon: "medal", title: "전투 진행도", value: "주간", sub: "수입 일지",
-                          onTap: onOpenGameContent) { EmptyView() }
+                          bottomTappable: true, onTap: onOpenGameContent) { TileGhost(label: "보기") }
             }
             if let onOpenClears {
                 EntryTile(icon: "person.3.fill", title: "클리어 편성", value: "편성", sub: "나선 · 혼돈",
-                          onTap: onOpenClears) { EmptyView() }
+                          bottomTappable: true, onTap: onOpenClears) { TileGhost(label: "보기") }
             }
         }
+        // 세 칸의 높이를 가장 큰 칸에 맞춘다 — 각 타일이 maxHeight 로 늘어나고,
+        // HStack 은 fixedSize 로 '가장 큰 이상적 높이'에 고정된다.
         .fixedSize(horizontal: false, vertical: true)
     }
 }
@@ -281,40 +287,68 @@ private struct EntryTile<Action: View>: View {
     let value: String
     let sub: String
     var highlight: Bool = false
+    /// 바닥 요소가 버튼이 아닐 때 true — 카드 전체가 하나의 탭 영역이 된다.
+    var bottomTappable: Bool = false
     let onTap: () -> Void
     @ViewBuilder let action: () -> Action
     @Environment(\.glgAccent) private var accent
 
     var body: some View {
+        Group {
+            if bottomTappable {
+                Button(action: onTap) { content(includeAction: true) }.buttonStyle(.plain)
+            } else {
+                // 바닥이 버튼이면 탭 영역을 나눈다 — Button 안의 Button 은 바깥 것만 먹인다.
+                VStack(spacing: 0) {
+                    Button(action: onTap) { content(includeAction: false) }.buttonStyle(.plain)
+                    action().padding(.horizontal, 10).padding(.bottom, 12)
+                }
+            }
+        }
+        // 세 칸 높이 맞춤 — 바깥 HStack 이 fixedSize 로 가장 큰 높이를 잡고, 각 칸이 거기 늘어난다.
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .glgGlass(in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+    }
+
+    /// 타일 본문. 가운데 정렬 — 타일이 좁아 글자 길이가 제각각이라, 좌측 정렬이면
+    /// 세 칸의 글자가 서로 다른 지점에서 끝나 줄이 삐뚤어져 보인다.
+    @ViewBuilder
+    private func content(includeAction: Bool) -> some View {
         let mark = highlight ? GLGColor.dangerText : accent.primary
         VStack(alignment: .center, spacing: 0) {
-            // 진입 영역 — 아래 버튼과 겹치지 않도록 여기까지만 탭을 받는다.
-            // 가운데 정렬 — 타일이 좁아 글자 길이가 제각각이라, 좌측 정렬이면 세 칸의
-            // 글자가 서로 다른 지점에서 끝나 줄이 삐뚤어져 보인다.
-            Button(action: onTap) {
-                VStack(alignment: .center, spacing: 0) {
-                    ZStack {
-                        RoundedRectangle(cornerRadius: 10, style: .continuous).fill(mark.opacity(0.12))
-                        Image(systemName: icon).font(.pretendard(size: 15, weight: .semibold)).foregroundStyle(mark)
-                    }
-                    .frame(width: 30, height: 30)
-                    Text(title).font(.pretendard(size: 11.5, weight: .bold))
-                        .foregroundStyle(GLGColor.textSecondary).lineLimit(1).padding(.top, 9)
-                    Text(value).font(.pretendard(size: 15, weight: .bold))
-                        .foregroundStyle(highlight ? GLGColor.dangerText : GLGColor.textPrimary)
-                        .lineLimit(1).padding(.top, 4)
-                    Text(sub).font(.pretendard(size: 10.5)).foregroundStyle(GLGColor.textSecondary)
-                        .lineLimit(1).minimumScaleFactor(0.85).multilineTextAlignment(.center).padding(.top, 2)
-                }
-                .frame(maxWidth: .infinity)
-                .padding(.horizontal, 10).padding(.top, 13).padding(.bottom, 11)
-                .contentShape(Rectangle())
+            ZStack {
+                RoundedRectangle(cornerRadius: 10, style: .continuous).fill(mark.opacity(0.12))
+                Image(systemName: icon).font(.pretendard(size: 15, weight: .semibold)).foregroundStyle(mark)
             }
-            .buttonStyle(.plain)
-            action().padding(.horizontal, 10).padding(.bottom, 12)
+            .frame(width: 30, height: 30)
+            Text(title).font(.pretendard(size: 11.5, weight: .bold))
+                .foregroundStyle(GLGColor.textSecondary).lineLimit(1).padding(.top, 9)
+            Text(value).font(.pretendard(size: 15, weight: .bold))
+                .foregroundStyle(highlight ? GLGColor.dangerText : GLGColor.textPrimary)
+                .lineLimit(1).padding(.top, 4)
+            Text(sub).font(.pretendard(size: 10.5)).foregroundStyle(GLGColor.textSecondary)
+                .lineLimit(1).minimumScaleFactor(0.85).multilineTextAlignment(.center).padding(.top, 2)
+            if includeAction {
+                Spacer(minLength: 11)
+                action()
+            }
         }
-        .frame(maxWidth: .infinity)
-        .glgGlass(in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .padding(.horizontal, 10).padding(.top, 13).padding(.bottom, includeAction ? 12 : 11)
+        .contentShape(Rectangle())
+    }
+}
+
+/// 진입만 하는 타일의 바닥 — 버튼과 같은 높이의 옅은 표시. 칸 높이를 맞추는 역할도 한다.
+private struct TileGhost: View {
+    let label: String
+    var body: some View {
+        HStack(spacing: 2) {
+            Text(label).font(.pretendard(size: 11, weight: .bold)).foregroundStyle(GLGColor.textSecondary).lineLimit(1)
+            Image(systemName: "chevron.right").font(.system(size: 9, weight: .bold)).foregroundStyle(GLGColor.textSecondary)
+        }
+        .frame(maxWidth: .infinity).padding(.vertical, 7)
+        .background(Color(hex: 0xFFF2F3F6), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
     }
 }
 
