@@ -37,9 +37,15 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.vector.path
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.gatcha.log.data.DateUtil
+import com.gatcha.log.data.Timeline
+import com.gatcha.log.data.TimelineBar
+import com.gatcha.log.data.TimelineLogic
+import com.gatcha.log.data.TimelineMark
+import com.gatcha.log.data.TimelineRow
 import com.gatcha.log.data.BroadcastSchedule
 import com.gatcha.log.data.ConfirmedBroadcast
 import com.gatcha.log.data.GachaBanner
@@ -224,14 +230,19 @@ fun GameScheduleFullContent(
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         GlgChip("일정", selected = tab == 0) { tab = 0 }
-        GlgChip("방송", selected = tab == 1) { tab = 1 }
-        GlgChip("주년", selected = tab == 2) { tab = 2 }
+        GlgChip("타임라인", selected = tab == 1) { tab = 1 }
+        GlgChip("방송", selected = tab == 2) { tab = 2 }
+        GlgChip("주년", selected = tab == 3) { tab = 3 }
     }
     if (tab == 1) {
-        BroadcastContent(banners, confirmed)
+        TimelineContent(banners, events, challenges)
         return
     }
     if (tab == 2) {
+        BroadcastContent(banners, confirmed)
+        return
+    }
+    if (tab == 3) {
         AnniversaryContent()
         return
     }
@@ -399,6 +410,196 @@ private fun DayNode(d: ScheduleDay, isLast: Boolean, now: Long) {
         }
     }
     Spacer(Modifier.height(18.dp))
+}
+
+// ── 타임라인 탭 ────────────────────────────────────────────────────────────
+
+/**
+ * 간트형 가로 타임라인 — 게임별 한 행, 픽업 기간을 막대로.
+ *
+ * 일정 탭(마감일 세로 목록)과 답하는 질문이 다르다. 저쪽은 "다음에 뭐가 끝나나"지만
+ * 여기는 **기간과 겹침**이다 — 두 게임 픽업이 같은 주에 몰렸는지, 이번 픽업이 끝나고
+ * 다음이 시작할 때까지 빈 구간이 있는지는 막대를 나란히 놓아야 보인다.
+ *
+ * 좌표는 전부 [TimelineLogic] 이 준 비율(0~1)이고 여기서는 폭만 곱한다.
+ */
+@Composable
+private fun TimelineContent(
+    banners: List<GachaBanner>,
+    events: List<GameEvent>,
+    challenges: List<GameChallenge>,
+) {
+    val entries = remember(banners, events, challenges) { ScheduleLogic.buildSchedule(banners, events, challenges) }
+    val timeline = remember(entries, banners) { TimelineLogic.build(entries, banners) }
+
+    Text(
+        "픽업 기간을 나란히 놓고 봅니다. 이벤트·정기 콘텐츠는 상류가 시작 시각을 주지 않아 마감 지점만 찍혀요.",
+        fontSize = 12.sp, color = TextSecondary, lineHeight = 17.sp,
+        modifier = Modifier.padding(bottom = 14.dp),
+    )
+    if (timeline.isEmpty) {
+        Text(
+            "표시할 일정이 없어요.",
+            fontSize = 13.sp, color = TextSecondary,
+            modifier = Modifier.fillMaxWidth().padding(top = 40.dp),
+        )
+        return
+    }
+
+    GlassCard(shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.fillMaxWidth().padding(14.dp)) {
+            Text(
+                "앞으로 ${timeline.days}일",
+                fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = TextSecondary,
+                modifier = Modifier.padding(start = TimelineLabelWidth, bottom = 8.dp),
+            )
+            TimelineAxis(timeline)
+            Spacer(Modifier.height(6.dp))
+            timeline.rows.forEachIndexed { i, row ->
+                if (i > 0) Spacer(Modifier.height(4.dp))
+                TimelineRowView(row, timeline.nowFraction)
+            }
+            Spacer(Modifier.height(12.dp))
+            TimelineLegend()
+        }
+    }
+}
+
+/** 게임 이름이 들어가는 좌측 고정 폭 — 축과 행이 같은 값을 써야 눈금과 막대가 맞는다. */
+private val TimelineLabelWidth = 46.dp
+
+/** 날짜 눈금 줄 — 라벨 + 세로 격자선. */
+@Composable
+private fun TimelineAxis(t: Timeline) {
+    Row(Modifier.fillMaxWidth()) {
+        Spacer(Modifier.width(TimelineLabelWidth))
+        BoxWithConstraints(Modifier.weight(1f)) {
+            val w = maxWidth
+            Box(Modifier.fillMaxWidth().height(14.dp)) {
+                t.ticks.forEach { tick ->
+                    // 마지막 눈금은 라벨이 오른쪽으로 넘치므로 오른쪽 정렬로 붙인다.
+                    val atEnd = tick.fraction > 0.92f
+                    Text(
+                        tick.label,
+                        fontSize = 9.5.sp, color = TextSecondary, maxLines = 1,
+                        modifier = Modifier.offset(x = w * tick.fraction - if (atEnd) 22.dp else 0.dp),
+                    )
+                }
+            }
+        }
+    }
+}
+
+/** 게임 한 행 — 좌측 이름 + 막대들 + 마감 표식. */
+@Composable
+private fun TimelineRowView(row: TimelineRow, nowFraction: Float) {
+    val color = row.colorArgb.toColor()
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Text(
+            row.gameShort,
+            fontSize = 11.sp, fontWeight = FontWeight.Bold, color = color,
+            maxLines = 1, overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.width(TimelineLabelWidth).padding(end = 6.dp),
+        )
+        BoxWithConstraints(Modifier.weight(1f)) {
+            val w = maxWidth
+            Box(Modifier.fillMaxWidth().height(TimelineRowHeight)) {
+                // 바닥 트랙 — 막대가 없는 구간도 '아무것도 없는 기간'으로 읽히게 한다.
+                Box(
+                    Modifier.fillMaxWidth().height(TimelineBarHeight)
+                        .align(Alignment.CenterStart)
+                        .clip(RoundedCornerShape(5.dp)).background(Color(0xFFF2F3F6)),
+                )
+                // 오늘 선 — 막대 아래에 두면 가려지므로 위에 그린다(아래 marks 보다는 먼저).
+                Box(
+                    Modifier.offset(x = w * nowFraction).width(1.dp).fillMaxHeight()
+                        .background(Urgent.copy(alpha = 0.35f)),
+                )
+                row.bars.forEach { bar -> TimelineBarView(bar, color, w) }
+                row.marks.forEach { mark -> TimelineMarkView(mark, w) }
+            }
+        }
+    }
+}
+
+private val TimelineRowHeight = 30.dp
+private val TimelineBarHeight = 18.dp
+
+/** 하루짜리 기간도 보이도록 하는 최소 폭 — 이보다 좁으면 선으로 사라진다. */
+private val TimelineMinBarWidth = 6.dp
+
+/** 막대 안에 라벨을 넣을 수 있는 최소 폭 — 좁은 막대에 글자를 우겨넣으면 둘 다 못 읽는다. */
+private val TimelineLabelMinWidth = 44.dp
+
+/** 기간 막대 하나. 진행 중이면 채우고, 예정이면 옅게. */
+@Composable
+private fun BoxScope.TimelineBarView(bar: TimelineBar, color: Color, width: Dp) {
+    // 아주 짧은 기간(하루)도 보이도록 최소 폭을 준다 — 안 그러면 선으로 사라진다.
+    val raw = width * bar.widthFraction
+    val barWidth = if (raw < TimelineMinBarWidth) TimelineMinBarWidth else raw
+    Box(
+        Modifier
+            .offset(x = width * bar.startFraction)
+            .width(barWidth)
+            .height(TimelineBarHeight)
+            .align(Alignment.CenterStart)
+            .clip(RoundedCornerShape(5.dp))
+            .background(if (bar.ongoing) color else color.copy(alpha = 0.28f))
+            // 종료 미공지는 테두리를 둘러 '여기서 끝난 게 아니다'를 알린다.
+            .then(
+                if (bar.endUnknown) Modifier.border(1.dp, color.copy(alpha = 0.55f), RoundedCornerShape(5.dp))
+                else Modifier,
+            ),
+        contentAlignment = Alignment.CenterStart,
+    ) {
+        // 라벨은 막대가 글자를 담을 만큼 넓을 때만 — 좁은 막대에 글자를 우겨넣으면 둘 다 못 읽는다.
+        if (barWidth >= TimelineLabelMinWidth) {
+            Text(
+                bar.title,
+                fontSize = 9.5.sp, fontWeight = FontWeight.Bold,
+                color = if (bar.ongoing) Color.White else TextPrimary,
+                maxLines = 1, overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(horizontal = 5.dp),
+            )
+        }
+    }
+}
+
+/** 마감 지점 표식 — 이벤트·정기 콘텐츠(기간을 모른다). */
+@Composable
+private fun BoxScope.TimelineMarkView(mark: TimelineMark, width: Dp) {
+    Box(
+        Modifier
+            .offset(x = width * mark.fraction - 3.dp)
+            .align(Alignment.BottomStart)
+            .size(6.dp)
+            .clip(CircleShape)
+            .background(ScheduleLogic.kindColorArgb(mark.kind).toColor()),
+    )
+}
+
+/** 범례 — 색이 무엇을 뜻하는지 한 줄. */
+@Composable
+private fun TimelineLegend() {
+    Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+        TimelineLegendItem(TextSecondary.copy(alpha = 0.5f), "예정")
+        TimelineLegendItem(ScheduleLogic.kindColorArgb("이벤트").toColor(), "이벤트 마감")
+        TimelineLegendItem(ScheduleLogic.kindColorArgb("콘텐츠").toColor(), "콘텐츠 마감")
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.width(1.dp).height(10.dp).background(Urgent))
+            Spacer(Modifier.width(5.dp))
+            Text("오늘", fontSize = 10.sp, color = TextSecondary)
+        }
+    }
+}
+
+@Composable
+private fun TimelineLegendItem(color: Color, label: String) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Box(Modifier.size(8.dp).clip(CircleShape).background(color))
+        Spacer(Modifier.width(4.dp))
+        Text(label, fontSize = 10.sp, color = TextSecondary)
+    }
 }
 
 // ── 방송 탭 ────────────────────────────────────────────────────────────────

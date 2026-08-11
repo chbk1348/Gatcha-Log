@@ -389,24 +389,29 @@ private fun EntryTile(
     GlassCard(shape = RoundedCornerShape(18.dp), modifier = modifier.fillMaxHeight().clickable { onClick() }) {
         // 가운데 정렬 — 타일이 좁아 글자 길이가 제각각이라, 좌측 정렬이면 세 칸의
         // 글자가 서로 다른 지점에서 끝나 줄이 삐뚤어져 보인다.
+        // 세로로 길쭉해지지 않게 눌러 담는다 — 폭이 화면 1/3(≈100dp)이라 높이가 그만큼
+        // 나와야 정사각에 가깝게 읽힌다. 아이콘·제목·값을 한 줄씩 크게 쌓으면 금세 넘긴다.
         Column(
-            Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 14.dp),
+            Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 11.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Box(
-                Modifier.size(30.dp).clip(RoundedCornerShape(10.dp)).background(mark.copy(alpha = 0.12f)),
+                Modifier.size(26.dp).clip(RoundedCornerShape(9.dp)).background(mark.copy(alpha = 0.12f)),
                 contentAlignment = Alignment.Center,
-            ) { Icon(icon, null, tint = mark, modifier = Modifier.size(17.dp)) }
-            Spacer(Modifier.height(9.dp))
-            Text(title, fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = TextSecondary, maxLines = 1)
-            Spacer(Modifier.height(4.dp))
+            ) { Icon(icon, null, tint = mark, modifier = Modifier.size(15.dp)) }
+            Spacer(Modifier.height(6.dp))
+            // 줄 간격은 [lineHeight] 로 조인다 — Compose 기본 행높이는 글자 크기의 1.5배쯤이라
+            // Spacer 를 0 으로 줄여도 글자 사이가 벌어져 보인다(빈 줄이 글자 위아래에 붙는 셈).
             Text(
-                value, fontSize = 15.sp, fontWeight = FontWeight.Bold,
+                title, fontSize = 11.sp, lineHeight = 13.sp, fontWeight = FontWeight.Bold,
+                color = TextSecondary, maxLines = 1,
+            )
+            Text(
+                value, fontSize = 14.sp, lineHeight = 17.sp, fontWeight = FontWeight.Bold,
                 color = if (highlight) DangerText else TextPrimary, maxLines = 1,
             )
-            Spacer(Modifier.height(2.dp))
             Text(
-                sub, fontSize = 10.5.sp, color = TextSecondary,
+                sub, fontSize = 10.sp, lineHeight = 12.sp, color = TextSecondary,
                 maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center,
             )
         }

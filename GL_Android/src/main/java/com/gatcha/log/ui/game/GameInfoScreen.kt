@@ -457,8 +457,11 @@ fun GameInfoScreen(
  * 히어로만 이 래퍼 없이 전폭으로 그린다.
  */
 @Composable
-private fun GiSection(content: @Composable () -> Unit) {
-    Box(Modifier.padding(horizontal = 16.dp)) { content() }
+private fun GiSection(content: @Composable ColumnScope.() -> Unit) {
+    // ⚠️ Column 이어야 한다. Box 로 두면 섹션이 내보내는 형제들(제목 Text · 카드)이 **같은 자리에
+    // 겹쳐** 쌓이고, 나중에 그려지는 카드가 제목을 덮는다 — '게임 일정'·'공지·뉴스' 제목이
+    // 통째로 안 보이던 원인이다. 섹션 하나가 한 덩어리(Column)만 내보낸다는 보장이 없다.
+    Column(Modifier.padding(horizontal = 16.dp), content = content)
 }
 
 /** 페이지로 분류된 섹션 진입 카드 (아이콘 + 제목 + 설명 + 셰브론). */
