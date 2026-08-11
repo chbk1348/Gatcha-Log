@@ -253,11 +253,12 @@ private struct DailyEntryTiles: View {
                       sub: summary.allDone ? "오늘 완료" : "\(summary.pending)개 남음",
                       highlight: !summary.allDone,
                       onTap: onOpenAttendance) {
-                // 아직 안 한 게 있으면 여기서 바로 끝낸다 — 상세까지 들어갔다 나올 일이 아니다.
-                if !summary.allDone {
-                    TileButton(label: summary.pending == 1 ? "출석" : "전체 출석",
-                               inProgress: checkingIn != nil,
-                               onTap: onCheckInAll)
+                // 버튼 자리를 **항상** 채운다 — 다 하면 버튼이 사라지던 때는 "오늘 했나?"를
+                // 숫자(3/3)로 따져 읽어야 했고, 타일 높이도 그때만 줄어 세 칸이 어긋났다.
+                if summary.allDone {
+                    TileDone()
+                } else {
+                    TileButton(label: "출석하기", inProgress: checkingIn != nil, onTap: onCheckInAll)
                 }
             }
             if let onOpenGameContent {
@@ -314,6 +315,19 @@ private struct EntryTile<Action: View>: View {
         }
         .frame(maxWidth: .infinity)
         .glgGlass(in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+    }
+}
+
+/// 출석을 마친 상태 — 버튼과 같은 자리·같은 높이의 조용한 표시(누를 게 없다).
+private struct TileDone: View {
+    @Environment(\.glgAccent) private var accent
+    var body: some View {
+        HStack(spacing: 4) {
+            Image(systemName: "checkmark").font(.system(size: 10, weight: .bold)).foregroundStyle(accent.primary)
+            Text("출석 완료").font(.pretendard(size: 11, weight: .bold)).foregroundStyle(accent.primary).lineLimit(1)
+        }
+        .frame(maxWidth: .infinity).padding(.vertical, 7)
+        .background(accent.primary.opacity(0.12), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
     }
 }
 
