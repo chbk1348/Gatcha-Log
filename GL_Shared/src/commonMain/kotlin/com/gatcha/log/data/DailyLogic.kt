@@ -129,15 +129,35 @@ object DailyLogic {
     }
 
     /**
-     * 히어로에 올릴 한 건 — 목록의 첫 항목.
+     * 히어로 문구 — **게임 중립**.
      *
-     * 급한 게 없으면 **null**. 그때 화면은 히어로 대신 조용한 요약을 쓴다 —
-     * 급하지 않은 일을 크게 띄우면 다음에 진짜 급할 때 그 자리가 안 읽힌다.
+     * 예전엔 가장 급한 한 건(주로 원신 레진)을 히어로에 크게 올렸는데, 데일리는 3게임을
+     * 함께 관리하는 화면이라 한 게임이 대표로 뜨면 편향돼 보인다. 지출 상세는 지출 한 건의
+     * 상세라 그 게임이 히어로에 오는 게 자연스러웠지만 여기는 다르다.
+     *
+     * 그래서 히어로는 "오늘 전체"만 말하고, 어느 게임의 무엇인지는 아래 목록이 맡는다.
      */
-    fun hero(tasks: List<DailyTask>): DailyTask? = tasks.firstOrNull { it.urgent }
-
-    /** 오늘 남은 할 일 수 — 히어로가 없을 때 요약 문구에 쓴다. */
-    fun remaining(tasks: List<DailyTask>): Int = tasks.size
+    fun headline(tasks: List<DailyTask>): DailyHeadline {
+        val urgent = tasks.count { it.urgent }
+        return when {
+            urgent > 0 -> DailyHeadline(
+                title = if (urgent == 1) "지금 해야 할 일이 있어요" else "지금 해야 할 일 ${urgent}건",
+                // 급한 게 무엇인지는 짧게만 — 자세한 건 바로 아래 목록에 있다.
+                subtitle = tasks.filter { it.urgent }.joinToString(" · ") { "${it.gameShort} ${it.label}" },
+                urgent = true,
+            )
+            tasks.isNotEmpty() -> DailyHeadline(
+                title = "할 일 ${tasks.size}건 남았어요",
+                subtitle = "급한 건 없어요 — 아래에서 하나씩",
+                urgent = false,
+            )
+            else -> DailyHeadline(
+                title = "오늘 할 일 끝났어요",
+                subtitle = "재화도 넉넉하고 출석도 다 했어요",
+                urgent = false,
+            )
+        }
+    }
 
     /**
      * 게임별 한 줄 요약 — 히어로 아래 현황 목록.
@@ -168,7 +188,18 @@ object DailyLogic {
     }
 }
 
-/** 게임 하나의 오늘 상태 — 히어로 아래 한 줄. */
+/**
+ * 히어로 문구 — 게임에 치우치지 않는다.
+ *
+ * @param urgent 급한 일이 있는가. 화면이 막대·글자 색을 이걸로 정한다
+ */
+data class DailyHeadline(
+    val title: String,
+    val subtitle: String,
+    val urgent: Boolean,
+)
+
+/** 게임 하나의 오늘 상태 — 재화 카드 한 칸. */
 data class DailyGameSummary(
     val gameKey: String,
     val gameShort: String,

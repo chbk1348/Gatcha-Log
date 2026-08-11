@@ -28,25 +28,25 @@ struct DailyHeroSection: View {
         } else {
             let all = allTasks
             let list = tasks
-            let hero = DailyLogic.shared.hero(tasks: list)
-            let rest = list.filter { $0 !== hero }
+            let headline = DailyLogic.shared.headline(tasks: list)
             // 재화 카드는 **필터와 무관하게 3게임 전부** — 나란히 놓고 비교하는 게 이 카드의 쓸모다.
             let summaries = DailyLogic.shared
                 .summaries(notes: store.liveNotes, attendanceToday: Set(store.attendanceToday), tasks: all)
 
             VStack(alignment: .leading, spacing: 0) {
-                if let hero { urgentHero(hero) } else { calmHero(list.count) }
+                headlineHero(headline)
 
                 VStack(alignment: .leading, spacing: 12) {
                     resinCard(summaries)
-                    if !rest.isEmpty {
+                    if !list.isEmpty {
                         GLGCard(cornerRadius: 20, padding: 16) {
                             VStack(alignment: .leading, spacing: 0) {
-                                Text(hero != nil ? "그다음" : "오늘 할 일")
+                                Text("오늘 할 일")
                                     .font(.pretendard(size: 12, weight: .bold))
                                     .foregroundStyle(GLGColor.textSecondary)
                                     .padding(.bottom, 4)
-                                ForEach(Array(rest.enumerated()), id: \.offset) { i, t in
+                                // 급한 항목은 목록 맨 위에 오고(정렬은 DailyLogic) 색으로 표시된다.
+                                ForEach(Array(list.enumerated()), id: \.offset) { i, t in
                                     if i > 0 { Divider() }
                                     taskRow(t)
                                 }
@@ -71,35 +71,25 @@ struct DailyHeroSection: View {
     // 데일리까지 같은 판을 쓰면 두 화면이 구분되지 않는다. 여기는 글자와 여백만으로 세운다 —
     // 색면이 없으니 아래 흰 카드와 층이 겹치지 않아 화면도 가벼워진다.
 
+    /// 히어로 — 색면도 없고, **게임에도 치우치지 않는다.**
+    ///
+    /// 예전엔 가장 급한 한 건(주로 원신 레진)을 크게 올렸다. 데일리는 3게임을 함께 관리하는
+    /// 화면이라 한 게임이 제목을 차지하면 편향돼 보인다 — 히어로는 "오늘 전체"만 말하고,
+    /// 어느 게임의 무엇인지는 아래 목록이 맡는다.
     @ViewBuilder
-    private func urgentHero(_ t: DailyTask) -> some View {
+    private func headlineHero(_ h: DailyHeadline) -> some View {
+        let mark = h.urgent ? Color(hex: 0xFFD0021B) : accent.primary
         heroFrame {
-            heroKicker("\(t.gameShort) · 지금", Color(argb64: t.colorArgb))
-            Text(t.label)
-                .font(.pretendard(size: 30, weight: .bold))
-                .foregroundStyle(GLGColor.textPrimary)
-                .tracking(-0.8)
-                .padding(.top, 12)
-            if !t.detail.isEmpty {
-                Text(t.detail).font(.pretendard(size: 13))
-                    .foregroundStyle(GLGColor.textSecondary).padding(.top, 8)
-            }
-        }
-    }
-
-    /// 급한 일이 없을 때 — 같은 자리, 낮은 목소리. 막대는 브랜드 민트.
-    @ViewBuilder
-    private func calmHero(_ remaining: Int) -> some View {
-        heroFrame {
-            heroKicker("오늘의 데일리", accent.primary)
-            Text(remaining > 0 ? "할 일 \(remaining)건 남았어요" : "오늘 할 일 끝났어요")
+            heroKicker("오늘의 데일리", mark)
+            Text(h.title)
                 .font(.pretendard(size: 27, weight: .bold))
                 .foregroundStyle(GLGColor.textPrimary)
-                .tracking(-0.6)
+                .tracking(-0.7)
                 .padding(.top, 12)
-            Text(remaining > 0 ? "급한 건 없어요 — 아래에서 하나씩" : "재화도 넉넉하고 출석도 다 했어요")
-                .font(.pretendard(size: 13))
-                .foregroundStyle(GLGColor.textSecondary).padding(.top, 8)
+            if !h.subtitle.isEmpty {
+                Text(h.subtitle).font(.pretendard(size: 13))
+                    .foregroundStyle(GLGColor.textSecondary).padding(.top, 8)
+            }
         }
     }
 
@@ -176,7 +166,8 @@ struct DailyHeroSection: View {
     private func taskRow(_ t: DailyTask) -> some View {
         HStack(spacing: 10) {
             GLGGameTag(game: t.gameShort, size: .small)
-            Text(t.label).font(.pretendard(size: 14, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
+            Text(t.label).font(.pretendard(size: 14, weight: .bold))
+                .foregroundStyle(t.urgent ? Color(hex: 0xFFD0021B) : GLGColor.textPrimary)
                 .frame(maxWidth: .infinity, alignment: .leading)
             if !t.detail.isEmpty {
                 Text(t.detail).font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary)
