@@ -90,15 +90,26 @@ object CombatClearLogic {
     /**
      * 캐릭터 이름을 보유 캐릭터 캐시에서 채운다.
      *
-     * HoYoLAB 전투 응답에는 이름이 없고 [EnkaChar] 쪽에는 있다 — 두 API 는 **같은 캐릭터 id**를
-     * 쓰므로 id 로 이어붙일 수 있다. 캐시에 없는 캐릭터(미보유 표시·최근 미갱신)는 그대로 둔다.
+     * HoYoLAB 전투 응답에는 이름이 없고 [EnkaChar] 쪽에는 있다 — 같은 게임 안에서는 **같은
+     * 캐릭터 id**를 쓰므로 id 로 이어붙일 수 있다. 캐시에 없는 캐릭터(미보유·최근 미갱신)는 그대로 둔다.
+     *
+     * ⚠️ **맵은 반드시 게임별로 나눠 받는다.** id 공간이 게임마다 독립이라 스타레일 1xxx 와
+     * 젠레스 1xxx 가 정면으로 겹친다. 예전엔 세 게임 이름을 하나의 id 맵으로 합쳐 넘겼고,
+     * 그 바람에 스타레일 「달리아」 자리에 젠레스 「이블린」이 찍혔다(아이콘은 맞고 이름만 틀려서
+     * 더 알아채기 어려웠다).
+     *
+     * @param namesByGame 게임 키([Game.key]) → (캐릭터 id → 이름)
      */
-    fun withNames(clears: List<CombatClear>, namesById: Map<Int, String>): List<CombatClear> {
-        if (namesById.isEmpty()) return clears
-        fun fill(list: List<CombatAvatar>) = list.map { a ->
-            if (a.name.isNotBlank()) a else namesById[a.id]?.let { a.copy(name = it) } ?: a
-        }
+    fun withNames(clears: List<CombatClear>, namesByGame: Map<String, Map<Int, String>>): List<CombatClear> {
+        if (namesByGame.isEmpty()) return clears
         return clears.map { c ->
+            // CombatClear.game 은 표시명이라 키로 바꿔 찾는다. 모르는 게임이면 이름을 채우지 않는다
+            // — 다른 게임 맵으로 대신 채우느니 아이콘만 두는 편이 낫다.
+            val names = GameData.byNameOrNull(c.game)?.let { namesByGame[it.key] } ?: return@map c
+            if (names.isEmpty()) return@map c
+            fun fill(list: List<CombatAvatar>) = list.map { a ->
+                if (a.name.isNotBlank()) a else names[a.id]?.let { a.copy(name = it) } ?: a
+            }
             c.copy(rooms = c.rooms.map { r -> r.copy(firstHalf = fill(r.firstHalf), secondHalf = fill(r.secondHalf)) })
         }
     }
