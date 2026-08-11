@@ -90,6 +90,7 @@ fun GameInfoScreen(
     val events by viewModel.gameEvents.collectAsStateWithLifecycle()
     val notes by viewModel.liveNotes.collectAsStateWithLifecycle()
     val gameNews by viewModel.gameNews.collectAsStateWithLifecycle()
+    val confirmedBroadcasts by viewModel.confirmedBroadcasts.collectAsStateWithLifecycle()
     val ledgers by viewModel.ledgers.collectAsStateWithLifecycle()
     val combat by viewModel.combat.collectAsStateWithLifecycle()
     val combatClears by viewModel.combatClears.collectAsStateWithLifecycle()
@@ -287,7 +288,7 @@ fun GameInfoScreen(
                 )
             }
             GiSub.Schedule -> SectionPage("게임 일정", onBack = { subPage = GiSub.Main }) {
-                GameScheduleFullContent(banners, events, challenges, gameFilter)
+                GameScheduleFullContent(banners, events, challenges, confirmedBroadcasts, gameFilter)
             }
             GiSub.NewsDetail -> SectionPage(
                 "공지",

@@ -93,9 +93,23 @@ object NewsApi {
         null -> emptyList()
     }
 
-    private suspend fun enneadNotices(game: Game): List<NewsItem>? {
+    /**
+     * ennead 의 `info` 카테고리 — **버전 특별 방송 공지가 여기 올라온다**(`notices` 가 아니다).
+     *
+     * 목록에 합치지는 않는다. 공지 탭은 점검·업데이트 안내를 보는 자리인데 여기엔 캐릭터
+     * 트레일러·배경화면 같은 홍보 글이 대부분이라, 섞으면 정작 볼 것이 묻힌다.
+     * [BroadcastSchedule.parseConfirmed] 가 방송 글만 골라 쓰는 용도다.
+     *
+     * @return 실패 시 null — 호출부가 기존 값을 유지할 수 있게 빈 목록과 구분한다.
+     */
+    suspend fun info(game: Game): List<NewsItem>? {
+        if (game.newsSource != NewsSource.ENNEAD) return emptyList()
+        return enneadNotices(game, category = "info")
+    }
+
+    private suspend fun enneadNotices(game: Game, category: String = "notices"): List<NewsItem>? {
         val slug = game.newsSlug ?: return emptyList()
-        val res = Net.get("https://api.ennead.cc/mihoyo/$slug/news/notices?lang=ko-kr")
+        val res = Net.get("https://api.ennead.cc/mihoyo/$slug/news/$category?lang=ko-kr")
         if (!res.isOk) return null
         return runCatching {
             val arr = JSONArray(res.body)

@@ -297,6 +297,8 @@ struct SwordShape: Shape {
 private let glChar = Color(hex: 0xFF5B8DEF)
 private let glWeap = Color(hex: 0xFFE0883B)
 private let glUrgent = Color(hex: 0xFFE8634A)
+/// 확정 배지 — 예상(회색)과 확실히 갈라야 해서 채운 색을 쓴다. Android ConfirmedGreen 과 같은 값.
+private let glConfirmed = Color(hex: 0xFF2BB673)
 
 /// 현재 시각(ms) — 공유 로직(`isImminent`·`hmsLabel`)과 같은 단위로 맞춘다.
 private func nowMS() -> Int64 { Int64(Date().timeIntervalSince1970 * 1000) }
@@ -456,7 +458,7 @@ struct GameSchedulePage: View {
                 .padding(.bottom, 14)
 
                 if tab == 1 {
-                    BroadcastContent(banners: store.activeBanners, filter: filter)
+                    BroadcastContent(banners: store.activeBanners, confirmed: store.confirmedBroadcasts, filter: filter)
                 } else if tab == 2 {
                     AnniversaryContent()
                 } else {
@@ -646,16 +648,20 @@ private struct DayNode: View {
  */
 private struct BroadcastContent: View {
     let banners: [GachaBanner]
+    let confirmed: [ConfirmedBroadcast]
     let filter: String
 
     private var list: [LiveBroadcast] {
-        let all = BroadcastSchedule.shared.next(banners: banners, nowMillis: nowMs())
+        let all = BroadcastSchedule.shared.next(banners: banners, confirmed: confirmed, nowMillis: nowMs())
         return filter == "all" ? all : all.filter { $0.gameKey == filter }
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Text("버전 시작 12일 전 금요일 저녁이라는 관례로 계산한 예상 일정이에요. 정확한 일시는 공식 채널 공지를 확인해 주세요.")
+            // 안내 문구는 목록 성격에 따라 바꾼다 — 전부 확정인데 '예상'이라고 하면 값을 깎아 읽게 된다.
+            Text(list.contains { $0.isEstimate }
+                 ? "공식 공지가 뜬 방송은 확정 일시로, 아직 안 뜬 방송은 관례(버전 시작 12일 전 금요일)로 계산한 예상이에요."
+                 : "공식 공지로 확정된 일시예요.")
                 .font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary)
                 .padding(.bottom, 14)
             if list.isEmpty {
@@ -683,16 +689,22 @@ private struct BroadcastCard: View {
                     Text(b.gameShort).font(.pretendard(size: 9.5, weight: .bold)).foregroundStyle(.white)
                         .padding(.horizontal, 7).padding(.vertical, 2)
                         .background(gc, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
-                    Text("버전 특별 방송").font(.pretendard(size: 13, weight: .bold))
+                    Text(b.version.isEmpty ? "버전 특별 방송" : "v\(b.version) 특별 방송")
+                        .font(.pretendard(size: 13, weight: .bold))
                         .foregroundStyle(GLGColor.textPrimary)
                         .frame(maxWidth: .infinity, alignment: .leading)
+                    // 예상/확정은 카드마다 붙인다 — 안내 문구를 지나쳐도 여기서 다시 만난다.
                     if b.isEstimate {
-                        // 예상이라는 사실은 카드마다 붙인다 — 안내 문구를 지나쳐도 여기서 다시 만난다.
                         Text("예상").font(.pretendard(size: 9.5, weight: .bold))
                             .foregroundStyle(GLGColor.textSecondary)
                             .padding(.horizontal, 6).padding(.vertical, 2)
                             .background(GLGColor.textSecondary.opacity(0.12),
                                         in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+                    } else {
+                        Text("확정").font(.pretendard(size: 9.5, weight: .bold))
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 6).padding(.vertical, 2)
+                            .background(glConfirmed, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
                     }
                 }
                 Text("\(DateUtil.shared.shortDateTime(millis: b.targetMillis)) (\(DateUtil.shared.weekdayKo(millis: b.targetMillis)))")
