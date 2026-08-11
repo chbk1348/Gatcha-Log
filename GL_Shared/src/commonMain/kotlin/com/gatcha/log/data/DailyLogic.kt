@@ -22,7 +22,15 @@ data class DailyTask(
     val dueMillis: Long = 0L,
     val urgent: Boolean = false,
     val actionable: Boolean = false,
-)
+) {
+    /** 게임별로 묶어 한 줄에 이어 붙일 때 쓰는 짧은 이름 — "출석 안 함" → "출석". */
+    val shortLabel: String get() = when (kind) {
+        "출석" -> "출석"
+        "일일" -> "일일"
+        "주간" -> "주간"
+        else -> label
+    }
+}
 
 /**
  * 데일리 섹션이 "지금 뭘 해야 하나"에 답하기 위한 판단.
@@ -159,8 +167,40 @@ object DailyLogic {
         }
     }
 
+
     /**
-     * 게임별 한 줄 요약 — 히어로 아래 현황 목록.
+     * 할 일을 **게임별 한 줄**로 묶는다.
+     *
+     * 항목을 낱개로 늘어놓으면 3게임 × 최대 4종이라 목록이 금세 열 줄을 넘는다.
+     * 게임당 한 줄로 묶으면 세 줄로 끝나고, 어느 게임에 뭐가 남았는지가 한눈에 들어온다.
+     *
+     * **재화는 뺀다.** 재화 카드가 이미 3게임을 나란히 보여주고 있어 목록에 또 쓰면 중복이다.
+     * 넘침 경고도 그 카드가 색으로 한다.
+     */
+    fun byGame(tasks: List<DailyTask>, stats: List<TaskStats> = emptyList()): List<DailyGameTasks> {
+        val kept = tasks.filter { it.kind != "재화" }
+        return GameData.attendanceGames.mapNotNull { game ->
+            val mine = kept.filter { it.gameKey == game.key }
+            if (mine.isEmpty()) return@mapNotNull null
+            val stat = stats.firstOrNull { it.gameKey == game.key }
+            DailyGameTasks(
+                gameKey = game.key,
+                gameShort = game.shortName,
+                colorArgb = game.color,
+                // "일일 3/4 · 출석" — 상세가 있으면 붙이고 없으면 라벨만.
+                summary = mine.joinToString(" · ") { t ->
+                    if (t.detail.isBlank()) t.shortLabel else "${t.shortLabel} ${t.detail}"
+                },
+                canCheckIn = mine.any { it.actionable },
+                // 완주율은 **기록이 있는 날이 있을 때만** 말한다. 분모가 0 이면 판단할 근거가 없다.
+                rate = stat?.takeIf { it.dailyDays > 0 }?.dailyRate ?: -1,
+                rateDays = stat?.dailyDays ?: 0,
+            )
+        }
+    }
+
+    /**
+     * 게임별 한 줄 요약 — 재화 카드용.
      *
      * 할 일이 없는 게임도 한 줄은 남긴다(빠지면 "왜 없지?"를 확인하러 들어가야 한다).
      * 대신 문구를 짧게 줄여 무게를 낮춘다.
@@ -187,6 +227,21 @@ object DailyLogic {
         )
     }
 }
+
+/** 게임 하나에 남은 할 일 — 한 줄로 묶은 것. */
+data class DailyGameTasks(
+    val gameKey: String,
+    val gameShort: String,
+    val colorArgb: Long,
+    /** "일일 3/4 · 출석" */
+    val summary: String,
+    /** 이 줄에 출석 버튼을 달지. */
+    val canCheckIn: Boolean,
+    /** 최근 일일 숙제 완주율(0~100). **-1 이면 표시하지 않는다**(기록이 없다). */
+    val rate: Int = -1,
+    /** 완주율의 분모 = 기록이 있는 날 수. */
+    val rateDays: Int = 0,
+)
 
 /**
  * 히어로 문구 — 게임에 치우치지 않는다.

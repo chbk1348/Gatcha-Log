@@ -178,7 +178,8 @@ fun GameInfoScreen(
         if (linked) cursor += 2                              // 내 캐릭터
         val scheduleIdx = if (scheduleShown) cursor + 2 else notesIdx
         if (scheduleShown) cursor += 2                       // 게임 일정
-        cursor += 2                                          // 주년
+        // ⚠️ 여기서 '주년'을 한 칸 더 세고 있었다. 주년은 게임 일정 상세의 탭으로 옮겨져
+        // 이 목록에 없는데도 계산에만 남아, NEWS 앵커가 두 칸 밀려 계산기 자리로 스크롤됐다.
         cursor += 2                                          // 호요랜드
         val newsIdx = cursor + 2
         cursor += 2                                          // 공지
@@ -353,6 +354,7 @@ fun GameInfoScreen(
                     hoyolab = hoyolab,
                     checkingIn = checkingIn,
                     streak = attendanceStreak,
+                    taskStats = taskStats,
                     filter = gameFilter,
                     onCheckIn = { viewModel.attemptCheckIn(it) },
                     onCheckInAll = { viewModel.checkInAll() },
@@ -361,11 +363,7 @@ fun GameInfoScreen(
                     onOpenClears = { subPage = GiSub.CombatClear },
                 )
             }
-            // 숙제 완주율 — 데일리 바로 아래(같은 '오늘 뭐 했나' 맥락). 기록이 없으면 섹션 자체가 안 뜬다.
-            if (taskStats.isNotEmpty()) {
-                item { Spacer(Modifier.height(20.dp)) }
-                item { GiSection { TaskCompletionSection(taskStats) } }
-            }
+            // 숙제 완주율은 별도 섹션을 두지 않는다 — 데일리의 게임 줄에 완주율까지 함께 들어간다.
             // 내 캐릭터(보유 전체 로스터) — 데일리 다음. 미연동이면 섹션·상단 여백까지 통째 생략(빈 여백 방지).
             if (hoyolab.isLinked) {
                 item { Spacer(Modifier.height(20.dp)) }

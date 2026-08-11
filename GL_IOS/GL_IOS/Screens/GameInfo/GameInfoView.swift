@@ -66,10 +66,7 @@ struct GameInfoView: View {
                                  onConfig: { showHoyolab = true },
                                  onOpenGameContent: { showGameContent = true },
                                  onOpenClears: { showCombatClears = true }).id("NOTES")
-                // 숙제 완주율 — 데일리 바로 아래(같은 '오늘 뭐 했나' 맥락). 기록이 없으면 섹션 자체가 안 뜬다.
-                if !store.taskStats.isEmpty {
-                    section { TaskCompletionSection(stats: store.taskStats) }
-                }
+                // 숙제 완주율은 별도 섹션을 두지 않는다 — 데일리의 게임 줄에 완주율까지 들어간다.
                 // 내 캐릭터(보유 전체 로스터) — 데일리 다음 핵심 콘텐츠로 상단 배치
                 // 미연동이면 섹션·상단 여백까지 통째 생략(빈 여백 방지).
                 if store.hoyolabConfig.isLinked {
