@@ -282,22 +282,24 @@ private struct EntryTile: View {
         Button(action: onTap) {
             // 가운데 정렬 — 타일이 좁아 글자 길이가 제각각이라, 좌측 정렬이면 세 칸의
             // 글자가 서로 다른 지점에서 끝나 줄이 삐뚤어져 보인다.
+            // 치수는 Compose EntryTile 과 같은 값으로 맞춘다(아이콘 26 · 여백 10/11 ·
+            // 글자 11/14/10). 폭이 화면 1/3 이라 이 정도로 눌러 담아야 정사각에 가깝게 읽힌다.
             VStack(alignment: .center, spacing: 0) {
                 ZStack {
-                    RoundedRectangle(cornerRadius: 10, style: .continuous).fill(mark.opacity(0.12))
-                    Image(systemName: icon).font(.pretendard(size: 15, weight: .semibold)).foregroundStyle(mark)
+                    RoundedRectangle(cornerRadius: 9, style: .continuous).fill(mark.opacity(0.12))
+                    Image(systemName: icon).font(.pretendard(size: 13, weight: .semibold)).foregroundStyle(mark)
                 }
-                .frame(width: 30, height: 30)
-                Text(title).font(.pretendard(size: 11.5, weight: .bold))
-                    .foregroundStyle(GLGColor.textSecondary).lineLimit(1).padding(.top, 9)
-                Text(value).font(.pretendard(size: 15, weight: .bold))
+                .frame(width: 26, height: 26)
+                Text(title).font(.pretendard(size: 11, weight: .bold))
+                    .foregroundStyle(GLGColor.textSecondary).lineLimit(1).padding(.top, 6)
+                Text(value).font(.pretendard(size: 14, weight: .bold))
                     .foregroundStyle(highlight ? GLGColor.dangerText : GLGColor.textPrimary)
-                    .lineLimit(1).padding(.top, 4)
-                Text(sub).font(.pretendard(size: 10.5)).foregroundStyle(GLGColor.textSecondary)
-                    .lineLimit(1).minimumScaleFactor(0.85).multilineTextAlignment(.center).padding(.top, 2)
+                    .lineLimit(1)
+                Text(sub).font(.pretendard(size: 10)).foregroundStyle(GLGColor.textSecondary)
+                    .lineLimit(1).minimumScaleFactor(0.85).multilineTextAlignment(.center)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-            .padding(.horizontal, 10).padding(.vertical, 14)
+            .padding(.horizontal, 10).padding(.vertical, 11)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
