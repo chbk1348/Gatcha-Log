@@ -72,3 +72,4 @@ buildServer.json
 # 커밋 이력·diff 만 지저분해진다. 다른 머신에서는 같은 명령으로 다시 받는다.
 .agents/
 skills-lock.json
+.hallmark/
