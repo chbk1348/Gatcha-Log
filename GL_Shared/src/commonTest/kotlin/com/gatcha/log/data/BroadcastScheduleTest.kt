@@ -1,5 +1,6 @@
 package com.gatcha.log.data
 
+import kotlinx.datetime.DayOfWeek
 import kotlinx.datetime.LocalDateTime
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.number
@@ -30,36 +31,66 @@ class BroadcastScheduleTest {
     private fun local(millis: Long) = Instant.fromEpochMilliseconds(millis).toLocalDateTime(tz)
 
     /**
-     * 원신 배너 — 이 페이즈 종료일이 곧 다음 버전 시작일이다.
+     * 배너 — **종료일은 버전 시작 전날**이다(픽업은 점검 직전 화요일에 끝나고 버전은 수요일 시작).
      *
      * `isEndUnknown` 은 `endMillis <= 0` 에서 파생되는 값이라 직접 넣을 수 없다 — 0 을 준다.
      */
-    private fun giBanner(endMillis: Long, endUnknown: Boolean = false) = GachaBanner(
-        game = Game.GENSHIN.displayName, name = "픽업", type = "character",
+    private fun banner(endMillis: Long, game: Game = Game.GENSHIN, endUnknown: Boolean = false) = GachaBanner(
+        game = game.displayName, name = "픽업", type = "character",
         endMillis = if (endUnknown) 0L else endMillis,
         startMillis = endMillis - 21 * day, version = "7.0",
     )
 
+    private fun giBanner(endMillis: Long, endUnknown: Boolean = false) =
+        banner(endMillis, Game.GENSHIN, endUnknown)
+
     @Test
-    fun `버전 시작 12일 전 저녁으로 잡는다`() {
-        // 실제 사례: 원신 7.0 은 2026-08-12 시작, 특별 방송은 2026-07-31 21:00 이었다.
-        val versionStart = at(2026, 8, 12, hour = 11)   // 점검 후 오전 시작
-        val b = BroadcastSchedule.next(listOf(giBanner(versionStart)), nowMillis = at(2026, 7, 20))
+    fun `원신 7_0 실제 사례와 맞는다`() {
+        // ennead 가 준 실제 값: 배너 종료 2026-08-11 15:59(화) → 버전 시작 08-12(수)
+        //                      → 실제 방송 2026-07-31(금) 21:00
+        val bannerEnd = at(2026, 8, 11, hour = 15)
+        val b = BroadcastSchedule.next(listOf(giBanner(bannerEnd)), nowMillis = at(2026, 7, 20))
             .firstOrNull { it.gameKey == Game.GENSHIN.key }
         assertNotNull(b)
         val dt = local(b.targetMillis)
         assertEquals(7, dt.month.number)
         assertEquals(31, dt.day)
-        // 점검 시각(오전)을 그대로 12일 전으로 옮기면 안 된다 — 방송 시각은 따로 세운다.
-        assertEquals(21, dt.hour)
+        assertEquals(21, dt.hour)   // 점검 시각(오전)을 그대로 옮기면 안 된다 — 시각은 따로 세운다
+        assertEquals(0, dt.minute)
+    }
+
+    @Test
+    fun `스타레일 4_5 확정 공지와 맞는다`() {
+        // 확정 공지: 2026/08/14 20:30 (한국 시간). 배너 종료는 2026-08-25 23:00(화).
+        //
+        // 이 검사가 이 파일에서 제일 값어치 있다 — 예전엔 배너 종료를 그대로 버전 시작으로 써서
+        // 하루 앞당겨진 **목요일**이 나왔는데, 화면상으론 그럴듯해 확정 공지가 나오기 전엔 몰랐다.
+        val bannerEnd = at(2026, 8, 25, hour = 23)
+        val b = BroadcastSchedule.next(listOf(banner(bannerEnd, Game.HSR)), nowMillis = at(2026, 8, 10))
+            .firstOrNull { it.gameKey == Game.HSR.key }
+        assertNotNull(b)
+        val dt = local(b.targetMillis)
+        assertEquals(8, dt.month.number)
+        assertEquals(14, dt.day)
+        assertEquals(20, dt.hour)
+        assertEquals(30, dt.minute)
+    }
+
+    @Test
+    fun `역산이 흔들려도 금요일로 맞춘다`() {
+        // 점검이 하루 밀려 버전 시작이 목요일이 됐다고 치자. 요일 관례는 안 바뀌므로
+        // 그대로 두면 목요일 방송이라는 없는 날짜가 나간다.
+        val bannerEnd = at(2026, 8, 26, hour = 23)   // +1일 → 08-27(목) 시작
+        val b = BroadcastSchedule.next(listOf(giBanner(bannerEnd)), nowMillis = at(2026, 8, 1)).first()
+        assertEquals(DayOfWeek.FRIDAY, local(b.targetMillis).dayOfWeek)
     }
 
     @Test
     fun `이번 회차가 지났으면 다음 버전 회차를 낸다`() {
-        val versionStart = at(2026, 8, 12, hour = 11)
+        val bannerEnd = at(2026, 8, 11, hour = 15)
         // 8월 5일 = 7/31 방송이 이미 지난 시점. 그대로 내놓으면 '다음 방송'이 과거가 된다.
         val now = at(2026, 8, 5)
-        val b = BroadcastSchedule.next(listOf(giBanner(versionStart)), nowMillis = now)
+        val b = BroadcastSchedule.next(listOf(giBanner(bannerEnd)), nowMillis = now)
             .firstOrNull { it.gameKey == Game.GENSHIN.key }
         assertNotNull(b)
         assertTrue(b.targetMillis > now, "다음 방송은 항상 미래여야 한다")
@@ -67,6 +98,7 @@ class BroadcastScheduleTest {
         val dt = local(b.targetMillis)
         assertEquals(9, dt.month.number)
         assertEquals(11, dt.day)
+        assertEquals(DayOfWeek.FRIDAY, dt.dayOfWeek)
     }
 
     @Test

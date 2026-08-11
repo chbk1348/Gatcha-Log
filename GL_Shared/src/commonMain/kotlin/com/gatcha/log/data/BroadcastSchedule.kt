@@ -2,6 +2,9 @@ package com.gatcha.log.data
 
 import com.gatcha.log.util.currentTimeMillis
 import kotlinx.datetime.DateTimeUnit
+import kotlinx.datetime.DayOfWeek
+import kotlinx.datetime.LocalDate
+import kotlinx.datetime.isoDayNumber
 import kotlinx.datetime.LocalDateTime
 import kotlinx.datetime.plus
 import kotlinx.datetime.toInstant
@@ -37,8 +40,11 @@ data class LiveBroadcast(
  * 라이브를 조회하는 Data API 는 키가 필요한데 이 앱은 사이드로드라 키를 숨길 데가 없다.
  *
  * 대신 방송 관례가 규칙적이다 — 호요버스 3게임 모두 **버전 시작(수요일 점검) 12일 전 금요일** 저녁에 한다.
- * 앱은 이미 픽업 페이즈 종료일을 알고 있고 그게 곧 다음 버전 시작일이므로, 거기서 역산한다.
- * (검증: 원신 7.0 은 2026-08-12 시작, 특별 방송은 2026-07-31 21:00 이었다 — 정확히 12일 전.)
+ * 앱은 픽업 페이즈 종료일을 알고 있고, 그 **다음 날**이 버전 시작이므로 거기서 역산한다.
+ *
+ * 확인된 사례(둘 다 배너 종료가 화요일이고, +1일 → −12일 이 실제 방송일과 정확히 맞는다):
+ * - 원신 7.0 — 배너 종료 2026-08-11(화) → 시작 08-12(수) → 방송 2026-07-31(금) 21:00
+ * - 스타레일 4.5 — 배너 종료 2026-08-25(화) → 시작 08-26(수) → 방송 2026-08-14(금) 20:30
  *
  * 어긋날 수 있다. 그래서 [LiveBroadcast.isEstimate] 로 표시하고 화면이 '예상'이라고 밝힌다.
  */
@@ -59,11 +65,12 @@ object BroadcastSchedule {
     private data class GameBroadcast(val hour: Int, val minute: Int, val channelId: String)
 
     private val byGame: Map<String, GameBroadcast> = mapOf(
-        // 원신 — 공식 한국 채널(@Genshinimpact_KR). 방송은 21:00 KST.
+        // 원신 — 공식 한국 채널(@Genshinimpact_KR). 7.0 방송이 21:00 이었다.
         Game.GENSHIN.key to GameBroadcast(21, 0, "UCcum1rCJ5GJeQ_xv0xrohqg"),
-        // 붕괴: 스타레일 — 공식 한국 채널(@HonkaiStarRail_KR). 20:00 KST.
-        Game.HSR.key to GameBroadcast(20, 0, "UCH33CJMcI0XZUpIhWRHiUuw"),
-        // 젠레스 존 제로 — 공식 한국 채널(@ZZZ_KO). 20:00 KST.
+        // 붕괴: 스타레일 — 공식 한국 채널(@HonkaiStarRail_KR).
+        // 4.5 방송 확정 공지가 20:30 이었다(2026-08-14). 20:00 으로 잡아 뒀던 걸 맞춘다.
+        Game.HSR.key to GameBroadcast(20, 30, "UCH33CJMcI0XZUpIhWRHiUuw"),
+        // 젠레스 존 제로 — 공식 한국 채널(@ZZZ_KO). 확정 사례를 아직 못 봐서 20:00 으로 둔다.
         Game.ZZZ.key to GameBroadcast(20, 0, "UCmry1hfaRHI_iTfxUMhC8mA"),
     )
 
@@ -84,7 +91,10 @@ object BroadcastSchedule {
             val phaseEnds = banners
                 .filter { it.game == game.displayName && !it.isEndUnknown }
                 .map { it.endMillis }
-            val versionStart = phaseEnds.maxOrNull() ?: return@mapNotNull null
+            // ⚠️ 배너 종료 시각은 **버전 시작이 아니다.** 픽업은 점검 직전(화요일 늦은 시각)에
+            // 끝나고 새 버전은 그 다음 날(수요일) 점검 후 시작한다. 종료 시각을 그대로 쓰면
+            // 역산 결과가 하루 앞당겨져 금요일이 목요일이 됐다(스타레일 4.5 확정 공지로 발견).
+            val versionStart = (phaseEnds.maxOrNull() ?: return@mapNotNull null) + DAY_MS
 
             val target = nextAfter(versionStart, cfg, nowMillis) ?: return@mapNotNull null
             LiveBroadcast(
@@ -115,15 +125,28 @@ object BroadcastSchedule {
         return null
     }
 
-    /** 버전 시작 시각 → 그 버전 방송 시각(12일 전, 게임별 정해진 시:분). */
+    /** 버전 시작 시각 → 그 버전 방송 시각(12일 전 금요일, 게임별 정해진 시:분). */
     private fun broadcastAt(versionStart: Long, cfg: GameBroadcast): Long {
         val tz = DateUtil.timeZone
         val startDate = Instant.fromEpochMilliseconds(versionStart).toLocalDateTime(tz).date
         // 날짜만 뒤로 물리고 시각은 관례값으로 새로 세운다 — 점검 시각(보통 오전)을 그대로
         // 12일 전으로 옮기면 방송이 아침에 열린 것처럼 나온다.
-        val day = startDate.plus(-DAYS_BEFORE_VERSION, DateTimeUnit.DAY)
+        val day = snapToFriday(startDate.plus(-DAYS_BEFORE_VERSION, DateTimeUnit.DAY))
         return LocalDateTime(day.year, day.month, day.day, cfg.hour, cfg.minute)
             .toInstant(tz).toEpochMilliseconds()
+    }
+
+    /**
+     * 가장 가까운 금요일로 맞춘다.
+     *
+     * 버전 시작이 늘 수요일이라 12일 전은 정확히 금요일이 된다. 그래도 스냅을 두는 이유는,
+     * 점검이 하루 밀리는 등으로 시작일 추정이 어긋나도 **요일 관례는 안 바뀌기** 때문이다.
+     * 여기서 흡수하지 않으면 목요일·토요일 같은 날짜가 그대로 화면에 나간다.
+     */
+    private fun snapToFriday(date: LocalDate): LocalDate {
+        // 월(1)~일(7) 기준 금요일은 5. -3..+3 범위로 옮기면 가장 가까운 금요일이 된다.
+        val shift = ((DayOfWeek.FRIDAY.isoDayNumber - date.dayOfWeek.isoDayNumber) + 10) % 7 - 3
+        return date.plus(shift, DateTimeUnit.DAY)
     }
 
     private const val DAY_MS = 24L * 60 * 60 * 1000
