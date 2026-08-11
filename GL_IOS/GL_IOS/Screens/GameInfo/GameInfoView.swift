@@ -434,15 +434,18 @@ struct GameSchedulePage: View {
                 // 페이지 타이틀은 네비게이션 바(뒤로가기 + 타이틀)로 — Android 상세 헤더와 동일 형식.
                 Picker("보기", selection: $tab.animation(.easeInOut(duration: 0.2))) {
                     Text("일정").tag(0)
-                    Text("방송").tag(1)
-                    Text("주년").tag(2)
+                    Text("타임라인").tag(1)
+                    Text("방송").tag(2)
+                    Text("주년").tag(3)
                 }
                 .pickerStyle(.segmented)
                 .padding(.bottom, 14)
 
                 if tab == 1 {
-                    BroadcastContent(banners: store.activeBanners, confirmed: store.confirmedBroadcasts)
+                    TimelineContent(store: store)
                 } else if tab == 2 {
+                    BroadcastContent(banners: store.activeBanners, confirmed: store.confirmedBroadcasts)
+                } else if tab == 3 {
                     AnniversaryContent()
                 } else {
                 scheduleTitle
@@ -616,6 +619,173 @@ private struct DayNode: View {
         }
         .fixedSize(horizontal: false, vertical: true)
         .padding(.bottom, 18)
+    }
+}
+
+// ── 타임라인 탭 ────────────────────────────────────────────────────────────
+
+/**
+ 간트형 가로 타임라인 — 게임별 한 행, 픽업 기간을 막대로. (Compose TimelineContent 대응)
+
+ 일정 탭(마감일 세로 목록)과 답하는 질문이 다르다. 저쪽은 "다음에 뭐가 끝나나"지만
+ 여기는 **기간과 겹침**이다 — 두 게임 픽업이 같은 주에 몰렸는지, 이번 픽업이 끝나고
+ 다음이 시작할 때까지 빈 구간이 있는지는 막대를 나란히 놓아야 보인다.
+
+ 좌표는 전부 `TimelineLogic` 이 준 비율(0~1)이고 여기서는 폭만 곱한다.
+ */
+private struct TimelineContent: View {
+    var store: SpendingStore
+    @State private var timeline: Timeline? = nil
+
+    private struct TimelineKey: Equatable {
+        let banners: [GachaBanner]
+        let events: [GameEvent]
+        let challenges: [GameChallenge]
+    }
+
+    private var key: TimelineKey {
+        TimelineKey(banners: store.activeBanners, events: store.gameEvents, challenges: store.challenges)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text("픽업 기간을 나란히 놓고 봅니다. 이벤트·정기 콘텐츠는 상류가 시작 시각을 주지 않아 마감 지점만 찍혀요.")
+                .font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.bottom, 14)
+            if let t = timeline, !t.isEmpty {
+                GLGCard(cornerRadius: 20, padding: 14) {
+                    VStack(alignment: .leading, spacing: 0) {
+                        Text("앞으로 \(t.days)일")
+                            .font(.pretendard(size: 11.5, weight: .bold)).foregroundStyle(GLGColor.textSecondary)
+                            .padding(.leading, timelineLabelWidth).padding(.bottom, 8)
+                        timelineAxis(t)
+                        Spacer().frame(height: 6)
+                        ForEach(Array(t.rows.enumerated()), id: \.offset) { i, row in
+                            if i > 0 { Spacer().frame(height: 4) }
+                            timelineRow(row, nowFraction: CGFloat(t.nowFraction))
+                        }
+                        timelineLegend().padding(.top, 12)
+                    }
+                }
+            } else if timeline != nil {
+                Text("표시할 일정이 없어요.")
+                    .font(.pretendard(size: 13)).foregroundStyle(GLGColor.textSecondary)
+                    .frame(maxWidth: .infinity, alignment: .center).padding(.top, 40)
+            }
+        }
+        // 집계는 원본 3종이 바뀔 때만 — body 평가마다 다시 만들면 스크롤이 무거워진다.
+        .task(id: key) {
+            let entries = ScheduleLogic.shared.buildSchedule(
+                banners: store.activeBanners, events: store.gameEvents, challenges: store.challenges)
+            timeline = TimelineLogic.shared.build(entries: entries, banners: store.activeBanners, nowMillis: nowMs())
+        }
+    }
+
+    /// 게임 이름이 들어가는 좌측 고정 폭 — 축과 행이 같은 값을 써야 눈금과 막대가 맞는다.
+    private var timelineLabelWidth: CGFloat { 46 }
+    private var rowHeight: CGFloat { 30 }
+    private var barHeight: CGFloat { 18 }
+
+    /// 날짜 눈금 줄.
+    @ViewBuilder
+    private func timelineAxis(_ t: Timeline) -> some View {
+        HStack(spacing: 0) {
+            Spacer().frame(width: timelineLabelWidth)
+            GeometryReader { geo in
+                ZStack(alignment: .topLeading) {
+                    ForEach(Array(t.ticks.enumerated()), id: \.offset) { _, tick in
+                        // 마지막 눈금은 라벨이 오른쪽으로 넘치므로 당겨 붙인다.
+                        let atEnd = tick.fraction > 0.92
+                        Text(tick.label).font(.pretendard(size: 9.5)).foregroundStyle(GLGColor.textSecondary)
+                            .lineLimit(1)
+                            .offset(x: geo.size.width * CGFloat(tick.fraction) - (atEnd ? 22 : 0))
+                    }
+                }
+            }
+            .frame(height: 14)
+        }
+    }
+
+    /// 게임 한 행 — 좌측 이름 + 막대들 + 마감 표식.
+    @ViewBuilder
+    private func timelineRow(_ row: TimelineRow, nowFraction: CGFloat) -> some View {
+        let color = Color(argb64: row.colorArgb)
+        HStack(spacing: 0) {
+            Text(row.gameShort).font(.pretendard(size: 11, weight: .bold)).foregroundStyle(color)
+                .lineLimit(1).minimumScaleFactor(0.8)
+                .frame(width: timelineLabelWidth, alignment: .leading).padding(.trailing, 6)
+            GeometryReader { geo in
+                let w = geo.size.width
+                ZStack(alignment: .leading) {
+                    // 바닥 트랙 — 막대가 없는 구간도 '아무것도 없는 기간'으로 읽히게 한다.
+                    RoundedRectangle(cornerRadius: 5, style: .continuous)
+                        .fill(Color(hex: 0xFFF2F3F6))
+                        .frame(height: barHeight)
+                    // 오늘 선
+                    Rectangle().fill(glUrgent.opacity(0.35))
+                        .frame(width: 1, height: rowHeight)
+                        .offset(x: w * nowFraction)
+                    ForEach(Array(row.bars.enumerated()), id: \.offset) { _, bar in
+                        timelineBar(bar, color: color, width: w)
+                    }
+                    ForEach(Array(row.marks.enumerated()), id: \.offset) { _, mark in
+                        Circle().fill(scheduleKindColor(mark.kind))
+                            .frame(width: 6, height: 6)
+                            .offset(x: w * CGFloat(mark.fraction) - 3, y: rowHeight / 2 - 3)
+                    }
+                }
+                .frame(height: rowHeight)
+            }
+            .frame(height: rowHeight)
+        }
+        .frame(height: rowHeight)
+    }
+
+    /// 기간 막대 하나. 진행 중이면 채우고, 예정이면 옅게.
+    @ViewBuilder
+    private func timelineBar(_ bar: TimelineBar, color: Color, width: CGFloat) -> some View {
+        // 아주 짧은 기간(하루)도 보이도록 최소 폭을 준다 — 안 그러면 선으로 사라진다.
+        let barWidth = max(width * CGFloat(bar.widthFraction), 6)
+        ZStack(alignment: .leading) {
+            RoundedRectangle(cornerRadius: 5, style: .continuous)
+                .fill(bar.ongoing ? color : color.opacity(0.28))
+            // 종료 미공지는 테두리를 둘러 '여기서 끝난 게 아니다'를 알린다.
+            if bar.endUnknown {
+                RoundedRectangle(cornerRadius: 5, style: .continuous)
+                    .stroke(color.opacity(0.55), lineWidth: 1)
+            }
+            // 라벨은 막대가 글자를 담을 만큼 넓을 때만 — 좁은 막대에 글자를 우겨넣으면 둘 다 못 읽는다.
+            if barWidth >= 44 {
+                Text(bar.title).font(.pretendard(size: 9.5, weight: .bold))
+                    .foregroundStyle(bar.ongoing ? Color.white : GLGColor.textPrimary)
+                    .lineLimit(1).padding(.horizontal, 5)
+            }
+        }
+        .frame(width: barWidth, height: barHeight)
+        .offset(x: width * CGFloat(bar.startFraction))
+    }
+
+    /// 범례 — 색이 무엇을 뜻하는지 한 줄.
+    @ViewBuilder
+    private func timelineLegend() -> some View {
+        HStack(spacing: 12) {
+            legendItem(GLGColor.textSecondary.opacity(0.5), "예정")
+            legendItem(scheduleKindColor("이벤트"), "이벤트 마감")
+            legendItem(scheduleKindColor("콘텐츠"), "콘텐츠 마감")
+            HStack(spacing: 5) {
+                Rectangle().fill(glUrgent).frame(width: 1, height: 10)
+                Text("오늘").font(.pretendard(size: 10)).foregroundStyle(GLGColor.textSecondary)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func legendItem(_ color: Color, _ label: String) -> some View {
+        HStack(spacing: 4) {
+            Circle().fill(color).frame(width: 8, height: 8)
+            Text(label).font(.pretendard(size: 10)).foregroundStyle(GLGColor.textSecondary)
+        }
     }
 }
 
