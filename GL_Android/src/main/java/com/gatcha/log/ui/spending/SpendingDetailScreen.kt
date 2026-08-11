@@ -152,7 +152,11 @@ fun SpendingDetailScreen(
                     outlined = true, solidBackground = true,
                     tint = heroTint, background = heroBg,
                 ) { menuOpen = true }
-                GlgDropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }, alignEnd = true) {
+                GlgDropdownMenu(
+                    expanded = menuOpen, onDismissRequest = { menuOpen = false }, alignEnd = true,
+                    // 버튼 아이콘과 같은 색 계열로 — 메뉴만 강조색 테두리를 두르면 그 선이 먼저 읽힌다.
+                    borderColor = heroTint?.copy(alpha = 0.30f),
+                ) {
                     GlgDropdownItem(text = "수정", icon = Icons.Default.Edit, onClick = { menuOpen = false; onEdit() })
                     GlgDropdownItem(
                         text = "삭제",

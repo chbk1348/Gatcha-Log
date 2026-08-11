@@ -838,6 +838,13 @@ fun GlgDropdownMenu(
     onDismissRequest: () -> Unit,
     modifier: Modifier = Modifier,
     alignEnd: Boolean = false,
+    /**
+     * 테두리 색. null 이면 강조색 30% — 앱 전역 기본이다.
+     *
+     * 색이 깔린 화면 위에서 열릴 때만 지정한다(지출 상세 히어로). 메뉴는 흰 팝업이라
+     * 배경과는 어차피 대비되지만, **테두리만 다른 계열이면** 그 선이 먼저 눈에 들어온다.
+     */
+    borderColor: Color? = null,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     // 열림/닫힘 모션 — 상태를 별도로 추적해 닫힐 때도 퇴장 애니메이션 후 언마운트한다.
@@ -883,7 +890,7 @@ fun GlgDropdownMenu(
             Surface(
                 shape = RoundedCornerShape(20.dp),
                 color = Color.White,                                   // 불투명 — 아래 콘텐츠 비침 방지
-                border = BorderStroke(1.5.dp, accent.copy(alpha = 0.30f)),
+                border = BorderStroke(1.5.dp, borderColor ?: accent.copy(alpha = 0.30f)),
                 // 그림자를 scale/alpha 와 같은 graphicsLayer 에 합쳐 그린다 — 애니메이션 중 그림자가
                 // 별도 레이어로 따로 스케일·페이드되며 엉성해지던 문제 해결(메뉴와 하나로 부드럽게).
                 modifier = modifier
