@@ -56,6 +56,7 @@ import com.gatcha.log.ui.components.glgDetailContentTop
 import com.gatcha.log.ui.components.GlgHeaderTitlePill
 import com.gatcha.log.ui.components.GlgCircleIconButton
 import com.gatcha.log.ui.components.GlgTabHeader
+import com.gatcha.log.data.AttendanceLogic
 import com.gatcha.log.data.GameInfoAnchor
 import com.gatcha.log.data.NewsLogic
 import com.gatcha.log.data.ScheduleLogic
@@ -67,7 +68,7 @@ import com.gatcha.log.ui.theme.*
 import kotlinx.coroutines.launch
 
 /** 게임정보 탭의 풀스크린 하위 페이지 (열리면 하단바·FAB 숨김) */
-private enum class GiSub { Main, HoyoLink, Dashboard, Calc, Report, Gift, Schedule, News, NewsDetail, CharStats, CharRoster, Hoyoland, GameContent, CombatClear }
+private enum class GiSub { Main, HoyoLink, Dashboard, Calc, Report, Gift, Schedule, News, NewsDetail, CharStats, CharRoster, Hoyoland, GameContent, CombatClear, Attendance }
 
 /** 화면 전환 push/pop 방향용 계층 깊이. Main=0, 하위 페이지=1, 상세(목록서 진입)=2. */
 private fun subDepth(s: GiSub): Int = when (s) {
@@ -285,6 +286,15 @@ fun GameInfoScreen(
                     linked = hoyolab.isLinked,
                 )
             }
+            GiSub.Attendance -> SectionPage("출석 체크", onBack = { subPage = GiSub.Main }) {
+                AttendanceDetailContent(
+                    summary = AttendanceLogic.summary(attendanceHistory, attendanceToday, attendanceStreak),
+                    history = attendanceHistory,
+                    checkingIn = checkingIn,
+                    onCheckIn = { viewModel.attemptCheckIn(it) },
+                    onCheckInAll = { viewModel.checkInAll() },
+                )
+            }
             GiSub.Schedule -> SectionPage("게임 일정", onBack = { subPage = GiSub.Main }) {
                 GameScheduleFullContent(banners, events, challenges, confirmedBroadcasts)
             }
@@ -355,6 +365,7 @@ fun GameInfoScreen(
                     onCheckIn = { viewModel.attemptCheckIn(it) },
                     onCheckInAll = { viewModel.checkInAll() },
                     onConfigClick = { subPage = GiSub.HoyoLink },
+                    onOpenAttendance = { subPage = GiSub.Attendance },
                     onOpenGameContent = { subPage = GiSub.GameContent },
                     onOpenClears = { subPage = GiSub.CombatClear },
                 )

@@ -10,12 +10,23 @@ import Shared
 struct DailyHeroSection: View {
     var store: SpendingStore
     let onConfig: () -> Void
+    /// 출석 상세로 — 기록·달력은 매일 볼 게 아니라 페이지로 뺐다.
+    var onOpenAttendance: () -> Void = {}
     var onOpenGameContent: (() -> Void)? = nil
     var onOpenClears: (() -> Void)? = nil
     @Environment(\.glgAccent) private var accent
 
     private var tasks: [DailyTask] {
         DailyLogic.shared.tasks(notes: store.liveNotes, attendanceToday: Set(store.attendanceToday), nowMillis: nowMs())
+    }
+
+    /// 출석 집계 — 숫자는 공유 로직이 만든다(두 플랫폼이 각자 세면 값이 갈린다).
+    /// `todayKey` 는 기본 인자가 Swift 로 안 넘어와 직접 넘긴다.
+    private var attendanceSummary: AttendanceSummary {
+        AttendanceLogic.shared.summary(history: store.attendanceHistory,
+                                       today: Set(store.attendanceToday),
+                                       streak: Int32(store.attendanceStreak),
+                                       todayKey: DateUtil.shared.hoyoDayKey(millis: nowMs()))
     }
 
     var body: some View {
@@ -49,12 +60,15 @@ struct DailyHeroSection: View {
                             }
                         }
                     }
-                    AttendanceFold(history: store.attendanceHistory,
-                                   pending: list.filter { $0.kind == "출석" }.count,
-                                   onCheckInAll: { store.checkInAll() })
-                    if let onOpenGameContent {
-                        GameContentEntry(onTap: onOpenGameContent, onTapClears: onOpenClears)
-                    }
+                    // 출석 · 전투 진행도 · 클리어 편성 — 한 줄 3칸.
+                    // 셋 다 '들어가서 보는 기록'이라 성격이 같은데, 예전엔 접히는 카드 하나와
+                    // 두 줄짜리 카드 하나로 갈라져 세로로 세 덩어리를 잡아먹고 있었다.
+                    DailyEntryTiles(summary: attendanceSummary,
+                                    checkingIn: store.checkingIn,
+                                    onCheckInAll: { store.checkInAll() },
+                                    onOpenAttendance: onOpenAttendance,
+                                    onOpenGameContent: onOpenGameContent,
+                                    onOpenClears: onOpenClears)
                 }
                 .padding(.horizontal, 16)
             }
@@ -213,50 +227,242 @@ struct DailyHeroSection: View {
     }
 }
 
-/// 출석 기록 — 기본 접힘. 자동 출석이 도는 이상 매일 볼 정보가 아니다.
-private struct AttendanceFold: View {
-    let history: [String: Set<String>]
-    let pending: Int
+/**
+ 출석 · 전투 진행도 · 클리어 편성 — 한 줄 3칸.
+
+ 셋 다 "들어가서 보는 기록"이라 성격이 같다. 예전엔 출석이 접히는 카드, 나머지 둘이
+ 두 줄짜리 카드로 갈라져 있어 같은 부류가 세로로 세 덩어리를 잡아먹었다.
+
+ 타일 안에 다시 버튼을 넣으므로 **탭 영역을 겹치지 않게** 나눈다 — 진입은 위쪽 본문,
+ 출석은 아래 버튼. `Button` 안에 `Button` 을 넣으면 SwiftUI 는 바깥 것만 먹인다.
+ */
+private struct DailyEntryTiles: View {
+    let summary: AttendanceSummary
+    let checkingIn: String?
     let onCheckInAll: () -> Void
-    @Environment(\.glgAccent) private var accent
-    @State private var open = false
+    let onOpenAttendance: () -> Void
+    var onOpenGameContent: (() -> Void)? = nil
+    var onOpenClears: (() -> Void)? = nil
 
     var body: some View {
-        GLGCard(cornerRadius: 20, padding: 0) {
-            VStack(alignment: .leading, spacing: 0) {
-                HStack(spacing: 8) {
-                    Text("출석 기록").font(.pretendard(size: 12.5, weight: .bold))
-                        .foregroundStyle(GLGColor.textSecondary)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    if pending > 0 {
-                        Button(action: onCheckInAll) {
-                            Text("전체 출석").font(.pretendard(size: 11, weight: .bold))
-                                .foregroundStyle(accent.primary)
-                                .padding(.horizontal, 10).padding(.vertical, 5)
-                                .background(accent.primary.opacity(0.14),
-                                            in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-                        }.buttonStyle(.plain)
-                    }
-                    Image(systemName: open ? "chevron.up" : "chevron.down")
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(GLGColor.textSecondary)
-                }
-                .padding(.horizontal, 16).padding(.vertical, 13)
-                .contentShape(Rectangle())
-                .onTapGesture { withAnimation(.easeInOut(duration: 0.22)) { open.toggle() } }
-
-                if open {
-                    VStack(alignment: .leading, spacing: 14) {
-                        WeekAttendanceStrip(history: history)
-                        MonthAttendanceCalendar(history: history)
-                    }
-                    .padding(.horizontal, 16).padding(.bottom, 16)
+        // 타일 높이를 서로 맞춘다 — 출석 타일만 버튼이 붙어 길어지면 세 칸이 어긋나 보인다.
+        HStack(alignment: .top, spacing: 10) {
+            EntryTile(icon: "calendar.badge.checkmark",
+                      title: "출석 체크",
+                      value: "\(summary.todayDone)/\(summary.todayTotal)",
+                      sub: summary.allDone ? "오늘 완료" : "\(summary.pending)개 남음",
+                      highlight: !summary.allDone,
+                      onTap: onOpenAttendance) {
+                // 아직 안 한 게 있으면 여기서 바로 끝낸다 — 상세까지 들어갔다 나올 일이 아니다.
+                if !summary.allDone {
+                    TileButton(label: summary.pending == 1 ? "출석" : "전체 출석",
+                               inProgress: checkingIn != nil,
+                               onTap: onCheckInAll)
                 }
             }
+            if let onOpenGameContent {
+                EntryTile(icon: "medal", title: "전투 진행도", value: "주간", sub: "수입 일지",
+                          onTap: onOpenGameContent) { EmptyView() }
+            }
+            if let onOpenClears {
+                EntryTile(icon: "person.3.fill", title: "클리어 편성", value: "편성", sub: "나선 · 혼돈",
+                          onTap: onOpenClears) { EmptyView() }
+            }
         }
+        .fixedSize(horizontal: false, vertical: true)
     }
 }
 
+/// 3칸 타일 하나 — 아이콘 · 제목 · 값 · 부제, 그 아래 `action` 슬롯(출석 버튼).
+private struct EntryTile<Action: View>: View {
+    let icon: String
+    let title: String
+    let value: String
+    let sub: String
+    var highlight: Bool = false
+    let onTap: () -> Void
+    @ViewBuilder let action: () -> Action
+    @Environment(\.glgAccent) private var accent
+
+    var body: some View {
+        let mark = highlight ? GLGColor.dangerText : accent.primary
+        VStack(alignment: .leading, spacing: 0) {
+            // 진입 영역 — 아래 버튼과 겹치지 않도록 여기까지만 탭을 받는다.
+            Button(action: onTap) {
+                VStack(alignment: .leading, spacing: 0) {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 10, style: .continuous).fill(mark.opacity(0.12))
+                        Image(systemName: icon).font(.pretendard(size: 15, weight: .semibold)).foregroundStyle(mark)
+                    }
+                    .frame(width: 30, height: 30)
+                    Text(title).font(.pretendard(size: 11.5, weight: .bold))
+                        .foregroundStyle(GLGColor.textSecondary).lineLimit(1).padding(.top, 9)
+                    Text(value).font(.pretendard(size: 15, weight: .bold))
+                        .foregroundStyle(highlight ? GLGColor.dangerText : GLGColor.textPrimary)
+                        .lineLimit(1).padding(.top, 4)
+                    Text(sub).font(.pretendard(size: 10.5)).foregroundStyle(GLGColor.textSecondary)
+                        .lineLimit(1).minimumScaleFactor(0.85).padding(.top, 2)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 12).padding(.top, 13).padding(.bottom, 11)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            action().padding(.horizontal, 12).padding(.bottom, 12)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .glgGlass(in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+    }
+}
+
+/// 타일 바닥에 붙는 작은 채움 버튼.
+private struct TileButton: View {
+    let label: String
+    let inProgress: Bool
+    let onTap: () -> Void
+    @Environment(\.glgAccent) private var accent
+
+    var body: some View {
+        Button(action: onTap) {
+            Group {
+                if inProgress { ProgressView().controlSize(.mini).tint(.white) }
+                else { Text(label).font(.pretendard(size: 11, weight: .bold)).foregroundStyle(.white).lineLimit(1) }
+            }
+            .frame(maxWidth: .infinity).padding(.vertical, 7)
+            .background(accent.primary, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .disabled(inProgress)
+    }
+}
+
+// ============================================================ 출석 상세 페이지
+/**
+ 출석 체크 상세 — 오늘 상태 · 게임별 · 최근 7일 · 월 달력.
+
+ 예전엔 데일리의 접히는 카드 안에 7일 스트립과 달력만 있었다. 그 안에서 할 수 있는 건
+ '전체 출석' 하나뿐이라, 한 게임만 빠졌을 때도 세 게임을 통째로 다시 돌려야 했다.
+ 페이지로 꺼내면서 **게임별 줄에 각자 버튼**을 달고, 이번 달 누계를 함께 보여준다.
+ */
+struct AttendanceDetailView: View {
+    var store: SpendingStore
+    @Environment(\.glgAccent) private var accent
+
+    private var summary: AttendanceSummary {
+        AttendanceLogic.shared.summary(history: store.attendanceHistory,
+                                       today: Set(store.attendanceToday),
+                                       streak: Int32(store.attendanceStreak),
+                                       todayKey: DateUtil.shared.hoyoDayKey(millis: nowMs()))
+    }
+
+    var body: some View {
+        let s = summary
+        ScrollView {
+            VStack(alignment: .leading, spacing: 12) {
+                todayCard(s)
+                GLGCard(cornerRadius: 20, padding: 16) {
+                    VStack(alignment: .leading, spacing: 0) {
+                        ForEach(Array(s.games.enumerated()), id: \.offset) { i, g in
+                            if i > 0 { Divider() }
+                            gameRow(g, elapsed: Int(s.monthElapsedDays))
+                        }
+                    }
+                }
+                GLGCard(cornerRadius: 20, padding: 16) {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("최근 7일").font(.pretendard(size: 12, weight: .bold))
+                            .foregroundStyle(GLGColor.textSecondary)
+                        WeekAttendanceStrip(history: store.attendanceHistory)
+                        MonthAttendanceCalendar(history: store.attendanceHistory)
+                    }
+                }
+            }
+            .padding(16)
+            .glgReadableWidth(720)
+        }
+        .scrollIndicators(.hidden)
+        .background(GLGBackground { Color.clear })
+        .navigationTitle("출석 체크")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+
+    /// 오늘 요약 — 큰 숫자 + 연속·이번 달.
+    @ViewBuilder
+    private func todayCard(_ s: AttendanceSummary) -> some View {
+        GLGCard(cornerRadius: 20, padding: 16) {
+            VStack(alignment: .leading, spacing: 0) {
+                Text("오늘").font(.pretendard(size: 12, weight: .bold)).foregroundStyle(GLGColor.textSecondary)
+                HStack(alignment: .bottom, spacing: 0) {
+                    Text("\(s.todayDone)").font(.pretendard(size: 34, weight: .bold))
+                        .foregroundStyle(s.allDone ? accent.primary : GLGColor.dangerText)
+                    Text(" / \(s.todayTotal) 게임").font(.pretendard(size: 14, weight: .bold))
+                        .foregroundStyle(GLGColor.textSecondary).padding(.bottom, 5)
+                    Spacer(minLength: 8)
+                    if !s.allDone {
+                        Button { store.checkInAll() } label: {
+                            Group {
+                                if store.checkingIn != nil { ProgressView().controlSize(.small).tint(.white) }
+                                else { Text("전체 출석").font(.pretendard(size: 12.5, weight: .bold)).foregroundStyle(.white) }
+                            }
+                            .padding(.horizontal, 16).padding(.vertical, 9)
+                            .background(accent.primary, in: RoundedRectangle(cornerRadius: 11, style: .continuous))
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(store.checkingIn != nil)
+                    }
+                }
+                .padding(.top, 10)
+                HStack(spacing: 10) {
+                    statBox("연속 기록", s.streak > 0 ? "\(s.streak)일" : "—")
+                    statBox("이번 달 전체 출석", "\(s.monthFullDays)일 / \(s.monthElapsedDays)일")
+                }
+                .padding(.top, 14)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func statBox(_ label: String, _ value: String) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(label).font(.pretendard(size: 10.5)).foregroundStyle(GLGColor.textSecondary).lineLimit(1)
+            Text(value).font(.pretendard(size: 13.5, weight: .bold)).foregroundStyle(GLGColor.textPrimary).lineLimit(1)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 12).padding(.vertical, 10)
+        .background(Color(hex: 0xFFF7F8FA), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+    }
+
+    /// 게임 한 줄 — 오늘 상태 + 이번 달 누계, 안 했으면 그 자리에서 출석.
+    @ViewBuilder
+    private func gameRow(_ g: AttendanceGameStat, elapsed: Int) -> some View {
+        HStack(spacing: 10) {
+            RoundedRectangle(cornerRadius: 2).fill(Color(argb64: g.colorArgb)).frame(width: 3, height: 20)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(g.gameShort).font(.pretendard(size: 13, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
+                Text("이번 달 \(g.monthCount)일" + (elapsed > 0 ? " / \(elapsed)일" : ""))
+                    .font(.pretendard(size: 11)).foregroundStyle(GLGColor.textSecondary)
+            }
+            Spacer(minLength: 8)
+            if store.checkingIn == g.gameKey {
+                ProgressView().controlSize(.mini).tint(accent.primary)
+            } else if g.checkedToday {
+                HStack(spacing: 5) {
+                    Image(systemName: "checkmark.circle.fill").font(.system(size: 15)).foregroundStyle(accent.primary)
+                    Text("완료").font(.pretendard(size: 11.5, weight: .bold)).foregroundStyle(accent.primary)
+                }
+            } else {
+                Button { store.attemptCheckIn(g.gameKey) } label: {
+                    Text("출석").font(.pretendard(size: 11.5, weight: .bold)).foregroundStyle(accent.primary)
+                        .padding(.horizontal, 14).padding(.vertical, 7)
+                        .background(accent.primary.opacity(0.14),
+                                    in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(.vertical, 13)
+    }
+}
 
 // 출석 완료도
 enum AttendLevel { case none, partial, full }
@@ -505,66 +711,5 @@ struct FlowLayout: Layout {
             x += size.width + spacing
             rowHeight = max(rowHeight, size.height)
         }
-    }
-}
-
-/// 전투 진행도·수입 일지 진입 행 — 데일리 바로 아래.
-///
-/// 예전엔 게임 정보 탭 본문에 큰 섹션 두 개로 펼쳐져 있었다. 매일 보는 정보가 아닌데
-/// 화면을 길게 잡아먹어, 같은 '오늘 뭐 했나' 맥락인 데일리에서 들어가도록 접었다.
-private struct GameContentEntry: View {
-    let onTap: () -> Void
-    /// 클리어 편성으로 — 같은 카드의 두 번째 줄. nil 이면 줄 자체가 안 뜬다.
-    var onTapClears: (() -> Void)? = nil
-
-    var body: some View {
-        VStack(spacing: 0) {
-            GameContentRow(icon: "medal", title: "전투 진행도 · 수입 일지",
-                           sub: "주간 클리어 현황과 이번 달 재화 수입", onTap: onTap)
-            // 클리어 편성은 예전에 이 페이지 안쪽 2단계라 못 찾았다. 같은 카드의 두 번째 줄로 꺼낸다 —
-            // 별도 카드로 띄우면 같은 맥락의 진입점이 화면에서 갈라진다.
-            if let onTapClears {
-                Divider().padding(.horizontal, 16)
-                GameContentRow(icon: "person.3.fill", title: "클리어 편성",
-                               sub: "나선 비경 · 혼돈의 기억을 깬 캐릭터", onTap: onTapClears)
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .glgGlass(in: RoundedRectangle(cornerRadius: 20, style: .continuous))
-    }
-}
-
-/// `GameContentEntry` 의 한 줄. 카드를 공유하므로 탭 영역은 줄 단위다.
-private struct GameContentRow: View {
-    let icon: String
-    let title: String
-    let sub: String
-    let onTap: () -> Void
-    @Environment(\.glgAccent) private var accent
-
-    var body: some View {
-        Button(action: onTap) {
-            HStack(spacing: 12) {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 12, style: .continuous).fill(accent.primary.opacity(0.12))
-                    Image(systemName: icon).font(.pretendard(size: 18, weight: .semibold))
-                        .foregroundStyle(accent.primary)
-                }
-                .frame(width: 38, height: 38)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(title)
-                        .font(.pretendard(size: 14, weight: .bold)).foregroundStyle(GLGColor.textPrimary).lineLimit(1)
-                    Text(sub)
-                        .font(.pretendard(size: 11)).foregroundStyle(GLGColor.textSecondary).lineLimit(1)
-                }
-                Spacer(minLength: 8)
-                Image(systemName: "chevron.right").font(.pretendard(size: 13, weight: .semibold))
-                    .foregroundStyle(GLGColor.textSecondary)
-            }
-            .padding(.horizontal, 16).padding(.vertical, 14)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
     }
 }
