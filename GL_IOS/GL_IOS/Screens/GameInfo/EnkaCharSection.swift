@@ -45,25 +45,19 @@ private func enkaGameLabel(_ game: String) -> String {
     }
 }
 
-/// 게임정보 탭 섹션 — Enka 쇼케이스 로스터(게임당 한 줄). 헤더 게임필터([filter])에 연동.
-/// "all"=원신·스타레일·젠레스를 게임별 블록으로 모두 표시, 특정 게임=해당 게임만. 캐릭터 탭 → [onOpen].
+/// 게임정보 탭 섹션 — Enka 쇼케이스 로스터(게임당 한 줄).
+/// 원신·스타레일·젠레스를 게임별 블록으로 모두 표시. 캐릭터 탭 → [onOpen].
 struct EnkaCharSection: View {
     var store: SpendingStore
     @Environment(\.glgAccent) private var accent
-    /// 헤더 게임필터("all" | game.key)
-    let filter: String
     let onOpen: (EnkaChar, String) -> Void
     /// 더보기 → 보유 캐릭터 전체 페이지(게임 전달)
     var onOpenAll: (String) -> Void = { _ in }
     /// 미연동 시 HoYoLAB 연동 페이지 열기
     var onOpenHoyolab: () -> Void = {}
 
-    private static let enkaGames = ["genshin", "hsr", "zzz"]
-
-    /// 표시 대상 게임 — 전체면 3게임, 특정 게임이면 그 게임(Enka 미지원이면 비표시).
-    private var games: [String] {
-        filter == "all" ? Self.enkaGames : (Self.enkaGames.contains(filter) ? [filter] : [])
-    }
+    /// 표시 대상 — Enka 가 지원하는 3게임. (나머지 게임은 상류가 보유 캐릭터를 주지 않는다)
+    private var games: [String] { ["genshin", "hsr", "zzz"] }
 
     var body: some View {
         // 미연동(=HoYoLAB 연동 프롬프트가 뜰 상황)이면 '내 캐릭터' 영역 전체를 숨긴다(헤더 포함).
@@ -77,8 +71,8 @@ struct EnkaCharSection: View {
                     gameBlock(g, showLabel: true)
                 }
             }
-            // 필터 변경 시 해당 게임들 로드(캐시 적중분 즉시, 미적중분 순차 호출).
-            .task(id: filter) { if !games.isEmpty { store.autoLoadEnkaSection(games: games, force: false) } }
+            // 진입 시 로드(캐시 적중분 즉시, 미적중분 순차 호출).
+            .task { store.autoLoadEnkaSection(games: games, force: false) }
         }
     }
 

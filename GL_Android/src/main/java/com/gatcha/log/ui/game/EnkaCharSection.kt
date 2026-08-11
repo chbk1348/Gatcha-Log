@@ -109,13 +109,12 @@ private fun gameLabel(game: String): String = when (game) {
 }
 
 /**
- * 게임정보 탭 섹션 — Enka 쇼케이스 캐릭터 로스터(게임당 한 줄). 헤더 게임필터([gameFilter])에 연동.
- * "all"=원신·스타레일·젠레스를 게임별 블록으로 모두 표시, 특정 게임=해당 게임만. 캐릭터 탭 → [onOpenStats].
+ * 게임정보 탭 섹션 — Enka 쇼케이스 캐릭터 로스터(게임당 한 줄).
+ * 원신·스타레일·젠레스를 게임별 블록으로 모두 표시. 캐릭터 탭 → [onOpenStats].
  */
 @Composable
 fun EnkaCharSection(
     viewModel: SpendingViewModel,
-    gameFilter: String,
     onOpenStats: (EnkaChar, String) -> Unit,
     onOpenAll: (String) -> Unit = {},
     onOpenHoyolab: () -> Unit = {},
@@ -125,17 +124,14 @@ fun EnkaCharSection(
     val loadingGames by viewModel.enkaLoadingGames.collectAsStateWithLifecycle()
     val hoyolab by viewModel.hoyolabConfig.collectAsStateWithLifecycle()
 
-    // 표시 대상 게임 — 전체면 3게임, 아니면 헤더가 고른 게임 1개(Enka 미지원 게임이면 비표시).
-    val games = remember(gameFilter) {
-        if (gameFilter == "all") listOf("genshin", "hsr", "zzz")
-        else listOf(gameFilter).filter { it in setOf("genshin", "hsr", "zzz") }
-    }
+    // 표시 대상 — Enka 가 지원하는 3게임. (나머지 게임은 상류가 보유 캐릭터를 주지 않는다)
+    val games = remember { listOf("genshin", "hsr", "zzz") }
 
     // 미연동(=HoYoLAB 연동 프롬프트가 뜰 상황)이면 '내 캐릭터' 영역 전체를 숨긴다(헤더 포함).
     // 연동 유도는 데일리/프로필 섹션의 프롬프트가 담당하며, 연동되면 자동으로 로스터가 나타난다.
     if (!hoyolab.isLinked) return
 
-    // 필터 변경 시 해당 게임들 로드(캐시 적중분 즉시 반영, 미적중분 순차 호출).
+    // 진입 시 로드(캐시 적중분 즉시 반영, 미적중분 순차 호출).
     LaunchedEffect(games) { if (games.isNotEmpty()) viewModel.autoLoadEnkaSection(games) }
 
     Column {

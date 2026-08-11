@@ -47,7 +47,7 @@ struct NotificationSettingsView: View {
             toggleRow("calendar.badge.checkmark", "출석 리마인더", "저녁까지 미출석이면 알려줘요",
                       notifyBind(\.notifyAttendance, store.setNotifyAttendance))
             Divider()
-            toggleRow("bolt.fill", "재화 가득참 알림", "레진·개척력·배터리가 가득 차면 알려줘요",
+            toggleRow("bolt.fill", "행동력 가득참 알림", "레진·개척력·배터리가 가득 차면 알려줘요",
                       notifyBind(\.notifyResin, store.setNotifyResin))
             Divider()
             toggleRow("calendar.badge.clock", "픽업 마감 알림", "진행 중인 픽업이 끝나기 전에 알려줘요",

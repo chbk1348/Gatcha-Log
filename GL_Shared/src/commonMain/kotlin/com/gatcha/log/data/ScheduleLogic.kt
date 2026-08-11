@@ -154,10 +154,6 @@ object ScheduleLogic {
         return out.sortedBy { it.target }
     }
 
-    /** 헤더 드롭다운(filter)에 맞춘 일정 — "all"이면 전체, 특정 게임이면 그 게임만. */
-    fun filteredEntries(entries: List<ScheduleEntry>, filter: String): List<ScheduleEntry> =
-        if (filter == "all") entries else entries.filter { it.gameKey == filter }
-
     // ── 상세 페이지: 마감 날짜 타임라인 ──────────────────────────────────────
     // 버전 카드를 쌓던 기존 구성은 같은 정보를 '버전'과 '종류' 두 축으로 훑게 만들었다.
     // 마감일 하나로 묶으면 "다음에 뭐가 끝나지?"에 한 번에 답할 수 있다.
@@ -183,23 +179,19 @@ object ScheduleLogic {
             .sortedWith(compareBy({ it.dDay }, { it.month }, { it.day }))
 
     /** 종료 시각이 미공지라 타임라인에 올릴 수 없는 픽업(콜라보 등). 상단 고정 카드용. */
-    fun undatedPickups(banners: List<GachaBanner>, filter: String): List<GachaBanner> =
-        filteredPickups(banners, filter).filter { it.isEndUnknown }
+    fun undatedPickups(banners: List<GachaBanner>): List<GachaBanner> =
+        banners.filter { it.isEndUnknown }
 
     /** 상세 페이지 상단 요약 3칸 — 이번 주 마감 / 진행 중 픽업 / 이벤트·콘텐츠. */
     fun summarize(
         banners: List<GachaBanner>,
         entries: List<ScheduleEntry>,
-        filter: String,
         nowMillis: Long = currentTimeMillis(),
-    ): ScheduleSummary {
-        val ent = filteredEntries(entries, filter)
-        return ScheduleSummary(
-            weekDeadlines = ent.count { it.dDay(nowMillis) in 0..7 },
-            activePickups = filteredPickups(banners, filter).size,
-            extras = ent.count { it.kind != "패치" },
-        )
-    }
+    ): ScheduleSummary = ScheduleSummary(
+        weekDeadlines = entries.count { it.dDay(nowMillis) in 0..7 },
+        activePickups = banners.size,
+        extras = entries.count { it.kind != "패치" },
+    )
 
     // ── 섹션 진입 카드: 게임 한 줄 ──────────────────────────────────────────
 
@@ -211,11 +203,9 @@ object ScheduleLogic {
     fun gameLines(
         banners: List<GachaBanner>,
         entries: List<ScheduleEntry>,
-        filter: String,
         nowMillis: Long = currentTimeMillis(),
     ): List<GameScheduleLine> =
         GameData.games.mapNotNull { game ->
-            if (filter != "all" && filter != game.key) return@mapNotNull null
             val groups = buildVersionGroups(banners, game.key)
             // 요약은 일반 픽업 기준 — 콜라보는 뱃지로 따로 알리므로 이름 수에 섞지 않는다.
             // (콜라보만 진행 중인 게임이면 그거라도 보여준다.)
@@ -269,7 +259,7 @@ object ScheduleLogic {
         ceil((target - nowMillis) / (1000.0 * 60 * 60 * 24)).toInt()
 
     /**
-     * 헤더 드롭다운(filter)에 맞춘 픽업 배너 — "all"이면 전체, 특정 게임이면 그 게임만. 종료 임박순.
+     * 픽업 배너 — "all"이면 전체, 게임 키를 주면 그 게임만. 종료 임박순.
      * 종료 미정(0)은 임박도를 알 수 없으니 맨 뒤로 — 안 그러면 0 이 가장 이른 값이라 제일 위로 올라온다.
      */
     fun filteredPickups(banners: List<GachaBanner>, filter: String): List<GachaBanner> {

@@ -144,7 +144,7 @@ class ScheduleLogicTest {
         val list = listOf(unknown, banner("스파키", 9, "4.4", game = Game.HSR))
         val days = ScheduleLogic.buildDays(ScheduleLogic.buildSchedule(list, emptyList(), emptyList()), base)
         assertEquals(1, days.size)                                   // 종료 미정은 타임라인에 없다
-        assertEquals(listOf("토오사카 린"), ScheduleLogic.undatedPickups(list, "all").map { it.name })
+        assertEquals(listOf("토오사카 린"), ScheduleLogic.undatedPickups(list).map { it.name })
     }
 
     @Test
@@ -155,7 +155,7 @@ class ScheduleLogicTest {
             GameEvent(Game.GENSHIN.displayName, "나중", base + 30 * day),
         )
         val s = ScheduleLogic.summarize(
-            banners, ScheduleLogic.buildSchedule(banners, events, emptyList()), "all", base,
+            banners, ScheduleLogic.buildSchedule(banners, events, emptyList()), base,
         )
         assertEquals(2, s.weekDeadlines)   // 5일 뒤 픽업 종료 + 3일 뒤 이벤트
         assertEquals(2, s.activePickups)
@@ -170,7 +170,7 @@ class ScheduleLogicTest {
             banner("콜롬비나", 15, "6.7"), banner("라이덴 쇼군", 15, "6.7"),
             banner("무기", 15, "6.7", type = "weapon"),
         )
-        val line = ScheduleLogic.gameLines(list, emptyList(), "all", base).single()
+        val line = ScheduleLogic.gameLines(list, emptyList(), base).single()
         assertEquals("원신", line.shortName)
         assertEquals("v6.7 · 콜롬비나 외 1", line.summary)   // 무기는 이름 요약에서 제외
         assertEquals("D-15", line.remainLabel)
@@ -181,7 +181,7 @@ class ScheduleLogicTest {
     @Test
     fun gameLineFlagsCollabAndUrgency() {
         val list = collabAndRegular()
-        val line = ScheduleLogic.gameLines(list, emptyList(), "all", base).single()
+        val line = ScheduleLogic.gameLines(list, emptyList(), base).single()
         assertEquals("스타레일", line.shortName)
         assertTrue(line.hasCollab)
         assertEquals("v4.4 · 스파키 외 1", line.summary)   // 임박한 일반 그룹 기준(콜라보는 종료 미정이라 뒤)
@@ -190,14 +190,14 @@ class ScheduleLogicTest {
     @Test
     fun gameLineSkipsGamesWithoutPickups() {
         // 젠레스는 상류에 픽업 데이터가 없다 → 줄 자체를 만들지 않는다.
-        val lines = ScheduleLogic.gameLines(listOf(banner("A", 5, "6.7")), emptyList(), "all", base)
+        val lines = ScheduleLogic.gameLines(listOf(banner("A", 5, "6.7")), emptyList(), base)
         assertEquals(listOf("원신"), lines.map { it.shortName })
     }
 
     @Test
     fun gameLineShowsUnknownEndWhenAllPickupsUndated() {
         val unknown = banner("토오사카 린", 0, "4.4", game = Game.HSR).copy(endMillis = 0L)
-        val line = ScheduleLogic.gameLines(listOf(unknown), emptyList(), "all", base).single()
+        val line = ScheduleLogic.gameLines(listOf(unknown), emptyList(), base).single()
         assertEquals("종료 미정", line.remainLabel)
         assertTrue(!line.urgent)
     }
@@ -337,20 +337,6 @@ class ScheduleLogicTest {
         assertEquals(listOf("이벤트", "v6.6 전반 픽업 종료", "심경"), merged.map { it.title })
         assertEquals(gi.key, merged.first().gameKey)
         assertEquals(gi.color, merged.first().colorArgb)   // 색은 ARGB Long 으로만 전달(플랫폼이 변환)
-    }
-
-    @Test
-    fun filteredEntriesNarrowsByGameKey() {
-        val entries = ScheduleLogic.buildSchedule(
-            banners = emptyList(),
-            events = listOf(
-                GameEvent(game = gi.displayName, name = "원신 이벤트", reward = "", endMillis = base + day),
-                GameEvent(game = Game.HSR.displayName, name = "스레 이벤트", reward = "", endMillis = base + 2 * day),
-            ),
-            challenges = emptyList(),
-        )
-        assertEquals(2, ScheduleLogic.filteredEntries(entries, "all").size)
-        assertEquals(listOf("원신 이벤트"), ScheduleLogic.filteredEntries(entries, gi.key).map { it.title })
     }
 
     // ── 종류 색 ─────────────────────────────────────────────────────────────

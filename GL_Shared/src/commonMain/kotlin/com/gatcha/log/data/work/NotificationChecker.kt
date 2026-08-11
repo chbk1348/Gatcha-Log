@@ -144,7 +144,7 @@ object NotificationChecker {
             }
         }
 
-        // ③ 재화 가득참 — 게임별 하루 1회. 조회·캐시는 [fetchLiveNotes] 가 이미 했고 여기선 판정만 한다.
+        // ③ 행동력 가득참 — 게임별 하루 1회. 조회·캐시는 [fetchLiveNotes] 가 이미 했고 여기선 판정만 한다.
         if (settings.notifyResin) {
             val today = DateUtil.hoyoDayKey()
             notes.forEach { note ->
@@ -155,8 +155,8 @@ object NotificationChecker {
                 settings.setLastNotified(tag, today)
                 Notifier.notify(
                     Notifier.ID_RESIN_BASE + game.ordinal,
-                    "${game.shortName} 재화 가득참",
-                    "재화가 가득 찼어요 (${note.currentResin}/${note.maxResin})",
+                    "${game.shortName} 행동력 가득참",
+                    "${note.resinLabel}가 가득 찼어요 (${note.currentResin}/${note.maxResin})",
                 )
             }
         }
@@ -337,7 +337,7 @@ object NotificationChecker {
             val full = repo.loadLiveNotes()
                 .filter { it.maxResin > 0 && it.currentResin >= it.maxResin }
                 .mapNotNull { GameData.byNameOrNull(it.game)?.shortName }
-            if (full.isNotEmpty()) lines += "재화 가득참 · ${full.joinToString(", ")}"
+            if (full.isNotEmpty()) lines += "행동력 가득참 · ${full.joinToString(", ")}"
         }
         if (settings.notifyPickup) {
             repo.loadActiveBanners().filter { it.endMillis > now }

@@ -651,7 +651,7 @@ private fun NotificationSettingsScreen(viewModel: SpendingViewModel, onBack: () 
                         if (on) ensureNotifPerm(); viewModel.setNotifyAttendance(on)
                     }
                     HorizontalDivider(color = DividerColor, modifier = Modifier.padding(horizontal = 16.dp))
-                    SettingsToggleRow(Icons.Default.Bolt, "재화 가득참 알림", "레진·개척력·배터리가 가득 차면 알려줘요", notifyResin) { on ->
+                    SettingsToggleRow(Icons.Default.Bolt, "행동력 가득참 알림", "레진·개척력·배터리가 가득 차면 알려줘요", notifyResin) { on ->
                         if (on) ensureNotifPerm(); viewModel.setNotifyResin(on)
                     }
                     HorizontalDivider(color = DividerColor, modifier = Modifier.padding(horizontal = 16.dp))

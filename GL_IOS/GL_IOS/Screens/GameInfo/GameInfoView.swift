@@ -16,6 +16,8 @@ struct GameInfoView: View {
     @State private var showSchedule = false
     @State private var showNews = false
     @State private var showHoyoland = false
+    /// 출석 체크 상세(데일리 타일에서 진입).
+    @State private var showAttendance = false
     /// 전투 진행도·수입 일지 상세(데일리에서 진입).
     @State private var showGameContent = false
     /// '어떤 캐릭터로 깼는지'(층·간별 편성) — 전투 진행도에서 한 단계 더 들어간다.
@@ -28,9 +30,6 @@ struct GameInfoView: View {
     // 공지 상세 — 뉴스 행 탭 시 선택 후 push(destination형 NavigationLink 혼용 버그 회피, 파일 내 다른 페이지와 동일 패턴).
     @State private var selectedNews: NewsItem? = nil
     @State private var showNewsDetail = false
-    // Segmented 레이아웃 — 상단 게임 세그먼트 선택값("all" | game.key). 하위 섹션들이 이 값으로 필터된다.
-    @State private var gameFilter = "all"
-
     /// 통합 일정 집계 — 원본 3종이 바뀔 때만 만든다(아래 `.task`).
     /// 예전엔 LazyVStack 본문에서 계산해, 이 탭이 다시 그려질 때마다(구독 30개가 물려 있다) 반복됐다.
     @State private var schedule: [ScheduleEntry] = []
@@ -61,38 +60,38 @@ struct GameInfoView: View {
             // (VStack 이면 탭 전환 순간 7개 섹션 전부를 한꺼번에 빌드해 전환이 버벅였음)
             LazyVStack(alignment: .leading, spacing: 0) {
                 // 홈 카드 딥링크 스크롤 앵커 — id 문자열은 Kotlin GameInfoAnchor 의 .name(NOTES/SCHEDULE/NEWS)과 일치해야 함.
-                DailyHeroSection(store: store, filter: gameFilter,
+                // 히어로는 section 래퍼 없이 전폭 — 배경색이 화면 가장자리까지 닿는다.
+                DailyHeroSection(store: store,
                                  onConfig: { showHoyolab = true },
+                                 onOpenAttendance: { showAttendance = true },
                                  onOpenGameContent: { showGameContent = true },
                                  onOpenClears: { showCombatClears = true }).id("NOTES")
-                // 숙제 완주율 — 데일리 바로 아래(같은 '오늘 뭐 했나' 맥락). 기록이 없으면 섹션 자체가 안 뜬다.
-                if !store.taskStats.isEmpty {
-                    section { TaskCompletionSection(stats: store.taskStats) }
-                }
+                // 숙제 완주율은 별도 섹션을 두지 않는다 — 데일리의 게임 줄에 완주율까지 들어간다.
                 // 내 캐릭터(보유 전체 로스터) — 데일리 다음 핵심 콘텐츠로 상단 배치
                 // 미연동이면 섹션·상단 여백까지 통째 생략(빈 여백 방지).
                 if store.hoyolabConfig.isLinked {
                     section {
-                        EnkaCharSection(store: store, filter: gameFilter,
+                        EnkaCharSection(store: store,
                                         onOpen: { c, g in statChar = c; statGame = g; showStats = true },
                                         onOpenAll: { g in rosterGame = g; showRoster = true },
                                         onOpenHoyolab: { showHoyolab = true })
                     }
                 }
-                // 통합 게임 일정 — 패치·이벤트·정기 콘텐츠. 게임 분리는 상단 헤더 드롭다운(gameFilter)으로 필터.
+                // 통합 게임 일정 — 패치·이벤트·정기 콘텐츠. 게임 구분 없이 전부 싣는다.
                 // 집계는 원본 3종이 바뀔 때만(아래 .task) — 예전엔 여기서 body 평가마다 다시 만들었다.
                 if !schedule.isEmpty {
-                    section { GameScheduleSection(entries: schedule, banners: store.activeBanners, filter: gameFilter, onSeeAll: { showSchedule = true }) }.id("SCHEDULE")
+                    section { GameScheduleSection(entries: schedule, banners: store.activeBanners, onSeeAll: { showSchedule = true }) }.id("SCHEDULE")
                 }
                 // 호요랜드 — 호요버스 한국 오프라인 행사(플레이스홀더). 탭하면 예상 장소·지난 행사 상세로.
                 section { HoyolandSection(onOpen: { showHoyoland = true }) }
                 // 공지·뉴스 — 게임별 최신 공지(탭하면 HoYoLab 열기). 더보기로 전체 페이지.
-                section { NewsSection(store: store, filter: gameFilter, onSeeAll: { showNews = true }, onOpenNews: { selectedNews = $0; showNewsDetail = true }) }.id("NEWS")
+                section { NewsSection(store: store, onSeeAll: { showNews = true }, onOpenNews: { selectedNews = $0; showNewsDetail = true }) }.id("NEWS")
                 section { navEntry(icon: "function", title: "가챠 계산기", sub: "재화 환산 · 확률 · 시나리오") { showCalc = true } }
                 section { navEntry(icon: "chart.bar.xaxis", title: "가챠 효율 리포트", sub: "UIGF/SRGF 분석 · 단가 · 천장 분포") { showReport = true } }
                 Color.clear.frame(height: 12)
             }
-            .padding(.horizontal, 16)
+            // 좌우 여백은 **섹션마다** 준다(section 헬퍼). 통짜로 걸면 데일리 히어로가
+            // 화면 끝까지 못 간다 — 히어로는 색이 가장자리에 닿아야 한다.
             // 넓은 화면(iPad)에서 섹션이 끝까지 늘어나지 않도록 최대폭 제한+중앙정렬(iPhone 영향 없음).
             .glgReadableWidth(720)
         }
@@ -119,28 +118,18 @@ struct GameInfoView: View {
         .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            ToolbarItem(placement: .topBarLeading) {
-                Menu {
-                    Picker("게임 선택", selection: $gameFilter) {
-                        Text("전체").tag("all")
-                        ForEach(Array(GLGGames.attendance.enumerated()), id: \.offset) { _, g in
-                            Text(g.shortName).tag(g.key)
-                        }
-                    }
-                } label: {
-                    HStack(spacing: 4) {
-                        Text(gameFilterLabel).font(.pretendard(size: 17, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
-                        Image(systemName: "chevron.down").font(.pretendard(size: 12, weight: .semibold)).foregroundStyle(GLGColor.textSecondary)
-                    }
-                }
-            }
             // 버튼마다 ToolbarItem 을 따로 두고 사이에 ToolbarSpacer 를 넣는다 —
             // iOS 26 은 인접한 툴바 아이템을 하나의 글래스 캡슐로 묶어버리므로, 스페이서로 갈라야
             // 버튼이 각각 독립된 원형으로 떨어진다. (지출 탭 헤더와 동일)
             // 순서: 새로고침 → 리딤코드 → 설정.
             ToolbarItem(placement: .topBarTrailing) {
-                Button { store.refreshGameInfo(force: true) } label: { Image(systemName: "arrow.clockwise") }
-                    .disabled(store.isRefreshing)
+                // 새로고침 중에는 아이콘 자리를 스피너로 바꾼다 — 당겨서 새로고침과 달리
+                // 버튼을 눌렀을 때는 화면 어디에도 진행 표시가 없어, 눌린 건지 알 수 없었다.
+                Button { store.refreshGameInfo(force: true) } label: {
+                    if store.isRefreshing { ProgressView().controlSize(.small) }
+                    else { Image(systemName: "arrow.clockwise") }
+                }
+                .disabled(store.isRefreshing)
             }
             if #available(iOS 26.0, *) {
                 ToolbarSpacer(.fixed, placement: .topBarTrailing)
@@ -164,15 +153,16 @@ struct GameInfoView: View {
         .navigationDestination(isPresented: $showReport) { sectionPage("가챠 리포트") { GachaReportSection(store: store, onOpenDashboard: { showDashboard = true }) } }
         .navigationDestination(isPresented: $showGift) { GiftCodePage(store: store) }
         .navigationDestination(isPresented: $showDashboard) { GachaDashboardView(store: store) }
-        .navigationDestination(isPresented: $showSchedule) { GameSchedulePage(store: store, filter: gameFilter) }
-        .navigationDestination(isPresented: $showNews) { NewsPage(store: store, filter: gameFilter) }
+        .navigationDestination(isPresented: $showSchedule) { GameSchedulePage(store: store) }
+        .navigationDestination(isPresented: $showNews) { NewsPage(store: store) }
         .navigationDestination(isPresented: $showNewsDetail) {
             if let n = selectedNews { NewsDetailView(store: store, item: n) }
         }
         .navigationDestination(isPresented: $showHoyoland) { HoyolandDetailView() }
+        .navigationDestination(isPresented: $showAttendance) { AttendanceDetailView(store: store) }
         .navigationDestination(isPresented: $showGameContent) {
             sectionPage("전투 · 수입 일지") {
-                GameTabbedSection(store: store, filter: gameFilter)
+                GameTabbedSection(store: store)
             }
         }
         // ⚠️ 이 destination 은 **최상위에** 있어야 한다. 예전엔 위 `showGameContent` 안에 중첩돼
@@ -213,14 +203,9 @@ struct GameInfoView: View {
         }
     }
 
-    // 헤더 좌측 게임 드롭다운 라벨
-    private var gameFilterLabel: String {
-        gameFilter == "all" ? "전체" : (GLGGames.attendance.first { $0.key == gameFilter }?.shortName ?? "전체")
-    }
-
     @ViewBuilder private func section<C: View>(@ViewBuilder _ content: () -> C) -> some View {
         Spacer().frame(height: 20)
-        content()
+        content().padding(.horizontal, 16)
     }
 
     // 페이지 진입 카드 — 아이콘 + 제목 + 설명 + 셰브론(글래스 카드).
@@ -351,13 +336,12 @@ private struct CollabChip: View {
 struct GameScheduleSection: View {
     let entries: [ScheduleEntry]
     let banners: [GachaBanner]
-    let filter: String
     let onSeeAll: () -> Void
     @Environment(\.glgAccent) private var accent
 
     var body: some View {
-        let lines = ScheduleLogic.shared.gameLines(banners: banners, entries: entries, filter: filter, nowMillis: nowMs())
-        let summary = ScheduleLogic.shared.summarize(banners: banners, entries: entries, filter: filter, nowMillis: nowMs())
+        let lines = ScheduleLogic.shared.gameLines(banners: banners, entries: entries, nowMillis: nowMs())
+        let summary = ScheduleLogic.shared.summarize(banners: banners, entries: entries, nowMillis: nowMs())
         VStack(alignment: .leading, spacing: 0) {
             Text("게임 일정").font(.pretendard(size: 16, weight: .bold)).padding(.bottom, 4)
             Text("픽업 배너와 이벤트 마감을 한곳에서.")
@@ -436,7 +420,6 @@ private struct GameLineRow: View {
 /// 성격도 '언제 뭐가 있나'라 일정과 같아서 여기 탭으로 합쳤다.
 struct GameSchedulePage: View {
     var store: SpendingStore
-    let filter: String
     @State private var tab = 0
     @State private var sched = SchedulePageData()
 
@@ -458,7 +441,7 @@ struct GameSchedulePage: View {
                 .padding(.bottom, 14)
 
                 if tab == 1 {
-                    BroadcastContent(banners: store.activeBanners, confirmed: store.confirmedBroadcasts, filter: filter)
+                    BroadcastContent(banners: store.activeBanners, confirmed: store.confirmedBroadcasts)
                 } else if tab == 2 {
                     AnniversaryContent()
                 } else {
@@ -496,7 +479,7 @@ struct GameSchedulePage: View {
         .navigationBarTitleDisplayMode(.inline)
         // 일정 집계는 필터/원본이 바뀔 때만. 예전엔 body 첫 줄에서 5종을 조건 없이 계산해,
         // '주년' 탭을 보고 있어도(그때는 하나도 안 쓰는데) 세그먼트를 누를 때마다 전부 다시 돌았다.
-        .task(id: scheduleKey) { sched = Self.buildSchedule(store: store, filter: filter) }
+        .task(id: scheduleKey) { sched = Self.buildSchedule(store: store) }
     }
 
     /// 일정 탭이 쓰는 집계 묶음.
@@ -506,32 +489,30 @@ struct GameSchedulePage: View {
         var summary: ScheduleSummary? = nil
     }
 
-    /// 재계산 트리거 — 원본 3종과 필터가 바뀔 때만 다시 만든다.
+    /// 재계산 트리거 — 원본 3종이 바뀔 때만 다시 만든다.
     ///
     /// ⚠️ 개수가 아니라 **목록 자체**를 키로 쓴다. 개수로 잡으면 새로고침이 같은 **개수의 새 배너**를
     /// 내려줬을 때(종료 시각만 바뀐 경우 등) 일정 탭이 옛 값을 그대로 유지한다.
     /// Swift `Array.==` 는 버퍼가 같으면 O(1)이라 변화 없는 평가에서는 비용이 없다.
     private struct ScheduleKey: Equatable {
-        let filter: String
         let banners: [GachaBanner]
         let events: [GameEvent]
         let challenges: [GameChallenge]
     }
 
     private var scheduleKey: ScheduleKey {
-        ScheduleKey(filter: filter, banners: store.activeBanners,
+        ScheduleKey(banners: store.activeBanners,
                     events: store.gameEvents, challenges: store.challenges)
     }
 
-    private static func buildSchedule(store: SpendingStore, filter: String) -> SchedulePageData {
+    private static func buildSchedule(store: SpendingStore) -> SchedulePageData {
         let now = nowMs()
-        let all = ScheduleLogic.shared.buildSchedule(
+        let entries = ScheduleLogic.shared.buildSchedule(
             banners: store.activeBanners, events: store.gameEvents, challenges: store.challenges)
-        let entries = ScheduleLogic.shared.filteredEntries(entries: all, filter: filter)
         return SchedulePageData(
             days: ScheduleLogic.shared.buildDays(entries: entries, nowMillis: now),
-            undated: ScheduleLogic.shared.undatedPickups(banners: store.activeBanners, filter: filter),
-            summary: ScheduleLogic.shared.summarize(banners: store.activeBanners, entries: all, filter: filter, nowMillis: now)
+            undated: ScheduleLogic.shared.undatedPickups(banners: store.activeBanners),
+            summary: ScheduleLogic.shared.summarize(banners: store.activeBanners, entries: entries, nowMillis: now)
         )
     }
 }
@@ -649,11 +630,9 @@ private struct DayNode: View {
 private struct BroadcastContent: View {
     let banners: [GachaBanner]
     let confirmed: [ConfirmedBroadcast]
-    let filter: String
 
     private var list: [LiveBroadcast] {
-        let all = BroadcastSchedule.shared.next(banners: banners, confirmed: confirmed, nowMillis: nowMs())
-        return filter == "all" ? all : all.filter { $0.gameKey == filter }
+        BroadcastSchedule.shared.next(banners: banners, confirmed: confirmed, nowMillis: nowMs())
     }
 
     var body: some View {

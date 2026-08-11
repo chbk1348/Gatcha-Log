@@ -56,6 +56,7 @@ import com.gatcha.log.ui.components.glgDetailContentTop
 import com.gatcha.log.ui.components.GlgHeaderTitlePill
 import com.gatcha.log.ui.components.GlgCircleIconButton
 import com.gatcha.log.ui.components.GlgTabHeader
+import com.gatcha.log.data.AttendanceLogic
 import com.gatcha.log.data.GameInfoAnchor
 import com.gatcha.log.data.NewsLogic
 import com.gatcha.log.data.ScheduleLogic
@@ -67,7 +68,7 @@ import com.gatcha.log.ui.theme.*
 import kotlinx.coroutines.launch
 
 /** 게임정보 탭의 풀스크린 하위 페이지 (열리면 하단바·FAB 숨김) */
-private enum class GiSub { Main, HoyoLink, Dashboard, Calc, Report, Gift, Schedule, News, NewsDetail, CharStats, CharRoster, Hoyoland, GameContent, CombatClear }
+private enum class GiSub { Main, HoyoLink, Dashboard, Calc, Report, Gift, Schedule, News, NewsDetail, CharStats, CharRoster, Hoyoland, GameContent, CombatClear, Attendance }
 
 /** 화면 전환 push/pop 방향용 계층 깊이. Main=0, 하위 페이지=1, 상세(목록서 진입)=2. */
 private fun subDepth(s: GiSub): Int = when (s) {
@@ -124,8 +125,6 @@ fun GameInfoScreen(
         }
         m
     }
-    // Segmented 레이아웃 — 상단 게임 세그먼트 선택값("all" | game.key). 하위 섹션들이 이 값으로 필터된다.
-    var gameFilter by remember { mutableStateOf("all") }
     // 통합 게임 일정(패치·이벤트·콘텐츠 병합) — 데일리 아래 첫 섹션.
     val schedule = remember(banners, events, challenges) { ScheduleLogic.buildSchedule(banners, events, challenges) }
     val taskStats by viewModel.taskStats.collectAsStateWithLifecycle()
@@ -178,7 +177,8 @@ fun GameInfoScreen(
         if (linked) cursor += 2                              // 내 캐릭터
         val scheduleIdx = if (scheduleShown) cursor + 2 else notesIdx
         if (scheduleShown) cursor += 2                       // 게임 일정
-        cursor += 2                                          // 주년
+        // ⚠️ 여기서 '주년'을 한 칸 더 세고 있었다. 주년은 게임 일정 상세의 탭으로 옮겨져
+        // 이 목록에 없는데도 계산에만 남아, NEWS 앵커가 두 칸 밀려 계산기 자리로 스크롤됐다.
         cursor += 2                                          // 호요랜드
         val newsIdx = cursor + 2
         cursor += 2                                          // 공지
@@ -272,7 +272,6 @@ fun GameInfoScreen(
                     combat = combat,
                     ledgers = ledgers,
                     isRefreshing = isRefreshing,
-                    filter = gameFilter,
                     linked = hoyolab.isLinked,
                 )
             }
@@ -287,8 +286,17 @@ fun GameInfoScreen(
                     linked = hoyolab.isLinked,
                 )
             }
+            GiSub.Attendance -> SectionPage("출석 체크", onBack = { subPage = GiSub.Main }) {
+                AttendanceDetailContent(
+                    summary = AttendanceLogic.summary(attendanceHistory, attendanceToday, attendanceStreak),
+                    history = attendanceHistory,
+                    checkingIn = checkingIn,
+                    onCheckIn = { viewModel.attemptCheckIn(it) },
+                    onCheckInAll = { viewModel.checkInAll() },
+                )
+            }
             GiSub.Schedule -> SectionPage("게임 일정", onBack = { subPage = GiSub.Main }) {
-                GameScheduleFullContent(banners, events, challenges, confirmedBroadcasts, gameFilter)
+                GameScheduleFullContent(banners, events, challenges, confirmedBroadcasts)
             }
             GiSub.NewsDetail -> SectionPage(
                 "공지",
@@ -314,7 +322,7 @@ fun GameInfoScreen(
             }
 
             GiSub.News -> SectionPage("공지·뉴스", onBack = { subPage = GiSub.Main }) {
-                NewsFullContent(gameNews, gameFilter, onOpen = { openNews(it, GiSub.News) })
+                NewsFullContent(gameNews, onOpen = { openNews(it, GiSub.News) })
             }
             GiSub.Hoyoland -> SectionPage("호요랜드", onBack = { subPage = GiSub.Main }) {
                 HoyolandDetailContent()
@@ -333,70 +341,74 @@ fun GameInfoScreen(
             onRefresh = { viewModel.refreshGameInfo(force = true) },
             modifier = Modifier.fillMaxSize(),
         ) {
+            // 좌우 여백은 **섹션마다** 준다(GiSection). 예전엔 LazyColumn 이 통째로 들고 있었는데,
+            // 그러면 데일리 히어로가 화면 끝까지 못 간다 — 히어로는 색이 가장자리까지 닿아야 한다.
             LazyColumn(
                 state = listState,
-                modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
+                modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(bottom = glgTabContentBottom()),
             ) {
-            // 헤더 자리(고정) — item 0 은 앵커 인덱스 유지용 스페이서. 실제 헤더는 아래 오버레이. (상태바+헤더)
-            item { Spacer(Modifier.height(GlgTabHeaderHeight + topInset)) }
-            // 최상단 히어로 — 실시간 노트 + 출석체크 통합
+            // 앵커 인덱스 유지용 빈 item — 이 목록의 스크롤 앵커(홈 딥링크)가 인덱스로 계산되므로
+            // 없애면 뒤가 전부 하나씩 당겨진다. 상태바+헤더 높이는 히어로가 자기 배경과 함께 가진다.
+            item { Spacer(Modifier.height(0.dp)) }
+            // 최상단 히어로 — 급한 할 일이 지면을 지배한다(상태바까지 색이 이어짐)
             item {
                 DailyHeroSection(
+                    topInset = topInset,
                     notes = notes,
                     attendanceToday = attendanceToday,
                     attendanceHistory = attendanceHistory,
                     hoyolab = hoyolab,
                     checkingIn = checkingIn,
                     streak = attendanceStreak,
-                    filter = gameFilter,
+                    taskStats = taskStats,
                     onCheckIn = { viewModel.attemptCheckIn(it) },
                     onCheckInAll = { viewModel.checkInAll() },
                     onConfigClick = { subPage = GiSub.HoyoLink },
+                    onOpenAttendance = { subPage = GiSub.Attendance },
                     onOpenGameContent = { subPage = GiSub.GameContent },
                     onOpenClears = { subPage = GiSub.CombatClear },
                 )
             }
-            // 숙제 완주율 — 데일리 바로 아래(같은 '오늘 뭐 했나' 맥락). 기록이 없으면 섹션 자체가 안 뜬다.
-            if (taskStats.isNotEmpty()) {
-                item { Spacer(Modifier.height(20.dp)) }
-                item { TaskCompletionSection(taskStats) }
-            }
+            // 숙제 완주율은 별도 섹션을 두지 않는다 — 데일리의 게임 줄에 완주율까지 함께 들어간다.
             // 내 캐릭터(보유 전체 로스터) — 데일리 다음. 미연동이면 섹션·상단 여백까지 통째 생략(빈 여백 방지).
             if (hoyolab.isLinked) {
                 item { Spacer(Modifier.height(20.dp)) }
                 item {
+                    GiSection {
                     EnkaCharSection(
                         viewModel,
-                        gameFilter = gameFilter,
                         onOpenStats = { c, g -> statChar = c; statCharGame = g; statReturn = GiSub.Main; subPage = GiSub.CharStats },
                         // 더보기로 새로 진입 시엔 보유목록 상태(스크롤/필터) 초기화 — 상세→뒤로 복귀는 SaveableStateProvider 가 유지
                         onOpenAll = { g -> rosterGame = g; subPageStateHolder.removeState(GiSub.CharRoster); subPage = GiSub.CharRoster },
                         onOpenHoyolab = { subPage = GiSub.HoyoLink },
                     )
+                    }
                 }
             }
-            // 통합 게임 일정 — 헤더 드롭다운(gameFilter) 연동.
+            // 통합 게임 일정 — 게임 구분 없이 전부. 게임별로 좁혀 보는 건 상세 페이지에서 한다.
             if (schedule.isNotEmpty()) {
                 item { Spacer(Modifier.height(20.dp)) }
-                item { GameScheduleSection(schedule, banners, gameFilter, onSeeAll = { subPage = GiSub.Schedule }) }
+                item { GiSection { GameScheduleSection(schedule, banners, onSeeAll = { subPage = GiSub.Schedule }) } }
             }
             // 호요랜드 — 호요버스 한국 오프라인 행사(플레이스홀더). 정보 확정 전 "준비 중" 티저.
             item { Spacer(Modifier.height(20.dp)) }
-            item { HoyolandSection(onOpen = { subPage = GiSub.Hoyoland }) }
+            item { GiSection { HoyolandSection(onOpen = { subPage = GiSub.Hoyoland }) } }
             // 공지·뉴스 — 게임별 최신 공지(탭하면 HoYoLab 열기).
             item { Spacer(Modifier.height(20.dp)) }
             item {
-                NewsSection(
-                    gameNews, gameFilter,
-                    onSeeAll = { subPage = GiSub.News },
-                    onOpen = { openNews(it, GiSub.Main) },
-                )
+                GiSection {
+                    NewsSection(
+                        gameNews,
+                        onSeeAll = { subPage = GiSub.News },
+                        onOpen = { openNews(it, GiSub.Main) },
+                    )
+                }
             }
             item { Spacer(Modifier.height(20.dp)) }
-            item { NavEntryCard(Icons.Default.Calculate, "가챠 계산기", "재화 환산 · 확률 · 시나리오") { subPage = GiSub.Calc } }
+            item { GiSection { NavEntryCard(Icons.Default.Calculate, "가챠 계산기", "재화 환산 · 확률 · 시나리오") { subPage = GiSub.Calc } } }
             item { Spacer(Modifier.height(12.dp)) }
-            item { NavEntryCard(Icons.Default.BarChart, "가챠 효율 리포트", "UIGF/SRGF 분석 · 단가 · 천장 분포") { subPage = GiSub.Report } }
+            item { GiSection { NavEntryCard(Icons.Default.BarChart, "가챠 효율 리포트", "UIGF/SRGF 분석 · 단가 · 천장 분포") { subPage = GiSub.Report } } }
             // 목록 끝에는 여백을 두지 않는다 — 탭바까지의 간격은 contentPadding 이 전담(예전엔 32dp).
         }
     }
@@ -417,10 +429,7 @@ fun GameInfoScreen(
             )
             // 헤더 오버레이 — 투명 바, 버튼만 불투명. 콘텐츠가 버튼 아래로 지나간다. 상태바 인셋 적용.
             Box(Modifier.align(Alignment.TopStart).fillMaxWidth().statusBarsPadding().padding(horizontal = 16.dp)) {
-                GlgTabHeader(
-                    "",
-                    leading = { GameFilterDropdown(selected = gameFilter, onSelect = { gameFilter = it }) },
-                ) {
+                GlgTabHeader("") {
                     // 순서: 새로고침 → 리딤코드 → 설정.
                     GlgCircleIconButton(Icons.Default.Refresh, "새로고침", enabled = !isRefreshing, outlined = true, solidBackground = true) {
                         viewModel.refreshGameInfo(force = true)
@@ -438,6 +447,18 @@ fun GameInfoScreen(
         }
     }
 
+}
+
+/**
+ * 게임 정보 탭 섹션의 좌우 여백.
+ *
+ * 예전엔 LazyColumn 이 `padding(horizontal = 16.dp)` 를 통째로 들고 있었다. 그러면 어떤 섹션도
+ * 화면 끝까지 못 간다 — 데일리 히어로는 색이 가장자리에 닿아야 해서 이 방식으로 바꿨다.
+ * 히어로만 이 래퍼 없이 전폭으로 그린다.
+ */
+@Composable
+private fun GiSection(content: @Composable () -> Unit) {
+    Box(Modifier.padding(horizontal = 16.dp)) { content() }
 }
 
 /** 페이지로 분류된 섹션 진입 카드 (아이콘 + 제목 + 설명 + 셰브론). */
