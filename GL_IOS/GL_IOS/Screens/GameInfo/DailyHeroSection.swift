@@ -63,9 +63,8 @@ struct DailyHeroSection: View {
                     // 출석 · 전투 진행도 · 클리어 편성 — 한 줄 3칸.
                     // 셋 다 '들어가서 보는 기록'이라 성격이 같은데, 예전엔 접히는 카드 하나와
                     // 두 줄짜리 카드 하나로 갈라져 세로로 세 덩어리를 잡아먹고 있었다.
+                    // 타일은 상태를 보여주고 들여보내기만 한다 — 출석 실행은 위 '오늘 할 일'과 상세에서.
                     DailyEntryTiles(summary: attendanceSummary,
-                                    checkingIn: store.checkingIn,
-                                    onCheckInAll: { store.checkInAll() },
                                     onOpenAttendance: onOpenAttendance,
                                     onOpenGameContent: onOpenGameContent,
                                     onOpenClears: onOpenClears)
@@ -238,40 +237,28 @@ struct DailyHeroSection: View {
  */
 private struct DailyEntryTiles: View {
     let summary: AttendanceSummary
-    let checkingIn: String?
-    let onCheckInAll: () -> Void
     let onOpenAttendance: () -> Void
     var onOpenGameContent: (() -> Void)? = nil
     var onOpenClears: (() -> Void)? = nil
 
     var body: some View {
-        // 타일 높이를 서로 맞춘다 — 출석 타일만 버튼이 붙어 길어지면 세 칸이 어긋나 보인다.
+        // 세 칸 모두 **진입만 한다** — 타일 안에 버튼을 두면 같은 카드에 탭 대상이 둘이라
+        // 어디를 누른 건지 애매해지고, 출석 칸만 높이가 길어져 줄이 어긋난다.
+        // 출석 자체는 '오늘 할 일'의 게임별 버튼과 상세 페이지에서 한다.
         HStack(alignment: .top, spacing: 10) {
             EntryTile(icon: "calendar.badge.checkmark",
                       title: "출석 체크",
                       value: "\(summary.todayDone)/\(summary.todayTotal)",
-                      // 부제는 바닥 표시와 겹치지 않는 것만 — 바닥이 이미 '출석 완료 / 출석하기'를
-                      // 말하고 있어 "오늘 완료"·"1개 남음"은 같은 말을 두 번 하는 자리였다.
-                      sub: summary.streak > 0 ? "연속 \(summary.streak)일" : "이번 달 \(summary.monthFullDays)일",
+                      sub: summary.allDone ? "오늘 완료" : "\(summary.pending)개 남음",
                       highlight: !summary.allDone,
-                      onTap: onOpenAttendance) {
-                // 버튼 자리를 **항상** 채운다 — 다 하면 버튼이 사라지던 때는 "오늘 했나?"를
-                // 숫자(3/3)로 따져 읽어야 했고, 타일 높이도 그때만 줄어 세 칸이 어긋났다.
-                if summary.allDone {
-                    TileDone()
-                } else {
-                    TileButton(label: "출석하기", inProgress: checkingIn != nil, onTap: onCheckInAll)
-                }
-            }
-            // 나머지 두 칸도 **같은 구조**로 만든다 — 바닥 요소가 없으면 그 칸만 짧아진다.
-            // 이쪽은 누를 게 따로 없으니 카드 전체가 하나의 탭 영역이다(bottomTappable).
+                      onTap: onOpenAttendance)
             if let onOpenGameContent {
                 EntryTile(icon: "medal", title: "전투 진행도", value: "주간", sub: "수입 일지",
-                          bottomTappable: true, onTap: onOpenGameContent) { TileGhost(label: "보기") }
+                          onTap: onOpenGameContent)
             }
             if let onOpenClears {
                 EntryTile(icon: "person.3.fill", title: "클리어 편성", value: "편성", sub: "나선 · 혼돈",
-                          bottomTappable: true, onTap: onOpenClears) { TileGhost(label: "보기") }
+                          onTap: onOpenClears)
             }
         }
         // 세 칸의 높이를 가장 큰 칸에 맞춘다 — 각 타일이 maxHeight 로 늘어나고,
@@ -280,109 +267,42 @@ private struct DailyEntryTiles: View {
     }
 }
 
-/// 3칸 타일 하나 — 아이콘 · 제목 · 값 · 부제, 그 아래 `action` 슬롯(출석 버튼).
-private struct EntryTile<Action: View>: View {
+/// 3칸 타일 하나 — 아이콘 · 제목 · 값 · 부제. 카드 전체가 하나의 탭 영역이다.
+private struct EntryTile: View {
     let icon: String
     let title: String
     let value: String
     let sub: String
     var highlight: Bool = false
-    /// 바닥 요소가 버튼이 아닐 때 true — 카드 전체가 하나의 탭 영역이 된다.
-    var bottomTappable: Bool = false
     let onTap: () -> Void
-    @ViewBuilder let action: () -> Action
     @Environment(\.glgAccent) private var accent
 
     var body: some View {
-        Group {
-            if bottomTappable {
-                Button(action: onTap) { content(includeAction: true) }.buttonStyle(.plain)
-            } else {
-                // 바닥이 버튼이면 탭 영역을 나눈다 — Button 안의 Button 은 바깥 것만 먹인다.
-                VStack(spacing: 0) {
-                    Button(action: onTap) { content(includeAction: false) }.buttonStyle(.plain)
-                    action().padding(.horizontal, 10).padding(.bottom, 12)
-                }
-            }
-        }
-        // 세 칸 높이 맞춤 — 바깥 HStack 이 fixedSize 로 가장 큰 높이를 잡고, 각 칸이 거기 늘어난다.
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .glgGlass(in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-    }
-
-    /// 타일 본문. 가운데 정렬 — 타일이 좁아 글자 길이가 제각각이라, 좌측 정렬이면
-    /// 세 칸의 글자가 서로 다른 지점에서 끝나 줄이 삐뚤어져 보인다.
-    @ViewBuilder
-    private func content(includeAction: Bool) -> some View {
         let mark = highlight ? GLGColor.dangerText : accent.primary
-        VStack(alignment: .center, spacing: 0) {
-            ZStack {
-                RoundedRectangle(cornerRadius: 10, style: .continuous).fill(mark.opacity(0.12))
-                Image(systemName: icon).font(.pretendard(size: 15, weight: .semibold)).foregroundStyle(mark)
-            }
-            .frame(width: 30, height: 30)
-            Text(title).font(.pretendard(size: 11.5, weight: .bold))
-                .foregroundStyle(GLGColor.textSecondary).lineLimit(1).padding(.top, 9)
-            Text(value).font(.pretendard(size: 15, weight: .bold))
-                .foregroundStyle(highlight ? GLGColor.dangerText : GLGColor.textPrimary)
-                .lineLimit(1).padding(.top, 4)
-            Text(sub).font(.pretendard(size: 10.5)).foregroundStyle(GLGColor.textSecondary)
-                .lineLimit(1).minimumScaleFactor(0.85).multilineTextAlignment(.center).padding(.top, 2)
-            if includeAction {
-                Spacer(minLength: 11)
-                action()
-            }
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        .padding(.horizontal, 10).padding(.top, 13).padding(.bottom, includeAction ? 12 : 11)
-        .contentShape(Rectangle())
-    }
-}
-
-/// 진입만 하는 타일의 바닥 — 버튼과 같은 높이의 옅은 표시. 칸 높이를 맞추는 역할도 한다.
-private struct TileGhost: View {
-    let label: String
-    var body: some View {
-        HStack(spacing: 2) {
-            Text(label).font(.pretendard(size: 11, weight: .bold)).foregroundStyle(GLGColor.textSecondary).lineLimit(1)
-            Image(systemName: "chevron.right").font(.system(size: 9, weight: .bold)).foregroundStyle(GLGColor.textSecondary)
-        }
-        .frame(maxWidth: .infinity).padding(.vertical, 7)
-        .background(Color(hex: 0xFFF2F3F6), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-    }
-}
-
-/// 출석을 마친 상태 — 버튼과 같은 자리·같은 높이의 조용한 표시(누를 게 없다).
-private struct TileDone: View {
-    @Environment(\.glgAccent) private var accent
-    var body: some View {
-        HStack(spacing: 4) {
-            Image(systemName: "checkmark").font(.system(size: 10, weight: .bold)).foregroundStyle(accent.primary)
-            Text("출석 완료").font(.pretendard(size: 11, weight: .bold)).foregroundStyle(accent.primary).lineLimit(1)
-        }
-        .frame(maxWidth: .infinity).padding(.vertical, 7)
-        .background(accent.primary.opacity(0.12), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-    }
-}
-
-/// 타일 바닥에 붙는 작은 채움 버튼.
-private struct TileButton: View {
-    let label: String
-    let inProgress: Bool
-    let onTap: () -> Void
-    @Environment(\.glgAccent) private var accent
-
-    var body: some View {
         Button(action: onTap) {
-            Group {
-                if inProgress { ProgressView().controlSize(.mini).tint(.white) }
-                else { Text(label).font(.pretendard(size: 11, weight: .bold)).foregroundStyle(.white).lineLimit(1) }
+            // 가운데 정렬 — 타일이 좁아 글자 길이가 제각각이라, 좌측 정렬이면 세 칸의
+            // 글자가 서로 다른 지점에서 끝나 줄이 삐뚤어져 보인다.
+            VStack(alignment: .center, spacing: 0) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 10, style: .continuous).fill(mark.opacity(0.12))
+                    Image(systemName: icon).font(.pretendard(size: 15, weight: .semibold)).foregroundStyle(mark)
+                }
+                .frame(width: 30, height: 30)
+                Text(title).font(.pretendard(size: 11.5, weight: .bold))
+                    .foregroundStyle(GLGColor.textSecondary).lineLimit(1).padding(.top, 9)
+                Text(value).font(.pretendard(size: 15, weight: .bold))
+                    .foregroundStyle(highlight ? GLGColor.dangerText : GLGColor.textPrimary)
+                    .lineLimit(1).padding(.top, 4)
+                Text(sub).font(.pretendard(size: 10.5)).foregroundStyle(GLGColor.textSecondary)
+                    .lineLimit(1).minimumScaleFactor(0.85).multilineTextAlignment(.center).padding(.top, 2)
             }
-            .frame(maxWidth: .infinity).padding(.vertical, 7)
-            .background(accent.primary, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+            .padding(.horizontal, 10).padding(.vertical, 14)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .disabled(inProgress)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .glgGlass(in: RoundedRectangle(cornerRadius: 18, style: .continuous))
     }
 }
 

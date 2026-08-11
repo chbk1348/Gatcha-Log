@@ -133,10 +133,9 @@ internal fun DailyHeroSection(
             // 출석 · 전투 진행도 · 클리어 편성 — 한 줄 3칸.
             // 셋 다 '들어가서 보는 기록'이라 성격이 같은데, 예전엔 접히는 카드 하나와
             // 두 줄짜리 카드 하나로 갈라져 세로로 세 덩어리를 잡아먹고 있었다.
+            // 타일은 상태를 보여주고 들여보내기만 한다 — 출석 실행은 위 '오늘 할 일'과 상세에서.
             DailyEntryTiles(
                 attendance = attendance,
-                checkingIn = checkingIn,
-                onCheckInAll = onCheckInAll,
                 onOpenAttendance = onOpenAttendance,
                 onOpenGameContent = onOpenGameContent,
                 onOpenClears = onOpenClears,
@@ -331,13 +330,13 @@ private fun GameTaskRow(g: DailyGameTasks, inProgress: Boolean, onCheckIn: () ->
 @Composable
 private fun DailyEntryTiles(
     attendance: AttendanceSummary,
-    checkingIn: String?,
-    onCheckInAll: () -> Unit,
     onOpenAttendance: () -> Unit,
     onOpenGameContent: (() -> Unit)?,
     onOpenClears: (() -> Unit)?,
 ) {
-    // 타일 높이를 서로 맞춘다 — 출석 타일만 버튼이 붙어 길어지면 세 칸이 어긋나 보인다.
+    // 세 칸 모두 **진입만 한다** — 타일 안에 버튼을 두면 같은 카드에 탭 대상이 둘이라
+    // 어디를 누른 건지 애매해지고, 출석 칸만 높이가 길어져 줄이 어긋난다.
+    // 출석 자체는 '오늘 할 일'의 게임별 버튼과 상세 페이지에서 한다.
     Row(
         Modifier.fillMaxWidth().height(IntrinsicSize.Min),
         horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -346,23 +345,11 @@ private fun DailyEntryTiles(
             icon = Icons.Default.EventAvailable,
             title = "출석 체크",
             value = "${attendance.todayDone}/${attendance.todayTotal}",
-            // 부제는 바닥 표시와 겹치지 않는 것만 — 바닥이 이미 '출석 완료 / 출석하기'를
-            // 말하고 있어 "오늘 완료"·"1개 남음"은 같은 말을 두 번 하는 자리였다.
-            sub = if (attendance.streak > 0) "연속 ${attendance.streak}일" else "이번 달 ${attendance.monthFullDays}일",
+            sub = if (attendance.allDone) "오늘 완료" else "${attendance.pending}개 남음",
             highlight = !attendance.allDone,
             modifier = Modifier.weight(1f),
             onClick = onOpenAttendance,
-        ) {
-            // 버튼 자리를 **항상** 채운다 — 다 하면 버튼이 사라지던 때는 "오늘 했나?"를
-            // 숫자(3/3)로 따져 읽어야 했고, 타일 높이도 그때만 줄어 세 칸이 어긋났다.
-            if (attendance.allDone) {
-                TileDone()
-            } else {
-                TileButton("출석하기", inProgress = checkingIn != null, onClick = onCheckInAll)
-            }
-        }
-        // 나머지 두 칸도 **같은 구조**로 만든다 — 바닥 요소가 없으면 그 칸만 짧아진다.
-        // 이쪽은 누를 게 따로 없으니 카드 전체가 하나의 탭 영역이다(bottomTappable).
+        )
         if (onOpenGameContent != null) {
             EntryTile(
                 icon = Icons.Default.MilitaryTech,
@@ -370,9 +357,8 @@ private fun DailyEntryTiles(
                 value = "주간",
                 sub = "수입 일지",
                 modifier = Modifier.weight(1f),
-                bottomTappable = true,
                 onClick = onOpenGameContent,
-            ) { TileGhost("보기") }
+            )
         }
         if (onOpenClears != null) {
             EntryTile(
@@ -381,14 +367,13 @@ private fun DailyEntryTiles(
                 value = "편성",
                 sub = "나선 · 혼돈",
                 modifier = Modifier.weight(1f),
-                bottomTappable = true,
                 onClick = onOpenClears,
-            ) { TileGhost("보기") }
+            )
         }
     }
 }
 
-/** 3칸 타일 하나 — 아이콘 · 제목 · 값 · 부제, 그 아래 [action] 슬롯(출석 버튼). */
+/** 3칸 타일 하나 — 아이콘 · 제목 · 값 · 부제. 카드 전체가 하나의 탭 영역이다. */
 @Composable
 private fun EntryTile(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
@@ -397,101 +382,33 @@ private fun EntryTile(
     sub: String,
     modifier: Modifier = Modifier,
     highlight: Boolean = false,
-    /** 바닥 요소가 버튼이 아닐 때 true — 카드 전체가 하나의 탭 영역이 된다. */
-    bottomTappable: Boolean = false,
     onClick: () -> Unit,
-    action: @Composable ColumnScope.() -> Unit = {},
 ) {
     val accent = LocalAccent.current
     val mark = if (highlight) DangerText else accent
-    GlassCard(
-        shape = RoundedCornerShape(18.dp),
-        modifier = modifier.fillMaxHeight()
-            .then(if (bottomTappable) Modifier.clickable { onClick() } else Modifier),
-    ) {
-        Column(Modifier.fillMaxHeight()) {
-            // 진입 영역 — 바닥이 버튼이면 여기까지만 클릭을 받는다(겹치면 어느 쪽이
-            // 먹었는지 눈으로 구분되지 않는다). 바닥이 표시뿐이면 카드 전체가 받는다.
-            // 가운데 정렬 — 타일이 좁아 글자 길이가 제각각이라, 좌측 정렬이면 세 칸의
-            // 글자가 서로 다른 지점에서 끝나 줄이 삐뚤어져 보인다.
-            Column(
-                Modifier.fillMaxWidth()
-                    .then(if (bottomTappable) Modifier else Modifier.clickable { onClick() })
-                    .padding(start = 10.dp, end = 10.dp, top = 13.dp, bottom = 11.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                Box(
-                    Modifier.size(30.dp).clip(RoundedCornerShape(10.dp)).background(mark.copy(alpha = 0.12f)),
-                    contentAlignment = Alignment.Center,
-                ) { Icon(icon, null, tint = mark, modifier = Modifier.size(17.dp)) }
-                Spacer(Modifier.height(9.dp))
-                Text(title, fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = TextSecondary, maxLines = 1)
-                Spacer(Modifier.height(4.dp))
-                Text(
-                    value, fontSize = 15.sp, fontWeight = FontWeight.Bold,
-                    color = if (highlight) DangerText else TextPrimary, maxLines = 1,
-                )
-                Spacer(Modifier.height(2.dp))
-                Text(
-                    sub, fontSize = 10.5.sp, color = TextSecondary,
-                    maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center,
-                )
-            }
-            Spacer(Modifier.weight(1f))
-            Column(
-                Modifier.padding(start = 10.dp, end = 10.dp, bottom = 12.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                content = action,
+    GlassCard(shape = RoundedCornerShape(18.dp), modifier = modifier.fillMaxHeight().clickable { onClick() }) {
+        // 가운데 정렬 — 타일이 좁아 글자 길이가 제각각이라, 좌측 정렬이면 세 칸의
+        // 글자가 서로 다른 지점에서 끝나 줄이 삐뚤어져 보인다.
+        Column(
+            Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 14.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Box(
+                Modifier.size(30.dp).clip(RoundedCornerShape(10.dp)).background(mark.copy(alpha = 0.12f)),
+                contentAlignment = Alignment.Center,
+            ) { Icon(icon, null, tint = mark, modifier = Modifier.size(17.dp)) }
+            Spacer(Modifier.height(9.dp))
+            Text(title, fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = TextSecondary, maxLines = 1)
+            Spacer(Modifier.height(4.dp))
+            Text(
+                value, fontSize = 15.sp, fontWeight = FontWeight.Bold,
+                color = if (highlight) DangerText else TextPrimary, maxLines = 1,
             )
-        }
-    }
-}
-
-/** 진입만 하는 타일의 바닥 — 버튼과 같은 높이의 옅은 표시. 칸 높이를 맞추는 역할도 한다. */
-@Composable
-private fun TileGhost(label: String) {
-    Row(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp))
-            .background(Color(0xFFF2F3F6)).padding(vertical = 7.dp),
-        horizontalArrangement = Arrangement.Center,
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(label, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextSecondary, maxLines = 1)
-        Spacer(Modifier.width(2.dp))
-        Icon(Icons.Default.ChevronRight, null, tint = TextSecondary, modifier = Modifier.size(13.dp))
-    }
-}
-
-/** 출석을 마친 상태 — 버튼과 같은 자리·같은 높이의 조용한 표시(누를 게 없다). */
-@Composable
-private fun TileDone() {
-    val accent = LocalAccent.current
-    Row(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp))
-            .background(accent.copy(alpha = 0.12f)).padding(vertical = 7.dp),
-        horizontalArrangement = Arrangement.Center,
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Icon(Icons.Default.Check, null, tint = accent, modifier = Modifier.size(13.dp))
-        Spacer(Modifier.width(4.dp))
-        Text("출석 완료", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = accent, maxLines = 1)
-    }
-}
-
-/** 타일 바닥에 붙는 작은 채움 버튼. */
-@Composable
-private fun TileButton(label: String, inProgress: Boolean, onClick: () -> Unit) {
-    val accent = LocalAccent.current
-    Box(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(accent)
-            .clickable(enabled = !inProgress) { onClick() }
-            .padding(vertical = 7.dp),
-        contentAlignment = Alignment.Center,
-    ) {
-        if (inProgress) {
-            CircularProgressIndicator(Modifier.size(13.dp), strokeWidth = 2.dp, color = Color.White)
-        } else {
-            Text(label, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White, maxLines = 1)
+            Spacer(Modifier.height(2.dp))
+            Text(
+                sub, fontSize = 10.5.sp, color = TextSecondary,
+                maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center,
+            )
         }
     }
 }
