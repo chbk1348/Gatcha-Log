@@ -153,7 +153,7 @@ class BroadcastScheduleTest {
         val banners = listOf(giBanner(at(2026, 8, 12)))
         val now = at(2026, 7, 26)   // 방송(7/31)이 일주일 안쪽인 시점
         val entries = ScheduleLogic.buildSchedule(banners, emptyList(), emptyList())
-        val s = ScheduleLogic.summarize(banners, entries, "all", now)
+        val s = ScheduleLogic.summarize(banners, entries, now)
         assertEquals(0, s.weekDeadlines)
         assertEquals(0, s.extras)
     }

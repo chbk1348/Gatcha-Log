@@ -54,7 +54,7 @@ import com.gatcha.log.ui.theme.*
  *
  * ## 왜 히어로인가
  *
- * 1.0 은 "지금 상태가 어떤가"에 답했다 — 게임 셋의 재화·출석을 같은 무게로 늘어놓고,
+ * 1.0 은 "지금 상태가 어떤가"에 답했다 — 게임 셋의 행동력·출석을 같은 무게로 늘어놓고,
  * 무엇부터 할지는 사용자가 세 줄을 읽고 판단하게 했다. 2.0 은 **판단을 앞으로 당긴다.**
  * 가장 급한 하나가 지면을 지배하고(지출 상세 히어로와 같은 결), 나머지는 아래로 내려간다.
  *
@@ -76,7 +76,6 @@ internal fun DailyHeroSection(
     streak: Int,
     /** 숙제 완주율 — 게임 줄 우측에 함께 보여준다(별도 섹션 폐기). */
     taskStats: List<TaskStats>,
-    filter: String = "all",
     onCheckIn: (String) -> Unit,
     onCheckInAll: () -> Unit,
     onConfigClick: () -> Unit,
@@ -85,7 +84,7 @@ internal fun DailyHeroSection(
     /** 클리어 편성으로 — 위 카드의 두 번째 줄. null 이면 줄 자체가 안 뜬다. */
     onOpenClears: (() -> Unit)? = null,
 ) {
-    // 헤더(게임 필터 드롭다운·버튼 줄)가 히어로 위에 겹친다 — 그만큼 아래에서 시작한다.
+    // 헤더(버튼 줄)가 히어로 위에 겹친다 — 그만큼 아래에서 시작한다.
     val headTop = topInset + GlgTabHeaderHeight
 
     if (!hoyolab.isLinked) {
@@ -93,13 +92,12 @@ internal fun DailyHeroSection(
         return
     }
 
-    val all = remember(notes, attendanceToday) { DailyLogic.tasks(notes, attendanceToday) }
-    val tasks = remember(all, filter) { if (filter == "all") all else all.filter { it.gameKey == filter } }
+    val tasks = remember(notes, attendanceToday) { DailyLogic.tasks(notes, attendanceToday) }
     val headline = remember(tasks) { DailyLogic.headline(tasks) }
-    // 재화는 위 카드가 전담한다 — 목록에는 일일·주간·출석만, 그것도 게임당 한 줄로 묶는다.
+    // 행동력은 위 카드가 전담한다 — 목록에는 일일·주간·출석만, 그것도 게임당 한 줄로 묶는다.
     val grouped = remember(tasks, taskStats) { DailyLogic.byGame(tasks, taskStats) }
-    // 재화 카드는 **필터와 무관하게 3게임 전부** 보여준다 — 나란히 놓고 비교하는 게 이 카드의 쓸모다.
-    val summaries = remember(notes, attendanceToday, all) { DailyLogic.summaries(notes, attendanceToday, all) }
+    // 행동력 카드는 3게임을 나란히 놓고 비교하는 게 쓸모다 — 게임을 골라 좁히지 않는다.
+    val summaries = remember(notes, attendanceToday, tasks) { DailyLogic.summaries(notes, attendanceToday, tasks) }
 
     Column {
         DailyHeadlineHero(headline, headTop, streak)
@@ -125,7 +123,7 @@ internal fun DailyHeroSection(
             }
 
             // 출석 기록 — 기본 접힘. 자동 출석이 도는 이상 매일 볼 정보가 아니다.
-            AttendanceFold(attendanceHistory, streak, pending = all.count { it.kind == "출석" }, onCheckInAll = onCheckInAll, checkingIn = checkingIn)
+            AttendanceFold(attendanceHistory, streak, pending = tasks.count { it.kind == "출석" }, onCheckInAll = onCheckInAll, checkingIn = checkingIn)
 
             onOpenGameContent?.let {
                 Spacer(Modifier.height(12.dp))
@@ -199,7 +197,7 @@ private fun LinkPrompt(headTop: Dp, onConfigClick: () -> Unit) {
         Text("HoYoLAB 을 연동해 주세요", fontSize = 25.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
         Spacer(Modifier.height(8.dp))
         Text(
-            "연동하면 재화·일일 숙제·출석을 한곳에서 볼 수 있어요.",
+            "연동하면 행동력·일일 숙제·출석을 한곳에서 볼 수 있어요.",
             fontSize = 13.sp, color = TextSecondary, lineHeight = 19.sp,
         )
         Spacer(Modifier.height(16.dp))
@@ -214,7 +212,7 @@ private fun LinkPrompt(headTop: Dp, onConfigClick: () -> Unit) {
 }
 
 /**
- * 재화 카드 — 3게임을 **한 카드에 나란히**.
+ * 행동력 카드 — 3게임을 **한 카드에 나란히**.
  *
  * 세로로 3행 쌓으면 여전히 세 덩어리로 읽힌다. 가로로 나란히 두면 눈이 한 번에 훑고
  * 어느 게임이 차 있는지 비교된다 — 게임 수가 셋으로 고정이라 폭이 흔들리지 않는다.
@@ -223,7 +221,7 @@ private fun LinkPrompt(headTop: Dp, onConfigClick: () -> Unit) {
 private fun ResinCard(items: List<DailyGameSummary>) {
     GlassCard(shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.fillMaxWidth().padding(16.dp)) {
-            Text("재화", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextSecondary)
+            Text("행동력", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextSecondary)
             Spacer(Modifier.height(12.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 items.forEach { s -> ResinCell(s, Modifier.weight(1f)) }
@@ -232,7 +230,7 @@ private fun ResinCard(items: List<DailyGameSummary>) {
     }
 }
 
-/** 재화 한 칸 — 게임 약칭 · 현재/최대 · 게이지 · 언제 가득. */
+/** 행동력 한 칸 — 게임 약칭 · 현재/최대 · 게이지 · 언제 가득. */
 @Composable
 private fun ResinCell(s: DailyGameSummary, modifier: Modifier = Modifier) {
     val color = s.colorArgb.toColor()

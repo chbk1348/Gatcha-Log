@@ -124,8 +124,6 @@ fun GameInfoScreen(
         }
         m
     }
-    // Segmented 레이아웃 — 상단 게임 세그먼트 선택값("all" | game.key). 하위 섹션들이 이 값으로 필터된다.
-    var gameFilter by remember { mutableStateOf("all") }
     // 통합 게임 일정(패치·이벤트·콘텐츠 병합) — 데일리 아래 첫 섹션.
     val schedule = remember(banners, events, challenges) { ScheduleLogic.buildSchedule(banners, events, challenges) }
     val taskStats by viewModel.taskStats.collectAsStateWithLifecycle()
@@ -273,7 +271,6 @@ fun GameInfoScreen(
                     combat = combat,
                     ledgers = ledgers,
                     isRefreshing = isRefreshing,
-                    filter = gameFilter,
                     linked = hoyolab.isLinked,
                 )
             }
@@ -289,7 +286,7 @@ fun GameInfoScreen(
                 )
             }
             GiSub.Schedule -> SectionPage("게임 일정", onBack = { subPage = GiSub.Main }) {
-                GameScheduleFullContent(banners, events, challenges, confirmedBroadcasts, gameFilter)
+                GameScheduleFullContent(banners, events, challenges, confirmedBroadcasts)
             }
             GiSub.NewsDetail -> SectionPage(
                 "공지",
@@ -315,7 +312,7 @@ fun GameInfoScreen(
             }
 
             GiSub.News -> SectionPage("공지·뉴스", onBack = { subPage = GiSub.Main }) {
-                NewsFullContent(gameNews, gameFilter, onOpen = { openNews(it, GiSub.News) })
+                NewsFullContent(gameNews, onOpen = { openNews(it, GiSub.News) })
             }
             GiSub.Hoyoland -> SectionPage("호요랜드", onBack = { subPage = GiSub.Main }) {
                 HoyolandDetailContent()
@@ -355,7 +352,6 @@ fun GameInfoScreen(
                     checkingIn = checkingIn,
                     streak = attendanceStreak,
                     taskStats = taskStats,
-                    filter = gameFilter,
                     onCheckIn = { viewModel.attemptCheckIn(it) },
                     onCheckInAll = { viewModel.checkInAll() },
                     onConfigClick = { subPage = GiSub.HoyoLink },
@@ -371,7 +367,6 @@ fun GameInfoScreen(
                     GiSection {
                     EnkaCharSection(
                         viewModel,
-                        gameFilter = gameFilter,
                         onOpenStats = { c, g -> statChar = c; statCharGame = g; statReturn = GiSub.Main; subPage = GiSub.CharStats },
                         // 더보기로 새로 진입 시엔 보유목록 상태(스크롤/필터) 초기화 — 상세→뒤로 복귀는 SaveableStateProvider 가 유지
                         onOpenAll = { g -> rosterGame = g; subPageStateHolder.removeState(GiSub.CharRoster); subPage = GiSub.CharRoster },
@@ -380,10 +375,10 @@ fun GameInfoScreen(
                     }
                 }
             }
-            // 통합 게임 일정 — 헤더 드롭다운(gameFilter) 연동.
+            // 통합 게임 일정 — 게임 구분 없이 전부. 게임별로 좁혀 보는 건 상세 페이지에서 한다.
             if (schedule.isNotEmpty()) {
                 item { Spacer(Modifier.height(20.dp)) }
-                item { GiSection { GameScheduleSection(schedule, banners, gameFilter, onSeeAll = { subPage = GiSub.Schedule }) } }
+                item { GiSection { GameScheduleSection(schedule, banners, onSeeAll = { subPage = GiSub.Schedule }) } }
             }
             // 호요랜드 — 호요버스 한국 오프라인 행사(플레이스홀더). 정보 확정 전 "준비 중" 티저.
             item { Spacer(Modifier.height(20.dp)) }
@@ -393,7 +388,7 @@ fun GameInfoScreen(
             item {
                 GiSection {
                     NewsSection(
-                        gameNews, gameFilter,
+                        gameNews,
                         onSeeAll = { subPage = GiSub.News },
                         onOpen = { openNews(it, GiSub.Main) },
                     )
@@ -423,10 +418,7 @@ fun GameInfoScreen(
             )
             // 헤더 오버레이 — 투명 바, 버튼만 불투명. 콘텐츠가 버튼 아래로 지나간다. 상태바 인셋 적용.
             Box(Modifier.align(Alignment.TopStart).fillMaxWidth().statusBarsPadding().padding(horizontal = 16.dp)) {
-                GlgTabHeader(
-                    "",
-                    leading = { GameFilterDropdown(selected = gameFilter, onSelect = { gameFilter = it }) },
-                ) {
+                GlgTabHeader("") {
                     // 순서: 새로고침 → 리딤코드 → 설정.
                     GlgCircleIconButton(Icons.Default.Refresh, "새로고침", enabled = !isRefreshing, outlined = true, solidBackground = true) {
                         viewModel.refreshGameInfo(force = true)

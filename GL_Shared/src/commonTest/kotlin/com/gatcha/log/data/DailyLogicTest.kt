@@ -33,7 +33,7 @@ class DailyLogicTest {
     @Test
     fun `재화가 가득 차면 급한 일이다`() {
         val t = DailyLogic.tasks(listOf(note(Game.GENSHIN, cur = 160, max = 160)), allChecked, now)
-        val resin = t.single { it.kind == "재화" }
+        val resin = t.single { it.kind == "행동력" }
         assertTrue(resin.urgent)
         assertEquals("레진 가득참", resin.label)
     }
@@ -41,17 +41,17 @@ class DailyLogicTest {
     @Test
     fun `가득 차기 6시간 전부터 목록에 올라온다`() {
         val soon = DailyLogic.tasks(listOf(note(Game.GENSHIN, cur = 150, fullAt = now + 5 * hour)), allChecked, now)
-        assertTrue(soon.any { it.kind == "재화" })
+        assertTrue(soon.any { it.kind == "행동력" })
         // 아직 여유가 있으면 목록에 없다 — 매일 보는 화면에 안 급한 걸 쌓지 않는다.
         val later = DailyLogic.tasks(listOf(note(Game.GENSHIN, cur = 100, fullAt = now + 9 * hour)), allChecked, now)
-        assertTrue(later.none { it.kind == "재화" })
+        assertTrue(later.none { it.kind == "행동력" })
     }
 
     @Test
     fun `곧 가득은 급한 게 아니다`() {
         // '급함'은 히어로로 올릴지의 기준이다. 아직 안 넘쳤으면 크게 띄우지 않는다.
         val t = DailyLogic.tasks(listOf(note(Game.GENSHIN, cur = 150, fullAt = now + 3 * hour)), allChecked, now)
-        assertTrue(!t.single { it.kind == "재화" }.urgent)
+        assertTrue(!t.single { it.kind == "행동력" }.urgent)
     }
 
     @Test
@@ -83,7 +83,7 @@ class DailyLogicTest {
             emptySet(), now,
         )
         val mine = t.filter { it.gameKey == Game.GENSHIN.key }.map { it.kind }
-        assertEquals(listOf("재화", "일일", "주간", "출석"), mine)
+        assertEquals(listOf("행동력", "일일", "주간", "출석"), mine)
     }
 
     @Test

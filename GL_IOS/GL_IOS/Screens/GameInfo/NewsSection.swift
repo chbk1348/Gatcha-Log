@@ -1,7 +1,7 @@
 import SwiftUI
 import Shared
 
-/// 헤더 드롭다운 규칙: "all"=전체, 그 외는 게임 키 → 해당 게임 displayName 매칭(일정 섹션과 동일).
+/// 게임 칩 규칙: "all"=전체, 그 외는 게임 키 → 해당 게임 displayName 매칭.
 private func filterNews(_ news: [NewsItem], _ filter: String) -> [NewsItem] {
     if filter == "all" { return news }
     if let g = GameData.shared.byNameOrNull(name: filter) {
@@ -45,14 +45,13 @@ private func newsRow(_ n: NewsItem, onOpen: @escaping (NewsItem) -> Void) -> som
 /// 공지·뉴스 섹션 — 게임별 최신 공지(상위 maxCount), 더 있으면 '더보기'로 전체 페이지.
 struct NewsSection: View {
     var store: SpendingStore
-    let filter: String
     var onSeeAll: () -> Void = {}
     var onOpenNews: (NewsItem) -> Void = { _ in }
     var maxCount: Int = 5
     @Environment(\.glgAccent) private var accent
 
     var body: some View {
-        let all = filterNews(store.gameNews, filter)
+        let all = store.gameNews
         if !all.isEmpty {
             // 그냥 prefix 하면 공지를 많이 올리는 게임(엔드필드)이 목록을 다 먹는다 —
             // 게임을 번갈아 뽑는 로직은 commonMain 단일 소스(Android 와 같은 함수).
@@ -85,23 +84,19 @@ struct NewsSection: View {
 /// 공지·뉴스 전체 페이지.
 struct NewsPage: View {
     var store: SpendingStore
-    let filter: String
     // 상세 push 는 navigationDestination 으로 — NewsSection 과 동일한 이유(destination형 NavigationLink 회피).
     @State private var selectedNews: NewsItem? = nil
     @State private var showDetail = false
-    /// 페이지 안 게임 칩 — 헤더 드롭다운과 별개로 이 페이지에서만 좁혀 본다(Compose 쪽과 동일).
+    /// 페이지 안 게임 칩 — 게임별로 좁혀 보는 건 여기서만 한다(Compose 쪽과 동일).
     @State private var chip = "all"
 
     var body: some View {
-        let headerFiltered = filterNews(store.gameNews, filter)
-        // 헤더가 이미 한 게임으로 좁힌 상태면 칩이 무의미하므로 그때는 감춘다.
-        let showChips = filter == "all"
-        let all = showChips ? filterNews(headerFiltered, chip) : headerFiltered
+        let all = filterNews(store.gameNews, chip)
         // 칩은 실제로 공지가 있는 게임만 — 소식이 없는 게임 칩을 눌러 빈 화면을 보게 두지 않는다.
-        let chipGames = GLGGames.all.filter { g in headerFiltered.contains { $0.game == g.displayName } }
+        let chipGames = GLGGames.all.filter { g in store.gameNews.contains { $0.game == g.displayName } }
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
-                if showChips && chipGames.count > 1 {
+                if chipGames.count > 1 {
                     gameSegments(chipGames).padding(.bottom, 14)
                 }
                 if all.isEmpty {

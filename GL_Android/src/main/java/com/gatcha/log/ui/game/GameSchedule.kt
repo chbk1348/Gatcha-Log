@@ -134,12 +134,11 @@ private fun CollabChip() {
 fun GameScheduleSection(
     entries: List<ScheduleEntry>,
     banners: List<GachaBanner>,
-    filter: String,
     onSeeAll: () -> Unit,
 ) {
     val accent = LocalAccent.current
-    val lines = ScheduleLogic.gameLines(banners, entries, filter)
-    val summary = ScheduleLogic.summarize(banners, entries, filter)
+    val lines = ScheduleLogic.gameLines(banners, entries)
+    val summary = ScheduleLogic.summarize(banners, entries)
     Text("게임 일정", fontSize = 16.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 2.dp, bottom = 4.dp))
     Text("픽업 배너와 이벤트 마감을 한곳에서.", fontSize = 11.sp, color = TextSecondary, modifier = Modifier.padding(start = 2.dp, bottom = 12.dp))
     GlassCard(modifier = Modifier.fillMaxWidth().clickable { onSeeAll() }) {
@@ -218,7 +217,6 @@ fun GameScheduleFullContent(
     events: List<GameEvent>,
     challenges: List<GameChallenge>,
     confirmed: List<ConfirmedBroadcast>,
-    filter: String,
 ) {
     var tab by remember { mutableStateOf(0) }
     Row(
@@ -230,7 +228,7 @@ fun GameScheduleFullContent(
         GlgChip("주년", selected = tab == 2) { tab = 2 }
     }
     if (tab == 1) {
-        BroadcastContent(banners, confirmed, filter)
+        BroadcastContent(banners, confirmed)
         return
     }
     if (tab == 2) {
@@ -239,11 +237,10 @@ fun GameScheduleFullContent(
     }
     // 일정 조립·필터·그룹핑은 입력이 바뀔 때만. GameInfoScreen 은 같은 호출을 이미 remember 로
     // 감싸 두는데(:126) 이 전체 페이지만 빠져 있어, 스크롤·애니메이션 재구성마다 전부 다시 돌았다.
-    val all = remember(banners, events, challenges) { ScheduleLogic.buildSchedule(banners, events, challenges) }
-    val entries = remember(all, filter) { ScheduleLogic.filteredEntries(all, filter) }
+    val entries = remember(banners, events, challenges) { ScheduleLogic.buildSchedule(banners, events, challenges) }
     val days = remember(entries) { ScheduleLogic.buildDays(entries) }
-    val undated = remember(banners, filter) { ScheduleLogic.undatedPickups(banners, filter) }
-    val summary = remember(banners, all, filter) { ScheduleLogic.summarize(banners, all, filter) }
+    val undated = remember(banners) { ScheduleLogic.undatedPickups(banners) }
+    val summary = remember(banners, entries) { ScheduleLogic.summarize(banners, entries) }
 
     Text("마감이 가까운 순서로 정리했어요.", fontSize = 12.sp, color = TextSecondary, modifier = Modifier.padding(bottom = 14.dp))
 
@@ -413,9 +410,8 @@ private fun DayNode(d: ScheduleDay, isLast: Boolean, now: Long) {
  * 무엇보다 **역산한 예상**이라 확정된 마감들 사이에 섞이면 같은 무게로 읽힌다.
  */
 @Composable
-private fun BroadcastContent(banners: List<GachaBanner>, confirmed: List<ConfirmedBroadcast>, filter: String) {
-    val all = remember(banners, confirmed) { BroadcastSchedule.next(banners, confirmed) }
-    val list = remember(all, filter) { if (filter == "all") all else all.filter { it.gameKey == filter } }
+private fun BroadcastContent(banners: List<GachaBanner>, confirmed: List<ConfirmedBroadcast>) {
+    val list = remember(banners, confirmed) { BroadcastSchedule.next(banners, confirmed) }
 
     // 안내 문구는 목록 성격에 따라 바꾼다 — 전부 확정인데 '예상'이라고 하면 값을 깎아 읽게 된다.
     val anyEstimate = list.any { it.isEstimate }
