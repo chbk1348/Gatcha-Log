@@ -16,6 +16,8 @@ struct GameInfoView: View {
     @State private var showSchedule = false
     @State private var showNews = false
     @State private var showHoyoland = false
+    /// 출석 체크 상세(데일리 타일에서 진입).
+    @State private var showAttendance = false
     /// 전투 진행도·수입 일지 상세(데일리에서 진입).
     @State private var showGameContent = false
     /// '어떤 캐릭터로 깼는지'(층·간별 편성) — 전투 진행도에서 한 단계 더 들어간다.
@@ -61,6 +63,7 @@ struct GameInfoView: View {
                 // 히어로는 section 래퍼 없이 전폭 — 배경색이 화면 가장자리까지 닿는다.
                 DailyHeroSection(store: store,
                                  onConfig: { showHoyolab = true },
+                                 onOpenAttendance: { showAttendance = true },
                                  onOpenGameContent: { showGameContent = true },
                                  onOpenClears: { showCombatClears = true }).id("NOTES")
                 // 숙제 완주율은 별도 섹션을 두지 않는다 — 데일리의 게임 줄에 완주율까지 들어간다.
@@ -156,6 +159,7 @@ struct GameInfoView: View {
             if let n = selectedNews { NewsDetailView(store: store, item: n) }
         }
         .navigationDestination(isPresented: $showHoyoland) { HoyolandDetailView() }
+        .navigationDestination(isPresented: $showAttendance) { AttendanceDetailView(store: store) }
         .navigationDestination(isPresented: $showGameContent) {
             sectionPage("전투 · 수입 일지") {
                 GameTabbedSection(store: store)

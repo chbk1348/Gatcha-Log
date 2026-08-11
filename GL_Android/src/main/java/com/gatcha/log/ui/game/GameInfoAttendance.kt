@@ -28,6 +28,9 @@ import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.gatcha.log.data.AttendanceGameStat
+import com.gatcha.log.data.AttendanceLogic
+import com.gatcha.log.data.AttendanceSummary
 import com.gatcha.log.data.DailyGameSummary
 import com.gatcha.log.data.DailyGameTasks
 import com.gatcha.log.data.DailyHeadline
@@ -79,6 +82,8 @@ internal fun DailyHeroSection(
     onCheckIn: (String) -> Unit,
     onCheckInAll: () -> Unit,
     onConfigClick: () -> Unit,
+    /** 출석 상세로 — 기록·달력은 매일 볼 게 아니라 페이지로 뺐다. */
+    onOpenAttendance: () -> Unit = {},
     /** 전투 진행도·수입 일지 상세로 — 데일리와 같은 '오늘 뭐 했나' 맥락이라 여기서 들어간다. */
     onOpenGameContent: (() -> Unit)? = null,
     /** 클리어 편성으로 — 위 카드의 두 번째 줄. null 이면 줄 자체가 안 뜬다. */
@@ -98,6 +103,9 @@ internal fun DailyHeroSection(
     val grouped = remember(tasks, taskStats) { DailyLogic.byGame(tasks, taskStats) }
     // 행동력 카드는 3게임을 나란히 놓고 비교하는 게 쓸모다 — 게임을 골라 좁히지 않는다.
     val summaries = remember(notes, attendanceToday, tasks) { DailyLogic.summaries(notes, attendanceToday, tasks) }
+    val attendance = remember(attendanceHistory, attendanceToday, streak) {
+        AttendanceLogic.summary(attendanceHistory, attendanceToday, streak)
+    }
 
     Column {
         DailyHeadlineHero(headline, headTop, streak)
@@ -122,13 +130,17 @@ internal fun DailyHeroSection(
                 Spacer(Modifier.height(12.dp))
             }
 
-            // 출석 기록 — 기본 접힘. 자동 출석이 도는 이상 매일 볼 정보가 아니다.
-            AttendanceFold(attendanceHistory, streak, pending = tasks.count { it.kind == "출석" }, onCheckInAll = onCheckInAll, checkingIn = checkingIn)
-
-            onOpenGameContent?.let {
-                Spacer(Modifier.height(12.dp))
-                GameContentEntry(it, onOpenClears)
-            }
+            // 출석 · 전투 진행도 · 클리어 편성 — 한 줄 3칸.
+            // 셋 다 '들어가서 보는 기록'이라 성격이 같은데, 예전엔 접히는 카드 하나와
+            // 두 줄짜리 카드 하나로 갈라져 세로로 세 덩어리를 잡아먹고 있었다.
+            DailyEntryTiles(
+                attendance = attendance,
+                checkingIn = checkingIn,
+                onCheckInAll = onCheckInAll,
+                onOpenAttendance = onOpenAttendance,
+                onOpenGameContent = onOpenGameContent,
+                onOpenClears = onOpenClears,
+            )
         }
     }
 }
@@ -306,102 +318,259 @@ private fun GameTaskRow(g: DailyGameTasks, inProgress: Boolean, onCheckIn: () ->
     }
 }
 
-/** 출석 기록 — 접힘. 펼치면 7일 스트립 + 월 달력. */
+/**
+ * 출석 · 전투 진행도 · 클리어 편성 — 한 줄 3칸.
+ *
+ * 셋 다 "들어가서 보는 기록"이라 성격이 같다. 예전엔 출석이 접히는 카드, 나머지 둘이
+ * 두 줄짜리 카드로 갈라져 있어 같은 부류가 세로로 세 덩어리를 잡아먹었다.
+ *
+ * 타일 안에 다시 버튼을 넣으므로 **탭 영역을 겹치지 않게** 나눈다 — 진입은 위쪽 본문,
+ * 출석은 아래 버튼. 하나의 클릭 영역 안에 다른 클릭 영역을 겹쳐 두면 어느 쪽이 먹었는지
+ * 눈으로 구분되지 않는다.
+ */
 @Composable
-private fun AttendanceFold(
-    history: Map<String, Set<String>>,
-    streak: Int,
-    pending: Int,
+private fun DailyEntryTiles(
+    attendance: AttendanceSummary,
     checkingIn: String?,
+    onCheckInAll: () -> Unit,
+    onOpenAttendance: () -> Unit,
+    onOpenGameContent: (() -> Unit)?,
+    onOpenClears: (() -> Unit)?,
+) {
+    // 타일 높이를 서로 맞춘다 — 출석 타일만 버튼이 붙어 길어지면 세 칸이 어긋나 보인다.
+    Row(
+        Modifier.fillMaxWidth().height(IntrinsicSize.Min),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        EntryTile(
+            icon = Icons.Default.EventAvailable,
+            title = "출석 체크",
+            value = "${attendance.todayDone}/${attendance.todayTotal}",
+            sub = if (attendance.allDone) "오늘 완료" else "${attendance.pending}개 남음",
+            highlight = !attendance.allDone,
+            modifier = Modifier.weight(1f),
+            onClick = onOpenAttendance,
+        ) {
+            // 아직 안 한 게 있으면 여기서 바로 끝낸다 — 상세까지 들어갔다 나올 일이 아니다.
+            if (!attendance.allDone) {
+                TileButton(
+                    label = if (attendance.pending == 1) "출석" else "전체 출석",
+                    inProgress = checkingIn != null,
+                    onClick = onCheckInAll,
+                )
+            }
+        }
+        if (onOpenGameContent != null) {
+            EntryTile(
+                icon = Icons.Default.MilitaryTech,
+                title = "전투 진행도",
+                value = "주간",
+                sub = "수입 일지",
+                modifier = Modifier.weight(1f),
+                onClick = onOpenGameContent,
+            )
+        }
+        if (onOpenClears != null) {
+            EntryTile(
+                icon = Icons.Default.Groups,
+                title = "클리어 편성",
+                value = "편성",
+                sub = "나선 · 혼돈",
+                modifier = Modifier.weight(1f),
+                onClick = onOpenClears,
+            )
+        }
+    }
+}
+
+/** 3칸 타일 하나 — 아이콘 · 제목 · 값 · 부제, 그 아래 [action] 슬롯(출석 버튼). */
+@Composable
+private fun EntryTile(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    title: String,
+    value: String,
+    sub: String,
+    modifier: Modifier = Modifier,
+    highlight: Boolean = false,
+    onClick: () -> Unit,
+    action: @Composable ColumnScope.() -> Unit = {},
+) {
+    val accent = LocalAccent.current
+    val mark = if (highlight) DangerText else accent
+    GlassCard(shape = RoundedCornerShape(18.dp), modifier = modifier.fillMaxHeight()) {
+        Column(Modifier.fillMaxHeight()) {
+            // 진입 영역 — 아래 버튼과 겹치지 않도록 여기까지만 클릭을 받는다.
+            Column(
+                Modifier.fillMaxWidth().clickable { onClick() }
+                    .padding(start = 12.dp, end = 12.dp, top = 13.dp, bottom = 11.dp),
+            ) {
+                Box(
+                    Modifier.size(30.dp).clip(RoundedCornerShape(10.dp)).background(mark.copy(alpha = 0.12f)),
+                    contentAlignment = Alignment.Center,
+                ) { Icon(icon, null, tint = mark, modifier = Modifier.size(17.dp)) }
+                Spacer(Modifier.height(9.dp))
+                Text(title, fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = TextSecondary, maxLines = 1)
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    value, fontSize = 15.sp, fontWeight = FontWeight.Bold,
+                    color = if (highlight) DangerText else TextPrimary, maxLines = 1,
+                )
+                Spacer(Modifier.height(2.dp))
+                Text(sub, fontSize = 10.5.sp, color = TextSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+            Spacer(Modifier.weight(1f))
+            Column(Modifier.padding(start = 12.dp, end = 12.dp, bottom = 12.dp), content = action)
+        }
+    }
+}
+
+/** 타일 바닥에 붙는 작은 채움 버튼. */
+@Composable
+private fun TileButton(label: String, inProgress: Boolean, onClick: () -> Unit) {
+    val accent = LocalAccent.current
+    Box(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(accent)
+            .clickable(enabled = !inProgress) { onClick() }
+            .padding(vertical = 7.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        if (inProgress) {
+            CircularProgressIndicator(Modifier.size(13.dp), strokeWidth = 2.dp, color = Color.White)
+        } else {
+            Text(label, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White, maxLines = 1)
+        }
+    }
+}
+
+// ============================================================ 출석 상세 페이지
+/**
+ * 출석 체크 상세 — 오늘 상태 · 게임별 · 최근 7일 · 월 달력.
+ *
+ * 예전엔 데일리의 접히는 카드 안에 7일 스트립과 달력만 있었다. 그 안에서 할 수 있는 건
+ * '전체 출석' 하나뿐이라, 한 게임만 빠졌을 때도 세 게임을 통째로 다시 돌려야 했다.
+ * 페이지로 꺼내면서 **게임별 줄에 각자 버튼**을 달고, 이번 달 누계를 함께 보여준다.
+ */
+@Composable
+internal fun AttendanceDetailContent(
+    summary: AttendanceSummary,
+    history: Map<String, Set<String>>,
+    checkingIn: String?,
+    onCheckIn: (String) -> Unit,
     onCheckInAll: () -> Unit,
 ) {
     val accent = LocalAccent.current
-    var open by remember { mutableStateOf(false) }
+    AttendanceTodayCard(summary, checkingIn, onCheckInAll)
+    Spacer(Modifier.height(12.dp))
     GlassCard(shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth()) {
-        Column(Modifier.fillMaxWidth()) {
-            Row(
-                Modifier.fillMaxWidth().clickable { open = !open }.padding(horizontal = 16.dp, vertical = 13.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text("출석 기록", fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = TextSecondary, modifier = Modifier.weight(1f))
-                if (pending > 0) {
+        Column(Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
+            summary.games.forEachIndexed { i, g ->
+                if (i > 0) HorizontalDivider(color = DividerColor)
+                AttendanceGameRow(g, summary.monthElapsedDays, inProgress = checkingIn == g.gameKey) {
+                    onCheckIn(g.gameKey)
+                }
+            }
+        }
+    }
+    Spacer(Modifier.height(12.dp))
+    GlassCard(shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(16.dp)) {
+            Text("최근 7일", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextSecondary)
+            Spacer(Modifier.height(12.dp))
+            WeekAttendanceStrip(history)
+            Spacer(Modifier.height(16.dp))
+            MonthAttendanceCalendar(history)
+        }
+    }
+}
+
+/** 오늘 요약 — 진행 링 대신 큰 숫자 + 연속·이번 달. */
+@Composable
+private fun AttendanceTodayCard(summary: AttendanceSummary, checkingIn: String?, onCheckInAll: () -> Unit) {
+    val accent = LocalAccent.current
+    val mark = if (summary.allDone) accent else DangerText
+    GlassCard(shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.fillMaxWidth().padding(16.dp)) {
+            Text("오늘", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextSecondary)
+            Spacer(Modifier.height(10.dp))
+            Row(verticalAlignment = Alignment.Bottom) {
+                Text(
+                    "${summary.todayDone}", fontSize = 34.sp, fontWeight = FontWeight.Bold,
+                    color = mark, letterSpacing = (-1).sp,
+                )
+                Text(
+                    " / ${summary.todayTotal} 게임", fontSize = 14.sp, fontWeight = FontWeight.Bold,
+                    color = TextSecondary, modifier = Modifier.padding(bottom = 5.dp),
+                )
+                Spacer(Modifier.weight(1f))
+                if (!summary.allDone) {
                     Box(
-                        Modifier.clip(RoundedCornerShape(8.dp)).background(accent.copy(alpha = 0.14f))
+                        Modifier.clip(RoundedCornerShape(11.dp)).background(accent)
                             .clickable(enabled = checkingIn == null) { onCheckInAll() }
-                            .padding(horizontal = 10.dp, vertical = 5.dp),
-                    ) { Text("전체 출석", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = accent) }
-                    Spacer(Modifier.width(8.dp))
-                }
-                Icon(
-                    if (open) Icons.Default.ExpandLess else Icons.Default.ExpandMore, null,
-                    tint = TextSecondary, modifier = Modifier.size(18.dp),
-                )
-            }
-            AnimatedVisibility(visible = open) {
-                Column(Modifier.padding(start = 16.dp, end = 16.dp, bottom = 16.dp)) {
-                    WeekAttendanceStrip(history)
-                    Spacer(Modifier.height(14.dp))
-                    MonthAttendanceCalendar(history)
+                            .padding(horizontal = 16.dp, vertical = 9.dp),
+                    ) {
+                        if (checkingIn != null) {
+                            CircularProgressIndicator(Modifier.size(14.dp), strokeWidth = 2.dp, color = Color.White)
+                        } else {
+                            Text("전체 출석", fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                        }
+                    }
                 }
             }
-        }
-    }
-}
-
-/**
- * 전투 진행도·수입 일지 진입 행 — 데일리 바로 아래.
- *
- * 예전엔 게임 정보 탭 본문에 큰 섹션 두 개로 펼쳐져 있었다. 매일 보는 정보가 아닌데
- * 화면을 길게 잡아먹어, 같은 '오늘 뭐 했나' 맥락인 데일리에서 들어가도록 접었다.
- */
-@Composable
-private fun GameContentEntry(onClick: () -> Unit, onClickClears: (() -> Unit)? = null) {
-    GlassCard(shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth()) {
-        Column(Modifier.fillMaxWidth()) {
-            GameContentRow(
-                icon = Icons.Default.MilitaryTech,
-                title = "전투 진행도 · 수입 일지",
-                sub = "주간 클리어 현황과 이번 달 재화 수입",
-                onClick = onClick,
-            )
-            // 클리어 편성은 예전에 이 페이지 안쪽 2단계라 못 찾았다. 같은 카드의 두 번째 줄로 꺼낸다 —
-            // 별도 카드로 띄우면 같은 맥락의 진입점이 화면에서 갈라진다.
-            if (onClickClears != null) {
-                HorizontalDivider(color = DividerColor.copy(alpha = 0.6f), modifier = Modifier.padding(horizontal = 16.dp))
-                GameContentRow(
-                    icon = Icons.Default.Groups,
-                    title = "클리어 편성",
-                    sub = "나선 비경 · 혼돈의 기억을 깬 캐릭터",
-                    onClick = onClickClears,
+            Spacer(Modifier.height(14.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                AttendanceStat("연속 기록", if (summary.streak > 0) "${summary.streak}일" else "—", Modifier.weight(1f))
+                AttendanceStat(
+                    "이번 달 전체 출석",
+                    "${summary.monthFullDays}일 / ${summary.monthElapsedDays}일",
+                    Modifier.weight(1f),
                 )
             }
         }
     }
 }
 
-/** [GameContentEntry] 의 한 줄. 카드를 공유하므로 클릭 영역은 줄 단위다. */
 @Composable
-private fun GameContentRow(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    title: String,
-    sub: String,
-    onClick: () -> Unit,
-) {
+private fun AttendanceStat(label: String, value: String, modifier: Modifier = Modifier) {
+    Surface(color = Color(0xFFF7F8FA), shape = RoundedCornerShape(12.dp), modifier = modifier) {
+        Column(Modifier.padding(horizontal = 12.dp, vertical = 10.dp)) {
+            Text(label, fontSize = 10.5.sp, color = TextSecondary, maxLines = 1)
+            Spacer(Modifier.height(3.dp))
+            Text(value, fontSize = 13.5.sp, fontWeight = FontWeight.Bold, color = TextPrimary, maxLines = 1)
+        }
+    }
+}
+
+/** 게임 한 줄 — 오늘 상태 + 이번 달 누계, 안 했으면 그 자리에서 출석. */
+@Composable
+private fun AttendanceGameRow(g: AttendanceGameStat, elapsed: Int, inProgress: Boolean, onCheckIn: () -> Unit) {
     val accent = LocalAccent.current
     Row(
-        Modifier.fillMaxWidth().clickable { onClick() }.padding(horizontal = 16.dp, vertical = 14.dp),
+        Modifier.fillMaxWidth().padding(vertical = 13.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(
-            Modifier.size(38.dp).clip(RoundedCornerShape(12.dp)).background(accent.copy(alpha = 0.12f)),
-            contentAlignment = Alignment.Center,
-        ) { Icon(icon, null, tint = accent, modifier = Modifier.size(20.dp)) }
-        Spacer(Modifier.width(12.dp))
+        Box(Modifier.width(3.dp).height(20.dp).clip(CircleShape).background(g.colorArgb.toColor()))
+        Spacer(Modifier.width(10.dp))
         Column(Modifier.weight(1f)) {
-            Text(title, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TextPrimary, maxLines = 1)
-            Text(sub, fontSize = 11.sp, color = TextSecondary, maxLines = 1)
+            Text(g.gameShort, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+            Spacer(Modifier.height(2.dp))
+            Text(
+                "이번 달 ${g.monthCount}일" + if (elapsed > 0) " / ${elapsed}일" else "",
+                fontSize = 11.sp, color = TextSecondary,
+            )
         }
-        Icon(Icons.Default.ChevronRight, null, tint = TextSecondary, modifier = Modifier.size(18.dp))
+        Spacer(Modifier.width(8.dp))
+        when {
+            inProgress -> CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp, color = accent)
+            g.checkedToday -> Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.CheckCircle, "완료", tint = accent, modifier = Modifier.size(17.dp))
+                Spacer(Modifier.width(5.dp))
+                Text("완료", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = accent)
+            }
+            else -> Box(
+                Modifier.clip(RoundedCornerShape(9.dp)).background(accent.copy(alpha = 0.14f))
+                    .clickable { onCheckIn() }.padding(horizontal = 14.dp, vertical = 7.dp),
+            ) { Text("출석", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = accent) }
+        }
     }
 }
 
