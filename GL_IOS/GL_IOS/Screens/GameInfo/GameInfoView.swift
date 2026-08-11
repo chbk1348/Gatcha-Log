@@ -61,6 +61,7 @@ struct GameInfoView: View {
             // (VStack 이면 탭 전환 순간 7개 섹션 전부를 한꺼번에 빌드해 전환이 버벅였음)
             LazyVStack(alignment: .leading, spacing: 0) {
                 // 홈 카드 딥링크 스크롤 앵커 — id 문자열은 Kotlin GameInfoAnchor 의 .name(NOTES/SCHEDULE/NEWS)과 일치해야 함.
+                // 히어로는 section 래퍼 없이 전폭 — 배경색이 화면 가장자리까지 닿는다.
                 DailyHeroSection(store: store, filter: gameFilter,
                                  onConfig: { showHoyolab = true },
                                  onOpenGameContent: { showGameContent = true },
@@ -92,7 +93,8 @@ struct GameInfoView: View {
                 section { navEntry(icon: "chart.bar.xaxis", title: "가챠 효율 리포트", sub: "UIGF/SRGF 분석 · 단가 · 천장 분포") { showReport = true } }
                 Color.clear.frame(height: 12)
             }
-            .padding(.horizontal, 16)
+            // 좌우 여백은 **섹션마다** 준다(section 헬퍼). 통짜로 걸면 데일리 히어로가
+            // 화면 끝까지 못 간다 — 히어로는 색이 가장자리에 닿아야 한다.
             // 넓은 화면(iPad)에서 섹션이 끝까지 늘어나지 않도록 최대폭 제한+중앙정렬(iPhone 영향 없음).
             .glgReadableWidth(720)
         }
@@ -220,7 +222,7 @@ struct GameInfoView: View {
 
     @ViewBuilder private func section<C: View>(@ViewBuilder _ content: () -> C) -> some View {
         Spacer().frame(height: 20)
-        content()
+        content().padding(.horizontal, 16)
     }
 
     // 페이지 진입 카드 — 아이콘 + 제목 + 설명 + 셰브론(글래스 카드).

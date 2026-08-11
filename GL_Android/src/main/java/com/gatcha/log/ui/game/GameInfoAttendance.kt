@@ -27,7 +27,6 @@ import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.gatcha.log.data.DailyGameSummary
 import com.gatcha.log.data.DailyLogic
 import com.gatcha.log.data.DailyTask
 import com.gatcha.log.data.DateUtil
@@ -91,10 +90,6 @@ internal fun DailyHeroSection(
     val tasks = remember(all, filter) { if (filter == "all") all else all.filter { it.gameKey == filter } }
     val hero = remember(tasks) { DailyLogic.hero(tasks) }
     val rest = remember(tasks, hero) { tasks.filter { it !== hero } }
-    val summaries = remember(notes, attendanceToday, all, filter) {
-        DailyLogic.summaries(notes, attendanceToday, all)
-            .filter { filter == "all" || it.gameKey == filter }
-    }
 
     Column {
         if (hero != null) UrgentHero(hero, headTop, streak) else CalmHero(tasks.size, headTop, streak)
@@ -117,21 +112,6 @@ internal fun DailyHeroSection(
                 }
                 Spacer(Modifier.height(12.dp))
             }
-
-            // 게임별 현황 — 할 일이 없는 게임도 한 줄은 남긴다(빠지면 "왜 없지?"를 확인하러 들어가야 한다).
-            GlassCard(shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth()) {
-                Column(Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
-                    Text(
-                        "게임별 현황", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextSecondary,
-                        modifier = Modifier.padding(top = 10.dp, bottom = 2.dp),
-                    )
-                    summaries.forEachIndexed { i, s ->
-                        if (i > 0) HorizontalDivider(color = DividerColor)
-                        SummaryRow(s)
-                    }
-                }
-            }
-            Spacer(Modifier.height(12.dp))
 
             // 출석 기록 — 기본 접힘. 자동 출석이 도는 이상 매일 볼 정보가 아니다.
             AttendanceFold(attendanceHistory, streak, pending = all.count { it.kind == "출석" }, onCheckInAll = onCheckInAll, checkingIn = checkingIn)
@@ -293,37 +273,6 @@ private fun TaskRow(task: DailyTask, inProgress: Boolean, onCheckIn: () -> Unit)
                 Modifier.clip(RoundedCornerShape(9.dp)).background(accent.copy(alpha = 0.14f))
                     .clickable { onCheckIn() }.padding(horizontal = 14.dp, vertical = 7.dp),
             ) { Text("출석", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = accent) }
-        }
-    }
-}
-
-/** 게임별 현황 한 줄 — 재화 게이지 + 남은 할 일 수. */
-@Composable
-private fun SummaryRow(s: DailyGameSummary) {
-    Column(Modifier.fillMaxWidth().padding(vertical = 11.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            GlgGameTag(s.gameShort, size = GameTagSize.Small)
-            Spacer(Modifier.width(10.dp))
-            Text(
-                if (s.resin.isNotBlank()) s.resin else "실시간 노트 없음",
-                fontSize = 12.5.sp, color = if (s.hasNote) TextPrimary else TextSecondary,
-                fontWeight = if (s.resinFull) FontWeight.Bold else FontWeight.Normal,
-                modifier = Modifier.weight(1f),
-            )
-            Text(
-                if (s.pendingCount > 0) "할 일 ${s.pendingCount}" else "완료",
-                fontSize = 11.5.sp, fontWeight = FontWeight.Bold,
-                color = if (s.pendingCount > 0) TextSecondary else MintPrimary,
-            )
-        }
-        if (s.hasNote) {
-            Spacer(Modifier.height(7.dp))
-            LinearProgressIndicator(
-                progress = { s.resinRatio },
-                color = if (s.resinFull) DangerText else s.colorArgb.toColor(),
-                trackColor = ProgressEmpty,
-                modifier = Modifier.fillMaxWidth().height(4.dp).clip(CircleShape),
-            )
         }
     }
 }
