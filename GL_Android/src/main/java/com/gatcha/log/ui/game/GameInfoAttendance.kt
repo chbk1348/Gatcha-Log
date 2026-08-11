@@ -28,6 +28,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.gatcha.log.data.DailyGameSummary
+import com.gatcha.log.data.DailyHeadline
 import com.gatcha.log.data.DailyLogic
 import com.gatcha.log.data.DailyTask
 import com.gatcha.log.data.DateUtil
@@ -89,26 +90,26 @@ internal fun DailyHeroSection(
 
     val all = remember(notes, attendanceToday) { DailyLogic.tasks(notes, attendanceToday) }
     val tasks = remember(all, filter) { if (filter == "all") all else all.filter { it.gameKey == filter } }
-    val hero = remember(tasks) { DailyLogic.hero(tasks) }
-    val rest = remember(tasks, hero) { tasks.filter { it !== hero } }
+    val headline = remember(tasks) { DailyLogic.headline(tasks) }
     // 재화 카드는 **필터와 무관하게 3게임 전부** 보여준다 — 나란히 놓고 비교하는 게 이 카드의 쓸모다.
     val summaries = remember(notes, attendanceToday, all) { DailyLogic.summaries(notes, attendanceToday, all) }
 
     Column {
-        if (hero != null) UrgentHero(hero, headTop, streak) else CalmHero(tasks.size, headTop, streak)
+        DailyHeadlineHero(headline, headTop, streak)
 
         Column(Modifier.padding(horizontal = 16.dp)) {
             ResinCard(summaries)
             Spacer(Modifier.height(12.dp))
-            if (rest.isNotEmpty()) {
+            if (tasks.isNotEmpty()) {
                 GlassCard(shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth()) {
                     Column(Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
                         Text(
-                            if (hero != null) "그다음" else "오늘 할 일",
+                            "오늘 할 일",
                             fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextSecondary,
                             modifier = Modifier.padding(top = 10.dp, bottom = 2.dp),
                         )
-                        rest.forEachIndexed { i, t ->
+                        // 급한 항목은 목록 맨 위에 오고(정렬은 DailyLogic 이 한다) 색으로 표시된다.
+                        tasks.forEachIndexed { i, t ->
                             if (i > 0) HorizontalDivider(color = DividerColor)
                             TaskRow(t, inProgress = checkingIn == t.gameKey) { onCheckIn(t.gameKey) }
                         }
@@ -129,47 +130,31 @@ internal fun DailyHeroSection(
 }
 
 /**
- * 히어로 — **색면을 쓰지 않는다.**
+ * 히어로 — **색면도 없고, 게임에도 치우치지 않는다.**
  *
- * 지출 상세 히어로가 게임색 파스텔 그라데이션을 상태바까지 깔아 지면을 지배하는 형태인데,
- * 데일리까지 같은 판을 쓰면 두 화면이 구분되지 않는다. 여기는 글자와 여백만으로 세운다 —
- * 색면이 없으니 아래 흰 카드와 층이 겹치지 않아 화면도 가벼워진다.
+ * 색면: 지출 상세 히어로가 게임색 파스텔을 상태바까지 깔아 지면을 지배하는데, 데일리까지
+ * 같은 판을 쓰면 두 화면이 구분되지 않는다. 여기는 글자와 여백만으로 세운다.
  *
- * 게임 구분은 짧은 색 막대 하나. 배경 대신 **글자 크기**가 위계를 만든다.
+ * 게임 중립: 예전엔 가장 급한 한 건(주로 원신 레진)을 크게 올렸다. 데일리는 3게임을 함께
+ * 관리하는 화면이라 한 게임이 제목을 차지하면 편향돼 보인다 — 히어로는 "오늘 전체"만
+ * 말하고, 어느 게임의 무엇인지는 아래 목록이 맡는다.
  */
 @Composable
-private fun UrgentHero(task: DailyTask, headTop: Dp, streak: Int) {
+private fun DailyHeadlineHero(h: DailyHeadline, headTop: Dp, streak: Int) {
+    val accent = LocalAccent.current
+    val mark = if (h.urgent) DangerText else accent
     HeroFrame(headTop) {
-        HeroKicker("${task.gameShort} · 지금", task.colorArgb.toColor(), streak)
+        HeroKicker("오늘의 데일리", mark, streak)
         Spacer(Modifier.height(12.dp))
         Text(
-            task.label,
-            fontSize = 30.sp, fontWeight = FontWeight.Bold, color = TextPrimary,
-            lineHeight = 36.sp, letterSpacing = (-0.8).sp,
-        )
-        if (task.detail.isNotBlank()) {
-            Spacer(Modifier.height(8.dp))
-            Text(task.detail, fontSize = 13.sp, color = TextSecondary)
-        }
-    }
-}
-
-/** 급한 일이 없을 때 — 같은 자리, 낮은 목소리. 막대는 브랜드 민트. */
-@Composable
-private fun CalmHero(remaining: Int, headTop: Dp, streak: Int) {
-    HeroFrame(headTop) {
-        HeroKicker("오늘의 데일리", MintPrimary, streak)
-        Spacer(Modifier.height(12.dp))
-        Text(
-            if (remaining > 0) "할 일 ${remaining}건 남았어요" else "오늘 할 일 끝났어요",
+            h.title,
             fontSize = 27.sp, fontWeight = FontWeight.Bold, color = TextPrimary,
-            letterSpacing = (-0.6).sp,
+            lineHeight = 33.sp, letterSpacing = (-0.7).sp,
         )
-        Spacer(Modifier.height(8.dp))
-        Text(
-            if (remaining > 0) "급한 건 없어요 — 아래에서 하나씩" else "재화도 넉넉하고 출석도 다 했어요",
-            fontSize = 13.sp, color = TextSecondary,
-        )
+        if (h.subtitle.isNotBlank()) {
+            Spacer(Modifier.height(8.dp))
+            Text(h.subtitle, fontSize = 13.sp, color = TextSecondary, lineHeight = 18.sp)
+        }
     }
 }
 
@@ -287,7 +272,11 @@ private fun TaskRow(task: DailyTask, inProgress: Boolean, onCheckIn: () -> Unit)
     ) {
         GlgGameTag(task.gameShort, size = GameTagSize.Small)
         Spacer(Modifier.width(10.dp))
-        Text(task.label, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TextPrimary, modifier = Modifier.weight(1f))
+        Text(
+            task.label, fontSize = 14.sp, fontWeight = FontWeight.Bold,
+            color = if (task.urgent) DangerText else TextPrimary,
+            modifier = Modifier.weight(1f),
+        )
         if (task.detail.isNotBlank()) {
             Text(task.detail, fontSize = 12.sp, color = TextSecondary)
             Spacer(Modifier.width(8.dp))

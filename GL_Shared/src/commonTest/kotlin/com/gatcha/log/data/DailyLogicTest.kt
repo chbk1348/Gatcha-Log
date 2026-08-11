@@ -2,7 +2,6 @@ package com.gatcha.log.data
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /**
@@ -102,19 +101,39 @@ class DailyLogicTest {
     }
 
     @Test
-    fun `급한 게 없으면 히어로도 없다`() {
-        // 안 급한 일을 크게 띄우면, 다음에 진짜 급할 때 그 자리가 안 읽힌다.
-        val t = DailyLogic.tasks(listOf(note(Game.GENSHIN, daily = 1)), allChecked, now)
-        assertTrue(t.isNotEmpty(), "전제: 할 일은 있다")
-        assertNull(DailyLogic.hero(t))
+    fun `히어로 문구는 게임에 치우치지 않는다`() {
+        // 데일리는 3게임을 함께 관리하는 화면이다. 한 게임이 제목을 차지하면 편향돼 보인다.
+        val t = DailyLogic.tasks(listOf(note(Game.GENSHIN, cur = 160, max = 160)), allChecked, now)
+        val h = DailyLogic.headline(t)
+        assertTrue(h.urgent)
+        assertTrue(!h.title.contains("원신"), "제목에 게임명이 들어가면 안 된다: ${h.title}")
+        // 어느 게임의 무엇인지는 부제로만 짧게 — 자세한 건 아래 목록이 맡는다.
+        assertTrue(h.subtitle.contains("원신"))
     }
 
     @Test
-    fun `히어로는 목록의 첫 급한 항목이다`() {
-        val t = DailyLogic.tasks(listOf(note(Game.HSR, cur = 300, max = 300)), allChecked, now)
-        val h = DailyLogic.hero(t)
-        assertEquals(Game.HSR.key, h?.gameKey)
-        assertEquals("재화", h?.kind)
+    fun `급한 게 여럿이면 개수를 말한다`() {
+        val notes = listOf(
+            note(Game.GENSHIN, cur = 160, max = 160),
+            note(Game.HSR, cur = 300, max = 300),
+        )
+        val h = DailyLogic.headline(DailyLogic.tasks(notes, allChecked, now))
+        assertTrue(h.title.contains("2"), h.title)
+    }
+
+    @Test
+    fun `급한 게 없으면 남은 개수를 말한다`() {
+        val t = DailyLogic.tasks(listOf(note(Game.GENSHIN, daily = 1)), allChecked, now)
+        val h = DailyLogic.headline(t)
+        assertTrue(!h.urgent)
+        assertTrue(h.title.contains("${t.size}"), h.title)
+    }
+
+    @Test
+    fun `할 일이 하나도 없으면 끝났다고 말한다`() {
+        val h = DailyLogic.headline(emptyList())
+        assertTrue(!h.urgent)
+        assertEquals("오늘 할 일 끝났어요", h.title)
     }
 
     @Test
