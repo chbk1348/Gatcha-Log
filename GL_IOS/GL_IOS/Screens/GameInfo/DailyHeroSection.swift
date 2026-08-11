@@ -4,36 +4,31 @@ import Shared
 // 데일리 히어로 2.0 — 급한 하나가 지면을 지배하고, 나머지는 아래로.
 // (Compose DailyHeroSection 대응) 판단 규칙은 전부 공유 DailyLogic 에 있다.
 //
-// 1.0 은 "지금 상태가 어떤가"에 답했다 — 게임 셋의 재화·출석을 같은 무게로 늘어놓고,
+// 1.0 은 "지금 상태가 어떤가"에 답했다 — 게임 셋의 행동력·출석을 같은 무게로 늘어놓고,
 // 무엇부터 할지는 사용자가 세 줄을 읽고 판단하게 했다. 2.0 은 판단을 앞으로 당긴다.
 
 struct DailyHeroSection: View {
     var store: SpendingStore
-    var filter: String = "all"
     let onConfig: () -> Void
     var onOpenGameContent: (() -> Void)? = nil
     var onOpenClears: (() -> Void)? = nil
     @Environment(\.glgAccent) private var accent
 
-    private var allTasks: [DailyTask] {
-        DailyLogic.shared.tasks(notes: store.liveNotes, attendanceToday: Set(store.attendanceToday), nowMillis: nowMs())
-    }
     private var tasks: [DailyTask] {
-        filter == "all" ? allTasks : allTasks.filter { $0.gameKey == filter }
+        DailyLogic.shared.tasks(notes: store.liveNotes, attendanceToday: Set(store.attendanceToday), nowMillis: nowMs())
     }
 
     var body: some View {
         if !store.hoyolabConfig.isLinked {
             linkPrompt
         } else {
-            let all = allTasks
             let list = tasks
             let headline = DailyLogic.shared.headline(tasks: list)
-            // 재화는 위 카드가 전담 — 목록에는 일일·주간·출석만, 그것도 게임당 한 줄로 묶는다.
+            // 행동력은 위 카드가 전담 — 목록에는 일일·주간·출석만, 그것도 게임당 한 줄로 묶는다.
             let grouped = DailyLogic.shared.byGame(tasks: list, stats: store.taskStats)
-            // 재화 카드는 **필터와 무관하게 3게임 전부** — 나란히 놓고 비교하는 게 이 카드의 쓸모다.
+            // 행동력 카드는 3게임을 나란히 놓고 비교하는 게 쓸모다 — 게임을 골라 좁히지 않는다.
             let summaries = DailyLogic.shared
-                .summaries(notes: store.liveNotes, attendanceToday: Set(store.attendanceToday), tasks: all)
+                .summaries(notes: store.liveNotes, attendanceToday: Set(store.attendanceToday), tasks: list)
 
             VStack(alignment: .leading, spacing: 0) {
                 headlineHero(headline)
@@ -55,7 +50,7 @@ struct DailyHeroSection: View {
                         }
                     }
                     AttendanceFold(history: store.attendanceHistory,
-                                   pending: all.filter { $0.kind == "출석" }.count,
+                                   pending: list.filter { $0.kind == "출석" }.count,
                                    onCheckInAll: { store.checkInAll() })
                     if let onOpenGameContent {
                         GameContentEntry(onTap: onOpenGameContent, onTapClears: onOpenClears)
@@ -118,12 +113,12 @@ struct DailyHeroSection: View {
         }
     }
 
-    /// 재화 카드 — 3게임을 **한 카드에 나란히**. 세로로 쌓으면 세 덩어리로 읽힌다.
+    /// 행동력 카드 — 3게임을 **한 카드에 나란히**. 세로로 쌓으면 세 덩어리로 읽힌다.
     @ViewBuilder
     private func resinCard(_ items: [DailyGameSummary]) -> some View {
         GLGCard(cornerRadius: 20, padding: 16) {
             VStack(alignment: .leading, spacing: 12) {
-                Text("재화").font(.pretendard(size: 12, weight: .bold))
+                Text("행동력").font(.pretendard(size: 12, weight: .bold))
                     .foregroundStyle(GLGColor.textSecondary)
                 HStack(alignment: .top, spacing: 10) {
                     ForEach(items, id: \.gameKey) { resinCell($0) }
@@ -205,7 +200,7 @@ struct DailyHeroSection: View {
             Text("HoYoLAB 을 연동해 주세요")
                 .font(.pretendard(size: 25, weight: .bold))
                 .foregroundStyle(GLGColor.textPrimary).padding(.top, 12)
-            Text("연동하면 재화·일일 숙제·출석을 한곳에서 볼 수 있어요.")
+            Text("연동하면 행동력·일일 숙제·출석을 한곳에서 볼 수 있어요.")
                 .font(.pretendard(size: 13)).foregroundStyle(GLGColor.textSecondary).padding(.top, 8)
             Button(action: onConfig) {
                 Text("연동하기").font(.pretendard(size: 13, weight: .bold)).foregroundStyle(.white)

@@ -233,7 +233,7 @@ object ScheduledAlerts {
             }
         }
 
-        // ④ 재화(레진·개척력·배터리) 가득참 — 상류가 '남은 초'를 주므로 가득 차는 시각을 정확히 안다.
+        // ④ 행동력(레진·개척력·배터리) 가득참 — 상류가 '남은 초'를 주므로 가득 차는 시각을 정확히 안다.
         //    실시간으로 와야 하는 알림이지만, 시각을 계산할 수 있으니 미리 예약해 앱 실행과 무관하게 보낸다.
         //
         //    **dedup 키를 선점**한다 — 예약이 발송되면 코드가 도는 게 아니라 OS 가 쏘는 것이라
@@ -248,7 +248,7 @@ object ScheduledAlerts {
                 val at = shiftOutOfQuiet(settings, n.resinFullAtMillis)
                 out += ScheduledAlert(
                     key = "resin:$gameKey",
-                    title = "${game?.shortName ?: n.game} 재화 가득참",
+                    title = "${game?.shortName ?: n.game} 행동력 가득참",
                     text = "${n.resinLabel}가 가득 찼어요 (${n.maxResin}/${n.maxResin})",
                     whenMillis = at,
                     dedupTag = "resin:$gameKey",

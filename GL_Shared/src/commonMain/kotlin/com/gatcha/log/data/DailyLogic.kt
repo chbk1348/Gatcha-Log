@@ -5,7 +5,7 @@ import com.gatcha.log.util.currentTimeMillis
 /**
  * 오늘 해야 할 일 한 건.
  *
- * @param kind 정렬·표시 분기용. "재화" | "일일" | "주간" | "출석"
+ * @param kind 정렬·표시 분기용. "행동력" | "일일" | "주간" | "출석"
  * @param label 화면에 그대로 나가는 문구 — "레진 가득참" · "일일 의뢰 3/4"
  * @param dueMillis 마감 시각. **0 이면 마감을 모른다**(리셋 시각 미확정 항목).
  *   0 인 항목에 카운트다운을 그리면 안 된다.
@@ -45,11 +45,11 @@ data class DailyTask(
  * 틀린 걸 알아채지 못한다(방송 역산이 하루 어긋난 채 나갔던 것과 같은 함정).
  * 리셋 시각이 확정되면 [DailyTask.dueMillis] 를 채우고 화면이 카운트다운을 그린다.
  *
- * 재화 넘침만 시각이 정확하다 — 상류가 '남은 초'를 주므로 [LiveNote.resinFullAtMillis] 는 실측값이다.
+ * 행동력 넘침만 시각이 정확하다 — 상류가 '남은 초'를 주므로 [LiveNote.resinFullAtMillis] 는 실측값이다.
  */
 object DailyLogic {
 
-    /** 재화가 이 시간 안에 가득 차면 급한 것으로 본다. */
+    /** 행동력(레진·개척력·배터리)이 이 시간 안에 가득 차면 급한 것으로 본다. */
     const val RESIN_SOON_HOURS = 6
 
     private const val HOUR_MS = 60L * 60 * 1000
@@ -57,7 +57,7 @@ object DailyLogic {
     /**
      * 오늘 할 일 — 급한 순.
      *
-     * 정렬: 급함(urgent) 먼저 → 종류 우선순위(재화 > 일일 > 주간 > 출석) → 게임 정의 순.
+     * 정렬: 급함(urgent) 먼저 → 종류 우선순위(행동력 > 일일 > 주간 > 출석) → 게임 정의 순.
      * 종류 우선순위를 게임보다 앞에 두는 이유는, 사용자가 찾는 게 "어느 게임"이 아니라
      * "무엇을 해야 하나"이기 때문이다.
      */
@@ -70,7 +70,7 @@ object DailyLogic {
         for (game in GameData.attendanceGames) {
             val note = notes.firstOrNull { GameData.byNameOrNull(it.game)?.key == game.key }
 
-            // ① 재화 — 유일하게 시각이 정확한 항목
+            // ① 행동력 — 유일하게 시각이 정확한 항목
             if (note != null && note.maxResin > 0) {
                 val full = note.currentResin >= note.maxResin
                 val fullAt = note.resinFullAtMillis
@@ -80,7 +80,7 @@ object DailyLogic {
                         gameKey = game.key,
                         gameShort = game.shortName,
                         colorArgb = game.color,
-                        kind = "재화",
+                        kind = "행동력",
                         label = if (full) "${note.resinLabel} 가득참" else "${note.resinLabel} 곧 가득",
                         detail = "${note.currentResin}/${note.maxResin}",
                         dueMillis = if (full) 0L else fullAt,
@@ -125,7 +125,7 @@ object DailyLogic {
                 )
             }
         }
-        val kindOrder = listOf("재화", "일일", "주간", "출석")
+        val kindOrder = listOf("행동력", "일일", "주간", "출석")
         val gameOrder = GameData.attendanceGames.map { it.key }
         return out.sortedWith(
             compareBy(
@@ -161,7 +161,7 @@ object DailyLogic {
             )
             else -> DailyHeadline(
                 title = "오늘 할 일 끝났어요",
-                subtitle = "재화도 넉넉하고 출석도 다 했어요",
+                subtitle = "행동력도 넉넉하고 출석도 다 했어요",
                 urgent = false,
             )
         }
@@ -174,11 +174,11 @@ object DailyLogic {
      * 항목을 낱개로 늘어놓으면 3게임 × 최대 4종이라 목록이 금세 열 줄을 넘는다.
      * 게임당 한 줄로 묶으면 세 줄로 끝나고, 어느 게임에 뭐가 남았는지가 한눈에 들어온다.
      *
-     * **재화는 뺀다.** 재화 카드가 이미 3게임을 나란히 보여주고 있어 목록에 또 쓰면 중복이다.
+     * **행동력은 뺀다.** 행동력 카드가 이미 3게임을 나란히 보여주고 있어 목록에 또 쓰면 중복이다.
      * 넘침 경고도 그 카드가 색으로 한다.
      */
     fun byGame(tasks: List<DailyTask>, stats: List<TaskStats> = emptyList()): List<DailyGameTasks> {
-        val kept = tasks.filter { it.kind != "재화" }
+        val kept = tasks.filter { it.kind != "행동력" }
         return GameData.attendanceGames.mapNotNull { game ->
             val mine = kept.filter { it.gameKey == game.key }
             if (mine.isEmpty()) return@mapNotNull null
@@ -200,7 +200,7 @@ object DailyLogic {
     }
 
     /**
-     * 게임별 한 줄 요약 — 재화 카드용.
+     * 게임별 한 줄 요약 — 행동력 카드용.
      *
      * 할 일이 없는 게임도 한 줄은 남긴다(빠지면 "왜 없지?"를 확인하러 들어가야 한다).
      * 대신 문구를 짧게 줄여 무게를 낮춘다.
@@ -254,14 +254,14 @@ data class DailyHeadline(
     val urgent: Boolean,
 )
 
-/** 게임 하나의 오늘 상태 — 재화 카드 한 칸. */
+/** 게임 하나의 오늘 상태 — 행동력 카드 한 칸. */
 data class DailyGameSummary(
     val gameKey: String,
     val gameShort: String,
     val colorArgb: Long,
-    /** "레진 152/160" — 재화명 포함. */
+    /** "레진 152/160" — 행동력 이름 포함. */
     val resin: String,
-    /** "152/160" — 재화명 없이 숫자만(칸이 좁은 카드용). */
+    /** "152/160" — 이름 없이 숫자만(칸이 좁은 카드용). */
     val resinValue: String,
     /** 상류가 주는 회복 안내("14시간 30분 후" 등). 없으면 빈 문자열. */
     val resinRecovery: String,

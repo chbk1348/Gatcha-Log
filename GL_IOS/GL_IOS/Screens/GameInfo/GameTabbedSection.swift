@@ -1,22 +1,20 @@
 import SwiftUI
 import Shared
 
-// 통합 게임 탭 — 선택 게임의 전투 진행도·수입 일지. (픽업 배너는 상단 '게임 일정'으로 통합돼 여기선 제외)
+// 통합 게임 탭 — 3게임의 전투 진행도·수입 일지. (픽업 배너는 상단 '게임 일정'으로 통합돼 여기선 제외)
 struct GameTabbedSection: View {
     var store: SpendingStore
-    var filter: String = "all"   // 상단 게임 세그먼트 선택값 — 자체 칩 제거, 이 값으로 노출 게임 결정
     @Environment(\.glgAccent) private var accent
 
     private var games: [Game] { GLGGames.attendance }
-    private var shownGames: [Game] { filter == "all" ? games : games.filter { $0.key == filter } }
 
     var body: some View {
         // 같은 카드 섹션끼리 묶기 — 게임별이 아니라 섹션 타입(배너/전투/일지)별로 그룹화.
         // 각 카드가 자체 게임 헤더를 가지므로 전체 보기에서 게임 구분이 유지된다.
-        let combatGames = shownGames.compactMap { g -> (Game, [CombatMode])? in
+        let combatGames = games.compactMap { g -> (Game, [CombatMode])? in
             let c = store.combat.filter { $0.game == g.displayName }; return c.isEmpty ? nil : (g, c)
         }
-        let ledgers = shownGames.compactMap { g in store.ledgers.first { $0.game == g.displayName } }
+        let ledgers = games.compactMap { g in store.ledgers.first { $0.game == g.displayName } }
         let allEmpty = combatGames.isEmpty && ledgers.isEmpty
         let linked = store.hoyolabConfig.isLinked
         return VStack(alignment: .leading, spacing: 20) {
