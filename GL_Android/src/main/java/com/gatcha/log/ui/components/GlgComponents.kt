@@ -211,21 +211,31 @@ fun GlgButton(
  * 미묘하게 크기가 달라 보였다. **색은 고스트 톤 그대로** 유지한다(강조색 버튼과 역할이 다르다).
  */
 @Composable
-fun GlgBackButton(onClick: () -> Unit, modifier: Modifier = Modifier, size: Dp = 44.dp) {
+fun GlgBackButton(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    size: Dp = 44.dp,
+    /** 색이 깔린 헤더(지출 상세 히어로 등) 위에 올릴 때만 지정. null 이면 기본 흰 버튼. */
+    tint: Color? = null,
+    background: Color? = null,
+) {
     Box(
         modifier = modifier
             .size(size)
             .clip(CircleShape)
-            .background(Color.White)
-            .background(Color(0xFFF2F2F6))
-            .border(1.5.dp, GhostBorder, CircleShape)
+            .then(
+                if (background != null) Modifier.background(background)
+                // 기본: 흰 베이스 위 연회색 + 테두리. 흰 배경 화면에서 버튼이 면으로 읽히게 한다.
+                else Modifier.background(Color.White).background(Color(0xFFF2F2F6))
+                    .border(1.5.dp, GhostBorder, CircleShape),
+            )
             .clickable { onClick() },
         contentAlignment = Alignment.Center,
     ) {
         Icon(
             Icons.AutoMirrored.Filled.ArrowBack,
             contentDescription = "뒤로",
-            tint = GhostText,
+            tint = tint ?: GhostText,
             modifier = Modifier.size(20.dp),
         )
     }
@@ -244,6 +254,8 @@ fun GlgScreenHeader(
     title: String,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
+    buttonTint: Color? = null,
+    buttonBackground: Color? = null,
     actions: @Composable RowScope.() -> Unit = {},
 ) {
     Row(
@@ -251,7 +263,7 @@ fun GlgScreenHeader(
         modifier = modifier.fillMaxWidth().statusBarsPadding().padding(top = 12.dp, bottom = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        GlgBackButton(onBack)
+        GlgBackButton(onBack, tint = buttonTint, background = buttonBackground)
         Spacer(Modifier.width(GlgHeaderItemGap))
         // 제목 영역이 **남은 폭을 전부** 차지하고, 그 안에서 알약은 글자 길이만큼만 커진다.
         //
@@ -425,6 +437,9 @@ fun BoxScope.GlgDetailHeaderOverlay(
     title: String,
     onBack: () -> Unit,
     scrolled: Boolean,
+    /** 색이 깔린 헤더 위일 때 뒤로가기 버튼이 받을 색. null 이면 기본 흰 버튼. */
+    buttonTint: Color? = null,
+    buttonBackground: Color? = null,
     actions: @Composable RowScope.() -> Unit = {},
 ) {
     val topInset = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
@@ -451,6 +466,8 @@ fun BoxScope.GlgDetailHeaderOverlay(
         title = title,
         onBack = onBack,
         modifier = Modifier.align(Alignment.TopStart).padding(horizontal = 16.dp),
+        buttonTint = buttonTint,
+        buttonBackground = buttonBackground,
         actions = actions,
     )
 }
@@ -475,10 +492,15 @@ fun BoxScope.GlgDetailHeaderOverlay(
     title: String,
     onBack: () -> Unit,
     scrollState: ScrollState,
+    buttonTint: Color? = null,
+    buttonBackground: Color? = null,
     actions: @Composable RowScope.() -> Unit = {},
 ) {
     val scrolled by remember(scrollState) { derivedStateOf { scrollState.value > 0 } }
-    GlgDetailHeaderOverlay(title = title, onBack = onBack, scrolled = scrolled, actions = actions)
+    GlgDetailHeaderOverlay(
+        title = title, onBack = onBack, scrolled = scrolled,
+        buttonTint = buttonTint, buttonBackground = buttonBackground, actions = actions,
+    )
 }
 
 /**
@@ -717,24 +739,37 @@ fun GlgCircleIconButton(
     outlined: Boolean = false,
     /** true 면 불투명 배경(흰색 베이스 + accent 틴트) — 아래 콘텐츠가 비치지 않게(홈 헤더 오버레이용) */
     solidBackground: Boolean = false,
+    /**
+     * 색이 깔린 헤더 위에 올릴 때만 지정한다(지출 상세 히어로 등). null 이면 강조색 기본 버튼.
+     *
+     * 강조색 아이콘 + 흰 원은 흰 배경에서는 자연스럽지만, 파스텔 히어로 위에 얹으면
+     * 버튼만 다른 화면에서 떼어 붙인 것처럼 뜬다 — 그때는 히어로의 글자색·면색을 그대로 받는다.
+     */
+    tint: Color? = null,
+    background: Color? = null,
     onClick: () -> Unit,
 ) {
     val accent = LocalAccent.current
+    val fg = tint ?: accent
     Box(modifier) {
         Box(
             modifier = Modifier
                 .size(size)
                 .clip(CircleShape)
-                .then(if (solidBackground) Modifier.background(Color.White) else Modifier)
-                .background(accent.copy(alpha = 0.10f))
-                .then(if (outlined) Modifier.border(1.5.dp, accent.copy(alpha = 0.30f), CircleShape) else Modifier)
+                .then(
+                    if (background != null) Modifier.background(background)
+                    else Modifier
+                        .then(if (solidBackground) Modifier.background(Color.White) else Modifier)
+                        .background(accent.copy(alpha = 0.10f))
+                        .then(if (outlined) Modifier.border(1.5.dp, accent.copy(alpha = 0.30f), CircleShape) else Modifier),
+                )
                 .then(if (enabled) Modifier.clickable { onClick() } else Modifier),
             contentAlignment = Alignment.Center,
         ) {
             if (loading) {
-                CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp, color = accent)
+                CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp, color = fg)
             } else {
-                Icon(icon, contentDescription = contentDescription, tint = accent, modifier = Modifier.size(20.dp))
+                Icon(icon, contentDescription = contentDescription, tint = fg, modifier = Modifier.size(20.dp))
             }
         }
         if (badgeCount > 0) {

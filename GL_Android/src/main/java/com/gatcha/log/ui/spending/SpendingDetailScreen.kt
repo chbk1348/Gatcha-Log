@@ -133,10 +133,25 @@ fun SpendingDetailScreen(
         }
         // 제목은 비운다 — 히어로의 게임명·금액이 어느 화면인지 말해 준다(iOS 와 동일).
         // 알약을 띄우면 파스텔 위에 흰 알약이 하나 더 얹혀 상단이 어수선해진다.
-        GlgDetailHeaderOverlay("", onBack, scrolled = pastHero) {
+        //
+        // 히어로 위에서는 버튼도 히어로의 색을 받는다. 강조색 아이콘 + 흰 원을 그대로 두면
+        // 파스텔 면 위에 버튼만 다른 화면에서 떼어 온 것처럼 떠 보인다.
+        // 면색은 히어로의 사실 박스와 같은 값(흰색 55%)이라 같은 층으로 읽힌다.
+        // 히어로를 벗어나면 null 을 넘겨 기본(흰 배경 위) 버튼으로 돌아간다. 그 순간은 헤더
+        // 스크림이 함께 떠오르므로 색이 튀어 보이지 않는다 — 별도 색 보간을 두지 않았다.
+        val heroTint = if (pastHero) null else lerp(spending.gameColor.toColor(), Color.Black, 0.62f)
+        val heroBg = if (pastHero) null else Color.White.copy(alpha = 0.55f)
+        GlgDetailHeaderOverlay(
+            "", onBack, scrolled = pastHero,
+            buttonTint = heroTint, buttonBackground = heroBg,
+        ) {
             var menuOpen by remember { mutableStateOf(false) }
             Box {
-                GlgCircleIconButton(Icons.Default.MoreVert, "더보기", outlined = true, solidBackground = true) { menuOpen = true }
+                GlgCircleIconButton(
+                    Icons.Default.MoreVert, "더보기",
+                    outlined = true, solidBackground = true,
+                    tint = heroTint, background = heroBg,
+                ) { menuOpen = true }
                 GlgDropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }, alignEnd = true) {
                     GlgDropdownItem(text = "수정", icon = Icons.Default.Edit, onClick = { menuOpen = false; onEdit() })
                     GlgDropdownItem(
