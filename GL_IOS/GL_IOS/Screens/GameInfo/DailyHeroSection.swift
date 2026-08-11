@@ -7,9 +7,6 @@ import Shared
 // 1.0 은 "지금 상태가 어떤가"에 답했다 — 게임 셋의 재화·출석을 같은 무게로 늘어놓고,
 // 무엇부터 할지는 사용자가 세 줄을 읽고 판단하게 했다. 2.0 은 판단을 앞으로 당긴다.
 
-/// 히어로 안쪽 좌우 여백 — 섹션(16)보다 4 더 들여 글자가 안쪽에서 시작한다.
-private let heroPadH: CGFloat = 20
-
 struct DailyHeroSection: View {
     var store: SpendingStore
     var filter: String = "all"
@@ -33,11 +30,15 @@ struct DailyHeroSection: View {
             let list = tasks
             let hero = DailyLogic.shared.hero(tasks: list)
             let rest = list.filter { $0 !== hero }
+            // 재화 카드는 **필터와 무관하게 3게임 전부** — 나란히 놓고 비교하는 게 이 카드의 쓸모다.
+            let summaries = DailyLogic.shared
+                .summaries(notes: store.liveNotes, attendanceToday: Set(store.attendanceToday), tasks: all)
 
             VStack(alignment: .leading, spacing: 0) {
                 if let hero { urgentHero(hero) } else { calmHero(list.count) }
 
                 VStack(alignment: .leading, spacing: 12) {
+                    resinCard(summaries)
                     if !rest.isEmpty {
                         GLGCard(cornerRadius: 20, padding: 16) {
                             VStack(alignment: .leading, spacing: 0) {
@@ -60,87 +61,112 @@ struct DailyHeroSection: View {
                     }
                 }
                 .padding(.horizontal, 16)
-                .padding(.top, 16)
             }
         }
     }
 
-    // ── 히어로 ──
+    // ── 히어로 — 색면을 쓰지 않는다 ──
+    //
+    // 지출 상세 히어로가 게임색 파스텔을 상태바까지 깔아 지면을 지배하는 형태인데,
+    // 데일리까지 같은 판을 쓰면 두 화면이 구분되지 않는다. 여기는 글자와 여백만으로 세운다 —
+    // 색면이 없으니 아래 흰 카드와 층이 겹치지 않아 화면도 가벼워진다.
 
-    /// 급한 일이 있을 때 — 그 게임 색을 파스텔로 깔고 문장 하나를 크게.
-    /// 지출 상세 히어로와 같은 방식이다(원색을 그대로 쓰면 아래 흰 카드와 대비가 세서 배너처럼 읽힌다).
     @ViewBuilder
     private func urgentHero(_ t: DailyTask) -> some View {
-        let base = Color(argb64: t.colorArgb)
-        let ink = base.mix(with: .black, by: 0.62)
-        VStack(alignment: .leading, spacing: 0) {
-            heroTopLine(title: t.gameShort, badge: "지금", ink: ink)
+        heroFrame {
+            heroKicker("\(t.gameShort) · 지금", Color(argb64: t.colorArgb))
             Text(t.label)
-                .font(.pretendard(size: 26, weight: .bold))
+                .font(.pretendard(size: 30, weight: .bold))
                 .foregroundStyle(GLGColor.textPrimary)
-                .padding(.top, 10)
+                .tracking(-0.8)
+                .padding(.top, 12)
             if !t.detail.isEmpty {
-                Text(t.detail)
-                    .font(.pretendard(size: 12.5))
-                    .foregroundStyle(ink.opacity(0.72))
-                    .padding(.top, 6)
+                Text(t.detail).font(.pretendard(size: 13))
+                    .foregroundStyle(GLGColor.textSecondary).padding(.top, 8)
             }
         }
-        .padding(.horizontal, heroPadH)
-        .padding(.top, 8).padding(.bottom, 22)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(heroBackground(base))
     }
 
-    /// 급한 일이 없을 때 — 같은 자리, 낮은 목소리. 브랜드 민트로 "오늘 전체"를 말한다.
+    /// 급한 일이 없을 때 — 같은 자리, 낮은 목소리. 막대는 브랜드 민트.
     @ViewBuilder
     private func calmHero(_ remaining: Int) -> some View {
-        let base = accent.primary
-        let ink = base.mix(with: .black, by: 0.62)
-        VStack(alignment: .leading, spacing: 0) {
-            heroTopLine(title: "오늘의 데일리", badge: nil, ink: ink)
+        heroFrame {
+            heroKicker("오늘의 데일리", accent.primary)
             Text(remaining > 0 ? "할 일 \(remaining)건 남았어요" : "오늘 할 일 끝났어요")
-                .font(.pretendard(size: 24, weight: .bold))
+                .font(.pretendard(size: 27, weight: .bold))
                 .foregroundStyle(GLGColor.textPrimary)
-                .padding(.top, 10)
+                .tracking(-0.6)
+                .padding(.top, 12)
             Text(remaining > 0 ? "급한 건 없어요 — 아래에서 하나씩" : "재화도 넉넉하고 출석도 다 했어요")
-                .font(.pretendard(size: 12.5))
-                .foregroundStyle(ink.opacity(0.72))
-                .padding(.top, 6)
+                .font(.pretendard(size: 13))
+                .foregroundStyle(GLGColor.textSecondary).padding(.top, 8)
         }
-        .padding(.horizontal, heroPadH)
-        .padding(.top, 8).padding(.bottom, 22)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(heroBackground(base, light: true))
     }
 
-    private func heroBackground(_ base: Color, light: Bool = false) -> some View {
-        UnevenRoundedRectangle(bottomLeadingRadius: 28, bottomTrailingRadius: 28, style: .continuous)
-            .fill(LinearGradient(
-                colors: [base.mix(with: .white, by: light ? 0.86 : 0.80),
-                         base.mix(with: .white, by: light ? 0.74 : 0.66)],
-                startPoint: .topLeading, endPoint: .bottomTrailing))
-            // 위로 크게 빼서 스크롤 바운스 때 흰 배경이 비치지 않게 한다(지출 상세와 같은 처리).
-            .padding(.top, -800)
-    }
-
+    /// 히어로 공통 틀 — 배경 없음. 좌우는 섹션과 같은 16.
     @ViewBuilder
-    private func heroTopLine(title: String, badge: String?, ink: Color) -> some View {
-        HStack(spacing: 7) {
-            Text(title).font(.pretendard(size: 13, weight: .bold)).foregroundStyle(ink)
-            if let badge {
-                Text(badge)
-                    .font(.pretendard(size: 10, weight: .bold)).foregroundStyle(ink)
-                    .padding(.horizontal, 8).padding(.vertical, 2.5)
-                    .background(Color.white.opacity(0.75), in: Capsule())
-            }
+    private func heroFrame<C: View>(@ViewBuilder _ content: () -> C) -> some View {
+        VStack(alignment: .leading, spacing: 0) { content() }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 16)
+            .padding(.top, 8).padding(.bottom, 22)
+    }
+
+    /// 히어로 첫 줄 — 짧은 색 막대 + 무엇에 대한 이야기인가 + 연속 기록.
+    @ViewBuilder
+    private func heroKicker(_ title: String, _ color: Color) -> some View {
+        HStack(spacing: 8) {
+            Capsule().fill(color).frame(width: 18, height: 3)
+            Text(title).font(.pretendard(size: 12.5, weight: .bold)).foregroundStyle(color)
             Spacer(minLength: 8)
             if store.attendanceStreak > 0 {
                 Text("연속 \(store.attendanceStreak)일")
                     .font(.pretendard(size: 11, weight: .bold))
-                    .foregroundStyle(ink.opacity(0.55))
+                    .foregroundStyle(GLGColor.textSecondary)
             }
         }
+    }
+
+    /// 재화 카드 — 3게임을 **한 카드에 나란히**. 세로로 쌓으면 세 덩어리로 읽힌다.
+    @ViewBuilder
+    private func resinCard(_ items: [DailyGameSummary]) -> some View {
+        GLGCard(cornerRadius: 20, padding: 16) {
+            VStack(alignment: .leading, spacing: 12) {
+                Text("재화").font(.pretendard(size: 12, weight: .bold))
+                    .foregroundStyle(GLGColor.textSecondary)
+                HStack(alignment: .top, spacing: 10) {
+                    ForEach(items, id: \.gameKey) { resinCell($0) }
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func resinCell(_ s: DailyGameSummary) -> some View {
+        let color = Color(argb64: s.colorArgb)
+        VStack(alignment: .leading, spacing: 0) {
+            Text(s.gameShort).font(.pretendard(size: 11, weight: .bold))
+                .foregroundStyle(color).lineLimit(1)
+            Text(s.hasNote ? s.resinValue : "—")
+                .font(.pretendard(size: 14, weight: .bold))
+                .foregroundStyle(s.hasNote ? (s.resinFull ? Color(hex: 0xFFD0021B) : GLGColor.textPrimary)
+                                           : GLGColor.textSecondary)
+                .lineLimit(1).padding(.top, 5)
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    Capsule().fill(Color(hex: 0xFFE0E0E0))
+                    if s.hasNote {
+                        Capsule().fill(s.resinFull ? Color(hex: 0xFFD0021B) : color)
+                            .frame(width: max(0, min(1, Double(s.resinRatio))) * geo.size.width)
+                    }
+                }
+            }
+            .frame(height: 4).padding(.top, 7)
+            Text(s.hasNote ? (s.resinFull ? "가득" : (s.resinRecovery.isEmpty ? "—" : s.resinRecovery)) : "노트 없음")
+                .font(.pretendard(size: 10.5)).foregroundStyle(GLGColor.textSecondary)
+                .lineLimit(1).padding(.top, 6)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     // ── 목록 ──
@@ -174,15 +200,13 @@ struct DailyHeroSection: View {
 
     // ── 미연동 안내 — 좌측 정렬(중앙정렬 4단 스택은 빈 상태의 기본 슬롭이다) ──
     private var linkPrompt: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Text("오늘의 데일리")
-                .font(.pretendard(size: 13, weight: .bold))
-                .foregroundStyle(accent.primary.mix(with: .black, by: 0.62))
+        heroFrame {
+            heroKicker("오늘의 데일리", accent.primary)
             Text("HoYoLAB 을 연동해 주세요")
-                .font(.pretendard(size: 22, weight: .bold))
-                .foregroundStyle(GLGColor.textPrimary).padding(.top, 10)
+                .font(.pretendard(size: 25, weight: .bold))
+                .foregroundStyle(GLGColor.textPrimary).padding(.top, 12)
             Text("연동하면 재화·일일 숙제·출석을 한곳에서 볼 수 있어요.")
-                .font(.pretendard(size: 12.5)).foregroundStyle(GLGColor.textSecondary).padding(.top, 6)
+                .font(.pretendard(size: 13)).foregroundStyle(GLGColor.textSecondary).padding(.top, 8)
             Button(action: onConfig) {
                 Text("연동하기").font(.pretendard(size: 13, weight: .bold)).foregroundStyle(.white)
                     .padding(.horizontal, 18).padding(.vertical, 11)
@@ -191,10 +215,6 @@ struct DailyHeroSection: View {
             .buttonStyle(.plain)
             .padding(.top, 16)
         }
-        .padding(.horizontal, heroPadH)
-        .padding(.top, 8).padding(.bottom, 24)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(heroBackground(accent.primary, light: true))
     }
 }
 
