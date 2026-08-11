@@ -22,12 +22,14 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.gatcha.log.data.DailyGameSummary
+import com.gatcha.log.data.DailyGameTasks
 import com.gatcha.log.data.DailyHeadline
 import com.gatcha.log.data.DailyLogic
 import com.gatcha.log.data.DailyTask
@@ -38,6 +40,7 @@ import com.gatcha.log.data.GameData
 import com.gatcha.log.data.HoyolabConfig
 import com.gatcha.log.data.LiveNote
 import com.gatcha.log.data.NoteStat
+import com.gatcha.log.data.TaskStats
 import com.gatcha.log.ui.components.GameTagSize
 import com.gatcha.log.ui.components.GlgGameTag
 import com.gatcha.log.ui.components.GlassCard
@@ -71,6 +74,8 @@ internal fun DailyHeroSection(
     hoyolab: HoyolabConfig,
     checkingIn: String?,
     streak: Int,
+    /** 숙제 완주율 — 게임 줄 우측에 함께 보여준다(별도 섹션 폐기). */
+    taskStats: List<TaskStats>,
     filter: String = "all",
     onCheckIn: (String) -> Unit,
     onCheckInAll: () -> Unit,
@@ -91,6 +96,8 @@ internal fun DailyHeroSection(
     val all = remember(notes, attendanceToday) { DailyLogic.tasks(notes, attendanceToday) }
     val tasks = remember(all, filter) { if (filter == "all") all else all.filter { it.gameKey == filter } }
     val headline = remember(tasks) { DailyLogic.headline(tasks) }
+    // 재화는 위 카드가 전담한다 — 목록에는 일일·주간·출석만, 그것도 게임당 한 줄로 묶는다.
+    val grouped = remember(tasks, taskStats) { DailyLogic.byGame(tasks, taskStats) }
     // 재화 카드는 **필터와 무관하게 3게임 전부** 보여준다 — 나란히 놓고 비교하는 게 이 카드의 쓸모다.
     val summaries = remember(notes, attendanceToday, all) { DailyLogic.summaries(notes, attendanceToday, all) }
 
@@ -100,7 +107,7 @@ internal fun DailyHeroSection(
         Column(Modifier.padding(horizontal = 16.dp)) {
             ResinCard(summaries)
             Spacer(Modifier.height(12.dp))
-            if (tasks.isNotEmpty()) {
+            if (grouped.isNotEmpty()) {
                 GlassCard(shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth()) {
                     Column(Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
                         Text(
@@ -108,10 +115,9 @@ internal fun DailyHeroSection(
                             fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextSecondary,
                             modifier = Modifier.padding(top = 10.dp, bottom = 2.dp),
                         )
-                        // 급한 항목은 목록 맨 위에 오고(정렬은 DailyLogic 이 한다) 색으로 표시된다.
-                        tasks.forEachIndexed { i, t ->
+                        grouped.forEachIndexed { i, g ->
                             if (i > 0) HorizontalDivider(color = DividerColor)
-                            TaskRow(t, inProgress = checkingIn == t.gameKey) { onCheckIn(t.gameKey) }
+                            GameTaskRow(g, inProgress = checkingIn == g.gameKey) { onCheckIn(g.gameKey) }
                         }
                     }
                 }
@@ -262,32 +268,42 @@ private fun ResinCell(s: DailyGameSummary, modifier: Modifier = Modifier) {
 }
 
 
-/** 할 일 한 줄 — 앱이 대신 할 수 있는 것(출석)에만 버튼이 붙는다. */
+/**
+ * 게임 하나의 남은 할 일 — 한 줄.
+ *
+ * 낱개로 늘어놓으면 3게임 × 최대 4종이라 목록이 금세 열 줄을 넘는다. 게임당 한 줄로
+ * 묶으면 세 줄로 끝나고, 어느 게임에 뭐가 남았는지가 한눈에 들어온다.
+ */
 @Composable
-private fun TaskRow(task: DailyTask, inProgress: Boolean, onCheckIn: () -> Unit) {
+private fun GameTaskRow(g: DailyGameTasks, inProgress: Boolean, onCheckIn: () -> Unit) {
     val accent = LocalAccent.current
     Row(
-        Modifier.fillMaxWidth().padding(vertical = 12.dp),
+        Modifier.fillMaxWidth().padding(vertical = 13.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        GlgGameTag(task.gameShort, size = GameTagSize.Small)
+        Box(Modifier.width(3.dp).height(16.dp).clip(CircleShape).background(g.colorArgb.toColor()))
+        Spacer(Modifier.width(10.dp))
+        Text(g.gameShort, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
         Spacer(Modifier.width(10.dp))
         Text(
-            task.label, fontSize = 14.sp, fontWeight = FontWeight.Bold,
-            color = if (task.urgent) DangerText else TextPrimary,
-            modifier = Modifier.weight(1f),
+            g.summary, fontSize = 12.5.sp, color = TextSecondary,
+            maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f),
         )
-        if (task.detail.isNotBlank()) {
-            Text(task.detail, fontSize = 12.sp, color = TextSecondary)
+        // 완주율 — 기록이 없으면(-1) 아예 안 쓴다. 근거 없는 퍼센트를 띄우지 않는다.
+        if (g.rate >= 0) {
             Spacer(Modifier.width(8.dp))
+            Text("${g.rate}%", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextSecondary)
         }
-        when {
-            !task.actionable -> Unit
-            inProgress -> CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp, color = accent)
-            else -> Box(
-                Modifier.clip(RoundedCornerShape(9.dp)).background(accent.copy(alpha = 0.14f))
-                    .clickable { onCheckIn() }.padding(horizontal = 14.dp, vertical = 7.dp),
-            ) { Text("출석", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = accent) }
+        if (g.canCheckIn) {
+            Spacer(Modifier.width(8.dp))
+            if (inProgress) {
+                CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp, color = accent)
+            } else {
+                Box(
+                    Modifier.clip(RoundedCornerShape(9.dp)).background(accent.copy(alpha = 0.14f))
+                        .clickable { onCheckIn() }.padding(horizontal = 14.dp, vertical = 7.dp),
+                ) { Text("출석", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = accent) }
+            }
         }
     }
 }

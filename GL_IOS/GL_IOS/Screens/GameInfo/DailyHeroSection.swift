@@ -29,6 +29,8 @@ struct DailyHeroSection: View {
             let all = allTasks
             let list = tasks
             let headline = DailyLogic.shared.headline(tasks: list)
+            // 재화는 위 카드가 전담 — 목록에는 일일·주간·출석만, 그것도 게임당 한 줄로 묶는다.
+            let grouped = DailyLogic.shared.byGame(tasks: list, stats: store.taskStats)
             // 재화 카드는 **필터와 무관하게 3게임 전부** — 나란히 놓고 비교하는 게 이 카드의 쓸모다.
             let summaries = DailyLogic.shared
                 .summaries(notes: store.liveNotes, attendanceToday: Set(store.attendanceToday), tasks: all)
@@ -38,17 +40,16 @@ struct DailyHeroSection: View {
 
                 VStack(alignment: .leading, spacing: 12) {
                     resinCard(summaries)
-                    if !list.isEmpty {
+                    if !grouped.isEmpty {
                         GLGCard(cornerRadius: 20, padding: 16) {
                             VStack(alignment: .leading, spacing: 0) {
                                 Text("오늘 할 일")
                                     .font(.pretendard(size: 12, weight: .bold))
                                     .foregroundStyle(GLGColor.textSecondary)
                                     .padding(.bottom, 4)
-                                // 급한 항목은 목록 맨 위에 오고(정렬은 DailyLogic) 색으로 표시된다.
-                                ForEach(Array(list.enumerated()), id: \.offset) { i, t in
+                                ForEach(Array(grouped.enumerated()), id: \.offset) { i, g in
                                     if i > 0 { Divider() }
-                                    taskRow(t)
+                                    gameTaskRow(g)
                                 }
                             }
                         }
@@ -161,22 +162,30 @@ struct DailyHeroSection: View {
 
     // ── 목록 ──
 
-    /// 할 일 한 줄 — 앱이 대신 할 수 있는 것(출석)에만 버튼이 붙는다.
+    /// 게임 하나의 남은 할 일 — 한 줄.
+    ///
+    /// 낱개로 늘어놓으면 3게임 × 최대 4종이라 목록이 금세 열 줄을 넘는다.
+    /// 게임당 한 줄로 묶으면 세 줄로 끝난다.
     @ViewBuilder
-    private func taskRow(_ t: DailyTask) -> some View {
+    private func gameTaskRow(_ g: DailyGameTasks) -> some View {
         HStack(spacing: 10) {
-            GLGGameTag(game: t.gameShort, size: .small)
-            Text(t.label).font(.pretendard(size: 14, weight: .bold))
-                .foregroundStyle(t.urgent ? Color(hex: 0xFFD0021B) : GLGColor.textPrimary)
+            Capsule().fill(Color(argb64: g.colorArgb)).frame(width: 3, height: 16)
+            Text(g.gameShort).font(.pretendard(size: 13, weight: .bold))
+                .foregroundStyle(GLGColor.textPrimary)
+            Text(g.summary).font(.pretendard(size: 12.5))
+                .foregroundStyle(GLGColor.textSecondary)
+                .lineLimit(1)
                 .frame(maxWidth: .infinity, alignment: .leading)
-            if !t.detail.isEmpty {
-                Text(t.detail).font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary)
+            // 완주율 — 기록이 없으면(-1) 아예 안 쓴다. 근거 없는 퍼센트를 띄우지 않는다.
+            if g.rate >= 0 {
+                Text("\(g.rate)%").font(.pretendard(size: 12, weight: .bold))
+                    .foregroundStyle(GLGColor.textSecondary)
             }
-            if t.actionable {
-                if store.checkingIn == t.gameKey {
+            if g.canCheckIn {
+                if store.checkingIn == g.gameKey {
                     ProgressView().controlSize(.small)
                 } else {
-                    Button { store.attemptCheckIn(t.gameKey) } label: {
+                    Button { store.attemptCheckIn(g.gameKey) } label: {
                         Text("출석").font(.pretendard(size: 11.5, weight: .bold))
                             .foregroundStyle(accent.primary)
                             .padding(.horizontal, 14).padding(.vertical, 7)
@@ -186,7 +195,7 @@ struct DailyHeroSection: View {
                 }
             }
         }
-        .padding(.vertical, 12)
+        .padding(.vertical, 13)
     }
 
     // ── 미연동 안내 — 좌측 정렬(중앙정렬 4단 스택은 빈 상태의 기본 슬롭이다) ──
