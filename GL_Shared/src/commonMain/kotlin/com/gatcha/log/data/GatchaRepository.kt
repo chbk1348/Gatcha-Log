@@ -326,6 +326,26 @@ class GatchaRepository(
     }
 
     /**
+     * 이미 본 신규 콘텐츠 키("gameKey:id").
+     *
+     * **로컬 전용** — 클라우드에 올리지 않는다([changed] 를 부르지 않는 이유). '이 기기에서 봤나'는
+     * 기기마다 다른 게 자연스럽고, 스냅샷에 섞으면 폰에서 본 것이 태블릿의 점까지 끈다.
+     */
+    fun loadSeenNewContent(): Set<String> {
+        val raw = prefs.getString(KEY_SEEN_NEW_CONTENT, null) ?: return emptySet()
+        return runCatching {
+            val arr = JSONArray(raw)
+            (0 until arr.length()).map { arr.getString(it) }.toSet()
+        }.getOrDefault(emptySet())
+    }
+
+    /** 상한 400 — 버전이 쌓여도 무한정 늘지 않게 오래된 것부터 버린다(집합이라 순서는 삽입 순). */
+    fun saveSeenNewContent(keys: Set<String>) {
+        val capped = if (keys.size <= 400) keys else keys.toList().takeLast(400).toSet()
+        prefs.putString(KEY_SEEN_NEW_CONTENT, JSONArray(capped.toList()).toString())
+    }
+
+    /**
      * 삭제된 지출 id(tombstone). 지출은 import 시 id 합집합으로 병합하므로(구/스테일 스냅샷이 최신 항목을
      * 지우지 못하게), 실제 삭제는 이 tombstone 으로만 전파한다. 단조 누적, 상한 2000(오래된 것부터 폐기).
      */
@@ -894,6 +914,8 @@ class GatchaRepository(
         const val KEY_PITY = "pity"
         const val KEY_EVENT_CHECKS = "event_checks"
         const val KEY_REDEEMED = "redeemed_codes"
+        /** 이미 본 신규 콘텐츠 키 — 로컬 전용(클라우드 스냅샷에 넣지 않는다). */
+        const val KEY_SEEN_NEW_CONTENT = "seen_new_content"
         const val KEY_READ_ALERTS = "read_alerts"
         const val KEY_DISMISSED_ALERTS = "dismissed_alerts"
         const val KEY_SPENDINGS = "spendings"

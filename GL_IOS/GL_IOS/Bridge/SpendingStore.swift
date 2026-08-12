@@ -119,6 +119,13 @@ final class SpendingStore {
     // '내 캐릭터' 섹션(헤더 필터 연동) — 게임별 결과/로딩 동시 보관
     private(set) var enkaResults: [String: EnkaResult] = [:]
     private(set) var enkaLoadingGames: Set<String> = []
+    // 도감(nanoka) — 신규 콘텐츠·방부
+    private(set) var newContent: [NewContentGame] = []
+    private(set) var newContentUnseen: Bool = false
+    private(set) var newContentLoading: Bool = false
+    private(set) var bangboo: [BangbooEntry] = []
+    private(set) var bangbooLoading: Bool = false
+    private(set) var bangbooDetail: [String: BangbooDetail] = [:]
     private(set) var gachaDashboard: GachaDashboard? = nil
     private(set) var redeemState: RedeemState = RedeemStateIdle.shared
     private(set) var activeCodes: [GiftCode] = []
@@ -319,6 +326,12 @@ final class SpendingStore {
         bind(vm.enkaHsrUid) { [weak self] in self?.enkaHsrUid = $0 }
         bind(vm.enkaResult) { [weak self] in self?.enkaResult = $0 }
         bind(vm.enkaLoading) { [weak self] in self?.enkaLoading = $0.boolValue }
+        bind(vm.newContent) { [weak self] in self?.newContent = $0 }
+        bind(vm.newContentUnseen) { [weak self] in self?.newContentUnseen = $0.boolValue }
+        bind(vm.newContentLoading) { [weak self] in self?.newContentLoading = $0.boolValue }
+        bind(vm.bangboo) { [weak self] in self?.bangboo = $0 }
+        bind(vm.bangbooLoading) { [weak self] in self?.bangbooLoading = $0.boolValue }
+        bind(vm.bangbooDetail) { [weak self] in self?.bangbooDetail = $0 }
         bind(vm.enkaResults) { [weak self] in self?.enkaResults = $0 }
         bind(vm.enkaLoadingGames) { [weak self] in self?.enkaLoadingGames = $0 }
         bind(vm.gachaDashboard) { [weak self] in self?.gachaDashboard = $0 }
@@ -473,6 +486,10 @@ final class SpendingStore {
     func loadEnkaProfile(game: String, uid: String) { vm.loadEnkaProfile(game: game, uid: uid) }
     func autoLoadEnka(game: String, force: Bool = false) { vm.autoLoadEnka(game: game, force: force) }
     func autoLoadEnkaSection(games: [String], force: Bool = false) { vm.autoLoadEnkaSection(games: games, force: force) }
+    func loadNewContent() { vm.loadNewContent(force: false) }
+    func markNewContentSeen() { vm.markNewContentSeen() }
+    func loadBangboo() { vm.loadBangboo() }
+    func loadBangbooDetail(_ id: String) { vm.loadBangbooDetail(id: id) }
     func clearEnkaResult() { vm.clearEnkaResult() }
     func importGachaFromContents(_ contents: [String]) { vm.importGachaFromContents(contents: contents) }
     func loadActiveCodes(_ gameKey: String) { vm.loadActiveCodes(gameKey: gameKey) }

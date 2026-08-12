@@ -29,7 +29,10 @@ import com.gatcha.log.data.MonthlyLedger
 import com.gatcha.log.data.Spending
 import com.gatcha.log.data.Subscription
 import com.gatcha.log.data.UserProfile
+import com.gatcha.log.data.api.BangbooDetail
+import com.gatcha.log.data.api.BangbooEntry
 import com.gatcha.log.data.api.EnkaApi
+import com.gatcha.log.data.api.NanokaApi
 import com.gatcha.log.data.api.EnkaResult
 import com.gatcha.log.data.api.EnneadApi
 import com.gatcha.log.data.api.NewsApi
@@ -1367,6 +1370,90 @@ class SpendingViewModel : ViewModel() {
                 }
             }.awaitAll()
             repo.saveEnkaCache(enkaCache)   // 갱신된 캐시 디스크 영속(1회)
+        }
+    }
+
+    // ----------------------------------------------------------------- 도감(nanoka)
+
+    private val _newContent = MutableStateFlow<List<NewContentGame>>(emptyList())
+    /** 게임별 '이번 버전 신규' — [NewContent.load] 결과. */
+    val newContent: StateFlow<List<NewContentGame>> = _newContent.asStateFlow()
+
+    private val _newContentUnseen = MutableStateFlow(false)
+    /** 아직 안 본 신규 항목이 있는가 — 진입 카드 점 표시. */
+    val newContentUnseen: StateFlow<Boolean> = _newContentUnseen.asStateFlow()
+
+    private val _newContentLoading = MutableStateFlow(false)
+    val newContentLoading: StateFlow<Boolean> = _newContentLoading.asStateFlow()
+
+    private var newContentLoaded = false
+
+    /**
+     * 신규 콘텐츠 목록 로드. 화면 진입 시 부르며 **한 번만** 실제로 돈다.
+     *
+     * 매니페스트 1건 + 이름 조회 수십 건이라 값이 싸지 않은데, 버전이 바뀌는 주기는 몇 주다.
+     * 앱을 껐다 켜면 다시 받는다(메모리 플래그).
+     */
+    fun loadNewContent(force: Boolean = false) {
+        if (newContentLoaded && !force) return
+        if (_newContentLoading.value) return
+        newContentLoaded = true
+        viewModelScope.launch {
+            _newContentLoading.value = true
+            try {
+                val games = withContext(Dispatchers.IO) { NewContent.load() }
+                if (games.isEmpty()) {
+                    // 못 받았으면 '없음'으로 굳히지 않는다 — 다음 진입에 다시 시도한다.
+                    newContentLoaded = false
+                    return@launch
+                }
+                _newContent.value = games
+                _newContentUnseen.value = NewContent.hasUnseen(games, repo.loadSeenNewContent())
+            } finally {
+                _newContentLoading.value = false
+            }
+        }
+    }
+
+    /** 신규 목록을 열었다 — 지금 보이는 항목을 전부 '봤음'으로 적고 점을 끈다. */
+    fun markNewContentSeen() {
+        val games = _newContent.value
+        if (games.isEmpty()) return
+        val merged = repo.loadSeenNewContent() + NewContent.seenKeys(games)
+        repo.saveSeenNewContent(merged)
+        _newContentUnseen.value = false
+    }
+
+    private val _bangboo = MutableStateFlow<List<BangbooEntry>>(emptyList())
+    /** 젠레스 방부 도감 목록. */
+    val bangboo: StateFlow<List<BangbooEntry>> = _bangboo.asStateFlow()
+
+    private val _bangbooLoading = MutableStateFlow(false)
+    val bangbooLoading: StateFlow<Boolean> = _bangbooLoading.asStateFlow()
+
+    /** 방부 목록 로드(1회). 목록은 jsdelivr 인덱스라 한 번이면 충분하다. */
+    fun loadBangboo() {
+        if (_bangboo.value.isNotEmpty() || _bangbooLoading.value) return
+        viewModelScope.launch {
+            _bangbooLoading.value = true
+            try {
+                _bangboo.value = withContext(Dispatchers.IO) { NanokaApi.bangbooIndex() }
+            } finally {
+                _bangbooLoading.value = false
+            }
+        }
+    }
+
+    private val _bangbooDetail = MutableStateFlow<Map<String, BangbooDetail>>(emptyMap())
+    /** 방부 상세(id → 설명·스탯·스킬). 탭한 것만 채운다. */
+    val bangbooDetail: StateFlow<Map<String, BangbooDetail>> = _bangbooDetail.asStateFlow()
+
+    /** 방부 상세 조회 — 이미 받았으면 아무것도 하지 않는다. */
+    fun loadBangbooDetail(id: String) {
+        if (_bangbooDetail.value.containsKey(id)) return
+        viewModelScope.launch {
+            val d = withContext(Dispatchers.IO) { NanokaApi.bangbooDetail(id) } ?: return@launch
+            _bangbooDetail.update { it + (id to d) }
         }
     }
 
