@@ -1,6 +1,7 @@
 package com.gatcha.log.ui.game
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
@@ -13,12 +14,21 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material3.Icon
+import coil.compose.AsyncImage
 import com.gatcha.log.data.NewContentGame
+import com.gatcha.log.data.NewVersionBanner
 import com.gatcha.log.data.SpendingViewModel
 import com.gatcha.log.ui.components.GlassCard
 import com.gatcha.log.ui.theme.DividerColor
@@ -26,6 +36,83 @@ import com.gatcha.log.ui.theme.LocalAccent
 import com.gatcha.log.ui.theme.TextPrimary
 import com.gatcha.log.ui.theme.TextSecondary
 import com.gatcha.log.ui.theme.toColor
+
+/**
+ * 새 버전 알림 배너 — 데일리 아래, 지면을 크게 쓰는 알림.
+ *
+ * 광고처럼 보이게 만드는 건 의도다. 이 화면에서 유일하게 **읽으라고 내미는** 항목이라
+ * 나머지(흰 카드 + 옅은 글자)와 결을 달리해야 눈에 걸린다. 대신 조건을 좁게 잡는다 —
+ * 안 본 신규 **캐릭터**가 있을 때만([NewContent.banner]). 아무 때나 띄우면 곧 무시당하고,
+ * 그러면 정작 신규 캐릭터가 나온 날에도 안 읽힌다.
+ *
+ * **기간은 쓰지 않는다.** 도감에는 픽업 일정이 없다 — "이 버전에 이런 캐릭터가 추가됐다"까지가
+ * 사실이고 그 이상은 지어내는 것이다.
+ */
+@Composable
+internal fun NewVersionBannerCard(b: NewVersionBanner, onOpen: () -> Unit, onDismiss: () -> Unit) {
+    val color = b.colorArgb.toColor()
+    Box(
+        Modifier.fillMaxWidth()
+            .clip(RoundedCornerShape(20.dp))
+            .background(Brush.linearGradient(listOf(color, lerp(color, Color.Black, 0.28f))))
+            .clickable { onOpen() },
+    ) {
+        Row(Modifier.padding(start = 18.dp, end = 12.dp, top = 16.dp, bottom = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Surface(color = Color.White.copy(alpha = 0.22f), shape = RoundedCornerShape(6.dp)) {
+                        Text(
+                            "NEW",
+                            fontSize = 9.5.sp, fontWeight = FontWeight.Bold, color = Color.White,
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                        )
+                    }
+                    Spacer(Modifier.width(7.dp))
+                    Text("버전 업데이트", fontSize = 10.5.sp, fontWeight = FontWeight.Bold, color = Color.White.copy(alpha = 0.85f))
+                }
+                Spacer(Modifier.height(9.dp))
+                Text(
+                    b.headline,
+                    fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Color.White,
+                    letterSpacing = (-0.4).sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                )
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    b.sub,
+                    fontSize = 12.5.sp, color = Color.White.copy(alpha = 0.9f),
+                    maxLines = 1, overflow = TextOverflow.Ellipsis,
+                )
+            }
+            // 초상 — 있으면 겹쳐 놓는다(원신만 규칙을 안다). 없으면 글자만으로 충분하다.
+            if (b.portraits.isNotEmpty()) {
+                Spacer(Modifier.width(10.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy((-14).dp)) {
+                    b.portraits.forEach { url ->
+                        Box(
+                            Modifier.size(54.dp).clip(CircleShape)
+                                .background(Color.White.copy(alpha = 0.18f))
+                                .border(1.5.dp, Color.White.copy(alpha = 0.5f), CircleShape),
+                        ) {
+                            AsyncImage(
+                                model = url, contentDescription = null,
+                                modifier = Modifier.fillMaxSize().clip(CircleShape),
+                                contentScale = ContentScale.Crop,
+                            )
+                        }
+                    }
+                }
+            }
+        }
+        // 닫기 — 배너를 눌러 들어가지 않고도 내릴 수 있어야 한다(내리면 '봤음'으로 적는다).
+        Box(
+            Modifier.align(Alignment.TopEnd).padding(6.dp).size(26.dp).clip(CircleShape)
+                .clickable { onDismiss() },
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(Icons.Default.Close, "닫기", tint = Color.White.copy(alpha = 0.75f), modifier = Modifier.size(15.dp))
+        }
+    }
+}
 
 // ============================================================ 도감 (nanoka)
 // 게임 도감 데이터는 '무엇이 있는가'만 답한다. 픽업 기간 같은 운영 일정은 여기 없다 —

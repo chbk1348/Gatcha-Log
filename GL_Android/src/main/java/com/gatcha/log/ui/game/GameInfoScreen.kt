@@ -131,6 +131,7 @@ fun GameInfoScreen(
     val keyStatOverrides by viewModel.keyStatOverrides.collectAsStateWithLifecycle()
     val weaponRefinements by viewModel.weaponRefinement.collectAsStateWithLifecycle()
     val gameVersions by viewModel.gameVersions.collectAsStateWithLifecycle()
+    val versionBanner by viewModel.versionBanner.collectAsStateWithLifecycle()
     // 게임정보 하위 풀스크린 페이지(연동 / 가챠 통계) — 열리면 상위(Scaffold)에 알려 하단바·FAB 숨김
     var subPage by remember { mutableStateOf(GiSub.Main) }
     // Enka 캐릭터 스탯 페이지 랜딩 대상
@@ -387,6 +388,19 @@ fun GameInfoScreen(
                     onOpenGameContent = { subPage = GiSub.GameContent },
                     onOpenClears = { subPage = GiSub.CombatClear },
                 )
+            }
+            // 새 버전 알림 — 데일리 바로 아래. 안 본 신규 캐릭터가 있을 때만 뜬다.
+            versionBanner?.let { b ->
+                item { Spacer(Modifier.height(16.dp)) }
+                item {
+                    GiSection {
+                        NewVersionBannerCard(
+                            b,
+                            onOpen = { subPage = GiSub.NewContent },
+                            onDismiss = { viewModel.markNewContentSeen() },
+                        )
+                    }
+                }
             }
             // 숙제 완주율은 별도 섹션을 두지 않는다 — 데일리의 게임 줄에 완주율까지 함께 들어간다.
             // 내 캐릭터(보유 전체 로스터) — 데일리 다음. 미연동이면 섹션·상단 여백까지 통째 생략(빈 여백 방지).

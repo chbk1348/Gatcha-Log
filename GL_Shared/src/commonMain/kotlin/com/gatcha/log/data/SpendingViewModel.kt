@@ -1378,6 +1378,10 @@ class SpendingViewModel : ViewModel() {
     /** 게임별 '이번 버전 신규' — [NewContent.load] 결과. */
     val newContent: StateFlow<List<NewContentGame>> = _newContent.asStateFlow()
 
+    private val _versionBanner = MutableStateFlow<NewVersionBanner?>(null)
+    /** 새 버전 알림 배너 — 안 본 신규 캐릭터가 있을 때만 채워진다. */
+    val versionBanner: StateFlow<NewVersionBanner?> = _versionBanner.asStateFlow()
+
     private val _newContentUnseen = MutableStateFlow(false)
     /** 아직 안 본 신규 항목이 있는가 — 진입 카드 점 표시. */
     val newContentUnseen: StateFlow<Boolean> = _newContentUnseen.asStateFlow()
@@ -1414,7 +1418,9 @@ class SpendingViewModel : ViewModel() {
                     return@launch
                 }
                 _newContent.value = games
-                _newContentUnseen.value = NewContent.hasUnseen(games, repo.loadSeenNewContent())
+                val seen = repo.loadSeenNewContent()
+                _newContentUnseen.value = NewContent.hasUnseen(games, seen)
+                _versionBanner.value = NewContent.banner(games, seen)
             } finally {
                 _newContentLoading.value = false
             }
@@ -1428,6 +1434,7 @@ class SpendingViewModel : ViewModel() {
         val merged = repo.loadSeenNewContent() + NewContent.seenKeys(games)
         repo.saveSeenNewContent(merged)
         _newContentUnseen.value = false
+        _versionBanner.value = null   // 배너도 같이 내린다 — 확인한 소식을 계속 띄우지 않는다
     }
 
     private val _weaponRefinement = MutableStateFlow<Map<String, WeaponRefinement>>(emptyMap())

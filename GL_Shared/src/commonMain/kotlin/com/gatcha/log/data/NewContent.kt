@@ -72,10 +72,51 @@ object NewContent {
             val ids = g.new[type].orEmpty()
             if (ids.isEmpty()) return@mapNotNull null
             val named = ids.take(NAMES_PER_TYPE).mapNotNull { id ->
-                NanokaApi.nameOf(nanokaKey, type, id)?.let { NewContentItem(id, it) }
+                val o = NanokaApi.entity(nanokaKey, type, id) ?: return@mapNotNull null
+                val name = NanokaApi.usableName(o.optString("name")) ?: return@mapNotNull null
+                NewContentItem(id, name, iconUrl = portraitUrl(nanokaKey, type, o.optString("icon")))
             }
             NewContentGroup(type = type, label = label, total = ids.size, items = named)
         }
+
+    /**
+     * 캐릭터 초상 URL.
+     *
+     * **원신만** 만든다. 도감이 주는 `icon` 은 게임 내부 에셋 이름(`UI_AvatarIcon_Alyosha`)이라
+     * 그대로는 못 쓰는데, enka.network 가 그 이름으로 PNG 를 준다 — 앱이 '내 캐릭터'에서
+     * 이미 쓰는 호스트다. 다른 게임은 초상 규칙이 달라 확인 전까지 붙이지 않는다(깨진 이미지
+     * 자리를 만드느니 글자만 두는 게 낫다).
+     */
+    private fun portraitUrl(nanokaKey: String, type: String, icon: String): String? {
+        if (nanokaKey != "gi" || type != "character") return null
+        if (!icon.startsWith("UI_AvatarIcon_")) return null
+        return "https://enka.network/ui/$icon.png"
+    }
+
+    /**
+     * 새 버전 알림 배너 — **안 본 신규 캐릭터가 있을 때만.**
+     *
+     * 무기·유물만 늘어난 버전에는 띄우지 않는다. 배너는 지면을 크게 먹는 형식이라 아무 때나
+     * 띄우면 곧 무시당하고, 그러면 정작 신규 캐릭터가 나온 날에도 안 읽힌다.
+     *
+     * 사라지는 조건은 '봤음'과 같다([hasUnseen]) — 배너를 누르거나 목록을 열면 없어진다.
+     */
+    fun banner(games: List<NewContentGame>, seenIds: Set<String>): NewVersionBanner? {
+        for (g in games) {
+            val chars = g.groups.firstOrNull { it.type == "character" } ?: continue
+            val fresh = chars.items.filter { "${g.gameKey}:${it.id}" !in seenIds }
+            if (fresh.isEmpty()) continue
+            return NewVersionBanner(
+                gameKey = g.gameKey,
+                gameShort = g.gameShort,
+                colorArgb = g.colorArgb,
+                version = g.version,
+                names = fresh.map { it.name },
+                portraits = fresh.mapNotNull { it.iconUrl }.take(2),
+            )
+        }
+        return null
+    }
 
     /**
      * 지금 게임에서 돌고 있는 버전 — 데일리 타일 아래 한 줄.
@@ -132,7 +173,35 @@ data class NewContentGroup(
 }
 
 /** 신규 항목 하나. */
-data class NewContentItem(val id: String, val name: String)
+data class NewContentItem(
+    val id: String,
+    val name: String,
+    /** 초상 이미지. 규칙을 아는 게임만 채운다(지금은 원신). */
+    val iconUrl: String? = null,
+)
+
+/**
+ * 새 버전 알림 배너.
+ *
+ * 픽업 기간은 싣지 않는다 — 도감에는 일정이 없다. "이 버전에 이런 캐릭터가 추가됐다"까지가
+ * 사실이고, 그 이상은 지어내는 것이다.
+ */
+data class NewVersionBanner(
+    val gameKey: String,
+    val gameShort: String,
+    val colorArgb: Long,
+    val version: String,
+    /** 신규 캐릭터 이름(안 본 것만). */
+    val names: List<String>,
+    /** 초상 URL — 최대 2장. 없으면 글자만 그린다. */
+    val portraits: List<String>,
+) {
+    /** "원신 7.0 업데이트" */
+    val headline: String get() = "$gameShort $version 업데이트"
+
+    /** "알료샤 · 오데트 등장" */
+    val sub: String get() = names.joinToString(" · ") + " 등장"
+}
 
 /** 게임 하나의 현재 버전 — "원신 7.0". */
 data class GameVersionLine(

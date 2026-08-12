@@ -122,6 +122,7 @@ final class SpendingStore {
     // 도감(nanoka) — 신규 콘텐츠·방부
     private(set) var newContent: [NewContentGame] = []
     private(set) var gameVersions: [GameVersionLine] = []
+    private(set) var versionBanner: NewVersionBanner? = nil
     private(set) var newContentUnseen: Bool = false
     private(set) var newContentLoading: Bool = false
     private(set) var weaponRefinement: [String: WeaponRefinement] = [:]
@@ -327,6 +328,7 @@ final class SpendingStore {
         bind(vm.enkaLoading) { [weak self] in self?.enkaLoading = $0.boolValue }
         bind(vm.newContent) { [weak self] in self?.newContent = $0 }
         bind(vm.gameVersions) { [weak self] in self?.gameVersions = $0 }
+        bind(vm.versionBanner) { [weak self] in self?.versionBanner = $0 }
         bind(vm.newContentUnseen) { [weak self] in self?.newContentUnseen = $0.boolValue }
         bind(vm.newContentLoading) { [weak self] in self?.newContentLoading = $0.boolValue }
         bind(vm.weaponRefinement) { [weak self] in self?.weaponRefinement = $0 }
