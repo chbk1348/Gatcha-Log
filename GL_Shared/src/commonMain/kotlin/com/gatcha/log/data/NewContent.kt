@@ -94,25 +94,27 @@ object NewContent {
     }
 
     /**
-     * 새 버전 알림 배너 — **안 본 신규 캐릭터가 있을 때만.**
+     * 새 버전 알림 배너 — **지금 버전에 신규 캐릭터가 있으면 상시로.**
      *
-     * 무기·유물만 늘어난 버전에는 띄우지 않는다. 배너는 지면을 크게 먹는 형식이라 아무 때나
-     * 띄우면 곧 무시당하고, 그러면 정작 신규 캐릭터가 나온 날에도 안 읽힌다.
+     * 처음엔 '안 본 것'만 띄우고 한 번 확인하면 내렸다. 그런데 이 배너가 답하는 질문은
+     * "새 소식 있어?"(한 번 읽으면 끝)가 아니라 **"지금 버전에 누가 나왔더라?"** 였다 —
+     * 며칠 뒤 다시 보러 오는 정보인데 이미 사라진 뒤라 찾을 데가 없었다. 그래서 '봤음'과
+     * 끊고, 버전이 바뀔 때까지 자리를 지킨다. 내리는 버튼도 없앴다(다시 못 부르는 버튼이다).
      *
-     * 사라지는 조건은 '봤음'과 같다([hasUnseen]) — 배너를 누르거나 목록을 열면 없어진다.
+     * 조건은 그대로 좁게 — 신규 **캐릭터**가 있는 첫 게임만. 무기·유물만 늘어난 버전에는
+     * 띄우지 않는다. 지면을 크게 먹는 형식이라 아무 때나 띄우면 곧 배경이 된다.
      */
-    fun banner(games: List<NewContentGame>, seenIds: Set<String>): NewVersionBanner? {
+    fun banner(games: List<NewContentGame>): NewVersionBanner? {
         for (g in games) {
             val chars = g.groups.firstOrNull { it.type == "character" } ?: continue
-            val fresh = chars.items.filter { "${g.gameKey}:${it.id}" !in seenIds }
-            if (fresh.isEmpty()) continue
+            if (chars.items.isEmpty()) continue
             return NewVersionBanner(
                 gameKey = g.gameKey,
                 gameShort = g.gameShort,
                 colorArgb = g.colorArgb,
                 version = g.version,
-                names = fresh.map { it.name },
-                portraits = fresh.mapNotNull { it.iconUrl }.take(2),
+                names = chars.items.map { it.name },
+                portraits = chars.items.mapNotNull { it.iconUrl }.take(2),
             )
         }
         return null
@@ -199,8 +201,17 @@ data class NewVersionBanner(
     /** "원신 7.0 업데이트" */
     val headline: String get() = "$gameShort $version 업데이트"
 
-    /** "알료샤 · 오데트 등장" */
-    val sub: String get() = names.joinToString(" · ") + " 등장"
+    /**
+     * "알료샤 · 오데트 등장" — 넷 이상이면 "A · B · C 외 2명 등장".
+     *
+     * '안 본 것만' 이던 시절엔 한둘이었지만 이제 버전 신규 전부라 그대로 이으면 한 줄을 넘겨
+     * 뒤가 잘린다. 잘린 이름은 없느니만 못하니 셋에서 끊고 나머지는 수로 말한다.
+     */
+    val sub: String get() {
+        val head = names.take(3).joinToString(" · ")
+        val rest = names.size - 3
+        return if (rest > 0) "$head 외 ${rest}명 등장" else "$head 등장"
+    }
 }
 
 /** 게임 하나의 현재 버전 — "원신 7.0". */

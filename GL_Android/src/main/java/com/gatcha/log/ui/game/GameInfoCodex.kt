@@ -24,7 +24,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material3.Icon
 import coil.compose.AsyncImage
 import com.gatcha.log.data.NewContentGame
@@ -42,14 +42,18 @@ import com.gatcha.log.ui.theme.toColor
  *
  * 광고처럼 보이게 만드는 건 의도다. 이 화면에서 유일하게 **읽으라고 내미는** 항목이라
  * 나머지(흰 카드 + 옅은 글자)와 결을 달리해야 눈에 걸린다. 대신 조건을 좁게 잡는다 —
- * 안 본 신규 **캐릭터**가 있을 때만([NewContent.banner]). 아무 때나 띄우면 곧 무시당하고,
+ * 신규 **캐릭터**가 있는 게임만([NewContent.banner]). 아무 때나 띄우면 곧 무시당하고,
  * 그러면 정작 신규 캐릭터가 나온 날에도 안 읽힌다.
+ *
+ * **상시로 뜬다.** 닫기 버튼은 없다 — 한 번 확인했다고 "이번 버전에 누가 나왔더라"가
+ * 없어지지 않는데, 내린 배너는 다시 부를 방법이 없었다. 대신 눌러서 전체 목록으로 간다는
+ * 걸 꺾쇠로 알린다(닫기가 사라진 자리에 아무 표시도 없으면 눌러도 되는지 모른다).
  *
  * **기간은 쓰지 않는다.** 도감에는 픽업 일정이 없다 — "이 버전에 이런 캐릭터가 추가됐다"까지가
  * 사실이고 그 이상은 지어내는 것이다.
  */
 @Composable
-internal fun NewVersionBannerCard(b: NewVersionBanner, onOpen: () -> Unit, onDismiss: () -> Unit) {
+internal fun NewVersionBannerCard(b: NewVersionBanner, onOpen: () -> Unit) {
     val color = b.colorArgb.toColor()
     Box(
         Modifier.fillMaxWidth()
@@ -57,7 +61,7 @@ internal fun NewVersionBannerCard(b: NewVersionBanner, onOpen: () -> Unit, onDis
             .background(Brush.linearGradient(listOf(color, lerp(color, Color.Black, 0.28f))))
             .clickable { onOpen() },
     ) {
-        Row(Modifier.padding(start = 18.dp, end = 12.dp, top = 16.dp, bottom = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.padding(start = 18.dp, end = 16.dp, top = 16.dp, bottom = 16.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Surface(color = Color.White.copy(alpha = 0.22f), shape = RoundedCornerShape(6.dp)) {
@@ -77,11 +81,19 @@ internal fun NewVersionBannerCard(b: NewVersionBanner, onOpen: () -> Unit, onDis
                     letterSpacing = (-0.4).sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
                 )
                 Spacer(Modifier.height(4.dp))
-                Text(
-                    b.sub,
-                    fontSize = 12.5.sp, color = Color.White.copy(alpha = 0.9f),
-                    maxLines = 1, overflow = TextOverflow.Ellipsis,
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        b.sub,
+                        fontSize = 12.5.sp, color = Color.White.copy(alpha = 0.9f),
+                        maxLines = 1, overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false),
+                    )
+                    Spacer(Modifier.width(3.dp))
+                    Icon(
+                        Icons.Default.ChevronRight, null,
+                        tint = Color.White.copy(alpha = 0.75f), modifier = Modifier.size(15.dp),
+                    )
+                }
             }
             // 초상 — 있으면 겹쳐 놓는다(원신만 규칙을 안다). 없으면 글자만으로 충분하다.
             if (b.portraits.isNotEmpty()) {
@@ -102,14 +114,6 @@ internal fun NewVersionBannerCard(b: NewVersionBanner, onOpen: () -> Unit, onDis
                     }
                 }
             }
-        }
-        // 닫기 — 배너를 눌러 들어가지 않고도 내릴 수 있어야 한다(내리면 '봤음'으로 적는다).
-        Box(
-            Modifier.align(Alignment.TopEnd).padding(6.dp).size(26.dp).clip(CircleShape)
-                .clickable { onDismiss() },
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(Icons.Default.Close, "닫기", tint = Color.White.copy(alpha = 0.75f), modifier = Modifier.size(15.dp))
         }
     }
 }

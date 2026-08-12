@@ -177,12 +177,10 @@ struct GameInfoView: View {
                                  onOpenAttendance: { showAttendance = true },
                                  onOpenGameContent: { showGameContent = true },
                                  onOpenClears: { showCombatClears = true }).id("NOTES")
-                // 새 버전 알림 — 데일리 바로 아래. 안 본 신규 캐릭터가 있을 때만 뜬다.
+                // 새 버전 알림 — 데일리 바로 아래. 이번 버전에 신규 캐릭터가 있으면 상시로 뜬다(닫기 없음).
                 if let b = store.versionBanner {
                     section {
-                        NewVersionBannerCard(banner: b,
-                                             onOpen: { showNewContent = true },
-                                             onDismiss: { store.markNewContentSeen() })
+                        NewVersionBannerCard(banner: b, onOpen: { showNewContent = true })
                     }
                 }
                 // 숙제 완주율은 별도 섹션을 두지 않는다 — 데일리의 게임 줄에 완주율까지 들어간다.
