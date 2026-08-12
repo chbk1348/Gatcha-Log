@@ -381,7 +381,12 @@ class SpendingViewModel : ViewModel() {
      */
     private fun cloudSyncQuiet() {
         if (cloudConfigured && CloudSync.currentUid() != null) {
-            viewModelScope.launch { cloudSyncPullOrSeed(quiet = true) }
+            // ⚠️ **IO 로 띄운다.** 이 경로는 클라우드 스냅샷 JSON 파싱([GatchaRepository.importSnapshotJson])과
+            // 저장소 20여 키를 다시 읽는 [loadAll] 을 포함한다. viewModelScope 기본값(Main)에 두면
+            // 그 전부가 UI 스레드에서 돌아, 앱으로 돌아온 직후 화면이 눈에 띄게 멎었다 — 지출이
+            // 많을수록 길어진다. 상태(StateFlow) 대입은 어느 스레드에서 해도 되고, 구독하는 쪽이
+            // 각자 메인으로 올린다(Compose collectAsStateWithLifecycle · iOS bind 는 @MainActor).
+            viewModelScope.launch(Dispatchers.IO) { cloudSyncPullOrSeed(quiet = true) }
         }
     }
 
@@ -1584,7 +1589,13 @@ class SpendingViewModel : ViewModel() {
         if (!force && _gameInfoReady.value && currentTimeMillis() - lastGameInfoLoadAt < gameInfoFreshMs) return
         viewModelScope.launch {
             _gameInfoRefreshing = true
-            _isRefreshing.value = true
+            // silent(백그라운드 복귀 자동 갱신)는 인디케이터를 켜지 않는다.
+            // `_isRefreshing` 은 홈·지출·게임정보 세 탭의 당겨서-새로고침 표시와 새로고침 버튼
+            // 비활성, 배너 스켈레톤을 한꺼번에 움직인다. 전체 갱신은 HoYoLAB 왕복까지 포함해
+            // 수 초가 걸리는데, 사용자가 부른 적도 없는 갱신 때문에 앱으로 돌아올 때마다 그 시간
+            // 내내 "새로고침 중"이 보였다 — 복귀가 느린 게 아니라 **느리다고 보여주고 있었다.**
+            // 값은 도착하는 대로 갈아끼우므로 화면은 그대로 쓸 수 있다.
+            if (!silent) _isRefreshing.value = true
             try {
                 // 오프라인이면 12초 타임아웃을 기다리지 않고 즉시 안내(앱 진입·새로고침 공통).
                 // 단 사용자가 부른 게 아닌 자동 갱신(silent)은 조용히 물러난다 — 백그라운드에서 돌아올
@@ -1733,7 +1744,7 @@ class SpendingViewModel : ViewModel() {
                 lastGameInfoLoadAt = currentTimeMillis() - if (partial) gameInfoFreshMs - gameInfoRetryMs else 0L
             } finally {
                 _gameInfoRefreshing = false
-                _isRefreshing.value = false
+                if (!silent) _isRefreshing.value = false
                 // 예외·오프라인으로 중간에 빠져나가도 스켈레톤이 영구 고착되지 않게 게이트를 모두 연다.
                 _gameInfoReady.value = true
                 _scheduleReady.value = true
