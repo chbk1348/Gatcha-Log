@@ -48,13 +48,51 @@ object NanokaApi {
      * 형상 시네마가 404 로 비었다 — 젠레스가 `live=3.1` 인데 `latest=3.2.2` 이던 시점에 실제로 그랬다.
      * 지난 버전 항목은 두 경로 모두에 있으므로 `latest` 우선이 손해 볼 게 없다.
      */
-    suspend fun entity(game: String, type: String, id: String, lang: String = "ko"): JSONObject? {
+    suspend fun entity(game: String, type: String, id: String, lang: String = "ko"): JSONObject? =
+        entityAt(game, type, id, lang)?.second
+
+    /**
+     * [entity] 와 같되 **어느 버전에서 찾았는지**까지 준다.
+     *
+     * 찾은 버전을 알아야 [existedBefore] 가 의미 있는 비교를 한다 — 가장 오래된 스냅샷에서
+     * 이미 찾았다면 더 뒤로 갈 데가 없어 "예전에도 있었나"를 물을 수 없다.
+     */
+    suspend fun entityAt(
+        game: String,
+        type: String,
+        id: String,
+        lang: String = "ko",
+    ): Pair<String, JSONObject>? {
         val m = manifest()?.games?.get(game) ?: return null
         for (ver in m.versionsToTry) {
             val res = Net.get("$BASE/$game/$ver/$lang/$type/$id.json", headers)
-            if (res.isOk) return runCatching { JSONObject(res.body) }.getOrNull()
+            if (res.isOk) {
+                val o = runCatching { JSONObject(res.body) }.getOrNull() ?: continue
+                return ver to o
+            }
         }
         return null
+    }
+
+    /**
+     * 이 항목이 **이전 버전 스냅샷에도 있었는가** — 상류 `new` 목록의 오탐을 잡는다.
+     *
+     * 젠레스 `new.character` 가 신규 둘(Claret·Pryce)과 함께 콜레다(`1101`)를 보낸다. 출시
+     * 초기 캐릭터인데 데이터가 손질돼 '변경됨'으로 잡힌 것으로 보인다. 그런데 마침 미번역인
+     * 신규 둘은 이름 필터에 걸려 빠지니, 화면에는 **"신규 캐릭터: 콜레다"** 만 남았다.
+     *
+     * 판정은 실물로 한다 — 가장 오래된 스냅샷(`available` 첫 항목, 보통 라이브 버전)에 같은
+     * id 의 파일이 **있으면 그 버전에 이미 존재한 것**이라 신규가 아니다. 5게임 실측(2026-08-12):
+     * 진짜 신규는 전부 404, 콜레다만 200 이었다.
+     *
+     * 스냅샷이 하나뿐이면(원신 `available=["7.0"]`) 비교할 과거가 없어 **판정하지 않는다** —
+     * 모르면 남긴다. 신규를 빠뜨리는 쪽이 하나 더 보여주는 쪽보다 나쁘다.
+     */
+    suspend fun existedBefore(game: String, type: String, id: String, foundAt: String, lang: String = "ko"): Boolean {
+        val m = manifest()?.games?.get(game) ?: return false
+        val baseline = m.available.firstOrNull()?.takeIf { it.isNotBlank() } ?: return false
+        if (baseline == foundAt) return false
+        return Net.get("$BASE/$game/$baseline/$lang/$type/$id.json", headers).isOk
     }
 
     /**
@@ -149,7 +187,10 @@ object NanokaApi {
                     new[type] = (0 until arr.length()).map { arr.optString(it) }.filter { it.isNotBlank() }
                 }
             }
-            games[key] = NanokaGame(live = live, latest = latest, new = new)
+            val available = g.optJSONArray("available")
+                ?.let { a -> (0 until a.length()).map { a.optString(it) }.filter { it.isNotBlank() } }
+                .orEmpty()
+            games[key] = NanokaGame(live = live, latest = latest, new = new, available = available)
         }
         if (games.isEmpty()) null else NanokaManifest(games)
     }.getOrNull()
@@ -171,6 +212,13 @@ data class NanokaGame(
     val latest: String,
     /** 타입("character"·"weapon"·"bangboo"…) → 이번 버전 신규 id. */
     val new: Map<String, List<String>>,
+    /**
+     * 받아볼 수 있는 스냅샷 버전 전부(오래된 것 먼저).
+     *
+     * 첫 항목이 '이전 버전' 기준선이다 — [NanokaApi.existedBefore] 가 상류 `new` 의 오탐을
+     * 여기 대고 판정한다. 하나뿐이면 비교할 과거가 없다(원신이 그렇다).
+     */
+    val available: List<String> = emptyList(),
 ) {
     /** 조회 순서 — 최신 먼저, 그다음 라이브(중복·빈 값 제거). */
     val versionsToTry: List<String> get() = listOf(latest, live).filter { it.isNotBlank() }.distinct()
