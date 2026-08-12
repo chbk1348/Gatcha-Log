@@ -18,7 +18,6 @@ struct GameInfoView: View {
     @State private var showHoyoland = false
     /// 도감 — 새로 나온 것 · 방부.
     @State private var showNewContent = false
-    @State private var showBangboo = false
     /// 출석 체크 상세(데일리 타일에서 진입).
     @State private var showAttendance = false
     /// 전투 진행도·수입 일지 상세(데일리에서 진입).
@@ -76,7 +75,6 @@ struct GameInfoView: View {
         }
         .navigationDestination(isPresented: $showHoyoland) { HoyolandDetailView() }
         .navigationDestination(isPresented: $showNewContent) { NewContentPage(store: store) }
-        .navigationDestination(isPresented: $showBangboo) { BangbooPage(store: store) }
         .navigationDestination(isPresented: $showAttendance) { AttendanceDetailView(store: store) }
         .navigationDestination(isPresented: $showGameContent) {
             sectionPage("전투 · 수입 일지") {
@@ -242,7 +240,7 @@ struct GameInfoView: View {
         .toolbar { toolbarContent }
     }
 
-    /// 하단 진입 카드 넉 장(도감 2 + 도구 2).
+    /// 하단 진입 카드 석 장(도감 1 + 도구 2).
     ///
     /// ⚠️ 본문에 늘어놓지 않고 여기 모은다 — LazyVStack 자식이 늘수록 타입 추론 비용이 커져
     /// "unable to type-check" 가 나는데, 에러는 손대지도 않은 줄에 찍혀 원인을 가린다.
@@ -250,9 +248,6 @@ struct GameInfoView: View {
         section {
             navEntry(icon: "sparkles", title: "새로 나온 것", sub: "이번 버전 신규 캐릭터 · 무기 · 방부",
                      badge: store.newContentUnseen) { showNewContent = true }
-        }
-        section {
-            navEntry(icon: "pawprint.fill", title: "방부 도감", sub: "젠레스 방부 스탯 · 스킬") { showBangboo = true }
         }
         section {
             navEntry(icon: "function", title: "가챠 계산기", sub: "재화 환산 · 확률 · 시나리오") { showCalc = true }

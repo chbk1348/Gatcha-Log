@@ -20,7 +20,6 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.gatcha.log.data.NewContentGame
 import com.gatcha.log.data.SpendingViewModel
-import com.gatcha.log.data.api.BangbooEntry
 import com.gatcha.log.ui.components.GlassCard
 import com.gatcha.log.ui.theme.DividerColor
 import com.gatcha.log.ui.theme.LocalAccent
@@ -111,117 +110,6 @@ private fun NewContentCard(g: NewContentGame) {
                     }
                 }
             }
-        }
-    }
-}
-
-/**
- * 방부 도감 — 젠레스 방부 전체 목록. 탭하면 그 자리에서 상세(설명·스탯·스킬)를 펼친다.
- *
- * 목록과 상세의 출처가 다르다. 목록은 hakush 미러 인덱스(한국어 이름 포함), 상세는 nanoka 단건이다 —
- * nanoka 에 목록 API 가 없어서 이렇게 나뉜다.
- */
-@Composable
-internal fun BangbooContent(viewModel: SpendingViewModel) {
-    val list by viewModel.bangboo.collectAsStateWithLifecycle()
-    val loading by viewModel.bangbooLoading.collectAsStateWithLifecycle()
-    val details by viewModel.bangbooDetail.collectAsStateWithLifecycle()
-    var open by remember { mutableStateOf<String?>(null) }
-
-    LaunchedEffect(Unit) { viewModel.loadBangboo() }
-
-    Text(
-        "젠레스 존 제로의 방부 ${if (list.isEmpty()) "" else "${list.size}종"} — 탭하면 스탯과 스킬을 봅니다.",
-        fontSize = 12.sp, color = TextSecondary, modifier = Modifier.padding(bottom = 14.dp),
-    )
-    if (list.isEmpty()) {
-        Box(Modifier.fillMaxWidth().padding(top = 40.dp), contentAlignment = Alignment.Center) {
-            if (loading) {
-                CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.dp, color = LocalAccent.current)
-            } else {
-                Text("목록을 받지 못했어요.", fontSize = 13.sp, color = TextSecondary)
-            }
-        }
-        return
-    }
-    GlassCard(shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth()) {
-        Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)) {
-            list.forEachIndexed { i, b ->
-                if (i > 0) HorizontalDivider(color = DividerColor)
-                BangbooRow(
-                    b = b,
-                    expanded = open == b.id,
-                    detail = details[b.id],
-                ) {
-                    open = if (open == b.id) null else b.id
-                    if (open != null) viewModel.loadBangbooDetail(b.id)
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun BangbooRow(
-    b: BangbooEntry,
-    expanded: Boolean,
-    detail: com.gatcha.log.data.api.BangbooDetail?,
-    onClick: () -> Unit,
-) {
-    val accent = LocalAccent.current
-    Column(Modifier.fillMaxWidth().clickable { onClick() }.padding(vertical = 13.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Surface(
-                color = if (b.rank >= 4) accent.copy(alpha = 0.16f) else Color(0xFFF0F1F4),
-                shape = RoundedCornerShape(7.dp),
-            ) {
-                Text(
-                    b.rankLabel.ifBlank { "-" },
-                    fontSize = 10.5.sp, fontWeight = FontWeight.Bold,
-                    color = if (b.rank >= 4) accent else TextSecondary,
-                    modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp),
-                )
-            }
-            Spacer(Modifier.width(10.dp))
-            Text(b.name, fontSize = 13.5.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
-            Spacer(Modifier.weight(1f))
-            Text(b.codeName, fontSize = 10.5.sp, color = TextSecondary)
-        }
-        if (expanded) {
-            Spacer(Modifier.height(10.dp))
-            if (detail == null) {
-                CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp, color = accent)
-            } else {
-                if (detail.desc.isNotBlank()) {
-                    Text(detail.desc, fontSize = 12.sp, color = TextSecondary, lineHeight = 17.sp)
-                    Spacer(Modifier.height(9.dp))
-                }
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    BangbooStat("HP", detail.hp, Modifier.weight(1f))
-                    BangbooStat("공격력", detail.atk, Modifier.weight(1f))
-                    BangbooStat("방어력", detail.def, Modifier.weight(1f))
-                }
-                detail.skills.forEach { sk ->
-                    Spacer(Modifier.height(10.dp))
-                    Text(sk.name, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = accent)
-                    Spacer(Modifier.height(3.dp))
-                    Text(sk.desc, fontSize = 12.sp, color = TextSecondary, lineHeight = 17.sp)
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun BangbooStat(label: String, value: Int, modifier: Modifier = Modifier) {
-    Surface(color = Color(0xFFF7F8FA), shape = RoundedCornerShape(10.dp), modifier = modifier) {
-        Column(Modifier.padding(horizontal = 10.dp, vertical = 8.dp)) {
-            Text(label, fontSize = 10.sp, color = TextSecondary)
-            Spacer(Modifier.height(2.dp))
-            Text(
-                if (value > 0) "$value" else "—",
-                fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextPrimary,
-            )
         }
     }
 }

@@ -121,11 +121,9 @@ final class SpendingStore {
     private(set) var enkaLoadingGames: Set<String> = []
     // 도감(nanoka) — 신규 콘텐츠·방부
     private(set) var newContent: [NewContentGame] = []
+    private(set) var gameVersions: [GameVersionLine] = []
     private(set) var newContentUnseen: Bool = false
     private(set) var newContentLoading: Bool = false
-    private(set) var bangboo: [BangbooEntry] = []
-    private(set) var bangbooLoading: Bool = false
-    private(set) var bangbooDetail: [String: BangbooDetail] = [:]
     private(set) var weaponRefinement: [String: WeaponRefinement] = [:]
     private(set) var gachaDashboard: GachaDashboard? = nil
     private(set) var redeemState: RedeemState = RedeemStateIdle.shared
@@ -328,11 +326,9 @@ final class SpendingStore {
         bind(vm.enkaResult) { [weak self] in self?.enkaResult = $0 }
         bind(vm.enkaLoading) { [weak self] in self?.enkaLoading = $0.boolValue }
         bind(vm.newContent) { [weak self] in self?.newContent = $0 }
+        bind(vm.gameVersions) { [weak self] in self?.gameVersions = $0 }
         bind(vm.newContentUnseen) { [weak self] in self?.newContentUnseen = $0.boolValue }
         bind(vm.newContentLoading) { [weak self] in self?.newContentLoading = $0.boolValue }
-        bind(vm.bangboo) { [weak self] in self?.bangboo = $0 }
-        bind(vm.bangbooLoading) { [weak self] in self?.bangbooLoading = $0.boolValue }
-        bind(vm.bangbooDetail) { [weak self] in self?.bangbooDetail = $0 }
         bind(vm.weaponRefinement) { [weak self] in self?.weaponRefinement = $0 }
         bind(vm.enkaResults) { [weak self] in self?.enkaResults = $0 }
         bind(vm.enkaLoadingGames) { [weak self] in self?.enkaLoadingGames = $0 }
@@ -490,8 +486,6 @@ final class SpendingStore {
     func autoLoadEnkaSection(games: [String], force: Bool = false) { vm.autoLoadEnkaSection(games: games, force: force) }
     func loadNewContent() { vm.loadNewContent(force: false) }
     func markNewContentSeen() { vm.markNewContentSeen() }
-    func loadBangboo() { vm.loadBangboo() }
-    func loadBangbooDetail(_ id: String) { vm.loadBangbooDetail(id: id) }
     func loadWeaponRefinement(game: String, weaponId: Int32, level: Int32) {
         vm.loadWeaponRefinement(gameKey: game, weaponId: weaponId, level: level)
     }

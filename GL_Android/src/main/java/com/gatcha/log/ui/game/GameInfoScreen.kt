@@ -68,7 +68,7 @@ import com.gatcha.log.ui.theme.*
 import kotlinx.coroutines.launch
 
 /** 게임정보 탭의 풀스크린 하위 페이지 (열리면 하단바·FAB 숨김) */
-private enum class GiSub { Main, HoyoLink, Dashboard, Calc, Report, Gift, Schedule, News, NewsDetail, CharStats, CharRoster, Hoyoland, GameContent, CombatClear, Attendance, NewContent, Bangboo }
+private enum class GiSub { Main, HoyoLink, Dashboard, Calc, Report, Gift, Schedule, News, NewsDetail, CharStats, CharRoster, Hoyoland, GameContent, CombatClear, Attendance, NewContent }
 
 /** 화면 전환 push/pop 방향용 계층 깊이. Main=0, 하위 페이지=1, 상세(목록서 진입)=2. */
 private fun subDepth(s: GiSub): Int = when (s) {
@@ -130,6 +130,7 @@ fun GameInfoScreen(
     val taskStats by viewModel.taskStats.collectAsStateWithLifecycle()
     val keyStatOverrides by viewModel.keyStatOverrides.collectAsStateWithLifecycle()
     val weaponRefinements by viewModel.weaponRefinement.collectAsStateWithLifecycle()
+    val gameVersions by viewModel.gameVersions.collectAsStateWithLifecycle()
     // 게임정보 하위 풀스크린 페이지(연동 / 가챠 통계) — 열리면 상위(Scaffold)에 알려 하단바·FAB 숨김
     var subPage by remember { mutableStateOf(GiSub.Main) }
     // Enka 캐릭터 스탯 페이지 랜딩 대상
@@ -340,9 +341,6 @@ fun GameInfoScreen(
             GiSub.NewContent -> SectionPage("새로 나온 것", onBack = { subPage = GiSub.Main }) {
                 NewContentContent(viewModel)
             }
-            GiSub.Bangboo -> SectionPage("방부 도감", onBack = { subPage = GiSub.Main }) {
-                BangbooContent(viewModel)
-            }
             GiSub.Hoyoland -> SectionPage("호요랜드", onBack = { subPage = GiSub.Main }) {
                 HoyolandDetailContent()
             }
@@ -381,6 +379,7 @@ fun GameInfoScreen(
                     checkingIn = checkingIn,
                     streak = attendanceStreak,
                     taskStats = taskStats,
+                    gameVersions = gameVersions,
                     onCheckIn = { viewModel.attemptCheckIn(it) },
                     onCheckInAll = { viewModel.checkInAll() },
                     onConfigClick = { subPage = GiSub.HoyoLink },
@@ -434,8 +433,6 @@ fun GameInfoScreen(
                     ) { subPage = GiSub.NewContent }
                 }
             }
-            item { Spacer(Modifier.height(12.dp)) }
-            item { GiSection { NavEntryCard(Icons.Default.Pets, "방부 도감", "젠레스 방부 스탯 · 스킬") { subPage = GiSub.Bangboo } } }
             item { Spacer(Modifier.height(20.dp)) }
             item { GiSection { NavEntryCard(Icons.Default.Calculate, "가챠 계산기", "재화 환산 · 확률 · 시나리오") { subPage = GiSub.Calc } } }
             item { Spacer(Modifier.height(12.dp)) }

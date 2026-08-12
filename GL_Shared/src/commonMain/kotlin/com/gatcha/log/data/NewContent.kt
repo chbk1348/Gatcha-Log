@@ -78,6 +78,24 @@ object NewContent {
         }
 
     /**
+     * 지금 게임에서 돌고 있는 버전 — 데일리 타일 아래 한 줄.
+     *
+     * **출석 대상 3게임만** 낸다. 타일(출석·전투 진행도·클리어 편성)이 그 세 게임의 이야기라
+     * 맥락이 맞고, 다섯 게임을 다 적으면 한 줄에 안 들어가 두 줄로 접힌다.
+     *
+     * `live` 를 쓴다(`latest` 아님) — 사용자가 게임을 켜서 보는 숫자여야 한다. 데이터 최신
+     * 버전은 아직 출시 전일 수 있다.
+     */
+    suspend fun liveVersions(): List<GameVersionLine> {
+        val manifest = NanokaApi.manifest() ?: return emptyList()
+        return GameData.attendanceGames.mapNotNull { game ->
+            val key = gameOf.entries.firstOrNull { it.value == game }?.key ?: return@mapNotNull null
+            val v = manifest.games[key]?.displayVersion?.takeIf { it.isNotBlank() } ?: return@mapNotNull null
+            GameVersionLine(gameKey = game.key, gameShort = game.shortName, colorArgb = game.color, version = v)
+        }
+    }
+
+    /**
      * 아직 보지 않은 항목이 있는가 — 진입 카드의 점 표시용.
      *
      * 판정은 **id 집합 비교**다. 버전 문자열로 하면 같은 버전 안에서 항목이 추가될 때(핫픽스로
@@ -115,3 +133,11 @@ data class NewContentGroup(
 
 /** 신규 항목 하나. */
 data class NewContentItem(val id: String, val name: String)
+
+/** 게임 하나의 현재 버전 — "원신 7.0". */
+data class GameVersionLine(
+    val gameKey: String,
+    val gameShort: String,
+    val colorArgb: Long,
+    val version: String,
+)

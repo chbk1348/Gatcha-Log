@@ -29,8 +29,6 @@ import com.gatcha.log.data.MonthlyLedger
 import com.gatcha.log.data.Spending
 import com.gatcha.log.data.Subscription
 import com.gatcha.log.data.UserProfile
-import com.gatcha.log.data.api.BangbooDetail
-import com.gatcha.log.data.api.BangbooEntry
 import com.gatcha.log.data.api.EnkaApi
 import com.gatcha.log.data.api.NanokaApi
 import com.gatcha.log.data.api.WeaponRefinement
@@ -1387,6 +1385,10 @@ class SpendingViewModel : ViewModel() {
     private val _newContentLoading = MutableStateFlow(false)
     val newContentLoading: StateFlow<Boolean> = _newContentLoading.asStateFlow()
 
+    private val _gameVersions = MutableStateFlow<List<GameVersionLine>>(emptyList())
+    /** 지금 돌고 있는 게임 버전(출석 3게임) — 데일리 타일 아래 한 줄. */
+    val gameVersions: StateFlow<List<GameVersionLine>> = _gameVersions.asStateFlow()
+
     private var newContentLoaded = false
 
     /**
@@ -1402,6 +1404,9 @@ class SpendingViewModel : ViewModel() {
         viewModelScope.launch {
             _newContentLoading.value = true
             try {
+                // 버전 한 줄은 매니페스트만 있으면 되고 신규 목록보다 훨씬 싸다 — 먼저 채운다.
+                withContext(Dispatchers.IO) { NewContent.liveVersions() }
+                    .takeIf { it.isNotEmpty() }?.let { _gameVersions.value = it }
                 val games = withContext(Dispatchers.IO) { NewContent.load() }
                 if (games.isEmpty()) {
                     // 못 받았으면 '없음'으로 굳히지 않는다 — 다음 진입에 다시 시도한다.
@@ -1442,39 +1447,6 @@ class SpendingViewModel : ViewModel() {
         viewModelScope.launch {
             val r = withContext(Dispatchers.IO) { NanokaApi.refinement(gameKey, weaponId, level) } ?: return@launch
             _weaponRefinement.update { it + (key to r) }
-        }
-    }
-
-    private val _bangboo = MutableStateFlow<List<BangbooEntry>>(emptyList())
-    /** 젠레스 방부 도감 목록. */
-    val bangboo: StateFlow<List<BangbooEntry>> = _bangboo.asStateFlow()
-
-    private val _bangbooLoading = MutableStateFlow(false)
-    val bangbooLoading: StateFlow<Boolean> = _bangbooLoading.asStateFlow()
-
-    /** 방부 목록 로드(1회). 목록은 jsdelivr 인덱스라 한 번이면 충분하다. */
-    fun loadBangboo() {
-        if (_bangboo.value.isNotEmpty() || _bangbooLoading.value) return
-        viewModelScope.launch {
-            _bangbooLoading.value = true
-            try {
-                _bangboo.value = withContext(Dispatchers.IO) { NanokaApi.bangbooIndex() }
-            } finally {
-                _bangbooLoading.value = false
-            }
-        }
-    }
-
-    private val _bangbooDetail = MutableStateFlow<Map<String, BangbooDetail>>(emptyMap())
-    /** 방부 상세(id → 설명·스탯·스킬). 탭한 것만 채운다. */
-    val bangbooDetail: StateFlow<Map<String, BangbooDetail>> = _bangbooDetail.asStateFlow()
-
-    /** 방부 상세 조회 — 이미 받았으면 아무것도 하지 않는다. */
-    fun loadBangbooDetail(id: String) {
-        if (_bangbooDetail.value.containsKey(id)) return
-        viewModelScope.launch {
-            val d = withContext(Dispatchers.IO) { NanokaApi.bangbooDetail(id) } ?: return@launch
-            _bangbooDetail.update { it + (id to d) }
         }
     }
 
