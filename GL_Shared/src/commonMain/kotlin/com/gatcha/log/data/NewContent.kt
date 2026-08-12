@@ -71,13 +71,48 @@ object NewContent {
         typeLabels.mapNotNull { (type, label) ->
             val ids = g.new[type].orEmpty()
             if (ids.isEmpty()) return@mapNotNull null
-            val named = ids.take(NAMES_PER_TYPE).mapNotNull { id ->
+            // 목록에 낼 게 아니라고 판정한 수. 이름을 못 받은 것과 **구분해서** 센다 —
+            // 전자는 총계에서 빼야 하고(애초에 신규가 아니다), 후자는 "N개 (이름 준비 중)"로 남는다.
+            var dropped = 0
+            val resolved = ids.take(NAMES_PER_TYPE).mapNotNull { id ->
                 val o = NanokaApi.entity(nanokaKey, type, id) ?: return@mapNotNull null
+                val icon = o.optString("icon")
+                if (!isListable(nanokaKey, type, icon)) {
+                    dropped++
+                    return@mapNotNull null
+                }
                 val name = NanokaApi.usableName(o.optString("name")) ?: return@mapNotNull null
-                NewContentItem(id, name, iconUrl = portraitUrl(nanokaKey, type, o.optString("icon")))
+                NewContentItem(id, name, iconUrl = portraitUrl(nanokaKey, type, icon))
             }
-            NewContentGroup(type = type, label = label, total = ids.size, items = named)
+            // 이름이 같은 항목은 하나만. 원신 7.0 이 여행자를 id 두 개(`10000007-5`·`10000135`)로
+            // 보내는데, 화면에는 똑같은 "여행자"가 두 줄 서서 고장으로 읽힌다.
+            val named = resolved.distinctBy { it.name }
+            dropped += resolved.size - named.size
+            val total = ids.size - dropped
+            if (total <= 0) return@mapNotNull null
+            NewContentGroup(type = type, label = label, total = total, items = named)
         }
+
+    /**
+     * 목록에 낼 항목인가 — **원신 캐릭터에 캐릭터가 아닌 게 섞여 온다.**
+     *
+     * 7.0 신규 캐릭터가 5건으로 오는데 실제 신규는 알료샤·오데트 둘뿐이다. 나머지 셋은
+     * 여행자 둘(`UI_AvatarIcon_PlayerGirl`, id `10000007-5`·`10000135`)과
+     * 별인형(`UI_AvatarIcon_MannequinGirl`) — 앞은 기존 캐릭터의 원소 확장이고 뒤는
+     * 전투 훈련용 인형이다. 도감 데이터는 이것들도 '아바타'로 세는데, 사용자가 "이번 버전에
+     * 누가 나왔나" 하고 여는 목록의 답은 아니다.
+     *
+     * 판정은 **아이콘 에셋 이름**으로 한다. id 는 게임마다 체계가 달라 규칙을 세울 수 없지만
+     * 에셋 이름은 역할이 그대로 박혀 있다.
+     *
+     * ⚠️ 이 규칙은 여행자의 **새 원소 형태**도 같이 지운다. 그 자체는 뉴스거리지만 지금 형태로는
+     * 알릴 수가 없다 — 이름이 그냥 "여행자"라 목록에서 무엇이 늘었는지 구분되지 않는다.
+     * 원소를 이름에 실을 수 있게 되면 그때 다시 볼 것.
+     */
+    private fun isListable(nanokaKey: String, type: String, icon: String): Boolean {
+        if (nanokaKey != "gi" || type != "character") return true
+        return !icon.startsWith("UI_AvatarIcon_Player") && !icon.startsWith("UI_AvatarIcon_Mannequin")
+    }
 
     /**
      * 캐릭터 초상 URL.

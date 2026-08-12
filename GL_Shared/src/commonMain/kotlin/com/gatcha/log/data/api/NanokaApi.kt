@@ -66,13 +66,27 @@ object NanokaApi {
     suspend fun nameOf(game: String, type: String, id: String): String? =
         entity(game, type, id)?.optString("name")?.let { usableName(it) }
 
+    /**
+     * 상류가 자리표시자로 쓰는 문구. **내부 키가 아니라 사람이 읽히게 쓴 빈칸**이라
+     * 밑줄 규칙에 안 걸린다 — 명조 3.6 신규 에코 3건이 전부 `Stay tuned` 로 왔다.
+     *
+     * 규칙으로 넓히지 않고 목록으로 둔다. "ko 응답인데 순수 ASCII 면 미번역"으로 잡으면
+     * 영문 표기가 정식인 이름(`W-엔진` 계열·약어)까지 같이 지워진다.
+     */
+    private val placeholderPhrases = setOf(
+        "stay tuned", "coming soon", "to be announced", "tba", "tbd", "n/a", "null", "???", "-",
+    )
+
     /** 번역 전 자리표시자를 걸러낸다. 쓸 수 있으면 그대로, 아니면 null. */
     fun usableName(raw: String): String? {
         val s = raw.trim()
-        if (s.isBlank() || s == "null") return null
+        if (s.isBlank()) return null
+        if (s.lowercase() in placeholderPhrases) return null
         // 내부 키는 공백 없이 밑줄로 이어진 ASCII 다 — 실제 이름에는 공백이나 한글/한자가 있다.
         if ('_' in s && s.none { it.isWhitespace() } && s.all { it.code < 128 }) return null
-        return s
+        // 상류는 이름 안 구분자로 U+2022(•) 를 쓴다("로빈•서머레토"). 한국어 표기는 가운뎃점(·)이고,
+        // 앱이 이름을 이어 붙일 때도 `·` 를 써서 그대로 두면 한 화면에 두 기호가 섞인다.
+        return s.replace('•', '·')
     }
 
     /**
