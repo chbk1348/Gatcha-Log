@@ -389,16 +389,12 @@ fun GameInfoScreen(
                     onOpenClears = { subPage = GiSub.CombatClear },
                 )
             }
-            // 새 버전 알림 — 데일리 바로 아래. 안 본 신규 캐릭터가 있을 때만 뜬다.
+            // 새 버전 알림 — 데일리 바로 아래. 이번 버전에 신규 캐릭터가 있으면 상시로 뜬다(닫기 없음).
             versionBanner?.let { b ->
                 item { Spacer(Modifier.height(16.dp)) }
                 item {
                     GiSection {
-                        NewVersionBannerCard(
-                            b,
-                            onOpen = { subPage = GiSub.NewContent },
-                            onDismiss = { viewModel.markNewContentSeen() },
-                        )
+                        NewVersionBannerCard(b, onOpen = { subPage = GiSub.NewContent })
                     }
                 }
             }

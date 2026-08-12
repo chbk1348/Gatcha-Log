@@ -2,12 +2,16 @@ import SwiftUI
 import Shared
 
 /**
- 새 버전 알림 배너 — 데일리 아래, 지면을 크게 쓰는 알림.
+ 새 버전 알림 배너 — 데일리 아래, 지면을 크게 쓰는 알림. (Compose `NewVersionBannerCard` 대응)
 
  광고처럼 보이게 만드는 건 의도다. 이 화면에서 유일하게 **읽으라고 내미는** 항목이라
  나머지(흰 카드 + 옅은 글자)와 결을 달리해야 눈에 걸린다. 대신 조건을 좁게 잡는다 —
- 안 본 신규 **캐릭터**가 있을 때만. 아무 때나 띄우면 곧 무시당하고, 그러면 정작 신규
+ 신규 **캐릭터**가 있는 게임만. 아무 때나 띄우면 곧 무시당하고, 그러면 정작 신규
  캐릭터가 나온 날에도 안 읽힌다.
+
+ **상시로 뜬다.** 닫기 버튼은 없다 — 한 번 확인했다고 "이번 버전에 누가 나왔더라"가
+ 없어지지 않는데, 내린 배너는 다시 부를 방법이 없었다. 대신 눌러서 전체 목록으로 간다는
+ 걸 꺾쇠로 알린다(닫기가 사라진 자리에 아무 표시도 없으면 눌러도 되는지 모른다).
 
  **기간은 쓰지 않는다.** 도감에는 픽업 일정이 없다 — "이 버전에 이런 캐릭터가 추가됐다"까지가
  사실이고 그 이상은 지어내는 것이다.
@@ -15,57 +19,54 @@ import Shared
 struct NewVersionBannerCard: View {
     let banner: NewVersionBanner
     let onOpen: () -> Void
-    let onDismiss: () -> Void
 
     var body: some View {
         let color = Color(argb64: banner.colorArgb)
-        ZStack(alignment: .topTrailing) {
-            Button(action: onOpen) {
-                HStack(spacing: 10) {
-                    VStack(alignment: .leading, spacing: 0) {
-                        HStack(spacing: 7) {
-                            Text("NEW").font(.pretendard(size: 9.5, weight: .bold)).foregroundStyle(.white)
-                                .padding(.horizontal, 6).padding(.vertical, 2)
-                                .background(Color.white.opacity(0.22),
-                                            in: RoundedRectangle(cornerRadius: 6, style: .continuous))
-                            Text("버전 업데이트").font(.pretendard(size: 10.5, weight: .bold))
-                                .foregroundStyle(.white.opacity(0.85))
-                        }
-                        Text(banner.headline).font(.pretendard(size: 20, weight: .bold)).foregroundStyle(.white)
-                            .lineLimit(1).padding(.top, 9)
-                        Text(banner.sub).font(.pretendard(size: 12.5)).foregroundStyle(.white.opacity(0.9))
-                            .lineLimit(1).padding(.top, 4)
+        Button(action: onOpen) {
+            HStack(spacing: 10) {
+                VStack(alignment: .leading, spacing: 0) {
+                    HStack(spacing: 7) {
+                        Text("NEW").font(.pretendard(size: 9.5, weight: .bold)).foregroundStyle(.white)
+                            .padding(.horizontal, 6).padding(.vertical, 2)
+                            .background(Color.white.opacity(0.22),
+                                        in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+                        Text("버전 업데이트").font(.pretendard(size: 10.5, weight: .bold))
+                            .foregroundStyle(.white.opacity(0.85))
                     }
-                    Spacer(minLength: 0)
-                    // 초상 — 있으면 겹쳐 놓는다(원신만 규칙을 안다). 없으면 글자만으로 충분하다.
-                    if !banner.portraits.isEmpty {
-                        HStack(spacing: -14) {
-                            ForEach(Array(banner.portraits.enumerated()), id: \.offset) { _, raw in
-                                if let u = URL(string: raw) {
-                                    GLGRemoteImage(url: u, side: 54)
-                                        .clipShape(Circle())
-                                        .overlay(Circle().stroke(Color.white.opacity(0.5), lineWidth: 1.5))
-                                }
+                    Text(banner.headline).font(.pretendard(size: 20, weight: .bold)).foregroundStyle(.white)
+                        .lineLimit(1).padding(.top, 9)
+                    HStack(spacing: 3) {
+                        Text(banner.sub).font(.pretendard(size: 12.5)).foregroundStyle(.white.opacity(0.9))
+                            .lineLimit(1)
+                        Image(systemName: "chevron.right").font(.system(size: 10, weight: .bold))
+                            .foregroundStyle(.white.opacity(0.75))
+                    }
+                    .padding(.top, 4)
+                }
+                Spacer(minLength: 0)
+                // 초상 — 있으면 겹쳐 놓는다(원신만 규칙을 안다). 없으면 글자만으로 충분하다.
+                if !banner.portraits.isEmpty {
+                    HStack(spacing: -14) {
+                        ForEach(Array(banner.portraits.enumerated()), id: \.offset) { _, raw in
+                            if let u = URL(string: raw) {
+                                GLGRemoteImage(url: u, side: 54)
+                                    .clipShape(Circle())
+                                    .overlay(Circle().stroke(Color.white.opacity(0.5), lineWidth: 1.5))
                             }
                         }
                     }
                 }
-                .padding(.leading, 18).padding(.trailing, 12).padding(.vertical, 16)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
-            // 닫기 — 눌러 들어가지 않고도 내릴 수 있어야 한다(내리면 '봤음'으로 적는다).
-            Button(action: onDismiss) {
-                Image(systemName: "xmark").font(.system(size: 11, weight: .bold))
-                    .foregroundStyle(.white.opacity(0.75))
-                    .frame(width: 26, height: 26).contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .padding(6)
+            .padding(.leading, 18).padding(.trailing, 16).padding(.vertical, 16)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
         }
+        .buttonStyle(.plain)
+        // 어둡게 섞어 내린다 — `opacity` 로 내리면 흰 배경이 비쳐 **밝아져서**, 같은 코드를
+        // 검정 쪽으로 보간하는 Compose(`lerp(color, Black, 0.28)`)와 색이 갈렸다.
         .background(
-            LinearGradient(colors: [color, color.opacity(0.72)], startPoint: .topLeading, endPoint: .bottomTrailing),
+            LinearGradient(colors: [color, color.mix(with: .black, by: 0.28)],
+                           startPoint: .topLeading, endPoint: .bottomTrailing),
             in: RoundedRectangle(cornerRadius: 20, style: .continuous)
         )
     }

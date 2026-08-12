@@ -1379,7 +1379,7 @@ class SpendingViewModel : ViewModel() {
     val newContent: StateFlow<List<NewContentGame>> = _newContent.asStateFlow()
 
     private val _versionBanner = MutableStateFlow<NewVersionBanner?>(null)
-    /** 새 버전 알림 배너 — 안 본 신규 캐릭터가 있을 때만 채워진다. */
+    /** 새 버전 알림 배너 — 이번 버전에 신규 캐릭터가 있으면 상시. '봤음'과 무관하다. */
     val versionBanner: StateFlow<NewVersionBanner?> = _versionBanner.asStateFlow()
 
     private val _newContentUnseen = MutableStateFlow(false)
@@ -1418,23 +1418,27 @@ class SpendingViewModel : ViewModel() {
                     return@launch
                 }
                 _newContent.value = games
-                val seen = repo.loadSeenNewContent()
-                _newContentUnseen.value = NewContent.hasUnseen(games, seen)
-                _versionBanner.value = NewContent.banner(games, seen)
+                _newContentUnseen.value = NewContent.hasUnseen(games, repo.loadSeenNewContent())
+                // 배너는 '봤음'을 보지 않는다 — 버전이 바뀔 때까지 그대로 둔다([NewContent.banner]).
+                _versionBanner.value = NewContent.banner(games)
             } finally {
                 _newContentLoading.value = false
             }
         }
     }
 
-    /** 신규 목록을 열었다 — 지금 보이는 항목을 전부 '봤음'으로 적고 점을 끈다. */
+    /**
+     * 신규 목록을 열었다 — 지금 보이는 항목을 전부 '봤음'으로 적고 점을 끈다.
+     *
+     * 배너는 건드리지 않는다. 점("안 본 게 있다")과 배너("지금 버전에 누가 나왔다")는 답하는
+     * 질문이 다르다 — 목록을 한 번 열었다고 이번 버전 신규 캐릭터가 누구인지가 없어지지 않는다.
+     */
     fun markNewContentSeen() {
         val games = _newContent.value
         if (games.isEmpty()) return
         val merged = repo.loadSeenNewContent() + NewContent.seenKeys(games)
         repo.saveSeenNewContent(merged)
         _newContentUnseen.value = false
-        _versionBanner.value = null   // 배너도 같이 내린다 — 확인한 소식을 계속 띄우지 않는다
     }
 
     private val _weaponRefinement = MutableStateFlow<Map<String, WeaponRefinement>>(emptyMap())
