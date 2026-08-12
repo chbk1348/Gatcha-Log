@@ -306,51 +306,86 @@ class SpendingViewModel : ViewModel() {
         runCatching { _taskStats.value = TaskCompletion.allStats(repo.loadTaskLogs()) }
     }
 
-    /** 백그라운드로 내려간 시각. 0 이면 '내려간 적 없음'(콜드 스타트 직후). */
-    private var backgroundedAtMillis = 0L
-
     /** 직전 포그라운드 시점의 호요 기준 날짜 키 — 날짜가 넘어갔는지 판정용. */
     private var lastForegroundDayKey = ""
 
+    /** 실시간 노트(행동력)를 마지막으로 받은 시각. 0 = 받은 적 없음. */
+    private var lastLiveNoteAt = 0L
+
+    /** 클라우드 스냅샷을 마지막으로 당겨온 시각. */
+    private var lastCloudPullAt = 0L
+
     /**
-     * 앱이 백그라운드로 내려갈 때. 체류 시간을 재려면 내려간 시각이 필요하다.
+     * 앱이 백그라운드로 내려갈 때.
      *
-     * '직전 포그라운드로부터의 경과'로 대신 재면, 앱을 두 시간 켜 두고 쓰다가 1분 내려갔다 온
-     * 경우까지 장시간 이탈로 오판한다(전체 새로고침이 헛돈다).
+     * 예전엔 내려간 시각을 적어 두고 '얼마나 자리를 비웠는가'로 갱신을 갈랐는데, 이제
+     * [onAppForeground] 가 자료 나이로 판단하므로 적어 둘 게 없다. 호출부(양 플랫폼 생명주기)는
+     * 그대로 두고 여기만 비운다 — 다시 필요해질 자리다.
      */
-    fun onAppBackground() {
-        backgroundedAtMillis = currentTimeMillis()
-    }
+    fun onAppBackground() = Unit
 
     /**
      * 앱이 포그라운드로 돌아왔을 때 ① 화면 데이터를 최신화하고 ② 밀린 알림을 1회 점검한다.
      *
-     * **① 장시간 이탈 후 갱신** — 백그라운드에 오래 있다 돌아오면 화면에 낡은 값이 그대로 남았다.
-     * 게임 정보 재조회([refreshGameInfo])는 화면 진입 시점에만 걸려 있는데, 백그라운드에 다녀와도
-     * 화면은 그대로 살아 있어 다시 불리지 않는다. 클라우드 pull 은 `init` 에서 한 번뿐이라 다른 기기의
-     * 변경도 안 들어오고, 출석·스트릭은 [loadAll] 때 굳은 값이라 자정을 넘겨도 어제 상태로 남았다.
-     * → [STALE_AFTER_MS] 이상 떠나 있었거나 날짜가 넘어갔으면 [refreshAfterLongBackground].
-     * 탭·스크롤 위치는 건드리지 않는다(데이터만 조용히 갈아끼운다).
+     * ## ① 갱신 판단은 '자료 나이'로 한다 — 자리를 비운 시간이 아니라
      *
-     * **② 알림 점검** — 주기 작업만으로는 구멍이 크다. iOS BGAppRefreshTask 는 실행 시점이 OS 재량이고
-     * 앱이 강제 종료돼 있으면 아예 안 돌며, Android 도 Doze 에서 늦어진다. 그래서 알림이 사실상
-     * '토글을 켜는 순간'에만 오는 것처럼 보였다. 앱을 여는 순간을 보조 트리거로 쓴다.
-     * 전환할 때마다 HoYoLAB 을 두드리면 안 되므로 [FOREGROUND_CHECK_MIN_INTERVAL_MS] 간격을 둔다.
+     * 예전에는 백그라운드 **체류 시간**으로 갈랐다(30분 이상이면 전체 갱신, 그 아래면 클라우드만).
+     * 구멍이 둘 있었다.
+     *
+     * - **앱을 켜 둔 채 오래 쓰면 아무것도 안 늙는다.** 지출 탭에서 한 시간을 보내다 1분 내려갔다
+     *   오면 체류 시간은 1분이라 갱신이 안 걸린다. 정작 행동력은 한 시간 묵은 값이다.
+     * - **자료마다 상하는 속도가 다른데 한 문턱으로 묶었다.** 행동력은 분 단위로 차오르고
+     *   캘린더·공지는 하루 단위로 바뀐다. 30분은 전자에겐 너무 길고 후자에겐 짧다.
+     *
+     * 그래서 **각 자료를 마지막으로 받은 시각**을 보고 늙은 것만 다시 받는다.
+     *
+     * | 자료 | 최대 나이 |
+     * |---|---|
+     * | 행동력(실시간 노트) | [LIVE_NOTE_MAX_AGE_MS] |
+     * | 캘린더·공지·원장·전투 | [GAME_INFO_MAX_AGE_MS] |
+     * | 내 캐릭터(Enka) | 조회 함수 내부 TTL |
+     * | 클라우드 스냅샷 | [CLOUD_MAX_AGE_MS] |
+     *
+     * 날짜가 넘어갔으면 나이와 무관하게 전부 다시 받는다 — 출석·일일 숙제가 통째로 리셋된다.
+     * 탭·스크롤 위치는 건드리지 않고 값만 조용히 갈아끼운다(로딩 게이트·얼럿 없음).
+     *
+     * ## ② 알림 점검
+     *
+     * 주기 작업만으로는 구멍이 크다. iOS BGAppRefreshTask 는 실행 시점이 OS 재량이고 앱이 강제
+     * 종료돼 있으면 아예 안 돌며, Android 도 Doze 에서 늦어진다. 그래서 알림이 사실상 '토글을 켜는
+     * 순간'에만 오는 것처럼 보였다. 앱을 여는 순간을 보조 트리거로 쓰되, 전환할 때마다 HoYoLAB 을
+     * 두드리면 안 되므로 [FOREGROUND_CHECK_MIN_INTERVAL_MS] 간격을 둔다.
      */
     fun onAppForeground() {
         DateUtil.refreshTimeZone()    // 캐시된 로컬 타임존 갱신(여행·자동 시간대 변경) — 알림 조건과 무관하게 항상
         recomputeSpendingDerived()    // 앱을 켜 둔 채 달이 바뀌면 지출은 그대로여서 '이번 달'이 안 갱신된다
 
         val now = currentTimeMillis()
-        val awayMs = if (backgroundedAtMillis == 0L) 0L else now - backgroundedAtMillis
         val today = todayKey()
-        // 첫 호출(콜드 스타트)은 방금 로드한 직후라 갱신할 게 없다 — 키가 비었을 때는 롤오버로 치지 않는다.
-        val dayRolled = lastForegroundDayKey.isNotEmpty() && lastForegroundDayKey != today
+        // 첫 호출 = 콜드 스타트. 방금 init 이 로드했고 화면 진입이 곧 조회를 건다 — 여기서 또
+        // 부르면 같은 요청이 두 벌 나가고, 오프라인일 때 화면 쪽이 띄울 안내까지 silent 로 삼킨다.
+        val firstForeground = lastForegroundDayKey.isEmpty()
+        val dayRolled = !firstForeground && lastForegroundDayKey != today
         lastForegroundDayKey = today
-        backgroundedAtMillis = 0L
-        if (awayMs >= STALE_AFTER_MS || dayRolled) refreshAfterLongBackground()
-        // 짧게 다녀왔어도 클라우드는 당겨온다 — 다른 기기에서 넣은 지출이 바로 보이게. 게임 정보는 건드리지 않는다.
-        else if (awayMs >= CLOUD_STALE_AFTER_MS) cloudSyncQuiet()
+
+        if (!firstForeground) {
+            if (dayRolled) {
+                // 출석·스트릭은 [loadAll] 때 굳은 값이라 자정을 넘겨도 어제 상태로 남는다.
+                _attendanceToday.value = attendanceMap[today] ?: emptySet()
+                _attendanceStreak.value = computeAttendanceStreak()
+            }
+            // 게임 정보 전체(캘린더·공지·원장·전투). 노트도 이 안에서 함께 받으므로 아래는 건너뛴다.
+            if (dayRolled || now - lastGameInfoLoadAt >= GAME_INFO_MAX_AGE_MS) {
+                refreshGameInfo(force = true, silent = true)
+            } else if (now - lastLiveNoteAt >= LIVE_NOTE_MAX_AGE_MS) {
+                refreshLiveNotesQuiet()
+            }
+            // 내 캐릭터 — 호출은 매번 하되 실제 조회 여부는 내부 TTL·진행 중 판정이 가른다.
+            // 예전엔 복귀 갱신에 아예 빠져 있어, 화면이 떠 있는 동안에는 탭을 새로 들어가지 않는 한
+            // 영영 낡은 로스터가 보였다.
+            autoLoadEnkaSection(ENKA_GAMES)
+            if (now - lastCloudPullAt >= CLOUD_MAX_AGE_MS) cloudSyncQuiet()
+        }
 
         if (!appSettings.needsPeriodicWork()) return
         if (now - appSettings.lastForegroundCheckMillis < FOREGROUND_CHECK_MIN_INTERVAL_MS) return
@@ -360,27 +395,48 @@ class SpendingViewModel : ViewModel() {
     }
 
     /**
-     * 장시간 이탈(또는 날짜 롤오버) 후 데이터 최신화. 화면 전환·로딩 게이트 없이 값만 갈아끼운다.
+     * **행동력(실시간 노트)만** 다시 받는다 — HoYoLAB 3건.
      *
-     * 네트워크가 없으면 [refreshGameInfo] 가 얼럿을 띄우는데, 복귀할 때마다 팝업이 뜨면 방해만 된다.
-     * 사용자가 직접 누른 새로고침이 아니므로 `silent` 로 조용히 넘어간다(클라우드 pull 도 동일).
+     * 전체 갱신([refreshGameInfo])은 캘린더·공지까지 20여 건을 부르는데 그것들은 몇 분 만에
+     * 바뀌지 않는다. 반대로 행동력은 계속 차오르므로 앱을 다시 열 때마다 맞아야 한다.
+     * 인디케이터는 켜지 않는다 — 사용자가 부른 갱신이 아니다.
      */
-    private fun refreshAfterLongBackground() {
-        // 날짜가 넘어갔으면 오늘 출석·스트릭이 어제 기준으로 남아 있다(loadAll 시점에 굳은 값).
-        _attendanceToday.value = attendanceMap[todayKey()] ?: emptySet()
-        _attendanceStreak.value = computeAttendanceStreak()
-        refreshGameInfo(force = true, silent = true)
-        cloudSyncQuiet()
+    private fun refreshLiveNotesQuiet() {
+        val cfg = _hoyolabConfig.value
+        if (!cfg.isLinked) return
+        if (_gameInfoRefreshing) return   // 전체 갱신이 이미 돌고 있으면 같은 요청을 두 번 쏘지 않는다
+        val uids = mapOf(
+            "genshin" to cfg.genshinUid,
+            "hsr" to cfg.hsrUid,
+            "zzz" to cfg.zzzUid,
+        ).filterValues { it.isNotBlank() }
+        if (uids.isEmpty()) return
+        viewModelScope.launch {
+            if (!NetworkMonitor.isOnline()) return@launch
+            val notes = coroutineScope {
+                uids.map { (key, uid) ->
+                    async(Dispatchers.IO) { HoyolabApi.getLiveNote(cfg.ltuid, cfg.ltoken, key, uid).note }
+                }.awaitAll()
+            }.filterNotNull()
+            if (notes.isEmpty()) return@launch
+            lastLiveNoteAt = currentTimeMillis()
+            _liveNotes.value = mergeByGame(_liveNotes.value, notes, notes.map { it.game }.toSet()) { it.game }
+                .sortedByGameOrder { it.game }
+            withContext(Dispatchers.IO) { runCatching { repo.saveLiveNotes(_liveNotes.value) } }
+            recordTaskProgress(notes)
+            rescheduleTimedAlerts()   // 행동력이 바뀌면 완충 알림 예약 시각도 바뀐다
+        }
     }
 
     /**
      * 클라우드 스냅샷만 조용히 다시 당겨온다(화면 전환·로딩 게이트·얼럿 없음).
      *
-     * [refreshAfterLongBackground] 와 짧은 복귀([CLOUD_STALE_AFTER_MS]) 양쪽에서 쓴다.
+     * [onAppForeground] 가 [CLOUD_MAX_AGE_MS] 를 넘겼을 때 부른다.
      * 병합은 id 기준 합집합이라 여러 번 돌아도 중복이 생기지 않는다.
      */
     private fun cloudSyncQuiet() {
         if (cloudConfigured && CloudSync.currentUid() != null) {
+            lastCloudPullAt = currentTimeMillis()
             // ⚠️ **IO 로 띄운다.** 이 경로는 클라우드 스냅샷 JSON 파싱([GatchaRepository.importSnapshotJson])과
             // 저장소 20여 키를 다시 읽는 [loadAll] 을 포함한다. viewModelScope 기본값(Main)에 두면
             // 그 전부가 UI 스레드에서 돌아, 앱으로 돌아온 직후 화면이 눈에 띄게 멎었다 — 지출이
@@ -1644,6 +1700,7 @@ class SpendingViewModel : ViewModel() {
                         if (results.any { it.note == null && it.transient }) noteRetry = true
                         val notes = results.mapNotNull { it.note }
                         if (notes.isNotEmpty()) {
+                            lastLiveNoteAt = currentTimeMillis()
                             _liveNotes.value = mergeByGame(_liveNotes.value, notes, notes.map { it.game }.toSet()) { it.game }
                                 .sortedByGameOrder { it.game }
                             // 행동력이 가득 차는 시각을 알림 예약에 쓰려면 로컬 캐시가 필요하다(네트워크 없이 계산).
@@ -2263,22 +2320,30 @@ class SpendingViewModel : ViewModel() {
         const val FOREGROUND_CHECK_MIN_INTERVAL_MS = 15L * 60 * 1000
 
         /**
-         * 이 시간 이상 백그라운드에 있었으면 복귀 시 데이터를 통째로 다시 받는다.
-         * 게임 정보 신선도(5분)보다 넉넉히 잡는다 — 알림 확인·다른 앱 잠깐 다녀오기 정도로는 돌지 않게.
+         * 캘린더·공지·원장·전투의 최대 나이. 이보다 묵었으면 포그라운드 복귀 때 전체를 다시 받는다.
+         * 상류가 하루 단위로 바뀌는 자료라, 앱 전환마다 20여 건을 다시 부를 이유가 없다.
          */
-        const val STALE_AFTER_MS = 30L * 60 * 1000
+        const val GAME_INFO_MAX_AGE_MS = 30L * 60 * 1000
 
         /**
-         * 클라우드 스냅샷만 다시 당겨오는 임계 — [STALE_AFTER_MS] 와 **따로 잡는다.**
+         * 실시간 노트(행동력)의 최대 나이. 이보다 묵었으면 **노트 3건만** 따로 받는다.
+         *
+         * 짧게 잡을수록 숫자가 정확해지지만 HoYoLAB 을 자주 두드린다. 5분이면 원신 레진 기준
+         * 0.6개 차이라 "가득 찼나"를 오판할 만큼은 아니다.
+         */
+        const val LIVE_NOTE_MAX_AGE_MS = 5L * 60 * 1000
+
+        /**
+         * 클라우드 스냅샷의 최대 나이 — 게임 자료와 **따로 잡는다.**
          *
          * 폰 두 대를 번갈아 쓰면 한쪽에서 추가한 지출이 다른 쪽에 안 보인다는 지적이 반복됐다.
-         * 기기를 바꿔 드는 데는 보통 1분도 안 걸리는데 30분 임계에 걸려 pull 이 안 돌았다.
-         *
-         * 그렇다고 [STALE_AFTER_MS] 자체를 낮추면 [refreshAfterLongBackground] 가 함께 부르는
-         * `refreshGameInfo(force = true)` 까지 딸려 나가 **앱 전환마다 외부 게임 API(ennead·HoYoLAB·Enka)를
-         * 두드린다.** 클라우드 pull 은 문서 1건이라 비용이 다르므로 임계도 달라야 한다.
+         * 기기를 바꿔 드는 데는 1분도 안 걸린다. 클라우드 pull 은 문서 1건이라 게임 API 20여 건과
+         * 비용이 다르므로 문턱도 달라야 한다.
          */
-        const val CLOUD_STALE_AFTER_MS = 20L * 1000
+        const val CLOUD_MAX_AGE_MS = 60L * 1000
+
+        /** Enka 가 보유 캐릭터를 주는 게임 — 나머지는 상류가 주지 않는다. */
+        val ENKA_GAMES = listOf("genshin", "hsr", "zzz")
 
         /** 엔드 콘텐츠 클리어 편성 신선도(ms). 시즌 단위로 바뀌는 데이터라 넉넉히 잡는다. */
         const val COMBAT_CLEAR_FRESH_MS = 30L * 60 * 1000
