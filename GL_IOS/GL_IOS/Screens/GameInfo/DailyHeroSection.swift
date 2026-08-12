@@ -84,22 +84,46 @@ struct DailyHeroSection: View {
     // 색면이 없으니 아래 흰 카드와 층이 겹치지 않아 화면도 가벼워진다.
 
     /**
-     지금 돌고 있는 게임 버전 — 타일 아래 한 줄.
+     지금 돌고 있는 게임 버전 — 타일 아래의 조용한 참조 행. (Compose `GameVersionStrip` 대응)
 
-     카드로 만들지 않는다. 매일 쓰는 정보가 아니라 "지금 몇 버전이더라"를 확인하는 참조용이라,
-     면을 주면 위 타일과 무게가 같아져 시선을 나눠 가진다. 글자만 옅게 둔다.
+     확인 대상은 **숫자**다. 게임명과 한 줄에 같은 크기로 놓으면 먼저 읽히지 않아, 게임명은
+     작게 내리고 버전만 키워 위아래로 쌓았다. 세 칸을 같은 폭으로 갈라 게임끼리 훑어 비교되게
+     한다. 카드(면)는 여전히 주지 않는다 — 위 타일이 매일 누르는 것이고 이건 참조용이라는
+     관계를 유지한다.
+
+     게임색은 **글자가 아니라 막대**가 진다. 게임색을 작은 글자에 입히면 젠레스(주황
+     `F5A623`, 흰 배경 대비 2.1:1)·원신(3.0:1)이 읽히지 않는다. 막대는 글자가 아니라
+     표식이라 옅어도 되고, 색면이 두 줄 높이로 서니 점보다 알아보기도 쉽다. 그러면서 칸을
+     가르는 일까지 겸해 구분선을 따로 그을 필요가 없어진다.
      */
     @ViewBuilder
     private func versionStrip(_ versions: [GameVersionLine]) -> some View {
-        HStack(spacing: 10) {
-            ForEach(Array(versions.enumerated()), id: \.offset) { _, v in
-                HStack(spacing: 4) {
-                    Circle().fill(Color(argb64: v.colorArgb)).frame(width: 5, height: 5)
-                    Text("\(v.gameShort) \(v.version)")
-                        .font(.pretendard(size: 10.5)).foregroundStyle(GLGColor.textSecondary).lineLimit(1)
+        VStack(alignment: .leading, spacing: 6) {
+            Text("현재 버전")
+                .font(.pretendard(size: 10, weight: .bold))
+                .foregroundStyle(GLGColor.textSecondary)
+            HStack(spacing: 10) {
+                ForEach(Array(versions.enumerated()), id: \.offset) { _, v in
+                    HStack(spacing: 7) {
+                        // 높이를 주지 않는다 — 오른쪽 두 줄이 정한 행 높이에 맞춰 늘어난다.
+                        RoundedRectangle(cornerRadius: 1.5)
+                            .fill(Color(argb64: v.colorArgb))
+                            .frame(width: 3)
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text(v.gameShort)
+                                .font(.pretendard(size: 10.5, weight: .medium))
+                                .foregroundStyle(GLGColor.textSecondary)
+                                .lineLimit(1)
+                            Text(v.version)
+                                .font(.pretendard(size: 16, weight: .bold))
+                                .foregroundStyle(GLGColor.textPrimary)
+                                .lineLimit(1)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .fixedSize(horizontal: false, vertical: true)
                 }
             }
-            Spacer(minLength: 0)
         }
         .padding(.horizontal, 2)
     }
