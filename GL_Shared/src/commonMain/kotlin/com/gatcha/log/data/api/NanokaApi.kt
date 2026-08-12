@@ -58,9 +58,23 @@ object NanokaApi {
         return null
     }
 
-    /** 단건에서 한국어 이름만. 이름이 비어 있으면(비호요 게임에서 흔하다) null. */
+    /**
+     * 단건에서 한국어 이름만. 못 쓸 값이면 null.
+     *
+     * 상류가 번역 전이면 이름 자리에 **내부 키를 그대로** 실어 보낸다
+     * (`Item_Weapon_B_Common_16_Name`). 그걸 화면에 그리면 사용자에겐 고장으로 읽힌다.
+     */
     suspend fun nameOf(game: String, type: String, id: String): String? =
-        entity(game, type, id)?.optString("name")?.takeIf { it.isNotBlank() && it != "null" }
+        entity(game, type, id)?.optString("name")?.let { usableName(it) }
+
+    /** 번역 전 자리표시자를 걸러낸다. 쓸 수 있으면 그대로, 아니면 null. */
+    fun usableName(raw: String): String? {
+        val s = raw.trim()
+        if (s.isBlank() || s == "null") return null
+        // 내부 키는 공백 없이 밑줄로 이어진 ASCII 다 — 실제 이름에는 공백이나 한글/한자가 있다.
+        if ('_' in s && s.none { it.isWhitespace() } && s.all { it.code < 128 }) return null
+        return s
+    }
 
     /**
      * 젠레스 방부 전체 목록.
@@ -75,6 +89,37 @@ object NanokaApi {
         )
         if (!res.isOk) return emptyList()
         return parseBangbooIndex(res.body)
+    }
+
+    /**
+     * 무기·광추의 **정련 효과 설명**. 없으면 null.
+     *
+     * 게임마다 필드 이름이 다르다 — 원신 `refinement`, 스타레일 `refinements`. 젠레스는 아예
+     * 정련 구조가 없고 `desc` 가 미번역 자리표시자로 올 때가 흔해 다루지 않는다.
+     *
+     * @param level 정련/중첩 단계(1~5). 범위를 벗어나면 가장 가까운 단계로 붙인다 —
+     *   상류가 5단계까지만 주는데 화면이 6을 넘겨 물어도 빈칸이 되면 안 된다.
+     */
+    suspend fun refinement(gameKey: String, weaponId: Int, level: Int): WeaponRefinement? {
+        if (weaponId <= 0) return null
+        val (nanokaKey, type) = when (gameKey) {
+            "genshin" -> "gi" to "weapon"
+            "hsr", "starrail" -> "hsr" to "lightcone"
+            else -> return null
+        }
+        val o = entity(nanokaKey, type, weaponId.toString()) ?: return null
+        val ref = o.optJSONObject("refinement") ?: o.optJSONObject("refinements") ?: return null
+        val steps = ref.keys().asSequence().mapNotNull { it.toIntOrNull() }.sorted().toList()
+        if (steps.isEmpty()) return null
+        val step = level.coerceIn(steps.first(), steps.last())
+        val e = ref.optJSONObject(step.toString()) ?: return null
+        val desc = stripMarkup(e.optString("desc"))
+        if (desc.isBlank()) return null
+        return WeaponRefinement(
+            name = e.optString("name").ifBlank { o.optString("name") },
+            desc = desc,
+            level = step,
+        )
     }
 
     /** 방부 한 마리 상세 — 설명·스탯·스킬. 없으면 null. */
@@ -208,3 +253,6 @@ data class BangbooDetail(
 
 /** 방부 스킬 한 줄. */
 data class BangbooSkill(val name: String, val desc: String)
+
+/** 무기·광추의 정련 효과 한 단계. */
+data class WeaponRefinement(val name: String, val desc: String, val level: Int)

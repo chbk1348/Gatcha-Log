@@ -43,6 +43,13 @@ data class EnkaWeapon(
     val refinement: Int,
     val main: EnkaStatLine?,
     val sub: EnkaStatLine?,
+    /**
+     * 게임 내부 id — 정련 효과 설명을 도감([NanokaApi])에서 찾을 때 쓴다. 0 = 응답에 없음.
+     *
+     * 젠레스는 채우지 않는다. 상류 한국어 W-엔진 데이터가 미번역 자리표시자(`Item_Weapon_..._Name`)로
+     * 오는 게 흔해서, id 가 있어도 보여줄 문장이 없다.
+     */
+    val id: Int = 0,
 )
 
 /** 성유물/유물 슬롯 1개. setName 은 v1 미해결 시 빈 문자열. */
@@ -515,6 +522,7 @@ object EnkaApi {
 
     private fun hsrLightCone(lc: JSONObject?, officialName: String? = null): EnkaWeapon? {
         lc ?: return null
+        val lcId = lc.optString("id").toIntOrNull() ?: lc.optInt("id")
         val main = lc.optJSONArray("attributes")?.optJSONObject(0)?.let {
             EnkaStatLine(it.optString("name"), it.optString("display"), false)
         }
@@ -525,6 +533,7 @@ object EnkaApi {
             refinement = lc.optInt("rank"), // 중첩
             main = main,
             sub = null,
+            id = lcId,
         )
     }
 
@@ -741,7 +750,7 @@ object EnkaApi {
                     if (pid == "FIGHT_PROP_BASE_ATTACK") main = line else sub = line
                 }
             }
-            return EnkaWeapon(names[e.optInt("itemId")] ?: "무기", w.optInt("level"), refine, main, sub)
+            return EnkaWeapon(names[e.optInt("itemId")] ?: "무기", w.optInt("level"), refine, main, sub, id = e.optInt("itemId"))
         }
         return null
     }
