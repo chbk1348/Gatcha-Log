@@ -108,6 +108,13 @@ struct GameInfoView: View {
         .refreshable { store.refreshGameInfo(force: true) }
         // 초기 진입 시 로드 + HoYoLAB 연동(config)이 늦게 링크되면 그 순간 강제 갱신(실시간 노트 표출)
         .task { store.refreshGameInfo() }
+        // 내 캐릭터(Enka) — 탭에 들어오는 순간 시작한다. 섹션에 맡기면 스크롤로 그 항목이
+        // 만들어질 때까지 조회가 시작되지 않는다(디스크 캐시 적중분은 즉시 표시).
+        .task(id: store.hoyolabConfig.isLinked) {
+            if store.hoyolabConfig.isLinked {
+                store.autoLoadEnkaSection(games: ["genshin", "hsr", "zzz"], force: false)
+            }
+        }
         .task(id: homeScheduleKey) {
             schedule = ScheduleLogic.shared.buildSchedule(
                 banners: store.activeBanners, events: store.gameEvents, challenges: store.challenges)

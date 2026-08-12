@@ -71,8 +71,9 @@ struct EnkaCharSection: View {
                     gameBlock(g, showLabel: true)
                 }
             }
-            // 진입 시 로드(캐시 적중분 즉시, 미적중분 순차 호출).
-            .task { store.autoLoadEnkaSection(games: games, force: false) }
+            // 로드 시작은 **화면 진입**에서 한다(GameInfoView). 여기(섹션)에서 걸면 LazyVStack 이
+            // 이 항목을 만들 때까지 조회가 시작되지 않아, 데일리 히어로에 가려진 동안은 아무
+            // 일도 안 일어난다 — '내 캐릭터가 늦게 뜬다'의 정체였다.
         }
     }
 
