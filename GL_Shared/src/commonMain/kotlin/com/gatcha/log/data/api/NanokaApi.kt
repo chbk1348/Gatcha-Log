@@ -16,8 +16,7 @@ import com.gatcha.log.json.JSONObject
  * 그건 [EnneadApi] 몫이고, 이 API 는 "무엇이 있는가"만 답한다.
  *
  * **목록(인덱스)도 없다.** 디렉터리 조회는 403/301, `all.json`·`{type}.json` 류는 404다.
- * **id 를 이미 알아야** 단건을 받을 수 있다. 그래서 전체 도감이 필요한 곳([bangbooIndex])은
- * jsdelivr 의 hakush 미러 레포에서 목록을 따로 받는다.
+ * **id 를 이미 알아야** 단건을 받을 수 있다 — 전체 도감을 만들려면 id 목록을 다른 데서 구해야 한다.
  */
 object NanokaApi {
 
@@ -77,21 +76,6 @@ object NanokaApi {
     }
 
     /**
-     * 젠레스 방부 전체 목록.
-     *
-     * nanoka 에 목록이 없어 hakush 데이터 미러(jsdelivr)에서 인덱스를 받는다. 한국어 이름이
-     * `KO` 필드로 들어 있어 이름만으로 목록을 그릴 수 있다 — 상세(스탯·스킬)는 [entity] 로 따로 받는다.
-     */
-    suspend fun bangbooIndex(): List<BangbooEntry> {
-        val res = Net.get(
-            "https://cdn.jsdelivr.net/gh/Genshin-Optimizer/zzz-hakushin-data@master/bangboo.json",
-            headers,
-        )
-        if (!res.isOk) return emptyList()
-        return parseBangbooIndex(res.body)
-    }
-
-    /**
      * 무기·광추의 **정련 효과 설명**. 없으면 null.
      *
      * 게임마다 필드 이름이 다르다 — 원신 `refinement`, 스타레일 `refinements`. 젠레스는 아예
@@ -122,35 +106,7 @@ object NanokaApi {
         )
     }
 
-    /** 방부 한 마리 상세 — 설명·스탯·스킬. 없으면 null. */
-    suspend fun bangbooDetail(id: String): BangbooDetail? {
-        val o = entity("zzz", "bangboo", id) ?: return null
-        return parseBangbooDetail(id, o)
-    }
-
     // ---------------------------------------------------------------- 파싱(순수 함수 — 테스트 대상)
-
-    /** 방부 상세 JSON → 화면 모델. 스킬 설명은 마크업이 섞여 오므로 [stripMarkup] 으로 걷는다. */
-    fun parseBangbooDetail(id: String, o: JSONObject): BangbooDetail {
-        val stats = o.optJSONObject("stats")
-        return BangbooDetail(
-            id = id,
-            name = o.optString("name"),
-            desc = stripMarkup(o.optString("desc")),
-            rank = o.optInt("rarity"),
-            hp = stats?.optInt("hp_max") ?: 0,
-            atk = stats?.optInt("attack") ?: 0,
-            def = stats?.optInt("defence") ?: 0,
-            skills = o.optJSONObject("skill")?.let { sk ->
-                sk.keys().asSequence().mapNotNull { k ->
-                    val e = sk.optJSONObject(k) ?: return@mapNotNull null
-                    val name = e.optString("name").ifBlank { k }
-                    val desc = stripMarkup(e.optString("desc"))
-                    if (desc.isBlank()) null else BangbooSkill(name, desc)
-                }.toList()
-            }.orEmpty(),
-        )
-    }
 
     /**
      * 게임 텍스트의 마크업 제거 — `<color=...>`·`{0}` 자리표시자.
@@ -184,20 +140,6 @@ object NanokaApi {
         if (games.isEmpty()) null else NanokaManifest(games)
     }.getOrNull()
 
-    /** 방부 인덱스 JSON → 목록. 한국어 이름이 비면 코드명으로 대신한다. */
-    fun parseBangbooIndex(body: String): List<BangbooEntry> = runCatching {
-        val root = JSONObject(body)
-        root.keys().asSequence().mapNotNull { id ->
-            val o = root.optJSONObject(id) ?: return@mapNotNull null
-            val ko = o.optString("KO").takeIf { it.isNotBlank() && it != "null" }
-            BangbooEntry(
-                id = id,
-                name = ko ?: o.optString("codename").ifBlank { "#$id" },
-                rank = o.optInt("rank"),
-                codeName = o.optString("codename"),
-            )
-        }.sortedWith(compareByDescending<BangbooEntry> { it.rank }.thenBy { it.name }).toList()
-    }.getOrDefault(emptyList())
 }
 
 private val RE_TAG = Regex("<[^>]*>")
@@ -222,37 +164,6 @@ data class NanokaGame(
     /** 화면에 쓰는 버전 표기 — 라이브가 있으면 그걸 쓴다(사용자가 게임에서 보는 숫자). */
     val displayVersion: String get() = live.ifBlank { latest }.substringBefore('+')
 }
-
-/** 방부 목록 한 줄. */
-data class BangbooEntry(
-    val id: String,
-    val name: String,
-    /** 희귀도(3=A, 4=S). */
-    val rank: Int,
-    val codeName: String,
-) {
-    /** 인게임 등급 표기. */
-    val rankLabel: String get() = when (rank) {
-        4 -> "S"
-        3 -> "A"
-        else -> ""
-    }
-}
-
-/** 방부 상세. */
-data class BangbooDetail(
-    val id: String,
-    val name: String,
-    val desc: String,
-    val rank: Int,
-    val hp: Int,
-    val atk: Int,
-    val def: Int,
-    val skills: List<BangbooSkill>,
-)
-
-/** 방부 스킬 한 줄. */
-data class BangbooSkill(val name: String, val desc: String)
 
 /** 무기·광추의 정련 효과 한 단계. */
 data class WeaponRefinement(val name: String, val desc: String, val level: Int)

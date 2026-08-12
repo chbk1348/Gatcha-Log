@@ -37,6 +37,7 @@ import com.gatcha.log.data.DailyHeadline
 import com.gatcha.log.data.DailyLogic
 import com.gatcha.log.data.DailyTask
 import com.gatcha.log.data.DateUtil
+import com.gatcha.log.data.GameVersionLine
 import com.gatcha.log.data.HoyoCalendar
 import com.gatcha.log.data.Game
 import com.gatcha.log.data.GameData
@@ -79,6 +80,8 @@ internal fun DailyHeroSection(
     streak: Int,
     /** 숙제 완주율 — 게임 줄 우측에 함께 보여준다(별도 섹션 폐기). */
     taskStats: List<TaskStats>,
+    /** 지금 돌고 있는 게임 버전 — 타일 아래 한 줄. 비면 줄 자체를 안 그린다. */
+    gameVersions: List<GameVersionLine> = emptyList(),
     onCheckIn: (String) -> Unit,
     onCheckInAll: () -> Unit,
     onConfigClick: () -> Unit,
@@ -140,6 +143,10 @@ internal fun DailyHeroSection(
                 onOpenGameContent = onOpenGameContent,
                 onOpenClears = onOpenClears,
             )
+            if (gameVersions.isNotEmpty()) {
+                Spacer(Modifier.height(10.dp))
+                GameVersionStrip(gameVersions)
+            }
         }
     }
 }
@@ -369,6 +376,32 @@ private fun DailyEntryTiles(
                 modifier = Modifier.weight(1f),
                 onClick = onOpenClears,
             )
+        }
+    }
+}
+
+/**
+ * 지금 돌고 있는 게임 버전 — 타일 아래 한 줄.
+ *
+ * 카드로 만들지 않는다. 매일 쓰는 정보가 아니라 "지금 몇 버전이더라"를 확인하는 참조용이라,
+ * 면을 주면 위 타일과 무게가 같아져 시선을 나눠 가진다. 글자만 옅게 둔다.
+ */
+@Composable
+private fun GameVersionStrip(versions: List<GameVersionLine>) {
+    Row(
+        Modifier.fillMaxWidth().padding(horizontal = 2.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        versions.forEach { v ->
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.size(5.dp).clip(CircleShape).background(v.colorArgb.toColor()))
+                Spacer(Modifier.width(4.dp))
+                Text(
+                    "${v.gameShort} ${v.version}",
+                    fontSize = 10.5.sp, color = TextSecondary, maxLines = 1,
+                )
+            }
         }
     }
 }

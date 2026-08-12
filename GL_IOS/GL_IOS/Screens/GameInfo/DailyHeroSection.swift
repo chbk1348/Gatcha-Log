@@ -68,6 +68,9 @@ struct DailyHeroSection: View {
                                     onOpenAttendance: onOpenAttendance,
                                     onOpenGameContent: onOpenGameContent,
                                     onOpenClears: onOpenClears)
+                    if !store.gameVersions.isEmpty {
+                        versionStrip(store.gameVersions)
+                    }
                 }
                 .padding(.horizontal, 16)
             }
@@ -79,6 +82,27 @@ struct DailyHeroSection: View {
     // 지출 상세 히어로가 게임색 파스텔을 상태바까지 깔아 지면을 지배하는 형태인데,
     // 데일리까지 같은 판을 쓰면 두 화면이 구분되지 않는다. 여기는 글자와 여백만으로 세운다 —
     // 색면이 없으니 아래 흰 카드와 층이 겹치지 않아 화면도 가벼워진다.
+
+    /**
+     지금 돌고 있는 게임 버전 — 타일 아래 한 줄.
+
+     카드로 만들지 않는다. 매일 쓰는 정보가 아니라 "지금 몇 버전이더라"를 확인하는 참조용이라,
+     면을 주면 위 타일과 무게가 같아져 시선을 나눠 가진다. 글자만 옅게 둔다.
+     */
+    @ViewBuilder
+    private func versionStrip(_ versions: [GameVersionLine]) -> some View {
+        HStack(spacing: 10) {
+            ForEach(Array(versions.enumerated()), id: \.offset) { _, v in
+                HStack(spacing: 4) {
+                    Circle().fill(Color(argb64: v.colorArgb)).frame(width: 5, height: 5)
+                    Text("\(v.gameShort) \(v.version)")
+                        .font(.pretendard(size: 10.5)).foregroundStyle(GLGColor.textSecondary).lineLimit(1)
+                }
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 2)
+    }
 
     /// 히어로 — 색면도 없고, **게임에도 치우치지 않는다.**
     ///

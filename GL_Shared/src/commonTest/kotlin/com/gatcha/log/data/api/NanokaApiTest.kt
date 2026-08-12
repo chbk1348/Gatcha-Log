@@ -64,34 +64,4 @@ class NanokaApiTest {
         assertNull(NanokaApi.parseManifest("not json"))
         assertNull(NanokaApi.parseManifest("{}"), "게임이 하나도 없으면 쓸 데가 없다")
     }
-
-    // ── 방부 인덱스 ──────────────────────────────────────────────────────────
-
-    private val bangbooJson = """
-        {
-          "53001": { "rank": 3, "codename": "Penguinboo", "EN": "Penguinboo", "KO": "펭귄부" },
-          "53101": { "rank": 4, "codename": "Amillion", "EN": "Amillion", "KO": "아밀리온" },
-          "53999": { "rank": 4, "codename": "Newboo", "EN": "Newboo", "KO": "" }
-        }
-    """.trimIndent()
-
-    @Test
-    fun `방부는 등급 높은 순으로 정렬한다`() {
-        val list = NanokaApi.parseBangbooIndex(bangbooJson)
-        assertEquals(listOf(4, 4, 3), list.map { it.rank })
-        assertEquals("S", list.first().rankLabel)
-        assertEquals("A", list.last().rankLabel)
-    }
-
-    @Test
-    fun `한국어 이름이 비면 코드명으로 대신한다`() {
-        // 갓 추가된 항목은 번역이 늦는다 — 빈 줄을 그리느니 영문 코드명이라도 보여준다.
-        val newboo = NanokaApi.parseBangbooIndex(bangbooJson).single { it.id == "53999" }
-        assertEquals("Newboo", newboo.name)
-    }
-
-    @Test
-    fun `깨진 응답은 빈 목록이다`() {
-        assertTrue(NanokaApi.parseBangbooIndex("<html>404</html>").isEmpty())
-    }
 }
