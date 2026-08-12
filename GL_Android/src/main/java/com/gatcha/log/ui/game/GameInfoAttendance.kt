@@ -383,46 +383,52 @@ private fun DailyEntryTiles(
 /**
  * 지금 돌고 있는 게임 버전 — 타일 아래의 조용한 참조 행.
  *
- * 버전 숫자는 확인 대상인데, 이전엔 게임명과 같은 크기·무게로 한 줄에 놓여 먼저 읽히지
- * 않았다. 새 카드로 무게를 더하지 않고, 게임명은 색 표식으로 남기고 버전만 한 단계 키워
- * 세 게임을 훑어 비교하게 한다.
+ * 확인 대상은 **숫자**다. 게임명과 한 줄에 같은 크기로 놓으면 먼저 읽히지 않아,
+ * 게임명은 작게 내리고 버전만 키워 위아래로 쌓았다. 세 칸을 같은 폭으로 갈라
+ * 게임끼리 훑어 비교되게 한다. 카드(면)는 여전히 주지 않는다 — 위 타일이 매일
+ * 누르는 것이고 이건 참조용이라는 관계를 유지한다.
+ *
+ * 게임색은 **글자가 아니라 막대**가 진다. 게임색을 작은 글자에 입히면 젠레스(주황
+ * `F5A623`, 흰 배경 대비 2.1:1)·원신(3.0:1)이 읽히지 않는다. 막대는 글자가 아니라
+ * 표식이라 옅어도 되고, 색면이 두 줄 높이로 서니 점보다 알아보기도 쉽다. 그러면서
+ * 칸을 가르는 일까지 겸해 구분선을 따로 그을 필요가 없어진다.
  */
 @Composable
 private fun GameVersionStrip(versions: List<GameVersionLine>) {
     Column(Modifier.fillMaxWidth().padding(horizontal = 2.dp)) {
         Text("현재 버전", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = TextSecondary)
-        Spacer(Modifier.height(5.dp))
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            versions.forEachIndexed { index, v ->
-                if (index > 0) {
+        Spacer(Modifier.height(6.dp))
+        Row(
+            Modifier.fillMaxWidth().height(IntrinsicSize.Min),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            versions.forEach { v ->
+                Row(Modifier.weight(1f)) {
                     Box(
-                        Modifier.width(1.dp).height(30.dp)
-                            .background(DividerColor)
+                        Modifier.width(3.dp).fillMaxHeight()
+                            .clip(RoundedCornerShape(1.5.dp))
+                            .background(v.colorArgb.toColor())
                     )
-                }
-                Column(
-                    Modifier.weight(1f).padding(horizontal = if (index == 0) 0.dp else 10.dp),
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(Modifier.size(5.dp).clip(CircleShape).background(v.colorArgb.toColor()))
-                        Spacer(Modifier.width(4.dp))
+                    Spacer(Modifier.width(7.dp))
+                    Column {
                         Text(
                             v.gameShort,
                             fontSize = 10.5.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = v.colorArgb.toColor(),
+                            lineHeight = 13.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = TextSecondary,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                         )
+                        Text(
+                            v.version,
+                            fontSize = 16.sp,
+                            lineHeight = 19.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = TextPrimary,
+                            maxLines = 1,
+                        )
                     }
-                    Spacer(Modifier.height(1.dp))
-                    Text(
-                        "v${v.version}",
-                        fontSize = 15.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = TextPrimary,
-                        maxLines = 1,
-                    )
                 }
             }
         }
