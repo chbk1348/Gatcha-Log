@@ -77,7 +77,45 @@ object NanokaApi {
         return parseBangbooIndex(res.body)
     }
 
+    /** 방부 한 마리 상세 — 설명·스탯·스킬. 없으면 null. */
+    suspend fun bangbooDetail(id: String): BangbooDetail? {
+        val o = entity("zzz", "bangboo", id) ?: return null
+        return parseBangbooDetail(id, o)
+    }
+
     // ---------------------------------------------------------------- 파싱(순수 함수 — 테스트 대상)
+
+    /** 방부 상세 JSON → 화면 모델. 스킬 설명은 마크업이 섞여 오므로 [stripMarkup] 으로 걷는다. */
+    fun parseBangbooDetail(id: String, o: JSONObject): BangbooDetail {
+        val stats = o.optJSONObject("stats")
+        return BangbooDetail(
+            id = id,
+            name = o.optString("name"),
+            desc = stripMarkup(o.optString("desc")),
+            rank = o.optInt("rarity"),
+            hp = stats?.optInt("hp_max") ?: 0,
+            atk = stats?.optInt("attack") ?: 0,
+            def = stats?.optInt("defence") ?: 0,
+            skills = o.optJSONObject("skill")?.let { sk ->
+                sk.keys().asSequence().mapNotNull { k ->
+                    val e = sk.optJSONObject(k) ?: return@mapNotNull null
+                    val name = e.optString("name").ifBlank { k }
+                    val desc = stripMarkup(e.optString("desc"))
+                    if (desc.isBlank()) null else BangbooSkill(name, desc)
+                }.toList()
+            }.orEmpty(),
+        )
+    }
+
+    /**
+     * 게임 텍스트의 마크업 제거 — `<color=...>`·`{0}` 자리표시자.
+     *
+     * ⚠️ 닫는 `}` 는 **이스케이프**한다. Android 정규식 엔진(ICU)은 비이스케이프 `}` 를 양화자
+     * 메타로 보고 예외를 던진다(Java/iOS 는 허용) — 예전에 돌파 효과 설명이 Android 에서
+     * 전멸한 적이 있다.
+     */
+    private fun stripMarkup(s: String): String =
+        s.replace(RE_TAG, "").replace(RE_PLACEHOLDER, "").replace(RE_SPACE, " ").trim()
 
     /** manifest.json → 게임별 버전·신규 목록. 형식이 어긋나면 null. */
     fun parseManifest(body: String): NanokaManifest? = runCatching {
@@ -117,6 +155,10 @@ object NanokaApi {
     }.getOrDefault(emptyList())
 }
 
+private val RE_TAG = Regex("<[^>]*>")
+private val RE_PLACEHOLDER = Regex("\\{[^}]*\\}")
+private val RE_SPACE = Regex("\\s+")
+
 /** manifest.json 한 판. */
 data class NanokaManifest(val games: Map<String, NanokaGame>)
 
@@ -151,3 +193,18 @@ data class BangbooEntry(
         else -> ""
     }
 }
+
+/** 방부 상세. */
+data class BangbooDetail(
+    val id: String,
+    val name: String,
+    val desc: String,
+    val rank: Int,
+    val hp: Int,
+    val atk: Int,
+    val def: Int,
+    val skills: List<BangbooSkill>,
+)
+
+/** 방부 스킬 한 줄. */
+data class BangbooSkill(val name: String, val desc: String)

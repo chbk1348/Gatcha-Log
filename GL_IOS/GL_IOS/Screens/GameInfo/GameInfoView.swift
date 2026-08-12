@@ -16,6 +16,9 @@ struct GameInfoView: View {
     @State private var showSchedule = false
     @State private var showNews = false
     @State private var showHoyoland = false
+    /// 도감 — 새로 나온 것 · 방부.
+    @State private var showNewContent = false
+    @State private var showBangboo = false
     /// 출석 체크 상세(데일리 타일에서 진입).
     @State private var showAttendance = false
     /// 전투 진행도·수입 일지 상세(데일리에서 진입).
@@ -86,6 +89,12 @@ struct GameInfoView: View {
                 section { HoyolandSection(onOpen: { showHoyoland = true }) }
                 // 공지·뉴스 — 게임별 최신 공지(탭하면 HoYoLab 열기). 더보기로 전체 페이지.
                 section { NewsSection(store: store, onSeeAll: { showNews = true }, onOpenNews: { selectedNews = $0; showNewsDetail = true }) }.id("NEWS")
+                // 도감 — 게임 데이터에 무엇이 있는가(일정과 다른 축이라 따로 둔다).
+                section {
+                    navEntry(icon: "sparkles", title: "새로 나온 것", sub: "이번 버전 신규 캐릭터 · 무기 · 방부",
+                             badge: store.newContentUnseen) { showNewContent = true }
+                }
+                section { navEntry(icon: "pawprint.fill", title: "방부 도감", sub: "젠레스 방부 스탯 · 스킬") { showBangboo = true } }
                 section { navEntry(icon: "function", title: "가챠 계산기", sub: "재화 환산 · 확률 · 시나리오") { showCalc = true } }
                 section { navEntry(icon: "chart.bar.xaxis", title: "가챠 효율 리포트", sub: "UIGF/SRGF 분석 · 단가 · 천장 분포") { showReport = true } }
                 Color.clear.frame(height: 12)
@@ -115,6 +124,8 @@ struct GameInfoView: View {
                 store.autoLoadEnkaSection(games: ["genshin", "hsr", "zzz"], force: false)
             }
         }
+        // 신규 콘텐츠 — 진입 카드의 점 표시를 위해 목록까지 미리 받는다(내부에서 1회만 실제로 돈다).
+        .task { store.loadNewContent() }
         .task(id: homeScheduleKey) {
             schedule = ScheduleLogic.shared.buildSchedule(
                 banners: store.activeBanners, events: store.gameEvents, challenges: store.challenges)
@@ -166,6 +177,8 @@ struct GameInfoView: View {
             if let n = selectedNews { NewsDetailView(store: store, item: n) }
         }
         .navigationDestination(isPresented: $showHoyoland) { HoyolandDetailView() }
+        .navigationDestination(isPresented: $showNewContent) { NewContentPage(store: store) }
+        .navigationDestination(isPresented: $showBangboo) { BangbooPage(store: store) }
         .navigationDestination(isPresented: $showAttendance) { AttendanceDetailView(store: store) }
         .navigationDestination(isPresented: $showGameContent) {
             sectionPage("전투 · 수입 일지") {
@@ -216,7 +229,9 @@ struct GameInfoView: View {
     }
 
     // 페이지 진입 카드 — 아이콘 + 제목 + 설명 + 셰브론(글래스 카드).
-    @ViewBuilder private func navEntry(icon: String, title: String, sub: String, action: @escaping () -> Void) -> some View {
+    /// - Parameter badge: 안 본 게 있으면 제목 옆에 점 하나. 숫자 배지는 과하다 — 몇 개인지가 중요하지 않다.
+    @ViewBuilder private func navEntry(icon: String, title: String, sub: String, badge: Bool = false,
+                                       action: @escaping () -> Void) -> some View {
         Button(action: action) {
             GLGCard(cornerRadius: 20, padding: 16) {
                 HStack(spacing: 14) {
@@ -225,7 +240,10 @@ struct GameInfoView: View {
                         Image(systemName: icon).font(.pretendard(size: 18, weight: .semibold)).foregroundStyle(accent.primary)
                     }
                     VStack(alignment: .leading, spacing: 3) {
-                        Text(title).font(.pretendard(size: 15, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
+                        HStack(spacing: 6) {
+                            Text(title).font(.pretendard(size: 15, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
+                            if badge { Circle().fill(GLGColor.dangerText).frame(width: 6, height: 6) }
+                        }
                         Text(sub).font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary).lineLimit(1).minimumScaleFactor(0.85)
                     }
                     Spacer(minLength: 8)

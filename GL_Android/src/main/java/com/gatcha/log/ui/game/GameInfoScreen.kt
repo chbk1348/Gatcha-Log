@@ -68,7 +68,7 @@ import com.gatcha.log.ui.theme.*
 import kotlinx.coroutines.launch
 
 /** 게임정보 탭의 풀스크린 하위 페이지 (열리면 하단바·FAB 숨김) */
-private enum class GiSub { Main, HoyoLink, Dashboard, Calc, Report, Gift, Schedule, News, NewsDetail, CharStats, CharRoster, Hoyoland, GameContent, CombatClear, Attendance }
+private enum class GiSub { Main, HoyoLink, Dashboard, Calc, Report, Gift, Schedule, News, NewsDetail, CharStats, CharRoster, Hoyoland, GameContent, CombatClear, Attendance, NewContent, Bangboo }
 
 /** 화면 전환 push/pop 방향용 계층 깊이. Main=0, 하위 페이지=1, 상세(목록서 진입)=2. */
 private fun subDepth(s: GiSub): Int = when (s) {
@@ -152,6 +152,9 @@ fun GameInfoScreen(
     LaunchedEffect(hoyolab.isLinked) {
         if (hoyolab.isLinked) viewModel.autoLoadEnkaSection(listOf("genshin", "hsr", "zzz"))
     }
+    // 신규 콘텐츠 — 진입 카드의 점 표시를 위해 목록까지 미리 받는다(내부에서 1회만 실제로 돈다).
+    LaunchedEffect(Unit) { viewModel.loadNewContent() }
+    val newContentUnseen by viewModel.newContentUnseen.collectAsStateWithLifecycle()
 
     // 공지 알림 딥링크 — 알림에 실린 id 로 목록에서 글을 찾아 상세를 연다.
     // 알림을 탭한 직후엔 목록이 아직 비어 있을 수 있어(콜드 스타트) news 가 도착할 때까지 기다렸다 연다.
@@ -330,6 +333,12 @@ fun GameInfoScreen(
             GiSub.News -> SectionPage("공지·뉴스", onBack = { subPage = GiSub.Main }) {
                 NewsFullContent(gameNews, onOpen = { openNews(it, GiSub.News) })
             }
+            GiSub.NewContent -> SectionPage("새로 나온 것", onBack = { subPage = GiSub.Main }) {
+                NewContentContent(viewModel)
+            }
+            GiSub.Bangboo -> SectionPage("방부 도감", onBack = { subPage = GiSub.Main }) {
+                BangbooContent(viewModel)
+            }
             GiSub.Hoyoland -> SectionPage("호요랜드", onBack = { subPage = GiSub.Main }) {
                 HoyolandDetailContent()
             }
@@ -411,6 +420,18 @@ fun GameInfoScreen(
                     )
                 }
             }
+            // 도감 — 게임 데이터에 무엇이 있는가(일정과 다른 축이라 따로 둔다).
+            item { Spacer(Modifier.height(20.dp)) }
+            item {
+                GiSection {
+                    NavEntryCard(
+                        Icons.Default.AutoAwesome, "새로 나온 것", "이번 버전 신규 캐릭터 · 무기 · 방부",
+                        badge = newContentUnseen,
+                    ) { subPage = GiSub.NewContent }
+                }
+            }
+            item { Spacer(Modifier.height(12.dp)) }
+            item { GiSection { NavEntryCard(Icons.Default.Pets, "방부 도감", "젠레스 방부 스탯 · 스킬") { subPage = GiSub.Bangboo } } }
             item { Spacer(Modifier.height(20.dp)) }
             item { GiSection { NavEntryCard(Icons.Default.Calculate, "가챠 계산기", "재화 환산 · 확률 · 시나리오") { subPage = GiSub.Calc } } }
             item { Spacer(Modifier.height(12.dp)) }
@@ -472,7 +493,14 @@ private fun GiSection(content: @Composable ColumnScope.() -> Unit) {
 
 /** 페이지로 분류된 섹션 진입 카드 (아이콘 + 제목 + 설명 + 셰브론). */
 @Composable
-private fun NavEntryCard(icon: ImageVector, title: String, sub: String, onClick: () -> Unit) {
+private fun NavEntryCard(
+    icon: ImageVector,
+    title: String,
+    sub: String,
+    /** 안 본 게 있으면 제목 옆에 점 하나. 숫자 배지는 과하다 — 몇 개인지가 중요한 정보가 아니다. */
+    badge: Boolean = false,
+    onClick: () -> Unit,
+) {
     val accent = LocalAccent.current
     GlassCard(shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth().clickable { onClick() }) {
         Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -484,7 +512,13 @@ private fun NavEntryCard(icon: ImageVector, title: String, sub: String, onClick:
             }
             Spacer(Modifier.width(14.dp))
             Column(Modifier.weight(1f)) {
-                Text(title, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(title, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                    if (badge) {
+                        Spacer(Modifier.width(6.dp))
+                        Box(Modifier.size(6.dp).clip(CircleShape).background(DangerText))
+                    }
+                }
                 Text(sub, fontSize = 12.sp, color = TextSecondary, maxLines = 1)
             }
             Spacer(Modifier.width(8.dp))
