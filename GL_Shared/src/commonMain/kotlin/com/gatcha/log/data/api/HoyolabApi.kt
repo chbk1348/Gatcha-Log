@@ -21,7 +21,14 @@ import kotlinx.datetime.toInstant
 import kotlin.math.ceil
 import kotlin.random.Random
 
-data class NoteResult(val note: LiveNote?, val error: String?)
+/**
+ * 실시간 노트 조회 결과.
+ *
+ * @param transient 실패가 **일시적**인가(네트워크·파싱). 쿠키 만료 같은 지속 실패와 갈라야 한다 —
+ *   지속 실패에 재시도를 걸면 탭을 오갈 때마다 HoYoLAB 을 두드리고, 일시 실패에 안 걸면
+ *   한 번 놓친 행동력이 신선도 캐시가 끝날 때까지 낡은 값으로 남는다.
+ */
+data class NoteResult(val note: LiveNote?, val error: String?, val transient: Boolean = false)
 /**
  * 자동 출석 결과. [reason] 으로 실패 사유를 구분해 알림 본문을 사유별로 분기한다.
  * - [Reason.AUTH] 쿠키 인증 만료 — HoYoLAB 재연동 필요
@@ -168,8 +175,8 @@ object HoyolabApi {
             .build()
 
         return Net.get("$endpoint?$query", headers).parse(
-            onNetwork = { NoteResult(null, Err.NETWORK) },
-            onParse = { NoteResult(null, Err.PARSE) },
+            onNetwork = { NoteResult(null, Err.NETWORK, transient = true) },
+            onParse = { NoteResult(null, Err.PARSE, transient = true) },
         ) { retcode, message, json ->
             if (retcode != 0) NoteResult(null, message.ifBlank { "오류 ($retcode)" })
             else NoteResult(parseNote(gameKey, json.getJSONObject("data")), null)

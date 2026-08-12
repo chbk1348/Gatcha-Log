@@ -1452,6 +1452,8 @@ class SpendingViewModel : ViewModel() {
     val newsReady: StateFlow<Boolean> = _newsReady.asStateFlow()
     /** 마지막 게임정보 성공 로드 시각 — freshness 캐시(재진입 시 불필요한 재요청 생략). */
     private var lastGameInfoLoadAt = 0L
+    /** 이번 회차에 실시간 노트가 **일시적으로** 실패했는가 — 신선도를 짧게 잡아 곧 다시 받는다. */
+    private var noteRetry = false
     private val gameInfoFreshMs = 5 * 60 * 1000L
     /** 일부 게임이 실패한 회차의 캐시 수명 — 짧게 잡아 다음 진입에 곧바로 다시 받는다(연타 폭주는 막는다). */
     private val gameInfoRetryMs = 30 * 1000L
@@ -1609,6 +1611,10 @@ class SpendingViewModel : ViewModel() {
                 // 사유가 흔해서, 그걸로 재시도를 걸면 탭을 오갈 때마다 18건짜리 요청 세트가 계속 나간다.
                 // 그쪽은 직전 값 유지([mergeByGame])만으로 화면이 비지 않는다.
                 var partial = false
+                // 노트(HoYoLAB) 실패는 partial 과 따로 센다 — 아래 주석대로 지속 실패가 흔한 계열이라
+                // 통째로 재시도를 걸 수 없지만, **일시적 실패까지 5분을 캐시하면** 행동력이 낡은 값으로
+                // 굳어 사용자가 새로고침 버튼을 눌러야만 갱신된다. 일시 실패만 짧게 잡는다.
+                noteRetry = false
                 coroutineScope {
                     val cfg = _hoyolabConfig.value
                     val uids = if (cfg.isLinked) mapOf(
@@ -1627,7 +1633,24 @@ class SpendingViewModel : ViewModel() {
                     // ZZZ 픽업·일정 — ennead zenless 캘린더에서 배너+이벤트+도전 자동(수동 JSON 폐기, 에이전트명 한국어 매핑).
                     val zzzDeferred = async(Dispatchers.IO) { EnneadApi.fetchZzz() }
                     val noteDeferred = uids.map { (key, uid) ->
-                        async(Dispatchers.IO) { HoyolabApi.getLiveNote(cfg.ltuid, cfg.ltoken, key, uid).note }
+                        async(Dispatchers.IO) { HoyolabApi.getLiveNote(cfg.ltuid, cfg.ltoken, key, uid) }
+                    }
+                    // 행동력은 **캘린더를 기다리지 않는다.** 예전엔 ennead 6게임을 전부 await 하고
+                    // 배너·이벤트·도전을 저장한 뒤에야 노트를 대입해서, 데일리 최상단 카드가
+                    // 자기 응답이 진작 도착한 뒤에도 몇 초를 더 기다렸다. 요청은 어차피 위에서
+                    // 다 쏴 뒀으니 수확만 따로 떼어 낸다.
+                    val notesJob = launch {
+                        val results = noteDeferred.map { it.await() }
+                        if (results.any { it.note == null && it.transient }) noteRetry = true
+                        val notes = results.mapNotNull { it.note }
+                        if (notes.isNotEmpty()) {
+                            _liveNotes.value = mergeByGame(_liveNotes.value, notes, notes.map { it.game }.toSet()) { it.game }
+                                .sortedByGameOrder { it.game }
+                            // 행동력이 가득 차는 시각을 알림 예약에 쓰려면 로컬 캐시가 필요하다(네트워크 없이 계산).
+                            // 캐시 쓰기는 IO 로 — 화면에 값은 이미 올라갔고, 여기서 메인을 잡을 이유가 없다.
+                            withContext(Dispatchers.IO) { runCatching { repo.saveLiveNotes(_liveNotes.value) } }
+                            recordTaskProgress(notes)
+                        }
                     }
                     // 공지도 **여기서 같이 쏜다**(await 만 아래에서). 예전엔 배너·노트를 다 받은 뒤에야
                     // 요청이 나가서, 홈의 '게임 소식'만 한 왕복 늦게 채워졌다 — 의존 관계가 전혀 없는데도.
@@ -1662,7 +1685,7 @@ class SpendingViewModel : ViewModel() {
                             .filter { it.game in SCHEDULE_GAMES }
                             .sortedWith(compareBy({ it.isEndUnknown }, { it.dDay() }))
                         // 백그라운드 픽업 마감 알림 점검용 로컬 캐시(네트워크 없이 판정).
-                        runCatching { repo.saveActiveBanners(_activeBanners.value) }
+                        withContext(Dispatchers.IO) { runCatching { repo.saveActiveBanners(_activeBanners.value) } }
                         refreshPlans()   // 새 픽업 목록으로 저축 계획 갱신
                         _gameEvents.value = mergeByGame(_gameEvents.value, events, calendarLoaded) { it.game }
                             .filter { it.game in SCHEDULE_GAMES }
@@ -1671,21 +1694,15 @@ class SpendingViewModel : ViewModel() {
                             .filter { it.game in SCHEDULE_GAMES }
                             .sortedBy { it.endMillis }
                         // 다음 실행 때 홈 '이번주 일정'을 네트워크 없이 바로 그리기 위한 캐시(배너와 동일).
-                        runCatching { repo.saveGameEvents(_gameEvents.value); repo.saveChallenges(_challenges.value) }
+                        withContext(Dispatchers.IO) {
+                            runCatching { repo.saveGameEvents(_gameEvents.value); repo.saveChallenges(_challenges.value) }
+                        }
                     }
                     // 전부 실패해 값이 없더라도 스켈레톤은 걷는다 — 안 그러면 영원히 로딩처럼 보인다.
                     _scheduleReady.value = true
 
-                    val notes = noteDeferred.mapNotNull { it.await() }
-                    if (notes.isNotEmpty()) {
-                        _liveNotes.value = mergeByGame(_liveNotes.value, notes, notes.map { it.game }.toSet()) { it.game }
-                            .sortedByGameOrder { it.game }
-                        // 재화가 가득 차는 시각을 알림 예약에 쓰려면 로컬 캐시가 필요하다(네트워크 없이 계산).
-                        runCatching { repo.saveLiveNotes(_liveNotes.value) }
-                        recordTaskProgress(notes)
-                    }
-
                     // ★ 배너+노트까지면 홈/오늘 할 일 준비 완료 — 즉시 표출(원장·전투는 뒤이어)
+                    notesJob.join()
                     _gameInfoReady.value = true
 
                     // 게임 공지·뉴스(공개 API·인증 불필요) — 위에서 이미 쏴 둔 요청을 여기서 수확한다.
@@ -1702,7 +1719,7 @@ class SpendingViewModel : ViewModel() {
                         _gameNews.value = mergeByGame(_gameNews.value, news, newsLoaded) { it.game }
                             .sortedByDescending { it.createdAtMillis }
                         // 다음 실행 때 홈 '게임 소식'을 바로 그리기 위한 캐시(최신 N건·요약 절단 — 저장부 참고).
-                        runCatching { repo.saveGameNews(_gameNews.value) }
+                        withContext(Dispatchers.IO) { runCatching { repo.saveGameNews(_gameNews.value) } }
                     }
                     // 확정 방송 — 못 받아도 조용히 넘어간다. 그때는 역산 예상값이 그대로 쓰인다.
                     val infoItems = infoDeferred.mapNotNull { it.await() }.flatten()
@@ -1741,7 +1758,8 @@ class SpendingViewModel : ViewModel() {
                 }
                 // 전부 성공했을 때만 5분간 재요청을 생략한다. 일부라도 빠졌으면 짧게 잡아 다음 진입에 다시 받는다 —
                 // 예전엔 실패해도 5분을 캐시해서, 빠진 정보가 그 시간 동안 수동 새로고침 전까지 안 채워졌다.
-                lastGameInfoLoadAt = currentTimeMillis() - if (partial) gameInfoFreshMs - gameInfoRetryMs else 0L
+                lastGameInfoLoadAt = currentTimeMillis() -
+                    if (partial || noteRetry) gameInfoFreshMs - gameInfoRetryMs else 0L
             } finally {
                 _gameInfoRefreshing = false
                 if (!silent) _isRefreshing.value = false

@@ -147,6 +147,12 @@ fun GameInfoScreen(
     }
     LaunchedEffect(subPage) { onSubPageChange(subPage != GiSub.Main) }
 
+    // 내 캐릭터(Enka) — 탭에 들어오는 순간 시작한다. 섹션에 맡기면 스크롤로 그 항목이
+    // 화면에 가까워질 때까지 조회가 시작되지 않는다(디스크 캐시 적중분은 즉시 표시).
+    LaunchedEffect(hoyolab.isLinked) {
+        if (hoyolab.isLinked) viewModel.autoLoadEnkaSection(listOf("genshin", "hsr", "zzz"))
+    }
+
     // 공지 알림 딥링크 — 알림에 실린 id 로 목록에서 글을 찾아 상세를 연다.
     // 알림을 탭한 직후엔 목록이 아직 비어 있을 수 있어(콜드 스타트) news 가 도착할 때까지 기다렸다 연다.
     val pendingNewsId by viewModel.pendingNewsId.collectAsStateWithLifecycle()

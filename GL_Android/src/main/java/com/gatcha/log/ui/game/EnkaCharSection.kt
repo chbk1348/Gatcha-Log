@@ -131,8 +131,9 @@ fun EnkaCharSection(
     // 연동 유도는 데일리/프로필 섹션의 프롬프트가 담당하며, 연동되면 자동으로 로스터가 나타난다.
     if (!hoyolab.isLinked) return
 
-    // 진입 시 로드(캐시 적중분 즉시 반영, 미적중분 순차 호출).
-    LaunchedEffect(games) { if (games.isNotEmpty()) viewModel.autoLoadEnkaSection(games) }
+    // 로드 시작은 **화면 진입**에서 한다([GameInfoScreen]). 여기(섹션)에서 걸면 LazyColumn 이
+    // 이 항목을 화면 근처까지 스크롤해야 비로소 조회가 시작돼, 데일리 히어로에 가려진 동안은
+    // 아무 일도 안 일어난다 — '내 캐릭터가 늦게 뜬다'의 정체였다.
 
     Column {
         Text("내 캐릭터", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
