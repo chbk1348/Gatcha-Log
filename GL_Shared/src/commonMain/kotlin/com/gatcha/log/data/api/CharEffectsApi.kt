@@ -83,8 +83,6 @@ object CharEffectsApi {
         return out
     }
 
-    private var cachedZzzVer: String? = null
-
     /**
      * 젠레스 형상 시네마(mindscape) — 기기에서 닿는 소스가 이기도록 **다중 소스 순차 시도**.
      *  1) static.nanoka.cc (hakush 라이브 CDN, 한국어) — manifest 로 현재 버전 해석 후 character/{id}.json
@@ -93,7 +91,10 @@ object CharEffectsApi {
      * 구조는 셋 다 동일: root.Talent(객체 "1"~"6") → {Level, Name, Desc, Desc2}. parseZzzBody 가 방어적으로 처리.
      */
     private suspend fun fetchZzz(id: Int): List<CharEffect> {
-        nanokaVersion()?.let { ver ->
+        // ⚠️ **버전을 하나만 시도하면 안 된다.** 매니페스트의 `live`(인게임)와 `latest`(데이터 최신)가
+        // 갈릴 때가 있고 방금 나온 캐릭터는 `latest` 에만 있다 — 예전엔 `live` 만 써서 신규 캐릭터의
+        // 형상 시네마가 통째로 비었다(젠레스 live=3.1 · latest=3.2.2 시점). [NanokaApi] 가 둘 다 훑는다.
+        for (ver in nanokaVersions()) {
             parseZzzBody(Net.get("https://static.nanoka.cc/zzz/$ver/ko/character/$id.json", hakushHeaders))
                 ?.let { if (it.isNotEmpty()) return it }
         }
@@ -104,15 +105,9 @@ object CharEffectsApi {
         return emptyList()
     }
 
-    /** static.nanoka.cc/manifest.json 의 zzz.live(없으면 latest) 버전 문자열. 1회 메모리 캐시. */
-    private suspend fun nanokaVersion(): String? {
-        cachedZzzVer?.let { return it }
-        val res = Net.get("https://static.nanoka.cc/manifest.json", hakushHeaders)
-        if (!res.isOk) return null
-        val zzz = runCatching { JSONObject(res.body).optJSONObject("zzz") }.getOrNull() ?: return null
-        val ver = zzz.optString("live").ifBlank { zzz.optString("latest") }
-        return ver.takeIf { it.isNotBlank() }?.also { cachedZzzVer = it }
-    }
+    /** 젠레스 조회에 쓸 버전 후보 — 최신 먼저, 그다음 라이브([NanokaApi] 가 매니페스트를 1회 캐시). */
+    private suspend fun nanokaVersions(): List<String> =
+        NanokaApi.manifest()?.games?.get("zzz")?.versionsToTry.orEmpty()
 
     /**
      * hakush/nanoka/미러 응답 본문 → 형상 시네마 리스트. 응답 NG/파싱 실패면 null(다음 소스로), 성공이면 리스트(빌 수도).
