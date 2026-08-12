@@ -315,6 +315,14 @@ fun HomeScreen(viewModel: SpendingViewModel = viewModel()) {
     }
 }
 
+/**
+ * 홈이 띄우는 하위 화면. 전환은 [HomeContent] 의 `AnimatedContent` 한 곳이 맡는다.
+ *
+ * 게임정보 탭의 `GiSub` 처럼 깊이를 나누지 않는다 — 셋 다 홈 바로 아래 한 층이고, 서로
+ * 오갈 수 없다(하위에서 나가는 길은 홈뿐). push/pop 판정에 `Home` 인지만 보면 된다.
+ */
+private enum class HomeSub { Home, Notifications, SavingsPlanner, SavingsChallenge }
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeContent(
@@ -412,13 +420,23 @@ fun HomeContent(
     // 저축 플래너·절약 챌린지 하위 화면(홈 카드 진입). 0=없음 1=플래너 2=챌린지.
     var savingsScreen by remember { mutableStateOf(0) }
     BackHandler(enabled = savingsScreen != 0) { savingsScreen = 0 }
-    LaunchedEffect(savingsScreen) { onSubPageChange(savingsScreen != 0) }
-    if (savingsScreen != 0) {
-        when (savingsScreen) {
-            1 -> SavingsPlannerScreen(viewModel) { savingsScreen = 0 }
-            2 -> SavingsChallengeScreen(viewModel) { savingsScreen = 0 }
-        }
-        return
+
+    /**
+     * 홈의 하위 화면은 **하나의 [AnimatedContent] 가 전부 맡는다.**
+     *
+     * 알림 상세만 애니메이션 컨테이너에 들어 있고, 저축 플래너·절약 챌린지는 `if … return` 으로
+     * 컴포지션을 갈아끼워 0프레임 컷으로 튀었다. 다른 탭(게임정보 `GiSub`·지출·설정·마이페이지)이
+     * 전부 같은 push/pop 슬라이드를 쓰는데 홈의 이 두 장만 결이 달랐다.
+     *
+     * 상태를 하나로 모은 건 [onSubPageChange] 때문이기도 하다. 예전엔 `savingsScreen` 과
+     * `showNotifications` 가 각자 `LaunchedEffect` 로 같은 콜백에 서로 다른 값을 밀어 하단바·FAB
+     * 표시가 순서에 좌우됐다. 지금은 파생값 하나가 단일 진실이다.
+     */
+    val homeSub = when {
+        savingsScreen == 1 -> HomeSub.SavingsPlanner
+        savingsScreen == 2 -> HomeSub.SavingsChallenge
+        showNotifications.value -> HomeSub.Notifications
+        else -> HomeSub.Home
     }
 
     // 오늘 할 일 목록(대시보드 KPI '오늘 할 일' 카운트 + 카드 공용)
@@ -450,15 +468,15 @@ fun HomeContent(
 
     // 알림 상세 페이지에서 시스템 뒤로가기 시 홈으로 복귀
     BackHandler(enabled = showNotifications.value) { showNotifications.value = false }
-    // 알림 상세가 열리면 상위(Scaffold)에 알려 하단바·FAB를 숨김
-    LaunchedEffect(showNotifications.value) { onSubPageChange(showNotifications.value) }
+    // 하위 화면이 열리면 상위(Scaffold)에 알려 하단바·FAB를 숨김 — 저축·챌린지·알림 공통.
+    LaunchedEffect(homeSub) { onSubPageChange(homeSub != HomeSub.Home) }
 
     AnimatedContent(
-        targetState = showNotifications.value,
+        targetState = homeSub,
         modifier = Modifier.fillMaxSize(),
         transitionSpec = {
-            if (targetState) {
-                // 알림 열기: 오른쪽에서 슬라이드 인 (push)
+            if (targetState != HomeSub.Home) {
+                // 하위 화면 열기: 오른쪽에서 슬라이드 인 (push)
                 (slideInHorizontally(glgStandardSpec()) { w -> w } + fadeIn(glgStandardSpec())) togetherWith
                     (slideOutHorizontally(glgStandardSpec()) { w -> -w / 4 } + fadeOut(glgShortSpec()))
             } else {
@@ -467,18 +485,29 @@ fun HomeContent(
                     (slideOutHorizontally(glgStandardSpec()) { w -> w } + fadeOut(glgShortSpec()))
             }
         },
-        label = "notif",
-    ) { showNotif ->
-        if (showNotif) {
-            NotificationDetailScreen(
-                alerts = alerts,
-                onBack = { showNotifications.value = false },
-                onBudget = { showNotifications.value = false; showBudgetDialog.value = true },
-                onGameInfo = { showNotifications.value = false; onNavigateToGameInfo() },
-                onDismiss = { viewModel.dismissAlert(it.key) },
-                onDismissAll = { viewModel.dismissAlerts(alerts.map { a -> a.key }) },
-            )
-            return@AnimatedContent
+        label = "homeSub",
+    ) { sub ->
+        when (sub) {
+            HomeSub.SavingsPlanner -> {
+                SavingsPlannerScreen(viewModel) { savingsScreen = 0 }
+                return@AnimatedContent
+            }
+            HomeSub.SavingsChallenge -> {
+                SavingsChallengeScreen(viewModel) { savingsScreen = 0 }
+                return@AnimatedContent
+            }
+            HomeSub.Notifications -> {
+                NotificationDetailScreen(
+                    alerts = alerts,
+                    onBack = { showNotifications.value = false },
+                    onBudget = { showNotifications.value = false; showBudgetDialog.value = true },
+                    onGameInfo = { showNotifications.value = false; onNavigateToGameInfo() },
+                    onDismiss = { viewModel.dismissAlert(it.key) },
+                    onDismissAll = { viewModel.dismissAlerts(alerts.map { a -> a.key }) },
+                )
+                return@AnimatedContent
+            }
+            HomeSub.Home -> Unit
         }
 
     GlgPullToRefreshBox(
