@@ -75,8 +75,10 @@ struct NewContentPage: View {
                         VStack(alignment: .leading, spacing: 3) {
                             // 이름을 받은 것만 나열하고 나머지는 개수로 — 비호요 게임은 한국어가
                             // 비어 있을 때가 있는데 '없음'으로 보이면 사실과 다르다.
-                            Text(grp.items.map { $0.name }.joined(separator: " · ").isEmpty
-                                 ? "이름 미확인"
+                            // 이름을 하나도 못 받았으면 개수로 말한다 — "이름 미확인" 은 사용자에게
+                            // 아무 정보가 아니고, 상류 번역이 늦은 것뿐이라 곧 채워진다.
+                            Text(grp.items.isEmpty
+                                 ? "\(grp.total)개 (이름 준비 중)"
                                  : grp.items.map { $0.name }.joined(separator: " · "))
                                 .font(.pretendard(size: 13, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
                                 .fixedSize(horizontal: false, vertical: true)

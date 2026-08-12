@@ -129,6 +129,7 @@ fun GameInfoScreen(
     val schedule = remember(banners, events, challenges) { ScheduleLogic.buildSchedule(banners, events, challenges) }
     val taskStats by viewModel.taskStats.collectAsStateWithLifecycle()
     val keyStatOverrides by viewModel.keyStatOverrides.collectAsStateWithLifecycle()
+    val weaponRefinements by viewModel.weaponRefinement.collectAsStateWithLifecycle()
     // 게임정보 하위 풀스크린 페이지(연동 / 가챠 통계) — 열리면 상위(Scaffold)에 알려 하단바·FAB 숨김
     var subPage by remember { mutableStateOf(GiSub.Main) }
     // Enka 캐릭터 스탯 페이지 랜딩 대상
@@ -241,10 +242,13 @@ fun GameInfoScreen(
             GiSub.CharStats -> {
                 val c = statChar
                 if (c != null) {
+                    val w = c.weapon
                     EnkaStatPage(
                         c, statCharGame,
                         overrides = keyStatOverrides,
                         onSetOverride = { k, v -> viewModel.setKeyStatOverride(k, v) },
+                        refinement = weaponRefinements["$statCharGame:${w?.id ?: 0}:${w?.refinement ?: 0}"],
+                        onNeedRefinement = { id, lv -> viewModel.loadWeaponRefinement(statCharGame, id, lv) },
                     ) { subPage = statReturn }
                 }
             }

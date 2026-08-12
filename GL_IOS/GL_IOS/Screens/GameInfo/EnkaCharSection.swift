@@ -357,6 +357,10 @@ struct EnkaStatPage: View {
     /// 캐릭터별 유효옵션 사용자 설정(키=keyStatOverrideKey). 앱 룰보다 우선.
     var overrides: [String: Set<String>] = [:]
     var onSetOverride: (String, Set<String>) -> Void = { _, _ in }
+    /// 장착 무기 정련 효과 — 없으면 그 줄을 그리지 않는다.
+    var refinement: WeaponRefinement? = nil
+    /// 정련 효과가 필요할 때 (무기 id, 정련 단계)를 올려보낸다.
+    var onNeedRefinement: (Int32, Int32) -> Void = { _, _ in }
 
     /// 유효옵션 판정과 성유물 점수 — **뷰가 만들어질 때 한 번** 낸다.
     ///
@@ -371,11 +375,15 @@ struct EnkaStatPage: View {
 
     init(char: EnkaChar, game: String,
          overrides: [String: Set<String>] = [:],
-         onSetOverride: @escaping (String, Set<String>) -> Void = { _, _ in }) {
+         onSetOverride: @escaping (String, Set<String>) -> Void = { _, _ in },
+         refinement: WeaponRefinement? = nil,
+         onNeedRefinement: @escaping (Int32, Int32) -> Void = { _, _ in }) {
         self.char = char
         self.game = game
         self.overrides = overrides
         self.onSetOverride = onSetOverride
+        self.refinement = refinement
+        self.onNeedRefinement = onNeedRefinement
         let v = KeyStatRulesKt.resolveKeyStats(gameKey: game, char: char, overrides: overrides)
         self.verdict = v
         self.artScore = ArtifactScoring.shared.scoreChar(artifacts: char.artifacts, keySet: v.stats, gameKey: game)
@@ -397,7 +405,10 @@ struct EnkaStatPage: View {
             VStack(alignment: .leading, spacing: 16) {
                 header
                 section(game == "genshin" ? "무기" : game == "zzz" ? "W-엔진" : "광추") {
-                    if let w = char.weapon { weaponCard(w) }
+                    if let w = char.weapon {
+                        weaponCard(w)
+                            .task(id: w.id) { if w.id > 0 { onNeedRefinement(w.id, w.refinement) } }
+                    }
                     else { emptyEquipNote(game == "genshin" ? "무기가 장착되지 않았습니다." : game == "zzz" ? "W-엔진이 장착되지 않았습니다." : "광추가 장착되지 않았습니다.") }
                 }
                 section("핵심 스탯") { statGrid }
@@ -615,6 +626,7 @@ struct EnkaStatPage: View {
     }
 
     private func weaponCard(_ w: EnkaWeapon) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
         HStack(spacing: 11) {
             VStack(alignment: .leading, spacing: 6) {
                 Text(w.name).font(.pretendard(size: 14, weight: .bold)).lineLimit(1)
@@ -629,6 +641,18 @@ struct EnkaStatPage: View {
                 .padding(.horizontal, 8).padding(.vertical, 3).background(accent.primary, in: RoundedRectangle(cornerRadius: 8))
         }
         .padding(14).frame(maxWidth: .infinity, alignment: .leading)
+        // 정련 효과 — 이름과 수치만으로는 "이 무기가 무슨 일을 하는가"를 알 수 없다.
+        // 못 받았으면 자리 자체를 만들지 않는다(빈 칸이 고장처럼 보인다).
+        if let r = refinement {
+            Divider()
+            VStack(alignment: .leading, spacing: 4) {
+                Text(r.name).font(.pretendard(size: 12, weight: .bold)).foregroundStyle(accent.primary)
+                Text(r.desc).font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(14).frame(maxWidth: .infinity, alignment: .leading)
+        }
+        }
         .glgGlass(in: RoundedRectangle(cornerRadius: 22, style: .continuous))
     }
 

@@ -55,6 +55,7 @@ import com.gatcha.log.data.api.EnkaSet
 import com.gatcha.log.data.api.EnkaStatLine
 import com.gatcha.log.data.api.orderedKeyStats
 import com.gatcha.log.data.api.EnkaWeapon
+import com.gatcha.log.data.api.WeaponRefinement
 import com.gatcha.log.data.api.KeyStatRules
 import com.gatcha.log.data.api.KeyStatSource
 import com.gatcha.log.data.api.KeyStatVerdict
@@ -607,6 +608,9 @@ fun EnkaStatPage(
     /** 캐릭터별 유효옵션 사용자 설정(키=keyStatOverrideKey). 앱 룰보다 우선. */
     overrides: Map<String, Set<String>> = emptyMap(),
     onSetOverride: (String, Set<String>) -> Unit = { _, _ -> },
+    /** 장착 무기 정련 효과 — 없으면 그 줄을 그리지 않는다. */
+    refinement: WeaponRefinement? = null,
+    onNeedRefinement: (Int, Int) -> Unit = { _, _ -> },
     onBack: () -> Unit,
 ) {
     BackHandler { onBack() }
@@ -656,7 +660,11 @@ fun EnkaStatPage(
         // 무기 / 광추
         SecLabel(wepLabel)
         val w = c.weapon
-        if (w != null) WeaponCard(w, accent)
+        LaunchedEffect(w?.id, w?.refinement) {
+            val id = w?.id ?: 0
+            if (id > 0) onNeedRefinement(id, w?.refinement ?: 1)
+        }
+        if (w != null) WeaponCard(w, accent, refinement)
         else EmptyEquipNote(if (game == "genshin") "무기가 장착되지 않았습니다." else if (game == "zzz") "W-엔진이 장착되지 않았습니다." else "광추가 장착되지 않았습니다.")
         Spacer(Modifier.height(16.dp))
 
@@ -901,21 +909,33 @@ private fun SecLabel(text: String) {
 }
 
 @Composable
-private fun WeaponCard(w: EnkaWeapon, accent: Color) {
+private fun WeaponCard(w: EnkaWeapon, accent: Color, refinement: WeaponRefinement? = null) {
     GlassCard(modifier = Modifier.fillMaxWidth()) {
-        Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f)) {
-                Text(w.name, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TextPrimary, maxLines = 1)
-                Spacer(Modifier.height(6.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    MiniPill("Lv.${w.level}")
-                    w.main?.let { StatInline(it) }
-                    w.sub?.let { StatInline(it) }
+        Column(Modifier.fillMaxWidth()) {
+            Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text(w.name, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TextPrimary, maxLines = 1)
+                    Spacer(Modifier.height(6.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                        MiniPill("Lv.${w.level}")
+                        w.main?.let { StatInline(it) }
+                        w.sub?.let { StatInline(it) }
+                    }
+                }
+                Spacer(Modifier.width(11.dp))
+                Surface(color = accent, shape = RoundedCornerShape(8.dp)) {
+                    Text(if (w.refinement > 0) "R${w.refinement}" else "—", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White, modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp))
                 }
             }
-            Spacer(Modifier.width(11.dp))
-            Surface(color = accent, shape = RoundedCornerShape(8.dp)) {
-                Text(if (w.refinement > 0) "R${w.refinement}" else "—", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White, modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp))
+            // 정련 효과 — 이름과 수치만으로는 "이 무기가 무슨 일을 하는가"를 알 수 없다.
+            // 못 받았으면 자리 자체를 만들지 않는다(빈 칸이 고장처럼 보인다).
+            if (refinement != null) {
+                Box(Modifier.fillMaxWidth().height(1.dp).background(DividerColor))
+                Column(Modifier.padding(14.dp)) {
+                    Text(refinement.name, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = accent)
+                    Spacer(Modifier.height(4.dp))
+                    Text(refinement.desc, fontSize = 12.sp, color = TextSecondary, lineHeight = 17.sp)
+                }
             }
         }
     }

@@ -126,6 +126,7 @@ final class SpendingStore {
     private(set) var bangboo: [BangbooEntry] = []
     private(set) var bangbooLoading: Bool = false
     private(set) var bangbooDetail: [String: BangbooDetail] = [:]
+    private(set) var weaponRefinement: [String: WeaponRefinement] = [:]
     private(set) var gachaDashboard: GachaDashboard? = nil
     private(set) var redeemState: RedeemState = RedeemStateIdle.shared
     private(set) var activeCodes: [GiftCode] = []
@@ -332,6 +333,7 @@ final class SpendingStore {
         bind(vm.bangboo) { [weak self] in self?.bangboo = $0 }
         bind(vm.bangbooLoading) { [weak self] in self?.bangbooLoading = $0.boolValue }
         bind(vm.bangbooDetail) { [weak self] in self?.bangbooDetail = $0 }
+        bind(vm.weaponRefinement) { [weak self] in self?.weaponRefinement = $0 }
         bind(vm.enkaResults) { [weak self] in self?.enkaResults = $0 }
         bind(vm.enkaLoadingGames) { [weak self] in self?.enkaLoadingGames = $0 }
         bind(vm.gachaDashboard) { [weak self] in self?.gachaDashboard = $0 }
@@ -490,6 +492,9 @@ final class SpendingStore {
     func markNewContentSeen() { vm.markNewContentSeen() }
     func loadBangboo() { vm.loadBangboo() }
     func loadBangbooDetail(_ id: String) { vm.loadBangbooDetail(id: id) }
+    func loadWeaponRefinement(game: String, weaponId: Int32, level: Int32) {
+        vm.loadWeaponRefinement(gameKey: game, weaponId: weaponId, level: level)
+    }
     func clearEnkaResult() { vm.clearEnkaResult() }
     func importGachaFromContents(_ contents: [String]) { vm.importGachaFromContents(contents: contents) }
     func loadActiveCodes(_ gameKey: String) { vm.loadActiveCodes(gameKey: gameKey) }

@@ -33,6 +33,7 @@ import com.gatcha.log.data.api.BangbooDetail
 import com.gatcha.log.data.api.BangbooEntry
 import com.gatcha.log.data.api.EnkaApi
 import com.gatcha.log.data.api.NanokaApi
+import com.gatcha.log.data.api.WeaponRefinement
 import com.gatcha.log.data.api.EnkaResult
 import com.gatcha.log.data.api.EnneadApi
 import com.gatcha.log.data.api.NewsApi
@@ -1422,6 +1423,26 @@ class SpendingViewModel : ViewModel() {
         val merged = repo.loadSeenNewContent() + NewContent.seenKeys(games)
         repo.saveSeenNewContent(merged)
         _newContentUnseen.value = false
+    }
+
+    private val _weaponRefinement = MutableStateFlow<Map<String, WeaponRefinement>>(emptyMap())
+    /** 무기·광추 정련 효과(키 "gameKey:weaponId:level"). 캐릭터 상세를 열 때만 채운다. */
+    val weaponRefinement: StateFlow<Map<String, WeaponRefinement>> = _weaponRefinement.asStateFlow()
+
+    /**
+     * 장착 무기의 정련 효과 조회.
+     *
+     * 캐릭터 상세는 무기 이름과 수치만 보여 주는데, 정작 "이 무기가 무슨 일을 하는가"가 빠져 있었다.
+     * 젠레스는 부르지 않는다 — 상류 한국어 W-엔진 데이터가 미번역 자리표시자로 오는 게 흔하다.
+     */
+    fun loadWeaponRefinement(gameKey: String, weaponId: Int, level: Int) {
+        if (weaponId <= 0) return
+        val key = "$gameKey:$weaponId:$level"
+        if (_weaponRefinement.value.containsKey(key)) return
+        viewModelScope.launch {
+            val r = withContext(Dispatchers.IO) { NanokaApi.refinement(gameKey, weaponId, level) } ?: return@launch
+            _weaponRefinement.update { it + (key to r) }
+        }
     }
 
     private val _bangboo = MutableStateFlow<List<BangbooEntry>>(emptyList())

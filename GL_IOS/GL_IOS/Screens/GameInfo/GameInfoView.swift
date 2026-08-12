@@ -58,6 +58,116 @@ struct GameInfoView: View {
 
     var body: some View {
         ScrollViewReader { proxy in
+            // ⚠️ 본문과 화면 이동을 **두 식으로 나눈다.** 한 줄로 이어 붙이면 수정자 사슬 전체가
+            // 하나의 식이 되어 타입 추론이 폭발하고("unable to type-check"), 에러는 마지막에
+            // 붙인 줄이 아니라 사슬 중간 아무 데나 찍힌다 — 이 파일에서 세 번 겪었다.
+            mainScroll(proxy)
+        .navigationDestination(isPresented: $showHoyolab) {
+            HoyolabLinkView(store: store) { showHoyolab = false }
+        }
+        .navigationDestination(isPresented: $showCalc) { sectionPage("계산기") { GachaCalculatorSection() } }
+        .navigationDestination(isPresented: $showReport) { sectionPage("가챠 리포트") { GachaReportSection(store: store, onOpenDashboard: { showDashboard = true }) } }
+        .navigationDestination(isPresented: $showGift) { GiftCodePage(store: store) }
+        .navigationDestination(isPresented: $showDashboard) { GachaDashboardView(store: store) }
+        .navigationDestination(isPresented: $showSchedule) { GameSchedulePage(store: store) }
+        .navigationDestination(isPresented: $showNews) { NewsPage(store: store) }
+        .navigationDestination(isPresented: $showNewsDetail) {
+            if let n = selectedNews { NewsDetailView(store: store, item: n) }
+        }
+        .navigationDestination(isPresented: $showHoyoland) { HoyolandDetailView() }
+        .navigationDestination(isPresented: $showNewContent) { NewContentPage(store: store) }
+        .navigationDestination(isPresented: $showBangboo) { BangbooPage(store: store) }
+        .navigationDestination(isPresented: $showAttendance) { AttendanceDetailView(store: store) }
+        .navigationDestination(isPresented: $showGameContent) {
+            sectionPage("전투 · 수입 일지") {
+                GameTabbedSection(store: store)
+            }
+        }
+        // ⚠️ 이 destination 은 **최상위에** 있어야 한다. 예전엔 위 `showGameContent` 안에 중첩돼
+        // 있어서, 일지 페이지에 들어가 있을 때만 등록됐다 — 데일리 카드에서 눌러도 아무 일이
+        // 일어나지 않던 원인이다(상태만 true 로 바뀌고 push 할 destination 이 없었다).
+        .navigationDestination(isPresented: $showCombatClears) {
+            sectionPage("클리어 편성") { CombatClearSection(store: store) }
+        }
+        .navigationDestination(isPresented: $showStats) {
+            if let c = statChar {
+                EnkaStatPage(char: c, game: statGame,
+                             overrides: store.keyStatOverrides,
+                             onSetOverride: { k, v in store.setKeyStatOverride(k, v) },
+                             refinement: store.weaponRefinement[refinementKey(c)],
+                             onNeedRefinement: { id, lv in
+                                 store.loadWeaponRefinement(game: statGame, weaponId: id, level: lv)
+                             })
+                    // 캐릭터가 바뀌면 **다른 뷰**로 취급한다.
+                    // navigationDestination 은 같은 자리의 목적지를 재사용해서, A 를 보고 나온 뒤 B 로
+                    // 들어가면 A 의 유효옵션 칩이 한 번 그려졌다가 B 로 바뀌었다. id 를 걸면 새로 만든다.
+                    .id(c.id)
+            }
+        }
+        .navigationDestination(isPresented: $showRoster) {
+            EnkaRosterPage(store: store, game: rosterGame)
+        }
+        }  // ScrollViewReader
+    }
+
+    /// 정련 캐시 키. **본문 안에서 문자열을 조립하지 않는다** — SwiftUI 뷰 빌더 안의 보간은
+    /// 타입 추론을 폭발시켜 "unable to type-check in reasonable time" 을 내고, 에러는 엉뚱한
+    /// 줄에 찍힌다(이 파일에서 두 번째다).
+    private func refinementKey(_ c: EnkaChar) -> String {
+        let id: Int32 = c.weapon?.id ?? 0
+        let lv: Int32 = c.weapon?.refinement ?? 0
+        return "\(statGame):\(id):\(lv)"
+    }
+
+    // 대기 중인 앵커가 있으면 해당 섹션으로 스크롤 후 소비(1회성). 탭 전환 직후 레이아웃 완료를 위해 다음 런루프에 실행.
+    private func scrollToPendingAnchor(_ proxy: ScrollViewProxy) {
+        guard let anchor = store.pendingGameInfoAnchor else { return }
+        // 전투 진행도는 본문 섹션이 아니라 데일리에서 들어가는 상세 페이지로 옮겼다 → 스크롤 대신 페이지 진입.
+        if anchor == .combat {
+            showGameContent = true
+            store.consumeGameInfoAnchor()
+            return
+        }
+        DispatchQueue.main.async {
+            withAnimation(.easeInOut(duration: 0.35)) { proxy.scrollTo(anchor.name, anchor: .top) }
+            store.consumeGameInfoAnchor()
+        }
+    }
+
+    /// 헤더 버튼 — **본문에서 뺀다.** body 가 길어질수록 타입 추론이 폭발해
+    /// "unable to type-check" 가 나는데, 에러는 손대지도 않은 줄에 찍혀 원인을 가린다.
+    @ToolbarContentBuilder private var toolbarContent: some ToolbarContent {
+            // 버튼마다 ToolbarItem 을 따로 두고 사이에 ToolbarSpacer 를 넣는다 —
+            // iOS 26 은 인접한 툴바 아이템을 하나의 글래스 캡슐로 묶어버리므로, 스페이서로 갈라야
+            // 버튼이 각각 독립된 원형으로 떨어진다. (지출 탭 헤더와 동일)
+            // 순서: 새로고침 → 리딤코드 → 설정.
+            ToolbarItem(placement: .topBarTrailing) {
+                // 새로고침 중에는 아이콘 자리를 스피너로 바꾼다 — 당겨서 새로고침과 달리
+                // 버튼을 눌렀을 때는 화면 어디에도 진행 표시가 없어, 눌린 건지 알 수 없었다.
+                Button { store.refreshGameInfo(force: true) } label: {
+                    if store.isRefreshing { ProgressView().controlSize(.small) }
+                    else { Image(systemName: "arrow.clockwise") }
+                }
+                .disabled(store.isRefreshing)
+            }
+            if #available(iOS 26.0, *) {
+                ToolbarSpacer(.fixed, placement: .topBarTrailing)
+            }
+            if store.hoyolabConfig.isLinked {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button { showGift = true } label: { Image(systemName: "gift") }
+                }
+                if #available(iOS 26.0, *) {
+                    ToolbarSpacer(.fixed, placement: .topBarTrailing)
+                }
+            }
+            ToolbarItem(placement: .topBarTrailing) {
+                Button { showHoyolab = true } label: { Image(systemName: "gearshape") }
+            }
+    }
+
+    /// 탭 본문 — 스크롤 + 섹션 + 수집 트리거 + 헤더.
+    @ViewBuilder private func mainScroll(_ proxy: ScrollViewProxy) -> some View {
         ScrollView {
             // LazyVStack — 화면 밖 섹션(주년·뉴스·게임탭·계산기/리포트 진입)은 스크롤 시 지연 생성.
             // (VStack 이면 탭 전환 순간 7개 섹션 전부를 한꺼번에 빌드해 전환이 버벅였음)
@@ -89,14 +199,8 @@ struct GameInfoView: View {
                 section { HoyolandSection(onOpen: { showHoyoland = true }) }
                 // 공지·뉴스 — 게임별 최신 공지(탭하면 HoYoLab 열기). 더보기로 전체 페이지.
                 section { NewsSection(store: store, onSeeAll: { showNews = true }, onOpenNews: { selectedNews = $0; showNewsDetail = true }) }.id("NEWS")
-                // 도감 — 게임 데이터에 무엇이 있는가(일정과 다른 축이라 따로 둔다).
-                section {
-                    navEntry(icon: "sparkles", title: "새로 나온 것", sub: "이번 버전 신규 캐릭터 · 무기 · 방부",
-                             badge: store.newContentUnseen) { showNewContent = true }
-                }
-                section { navEntry(icon: "pawprint.fill", title: "방부 도감", sub: "젠레스 방부 스탯 · 스킬") { showBangboo = true } }
-                section { navEntry(icon: "function", title: "가챠 계산기", sub: "재화 환산 · 확률 · 시나리오") { showCalc = true } }
-                section { navEntry(icon: "chart.bar.xaxis", title: "가챠 효율 리포트", sub: "UIGF/SRGF 분석 · 단가 · 천장 분포") { showReport = true } }
+                // 진입 카드 — 도감(무엇이 있는가) + 도구.
+                entryCards
                 Color.clear.frame(height: 12)
             }
             // 좌우 여백은 **섹션마다** 준다(section 헬퍼). 통짜로 걸면 데일리 히어로가
@@ -135,91 +239,27 @@ struct GameInfoView: View {
         }
         .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            // 버튼마다 ToolbarItem 을 따로 두고 사이에 ToolbarSpacer 를 넣는다 —
-            // iOS 26 은 인접한 툴바 아이템을 하나의 글래스 캡슐로 묶어버리므로, 스페이서로 갈라야
-            // 버튼이 각각 독립된 원형으로 떨어진다. (지출 탭 헤더와 동일)
-            // 순서: 새로고침 → 리딤코드 → 설정.
-            ToolbarItem(placement: .topBarTrailing) {
-                // 새로고침 중에는 아이콘 자리를 스피너로 바꾼다 — 당겨서 새로고침과 달리
-                // 버튼을 눌렀을 때는 화면 어디에도 진행 표시가 없어, 눌린 건지 알 수 없었다.
-                Button { store.refreshGameInfo(force: true) } label: {
-                    if store.isRefreshing { ProgressView().controlSize(.small) }
-                    else { Image(systemName: "arrow.clockwise") }
-                }
-                .disabled(store.isRefreshing)
-            }
-            if #available(iOS 26.0, *) {
-                ToolbarSpacer(.fixed, placement: .topBarTrailing)
-            }
-            if store.hoyolabConfig.isLinked {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button { showGift = true } label: { Image(systemName: "gift") }
-                }
-                if #available(iOS 26.0, *) {
-                    ToolbarSpacer(.fixed, placement: .topBarTrailing)
-                }
-            }
-            ToolbarItem(placement: .topBarTrailing) {
-                Button { showHoyolab = true } label: { Image(systemName: "gearshape") }
-            }
-        }
-        .navigationDestination(isPresented: $showHoyolab) {
-            HoyolabLinkView(store: store) { showHoyolab = false }
-        }
-        .navigationDestination(isPresented: $showCalc) { sectionPage("계산기") { GachaCalculatorSection() } }
-        .navigationDestination(isPresented: $showReport) { sectionPage("가챠 리포트") { GachaReportSection(store: store, onOpenDashboard: { showDashboard = true }) } }
-        .navigationDestination(isPresented: $showGift) { GiftCodePage(store: store) }
-        .navigationDestination(isPresented: $showDashboard) { GachaDashboardView(store: store) }
-        .navigationDestination(isPresented: $showSchedule) { GameSchedulePage(store: store) }
-        .navigationDestination(isPresented: $showNews) { NewsPage(store: store) }
-        .navigationDestination(isPresented: $showNewsDetail) {
-            if let n = selectedNews { NewsDetailView(store: store, item: n) }
-        }
-        .navigationDestination(isPresented: $showHoyoland) { HoyolandDetailView() }
-        .navigationDestination(isPresented: $showNewContent) { NewContentPage(store: store) }
-        .navigationDestination(isPresented: $showBangboo) { BangbooPage(store: store) }
-        .navigationDestination(isPresented: $showAttendance) { AttendanceDetailView(store: store) }
-        .navigationDestination(isPresented: $showGameContent) {
-            sectionPage("전투 · 수입 일지") {
-                GameTabbedSection(store: store)
-            }
-        }
-        // ⚠️ 이 destination 은 **최상위에** 있어야 한다. 예전엔 위 `showGameContent` 안에 중첩돼
-        // 있어서, 일지 페이지에 들어가 있을 때만 등록됐다 — 데일리 카드에서 눌러도 아무 일이
-        // 일어나지 않던 원인이다(상태만 true 로 바뀌고 push 할 destination 이 없었다).
-        .navigationDestination(isPresented: $showCombatClears) {
-            sectionPage("클리어 편성") { CombatClearSection(store: store) }
-        }
-        .navigationDestination(isPresented: $showStats) {
-            if let c = statChar {
-                EnkaStatPage(char: c, game: statGame,
-                             overrides: store.keyStatOverrides,
-                             onSetOverride: { k, v in store.setKeyStatOverride(k, v) })
-                    // 캐릭터가 바뀌면 **다른 뷰**로 취급한다.
-                    // navigationDestination 은 같은 자리의 목적지를 재사용해서, A 를 보고 나온 뒤 B 로
-                    // 들어가면 A 의 유효옵션 칩이 한 번 그려졌다가 B 로 바뀌었다. id 를 걸면 새로 만든다.
-                    .id(c.id)
-            }
-        }
-        .navigationDestination(isPresented: $showRoster) {
-            EnkaRosterPage(store: store, game: rosterGame)
-        }
-        }  // ScrollViewReader
+        .toolbar { toolbarContent }
     }
 
-    // 대기 중인 앵커가 있으면 해당 섹션으로 스크롤 후 소비(1회성). 탭 전환 직후 레이아웃 완료를 위해 다음 런루프에 실행.
-    private func scrollToPendingAnchor(_ proxy: ScrollViewProxy) {
-        guard let anchor = store.pendingGameInfoAnchor else { return }
-        // 전투 진행도는 본문 섹션이 아니라 데일리에서 들어가는 상세 페이지로 옮겼다 → 스크롤 대신 페이지 진입.
-        if anchor == .combat {
-            showGameContent = true
-            store.consumeGameInfoAnchor()
-            return
+    /// 하단 진입 카드 넉 장(도감 2 + 도구 2).
+    ///
+    /// ⚠️ 본문에 늘어놓지 않고 여기 모은다 — LazyVStack 자식이 늘수록 타입 추론 비용이 커져
+    /// "unable to type-check" 가 나는데, 에러는 손대지도 않은 줄에 찍혀 원인을 가린다.
+    @ViewBuilder private var entryCards: some View {
+        section {
+            navEntry(icon: "sparkles", title: "새로 나온 것", sub: "이번 버전 신규 캐릭터 · 무기 · 방부",
+                     badge: store.newContentUnseen) { showNewContent = true }
         }
-        DispatchQueue.main.async {
-            withAnimation(.easeInOut(duration: 0.35)) { proxy.scrollTo(anchor.name, anchor: .top) }
-            store.consumeGameInfoAnchor()
+        section {
+            navEntry(icon: "pawprint.fill", title: "방부 도감", sub: "젠레스 방부 스탯 · 스킬") { showBangboo = true }
+        }
+        section {
+            navEntry(icon: "function", title: "가챠 계산기", sub: "재화 환산 · 확률 · 시나리오") { showCalc = true }
+        }
+        section {
+            navEntry(icon: "chart.bar.xaxis", title: "가챠 효율 리포트",
+                     sub: "UIGF/SRGF 분석 · 단가 · 천장 분포") { showReport = true }
         }
     }
 

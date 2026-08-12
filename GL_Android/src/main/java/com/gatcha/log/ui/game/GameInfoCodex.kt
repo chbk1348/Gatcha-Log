@@ -99,7 +99,9 @@ private fun NewContentCard(g: NewContentGame) {
                         // 이름을 받은 것만 나열하고, 못 받은 나머지는 개수로 남긴다 —
                         // 비호요 게임은 한국어가 비어 있을 때가 있는데 '없음'으로 보이면 사실과 다르다.
                         Text(
-                            grp.items.joinToString(" · ") { it.name }.ifBlank { "이름 미확인" },
+                            // 이름을 하나도 못 받았으면 개수로 말한다 — "이름 미확인" 은 사용자에게
+                            // 아무 정보가 아니고, 상류 번역이 늦은 것뿐이라 곧 채워진다.
+                            grp.items.joinToString(" · ") { it.name }.ifBlank { "${'$'}{grp.total}개 (이름 준비 중)" },
                             fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextPrimary, lineHeight = 19.sp,
                         )
                         if (grp.hidden > 0) {
