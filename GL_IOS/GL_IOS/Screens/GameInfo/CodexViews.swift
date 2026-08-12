@@ -9,9 +9,11 @@ import Shared
  신규 **캐릭터**가 있는 게임만. 아무 때나 띄우면 곧 무시당하고, 그러면 정작 신규
  캐릭터가 나온 날에도 안 읽힌다.
 
- **상시로 뜬다.** 닫기 버튼은 없다 — 한 번 확인했다고 "이번 버전에 누가 나왔더라"가
- 없어지지 않는데, 내린 배너는 다시 부를 방법이 없었다. 대신 눌러서 전체 목록으로 간다는
- 걸 꺾쇠로 알린다(닫기가 사라진 자리에 아무 표시도 없으면 눌러도 되는지 모른다).
+ **상시로 뜬다.** 버전이 바뀔 때까지 '봤음'과 무관하게 자리를 지킨다. 닫기(X)는 **이번
+ 실행에서만** 치우는 버튼이다(`SpendingViewModel.dismissVersionBanner`) — 지금 화면에서
+ 밀어 두고 싶은 것과 다시는 안 보겠다는 건 다른 요구고, 후자로 적으면 다시 부를 데가 없다.
+
+ 꺾쇠는 X 와 별개로 남긴다 — X 는 '내리는' 버튼이라 '눌러서 목록으로 간다'는 건 못 알린다.
 
  **기간은 쓰지 않는다.** 도감에는 픽업 일정이 없다 — "이 버전에 이런 캐릭터가 추가됐다"까지가
  사실이고 그 이상은 지어내는 것이다.
@@ -19,9 +21,11 @@ import Shared
 struct NewVersionBannerCard: View {
     let banner: NewVersionBanner
     let onOpen: () -> Void
+    let onDismiss: () -> Void
 
     var body: some View {
         let color = Color(argb64: banner.colorArgb)
+        ZStack(alignment: .topTrailing) {
         Button(action: onOpen) {
             HStack(spacing: 10) {
                 VStack(alignment: .leading, spacing: 0) {
@@ -49,7 +53,11 @@ struct NewVersionBannerCard: View {
                     HStack(spacing: -14) {
                         ForEach(Array(banner.portraits.enumerated()), id: \.offset) { _, raw in
                             if let u = URL(string: raw) {
+                                // `side` 는 디코딩 목표 픽셀일 뿐 크기를 잡지 않는다 —
+                                // 프레임을 안 주면 `resizable()` 이 남는 폭을 다 먹어 초상이
+                                // 배너를 삼킨다(Compose 쪽 `Modifier.size(54.dp)` 대응).
                                 GLGRemoteImage(url: u, side: 54)
+                                    .frame(width: 54, height: 54)
                                     .clipShape(Circle())
                                     .overlay(Circle().stroke(Color.white.opacity(0.5), lineWidth: 1.5))
                             }
@@ -62,6 +70,15 @@ struct NewVersionBannerCard: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        // 닫기 — 눌러 들어가지 않고도 치울 수 있어야 한다. 이번 실행에서만 사라진다.
+        Button(action: onDismiss) {
+            Image(systemName: "xmark").font(.system(size: 11, weight: .bold))
+                .foregroundStyle(.white.opacity(0.75))
+                .frame(width: 26, height: 26).contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .padding(6)
+        }
         // 어둡게 섞어 내린다 — `opacity` 로 내리면 흰 배경이 비쳐 **밝아져서**, 같은 코드를
         // 검정 쪽으로 보간하는 Compose(`lerp(color, Black, 0.28)`)와 색이 갈렸다.
         .background(

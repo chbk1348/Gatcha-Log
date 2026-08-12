@@ -75,13 +75,19 @@ object NewContent {
             // 전자는 총계에서 빼야 하고(애초에 신규가 아니다), 후자는 "N개 (이름 준비 중)"로 남는다.
             var dropped = 0
             val resolved = ids.take(NAMES_PER_TYPE).mapNotNull { id ->
-                val o = NanokaApi.entity(nanokaKey, type, id) ?: return@mapNotNull null
+                val (foundAt, o) = NanokaApi.entityAt(nanokaKey, type, id) ?: return@mapNotNull null
                 val icon = o.optString("icon")
                 if (!isListable(nanokaKey, type, icon)) {
                     dropped++
                     return@mapNotNull null
                 }
                 val name = NanokaApi.usableName(o.optString("name")) ?: return@mapNotNull null
+                // 이름까지 멀쩡한 것만 과거 대조에 부친다 — 요청이 한 건 더 붙는 검사라
+                // 어차피 화면에 못 올릴 항목에까지 쓸 이유가 없다.
+                if (NanokaApi.existedBefore(nanokaKey, type, id, foundAt)) {
+                    dropped++
+                    return@mapNotNull null
+                }
                 NewContentItem(id, name, iconUrl = portraitUrl(nanokaKey, type, icon))
             }
             // 이름이 같은 항목은 하나만. 원신 7.0 이 여행자를 id 두 개(`10000007-5`·`10000135`)로

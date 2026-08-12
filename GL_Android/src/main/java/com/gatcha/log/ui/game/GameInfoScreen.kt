@@ -184,7 +184,10 @@ fun GameInfoScreen(
         val anchor = pendingAnchor ?: return@LaunchedEffect
         val linked = hoyolab.isLinked
         val scheduleShown = schedule.isNotEmpty()
-        var cursor = 1                                       // 0 헤더 스페이서 · 1 데일리
+        // 0 헤더 스페이서 · (배너) · 데일리. 배너는 조건부라 세는 값에 넣어야 한다 —
+        // 예전엔 배너가 데일리 아래에 있으면서 이 계산에 빠져 있어, 배너가 뜬 날에는
+        // SCHEDULE·NEWS 앵커가 두 칸씩 밀린 자리로 스크롤됐다.
+        var cursor = 1 + (if (versionBanner != null) 1 else 0)
         val notesIdx = cursor                                // 섹션이 없을 때의 공통 폴백
         if (linked) cursor += 2                              // 내 캐릭터
         val scheduleIdx = if (scheduleShown) cursor + 2 else notesIdx
@@ -369,10 +372,25 @@ fun GameInfoScreen(
             // 앵커 인덱스 유지용 빈 item — 이 목록의 스크롤 앵커(홈 딥링크)가 인덱스로 계산되므로
             // 없애면 뒤가 전부 하나씩 당겨진다. 상태바+헤더 높이는 히어로가 자기 배경과 함께 가진다.
             item { Spacer(Modifier.height(0.dp)) }
-            // 최상단 히어로 — 급한 할 일이 지면을 지배한다(상태바까지 색이 이어짐)
+            // 새 버전 알림 — **목록 맨 위.** 데일리 아래에 두면 지면을 크게 쓰는 배너가 스크롤해야
+            // 보여서 '읽으라고 내미는' 형식과 맞지 않았다. 맨 위에 서는 대신 상태바+헤더를
+            // 비켜 주는 몫도 여기가 진다(그만큼 아래 히어로는 헤더 여백을 빼야 한다).
+            versionBanner?.let { b ->
+                item {
+                    GiSection(Modifier.padding(top = topInset + GlgTabHeaderHeight + 8.dp, bottom = 4.dp)) {
+                        NewVersionBannerCard(
+                            b,
+                            onOpen = { subPage = GiSub.NewContent },
+                            onDismiss = { viewModel.dismissVersionBanner() },
+                        )
+                    }
+                }
+            }
+            // 히어로 — 급한 할 일이 지면을 지배한다
             item {
                 DailyHeroSection(
-                    topInset = topInset,
+                    topInset = if (versionBanner != null) 0.dp else topInset,
+                    headerOverlap = if (versionBanner != null) 0.dp else GlgTabHeaderHeight,
                     notes = notes,
                     attendanceToday = attendanceToday,
                     attendanceHistory = attendanceHistory,
@@ -388,15 +406,6 @@ fun GameInfoScreen(
                     onOpenGameContent = { subPage = GiSub.GameContent },
                     onOpenClears = { subPage = GiSub.CombatClear },
                 )
-            }
-            // 새 버전 알림 — 데일리 바로 아래. 이번 버전에 신규 캐릭터가 있으면 상시로 뜬다(닫기 없음).
-            versionBanner?.let { b ->
-                item { Spacer(Modifier.height(16.dp)) }
-                item {
-                    GiSection {
-                        NewVersionBannerCard(b, onOpen = { subPage = GiSub.NewContent })
-                    }
-                }
             }
             // 숙제 완주율은 별도 섹션을 두지 않는다 — 데일리의 게임 줄에 완주율까지 함께 들어간다.
             // 내 캐릭터(보유 전체 로스터) — 데일리 다음. 미연동이면 섹션·상단 여백까지 통째 생략(빈 여백 방지).
@@ -495,11 +504,11 @@ fun GameInfoScreen(
  * 히어로만 이 래퍼 없이 전폭으로 그린다.
  */
 @Composable
-private fun GiSection(content: @Composable ColumnScope.() -> Unit) {
+private fun GiSection(modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
     // ⚠️ Column 이어야 한다. Box 로 두면 섹션이 내보내는 형제들(제목 Text · 카드)이 **같은 자리에
     // 겹쳐** 쌓이고, 나중에 그려지는 카드가 제목을 덮는다 — '게임 일정'·'공지·뉴스' 제목이
     // 통째로 안 보이던 원인이다. 섹션 하나가 한 덩어리(Column)만 내보낸다는 보장이 없다.
-    Column(Modifier.padding(horizontal = 16.dp), content = content)
+    Column(modifier.padding(horizontal = 16.dp), content = content)
 }
 
 /** 페이지로 분류된 섹션 진입 카드 (아이콘 + 제목 + 설명 + 셰브론). */

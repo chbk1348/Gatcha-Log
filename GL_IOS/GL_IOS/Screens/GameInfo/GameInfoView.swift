@@ -172,17 +172,21 @@ struct GameInfoView: View {
             LazyVStack(alignment: .leading, spacing: 0) {
                 // 홈 카드 딥링크 스크롤 앵커 — id 문자열은 Kotlin GameInfoAnchor 의 .name(NOTES/SCHEDULE/NEWS)과 일치해야 함.
                 // 히어로는 section 래퍼 없이 전폭 — 배경색이 화면 가장자리까지 닿는다.
+                // 새 버전 알림 — **목록 맨 위.** 데일리 아래에 두면 지면을 크게 쓰는 배너가
+                // 스크롤해야 보여서 '읽으라고 내미는' 형식과 맞지 않았다. (Compose 와 순서 동일)
+                if let b = store.versionBanner {
+                    section {
+                        NewVersionBannerCard(banner: b,
+                                             onOpen: { showNewContent = true },
+                                             onDismiss: { store.dismissVersionBanner() })
+                    }
+                    .padding(.top, 8)
+                }
                 DailyHeroSection(store: store,
                                  onConfig: { showHoyolab = true },
                                  onOpenAttendance: { showAttendance = true },
                                  onOpenGameContent: { showGameContent = true },
                                  onOpenClears: { showCombatClears = true }).id("NOTES")
-                // 새 버전 알림 — 데일리 바로 아래. 이번 버전에 신규 캐릭터가 있으면 상시로 뜬다(닫기 없음).
-                if let b = store.versionBanner {
-                    section {
-                        NewVersionBannerCard(banner: b, onOpen: { showNewContent = true })
-                    }
-                }
                 // 숙제 완주율은 별도 섹션을 두지 않는다 — 데일리의 게임 줄에 완주율까지 들어간다.
                 // 내 캐릭터(보유 전체 로스터) — 데일리 다음 핵심 콘텐츠로 상단 배치
                 // 미연동이면 섹션·상단 여백까지 통째 생략(빈 여백 방지).

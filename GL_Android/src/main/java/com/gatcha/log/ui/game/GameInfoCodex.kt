@@ -25,6 +25,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.Icon
 import coil.compose.AsyncImage
 import com.gatcha.log.data.NewContentGame
@@ -45,15 +46,17 @@ import com.gatcha.log.ui.theme.toColor
  * 신규 **캐릭터**가 있는 게임만([NewContent.banner]). 아무 때나 띄우면 곧 무시당하고,
  * 그러면 정작 신규 캐릭터가 나온 날에도 안 읽힌다.
  *
- * **상시로 뜬다.** 닫기 버튼은 없다 — 한 번 확인했다고 "이번 버전에 누가 나왔더라"가
- * 없어지지 않는데, 내린 배너는 다시 부를 방법이 없었다. 대신 눌러서 전체 목록으로 간다는
- * 걸 꺾쇠로 알린다(닫기가 사라진 자리에 아무 표시도 없으면 눌러도 되는지 모른다).
+ * **상시로 뜬다.** 버전이 바뀔 때까지 '봤음'과 무관하게 자리를 지킨다. 닫기(X)는 **이번
+ * 실행에서만** 치우는 버튼이다([SpendingViewModel.dismissVersionBanner]) — 지금 화면에서
+ * 밀어 두고 싶은 것과 다시는 안 보겠다는 건 다른 요구고, 후자로 적으면 다시 부를 데가 없다.
+ *
+ * 꺾쇠는 X 와 별개로 남긴다 — X 는 '내리는' 버튼이라 '눌러서 목록으로 간다'는 건 못 알린다.
  *
  * **기간은 쓰지 않는다.** 도감에는 픽업 일정이 없다 — "이 버전에 이런 캐릭터가 추가됐다"까지가
  * 사실이고 그 이상은 지어내는 것이다.
  */
 @Composable
-internal fun NewVersionBannerCard(b: NewVersionBanner, onOpen: () -> Unit) {
+internal fun NewVersionBannerCard(b: NewVersionBanner, onOpen: () -> Unit, onDismiss: () -> Unit) {
     val color = b.colorArgb.toColor()
     Box(
         Modifier.fillMaxWidth()
@@ -114,6 +117,14 @@ internal fun NewVersionBannerCard(b: NewVersionBanner, onOpen: () -> Unit) {
                     }
                 }
             }
+        }
+        // 닫기 — 눌러 들어가지 않고도 치울 수 있어야 한다. 이번 실행에서만 사라진다.
+        Box(
+            Modifier.align(Alignment.TopEnd).padding(6.dp).size(26.dp).clip(CircleShape)
+                .clickable { onDismiss() },
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(Icons.Default.Close, "닫기", tint = Color.White.copy(alpha = 0.75f), modifier = Modifier.size(15.dp))
         }
     }
 }

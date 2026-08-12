@@ -91,9 +91,13 @@ internal fun DailyHeroSection(
     onOpenGameContent: (() -> Unit)? = null,
     /** 클리어 편성으로 — 위 카드의 두 번째 줄. null 이면 줄 자체가 안 뜬다. */
     onOpenClears: (() -> Unit)? = null,
+    /** 상단 헤더(버튼 줄)를 비켜 줄 높이. 히어로 위에 다른 항목이 서면 0 을 준다. */
+    headerOverlap: Dp = GlgTabHeaderHeight,
 ) {
     // 헤더(버튼 줄)가 히어로 위에 겹친다 — 그만큼 아래에서 시작한다.
-    val headTop = topInset + GlgTabHeaderHeight
+    // 단 히어로가 목록의 첫 항목이 아닐 때는(위에 새 버전 배너가 서면) 그쪽이 이미 헤더를
+    // 비켜 줬으므로 두 번 밀면 안 된다 — 그때 호출자가 [headerOverlap] 을 0 으로 준다.
+    val headTop = topInset + headerOverlap
 
     if (!hoyolab.isLinked) {
         LinkPrompt(headTop, onConfigClick)

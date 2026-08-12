@@ -488,6 +488,8 @@ final class SpendingStore {
     func autoLoadEnkaSection(games: [String], force: Bool = false) { vm.autoLoadEnkaSection(games: games, force: force) }
     func loadNewContent() { vm.loadNewContent(force: false) }
     func markNewContentSeen() { vm.markNewContentSeen() }
+    /// 배너만 내린다 — 이번 실행 한정('봤음'으로 적지 않는다).
+    func dismissVersionBanner() { vm.dismissVersionBanner() }
     func loadWeaponRefinement(game: String, weaponId: Int32, level: Int32) {
         vm.loadWeaponRefinement(gameKey: game, weaponId: weaponId, level: level)
     }
