@@ -16,8 +16,6 @@ struct GameInfoView: View {
     @State private var showSchedule = false
     @State private var showNews = false
     @State private var showHoyoland = false
-    /// 도감 — 새로 나온 것 · 방부.
-    @State private var showNewContent = false
     /// 출석 체크 상세(데일리 타일에서 진입).
     @State private var showAttendance = false
     /// 전투 진행도·수입 일지 상세(데일리에서 진입).
@@ -74,7 +72,6 @@ struct GameInfoView: View {
             if let n = selectedNews { NewsDetailView(store: store, item: n) }
         }
         .navigationDestination(isPresented: $showHoyoland) { HoyolandDetailView() }
-        .navigationDestination(isPresented: $showNewContent) { NewContentPage(store: store) }
         .navigationDestination(isPresented: $showAttendance) { AttendanceDetailView(store: store) }
         .navigationDestination(isPresented: $showGameContent) {
             sectionPage("전투 · 수입 일지") {
@@ -172,16 +169,6 @@ struct GameInfoView: View {
             LazyVStack(alignment: .leading, spacing: 0) {
                 // 홈 카드 딥링크 스크롤 앵커 — id 문자열은 Kotlin GameInfoAnchor 의 .name(NOTES/SCHEDULE/NEWS)과 일치해야 함.
                 // 히어로는 section 래퍼 없이 전폭 — 배경색이 화면 가장자리까지 닿는다.
-                // 새 버전 알림 — **목록 맨 위.** 데일리 아래에 두면 지면을 크게 쓰는 배너가
-                // 스크롤해야 보여서 '읽으라고 내미는' 형식과 맞지 않았다. (Compose 와 순서 동일)
-                if let b = store.versionBanner {
-                    section {
-                        NewVersionBannerCard(banner: b,
-                                             onOpen: { showNewContent = true },
-                                             onDismiss: { store.dismissVersionBanner() })
-                    }
-                    .padding(.top, 8)
-                }
                 DailyHeroSection(store: store,
                                  onConfig: { showHoyolab = true },
                                  onOpenAttendance: { showAttendance = true },
@@ -207,7 +194,7 @@ struct GameInfoView: View {
                 section { HoyolandSection(onOpen: { showHoyoland = true }) }
                 // 공지·뉴스 — 게임별 최신 공지(탭하면 HoYoLab 열기). 더보기로 전체 페이지.
                 section { NewsSection(store: store, onSeeAll: { showNews = true }, onOpenNews: { selectedNews = $0; showNewsDetail = true }) }.id("NEWS")
-                // 진입 카드 — 도감(무엇이 있는가) + 도구.
+                // 진입 카드 — 가챠 도구.
                 entryCards
                 Color.clear.frame(height: 12)
             }
@@ -236,8 +223,8 @@ struct GameInfoView: View {
                 store.autoLoadEnkaSection(games: ["genshin", "hsr", "zzz"], force: false)
             }
         }
-        // 신규 콘텐츠 — 진입 카드의 점 표시를 위해 목록까지 미리 받는다(내부에서 1회만 실제로 돈다).
-        .task { store.loadNewContent() }
+        // 현재 게임 버전 — 데일리 타일 아래 한 줄(내부에서 1회만 실제로 돈다).
+        .task { store.loadGameVersions() }
         .task(id: homeScheduleKey) {
             schedule = ScheduleLogic.shared.buildSchedule(
                 banners: store.activeBanners, events: store.gameEvents, challenges: store.challenges)
@@ -250,15 +237,11 @@ struct GameInfoView: View {
         .toolbar { toolbarContent }
     }
 
-    /// 하단 진입 카드 석 장(도감 1 + 도구 2).
+    /// 하단 진입 카드 두 장(가챠 도구).
     ///
     /// ⚠️ 본문에 늘어놓지 않고 여기 모은다 — LazyVStack 자식이 늘수록 타입 추론 비용이 커져
     /// "unable to type-check" 가 나는데, 에러는 손대지도 않은 줄에 찍혀 원인을 가린다.
     @ViewBuilder private var entryCards: some View {
-        section {
-            navEntry(icon: "sparkles", title: "새로 나온 것", sub: "이번 버전 신규 캐릭터 · 무기 · 방부",
-                     badge: store.newContentUnseen) { showNewContent = true }
-        }
         section {
             navEntry(icon: "function", title: "가챠 계산기", sub: "재화 환산 · 확률 · 시나리오") { showCalc = true }
         }
@@ -274,8 +257,7 @@ struct GameInfoView: View {
     }
 
     // 페이지 진입 카드 — 아이콘 + 제목 + 설명 + 셰브론(글래스 카드).
-    /// - Parameter badge: 안 본 게 있으면 제목 옆에 점 하나. 숫자 배지는 과하다 — 몇 개인지가 중요하지 않다.
-    @ViewBuilder private func navEntry(icon: String, title: String, sub: String, badge: Bool = false,
+    @ViewBuilder private func navEntry(icon: String, title: String, sub: String,
                                        action: @escaping () -> Void) -> some View {
         Button(action: action) {
             GLGCard(cornerRadius: 20, padding: 16) {
@@ -285,10 +267,7 @@ struct GameInfoView: View {
                         Image(systemName: icon).font(.pretendard(size: 18, weight: .semibold)).foregroundStyle(accent.primary)
                     }
                     VStack(alignment: .leading, spacing: 3) {
-                        HStack(spacing: 6) {
-                            Text(title).font(.pretendard(size: 15, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
-                            if badge { Circle().fill(GLGColor.dangerText).frame(width: 6, height: 6) }
-                        }
+                        Text(title).font(.pretendard(size: 15, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
                         Text(sub).font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary).lineLimit(1).minimumScaleFactor(0.85)
                     }
                     Spacer(minLength: 8)

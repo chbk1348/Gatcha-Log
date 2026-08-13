@@ -1372,85 +1372,29 @@ class SpendingViewModel : ViewModel() {
         }
     }
 
-    // ----------------------------------------------------------------- 도감(nanoka)
-
-    private val _newContent = MutableStateFlow<List<NewContentGame>>(emptyList())
-    /** 게임별 '이번 버전 신규' — [NewContent.load] 결과. */
-    val newContent: StateFlow<List<NewContentGame>> = _newContent.asStateFlow()
-
-    private val _versionBanner = MutableStateFlow<NewVersionBanner?>(null)
-    /** 새 버전 알림 배너 — 이번 버전에 신규 캐릭터가 있으면 상시. '봤음'과 무관하다. */
-    val versionBanner: StateFlow<NewVersionBanner?> = _versionBanner.asStateFlow()
-
-    private val _newContentUnseen = MutableStateFlow(false)
-    /** 아직 안 본 신규 항목이 있는가 — 진입 카드 점 표시. */
-    val newContentUnseen: StateFlow<Boolean> = _newContentUnseen.asStateFlow()
-
-    private val _newContentLoading = MutableStateFlow(false)
-    val newContentLoading: StateFlow<Boolean> = _newContentLoading.asStateFlow()
+    // ----------------------------------------------------------------- 현재 게임 버전(nanoka)
 
     private val _gameVersions = MutableStateFlow<List<GameVersionLine>>(emptyList())
     /** 지금 돌고 있는 게임 버전(출석 3게임) — 데일리 타일 아래 한 줄. */
     val gameVersions: StateFlow<List<GameVersionLine>> = _gameVersions.asStateFlow()
 
-    private var newContentLoaded = false
+    private var gameVersionsLoaded = false
 
     /**
-     * 신규 콘텐츠 목록 로드. 화면 진입 시 부르며 **한 번만** 실제로 돈다.
+     * 현재 버전 로드. 화면 진입 시 부르며 **한 번만** 실제로 돈다.
      *
-     * 매니페스트 1건 + 이름 조회 수십 건이라 값이 싸지 않은데, 버전이 바뀌는 주기는 몇 주다.
+     * 매니페스트 1건이면 끝나지만 버전이 바뀌는 주기는 몇 주라 매번 받을 이유가 없다.
      * 앱을 껐다 켜면 다시 받는다(메모리 플래그).
+     *
+     * 빈 결과는 **'없음'으로 굳히지 않는다** — 네트워크가 죽었을 뿐일 수 있어 다음 진입에 다시 본다.
      */
-    fun loadNewContent(force: Boolean = false) {
-        if (newContentLoaded && !force) return
-        if (_newContentLoading.value) return
-        newContentLoaded = true
+    fun loadGameVersions(force: Boolean = false) {
+        if (gameVersionsLoaded && !force) return
+        gameVersionsLoaded = true
         viewModelScope.launch {
-            _newContentLoading.value = true
-            try {
-                // 버전 한 줄은 매니페스트만 있으면 되고 신규 목록보다 훨씬 싸다 — 먼저 채운다.
-                withContext(Dispatchers.IO) { NewContent.liveVersions() }
-                    .takeIf { it.isNotEmpty() }?.let { _gameVersions.value = it }
-                val games = withContext(Dispatchers.IO) { NewContent.load() }
-                if (games.isEmpty()) {
-                    // 못 받았으면 '없음'으로 굳히지 않는다 — 다음 진입에 다시 시도한다.
-                    newContentLoaded = false
-                    return@launch
-                }
-                _newContent.value = games
-                _newContentUnseen.value = NewContent.hasUnseen(games, repo.loadSeenNewContent())
-                // 배너는 '봤음'을 보지 않는다 — 버전이 바뀔 때까지 그대로 둔다([NewContent.banner]).
-                _versionBanner.value = NewContent.banner(games)
-            } finally {
-                _newContentLoading.value = false
-            }
+            val versions = withContext(Dispatchers.IO) { GameVersions.live() }
+            if (versions.isEmpty()) gameVersionsLoaded = false else _gameVersions.value = versions
         }
-    }
-
-    /**
-     * 배너를 손으로 내렸다 — **이번 실행에서만** 사라진다.
-     *
-     * '봤음'([markNewContentSeen])으로 적지 않는다. 배너가 답하는 건 "지금 버전에 누가
-     * 나왔더라"라 며칠 뒤 다시 보러 오는 정보인데, 영구히 적어 버리면 다시 부를 방법이 없다.
-     * 지금 화면에서 치우고 싶은 것과 다시는 안 보겠다는 건 다른 요구다 —
-     * 앱을 다시 켜면(=[loadNewContent] 가 다시 돌면) 제자리로 돌아온다.
-     */
-    fun dismissVersionBanner() {
-        _versionBanner.value = null
-    }
-
-    /**
-     * 신규 목록을 열었다 — 지금 보이는 항목을 전부 '봤음'으로 적고 점을 끈다.
-     *
-     * 배너는 건드리지 않는다. 점("안 본 게 있다")과 배너("지금 버전에 누가 나왔다")는 답하는
-     * 질문이 다르다 — 목록을 한 번 열었다고 이번 버전 신규 캐릭터가 누구인지가 없어지지 않는다.
-     */
-    fun markNewContentSeen() {
-        val games = _newContent.value
-        if (games.isEmpty()) return
-        val merged = repo.loadSeenNewContent() + NewContent.seenKeys(games)
-        repo.saveSeenNewContent(merged)
-        _newContentUnseen.value = false
     }
 
     private val _weaponRefinement = MutableStateFlow<Map<String, WeaponRefinement>>(emptyMap())

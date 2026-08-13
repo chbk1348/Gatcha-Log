@@ -13,7 +13,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Share
@@ -68,7 +67,7 @@ import com.gatcha.log.ui.theme.*
 import kotlinx.coroutines.launch
 
 /** 게임정보 탭의 풀스크린 하위 페이지 (열리면 하단바·FAB 숨김) */
-private enum class GiSub { Main, HoyoLink, Dashboard, Calc, Report, Gift, Schedule, News, NewsDetail, CharStats, CharRoster, Hoyoland, GameContent, CombatClear, Attendance, NewContent }
+private enum class GiSub { Main, HoyoLink, Dashboard, Calc, Report, Gift, Schedule, News, NewsDetail, CharStats, CharRoster, Hoyoland, GameContent, CombatClear, Attendance }
 
 /** 화면 전환 push/pop 방향용 계층 깊이. Main=0, 하위 페이지=1, 상세(목록서 진입)=2. */
 private fun subDepth(s: GiSub): Int = when (s) {
@@ -131,7 +130,6 @@ fun GameInfoScreen(
     val keyStatOverrides by viewModel.keyStatOverrides.collectAsStateWithLifecycle()
     val weaponRefinements by viewModel.weaponRefinement.collectAsStateWithLifecycle()
     val gameVersions by viewModel.gameVersions.collectAsStateWithLifecycle()
-    val versionBanner by viewModel.versionBanner.collectAsStateWithLifecycle()
     // 게임정보 하위 풀스크린 페이지(연동 / 가챠 통계) — 열리면 상위(Scaffold)에 알려 하단바·FAB 숨김
     var subPage by remember { mutableStateOf(GiSub.Main) }
     // Enka 캐릭터 스탯 페이지 랜딩 대상
@@ -156,8 +154,7 @@ fun GameInfoScreen(
         if (hoyolab.isLinked) viewModel.autoLoadEnkaSection(listOf("genshin", "hsr", "zzz"))
     }
     // 신규 콘텐츠 — 진입 카드의 점 표시를 위해 목록까지 미리 받는다(내부에서 1회만 실제로 돈다).
-    LaunchedEffect(Unit) { viewModel.loadNewContent() }
-    val newContentUnseen by viewModel.newContentUnseen.collectAsStateWithLifecycle()
+    LaunchedEffect(Unit) { viewModel.loadGameVersions() }
 
     // 공지 알림 딥링크 — 알림에 실린 id 로 목록에서 글을 찾아 상세를 연다.
     // 알림을 탭한 직후엔 목록이 아직 비어 있을 수 있어(콜드 스타트) news 가 도착할 때까지 기다렸다 연다.
@@ -184,10 +181,7 @@ fun GameInfoScreen(
         val anchor = pendingAnchor ?: return@LaunchedEffect
         val linked = hoyolab.isLinked
         val scheduleShown = schedule.isNotEmpty()
-        // 0 헤더 스페이서 · (배너) · 데일리. 배너는 조건부라 세는 값에 넣어야 한다 —
-        // 예전엔 배너가 데일리 아래에 있으면서 이 계산에 빠져 있어, 배너가 뜬 날에는
-        // SCHEDULE·NEWS 앵커가 두 칸씩 밀린 자리로 스크롤됐다.
-        var cursor = 1 + (if (versionBanner != null) 1 else 0)
+        var cursor = 1                                       // 0 헤더 스페이서 · 1 데일리
         val notesIdx = cursor                                // 섹션이 없을 때의 공통 폴백
         if (linked) cursor += 2                              // 내 캐릭터
         val scheduleIdx = if (scheduleShown) cursor + 2 else notesIdx
@@ -342,9 +336,6 @@ fun GameInfoScreen(
             GiSub.News -> SectionPage("공지·뉴스", onBack = { subPage = GiSub.Main }) {
                 NewsFullContent(gameNews, onOpen = { openNews(it, GiSub.News) })
             }
-            GiSub.NewContent -> SectionPage("새로 나온 것", onBack = { subPage = GiSub.Main }) {
-                NewContentContent(viewModel)
-            }
             GiSub.Hoyoland -> SectionPage("호요랜드", onBack = { subPage = GiSub.Main }) {
                 HoyolandDetailContent()
             }
@@ -372,25 +363,10 @@ fun GameInfoScreen(
             // 앵커 인덱스 유지용 빈 item — 이 목록의 스크롤 앵커(홈 딥링크)가 인덱스로 계산되므로
             // 없애면 뒤가 전부 하나씩 당겨진다. 상태바+헤더 높이는 히어로가 자기 배경과 함께 가진다.
             item { Spacer(Modifier.height(0.dp)) }
-            // 새 버전 알림 — **목록 맨 위.** 데일리 아래에 두면 지면을 크게 쓰는 배너가 스크롤해야
-            // 보여서 '읽으라고 내미는' 형식과 맞지 않았다. 맨 위에 서는 대신 상태바+헤더를
-            // 비켜 주는 몫도 여기가 진다(그만큼 아래 히어로는 헤더 여백을 빼야 한다).
-            versionBanner?.let { b ->
-                item {
-                    GiSection(Modifier.padding(top = topInset + GlgTabHeaderHeight + 8.dp, bottom = 4.dp)) {
-                        NewVersionBannerCard(
-                            b,
-                            onOpen = { subPage = GiSub.NewContent },
-                            onDismiss = { viewModel.dismissVersionBanner() },
-                        )
-                    }
-                }
-            }
-            // 히어로 — 급한 할 일이 지면을 지배한다
+            // 최상단 히어로 — 급한 할 일이 지면을 지배한다
             item {
                 DailyHeroSection(
-                    topInset = if (versionBanner != null) 0.dp else topInset,
-                    headerOverlap = if (versionBanner != null) 0.dp else GlgTabHeaderHeight,
+                    topInset = topInset,
                     notes = notes,
                     attendanceToday = attendanceToday,
                     attendanceHistory = attendanceHistory,
@@ -440,16 +416,6 @@ fun GameInfoScreen(
                         onSeeAll = { subPage = GiSub.News },
                         onOpen = { openNews(it, GiSub.Main) },
                     )
-                }
-            }
-            // 도감 — 게임 데이터에 무엇이 있는가(일정과 다른 축이라 따로 둔다).
-            item { Spacer(Modifier.height(20.dp)) }
-            item {
-                GiSection {
-                    NavEntryCard(
-                        Icons.Default.AutoAwesome, "새로 나온 것", "이번 버전 신규 캐릭터 · 무기 · 방부",
-                        badge = newContentUnseen,
-                    ) { subPage = GiSub.NewContent }
                 }
             }
             item { Spacer(Modifier.height(20.dp)) }
@@ -504,11 +470,11 @@ fun GameInfoScreen(
  * 히어로만 이 래퍼 없이 전폭으로 그린다.
  */
 @Composable
-private fun GiSection(modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
+private fun GiSection(content: @Composable ColumnScope.() -> Unit) {
     // ⚠️ Column 이어야 한다. Box 로 두면 섹션이 내보내는 형제들(제목 Text · 카드)이 **같은 자리에
     // 겹쳐** 쌓이고, 나중에 그려지는 카드가 제목을 덮는다 — '게임 일정'·'공지·뉴스' 제목이
     // 통째로 안 보이던 원인이다. 섹션 하나가 한 덩어리(Column)만 내보낸다는 보장이 없다.
-    Column(modifier.padding(horizontal = 16.dp), content = content)
+    Column(Modifier.padding(horizontal = 16.dp), content = content)
 }
 
 /** 페이지로 분류된 섹션 진입 카드 (아이콘 + 제목 + 설명 + 셰브론). */
@@ -517,8 +483,6 @@ private fun NavEntryCard(
     icon: ImageVector,
     title: String,
     sub: String,
-    /** 안 본 게 있으면 제목 옆에 점 하나. 숫자 배지는 과하다 — 몇 개인지가 중요한 정보가 아니다. */
-    badge: Boolean = false,
     onClick: () -> Unit,
 ) {
     val accent = LocalAccent.current
@@ -532,13 +496,7 @@ private fun NavEntryCard(
             }
             Spacer(Modifier.width(14.dp))
             Column(Modifier.weight(1f)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(title, fontSize = 15.sp, fontWeight = FontWeight.Bold)
-                    if (badge) {
-                        Spacer(Modifier.width(6.dp))
-                        Box(Modifier.size(6.dp).clip(CircleShape).background(DangerText))
-                    }
-                }
+                Text(title, fontSize = 15.sp, fontWeight = FontWeight.Bold)
                 Text(sub, fontSize = 12.sp, color = TextSecondary, maxLines = 1)
             }
             Spacer(Modifier.width(8.dp))

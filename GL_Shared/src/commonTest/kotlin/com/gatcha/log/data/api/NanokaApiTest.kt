@@ -3,17 +3,21 @@ package com.gatcha.log.data.api
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
-import kotlin.test.assertTrue
 
 /**
- * nanoka 매니페스트·방부 인덱스 파싱 — [NanokaApi].
+ * nanoka 매니페스트 파싱 — [NanokaApi].
  *
  * 여기서 미끄러지면 화면이 조용히 빈다(404 를 받아도 앱은 안 죽는다). 실제 응답에서 그대로
  * 떠온 형태로 고정한다.
  */
 class NanokaApiTest {
 
-    /** 2026-08-12 실제 응답을 줄인 것. `live`≠`latest`, id 가 숫자와 문자열로 섞여 온다. */
+    /**
+     * 2026-08-12 실제 응답을 줄인 것. `live`≠`latest` 인 경우가 섞여 있다.
+     *
+     * 앱이 안 읽는 키(`new`·`available`)도 그대로 둔다 — 응답에는 계속 실려 오므로,
+     * 모르는 키가 늘어도 파싱이 깨지지 않는다는 걸 같이 고정한다.
+     */
     private val manifestJson = """
         {
           "gi": { "latest": "7.0", "available": ["7.0"], "live": "7.0",
@@ -43,14 +47,6 @@ class NanokaApiTest {
         val m = NanokaApi.parseManifest(manifestJson)!!
         assertEquals("3.1", m.games["zzz"]!!.displayVersion)
         assertEquals("1.2", m.games["nte"]!!.displayVersion)
-    }
-
-    @Test
-    fun `신규 id 는 숫자든 문자열이든 문자열로 모은다`() {
-        // 여행자 변형이 "10000007-5" 처럼 문자열로 온다 — 숫자만 받으면 조용히 빠진다.
-        val gi = NanokaApi.parseManifest(manifestJson)!!.games["gi"]!!
-        assertEquals(listOf("10000148", "10000150", "10000007-5"), gi.new["character"])
-        assertEquals(listOf("11435"), gi.new["weapon"])
     }
 
     @Test
