@@ -118,7 +118,12 @@ object EnneadApi {
             val e = eventsArr.optJSONObject(i) ?: continue
             val endMillis = e.optLong("end_time") * 1000
             if (endMillis <= now) continue
-            events += GameEvent(game.displayName, e.optString("name"), endMillis, rewardOf(e))
+            // `start_time` 은 처음부터 왔는데 안 읽고 버렸다 — 그래서 타임라인이 이벤트를
+            // 기간이 아니라 마감 지점으로만 그렸다. 배너와 같은 자리에 같은 형식으로 온다.
+            events += GameEvent(
+                game.displayName, e.optString("name"), endMillis, rewardOf(e),
+                startMillis = e.optLong("start_time") * 1000,
+            )
         }
         events.sortBy { it.endMillis }
 
@@ -135,6 +140,7 @@ object EnneadApi {
                 typeName = c.optString("type_name"),
                 endMillis = endMillis,
                 reward = reward,
+                startMillis = c.optLong("start_time") * 1000,
             )
         }
         challenges.sortBy { it.endMillis }

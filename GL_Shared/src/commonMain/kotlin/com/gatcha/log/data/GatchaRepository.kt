@@ -629,6 +629,8 @@ class GatchaRepository(
             name = o.optString("name", ""),
             endMillis = o.optLong("endMillis", 0L),
             reward = o.optString("reward", ""),
+            // 옛 캐시엔 이 키가 없다 → 0(모름). 타임라인이 0 을 '시작 미상'으로 따로 그린다.
+            startMillis = o.optLong("startMillis", 0L),
         )
     }
 
@@ -636,6 +638,7 @@ class GatchaRepository(
         JSONObject().apply {
             put("game", e.game); put("name", e.name)
             put("endMillis", e.endMillis); put("reward", e.reward)
+            put("startMillis", e.startMillis)
         }
     }
 
@@ -646,6 +649,7 @@ class GatchaRepository(
             typeName = o.optString("typeName", ""),
             endMillis = o.optLong("endMillis", 0L),
             reward = o.optString("reward", ""),
+            startMillis = o.optLong("startMillis", 0L),
         )
     }
 
@@ -653,6 +657,7 @@ class GatchaRepository(
         JSONObject().apply {
             put("game", c.game); put("name", c.name); put("typeName", c.typeName)
             put("endMillis", c.endMillis); put("reward", c.reward)
+            put("startMillis", c.startMillis)
         }
     }
 
