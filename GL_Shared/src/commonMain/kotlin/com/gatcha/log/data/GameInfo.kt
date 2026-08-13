@@ -195,6 +195,15 @@ data class GameEvent(
     val name: String,
     val endMillis: Long,
     val reward: String = "",
+    /**
+     * 시작 시각. **0 이면 모르는 것**(옛 캐시) — 없는 값을 0 으로 두고 그리면 창 맨 왼쪽에서
+     * 시작한 것처럼 보이므로, 쓰는 쪽이 반드시 0 을 따로 다뤄야 한다.
+     *
+     * 상류(ennead)는 처음부터 `start_time` 을 줬는데 우리가 안 읽고 버렸다. 그래서 타임라인이
+     * 이벤트를 기간 막대가 아니라 마감 표식으로만 그렸다(2026-08-13 3게임 실측: 이벤트·정기
+     * 콘텐츠 전 건에 `start_time` 이 있다).
+     */
+    val startMillis: Long = 0L,
 ) {
     val gameColor: Long get() = GameData.colorFor(game)
 
@@ -220,6 +229,8 @@ data class GameChallenge(
     val typeName: String,
     val endMillis: Long,
     val reward: String = "",
+    /** 시작 시각. 0 이면 모르는 것 — [GameEvent.startMillis] 와 같은 규칙. */
+    val startMillis: Long = 0L,
 ) {
     val gameColor: Long get() = GameData.colorFor(game)
     fun dDayLabel(nowMillis: Long = currentTimeMillis()): String {

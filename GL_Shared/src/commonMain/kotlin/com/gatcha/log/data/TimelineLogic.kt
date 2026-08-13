@@ -3,23 +3,36 @@ package com.gatcha.log.data
 import com.gatcha.log.util.currentTimeMillis
 
 /**
- * 간트형 가로 타임라인 — 게임별로 한 행, 픽업 기간을 막대로.
+ * 간트형 가로 타임라인 — **이벤트 하나가 한 행**, 게임별로 묶는다.
  *
  * 마감일 세로 목록([ScheduleLogic.buildDays])과 답하는 질문이 다르다. 저쪽은 "다음에 뭐가
- * 끝나나"라 순서만 알면 되지만, 여기는 **기간과 겹침**이다 — 두 게임 픽업이 같은 주에 몰렸는지,
- * 이번 픽업이 끝나고 다음이 시작할 때까지 빈 구간이 있는지는 막대를 나란히 놓아야 보인다.
+ * 끝나나"라 순서만 알면 되지만, 여기는 **기간과 겹침**이다 — 어떤 이벤트가 같은 주에 몰렸는지,
+ * 하나가 끝나고 다음이 시작할 때까지 빈 구간이 있는지는 막대를 나란히 놓아야 보인다.
+ *
+ * ## 왜 이벤트가 행인가 (2026-08-13 개편)
+ *
+ * 예전엔 **게임이 행**이고 픽업 페이즈가 막대였다. 그 형태에서 이벤트는 한 줄에 여러 개가
+ * 겹쳐 들어가 각자의 기간을 읽을 수 없었고, 애초에 막대도 아니었다(아래 참고).
+ * 이벤트마다 줄을 주면 기간이 있는 그대로 보이고, 게임은 그룹 머리말과 색이 맡는다.
+ *
+ * **픽업은 싣지 않는다.** 픽업은 전용 섹션이 따로 있고, 여기까지 넣으면 "지금 뭐가 도나"라는
+ * 한 가지 질문에 두 종류의 답이 섞인다.
+ *
+ * ## 상류 데이터에 대한 오해를 걷어낸 기록
+ *
+ * 이 파일은 오랫동안 "**이벤트·정기 콘텐츠는 종료 시각만 온다**(시작 없음)"를 전제로,
+ * 이벤트를 막대가 아니라 마감 지점 표식으로만 그렸다. **사실이 아니었다.**
+ * ennead 는 배너와 똑같이 `start_time` 을 준다 — 3게임 전수 확인(원신 이벤트 7·콘텐츠 2,
+ * 스타레일 5·5, 젠레스 7·4) 결과 **전 건에 시작 시각이 있다.** 파서가 안 읽고 버렸을 뿐이다.
+ *
+ * 다만 **옛 캐시로 들어온 항목은 시작이 0(모름)** 이다. 0 을 그냥 그리면 창 맨 왼쪽에서 시작한
+ * 것처럼 보이므로 [TimelineRow.startUnknown] 으로 구분해 알린다 — 모르는 것을 아는 척하지 않는다.
  *
  * ## 좌표를 비율로 주는 이유
  *
  * 위치를 dp/pt 로 계산하면 화면 폭을 아는 쪽(플랫폼)이 계산도 하게 되고, 두 플랫폼이 각자
  * 반올림하다 막대와 눈금이 어긋난다. 여기서는 창 안의 **비율(0~1)** 만 주고, 폭을 곱하는 일은
  * 그리는 쪽이 한다.
- *
- * ## 상류 데이터의 한계
- *
- * **이벤트·정기 콘텐츠는 종료 시각만 온다**(시작 없음 — [GameEvent]·[GameChallenge]).
- * 그래서 이 둘은 막대가 아니라 **마감 지점 표식**이다. 없는 시작 시각을 지어내 막대를 그리면
- * 화면은 그럴듯한데 기간이 전부 거짓이 된다.
  */
 object TimelineLogic {
 
@@ -34,76 +47,70 @@ object TimelineLogic {
     /** 아무리 멀어도 여기까지. 반년 뒤 일정 하나 때문에 이번 주가 1px 로 눌리면 안 된다. */
     private const val MAX_DAYS = 60
 
+    const val KIND_EVENT = "이벤트"
+    const val KIND_CHALLENGE = "콘텐츠"
+
     /**
      * 타임라인 한 화면분.
      *
-     * @param entries [ScheduleLogic.buildSchedule] 결과 — 픽업 페이즈/이벤트/콘텐츠가 섞여 있다
-     * @param banners 종료 미정 픽업을 따로 싣기 위해 원본이 필요하다(페이즈 계산에서 빠져 있다)
+     * @param events 진행 중·예정 이벤트
+     * @param challenges 정기 콘텐츠(나선 비경·혼돈의 기억 등)
      */
     fun build(
-        entries: List<ScheduleEntry>,
-        banners: List<GachaBanner>,
+        events: List<GameEvent>,
+        challenges: List<GameChallenge>,
         nowMillis: Long = currentTimeMillis(),
     ): Timeline {
         val start = nowMillis - LEAD_DAYS * DAY_MS
-        val lastEnd = entries.filter { it.target > 0 }.maxOfOrNull { it.target } ?: 0L
+
+        // 한 항목을 (게임명, 제목, 종류, 시작, 종료, 보상)로 눕혀 한 번만 다룬다.
+        data class Item(
+            val game: String,
+            val title: String,
+            val kind: String,
+            val startMillis: Long,
+            val endMillis: Long,
+            val reward: String,
+        )
+
+        val items = buildList {
+            events.forEach { add(Item(it.game, it.name, KIND_EVENT, it.startMillis, it.endMillis, it.reward)) }
+            challenges.forEach {
+                add(Item(it.game, it.name, KIND_CHALLENGE, it.startMillis, it.endMillis, it.reward))
+            }
+        }.filter { it.endMillis > start }   // 창 이전에 끝난 것은 그릴 자리가 없다
+
+        val lastEnd = items.maxOfOrNull { it.endMillis } ?: 0L
         val end = (lastEnd + DAY_MS).coerceIn(start + MIN_DAYS * DAY_MS, start + MAX_DAYS * DAY_MS)
         val span = (end - start).toDouble()
 
         fun fraction(millis: Long): Float = ((millis - start) / span).toFloat().coerceIn(0f, 1f)
 
-        val undatedByGame = ScheduleLogic.undatedPickups(banners).groupBy {
-            GameData.byNameOrNull(it.game)?.key
-        }
+        val byGame = items.groupBy { GameData.byNameOrNull(it.game)?.key }
 
-        val rows = GameData.games.mapNotNull { game ->
-            val mine = entries.filter { it.gameKey == game.key && it.target > 0 }
-            val bars = mutableListOf<TimelineBar>()
-
-            // ① 픽업 페이즈 — 시작은 그 페이즈 배너들이 알고 있다.
-            for (e in mine.filter { it.kind == "패치" }) {
-                if (e.target < start) continue                        // 창 이전에 끝난 페이즈
-                val rawStart = e.pickups.filter { it.startMillis > 0 }.minOfOrNull { it.startMillis } ?: 0L
-                bars += TimelineBar(
-                    // "v6.7 전반 픽업 종료" → "v6.7 전반". 막대는 기간을 말하지 종료를 말하지 않는다.
-                    title = e.title.removeSuffix(" 픽업 종료"),
-                    startFraction = fraction(rawStart.coerceAtLeast(start)),
-                    endFraction = fraction(e.target),
-                    // 시작 시각을 모르면(0) 창 왼쪽 끝에서 시작한 것처럼 그려지는데, 그건 잘린 게
-                    // 아니라 **모르는 것**이다. 구분해서 표시할 수 있게 따로 알린다.
-                    startUnknown = rawStart <= 0L,
-                    startClipped = rawStart in 1 until start,
-                    ongoing = nowMillis in rawStart..e.target,
-                    names = e.pickups.filter { it.type != "weapon" }.ifEmpty { e.pickups }.map { it.name },
+        // 그룹 순서는 [GameData] 정의 순 — 새로고침할 때마다 순서가 바뀌면 안 된다.
+        val groups = GameData.games.mapNotNull { game ->
+            val mine = byGame[game.key].orEmpty()
+            if (mine.isEmpty()) return@mapNotNull null
+            val rows = mine.map { it ->
+                TimelineRow(
+                    title = it.title,
+                    kind = it.kind,
+                    // 시작을 모르면(0) 창 왼쪽 끝에 붙이되 '모른다'로 알린다. 창보다 먼저 시작한
+                    // 것도 왼쪽 끝이지만 **그건 아는 값이 잘린 것**이라 다르게 표시해야 한다.
+                    startFraction = fraction(it.startMillis.coerceAtLeast(start)),
+                    endFraction = fraction(it.endMillis),
+                    startUnknown = it.startMillis <= 0L,
+                    startClipped = it.startMillis in 1 until start,
+                    ongoing = it.startMillis in 1..nowMillis && nowMillis <= it.endMillis,
+                    reward = it.reward,
                 )
-            }
-
-            // ② 종료 미정 픽업 — 끝을 모르니 창 오른쪽 끝까지 끌고 간다(끝난 게 아니다).
-            for (b in undatedByGame[game.key].orEmpty()) {
-                bars += TimelineBar(
-                    title = b.version.takeIf { it.isNotBlank() }?.let { "v$it 픽업" } ?: "픽업",
-                    startFraction = fraction(b.startMillis.coerceAtLeast(start)),
-                    endFraction = 1f,
-                    startUnknown = b.startMillis <= 0L,
-                    startClipped = b.startMillis in 1 until start,
-                    ongoing = b.startMillis in 1..nowMillis,
-                    endUnknown = true,
-                    names = listOf(b.name),
-                )
-            }
-
-            // ③ 이벤트·정기 콘텐츠 — 시작 시각이 없어 막대를 만들 수 없다. 마감 지점만.
-            val marks = mine.filter { it.kind != "패치" && it.target >= start }.map { e ->
-                TimelineMark(label = e.title, kind = e.kind, fraction = fraction(e.target))
-            }
-
-            if (bars.isEmpty() && marks.isEmpty()) return@mapNotNull null
-            TimelineRow(
+            }.sortedWith(compareBy({ it.startFraction }, { it.endFraction }, { it.title }))
+            TimelineGroup(
                 gameKey = game.key,
                 gameShort = game.shortName,
                 colorArgb = game.color,
-                bars = bars.sortedBy { it.startFraction },
-                marks = marks.sortedBy { it.fraction },
+                rows = rows,
             )
         }
 
@@ -113,7 +120,7 @@ object TimelineLogic {
             days = ((end - start) / DAY_MS).toInt(),
             ticks = ticks(start, end, span),
             nowFraction = fraction(nowMillis),
-            rows = rows,
+            groups = groups,
         )
     }
 
@@ -152,48 +159,42 @@ data class Timeline(
     val ticks: List<TimelineTick>,
     /** 오늘 위치 — 세로 기준선. */
     val nowFraction: Float,
-    val rows: List<TimelineRow>,
+    val groups: List<TimelineGroup>,
 ) {
-    val isEmpty: Boolean get() = rows.isEmpty()
+    val isEmpty: Boolean get() = groups.isEmpty()
+
+    /** 전체 행 수 — 화면이 높이를 잡을 때 쓴다(그룹 머리말은 별도). */
+    val rowCount: Int get() = groups.sumOf { it.rows.size }
 }
 
 /** 날짜 눈금 하나. */
 data class TimelineTick(val label: String, val fraction: Float)
 
-/** 게임 한 행. */
-data class TimelineRow(
+/** 게임 하나 묶음 — 머리말 + 그 게임의 이벤트 행들. */
+data class TimelineGroup(
     val gameKey: String,
     val gameShort: String,
     val colorArgb: Long,
-    val bars: List<TimelineBar>,
-    val marks: List<TimelineMark>,
+    val rows: List<TimelineRow>,
 )
 
-/** 기간 막대 하나 — 픽업 페이즈. */
-data class TimelineBar(
-    /** "v6.7 전반". */
+/** 이벤트 한 행 — 기간 막대 하나. */
+data class TimelineRow(
+    /** 이벤트·콘텐츠 이름. */
     val title: String,
+    /** [TimelineLogic.KIND_EVENT] | [TimelineLogic.KIND_CHALLENGE]. */
+    val kind: String,
     val startFraction: Float,
     val endFraction: Float,
     /** 지금 진행 중인가 — 채운 색 / 옅은 색을 가른다. */
     val ongoing: Boolean = false,
-    /** 시작 시각을 상류가 안 줬다. 왼쪽 끝을 흐리게 처리해 '모른다'를 알린다. */
+    /** 시작 시각을 모른다(옛 캐시). 왼쪽 끝을 흐리게 처리해 '모른다'를 알린다. */
     val startUnknown: Boolean = false,
     /** 창보다 먼저 시작했다 — 왼쪽이 잘렸다는 표시. */
     val startClipped: Boolean = false,
-    /** 종료 미공지 — 오른쪽 끝을 열어 둔다. */
-    val endUnknown: Boolean = false,
-    /** 대표 픽업 이름(캐릭터 우선). 막대 아래 첫 이름만 쓰거나 툴팁에 쓴다. */
-    val names: List<String> = emptyList(),
+    /** 대표 보상("원석" 등). 없으면 빈 문자열. */
+    val reward: String = "",
 ) {
     /** 막대가 창에서 차지하는 폭 비율. 0 이면 그릴 게 없다. */
     val widthFraction: Float get() = (endFraction - startFraction).coerceAtLeast(0f)
 }
-
-/** 마감 지점 표식 — 이벤트·정기 콘텐츠(시작 시각이 없어 막대를 못 만든다). */
-data class TimelineMark(
-    val label: String,
-    /** "이벤트" | "콘텐츠". */
-    val kind: String,
-    val fraction: Float,
-)
