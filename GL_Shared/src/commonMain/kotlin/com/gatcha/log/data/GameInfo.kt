@@ -255,7 +255,6 @@ data class LiveNote(
     val game: String,
     val currentResin: Int = 0,
     val maxResin: Int = 0,
-    val resinRecoveryTime: String = "",
     /**
      * 재화가 가득 차는 시각(epoch millis). 0 이면 이미 가득이거나 값을 못 받은 것.
      * 상류가 '남은 초'를 주므로 정확히 계산된다 → 앱을 안 켜도 그 시각에 알림이 오도록 미리 예약한다.
@@ -274,6 +273,29 @@ data class LiveNote(
 ) {
     val gameColor: Long get() = GameData.colorFor(game)
     val resinRatio: Float get() = if (maxResin == 0) 0f else currentResin.toFloat() / maxResin
+
+    /**
+     * "약 N시간 후 충전" — **[resinFullAtMillis] 에서 읽는 시점에 만든다.**
+     *
+     * 예전엔 응답을 파싱할 때 만든 문자열을 필드로 들고 다녔다. 두 가지가 잘못됐다.
+     *
+     * - **디스크 캐시에 안 실렸다.** [GatchaRepository.saveLiveNotes] 는 `fullAt` 만 적는데
+     *   복원할 땐 이 문자열이 빈 값이라, 앱을 켜면 행동력 **숫자는 캐시로 바로 뜨는데 이 줄만**
+     *   네트워크가 올 때까지 비어 있었다("굉장히 느리게 뜬다"의 정체).
+     * - **시간이 지나도 안 줄었다.** 받을 때 "약 3시간"이면 두 시간을 써도 그대로 "약 3시간"이다.
+     *
+     * 둘 다 같은 원인이다 — 시각에서 파생되는 값을 문자열로 굳혀 들고 다닌 것. 이제 매번 만든다.
+     * 재화 정보 자체가 없으면(`maxResin == 0`) 빈 문자열이다 — 모르는 것과 다 찬 것은 다르다.
+     */
+    val resinRecoveryTime: String
+        get() = when {
+            maxResin <= 0 -> ""
+            resinFullAtMillis <= 0L -> "충전 완료"
+            else -> {
+                val remain = resinFullAtMillis - currentTimeMillis()
+                if (remain <= 0L) "충전 완료" else "약 ${ceil(remain / 3_600_000.0).toInt()}시간 후 충전"
+            }
+        }
 
     /** 게임별 재화 명칭 */
     val resinLabel: String

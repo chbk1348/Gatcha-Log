@@ -243,6 +243,16 @@ object NotificationChecker {
                 }
                 if (latest.createdAtMillis > lastSeen) {
                     settings.setLastNotified(tag, latest.createdAtMillis.toString())
+                    // **앱을 보고 있으면 쏘지 않는다** — 기준선만 올린다.
+                    //
+                    // 이 점검은 앱을 여는 순간에도 돈다(백그라운드 실행이 못 미더워 보조 트리거를
+                    // 둔다 — [AppVisibility] 참고). 그래서 오랜만에 앱을 열면 밀려 있던 새 공지가
+                    // **게임 수만큼 한꺼번에** 떴다. 정작 그 공지는 지금 화면의 '게임 소식' 카드에
+                    // 이미 떠 있다 — 보고 있는 사람에게 같은 말을 알림으로 또 하는 셈이었다.
+                    //
+                    // 기준선은 올린다. 안 올리면 앱을 닫는 순간 같은 것이 알림으로 밀려 나온다 —
+                    // '지금 안 쏜다'와 '나중에 쏜다'는 다르고, 여기서 필요한 건 전자다.
+                    if (AppVisibility.isForeground) return@forEach
                     val newCount = notices.count { it.createdAtMillis > lastSeen }
                     val more = if (newCount > 1) " 외 ${newCount - 1}건" else ""
                     Notifier.notify(

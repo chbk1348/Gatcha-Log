@@ -16,6 +16,7 @@ import com.gatcha.log.data.CombatMode
 import com.gatcha.log.data.GachaStats
 import com.gatcha.log.data.GachaDashboard
 import com.gatcha.log.data.AppSettings
+import com.gatcha.log.data.work.AppVisibility
 import com.gatcha.log.data.work.AutoCheckInRunner
 import com.gatcha.log.data.work.NativeScheduler
 import com.gatcha.log.data.work.ScheduledAlerts
@@ -324,7 +325,9 @@ class SpendingViewModel : ViewModel() {
      * [onAppForeground] 가 자료 나이로 판단하므로 적어 둘 게 없다. 호출부(양 플랫폼 생명주기)는
      * 그대로 두고 여기만 비운다 — 다시 필요해질 자리다.
      */
-    fun onAppBackground() = Unit
+    fun onAppBackground() {
+        AppVisibility.onBackground()
+    }
 
     /**
      * 앱이 포그라운드로 돌아왔을 때 ① 화면 데이터를 최신화하고 ② 밀린 알림을 1회 점검한다.
@@ -359,6 +362,7 @@ class SpendingViewModel : ViewModel() {
      * 두드리면 안 되므로 [FOREGROUND_CHECK_MIN_INTERVAL_MS] 간격을 둔다.
      */
     fun onAppForeground() {
+        AppVisibility.onForeground()  // 알림을 쏠지 말지의 판정 근거 — 아래 ② 점검보다 **먼저** 세운다
         DateUtil.refreshTimeZone()    // 캐시된 로컬 타임존 갱신(여행·자동 시간대 변경) — 알림 조건과 무관하게 항상
         recomputeSpendingDerived()    // 앱을 켜 둔 채 달이 바뀌면 지출은 그대로여서 '이번 달'이 안 갱신된다
 
@@ -415,15 +419,25 @@ class SpendingViewModel : ViewModel() {
         if (uids.isEmpty()) return
         viewModelScope.launch {
             if (!NetworkMonitor.isOnline()) return@launch
-            val notes = coroutineScope {
-                uids.map { (key, uid) ->
-                    async(Dispatchers.IO) { HoyolabApi.getLiveNote(cfg.ltuid, cfg.ltoken, key, uid).note }
-                }.awaitAll()
-            }.filterNotNull()
+            // 전체 갱신 쪽과 같은 이유로 **도착하는 대로** 싣는다 — `awaitAll` 은 제일 느린 게임에
+            // 나머지를 묶는다. 원자적 갱신([update])이어야 늦게 끝난 쪽이 남의 결과를 지우지 않는다.
+            val deferred = uids.map { (key, uid) ->
+                async(Dispatchers.IO) { HoyolabApi.getLiveNote(cfg.ltuid, cfg.ltoken, key, uid).note }
+            }
+            coroutineScope {
+                deferred.forEach { d ->
+                    launch {
+                        val note = d.await() ?: return@launch
+                        _liveNotes.update { prev ->
+                            mergeByGame(prev, listOf(note), setOf(note.game)) { it.game }
+                                .sortedByGameOrder { it.game }
+                        }
+                    }
+                }
+            }
+            val notes = deferred.mapNotNull { it.await() }   // 이미 완료 — 집계용
             if (notes.isEmpty()) return@launch
             lastLiveNoteAt = currentTimeMillis()
-            _liveNotes.value = mergeByGame(_liveNotes.value, notes, notes.map { it.game }.toSet()) { it.game }
-                .sortedByGameOrder { it.game }
             withContext(Dispatchers.IO) { runCatching { repo.saveLiveNotes(_liveNotes.value) } }
             recordTaskProgress(notes)
             rescheduleTimedAlerts()   // 행동력이 바뀌면 완충 알림 예약 시각도 바뀐다
@@ -1753,13 +1767,41 @@ class SpendingViewModel : ViewModel() {
                     // 자기 응답이 진작 도착한 뒤에도 몇 초를 더 기다렸다. 요청은 어차피 위에서
                     // 다 쏴 뒀으니 수확만 따로 떼어 낸다.
                     val notesJob = launch {
-                        val results = noteDeferred.map { it.await() }
-                        if (results.any { it.note == null && it.transient }) noteRetry = true
-                        val notes = results.mapNotNull { it.note }
+                        // **게임마다 도착하는 대로 싣는다.** 예전엔 `noteDeferred.map { it.await() }` 로 3게임을
+                        // 전부 받은 뒤에 한 번에 대입해서, 하나가 느리면 나머지 둘이 그대로 묶여 기다렸다 —
+                        // 그 하나가 타임아웃이면 12초다. 원신 행동력이 300ms 에 왔는데도 "약 N시간 후 충전"이
+                        // 한참 뒤에 뜨던 원인. [mergeByGame] 이 애초에 게임 단위 부분 갱신용이라 그대로 쓴다.
+                        //
+                        // ⚠️ 세 코루틴이 같은 흐름을 고치므로 `.value =`(읽고-쓰기)가 아니라 `update`(원자적)여야
+                        // 한다. 대입으로 두면 늦게 끝난 쪽이 자기가 읽은 옛 목록으로 남의 결과를 지운다.
+                        coroutineScope {
+                            noteDeferred.forEach { d ->
+                                launch {
+                                    val r = d.await()
+                                    if (r.note == null && r.transient) noteRetry = true
+                                    val note = r.note ?: return@launch
+                                    _liveNotes.update { prev ->
+                                        mergeByGame(prev, listOf(note), setOf(note.game)) { it.game }
+                                            .sortedByGameOrder { it.game }
+                                    }
+                                    // ★ **첫 노트가 곧 '오늘 할 일'의 준비 완료다.** 예전엔 이 게이트를 캘린더
+                                    // 수확이 끝난 뒤에 열어서, 행동력이 진작 도착했는데도 홈 카드가 스켈레톤인 채로
+                                    // ennead 왕복을 기다렸다 — `resolveTodayTasks` 는 배너를 아예 안 쓴다
+                                    // (`urgentBanner = null`, 픽업은 '이번주 일정' 카드가 맡는다). 기다릴 이유가 없었다.
+                                    // 게다가 ennead 는 한 호스트에 **9건**(캘린더 2 + 젠레스 1 + 공지 3 + info 3)이
+                                    // 몰리는데 호스트당 커넥션 한도가 OkHttp 5 · NSURLSession 4 라 뒤쪽은 줄까지 선다.
+                                    // StateFlow 는 같은 값 재대입을 흘려보내므로 게임마다 세워도 무해하다.
+                                    _gameInfoReady.value = true
+                                }
+                            }
+                        }
+                        // 위에서 이미 다 끝난 Deferred 라 즉시 반환된다(집계용으로만 다시 훑는다).
+                        val notes = noteDeferred.mapNotNull { it.await().note }
+                        // 노트를 하나도 못 받았어도 연다 — 값이 없는 것과 아직 모르는 것은 다르고,
+                        // 전자는 화면이 답할 수 있다(미연동이면 아래 요청 자체가 없어 여기로 바로 온다).
+                        _gameInfoReady.value = true
                         if (notes.isNotEmpty()) {
                             lastLiveNoteAt = currentTimeMillis()
-                            _liveNotes.value = mergeByGame(_liveNotes.value, notes, notes.map { it.game }.toSet()) { it.game }
-                                .sortedByGameOrder { it.game }
                             // 행동력이 가득 차는 시각을 알림 예약에 쓰려면 로컬 캐시가 필요하다(네트워크 없이 계산).
                             // 캐시 쓰기는 IO 로 — 화면에 값은 이미 올라갔고, 여기서 메인을 잡을 이유가 없다.
                             withContext(Dispatchers.IO) { runCatching { repo.saveLiveNotes(_liveNotes.value) } }
@@ -1815,9 +1857,9 @@ class SpendingViewModel : ViewModel() {
                     // 전부 실패해 값이 없더라도 스켈레톤은 걷는다 — 안 그러면 영원히 로딩처럼 보인다.
                     _scheduleReady.value = true
 
-                    // ★ 배너+노트까지면 홈/오늘 할 일 준비 완료 — 즉시 표출(원장·전투는 뒤이어)
-                    notesJob.join()
-                    _gameInfoReady.value = true
+                    // 게이트는 [notesJob] 이 스스로 연다(위 ★). 여기서 join 하지 않는다 — 하는 순간
+                    // 아래 공지 수확이 노트를 기다리게 되고, 둘은 아무 관계가 없다.
+                    // (자식 코루틴이라 coroutineScope 가 끝날 때 어차피 함께 완료된다.)
 
                     // 게임 공지·뉴스(공개 API·인증 불필요) — 위에서 이미 쏴 둔 요청을 여기서 수확한다.
                     val newsLoaded = mutableSetOf<String>()
