@@ -1407,13 +1407,23 @@ class SpendingViewModel : ViewModel() {
      * 캐릭터 상세는 무기 이름과 수치만 보여 주는데, 정작 "이 무기가 무슨 일을 하는가"가 빠져 있었다.
      * 젠레스는 부르지 않는다 — 상류 한국어 W-엔진 데이터가 미번역 자리표시자로 오는 게 흔하다.
      */
+    /** 정련 효과 조회가 진행 중인 키. 결과 맵과 별개다 — 맵은 응답이 온 뒤에야 채워진다. */
+    private val refinementInFlight = mutableSetOf<String>()
+
     fun loadWeaponRefinement(gameKey: String, weaponId: Int, level: Int) {
         if (weaponId <= 0) return
         val key = "$gameKey:$weaponId:$level"
         if (_weaponRefinement.value.containsKey(key)) return
+        // 결과 맵만 보면 **응답이 오기 전까지는 계속 '없음'** 이라, 그 사이 같은 키가 다시 들어오면
+        // (화면 재구성·상세 재진입) 같은 요청이 겹친다. [enkaInFlight] 와 같은 방식으로 막는다.
+        if (!refinementInFlight.add(key)) return
         viewModelScope.launch {
-            val r = withContext(Dispatchers.IO) { NanokaApi.refinement(gameKey, weaponId, level) } ?: return@launch
-            _weaponRefinement.update { it + (key to r) }
+            try {
+                val r = withContext(Dispatchers.IO) { NanokaApi.refinement(gameKey, weaponId, level) } ?: return@launch
+                _weaponRefinement.update { it + (key to r) }
+            } finally {
+                refinementInFlight.remove(key)
+            }
         }
     }
 
@@ -1996,18 +2006,28 @@ class SpendingViewModel : ViewModel() {
     val codesFailed: StateFlow<Boolean> = _codesFailed.asStateFlow()
 
     /** 게임의 현재 활성 선물코드를 자동 수집해 [activeCodes] 로 노출. */
+    /** 코드 조회가 진행 중인 게임 키. 게임이 다르면 막지 않는다(사용자가 탭을 바꾼 것). */
+    private val codesInFlight = mutableSetOf<String>()
+
     fun loadActiveCodes(gameKey: String) {
+        // 같은 게임 조회가 이미 돌고 있으면 두 번 쏘지 않는다 — 코드 화면은 진입·게임 전환·재구성으로
+        // 같은 키가 연달아 들어오는데, 여기엔 신선도 캐시도 진행 중 판정도 없어 그대로 다 나갔다.
+        if (!codesInFlight.add(gameKey)) return
         viewModelScope.launch {
             _codesLoading.value = true
-            val codes = withContext(Dispatchers.IO) { GiftCodeApi.activeCodes(gameKey) }
-            // 실패(null)면 기존 목록을 지우지 않고 실패 상태만 세운다 — 빈 목록으로 위장하지 않는다.
-            if (codes == null) {
-                _codesFailed.value = true
-            } else {
-                _codesFailed.value = false
-                _activeCodes.value = codes
+            try {
+                val codes = withContext(Dispatchers.IO) { GiftCodeApi.activeCodes(gameKey) }
+                // 실패(null)면 기존 목록을 지우지 않고 실패 상태만 세운다 — 빈 목록으로 위장하지 않는다.
+                if (codes == null) {
+                    _codesFailed.value = true
+                } else {
+                    _codesFailed.value = false
+                    _activeCodes.value = codes
+                }
+            } finally {
+                codesInFlight.remove(gameKey)
+                _codesLoading.value = false
             }
-            _codesLoading.value = false
         }
     }
 

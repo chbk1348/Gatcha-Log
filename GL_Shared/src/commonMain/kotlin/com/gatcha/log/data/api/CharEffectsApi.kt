@@ -27,7 +27,7 @@ private val RE_WHITESPACE = Regex("\\s+")
  * 명좌/성혼/의식 단계별 효과 텍스트 조회. Enka/HoYoLAB 응답엔 효과 설명이 없어 외부 메타 API 로 보강한다.
  *  - genshin: gi.yatta.moe `data.constellation`(객체) → name·description
  *  - hsr     : sr.yatta.moe `data.eidolons`(객체) → name·description
- *  - zzz     : hakush(static.nanoka.cc/api.hakush.in) → jsdelivr 미러 순차, `Talent` → Name·Desc(+Desc2)
+ *  - zzz     : static.nanoka.cc → jsdelivr 미러 순차, `Talent` → Name·Desc(+Desc2)
  * 설명엔 <color>/<i>/<unbreak> 등 마크업·\n 이 섞여오므로 정규식으로 정리한다.
  * 실패/빈 응답이면 emptyList(앱이 죽지 않도록 모든 분기 graceful). 결과는 "$gameKey:$id" 키로 메모리 캐시.
  */
@@ -36,7 +36,9 @@ object CharEffectsApi {
     // EnkaApi.headers 와 동일 — 일부 메타 호스트는 User-Agent 가 없으면 403/429.
     private val headers = mapOf("User-Agent" to "Gatcha-LOG-Android/1.0", "Accept" to "application/json")
 
-    // hakush(api.hakush.in)는 Cloudflare 뒤라 커스텀 UA 를 403 으로 막을 수 있어 브라우저 UA + Referer 사용.
+    // nanoka 는 Cloudflare 뒤라 커스텀 UA 를 403 으로 막을 수 있어 브라우저 UA + Referer 사용.
+    // ⚠️ Referer 는 `hakush.in` 그대로 둔다 — 그 도메인은 죽었지만 **CDN 이 보는 건 헤더 문자열**이고,
+    // nanoka 가 hakush 프런트엔드용으로 서빙하던 경로라 값을 바꿀 이유가 없다.
     private val hakushHeaders = mapOf(
         "User-Agent" to "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1",
         "Accept" to "application/json",
@@ -86,9 +88,14 @@ object CharEffectsApi {
     /**
      * 젠레스 형상 시네마(mindscape) — 기기에서 닿는 소스가 이기도록 **다중 소스 순차 시도**.
      *  1) static.nanoka.cc (hakush 라이브 CDN, 한국어) — manifest 로 현재 버전 해석 후 character/{id}.json
-     *  2) api.hakush.in (구 경로, 한국어) — 위가 막히거나 비면 폴백
-     *  3) cdn.jsdelivr.net 의 genshin-optimizer 캐시 미러(영문) — 항상 도달 가능한 최후 폴백
-     * 구조는 셋 다 동일: root.Talent(객체 "1"~"6") → {Level, Name, Desc, Desc2}. parseZzzBody 가 방어적으로 처리.
+     *  2) cdn.jsdelivr.net 의 genshin-optimizer 캐시 미러(영문) — 항상 도달 가능한 최후 폴백
+     * 구조는 둘 다 동일: root.Talent(객체 "1"~"6") → {Level, Name, Desc, Desc2}. parseZzzBody 가 방어적으로 처리.
+     *
+     * 예전엔 둘 사이에 `api.hakush.in`(구 경로, 한국어)이 한 겹 더 있었다. **`hakush.in` 은 apex 를 포함해
+     * 도메인 전체의 DNS 레코드가 사라졌다**(2026-08-13 확인: apex·api·zzz 서브도메인 모두 A/CNAME 없음).
+     * 살아날 걸 기대하고 두면 없는 단계가 있는 것처럼 읽혀서 뺐다 — 해석 실패는 즉시 떨어지므로(실측
+     * 1~4ms) 지연 문제는 아니었고, 순전히 **코드가 사실과 다르게 읽히는** 문제였다.
+     * 같은 프로젝트의 데이터는 nanoka 쪽이 그대로 이어받았고 그쪽이 1번이라, 한국어 경로는 잃지 않는다.
      */
     private suspend fun fetchZzz(id: Int): List<CharEffect> {
         // ⚠️ **버전을 하나만 시도하면 안 된다.** 매니페스트의 `live`(인게임)와 `latest`(데이터 최신)가
@@ -98,8 +105,6 @@ object CharEffectsApi {
             parseZzzBody(Net.get("https://static.nanoka.cc/zzz/$ver/ko/character/$id.json", hakushHeaders))
                 ?.let { if (it.isNotEmpty()) return it }
         }
-        parseZzzBody(Net.get("https://api.hakush.in/zzz/data/ko/character/$id.json", hakushHeaders))
-            ?.let { if (it.isNotEmpty()) return it }
         parseZzzBody(Net.get("https://cdn.jsdelivr.net/gh/Genshin-Optimizer/zzz-hakushin-data@master/character/$id.json", headers))
             ?.let { if (it.isNotEmpty()) return it }
         return emptyList()
