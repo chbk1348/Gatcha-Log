@@ -176,6 +176,36 @@ class HomeLogicTest {
         assertTrue(HomeLogic.resinAlerts(listOf(LiveNote(game = Game.GENSHIN.displayName, currentResin = 5, maxResin = 0))).isEmpty())
     }
 
+    // ── 충전 문구는 '가득 차는 시각'에서 파생된다 ────────────────────────────────
+    //
+    // 예전엔 응답을 파싱할 때 만든 문자열을 필드로 들고 다녔다. 디스크 캐시에는 시각만 실려서,
+    // 앱을 켜면 행동력 숫자는 캐시로 바로 뜨는데 이 줄만 네트워크가 올 때까지 비어 있었다.
+    // 이제 시각에서 매번 만든다 — 캐시에서 복원해도 즉시 나오고, 시간이 지나면 값이 줄어든다.
+
+    private fun noteAt(fullAtMillis: Long, max: Int = 200) =
+        LiveNote(game = Game.GENSHIN.displayName, currentResin = 172, maxResin = max, resinFullAtMillis = fullAtMillis)
+
+    @Test
+    fun 충전문구는_가득차는시각에서_만든다() {
+        // **올림이다.** 남은 시간이 (2시간, 3시간] 이면 "약 3시간" — 3시간 정각을 조금이라도
+        // 넘기면 "약 4시간"이 된다. 경계에 딱 붙이면 테스트가 실행 시각에 따라 흔들리므로
+        // 5초를 빼서 구간 안쪽에 둔다.
+        val inThreeHours = com.gatcha.log.util.currentTimeMillis() + 3 * 3_600_000L - 5_000L
+        assertEquals("약 3시간 후 충전", noteAt(inThreeHours).resinRecoveryTime)
+    }
+
+    @Test
+    fun 충전문구_가득이거나_지난_시각이면_완료() {
+        assertEquals("충전 완료", noteAt(0L).resinRecoveryTime, "0 = 이미 가득")
+        assertEquals("충전 완료", noteAt(1L).resinRecoveryTime, "한참 지난 시각 = 이미 가득")
+    }
+
+    @Test
+    fun 충전문구_재화정보가_없으면_아무말도_안한다() {
+        // 모르는 것과 다 찬 것은 다르다 — 여기서 "충전 완료"라고 하면 없는 사실을 지어내는 것.
+        assertEquals("", noteAt(0L, max = 0).resinRecoveryTime)
+    }
+
     // ── 알림센터 ────────────────────────────────────────────────────────────
 
     @Test

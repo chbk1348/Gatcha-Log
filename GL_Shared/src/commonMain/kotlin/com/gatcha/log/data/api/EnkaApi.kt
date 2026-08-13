@@ -2,6 +2,8 @@ package com.gatcha.log.data.api
 
 import com.gatcha.log.json.JSONArray
 import com.gatcha.log.json.JSONObject
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.serialization.Serializable
 
 // [EnkaApi.cleanName] 이 쓰는 정규식 — 파일 레벨에서 한 번만 컴파일한다.
@@ -131,10 +133,17 @@ object EnkaApi {
 
     // ----------------------------------------------------------------- 원신
     private suspend fun fetchGenshin(uid: String, ltuid: String = "", ltoken: String = ""): EnkaResult {
-        val res = Net.get("https://enka.network/api/uid/$uid", headers)
-        errorFor(res.code)?.let { return EnkaResult(null, it) }
+        // Enka(프로필)와 HoYoLAB(보유 전체)은 **서로를 기다릴 이유가 없다** — 예전엔 Enka 응답을 다
+        // 받은 뒤에야 HoYoLAB 요청이 나가서 왕복이 그대로 두 배였다. HoYoLAB 쪽은 내부에서 다시
+        // list→detail 2연속이라 체인이 실제로는 3단이었다.
+        val linked = ltuid.isNotBlank() && ltoken.isNotBlank()
         // 본인 계정 연동 시: HoYoLAB character/detail 로 보유 전체(쇼케이스 밖 포함). 미연동/실패 → Enka 쇼케이스.
-        val hoyoData = if (ltuid.isNotBlank() && ltoken.isNotBlank()) HoyolabApi.fetchGenshinCharDetail(ltuid, ltoken, uid) else null
+        val (res, hoyoData) = coroutineScope {
+            val enkaD = async { Net.get("https://enka.network/api/uid/$uid", headers) }
+            val hoyoD = if (linked) async { HoyolabApi.fetchGenshinCharDetail(ltuid, ltoken, uid) } else null
+            enkaD.await() to hoyoD?.await()
+        }
+        errorFor(res.code)?.let { return EnkaResult(null, it) }
         return runCatching {
             val json = JSONObject(res.body)
             val p = json.getJSONObject("playerInfo")
@@ -203,14 +212,21 @@ object EnkaApi {
     private val hsrSlots = listOf("머리", "핸드", "바디", "신발", "차원 구체", "연결 매듭")
 
     private suspend fun fetchHsr(uid: String, ltuid: String = "", ltoken: String = ""): EnkaResult {
-        val res = Net.get("https://api.mihomo.me/sr_info_parsed/$uid?lang=kr", headers)
+        // 셋 다 서로를 안 기다린다 — mihomo(쇼케이스+풀스탯) · 세트 메타(StarRailRes 2~3파일) ·
+        // HoYoLAB 로스터. 예전엔 이 순서대로 **직렬**이라 왕복이 그대로 누적됐다(실측 메타만 0.5초).
+        val linked = ltuid.isNotBlank() && ltoken.isNotBlank()
+        val (res, hoyoData) = coroutineScope {
+            val mihomoD = async { Net.get("https://api.mihomo.me/sr_info_parsed/$uid?lang=kr", headers) }
+            val setD = async { ensureHsrSetData() }   // 로스터(쇼케이스 밖) 세트 효과 계산용 메타
+            // 본인 계정 연동 시: HoYoLAB avatar/info 로 보유 전체 캐릭터(쇼케이스 밖 포함)
+            val hoyoD = if (linked) async { HoyolabApi.fetchHsrAvatarInfo(ltuid, ltoken, uid) } else null
+            setD.await()                              // 파싱이 메타를 읽으므로 여기서 완료를 보장한다
+            mihomoD.await() to hoyoD?.await()
+        }
         val mihomoErr = errorFor(res.code)
         // mihomo(HSR 파싱 API)가 죽어도(예: 500 장애) 연동돼 있으면 HoYoLAB 로스터로 폴백 → '조회 실패' 대신 목록 유지.
         // 미연동이면 쇼케이스 소스가 mihomo 뿐이라 폴백 불가 → 원래 에러 노출.
-        if (mihomoErr != null && (ltuid.isBlank() || ltoken.isBlank())) return EnkaResult(null, mihomoErr)
-        ensureHsrSetData() // 로스터(쇼케이스 밖) 세트 효과 계산용 메타
-        // 본인 계정 연동 시: HoYoLAB avatar/info 로 보유 전체 캐릭터(쇼케이스 밖 포함)
-        val hoyoData = HoyolabApi.fetchHsrAvatarInfo(ltuid, ltoken, uid)
+        if (mihomoErr != null && !linked) return EnkaResult(null, mihomoErr)
         val hoyoList = hoyoData?.optJSONArray("avatar_list")
         // mihomo 실패 + HoYoLAB 목록도 비면 폴백 불가 → 원래 에러 노출.
         if (mihomoErr != null && (hoyoList == null || hoyoList.length() == 0)) return EnkaResult(null, mihomoErr)
@@ -323,9 +339,16 @@ object EnkaApi {
     private suspend fun ensureHsrSetData() {
         if (hsrSetMetaCache != null && hsrRelicSetCache != null) return
         runCatching {
-            val krMeta = loadHsrSetMeta("kr")
+            // 세트 메타와 조각 인덱스는 **서로 독립**이다(관계를 맺는 건 받은 뒤의 계산). 같이 받는다 —
+            // relics.json 이 210KB 대로 제일 무거워서, 직렬로 두면 그만큼이 통째로 앞에 붙는다.
+            val (krMeta, relicsBody) = coroutineScope {
+                val metaD = async { loadHsrSetMeta("kr") }
+                val relicsD = async { Net.get("https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/index_new/kr/relics.json", headers).body }
+                metaD.await() to relicsD.await()
+            }
             // 신규 세트(예: 4.4)는 KR 인덱스에 이름·효과가 아직 비어 오는 경우가 있다(Mar-7th 가 EN 을 먼저 채움).
             // 그런 세트만 EN 으로 메워 '세트 효과 없음'을 막는다 — KR 이 채워지면 자동으로 한글로 돌아온다.
+            // (EN 폴백은 KR 을 받아 봐야 필요 여부를 알 수 있어 위 병렬에 못 넣는다. 평소엔 안 탄다.)
             val needsFallback = krMeta.any { (_, v) -> v.first.isBlank() || v.second.all { it.isBlank() } }
             val enMeta = if (needsFallback) runCatching { loadHsrSetMeta("en") }.getOrNull().orEmpty() else emptyMap()
             val meta = krMeta.mapValues { (id, kr) ->
@@ -334,7 +357,7 @@ object EnkaApi {
             val nameToSet = mutableMapOf<String, String>()
             meta.forEach { (id, v) -> if (v.first.isNotBlank()) nameToSet[v.first] = id } // 세트명 → set_id
 
-            val relics = JSONObject(Net.get("https://raw.githubusercontent.com/Mar-7th/StarRailRes/master/index_new/kr/relics.json", headers).body)
+            val relics = JSONObject(relicsBody)
             val r2s = buildMap {
                 relics.keys().forEach { k ->
                     val o = relics.optJSONObject(k) ?: return@forEach

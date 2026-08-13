@@ -16,9 +16,10 @@ import com.gatcha.log.util.currentTimeMillis
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import com.gatcha.log.util.md5Hex
 import kotlinx.datetime.toInstant
-import kotlin.math.ceil
 import kotlin.random.Random
 
 /**
@@ -193,7 +194,6 @@ object HoyolabApi {
                 game = game,
                 currentResin = data.optInt("current_resin"),
                 maxResin = data.optInt("max_resin"),
-                resinRecoveryTime = formatRecovery(data.optString("resin_recovery_time").toLongOrNull() ?: 0),
                 resinFullAtMillis = fullAt(data.optString("resin_recovery_time").toLongOrNull() ?: 0),
                 dailyTaskCount = data.optInt("finished_task_num"),
                 maxDailyTaskCount = data.optInt("total_task_num"),
@@ -208,7 +208,6 @@ object HoyolabApi {
                 game = game,
                 currentResin = data.optInt("current_stamina"),
                 maxResin = data.optInt("max_stamina"),
-                resinRecoveryTime = formatRecovery(data.optLong("stamina_recover_time")),
                 resinFullAtMillis = fullAt(data.optLong("stamina_recover_time")),
                 dailyTaskCount = data.optInt("current_train_score"),
                 maxDailyTaskCount = data.optInt("max_train_score"),
@@ -225,7 +224,6 @@ object HoyolabApi {
                 game = game,
                 currentResin = progress?.optInt("current") ?: 0,
                 maxResin = progress?.optInt("max") ?: 0,
-                resinRecoveryTime = formatRecovery(energy?.optLong("restore") ?: 0),
                 resinFullAtMillis = fullAt(energy?.optLong("restore") ?: 0),
                 dailyTaskCount = vitality?.optInt("current") ?: 0,
                 maxDailyTaskCount = vitality?.optInt("max") ?: 0,
@@ -524,14 +522,18 @@ object HoyolabApi {
             zzzLastError = zzzMsg(basicHttp, basicRc)
             return null
         }
-        // 2) info — id_list 다건은 -400005 → 에이전트별 단건 병합. 호출량 제어: 동시 4건씩.
-        val agents = mutableListOf<JSONObject>()
-        for (group in ids.chunked(4)) {
-            val results = coroutineScope {
-                group.map { id -> async { fetchZzzOne(ltuid, ltoken, uid, server, id) } }.awaitAll()
-            }
-            results.forEach { it?.let(agents::add) }
-        }
+        // 2) info — id_list 다건은 -400005 → 에이전트별 단건 병합. 호출량 제어: **동시 4건**.
+        //
+        // ⚠️ 예전엔 `ids.chunked(4)` 를 for 로 돌며 청크마다 `awaitAll` 했다. 동시 4건이라는 목표는
+        // 같지만 **청크가 배리어**라, 4건 중 하나가 느리면 나머지 3개 자리가 그 요청이 끝날 때까지
+        // 논다. 에이전트가 50명이면 배리어를 13번 넘고, 한 번의 비용이 '4건 중 최댓값'이라
+        // 지연이 최악값 13개의 합으로 쌓였다 — '내 캐릭터'가 느리던 가장 큰 원인.
+        //
+        // 세마포어로 바꾸면 **끝나는 즉시 다음 것이 들어간다.** 서버가 보는 동시 요청 수는 그대로 4다.
+        val gate = Semaphore(4)
+        val agents = coroutineScope {
+            ids.map { id -> async { gate.withPermit { fetchZzzOne(ltuid, ltoken, uid, server, id) } } }.awaitAll()
+        }.filterNotNull()
         if (agents.isEmpty()) {
             zzzLastError = "젠레스 상세를 불러오지 못했어요. 잠시 후 다시 시도해주세요"
             return null
@@ -1027,8 +1029,4 @@ object HoyolabApi {
     private fun fullAt(seconds: Long): Long =
         if (seconds <= 0) 0L else currentTimeMillis() + seconds * 1000
 
-    private fun formatRecovery(seconds: Long): String = when {
-        seconds <= 0 -> "충전 완료"
-        else -> "약 ${ceil(seconds / 3600.0).toInt()}시간 후 충전"
-    }
 }
