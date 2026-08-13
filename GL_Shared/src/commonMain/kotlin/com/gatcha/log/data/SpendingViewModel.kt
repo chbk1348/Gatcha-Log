@@ -1226,9 +1226,30 @@ class SpendingViewModel : ViewModel() {
     private val enkaDiskTtlMs = 24 * 60 * 60 * 1000L
 
     /** 디스크 캐시 → 메모리 캐시 시드(계정별). loadAll 에서 호출. */
+    /**
+     * '내 캐릭터' 디스크 캐시를 메모리로 — 그리고 **화면 상태까지** 채운다.
+     *
+     * ⚠️ 예전엔 [enkaCache](내부 TTL 캐시)만 채우고 [_enkaResults](화면이 읽는 것)는 손대지 않았다.
+     * 그런데 이 함수를 부르는 [loadAll] 은 바로 앞에서 `_enkaResults.value = emptyMap()` 으로
+     * 화면 상태를 비운다 — 지우고 안 채운 셈이라 **섹션이 스켈레톤으로 남았다**
+     * (`result == null` 이 스켈레톤 조건이다).
+     *
+     * [loadAll] 은 앱 시작만이 아니라 **클라우드 동기화가 끝날 때마다** 돈다. 백그라운드에서
+     * 돌아오면 [onAppForeground] 가 '내 캐릭터 갱신 → 클라우드 동기화' 순으로 부르는데, 갱신이
+     * 캐시 적중으로 빨리 끝나면 그 결과를 뒤이어 오는 동기화가 지워 버린다. 조회는 이미 '진행 중'
+     * 판정([enkaInFlight])이나 신선도로 걸러져 다시 돌지 않으니, 다음 트리거까지 빈 채로 남았다.
+     * 캐시는 멀쩡히 있는데 화면만 비는 상태 — 지우는 쪽이 아니라 **채우는 쪽을 고친다.**
+     */
     private fun seedEnkaDiskCache() {
         enkaCache.clear()
         enkaCache.putAll(repo.loadEnkaCache(enkaDiskTtlMs))
+        if (enkaCache.isEmpty()) return
+        // 지금 UID 의 것만 싣는다 — 계정을 바꿨는데 남의 로스터가 잠깐 보이면 안 된다.
+        val seeded = ENKA_GAMES.mapNotNull { game ->
+            val uid = enkaUidFor(game).takeIf { it.isNotBlank() } ?: return@mapNotNull null
+            enkaCache["$game:$uid"]?.let { game to it.second }
+        }
+        if (seeded.isNotEmpty()) _enkaResults.update { it + seeded }
     }
 
     /** Enka UID 로 프로필 조회 + UID 계정별 영속(클라우드 동기화 포함). */
@@ -1789,7 +1810,8 @@ class SpendingViewModel : ViewModel() {
                                     // ennead 왕복을 기다렸다 — `resolveTodayTasks` 는 배너를 아예 안 쓴다
                                     // (`urgentBanner = null`, 픽업은 '이번주 일정' 카드가 맡는다). 기다릴 이유가 없었다.
                                     // 게다가 ennead 는 한 호스트에 **9건**(캘린더 2 + 젠레스 1 + 공지 3 + info 3)이
-                                    // 몰리는데 호스트당 커넥션 한도가 OkHttp 5 · NSURLSession 4 라 뒤쪽은 줄까지 선다.
+                                    // 몰리고 한 건이 1.2초쯤 걸린다(실측). Android 는 OkHttp Dispatcher 가
+                                    // 호스트당 동시 5건으로 끊어 뒤쪽이 줄까지 선다(HTTP/2 여도 이 한도는 적용된다).
                                     // StateFlow 는 같은 값 재대입을 흘려보내므로 게임마다 세워도 무해하다.
                                     _gameInfoReady.value = true
                                 }
