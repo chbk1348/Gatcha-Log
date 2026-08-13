@@ -1,6 +1,8 @@
 package com.gatcha.log.data.api
 
 import com.gatcha.log.json.JSONObject
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 /**
  * nanoka.cc(= hakush 라이브 CDN) 게임 도감 데이터.
@@ -31,13 +33,33 @@ object NanokaApi {
     )
 
     private var cached: NanokaManifest? = null
+    private val manifestLock = Mutex()
+    /** 지금까지 실제로 네트워크를 탄 횟수 — 대기 중에 남이 받아봤는지 판별용([manifest] 참고). */
+    private var manifestAttempts = 0L
 
-    /** 버전·신규 목록. 앱 실행 중 1회만 받는다(정적 CDN·자주 바뀌지 않음). */
+    /**
+     * 버전·신규 목록. 앱 실행 중 1회만 받는다(정적 CDN·자주 바뀌지 않음).
+     *
+     * **캐시는 응답이 온 뒤에야 채워진다** — 그 전에 들어온 호출은 전부 캐시를 놓치고 각자 요청을
+     * 냈다. 실제로 겹친다: 캐릭터 상세 한 장을 여는 것만으로 정련 효과([refinement])와 형상
+     * 시네마(`CharEffectsApi`)가 동시에 매니페스트를 찾고, 게임정보 탭 진입은 여기에 현재 버전
+     * 조회(`GameVersions`)까지 얹는다. 락으로 한 줄로 세우고, 먼저 들어간 호출이 채워 놓았으면
+     * 그대로 쓴다(이중 검사).
+     *
+     * ⚠️ **실패도 그 회차 안에서는 공유한다.** 락만 걸고 대기자마다 다시 받게 두면, 오프라인일 때
+     * 12초 타임아웃이 대기자 수만큼 **직렬로** 쌓인다(예전엔 병렬이라 다 합쳐 12초였다).
+     * 대기 중에 회차가 올라갔으면 그 시도의 결과(null)를 그대로 따르고, 다음 호출이 새로 받는다.
+     */
     suspend fun manifest(): NanokaManifest? {
         cached?.let { return it }
-        val res = Net.get("$BASE/manifest.json", headers)
-        if (!res.isOk) return null
-        return parseManifest(res.body)?.also { cached = it }
+        val seen = manifestAttempts
+        return manifestLock.withLock {
+            cached?.let { return@withLock it }
+            if (manifestAttempts != seen) return@withLock null   // 기다리는 사이 남이 받아봤고, 실패였다
+            manifestAttempts++
+            val res = Net.get("$BASE/manifest.json", headers)
+            if (!res.isOk) null else parseManifest(res.body)?.also { cached = it }
+        }
     }
 
     /**
