@@ -2,8 +2,8 @@
 # ============================================================
 # 미서명 IPA 빌드 — GitHub Releases 배포용
 #
-# 사용법: cd GL_IOS && ./build-ipa.sh
-# 출력:  GL_IOS/build/Gatcha-Log-<버전>.ipa
+# 사용법: cd "Gatcha Log IOS" && ./build-ipa.sh
+# 출력:  Gatcha Log IOS/build/Gatcha-Log-<버전>.ipa
 #
 # 미서명인 이유: 사용자가 AltStore/Sideloadly 등 사이드로딩 도구로
 # 자신의 Apple ID 로 서명해 설치한다 (오픈소스 iOS 앱 배포 관행).
@@ -59,14 +59,14 @@ else
 fi
 echo "🛠  툴체인: $(/usr/bin/xcodebuild -version | head -1) ($DEVELOPER_DIR)"
 
-# 툴체인이 바뀌면 GL_Shared 부터 clean 한다.
+# 툴체인이 바뀌면 Gatcha Log Shared 부터 clean 한다.
 # KMP/SKIE 가 만든 Swift 모듈은 툴체인 포맷에 묶여 있어, 다른 Xcode 로 만든 산출물이 남아 있으면
 # "Unable to resolve Swift module dependency: 'Shared'" 로 아카이브가 깨진다.
-TOOLCHAIN_STAMP="../GL_Shared/build/.ios-toolchain-stamp"
+TOOLCHAIN_STAMP="../Gatcha Log Shared/build/.ios-toolchain-stamp"
 TOOLCHAIN_ID="$DEVELOPER_DIR|$(/usr/bin/xcodebuild -version | tr '\n' ' ')"
-if [ -d "../GL_Shared/build" ] && [ "$(cat "$TOOLCHAIN_STAMP" 2>/dev/null || true)" != "$TOOLCHAIN_ID" ]; then
-  echo "🧹 툴체인 변경 감지 — :GL_Shared:clean"
-  (cd .. && ./gradlew --quiet :GL_Shared:clean)
+if [ -d "../Gatcha Log Shared/build" ] && [ "$(cat "$TOOLCHAIN_STAMP" 2>/dev/null || true)" != "$TOOLCHAIN_ID" ]; then
+  echo "🧹 툴체인 변경 감지 — :Gatcha Log Shared:clean"
+  (cd .. && ./gradlew --quiet ":Gatcha Log Shared:clean")
 fi
 mkdir -p "$(dirname "$TOOLCHAIN_STAMP")"
 printf '%s' "$TOOLCHAIN_ID" > "$TOOLCHAIN_STAMP"

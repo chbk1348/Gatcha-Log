@@ -31,20 +31,20 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
 
       # commonMain 공통 로직 테스트 (KeyStatRules·Format·Md5).
-      # GL_Shared android 타겟의 withHostTest {} 로 JVM 호스트에서 실행된다.
+      # Gatcha Log Shared android 타겟의 withHostTest {} 로 JVM 호스트에서 실행된다.
       - name: Shared unit tests
-        run: ./gradlew :GL_Shared:testAndroidHostTest
+        run: ./gradlew ":Gatcha Log Shared:testAndroidHostTest"
 
       # 릴리즈 컴파일 — R8/Compose 릴리즈 경로에서만 드러나는 컴파일 에러를 여기서 잡는다.
       # (서명은 필요 없다: compile 태스크는 signingConfig 를 타지 않음)
       - name: Compile release Kotlin
-        run: ./gradlew :GL_Android:compileReleaseKotlin
+        run: ./gradlew ":Gatcha Log Android:compileReleaseKotlin"
 
       - name: Assemble debug APK
-        run: ./gradlew :GL_Android:assembleDebug
+        run: ./gradlew ":Gatcha Log Android:assembleDebug"
 
       - name: Lint
-        run: ./gradlew :GL_Android:lintDebug
+        run: ./gradlew ":Gatcha Log Android:lintDebug"
 
       - name: Upload test & lint reports
         if: always()
@@ -52,6 +52,6 @@ jobs:
         with:
           name: reports
           path: |
-            GL_Shared/build/reports/tests/**
-            GL_Android/build/reports/lint-results-*.html
+            Gatcha Log Shared/build/reports/tests/**
+            Gatcha Log Android/build/reports/lint-results-*.html
           if-no-files-found: ignore

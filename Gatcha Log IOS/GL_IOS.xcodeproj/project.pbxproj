@@ -549,7 +549,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "# JAVA_HOME 폴백 — 로컬 Xcode GUI 빌드는 Android Studio JBR,\n# CI(GitHub Actions)·CLI 빌드는 이미 설정된 JAVA_HOME 을 그대로 사용\nif [ ! -d \"${JAVA_HOME:-/nonexistent}\" ]; then\n  export JAVA_HOME=\"/Applications/Android Studio.app/Contents/jbr/Contents/Home\"\nfi\ncd \"$SRCROOT/..\"\n./gradlew :GL_Shared:embedAndSignAppleFrameworkForXcode\n";
+			shellScript = "# JAVA_HOME 폴백 — 로컬 Xcode GUI 빌드는 Android Studio JBR,\n# CI(GitHub Actions)·CLI 빌드는 이미 설정된 JAVA_HOME 을 그대로 사용\nif [ ! -d \"${JAVA_HOME:-/nonexistent}\" ]; then\n  export JAVA_HOME=\"/Applications/Android Studio.app/Contents/jbr/Contents/Home\"\nfi\ncd \"$SRCROOT/..\"\n./gradlew \":Gatcha Log Shared:embedAndSignAppleFrameworkForXcode\"\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 
@@ -785,7 +785,9 @@
 				CODE_SIGN_STYLE = Automatic;
 				DEVELOPMENT_TEAM = CCTT9CBG38;
 				"EXCLUDED_ARCHS[sdk=iphonesimulator*]" = x86_64;
-				FRAMEWORK_SEARCH_PATHS = "$(SRCROOT)/../GL_Shared/build/xcode-frameworks/$(CONFIGURATION)/$(SDK_NAME)";
+				FRAMEWORK_SEARCH_PATHS = (
+					"\"$(SRCROOT)/../Gatcha Log Shared/build/xcode-frameworks/$(CONFIGURATION)/$(SDK_NAME)\"",
+				);
 				INFOPLIST_FILE = GL_IOS/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -807,7 +809,9 @@
 				CODE_SIGN_STYLE = Automatic;
 				DEVELOPMENT_TEAM = CCTT9CBG38;
 				"EXCLUDED_ARCHS[sdk=iphonesimulator*]" = x86_64;
-				FRAMEWORK_SEARCH_PATHS = "$(SRCROOT)/../GL_Shared/build/xcode-frameworks/$(CONFIGURATION)/$(SDK_NAME)";
+				FRAMEWORK_SEARCH_PATHS = (
+					"\"$(SRCROOT)/../Gatcha Log Shared/build/xcode-frameworks/$(CONFIGURATION)/$(SDK_NAME)\"",
+				);
 				GENERATE_INFOPLIST_FILE = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -828,7 +832,9 @@
 				CODE_SIGN_STYLE = Automatic;
 				DEVELOPMENT_TEAM = CCTT9CBG38;
 				"EXCLUDED_ARCHS[sdk=iphonesimulator*]" = x86_64;
-				FRAMEWORK_SEARCH_PATHS = "$(SRCROOT)/../GL_Shared/build/xcode-frameworks/$(CONFIGURATION)/$(SDK_NAME)";
+				FRAMEWORK_SEARCH_PATHS = (
+					"\"$(SRCROOT)/../Gatcha Log Shared/build/xcode-frameworks/$(CONFIGURATION)/$(SDK_NAME)\"",
+				);
 				GENERATE_INFOPLIST_FILE = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -870,7 +876,9 @@
 				CODE_SIGN_STYLE = Automatic;
 				DEVELOPMENT_TEAM = CCTT9CBG38;
 				"EXCLUDED_ARCHS[sdk=iphonesimulator*]" = x86_64;
-				FRAMEWORK_SEARCH_PATHS = "$(SRCROOT)/../GL_Shared/build/xcode-frameworks/$(CONFIGURATION)/$(SDK_NAME)";
+				FRAMEWORK_SEARCH_PATHS = (
+					"\"$(SRCROOT)/../Gatcha Log Shared/build/xcode-frameworks/$(CONFIGURATION)/$(SDK_NAME)\"",
+				);
 				INFOPLIST_FILE = GL_IOS/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
