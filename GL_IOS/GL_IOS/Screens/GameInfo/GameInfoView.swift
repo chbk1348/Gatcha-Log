@@ -708,8 +708,15 @@ private struct PickupRow: View {
                 .frame(width: labelWidth, alignment: .leading)
                 .padding(.top, 12)
             HStack(alignment: .top, spacing: 8) {
-                ForEach(Array(shown.enumerated()), id: \.offset) { _, b in
-                    PickupSlot(banner: b).frame(maxWidth: .infinity)
+                // 하나뿐이면 칸을 늘리지 않는다. 폭 전부를 주면 그 하나가 카드 한가운데에
+                // 덩그러니 놓여, 여러 명일 때의 첫 얼굴과 시작점이 어긋난다.
+                if shown.count == 1 {
+                    PickupSlot(banner: shown[0], alignStart: true)
+                    Spacer(minLength: 0)
+                } else {
+                    ForEach(Array(shown.enumerated()), id: \.offset) { _, b in
+                        PickupSlot(banner: b).frame(maxWidth: .infinity)
+                    }
                 }
             }
             // 안내 버튼은 **자리를 차지한다**(겹쳐 얹지 않는다). 예전엔 줄 위에 오버레이로
@@ -723,6 +730,9 @@ private struct PickupRow: View {
 
 private struct PickupSlot: View {
     let banner: GachaBanner
+    /// 픽업이 하나뿐일 때만 켠다 — 칸이 곧 줄 전체라 가운데에 두면 얼굴이 카드 복판에 뜬다.
+    /// 왼쪽에 붙이고 이름 상자를 초상 폭에 맞춰 중심축을 지킨다.
+    var alignStart: Bool = false
 
     /// 초상 지름 — '내 캐릭터' 로스터(44)보다 한 단계 작다.
     ///
@@ -735,7 +745,7 @@ private struct PickupSlot: View {
         let isWeapon = banner.type == "weapon"
         // 초상·이름 모두 **칸의 가운데**에 선다. 칸 폭이 균등하므로 이름 상자와 초상의
         // 중심축이 저절로 같아진다 — 따로 맞출 필요가 없다.
-        VStack(spacing: 5) {
+        VStack(alignment: alignStart ? .leading : .center, spacing: 5) {
             ZStack {
                 Circle().fill(glPickupGold.opacity(0.14))
                 // 초상을 못 받는 경우가 여럿이다 — 상류에 아직 이미지가 안 올라온 신규 캐릭터,
@@ -763,6 +773,7 @@ private struct PickupSlot: View {
                 .foregroundStyle(GLGColor.textPrimary)
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
+                .frame(width: alignStart ? avatar : nil)
         }
     }
 
