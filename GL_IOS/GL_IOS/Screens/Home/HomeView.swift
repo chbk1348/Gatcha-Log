@@ -10,6 +10,8 @@ struct HomeView: View {
     @Environment(\.glgAccent) private var accent
 
     @State private var showBudget = false
+    /// 계산기에서 요청한 저축 플래너 진입(store.pendingSavingsPlanner 소비).
+    @State private var openSavingsPlanner = false
     @State private var importingGacha = false
     @State private var didStart = false
 
@@ -48,6 +50,11 @@ struct HomeView: View {
         .background(GLGBackground { Color.clear })
         .refreshable { store.refreshGameInfo(force: true) }
         .navigationBarTitleDisplayMode(.inline)
+        // 계산기(게임 정보 탭)의 "저축 계획" — VM 이 홈 탭으로 옮겨준 뒤 여기서 플래너까지 이어 연다.
+        .navigationDestination(isPresented: $openSavingsPlanner) { SavingsPlannerView(store: store) }
+        .onChange(of: store.pendingSavingsPlanner) { _, pending in
+            if pending { openSavingsPlanner = true; store.consumePendingSavingsPlanner() }
+        }
         .toolbar {
             // 프로필 사진(좌) — 탭하면 마이페이지.
             ToolbarItem(placement: .topBarLeading) {
