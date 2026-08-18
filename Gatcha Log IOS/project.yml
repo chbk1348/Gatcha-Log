@@ -106,8 +106,10 @@ targets:
         # Intel 시뮬레이터(x86_64) 제외 — Kotlin 타깃이 iosSimulatorArm64(애플 실리콘)만 구성됨.
         # 없으면 Release 시뮬레이터 빌드가 "Unknown iOS simulator arch: 'x86_64'" 로 실패.
         "EXCLUDED_ARCHS[sdk=iphonesimulator*]": x86_64
-        # GL_Shared Gradle 빌드가 떨궈 주는 framework 위치
-        FRAMEWORK_SEARCH_PATHS: "$(SRCROOT)/../GL_Shared/build/xcode-frameworks/$(CONFIGURATION)/$(SDK_NAME)"
+        # Gatcha Log Shared Gradle 빌드가 떨궈 주는 framework 위치
+        FRAMEWORK_SEARCH_PATHS:
+          # 경로에 공백이 있어 Xcode 가 링커로 넘길 때 쪼개진다. 값 안에 따옴표를 심어야 살아남는다.
+          - '"$(SRCROOT)/../Gatcha Log Shared/build/xcode-frameworks/$(CONFIGURATION)/$(SDK_NAME)"'
         # -ObjC: Firebase 정적 라이브러리의 ObjC 카테고리 로드에 필요
         OTHER_LDFLAGS: "$(inherited) -framework Shared -ObjC"
         # 자동 서명 (Personal Team) — 시뮬레이터·실기기 모두 동작 + 키체인 entitlement 활성화.
@@ -126,7 +128,7 @@ targets:
             export JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home"
           fi
           cd "$SRCROOT/.."
-          ./gradlew :GL_Shared:embedAndSignAppleFrameworkForXcode
+          ./gradlew ":Gatcha Log Shared:embedAndSignAppleFrameworkForXcode"
 
   # 성능 측정 전용 UI 테스트 타깃 — 콜드 런치 실측(XCTApplicationLaunchMetric).
   # 기능 테스트용이 아니다. 이 프로젝트엔 테스트 타깃이 아예 없어서 성능 1·2라운드가
@@ -135,7 +137,7 @@ targets:
   # 유닛 테스트 타깃 — GL_Shared 의 iOS actual 구현(K/N)을 앱 프로세스 안에서 검증한다.
   #
   # 왜 Kotlin `iosTest` 가 아니라 여기인가 (27.43.0, Debt_27_43_0.md P0-3):
-  #  ① `:GL_Shared:allTests` 는 링크 자체가 안 된다 — GitLive firebase-* klib 이 `-framework
+  #  ① `:Gatcha Log Shared:allTests` 는 링크 자체가 안 된다 — GitLive firebase-* klib 이 `-framework
   #     FirebaseCore` 를 요구하는데, 그건 Xcode 빌드 그래프 안의 SPM 이 만들어 준다. Xcode 밖에서
   #     만들어지는 독립 K/N 테스트 실행파일에는 그 그래프가 없다. (SPM 이 FirebaseCore 를 소스
   #     빌드하므로 가리킬 `.framework` 파일도 없다 — linkerOpts 우회가 불가능하다)
@@ -157,7 +159,9 @@ targets:
         BUNDLE_LOADER: "$(TEST_HOST)"
         # Shared 는 static framework 라 이미 호스트 앱에 링크돼 있다. 여기선 **다시 링크하지 않고**
         # 모듈만 보이게 한다(재링크하면 중복 심볼). 심볼 해석은 BUNDLE_LOADER 가 담당.
-        FRAMEWORK_SEARCH_PATHS: "$(SRCROOT)/../GL_Shared/build/xcode-frameworks/$(CONFIGURATION)/$(SDK_NAME)"
+        FRAMEWORK_SEARCH_PATHS:
+          # 경로에 공백이 있어 Xcode 가 링커로 넘길 때 쪼개진다. 값 안에 따옴표를 심어야 살아남는다.
+          - '"$(SRCROOT)/../Gatcha Log Shared/build/xcode-frameworks/$(CONFIGURATION)/$(SDK_NAME)"'
         "EXCLUDED_ARCHS[sdk=iphonesimulator*]": x86_64
         CODE_SIGN_STYLE: Automatic
         DEVELOPMENT_TEAM: CCTT9CBG38

@@ -5,10 +5,10 @@ build/
 # xcodebuild derivedData (로컬 빌드 산출물)
 build-rel/
 build_rel/
-GL_IOS/build_rel/
-GL_IOS/build_release/
+Gatcha Log IOS/build_rel/
+Gatcha Log IOS/build_release/
 build_dev/
-GL_IOS/build_dev/
+Gatcha Log IOS/build_dev/
 
 # Android / Studio
 .idea/
@@ -24,7 +24,7 @@ local.properties
 Thumbs.db
 
 # Firebase config (개발자별로 직접 추가 — 커밋 금지)
-GL_Android/google-services.json
+Gatcha Log Android/google-services.json
 
 # 릴리스 서명 키스토어 — 절대 커밋 금지(유출 시 앱 위장 서명 가능). local.properties 에 경로/비번 보관
 *.keystore
@@ -34,13 +34,13 @@ GL_Android/google-services.json
 .claude/
 
 # 프로젝트 문서·장애 리포트 (로컬 참고용 — 커밋 금지, iCloud 원본 + 로컬 심볼릭 링크)
-GL_MD
-GL_MD/
+Gatcha Log MD
+Gatcha Log MD/
 GatchaLOG_Error Report/
 
 # iOS / Xcode (KMP 마이그레이션)
-GL_IOS/GL_IOS.xcodeproj/xcuserdata/
-GL_IOS/GL_IOS.xcodeproj/project.xcworkspace/xcuserdata/
+Gatcha Log IOS/GL_IOS.xcodeproj/xcuserdata/
+Gatcha Log IOS/GL_IOS.xcodeproj/project.xcworkspace/xcuserdata/
 *.xcuserstate
 DerivedData/
 
@@ -48,17 +48,17 @@ DerivedData/
 .kotlin/
 
 # iOS IPA 빌드 산출물
-GL_IOS/build/
+Gatcha Log IOS/build/
 build_reldev/
-GL_IOS/build_reldev/
+Gatcha Log IOS/build_reldev/
 build_sim/
-GL_IOS/build_sim/
+Gatcha Log IOS/build_sim/
 # Xcode 27(iOS 27 SDK) 전용 derivedData — 26 툴체인 산출물(build/)과 분리해 둔다
 build_x27/
-GL_IOS/build_x27/
+Gatcha Log IOS/build_x27/
 # 같은 27 툴체인의 Release 구성(실기기 릴리즈 검증용) — Debug 산출물과 분리
 build_x27_rel/
-GL_IOS/build_x27_rel/
+Gatcha Log IOS/build_x27_rel/
 
 # Firebase CLI 작업 로그
 .firebase/

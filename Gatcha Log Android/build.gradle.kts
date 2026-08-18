@@ -34,7 +34,7 @@ if (file("google-services.json").exists()) {
         // 통째로 죽었다 — 2026-08-05~08-06 Android CI 3연속 실패가 이것이다.
         // 이름 완전일치를 쓴다: `packageReleaseResources` 는 리소스 병합이라 걸리면 안 된다.
         val packagingTasks = setOf("packageRelease", "packageReleaseBundle")
-        if (allTasks.any { it.project.path == ":GL_Android" && it.name in packagingTasks }) {
+        if (allTasks.any { it.project.path == ":Gatcha Log Android" && it.name in packagingTasks }) {
             throw GradleException(
                 """
                 |google-services.json 이 없어 릴리즈를 빌드할 수 없습니다.
@@ -130,7 +130,7 @@ android {
         }
     }
     compileOptions {
-        // :GL_Shared(GitLive Firebase 2.4.0)가 JVM 17 바이트코드라 소비 측도 17로 맞춘다.
+        // :Gatcha Log Shared(GitLive Firebase 2.4.0)가 JVM 17 바이트코드라 소비 측도 17로 맞춘다.
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
@@ -147,8 +147,8 @@ android {
 
 // Compose 컴파일러 리포트 — 어떤 컴포저블이 skippable/restartable 인지, 어떤 파라미터가 unstable 인지
 // 산출한다. 릴리즈 산출물에는 영향이 없고, 켤 때만 파일이 생긴다:
-//   ./gradlew :GL_Android:assembleRelease -PcomposeReports
-// 결과: GL_Android/build/compose_compiler/*-composables.txt · *-classes.txt · *-module.json
+//   ./gradlew ":Gatcha Log Android:assembleRelease" -PcomposeReports
+// 결과: Gatcha Log Android/build/compose_compiler/*-composables.txt · *-classes.txt · *-module.json
 // (재구성 낭비를 찾을 때 Layout Inspector 의 Recomposition Count 와 함께 본다)
 composeCompiler {
     if (project.hasProperty("composeReports")) {
@@ -157,7 +157,7 @@ composeCompiler {
     }
 }
 
-// Kotlin 바이트코드도 17 — :GL_Shared(JVM_17, GitLive) 인라인 함수 소비 충돌 방지.
+// Kotlin 바이트코드도 17 — :Gatcha Log Shared(JVM_17, GitLive) 인라인 함수 소비 충돌 방지.
 kotlin {
     compilerOptions {
         jvmTarget.set(JvmTarget.JVM_17)
@@ -182,7 +182,7 @@ androidComponents {
 
 dependencies {
     // 공유 KMP 모듈 — 비즈니스 로직(데이터/리포지토리/API/동기화)의 정본. 레거시 P3 통합.
-    implementation(project(":GL_Shared"))
+    implementation(project(":Gatcha Log Shared"))
 
     implementation("androidx.core:core-ktx:1.15.0") // compileSdk 35 호환 (1.19.0은 compileSdk 37 요구)
     // 시스템 스플래시 — Android 12+ 네이티브 스플래시를 쓰고, 11 이하는 동일 화면으로 백포트.
