@@ -594,7 +594,14 @@ private fun PickupRow(label: String, list: List<GachaBanner>, showInfo: Boolean 
         )
         Spacer(Modifier.width(6.dp))
         Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            shown.forEach { PickupSlot(it, Modifier.weight(1f)) }
+            // 하나뿐이면 칸을 늘리지 않는다. weight 로 폭 전부를 주면 그 하나가 카드
+            // 한가운데에 덩그러니 놓여, 여러 명일 때의 첫 얼굴과 시작점이 어긋난다.
+            if (shown.size == 1) {
+                PickupSlot(shown[0], alignStart = true)
+                Spacer(Modifier.weight(1f))
+            } else {
+                shown.forEach { PickupSlot(it, Modifier.weight(1f)) }
+            }
         }
         // 안내 버튼은 **자리를 차지한다**(겹쳐 얹지 않는다). 예전엔 줄 위에 오버레이로
         // 올려서 맨 오른쪽 초상과 겹쳤다 — 칸이 넓어질수록 더 파고들었다.
@@ -625,11 +632,17 @@ private val PickupAvatarSize = 38.dp
  * 칸이 글자 길이만큼만 커져서 가운데로 두면 초상과 이름의 축이 이름마다 어긋난다.
  */
 @Composable
-private fun PickupSlot(b: GachaBanner, modifier: Modifier = Modifier) {
+private fun PickupSlot(b: GachaBanner, modifier: Modifier = Modifier, alignStart: Boolean = false) {
     val isWeapon = b.type == "weapon"
     // 초상·이름 모두 **칸의 가운데**에 선다. 칸 폭이 균등하므로 이름 상자와 초상의
     // 중심축이 저절로 같아진다 — 따로 맞출 필요가 없다.
-    Column(modifier, horizontalAlignment = Alignment.CenterHorizontally) {
+    //
+    // [alignStart] 는 픽업이 하나뿐일 때만 쓴다. 그때는 칸이 곧 줄 전체라 가운데에 두면
+    // 얼굴이 카드 복판에 뜬다 — 왼쪽에 붙이고 이름 상자를 초상 폭에 맞춰 중심축을 지킨다.
+    Column(
+        modifier,
+        horizontalAlignment = if (alignStart) Alignment.Start else Alignment.CenterHorizontally,
+    ) {
         Box(
             Modifier.size(PickupAvatarSize).clip(CircleShape).background(PickupGold.copy(alpha = 0.14f)),
             contentAlignment = Alignment.Center,
@@ -657,6 +670,7 @@ private fun PickupSlot(b: GachaBanner, modifier: Modifier = Modifier) {
         Text(
             b.name, fontSize = 9.5.sp, fontWeight = FontWeight.Bold, color = TextPrimary,
             textAlign = TextAlign.Center,
+            modifier = if (alignStart) Modifier.width(PickupAvatarSize) else Modifier,
         )
     }
 }
