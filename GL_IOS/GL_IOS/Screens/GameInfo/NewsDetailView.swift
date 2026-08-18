@@ -14,6 +14,10 @@ import Shared
 struct NewsDetailView: View {
     var store: SpendingStore
     let item: NewsItem
+    /// iPad 좌/우 분할의 **오른쪽**으로 들어온 경우. 상단 바 제목을 달지 않는다 —
+    /// 왼쪽 목록 페이지의 바와 위아래로 겹쳐 제목이 두 줄로 보인다.
+    /// (공유 버튼은 그대로 둔다. 그건 제목이 아니라 이 화면의 유일한 액션이다.)
+    var embedded: Bool = false
 
     @Environment(\.openURL) private var openURL
     @Environment(\.glgAccent) private var accent
@@ -98,13 +102,15 @@ struct NewsDetailView: View {
         .background(GLGBackground { Color.clear })
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            ToolbarItem(placement: .principal) {
-                // 상단에선 "공지", 스크롤로 본문 제목이 사라지면 그 제목을 헤더에 표시.
-                Text(showBarTitle ? item.title : "공지")
-                    .font(.pretendard(size: 16, weight: .semibold))
-                    .foregroundStyle(GLGColor.textPrimary)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
+            if !embedded {
+                ToolbarItem(placement: .principal) {
+                    // 상단에선 "공지", 스크롤로 본문 제목이 사라지면 그 제목을 헤더에 표시.
+                    Text(showBarTitle ? item.title : "공지")
+                        .font(.pretendard(size: 16, weight: .semibold))
+                        .foregroundStyle(GLGColor.textPrimary)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                }
             }
             // 링크에 `lang=ko-kr` 을 붙인다 — 안 붙이면 받는 쪽에서 그 사람 기본 언어(대개 영문)로 열린다.
             if let u = URL(string: NewsLogic.shared.shareUrl(item: item)), !item.url.isEmpty {

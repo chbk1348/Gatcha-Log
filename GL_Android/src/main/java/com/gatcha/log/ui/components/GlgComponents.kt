@@ -40,7 +40,9 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.text.PlatformTextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.LineHeightStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -214,7 +216,7 @@ fun GlgButton(
 fun GlgBackButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    size: Dp = 44.dp,
+    size: Dp = GlgHeaderElementHeight,
     /** 색이 깔린 헤더(지출 상세 히어로 등) 위에 올릴 때만 지정. null 이면 기본 흰 버튼. */
     tint: Color? = null,
     background: Color? = null,
@@ -389,7 +391,7 @@ fun GlgHeaderTitlePill(title: String, modifier: Modifier = Modifier) {
             .background(Color.White)
             .background(accent.copy(alpha = 0.10f))
             .border(1.5.dp, accent.copy(alpha = 0.30f), RoundedCornerShape(999.dp))
-            .height(44.dp)
+            .height(GlgHeaderElementHeight)
             .padding(horizontal = 16.dp),
         contentAlignment = Alignment.Center,
     ) {
@@ -403,6 +405,57 @@ fun GlgHeaderTitlePill(title: String, modifier: Modifier = Modifier) {
         )
     }
 }
+
+/**
+ * 헤더 우측 액션 자리의 **드롭다운 알약** — 열면 [GlgDropdownMenu] 가 붙는다.
+ *
+ * 헤더 요소는 전부 같은 규격이다: 높이 [GlgHeaderElementHeight], 999 라운드, 흰 베이스 +
+ * 색 10% 채움, 1.5dp 색 30% 테두리. [GlgHeaderTitlePill]·[GlgCircleIconButton] 과 나란히
+ * 놓았을 때 높이가 어긋나면 헤더 한 줄이 들쭉날쭉해진다.
+ *
+ * 지출 화면의 [GlgHeaderPillChip] 은 **본문 필터 줄**용이라 이보다 한참 작다 — 헤더에
+ * 그걸 갖다 쓰면 옆의 44dp 버튼들 사이에서 혼자 작아 보인다(2026-08-18 지적).
+ *
+ * [selected] 면 [color] 로 채우고 글자를 희게 뒤집는다 — 지금 무엇에 좁혀져 있는지가
+ * 색만으로 읽혀서 따로 표식을 붙일 필요가 없다.
+ */
+@Composable
+fun GlgHeaderDropdownPill(
+    label: String,
+    modifier: Modifier = Modifier,
+    selected: Boolean = false,
+    color: Color = LocalAccent.current,
+    onClick: () -> Unit,
+) {
+    val shape = RoundedCornerShape(999.dp)
+    Row(
+        modifier
+            .clip(shape)
+            .background(Color.White)
+            .background(if (selected) color else color.copy(alpha = 0.10f))
+            .then(if (selected) Modifier else Modifier.border(1.5.dp, color.copy(alpha = 0.30f), shape))
+            .clickable { onClick() }
+            .height(GlgHeaderElementHeight)
+            .padding(horizontal = 16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        // 줄 상자를 글자에 맞춘다 — 기본 Text 는 폰트 패딩 때문에 고정 높이 안에서 아래로 처진다.
+        GlgBadgeText(label, 15.sp, if (selected) Color.White else color)
+        Spacer(Modifier.width(5.dp))
+        Text(
+            "▾",
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Black,
+            color = if (selected) Color.White.copy(alpha = 0.9f) else color.copy(alpha = 0.75f),
+        )
+    }
+}
+
+/**
+ * 헤더 안 요소의 공통 높이 — 뒤로가기·제목 알약·액션 버튼·드롭다운 알약이 **전부 이 값**을 쓴다.
+ * 바꿀 땐 여기 한 곳만 고친다.
+ */
+val GlgHeaderElementHeight = 44.dp
 
 /**
  * 탭(루트) 헤더의 고정 높이. 4개 탭이 모두 이 높이를 쓰고, 각 탭의 스크롤 인셋(contentPadding
@@ -611,6 +664,18 @@ fun GlgChip(
             fontSize = 13.sp,
             fontWeight = FontWeight.SemiBold,
             color = textColor,
+            // iOS GLGChip 과 같은 치수(13 / h14 · v9 / r14)인데도 Android 칩만 커 보이던 원인은
+            // **글자 상자**였다. Pretendard 는 한글용 ascent·descent 가 커서, Compose 기본
+            // 폰트 패딩까지 더해지면 줄 상자가 실제 글자보다 훨씬 높아진다 — 그 높이에
+            // 상하 9dp 가 또 붙어 칩이 세로로 부풀었다. iOS 는 고정 크기라 이 여백이 없다.
+            // 폰트 패딩을 끄고 줄 높이를 글자에 맞춰 iOS 와 같은 높이로 맞춘다.
+            style = LocalTextStyle.current.copy(
+                platformStyle = PlatformTextStyle(includeFontPadding = false),
+                lineHeightStyle = LineHeightStyle(
+                    alignment = LineHeightStyle.Alignment.Center,
+                    trim = LineHeightStyle.Trim.Both,
+                ),
+            ),
             modifier = Modifier.padding(horizontal = 14.dp, vertical = 9.dp),
         )
     }
@@ -638,14 +703,26 @@ fun GlgOutlineButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     height: androidx.compose.ui.unit.Dp = 50.dp,
+    /**
+     * 아웃라인·글자색. null 이면 기본 고스트(연회색).
+     *
+     * 고스트 테두리([GhostBorder] #E3E3EA)는 흰 배경 위를 전제로 고른 값이라,
+     * **[GlassCard] 위(#F6F7F9)에 놓으면 배경과 밝기가 거의 같아 테두리가 사라져 보인다.**
+     * 그런 자리엔 강조색을 넘긴다 — iOS 는 이미 같은 자리에서 강조색 stroke 를 쓴다.
+     */
+    color: Color? = null,
 ) {
     val accent = LocalAccent.current
     val interaction = remember { MutableInteractionSource() }
     val pressed by interaction.collectIsPressedAsState()
     // 호버풍(플랫): 누르면 옅은 강조색 배경 + 강조색 테두리/글자. 그림자/이동 없음.
-    val borderColor by animateColorAsState(if (pressed) accent.copy(alpha = 0.5f) else GhostBorder, label = "outBtnBorder")
-    val bg by animateColorAsState(if (pressed) accent.copy(alpha = 0.08f) else Color.Transparent, label = "outBtnBg")
-    val textColor by animateColorAsState(if (pressed) accent else GhostText, label = "outBtnText")
+    val tint = color ?: accent
+    val borderColor by animateColorAsState(
+        if (pressed || color != null) tint.copy(alpha = 0.5f) else GhostBorder,
+        label = "outBtnBorder",
+    )
+    val bg by animateColorAsState(if (pressed) tint.copy(alpha = 0.08f) else Color.Transparent, label = "outBtnBg")
+    val textColor by animateColorAsState(if (pressed || color != null) tint else GhostText, label = "outBtnText")
     // 알약(캡슐) — 주 버튼(GlgButton)·iOS 와 동일. 나란히 놓이는 '취소 + 저장하기' 짝의 모서리가 맞아야 한다.
     val shape = CircleShape
     Box(

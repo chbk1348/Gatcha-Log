@@ -41,10 +41,10 @@ private val DoneGreen = Color(0xFF2BB673)
 @Composable
 fun TaskCompletionSection(stats: List<TaskStats>) {
     if (stats.isEmpty()) return
-    Text("숙제 완주율", fontSize = 16.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 2.dp, bottom = 4.dp))
+    Text("숙제 완주율", fontSize = 16.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 4.dp))
     Text(
         "앱에서 확인한 날 기준으로 세요. 최근 ${TaskCompletion.WINDOW_DAYS}일.",
-        fontSize = 11.sp, color = TextSecondary, modifier = Modifier.padding(start = 2.dp, bottom = 12.dp),
+        fontSize = 11.sp, color = TextSecondary, modifier = Modifier.padding(bottom = 12.dp),
     )
     GlassCard(modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {

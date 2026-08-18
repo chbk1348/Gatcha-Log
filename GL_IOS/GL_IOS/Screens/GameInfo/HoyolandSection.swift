@@ -15,6 +15,8 @@ private enum HoyolandInfo {
         let q = "킨텍스 제2전시장".addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? "킨텍스"
         return URL(string: "https://map.naver.com/p/search/\(q)")
     }
+    /// 지스타 공식 사이트 — 참가사·티켓 일정이 여기서 먼저 갱신된다.
+    static let gstarURL = URL(string: "https://www.gstar.or.kr/")!
 }
 
 /// 게임정보 탭에 임베드되는 요약 카드 — 탭하면 상세 페이지(HoyolandDetailView)로 이동.
@@ -71,8 +73,11 @@ struct HoyolandDetailView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
                 // 페이지 타이틀은 네비게이션 바(뒤로가기 + 타이틀)로 — Android 상세 헤더와 동일 형식.
-                Text("호요버스 오프라인 행사").font(.pretendard(size: 13)).foregroundStyle(GLGColor.textSecondary)
-                    .padding(.top, 2).padding(.bottom, 14)
+                // 이 줄은 아래 두 블록('국내 오프라인 행사'·'지난 행사')과 나란히 서는 **섹션 제목**이라
+                // 같은 규격(16 Bold)으로 맞춘다 — 예전엔 혼자 13 회색 부제라 제목 셋이 따로 놀았다.
+                Text("호요버스 오프라인 행사").font(.pretendard(size: 16, weight: .bold))
+                    .foregroundStyle(GLGColor.textPrimary)
+                    .padding(.top, 2).padding(.bottom, 10)
 
                 // 장소 카드
                 GLGCard(cornerRadius: 24, padding: 16) {
@@ -119,6 +124,11 @@ struct HoyolandDetailView: View {
                     }
                 }
 
+                // 지스타 2026 — 호요랜드와 별개 행사지만, 호요버스가 나오는 국내 오프라인 자리라 여기 둔다.
+                // 2026-08-13 조직위 발표로 참가사에 호요버스가 포함됐다(부스 규모·출품작은 9월 확정 명단에서 공개).
+                Text("국내 오프라인 행사").font(.pretendard(size: 16, weight: .bold)).padding(.top, 20).padding(.bottom, 10)
+                gstarCard
+
                 // 지난 행사 참고 — 실제 개최 이력(최신순).
                 Text("지난 행사").font(.pretendard(size: 16, weight: .bold)).padding(.top, 20).padding(.bottom, 10)
                 pastEventCard("호요랜드 2025", [
@@ -152,6 +162,42 @@ struct HoyolandDetailView: View {
         .navigationTitle("호요랜드")
         .navigationBarTitleDisplayMode(.inline)
     }
+
+    /// 지스타 2026 카드 — 호요버스 참가 확정분(2026-08-13 조직위 발표).
+    private var gstarCard: some View {
+        GLGCard(cornerRadius: 24, padding: 16) {
+            VStack(alignment: .leading, spacing: 0) {
+                HStack(spacing: 8) {
+                    Text("지스타 2026").font(.pretendard(size: 15, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
+                    hoyoBadge("호요버스 참가", accent.primary)
+                }
+                .padding(.bottom, 12)
+                ForEach(Array(Self.gstarFacts.enumerated()), id: \.offset) { i, f in
+                    if i > 0 { Spacer().frame(height: 8) }
+                    factRow(f.0, f.1)
+                }
+                Link(destination: HoyolandInfo.gstarURL) {
+                    Text("공식 사이트").font(.pretendard(size: 14, weight: .semibold))
+                        .foregroundStyle(accent.primary).frame(maxWidth: .infinity)
+                        .padding(.vertical, 12)
+                        .overlay(RoundedRectangle(cornerRadius: 23, style: .continuous)
+                            .stroke(accent.primary.opacity(0.5), lineWidth: 1))
+                }
+                .padding(.top, 14)
+                Text("확정 참가사 명단은 9월에 공개됩니다. 넥슨·엔씨·넷마블·크래프톤 등 국내 대형 게임사는 현재 명단에 없습니다.")
+                    .font(.pretendard(size: 11)).foregroundStyle(GLGColor.textSecondary).padding(.top, 10)
+            }
+        }
+    }
+
+    private static let gstarFacts: [(String, String)] = [
+        ("기간", "2026.11.19(목) ~ 11.22(일) (4일)"),
+        ("장소", "부산 벡스코(BEXCO)"),
+        ("참가", "호요버스 참가 확정 (부스 규모·출품작 미공개)"),
+        ("함께", "구글플레이 · 웹젠 · 네시삼십삼분 · 빌리빌리게임즈 · 센추리게임즈"),
+        ("스폰서", "크랙(뤼튼) — 게임사가 아닌 AI 기업의 첫 메인 스폰서"),
+        ("G-CON", "11.19 ~ 11.20 · 벡스코 컨벤션홀 · 주제 '내러티브'"),
+    ]
 }
 
 // MARK: - 공용 서브뷰
