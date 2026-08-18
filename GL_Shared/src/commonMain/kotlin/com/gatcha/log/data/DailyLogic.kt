@@ -218,6 +218,7 @@ object DailyLogic {
             colorArgb = game.color,
             resin = if (note != null && note.maxResin > 0) "${note.resinLabel} ${note.currentResin}/${note.maxResin}" else "",
             resinValue = if (note != null && note.maxResin > 0) "${note.currentResin}/${note.maxResin}" else "",
+            resinLabel = resinLabelOf(game),
             resinRecovery = note?.resinRecoveryTime.orEmpty(),
             resinRatio = note?.resinRatio ?: 0f,
             resinFull = note != null && note.maxResin > 0 && note.currentResin >= note.maxResin,
@@ -226,6 +227,16 @@ object DailyLogic {
             hasNote = note != null && note.maxResin > 0,
         )
     }
+
+    /**
+     * **모든** 게임의 행동력이 가득인지 — 행동력 카드의 비상 표시 조건.
+     *
+     * 노트를 못 받은 게임이 하나라도 있으면 false 다. 그 게임이 가득인지 알 수 없는데
+     * "모두 가득"이라고 말하면 앱이 확인되지 않은 사실을 주장하게 된다.
+     * (연동을 안 한 게임이 있으면 이 표시는 뜨지 않는다 — 의도된 동작이다.)
+     */
+    fun allResinFull(summaries: List<DailyGameSummary>): Boolean =
+        summaries.isNotEmpty() && summaries.all { it.hasNote && it.resinFull }
 }
 
 /** 게임 하나에 남은 할 일 — 한 줄로 묶은 것. */
@@ -263,6 +274,8 @@ data class DailyGameSummary(
     val resin: String,
     /** "152/160" — 이름 없이 숫자만(칸이 좁은 카드용). */
     val resinValue: String,
+    /** "레진"·"개척력"·"배터리" — 인게임 명칭. 노트가 없어도 채운다([resinLabelOf]). */
+    val resinLabel: String,
     /** 상류가 주는 회복 안내("14시간 30분 후" 등). 없으면 빈 문자열. */
     val resinRecovery: String,
     val resinRatio: Float,

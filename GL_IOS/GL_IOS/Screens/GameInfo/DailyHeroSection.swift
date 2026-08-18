@@ -87,9 +87,11 @@ struct DailyHeroSection: View {
      지금 돌고 있는 게임 버전 — 타일 아래의 조용한 참조 행. (Compose `GameVersionStrip` 대응)
 
      확인 대상은 **숫자**다. 게임명과 한 줄에 같은 크기로 놓으면 먼저 읽히지 않아, 게임명은
-     작게 내리고 버전만 키워 위아래로 쌓았다. 세 칸을 같은 폭으로 갈라 게임끼리 훑어 비교되게
-     한다. 카드(면)는 여전히 주지 않는다 — 위 타일이 매일 누르는 것이고 이건 참조용이라는
-     관계를 유지한다.
+     작게 내리고 버전만 키워 위아래로 쌓았다. 세 칸을 같은 폭으로 갈라 게임끼리 훑어 비교되게 한다.
+
+     예전엔 **면 없이 맨 행**으로 뒀다 — 위 타일이 매일 누르는 것이고 이건 참조용이라는 관계를
+     여백만으로 표현하려던 것이었는데, 카드들 사이에 낀 맨 글자가 소속 없이 떠 보였다.
+     이 섹션의 다른 덩어리(오늘 할 일·타일)와 같은 카드로 맞춘다.
 
      게임색은 **글자가 아니라 막대**가 진다. 게임색을 작은 글자에 입히면 젠레스(주황
      `F5A623`, 흰 배경 대비 2.1:1)·원신(3.0:1)이 읽히지 않는다. 막대는 글자가 아니라
@@ -98,34 +100,35 @@ struct DailyHeroSection: View {
      */
     @ViewBuilder
     private func versionStrip(_ versions: [GameVersionLine]) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text("현재 버전")
-                .font(.pretendard(size: 10, weight: .bold))
-                .foregroundStyle(GLGColor.textSecondary)
-            HStack(spacing: 10) {
-                ForEach(Array(versions.enumerated()), id: \.offset) { _, v in
-                    HStack(spacing: 7) {
-                        // 높이를 주지 않는다 — 오른쪽 두 줄이 정한 행 높이에 맞춰 늘어난다.
-                        RoundedRectangle(cornerRadius: 1.5)
-                            .fill(Color(argb64: v.colorArgb))
-                            .frame(width: 3)
-                        VStack(alignment: .leading, spacing: 1) {
-                            Text(v.gameShort)
-                                .font(.pretendard(size: 10.5, weight: .medium))
-                                .foregroundStyle(GLGColor.textSecondary)
-                                .lineLimit(1)
-                            Text(v.version)
-                                .font(.pretendard(size: 16, weight: .bold))
-                                .foregroundStyle(GLGColor.textPrimary)
-                                .lineLimit(1)
+        GLGCard(cornerRadius: 20, padding: 16) {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("현재 버전")
+                    .font(.pretendard(size: 10, weight: .bold))
+                    .foregroundStyle(GLGColor.textSecondary)
+                HStack(spacing: 10) {
+                    ForEach(Array(versions.enumerated()), id: \.offset) { _, v in
+                        HStack(spacing: 7) {
+                            // 높이를 주지 않는다 — 오른쪽 두 줄이 정한 행 높이에 맞춰 늘어난다.
+                            RoundedRectangle(cornerRadius: 1.5)
+                                .fill(Color(argb64: v.colorArgb))
+                                .frame(width: 3)
+                            VStack(alignment: .leading, spacing: 1) {
+                                Text(v.gameShort)
+                                    .font(.pretendard(size: 10.5, weight: .medium))
+                                    .foregroundStyle(GLGColor.textSecondary)
+                                    .lineLimit(1)
+                                Text(v.version)
+                                    .font(.pretendard(size: 16, weight: .bold))
+                                    .foregroundStyle(GLGColor.textPrimary)
+                                    .lineLimit(1)
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
                         }
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .fixedSize(horizontal: false, vertical: true)
                     }
-                    .fixedSize(horizontal: false, vertical: true)
                 }
             }
         }
-        .padding(.horizontal, 2)
     }
 
     /// 히어로 — 색면도 없고, **게임에도 치우치지 않는다.**
@@ -179,8 +182,15 @@ struct DailyHeroSection: View {
     private func resinCard(_ items: [DailyGameSummary]) -> some View {
         GLGCard(cornerRadius: 20, padding: 16) {
             VStack(alignment: .leading, spacing: 12) {
-                Text("행동력").font(.pretendard(size: 12, weight: .bold))
-                    .foregroundStyle(GLGColor.textSecondary)
+                HStack(spacing: 5) {
+                    Text("행동력").font(.pretendard(size: 12, weight: .bold))
+                        .foregroundStyle(GLGColor.textSecondary)
+                    if DailyLogic.shared.allResinFull(summaries: items) {
+                        AlarmBell().padding(.leading, 2)
+                        Text("모두 가득").font(.pretendard(size: 11, weight: .bold))
+                            .foregroundStyle(Color(hex: 0xFFD0021B))
+                    }
+                }
                 HStack(alignment: .top, spacing: 10) {
                     ForEach(items, id: \.gameKey) { resinCell($0) }
                 }
@@ -192,8 +202,14 @@ struct DailyHeroSection: View {
     private func resinCell(_ s: DailyGameSummary) -> some View {
         let color = Color(argb64: s.colorArgb)
         VStack(alignment: .leading, spacing: 0) {
-            Text(s.gameShort).font(.pretendard(size: 11, weight: .bold))
-                .foregroundStyle(color).lineLimit(1)
+            // 게임명 옆에 **그 게임의 인게임 명칭**을 붙인다. 셋 다 세는 것이 다른 재화인데
+            // 숫자만 나란히 두면 같은 단위처럼 읽힌다 — 레진 160 과 배터리 240 은 다른 자원이다.
+            HStack(spacing: 4) {
+                Text(s.gameShort).font(.pretendard(size: 11, weight: .bold))
+                    .foregroundStyle(color).lineLimit(1)
+                Text(s.resinLabel).font(.pretendard(size: 9.5, weight: .medium))
+                    .foregroundStyle(GLGColor.textSecondary).lineLimit(1)
+            }
             Text(s.hasNote ? s.resinValue : "—")
                 .font(.pretendard(size: 14, weight: .bold))
                 .foregroundStyle(s.hasNote ? (s.resinFull ? Color(hex: 0xFFD0021B) : GLGColor.textPrimary)
@@ -402,7 +418,7 @@ struct AttendanceDetailView: View {
         }
         .scrollIndicators(.hidden)
         .background(GLGBackground { Color.clear })
-        .navigationTitle("출석 체크")
+        .navigationTitle("출석 체크 현황")
         .navigationBarTitleDisplayMode(.inline)
     }
 
@@ -731,5 +747,29 @@ struct FlowLayout: Layout {
             x += size.width + spacing
             rowHeight = max(rowHeight, size.height)
         }
+    }
+}
+
+/// 3게임 모두 행동력이 가득일 때만 뜨는 비상벨 — 흔들고 쉬고를 반복한다.
+///
+/// 계속 떠는 대신 **울림 0.6초 + 정지 1.8초** 로 끊는 건, 상시 진동이 시선을 붙잡아
+/// 정작 아래 숫자를 못 읽게 만들기 때문이다. Android `AlarmBell()` 과 같은 리듬.
+private struct AlarmBell: View {
+    /// (각도, 그 각도까지 가는 시간) — 마지막 항이 정지 구간이다.
+    private static let phases: [(angle: Double, duration: Double)] = [
+        (0, 0.07), (-15, 0.08), (15, 0.08), (-12, 0.08),
+        (12, 0.08), (-7, 0.08), (7, 0.09), (0, 1.84),
+    ]
+
+    var body: some View {
+        PhaseAnimator(Array(Self.phases.indices)) { i in
+            Image(systemName: "bell.badge.fill")
+                .font(.system(size: 13, weight: .bold))
+                .foregroundStyle(Color(hex: 0xFFD0021B))
+                .rotationEffect(.degrees(Self.phases[i].angle), anchor: .top)
+        } animation: { i in
+            .easeInOut(duration: Self.phases[i].duration)
+        }
+        .accessibilityLabel("3게임 모두 행동력이 가득 찼어요")
     }
 }
