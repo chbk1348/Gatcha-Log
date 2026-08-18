@@ -11,6 +11,8 @@ import androidx.compose.material3.LocalRippleConfiguration
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Typography
+import androidx.compose.ui.text.style.LineHeightStyle
+import androidx.compose.ui.text.PlatformTextStyle
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -24,12 +26,27 @@ import androidx.compose.ui.node.DelegatableNode
 import androidx.compose.ui.node.DrawModifierNode
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.unit.em
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Density
 import com.gatcha.log.R
 import kotlinx.coroutines.launch
+
+/**
+ * 전역 **행간** — Pretendard 가 정한 값 그대로(ascent 1950 + descent 494 ÷ upem 2048).
+ *
+ * iOS(SwiftUI·CoreText)는 글꼴이 정한 이 값을 그냥 쓴다. Compose 는 지정이 없으면 같은 값을
+ * 쓰지만, 중간에 M3 타이포그래피 스타일이 한 번이라도 끼면 거기 박힌 절대값(bodyLarge 24sp 등)이
+ * 상속돼 **글자 크기와 무관하게** 줄이 벌어진다. 화면마다 `lineHeight` 를 손으로 눌러 상쇄하던
+ * 자리가 앱 전체에 열댓 곳 있었고, 그 값들이 1.35~1.5em 로 제각각이라 iOS 보다 눈에 띄게
+ * 넓었다(2026-08-18 지적).
+ *
+ * `em` 으로 두면 글자 크기를 따라가므로 크기가 바뀌어도 다시 어긋나지 않는다.
+ * 여기보다 넓혀야 하는 곳(공지 본문처럼 iOS 가 `lineSpacing` 을 주는 자리)만 개별 지정한다.
+ */
+val GlgLineHeight = 1.193.em
 
 /** 전역 글꼴 — Pretendard. 모든 Text 가 LocalTextStyle 로 상속(개별 fontFamily 미지정). */
 val Pretendard = FontFamily(
@@ -45,25 +62,35 @@ val Pretendard = FontFamily(
  * [LocalTextStyle] 은 스타일을 상속하는 `Text` 만 덮는다. M3 컴포넌트 일부(DatePickerDialog·
  * TextButton 등)는 내부에서 `MaterialTheme.typography` 를 직접 깔기 때문에, 이걸 넘기지 않으면
  * 그 경로가 `FontFamily.Default` 로 떨어져 **기기의 글꼴 스타일 설정(삼성 '글꼴' 등)이 그대로 들어온다.**
- * 크기·자간·행간은 M3 기본값을 그대로 두고 서체만 고정한다.
+ * 크기·자간·행간은 M3 기본값을 그대로 두고 서체와 **폰트 패딩 해제**만 고정한다
+ * (해제 이유는 [GatchaLogTheme] 의 `LocalTextStyle` 주석 참고 — 이 경로만 빠지면
+ * M3 컴포넌트 글자만 혼자 아래로 처진다).
  */
+private fun TextStyle.pretendard(): TextStyle = copy(
+    fontFamily = Pretendard,
+    // M3 기본 스타일에는 절대 행간(bodyLarge 24sp 등)이 박혀 있다 — 이 경로로 들어온 글자만
+    // 혼자 벌어지지 않게 여기서도 [GlgLineHeight] 로 바꾼다.
+    lineHeight = GlgLineHeight,
+    platformStyle = PlatformTextStyle(includeFontPadding = false),
+)
+
 private val PretendardTypography: Typography = Typography().run {
     Typography(
-        displayLarge = displayLarge.copy(fontFamily = Pretendard),
-        displayMedium = displayMedium.copy(fontFamily = Pretendard),
-        displaySmall = displaySmall.copy(fontFamily = Pretendard),
-        headlineLarge = headlineLarge.copy(fontFamily = Pretendard),
-        headlineMedium = headlineMedium.copy(fontFamily = Pretendard),
-        headlineSmall = headlineSmall.copy(fontFamily = Pretendard),
-        titleLarge = titleLarge.copy(fontFamily = Pretendard),
-        titleMedium = titleMedium.copy(fontFamily = Pretendard),
-        titleSmall = titleSmall.copy(fontFamily = Pretendard),
-        bodyLarge = bodyLarge.copy(fontFamily = Pretendard),
-        bodyMedium = bodyMedium.copy(fontFamily = Pretendard),
-        bodySmall = bodySmall.copy(fontFamily = Pretendard),
-        labelLarge = labelLarge.copy(fontFamily = Pretendard),
-        labelMedium = labelMedium.copy(fontFamily = Pretendard),
-        labelSmall = labelSmall.copy(fontFamily = Pretendard),
+        displayLarge = displayLarge.pretendard(),
+        displayMedium = displayMedium.pretendard(),
+        displaySmall = displaySmall.pretendard(),
+        headlineLarge = headlineLarge.pretendard(),
+        headlineMedium = headlineMedium.pretendard(),
+        headlineSmall = headlineSmall.pretendard(),
+        titleLarge = titleLarge.pretendard(),
+        titleMedium = titleMedium.pretendard(),
+        titleSmall = titleSmall.pretendard(),
+        bodyLarge = bodyLarge.pretendard(),
+        bodyMedium = bodyMedium.pretendard(),
+        bodySmall = bodySmall.pretendard(),
+        labelLarge = labelLarge.pretendard(),
+        labelMedium = labelMedium.pretendard(),
+        labelSmall = labelSmall.pretendard(),
     )
 }
 
@@ -157,7 +184,26 @@ fun GatchaLogTheme(
         // 기기 폰트 크기 영향 제거(고정 1.0)
         LocalDensity provides fixedDensity,
         // 전역 글꼴 Pretendard — 개별 fontFamily 미지정 Text 전부 상속
-        LocalTextStyle provides LocalTextStyle.current.copy(fontFamily = Pretendard),
+        //
+        // 폰트 패딩도 여기서 끈다. Pretendard 는 한글용 ascent·descent 가 커서, Compose 기본값인
+        // `includeFontPadding = true` 가 그 위에 여백을 **한 겹 더** 얹는다. 그러면 같은 크기·같은
+        // 여백을 지정해도 Android 쪽만 글자 상자가 높아진다 — iOS(SwiftUI)는 이 여백이 없다.
+        //
+        // 이 차이가 이번까지 다섯 번 같은 증상으로 돌아왔다: 칩이 커 보임 · 세트 효과 숫자가 처짐 ·
+        // 주간 날짜칸이 튀어나옴 · D-day 알약이 두꺼움 · 카드 안 문장 간격이 벌어짐. 자리마다
+        // 눈대중으로 패딩을 깎아 맞추면 새 화면을 만들 때마다 같은 자리에서 또 어긋난다.
+        // 원인 한 곳에서 끊는다.
+        LocalTextStyle provides LocalTextStyle.current.copy(
+            fontFamily = Pretendard,
+            lineHeight = GlgLineHeight,
+            platformStyle = PlatformTextStyle(includeFontPadding = false),
+            // Trim 은 하지 않는다 — 문단(여러 줄)에서 첫 줄 위·끝 줄 아래를 깎으면 오히려
+            // iOS 보다 좁아진다. 필요한 건 '패딩 제거'까지고, 줄 높이 자체는 글꼴 값을 쓴다.
+            lineHeightStyle = LineHeightStyle(
+                alignment = LineHeightStyle.Alignment.Center,
+                trim = LineHeightStyle.Trim.None,
+            ),
+        ),
     ) {
         MaterialTheme(
             colorScheme = colorScheme,

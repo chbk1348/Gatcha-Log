@@ -102,7 +102,7 @@ private fun EmptyState(onImport: () -> Unit) {
         Text(
             "UIGF(원신·젠레스) / SRGF·UIGF(스타레일) 표준 JSON을 가져오면\n5성 단가 · 평균 천장 · 획득 히스토리를 분석해 드려요.",
             fontSize = 12.sp, color = TextSecondary,
-            textAlign = androidx.compose.ui.text.style.TextAlign.Center, lineHeight = 17.sp,
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
         )
         Spacer(Modifier.height(16.dp))
         GlgButton("가챠 기록 JSON 가져오기", onClick = onImport, modifier = Modifier.fillMaxWidth())

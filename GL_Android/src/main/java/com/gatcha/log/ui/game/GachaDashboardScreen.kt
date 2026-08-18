@@ -79,7 +79,7 @@ fun GachaDashboardScreen(
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Text(
                     "가챠 기록을 가져오면\n천장 분포·월별 추이·픽업 비율을 분석해 드려요.",
-                    fontSize = 13.sp, color = TextSecondary, textAlign = TextAlign.Center, lineHeight = 19.sp,
+                    fontSize = 13.sp, color = TextSecondary, textAlign = TextAlign.Center,
                 )
             }
             return

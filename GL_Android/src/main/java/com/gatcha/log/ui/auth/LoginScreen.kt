@@ -98,13 +98,13 @@ fun LoginScreen(viewModel: SpendingViewModel) {
             Text(
                 "로그인하면 데이터가 구글 계정에 안전하게 저장·동기화됩니다.",
                 fontSize = 11.sp, color = Color.Gray,
-                textAlign = TextAlign.Center, lineHeight = 16.sp,
+                textAlign = TextAlign.Center,
             )
             Spacer(Modifier.height(10.dp))
             Text(
                 "앱을 다시 설치했나요? 이전에 쓰던 구글 계정으로 로그인하면 클라우드에 저장된 데이터가 복원돼요.",
                 fontSize = 11.sp, color = accent,
-                textAlign = TextAlign.Center, lineHeight = 16.sp,
+                textAlign = TextAlign.Center,
             )
         }
     }

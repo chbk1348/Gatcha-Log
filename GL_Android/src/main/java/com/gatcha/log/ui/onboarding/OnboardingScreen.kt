@@ -176,7 +176,8 @@ private fun OnboardingCopy(page: Int) {
         desc,
         fontSize = 13.sp,
         color = TextSecondary,
-        lineHeight = 21.sp,
+        // iOS 는 13pt + lineSpacing 4 → 13 × 1.193 + 4.
+        lineHeight = 19.5.sp,
         textAlign = TextAlign.Center,
     )
 }

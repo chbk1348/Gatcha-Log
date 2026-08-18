@@ -79,7 +79,7 @@ fun SpendingInsightScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
                 Spacer(Modifier.height(40.dp))
                 Text(
                     "지출 기록이 쌓이면\n예산 페이스·게임별 추이·카테고리 비중을 분석해 드려요.",
-                    fontSize = 13.sp, color = TextSecondary, lineHeight = 19.sp,
+                    fontSize = 13.sp, color = TextSecondary,
                     modifier = Modifier.fillMaxWidth(), textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                 )
                 return@Column
