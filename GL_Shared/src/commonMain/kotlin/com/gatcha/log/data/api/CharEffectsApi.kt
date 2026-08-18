@@ -36,13 +36,15 @@ object CharEffectsApi {
     // EnkaApi.headers 와 동일 — 일부 메타 호스트는 User-Agent 가 없으면 403/429.
     private val headers = mapOf("User-Agent" to "Gatcha-LOG-Android/1.0", "Accept" to "application/json")
 
-    // nanoka 는 Cloudflare 뒤라 커스텀 UA 를 403 으로 막을 수 있어 브라우저 UA + Referer 사용.
-    // ⚠️ Referer 는 `hakush.in` 그대로 둔다 — 그 도메인은 죽었지만 **CDN 이 보는 건 헤더 문자열**이고,
-    // nanoka 가 hakush 프런트엔드용으로 서빙하던 경로라 값을 바꿀 이유가 없다.
-    private val hakushHeaders = mapOf(
+    // nanoka 는 Cloudflare 뒤라 커스텀 UA 가 403 을 받던 시기가 있어 브라우저 UA 를 쓴다.
+    //
+    // `Referer: zzz.hakush.in` 을 같이 보내고 있었다. 예전 주석은 "도메인이 죽어도 CDN 이 보는 건
+    // 헤더 문자열이라 둔다"였는데, **헤더를 다 빼도 200 이 온다**(2026-08-18 실측: 브라우저 UA·
+    // 커스텀 UA·헤더 전무 셋 다 200). 없어진 도메인을 가리키는 헤더를 남겨 두면 왜 있는지
+    // 아무도 설명할 수 없게 되므로 뺐다.
+    private val nanokaHeaders = mapOf(
         "User-Agent" to "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1",
         "Accept" to "application/json",
-        "Referer" to "https://zzz.hakush.in/",
     )
 
     private val cache = mutableMapOf<String, List<CharEffect>>()
@@ -87,22 +89,20 @@ object CharEffectsApi {
 
     /**
      * 젠레스 형상 시네마(mindscape) — 기기에서 닿는 소스가 이기도록 **다중 소스 순차 시도**.
-     *  1) static.nanoka.cc (hakush 라이브 CDN, 한국어) — manifest 로 현재 버전 해석 후 character/{id}.json
+     *  1) static.nanoka.cc (한국어) — manifest 로 현재 버전 해석 후 character/{id}.json
      *  2) cdn.jsdelivr.net 의 genshin-optimizer 캐시 미러(영문) — 항상 도달 가능한 최후 폴백
      * 구조는 둘 다 동일: root.Talent(객체 "1"~"6") → {Level, Name, Desc, Desc2}. parseZzzBody 가 방어적으로 처리.
      *
-     * 예전엔 둘 사이에 `api.hakush.in`(구 경로, 한국어)이 한 겹 더 있었다. **`hakush.in` 은 apex 를 포함해
-     * 도메인 전체의 DNS 레코드가 사라졌다**(2026-08-13 확인: apex·api·zzz 서브도메인 모두 A/CNAME 없음).
-     * 살아날 걸 기대하고 두면 없는 단계가 있는 것처럼 읽혀서 뺐다 — 해석 실패는 즉시 떨어지므로(실측
-     * 1~4ms) 지연 문제는 아니었고, 순전히 **코드가 사실과 다르게 읽히는** 문제였다.
-     * 같은 프로젝트의 데이터는 nanoka 쪽이 그대로 이어받았고 그쪽이 1번이라, 한국어 경로는 잃지 않는다.
+     * 원래 이 데이터는 hakush 프로젝트 것이었고 한때 `api.hakush.in` 을 한 단계 더 탔다. **그 도메인은
+     * apex 를 포함해 DNS 레코드가 통째로 사라졌다**(2026-08-13 확인). 데이터는 nanoka 가 그대로
+     * 이어받았으므로 한국어 경로는 잃지 않는다 — 이제 코드 어디에도 그 도메인은 남기지 않는다.
      */
     private suspend fun fetchZzz(id: Int): List<CharEffect> {
         // ⚠️ **버전을 하나만 시도하면 안 된다.** 매니페스트의 `live`(인게임)와 `latest`(데이터 최신)가
         // 갈릴 때가 있고 방금 나온 캐릭터는 `latest` 에만 있다 — 예전엔 `live` 만 써서 신규 캐릭터의
         // 형상 시네마가 통째로 비었다(젠레스 live=3.1 · latest=3.2.2 시점). [NanokaApi] 가 둘 다 훑는다.
         for (ver in nanokaVersions()) {
-            parseZzzBody(Net.get("https://static.nanoka.cc/zzz/$ver/ko/character/$id.json", hakushHeaders))
+            parseZzzBody(Net.get("https://static.nanoka.cc/zzz/$ver/ko/character/$id.json", nanokaHeaders))
                 ?.let { if (it.isNotEmpty()) return it }
         }
         parseZzzBody(Net.get("https://cdn.jsdelivr.net/gh/Genshin-Optimizer/zzz-hakushin-data@master/character/$id.json", headers))
@@ -115,7 +115,7 @@ object CharEffectsApi {
         NanokaApi.manifest()?.games?.get("zzz")?.versionsToTry.orEmpty()
 
     /**
-     * hakush/nanoka/미러 응답 본문 → 형상 시네마 리스트. 응답 NG/파싱 실패면 null(다음 소스로), 성공이면 리스트(빌 수도).
+     * nanoka·미러 응답 본문 → 형상 시네마 리스트. 응답 NG/파싱 실패면 null(다음 소스로), 성공이면 리스트(빌 수도).
      * data 래핑·Talent/talent 키·객체/배열 변형을 모두 방어적으로 시도.
      */
     private fun parseZzzBody(res: NetResult): List<CharEffect>? {
