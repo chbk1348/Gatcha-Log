@@ -182,28 +182,10 @@ object GachaRateData {
         else -> b.base
     }
 
-    /** n회 안에 최고등급이 하나도 안 나올 확률 */
-    fun pNoFiveStarInN(n: Int, startPity: Int, b: GachaBannerRate): Double {
-        var pNo = 1.0
-        var pity = startPity
-        repeat(n) {
-            pNo *= (1 - rateAt(pity, b))
-            pity++
-            if (pity >= b.hardPity) return 0.0
-            if (pNo < 0.0001) return 0.0
-        }
-        return pNo
-    }
-
-    /** n회 안에 픽업(또는 픽뚫 없는 경우 5★)을 확보할 확률 */
-    fun pickupProb(n: Int, startPity: Int, b: GachaBannerRate, guaranteed: Boolean): Double {
-        val p5 = 1 - pNoFiveStarInN(n, startPity, b)
-        if (b.no5050 || !b.has5050) return p5
-        if (guaranteed) return p5
-        val avgPer = (b.hardPity * 0.82).toInt()
-        val p2 = 1 - pNoFiveStarInN(maxOf(0, n - avgPer), 0, b)
-        return minOf(1.0, p5 * 0.5 + p2 * 0.5)
-    }
+    // n회 안의 확보 확률(`pickupProb`)은 픽뚫 뒤 두 번째 최고등급을 `hardPity * 0.82` 만큼
+    // 평행이동한 근사라, 90% 지점이 최악 뽑기 수(`maxPullsToSecure`)를 넘는 일이 있었다.
+    // → `GachaCalcContext.kt` 의 `pickupCdf` 로 대체했다. 정확한 분포의 합성곱이라
+    //   마지막 원소가 정확히 최악 지점에서 1.0 이 되고, 게이지·분위수·판정이 어긋나지 않는다.
 
     /**
      * 픽업(최고등급 픽업 캐릭터/음추) 확정까지 **최악의 경우** 필요한 뽑기 수.

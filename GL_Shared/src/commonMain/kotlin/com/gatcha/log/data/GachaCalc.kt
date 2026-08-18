@@ -50,34 +50,7 @@ fun computeCurrencyCalc(currency: Int, pityRaw: Int, banner: GachaBannerRate): C
     )
 }
 
-/** 환산 시나리오(최선/최악 뽑기 수·설명) — 목표 개수 qty 배수 반영. */
-data class GachaScenario(
-    val bestPulls: Int,
-    val worstPulls: Int,
-    val bestSub: String,
-    val worstSub: String,
-)
-
-/** 천장·50/50·보장 상태로 최선/최악 뽑기 수를 추정. */
-fun computeScenario(banner: GachaBannerRate, pity: Int, guaranteed: Boolean, qty: Int): GachaScenario {
-    val noPickup = banner.no5050 || !banner.has5050
-    if (noPickup) {
-        return GachaScenario(
-            bestPulls = (banner.softPity * 0.7).roundToInt() * qty,
-            worstPulls = banner.hardPity * qty,
-            bestSub = "조기 획득",
-            worstSub = "천장 도달",
-        )
-    }
-    val avgSingle = (banner.hardPity * 0.83).roundToInt()
-    val bestSingle =
-        if (guaranteed) maxOf(1, avgSingle - pity) else maxOf(1, (avgSingle * 0.6).roundToInt() - pity)
-    val worstSingle =
-        if (guaranteed) banner.hardPity - pity else (banner.hardPity - pity) + banner.hardPity
-    return GachaScenario(
-        bestPulls = maxOf(1, bestSingle) * qty,
-        worstPulls = maxOf(1, worstSingle) * qty,
-        bestSub = if (guaranteed) "보장 + 빠른 획득" else "50/50 성공",
-        worstSub = "50/50 실패 → 천장",
-    )
-}
+// 최선/최악 시나리오(`computeScenario`)는 `hardPity * 0.83`·`* 0.6` 같은 상수 곱셈이라
+// 바로 옆의 정확한 확률 모델(`rateAt`)과 따로 놀았고, "최선 45회"에 확률이 붙지 않아
+// 그 수가 얼마나 그럴듯한지 알 수 없었다.
+// → `GachaCalcContext.kt` 의 누적분포 기반 분위수(`pullsAtQuantile`)로 대체했다.

@@ -1,160 +1,390 @@
 import SwiftUI
 import Shared
 
-// 계산기 2.0 — B 대시보드 레이아웃. 탭 제거, 입력→확률→재화→시나리오 위젯 세로 나열.
-// 게임/배너 칩은 커스텀 글래스 글로우 칩(S4).
+// 계산기 — "이번 픽업 뽑을 수 있나"에 답하는 화면(B안: 픽업 먼저).
+//
+// 예전 계산기는 앱이 이미 아는 천장·확정을 다시 물었다(이 뷰는 인자조차 받지 않았다).
+// 지금은 앱 기록으로 채운 채 시작하고, 상단은 계산 입력이 아니라 진행 중 픽업과 판정이 차지한다.
+//
+// ⚠️ 위젯은 반드시 **독립 View 구조체**로 유지한다. computed `some View` 로 부모 body 에 인라인하면
+//    전부 하나의 초대형 제네릭 타입이 되어, 상태가 바뀔 때마다 Swift 제네릭 메타데이터를
+//    재인스턴스화하며 버벅인다(계산기 2.0 때 Time Profiler 로 확인한 원인).
 struct GachaCalculatorSection: View {
-    @Environment(\.glgAccent) private var accent
+    var store: SpendingStore
+    /// 가챠 효율 리포트(대시보드) — 가져온 기록의 실제 천장 분포.
+    var onOpenDashboard: () -> Void
+
     @State private var gameKey = "genshin"
     @State private var bannerType = "character"
-    @State private var currency = ""
-    @State private var pityStr = ""
-    @State private var guaranteed = false
+    /// 사용자가 고친 값(nil = 앱 기록 그대로). 덮어써도 앱 기록은 바뀌지 않는다.
+    @State private var pityEdit: String? = nil
+    @State private var guaranteedEdit: Bool? = nil
+    @State private var heldInput = ""
     @State private var qty = 1
+    @State private var includePass = false
+    @State private var editing = false
 
     private var game: GachaGameRate { GachaRateData.shared.byKey(key: gameKey) ?? GachaRateData.shared.games[0] }
-    private var banner: GachaBannerRate { game.banner(type: bannerType) ?? game.character ?? game.standard ?? game.games_firstBanner }
+    private var banner: GachaBannerRate { game.banner(type: bannerType) ?? game.character ?? game.standard ?? game.calc_firstBanner }
 
-    // 파생 계산 묶음 — 계산 자체는 commonMain(GachaCalc.kt)이 단일 소스. Swift 는 표시용으로만 감싼다.
-    // (예전엔 같은 식이 Kotlin·Swift 두 벌로 복붙돼 한쪽 튜닝이 반대편에 반영되지 않았다.)
-    private var calc: CalcResult {
-        let cur = Int(currency) ?? 0
-        let c = GachaCalcKt.computeCurrencyCalc(currency: Int32(cur), pityRaw: Int32(Int(pityStr) ?? 0), banner: banner)
-        let p = GachaRateData.shared.pickupProb(n: c.possiblePulls, startPity: c.pity, b: banner, guaranteed: guaranteed)
-        return CalcResult(cur: cur, pity: Int(c.pity), possible: Int(c.possiblePulls), pullsToHard: Int(c.pullsToHard),
-                          currencyToHard: Int(c.currencyToHard), additionalNeeded: Int(c.additionalNeeded),
-                          prob: Int((p * 100).rounded()), estCost: Int64(c.estCost))
+    private var prefill: CalcPrefill {
+        GachaCalcContextKt.calcPrefill(
+            gameKey: gameKey,
+            pity: store.pity,
+            held: store.savingsHeld.mapValues { KotlinInt(value: Int32($0)) }
+        )
+    }
+    private var effPity: Int { pityEdit.flatMap { Int($0) } ?? Int(prefill.pity) }
+    private var effGuaranteed: Bool { guaranteedEdit ?? prefill.guaranteed }
+    private var heldCurrency: Int { Int(heldInput) ?? 0 }
+
+    /// 진행 중 픽업 — 종료 미정이면 남은 일수를 모르니 무료 수급을 셀 수 없어 제외한다.
+    private var pickup: GachaBanner? {
+        let now = nowMs()
+        return store.activeBanners.first {
+            !$0.isEndUnknown && $0.type == bannerType && GameData.shared.byNameOrNull(name: $0.game)?.key == gameKey
+        }.flatMap { $0.dDay(nowMillis: now) >= 0 ? $0 : nil }
+    }
+    private var daysLeft: Int { max(0, pickup.map { Int($0.dDay(nowMillis: nowMs())) } ?? 0) }
+
+    private var free: FreeIncome? {
+        guard daysLeft > 0 else { return nil }
+        return GachaCalcContextKt.freeIncome(game: game, banner: banner, days: Int32(daysLeft), includePass: includePass)
+    }
+    private var outcome: CalcOutcome {
+        GachaCalcContextKt.calcOutcome(
+            banner: banner, heldCurrency: Int32(heldCurrency), freeCurrency: free?.total ?? 0,
+            pity: Int32(effPity), guaranteed: effGuaranteed, qty: Int32(qty)
+        )
+    }
+    private var quantiles: PullQuantiles {
+        GachaCalcContextKt.pullQuantiles(banner: banner, startPity: Int32(effPity), guaranteed: effGuaranteed)
     }
 
     var body: some View {
         stack
-            .onChange(of: gameKey) { if game.banner(type: bannerType) == nil { bannerType = "character" } }
+            .onChange(of: gameKey) {
+                if game.banner(type: bannerType) == nil { bannerType = "character" }
+                resetForGame()
+            }
+            .onAppear { resetForGame() }
     }
 
-    // 거대 단일 body 가 게임 탭마다 제네릭 메타데이터를 재해석하던 문제 → 위젯을 독립 View 구조체로 분리해
-    // 타입을 잘게 쪼개고(메타데이터 특수화·캐시), 변경된 서브뷰만 갱신되게 함.
+    private func resetForGame() {
+        pityEdit = nil
+        guaranteedEdit = nil
+        includePass = false
+        let held = store.savingsHeld[gameKey] ?? 0
+        heldInput = held > 0 ? "\(held)" : ""
+    }
+
     private var stack: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // 페이지 제목은 네비게이션 바(sectionPage)에서 표시 — 인라인 중복 제거
-            // 컨텍스트: 게임 + 배너 (커스텀 글래스 글로우 칩 — 경량 솔리드, 실시간 블러 없음)
+            // 게임 칩 — 좌우 여백 없음. 예전 글로우 칩의 그림자 잘림을 막던 8pt 가
+            // 글로우가 사라진 뒤로는 아래 카드들보다 밀리는 어긋남만 남겼다.
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
                     ForEach(GachaRateData.shared.games, id: \.key) { g in
-                        GlowChip(label: g.shortName, glow: Color(argb64: g.color), selected: g.key == gameKey, enabled: true) { gameKey = g.key }
+                        GLGChip(label: g.shortName, selected: g.key == gameKey, color: Color(argb64: g.color)) { gameKey = g.key }
                     }
                 }
-                .padding(8) // 글로우 그림자가 ScrollView 상하·좌우 경계에 잘리지 않도록 여백 확보
+                .padding(.vertical, 8)
             }
-            HStack(spacing: 8) {
-                ForEach(Array(GachaRateData.shared.bannerTypes.enumerated()), id: \.offset) { _, pair in
-                    let key = (pair.first as? String) ?? ""
-                    let label = (pair.second as? String) ?? ""
-                    GlowChip(label: label, glow: accent.primary, selected: key == bannerType, enabled: game.banner(type: key) != nil) { bannerType = key }
-                }
-            }
-            .padding(.horizontal, 8) // 게임 칩 행(ScrollView 내부 padding 8)과 좌측 시작점 정렬
-            .padding(.vertical, 6)
 
-            InputCard(banner: banner, currency: $currency, pityStr: $pityStr, guaranteed: $guaranteed, qty: $qty).padding(.top, 13)
-            ResultsCard(c: calc, banner: banner, qty: qty, guaranteed: guaranteed).padding(.top, 13)
+            VerdictHero(
+                pickup: pickup,
+                gameColor: Color(argb64: game.color),
+                bannerLabel: bannerLabel,
+                outcome: heldCurrency > 0 ? outcome : nil,
+                currency: banner.currency
+            )
+
+            SummaryRow(
+                pulls: banner.perPull > 0 ? heldCurrency / Int(banner.perPull) : 0,
+                hasHeld: heldCurrency > 0,
+                pity: effPity,
+                hasPityRecord: prefill.hasPityRecord || pityEdit != nil,
+                guaranteed: effGuaranteed,
+                expanded: editing
+            ) { withAnimation(.easeInOut(duration: 0.2)) { editing.toggle() } }
+                .padding(.top, 12)
+
+            if editing {
+                InputCard(
+                    banner: banner, prefill: prefill, currency: banner.currency,
+                    heldInput: $heldInput, pityEdit: $pityEdit, guaranteedEdit: $guaranteedEdit, qty: $qty,
+                    effGuaranteed: effGuaranteed,
+                    onHeldCommit: { store.setHeldCurrency(gameKey: gameKey, value: Int(heldInput) ?? 0) },
+                    onOpenSavings: { store.requestSavingsPlanner() }
+                )
+                .padding(.top, 10)
+            }
+
+            if let free {
+                FreeIncomeCard(free: free, currency: banner.currency, includePass: $includePass).padding(.top, 12)
+            }
+
+            QuantileCard(q: quantiles, banner: banner).padding(.top, 12)
+
+            HStack(spacing: 8) {
+                ActionButton(text: "저축 계획", primary: true) { store.requestSavingsPlanner() }
+                ActionButton(text: "가챠 기록", primary: false, action: onOpenDashboard)
+            }
+            .padding(.top, 14)
+            .padding(.bottom, 8)
+        }
+    }
+
+    private var bannerLabel: String {
+        GachaRateData.shared.bannerTypes
+            .compactMap { $0 as? KotlinPair<NSString, NSString> }
+            .first { ($0.first as String?) == bannerType }
+            .flatMap { $0.second as String? } ?? "캐릭터"
+    }
+}
+
+private extension GachaGameRate {
+    /// character/standard 모두 nil 인 비정상 케이스 폴백(컴파일 안전용).
+    var calc_firstBanner: GachaBannerRate { character ?? standard ?? weapon! }
+}
+
+// ── 픽업 히어로 ──
+private struct VerdictHero: View {
+    let pickup: GachaBanner?
+    let gameColor: Color
+    let bannerLabel: String
+    let outcome: CalcOutcome?
+    let currency: String
+
+    var body: some View {
+        let color = verdictColor
+        VStack(alignment: .leading, spacing: 0) {
+            if let pickup {
+                HStack(spacing: 9) {
+                    Circle().fill(gameColor).frame(width: 8, height: 8)
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(pickup.name).font(.pretendard(size: 14, weight: .bold))
+                        Text(pickup.version.isEmpty ? "\(bannerLabel) 픽업" : "\(pickup.version) · \(bannerLabel) 픽업")
+                            .font(.pretendard(size: 11)).foregroundStyle(GLGColor.textSecondary)
+                    }
+                    Spacer(minLength: 6)
+                    Text(pickup.dDayLabel(nowMillis: nowMs()))
+                        .font(.pretendard(size: 11, weight: .bold)).foregroundStyle(gameColor)
+                        .padding(.horizontal, 9).padding(.vertical, 4)
+                        .background(gameColor.opacity(0.10), in: RoundedRectangle(cornerRadius: 8))
+                }
+                .padding(.bottom, 13)
+            }
+            if let outcome {
+                HStack(spacing: 9) {
+                    Text(verdictIcon).font(.system(size: 16))
+                    Text(outcome.headline).font(.pretendard(size: 19, weight: .black)).foregroundStyle(color)
+                }
+                Text(detailLine(outcome))
+                    .font(.pretendard(size: 13, weight: .semibold)).padding(.top, 9)
+                ProgressView(value: Double(outcome.progressPercent) / 100).tint(color).padding(.top, 11)
+                HStack {
+                    Text("\(num(Int(outcome.availableCurrency))) / \(num(Int(outcome.neededCurrency))) \(currency)")
+                    Spacer()
+                    Text("\(outcome.progressPercent)%")
+                }
+                .font(.pretendard(size: 10.5)).foregroundStyle(GLGColor.textSecondary).padding(.top, 7)
+                if outcome.shortfallWon > 0 {
+                    Text("충전 시 약 \(won(outcome.shortfallWon))")
+                        .font(.pretendard(size: 11)).foregroundStyle(GLGColor.textSecondary).padding(.top, 6)
+                }
+            } else {
+                Text("보유 \(currency)을 넣으면\n뽑을 수 있는지 알려드려요")
+                    .font(.pretendard(size: 15, weight: .bold)).lineSpacing(3)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 16).padding(.vertical, 18)
+        .background(color.opacity(0.07), in: RoundedRectangle(cornerRadius: 24))
+    }
+
+    private func detailLine(_ o: CalcOutcome) -> String {
+        o.shortfallCurrency > 0
+            ? "\(num(Int(o.shortfallCurrency))) \(currency) 부족 · \(o.shortfallPulls)뽑치"
+            : "확정까지 \(o.neededPulls)뽑 · 여유 \(num(Int(o.availableCurrency - o.neededCurrency))) \(currency)"
+    }
+    private var verdictColor: Color {
+        switch outcome?.verdict {
+        case .secured: return okGreen
+        case .short: return badRed
+        default: return warnAmber
+        }
+    }
+    private var verdictIcon: String {
+        switch outcome?.verdict {
+        case .secured: return "🟢"
+        case .short: return "🔴"
+        default: return "🟡"
         }
     }
 }
 
-// 파생 계산 결과 — 서브뷰에 값으로 전달 (부모 body 제네릭 타입 축소용 파일 스코프 분리)
-private struct CalcResult { let cur, pity, possible, pullsToHard, currencyToHard, additionalNeeded, prob: Int; let estCost: Int64 }
+// ── 접힌 입력 요약 ──
+private struct SummaryRow: View {
+    let pulls: Int
+    let hasHeld: Bool
+    let pity: Int
+    let hasPityRecord: Bool
+    let guaranteed: Bool
+    let expanded: Bool
+    let onToggle: () -> Void
 
-// S4 커스텀 글래스 글로우 칩 — 반투명 고스트, 선택 시 컬러 보더+글로우. (실시간 블러 없는 경량 솔리드)
-private struct GlowChip: View {
-    let label: String
-    let glow: Color
-    let selected: Bool
-    let enabled: Bool
-    let action: () -> Void
     var body: some View {
-        GLGChip(label: label, selected: selected, enabled: enabled, color: glow, action: action)
+        Button(action: onToggle) {
+            HStack {
+                Text(label).font(.pretendard(size: 12.5, weight: .semibold)).foregroundStyle(GLGColor.textPrimary)
+                Spacer()
+                Text(expanded ? "접기 ⌃" : "고치기 ›").font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary)
+            }
+            .padding(.horizontal, 14).padding(.vertical, 13)
+            .background(Color.white, in: RoundedRectangle(cornerRadius: 16))
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var label: String {
+        var s = hasHeld ? "\(pulls)뽑 보유" : "보유 재화 미입력"
+        s += " · 천장 " + (hasPityRecord ? "\(pity)" : "미기록")
+        if guaranteed { s += " · 확정" }
+        return s
     }
 }
 
 // ── 입력 카드 ──
 private struct InputCard: View {
     let banner: GachaBannerRate
-    @Binding var currency: String
-    @Binding var pityStr: String
-    @Binding var guaranteed: Bool
+    let prefill: CalcPrefill
+    let currency: String
+    @Binding var heldInput: String
+    @Binding var pityEdit: String?
+    @Binding var guaranteedEdit: Bool?
     @Binding var qty: Int
+    let effGuaranteed: Bool
+    let onHeldCommit: () -> Void
+    let onOpenSavings: () -> Void
+
+    @Environment(\.glgAccent) private var accent
+
+    private var edited: Bool { pityEdit != nil || guaranteedEdit != nil }
+    private var pityText: Binding<String> {
+        Binding(
+            get: { pityEdit ?? (prefill.hasPityRecord ? "\(prefill.pity)" : "") },
+            set: { pityEdit = $0.filter(\.isNumber) }
+        )
+    }
+
     var body: some View {
         GLGCard(cornerRadius: 24, padding: 16) {
             VStack(alignment: .leading, spacing: 0) {
                 HStack(alignment: .top, spacing: 8) {
-                    NumField(label: "보유 \(banner.currency)", placeholder: "0", text: $currency).frame(maxWidth: .infinity)
-                    NumField(label: "현재 천장", placeholder: "0", text: $pityStr).frame(maxWidth: .infinity)
+                    NumField(label: "보유 \(currency)", placeholder: "0", text: $heldInput, badge: false)
+                        .frame(maxWidth: .infinity)
+                        .onChange(of: heldInput) { onHeldCommit() }
+                    NumField(label: "현재 천장", placeholder: "0", text: pityText,
+                             badge: pityEdit == nil && prefill.hasPityRecord)
+                        .frame(maxWidth: .infinity)
+                }
+                if !prefill.hasPityRecord && pityEdit == nil {
+                    // 기록이 없는데 0 을 채우면 "천장 0"이라는 틀린 사실을 앱이 주장하게 된다.
+                    HintRow(text: "천장을 기록하면 자동으로 채워요", action: "천장 입력", onTap: onOpenSavings)
                 }
                 if banner.has5050 && !banner.no5050 {
-                    CalcToggleRow(label: "확정(픽업 보장) 보유", isOn: $guaranteed).padding(.top, 10)
+                    HStack {
+                        Text("확정(픽업 보장) 보유").font(.pretendard(size: 13))
+                        if guaranteedEdit == nil && prefill.hasPityRecord { RecordBadge() }
+                        Spacer()
+                        Toggle("", isOn: Binding(get: { effGuaranteed }, set: { guaranteedEdit = $0 }))
+                            .labelsHidden().tint(accent.primary)
+                    }
+                    .padding(.top, 10)
                 }
-                QtyRow(qty: $qty).padding(.top, 8)
+                QtyRow(qty: $qty).padding(.top, 10)
+                if edited {
+                    HintRow(text: "고친 값은 이 계산에만 반영돼요", action: "기록값으로") {
+                        pityEdit = nil; guaranteedEdit = nil
+                    }
+                }
             }
         }
     }
 }
 
-// ── 결과 카드 (확률·재화·시나리오 통합) ──
-private struct ResultsCard: View {
-    let c: CalcResult
-    let banner: GachaBannerRate
-    let qty: Int
-    let guaranteed: Bool
+// ── 마감까지 모을 수 있는 양 ──
+private struct FreeIncomeCard: View {
+    let free: FreeIncome
+    let currency: String
+    @Binding var includePass: Bool
+    @Environment(\.glgAccent) private var accent
 
     var body: some View {
-        let probColor = c.prob >= 70 ? okGreen : (c.prob >= 40 ? warnAmber : badRed)
-        let scn = scenario()
-        let perPull = Int(banner.perPull)
-        return GLGCard(cornerRadius: 24, padding: 16) {
+        GLGCard(cornerRadius: 24, padding: 16) {
             VStack(alignment: .leading, spacing: 0) {
-                head("🎯 확보 확률")
-                if c.cur > 0 {
-                    (Text("보유분 \(c.possible)회로 ").foregroundStyle(GLGColor.textPrimary)
-                        + Text("\(c.prob)%").bold().foregroundStyle(probColor)
-                        + Text(" 확보 가능").foregroundStyle(GLGColor.textPrimary))
-                        .font(.pretendard(size: 14, weight: .semibold)).padding(.top, 4)
-                    ProgressView(value: Double(c.prob) / 100).tint(probColor).padding(.top, 11)
-                } else {
-                    Text("재화를 입력하면 확보 확률을 계산해요").font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary).padding(.top, 4)
+                Text("마감까지 모을 수 있는 양")
+                    .font(.pretendard(size: 13, weight: .bold)).padding(.bottom, 10)
+                ForEach(Array(free.lines.enumerated()), id: \.offset) { _, line in
+                    let on = includePass || !line.optional
+                    HStack {
+                        Text(line.label).font(.pretendard(size: 12))
+                            .foregroundStyle(GLGColor.textSecondary.opacity(on ? 1 : 0.45))
+                        if line.optional {
+                            Toggle("", isOn: $includePass).labelsHidden().tint(accent.primary).scaleEffect(0.78)
+                        }
+                        Spacer()
+                        Text(num(Int(line.amount))).font(.pretendard(size: 12, weight: .semibold))
+                            .foregroundStyle(GLGColor.textPrimary.opacity(on ? 1 : 0.35))
+                    }
+                    .padding(.vertical, 4)
                 }
-                divider
-                head("💎 필요 재화")
-                HStack(spacing: 8) {
-                    ResultBox(label: "하드 천장까지", value: "\(c.pullsToHard)회", sub: "\(num(c.currencyToHard)) \(banner.currency)")
-                    ResultBox(label: "부족분", value: c.additionalNeeded > 0 ? num(c.additionalNeeded) : "0",
-                              sub: c.additionalNeeded > 0 ? "\(won(c.estCost)) 충전" : "충전 불필요")
+                Divider().overlay(Color.black.opacity(0.06)).padding(.vertical, 12)
+                HStack {
+                    Text("합계").font(.pretendard(size: 13, weight: .bold))
+                    Spacer()
+                    Text("\(num(Int(free.total))) \(currency) · \(free.pullsLabel)")
+                        .font(.pretendard(size: 13, weight: .black)).foregroundStyle(accent.primary)
                 }
-                divider
-                head("📊 시나리오 (\(qty)개 기준)")
-                HStack(spacing: 8) {
-                    ScenarioBox(title: "최선", sub: scn.bestSub, pulls: "\(scn.bestPulls)회", currency: "≈ \(num(scn.bestPulls * perPull)) \(banner.currency)", color: okGreen)
-                    ScenarioBox(title: "최악", sub: scn.worstSub, pulls: "\(scn.worstPulls)회", currency: "≈ \(num(scn.worstPulls * perPull)) \(banner.currency)", color: badRed)
-                }
+                Text("매일 빠짐없이 받는 기준이에요.")
+                    .font(.pretendard(size: 10.5)).foregroundStyle(GLGColor.textSecondary).padding(.top, 8)
             }
         }
     }
-
-    private func head(_ t: String) -> some View {
-        Text(t).font(.pretendard(size: 13, weight: .bold)).frame(maxWidth: .infinity, alignment: .leading)
-    }
-    private var divider: some View {
-        Divider().overlay(Color.black.opacity(0.06)).padding(.vertical, 14)
-    }
-    // 시나리오 계산도 commonMain(GachaCalc.kt) 단일 소스 — 천장·50/50 상수가 여기서 갈라지지 않도록.
-    private func scenario() -> (bestPulls: Int, worstPulls: Int, bestSub: String, worstSub: String) {
-        let s = GachaCalcKt.computeScenario(banner: banner, pity: Int32(c.pity), guaranteed: guaranteed, qty: Int32(qty))
-        return (Int(s.bestPulls), Int(s.worstPulls), s.bestSub, s.worstSub)
-    }
 }
 
-private extension GachaGameRate {
-    /// character/standard 모두 nil 인 비정상 케이스 폴백(컴파일 안전용).
-    var games_firstBanner: GachaBannerRate { character ?? standard ?? weapon! }
+// ── 몇 뽑이면 되나 ──
+private struct QuantileCard: View {
+    let q: PullQuantiles
+    let banner: GachaBannerRate
+
+    var body: some View {
+        GLGCard(cornerRadius: 24, padding: 16) {
+            VStack(alignment: .leading, spacing: 0) {
+                Text("몇 뽑이면 되나").font(.pretendard(size: 13, weight: .bold)).padding(.bottom, 10)
+                QuantileRow(label: "절반은 이 안에 끝나요", pulls: Int(q.p50), perPull: Int(banner.perPull), color: okGreen)
+                divider
+                QuantileRow(label: "열에 아홉은 이 안에", pulls: Int(q.p90), perPull: Int(banner.perPull), color: warnAmber)
+                divider
+                QuantileRow(label: worstLabel, pulls: Int(q.worst), perPull: Int(banner.perPull), color: badRed)
+            }
+        }
+    }
+    private var worstLabel: String { banner.has5050 && !banner.no5050 ? "최악 (천장 두 번)" : "최악 (천장 도달)" }
+    private var divider: some View { Divider().overlay(Color.black.opacity(0.06)).padding(.vertical, 12) }
+}
+
+private struct QuantileRow: View {
+    let label: String; let pulls: Int; let perPull: Int; let color: Color
+    var body: some View {
+        HStack(spacing: 8) {
+            Text(label).font(.pretendard(size: 11.5)).foregroundStyle(GLGColor.textSecondary)
+            Spacer(minLength: 4)
+            Text("\(pulls)뽑").font(.pretendard(size: 16, weight: .black)).foregroundStyle(color)
+            Text(num(pulls * perPull)).font(.pretendard(size: 10.5)).foregroundStyle(GLGColor.textSecondary)
+        }
+    }
 }
 
 // 색
@@ -164,21 +394,47 @@ private let badRed = Color(hex: 0xFFDC2626)
 
 // ── 공용 작은 컴포넌트 ──
 private struct NumField: View {
-    let label: String; let placeholder: String; @Binding var text: String
+    let label: String; let placeholder: String; @Binding var text: String; let badge: Bool
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text(label).font(.pretendard(size: 11, weight: .semibold)).foregroundStyle(GLGColor.textSecondary)
+            HStack(spacing: 4) {
+                Text(label).font(.pretendard(size: 11, weight: .semibold)).foregroundStyle(GLGColor.textSecondary)
+                if badge { RecordBadge() }
+            }
             TextField(placeholder, text: $text).keyboardType(.numberPad).textFieldStyle(.plain).glgPillField()
-                .onChange(of: text) { _, newValue in text = newValue.filter(\.isNumber) }
+                .onChange(of: text) { _, newValue in
+                    let digits = newValue.filter(\.isNumber)
+                    if digits != newValue { text = digits }
+                }
         }
     }
 }
 
-private struct CalcToggleRow: View {
-    let label: String; @Binding var isOn: Bool
+/// 값의 출처가 앱 기록임을 알리는 배지 — 사용자가 고치면 사라진다.
+private struct RecordBadge: View {
     @Environment(\.glgAccent) private var accent
     var body: some View {
-        Toggle(isOn: $isOn) { Text(label).font(.pretendard(size: 13)) }.tint(accent.primary)
+        Text("🔗 앱 기록")
+            .font(.pretendard(size: 9.5, weight: .bold)).foregroundStyle(accent.primary)
+            .padding(.horizontal, 6).padding(.vertical, 2)
+            .background(accent.primary.opacity(0.13), in: RoundedRectangle(cornerRadius: 6))
+    }
+}
+
+private struct HintRow: View {
+    let text: String; let action: String; let onTap: () -> Void
+    @Environment(\.glgAccent) private var accent
+    var body: some View {
+        HStack {
+            Text(text).font(.pretendard(size: 10.5)).foregroundStyle(GLGColor.textSecondary)
+            Spacer()
+            Button(action: onTap) {
+                Text(action).font(.pretendard(size: 10.5, weight: .bold)).foregroundStyle(accent.primary)
+                    .padding(.horizontal, 10).padding(.vertical, 5)
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.top, 11)
     }
 }
 
@@ -191,8 +447,10 @@ private struct QtyRow: View {
             HStack(spacing: 6) {
                 ForEach(1...3, id: \.self) { q in
                     Button { qty = q } label: {
-                        Text("\(q)").font(.pretendard(size: 13, weight: .bold)).foregroundStyle(q == qty ? .white : GLGColor.textSecondary)
-                            .frame(width: 34, height: 34).background(q == qty ? accent.primary : Color(hex: 0xFFF2F2F6), in: Circle())
+                        Text("\(q)").font(.pretendard(size: 13, weight: .bold))
+                            .foregroundStyle(q == qty ? .white : GLGColor.textSecondary)
+                            .frame(width: 34, height: 34)
+                            .background(q == qty ? accent.primary : Color(hex: 0xFFF2F2F6), in: Circle())
                     }.buttonStyle(.plain)
                 }
             }
@@ -200,29 +458,16 @@ private struct QtyRow: View {
     }
 }
 
-private struct ResultBox: View {
-    let label: String; let value: String; let sub: String
+private struct ActionButton: View {
+    let text: String; let primary: Bool; let action: () -> Void
+    @Environment(\.glgAccent) private var accent
     var body: some View {
-        VStack(alignment: .leading, spacing: 3) {
-            Text(label).font(.pretendard(size: 10, weight: .semibold)).foregroundStyle(Color.black.opacity(0.35))
-            Text(value).font(.pretendard(size: 17, weight: .bold)).lineLimit(1).minimumScaleFactor(0.6)
-            if !sub.isEmpty { Text(sub).font(.pretendard(size: 10)).foregroundStyle(Color.black.opacity(0.35)) }
+        Button(action: action) {
+            Text(text).font(.pretendard(size: 12.5, weight: .bold))
+                .foregroundStyle(primary ? .white : GLGColor.textPrimary)
+                .frame(maxWidth: .infinity).padding(.vertical, 14)
+                .background(primary ? accent.primary : Color.white, in: RoundedRectangle(cornerRadius: 16))
         }
-        .frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 12).padding(.vertical, 11)
-        .background(Color.black.opacity(0.03), in: RoundedRectangle(cornerRadius: 12))
-    }
-}
-
-private struct ScenarioBox: View {
-    let title: String; let sub: String; let pulls: String; let currency: String; let color: Color
-    var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Text(title).font(.pretendard(size: 11, weight: .bold)).foregroundStyle(color)
-            Text(sub).font(.pretendard(size: 10)).foregroundStyle(GLGColor.textSecondary).lineLimit(1)
-            Text(pulls).font(.pretendard(size: 16, weight: .bold)).padding(.top, 6)
-            Text(currency).font(.pretendard(size: 10)).foregroundStyle(GLGColor.textSecondary).lineLimit(1)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 12).padding(.vertical, 11)
-        .background(color.opacity(0.08), in: RoundedRectangle(cornerRadius: 12))
+        .buttonStyle(.plain)
     }
 }
