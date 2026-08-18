@@ -39,30 +39,91 @@ struct NotificationSettingsView: View {
     }
 
     // ── 알림 — 항목별 토글 ──
+    //
+    // 일곱 개를 한 카드에 늘어놓던 것을 **성격별 세 묶음**으로 갈랐다(돈·플레이·소식).
+    // 켜고 끄는 판단 기준이 서로 달라서, 한 덩어리로는 훑어지지 않았다.
+    // 항목 정의(제목·설명·묶음)는 공유 소스 NotificationCatalog 하나뿐이다.
+
+    /// 지금 켜져 있는 항목.
+    private var notifyState: [NotifyKey: Bool] {
+        [.budget: store.notifyBudget,
+         .subscription: store.notifySubscription,
+         .resin: store.notifyResin,
+         .attendance: store.notifyAttendance,
+         .pickup: store.notifyPickup,
+         .combat: store.notifyCombat,
+         .news: store.notifyNews]
+    }
+    private var anyNotifyOn: Bool { notifyState.values.contains(true) }
+
+    private func notifyBinding(_ key: NotifyKey) -> Binding<Bool> {
+        switch key {
+        case .budget: return notifyBind(\.notifyBudget, store.setNotifyBudget)
+        case .subscription: return notifyBind(\.notifySubscription, store.setNotifySubscription)
+        case .resin: return notifyBind(\.notifyResin, store.setNotifyResin)
+        case .attendance: return notifyBind(\.notifyAttendance, store.setNotifyAttendance)
+        case .pickup: return notifyBind(\.notifyPickup, store.setNotifyPickup)
+        case .combat: return notifyBind(\.notifyCombat, store.setNotifyCombat)
+        case .news: return notifyBind(\.notifyNews, store.setNotifyNews)
+        }
+    }
+
+    /// 아이콘만 플랫폼이 정한다(SF Symbols ↔ Material 은 이름 체계가 달라 공유할 수 없다).
+    private func notifyIcon(_ key: NotifyKey) -> String {
+        switch key {
+        case .budget: return "banknote"
+        case .subscription: return "arrow.triangle.2.circlepath"
+        case .resin: return "bolt.fill"
+        case .attendance: return "calendar.badge.checkmark"
+        case .pickup: return "calendar.badge.clock"
+        case .combat: return "medal"
+        case .news: return "megaphone.fill"
+        }
+    }
+
+    @ViewBuilder
     private var notificationSection: some View {
-        sectionCard("알림") {
-            toggleRow("banknote", "예산 알림", "이번 달 예산 90%·초과 시 알려줘요",
-                      notifyBind(\.notifyBudget, store.setNotifyBudget))
-            Divider()
-            toggleRow("calendar.badge.checkmark", "출석 리마인더", "저녁까지 미출석이면 알려줘요",
-                      notifyBind(\.notifyAttendance, store.setNotifyAttendance))
-            Divider()
-            toggleRow("bolt.fill", "행동력 가득참 알림", "레진·개척력·배터리가 가득 차면 알려줘요",
-                      notifyBind(\.notifyResin, store.setNotifyResin))
-            Divider()
-            toggleRow("calendar.badge.clock", "픽업 마감 알림", "진행 중인 픽업이 끝나기 전에 알려줘요",
-                      notifyBind(\.notifyPickup, store.setNotifyPickup))
-            Divider()
-            toggleRow("medal", "전투 시즌 마감 알림", "나선 비경·혼돈의 기억 등을 못 깬 채 시즌이 끝나기 전에 알려줘요",
-                      notifyBind(\.notifyCombat, store.setNotifyCombat))
-            Divider()
-            toggleRow("arrow.triangle.2.circlepath", "정기결제 갱신", "구독 결제 하루 전(D-1)에 알려줘요",
-                      notifyBind(\.notifySubscription, store.setNotifySubscription))
-            Divider()
-            toggleRow("megaphone.fill", "새 공지 알림", "게임에 새 공지가 올라오면 알려줘요",
-                      notifyBind(\.notifyNews, store.setNotifyNews))
-            if notifBlocked && (store.notifyBudget || store.notifyAttendance || store.notifyResin || store.notifyPickup || store.notifyCombat || store.notifySubscription || store.notifyNews) {
-                Divider()
+        // 헤더에 지금 상태를 붙인다 — 목록을 훑지 않고도 몇 개가 살아 있는지 보인다.
+        HStack {
+            Text("알림").font(.pretendard(size: 13, weight: .semibold))
+                .foregroundStyle(GLGColor.textSecondary)
+            Spacer()
+            Text(NotificationCatalog.shared.enabledLabel(onCount: Int32(notifyState.values.filter { $0 }.count)))
+                .font(.pretendard(size: 11)).foregroundStyle(GLGColor.textSecondary)
+        }
+        .padding(.horizontal, 4)
+
+        ForEach(Array(NotificationCatalog.shared.groups.enumerated()), id: \.offset) { _, group in
+            VStack(alignment: .leading, spacing: 7) {
+                HStack(alignment: .bottom, spacing: 6) {
+                    Text(group.title).font(.pretendard(size: 12, weight: .bold))
+                        .foregroundStyle(GLGColor.textPrimary)
+                    Text(group.caption).font(.pretendard(size: 10.5))
+                        .foregroundStyle(GLGColor.textSecondary)
+                }
+                .padding(.leading, 4)
+
+                let entries = NotificationCatalog.shared.itemsIn(group: group)
+                VStack(spacing: 0) {
+                    ForEach(Array(entries.enumerated()), id: \.offset) { i, entry in
+                        if i > 0 { Divider() }
+                        toggleRow(notifyIcon(entry.key), entry.title, entry.desc, notifyBinding(entry.key))
+                    }
+                }
+                .padding(.horizontal, 16)
+                .glgGlass(in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+            }
+        }
+
+        permissionBanner
+    }
+
+    /// 토글은 켰는데 시스템 알림 권한이 꺼져 있을 때만 뜨는 안내.
+    @ViewBuilder
+    private var permissionBanner: some View {
+        // 묶음 카드 밖으로 나왔으므로 자기 면을 갖는다 — 배경 위에 버튼만 떠 있으면 안내로 안 읽힌다.
+        Group {
+            if notifBlocked && anyNotifyOn {
                 // 아직 프롬프트를 띄울 수 있으면(.notDetermined) 시스템 설정으로 보내지 말고 여기서 바로 요청한다.
                 Button {
                     if canPromptNotifPerm {
@@ -87,9 +148,11 @@ struct NotificationSettingsView: View {
                             .font(.pretendard(size: 13, weight: .semibold))
                             .foregroundStyle(accent.primary)
                     }
-                    .contentShape(Rectangle()).padding(.vertical, 10)
+                    .contentShape(Rectangle()).padding(.vertical, 12)
                 }
                 .buttonStyle(.plain)
+                .padding(.horizontal, 16)
+                .glgGlass(in: RoundedRectangle(cornerRadius: 22, style: .continuous))
             }
         }
         .onAppear(perform: refreshNotifBlocked)

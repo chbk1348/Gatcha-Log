@@ -61,6 +61,8 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.gatcha.log.ui.game.HoyolabLinkScreen
 import com.gatcha.log.data.AppSettings
+import com.gatcha.log.data.NotificationCatalog
+import com.gatcha.log.data.NotifyKey
 import com.gatcha.log.data.SpendingViewModel
 import com.gatcha.log.util.SafIO
 import kotlinx.coroutines.launch
@@ -129,9 +131,13 @@ fun SettingsScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
     }
     val showUplog = remember { mutableStateOf(false) }
     val showCredits = remember { mutableStateOf(false) }
+    // 개발자 메뉴 — 디버그 빌드에서만 진입점이 그려진다.
+    val showDev = remember { mutableStateOf(false) }
 
-    // 설정 하위 페이지 스택: 0=메인, 1=알림 설정, 2=데이터 관리, 3=HoYoLAB 연동, 4=업데이트 로그. 깊어지면 우→좌 슬라이드 push/pop.
+    // 설정 하위 페이지 스택: 0=메인, 1=알림 설정, 2=데이터 관리, 3=HoYoLAB 연동, 4=업데이트 로그, 5=개발자 메뉴.
+    // 깊어지면 우→좌 슬라이드 push/pop.
     val subPage = when {
+        showDev.value -> 5
         showUplog.value -> 4
         showHoyolab.value -> 3
         showData.value -> 2
@@ -142,6 +148,7 @@ fun SettingsScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
     // 자체 핸들러가 없으면 MyPageScreen 의 BackHandler 로 새어 마이페이지로 튕긴다.
     BackHandler(enabled = subPage > 0) {
         when {
+            showDev.value -> showDev.value = false
             showUplog.value -> showUplog.value = false
             showHoyolab.value -> showHoyolab.value = false
             showData.value -> showData.value = false
@@ -161,7 +168,9 @@ fun SettingsScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
         },
         label = "settingsPage",
     ) { page ->
-        if (page == 4) {
+        if (page == 5) {
+            DeveloperScreen(viewModel, onBack = { showDev.value = false })
+        } else if (page == 4) {
             UpdateLogScreen(onBack = { showUplog.value = false })
         } else if (page == 3) {
             HoyolabLinkScreen(
@@ -260,6 +269,19 @@ fun SettingsScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
             GlassCard(shape = RoundedCornerShape(24.dp), modifier = Modifier.fillMaxWidth()) {
                 Column {
                     SettingsItem("데이터 관리", Icons.Default.Storage, value = "백업·복원 · 초기화") { showData.value = true }
+                }
+            }
+        }
+
+        // 4-1) 개발자 메뉴 — **디버그 빌드에서만**. 릴리스에서는 이 블록 자체가 그려지지 않는다.
+        if (BuildConfig.DEBUG) {
+            item { Spacer(Modifier.height(20.dp)) }
+            item { SectionTitle("개발자") }
+            item {
+                GlassCard(shape = RoundedCornerShape(24.dp), modifier = Modifier.fillMaxWidth()) {
+                    Column {
+                        SettingsItem("개발자 메뉴", Icons.Default.BugReport, value = "상태 만들기 · 진단") { showDev.value = true }
+                    }
                 }
             }
         }
@@ -638,42 +660,73 @@ private fun NotificationSettingsScreen(viewModel: SpendingViewModel, onBack: () 
         contentPadding = PaddingValues(top = glgDetailContentTop(), bottom = 24.dp),
     ) {
 
-        // 알림 — 항목별 토글
-        item { SectionTitle("알림") }
+        // 알림 — 항목별 토글.
+        //
+        // 일곱 개를 한 카드에 늘어놓던 것을 **성격별 세 묶음**으로 갈랐다(돈·플레이·소식).
+        // 켜고 끄는 판단 기준이 서로 달라서, 한 덩어리로는 훑어지지 않았다.
+        // 항목 정의(제목·설명·묶음)는 공유 소스 NotificationCatalog 하나뿐이다.
+        val notifyState: Map<NotifyKey, Boolean> = mapOf(
+            NotifyKey.BUDGET to notifyBudget,
+            NotifyKey.SUBSCRIPTION to notifySubscription,
+            NotifyKey.RESIN to notifyResin,
+            NotifyKey.ATTENDANCE to notifyAttendance,
+            NotifyKey.PICKUP to notifyPickup,
+            NotifyKey.COMBAT to notifyCombat,
+            NotifyKey.NEWS to notifyNews,
+        )
+        val setNotify: (NotifyKey, Boolean) -> Unit = { key, on ->
+            if (on) ensureNotifPerm()
+            when (key) {
+                NotifyKey.BUDGET -> viewModel.setNotifyBudget(on)
+                NotifyKey.SUBSCRIPTION -> viewModel.setNotifySubscription(on)
+                NotifyKey.RESIN -> viewModel.setNotifyResin(on)
+                NotifyKey.ATTENDANCE -> viewModel.setNotifyAttendance(on)
+                NotifyKey.PICKUP -> viewModel.setNotifyPickup(on)
+                NotifyKey.COMBAT -> viewModel.setNotifyCombat(on)
+                NotifyKey.NEWS -> viewModel.setNotifyNews(on)
+            }
+        }
+
         item {
-            GlassCard(shape = RoundedCornerShape(24.dp), modifier = Modifier.fillMaxWidth()) {
-                Column {
-                    SettingsToggleRow(Icons.Default.Savings, "예산 알림", "이번 달 예산 90%·초과 시 알려줘요", notifyBudget) { on ->
-                        if (on) ensureNotifPerm(); viewModel.setNotifyBudget(on)
-                    }
-                    HorizontalDivider(color = DividerColor, modifier = Modifier.padding(horizontal = 16.dp))
-                    SettingsToggleRow(Icons.Default.EventAvailable, "출석 리마인더", "저녁까지 미출석이면 알려줘요", notifyAttendance) { on ->
-                        if (on) ensureNotifPerm(); viewModel.setNotifyAttendance(on)
-                    }
-                    HorizontalDivider(color = DividerColor, modifier = Modifier.padding(horizontal = 16.dp))
-                    SettingsToggleRow(Icons.Default.Bolt, "행동력 가득참 알림", "레진·개척력·배터리가 가득 차면 알려줘요", notifyResin) { on ->
-                        if (on) ensureNotifPerm(); viewModel.setNotifyResin(on)
-                    }
-                    HorizontalDivider(color = DividerColor, modifier = Modifier.padding(horizontal = 16.dp))
-                    SettingsToggleRow(Icons.Default.Event, "픽업 마감 알림", "진행 중인 픽업이 끝나기 전에 알려줘요", notifyPickup) { on ->
-                        if (on) ensureNotifPerm(); viewModel.setNotifyPickup(on)
-                    }
-                    HorizontalDivider(color = DividerColor, modifier = Modifier.padding(horizontal = 16.dp))
-                    SettingsToggleRow(Icons.Default.MilitaryTech, "전투 시즌 마감 알림", "나선 비경·혼돈의 기억 등을 못 깬 채 시즌이 끝나기 전에 알려줘요", notifyCombat) { on ->
-                        if (on) ensureNotifPerm(); viewModel.setNotifyCombat(on)
-                    }
-                    HorizontalDivider(color = DividerColor, modifier = Modifier.padding(horizontal = 16.dp))
-                    SettingsToggleRow(Icons.Default.Autorenew, "정기결제 갱신 알림", "구독 결제 하루 전(D-1)에 알려줘요", notifySubscription) { on ->
-                        if (on) ensureNotifPerm(); viewModel.setNotifySubscription(on)
-                    }
-                    HorizontalDivider(color = DividerColor, modifier = Modifier.padding(horizontal = 16.dp))
-                    SettingsToggleRow(Icons.Default.Campaign, "새 공지 알림", "게임에 새 공지가 올라오면 알려줘요", notifyNews) { on ->
-                        if (on) ensureNotifPerm(); viewModel.setNotifyNews(on)
-                    }
+            // 헤더에 지금 상태를 붙인다 — 목록을 훑지 않고도 몇 개가 살아 있는지 보인다.
+            Row(Modifier.fillMaxWidth().padding(bottom = 10.dp, start = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text("알림", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextSecondary)
+                Spacer(Modifier.weight(1f))
+                Text(
+                    NotificationCatalog.enabledLabel(notifyState.count { it.value }),
+                    fontSize = 11.sp, color = TextSecondary, modifier = Modifier.padding(end = 4.dp),
+                )
+            }
+        }
+        NotificationCatalog.groups.forEach { group ->
+            val groupItems = NotificationCatalog.itemsIn(group)
+            item {
+                Row(Modifier.fillMaxWidth().padding(bottom = 6.dp, start = 4.dp), verticalAlignment = Alignment.Bottom) {
+                    Text(group.title, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+                    Spacer(Modifier.width(6.dp))
+                    Text(group.caption, fontSize = 10.5.sp, color = TextSecondary)
                 }
             }
+            item {
+                GlassCard(shape = RoundedCornerShape(24.dp), modifier = Modifier.fillMaxWidth()) {
+                    Column {
+                        groupItems.forEachIndexed { i, entry ->
+                            if (i > 0) HorizontalDivider(color = DividerColor, modifier = Modifier.padding(horizontal = 16.dp))
+                            SettingsToggleRow(
+                                notifyIcon(entry.key), entry.title, entry.desc,
+                                notifyState[entry.key] == true,
+                            ) { on -> setNotify(entry.key, on) }
+                        }
+                    }
+                }
+                Spacer(Modifier.height(12.dp))
+            }
+        }
+        item {
             // 토글은 켰는데 시스템 알림 권한이 꺼져 있으면 안내.
-            val notifOn = notifyBudget || notifyAttendance || notifyResin || notifyPickup
+            // **일곱 개 전부**를 본다 — 예전엔 앞 네 개만 봐서, 픽업·전투·정기결제·공지만 켠 사람에겐
+            // 권한이 막혀 있어도 배너가 뜨지 않았다.
+            val notifOn = notifyState.any { it.value }
             val notifEnabled = remember(notifyBudget, notifyAttendance, notifyResin, permRefresh) {
                 com.gatcha.log.data.Notifier.notificationsEnabled()
             }
@@ -799,6 +852,20 @@ private fun NotificationSettingsScreen(viewModel: SpendingViewModel, onBack: () 
             viewModel.setNotifyDailySummaryHour(it); showSummaryPicker.value = false
         }
     }
+}
+
+/**
+ * 알림 항목 아이콘 — 아이콘만 플랫폼이 정한다(Material ↔ SF Symbols 는 이름 체계가 달라
+ * 공유 카탈로그에 담을 수 없다). 제목·설명·묶음은 [NotificationCatalog] 가 갖는다.
+ */
+private fun notifyIcon(key: NotifyKey): ImageVector = when (key) {
+    NotifyKey.BUDGET -> Icons.Default.Savings
+    NotifyKey.SUBSCRIPTION -> Icons.Default.Autorenew
+    NotifyKey.RESIN -> Icons.Default.Bolt
+    NotifyKey.ATTENDANCE -> Icons.Default.EventAvailable
+    NotifyKey.PICKUP -> Icons.Default.Event
+    NotifyKey.COMBAT -> Icons.Default.MilitaryTech
+    NotifyKey.NEWS -> Icons.Default.Campaign
 }
 
 @Composable
