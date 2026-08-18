@@ -145,6 +145,15 @@ class AppSettings {
         set(v) { prefs.putBoolean(KEY_SPENDING_COMPACT, v) }
 
     /**
+     * 게임 일정 맨 위 콜라보 배너를 펼쳐 볼지. 기본 false — 간략형 한 줄 띠.
+     *
+     * 기기에 남긴다. 한 번 접은 배너가 페이지를 다시 열 때마다 펼쳐져 있으면 접은 의미가 없다.
+     */
+    var collabBannerExpanded: Boolean
+        get() = prefs.getBoolean(KEY_COLLAB_BANNER_EXPANDED, false)
+        set(v) { prefs.putBoolean(KEY_COLLAB_BANNER_EXPANDED, v) }
+
+    /**
      * 홈 히어로의 **글로우 애니메이션** 사용 여부. 기본 true.
      *
      * 5초 주기로 무한 반복하는 블러 원이라 저사양 단말에서는 계속 부담이 된다.
@@ -185,6 +194,7 @@ class AppSettings {
         private const val KEY_NOTIF_PERM_ASKED = "notif_perm_asked"
         private const val KEY_ONBOARDING_DONE = "onboarding_done"
         private const val KEY_SPENDING_COMPACT = "spending_compact"
+        private const val KEY_COLLAB_BANNER_EXPANDED = "collab_banner_expanded"
         private const val KEY_HERO_GLOW = "hero_glow"
         private const val KEY_NOTIFY_SUB = "notify_subscription"
         private const val KEY_NOTIFY_NEWS = "notify_news"

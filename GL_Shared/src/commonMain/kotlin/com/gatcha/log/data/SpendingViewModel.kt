@@ -136,6 +136,18 @@ class SpendingViewModel : ViewModel() {
     fun consumePendingNews() { _pendingNewsId.value = null }
 
     /**
+     * 저축 플래너를 열어야 하는지. 계산기(게임정보 탭)에서 "저축 계획"을 누르면
+     * 홈 탭으로 옮긴 뒤 플래너까지 이어 열기 위한 신호 — 딥링크와 같은 방식이다.
+     */
+    private val _pendingSavingsPlanner = MutableStateFlow(false)
+    val pendingSavingsPlanner: StateFlow<Boolean> = _pendingSavingsPlanner.asStateFlow()
+    fun requestSavingsPlanner() {
+        _pendingSavingsPlanner.value = true
+        _pendingTab.value = 0
+    }
+    fun consumePendingSavingsPlanner() { _pendingSavingsPlanner.value = false }
+
+    /**
      * 알림 페이로드의 딥링크 처리. 형식은 `"news:<공지 id>"` 처럼 `종류:인자`.
      * 모르는 형식이면 무시한다(구버전 알림이 남아 있어도 안전).
      */
@@ -218,6 +230,10 @@ class SpendingViewModel : ViewModel() {
     private val _spendingCompact = MutableStateFlow(appSettings.spendingCompact)
     val spendingCompact: StateFlow<Boolean> = _spendingCompact.asStateFlow()
     fun setSpendingCompact(v: Boolean) { appSettings.spendingCompact = v; _spendingCompact.value = v }
+
+    private val _collabBannerExpanded = MutableStateFlow(appSettings.collabBannerExpanded)
+    val collabBannerExpanded: StateFlow<Boolean> = _collabBannerExpanded.asStateFlow()
+    fun setCollabBannerExpanded(v: Boolean) { appSettings.collabBannerExpanded = v; _collabBannerExpanded.value = v }
 
     /** 홈 히어로 글로우 애니메이션 사용 여부 — 끄면 그라데이션은 그대로, 움직이는 글로우만 사라진다. */
     private val _heroGlow = MutableStateFlow(appSettings.heroGlow)
@@ -1171,6 +1187,86 @@ class SpendingViewModel : ViewModel() {
     private val _challenge = MutableStateFlow(SavingsChallenge.evaluate(emptyList(), 0L, 0, emptySet()))
     val challenge: StateFlow<ChallengeSummary> = _challenge.asStateFlow()
 
+    // ----------------------------------------------------------------- 개발자 메뉴 (디버그 빌드 전용)
+    //
+    // 어떤 화면은 **특정 상태에서만** 나타난다 — 3게임 모두 행동력 가득일 때의 비상벨,
+    // 하드 천장 직전의 경고색처럼. 그 상태가 실제로 오길 기다리면 눈으로 확인할 방법이 없다.
+    // 아래 함수들은 그 상태를 앱 안에서 만들어 준다.
+    //
+    // **호출부는 디버그 빌드에서만 그려진다**(Android `BuildConfig.DEBUG` · iOS `#if DEBUG`).
+    // 값은 메모리에만 쓰고 저장하지 않는다 — 다음 새로고침이 서버 값으로 덮어쓰는 게 맞다.
+
+    /** 3게임 행동력을 가득으로. 노트가 없으면(미연동) 확인용 노트를 만들어 넣는다. */
+    fun debugFillAllResin() {
+        val prev = _liveNotes.value
+        _liveNotes.value = GameData.attendanceGames.map { g ->
+            val cur = prev.firstOrNull { GameData.byNameOrNull(it.game)?.key == g.key }
+            val max = cur?.maxResin?.takeIf { it > 0 } ?: 160
+            (cur ?: LiveNote(game = g.displayName)).copy(
+                currentResin = max,
+                maxResin = max,
+                resinFullAtMillis = 0L,
+            )
+        }
+        emitStatus("행동력을 3게임 모두 가득으로 채웠어요")
+    }
+
+    /** 모든 게임의 천장을 한 번에 설정. 계산기·저축 플래너의 경계값 확인용. */
+    fun debugSetPityAll(count: Int, guaranteed: Boolean) {
+        GameData.games.forEach { g -> updatePity(g.key) { it.copy(count = count.coerceAtLeast(0), guaranteed = guaranteed) } }
+        emitStatus("천장을 ${count}${if (guaranteed) " · 확정 보유" else ""}로 맞췄어요")
+    }
+
+    /** 온보딩을 안 본 상태로 되돌린다(다음 실행부터 다시 노출). */
+    fun debugResetOnboarding() {
+        appSettings.onboardingDone = false
+        emitStatus("온보딩을 초기화했어요 — 앱을 다시 시작하면 나옵니다")
+    }
+
+    /** 지금 로그인된 계정과 동기화 상태를 한 줄로. 계정이 갈렸는지 확인할 때 쓴다. */
+    fun debugAccountSummary(): String {
+        val acc = account.value
+        return buildString {
+            append(if (acc.isGuest) "게스트" else acc.email.ifEmpty { "로그인됨" })
+            append(" · 지출 ${_spendings.value.size}건")
+            append(" · 노트 ${_liveNotes.value.size}개")
+            append(" · 픽업 ${_activeBanners.value.size}개")
+        }
+    }
+
+    /**
+     * 지금 조건으로 **예약될** 알림 목록. 재화 완충 알림이 "앱을 켜야 온다"던 문제처럼,
+     * 예약이 실제로 잡히는지는 시각으로 확인할 방법이 없어 눈에 보이게 만든 것이다.
+     * 실제 예약을 건드리지 않고 [ScheduledAlerts.plan] 을 그대로 한 번 돌려 본다.
+     */
+    fun debugScheduledAlerts(): List<String> {
+        val plan = ScheduledAlerts.plan(appSettings, repo)
+        if (plan.scheduled.isEmpty()) return listOf("예약될 알림이 없습니다")
+        return plan.scheduled
+            .sortedBy { it.whenMillis }
+            .take(12)
+            .map { a ->
+                val whenText = if (a.repeatsDaily) "매일" else DateUtil.shortDateTime(a.whenMillis)
+                "$whenText · ${a.title}"
+            }
+    }
+
+    /** 로딩 게이트 상태 — "왜 스켈레톤이 안 걷히나"를 볼 때. */
+    fun debugReadyStates(): String =
+        "게임정보 ${_gameInfoReady.value.mark()} · 일정 ${_scheduleReady.value.mark()} · " +
+            "소식 ${_newsReady.value.mark()} · 새로고침중 ${_isRefreshing.value.mark()}"
+
+    private fun Boolean.mark(): String = if (this) "O" else "X"
+
+    /** 게임별 데이터 도착 여부 — 부분 실패(한 게임만 비어 있음)를 잡아낸다. */
+    fun debugPerGameData(): List<String> = GameData.games.map { g ->
+        val banners = _activeBanners.value.count { GameData.byNameOrNull(it.game)?.key == g.key }
+        val events = _gameEvents.value.count { GameData.byNameOrNull(it.game)?.key == g.key }
+        val news = _gameNews.value.count { GameData.byNameOrNull(it.game)?.key == g.key }
+        val note = _liveNotes.value.any { GameData.byNameOrNull(it.game)?.key == g.key }
+        "${g.shortName} — 픽업 $banners · 이벤트 $events · 공지 $news · 노트 ${if (note) "O" else "X"}"
+    }
+
     /** 보유 재화 입력/해제(0 = 해제). */
     fun setHeldCurrency(gameKey: String, value: Int) {
         val updated = _savingsHeld.value.toMutableMap()
@@ -1834,6 +1930,9 @@ class SpendingViewModel : ViewModel() {
                     // 요청이 나가서, 홈의 '게임 소식'만 한 왕복 늦게 채워졌다 — 의존 관계가 전혀 없는데도.
                     val newsGames = GameData.games.filter { it.newsSource != null }
                     val newsDeferred = newsGames.map { g -> async(Dispatchers.IO) { NewsApi.notices(g) } }
+                    // 명조 일정 — ennead 가 안 다루는 게임이라 공지 피드에서 따로 뽑는다.
+                    // 여기서 같이 쏜다: 달력 응답을 기다렸다 보내면 일정 하나 때문에 한 왕복이 더 붙는다.
+                    val wuwaEventsDeferred = async(Dispatchers.IO) { NewsApi.events(Game.WUWA) }
                     // 버전 특별 방송 확정 공지는 notices 가 아니라 info 카테고리에 올라온다.
                     // 목록에는 안 섞고 방송 일시만 뽑아 쓴다([BroadcastSchedule.parseConfirmed]).
                     val infoDeferred = newsGames.map { g -> async(Dispatchers.IO) { NewsApi.info(g) } }
@@ -1856,6 +1955,13 @@ class SpendingViewModel : ViewModel() {
                     if (zzz == null) partial = true else {
                         calendarLoaded += Game.ZZZ.displayName
                         banners += zzz.banners; events += zzz.events; challenges += zzz.challenges
+                    }
+                    // 명조는 이벤트만 있다(픽업·정기 콘텐츠를 주는 소스가 없다). 그래도 실패와
+                    // 빈 목록은 갈라야 한다 — 실패면 calendarLoaded 에 넣지 않아 직전 값이 남는다.
+                    val wuwaEvents = wuwaEventsDeferred.await()
+                    if (wuwaEvents == null) partial = true else {
+                        calendarLoaded += Game.WUWA.displayName
+                        events += wuwaEvents
                     }
                     if (calendarLoaded.isNotEmpty()) {
                         // 종료 미정(end_time 미공지)은 임박도를 알 수 없으니 맨 뒤로 — dDay 가 큰 음수라 앞으로 튄다.
@@ -2441,7 +2547,10 @@ class SpendingViewModel : ViewModel() {
          * 소스가 있는 게임만 통과시켜 캐시도 다음 저장 때 자연히 정리되게 한다.
          */
         val SCHEDULE_GAMES: Set<String> =
-            GameData.games.filter { it.enneadKey != null || it == Game.ZZZ }.map { it.displayName }.toSet()
+            GameData.games
+                // 명조는 공지 피드(notice.json)의 startTimeMs·endTimeMs 가 곧 일정표다([NewsApi.events]).
+                .filter { it.enneadKey != null || it == Game.ZZZ || it == Game.WUWA }
+                .map { it.displayName }.toSet()
 
         /** 클라우드 pull/push 최대 대기(ms). 오프라인 등으로 응답 없을 때 로딩 화면 갇힘 방지. */
         const val SYNC_TIMEOUT_MS = 8_000L

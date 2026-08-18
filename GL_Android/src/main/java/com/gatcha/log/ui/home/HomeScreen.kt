@@ -6,9 +6,9 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.EnterExitState
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.fadeIn
+import androidx.compose.animation.scaleIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideInVertically
@@ -173,41 +173,43 @@ fun HomeScreen(viewModel: SpendingViewModel = viewModel()) {
         }
     }
 
+    // 지출 추가 화면의 스마트 기본값·'자주 사는 것' 근거. 편집 페이지에서만 쓰인다.
+    val editorSpendings by viewModel.spendings.collectAsStateWithLifecycle()
+
     // 루트 레벨 페이지 스왑 — 지출 추가/수정은 별도 페이지로 운영(바텀시트가 아닌 실제 페이지 전환).
-    // 컨테이너 트랜스폼 morph: FAB(우하단 accent 원)에서 페이지가 스케일 + 모서리 라운드가 풀리며 펼쳐지고,
-    // 닫을 땐 같은 위치로 줄며 라운드가 다시 차올라 FAB 로 흡수되는 느낌.
+    //
+    // 전환은 **앱 표준 하위 페이지 전환**(우→좌 슬라이드)을 쓴다. 예전엔 FAB 에서 스케일·모서리가
+    // 펴지는 컨테이너 트랜스폼 morph 였는데, 설정·게임정보 등 다른 하위 페이지와 달라
+    // 같은 앱 안에서 페이지 여는 방식이 두 가지로 보였다.
     AnimatedContent(
         targetState = spendingEditor.value,
-        transitionSpec = { fadeIn(glgStandardSpec()) togetherWith fadeOut(glgShortSpec()) },
+        transitionSpec = {
+            if (targetState != null) {
+                (slideInHorizontally(glgStandardSpec()) { it } + fadeIn(glgStandardSpec())) togetherWith
+                    (slideOutHorizontally(glgStandardSpec()) { -it / 4 } + fadeOut(glgShortSpec()))
+            } else {
+                (slideInHorizontally(glgStandardSpec()) { -it / 4 } + fadeIn(glgStandardSpec())) togetherWith
+                    (slideOutHorizontally(glgStandardSpec()) { it } + fadeOut(glgShortSpec()))
+            }
+        },
         label = "rootPage",
     ) { editorTarget ->
         if (editorTarget != null) {
-            // 등장 0→1 / 퇴장 1→0. 스케일(0.35→1, FAB 우하단 피벗) + 모서리 라운드(32→0dp)로 morph.
-            val morph by transition.animateFloat(
-                transitionSpec = { glgEmphasisSpec() },
-                label = "fabMorph",
-            ) { state -> if (state == EnterExitState.Visible) 1f else 0f }
             Box(
                 modifier = Modifier
                     .fillMaxSize()
                     // 퇴장 중인 페이지는 아래로 내린다 — AnimatedContent 는 전환 동안 두 화면을 함께
                     // 합성하므로, 닫히는 편집 페이지가 위에 남아 있으면 그 사이 눌린 '+' 탭을 가로챈다
                     // (지출 추가 버튼이 간헐적으로 안 먹던 원인 중 하나).
-                    .zIndex(if (editorTarget == spendingEditor.value) 1f else 0f)
-                    .graphicsLayer {
-                        val s = 0.35f + 0.65f * morph
-                        scaleX = s
-                        scaleY = s
-                        transformOrigin = TransformOrigin(0.9f, 0.95f)
-                        clip = true
-                        shape = RoundedCornerShape((32f * (1f - morph)).dp)
-                    },
+                    .zIndex(if (editorTarget == spendingEditor.value) 1f else 0f),
             ) {
                 // 이 페이지의 대상은 editorTarget 으로 고정 — 상태(spendingEditor)를 다시 읽지 않는다.
                 // 다시 읽으면 닫히는 순간 null 이 되어 퇴장 애니메이션 중에 '추가' 폼으로 뒤바뀐다.
                 val editing = editorTarget.spending
                 AddSpendingModal(
                     spendingToEdit = editing,
+                    // 스마트 기본값·'자주 사는 것'의 근거.
+                    recentSpendings = editorSpendings,
                     nudgeMessage = { game, amount -> viewModel.overspendNudge(game, amount, editing?.id) },
                     onDismiss = { spendingEditor.value = null },
                     onSave = { spending ->
@@ -221,10 +223,16 @@ fun HomeScreen(viewModel: SpendingViewModel = viewModel()) {
             Scaffold(
                 containerColor = Color.Transparent,
                 bottomBar = {
-                    // 하위 페이지(연간 리포트·알림 상세 등)에서는 하단바·FAB를 아래로 슬라이드해 숨김
+                    // 하위 페이지(연간 리포트·알림 상세 등)에서는 하단바·FAB를 아래로 슬라이드해 숨김.
+                    //
+                    // **돌아올 때만 물방울처럼 튄다** — 아래에서 올라와 살짝 넘쳤다가 자리를 잡는다.
+                    // 곧은 tween 은 목표에 닿으면 그냥 멈춰서 "제자리로 돌아왔다"가 잘 안 읽힌다.
+                    // 퇴장은 스프링을 쓰지 않는다(나가면서 튀면 화면이 산만하다).
                     AnimatedVisibility(
                         visible = !subPageActive,
-                        enter = slideInVertically(glgStandardSpec()) { it } + fadeIn(glgStandardSpec()),
+                        enter = slideInVertically(glgReturnSpring()) { it } +
+                            scaleIn(glgReturnSpring(), initialScale = 0.90f, transformOrigin = TransformOrigin(0.5f, 1f)) +
+                            fadeIn(glgStandardSpec()),
                         exit = slideOutVertically(glgStandardSpec()) { it } + fadeOut(glgShortSpec()),
                     ) {
                         BottomNavBar(
@@ -420,6 +428,12 @@ fun HomeContent(
     // 저축 플래너·절약 챌린지 하위 화면(홈 카드 진입). 0=없음 1=플래너 2=챌린지.
     var savingsScreen by remember { mutableStateOf(0) }
     BackHandler(enabled = savingsScreen != 0) { savingsScreen = 0 }
+
+    // 계산기(게임정보 탭)의 "저축 계획" — VM 이 홈 탭으로 옮겨준 뒤 여기서 플래너까지 이어 연다.
+    val pendingSavings by viewModel.pendingSavingsPlanner.collectAsStateWithLifecycle()
+    LaunchedEffect(pendingSavings) {
+        if (pendingSavings) { savingsScreen = 1; viewModel.consumePendingSavingsPlanner() }
+    }
 
     /**
      * 홈의 하위 화면은 **하나의 [AnimatedContent] 가 전부 맡는다.**

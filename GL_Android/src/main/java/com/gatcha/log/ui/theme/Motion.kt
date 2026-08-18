@@ -7,6 +7,8 @@ import android.provider.Settings
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.Easing
 import androidx.compose.animation.core.FiniteAnimationSpec
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
@@ -57,6 +59,16 @@ fun <T> glgShortSpec(durationMs: Int = GlgMotion.DurationShort): FiniteAnimation
 /** 강조 전환 스펙 — emphasis easing, 기본 360ms([GlgMotion.DurationLong]). FAB 모프 등. */
 fun <T> glgEmphasisSpec(durationMs: Int = GlgMotion.DurationLong): FiniteAnimationSpec<T> =
     tween(durationMs, easing = GlgEasingEmphasis)
+
+/**
+ * 되돌아오는 요소용 **스프링** 스펙 — 아래에서 올라와 살짝 넘쳤다가 자리를 잡는다(물방울처럼).
+ *
+ * tween 은 목표에 닿으면 그냥 멈춰서 "제자리로 돌아왔다"는 느낌이 약하다. 하단바처럼
+ * **사라졌다 다시 나타나는** 요소는 약한 오버슈트가 있어야 복귀가 읽힌다.
+ * 나갈 때는 쓰지 않는다 — 퇴장이 튀면 화면이 산만해진다(퇴장은 짧고 곧게).
+ */
+fun <T> glgReturnSpring(): FiniteAnimationSpec<T> =
+    spring(dampingRatio = 0.55f, stiffness = Spring.StiffnessMediumLow)
 
 // ── 저사양·접근성 모션 감속 + 공유 시머 클럭 ──────────────────────────────────
 
