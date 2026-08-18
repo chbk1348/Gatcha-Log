@@ -44,7 +44,7 @@ object Credits {
             "Kuro Games 공식 공지 CDN — 명조 공지\n" +
             "ak-endfield-api-archive — 엔드필드 공지 (커뮤니티 아카이브)\n" +
             "Enka.Network · mihomo.me — 보유 캐릭터 · 장비 정보\n" +
-            "Project Amber (yatta.moe) · Hakush.in · nanoka.cc\n" +
+            "Project Amber (yatta.moe) · nanoka.cc\n" +
             "    — 캐릭터 · 아이템 아이콘, 돌파 효과 설명\n" +
             "akasha.cv — 원신 유물 평가(CV) 기준\n" +
             "hoyo-codes (seria.moe) — 선물코드 목록",

@@ -5,7 +5,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
 /**
- * nanoka.cc(= hakush 라이브 CDN) 게임 도감 데이터.
+ * nanoka.cc 게임 도감 데이터(hakush 프로젝트의 데이터를 이어받은 라이브 CDN).
  *
  * 다섯 게임(원신 `gi` · 스타레일 `hsr` · 명조 `ww` · 젠레스 `zzz` · 이환 `nte`)의 캐릭터·무기·
  * 유물·방부 등을 **버전별 단건 JSON** 으로 준다. 한국어(`ko`)·영어(`en`)·중국어(`zh`) 3종.
@@ -24,12 +24,16 @@ object NanokaApi {
 
     private const val BASE = "https://static.nanoka.cc"
 
-    // hakush 계열은 Cloudflare 뒤라 커스텀 UA 를 403 으로 막는다 — 브라우저 UA 를 쓴다.
+    // Cloudflare 뒤라 커스텀 UA 가 403 을 받던 시기가 있어 브라우저 UA 를 쓴다(지금은 커스텀 UA 도
+    // 200 이지만, 언제 다시 조여도 이상하지 않은 쪽이라 그대로 둔다).
+    //
+    // `Referer: hakush.in` 을 함께 보내고 있었다 — 이 CDN 이 hakush 프런트엔드용으로 서빙하던
+    // 흔적이다. 그 도메인은 DNS 째로 사라졌고 **헤더 없이도 200 이 온다**(2026-08-18 실측)
+    // 라서 뺐다. 죽은 도메인을 가리키는 헤더는 왜 있는지 아무도 설명할 수 없게 된다.
     private val headers = mapOf(
         "User-Agent" to "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 " +
             "(KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1",
         "Accept" to "application/json",
-        "Referer" to "https://hakush.in/",
     )
 
     private var cached: NanokaManifest? = null
