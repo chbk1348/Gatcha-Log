@@ -62,7 +62,9 @@ struct GameInfoView: View {
         .navigationDestination(isPresented: $showHoyolab) {
             HoyolabLinkView(store: store) { showHoyolab = false }
         }
-        .navigationDestination(isPresented: $showCalc) { sectionPage("계산기") { GachaCalculatorSection() } }
+        .navigationDestination(isPresented: $showCalc) {
+            sectionPage("계산기") { GachaCalculatorSection(store: store, onOpenDashboard: { showDashboard = true }) }
+        }
         .navigationDestination(isPresented: $showReport) { sectionPage("가챠 리포트") { GachaReportSection(store: store, onOpenDashboard: { showDashboard = true }) } }
         .navigationDestination(isPresented: $showGift) { GiftCodePage(store: store) }
         .navigationDestination(isPresented: $showDashboard) { GachaDashboardView(store: store) }
@@ -473,7 +475,7 @@ struct GameSchedulePage: View {
     @State private var sched = SchedulePageData()
 
     private var scheduleTitle: some View {
-        Text("마감이 가까운 순서로 정리했어요.")
+        Text("시작 · 종료 · 예상(방송 역산)")
             .font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary).padding(.bottom, 14)
     }
 
@@ -483,42 +485,34 @@ struct GameSchedulePage: View {
                 // 페이지 타이틀은 네비게이션 바(뒤로가기 + 타이틀)로 — Android 상세 헤더와 동일 형식.
                 Picker("보기", selection: $tab.animation(.easeInOut(duration: 0.2))) {
                     Text("일정").tag(0)
-                    Text("타임라인").tag(1)
-                    Text("방송").tag(2)
-                    Text("주년").tag(3)
+                    Text("방송").tag(1)
+                    Text("주년").tag(2)
                 }
                 .pickerStyle(.segmented)
                 .padding(.bottom, 14)
 
                 if tab == 1 {
-                    TimelineContent(store: store)
-                } else if tab == 2 {
                     BroadcastContent(banners: store.activeBanners, confirmed: store.confirmedBroadcasts)
-                } else if tab == 3 {
+                } else if tab == 2 {
                     AnniversaryContent()
                 } else {
-                scheduleTitle
-                let days = sched.days
-                let undated = sched.undated
-                let summary = sched.summary
-                if days.isEmpty && undated.isEmpty {
-                    Text("예정된 일정이 없어요.")
-                        .font(.pretendard(size: 13)).foregroundStyle(GLGColor.textSecondary)
-                        .frame(maxWidth: .infinity, alignment: .center).padding(.top, 40)
-                } else {
-                    if let summary { SummaryStrip(s: summary) }
-                    Spacer().frame(height: 16)
-                    if !undated.isEmpty {
-                        UndatedPinCard(pickups: undated)
-                        Spacer().frame(height: 20)
-                    }
-                    if !days.isEmpty {
-                        TodayMarker()
-                        Spacer().frame(height: 14)
-                        ForEach(Array(days.enumerated()), id: \.offset) { i, d in
-                            DayNode(d: d, isLast: i == days.count - 1)
+                // 콜라보는 **맨 위**. 종료 시각이 미공지라 시간 축에 못 올리는데, 맨 아래에 두면
+                // 진행 중인 한정 콜라보를 스크롤 끝까지 내려야 본다 — 놓치면 되돌릴 수 없는
+                // 일정이 가장 늦게 읽혔다.
+                if !sched.undated.isEmpty {
+                    CollabPromoBanner(pickups: sched.undated, expanded: store.collabBannerExpanded) {
+                        withAnimation(.easeInOut(duration: 0.22)) {
+                            store.setCollabBannerExpanded(!store.collabBannerExpanded)
                         }
                     }
+                    Spacer().frame(height: 16)
+                }
+                scheduleTitle
+                if let summary = sched.summary { SummaryStrip(s: summary) }
+                Spacer().frame(height: 16)
+                ForEach(Array(sched.weeks.enumerated()), id: \.offset) { _, w in
+                    WeekBlock(week: w)
+                    Spacer().frame(height: 18)
                 }
                 }
             }
@@ -536,7 +530,7 @@ struct GameSchedulePage: View {
 
     /// 일정 탭이 쓰는 집계 묶음.
     struct SchedulePageData {
-        var days: [ScheduleDay] = []
+        var weeks: [ScheduleWeek] = []
         var undated: [GachaBanner] = []
         var summary: ScheduleSummary? = nil
     }
@@ -550,22 +544,358 @@ struct GameSchedulePage: View {
         let banners: [GachaBanner]
         let events: [GameEvent]
         let challenges: [GameChallenge]
+        let broadcasts: [ConfirmedBroadcast]
     }
 
     private var scheduleKey: ScheduleKey {
         ScheduleKey(banners: store.activeBanners,
-                    events: store.gameEvents, challenges: store.challenges)
+                    events: store.gameEvents, challenges: store.challenges,
+                    broadcasts: store.confirmedBroadcasts)
     }
 
     private static func buildSchedule(store: SpendingStore) -> SchedulePageData {
         let now = nowMs()
-        let entries = ScheduleLogic.shared.buildSchedule(
-            banners: store.activeBanners, events: store.gameEvents, challenges: store.challenges)
+        // 마감 + **시작** + 방송을 한 축에. 예전엔 종료만 모아서 다음 픽업이 언제 시작하는지 알 수 없었다.
+        let entries = (
+            ScheduleLogic.shared.buildSchedule(
+                banners: store.activeBanners, events: store.gameEvents, challenges: store.challenges)
+            + ScheduleLogicKt.buildStartEntries(banners: store.activeBanners, nowMillis: now)
+            + ScheduleLogicKt.buildBroadcastEntries(
+                banners: store.activeBanners, confirmed: store.confirmedBroadcasts, nowMillis: now)
+        ).sorted { $0.target < $1.target }
         return SchedulePageData(
-            days: ScheduleLogic.shared.buildDays(entries: entries, nowMillis: now),
+            weeks: ScheduleLogicKt.buildWeeks(entries: entries, nowMillis: now, weeks: 4),
             undated: ScheduleLogic.shared.undatedPickups(banners: store.activeBanners),
             summary: ScheduleLogic.shared.summarize(banners: store.activeBanners, entries: entries, nowMillis: now)
         )
+    }
+}
+
+/// 한 주 — 헤더(라벨·기간·건수) + 일~토 7칸 그리드 + 그 주 항목 목록.
+///
+/// 칸이 좁아 제목은 못 담는다. 그리드는 **어느 날이 바쁜지**만 점으로 알리고,
+/// 무엇인지는 아래 목록이 말한다.
+private struct WeekBlock: View {
+    let week: ScheduleWeek
+    @Environment(\.glgAccent) private var accent
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(alignment: .bottom, spacing: 7) {
+                Text(week.label).font(.pretendard(size: 13, weight: .black))
+                    .foregroundStyle(GLGColor.textPrimary)
+                Text("\(week.rangeLabel) · \(week.entries.isEmpty ? "일정 없음" : "\(week.entries.count)건")")
+                    .font(.pretendard(size: 11)).foregroundStyle(GLGColor.textSecondary)
+            }
+            .padding(.bottom, 8)
+
+            HStack(spacing: 4) {
+                ForEach(Array(week.days.enumerated()), id: \.offset) { _, d in
+                    WeekCell(day: d)
+                }
+            }
+
+            if !week.entries.isEmpty {
+                Spacer().frame(height: 10)
+                ForEach(Array(week.entries.enumerated()), id: \.offset) { _, e in
+                    ScheduleRow(entry: e)
+                    Spacer().frame(height: 7)
+                }
+            }
+        }
+    }
+}
+
+private struct WeekCell: View {
+    let day: WeekDay
+    @Environment(\.glgAccent) private var accent
+
+    var body: some View {
+        let dim = day.isPast && !day.isToday
+        VStack(spacing: 0) {
+            Text("\(day.day)").font(.pretendard(size: 11, weight: .bold))
+                .foregroundStyle(dim ? GLGColor.textSecondary.opacity(0.45) : GLGColor.textPrimary)
+            Text(day.weekdayKo).font(.pretendard(size: 8.5))
+                .foregroundStyle(GLGColor.textSecondary.opacity(dim ? 0.35 : 1))
+            Spacer().frame(height: 3)
+            HStack(spacing: 2) {
+                ForEach(Array(day.dotColors.enumerated()), id: \.offset) { _, c in
+                    Circle().fill(Color(argb64: c.int64Value)).frame(width: 5, height: 5)
+                }
+            }
+            .frame(height: 5)
+        }
+        .frame(maxWidth: .infinity)
+        // 높이는 **못 박는다.** 내용에 맡기면 글꼴 줄 상자 높이가 Android 와 달라 칸 크기가
+        // 어긋난다(2026-08-18 지적). Android `WeekCellHeight` 와 **같이 고쳐야 한다.**
+        .frame(height: 46)
+        .background(day.isToday ? accent.primary.opacity(0.08) : Color(hex: 0xFFF6F7F9),
+                    in: RoundedRectangle(cornerRadius: 10))
+        .overlay(RoundedRectangle(cornerRadius: 10)
+            .stroke(day.isToday ? accent.primary.opacity(0.45) : Color(hex: 0xFFE0E0E0), lineWidth: 1))
+    }
+}
+
+/// 5성 픽업 바탕색 — '내 캐릭터' 로스터와 같은 값.
+private let glPickupGold = Color(hex: 0xFFD8A12E)
+
+/// 픽업 한 칸 — 원형 초상 + 이름 한 줄. '내 캐릭터' `RosterSlot` 과 같은 형식이되,
+/// 일정 줄 안에 들어가야 하므로 초상만 44 → 32 로 줄인다.
+///
+/// 이름은 **좌측 정렬**이다. 로스터는 칸 폭이 고정이라 가운데 정렬이 맞지만, 여기서는
+/// 칸이 글자 길이만큼만 커져서 가운데로 두면 초상과 이름의 축이 이름마다 어긋난다.
+/// 젠존제 픽업 줄 우상단의 안내 — **W-엔진이 왜 안 보이는지**.
+///
+/// 카드 안에 글로 적지 않고 **툴팁(팝오버)** 으로 두는 이유: 이 설명은 한 번 읽으면 그만인데
+/// 픽업 줄마다 두 줄씩 붙으면 정작 얼굴과 마감을 밀어낸다.
+///
+/// iPhone 에서 `.popover` 는 기본이 시트로 바뀐다 — `presentationCompactAdaptation(.popover)`
+/// 로 말풍선을 유지해야 Android 툴팁과 같은 모양이 된다.
+private struct WEngineInfoTip: View {
+    @State private var open = false
+
+    var body: some View {
+        Button { open = true } label: {
+            Image(systemName: "info.circle")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(GLGColor.textSecondary.opacity(0.7))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("W-엔진이 안 보이는 이유")
+        .popover(isPresented: $open) {
+            VStack(alignment: .leading, spacing: 6) {
+                Text("W-엔진 픽업 미표시").font(.pretendard(size: 12.5, weight: .bold))
+                Text("제공처가 신규 W-엔진의 이름을 비워서 보내거나 원문 그대로 보내옵니다. "
+                     + "실제와 다른 이름이 뜨는 것을 막기 위해 캐릭터 픽업만 싣습니다.")
+                    .font(.pretendard(size: 11.5))
+                    .foregroundStyle(GLGColor.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(14)
+            .frame(width: 260)
+            .presentationCompactAdaptation(.popover)
+        }
+    }
+}
+
+/// 한 줄에 세울 수 있는 최대 픽업 수 — 이보다 많으면 뒤는 자른다.
+private let pickupSlots = 5
+
+/// 픽업 한 줄 — 남은 폭을 **인원수만큼 균등하게** 나눈다(최대 `pickupSlots` 칸).
+///
+/// 칸마다 폭이 같으므로 픽업이 하나든 넷이든 칸 사이 간격이 일정하고, 초상·이름은 각 칸의
+/// 가운데에 선다. 인원이 적으면 칸이 그만큼 넓어져 이름도 덜 접힌다.
+private struct PickupRow: View {
+    let label: String
+    let list: [GachaBanner]
+    /// 우측 안내 버튼을 세울지(젠존제 W-엔진 미표시 안내).
+    var showInfo: Bool = false
+
+    /// 왼쪽 라벨의 폭 — Android `PickupLabelWidth` 와 같이 고쳐야 한다.
+    private let labelWidth: CGFloat = 42
+
+    var body: some View {
+        let shown = Array(list.prefix(pickupSlots))
+        HStack(alignment: .top, spacing: 6) {
+            // 라벨 폭은 **고정**이다("캐릭터"·"광추"·"W-엔진" 길이가 제각각) — 안 그러면
+            // 캐릭터 줄과 무기 줄의 초상이 세로로 어긋난다.
+            //
+            // 라벨도 자르지 않는다. 'W-엔진'처럼 폭에 꽉 차는 말이 있어서 한 줄로 묶으면
+            // 게임에 따라 끝이 잘린다 — 무엇을 세운 줄인지 알리는 말이 잘리면 뜻이 없다.
+            Text(label).font(.pretendard(size: 9.5, weight: .bold))
+                .foregroundStyle(GLGColor.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(width: labelWidth, alignment: .leading)
+                .padding(.top, 12)
+            HStack(alignment: .top, spacing: 8) {
+                ForEach(Array(shown.enumerated()), id: \.offset) { _, b in
+                    PickupSlot(banner: b).frame(maxWidth: .infinity)
+                }
+            }
+            // 안내 버튼은 **자리를 차지한다**(겹쳐 얹지 않는다). 예전엔 줄 위에 오버레이로
+            // 올려서 맨 오른쪽 초상과 겹쳤다 — 칸이 넓어질수록 더 파고들었다.
+            if showInfo {
+                WEngineInfoTip().padding(.top, 10)
+            }
+        }
+    }
+}
+
+private struct PickupSlot: View {
+    let banner: GachaBanner
+
+    /// 초상 지름 — '내 캐릭터' 로스터(44)보다 한 단계 작다.
+    ///
+    /// 로스터는 캐릭터를 **고르는** 화면이라 얼굴이 주인공이지만, 여기서는 일정 한 줄에 딸린
+    /// 부가 정보다. 같은 크기로 두니 얼굴이 카드의 주인공이 돼 제목·마감이 뒤로 밀렸다.
+    /// Android `PickupAvatarSize` 와 같이 고쳐야 한다.
+    private let avatar: CGFloat = 38
+
+    var body: some View {
+        let isWeapon = banner.type == "weapon"
+        // 초상·이름 모두 **칸의 가운데**에 선다. 칸 폭이 균등하므로 이름 상자와 초상의
+        // 중심축이 저절로 같아진다 — 따로 맞출 필요가 없다.
+        VStack(spacing: 5) {
+            ZStack {
+                Circle().fill(glPickupGold.opacity(0.14))
+                // 초상을 못 받는 경우가 여럿이다 — 상류에 아직 이미지가 안 올라온 신규 캐릭터,
+                // CDN 오류, 오프라인. 어느 쪽이든 **빈 원**을 남기면 자리만 차지하고 뜻이 없다.
+                // 실루엣 아이콘을 세워 "여기 픽업이 하나 있다"까지는 읽히게 한다.
+                if banner.iconUrl.isEmpty {
+                    pickupFallback(isWeapon)
+                } else {
+                    AsyncImage(url: URL(string: banner.iconUrl)) { phase in
+                        switch phase {
+                        case .success(let img): img.resizable().aspectRatio(contentMode: .fill)
+                        case .failure: pickupFallback(isWeapon)
+                        default: Color.clear
+                        }
+                    }
+                    .frame(width: avatar, height: avatar)
+                    .clipShape(Circle())
+                }
+            }
+            .frame(width: avatar, height: avatar)
+            // 이름은 **끝까지** 보여준다. 자르면 "그림자 사냥꾼의…"처럼 무엇인지 특정할 수 없는
+            // 조각만 남는다 — 얼굴 옆 이름은 확인용이라 잘리면 있으나 마나다.
+            // 줄 수를 묶지 않는다(광추·W-엔진 이름은 캐릭터명보다 길다). 칸끼리는 위를 맞춘다.
+            Text(banner.name).font(.pretendard(size: 9.5, weight: .bold))
+                .foregroundStyle(GLGColor.textPrimary)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    /// 초상을 못 받았을 때 세우는 실루엣 — 무기 픽업이면 사람 대신 별.
+    @ViewBuilder
+    private func pickupFallback(_ isWeapon: Bool) -> some View {
+        Image(systemName: isWeapon ? "star.fill" : "person.fill")
+            .font(.system(size: 17, weight: .semibold))
+            .foregroundStyle(glPickupGold)
+    }
+}
+
+/// 일정 한 줄 — 표식(▲▼◆) + 제목·부제 + D-day.
+private struct ScheduleRow: View {
+    let entry: ScheduleEntry
+    @Environment(\.glgAccent) private var accent
+
+    /// **예상** 표식 색. 확정 마감(빨강)·시작(강조색)과 절대 겹치지 않게 주황 계열로 뺀다.
+    private let estimate = Color(hex: 0xFFD97706)
+
+    var body: some View {
+        let mark = ScheduleLogicKt.scheduleMarkOf(entry: entry)
+        VStack(alignment: .leading, spacing: 0) {
+        HStack(spacing: 0) {
+            // 리딩 — 게임색 약칭 배지(지출 행과 같은 규격). 일정은 여섯 게임이 섞여 흐르므로
+            // 어느 게임 건지가 **가장 먼저** 읽혀야 한다.
+            GLGGameTag(game: entry.gameShort, size: .small)
+            Spacer().frame(width: 10)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(entry.title).font(.pretendard(size: 12.5, weight: .bold))
+                    .foregroundStyle(GLGColor.textPrimary).lineLimit(1)
+                // 게임명은 배지가 말한다 — 부제에서 중복하지 않는다.
+                // 아이콘이 없는 줄(이벤트·방송)은 부제를 여기 글자로 둔다. 픽업은 카드 아래
+                // 별도 단으로 내려간다(아래 참고).
+                if entry.pickups.isEmpty && !entry.sub.isEmpty {
+                    Text(entry.sub).font(.pretendard(size: 10.5))
+                        .foregroundStyle(GLGColor.textSecondary).lineLimit(1)
+                        .padding(.top, 2)
+                }
+            }
+            Spacer(minLength: 8)
+            // 트레일링 = 남은 시간 + 그 시각의 날짜.
+            //
+            // D-N 만으로는 **마감 당일에 지금 해야 하는지 판단이 안 된다.** 24시간 안쪽(=D-1)부터는
+            // 초까지 세고 사이렌처럼 명멸시킨다. 반대로 며칠 남은 일정에 초를 붙여 봐야 의미가 없어
+            // 그때는 D-N 그대로 두고 갱신도 분 단위로 늦춘다(다시 그리는 횟수 60배 차이).
+            //
+            // 날짜를 아래 붙이는 이유 — "D-3"은 상대값이라 달력을 다시 떠올려야 한다. 픽업 마감일을
+            // 실제 날짜로 알아야 저축·천장 계획이 선다.
+            VStack(alignment: .trailing, spacing: 3) {
+                HStack(spacing: 4) {
+                    // 종류는 **남은 시간 바로 앞**에 붙인다. 앞서 게임 배지 옆에 따로 세워 봤는데,
+                    // 정작 "무엇까지 얼마 남았나"는 한 덩어리로 읽히는 말이라 줄 양끝으로 갈라
+                    // 놓으면 눈이 두 번 움직인다. (그 전엔 ▲▼◆ 였고, 방향만 있고 뜻이 없었다.)
+                    Text(markLabel(mark)).font(.pretendard(size: 9, weight: .semibold))
+                        .foregroundStyle(markColor(mark))
+                    TimelineView(.periodic(from: .now, by: isImminent(targetMillis: entry.target, nowMillis: nowMS()) ? 1 : 60)) { ctx in
+                        let now = Int64(ctx.date.timeIntervalSince1970 * 1000)
+                        let imminent = isImminent(targetMillis: entry.target, nowMillis: now)
+                        let d = Int(entry.dDay(nowMillis: now))
+                        let hot = imminent || (d >= 0 && d <= 3)
+                        Text(imminent ? hmsLabel(targetMillis: entry.target, nowMillis: now)
+                                      : (d <= 0 ? "종료" : "D-\(d)"))
+                            .font(.pretendard(size: 10.5, weight: .black))
+                            // 임박 색은 **종류 색**을 따른다. 예전엔 무조건 빨강이라, 곧 시작하는 픽업이
+                            // 마감 임박과 같은 경고색으로 떴다 — 시작은 다급한 일이 아니다. 앞의
+                            // "시작까지" 라벨과도 색이 갈려 한 덩어리로 안 읽혔다.
+                            .foregroundStyle(hot ? markColor(mark) : GLGColor.textSecondary)
+                            .lineLimit(1)
+                            .padding(.horizontal, 7)
+                            // 높이는 **못 박는다.** 상하 패딩만 맞추면 줄 상자 높이가 Android 와 달라
+                            // 알약 두께가 어긋난다. Android `DDayBadgeHeight` 와 **같이 고쳐야 한다.**
+                            .frame(height: 20)
+                            .background(hot ? markColor(mark).opacity(0.12) : Color(hex: 0xFFE0E0E0),
+                                        in: RoundedRectangle(cornerRadius: 6))
+                            .sirenPulse(active: imminent)
+                    }
+                }
+                // 날짜만으로는 부족하다 — D-1 에서 초를 세기 시작하면 "그래서 몇 시에 끝나나"가
+                // 바로 다음 질문이 된다. 접속 계획은 시각까지 있어야 세울 수 있다.
+                Text(DateUtil.shared.shortDateTime(millis: entry.target))
+                    .font(.pretendard(size: 9.5, weight: .semibold))
+                    .foregroundStyle(GLGColor.textSecondary.opacity(0.75)).lineLimit(1)
+            }
+        }
+        // 픽업은 **한 단 아래**로 내린다(카드는 하나 그대로다 — 구분선으로만 가른다).
+        // 제목 칸 안에 두면 초상 44 가 제목·D-day 와 같은 줄에 얹혀 카드가 세로로 눌린 것처럼
+        // 보이고, 얼굴이 글자 사이에 끼여 잘 안 읽힌다.
+        //
+        // 아이콘 **유무로 거르지 않는다.** 예전엔 URL 이 빈 항목을 통째로 빼서, 하나라도
+        // 비면 픽업 줄 전체가 글자로 되돌아갔다(아직 초상이 안 올라온 신규 캐릭터·상류
+        // 누락이면 그렇게 된다). 못 받은 칸만 사람 아이콘으로 세운다.
+        if !entry.pickups.isEmpty {
+            // 구분선 — 일정 한 줄과 픽업은 다른 종류의 정보다. 여백만으로 나누면 초상이
+            // 그 줄에 딸린 건지 다음 줄로 넘어간 건지 애매하다.
+            Divider().padding(.vertical, 9)
+            // 캐릭터와 무기는 **다른 줄**로 가른다. 한 줄에 섞으면 어느 쪽이 캐릭터 픽업인지
+            // 초상만 보고는 알 수 없다(무기도 같은 원형 초상으로 온다).
+            let chars = entry.pickups.filter { $0.type != "weapon" }
+            let weapons = entry.pickups.filter { $0.type == "weapon" }
+            // 줄마다 **무엇을 세운 줄인지** 왼쪽에 적는다. 초상만 보면 캐릭터와 무기가
+            // 구분되지 않고, 무기는 게임마다 부르는 이름도 다르다(광추·W-엔진).
+            let gameOf = GameData.shared.byNameOrNull(name: entry.pickups[0].game)
+            // 젠존제는 W-엔진 픽업을 싣지 않는다(EnneadApi.fetchZzz) — 상류가 신규 엔진의
+            // 이름을 빈 문자열로 주거나 원문 직역으로 보내서, 그대로 띄우면 없는 이름을
+            // 앱이 주장하게 된다. **빠졌다는 사실 자체는 알려야** 해서 안내를 단다.
+            if !chars.isEmpty {
+                PickupRow(label: "캐릭터", list: chars, showInfo: entry.gameKey == Game.zzz.key)
+            }
+            if !weapons.isEmpty {
+                if !chars.isEmpty { Divider().opacity(0.7).padding(.vertical, 9) }
+                PickupRow(label: GameInfoKt.weaponLabelOf(game: gameOf), list: weapons)
+            }
+        }
+        }
+        .padding(.horizontal, 11).padding(.vertical, 9)
+        .background(Color.white, in: RoundedRectangle(cornerRadius: 12))
+        .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color(hex: 0xFFE0E0E0), lineWidth: 1))
+    }
+
+    private func markLabel(_ m: ScheduleMark) -> String {
+        switch m {
+        case .start: return "시작까지"
+        case .estimate: return "예상"
+        default: return "종료까지"
+        }
+    }
+    private func markColor(_ m: ScheduleMark) -> Color {
+        switch m {
+        case .start: return accent.primary
+        case .estimate: return estimate
+        default: return GLGColor.dangerText
+        }
     }
 }
 
@@ -596,258 +926,93 @@ private struct SummaryStrip: View {
     }
 }
 
-/// 종료 시각이 미공지라 타임라인에 못 올리는 픽업 — 상단 고정.
-/// 지금 스타레일 × Fate 콜라보가 정확히 이 상태다(상류 ennead 가 end_time 을 안 채움).
-private struct UndatedPinCard: View {
+/// 진행 중인 콜라보 — 일정 맨 위의 광고형 배너. **접기/펼치기 두 모드.**
+///
+/// 종료 시각이 미공지라 주간 보드(시간 축)에 못 올린다. 예전엔 그래서 맨 아래 옅은 카드로 밀렸는데,
+/// 한정 콜라보는 놓치면 되돌릴 수 없는 일정이라 가장 먼저 읽혀야 한다.
+///
+/// 기본은 **간략형 한 줄 띠**다. 큰 배너로 세우면 이 페이지의 본론인 주간 보드를 첫 화면에서
+/// 밀어낸다 — 눈에 띄어야 하는 것과 자리를 많이 차지하는 것은 다르다. 대신 픽업 목록을 다 보고
+/// 싶을 때가 있어 펼치기를 남긴다. 고른 모드는 기기에 남는다(`AppSettings.collabBannerExpanded`)
+/// — 한 번 접은 배너가 페이지를 열 때마다 펼쳐져 있으면 접은 의미가 없다.
+///
+/// (지금 스타레일 × Fate 가 이 상태 — 상류 ennead 가 end_time 을 안 채운다.)
+private struct CollabPromoBanner: View {
     let pickups: [GachaBanner]
+    let expanded: Bool
+    let onToggle: () -> Void
+
+    /// 그라데이션 끝색 — 한 색 평면보다 배너가 앞으로 나와 보인다.
+    private let gradientEnd = Color(hex: 0xFF9B5DE5)
+
     var body: some View {
         let title = pickups.compactMap { GameInfoKt.collabTitle(banner: $0) }.first ?? "종료 미정 픽업"
         let started = pickups.filter { $0.startMillis > 0 }.map { $0.startMillis }.min()
-        VStack(alignment: .leading, spacing: 0) {
-            HStack(spacing: 7) {
-                if pickups.contains(where: { GameInfoKt.isCollabBanner(banner: $0) }) { CollabChip() }
-                Text(title).font(.pretendard(size: 13.5, weight: .bold)).foregroundStyle(GLGColor.textPrimary).lineLimit(1)
-                Spacer(minLength: 0)
-            }
-            if let started {
-                Text("\(DateUtil.shared.shortDate(millis: started)) 시작")
-                    .font(.pretendard(size: 11)).foregroundStyle(GLGColor.textSecondary).padding(.top, 3)
-            }
-            PickupChips(pickups: pickups).padding(.top, 10)
-            Text("종료 시각 미공지 — 확정되면 타임라인에 올라갑니다")
-                .font(.pretendard(size: 11, weight: .bold)).foregroundStyle(glCollab).padding(.top, 9)
-        }
-        .padding(.horizontal, 14).padding(.vertical, 13)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(glCollab.opacity(0.06), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).stroke(glCollab.opacity(0.3), lineWidth: 1))
-    }
-}
-
-// 오늘 마커 — 타임라인 시작점.
-private struct TodayMarker: View {
-    @Environment(\.glgAccent) private var accent
-    var body: some View {
-        let now = nowMs()
-        HStack(spacing: 8) {
-            Circle().fill(accent.primary).frame(width: 8, height: 8).padding(.leading, 19)
-            Text("오늘 · \(DateUtil.shared.month(millis: now))월 \(DateUtil.shared.dayOfMonth(millis: now))일")
-                .font(.pretendard(size: 11, weight: .bold)).foregroundStyle(accent.primary)
-            Rectangle().fill(accent.primary.opacity(0.25)).frame(height: 1)
-        }
-    }
-}
-
-// 날짜 노드 — 좌측 날짜(일/월·요일/D-N) + 세로 연결선, 우측에 그날 끝나는 항목들.
-private struct DayNode: View {
-    let d: ScheduleDay
-    let isLast: Bool
-    var body: some View {
-        HStack(alignment: .top, spacing: 13) {
-            VStack(spacing: 0) {
-                Text("\(d.day)").font(.pretendard(size: 20, weight: .bold))
-                    .foregroundStyle(GLGColor.textPrimary).monospacedDigit()
-                Text("\(d.month)월 \(d.weekdayKo)").font(.pretendard(size: 10, weight: .bold))
-                    .foregroundStyle(GLGColor.textSecondary)
-                Text(d.dDay == 0 ? "D-DAY" : "D-\(d.dDay)")
-                    .font(.pretendard(size: 9.5, weight: .bold))
-                    .foregroundStyle(d.urgent ? glUrgent : GLGColor.textSecondary)
-                    .padding(.horizontal, 6).padding(.vertical, 1.5)
-                    .background(d.urgent ? glUrgent.opacity(0.14) : glTrack, in: Capsule())
-                    .padding(.top, 5)
-                // 다음 날짜로 이어지는 세로선(마지막 노드는 생략).
-                if !isLast {
-                    Rectangle().fill(glLine).frame(width: 1).frame(maxHeight: .infinity).padding(.top, 6)
+        let names = Array(NSOrderedSet(array: pickups.map { $0.name }.filter { !$0.isEmpty })) as? [String] ?? []
+        Button(action: onToggle) {
+            VStack(alignment: .leading, spacing: 0) {
+                HStack(spacing: 9) {
+                    // 채운 배너 위에서는 배지를 **뒤집는다** — 보라 알약에 흰 글자면 배경에 묻힌다.
+                    Text("콜라보").font(.pretendard(size: 9, weight: .black)).foregroundStyle(glCollab)
+                        .padding(.horizontal, 7).padding(.vertical, 3)
+                        .background(Color.white, in: Capsule())
+                    if expanded {
+                        Text("진행 중").font(.pretendard(size: 10.5, weight: .bold))
+                            .foregroundStyle(.white.opacity(0.85))
+                        Spacer(minLength: 0)
+                    } else {
+                        // 접힌 상태에선 제목·픽업이 한 줄 띠 안으로 들어간다.
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(title).font(.pretendard(size: 13, weight: .black))
+                                .foregroundStyle(.white).lineLimit(1)
+                            // 이름이 길면 잘리되 **종료 미공지는 항상 남긴다** — 종료일을 아는 것처럼 비우면 안 된다.
+                            Text((names + ["종료 미정"]).joined(separator: " · "))
+                                .font(.pretendard(size: 10, weight: .semibold))
+                                .foregroundStyle(.white.opacity(0.82)).lineLimit(1)
+                        }
+                        Spacer(minLength: 0)
+                    }
+                    // 접힘/펼침을 **글자로** 알린다. 화살표만 두면 이게 눌리는 것인지, 눌렀을 때
+                    // 무엇이 열리는지가 전달되지 않는다.
+                    Text(expanded ? "숨기기" : "보기")
+                        .font(.pretendard(size: 9.5, weight: .black)).foregroundStyle(.white)
+                        .padding(.horizontal, 8).padding(.vertical, 3)
+                        .background(.white.opacity(0.2), in: Capsule())
                 }
-            }
-            .frame(width: 46)
-            VStack(spacing: 8) {
-                ForEach(d.entries) { e in EntryCard(e: e) }
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-        }
-        .fixedSize(horizontal: false, vertical: true)
-        .padding(.bottom, 18)
-    }
-}
-
-// ── 타임라인 탭 ────────────────────────────────────────────────────────────
-
-/**
- 간트형 가로 타임라인 — **이벤트 하나가 한 행**, 게임별로 묶는다. (Compose TimelineContent 대응)
-
- 일정 탭(마감일 세로 목록)과 답하는 질문이 다르다. 저쪽은 "다음에 뭐가 끝나나"지만
- 여기는 **기간과 겹침**이다 — 어떤 이벤트가 같은 주에 몰렸는지, 하나가 끝나고 다음이
- 시작할 때까지 빈 구간이 있는지는 막대를 나란히 놓아야 보인다.
-
- 예전엔 게임이 행이라 이벤트 여러 개가 한 줄에 겹쳐 들어갔고, 그나마도 기간이 아니라
- 마감 지점 표식이었다(상류가 시작 시각을 안 준다고 봤는데 **사실이 아니었다** — `TimelineLogic` 참고).
-
- 좌표는 전부 `TimelineLogic` 이 준 비율(0~1)이고 여기서는 폭만 곱한다.
- */
-private struct TimelineContent: View {
-    var store: SpendingStore
-    @State private var timeline: Timeline? = nil
-
-    private struct TimelineKey: Equatable {
-        let events: [GameEvent]
-        let challenges: [GameChallenge]
-    }
-
-    private var key: TimelineKey {
-        TimelineKey(events: store.gameEvents, challenges: store.challenges)
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Text("이벤트·정기 콘텐츠 기간을 나란히 놓고 봅니다. 픽업은 '일정' 탭에서 확인해요.")
-                .font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary)
-                .fixedSize(horizontal: false, vertical: true)
-                .padding(.bottom, 14)
-            if let t = timeline, !t.isEmpty {
-                GLGCard(cornerRadius: 20, padding: 14) {
-                    VStack(alignment: .leading, spacing: 0) {
-                        Text("앞으로 \(t.days)일")
-                            .font(.pretendard(size: 11.5, weight: .bold)).foregroundStyle(GLGColor.textSecondary)
-                            .padding(.leading, timelineLabelWidth).padding(.bottom, 8)
-                        timelineAxis(t)
-                        Spacer().frame(height: 6)
-                        ForEach(Array(t.groups.enumerated()), id: \.offset) { gi, group in
-                            if gi > 0 { Spacer().frame(height: 12) }
-                            timelineGroupHeader(group)
-                            Spacer().frame(height: 4)
-                            ForEach(Array(group.rows.enumerated()), id: \.offset) { i, row in
-                                if i > 0 { Spacer().frame(height: 3) }
-                                timelineRow(row, color: Color(argb64: group.colorArgb),
-                                            nowFraction: CGFloat(t.nowFraction))
+                if expanded {
+                    Text(title).font(.pretendard(size: 19, weight: .black)).foregroundStyle(.white)
+                        .lineLimit(2).padding(.top, 9)
+                    if !names.isEmpty {
+                        VStack(alignment: .leading, spacing: 6) {
+                            ForEach(Array(stride(from: 0, to: names.count, by: 2)), id: \.self) { i in
+                                HStack(spacing: 6) {
+                                    ForEach(names[i..<min(i + 2, names.count)], id: \.self) { n in
+                                        Text(n).font(.pretendard(size: 11, weight: .bold)).foregroundStyle(.white)
+                                            .lineLimit(1)
+                                            .padding(.horizontal, 9).padding(.vertical, 4)
+                                            .background(.white.opacity(0.18), in: Capsule())
+                                    }
+                                }
                             }
                         }
-                        timelineLegend().padding(.top, 12)
+                        .padding(.top, 10)
                     }
-                }
-            } else if timeline != nil {
-                Text("표시할 이벤트가 없어요.")
-                    .font(.pretendard(size: 13)).foregroundStyle(GLGColor.textSecondary)
-                    .frame(maxWidth: .infinity, alignment: .center).padding(.top, 40)
-            }
-        }
-        // 집계는 원본 3종이 바뀔 때만 — body 평가마다 다시 만들면 스크롤이 무거워진다.
-        .task(id: key) {
-            timeline = TimelineLogic.shared.build(
-                events: store.gameEvents, challenges: store.challenges, nowMillis: nowMs())
-        }
-    }
-
-    /// 이벤트 이름이 들어가는 좌측 고정 폭 — 축과 행이 같은 값을 써야 눈금과 막대가 맞는다.
-    private var timelineLabelWidth: CGFloat { 88 }
-    private var rowHeight: CGFloat { 22 }
-    private var barHeight: CGFloat { 14 }
-
-    /// 게임 묶음 머리말 — 색 막대 + 게임명. 행마다 게임을 반복해 적지 않기 위한 자리다.
-    @ViewBuilder
-    private func timelineGroupHeader(_ group: TimelineGroup) -> some View {
-        HStack(spacing: 6) {
-            RoundedRectangle(cornerRadius: 1.5, style: .continuous)
-                .fill(Color(argb64: group.colorArgb))
-                .frame(width: 3, height: 12)
-            Text(group.gameShort)
-                .font(.pretendard(size: 11.5, weight: .bold))
-                .foregroundStyle(GLGColor.textPrimary)
-        }
-    }
-
-    /// 날짜 눈금 줄.
-    @ViewBuilder
-    private func timelineAxis(_ t: Timeline) -> some View {
-        HStack(spacing: 0) {
-            Spacer().frame(width: timelineLabelWidth)
-            GeometryReader { geo in
-                ZStack(alignment: .topLeading) {
-                    ForEach(Array(t.ticks.enumerated()), id: \.offset) { _, tick in
-                        // 마지막 눈금은 라벨이 오른쪽으로 넘치므로 당겨 붙인다.
-                        let atEnd = tick.fraction > 0.92
-                        Text(tick.label).font(.pretendard(size: 9.5)).foregroundStyle(GLGColor.textSecondary)
-                            .lineLimit(1)
-                            .offset(x: geo.size.width * CGFloat(tick.fraction) - (atEnd ? 22 : 0))
-                    }
+                    Text((started.map { "\(DateUtil.shared.shortDate(millis: $0)) 시작 · " } ?? "") + "종료 시각 미공지")
+                        .font(.pretendard(size: 10.5, weight: .semibold))
+                        .foregroundStyle(.white.opacity(0.8)).padding(.top, 11)
                 }
             }
-            .frame(height: 14)
+            .padding(.horizontal, expanded ? 16 : 12)
+            .padding(.vertical, expanded ? 15 : 10)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                LinearGradient(colors: [glCollab, gradientEnd],
+                               startPoint: expanded ? .topLeading : .leading,
+                               endPoint: expanded ? .bottomTrailing : .trailing),
+                in: RoundedRectangle(cornerRadius: expanded ? 20 : 14, style: .continuous)
+            )
         }
-    }
-
-    /// 이벤트 한 행 — 좌측 이름 + 기간 막대 하나.
-    @ViewBuilder
-    private func timelineRow(_ row: TimelineRow, color: Color, nowFraction: CGFloat) -> some View {
-        HStack(spacing: 0) {
-            HStack(spacing: 4) {
-                // 종류 점 — 이벤트인지 정기 콘텐츠인지. 막대 색은 게임이 쓰므로 여기서 구분한다.
-                Circle().fill(scheduleKindColor(row.kind)).frame(width: 5, height: 5)
-                Text(row.title)
-                    .font(.pretendard(size: 10.5, weight: row.ongoing ? .bold : .regular))
-                    .foregroundStyle(row.ongoing ? GLGColor.textPrimary : GLGColor.textSecondary)
-                    .lineLimit(1)
-            }
-            .frame(width: timelineLabelWidth, alignment: .leading).padding(.trailing, 6)
-            GeometryReader { geo in
-                let w = geo.size.width
-                ZStack(alignment: .leading) {
-                    // 바닥 트랙 — 막대가 없는 구간도 '아무것도 없는 기간'으로 읽히게 한다.
-                    RoundedRectangle(cornerRadius: 5, style: .continuous)
-                        .fill(Color(hex: 0xFFF2F3F6))
-                        .frame(height: barHeight)
-                    // 오늘 선
-                    Rectangle().fill(glUrgent.opacity(0.35))
-                        .frame(width: 1, height: rowHeight)
-                        .offset(x: w * nowFraction)
-                    timelineBar(row, color: color, width: w)
-                }
-                .frame(height: rowHeight)
-            }
-            .frame(height: rowHeight)
-        }
-        .frame(height: rowHeight)
-    }
-
-    /// 기간 막대 하나. 진행 중이면 채우고, 예정이면 옅게.
-    @ViewBuilder
-    private func timelineBar(_ row: TimelineRow, color: Color, width: CGFloat) -> some View {
-        // 아주 짧은 기간(하루)도 보이도록 최소 폭을 준다 — 안 그러면 선으로 사라진다.
-        let barWidth = max(width * CGFloat(row.widthFraction), 6)
-        ZStack(alignment: .leading) {
-            RoundedRectangle(cornerRadius: 5, style: .continuous)
-                .fill(row.ongoing ? color : color.opacity(0.28))
-            // 시작을 모르는 것(옛 캐시)은 테두리를 둘러 '여기서 시작한 게 아니다'를 알린다.
-            // 창보다 먼저 시작한 것(startClipped)과 달리, 이건 값 자체가 없는 경우다.
-            if row.startUnknown {
-                RoundedRectangle(cornerRadius: 5, style: .continuous)
-                    .stroke(color.opacity(0.55), lineWidth: 1)
-            }
-        }
-        .frame(width: barWidth, height: barHeight)
-        .offset(x: width * CGFloat(row.startFraction))
-    }
-
-    /// 범례 — 색이 무엇을 뜻하는지 한 줄.
-    @ViewBuilder
-    private func timelineLegend() -> some View {
-        HStack(spacing: 12) {
-            legendItem(scheduleKindColor(TimelineLogic.shared.KIND_EVENT), "이벤트")
-            legendItem(scheduleKindColor(TimelineLogic.shared.KIND_CHALLENGE), "정기 콘텐츠")
-            legendItem(GLGColor.textSecondary.opacity(0.4), "예정")
-            HStack(spacing: 5) {
-                Rectangle().fill(glUrgent).frame(width: 1, height: 10)
-                Text("오늘").font(.pretendard(size: 10)).foregroundStyle(GLGColor.textSecondary)
-            }
-        }
-    }
-
-    @ViewBuilder
-    private func legendItem(_ color: Color, _ label: String) -> some View {
-        HStack(spacing: 4) {
-            Circle().fill(color).frame(width: 8, height: 8)
-            Text(label).font(.pretendard(size: 10)).foregroundStyle(GLGColor.textSecondary)
-        }
+        .buttonStyle(.plain)
     }
 }
 
@@ -945,119 +1110,5 @@ private struct BroadcastCard: View {
             .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(gc.opacity(0.35), lineWidth: 1))
         }
         .buttonStyle(.plain)
-    }
-}
-
-// 일정 카드 — 종류 배지 + 제목 + 게임 태그, 픽업이면 캐릭터 칩까지.
-private struct EntryCard: View {
-    let e: ScheduleEntry
-    var body: some View {
-        let gc = Color(argb64: e.colorArgb)
-        return VStack(alignment: .leading, spacing: 0) {
-            HStack(spacing: 7) {
-                Text(e.kind == "패치" ? "픽업" : e.kind)
-                    .font(.pretendard(size: 9.5, weight: .bold)).foregroundStyle(.white)
-                    .padding(.horizontal, 7).padding(.vertical, 2)
-                    .background(scheduleKindColor(e.kind), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
-                Text(e.title).font(.pretendard(size: 12.5, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
-                    .lineLimit(1).frame(maxWidth: .infinity, alignment: .leading)
-                Text(e.gameShort).font(.pretendard(size: 9.5, weight: .bold)).foregroundStyle(.white)
-                    .padding(.horizontal, 7).padding(.vertical, 2)
-                    .background(gc, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
-            }
-            // 남은 시간 — 날짜 노드의 D-N 은 '며칠 남았나'만 알려 주지만, 마감 당일엔 몇 시간이
-            // 남았는지가 실제로 필요한 정보다(D-DAY 만으로는 지금 해야 하는지 판단이 안 된다).
-            // 24시간 안쪽이면 초까지 세고 사이렌처럼 명멸시킨다.
-            //
-            // 갱신 주기를 항목마다 나눈다 — 며칠 남은 일정에 초를 세어 봐야 화면은 그대로인데
-            // 다시 그리는 횟수만 60배가 된다. TimelineView 는 시스템이 라이프사이클을 관리하므로
-            // 화면을 벗어나면 알아서 멈춘다.
-            TimelineView(.periodic(from: .now, by: isImminent(targetMillis: e.target, nowMillis: nowMS()) ? 1 : 60)) { ctx in
-                let now = Int64(ctx.date.timeIntervalSince1970 * 1000)
-                let imminent = isImminent(targetMillis: e.target, nowMillis: now)
-                let remain = imminent
-                    ? hmsLabel(targetMillis: e.target, nowMillis: now)
-                    : dhLabel(targetMillis: e.target, nowMillis: now)
-                HStack(spacing: 6) {
-                    if !e.sub.isEmpty {
-                        Text(e.sub).font(.pretendard(size: 10.5)).foregroundStyle(GLGColor.textSecondary)
-                            .lineLimit(1)
-                    }
-                    Spacer(minLength: 0)
-                    Text(remain == "종료" ? remain : "\(remain) 남음")
-                        .font(.pretendard(size: 10.5, weight: .bold))
-                        .foregroundStyle(imminent ? glUrgent : GLGColor.textSecondary)
-                        .lineLimit(1)
-                        .sirenPulse(active: imminent)
-                }
-                .padding(.top, 4)
-            }
-            if !e.pickups.isEmpty {
-                PickupChips(pickups: e.pickups).padding(.top, 9)
-            }
-        }
-        .padding(.horizontal, 12).padding(.vertical, 10)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.white, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-        // 아웃라인에 게임색 — 타임라인에서 어느 게임 일정인지 배지를 읽기 전에 구분된다.
-        .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(gc.opacity(0.35), lineWidth: 1))
-    }
-}
-
-/// 픽업 칩 — 캐릭터 먼저, 무기(광추·W-엔진)는 그다음. 둘 다 **이름 그대로** 노출한다.
-/// ("무기 2종"처럼 개수로 뭉치면 정작 뭐가 픽업인지 알 수 없어 칩의 쓸모가 없다.)
-/// 2개씩 줄바꿈 — Android PickupChips 와 동일 규칙.
-private struct PickupChips: View {
-    let pickups: [GachaBanner]
-    var body: some View {
-        let chars = pickups.filter { $0.type != "weapon" }
-        let weapons = pickups.filter { $0.type == "weapon" }
-        VStack(alignment: .leading, spacing: 6) {
-            chipRows(chars)
-            // 캐릭터와 무기는 종류가 다르니 구분선으로 끊는다(둘 다 있을 때만).
-            if !chars.isEmpty && !weapons.isEmpty {
-                Divider().opacity(0.7).padding(.vertical, 1)
-            }
-            chipRows(weapons)
-        }
-    }
-
-    @ViewBuilder
-    private func chipRows(_ list: [GachaBanner]) -> some View {
-        let rows = stride(from: 0, to: list.count, by: 2).map { Array(list[$0..<min($0 + 2, list.count)]) }
-        ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
-            HStack(spacing: 6) {
-                ForEach(Array(row.enumerated()), id: \.offset) { _, b in PickupChip(banner: b) }
-                Spacer(minLength: 0)
-            }
-        }
-    }
-}
-
-private struct PickupChip: View {
-    let banner: GachaBanner
-    var body: some View {
-        HStack(spacing: 6) {
-            // 무기도 캐릭터와 같은 원형 아바타 — 칩이 한 줄에 섞여도 형태가 어긋나지 않는다.
-            if banner.type == "weapon" {
-                ZStack {
-                    Circle().fill(glWeap.opacity(0.16))
-                    SwordShape().fill(glWeap).frame(width: 10, height: 12)
-                }
-                .frame(width: 20, height: 20)
-            } else {
-                ZStack {
-                    Circle().fill(Color(argb64: banner.gameColor))
-                    Text(String(banner.name.prefix(1))).font(.pretendard(size: 10, weight: .heavy))
-                        .foregroundStyle(.white)
-                }
-                .frame(width: 20, height: 20)
-            }
-            Text(banner.name).font(.pretendard(size: 11.5, weight: .bold))
-                .foregroundStyle(GLGColor.textPrimary).lineLimit(1)
-        }
-        .padding(.leading, 3).padding(.trailing, 10).padding(.vertical, 3)
-        .background(Color.white, in: Capsule())
-        .overlay(Capsule().stroke(glLine, lineWidth: 1))
     }
 }
