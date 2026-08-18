@@ -98,7 +98,11 @@ struct SpendingDetailView: View {
         // 수정·삭제를 네비 헤더 우측 아이콘으로. 각각 별도 ToolbarItem + ToolbarSpacer 로 분리 —
         // iOS 26 은 인접 툴바 아이템을 하나의 글래스 캡슐로 묶으므로 스페이서로 갈라 독립 원형 버튼으로.
         .toolbar {
-            // 수정 시 상세페이지를 닫지 않음 — 편집 시트를 위에 띄우고, 닫으면 상세로 복귀(갱신 내용 표시)
+            // 수정 — 경로에 한 칸 더 쌓는다(호출부가 path 에 .edit 를 append).
+            //
+            // ⚠️ **이 화면 안에서 `.navigationDestination` 을 선언하면 안 된다.** 이 화면 자체가
+            // 이미 목적지라, 목적지 안에서 목적지를 또 등록하면 스택이 초기화돼 목록으로 튕긴다.
+            // 실제로 그 구조로 만들었다가 수정 버튼이 목록으로 빠지는 버그를 냈다.
             ToolbarItem(placement: .topBarTrailing) {
                 Button { onEdit(s) } label: { Image(systemName: "pencil") }
             }

@@ -33,10 +33,17 @@ struct ContentView: View {
     /// `.sheet(item:)` 은 대상 값을 표시 시점에 확정해 넘기므로 이 경합 자체가 성립하지 않는다.
     @State private var spendingSheet: SpendingSheetTarget? = nil
 
-    /// 지출 시트의 대상. `.sheet(item:)` 에 넘기기 위해 Identifiable.
-    private enum SpendingSheetTarget: Identifiable {
+    /// 지출 편집 페이지의 대상. `.navigationDestination(item:)` 에 넘기기 위해 Identifiable + Hashable.
+    ///
+    /// 동등성·해시는 **[id] 로만** 판단한다. Kotlin `Spending` 은 Swift 쪽에서 값 동등성이
+    /// 보장되지 않아 그대로 해싱하면 같은 대상이 매번 달라 보일 수 있고, 그러면
+    /// 네비게이션이 목적지를 새로 밀어 넣는다.
+    private enum SpendingSheetTarget: Identifiable, Hashable {
         case add
         case edit(Spending)
+
+        static func == (a: Self, b: Self) -> Bool { a.id == b.id }
+        func hash(into hasher: inout Hasher) { hasher.combine(id) }
 
         var id: String {
             switch self {
@@ -55,6 +62,20 @@ struct ContentView: View {
     /// 서브페이지(연간 리포트·알림 상세 등)가 열린 탭 집합 — 해당 탭에서만 탭바 숨김.
     /// (전역 단일 플래그는 탭 전환 시 상태가 어긋나므로 탭별로 독립 관리)
     @State private var tabsWithSubPage: Set<Int> = []
+
+    /// 지출 탭 스택 경로 — 목록 → 상세 → 수정이 여기 쌓인다.
+    @State private var spendingPath: [SpendingRoute] = []
+
+    /// 지출 입력 페이지(추가·수정)가 경로에 올라와 있는가.
+    ///
+    /// 숨김을 그 화면이 스스로 선언하면, pop 되는 순간 선언이 사라져 탭바가 **애니메이션 없이
+    /// 즉시** 나타난다(짠 하고 등장). 경로를 보고 상위가 판단하면 값 변화가 전환에 실린다.
+    private var spendingEditorOpen: Bool {
+        spendingPath.contains {
+            if case .detail = $0 { return false }
+            return true
+        }
+    }
 
     /// 초기 클라우드 동기화 게이트(로딩 화면) 활성 여부 — 게이트 동안 탭바·추가 버튼 숨김
     ///
@@ -118,11 +139,6 @@ struct ContentView: View {
             } else {
                 // 로그인 후 메인 — iPad 는 사이드바 분할뷰, iPhone 은 하단 탭바.
                 authenticatedRoot
-                    // 지출 추가/수정 — Phase 6: SwiftUI 네이티브 폼 (구 ComposeView AddSpendingViewController 대체)
-                    .sheet(item: $spendingSheet) { target in
-                        AddSpendingView(store: store, editing: target.spending) { spendingSheet = nil }
-                            .presentationDragIndicator(.visible)
-                    }
                     .transition(.opacity)
             }
         }
@@ -247,7 +263,33 @@ struct ContentView: View {
 
     /// '+' (지출 추가) 모달 열기 — 신규 추가(편집 대상 없음).
     private func openAddSpending() {
-        spendingSheet = .add
+        // 탭을 옮기지 않는다 — **보고 있던 탭 위에** 밀어 넣는다.
+        // (예전엔 지출 탭으로 강제 이동시켰는데, 홈에서 '+'를 눌렀다가 닫으면 엉뚱하게 지출 탭에 남았다.)
+        //
+        // 지출 탭만 경로 기반이라 경로에 쌓고, 나머지 탭은 기존 item 목적지를 쓴다.
+        if selectedTab == 1 { spendingPath.append(.add) } else { spendingSheet = .add }
+    }
+
+    /**
+     지출 편집 페이지를 **지금 보고 있는 탭의 스택**에만 밀어 넣기 위한 바인딩.
+
+     네 탭이 각자 `NavigationStack` 을 갖고 있고 TabView 는 보이지 않는 탭도 살려 둔다.
+     같은 상태를 네 스택에 그대로 물리면 **네 곳이 동시에** 목적지를 밀어 넣어, 나중에 다른 탭으로
+     가면 거기에도 추가 페이지가 쌓여 있다. 그래서 현재 탭이 아니면 항상 nil 을 돌려준다.
+     */
+    private func spendingEditorBinding(tab: Int) -> Binding<SpendingSheetTarget?> {
+        Binding(
+            get: { selectedTab == tab ? spendingSheet : nil },
+            set: { newValue in if selectedTab == tab { spendingSheet = newValue } }
+        )
+    }
+
+    /// 각 탭 스택 루트에 다는 지출 편집 목적지 — 상세 페이지처럼 밀려 들어온다(시트 아님).
+    @ViewBuilder
+    private func spendingEditorDestination<V: View>(tab: Int, _ content: V) -> some View {
+        content.navigationDestination(item: spendingEditorBinding(tab: tab)) { target in
+            AddSpendingView(store: store, editing: target.spending, pushed: true) { spendingSheet = nil }
+        }
     }
 
     /**
@@ -276,7 +318,13 @@ struct ContentView: View {
     // ── 메인 셸: 시스템 탭바(iPhone·iPad 공통) ──────────────────────────
 
     /// 현재 기기가 iPad 인가. iPad 는 가로 회전 지원 + 지출 추가를 우측 하단 FAB 로 제공.
-    private var isPad: Bool { UIDevice.current.userInterfaceIdiom == .pad }
+    /// 창이 좁은가 — **탭바가 하단에 놓이는 상태**.
+    ///
+    /// '추가' 버튼 자리를 기기 종류(`isPad`)로 정하면 안 된다. iPadOS 26 자유 창에서는 iPad 도
+    /// 창을 줄이면 컴팩트가 되어 탭바가 하단으로 내려오는데, idiom 은 여전히 `.pad` 라
+    /// **우측 하단 FAB 가 그 하단 탭바 위에 겹친다.** 폭으로 판단해야 맞다.
+    @Environment(\.horizontalSizeClass) private var hSizeClass
+    private var isCompactWindow: Bool { hSizeClass == .compact }
 
     @ViewBuilder
     private var authenticatedRoot: some View {
@@ -296,9 +344,9 @@ struct ContentView: View {
                 Tab("지출", systemImage: "creditcard.fill", value: 1) { spendingTabContent }
                 Tab("게임 정보", systemImage: "gamecontroller.fill", value: 2) { gameInfoTabContent }
                 Tab("마이페이지", systemImage: "person.fill", value: 3) { myPageTabContent }
-                // iPhone: 탭바에서 분리된 원형 '추가' 버튼. iPad 는 우측 하단 FAB 로 대신한다.
-                // 초기 동기화 게이트(로딩 화면) 동안에는 표시하지 않음
-                if !syncGateActive && !isPad {
+                // 좁은 창: 탭바에서 분리된 원형 '추가' 버튼(탭바가 하단이라 FAB 를 놓을 자리가 없다).
+                // 넓은 창은 아래 우측 하단 FAB 로 대신한다. 초기 동기화 게이트 동안에는 둘 다 미표시.
+                if !syncGateActive && isCompactWindow {
                     Tab(value: 4, role: separatedActionRole) { Color.clear } label: {
                         Label("추가", systemImage: "plus")
                     }
@@ -313,9 +361,9 @@ struct ContentView: View {
                     openAddSpending()
                 }
             }
-            // iPad: 지출 추가를 우측 하단 시스템 FAB 로.
+            // 넓은 창(탭바가 상단): 지출 추가를 우측 하단 FAB 로.
             .overlay(alignment: .bottomTrailing) {
-                if isPad && !syncGateActive {
+                if !isCompactWindow && !syncGateActive {
                     fabAddButton.padding(.trailing, 24).padding(.bottom, 24)
                 }
             }
@@ -369,48 +417,90 @@ struct ContentView: View {
         }
     }
 
-    /// 탭바 표시 여부 — 서브페이지에서도 항상 노출하되, **초기 동기화 게이트(로딩 화면)에서만 숨김**.
+    /// 탭바 표시 여부 — 서브페이지에서도 항상 노출하되, 초기 동기화 게이트와 **지출 입력 페이지**에서 숨김.
     /// (로그인 화면은 TabView 밖 별도 뷰라 자동으로 탭바·FAB 없음)
-    private func tabBarVisibility(_ tab: Int) -> Visibility { syncGateActive ? .hidden : .visible }
+    ///
+    /// ⚠️ 숨김 판단은 **반드시 여기서** 해야 한다. 이 함수는 탭 콘텐츠에 `.toolbar(_:for:.tabBar)` 로
+    /// 붙는데, `.visible` 을 명시하는 순간 **그 안쪽 화면이 건 `.hidden` 을 덮어쓴다** —
+    /// 추가 페이지에서 `.toolbar(.hidden, for: .tabBar)` 를 걸어도 탭바가 그대로 남았던 이유다.
+    /// 하단 탭바 가시성 — **여기 한 곳에서만 정한다.**
+    ///
+    /// 두 가지를 지켜야 해서 이 모양이 됐다.
+    ///  1. 하위 화면이 각자 `.toolbar(.hidden, for: .tabBar)` 를 걸면 안 된다 — pop 되는 순간
+    ///     선언이 사라져 탭바가 애니메이션 없이 튀어나온다("짠" 하고 등장).
+    ///  2. 그렇다고 **조건부로 모디파이어를 붙였다 뗐다 하면 안 된다** — 모디파이어의 유무가
+    ///     바뀌면 그 아래 `NavigationStack` 의 구조가 재구성돼 **push 애니메이션이 사라진다.**
+    ///
+    /// 그래서 모디파이어는 **항상 달아 두고 값만 바꾼다.** 값 변화는 전환에 실리고 구조는 그대로다.
+    private var tabBarVisibility: Visibility {
+        (syncGateActive || spendingSheet != nil || spendingEditorOpen) ? .hidden : .visible
+    }
 
     // ── 탭 콘텐츠 (네이티브 SwiftUI) ──────────────────────────────────
 
     // Phase 5 — SwiftUI 네이티브 홈. 시작 로직(refreshGameInfo)은 HomeView.task 에서 트리거.
     private var homeTabContent: some View {
         NavigationStack {
-            HomeView(store: store, onSwitchTab: { selectedTab = $0 })
+            spendingEditorDestination(tab: 0, HomeView(store: store, onSwitchTab: { selectedTab = $0 }))
         }
         .glgAccent(index: store.accentIndex)
-        .toolbar(tabBarVisibility(0), for: .tabBar)
+        .toolbar(tabBarVisibility, for: .tabBar)
     }
 
     // Phase 3 — SwiftUI 네이티브 지출(목록·분석·달력·상세). 수정 시 편집 대상 설정 후 기존 AddSpending 시트(Compose interim)를 연다.
     private var spendingTabContent: some View {
-        NavigationStack {
+        // **경로 기반 스택.** 목록 → 상세 → 수정이 한 경로 위에 쌓인다.
+        //
+        // 예전엔 뷰 기반 `NavigationLink { 상세 }` 와, 상세 **안에서** 다시 선언한
+        // `navigationDestination(수정)` 이 섞여 있었다. 목적지 안에서 목적지를 등록하면
+        // SwiftUI 가 스택을 초기화해 **수정 버튼이 목록으로 튕겼다.**
+        // 목적지는 여기서 한 번만 등록하고, 각 화면은 경로에 값을 밀어 넣기만 한다.
+        NavigationStack(path: $spendingPath) {
             SpendingView(store: store, onEdit: { spending in
-                spendingSheet = .edit(spending)   // 대상 = 표시 여부. 한 번에 확정된다.
+                spendingPath.append(.edit(spending.id))
             })
+            .navigationDestination(for: SpendingRoute.self) { route in
+                switch route {
+                case .detail(let id):
+                    SpendingDetailView(store: store, spendingId: id, onEdit: { s in
+                        spendingPath.append(.edit(s.id))
+                    })
+                case .edit(let id):
+                    AddSpendingView(
+                        store: store,
+                        editing: store.spendings.first { $0.id == id },
+                        pushed: true,
+                    ) { popSpendingPath() }
+                case .add:
+                    AddSpendingView(store: store, editing: nil, pushed: true) { popSpendingPath() }
+                }
+            }
         }
         .glgAccent(index: store.accentIndex)
-        .toolbar(tabBarVisibility(1), for: .tabBar)
+        .toolbar(tabBarVisibility, for: .tabBar)
+    }
+
+    /// 편집 페이지를 닫는다 — 경로에서 한 칸만 뺀다(상세가 아래 있으면 상세로 돌아간다).
+    private func popSpendingPath() {
+        if !spendingPath.isEmpty { spendingPath.removeLast() }
     }
 
     // Phase 4 chunk ② — SwiftUI 게임정보(데일리·배너/전투/일지·패치·위시·천장·이벤트). 가챠 도구는 chunk ③.
     private var gameInfoTabContent: some View {
-        NavigationStack { GameInfoView(store: store) }
+        NavigationStack { spendingEditorDestination(tab: 2, GameInfoView(store: store)) }
             .glgAccent(index: store.accentIndex)
-            .toolbar(tabBarVisibility(2), for: .tabBar)
+            .toolbar(tabBarVisibility, for: .tabBar)
     }
 
     // Phase 2 — SwiftUI 네이티브 마이페이지/설정 (구 ComposeView MyPageTabViewController 대체).
     // 설정은 NavigationStack push(시스템 슬라이드·뒤로가기), 탭바 숨김은 SettingsView 가 .toolbar(.hidden) 로 처리.
     private var myPageTabContent: some View {
         NavigationStack {
-            MyPageView(store: store)
+            spendingEditorDestination(tab: 3, MyPageView(store: store))
         }
         .glgAccent(index: store.accentIndex)
         // 초기 동기화 게이트(로딩) 중에는 탭바 숨김 — 서브페이지(설정)에서는 노출 유지
-        .toolbar(tabBarVisibility(3), for: .tabBar)
+        .toolbar(tabBarVisibility, for: .tabBar)
     }
 
     // ── iOS 16~25 폴백 버튼 (무색 글래스) ───────────────────────────────
@@ -431,12 +521,36 @@ struct ContentView: View {
         Button(action: { openAddSpending() }) {
             Image(systemName: "plus")
                 .font(.system(size: 24, weight: .semibold))
-                .foregroundStyle(.white)
                 .frame(width: 60, height: 60)
-                .background(accent, in: Circle())
-                .shadow(color: accent.opacity(0.4), radius: 14, y: 6)
         }
         .accessibilityLabel("지출 추가")
+        .modifier(GLGFabStyle(tint: accent))
+    }
+}
+
+/// 넓은 창(iPad)의 '추가' FAB — iOS 26 은 **시스템 글래스**(.glassProminent), 이하는 솔리드 원.
+///
+/// 직접 그린 원 + 그림자였는데, 같은 화면 아래쪽 탭바가 이미 시스템 Liquid Glass 라
+/// 재질이 서로 달라 FAB 만 앱에서 그린 티가 났다. 시스템 스타일로 넘기면 배경 위에서
+/// 굴절·명암이 알아서 잡히고 다크모드·접근성 설정도 따라온다.
+///
+/// (`Menu` 라벨에는 `.glassProminent` 를 쓰지 않는다 — 닫힐 때 색 덩어리가 스친다.
+///  여긴 `Button` 이라 무관하다.)
+private struct GLGFabStyle: ViewModifier {
+    let tint: Color
+
+    func body(content: Content) -> some View {
+        if #available(iOS 26.0, *) {
+            content
+                .buttonStyle(.glassProminent)
+                .tint(tint)
+                .buttonBorderShape(.circle)
+        } else {
+            content
+                .foregroundStyle(.white)
+                .background(tint, in: Circle())
+                .shadow(color: tint.opacity(0.4), radius: 14, y: 6)
+        }
     }
 }
 
