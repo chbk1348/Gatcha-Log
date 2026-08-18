@@ -20,6 +20,7 @@ import androidx.compose.material.icons.filled.CheckBox
 import androidx.compose.material.icons.outlined.CheckBoxOutlineBlank
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
@@ -33,7 +34,9 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.PlatformTextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.LineHeightStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -877,10 +880,39 @@ private fun SetCard(s: EnkaSet, accent: Color) {
                         ),
                         contentAlignment = Alignment.Center,
                     ) {
-                        Text("${e.pieces}", fontSize = 10.sp, fontWeight = FontWeight.Black, color = if (e.active) Color.White else TextSecondary)
+                        // 폰트 패딩을 끄고 줄 높이를 가운데로 맞춰야 숫자가 원 안에서 실제로 가운데 온다.
+                        // (Pretendard 는 한글용 ascent 가 커서, 그냥 두면 글리프가 줄 상자 안에서 아래로 눕는다.)
+                        Text(
+                            "${e.pieces}",
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Black,
+                            color = if (e.active) Color.White else TextSecondary,
+                            style = LocalTextStyle.current.copy(
+                                platformStyle = PlatformTextStyle(includeFontPadding = false),
+                                lineHeightStyle = LineHeightStyle(
+                                    alignment = LineHeightStyle.Alignment.Center,
+                                    trim = LineHeightStyle.Trim.Both,
+                                ),
+                            ),
+                        )
                     }
                     Spacer(Modifier.width(8.dp))
-                    Text(e.text, fontSize = 11.sp, color = TextSecondary, modifier = Modifier.weight(1f))
+                    // 이 행만 Alignment.Top 이다(설명이 여러 줄이면 배지가 첫 줄에 붙어야 하므로).
+                    // 그래서 첫 줄 상자를 배지와 같은 18dp 로 맞추고 글리프를 그 안에서 가운데 둔다 —
+                    // 안 그러면 11sp 줄 상자가 18dp 배지보다 짧아 **숫자만 아래로 치우쳐** 보인다.
+                    Text(
+                        e.text,
+                        fontSize = 11.sp,
+                        lineHeight = 18.sp,
+                        color = TextSecondary,
+                        style = LocalTextStyle.current.copy(
+                            lineHeightStyle = LineHeightStyle(
+                                alignment = LineHeightStyle.Alignment.Center,
+                                trim = LineHeightStyle.Trim.None,
+                            ),
+                        ),
+                        modifier = Modifier.weight(1f),
+                    )
                 }
             }
         }
@@ -905,7 +937,7 @@ private fun InfoRow(label: String, value: String, valueColor: Color) {
 
 @Composable
 private fun SecLabel(text: String) {
-    Text(text, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextSecondary, modifier = Modifier.padding(start = 2.dp, bottom = 9.dp))
+    Text(text, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextSecondary, modifier = Modifier.padding(bottom = 9.dp))
 }
 
 @Composable
@@ -934,7 +966,7 @@ private fun WeaponCard(w: EnkaWeapon, accent: Color, refinement: WeaponRefinemen
                 Column(Modifier.padding(14.dp)) {
                     Text(refinement.name, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = accent)
                     Spacer(Modifier.height(4.dp))
-                    Text(refinement.desc, fontSize = 12.sp, color = TextSecondary, lineHeight = 17.sp)
+                    Text(refinement.desc, fontSize = 12.sp, color = TextSecondary)
                 }
             }
         }

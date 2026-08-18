@@ -49,7 +49,7 @@ struct GameTabbedSection: View {
 
     private func contentBlock<C: View>(_ label: String, @ViewBuilder content: () -> C) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text(label).font(.pretendard(size: 16, weight: .bold)).padding(.leading, 2)
+            Text(label).font(.pretendard(size: 16, weight: .bold))
             content()
         }
     }

@@ -48,11 +48,14 @@ private const val VENUE_MAP_URL = "https://map.naver.com/p/search/%ED%82%A8%ED%8
 /** 네이버 지도가 안 열릴 때 폴백 — 어느 기기에나 있는 브라우저로 열리는 구글 지도 검색. */
 private const val VENUE_MAP_FALLBACK_URL = "https://www.google.com/maps/search/%EC%9D%BC%EC%82%B0+%ED%82%A8%ED%85%8D%EC%8A%A4+%EC%A0%9C2%EC%A0%84%EC%8B%9C%EC%9E%A5"
 
+/** 지스타 공식 사이트 — 참가사·티켓 일정이 여기서 먼저 갱신된다. */
+private const val GSTAR_URL = "https://www.gstar.or.kr/"
+
 /** 게임정보 탭에 임베드되는 요약 카드 — 내용이 보이는 카드형, 탭하면 상세(HoyolandDetailContent)로 이동. */
 @Composable
 fun HoyolandSection(onOpen: () -> Unit) {
     val accent = LocalAccent.current
-    Text("호요랜드", fontSize = 16.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 2.dp, bottom = 10.dp))
+    Text("호요랜드", fontSize = 16.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 10.dp))
     GlassCard(modifier = Modifier.fillMaxWidth().clickable { onOpen() }) {
         Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
@@ -90,8 +93,14 @@ fun HoyolandSection(onOpen: () -> Unit) {
 fun HoyolandDetailContent() {
     val accent = LocalAccent.current
     val ctx = LocalContext.current
-    // 페이지 타이틀은 SectionPage 헤더에서 표시. 여기선 부제만.
-    Text("호요버스 오프라인 행사", fontSize = 13.sp, color = TextSecondary, modifier = Modifier.padding(top = 4.dp, bottom = 14.dp))
+    // 페이지 타이틀은 SectionPage 헤더에서 표시. 이 줄은 아래 두 블록('국내 오프라인 행사'·'지난 행사')과
+    // 나란히 서는 **섹션 제목**이라 같은 규격(16sp Bold)으로 맞춘다 —
+    // 예전엔 혼자 13sp 회색 부제라, 한 페이지 안에서 제목 셋의 생김새가 달랐다.
+    Text(
+        "호요버스 오프라인 행사",
+        fontSize = 16.sp, fontWeight = FontWeight.Bold, color = TextPrimary,
+        modifier = Modifier.padding(top = 2.dp, bottom = 10.dp),
+    )
 
     // 장소 카드
     GlassCard(modifier = Modifier.fillMaxWidth()) {
@@ -122,6 +131,7 @@ fun HoyolandDetailContent() {
                 onClick = { openExternalLink(ctx, VENUE_MAP_URL, VENUE_MAP_FALLBACK_URL) },
                 modifier = Modifier.fillMaxWidth(),
                 height = 46.dp,
+                color = accent, // 카드 위라 고스트 테두리는 배경에 묻힌다(iOS 와 동일하게 강조색)
             )
         }
     }
@@ -141,8 +151,48 @@ fun HoyolandDetailContent() {
 
     Spacer(Modifier.height(20.dp))
 
+    // 지스타 2026 — 호요랜드와 **별개 행사**지만, 호요버스가 나오는 국내 오프라인 자리라 여기 둔다.
+    // 2026-08-13 조직위 발표로 참가사에 호요버스가 포함됐다(부스 규모·출품작은 9월 확정 명단에서 공개).
+    Text("국내 오프라인 행사", fontSize = 16.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 10.dp))
+    GlassCard(modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("지스타 2026", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+                Spacer(Modifier.width(8.dp))
+                GlgBadge("호요버스 참가", accent)
+            }
+            Spacer(Modifier.height(12.dp))
+            listOf(
+                "기간" to "2026.11.19(목) ~ 11.22(일) (4일)",
+                "장소" to "부산 벡스코(BEXCO)",
+                "참가" to "호요버스 참가 확정 (부스 규모·출품작 미공개)",
+                "함께" to "구글플레이 · 웹젠 · 네시삼십삼분 · 빌리빌리게임즈 · 센추리게임즈",
+                "스폰서" to "크랙(뤼튼) — 게임사가 아닌 AI 기업의 첫 메인 스폰서",
+                "G-CON" to "11.19 ~ 11.20 · 벡스코 컨벤션홀 · 주제 '내러티브'",
+            ).forEachIndexed { i, (label, value) ->
+                if (i > 0) Spacer(Modifier.height(8.dp))
+                HoyolandFactRow(label, value)
+            }
+            Spacer(Modifier.height(14.dp))
+            GlgOutlineButton(
+                "공식 사이트",
+                onClick = { openExternalLink(ctx, GSTAR_URL) },
+                modifier = Modifier.fillMaxWidth(),
+                height = 46.dp,
+                color = accent,
+            )
+            Spacer(Modifier.height(10.dp))
+            Text(
+                "확정 참가사 명단은 9월에 공개됩니다. 넥슨·엔씨·넷마블·크래프톤 등 국내 대형 게임사는 현재 명단에 없습니다.",
+                fontSize = 11.sp, color = TextSecondary,
+            )
+        }
+    }
+
+    Spacer(Modifier.height(20.dp))
+
     // 지난 행사 참고 — 실제 개최 이력(최신순). 예상 장소 근거이자 다음 행사 규모 가늠용.
-    Text("지난 행사", fontSize = 16.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 2.dp, bottom = 10.dp))
+    Text("지난 행사", fontSize = 16.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 10.dp))
     HoyolandPastEventCard(
         "호요랜드 2025",
         listOf(
@@ -169,7 +219,7 @@ fun HoyolandDetailContent() {
     Spacer(Modifier.height(14.dp))
     Text(
         "장소는 지난 2024·2025 개최지 기준 예상이며, 공식 일정·장소·예매가 확정되면 여기에서 바로 업데이트됩니다.",
-        fontSize = 11.sp, color = TextSecondary, modifier = Modifier.padding(horizontal = 2.dp),
+        fontSize = 11.sp, color = TextSecondary,
     )
 }
 

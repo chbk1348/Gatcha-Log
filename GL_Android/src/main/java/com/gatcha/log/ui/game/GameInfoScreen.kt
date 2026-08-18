@@ -24,6 +24,7 @@ import com.gatcha.log.ui.components.glgTabContentBottom
 import com.gatcha.log.ui.components.GlgTopScrimFadeExtra as ScrimFadeExtra
 import com.gatcha.log.ui.components.GlgPullToRefreshBox
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -52,6 +53,7 @@ import com.gatcha.log.ui.components.openExternalLink
 import com.gatcha.log.ui.components.GlgBackButton
 import com.gatcha.log.ui.components.GlgDetailHeaderOverlay
 import com.gatcha.log.ui.components.glgDetailContentTop
+import com.gatcha.log.ui.components.GlgTopScrimFadeExtra
 import com.gatcha.log.ui.components.GlgHeaderTitlePill
 import com.gatcha.log.ui.components.GlgCircleIconButton
 import com.gatcha.log.ui.components.GlgTabHeader
@@ -101,6 +103,8 @@ fun GameInfoScreen(
     val isRefreshing by viewModel.isRefreshing.collectAsStateWithLifecycle()
     val challenges by viewModel.challenges.collectAsStateWithLifecycle()
     val pity by viewModel.pity.collectAsStateWithLifecycle()
+    // 계산기 보유 재화 — 저축 플래너와 같은 저장소를 쓴다(한 번 넣으면 양쪽이 안다).
+    val savingsHeld by viewModel.savingsHeld.collectAsStateWithLifecycle()
     val checkingIn by viewModel.checkingIn.collectAsStateWithLifecycle()
     val attendanceStreak by viewModel.attendanceStreak.collectAsStateWithLifecycle()
     // statusMessage 토스트는 상위 HomeScreen 의 전역 GlgStatusToast 가 처리
@@ -256,7 +260,16 @@ fun GameInfoScreen(
                 onBack = { subPage = GiSub.Main },
                 onOpenStats = { c, g -> statChar = c; statCharGame = g; statReturn = GiSub.CharRoster; subPage = GiSub.CharStats },
             )
-            GiSub.Calc -> SectionPage("가챠 계산기", onBack = { subPage = GiSub.Main }) { GachaCalculatorSection(pity) }
+            GiSub.Calc -> SectionPage("가챠 계산기", onBack = { subPage = GiSub.Main }) {
+                GachaCalculatorSection(
+                    pity = pity,
+                    banners = banners,
+                    held = savingsHeld,
+                    onHeldChange = { key, value -> viewModel.setHeldCurrency(key, value) },
+                    onOpenSavings = { viewModel.requestSavingsPlanner() },
+                    onOpenDashboard = { subPage = GiSub.Dashboard },
+                )
+            }
             GiSub.Report -> SectionPage("가챠 효율 리포트", onBack = { subPage = GiSub.Main }) {
                 GachaReportSection(
                     stats = gachaStats,
@@ -298,7 +311,7 @@ fun GameInfoScreen(
                     linked = hoyolab.isLinked,
                 )
             }
-            GiSub.Attendance -> SectionPage("출석 체크", onBack = { subPage = GiSub.Main }) {
+            GiSub.Attendance -> SectionPage("출석 체크 현황", onBack = { subPage = GiSub.Main }) {
                 AttendanceDetailContent(
                     summary = AttendanceLogic.summary(attendanceHistory, attendanceToday, attendanceStreak),
                     history = attendanceHistory,
@@ -308,7 +321,12 @@ fun GameInfoScreen(
                 )
             }
             GiSub.Schedule -> SectionPage("게임 일정", onBack = { subPage = GiSub.Main }) {
-                GameScheduleFullContent(banners, events, challenges, confirmedBroadcasts)
+                val collabExpanded by viewModel.collabBannerExpanded.collectAsState()
+                GameScheduleFullContent(
+                    banners, events, challenges, confirmedBroadcasts,
+                    collabExpanded = collabExpanded,
+                    onToggleCollab = { viewModel.setCollabBannerExpanded(!collabExpanded) },
+                )
             }
             GiSub.NewsDetail -> SectionPage(
                 "공지",
@@ -333,8 +351,17 @@ fun GameInfoScreen(
                 if (n != null) NewsDetailContent(viewModel, n)
             }
 
-            GiSub.News -> SectionPage("공지·뉴스", onBack = { subPage = GiSub.Main }) {
-                NewsFullContent(gameNews, onOpen = { openNews(it, GiSub.News) })
+            GiSub.News -> {
+                // 칩 상태를 페이지가 쥔다 — 고정줄(칩)과 본문(목록)이 서로 다른 컴포저블이라
+                // 목록 안에 두면 필터가 고정줄에 닿지 않는다.
+                var newsChip by rememberSaveable { mutableStateOf("all") }
+                SectionPage(
+                    "공지·뉴스",
+                    onBack = { subPage = GiSub.Main },
+                    actions = { NewsFilterAction(gameNews, newsChip) { newsChip = it } },
+                ) {
+                    NewsFullContent(gameNews, newsChip, onOpen = { openNews(it, GiSub.News) })
+                }
             }
             GiSub.Hoyoland -> SectionPage("호요랜드", onBack = { subPage = GiSub.Main }) {
                 HoyolandDetailContent()
