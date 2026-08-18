@@ -7,6 +7,16 @@ import Shared
 // (Compose SpendingScreen 대응) 분석 서브페이지는 NavigationStack push(시스템 back).
 // ════════════════════════════════════════════════════════════════════════════
 
+/// 지출 탭 스택의 경로. **하나의 NavigationStack(path:)** 이 이 값들로 밀고 당긴다.
+///
+/// 뷰 기반 `NavigationLink { ... }` 와 목적지 안의 `navigationDestination` 을 섞어 쓰다
+/// 스택이 교체되거나 루트로 튕기는 버그를 반복해서 냈다 — 경로 한 곳에서만 관리한다.
+enum SpendingRoute: Hashable {
+    case detail(String)   // 지출 id
+    case edit(String)     // 지출 id
+    case add
+}
+
 private enum PeriodFilter: String, CaseIterable { case all="전체", thisMonth="이번 달", lastMonth="지난 달", thisYear="올해", custom="기간 지정" }
 private enum TypeFilter: String, CaseIterable { case all="전체", normal="일반", subscription="구독" }
 private enum SortOrder: String, CaseIterable { case dateDesc="최신순", dateAsc="오래된순", amountDesc="금액 높은순" }
@@ -16,6 +26,10 @@ struct SpendingView: View {
     /// 지출 수정 진입 — ContentView 가 편집 대상 설정 + AddSpending 모달을 연다.
     let onEdit: (Spending) -> Void
     @Environment(\.glgAccent) private var accent
+    /// 지금 좌/우로 갈려 있는가 — GLGSplitDetail 이 돌려주는 값(폭 기준, iPadOS 26 자유 창 대응).
+    @State private var isWide = false
+    /// 우측 상세에 띄울 지출. iPhone 에서는 쓰지 않는다(기존대로 push).
+    @State private var selectedId: String? = nil
 
     @State private var gameFilters: Set<String> = []
     @State private var period: PeriodFilter = .all
@@ -43,7 +57,29 @@ struct SpendingView: View {
             .filter { $0 }.count
     }
 
+    /// iPad = 좌 목록 / 우 상세. iPhone = 기존 단일 목록(누르면 push).
     var body: some View {
+        GLGSplitDetail(isSplit: $isWide) { listContent } detail: { detailPane }
+            // 우측에 띄운 지출이 지워지면(상세의 삭제·일괄 삭제) 빈 화면이 남는다 → 선택 해제.
+            .onChange(of: store.spendings) { _, new in
+                if let id = selectedId, !new.contains(where: { $0.id == id }) { selectedId = nil }
+            }
+    }
+
+    /// 우측 상세 — 고른 게 없으면 안내만.
+    @ViewBuilder
+    private var detailPane: some View {
+        if let id = selectedId, store.spendings.contains(where: { $0.id == id }) {
+            NavigationStack {
+                SpendingDetailView(store: store, spendingId: id, onEdit: onEdit)
+            }
+            .id(id)   // 다른 지출을 고르면 상세를 새로 세운다(스크롤·히어로 상태가 남지 않게)
+        } else {
+            GLGSplitPlaceholder(systemImage: "creditcard", text: "왼쪽에서 지출을 선택하세요")
+        }
+    }
+
+    private var listContent: some View {
         ScrollViewReader { proxy in
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
@@ -59,8 +95,9 @@ struct SpendingView: View {
                 if listIsEmpty {
                     emptyState
                 } else {
-                    // 넓은 화면(iPad)=날짜 카드 메이슨리(짧은 열 우선 채움 → 빈 영역 없음), iPhone=기존 세로 1열.
-                    // 가중치=그 날짜 카드의 지출 건수(+헤더) → 높이 비례로 좌우 균형.
+                    // 날짜 카드 목록. **iPad 도 1열**이다 — 좌측이 목록 컬럼이 되면서 폭이 좁아졌고,
+                    // 좁은 폭에서 2열 메이슨리는 카드가 잘게 쪼개져 오히려 읽기 어렵다.
+                    // (iPhone 과 같은 한 줄 배치를 유지한다.)
                     // 미리 계산된 displayGroups 순회만(매 프레임 재필터·재정렬·재그룹 없음).
                     GLGColumnMasonry(
                         cards: displayGroups.enumerated().map { gi, group in
@@ -68,6 +105,7 @@ struct SpendingView: View {
                                 dayCard(dateLabel: group.dateLabel, total: group.total, items: group.items)
                             }
                         },
+                        columns: 1,
                         spacing: 8, stackSpacing: 0
                     )
                 }
@@ -218,10 +256,16 @@ struct SpendingView: View {
                 SpendingRow(spending: s, selectionMode: true, selected: selectedIds.contains(s.id), compact: store.spendingCompact)
             }
             .buttonStyle(.plain)
+        } else if isWide {
+            // iPad — 밀어 넣지 않고 **오른쪽 상세를 갈아 끼운다**. 지금 보고 있는 행은 배경으로 표시.
+            Button { selectedId = s.id } label: {
+                SpendingRow(spending: s, compact: store.spendingCompact)
+                    .background(selectedId == s.id ? accent.primary.opacity(0.10) : Color.clear)
+            }
+            .buttonStyle(.plain)
         } else {
-            NavigationLink {
-                SpendingDetailView(store: store, spendingId: s.id, onEdit: onEdit)
-            } label: {
+            // 값 기반 링크 — 목적지는 스택 루트가 한 번만 등록한다(ContentView).
+            NavigationLink(value: SpendingRoute.detail(s.id)) {
                 SpendingRow(spending: s, compact: store.spendingCompact)
             }
             .buttonStyle(.plain)
