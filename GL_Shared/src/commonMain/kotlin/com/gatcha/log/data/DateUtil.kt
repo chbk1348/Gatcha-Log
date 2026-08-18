@@ -148,6 +148,22 @@ object DateUtil {
             .toInstant(localTz).toEpochMilliseconds()
     }
 
+    /**
+     * 그 날 자정(로컬)의 epoch millis. 주 경계·날짜 비교의 기준점.
+     */
+    fun startOfDay(millis: Long): Long = localTimeOnDay(millis, 0)
+
+    /**
+     * 그 주 **일요일 자정**(로컬)의 epoch millis — 달력과 같은 일~토 주 배열의 시작.
+     *
+     * 게임 리셋 기준 주([gameWeekKey])와는 다른 축이다. 이쪽은 사람이 보는 달력의 주다.
+     */
+    fun startOfWeek(millis: Long): Long {
+        val dow = local(millis).dayOfWeek
+        val backDays = dow.sundayBasedIndex
+        return startOfDay(millis) - backDays * 86_400_000L
+    }
+
     /** 로컬 시(0~23) — 예약 알림 트리거 구성용. */
     fun hourOf(millis: Long): Int = local(millis).hour
 

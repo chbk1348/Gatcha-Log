@@ -120,22 +120,14 @@ object ScheduleLogic {
             // 종료 미정 픽업은 '픽업 종료' 일정 줄을 만들 수 없다(날짜가 없음) → 페이즈 계산에서 제외.
             val gb = banners.filter { it.game == game.displayName && !it.isEndUnknown }
             if (gb.isEmpty()) continue
-            val phases = gb.groupBy { it.endMillis }.entries.sortedBy { it.key } // 종료일 오름차순 페이즈
-            val versions = phases.map { it.value.firstOrNull()?.version ?: "" }
-            val lastVersion = versions.lastOrNull()
-            val totalByVer = versions.groupingBy { it }.eachCount()
-            val seen = mutableMapOf<String, Int>()
-            phases.forEachIndexed { idx, ph ->
-                val v = versions[idx]
-                val pos = seen[v] ?: 0; seen[v] = pos + 1
-                val phaseLabel = when {
-                    (totalByVer[v] ?: 1) >= 2 -> if (pos == 0) "전반" else if (pos == 1) "후반" else "${pos + 1}페이즈"
-                    v == lastVersion -> "전반"
-                    else -> "후반"
-                }
-                val title = if (v.isBlank()) "$phaseLabel 픽업 종료" else "v$v $phaseLabel 픽업 종료"
-                // 타임라인이 이 줄 아래에 캐릭터 칩을 붙일 수 있도록 해당 페이즈 픽업을 함께 싣는다.
-                out += ScheduleEntry(game.key, game.shortName, game.color, "패치", title, "", ph.key, false, ph.value)
+            pickupPhases(gb).forEach { ph ->
+                // **누가 끝나는지**를 부제에 적는다. 예전엔 비워 두고 픽업 목록을 `pickups` 로만
+                // 실어 보냈는데(타임라인 칩용), 일정 줄에는 "v6.6 전반 픽업 종료"만 남아
+                // 정작 무엇을 놓치는지 알 수 없었다 — 픽업은 캐릭터가 곧 내용이다.
+                out += ScheduleEntry(
+                    game.key, game.shortName, game.color, "패치", ph.title("픽업 종료"),
+                    pickupNames(ph.banners), ph.endMillis, false, ph.banners,
+                )
             }
         }
         // ② 진행 중인 이벤트
@@ -332,6 +324,225 @@ object ScheduleLogic {
             nearestEnd = dated.minOfOrNull { it.endMillis } ?: 0L,
             start = picks.filter { it.startMillis > 0 }.minOfOrNull { it.startMillis } ?: 0L,
             end = dated.maxOfOrNull { it.endMillis } ?: 0L,
+        )
+    }
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// 일정 탭 2.0 — 주간 보드
+//
+// 기존 일정 탭은 **끝나는 것만** 마감 순으로 늘어놓았다. 그런데 다음 픽업이 언제 *시작*하는지가
+// 저축·천장 관리의 기준이고, `GachaBanner.startMillis` 는 모델에 있는데 일정만 쓰지 않았다.
+// 여기서는 시작·마감·방송(예상)을 한 축에 얹고 **주 단위**로 끊는다 —
+// 가챠 운영이 주간 리셋·주 단위 이벤트로 돌아가서, "이번 주에 뭘 해야 하나"가 실제 질문이다.
+// ════════════════════════════════════════════════════════════════════════════
+
+/**
+ * 픽업 줄의 부제 — 그 페이즈에 걸린 캐릭터·무기 이름.
+ *
+ * 셋을 넘으면 뒤를 "외 N"으로 접는다. 한 페이즈에 캐릭터 둘 + 무기 둘이 흔한데
+ * 전부 나열하면 한 줄을 넘겨 카드 높이가 들쭉날쭉해진다.
+ */
+fun pickupNames(pickups: List<GachaBanner>, max: Int = 3): String {
+    val names = pickups.map { it.name }.filter { it.isNotBlank() }.distinct()
+    if (names.isEmpty()) return ""
+    if (names.size <= max) return names.joinToString(" · ")
+    return names.take(max).joinToString(" · ") + " 외 ${names.size - max}"
+}
+
+/** 일정 한 줄의 표식 — 확정 시작/마감과 **예상**을 절대 같아 보이지 않게 가른다. */
+enum class ScheduleMark { START, END, ESTIMATE }
+
+/** 주간 보드의 한 칸(하루). 그리드는 일~토 7칸 고정. */
+data class WeekDay(
+    val millis: Long,
+    val day: Int,
+    val weekdayKo: String,
+    val isToday: Boolean,
+    /** 지난 날 — 흐리게. */
+    val isPast: Boolean,
+    /** 그날 있는 일정의 게임색(중복 제거, 최대 3개). 칸이 작아 점으로만 표시한다. */
+    val dotColors: List<Long>,
+)
+
+/** 한 주 묶음 — 7칸 그리드 + 그 주 항목 목록. */
+data class ScheduleWeek(
+    /** "이번 주" · "다음 주" · "8월 25일 주". */
+    val label: String,
+    val rangeLabel: String,
+    val startMillis: Long,
+    val days: List<WeekDay>,
+    val entries: List<ScheduleEntry>,
+)
+
+/**
+ * 픽업 **시작** 일정. 기존 [ScheduleLogic.buildSchedule] 은 종료만 모은다.
+ *
+ * 같은 게임·같은 시작일 픽업은 한 줄로 묶는다 — 페이즈마다 캐릭터가 둘씩이면
+ * 줄이 두 배가 되어 주간 목록이 금세 넘친다.
+ */
+fun buildStartEntries(banners: List<GachaBanner>, nowMillis: Long = currentTimeMillis()): List<ScheduleEntry> =
+    banners.filter { it.startMillis > nowMillis }
+        .groupBy { it.game to it.startMillis }
+        .mapNotNull { (key, list) ->
+            val game = GameData.byNameOrNull(key.first) ?: return@mapNotNull null
+            val v = list.firstOrNull { it.version.isNotBlank() }?.version.orEmpty()
+            // 전반/후반은 **종료 줄과 같은 판정**을 쓴다([pickupPhases]) — 같은 페이즈인데
+            // 시작 줄만 "v6.6 픽업 시작", 종료 줄은 "v6.6 후반 픽업 종료" 로 갈리면
+            // 둘이 같은 것을 가리키는지 알 수 없다.
+            //
+            // 종료 미정 픽업은 페이즈를 못 만들지만(날짜가 없다) 시작 줄은 세워야 하므로,
+            // 못 찾으면 라벨 없이 그대로 둔다.
+            val phase = pickupPhases(banners.filter { it.game == key.first && !it.isEndUnknown })
+                .firstOrNull { it.startMillis == key.second }
+            ScheduleEntry(
+                gameKey = game.key,
+                gameShort = game.shortName,
+                colorArgb = game.color,
+                kind = "패치",
+                title = phase?.title("픽업 시작")
+                    ?: if (v.isBlank()) "픽업 시작" else "v$v 픽업 시작",
+                sub = pickupNames(list),
+                target = key.second,
+                isStart = true,
+                pickups = list,
+            )
+        }
+
+/**
+ * 픽업 페이즈 하나 — 같은 날 끝나는 픽업 묶음.
+ *
+ * ennead 가 버전 종료 시각을 주지 않아 '버전'이 아니라 **종료일**로 끊는다.
+ */
+data class PickupPhase(
+    /** "전반" · "후반" · "3페이즈". */
+    val label: String,
+    val version: String,
+    /** 이 페이즈 픽업들의 가장 이른 시작(0 이면 모름). */
+    val startMillis: Long,
+    val endMillis: Long,
+    val banners: List<GachaBanner>,
+) {
+    /** "v6.6 후반 픽업 종료" 처럼 버전·페이즈를 앞에 붙인 제목. */
+    fun title(suffix: String): String =
+        if (version.isBlank()) "$label $suffix" else "v$version $label $suffix"
+}
+
+/**
+ * 한 게임의 픽업을 **페이즈로 끊고 전반/후반 이름을 붙인다.**
+ *
+ * 한 버전에 페이즈가 2개 이상이면 순서대로 전반/후반, 1개뿐이면 최신 버전 = 전반(후반 미게시)
+ * / 이전 버전 = 후반(전반 종료됨)으로 본다.
+ *
+ * 시작 줄과 종료 줄이 **같은 판정**을 쓰도록 여기 한 곳에 둔다 — 예전엔 종료 줄에만 라벨이
+ * 있어서, 같은 페이즈인데 시작은 "v6.6 픽업 시작", 종료는 "v6.6 후반 픽업 종료" 로 갈렸다.
+ *
+ * @param gameBanners 한 게임의 배너 중 **종료일이 있는 것만**(종료 미정은 페이즈를 못 만든다).
+ */
+fun pickupPhases(gameBanners: List<GachaBanner>): List<PickupPhase> {
+    val phases = gameBanners.groupBy { it.endMillis }.entries.sortedBy { it.key }   // 종료일 오름차순
+    val versions = phases.map { it.value.firstOrNull()?.version ?: "" }
+    val lastVersion = versions.lastOrNull()
+    val totalByVer = versions.groupingBy { it }.eachCount()
+    val seen = mutableMapOf<String, Int>()
+    return phases.mapIndexed { idx, ph ->
+        val v = versions[idx]
+        val pos = seen[v] ?: 0
+        seen[v] = pos + 1
+        val label = when {
+            (totalByVer[v] ?: 1) >= 2 -> if (pos == 0) "전반" else if (pos == 1) "후반" else "${pos + 1}페이즈"
+            v == lastVersion -> "전반"
+            else -> "후반"
+        }
+        PickupPhase(
+            label = label,
+            version = v,
+            startMillis = ph.value.filter { it.startMillis > 0 }.minOfOrNull { it.startMillis } ?: 0L,
+            endMillis = ph.key,
+            banners = ph.value,
+        )
+    }
+}
+
+/**
+ * 버전 특별 방송 — **확정분과 예상분**. 예상은 [ScheduleMark.ESTIMATE] 로 표식이 갈린다.
+ *
+ * 방송 일시를 주는 API 는 없다(ennead·RSS·Data API 전부 확인). 확정은 공지에서 파싱하고,
+ * 없으면 "버전 시작 12일 전 금요일" 관례로 역산한다 — 그래서 확정과 절대 같아 보이면 안 된다.
+ */
+fun buildBroadcastEntries(
+    banners: List<GachaBanner>,
+    confirmed: List<ConfirmedBroadcast>,
+    nowMillis: Long = currentTimeMillis(),
+): List<ScheduleEntry> = confirmed.filter { it.targetMillis > nowMillis }.mapNotNull { c ->
+    val game = GameData.games.firstOrNull { it.key == c.gameKey } ?: return@mapNotNull null
+    ScheduleEntry(
+        gameKey = game.key,
+        gameShort = game.shortName,
+        colorArgb = game.color,
+        kind = "방송",
+        title = if (c.version.isBlank()) "특별 방송" else "v${c.version} 특별 방송",
+        sub = "공식 채널 생중계",
+        target = c.targetMillis,
+        isStart = true,
+    )
+}
+
+/**
+ * 이 줄이 시작인가·마감인가·예상인가. 화면은 이 값으로 ▲▼◆ 를 고른다.
+ *
+ * 확장 함수가 아니라 **일반 함수**다 — 확장으로 두면 Swift 쪽 이름이 안정적으로 잡히지 않는다.
+ */
+fun scheduleMarkOf(entry: ScheduleEntry): ScheduleMark = when {
+    entry.kind == "방송" && entry.sub.contains("예상") -> ScheduleMark.ESTIMATE
+    entry.isStart -> ScheduleMark.START
+    else -> ScheduleMark.END
+}
+
+/** Kotlin 호출부용 짧은 형태. */
+fun ScheduleEntry.mark(): ScheduleMark = scheduleMarkOf(this)
+
+/**
+ * 일정을 **주 단위**로 끊는다. 일~토, 오늘이 든 주부터 [weeks] 주.
+ *
+ * 지난 항목은 버리되 **주 자체는 남긴다** — 이번 주에 아무것도 없다는 사실도 정보다
+ * (빈 주가 안 보이면 "언제 한가한가"를 알 수 없다).
+ */
+fun buildWeeks(
+    entries: List<ScheduleEntry>,
+    nowMillis: Long = currentTimeMillis(),
+    weeks: Int = 4,
+): List<ScheduleWeek> {
+    val today = DateUtil.startOfDay(nowMillis)
+    val first = DateUtil.startOfWeek(nowMillis)
+    val day = 86_400_000L
+    return (0 until weeks.coerceAtLeast(1)).map { w ->
+        val ws = first + w * 7 * day
+        val we = ws + 7 * day
+        val inWeek = entries.filter { it.target in ws until we && it.target >= today }
+            .sortedBy { it.target }
+        ScheduleWeek(
+            label = when (w) {
+                0 -> "이번 주"
+                1 -> "다음 주"
+                else -> "${DateUtil.month(ws)}월 ${DateUtil.dayOfMonth(ws)}일 주"
+            },
+            rangeLabel = "${DateUtil.month(ws)}/${DateUtil.dayOfMonth(ws)} – " +
+                "${DateUtil.month(we - day)}/${DateUtil.dayOfMonth(we - day)}",
+            startMillis = ws,
+            days = (0 until 7).map { d ->
+                val dm = ws + d * day
+                val dayEntries = inWeek.filter { DateUtil.dayKey(it.target) == DateUtil.dayKey(dm) }
+                WeekDay(
+                    millis = dm,
+                    day = DateUtil.dayOfMonth(dm),
+                    weekdayKo = DateUtil.weekdayKo(dm),
+                    isToday = DateUtil.dayKey(dm) == DateUtil.dayKey(nowMillis),
+                    isPast = dm < today,
+                    dotColors = dayEntries.map { it.colorArgb }.distinct().take(3),
+                )
+            },
+            entries = inWeek,
         )
     }
 }
