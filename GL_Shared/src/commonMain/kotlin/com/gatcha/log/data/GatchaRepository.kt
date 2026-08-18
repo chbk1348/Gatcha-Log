@@ -452,6 +452,8 @@ class GatchaRepository(
                     endMillis = o.optLong("endMillis", 0L),
                     startMillis = o.optLong("startMillis", 0L),
                     version = o.optString("version", ""),
+                    // 옛 캐시엔 없다 → 빈 문자열(아이콘 없이 이름만 그린다).
+                    iconUrl = o.optString("iconUrl", ""),
                 )
             }
         }.getOrDefault(emptyList())
@@ -464,6 +466,7 @@ class GatchaRepository(
             arr.put(JSONObject().apply {
                 put("game", b.game); put("name", b.name); put("type", b.type)
                 put("endMillis", b.endMillis); put("startMillis", b.startMillis); put("version", b.version)
+                put("iconUrl", b.iconUrl)
             })
         }
         prefs.putString(KEY_BANNERS, arr.toString())
