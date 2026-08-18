@@ -20,7 +20,7 @@ kotlin {
     android {
         namespace = "com.gatcha.log.shared"
         compileSdk = 36 // :GL_Android(36)과 정합 — 단일 클래스패스 소비
-        minSdk = 24
+        minSdk = 31 // :GL_Android 와 동일 — "최소 지원 OS"의 답이 두 개가 되지 않게 맞춘다
 
         compilerOptions {
             // GitLive Firebase(2.4.0) 등 일부 의존성이 JVM 17 바이트코드라 인라인 충돌(JVM_11 시 CloudSync 컴파일 실패) → 17
