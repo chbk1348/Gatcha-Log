@@ -1,6 +1,10 @@
 package com.gatcha.log.ui.game
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.keyframes
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -17,6 +21,8 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -118,11 +124,14 @@ internal fun DailyHeroSection(
             Spacer(Modifier.height(12.dp))
             if (grouped.isNotEmpty()) {
                 GlassCard(shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth()) {
-                    Column(Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
+                    // 카드 안쪽 여백은 **16 사방** — 이 섹션의 다른 카드(행동력·현재 버전)와 같은 값이다.
+                    // 예전엔 세로만 4 라 제목이 카드 천장에 붙고 마지막 줄이 바닥에 닿아, 같은 카드끼리
+                    // 위아래 숨이 달랐다(iOS 는 셋 다 16).
+                    Column(Modifier.padding(16.dp)) {
                         Text(
                             "오늘 할 일",
                             fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextSecondary,
-                            modifier = Modifier.padding(top = 10.dp, bottom = 2.dp),
+                            modifier = Modifier.padding(bottom = 4.dp),
                         )
                         grouped.forEachIndexed { i, g ->
                             if (i > 0) HorizontalDivider(color = DividerColor)
@@ -144,7 +153,7 @@ internal fun DailyHeroSection(
                 onOpenClears = onOpenClears,
             )
             if (gameVersions.isNotEmpty()) {
-                Spacer(Modifier.height(10.dp))
+                Spacer(Modifier.height(12.dp))
                 GameVersionStrip(gameVersions)
             }
         }
@@ -171,11 +180,11 @@ private fun DailyHeadlineHero(h: DailyHeadline, headTop: Dp, streak: Int) {
         Text(
             h.title,
             fontSize = 27.sp, fontWeight = FontWeight.Bold, color = TextPrimary,
-            lineHeight = 33.sp, letterSpacing = (-0.7).sp,
+            letterSpacing = (-0.7).sp,
         )
         if (h.subtitle.isNotBlank()) {
             Spacer(Modifier.height(8.dp))
-            Text(h.subtitle, fontSize = 13.sp, color = TextSecondary, lineHeight = 18.sp)
+            Text(h.subtitle, fontSize = 13.sp, color = TextSecondary)
         }
     }
 }
@@ -216,7 +225,7 @@ private fun LinkPrompt(headTop: Dp, onConfigClick: () -> Unit) {
         Spacer(Modifier.height(8.dp))
         Text(
             "연동하면 행동력·일일 숙제·출석을 한곳에서 볼 수 있어요.",
-            fontSize = 13.sp, color = TextSecondary, lineHeight = 19.sp,
+            fontSize = 13.sp, color = TextSecondary,
         )
         Spacer(Modifier.height(16.dp))
         Box(
@@ -237,9 +246,18 @@ private fun LinkPrompt(headTop: Dp, onConfigClick: () -> Unit) {
  */
 @Composable
 private fun ResinCard(items: List<DailyGameSummary>) {
+    val allFull = remember(items) { DailyLogic.allResinFull(items) }
     GlassCard(shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.fillMaxWidth().padding(16.dp)) {
-            Text("행동력", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextSecondary)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("행동력", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextSecondary)
+                if (allFull) {
+                    Spacer(Modifier.width(7.dp))
+                    AlarmBell()
+                    Spacer(Modifier.width(5.dp))
+                    Text("모두 가득", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = DangerText)
+                }
+            }
             Spacer(Modifier.height(12.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 items.forEach { s -> ResinCell(s, Modifier.weight(1f)) }
@@ -248,12 +266,63 @@ private fun ResinCard(items: List<DailyGameSummary>) {
     }
 }
 
+/**
+ * 3게임 모두 행동력이 가득일 때만 뜨는 비상벨 — 흔들고 쉬고를 반복한다.
+ *
+ * 계속 떠는 대신 **울림 0.6초 + 정지 1.8초** 로 끊는 건, 상시 진동이 시선을 붙잡아
+ * 정작 아래 숫자를 못 읽게 만들기 때문이다. 이 상태 자체가 드물어서(세 게임 다 가득)
+ * 애니메이션이 늘 돌지도 않는다.
+ */
+@Composable
+private fun AlarmBell() {
+    val transition = rememberInfiniteTransition(label = "resinBell")
+    val angle by transition.animateFloat(
+        initialValue = 0f,
+        targetValue = 0f,
+        animationSpec = infiniteRepeatable(
+            animation = keyframes {
+                durationMillis = 2400
+                0f at 0
+                -15f at 70
+                15f at 150
+                -12f at 230
+                12f at 310
+                -7f at 390
+                7f at 470
+                0f at 560
+                0f at 2400   // 나머지는 정지
+            },
+        ),
+        label = "resinBellAngle",
+    )
+    Icon(
+        Icons.Default.NotificationsActive,
+        contentDescription = "3게임 모두 행동력이 가득 찼어요",
+        tint = DangerText,
+        modifier = Modifier
+            .size(16.dp)
+            .graphicsLayer {
+                rotationZ = angle
+                transformOrigin = TransformOrigin(0.5f, 0.15f) // 종을 매단 지점을 축으로
+            },
+    )
+}
+
 /** 행동력 한 칸 — 게임 약칭 · 현재/최대 · 게이지 · 언제 가득. */
 @Composable
 private fun ResinCell(s: DailyGameSummary, modifier: Modifier = Modifier) {
     val color = s.colorArgb.toColor()
     Column(modifier) {
-        Text(s.gameShort, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = color, maxLines = 1)
+        // 게임명 옆에 **그 게임의 인게임 명칭**을 붙인다. 셋 다 세는 것이 다른 재화인데
+        // 숫자만 나란히 두면 같은 단위처럼 읽힌다 — 레진 160 과 배터리 240 은 다른 자원이다.
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(s.gameShort, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = color, maxLines = 1)
+            Spacer(Modifier.width(4.dp))
+            Text(
+                s.resinLabel, fontSize = 9.5.sp, fontWeight = FontWeight.Medium,
+                color = TextSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis,
+            )
+        }
         Spacer(Modifier.height(5.dp))
         if (s.hasNote) {
             Text(
@@ -381,12 +450,15 @@ private fun DailyEntryTiles(
 }
 
 /**
- * 지금 돌고 있는 게임 버전 — 타일 아래의 조용한 참조 행.
+ * 지금 돌고 있는 게임 버전 — 데일리 타일 아래 카드 한 장.
  *
  * 확인 대상은 **숫자**다. 게임명과 한 줄에 같은 크기로 놓으면 먼저 읽히지 않아,
  * 게임명은 작게 내리고 버전만 키워 위아래로 쌓았다. 세 칸을 같은 폭으로 갈라
- * 게임끼리 훑어 비교되게 한다. 카드(면)는 여전히 주지 않는다 — 위 타일이 매일
- * 누르는 것이고 이건 참조용이라는 관계를 유지한다.
+ * 게임끼리 훑어 비교되게 한다.
+ *
+ * 예전엔 **면 없이 맨 행**으로 뒀다 — 위 타일이 매일 누르는 것이고 이건 참조용이라는
+ * 관계를 여백만으로 표현하려던 것이었는데, 카드들 사이에 낀 맨 글자가 소속 없이
+ * 떠 보였다. 이 섹션의 다른 덩어리(오늘 할 일·타일)와 같은 카드로 맞춘다.
  *
  * 게임색은 **글자가 아니라 막대**가 진다. 게임색을 작은 글자에 입히면 젠레스(주황
  * `F5A623`, 흰 배경 대비 2.1:1)·원신(3.0:1)이 읽히지 않는다. 막대는 글자가 아니라
@@ -395,39 +467,39 @@ private fun DailyEntryTiles(
  */
 @Composable
 private fun GameVersionStrip(versions: List<GameVersionLine>) {
-    Column(Modifier.fillMaxWidth().padding(horizontal = 2.dp)) {
-        Text("현재 버전", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = TextSecondary)
-        Spacer(Modifier.height(6.dp))
-        Row(
-            Modifier.fillMaxWidth().height(IntrinsicSize.Min),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            versions.forEach { v ->
-                Row(Modifier.weight(1f)) {
-                    Box(
-                        Modifier.width(3.dp).fillMaxHeight()
-                            .clip(RoundedCornerShape(1.5.dp))
-                            .background(v.colorArgb.toColor())
-                    )
-                    Spacer(Modifier.width(7.dp))
-                    Column {
-                        Text(
-                            v.gameShort,
-                            fontSize = 10.5.sp,
-                            lineHeight = 13.sp,
-                            fontWeight = FontWeight.Medium,
-                            color = TextSecondary,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
+    GlassCard(shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.fillMaxWidth().padding(16.dp)) {
+            Text("현재 버전", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = TextSecondary)
+            Spacer(Modifier.height(8.dp))
+            Row(
+                Modifier.fillMaxWidth().height(IntrinsicSize.Min),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                versions.forEach { v ->
+                    Row(Modifier.weight(1f)) {
+                        Box(
+                            Modifier.width(3.dp).fillMaxHeight()
+                                .clip(RoundedCornerShape(1.5.dp))
+                                .background(v.colorArgb.toColor())
                         )
-                        Text(
-                            v.version,
-                            fontSize = 16.sp,
-                            lineHeight = 19.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = TextPrimary,
-                            maxLines = 1,
-                        )
+                        Spacer(Modifier.width(7.dp))
+                        Column {
+                            Text(
+                                v.gameShort,
+                                fontSize = 10.5.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = TextSecondary,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                            Text(
+                                v.version,
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = TextPrimary,
+                                maxLines = 1,
+                            )
+                        }
                     }
                 }
             }
@@ -462,18 +534,19 @@ private fun EntryTile(
                 contentAlignment = Alignment.Center,
             ) { Icon(icon, null, tint = mark, modifier = Modifier.size(15.dp)) }
             Spacer(Modifier.height(6.dp))
-            // 줄 간격은 [lineHeight] 로 조인다 — Compose 기본 행높이는 글자 크기의 1.5배쯤이라
-            // Spacer 를 0 으로 줄여도 글자 사이가 벌어져 보인다(빈 줄이 글자 위아래에 붙는 셈).
+            // 줄 간격은 손대지 않는다 — 폰트 패딩을 테마에서 껐으므로(GatchaLogTheme) 글꼴이
+            // 정한 행높이가 그대로 서고, 그게 iOS 와 같은 값이다. 예전엔 여기서 lineHeight 를
+            // 눌러 패딩을 상쇄했는데 이제 그러면 iOS 보다 좁아진다.
             Text(
-                title, fontSize = 11.sp, lineHeight = 13.sp, fontWeight = FontWeight.Bold,
+                title, fontSize = 11.sp, fontWeight = FontWeight.Bold,
                 color = TextSecondary, maxLines = 1,
             )
             Text(
-                value, fontSize = 14.sp, lineHeight = 17.sp, fontWeight = FontWeight.Bold,
+                value, fontSize = 14.sp, fontWeight = FontWeight.Bold,
                 color = if (highlight) DangerText else TextPrimary, maxLines = 1,
             )
             Text(
-                sub, fontSize = 10.sp, lineHeight = 12.sp, color = TextSecondary,
+                sub, fontSize = 10.sp, color = TextSecondary,
                 maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center,
             )
         }
