@@ -26,6 +26,9 @@ struct SettingsView: View {
     @State private var showDataManagement = false
     @State private var showUplog = false
     @State private var showCredits = false
+    #if DEBUG
+    @State private var showDeveloper = false
+    #endif
 
     private var version: String {
         (Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String) ?? "—"
@@ -64,6 +67,10 @@ struct SettingsView: View {
                 displaySection
                 budgetLinkSection
                 dataManagementLinkSection
+                // 개발자 메뉴 — 릴리스 빌드에는 이 섹션 자체가 컴파일되지 않는다.
+                #if DEBUG
+                developerLinkSection
+                #endif
                 automationSection
                 infoSection
             }
@@ -103,7 +110,20 @@ struct SettingsView: View {
         .navigationDestination(isPresented: $showUplog) {
             UpdateLogPage(version: version)
         }
+        #if DEBUG
+        .navigationDestination(isPresented: $showDeveloper) {
+            DeveloperView(store: store)
+        }
+        #endif
     }
+
+    #if DEBUG
+    private var developerLinkSection: some View {
+        sectionCard("개발자") {
+            navRow(icon: "ladybug", title: "개발자 메뉴", value: "상태 만들기 · 진단") { showDeveloper = true }
+        }
+    }
+    #endif
 
     // ── 섹션 카드 — D · Soft Modern: 연회색 면 + 헤어라인(지출 추가 모달 sectionCard·Android GlassCard 와 동일 규격). 선택적 제목·footer. ──
     @ViewBuilder
