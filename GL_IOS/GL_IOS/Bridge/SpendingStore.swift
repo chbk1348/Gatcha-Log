@@ -69,6 +69,7 @@ final class SpendingStore {
     private(set) var notifyPickup: Bool = false
     private(set) var nudgeOverspend: Bool = false
     private(set) var spendingCompact: Bool = false
+    private(set) var collabBannerExpanded: Bool = false
     /// 홈 히어로 글로우 애니메이션 사용 여부 — 끄면 그라데이션만 남는다.
     private(set) var heroGlow: Bool = true
     private(set) var nudgeThreshold: Int64 = 0
@@ -110,6 +111,10 @@ final class SpendingStore {
     private(set) var pity: [String: PityState] = [:]
     private(set) var savingsPlans: [SavingsPlan] = []
     private(set) var hiddenSavingsPlans: [SavingsPlan] = []
+    /// 게임별 보유 재화 — 저축 플래너와 계산기가 같은 저장소를 쓴다.
+    private(set) var savingsHeld: [String: Int] = [:]
+    /// 계산기의 "저축 계획" — 홈 탭으로 옮긴 뒤 플래너까지 이어 열기 위한 신호.
+    private(set) var pendingSavingsPlanner: Bool = false
     private(set) var challenge: ChallengeSummary? = nil
     // Phase 4 chunk ③ (가챠 도구)
     private(set) var enkaGiUid: String = ""
@@ -223,6 +228,7 @@ final class SpendingStore {
         notifyPickup = vm.notifyPickup.value.boolValue
         nudgeOverspend = vm.nudgeOverspend.value.boolValue
         spendingCompact = vm.spendingCompact.value.boolValue
+        collabBannerExpanded = vm.collabBannerExpanded.value.boolValue
         heroGlow = vm.heroGlow.value.boolValue
         nudgeThreshold = vm.nudgeThreshold.value.int64Value
         notifySubscription = vm.notifySubscription.value.boolValue
@@ -279,6 +285,8 @@ final class SpendingStore {
         bind(vm.readAlerts) { [weak self] in self?.readAlerts = $0 }
         bind(vm.dismissedAlerts) { [weak self] in self?.dismissedAlerts = $0 }
         bind(vm.savingsPlans) { [weak self] in self?.savingsPlans = $0 }
+        bind(vm.savingsHeld) { [weak self] in self?.savingsHeld = $0.mapValues { $0.intValue } }
+        bind(vm.pendingSavingsPlanner) { [weak self] in self?.pendingSavingsPlanner = $0.boolValue }
         bind(vm.challenge) { [weak self] in self?.challenge = $0 }
         bind(vm.pendingTab) { [weak self] in self?.pendingTab = $0?.intValue }
         bind(vm.pendingNewsId) { [weak self] in self?.pendingNewsId = $0 }
@@ -297,6 +305,7 @@ final class SpendingStore {
         bind(vm.notifyPickup) { [weak self] in self?.notifyPickup = $0.boolValue }
         bind(vm.nudgeOverspend) { [weak self] in self?.nudgeOverspend = $0.boolValue }
         bind(vm.spendingCompact) { [weak self] in self?.spendingCompact = $0.boolValue }
+        bind(vm.collabBannerExpanded) { [weak self] in self?.collabBannerExpanded = $0.boolValue }
         bind(vm.heroGlow) { [weak self] in self?.heroGlow = $0.boolValue }
         bind(vm.nudgeThreshold) { [weak self] in self?.nudgeThreshold = $0.int64Value }
         bind(vm.pendingOpenHoyolabLink) { [weak self] in self?.pendingOpenHoyolabLink = $0.boolValue }
@@ -383,6 +392,7 @@ final class SpendingStore {
     }
     func setNudgeOverspend(_ v: Bool) { vm.setNudgeOverspend(v: v) }
     func setSpendingCompact(_ v: Bool) { vm.setSpendingCompact(v: v) }
+    func setCollabBannerExpanded(_ v: Bool) { vm.setCollabBannerExpanded(v: v) }
     func setHeroGlow(_ v: Bool) { vm.setHeroGlow(v: v) }
     func setNudgeThreshold(_ v: Int64) { vm.setNudgeThreshold(v: v) }
     /// 공지 상세 진입 — 본문 로드. 이탈 시 clearNewsArticle() 로 정리한다.
@@ -473,6 +483,19 @@ final class SpendingStore {
     func resetPity(gameKey: String) { vm.resetPity(gameKey: gameKey) }
     func setPityGuaranteed(gameKey: String, _ g: Bool) { vm.setPityGuaranteed(gameKey: gameKey, g: g) }
     func setHeldCurrency(gameKey: String, value: Int) { vm.setHeldCurrency(gameKey: gameKey, value: Int32(value)) }
+    func requestSavingsPlanner() { vm.requestSavingsPlanner() }
+    func consumePendingSavingsPlanner() { vm.consumePendingSavingsPlanner() }
+
+    // ── 개발자 메뉴 (디버그 빌드 전용) ──
+    // 어떤 UI 는 특정 상태에서만 나타나 눈으로 확인할 방법이 없다(3게임 행동력 가득의 비상벨 등).
+    // 판단·계산은 전부 공유 VM 의 debug* 가 한다 — 여기는 넘겨주기만.
+    func debugFillAllResin() { vm.debugFillAllResin() }
+    func debugSetPityAll(count: Int, guaranteed: Bool) { vm.debugSetPityAll(count: Int32(count), guaranteed: guaranteed) }
+    func debugResetOnboarding() { vm.debugResetOnboarding() }
+    func debugAccountSummary() -> String { vm.debugAccountSummary() }
+    func debugScheduledAlerts() -> [String] { vm.debugScheduledAlerts() }
+    func debugReadyStates() -> String { vm.debugReadyStates() }
+    func debugPerGameData() -> [String] { vm.debugPerGameData() }
     func setSavingsHidden(key: String, hidden: Bool) { vm.setSavingsHidden(key: key, hidden: hidden) }
     // chunk ③
     func loadEnkaProfile(game: String, uid: String) { vm.loadEnkaProfile(game: game, uid: uid) }
