@@ -201,7 +201,7 @@ private fun ReleaseCard(entry: ChangeEntry, filter: ChangeKind?) {
                     contentAlignment = Alignment.Center,
                 ) { Text(item.kind.label, color = st.badgeFg, fontSize = 10.5.sp, fontWeight = FontWeight.Bold, maxLines = 1) }
                 Spacer(Modifier.width(10.dp))
-                Text(item.text, fontSize = 14.sp, color = CItemText, lineHeight = 20.sp, modifier = Modifier.weight(1f))
+                Text(item.text, fontSize = 14.sp, color = CItemText, modifier = Modifier.weight(1f))
             }
         }
     }

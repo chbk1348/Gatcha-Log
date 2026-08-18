@@ -433,7 +433,7 @@ fun MonthlySummaryCard(
                 Text("이번 달 한눈에", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = accent)
             }
             Spacer(Modifier.height(10.dp))
-            Text(summary, fontSize = 14.sp, color = TextPrimary, lineHeight = 21.sp)
+            Text(summary, fontSize = 14.sp, color = TextPrimary)
             Spacer(Modifier.height(14.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 SummaryChip(if (budget > 0) "예산 점검" else "예산 세우기", onBudget)

@@ -91,7 +91,7 @@ fun NewsDetailContent(viewModel: SpendingViewModel, item: NewsItem) {
             Text(DateUtil.shortDate(item.createdAtMillis), fontSize = 11.sp, color = TextSecondary)
         }
         Spacer(Modifier.height(10.dp))
-        Text(item.title, fontSize = 20.sp, fontWeight = FontWeight.Bold, color = TextPrimary, lineHeight = 28.sp)
+        Text(item.title, fontSize = 20.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
         Spacer(Modifier.height(16.dp))
 
         GlassCard(modifier = Modifier.fillMaxWidth()) {
@@ -111,7 +111,8 @@ fun NewsDetailContent(viewModel: SpendingViewModel, item: NewsItem) {
                                 block.text,
                                 fontSize = 14.sp,
                                 color = TextPrimary,
-                                lineHeight = 23.sp,
+                                // iOS 본문은 UITextView + lineSpacing 5 → 14 × 1.193 + 5.
+                                lineHeight = 21.7.sp,
                                 modifier = Modifier.padding(bottom = 12.dp),
                             )
                             is NewsBlock.Image -> AsyncImage(
@@ -146,7 +147,8 @@ fun NewsDetailContent(viewModel: SpendingViewModel, item: NewsItem) {
                                 item.summary,
                                 fontSize = 14.sp,
                                 color = TextPrimary,
-                                lineHeight = 23.sp,
+                                // iOS 본문은 UITextView + lineSpacing 5 → 14 × 1.193 + 5.
+                                lineHeight = 21.7.sp,
                                 modifier = Modifier.padding(bottom = 12.dp),
                             )
                         } else {
