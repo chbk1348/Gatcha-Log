@@ -1,6 +1,7 @@
 package com.gatcha.log.data.api
 
 import com.gatcha.log.data.Game
+import com.gatcha.log.data.GameEvent
 import com.gatcha.log.json.JSONArray
 import com.gatcha.log.json.JSONObject
 
@@ -91,6 +92,16 @@ object NewsApi {
         NewsSource.WUWA -> WuwaNewsApi.notices()
         NewsSource.ENDFIELD -> EndfieldNewsApi.notices()
         null -> emptyList()
+    }
+
+    /**
+     * 게임 일정(이벤트) — 지금은 명조만. ennead 게임은 [EnneadApi] 가 달력째로 준다.
+     *
+     * @return 실패 시 null — 호출부가 직전 값을 유지할 수 있게 빈 목록과 구분한다.
+     */
+    suspend fun events(game: Game): List<GameEvent>? = when (game.newsSource) {
+        NewsSource.WUWA -> WuwaNewsApi.events()
+        else -> emptyList()
     }
 
     /**
