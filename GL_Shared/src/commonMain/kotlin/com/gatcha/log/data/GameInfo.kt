@@ -38,6 +38,13 @@ data class GachaBanner(
     val startMillis: Long = 0L,
     /** 버전 (예: "6.6") */
     val version: String = "",
+    /**
+     * 캐릭터·무기 아이콘 URL. 없으면 빈 문자열(옛 캐시·아이콘을 안 주는 소스).
+     *
+     * 상류(ennead)가 픽업 항목마다 `icon` 을 주는데 이름만 읽고 버리고 있었다 — 3게임 전부
+     * 준다(원신 item_icon · 스타레일 item_icon_u47dee · 젠레스 role_square_avatar).
+     */
+    val iconUrl: String = "",
 ) {
     val gameColor: Long get() = GameData.colorFor(game)
 
@@ -310,12 +317,32 @@ data class LiveNote(
 
     /** 게임별 재화 명칭 */
     val resinLabel: String
-        get() = when (GameData.byNameOrNull(game)) {
-            Game.GENSHIN -> "레진"
-            Game.HSR -> "개척력"
-            Game.ZZZ -> "배터리"
-            else -> "재화"
-        }
+        get() = resinLabelOf(GameData.byNameOrNull(game))
+}
+
+/**
+ * 행동력 재화의 **인게임 명칭**(KR 공식) — 원신 레진 · 스타레일 개척력 · 젠레스 배터리.
+ *
+ * 실시간 노트가 없어도 게임만 알면 정해지므로 [LiveNote] 바깥에 둔다. 노트를 못 받은 칸에도
+ * 이름은 띄울 수 있어야 한다 — 숫자가 비었을 때 그 칸이 무엇을 세는 자리인지는 남아야 한다.
+ */
+/**
+ * 픽업 무기 계열의 **인게임 명칭**(KR 공식) — 게임마다 부르는 이름이 다르다.
+ *
+ * ⚠️ 젠레스는 `W-엔진`이다(하이픈 포함). '음동기'는 비공식 표기라 쓰지 않는다.
+ * 스타레일은 '광추', 원신·명조는 그냥 '무기'.
+ */
+fun weaponLabelOf(game: Game?): String = when (game) {
+    Game.HSR -> "광추"
+    Game.ZZZ -> "W-엔진"
+    else -> "무기"
+}
+
+fun resinLabelOf(game: Game?): String = when (game) {
+    Game.GENSHIN -> "레진"
+    Game.HSR -> "개척력"
+    Game.ZZZ -> "배터리"
+    else -> "재화"
 }
 
 /**

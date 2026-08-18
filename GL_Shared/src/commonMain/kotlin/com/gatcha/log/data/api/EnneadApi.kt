@@ -97,17 +97,18 @@ object EnneadApi {
             val version = b.optString("version")
 
             val (items, isWeapon) = firstItems(b)
-            val names = fiveStarNames(items).ifEmpty {
-                b.optString("name").takeIf { it.isNotBlank() }?.let { listOf(it) } ?: emptyList()
+            val picks = fiveStarPicks(items).ifEmpty {
+                b.optString("name").takeIf { it.isNotBlank() }?.let { listOf(PickupItem(it, "")) } ?: emptyList()
             }
-            names.forEach { name ->
+            picks.forEach { pick ->
                 banners += GachaBanner(
                     game = game.displayName,
-                    name = name,
+                    name = pick.name,
                     type = if (isWeapon) "weapon" else "character",
                     endMillis = endMillis,
                     startMillis = startMillis,
                     version = version,
+                    iconUrl = pick.icon,
                 )
             }
         }
@@ -173,18 +174,22 @@ object EnneadApi {
         return JSONArray() to false
     }
 
-    /** 5성(또는 S급) 아이템 이름. 없으면 첫 아이템. */
-    private fun fiveStarNames(items: JSONArray): List<String> {
+    /** 픽업 한 건 — 이름과 아이콘. 아이콘은 없을 수 있다. */
+    private data class PickupItem(val name: String, val icon: String)
+
+    /** 5성(또는 S급) 아이템. 없으면 첫 아이템. */
+    private fun fiveStarPicks(items: JSONArray): List<PickupItem> {
         if (items.length() == 0) return emptyList()
-        val fiveStar = mutableListOf<String>()
-        val all = mutableListOf<String>()
+        val fiveStar = mutableListOf<PickupItem>()
+        val all = mutableListOf<PickupItem>()
         for (i in 0 until items.length()) {
             val c = items.optJSONObject(i) ?: continue
             val name = c.optString("name")
             if (name.isBlank()) continue
-            all += name
+            val item = PickupItem(name, c.optString("icon"))
+            all += item
             val r = (c.opt("rarity") ?: c.opt("rank") ?: c.opt("grade") ?: "").toString().uppercase()
-            if (r == "5" || r == "S" || (r.toIntOrNull() ?: 0) >= 5) fiveStar += name
+            if (r == "5" || r == "S" || (r.toIntOrNull() ?: 0) >= 5) fiveStar += item
         }
         return when {
             fiveStar.isNotEmpty() -> fiveStar
