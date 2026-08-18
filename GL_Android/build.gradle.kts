@@ -67,8 +67,10 @@ android {
 
     defaultConfig {
         applicationId = "com.gatcha.log"
-        minSdk = 24
-        targetSdk = 34
+        // 최소 지원 OS = Android 12. 24(2016년 7.0)에서 올렸다 — 사이드로드 배포라 스토어
+        // 호환 압박은 없지만, 구형 기기를 지탱하느라 최신 API 를 조건 분기로 감싸는 비용이 더 컸다.
+        minSdk = 31
+        targetSdk = 37
         // 27.42.0 은 274201 로 나갔다 — 274200 이 Firebase 설정 누락 결함본이라 회수하고 하나 올렸다.
         versionCode = 274300
         versionName = "27.43.0"
