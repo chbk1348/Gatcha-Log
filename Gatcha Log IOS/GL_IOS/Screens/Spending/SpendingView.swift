@@ -25,6 +25,12 @@ struct SpendingView: View {
     var store: SpendingStore
     /// 지출 수정 진입 — ContentView 가 편집 대상 설정 + AddSpending 모달을 연다.
     let onEdit: (Spending) -> Void
+    /// 선택 모드(다중 선택) — 일괄 편집/삭제.
+    ///
+    /// **ContentView 가 들고 있다.** 선택 하단바가 뜨는 동안에는 그쪽의 '추가' 버튼을 감춰야 하는데,
+    /// 그 버튼은 TabView 오버레이라 이 화면의 로컬 @State 를 볼 수 없다. 실제로 겹쳐서
+    /// '일괄 편집'이 '+' 에 가려 눌리지 않았다.
+    @Binding var selectionMode: Bool
     @Environment(\.glgAccent) private var accent
     /// 지금 좌/우로 갈려 있는가 — GLGSplitDetail 이 돌려주는 값(폭 기준, iPadOS 26 자유 창 대응).
     @State private var isWide = false
@@ -43,8 +49,6 @@ struct SpendingView: View {
     @State private var typeFilter: TypeFilter = .all
     @State private var sortOrder: SortOrder = .dateDesc
     @State private var showFilter = false
-    // 선택 모드(다중 선택) — 일괄 편집/삭제.
-    @State private var selectionMode = false
     @State private var selectedIds: Set<String> = []
     @State private var showBulkEdit = false
     // 성능: 필터/정렬/그룹 결과를 캐시 — 스크롤(콜랩스)로 body 가 매 프레임 재평가돼도 리스트를
@@ -209,10 +213,16 @@ struct SpendingView: View {
                         .font(.pretendard(size: 18, weight: .bold))
                         .frame(width: 26, height: 26)
                 }
-                .glgGlassButton(circle: true, size: .large)
-                .tint(accent.primary)
-                .padding(.trailing, 16)
-                .padding(.bottom, 12)
+                // iOS 26+ 는 시스템 글래스 원형, 25 이하는 불투명 흰 원(→ glgFloatingCircleButton).
+                // 지름은 바로 아래 '추가' 버튼과 같게 맞춘다 — 우측 하단에 세로로 나란히 뜬다.
+                .glgFloatingCircleButton(tint: accent.primary, diameter: GLGLegacyAddButton.size)
+                // 우측 여백도 '추가' 버튼과 같은 값 — 두 원이 세로로 정확히 겹쳐 보여야 한다.
+                .padding(.trailing, GLGLegacyAddButton.trailingInset)
+                // iOS 25 이하에선 같은 우측 하단에 '추가' 원형 버튼이 떠 있어 **정확히 포개졌다.**
+                // 기준 좌표계가 서로 달라(추가=TabView 바깥/여긴 탭 안쪽) 눈으로는 둘 다
+                // "바닥에서 조금 띄운" 값인데 실제 높이가 같아진다. 그만큼 위로 비켜난다.
+                // iOS 26+ 는 '추가'가 탭바 안이라 여백이 0 이고 배치도 그대로다.
+                .padding(.bottom, 12 + GLGLegacyAddButton.contentClearanceIfNeeded)
                 .transition(.opacity.combined(with: .scale(scale: 0.8)))
             }
         }

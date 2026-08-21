@@ -14,6 +14,9 @@ struct ContentView: View {
     /// Kotlin SpendingViewModel 브리지(공유 VM). 온보딩 게이트·강조색을 SwiftUI 에서 직접 구독.
     @State private var store = SpendingStore.shared
     @State private var selectedTab: Int = 0
+    /// 지출 목록이 다중 선택 중인가 — 선택 하단바가 떠 있는 동안 '추가' 버튼을 감춘다.
+    /// (SpendingView 의 로컬 상태로 두면 TabView 오버레이인 그 버튼이 볼 수 없다)
+    @State private var spendingSelectionMode = false
     /// 앱 복귀 감지 — 밀린 알림 점검 트리거(BGAppRefreshTask 는 실행 시점이 OS 재량이라 보조가 필요).
     @Environment(\.scenePhase) private var scenePhase
 
@@ -297,8 +300,12 @@ struct ContentView: View {
 
      [requestNotification] 은 OS 권한만이 아니라 **앱 내부 알림 토글까지** 함께 켠다.
      권한만 받고 토글이 전부 꺼진 채로 두면 "알림 켜고 시작하기"를 눌러도 알림이 한 건도 오지 않는다.
-     켜는 항목은 온보딩 ④에서 약속한 것과 같다 — 픽업 마감·예산 초과·재화(레진) 가득 참.
-     (VM 세터가 네이티브 스케줄 갱신까지 처리)
+
+     먼저 온보딩 ④에서 약속한 세 개(픽업 마감·예산 초과·재화 가득 참)를 켠다 — 권한을 **거부해도**
+     약속한 항목은 켜져 있어야 나중에 시스템 설정에서 허용했을 때 바로 알림이 온다.
+     그리고 사용자가 '허용'을 누르면 나머지까지 **항목 일곱 개 전부**로 넓힌다.
+     (데일리 요약·방해금지는 제외 — 발송 방식 설정이라 임의로 켜면 알림이 되레 줄거나 늦는다)
+     (VM 세터·`enableAllNotifyItems` 가 네이티브 스케줄 갱신까지 처리)
 
      "나중에 할게요"면 프롬프트를 띄우지 않으므로 notifPermAsked 도 건드리지 않는다 — 그 플래그는
      "OS 프롬프트를 실제로 띄운 적 있는가"라서, 안 띄우고 true 로 만들면 이후 '영구 거부' 판별이 틀어진다.
@@ -310,7 +317,9 @@ struct ContentView: View {
             store.setNotifyBudget(true)
             store.setNotifyResin(true)
             AppSettings().notifPermAsked = true
-            NotificationPermission.request()
+            NotificationPermission.request { newlyGranted in
+                if newlyGranted { store.enableAllNotifyItems() }
+            }
         }
         needsIntro = false
     }
@@ -386,10 +395,14 @@ struct ContentView: View {
             }
             .tint(accent)
             .overlay(alignment: .bottomTrailing) {
-                if selectedTab <= 1 && !tabsWithSubPage.contains(selectedTab) && !syncGateActive {
+                // 선택 모드에서는 감춘다 — 선택 하단바('N건 선택 · 삭제 · 일괄 편집')와 자리가 겹쳐
+                // '일괄 편집'이 '+' 에 가려 눌리지 않았다. 같은 이유로 '맨 위로'도 이미 숨긴다.
+                // (지출을 고르는 중에 새 지출을 추가하는 흐름도 아니다)
+                if selectedTab <= 1 && !tabsWithSubPage.contains(selectedTab)
+                    && !bottomChromeHidden && !spendingSelectionMode {
                     legacyAddButton
-                        .padding(.trailing, 20)
-                        .padding(.bottom, 64)
+                        .padding(.trailing, GLGLegacyAddButton.trailingInset)
+                        .padding(.bottom, GLGLegacyAddButton.bottomInset)
                 }
             }
         }
@@ -433,7 +446,16 @@ struct ContentView: View {
     ///
     /// 그래서 모디파이어는 **항상 달아 두고 값만 바꾼다.** 값 변화는 전환에 실리고 구조는 그대로다.
     private var tabBarVisibility: Visibility {
-        (syncGateActive || spendingSheet != nil || spendingEditorOpen) ? .hidden : .visible
+        bottomChromeHidden ? .hidden : .visible
+    }
+
+    /// 화면 하단 크롬(탭바·'추가' 버튼)을 감춰야 하는 상태 — **여기 한 곳에서만 판단한다.**
+    ///
+    /// 예전엔 탭바만 이 조건을 보고 '추가' 버튼은 `syncGateActive` 만 봤다. 그래서 지출 입력
+    /// 페이지에서 **탭바는 사라지는데 '+' 만 남아** 입력 폼 위에 떠 있었다. 둘은 같이 나타나고
+    /// 같이 사라져야 하는 한 벌이라 신호를 하나로 묶는다.
+    private var bottomChromeHidden: Bool {
+        syncGateActive || spendingSheet != nil || spendingEditorOpen
     }
 
     // ── 탭 콘텐츠 (네이티브 SwiftUI) ──────────────────────────────────
@@ -458,7 +480,7 @@ struct ContentView: View {
         NavigationStack(path: $spendingPath) {
             SpendingView(store: store, onEdit: { spending in
                 spendingPath.append(.edit(spending.id))
-            })
+            }, selectionMode: $spendingSelectionMode)
             .navigationDestination(for: SpendingRoute.self) { route in
                 switch route {
                 case .detail(let id):
@@ -510,7 +532,7 @@ struct ContentView: View {
             Image(systemName: "plus")
                 .font(.pretendard(size: 19, weight: .semibold))
                 .foregroundColor(.primary)
-                .frame(width: 48, height: 48)
+                .frame(width: GLGLegacyAddButton.size, height: GLGLegacyAddButton.size)
                 .background { GLGVisualEffectBlur(style: .systemUltraThinMaterial).clipShape(Circle()) }
                 .shadow(color: .black.opacity(0.15), radius: 10, y: 4)
         }
@@ -525,6 +547,39 @@ struct ContentView: View {
         }
         .accessibilityLabel("지출 추가")
         .modifier(GLGFabStyle(tint: accent))
+    }
+}
+
+/// iOS 25 이하에서 탭바 위에 떠 있는 '추가' 원형 버튼(`legacyAddButton`)의 치수.
+///
+/// 같은 우측 하단에 뜨는 다른 부유 버튼 — 지출 리스트의 '맨 위로'(`SpendingView`) — 이
+/// 여기를 보고 위로 비켜난다. 두 버튼이 서로 다른 파일에 있어서 한쪽 값만 고치면
+/// 조용히 다시 겹친다(실제로 겹쳐 있었다).
+enum GLGLegacyAddButton {
+    /// 버튼 지름.
+    static let size: CGFloat = 48
+    /// 안전 영역(홈 인디케이터) 위로 띄운 높이.
+    static let bottomInset: CGFloat = 64
+    /// 화면 우측에서 띄운 거리.
+    static let trailingInset: CGFloat = 20
+
+    /// 레거시 탭바 높이 — iPhone 세로 49 / iPad 50. 아래 여백 계산에만 쓴다.
+    private static let tabBarHeight: CGFloat = 49
+
+    /// **탭 안쪽 화면의 좌표계**에서 이 버튼을 피하려면 하단에 둬야 하는 여백.
+    ///
+    /// 두 버튼은 기준선이 다르다 — '추가'는 `TabView` **바깥** 오버레이라 안전 영역(홈
+    /// 인디케이터)에서 재고, 탭 안 화면은 **탭바까지 인셋된** 안전 영역에서 잰다.
+    /// 화면 바닥을 0 으로 두면
+    ///     추가 버튼 윗변 = 홈인디케이터 + bottomInset + size
+    ///     탭 콘텐츠 밑변 = 홈인디케이터 + 탭바
+    /// 라서 차이에서 홈 인디케이터가 상쇄된다 → 기기·노치 유무와 무관한 상수가 된다.
+    static let contentClearance: CGFloat = bottomInset + size - tabBarHeight
+
+    /// iOS 26+ 는 '추가'가 탭바 캡슐 안(`.prominent`)이라 겹칠 일이 없다 → 0.
+    static var contentClearanceIfNeeded: CGFloat {
+        if #available(iOS 26.0, *) { return 0 }
+        return contentClearance
     }
 }
 
