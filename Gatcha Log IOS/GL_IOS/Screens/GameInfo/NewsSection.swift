@@ -38,14 +38,14 @@ private func newsRow(_ n: NewsItem, selected: Bool = false, onOpen: @escaping (N
             //
             // 없는 항목이 섞여 온다(배너를 안 붙인 공지) — 그때는 자리도 비운다. 빈 회색 상자를
             // 대신 세우면 목록에 구멍이 뚫린 것처럼 보인다.
+            //
+            // `AsyncImage` 를 쓰지 않는다 — **디코딩 결과를 들고 있지 않아서** 셀이 스크롤로 화면 밖에
+            // 나갔다 들어올 때마다 처음부터 다시 그린다(공지 상세는 이미 옮겨 놓고 목록만 남아 있었다).
+            // `GLGRemoteImage` 는 디코딩본을 캐시하고, 52pt 자리에 맞춰 **축소본을 받아** 온다.
             if !n.bannerUrl.isEmpty {
-                AsyncImage(url: URL(string: n.bannerUrl)) { img in
-                    img.resizable().aspectRatio(contentMode: .fill)
-                } placeholder: {
-                    Color.clear
-                }
-                .frame(width: 52, height: 36)
-                .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+                GLGRemoteImage(url: URL(string: n.bannerUrl), side: 52)
+                    .frame(width: 52, height: 36)
+                    .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
             }
             // 앱 안에서 열리므로 외부링크 아이콘이 아니라 상세로 들어가는 셰브론.
             Image(systemName: "chevron.right").font(.pretendard(size: 13, weight: .semibold))
