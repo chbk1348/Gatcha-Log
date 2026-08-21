@@ -287,6 +287,36 @@ class SpendingViewModel : ViewModel() {
     fun setNotifyDailySummary(v: Boolean) { appSettings.notifyDailySummary = v; _notifyDailySummary.value = v; applyNativeAfterNotifyChange(v) }
     fun setNotifyDailySummaryHour(v: Int) { appSettings.notifyDailySummaryHour = v; _notifyDailySummaryHour.value = appSettings.notifyDailySummaryHour }
 
+    /**
+     * OS 알림 권한을 **처음 허용**했을 때 — 항목별 알림([NotificationCatalog.items]) 일곱 개를 한꺼번에 켠다.
+     *
+     * 권한만 받고 토글이 꺼져 있으면 알림이 한 건도 오지 않는다. 예전엔 온보딩에서 세 개만 켰던 탓에
+     * "알림 켜고 시작하기"를 누른 사람도 정기결제·전투 시즌·공지는 조용했다.
+     *
+     * **데일리 요약·방해금지는 건드리지 않는다.** 둘은 개별 알림이 아니라 *발송 방식*을 바꾸는 설정이라
+     * (요약은 하루 1건으로 묶고, 방해금지는 시간대별로 막는다) 임의로 켜면 오히려 알림이 줄거나 늦는다.
+     * 그래서 카탈로그에도 들어 있지 않다.
+     *
+     * 세터를 일곱 번 부르지 않는다 — 그러면 [applyNativeAfterNotifyChange] 가 일곱 번 돌아
+     * 워커 재등록·즉시 실행이 그만큼 중복된다. 값만 쓰고 반영은 **마지막에 한 번**.
+     *
+     * `when` 은 [NotifyKey] 에 대해 exhaustive 라, 항목이 늘면 여기서 컴파일 에러로 잡힌다(누락 방지).
+     */
+    fun enableAllNotifyItems() {
+        NotifyKey.entries.forEach { key ->
+            when (key) {
+                NotifyKey.BUDGET -> { appSettings.notifyBudget = true; _notifyBudget.value = true }
+                NotifyKey.SUBSCRIPTION -> { appSettings.notifySubscription = true; _notifySubscription.value = true }
+                NotifyKey.RESIN -> { appSettings.notifyResin = true; _notifyResin.value = true }
+                NotifyKey.ATTENDANCE -> { appSettings.notifyAttendance = true; _notifyAttendance.value = true }
+                NotifyKey.PICKUP -> { appSettings.notifyPickup = true; _notifyPickup.value = true }
+                NotifyKey.COMBAT -> { appSettings.notifyCombat = true; _notifyCombat.value = true }
+                NotifyKey.NEWS -> { appSettings.notifyNews = true; _notifyNews.value = true }
+            }
+        }
+        applyNativeAfterNotifyChange(true)
+    }
+
     private fun applyNativeAfterNotifyChange(enabled: Boolean) {
         NativeScheduler.apply()
         rescheduleTimedAlerts()

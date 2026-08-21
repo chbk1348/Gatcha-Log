@@ -31,7 +31,7 @@ struct NotificationSettingsView: View {
         }
         .scrollIndicators(.hidden)
         .background(GLGBackground { Color.clear })
-        .navigationTitle("알림 설정")
+        .glgPageTitle("알림 설정")
         .navigationBarTitleDisplayMode(.inline)
         .onChange(of: scenePhase) { _, phase in
             if phase == .active { refreshNotifBlocked() }
@@ -127,7 +127,13 @@ struct NotificationSettingsView: View {
                 // 아직 프롬프트를 띄울 수 있으면(.notDetermined) 시스템 설정으로 보내지 말고 여기서 바로 요청한다.
                 Button {
                     if canPromptNotifPerm {
-                        NotificationPermission.request { refreshNotifBlocked() }
+                        // 이 배너의 '허용'은 "알림을 받고 싶다"는 뜻이므로, 처음 허용한 순간
+                        // 항목 일곱 개를 전부 켠다. 개별 토글 경로(notifyBind)와 구분해야 한다 —
+                        // 거긴 그 항목만 켜려던 것이라 전부 켜면 의도와 어긋난다.
+                        NotificationPermission.request { newlyGranted in
+                            if newlyGranted { store.enableAllNotifyItems() }
+                            refreshNotifBlocked()
+                        }
                     } else {
                         openSystemSettings()
                     }
@@ -279,7 +285,8 @@ struct NotificationSettingsView: View {
     /// 알림 토글용 — 켤 때 iOS 알림 권한을 요청한다.
     private func notifyBind(_ keyPath: KeyPath<SpendingStore, Bool>, _ setter: @escaping (Bool) -> Void) -> Binding<Bool> {
         Binding(get: { store[keyPath: keyPath] }, set: { on in
-            if on { NotificationPermission.request { refreshNotifBlocked() } }
+            // 여기서 처음 허용해도 **그 항목만** 켠다 — 일괄 ON 은 배너의 '허용'과 온보딩 전용.
+            if on { NotificationPermission.request { _ in refreshNotifBlocked() } }
             setter(on)
         })
     }

@@ -407,6 +407,9 @@ final class SpendingStore {
     func setNotifySubscription(_ v: Bool) { vm.setNotifySubscription(v: v) }
     func setNotifyNews(_ v: Bool) { vm.setNotifyNews(v: v) }
     func setNotifyCombat(_ v: Bool) { vm.setNotifyCombat(v: v) }
+    /// OS 알림 권한을 처음 허용했을 때 — 항목별 알림 일곱 개를 한꺼번에 켠다.
+    /// (데일리 요약·방해금지는 발송 방식 설정이라 제외 — `enableAllNotifyItems` 주석 참고)
+    func enableAllNotifyItems() { vm.enableAllNotifyItems() }
     func setNotifyDndEnabled(_ v: Bool) { vm.setNotifyDndEnabled(v: v) }
     func setNotifyDndStartHour(_ v: Int) { vm.setNotifyDndStartHour(v: Int32(v)) }
     func setNotifyDndEndHour(_ v: Int) { vm.setNotifyDndEndHour(v: Int32(v)) }
