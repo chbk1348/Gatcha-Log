@@ -320,12 +320,15 @@ fun GameInfoScreen(
                     onCheckInAll = { viewModel.checkInAll() },
                 )
             }
-            GiSub.Schedule -> SectionPage("게임 일정", onBack = { subPage = GiSub.Main }) {
+            // 일정만 `SectionPage` 를 안 쓴다 — 주간 표를 `stickyHeader` 로 고정해야 하는데
+            // 그건 LazyColumn 전용이라, 페이지가 자기 리스트·헤더를 직접 들고 있다.
+            GiSub.Schedule -> {
                 val collabExpanded by viewModel.collabBannerExpanded.collectAsState()
-                GameScheduleFullContent(
+                GameScheduleFullPage(
                     banners, events, challenges, confirmedBroadcasts,
                     collabExpanded = collabExpanded,
                     onToggleCollab = { viewModel.setCollabBannerExpanded(!collabExpanded) },
+                    onBack = { subPage = GiSub.Main },
                 )
             }
             GiSub.NewsDetail -> SectionPage(
