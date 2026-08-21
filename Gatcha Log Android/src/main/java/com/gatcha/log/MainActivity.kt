@@ -119,7 +119,11 @@ class MainActivity : ComponentActivity() {
             // 앱 시작 시 자동 요청은 없앴다(v27.38.0) — 켜자마자 맥락 없이 뜨던 팝업이었다.
             // 신규 유저는 온보딩 ④에서 맥락과 함께 요청하고, 기존 유저는 이미 물어본 적이 있으며,
             // 그 외에는 알림 설정 화면의 안내 배너에서 직접 허용할 수 있다.
-            val notifPermLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
+            // 온보딩 전용 런처 — 여기서 처음 허용하면 항목 일곱 개를 한꺼번에 켠다.
+            // (설정 화면의 개별 토글은 그 항목만 켠다 — SettingsScreen 의 런처가 따로 있다)
+            val notifPermLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+                if (granted) viewModel.enableAllNotifyItems()
+            }
             val accentIndex by viewModel.accentIndex.collectAsStateWithLifecycle()
             val account by viewModel.account.collectAsStateWithLifecycle()
             val initialSyncing by viewModel.initialSyncing.collectAsStateWithLifecycle()
@@ -143,11 +147,18 @@ class MainActivity : ComponentActivity() {
                         AppSettings().onboardingDone = true
                         if (requestNotification) {
                             // OS 권한만 받고 앱 내부 토글이 꺼져 있으면 알림이 한 건도 오지 않는다.
-                            // 온보딩 ④에서 약속한 3종을 함께 켠다(VM 세터가 주기 작업 스케줄까지 갱신).
+                            // 온보딩 ④에서 약속한 3종을 먼저 켠다 — 권한을 **거부해도** 이건 켜져 있어야
+                            // 나중에 시스템 설정에서 허용했을 때 바로 알림이 온다.
+                            // (VM 세터가 주기 작업 스케줄까지 갱신)
                             viewModel.setNotifyPickup(true)
                             viewModel.setNotifyBudget(true)
                             viewModel.setNotifyResin(true)
-                            requestNotificationPermission(notifPermLauncher::launch)
+                            // 프롬프트를 띄웠으면 허용 결과는 런처 콜백이 받아 일곱 개로 넓힌다.
+                            // 안 띄운 경우(이미 허용 상태이거나 API 32 이하 — 권한 개념 자체가 없다)는
+                            // 콜백이 영영 안 오므로 여기서 바로 넓힌다.
+                            if (!requestNotificationPermission(notifPermLauncher::launch)) {
+                                viewModel.enableAllNotifyItems()
+                            }
                         }
                         onboardingDone = true
                     })
@@ -201,14 +212,19 @@ class MainActivity : ComponentActivity() {
     /**
      * Android 13+ 에서 아직 권한이 없을 때만 OS 프롬프트를 띄운다(12 이하는 권한 개념 자체가 없음).
      * 실제로 띄웠을 때만 notifPermAsked 를 남긴다 — 이 플래그가 '영구 거부' 판별의 근거다.
+     *
+     * @return 프롬프트를 **실제로 띄웠는지**. false 면 런처 콜백이 오지 않으므로(이미 허용 상태이거나
+     *   구버전), 허용을 전제로 한 후속 처리는 호출부가 직접 해야 한다.
      */
-    private fun requestNotificationPermission(launchPermission: (String) -> Unit) {
+    private fun requestNotificationPermission(launchPermission: (String) -> Unit): Boolean {
         if (Build.VERSION.SDK_INT >= 33 &&
             ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) !=
             PackageManager.PERMISSION_GRANTED
         ) {
             AppSettings().notifPermAsked = true
             launchPermission(Manifest.permission.POST_NOTIFICATIONS)
+            return true
         }
+        return false
     }
 }

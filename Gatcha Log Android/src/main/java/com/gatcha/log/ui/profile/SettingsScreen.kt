@@ -629,6 +629,15 @@ private fun NotificationSettingsScreen(viewModel: SpendingViewModel, onBack: () 
         permRefresh++
     }
     val ensureNotifPerm: () -> Unit = { requestNotifPermIfNeeded(context, notifPermLauncher::launch) }
+
+    // 아래 안내 배너의 '허용' 전용 런처 — 여기서 처음 허용하면 항목 일곱 개를 한꺼번에 켠다.
+    // 위 런처와 공유하면 안 된다: 개별 토글도 같은 런처를 쓰는데, 그쪽은 '새 공지'만 켜려던 것이라
+    // 전부 켜면 의도와 어긋난다. 콜백만 보고는 어느 쪽에서 왔는지 알 수 없어 런처를 따로 둔다.
+    val bulkNotifPermLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        permRefresh++
+        if (granted) viewModel.enableAllNotifyItems()
+    }
+    val ensureNotifPermForAll: () -> Unit = { requestNotifPermIfNeeded(context, bulkNotifPermLauncher::launch) }
     val activity = remember(context) { context.findActivity() }
 
     // 시스템 설정에서 알림을 켜고 돌아오면 배너가 사라져야 한다. 권한은 Compose 상태가 아니라 OS 상태라
@@ -764,7 +773,7 @@ private fun NotificationSettingsScreen(viewModel: SpendingViewModel, onBack: () 
                         GlgButton(
                             if (canPromptNotifPerm) "허용" else "설정",
                             onClick = {
-                                if (canPromptNotifPerm) ensureNotifPerm() else openAppNotificationSettings(context)
+                                if (canPromptNotifPerm) ensureNotifPermForAll() else openAppNotificationSettings(context)
                             },
                             modifier = Modifier.width(72.dp),
                             height = 36.dp,
