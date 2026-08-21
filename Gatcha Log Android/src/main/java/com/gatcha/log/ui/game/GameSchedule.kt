@@ -7,7 +7,15 @@ import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
+import androidx.activity.compose.BackHandler
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.runtime.derivedStateOf
+import com.gatcha.log.ui.components.GlgDetailHeaderOverlay
+import com.gatcha.log.ui.components.glgDetailContentTop
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -230,32 +238,20 @@ private fun GameLineRow(line: GameScheduleLine) {
  * 주년은 원래 게임 정보 탭 본문의 독립 섹션이었다. 1년에 몇 번 볼 정보가 상시 자리를 차지하고 있었고,
  * 성격도 '언제 뭐가 있나'라 일정과 같아서 여기 탭으로 합쳤다.
  */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun GameScheduleFullContent(
+fun GameScheduleFullPage(
     banners: List<GachaBanner>,
     events: List<GameEvent>,
     challenges: List<GameChallenge>,
     confirmed: List<ConfirmedBroadcast>,
     collabExpanded: Boolean,
     onToggleCollab: () -> Unit,
+    onBack: () -> Unit,
 ) {
+    BackHandler { onBack() }
     var tab by remember { mutableStateOf(0) }
-    Row(
-        Modifier.fillMaxWidth().padding(top = 4.dp, bottom = 14.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        GlgChip("일정", selected = tab == 0) { tab = 0 }
-        GlgChip("방송", selected = tab == 1) { tab = 1 }
-        GlgChip("주년", selected = tab == 2) { tab = 2 }
-    }
-    if (tab == 1) {
-        BroadcastContent(banners, confirmed)
-        return
-    }
-    if (tab == 2) {
-        AnniversaryContent()
-        return
-    }
+
     // ── 주간 보드 ──
     //
     // 예전엔 **끝나는 것만** 마감 순으로 늘어놓았다. 다음 픽업이 언제 *시작*하는지가 저축·천장
@@ -272,30 +268,96 @@ fun GameScheduleFullContent(
     val weeks = remember(entries) { buildWeeks(entries) }
     val undated = remember(banners) { ScheduleLogic.undatedPickups(banners) }
     val summary = remember(banners, entries) { ScheduleLogic.summarize(banners, entries) }
-
-    // 콜라보는 **맨 위**. 종료 시각이 미공지라 시간 축에 못 올리는데, 맨 아래에 두면 진행 중인
-    // 한정 콜라보를 스크롤 끝까지 내려야 본다 — 놓치면 되돌릴 수 없는 일정이 가장 늦게 읽혔다.
-    if (undated.isNotEmpty()) {
-        CollabPromoBanner(undated, collabExpanded, onToggle = onToggleCollab)
-        Spacer(Modifier.height(16.dp))
-    }
-
-    Text(
-        "시작 · 종료 · 예상(방송 역산)",
-        fontSize = 12.sp, color = TextSecondary, modifier = Modifier.padding(bottom = 14.dp),
-    )
-
-    SummaryStrip(summary)
-    Spacer(Modifier.height(16.dp))
-
     // 남은 시간 갱신 기준 — 24시간 안쪽 일정이 있을 때만 초 단위.
     val now = rememberScheduleNow(entries.map { it.target })
 
-    weeks.forEach { w ->
-        WeekBlock(w, now)
-        Spacer(Modifier.height(18.dp))
+    // 이 페이지만 `SectionPage`(Column + verticalScroll) 를 쓰지 않는다 — `stickyHeader` 는
+    // LazyColumn 에만 있다. 헤더 오버레이는 `LazyListState` 로 좁힌 boolean 을 넘기는 쪽
+    // 오버로드를 쓴다(UpdateLogScreen 과 같은 구조).
+    val listState = rememberLazyListState()
+    val scrolled by remember {
+        derivedStateOf { listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 0 }
     }
 
+    /**
+     * 지금 고정돼 있는 주차의 키 — **여기 한 곳에서만 잰다.**
+     *
+     * 처음엔 `stickyHeader` 안에서 주차마다 `derivedStateOf` 를 만들었는데 스크롤이 틱틱 끊겼다.
+     * `layoutInfo` 는 스크롤 프레임마다 새 객체라 그 계산이 **매 프레임 × 주차 수**로 돌고,
+     * 게다가 sticky header 는 pin/unpin 하며 자리가 바뀌어 그 안의 `remember` 와
+     * `animateColorAsState` 까지 재생성됐다.
+     *
+     * 상위에서 하나로 줄이면 스캔이 프레임당 한 번이고, 값이 바뀌는 건 **주 경계에서뿐**이라
+     * 재구성도 그때만 일어난다.
+     */
+    val pinnedKey by remember {
+        derivedStateOf {
+            val info = listState.layoutInfo
+            info.visibleItemsInfo.firstOrNull {
+                it.offset <= info.viewportStartOffset && (it.key as? String)?.startsWith("week-") == true
+            }?.key as? String
+        }
+    }
+
+    Box(Modifier.fillMaxSize()) {
+        LazyColumn(
+            state = listState,
+            modifier = Modifier.fillMaxSize()
+                .navigationBarsPadding()
+                .padding(horizontal = 16.dp)
+                // **뷰포트 자체를 인셋**한다(contentPadding 이 아니라) — stickyHeader 는
+                // contentPadding top 을 무시하고 뷰포트 최상단에 붙으므로, 그러지 않으면
+                // 주간 표가 고정 헤더 뒤로 파고든다.
+                .padding(top = glgDetailContentTop()),
+            contentPadding = PaddingValues(bottom = 24.dp),
+        ) {
+            item(key = "tabs") {
+                Row(
+                    Modifier.fillMaxWidth().padding(top = 4.dp, bottom = 14.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    GlgChip("일정", selected = tab == 0) { tab = 0 }
+                    GlgChip("방송", selected = tab == 1) { tab = 1 }
+                    GlgChip("주년", selected = tab == 2) { tab = 2 }
+                }
+            }
+
+            when (tab) {
+                1 -> item(key = "broadcast") { BroadcastContent(banners, confirmed) }
+                2 -> item(key = "anniversary") { AnniversaryContent() }
+                else -> {
+                    // 콜라보는 **맨 위**. 종료 시각이 미공지라 시간 축에 못 올리는데, 맨 아래에 두면
+                    // 진행 중인 한정 콜라보를 스크롤 끝까지 내려야 본다 — 놓치면 되돌릴 수 없는
+                    // 일정이 가장 늦게 읽혔다.
+                    if (undated.isNotEmpty()) {
+                        item(key = "collab") {
+                            CollabPromoBanner(undated, collabExpanded, onToggle = onToggleCollab)
+                            Spacer(Modifier.height(16.dp))
+                        }
+                    }
+                    item(key = "summary") {
+                        Text(
+                            "시작 · 종료 · 예상(방송 역산)",
+                            fontSize = 12.sp, color = TextSecondary,
+                            modifier = Modifier.padding(bottom = 14.dp),
+                        )
+                        SummaryStrip(summary)
+                        Spacer(Modifier.height(16.dp))
+                    }
+                    weeks.forEachIndexed { i, w ->
+                        val key = "week-$i"
+                        // key 는 **전부** 준다 — 일부만 주면 재구성 때 아이템 매칭이 어긋난다.
+                        stickyHeader(key = key) { WeekHeaderCard(w, pinned = pinnedKey == key) }
+                        item(key = "$key-body") {
+                            WeekEntries(w, now)
+                            Spacer(Modifier.height(18.dp))
+                        }
+                    }
+                }
+            }
+        }
+        GlgDetailHeaderOverlay("게임 일정", onBack, scrolled)
+    }
 }
 
 /**
@@ -318,23 +380,50 @@ private val DDayBadgeHeight = 20.dp
  */
 private val WeekCellHeight = 46.dp
 
-/** 한 주 — 헤더(라벨·기간·건수) + 일~토 7칸 그리드 + 그 주 항목 목록. */
+/**
+ * 한 주의 **머리** — 라벨·기간·건수 + 일~토 7칸 그리드. 스크롤 중 상단에 고정된다.
+ *
+ * 고정되면 **카드로 떠 있는다**(흰 배경 + 아웃라인 + 라운드). 헤더바 재질을 따라가는 방식도
+ * 있지만 그러면 OS 버전마다 바 재질이 달라 계속 어긋난다 — 앱 카드 규격을 쓰는 게 낫다.
+ * [pinned] 동안에만 아웃라인에 강조색을 줘서 붙어 있다는 걸 알린다. (iOS `WeekHeader` 와 파리티)
+ */
 @Composable
-private fun WeekBlock(w: ScheduleWeek, now: Long) {
+private fun WeekHeaderCard(w: ScheduleWeek, pinned: Boolean) {
     val accent = LocalAccent.current
-    Row(Modifier.fillMaxWidth().padding(bottom = 8.dp), verticalAlignment = Alignment.Bottom) {
-        Text(w.label, fontSize = 13.sp, fontWeight = FontWeight.Black, color = TextPrimary)
-        Spacer(Modifier.width(7.dp))
-        Text(
-            "${w.rangeLabel} · ${if (w.entries.isEmpty()) "일정 없음" else "${w.entries.size}건"}",
-            fontSize = 11.sp, color = TextSecondary,
-        )
+    val shape = RoundedCornerShape(18.dp)
+    val border by animateColorAsState(
+        if (pinned) accent else Color.Black.copy(alpha = 0.10f),
+        label = "weekPinBorder",
+    )
+    Column(
+        Modifier.fillMaxWidth()
+            // 카드 **바깥** 여백 — 고정됐을 때 헤더바에 딱 붙지 않고 한 칸 떨어져 뜬다.
+            .padding(top = 10.dp)
+            .clip(shape)
+            .background(Color.White)
+            .border(if (pinned) 1.5.dp else 1.dp, border, shape)
+            .padding(horizontal = 14.dp, vertical = 10.dp),
+    ) {
+        Row(Modifier.fillMaxWidth().padding(bottom = 8.dp), verticalAlignment = Alignment.Bottom) {
+            Text(w.label, fontSize = 13.sp, fontWeight = FontWeight.Black, color = TextPrimary)
+            Spacer(Modifier.width(7.dp))
+            Text(
+                "${w.rangeLabel} · ${if (w.entries.isEmpty()) "일정 없음" else "${w.entries.size}건"}",
+                fontSize = 11.sp, color = TextSecondary,
+            )
+        }
+        // 7칸 그리드 — 칸이 좁아 제목은 못 담는다. 어느 날이 바쁜지만 점으로 알린다.
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            w.days.forEach { d -> WeekCell(d, Modifier.weight(1f)) }
+        }
     }
-    // 7칸 그리드 — 칸이 좁아 제목은 못 담는다. 어느 날이 바쁜지만 점으로 알린다.
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-        w.days.forEach { d -> WeekCell(d, Modifier.weight(1f)) }
-    }
-    if (w.entries.isNotEmpty()) {
+}
+
+/** 한 주의 **몸** — 그 주 항목 목록. 헤더가 고정된 채 이쪽만 흐른다. */
+@Composable
+private fun WeekEntries(w: ScheduleWeek, now: Long) {
+    if (w.entries.isEmpty()) return
+    Column(Modifier.fillMaxWidth()) {
         Spacer(Modifier.height(10.dp))
         w.entries.forEach { e ->
             ScheduleRow(e, now)
@@ -573,6 +662,15 @@ private fun WEngineInfoTip(modifier: Modifier = Modifier) {
 private const val PICKUP_SLOTS = 5
 
 /**
+ * **한 줄**에 세우는 칸 수. 이보다 많으면 줄을 나눈다.
+ *
+ * 5 였다가 3 으로 줄였다 — 다섯 칸이면 칸 폭이 51dp 라, 캐릭터(3~4자)는 몰라도
+ * 광추·W-엔진 이름(실측 7~16자 — "무지개가 영원히 하늘에 머물길")이 3~4줄로 깨져
+ * 줄 높이가 들쭉날쭉했다. iOS `pickupLineSlots` 와 같이 고쳐야 한다.
+ */
+private const val PICKUP_LINE_SLOTS = 3
+
+/**
  * 픽업 한 줄 — 남은 폭을 **인원수만큼 균등하게** 나눈다(최대 [PICKUP_SLOTS] 칸).
  *
  * 칸마다 폭이 같으므로 픽업이 하나든 넷이든 칸 사이 간격이 일정하고, 초상·이름은 각 칸의
@@ -593,14 +691,20 @@ private fun PickupRow(label: String, list: List<GachaBanner>, showInfo: Boolean 
             modifier = Modifier.width(PickupLabelWidth).padding(top = 12.dp),
         )
         Spacer(Modifier.width(6.dp))
-        Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            // 하나뿐이면 칸을 늘리지 않는다. weight 로 폭 전부를 주면 그 하나가 카드
-            // 한가운데에 덩그러니 놓여, 여러 명일 때의 첫 얼굴과 시작점이 어긋난다.
-            if (shown.size == 1) {
-                PickupSlot(shown[0], alignStart = true)
-                Spacer(Modifier.weight(1f))
-            } else {
-                shown.forEach { PickupSlot(it, Modifier.weight(1f)) }
+        // 칸 수에 따라 짜임을 바꾼다 — 균등 분할 하나로 1~5 를 다 감당하면 양끝이 다 무너진다.
+        //
+        //  1개  : 초상 **옆에** 이름(가로). 폭이 통째로 남는데 38dp 상자에 이름을 접을 이유가 없다.
+        //  2~4개: 한 줄 균등 분할. 칸이 66dp 이상이라 이름이 1~2줄에 들어온다.
+        //  5개  : **3+2 두 줄.** 두 줄 다 3칸 기준으로 놓는다(뒷줄은 빈 칸을 채운다) —
+        //         뒷줄만 2등분하면 칸 폭이 달라져 위아래 얼굴이 어긋난다.
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            when {
+                shown.size == 1 -> PickupSlotWide(shown[0])
+                shown.size > PICKUP_LINE_SLOTS -> {
+                    PickupLine(shown.take(PICKUP_LINE_SLOTS))
+                    PickupLine(shown.drop(PICKUP_LINE_SLOTS))
+                }
+                else -> PickupLine(shown)
             }
         }
         // 안내 버튼은 **자리를 차지한다**(겹쳐 얹지 않는다). 예전엔 줄 위에 오버레이로
@@ -632,37 +736,11 @@ private val PickupAvatarSize = 38.dp
  * 칸이 글자 길이만큼만 커져서 가운데로 두면 초상과 이름의 축이 이름마다 어긋난다.
  */
 @Composable
-private fun PickupSlot(b: GachaBanner, modifier: Modifier = Modifier, alignStart: Boolean = false) {
-    val isWeapon = b.type == "weapon"
+private fun PickupSlot(b: GachaBanner, modifier: Modifier = Modifier) {
     // 초상·이름 모두 **칸의 가운데**에 선다. 칸 폭이 균등하므로 이름 상자와 초상의
     // 중심축이 저절로 같아진다 — 따로 맞출 필요가 없다.
-    //
-    // [alignStart] 는 픽업이 하나뿐일 때만 쓴다. 그때는 칸이 곧 줄 전체라 가운데에 두면
-    // 얼굴이 카드 복판에 뜬다 — 왼쪽에 붙이고 이름 상자를 초상 폭에 맞춰 중심축을 지킨다.
-    Column(
-        modifier,
-        horizontalAlignment = if (alignStart) Alignment.Start else Alignment.CenterHorizontally,
-    ) {
-        Box(
-            Modifier.size(PickupAvatarSize).clip(CircleShape).background(PickupGold.copy(alpha = 0.14f)),
-            contentAlignment = Alignment.Center,
-        ) {
-            // 초상을 못 받는 경우가 여럿이다 — 상류에 아직 이미지가 안 올라온 신규 캐릭터,
-            // CDN 오류, 오프라인. 어느 쪽이든 **빈 원**을 남기면 자리만 차지하고 뜻이 없다.
-            // 실루엣 아이콘을 세워 "여기 픽업이 하나 있다"까지는 읽히게 한다.
-            if (b.iconUrl.isBlank()) {
-                PickupFallbackIcon(isWeapon)
-            } else {
-                SubcomposeAsyncImage(
-                    model = b.iconUrl,
-                    contentDescription = b.name,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize(),
-                    loading = {},
-                    error = { PickupFallbackIcon(isWeapon) },
-                )
-            }
-        }
+    Column(modifier, horizontalAlignment = Alignment.CenterHorizontally) {
+        PickupAvatar(b)
         Spacer(Modifier.height(5.dp))
         // 이름은 **끝까지** 보여준다. 자르면 "그림자 사냥꾼의…"처럼 무엇인지 특정할 수 없는
         // 조각만 남는다 — 얼굴 옆 이름은 확인용이라 잘리면 있으나 마나다.
@@ -670,8 +748,62 @@ private fun PickupSlot(b: GachaBanner, modifier: Modifier = Modifier, alignStart
         Text(
             b.name, fontSize = 9.5.sp, fontWeight = FontWeight.Bold, color = TextPrimary,
             textAlign = TextAlign.Center,
-            modifier = if (alignStart) Modifier.width(PickupAvatarSize) else Modifier,
         )
+    }
+}
+
+/** 원형 초상 — 격자 칸([PickupSlot])과 가로형([PickupSlotWide])이 함께 쓴다. */
+@Composable
+private fun PickupAvatar(b: GachaBanner) {
+    val isWeapon = b.type == "weapon"
+    Box(
+        Modifier.size(PickupAvatarSize).clip(CircleShape).background(PickupGold.copy(alpha = 0.14f)),
+        contentAlignment = Alignment.Center,
+    ) {
+        // 초상을 못 받는 경우가 여럿이다 — 상류에 아직 이미지가 안 올라온 신규 캐릭터,
+        // CDN 오류, 오프라인. 어느 쪽이든 **빈 원**을 남기면 자리만 차지하고 뜻이 없다.
+        // 실루엣 아이콘을 세워 "여기 픽업이 하나 있다"까지는 읽히게 한다.
+        if (b.iconUrl.isBlank()) {
+            PickupFallbackIcon(isWeapon)
+        } else {
+            SubcomposeAsyncImage(
+                model = b.iconUrl,
+                contentDescription = b.name,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize(),
+                loading = {},
+                error = { PickupFallbackIcon(isWeapon) },
+            )
+        }
+    }
+}
+
+/**
+ * 한 줄 — 언제나 [PICKUP_LINE_SLOTS] 칸으로 나눈다.
+ *
+ * 모자란 칸은 **빈 자리로 남긴다**(칸을 넓히지 않는다). 두 줄로 나뉜 뒷줄이 제 수만큼만
+ * 등분하면 앞줄과 칸 폭이 달라져 위아래 얼굴이 어긋난다.
+ */
+@Composable
+private fun PickupLine(items: List<GachaBanner>) {
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        items.forEach { PickupSlot(it, Modifier.weight(1f)) }
+        repeat(PICKUP_LINE_SLOTS - items.size) { Spacer(Modifier.weight(1f)) }
+    }
+}
+
+/**
+ * 픽업이 **하나뿐일 때** — 초상 오른쪽에 이름을 둔다.
+ *
+ * 줄 전체가 제 칸인데 세로로 쌓으면 38dp 상자에 긴 이름이 접히면서 폭은 폭대로 남는다.
+ * 가로로 두면 16자짜리 광추 이름도 한 줄에 들어간다.
+ */
+@Composable
+private fun PickupSlotWide(b: GachaBanner) {
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        PickupAvatar(b)
+        Spacer(Modifier.width(9.dp))
+        Text(b.name, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
     }
 }
 

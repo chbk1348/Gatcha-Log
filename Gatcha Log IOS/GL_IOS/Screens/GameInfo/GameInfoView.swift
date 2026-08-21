@@ -290,7 +290,7 @@ struct GameInfoView: View {
         }
         .scrollIndicators(.hidden)
         .background(GLGBackground { Color.clear })
-        .navigationTitle(title)
+        .glgPageTitle(title)
         .navigationBarTitleDisplayMode(.inline)
     }
 }
@@ -481,7 +481,10 @@ struct GameSchedulePage: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 0) {
+            // `pinnedViews` 를 쓰려면 Lazy 컨테이너여야 한다 — 주차 헤더(라벨 + 일~토 그리드)를
+            // 상단에 붙여 두려는 것. 그 주 항목을 훑는 동안 **지금 몇 주차의 무엇을 보고 있는지**가
+            // 화면에서 사라지지 않는다(주가 넘어가면 다음 헤더가 밀어 올린다).
+            LazyVStack(alignment: .leading, spacing: 0, pinnedViews: [.sectionHeaders]) {
                 // 페이지 타이틀은 네비게이션 바(뒤로가기 + 타이틀)로 — Android 상세 헤더와 동일 형식.
                 Picker("보기", selection: $tab.animation(.easeInOut(duration: 0.2))) {
                     Text("일정").tag(0)
@@ -511,8 +514,12 @@ struct GameSchedulePage: View {
                 if let summary = sched.summary { SummaryStrip(s: summary) }
                 Spacer().frame(height: 16)
                 ForEach(Array(sched.weeks.enumerated()), id: \.offset) { _, w in
-                    WeekBlock(week: w)
-                    Spacer().frame(height: 18)
+                    Section {
+                        WeekEntries(week: w)
+                        Spacer().frame(height: 18)
+                    } header: {
+                        WeekHeader(week: w)
+                    }
                 }
                 }
             }
@@ -521,7 +528,7 @@ struct GameSchedulePage: View {
         }
         .scrollIndicators(.hidden)
         .background(GLGBackground { Color.clear })
-        .navigationTitle("게임 일정")
+        .glgPageTitle("게임 일정")
         .navigationBarTitleDisplayMode(.inline)
         // 일정 집계는 필터/원본이 바뀔 때만. 예전엔 body 첫 줄에서 5종을 조건 없이 계산해,
         // '주년' 탭을 보고 있어도(그때는 하나도 안 쓰는데) 세그먼트를 누를 때마다 전부 다시 돌았다.
@@ -571,13 +578,21 @@ struct GameSchedulePage: View {
     }
 }
 
-/// 한 주 — 헤더(라벨·기간·건수) + 일~토 7칸 그리드 + 그 주 항목 목록.
+/// 한 주의 **머리** — 라벨·기간·건수 + 일~토 7칸 그리드. 스크롤 중 상단에 고정된다.
 ///
 /// 칸이 좁아 제목은 못 담는다. 그리드는 **어느 날이 바쁜지**만 점으로 알리고,
-/// 무엇인지는 아래 목록이 말한다.
-private struct WeekBlock: View {
+/// 무엇인지는 아래 목록([WeekEntries])이 말한다. 목록이 길어도 이 표가 붙어 있어야
+/// "지금 보는 줄이 몇 일자인지"를 되짚으러 위로 올라가지 않는다.
+private struct WeekHeader: View {
     let week: ScheduleWeek
     @Environment(\.glgAccent) private var accent
+
+    /// 지금 **고정돼 있는가.** 붙어 있는 동안만 아웃라인에 강조색을 준다 —
+    /// 흐르는 카드와 붙어 있는 카드를 색 하나로 구분한다.
+    @State private var pinned = false
+
+    /// 카드 모양 — 배경·아웃라인·고정 판정이 같은 도형을 써야 어긋나지 않는다.
+    private var shape: RoundedRectangle { RoundedRectangle(cornerRadius: 18, style: .continuous) }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -594,8 +609,52 @@ private struct WeekBlock: View {
                     WeekCell(day: d)
                 }
             }
+        }
+        // 고정되면 **카드로 떠 있는다.** 헤더바 재질을 따라가려던 것을 접었다 —
+        // 두 OS 의 바가 서로 다른 물건이라(26+ 유리 / 18~25 크롬 머티리얼) 어느 한 값으로도
+        // 양쪽에서 이어져 보이질 않았고, 그러느니 앱의 카드 규격을 그대로 쓰는 게 낫다.
+        //
+        // 흰 배경 + 아웃라인(`glgGlassStrong`)이라 아래 목록이 비치지 않고, 좌우 여백으로
+        // 스크롤이 지나가는 게 보여 **떠 있다는 것**이 오히려 분명해진다.
+        // 폭을 꽉 채우려고 넣었던 음수 패딩·하단 구분선은 카드형에서는 필요 없다.
+        .padding(.vertical, 10)
+        .padding(.horizontal, 14)
+        // `glgGlassStrong` 을 직접 펼쳐 쓴다 — 아웃라인 색을 고정 여부에 따라 바꿔야 해서
+        // (그 모디파이어는 검정 10% 고정이다). 흰 배경 + 1px 아웃라인 규격은 그대로다.
+        .background(Color.white, in: shape)
+        .overlay(
+            shape.stroke(pinned ? accent.primary : Color.black.opacity(0.10),
+                         lineWidth: pinned ? 1.5 : 1)
+                .allowsHitTesting(false)
+        )
+        // 카드 **바깥** 여백 — 고정됐을 때 헤더바에 딱 붙지 않고 한 칸 떨어져 뜬다.
+        // (배경 안쪽에 주면 카드만 두꺼워지고 간격은 안 생긴다)
+        .padding(.top, 10)
+        .background { pinDetector }
+    }
 
-            if !week.entries.isEmpty {
+    /// 고정 여부 감지 — 스크롤뷰 좌표계에서 이 헤더의 윗변이 0 까지 올라왔으면 붙은 것이다.
+    ///
+    /// SwiftUI 는 "이 Section 헤더가 지금 pin 됐는가"를 알려주지 않는다. 스크롤 오프셋 하나로
+    /// 재려 해도 주마다 위치가 달라 못 쓴다 — **헤더 자신의 위치**를 봐야 한다.
+    /// 주는 넷뿐이라 헤더마다 하나씩 둬도 부담이 없다.
+    private var pinDetector: some View {
+        GeometryReader { geo in
+            Color.clear.onChange(of: geo.frame(in: .scrollView(axis: .vertical)).minY, initial: true) { _, y in
+                let now = y <= 0.5
+                if now != pinned { withAnimation(.easeInOut(duration: 0.18)) { pinned = now } }
+            }
+        }
+    }
+}
+
+/// 한 주의 **몸** — 그 주 항목 목록. 헤더가 고정된 채 이쪽만 흐른다.
+private struct WeekEntries: View {
+    let week: ScheduleWeek
+
+    var body: some View {
+        if !week.entries.isEmpty {
+            VStack(alignment: .leading, spacing: 0) {
                 Spacer().frame(height: 10)
                 ForEach(Array(week.entries.enumerated()), id: \.offset) { _, e in
                     ScheduleRow(entry: e)
@@ -678,8 +737,15 @@ private struct WEngineInfoTip: View {
     }
 }
 
-/// 한 줄에 세울 수 있는 최대 픽업 수 — 이보다 많으면 뒤는 자른다.
+/// 표시할 수 있는 최대 픽업 수 — 이보다 많으면 뒤는 자른다.
 private let pickupSlots = 5
+
+/// **한 줄**에 세우는 칸 수. 이보다 많으면 줄을 나눈다.
+///
+/// 5 였다가 3 으로 줄였다 — 다섯 칸이면 칸 폭이 51pt 라, 캐릭터(3~4자)는 몰라도
+/// 광추·W-엔진 이름(7~16자)이 3~4줄로 깨져 줄 높이가 들쭉날쭉했다.
+/// Android `PICKUP_LINE_SLOTS` 와 같이 고쳐야 한다.
+private let pickupLineSlots = 3
 
 /// 픽업 한 줄 — 남은 폭을 **인원수만큼 균등하게** 나눈다(최대 `pickupSlots` 칸).
 ///
@@ -707,17 +773,23 @@ private struct PickupRow: View {
                 .fixedSize(horizontal: false, vertical: true)
                 .frame(width: labelWidth, alignment: .leading)
                 .padding(.top, 12)
-            HStack(alignment: .top, spacing: 8) {
-                // 하나뿐이면 칸을 늘리지 않는다. 폭 전부를 주면 그 하나가 카드 한가운데에
-                // 덩그러니 놓여, 여러 명일 때의 첫 얼굴과 시작점이 어긋난다.
-                if shown.count == 1 {
-                    PickupSlot(banner: shown[0], alignStart: true)
-                    Spacer(minLength: 0)
-                } else {
-                    ForEach(Array(shown.enumerated()), id: \.offset) { _, b in
-                        PickupSlot(banner: b).frame(maxWidth: .infinity)
-                    }
+            // 칸 수에 따라 짜임을 바꾼다 — 균등 분할 하나로 1~5 를 다 감당하면 양끝이 다 무너진다.
+            //
+            //  1개  : 초상 **옆에** 이름(가로). 폭이 통째로 남는데 38pt 상자에 이름을 접을 이유가 없다.
+            //  2~4개: 한 줄 균등 분할. 칸이 66pt 이상이라 이름이 1~2줄에 들어온다.
+            //  5개  : **3+2 두 줄.** 한 줄에 다섯이면 칸이 51pt 로 좁아, 광추·W-엔진 이름
+            //         (실측 7~16자 — "무지개가 영원히 하늘에 머물길")이 3~4줄로 깨졌다.
+            //         두 줄 다 **3칸 기준**으로 놓는다(뒷줄은 빈 칸을 채워 둔다) — 칸 폭을 맞춰야
+            //         위아래 얼굴이 같은 세로선에 선다. 뒷줄만 2등분하면 축이 어긋난다.
+            if shown.count == 1 {
+                PickupSlot(banner: shown[0], style: .wide)
+            } else if shown.count > pickupLineSlots {
+                VStack(alignment: .leading, spacing: 10) {
+                    pickupLine(Array(shown.prefix(pickupLineSlots)))
+                    pickupLine(Array(shown.dropFirst(pickupLineSlots)))
                 }
+            } else {
+                pickupLine(shown)
             }
             // 안내 버튼은 **자리를 차지한다**(겹쳐 얹지 않는다). 예전엔 줄 위에 오버레이로
             // 올려서 맨 오른쪽 초상과 겹쳤다 — 칸이 넓어질수록 더 파고들었다.
@@ -726,13 +798,38 @@ private struct PickupRow: View {
             }
         }
     }
+
+    /// 한 줄 — 언제나 `pickupLineSlots` 칸으로 나눈다.
+    ///
+    /// 모자란 칸은 **빈 자리로 남긴다**(칸을 넓히지 않는다). 두 줄로 나뉜 뒷줄이 제 수만큼만
+    /// 등분하면 앞줄과 칸 폭이 달라져 위아래 얼굴이 어긋난다.
+    @ViewBuilder
+    private func pickupLine(_ items: [GachaBanner]) -> some View {
+        HStack(alignment: .top, spacing: 8) {
+            ForEach(Array(items.enumerated()), id: \.offset) { _, b in
+                PickupSlot(banner: b).frame(maxWidth: .infinity)
+            }
+            if items.count < pickupLineSlots {
+                ForEach(items.count..<pickupLineSlots, id: \.self) { _ in
+                    Color.clear.frame(maxWidth: .infinity, maxHeight: 0)
+                }
+            }
+        }
+    }
 }
 
 private struct PickupSlot: View {
     let banner: GachaBanner
-    /// 픽업이 하나뿐일 때만 켠다 — 칸이 곧 줄 전체라 가운데에 두면 얼굴이 카드 복판에 뜬다.
-    /// 왼쪽에 붙이고 이름 상자를 초상 폭에 맞춰 중심축을 지킨다.
-    var alignStart: Bool = false
+
+    /// 칸의 짜임.
+    enum Style {
+        /// 격자 한 칸 — 초상 위, 이름 아래. 칸 폭이 균등하므로 중심축이 저절로 맞는다.
+        case grid
+        /// 픽업이 **하나뿐일 때** — 초상 오른쪽에 이름을 둔다. 줄 전체가 제 칸이라
+        /// 세로로 쌓으면 38pt 상자에 긴 이름이 접히면서 폭은 폭대로 남는다.
+        case wide
+    }
+    var style: Style = .grid
 
     /// 초상 지름 — '내 캐릭터' 로스터(44)보다 한 단계 작다.
     ///
@@ -742,10 +839,41 @@ private struct PickupSlot: View {
     private let avatar: CGFloat = 38
 
     var body: some View {
-        let isWeapon = banner.type == "weapon"
+        switch style {
+        case .grid: gridBody
+        case .wide: wideBody
+        }
+    }
+
+    /// 초상 오른쪽에 이름 — 남는 폭을 이름에 준다. 16자짜리 광추 이름도 한 줄에 들어간다.
+    private var wideBody: some View {
+        HStack(alignment: .center, spacing: 9) {
+            avatarView
+            Text(banner.name).font(.pretendard(size: 11, weight: .bold))
+                .foregroundStyle(GLGColor.textPrimary)
+                .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: 0)
+        }
+    }
+
+    private var gridBody: some View {
         // 초상·이름 모두 **칸의 가운데**에 선다. 칸 폭이 균등하므로 이름 상자와 초상의
         // 중심축이 저절로 같아진다 — 따로 맞출 필요가 없다.
-        VStack(alignment: alignStart ? .leading : .center, spacing: 5) {
+        VStack(alignment: .center, spacing: 5) {
+            avatarView
+            // 이름은 **끝까지** 보여준다. 자르면 "그림자 사냥꾼의…"처럼 무엇인지 특정할 수 없는
+            // 조각만 남는다 — 얼굴 옆 이름은 확인용이라 잘리면 있으나 마나다.
+            // 줄 수를 묶지 않는다(광추·W-엔진 이름은 캐릭터명보다 길다). 칸끼리는 위를 맞춘다.
+            Text(banner.name).font(.pretendard(size: 9.5, weight: .bold))
+                .foregroundStyle(GLGColor.textPrimary)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    private var avatarView: some View {
+        let isWeapon = banner.type == "weapon"
+        return Group {
             ZStack {
                 Circle().fill(glPickupGold.opacity(0.14))
                 // 초상을 못 받는 경우가 여럿이다 — 상류에 아직 이미지가 안 올라온 신규 캐릭터,
@@ -766,14 +894,6 @@ private struct PickupSlot: View {
                 }
             }
             .frame(width: avatar, height: avatar)
-            // 이름은 **끝까지** 보여준다. 자르면 "그림자 사냥꾼의…"처럼 무엇인지 특정할 수 없는
-            // 조각만 남는다 — 얼굴 옆 이름은 확인용이라 잘리면 있으나 마나다.
-            // 줄 수를 묶지 않는다(광추·W-엔진 이름은 캐릭터명보다 길다). 칸끼리는 위를 맞춘다.
-            Text(banner.name).font(.pretendard(size: 9.5, weight: .bold))
-                .foregroundStyle(GLGColor.textPrimary)
-                .multilineTextAlignment(.center)
-                .fixedSize(horizontal: false, vertical: true)
-                .frame(width: alignStart ? avatar : nil)
         }
     }
 
