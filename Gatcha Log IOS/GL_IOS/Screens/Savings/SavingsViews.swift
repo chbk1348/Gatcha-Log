@@ -69,7 +69,7 @@ struct SavingsPlannerView: View {
         }
         .scrollIndicators(.hidden)
         .background(GLGBackground { Color.clear })
-        .navigationTitle("저축 플래너")
+        .glgPageTitle("저축 플래너")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             if !hidden.isEmpty {
@@ -325,7 +325,7 @@ struct SavingsChallengeView: View {
         }
         .scrollIndicators(.hidden)
         .background(GLGBackground { Color.clear })
-        .navigationTitle("절약 챌린지")
+        .glgPageTitle("절약 챌린지")
         .navigationBarTitleDisplayMode(.inline)
         .task(id: store.spendings) { spentDays = Set(store.spendings.map { $0.dayKey }) }
     }

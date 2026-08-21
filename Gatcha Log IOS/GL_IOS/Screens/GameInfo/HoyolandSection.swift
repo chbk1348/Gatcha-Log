@@ -159,7 +159,7 @@ struct HoyolandDetailView: View {
         }
         .scrollIndicators(.hidden)
         .background(GLGBackground { Color.clear })
-        .navigationTitle("호요랜드")
+        .glgPageTitle("호요랜드")
         .navigationBarTitleDisplayMode(.inline)
     }
 

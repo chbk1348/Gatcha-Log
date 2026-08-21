@@ -36,7 +36,7 @@ struct DataManagementView: View {
         }
         .scrollIndicators(.hidden)
         .background(GLGBackground { Color.clear })
-        .navigationTitle("데이터 관리")
+        .glgPageTitle("데이터 관리")
         .navigationBarTitleDisplayMode(.inline)
         // 가챠 초기화 — 1단계(백업 권장)
         .alert("가챠 기록 초기화", isPresented: $confirmClearGacha) {

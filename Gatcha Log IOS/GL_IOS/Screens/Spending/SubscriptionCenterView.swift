@@ -49,7 +49,7 @@ struct SubscriptionCenterView: View {
         }
         .scrollIndicators(.hidden)
         .background(GLGBackground { Color.clear })
-        .navigationTitle("정기결제 관리")
+        .glgPageTitle("정기결제 관리")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {

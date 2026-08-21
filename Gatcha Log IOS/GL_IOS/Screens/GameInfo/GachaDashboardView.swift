@@ -30,7 +30,7 @@ struct GachaDashboardView: View {
             }
         }
         .background(GLGBackground { Color.clear })
-        .navigationTitle("가챠 통계")
+        .glgPageTitle("가챠 통계")
         .navigationBarTitleDisplayMode(.inline)
     }
 

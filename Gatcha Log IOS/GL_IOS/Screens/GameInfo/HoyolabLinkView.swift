@@ -59,7 +59,7 @@ struct HoyolabLinkView: View {
                 .padding(.horizontal, 16).padding(.top, 16).padding(.bottom, 8)
             }
             .background(GLGBackground { Color.clear })
-            .navigationTitle("HoYoLAB 계정 연동")
+            .glgPageTitle("HoYoLAB 계정 연동")
             .navigationBarTitleDisplayMode(.inline)
             // 저장 버튼을 헤더(우상단)로 이관
             .toolbar { ToolbarItem(placement: .topBarTrailing) { Button("저장") { save() }.fontWeight(.bold) } }

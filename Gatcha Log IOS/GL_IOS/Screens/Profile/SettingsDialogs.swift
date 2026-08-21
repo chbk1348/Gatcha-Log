@@ -206,7 +206,7 @@ struct UpdateLogPage: View {
         }
         .background(Color.white)
         // 헤더 타이틀 = 설정 메뉴 항목과 같은 "업데이트 로그"(아래 히어로 제목과 역할이 다르다).
-        .navigationTitle("업데이트 로그")
+        .glgPageTitle("업데이트 로그")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar(.hidden, for: .tabBar)
         // 반투명 네비바로 스크롤 콘텐츠가 필터바 위로 비치는 것 방지 — 불투명 흰 배경 고정.
