@@ -144,15 +144,16 @@ struct AddSpendingView: View {
                 Text("게임을 선택해주세요")
                     .font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary)
                     .padding(.top, 3)
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 8) {
-                        ForEach(GLGGames.all, id: \.key) { g in
-                            GLGChip(label: g.shortName, selected: false, color: Color(argb64: g.color)) {
-                                selectGame(g.displayName)
-                            }
+                // 가로 스크롤이 아니라 **줄바꿈**이다 — 첫 할 일이 "게임 고르기"인데 스크롤로 접어 두면
+                // 화면 밖 게임은 있는 줄도 모른다(고를 수 있는 게 몇 개인지조차 안 보인다).
+                // 카드 폭 안에서 전부 한눈에 들어와야 고르는 화면 구실을 한다.
+                FlowLayout(spacing: 8, lineSpacing: 8) {
+                    ForEach(GLGGames.all, id: \.key) { g in
+                        GLGChip(label: g.shortName, selected: false, color: Color(argb64: g.color)) {
+                            selectGame(g.displayName)
                         }
+                        .fixedSize()  // 칩 안 텍스트는 줄바꿈 없이 고유 너비 — 줄바꿈은 FlowLayout 이 칩 단위로 한다
                     }
-                    .padding(.vertical, 2)
                 }
                 .padding(.top, 12)
             }

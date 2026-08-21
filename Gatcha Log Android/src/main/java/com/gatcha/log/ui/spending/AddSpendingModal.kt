@@ -547,6 +547,7 @@ fun AddSpendingModal(
  * 금액 히어로 — 게임·금액·상품·재화 환산·과소비 경고를 한 덩어리로.
  * 지출 상세 히어로와 같은 짜임이라 '기록한 것'과 '나중에 보는 것'이 같은 모양이 된다.
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun AmountHero(
     game: Game,
@@ -573,8 +574,14 @@ private fun AmountHero(
             Text("어느 게임인가요?", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
             Text("게임을 선택해주세요", fontSize = 12.sp, color = TextSecondary, modifier = Modifier.padding(top = 3.dp))
             Spacer(Modifier.height(12.dp))
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                items(GameData.games) { g ->
+            // 가로 스크롤이 아니라 **줄바꿈**이다 — 첫 할 일이 "게임 고르기"인데 스크롤로 접어 두면
+            // 화면 밖 게임은 있는 줄도 모른다(고를 수 있는 게 몇 개인지조차 안 보인다).
+            // 카드 폭 안에서 전부 한눈에 들어와야 고르는 화면 구실을 한다. (iOS FlowLayout 과 파리티)
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                GameData.games.forEach { g ->
                     // 게임 칩은 **게임 대표색**을 쓴다 — ChoiceChip 은 색을 넘기지 않아
                     // 전부 강조색(민트)으로 떨어진다. 게임 구분이 색으로 읽혀야 한다.
                     GameSelectItem(game = g, isSelected = false) { onGameChange(g) }
