@@ -44,7 +44,7 @@ struct DeveloperView: View {
         }
         .scrollIndicators(.hidden)
         .background(GLGBackground { Color.clear })
-        .navigationTitle("개발자 메뉴")
+        .glgPageTitle("개발자 메뉴")
         .navigationBarTitleDisplayMode(.inline)
     }
 

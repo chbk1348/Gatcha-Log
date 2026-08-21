@@ -67,7 +67,7 @@ struct CalendarView: View {
         }
         .scrollIndicators(.hidden)
         .background(GLGBackground { Color.clear })
-        .navigationTitle("캘린더")
+        .glgPageTitle("캘린더")
         .navigationBarTitleDisplayMode(.inline)
         .task(id: entriesKey) {
             entries = buildEntries(spendings: store.spendings, banners: store.activeBanners, year: y, month: m)

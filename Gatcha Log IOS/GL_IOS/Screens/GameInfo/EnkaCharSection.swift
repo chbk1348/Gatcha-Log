@@ -249,6 +249,8 @@ struct EnkaRosterPage: View {
     let game: String
     @State private var statChar: EnkaChar? = nil
     @State private var showStat = false
+    /// 지금 좌/우로 갈려 있는가 — GLGSplitDetail 이 돌려주는 값(폭 기준, iPadOS 26 자유 창 대응).
+    @State private var isWide = false
     @State private var rarity = 0 // 0=전체, 5, 4
     @State private var element = "" // ""=전체
     @State private var path = "" // ""=전체 (HSR)
@@ -268,7 +270,43 @@ struct EnkaRosterPage: View {
         .padding(16)
     }
 
+    /// iPad = 좌 목록 / 우 스탯시트. iPhone = 기존 push.
+    ///
+    /// 캐릭터 스탯은 **여러 캐릭터를 번갈아 견주는** 화면이다 — 무기·성유물·유효 롤을 비교하려고
+    /// 들어갔다 나오기를 반복하게 된다. 좌측에 목록을 남겨두면 그 왕복이 사라진다.
+    /// 목록이 2열 그리드라 좌측 폭을 기본값(392)보다 넓게 준다.
     var body: some View {
+        GLGSplitDetail(listWidth: 440, isSplit: $isWide) { listContent } detail: { detailPane }
+            // 게임을 바꾸거나 새로고침으로 목록이 갈리면 우측이 사라진 캐릭터를 붙들고 있을 수 있다.
+            .onChange(of: store.enkaResults[game]?.profile?.chars.count ?? 0) { _, _ in
+                let alive = store.enkaResults[game]?.profile?.chars ?? []
+                if let c = statChar, !alive.contains(where: { $0.id == c.id }) { statChar = nil }
+            }
+    }
+
+    /// 우측 스탯시트 — 고른 게 없으면 안내만.
+    ///
+    /// `overrides/onSetOverride` 를 반드시 넘긴다 — 빠뜨리면 기본값(빈 맵 + 빈 클로저)이 들어가
+    /// 이 경로로 들어온 캐릭터만 유효옵션 사용자 설정이 무시되고 '저장'도 아무 일도 하지 않는다.
+    @ViewBuilder
+    private var detailPane: some View {
+        if let c = statChar {
+            NavigationStack {
+                EnkaStatPage(char: c, game: game,
+                             overrides: store.keyStatOverrides,
+                             onSetOverride: { k, v in store.setKeyStatOverride(k, v) })
+            }
+            // 캐릭터별로 다른 뷰 — 재사용되면 직전 캐릭터의 유효옵션이 한 프레임 남는다.
+            .id(c.id)
+        } else {
+            GLGSplitPlaceholder(systemImage: "person.crop.square", text: "왼쪽에서 캐릭터를 선택하세요")
+        }
+    }
+
+    // `@ViewBuilder` 가 필요하다 — `var body` 는 View 프로토콜이 암시로 붙여 주지만, 이렇게
+    // 떼어낸 프로퍼티는 앞의 `let` 선언들 때문에 다중 문장이 되어 반환 타입을 못 뽑는다.
+    @ViewBuilder
+    private var listContent: some View {
         // **게임 키로** 읽는다. 단일 슬롯(enkaResult)은 어느 게임 것인지 알 수 없어서, 다른 게임 결과나
         // nil 이 들어 있으면 목록이 빈 채로 떴다(뒤로 갔다 다시 들어오면 캐시 적중으로 그제야 보임).
         let result = store.enkaResults[game]
@@ -298,7 +336,11 @@ struct EnkaRosterPage: View {
             }
             LazyVGrid(columns: cols, spacing: 10) {
                 ForEach(Array(chars.enumerated()), id: \.offset) { _, c in
-                    Button { statChar = c; showStat = true } label: { enkaRosterCard(c, game) }.buttonStyle(.plain)
+                    // 갈린 상태에선 push 하지 않는다 — 우측 패널만 바꾼다.
+                    Button { statChar = c; if !isWide { showStat = true } } label: {
+                        enkaRosterCard(c, game)
+                    }
+                    .buttonStyle(.plain)
                 }
             }
             .padding(16)
@@ -307,7 +349,7 @@ struct EnkaRosterPage: View {
         .background(GLGBackground { Color.clear })
         // 전체 보기/탭 어떤 경로로 진입해도 해당 게임 결과 보장(캐시 적중 시 즉시 반영).
         .task { store.autoLoadEnka(game: game, force: false) }
-        .navigationTitle("보유 캐릭터 · " + (game == "genshin" ? "원신" : game == "zzz" ? "젠레스" : "스타레일"))
+        .glgPageTitle("보유 캐릭터 · " + (game == "genshin" ? "원신" : game == "zzz" ? "젠레스" : "스타레일"))
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             // 필터를 헤더(시스템 툴바)로 — iOS 26 시스템 글래스 메뉴 버튼
@@ -449,6 +491,10 @@ struct EnkaStatPage: View {
             .padding(16).padding(.bottom, 20)
         }
         .background(GLGBackground { Color.clear })
+        // 여기만 `glgPageTitle` 을 쓰지 않는다 — iPad 에서도 제목을 남긴다.
+        // 이 화면은 본문 어디에도 캐릭터 이름이 없어서, 분할 우측 패널에서 제목을 비우면
+        // **지금 누구 스탯을 보고 있는지 알 수 없다.** iPad 에선 push 가 아니라 우측 패널이라
+        // 탭바 밑에 제목이 겹치는 문제도 없다.
         .navigationTitle(char.name)
         .navigationBarTitleDisplayMode(.inline)
         // 캐릭터/게임 바뀌면 효과 재조회(캐시 적중 시 즉시).

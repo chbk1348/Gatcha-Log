@@ -91,7 +91,7 @@ struct SpendingInsightView: View {
         }
         .scrollIndicators(.hidden)
         .background(GLGBackground { Color.clear })
-        .navigationTitle("지출 인사이트")
+        .glgPageTitle("지출 인사이트")
         .navigationBarTitleDisplayMode(.inline)
         .task(id: insightKey) {
             stats = Self.compute(spendings: store.spendings, year: store.displayYear, month: store.displayMonth)

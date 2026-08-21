@@ -47,7 +47,7 @@ struct GiftCodePage: View {
         }
         .scrollIndicators(.hidden)
         .background(GLGBackground { Color.clear })
-        .navigationTitle("리딤코드")
+        .glgPageTitle("리딤코드")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {

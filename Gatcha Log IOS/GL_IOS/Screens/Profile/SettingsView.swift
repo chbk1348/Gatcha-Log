@@ -79,7 +79,7 @@ struct SettingsView: View {
         }
         .scrollIndicators(.hidden)
         .background(GLGBackground { Color.clear })
-        .navigationTitle("설정")
+        .glgPageTitle("설정")
         .navigationBarTitleDisplayMode(.inline)
         .onAppear {
             // 홈 만료 배너 CTA → 설정 → HoYoLAB 연동 자동 진입

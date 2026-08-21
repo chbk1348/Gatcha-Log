@@ -164,7 +164,7 @@ struct NotificationDetailView: View {
             }
         }
         .background(GLGBackground { Color.clear })
-        .navigationTitle("알림").navigationBarTitleDisplayMode(.inline)
+        .glgPageTitle("알림").navigationBarTitleDisplayMode(.inline)
         .toolbar {
             // 모두 지우기 — 한 번에 전체 dismiss
             if !alerts.isEmpty {

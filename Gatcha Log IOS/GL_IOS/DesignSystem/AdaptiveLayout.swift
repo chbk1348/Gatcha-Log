@@ -88,6 +88,31 @@ struct GLGColumnMasonry: View {
 
 /// 넓은 화면에서 콘텐츠 최대폭을 제한하고 중앙 정렬 — 폼·설정·읽기 콘텐츠가 끝까지 늘어나지 않게.
 /// 컴팩트(iPhone)에서는 제한 없이 그대로.
+/// 페이지 제목 — **넓은 창(iPad)에서는 감춘다.**
+///
+/// iPad 는 탭바가 화면 **상단**이라, 그 바로 밑에 제목 줄이 한 겹 더 붙는다.
+/// 탭 이름("게임 정보")과 페이지 제목("게임 일정")이 위아래로 나란히 놓여 두 번 읽히고,
+/// 세로 공간도 한 줄을 통째로 먹는다. 좁은 창(iPhone)은 탭바가 하단이라 겹치지 않으므로 그대로 둔다.
+///
+/// **네비게이션 바를 통째로 숨기지 않는다** — 뒤로가기가 그 바에 있어서 같이 사라진다.
+/// 제목 문자열만 비우면 바는 남고 줄만 걷힌다.
+///
+/// `navigationBarTitleDisplayMode` 는 건드리지 않는다. 화면마다 large/inline 이 다르게 잡혀 있어
+/// 여기서 통일하면 iPhone 쪽 모양이 같이 바뀐다.
+private struct GLGPageTitle: ViewModifier {
+    let title: String
+    @Environment(\.horizontalSizeClass) private var hSizeClass
+
+    func body(content: Content) -> some View {
+        content.navigationTitle(hSizeClass == .compact ? title : "")
+    }
+}
+
+extension View {
+    /// 하위(push) 페이지의 제목. iPad 에서는 자동으로 감춘다 — [GLGPageTitle] 참고.
+    func glgPageTitle(_ title: String) -> some View { modifier(GLGPageTitle(title: title)) }
+}
+
 private struct GLGReadableWidth: ViewModifier {
     @Environment(\.horizontalSizeClass) private var hSize
     var maxWidth: CGFloat
