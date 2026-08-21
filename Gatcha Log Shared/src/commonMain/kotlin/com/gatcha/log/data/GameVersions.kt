@@ -21,15 +21,21 @@ object GameVersions {
     )
 
     /**
-     * **출석 대상 3게임만** 낸다. 타일(출석·전투 진행도·클리어 편성)이 그 세 게임의 이야기라
-     * 맥락이 맞고, 다섯 게임을 다 적으면 한 줄에 안 들어가 두 줄로 접힌다.
+     * nanoka 가 버전을 주는 **다섯 게임 전부**(원신·스타레일·젠레스·명조·이환).
+     *
+     * 예전엔 출석 대상 3게임만 냈다 — 타일이 그 세 게임 이야기라는 이유였는데, "지금 몇 버전이지"는
+     * 출석과 무관한 질문이고 명조·이환도 가챠 도구·일정에서 함께 다루는 게임이다.
+     * 약칭이 GI·HSR·ZZZ·WW·NTE 로 전부 3글자 이하라 다섯이어도 한 줄에 들어간다.
+     *
+     * **엔드필드는 빠진다** — nanoka 에 데이터가 없다([gameOf] 에도 없어 자동으로 걸러진다).
+     * 공지 제목에서 버전을 긁는 우회는 형식이 바뀌면 조용히 깨져서 쓰지 않는다.
      *
      * `live` 를 쓴다(`latest` 아님) — 사용자가 게임을 켜서 보는 숫자여야 한다. 데이터 최신
      * 버전은 아직 출시 전일 수 있다.
      */
     suspend fun live(): List<GameVersionLine> {
         val manifest = NanokaApi.manifest() ?: return emptyList()
-        return GameData.attendanceGames.mapNotNull { game ->
+        return GameData.games.mapNotNull { game ->
             val key = gameOf.entries.firstOrNull { it.value == game }?.key ?: return@mapNotNull null
             val v = manifest.games[key]?.displayVersion?.takeIf { it.isNotBlank() } ?: return@mapNotNull null
             GameVersionLine(gameKey = game.key, gameShort = game.shortName, colorArgb = game.color, version = v)
