@@ -24,6 +24,38 @@ extension View {
     }
 }
 
+extension View {
+    /// 콘텐츠 **위에 떠 있는** 원형 아이콘 버튼 — 지출 리스트의 '맨 위로'처럼 스크롤되는
+    /// 배경 위에 얹히는 자리에 쓴다. (툴바 안에 앉는 헤더 버튼은 `glgGlassButton` 쪽)
+    ///
+    /// iOS 26+ 는 시스템 글래스를 그대로 쓴다 — 굴절·명암·다크모드를 OS 가 잡아 준다.
+    ///
+    /// 25 이하는 `glgGlassButton` 을 쓸 수 없다. `.bordered` 는 **틴트를 옅게 깐 캡슐**이라
+    ///   ① `circle` 인자를 줘도 알약으로 나오고(레거시 분기가 `.capsule` 고정),
+    ///   ② 채움이 너무 옅어 밑을 지나가는 카드·금액이 그대로 비쳐 읽히지 않는다.
+    /// 툴바 위에서는 배경이 단색이라 문제가 안 되지만, 스크롤 콘텐츠 위에서는 드러난다.
+    /// 그래서 이 구간만 **불투명 흰 원 + 아웃라인 + 그림자**로 직접 그린다.
+    @ViewBuilder
+    func glgFloatingCircleButton(tint: Color, diameter: CGFloat = 48) -> some View {
+        if #available(iOS 26.0, *) {
+            self.buttonStyle(.glass)
+                .buttonBorderShape(.circle)
+                .controlSize(.large)
+                .tint(tint)
+        } else {
+            self.buttonStyle(.plain)
+                .foregroundStyle(tint)
+                .frame(width: diameter, height: diameter)
+                .background {
+                    Circle()
+                        .fill(GLGColor.backgroundGradientEnd)
+                        .overlay(Circle().strokeBorder(GLGColor.glassBorder, lineWidth: 0.5))
+                        .shadow(color: .black.opacity(0.15), radius: 10, y: 4)
+                }
+        }
+    }
+}
+
 /// 헤더용 시스템 아이콘 버튼 (원형 글래스).
 struct GLGHeaderIconButton: View {
     let systemImage: String
