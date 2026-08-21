@@ -112,7 +112,9 @@ struct DailyHeroSection: View {
                             RoundedRectangle(cornerRadius: 1.5)
                                 .fill(Color(argb64: v.colorArgb))
                                 .frame(width: 3)
-                            VStack(alignment: .leading, spacing: 1) {
+                            // 칸 안에서는 **가운데** — 칸 폭이 균등하므로 좌측정렬로 두면 글자 길이가
+                            // 제각각인 만큼 칸마다 시작점만 같고 덩어리가 왼쪽으로 쏠려 보인다.
+                            VStack(alignment: .center, spacing: 1) {
                                 Text(v.gameShort)
                                     .font(.pretendard(size: 10.5, weight: .medium))
                                     .foregroundStyle(GLGColor.textSecondary)
@@ -122,7 +124,7 @@ struct DailyHeroSection: View {
                                     .foregroundStyle(GLGColor.textPrimary)
                                     .lineLimit(1)
                             }
-                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .frame(maxWidth: .infinity, alignment: .center)
                         }
                         .fixedSize(horizontal: false, vertical: true)
                     }
@@ -418,7 +420,7 @@ struct AttendanceDetailView: View {
         }
         .scrollIndicators(.hidden)
         .background(GLGBackground { Color.clear })
-        .navigationTitle("출석 체크 현황")
+        .glgPageTitle("출석 체크 현황")
         .navigationBarTitleDisplayMode(.inline)
     }
 

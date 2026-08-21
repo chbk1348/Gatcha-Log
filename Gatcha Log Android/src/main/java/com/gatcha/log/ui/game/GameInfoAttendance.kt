@@ -483,7 +483,12 @@ private fun GameVersionStrip(versions: List<GameVersionLine>) {
                                 .background(v.colorArgb.toColor())
                         )
                         Spacer(Modifier.width(7.dp))
-                        Column {
+                        // 칸 안에서는 **가운데** — 칸 폭이 균등하므로 좌측정렬로 두면 글자 길이가
+                        // 제각각인 만큼 칸마다 시작점만 같고 덩어리가 왼쪽으로 쏠려 보인다.
+                        Column(
+                            Modifier.weight(1f),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                        ) {
                             Text(
                                 v.gameShort,
                                 fontSize = 10.5.sp,
