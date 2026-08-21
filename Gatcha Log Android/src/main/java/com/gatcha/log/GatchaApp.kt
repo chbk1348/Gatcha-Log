@@ -1,6 +1,13 @@
 package com.gatcha.log
 
 import android.app.Application
+import coil.ImageLoader
+import coil.ImageLoaderFactory
+import coil.intercept.Interceptor
+import coil.request.ErrorResult
+import coil.request.ImageResult
+import coil.size.Dimension
+import com.gatcha.log.data.api.ImageCdn
 import com.gatcha.log.data.AndroidGoogleSignIn
 import com.gatcha.log.data.AndroidGoogleSignInProvider
 import com.gatcha.log.data.AndroidInAppUpdate
@@ -18,7 +25,19 @@ import com.gatcha.log.storage.AppContext
  * 또한 Shared SpendingViewModel 이 쓰는 플랫폼 seam(구글 로그인·스케줄러·인앱 업데이트)의
  * Android 실구현을 provider 로 등록한다(iOS 가 Swift 에서 등록하는 것과 동일 패턴).
  */
-class GatchaApp : Application() {
+class GatchaApp : Application(), ImageLoaderFactory {
+
+    /**
+     * Coil 싱글톤 — 목록 썸네일을 **축소본으로** 받게 인터셉터 하나만 얹는다.
+     * (캐시 정책은 Coil 기본값 그대로: 메모리 = 가용 힙의 일부, 디스크 = 캐시 폴더의 2%)
+     *
+     * 호출부(`AsyncImage(model = ...)`)를 한 곳도 안 고치고 앱 전체에 걸리게 하려고 인터셉터로 둔다.
+     */
+    override fun newImageLoader(): ImageLoader =
+        ImageLoader.Builder(this)
+            .components { add(ThumbnailInterceptor()) }
+            .build()
+
     override fun onCreate() {
         super.onCreate()
         AppContext.init(this)
@@ -44,5 +63,25 @@ class GatchaApp : Application() {
         AndroidInAppUpdate.provider = { info, onProgress, onStatus ->
             AndroidInAppUpdateProvider.start(info, onProgress, onStatus)
         }
+    }
+}
+
+/**
+ * 원본 대신 CDN 축소본을 받는다 — 공지 배너 한 장이 수백 KB 인데 목록에서는 52×36dp 다
+ * (근거·실측은 [ImageCdn] 주석).
+ *
+ * 축소본이 실패하면 **원본으로 한 번 더** 간다. 이 CDN 은 규격에 안 맞는 파라미터에 400 을 주고
+ * 원본을 대신 주지 않아서, 폴백이 없으면 처리 옵션이 닫히는 날 썸네일이 통째로 사라진다.
+ */
+private class ThumbnailInterceptor : Interceptor {
+    override suspend fun intercept(chain: Interceptor.Chain): ImageResult {
+        val original = chain.request
+        val url = original.data as? String ?: return chain.proceed(original)
+        // 목표 폭을 모르면(Undefined = 원본 크기로 그리는 자리) 손대지 않는다.
+        val widthPx = (chain.size.width as? Dimension.Pixels)?.px ?: return chain.proceed(original)
+        val thumb = ImageCdn.thumb(url, widthPx) ?: return chain.proceed(original)
+
+        val result = chain.proceed(original.newBuilder().data(thumb).build())
+        return if (result is ErrorResult) chain.proceed(original) else result
     }
 }

@@ -1,6 +1,7 @@
 import SwiftUI
 import UIKit
 import ImageIO
+import Shared
 
 // ════════════════════════════════════════════════════════════════════════════
 // 목록용 원격 이미지 — 디코딩 결과를 메모리에 캐시한다.
@@ -132,8 +133,25 @@ struct GLGRemoteImage<Placeholder: View>: View {
 /// Sendable 이 아닌 제네릭 타입을 격리 경계 너머로 넘기는 경고가 난다. 이 일은 표시 타입과
 /// 아무 상관이 없으니 밖으로 뺀다.
 private func glgFetchImage(_ url: URL, maxPixel: Int) async -> UIImage? {
-    // URLCache(iOSApp 에서 32MB/128MB 로 설정)를 타므로 두 번째부터는 네트워크를 안 쓴다.
-    guard let (data, _) = try? await URLSession.shared.data(from: url) else { return nil }
+    // 축소본을 받을 수 있는 호스트면 그쪽을 먼저 — 공지 배너 원본은 한 장이 수백 KB 인데
+    // 목록에서는 52×36pt 로 그린다(ImageCdn 주석의 실측 참고).
+    if let thumb = ImageCdn.shared.thumb(url: url.absoluteString, widthPx: Int32(maxPixel)),
+       let thumbURL = URL(string: thumb),
+       let image = await glgDownload(thumbURL, maxPixel: maxPixel) {
+        return image
+    }
+    // 폴백 — 이 CDN 은 규격에 안 맞는 파라미터에 **400** 을 준다(원본을 대신 주지 않는다).
+    // 처리 옵션이 닫히면 썸네일이 통째로 사라지므로, 축소본이 실패하면 반드시 원본으로 한 번 더.
+    return await glgDownload(url, maxPixel: maxPixel)
+}
+
+/// 한 URL 을 받아 축소 디코딩까지. HTTP 상태까지 확인한다 —
+/// 400 본문(JSON 에러)도 `data(from:)` 은 성공으로 돌려주므로, 그걸 디코딩 실패로만 걸러 내면
+/// "왜 가끔 이미지가 안 뜨지"로 남는다.
+private func glgDownload(_ url: URL, maxPixel: Int) async -> UIImage? {
+    // URLCache(iOSApp 에서 8MB/128MB 로 설정)를 타므로 두 번째부터는 네트워크를 안 쓴다.
+    guard let (data, response) = try? await URLSession.shared.data(from: url) else { return nil }
+    if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) { return nil }
     return glgDownsample(data, maxPixel: maxPixel)
 }
 
