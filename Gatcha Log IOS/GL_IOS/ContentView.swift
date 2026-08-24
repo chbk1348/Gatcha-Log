@@ -550,7 +550,7 @@ struct ContentView: View {
     }
 }
 
-/// iOS 25 이하에서 탭바 위에 떠 있는 '추가' 원형 버튼(`legacyAddButton`)의 치수.
+/// iOS 18 에서 탭바 위에 떠 있는 '추가' 원형 버튼(`legacyAddButton`)의 치수.
 ///
 /// 같은 우측 하단에 뜨는 다른 부유 버튼 — 지출 리스트의 '맨 위로'(`SpendingView`) — 이
 /// 여기를 보고 위로 비켜난다. 두 버튼이 서로 다른 파일에 있어서 한쪽 값만 고치면

@@ -213,12 +213,12 @@ struct SpendingView: View {
                         .font(.pretendard(size: 18, weight: .bold))
                         .frame(width: 26, height: 26)
                 }
-                // iOS 26+ 는 시스템 글래스 원형, 25 이하는 불투명 흰 원(→ glgFloatingCircleButton).
+                // iOS 26+ 는 시스템 글래스 원형, iOS 18 은 불투명 흰 원(→ glgFloatingCircleButton).
                 // 지름은 바로 아래 '추가' 버튼과 같게 맞춘다 — 우측 하단에 세로로 나란히 뜬다.
                 .glgFloatingCircleButton(tint: accent.primary, diameter: GLGLegacyAddButton.size)
                 // 우측 여백도 '추가' 버튼과 같은 값 — 두 원이 세로로 정확히 겹쳐 보여야 한다.
                 .padding(.trailing, GLGLegacyAddButton.trailingInset)
-                // iOS 25 이하에선 같은 우측 하단에 '추가' 원형 버튼이 떠 있어 **정확히 포개졌다.**
+                // iOS 18 에선 같은 우측 하단에 '추가' 원형 버튼이 떠 있어 **정확히 포개졌다.**
                 // 기준 좌표계가 서로 달라(추가=TabView 바깥/여긴 탭 안쪽) 눈으로는 둘 다
                 // "바닥에서 조금 띄운" 값인데 실제 높이가 같아진다. 그만큼 위로 비켜난다.
                 // iOS 26+ 는 '추가'가 탭바 안이라 여백이 0 이고 배치도 그대로다.
