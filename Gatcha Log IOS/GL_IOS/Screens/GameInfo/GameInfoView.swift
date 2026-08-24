@@ -1190,55 +1190,88 @@ private struct BroadcastCard: View {
 
     var body: some View {
         let gc = Color(argb64: b.colorArgb)
-        return Link(destination: URL(string: b.liveUrl) ?? URL(string: "https://www.youtube.com")!) {
-            VStack(alignment: .leading, spacing: 0) {
-                HStack(spacing: 7) {
-                    Text(b.gameShort).font(.pretendard(size: 9.5, weight: .bold)).foregroundStyle(.white)
-                        .padding(.horizontal, 7).padding(.vertical, 2)
-                        .background(gc, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
-                    Text(b.version.isEmpty ? "버전 특별 방송" : "v\(b.version) 특별 방송")
-                        .font(.pretendard(size: 13, weight: .bold))
-                        .foregroundStyle(GLGColor.textPrimary)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    // 예상/확정은 카드마다 붙인다 — 안내 문구를 지나쳐도 여기서 다시 만난다.
-                    if b.isEstimate {
-                        Text("예상").font(.pretendard(size: 9.5, weight: .bold))
-                            .foregroundStyle(GLGColor.textSecondary)
-                            .padding(.horizontal, 6).padding(.vertical, 2)
-                            .background(GLGColor.textSecondary.opacity(0.12),
-                                        in: RoundedRectangle(cornerRadius: 6, style: .continuous))
-                    } else {
-                        Text("확정").font(.pretendard(size: 9.5, weight: .bold))
-                            .foregroundStyle(.white)
-                            .padding(.horizontal, 6).padding(.vertical, 2)
-                            .background(glConfirmed, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
-                    }
-                }
-                Text("\(DateUtil.shared.shortDateTime(millis: b.targetMillis)) (\(DateUtil.shared.weekdayKo(millis: b.targetMillis)))")
-                    .font(.pretendard(size: 12.5, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
-                    .padding(.top, 8)
-                TimelineView(.periodic(from: .now, by: isImminent(targetMillis: b.targetMillis, nowMillis: nowMS()) ? 1 : 60)) { ctx in
-                    let now = Int64(ctx.date.timeIntervalSince1970 * 1000)
-                    let imminent = isImminent(targetMillis: b.targetMillis, nowMillis: now)
-                    HStack(spacing: 4) {
-                        Image(systemName: "play.circle").font(.system(size: 12)).foregroundStyle(gc)
-                        Text("공식 채널에서 생중계").font(.pretendard(size: 10.5))
-                            .foregroundStyle(GLGColor.textSecondary)
-                        Spacer(minLength: 0)
-                        Text((imminent ? hmsLabel(targetMillis: b.targetMillis, nowMillis: now)
-                                       : dhLabel(targetMillis: b.targetMillis, nowMillis: now)) + " 뒤")
-                            .font(.pretendard(size: 10.5, weight: .bold))
-                            .foregroundStyle(imminent ? glUrgent : GLGColor.textSecondary)
-                            .lineLimit(1)
-                            .sirenPulse(active: imminent)
-                    }
-                    .padding(.top, 6)
+        return VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 7) {
+                Text(b.gameShort).font(.pretendard(size: 9.5, weight: .bold)).foregroundStyle(.white)
+                    .padding(.horizontal, 7).padding(.vertical, 2)
+                    .background(gc, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+                Text(b.version.isEmpty ? "버전 특별 방송" : "v\(b.version) 특별 방송")
+                    .font(.pretendard(size: 13, weight: .bold))
+                    .foregroundStyle(GLGColor.textPrimary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                // 예상/확정은 카드마다 붙인다 — 안내 문구를 지나쳐도 여기서 다시 만난다.
+                if b.isEstimate {
+                    Text("예상").font(.pretendard(size: 9.5, weight: .bold))
+                        .foregroundStyle(GLGColor.textSecondary)
+                        .padding(.horizontal, 6).padding(.vertical, 2)
+                        .background(GLGColor.textSecondary.opacity(0.12),
+                                    in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+                } else {
+                    Text("확정").font(.pretendard(size: 9.5, weight: .bold))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 6).padding(.vertical, 2)
+                        .background(glConfirmed, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
                 }
             }
-            .padding(.horizontal, 14).padding(.vertical, 12)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color.white, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(gc.opacity(0.35), lineWidth: 1))
+            Text("\(DateUtil.shared.shortDateTime(millis: b.targetMillis)) (\(DateUtil.shared.weekdayKo(millis: b.targetMillis)))")
+                .font(.pretendard(size: 12.5, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
+                .padding(.top, 8)
+            TimelineView(.periodic(from: .now, by: isImminent(targetMillis: b.targetMillis, nowMillis: nowMS()) ? 1 : 60)) { ctx in
+                let now = Int64(ctx.date.timeIntervalSince1970 * 1000)
+                let imminent = isImminent(targetMillis: b.targetMillis, nowMillis: now)
+                HStack(spacing: 4) {
+                    Image(systemName: "play.circle").font(.system(size: 12)).foregroundStyle(gc)
+                    Text(b.isLiveVideo ? "예약된 라이브" : "공식 채널에서 생중계")
+                        .font(.pretendard(size: 10.5))
+                        .foregroundStyle(GLGColor.textSecondary)
+                    Spacer(minLength: 0)
+                    Text((imminent ? hmsLabel(targetMillis: b.targetMillis, nowMillis: now)
+                                   : dhLabel(targetMillis: b.targetMillis, nowMillis: now)) + " 뒤")
+                        .font(.pretendard(size: 10.5, weight: .bold))
+                        .foregroundStyle(imminent ? glUrgent : GLGColor.textSecondary)
+                        .lineLimit(1)
+                        .sirenPulse(active: imminent)
+                }
+                .padding(.top, 6)
+            }
+            // 갈 곳은 최대 둘 — 근거가 된 공지와 방송 자체. 어느 쪽이 열릴지 이름으로 밝힌다
+            // (카드 전체를 누르게 두면 둘 중 뭐가 열릴지 알 수 없다).
+            HStack(spacing: 8) {
+                if !b.noticeUrl.isEmpty {
+                    BroadcastLink(label: "공지 보기", systemImage: "doc.text", tint: gc, url: b.noticeUrl)
+                }
+                BroadcastLink(
+                    label: b.isLiveVideo ? "라이브 보기" : "공식 채널",
+                    systemImage: "arrow.up.forward.square", tint: gc, url: b.liveUrl
+                )
+            }
+            .padding(.top, 10)
+        }
+        .padding(.horizontal, 14).padding(.vertical, 12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.white, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(gc.opacity(0.35), lineWidth: 1))
+    }
+}
+
+/// 방송 카드의 링크 한 칸. 둘이 나란히 서도 폭이 같도록 maxWidth 로 늘린다.
+/// (Compose BroadcastLink 대응)
+private struct BroadcastLink: View {
+    let label: String
+    let systemImage: String
+    let tint: Color
+    let url: String
+
+    var body: some View {
+        Link(destination: URL(string: url) ?? URL(string: "https://www.youtube.com")!) {
+            HStack(spacing: 5) {
+                Image(systemName: systemImage).font(.system(size: 11)).foregroundStyle(tint)
+                Text(label).font(.pretendard(size: 11, weight: .bold)).foregroundStyle(tint)
+                    .lineLimit(1)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 7)
+            .background(tint.opacity(0.10), in: RoundedRectangle(cornerRadius: 9, style: .continuous))
         }
         .buttonStyle(.plain)
     }

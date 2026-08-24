@@ -22,9 +22,12 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.PlayCircleOutline
+import androidx.compose.material.icons.automirrored.filled.OpenInNew
+import androidx.compose.material.icons.outlined.Article
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
@@ -1027,7 +1030,6 @@ private fun BroadcastCard(b: LiveBroadcast, now: Long) {
             .clip(RoundedCornerShape(14.dp))
             .background(Color.White)
             .border(1.dp, gc.copy(alpha = 0.35f), RoundedCornerShape(14.dp))
-            .clickable { runCatching { uriHandler.openUri(b.liveUrl) } }
             .padding(horizontal = 14.dp, vertical = 12.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
@@ -1068,7 +1070,10 @@ private fun BroadcastCard(b: LiveBroadcast, now: Long) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Icon(Icons.Default.PlayCircleOutline, null, tint = gc, modifier = Modifier.size(14.dp))
             Spacer(Modifier.width(4.dp))
-            Text("공식 채널에서 생중계", fontSize = 10.5.sp, color = TextSecondary, modifier = Modifier.weight(1f))
+            Text(
+                if (b.isLiveVideo) "예약된 라이브" else "공식 채널에서 생중계",
+                fontSize = 10.5.sp, color = TextSecondary, modifier = Modifier.weight(1f),
+            )
             Text(
                 if (imminent) hmsLabel(b.targetMillis, now) + " 뒤" else dhLabel(b.targetMillis, now) + " 뒤",
                 fontSize = 10.5.sp, fontWeight = FontWeight.Bold,
@@ -1077,5 +1082,45 @@ private fun BroadcastCard(b: LiveBroadcast, now: Long) {
                 modifier = if (imminent) Modifier.sirenPulse() else Modifier,
             )
         }
+        // 갈 곳은 최대 둘 — 근거가 된 공지와 방송 자체. 어느 쪽이 열릴지 이름으로 밝힌다
+        // (카드 전체를 누르게 두면 둘 중 뭐가 열릴지 알 수 없다).
+        Spacer(Modifier.height(10.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            if (b.noticeUrl.isNotBlank()) {
+                BroadcastLink(
+                    "공지 보기", Icons.Outlined.Article, gc,
+                    Modifier.weight(1f),
+                ) { runCatching { uriHandler.openUri(b.noticeUrl) } }
+            }
+            BroadcastLink(
+                if (b.isLiveVideo) "라이브 보기" else "공식 채널",
+                Icons.AutoMirrored.Filled.OpenInNew, gc,
+                Modifier.weight(1f),
+            ) { runCatching { uriHandler.openUri(b.liveUrl) } }
+        }
+    }
+}
+
+/** 방송 카드의 링크 한 칸. 둘이 나란히 서도 폭이 같도록 [modifier] 로 weight 를 받는다. */
+@Composable
+private fun BroadcastLink(
+    label: String,
+    icon: ImageVector,
+    tint: Color,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit,
+) {
+    Row(
+        modifier
+            .clip(RoundedCornerShape(9.dp))
+            .background(tint.copy(alpha = 0.10f))
+            .clickable(onClick = onClick)
+            .padding(vertical = 7.dp),
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(icon, null, tint = tint, modifier = Modifier.size(12.dp))
+        Spacer(Modifier.width(5.dp))
+        Text(label, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = tint, maxLines = 1)
     }
 }
