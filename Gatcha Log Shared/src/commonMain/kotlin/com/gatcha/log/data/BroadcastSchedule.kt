@@ -97,8 +97,9 @@ object BroadcastSchedule {
         // 붕괴: 스타레일 — 공식 한국 채널(@HonkaiStarRail_KR).
         // 4.5 방송 확정 공지가 20:30 이었다(2026-08-14). 20:00 으로 잡아 뒀던 걸 맞춘다.
         Game.HSR.key to GameBroadcast(20, 30, "UCH33CJMcI0XZUpIhWRHiUuw"),
-        // 젠레스 존 제로 — 공식 한국 채널(@ZZZ_KO). 확정 사례를 아직 못 봐서 20:00 으로 둔다.
-        Game.ZZZ.key to GameBroadcast(20, 0, "UCmry1hfaRHI_iTfxUMhC8mA"),
+        // 젠레스 존 제로 — 공식 한국 채널(@ZZZ_KO).
+        // 3.2 방송 예고가 20:30 이었다(2026-08-28). 사례가 없어 20:00 으로 뒀던 걸 맞춘다.
+        Game.ZZZ.key to GameBroadcast(20, 30, "UCmry1hfaRHI_iTfxUMhC8mA"),
     )
 
     private fun liveUrl(channelId: String) = "https://www.youtube.com/channel/$channelId/streams"
@@ -173,13 +174,9 @@ object BroadcastSchedule {
             val version = VERSION_RE.find(item.title)?.groupValues?.getOrNull(1) ?: return@mapNotNull null
             // 앞머리로 한정한다 — 본문 뒤쪽에는 이벤트 기간 같은 다른 날짜가 얼마든지 있다.
             val head = item.summary.take(DATE_SCAN_HEAD)
-            val at = DATE_RE.find(head)?.let { m ->
-                val (y, mo, d, h, mi) = m.destructured
-                runCatching {
-                    LocalDateTime(y.toInt(), mo.toInt(), d.toInt(), h.toInt(), mi.toInt())
-                        .toInstant(DateUtil.timeZone).toEpochMilliseconds()
-                }.getOrNull()
-            } ?: return@mapNotNull null
+            // 연도 없는 표기의 해를 정할 기준은 **공지가 올라온 시각**이다(지금이 아니다).
+            val postedAt = item.createdAtMillis.takeIf { it > 0 } ?: nowMillis
+            val at = parseDateTime(head, postedAt) ?: return@mapNotNull null
             // 지난 방송 공지는 목록에 한동안 남는다 — 그걸 '다음 방송'이라고 내놓으면 안 된다.
             if (at <= nowMillis) return@mapNotNull null
             ConfirmedBroadcast(game.key, version, at, item.url)
@@ -222,11 +219,52 @@ object BroadcastSchedule {
     private val BROADCAST_WORDS =
         listOf("스페셜 프로그램", "특별 방송", "특별방송", "특별 생방송", "프리뷰 방송", "생방송", "라이브 스트리밍")
 
+    /**
+     * 앞머리에서 방송 일시를 집는다. **표기가 게임마다 다르다.**
+     *
+     * - 원신·스타레일: `🕙 2026/08/14 20:30 (한국 시간)` — 연도가 있다
+     * - 젠레스: `…특별 방송이 8월 28일 20:30(KST)에 시작됩니다!` — 연도가 없고 한국식이다
+     *
+     * 후자는 연도를 지어내야 하는데, 기준은 **공지가 올라온 시각**이다. '지금'을 쓰면 목록에
+     * 며칠 남아 있는 공지를 나중에 읽을 때 해가 어긋날 수 있다.
+     *
+     * @param aroundMillis 공지가 올라온 시각. 연도 없는 표기의 해를 여기서 정한다
+     */
+    private fun parseDateTime(head: String, aroundMillis: Long): Long? {
+        val tz = DateUtil.timeZone
+        DATE_RE.find(head)?.let { m ->
+            val (y, mo, d, h, mi) = m.destructured
+            return runCatching {
+                LocalDateTime(y.toInt(), mo.toInt(), d.toInt(), h.toInt(), mi.toInt())
+                    .toInstant(tz).toEpochMilliseconds()
+            }.getOrNull()
+        }
+        val m = KO_DATE_RE.find(head) ?: return null
+        val (mo, d, h, mi) = m.destructured
+        return runCatching {
+            val postedYear = Instant.fromEpochMilliseconds(aroundMillis).toLocalDateTime(tz).year
+            fun atYear(y: Int) = LocalDateTime(y, mo.toInt(), d.toInt(), h.toInt(), mi.toInt())
+                .toInstant(tz).toEpochMilliseconds()
+            val sameYear = atYear(postedYear)
+            // 방송은 예고 뒤에 있다. 같은 해로 읽어 과거가 나오면 해를 넘긴 예고다
+            // (12월 공지가 1월 방송을 알리는 경우).
+            if (sameYear >= aroundMillis) sameYear else atYear(postedYear + 1)
+        }.getOrNull()
+    }
+
     /** "4.5 버전" · "버전 4.5" 어느 쪽이든 버전 번호를 집는다. */
     private val VERSION_RE = Regex("""(\d+\.\d+)""")
 
     /** "2026/08/14 20:30" — 구분자는 / . - 를 모두 받는다. */
     private val DATE_RE = Regex("""(\d{4})[/.\-](\d{1,2})[/.\-](\d{1,2})\s+(\d{1,2}):(\d{2})""")
+
+    /**
+     * "8월 28일 20:30" — 연도가 없는 한국식 표기(젠레스).
+     *
+     * 시각이 날짜에 **바로 붙어 있을 때만** 받는다. 사이를 넉넉히 열어두면 "8월 28일에 오후
+     * 8:30" 같은 문장에서 12시간을 틀리게 읽는다 — 못 잡으면 역산이 받아주지만 틀리면 없다.
+     */
+    private val KO_DATE_RE = Regex("""(\d{1,2})월\s*(\d{1,2})일\s*(\d{1,2}):(\d{2})""")
 
     /** 본문에서 일시를 찾을 때 훑는 앞부분 길이. */
     private const val DATE_SCAN_HEAD = 80
