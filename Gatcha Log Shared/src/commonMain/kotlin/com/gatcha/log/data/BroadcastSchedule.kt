@@ -19,7 +19,9 @@ import kotlin.time.Instant
  * @param isEstimate 계산으로 낸 **예상**인가. 화면은 이 값을 보고 '예상'/'확정'을 가른다.
  *   공지나 예약 라이브에서 일시를 얻었으면 false 다.
  * @param liveUrl 방송을 여는 주소. 예약된 라이브를 찾았으면 **영상 직링크**, 못 찾았으면
- *   게임 공식 한국 채널의 라이브 탭.
+ *   게임 공식 한국 채널의 라이브 탭. **항상 채워진다** — 갈 곳 없는 카드는 만들지 않는다.
+ * @param isLiveVideo [liveUrl] 이 예약된 그 방송인가. false 면 채널 폴백이다.
+ *   화면이 버튼 이름을 가르는 데 쓴다 — 채널 목록을 '라이브 보기'라고 부르면 속이는 셈이다.
  */
 data class LiveBroadcast(
     val gameKey: String,
@@ -29,8 +31,9 @@ data class LiveBroadcast(
     val targetMillis: Long,
     val isEstimate: Boolean,
     val liveUrl: String,
-    /** 확정 공지 주소. 확정일 때만 채워진다 — 화면이 '공지 보기'로 연결한다. */
+    /** 확정 공지 주소. 공지에서 온 확정만 채워진다 — 화면이 '공지 보기'로 연결한다. */
     val noticeUrl: String = "",
+    val isLiveVideo: Boolean = false,
 )
 
 /**
@@ -132,6 +135,7 @@ object BroadcastSchedule {
                     // 예약 라이브에서 온 확정은 영상 주소를 안다 — 채널 목록을 거치지 않고 바로 연다.
                     liveUrl = c.videoUrl.ifBlank { liveUrl(cfg.channelId) },
                     noticeUrl = c.noticeUrl,
+                    isLiveVideo = c.videoUrl.isNotBlank(),
                 )
             }
 
