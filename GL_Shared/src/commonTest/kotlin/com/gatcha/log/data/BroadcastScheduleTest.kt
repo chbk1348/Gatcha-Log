@@ -1,5 +1,6 @@
 package com.gatcha.log.data
 
+import com.gatcha.log.data.api.BroadcastApi
 import com.gatcha.log.data.api.NewsItem
 import kotlinx.datetime.DayOfWeek
 import kotlinx.datetime.LocalDateTime
@@ -230,6 +231,107 @@ class BroadcastScheduleTest {
         // 방송이 끝나도 공지는 목록에 한동안 남는다.
         val item = news("〈붕괴: 스타레일〉 4.4 버전 프리뷰 스페셜 프로그램", "🕙 2026/07/03 20:30 (한국 시간)")
         assertTrue(BroadcastSchedule.parseConfirmed(listOf(item), nowMillis = at(2026, 8, 10)).isEmpty())
+    }
+
+    // ── 예약 라이브(BroadcastApi) 합류 ────────────────────────────────────────
+
+    @Test
+    fun `예약 라이브만 있으면 그대로 확정이 된다`() {
+        val api = listOf(
+            ConfirmedBroadcast(
+                gameKey = Game.HSR.key, version = "4.5",
+                targetMillis = at(2026, 8, 14, hour = 20), noticeUrl = "",
+                videoUrl = "https://www.youtube.com/watch?v=abc123",
+            ),
+        )
+        val merged = BroadcastSchedule.mergeConfirmed(api, emptyList())
+        val b = BroadcastSchedule.next(
+            banners = listOf(banner(at(2026, 8, 25, hour = 23), Game.HSR)),
+            confirmed = merged,
+            nowMillis = at(2026, 8, 10),
+        ).first { it.gameKey == Game.HSR.key }
+        assertTrue(!b.isEstimate)
+        // 영상 주소를 알면 채널 목록을 거치지 않는다 — 카드가 곧장 그 방송을 연다.
+        assertEquals("https://www.youtube.com/watch?v=abc123", b.liveUrl)
+    }
+
+    @Test
+    fun `영상 주소를 모르면 채널로 폴백한다`() {
+        // 공지 파싱만 성공한 상태 — 예약 라이브가 아직 안 올라왔을 때가 이 모양이다.
+        val notice = BroadcastSchedule.parseConfirmed(
+            listOf(news("〈붕괴: 스타레일〉 4.5 버전 프리뷰 스페셜 프로그램", "🕙 2026/08/14 20:30 (한국 시간)")),
+            nowMillis = at(2026, 8, 10),
+        )
+        val b = BroadcastSchedule.next(
+            banners = listOf(banner(at(2026, 8, 25, hour = 23), Game.HSR)),
+            confirmed = BroadcastSchedule.mergeConfirmed(emptyList(), notice),
+            nowMillis = at(2026, 8, 10),
+        ).first { it.gameKey == Game.HSR.key }
+        assertTrue(b.liveUrl.contains("/streams"), "영상을 모르면 채널 라이브 탭으로 보낸다")
+    }
+
+    @Test
+    fun `둘 다 있으면 영상 주소와 공지 주소를 함께 갖는다`() {
+        // 예약 라이브가 시각의 기준이 되고, 공지는 자기만 아는 값(공지 주소)을 얹는다.
+        val api = listOf(
+            ConfirmedBroadcast(
+                gameKey = Game.HSR.key, version = "", targetMillis = at(2026, 8, 14, hour = 20),
+                noticeUrl = "", videoUrl = "https://www.youtube.com/watch?v=abc123",
+            ),
+        )
+        val notice = listOf(
+            ConfirmedBroadcast(
+                gameKey = Game.HSR.key, version = "4.5",
+                targetMillis = at(2026, 8, 14, hour = 21), noticeUrl = "https://hoyo/notice/1",
+            ),
+        )
+        val m = BroadcastSchedule.mergeConfirmed(api, notice).single()
+        assertEquals(at(2026, 8, 14, hour = 20), m.targetMillis, "시각은 예약 라이브가 기준이다")
+        assertEquals("4.5", m.version, "영상 제목에서 버전을 못 뽑으면 공지가 메운다")
+        assertEquals("https://hoyo/notice/1", m.noticeUrl)
+        assertEquals("https://www.youtube.com/watch?v=abc123", m.videoUrl)
+    }
+
+    @Test
+    fun `한 경로가 비어도 다른 게임 확정은 살아남는다`() {
+        val api = listOf(
+            ConfirmedBroadcast(Game.HSR.key, "4.5", at(2026, 8, 14, hour = 20), "", "https://yt/1"),
+        )
+        val notice = listOf(
+            ConfirmedBroadcast(Game.GENSHIN.key, "7.1", at(2026, 9, 11, hour = 21), "https://hoyo/2"),
+        )
+        val m = BroadcastSchedule.mergeConfirmed(api, notice)
+        assertEquals(2, m.size)
+        assertEquals(Game.HSR.key, m.first().gameKey, "임박순으로 나온다")
+    }
+
+    @Test
+    fun `예약 라이브 JSON 을 읽는다`() {
+        val json = """
+            {"broadcasts":[
+              {"game":"hsr","version":"4.5","startMillis":1786000000000,
+               "startAtKst":"2026-08-14 20:30","videoId":"abc123","title":"4.5 특별 방송"}
+            ]}
+        """.trimIndent()
+        val list = assertNotNull(BroadcastApi.parse(json))
+        val b = list.single()
+        assertEquals("hsr", b.gameKey)
+        assertEquals("4.5", b.version)
+        assertEquals(1786000000000L, b.targetMillis)
+        assertEquals("https://www.youtube.com/watch?v=abc123", b.videoUrl)
+    }
+
+    @Test
+    fun `망가진 JSON 은 null 로 갈라진다`() {
+        // 빈 목록(예정 방송 없음)과 실패는 다르다 — 실패면 화면이 직전 값을 지켜야 한다.
+        assertNull(BroadcastApi.parse("<html>404</html>"))
+        assertEquals(0, assertNotNull(BroadcastApi.parse("""{"broadcasts":[]}""")).size)
+    }
+
+    @Test
+    fun `시각 없는 항목은 버린다`() {
+        val json = """{"broadcasts":[{"game":"hsr","version":"4.5","videoId":"x"}]}"""
+        assertTrue(assertNotNull(BroadcastApi.parse(json)).isEmpty())
     }
 
     @Test

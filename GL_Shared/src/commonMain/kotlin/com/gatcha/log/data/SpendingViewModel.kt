@@ -30,6 +30,7 @@ import com.gatcha.log.data.MonthlyLedger
 import com.gatcha.log.data.Spending
 import com.gatcha.log.data.Subscription
 import com.gatcha.log.data.UserProfile
+import com.gatcha.log.data.api.BroadcastApi
 import com.gatcha.log.data.api.EnkaApi
 import com.gatcha.log.data.api.NanokaApi
 import com.gatcha.log.data.api.WeaponRefinement
@@ -1936,6 +1937,9 @@ class SpendingViewModel : ViewModel() {
                     // 버전 특별 방송 확정 공지는 notices 가 아니라 info 카테고리에 올라온다.
                     // 목록에는 안 섞고 방송 일시만 뽑아 쓴다([BroadcastSchedule.parseConfirmed]).
                     val infoDeferred = newsGames.map { g -> async(Dispatchers.IO) { NewsApi.info(g) } }
+                    // 예약된 라이브 — Actions 가 6시간마다 떠 두는 broadcasts.json 한 장이다.
+                    // 공지보다 늦게 뜰 때가 많지만 **영상 직링크**를 주는 유일한 경로다.
+                    val broadcastDeferred = async(Dispatchers.IO) { BroadcastApi.fetch() }
 
                     // 응답을 받은 게임만 새 값으로 갈아끼운다([mergeByGame]) — 실패한 게임은 직전 값 유지.
                     // 예전엔 성공분만 모아 통째로 대입해서, 한 게임이 타임아웃 나면 그 게임 정보가 사라졌다.
@@ -2007,9 +2011,13 @@ class SpendingViewModel : ViewModel() {
                     }
                     // 확정 방송 — 못 받아도 조용히 넘어간다. 그때는 역산 예상값이 그대로 쓰인다.
                     val infoItems = infoDeferred.mapNotNull { it.await() }.flatten()
-                    if (infoItems.isNotEmpty()) {
-                        _confirmedBroadcasts.value = BroadcastSchedule.parseConfirmed(infoItems)
-                    }
+                    val merged = BroadcastSchedule.mergeConfirmed(
+                        fromApi = broadcastDeferred.await().orEmpty(),
+                        fromNotice = BroadcastSchedule.parseConfirmed(infoItems),
+                    )
+                    // 비었으면 직전 값을 남긴다 — 한쪽이 실패했을 뿐인데 확정이 예상으로 후퇴하면
+                    // 화면이 뒷걸음질친다. 지나간 방송은 [BroadcastSchedule.next] 가 알아서 뺀다.
+                    if (merged.isNotEmpty()) _confirmedBroadcasts.value = merged
                     _newsReady.value = true
 
                     // 2) 게임 정보 탭 전용 — 월간 원장 + 전투 진행도(게임 간 병렬, 게임 내 순차로 단일 호스트 보호)
