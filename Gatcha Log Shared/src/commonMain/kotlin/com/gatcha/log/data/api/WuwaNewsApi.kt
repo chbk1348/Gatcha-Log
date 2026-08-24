@@ -147,9 +147,19 @@ internal object WuwaNewsApi {
             if (!res.isOk) continue
             val article = runCatching {
                 val o = JSONObject(res.body)
-                val blocks = HtmlNews.toBlocks(o.optString("textContent"))
-                if (blocks.isEmpty()) null
-                else NewsArticle(title = oneLineTitle(o.optString("textTitle")).ifBlank { item.title }, blocks = blocks)
+                val body = HtmlNews.toBlocks(o.optString("textContent"))
+                if (body.isEmpty()) null
+                else {
+                    // 본문 배너는 **`banner` 필드에 따로 온다** — `textContent` HTML 에는 <img> 가
+                    // 하나도 없다(실측: 15KB 본문에 0개). 그것만 파싱하던 탓에 배너가 있는 공지도
+                    // 상세에서는 글만 나왔다.
+                    //
+                    // 목록 썸네일(`tabBanner`)과는 다른 값이다 — `tabBanner` 가 비어 있는 공지에도
+                    // 이 배너는 붙어 있다. 원문에서 맨 위에 놓이는 그림이라 블록 앞에 세운다.
+                    val banner = o.optString("banner").trim()
+                    val blocks = if (banner.isEmpty()) body else listOf(NewsBlock.Image(banner)) + body
+                    NewsArticle(title = oneLineTitle(o.optString("textTitle")).ifBlank { item.title }, blocks = blocks)
+                }
             }.getOrNull()
             if (article != null) return article
         }
