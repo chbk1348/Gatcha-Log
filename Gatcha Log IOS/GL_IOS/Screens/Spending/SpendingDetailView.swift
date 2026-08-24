@@ -111,8 +111,14 @@ struct SpendingDetailView: View {
             }
             ToolbarItem(placement: .topBarTrailing) {
                 Button(role: .destructive) { confirmDelete = true } label: { Image(systemName: "trash") }
+                    // 삭제만 위험색으로 가른다 — `role: .destructive` 는 툴바에서 색까지 바꿔 주지
+                    // 않아서, 수정과 똑같은 색으로 나란히 놓여 있었다.
+                    .tint(needsBarTint ? GLGColor.dangerText : nil)
             }
         }
+        // 뒤로가기(시스템 back)와 수정 아이콘 색 — 툴바 전체에 건다.
+        // 이 화면 본문은 색을 전부 명시(ink·GLGColor)해서 쓰므로 여기 tint 는 바 아이콘에만 걸린다.
+        .tint(needsBarTint ? heroInk(s) : nil)
     }
 
     /**
@@ -122,12 +128,29 @@ struct SpendingDetailView: View {
      상태바와 겹치므로, 색은 위로 이어지고 텍스트는 안전 영역 안에 남는 구조다.
      네비게이션 바는 배경을 숨기고(`toolbarBackground(.hidden)`) 아이콘만 밝게 뒤집었다.
      */
+    /// 툴바 아이콘 색을 **직접 정해야 하는 구간인가**(iOS 18).
+    ///
+    /// iOS 26+ 는 툴바 아이콘이 유리 캡슐 위에 앉아 배경과 분리되므로 강조색 그대로도 읽힌다.
+    /// iOS 18 은 캡슐이 없어 아이콘만 파스텔 히어로 위에 덩그러니 놓이고, 그때 대비가 무너진다.
+    private var needsBarTint: Bool {
+        if #available(iOS 26.0, *) { return false }
+        return true
+    }
+
+    /// 파스텔 히어로 위에 얹는 색 — 게임색을 검정 쪽으로 눌러 같은 계열을 유지한다.
+    /// 순수 검정으로 쓰면 배경과 따로 놀고, 원색 그대로면 옅은 배경에서 뭉갠다.
+    ///
+    /// **툴바 아이콘도 이걸 쓴다.** 예전엔 툴바만 이 규칙 밖에 있어서 상위(`ContentView`)가 건
+    /// 앱 강조색이 그대로 내려왔고, 옅은 파스텔 위에서 대비가 약한 데다 게임색과 따로 놀았다.
+    /// 항상 충분히 어두운 값이라 스크롤해서 흰 배경으로 넘어가도 그대로 읽힌다.
+    private func heroInk(_ s: Spending) -> Color {
+        Color(argb64: s.gameColor).mix(with: .black, by: 0.62)
+    }
+
     @ViewBuilder
     private func hero(_ s: Spending, topInset: CGFloat) -> some View {
         let base = Color(argb64: s.gameColor)
-        // 파스텔 배경 위에 얹는 글자색 — 게임색을 검정 쪽으로 눌러 같은 계열을 유지한다.
-        // 순수 검정으로 쓰면 배경과 따로 놀고, 원색 그대로면 옅은 배경에서 뭉갠다.
-        let ink = base.mix(with: .black, by: 0.62)
+        let ink = heroInk(s)
 
         // 세 줄로 끝낸다 — ① 무엇(게임·영문 표식) ② 얼마 ③ 환산·언제.
         // 정보의 무게가 위에서 아래로 줄고, 마지막 줄만 좌우로 갈라 단조로움을 깬다.
