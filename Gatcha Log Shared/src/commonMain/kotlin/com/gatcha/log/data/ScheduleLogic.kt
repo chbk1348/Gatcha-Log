@@ -467,7 +467,7 @@ fun pickupPhases(gameBanners: List<GachaBanner>): List<PickupPhase> {
 /**
  * 버전 특별 방송 — **확정분과 예상분**. 예상은 [ScheduleMark.ESTIMATE] 로 표식이 갈린다.
  *
- * 방송 일시를 주는 API 는 없다(ennead·RSS·Data API 전부 확인). 확정은 공지에서 파싱하고,
+ * 확정은 공지 파싱과 예약된 라이브에서 온다(둘 다 늦거나 빌 수 있다 — [BroadcastSchedule] 참고).
  * 없으면 "버전 시작 12일 전 금요일" 관례로 역산한다 — 그래서 확정과 절대 같아 보이면 안 된다.
  */
 fun buildBroadcastEntries(
