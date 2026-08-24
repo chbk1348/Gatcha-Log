@@ -16,9 +16,10 @@ import kotlin.time.Instant
 /**
  * 버전 특별 방송 한 건.
  *
- * @param isEstimate 계산으로 낸 **예상**인가. 지금은 항상 true — 화면은 이 값을 보고 '예상'을 표시한다.
- *   나중에 실제 공지에서 일시를 얻는 경로가 생기면 그때 false 가 붙는다.
- * @param liveUrl 게임 공식 한국 채널의 라이브 탭. 방송 영상 자체의 주소는 알 수 없어 채널로 보낸다.
+ * @param isEstimate 계산으로 낸 **예상**인가. 화면은 이 값을 보고 '예상'/'확정'을 가른다.
+ *   공지나 예약 라이브에서 일시를 얻었으면 false 다.
+ * @param liveUrl 방송을 여는 주소. 예약된 라이브를 찾았으면 **영상 직링크**, 못 찾았으면
+ *   게임 공식 한국 채널의 라이브 탭.
  */
 data class LiveBroadcast(
     val gameKey: String,
@@ -33,16 +34,20 @@ data class LiveBroadcast(
 )
 
 /**
- * 공지에서 읽어낸 **확정** 방송.
+ * **확정** 방송. 근거는 둘 중 하나다 — 공지 본문([parseConfirmed]) 또는 예약된 라이브
+ * ([com.gatcha.log.data.api.BroadcastApi]). 둘을 합치는 규칙은 [mergeConfirmed].
  *
  * @param version "4.5" 처럼 제목에서 뽑은 버전. 못 뽑으면 빈 문자열
- * @param noticeUrl 근거가 된 공지 주소
+ * @param noticeUrl 근거가 된 공지 주소. 예약 라이브에서 온 확정은 비어 있다
+ * @param videoUrl 예약된 라이브 영상 주소. 예약 라이브에서 온 확정만 채워진다 —
+ *   공지 본문에는 영상 주소가 없다. 채워져 있으면 [LiveBroadcast.liveUrl] 이 채널 대신 이걸 쓴다
  */
 data class ConfirmedBroadcast(
     val gameKey: String,
     val version: String,
     val targetMillis: Long,
     val noticeUrl: String,
+    val videoUrl: String = "",
 )
 
 /**
@@ -52,8 +57,14 @@ data class ConfirmedBroadcast(
  *
  * 방송 일시를 구조화해서 주는 API 가 없다. ennead 의 calendar 에는 이벤트·배너·챌린지만 있고,
  * 공지 목록에 '특별 방송 예고' 글이 뜨긴 하지만 일시·링크가 **본문 텍스트 안에만** 있는 데다
- * 목록이 15건이라 며칠이면 밀려 사라진다. YouTube 는 RSS 로 예정 라이브를 주지 않고, 예정
- * 라이브를 조회하는 Data API 는 키가 필요한데 이 앱은 사이드로드라 키를 숨길 데가 없다.
+ * 목록이 15건이라 며칠이면 밀려 사라진다. YouTube 는 RSS 로 예정 라이브를 주지 않는다.
+ *
+ * 확정을 얻는 경로는 둘 뿐이고 **둘 다 늦거나 빌 수 있다**:
+ * 1. 공지 본문 파싱([parseConfirmed])
+ * 2. 예약된 라이브([com.gatcha.log.data.api.BroadcastApi]) — Data API 는 키와 할당량 때문에
+ *    앱이 직접 못 부르고, GitHub Actions 가 6시간마다 조회해 둔 JSON 을 읽는다
+ *
+ * 그래서 역산은 없앨 수 없다. 둘 다 비었을 때 화면을 비워 두지 않으려는 바닥값이다.
  *
  * 대신 방송 관례가 규칙적이다 — 호요버스 3게임 모두 **버전 시작(수요일 점검) 12일 전 금요일** 저녁에 한다.
  * 앱은 픽업 페이즈 종료일을 알고 있고, 그 **다음 날**이 버전 시작이므로 거기서 역산한다.
@@ -117,7 +128,8 @@ object BroadcastSchedule {
                     version = c.version,
                     targetMillis = c.targetMillis,
                     isEstimate = false,
-                    liveUrl = liveUrl(cfg.channelId),
+                    // 예약 라이브에서 온 확정은 영상 주소를 안다 — 채널 목록을 거치지 않고 바로 연다.
+                    liveUrl = c.videoUrl.ifBlank { liveUrl(cfg.channelId) },
                     noticeUrl = c.noticeUrl,
                 )
             }
@@ -173,8 +185,42 @@ object BroadcastSchedule {
             ConfirmedBroadcast(game.key, version, at, item.url)
         }.sortedBy { it.targetMillis }
 
+    /**
+     * 두 확정 경로를 **게임별 한 건**으로 합친다.
+     *
+     * 경쟁이 아니라 보완이다. 공지는 대개 먼저 뜨지만 영상 주소를 모르고, 예약 라이브는 영상
+     * 주소를 주지만 방송 하루 이틀 전에야 올라오는 일이 잦다. 그래서 한쪽만 있으면 그걸 쓰고,
+     * 둘 다 있으면 **예약 라이브를 기준으로 삼되** 공지가 아는 값(버전·공지 주소)을 얹는다.
+     *
+     * 예약 라이브를 시각의 기준으로 두는 이유: 공지에 적힌 일시가 바뀌어도 공지 본문은 그대로인
+     * 경우가 있는데, 예약 페이지는 실제로 그 방송이 열릴 시각이라 옮겨지면 같이 따라간다.
+     *
+     * @param fromApi 예약 라이브에서 온 확정([com.gatcha.log.data.api.BroadcastApi])
+     * @param fromNotice 공지에서 뽑은 확정([parseConfirmed])
+     * @return 임박순. 지난 방송도 거르지 않는다 — 그 판정은 [next] 가 주입받은 시각으로 한다
+     */
+    fun mergeConfirmed(
+        fromApi: List<ConfirmedBroadcast>,
+        fromNotice: List<ConfirmedBroadcast>,
+    ): List<ConfirmedBroadcast> =
+        (fromApi + fromNotice).map { it.gameKey }.distinct().mapNotNull { key ->
+            // 두 목록 모두 임박순이라 firstOrNull 이 곧 그 게임의 가장 가까운 회차다.
+            val api = fromApi.firstOrNull { it.gameKey == key }
+            val notice = fromNotice.firstOrNull { it.gameKey == key }
+            when {
+                api == null -> notice
+                notice == null -> api
+                else -> api.copy(
+                    // 영상 제목에서 버전을 못 뽑는 경우가 있다(제목 표기가 게임마다 다르다).
+                    version = api.version.ifBlank { notice.version },
+                    noticeUrl = notice.noticeUrl,
+                )
+            }
+        }.sortedBy { it.targetMillis }
+
     /** 제목이 방송 글임을 알리는 말. 게임·번역마다 표기가 달라 넉넉히 둔다. */
-    private val BROADCAST_WORDS = listOf("스페셜 프로그램", "특별 방송", "프리뷰 방송", "생방송", "라이브 스트리밍")
+    private val BROADCAST_WORDS =
+        listOf("스페셜 프로그램", "특별 방송", "특별방송", "특별 생방송", "프리뷰 방송", "생방송", "라이브 스트리밍")
 
     /** "4.5 버전" · "버전 4.5" 어느 쪽이든 버전 번호를 집는다. */
     private val VERSION_RE = Regex("""(\d+\.\d+)""")
