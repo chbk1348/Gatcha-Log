@@ -13,6 +13,10 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -154,6 +158,30 @@ fun rememberShimmerPhase(reduceMotion: Boolean): State<Float> {
 // 무력화된 뒤 1년 가까이 `= this` 로 남아 있던 사문화 코드**였다. 시그니처만 살아 있어서
 // 화면마다 MutableSet<Int> 를 만들어 넘기고 인덱스를 세고 있었다. iOS 에서 걷어낸 것과 같은 코드.
 // 실제로 남은 동작은 "LazyColumn 항목을 Column 으로 감싼다" 하나뿐이라 그것만 남긴다.
+
+/**
+ * 조건이 켜질 때 **살짝 아래에서 밀려 올라오며** 나타나는 카드 (iOS `cardReveal` 파리티).
+ *
+ * 지출 추가에서 게임을 고르면 아래 입력 카드들이 이걸로 펼쳐진다. 예전엔 조건문으로 통째로
+ * 잘라내 한꺼번에 튀어나왔고, 방금 누른 칩과 새로 생긴 입력란이 이어져 있다는 게 안 읽혔다.
+ *
+ * 카드마다 지연을 줘 **순서**를 만드는 것은 하지 않는다 — iOS 에서 그렇게 했다가 첫 카드가
+ * 1초쯤 늦게 내려왔다. 위 주석([glgCardItem] 위)에 적힌 로드인 스태거를 걷어낸 것과 같은 이유다.
+ */
+@Composable
+fun GlgCardReveal(
+    visible: Boolean,
+    /** 호출부 가독성용 — 지금은 쓰지 않는다(지연 없음). */
+    @Suppress("UNUSED_PARAMETER") order: Int = 0,
+    content: @Composable () -> Unit,
+) {
+    AnimatedVisibility(
+        visible = visible,
+        enter = fadeIn(glgStandardSpec()) +
+            slideInVertically(glgStandardSpec()) { it / 8 },
+        exit = fadeOut(glgShortSpec()),
+    ) { content() }
+}
 
 /** [LazyListScope.item] 을 [Column] 으로 감싼다(콘텐츠 카드 배치용). */
 fun LazyListScope.glgCardItem(

@@ -66,6 +66,7 @@ import com.gatcha.log.ui.components.GlgFieldLabel
 import com.gatcha.log.ui.components.GlgOutlineButton
 import com.gatcha.log.ui.components.GlgSwitch
 import com.gatcha.log.ui.components.GlgTextField
+import com.gatcha.log.ui.theme.GlgCardReveal
 import com.gatcha.log.ui.theme.DividerColor
 import com.gatcha.log.ui.theme.glgShortSpec
 import com.gatcha.log.ui.theme.glgStandardSpec
@@ -254,10 +255,13 @@ fun AddSpendingModal(
 
                 // 게임을 고르기 전에는 나머지를 띄우지 않는다 — 상품 목록·기본값이 전부 게임에 묶여 있어
                 // 미선택 상태로 보여주면 어느 게임 것인지 알 수 없는 화면이 된다.
-                if (!gameChosen) return@LazyColumn
+                // 게임을 고르면 아래 카드가 **위에서부터 한 장씩** 밀려 내려온다(GlgCardReveal).
+                // 예전엔 `if (!gameChosen) return@LazyColumn` 으로 통째로 잘라내 세 장이 한꺼번에
+                // 튀어나왔고, 방금 누른 칩과 새로 생긴 입력란이 이어져 있다는 게 안 읽혔다.
 
                 // ── 상품 ──
                 item {
+                    GlgCardReveal(visible = gameChosen, order = 0) {
                     SectionCard {
                         // 자주 사는 것 — 기록이 없는 게임은 이 블록이 통째로 빠지고 전체 그리드가 바로 열린다
                         // (빈도를 모르는데 임의로 셋을 고르면 그건 추천이 아니다).
@@ -363,10 +367,12 @@ fun AddSpendingModal(
                             )
                         }
                     }
+                    }
                 }
 
                 // ── 날짜 ──
                 item {
+                    GlgCardReveal(visible = gameChosen, order = 1) {
                     SectionCard {
                         GlgTextField(
                             value = DateUtil.labelWithWeekday(dateMillis),
@@ -378,6 +384,7 @@ fun AddSpendingModal(
                             modifier = Modifier.fillMaxWidth(),
                         )
                     }
+                    }
                 }
 
                 // ── 자세히 — 결제수단·플랫폼·태그·메모·구독을 하나로 접는다 ──
@@ -385,6 +392,7 @@ fun AddSpendingModal(
                 // 매번 바뀌는 값이 아니라 접어 두되, **접힌 채로도 현재 값 요약을 보여준다.**
                 // 안 보이면 확인하려고 매번 펴게 되고, 그러면 접은 의미가 없다.
                 item {
+                    GlgCardReveal(visible = gameChosen, order = 2) {
                     SectionCard {
                         val tagCount = selectedTags.size + customTags.split(",", " ").count { it.isNotBlank() }
                         val custom = chargePlatform.isNotBlank() || selectedTags.isNotEmpty() ||
@@ -479,6 +487,7 @@ fun AddSpendingModal(
                         }
                         }
                         }
+                    }
                     }
                 }
             }

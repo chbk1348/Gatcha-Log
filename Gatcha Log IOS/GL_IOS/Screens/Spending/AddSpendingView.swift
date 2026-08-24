@@ -61,9 +61,9 @@ struct AddSpendingView: View {
                 // 게임을 고르기 전에는 나머지를 띄우지 않는다 — 상품 목록·기본값이 전부 게임에 묶여 있어
                 // 미선택 상태로 보여주면 어느 게임 것인지 알 수 없는 화면이 된다.
                 if gameChosen {
-                    productCard
-                    dateCard
-                    detailsCard
+                    productCard.transition(cardReveal)
+                    dateCard.transition(cardReveal)
+                    detailsCard.transition(cardReveal)
                 }
             }
             .padding(16)
@@ -219,15 +219,31 @@ struct AddSpendingView: View {
     }
 
     /// 게임 변경 — 상품·수량은 게임에 묶인 값이라 함께 초기화하고, 플랫폼 기본값을 다시 고른다.
+    /// 게임을 고른 뒤 아래로 펼쳐지는 카드의 등장 — 살짝 아래에서 밀려 올라오며 나타난다.
+    ///
+    /// ⚠️ **`transition` 안에 `.animation(_:)` 을 붙이지 말 것.** 카드마다 `staggerStep` 만큼
+    /// 지연을 줘 순서를 만들려고 그렇게 했더니, 지연이 그대로 걸리지 않고 첫 카드가 1초쯤
+    /// 늦게 내려왔다. 타이밍은 바깥 `withAnimation` 하나가 정하고, 여기서는 **모양만** 정한다.
+    private var cardReveal: AnyTransition {
+        .asymmetric(insertion: .opacity.combined(with: .offset(y: 14)), removal: .opacity)
+    }
+
     private func selectGame(_ name: String) {
         let first = !gameChosen
-        gameChosen = true
         guard name != gameName || first else { return }
+        // 값 변경은 **애니메이션 밖**에서 한다.
+        //
+        // 한때 이걸 통째로 `withAnimation` 에 넣었더니, 카드가 펼쳐지는 전환에 **카드 안쪽
+        // 레이아웃 변화까지 딸려 들어갔다.** 상품 그리드가 게임에 따라 줄 수가 달라지는데,
+        // 그 크기 변화가 전환에 실려 안쪽 버튼이 한참 뒤에 따라왔다.
         gameName = name
         selectedPkg = nil; quantity = 1; itemName = ""; isSubscription = false
         if editing == nil {
             chargePlatform = SpendingDefaults.shared.lastPlatform(spendings: store.spendings, gameName: name) ?? ""
         }
+        // 애니메이션은 **카드가 생겼다 사라지는 것**에만 건다(cardReveal). 이미 펼쳐진 뒤
+        // 게임만 바꾸는 경우엔 `gameChosen` 이 그대로라 아무것도 움직이지 않는다.
+        if first { withAnimation(GLGMotion.standard()) { gameChosen = true } }
     }
 
     private var productCard: some View {
