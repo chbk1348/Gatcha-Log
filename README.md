@@ -83,20 +83,20 @@ Google Apps Script 웹앱에서 출발해 **Kotlin Multiplatform + Compose Multi
 | 영역 | 사용 기술 |
 |---|---|
 | 공유 코드 (KMP) | Kotlin 2.3.21 · Compose Multiplatform 1.11 (Material 3) · kotlinx-{coroutines, serialization, datetime} · Ktor |
-| Android | Jetpack Compose · AGP 9.3.1 · compileSdk 36 / minSdk 24 · WorkManager · Credential Manager |
+| Android | Jetpack Compose · AGP 9.3.1 · compileSdk 37 / minSdk 31 · WorkManager · Credential Manager |
 | iOS | SwiftUI(네이티브 탭바·리퀴드 글래스) · Swift 6 언어 모드 · BGTaskScheduler · GoogleSignIn SDK · Xcode 27(iOS 27 SDK) / iOS 18+ |
 | 클라우드 | Firebase Auth + Cloud Firestore (Android: Firebase SDK / iOS: GitLive KMP + Firebase iOS SDK) |
 | 로컬 저장 | Android: SharedPreferences(토큰은 EncryptedSharedPreferences) / iOS: UserDefaults(토큰은 Keychain) |
-| 빌드 | Gradle 9.5.0 · XcodeGen |
+| 빌드 | Gradle 9.6.1 · XcodeGen |
 
 ---
 
 ## 🏗 아키텍처
 
 ```
-GL_Android/  Android 앱 (프로덕션 · Jetpack Compose)
-GL_Shared/   KMP 공유 모듈 — commonMain(데이터·비즈니스 로직·VM) + androidMain / iosMain
-GL_IOS/      iOS 앱 — SwiftUI 호스트(네이티브 탭바·글래스 버튼) + Xcode 프로젝트
+Gatcha Log Android/  Android 앱 (프로덕션 · Jetpack Compose)
+Gatcha Log Shared/   KMP 공유 모듈 — commonMain(데이터·비즈니스 로직·VM) + androidMain / iosMain
+Gatcha Log IOS/      iOS 앱 — SwiftUI 호스트(네이티브 탭바·글래스 버튼) + Xcode 프로젝트
 ```
 
 - 단일 공유 ViewModel로 앱 전반 상태·데이터 관리 (화면 28개·데이터 레이어 전부 commonMain 공유)
@@ -105,6 +105,8 @@ GL_IOS/      iOS 앱 — SwiftUI 호스트(네이티브 탭바·글래스 버튼
 - Firestore 보안 규칙으로 본인 데이터만 접근
 - iOS 는 시스템 네이티브 UI 우선 — SwiftUI TabView(리퀴드 글래스 탭바) + UIGlassEffect 버튼,
   콘텐츠만 Compose 공유 코드로 채움
+- Xcode 프로젝트·타깃·스킴 이름은 `GL_IOS` 그대로입니다 — 산출물 이름·서명 설정이 딸려
+  흔들리는 것을 피하려고 폴더명만 바꿨습니다
 
 ---
 
@@ -118,24 +120,27 @@ cd Gatcha-Log
 **Android** (프로덕션 앱)
 
 ```bash
-./gradlew :GL_Android:assembleDebug   # 디버그 APK 빌드
-./gradlew :GL_Android:installDebug    # 연결된 기기에 설치
+./gradlew ":Gatcha Log Android:assembleDebug"   # 디버그 APK 빌드
+./gradlew ":Gatcha Log Android:installDebug"    # 연결된 기기에 설치
 ```
+
+> 모듈 이름에 공백이 있으므로 Gradle 태스크 경로는 **따옴표로 감싸야** 합니다.
 
 **iOS** (macOS + **Xcode 27 필요** — iOS 27 SDK)
 
 ```bash
-open GL_IOS/GL_IOS.xcodeproj      # Xcode 에서 열고 시뮬레이터/기기로 실행
+open "Gatcha Log IOS/GL_IOS.xcodeproj"   # Xcode 에서 열고 시뮬레이터/기기로 실행
 # Kotlin 프레임워크는 Xcode 빌드 시 Gradle 로 자동 빌드됨
 
-./GL_IOS/build-ipa.sh             # 배포용 미서명 IPA 빌드 (build/Gatcha-Log-<버전>.ipa)
+"./Gatcha Log IOS/build-ipa.sh"          # 배포용 미서명 IPA 빌드
+                                         # (Gatcha Log IOS/build/Gatcha-Log-<버전>.ipa)
 ```
 
 > **Xcode 26 이하로는 빌드되지 않습니다.** 탭바의 분리형 '추가' 버튼이 iOS 27 SDK 에만 있는
 > `TabRole.prominent` 를 쓰기 때문이며, `#available` 로 감싸도 컴파일 시점에 심볼이 필요합니다.
 > `build-ipa.sh` 는 27 SDK 를 가진 Xcode 를 스스로 찾아 `DEVELOPER_DIR` 로 지정하고,
 > 못 찾으면 설치된 Xcode 목록을 출력하고 즉시 실패합니다(구버전으로 조용히 빌드되는 것 방지).
-> 툴체인을 바꿔 가며 빌드했다면 `./gradlew :GL_Shared:clean` 을 먼저 — KMP/SKIE 가 생성한
+> 툴체인을 바꿔 가며 빌드했다면 `./gradlew ":Gatcha Log Shared:clean"` 을 먼저 — KMP/SKIE 가 생성한
 > Swift 모듈이 툴체인 포맷에 묶여 있어 `Unable to resolve Swift module 'Shared'` 로 깨집니다.
 
 > JDK는 Android Studio 번들 JBR(OpenJDK 21) 사용 권장.
