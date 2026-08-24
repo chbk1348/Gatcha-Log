@@ -97,8 +97,13 @@ import androidx.compose.material.icons.outlined.Info
 import kotlinx.coroutines.launch
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.material3.rememberTooltipState
-import androidx.compose.material3.TooltipDefaults
 import androidx.compose.material3.TooltipBox
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntRect
+import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.unit.LayoutDirection
+import androidx.compose.ui.window.PopupPositionProvider
 import androidx.compose.material3.RichTooltip
 import androidx.compose.material3.ExperimentalMaterial3Api
 import com.gatcha.log.data.Game
@@ -637,8 +642,12 @@ private val PickupGold = Color(0xFFD8A12E)
 private fun WEngineInfoTip(modifier: Modifier = Modifier) {
     val state = rememberTooltipState(isPersistent = true)
     val scope = rememberCoroutineScope()
+    val density = LocalDensity.current
+    val position = remember(density) {
+        with(density) { ClampedTooltipPosition(TOOLTIP_MARGIN.roundToPx(), TOOLTIP_GAP.roundToPx()) }
+    }
     TooltipBox(
-        positionProvider = TooltipDefaults.rememberPlainTooltipPositionProvider(),
+        positionProvider = position,
         tooltip = {
             RichTooltip(title = { Text("W-엔진 픽업 미표시", fontSize = 12.5.sp, fontWeight = FontWeight.Bold) }) {
                 Text(
@@ -658,6 +667,44 @@ private fun WEngineInfoTip(modifier: Modifier = Modifier) {
             modifier = Modifier.size(15.dp).clip(CircleShape)
                 .clickable { scope.launch { state.show() } },
         )
+    }
+}
+
+/** 툴팁을 화면 가장자리에서 이만큼 띄운다. */
+private val TOOLTIP_MARGIN = 12.dp
+
+/** 툴팁과 앵커 사이 간격. */
+private val TOOLTIP_GAP = 6.dp
+
+/**
+ * 툴팁 위치 — 앵커 위에 띄우되 **화면 밖으로 나가지 않게 가둔다**.
+ *
+ * material3 기본 제공자를 쓰다가 젠존제 줄에서 툴팁 오른쪽이 잘렸다. 안내 아이콘은 픽업 줄
+ * 우상단, 즉 화면 오른쪽 끝에 붙어 서는데 [RichTooltip] 은 그보다 훨씬 넓다. 앵커에 가운데를
+ * 맞추면 폭의 절반이 화면 밖으로 밀려난다.
+ *
+ * 그래서 가운데를 먼저 구하고 **좌우 여백 안으로 밀어 넣는다.** 세로는 위가 기본이지만 위에
+ * 자리가 모자라면 아래로 내린다 — 픽업 줄이 카드 맨 위에 오면 위쪽 공간이 없다.
+ */
+private class ClampedTooltipPosition(
+    private val marginPx: Int,
+    private val gapPx: Int,
+) : PopupPositionProvider {
+    override fun calculatePosition(
+        anchorBounds: IntRect,
+        windowSize: IntSize,
+        layoutDirection: LayoutDirection,
+        popupContentSize: IntSize,
+    ): IntOffset {
+        val centered = anchorBounds.left + (anchorBounds.width - popupContentSize.width) / 2
+        val maxX = windowSize.width - popupContentSize.width - marginPx
+        // 툴팁이 화면보다 넓으면 maxX 가 marginPx 보다 작아진다 — coerceIn 이 터지지 않게
+        // 하한을 우선한다(그 경우 왼쪽 가장자리에 맞추고 오른쪽이 잘리는 편이 낫다).
+        val x = centered.coerceIn(marginPx, maxOf(marginPx, maxX))
+
+        val above = anchorBounds.top - popupContentSize.height - gapPx
+        val y = if (above >= marginPx) above else anchorBounds.bottom + gapPx
+        return IntOffset(x, y)
     }
 }
 
