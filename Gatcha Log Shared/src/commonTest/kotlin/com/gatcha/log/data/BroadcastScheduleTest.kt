@@ -161,11 +161,74 @@ class BroadcastScheduleTest {
 
     // ── 확정 공지 파싱 ────────────────────────────────────────────────────────
 
-    private fun news(title: String, summary: String, game: Game = Game.HSR) = NewsItem(
+    private fun news(
+        title: String,
+        summary: String,
+        game: Game = Game.HSR,
+        postedAt: Long = 0L,
+    ) = NewsItem(
         game = game.displayName, id = "1", title = title,
-        createdAtMillis = 0L, bannerUrl = "", url = "https://www.hoyolab.com/article/1",
+        createdAtMillis = postedAt, bannerUrl = "", url = "https://www.hoyolab.com/article/1",
         summary = summary,
     )
+
+    // ── 연도 없는 한국식 표기(젠레스) ──────────────────────────────────────────
+
+    @Test
+    fun `연도 없는 한국식 일시를 읽는다`() {
+        // 실제 공지(2026-08-24 게시). 원신·스타레일과 달리 "8월 28일 20:30" 으로 적는다.
+        val item = news(
+            "〈젠레스 존 제로〉 3.2 버전 「그녀들의 숨겨진 과거」 특별 방송 예고",
+            "To. 로프꾼 〈젠레스 존 제로〉 3.2 버전 「그녀들의 숨겨진 과거」 특별 방송이 " +
+                "8월 28일 20:30(KST)에 시작됩니다!",
+            game = Game.ZZZ, postedAt = at(2026, 8, 24, hour = 10),
+        )
+        val c = assertNotNull(
+            BroadcastSchedule.parseConfirmed(listOf(item), nowMillis = at(2026, 8, 24)).singleOrNull(),
+        )
+        assertEquals("3.2", c.version)
+        assertEquals(at(2026, 8, 28, hour = 20) + 30 * 60_000L, c.targetMillis)
+    }
+
+    @Test
+    fun `연말 공지가 이듬해 방송을 알리면 해를 넘긴다`() {
+        // 12월 공지에 "1월 9일" 이라고만 적히면, 게시 연도로 읽는 순간 한 해 과거가 된다.
+        val item = news(
+            "〈젠레스 존 제로〉 3.5 버전 특별 방송 예고",
+            "3.5 버전 특별 방송이 1월 9일 20:30(KST)에 시작됩니다!",
+            game = Game.ZZZ, postedAt = at(2026, 12, 28, hour = 10),
+        )
+        val c = assertNotNull(
+            BroadcastSchedule.parseConfirmed(listOf(item), nowMillis = at(2026, 12, 28)).singleOrNull(),
+        )
+        assertEquals(at(2027, 1, 9, hour = 20) + 30 * 60_000L, c.targetMillis)
+    }
+
+    @Test
+    fun `배너가 없어도 확정이 있으면 방송이 뜬다`() {
+        // 지금 젠레스가 이 상태다 — zzz_banners.json 이 비어 있어 역산의 근거가 없다.
+        // 확정은 배너와 무관하므로 그때도 카드가 나와야 한다.
+        val confirmed = listOf(
+            ConfirmedBroadcast(Game.ZZZ.key, "3.2", at(2026, 8, 28, hour = 20), "https://hoyo/1"),
+        )
+        val b = BroadcastSchedule.next(
+            banners = emptyList(), confirmed = confirmed, nowMillis = at(2026, 8, 24),
+        ).singleOrNull { it.gameKey == Game.ZZZ.key }
+        assertNotNull(b, "배너가 없어도 확정 방송은 나와야 한다")
+        assertTrue(!b.isEstimate)
+        assertEquals("3.2", b.version)
+    }
+
+    @Test
+    fun `오전 오후 표기는 읽지 않는다`() {
+        // "오후 8:30" 을 8:30 으로 읽으면 12시간을 틀린다 — 못 잡고 역산에 맡기는 편이 낫다.
+        val item = news(
+            "〈젠레스 존 제로〉 3.2 버전 특별 방송 예고",
+            "3.2 버전 특별 방송이 8월 28일에 오후 8:30 부터 시작됩니다!",
+            game = Game.ZZZ, postedAt = at(2026, 8, 24, hour = 10),
+        )
+        assertTrue(BroadcastSchedule.parseConfirmed(listOf(item), nowMillis = at(2026, 8, 24)).isEmpty())
+    }
 
     @Test
     fun `확정 공지에서 일시를 읽는다`() {
