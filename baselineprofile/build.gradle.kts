@@ -1,6 +1,6 @@
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
-// Baseline Profile 생성 전용 모듈 — Macrobenchmark 로 :GL_Android 의 핫패스를 실행해
+// Baseline Profile 생성 전용 모듈 — Macrobenchmark 로 :Gatcha Log Android 의 핫패스를 실행해
 // src/main/generated/baselineProfiles/baseline-prof.txt 를 만든다. 평소 앱 빌드와 무관(생성 시에만 동작).
 plugins {
     // AGP 9.0+ 는 Kotlin 지원 내장 — kotlin.android 플러그인 적용 금지(앱 모듈과 동일).
@@ -24,7 +24,7 @@ android {
     }
 
     // 프로파일을 만들 대상 앱 모듈.
-    targetProjectPath = ":GL_Android"
+    targetProjectPath = ":Gatcha Log Android"
 }
 
 kotlin {
