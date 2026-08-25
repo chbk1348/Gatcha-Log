@@ -59,10 +59,10 @@ base {
 
 android {
     namespace = "com.gatcha.log"
-    // ⚠️ 실험(experiment/android-floating-toolbar) — 36 → 37.
-    // material3 1.5.0-alpha25 의 AAR 메타데이터가 compileSdk 37 이상을 **강제**한다
+    // 36 → 37. material3 1.5.0-alpha25 의 AAR 메타데이터가 compileSdk 37 이상을 **강제**한다
     // (checkReleaseAarMetadata 에서 11건 실패). Expressive 컴포넌트를 쓰려면 따라 올려야 한다.
-    // main 은 36 유지 — 145행 core-ktx 주석대로 37 요구 의존성을 일부러 피해 온 상태였다.
+    // 플로팅 툴바 실험에서 올린 값이지만 10e1df2 로 main 에 들어왔고 27.42.0 부터 배포본이 이 조합이다
+    // — "main 은 36 유지" 가 아니다. material3 를 BOM 으로 되돌리는 날 36 으로 함께 내린다.
     compileSdk = 37
 
     defaultConfig {
@@ -200,9 +200,11 @@ dependencies {
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.ui:ui-graphics")
     implementation("androidx.compose.ui:ui-tooling-preview")
-    // ⚠️ 실험(experiment/android-floating-toolbar) — BOM 을 벗어나 material3 만 1.5.0-alpha 로 올린다.
-    // Expressive 의 HorizontalFloatingToolbar 는 **1.4.0(BOM 고정판)에 아예 없다**(1.5.0-alpha 부터).
-    // alpha 라인은 릴리즈마다 API 가 바뀌므로 main 에 그대로 들이지 말 것 — 1.5.0 beta/stable 대기.
+    // ⚠️ BOM 을 벗어나 material3 만 1.5.0-alpha 로 올려 둔 상태다. Expressive 의
+    // HorizontalFloatingToolbar(하단 탭바)는 **1.4.0(BOM 고정판)에 아예 없다**(1.5.0-alpha 부터).
+    // 실험으로 시작했으나 10e1df2 로 main 에 들어와 27.42.0 부터 배포본에 나갔다 — 감수 중인 리스크다.
+    // alpha 라인은 릴리즈마다 API 가 바뀐다. 1.5.0 beta/stable 이 나오면 곧바로 옮기고 BOM 으로 되돌린다
+    // (2026-08-25 확인: 최신이 여전히 1.5.0-alpha26 이라 대기 중). 이유 없이 alpha 판올림하지 않는다.
     implementation("androidx.compose.material3:material3:1.5.0-alpha25")
     implementation("androidx.compose.material:material-icons-extended")
 
