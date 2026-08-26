@@ -42,7 +42,7 @@ internal object EndfieldNewsApi {
                 id = cid,
                 title = title,
                 createdAtMillis = o.optLong("startAt") * 1000, // 초 단위로 온다
-                bannerUrl = o.optJSONObject("data")?.optString("url").orEmpty(),
+                bannerUrl = bannerOf(o.optJSONObject("data")),
                 url = externalLink(o.optJSONObject("data")),
                 summary = o.optString("header"),
                 source = NewsSource.ENDFIELD,
@@ -72,6 +72,23 @@ internal object EndfieldNewsApi {
         }
         if (blocks.isEmpty()) return null
         return NewsArticle(title = oneLineTitle(target.optString("title")).ifBlank { item.title }, blocks = blocks)
+    }
+
+    /**
+     * 목록 썸네일 URL.
+     *
+     * `displayType` 에 따라 **두 필드가 상호배타적**이다(2026-08-26 실측, 34건):
+     * `picture` 8건은 `data.url` 에 배너가 있고 `html` 이 없다. `rich_text` 26건은 그 반대라
+     * **url 이 아예 없다** — url 만 읽으면 목록의 4분의 3이 썸네일 없이 남는다.
+     *
+     * rich_text 26건은 **전부** 본문 첫머리가 `<img>` 이고 호스트도 배너와 같은
+     * `web-static.hg-cdn.com` 이라, 그 한 장을 썸네일로 쓴다([ImageCdn] 축소도 그대로 먹는다).
+     * 본문 HTML 자체는 여전히 [NewsItem] 에 담지 않는다 — URL 한 줄만 가져온다.
+     */
+    private fun bannerOf(data: JSONObject?): String {
+        val url = data?.optString("url").orEmpty().trim()
+        if (url.isNotBlank()) return url
+        return HtmlNews.firstImageSrc(data?.optString("html").orEmpty())
     }
 
     /**
