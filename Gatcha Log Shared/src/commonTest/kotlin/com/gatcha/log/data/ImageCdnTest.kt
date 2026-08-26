@@ -51,4 +51,34 @@ class ImageCdnTest {
         // 서명·처리 파라미터가 있을 수 있고, 뒤에 덧붙이면 원래 의미까지 깨진다.
         assertNull(ImageCdn.thumb("$HOYO?sig=abc", 156))
     }
+
+    /**
+     * 높이를 주면 **그 상자에 맞춰 채우고 자른다**(`m_fill`).
+     *
+     * 폭만 맞추면 초와이드 원본이 뭉개진다 — 엔드필드 공지 본문 머리 이미지는 1650×300(5.5:1)이라
+     * `w_200` 이면 **200×36** 이 온다. 52×36dp 자리를 Crop 으로 채우느라 세로를 3배 늘려 그렸다
+     * (2026-08-26 실측: `m_fill,w_200,h_140` 은 200×140 · 6.2KB).
+     */
+    @Test
+    fun 높이를_주면_상자에_맞춰_자른다() {
+        val u = ImageCdn.thumb(HOYO, 156, 108)!!
+        assertTrue(u.contains("m_fill"), u)
+        assertTrue(u.contains("w_200"), u)
+        assertTrue(u.contains("h_138"), u) // 108 * 200 / 156
+    }
+
+    @Test
+    fun 높이가_없으면_폭만_맞춘다() {
+        // 상세 본문처럼 높이가 정해지지 않은 자리 — 잘라내면 안 된다.
+        val u = ImageCdn.thumb(HOYO, 156, 0)!!
+        assertTrue(u.contains("w_200"), u)
+        assertTrue(!u.contains("m_fill"), u)
+        assertEquals(ImageCdn.thumb(HOYO, 156), u)
+    }
+
+    @Test
+    fun 표시_비율이_같으면_기기_배율이_달라도_같은_URL() {
+        // 2배(104×72)와 3배(156×108)가 같은 자리를 그린다 — 캐시가 갈라지면 같은 그림을 두 번 받는다.
+        assertEquals(ImageCdn.thumb(HOYO, 104, 72), ImageCdn.thumb(HOYO, 156, 108))
+    }
 }

@@ -135,7 +135,10 @@ struct GLGRemoteImage<Placeholder: View>: View {
 private func glgFetchImage(_ url: URL, maxPixel: Int) async -> UIImage? {
     // 축소본을 받을 수 있는 호스트면 그쪽을 먼저 — 공지 배너 원본은 한 장이 수백 KB 인데
     // 목록에서는 52×36pt 로 그린다(ImageCdn 주석의 실측 참고).
-    if let thumb = ImageCdn.shared.thumb(url: url.absoluteString, widthPx: Int32(maxPixel)),
+    // 폭만 맞추면 **초와이드 원본이 뭉개진다** — 엔드필드 공지 본문 머리 이미지가 1650×300(5.5:1)이라
+    // w_200 이면 200×36 이 와서, 정사각 자리를 fill 로 채우느라 세로를 몇 배로 늘려 그린다.
+    // `GLGRemoteImage` 는 `side` 하나로 정사각을 그리므로 폭·높이에 같은 값을 준다(2026-08-26 실측).
+    if let thumb = ImageCdn.shared.thumb(url: url.absoluteString, widthPx: Int32(maxPixel), heightPx: Int32(maxPixel)),
        let thumbURL = URL(string: thumb),
        let image = await glgDownload(thumbURL, maxPixel: maxPixel) {
         return image
