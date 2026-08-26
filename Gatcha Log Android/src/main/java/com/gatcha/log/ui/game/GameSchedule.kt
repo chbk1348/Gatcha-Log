@@ -214,7 +214,13 @@ fun GameScheduleSection(
 private fun summaryLabel(s: ScheduleSummary): String =
     "이번 주 마감 ${s.weekDeadlines}건 · 진행 중 픽업 ${s.activePickups}"
 
-// 게임 한 줄 — 색 바 + 게임명(+콜라보) + 요약 + 잔여.
+/** 진입 카드 한 줄에 세울 얼굴 수 — 게임명·이름·D-day 와 한 줄을 나눠 써야 해서 폭이 빠듯하다. */
+private const val LINE_FACE_MAX = 3
+
+/** 진입 카드용 작은 초상 — 상세의 [PickupAvatar](38dp)보다 작고, 여러 장을 겹쳐 세운다. */
+private val LineFaceSize = 22.dp
+
+// 게임 한 줄 — 색 바 + 게임명(+콜라보) + 픽업 얼굴·이름 + 잔여.
 @Composable
 private fun GameLineRow(line: GameScheduleLine) {
     val c = line.colorArgb.toColor()
@@ -226,14 +232,62 @@ private fun GameLineRow(line: GameScheduleLine) {
         Box(Modifier.size(3.dp, 26.dp).clip(RoundedCornerShape(2.dp)).background(c))
         Text(line.shortName, fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = c, maxLines = 1)
         if (line.hasCollab) CollabChip()
-        Text(
-            line.summary, fontSize = 11.5.sp, color = TextSecondary, maxLines = 1,
-            overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f),
-        )
+        if (line.faces.isEmpty()) {
+            // 픽업이 없는 게임(젠존제·명조)은 얼굴이 없다 — 일정 건수 요약("이벤트 5")이 그 자리를 지킨다.
+            Text(
+                line.summary, fontSize = 11.5.sp, color = TextSecondary, maxLines = 1,
+                overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f),
+            )
+        } else {
+            Row(
+                Modifier.weight(1f),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                // 얼굴끼리는 겹쳐 세운다 — 석 장을 따로 놓으면 이름 자리가 남지 않는다.
+                Row(horizontalArrangement = Arrangement.spacedBy((-7).dp)) {
+                    line.faces.take(LINE_FACE_MAX).forEach { LineFace(it) }
+                }
+                Text(
+                    line.pickupNames, fontSize = 11.5.sp, color = TextSecondary, maxLines = 1,
+                    overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false),
+                )
+            }
+        }
         Text(
             line.remainLabel, fontSize = 12.5.sp, fontWeight = FontWeight.Bold, maxLines = 1,
             color = if (line.urgent) Urgent else TextPrimary,
         )
+    }
+}
+
+/**
+ * 진입 카드 줄의 얼굴 한 장.
+ *
+ * 겹쳐 세우므로 **흰 테두리**를 둘러 뒤 장과 경계를 만든다(테두리가 없으면 어두운 초상끼리
+ * 한 덩어리로 뭉쳐 보인다). 초상을 못 받는 경우는 [PickupAvatar] 와 같은 이유로 실루엣을 세운다.
+ */
+@Composable
+private fun LineFace(b: GachaBanner) {
+    val isWeapon = b.type == "weapon"
+    Box(
+        Modifier.size(LineFaceSize).clip(CircleShape)
+            .background(PickupGold.copy(alpha = 0.14f))
+            .border(1.5.dp, Color.White, CircleShape),
+        contentAlignment = Alignment.Center,
+    ) {
+        if (b.iconUrl.isBlank()) {
+            PickupFallbackIcon(isWeapon)
+        } else {
+            SubcomposeAsyncImage(
+                model = b.iconUrl,
+                contentDescription = b.name,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize(),
+                loading = {},
+                error = { PickupFallbackIcon(isWeapon) },
+            )
+        }
     }
 }
 
