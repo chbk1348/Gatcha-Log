@@ -46,9 +46,11 @@ object ImageCdn {
     /**
      * @param url 원본 이미지 URL
      * @param widthPx 실제로 그려질 폭(픽셀)
+     * @param heightPx 실제로 그려질 높이(픽셀). **0 이면 폭만 맞춘다**(비율 유지 — 상세 본문처럼
+     *   높이가 정해지지 않은 자리). 0 보다 크면 그 상자에 맞춰 채우고 자른다(`m_fill`) — 목록 썸네일.
      * @return 축소본 URL, 또는 **축소할 수 없으면 null**(호출부가 원본을 그대로 쓴다).
      */
-    fun thumb(url: String, widthPx: Int): String? {
+    fun thumb(url: String, widthPx: Int, heightPx: Int = 0): String? {
         if (widthPx <= 0) return null
         // 이미 쿼리가 붙어 있으면 건드리지 않는다 — 서명·처리 파라미터가 있을 수 있고,
         // 뒤에 덧붙이면 원래 의미까지 깨진다.
@@ -56,6 +58,10 @@ object ImageCdn {
         val host = url.substringAfter("://", "").substringBefore('/')
         if (host !in RESIZABLE) return null
         val step = STEPS.firstOrNull { it >= widthPx } ?: return null
-        return "$url?x-oss-process=image/resize,w_$step/quality,q_80"
+        if (heightPx <= 0) return "$url?x-oss-process=image/resize,w_$step/quality,q_80"
+        // 폭을 스냅한 배율만큼 높이도 함께 키운다 — 표시 비율이 같으면 기기 배율이 달라도
+        // 같은 URL 로 수렴해 캐시가 갈라지지 않는다(2배 104×72 와 3배 156×108 이 같은 값).
+        val h = ((heightPx.toLong() * step) / widthPx).toInt().coerceAtLeast(1)
+        return "$url?x-oss-process=image/resize,m_fill,w_$step,h_$h/quality,q_80"
     }
 }

@@ -79,7 +79,11 @@ private class ThumbnailInterceptor : Interceptor {
         val url = original.data as? String ?: return chain.proceed(original)
         // 목표 폭을 모르면(Undefined = 원본 크기로 그리는 자리) 손대지 않는다.
         val widthPx = (chain.size.width as? Dimension.Pixels)?.px ?: return chain.proceed(original)
-        val thumb = ImageCdn.thumb(url, widthPx) ?: return chain.proceed(original)
+        // 높이까지 알면 그 상자에 맞춰 받는다. 폭만 맞추면 **초와이드 원본이 뭉개진다** —
+        // 엔드필드 공지 본문 머리 이미지가 1650×300(5.5:1)이라 w_200 이면 200×36 이 오고,
+        // 52×36dp 자리를 Crop 으로 채우느라 세로를 3배 늘려 그렸다(2026-08-26 실측).
+        val heightPx = (chain.size.height as? Dimension.Pixels)?.px ?: 0
+        val thumb = ImageCdn.thumb(url, widthPx, heightPx) ?: return chain.proceed(original)
 
         val result = chain.proceed(original.newBuilder().data(thumb).build())
         return if (result is ErrorResult) chain.proceed(original) else result
