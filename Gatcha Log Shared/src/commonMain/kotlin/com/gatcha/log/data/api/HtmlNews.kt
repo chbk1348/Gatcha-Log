@@ -31,6 +31,18 @@ internal object HtmlNews {
     private val RE_NUMERIC = Regex("&#(x?)([0-9A-Fa-f]+);")
 
     /**
+     * 본문의 **첫 이미지 URL** — 목록 썸네일용.
+     *
+     * 배너 필드를 따로 주지 않는 공지가 있다(엔드필드 `rich_text`). 그런 항목도 본문 맨 앞은
+     * 대개 이미지라, 그 한 장을 목록 썸네일로 쓴다. 본문 전체를 들고 다니지 않으려고
+     * **URL 한 줄만** 뽑는다.
+     *
+     * @return 첫 `<img src>`, 없으면 빈 문자열.
+     */
+    fun firstImageSrc(html: String): String =
+        RE_IMG.find(html)?.groupValues?.getOrNull(1)?.let { decode(it).trim() }.orEmpty()
+
+    /**
      * @param html 공지 본문 HTML
      * @return 원문 순서대로 섞인 텍스트·이미지 블록. 건질 게 없으면 빈 목록.
      */
