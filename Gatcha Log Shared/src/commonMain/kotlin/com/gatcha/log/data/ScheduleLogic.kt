@@ -56,6 +56,16 @@ data class GameScheduleLine(
     val colorArgb: Long,
     /** "v6.7 · 콜롬비나 외 1" (버전 없으면 이름만). */
     val summary: String,
+    /**
+     * 진행 중 대표 픽업의 **얼굴** — 진입 카드가 이름 대신 초상으로 보여 준다.
+     *
+     * [summary] 와 같은 그룹에서 뽑되 무기는 빠진다(얼굴이 목적이라 [GachaBanner.type] 이
+     * character 인 것만 남긴다 — 다만 무기뿐인 그룹이면 그거라도 준다). 픽업이 없는 게임은 빈 목록이다.
+     * 몇 장까지 그릴지는 화면이 정한다(카드 폭이 좁아 보통 2~3장).
+     */
+    val faces: List<GachaBanner> = emptyList(),
+    /** "콜롬비나 외 1" — [summary] 에서 버전을 뺀 이름만. 초상 옆에 붙인다. */
+    val pickupNames: String = "",
     /** "D-15" / "종료 미정". */
     val remainLabel: String,
     val urgent: Boolean,
@@ -215,6 +225,8 @@ object ScheduleLogic {
                 shortName = game.shortName,
                 colorArgb = game.color,
                 summary = if (lead.version.isBlank()) who else "v${lead.version} · $who",
+                faces = named,
+                pickupNames = who,
                 remainLabel = if (lead.isEndUnknown) "종료 미정" else "D-${maxOf(0, dDayOf(lead.nearestEnd, nowMillis))}",
                 urgent = !lead.isEndUnknown && dDayOf(lead.nearestEnd, nowMillis) in 0..3,
                 hasCollab = groups.any { g -> g.pickups.any { isCollabBanner(it) } },

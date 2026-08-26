@@ -444,7 +444,10 @@ private func summaryLabel(_ s: ScheduleSummary) -> String {
     "이번 주 마감 \(s.weekDeadlines)건 · 진행 중 픽업 \(s.activePickups)"
 }
 
-// 게임 한 줄 — 색 바 + 게임명(+콜라보) + 요약 + 잔여.
+/// 진입 카드 한 줄에 세울 얼굴 수 — Android `LINE_FACE_MAX` 와 같이 고쳐야 한다.
+private let lineFaceMax = 3
+
+// 게임 한 줄 — 색 바 + 게임명(+콜라보) + 픽업 얼굴·이름 + 잔여.
 private struct GameLineRow: View {
     let line: GameScheduleLine
     var body: some View {
@@ -453,12 +456,67 @@ private struct GameLineRow: View {
             RoundedRectangle(cornerRadius: 2).fill(c).frame(width: 3, height: 26)
             Text(line.shortName).font(.pretendard(size: 12.5, weight: .bold)).foregroundStyle(c).lineLimit(1)
             if line.hasCollab { CollabChip() }
-            Text(line.summary).font(.pretendard(size: 11.5)).foregroundStyle(GLGColor.textSecondary)
-                .lineLimit(1).frame(maxWidth: .infinity, alignment: .leading)
+            if line.faces.isEmpty {
+                // 픽업이 없는 게임(젠존제·명조)은 얼굴이 없다 — 일정 건수 요약("이벤트 5")이 그 자리를 지킨다.
+                Text(line.summary).font(.pretendard(size: 11.5)).foregroundStyle(GLGColor.textSecondary)
+                    .lineLimit(1).frame(maxWidth: .infinity, alignment: .leading)
+            } else {
+                HStack(spacing: 6) {
+                    // 얼굴끼리는 겹쳐 세운다 — 석 장을 따로 놓으면 이름 자리가 남지 않는다.
+                    HStack(spacing: -7) {
+                        ForEach(Array(line.faces.prefix(lineFaceMax).enumerated()), id: \.offset) { _, b in
+                            LineFace(banner: b)
+                        }
+                    }
+                    Text(line.pickupNames).font(.pretendard(size: 11.5))
+                        .foregroundStyle(GLGColor.textSecondary).lineLimit(1)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
             Text(line.remainLabel).font(.pretendard(size: 12.5, weight: .bold))
                 .foregroundStyle(line.urgent ? glUrgent : GLGColor.textPrimary).lineLimit(1)
         }
         .padding(.horizontal, 16).padding(.vertical, 11)
+    }
+}
+
+/// 진입 카드 줄의 얼굴 한 장.
+///
+/// 겹쳐 세우므로 **흰 테두리**로 뒤 장과 경계를 만든다(테두리가 없으면 어두운 초상끼리
+/// 한 덩어리로 뭉쳐 보인다). 지름은 상세의 `PickupSlot`(38)보다 작다 —
+/// 여기서는 한 줄에 딸린 부가 정보다. Android `LineFace`(22dp)와 같이 고쳐야 한다.
+private struct LineFace: View {
+    let banner: GachaBanner
+    private let side: CGFloat = 22
+
+    var body: some View {
+        let isWeapon = banner.type == "weapon"
+        ZStack {
+            Circle().fill(glPickupGold.opacity(0.14))
+            if banner.iconUrl.isEmpty {
+                fallback(isWeapon)
+            } else {
+                AsyncImage(url: URL(string: banner.iconUrl)) { phase in
+                    switch phase {
+                    case .success(let img): img.resizable().aspectRatio(contentMode: .fill)
+                    case .failure: fallback(isWeapon)
+                    default: Color.clear
+                    }
+                }
+                .frame(width: side, height: side)
+                .clipShape(Circle())
+            }
+        }
+        .frame(width: side, height: side)
+        .overlay(Circle().stroke(Color.white, lineWidth: 1.5))
+    }
+
+    /// 초상을 못 받았을 때 세우는 실루엣 — 무기 픽업이면 사람 대신 별.
+    @ViewBuilder
+    private func fallback(_ isWeapon: Bool) -> some View {
+        Image(systemName: isWeapon ? "star.fill" : "person.fill")
+            .font(.system(size: 10, weight: .semibold))
+            .foregroundStyle(glPickupGold)
     }
 }
 

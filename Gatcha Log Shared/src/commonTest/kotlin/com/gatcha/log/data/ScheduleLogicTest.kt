@@ -178,6 +178,36 @@ class ScheduleLogicTest {
         assertTrue(!line.hasCollab)
     }
 
+    /**
+     * 진입 카드는 요약 텍스트 대신 **얼굴 + 이름**을 그린다.
+     *
+     * 얼굴은 [GameScheduleLine.summary] 와 같은 그룹에서 뽑되 **무기는 빠진다**(얼굴이 목적).
+     * 이름은 버전을 뺀 것이라야 초상 옆에 들어간다 — summary 를 그대로 쓰면 "v6.7 ·" 이 붙는다.
+     */
+    @Test
+    fun gameLineCarriesPickupFacesAndNames() {
+        val list = listOf(
+            banner("콜롬비나", 15, "6.7"), banner("라이덴 쇼군", 15, "6.7"),
+            banner("무기", 15, "6.7", type = "weapon"),
+        )
+        val line = ScheduleLogic.gameLines(list, emptyList(), base).single()
+        assertEquals(listOf("콜롬비나", "라이덴 쇼군"), line.faces.map { it.name })
+        assertEquals("콜롬비나 외 1", line.pickupNames)   // 버전 없이 이름만
+    }
+
+    /** 픽업이 없는 게임은 얼굴이 없다 — 화면이 일정 건수 요약으로 되돌아갈 수 있어야 한다. */
+    @Test
+    fun scheduleOnlyLineHasNoFaces() {
+        val e = ScheduleEntry(
+            gameKey = gi.key, gameShort = gi.shortName, colorArgb = gi.color,
+            kind = "이벤트", title = "이벤트", sub = "", target = base + 3 * 86_400_000L, isStart = false,
+        )
+        val line = ScheduleLogic.gameLines(emptyList(), listOf(e), base).single()
+        assertTrue(line.faces.isEmpty())
+        assertEquals("", line.pickupNames)
+        assertTrue(line.summary.isNotBlank())
+    }
+
     @Test
     fun gameLineFlagsCollabAndUrgency() {
         val list = collabAndRegular()
