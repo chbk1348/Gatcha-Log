@@ -242,17 +242,21 @@ object NotificationChecker {
                     return@forEach
                 }
                 if (latest.createdAtMillis > lastSeen) {
-                    settings.setLastNotified(tag, latest.createdAtMillis.toString())
-                    // **앱을 보고 있으면 쏘지 않는다** — 기준선만 올린다.
+                    // **앱을 보고 있으면 아무것도 하지 않는다 — 기준선도 그대로 둔다.**
                     //
                     // 이 점검은 앱을 여는 순간에도 돈다(백그라운드 실행이 못 미더워 보조 트리거를
-                    // 둔다 — [AppVisibility] 참고). 그래서 오랜만에 앱을 열면 밀려 있던 새 공지가
-                    // **게임 수만큼 한꺼번에** 떴다. 정작 그 공지는 지금 화면의 '게임 소식' 카드에
-                    // 이미 떠 있다 — 보고 있는 사람에게 같은 말을 알림으로 또 하는 셈이었다.
+                    // 둔다 — [AppVisibility] 참고). 보고 있는 사람에게 화면의 '게임 소식' 카드에
+                    // 이미 떠 있는 것을 알림으로 또 보내지 않으려고 여기서 걸러낸다.
                     //
-                    // 기준선은 올린다. 안 올리면 앱을 닫는 순간 같은 것이 알림으로 밀려 나온다 —
-                    // '지금 안 쏜다'와 '나중에 쏜다'는 다르고, 여기서 필요한 건 전자다.
+                    // 예전엔 **거르면서 기준선은 올렸다.** 그랬더니 새 공지가 거의 전부 이 포그라운드
+                    // 점검에서 소진돼 버렸다 — 백그라운드 점검은 4시간에 한 번인데(iOS 는 OS 재량)
+                    // 그 사이 앱을 한 번만 열어도 기준선이 최신이 되어, 정작 알림으로 나갈 것이
+                    // 남지 않았다. '새 공지 알림이 안 온다'가 여기서 나왔다.
+                    //
+                    // 이제는 기준선을 그대로 두고 다음 백그라운드 점검에 넘긴다. 대가로 앱에서 이미
+                    // 본 공지가 나중에 알림으로 한 번 더 올 수 있는데, 알림이 아예 안 오는 것보다 낫다.
                     if (AppVisibility.isForeground) return@forEach
+                    settings.setLastNotified(tag, latest.createdAtMillis.toString())
                     val newCount = notices.count { it.createdAtMillis > lastSeen }
                     val more = if (newCount > 1) " 외 ${newCount - 1}건" else ""
                     Notifier.notify(
