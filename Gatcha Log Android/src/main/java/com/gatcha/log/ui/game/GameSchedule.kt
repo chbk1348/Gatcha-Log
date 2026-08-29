@@ -484,7 +484,19 @@ private fun WeekHeaderCard(w: ScheduleWeek, pinned: Boolean) {
 /** 한 주의 **몸** — 그 주 항목 목록. 헤더가 고정된 채 이쪽만 흐른다. */
 @Composable
 private fun WeekEntries(w: ScheduleWeek, now: Long) {
-    if (w.entries.isEmpty()) return
+    // 빈 주도 **말을 해야 한다.** [buildWeeks] 는 일부러 빈 주를 남기는데(언제 한가한지도 정보다)
+    // 본문이 그냥 비어 있으면 헤더 카드 사이 여백처럼 읽혀, 로딩 중인지 진짜 없는지 알 수 없었다.
+    // 헤더 줄에도 "일정 없음"이 있지만 11sp 회색이라 눈에 걸리지 않는다.
+    // iOS `WeekEntries` 와 **같이 고쳐야 한다.**
+    if (w.entries.isEmpty()) {
+        Text(
+            "예정된 일정이 없어요",
+            fontSize = 12.5.sp, color = TextSecondary,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth().padding(top = 16.dp, bottom = 2.dp),
+        )
+        return
+    }
     Column(Modifier.fillMaxWidth()) {
         Spacer(Modifier.height(10.dp))
         w.entries.forEach { e ->

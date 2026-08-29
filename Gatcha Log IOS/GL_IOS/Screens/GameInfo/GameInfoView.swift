@@ -711,7 +711,16 @@ private struct WeekEntries: View {
     let week: ScheduleWeek
 
     var body: some View {
-        if !week.entries.isEmpty {
+        // 빈 주도 **말을 해야 한다.** buildWeeks 는 일부러 빈 주를 남기는데(언제 한가한지도 정보다)
+        // 본문이 그냥 비어 있으면 헤더 카드 사이 여백처럼 읽힌다.
+        // (Android `WeekEntries` 와 같이 고쳐야 한다)
+        if week.entries.isEmpty {
+            Text("예정된 일정이 없어요")
+                .font(.pretendard(size: 12.5))
+                .foregroundStyle(GLGColor.textSecondary)
+                .frame(maxWidth: .infinity)
+                .padding(.top, 16).padding(.bottom, 2)
+        } else {
             VStack(alignment: .leading, spacing: 0) {
                 Spacer().frame(height: 10)
                 ForEach(Array(week.entries.enumerated()), id: \.offset) { _, e in
