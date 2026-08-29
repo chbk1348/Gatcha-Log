@@ -278,38 +278,44 @@ struct DashboardScheduleCard: View {
             events.map { ($0.game, $0.name, $0.endMillis, $0.dDayLabel(nowMillis: now)) }
             + challenges.map { ($0.game, $0.name, $0.endMillis, $0.dDayLabel(nowMillis: now)) }
         let items = Array(raw.filter { $0.2 > now }.sorted { $0.2 < $1.2 }.prefix(3))
+        // 일정이 없어도 **카드는 남긴다.** 예전엔 통째로 숨겨서 "이번 주가 한가하다"와
+        // "아직 못 불러왔다"가 화면에서 똑같아 보였다(스켈레톤도 같은 자리에 뜬다).
+        // (Android `DashScheduleCard` 와 같이 고쳐야 한다)
         return Group {
-            if !items.isEmpty {
-                if titleOutside {
-                    VStack(alignment: .leading, spacing: 10) {
-                        HomeSectionHeader(title: "이번 주 일정", actionTitle: "전체", action: onTap)
-                        GLGCard(cornerRadius: 22, padding: 16) { rows(items) }
-                            .contentShape(Rectangle()).onTapGesture { onTap() }
-                    }
-                } else {
-                    GLGCard(cornerRadius: 22, padding: 16) {
-                        VStack(alignment: .leading, spacing: 0) {
-                            HStack {
-                                Text("이번 주 일정").font(.pretendard(size: 14, weight: .bold))
-                                Spacer()
-                                Text("전체 ›").font(.pretendard(size: 11.5, weight: .semibold)).foregroundStyle(accent.primary)
-                            }
-                            rows(items).padding(.top, 11)
-                        }
-                    }
-                    .contentShape(Rectangle()).onTapGesture { onTap() }
+            if titleOutside {
+                VStack(alignment: .leading, spacing: 10) {
+                    HomeSectionHeader(title: "이번 주 일정", actionTitle: "전체", action: onTap)
+                    GLGCard(cornerRadius: 22, padding: 16) { rows(items) }
+                        .contentShape(Rectangle()).onTapGesture { onTap() }
                 }
+            } else {
+                GLGCard(cornerRadius: 22, padding: 16) {
+                    VStack(alignment: .leading, spacing: 0) {
+                        HStack {
+                            Text("이번 주 일정").font(.pretendard(size: 14, weight: .bold))
+                            Spacer()
+                            Text("전체 ›").font(.pretendard(size: 11.5, weight: .semibold)).foregroundStyle(accent.primary)
+                        }
+                        rows(items).padding(.top, 11)
+                    }
+                }
+                .contentShape(Rectangle()).onTapGesture { onTap() }
             }
         }
     }
     @ViewBuilder private func rows(_ items: [(String, String, Int64, String)]) -> some View {
-        VStack(alignment: .leading, spacing: 11) {
-            ForEach(Array(items.enumerated()), id: \.offset) { _, it in
-                HStack(spacing: 9) {
-                    GLGGameTag(game: it.0, size: .small)
-                    Text(it.1).font(.pretendard(size: 13, weight: .medium)).foregroundStyle(GLGColor.textPrimary).lineLimit(1)
-                    Spacer(minLength: 6)
-                    Text(it.3).font(.pretendard(size: 11, weight: .bold)).foregroundStyle(accent.primary)
+        if items.isEmpty {
+            Text("이번 주 마감 일정이 없어요")
+                .font(.pretendard(size: 13)).foregroundStyle(GLGColor.textSecondary)
+        } else {
+            VStack(alignment: .leading, spacing: 11) {
+                ForEach(Array(items.enumerated()), id: \.offset) { _, it in
+                    HStack(spacing: 9) {
+                        GLGGameTag(game: it.0, size: .small)
+                        Text(it.1).font(.pretendard(size: 13, weight: .medium)).foregroundStyle(GLGColor.textPrimary).lineLimit(1)
+                        Spacer(minLength: 6)
+                        Text(it.3).font(.pretendard(size: 11, weight: .bold)).foregroundStyle(accent.primary)
+                    }
                 }
             }
         }

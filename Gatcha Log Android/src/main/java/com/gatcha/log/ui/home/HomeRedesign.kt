@@ -1078,7 +1078,9 @@ fun DashScheduleCard(events: List<GameEvent>, challenges: List<GameChallenge>, t
     val items = (events.map { Triple(it.game, it.name, it.endMillis to it.dDayLabel()) } +
         challenges.map { Triple(it.game, it.name, it.endMillis to it.dDayLabel()) })
         .filter { it.third.first > now }.sortedBy { it.third.first }.take(3)
-    if (items.isEmpty()) return
+    // 일정이 없어도 **카드는 남긴다.** 예전엔 여기서 빠져나가 카드가 통째로 사라졌는데,
+    // 그러면 "이번 주가 한가하다"와 "아직 못 불러왔다"가 화면에서 똑같아 보인다
+    // (로딩 스켈레톤도 같은 자리에 뜬다). 비었다는 것도 알려야 할 상태다.
     if (titleOutside) {
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
             HomeSectionHeader("이번 주 일정", actionTitle = "전체", onAction = onTap)
@@ -1103,6 +1105,10 @@ fun DashScheduleCard(events: List<GameEvent>, challenges: List<GameChallenge>, t
 
 @Composable
 private fun ScheduleRows(items: List<Triple<String, String, Pair<Long, String>>>, accent: Color) {
+    if (items.isEmpty()) {
+        Text("이번 주 마감 일정이 없어요", fontSize = 13.sp, color = TextSecondary)
+        return
+    }
     Column(verticalArrangement = Arrangement.spacedBy(11.dp)) {
         items.forEach { row ->
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
