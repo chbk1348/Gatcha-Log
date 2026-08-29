@@ -72,8 +72,8 @@ android {
         minSdk = 31
         targetSdk = 37
         // 27.42.0 은 274201 로 나갔다 — 274200 이 Firebase 설정 누락 결함본이라 회수하고 하나 올렸다.
-        versionCode = 274300
-        versionName = "27.43.0"
+        versionCode = 274310
+        versionName = "27.43.1"
 
         // 실험 빌드 표식 — true 면 시작 시 경고 다이얼로그 + 설정 > 앱 버전에 빨간 EXPERIMENT 칩.
         //
