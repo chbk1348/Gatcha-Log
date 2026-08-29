@@ -46,7 +46,7 @@ private const val EVENT_PERIOD = "2026.10.2(금) ~ 10.5(월)"
 private const val EVENT_PERIOD_LONG = "$EVENT_PERIOD (4일)"
 
 /** 확정 장소 — 2026 개최 발표로 확정(지난 2024·2025 와 같은 곳). */
-private const val VENUE_NAME = "일산 킨텍스 제2전시장"
+private const val VENUE_NAME = "일산 킨텍스 제2전시장 7·8홀"
 private const val VENUE_ADDRESS = "경기도 고양시 일산서구 킨텍스로 217-60"
 private const val VENUE_MAP_URL = "https://map.naver.com/p/search/%ED%82%A8%ED%85%8D%EC%8A%A4%20%EC%A0%9C2%EC%A0%84%EC%8B%9C%EC%9E%A5"
 /** 네이버 지도가 안 열릴 때 폴백 — 어느 기기에나 있는 브라우저로 열리는 구글 지도 검색. */

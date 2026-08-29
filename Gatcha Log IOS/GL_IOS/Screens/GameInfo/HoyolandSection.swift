@@ -11,7 +11,7 @@ private enum HoyolandInfo {
     /// 확정 일정 — 개천절(10.3 토) 대체공휴일 10.5(월)까지 이어지는 연휴 4일.
     static let eventPeriod = "2026.10.2(금) ~ 10.5(월)"
     static let eventPeriodLong = "\(eventPeriod) (4일)"
-    static let venueName = "일산 킨텍스 제2전시장"
+    static let venueName = "일산 킨텍스 제2전시장 7·8홀"
     static let venueAddress = "경기도 고양시 일산서구 킨텍스로 217-60"
     // 네이버 지도 검색(한글은 퍼센트 인코딩) — URL(string:)이 공백/한글에서 nil 나는 것 방지.
     static var mapURL: URL? {
