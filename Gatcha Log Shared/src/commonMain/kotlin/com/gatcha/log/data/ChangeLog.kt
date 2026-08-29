@@ -45,7 +45,7 @@ data class ChangeEntry(
 object ChangeLog {
 
     /** 헤더 메타 — 업데이트 기간 라벨. */
-    const val periodLabel: String = "2026.05.23 ~ 08.25"
+    const val periodLabel: String = "2026.08.25 ~ 08.29"
 
     /**
      * 강제 업데이트 최소 지원 버전코드(version.json 의 minVersionCode 와 동일하게 유지).
@@ -54,7 +54,12 @@ object ChangeLog {
     const val minSupportedVersionCode: Long = 273000
 
     val entries: List<ChangeEntry> = buildList {
-        add(ChangeEntry("27.43.0", "2026.08.25", featured = true, items = listOf(
+        // 문장 규칙은 아래 27.43.0 엔트리 상단 주석과 같다 — 체언 종결, " — " 부연 금지, 중요한 것만.
+        add(ChangeEntry("27.43.1", "2026.08.29", featured = true, items = listOf(
+            // ── 개선 ──
+            imp("호요랜드 2026 장소를 확정 정보로 갱신"),
+        )))
+        add(ChangeEntry("27.43.0", "2026.08.25", items = listOf(
             // 항목은 **유저가 겪는 말**로만 적는다. 내부 리팩터링·개발 중에 생겼다 고쳐진 것은
             // 넣지 않는다(유저가 겪은 적이 없다). 한 줄에 하나씩, 화면 이름을 앞세운다.
             // ⚠️ 문장은 체언으로 끝낸다 — "OO 추가", "@@ 수정" 꼴. 해요체("~해요", "~드려요")를 쓰지 않는다.
