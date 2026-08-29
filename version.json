@@ -1,22 +1,11 @@
 {
-  "versionCode": 274300,
-  "versionName": "27.43.0",
+  "versionCode": 274310,
+  "versionName": "27.43.1",
   "minVersionCode": 273000,
   "url": "https://github.com/chbk1348/Gatcha-Log/releases/latest",
   "apkUrl": "https://github.com/chbk1348/Gatcha-Log/releases/latest/download/app-release.apk",
-  "sha256": "1304dcd31c53a41b4579774425e8b3e5755ca6b18aaee841336d3d89867b2e08",
+  "sha256": "6648bed219a628cecf66ed98305c8644be71b335aee89c6cbed71de38d968b27",
   "notes": [
-    "명조 · 명일방주 엔드필드 지원 추가",
-    "오늘의 데일리를 게임별 할 일 요약과 3게임 행동력 한 카드로 개편",
-    "출석 체크 현황 추가",
-    "게임 일정 주간 보드 추가",
-    "게임 일정에 픽업 캐릭터 초상·남은 시간 표시",
-    "게임 일정에 '방송' 탭 추가",
-    "가챠 계산기를 절반·90%·최악 3구간 예측으로 개편",
-    "지출 추가를 금액 우선 입력 방식으로 개편",
-    "지출 상세를 월 지출 비중·구매 이력 중심으로 개편",
-    "아이패드 좌우 분할 지원 (공지·지출·내 캐릭터)",
-    "알림 설정을 돈 · 플레이 · 소식 세 묶음으로 정리",
-    "최소 지원 OS 를 Android 12 로 상향"
+    "호요랜드 2026 장소를 확정 정보로 갱신"
   ]
 }
