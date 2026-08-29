@@ -35,13 +35,17 @@ import com.gatcha.log.ui.theme.LocalAccent
 import com.gatcha.log.ui.theme.TextPrimary
 import com.gatcha.log.ui.theme.TextSecondary
 
-// ── 호요랜드(호요버스 한국 오프라인 행사) 대비용 플레이스홀더 ──────────────────
-// 장소는 아직 미확정(예상: 일산 킨텍스 제2전시장). 일정·예매도 미정.
+// ── 호요랜드(호요버스 한국 오프라인 행사) ─────────────────────────────────────
+// 일정(2026.10.2 ~ 10.5)·장소(일산 킨텍스 제2전시장) 모두 확정. 예매만 아직 미정.
 // 정보가 확정되면 shared 의 HoyolandEvent 모델 + 로더로 실데이터를 채우고,
 // 없으면 이 티저/예상 정보로 폴백한다(NewsSection / GameScheduleSection 과 동일 패리티).
 // iOS 대응 = HoyolandSection.swift.
 
-/** 예상 장소 — 확정 전까지 "(예상)"으로 표기. */
+/** 확정 일정 — 개천절(10.3 토) 대체공휴일 10.5(월)까지 이어지는 연휴 4일. */
+private const val EVENT_PERIOD = "2026.10.2(금) ~ 10.5(월)"
+private const val EVENT_PERIOD_LONG = "$EVENT_PERIOD (4일)"
+
+/** 확정 장소 — 2026 개최 발표로 확정(지난 2024·2025 와 같은 곳). */
 private const val VENUE_NAME = "일산 킨텍스 제2전시장"
 private const val VENUE_ADDRESS = "경기도 고양시 일산서구 킨텍스로 217-60"
 private const val VENUE_MAP_URL = "https://map.naver.com/p/search/%ED%82%A8%ED%85%8D%EC%8A%A4%20%EC%A0%9C2%EC%A0%84%EC%8B%9C%EC%9E%A5"
@@ -78,9 +82,9 @@ fun HoyolandSection(onOpen: () -> Unit) {
                 Spacer(Modifier.height(14.dp))
                 Box(Modifier.fillMaxWidth().height(1.dp).background(DividerColor))
                 Spacer(Modifier.height(14.dp))
-                HoyolandInfoRow("장소", "$VENUE_NAME (예상)")
+                HoyolandInfoRow("일정", EVENT_PERIOD)
                 Spacer(Modifier.height(8.dp))
-                HoyolandInfoRow("일정", "미정")
+                HoyolandInfoRow("장소", VENUE_NAME)
             }
             Spacer(Modifier.width(8.dp))
             Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null, tint = TextSecondary, modifier = Modifier.size(18.dp))
@@ -88,7 +92,7 @@ fun HoyolandSection(onOpen: () -> Unit) {
     }
 }
 
-/** 호요랜드 상세 페이지 — 예상 장소(킨텍스 제2전시장) 안내 + 지도 바로가기 + 미정 정보. */
+/** 호요랜드 상세 페이지 — 확정 일정·장소(킨텍스 제2전시장) + 지도 바로가기. */
 @Composable
 fun HoyolandDetailContent() {
     val accent = LocalAccent.current
@@ -112,11 +116,7 @@ fun HoyolandDetailContent() {
                 ) { Icon(Icons.Default.Place, contentDescription = null, tint = accent, modifier = Modifier.size(20.dp)) }
                 Spacer(Modifier.width(12.dp))
                 Column(Modifier.weight(1f)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("장소", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
-                        Spacer(Modifier.width(8.dp))
-                        GlgBadge("예상", accent)
-                    }
+                    Text("장소", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
                     Spacer(Modifier.height(2.dp))
                     Text(VENUE_NAME, fontSize = 13.sp, fontWeight = FontWeight.Medium, color = TextPrimary)
                 }
@@ -138,10 +138,10 @@ fun HoyolandDetailContent() {
 
     Spacer(Modifier.height(14.dp))
 
-    // 미정 정보 카드
+    // 일정·예매 카드 — 일정·장소는 확정, 예매만 아직 미정.
     GlassCard(modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp)) {
-            HoyolandInfoRow("일정", "미정")
+            HoyolandInfoRow("일정", EVENT_PERIOD_LONG)
             Spacer(Modifier.height(10.dp))
             Box(Modifier.fillMaxWidth().height(1.dp).background(DividerColor))
             Spacer(Modifier.height(10.dp))
@@ -191,7 +191,7 @@ fun HoyolandDetailContent() {
 
     Spacer(Modifier.height(20.dp))
 
-    // 지난 행사 참고 — 실제 개최 이력(최신순). 예상 장소 근거이자 다음 행사 규모 가늠용.
+    // 지난 행사 참고 — 실제 개최 이력(최신순). 다음 행사 규모 가늠용.
     Text("지난 행사", fontSize = 16.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 10.dp))
     HoyolandPastEventCard(
         "호요랜드 2025",
@@ -218,7 +218,7 @@ fun HoyolandDetailContent() {
 
     Spacer(Modifier.height(14.dp))
     Text(
-        "장소는 지난 2024·2025 개최지 기준 예상이며, 공식 일정·장소·예매가 확정되면 여기에서 바로 업데이트됩니다.",
+        "일정과 장소가 확정됐습니다. 예매는 아직 공개 전이며, 확정되면 여기에서 바로 업데이트됩니다.",
         fontSize = 11.sp, color = TextSecondary,
     )
 }
