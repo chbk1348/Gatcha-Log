@@ -1,13 +1,16 @@
 import SwiftUI
 import Shared
 
-// ── 호요랜드(호요버스 한국 오프라인 행사) 대비용 플레이스홀더 ──────────────────
-// 장소는 아직 미확정(예상: 일산 킨텍스 제2전시장). 일정·예매도 미정.
+// ── 호요랜드(호요버스 한국 오프라인 행사) ─────────────────────────────────────
+// 일정(2026.10.2 ~ 10.5)·장소(일산 킨텍스 제2전시장) 모두 확정. 예매만 아직 미정.
 // 정보가 확정되면 shared 의 HoyolandEvent 모델 + 로더로 실데이터를 채우고,
 // 없으면 이 티저/예상 정보로 폴백한다(NewsSection / GameScheduleSection 과 동일 패리티).
 // Android 대응 = HoyolandSection.kt.
 
 private enum HoyolandInfo {
+    /// 확정 일정 — 개천절(10.3 토) 대체공휴일 10.5(월)까지 이어지는 연휴 4일.
+    static let eventPeriod = "2026.10.2(금) ~ 10.5(월)"
+    static let eventPeriodLong = "\(eventPeriod) (4일)"
     static let venueName = "일산 킨텍스 제2전시장"
     static let venueAddress = "경기도 고양시 일산서구 킨텍스로 217-60"
     // 네이버 지도 검색(한글은 퍼센트 인코딩) — URL(string:)이 공백/한글에서 nil 나는 것 방지.
@@ -50,9 +53,9 @@ struct HoyolandSection: View {
                                 Spacer(minLength: 0)
                             }
                             Divider().padding(.vertical, 14)
-                            infoRow("장소", "\(HoyolandInfo.venueName) (예상)")
+                            infoRow("일정", HoyolandInfo.eventPeriod)
                             Spacer().frame(height: 8)
-                            infoRow("일정", "미정")
+                            infoRow("장소", HoyolandInfo.venueName)
                         }
                         Image(systemName: "chevron.right").font(.pretendard(size: 13, weight: .semibold))
                             .foregroundStyle(Color(.tertiaryLabel))
@@ -65,7 +68,7 @@ struct HoyolandSection: View {
     }
 }
 
-/// 호요랜드 상세 — 예상 장소(킨텍스 제2전시장) + 지도 바로가기 + 미정 정보 + 지난 행사(2025).
+/// 호요랜드 상세 — 확정 일정·장소(킨텍스 제2전시장) + 지도 바로가기 + 지난 행사(2025).
 struct HoyolandDetailView: View {
     @Environment(\.glgAccent) private var accent
 
@@ -90,10 +93,7 @@ struct HoyolandDetailView: View {
                                     .foregroundStyle(accent.primary)
                             }
                             VStack(alignment: .leading, spacing: 2) {
-                                HStack(spacing: 8) {
-                                    Text("장소").font(.pretendard(size: 14, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
-                                    hoyoBadge("예상", accent.primary)
-                                }
+                                Text("장소").font(.pretendard(size: 14, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
                                 Text(HoyolandInfo.venueName).font(.pretendard(size: 13, weight: .medium))
                                     .foregroundStyle(GLGColor.textPrimary)
                             }
@@ -115,10 +115,10 @@ struct HoyolandDetailView: View {
                 }
                 .padding(.bottom, 14)
 
-                // 미정 정보 카드
+                // 일정·예매 카드 — 일정·장소는 확정, 예매만 아직 미정.
                 GLGCard(cornerRadius: 24, padding: 16) {
                     VStack(spacing: 0) {
-                        infoRow("일정", "미정")
+                        infoRow("일정", HoyolandInfo.eventPeriodLong)
                         Divider().padding(.vertical, 10)
                         infoRow("예매", "미정")
                     }
@@ -148,7 +148,7 @@ struct HoyolandDetailView: View {
                     ("구성", "미니게임 · 포토존 · 코스프레 퍼레이드 · 팬사인회 · 무대"),
                 ])
 
-                Text("장소는 지난 2024·2025 개최지 기준 예상이며, 공식 일정·장소·예매가 확정되면 여기에서 바로 업데이트됩니다.")
+                Text("일정과 장소가 확정됐습니다. 예매는 아직 공개 전이며, 확정되면 여기에서 바로 업데이트됩니다.")
                     .font(.pretendard(size: 11)).foregroundStyle(GLGColor.textSecondary)
                     .padding(.top, 14).padding(.horizontal, 2)
 
