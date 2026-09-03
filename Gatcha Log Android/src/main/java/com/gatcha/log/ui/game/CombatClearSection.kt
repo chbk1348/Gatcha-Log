@@ -19,6 +19,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -33,6 +34,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -209,16 +212,27 @@ private fun RoomRow(room: CombatRoom, season: String) {
             // 별은 칩으로 키운다 — 층을 구분하는 유일한 수치인데 예전엔 아이콘 더미에 묻혔다.
             // 만점을 아는 모드만 분모를 붙인다(점수 기반은 층마다 만점이 달라 "★4/3" 이 된다).
             if (room.stars > 0) {
-                Text(
-                    if (room.maxStars > 0) "★ ${room.stars}/${room.maxStars}" else "★ ${room.stars}",
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = StarGold,
+                val label = if (room.maxStars > 0) "${room.stars}/${room.maxStars}" else "${room.stars}"
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(2.dp),
                     modifier = Modifier
                         .clip(RoundedCornerShape(8.dp))
                         .background(StarGold.copy(alpha = 0.12f))
-                        .padding(horizontal = 7.dp, vertical = 3.dp),
-                )
+                        .padding(horizontal = 7.dp, vertical = 3.dp)
+                        // 아이콘엔 설명을 달지 않는다 — 숫자만 읽히면 무엇의 개수인지 알 수 없어 칩 전체에 하나만 준다.
+                        .semantics(mergeDescendants = true) {
+                            contentDescription = if (room.maxStars > 0) "별 ${room.stars} / ${room.maxStars}" else "별 ${room.stars}"
+                        },
+                ) {
+                    Icon(
+                        Icons.Default.Star,
+                        contentDescription = null,
+                        tint = StarGold,
+                        modifier = Modifier.size(11.dp),
+                    )
+                    Text(label, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = StarGold)
+                }
             }
         }
         if (room.detail.isNotBlank()) {

@@ -184,8 +184,9 @@ private struct RoomRow: View {
                 // 만점을 아는 모드만 분모를 붙인다 — 점수 기반(허구 이야기·종말의 환영)은 만점이 층마다 달라
                 // 고정 분모를 쓰면 "★4/3" 같은 값이 나온다.
                 if room.stars > 0 {
-                    Text(room.maxStars > 0 ? "★ \(room.stars)/\(room.maxStars)" : "★ \(room.stars)")
-                        .font(.pretendard(size: 11, weight: .bold))
+                    StarCount(label: room.maxStars > 0 ? "\(room.stars)/\(room.maxStars)" : "\(room.stars)",
+                              description: room.maxStars > 0 ? "별 \(room.stars) / \(room.maxStars)" : "별 \(room.stars)",
+                              size: 11)
                         .foregroundStyle(starGold)
                 }
                 Spacer(minLength: 8)

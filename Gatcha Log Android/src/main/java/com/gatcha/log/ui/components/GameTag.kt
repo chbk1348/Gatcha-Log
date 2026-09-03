@@ -39,12 +39,22 @@ enum class GameTagSize {
 /**
  * @param game 게임 식별 문자열 — displayName·shortName·key 아무거나 받는다(GameData.byNameOrNull 이 흡수).
  *             매칭 실패 시 앞 2글자를 약칭으로 쓰고 폴백 색을 적용한다.
+ * @param abbrOverride 앱이 다루지 않는 IP 를 같은 규격으로 그릴 때의 약칭.
+ *             [GameData] 폴백은 앞 2글자("붕괴")라 약칭이 안 되고, 색도 전부 원신 색으로 뭉개진다
+ *             (colorFor 의 폴백이 GENSHIN). 그런 자리에서만 쓴다 — 앱 게임에는 넘기지 말 것.
+ * @param colorOverride 위와 같은 목적의 색(ARGB Long).
  */
 @Composable
-fun GlgGameTag(game: String, modifier: Modifier = Modifier, size: GameTagSize = GameTagSize.Medium) {
+fun GlgGameTag(
+    game: String,
+    modifier: Modifier = Modifier,
+    size: GameTagSize = GameTagSize.Medium,
+    abbrOverride: String? = null,
+    colorOverride: Long? = null,
+) {
     val g = GameData.byNameOrNull(game)
-    val abbr = g?.abbr ?: game.take(2)
-    val color = GameData.colorFor(game).toColor()
+    val abbr = abbrOverride ?: g?.abbr ?: game.take(2)
+    val color = (colorOverride ?: GameData.colorFor(game)).toColor()
 
     val box = if (size == GameTagSize.Small) 28.dp else 40.dp
     val radius = if (size == GameTagSize.Small) 9.dp else 12.dp
