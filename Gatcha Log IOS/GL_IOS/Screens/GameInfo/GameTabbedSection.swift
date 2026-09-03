@@ -81,7 +81,10 @@ private struct CombatCard: View {
                 Spacer(minLength: 8)
                 VStack(alignment: .trailing, spacing: 2) {
                     if m.maxStars > 0 {
-                        Text("⭐ \(m.stars)/\(m.maxStars)").font(.pretendard(size: 13, weight: .bold)).foregroundStyle(Color(argb64: m.gameColor))
+                        StarCount(label: "\(m.stars)/\(m.maxStars)",
+                                  description: "별 \(m.stars) / \(m.maxStars)",
+                                  size: 13)
+                            .foregroundStyle(Color(argb64: m.gameColor))
                     } else if m.hasData {
                         Text("메달 \(m.stars)").font(.pretendard(size: 13, weight: .bold)).foregroundStyle(Color(argb64: m.gameColor))
                     }
@@ -95,6 +98,27 @@ private struct CombatCard: View {
             }
         }
         .padding(.vertical, 10)
+    }
+}
+
+/// 별 획득 수 — 아이콘 + 숫자. 이모지(⭐)는 기기·OS 폰트에 따라 모양과 크기가 제각각이라
+/// 옆 숫자와 기준선이 어긋난다. SF Symbol 은 색을 게임색으로 물들일 수 있다는 이점도 있다.
+/// (Android `StarCount` 와 패리티)
+///
+/// 아이콘에 개별 접근성 라벨을 주지 않고 요소를 합쳐 하나만 주는 이유: 이모지일 때는 VoiceOver 가
+/// "별"을 읽어 줬는데, 심볼로 바꾸면 숫자만 남아 무엇의 개수인지 알 수 없다.
+struct StarCount: View {
+    let label: String
+    let description: String
+    let size: CGFloat
+
+    var body: some View {
+        HStack(spacing: 3) {
+            Image(systemName: "star.fill").font(.system(size: size - 2))
+            Text(label).font(.pretendard(size: size, weight: .bold))
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(description)
     }
 }
 
