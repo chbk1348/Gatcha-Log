@@ -52,7 +52,8 @@ struct NotificationSettingsView: View {
          .attendance: store.notifyAttendance,
          .pickup: store.notifyPickup,
          .combat: store.notifyCombat,
-         .news: store.notifyNews]
+         .news: store.notifyNews,
+         .hoyoland: store.notifyHoyoland]
     }
     private var anyNotifyOn: Bool { notifyState.values.contains(true) }
 
@@ -65,6 +66,7 @@ struct NotificationSettingsView: View {
         case .pickup: return notifyBind(\.notifyPickup, store.setNotifyPickup)
         case .combat: return notifyBind(\.notifyCombat, store.setNotifyCombat)
         case .news: return notifyBind(\.notifyNews, store.setNotifyNews)
+        case .hoyoland: return notifyBind(\.notifyHoyoland, store.setNotifyHoyoland)
         }
     }
 
@@ -78,6 +80,7 @@ struct NotificationSettingsView: View {
         case .pickup: return "calendar.badge.clock"
         case .combat: return "medal"
         case .news: return "megaphone.fill"
+        case .hoyoland: return "party.popper.fill"
         }
     }
 

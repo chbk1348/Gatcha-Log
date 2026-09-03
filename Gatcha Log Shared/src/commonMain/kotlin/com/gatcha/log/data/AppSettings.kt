@@ -34,6 +34,14 @@ class AppSettings {
         get() = prefs.getBoolean(KEY_NOTIFY_NEWS, false)
         set(v) { prefs.putBoolean(KEY_NOTIFY_NEWS, v) }
 
+    /**
+     * 호요랜드 알림(예매 오픈·개막 임박). 기본 ON — **1년에 몇 건뿐이라 소음이 되지 않는다.**
+     * 게다가 예매는 놓치면 되돌릴 수 없다(2025 는 3만 6천 장이 완판됐다).
+     */
+    var notifyHoyoland: Boolean
+        get() = prefs.getBoolean(KEY_NOTIFY_HOYOLAND, true)
+        set(v) { prefs.putBoolean(KEY_NOTIFY_HOYOLAND, v) }
+
     /** 정기결제 갱신일 알림(결제 하루 전). 기본 ON — 새는 고정비 안내. */
     var notifySubscription: Boolean
         get() = prefs.getBoolean(KEY_NOTIFY_SUB, true)
@@ -167,7 +175,7 @@ class AppSettings {
     /** 백그라운드 주기 작업이 필요한지(하나라도 켜져 있으면 스케줄 유지). */
     fun needsPeriodicWork(): Boolean =
         autoCheckIn || notifyResin || notifyAttendance || notifyBudget || notifyPickup ||
-            notifySubscription || notifyDailySummary || notifyNews || notifyCombat
+            notifySubscription || notifyDailySummary || notifyNews || notifyCombat || notifyHoyoland
 
     /**
      * 마지막 포그라운드 점검 시각 — 앱을 열 때마다 밀린 알림을 정리하되, 전환할 때마다
@@ -198,6 +206,7 @@ class AppSettings {
         private const val KEY_HERO_GLOW = "hero_glow"
         private const val KEY_NOTIFY_SUB = "notify_subscription"
         private const val KEY_NOTIFY_NEWS = "notify_news"
+        private const val KEY_NOTIFY_HOYOLAND = "notify_hoyoland"
         private const val KEY_NOTIFY_COMBAT = "notify_combat"
         private const val KEY_LAST_FG_CHECK = "last_foreground_check"
         private const val KEY_DND_ENABLED = "notify_dnd_enabled"

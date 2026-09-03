@@ -20,6 +20,20 @@ import kotlin.time.Instant
  * kotlinx-datetime 으로 구현 (KMP). 출력 문자열 형식은 원본과 동일하다.
  */
 @OptIn(ExperimentalTime::class)
+/**
+ * 한국어 요일 (월~일) — SimpleDateFormat "E" (Locale.KOREA) 와 동일 표기.
+ *
+ * [DateUtil] 안의 private 확장이었는데, 밀리초가 아니라 [LocalDate] 를 직접 다루는 쪽에서도
+ * 같은 표기가 필요해져(호요랜드 기간 라벨) 파일 최상단 internal 로 올렸다 — 요일 표기가
+ * 두 벌이 되면 "10.5(월)" 과 "10.5(月)" 처럼 조용히 갈라진다.
+ */
+internal val DayOfWeek.koLabel: String
+    get() = when (this) {
+        DayOfWeek.MONDAY -> "월"; DayOfWeek.TUESDAY -> "화"; DayOfWeek.WEDNESDAY -> "수"
+        DayOfWeek.THURSDAY -> "목"; DayOfWeek.FRIDAY -> "금"; DayOfWeek.SATURDAY -> "토"
+        else -> "일"
+    }
+
 object DateUtil {
 
     /**
@@ -49,14 +63,6 @@ object DateUtil {
     private fun local(millis: Long, tz: TimeZone = localTz): LocalDateTime =
         Instant.fromEpochMilliseconds(millis).toLocalDateTime(tz)
 
-    /** 한국어 요일 (월~일) — SimpleDateFormat "E" (Locale.KOREA) 와 동일 표기 */
-    private val DayOfWeek.koLabel: String
-        get() = when (this) {
-            DayOfWeek.MONDAY -> "월"; DayOfWeek.TUESDAY -> "화"; DayOfWeek.WEDNESDAY -> "수"
-            DayOfWeek.THURSDAY -> "목"; DayOfWeek.FRIDAY -> "금"; DayOfWeek.SATURDAY -> "토"
-            else -> "일"
-        }
-
     private fun pad2(n: Int): String = if (n < 10) "0$n" else "$n"
 
     /** "2026년 5월 20일" */
@@ -66,10 +72,6 @@ object DateUtil {
     /** "2026년 5월 22일 (금)" */
     fun labelWithWeekday(millis: Long): String =
         local(millis).let { "${it.year}년 ${it.month.number}월 ${it.day}일 (${it.dayOfWeek.koLabel})" }
-
-    /** "5월 22일 (금)" */
-    fun shortLabelWithWeekday(millis: Long): String =
-        local(millis).let { "${it.month.number}월 ${it.day}일 (${it.dayOfWeek.koLabel})" }
 
     /** 그룹핑 키 "2026-05-20" */
     fun dayKey(millis: Long): String =
@@ -246,16 +248,6 @@ object DateUtil {
     /** 그 달의 일수. */
     fun hoyoMonthDays(monthOffset: Int): Int =
         hoyoMonthFirst(monthOffset).plus(1, DateTimeUnit.MONTH).minus(1, DateTimeUnit.DAY).day
-
-    /**
-     * [fromMillis] ~ [toMillis] 사이의 로컬 달력 일수 차(자정 기준, 음수면 0).
-     * :app 의 Calendar 자정 절삭 + (대상-오늘)/86400000 패턴을 대체.
-     */
-    fun daysBetween(fromMillis: Long, toMillis: Long): Int {
-        val from = local(fromMillis).date
-        val to = local(toMillis).date
-        return from.daysUntil(to).coerceAtLeast(0)
-    }
 
     /** 일요일을 0 으로 두는 요일 인덱스. */
     private val DayOfWeek.sundayBasedIndex: Int

@@ -5,6 +5,7 @@ import com.gatcha.log.data.DateUtil
 import com.gatcha.log.data.GameData
 import com.gatcha.log.data.GatchaRepository
 import com.gatcha.log.data.Notifier
+import com.gatcha.log.data.api.HoyolandApi
 import com.gatcha.log.data.subscriptionNotificationId
 import com.gatcha.log.util.currentTimeMillis
 
@@ -254,6 +255,52 @@ object ScheduledAlerts {
                     dedupTag = "resin:$gameKey",
                     dedupValue = DateUtil.hoyoDayKey(at),
                 )
+            }
+        }
+
+        // ⑤ 호요랜드 — 예매 오픈과 개막. **날짜가 못 박힌 유일한 오프라인 일정**이라
+        //    예약과 가장 잘 맞는다(원본도 네트워크 없이 읽는 번들/캐시값이다).
+        //    즉시 발송 갈래를 두지 않는 이유: 놓쳐서 아쉬운 건 '예매 시작'과 '개막'이라는 시점 자체지,
+        //    지나간 뒤 뒤늦게 알리는 건 알림이 아니라 소음이다.
+        if (settings.notifyHoyoland) {
+            val event = HoyolandApi.current
+
+            // 예매 오픈 — 하루 전 아침과 **오픈 1시간 전**. 예매는 분 단위 경쟁이라 당일 알림이 본론이다.
+            val openAt = event.ticketOpenMillis()
+            if (openAt > nowMillis) {
+                val dayBefore = shiftOutOfQuiet(settings, DateUtil.localTimeOnDay(openAt - DAY_MS, ALERT_HOUR))
+                if (dayBefore > nowMillis) {
+                    out += ScheduledAlert(
+                        key = "hoyoland:ticket:d1",
+                        title = "${event.edition} 예매 내일",
+                        text = "${event.ticket.openLabel} 오픈이에요. 미리 준비해 두세요",
+                        whenMillis = dayBefore,
+                    )
+                }
+                // 이 한 건은 방해금지로 밀지 않는다 — 밀면 예매가 이미 시작된 뒤에 도착한다.
+                val hourBefore = openAt - 3_600_000L
+                if (hourBefore > nowMillis) {
+                    out += ScheduledAlert(
+                        key = "hoyoland:ticket:h1",
+                        title = "${event.edition} 예매 1시간 전",
+                        text = "${event.ticket.openLabel}${if (event.ticket.vendor.isBlank()) "" else " · ${event.ticket.vendor}"}",
+                        whenMillis = hourBefore,
+                        link = event.ticket.url,
+                    )
+                }
+            }
+
+            // 개막 — D-7/D-1 아침과 개막 당일 아침.
+            listOf(7, 1, 0).forEach { lead ->
+                val at = shiftOutOfQuiet(settings, event.startAtMillis(ALERT_HOUR) - lead * DAY_MS)
+                if (event.startAtMillis(ALERT_HOUR) > 0L && at > nowMillis) {
+                    out += ScheduledAlert(
+                        key = "hoyoland:open:$lead",
+                        title = if (lead == 0) "${event.edition} 오늘 개막" else "${event.edition} D-$lead",
+                        text = "${event.periodLabel} · ${event.venueShort}",
+                        whenMillis = at,
+                    )
+                }
             }
         }
 

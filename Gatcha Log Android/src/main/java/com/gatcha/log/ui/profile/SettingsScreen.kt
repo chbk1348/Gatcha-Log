@@ -613,6 +613,7 @@ private fun NotificationSettingsScreen(viewModel: SpendingViewModel, onBack: () 
     val notifyAttendance by viewModel.notifyAttendance.collectAsStateWithLifecycle()
     val notifyResin by viewModel.notifyResin.collectAsStateWithLifecycle()
     val notifyPickup by viewModel.notifyPickup.collectAsStateWithLifecycle()
+    val notifyHoyoland by viewModel.notifyHoyoland.collectAsStateWithLifecycle()
     val notifySubscription by viewModel.notifySubscription.collectAsStateWithLifecycle()
     val notifyNews by viewModel.notifyNews.collectAsStateWithLifecycle()
     val notifyCombat by viewModel.notifyCombat.collectAsStateWithLifecycle()
@@ -682,6 +683,7 @@ private fun NotificationSettingsScreen(viewModel: SpendingViewModel, onBack: () 
             NotifyKey.PICKUP to notifyPickup,
             NotifyKey.COMBAT to notifyCombat,
             NotifyKey.NEWS to notifyNews,
+            NotifyKey.HOYOLAND to notifyHoyoland,
         )
         val setNotify: (NotifyKey, Boolean) -> Unit = { key, on ->
             if (on) ensureNotifPerm()
@@ -693,6 +695,7 @@ private fun NotificationSettingsScreen(viewModel: SpendingViewModel, onBack: () 
                 NotifyKey.PICKUP -> viewModel.setNotifyPickup(on)
                 NotifyKey.COMBAT -> viewModel.setNotifyCombat(on)
                 NotifyKey.NEWS -> viewModel.setNotifyNews(on)
+                NotifyKey.HOYOLAND -> viewModel.setNotifyHoyoland(on)
             }
         }
 
@@ -875,6 +878,7 @@ private fun notifyIcon(key: NotifyKey): ImageVector = when (key) {
     NotifyKey.PICKUP -> Icons.Default.Event
     NotifyKey.COMBAT -> Icons.Default.MilitaryTech
     NotifyKey.NEWS -> Icons.Default.Campaign
+    NotifyKey.HOYOLAND -> Icons.Default.Celebration
 }
 
 @Composable

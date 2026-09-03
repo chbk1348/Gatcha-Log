@@ -92,7 +92,6 @@ fun GameInfoScreen(
     val events by viewModel.gameEvents.collectAsStateWithLifecycle()
     val notes by viewModel.liveNotes.collectAsStateWithLifecycle()
     val gameNews by viewModel.gameNews.collectAsStateWithLifecycle()
-    val confirmedBroadcasts by viewModel.confirmedBroadcasts.collectAsStateWithLifecycle()
     val ledgers by viewModel.ledgers.collectAsStateWithLifecycle()
     val combat by viewModel.combat.collectAsStateWithLifecycle()
     val combatClears by viewModel.combatClears.collectAsStateWithLifecycle()
@@ -198,6 +197,13 @@ fun GameInfoScreen(
         // 전투 진행도는 본문 섹션이 아니라 데일리에서 들어가는 상세 페이지로 옮겼다 → 스크롤 대신 페이지 진입.
         if (anchor == GameInfoAnchor.COMBAT) {
             subPage = GiSub.GameContent
+            viewModel.consumeGameInfoAnchor()
+            return@LaunchedEffect
+        }
+        // 호요랜드도 스크롤이 아니라 페이지 진입이다 — 홈 카드에서 온 사람이 보려는 건
+        // 게임정보 목록의 그 자리가 아니라 상세 내용이다.
+        if (anchor == GameInfoAnchor.HOYOLAND) {
+            subPage = GiSub.Hoyoland
             viewModel.consumeGameInfoAnchor()
             return@LaunchedEffect
         }
@@ -325,9 +331,10 @@ fun GameInfoScreen(
             GiSub.Schedule -> {
                 val collabExpanded by viewModel.collabBannerExpanded.collectAsState()
                 GameScheduleFullPage(
-                    banners, events, challenges, confirmedBroadcasts,
+                    banners, events, challenges,
                     collabExpanded = collabExpanded,
                     onToggleCollab = { viewModel.setCollabBannerExpanded(!collabExpanded) },
+                    onOpenHoyoland = { subPage = GiSub.Hoyoland },
                     onBack = { subPage = GiSub.Main },
                 )
             }
