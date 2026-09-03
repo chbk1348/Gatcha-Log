@@ -22,9 +22,6 @@ import kotlinx.coroutines.launch
 object IosAppState {
     val viewModel: SpendingViewModel by lazy { SpendingViewModel() }
 
-    /** 지출 추가/수정 모달 대상 — 수정이면 해당 Spending, 추가면 null. (Swift 와 객체를 주고받지 않기 위한 공유 상태) */
-    val spendingToEdit = MutableStateFlow<Spending?>(null)
-
     /**
      * 초기 동기화 로딩 화면 완료 여부 (프로세스 수명 동안 유지).
      * 게이트 활성 = !account.isGuest && !syncLoadingDone — Swift(탭바/추가버튼 숨김)가 공유.
@@ -85,15 +82,6 @@ fun observeSyncGate(onChange: (Boolean) -> Unit) {
 }
 
 /**
- * SwiftUI 지출 상세 '수정' → 편집 대상을 공유 상태에 설정한 뒤 Swift 가 AddSpending 모달을 연다.
- * (SwiftUI 목록/상세에서 사용)
- */
-@Suppress("unused")
-fun prepareEditSpending(spending: Spending) {
-    IosAppState.spendingToEdit.value = spending
-}
-
-/**
  * SwiftUI 지출 추가/수정 폼 저장 — Spending 객체 생성을 Kotlin 에서 처리(id·gameColor 정합성).
  * editingId 가 있으면 해당 기록을 수정, 없으면 신규 추가.
  */
@@ -127,7 +115,6 @@ fun saveSpending(
         gameColor = game.color,
     )
     if (target == null) vm.addSpending(s) else vm.updateSpending(s)
-    IosAppState.spendingToEdit.value = null
 }
 
 // ── 테마(액센트) 색상 브리지 — 네이티브 탭바 틴트를 앱 테마와 연동 ──────────────

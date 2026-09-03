@@ -419,17 +419,6 @@ struct ContentView: View {
         return .search
     }
 
-    /// 탭별 서브페이지 상태 콜백 — 해당 탭의 탭바 숨김 상태만 갱신
-    private func subPageBinding(_ tab: Int) -> (KotlinBoolean) -> Void {
-        return { active in
-            if active.boolValue {
-                tabsWithSubPage.insert(tab)
-            } else {
-                tabsWithSubPage.remove(tab)
-            }
-        }
-    }
-
     /// 탭바 표시 여부 — 서브페이지에서도 항상 노출하되, 초기 동기화 게이트와 **지출 입력 페이지**에서 숨김.
     /// (로그인 화면은 TabView 밖 별도 뷰라 자동으로 탭바·FAB 없음)
     ///

@@ -98,9 +98,6 @@ class JSONObject {
     fun getBoolean(key: String): Boolean =
         (map[key] as? JsonPrimitive)?.booleanOrNull ?: throw JSONException("$key: Boolean 아님")
 
-    fun getDouble(key: String): Double =
-        (map[key] as? JsonPrimitive)?.doubleOrNull ?: throw JSONException("$key: Double 아님")
-
     // ---- opt* (없으면 기본값 — org.json 과 동일) ----
 
     /** org.json 의 opt(key): Any? — 원시값은 문자열 content 로 반환 (?.toString() 용법 호환) */

@@ -344,9 +344,6 @@ struct SpendingDetailView: View {
         GameData.shared.byName(name: gameName).englishName
     }
 
-    /// 히어로 부제 — 날짜만. 결제 수단·플랫폼은 아래 상세 카드가 맡는다(중복 표시 방지).
-    private func heroSubtitle(_ s: Spending) -> String { s.dateLabel }
-
     /**
      같은 항목을 산 이력 — 횟수·누적·평균 간격 + 목록.
 

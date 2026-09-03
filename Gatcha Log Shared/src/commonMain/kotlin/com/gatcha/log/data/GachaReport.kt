@@ -87,12 +87,6 @@ object GachaReport {
         "zzz" to mapOf("character" to "독점", "engine" to "W-엔진", "bangboo" to "봉구", "permanent" to "상시", "novice" to "초보"),
     )
 
-    val poolOrder: Map<String, List<String>> = mapOf(
-        "genshin" to listOf("character", "weapon", "chronicled", "permanent", "novice"),
-        "starrail" to listOf("character", "lightcone", "collab_character", "collab_lightcone", "permanent", "novice"),
-        "zzz" to listOf("character", "engine", "bangboo", "permanent", "novice"),
-    )
-
     val gameOrder = listOf("genshin", "starrail", "zzz")
 
     private val poolMap: Map<String, Map<String, String>> = mapOf(

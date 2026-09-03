@@ -60,10 +60,6 @@ fun <T> glgStandardSpec(durationMs: Int = GlgMotion.DurationStandard): FiniteAni
 fun <T> glgShortSpec(durationMs: Int = GlgMotion.DurationShort): FiniteAnimationSpec<T> =
     tween(durationMs, easing = GlgEasingStandard)
 
-/** 강조 전환 스펙 — emphasis easing, 기본 360ms([GlgMotion.DurationLong]). FAB 모프 등. */
-fun <T> glgEmphasisSpec(durationMs: Int = GlgMotion.DurationLong): FiniteAnimationSpec<T> =
-    tween(durationMs, easing = GlgEasingEmphasis)
-
 /**
  * 되돌아오는 요소용 **스프링** 스펙 — 아래에서 올라와 살짝 넘쳤다가 자리를 잡는다(물방울처럼).
  *

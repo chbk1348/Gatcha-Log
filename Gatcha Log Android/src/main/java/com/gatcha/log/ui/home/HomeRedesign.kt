@@ -25,6 +25,8 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Calculate
 import androidx.compose.material.icons.filled.Insights
 import androidx.compose.ui.graphics.vector.ImageVector
+import com.gatcha.log.data.HoyolandEvent
+import com.gatcha.log.ui.game.HoyolandFeature
 import androidx.compose.material.icons.filled.MilitaryTech
 import androidx.compose.material.icons.filled.Savings
 import androidx.compose.material.icons.filled.TaskAlt
@@ -81,7 +83,6 @@ import com.gatcha.log.data.api.NewsItem
 import androidx.compose.material.icons.filled.Celebration
 import com.gatcha.log.data.LiveNote
 import com.gatcha.log.data.PityTier
-import com.gatcha.log.data.BannerPlan
 import com.gatcha.log.data.GameSpend
 import com.gatcha.log.data.PityHighlight
 import com.gatcha.log.data.ResinAlert
@@ -559,81 +560,6 @@ private fun buildMonthlySummary(
     }
 }
 
-// ── D: 지출 + 게임별 예산 ────────────────────────────────────────────────────
-@Composable
-fun SpendingBudgetSection(
-    monthlyTotal: Long,
-    budget: Long,
-    perGame: List<GameSpend>,
-    onEditBudget: () -> Unit,
-) {
-    val accent = LocalAccent.current
-    val accent2 = LocalAccentSecondary.current
-    val ratio = if (budget > 0) (monthlyTotal.toFloat() / budget).coerceIn(0f, 1f) else 0f
-    val pct = if (budget > 0) (monthlyTotal * 100 / budget).toInt() else 0
-    val over = budget > 0 && monthlyTotal > budget
-
-    GlassCard(shape = RoundedCornerShape(26.dp), modifier = Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(20.dp)) {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Top) {
-                Column {
-                    Text("이번 달 지출", fontSize = 12.sp, color = TextSecondary)
-                    Text(
-                        "%d년 %d월".format(DateUtil.year(System.currentTimeMillis()), DateUtil.month(System.currentTimeMillis())),
-                        fontSize = 14.sp, fontWeight = FontWeight.Medium,
-                    )
-                }
-                IconButton(onClick = onEditBudget, modifier = Modifier.size(28.dp)) {
-                    Icon(Icons.Default.Edit, contentDescription = "예산 설정", tint = TextSecondary, modifier = Modifier.size(16.dp))
-                }
-            }
-            Spacer(Modifier.height(4.dp))
-            Text(won(monthlyTotal), fontSize = 32.sp, fontWeight = FontWeight.Bold)
-            Spacer(Modifier.height(16.dp))
-
-            if (budget > 0) {
-                BudgetBar(ratio, over)
-                Spacer(Modifier.height(8.dp))
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text(
-                        if (over) won(monthlyTotal - budget) + " 초과" else won(budget - monthlyTotal) + " 남음",
-                        fontSize = 11.sp, color = if (over) DangerText else TextSecondary,
-                    )
-                    Text("예산 ${pct}% 사용", fontSize = 11.sp, color = TextSecondary)
-                }
-            } else {
-                Surface(
-                    color = accent.copy(alpha = 0.06f),
-                    shape = RoundedCornerShape(12.dp),
-                    modifier = Modifier.fillMaxWidth().clickable { onEditBudget() },
-                ) {
-                    Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.Savings, null, tint = accent, modifier = Modifier.size(16.dp))
-                        Spacer(Modifier.width(8.dp))
-                        Text("월 예산 미설정 — 탭하여 설정하면 사용률이 표시돼요", fontSize = 12.sp, color = TextSecondary)
-                    }
-                }
-            }
-
-            // 게임별 예산 막대 (N5)
-            if (perGame.isNotEmpty()) {
-                Spacer(Modifier.height(18.dp))
-                HorizontalDivider(color = DividerColor)
-                Spacer(Modifier.height(14.dp))
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                    Text("게임별 예산", fontSize = 13.sp, fontWeight = FontWeight.Bold)
-                    Text("한도 설정 ›", fontSize = 11.sp, color = TextSecondary, modifier = Modifier.clickable { onEditBudget() })
-                }
-                Spacer(Modifier.height(12.dp))
-                perGame.forEachIndexed { i, gs ->
-                    if (i > 0) Spacer(Modifier.height(11.dp))
-                    GameBudgetRow(gs, accent, accent2)
-                }
-            }
-        }
-    }
-}
-
 @Composable
 private fun BudgetBar(ratio: Float, over: Boolean) {
     val accent = LocalAccent.current
@@ -718,40 +644,6 @@ private fun GameBudgetRow(gs: GameSpend, accent: Color, accent2: Color) {
         } else {
             // 한도 미설정 — 점선 느낌의 옅은 트랙
             Box(Modifier.fillMaxWidth().height(7.dp).clip(CircleShape).background(ProgressEmpty.copy(alpha = 0.5f)))
-        }
-    }
-}
-
-// ── 픽업 배너 캡슐 (O) ───────────────────────────────────────────────────────
-@Composable
-fun BannerCapsule(banner: GachaBanner) {
-    val accent = LocalAccent.current
-    // banner.game 은 displayName(예: "원신") — byNameOrNull 로 매핑
-    val g = GameData.byNameOrNull(banner.game)
-    val color = banner.gameColor.toColor()
-    val urgent = banner.isUrgent()
-    val chipColor = if (urgent) WarningText else accent
-    Surface(
-        shape = RoundedCornerShape(999.dp),
-        color = Color.White,
-        border = BorderStroke(1.dp, DividerColor),
-        modifier = Modifier.fillMaxWidth(),
-    ) {
-        Row(Modifier.padding(horizontal = 16.dp, vertical = 11.dp), verticalAlignment = Alignment.CenterVertically) {
-            GlgGameTag(banner.game, size = GameTagSize.Small)
-            Spacer(Modifier.width(10.dp))
-            Column(Modifier.weight(1f)) {
-                Text(banner.name, fontSize = 13.sp, fontWeight = FontWeight.Bold, maxLines = 1)
-                Text("${g?.shortName ?: banner.game} · 픽업", fontSize = 10.sp, color = TextSecondary, maxLines = 1)
-            }
-            Spacer(Modifier.width(8.dp))
-            Surface(color = chipColor.copy(alpha = 0.14f), shape = RoundedCornerShape(999.dp)) {
-                Text(
-                    banner.remainLabel(),
-                    fontSize = 11.sp, fontWeight = FontWeight.Bold, color = chipColor, maxLines = 1,
-                    modifier = Modifier.padding(horizontal = 9.dp, vertical = 3.dp),
-                )
-            }
         }
     }
 }
@@ -948,127 +840,9 @@ private fun PityTier.shortLabel(): String = when (this) {
     PityTier.Safe -> "모으는 중"
 }
 
-@Composable
-private fun PityMini(p: PityHighlight?, modifier: Modifier) {
-    Surface(
-        shape = RoundedCornerShape(16.dp),
-        color = Color.White,
-        border = BorderStroke(1.dp, DividerColor),
-        modifier = modifier.fillMaxHeight(),
-    ) {
-        Column(Modifier.padding(13.dp)) {
-            Text("천장", fontSize = 11.sp, color = TextSecondary)
-            Spacer(Modifier.height(4.dp))
-            if (p == null) {
-                Text("기록 없음", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TextSecondary)
-            } else {
-                val c = p.tier.accentColor()
-                Text(p.game.shortName, fontSize = 13.sp, fontWeight = FontWeight.Bold, maxLines = 1)
-                Spacer(Modifier.height(2.dp))
-                Row(verticalAlignment = Alignment.Bottom) {
-                    Text("${p.count}", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = c)
-                    Text("/${p.hard}", fontSize = 12.sp, color = TextSecondary, modifier = Modifier.padding(bottom = 2.dp))
-                }
-                Spacer(Modifier.height(6.dp))
-                val ratio = (p.count.toFloat() / p.hard).coerceIn(0f, 1f)
-                Box(Modifier.fillMaxWidth().height(5.dp).clip(CircleShape).background(ProgressEmpty)) {
-                    Box(Modifier.fillMaxWidth(ratio).fillMaxHeight().clip(CircleShape).background(c))
-                }
-                Spacer(Modifier.height(6.dp))
-                Surface(color = c.copy(alpha = 0.12f), shape = RoundedCornerShape(999.dp)) {
-                    Text(p.tier.shortLabel(), fontSize = 10.sp, fontWeight = FontWeight.Bold, color = c, modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp))
-                }
-            }
-        }
-    }
-}
-
-@Composable
-fun NextBannerMini(b: GachaBanner?, plan: BannerPlan?, modifier: Modifier) {
-    Surface(
-        shape = RoundedCornerShape(16.dp),
-        color = Color.White,
-        border = BorderStroke(1.dp, DividerColor),
-        modifier = modifier.fillMaxHeight(),
-    ) {
-        Column(Modifier.padding(13.dp)) {
-            Text("다음 픽업", fontSize = 11.sp, color = TextSecondary)
-            Spacer(Modifier.height(4.dp))
-            if (b == null) {
-                Text("예정 없음", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TextSecondary)
-            } else {
-                val d = b.dDay()
-                val urgent = d <= 3
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    GlgGameTag(b.game, size = GameTagSize.Small)
-                    Spacer(Modifier.width(8.dp))
-                    Text(b.name, fontSize = 13.sp, fontWeight = FontWeight.Bold, maxLines = 1)
-                }
-                Spacer(Modifier.height(6.dp))
-                Text(GameData.byNameOrNull(b.game)?.shortName ?: b.game, fontSize = 11.sp, color = TextSecondary, maxLines = 1)
-                Spacer(Modifier.height(6.dp))
-                val c = if (urgent) WarningText else LocalAccent.current
-                Surface(color = c.copy(alpha = 0.14f), shape = RoundedCornerShape(999.dp)) {
-                    Text(dhLabel(b.endMillis), fontSize = 10.sp, fontWeight = FontWeight.Bold, color = c, maxLines = 1, modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp))
-                }
-                // 픽업 확정 비용 인텔리전스 — 천장 누적·확률·1뽑 단가로 산출(가챠×지출 결합)
-                if (plan != null) {
-                    Spacer(Modifier.height(7.dp))
-                    Text("확정 최대 ${plan.maxPulls}연", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextPrimary, maxLines = 1)
-                    Text("약 ${won(plan.wonCost)}", fontSize = 10.sp, color = TextSecondary, maxLines = 1)
-                }
-            }
-        }
-    }
-}
-
 // ════════════════════════════════════════════════════════════════════════════
 // 홈 대시보드 개편(27.32.0) — 깔끔한 KPI 중심 레이아웃
 // ════════════════════════════════════════════════════════════════════════════
-
-@Composable
-fun DashSpendCard(monthlyTotal: Long, budget: Long, onTap: () -> Unit) {
-    val accent = LocalAccent.current
-    // 날짜 값은 재구성마다 다시 만들지 않는다.
-    val (day, days, month) = remember {
-        val c = java.util.Calendar.getInstance()
-        Triple(
-            c.get(java.util.Calendar.DAY_OF_MONTH),
-            c.getActualMaximum(java.util.Calendar.DAY_OF_MONTH),
-            c.get(java.util.Calendar.MONTH) + 1,
-        )
-    }
-    val remain = (days - day).coerceAtLeast(0)
-    val pct = if (budget > 0) (monthlyTotal * 100 / budget).toInt() else 0
-    val frac = if (budget > 0) (monthlyTotal.toFloat() / budget).coerceIn(0f, 1f) else 0f
-    val over = budget > 0 && monthlyTotal > budget
-    GlassCard(shape = RoundedCornerShape(22.dp), modifier = Modifier.fillMaxWidth().clickable { onTap() }) {
-        Column(Modifier.padding(18.dp)) {
-            Text("${month}월 지출", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = TextSecondary)
-            Row(verticalAlignment = Alignment.Bottom) {
-                Text(won(monthlyTotal), fontSize = 28.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
-                if (budget > 0) {
-                    Spacer(Modifier.width(6.dp))
-                    Text("/ 예산 ${won(budget)}", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = TextSecondary)
-                }
-            }
-            if (budget > 0) {
-                Spacer(Modifier.height(12.dp))
-                Box(Modifier.fillMaxWidth().height(9.dp).clip(CircleShape).background(ProgressEmpty)) {
-                    Box(Modifier.fillMaxWidth(frac).fillMaxHeight().clip(CircleShape).background(if (over) DangerText else accent))
-                }
-                Spacer(Modifier.height(8.dp))
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text(if (over) "예산 ${pct - 100}% 초과" else "예산의 ${pct}% 사용", fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold, color = if (over) DangerText else accent)
-                    Text("남은 ${remain}일", fontSize = 11.5.sp, color = TextSecondary)
-                }
-            } else {
-                Spacer(Modifier.height(10.dp))
-                Text("예산을 정하면 페이스를 알려드려요", fontSize = 12.sp, color = TextSecondary)
-            }
-        }
-    }
-}
 
 /** 이번 주 게임 일정 — titleOutside=true 면 제목을 카드 바깥 큰 헤더로. */
 @Composable
@@ -1177,3 +951,34 @@ private fun NewsBody(anni: AnniversaryInfo?, topNews: List<NewsItem>) {
     }
 }
 
+/**
+ * 호요랜드 홈 카드 — 개막이 가까울 때(D-60 이내)만 뜨는 **한시적** 카드.
+ *
+ * 상시 카드로 두지 않는 이유: 1년에 나흘 하는 행사라, 평소엔 홈에서 한 칸을 차지한 채
+ * 아무것도 알려주지 않는다. 노출 판정은 [HoyolandFeature.current] 하나로 모아 두어
+ * 일정 탭과 같은 시점에 같이 나타나고 같이 사라진다.
+ */
+@Composable
+fun DashHoyolandCard(event: HoyolandEvent, onTap: () -> Unit) {
+    val accent = LocalAccent.current
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        HomeSectionHeader("호요랜드", actionTitle = "자세히", onAction = onTap)
+        GlassCard(shape = RoundedCornerShape(22.dp), modifier = Modifier.fillMaxWidth().clickable { onTap() }) {
+            Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    Modifier.size(40.dp).clip(RoundedCornerShape(12.dp)).background(accent.copy(alpha = 0.12f)),
+                    contentAlignment = Alignment.Center,
+                ) { Icon(Icons.Default.Celebration, null, tint = accent, modifier = Modifier.size(20.dp)) }
+                Spacer(Modifier.width(12.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(event.edition, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TextPrimary, maxLines = 1)
+                    Spacer(Modifier.height(3.dp))
+                    Text(HoyolandFeature.summaryLine(event), fontSize = 12.5.sp, color = TextSecondary, maxLines = 1)
+                }
+                Spacer(Modifier.width(8.dp))
+                // 남은 날짜가 이 카드의 존재 이유라 가장 강하게 둔다(D-day 는 오른쪽 정렬이 앱 공통 규격).
+                Text(event.statusLabel(), fontSize = 12.sp, fontWeight = FontWeight.Bold, color = accent)
+            }
+        }
+    }
+}

@@ -8,18 +8,11 @@ import androidx.compose.ui.graphics.Color
 val MintPrimary = Color(0xFF34D1B6)
 val MintSecondary = Color(0xFF7FE3D0)
 
-val BackgroundGradientStart = Color(0xFFF0F7F6)
-val BackgroundGradientEnd = Color(0xFFFFFFFF)
-
 // 글래스모피즘(iOS26 스타일) 토큰 — 반투명 프로스티드 패널 + 밝은 가장자리
-val CardBackground = Color(0xB3FFFFFF)        // 흰색 70% — 카드/패널 프로스티드
-val GlassBorder = Color(0x99FFFFFF)           // 흰색 60% — 유리 가장자리 하이라이트
-val GlassStrong = Color(0xD9FFFFFF)           // 흰색 85% — 가독성이 필요한 패널(시트/다이얼로그)
-val GlassNav = Color(0x99FFFFFF)              // 하단 내비 알약
+// (카드/가장자리/시트/내비 알약 색은 GlassCard·GlgGlass 쪽 토큰으로 흡수돼 여기 상수는 남지 않았다)
 val NavUnselected = Color(0xFF8E8E93)         // 미선택 내비 아이템 (글래스 위 가독성 확보)
 val TextPrimary = Color(0xFF1A1C1E)
 val TextSecondary = Color(0xFF6C727A)
-val WarningBackground = Color(0xFFFFF4E5)
 val WarningText = Color(0xFFB37400)
 val DangerBackground = Color(0xFFFFE5E5)
 val DangerText = Color(0xFFD0021B)
@@ -30,10 +23,7 @@ val DividerColor = Color(0xFFF0F0F0)
 val SkeletonBase = Color(0xFFEAEAF0)
 val SkeletonHighlight = Color(0xFFF6F6FA)
 
-// 게임 색상 — 웹앱 GAMES 정의와 동일
-val GIColor = Color(0xFF4F8EF7)
-val HSRColor = Color(0xFFB06BFF)
-val ZZZColor = Color(0xFFF5A623)
+// 게임 색상은 GL_Shared(commonMain) GameData 의 color(Long ARGB) 가 정본이다 — 여기 중복 정의는 제거했다.
 
 // AccentOption / AccentPalette 는 GL_Shared(commonMain) 정본 사용(color/secondary 는 Long ARGB → toColor()).
 // 동일 FQN 중복 정의 시 dex 병합 충돌 → 여기서 재정의하지 않는다.

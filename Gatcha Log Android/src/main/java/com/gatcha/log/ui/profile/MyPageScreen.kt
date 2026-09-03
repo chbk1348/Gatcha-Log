@@ -520,12 +520,6 @@ private fun recentYearMonths(count: Int): List<Pair<Int, Int>> =
         c.get(Calendar.YEAR) to (c.get(Calendar.MONTH) + 1)
     }
 
-/** 지난달 (year, month1-12). */
-private fun prevYearMonth(): Pair<Int, Int> {
-    val c = Calendar.getInstance().apply { add(Calendar.MONTH, -1) }
-    return c.get(Calendar.YEAR) to (c.get(Calendar.MONTH) + 1)
-}
-
 private fun currentDayOfMonth(): Int = Calendar.getInstance().get(Calendar.DAY_OF_MONTH)
 
 // ============================================================

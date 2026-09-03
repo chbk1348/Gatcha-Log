@@ -869,18 +869,6 @@ private fun LegendDot(color: Color, label: String) {
     }
 }
 
-@Composable
-private fun StreakChip(streak: Int) {
-    val accent = LocalAccent.current
-    Surface(color = accent.copy(alpha = 0.12f), shape = RoundedCornerShape(8.dp)) {
-        Text(
-            "🔥 ${streak}일 연속",
-            fontSize = 11.sp, fontWeight = FontWeight.Bold, color = accent,
-            modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp),
-        )
-    }
-}
-
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun DailyGameRow(game: Game, note: LiveNote?, uid: String, checked: Boolean, inProgress: Boolean, onCheckIn: () -> Unit) {
