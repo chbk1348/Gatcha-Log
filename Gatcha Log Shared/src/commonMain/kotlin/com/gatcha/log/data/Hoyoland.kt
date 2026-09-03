@@ -111,6 +111,27 @@ data class HoyolandSlot(val time: String, val title: String, val desc: String = 
 /** 행사 하루치. [ymd] 는 `yyyy-MM-dd`. */
 data class HoyolandDay(val ymd: String, val slots: List<HoyolandSlot>)
 
+/**
+ * 지스타(G-STAR) — 호요랜드와 **별개 행사**지만, 호요버스가 나오는 국내 오프라인 자리라
+ * 같은 페이지에서 다룬다. 출처와 갱신 주기(참가사 명단이 순차 공개된다)도 호요랜드와 같아
+ * 원격 JSON 한 파일에 함께 둔다.
+ *
+ * @param lineup 호요버스 출품작. [HoyolandLineup.theme] 자리에 **무엇을 하는지**가 들어간다
+ *   ("한국 첫 오프라인 시연", "무대"). 호요랜드의 게임별 테마와 같은 줄 규격을 쓰려는 것이다.
+ */
+data class HoyolandGstar(
+    val title: String,
+    /** 제목 옆 배지 — 호요버스가 어느 규모로 나오는지 한 마디. */
+    val badge: String,
+    val facts: List<HoyolandFact>,
+    val lineup: List<HoyolandLineup>,
+    val url: String,
+    val notice: String,
+) {
+    /** 내용이 하나도 없으면 섹션을 통째로 접는다(원격에서 비워 내릴 수 있게). */
+    val isEmpty: Boolean get() = title.isBlank() || (facts.isEmpty() && lineup.isEmpty())
+}
+
 /** 지난 행사 1건 — 다음 행사 규모를 가늠하는 참고 자료로만 쓴다. */
 data class HoyolandPastEvent(val title: String, val facts: List<HoyolandFact>)
 
@@ -147,6 +168,7 @@ data class HoyolandEvent(
      * 공개된다(2025 기준). 그때까지 화면은 날짜 탭만 세우고 "공개 전"이라고 말한다.
      */
     val days: List<HoyolandDay>,
+    val gstar: HoyolandGstar,
     val past: List<HoyolandPastEvent>,
 ) {
 
@@ -364,6 +386,31 @@ object HoyolandDefaults {
         // 공식 시간표 미공개 — 날짜 탭은 기간에서 만들어지므로 여기는 비워 둔다.
         // 공개되면 hoyoland.json 의 days 를 채우는 것만으로 화면이 찬다(앱 업데이트 불필요).
         days = emptyList(),
+        // 2026-09-03 1차 참가사 발표 기준. 호요버스는 100부스로 4년 만에 복귀한다.
+        gstar = HoyolandGstar(
+            title = "G-STAR 2026",
+            badge = "호요버스 100부스",
+            facts = listOf(
+                HoyolandFact("기간", "2026.11.19(목) ~ 11.22(일) (4일)"),
+                HoyolandFact("장소", "부산 벡스코(BEXCO)"),
+                HoyolandFact("전시", "BTC 11.19 ~ 11.22 · BTB 11.19 ~ 11.21"),
+                HoyolandFact("호요버스", "100부스 · 4년 만의 복귀"),
+                HoyolandFact("함께", "크래프톤 · 구글플레이 · 웹젠 · 팀42 · 넷이즈게임즈 · 빌리빌리게임즈 · 센추리게임즈"),
+                HoyolandFact("스폰서", "크랙(뤼튼) — 게임사가 아닌 AI 기업의 첫 메인 스폰서"),
+                HoyolandFact("G-CON", "11.19 ~ 11.20 · 벡스코 · 1,500석 · 주제 '내러티브'"),
+            ),
+            lineup = listOf(
+                HoyolandLineup("젠레스 존 제로", "체험 부스"),
+                // 넥서스 아니마·쁘띠플래닛은 앱이 가챠를 다루는 게임이 아니라 GameData 에 없다.
+                // 색은 이미 쓰는 다섯(파랑·보라·주황·시안·로즈)과 겹치지 않게 초록 계열로 고른다.
+                HoyolandLineup("붕괴: 넥서스 아니마", "한국 첫 오프라인 시연", abbr = "NXA", colorArgb = 0xFF3FBF7FL),
+                HoyolandLineup("쁘띠플래닛", "한국 첫 오프라인 시연", abbr = "PP", colorArgb = 0xFF9BC53DL),
+                HoyolandLineup("원신", "무대"),
+                HoyolandLineup("붕괴: 스타레일", "무대"),
+            ),
+            url = "https://www.gstar.or.kr/",
+            notice = "1차 참가사 명단입니다. 넥슨 · 엔씨 · 넷마블 · 카카오게임즈는 현재 명단에 없고, 최종 명단과 부스 배치도는 9월 중 공개됩니다.",
+        ),
         past = listOf(
             HoyolandPastEvent(
                 "호요랜드 2025",

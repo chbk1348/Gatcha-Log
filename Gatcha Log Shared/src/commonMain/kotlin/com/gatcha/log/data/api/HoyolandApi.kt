@@ -3,6 +3,7 @@ package com.gatcha.log.data.api
 import com.gatcha.log.data.HoyolandDefaults
 import com.gatcha.log.data.HoyolandEvent
 import com.gatcha.log.data.HoyolandFact
+import com.gatcha.log.data.HoyolandGstar
 import com.gatcha.log.data.HoyolandLineup
 import com.gatcha.log.data.HoyolandDay
 import com.gatcha.log.data.HoyolandPastEvent
@@ -77,6 +78,7 @@ object HoyolandApi {
             // days 는 **빈 배열도 유효한 값**이라 takeIf 로 걸러내지 않는다 —
             // 시간표를 내렸다가 다시 올리는 상황에서 번들 기본값이 되살아나면 안 된다.
             days = o.optJSONArray("days")?.let { parseDays(it) } ?: d.days,
+            gstar = o.optJSONObject("gstar")?.let { parseGstar(it, d.gstar) } ?: d.gstar,
             past = o.optJSONArray("past")?.let { parsePast(it) }?.takeIf { it.isNotEmpty() } ?: d.past,
         )
     }
@@ -128,6 +130,16 @@ object HoyolandApi {
             if (title.isBlank()) return@mapNotNull null
             HoyolandProgram(title, o.optString("desc"), o.optString("deadline"))
         }
+
+    /** 지스타 — 여기도 빠진 키는 번들 기본값으로 메운다(참가사만 갱신하는 일이 잦다). */
+    private fun parseGstar(o: JSONObject, d: HoyolandGstar): HoyolandGstar = HoyolandGstar(
+        title = o.optString("title", d.title),
+        badge = o.optString("badge", d.badge),
+        facts = o.optJSONArray("facts")?.let { parseFacts(it) } ?: d.facts,
+        lineup = o.optJSONArray("lineup")?.let { parseLineup(it) } ?: d.lineup,
+        url = o.optString("url", d.url),
+        notice = o.optString("notice", d.notice),
+    )
 
     private fun parseDays(arr: JSONArray): List<HoyolandDay> =
         (0 until arr.length()).mapNotNull { i ->

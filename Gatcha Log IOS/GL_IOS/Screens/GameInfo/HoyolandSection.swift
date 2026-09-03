@@ -6,9 +6,6 @@ import Shared
 // 내용은 전부 shared 의 HoyolandEvent 에서 온다(원격 hoyoland.json → 실패 시 번들 폴백) —
 // 이 파일에는 표시 규격만 둔다. Android 대응 = HoyolandSection.kt.
 
-/// 지스타 공식 사이트 — 참가사·티켓 일정이 여기서 먼저 갱신된다.
-private let gstarURL = URL(string: "https://www.gstar.or.kr/")!
-
 /// 네이버 지도가 안 열릴 때 폴백 — 문자열이 URL 로 안 서면 이 값도 nil 이라 링크를 아예 안 만든다.
 private func hoyoURL(_ raw: String) -> URL? {
     raw.isEmpty ? nil : URL(string: raw)
@@ -106,7 +103,7 @@ struct HoyolandDetailView: View {
                 timetableSection(e)
                 lineupSection(e)
                 programSection(e)
-                gstarSection
+                gstarSection(e)
                 pastSection(e)
 
                 Text(e.notice)
@@ -377,31 +374,53 @@ struct HoyolandDetailView: View {
         }
     }
 
-    // ── G-STAR 2026 — 호요랜드와 **별개 행사**지만, 호요버스가 나오는 국내 오프라인 자리라 여기 둔다.
-    // 2026-08-13 조직위 발표로 참가사에 호요버스가 포함됐다(부스 규모·출품작은 9월 확정 명단에서 공개).
-    @ViewBuilder private var gstarSection: some View {
-        HStack(spacing: 8) {
-            Text("G-STAR 2026").font(.pretendard(size: 16, weight: .bold))
-                .foregroundStyle(GLGColor.textPrimary)
-            hoyoBadge("호요버스 참가", accent.primary)
-        }
-        .padding(.top, 20).padding(.bottom, 10)
-        GLGCard(cornerRadius: 24, padding: 16) {
-            VStack(alignment: .leading, spacing: 0) {
-                ForEach(Array(Self.gstarFacts.enumerated()), id: \.offset) { i, f in
-                    if i > 0 { Spacer().frame(height: 8) }
-                    factRow(f.0, f.1)
+    // ── 지스타 — 호요랜드와 **별개 행사**지만, 호요버스가 나오는 국내 오프라인 자리라 여기 둔다.
+    // 내용은 전부 shared 의 HoyolandGstar 에서 온다(참가사 명단이 순차 공개돼 자주 바뀐다).
+    @ViewBuilder private func gstarSection(_ e: HoyolandEvent) -> some View {
+        let g = e.gstar
+        if !g.isEmpty {
+            HStack(spacing: 8) {
+                Text(g.title).font(.pretendard(size: 16, weight: .bold))
+                    .foregroundStyle(GLGColor.textPrimary)
+                if !g.badge.isEmpty { hoyoBadge(g.badge, accent.primary) }
+                Spacer(minLength: 0)
+            }
+            .padding(.top, 20).padding(.bottom, 10)
+            GLGCard(cornerRadius: 24, padding: 16) {
+                VStack(alignment: .leading, spacing: 0) {
+                    ForEach(Array(g.facts.enumerated()), id: \.offset) { i, f in
+                        if i > 0 { Spacer().frame(height: 8) }
+                        factRow(f.label, f.value)
+                    }
+                    // 출품작 — 팩트 목록과 같은 카드에 두되 구분선으로 끊는다. 라벨+값이 아니라
+                    // 게임 태그가 붙는 줄이라 위와 생김새가 다르고, 따로 카드를 세울 만큼 길지도 않다.
+                    if !g.lineup.isEmpty {
+                        Divider().padding(.vertical, 14)
+                        Text("호요버스 출품작").font(.pretendard(size: 13, weight: .bold))
+                            .foregroundStyle(GLGColor.textPrimary)
+                            .padding(.bottom, 10)
+                        ForEach(Array(g.lineup.enumerated()), id: \.offset) { i, item in
+                            if i > 0 { Spacer().frame(height: 10) }
+                            lineupRow(item)
+                        }
+                    }
+                    if let url = hoyoURL(g.url) {
+                        Link(destination: url) {
+                            Text("공식 사이트").font(.pretendard(size: 14, weight: .semibold))
+                                .foregroundStyle(accent.primary).frame(maxWidth: .infinity)
+                                .padding(.vertical, 12)
+                                .overlay(RoundedRectangle(cornerRadius: 23, style: .continuous)
+                                    .stroke(accent.primary.opacity(0.5), lineWidth: 1))
+                        }
+                        .padding(.top, 14)
+                    }
+                    if !g.notice.isEmpty {
+                        Text(g.notice).font(.pretendard(size: 11))
+                            .foregroundStyle(GLGColor.textSecondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .padding(.top, 10)
+                    }
                 }
-                Link(destination: gstarURL) {
-                    Text("공식 사이트").font(.pretendard(size: 14, weight: .semibold))
-                        .foregroundStyle(accent.primary).frame(maxWidth: .infinity)
-                        .padding(.vertical, 12)
-                        .overlay(RoundedRectangle(cornerRadius: 23, style: .continuous)
-                            .stroke(accent.primary.opacity(0.5), lineWidth: 1))
-                }
-                .padding(.top, 14)
-                Text("확정 참가사 명단은 9월에 공개됩니다. 넥슨·엔씨·넷마블·크래프톤 등 국내 대형 게임사는 현재 명단에 없습니다.")
-                    .font(.pretendard(size: 11)).foregroundStyle(GLGColor.textSecondary).padding(.top, 10)
             }
         }
     }
@@ -435,14 +454,6 @@ struct HoyolandDetailView: View {
         }
     }
 
-    private static let gstarFacts: [(String, String)] = [
-        ("기간", "2026.11.19(목) ~ 11.22(일) (4일)"),
-        ("장소", "부산 벡스코(BEXCO)"),
-        ("참가", "호요버스 참가 확정 (부스 규모·출품작 미공개)"),
-        ("함께", "구글플레이 · 웹젠 · 네시삼십삼분 · 빌리빌리게임즈 · 센추리게임즈"),
-        ("스폰서", "크랙(뤼튼) — 게임사가 아닌 AI 기업의 첫 메인 스폰서"),
-        ("G-CON", "11.19 ~ 11.20 · 벡스코 컨벤션홀 · 주제 '내러티브'"),
-    ]
 }
 
 // MARK: - 홈·일정 탭 진입점
