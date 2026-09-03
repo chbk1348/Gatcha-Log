@@ -5,8 +5,8 @@ import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 /**
- * 일정 탭 2.0 주간 보드 — **빈 주도 남긴다**·**예상은 확정과 갈린다** 를 테스트로 굳힌다.
- * 둘 다 눈으로는 잘 안 보이는데 틀리면 화면이 조용히 거짓말을 한다.
+ * 일정 탭 2.0 주간 보드 — **빈 주도 남긴다** 를 테스트로 굳힌다.
+ * 눈으로는 잘 안 보이는데 틀리면 화면이 조용히 거짓말을 한다.
  */
 class ScheduleWeekTest {
 
@@ -89,13 +89,9 @@ class ScheduleWeekTest {
     // ---------------------------------------------------------------- 표식
 
     @Test
-    fun 시작_마감_예상이_갈린다() {
+    fun 시작과_마감이_갈린다() {
         assertEquals(ScheduleMark.END, entry(now + day).mark())
         assertEquals(ScheduleMark.START, entry(now + day, start = true).mark())
-        assertEquals(
-            ScheduleMark.ESTIMATE,
-            entry(now + day, start = true, kind = "방송", sub = "예상 · 공식 채널").mark(),
-        )
     }
 
     // ---------------------------------------------------------------- 시작 항목
@@ -121,19 +117,6 @@ class ScheduleWeekTest {
             GachaBanner(game = "원신", name = "진행중", startMillis = now - day, endMillis = now + 10 * day),
         )
         assertTrue(buildStartEntries(banners, now).isEmpty())
-    }
-
-    // ---------------------------------------------------------------- 방송
-
-    @Test
-    fun 지난_방송은_넣지_않는다() {
-        val confirmed = listOf(
-            ConfirmedBroadcast(gameKey = "genshin", version = "6.7", targetMillis = now - day, noticeUrl = ""),
-            ConfirmedBroadcast(gameKey = "genshin", version = "6.8", targetMillis = now + 5 * day, noticeUrl = ""),
-        )
-        val out = buildBroadcastEntries(emptyList(), confirmed, now)
-        assertEquals(1, out.size)
-        assertEquals("v6.8 특별 방송", out[0].title)
     }
 
     // ---------------------------------------------------------------- 픽업 캐릭터명

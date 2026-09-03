@@ -30,7 +30,6 @@ import com.gatcha.log.data.MonthlyLedger
 import com.gatcha.log.data.Spending
 import com.gatcha.log.data.Subscription
 import com.gatcha.log.data.UserProfile
-import com.gatcha.log.data.api.BroadcastApi
 import com.gatcha.log.data.api.EnkaApi
 import com.gatcha.log.data.api.NanokaApi
 import com.gatcha.log.data.api.WeaponRefinement
@@ -204,6 +203,8 @@ class SpendingViewModel : ViewModel() {
     val notifyNews: StateFlow<Boolean> = _notifyNews.asStateFlow()
     private val _notifyCombat = MutableStateFlow(appSettings.notifyCombat)
     val notifyCombat: StateFlow<Boolean> = _notifyCombat.asStateFlow()
+    private val _notifyHoyoland = MutableStateFlow(appSettings.notifyHoyoland)
+    val notifyHoyoland: StateFlow<Boolean> = _notifyHoyoland.asStateFlow()
 
     // 방해금지(DnD) — 조용한 시간대 알림 보류
     private val _notifyDndEnabled = MutableStateFlow(appSettings.notifyDndEnabled)
@@ -281,6 +282,7 @@ class SpendingViewModel : ViewModel() {
     fun setNotifySubscription(v: Boolean) { appSettings.notifySubscription = v; _notifySubscription.value = v; applyNativeAfterNotifyChange(v) }
     fun setNotifyNews(v: Boolean) { appSettings.notifyNews = v; _notifyNews.value = v; applyNativeAfterNotifyChange(v) }
     fun setNotifyCombat(v: Boolean) { appSettings.notifyCombat = v; _notifyCombat.value = v; applyNativeAfterNotifyChange(v) }
+    fun setNotifyHoyoland(v: Boolean) { appSettings.notifyHoyoland = v; _notifyHoyoland.value = v; applyNativeAfterNotifyChange(v) }
 
     fun setNotifyDndEnabled(v: Boolean) { appSettings.notifyDndEnabled = v; _notifyDndEnabled.value = v; NativeScheduler.apply() }
     fun setNotifyDndStartHour(v: Int) { appSettings.notifyDndStartHour = v; _notifyDndStartHour.value = appSettings.notifyDndStartHour }
@@ -313,6 +315,7 @@ class SpendingViewModel : ViewModel() {
                 NotifyKey.PICKUP -> { appSettings.notifyPickup = true; _notifyPickup.value = true }
                 NotifyKey.COMBAT -> { appSettings.notifyCombat = true; _notifyCombat.value = true }
                 NotifyKey.NEWS -> { appSettings.notifyNews = true; _notifyNews.value = true }
+                NotifyKey.HOYOLAND -> { appSettings.notifyHoyoland = true; _notifyHoyoland.value = true }
             }
         }
         applyNativeAfterNotifyChange(true)
@@ -545,7 +548,6 @@ class SpendingViewModel : ViewModel() {
         _attendanceToday.value = attendanceMap[todayKey()] ?: emptySet()
         _attendanceStreak.value = computeAttendanceStreak()
         _pity.value = repo.loadPity()
-        _eventChecks.value = repo.loadEventChecks()
         _readAlerts.value = repo.loadReadAlerts()
         _dismissedAlerts.value = repo.loadDismissedAlerts()
         _enkaGiUid.value = repo.loadEnkaGiUid()
@@ -851,20 +853,6 @@ class SpendingViewModel : ViewModel() {
     }
 
     // ----------------------------------------------------------------- 예산
-    fun setBudget(value: Long) {
-        _budget.value = value
-        repo.saveBudget(value)
-        refreshChallenge()
-    }
-
-    /** 게임별 한도 설정. value 0 이면 해당 게임 한도 해제. */
-    fun setGameBudget(gameKey: String, value: Long) {
-        val updated = _gameBudgets.value.toMutableMap()
-        if (value > 0) updated[gameKey] = value else updated.remove(gameKey)
-        _gameBudgets.value = updated
-        repo.saveGameBudgets(updated)
-    }
-
     /** 전체 예산 + 게임별 한도를 한 번에 저장(예산 관리 시트용). */
     fun setBudgets(overall: Long, perGame: Map<String, Long>) {
         _budget.value = overall
@@ -977,8 +965,6 @@ class SpendingViewModel : ViewModel() {
         _attendanceToday.value = current
         _attendanceStreak.value = computeAttendanceStreak()
     }
-
-    fun isCheckedIn(gameKey: String): Boolean = gameKey in _attendanceToday.value
 
     // ----------------------------------------------------------------- 배너 / 실시간 노트
     // 더미 없음 — 실제 ennead.cc API(refreshGameInfo)로만 채워진다.
@@ -1104,14 +1090,6 @@ class SpendingViewModel : ViewModel() {
     private val _gameNews = MutableStateFlow<List<NewsItem>>(emptyList())
     val gameNews: StateFlow<List<NewsItem>> = _gameNews.asStateFlow()
 
-    /**
-     * 공지에서 확인된 **확정** 방송. 비어 있으면 화면은 역산 예상값을 쓴다.
-     *
-     * 캐시하지 않는다 — 방송은 지나가면 값이 없고, 다음 회차는 어차피 새 공지로 온다.
-     */
-    private val _confirmedBroadcasts = MutableStateFlow<List<ConfirmedBroadcast>>(emptyList())
-    val confirmedBroadcasts: StateFlow<List<ConfirmedBroadcast>> = _confirmedBroadcasts.asStateFlow()
-
     // ── 공지 본문(상세 페이지) ──────────────────────────────────────────────
     // 목록에서 공지를 열면 HoYoLab 아티클 API 로 본문을 받아 온다. 실패해도 화면은 비우지 않는다 —
     // 목록이 이미 갖고 있는 summary(줄바꿈 없는 평문)로 폴백하고, '브라우저에서 보기'를 함께 제공한다.
@@ -1162,9 +1140,6 @@ class SpendingViewModel : ViewModel() {
     private val _pity = MutableStateFlow<Map<String, PityState>>(emptyMap())
     val pity: StateFlow<Map<String, PityState>> = _pity.asStateFlow()
 
-    private val _eventChecks = MutableStateFlow<Set<String>>(emptySet())
-    val eventChecks: StateFlow<Set<String>> = _eventChecks.asStateFlow()
-
     // ----- 천장 카운터 -----
     fun adjustPity(gameKey: String, delta: Int) = updatePity(gameKey) { it.copy(count = (it.count + delta).coerceAtLeast(0)) }
     fun setPityCount(gameKey: String, value: Int) = updatePity(gameKey) { it.copy(count = value.coerceAtLeast(0)) }
@@ -1205,7 +1180,6 @@ class SpendingViewModel : ViewModel() {
 
     /** "안 뽑는" 픽업 목표로 숨긴 키 집합(SavingsPlan.key) — 미노출 처리. */
     private val _savingsHidden = MutableStateFlow<Set<String>>(emptySet())
-    val savingsHidden: StateFlow<Set<String>> = _savingsHidden.asStateFlow()
 
     /** 진행 중 픽업별 저축 계획(임박 순, 숨긴 목표 제외). activeBanners·pity·보유재화에서 파생. */
     private val _savingsPlans = MutableStateFlow<List<SavingsPlan>>(emptyList())
@@ -1696,14 +1670,6 @@ class SpendingViewModel : ViewModel() {
         }
     }
 
-    // ----- 이벤트 체크리스트 -----
-    fun toggleEventCheck(key: String) {
-        val cur = _eventChecks.value.toMutableSet()
-        if (key in cur) cur.remove(key) else cur.add(key)
-        _eventChecks.value = cur
-        repo.saveEventChecks(cur)
-    }
-
     // ----------------------------------------------------------------- API 연동 상태
     private val _isRefreshing = MutableStateFlow(false)
     val isRefreshing: StateFlow<Boolean> = _isRefreshing.asStateFlow()
@@ -1965,12 +1931,6 @@ class SpendingViewModel : ViewModel() {
                     // 명조 일정 — ennead 가 안 다루는 게임이라 공지 피드에서 따로 뽑는다.
                     // 여기서 같이 쏜다: 달력 응답을 기다렸다 보내면 일정 하나 때문에 한 왕복이 더 붙는다.
                     val wuwaEventsDeferred = async(Dispatchers.IO) { NewsApi.events(Game.WUWA) }
-                    // 버전 특별 방송 확정 공지는 notices 가 아니라 info 카테고리에 올라온다.
-                    // 목록에는 안 섞고 방송 일시만 뽑아 쓴다([BroadcastSchedule.parseConfirmed]).
-                    val infoDeferred = newsGames.map { g -> async(Dispatchers.IO) { NewsApi.info(g) } }
-                    // 예약된 라이브 — Actions 가 6시간마다 떠 두는 broadcasts.json 한 장이다.
-                    // 공지보다 늦게 뜰 때가 많지만 **영상 직링크**를 주는 유일한 경로다.
-                    val broadcastDeferred = async(Dispatchers.IO) { BroadcastApi.fetch() }
 
                     // 응답을 받은 게임만 새 값으로 갈아끼운다([mergeByGame]) — 실패한 게임은 직전 값 유지.
                     // 예전엔 성공분만 모아 통째로 대입해서, 한 게임이 타임아웃 나면 그 게임 정보가 사라졌다.
@@ -2040,15 +2000,6 @@ class SpendingViewModel : ViewModel() {
                         // 다음 실행 때 홈 '게임 소식'을 바로 그리기 위한 캐시(최신 N건·요약 절단 — 저장부 참고).
                         withContext(Dispatchers.IO) { runCatching { repo.saveGameNews(_gameNews.value) } }
                     }
-                    // 확정 방송 — 못 받아도 조용히 넘어간다. 그때는 역산 예상값이 그대로 쓰인다.
-                    val infoItems = infoDeferred.mapNotNull { it.await() }.flatten()
-                    val merged = BroadcastSchedule.mergeConfirmed(
-                        fromApi = broadcastDeferred.await().orEmpty(),
-                        fromNotice = BroadcastSchedule.parseConfirmed(infoItems),
-                    )
-                    // 비었으면 직전 값을 남긴다 — 한쪽이 실패했을 뿐인데 확정이 예상으로 후퇴하면
-                    // 화면이 뒷걸음질친다. 지나간 방송은 [BroadcastSchedule.next] 가 알아서 뺀다.
-                    if (merged.isNotEmpty()) _confirmedBroadcasts.value = merged
                     _newsReady.value = true
 
                     // 2) 게임 정보 탭 전용 — 월간 원장 + 전투 진행도(게임 간 병렬, 게임 내 순차로 단일 호스트 보호)
@@ -2393,25 +2344,9 @@ class SpendingViewModel : ViewModel() {
     fun monthlyTotal(year: Int = currentYear, month: Int = currentMonth): Long =
         _spendings.value.filter { DateUtil.isSameMonth(it.dateMillis, year, month) }.sumOf { it.amount }
 
-    fun yearlyTotal(year: Int = currentYear): Long =
-        _spendings.value.filter { DateUtil.isSameYear(it.dateMillis, year) }.sumOf { it.amount }
-
     /** 전월 총 지출(MoM 비교용). 1월이면 전년 12월. */
     fun prevMonthTotal(): Long =
         if (currentMonth == 1) monthlyTotal(currentYear - 1, 12) else monthlyTotal(currentYear, currentMonth - 1)
-
-    fun topGameThisMonth(): String? {
-        // 연/월을 람다 **밖에서** 한 번만 읽는다. currentYear·currentMonth 는 게터라
-        // (get() = DateUtil.year(currentTimeMillis())) 람다 안에 두면 항목마다 시계 읽기 + 날짜 변환이
-        // 두 번씩 더 붙는다 — isSameMonth 자체 비용에 더해 항목당 4회가 된다.
-        val y = currentYear
-        val m = currentMonth
-        return _spendings.value
-            .filter { DateUtil.isSameMonth(it.dateMillis, y, m) }
-            .groupBy { it.gameName }
-            .maxByOrNull { entry -> entry.value.sumOf { it.amount } }
-            ?.key
-    }
 
     /** CSV 내보내기용 문자열 */
     fun buildCsv(): String {
@@ -2680,4 +2615,4 @@ class SpendingViewModel : ViewModel() {
 // 홈 대시보드 카드 → 게임 정보 탭의 해당 섹션으로 스크롤 앵커링.
 // 레이아웃 개편(v27.32.0)으로 단독 배너/천장 섹션이 통합 '게임 일정'으로 합쳐짐 →
 // NOTES(실시간 노트/출석) · SCHEDULE(통합 게임 일정=픽업+패치/이벤트) · NEWS(공지·주년).
-enum class GameInfoAnchor { NOTES, SCHEDULE, NEWS, COMBAT }
+enum class GameInfoAnchor { NOTES, SCHEDULE, NEWS, COMBAT, HOYOLAND }

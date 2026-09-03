@@ -322,8 +322,7 @@ class ScheduleLogicTest {
 
     // ── 통합 일정 (전반/후반 판정) ────────────────────────────────────────────
     //
-    // 아래 검사들은 **픽업 페이즈 라벨**만 본다. buildSchedule 은 방송 줄(BroadcastSchedule)도
-    // 함께 내놓는데, 그건 배너 종료일에서 역산한 값이라 여기 관심사가 아니다 — kind 로 거른다.
+    // 아래 검사들은 **픽업 페이즈 라벨**만 본다 — kind 로 거른다.
 
     @Test
     fun buildScheduleLabelsTwoPhasesOfSameVersion() {
@@ -361,8 +360,7 @@ class ScheduleLogicTest {
             events = listOf(GameEvent(game = gi.displayName, name = "이벤트", reward = "원석", endMillis = base + 2 * day)),
             challenges = listOf(GameChallenge(game = gi.displayName, name = "심경", typeName = "심연", reward = "원석", endMillis = base + 9 * day)),
         )
-        // 방송 줄은 이 검사의 관심사가 아니다(배너 종료일에서 역산한 별개 값) — 걸러 낸다.
-        val merged = entries.filter { it.kind != "방송" }
+        val merged = entries
         assertEquals(listOf("이벤트", "패치", "콘텐츠"), merged.map { it.kind })
         assertEquals(listOf("이벤트", "v6.6 전반 픽업 종료", "심경"), merged.map { it.title })
         assertEquals(gi.key, merged.first().gameKey)

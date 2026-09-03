@@ -1,5 +1,0 @@
-{
-  "_note": "공식 한국 채널의 예약된 버전 특별 방송. .github/workflows/broadcasts.yml 이 6시간마다 자동 갱신하므로 손으로 고쳐도 다음 실행에 덮어써집니다. startMillis = epoch millis(앱이 읽는 값), startAtKst = 사람이 읽는 KST 표기. broadcasts 가 비어 있으면 앱은 '버전 시작 12일 전 금요일' 관례로 역산한 예상값을 표시합니다.",
-  "updatedAt": "",
-  "broadcasts": []
-}

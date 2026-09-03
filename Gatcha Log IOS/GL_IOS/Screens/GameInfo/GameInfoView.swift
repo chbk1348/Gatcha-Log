@@ -125,6 +125,13 @@ struct GameInfoView: View {
             store.consumeGameInfoAnchor()
             return
         }
+        // 호요랜드도 스크롤이 아니라 페이지 진입이다 — 홈 카드에서 온 사람이 보려는 건
+        // 게임정보 목록의 그 자리가 아니라 상세 내용이다.
+        if anchor == .hoyoland {
+            showHoyoland = true
+            store.consumeGameInfoAnchor()
+            return
+        }
         DispatchQueue.main.async {
             withAnimation(.easeInOut(duration: 0.35)) { proxy.scrollTo(anchor.name, anchor: .top) }
             store.consumeGameInfoAnchor()
@@ -305,36 +312,9 @@ extension ScheduleEntry: @retroactive Identifiable {
     public var id: String { "\(kind)|\(title)|\(target)" }
 }
 
-private func scheduleKindColor(_ kind: String) -> Color {
-    Color(argb64: ScheduleLogic.shared.kindColorArgb(kind: kind))
-}
-
-// 무기(검) 아이콘 — SF Symbols에 검 심볼이 없어 커스텀 Shape로 정의(Android SwordIcon과 동일 24×24 좌표).
-struct SwordShape: Shape {
-    func path(in r: CGRect) -> Path {
-        let s = min(r.width, r.height)
-        func px(_ v: CGFloat) -> CGFloat { r.minX + v / 24 * s }
-        func py(_ v: CGFloat) -> CGFloat { r.minY + v / 24 * s }
-        var p = Path()
-        // 칼날
-        p.move(to: CGPoint(x: px(12), y: py(2)))
-        p.addLines([CGPoint(x: px(13.2), y: py(5)), CGPoint(x: px(13.2), y: py(14)), CGPoint(x: px(10.8), y: py(14)), CGPoint(x: px(10.8), y: py(5))])
-        p.closeSubpath()
-        // 코등이
-        p.addRect(CGRect(x: px(8), y: py(14), width: px(16) - px(8), height: py(16) - py(14)))
-        // 손잡이
-        p.addRect(CGRect(x: px(11.1), y: py(16), width: px(12.9) - px(11.1), height: py(20) - py(16)))
-        // 폼멜
-        p.addRect(CGRect(x: px(10.4), y: py(20), width: px(13.6) - px(10.4), height: py(22) - py(20)))
-        return p
-    }
-}
-
 private let glChar = Color(hex: 0xFF5B8DEF)
 private let glWeap = Color(hex: 0xFFE0883B)
 private let glUrgent = Color(hex: 0xFFE8634A)
-/// 확정 배지 — 예상(회색)과 확실히 갈라야 해서 채운 색을 쓴다. Android ConfirmedGreen 과 같은 값.
-private let glConfirmed = Color(hex: 0xFF2BB673)
 
 /// 현재 시각(ms) — 공유 로직(`isImminent`·`hmsLabel`)과 같은 단위로 맞춘다.
 private func nowMS() -> Int64 { Int64(Date().timeIntervalSince1970 * 1000) }
@@ -522,8 +502,8 @@ private struct LineFace: View {
 
 // ── 상세 페이지: 마감 날짜 타임라인 ─────────────────────────────────────────
 
-/// 전체 게임 일정 페이지 — [일정 | 방송 | 주년] 세그먼트 탭.
-/// 일정=요약 3칸 + 종료 미정 카드 + 마감일 타임라인, 방송=버전 특별 방송 예상, 주년=다가오는 게임 주년.
+/// 전체 게임 일정 페이지 — [일정 | 주년] 세그먼트 탭.
+/// 일정=요약 3칸 + 종료 미정 카드 + 마감일 타임라인, 주년=다가오는 게임 주년.
 ///
 /// 주년은 원래 게임 정보 탭 본문의 독립 섹션이었다. 1년에 몇 번 볼 정보가 상시 자리를 차지하고 있었고,
 /// 성격도 '언제 뭐가 있나'라 일정과 같아서 여기 탭으로 합쳤다.
@@ -531,9 +511,10 @@ struct GameSchedulePage: View {
     var store: SpendingStore
     @State private var tab = 0
     @State private var sched = SchedulePageData()
+    @State private var showHoyoland = false
 
     private var scheduleTitle: some View {
-        Text("시작 · 종료 · 예상(방송 역산)")
+        Text("시작 · 종료")
             .font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary).padding(.bottom, 14)
     }
 
@@ -546,17 +527,18 @@ struct GameSchedulePage: View {
                 // 페이지 타이틀은 네비게이션 바(뒤로가기 + 타이틀)로 — Android 상세 헤더와 동일 형식.
                 Picker("보기", selection: $tab.animation(.easeInOut(duration: 0.2))) {
                     Text("일정").tag(0)
-                    Text("방송").tag(1)
-                    Text("주년").tag(2)
+                    Text("주년").tag(1)
                 }
                 .pickerStyle(.segmented)
                 .padding(.bottom, 14)
 
                 if tab == 1 {
-                    BroadcastContent(banners: store.activeBanners, confirmed: store.confirmedBroadcasts)
-                } else if tab == 2 {
                     AnniversaryContent()
                 } else {
+                // 오프라인 행사는 **콜라보보다도 위**다. 주간 표는 게임 안에서 벌어지는 일만
+                // 다루는데, 이건 날짜를 비워 두고 움직여야 하는 유일한 일정이다(게다가 나흘 하고
+                // 끝난다). 개막 D-60 안쪽에만 끼어들고 그 밖엔 뷰가 스스로 사라진다.
+                HoyolandScheduleBanner(onOpen: { showHoyoland = true })
                 // 콜라보는 **맨 위**. 종료 시각이 미공지라 시간 축에 못 올리는데, 맨 아래에 두면
                 // 진행 중인 한정 콜라보를 스크롤 끝까지 내려야 본다 — 놓치면 되돌릴 수 없는
                 // 일정이 가장 늦게 읽혔다.
@@ -588,6 +570,7 @@ struct GameSchedulePage: View {
         .background(GLGBackground { Color.clear })
         .glgPageTitle("게임 일정")
         .navigationBarTitleDisplayMode(.inline)
+        .navigationDestination(isPresented: $showHoyoland) { HoyolandDetailView() }
         // 일정 집계는 필터/원본이 바뀔 때만. 예전엔 body 첫 줄에서 5종을 조건 없이 계산해,
         // '주년' 탭을 보고 있어도(그때는 하나도 안 쓰는데) 세그먼트를 누를 때마다 전부 다시 돌았다.
         .task(id: scheduleKey) { sched = Self.buildSchedule(store: store) }
@@ -609,24 +592,20 @@ struct GameSchedulePage: View {
         let banners: [GachaBanner]
         let events: [GameEvent]
         let challenges: [GameChallenge]
-        let broadcasts: [ConfirmedBroadcast]
     }
 
     private var scheduleKey: ScheduleKey {
         ScheduleKey(banners: store.activeBanners,
-                    events: store.gameEvents, challenges: store.challenges,
-                    broadcasts: store.confirmedBroadcasts)
+                    events: store.gameEvents, challenges: store.challenges)
     }
 
     private static func buildSchedule(store: SpendingStore) -> SchedulePageData {
         let now = nowMs()
-        // 마감 + **시작** + 방송을 한 축에. 예전엔 종료만 모아서 다음 픽업이 언제 시작하는지 알 수 없었다.
+        // 마감 + **시작**을 한 축에. 예전엔 종료만 모아서 다음 픽업이 언제 시작하는지 알 수 없었다.
         let entries = (
             ScheduleLogic.shared.buildSchedule(
                 banners: store.activeBanners, events: store.gameEvents, challenges: store.challenges)
             + ScheduleLogicKt.buildStartEntries(banners: store.activeBanners, nowMillis: now)
-            + ScheduleLogicKt.buildBroadcastEntries(
-                banners: store.activeBanners, confirmed: store.confirmedBroadcasts, nowMillis: now)
         ).sorted { $0.target < $1.target }
         return SchedulePageData(
             weeks: ScheduleLogicKt.buildWeeks(entries: entries, nowMillis: now, weeks: 4),
@@ -973,13 +952,10 @@ private struct PickupSlot: View {
     }
 }
 
-/// 일정 한 줄 — 표식(▲▼◆) + 제목·부제 + D-day.
+/// 일정 한 줄 — 표식(▲▼) + 제목·부제 + D-day.
 private struct ScheduleRow: View {
     let entry: ScheduleEntry
     @Environment(\.glgAccent) private var accent
-
-    /// **예상** 표식 색. 확정 마감(빨강)·시작(강조색)과 절대 겹치지 않게 주황 계열로 뺀다.
-    private let estimate = Color(hex: 0xFFD97706)
 
     var body: some View {
         let mark = ScheduleLogicKt.scheduleMarkOf(entry: entry)
@@ -993,7 +969,7 @@ private struct ScheduleRow: View {
                 Text(entry.title).font(.pretendard(size: 12.5, weight: .bold))
                     .foregroundStyle(GLGColor.textPrimary).lineLimit(1)
                 // 게임명은 배지가 말한다 — 부제에서 중복하지 않는다.
-                // 아이콘이 없는 줄(이벤트·방송)은 부제를 여기 글자로 둔다. 픽업은 카드 아래
+                // 아이콘이 없는 줄(이벤트·콘텐츠)은 부제를 여기 글자로 둔다. 픽업은 카드 아래
                 // 별도 단으로 내려간다(아래 참고).
                 if entry.pickups.isEmpty && !entry.sub.isEmpty {
                     Text(entry.sub).font(.pretendard(size: 10.5))
@@ -1082,18 +1058,10 @@ private struct ScheduleRow: View {
     }
 
     private func markLabel(_ m: ScheduleMark) -> String {
-        switch m {
-        case .start: return "시작까지"
-        case .estimate: return "예상"
-        default: return "종료까지"
-        }
+        m == .start ? "시작까지" : "종료까지"
     }
     private func markColor(_ m: ScheduleMark) -> Color {
-        switch m {
-        case .start: return accent.primary
-        case .estimate: return estimate
-        default: return GLGColor.dangerText
-        }
+        m == .start ? accent.primary : GLGColor.dangerText
     }
 }
 
@@ -1209,136 +1177,6 @@ private struct CollabPromoBanner: View {
                                endPoint: expanded ? .bottomTrailing : .trailing),
                 in: RoundedRectangle(cornerRadius: expanded ? 20 : 14, style: .continuous)
             )
-        }
-        .buttonStyle(.plain)
-    }
-}
-
-// ── 방송 탭 ────────────────────────────────────────────────────────────────
-
-/**
- 버전 특별 방송 — 게임당 다음 한 회. (Compose BroadcastContent 대응)
-
- 일정 타임라인과 나눈 이유: 저쪽은 '언제 끝나나'를 읽는 자리인데 방송은 시작하는 일정이고,
- 무엇보다 **역산한 예상**이라 확정된 마감들 사이에 섞이면 같은 무게로 읽힌다.
- */
-private struct BroadcastContent: View {
-    let banners: [GachaBanner]
-    let confirmed: [ConfirmedBroadcast]
-
-    private var list: [LiveBroadcast] {
-        BroadcastSchedule.shared.next(banners: banners, confirmed: confirmed, nowMillis: nowMs())
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            // 안내 문구는 목록 성격에 따라 바꾼다 — 전부 확정인데 '예상'이라고 하면 값을 깎아 읽게 된다.
-            Text(list.contains { $0.isEstimate }
-                 ? "공식 공지가 뜬 방송은 확정 일시로, 아직 안 뜬 방송은 관례(버전 시작 12일 전 금요일)로 계산한 예상이에요."
-                 : "공식 공지로 확정된 일시예요.")
-                .font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary)
-                .padding(.bottom, 14)
-            if list.isEmpty {
-                // 픽업 배너가 없으면 버전 시작일을 몰라 역산의 근거가 없다 — 추측해서 만들어내지 않는다.
-                Text("예상할 수 있는 방송이 없어요.")
-                    .font(.pretendard(size: 13)).foregroundStyle(GLGColor.textSecondary)
-                    .frame(maxWidth: .infinity, alignment: .center).padding(.top, 40)
-            } else {
-                VStack(spacing: 10) {
-                    ForEach(list, id: \.gameKey) { BroadcastCard(b: $0) }
-                }
-            }
-        }
-    }
-}
-
-private struct BroadcastCard: View {
-    let b: LiveBroadcast
-
-    var body: some View {
-        let gc = Color(argb64: b.colorArgb)
-        return VStack(alignment: .leading, spacing: 0) {
-            HStack(spacing: 7) {
-                Text(b.gameShort).font(.pretendard(size: 9.5, weight: .bold)).foregroundStyle(.white)
-                    .padding(.horizontal, 7).padding(.vertical, 2)
-                    .background(gc, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
-                Text(b.version.isEmpty ? "버전 특별 방송" : "v\(b.version) 특별 방송")
-                    .font(.pretendard(size: 13, weight: .bold))
-                    .foregroundStyle(GLGColor.textPrimary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                // 예상/확정은 카드마다 붙인다 — 안내 문구를 지나쳐도 여기서 다시 만난다.
-                if b.isEstimate {
-                    Text("예상").font(.pretendard(size: 9.5, weight: .bold))
-                        .foregroundStyle(GLGColor.textSecondary)
-                        .padding(.horizontal, 6).padding(.vertical, 2)
-                        .background(GLGColor.textSecondary.opacity(0.12),
-                                    in: RoundedRectangle(cornerRadius: 6, style: .continuous))
-                } else {
-                    Text("확정").font(.pretendard(size: 9.5, weight: .bold))
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 6).padding(.vertical, 2)
-                        .background(glConfirmed, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
-                }
-            }
-            Text("\(DateUtil.shared.shortDateTime(millis: b.targetMillis)) (\(DateUtil.shared.weekdayKo(millis: b.targetMillis)))")
-                .font(.pretendard(size: 12.5, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
-                .padding(.top, 8)
-            TimelineView(.periodic(from: .now, by: isImminent(targetMillis: b.targetMillis, nowMillis: nowMS()) ? 1 : 60)) { ctx in
-                let now = Int64(ctx.date.timeIntervalSince1970 * 1000)
-                let imminent = isImminent(targetMillis: b.targetMillis, nowMillis: now)
-                HStack(spacing: 4) {
-                    Image(systemName: "play.circle").font(.system(size: 12)).foregroundStyle(gc)
-                    Text(b.isLiveVideo ? "예약된 라이브" : "공식 채널에서 생중계")
-                        .font(.pretendard(size: 10.5))
-                        .foregroundStyle(GLGColor.textSecondary)
-                    Spacer(minLength: 0)
-                    Text((imminent ? hmsLabel(targetMillis: b.targetMillis, nowMillis: now)
-                                   : dhLabel(targetMillis: b.targetMillis, nowMillis: now)) + " 뒤")
-                        .font(.pretendard(size: 10.5, weight: .bold))
-                        .foregroundStyle(imminent ? glUrgent : GLGColor.textSecondary)
-                        .lineLimit(1)
-                        .sirenPulse(active: imminent)
-                }
-                .padding(.top, 6)
-            }
-            // 갈 곳은 최대 둘 — 근거가 된 공지와 방송 자체. 어느 쪽이 열릴지 이름으로 밝힌다
-            // (카드 전체를 누르게 두면 둘 중 뭐가 열릴지 알 수 없다).
-            HStack(spacing: 8) {
-                if !b.noticeUrl.isEmpty {
-                    BroadcastLink(label: "공지 보기", systemImage: "doc.text", tint: gc, url: b.noticeUrl)
-                }
-                BroadcastLink(
-                    label: b.isLiveVideo ? "라이브 보기" : "공식 채널",
-                    systemImage: "arrow.up.forward.square", tint: gc, url: b.liveUrl
-                )
-            }
-            .padding(.top, 10)
-        }
-        .padding(.horizontal, 14).padding(.vertical, 12)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.white, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(gc.opacity(0.35), lineWidth: 1))
-    }
-}
-
-/// 방송 카드의 링크 한 칸. 둘이 나란히 서도 폭이 같도록 maxWidth 로 늘린다.
-/// (Compose BroadcastLink 대응)
-private struct BroadcastLink: View {
-    let label: String
-    let systemImage: String
-    let tint: Color
-    let url: String
-
-    var body: some View {
-        Link(destination: URL(string: url) ?? URL(string: "https://www.youtube.com")!) {
-            HStack(spacing: 5) {
-                Image(systemName: systemImage).font(.system(size: 11)).foregroundStyle(tint)
-                Text(label).font(.pretendard(size: 11, weight: .bold)).foregroundStyle(tint)
-                    .lineLimit(1)
-            }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 7)
-            .background(tint.opacity(0.10), in: RoundedRectangle(cornerRadius: 9, style: .continuous))
         }
         .buttonStyle(.plain)
     }
