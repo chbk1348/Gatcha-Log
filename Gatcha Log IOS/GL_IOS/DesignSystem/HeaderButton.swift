@@ -56,23 +56,6 @@ extension View {
     }
 }
 
-/// 헤더용 시스템 아이콘 버튼 (원형 글래스).
-struct GLGHeaderIconButton: View {
-    let systemImage: String
-    var disabled: Bool = false
-    let action: () -> Void
-    @Environment(\.glgAccent) private var accent
-    var body: some View {
-        Button(action: action) {
-            Image(systemName: systemImage).font(.pretendard(size: 15, weight: .semibold))
-        }
-        .glgGlassButton(circle: true)
-        .tint(accent.primary)
-        .disabled(disabled)
-        .opacity(disabled ? 0.5 : 1)
-    }
-}
-
 /// 시스템 글래스 **칩** — 선택 상태가 있는 작은 알약. 지출 리스트 퀵필터처럼
 /// 본문 위에 상시 얹히는 줄에서 쓴다(커스텀 칩 `GLGChip` 은 필터 시트처럼 칩이 주인공인 화면용).
 ///
@@ -117,23 +100,5 @@ extension View {
                 self.buttonStyle(.bordered).buttonBorderShape(.capsule).controlSize(.regular)
             }
         }
-    }
-}
-
-/// 헤더용 시스템 알약 버튼 (아이콘 + 라벨 글래스).
-struct GLGHeaderPillButton: View {
-    let title: String
-    var systemImage: String? = nil
-    var prominent: Bool = false
-    let action: () -> Void
-    @Environment(\.glgAccent) private var accent
-    var body: some View {
-        Button(action: action) {
-            if let systemImage { Label(title, systemImage: systemImage) }
-            else { Text(title) }
-        }
-        .font(.pretendard(size: 12, weight: .bold))
-        .glgGlassButton(circle: false)
-        .tint(accent.primary)
     }
 }

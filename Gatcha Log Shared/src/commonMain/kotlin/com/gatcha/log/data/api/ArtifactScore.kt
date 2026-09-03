@@ -76,9 +76,6 @@ data class CharArtifactScore(
 
 object ArtifactScoring {
 
-    /** 1장이 가질 수 있는 최대 강화 횟수 — 초기 서브 4개 + 강화 5회. 3게임 공통. */
-    const val MAX_ROLLS_PER_PIECE = 9.0
-
     /**
      * 스탯별 **최대 1회 강화량**(최고 등급 기준). 값 출처는 각 게임 커뮤니티 표준표.
      * 여기 없는 토큰은 서브 옵션으로 안 붙는 스탯(원소 피해·치유·충격력 등 메인 전용).

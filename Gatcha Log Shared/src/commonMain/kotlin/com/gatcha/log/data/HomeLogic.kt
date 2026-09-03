@@ -25,9 +25,6 @@ data class PityHighlight(
 /** 게임별 이번 달 지출/한도. */
 data class GameSpend(val game: Game, val spent: Long, val limit: Long)
 
-/** 픽업 확정 계획 — 최악의 경우 필요한 뽑기 수와 원화 비용(가챠×지출 결합 지표). */
-data class BannerPlan(val maxPulls: Int, val wonCost: Long)
-
 /** 재화(레진/개척력/배터리) 임박 경보. full=가득, recovery="약 N시간 후 충전". */
 data class ResinAlert(
     val gameShort: String,
@@ -125,16 +122,6 @@ object HomeLogic {
     /** 임박 픽업 배너 — 7일 이내 종료, D-day 오름차순, 최대 4 (상시/종료 배너는 dDay 범위 밖으로 자연 제외). */
     fun soonBanners(banners: List<GachaBanner>, nowMillis: Long = currentTimeMillis()): List<GachaBanner> =
         banners.filter { it.dDay(nowMillis) in 0..7 }.sortedBy { it.dDay(nowMillis) }.take(4)
-
-    /** 다음 픽업 확정 비용(가챠×지출) — 천장 누적·확률·1뽑 단가로 산출. */
-    fun nextBannerPlan(nextBanner: GachaBanner?, pity: Map<String, PityState>): BannerPlan? =
-        nextBanner?.let { b ->
-            val g = GameData.byNameOrNull(b.game) ?: return@let null
-            val rate = GachaRateData.byKey(g.key)?.character ?: return@let null
-            val st = pity[g.key]
-            val pulls = GachaRateData.maxPullsToSecure(st?.count ?: 0, st?.guaranteed ?: false, rate)
-            BannerPlan(pulls, pulls.toLong() * rate.wonPerPull)
-        }
 
     /** 재화 임박 경보 — 85% 이상(가득 직전)인 게임 '전부', 가장 찬 순. */
     fun resinAlerts(liveNotes: List<LiveNote>): List<ResinAlert> =

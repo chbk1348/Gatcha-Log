@@ -296,15 +296,10 @@ class GatchaRepository(
         changed()
     }
 
-    // ---------------------------------------------------------------- 이벤트 체크리스트
-    fun loadEventChecks(): Set<String> {
-        val raw = prefs.getString(KEY_EVENT_CHECKS, null) ?: return emptySet()
-        return runCatching {
-            val arr = JSONArray(raw)
-            (0 until arr.length()).map { arr.getString(it) }.toSet()
-        }.getOrDefault(emptySet())
-    }
-
+    // 이벤트 체크리스트는 27.43.5 에서 제거했다 — 양 플랫폼 어디에도 체크 UI 가 없어
+    // 저장만 되고 읽히지 않는 상태였다. KEY_EVENT_CHECKS 는 **스냅샷 통과용으로만** 남긴다
+    // (구버전 앱과 클라우드 공존 — KEY_HOME_CARDS 와 같은 처리).
+    // saveEventChecks 는 스냅샷 왕복 테스트가 이 키를 실제로 채워 검증하는 데 쓴다.
     fun saveEventChecks(checks: Set<String>) {
         prefs.putString(KEY_EVENT_CHECKS, JSONArray(checks.toList()).toString())
         changed()

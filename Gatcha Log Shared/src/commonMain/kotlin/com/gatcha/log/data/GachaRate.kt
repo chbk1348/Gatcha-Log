@@ -29,18 +29,7 @@ data class GachaBannerRate(
 ) {
     /** 1뽑당 추정 원화 비용 (웹앱 getCostPerPull 이식) */
     val wonPerPull: Int get() = costPerPull ?: if (perPull == 1) 850 else 595
-
-    /** 빠른 비교 테이블용 짧은 보장 라벨 */
-    val guaranteeShort: String
-        get() = when {
-            no5050 -> "100% 확정"
-            has5050 -> "50/50"
-            else -> "보장 없음"
-        }
 }
-
-/** 이월/보장 배지 종류 — 색상은 UI에서 결정 */
-enum class CarryoverKind { YES, NO, EPITOMIZED, NONE }
 
 /**
  * 천장 임박 단계. Safe(안전) → Caution(주의, soft-10) → Imminent(임박, soft 진입) → Reached(하드 천장 도달).
@@ -58,9 +47,6 @@ fun pityTierOf(count: Int, banner: GachaBannerRate?): PityTier {
         else -> PityTier.Safe
     }
 }
-
-/** 보장 방식 설명 (제목 + 상세) */
-data class GuaranteeInfo(val title: String, val detail: String)
 
 /** 월정액/패스 (일일 지급 재화로 무료 뽑기 환산) */
 data class GachaPass(val dailyCrystal: Int, val price: String, val name: String)
@@ -162,18 +148,6 @@ object GachaRateData {
 
     fun byKey(key: String): GachaGameRate? = games.firstOrNull { it.key == key }
 
-    /** 이월/보장 배지 (라벨 + 종류). 배너가 없으면 null. */
-    fun carryoverBadge(banner: GachaBannerRate?): Pair<String, CarryoverKind>? {
-        if (banner == null) return null
-        return when {
-            banner.no5050 -> "픽뚫 없음" to CarryoverKind.NONE
-            !banner.has5050 && banner.epitomized -> "운명의 점" to CarryoverKind.EPITOMIZED
-            !banner.has5050 -> "이월 X" to CarryoverKind.NO
-            banner.carryover -> "이월 O" to CarryoverKind.YES
-            else -> "이월 X" to CarryoverKind.NO
-        }
-    }
-
     // ============================================================ 확률 계산 (웹앱 이식)
     /** 현재 누적 천장(pity)에서의 단일 뽑기 최고등급 확률 */
     fun rateAt(pity: Int, b: GachaBannerRate): Double = when {
@@ -197,17 +171,5 @@ object GachaRateData {
         val toFive = (b.hardPity - count).coerceAtLeast(1)
         val needsTwoCycles = b.has5050 && !b.no5050 && !guaranteed
         return if (needsTwoCycles) toFive + b.hardPity else toFive
-    }
-
-    /** 보장 방식 설명. grade 는 게임의 최고등급 표기. */
-    fun guaranteeInfo(grade: String, banner: GachaBannerRate?): GuaranteeInfo {
-        if (banner == null) return GuaranteeInfo("해당 배너 없음", "")
-        return when {
-            banner.no5050 -> GuaranteeInfo("100% 픽업 확정", "50/50 시스템 없음. $grade 등장 시 무조건 픽업.")
-            !banner.has5050 && banner.epitomized -> GuaranteeInfo("운명의 점 시스템", "픽업 무기 미획득 시 점수 누적, 2회 내 확정 획득.")
-            !banner.has5050 -> GuaranteeInfo("50/50 없음", "$grade 등장 시 픽업 확률 없음. 순수 확률 배너.")
-            banner.carryover -> GuaranteeInfo("50/50 이월 보장", "50/50 실패 시 다음 ${grade}은 픽업 100% 확정.")
-            else -> GuaranteeInfo("50/50 보장", "픽업 확률 50%. 이월 여부 확인 필요.")
-        }
     }
 }

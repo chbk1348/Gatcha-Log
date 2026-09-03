@@ -285,3 +285,8 @@ fun calcOutcome(
         } else 100,
     )
 }
+
+// 27.43.5 에 `GachaCalc.kt`(computeCurrencyCalc·CurrencyCalc) 를 통째로 제거했다.
+// 그쪽 최선/최악 시나리오는 `hardPity * 0.83`·`* 0.6` 같은 상수 곱셈이라 정확한 확률 모델과 따로 놀았고,
+// "최선 45회" 에 확률이 붙지 않아 그 수가 얼마나 그럴듯한지 알 수 없었다.
+// → 이 파일의 누적분포 기반 분위수(`pullsAtQuantile`)가 27.43.0 부터 그 자리를 대신한다.

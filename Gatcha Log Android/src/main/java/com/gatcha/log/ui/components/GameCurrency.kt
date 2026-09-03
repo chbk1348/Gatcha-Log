@@ -27,12 +27,5 @@ enum class GameCurrency(val gameKeys: Set<String>, val label: String, val iconUr
     ),
     MONOCHROME(setOf("zzz", "젠레스"), "모노크롬", iconUrl = null),
     LUNITE(setOf("wuwa", "명조"), "달빛", iconUrl = null),
-    ORIGEOMETRY(setOf("endfield", "엔드필드"), "파생 오리지늄", iconUrl = null);
-
-    companion object {
-        fun forGame(gameName: String): GameCurrency? {
-            val g = GameData.byNameOrNull(gameName) ?: return null
-            return entries.firstOrNull { g.key in it.gameKeys }
-        }
-    }
+    ORIGEOMETRY(setOf("endfield", "엔드필드"), "파생 오리지늄", iconUrl = null)
 }

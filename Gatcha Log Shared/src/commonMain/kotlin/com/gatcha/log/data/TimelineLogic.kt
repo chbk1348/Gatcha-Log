@@ -194,7 +194,4 @@ data class TimelineRow(
     val startClipped: Boolean = false,
     /** 대표 보상("원석" 등). 없으면 빈 문자열. */
     val reward: String = "",
-) {
-    /** 막대가 창에서 차지하는 폭 비율. 0 이면 그릴 게 없다. */
-    val widthFraction: Float get() = (endFraction - startFraction).coerceAtLeast(0f)
-}
+)

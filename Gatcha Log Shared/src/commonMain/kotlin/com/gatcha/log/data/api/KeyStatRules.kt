@@ -210,9 +210,7 @@ fun statLabel(t: StatTok, gameKey: String = ""): String {
  * 점수가 왜 그렇게 나왔는지 화면에서 밝히기 위해 출처를 함께 들고 다닌다 —
  * 사용자가 직접 고른 것인지, 앱이 추정한 것인지, 아예 모르는 것인지.
  */
-data class KeyStatVerdict(val stats: Set<StatTok>, val source: KeyStatSource) {
-    val isUnknown: Boolean get() = source == KeyStatSource.NONE
-}
+data class KeyStatVerdict(val stats: Set<StatTok>, val source: KeyStatSource)
 
 enum class KeyStatSource {
     /** 사용자가 직접 고름 — 언제나 최우선. */

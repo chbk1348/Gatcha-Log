@@ -168,14 +168,3 @@ struct GachaReportSection: View {
 }
 
 private struct IdxFive: Hashable { let i: Int; let name: String; let pity: Int }
-
-private struct IdxStr: Hashable { let i: Int; let s: String }
-
-/// 특정 모서리만 둥글게 (배지용).
-struct RoundedCorner: Shape {
-    var radius: CGFloat = 8
-    var corners: UIRectCorner = .allCorners
-    func path(in rect: CGRect) -> Path {
-        Path(UIBezierPath(roundedRect: rect, byRoundingCorners: corners, cornerRadii: CGSize(width: radius, height: radius)).cgPath)
-    }
-}
