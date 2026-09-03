@@ -65,9 +65,6 @@ import com.gatcha.log.ui.theme.glgStandardSpec
 // 내용은 전부 shared 의 HoyolandEvent 에서 온다(원격 hoyoland.json → 실패 시 번들 폴백) —
 // 이 파일에는 표시 규격만 둔다. iOS 대응 = HoyolandSection.swift.
 
-/** 지스타 공식 사이트 — 참가사·티켓 일정이 여기서 먼저 갱신된다. */
-private const val GSTAR_URL = "https://www.gstar.or.kr/"
-
 /**
  * 화면이 쓸 행사 정보 — 첫 프레임은 캐시/번들값으로 즉시 그리고, 원격 갱신되면 갈아 끼운다.
  *
@@ -359,43 +356,54 @@ fun HoyolandDetailContent() {
 
     Spacer(Modifier.height(20.dp))
 
-    // ── G-STAR 2026 — 호요랜드와 **별개 행사**지만, 호요버스가 나오는 국내 오프라인 자리라 여기 둔다.
-    // 2026-08-13 조직위 발표로 참가사에 호요버스가 포함됐다(부스 규모·출품작은 9월 확정 명단에서 공개).
-    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 10.dp)) {
-        Text("G-STAR 2026", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
-        Spacer(Modifier.width(8.dp))
-        GlgBadge("호요버스 참가", accent)
-    }
-    GlassCard(modifier = Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp)) {
-            listOf(
-                "기간" to "2026.11.19(목) ~ 11.22(일) (4일)",
-                "장소" to "부산 벡스코(BEXCO)",
-                "참가" to "호요버스 참가 확정 (부스 규모·출품작 미공개)",
-                "함께" to "구글플레이 · 웹젠 · 네시삼십삼분 · 빌리빌리게임즈 · 센추리게임즈",
-                "스폰서" to "크랙(뤼튼) — 게임사가 아닌 AI 기업의 첫 메인 스폰서",
-                "G-CON" to "11.19 ~ 11.20 · 벡스코 컨벤션홀 · 주제 '내러티브'",
-            ).forEachIndexed { i, (label, value) ->
-                if (i > 0) Spacer(Modifier.height(8.dp))
-                HoyolandFactRow(label, value)
+    // ── 지스타 — 호요랜드와 **별개 행사**지만, 호요버스가 나오는 국내 오프라인 자리라 여기 둔다.
+    // 내용은 전부 shared 의 HoyolandGstar 에서 온다(참가사 명단이 순차 공개돼 자주 바뀐다).
+    val g = e.gstar
+    if (!g.isEmpty) {
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 10.dp)) {
+            Text(g.title, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+            if (g.badge.isNotBlank()) {
+                Spacer(Modifier.width(8.dp))
+                GlgBadge(g.badge, accent)
             }
-            Spacer(Modifier.height(14.dp))
-            GlgOutlineButton(
-                "공식 사이트",
-                onClick = { openExternalLink(ctx, GSTAR_URL) },
-                modifier = Modifier.fillMaxWidth(),
-                height = 46.dp,
-                color = accent,
-            )
-            Spacer(Modifier.height(10.dp))
-            Text(
-                "확정 참가사 명단은 9월에 공개됩니다. 넥슨·엔씨·넷마블·크래프톤 등 국내 대형 게임사는 현재 명단에 없습니다.",
-                fontSize = 11.sp, color = TextSecondary,
-            )
         }
+        GlassCard(modifier = Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(16.dp)) {
+                g.facts.forEachIndexed { i, f ->
+                    if (i > 0) Spacer(Modifier.height(8.dp))
+                    HoyolandFactRow(f.label, f.value)
+                }
+                // 출품작 — 팩트 목록과 같은 카드에 두되 구분선으로 끊는다. 라벨+값이 아니라
+                // 게임 태그가 붙는 줄이라 위와 생김새가 다르고, 따로 카드를 세울 만큼 길지도 않다.
+                if (g.lineup.isNotEmpty()) {
+                    Spacer(Modifier.height(14.dp))
+                    Box(Modifier.fillMaxWidth().height(1.dp).background(DividerColor))
+                    Spacer(Modifier.height(14.dp))
+                    Text("호요버스 출품작", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+                    Spacer(Modifier.height(10.dp))
+                    g.lineup.forEachIndexed { i, item ->
+                        if (i > 0) Spacer(Modifier.height(10.dp))
+                        HoyolandLineupRow(item)
+                    }
+                }
+                if (g.url.isNotBlank()) {
+                    Spacer(Modifier.height(14.dp))
+                    GlgOutlineButton(
+                        "공식 사이트",
+                        onClick = { openExternalLink(ctx, g.url) },
+                        modifier = Modifier.fillMaxWidth(),
+                        height = 46.dp,
+                        color = accent,
+                    )
+                }
+                if (g.notice.isNotBlank()) {
+                    Spacer(Modifier.height(10.dp))
+                    Text(g.notice, fontSize = 11.sp, color = TextSecondary)
+                }
+            }
+        }
+        Spacer(Modifier.height(20.dp))
     }
-
-    Spacer(Modifier.height(20.dp))
 
     // ── 지난 행사 참고 — 실제 개최 이력(최신순). 다음 행사 규모 가늠용.
     // 지나간 정보라 기본은 접어 둔다 — 이 페이지의 본론은 위의 2026 정보다.
