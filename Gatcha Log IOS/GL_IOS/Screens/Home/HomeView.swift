@@ -206,6 +206,10 @@ struct HomeView: View {
         } else {
             DashCardSkeleton(rows: 2)
         }
+        // 호요랜드 — 개막 D-60 이내에만 끼어드는 한시 카드(끝나면 스스로 빠진다).
+        // 소식 바로 다음에 두는 이유: 성격이 '게임 소식'에 가장 가깝고, '나를 위한'(저축·챌린지)
+        // 블록을 가르지 않는 자리가 여기뿐이다. 스켈레톤을 두지 않는 건 폴백이 늘 유효해서다.
+        HoyolandHomeCard(onTap: { store.requestGameInfoAnchor(.hoyoland); onSwitchTab(2) })
     }
 
     @ViewBuilder

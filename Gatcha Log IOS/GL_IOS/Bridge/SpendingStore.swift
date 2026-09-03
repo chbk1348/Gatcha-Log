@@ -91,8 +91,6 @@ final class SpendingStore {
     private(set) var gameEvents: [GameEvent] = []
     private(set) var challenges: [GameChallenge] = []
     private(set) var gameNews: [NewsItem] = []
-    /// 공지에서 확인된 확정 방송. 비어 있으면 방송 탭이 역산 예상값을 쓴다.
-    private(set) var confirmedBroadcasts: [ConfirmedBroadcast] = []
     /// 게임별 일일·주간 숙제 완주율(관측 기록 파생).
     private(set) var taskStats: [TaskStats] = []
     /// 캐릭터별 유효옵션 사용자 설정(키=keyStatOverrideKey).
@@ -147,6 +145,7 @@ final class SpendingStore {
     // ── Phase 6 (27.33.0 알림 설정 — 정기결제 갱신·방해금지·데일리 요약) ──
     private(set) var notifySubscription: Bool = false
     private(set) var notifyNews: Bool = false
+    private(set) var notifyHoyoland: Bool = false
     private(set) var notifyCombat: Bool = true
     private(set) var notifyDndEnabled: Bool = false
     private(set) var notifyDndStartHour: Int = 23
@@ -233,6 +232,7 @@ final class SpendingStore {
         nudgeThreshold = vm.nudgeThreshold.value.int64Value
         notifySubscription = vm.notifySubscription.value.boolValue
         notifyNews = vm.notifyNews.value.boolValue
+        notifyHoyoland = vm.notifyHoyoland.value.boolValue
         notifyCombat = vm.notifyCombat.value.boolValue
         notifyDndEnabled = vm.notifyDndEnabled.value.boolValue
         notifyDndStartHour = Int(vm.notifyDndStartHour.value.int32Value)
@@ -272,7 +272,6 @@ final class SpendingStore {
         bind(vm.gameEvents) { [weak self] in self?.gameEvents = $0 }
         bind(vm.challenges) { [weak self] in self?.challenges = $0 }
         bind(vm.gameNews) { [weak self] in self?.gameNews = $0 }
-        bind(vm.confirmedBroadcasts) { [weak self] in self?.confirmedBroadcasts = $0 }
         bind(vm.combat) { [weak self] in self?.combat = $0 }
         bind(vm.combatClears) { [weak self] in self?.combatClears = $0 }
         bind(vm.combatClearsLoading) { [weak self] in self?.combatClearsLoading = $0.boolValue }
@@ -345,6 +344,7 @@ final class SpendingStore {
         // Phase 6 (알림 설정)
         bind(vm.notifySubscription) { [weak self] in self?.notifySubscription = $0.boolValue }
         bind(vm.notifyNews) { [weak self] in self?.notifyNews = $0.boolValue }
+        bind(vm.notifyHoyoland) { [weak self] in self?.notifyHoyoland = $0.boolValue }
         bind(vm.notifyCombat) { [weak self] in self?.notifyCombat = $0.boolValue }
         bind(vm.notifyDndEnabled) { [weak self] in self?.notifyDndEnabled = $0.boolValue }
         bind(vm.notifyDndStartHour) { [weak self] in self?.notifyDndStartHour = Int($0.int32Value) }
@@ -406,6 +406,7 @@ final class SpendingStore {
     // Phase 6 (27.33.0) — 정기결제 갱신·방해금지·데일리 요약
     func setNotifySubscription(_ v: Bool) { vm.setNotifySubscription(v: v) }
     func setNotifyNews(_ v: Bool) { vm.setNotifyNews(v: v) }
+    func setNotifyHoyoland(_ v: Bool) { vm.setNotifyHoyoland(v: v) }
     func setNotifyCombat(_ v: Bool) { vm.setNotifyCombat(v: v) }
     /// OS 알림 권한을 처음 허용했을 때 — 항목별 알림 일곱 개를 한꺼번에 켠다.
     /// (데일리 요약·방해금지는 발송 방식 설정이라 제외 — `enableAllNotifyItems` 주석 참고)
@@ -449,8 +450,6 @@ final class SpendingStore {
     func deleteSubscription(_ id: String) { vm.deleteSubscription(id: id) }
     /// '구독 표시' 지출을 정기결제로 일괄 등록(중복 제외). subscriptions 는 VM StateFlow bind 로 자동 갱신.
     func importSubscriptionsFromSpendings() { _ = vm.importSubscriptionsFromSpendings() }
-    /// 지출 수정 진입 — 편집 대상 설정(모달 열기는 ContentView 가 담당).
-    func prepareEdit(_ spending: Spending) { MainViewControllerKt.prepareEditSpending(spending: spending) }
     /// 지출 추가/수정 저장 (Spending 생성은 Kotlin 헬퍼).
     func saveSpending(editingId: String?, gameName: String, amount: Int64, dateMillis: Int64,
                       paymentMethod: String, chargePlatform: String, itemName: String, memo: String, tags: [String], isSubscription: Bool) {

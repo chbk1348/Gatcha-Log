@@ -11,7 +11,7 @@ package com.gatcha.log.data
  */
 
 /** 알림 항목 식별자 — 화면이 토글 상태·설정 함수를 이 키로 연결한다. */
-enum class NotifyKey { BUDGET, SUBSCRIPTION, RESIN, ATTENDANCE, PICKUP, COMBAT, NEWS }
+enum class NotifyKey { BUDGET, SUBSCRIPTION, RESIN, ATTENDANCE, PICKUP, COMBAT, NEWS, HOYOLAND }
 
 /**
  * 알림 묶음. 일곱 개를 한 덩어리로 늘어놓으면 훑을 수가 없어서 성격으로 나눴다 —
@@ -48,6 +48,7 @@ object NotificationCatalog {
         NotifyItem(NotifyKey.COMBAT, NotifyGroup.PLAY, "전투 시즌 마감", "못 깬 콘텐츠가 남은 채 시즌이 끝나기 전"),
 
         NotifyItem(NotifyKey.NEWS, NotifyGroup.NEWS, "새 공지", "게임에 새 공지가 올라오면"),
+        NotifyItem(NotifyKey.HOYOLAND, NotifyGroup.NEWS, "호요랜드", "예매 오픈 · 개막 전에"),
     )
 
     /**

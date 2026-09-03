@@ -63,6 +63,7 @@ import com.gatcha.log.data.HoyolabConfig
 import com.gatcha.log.data.LiveNote
 import com.gatcha.log.data.Spending
 import com.gatcha.log.ui.game.GameInfoScreen
+import com.gatcha.log.ui.game.rememberFeaturedHoyoland
 import com.gatcha.log.ui.profile.MyPageScreen
 import com.gatcha.log.ui.spending.AddSpendingModal
 import com.gatcha.log.data.GameInfoAnchor
@@ -360,6 +361,9 @@ fun HomeContent(
     // 일정·소식은 출처가 달라 게이트도 따로다 — 배너·노트가 캐시로 즉시 차도 이 둘은 아직 로딩일 수 있다.
     val scheduleReady by viewModel.scheduleReady.collectAsStateWithLifecycle()
     val newsReady by viewModel.newsReady.collectAsStateWithLifecycle()
+    // 호요랜드 — 개막이 가까울 때만 값이 있다(평소 null → 카드 자체가 안 그려진다).
+    // 게임정보 탭과 같은 로더를 타므로 어느 탭을 먼저 켜든 같은 값을 본다.
+    val featuredHoyoland = rememberFeaturedHoyoland()
     val hoyoTokenExpired by viewModel.hoyoTokenExpired.collectAsStateWithLifecycle()
     val gameEvents by viewModel.gameEvents.collectAsStateWithLifecycle()
     val gameChallenges by viewModel.challenges.collectAsStateWithLifecycle()
@@ -372,13 +376,6 @@ fun HomeContent(
     val prevTotal = remember(spendings) { viewModel.prevMonthTotal() }
     // 헤더 닉네임 — 게스트/빈 값 폴백
     val nickname = if (account.isGuest) "게스트" else profile.name.ifBlank { "회원" }
-
-    // 가챠 기록 가져오기(홈 빠른 액션) — 가챠 효율 리포트와 동일 picker 패턴(*/* 로 SAF 회색처리 회피)
-    val gachaContext = LocalContext.current
-    val gachaScope = rememberCoroutineScope()
-    val gachaPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
-        if (uris.isNotEmpty()) gachaScope.launch { viewModel.importGachaFromContents(SafIO.readTexts(gachaContext, uris)) }
-    }
 
     // 파생 계산은 GL_Shared HomeLogic 의 순수 함수(iOS 와 공유). remember 로 재계산 캐싱.
     //
@@ -583,6 +580,15 @@ fun HomeContent(
             else DashNewsCard(gameNews, anniversaries, titleOutside = true) { viewModel.requestGameInfoAnchor(GameInfoAnchor.NEWS); onNavigateToGameInfo() }
             Spacer(Modifier.height(16.dp))
         }
+        // 호요랜드 — 개막 D-60 이내에만 끼어드는 한시 카드(끝나면 스스로 빠진다).
+        // 소식 바로 다음에 두는 이유: 성격이 '게임 소식'에 가장 가깝고, '나를 위한'(저축·챌린지)
+        // 블록을 가르지 않는 자리가 여기뿐이다.
+        featuredHoyoland?.let { hoyoland ->
+            glgCardItem() {
+                DashHoyolandCard(hoyoland) { viewModel.requestGameInfoAnchor(GameInfoAnchor.HOYOLAND); onNavigateToGameInfo() }
+                Spacer(Modifier.height(16.dp))
+            }
+        }
         // 나를 위한 — 저축 플래너 · 절약 챌린지
         glgCardItem() {
             HomeSectionHeader("나를 위한")
@@ -642,60 +648,6 @@ fun HomeContent(
 // 알림 목록 산출(AlertKind/HomeAlert/buildAlerts)은 GL_Shared HomeLogic 으로 이관 — iOS 와 단일 소스.
 // 아이콘·색·이동 동작 매핑만 아래 NotificationCard 에 남는다.
 // (시간대별 인사말 greetingForNow 는 양 플랫폼 모두 호출부가 없어 함께 제거)
-
-/** 실시간 노트 (HoYoLAB 레진/개척력/배터리 등). 출석·전체출석은 '오늘 할 일'이 담당하므로 여기선 노트만(중복 제거). */
-@Composable
-fun GameStatusSection(
-    hoyolab: HoyolabConfig,
-    liveNotes: List<LiveNote>,
-    isRefreshing: Boolean,
-    onConfigClick: () -> Unit,
-) {
-    val accent = LocalAccent.current
-    GlassCard(shape = RoundedCornerShape(26.dp), modifier = Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(18.dp)) {
-            if (!hoyolab.isLinked) {
-                // 미연동 — 노트 숨기고 연동 유도
-                Column(
-                    Modifier.fillMaxWidth().padding(vertical = 6.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                ) {
-                    Box(
-                        Modifier.size(48.dp).clip(CircleShape).background(accent.copy(alpha = 0.12f)),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Icon(Icons.Default.Link, null, tint = accent, modifier = Modifier.size(24.dp))
-                    }
-                    Spacer(Modifier.height(10.dp))
-                    Text("HoYoLAB 연동이 필요해요", fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                    Spacer(Modifier.height(4.dp))
-                    Text("실시간 노트를 보려면 연동하세요", fontSize = 12.sp, color = TextSecondary)
-                    Spacer(Modifier.height(14.dp))
-                    GlgButton("HoYoLAB 연동하러 가기", onClick = onConfigClick, modifier = Modifier.fillMaxWidth())
-                }
-            } else {
-                Text("실시간 노트", fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                when {
-                    liveNotes.isNotEmpty() -> {
-                        Spacer(Modifier.height(12.dp))
-                        liveNotes.forEachIndexed { i, note ->
-                            if (i > 0) Spacer(Modifier.height(8.dp))
-                            NoteCapsule(note)
-                        }
-                    }
-                    isRefreshing -> {
-                        Spacer(Modifier.height(14.dp))
-                        NoteSkeletonRow()
-                    }
-                    else -> {
-                        Spacer(Modifier.height(8.dp))
-                        Text("표시할 노트가 없어요", fontSize = 12.sp, color = TextSecondary)
-                    }
-                }
-            }
-        }
-    }
-}
 
 /** 알림 상세 페이지 (홈) — 액션형: 알림 탭 시 관련 화면으로 이동. 각 알림은 삭제(X) 가능. */
 @Composable
