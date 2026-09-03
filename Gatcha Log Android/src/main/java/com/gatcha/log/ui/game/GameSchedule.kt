@@ -22,12 +22,9 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.Celebration
 import androidx.compose.material.icons.filled.CalendarMonth
-import androidx.compose.material.icons.filled.PlayCircleOutline
-import androidx.compose.material.icons.automirrored.filled.OpenInNew
-import androidx.compose.material.icons.outlined.Article
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
@@ -38,7 +35,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -51,10 +47,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.gatcha.log.data.DateUtil
-import com.gatcha.log.data.BroadcastSchedule
-import com.gatcha.log.data.ConfirmedBroadcast
 import com.gatcha.log.data.GachaBanner
-import com.gatcha.log.data.LiveBroadcast
 import com.gatcha.log.data.GameChallenge
 import com.gatcha.log.data.GameEvent
 import com.gatcha.log.data.hmsLabel
@@ -69,7 +62,6 @@ import com.gatcha.log.data.ScheduleLogic
 import com.gatcha.log.data.ScheduleMark
 import com.gatcha.log.data.ScheduleWeek
 import com.gatcha.log.data.WeekDay
-import com.gatcha.log.data.buildBroadcastEntries
 import com.gatcha.log.data.buildStartEntries
 import com.gatcha.log.data.buildWeeks
 import com.gatcha.log.data.mark
@@ -77,6 +69,7 @@ import com.gatcha.log.data.ScheduleSummary
 import com.gatcha.log.data.collabTitle
 import com.gatcha.log.data.isCollabBanner
 import com.gatcha.log.ui.components.GlgBadgeText
+import com.gatcha.log.data.HoyolandEvent
 import com.gatcha.log.ui.components.GlassCard
 import com.gatcha.log.ui.components.GlgChip
 import com.gatcha.log.ui.theme.DividerColor
@@ -139,8 +132,6 @@ private fun Modifier.sirenPulse(): Modifier {
 }
 
 private val Urgent = Color(0xFFE8634A)
-/** 확정 배지 — 예상(회색)과 확실히 갈라야 해서 채운 색을 쓴다. */
-private val ConfirmedGreen = Color(0xFF2BB673)
 private val CollabBadge = Color(0xFF6D5AE6)
 /** 콜라보 배너 그라데이션 끝색 — 한 색 평면보다 배너가 앞으로 나와 보인다. */
 private val CollabGradientEnd = Color(0xFF9B5DE5)
@@ -161,9 +152,6 @@ private fun CollabChip() {
  */
 /** 주간 보드 칸 배경 — 흰 카드보다 한 단계 눌러 그리드가 배경처럼 읽히게. */
 private val CardSurfaceLight = androidx.compose.ui.graphics.Color(0xFFF6F7F9)
-
-/** **예상** 표식 색(방송). 확정 마감(빨강)·시작(강조색)과 절대 겹치지 않게 주황 계열로 뺀다. */
-private val EstimateAmber = androidx.compose.ui.graphics.Color(0xFFD97706)
 
 @Composable
 fun GameScheduleSection(
@@ -306,25 +294,26 @@ fun GameScheduleFullPage(
     banners: List<GachaBanner>,
     events: List<GameEvent>,
     challenges: List<GameChallenge>,
-    confirmed: List<ConfirmedBroadcast>,
     collabExpanded: Boolean,
     onToggleCollab: () -> Unit,
+    onOpenHoyoland: () -> Unit,
     onBack: () -> Unit,
 ) {
     BackHandler { onBack() }
     var tab by remember { mutableStateOf(0) }
+    // 홈 카드와 같은 훅 — 노출 시점(D-60)이 한 곳에서 정해진다.
+    val hoyoland = rememberFeaturedHoyoland()
 
     // ── 주간 보드 ──
     //
     // 예전엔 **끝나는 것만** 마감 순으로 늘어놓았다. 다음 픽업이 언제 *시작*하는지가 저축·천장
-    // 관리의 기준인데 `startMillis` 를 쓰지 않았고, 방송은 아예 다른 탭에 있었다.
-    // 이제 시작·마감·방송을 한 축에 얹고 **주 단위**로 끊는다 — 가챠 운영이 주간 리셋·주 단위
+    // 관리의 기준인데 `startMillis` 를 쓰지 않았다.
+    // 이제 시작·마감을 한 축에 얹고 **주 단위**로 끊는다 — 가챠 운영이 주간 리셋·주 단위
     // 이벤트로 돌아가서 "이번 주에 뭘 해야 하나"가 실제 질문이다.
-    val entries = remember(banners, events, challenges, confirmed) {
+    val entries = remember(banners, events, challenges) {
         (
             ScheduleLogic.buildSchedule(banners, events, challenges) +
-                buildStartEntries(banners) +
-                buildBroadcastEntries(banners, confirmed)
+                buildStartEntries(banners)
             ).sortedBy { it.target }
     }
     val weeks = remember(entries) { buildWeeks(entries) }
@@ -379,15 +368,22 @@ fun GameScheduleFullPage(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     GlgChip("일정", selected = tab == 0) { tab = 0 }
-                    GlgChip("방송", selected = tab == 1) { tab = 1 }
-                    GlgChip("주년", selected = tab == 2) { tab = 2 }
+                    GlgChip("주년", selected = tab == 1) { tab = 1 }
                 }
             }
 
             when (tab) {
-                1 -> item(key = "broadcast") { BroadcastContent(banners, confirmed) }
-                2 -> item(key = "anniversary") { AnniversaryContent() }
+                1 -> item(key = "anniversary") { AnniversaryContent() }
                 else -> {
+                    // 오프라인 행사는 **콜라보보다도 위**다. 주간 표는 게임 안에서 벌어지는
+                    // 일만 다루는데, 이건 날짜를 비워 두고 움직여야 하는 유일한 일정이다
+                    // (게다가 나흘 하고 끝난다). 개막 D-60 안쪽에만 끼어들고 그 밖엔 사라진다.
+                    hoyoland?.let { h ->
+                        item(key = "hoyoland") {
+                            HoyolandScheduleBanner(h, onOpenHoyoland)
+                            Spacer(Modifier.height(16.dp))
+                        }
+                    }
                     // 콜라보는 **맨 위**. 종료 시각이 미공지라 시간 축에 못 올리는데, 맨 아래에 두면
                     // 진행 중인 한정 콜라보를 스크롤 끝까지 내려야 본다 — 놓치면 되돌릴 수 없는
                     // 일정이 가장 늦게 읽혔다.
@@ -399,7 +395,7 @@ fun GameScheduleFullPage(
                     }
                     item(key = "summary") {
                         Text(
-                            "시작 · 종료 · 예상(방송 역산)",
+                            "시작 · 종료",
                             fontSize = 12.sp, color = TextSecondary,
                             modifier = Modifier.padding(bottom = 14.dp),
                         )
@@ -547,14 +543,13 @@ private fun WeekCell(d: WeekDay, modifier: Modifier = Modifier) {
     }
 }
 
-/** 일정 한 줄 — 표식(▲▼◆) + 제목·부제 + D-day. */
+/** 일정 한 줄 — 표식(▲▼) + 제목·부제 + D-day. */
 @Composable
 private fun ScheduleRow(e: ScheduleEntry, now: Long) {
     val mark = e.mark()
     val markColor = when (mark) {
         ScheduleMark.START -> LocalAccent.current
         ScheduleMark.END -> DangerText
-        ScheduleMark.ESTIMATE -> EstimateAmber
     }
     val d = e.dDay(now)
     Column(
@@ -586,7 +581,7 @@ private fun ScheduleRow(e: ScheduleEntry, now: Long) {
                 // 픽업 줄은 **얼굴로** 보여준다 — 이름 나열보다 먼저 알아본다. 상류가 항목마다
                 // `icon` 을 주는데 이름만 읽고 버리고 있었다(3게임 전부 준다).
                 // 규격은 '내 캐릭터' 로스터 칸과 같다(원형 초상 + 이름 아래 한 줄, 5성 금색 바탕).
-                // 아이콘이 없는 줄(이벤트·방송)은 부제를 여기 글자로 둔다. 픽업은 카드 아래
+                // 아이콘이 없는 줄(이벤트·콘텐츠)은 부제를 여기 글자로 둔다. 픽업은 카드 아래
                 // 별도 단으로 내려간다(아래 참고).
                 if (e.pickups.isEmpty() && e.sub.isNotBlank()) {
                     Spacer(Modifier.height(2.dp))
@@ -611,12 +606,11 @@ private fun ScheduleRow(e: ScheduleEntry, now: Long) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     // 종류는 **남은 시간 바로 앞**에 붙인다. 앞서 게임 배지 옆에 따로 세워 봤는데,
                     // 정작 "무엇까지 얼마 남았나"는 한 덩어리로 읽히는 말이라 줄 양끝으로 갈라 놓으면
-                    // 눈이 두 번 움직인다. (그 전엔 ▲▼◆ 였고, 그건 방향만 있고 뜻이 없었다.)
+                    // 눈이 두 번 움직인다. (그 전엔 ▲▼ 였고, 그건 방향만 있고 뜻이 없었다.)
                     GlgBadgeText(
                         when (mark) {
                             ScheduleMark.START -> "시작까지"
                             ScheduleMark.END -> "종료까지"
-                            ScheduleMark.ESTIMATE -> "예상"
                         },
                         9.sp, markColor, fontWeight = FontWeight.SemiBold,
                     )
@@ -1096,144 +1090,30 @@ private fun GlgBadgeTextPadded(text: String, size: androidx.compose.ui.unit.Text
     }
 }
 
-// ── 방송 탭 ────────────────────────────────────────────────────────────────
 
 /**
- * 버전 특별 방송 — 게임당 다음 한 회.
+ * 일정 페이지 맨 위의 호요랜드 줄 — 주간 표에 못 올라가는 오프라인 행사를 알리는 자리.
  *
- * 일정 타임라인과 나눈 이유: 저쪽은 '언제 끝나나'를 읽는 자리인데 방송은 시작하는 일정이고,
- * 무엇보다 **역산한 예상**이라 확정된 마감들 사이에 섞이면 같은 무게로 읽힌다.
+ * 카드를 크게 만들지 않는다. 이 페이지의 본론은 픽업·이벤트 마감이고, 행사는 "그날 비워 둬라"
+ * 한 마디면 충분하다 — 자세한 건 탭해서 호요랜드 페이지에서 본다.
  */
 @Composable
-private fun BroadcastContent(banners: List<GachaBanner>, confirmed: List<ConfirmedBroadcast>) {
-    val list = remember(banners, confirmed) { BroadcastSchedule.next(banners, confirmed) }
-
-    // 안내 문구는 목록 성격에 따라 바꾼다 — 전부 확정인데 '예상'이라고 하면 값을 깎아 읽게 된다.
-    val anyEstimate = list.any { it.isEstimate }
-    Text(
-        if (anyEstimate) {
-            "공식 공지가 뜬 방송은 확정 일시로, 아직 안 뜬 방송은 관례(버전 시작 12일 전 금요일)로 계산한 예상이에요."
-        } else {
-            "공식 공지로 확정된 일시예요."
-        },
-        fontSize = 12.sp, color = TextSecondary, modifier = Modifier.padding(bottom = 14.dp),
-    )
-    if (list.isEmpty()) {
-        // 픽업 배너가 없으면 버전 시작일을 몰라 역산의 근거가 없다 — 추측해서 만들어내지 않는다.
-        Text(
-            "예상할 수 있는 방송이 없어요.",
-            fontSize = 13.sp, color = TextSecondary,
-            modifier = Modifier.fillMaxWidth().padding(top = 40.dp),
-        )
-        return
-    }
-    val now = rememberScheduleNow(list.map { it.targetMillis })
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        list.forEach { BroadcastCard(it, now) }
-    }
-}
-
-@Composable
-private fun BroadcastCard(b: LiveBroadcast, now: Long) {
-    val gc = b.colorArgb.toColor()
-    val uriHandler = LocalUriHandler.current
-    val imminent = isImminent(b.targetMillis, now)
-    Column(
-        Modifier.fillMaxWidth()
-            .clip(RoundedCornerShape(14.dp))
-            .background(Color.White)
-            .border(1.dp, gc.copy(alpha = 0.35f), RoundedCornerShape(14.dp))
-            .padding(horizontal = 14.dp, vertical = 12.dp),
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-            Surface(color = gc, shape = RoundedCornerShape(6.dp)) {
-                Text(
-                    b.gameShort, fontSize = 9.5.sp, fontWeight = FontWeight.Bold, color = Color.White,
-                    modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp),
-                )
+private fun HoyolandScheduleBanner(event: HoyolandEvent, onOpen: () -> Unit) {
+    val accent = LocalAccent.current
+    GlassCard(modifier = Modifier.fillMaxWidth().clickable { onOpen() }) {
+        Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                Modifier.size(34.dp).clip(RoundedCornerShape(10.dp)).background(accent.copy(alpha = 0.12f)),
+                contentAlignment = Alignment.Center,
+            ) { Icon(Icons.Default.Celebration, null, tint = accent, modifier = Modifier.size(18.dp)) }
+            Spacer(Modifier.width(11.dp))
+            Column(Modifier.weight(1f)) {
+                Text(event.edition, fontSize = 13.5.sp, fontWeight = FontWeight.Bold, color = TextPrimary, maxLines = 1)
+                Spacer(Modifier.height(2.dp))
+                Text(event.periodLongLabel, fontSize = 12.sp, color = TextSecondary, maxLines = 1)
             }
-            Text(
-                if (b.version.isBlank()) "버전 특별 방송" else "v${b.version} 특별 방송",
-                fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextPrimary,
-                maxLines = 1, modifier = Modifier.weight(1f),
-            )
-            // 예상/확정은 카드마다 붙인다 — 안내 문구를 지나쳐도 여기서 다시 만난다.
-            if (b.isEstimate) {
-                Surface(color = TextSecondary.copy(alpha = 0.12f), shape = RoundedCornerShape(6.dp)) {
-                    Text(
-                        "예상", fontSize = 9.5.sp, fontWeight = FontWeight.Bold, color = TextSecondary,
-                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-                    )
-                }
-            } else {
-                Surface(color = ConfirmedGreen, shape = RoundedCornerShape(6.dp)) {
-                    Text(
-                        "확정", fontSize = 9.5.sp, fontWeight = FontWeight.Bold, color = Color.White,
-                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-                    )
-                }
-            }
+            Spacer(Modifier.width(8.dp))
+            Text(event.statusLabel(), fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = accent)
         }
-        Spacer(Modifier.height(8.dp))
-        Text(
-            DateUtil.shortDateTime(b.targetMillis) + " (" + DateUtil.weekdayKo(b.targetMillis) + ")",
-            fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = TextPrimary,
-        )
-        Spacer(Modifier.height(6.dp))
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.Default.PlayCircleOutline, null, tint = gc, modifier = Modifier.size(14.dp))
-            Spacer(Modifier.width(4.dp))
-            Text(
-                if (b.isLiveVideo) "예약된 라이브" else "공식 채널에서 생중계",
-                fontSize = 10.5.sp, color = TextSecondary, modifier = Modifier.weight(1f),
-            )
-            Text(
-                if (imminent) hmsLabel(b.targetMillis, now) + " 뒤" else dhLabel(b.targetMillis, now) + " 뒤",
-                fontSize = 10.5.sp, fontWeight = FontWeight.Bold,
-                color = if (imminent) Urgent else TextSecondary,
-                maxLines = 1,
-                modifier = if (imminent) Modifier.sirenPulse() else Modifier,
-            )
-        }
-        // 갈 곳은 최대 둘 — 근거가 된 공지와 방송 자체. 어느 쪽이 열릴지 이름으로 밝힌다
-        // (카드 전체를 누르게 두면 둘 중 뭐가 열릴지 알 수 없다).
-        Spacer(Modifier.height(10.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            if (b.noticeUrl.isNotBlank()) {
-                BroadcastLink(
-                    "공지 보기", Icons.Outlined.Article, gc,
-                    Modifier.weight(1f),
-                ) { runCatching { uriHandler.openUri(b.noticeUrl) } }
-            }
-            BroadcastLink(
-                if (b.isLiveVideo) "라이브 보기" else "공식 채널",
-                Icons.AutoMirrored.Filled.OpenInNew, gc,
-                Modifier.weight(1f),
-            ) { runCatching { uriHandler.openUri(b.liveUrl) } }
-        }
-    }
-}
-
-/** 방송 카드의 링크 한 칸. 둘이 나란히 서도 폭이 같도록 [modifier] 로 weight 를 받는다. */
-@Composable
-private fun BroadcastLink(
-    label: String,
-    icon: ImageVector,
-    tint: Color,
-    modifier: Modifier = Modifier,
-    onClick: () -> Unit,
-) {
-    Row(
-        modifier
-            .clip(RoundedCornerShape(9.dp))
-            .background(tint.copy(alpha = 0.10f))
-            .clickable(onClick = onClick)
-            .padding(vertical = 7.dp),
-        horizontalArrangement = Arrangement.Center,
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Icon(icon, null, tint = tint, modifier = Modifier.size(12.dp))
-        Spacer(Modifier.width(5.dp))
-        Text(label, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = tint, maxLines = 1)
     }
 }

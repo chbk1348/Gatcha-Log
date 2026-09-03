@@ -150,9 +150,6 @@ object ScheduleLogic {
             val g = GameData.byNameOrNull(ch.game)
             out += ScheduleEntry(g?.key ?: ch.game, g?.shortName ?: ch.game, ch.gameColor, "콘텐츠", ch.name, ch.reward, ch.endMillis, false)
         }
-        // 버전 특별 방송은 **여기 섞지 않는다.** 타임라인은 '언제 끝나나'를 읽는 자리인데
-        // 방송은 시작하는 일정인 데다 역산한 예상값이라, 섞으면 확정된 마감들 사이에서
-        // 혼자 성격이 다르다. 별도 탭([BroadcastSchedule])으로 뺐다.
         return out.sortedBy { it.target }
     }
 
@@ -345,7 +342,7 @@ object ScheduleLogic {
 //
 // 기존 일정 탭은 **끝나는 것만** 마감 순으로 늘어놓았다. 그런데 다음 픽업이 언제 *시작*하는지가
 // 저축·천장 관리의 기준이고, `GachaBanner.startMillis` 는 모델에 있는데 일정만 쓰지 않았다.
-// 여기서는 시작·마감·방송(예상)을 한 축에 얹고 **주 단위**로 끊는다 —
+// 여기서는 시작·마감을 한 축에 얹고 **주 단위**로 끊는다 —
 // 가챠 운영이 주간 리셋·주 단위 이벤트로 돌아가서, "이번 주에 뭘 해야 하나"가 실제 질문이다.
 // ════════════════════════════════════════════════════════════════════════════
 
@@ -362,8 +359,8 @@ fun pickupNames(pickups: List<GachaBanner>, max: Int = 3): String {
     return names.take(max).joinToString(" · ") + " 외 ${names.size - max}"
 }
 
-/** 일정 한 줄의 표식 — 확정 시작/마감과 **예상**을 절대 같아 보이지 않게 가른다. */
-enum class ScheduleMark { START, END, ESTIMATE }
+/** 일정 한 줄의 표식 — 시작과 마감을 가른다. */
+enum class ScheduleMark { START, END }
 
 /** 주간 보드의 한 칸(하루). 그리드는 일~토 7칸 고정. */
 data class WeekDay(
@@ -477,39 +474,12 @@ fun pickupPhases(gameBanners: List<GachaBanner>): List<PickupPhase> {
 }
 
 /**
- * 버전 특별 방송 — **확정분과 예상분**. 예상은 [ScheduleMark.ESTIMATE] 로 표식이 갈린다.
- *
- * 확정은 공지 파싱과 예약된 라이브에서 온다(둘 다 늦거나 빌 수 있다 — [BroadcastSchedule] 참고).
- * 없으면 "버전 시작 12일 전 금요일" 관례로 역산한다 — 그래서 확정과 절대 같아 보이면 안 된다.
- */
-fun buildBroadcastEntries(
-    banners: List<GachaBanner>,
-    confirmed: List<ConfirmedBroadcast>,
-    nowMillis: Long = currentTimeMillis(),
-): List<ScheduleEntry> = confirmed.filter { it.targetMillis > nowMillis }.mapNotNull { c ->
-    val game = GameData.games.firstOrNull { it.key == c.gameKey } ?: return@mapNotNull null
-    ScheduleEntry(
-        gameKey = game.key,
-        gameShort = game.shortName,
-        colorArgb = game.color,
-        kind = "방송",
-        title = if (c.version.isBlank()) "특별 방송" else "v${c.version} 특별 방송",
-        sub = "공식 채널 생중계",
-        target = c.targetMillis,
-        isStart = true,
-    )
-}
-
-/**
- * 이 줄이 시작인가·마감인가·예상인가. 화면은 이 값으로 ▲▼◆ 를 고른다.
+ * 이 줄이 시작인가 마감인가. 화면은 이 값으로 ▲▼ 를 고른다.
  *
  * 확장 함수가 아니라 **일반 함수**다 — 확장으로 두면 Swift 쪽 이름이 안정적으로 잡히지 않는다.
  */
-fun scheduleMarkOf(entry: ScheduleEntry): ScheduleMark = when {
-    entry.kind == "방송" && entry.sub.contains("예상") -> ScheduleMark.ESTIMATE
-    entry.isStart -> ScheduleMark.START
-    else -> ScheduleMark.END
-}
+fun scheduleMarkOf(entry: ScheduleEntry): ScheduleMark =
+    if (entry.isStart) ScheduleMark.START else ScheduleMark.END
 
 /** Kotlin 호출부용 짧은 형태. */
 fun ScheduleEntry.mark(): ScheduleMark = scheduleMarkOf(this)
