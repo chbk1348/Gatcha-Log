@@ -66,6 +66,7 @@ Gatcha Log IOS/build_x27_rel/
 # 에디터·SourceKit LSP 로컬 설정 (.idea/ · .claude/ 와 같은 취급 — 머신마다 다르다)
 # buildServer.json 은 xcode-build-server 가 생성하며 절대 경로와 DerivedData 해시가 박힌다.
 .vscode/
+.vs/
 buildServer.json
 
 # 에이전트 스킬 (npx skills add) — 로컬 개발 도구다. 앱 코드와 무관한 문서 수십 개라
