@@ -64,6 +64,7 @@ object CloudSync {
     }.onFailure {
         // 진단용 — Xcode 콘솔/시스템 로그에서 "GatchaCloudSync" 로 검색
         println("GatchaCloudSync: Firebase 인증 실패 — ${it::class.simpleName}: ${it.message}")
+        ErrorBus.report(ErrorBus.Kind.API, "Google 로그인", it.message ?: it::class.simpleName.orEmpty())
     }.getOrNull()
 
     /** Firebase 로그아웃. 실패해도 로컬 로그아웃은 진행되도록 예외를 삼킨다. */
@@ -76,6 +77,8 @@ object CloudSync {
         Firebase.firestore.collection(COLLECTION).document(uid).get().get<String?>(FIELD_DATA)
     }.onFailure {
         println("GatchaCloudSync: pull 실패 — ${it::class.simpleName}: ${it.message}")
+        // pull 실패는 push 와 달리 데이터를 잃지 않는다(로컬 유지) → 모달이 아니라 토스트.
+        ErrorBus.report(ErrorBus.Kind.SERVER, "클라우드", "불러오기 실패")
     }.getOrNull()
 
     /**
@@ -98,6 +101,7 @@ object CloudSync {
         else PullOutcome.Loaded(snap.get<String?>(FIELD_DATA))
     }.getOrElse {
         println("GatchaCloudSync: pullOutcome 실패 — ${it::class.simpleName}: ${it.message}")
+        ErrorBus.report(ErrorBus.Kind.SERVER, "클라우드", "불러오기 실패")
         PullOutcome.Failed
     }
 

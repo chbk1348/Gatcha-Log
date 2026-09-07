@@ -1,5 +1,6 @@
 package com.gatcha.log.auth
 
+import com.gatcha.log.data.ErrorBus
 import android.content.Context
 import android.net.Uri
 import android.util.Base64
@@ -83,6 +84,8 @@ object GoogleWebOAuth {
             conn.outputStream.use { it.write(body.toByteArray()) }
             if (conn.responseCode !in 200..299) {
                 Log.e("GoogleWebOAuth", "token exchange HTTP ${conn.responseCode}")
+                // 이 경로는 Net 을 타지 않아(HttpURLConnection 직결) 따로 올려야 한다.
+                ErrorBus.report(ErrorBus.Kind.API, "Google 로그인", "HTTP ${conn.responseCode}")
                 return null
             }
             val json = JSONObject(conn.inputStream.bufferedReader().readText())
@@ -96,6 +99,7 @@ object GoogleWebOAuth {
             )
         } catch (e: Exception) {
             Log.e("GoogleWebOAuth", "token exchange failed", e)
+            ErrorBus.report(ErrorBus.Kind.NETWORK, "Google 로그인", e::class.simpleName ?: "")
             null
         } finally {
             conn.disconnect()

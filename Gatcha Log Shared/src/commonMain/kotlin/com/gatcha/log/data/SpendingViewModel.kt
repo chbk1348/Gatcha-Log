@@ -1721,11 +1721,68 @@ class SpendingViewModel : ViewModel() {
     /** UI 에서 직접 토스트를 띄울 때 (예: 뒤로가기 종료 안내) */
     fun showStatus(msg: String) = emitStatus(msg)
 
-    /** 네트워크 미연결 경고 — 토스트가 아닌 **얼럿 모달**로 표시(메시지 != null 이면 노출). UI 가 확인 후 [clearNetworkAlert]. */
-    private val _networkAlert = MutableStateFlow<String?>(null)
-    val networkAlert: StateFlow<String?> = _networkAlert.asStateFlow()
-    fun clearNetworkAlert() { _networkAlert.value = null }
-    private fun emitNetworkAlert() { _networkAlert.value = "인터넷에 연결되어 있지 않아요.\n연결 상태를 확인한 뒤 다시 시도해주세요." }
+    /**
+     * 오류 얼럿 모달 — 토스트가 아니라 모달로 세우는 것들(null 이 아니면 노출). UI 가 확인 후 [clearErrorAlert].
+     *
+     * 예전엔 네트워크 미연결 전용이라 제목이 UI 에 "인터넷 연결 없음" 으로 박혀 있었다.
+     * 인증 만료·클라우드 백업 실패도 같은 자리에 세워야 해서 제목까지 함께 든다([ErrorAlert]).
+     */
+    private val _errorAlert = MutableStateFlow<ErrorAlert?>(null)
+    val errorAlert: StateFlow<ErrorAlert?> = _errorAlert.asStateFlow()
+    fun clearErrorAlert() { _errorAlert.value = null }
+
+    /** 이미 얼럿이 떠 있으면 덮어쓰지 않는다 — 먼저 뜬 쪽이 대개 원인에 더 가깝다. */
+    private fun emitErrorAlert(alert: ErrorAlert) {
+        if (_errorAlert.value == null) _errorAlert.value = alert
+    }
+
+    private fun emitNetworkAlert() = emitErrorAlert(
+        ErrorAlert("인터넷 연결 없음", "인터넷에 연결되어 있지 않아요.\n연결 상태를 확인한 뒤 다시 시도해주세요."),
+    )
+
+    /** 같은 (종류·출처) 오류를 다시 알리기까지의 최소 간격. 배경 점검이 반복 실패해도 도배되지 않는다. */
+    private val errorNotifiedAt = mutableMapOf<String, Long>()
+
+    /**
+     * [ErrorBus] 를 화면으로 잇는 단일 지점 — 데이터 계층이 삼키던 실패가 여기서 토스트·얼럿이 된다.
+     *
+     * 종류마다 **사용자가 할 일이 있는지**로 표시 수단을 가른다. 연결·서버·형식 오류는 잠시 뒤 풀리거나
+     * 우리가 할 게 없으니 토스트로 알리고 지나가지만, 인증 만료와 클라우드 실패는 재연동·정리를 하기
+     * 전까지 계속 실패하므로 모달로 세운다.
+     */
+    private fun observeErrors() {
+        viewModelScope.launch {
+            ErrorBus.events.collect { r ->
+                val modal = r.kind == ErrorBus.Kind.AUTH || r.kind == ErrorBus.Kind.CLOUD
+                val key = "${r.kind}:${r.source}"
+                val now = currentTimeMillis()
+                val cooldown = if (modal) ERROR_MODAL_COOLDOWN_MS else ERROR_TOAST_COOLDOWN_MS
+                if (now - (errorNotifiedAt[key] ?: 0L) < cooldown) return@collect
+                errorNotifiedAt[key] = now
+                val detail = r.detail.takeIf { it.isNotBlank() }
+                when (r.kind) {
+                    ErrorBus.Kind.NETWORK ->
+                        emitStatus("${r.source} 에 연결하지 못했어요 — 연결 상태를 확인해주세요")
+                    ErrorBus.Kind.SERVER ->
+                        emitStatus("${r.source} 서버가 응답하지 않아요${detail?.let { " ($it)" } ?: ""}")
+                    ErrorBus.Kind.API ->
+                        emitStatus("${r.source} 요청이 실패했어요${detail?.let { " — $it" } ?: ""}")
+                    ErrorBus.Kind.PARSE ->
+                        emitStatus("${r.source} 응답을 읽지 못했어요 — 잠시 후 다시 시도해주세요")
+                    ErrorBus.Kind.AUTH -> emitErrorAlert(
+                        ErrorAlert(
+                            "${r.source} 연동 만료",
+                            "로그인 정보가 만료됐어요.\n게임 정보 탭에서 다시 연동해주세요." +
+                                (detail?.let { "\n\n($it)" } ?: ""),
+                        ),
+                    )
+                    ErrorBus.Kind.CLOUD -> emitErrorAlert(
+                        ErrorAlert("클라우드 백업 오류", detail ?: "클라우드 백업에 실패했어요."),
+                    )
+                }
+            }
+        }
+    }
 
     /** 읽은 알림 키 집합(안정 키 — 가변 메시지 아님). 기기 재진입에도 유지되도록 prefs 영구 저장(로컬 전용). */
     private val _readAlerts = MutableStateFlow<Set<String>>(emptySet())
@@ -2508,11 +2565,13 @@ class SpendingViewModel : ViewModel() {
             // 실패를 삼키면 로컬만 계속 쌓이고 클라우드는 멈춘 채로, 기기를 바꾸는 순간에야 발견된다.
             // 할 일이 원인마다 다르므로 용량 초과와 그 외를 나눠 안내한다.
             pushFailureNotified = true
-            emitStatus(
+            // 토스트로는 지나쳐 버린다 — 백업이 멈춘 건 모르고 지나가면 기기 교체 때 데이터를 잃는다.
+            ErrorBus.report(
+                ErrorBus.Kind.CLOUD, "클라우드",
                 if (docBytes > CLOUD_DOC_LIMIT_BYTES)
-                    "클라우드 백업이 용량 한도를 넘어 멈췄어요 (${docBytes / 1024}KB / ${CLOUD_DOC_LIMIT_BYTES / 1024}KB) — 오래된 뽑기 기록을 정리해주세요"
+                    "백업이 용량 한도를 넘어 멈췄어요 (${docBytes / 1024}KB / ${CLOUD_DOC_LIMIT_BYTES / 1024}KB).\n오래된 뽑기 기록을 정리해주세요."
                 else
-                    "클라우드 백업에 실패했어요 — 연결을 확인해주세요. 다음 변경 때 다시 시도해요",
+                    "백업에 실패했어요.\n연결을 확인해주세요 — 다음 변경 때 다시 시도해요.",
             )
         }
         return ok
@@ -2598,6 +2657,10 @@ class SpendingViewModel : ViewModel() {
 
         /** 클라우드 pull/push 최대 대기(ms). 오프라인 등으로 응답 없을 때 로딩 화면 갇힘 방지. */
         const val SYNC_TIMEOUT_MS = 8_000L
+        /** 같은 오류 토스트를 다시 띄우기까지의 최소 간격(ms). 배경 점검이 20여 건을 동시에 실패해도 한 번만 뜬다. */
+        const val ERROR_TOAST_COOLDOWN_MS = 60_000L
+        /** 같은 오류 모달을 다시 세우기까지의 최소 간격(ms). 확인을 눌러 닫은 직후 다시 뜨면 앱을 못 쓴다. */
+        const val ERROR_MODAL_COOLDOWN_MS = 30L * 60 * 1000
         /** Firestore 문서 크기 한도(바이트). 이 값을 넘기면 set 이 실패한다. */
         const val CLOUD_DOC_LIMIT_BYTES = 1_048_576
         /** 한도 근접 경고 임계치(바이트, 한도의 약 86%). 초과 시 set 이 실패해 백업이 조용히 멈추므로 미리 안내. */
@@ -2663,6 +2726,7 @@ class SpendingViewModel : ViewModel() {
         viewModelScope.launch {
             combine(_spendings, _subscriptions) { _, _ -> Unit }.collect { recomputeSpendingDerived() }
         }
+        observeErrors()   // 데이터 계층이 삼키던 실패를 화면으로 올린다
         bootstrapAuthAndSync()
     }
 }

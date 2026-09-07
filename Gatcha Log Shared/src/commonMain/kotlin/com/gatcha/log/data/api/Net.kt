@@ -1,5 +1,7 @@
 package com.gatcha.log.data.api
 
+import kotlin.coroutines.cancellation.CancellationException
+import com.gatcha.log.data.ErrorBus
 import io.ktor.client.HttpClient
 import io.ktor.client.HttpClientConfig
 import io.ktor.client.plugins.HttpTimeout
@@ -32,6 +34,23 @@ internal expect fun createHttpClient(config: HttpClientConfig<*>.() -> Unit): Ht
 object Net {
 
     private const val TIMEOUT_MS = 12_000L
+
+    /**
+     * 호스트를 사용자에게 보일 이름으로 바꾼다 — 오류 안내에 도메인을 그대로 노출하지 않는다.
+     * 모르는 호스트는 호스트명 그대로 둔다(진단 가치가 더 크다).
+     */
+    private fun sourceOf(url: String): String {
+        val host = url.substringAfter("://").substringBefore('/')
+        return when {
+            host.contains("hoyolab") || host.contains("hoyoverse") -> "HoYoLAB"
+            host.contains("enka") -> "Enka"
+            host.contains("mihomo") -> "Mihomo"
+            host.contains("yatta") -> "Project Amber"
+            host.contains("nanoka") -> "Nanoka"
+            host.contains("github") -> "GitHub"
+            else -> host
+        }
+    }
 
     private val client = createHttpClient {
         // 비-2xx 응답에서 예외 던지지 않음 (원본 Net 과 동일한 동작)
@@ -71,11 +90,22 @@ object Net {
         // 진단용: 비정상 응답만 로깅 (시스템 로그에서 "GatchaNet" 로 검색)
         if (!result.isOk) {
             println("GatchaNet: ${method.value} ${url.substringBefore("?")} → HTTP ${result.code} (본문 ${result.body.length}자)")
+            ErrorBus.report(ErrorBus.Kind.SERVER, sourceOf(url), "HTTP ${result.code}")
         }
         result
+    } catch (e: CancellationException) {
+        // **취소는 오류가 아니다.** 화면을 벗어나거나 갱신이 다시 시작되면서 이전 요청이 접히는
+        // 정상 흐름인데, `catch (Exception)` 이 이것까지 잡는다. 여기서 걸러내지 않으면
+        // 사용자에게 "연결하지 못했어요" 가 뜬다(실측: hoyoland.json 요청 중 JobCancellationException).
+        //
+        // 반환값은 기존과 같은 `NetResult(-1)` 로 둔다 — 호출부는 이미 -1 을 네트워크 실패로
+        // 처리하고 있고, 취소된 코루틴은 어차피 그 결과를 쓰지 않는다.
+        NetResult(-1, "cancelled")
     } catch (e: Exception) {
         // 진단용: 예외(타임아웃·연결 실패 등)는 항상 로깅
         println("GatchaNet: ${method.value} ${url.substringBefore("?")} → 예외 ${e::class.simpleName}: ${e.message}")
+        // 로그만 남기면 사용자에게는 "그냥 비어 있는 화면"으로 보인다 — 화면까지 올린다.
+        ErrorBus.report(ErrorBus.Kind.NETWORK, sourceOf(url), e::class.simpleName ?: "")
         NetResult(-1, e.message ?: "network error")
     }
 }

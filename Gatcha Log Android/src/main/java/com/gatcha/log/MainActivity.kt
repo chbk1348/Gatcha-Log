@@ -127,7 +127,7 @@ class MainActivity : ComponentActivity() {
             val accentIndex by viewModel.accentIndex.collectAsStateWithLifecycle()
             val account by viewModel.account.collectAsStateWithLifecycle()
             val initialSyncing by viewModel.initialSyncing.collectAsStateWithLifecycle()
-            val networkAlert by viewModel.networkAlert.collectAsStateWithLifecycle()
+            val errorAlert by viewModel.errorAlert.collectAsStateWithLifecycle()
             // 로컬 데이터가 이미 있으면(재실행) 로딩 게이트를 건너뛰고 즉시 진입 — 동기화는 백그라운드.
             // 첫 로그인·재설치(로컬 없음)에서만 게이지 링 로딩 화면을 보여준다.
             var loadingDone by rememberSaveable { mutableStateOf(viewModel.hasLocalData) }
@@ -169,16 +169,17 @@ class MainActivity : ComponentActivity() {
                         AccountLoadingScreen(loading = initialSyncing, onFinished = { loadingDone = true })
                     else -> HomeScreen(viewModel)
                 }
-                // 네트워크 미연결 — 앱 진입·로딩·새로고침 공통 얼럿 모달(앱 루트에 한 번만).
-                networkAlert?.let { msg ->
+                // 오류 얼럿 — 네트워크 미연결·연동 만료·클라우드 백업 실패 공통(앱 루트에 한 번만).
+                // 제목이 종류마다 달라서 ErrorAlert 가 제목까지 들고 온다.
+                errorAlert?.let { alert ->
                     GlgDialog(
-                        title = "인터넷 연결 없음",
-                        onDismiss = { viewModel.clearNetworkAlert() },
+                        title = alert.title,
+                        onDismiss = { viewModel.clearErrorAlert() },
                         confirmText = "확인",
-                        onConfirm = { viewModel.clearNetworkAlert() },
+                        onConfirm = { viewModel.clearErrorAlert() },
                         dismissText = null,
                     ) {
-                        Text(msg)
+                        Text(alert.message)
                     }
                 }
 

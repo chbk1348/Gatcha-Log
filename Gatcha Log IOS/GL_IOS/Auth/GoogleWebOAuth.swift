@@ -2,6 +2,7 @@ import Foundation
 import UIKit
 import AuthenticationServices
 import CryptoKit
+import Shared
 
 // ════════════════════════════════════════════════════════════════════════════
 // Google 로그인 — GoogleSignIn SDK 대신 ASWebAuthenticationSession 기반 웹 OAuth(PKCE).
@@ -73,7 +74,11 @@ final class GoogleWebOAuth: NSObject, ASWebAuthenticationPresentationContextProv
         URLSession.shared.dataTask(with: req) { data, _, _ in
             guard let data,
                   let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-                  let idToken = json["id_token"] as? String else { completion(nil); return }
+                  let idToken = json["id_token"] as? String else {
+                // 이 경로는 공유 모듈의 Net 을 타지 않아(URLSession 직결) 따로 올려야 한다.
+                ErrorBus.shared.report(kind: .api, source: "Google 로그인", detail: "토큰 교환 실패")
+                completion(nil); return
+            }
             let claims = Self.decodeJWT(idToken)
             completion(Tokens(
                 idToken: idToken,

@@ -223,14 +223,15 @@ struct ContentView: View {
         }
         // 전역 단일 토스트 — 화면마다 붙이면 탭/페이지마다 중복 표시되므로 앱 루트에서 한 번만 노출·소비.
         .glgToast(message: store.statusMessage, bottomPadding: 64) { store.clearStatus() }
-        // 네트워크 미연결 — 앱 진입·로딩·새로고침 공통 얼럿 모달(앱 루트에 한 번만).
-        .alert("인터넷 연결 없음", isPresented: Binding(
-            get: { store.networkAlert != nil },
-            set: { if !$0 { store.clearNetworkAlert() } }
+        // 오류 얼럿 — 네트워크 미연결·연동 만료·클라우드 백업 실패 공통(앱 루트에 한 번만).
+        // 제목이 종류마다 달라 ErrorAlert 가 제목까지 들고 온다(Android MainActivity 파리티).
+        .alert(store.errorAlert?.title ?? "", isPresented: Binding(
+            get: { store.errorAlert != nil },
+            set: { if !$0 { store.clearErrorAlert() } }
         )) {
-            Button("확인", role: .cancel) { store.clearNetworkAlert() }.glgAlertTint()
+            Button("확인", role: .cancel) { store.clearErrorAlert() }.glgAlertTint()
         } message: {
-            Text(store.networkAlert ?? "")
+            Text(store.errorAlert?.message ?? "")
         }
         // 실험 빌드 경고 — 앱 시작 시 1회(Android MainActivity 의 GlgDialog 파리티).
         // @State 라 프로세스가 새로 뜨면 다시 나온다 — "앱 시작 시 1회"가 의도다.

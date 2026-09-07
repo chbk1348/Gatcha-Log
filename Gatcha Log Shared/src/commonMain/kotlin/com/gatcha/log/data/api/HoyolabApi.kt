@@ -1,5 +1,6 @@
 package com.gatcha.log.data.api
 
+import com.gatcha.log.data.ErrorBus
 import com.gatcha.log.data.CombatAvatar
 import com.gatcha.log.data.CombatClear
 import com.gatcha.log.data.CombatMode
@@ -159,11 +160,22 @@ object HoyolabApi {
         onParse: () -> T,
         onJson: (retcode: Int, message: String, json: JSONObject) -> T,
     ): T {
-        if (code == -1) return onNetwork()
+        if (code == -1) return onNetwork()   // 네트워크 실패는 Net 이 이미 ErrorBus 로 보고했다
         return runCatching {
             val json = JSONObject(body)
-            onJson(json.optInt("retcode", -1), json.optString("message"), json)
-        }.getOrElse { onParse() }
+            val retcode = json.optInt("retcode", -1)
+            val message = json.optString("message")
+            // 인증 만료만 올린다. retcode != 0 을 전부 올리면 "이미 출석했어요"(-5003)나
+            // 이미 받은 코드(-2017/-2018) 같은 **정상 흐름**까지 오류로 뜬다.
+            // 인증 만료는 성격이 다르다 — 재연동하기 전까지 출석·노트가 계속 실패한다.
+            if (retcode in AUTH_RETCODES) {
+                ErrorBus.report(ErrorBus.Kind.AUTH, "HoYoLAB", message)
+            }
+            onJson(retcode, message, json)
+        }.getOrElse {
+            ErrorBus.report(ErrorBus.Kind.PARSE, "HoYoLAB")
+            onParse()
+        }
     }
 
     // ----------------------------------------------------------------- 실시간 노트
