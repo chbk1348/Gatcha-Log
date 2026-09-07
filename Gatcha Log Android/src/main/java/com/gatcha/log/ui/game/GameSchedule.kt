@@ -14,6 +14,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.derivedStateOf
+import com.gatcha.log.ui.components.GlgPullToRefreshBox
 import com.gatcha.log.ui.components.GlgDetailHeaderOverlay
 import com.gatcha.log.ui.components.glgDetailContentTop
 import androidx.compose.foundation.border
@@ -298,6 +299,8 @@ fun GameScheduleFullPage(
     onToggleCollab: () -> Unit,
     onOpenHoyoland: () -> Unit,
     onBack: () -> Unit,
+    isRefreshing: Boolean,
+    onRefresh: () -> Unit,
 ) {
     BackHandler { onBack() }
     var tab by remember { mutableStateOf(0) }
@@ -350,7 +353,13 @@ fun GameScheduleFullPage(
         }
     }
 
-    Box(Modifier.fillMaxSize()) {
+    // 이 페이지의 일정은 배너·이벤트·정기콘텐츠를 상류에서 받아 만든 것이라, 상세로 들어온 뒤
+    // 갱신하려면 게임 정보 탭까지 되돌아가야 했다. 목록을 들고 있는 화면이니 여기서도 당겨 받는다.
+    GlgPullToRefreshBox(
+        isRefreshing = isRefreshing,
+        onRefresh = onRefresh,
+        modifier = Modifier.fillMaxSize(),
+    ) {
         LazyColumn(
             state = listState,
             modifier = Modifier.fillMaxSize()

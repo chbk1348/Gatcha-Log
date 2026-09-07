@@ -568,6 +568,9 @@ struct GameSchedulePage: View {
         }
         .scrollIndicators(.hidden)
         .background(GLGBackground { Color.clear })
+        // 상세로 들어온 뒤에도 여기서 바로 당겨 받는다 — 게임 정보 탭까지 되돌아가지 않아도 되게.
+        // (Android GameScheduleFullPage 의 GlgPullToRefreshBox 와 파리티)
+        .refreshable { store.refreshGameInfo(force: true) }
         .glgPageTitle("게임 일정")
         .navigationBarTitleDisplayMode(.inline)
         .navigationDestination(isPresented: $showHoyoland) { HoyolandDetailView() }
