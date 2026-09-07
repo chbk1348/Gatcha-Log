@@ -25,16 +25,18 @@ object CloudSync {
     private const val FIELD_DATA = "data"
 
     /**
-     * Firestore users/{uid} 문서 구조.
-     * - `data`: 전체 스냅샷 JSON(평문) — **읽기의 단일 소스**(구버전 호환, dual-write).
-     * - `userInfo`/`spending`/`gameInfo`: 콘솔 가독성·향후 부분 동기화를 위한 섹션 분리 맵(키→JSON문자열).
+     * Firestore users/{uid} 문서 구조 — `data` 한 덩어리 + 갱신 시각.
+     *
+     * 예전엔 콘솔 가독성·향후 부분 동기화를 위해 `userInfo`/`spending`/`gameInfo` 섹션 맵을
+     * 같이 썼다(dual-write). **읽는 쪽이 끝내 생기지 않았고**([pull]·[pullOutcome] 둘 다 `data` 만
+     * 꺼낸다), 세 섹션의 키를 합치면 `data` 의 키 전부와 같아 문서가 **정확히 두 배**였다.
+     * 1MiB 한도의 절반을 아무도 읽지 않는 사본이 쓰고 있었다 — 뽑기 약 3,800건에서 백업이 멈췄다.
+     *
+     * `set` 은 문서를 통째로 교체하므로 기존 문서의 섹션 필드도 다음 push 에서 사라진다(마이그레이션 불필요).
      */
     @Serializable
     private data class SnapshotDoc(
         val data: String,
-        val userInfo: Map<String, String> = emptyMap(),
-        val spending: Map<String, String> = emptyMap(),
-        val gameInfo: Map<String, String> = emptyMap(),
         val updatedAt: Long,
     )
 
@@ -109,15 +111,9 @@ object CloudSync {
      * uid 문서에 스냅샷 JSON(평문) 저장. 실패 시 false 반환(set 미적용 → 기존 문서 보존, 손상 없음).
      * 1MB 초과 등으로 실패해도 클라우드 데이터를 비우지 않는다.
      */
-    suspend fun push(
-        uid: String,
-        json: String,
-        userInfo: Map<String, String> = emptyMap(),
-        spending: Map<String, String> = emptyMap(),
-        gameInfo: Map<String, String> = emptyMap(),
-    ): Boolean = runCatching {
+    suspend fun push(uid: String, json: String): Boolean = runCatching {
         Firebase.firestore.collection(COLLECTION).document(uid)
-            .set(SnapshotDoc(data = json, userInfo = userInfo, spending = spending, gameInfo = gameInfo, updatedAt = currentTimeMillis()))
+            .set(SnapshotDoc(data = json, updatedAt = currentTimeMillis()))
         true
     }.getOrDefault(false)
 }

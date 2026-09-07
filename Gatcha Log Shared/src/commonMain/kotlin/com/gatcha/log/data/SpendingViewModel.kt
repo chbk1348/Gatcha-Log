@@ -2525,39 +2525,28 @@ class SpendingViewModel : ViewModel() {
     /**
      * 전체 스냅샷을 Firestore 에 push 하는 단일 경로.
      *  - 중복 방지: 직전 성공 push 와 내용이 같으면 쓰기를 생략(테마 변경·재로딩 등 무변화 churn 절감).
-     *  - 1MB 한도 경고: 문서 실제 크기(UTF-8 × [CLOUD_DOC_COPIES])가 한도에 근접하면 미리 안내한다.
+     *  - 1MB 한도 경고: 문서 실제 크기(UTF-8 바이트)가 한도에 근접하면 미리 안내한다.
      *  - 실패 안내: set 이 실패하면 사용자에게 알린다 — 알리지 않으면 백업이 멈춘 줄 모른다.
      *  - 실패 시 lastPushedSnapshot 을 갱신하지 않아 다음 변경에서 재시도된다.
      */
     private suspend fun cloudPush(uid: String): Boolean {
-        // 스냅샷은 **한 번만** 만들어 전체 문서(문자열)와 섹션 분해(객체)에 함께 쓴다.
-        // 예전엔 exportSnapshotJson() 과 exportCloudSections() 가 각자 스냅샷을 만들어,
-        // push 1회에 스냅샷 생성 2회 + 전량 재파싱 1회가 일어났다(수백 KB 를 메인 스레드에서).
-        //
-        // 그리고 **이 작업 전체가 IO 로 간다.** 스냅샷 생성은 저장된 JSON 문자열을 전부 파싱하고
+        // **이 작업 전체가 IO 로 간다.** 스냅샷 생성은 저장된 JSON 문자열을 전부 파싱하고
         // 결과를 다시 직렬화하는 일이라 수백 KB 급인데, viewModelScope 가 Main.immediate 라
         // 지출을 저장할 때마다 1.5초 뒤 그게 UI 스레드에서 돌고 있었다.
         // (직렬화 형식 자체는 건드리지 않는다 — lastPushedSnapshot 비교와 Firestore 중복 쓰기
         //  생략이 바이트 동일성에 걸려 있다.)
-        val (snapshot, json) = withContext(Dispatchers.IO) {
-            val snap = repo.exportSnapshot()
-            snap to snap.toString()
-        }
+        val json = withContext(Dispatchers.IO) { repo.exportSnapshotJson() }
         if (json == lastPushedSnapshot) return true   // 변경 없음 → write 생략
-        // 문서의 **실제** 크기로 잰다. 예전엔 json.length 를 그대로 임계와 비교했는데 두 군데가 틀렸다:
-        //  ① 한도는 UTF-16 단위가 아니라 UTF-8 바이트 기준이다.
-        //  ② 문서에는 스냅샷이 `data` 와 섹션 3개로 **두 번** 들어간다([CLOUD_DOC_COPIES]).
-        // 그래서 경고가 걸릴 땐 문서가 이미 한도의 180% 라 set 이 먼저 실패했다 — 경고가 뜰 수 없었다.
-        val docBytes = utf8Bytes(json) * CLOUD_DOC_COPIES
+        // 문서의 **실제** 크기로 잰다 — 한도는 UTF-16 단위가 아니라 UTF-8 바이트 기준이다.
+        // (섹션 dual-write 를 걷어내기 전에는 여기에 ×2 가 더 붙었다. 지금은 `data` 한 벌뿐이다.)
+        val docBytes = utf8Bytes(json)
         if (docBytes > CLOUD_DOC_WARN_BYTES) {
             if (!docSizeWarned) {
                 docSizeWarned = true
                 emitStatus("클라우드 백업 용량이 한계에 근접했어요 (${docBytes / 1024}KB / ${CLOUD_DOC_LIMIT_BYTES / 1024}KB) — 오래된 뽑기 기록 정리를 권장해요")
             }
         } else docSizeWarned = false
-        // 섹션 분해도 직렬화라 IO. 위 조기 반환 뒤에 두어 무변화 push 에서는 아예 돌지 않는다.
-        val s = withContext(Dispatchers.IO) { repo.exportCloudSections(snapshot) }
-        val ok = CloudSync.push(uid, json, s.userInfo, s.spending, s.gameInfo)
+        val ok = CloudSync.push(uid, json)
         if (ok) {
             lastPushedSnapshot = json
             pushFailureNotified = false
@@ -2665,11 +2654,6 @@ class SpendingViewModel : ViewModel() {
         const val CLOUD_DOC_LIMIT_BYTES = 1_048_576
         /** 한도 근접 경고 임계치(바이트, 한도의 약 86%). 초과 시 set 이 실패해 백업이 조용히 멈추므로 미리 안내. */
         const val CLOUD_DOC_WARN_BYTES = 900_000
-        /**
-         * 문서에 스냅샷이 들어가는 횟수 — `data` 로 1회, 섹션 3개(userInfo/spending/gameInfo)가
-         * 같은 내용을 나눠 담아 합계 1회. **섹션 dual-write 를 걷어내면 1 로 내린다.**
-         */
-        const val CLOUD_DOC_COPIES = 2
         /** 포그라운드 알림 점검 최소 간격(ms) — 탭 전환마다 HoYoLAB 을 두드리지 않도록. */
         const val FOREGROUND_CHECK_MIN_INTERVAL_MS = 15L * 60 * 1000
 
