@@ -44,8 +44,10 @@ final class SpendingStore {
     private(set) var accentIndex: Int
     private(set) var profile: UserProfile
     private(set) var statusMessage: String?
-    /// 네트워크 미연결 경고 — 얼럿 모달용(nil 이 아니면 표시). 토스트(statusMessage)와 분리.
-    private(set) var networkAlert: String?
+    /// 오류 얼럿 모달용(nil 이 아니면 표시). 토스트(statusMessage)와 분리.
+    /// 네트워크 미연결·HoYoLAB 연동 만료·클라우드 백업 실패가 모두 이 자리에 뜬다 — 제목이 종류마다 달라
+    /// 문자열이 아니라 `ErrorAlert`(title/message)로 받는다.
+    private(set) var errorAlert: ErrorAlert?
     private(set) var initialSyncing: Bool
     /// 로그아웃 진행 중 — 네트워크 대기 동안 오버레이를 띄운다(Android SignOutOverlay 대응).
     private(set) var signingOut: Bool = false
@@ -247,7 +249,7 @@ final class SpendingStore {
         bind(vm.accentIndex) { [weak self] in self?.accentIndex = Int($0.int32Value) }
         bind(vm.profile) { [weak self] in self?.profile = $0 }
         bind(vm.statusMessage) { [weak self] in self?.statusMessage = $0 }
-        bind(vm.networkAlert) { [weak self] in self?.networkAlert = $0 }
+        bind(vm.errorAlert) { [weak self] in self?.errorAlert = $0 }
         bind(vm.initialSyncing) { [weak self] in self?.initialSyncing = $0.boolValue }
         bind(vm.signingOut) { [weak self] in self?.signingOut = $0.boolValue }
         bind(vm.forceUpdate) { [weak self] in self?.forceUpdate = $0.boolValue }
@@ -383,7 +385,7 @@ final class SpendingStore {
     /// 상태 토스트 소비.
     func clearStatus() { vm.clearStatus() }
     /// 네트워크 미연결 얼럿 소비.
-    func clearNetworkAlert() { vm.clearNetworkAlert() }
+    func clearErrorAlert() { vm.clearErrorAlert() }
 
     // ── Phase 2 액션 ──────────────────────────────────────────────────────
     /// 전체 예산 + 게임별 한도 저장.
