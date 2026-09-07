@@ -38,6 +38,11 @@ Gatcha Log MD
 Gatcha Log MD/
 GatchaLOG_Error Report/
 
+# 비공개 vault(chbk1348/Gatcha-Log-vault) 로의 심볼릭 링크 — IDE 에서 바로 열려고 걸어 둔다.
+# ⚠️ 이 안에 릴리스 서명키가 있다. **절대 커밋 금지**(링크만 무시하면 대상까지 안 딸려간다).
+Gatcha Log Vault
+Gatcha Log Vault/
+
 # iOS / Xcode (KMP 마이그레이션)
 Gatcha Log IOS/GL_IOS.xcodeproj/xcuserdata/
 Gatcha Log IOS/GL_IOS.xcodeproj/project.xcworkspace/xcuserdata/
