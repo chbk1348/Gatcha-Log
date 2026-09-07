@@ -234,7 +234,7 @@ class GatchaRepository(
 
     // ---------------------------------------------------------------- Enka 프로필 결과 디스크 캐시
     // 앱 재시작 시 '내 캐릭터'를 즉시 표시(stale-while-revalidate)하기 위한 로컬 전용 캐시.
-    // 클라우드 스냅샷 비포함(SECTION_* 미등록) · changed() 호출 안 함.
+    // 클라우드 스냅샷 비포함 · changed() 호출 안 함.
     private val enkaJson = Json { ignoreUnknownKeys = true }
 
     /** "game:uid" → (타임스탬프, 결과). [maxAgeMs] 보다 오래된 항목은 제외. */
@@ -789,14 +789,7 @@ class GatchaRepository(
     }
 
     // ---------------------------------------------------------------- 스냅샷 (전체 데이터 직렬화 — 클라우드/파일 백업 공용)
-    /**
-     * 계정의 모든 데이터를 단일 JSON 객체로 모은다.
-     *
-     * 문자열이 아니라 [JSONObject] 를 돌려주는 형태를 따로 둔 이유 — 클라우드 push 는 같은 스냅샷을
-     * 전체 문서용(문자열)과 섹션별 분해용(객체) 두 가지로 쓴다. 예전엔 [exportCloudSections] 가
-     * `JSONObject(exportSnapshotJson())` 로 시작해서, **스냅샷을 통째로 한 번 더 만들고 그 결과를 다시
-     * 전량 파싱**했다. 여기서 한 번만 만들어 양쪽에 넘긴다.
-     */
+    /** 계정의 모든 데이터를 단일 JSON 객체로 모은다(클라우드 push·파일 백업 공용). */
     fun exportSnapshot(): JSONObject {
         val o = JSONObject()
         prefs.getString(KEY_SPENDINGS, null)?.let { o.put(KEY_SPENDINGS, JSONArray(it)) }
@@ -893,25 +886,6 @@ class GatchaRepository(
         }
     }
 
-    /**
-     * 클라우드용 섹션 분리 — 전체 스냅샷을 유저정보/지출/게임정보 3맵으로 나눈다(각 키→값 JSON 문자열).
-     * Firestore `users/{uid}` 의 userInfo/spending/gameInfo 필드로 저장돼 콘솔 가독성↑.
-     * (읽기는 기존 `data` 전체 스냅샷 사용 — dual-write 호환)
-     */
-    fun exportCloudSections(snapshot: JSONObject = exportSnapshot()): CloudSections {
-        val o = snapshot
-        fun valueString(k: String): String = when (k) {
-            KEY_BUDGET -> o.getLong(k).toString()
-            KEY_ACCENT, KEY_BEST_NOSPEND -> o.getInt(k).toString()
-            in OBJECT_KEYS -> o.getJSONObject(k).toString()
-            in ARRAY_KEYS -> o.getJSONArray(k).toString()
-            else -> o.getString(k)
-        }
-        fun section(keys: List<String>): Map<String, String> =
-            buildMap { keys.forEach { k -> if (o.has(k)) put(k, valueString(k)) } }
-        return CloudSections(section(SECTION_USER_INFO), section(SECTION_SPENDING), section(SECTION_GAME_INFO))
-    }
-
     private companion object {
         const val KEY_PITY = "pity"
         const val KEY_EVENT_CHECKS = "event_checks"
@@ -960,21 +934,5 @@ class GatchaRepository(
         const val KEY_BADGES = "badges"                // 획득 절약 배지 id 집합
 
         // 클라우드 섹션 분리 — 스냅샷 키를 유저정보/지출/게임정보로 분배(토큰·read_alerts 는 스냅샷 비포함).
-        val SECTION_USER_INFO = listOf(KEY_PROFILE_NAME, KEY_PROFILE_EMAIL, KEY_ACCENT, KEY_HOME_CARDS)
-        val SECTION_SPENDING = listOf(KEY_SPENDINGS, KEY_DELETED_SPENDINGS, KEY_BUDGET, KEY_BUDGET_GAMES, KEY_SUBS, KEY_BEST_NOSPEND, KEY_BADGES)
-        val SECTION_GAME_INFO = listOf(
-            KEY_HOYO_GI, KEY_HOYO_HSR, KEY_HOYO_ZZZ, KEY_ENKA_GI, KEY_ENKA_HSR,
-            KEY_ATTENDANCE, KEY_PITY, KEY_EVENT_CHECKS, KEY_GACHA, KEY_REDEEMED, KEY_SAVINGS_HELD, KEY_SAVINGS_HIDDEN,
-        )
-        // 값 타입 분류(섹션 맵의 문자열 변환용) — 나머지 키는 문자열.
-        private val OBJECT_KEYS = setOf(KEY_BUDGET_GAMES, KEY_ATTENDANCE, KEY_PITY, KEY_SAVINGS_HELD)
-        private val ARRAY_KEYS = setOf(KEY_SPENDINGS, KEY_DELETED_SPENDINGS, KEY_EVENT_CHECKS, KEY_SUBS, KEY_GACHA, KEY_HOME_CARDS, KEY_REDEEMED, KEY_BADGES, KEY_SAVINGS_HIDDEN)
     }
 }
-
-/** 클라우드 섹션 분리 결과 — Firestore `users/{uid}` 의 userInfo/spending/gameInfo 맵(키→JSON문자열 값). */
-data class CloudSections(
-    val userInfo: Map<String, String>,
-    val spending: Map<String, String>,
-    val gameInfo: Map<String, String>,
-)

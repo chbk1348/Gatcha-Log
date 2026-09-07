@@ -4,9 +4,13 @@ rules_version = '2';
 // Gatcha LOG — Firestore 보안 규칙
 //
 // 데이터 모델: users/{uid} 문서 하나에 사용자별 전체 스냅샷 저장
-//   - data       : 가챠·지출 전체 스냅샷(평문 JSON 문자열)
+//   - data       : 가챠·지출 전체 스냅샷(평문 JSON 문자열) — 읽기의 단일 소스
 //   - updatedAt   : 갱신 시각(epoch millis)
-//   (CloudSync.kt 의 COLLECTION="users", FIELD_DATA="data", FIELD_UPDATED="updatedAt")
+//   (CloudSync.kt 의 COLLECTION="users", FIELD_DATA="data")
+//
+//   ⚠️ 예전엔 userInfo/spending/gameInfo 섹션 맵을 함께 썼다(dual-write). 읽는 쪽이 없는데
+//   문서를 두 배로 불려 1MiB 한도를 절반만 쓰게 만들어 걷어냈다. set 이 문서를 통째로
+//   교체하므로 남아 있던 섹션 필드는 다음 push 에서 사라진다.
 //
 // 원칙: "구글 계정 귀속" — 본인(uid) 문서만 읽고 쓸 수 있다.
 //   · 비로그인 → 전면 차단
