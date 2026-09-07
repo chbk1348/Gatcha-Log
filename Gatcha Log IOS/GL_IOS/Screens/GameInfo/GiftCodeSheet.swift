@@ -35,6 +35,7 @@ struct GiftCodePage: View {
                     GLGCard(cornerRadius: 20, padding: 16) {
                         VStack(alignment: .leading, spacing: 0) {
                             activeHeader
+                            restoreRow
                             codeList.padding(.top, 10)
                         }
                     }
@@ -81,6 +82,20 @@ struct GiftCodePage: View {
                 if store.codesLoading { ProgressView().controlSize(.mini).tint(accent.primary) }
                 else { Image(systemName: "arrow.clockwise").font(.pretendard(size: 14)).foregroundStyle(accent.primary) }
             }.buttonStyle(.plain).disabled(store.codesLoading)
+        }
+    }
+
+    /// 잘못 가려진 코드를 되살리는 유일한 통로 — 가려진 게 있을 때만 보인다. (Android 파리티)
+    @ViewBuilder private var restoreRow: some View {
+        if !store.unusableCodes.isEmpty {
+            HStack(spacing: 8) {
+                Text("가려진 코드 \(store.unusableCodes.count)개")
+                    .font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary)
+                Button { store.restoreUnusableCodes(selected) } label: {
+                    Text("되살리기").font(.pretendard(size: 12, weight: .bold)).foregroundStyle(accent.primary)
+                }.buttonStyle(.plain)
+            }
+            .padding(.vertical, 6)
         }
     }
 

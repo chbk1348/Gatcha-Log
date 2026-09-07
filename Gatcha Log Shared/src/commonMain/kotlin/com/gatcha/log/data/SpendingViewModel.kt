@@ -2226,6 +2226,9 @@ class SpendingViewModel : ViewModel() {
      */
     private val _unusableCodes = MutableStateFlow<Set<String>>(emptySet())
 
+    /** 가려진 코드 수 — 0 이 아닐 때만 화면이 '되살리기'를 제공한다. */
+    val unusableCodes: StateFlow<Set<String>> = _unusableCodes.asStateFlow()
+
     /** 코드 수집 실패(네트워크·파싱). true 면 '코드 없음'이 아니라 '못 불러옴' — 화면은 재시도를 제공한다. */
     private val _codesFailed = MutableStateFlow(false)
     val codesFailed: StateFlow<Boolean> = _codesFailed.asStateFlow()
@@ -2272,6 +2275,22 @@ class SpendingViewModel : ViewModel() {
         _activeCodes.value = _activeCodes.value.filterNot { it.code.uppercase() == c }
     }
 
+    /**
+     * 가려 둔 코드를 전부 되살린다 — **유일한 복구 수단**이다.
+     *
+     * `unusable_codes` 는 합집합으로만 자라고 로컬 전용이라(스냅샷 비포함) 클라우드 복원으로도
+     * 안 풀린다. 판정이 틀렸을 때 사용자가 되돌릴 방법이 재설치뿐이었다. 옛 버전이
+     * 모르는 retcode 를 전부 차단하던 시절에 탄 코드도 여기서 되살아난다.
+     */
+    fun restoreUnusableCodes(gameKey: String) {
+        if (_unusableCodes.value.isEmpty()) return
+        val n = _unusableCodes.value.size
+        _unusableCodes.value = emptySet()
+        repo.saveUnusableCodes(emptySet())
+        emitStatus("가려진 코드 ${n}개를 되살렸어요")
+        loadActiveCodes(gameKey)   // 걸러내던 목록을 다시 받아 화면에 올린다
+    }
+
     /** 교환 실행(검증 포함). 성공/이미사용이면 사용 표시. */
     private suspend fun doRedeem(gameKey: String, code: String): CodeResult {
         val cfg = _hoyolabConfig.value
@@ -2304,25 +2323,45 @@ class SpendingViewModel : ViewModel() {
         }
     }
 
-    /** 수집된 활성 코드 중 미교환분을 순차 교환(레이트리밋 대비 지연). */
+    /**
+     * 수집된 활성 코드 중 미교환분을 순차 교환(레이트리밋 대비 지연).
+     *
+     * **같은 retcode 로 연달아 실패하면 중단한다.** 코드마다 사유가 다르면 코드 문제지만,
+     * 똑같은 코드가 계속 나오면 계정 쪽 사유다(쿠키 만료·등급 미달·게임 미연동·리전 불일치).
+     * 그대로 끝까지 돌면 남은 코드를 전부 헛되이 태우고, 예전 판정 규칙에서는 그 코드들이
+     * 통째로 영구 차단됐다.
+     */
     fun redeemAllCodes(gameKey: String) {
         val targets = _activeCodes.value.map { it.code }.filter { it !in _redeemedCodes.value }
         if (targets.isEmpty()) { _redeemState.value = RedeemState.Done(true, "교환할 새 코드가 없어요"); return }
         viewModelScope.launch {
             var ok = 0; var fail = 0; var lastFailMsg = ""
-            targets.forEachIndexed { i, code ->
+            var sameFailStreak = 0
+            var lastFailRetcode: Int? = null
+            var aborted = false
+            for (i in targets.indices) {
                 _redeemState.value = RedeemState.Loading
-                val r = doRedeem(gameKey, code)
-                if (r.success || r.alreadyRedeemed) ok++ else { fail++; lastFailMsg = r.message }
+                val r = doRedeem(gameKey, targets[i])
+                if (r.success || r.alreadyRedeemed) {
+                    ok++
+                    sameFailStreak = 0
+                    lastFailRetcode = null
+                } else {
+                    fail++
+                    lastFailMsg = r.message
+                    if (r.retcode == lastFailRetcode) sameFailStreak++ else { sameFailStreak = 1; lastFailRetcode = r.retcode }
+                    if (sameFailStreak >= REDEEM_ABORT_SAME_FAILS && i < targets.lastIndex) { aborted = true; break }
+                }
                 if (i < targets.lastIndex) delay(5500) // 교환 레이트리밋(-2016) 회피
             }
             // 실패 사유를 그대로 노출(전부 실패 시 원인 파악 — 쿠키/만료/리전 등)
             val detail = when {
+                aborted -> "같은 사유로 ${sameFailStreak}번 실패해 중단했어요 — $lastFailMsg"
                 fail == 0 -> "교환 ${ok}건 완료 (우편함 확인)"
                 ok == 0 -> "교환 실패 ${fail}건 — $lastFailMsg"
                 else -> "교환 ${ok}건 완료 · 실패 ${fail}건 ($lastFailMsg)"
             }
-            _redeemState.value = RedeemState.Done(fail == 0, detail)
+            _redeemState.value = RedeemState.Done(!aborted && fail == 0, detail)
         }
     }
 
@@ -2646,6 +2685,11 @@ class SpendingViewModel : ViewModel() {
 
         /** 클라우드 pull/push 최대 대기(ms). 오프라인 등으로 응답 없을 때 로딩 화면 갇힘 방지. */
         const val SYNC_TIMEOUT_MS = 8_000L
+        /**
+         * 일괄 교환 중단 기준 — 같은 retcode 실패가 이만큼 연달아 나오면 계정 사유로 보고 멈춘다.
+         * 코드 사유라면 코드마다 retcode 가 흩어지므로 이 연속이 나오지 않는다.
+         */
+        const val REDEEM_ABORT_SAME_FAILS = 3
         /** 같은 오류 토스트를 다시 띄우기까지의 최소 간격(ms). 배경 점검이 20여 건을 동시에 실패해도 한 번만 뜬다. */
         const val ERROR_TOAST_COOLDOWN_MS = 60_000L
         /** 같은 오류 모달을 다시 세우기까지의 최소 간격(ms). 확인을 눌러 닫은 직후 다시 뜨면 앱을 못 쓴다. */

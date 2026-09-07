@@ -134,6 +134,9 @@ final class SpendingStore {
     /// 코드 수집 실패 — '활성 코드 없음'과 구분(재시도 UI 표시용).
     private(set) var codesFailed: Bool = false
     private(set) var redeemedCodes: Set<String> = []
+    /// 더는 못 받는다고 판정돼 목록에서 가려진 코드. 로컬 전용이라 클라우드 복원으로도 안 풀린다 —
+    /// 판정이 틀렸을 때 사용자가 되돌릴 수 있도록 개수를 화면에 노출한다.
+    private(set) var unusableCodes: Set<String> = []
 
     // Phase 5 (홈)
     private(set) var gameInfoReady: Bool = false
@@ -342,6 +345,7 @@ final class SpendingStore {
         bind(vm.codesLoading) { [weak self] in self?.codesLoading = $0.boolValue }
         bind(vm.codesFailed) { [weak self] in self?.codesFailed = $0.boolValue }
         bind(vm.redeemedCodes) { [weak self] in self?.redeemedCodes = $0 }
+        bind(vm.unusableCodes) { [weak self] in self?.unusableCodes = $0 }
         // Phase 5
         // Phase 6 (알림 설정)
         bind(vm.notifySubscription) { [weak self] in self?.notifySubscription = $0.boolValue }
@@ -514,6 +518,8 @@ final class SpendingStore {
     func loadActiveCodes(_ gameKey: String) { vm.loadActiveCodes(gameKey: gameKey) }
     func redeemGiftCode(gameKey: String, code: String) { vm.redeemGiftCode(gameKey: gameKey, code: code) }
     func redeemAllCodes(_ gameKey: String) { vm.redeemAllCodes(gameKey: gameKey) }
+    /// 가려 둔 코드를 전부 되살린다(잘못된 판정 복구).
+    func restoreUnusableCodes(_ gameKey: String) { vm.restoreUnusableCodes(gameKey: gameKey) }
     func resetRedeem() { vm.resetRedeem() }
     // Phase 5
     func markAlertsRead(_ keys: [String]) { vm.markAlertsRead(keys: keys) }
