@@ -173,6 +173,7 @@ fun GameInfoScreen(
     val codesLoading by viewModel.codesLoading.collectAsStateWithLifecycle()
     val codesFailed by viewModel.codesFailed.collectAsStateWithLifecycle()
     val redeemedCodes by viewModel.redeemedCodes.collectAsStateWithLifecycle()
+    val unusableCodes by viewModel.unusableCodes.collectAsStateWithLifecycle()
 
     // 홈 대시보드 카드에서 넘어온 경우 해당 섹션으로 스크롤 앵커링(1회성).
     //
@@ -292,9 +293,11 @@ fun GameInfoScreen(
                 codesLoading = codesLoading,
                 codesFailed = codesFailed,
                 redeemedCodes = redeemedCodes,
+                unusableCount = unusableCodes.size,
                 onLoadCodes = { key -> viewModel.loadActiveCodes(key) },
                 onRedeem = { key, c -> viewModel.redeemGiftCode(key, c) },
                 onRedeemAll = { key -> viewModel.redeemAllCodes(key) },
+                onRestoreUnusable = { key -> viewModel.restoreUnusableCodes(key) },
                 onBack = { subPage = GiSub.Main; viewModel.resetRedeem() },
             )
             GiSub.GameContent -> SectionPage("전투 · 수입 일지", onBack = { subPage = GiSub.Main }) {

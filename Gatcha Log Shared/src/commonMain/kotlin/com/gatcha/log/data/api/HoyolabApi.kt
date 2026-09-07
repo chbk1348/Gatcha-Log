@@ -58,6 +58,8 @@ data class CodeResult(
     val message: String,
     val alreadyRedeemed: Boolean = false,
     val unusable: Boolean = false,
+    /** 서버 retcode. 일괄 교환이 **계정 단위 사유**(같은 코드가 연달아 나옴)를 알아채는 데 쓴다. */
+    val retcode: Int = 0,
 )
 
 /**
@@ -389,18 +391,29 @@ object HoyolabApi {
             onNetwork = { CodeResult(false, Err.NETWORK) },
             onParse = { CodeResult(false, Err.PARSE) },
         ) { retcode, msg, _ ->
-            when (retcode) {
+            val r = when (retcode) {
                 0 -> CodeResult(true, "교환 완료! 게임 우편함을 확인하세요")
                 -2017, -2018 -> CodeResult(false, "이미 사용한 코드예요", alreadyRedeemed = true)
+                // ── 코드 자체가 죽은 경우만 영구 차단한다 ──
                 -2001 -> CodeResult(false, "만료된 코드예요", unusable = true)
                 -2003, -2004, -2014 -> CodeResult(false, "유효하지 않은 코드예요", unusable = true)
                 // 재시도 가치가 있는 실패 — 절대 unusable 로 두지 않는다.
                 -2016 -> CodeResult(false, "교환이 너무 잦아요. 잠시 후 다시 시도하세요")
                 -1071, -100 -> CodeResult(false, "쿠키 인증 필요 — HoYoLAB 재연동(쿠키 갱신)")
-                // 서버가 이유를 안 알려주고 거절한 경우(수량 마감 등). retcode == -1 은 응답에 retcode 가
-                // 아예 없었다는 뜻(parse 기본값)이라 '거절'로 볼 수 없으므로 제외한다.
-                else -> CodeResult(false, redeemFallbackMessage(retcode, msg), unusable = retcode != -1)
+                // **모르는 retcode 는 살려 둔다.**
+                //
+                // 예전엔 `unusable = retcode != -1` 이라 여기 떨어지는 값을 전부 영구 차단했다.
+                // 그런데 교환 거절에는 코드가 아니라 **계정 상태** 때문인 것들이 섞여 있다
+                // (모험 등급 미달·해당 게임 미연동 등). 그런 코드는 조건을 채우면 받을 수 있는데
+                // 목록에서 영영 사라졌고, unusable_codes 는 제거 경로도 초기화 UI 도 없어
+                // 재설치 말고는 되돌릴 방법이 없었다. 게다가 '모두 교환'은 활성 코드를 전부 도는지라
+                // 계정 사유로 거절되면 그 게임 코드가 **한 번에 통째로** 탔다.
+                //
+                // 죽은 코드가 목록에 남는 쪽이 멀쩡한 코드가 사라지는 쪽보다 낫다 — 전자는 눈에 보이고
+                // 다시 눌러볼 수 있지만, 후자는 사라진 줄도 모른다.
+                else -> CodeResult(false, redeemFallbackMessage(retcode, msg))
             }
+            r.copy(retcode = retcode)
         }
     }
 

@@ -47,9 +47,11 @@ internal fun GiftCodePage(
     codesLoading: Boolean,
     codesFailed: Boolean,
     redeemedCodes: Set<String>,
+    unusableCount: Int,
     onLoadCodes: (String) -> Unit,
     onRedeem: (String, String) -> Unit,
     onRedeemAll: (String) -> Unit,
+    onRestoreUnusable: (String) -> Unit,
     onBack: () -> Unit,
 ) {
     BackHandler { onBack() }
@@ -105,6 +107,24 @@ internal fun GiftCodePage(
                             }
                         }
                         Spacer(Modifier.height(8.dp))
+                        // 잘못 가려진 코드를 되살리는 유일한 통로 — 가려진 게 있을 때만 보인다.
+                        // (unusable_codes 는 로컬 전용이라 클라우드 복원으로도 안 풀린다)
+                        if (unusableCount > 0) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    "가려진 코드 ${unusableCount}개",
+                                    fontSize = 12.sp, color = TextSecondary,
+                                )
+                                Spacer(Modifier.width(8.dp))
+                                GlgButton(
+                                    "되살리기",
+                                    onClick = { onRestoreUnusable(selected) },
+                                    height = 30.dp,
+                                    modifier = Modifier.width(84.dp),
+                                )
+                            }
+                            Spacer(Modifier.height(8.dp))
+                        }
                         when {
                             codesLoading && activeCodes.isEmpty() -> GiftCodeSkeleton()
                             // 수집 실패는 '코드 없음'과 다르다 — 사유를 밝히고 재시도를 준다.
