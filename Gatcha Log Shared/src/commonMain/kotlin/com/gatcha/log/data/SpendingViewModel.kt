@@ -2438,10 +2438,38 @@ class SpendingViewModel : ViewModel() {
     /** 마지막으로 Firestore 에 성공적으로 push 한 스냅샷(중복 쓰기 생략용). */
     private var lastPushedSnapshot: String? = null
 
+    /** 용량 경고를 이미 띄웠는가 — 디바운스 push 마다 같은 토스트가 반복되지 않도록(임계 아래로 내려가면 해제). */
+    private var docSizeWarned = false
+
+    /** push 실패를 이미 알렸는가 — 실패가 이어질 때 토스트가 쌓이지 않도록(성공하면 해제). */
+    private var pushFailureNotified = false
+
+    /**
+     * UTF-8 인코딩 바이트 수.
+     *
+     * Firestore 문서 한도는 **바이트** 기준인데 [String.length] 는 UTF-16 단위라, 한글이 섞이면
+     * 실제 크기를 과소평가한다(한글 1자 = 1 단위 = 3 바이트). `encodeToByteArray().size` 로도 잴 수
+     * 있지만 스냅샷이 수백 KB 급이라 그 크기만큼을 push 마다 새로 할당하게 된다 — 세기만 한다.
+     */
+    private fun utf8Bytes(s: String): Int {
+        var n = 0
+        for (c in s) {
+            val v = c.code
+            n += when {
+                v < 0x80 -> 1
+                v < 0x800 -> 2
+                v in 0xD800..0xDFFF -> 2   // 서로게이트 쌍(2문자)이 합쳐 4바이트
+                else -> 3
+            }
+        }
+        return n
+    }
+
     /**
      * 전체 스냅샷을 Firestore 에 push 하는 단일 경로.
      *  - 중복 방지: 직전 성공 push 와 내용이 같으면 쓰기를 생략(테마 변경·재로딩 등 무변화 churn 절감).
-     *  - 1MB 한도 경고: Firestore 문서 한도(1MB)에 근접하면 사용자에게 미리 안내(초과 시 백업이 조용히 중단되는 것 예방).
+     *  - 1MB 한도 경고: 문서 실제 크기(UTF-8 × [CLOUD_DOC_COPIES])가 한도에 근접하면 미리 안내한다.
+     *  - 실패 안내: set 이 실패하면 사용자에게 알린다 — 알리지 않으면 백업이 멈춘 줄 모른다.
      *  - 실패 시 lastPushedSnapshot 을 갱신하지 않아 다음 변경에서 재시도된다.
      */
     private suspend fun cloudPush(uid: String): Boolean {
@@ -2459,13 +2487,34 @@ class SpendingViewModel : ViewModel() {
             snap to snap.toString()
         }
         if (json == lastPushedSnapshot) return true   // 변경 없음 → write 생략
-        if (json.length > CLOUD_DOC_WARN_BYTES) {
-            emitStatus("클라우드 백업 용량이 한계에 근접했어요 (${json.length / 1024}KB / 1MB) — 오래된 뽑기 기록 정리를 권장해요")
-        }
+        // 문서의 **실제** 크기로 잰다. 예전엔 json.length 를 그대로 임계와 비교했는데 두 군데가 틀렸다:
+        //  ① 한도는 UTF-16 단위가 아니라 UTF-8 바이트 기준이다.
+        //  ② 문서에는 스냅샷이 `data` 와 섹션 3개로 **두 번** 들어간다([CLOUD_DOC_COPIES]).
+        // 그래서 경고가 걸릴 땐 문서가 이미 한도의 180% 라 set 이 먼저 실패했다 — 경고가 뜰 수 없었다.
+        val docBytes = utf8Bytes(json) * CLOUD_DOC_COPIES
+        if (docBytes > CLOUD_DOC_WARN_BYTES) {
+            if (!docSizeWarned) {
+                docSizeWarned = true
+                emitStatus("클라우드 백업 용량이 한계에 근접했어요 (${docBytes / 1024}KB / ${CLOUD_DOC_LIMIT_BYTES / 1024}KB) — 오래된 뽑기 기록 정리를 권장해요")
+            }
+        } else docSizeWarned = false
         // 섹션 분해도 직렬화라 IO. 위 조기 반환 뒤에 두어 무변화 push 에서는 아예 돌지 않는다.
         val s = withContext(Dispatchers.IO) { repo.exportCloudSections(snapshot) }
         val ok = CloudSync.push(uid, json, s.userInfo, s.spending, s.gameInfo)
-        if (ok) lastPushedSnapshot = json
+        if (ok) {
+            lastPushedSnapshot = json
+            pushFailureNotified = false
+        } else if (!pushFailureNotified) {
+            // 실패를 삼키면 로컬만 계속 쌓이고 클라우드는 멈춘 채로, 기기를 바꾸는 순간에야 발견된다.
+            // 할 일이 원인마다 다르므로 용량 초과와 그 외를 나눠 안내한다.
+            pushFailureNotified = true
+            emitStatus(
+                if (docBytes > CLOUD_DOC_LIMIT_BYTES)
+                    "클라우드 백업이 용량 한도를 넘어 멈췄어요 (${docBytes / 1024}KB / ${CLOUD_DOC_LIMIT_BYTES / 1024}KB) — 오래된 뽑기 기록을 정리해주세요"
+                else
+                    "클라우드 백업에 실패했어요 — 연결을 확인해주세요. 다음 변경 때 다시 시도해요",
+            )
+        }
         return ok
     }
 
@@ -2549,8 +2598,15 @@ class SpendingViewModel : ViewModel() {
 
         /** 클라우드 pull/push 최대 대기(ms). 오프라인 등으로 응답 없을 때 로딩 화면 갇힘 방지. */
         const val SYNC_TIMEOUT_MS = 8_000L
-        /** Firestore 문서 1MB 한도 근접 경고 임계치(바이트). 초과 시 set 이 실패해 백업이 조용히 멈추므로 미리 안내. */
+        /** Firestore 문서 크기 한도(바이트). 이 값을 넘기면 set 이 실패한다. */
+        const val CLOUD_DOC_LIMIT_BYTES = 1_048_576
+        /** 한도 근접 경고 임계치(바이트, 한도의 약 86%). 초과 시 set 이 실패해 백업이 조용히 멈추므로 미리 안내. */
         const val CLOUD_DOC_WARN_BYTES = 900_000
+        /**
+         * 문서에 스냅샷이 들어가는 횟수 — `data` 로 1회, 섹션 3개(userInfo/spending/gameInfo)가
+         * 같은 내용을 나눠 담아 합계 1회. **섹션 dual-write 를 걷어내면 1 로 내린다.**
+         */
+        const val CLOUD_DOC_COPIES = 2
         /** 포그라운드 알림 점검 최소 간격(ms) — 탭 전환마다 HoYoLAB 을 두드리지 않도록. */
         const val FOREGROUND_CHECK_MIN_INTERVAL_MS = 15L * 60 * 1000
 
