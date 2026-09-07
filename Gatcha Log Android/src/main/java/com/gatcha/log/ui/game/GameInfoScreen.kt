@@ -336,6 +336,8 @@ fun GameInfoScreen(
                     onToggleCollab = { viewModel.setCollabBannerExpanded(!collabExpanded) },
                     onOpenHoyoland = { subPage = GiSub.Hoyoland },
                     onBack = { subPage = GiSub.Main },
+                    isRefreshing = isRefreshing,
+                    onRefresh = { viewModel.refreshGameInfo(force = true) },
                 )
             }
             GiSub.NewsDetail -> SectionPage(
