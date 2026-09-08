@@ -35,6 +35,7 @@ import com.gatcha.log.ui.components.GlgDetailHeaderOverlay
 import com.gatcha.log.ui.components.glgDetailContentTop
 import com.gatcha.log.ui.components.GlgHeaderTitlePill
 import com.gatcha.log.ui.components.GlgChip
+import com.gatcha.log.ui.components.GlgSegmentedTabs
 
 // 목업(06_ChangeLog.html) 색 토큰 — 분류 의미색은 디자인 고정값을 그대로 사용(패리티).
 private val CAccent = Color(0xFF15C7A8)
@@ -93,18 +94,21 @@ internal fun UpdateLogScreen(onBack: () -> Unit) {
 
         // ── 스티키 필터칩 ──
         stickyHeader {
-            // 다섯 칩이 한 줄에 들어가므로 가로 스크롤을 걷고 가운데 정렬한다.
-            Row(
+            // 호요랜드 일자 탭·리딤코드 게임 탭과 **같은 세그먼트 규격**([GlgSegmentedTabs]).
+            //
+            // 예전엔 분류색으로 칠한 칩 다섯이었다. 배타 선택인데 독립 버튼처럼 보였고,
+            // 선택된 칩의 색이 그때그때 달라 "지금 무엇으로 걸러져 있나"가 한눈에 안 들어왔다.
+            // 분류색은 아래 항목의 태그가 이미 말해 준다. (iOS 는 같은 자리에 시스템 세그먼트)
+            Box(
                 Modifier.fillMaxWidth().background(Color.White)
                     .padding(horizontal = 14.dp, vertical = 10.dp),
-                horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally),
-                verticalAlignment = Alignment.CenterVertically,
             ) {
-                GlgChip("전체", selected = filter == null) { filter = null }
-                GlgChip("신규", selected = filter == ChangeKind.NEW, color = styleOf(ChangeKind.NEW).dot) { filter = ChangeKind.NEW }
-                GlgChip("개선", selected = filter == ChangeKind.IMP, color = styleOf(ChangeKind.IMP).dot) { filter = ChangeKind.IMP }
-                GlgChip("수정", selected = filter == ChangeKind.FIX, color = styleOf(ChangeKind.FIX).dot) { filter = ChangeKind.FIX }
-                GlgChip("보안", selected = filter == ChangeKind.SEC, color = styleOf(ChangeKind.SEC).dot) { filter = ChangeKind.SEC }
+                val kinds = listOf(null, ChangeKind.NEW, ChangeKind.IMP, ChangeKind.FIX, ChangeKind.SEC)
+                GlgSegmentedTabs(
+                    labels = listOf("전체", "신규", "개선", "수정", "보안"),
+                    selected = kinds.indexOf(filter).coerceAtLeast(0),
+                    onSelect = { filter = kinds[it] },
+                )
             }
         }
 

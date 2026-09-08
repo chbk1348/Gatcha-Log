@@ -58,6 +58,7 @@ import com.gatcha.log.ui.theme.DividerColor
 import com.gatcha.log.ui.theme.LocalAccent
 import com.gatcha.log.ui.theme.TextPrimary
 import com.gatcha.log.ui.theme.TextSecondary
+import com.gatcha.log.ui.components.GlgSegmentedTabs
 import com.gatcha.log.ui.theme.glgStandardSpec
 
 // ── 호요랜드(호요버스 한국 오프라인 행사) ─────────────────────────────────────
@@ -449,7 +450,6 @@ fun HoyolandDetailContent() {
  * 내용에 맡기면 Pretendard 의 큰 줄 상자 탓에 iOS 세그먼트 컨트롤(32pt)보다 두꺼워진다
  * ([GlgChip] 이 같은 이유로 폰트 패딩을 끈다). 바깥 높이를 못 박고 안을 가운데 정렬한다.
  */
-private val DayTabHeight = 32.dp
 
 /**
  * 일자별 시간표 — 날짜 탭 + 그날 프로그램.
@@ -467,62 +467,12 @@ private fun HoyolandTimetableSection(e: HoyolandEvent) {
     val slots = e.slotsFor(ymds.getOrElse(sel) { ymds.first() })
 
     Text("일자별 시간표", fontSize = 16.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 10.dp))
-    // 날짜 선택은 **한 덩어리 탭**이다. 칩 넷을 나란히 두면 서로 독립된 버튼처럼 보여
-    // "이 중 하나가 지금 보고 있는 날"이라는 게 약하게 읽힌다 — 트랙 하나에 담아
-    // 선택 칸만 채운다(iOS 는 같은 자리에 세그먼트 컨트롤을 쓴다).
-    //
-    // 선택 표시는 **미끄러진다.** 색만 즉시 바뀌면 어느 칸에서 어느 칸으로 갔는지가 안 보여
-    // 화면이 통째로 갈린 것처럼 느껴진다(iOS 세그먼트 컨트롤도 같은 이유로 움직인다).
-    // 움직임 곡선은 앱 공통 규격 glgStandardSpec 을 쓴다.
-    BoxWithConstraints(
-        Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(14.dp))
-            .background(Color.White)
-            .border(1.dp, ChipIdleBorder, RoundedCornerShape(14.dp))
-            .padding(3.dp),
-    ) {
-        val cellWidth = maxWidth / ymds.size
-        // 칸 폭 × 선택 index 만큼 민다. 폭이 아니라 위치만 애니메이션하므로
-        // 회전 화면·태블릿에서 폭이 바뀌어도 계산이 어긋나지 않는다.
-        val slide by animateDpAsState(cellWidth * sel, glgStandardSpec(), label = "dayTabSlide")
-        Box(
-            Modifier
-                .offset(x = slide)
-                .width(cellWidth)
-                .height(DayTabHeight)
-                .clip(RoundedCornerShape(11.dp))
-                .background(accent),
-        )
-        Row(Modifier.fillMaxWidth()) {
-            ymds.forEachIndexed { i, ymd ->
-                val on = i == sel
-                // 글자색도 같이 건너간다 — 알약이 미끄러지는 동안 글자만 순간 바뀌면
-                // 아직 도착하지 않은 칸의 글자가 먼저 희게 변한다.
-                val labelColor by animateColorAsState(
-                    if (on) Color.White else ChipIdleText,
-                    glgStandardSpec(),
-                    label = "dayTabLabel",
-                )
-                Box(
-                    Modifier
-                        .weight(1f)
-                        .height(DayTabHeight)
-                        .clip(RoundedCornerShape(11.dp))
-                        .clickable { sel = i },
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text(
-                        e.dayTabLabel(ymd),
-                        fontSize = 12.5.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        // 선택 칸 글자를 흰색으로 두는 건 GlgChip 선택 규격과 같다.
-                        color = labelColor,
-                    )
-                }
-            }
-        }
-    }
+    // 날짜 선택 — 앱 공용 세그먼트 탭([GlgSegmentedTabs]). 리딤코드의 게임 탭도 같은 것을 쓴다.
+    GlgSegmentedTabs(
+        labels = ymds.map { e.dayTabLabel(it) },
+        selected = sel,
+        onSelect = { sel = it },
+    )
     Spacer(Modifier.height(10.dp))
     GlassCard(modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp)) {

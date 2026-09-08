@@ -63,15 +63,17 @@ struct GiftCodePage: View {
         .onDisappear { store.resetRedeem() }
     }
 
+    /// 게임 탭 — **게임 일정 페이지와 같은 시스템 세그먼트**(`Picker(.segmented)`).
+    ///
+    /// 예전엔 게임별 대표색으로 칠한 칩이었다. 같은 위치에 있는 다른 상세 페이지의 탭과 혼자
+    /// 달라 보였고, 세 게임 이름이 길어 폭도 들쭉날쭉했다. 색으로 게임을 말할 자리는 코드 카드다.
     private var gameTabs: some View {
-        HStack(spacing: 8) {
+        Picker("게임", selection: $selected.animation(.easeInOut(duration: 0.2))) {
             ForEach(games, id: \.0) { key, label in
-                // 게임 칩 — 선택됨 색을 게임별 대표색으로(단일 규격 유지).
-                let gameColor = GameData.shared.byNameOrNull(name: key).map { Color(argb64: $0.color) } ?? accent.primary
-                GLGChip(label: label, selected: key == selected, color: gameColor) { selected = key }
+                Text(label).tag(key)
             }
-            Spacer(minLength: 0)
         }
+        .pickerStyle(.segmented)
     }
 
     private var activeHeader: some View {

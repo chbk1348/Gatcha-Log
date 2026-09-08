@@ -31,6 +31,7 @@ import com.gatcha.log.ui.components.GiftCodeSkeleton
 import com.gatcha.log.ui.components.GlassCard
 import com.gatcha.log.ui.components.GlgButton
 import com.gatcha.log.ui.components.GlgChip
+import com.gatcha.log.ui.components.GlgSegmentedTabs
 import com.gatcha.log.ui.components.GlgDetailHeaderOverlay
 import com.gatcha.log.ui.components.glgDetailContentTop
 import com.gatcha.log.ui.components.GlgScreenHeader
@@ -85,14 +86,16 @@ internal fun GiftCodePage(
                     Text("HoYoLAB 연동 후 UID가 있어야 코드를 교환할 수 있어요", fontSize = 13.sp, color = TextSecondary, modifier = Modifier.padding(16.dp))
                 }
             } else {
-                Spacer(Modifier.height(2.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    games.forEach { (key, label) ->
-                        // 게임 칩 — 선택됨 색을 게임별 대표색으로(단일 규격 유지).
-                        val gameColor = GameData.games.firstOrNull { it.key == key }?.color?.toColor() ?: accent
-                        GlgChip(label = label, selected = key == selected, color = gameColor) { selected = key }
-                    }
-                }
+                // 게임 탭 — 호요랜드 일자 탭과 **같은 세그먼트 규격**이다([GlgSegmentedTabs]).
+                //
+                // 칩 셋을 나란히 두면 서로 독립된 버튼처럼 보여, 지금 어느 게임의 코드를 보고
+                // 있는지가 약하게 읽혔다. 트랙 하나에 담으면 배타 선택이라는 게 모양에서 나온다.
+                GlgSegmentedTabs(
+                    labels = games.map { it.second },
+                    selected = games.indexOfFirst { it.first == selected }.coerceAtLeast(0),
+                    modifier = Modifier.padding(top = 4.dp),
+                    onSelect = { selected = games[it].first },
+                )
                 // 활성 코드 카드
                 GlassCard(shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth()) {
                     Column(Modifier.padding(16.dp)) {
