@@ -130,7 +130,9 @@ struct SpendingView: View {
         .onChange(of: typeFilter) { _, _ in recompute(store.spendings) }
         .onChange(of: sortOrder) { _, _ in recompute(store.spendings) }
         .background(GLGBackground { Color.clear })
-        .navigationTitle("")
+        // 화면에는 안 보이지만 제목은 채운다 — 비우면 뒤로가기 길게 누르기 메뉴가 공백 줄이 된다.
+        .navigationTitle("지출")
+        .toolbar { ToolbarItem(placement: .principal) { Color.clear.frame(width: 1, height: 1) } }
         .navigationBarTitleDisplayMode(.inline)
         // 좌측 = 보기 전환(캘린더·인사이트), 우측 = 목록 조작(선택·필터).
         // 성격이 다른 버튼 4개가 우측에 뭉쳐 있어 무엇이 무엇인지 구분되지 않던 걸 갈랐다.

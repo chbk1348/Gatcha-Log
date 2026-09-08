@@ -31,9 +31,11 @@ struct SpendingDetailView: View {
             }
         }
         .background(GLGBackground { Color.clear }.ignoresSafeArea())
-        // 히어로가 상태바까지 올라가야 하므로 타이틀을 비운다 — 글자가 그라데이션 위에 겹친다.
-        // 어느 화면인지는 히어로의 게임명·금액이 말해 준다.
-        .navigationTitle("")
+        // 히어로가 상태바까지 올라가므로 막대에 글자를 얹지 않는다 — 그라데이션 위에 겹친다.
+        // 어느 화면인지는 히어로의 게임명·금액이 말해 준다. 다만 제목 자체는 채운다 —
+        // 비우면 뒤로가기 길게 누르기 메뉴가 공백 줄이 된다.
+        .navigationTitle("지출 상세")
+        .toolbar { ToolbarItem(placement: .principal) { Color.clear.frame(width: 1, height: 1) } }
         .navigationBarTitleDisplayMode(.inline)
         // 네비게이션 바 배경을 걷어내 히어로 색이 상태바 영역까지 이어지게 한다.
         // iOS 26 은 `toolbarBackground(_:for:)` 가 더 이상 바의 유리를 걷어내지 못한다 —
