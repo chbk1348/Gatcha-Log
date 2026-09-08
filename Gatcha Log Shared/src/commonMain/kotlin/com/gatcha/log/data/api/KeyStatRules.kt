@@ -44,6 +44,10 @@ object KeyStatRules {
         charId: Int = 0,
     ): Set<StatTok>? = when (gameKey) {
         "hsr", "starrail" -> HSR_BY_PATH[path]
+        // ⚠️ 직업을 못 읽으면 **판정 불가로 둔다(폴백 금지).** 치명타 2종으로 넘겨짚었다가,
+        // 치명타를 안 쓰는 '이상' 캐릭터까지 치명타가 유효옵션으로 잡혀 점수가 거짓이 된 적이 있다.
+        // 점수가 0 으로 보이는 게 불편해도, 틀린 점수를 자신 있게 보여주는 것보다 낫다.
+        // 사용자는 '기준' 시트에서 직접 고를 수 있고, 화면에도 '유효옵션 판정 불가'로 밝힌다.
         "zzz" -> ZZZ_BY_SPECIALTY[specialty]
         else -> GI_EXCEPTIONS[charId] ?: GI_DEFAULT
     }
@@ -143,13 +147,17 @@ internal fun normStat(raw: String): StatTok {
         if (s.contains("피해") || s.contains("DMG", ignoreCase = true)) return CRIT_DMG
     }
     // 2) 피해 보너스 — 물리 vs 원소/속성
-    if (s.contains("피해")) {
-        return if (s.contains("물리")) PHYS_DMG else ELEM_DMG
+    //    ⚠️ 영문("Ice DMG Bonus")도 함께 본다. 치명(CRIT DMG)은 위에서 이미 걸러졌다.
+    if (s.contains("피해") || s.contains("DMG", ignoreCase = true)) {
+        return if (s.contains("물리") || s.contains("Physical", ignoreCase = true)) PHYS_DMG else ELEM_DMG
     }
     // 3) 치유
     if (s.contains("치유")) return HEAL
     // 4) 파생/특수 스탯(구체어 우선)
-    if (s.contains("장악")) return ANOM_PROF
+    //    ⚠️ 젠레스 응답은 **계정 언어를 따라간다.** 여태 치명만 영문을 봤고 나머지는 전부
+    //    OTHER 로 떨어져, 영문 계정에서는 디스크 점수가 통째로 0 이었다(2026-09-08 제보).
+    if (s.contains("장악") || s.contains("Proficiency", ignoreCase = true)) return ANOM_PROF
+    if (s.contains("Anomaly Mastery", ignoreCase = true)) return ANOM_MASTERY
     // ⚠️ '이상 마스터리'(ZZZ)를 '원소 마스터리'(GI)보다 **먼저** 본다.
     // 순서를 뒤집으면 ZZZ 의 이상 마스터리가 EM 으로 잡혀, 젠레스 유효옵션 후보에 없는 토큰이 되어
     // 강조·유효 점수에서 통째로 빠진다. ('이상 숙련'은 옛 표기 — 남은 데이터 호환용으로 같이 받는다)
@@ -160,15 +168,15 @@ internal fun normStat(raw: String): StatTok {
     if (s.contains("명중") || s.contains("적중")) return EHR
     if (s.contains("효과 저항") || s.contains("효과저항")) return RES
     if (s.contains("속도")) return SPD
-    if (s.contains("충격")) return IMPACT
-    if (s.contains("관통")) return PEN
+    if (s.contains("충격") || s.contains("Impact", ignoreCase = true)) return IMPACT
+    if (s.contains("관통") || s.contains("PEN", ignoreCase = true)) return PEN
     if (s.contains("충전")) return ER                 // 원소 충전 효율(GI)
-    if (s.contains("에너지")) return ENERGY            // 에너지 자동 회복(ZZZ)
+    if (s.contains("에너지") || s.contains("Energy", ignoreCase = true)) return ENERGY  // 에너지 자동 회복(ZZZ)
     // 5) 기본 3스탯 — (%) 여부로 분기
     val pct = s.contains("%") || s.contains("(%)")
     if (s.contains("HP") || s.startsWith("생명")) return if (pct) HP_PCT else HP
-    if (s.contains("공격")) return if (pct) ATK_PCT else ATK
-    if (s.contains("방어")) return if (pct) DEF_PCT else DEF
+    if (s.contains("공격") || s.contains("ATK", ignoreCase = true)) return if (pct) ATK_PCT else ATK
+    if (s.contains("방어") || s.contains("DEF", ignoreCase = true)) return if (pct) DEF_PCT else DEF
     return OTHER
 }
 

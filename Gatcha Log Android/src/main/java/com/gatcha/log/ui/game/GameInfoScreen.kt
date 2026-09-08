@@ -252,14 +252,29 @@ fun GameInfoScreen(
             GiSub.CharStats -> {
                 val c = statChar
                 if (c != null) {
+                    // 순위는 **같은 게임** 로스터 안에서만 낸다 — 게임마다 점수 지표가 다르다.
+                    val enkaAll by viewModel.enkaResults.collectAsStateWithLifecycle()
+                    val elementFxOn by viewModel.charElementFx.collectAsStateWithLifecycle()
+                    val roster = enkaAll[statCharGame]?.profile?.chars.orEmpty()
+                    val back = { subPage = statReturn }
+                    // 뒤로가기는 페이저 **바깥에서 한 번만** 건다 — 안에 걸면 인접 페이지 몫까지
+                    // 중복 등록된다.
+                    BackHandler { back() }
+
                     val w = c.weapon
+                    // ⚠️ 좌우 스와이프(HorizontalPager)는 걷어냈다. iOS 는 앱 최상위가 이미 TabView 라
+                    // 페이지 컨테이너를 중첩하면 safe area 전파가 깨졌고(실기기 실측: 히어로가
+                    // 상태바까지 못 올라가고 탭바가 본문을 덮음), 한쪽만 남기면 패리티가 갈린다.
                     EnkaStatPage(
                         c, statCharGame,
+                        roster = roster,
+                        elementFxEnabled = elementFxOn,
                         overrides = keyStatOverrides,
                         onSetOverride = { k, v -> viewModel.setKeyStatOverride(k, v) },
                         refinement = weaponRefinements["$statCharGame:${w?.id ?: 0}:${w?.refinement ?: 0}"],
                         onNeedRefinement = { id, lv -> viewModel.loadWeaponRefinement(statCharGame, id, lv) },
-                    ) { subPage = statReturn }
+                        onBack = back,
+                    )
                 }
             }
             GiSub.CharRoster -> EnkaRosterPage(

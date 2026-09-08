@@ -151,6 +151,10 @@ struct SettingsView: View {
                       "지출 목록을 한 줄로 빽빽하게 표시해요 (태그·결제수단 숨김)",
                       bind(\.spendingCompact, store.setSpendingCompact))
             Divider()
+            toggleRow("bolt.fill", "캐릭터 속성 연출",
+                      "캐릭터 상세에 들어갈 때 속성 효과를 한 번 재생해요. 꺼도 속성 테두리는 남아요",
+                      bind(\.charElementFx, store.setCharElementFx))
+            Divider()
             toggleRow("sparkles", "홈 히어로 글로우",
                       "홈 상단에서 은은하게 떠다니는 빛 효과예요. 끄면 그라데이션만 남아요",
                       bind(\.heroGlow, store.setHeroGlow))

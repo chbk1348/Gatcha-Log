@@ -187,6 +187,54 @@ object ArtifactScoring {
         }
     }
 
+    /**
+     * 부옵션 한 줄이 **몇 롤**인지 — 값 ÷ 최대 1회 강화량.
+     *
+     * 이 값은 이미 [rollValue] 안에서 계산하고 **점수로 합산한 뒤 버려진다.** 화면에는 "치확 10.9%"
+     * 라고만 나와서, 그게 잘 굴러간 건지(3롤) 한 번 붙은 건지(1롤) 알 수 없었다.
+     * 유물 평가의 핵심이 굴림 횟수라 눈금으로 보여준다.
+     *
+     * 최대 강화량을 모르는 스탯(메인 전용 등)은 **null** — 0 으로 그리면 "안 붙었다"로 오해된다.
+     */
+    fun subRolls(line: EnkaStatLine, gameKey: String): Double? {
+        val tok = normStat(line.label)
+        if (tok == StatTok.OTHER) return null
+        val max = maxRollOf(gameKey, tok) ?: return null
+        if (max <= 0.0) return null
+        return parseStatValue(line.value) / max
+    }
+
+    /** 눈금 칸 수 — 한 부옵션에 실질적으로 붙을 수 있는 최대 굴림. */
+    const val MAX_ROLL_TICKS = 6
+
+    /**
+     * **최상 등급까지의 진행률**(0~1) — 캐릭터 상세 히어로의 링 게이지 채움에 쓴다.
+     *
+     * 기준은 [gradeOf] 와 같은 **장당 평균**이다. 링과 등급 배지가 같은 값을 봐야
+     * "최상인데 링은 절반" 같은 어긋남이 안 생긴다.
+     *
+     * 지표마다 최상 문턱이 다르다(CV 40 · 유효 롤 6.0). 이미 넘었으면 1.0.
+     */
+    fun excellenceProgress(average: Double, metric: ScoreMetric): Double {
+        val top = when (metric) {
+            ScoreMetric.CRIT_VALUE -> 40.0
+            ScoreMetric.ROLL_VALUE -> 6.0
+        }
+        if (average <= 0.0) return 0.0
+        return (average / top).coerceIn(0.0, 1.0)
+    }
+
+    /**
+     * 링 아래 한 줄 — 무엇을 재는 게이지인지 밝힌다.
+     * 앱 원칙이 "무엇으로 쟀는지 반드시 함께 밝힌다"라, 링만 두면 78% 가 무슨 뜻인지 알 수 없다.
+     */
+    fun ringLabel(score: CharArtifactScore): String {
+        val p = excellenceProgress(score.average, score.metric)
+        val total = "${score.metric.label} ${scoreLabel(score.total)}"
+        return if (p >= 1.0) "$total · 최상 달성"
+        else "$total · 최상까지 ${((1.0 - p) * 100).toInt()}%"
+    }
+
     /** 소수 1자리 표기 — "5.4". 양 플랫폼이 같은 표기를 쓰도록 공유 [fixed] 를 재사용한다. */
     fun scoreLabel(value: Double): String = fixed(value, 1)
 

@@ -1,23 +1,58 @@
 import SwiftUI
 import Shared
 
-private func enkaElementColor(_ el: String) -> Color {
+/// 속성색 원본값. 배지처럼 어둡게 깔아야 하는 자리가 있어 Color 가 아니라 hex 로 둔다.
+func enkaElementHex(_ el: String) -> UInt32 {
     switch el {
-    case "불", "화염": return Color(hex: 0xFFE0533D)
-    case "물": return Color(hex: 0xFF3A8DDE)
-    case "번개": return Color(hex: 0xFF9B5BD6)
-    case "얼음": return Color(hex: 0xFF4EA8C4)
-    case "바람": return Color(hex: 0xFF3FB6A0)
-    case "바위": return Color(hex: 0xFFC79A3B)
-    case "풀": return Color(hex: 0xFF5AA83C)
-    case "물리": return Color(hex: 0xFF8A9099)
-    case "양자": return Color(hex: 0xFF6C5CE7)
-    case "허수": return Color(hex: 0xFFE0A93B)
-    case "전기": return Color(hex: 0xFFE6C13A)
-    case "에테르": return Color(hex: 0xFFE05CAE)
-    default: return Color(hex: 0xFF8A9099)
+    case "불", "화염": return 0xFFE0533D
+    case "물": return 0xFF3A8DDE
+    case "번개": return 0xFF9B5BD6
+    case "얼음": return 0xFF4EA8C4
+    case "바람": return 0xFF3FB6A0
+    case "바위": return 0xFFC79A3B
+    case "풀": return 0xFF5AA83C
+    case "물리": return 0xFF8A9099
+    // 양자 — 예전 #6C5CE7 은 번개(#9B5BD6)와 톤이 겹쳐 파스텔로 옅어지면 구분이 안 됐다.
+    case "양자": return 0xFF3F46C9
+    case "허수": return 0xFFE0A93B
+    case "전기": return 0xFFE6C13A
+    case "에테르": return 0xFFE05CAE
+    // 공허 사냥꾼 셋의 특수 속성 — 기본 속성에서 한 칸 비켜 세운다.
+    case "서리": return 0xFF6FC6DC   // 얼음(#4EA8C4)보다 맑게
+    case "서슬": return 0xFF6E7A8C   // 물리(#8A9099)보다 짙고 푸르게
+    case "루멘": return 0xFFF0D98C   // 빛 — 전기(#E6C13A)보다 채도를 낮춰 갈라둔다
+    default: return 0xFF8A9099
     }
 }
+func enkaElementColor(_ el: String) -> Color { Color(hex: enkaElementHex(el)) }
+
+/// 속성색을 [f] 만큼 검정 쪽으로 당긴 값. Compose 의 `lerp(base, Black, f)` 와 같은 계산이다.
+func enkaElementInk(_ el: String, _ f: Double) -> Color {
+    let hex = enkaElementHex(el)
+    let k = 1 - f
+    return Color(
+        red: Double((hex >> 16) & 0xFF) / 255 * k,
+        green: Double((hex >> 8) & 0xFF) / 255 * k,
+        blue: Double(hex & 0xFF) / 255 * k,
+    )
+}
+
+/// 속성 배지 — 색은 속성, 글자는 속성명 그대로.
+///
+/// 예전엔 7pt 색 점이었다. 색만으로는 "무슨 속성인지"가 안 읽힌다 — 얼음(#4EA8C4)과
+/// 물(#3A8DDE), 바위(#C79A3B)와 허수(#E0A93B)는 점 크기에서 사실상 같은 색이다.
+/// 흰 글씨가 얹히므로 바탕은 속성색을 0.38 만큼 어둡게 깐다(대비 5:1 이상).
+@ViewBuilder
+func enkaElementBadge(_ element: String, bg: Color? = nil, compact: Bool = false) -> some View {
+    Text(element)
+        .font(.pretendard(size: compact ? 8.5 : 9.5, weight: .bold))
+        .foregroundStyle(.white)
+        .lineLimit(1)
+        .padding(.horizontal, compact ? 5 : 6)
+        .padding(.vertical, compact ? 1 : 1.5)
+        .background(bg ?? enkaElementInk(element, 0.38), in: Capsule())
+}
+
 private let enkaCrit = Color(hex: 0xFFE0533D)
 private let enkaGold = Color(hex: 0xFFD8A12E)
 /// 낮은 치명 점수(교체 후보) 표시색 — Android WarningText 와 동일 값.
@@ -35,6 +70,13 @@ private func enkaRankLabel(_ c: EnkaChar, _ game: String) -> String? {
         return c.rank > 0 ? "\(c.rank)성혼" : nil
     }
 }
+
+/// 3게임 모두 6단계다(운명의 자리 · 성혼 · 형상 시네마).
+let EnkaConstellationSteps = 6
+
+/// 정련 눈금 칸 수 — 원신 R1~R5 · 스타레일 중첩 1~5 · 젠레스 1~5 로 모두 5다.
+let EnkaRefineTicks = 5
+
 
 private func enkaGameLabel(_ game: String) -> String {
     switch game {
@@ -208,39 +250,172 @@ private struct MoreSlot: View {
     }
 }
 
-/// 로스터 카드(섹션·보유 페이지 공용). [game] 은 명좌/성혼 라벨 표기용.
+/// 명좌 링 눈금 수 — 원신 6명좌 · 스타레일 6성혼 · 젠레스 6시네마로 모두 여섯이다.
+private let enkaConstellationSteps = 6
+
+/**
+ 로스터 카드 — 안드로이드 `RosterCard` 와 같은 구성이다.
+
+ 카드 하나로 **속성 · 등급 · 돌파 · 레벨** 넷을 한꺼번에 읽게 한다.
+ - 타일 바탕이 속성색(파스텔), 배지가 속성 이름
+ - 초상 둘레의 링이 명좌/성혼 진행, 그 안쪽 테두리가 등급
+ - 아래 막대가 레벨(분모는 게임별 만렙)
+
+ [compact] 는 3열 배치다. 이름 줄이 좁아 배지가 들어갈 자리가 없어 모서리로 올린다.
+ */
 @MainActor
 @ViewBuilder
-func enkaRosterCard(_ c: EnkaChar, _ game: String) -> some View {
-    let rc = c.rarity >= 5 ? enkaGold : Color(hex: 0xFF9B6BD6)
-    HStack(spacing: 11) {
-        ZStack {
-            RoundedRectangle(cornerRadius: 14).fill(rc.opacity(0.14)).frame(width: 50, height: 50)
-            if let icon = c.iconUrl, let u = URL(string: icon) {
-                GLGRemoteImage(url: u, side: 50)
-                    .frame(width: 50, height: 50).clipShape(RoundedRectangle(cornerRadius: 14))
-            } else {
-                Text(String(c.name.prefix(1))).font(.pretendard(size: 20, weight: .bold)).foregroundStyle(rc)
+func enkaRosterCard(_ c: EnkaChar, _ game: String, compact: Bool = false) -> some View {
+    let ink = enkaElementInk(c.element, 0.62)
+    let tileTop = enkaElementLight(c.element, 0.74)
+    let tileBottom = enkaElementLight(c.element, 0.91)
+    // 흰 글씨가 얹히는 자리라 0.38 만큼 어둡게 깐다(대비 5:1 이상, 허수·전기까지).
+    let elBg = enkaElementInk(c.element, 0.38)
+    let rarityColor = c.rarity >= 5 ? enkaGold : Color(hex: 0xFF9B6BD6)
+    let maxLv = Int(CharDisplayKt.maxLevelOf(gameKey: game))
+    let atMax = Int(c.level) >= maxLv
+    let radius: CGFloat = compact ? 15 : 18
+
+    ZStack(alignment: .top) {
+        if compact {
+            VStack(spacing: 0) {
+                enkaConstellationRing(c, ink: ink, rarityColor: rarityColor, side: 50)
+                    .padding(.top, 24)   // 위쪽은 모서리 배지 둘이 차지한다
+                // 이름은 자르지 않는다 — 세 글자만 남은 "산고노미야 코…" 로는 누군지 알 수 없다.
+                Text(c.name)
+                    .font(.pretendard(size: 11.5, weight: .bold))
+                    .foregroundStyle(GLGColor.textPrimary)
+                    .multilineTextAlignment(.center)
+                    .lineLimit(2).minimumScaleFactor(0.85)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.top, 7)
+                enkaLevelBar(Int(c.level), maxLv, atMax: atMax, fill: enkaElementInk(c.element, 0.45), ink: ink, compact: true)
             }
+            .frame(maxWidth: .infinity)
+            .padding(.horizontal, 7).padding(.bottom, 9)
+            // 3열 타일은 이름 줄이 좁다 — 배지를 양쪽 모서리에 하나씩 얹는다.
+            HStack {
+                enkaElementBadge(c.element, bg: elBg, compact: true)
+                Spacer(minLength: 0)
+                enkaRarityBadge(game, Int(c.rarity), color: rarityColor, compact: true)
+            }
+            .padding(5)
+        } else {
+            HStack(spacing: 11) {
+                enkaConstellationRing(c, ink: ink, rarityColor: rarityColor, side: 58)
+                VStack(alignment: .leading, spacing: 0) {
+                    // 배지 줄 — 속성 + 등급. 레벨 글자 옆에 붙이면 카드 폭을 넘겨 잘린다.
+                    HStack(spacing: 4) {
+                        enkaElementBadge(c.element, bg: elBg, compact: false)
+                        enkaRarityBadge(game, Int(c.rarity), color: rarityColor, compact: false)
+                    }
+                    Text(c.name)
+                        .font(.pretendard(size: 13.5, weight: .bold))
+                        .foregroundStyle(GLGColor.textPrimary)
+                        .lineLimit(2).minimumScaleFactor(0.82)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.top, 4)
+                    enkaLevelBar(Int(c.level), maxLv, atMax: atMax, fill: enkaElementInk(c.element, 0.45), ink: ink, compact: false)
+                }
+                Spacer(minLength: 0)
+            }
+            .padding(11)
         }
-        VStack(alignment: .leading, spacing: 3) {
-            Text(c.name).font(.pretendard(size: 13, weight: .bold)).foregroundStyle(GLGColor.textPrimary).lineLimit(1)
-            HStack(spacing: 5) {
-                Text("Lv.\(c.level)").font(.pretendard(size: 11)).foregroundStyle(GLGColor.textSecondary)
-                if !c.element.isEmpty { Circle().fill(enkaElementColor(c.element)).frame(width: 7, height: 7) }
-            }
-            if let rank = enkaRankLabel(c, game) {
-                Text(rank).font(.pretendard(size: 9, weight: .bold)).foregroundStyle(Color(hex: 0xFF9C6F12))
-                    .padding(.horizontal, 6).padding(.vertical, 1).background(enkaGold.opacity(0.16), in: Capsule())
-            }
-        }
-        Spacer(minLength: 0)
     }
-    .padding(11)
-    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
-    // 게임 카드(글래스 회색 표면) 안에서 대비를 주려 흰 배경 타일 — 전체 페이지에서도 떠 보인다.
-    .background(Color.white, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-    .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).stroke(Color.black.opacity(0.08), lineWidth: 1))
+    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+    .background(
+        LinearGradient(colors: [tileTop, tileBottom], startPoint: .topLeading, endPoint: .bottomTrailing),
+        in: RoundedRectangle(cornerRadius: radius, style: .continuous)
+    )
+    .overlay(RoundedRectangle(cornerRadius: radius, style: .continuous).stroke(tileTop, lineWidth: 1))
+}
+
+/// 초상 + 명좌 링 + 숫자 배지. 링 안쪽 테두리가 등급이다.
+@MainActor
+@ViewBuilder
+private func enkaConstellationRing(
+    _ c: EnkaChar, ink: Color, rarityColor: Color, side: CGFloat
+) -> some View {
+    // 비공개(rank<0)는 0 과 다르지만 링은 0 으로 둔다 — 숫자 배지가 대신 말한다.
+    let on = max(0, min(enkaConstellationSteps, Int(c.rank)))
+    let ringColor = enkaElementInk(c.element, 0.38)
+    let badgeBg = enkaElementInk(c.element, 0.42)
+
+    ZStack {
+        Circle().stroke(Color.black.opacity(0.09), style: StrokeStyle(lineWidth: 3, lineCap: .round))
+        if on > 0 {
+            Circle()
+                .trim(from: 0, to: CGFloat(on) / CGFloat(enkaConstellationSteps))
+                .stroke(ringColor, style: StrokeStyle(lineWidth: 3, lineCap: .round))
+                .rotationEffect(.degrees(-90))
+        }
+        // 등급 테두리 + 초상
+        ZStack {
+            Circle().fill(enkaElementLight(c.element, 0.70))
+            if let icon = c.iconUrl, let u = URL(string: icon) {
+                GLGRemoteImage(url: u, side: side - 12)
+                    .frame(width: side - 12, height: side - 12)
+                    .clipShape(Circle())
+            } else {
+                Text(String(c.name.prefix(1)))
+                    .font(.pretendard(size: side * 0.38, weight: .bold))
+                    .foregroundStyle(ink)
+            }
+        }
+        .frame(width: side - 12, height: side - 12)
+        .overlay(Circle().stroke(rarityColor, lineWidth: 2))
+
+        // 숫자 배지 — 링 눈금만으로는 3돌·4돌이 안 갈린다.
+        Text("\(on)")
+            .font(.pretendard(size: 10.5, weight: .bold))
+            .foregroundStyle(.white)
+            .padding(.horizontal, 6).padding(.vertical, 1.5)
+            .background(badgeBg, in: Circle())
+            .overlay(Circle().stroke(Color.white, lineWidth: 2))
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
+            .offset(x: 3, y: 3)
+    }
+    .frame(width: side, height: side)
+}
+
+/// 레벨 막대 + 숫자. 분모는 게임별 만렙이라 "얼마나 남았나"가 보인다.
+@ViewBuilder
+private func enkaLevelBar(
+    _ level: Int, _ maxLv: Int, atMax: Bool, fill: Color, ink: Color, compact: Bool
+) -> some View {
+    let ratio = maxLv <= 0 ? 0 : min(1, max(0, Double(level) / Double(maxLv)))
+    VStack(alignment: compact ? .center : .leading, spacing: 4) {
+        GeometryReader { geo in
+            ZStack(alignment: .leading) {
+                Capsule().fill(Color.black.opacity(0.08))
+                Capsule().fill(fill)
+                    .frame(width: geo.size.width * ratio)
+            }
+        }
+        .frame(height: compact ? 3 : 4)
+        // 만렙이어도 표기는 같다 — 분모가 곧 답이라 덧붙일 말이 없다(색으로만 구분).
+        Text("Lv.\(level) / \(maxLv)")
+            .font(.pretendard(size: compact ? 9 : 9.5, weight: .bold))
+            .foregroundStyle(atMax ? Color(hex: 0xFF9C6F12) : ink.opacity(0.8))
+            .lineLimit(1)
+    }
+    .padding(.top, 6)
+    .frame(maxWidth: .infinity, alignment: compact ? .center : .leading)
+}
+
+/// 등급 배지 — 5성/4성, 젠레스는 S급/A급. 테두리 색만으로는 두 색을 나란히 놔야 갈린다.
+@ViewBuilder
+func enkaRarityBadge(_ game: String, _ rarity: Int, color: Color, compact: Bool) -> some View {
+    let label = CharDisplayKt.rarityShort(gameKey: game, rarity: Int32(rarity))
+    if !label.isEmpty {
+        Text(label)
+            .font(.pretendard(size: compact ? 8.5 : 9.5, weight: .bold))
+            .foregroundStyle(.white)
+            .lineLimit(1)
+            .padding(.horizontal, compact ? 5 : 6)
+            .padding(.vertical, compact ? 1 : 1.5)
+            .background(color, in: Capsule())
+    }
 }
 
 /// 보유 캐릭터 전체 목록 페이지 — 탭 시 스탯 상세로 랜딩(뒤로 가면 이 목록으로 복귀).
@@ -256,7 +431,11 @@ struct EnkaRosterPage: View {
     @State private var path = "" // ""=전체 (HSR)
     @State private var query = ""
 
-    private let cols = [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)]
+    /// 열 수 — 60명 넘는 계정은 3열이 훨씬 덜 스크롤한다. 기본은 2열(넓은 카드가 읽기 쉽다).
+    @AppStorage("roster_cols") private var colCount = 2
+    private var cols: [GridItem] {
+        Array(repeating: GridItem(.flexible(), spacing: colCount >= 3 ? 8 : 10), count: colCount)
+    }
 
     /// 로딩 스켈레톤 — 실제 카드와 **같은 2열 배치**. 레이아웃이 다르면 로딩이 끝나는 순간 화면이 튄다.
     private var rosterPageSkeleton: some View {
@@ -293,8 +472,11 @@ struct EnkaRosterPage: View {
         if let c = statChar {
             NavigationStack {
                 EnkaStatPage(char: c, game: game,
+                             // 순위는 **같은 게임** 로스터 안에서만 낸다 — 게임마다 점수 지표가 다르다.
+                             roster: store.enkaResults[game]?.profile?.chars ?? [],
                              overrides: store.keyStatOverrides,
-                             onSetOverride: { k, v in store.setKeyStatOverride(k, v) })
+                             onSetOverride: { k, v in store.setKeyStatOverride(k, v) },
+                             elementFxEnabled: store.charElementFx)
             }
             // 캐릭터별로 다른 뷰 — 재사용되면 직전 캐릭터의 유효옵션이 한 프레임 남는다.
             .id(c.id)
@@ -334,29 +516,42 @@ struct EnkaRosterPage: View {
                     .font(.pretendard(size: 13)).foregroundStyle(GLGColor.textSecondary)
                     .frame(maxWidth: .infinity).padding(.top, 40)
             }
-            LazyVGrid(columns: cols, spacing: 10) {
+            LazyVGrid(columns: cols, spacing: colCount >= 3 ? 8 : 10) {
                 ForEach(Array(chars.enumerated()), id: \.offset) { _, c in
                     // 갈린 상태에선 push 하지 않는다 — 우측 패널만 바꾼다.
                     Button { statChar = c; if !isWide { showStat = true } } label: {
-                        enkaRosterCard(c, game)
+                        enkaRosterCard(c, game, compact: colCount >= 3)
                     }
                     .buttonStyle(.plain)
                 }
             }
             .padding(16)
         }
-        .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always), prompt: "캐릭터 이름 검색")
+        // 검색은 **부를 때만.** 늘 펼쳐 두면 목록보다 먼저 눈에 들어오는데, 정작 이름으로 찾는
+        // 일은 드물다(대개 등급·속성으로 좁힌다). 안드로이드는 헤더 돋보기 버튼으로 열고,
+        // iOS 는 시스템 검색 막대를 접어 둔다 — 당겨 내리면 나온다.
+        .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .automatic), prompt: "캐릭터 이름 검색")
         .background(GLGBackground { Color.clear })
         // 전체 보기/탭 어떤 경로로 진입해도 해당 게임 결과 보장(캐시 적중 시 즉시 반영).
         .task { store.autoLoadEnka(game: game, force: false) }
         .glgPageTitle("보유 캐릭터 · " + (game == "genshin" ? "원신" : game == "zzz" ? "젠레스" : "스타레일"))
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
+            // 열 전환 — 선택은 남는다(매번 바꾸게 하면 안 쓴다).
+            ToolbarItem(placement: .topBarTrailing) {
+                Button { colCount = colCount >= 3 ? 2 : 3 } label: {
+                    Image(systemName: colCount >= 3 ? "square.grid.3x3" : "square.grid.2x2")
+                }
+                .accessibilityLabel(colCount >= 3 ? "2열로 보기" : "3열로 보기")
+            }
             // 필터를 헤더(시스템 툴바)로 — iOS 26 시스템 글래스 메뉴 버튼
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
                     Picker("등급", selection: $rarity) {
-                        Text("전체").tag(0); Text("5성").tag(5); Text("4성").tag(4)
+                        // 등급 표기는 게임이 쓰는 말을 따른다 — 젠레스는 S급/A급이다.
+                        Text("전체").tag(0)
+                        Text(CharDisplayKt.rarityShort(gameKey: game, rarity: 5)).tag(5)
+                        Text(CharDisplayKt.rarityShort(gameKey: game, rarity: 4)).tag(4)
                     }
                     Picker("속성", selection: $element) {
                         Text("전체").tag("")
@@ -378,8 +573,11 @@ struct EnkaRosterPage: View {
         .navigationDestination(isPresented: $showStat) {
             if let c = statChar {
                 EnkaStatPage(char: c, game: game,
+                             // 순위는 **같은 게임** 로스터 안에서만 낸다 — 게임마다 점수 지표가 다르다.
+                             roster: store.enkaResults[game]?.profile?.chars ?? [],
                              overrides: store.keyStatOverrides,
-                             onSetOverride: { k, v in store.setKeyStatOverride(k, v) })
+                             onSetOverride: { k, v in store.setKeyStatOverride(k, v) },
+                             elementFxEnabled: store.charElementFx)
                     // 캐릭터별로 다른 뷰 — 재사용되면 직전 캐릭터의 유효옵션이 한 프레임 남는다.
                     .id(c.id)
             }
@@ -393,9 +591,47 @@ struct EnkaRosterPage: View {
 }
 
 /// 풀 스탯 페이지 — navigationDestination push(상단 back 자동).
+/**
+ 캐릭터 상세 진입점 — 지금은 [EnkaStatPageBody] 를 그대로 그린다.
+
+ ## ⚠️ 좌우 스와이프에 `TabView(.page)` 를 쓰면 안 된다 (2026-09-07 실기기 실측)
+
+ 앱 최상위가 이미 `TabView` 다(`ContentView.swift`). 그 안에 페이지 스타일 `TabView` 를
+ 중첩했더니 **safe area 전파가 깨졌다** — 히어로가 상태바까지 못 올라가 위에 흰 띠가 남고,
+ 하단 인셋이 사라져 **탭바가 성유물 카드를 덮었다**. 빌드·시뮬레이터로는 안 드러나고
+ 실기기에서만 보인다.
+
+ 다시 붙일 때는 중첩 TabView 말고 `ScrollView(.horizontal)` + `.scrollTargetBehavior(.paging)`
+ 처럼 safe area 를 일반 스크롤 규칙대로 다루는 쪽으로 간다. Android 는
+ `HorizontalPager` 로 이미 들어가 있다(그쪽은 최상위가 TabView 가 아니라 무관).
+ */
 struct EnkaStatPage: View {
     let char: EnkaChar
     let game: String
+    /// **같은 게임** 로스터. 순위 산출과 좌우 이동에 함께 쓴다.
+    var roster: [EnkaChar] = []
+    var overrides: [String: Set<String>] = [:]
+    var onSetOverride: (String, Set<String>) -> Void = { _, _ in }
+    var refinement: WeaponRefinement? = nil
+    var onNeedRefinement: (Int32, Int32) -> Void = { _, _ in }
+    /// 속성 연출 재생 여부(설정). 끄면 움직임 없이 속성 테두리만 남는다.
+    var elementFxEnabled: Bool = true
+
+    var body: some View {
+        EnkaStatPageBody(
+            char: char, game: game, roster: roster,
+            overrides: overrides, onSetOverride: onSetOverride,
+            refinement: refinement, onNeedRefinement: onNeedRefinement,
+            elementFxEnabled: elementFxEnabled,
+        )
+    }
+}
+
+struct EnkaStatPageBody: View {
+    let char: EnkaChar
+    let game: String
+    /// **같은 게임** 로스터 — 순위 산출용. 게임을 섞으면 지표가 뒤섞인다.
+    var roster: [EnkaChar] = []
     /// 캐릭터별 유효옵션 사용자 설정(키=keyStatOverrideKey). 앱 룰보다 우선.
     var overrides: [String: Set<String>] = [:]
     var onSetOverride: (String, Set<String>) -> Void = { _, _ in }
@@ -412,23 +648,42 @@ struct EnkaStatPage: View {
     ///
     /// 그렇다고 computed 로 되돌리면 안 된다 — `keySet` 을 스탯·성유물·부옵션이 줄마다 읽어서
     /// 한 화면에 70회 넘게 돌던 게 원래 문제였다. 뷰 생성당 1회가 그 사이의 답이다.
+    /// 속성 연출 재생 여부(설정). 끄면 움직임 없이 속성 테두리만 남는다.
+    let elementFxEnabled: Bool
+
     private let verdict: KeyStatVerdict
+    /// 화면 강조에 쓰는 유효옵션 — 젠레스는 빈 집합이다(점수 미사용).
+    private let effectiveKeys: Set<StatTok>
     private let artScore: CharArtifactScore
+    /// 로스터 안에서의 위치. 모수를 못 채우면 `hasRank == false` 로 온다.
+    private let standing: RosterStanding
+    /// 다음 한 걸음. 근거가 없으면 nil — 그때는 줄 자체를 그리지 않는다.
+    private let step: NextStep?
 
     init(char: EnkaChar, game: String,
+         roster: [EnkaChar] = [],
          overrides: [String: Set<String>] = [:],
          onSetOverride: @escaping (String, Set<String>) -> Void = { _, _ in },
          refinement: WeaponRefinement? = nil,
-         onNeedRefinement: @escaping (Int32, Int32) -> Void = { _, _ in }) {
+         onNeedRefinement: @escaping (Int32, Int32) -> Void = { _, _ in },
+         elementFxEnabled: Bool = true) {
         self.char = char
         self.game = game
+        self.roster = roster
         self.overrides = overrides
         self.onSetOverride = onSetOverride
         self.refinement = refinement
         self.onNeedRefinement = onNeedRefinement
+        self.elementFxEnabled = elementFxEnabled
         let v = KeyStatRulesKt.resolveKeyStats(gameKey: game, char: char, overrides: overrides)
         self.verdict = v
+        // 점수를 안 쓰는 게임(젠레스)은 **유효옵션도 쓰지 않는다.** 점수가 없으면 "무엇이 유효한가"를
+        // 말할 근거도 없다 — 빈 집합이면 강조·배지·기준 시트가 자연히 사라진다.
+        self.effectiveKeys = CharDisplayKt.usesArtifactScore(gameKey: game) ? v.stats : []
         self.artScore = ArtifactScoring.shared.scoreChar(artifacts: char.artifacts, keySet: v.stats, gameKey: game)
+        // 순위·다음 한 걸음도 같은 이유로 여기서 확정한다 — 첫 프레임부터 맞는 값이 보여야 한다.
+        self.standing = RosterStandings.shared.of(target: char, roster: roster, gameKey: game, overrides: overrides)
+        self.step = RosterStandings.shared.nextStep(c: char, gameKey: game, overrides: overrides)
     }
 
     @Environment(\.glgAccent) private var accent
@@ -442,63 +697,104 @@ struct EnkaStatPage: View {
     @State private var effectsLoading = true
     @State private var expandedEffect: Int? = nil
 
+    /// 히어로 실제 높이 — 스크롤이 이걸 넘어가면 헤더를 밝은 배경 모드로 되돌린다.
+    @State private var heroHeight: CGFloat = 0
+    /// 히어로를 지나쳤는가. 헤더 아이콘 색·바 배경이 여기에 달려 있다.
+    @State private var pastHero = false
+    /// 유효옵션 기준 시트 — 본문에 상주하던 편집 카드를 여기로 뺐다.
+    @State private var basisOpen = false
+
     var body: some View {
+        // 안전 영역 높이를 **여기서** 읽는다. 아래 ScrollView 는 `ignoresSafeArea` 로 상단까지
+        // 올라가 있어 그 안에서는 inset 이 0 으로 보고된다(지출 상세와 같은 이유).
+        GeometryReader { proxy in
+            content(topInset: proxy.safeAreaInsets.top)
+        }
+        .background(GLGBackground { Color.clear }.ignoresSafeArea())
+        // 히어로가 상태바까지 올라가므로 타이틀을 비운다 — 누구인지는 히어로의 이름이 말한다.
+        // (예전엔 본문 어디에도 이름이 없어 제목을 남겨야 했다. 이제 26pt 로 박혀 있다.)
+        .navigationTitle("")
+        .navigationBarTitleDisplayMode(.inline)
+        .modifier(GLGHiddenToolbarBackground(hidden: !pastHero))
+        .animation(.easeInOut(duration: 0.18), value: pastHero)
+        .sheet(isPresented: $basisOpen) { keyStatSheet }
+    }
+
+    private func content(topInset: CGFloat) -> some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                header
-                section(game == "genshin" ? "무기" : game == "zzz" ? "W-엔진" : "광추") {
-                    if let w = char.weapon {
-                        weaponCard(w)
-                            .task(id: w.id) { if w.id > 0 { onNeedRefinement(w.id, w.refinement) } }
+                hero(topInset: topInset)
+                VStack(alignment: .leading, spacing: 18) {
+                    // '이 캐릭터는' 카드(진단 백분위 + 다음 한 걸음)는 여기 있었다. 히어로의 요약
+                    // 줄이 이미 같은 값을 말하고 있어(점수·순위·치명 효율) 바로 아래에서 반복됐다.
+
+                    // ① 현재 스탯 — 점수의 기준(유효옵션)은 머리말 우측 버튼으로 연다.
+                    VStack(alignment: .leading, spacing: 0) {
+                        sectionHead(1, "현재 스탯", action: !CharDisplayKt.usesArtifactScore(gameKey: game) ? nil : {
+                            AnyView(
+                                Button { basisOpen = true } label: {
+                                    Text("기준")
+                                        .font(.pretendard(size: 11.5, weight: .bold))
+                                        .foregroundStyle(accent.primary)
+                                        .padding(.horizontal, 9).padding(.vertical, 4)
+                                        .background(accent.primary.opacity(0.10), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                                }
+                                .buttonStyle(.plain)
+                            )
+                        })
+                        statList
                     }
-                    else { emptyEquipNote(game == "genshin" ? "무기가 장착되지 않았습니다." : game == "zzz" ? "W-엔진이 장착되지 않았습니다." : "광추가 장착되지 않았습니다.") }
-                }
-                section("핵심 스탯") { statGrid }
-                // 유효옵션 — 점수의 기준이라 무엇으로 쟀는지 밝히고, 틀리면 바로 고칠 수 있게 한다.
-                //
-                // **성유물 섹션과 형제로 둔다.** 예전엔 성유물 섹션 '안에' 넣어서, 같은 서체의 제목
-                // ("드라이브 디스크" / "유효옵션")이 9pt 간격으로 겹쳐 보였다. Android 는 처음부터
-                // 두 섹션을 나란히 두고 있었다 — 그쪽에 맞춘다.
-                section("유효옵션") { keyStatEditor }
-                section(game == "genshin" ? "성유물" : game == "zzz" ? "드라이브 디스크" : "유물") {
-                    if char.artifacts.isEmpty {
-                        emptyEquipNote(game == "genshin" ? "성유물이 장착되지 않았습니다." : game == "zzz" ? "드라이브 디스크가 장착되지 않았습니다." : "유물이 장착되지 않았습니다.")
-                    } else {
-                        // 유효 점수 순 정렬 — 산식은 GL_Shared ArtifactScoring 단일 소스(Android 와 동일).
-                        // 점수는 뷰 생성 시 한 번 낸다(위 artScore).
-                        VStack(spacing: 10) {
-                            critScoreSummary(artScore)
-                            ForEach(Array(artScore.ranked.enumerated()), id: \.offset) { i, r in
-                                artifactCard(r.artifact, score: r.score, rank: i + 1)
-                            }
-                        }
-                    }
-                }
-                if !char.artifacts.isEmpty {
-                    section("세트 효과") {
-                        if char.sets.isEmpty {
-                            emptyEquipNote("세트 효과 발동 없음")
+
+                    // ② 장비 — 무기/광추/W-엔진 + 장비 특성(정련 효과).
+                    VStack(alignment: .leading, spacing: 0) {
+                        sectionHead(2, "장비", sub: game == "genshin" ? "무기" : game == "zzz" ? "W-엔진" : "광추")
+                        if let w = char.weapon {
+                            equipCard(w)
+                                .task(id: w.id) { if w.id > 0 { onNeedRefinement(w.id, w.refinement) } }
                         } else {
-                            VStack(spacing: 10) {
-                                ForEach(Array(char.sets.enumerated()), id: \.offset) { _, s in setCard(s) }
-                            }
+                            emptyEquipNote(game == "genshin" ? "무기가 장착되지 않았습니다." : game == "zzz" ? "W-엔진이 장착되지 않았습니다." : "광추가 장착되지 않았습니다.")
                         }
                     }
+
+                    // ③ 성유물 — 슬롯 한 줄로 압축하고 고른 것만 편다. 세트 효과도 여기 안에.
+                    VStack(alignment: .leading, spacing: 0) {
+                        sectionHead(
+                            3,
+                            game == "genshin" ? "성유물" : game == "zzz" ? "드라이브 디스크" : "유물",
+                            sub: char.artifacts.isEmpty ? nil
+                                : (CharDisplayKt.usesArtifactScore(gameKey: game)
+                                   ? "\(char.artifacts.count)칸 · \(artScore.metric.label) \(ArtifactScoring.shared.scoreLabel(value: artScore.total))"
+                                   : "\(char.artifacts.count)칸")
+                        )
+                        if char.artifacts.isEmpty {
+                            emptyEquipNote(game == "genshin" ? "성유물이 장착되지 않았습니다." : game == "zzz" ? "드라이브 디스크가 장착되지 않았습니다." : "유물이 장착되지 않았습니다.")
+                        } else {
+                            artifactSection
+                        }
+                    }
+
+                    // ④ 돌파 정보 — 명좌/성혼/형상.
+                    VStack(alignment: .leading, spacing: 0) {
+                        sectionHead(4, "돌파 정보", sub: effectsTitle)
+                        breakthroughCard
+                    }
                 }
-                // 운명의 자리/성혼/의식 — 항상 노출(활성/비활성). 이름·설명은 조회 성공 시에만 채움.
-                section(effectsTitle) { effectsCard }
+                .padding(.horizontal, 16)
+                .padding(.bottom, 16)
             }
-            .padding(16).padding(.bottom, 20)
+            .padding(.bottom, 20)
         }
-        .background(GLGBackground { Color.clear })
-        // 여기만 `glgPageTitle` 을 쓰지 않는다 — iPad 에서도 제목을 남긴다.
-        // 이 화면은 본문 어디에도 캐릭터 이름이 없어서, 분할 우측 패널에서 제목을 비우면
-        // **지금 누구 스탯을 보고 있는지 알 수 없다.** iPad 에선 push 가 아니라 우측 패널이라
-        // 탭바 밑에 제목이 겹치는 문제도 없다.
-        .navigationTitle(char.name)
-        .navigationBarTitleDisplayMode(.inline)
+        .scrollIndicators(.hidden)
+        .ignoresSafeArea(.container, edges: .top)
+        // 히어로 하단이 네비게이션 바 아래로 사라지는 순간을 경계로 삼는다(지출 상세와 동일).
+        .onScrollGeometryChange(for: Bool.self) { geo in
+            heroHeight > 0 && geo.contentOffset.y > heroHeight - topInset - 44
+        } action: { _, newValue in
+            pastHero = newValue
+        }
+        .tint(needsBarTint ? heroInk : nil)
         // 캐릭터/게임 바뀌면 효과 재조회(캐시 적중 시 즉시).
-        // (유효옵션·성유물 점수는 init 에서 확정 — 첫 프레임부터 맞는 값이 보여야 한다)
+        // (유효옵션·성유물 점수·순위는 init 에서 확정 — 첫 프레임부터 맞는 값이 보여야 한다)
         .task(id: char.id) {
             effectsLoading = true
             expandedEffect = nil
@@ -507,6 +803,770 @@ struct EnkaStatPage: View {
             guard !Task.isCancelled else { return }
             effects = r
             effectsLoading = false
+        }
+    }
+
+    /// 툴바 아이콘 색을 **직접 정해야 하는 구간인가**(iOS 18). iOS 26+ 는 유리 캡슐이 대비를 만든다.
+    private var needsBarTint: Bool {
+        if #available(iOS 26.0, *) { return false }
+        return true
+    }
+
+    /// 파스텔 히어로 위에 얹는 색 — 원소색을 검정 쪽으로 눌러 같은 계열을 유지한다(지출과 같은 규칙).
+    private var heroInk: Color { enkaElementColor(char.element).mix(with: .black, by: 0.62) }
+
+    /// ⚠️ 한때 딥 톤(검정 −40~70%)이었다. 흰 글씨 대비는 나왔지만 **라이트 모드 앱에서 이질적**이라
+    /// 밝은 쪽으로 되돌렸다. 대신 지출 상세(.80→.66)보다 **진하게** 잡아 두 화면이 안 겹치게 한다.
+    /// .62/.45 에서 ink 글자 대비는 최악 6.29(불) — 본문 기준 4.5 를 넉넉히 넘는다.
+    private var heroTop: Color { enkaElementColor(char.element).mix(with: .white, by: 0.62) }
+    private var heroBottom: Color { enkaElementColor(char.element).mix(with: .white, by: 0.45) }
+    /// 링 게이지는 배경보다 진해야 읽힌다 — 채도를 살린 원소색.
+    private var heroGlow: Color { enkaElementColor(char.element).mix(with: .black, by: 0.22) }
+
+    /**
+     히어로 — 딥 원소색 위에 링·초상·이름·명좌 체인, 그 아래 요약 줄. **중앙 정렬.**
+
+     ## 지출 상세와 일부러 반대로 간다
+
+     `SpendingDetailView.hero` 는 게임색을 **흰색과 섞어**(+80%) 밝은 파스텔로 깐다.
+     여기서는 원소색을 **검정과 섞어**(−50%) 어둡게 눌렀다. 같은 색에서 출발해 방향만 반대라
+     두 화면을 나란히 놓아도 첫인상이 겹치지 않는다.
+
+     어둡게 간 데는 근거가 있다. 원소색을 원본 그대로 깔고 흰 글씨를 얹으면 **12색 중 11색이
+     대비 미달**이다(전기 #E6C13A 는 1.74). −50% 면 최악이 4.56 이라 흰 본문 기준을 넘는다.
+
+     ## 사실 3칸을 링과 요약 줄로 바꿨다
+
+     3칸은 지출 히어로의 조형이라 그대로 두면 계속 같은 화면으로 읽힌다. **초상 둘레 링**(점수)과
+     **한 줄 요약**(순위)으로 옮겼다. 값을 못 구할 때 판을 유지하는 규칙은 살아 있다 —
+     칸이 아니라 **줄에서** 교체한다.
+     */
+    @ViewBuilder
+    private func hero(topInset: CGFloat) -> some View {
+        let rarityColor = char.rarity >= 5 ? Color(hex: 0xFFD8A12E) : Color(hex: 0xFF9B6BD6)
+        // 젠레스는 유물 점수를 쓰지 않는다 — 링 게이지·등급 휘장·순위가 전부 빠진다.
+        let scored = CharDisplayKt.usesArtifactScore(gameKey: game)
+        let progress = scored ? ArtifactScoring.shared.excellenceProgress(average: artScore.average, metric: artScore.metric) : 0
+
+        VStack(spacing: 0) {
+            ZStack {
+                // 바깥 게이지 — 점수(장당 평균)가 최상 등급에 얼마나 왔는지.
+                if scored {
+                    Circle()
+                        .stroke(Color.white.opacity(0.6), style: StrokeStyle(lineWidth: 7, lineCap: .round))
+                    Circle()
+                        .trim(from: 0, to: max(0, min(1, progress)))
+                        .stroke(heroGlow, style: StrokeStyle(lineWidth: 7, lineCap: .round))
+                        .rotationEffect(.degrees(-90))
+                        .shadow(color: heroGlow.opacity(0.6), radius: 6)
+                }
+
+                // 등급 금테 + 초상.
+                ZStack {
+                    Circle().fill(enkaElementColor(char.element).mix(with: .white, by: 0.72))
+                    if let icon = char.iconUrl, let u = URL(string: icon) {
+                        GLGRemoteImage(url: u, side: 118)
+                            .frame(width: 118, height: 118)
+                            .clipShape(Circle())
+                    } else {
+                        Text(String(char.name.prefix(1)))
+                            .font(.pretendard(size: 46, weight: .bold)).foregroundStyle(heroInk)
+                    }
+                }
+                .frame(width: 128, height: 128)
+                .overlay(Circle().stroke(rarityColor, lineWidth: 2.5))
+                .shadow(color: rarityColor.opacity(0.45), radius: 10)
+
+                // 등급 휘장 — 링에 걸친다.
+                if scored {
+                    Text(artScore.grade.label)
+                    .font(.pretendard(size: 12.5, weight: .bold))
+                    .foregroundStyle(Color(hex: 0xFF3B2A08))
+                    .padding(.horizontal, 14).padding(.vertical, 4)
+                    .background(
+                        LinearGradient(colors: [Color(hex: 0xFFF3D389), Color(hex: 0xFFD8A12E)],
+                                       startPoint: .top, endPoint: .bottom),
+                        in: RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .stroke(Color.white.opacity(0.5), lineWidth: 1)
+                    )
+                    .shadow(color: .black.opacity(0.35), radius: 5, y: 3)
+                    // 링 프레임(150)의 하단에 걸친다. 81 은 너무 내려와 아래 라벨과 붙었다.
+                    .offset(y: 69)
+                }
+            }
+            // 점수를 안 쓰면 바깥 링도 등급 휘장도 없다 — 링 몫으로 잡아둔 22 여백까지 뺀다.
+            // 남겨두면 초상 둘레가 휑하니 비어 "뭔가 안 나온다"로 보인다(젠레스 제보).
+            .frame(width: scored ? 150 : 128, height: scored ? 150 : 128)
+
+            // 링이 무엇을 재는 게이지인지 밝힌다 — 숫자만 두면 78% 가 무슨 뜻인지 알 수 없다.
+            if scored {
+                Text(ArtifactScoring.shared.ringLabel(score: artScore))
+                    .font(.pretendard(size: 9.5, weight: .bold))
+                    .foregroundStyle(heroInk.opacity(0.6))
+                    .padding(.top, 24)
+            }
+
+            Text(char.name)
+                .font(.pretendard(size: 27, weight: .bold))
+                .foregroundStyle(GLGColor.textPrimary)
+                .lineLimit(1).minimumScaleFactor(0.7)
+                .shadow(color: .black.opacity(0.4), radius: 6, y: 2)
+                .padding(.top, 10)
+
+            // 등급 — 젠레스는 별을 안 쓴다(S급/A급 에이전트). 게임이 쓰는 말을 그대로 쓴다.
+            let rarityText = CharDisplayKt.rarityLabel(gameKey: game, rarity: char.rarity)
+            let badge = CharDisplayKt.specialBadge(gameKey: game, char: char)
+            // 젠레스는 **모든 캐릭터가 진영을 갖는다.** 특별 배지가 붙은 캐릭터는 그쪽이 우선이고,
+            // 나머지는 진영을 일반 톤으로 보여준다 — 소속이 캐릭터를 설명하는 게임이라 값이 있다.
+            let campText: String? = (badge == nil && !char.camp.isEmpty) ? char.camp : nil
+            if !rarityText.isEmpty || badge != nil || campText != nil {
+                HStack(spacing: 7) {
+                    if !rarityText.isEmpty {
+                        Text(rarityText)
+                            .font(.pretendard(size: CharDisplayKt.usesStars(gameKey: game) ? 13 : 11.5, weight: .bold))
+                            .foregroundStyle(Color(hex: 0xFFB8860B))
+                    }
+                    // 특별 배지 — 일곱신·콜롬비나·공허 사냥꾼처럼 각별한 캐릭터에만. 금색으로 눈에 띈다.
+                    if let badge {
+                        Text(badge)
+                            .font(.pretendard(size: 10, weight: .bold))
+                            .foregroundStyle(Color(hex: 0xFF6B4E0A))
+                            .lineLimit(1)
+                            .padding(.horizontal, 8).padding(.vertical, 2.5)
+                            .background(
+                                LinearGradient(colors: [Color(hex: 0xFFF6DFA0), Color(hex: 0xFFE7C46A)],
+                                               startPoint: .leading, endPoint: .trailing),
+                                in: RoundedRectangle(cornerRadius: 7, style: .continuous)
+                            )
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 7, style: .continuous)
+                                    .stroke(Color(hex: 0xFFB8860B).opacity(0.55), lineWidth: 1)
+                            )
+                    } else if let campText {
+                        // 진영 — 특별 배지가 없을 때. 이름이 길어 한 줄로 자른다.
+                        Text(campText)
+                            .font(.pretendard(size: 10, weight: .bold))
+                            .foregroundStyle(heroInk)
+                            .lineLimit(1)
+                            .padding(.horizontal, 8).padding(.vertical, 2.5)
+                            .background(Color.white.opacity(0.75),
+                                        in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+                    }
+                }
+                .padding(.top, 8)
+            }
+
+            heroPills.padding(.top, scored ? 14 : 18)
+            constellationChain.padding(.top, 16)
+            heroSummaryRow.padding(.top, 18)
+        }
+        .padding(.horizontal, 20)
+        .padding(.bottom, 26)
+        .padding(.top, topInset + 38)
+        .frame(maxWidth: .infinity)
+        .background(
+            ZStack {
+                LinearGradient(colors: [heroTop, heroBottom],
+                               startPoint: .topLeading, endPoint: .bottomTrailing)
+                    // 아래로 당겼을 때(바운스) 히어로 위가 드러나 흰 배경이 비치는 걸 막는다.
+                    .padding(.top, -800)
+                // 중앙 상단 광채 — RPG 캐릭터 카드의 배경 광.
+                VStack {
+                    Circle()
+                        .fill(RadialGradient(colors: [Color.white.opacity(0.55), .clear],
+                                             center: .center, startRadius: 0, endRadius: 150))
+                        .frame(width: 300, height: 300)
+                        .offset(y: -46)
+                    Spacer(minLength: 0)
+                }
+                .allowsHitTesting(false)
+                // 속성 연출 — 켜면 진입할 때 한 번 재생하고, 꺼도 **정적 테두리**는 남긴다.
+                // 초상 한가운데 y — 양자·허수·루멘처럼 썸네일 위에서 도는 연출이 기준으로 쓴다.
+                // (상단 패딩 topInset+38 다음에 오는 150 링의 한가운데)
+                ElementFxOverlay(element: char.element, animated: elementFxEnabled,
+                                 focusY: topInset + 38 + (scored ? 75 : 64))
+            }
+            .clipShape(UnevenRoundedRectangle(bottomLeadingRadius: 30, bottomTrailingRadius: 30, style: .continuous))
+        )
+        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { heroHeight = $0 }
+    }
+
+    /// 히어로 pill — 게임·속성·레벨·역할. 딥 톤 위라 반투명 흰색이다.
+    @ViewBuilder
+    private var heroPills: some View {
+        let role = char.path.isEmpty ? char.specialty : char.path
+        HStack(spacing: 5) {
+            heroPill(enkaGameLabel(game))
+            if !char.element.isEmpty { heroPill(char.element) }
+            heroPill("Lv. \(char.level)")
+            if !role.isEmpty { heroPill(role) }
+        }
+    }
+
+    private func heroPill(_ text: String) -> some View {
+        Text(text)
+            .font(.pretendard(size: 10.5, weight: .bold))
+            .foregroundStyle(heroInk)
+            .lineLimit(1)
+            .padding(.horizontal, 10).padding(.vertical, 3.5)
+            .background(Color.white.opacity(0.75), in: Capsule())
+    }
+
+    /**
+     명좌 노드 체인 — 원신 운명의 자리·스타레일 성혼·젠레스 형상 시네마가 모두 6단계다.
+     점을 선으로 이어 스킬트리처럼 보이게 한다. **2/6 이라는 비율이 안 읽고도 보인다.**
+     */
+    private var constellationChain: some View {
+        // rank: 원신 명함=0, 비공개=-1 → 활성 0개.
+        let on = max(Int(char.rank), 0)
+        return HStack(spacing: 0) {
+            ForEach(0..<EnkaConstellationSteps, id: \.self) { i in
+                if i > 0 {
+                    Rectangle()
+                        .fill(i < on ? heroInk : heroInk.opacity(0.16))
+                        .frame(width: 13, height: 1.5)
+                }
+                Circle()
+                    .fill(i < on ? heroInk : heroInk.opacity(0.16))
+                    .frame(width: 9, height: 9)
+            }
+            Text("\(effectsTitle) \(on)/\(EnkaConstellationSteps)")
+                .font(.pretendard(size: 10, weight: .bold))
+                .foregroundStyle(heroInk.opacity(0.62))
+                .padding(.leading, 9)
+        }
+    }
+
+    /**
+     요약 줄 — 점수 + 순위. 순위를 못 내면 **그 자리를 치명 효율로 바꾼다**(판은 유지).
+     지출 히어로가 재화 개수를 못 구할 때 칸 내용을 바꾸는 것과 같은 규칙이다.
+     */
+    @ViewBuilder
+    private var heroSummaryRow: some View {
+        let scored = CharDisplayKt.usesArtifactScore(gameKey: game)
+        HStack(spacing: 9) {
+            if scored {
+                Text(ArtifactScoring.shared.scoreLabel(value: artScore.total))
+                    .font(.pretendard(size: 14, weight: .bold))
+                    .foregroundStyle(heroInk)
+                Rectangle().fill(heroInk.opacity(0.18)).frame(width: 1, height: 14)
+            }
+            if standing.hasRank {
+                Text("내 로스터 \(standing.rank)위 / \(standing.pool)명")
+                    .font(.pretendard(size: 11.5, weight: .bold))
+                    .foregroundStyle(heroInk.opacity(0.82))
+            } else if let cv = RosterStandings.shared.critEfficiency(c: char) {
+                Text("치명 효율 \(ArtifactScoring.shared.scoreLabel(value: Double(truncating: cv)))")
+                    .font(.pretendard(size: 11.5, weight: .semibold))
+                    .foregroundStyle(heroInk.opacity(0.6))
+            } else {
+                Text(scored ? "장당 \(ArtifactScoring.shared.scoreLabel(value: artScore.average))" : "—")
+                    .font(.pretendard(size: 11.5, weight: scored ? .semibold : .bold))
+                    .foregroundStyle(heroInk.opacity(scored ? 0.6 : 0.82))
+            }
+        }
+        .padding(.horizontal, 15).padding(.vertical, 8)
+        .background(Color.white.opacity(0.55), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+    }
+
+
+    private var keyStatSourceSuffix: String {
+        switch verdict.source {
+        case .user: return " · 유효옵션 직접 설정"
+        case .rule: return " · 유효옵션 앱 추정"
+        default: return " · 유효옵션 판정 불가"
+        }
+    }
+
+    /// 순위를 못 내는 사유 — 상세를 읽을 수 있는 인원 자체가 적으면 '공개 범위' 문제다.
+    private var rankAbsenceNote: String {
+        let minPool = Int(RosterStanding.companion.MIN_POOL)
+        if standing.detailedCount > 0 && Int(standing.detailedCount) < minPool && standing.pool == 0 {
+            return "게임에 공개된 \(standing.detailedCount)명만 읽을 수 있어 로스터 순위는 내지 않습니다. HoYoLAB 을 연동하면 보유 전체가 기준이 됩니다."
+        }
+        return "육성 완료 \(standing.pool)명 — 로스터 순위는 \(minPool)명부터 나옵니다."
+    }
+
+    private func summaryBar(_ label: String, value: String, percent: Int, color: Color) -> some View {
+        VStack(spacing: 6) {
+            HStack {
+                Text(label).font(.pretendard(size: 11.5)).foregroundStyle(GLGColor.textSecondary)
+                Spacer()
+                Text(value).font(.pretendard(size: 12, weight: .bold))
+            }
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    Capsule().fill(Color(hex: 0xFFEDEFF3))
+                    Capsule().fill(color)
+                        .frame(width: max(0, min(1, Double(percent) / 100)) * geo.size.width)
+                }
+            }
+            .frame(height: 7)
+        }
+    }
+
+    /// 유효옵션 기준 시트 — 무엇으로 쟀는지 밝히고, 틀리면 바로 고칠 수 있게 한다.
+    private var keyStatSheet: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 14) {
+                    Text("\(artScore.metric.label) · \(artScore.metric.hint)")
+                        .font(.pretendard(size: 11.5))
+                        .foregroundStyle(GLGColor.textSecondary)
+                    keyStatEditor
+                }
+                .padding(20)
+            }
+            .background(GLGBackground { Color.clear }.ignoresSafeArea())
+            .navigationTitle("점수 기준")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("닫기") { basisOpen = false }
+                }
+            }
+        }
+        .presentationDetents([.medium, .large])
+    }
+
+    // ═══════════════════════════════════════════════════════ 히어로 하단 2.0
+    //
+    // 섹션 순서는 ① 현재 스탯 → ② 장비 → ③ 성유물 → ④ 돌파. 전부 같은 머리말 문법
+    // (번호 배지 + 제목 + 보조)을 쓴다 — Android 와 동일하다.
+
+    /// 섹션 머리 — 번호 배지 + 제목 + (보조) + (우측 액션).
+    private func sectionHead(
+        _ no: Int, _ title: String, sub: String? = nil,
+        action: (() -> AnyView)? = nil
+    ) -> some View {
+        HStack(spacing: 8) {
+            Text("\(no)")
+                .font(.pretendard(size: 10.5, weight: .bold))
+                .foregroundStyle(.white)
+                .frame(width: 19, height: 19)
+                .background(GLGColor.textPrimary, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+            Text(title).font(.pretendard(size: 13, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
+            if let sub {
+                Text(sub).font(.pretendard(size: 10.5, weight: .bold))
+                    .foregroundStyle(GLGColor.textSecondary).lineLimit(1)
+            }
+            Spacer(minLength: 8)
+            if let action { action() }
+        }
+        .padding(.horizontal, 2).padding(.top, 2).padding(.bottom, 10)
+    }
+
+    /**
+     ① 현재 스탯 — **한 줄에 하나**, 묶음별로.
+
+     예전엔 2열 표에 응답 순서 그대로 흘렸다. 긴 이름("얼음 원소 피해 보너스")이 잘리고
+     캐릭터마다 자리가 달랐다. `groupStats` 로 치명 → 기본 → 그 외 순서를 고정하고,
+     유효옵션은 배지까지 달아 **왜 빨간지**를 밝힌다.
+     */
+    @ViewBuilder
+    private var statList: some View {
+        // ⚠️ 공유 모듈의 `groupStats` 는 Kotlin Pair 를 돌려줘 Swift 에서 원소 타입이 Any 로 온다.
+        // 순서 정의(치명 → 기본 → 그 외)만 공유하고 묶는 일은 여기서 한다 — `statGroupOf` 는 단일
+        // 값이라 브리지가 깔끔하다.
+        let order: [StatGroup] = [.crit, .base, .other]
+        let all: [EnkaStatLine] = char.stats
+        let groups: [(StatGroup, [EnkaStatLine])] = order.compactMap { g in
+            let lines: [EnkaStatLine] = all.filter { (l: EnkaStatLine) in
+                StatGroupKt.statGroupOf(line: l) == g
+            }
+            return lines.isEmpty ? nil : (g, lines)
+        }
+        GLGCard(cornerRadius: 24, padding: 6) {
+            VStack(alignment: .leading, spacing: 0) {
+                ForEach(Array(groups.enumerated()), id: \.offset) { _, pair in
+                    Text(pair.0.label)
+                        .font(.pretendard(size: 9.5, weight: .bold))
+                        .foregroundStyle(Color(hex: 0xFF98A0AB))
+                        .padding(.leading, 10).padding(.top, 9).padding(.bottom, 5)
+                    ForEach(Array(pair.1.enumerated()), id: \.offset) { _, line in
+                        let key = ArtifactScoring.shared.isEffective(keySet: effectiveKeys, label: line.label)
+                        HStack(spacing: 0) {
+                            Text(line.label)
+                                .font(.pretendard(size: 12, weight: key ? .bold : .semibold))
+                                .foregroundStyle(key ? enkaCrit : GLGColor.textSecondary)
+                                .lineLimit(1)
+                            if key {
+                                Text("유효")
+                                    .font(.pretendard(size: 9, weight: .bold))
+                                    .foregroundStyle(enkaCrit)
+                                    .padding(.horizontal, 5).padding(.vertical, 1.5)
+                                    .background(enkaCrit.opacity(0.12), in: RoundedRectangle(cornerRadius: 5, style: .continuous))
+                                    .padding(.leading, 7)
+                            }
+                            Spacer(minLength: 8)
+                            Text(line.value)
+                                .font(.pretendard(size: 15, weight: .bold))
+                                .foregroundStyle(key ? enkaCrit : GLGColor.textPrimary)
+                                .lineLimit(1)
+                        }
+                        .padding(.horizontal, 11).padding(.vertical, 9)
+                        .background(key ? enkaCrit.opacity(0.06) : .clear,
+                                    in: RoundedRectangle(cornerRadius: 13, style: .continuous))
+                        .padding(.bottom, 1)
+                    }
+                }
+                if !effectiveKeys.isEmpty {
+                    Text("빨간 줄은 이 캐릭터의 유효옵션입니다 — 성유물 점수에 들어가는 항목과 같습니다.")
+                        .font(.pretendard(size: 10.5))
+                        .foregroundStyle(GLGColor.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.horizontal, 11).padding(.top, 8).padding(.bottom, 6)
+                }
+            }
+        }
+    }
+
+    /**
+     ② 장비 — 무기/광추/W-엔진 + **장비 특성**(정련 효과).
+
+     아이콘은 여태 응답에 있는데 안 읽고 버렸다(`EnkaWeapon.iconUrl`). 정련은 숫자만으로
+     만렙까지 얼마나 남았는지 안 보여 **5칸 눈금**을 함께 그린다.
+     */
+    private func equipCard(_ w: EnkaWeapon) -> some View {
+        GLGCard(cornerRadius: 24, padding: 0) {
+            HStack(spacing: 0) {
+                VStack(alignment: .leading, spacing: 0) {
+                    HStack(spacing: 12) {
+                        ZStack {
+                            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                                .fill(LinearGradient(colors: [Color(hex: 0xFFF7E7C2), Color(hex: 0xFFFCF6EA)],
+                                                     startPoint: .topLeading, endPoint: .bottomTrailing))
+                            if let icon = w.iconUrl, let u = URL(string: icon) {
+                                GLGRemoteImage(url: u, side: 66).frame(width: 56, height: 56)
+                            } else {
+                                Text(String(w.name.prefix(1)))
+                                    .font(.pretendard(size: 26, weight: .bold))
+                                    .foregroundStyle(Color(hex: 0xFF9C6F12))
+                            }
+                        }
+                        .frame(width: 66, height: 66)
+                        .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous)
+                            .stroke(Color(hex: 0xFFD8A12E).opacity(0.5), lineWidth: 2))
+                        .shadow(color: Color(hex: 0xFFD8A12E).opacity(0.22), radius: 6, y: 3)
+
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(w.name).font(.pretendard(size: 15.5, weight: .bold))
+                                .foregroundStyle(GLGColor.textPrimary).lineLimit(2)
+                            Text("Lv. \(w.level)").font(.pretendard(size: 10.5, weight: .bold))
+                                .foregroundStyle(GLGColor.textSecondary)
+                        }
+                        Spacer(minLength: 0)
+                        if w.refinement > 0 {
+                            VStack(alignment: .trailing, spacing: 5) {
+                                Text("R\(w.refinement)")
+                                    .font(.pretendard(size: 13, weight: .bold))
+                                    .foregroundStyle(Color(hex: 0xFF9C6F12))
+                                    .padding(.horizontal, 9).padding(.vertical, 3)
+                                    .background(Color(hex: 0xFFD8A12E).opacity(0.16),
+                                                in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                                HStack(spacing: 3) {
+                                    ForEach(0..<EnkaRefineTicks, id: \.self) { i in
+                                        RoundedRectangle(cornerRadius: 2)
+                                            .fill(i < Int(w.refinement) ? Color(hex: 0xFFD8A12E) : Color.black.opacity(0.10))
+                                            .frame(width: 12, height: 3)
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // 메인/서브 스탯 — 이름 옆에 흐르던 걸 칸으로 갈라 값이 눈에 들어오게 한다.
+                    let cells = weaponStatCells(w)
+                    if !cells.isEmpty {
+                        HStack(spacing: 8) {
+                            ForEach(Array(cells.enumerated()), id: \.offset) { _, st in
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(st.label).font(.pretendard(size: 10, weight: .bold))
+                                        .foregroundStyle(GLGColor.textSecondary).lineLimit(1)
+                                    Text(st.value).font(.pretendard(size: 15, weight: .bold))
+                                        .foregroundStyle(st.crit ? enkaCrit : GLGColor.textPrimary).lineLimit(1)
+                                }
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(.horizontal, 11).padding(.vertical, 9)
+                                .background(Color.white, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                                .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                    .stroke(Color.black.opacity(0.06), lineWidth: 1))
+                            }
+                            if cells.count == 1 { Spacer(minLength: 0).frame(maxWidth: .infinity) }
+                        }
+                        .padding(.top, 12)
+                    }
+
+                    // 장비 특성 — 출처가 둘이다. 도감(NanokaApi)은 정련 단계별 문장을 주지만
+                    // 원신·스타레일만 지원하고 실패할 수 있다. 응답이 직접 준 설명은 단계 구분이
+                    // 없는 대신 **젠레스까지 있고 실패하지 않는다.** 도감 우선, 없으면 폴백.
+                    //
+                    // ⚠️ 응답 폴백은 **젠레스에서만**. 원신·스타레일의 `desc` 는 무기 소개문이라
+                    // 특성이 아니다. 파싱에서 빼도 캐시에 남은 값이 계속 떴던 전례가 있어,
+                    // 읽는 쪽에서도 게임으로 한 번 더 막는다.
+                    let allowResponseTrait = game == "zzz"
+                    let traitName = refinement?.name.isEmpty == false ? refinement?.name
+                        : (allowResponseTrait && !w.traitName.isEmpty ? w.traitName : nil)
+                    let traitDesc = refinement?.desc.isEmpty == false ? refinement?.desc
+                        : (allowResponseTrait && !w.traitDesc.isEmpty ? w.traitDesc : nil)
+                    if let desc = traitDesc {
+                        Rectangle().fill(Color.black.opacity(0.06)).frame(height: 1).padding(.top, 13)
+                        HStack(spacing: 6) {
+                            Text("장비 특성").font(.pretendard(size: 12, weight: .bold))
+                                .foregroundStyle(Color(hex: 0xFF9C6F12))
+                            // 지금 보는 설명이 **몇 정련 기준**인지 밝힌다.
+                            // 응답이 준 설명(폴백)에는 단계 개념이 없으므로 도감 문장일 때만 단다.
+                            if let r = refinement {
+                                Text("R\(max(Int(r.level), 1)) 기준")
+                                    .font(.pretendard(size: 9, weight: .bold)).foregroundStyle(.white)
+                                    .padding(.horizontal, 5).padding(.vertical, 1.5)
+                                    .background(Color(hex: 0xFFD8A12E), in: RoundedRectangle(cornerRadius: 5, style: .continuous))
+                            }
+                        }
+                        .padding(.top, 11)
+                        if let n = traitName {
+                            Text(n).font(.pretendard(size: 12, weight: .bold))
+                                .foregroundStyle(GLGColor.textPrimary).padding(.top, 6)
+                        }
+                        Text(desc).font(.pretendard(size: 11.5))
+                            .foregroundStyle(GLGColor.textSecondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .padding(.top, 3)
+                    }
+                }
+                .padding(14)
+            }
+        }
+    }
+
+    /**
+     ③ 성유물 — **인게임 순서 리스트. 부옵션까지 항상 편다.**
+
+     처음엔 한 장이 카드 하나였고(스크롤의 절반), 그다음엔 슬롯 그리드 + 고른 것만 펴는 형태였다.
+     둘 다 문제가 있었다 — 카드형은 너무 길고, 그리드는 **한 번 더 눌러야** 부옵션이 보였다.
+     지금은 한 줄에 한 장씩 늘어놓고 부옵션까지 바로 편다.
+
+     순서는 **인게임 장착 순서**다. 점수 내림차순으로 그렸더니 자리가 캐릭터마다 달라져
+     눈이 매번 헤맸다. 순위는 배지로만 남긴다. 세트 효과도 여기 안에 둔다.
+     */
+    @ViewBuilder
+    private var artifactSection: some View {
+        let slots = artifactSlots
+        let top = artScore.ranked.map { $0.score.value }.max() ?? 0
+
+        GLGCard(cornerRadius: 24, padding: 0) {
+            VStack(spacing: 0) {
+                ForEach(Array(slots.enumerated()), id: \.offset) { i, pair in
+                    if i > 0 { Rectangle().fill(Color.black.opacity(0.06)).frame(height: 1) }
+                    artifactRow(pair.0, rank: pair.1, top: top)
+                }
+
+                // 세트 효과 — 성유물의 일부다.
+                Rectangle().fill(Color.black.opacity(0.06)).frame(height: 1)
+                VStack(alignment: .leading, spacing: 12) {
+                    if char.sets.isEmpty {
+                        Text("세트 효과 발동 없음").font(.pretendard(size: 11.5))
+                            .foregroundStyle(GLGColor.textSecondary)
+                    } else {
+                        ForEach(Array(char.sets.enumerated()), id: \.offset) { _, st in setCard(st) }
+                    }
+                }
+                .padding(14)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+    }
+
+    /**
+     유물 한 줄 — 아이콘·슬롯·메인·점수 + **부옵션까지 항상**.
+
+     탭해서 펴는 방식을 썼다가 걷어냈다. 부옵션은 이 화면에서 제일 자주 보는 값인데
+     **한 번 더 눌러야** 나오는 게 부담이었다.
+     */
+    @ViewBuilder
+    private func artifactRow(_ r: RankedArtifact, rank: Int, top: Double) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 13) {
+                ZStack(alignment: .bottomTrailing) {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 15, style: .continuous)
+                            .fill(LinearGradient(colors: [Color(hex: 0xFFF7E7C2), Color(hex: 0xFFFCF6EA)],
+                                                 startPoint: .topLeading, endPoint: .bottomTrailing))
+                        if let icon = r.artifact.iconUrl, let u = URL(string: icon) {
+                            GLGRemoteImage(url: u, side: 48).frame(width: 40, height: 40)
+                        } else {
+                            Text(String(r.artifact.slot.prefix(1)))
+                                .font(.pretendard(size: 19, weight: .bold))
+                                .foregroundStyle(Color(hex: 0xFF9C6F12))
+                        }
+                    }
+                    .frame(width: 48, height: 48)
+                    .overlay(RoundedRectangle(cornerRadius: 15, style: .continuous)
+                        .stroke(Color(hex: 0xFFD8A12E).opacity(0.45), lineWidth: 1.5))
+                    Text("+\(r.artifact.level)")
+                        .font(.pretendard(size: 10, weight: .bold)).foregroundStyle(.white)
+                        .padding(.horizontal, 4)
+                        .background(Color(hex: 0xFFD8A12E), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+                        .overlay(RoundedRectangle(cornerRadius: 6, style: .continuous).stroke(.white, lineWidth: 2))
+                        .offset(x: 6, y: 5)
+                }
+
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(spacing: 6) {
+                        Text(r.artifact.slot).font(.pretendard(size: 12.5, weight: .bold))
+                            .foregroundStyle(GLGColor.textPrimary).lineLimit(1)
+                        if !r.artifact.setName.isEmpty {
+                            Text(r.artifact.setName).font(.pretendard(size: 10))
+                                .foregroundStyle(GLGColor.textSecondary).lineLimit(1)
+                        }
+                    }
+                    HStack(alignment: .lastTextBaseline, spacing: 6) {
+                        Text(r.artifact.main.label).font(.pretendard(size: 10.5))
+                            .foregroundStyle(keyLabelColor(r.artifact.main))
+                        Text(r.artifact.main.value).font(.pretendard(size: 15, weight: .bold))
+                            .foregroundStyle(keyColor(r.artifact.main, fallback: accent.primary))
+                    }
+                }
+                Spacer(minLength: 8)
+                if CharDisplayKt.usesArtifactScore(gameKey: game) && !r.score.isEmpty {
+                    VStack(alignment: .trailing, spacing: 5) {
+                        Text("\(rank)위 · \(ArtifactScoring.shared.scoreLabel(value: r.score.value))")
+                            .font(.pretendard(size: 10, weight: .bold))
+                            .foregroundStyle(Color(hex: 0xFF9C6F12))
+                        GeometryReader { geo in
+                            ZStack(alignment: .leading) {
+                                Capsule().fill(Color(hex: 0xFFEDEFF3))
+                                Capsule().fill(Color(hex: 0xFFD8A12E))
+                                    .frame(width: (top <= 0 ? 0 : min(1, r.score.value / top)) * geo.size.width)
+                            }
+                        }
+                        .frame(width: 52, height: 3)
+                    }
+                }
+            }
+
+            if !r.artifact.subs.isEmpty {
+                DashHLine().stroke(style: StrokeStyle(lineWidth: 1, dash: [4, 4]))
+                    .foregroundStyle(Color.black.opacity(0.06))
+                    .frame(height: 1).padding(.top, 11)
+                LazyVGrid(columns: g2, alignment: .leading, spacing: 8) {
+                    ForEach(Array(r.artifact.subs.enumerated()), id: \.offset) { _, sub in
+                        subStatCell(sub)
+                    }
+                }
+                .padding(.top, 10)
+            }
+        }
+        .padding(.horizontal, 14).padding(.vertical, 12)
+    }
+
+    /**
+     부옵션 한 줄 + **롤 눈금**.
+
+     "치확 10.9%" 만 보면 잘 굴러간 건지(3롤) 한 번 붙은 건지(1롤) 알 수 없다. 굴림 횟수가
+     유물 평가의 핵심이라 눈금으로 함께 그린다 — 계산은 이미 점수에 쓰던 값이다.
+     */
+    @ViewBuilder
+    private func subStatCell(_ s: EnkaStatLine) -> some View {
+        let key = ArtifactScoring.shared.isEffective(keySet: effectiveKeys, label: s.label)
+        let rolls = ArtifactScoring.shared.subRolls(line: s, gameKey: game)
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(alignment: .lastTextBaseline, spacing: 4) {
+                Text(s.label).font(.pretendard(size: 11))
+                    .foregroundStyle(keyLabelColor(s)).lineLimit(1)
+                Spacer(minLength: 4)
+                Text(s.value).font(.pretendard(size: 11, weight: .bold))
+                    .foregroundStyle(keyColor(s, fallback: GLGColor.textPrimary))
+            }
+            if let rolls {
+                // 눈금은 **올림**한다 — 1.2롤을 한 칸으로 보여주면 "한 번 붙었다"가 맞다.
+                let filled = min(Int(ceil(Double(truncating: rolls))), Int(ArtifactScoring.shared.MAX_ROLL_TICKS))
+                HStack(spacing: 2.5) {
+                    ForEach(0..<Int(ArtifactScoring.shared.MAX_ROLL_TICKS), id: \.self) { i in
+                        RoundedRectangle(cornerRadius: 2)
+                            .fill(i >= filled ? Color.black.opacity(0.09)
+                                  : (key ? enkaCrit : Color(hex: 0xFFB8BEC6)))
+                            .frame(height: 3)
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     ④ 돌파 정보 — 명좌/성혼/형상 시네마.
+
+     맨 위에 **개방 요약**(노드 체인 + N/6)을 두고 아래에 단계별 이름·효과를 편다.
+     예전엔 탭해야 설명이 보였는데, 이 화면에 들어온 사람은 대개 **뭘 얻는지**가 궁금하다.
+     */
+    @ViewBuilder
+    private var breakthroughCard: some View {
+        if effectsLoading {
+            GLGCard(cornerRadius: 24, padding: 18) {
+                HStack { Spacer(); ProgressView().tint(accent.primary); Spacer() }
+            }
+        } else {
+            // rank: 원신 명함=0, 비공개=-1 → 활성 0개.
+            let active = max(Int(char.rank), 0)
+            let el = enkaElementColor(char.element)
+            let nodes = effects.isEmpty
+                ? (1...EnkaConstellationSteps).map { CharEffect(index: Int32($0), name: "", desc: "") }
+                : effects
+            GLGCard(cornerRadius: 24, padding: 6) {
+                VStack(alignment: .leading, spacing: 0) {
+                    // 개방 요약 — 히어로의 노드 체인과 같은 문법.
+                    HStack(spacing: 0) {
+                        ForEach(0..<EnkaConstellationSteps, id: \.self) { i in
+                            if i > 0 {
+                                Rectangle().fill(i < active ? el : Color.black.opacity(0.12))
+                                    .frame(width: 11, height: 1.5)
+                            }
+                            Circle().fill(i < active ? el : Color.black.opacity(0.12))
+                                .frame(width: 9, height: 9)
+                        }
+                        Text("\(active) / \(EnkaConstellationSteps) 개방")
+                            .font(.pretendard(size: 11.5, weight: .bold))
+                            .foregroundStyle(GLGColor.textPrimary)
+                            .padding(.leading, 7)
+                    }
+                    .padding(.horizontal, 11).padding(.top, 11).padding(.bottom, 6)
+
+                    ForEach(Array(nodes.enumerated()), id: \.offset) { _, e in
+                        let on = Int(e.index) <= active
+                        HStack(alignment: .top, spacing: 11) {
+                            Text("\(e.index)")
+                                .font(.pretendard(size: 11, weight: .bold))
+                                .foregroundStyle(on ? .white : Color(hex: 0xFF98A0AB))
+                                .frame(width: 26, height: 26)
+                                .background(on ? el : Color.black.opacity(0.06), in: Circle())
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text(e.name.isEmpty ? "\(effectsTitle) \(e.index)단계" : e.name)
+                                    .font(.pretendard(size: 12.5, weight: .bold))
+                                    .foregroundStyle(on ? GLGColor.textPrimary : Color(hex: 0xFF98A0AB))
+                                if !e.desc.isEmpty {
+                                    Text(e.desc).font(.pretendard(size: 11))
+                                        .foregroundStyle(GLGColor.textSecondary)
+                                        .fixedSize(horizontal: false, vertical: true)
+                                }
+                            }
+                            Spacer(minLength: 0)
+                            if !on {
+                                Image(systemName: "lock")
+                                    .font(.system(size: 12, weight: .semibold))
+                                    .foregroundStyle(Color(hex: 0xFFC3C8CF))
+                                    .accessibilityLabel("미개방")
+                            }
+                        }
+                        .padding(.horizontal, 10).padding(.vertical, 10)
+                        .background(on ? el.opacity(0.08) : .clear,
+                                    in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                        .padding(.bottom, 1)
+                    }
+                }
+            }
         }
     }
 
@@ -629,8 +1689,9 @@ struct EnkaStatPage: View {
                 .opacity(e.active ? 1 : 0.45)
             }
         }
-        .padding(13).frame(maxWidth: .infinity, alignment: .leading)
-        .glgGlass(in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+        // ⚠️ 여기서 카드(glgGlass)를 또 두르지 않는다. 이미 성유물 섹션 카드 **안**이라
+        // 박스 안의 박스가 되어 지저분했다.
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     /// 광추/무기·유물 미장착 안내 카드.
@@ -640,35 +1701,6 @@ struct EnkaStatPage: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(14)
             .glgGlass(in: RoundedRectangle(cornerRadius: 22, style: .continuous))
-    }
-
-    private var header: some View {
-        let ec = enkaElementColor(char.element)
-        return VStack(alignment: .leading, spacing: 0) {
-            HStack(spacing: 14) {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 18).fill(ec.opacity(0.16)).frame(width: 64, height: 64)
-                    if let icon = char.iconUrl, let u = URL(string: icon) {
-                        GLGRemoteImage(url: u, side: 64)
-                            .frame(width: 64, height: 64).clipShape(RoundedRectangle(cornerRadius: 18))
-                    } else {
-                        Text(String(char.name.prefix(1))).font(.pretendard(size: 26, weight: .bold)).foregroundStyle(ec)
-                    }
-                }
-                .overlay(RoundedRectangle(cornerRadius: 18).stroke(ec.opacity(0.35), lineWidth: 1.5))
-                Text(char.name).font(.pretendard(size: 20, weight: .bold)).lineLimit(1)
-                Spacer(minLength: 0)
-            }
-            Divider().overlay(Color.black.opacity(0.06)).padding(.top, 13).padding(.bottom, 11)
-            VStack(spacing: 10) {
-                infoRow("레벨", "Lv. \(char.level)", GLGColor.textPrimary)
-                if !char.element.isEmpty { infoRow("속성", char.element, ec) }
-                if !char.path.isEmpty { infoRow("운명의 길", char.path, GLGColor.textPrimary) }
-                if let r = enkaRankLabel(char, game) { infoRow("돌파", r, GLGColor.textPrimary) }
-            }
-        }
-        .padding(16).frame(maxWidth: .infinity, alignment: .leading)
-        .glgGlass(in: RoundedRectangle(cornerRadius: 22, style: .continuous))
     }
 
     private func weaponCard(_ w: EnkaWeapon) -> some View {
@@ -855,6 +1887,30 @@ struct EnkaStatPage: View {
         isKeyStat(s) ? enkaCrit.opacity(0.85) : GLGColor.textSecondary
     }
 
+    /// 인게임 순서(장착 순서)로 늘어놓은 유물 + 그 유물의 **점수 순위**(1부터).
+    private var artifactSlots: [(RankedArtifact, Int)] {
+        let ranked = artScore.ranked
+        return char.artifacts.compactMap { a in
+            guard let hit = ranked.first(where: { $0.artifact.slot == a.slot && $0.artifact.main.value == a.main.value })
+                ?? ranked.first(where: { $0.artifact.slot == a.slot }) else { return nil }
+            let idx = ranked.firstIndex { $0 === hit } ?? 0
+            return (hit, idx + 1)
+        }
+    }
+
+    /// 무기 메인/서브 스탯 — ViewBuilder 안에서는 명령문을 못 써서 여기서 모은다.
+    private func weaponStatCells(_ w: EnkaWeapon) -> [EnkaStatLine] {
+        var out: [EnkaStatLine] = []
+        if let m = w.main { out.append(m) }
+        if let sb = w.sub { out.append(sb) }
+        return out
+    }
+
+    /// 유효옵션이면 강조색, 아니면 넘겨받은 기본색. 판정은 점수 산식과 같은 함수를 쓴다.
+    private func keyColor(_ s: EnkaStatLine, fallback: Color) -> Color {
+        isKeyStat(s) ? enkaCrit : fallback
+    }
+
     private var statGrid: some View {
         LazyVGrid(columns: g2, spacing: 0) {
             ForEach(Array(char.stats.enumerated()), id: \.offset) { _, s in
@@ -880,31 +1936,6 @@ struct EnkaStatPage: View {
 
     /// 유효 점수 요약 — 합계·장당 평균·등급.
     /// 서브 옵션 중 **이 캐릭터 유효옵션만** 최대 강화량으로 나눠 '유효 롤'로 환산한 값이다.
-    private func critScoreSummary(_ s: CharArtifactScore) -> some View {
-        let c = gradeColor(s.grade)
-        return VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 7) {
-                VStack(alignment: .leading, spacing: 2) {
-                    // 지표는 게임마다 다르다(원신=아카샤 CV / 그 외=유효 롤). 무엇으로 쟀는지 밝힌다 —
-                    // 숫자만 있으면 어느 사이트와 대조할 수 있는 값인지 알 수 없다.
-                    Text(s.metric.label).font(.pretendard(size: 10.5)).foregroundStyle(GLGColor.textSecondary)
-                    Text(s.metric.hint).font(.pretendard(size: 9.5)).foregroundStyle(GLGColor.textSecondary)
-                }
-                Spacer(minLength: 0)
-                Text(ArtifactScoring.shared.scoreLabel(value: s.total))
-                    .font(.pretendard(size: 18, weight: .heavy)).foregroundStyle(c)
-                Text("장당 \(ArtifactScoring.shared.scoreLabel(value: s.average)) · \(s.grade.label)")
-                    .font(.pretendard(size: 10, weight: .bold)).foregroundStyle(c)
-                    .padding(.horizontal, 7).padding(.vertical, 3)
-                    .background(c.opacity(0.14), in: RoundedRectangle(cornerRadius: 7))
-            }
-            Text("빨간색 = 이 캐릭터 유효옵션").font(.pretendard(size: 9.5, weight: .bold)).foregroundStyle(enkaCrit)
-        }
-        .padding(.horizontal, 13).padding(.vertical, 11)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .glgGlass(in: RoundedRectangle(cornerRadius: 22, style: .continuous))
-    }
-
     private func artifactCard(_ a: EnkaArtifact, score: ArtifactScore, rank: Int) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .top, spacing: 9) {
@@ -971,6 +2002,19 @@ struct EnkaStatPage: View {
 }
 
 /// 가로 점선 구분선 — 부옵션 영역 상단 구분(목업 .subs border-top dashed).
+/**
+ 속성 연출 — 캐릭터 상세에 들어설 때 **한 번** 재생한다.
+
+ 처음엔 빛 번짐·파문 같은 추상 패턴이었는데 "무슨 속성인지"가 안 읽혀서 **형상**으로 바꿨다.
+ 번개는 지그재그 볼트, 얼음은 서리 결정, 불은 불꽃 혀 — Android 와 **같은 알고리즘**이다.
+ 한쪽만 고치면 두 플랫폼이 갈린다.
+
+ 진행도는 `TimelineView` 로 실제 경과 시간에서 뽑는다. `withAnimation` 으로 바꾼 값을
+ `Canvas` 안에서 읽으면 보간 전 최종값이 들어와 애니메이션이 안 보인다.
+
+ 꺼도 **정적 테두리**는 남긴다 — 옅은 파스텔끼리는 속성 구분이 잘 안 되기 때문이다.
+ */
+
 private struct DashHLine: Shape {
     func path(in rect: CGRect) -> Path {
         var p = Path()
