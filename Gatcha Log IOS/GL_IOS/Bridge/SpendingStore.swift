@@ -74,6 +74,8 @@ final class SpendingStore {
     private(set) var collabBannerExpanded: Bool = false
     /// 홈 히어로 글로우 애니메이션 사용 여부 — 끄면 그라데이션만 남는다.
     private(set) var heroGlow: Bool = true
+    /// 캐릭터 상세 속성 연출 — 끄면 움직임 없이 속성 테두리만 남는다.
+    private(set) var charElementFx: Bool = true
     private(set) var nudgeThreshold: Int64 = 0
     private(set) var pendingOpenHoyolabLink: Bool = false
     /// 홈 카드 → 게임 정보 탭 진입 시 스크롤할 섹션 앵커(1회성). nil 이면 없음.
@@ -234,6 +236,7 @@ final class SpendingStore {
         spendingCompact = vm.spendingCompact.value.boolValue
         collabBannerExpanded = vm.collabBannerExpanded.value.boolValue
         heroGlow = vm.heroGlow.value.boolValue
+        charElementFx = vm.charElementFx.value.boolValue
         nudgeThreshold = vm.nudgeThreshold.value.int64Value
         notifySubscription = vm.notifySubscription.value.boolValue
         notifyNews = vm.notifyNews.value.boolValue
@@ -309,6 +312,7 @@ final class SpendingStore {
         bind(vm.notifyPickup) { [weak self] in self?.notifyPickup = $0.boolValue }
         bind(vm.nudgeOverspend) { [weak self] in self?.nudgeOverspend = $0.boolValue }
         bind(vm.spendingCompact) { [weak self] in self?.spendingCompact = $0.boolValue }
+        bind(vm.charElementFx) { [weak self] in self?.charElementFx = $0.boolValue }
         bind(vm.collabBannerExpanded) { [weak self] in self?.collabBannerExpanded = $0.boolValue }
         bind(vm.heroGlow) { [weak self] in self?.heroGlow = $0.boolValue }
         bind(vm.nudgeThreshold) { [weak self] in self?.nudgeThreshold = $0.int64Value }
@@ -400,6 +404,7 @@ final class SpendingStore {
     func setSpendingCompact(_ v: Bool) { vm.setSpendingCompact(v: v) }
     func setCollabBannerExpanded(_ v: Bool) { vm.setCollabBannerExpanded(v: v) }
     func setHeroGlow(_ v: Bool) { vm.setHeroGlow(v: v) }
+    func setCharElementFx(_ v: Bool) { vm.setCharElementFx(v: v) }
     func setNudgeThreshold(_ v: Int64) { vm.setNudgeThreshold(v: v) }
     /// 공지 상세 진입 — 본문 로드. 이탈 시 clearNewsArticle() 로 정리한다.
     func loadNewsArticle(_ item: NewsItem) { vm.loadNewsArticle(item: item) }

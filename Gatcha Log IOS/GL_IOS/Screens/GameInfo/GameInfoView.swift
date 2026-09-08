@@ -89,6 +89,8 @@ struct GameInfoView: View {
         .navigationDestination(isPresented: $showStats) {
             if let c = statChar {
                 EnkaStatPage(char: c, game: statGame,
+                             // 순위는 **같은 게임** 로스터 안에서만 낸다 — 게임마다 점수 지표가 다르다.
+                             roster: store.enkaResults[statGame]?.profile?.chars ?? [],
                              overrides: store.keyStatOverrides,
                              onSetOverride: { k, v in store.setKeyStatOverride(k, v) },
                              refinement: store.weaponRefinement[refinementKey(c)],

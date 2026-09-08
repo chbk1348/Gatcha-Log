@@ -94,6 +94,7 @@ fun SettingsScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
     val nudgeThreshold by viewModel.nudgeThreshold.collectAsStateWithLifecycle()
     val spendingCompact by viewModel.spendingCompact.collectAsStateWithLifecycle()
     val heroGlow by viewModel.heroGlow.collectAsStateWithLifecycle()
+    val charElementFx by viewModel.charElementFx.collectAsStateWithLifecycle()
     val versionName = remember { com.gatcha.log.data.api.UpdateChecker.currentVersionName() }
     // 상태 메시지 토스트는 상위 HomeScreen 의 전역 GlgStatusToast 가 처리
 
@@ -217,6 +218,13 @@ fun SettingsScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
                         "지출 목록을 한 줄로 빽빽하게 표시해요 (태그·결제수단 숨김)",
                         spendingCompact,
                     ) { viewModel.setSpendingCompact(it) }
+                    HorizontalDivider(color = DividerColor, modifier = Modifier.padding(horizontal = 16.dp))
+                    SettingsToggleRow(
+                        Icons.Default.Bolt,
+                        "캐릭터 속성 연출",
+                        "캐릭터 상세에 들어갈 때 속성 효과를 한 번 재생해요. 꺼도 속성 테두리는 남아요",
+                        charElementFx,
+                    ) { viewModel.setCharElementFx(it) }
                     HorizontalDivider(color = DividerColor, modifier = Modifier.padding(horizontal = 16.dp))
                     SettingsToggleRow(
                         Icons.Default.AutoAwesome,

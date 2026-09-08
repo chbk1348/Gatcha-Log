@@ -31,6 +31,11 @@ data class EnkaChar(
     val weapon: EnkaWeapon? = null,
     val artifacts: List<EnkaArtifact> = emptyList(),
     val sets: List<EnkaSet> = emptyList(),
+    /**
+     * 소속·진영. 지금은 젠레스만 채운다(`camp_name_mi18n`) — 공허 사냥꾼 같은 진영 배지에 쓴다.
+     * 원신·스타레일 응답에는 대응 필드가 없어 빈 문자열이다.
+     */
+    val camp: String = "",
 )
 
 /** 스탯 한 줄(라벨+표시값). [crit]=치명타 계열(UI 강조). */
@@ -52,6 +57,25 @@ data class EnkaWeapon(
      * 오는 게 흔해서, id 가 있어도 보여줄 문장이 없다.
      */
     val id: Int = 0,
+    /**
+     * 무기/광추/W-엔진 아이콘 URL. 응답에 없으면 null(슬롯 배지로 대체).
+     *
+     * 게임마다 출처가 다르다 — 원신은 Enka UI(`flat.icon` → `enka.network/ui/…`),
+     * 스타레일은 StarRailRes(`light_cone.icon`), 젠레스·HoYoLAB 경로는 절대 URL 이 그대로 온다.
+     * 셋 다 응답에는 있었는데 여태 읽지 않고 버렸다.
+     */
+    val iconUrl: String? = null,
+    /**
+     * 무기 특성(정련 효과) — **응답이 직접 주는 것.** 지금은 젠레스 W-엔진뿐이다.
+     *
+     * 도감([NanokaApi])은 원신·스타레일만 지원해서 젠레스 엔진 특성이 영영 안 떴는데,
+     * HoYoLAB 응답이 `talent_title`/`talent_content` 로 그대로 준다.
+     *
+     * ⚠️ 원신·스타레일의 `desc` 는 여기 넣지 않는다 — 그건 **무기 소개문(플레이버)** 이라
+     * 특성 자리에 두면 효과 설명과 배경 이야기가 나란히 뜬다.
+     */
+    val traitName: String = "",
+    val traitDesc: String = "",
 )
 
 /** 성유물/유물 슬롯 1개. setName 은 v1 미해결 시 빈 문자열. */
@@ -325,7 +349,12 @@ object EnkaApi {
             detailed = true,
             stats = hsrHoyoStats(o.optJSONArray("properties"), propMap),
             weapon = o.optJSONObject("equip")?.let { e ->
-                EnkaWeapon(e.optString("name"), e.optInt("level"), e.optInt("rank"), null, null)
+                EnkaWeapon(
+                    e.optString("name"), e.optInt("level"), e.optInt("rank"), null, null,
+                    id = e.optInt("id"),
+                    iconUrl = hoyoIcon(e.optString("icon")),
+                    // `desc` 는 광추 소개문이라 특성이 아니다(원신과 동일).
+                )
             },
             artifacts = hsrHoyoRelics(o.optJSONArray("relics"), o.optJSONArray("ornaments"), propMap),
             sets = hsrHoyoSets(o.optJSONArray("relics"), o.optJSONArray("ornaments")),
@@ -556,6 +585,7 @@ object EnkaApi {
             refinement = lc.optInt("rank"), // 중첩
             main = main,
             sub = null,
+            iconUrl = mihomoIcon(lc.optString("icon")),
             id = lcId,
         )
     }
@@ -773,7 +803,12 @@ object EnkaApi {
                     if (pid == "FIGHT_PROP_BASE_ATTACK") main = line else sub = line
                 }
             }
-            return EnkaWeapon(names[e.optInt("itemId")] ?: "무기", w.optInt("level"), refine, main, sub, id = e.optInt("itemId"))
+            val wIcon = flat.optString("icon")
+            return EnkaWeapon(
+                names[e.optInt("itemId")] ?: "무기", w.optInt("level"), refine, main, sub,
+                id = e.optInt("itemId"),
+                iconUrl = if (wIcon.isBlank()) null else "https://enka.network/ui/$wIcon.png",
+            )
         }
         return null
     }
@@ -882,7 +917,15 @@ object EnkaApi {
             val n = propMap[it.optInt("property_type")].orEmpty()
             EnkaStatLine(n, hsrFmt(it.optString("final")), hsrCrit(n))
         }
-        return EnkaWeapon(w.optString("name"), w.optInt("level"), w.optInt("affix_level"), main, sub)
+        // ⚠️ id 를 빠뜨리면 **장비 특성(정련 효과)이 영영 안 뜬다** — 화면이 id > 0 일 때만
+        // 도감을 조회한다. HoYoLAB 연동 계정은 이 경로를 타는데 여기만 비어 있었다.
+        return EnkaWeapon(
+            w.optString("name"), w.optInt("level"), w.optInt("affix_level"), main, sub,
+            id = w.optInt("id"),
+            iconUrl = hoyoIcon(w.optString("icon")),
+            // ⚠️ `desc` 는 **무기 소개문(플레이버)** 이지 정련 효과가 아니다. 특성 자리에 넣었더니
+            // 효과 설명과 배경 이야기가 나란히 떴다. 원신 특성은 도감([NanokaApi])만 출처다.
+        )
     }
 
     private fun giHoyoRelics(arr: JSONArray?, propMap: Map<Int, String>): List<EnkaArtifact> = buildList {
@@ -923,6 +966,13 @@ object EnkaApi {
     private fun zzzCrit(name: String): Boolean = name.contains("치명") || name.contains("CRIT", ignoreCase = true)
 
     /** ZZZ element_type(int) → KR 속성. (200 물리·201 화염·202/206 얼음·203 전기·204 바람·205/207 에테르) */
+    /**
+     * ZZZ element_type(int) → KR 속성.
+     *
+     * ⚠️ **신규 캐릭터가 나오면 여기 없는 번호가 들어온다.** 그러면 속성이 빈 문자열이 되어
+     * 히어로의 속성 pill·색·연출이 통째로 빠진다(2026-09-08 레미엘 제보). 모르는 값은
+     * 로그로 남겨 번호를 확인할 수 있게 한다 — "GatchaEnka: ZZZ 미지 속성" 으로 검색.
+     */
     private fun zzzElementKo(type: Int): String = when (type) {
         200 -> "물리"
         201 -> "화염"
@@ -930,6 +980,27 @@ object EnkaApi {
         203 -> "전기"
         204 -> "바람"
         205, 207 -> "에테르"
+        else -> {
+            if (type != 0) println("GatchaEnka: ZZZ 미지 속성 element_type=$type")
+            ""
+        }
+    }
+
+    /**
+     * 공허 사냥꾼 셋의 **특수 속성**. 이름으로 직접 준다.
+     *
+     * 이 셋은 기본 속성에서 갈라져 나온 고유 속성을 쓰는데, 응답은 기본 속성만 주거나
+     * (레미엘처럼) 아예 빈 값을 준다. 빈 값이 오면 색·pill·연출이 통째로 빠져
+     * 캐릭터 하나만 망가진 화면이 된다.
+     *
+     * - 미야비 — 얼음 계열의 **서리**
+     * - 엽빛나 — 물리 계열의 **서슬**
+     * - 레미엘 — **루멘**. 에테르가 아니라 광선속(빛의 양)의 단위다.
+     */
+    private fun zzzElementByName(name: String): String = when (name) {
+        "미야비" -> "서리"
+        "엽빛나" -> "서슬"
+        "레미엘" -> "루멘"
         else -> ""
     }
 
@@ -975,8 +1046,22 @@ object EnkaApi {
             rank = o.optInt("rank"), // 마인드스케이프(시너지)
             rarity = if (o.optString("rarity") == "S") 5 else 4, // S→5★ / A→4★ (색·필터 호환)
             iconUrl = o.optString("role_square_url").ifBlank { o.optString("group_icon_path") }.takeIf { it.startsWith("http") },
-            element = zzzElementKo(o.optInt("element_type")),
+            // 특수 속성이 먼저다 — 응답은 이 셋에게 기본 속성만 주거나 아무것도 주지 않는다.
+            element = zzzElementByName(o.optString("name_mi18n").ifBlank { o.optString("name") }).ifBlank {
+                zzzElementKo(o.optInt("element_type")).ifBlank {
+                    // 일부 응답은 element_type 대신 이름을 직접 준다.
+                    val alt = o.optJSONObject("element")?.optString("name").orEmpty()
+                    if (alt.isBlank()) {
+                        println("GatchaEnka: ZZZ 속성 없음 name=${o.optString("name_mi18n")} keys=${o.keys().asSequence().joinToString(",")}")
+                    }
+                    alt
+                }
+            },
             specialty = zzzSpecialtyKo(o.optInt("avatar_profession").takeIf { it != 0 } ?: o.optInt("profession")),
+            // 진영 — 응답 키가 버전에 따라 갈려 셋을 순서대로 본다.
+            camp = o.optString("camp_name_mi18n")
+                .ifBlank { o.optString("camp_name") }
+                .ifBlank { o.optJSONObject("camp")?.optString("name").orEmpty() },
             detailed = true,
             stats = zzzStats(o.optJSONArray("properties")),
             weapon = zzzWeapon(o.optJSONObject("weapon")),
@@ -1028,7 +1113,17 @@ object EnkaApi {
             val n = zzzKrStat(it.optString("property_name"))
             EnkaStatLine(n, hsrFmt(it.optString("base")), zzzCrit(n))
         }
-        return EnkaWeapon(w.optString("name"), w.optInt("level"), w.optInt("star"), line(w.optJSONArray("main_properties")), line(w.optJSONArray("properties")))
+        return EnkaWeapon(
+            w.optString("name"), w.optInt("level"), w.optInt("star"),
+            line(w.optJSONArray("main_properties")), line(w.optJSONArray("properties")),
+            id = w.optInt("id"),
+            iconUrl = hoyoIcon(w.optString("icon")),
+            // 젠레스는 도감([NanokaApi])이 지원하지 않는다. 응답의 엔진 특성이 유일한 출처다.
+            // ⚠️ 게임 텍스트라 `<color=...>` 같은 마크업이 그대로 들어 있다 — 도감 문장에 쓰던
+            // 같은 함수로 걷어낸다. 안 걷으면 화면에 태그가 그대로 보인다.
+            traitName = NanokaApi.stripMarkup(w.optString("talent_title")),
+            traitDesc = NanokaApi.stripMarkup(w.optString("talent_content")),
+        )
     }
 
     /** 드라이브 디스크 — equipment_type(슬롯 1~6)·main_properties[0]·properties[](부옵션)·equip_suit.name(세트). */

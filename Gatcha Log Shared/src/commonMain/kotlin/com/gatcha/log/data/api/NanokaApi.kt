@@ -1,5 +1,6 @@
 package com.gatcha.log.data.api
 
+import com.gatcha.log.json.JSONArray
 import com.gatcha.log.json.JSONObject
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -100,7 +101,39 @@ object NanokaApi {
             else -> return null
         }
         val o = entity(nanokaKey, type, weaponId.toString()) ?: return null
+        return parseRefinement(o, level)
+    }
+
+    /**
+     * 도감 한 판 → 정련 효과. **게임마다 모양이 다르다.**
+     *
+     * - 원신 `refinement` — 단계가 곧 키다. `{"1": {name, desc}, "2": …}`. 설명에 수치가 이미 박혀 있다.
+     * - 스타레일 `refinements` — 단계가 한 겹 안쪽이다. `{name, desc, level: {"1": {param_list}, …}}`.
+     *   설명은 **`#1[i]` 같은 자리표시자가 남은 틀**이라 단계별 `param_list` 로 채워야 글이 된다.
+     *
+     * 예전엔 원신 모양만 알아서, 스타레일은 정수 키를 하나도 못 찾고 통째로 null 이 됐다 —
+     * 광추만 '장비 특성' 칸이 비어 보였다(2026-09-08 제보).
+     */
+    internal fun parseRefinement(o: JSONObject, level: Int): WeaponRefinement? {
         val ref = o.optJSONObject("refinement") ?: o.optJSONObject("refinements") ?: return null
+        val fallbackName = o.optString("name")
+
+        // 스타레일 — 단계는 `level` 안에 있고 설명은 바깥에 하나뿐이다.
+        ref.optJSONObject("level")?.let { lv ->
+            val steps = lv.keys().asSequence().mapNotNull { it.toIntOrNull() }.sorted().toList()
+            if (steps.isEmpty()) return null
+            val step = level.coerceIn(steps.first(), steps.last())
+            val params = lv.optJSONObject(step.toString())?.optJSONArray("param_list")
+            val desc = fillParams(stripMarkup(ref.optString("desc")), params)
+            if (desc.isBlank()) return null
+            return WeaponRefinement(
+                name = ref.optString("name").ifBlank { fallbackName },
+                desc = desc,
+                level = step,
+            )
+        }
+
+        // 원신 — 단계가 곧 키.
         val steps = ref.keys().asSequence().mapNotNull { it.toIntOrNull() }.sorted().toList()
         if (steps.isEmpty()) return null
         val step = level.coerceIn(steps.first(), steps.last())
@@ -108,10 +141,47 @@ object NanokaApi {
         val desc = stripMarkup(e.optString("desc"))
         if (desc.isBlank()) return null
         return WeaponRefinement(
-            name = e.optString("name").ifBlank { o.optString("name") },
+            name = e.optString("name").ifBlank { fallbackName },
             desc = desc,
             level = step,
         )
+    }
+
+    /**
+     * 스타레일 설명 틀의 자리표시자를 값으로 채운다 — `#1[i]%` → `18%`.
+     *
+     * `#N` 은 `param_list` 의 N 번째(1부터). 대괄호가 자릿수다(`i` 정수, `f1`·`f2` 소수).
+     * **뒤에 `%` 가 붙으면 값은 비율**이라 100 을 곱한다(0.18 → 18). 이 규칙을 빼면
+     * 치명타 확률이 "0%" 로 나온다.
+     *
+     * 값이 모자라면 자리표시자를 **그대로 둔다.** 지우면 문장에 구멍이 뚫려 더 이상해진다.
+     */
+    internal fun fillParams(text: String, params: JSONArray?): String {
+        params ?: return text
+        return RE_PARAM.replace(text) { m ->
+            val idx = m.groupValues[1].toIntOrNull()?.minus(1) ?: return@replace m.value
+            if (idx < 0 || idx >= params.length()) return@replace m.value
+            // JSONArray 에는 optDouble 이 없다 — 원문자열로 받아 직접 읽는다.
+            val raw = params.optString(idx).toDoubleOrNull() ?: return@replace m.value
+            val pct = m.groupValues[3] == "%"
+            val v = raw * (if (pct) 100 else 1)
+            val digits = when (val f = m.groupValues[2].lowercase()) {
+                "i" -> 0
+                else -> f.removePrefix("f").toIntOrNull() ?: 0
+            }
+            fmtParam(v, digits) + m.groupValues[3]
+        }
+    }
+
+    /** 소수 자릿수 고정 없이 반올림 — 끝의 0 은 떼어낸다(18.0 → "18"). */
+    private fun fmtParam(v: Double, digits: Int): String {
+        var scale = 1.0
+        repeat(digits) { scale *= 10 }
+        val r = kotlin.math.round(v * scale) / scale
+        val whole = r.toLong()
+        val frac = kotlin.math.round(kotlin.math.abs(r - whole) * scale).toLong()
+        return if (digits <= 0 || frac == 0L) kotlin.math.round(r).toLong().toString()
+        else "$whole.${frac.toString().padStart(digits, '0')}"
     }
 
     // ---------------------------------------------------------------- 파싱(순수 함수 — 테스트 대상)
@@ -123,7 +193,7 @@ object NanokaApi {
      * 메타로 보고 예외를 던진다(Java/iOS 는 허용) — 예전에 돌파 효과 설명이 Android 에서
      * 전멸한 적이 있다.
      */
-    private fun stripMarkup(s: String): String =
+    internal fun stripMarkup(s: String): String =
         s.replace(RE_TAG, "").replace(RE_PLACEHOLDER, "").replace(RE_SPACE, " ").trim()
 
     /** manifest.json → 게임별 버전. 형식이 어긋나면 null. */
@@ -143,6 +213,8 @@ object NanokaApi {
 }
 
 private val RE_TAG = Regex("<[^>]*>")
+/** 스타레일 설명 자리표시자 — `#1[i]`·`#2[f1]%`. 색상값(`#f29e38ff`)과 섞이지 않게 숫자만 받는다. */
+private val RE_PARAM = Regex("#(\\d+)\\[([if]\\d*)\\](%?)")
 private val RE_PLACEHOLDER = Regex("\\{[^}]*\\}")
 private val RE_SPACE = Regex("\\s+")
 

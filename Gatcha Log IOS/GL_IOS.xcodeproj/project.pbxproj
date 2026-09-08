@@ -39,6 +39,7 @@
 		808FA397C7B307AA83931954 /* PillField.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10A462DEE6CE546DFBF6BBA9 /* PillField.swift */; };
 		80AB71E69B0A2282D237A141 /* Motion.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3DAD28E0822C83C22585AFEA /* Motion.swift */; };
 		87BCB4BC1FDA9A8B97CB3D98 /* AddSpendingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 89BBE3C4BD9EFC3A287B0BBF /* AddSpendingView.swift */; };
+		89D9C2871E8775BEC43F8A9D /* ElementFxView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2FE9BDEC6CAA956275D8B50 /* ElementFxView.swift */; };
 		89EC1FB90A1E22C63ECF76C0 /* BrandGauge.swift in Sources */ = {isa = PBXBuildFile; fileRef = A70059D3F4D8FA5EA58BB8CD /* BrandGauge.swift */; };
 		8DF3237B5D414504602CC4B0 /* LaunchBenchmark.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9DCA63DF57F1FB2FF1334148 /* LaunchBenchmark.swift */; };
 		90E8A999D475D408D16A1403 /* NotificationSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C54C8FB382375CEA96A2F41B /* NotificationSettingsView.swift */; };
@@ -157,6 +158,7 @@
 		CB188D8B07C1771A193CF288 /* GlassCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlassCard.swift; sourceTree = "<group>"; };
 		CD62F3658FFD16B833EF98AA /* Toast.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Toast.swift; sourceTree = "<group>"; };
 		D298448CBEF9192C0613F700 /* SavingsViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SavingsViews.swift; sourceTree = "<group>"; };
+		D2FE9BDEC6CAA956275D8B50 /* ElementFxView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ElementFxView.swift; sourceTree = "<group>"; };
 		D68A3D0581AB9E49D5412A97 /* HomeRedesign.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeRedesign.swift; sourceTree = "<group>"; };
 		D784E55E4619CB1F45BC57A8 /* PerfSignpost.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PerfSignpost.swift; sourceTree = "<group>"; };
 		E167D2DF62218A027D330ECD /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
@@ -222,6 +224,7 @@
 				75EFB2FF99DCA036AE774E6A /* AnniversarySection.swift */,
 				93E186FAED8474F05E404889 /* CombatClearSection.swift */,
 				1684DC3A94F3A86481854D57 /* DailyHeroSection.swift */,
+				D2FE9BDEC6CAA956275D8B50 /* ElementFxView.swift */,
 				B8E1563A89FD1762C317ABC2 /* EnkaCharSection.swift */,
 				BFE5396217B0F6A1F487F364 /* GachaCalculatorSection.swift */,
 				6A7AD50D44CC890634902ADD /* GachaDashboardView.swift */,
@@ -568,6 +571,7 @@
 				FEFECA4B17E26F1661161AC0 /* DailyHeroSection.swift in Sources */,
 				EB541F0C793C06D68AF6A436 /* DataManagementView.swift in Sources */,
 				083956C63C4E239E7C23BB9C /* DeveloperView.swift in Sources */,
+				89D9C2871E8775BEC43F8A9D /* ElementFxView.swift in Sources */,
 				A0BA2909983C70B108A718ED /* EnkaCharSection.swift in Sources */,
 				966D49408353ADE28FB496BA /* Format.swift in Sources */,
 				5037A67CE3B8E588DCC2F809 /* GLGChip.swift in Sources */,
