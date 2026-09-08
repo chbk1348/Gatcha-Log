@@ -711,10 +711,15 @@ struct EnkaStatPageBody: View {
             content(topInset: proxy.safeAreaInsets.top)
         }
         .background(GLGBackground { Color.clear }.ignoresSafeArea())
-        // 히어로가 상태바까지 올라가므로 타이틀을 비운다 — 누구인지는 히어로의 이름이 말한다.
-        // (예전엔 본문 어디에도 이름이 없어 제목을 남겨야 했다. 이제 26pt 로 박혀 있다.)
-        .navigationTitle("")
+        // 제목은 **캐릭터 이름으로 두되 화면에는 안 보인다.**
+        //
+        // 히어로가 상태바까지 올라가므로 막대에 이름을 또 얹을 이유가 없다. 그렇다고 빈 문자열을
+        // 주면 안 된다 — 뒤로가기 버튼을 길게 눌렀을 때 뜨는 이동 메뉴가 **공백 줄**이 된다
+        // (2026-09-08 제보). 그 메뉴는 `navigationTitle` 을 그대로 읽는다.
+        // 제목은 채우고, 가운데 자리를 빈 뷰로 덮어 표시만 막는다.
+        .navigationTitle(char.name)
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar { ToolbarItem(placement: .principal) { Color.clear.frame(width: 1, height: 1) } }
         .modifier(GLGHiddenToolbarBackground(hidden: !pastHero))
         .animation(.easeInOut(duration: 0.18), value: pastHero)
         .sheet(isPresented: $basisOpen) { keyStatSheet }
