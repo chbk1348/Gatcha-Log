@@ -21,6 +21,16 @@ class AppSettings {
         get() = prefs.getBoolean(KEY_NOTIFY_ATTEND, false)
         set(v) { prefs.putBoolean(KEY_NOTIFY_ATTEND, v) }
 
+    /**
+     * 캐릭터 상세 진입 시 **속성 효과 연출**. 기본 ON.
+     *
+     * 장식이라 취향을 탄다 — 매번 보는 화면에서 움직임이 거슬리는 사람도 있고,
+     * 배터리·저전력 모드를 신경 쓰는 사람도 있다. 끌 수 있게 둔다.
+     */
+    var charElementFx: Boolean
+        get() = prefs.getBoolean(KEY_CHAR_ELEMENT_FX, true)
+        set(v) { prefs.putBoolean(KEY_CHAR_ELEMENT_FX, v) }
+
     var notifyBudget: Boolean
         get() = prefs.getBoolean(KEY_NOTIFY_BUDGET, false)
         set(v) { prefs.putBoolean(KEY_NOTIFY_BUDGET, v) }
@@ -195,6 +205,7 @@ class AppSettings {
         private const val KEY_NOTIFY_RESIN = "notify_resin"
         private const val KEY_NOTIFY_ATTEND = "notify_attendance"
         private const val KEY_NOTIFY_BUDGET = "notify_budget"
+        private const val KEY_CHAR_ELEMENT_FX = "char_element_fx"
         private const val KEY_NOTIFY_PICKUP = "notify_pickup"
         private const val KEY_HOYO_EXPIRED = "hoyo_token_expired"
         private const val KEY_NUDGE = "nudge_overspend"

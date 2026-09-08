@@ -228,6 +228,11 @@ class SpendingViewModel : ViewModel() {
     fun setNudgeOverspend(v: Boolean) { appSettings.nudgeOverspend = v; _nudgeOverspend.value = v }
     fun setNudgeThreshold(v: Long) { appSettings.nudgeThreshold = v; _nudgeThreshold.value = v }
 
+    /** 캐릭터 상세 속성 연출 ON/OFF. 기본 ON — 장식이라 취향을 타서 끌 수 있게 둔다. */
+    private val _charElementFx = MutableStateFlow(appSettings.charElementFx)
+    val charElementFx: StateFlow<Boolean> = _charElementFx.asStateFlow()
+    fun setCharElementFx(v: Boolean) { appSettings.charElementFx = v; _charElementFx.value = v }
+
     // 지출 내역 컴팩트(한 줄) 표시 토글. 기본 false(기존).
     private val _spendingCompact = MutableStateFlow(appSettings.spendingCompact)
     val spendingCompact: StateFlow<Boolean> = _spendingCompact.asStateFlow()
@@ -444,7 +449,17 @@ class SpendingViewModel : ViewModel() {
         }
 
         if (!appSettings.needsPeriodicWork()) return
-        if (now - appSettings.lastForegroundCheckMillis < FOREGROUND_CHECK_MIN_INTERVAL_MS) return
+        // **오늘 아직 자동 출석을 시도하지 않았다면 간격 제한을 건너뛴다.**
+        //
+        // iOS 는 백그라운드 실행 시각을 OS 가 정하고 앱을 강제 종료해 두면 아예 돌지 않는다.
+        // 그쪽에서 확실한 기회는 **앱을 여는 순간**뿐인데, 15분 간격에 걸려 그 한 번마저
+        // 건너뛰면 그날은 수동으로 눌러야 한다. 하루 한 번은 무조건 시도한다.
+        // (출석은 베이징 자정에 초기화되므로 날짜 키도 베이징 기준이다.)
+        val checkInDay = DateUtil.hoyoDayKey()
+        val firstTryToday =
+            appSettings.autoCheckIn && appSettings.lastNotified(AUTO_CHECKIN_TRY_KEY) != checkInDay
+        if (!firstTryToday && now - appSettings.lastForegroundCheckMillis < FOREGROUND_CHECK_MIN_INTERVAL_MS) return
+        if (firstTryToday) appSettings.setLastNotified(AUTO_CHECKIN_TRY_KEY, checkInDay)
         appSettings.lastForegroundCheckMillis = now
         NativeScheduler.apply()   // 예약이 끊겨 있었다면 여기서 되살린다
         NativeScheduler.runNow()
@@ -1750,25 +1765,74 @@ class SpendingViewModel : ViewModel() {
      * 우리가 할 게 없으니 토스트로 알리고 지나가지만, 인증 만료와 클라우드 실패는 재연동·정리를 하기
      * 전까지 계속 실패하므로 모달로 세운다.
      */
+    /** 연동 만료 모달을 이번 실행에서 이미 보여줬는가 — 재연동 전까지 계속 실패해서 반복 노출된다. */
+    private var authAlertShown = false
+
+    /** 최근에 연결 실패를 낸 출처들 — 값은 시각(ms). [networkDownConfirmed] 가 쓴다. */
+    private val networkFailedAt = mutableMapOf<String, Long>()
+
+    /**
+     * 지금 실패한 출처를 기록하고, **연결이 정말 끊긴 것으로 볼 수 있는지** 답한다.
+     *
+     * 판단 기준은 "서로 다른 출처 둘이 [NETWORK_CORROBORATE_MS] 안에 실패" 다. 한 곳만
+     * 실패하는 건 그 상류의 문제이지 기기의 연결 문제가 아니다.
+     */
+    private fun networkDownConfirmed(source: String, now: Long): Boolean {
+        networkFailedAt.entries.removeAll { now - it.value > NETWORK_CORROBORATE_MS }
+        networkFailedAt[source] = now
+        return networkFailedAt.size >= 2
+    }
+
     private fun observeErrors() {
         viewModelScope.launch {
             ErrorBus.events.collect { r ->
-                val modal = r.kind == ErrorBus.Kind.AUTH || r.kind == ErrorBus.Kind.CLOUD
-                val key = "${r.kind}:${r.source}"
+                // ⚠️ **서버·API·형식 오류는 화면에 올리지 않는다**(2026-09-08 지시로 되돌림).
+                //
+                // 데이터 계층의 실패를 전부 토스트로 올렸더니 정상 사용 중에도 "OO 서버가 응답하지
+                // 않아요" 가 계속 떴다. 이 앱은 한 화면에서 상류 여러 곳을 동시에 찌르고(HoYoLAB·
+                // Enka·mihomo·ennead·GitHub), 그중 하나가 잠깐 흔들리는 건 흔한 일이다.
+                // 대개 다음 갱신에 스스로 낫고, 사용자가 할 수 있는 일도 없다.
+                //
+                // 남기는 것은 **사용자가 조치할 수 있는 것**뿐이다 —
+                //   연결 끊김(NETWORK) · 연동 만료(AUTH) · 클라우드 백업 실패(CLOUD).
+                // 나머지는 로그로만 남는다(`GatchaNet` 으로 검색).
+                if (r.kind == ErrorBus.Kind.SERVER ||
+                    r.kind == ErrorBus.Kind.API ||
+                    r.kind == ErrorBus.Kind.PARSE
+                ) return@collect
+
+                val modal = true   // 남은 셋은 전부 얼럿이다(토스트를 쓰지 않는다)
+                // ⚠️ 쿨다운 키에서 **출처를 뺐다.** 이 앱은 한 화면에서 상류 여러 곳을 동시에
+                // 찌른다(HoYoLAB·Enka·mihomo·ennead·GitHub). 출처별로 세면 하나가 죽어도
+                // 토스트가 출처 수만큼 줄줄이 떴다. 종류가 같으면 한 번만 알린다.
+                val key = r.kind.name
                 val now = currentTimeMillis()
                 val cooldown = if (modal) ERROR_MODAL_COOLDOWN_MS else ERROR_TOAST_COOLDOWN_MS
                 if (now - (errorNotifiedAt[key] ?: 0L) < cooldown) return@collect
+                // 연동 만료 모달은 **세션당 한 번**만. 재연동 전까지 계속 실패하는 성격이라
+                // 시간 쿨다운만 두면 앱을 켜 두는 내내 반복해서 뜬다.
+                if (r.kind == ErrorBus.Kind.AUTH) {
+                    if (authAlertShown) return@collect
+                    authAlertShown = true
+                }
+                // 연결 끊김은 **한 곳만 실패해서는 단정할 수 없다.** 이 앱은 한 화면에서 상류
+                // 여러 곳을 동시에 찌르는데(HoYoLAB·Enka·mihomo·ennead·GitHub), 그중 하나가
+                // DNS 를 못 풀거나 인증서가 어긋나도 나머지는 멀쩡히 오간다. 그걸 그대로 올리면
+                // 인터넷이 연결돼 있는데 "연결 없음" 얼럿이 뜬다(실측 제보).
+                //
+                // **서로 다른 출처 둘**이 짧은 시간 안에 실패했을 때만 진짜 끊김으로 본다.
+                if (r.kind == ErrorBus.Kind.NETWORK && !networkDownConfirmed(r.source, now)) return@collect
                 errorNotifiedAt[key] = now
                 val detail = r.detail.takeIf { it.isNotBlank() }
                 when (r.kind) {
-                    ErrorBus.Kind.NETWORK ->
-                        emitStatus("${r.source} 에 연결하지 못했어요 — 연결 상태를 확인해주세요")
-                    ErrorBus.Kind.SERVER ->
-                        emitStatus("${r.source} 서버가 응답하지 않아요${detail?.let { " ($it)" } ?: ""}")
-                    ErrorBus.Kind.API ->
-                        emitStatus("${r.source} 요청이 실패했어요${detail?.let { " — $it" } ?: ""}")
-                    ErrorBus.Kind.PARSE ->
-                        emitStatus("${r.source} 응답을 읽지 못했어요 — 잠시 후 다시 시도해주세요")
+                    // 연결 자체가 끊긴 것만 알린다 — 사용자가 확인할 수 있는 상태다.
+                    ErrorBus.Kind.NETWORK -> emitErrorAlert(
+                        ErrorAlert(
+                            "인터넷 연결 없음",
+                            "네트워크에 연결하지 못했어요.\n연결 상태를 확인한 뒤 다시 시도해주세요.",
+                        ),
+                    )
+                    ErrorBus.Kind.SERVER, ErrorBus.Kind.API, ErrorBus.Kind.PARSE -> Unit  // 위에서 걸렀다
                     ErrorBus.Kind.AUTH -> emitErrorAlert(
                         ErrorAlert(
                             "${r.source} 연동 만료",
@@ -2691,7 +2755,10 @@ class SpendingViewModel : ViewModel() {
          */
         const val REDEEM_ABORT_SAME_FAILS = 3
         /** 같은 오류 토스트를 다시 띄우기까지의 최소 간격(ms). 배경 점검이 20여 건을 동시에 실패해도 한 번만 뜬다. */
-        const val ERROR_TOAST_COOLDOWN_MS = 60_000L
+        /** 연결 끊김을 단정하기까지 서로 다른 출처의 실패를 모아 보는 창. */
+private const val NETWORK_CORROBORATE_MS = 20_000L
+
+const val ERROR_TOAST_COOLDOWN_MS = 180_000L
         /** 같은 오류 모달을 다시 세우기까지의 최소 간격(ms). 확인을 눌러 닫은 직후 다시 뜨면 앱을 못 쓴다. */
         const val ERROR_MODAL_COOLDOWN_MS = 30L * 60 * 1000
         /** Firestore 문서 크기 한도(바이트). 이 값을 넘기면 set 이 실패한다. */
@@ -2700,6 +2767,9 @@ class SpendingViewModel : ViewModel() {
         const val CLOUD_DOC_WARN_BYTES = 900_000
         /** 포그라운드 알림 점검 최소 간격(ms) — 탭 전환마다 HoYoLAB 을 두드리지 않도록. */
         const val FOREGROUND_CHECK_MIN_INTERVAL_MS = 15L * 60 * 1000
+
+        /** '오늘 자동 출석을 이미 시도했는가' 표식(베이징 날짜 키). */
+        private const val AUTO_CHECKIN_TRY_KEY = "auto_checkin_try" 
 
         /**
          * 캘린더·공지·원장·전투의 최대 나이. 이보다 묵었으면 포그라운드 복귀 때 전체를 다시 받는다.

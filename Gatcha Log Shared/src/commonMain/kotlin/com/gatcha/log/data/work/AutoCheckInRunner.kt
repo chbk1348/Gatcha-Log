@@ -85,8 +85,32 @@ object AutoCheckInRunner {
             authFails.isNotEmpty() -> settings.hoyoTokenExpired = true
             newSuccess.isNotEmpty() -> settings.hoyoTokenExpired = false
         }
-        if (postFailureNotification) maybeNotifyFailure(settings, outcome, today)
+        if (postFailureNotification) {
+            maybeNotifySuccess(settings, outcome, today)
+            maybeNotifyFailure(settings, outcome, today)
+        }
         return outcome
+    }
+
+    /**
+     * 새로 출석한 게임이 있으면 하루 1회 알림.
+     *
+     * 예전엔 **실패했을 때만** 알렸다. 성공하면 아무 흔적이 없으니 "자동 출석이 도는 게 맞나"를
+     * 확인할 방법이 앱을 열어 보는 것뿐이었다(2026-09-08 제보). 매일 챙겨주겠다고 한 기능은
+     * 챙겼다는 사실도 같이 말해야 한다.
+     *
+     * 출석 알림 토글([AppSettings.notifyAttendance])을 끈 사람에게는 보내지 않는다 —
+     * 그건 "출석 관련 알림을 원하지 않는다"는 뜻이다. 자동 출석 자체는 계속 돈다.
+     */
+    private suspend fun maybeNotifySuccess(settings: AppSettings, o: Outcome, today: String) {
+        if (o.newSuccess.isEmpty()) return
+        if (!settings.notifyAttendance) return
+        if (settings.lastNotified("auto_checkin_ok") == today) return
+        settings.setLastNotified("auto_checkin_ok", today)
+        val games = o.newSuccess.joinToString("·")
+        val body = if (o.hasAnyFail) "$games 출석을 마쳤어요.\n나머지는 잠시 후 다시 시도해요."
+        else "$games 출석을 마쳤어요."
+        Notifier.notify(Notifier.ID_AUTO_CHECKIN, "자동 출석 완료", body)
     }
 
     /** 실패가 있으면 하루 1회 알림. AUTH 가 있으면 재연동 안내, 그 외엔 자동 재시도 안내. */

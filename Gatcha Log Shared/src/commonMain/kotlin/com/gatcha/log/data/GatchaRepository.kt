@@ -614,6 +614,17 @@ class GatchaRepository(
                     maxDailyTaskCount = o.optInt("dailyMax", 0),
                     weeklyDone = o.optInt("weekly", 0),
                     weeklyTotal = o.optInt("weeklyMax", 0),
+                    // ⚠️ 부가 통계도 **반드시 함께 복원한다.** 예전엔 저장도 복원도 안 해서,
+                    // 캐시로 그린 첫 화면에는 예비 개척력·파견 같은 칸이 통째로 없다가 응답이
+                    // 오면 나타났다 — 새로고침마다 값이 나타났다 사라졌다 했다(2026-09-08 제보).
+                    extras = o.optJSONArray("extras")?.let { arr2 ->
+                        (0 until arr2.length()).mapNotNull { j ->
+                            val e = arr2.optJSONObject(j) ?: return@mapNotNull null
+                            val label = e.optString("l")
+                            if (label.isBlank()) null
+                            else NoteStat(label, e.optString("v"), e.optBoolean("h"))
+                        }
+                    }.orEmpty(),
                 )
             }
         }.getOrDefault(emptyList())
@@ -629,6 +640,21 @@ class GatchaRepository(
                 put("fullAt", n.resinFullAtMillis)
                 put("daily", n.dailyTaskCount); put("dailyMax", n.maxDailyTaskCount)
                 put("weekly", n.weeklyDone); put("weeklyMax", n.weeklyTotal)
+                if (n.extras.isNotEmpty()) {
+                    put(
+                        "extras",
+                        JSONArray().apply {
+                            n.extras.forEach { e ->
+                                put(
+                                    JSONObject().apply {
+                                        put("l", e.label); put("v", e.value)
+                                        if (e.highlight) put("h", true)
+                                    },
+                                )
+                            }
+                        },
+                    )
+                }
             })
         }
         prefs.putString(KEY_NOTES, arr.toString())
@@ -910,7 +936,16 @@ class GatchaRepository(
         const val KEY_ATTENDANCE = "attendance"
         const val KEY_ENKA_GI = "enka_gi"
         const val KEY_ENKA_HSR = "enka_hsr"
-        const val KEY_ENKA_CACHE = "enka_cache"   // 로컬 전용(클라우드 스냅샷 비포함)
+        /**
+         * 로컬 전용(클라우드 스냅샷 비포함).
+         *
+         * ⚠️ [EnkaChar] 계열에 **필드를 추가하면 키를 올린다.** 기본값이 있어 역직렬화는 성공하지만
+         * 옛 캐시에는 값이 없어 화면이 빈 채로 뜬다 — 무기 아이콘을 추가했을 때 실제로 그랬다
+         * (Android 는 캐시가 만료돼 보이고 iOS 는 안 보이는 상태로 갈렸다). 키를 바꾸면 한 번 버려진다.
+         */
+        // v3 — 무기 특성(traitDesc)에 한때 **무기 소개문**이 저장됐다. 코드를 고쳐도 캐시에 남은
+        //      값이 계속 화면에 떠서 한 번 더 버린다.
+        const val KEY_ENKA_CACHE = "enka_cache_v4"   // v4 — EnkaChar.camp 추가
         const val KEY_BANNERS = "active_banners"  // 로컬 전용(픽업 마감 알림 점검 캐시)
         const val KEY_COMBAT = "combat_modes"     // 로컬 전용(전투 시즌 마감 알림 점검 캐시)
         const val KEY_COMBAT_CLEAR = "combat_clears" // 로컬 전용(엔드 콘텐츠 클리어 편성 캐시)

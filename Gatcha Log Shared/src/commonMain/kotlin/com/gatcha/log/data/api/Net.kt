@@ -90,7 +90,13 @@ object Net {
         // 진단용: 비정상 응답만 로깅 (시스템 로그에서 "GatchaNet" 로 검색)
         if (!result.isOk) {
             println("GatchaNet: ${method.value} ${url.substringBefore("?")} → HTTP ${result.code} (본문 ${result.body.length}자)")
-            ErrorBus.report(ErrorBus.Kind.SERVER, sourceOf(url), "HTTP ${result.code}")
+            // 404 는 **없다는 답**이지 장애가 아니다. 이 앱은 상류에 아직 없는 리소스를
+            // 흔하게 찔러 본다(신규 캐릭터 메타·아이콘·아직 안 올라온 일정). 그걸 전부
+            // "서버가 응답하지 않아요" 로 띄우면 정상 동작 중에도 토스트가 계속 뜬다.
+            // 로그에는 남기므로 진단은 그대로 된다.
+            if (result.code != 404) {
+                ErrorBus.report(ErrorBus.Kind.SERVER, sourceOf(url), "HTTP ${result.code}")
+            }
         }
         result
     } catch (e: CancellationException) {
@@ -104,8 +110,42 @@ object Net {
     } catch (e: Exception) {
         // 진단용: 예외(타임아웃·연결 실패 등)는 항상 로깅
         println("GatchaNet: ${method.value} ${url.substringBefore("?")} → 예외 ${e::class.simpleName}: ${e.message}")
-        // 로그만 남기면 사용자에게는 "그냥 비어 있는 화면"으로 보인다 — 화면까지 올린다.
-        ErrorBus.report(ErrorBus.Kind.NETWORK, sourceOf(url), e::class.simpleName ?: "")
+        when {
+            // **취소가 다른 예외에 싸여 오는 경우.** 위 catch 는 최상위 타입만 잡는데, 엔진에 따라
+            // IOException 안에 CancellationException 이 원인으로 들어온다. 그것까지 걸러야
+            // 화면을 벗어날 때마다 "연결하지 못했어요" 가 뜨는 일이 없다.
+            e.isCausedByCancellation() -> Unit
+            // **타임아웃은 연결이 없다는 뜻이 아니다.** 상류 하나가 느린 것뿐이고 다음 갱신에
+            // 대개 낫는다. 여기를 NETWORK 로 올리면 인터넷이 멀쩡한데 얼럿이 뜬다(실측 제보).
+            // 서버 쪽 문제로 분류해 조용히 로그로만 남긴다.
+            e.looksLikeTimeout() -> ErrorBus.report(ErrorBus.Kind.SERVER, sourceOf(url), "timeout")
+            else -> ErrorBus.report(ErrorBus.Kind.NETWORK, sourceOf(url), e::class.simpleName ?: "")
+        }
         NetResult(-1, e.message ?: "network error")
     }
 }
+
+/** 원인 사슬 어딘가에 취소가 있는가 — 취소는 오류가 아니다. */
+private fun Throwable.isCausedByCancellation(): Boolean {
+    var t: Throwable? = this
+    var depth = 0
+    while (t != null && depth < 8) {
+        if (t is CancellationException) return true
+        if (t::class.simpleName?.contains("Cancell", ignoreCase = true) == true) return true
+        t = t.cause
+        depth++
+    }
+    return false
+}
+
+/**
+ * 타임아웃인가 — 클래스 이름과 메시지로 본다.
+ *
+ * 공통 코드라 플랫폼 예외 타입(SocketTimeoutException·NSURLErrorTimedOut)을 직접 못 쓴다.
+ * Ktor 는 `HttpRequestTimeoutException`·`ConnectTimeoutException`·`SocketTimeoutException`
+ * 을 쓰고, 다윈 엔진은 메시지에 "timed out" 을 담아 온다.
+ */
+private fun Throwable.looksLikeTimeout(): Boolean =
+    (this::class.simpleName?.contains("Timeout", ignoreCase = true) == true) ||
+        (message?.contains("timeout", ignoreCase = true) == true) ||
+        (message?.contains("timed out", ignoreCase = true) == true)

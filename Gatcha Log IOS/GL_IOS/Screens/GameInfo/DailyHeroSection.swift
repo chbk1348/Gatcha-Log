@@ -676,6 +676,10 @@ private struct DailyGameRow: View {
             }
             if let n = note, n.maxResin > 0 {
                 ProgressView(value: Double(n.resinRatio)).tint(accent.primary).padding(.top, 8)
+            }
+            // 부가 통계는 **행동력 최대치와 무관하다**(안드로이드도 따로 본다). 함께 묶어 두면
+            // 최대치를 못 받은 계정에서 iOS 만 칩이 통째로 사라진다.
+            if let n = note {
                 if !n.extras.isEmpty {
                     // 칩이 한 줄에 안 들어가면 텍스트를 쪼개지 말고 칩 단위로 다음 줄로 흘린다.
                     FlowLayout(spacing: 6, lineSpacing: 6) {
