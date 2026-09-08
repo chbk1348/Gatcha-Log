@@ -103,8 +103,23 @@ object HoyolabApi {
         const val UNSUPPORTED = "지원하지 않는 게임"
     }
 
-    /** 쿠키 인증 만료를 뜻하는 공통 retcode(출석). */
-    private val AUTH_RETCODES = setOf(-100, -1071, 10001, 10002)
+    /**
+     * 쿠키 인증 만료를 뜻하는 retcode.
+     *
+     * ⚠️ **`-100` 은 여기 넣지 않는다**(2026-09-08 실기기 실증). "로그인 필요"라는 뜻이지만
+     * HoYoLAB 이 **범용 거절 코드**로 쓴다 — 연동이 멀쩡해도 그 계정에 **없는 게임**을 조회하거나
+     * 권한이 없는 엔드포인트를 찌르면 그대로 `-100 请先登录`(중국어)이 온다. 실제로 연동된
+     * 계정에서 이게 반복 발생해 "연동 만료" 모달이 계속 떴다.
+     *
+     * 남긴 셋은 만료에만 쓰이는 코드다 — `-1071` 이 HoYoLAB 표준 쿠키 만료다.
+     *
+     * `-100` 도 판정 자체에는 쓴다([CheckInResult.Reason.AUTH]) — 출석이 실패한 건 사실이라
+     * 화면에 사유는 남겨야 한다. 다만 **전역 모달로 올리지는 않는다.**
+     */
+    private val AUTH_RETCODES = setOf(-1071, 10001, 10002)
+
+    /** 출석 실패 사유 판정용 — 모달로 올리지 않는 `-100` 까지 포함한다. */
+    private val LOGIN_REQUIRED_RETCODES = AUTH_RETCODES + (-100)
 
     private val NOTE_ENDPOINTS = mapOf(
         "genshin" to "https://bbs-api-os.hoyolab.com/game_record/app/genshin/api/dailyNote",
@@ -158,6 +173,17 @@ object HoyolabApi {
      * 각 호출부는 [onJson] 의 `when(retcode)` 만 작성한다.
      */
     private inline fun <T> NetResult.parse(
+        /**
+         * 이 응답의 인증 실패를 **사용자에게 알릴 것인가**.
+         *
+         * ⚠️ 기본값이 true 라고 아무 데나 두면 안 된다. HoYoLAB 은 기능마다 **쿠키 체계가 다르다** —
+         * 선물코드 교환은 `cookie_token`·`account_id` 를 따로 쓰고, 그쪽만 만료돼도
+         * `ltoken`(일반 연동)은 멀쩡하다. 그때 "연동 만료" 를 띄우면 **멀쩡한 연동을 만료라고
+         * 거짓말하는 셈**이고, 코드를 여러 개 시도하니 모달이 계속 뜬다(2026-09-08 실기기 제보).
+         *
+         * true 는 **연동이 실제로 끊겼을 때만 실패하는 경로**에만 준다 — 실시간 노트·출석.
+         */
+        reportAuth: Boolean = true,
         onNetwork: () -> T,
         onParse: () -> T,
         onJson: (retcode: Int, message: String, json: JSONObject) -> T,
@@ -170,8 +196,11 @@ object HoyolabApi {
             // 인증 만료만 올린다. retcode != 0 을 전부 올리면 "이미 출석했어요"(-5003)나
             // 이미 받은 코드(-2017/-2018) 같은 **정상 흐름**까지 오류로 뜬다.
             // 인증 만료는 성격이 다르다 — 재연동하기 전까지 출석·노트가 계속 실패한다.
-            if (retcode in AUTH_RETCODES) {
-                ErrorBus.report(ErrorBus.Kind.AUTH, "HoYoLAB", message)
+            // 진단용 — 로그인 관련 코드는 올리든 말든 전부 남긴다("GatchaHoyo" 로 검색).
+            if (retcode in LOGIN_REQUIRED_RETCODES) {
+                val willReport = reportAuth && retcode in AUTH_RETCODES
+                println("GatchaHoyo: 인증 retcode=$retcode 보고=$willReport msg=$message")
+                if (willReport) ErrorBus.report(ErrorBus.Kind.AUTH, "HoYoLAB", message)
             }
             onJson(retcode, message, json)
         }.getOrElse {
@@ -293,9 +322,10 @@ object HoyolabApi {
     }
 
     private fun hsrExtras(d: JSONObject): List<NoteStat> = buildList {
-        d.optInt("current_reserve_stamina").takeIf { it > 0 }?.let {
-            add(NoteStat("예비 개척력", "$it"))
-        }
+        // 예비 개척력(`current_reserve_stamina`)은 여기 있었다. 본 개척력이 넘친 만큼 쌓이는
+        // 별도 통이라 함께 보여줬는데, 화면에서 걷어내기로 했다(2026-09-08). 되살릴 때는
+        // 캐시 복원(`GatchaRepository.loadLiveNotes`)이 부가 통계를 함께 복원하는지 확인할 것 —
+        // 예전엔 그러지 않아 값이 나타났다 사라졌다 했다.
         d.optInt("total_expedition_num").takeIf { it > 0 }?.let {
             add(NoteStat("위탁", "${d.optInt("accepted_epedition_num")}/$it"))
         }
@@ -342,7 +372,7 @@ object HoyolabApi {
                 0 -> CheckInResult(true, false, "출석 완료", retcode)
                 -5003 -> CheckInResult(true, true, "이미 출석했어요", retcode)
                 // 쿠키 인증 만료 — 재연동 필요
-                in AUTH_RETCODES -> CheckInResult(false, false, "쿠키 인증 만료", retcode, CheckInResult.Reason.AUTH)
+                in LOGIN_REQUIRED_RETCODES -> CheckInResult(false, false, "쿠키 인증 만료", retcode, CheckInResult.Reason.AUTH)
                 else -> CheckInResult(false, false, msg.ifBlank { "출석 실패 ($retcode)" }, retcode, CheckInResult.Reason.OTHER)
             }
         }
@@ -387,7 +417,9 @@ object HoyolabApi {
             .withActOrigin()
             .build()
 
+        // 선물코드는 cookie_token 계열을 쓴다 — 여기서 나는 인증 오류는 '연동 만료'가 아니다.
         return Net.get("${spec.endpoint}?$query", headers).parse(
+            reportAuth = false,
             onNetwork = { CodeResult(false, Err.NETWORK) },
             onParse = { CodeResult(false, Err.PARSE) },
         ) { retcode, msg, _ ->
@@ -520,7 +552,9 @@ object HoyolabApi {
             .withRpc(2)
             .withUserAgent(UA_BBS)
             .build()
+        // 부가 조회 — 실패해도 mihomo 로 폴백한다. 연동 만료로 단정하지 않는다.
         return Net.get("https://bbs-api-os.hoyolab.com/game_record/app/hkrpg/api/avatar/info?$query", headers).parse(
+            reportAuth = false,
             onNetwork = { null },
             onParse = { null },
         ) { retcode, _, json ->
