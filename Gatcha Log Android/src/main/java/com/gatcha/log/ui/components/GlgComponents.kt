@@ -2,6 +2,8 @@ package com.gatcha.log.ui.components
 
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateDpAsState
+import com.gatcha.log.ui.theme.glgStandardSpec
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -682,6 +684,78 @@ fun GlgChip(
 }
 
 // D 칩 토큰 — idle 아웃라인/글자색. (칩 규격을 따르는 다른 버튼도 참조하도록 internal)
+/** 세그먼트 탭 한 칸 높이 — 호요랜드 일자 탭에서 정한 값. */
+private val GlgSegmentHeight = 32.dp
+
+/**
+ * 세그먼트 탭 — **한 덩어리 트랙에 선택 칸만 채운다.**
+ *
+ * 칩 여럿을 나란히 두면 서로 독립된 버튼처럼 보여 "이 중 하나가 지금 보고 있는 것"이라는
+ * 게 약하게 읽힌다. 트랙 하나에 담으면 배타 선택이라는 사실이 모양에서 나온다.
+ * (iOS 는 같은 자리에 시스템 `Picker(.segmented)` 를 쓴다.)
+ *
+ * 선택 표시는 **미끄러진다.** 색만 즉시 바뀌면 어느 칸에서 어느 칸으로 갔는지가 안 보여
+ * 화면이 통째로 갈린 것처럼 느껴진다. 글자색도 같은 곡선으로 따라간다 — 알약이 도착하기 전에
+ * 글자만 먼저 희어지면 아직 선택되지 않은 칸이 선택된 것처럼 보인다.
+ *
+ * 칸 폭이 아니라 **위치만** 애니메이션한다. 회전·태블릿에서 폭이 바뀌어도 계산이 어긋나지 않는다.
+ */
+@Composable
+fun GlgSegmentedTabs(
+    labels: List<String>,
+    selected: Int,
+    modifier: Modifier = Modifier,
+    onSelect: (Int) -> Unit,
+) {
+    if (labels.isEmpty()) return
+    val accent = LocalAccent.current
+    val sel = selected.coerceIn(0, labels.lastIndex)
+    BoxWithConstraints(
+        modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .background(Color.White)
+            .border(1.dp, ChipIdleBorder, RoundedCornerShape(14.dp))
+            .padding(3.dp),
+    ) {
+        val cellWidth = maxWidth / labels.size
+        val slide by animateDpAsState(cellWidth * sel, glgStandardSpec(), label = "segmentSlide")
+        Box(
+            Modifier
+                .offset(x = slide)
+                .width(cellWidth)
+                .height(GlgSegmentHeight)
+                .clip(RoundedCornerShape(11.dp))
+                .background(accent),
+        )
+        Row(Modifier.fillMaxWidth()) {
+            labels.forEachIndexed { i, label ->
+                val labelColor by animateColorAsState(
+                    if (i == sel) Color.White else ChipIdleText,
+                    glgStandardSpec(),
+                    label = "segmentLabel",
+                )
+                Box(
+                    Modifier
+                        .weight(1f)
+                        .height(GlgSegmentHeight)
+                        .clip(RoundedCornerShape(11.dp))
+                        .clickable { onSelect(i) },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        label,
+                        fontSize = 12.5.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = labelColor,
+                        maxLines = 1,
+                    )
+                }
+            }
+        }
+    }
+}
+
 internal val ChipIdleBorder = Color(0xFFE3E5EA)
 internal val ChipIdleText = Color(0xFF4A5159)
 
