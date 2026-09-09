@@ -13,11 +13,8 @@ import com.gatcha.log.data.HoyolandProgram
 import com.gatcha.log.data.HoyolandSlot
 import com.gatcha.log.data.HoyolandTicket
 import com.gatcha.log.data.HoyolandTicketStatus
-import com.gatcha.log.data.firebaseAppExists
 import com.gatcha.log.json.JSONArray
 import com.gatcha.log.json.JSONObject
-import dev.gitlive.firebase.Firebase
-import dev.gitlive.firebase.firestore.firestore
 
 /**
  * 호요랜드 정보 원격 갱신.
@@ -45,10 +42,8 @@ object HoyolandApi {
     private const val URL =
         "https://raw.githubusercontent.com/chbk1348/Gatcha-Log/main/hoyoland.json"
 
-    /** 운영 어드민이 쓰는 라이브 문서 — `users/{uid}` 와 같이 JSON 한 덩어리(`data`)로 둔다. */
-    private const val CONFIG_COLLECTION = "config"
+    /** 운영 어드민이 쓰는 라이브 문서 이름 — [LiveConfig] 참고. */
     private const val CONFIG_DOC = "hoyoland"
-    private const val FIELD_DATA = "data"
 
     /**
      * 한 번 받아온 값은 프로세스가 살아 있는 동안 재사용한다 — 게임정보 탭·홈·일정 탭이
@@ -96,19 +91,7 @@ object HoyolandApi {
     private fun parseOrNull(body: String): HoyolandEvent? =
         runCatching { parse(JSONObject(body)) }.getOrNull()
 
-    /**
-     * Firestore `config/hoyoland` 의 `data`(JSON 문자열). 규칙상 **비로그인도 읽을 수 있다** —
-     * 이 화면은 인증과 무관한 소개 페이지다(firestore.rules 의 config 블록).
-     *
-     * Firebase 가 초기화되지 않은 빌드(google-services.json 없는 로컬 모드)에서는 건너뛴다.
-     */
-    private suspend fun fetchLive(): String? {
-        if (!firebaseAppExists()) return null
-        return runCatching {
-            val snap = Firebase.firestore.collection(CONFIG_COLLECTION).document(CONFIG_DOC).get()
-            if (snap.exists) snap.get<String?>(FIELD_DATA) else null
-        }.getOrNull()?.takeIf { it.isNotBlank() }
-    }
+    private suspend fun fetchLive(): String? = LiveConfig.get(CONFIG_DOC)
 
     private suspend fun fetchRaw(): String? = Net.get(URL).takeIf { it.isOk }?.body
 
