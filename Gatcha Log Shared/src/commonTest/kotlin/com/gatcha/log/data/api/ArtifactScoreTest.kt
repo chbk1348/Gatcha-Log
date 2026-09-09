@@ -193,9 +193,11 @@ class ArtifactScoreTest {
         val res = ArtifactScoring.scoreChar(listOf(low, high, mid), hunt, "hsr")
         assertEquals(listOf(3.0, 2.0, 1.0), res.ranked.map { (it.score.value * 10).toInt() / 10.0 })
         assertEquals(6.0, res.total, 0.0001)
-        // 등급은 합계가 아니라 장당 평균 기준(게임별 칸 수 차이 흡수)
-        assertEquals(2.0, res.average, 0.0001)
-        assertEquals(ArtifactGrade.POOR, res.grade)
+        // 평균의 분모는 **착용 수가 아니라 정규 장수**다(스타레일 6칸).
+        // 3장만 낀 캐릭터가 6장 낀 캐릭터보다 유리해지지 않게 하려는 것 — 빈 칸은 0점이다.
+        assertEquals(1.0, res.average, 0.0001)
+        // 6칸 중 3칸만 낀 상태라 캐릭터 등급은 바닥이다 — 빈 칸이 0점으로 잡히기 때문이다.
+        assertEquals(ArtifactGrade.BAD, res.grade)
         assertEquals(ScoreMetric.ROLL_VALUE, res.metric)
     }
 
@@ -205,10 +207,54 @@ class ArtifactScoreTest {
         val b = art("치명타 피해" to "20.0%", "치명타 확률" to "10.0%")  // CV 40
         val res = ArtifactScoring.scoreChar(listOf(a, b), giCrit, "genshin")
         assertEquals(60.0, res.total, 0.0001)
-        assertEquals(30.0, res.average, 0.0001)
-        assertEquals(ArtifactGrade.GOOD, res.grade)   // 장당 평균 30 → 상
+        // 원신 정규 장수 5칸 — 2장만 꼈으므로 60/5 = 12
+        assertEquals(12.0, res.average, 0.0001)
+        assertEquals(ArtifactGrade.POOR, res.grade)   // 캐릭터 밴드에서 12 는 '하'
         assertEquals(ScoreMetric.CRIT_VALUE, res.metric)
         assertEquals(40.0, res.ranked.first().score.value, 0.0001)   // 내림차순
+    }
+
+    @Test
+    fun 캐릭터_밴드는_장당_밴드와_다르다() {
+        // ⚠️ 예전엔 둘이 같아서 **최상이 도달 불가**였다(실측 캐릭터 평균 최대: 원신 35.3 · HSR 5.1).
+        // 장당 문턱(40 · 6.0)은 그대로 두고, 캐릭터 문턱만 분포로 다시 잡았다.
+        val cv = ScoreMetric.CRIT_VALUE
+        assertEquals(ArtifactGrade.GOOD, ArtifactScoring.gradeOf(35.0, cv), "1장 35 는 여전히 '상'")
+        assertEquals(ArtifactGrade.EXCELLENT, ArtifactScoring.gradeOfChar(35.0, cv), "캐릭터 평균 35 는 '최상'")
+        assertEquals(ArtifactGrade.GOOD, ArtifactScoring.gradeOfChar(26.0, cv))
+        assertEquals(ArtifactGrade.FAIR, ArtifactScoring.gradeOfChar(18.0, cv))
+        assertEquals(ArtifactGrade.POOR, ArtifactScoring.gradeOfChar(10.0, cv))
+        assertEquals(ArtifactGrade.BAD, ArtifactScoring.gradeOfChar(9.9, cv))
+
+        val rv = ScoreMetric.ROLL_VALUE
+        assertEquals(ArtifactGrade.GOOD, ArtifactScoring.gradeOf(5.0, rv), "1장 5.0 은 '상'")
+        assertEquals(ArtifactGrade.EXCELLENT, ArtifactScoring.gradeOfChar(5.0, rv), "캐릭터 평균 5.0 은 '최상'")
+        assertEquals(ArtifactGrade.GOOD, ArtifactScoring.gradeOfChar(3.6, rv))
+        assertEquals(ArtifactGrade.FAIR, ArtifactScoring.gradeOfChar(2.4, rv))
+        assertEquals(ArtifactGrade.POOR, ArtifactScoring.gradeOfChar(1.2, rv))
+    }
+
+    @Test
+    fun 링은_캐릭터_최상_문턱을_분모로_쓴다() {
+        // 등급이 '최상'인 순간 링도 가득이어야 한다 — 둘이 다른 분모를 쓰면 화면이 어긋난다.
+        assertEquals(1.0, ArtifactScoring.excellenceProgress(32.0, ScoreMetric.CRIT_VALUE), 0.0001)
+        assertEquals(1.0, ArtifactScoring.excellenceProgress(4.5, ScoreMetric.ROLL_VALUE), 0.0001)
+        // 실측 중앙값(원신 21.6 · HSR 2.9)이 절반을 넘어야 한다 — 예전엔 각각 54% · 48% 였다.
+        assertTrue(ArtifactScoring.excellenceProgress(21.6, ScoreMetric.CRIT_VALUE) > 0.6)
+        assertTrue(ArtifactScoring.excellenceProgress(2.9, ScoreMetric.ROLL_VALUE) > 0.6)
+    }
+
+    @Test
+    fun 평균은_착용_수가_아니라_정규_장수로_나눈다() {
+        // P5 — 좋은 것만 몇 장 낀 캐릭터가 다 낀 캐릭터를 앞지르지 않게.
+        val one = art("치명타 확률" to "10.0%")   // CV 20
+        val few = ArtifactScoring.scoreChar(listOf(one), giCrit, "genshin")
+        val many = ArtifactScoring.scoreChar(List(5) { one }, giCrit, "genshin")
+        assertEquals(4.0, few.average, 0.0001)
+        assertEquals(20.0, many.average, 0.0001)
+        assertTrue(many.average > few.average, "같은 품질이면 많이 낀 쪽이 높아야 한다")
+        // 평균이 합계의 상수배 — 등급(평균)과 순위(합계)가 같은 축에 놓인다.
+        assertEquals(many.total / 5.0, many.average, 0.0001)
     }
 
     @Test

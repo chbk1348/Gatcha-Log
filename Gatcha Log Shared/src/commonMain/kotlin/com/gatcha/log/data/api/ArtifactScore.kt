@@ -155,20 +155,34 @@ object ArtifactScoring {
         return rolls
     }
 
+    /**
+     * **정규 장수** — 캐릭터 평균의 분모. 원신 5칸 · 스타레일 6칸.
+     *
+     * 실제 착용 수로 나누면 **덜 낀 캐릭터가 유리해진다.** 좋은 3장만 낀 캐릭터가 5장을 다 낀
+     * 캐릭터보다 장당 평균이 높게 나왔다(PRD P5). 빈 칸을 0점으로 세면 그 뒤집힘이 사라지고,
+     * 평균이 합계의 상수배가 되어 **등급·링과 로스터 순위가 같은 축**에 놓인다.
+     */
+    fun slotCountOf(gameKey: String): Int = when (gameKey) {
+        "hsr", "starrail" -> 6
+        else -> 5
+    }
+
     /** 캐릭터가 착용한 유물 전체를 채점하고 점수 내림차순으로 정렬. 빈 목록이면 0점. */
     fun scoreChar(artifacts: List<EnkaArtifact>, keySet: Set<StatTok>, gameKey: String): CharArtifactScore {
         val metric = metricOf(gameKey)
         val ranked = artifacts.map { RankedArtifact(it, score(it, keySet, gameKey)) }
             .sortedByDescending { it.score.value }
         val total = ranked.sumOf { it.score.value }
-        val avg = if (ranked.isEmpty()) 0.0 else total / ranked.size
-        return CharArtifactScore(total, avg, gradeOf(avg, metric), metric, ranked)
+        // 착용 수가 아니라 **정규 장수**로 나눈다([slotCountOf]).
+        val avg = if (ranked.isEmpty()) 0.0 else total / slotCountOf(gameKey)
+        return CharArtifactScore(total, avg, gradeOfChar(avg, metric), metric, ranked)
     }
 
     /**
-     * 점수 → 등급 밴드. **지표마다 스케일이 달라 구간도 다르다.**
-     *  - CV: 원신 커뮤니티 통상치(1장 40 이상이면 최상급).
-     *  - 유효 롤: 1장 최대 9롤이라 6롤 이상이면 유효옵션이 대부분 붙은 것.
+     * **유물 1장**의 등급 밴드. 지표마다 스케일이 달라 구간도 다르다.
+     *
+     * 보유 로스터 303장(원신)·266장(스타레일) 분포로 확인한 값이다 —
+     * 원신 40 은 상위 10% 밖(p90=37.2), 스타레일 6.0 도 마찬가지(p90=5.2)라 문턱이 타당했다.
      */
     fun gradeOf(value: Double, metric: ScoreMetric): ArtifactGrade = when (metric) {
         ScoreMetric.CRIT_VALUE -> when {
@@ -183,6 +197,40 @@ object ArtifactScoring {
             value >= 4.5 -> ArtifactGrade.GOOD
             value >= 3.0 -> ArtifactGrade.FAIR
             value >= 1.5 -> ArtifactGrade.POOR
+            else -> ArtifactGrade.BAD
+        }
+    }
+
+    /**
+     * **캐릭터**의 등급 밴드 — 장당 밴드와 다른 값이다.
+     *
+     * ⚠️ 예전엔 [gradeOf] 하나를 1장에도 캐릭터 평균에도 썼다. 그래서 **최상 등급이 사실상
+     * 도달 불가**였다 — 실측 분포에서 캐릭터 평균의 최대값이 원신 35.3, 스타레일 5.1 인데
+     * 문턱이 40 과 6.0 이었다. 한 명도 최상이 되지 못했다(PRD N1).
+     *
+     * 문턱은 **감이 아니라 분포**로 잡았다(2026-09-09, 원신 65명 · 스타레일 45명):
+     *
+     * | | p25 | p50 | p75 | p90 | max |
+     * |---|---|---|---|---|---|
+     * | 원신 CV | 15.7 | 23.8 | 26.4 | 30.3 | 35.3 |
+     * | 스타레일 롤 | 1.7 | 2.9 | 3.8 | 4.1 | 5.1 |
+     *
+     * 백분위에 그대로 맞추지는 않았다 — p50~p90 이 좁아(23.8~30.3) 1~2점에 등급이 튄다.
+     * 최상은 **닿을 수 있되 드물게**(상위 5% 안팎), 나머지는 간격을 벌려 잡았다.
+     */
+    fun gradeOfChar(value: Double, metric: ScoreMetric): ArtifactGrade = when (metric) {
+        ScoreMetric.CRIT_VALUE -> when {
+            value >= 32.0 -> ArtifactGrade.EXCELLENT
+            value >= 26.0 -> ArtifactGrade.GOOD
+            value >= 18.0 -> ArtifactGrade.FAIR
+            value >= 10.0 -> ArtifactGrade.POOR
+            else -> ArtifactGrade.BAD
+        }
+        ScoreMetric.ROLL_VALUE -> when {
+            value >= 4.5 -> ArtifactGrade.EXCELLENT
+            value >= 3.6 -> ArtifactGrade.GOOD
+            value >= 2.4 -> ArtifactGrade.FAIR
+            value >= 1.2 -> ArtifactGrade.POOR
             else -> ArtifactGrade.BAD
         }
     }
@@ -216,9 +264,12 @@ object ArtifactScoring {
      * 지표마다 최상 문턱이 다르다(CV 40 · 유효 롤 6.0). 이미 넘었으면 1.0.
      */
     fun excellenceProgress(average: Double, metric: ScoreMetric): Double {
+        // 분모는 **캐릭터 최상 문턱**이다([gradeOfChar]). 예전엔 1장 문턱(40 · 6.0)을 썼는데,
+        // 캐릭터 평균이 거기 닿을 수 없어 링이 구조적으로 절반 언저리에서 멈췄다 —
+        // 실측 중앙값이 원신 59% · 스타레일 48% 였다. 등급과 링이 같은 값을 보게 맞춘다.
         val top = when (metric) {
-            ScoreMetric.CRIT_VALUE -> 40.0
-            ScoreMetric.ROLL_VALUE -> 6.0
+            ScoreMetric.CRIT_VALUE -> 32.0
+            ScoreMetric.ROLL_VALUE -> 4.5
         }
         if (average <= 0.0) return 0.0
         return (average / top).coerceIn(0.0, 1.0)

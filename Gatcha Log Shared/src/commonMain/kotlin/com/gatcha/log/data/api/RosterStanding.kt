@@ -47,22 +47,15 @@ data class RosterStanding(
     }
 }
 
-/**
- * 다음 한 걸음 — 진단만 하고 끝내지 않기 위한 한 줄.
- *
- * **목표 순위를 약속하지 않는다.** "치확을 5% 올리면 상위 10%" 같은 문장은 다른 캐릭터가
- * 그대로 멈춰 있다는 전제에서만 참이고, 게임마다 지표가 달라 %p 환산도 원신에서만 성립한다.
- * 대신 **지금 가장 약한 유효옵션**과 **가장 먼저 손댈 유물**만 짚는다 — 둘 다 지금 값으로
- * 확정할 수 있는 사실이다.
- *
- * 조사(-이/-가)를 피해 조각을 그대로 이어 붙일 수 있게 만들었다. 양 플랫폼이 같은 순서로
- * 조립한다: "가장 약한 곳은 **[statLabel]**([valueLabel]) — **[slotLabel]** 부터 …"
- */
-data class NextStep(
-    val statLabel: String,
-    val valueLabel: String,
-    val slotLabel: String,
-)
+// '다음 한 걸음'(NextStep · nextStep · rollsOf)은 여기 있었다.
+//
+// 유일한 소비처였던 '이 캐릭터는' 카드를 양 플랫폼에서 걷어내면서(2026-09-08) 계산만 하고
+// 버려지는 코드가 됐다. 게다가 후보 집합에 **부옵션으로 붙지도 않는 스탯**이 섞여 있어
+// (풍요의 치유량 보너스, 파멸·수렵·지식의 속성 피해 보너스 — 셋 다 상시 0롤)
+// 화면에 올리는 순간 "손댈 수 없는 항목"을 조언하게 되는 상태였다(PRD N2).
+//
+// 되살릴 때는 후보를 `ArtifactScoring.maxRollOf(gameKey, tok) != null` 로 먼저 거르고,
+// 원신만 덮던 테스트에 스타레일 경로를 반드시 추가할 것.
 
 object RosterStandings {
 
@@ -109,41 +102,6 @@ object RosterStandings {
     }
 
     /**
-     * 다음 한 걸음. 유물이 없거나 유효옵션을 판정할 수 없으면 **null** — 근거 없는 조언은 하지 않는다.
-     *
-     * - **가장 약한 유효옵션**: 착용 유물의 서브 옵션에서 그 스탯이 몇 롤 붙었는지 세어 최솟값.
-     *   원신은 CV 지표라 유효옵션과 무관하게 **치확·치피**만 본다(점수를 그것만으로 매기므로).
-     * - **먼저 손댈 유물**: 점수 최하위 한 장([CharArtifactScore.ranked] 의 마지막).
-     */
-    fun nextStep(
-        c: EnkaChar,
-        gameKey: String,
-        overrides: Map<String, Set<String>> = emptyMap(),
-    ): NextStep? {
-        if (c.artifacts.isEmpty()) return null
-        val keys = resolveKeyStats(gameKey, c, overrides).stats
-        val scored = ArtifactScoring.scoreChar(c.artifacts, keys, gameKey)
-        val weakest = scored.ranked.lastOrNull()?.artifact ?: return null
-
-        val candidates = if (metricOf(gameKey) == ScoreMetric.CRIT_VALUE) {
-            listOf(StatTok.CRIT_RATE, StatTok.CRIT_DMG)
-        } else {
-            orderedKeyStats(gameKey, keys)
-        }
-        if (candidates.isEmpty()) return null
-
-        // 스탯별 누적 롤 수 — 값이 아니라 '몇 번 굴렀나'로 봐야 스탯 간 비교가 성립한다.
-        val rolls = candidates.associateWith { tok -> rollsOf(c, tok, gameKey) }
-        val target = rolls.minByOrNull { it.value }?.key ?: return null
-
-        return NextStep(
-            statLabel = statLabel(target, gameKey),
-            valueLabel = "${fixed(rolls[target] ?: 0.0, 1)}롤",
-            slotLabel = weakest.slot.ifBlank { weakest.setName },
-        )
-    }
-
-    /**
      * 캐릭터 **최종 스탯** 기준 치명 효율 — 치확×2 + 치피.
      *
      * 유물 점수와 다른 축이다. 저쪽은 굴림 운(서브 옵션)만 보지만 이건 무기·세트·돌파까지
@@ -166,18 +124,5 @@ object RosterStandings {
         val d = dmg
         if (r == null && d == null) return null
         return (r ?: 0.0) * 2 + (d ?: 0.0)
-    }
-
-    /** 착용 유물 전체에서 [tok] 이 몇 롤 붙었는지. 최대 강화량을 모르는 스탯은 0. */
-    private fun rollsOf(c: EnkaChar, tok: StatTok, gameKey: String): Double {
-        val max = ArtifactScoring.maxRollOf(gameKey, tok) ?: return 0.0
-        if (max <= 0.0) return 0.0
-        var sum = 0.0
-        c.artifacts.forEach { a ->
-            a.subs.forEach { s ->
-                if (normStat(s.label) == tok) sum += ArtifactScoring.parseStatValue(s.value) / max
-            }
-        }
-        return sum
     }
 }

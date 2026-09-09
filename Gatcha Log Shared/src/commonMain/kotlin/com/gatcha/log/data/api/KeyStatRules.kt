@@ -190,6 +190,48 @@ internal fun normStat(raw: String): StatTok {
  * 퍼센트 계열은 인게임에선 같은 이름이 두 번(고정값/비율) 나오지만, 칩에서는 구분이 안 되므로
  * `%` 를 붙여 표기한다.
  */
+/**
+ * 고정 메인 슬롯 — **사용자가 바꿀 수 없는 자리.**
+ *
+ * 원신 생명의 꽃(HP 고정)·죽음의 깃털(공격력 고정), 스타레일 머리(HP)·핸드(공격력)가 그렇다.
+ * 여기에 적합 표식을 붙이면 "잘 골랐다"는 칭찬도 "잘못 골랐다"는 지적도 뜻이 없다.
+ */
+private val FIXED_MAIN_SLOTS = setOf(
+    "생명의 꽃", "생의 꽃", "죽음의 깃털",   // 원신
+    "머리", "핸드", "손",                    // 스타레일
+)
+
+/**
+ * 이 유물의 **메인 옵션이 캐릭터에 맞는가**.
+ *
+ * 점수는 서브 옵션만 본다(굴림 운). 그런데 실제 성능은 메인이 가른다 — 성배가 치확인지
+ * 방어력인지, 모래가 공격%인지 HP 인지. 그 사실이 점수 어디에도 안 잡혀서 **엉뚱한 메인을
+ * 낀 유물도 부옵션만 좋으면 만점**이었다(PRD P3).
+ *
+ * 점수에 섞지 않고 **표식만** 낸다. 섞으면 "굴림 운"이라는 지표의 뜻이 흐려진다.
+ *
+ * ⚠️ **맞을 때만 true 다. 틀렸다고 말하지 않는다.**
+ * 유효옵션 집합은 서브 옵션 기준이라 메인의 정답을 다 담고 있지 않다 — 스타레일 연결 매듭의
+ * 에너지 재생 효율, 원신 모래의 원소 충전 효율은 실전에서 정답인데 집합에는 없다.
+ * "맞다"는 근거는 있어도 "틀렸다"는 근거는 없으므로, 없는 쪽은 침묵한다.
+ */
+fun isMainFit(
+    gameKey: String,
+    slot: String,
+    mainLabel: String,
+    mainValue: String,
+    keySet: Set<StatTok>,
+): Boolean {
+    if (!usesArtifactScore(gameKey)) return false      // 점수를 안 쓰면 기준도 없다
+    if (keySet.isEmpty()) return false                 // 유효옵션 판정 불가
+    if (slot.trim() in FIXED_MAIN_SLOTS) return false  // 고를 수 없는 자리
+    // ⚠️ **값의 % 를 라벨에 얹어 판정한다.** 응답의 메인 라벨은 "공격력"인데 값이 "46.6%" 인
+    // 식이라(비율형), 라벨만 넘기면 [normStat] 이 고정 공격력으로 읽어 유효옵션과 어긋난다.
+    val label = if (mainValue.contains("%") && !mainLabel.contains("%")) "$mainLabel%" else mainLabel
+    val tok = normStat(label)
+    return tok != StatTok.OTHER && tok in keySet
+}
+
 fun statLabel(t: StatTok, gameKey: String = ""): String {
     val gi = gameKey == "genshin"
     val hsr = gameKey == "hsr" || gameKey == "starrail"
