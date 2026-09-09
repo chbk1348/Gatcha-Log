@@ -11,8 +11,8 @@
  * 로그인과 라이브 반영만 꺼집니다.
  */
 window.FIREBASE_CONFIG = {
-  apiKey: '',
+  apiKey: 'AIzaSyAzU_VzXsBARf3sMydJBGQEdb7kCJB9RmA',
   authDomain: 'gatcha-log.firebaseapp.com',
   projectId: 'gatcha-log',
-  appId: '',
+  appId: '1:711708512022:web:3595e213bc18ab15fa4a37',
 };

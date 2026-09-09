@@ -9,7 +9,6 @@
 
 const SDK = 'https://www.gstatic.com/firebasejs/12.18.0/';
 const COLLECTION = 'config';
-const DOC = 'hoyoland';
 
 /** admin.js 가 보는 인터페이스. 연결 전에도 호출은 안전하게 실패한다. */
 const cloud = {
@@ -18,8 +17,8 @@ const cloud = {
   onChange: null,     // admin.js 가 꽂는 콜백 — 로그인 상태가 바뀌면 호출
   signIn: async () => { throw new Error('클라우드가 설정되지 않았습니다.'); },
   signOut: async () => {},
-  pull: async () => null,
-  push: async () => { throw new Error('클라우드가 설정되지 않았습니다.'); },
+  pull: async (_doc) => null,
+  push: async (_doc, _json) => { throw new Error('클라우드가 설정되지 않았습니다.'); },
 };
 window.cloud = cloud;
 
@@ -41,7 +40,7 @@ async function boot() {
   const app = initializeApp(cfg);
   const auth = authMod.getAuth(app);
   const db = storeMod.getFirestore(app);
-  const ref = storeMod.doc(db, COLLECTION, DOC);
+  const ref = (doc) => storeMod.doc(db, COLLECTION, doc);
   const provider = new authMod.GoogleAuthProvider();
 
   cloud.available = true;
@@ -59,20 +58,20 @@ async function boot() {
   cloud.signOut = () => authMod.signOut(auth);
 
   /** 라이브 문서의 JSON. 문서가 없으면 null — 비로그인도 읽을 수 있다(규칙상 공개 읽기). */
-  cloud.pull = async () => {
-    const snap = await storeMod.getDoc(ref);
+  cloud.pull = async (doc) => {
+    const snap = await storeMod.getDoc(ref(doc));
     if (!snap.exists()) return null;
     const d = snap.data();
     return { json: d.data || '', updatedAt: d.updatedAt || 0, updatedBy: d.updatedBy || '' };
   };
 
   /**
-   * 라이브 문서 교체. 앱은 `data` 문자열을 그대로 파싱한다(HoyolandApi.fetchLive).
+   * 라이브 문서 교체. 앱은 `data` 문자열을 그대로 파싱한다(LiveConfig.get).
    * 실패는 그대로 던진다 — "저장됐다"고 오인시키는 것이 가장 나쁜 결과다.
    */
-  cloud.push = async (json) => {
+  cloud.push = async (doc, json) => {
     if (!cloud.user) throw new Error('로그인이 필요합니다.');
-    await storeMod.setDoc(ref, {
+    await storeMod.setDoc(ref(doc), {
       data: json,
       updatedAt: Date.now(),
       updatedBy: cloud.user.email || cloud.user.uid,
