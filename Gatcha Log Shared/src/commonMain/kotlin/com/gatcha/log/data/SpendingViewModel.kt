@@ -28,7 +28,6 @@ import com.gatcha.log.data.HoyolabConfig
 import com.gatcha.log.data.LiveNote
 import com.gatcha.log.data.MonthlyLedger
 import com.gatcha.log.data.Spending
-import com.gatcha.log.data.Subscription
 import com.gatcha.log.data.UserProfile
 import com.gatcha.log.util.fixed
 import kotlin.math.roundToInt
@@ -46,6 +45,7 @@ import com.gatcha.log.data.api.EnneadApi
 import com.gatcha.log.data.api.NewsApi
 import com.gatcha.log.data.api.NewsArticle
 import com.gatcha.log.data.api.NewsItem
+import com.gatcha.log.data.api.HoyolandApi
 import com.gatcha.log.data.api.HoyolabApi
 import com.gatcha.log.data.api.CodeResult
 import com.gatcha.log.data.api.GiftCode
@@ -143,17 +143,8 @@ class SpendingViewModel : ViewModel() {
     val pendingNewsId: StateFlow<String?> = _pendingNewsId.asStateFlow()
     fun consumePendingNews() { _pendingNewsId.value = null }
 
-    /**
-     * 저축 플래너를 열어야 하는지. 계산기(게임정보 탭)에서 "저축 계획"을 누르면
-     * 홈 탭으로 옮긴 뒤 플래너까지 이어 열기 위한 신호 — 딥링크와 같은 방식이다.
-     */
-    private val _pendingSavingsPlanner = MutableStateFlow(false)
-    val pendingSavingsPlanner: StateFlow<Boolean> = _pendingSavingsPlanner.asStateFlow()
-    fun requestSavingsPlanner() {
-        _pendingSavingsPlanner.value = true
-        _pendingTab.value = 0
-    }
-    fun consumePendingSavingsPlanner() { _pendingSavingsPlanner.value = false }
+    // 계산기 → 저축 플래너 진입 요청(pendingSavingsPlanner)은 여기 있었다.
+    // 저축 플래너를 기능째 걷어내며 함께 지웠다(2026-09-09).
 
     /**
      * 알림 페이로드의 딥링크 처리. 형식은 `"news:<공지 id>"` 처럼 `종류:인자`.
@@ -205,8 +196,6 @@ class SpendingViewModel : ViewModel() {
     val notifyResin: StateFlow<Boolean> = _notifyResin.asStateFlow()
     private val _notifyPickup = MutableStateFlow(appSettings.notifyPickup)
     val notifyPickup: StateFlow<Boolean> = _notifyPickup.asStateFlow()
-    private val _notifySubscription = MutableStateFlow(appSettings.notifySubscription)
-    val notifySubscription: StateFlow<Boolean> = _notifySubscription.asStateFlow()
     private val _notifyNews = MutableStateFlow(appSettings.notifyNews)
     val notifyNews: StateFlow<Boolean> = _notifyNews.asStateFlow()
     private val _notifyCombat = MutableStateFlow(appSettings.notifyCombat)
@@ -292,7 +281,6 @@ class SpendingViewModel : ViewModel() {
     fun setNotifyAttendance(v: Boolean) { appSettings.notifyAttendance = v; _notifyAttendance.value = v; applyNativeAfterNotifyChange(v) }
     fun setNotifyResin(v: Boolean) { appSettings.notifyResin = v; _notifyResin.value = v; applyNativeAfterNotifyChange(v) }
     fun setNotifyPickup(v: Boolean) { appSettings.notifyPickup = v; _notifyPickup.value = v; applyNativeAfterNotifyChange(v) }
-    fun setNotifySubscription(v: Boolean) { appSettings.notifySubscription = v; _notifySubscription.value = v; applyNativeAfterNotifyChange(v) }
     fun setNotifyNews(v: Boolean) { appSettings.notifyNews = v; _notifyNews.value = v; applyNativeAfterNotifyChange(v) }
     fun setNotifyCombat(v: Boolean) { appSettings.notifyCombat = v; _notifyCombat.value = v; applyNativeAfterNotifyChange(v) }
     fun setNotifyHoyoland(v: Boolean) { appSettings.notifyHoyoland = v; _notifyHoyoland.value = v; applyNativeAfterNotifyChange(v) }
@@ -322,7 +310,6 @@ class SpendingViewModel : ViewModel() {
         NotifyKey.entries.forEach { key ->
             when (key) {
                 NotifyKey.BUDGET -> { appSettings.notifyBudget = true; _notifyBudget.value = true }
-                NotifyKey.SUBSCRIPTION -> { appSettings.notifySubscription = true; _notifySubscription.value = true }
                 NotifyKey.RESIN -> { appSettings.notifyResin = true; _notifyResin.value = true }
                 NotifyKey.ATTENDANCE -> { appSettings.notifyAttendance = true; _notifyAttendance.value = true }
                 NotifyKey.PICKUP -> { appSettings.notifyPickup = true; _notifyPickup.value = true }
@@ -578,12 +565,9 @@ class SpendingViewModel : ViewModel() {
         seedEnkaDiskCache()   // 재시작/계정전환 시 디스크 캐시를 메모리로 — '내 캐릭터' 즉시 표시
         seedGameInfoDiskCache()
         loadGachaDeferred()
-        _subscriptions.value = repo.loadSubscriptions()
         _redeemedCodes.value = repo.loadRedeemedCodes()
         _unusableCodes.value = repo.loadUnusableCodes()
-        _savingsHeld.value = repo.loadSavingsHeld()
-        _savingsHidden.value = repo.loadSavingsHidden()
-        refreshSavings()
+        refreshChallenge()
         recomputeSpendingDerived()   // 첫 프레임이 0원으로 그려지지 않게 동기로 한 번
     }
 
@@ -742,7 +726,6 @@ class SpendingViewModel : ViewModel() {
         val next = (listOf(spending) + _spendings.value).sortedByDescending { it.dateMillis }
         _spendings.value = next
         repo.saveSpendings(next)
-        autoLinkSubscription(spending)
         refreshChallenge()
         emitStatus("지출이 저장되었어요")
     }
@@ -752,62 +735,18 @@ class SpendingViewModel : ViewModel() {
             .sortedByDescending { it.dateMillis }
         _spendings.value = next
         repo.saveSpendings(next)
-        autoLinkSubscription(updated)
         refreshChallenge()
         emitStatus("지출이 수정되었어요")
     }
 
-    /** 정기결제용 표시명 — 규칙은 [SpendingDerived.subscriptionName] 단일 소스. */
-    private fun subscriptionName(s: Spending): String = SpendingDerived.subscriptionName(s)
-
-    /** 같은 구독이 이미 등록돼 있는지(이름·게임·금액 기준). */
-    private fun List<Subscription>.hasMatch(name: String, s: Spending): Boolean =
-        any { it.name == name && it.gameName == s.gameName && it.amount == s.amount }
-
-    /**
-     * A안: '구독으로 기록'한 지출을 정기결제(Subscription)로 자동 등록.
-     * 결제일=지출 날짜의 일. 동일 구독이 이미 있으면 중복 등록하지 않는다.
-     */
-    private fun autoLinkSubscription(spending: Spending) {
-        if (!spending.isSubscription) return
-        val name = subscriptionName(spending)
-        if (_subscriptions.value.hasMatch(name, spending)) return
-        addSubscription(
-            Subscription(
-                name = name,
-                gameName = spending.gameName,
-                amount = spending.amount,
-                billingDay = DateUtil.dayOfMonth(spending.dateMillis).coerceIn(1, 31),
-            ),
-        )
-    }
-
-    /** 지출 내역의 '구독' 표시 항목 중 아직 정기결제로 등록되지 않은 건수(중복 이름·게임·금액 제외). */
-    fun unlinkedSubscriptionSpendingCount(): Int = collectUnlinkedSubscriptions().size
-
-    /** 지출 내역의 '구독' 표시 항목을 정기결제로 일괄 등록(중복 제외). 새로 등록한 건수 반환. */
-    fun importSubscriptionsFromSpendings(): Int {
-        val toAdd = collectUnlinkedSubscriptions()
-        if (toAdd.isEmpty()) return 0
-        _subscriptions.value = (_subscriptions.value + toAdd).sortedBy { it.billingDay }
-        repo.saveSubscriptions(_subscriptions.value)
-        emitStatus("정기결제 ${toAdd.size}건을 가져왔어요")
-        return toAdd.size
-    }
-
-    /** 미등록 구독표시 지출 → Subscription 후보(이름·게임·금액 중복 제거, 최신 결제일 우선). */
-    private fun collectUnlinkedSubscriptions(): List<Subscription> =
-        SpendingDerived.unlinkedSubscriptions(
-            _spendings.value.filter { it.isSubscription },
-            _subscriptions.value,
-        )
+    // 지출 ↔ 정기결제 자동 연결(autoLinkSubscription·collectUnlinkedSubscriptions 등)은
+    // 여기 있었다 — 정기결제를 기능째 걷어냈다(2026-09-09).
 
     fun deleteSpending(id: String) {
         repo.addDeletedSpendingIds(setOf(id)) // tombstone — 삭제를 다른 기기에 전파(합집합 병합 방어)
         val (removed, next) = _spendings.value.partition { it.id == id }
         _spendings.value = next
         repo.saveSpendings(next)
-        unlinkOrphanedSubscriptions(removed)
         refreshChallenge()
     }
 
@@ -817,34 +756,10 @@ class SpendingViewModel : ViewModel() {
         val (removed, next) = _spendings.value.partition { it.id in ids }
         _spendings.value = next
         repo.saveSpendings(next)
-        unlinkOrphanedSubscriptions(removed)
         refreshChallenge()
     }
 
     /** 구독 매칭 키 — 이름·게임·금액이 같으면 같은 구독으로 본다(등록·해제 판정 공통). */
-    private fun subKey(s: Spending): Triple<String, String, Long> =
-        Triple(subscriptionName(s), s.gameName, s.amount)
-
-    /**
-     * A안 삭제 연동: '구독으로 기록'한 지출이 삭제됐을 때, 그 구독을 백업하는 다른 구독표시 지출이
-     * 더 없으면 매칭되는 정기결제(Subscription)도 함께 제거. (매달 기록한 구독은 마지막 1건 삭제 시에만 제거)
-     *
-     * 남은 지출의 구독 키를 **한 번의 순회**로 모아 두고 대조한다. 예전엔 삭제 항목마다 지출 전체를
-     * 다시 훑어서, 구독표시 지출 50건을 일괄 삭제하면 50 × 전체였다.
-     */
-    private fun unlinkOrphanedSubscriptions(removed: List<Spending>) {
-        val removedKeys = removed.asSequence().filter { it.isSubscription }.map { subKey(it) }.toSet()
-        if (removedKeys.isEmpty()) return
-        val stillBacked = _spendings.value.asSequence()
-            .filter { it.isSubscription }.map { subKey(it) }.toSet()
-        removedKeys.forEach { key ->
-            if (key in stillBacked) return@forEach
-            val match = _subscriptions.value.firstOrNull {
-                it.name == key.first && it.gameName == key.second && it.amount == key.third
-            } ?: return@forEach
-            deleteSubscription(match.id)
-        }
-    }
 
     /**
      * 선택한 지출들의 일부 필드를 일괄 변경. null/빈 인자는 해당 필드 미변경.
@@ -1163,7 +1078,8 @@ class SpendingViewModel : ViewModel() {
 
     // ----- 천장 카운터 -----
     fun adjustPity(gameKey: String, delta: Int) = updatePity(gameKey) { it.copy(count = (it.count + delta).coerceAtLeast(0)) }
-    fun setPityCount(gameKey: String, value: Int) = updatePity(gameKey) { it.copy(count = value.coerceAtLeast(0)) }
+    // 천장 직접 수정(setPityCount)은 여기 있었다. 유일한 화면이 저축 플래너였고,
+    // 그것을 걷어내며 함께 지웠다 — 이제 천장은 **가챠 기록 동기화로만** 채워진다.
     fun resetPity(gameKey: String) = updatePity(gameKey) { it.copy(count = 0, guaranteed = false) }
     fun setPityGuaranteed(gameKey: String, g: Boolean) = updatePity(gameKey) { it.copy(guaranteed = g) }
 
@@ -1173,7 +1089,6 @@ class SpendingViewModel : ViewModel() {
         val updated = _pity.value + (gameKey to next)
         _pity.value = updated
         repo.savePity(updated)
-        refreshPlans()
         // 임박 단계 상승 시 1회 토스트(리셋·후퇴는 무시).
         val banner = com.gatcha.log.data.GachaRateData.byKey(gameKey)?.character
         if (banner != null) {
@@ -1194,21 +1109,12 @@ class SpendingViewModel : ViewModel() {
         }
     }
 
-    // ----------------------------------------------------------------- 저축 플래너 · 절약 챌린지 (27.35)
-    /** 게임별 보유 재화(gameKey → 재화량) — 저축 플래너 필요분 차감용. */
-    private val _savingsHeld = MutableStateFlow<Map<String, Int>>(emptyMap())
-    val savingsHeld: StateFlow<Map<String, Int>> = _savingsHeld.asStateFlow()
+    // ----------------------------------------------------------------- 절약 챌린지
+    // 보유 재화(savingsHeld)는 여기 있었다 — 가챠 계산기가 유일한 소비처였고,
+    // 계산기를 기능째 걷어내며(2026-09-09) 함께 지웠다.
 
-    /** "안 뽑는" 픽업 목표로 숨긴 키 집합(SavingsPlan.key) — 미노출 처리. */
-    private val _savingsHidden = MutableStateFlow<Set<String>>(emptySet())
-
-    /** 진행 중 픽업별 저축 계획(임박 순, 숨긴 목표 제외). activeBanners·pity·보유재화에서 파생. */
-    private val _savingsPlans = MutableStateFlow<List<SavingsPlan>>(emptyList())
-    val savingsPlans: StateFlow<List<SavingsPlan>> = _savingsPlans.asStateFlow()
-
-    /** 숨김 처리된(안 뽑는) 픽업 목표 — 헤더 버튼으로 펼쳐 보고 다시 표시할 수 있게. */
-    private val _hiddenSavingsPlans = MutableStateFlow<List<SavingsPlan>>(emptyList())
-    val hiddenSavingsPlans: StateFlow<List<SavingsPlan>> = _hiddenSavingsPlans.asStateFlow()
+    // 저축 계획 파생 상태(savingsPlans·hiddenSavingsPlans·savingsHidden)는 여기 있었다.
+    // 보유 재화([savingsHeld])는 **가챠 계산기가 계속 쓰므로** 남긴다.
 
     /** 절약 챌린지·스트릭·배지 상태. 지출·예산에서 파생(결정형). */
     private val _challenge = MutableStateFlow(SavingsChallenge.evaluate(emptyList(), 0L, 0, emptySet()))
@@ -1300,6 +1206,18 @@ class SpendingViewModel : ViewModel() {
     }
 
     /** 3게임 행동력을 가득으로. 노트가 없으면(미연동) 확인용 노트를 만들어 넣는다. */
+    /**
+     * 호요랜드 무대 시간표 목업 — 실제 편성이 공개되기 전에 라이브 카드·게임 레인·필터를 본다.
+     * 기간이 **오늘부터 4일**로 옮겨지고, 오늘 편성은 지금 시각 기준이라 늘 진행 중인 무대가 있다.
+     */
+    fun debugStageMock(on: Boolean) {
+        if (on) HoyolandApi.debugInjectStageMock() else HoyolandApi.debugClearStageMock()
+        emitStatus(if (on) "무대 시간표 목업을 켰어요. 호요랜드 상세에서 확인하세요" else "무대 시간표 목업을 껐어요")
+    }
+
+    /** 지금 목업이 얹혀 있는지 — 개발자 화면 토글 표시. */
+    fun debugStageMockOn(): Boolean = HoyolandApi.isStageMock
+
     fun debugFillAllResin() {
         val prev = _liveNotes.value
         _liveNotes.value = GameData.attendanceGames.map { g ->
@@ -1314,7 +1232,7 @@ class SpendingViewModel : ViewModel() {
         emitStatus("행동력을 3게임 모두 가득으로 채웠어요")
     }
 
-    /** 모든 게임의 천장을 한 번에 설정. 계산기·저축 플래너의 경계값 확인용. */
+    /** 모든 게임의 천장을 한 번에 설정. 계산기의 경계값 확인용. */
     fun debugSetPityAll(count: Int, guaranteed: Boolean) {
         GameData.games.forEach { g -> updatePity(g.key) { it.copy(count = count.coerceAtLeast(0), guaranteed = guaranteed) } }
         emitStatus("천장을 ${count}${if (guaranteed) " · 확정 보유" else ""}로 맞췄어요")
@@ -1370,30 +1288,6 @@ class SpendingViewModel : ViewModel() {
         "${g.shortName} — 픽업 $banners · 이벤트 $events · 공지 $news · 노트 ${if (note) "O" else "X"}"
     }
 
-    /** 보유 재화 입력/해제(0 = 해제). */
-    fun setHeldCurrency(gameKey: String, value: Int) {
-        val updated = _savingsHeld.value.toMutableMap()
-        if (value > 0) updated[gameKey] = value else updated.remove(gameKey)
-        _savingsHeld.value = updated
-        repo.saveSavingsHeld(updated)
-        refreshPlans()
-    }
-
-    /** 픽업 목표 숨김/해제 토글(안 뽑는 목표 미노출). */
-    fun setSavingsHidden(key: String, hidden: Boolean) {
-        val updated = _savingsHidden.value.toMutableSet()
-        if (hidden) updated.add(key) else updated.remove(key)
-        _savingsHidden.value = updated
-        repo.saveSavingsHidden(updated)
-        refreshPlans()
-    }
-
-    private fun refreshPlans() {
-        val all = SavingsPlanner.build(_activeBanners.value, _pity.value, _savingsHeld.value)
-        val hidden = _savingsHidden.value
-        _savingsPlans.value = all.filterNot { it.key in hidden }
-        _hiddenSavingsPlans.value = all.filter { it.key in hidden }
-    }
 
     /** 지출·예산 변경 시 챌린지 재평가 + 최고 스트릭·배지 단조 영속. */
     private fun refreshChallenge() {
@@ -1405,8 +1299,6 @@ class SpendingViewModel : ViewModel() {
         if (earned != prevBadges) repo.saveEarnedBadges(earned)
         _challenge.value = summary
     }
-
-    private fun refreshSavings() { refreshPlans(); refreshChallenge() }
 
     // ----- Enka 프로필 쇼케이스 -----
     private val _enkaGiUid = MutableStateFlow("")
@@ -1802,36 +1694,8 @@ class SpendingViewModel : ViewModel() {
     }
 
     // ----- 구독 관리 -----
-    private val _subscriptions = MutableStateFlow<List<Subscription>>(emptyList())
-    val subscriptions: StateFlow<List<Subscription>> = _subscriptions.asStateFlow()
-
-    fun addSubscription(sub: Subscription) {
-        _subscriptions.value = (_subscriptions.value + sub).sortedBy { it.billingDay }
-        repo.saveSubscriptions(_subscriptions.value)
-    }
-
-    fun updateSubscription(sub: Subscription) {
-        _subscriptions.value = _subscriptions.value.map { if (it.id == sub.id) sub else it }.sortedBy { it.billingDay }
-        repo.saveSubscriptions(_subscriptions.value)
-    }
-
-    fun deleteSubscription(id: String) {
-        val removed = _subscriptions.value.firstOrNull { it.id == id }
-        _subscriptions.value = _subscriptions.value.filterNot { it.id == id }
-        repo.saveSubscriptions(_subscriptions.value)
-        // A안 연동: 이 정기결제를 백업하던 '구독으로 기록' 지출도 함께 삭제.
-        // (raw 삭제 — deleteSpendings 경유 금지: unlinkOrphanedSubscriptions 재호출 루프 방지)
-        removed?.let { sub ->
-            val ids = _spendings.value.filter {
-                it.isSubscription && subscriptionName(it) == sub.name && it.gameName == sub.gameName && it.amount == sub.amount
-            }.map { it.id }.toSet()
-            if (ids.isNotEmpty()) {
-                val next = _spendings.value.filter { it.id !in ids }
-                _spendings.value = next
-                repo.saveSpendings(next)
-            }
-        }
-    }
+    // 정기결제 CRUD(subscriptions·addSubscription·updateSubscription·deleteSubscription)는
+    // 여기 있었다 — 기능째 걷어냈다(2026-09-09).
 
     // ----------------------------------------------------------------- API 연동 상태
     private val _isRefreshing = MutableStateFlow(false)
@@ -2254,7 +2118,6 @@ class SpendingViewModel : ViewModel() {
                             .sortedWith(compareBy({ it.isEndUnknown }, { it.dDay() }))
                         // 백그라운드 픽업 마감 알림 점검용 로컬 캐시(네트워크 없이 판정).
                         withContext(Dispatchers.IO) { runCatching { repo.saveActiveBanners(_activeBanners.value) } }
-                        refreshPlans()   // 새 픽업 목록으로 저축 계획 갱신
                         _gameEvents.value = mergeByGame(_gameEvents.value, events, calendarLoaded) { it.game }
                             .filter { it.game in SCHEDULE_GAMES }
                             .sortedBy { it.endMillis }
@@ -2632,10 +2495,6 @@ class SpendingViewModel : ViewModel() {
     /** 이번 달 게임별 지출 합계(gameKey → 금액). */
     val currentMonthTotalsByGame: StateFlow<Map<String, Long>> = _currentMonthTotalsByGame.asStateFlow()
 
-    private val _unlinkedSubCount = MutableStateFlow(0)
-
-    /** 아직 정기결제로 등록되지 않은 '구독 표시' 지출 건수. */
-    val unlinkedSubCount: StateFlow<Int> = _unlinkedSubCount.asStateFlow()
 
     private val _recentMonthlyTotals = MutableStateFlow<List<Long>>(emptyList())
 
@@ -2656,7 +2515,6 @@ class SpendingViewModel : ViewModel() {
     private fun recomputeSpendingDerived() {
         val d = SpendingDerived.compute(
             spendings = _spendings.value,
-            subscriptions = _subscriptions.value,
             year = currentYear,
             month = currentMonth,
             recentMonths = RECENT_MONTHS,
@@ -2664,7 +2522,6 @@ class SpendingViewModel : ViewModel() {
         _currentMonthTotal.value = d.currentMonthTotal
         _previousMonthTotal.value = d.previousMonthTotal
         _currentMonthTotalsByGame.value = d.currentMonthTotalsByGame
-        _unlinkedSubCount.value = d.unlinkedSubCount
         _recentMonthlyTotals.value = d.recentMonthlyTotals
     }
 
@@ -2725,7 +2582,7 @@ class SpendingViewModel : ViewModel() {
      * 백그라운드로 돌린다(유실 방지 pull-전-push-금지는 그대로). 첫 로그인·재설치(로컬 없음)에서만 로딩 화면.
      */
     val hasLocalData: Boolean
-        get() = _spendings.value.isNotEmpty() || _subscriptions.value.isNotEmpty() || gachaRecords.isNotEmpty()
+        get() = _spendings.value.isNotEmpty() || gachaRecords.isNotEmpty()
 
     /** 데이터 변경 시 디바운스(1.5s) 후 Firestore 에 전체 스냅샷 푸시. */
     private fun scheduleCloudSync() {
@@ -2990,7 +2847,7 @@ const val ERROR_TOAST_COOLDOWN_MS = 180_000L
         runCatching { _keyStatOverrides.value = repo.loadKeyStatOverrides() }
         // 지출·정기결제가 바뀌면 파생값을 자동으로 다시 계산 — 갱신 지점(13곳)마다 따로 부르지 않는다.
         viewModelScope.launch {
-            combine(_spendings, _subscriptions) { _, _ -> Unit }.collect { recomputeSpendingDerived() }
+            _spendings.collect { recomputeSpendingDerived() }
         }
         observeErrors()   // 데이터 계층이 삼키던 실패를 화면으로 올린다
         observeAttendance()   // 백그라운드 자동 출석의 결과를 화면에 반영한다

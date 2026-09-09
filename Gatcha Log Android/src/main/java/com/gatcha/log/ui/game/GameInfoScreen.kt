@@ -69,12 +69,14 @@ import com.gatcha.log.ui.theme.*
 import kotlinx.coroutines.launch
 
 /** 게임정보 탭의 풀스크린 하위 페이지 (열리면 하단바·FAB 숨김) */
-private enum class GiSub { Main, HoyoLink, Dashboard, Calc, Report, Gift, Schedule, News, NewsDetail, CharStats, CharRoster, Hoyoland, GameContent, CombatClear, Attendance }
+private enum class GiSub { Main, HoyoLink, Dashboard, Report, Gift, Schedule, News, NewsDetail, CharStats, CharRoster, Hoyoland, GameContent, CombatClear, Attendance }
 
 /** 화면 전환 push/pop 방향용 계층 깊이. Main=0, 하위 페이지=1, 상세(목록서 진입)=2. */
 private fun subDepth(s: GiSub): Int = when (s) {
     GiSub.Main -> 0
-    GiSub.CharStats, GiSub.NewsDetail, GiSub.CombatClear -> 2
+    // 호요랜드는 **일정 페이지에서도** 들어온다(Schedule=1). 같은 깊이로 두면 돌아올 때도
+    // push 로 밀려, 뒤로가기인데 화면이 앞으로 나가는 것처럼 보였다.
+    GiSub.CharStats, GiSub.NewsDetail, GiSub.CombatClear, GiSub.Hoyoland -> 2
     else -> 1
 }
 
@@ -102,8 +104,6 @@ fun GameInfoScreen(
     val isRefreshing by viewModel.isRefreshing.collectAsStateWithLifecycle()
     val challenges by viewModel.challenges.collectAsStateWithLifecycle()
     val pity by viewModel.pity.collectAsStateWithLifecycle()
-    // 계산기 보유 재화 — 저축 플래너와 같은 저장소를 쓴다(한 번 넣으면 양쪽이 안다).
-    val savingsHeld by viewModel.savingsHeld.collectAsStateWithLifecycle()
     val checkingIn by viewModel.checkingIn.collectAsStateWithLifecycle()
     val attendanceStreak by viewModel.attendanceStreak.collectAsStateWithLifecycle()
     // statusMessage 토스트는 상위 HomeScreen 의 전역 GlgStatusToast 가 처리
@@ -116,7 +116,7 @@ fun GameInfoScreen(
     val spendings by viewModel.spendings.collectAsStateWithLifecycle()
     val gachaSpendByGame = remember(spendings) {
         val m = mutableMapOf<String, Long>()
-        spendings.filter { !it.isSubscription }.forEach { sp ->
+        spendings.forEach { sp ->
             val key = when (sp.gameName) {
                 "원신" -> "genshin"
                 "붕괴: 스타레일" -> "starrail"
@@ -145,6 +145,10 @@ fun GameInfoScreen(
     // 공지 상세 — 대상 글과, 뒤로 갈 위치(섹션=Main, 전체목록=News)
     var newsItem by remember { mutableStateOf<NewsItem?>(null) }
     var newsReturn by remember { mutableStateOf(GiSub.Main) }
+    // 호요랜드 상세 — 뒤로 갈 위치(섹션=Main, 일정 페이지=Schedule).
+    // 늘 Main 으로 돌아가던 시절엔 일정 페이지에서 들어간 사람이 한 번의 뒤로가기로
+    // 두 페이지를 건너뛰었다(일정 → 게임정보 메인).
+    var hoyolandReturn by remember { mutableStateOf(GiSub.Main) }
     val openNews: (NewsItem, GiSub) -> Unit = { n, from ->
         newsItem = n
         newsReturn = from
@@ -205,6 +209,7 @@ fun GameInfoScreen(
         // 호요랜드도 스크롤이 아니라 페이지 진입이다 — 홈 카드에서 온 사람이 보려는 건
         // 게임정보 목록의 그 자리가 아니라 상세 내용이다.
         if (anchor == GameInfoAnchor.HOYOLAND) {
+            hoyolandReturn = GiSub.Main
             subPage = GiSub.Hoyoland
             viewModel.consumeGameInfoAnchor()
             return@LaunchedEffect
@@ -285,16 +290,6 @@ fun GameInfoScreen(
                 onBack = { subPage = GiSub.Main },
                 onOpenStats = { c, g -> statChar = c; statCharGame = g; statReturn = GiSub.CharRoster; subPage = GiSub.CharStats },
             )
-            GiSub.Calc -> SectionPage("가챠 계산기", onBack = { subPage = GiSub.Main }) {
-                GachaCalculatorSection(
-                    pity = pity,
-                    banners = banners,
-                    held = savingsHeld,
-                    onHeldChange = { key, value -> viewModel.setHeldCurrency(key, value) },
-                    onOpenSavings = { viewModel.requestSavingsPlanner() },
-                    onOpenDashboard = { subPage = GiSub.Dashboard },
-                )
-            }
             GiSub.Report -> SectionPage("가챠 효율 리포트", onBack = { subPage = GiSub.Main }) {
                 GachaReportSection(
                     stats = gachaStats,
@@ -355,7 +350,7 @@ fun GameInfoScreen(
                     banners, events, challenges,
                     collabExpanded = collabExpanded,
                     onToggleCollab = { viewModel.setCollabBannerExpanded(!collabExpanded) },
-                    onOpenHoyoland = { subPage = GiSub.Hoyoland },
+                    onOpenHoyoland = { hoyolandReturn = GiSub.Schedule; subPage = GiSub.Hoyoland },
                     onBack = { subPage = GiSub.Main },
                     isRefreshing = isRefreshing,
                     onRefresh = { viewModel.refreshGameInfo(force = true) },
@@ -396,9 +391,7 @@ fun GameInfoScreen(
                     NewsFullContent(gameNews, newsChip, onOpen = { openNews(it, GiSub.News) })
                 }
             }
-            GiSub.Hoyoland -> SectionPage("호요랜드", onBack = { subPage = GiSub.Main }) {
-                HoyolandDetailContent()
-            }
+            GiSub.Hoyoland -> HoyolandDetailPage(onBack = { subPage = hoyolandReturn })
             GiSub.Main -> Box(Modifier.fillMaxSize()) {
             val topInset = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
             // 상단 스크림 — 콘텐츠가 헤더(버튼) 아래로 스크롤될 때만 배경색 그라데이션으로 살짝 흐린다.
@@ -466,7 +459,7 @@ fun GameInfoScreen(
             }
             // 호요랜드 — 호요버스 한국 오프라인 행사(플레이스홀더). 정보 확정 전 "준비 중" 티저.
             item { Spacer(Modifier.height(20.dp)) }
-            item { GiSection { HoyolandSection(onOpen = { subPage = GiSub.Hoyoland }) } }
+            item { GiSection { HoyolandSection(onOpen = { hoyolandReturn = GiSub.Main; subPage = GiSub.Hoyoland }) } }
             // 공지·뉴스 — 게임별 최신 공지(탭하면 HoYoLab 열기).
             item { Spacer(Modifier.height(20.dp)) }
             item {
@@ -478,9 +471,9 @@ fun GameInfoScreen(
                     )
                 }
             }
+            // 진입 카드 — 다른 섹션과 같은 20dp. 예전엔 [20 · 계산기 · 12 · 리포트] 였는데
+            // 계산기를 걷어내면서 두 여백이 붙어 32dp 가 됐다(이 카드만 아래로 떠 보였다).
             item { Spacer(Modifier.height(20.dp)) }
-            item { GiSection { NavEntryCard(Icons.Default.Calculate, "가챠 계산기", "재화 환산 · 확률 · 시나리오") { subPage = GiSub.Calc } } }
-            item { Spacer(Modifier.height(12.dp)) }
             item { GiSection { NavEntryCard(Icons.Default.BarChart, "가챠 효율 리포트", "UIGF/SRGF 분석 · 단가 · 천장 분포") { subPage = GiSub.Report } } }
             // 목록 끝에는 여백을 두지 않는다 — 탭바까지의 간격은 contentPadding 이 전담(예전엔 32dp).
         }
@@ -503,14 +496,17 @@ fun GameInfoScreen(
             // 헤더 오버레이 — 투명 바, 버튼만 불투명. 콘텐츠가 버튼 아래로 지나간다. 상태바 인셋 적용.
             Box(Modifier.align(Alignment.TopStart).fillMaxWidth().statusBarsPadding().padding(horizontal = 16.dp)) {
                 GlgTabHeader("") {
-                    // 순서: 새로고침 → 리딤코드 → 설정.
+                    // 순서: 새로고침 → 리딤코드 → HoYoLAB 연동.
+                    // 연동 버튼에 톱니를 쓰면 마이페이지의 '설정'과 같은 아이콘이 되어, 같은 곳으로
+                    // 가는 줄 안다. 여기서 여는 건 앱 설정이 아니라 **HoYoLAB 쿠키를 넣는 곳**이라
+                    // 열쇠를 쓴다(앱 안에서 이 아이콘은 여기뿐이다).
                     GlgCircleIconButton(Icons.Default.Refresh, "새로고침", enabled = !isRefreshing, outlined = true, solidBackground = true) {
                         viewModel.refreshGameInfo(force = true)
                     }
                     if (hoyolab.isLinked) {
                         GlgCircleIconButton(Icons.Default.Redeem, "리딤코드", outlined = true, solidBackground = true) { subPage = GiSub.Gift }
                     }
-                    GlgCircleIconButton(Icons.Default.Settings, "HoYoLAB 설정", outlined = true, solidBackground = true) {
+                    GlgCircleIconButton(Icons.Default.Key, "HoYoLAB 연동", outlined = true, solidBackground = true) {
                         subPage = GiSub.HoyoLink
                     }
                 }
@@ -565,9 +561,14 @@ private fun NavEntryCard(
     }
 }
 
-/** 페이지로 분류된 섹션 래퍼 — 뒤로가기 + 섹션 자체 콘텐츠 스크롤. (섹션 내부 헤더 사용) */
+/**
+ * 페이지로 분류된 섹션 래퍼 — 뒤로가기 + 섹션 자체 콘텐츠 스크롤. (섹션 내부 헤더 사용)
+ *
+ * 홈도 쓴다(호요랜드 배너 → 상세). 홈에서 같은 모양의 래퍼를 따로 만들면 헤더 높이·스크롤
+ * 연동이 두 벌이 되므로 여기 하나를 공유한다.
+ */
 @Composable
-private fun SectionPage(
+internal fun SectionPage(
     title: String,
     onBack: () -> Unit,
     /** 헤더 우측 액션(공유·브라우저 등). 없으면 제목만. */

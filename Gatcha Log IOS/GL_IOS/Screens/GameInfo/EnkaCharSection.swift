@@ -1049,8 +1049,9 @@ struct EnkaStatPageBody: View {
     @ViewBuilder
     private var heroPills: some View {
         let role = char.path.isEmpty ? char.specialty : char.path
-        HStack(spacing: 5) {
-            heroPill(enkaGameLabel(game))
+        HStack(spacing: 6) {
+            // 게임 이름 칩은 여기 있었다. 캐릭터 상세는 그 게임의 로스터에서 들어오는 화면이라
+            // **어느 게임인지는 이미 알고 들어온다.** 칩 넷 중 하나를 그 말에 쓰지 않는다.
             if !char.element.isEmpty { heroPill(char.element) }
             heroPill("Lv. \(char.level)")
             if !role.isEmpty { heroPill(role) }
@@ -1058,11 +1059,13 @@ struct EnkaStatPageBody: View {
     }
 
     private func heroPill(_ text: String) -> some View {
+        // 히어로에서 이 칩이 캐릭터를 설명하는 유일한 줄이다(게임·속성·레벨·역할).
+        // 10.5 는 이름(27)·요약 줄에 눌려 부속처럼 읽혔다 — 읽으라고 둔 것이므로 키운다.
         Text(text)
-            .font(.pretendard(size: 10.5, weight: .bold))
+            .font(.pretendard(size: 12.5, weight: .bold))
             .foregroundStyle(heroInk)
             .lineLimit(1)
-            .padding(.horizontal, 10).padding(.vertical, 3.5)
+            .padding(.horizontal, 13).padding(.vertical, 5.5)
             .background(Color.white.opacity(0.75), in: Capsule())
     }
 

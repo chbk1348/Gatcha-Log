@@ -93,6 +93,10 @@ struct HoyolandDetailView: View {
     @State private var event: HoyolandEvent = HoyolandApi.shared.current
     /// 선택된 날짜 칸. 행사 중이면 오늘부터 — 현장에서 첫날이 선택돼 있으면 매번 한 번 더 눌러야 한다.
     @State private var selectedDay: Int = Int(HoyolandApi.shared.current.defaultDayIndex(nowMillis: nowMs()))
+    /// 무대 게임 필터 — 라이브 카드는 걸지 않는다(목록만 거른다). 날짜를 바꾸면 푼다.
+    @State private var stageFilter: String? = nil
+    /// NOW LIVE 점 깜빡임 — onAppear 에서 켠다(그래야 repeatForever 가 붙는다).
+    @State private var livePulse = false
 
     var body: some View {
         let e = event
@@ -101,9 +105,25 @@ struct HoyolandDetailView: View {
                 heroCard(e)
                 ticketSection(e)
                 timetableSection(e)
-                lineupSection(e)
+                // ── 굿즈샵 · 부스 체험 — 현장에서 **돈과 시간을 쓰는 두 가지**라 각각 페이지를
+                // 준다. 여기 목록으로 펼치면 무대 시간표만큼 길어져 본론(언제·어디서)을 밀어낸다.
+                HStack(spacing: 10) {
+                    NavigationLink { HoyolandGoodsView(event: event) } label: {
+                        subEntryCard("굿즈샵",
+                                     event.goodsPriceRange().isEmpty ? "판매 목록 공개 전" : event.goodsPriceRange(),
+                                     "bag.fill")
+                    }
+                    .buttonStyle(.plain)
+                    NavigationLink { HoyolandBoothView(event: event) } label: {
+                        subEntryCard("부스 체험",
+                                     event.booths.isEmpty ? "부스 정보 공개 전"
+                                                          : "\(event.booths.count)곳 · 게임별 체험존",
+                                     "storefront.fill")
+                    }
+                    .buttonStyle(.plain)
+                }
+                .padding(.top, 20)
                 programSection(e)
-                gstarSection(e)
                 pastSection(e)
 
                 Text(e.notice)
@@ -119,6 +139,29 @@ struct HoyolandDetailView: View {
         .background(GLGBackground { Color.clear })
         .glgPageTitle("호요랜드")
         .navigationBarTitleDisplayMode(.inline)
+        // 지스타는 별개 행사인데다 참가사 명단이 순차 공개돼 내용이 계속 자란다. 본문 중간에
+        // 얹혀 있으면 호요랜드를 보러 온 사람의 스크롤을 가로막는다 — 헤더 버튼으로 빼서
+        // **볼 사람만** 들어가게 한다. (Android `HoyolandDetailPage` 와 파리티)
+        .toolbar {
+            if !e.gstar.isEmpty {
+                ToolbarItem(placement: .topBarTrailing) {
+                    // 아이콘 하나로는 "지스타"가 읽히지 않아 글자를 쓴다. 셰브론은 "여기서 끝나는
+                    // 버튼이 아니라 다음 페이지"라는 표시다.
+                    //
+                    // 색만 강조색을 따르지 않는다 — 지스타는 이 앱의 기능이 아니라 **바깥 행사**라,
+                    // 테마색을 입히면 앱이 미는 자리처럼 보인다. 먹색 하나로 고정한다.
+                    NavigationLink { GstarDetailView() } label: {
+                        HStack(spacing: 1) {
+                            Text("G-STAR").font(.pretendard(size: 12, weight: .black))
+                                .foregroundStyle(GLGColor.textPrimary)
+                            Image(systemName: "chevron.right").font(.system(size: 11, weight: .semibold))
+                                .foregroundStyle(GLGColor.textSecondary)
+                        }
+                    }
+                    .tint(GLGColor.textPrimary)
+                }
+            }
+        }
         .loadHoyoland(into: $event)
     }
 
@@ -188,6 +231,22 @@ struct HoyolandDetailView: View {
                 factRow("장소", e.venueFull)
                 Spacer().frame(height: 8)
                 factRow("주소", e.venueAddress)
+                // ── 참여 게임 — 아래 독립 섹션이었던 것을 여기로 들였다. "어느 게임이 오나"는
+                // 이 행사의 **기본 정보**라 일정·장소와 같은 카드에 있어야 하고, 세로 목록으로
+                // 늘어놓으면 다섯 줄이 카드 하나를 통째로 먹었다. 두 칸 그리드로 접는다.
+                if !e.lineup.isEmpty {
+                    Divider().padding(.vertical, 14)
+                    Text("참여 게임").font(.pretendard(size: 11.5, weight: .bold))
+                        .foregroundStyle(GLGColor.textSecondary).padding(.bottom, 9)
+                    // **한 줄에 전부.** 두 줄 그리드는 카드에서 차지하는 덩이가 커서, 일정·장소와
+                    // 같은 무게가 됐다. 여기서 필요한 건 "어느 게임이 오나"의 목록 자체지 게임별
+                    // 설명이 아니다 — 테마는 무대 시간표에서 읽힌다.
+                    HStack(spacing: 6) {
+                        ForEach(Array(e.lineup.enumerated()), id: \.offset) { _, item in
+                            lineupTile(item)
+                        }
+                    }
+                }
                 if let url = hoyoURL(e.mapUrl) {
                     Link(destination: url) {
                         Text("지도에서 보기").font(.pretendard(size: 14, weight: .semibold))
@@ -284,68 +343,267 @@ struct HoyolandDetailView: View {
         let ymds = e.dayYmds
         if !ymds.isEmpty {
             let ymd = ymds[min(selectedDay, ymds.count - 1)]
-            let slots = e.slotsFor(ymd: ymd)
+            let stage = e.stageSlots(ymd: ymd, nowMillis: nowMs())
+            let games = e.stageGames(ymd: ymd)
+            let live = stage.first { $0.state == .live }
+            let next = stage.first { $0.state == .upcoming }
+            let shown = stage.filter { stageFilter == nil || $0.slot.game == stageFilter }
 
-            Text("일자별 시간표").font(.pretendard(size: 16, weight: .bold))
-                .padding(.top, 20).padding(.bottom, 10)
+            Text("일자별 시간표").font(.pretendard(size: 16, weight: .bold)).padding(.top, 20)
+            Text("메인 무대 공연 편성").font(.pretendard(size: 11.5))
+                .foregroundStyle(GLGColor.textSecondary).padding(.top, 2).padding(.bottom, 10)
             // 날짜 선택은 **한 덩어리 탭**이다. 칩 넷을 나란히 두면 서로 독립된 버튼처럼 보여
             // "이 중 하나가 지금 보고 있는 날"이라는 게 약하게 읽힌다.
-            // 게임 일정 페이지(GameSchedulePage)의 일정/주년 전환과 같은 규격을 쓴다.
-            Picker("날짜", selection: $selectedDay.animation(.easeInOut(duration: 0.18))) {
-                ForEach(Array(ymds.enumerated()), id: \.offset) { i, d in
-                    Text(e.dayTabLabel(ymd: d)).tag(i)
-                }
-            }
-            .pickerStyle(.segmented)
+            // 요일은 날짜 **아래 온말**로 — "(금)" 처럼 괄호 한 글자로 붙이면 날짜에 딸린
+            // 기호처럼 읽힌다. 주말이 언제인지가 이 화면의 첫 질문이라 같은 무게로 세운다.
+            GLGSegmentedTabs(
+                labels: ymds.map { e.dayTabDate(ymd: $0) },
+                subLabels: ymds.map { e.dayTabWeekday(ymd: $0) },
+                selection: $selectedDay
+            )
             .padding(.bottom, 10)
-            GLGCard(cornerRadius: 24, padding: 16) {
-                VStack(alignment: .leading, spacing: 0) {
-                    if slots.isEmpty {
-                        Text(e.hasTimetable ? "이 날의 프로그램은 아직 공개되지 않았습니다."
-                                            : "일자별 프로그램은 아직 공개 전입니다.")
-                            .font(.pretendard(size: 13, weight: .medium))
-                            .foregroundStyle(GLGColor.textPrimary)
-                        Text("공개되면 이 자리에 채워집니다. 지난 행사는 개막 2~3주 전에 공개됐습니다.")
-                            .font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary)
-                            .fixedSize(horizontal: false, vertical: true)
-                            .padding(.top, 4)
-                    } else {
-                        ForEach(Array(slots.enumerated()), id: \.offset) { i, slot in
-                            if i > 0 { Divider().padding(.vertical, 10) }
-                            HStack(alignment: .top, spacing: 0) {
-                                Text(slot.time).font(.pretendard(size: 12))
-                                    .monospacedDigit()   // 시각이 세로로 맞아떨어지게
-                                    .foregroundStyle(GLGColor.textSecondary)
-                                    .frame(width: 56, alignment: .leading)
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(slot.title).font(.pretendard(size: 13, weight: .bold))
-                                        .foregroundStyle(GLGColor.textPrimary)
-                                    if !slot.desc.isEmpty {
-                                        Text(slot.desc).font(.pretendard(size: 12))
-                                            .foregroundStyle(GLGColor.textSecondary)
-                                            .fixedSize(horizontal: false, vertical: true)
-                                    }
-                                }
-                                Spacer(minLength: 0)
-                            }
+            .onChange(of: selectedDay) { _, _ in stageFilter = nil }
+
+            if stage.isEmpty {
+                stageEmptyCard(e)
+            } else {
+                // ── 라이브 카드 — 지금 무대에서 하는 것과 바로 다음.
+                //
+                // **필터에 걸리지 않는다.** 지금 무대에서 벌어지는 일은 내가 고른 게임과 상관없이
+                // 알아야 한다(그래서 필터 칩도 이 카드 **아래**에 둔다 — 거는 대상이 목록뿐임이
+                // 눈에 보이게).
+                if let live {
+                    stageLiveCard(e, live, next).padding(.bottom, 12)
+                }
+                // ── 게임 필터 — 그날 무대에 오르는 게임만. 하나뿐이면 고를 것이 없어 줄을 안 그린다.
+                //
+                // 배타 선택은 앱 전체가 세그먼트 탭 규격이다(날짜 탭과 같은 것). 칩을 나란히 두면
+                // 서로 독립된 버튼처럼 보여 "이 중 하나가 지금 보고 있는 것"이 약하게 읽힌다.
+                if games.count > 1 {
+                    // 고른 칸이 **그 게임 색**으로 찬다 — 목록의 배지와 같은 색이라 규칙이 안 어긋난다.
+                    GLGSegmentedTabs(
+                        labels: ["전체"] + games.map { e.stageLabel(game: $0) },
+                        // '전체'는 게임색이 없다 — 앱 강조색을 쓴다(먹색으로 두면 이 칸만 딴 물건이 된다).
+                        selectedColors: [accent.primary] + games.map { stageColor(e, $0) },
+                        selection: Binding(
+                            get: { stageFilter.flatMap { games.firstIndex(of: $0).map { $0 + 1 } } ?? 0 },
+                            set: { stageFilter = $0 == 0 ? nil : games[$0 - 1] }
+                        )
+                    )
+                    .padding(.bottom, 10)
+                }
+                GLGCard(cornerRadius: 24, padding: 0) {
+                    VStack(alignment: .leading, spacing: 0) {
+                        ForEach(Array(shown.enumerated()), id: \.offset) { i, item in
+                            if i > 0 { Divider() }
+                            stageRow(e, item, isLive: item.state == .live)
                         }
                     }
+                    .padding(.vertical, 4)
                 }
             }
         }
     }
 
-    // ── 참여 게임 — 게임마다 테마가 따로 붙는다. 공식 키비주얼은 아직 게임별로 안 나와서
-    // 썸네일 자리는 게임 대표색 칩으로 둔다(공개되면 이 자리를 이미지로 바꾼다).
-    @ViewBuilder private func lineupSection(_ e: HoyolandEvent) -> some View {
-        Text("참여 게임").font(.pretendard(size: 16, weight: .bold)).padding(.top, 20).padding(.bottom, 10)
+    /// 시간표가 아직 없는 날 — 빈 카드가 아니라 **언제 채워지는지**를 말한다.
+    @ViewBuilder private func stageEmptyCard(_ e: HoyolandEvent) -> some View {
         GLGCard(cornerRadius: 24, padding: 16) {
-            VStack(spacing: 0) {
-                ForEach(Array(e.lineup.enumerated()), id: \.offset) { i, item in
-                    if i > 0 { Divider().padding(.vertical, 12) }
-                    lineupRow(item)
+            VStack(alignment: .leading, spacing: 5) {
+                Text(e.hasTimetable ? "이 날 무대 편성은 아직이에요" : "무대 편성은 아직 공개 전이에요")
+                    .font(.pretendard(size: 14, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
+                Text("공개되면 게임별 무대 순서와 시각이 이 자리에 채워져요.\n지난 행사는 개막 2~3주 전에 나왔어요.")
+                    .font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+    }
+
+    /// 무대 배지·띠 색 — 참가 게임 목록이 정본. 없으면 회색('전 IP').
+    private func stageColor(_ e: HoyolandEvent, _ game: String) -> Color {
+        let raw = e.stageColor(game: game)
+        return raw == 0 ? Color(hex: 0xFF98A0AB) : Color(argb64: raw)
+    }
+
+    /**
+     지금 무대에서 — 배경색이 **그 무대의 게임색**을 입는다(공통 무대면 먹색).
+     현장 화면의 본론이라 화면 위쪽 한 장을 통째로 준다.
+     */
+    @ViewBuilder private func stageLiveCard(_ e: HoyolandEvent, _ live: StageSlot, _ next: StageSlot?) -> some View {
+        let raw = e.stageColor(game: live.slot.game)
+        let base = raw == 0 ? Color(hex: 0xFF39204E) : Color(argb64: raw)
+        ZStack {
+            LinearGradient(colors: [glgMix(base, .black, 0.22), glgMix(base, .white, 0.06)],
+                           startPoint: .topLeading, endPoint: .bottomTrailing)
+            GeometryReader { _ in
+                Color.clear.overlay(alignment: .topTrailing) {
+                    Circle()
+                        .fill(RadialGradient(colors: [.white.opacity(0.22), .clear],
+                                             center: .center, startRadius: 0, endRadius: 75))
+                        .frame(width: 150, height: 150).offset(x: 40, y: -52)
                 }
             }
+            VStack(alignment: .leading, spacing: 0) {
+                HStack(spacing: 7) {
+                    // NOW LIVE — 카드에서 가장 먼저 읽혀야 하는 한 마디다. 배경이 게임색이라
+                    // 흰 반투명 배지로는 묻힌다. **붉은 면**으로 채우고 점을 깜빡여 시선을 잡는다.
+                    HStack(spacing: 6) {
+                        Circle().fill(.white).frame(width: 7, height: 7)
+                            .opacity(livePulse ? 0.25 : 1)
+                            .animation(.easeInOut(duration: 0.76).repeatForever(autoreverses: true), value: livePulse)
+                        Text("NOW LIVE").font(.pretendard(size: 12, weight: .black))
+                            .foregroundStyle(.white).kerning(0.7)
+                    }
+                    .padding(.horizontal, 11).padding(.vertical, 6)
+                    .background(GLGLiveRed, in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+                    .onAppear { livePulse = true }
+                    // 게임 배지는 **칸 반대쪽 끝**으로 — 두 배지가 붙어 있으면 어느 쪽이 무엇인지
+                    // 한 덩이로 뭉쳐 읽힌다. NOW LIVE 와 같은 크기로 양쪽 어깨를 맞춘다.
+                    Spacer(minLength: 8)
+                    if !live.slot.game.isEmpty {
+                        // 카드는 한 장뿐이고 폭도 넉넉하다 — 여기서는 온이름을 쓴다.
+                        Text(e.stageFullName(game: live.slot.game))
+                            .font(.pretendard(size: 12, weight: .black)).foregroundStyle(base)
+                            .padding(.horizontal, 11).padding(.vertical, 6)
+                            .background(.white.opacity(0.92), in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+                    }
+                }
+                // 무대명은 자르지 않는다 — 이 카드의 본론이고, 공연명은 길어야 두 줄이다.
+                Text(live.slot.title)
+                    .font(.pretendard(size: 17.5, weight: .black)).foregroundStyle(.white)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.top, 9)
+                Text([live.rangeLabel.isEmpty ? nil : live.rangeLabel,
+                      live.remainMin > 0 ? "\(live.remainMin)분 남음" : nil]
+                        .compactMap { $0 }.joined(separator: " · "))
+                    .font(.pretendard(size: 11.5)).foregroundStyle(.white.opacity(0.85)).padding(.top, 4)
+                if !live.slot.cast.isEmpty {
+                    Text("출연 · \(live.slot.cast)")
+                        .font(.pretendard(size: 11.5, weight: .medium))
+                        .foregroundStyle(.white.opacity(0.92)).padding(.top, 3)
+                }
+                // 진행 막대 — 공연은 길이가 있다. 시작 시각만으로는 놓친 건지 아직인지 모른다.
+                GeometryReader { g in
+                    ZStack(alignment: .leading) {
+                        Capsule().fill(.white.opacity(0.24))
+                        Capsule().fill(.white)
+                            .frame(width: g.size.width * CGFloat(max(0, min(1, live.progress))))
+                    }
+                }
+                .frame(height: 4).padding(.top, 11)
+                if let next {
+                    Rectangle().fill(.white.opacity(0.20)).frame(height: 1).padding(.top, 12)
+                    HStack(spacing: 7) {
+                        Text("다음").font(.pretendard(size: 10.5, weight: .bold))
+                            .foregroundStyle(.white.opacity(0.72))
+                        if !next.slot.game.isEmpty {
+                            Text(e.stageLabel(game: next.slot.game))
+                                .font(.pretendard(size: 9.5, weight: .black)).foregroundStyle(.white)
+                                .padding(.horizontal, 6).padding(.vertical, 2)
+                                .background(stageColor(e, next.slot.game),
+                                            in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+                        }
+                        Text(next.slot.title).font(.pretendard(size: 12, weight: .bold))
+                            .foregroundStyle(.white)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        Spacer(minLength: 8)
+                        Text(next.slot.time).font(.pretendard(size: 11.5, weight: .black))
+                            .foregroundStyle(.white.opacity(0.85))
+                    }
+                    .padding(.top, 11)
+                }
+            }
+            .padding(.horizontal, 16).padding(.vertical, 15)
+        }
+        .fixedSize(horizontal: false, vertical: true)
+        .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+    }
+
+    /// 무대 한 줄 — [시각 · 게임 배지] | 제목 · 설명 · 출연. 지난 편은 흐리게.
+    @ViewBuilder private func stageRow(_ e: HoyolandEvent, _ item: StageSlot, isLive: Bool) -> some View {
+        let c = stageColor(e, item.slot.game)
+        let sub = [item.slot.desc.isEmpty ? nil : item.slot.desc,
+                   item.slot.minutes > 0 ? "\(item.slot.minutes)분" : nil]
+                    .compactMap { $0 }.joined(separator: " · ")
+        HStack(alignment: .center, spacing: 0) {
+            // 좌측 열은 **자기 칸 정중앙**에 놓는다 — 시각·배지 폭이 게임마다 달라 왼쪽 정렬로
+            // 두면 줄마다 들쭉날쭉해 보인다. 게임은 배지로 — 시각과 같은 무게의 맨글자로 두면
+            // 둘이 한 덩이로 뭉쳐 "14:00 스타레일"이 한 줄처럼 읽힌다.
+            VStack(spacing: 4) {
+                // 진행 중인 줄의 시각은 **먹색**으로 진하게 — 게임색으로 칠하면 바로 아래 배지와
+                // 같은 색이 되어 둘이 한 덩이로 뭉치고, 색이 곧 게임이라는 규칙도 흐려진다.
+                Text(item.slot.time)
+                    .font(.pretendard(size: 12, weight: isLive ? .black : .bold)).monospacedDigit()
+                    .foregroundStyle(isLive ? GLGColor.textPrimary : GLGColor.textSecondary)
+                Text(e.stageLabel(game: item.slot.game))
+                    .font(.pretendard(size: 9.5, weight: .black)).foregroundStyle(c).lineLimit(1)
+                    .padding(.horizontal, 5).padding(.vertical, 2.5)
+                    .background(c.opacity(0.14), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+            }
+            .frame(width: 58)
+            // 세로 구분선 — 시각·게임(언제·누구)과 공연 내용(무엇)을 가른다. 라이브 카드의
+            // 큰 숫자 옆 구분선과 같은 규칙이다.
+            Rectangle().fill(.black.opacity(0.06))
+                .frame(width: 1, height: item.slot.cast.isEmpty ? 30 : 42)
+                .padding(.horizontal, 12)
+            VStack(alignment: .leading, spacing: 0) {
+                Text(item.slot.title).font(.pretendard(size: 13, weight: .bold))
+                    .foregroundStyle(GLGColor.textPrimary)
+                    .fixedSize(horizontal: false, vertical: true)
+                if !sub.isEmpty {
+                    Text(sub).font(.pretendard(size: 11.5))
+                        .foregroundStyle(GLGColor.textSecondary).padding(.top, 2)
+                }
+                // 출연자 — 무대를 고르는 기준이 공연명보다 출연자일 때가 많다(성우 무대가 특히).
+                if !item.slot.cast.isEmpty {
+                    Text("출연 · \(item.slot.cast)")
+                        .font(.pretendard(size: 11, weight: .medium))
+                        .foregroundStyle(c).padding(.top, 3)
+                }
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(.leading, 16).padding(.trailing, 14)
+        .padding(.vertical, 11)
+        .opacity(item.state == .done ? 0.40 : 1)
+    }
+
+    /**
+     참여 게임 한 칸(그리드) — 게임색 면 + 이름 + 테마.
+
+     공식 키비주얼이 게임별로 나오기 전이라 썸네일 자리를 색면으로 대신한다.
+     공개되면 이 칸의 배경을 이미지로 바꾸면 된다(칸 크기는 그대로 쓸 수 있게 고정 높이).
+     */
+    @ViewBuilder private func lineupTile(_ item: HoyolandLineup) -> some View {
+        let c = item.colorArgb != 0 ? Color(argb64: item.colorArgb)
+                                    : Color(argb64: GameData.shared.colorFor(name: item.game))
+        // 다섯 칸이 한 줄에 들어가야 해서 폭이 좁다 — 두 줄까지 접고 글자를 줄인다.
+        Text(GameData.shared.byNameOrNull(name: item.game)?.shortName ?? item.game)
+            .font(.pretendard(size: 9.5, weight: .black)).foregroundStyle(c)
+            .multilineTextAlignment(.center).lineLimit(2)
+            .padding(.horizontal, 4)
+            .frame(maxWidth: .infinity, minHeight: 40)
+            .background(c.opacity(0.10), in: RoundedRectangle(cornerRadius: 11, style: .continuous))
+    }
+
+    /// 상세 하단 진입 카드 — 굿즈샵·부스 체험 두 장을 나란히.
+    @ViewBuilder private func subEntryCard(_ title: String, _ sub: String, _ icon: String) -> some View {
+        GLGCard(cornerRadius: 24, padding: 14) {
+            VStack(alignment: .leading, spacing: 0) {
+                Image(systemName: icon).font(.system(size: 17))
+                    .foregroundStyle(accent.primary)
+                    .frame(width: 34, height: 34)
+                    .background(accent.primary.opacity(0.12),
+                                in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                Text(title).font(.pretendard(size: 14, weight: .bold))
+                    .foregroundStyle(GLGColor.textPrimary).padding(.top, 10)
+                Text(sub).font(.pretendard(size: 11)).foregroundStyle(GLGColor.textSecondary)
+                    .lineLimit(2).fixedSize(horizontal: false, vertical: true).padding(.top, 3)
+                Spacer(minLength: 0)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 
@@ -368,57 +626,6 @@ struct HoyolandDetailView: View {
                             }
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                }
-            }
-        }
-    }
-
-    // ── 지스타 — 호요랜드와 **별개 행사**지만, 호요버스가 나오는 국내 오프라인 자리라 여기 둔다.
-    // 내용은 전부 shared 의 HoyolandGstar 에서 온다(참가사 명단이 순차 공개돼 자주 바뀐다).
-    @ViewBuilder private func gstarSection(_ e: HoyolandEvent) -> some View {
-        let g = e.gstar
-        if !g.isEmpty {
-            HStack(spacing: 8) {
-                Text(g.title).font(.pretendard(size: 16, weight: .bold))
-                    .foregroundStyle(GLGColor.textPrimary)
-                if !g.badge.isEmpty { hoyoBadge(g.badge, accent.primary) }
-                Spacer(minLength: 0)
-            }
-            .padding(.top, 20).padding(.bottom, 10)
-            GLGCard(cornerRadius: 24, padding: 16) {
-                VStack(alignment: .leading, spacing: 0) {
-                    ForEach(Array(g.facts.enumerated()), id: \.offset) { i, f in
-                        if i > 0 { Spacer().frame(height: 8) }
-                        factRow(f.label, f.value)
-                    }
-                    // 출품작 — 팩트 목록과 같은 카드에 두되 구분선으로 끊는다. 라벨+값이 아니라
-                    // 게임 태그가 붙는 줄이라 위와 생김새가 다르고, 따로 카드를 세울 만큼 길지도 않다.
-                    if !g.lineup.isEmpty {
-                        Divider().padding(.vertical, 14)
-                        Text("호요버스 출품작").font(.pretendard(size: 13, weight: .bold))
-                            .foregroundStyle(GLGColor.textPrimary)
-                            .padding(.bottom, 10)
-                        ForEach(Array(g.lineup.enumerated()), id: \.offset) { i, item in
-                            if i > 0 { Spacer().frame(height: 10) }
-                            lineupRow(item)
-                        }
-                    }
-                    if let url = hoyoURL(g.url) {
-                        Link(destination: url) {
-                            Text("공식 사이트").font(.pretendard(size: 14, weight: .semibold))
-                                .foregroundStyle(accent.primary).frame(maxWidth: .infinity)
-                                .padding(.vertical, 12)
-                                .overlay(RoundedRectangle(cornerRadius: 23, style: .continuous)
-                                    .stroke(accent.primary.opacity(0.5), lineWidth: 1))
-                        }
-                        .padding(.top, 14)
-                    }
-                    if !g.notice.isEmpty {
-                        Text(g.notice).font(.pretendard(size: 11))
-                            .foregroundStyle(GLGColor.textSecondary)
-                            .fixedSize(horizontal: false, vertical: true)
-                            .padding(.top, 10)
                     }
                 }
             }
@@ -458,11 +665,163 @@ struct HoyolandDetailView: View {
 
 // MARK: - 홈·일정 탭 진입점
 
+/// NOW LIVE 배지 색 — 게임색 위에서도 읽히는 단 하나의 고정색(앱의 '임박' 주황과 같은 계열).
+private let GLGLiveRed = Color(hex: 0xFFE8634A)
+
 /**
- 호요랜드 홈 카드 — 개막이 가까울 때(D-60 이내)만 뜨는 **한시적** 카드.
+ 지스타(G-STAR) — 호요랜드와 **별개 행사**지만, 호요버스가 나오는 국내 오프라인 자리라
+ 같은 페이지 묶음에서 다룬다. 내용은 전부 shared 의 `HoyolandGstar` 에서 온다
+ (참가사 명단이 순차 공개돼 자주 바뀐다). Android `GstarDetailContent` 와 같은 규격.
+ */
+struct GstarDetailView: View {
+    @Environment(\.glgAccent) private var accent
+    @State private var event: HoyolandEvent = HoyolandApi.shared.current
+
+    var body: some View {
+        let g = event.gstar
+        ScrollView {
+            VStack(alignment: .leading, spacing: 0) {
+                if g.isEmpty {
+                    Text("아직 공개된 정보가 없어요.")
+                        .font(.pretendard(size: 13)).foregroundStyle(GLGColor.textSecondary)
+                        .padding(.top, 8)
+                } else {
+                    heroCard(g)
+                    lineupSection(g)
+                    partnerSection(g)
+                    otherFactSection(g)
+                    if let url = hoyoURL(g.url) {
+                        Link(destination: url) {
+                            Text("공식 사이트").font(.pretendard(size: 14, weight: .semibold))
+                                .foregroundStyle(accent.primary).frame(maxWidth: .infinity)
+                                .padding(.vertical, 12)
+                                .overlay(RoundedRectangle(cornerRadius: 23, style: .continuous)
+                                    .stroke(accent.primary.opacity(0.5), lineWidth: 1))
+                        }
+                        .padding(.top, 20)
+                    }
+                    if !g.notice.isEmpty {
+                        Text(g.notice).font(.pretendard(size: 11))
+                            .foregroundStyle(GLGColor.textSecondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .padding(.top, 12)
+                    }
+                }
+                Color.clear.frame(height: 24)
+            }
+            .padding(.horizontal, 16)
+            .glgReadableWidth(720)
+        }
+        .scrollIndicators(.hidden)
+        .background(GLGBackground { Color.clear })
+        .glgPageTitle(event.gstar.title.isEmpty ? "G-STAR" : event.gstar.title)
+        .navigationBarTitleDisplayMode(.inline)
+        .loadHoyoland(into: $event)
+    }
+
+    // ── 히어로 — 호요랜드 상세와 같은 짜임(남은 날짜를 숫자 그 자체로). 대신 이 페이지는
+    // 부속 행사라 한 단계 작다. 강조색을 쓰지 않는 것도 같은 이유다 — 앱이 미는 자리가 아니다.
+    @ViewBuilder private func heroCard(_ g: HoyolandGstar) -> some View {
+        let brief = g.homeBrief(nowMillis: nowMs())
+        GLGCard(cornerRadius: 24, padding: 16) {
+            VStack(alignment: .leading, spacing: 0) {
+                HStack(spacing: 8) {
+                    Text(g.title).font(.pretendard(size: 17, weight: .black))
+                        .foregroundStyle(GLGColor.textPrimary)
+                    Spacer(minLength: 0)
+                    if let brief {
+                        Text(brief.dday).font(.pretendard(size: 13, weight: .black))
+                            .foregroundStyle(GLGColor.textPrimary)
+                            .padding(.horizontal, 9).padding(.vertical, 4)
+                            .background(.black.opacity(0.06), in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+                    }
+                }
+                // 3칸 — 이 행사에서 먼저 궁금한 것만. 나머지는 아래 목록으로 내린다.
+                HStack(spacing: 0) {
+                    gstarStat("기간", g.periodShort, g.dayCountLabel)
+                    Rectangle().fill(Color.black.opacity(0.06)).frame(width: 1, height: 34)
+                    gstarStat("장소", g.venueShort, "")
+                    Rectangle().fill(Color.black.opacity(0.06)).frame(width: 1, height: 34)
+                    gstarStat("규모", g.scaleLabel, "")
+                }
+                .padding(.top, 12)
+            }
+        }
+    }
+
+    private func gstarStat(_ label: String, _ value: String, _ sub: String) -> some View {
+        VStack(spacing: 0) {
+            Text(label).font(.pretendard(size: 10.5)).foregroundStyle(GLGColor.textSecondary)
+            Text(value).font(.pretendard(size: 12.5, weight: .bold))
+                .foregroundStyle(GLGColor.textPrimary).lineLimit(1).padding(.top, 4)
+            if !sub.isEmpty {
+                Text(sub).font(.pretendard(size: 10)).foregroundStyle(GLGColor.textSecondary).padding(.top, 2)
+            }
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    // ── 호요버스 출품작 — 이 페이지를 여는 이유다. 팩트 목록에 끼워 두지 않고 제 자리를 준다.
+    @ViewBuilder private func lineupSection(_ g: HoyolandGstar) -> some View {
+        if !g.lineup.isEmpty {
+            Text("호요버스 출품작").font(.pretendard(size: 16, weight: .bold))
+                .padding(.top, 20).padding(.bottom, 10)
+            GLGCard(cornerRadius: 24, padding: 16) {
+                VStack(alignment: .leading, spacing: 0) {
+                    ForEach(Array(g.lineup.enumerated()), id: \.offset) { i, item in
+                        if i > 0 { Divider().padding(.vertical, 12) }
+                        lineupRow(item)
+                    }
+                }
+            }
+        }
+    }
+
+    // ── 함께 참가 — 일곱 곳이 "·" 로 이어진 한 줄은 읽히지 않는다. 칩으로 흩어 놓는다.
+    @ViewBuilder private func partnerSection(_ g: HoyolandGstar) -> some View {
+        if !g.partners.isEmpty {
+            Text("함께 참가").font(.pretendard(size: 16, weight: .bold))
+                .padding(.top, 20).padding(.bottom, 10)
+            GLGCard(cornerRadius: 24, padding: 16) {
+                FlowLayout(spacing: 7, lineSpacing: 7) {
+                    ForEach(g.partners, id: \.self) { name in
+                        Text(name).font(.pretendard(size: 12, weight: .medium))
+                            .foregroundStyle(GLGColor.textPrimary)
+                            .padding(.horizontal, 10).padding(.vertical, 6)
+                            .background(.black.opacity(0.045), in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+                    }
+                }
+            }
+        }
+    }
+
+    // ── 그 밖의 정보 — 원격이 항목을 더해도 여기로 흘러 들어온다(화면이 라벨을 몰라도 안 빠진다).
+    @ViewBuilder private func otherFactSection(_ g: HoyolandGstar) -> some View {
+        if !g.otherFacts.isEmpty {
+            Text("그 밖의 정보").font(.pretendard(size: 16, weight: .bold))
+                .padding(.top, 20).padding(.bottom, 10)
+            GLGCard(cornerRadius: 24, padding: 16) {
+                VStack(alignment: .leading, spacing: 0) {
+                    ForEach(Array(g.otherFacts.enumerated()), id: \.offset) { i, f in
+                        if i > 0 { Spacer().frame(height: 9) }
+                        factRow(f.label, f.value)
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ 호요랜드 홈 카드 — 개막이 가까울 때(D-60 이내)만 뜨는 **한시적 광고 배너**.
 
  상시 카드로 두지 않는 이유: 1년에 나흘 하는 행사라, 평소엔 홈에서 한 칸을 차지한 채
- 아무것도 알려주지 않는다. Android `DashHoyolandCard` 와 같은 규격.
+ 아무것도 알려주지 않는다.
+
+ 배너의 주인공은 **남은 날짜**다. 큰 숫자 하나가 "언제인가"에 즉답하고, 나머지(행사명·기간·
+ 장소)는 그 옆에서 거든다. 배경은 그라디언트 + 장식 광채라 카드 목록에서 혼자 떠오른다.
+ 섹션 제목·「자세히」를 달지 않는다 — 배너 전체가 이미 탭 영역이다.
+ Android `DashHoyolandCard` 와 같은 규격.
  */
 struct HoyolandHomeCard: View {
     var onTap: () -> Void = {}
@@ -479,48 +838,106 @@ struct HoyolandHomeCard: View {
     }
 
     private var card: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HomeSectionHeader(title: "호요랜드", actionTitle: "자세히", action: onTap)
-            Button(action: onTap) {
-                GLGCard(cornerRadius: 22, padding: 16) {
-                    HStack(spacing: 12) {
-                        ZStack {
-                            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                .fill(accent.primary.opacity(0.12)).frame(width: 40, height: 40)
-                            Image(systemName: "party.popper.fill").font(.system(size: 18, weight: .semibold))
-                                .foregroundStyle(accent.primary)
-                        }
-                        VStack(alignment: .leading, spacing: 3) {
-                            Text(event.edition).font(.pretendard(size: 14, weight: .bold))
-                                .foregroundStyle(GLGColor.textPrimary).lineLimit(1)
-                            Text(homeSummaryLine(event)).font(.pretendard(size: 12.5))
-                                .foregroundStyle(GLGColor.textSecondary).lineLimit(1).minimumScaleFactor(0.85)
-                        }
-                        Spacer(minLength: 8)
-                        // 남은 날짜가 이 카드의 존재 이유라 가장 강하게 둔다.
-                        Text(event.statusLabel(nowMillis: nowMs()))
-                            .font(.pretendard(size: 12, weight: .bold)).foregroundStyle(accent.primary)
-                    }
-                    .contentShape(Rectangle())
+        // 배너 바탕 — accent 를 축제 톤으로 옮긴다. 흰 글자가 얹히므로 충분히 진하게.
+        let top = glgMix(accent.primary, .black, 0.10)
+        let bottom = glgMix(accent.primary, Color(hex: 0xFF6A2BD9), 0.45)
+        // 지스타 줄이 있으면 배너 밑단에 한 칸을 더 낸다(없으면 원래 높이 그대로).
+        let gstar = event.gstar.homeBrief(nowMillis: nowMs())
+        return Button(action: onTap) {
+            ZStack {
+                LinearGradient(colors: [top, bottom], startPoint: .topLeading, endPoint: .bottomTrailing)
+                // 장식 — 오른쪽 위에서 번지는 광채와 겹친 원. 배너라는 인상은 여기서 나온다.
+                GeometryReader { _ in
+                    Color.clear
+                        .overlay(alignment: .topTrailing) { glow(size: 124, opacity: 0.22).offset(x: 36, y: -46) }
+                        .overlay(alignment: .bottomTrailing) { glow(size: 80, opacity: 0.14).offset(x: 22, y: 28) }
                 }
+                VStack(spacing: 0) {
+                HStack(spacing: 0) {
+                    // 남은 날짜 — 배너의 주인공.
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(capText).font(.pretendard(size: 10, weight: .bold))
+                            .foregroundStyle(.white.opacity(0.75))
+                        Text(bigText)
+                            .font(.pretendard(size: bigText.count > 4 ? 21 : 26, weight: .black))
+                            .foregroundStyle(.white).lineLimit(1)
+                    }
+                    Spacer().frame(width: 13)
+                    // 세로 구분선 — 숫자와 설명을 가른다.
+                    Rectangle().fill(.white.opacity(0.28)).frame(width: 1, height: 38)
+                    Spacer().frame(width: 13)
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(event.edition).font(.pretendard(size: 14, weight: .bold))
+                            .foregroundStyle(.white).lineLimit(1)
+                        Text(event.periodLabel).font(.pretendard(size: 11))
+                            .foregroundStyle(.white.opacity(0.82)).lineLimit(1)
+                        Text(event.venueShort).font(.pretendard(size: 11))
+                            .foregroundStyle(.white.opacity(0.70)).lineLimit(1)
+                    }
+                    Spacer(minLength: 8)
+                    Image(systemName: "chevron.right").font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(.white.opacity(0.8))
+                }
+                .frame(maxHeight: .infinity)
+                // 지스타는 호요랜드보다 한 달 반 뒤다 — 배너의 주인공이 될 수 없지만, 상세에만
+                // 두면 "또 뭐가 있나"를 아무도 모른다. 배너 밑단의 작은 칸이 그 자리다(문구는 공유 계층).
+                //
+                // 짜임은 위 칸과 같다(남은 날짜 · 이름 · 나머지). 대신 **한 단계 작게** — 같은
+                // 크기로 두면 배너에 주인공이 둘이 된다.
+                if let gstar {
+                    // 위 칸과 가르는 얇은 선 — 배너 안에서 층이 나뉘어 보이게.
+                    Rectangle().fill(.white.opacity(0.18)).frame(height: 1)
+                    HStack(spacing: 0) {
+                        Text(gstar.dday)
+                            .font(.pretendard(size: 9.5, weight: .black))
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 5).padding(.vertical, 1.5)
+                            .background(.white.opacity(0.18), in: RoundedRectangle(cornerRadius: 5, style: .continuous))
+                        Spacer().frame(width: 7)
+                        Text(gstar.title)
+                            .font(.pretendard(size: 10, weight: .bold))
+                            .foregroundStyle(.white.opacity(0.88)).lineLimit(1)
+                        Spacer().frame(width: 6)
+                        Rectangle().fill(.white.opacity(0.24)).frame(width: 1, height: 9)
+                        Spacer().frame(width: 6)
+                        Text(gstar.detail)
+                            .font(.pretendard(size: 9.5))
+                            .foregroundStyle(.white.opacity(0.66)).lineLimit(1)
+                        Spacer(minLength: 0)
+                    }
+                    .padding(.top, 6).padding(.bottom, 7)
+                }
+                }
+                .padding(.horizontal, 16)
             }
-            .buttonStyle(.plain)
+            .frame(height: gstar == nil ? 86 : 104)
+            .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+            .contentShape(Rectangle())
         }
+        .buttonStyle(.plain)
     }
 
-    /// "10.2(금) 개막 · 일산 킨텍스 제2전시장 7·8홀" — Android `HoyolandFeature.summaryLine` 대응.
-    private func homeSummaryLine(_ e: HoyolandEvent) -> String {
-        let head: String
-        // 진행 중 판정은 열거형 비교 대신 '몇 일차'로 한다 — Kotlin enum 브리징에 기대지 않는다.
-        if e.dayOrdinal(nowMillis: nowMs()) > 0 {
-            head = "진행 중"
-        } else {
-            let start = e.periodLabel.components(separatedBy: " ~ ").first ?? e.periodLabel
-            // "2026.10.2(금)" 에서 연도만 떼어낸다 — 홈 카드는 올해 일정만 싣는다.
-            let noYear = start.drop(while: { $0 != "." }).dropFirst()
-            head = "\(noYear) 개막"
+    private func glow(size: CGFloat, opacity: Double) -> some View {
+        Circle()
+            .fill(RadialGradient(colors: [.white.opacity(opacity), .clear],
+                                 center: .center, startRadius: 0, endRadius: size / 2))
+            .frame(width: size, height: size)
+    }
+
+    /// 큰 숫자와 그 위의 한 마디 — Android 배너와 같은 문구.
+    /// 진행 중 판정은 Kotlin enum 브리징 대신 '몇 일차'로 한다.
+    private var bigText: String {
+        let label = event.statusLabel(nowMillis: nowMs())
+        return label == "오늘 개막" ? "TODAY" : label
+    }
+
+    private var capText: String {
+        if event.dayOrdinal(nowMillis: nowMs()) > 0 { return "진행 중" }
+        switch event.statusLabel(nowMillis: nowMs()) {
+        case "종료": return "다음을 기다려요"
+        case "오늘 개막": return "오늘 개막"
+        default: return "개막까지"
         }
-        return "\(head) · \(e.venueShort)"
     }
 }
 
@@ -641,4 +1058,17 @@ struct HoyolandScheduleBanner: View {
             .fixedSize(horizontal: false, vertical: true)
         Spacer(minLength: 0)
     }
+}
+
+/// Compose `lerp(a, b, t)` 대응 — 배너 그라디언트 두 끝을 accent 하나에서 만든다.
+/// (`Color.mix(with:by:)` 는 배포 대상 하한보다 높은 OS 를 요구해 직접 섞는다.)
+private func glgMix(_ a: Color, _ b: Color, _ t: Double) -> Color {
+    var r1: CGFloat = 0, g1: CGFloat = 0, b1: CGFloat = 0, a1: CGFloat = 0
+    var r2: CGFloat = 0, g2: CGFloat = 0, b2: CGFloat = 0, a2: CGFloat = 0
+    UIColor(a).getRed(&r1, green: &g1, blue: &b1, alpha: &a1)
+    UIColor(b).getRed(&r2, green: &g2, blue: &b2, alpha: &a2)
+    let f = CGFloat(t)
+    return Color(.sRGB,
+                 red: r1 + (r2 - r1) * f, green: g1 + (g2 - g1) * f,
+                 blue: b1 + (b2 - b1) * f, opacity: a1 + (a2 - a1) * f)
 }

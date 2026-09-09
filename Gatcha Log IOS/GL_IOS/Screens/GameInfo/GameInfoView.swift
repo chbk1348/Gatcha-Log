@@ -11,7 +11,6 @@ struct GameInfoView: View {
     @State private var showGift = false
     @State private var showDashboard = false
     // 페이지로 분류된 섹션(계산기·리포트·프로필) — 진입 카드 탭 시 푸시.
-    @State private var showCalc = false
     @State private var showReport = false
     @State private var showSchedule = false
     @State private var showNews = false
@@ -61,9 +60,6 @@ struct GameInfoView: View {
             mainScroll(proxy)
         .navigationDestination(isPresented: $showHoyolab) {
             HoyolabLinkView(store: store) { showHoyolab = false }
-        }
-        .navigationDestination(isPresented: $showCalc) {
-            sectionPage("계산기") { GachaCalculatorSection(store: store, onOpenDashboard: { showDashboard = true }) }
         }
         .navigationDestination(isPresented: $showReport) { sectionPage("가챠 리포트") { GachaReportSection(store: store, onOpenDashboard: { showDashboard = true }) } }
         .navigationDestination(isPresented: $showGift) { GiftCodePage(store: store) }
@@ -168,7 +164,9 @@ struct GameInfoView: View {
                 }
             }
             ToolbarItem(placement: .topBarTrailing) {
-                Button { showHoyolab = true } label: { Image(systemName: "gearshape") }
+                // 톱니는 마이페이지의 '설정'과 겹친다 — 여기서 여는 건 앱 설정이 아니라
+                // **HoYoLAB 쿠키를 넣는 곳**이라 열쇠를 쓴다. (Android `Icons.Default.Key` 와 파리티)
+                Button { showHoyolab = true } label: { Image(systemName: "key.fill") }
             }
     }
 
@@ -250,14 +248,11 @@ struct GameInfoView: View {
         .toolbar { toolbarContent }
     }
 
-    /// 하단 진입 카드 두 장(가챠 도구).
+    /// 하단 진입 카드(가챠 도구).
     ///
     /// ⚠️ 본문에 늘어놓지 않고 여기 모은다 — LazyVStack 자식이 늘수록 타입 추론 비용이 커져
     /// "unable to type-check" 가 나는데, 에러는 손대지도 않은 줄에 찍혀 원인을 가린다.
     @ViewBuilder private var entryCards: some View {
-        section {
-            navEntry(icon: "function", title: "가챠 계산기", sub: "재화 환산 · 확률 · 시나리오") { showCalc = true }
-        }
         section {
             navEntry(icon: "chart.bar.xaxis", title: "가챠 효율 리포트",
                      sub: "UIGF/SRGF 분석 · 단가 · 천장 분포") { showReport = true }

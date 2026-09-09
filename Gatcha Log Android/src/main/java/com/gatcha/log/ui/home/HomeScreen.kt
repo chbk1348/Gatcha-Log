@@ -53,9 +53,7 @@ import kotlinx.coroutines.launch
 import com.gatcha.log.data.HomeAlert
 import com.gatcha.log.data.HomeAlertKind
 import com.gatcha.log.data.HomeLogic
-import com.gatcha.log.ui.savings.PickupPlannerHomeCard
 import com.gatcha.log.ui.savings.SavingsChallengeHomeCard
-import com.gatcha.log.ui.savings.SavingsPlannerScreen
 import com.gatcha.log.ui.savings.SavingsChallengeScreen
 import com.gatcha.log.data.GachaReport
 import com.gatcha.log.data.GachaStats
@@ -63,6 +61,7 @@ import com.gatcha.log.data.HoyolabConfig
 import com.gatcha.log.data.LiveNote
 import com.gatcha.log.data.Spending
 import com.gatcha.log.ui.game.GameInfoScreen
+import com.gatcha.log.ui.game.HoyolandDetailPage
 import com.gatcha.log.ui.game.rememberFeaturedHoyoland
 import com.gatcha.log.ui.profile.MyPageScreen
 import com.gatcha.log.ui.spending.AddSpendingModal
@@ -330,7 +329,7 @@ fun HomeScreen(viewModel: SpendingViewModel = viewModel()) {
  * 게임정보 탭의 `GiSub` 처럼 깊이를 나누지 않는다 — 셋 다 홈 바로 아래 한 층이고, 서로
  * 오갈 수 없다(하위에서 나가는 길은 홈뿐). push/pop 판정에 `Home` 인지만 보면 된다.
  */
-private enum class HomeSub { Home, Notifications, SavingsPlanner, SavingsChallenge }
+private enum class HomeSub { Home, Notifications, SavingsChallenge, Hoyoland }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -355,7 +354,6 @@ fun HomeContent(
     val attendanceStreak by viewModel.attendanceStreak.collectAsStateWithLifecycle()
     val account by viewModel.account.collectAsStateWithLifecycle()
     val gachaStats by viewModel.gachaStats.collectAsStateWithLifecycle()
-    val savingsPlans by viewModel.savingsPlans.collectAsStateWithLifecycle()
     val challenge by viewModel.challenge.collectAsStateWithLifecycle()
     val gameInfoReady by viewModel.gameInfoReady.collectAsStateWithLifecycle()
     // 일정·소식은 출처가 달라 게이트도 따로다 — 배너·노트가 캐시로 즉시 차도 이 둘은 아직 로딩일 수 있다.
@@ -422,15 +420,14 @@ fun HomeContent(
     val showNotifications = remember { mutableStateOf(false) }
     val showBudgetDialog = remember { mutableStateOf(false) }
 
-    // 저축 플래너·절약 챌린지 하위 화면(홈 카드 진입). 0=없음 1=플래너 2=챌린지.
+    // 절약 챌린지 하위 화면(홈 카드 진입). 0=없음 2=챌린지.
+    // (1 은 저축 플래너였다 — 2026-09-09 에 기능째 걷어냈다. 값은 그대로 둔다)
     var savingsScreen by remember { mutableStateOf(0) }
     BackHandler(enabled = savingsScreen != 0) { savingsScreen = 0 }
 
-    // 계산기(게임정보 탭)의 "저축 계획" — VM 이 홈 탭으로 옮겨준 뒤 여기서 플래너까지 이어 연다.
-    val pendingSavings by viewModel.pendingSavingsPlanner.collectAsStateWithLifecycle()
-    LaunchedEffect(pendingSavings) {
-        if (pendingSavings) { savingsScreen = 1; viewModel.consumePendingSavingsPlanner() }
-    }
+    // 호요랜드 상세 — **홈에서 바로 연다.** 예전엔 게임정보 탭으로 옮긴 뒤 그 탭의 앵커가
+    // 상세를 열어, 한 번 탭에 화면이 두 번 바뀌었다(탭 전환이 눈에 보였다).
+    var showHoyoland by remember { mutableStateOf(false) }
 
     /**
      * 홈의 하위 화면은 **하나의 [AnimatedContent] 가 전부 맡는다.**
@@ -444,8 +441,8 @@ fun HomeContent(
      * 표시가 순서에 좌우됐다. 지금은 파생값 하나가 단일 진실이다.
      */
     val homeSub = when {
-        savingsScreen == 1 -> HomeSub.SavingsPlanner
         savingsScreen == 2 -> HomeSub.SavingsChallenge
+        showHoyoland -> HomeSub.Hoyoland
         showNotifications.value -> HomeSub.Notifications
         else -> HomeSub.Home
     }
@@ -499,12 +496,12 @@ fun HomeContent(
         label = "homeSub",
     ) { sub ->
         when (sub) {
-            HomeSub.SavingsPlanner -> {
-                SavingsPlannerScreen(viewModel) { savingsScreen = 0 }
-                return@AnimatedContent
-            }
             HomeSub.SavingsChallenge -> {
                 SavingsChallengeScreen(viewModel) { savingsScreen = 0 }
+                return@AnimatedContent
+            }
+            HomeSub.Hoyoland -> {
+                HoyolandDetailPage(onBack = { showHoyoland = false })
                 return@AnimatedContent
             }
             HomeSub.Notifications -> {
@@ -556,6 +553,15 @@ fun HomeContent(
             HeroBalanceCard(monthlyTotal, prevTotal, budget) { showBudgetDialog.value = true }
             Spacer(Modifier.height(16.dp))
         }
+        // 호요랜드 — 개막 D-60 이내에만 끼어드는 한시 카드(끝나면 스스로 빠진다).
+        // 히어로 바로 밑이다. 광고 배너라 목록 중간에 두면 다른 카드의 리듬에 묻힌다 —
+        // 첫 화면에서 한 번 눈에 걸리고 지나가는 자리가 맞다.
+        featuredHoyoland?.let { hoyoland ->
+            glgCardItem() {
+                DashHoyolandCard(hoyoland) { showHoyoland = true }
+                Spacer(Modifier.height(16.dp))
+            }
+        }
         if (!gameInfoReady || todayTasks.isNotEmpty()) {
             glgCardItem() {
                 if (!gameInfoReady) TodayTaskSkeleton(titleOutside = true)
@@ -580,21 +586,10 @@ fun HomeContent(
             else DashNewsCard(gameNews, anniversaries, titleOutside = true) { viewModel.requestGameInfoAnchor(GameInfoAnchor.NEWS); onNavigateToGameInfo() }
             Spacer(Modifier.height(16.dp))
         }
-        // 호요랜드 — 개막 D-60 이내에만 끼어드는 한시 카드(끝나면 스스로 빠진다).
-        // 소식 바로 다음에 두는 이유: 성격이 '게임 소식'에 가장 가깝고, '나를 위한'(저축·챌린지)
-        // 블록을 가르지 않는 자리가 여기뿐이다.
-        featuredHoyoland?.let { hoyoland ->
-            glgCardItem() {
-                DashHoyolandCard(hoyoland) { viewModel.requestGameInfoAnchor(GameInfoAnchor.HOYOLAND); onNavigateToGameInfo() }
-                Spacer(Modifier.height(16.dp))
-            }
-        }
-        // 나를 위한 — 저축 플래너 · 절약 챌린지
+        // 나를 위한 — 절약 챌린지
         glgCardItem() {
             HomeSectionHeader("나를 위한")
             Spacer(Modifier.height(10.dp))
-            PickupPlannerHomeCard(savingsPlans) { savingsScreen = 1 }
-            Spacer(Modifier.height(12.dp))
         }
         // 마지막 카드 뒤에는 여백을 두지 않는다 — 탭바까지의 간격은 contentPadding(glgTabContentBottom)이
         // 전담한다. 여기서 또 더하면 이 탭만 간격이 넓어진다(예전에 24dp 였다).

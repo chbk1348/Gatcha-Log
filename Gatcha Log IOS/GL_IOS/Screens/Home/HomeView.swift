@@ -10,10 +10,11 @@ struct HomeView: View {
     @Environment(\.glgAccent) private var accent
 
     @State private var showBudget = false
-    /// 계산기에서 요청한 저축 플래너 진입(store.pendingSavingsPlanner 소비).
-    @State private var openSavingsPlanner = false
     @State private var importingGacha = false
     @State private var didStart = false
+    /// 호요랜드 상세 — **홈에서 바로 연다.** 예전엔 게임정보 탭으로 옮긴 뒤 그 탭의 앵커가
+    /// 상세를 열어, 한 번 탭에 화면이 두 번 바뀌었다(탭 전환이 눈에 보였다).
+    @State private var showHoyoland = false
 
     /// iPad = 분할뷰 detail 안이라 상단바 처리 방식이 다르다(HomeTopBarStyle).
     private var isPad: Bool { UIDevice.current.userInterfaceIdiom == .pad }
@@ -50,11 +51,6 @@ struct HomeView: View {
         .background(GLGBackground { Color.clear })
         .refreshable { store.refreshGameInfo(force: true) }
         .navigationBarTitleDisplayMode(.inline)
-        // 계산기(게임 정보 탭)의 "저축 계획" — VM 이 홈 탭으로 옮겨준 뒤 여기서 플래너까지 이어 연다.
-        .navigationDestination(isPresented: $openSavingsPlanner) { SavingsPlannerView(store: store) }
-        .onChange(of: store.pendingSavingsPlanner) { _, pending in
-            if pending { openSavingsPlanner = true; store.consumePendingSavingsPlanner() }
-        }
         .toolbar {
             // 프로필 사진(좌) — 탭하면 마이페이지.
             ToolbarItem(placement: .topBarLeading) {
@@ -99,6 +95,7 @@ struct HomeView: View {
                 .simultaneousGesture(TapGesture().onEnded { store.markAlertsRead(alerts.map { $0.key }) })
             }
         }
+        .navigationDestination(isPresented: $showHoyoland) { HoyolandDetailView() }
         .sheet(isPresented: $showBudget) { BudgetSheet(store: store) }
         .fileImporter(isPresented: $importingGacha, allowedContentTypes: [.json], allowsMultipleSelection: true) { result in
             if case .success(let urls) = result {
@@ -134,14 +131,17 @@ struct HomeView: View {
                 if store.hoyoTokenExpired {
                     TokenExpiredBanner { store.requestOpenHoyolabLink(); onSwitchTab(3) }
                 }
+                // 호요랜드 — 개막 D-60 이내에만 끼어드는 한시 배너(끝나면 스스로 빠진다).
+                // 히어로 바로 밑이다. 광고 배너라 목록 중간에 두면 다른 카드의 리듬에 묻힌다 —
+                // 첫 화면에서 한 번 눈에 걸리고 지나가는 자리가 맞다.
+                // 스켈레톤을 두지 않는 건 폴백이 늘 유효해서다.
+                HoyolandHomeCard(onTap: { showHoyoland = true })
                 if !store.gameInfoReady || !todayTasks.isEmpty {
                     todayTaskView(titleOutside: true)
                 }
                 RecentSpendCard(spendings: store.spendings, onSeeAll: { onSwitchTab(1) })
                 dashboardSlots(titleOutside: true)
                 HomeSectionHeader(title: "나를 위한")
-                NavigationLink { SavingsPlannerView(store: store) } label: { PickupPlannerHomeCard(store: store) }
-                    .buttonStyle(.plain)
                 NavigationLink { SavingsChallengeView(store: store) } label: { SavingsChallengeHomeCard(store: store) }
                     .buttonStyle(.plain)
             }
@@ -159,12 +159,15 @@ struct HomeView: View {
                 TokenExpiredBanner { store.requestOpenHoyolabLink(); onSwitchTab(3) }
             }
             DashboardSpendCard(monthlyTotal: monthlyTotal, budget: store.budget, onTap: { onSwitchTab(1) })
+            // 호요랜드 — 개막 D-60 이내에만 끼어드는 한시 배너(끝나면 스스로 빠진다).
+            // 히어로 바로 밑이다. 광고 배너라 목록 중간에 두면 다른 카드의 리듬에 묻힌다 —
+            // 첫 화면에서 한 번 눈에 걸리고 지나가는 자리가 맞다.
+            // 스켈레톤을 두지 않는 건 폴백이 늘 유효해서다.
+            HoyolandHomeCard(onTap: { showHoyoland = true })
             if !store.gameInfoReady || !todayTasks.isEmpty {
                 todayTaskView(titleOutside: false)
             }
             dashboardSlots(titleOutside: false)
-            NavigationLink { SavingsPlannerView(store: store) } label: { PickupPlannerHomeCard(store: store) }
-                .buttonStyle(.plain)
             NavigationLink { SavingsChallengeView(store: store) } label: { SavingsChallengeHomeCard(store: store) }
                 .buttonStyle(.plain)
         }
@@ -206,10 +209,6 @@ struct HomeView: View {
         } else {
             DashCardSkeleton(rows: 2)
         }
-        // 호요랜드 — 개막 D-60 이내에만 끼어드는 한시 카드(끝나면 스스로 빠진다).
-        // 소식 바로 다음에 두는 이유: 성격이 '게임 소식'에 가장 가깝고, '나를 위한'(저축·챌린지)
-        // 블록을 가르지 않는 자리가 여기뿐이다. 스켈레톤을 두지 않는 건 폴백이 늘 유효해서다.
-        HoyolandHomeCard(onTap: { store.requestGameInfoAnchor(.hoyoland); onSwitchTab(2) })
     }
 
     @ViewBuilder

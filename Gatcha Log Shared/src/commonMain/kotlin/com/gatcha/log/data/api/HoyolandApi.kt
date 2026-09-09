@@ -2,6 +2,8 @@ package com.gatcha.log.data.api
 
 import com.gatcha.log.data.HoyolandDefaults
 import com.gatcha.log.data.HoyolandEvent
+import com.gatcha.log.data.HoyolandBooth
+import com.gatcha.log.data.HoyolandGoods
 import com.gatcha.log.data.HoyolandFact
 import com.gatcha.log.data.HoyolandGstar
 import com.gatcha.log.data.HoyolandLineup
@@ -39,6 +41,26 @@ object HoyolandApi {
 
     /** 캐시된 값 또는 번들 폴백 — **네트워크를 타지 않는다.** 첫 프레임을 그릴 때 쓴다. */
     val current: HoyolandEvent get() = cached ?: HoyolandDefaults.event
+
+    /**
+     * 개발자 화면 전용 — 무대 시간표 목업을 **캐시에 얹는다.**
+     *
+     * 실제 편성이 공개되기 전에 라이브 카드·게임 레인·필터를 확인하려는 것이다. 캐시에 넣으므로
+     * [load] 가 `force` 없이 불리는 한(화면 진입 경로 전부) 목업이 유지되고,
+     * [debugClearStageMock] 이나 당겨서 새로고침 한 번이면 원래대로 돌아온다.
+     */
+    fun debugInjectStageMock() {
+        cached = HoyolandDefaults.stageMockEvent()
+    }
+
+    /** 목업 해제 — 다음 조회에서 원격/번들 값을 다시 잡는다. */
+    fun debugClearStageMock() {
+        cached = null
+    }
+
+    /** 지금 목업이 얹혀 있는지 — 개발자 화면 토글 표시에 쓴다. */
+    val isStageMock: Boolean get() = cached?.days?.any { it.slots.isNotEmpty() } == true &&
+        cached?.startYmd != HoyolandDefaults.event.startYmd
 
     /**
      * 원격 갱신 시도. 실패하면 [HoyolandDefaults] 를 그대로 돌려주므로 **호출부는 널을 다루지 않는다.**
@@ -80,6 +102,9 @@ object HoyolandApi {
             days = o.optJSONArray("days")?.let { parseDays(it) } ?: d.days,
             gstar = o.optJSONObject("gstar")?.let { parseGstar(it, d.gstar) } ?: d.gstar,
             past = o.optJSONArray("past")?.let { parsePast(it) }?.takeIf { it.isNotEmpty() } ?: d.past,
+            // goods·booths 도 days 와 같다 — **빈 배열이 유효한 값**이라 걸러내지 않는다.
+            goods = o.optJSONArray("goods")?.let { parseGoods(it) } ?: d.goods,
+            booths = o.optJSONArray("booths")?.let { parseBooths(it) } ?: d.booths,
         )
     }
 
@@ -154,7 +179,58 @@ object HoyolandApi {
         return (0 until arr.length()).mapNotNull { i ->
             val o = arr.optJSONObject(i) ?: return@mapNotNull null
             val title = o.optString("title").trim()
-            if (title.isBlank()) null else HoyolandSlot(o.optString("time"), title, o.optString("desc"))
+            if (title.isBlank()) {
+                null
+            } else {
+                HoyolandSlot(
+                    time = o.optString("time"),
+                    title = title,
+                    desc = o.optString("desc"),
+                    // 무대 편성이라 칸의 주인은 거의 게임이다. 비면 전 IP 공통(합동 무대).
+                    game = o.optString("game").trim(),
+                    // 공연 길이(분). 없으면 0 — 화면이 '다음 편 전까지'로 본다.
+                    minutes = o.optInt("minutes", 0),
+                    // 출연자 — 표기 그대로. 무대를 고르는 기준이 공연명보다 출연자일 때가 많다.
+                    cast = o.optString("cast").trim(),
+                )
+            }
+        }
+    }
+
+    private fun parseGoods(arr: JSONArray?): List<HoyolandGoods> {
+        if (arr == null) return emptyList()
+        return (0 until arr.length()).mapNotNull { i ->
+            val o = arr.optJSONObject(i) ?: return@mapNotNull null
+            val name = o.optString("name").trim()
+            if (name.isBlank()) return@mapNotNull null
+            HoyolandGoods(
+                name = name,
+                // 가격은 숫자로 받는다 — 문자열이면 합계를 못 낸다. 미정이면 0.
+                price = o.optInt("price", 0),
+                game = o.optString("game").trim(),
+                category = o.optString("category").trim(),
+                note = o.optString("note").trim(),
+                soldOut = o.optBoolean("soldOut", false),
+            )
+        }
+    }
+
+    private fun parseBooths(arr: JSONArray?): List<HoyolandBooth> {
+        if (arr == null) return emptyList()
+        return (0 until arr.length()).mapNotNull { i ->
+            val o = arr.optJSONObject(i) ?: return@mapNotNull null
+            val title = o.optString("title").trim()
+            if (title.isBlank()) return@mapNotNull null
+            HoyolandBooth(
+                game = o.optString("game").trim(),
+                title = title,
+                desc = o.optString("desc").trim(),
+                location = o.optString("location").trim(),
+                duration = o.optString("duration").trim(),
+                capacity = o.optString("capacity").trim(),
+                reward = o.optString("reward").trim(),
+                needsReservation = o.optBoolean("needsReservation", false),
+            )
         }
     }
 

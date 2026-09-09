@@ -687,6 +687,9 @@ fun GlgChip(
 /** 세그먼트 탭 한 칸 높이 — 호요랜드 일자 탭에서 정한 값. */
 private val GlgSegmentHeight = 32.dp
 
+/** 둘째 줄(요일)이 붙는 칸 높이 — 두 줄이 눌리지 않게 값을 못 박는다. */
+private val GlgSegmentHeightTwoLine = 46.dp
+
 /**
  * 세그먼트 탭 — **한 덩어리 트랙에 선택 칸만 채운다.**
  *
@@ -705,11 +708,26 @@ fun GlgSegmentedTabs(
     labels: List<String>,
     selected: Int,
     modifier: Modifier = Modifier,
+    /**
+     * 라벨 아래 붙는 작은 둘째 줄(요일 등). 주면 칸이 두 줄 높이가 된다.
+     * 크기가 [labels] 와 같아야 한다 — 모자란 칸은 한 줄로 그린다.
+     */
+    subLabels: List<String>? = null,
+    /**
+     * 칸마다 다른 선택색. 게임 탭처럼 **칸 자체가 색을 갖는** 자리에서 쓴다
+     * (호요랜드 무대 게임 탭 — 목록의 색 띠와 같은 색이어야 규칙이 안 어긋난다).
+     * null 이면 전부 강조색.
+     */
+    selectedColors: List<Color>? = null,
     onSelect: (Int) -> Unit,
 ) {
     if (labels.isEmpty()) return
     val accent = LocalAccent.current
     val sel = selected.coerceIn(0, labels.lastIndex)
+    val twoLine = subLabels != null
+    val cellHeight = if (twoLine) GlgSegmentHeightTwoLine else GlgSegmentHeight
+    val fill = selectedColors?.getOrNull(sel) ?: accent
+    val fillColor by animateColorAsState(fill, glgStandardSpec(), label = "segmentFill")
     BoxWithConstraints(
         modifier
             .fillMaxWidth()
@@ -724,9 +742,9 @@ fun GlgSegmentedTabs(
             Modifier
                 .offset(x = slide)
                 .width(cellWidth)
-                .height(GlgSegmentHeight)
+                .height(cellHeight)
                 .clip(RoundedCornerShape(11.dp))
-                .background(accent),
+                .background(fillColor),
         )
         Row(Modifier.fillMaxWidth()) {
             labels.forEachIndexed { i, label ->
@@ -735,13 +753,14 @@ fun GlgSegmentedTabs(
                     glgStandardSpec(),
                     label = "segmentLabel",
                 )
-                Box(
+                Column(
                     Modifier
                         .weight(1f)
-                        .height(GlgSegmentHeight)
+                        .height(cellHeight)
                         .clip(RoundedCornerShape(11.dp))
                         .clickable { onSelect(i) },
-                    contentAlignment = Alignment.Center,
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center,
                 ) {
                     Text(
                         label,
@@ -750,6 +769,16 @@ fun GlgSegmentedTabs(
                         color = labelColor,
                         maxLines = 1,
                     )
+                    val sub = subLabels?.getOrNull(i)
+                    if (!sub.isNullOrBlank()) {
+                        Text(
+                            sub,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = if (i == sel) Color.White.copy(alpha = 0.85f) else ChipIdleText.copy(alpha = 0.75f),
+                            maxLines = 1,
+                        )
+                    }
                 }
             }
         }

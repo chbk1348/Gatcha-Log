@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.Casino
@@ -26,6 +27,7 @@ import androidx.compose.material.icons.filled.Calculate
 import androidx.compose.material.icons.filled.Insights
 import androidx.compose.ui.graphics.vector.ImageVector
 import com.gatcha.log.data.HoyolandEvent
+import com.gatcha.log.data.HoyolandPhase
 import com.gatcha.log.ui.game.HoyolandFeature
 import androidx.compose.material.icons.filled.MilitaryTech
 import androidx.compose.material.icons.filled.Savings
@@ -63,6 +65,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -394,12 +398,6 @@ private fun RecentSpendRow(s: Spending) {
         Column(Modifier.weight(1f)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(s.gameName, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TextPrimary, maxLines = 1)
-                if (s.isSubscription) {
-                    Spacer(Modifier.width(5.dp))
-                    Surface(color = color.copy(alpha = 0.14f), shape = RoundedCornerShape(999.dp)) {
-                        Text("정기", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = color, modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp))
-                    }
-                }
             }
             if (subtitle.isNotEmpty()) Text(subtitle, fontSize = 11.sp, color = TextSecondary, maxLines = 1)
         }
@@ -950,35 +948,161 @@ private fun NewsBody(anni: AnniversaryInfo?, topNews: List<NewsItem>) {
         }
     }
 }
-
 /**
- * 호요랜드 홈 카드 — 개막이 가까울 때(D-60 이내)만 뜨는 **한시적** 카드.
+ * 홈의 호요랜드 — **광고 배너**로 세운다.
  *
- * 상시 카드로 두지 않는 이유: 1년에 나흘 하는 행사라, 평소엔 홈에서 한 칸을 차지한 채
- * 아무것도 알려주지 않는다. 노출 판정은 [HoyolandFeature.current] 하나로 모아 두어
- * 일정 탭과 같은 시점에 같이 나타나고 같이 사라진다.
+ * 예전엔 아이콘 + 두 줄 텍스트의 목록형 카드였다. 그런데 이건 1년에 한 번 열리는 행사고,
+ * 홈에 뜨는 기간도 개막 D-60 안쪽뿐이다. 다른 카드와 같은 무게로 늘어놓으면 그냥 지나친다.
+ *
+ * 배너의 주인공은 **남은 날짜**다. 큰 숫자 하나가 "언제인가"에 즉답하고, 나머지(행사명·기간·
+ * 장소)는 그 옆에서 거든다. 배경은 그라디언트 + 장식 광채라 카드 목록에서 혼자 떠오른다.
  */
 @Composable
 fun DashHoyolandCard(event: HoyolandEvent, onTap: () -> Unit) {
     val accent = LocalAccent.current
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        HomeSectionHeader("호요랜드", actionTitle = "자세히", onAction = onTap)
-        GlassCard(shape = RoundedCornerShape(22.dp), modifier = Modifier.fillMaxWidth().clickable { onTap() }) {
-            Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                Box(
-                    Modifier.size(40.dp).clip(RoundedCornerShape(12.dp)).background(accent.copy(alpha = 0.12f)),
-                    contentAlignment = Alignment.Center,
-                ) { Icon(Icons.Default.Celebration, null, tint = accent, modifier = Modifier.size(20.dp)) }
-                Spacer(Modifier.width(12.dp))
-                Column(Modifier.weight(1f)) {
-                    Text(event.edition, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TextPrimary, maxLines = 1)
-                    Spacer(Modifier.height(3.dp))
-                    Text(HoyolandFeature.summaryLine(event), fontSize = 12.5.sp, color = TextSecondary, maxLines = 1)
-                }
-                Spacer(Modifier.width(8.dp))
-                // 남은 날짜가 이 카드의 존재 이유라 가장 강하게 둔다(D-day 는 오른쪽 정렬이 앱 공통 규격).
-                Text(event.statusLabel(), fontSize = 12.sp, fontWeight = FontWeight.Bold, color = accent)
+    val phase = event.phase()
+    // 배너 바탕 — accent 를 축제 톤으로 옮긴다. 흰 글자가 얹히므로 충분히 진하게.
+    val top = lerp(accent, Color.Black, 0.10f)
+    val bottom = lerp(accent, Color(0xFF6A2BD9), 0.45f)
+    val shape = RoundedCornerShape(20.dp)
+    // 남은 날짜를 숫자와 말로 가른다 — 숫자만 크게 세우려는 것.
+    val bigText: String
+    val capText: String
+    when (phase) {
+        HoyolandPhase.BEFORE -> {
+            val d = event.daysUntilStart()
+            bigText = if (d == 0) "TODAY" else "D-$d"
+            capText = if (d == 0) "오늘 개막" else "개막까지"
+        }
+        HoyolandPhase.ONGOING -> {
+            bigText = "${event.dayOrdinal()}일차"
+            capText = "진행 중"
+        }
+        HoyolandPhase.ENDED -> {
+            bigText = "종료"
+            capText = "다음을 기다려요"
+        }
+    }
+
+    // 지스타 줄이 있으면 배너 밑단에 한 칸을 더 낸다(없으면 원래 높이 그대로).
+    val gstar = event.gstar.homeBrief()
+    Box(
+        Modifier
+            .fillMaxWidth()
+            .height(if (gstar == null) 86.dp else 104.dp)
+            .clip(shape)
+            .background(Brush.linearGradient(listOf(top, bottom)))
+            .clickable { onTap() },
+    ) {
+        // 장식 — 오른쪽 위에서 번지는 광채와 겹친 원. 배너라는 인상은 여기서 나온다.
+        Box(
+            Modifier
+                .align(Alignment.TopEnd)
+                .size(124.dp)
+                .offset(x = 36.dp, y = (-46).dp)
+                .background(
+                    Brush.radialGradient(listOf(Color.White.copy(alpha = 0.22f), Color.Transparent)),
+                    CircleShape,
+                ),
+        )
+        Box(
+            Modifier
+                .align(Alignment.BottomEnd)
+                .size(80.dp)
+                .offset(x = 22.dp, y = 28.dp)
+                .background(
+                    Brush.radialGradient(listOf(Color.White.copy(alpha = 0.14f), Color.Transparent)),
+                    CircleShape,
+                ),
+        )
+
+        Column(Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
+        Row(
+            Modifier.fillMaxWidth().weight(1f),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            // 남은 날짜 — 배너의 주인공.
+            Column(horizontalAlignment = Alignment.Start) {
+                Text(
+                    capText,
+                    fontSize = 10.sp, fontWeight = FontWeight.Bold,
+                    color = Color.White.copy(alpha = 0.75f),
+                )
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    bigText,
+                    fontSize = if (bigText.length > 4) 21.sp else 26.sp,
+                    fontWeight = FontWeight.Black,
+                    color = Color.White,
+                    maxLines = 1,
+                )
             }
+            Spacer(Modifier.width(13.dp))
+            // 세로 구분선 — 숫자와 설명을 가른다.
+            Box(Modifier.width(1.dp).height(38.dp).background(Color.White.copy(alpha = 0.28f)))
+            Spacer(Modifier.width(13.dp))
+            Column(Modifier.weight(1f)) {
+                Text(
+                    event.edition,
+                    fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.White,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis,
+                )
+                Spacer(Modifier.height(3.dp))
+                Text(
+                    event.periodLabel,
+                    fontSize = 11.sp, color = Color.White.copy(alpha = 0.82f),
+                    maxLines = 1, overflow = TextOverflow.Ellipsis,
+                )
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    event.venueShort,
+                    fontSize = 11.sp, color = Color.White.copy(alpha = 0.70f),
+                    maxLines = 1, overflow = TextOverflow.Ellipsis,
+                )
+            }
+            Icon(
+                Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                contentDescription = null,
+                tint = Color.White.copy(alpha = 0.8f),
+                modifier = Modifier.size(20.dp),
+            )
+        }
+        // 지스타는 호요랜드보다 한 달 반 뒤다 — 배너의 주인공이 될 수 없지만, 상세에만 두면
+        // "또 뭐가 있나"를 아무도 모른다. 배너 밑단의 작은 칸이 그 자리다(문구는 공유 계층).
+        //
+        // 짜임은 위 칸과 같다(남은 날짜 · 이름 · 나머지). 대신 **한 단계 작게** — 같은 크기로
+        // 두면 배너에 주인공이 둘이 된다.
+        gstar?.let { g ->
+            // 위 칸과 가르는 얇은 선 — 배너 안에서 층이 나뉘어 보이게.
+            Box(Modifier.fillMaxWidth().height(1.dp).background(Color.White.copy(alpha = 0.18f)))
+            Row(
+                Modifier.fillMaxWidth().padding(top = 6.dp, bottom = 7.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    g.dday,
+                    fontSize = 9.5.sp, fontWeight = FontWeight.Black, color = Color.White,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(5.dp))
+                        .background(Color.White.copy(alpha = 0.18f))
+                        .padding(horizontal = 5.dp, vertical = 1.5.dp),
+                )
+                Spacer(Modifier.width(7.dp))
+                Text(
+                    g.title,
+                    fontSize = 10.sp, fontWeight = FontWeight.Bold,
+                    color = Color.White.copy(alpha = 0.88f), maxLines = 1,
+                )
+                Spacer(Modifier.width(6.dp))
+                Box(Modifier.width(1.dp).height(9.dp).background(Color.White.copy(alpha = 0.24f)))
+                Spacer(Modifier.width(6.dp))
+                Text(
+                    g.detail,
+                    fontSize = 9.5.sp, color = Color.White.copy(alpha = 0.66f),
+                    maxLines = 1, overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
         }
     }
 }
