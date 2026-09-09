@@ -35,16 +35,15 @@ class SpendingDerivedTest {
         itemName: String = "",
     ) = Spending(
         gameName = game, amount = amount, dateMillis = at(year, month, day),
-        itemName = itemName, isSubscription = isSub,
+        itemName = itemName,
     )
 
     private fun compute(
         spendings: List<Spending>,
-        subscriptions: List<Subscription> = emptyList(),
         year: Int = 2026,
         month: Int = 7,
         recentMonths: Int = 6,
-    ) = SpendingDerived.compute(spendings, subscriptions, year, month, recentMonths)
+    ) = SpendingDerived.compute(spendings, year, month, recentMonths)
 
     // ── 이번 달 / 전월 ───────────────────────────────────────────────────────
 
@@ -84,7 +83,6 @@ class SpendingDerivedTest {
         assertEquals(0L, d.previousMonthTotal)
         assertTrue(d.currentMonthTotalsByGame.isEmpty())
         assertEquals(List(6) { 0L }, d.recentMonthlyTotals)
-        assertEquals(0, d.unlinkedSubCount)
     }
 
     // ── 게임별 합계 ──────────────────────────────────────────────────────────
@@ -140,67 +138,6 @@ class SpendingDerivedTest {
         )
         assertEquals(d.currentMonthTotal, d.recentMonthlyTotals.last())
         assertEquals(6, d.recentMonthlyTotals.size)
-    }
-
-    // ── 미등록 구독 ──────────────────────────────────────────────────────────
-
-    @Test
-    fun unlinkedCountIgnoresNonSubscriptionSpendings() {
-        val d = compute(
-            listOf(
-                spend(amount = 5_900, month = 7, isSub = true, itemName = "공월의 축복"),
-                spend(amount = 12_000, month = 7),   // 구독 표시 아님
-            ),
-        )
-        assertEquals(1, d.unlinkedSubCount)
-    }
-
-    @Test
-    fun unlinkedCountDeduplicatesSameSubscriptionAcrossMonths() {
-        // 매달 기록한 같은 구독(이름·게임·금액 동일)은 후보 1건이어야 한다.
-        val d = compute(
-            listOf(
-                spend(amount = 5_900, month = 7, isSub = true, itemName = "공월의 축복"),
-                spend(amount = 5_900, month = 6, isSub = true, itemName = "공월의 축복"),
-                spend(amount = 5_900, month = 5, isSub = true, itemName = "공월의 축복"),
-            ),
-        )
-        assertEquals(1, d.unlinkedSubCount)
-    }
-
-    @Test
-    fun unlinkedCountExcludesAlreadyRegisteredSubscriptions() {
-        val already = Subscription(name = "공월의 축복", gameName = "원신", amount = 5_900, billingDay = 10)
-        val d = compute(
-            listOf(
-                spend(amount = 5_900, month = 7, isSub = true, itemName = "공월의 축복"),
-                spend(amount = 12_000, month = 7, isSub = true, itemName = "기행"),
-            ),
-            subscriptions = listOf(already),
-        )
-        assertEquals(1, d.unlinkedSubCount)   // 기행만 남는다
-    }
-
-    @Test
-    fun unlinkedCandidateTakesBillingDayFromMostRecentSpending() {
-        // 결제일은 최신 기록 기준 — 날짜 내림차순 순회가 깨지면 옛 날짜가 남는다.
-        val list = SpendingDerived.unlinkedSubscriptions(
-            listOf(
-                spend(amount = 5_900, month = 5, day = 3, isSub = true, itemName = "공월의 축복"),
-                spend(amount = 5_900, month = 7, day = 21, isSub = true, itemName = "공월의 축복"),
-            ),
-            existing = emptyList(),
-        )
-        assertEquals(1, list.size)
-        assertEquals(21, list.first().billingDay)
-    }
-
-    @Test
-    fun subscriptionNameFallsBackToGameShortNameWhenItemNameBlank() {
-        assertEquals("공월의 축복", SpendingDerived.subscriptionName(spend(amount = 1, month = 7, itemName = "공월의 축복")))
-        assertEquals("원신 정기결제", SpendingDerived.subscriptionName(spend(game = "원신", amount = 1, month = 7)))
-        // 목록에 없는 게임은 이름 그대로
-        assertEquals("없는게임 정기결제", SpendingDerived.subscriptionName(spend(game = "없는게임", amount = 1, month = 7)))
     }
 
     // ── 순회가 한 번이어도 결과가 서로 일관적인지 ────────────────────────────

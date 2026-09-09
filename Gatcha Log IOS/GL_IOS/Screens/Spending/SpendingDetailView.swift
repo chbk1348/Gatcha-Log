@@ -161,12 +161,6 @@ struct SpendingDetailView: View {
                 Text(s.gameName)
                     .font(.pretendard(size: 13, weight: .bold))
                     .foregroundStyle(ink)
-                Text(s.isSubscription ? "정기" : "일반")
-                    .font(.pretendard(size: 10, weight: .bold))
-                    .foregroundStyle(ink)
-                    .padding(.horizontal, 8).padding(.vertical, 2.5)
-                    .background(Color.white.opacity(0.75), in: Capsule())
-                    .alignmentGuide(.firstTextBaseline) { $0[VerticalAlignment.center] + 4 }
                 Spacer(minLength: 8)
                 // 게임 코드 — 읽으라고 넣은 글자가 아니라 **여백을 채우는 표식**이다.
                 // 우측 상단이 비어 히어로가 왼쪽으로 쏠려 보였다.
@@ -246,11 +240,6 @@ struct SpendingDetailView: View {
                         .font(.pretendard(size: 10.5))
                         .foregroundStyle(GLGColor.textSecondary)
                         .padding(.top, 3)
-                } else if s.isSubscription {
-                    Text("정기 결제는 매달 같은 금액이라 평소와 견주지 않아요.")
-                        .font(.pretendard(size: 11.5))
-                        .foregroundStyle(GLGColor.textSecondary)
-                        .padding(.top, 14)
                 }
             }
         }
@@ -295,8 +284,8 @@ struct SpendingDetailView: View {
                 let parts = splitCurrency(amt)
                 return [parts, ("뽑기", pulls.map(shortPulls) ?? "—")]
             }
-            return [("구분", s.isSubscription ? "정기" : "일반"),
-                    ("결제", s.paymentMethod.isEmpty ? "—" : s.paymentMethod)]
+            return [("결제", s.paymentMethod.isEmpty ? "—" : s.paymentMethod),
+                    ("충전처", s.chargePlatform.isEmpty ? "—" : s.chargePlatform)]
         }()
 
         HStack(spacing: 0) {

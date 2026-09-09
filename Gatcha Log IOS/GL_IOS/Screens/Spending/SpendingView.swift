@@ -18,7 +18,6 @@ enum SpendingRoute: Hashable {
 }
 
 private enum PeriodFilter: String, CaseIterable { case all="전체", thisMonth="이번 달", lastMonth="지난 달", thisYear="올해", custom="기간 지정" }
-private enum TypeFilter: String, CaseIterable { case all="전체", normal="일반", subscription="구독" }
 private enum SortOrder: String, CaseIterable { case dateDesc="최신순", dateAsc="오래된순", amountDesc="금액 높은순" }
 
 struct SpendingView: View {
@@ -46,7 +45,6 @@ struct SpendingView: View {
     @State private var showEndPicker = false
     @State private var showScrollTop = false
     @State private var paymentFilter: String? = nil
-    @State private var typeFilter: TypeFilter = .all
     @State private var sortOrder: SortOrder = .dateDesc
     @State private var showFilter = false
     @State private var selectedIds: Set<String> = []
@@ -57,7 +55,7 @@ struct SpendingView: View {
     @State private var listIsEmpty = true
 
     private var activeFilterCount: Int {
-        [!gameFilters.isEmpty, period != .all, paymentFilter != nil, typeFilter != .all, sortOrder != .dateDesc]
+        [!gameFilters.isEmpty, period != .all, paymentFilter != nil, sortOrder != .dateDesc]
             .filter { $0 }.count
     }
 
@@ -127,7 +125,6 @@ struct SpendingView: View {
         .onChange(of: customStart) { _, _ in if period == .custom { recompute(store.spendings) } }
         .onChange(of: customEnd) { _, _ in if period == .custom { recompute(store.spendings) } }
         .onChange(of: paymentFilter) { _, _ in recompute(store.spendings) }
-        .onChange(of: typeFilter) { _, _ in recompute(store.spendings) }
         .onChange(of: sortOrder) { _, _ in recompute(store.spendings) }
         .background(GLGBackground { Color.clear })
         // 화면에는 안 보이지만 제목은 채운다 — 비우면 뒤로가기 길게 누르기 메뉴가 공백 줄이 된다.
@@ -405,9 +402,6 @@ struct SpendingView: View {
                         if let m = paymentFilter {
                             GLGGlassChip(label: "\(m)  ✕", selected: true) { paymentFilter = nil }
                         }
-                        if typeFilter != .all {
-                            GLGGlassChip(label: "\(typeFilter.rawValue)  ✕", selected: true) { typeFilter = .all }
-                        }
                     }
                     .padding(.vertical, 6)
                     .padding(.horizontal, 1)
@@ -504,7 +498,7 @@ struct SpendingView: View {
 
     /// 드롭다운이 안 다루는 필터가 걸려 있는가 — 없으면 해제 줄을 아예 그리지 않는다.
     private var hasOtherFilters: Bool {
-        paymentFilter != nil || typeFilter != .all
+        paymentFilter != nil
     }
 
     // ── 필터 시트 ──
@@ -532,7 +526,6 @@ struct SpendingView: View {
                             pillWrapStr(GameData.shared.paymentMethods, paymentFilter) { paymentFilter = $0 }
                         }
                     }
-                    filterSection("구분") { pillWrap(TypeFilter.allCases, typeFilter) { typeFilter = $0 } label: { $0.rawValue } }
                     filterSection("정렬") { pillWrap(SortOrder.allCases, sortOrder) { sortOrder = $0 } label: { $0.rawValue } }
                 }
                 .padding(.horizontal, 16).padding(.top, 8).padding(.bottom, 16)
@@ -544,7 +537,7 @@ struct SpendingView: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("초기화") {
-                        gameFilters = []; period = .all; paymentFilter = nil; typeFilter = .all; sortOrder = .dateDesc
+                        gameFilters = []; period = .all; paymentFilter = nil; sortOrder = .dateDesc
                         customStart = Calendar.current.date(byAdding: .month, value: -1, to: Date()) ?? Date()
                         customEnd = Date()
                     }
@@ -618,7 +611,6 @@ struct SpendingView: View {
         return list.filter { s in
             (gameFilters.isEmpty || gameFilters.contains(s.gameName)) &&
             (paymentFilter == nil || s.paymentMethod == paymentFilter) &&
-            (typeFilter == .all || (typeFilter == .normal ? !s.isSubscription : s.isSubscription)) &&
             periodMatch(s, dy, dm, ly, lm, range)
         }
     }
@@ -710,15 +702,12 @@ struct SpendingRow: View {
                 .background(gameColor.opacity(0.14), in: RoundedRectangle(cornerRadius: compact ? 9 : 12, style: .continuous))
 
             if compact {
-                // 한 줄(태그·결제수단·정기뱃지 숨김)
+                // 한 줄(태그·결제수단 숨김)
                 Text(compactTitle).font(.pretendard(size: 13, weight: .bold)).lineLimit(1)
             } else {
                 VStack(alignment: .leading, spacing: 4) {
                     HStack(spacing: 6) {
                         Text(spending.gameName).font(.pretendard(size: 15, weight: .bold)).lineLimit(1)
-                        if spending.isSubscription {
-                            GLGBadge(label: "정기", color: gameColor)
-                        }
                     }
                     if !subtitle.isEmpty {
                         Text(subtitle).font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary).lineLimit(1)

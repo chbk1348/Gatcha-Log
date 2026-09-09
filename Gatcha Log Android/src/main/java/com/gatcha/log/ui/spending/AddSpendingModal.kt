@@ -121,7 +121,6 @@ fun AddSpendingModal(
     val selectedTags = remember(spendingToEdit) {
         mutableStateListOf<String>().apply { spendingToEdit?.tags?.let { addAll(it) } }
     }
-    var isSubscription by remember(spendingToEdit) { mutableStateOf(spendingToEdit?.isSubscription ?: false) }
     // 수정 진입 시 저장된 항목명("창세의 결정 300 ×3")에서 상품·구매 횟수를 복원 → 스텝퍼가 그대로 노출.
     var selectedPackage by remember(spendingToEdit) { mutableStateOf(detectEditPackage(spendingToEdit)) }
     // 한 번에 같은 상품을 여러 번 산 경우 — 횟수만큼 금액·재화를 곱해 한 건으로 기록.
@@ -160,7 +159,6 @@ fun AddSpendingModal(
         quantity = 1
         amount = pkg.price.toString()
         itemName = pkg.name
-        isSubscription = pkg.bonus == "월정액"
     }
 
     // 구매 횟수 변경 — 선택된 상품 기준으로 금액·재화명을 N배로 다시 계산.
@@ -189,7 +187,6 @@ fun AddSpendingModal(
             itemName = itemName,
             memo = memo,
             tags = tags,
-            isSubscription = isSubscription,
             gameColor = game.color,
         )
     }
@@ -210,7 +207,7 @@ fun AddSpendingModal(
     ) {
         // 헤더는 앱 표준 상세 헤더(GlgDetailHeaderOverlay)로 통일한다 —
         // 예전엔 이 화면만 22sp 제목 + 우측 원형 X 라는 자기만의 머리를 갖고 있어,
-        // 설정·저축 플래너·정기결제 같은 다른 하위 페이지와 생김새도 뒤로가기 위치도 달랐다.
+        // 설정 같은 다른 하위 페이지와 생김새도 뒤로가기 위치도 달랐다.
         Box(Modifier.fillMaxSize()) {
         val listState = rememberLazyListState()
         val scrolled by remember {
@@ -244,11 +241,9 @@ fun AddSpendingModal(
                             selectedPackage = null
                             quantity = 1
                             itemName = ""
-                            isSubscription = false
                             if (!editing) chargePlatform = SpendingDefaults.lastPlatform(recentSpendings, g.displayName) ?: ""
                         },
                         itemName = itemName,
-                        isSubscription = isSubscription,
                         nudge = inlineNudge,
                     )
                 }
@@ -277,7 +272,6 @@ fun AddSpendingModal(
                                     quantity = 1
                                     itemName = f.itemName
                                     amount = f.amount.toString()
-                                    selectedPackage?.let { isSubscription = it.bonus == "월정액" }
                                 }
                                 Spacer(Modifier.height(7.dp))
                             }
@@ -396,7 +390,7 @@ fun AddSpendingModal(
                     SectionCard {
                         val tagCount = selectedTags.size + customTags.split(",", " ").count { it.isNotBlank() }
                         val custom = chargePlatform.isNotBlank() || selectedTags.isNotEmpty() ||
-                            customTags.isNotBlank() || memo.isNotBlank() || isSubscription
+                            customTags.isNotBlank() || memo.isNotBlank()
                         Row(
                             Modifier.fillMaxWidth()
                                 .clip(RoundedCornerShape(12.dp))
@@ -410,7 +404,6 @@ fun AddSpendingModal(
                                         add(paymentMethod.ifBlank { "카드" })
                                         if (chargePlatform.isNotBlank()) add(chargePlatform)
                                         add(if (tagCount > 0) "태그 $tagCount" else "태그 없음")
-                                        if (isSubscription) add("정기")
                                         if (memo.isNotBlank()) add("메모")
                                     }.joinToString(" · "),
                                     fontSize = 11.5.sp, maxLines = 1,
@@ -473,18 +466,6 @@ fun AddSpendingModal(
                             placeholder = "이벤트 구입",
                             modifier = Modifier.fillMaxWidth(),
                         )
-                        Spacer(Modifier.height(16.dp))
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Column(Modifier.weight(1f)) {
-                                Text("구독(월정액·패스)으로 기록", fontSize = 15.sp, fontWeight = FontWeight.Medium)
-                                Text("정기 결제 항목으로 분류됩니다", fontSize = 12.sp, color = TextSecondary)
-                            }
-                            GlgSwitch(checked = isSubscription, onCheckedChange = { isSubscription = it })
-                        }
                         }
                         }
                     }
@@ -565,11 +546,9 @@ private fun AmountHero(
     onGameChange: (Game) -> Unit,
     gameChosen: Boolean,
     itemName: String,
-    isSubscription: Boolean,
     nudge: String?,
 ) {
     val gameColor = if (gameChosen) game.color.toColor() else TextSecondary
-    val accent = LocalAccent.current
     var pickGame by remember { mutableStateOf(false) }
     Column(
         Modifier.fillMaxWidth()
@@ -652,17 +631,6 @@ private fun AmountHero(
         if (itemName.isNotBlank()) {
             Row(Modifier.padding(top = 3.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text(itemName, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextPrimary, maxLines = 1)
-                // 월정액/패스를 고르면 구독이 **자동으로 켜진다**. 그 상태가 접힌 '자세히' 안에만
-                // 있으면 켜진 줄 모르므로 히어로가 대신 말한다.
-                if (isSubscription) {
-                    Spacer(Modifier.width(6.dp))
-                    Text(
-                        "정기", fontSize = 10.sp, fontWeight = FontWeight.Black, color = accent,
-                        modifier = Modifier.clip(RoundedCornerShape(6.dp))
-                            .background(accent.copy(alpha = 0.14f))
-                            .padding(horizontal = 6.dp, vertical = 2.dp),
-                    )
-                }
             }
         }
         // 재화 환산은 사는 순간에 보여야 의미가 있다.

@@ -80,7 +80,6 @@ private enum class PeriodFilter(val label: String) { ALL("전체"), THIS_MONTH("
 /** 하루의 시작(00:00) 밀리초 — 기간 지정 경계 계산용. */
 private fun startOfDay(millis: Long): Long = DateUtil.localTimeOnDay(millis, 0)
 private const val DAY_MS = 86_400_000L
-private enum class TypeFilter(val label: String) { ALL("전체"), NORMAL("일반"), SUBSCRIPTION("구독") }
 private enum class SortOrder(val label: String) { DATE_DESC("최신순"), DATE_ASC("오래된순"), AMOUNT_DESC("금액 높은순") }
 
 /** 지출 탭 내 하위 페이지 네비게이션 상태 (List=목록, Insight=인사이트(연간 리포트 포함), Detail=지출 상세). */
@@ -111,7 +110,6 @@ fun SpendingScreen(
     // 퀵필터에서 연 날짜 선택 대상 — null=닫힘, 0=시작, 1=종료.
     var quickPickTarget by remember { mutableStateOf<Int?>(null) }
     var paymentFilter by remember { mutableStateOf<String?>(null) }
-    var typeFilter by remember { mutableStateOf(TypeFilter.ALL) }
     var sortOrder by remember { mutableStateOf(SortOrder.DATE_DESC) }
     val showFilterSheet = remember { mutableStateOf(false) }
     // 선택 모드(다중 선택) — 일괄 편집/삭제용.
@@ -149,7 +147,6 @@ fun SpendingScreen(
         selectedGames.isNotEmpty(),
         period != PeriodFilter.ALL,
         paymentFilter != null,
-        typeFilter != TypeFilter.ALL,
         sortOrder != SortOrder.DATE_DESC,
     ).count { it }
 
@@ -203,18 +200,13 @@ fun SpendingScreen(
 
     // 성능: 필터/정렬/그룹은 입력이 바뀔 때만 재계산(remember). 스크롤 콜랩스로 화면이 매 프레임
     // 재구성돼도 리스트 전체를 다시 훑지 않는다 — 지출 항목이 많을수록 스크롤 버벅임을 크게 줄인다.
-    val filtered = remember(spendings, selectedGames, paymentFilter, typeFilter, period, customStart, customEnd, viewModel.displayYear, viewModel.displayMonth, lastY, lastM) {
+    val filtered = remember(spendings, selectedGames, paymentFilter, period, customStart, customEnd, viewModel.displayYear, viewModel.displayMonth, lastY, lastM) {
         // 기간 지정 경계는 항목 밖에서 한 번만 — 종료일은 **그날 전체를 포함**한다(자정 경계에서 하루가 빠지지 않게).
         val rangeLo = minOf(startOfDay(customStart), startOfDay(customEnd))
         val rangeHi = maxOf(startOfDay(customStart), startOfDay(customEnd)) + DAY_MS
         spendings.filter { s ->
             (selectedGames.isEmpty() || s.gameName in selectedGames) &&
                 (paymentFilter == null || s.paymentMethod == paymentFilter) &&
-                when (typeFilter) {
-                    TypeFilter.ALL -> true
-                    TypeFilter.NORMAL -> !s.isSubscription
-                    TypeFilter.SUBSCRIPTION -> s.isSubscription
-                } &&
                 when (period) {
                     PeriodFilter.ALL -> true
                     PeriodFilter.THIS_MONTH -> DateUtil.isSameMonth(s.dateMillis, viewModel.displayYear, viewModel.displayMonth)
@@ -273,8 +265,6 @@ fun SpendingScreen(
                             onSort = { sortOrder = it },
                             paymentFilter = paymentFilter,
                             onPaymentClear = { paymentFilter = null },
-                            typeFilter = typeFilter,
-                            onTypeClear = { typeFilter = TypeFilter.ALL },
                         )
                     }
                 }
@@ -407,11 +397,10 @@ fun SpendingScreen(
             customStart = customStart, onCustomStart = { customStart = it },
             customEnd = customEnd, onCustomEnd = { customEnd = it },
             paymentFilter = paymentFilter, onPayment = { paymentFilter = it },
-            typeFilter = typeFilter, onType = { typeFilter = it },
             sortOrder = sortOrder, onSort = { sortOrder = it },
             onReset = {
                 selectedGames = emptySet(); period = PeriodFilter.ALL
-                paymentFilter = null; typeFilter = TypeFilter.ALL; sortOrder = SortOrder.DATE_DESC
+                paymentFilter = null; sortOrder = SortOrder.DATE_DESC
                 customStart = System.currentTimeMillis() - 30 * DAY_MS
                 customEnd = System.currentTimeMillis()
             },
@@ -494,11 +483,9 @@ private fun SpendingQuickFilters(
     onSort: (SortOrder) -> Unit,
     paymentFilter: String?,
     onPaymentClear: () -> Unit,
-    typeFilter: TypeFilter,
-    onTypeClear: () -> Unit,
 ) {
     val accent = LocalAccent.current
-    val hasOthers = paymentFilter != null || typeFilter != TypeFilter.ALL
+    val hasOthers = paymentFilter != null
     Column(Modifier.fillMaxWidth().padding(bottom = 10.dp)) {
         // ① 축별 드롭다운 — 가로 스크롤(알약이 넘치면 잘리지 않고 밀린다).
         Row(
@@ -570,9 +557,6 @@ private fun SpendingQuickFilters(
             ) {
                 paymentFilter?.let { m ->
                     GlgHeaderPillChip(label = "$m  ✕", selected = true, color = accent) { onPaymentClear() }
-                }
-                if (typeFilter != TypeFilter.ALL) {
-                    GlgHeaderPillChip(label = "${typeFilter.label}  ✕", selected = true, color = accent) { onTypeClear() }
                 }
             }
         }
@@ -680,10 +664,6 @@ private fun SpendingRow(spending: Spending, selectionMode: Boolean, selected: Bo
             Column(Modifier.weight(1f)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(spending.gameName, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                    if (spending.isSubscription) {
-                        Spacer(Modifier.width(6.dp))
-                        GlgBadge("정기", spending.gameColor.toColor())
-                    }
                 }
                 Text(
                     listOfNotNull(spending.itemName.ifBlank { null }, spending.paymentMethod).joinToString(" · "),
@@ -724,7 +704,6 @@ private fun SpendingFilterSheet(
     customStart: Long, onCustomStart: (Long) -> Unit,
     customEnd: Long, onCustomEnd: (Long) -> Unit,
     paymentFilter: String?, onPayment: (String?) -> Unit,
-    typeFilter: TypeFilter, onType: (TypeFilter) -> Unit,
     sortOrder: SortOrder, onSort: (SortOrder) -> Unit,
     onReset: () -> Unit,
     onDismiss: () -> Unit,
@@ -785,9 +764,6 @@ private fun SpendingFilterSheet(
                 FilterGroup("결제 수단") {
                     FilterPill("전체", paymentFilter == null, accent) { onPayment(null) }
                     GameData.paymentMethods.forEach { m -> FilterPill(m, paymentFilter == m, accent) { onPayment(m) } }
-                }
-                FilterGroup("구분") {
-                    TypeFilter.entries.forEach { t -> FilterPill(t.label, typeFilter == t, accent) { onType(t) } }
                 }
                 FilterGroup("정렬") {
                     SortOrder.entries.forEach { s -> FilterPill(s.label, sortOrder == s, accent) { onSort(s) } }

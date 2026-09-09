@@ -15,7 +15,6 @@ expect object Notifier {
     val ID_RESIN_BASE: Int        // + game.ordinal
     val ID_BUDGET_GAME_BASE: Int  // 게임별 예산 초과/임박. + game.ordinal
     val ID_PICKUP_BASE: Int       // 픽업 마감 임박. + game.ordinal
-    val ID_SUBSCRIPTION_BASE: Int // 정기결제 갱신 임박. + (구독 인덱스)
     val ID_DAILY_SUMMARY: Int     // 데일리 요약(1건 통합)
     val ID_NEWS_BASE: Int         // 새 게임 공지. + game.ordinal
     val ID_COMBAT_BASE: Int       // 전투 콘텐츠 시즌 마감 임박. + game.ordinal
@@ -37,13 +36,3 @@ expect object Notifier {
      */
     fun notificationsEnabled(): Boolean
 }
-
-/**
- * 정기결제 알림 ID — **구독 id 해시로 고정**한다.
- *
- * 예전엔 리스트 인덱스(`ID_SUBSCRIPTION_BASE + idx % 64`)를 썼다. 구독을 추가·삭제·정렬하면 같은
- * 구독의 알림 ID 가 바뀌어, 이전 알림이 갱신되지 않고 쌓이거나 엉뚱한 구독의 알림을 덮어썼다.
- * (dedup 키는 이미 `sub:<id>` 였는데 ID 만 인덱스였다.)
- */
-internal fun subscriptionNotificationId(subId: String): Int =
-    Notifier.ID_SUBSCRIPTION_BASE + ((subId.hashCode() % 64) + 64) % 64

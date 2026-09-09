@@ -47,7 +47,6 @@ struct NotificationSettingsView: View {
     /// 지금 켜져 있는 항목.
     private var notifyState: [NotifyKey: Bool] {
         [.budget: store.notifyBudget,
-         .subscription: store.notifySubscription,
          .resin: store.notifyResin,
          .attendance: store.notifyAttendance,
          .pickup: store.notifyPickup,
@@ -60,7 +59,6 @@ struct NotificationSettingsView: View {
     private func notifyBinding(_ key: NotifyKey) -> Binding<Bool> {
         switch key {
         case .budget: return notifyBind(\.notifyBudget, store.setNotifyBudget)
-        case .subscription: return notifyBind(\.notifySubscription, store.setNotifySubscription)
         case .resin: return notifyBind(\.notifyResin, store.setNotifyResin)
         case .attendance: return notifyBind(\.notifyAttendance, store.setNotifyAttendance)
         case .pickup: return notifyBind(\.notifyPickup, store.setNotifyPickup)
@@ -74,7 +72,6 @@ struct NotificationSettingsView: View {
     private func notifyIcon(_ key: NotifyKey) -> String {
         switch key {
         case .budget: return "banknote"
-        case .subscription: return "arrow.triangle.2.circlepath"
         case .resin: return "bolt.fill"
         case .attendance: return "calendar.badge.checkmark"
         case .pickup: return "calendar.badge.clock"
