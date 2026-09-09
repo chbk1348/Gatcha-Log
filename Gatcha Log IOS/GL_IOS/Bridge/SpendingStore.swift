@@ -129,6 +129,8 @@ final class SpendingStore {
     // 현재 게임 버전(nanoka) — 데일리 타일 아래 한 줄
     private(set) var gameVersions: [GameVersionLine] = []
     private(set) var weaponRefinement: [String: WeaponRefinement] = [:]
+    /// 캐릭터 소속 — 원신은 국가, 스타레일은 진영. 키는 "게임키:캐릭터id".
+    private(set) var charCamp: [String: String] = [:]
     private(set) var gachaDashboard: GachaDashboard? = nil
     private(set) var redeemState: RedeemState = RedeemStateIdle.shared
     private(set) var activeCodes: [GiftCode] = []
@@ -341,6 +343,7 @@ final class SpendingStore {
         bind(vm.enkaLoading) { [weak self] in self?.enkaLoading = $0.boolValue }
         bind(vm.gameVersions) { [weak self] in self?.gameVersions = $0 }
         bind(vm.weaponRefinement) { [weak self] in self?.weaponRefinement = $0 }
+        bind(vm.charCamp) { [weak self] in self?.charCamp = $0 }
         bind(vm.enkaResults) { [weak self] in self?.enkaResults = $0 }
         bind(vm.enkaLoadingGames) { [weak self] in self?.enkaLoadingGames = $0 }
         bind(vm.gachaDashboard) { [weak self] in self?.gachaDashboard = $0 }
@@ -515,6 +518,8 @@ final class SpendingStore {
     func autoLoadEnka(game: String, force: Bool = false) { vm.autoLoadEnka(game: game, force: force) }
     func autoLoadEnkaSection(games: [String], force: Bool = false) { vm.autoLoadEnkaSection(games: games, force: force) }
     func loadGameVersions() { vm.loadGameVersions(force: false) }
+    func loadCharCamp(_ gameKey: String, _ charId: Int32) { vm.loadCharCamp(gameKey: gameKey, charId: charId) }
+
     func loadWeaponRefinement(game: String, weaponId: Int32, level: Int32) {
         vm.loadWeaponRefinement(gameKey: game, weaponId: weaponId, level: level)
     }

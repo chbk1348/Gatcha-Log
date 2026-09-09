@@ -105,6 +105,63 @@ object NanokaApi {
     }
 
     /**
+     * 캐릭터의 **소속** — 젠레스의 진영에 해당하는 값.
+     *
+     * 젠레스는 응답이 직접 진영을 주는데(`camp_name_mi18n`), 원신·스타레일은 주지 않는다.
+     * 도감에는 있다 — 무기 정련을 받아 오는 그 도감이다([entity]).
+     *
+     * - 스타레일 `chara_info.camp` — "벨로보그" · "선주 「나부」" · "스텔라론 헌터"
+     * - 원신 `chara_info.region` — **국가**로 보여준다. `ASSOC_TYPE_LIYUE` 같은 코드값이라
+     *   [giRegionKo] 로 옮긴다. 같은 자리에 `native`(야시로 봉행·왕생당)도 있지만 그건 조직이고,
+     *   원신에서 캐릭터를 가르는 축은 국가다.
+     *
+     * 값이 없는 캐릭터도 있다(스타레일 망귀인) — 그때는 null 이고, 화면은 줄을 그리지 않는다.
+     */
+    suspend fun charCamp(gameKey: String, charId: Int): String? {
+        if (charId <= 0) return null
+        val nanokaKey = when (gameKey) {
+            "genshin" -> "gi"
+            "hsr", "starrail" -> "hsr"
+            else -> return null   // 젠레스는 응답이 직접 준다
+        }
+        val info = entity(nanokaKey, "character", charId.toString())?.optJSONObject("chara_info") ?: return null
+        return if (nanokaKey == "gi") giRegionKo(info.optString("region"), charId)
+        else info.optString("camp").takeIf { it.isNotBlank() }
+    }
+
+    /**
+     * 원신 `region` 코드 → 국가명.
+     *
+     * ⚠️ **모르는 코드는 null 을 돌려준다.** 코드값을 그대로 띄우면 화면에
+     * `ASSOC_TYPE_OMNI_SCOURGE` 가 뜨고, 짐작해서 옮기면 틀린 국적을 단언하게 된다.
+     * 새 코드는 로그로 남긴다 — "GatchaNanoka: 미지 지역" 으로 검색.
+     *
+     * 국가가 아닌 소속(우인단·여행자)도 여기 섞여 온다. 그건 국가 대신 그 이름을 쓴다 —
+     * 사용자가 아는 말이 그쪽이다.
+     */
+    internal fun giRegionKo(code: String, charId: Int = 0): String? = when (code) {
+        "ASSOC_TYPE_MONDSTADT" -> "몬드"
+        "ASSOC_TYPE_LIYUE" -> "리월"
+        "ASSOC_TYPE_INAZUMA" -> "이나즈마"
+        "ASSOC_TYPE_SUMERU" -> "수메르"
+        "ASSOC_TYPE_FONTAINE" -> "폰타인"
+        "ASSOC_TYPE_NATLAN" -> "나타"
+        "ASSOC_TYPE_NODKRAI" -> "노드크라이"
+        // 같은 나라인데 코드가 갈려 온다. `_STAR` 는 오데트·베스나·산드로네가 쓰고
+        // `_ZIBAI` 는 자백이 쓴다 — 상류가 세부 구분을 붙인 것이고, 나라는 같다.
+        "ASSOC_TYPE_SNEZHNAYA", "ASSOC_TYPE_SNEZHNAYA_STAR" -> "스네즈나야"
+        "ASSOC_TYPE_NODKRAI_ZIBAI" -> "노드크라이"
+        "ASSOC_TYPE_FATUI" -> "우인단"
+        "ASSOC_TYPE_HVISION" -> "마녀회"
+        "ASSOC_TYPE_MAINACTOR" -> "여행자"
+        "" -> null
+        else -> {
+            println("GatchaNanoka: 미지 지역 region=$code id=$charId")
+            null
+        }
+    }
+
+    /**
      * 도감 한 판 → 정련 효과. **게임마다 모양이 다르다.**
      *
      * - 원신 `refinement` — 단계가 곧 키다. `{"1": {name, desc}, "2": …}`. 설명에 수치가 이미 박혀 있다.

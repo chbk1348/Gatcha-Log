@@ -132,6 +132,7 @@ fun GameInfoScreen(
     val taskStats by viewModel.taskStats.collectAsStateWithLifecycle()
     val keyStatOverrides by viewModel.keyStatOverrides.collectAsStateWithLifecycle()
     val weaponRefinements by viewModel.weaponRefinement.collectAsStateWithLifecycle()
+    val charCamps by viewModel.charCamp.collectAsStateWithLifecycle()
     val gameVersions by viewModel.gameVersions.collectAsStateWithLifecycle()
     // 게임정보 하위 풀스크린 페이지(연동 / 가챠 통계) — 열리면 상위(Scaffold)에 알려 하단바·FAB 숨김
     var subPage by remember { mutableStateOf(GiSub.Main) }
@@ -273,6 +274,8 @@ fun GameInfoScreen(
                         onSetOverride = { k, v -> viewModel.setKeyStatOverride(k, v) },
                         refinement = weaponRefinements["$statCharGame:${w?.id ?: 0}:${w?.refinement ?: 0}"],
                         onNeedRefinement = { id, lv -> viewModel.loadWeaponRefinement(statCharGame, id, lv) },
+                        camp = charCamps["$statCharGame:${c.id}"],
+                        onNeedCamp = { id -> viewModel.loadCharCamp(statCharGame, id) },
                         onBack = back,
                     )
                 }

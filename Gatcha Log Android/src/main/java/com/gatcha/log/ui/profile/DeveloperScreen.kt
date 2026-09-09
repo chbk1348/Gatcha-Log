@@ -73,6 +73,12 @@ fun DeveloperScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
                             "행동력 카드의 비상벨이 뜨는 조건을 만든다",
                         ) { viewModel.debugFillAllResin() }
                         DevDivider()
+                        // 등급 밴드를 감이 아니라 값으로 정하려고 만든 것 — 보유 로스터의 분포를 찍는다.
+                        DevRow(
+                            Icons.Default.QueryStats, "유물 점수 분포 덤프",
+                            "보유 로스터의 장당·평균·합계 백분위를 로그로 (GatchaScore)",
+                        ) { viewModel.debugDumpScoreDistribution() }
+                        DevDivider()
                         DevRow(
                             Icons.Default.Notifications, "천장 하드 직전 (89)",
                             "계산기 경고색·임박 토스트 확인",
