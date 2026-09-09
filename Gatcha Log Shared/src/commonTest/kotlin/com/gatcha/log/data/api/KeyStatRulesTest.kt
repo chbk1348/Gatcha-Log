@@ -155,4 +155,35 @@ class KeyStatRulesTest {
         assertEquals(ANOM_MASTERY, normStat("이상 숙련"))   // 옛 표기 호환
         assertEquals(EM, normStat("원소 마스터리"))
     }
+
+    // ── 메인 옵션 적합 표식 ─────────────────────────────────────────────────
+
+    @Test
+    fun 메인이_유효옵션이면_적합이다() {
+        val keys = setOf(CRIT_RATE, CRIT_DMG, ATK_PCT, ELEM_DMG)
+        assertTrue(isMainFit("genshin", "공간의 성배", "원소 피해 보너스", "46.6%", keys))
+        assertTrue(isMainFit("genshin", "이성의 왕관", "치명타 확률", "31.1%", keys))
+        // 라벨은 "공격력"인데 값이 비율이다 — 값을 함께 봐야 공격%로 읽힌다.
+        assertTrue(isMainFit("genshin", "시간의 모래", "공격력", "46.6%", keys))
+    }
+
+    @Test
+    fun 고정_메인_슬롯에는_표식을_붙이지_않는다() {
+        // 생명의 꽃(HP)·죽음의 깃털(공격력)은 사용자가 못 바꾼다 — 칭찬도 지적도 뜻이 없다.
+        val keys = setOf(CRIT_RATE, CRIT_DMG, ATK_PCT, ELEM_DMG)
+        assertFalse(isMainFit("genshin", "생명의 꽃", "HP", "4780", keys))
+        assertFalse(isMainFit("genshin", "죽음의 깃털", "공격력", "311", keys))
+        assertFalse(isMainFit("hsr", "머리", "HP", "705", setOf(ATK_PCT)))
+        assertFalse(isMainFit("hsr", "핸드", "공격력", "352", setOf(ATK_PCT)))
+    }
+
+    @Test
+    fun 맞을_때만_말한다() {
+        val keys = setOf(CRIT_RATE, CRIT_DMG)
+        // 유효옵션에 없다고 "틀렸다"고 하지 않는다 — false 는 '표식 없음'이지 '부적합'이 아니다.
+        assertFalse(isMainFit("genshin", "시간의 모래", "원소 충전 효율", "51.8%", keys))
+        // 판정 불가(빈 집합)·점수 미사용 게임도 마찬가지로 침묵한다.
+        assertFalse(isMainFit("genshin", "공간의 성배", "치명타 확률", "31.1%", emptySet()))
+        assertFalse(isMainFit("zzz", "4번 디스크", "치명타 확률", "24.0%", keys))
+    }
 }

@@ -126,24 +126,6 @@ class RosterStandingTest {
         assertFalse(s.hasRank, "본인이 모수 밖이면 순위를 말할 수 없다")
     }
 
-    @Test
-    fun 다음_한_걸음은_가장_약한_유효옵션과_최하위_유물을_짚는다() {
-        // 모래: 치확만 많이, 성배: 둘 다 적게 → 성배가 최하위, 치피가 약점.
-        val c = char(
-            1, cv = 0.0,
-            artifacts = listOf(
-                artifact("시간의 모래", critRate = 15.0, critDmg = 20.0),
-                artifact("공간의 성배", critRate = 3.0, critDmg = 3.0),
-            ),
-        )
-        val step = RosterStandings.nextStep(c, "genshin")
-        assertNotNull(step)
-        assertEquals("공간의 성배", step.slotLabel)
-        assertEquals("치명타 피해", step.statLabel, "CV 기준 롤이 더 적은 쪽을 짚어야 한다")
-    }
-
-    @Test
-    fun 유물이_없으면_다음_한_걸음도_없다() {
-        assertNull(RosterStandings.nextStep(char(1, 0.0, artifacts = emptyList()), "genshin"))
-    }
+    // '다음 한 걸음' 테스트 둘은 여기 있었다 — 대상(`RosterStandings.nextStep`)을
+    // 걷어내며 함께 지웠다. 되살릴 때는 원신뿐 아니라 **스타레일 경로도** 덮을 것.
 }
