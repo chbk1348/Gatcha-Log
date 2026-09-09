@@ -1354,10 +1354,11 @@ private fun CharHero(
             }
             Spacer(Modifier.height(14.dp))
             FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(5.dp, Alignment.CenterHorizontally),
-                verticalArrangement = Arrangement.spacedBy(5.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally),
+                verticalArrangement = Arrangement.spacedBy(6.dp),
             ) {
-                HeroPill(gameLabel(game), ink)
+                // 게임 이름 칩은 여기 있었다. 캐릭터 상세는 그 게임의 로스터에서 들어오는 화면이라
+                // **어느 게임인지는 이미 알고 들어온다.** 칩 넷 중 하나를 그 말에 쓰지 않는다.
                 if (c.element.isNotBlank()) HeroPill(c.element, ink)
                 HeroPill("Lv. ${c.level}", ink)
                 val role = c.path.ifBlank { c.specialty }
@@ -2730,13 +2731,15 @@ private fun DrawScope.drawElementFx(
 /** 히어로 위 pill — 게임·속성·레벨·역할. 딥 톤 위라 반투명 흰색이다. */
 @Composable
 private fun HeroPill(text: String, ink: Color) {
+    // 히어로에서 이 칩이 캐릭터를 설명하는 유일한 줄이다(게임·속성·레벨·역할).
+    // 10.5sp 는 이름(27sp)·요약 줄에 눌려 부속처럼 읽혔다 — 읽으라고 둔 것이므로 키운다.
     Text(
         text,
-        fontSize = 10.5.sp, fontWeight = FontWeight.Bold, color = ink,
+        fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = ink,
         modifier = Modifier
             .clip(CircleShape)
             .background(Color.White.copy(alpha = 0.75f))
-            .padding(horizontal = 10.dp, vertical = 3.5.dp),
+            .padding(horizontal = 13.dp, vertical = 5.5.dp),
     )
 }
 
@@ -4094,184 +4097,394 @@ private fun DrawScope.drawElementFxAlt(
             )
         }
 
-        // ── 불 ①: **화염이 솟구친다.** 아래에서 불길이 확 올라왔다 잦아든다.
-        //    ②: **불티 소용돌이.** 불씨가 회오리로 감기며 빨려 올라간다.
+        // ── 불 ①: **화염이 솟구친다.** ②: **불티 소용돌이.**
         ElementFx.FLAME -> if (second) {
-            val rise = (p / 0.34f).coerceIn(0f, 1f)
+            // 불길은 **혀(tongue)** 다. 파도 실루엣만 그리면 액체로 보인다 —
+            // 개별 불꽃이 제 속도로 솟았다 사그라들어야 불로 읽힌다.
+            //   ① 바닥 잉걸 ② 불꽃 혀 여덟 ③ 열기 왜곡 ④ 불티 ⑤ 연기 기둥
+            val rise = (p / 0.30f).coerceIn(0f, 1f)
             val fall = ((p - 0.34f) / 0.66f).coerceIn(0f, 1f)
-            val height = h * (0.86f * rise) * (1f - fall * 0.85f)
+            val life = rise * (1f - fall * 0.88f)
             val tail = tailOf(p, 0.74f)
-            // 불길 — 폭을 따라 높이가 출렁이는 띠 셋을 겹친다.
-            listOf(
-                Triple(1.00f, 0.42f, ink),
-                Triple(0.74f, 0.55f, lerp(base, Color.White, 0.30f)),
-                Triple(0.44f, 0.72f, Color.White),
-            ).forEachIndexed { li, (sc, alpha, col) ->
-                val path = Path().apply {
-                    moveTo(0f, h)
-                    val n = 26
-                    repeat(n + 1) { k ->
-                        val fx2 = k / n.toFloat()
-                        val wobble =
-                            sin(fx2 * 9f + p * 14f + li) * 0.16f +
-                                sin(fx2 * 19f - p * 9f) * 0.09f
-                        val yy = h - height * sc * (0.62f + 0.38f * (1f + wobble))
-                        lineTo(w * fx2, yy)
-                    }
-                    lineTo(w, h)
-                    close()
-                }
-                drawPath(path, col.copy(alpha = alpha * tail))
-            }
-            // 열기 — 불길 위로 넓게 번지는 빛.
+            val baseY = h * 0.99f
+
+            // ① 잉걸 — 불이 앉은 자리. 불길보다 먼저 켜지고 나중까지 남는다.
             drawRect(
                 brush = Brush.verticalGradient(
-                    listOf(Color.Transparent, hot.copy(alpha = 0.30f * tail)),
-                    startY = h - height * 1.6f, endY = h,
+                    listOf(Color.Transparent, hot.copy(alpha = 0.34f * tail * rise)),
+                    startY = h * 0.78f, endY = h,
                 ),
-                topLeft = Offset(0f, (h - height * 1.6f).coerceAtLeast(0f)),
-                size = Size(w, minOf(height * 1.6f, h)),
+                topLeft = Offset(0f, h * 0.78f), size = Size(w, h * 0.22f),
             )
-            // 불티 — 불길 끝에서 뜯겨 올라간다.
-            repeat(20) { i ->
-                val seed = rnd(103, i)
+            repeat(14) { i ->
+                val ex = w * rnd(401, i)
+                val er = (3f + 5f * rnd(403, i)).dp.toPx() * (0.5f + 0.5f * sin(p * 9f + i))
+                drawCircle(hot.copy(alpha = 0.55f * tail * rise), er, Offset(ex, baseY - er * 0.4f))
+            }
+
+            // ② 불꽃 혀 — 저마다 다른 높이·속도로 솟는다.
+            repeat(8) { i ->
+                val seed = rnd(407, i)
+                val x = w * (0.10f + 0.80f * ((i + 0.5f) / 8f)) + (seed - 0.5f) * w * 0.05f
+                // 혀마다 살아나는 시점이 다르다.
+                val lt = ((life - seed * 0.18f) / 0.82f).coerceIn(0f, 1f)
+                if (lt <= 0f) return@repeat
+                val hh = h * (0.30f + 0.42f * rnd(409, i)) * lt
+                val ww = w * (0.045f + 0.030f * rnd(411, i))
+                // 끝이 살랑인다 — 위로 갈수록 크게.
+                val sway = sin(p * (11f + 5f * seed) + i) * ww * 0.9f
+                // 겉불 → 속불 → 심, 세 겹.
+                listOf(
+                    Triple(1.00f, 0.40f, ink),
+                    Triple(0.66f, 0.60f, lerp(base, Color.White, 0.32f)),
+                    Triple(0.34f, 0.85f, Color.White),
+                ).forEach { (sc, alpha, col) ->
+                    val th = hh * sc
+                    val tw = ww * (0.5f + 0.5f * sc)
+                    val tip = Offset(x + sway * sc, baseY - th)
+                    val path = Path().apply {
+                        moveTo(x - tw, baseY)
+                        // 바깥 윤곽 — 밑이 넓고 중간에서 좁아졌다 끝에서 모인다.
+                        cubicTo(
+                            x - tw * 1.1f, baseY - th * 0.42f,
+                            tip.x - tw * 0.55f, baseY - th * 0.74f,
+                            tip.x, tip.y,
+                        )
+                        cubicTo(
+                            tip.x + tw * 0.55f, baseY - th * 0.74f,
+                            x + tw * 1.1f, baseY - th * 0.42f,
+                            x + tw, baseY,
+                        )
+                        close()
+                    }
+                    drawPath(path, col.copy(alpha = alpha * tail))
+                }
+            }
+
+            // ③ 열기 왜곡 — 불 위 공기가 흔들린다. 가로 결 몇 줄로 표현.
+            repeat(5) { k ->
+                val hy = h * (0.30f + 0.10f * k) + sin(p * 7f + k) * h * 0.012f
+                val a = 0.16f * tail * life * (1f - k / 6f)
+                val path = Path().apply {
+                    moveTo(w * 0.12f, hy)
+                    var x = w * 0.12f
+                    repeat(5) { q ->
+                        val nx = x + w * 0.152f
+                        quadraticBezierTo(
+                            (x + nx) / 2f, hy + (if (q % 2 == 0) -1f else 1f) * h * 0.014f,
+                            nx, hy,
+                        )
+                        x = nx
+                    }
+                }
+                drawPath(path, Color.White.copy(alpha = a), style = Stroke(2.dp.toPx(), cap = StrokeCap.Round))
+            }
+
+            // ④ 불티 — 불꽃 끝에서 뜯겨 오르며 꺼진다.
+            repeat(22) { i ->
+                val seed = rnd(413, i)
                 val st = ((p - seed * 0.55f) / 0.5f).coerceIn(0f, 1f)
                 if (st <= 0f) return@repeat
-                val sx = w * rnd(107, i) + sin(st * 5f + i) * w * 0.04f
-                val sy = h - height * 0.9f - h * 0.5f * st
-                drawCircle(hot.copy(alpha = 0.85f * (1f - st) * tail), (3.6f - 2.2f * st).dp.toPx(), Offset(sx, sy))
+                val sx = w * rnd(417, i) + sin(st * 5f + i) * w * 0.045f
+                val sy = h * 0.72f - h * 0.62f * st
+                val a = (1f - st) * tail
+                drawCircle(hot.copy(alpha = 0.9f * a), (3.4f - 2.1f * st).dp.toPx(), Offset(sx, sy))
+                drawCircle(Color.White.copy(alpha = 0.6f * a), (1.4f - 0.8f * st).dp.toPx(), Offset(sx, sy))
+            }
+
+            // ⑤ 연기 — 불이 사그라들수록 짙어진다.
+            repeat(6) { i ->
+                val seed = rnd(419, i)
+                val st = ((p - 0.34f - seed * 0.3f) / 0.6f).coerceIn(0f, 1f)
+                if (st <= 0f) return@repeat
+                val sx = w * (0.28f + 0.44f * seed) + sin(st * 3f + i) * w * 0.09f
+                val sy = h * 0.55f - h * 0.5f * st
+                val sr = w * (0.06f + 0.16f * st)
+                drawCircle(
+                    brush = Brush.radialGradient(
+                        listOf(Color.Black.copy(alpha = 0.13f * (1f - st) * tail), Color.Transparent),
+                        center = Offset(sx, sy), radius = sr,
+                    ),
+                    radius = sr, center = Offset(sx, sy),
+                )
             }
         } else {
-            // 불티 소용돌이 — 바닥의 불씨가 회오리로 감기며 위로 빨려 올라간다.
+            // 불티 소용돌이 — 회오리처럼 **형태**가 있어야 한다. 입자만 돌리면 눈보라로 보인다.
+            //   ① 불기둥 몸통 ② 감아 오르는 불꽃 리본 ③ 잉걸 바닥 ④ 튀는 불티 ⑤ 연기로 변함
             val tail = tailOf(p, 0.76f)
             val cx = w * 0.5f
-            repeat(46) { i ->
-                val seed = rnd(109, i)
-                val t = ((p - seed * 0.5f) / 0.62f).coerceIn(0f, 1f)
-                if (t <= 0f) return@repeat
-                // 위로 갈수록 반지름이 줄고 빨리 돈다 — 그래야 빨려 올라가는 것으로 읽힌다.
-                val turns = 2.4f + 1.6f * rnd(113, i)
-                val ang = t * turns * PI.toFloat() * 2f + seed * 6.28f
-                val radius = w * (0.34f - 0.26f * t) * (0.5f + 0.5f * rnd(127, i))
-                val x = cx + cos(ang) * radius
-                val y = h * 0.98f - h * 0.82f * t
-                val a = (1f - t) * tail
-                val r = (4.2f - 2.6f * t).dp.toPx() * (0.6f + 0.6f * rnd(131, i))
-                drawCircle(hot.copy(alpha = 0.85f * a), r, Offset(x, y))
-                drawCircle(Color.White.copy(alpha = 0.55f * a), r * 0.4f, Offset(x - r * 0.25f, y - r * 0.25f))
+            val groundY = h * 0.96f
+            val topY = h * 0.08f
+            val botR = w * 0.17f
+            val topR = w * 0.045f
+            val sway = sin(p * 5f) * w * 0.016f
+            fun rAt(f: Float) = botR + (topR - botR) * f
+            fun axAt(f: Float) = cx + sway * f * f
+            val grow = (p / 0.24f).coerceIn(0f, 1f)
+
+            // ① 몸통 — 안이 비치는 화염 원뿔.
+            val body = Path().apply {
+                val n = 20
+                moveTo(axAt(0f) - rAt(0f), groundY)
+                repeat(n + 1) { k ->
+                    val f = (k / n.toFloat()) * grow
+                    lineTo(axAt(f) - rAt(f), groundY + (topY - groundY) * f)
+                }
+                repeat(n + 1) { k ->
+                    val f = ((n - k) / n.toFloat()) * grow
+                    lineTo(axAt(f) + rAt(f), groundY + (topY - groundY) * f)
+                }
+                close()
             }
-            // 중심 기둥 — 소용돌이의 축.
-            drawRect(
-                brush = Brush.verticalGradient(
-                    listOf(Color.Transparent, hot.copy(alpha = 0.26f * tail), Color.Transparent),
-                    startY = h * 0.12f, endY = h,
-                ),
-                topLeft = Offset(cx - w * 0.10f, h * 0.12f),
-                size = Size(w * 0.20f, h * 0.88f),
-            )
-            // 바닥 불씨
+            drawPath(body, hot.copy(alpha = 0.20f * tail))
+            drawPath(body, ink.copy(alpha = 0.26f * tail), style = Stroke(1.4.dp.toPx()))
+
+            // ② 불꽃 리본 — 감아 오른다. 앞면이 밝고 뒷면이 어둡다.
+            repeat(3) { ri ->
+                val phase = p * 6.4f + ri * 2.1f
+                var prev: Offset? = null
+                val n = 46
+                repeat(n + 1) { k ->
+                    val f = (k / n.toFloat()) * grow
+                    val th = phase + f * 7.6f
+                    val rr = rAt(f)
+                    val cur = Offset(axAt(f) + cos(th) * rr, groundY + (topY - groundY) * f)
+                    val front = sin(th) > 0f
+                    if (prev != null) {
+                        drawLine(
+                            (if (front) Color.White else ink).copy(
+                                alpha = (if (front) 0.75f else 0.30f) * tail * (1f - f * 0.4f),
+                            ),
+                            prev!!, cur,
+                            ((if (front) 4.2f else 2.6f) * (1f - f * 0.5f)).dp.toPx(),
+                            cap = StrokeCap.Round,
+                        )
+                        // 리본 안쪽에 원소색 겹 — 흰 선만이면 실처럼 가늘어 보인다.
+                        if (front) {
+                            drawLine(hot.copy(alpha = 0.5f * tail), prev!!, cur, (7f * (1f - f * 0.5f)).dp.toPx(), cap = StrokeCap.Round)
+                        }
+                    }
+                    prev = cur
+                }
+            }
+
+            // ③ 잉걸 바닥
             drawCircle(
                 brush = Brush.radialGradient(
-                    listOf(hot.copy(alpha = 0.45f * tail), Color.Transparent),
-                    center = Offset(cx, h * 0.96f), radius = w * 0.34f,
+                    listOf(hot.copy(alpha = 0.5f * tail * grow), Color.Transparent),
+                    center = Offset(cx, groundY), radius = botR * 2.1f,
                 ),
-                radius = w * 0.34f, center = Offset(cx, h * 0.96f),
+                radius = botR * 2.1f, center = Offset(cx, groundY),
             )
+            drawOvalRing(Offset(cx, groundY), botR * 1.2f, botR * 0.3f, ink.copy(alpha = 0.28f * tail), 2.dp.toPx())
+
+            // ④ 빨려 오르는 불티
+            repeat(30) { i ->
+                val seed = rnd(421, i)
+                val t = ((p - seed * 0.5f) / 0.6f).coerceIn(0f, 1f)
+                if (t <= 0f) return@repeat
+                val th = p * 7f + seed * 6.28f + t * 6f
+                val rr = rAt(t) * (0.8f + 0.5f * rnd(423, i))
+                val x = axAt(t) + cos(th) * rr
+                val y = groundY + (topY - groundY) * t
+                val a = (1f - t * 0.7f) * tail
+                val r = (3.6f - 2f * t).dp.toPx()
+                drawCircle(hot.copy(alpha = 0.9f * a), r, Offset(x, y))
+                drawCircle(Color.White.copy(alpha = 0.55f * a), r * 0.42f, Offset(x, y))
+            }
+
+            // ⑤ 꼭대기에서 연기로 — 불이 다 오르면 흩어진다.
+            repeat(5) { i ->
+                val seed = rnd(427, i)
+                val st = ((p - 0.42f - seed * 0.24f) / 0.5f).coerceIn(0f, 1f)
+                if (st <= 0f) return@repeat
+                val sx = axAt(1f) + (seed - 0.5f) * w * 0.30f * st
+                val sy = topY - h * 0.05f * st
+                val sr = w * (0.05f + 0.13f * st)
+                drawCircle(
+                    brush = Brush.radialGradient(
+                        listOf(Color.Black.copy(alpha = 0.12f * (1f - st) * tail), Color.Transparent),
+                        center = Offset(sx, sy), radius = sr,
+                    ),
+                    radius = sr, center = Offset(sx, sy),
+                )
+            }
         }
 
-        // ── 물 ①: **수면이 차오른다.** 물이 찼다가 빠지며 표면이 일렁인다.
-        //    ②: **물줄기.** 위에서 쏟아져 바닥에 부딪혀 튄다.
+        // ── 물 ①: **수면이 차오른다.** ②: **물줄기가 쏟아진다.**
         ElementFx.DROP -> if (second) {
-            val fill = (p / 0.42f).coerceIn(0f, 1f)
-            val drain = ((p - 0.52f) / 0.48f).coerceIn(0f, 1f)
-            val level = h * (1f - 0.72f * fill * (1f - drain))
+            // 수면은 **면**이다. 곡선 하나로는 물결 무늬에 그친다 —
+            // 앞뒤 두 겹 + 반사 하이라이트 + 벽 물자국까지 있어야 물이 찼다고 읽힌다.
+            val fill = (p / 0.40f).coerceIn(0f, 1f)
+            val drain = ((p - 0.54f) / 0.46f).coerceIn(0f, 1f)
+            val level = h * (1f - 0.74f * fill * (1f - drain))
             val tail = tailOf(p, 0.84f)
-            // 수면 — 사인 둘을 겹쳐 물결을 만든다.
-            val surface = Path().apply {
+
+            // 수면 하나 — [phase]·[amp] 를 달리해 앞뒤 두 겹을 만든다.
+            fun surface(lv: Float, phase: Float, amp: Float): Path = Path().apply {
                 moveTo(0f, h)
-                lineTo(0f, level)
-                val n = 40
+                lineTo(0f, lv)
+                val n = 44
                 repeat(n + 1) { k ->
-                    val fx2 = k / n.toFloat()
-                    val yy = level +
-                        sin(fx2 * 7f + p * 10f) * h * 0.016f +
-                        sin(fx2 * 15f - p * 6f) * h * 0.008f
-                    lineTo(w * fx2, yy)
+                    val f = k / n.toFloat()
+                    val yy = lv +
+                        sin(f * 7f + phase) * h * amp +
+                        sin(f * 15f - phase * 0.7f) * h * amp * 0.45f
+                    lineTo(w * f, yy)
                 }
                 lineTo(w, h)
                 close()
             }
-            drawPath(surface, ink.copy(alpha = 0.42f * tail))
-            drawPath(surface, hot.copy(alpha = 0.55f * tail), style = Stroke(2.2.dp.toPx()))
-            // 물속 기포 — 차오르는 동안 올라온다.
-            repeat(16) { i ->
+
+            // 뒤 물결 — 조금 높고 옅다. 깊이가 생긴다.
+            drawPath(surface(level - h * 0.012f, p * 8f + 1.6f, 0.013f), ink.copy(alpha = 0.24f * tail))
+            // 앞 물결
+            val front = surface(level, p * 10f, 0.016f)
+            drawPath(front, ink.copy(alpha = 0.42f * tail))
+            drawPath(front, hot.copy(alpha = 0.6f * tail), style = Stroke(2.4.dp.toPx()))
+
+            // 반사 하이라이트 — 수면에 빛이 부서진다. 이게 있어야 '물'이다.
+            repeat(9) { i ->
+                val f = (i + 0.5f) / 9f
+                val lx = w * f
+                val ly = level + sin(f * 7f + p * 10f) * h * 0.016f
+                val lw2 = w * (0.03f + 0.05f * rnd(431, i)) * (0.5f + 0.5f * sin(p * 6f + i))
+                drawLine(
+                    Color.White.copy(alpha = 0.45f * tail),
+                    Offset(lx - lw2, ly), Offset(lx + lw2, ly),
+                    2.dp.toPx(), cap = StrokeCap.Round,
+                )
+            }
+
+            // 물속 기포 — 위로 오르며 커진다.
+            repeat(18) { i ->
                 val seed = rnd(137, i)
                 val bt = ((p - seed * 0.45f) / 0.5f).coerceIn(0f, 1f)
                 if (bt <= 0f) return@repeat
-                val bx = w * rnd(139, i)
-                val by = h - (h - level) * bt * 0.9f
+                val bx = w * rnd(139, i) + sin(bt * 6f + i) * w * 0.012f
+                val by = h - (h - level) * bt * 0.92f
                 if (by < level) return@repeat
-                drawCircle(
-                    Color.White.copy(alpha = 0.45f * (1f - bt) * tail),
-                    (2.4f + 2.4f * seed).dp.toPx(),
-                    Offset(bx, by),
-                    style = Stroke(1.2.dp.toPx()),
+                val br = (2.2f + 2.8f * seed).dp.toPx() * (0.6f + 0.4f * bt)
+                drawCircle(Color.White.copy(alpha = 0.42f * (1f - bt) * tail), br, Offset(bx, by), style = Stroke(1.2.dp.toPx()))
+            }
+
+            // 벽 물자국 — 차올랐다 빠진 자리에 남는다. 빠질 때만 보인다.
+            if (drain > 0f) {
+                val markY = h * (1f - 0.74f * fill)
+                drawLine(
+                    hot.copy(alpha = 0.35f * (1f - drain) * tail),
+                    Offset(0f, markY), Offset(w, markY), 1.6.dp.toPx(),
                 )
             }
+
+            // 수면 위로 튀는 물방울 — 차오를 때만.
+            if (fill < 1f) {
+                repeat(10) { i ->
+                    val seed = rnd(433, i)
+                    val st = ((fill - seed * 0.6f) / 0.4f).coerceIn(0f, 1f)
+                    if (st <= 0f) return@repeat
+                    val sx = w * rnd(437, i)
+                    val sy = level - h * 0.09f * sin(st * PI.toFloat())
+                    drawCircle(ink.copy(alpha = 0.6f * (1f - st) * tail), (2.6f - 1.2f * st).dp.toPx(), Offset(sx, sy))
+                }
+            }
         } else {
-            // 물줄기 — 위에서 쏟아져 바닥에 부딪혀 튄다.
+            // 물줄기 — 바닥에 부딪히면 **왕관(crown)** 이 선다. 그게 물이 떨어졌다는 증거다.
             val tail = tailOf(p, 0.80f)
             val cx = w * 0.5f
             val floorY = h * 0.84f
-            val head = (h * 1.15f * (p / 0.30f).coerceIn(0f, 1f))
-            val flowing = p in 0.06f..0.78f
-            // 줄기 — 폭이 살짝 흔들린다.
-            if (p > 0.02f) {
+            val head = h * 1.15f * (p / 0.28f).coerceIn(0f, 1f)
+            val flowing = p < 0.80f
+
+            // ① 줄기 — 굵기가 출렁이고, 안쪽에 물살 결이 흐른다.
+            if (p > 0.02f && flowing) {
+                val bottom = minOf(head, floorY)
+                val n = 24
                 val stream = Path().apply {
-                    val n = 22
-                    val bottom = minOf(head, floorY)
-                    moveTo(cx - w * 0.035f, 0f)
+                    moveTo(cx - w * 0.038f, 0f)
                     repeat(n + 1) { k ->
                         val f = k / n.toFloat()
-                        val yy = bottom * f
-                        lineTo(cx - w * (0.035f + 0.012f * sin(f * 8f + p * 16f)), yy)
+                        lineTo(cx - w * (0.038f + 0.014f * sin(f * 9f + p * 18f)), bottom * f)
                     }
                     repeat(n + 1) { k ->
                         val f = 1f - k / n.toFloat()
-                        val yy = bottom * f
-                        lineTo(cx + w * (0.035f + 0.012f * sin(f * 8f - p * 16f)), yy)
+                        lineTo(cx + w * (0.038f + 0.014f * sin(f * 9f - p * 18f)), bottom * f)
                     }
                     close()
                 }
-                drawPath(stream, ink.copy(alpha = 0.62f * tail))
-                drawPath(stream, Color.White.copy(alpha = 0.30f * tail), style = Stroke(1.6.dp.toPx()))
+                drawPath(stream, ink.copy(alpha = 0.60f * tail))
+                drawPath(stream, Color.White.copy(alpha = 0.28f * tail), style = Stroke(1.6.dp.toPx()))
+                // 물살 결 — 줄기 안에서 아래로 흐르는 밝은 선.
+                repeat(4) { k ->
+                    val off = ((p * 2.2f + k * 0.25f) % 1f)
+                    val y0 = bottom * off
+                    val y1 = (y0 + bottom * 0.16f).coerceAtMost(bottom)
+                    val lx = cx + (k - 1.5f) * w * 0.018f
+                    drawLine(
+                        Color.White.copy(alpha = 0.5f * tail),
+                        Offset(lx, y0), Offset(lx, y1),
+                        1.6.dp.toPx(), cap = StrokeCap.Round,
+                    )
+                }
             }
-            // 바닥 충돌 — 튀는 물방울과 퍼지는 파문.
+
             if (head >= floorY) {
-                val st = ((p - 0.30f) / 0.7f).coerceIn(0f, 1f)
-                repeat(18) { i ->
+                val st = ((p - 0.28f) / 0.72f).coerceIn(0f, 1f)
+                // ② 왕관 — 사방으로 솟았다 꺾이는 물기둥 여덟.
+                val crown = (st / 0.45f).coerceIn(0f, 1f)
+                if (crown > 0f && crown < 1f) {
+                    repeat(9) { i ->
+                        val f = (i - 4f) / 4f
+                        val dist = w * 0.10f * f * (0.6f + 0.8f * crown)
+                        val hgt = h * 0.085f * (1f - abs(f) * 0.55f) * sin(crown * PI.toFloat())
+                        val bx = cx + dist
+                        val spike = Path().apply {
+                            moveTo(bx - w * 0.014f, floorY)
+                            quadraticBezierTo(bx - w * 0.006f, floorY - hgt * 0.8f, bx + dist * 0.12f, floorY - hgt)
+                            quadraticBezierTo(bx + w * 0.010f, floorY - hgt * 0.7f, bx + w * 0.014f, floorY)
+                            close()
+                        }
+                        drawPath(spike, ink.copy(alpha = 0.55f * (1f - crown) * tail))
+                        // 끝에 맺힌 방울
+                        drawCircle(
+                            ink.copy(alpha = 0.7f * (1f - crown) * tail),
+                            (2.6f).dp.toPx(),
+                            Offset(bx + dist * 0.12f, floorY - hgt),
+                        )
+                    }
+                }
+                // ③ 물보라 — 크기가 제각각이라야 흩어지는 것으로 보인다.
+                repeat(22) { i ->
                     val seed = rnd(149, i)
                     val bt = ((st - seed * 0.5f) / 0.45f).coerceIn(0f, 1f)
                     if (bt <= 0f) return@repeat
                     val dir = if (i % 2 == 0) 1f else -1f
-                    val dist = w * (0.05f + 0.42f * seed) * bt
+                    val dist = w * (0.04f + 0.46f * seed) * bt
                     val x = cx + dir * dist
-                    // 포물선 — 튀어 올랐다 떨어진다.
-                    val y = floorY - h * 0.20f * sin(bt * PI.toFloat()) * (0.5f + seed)
-                    drawCircle(ink.copy(alpha = 0.7f * (1f - bt) * tail), (3.4f - 1.8f * bt).dp.toPx(), Offset(x, y))
+                    val y = floorY - h * (0.10f + 0.16f * seed) * sin(bt * PI.toFloat())
+                    val r = (1.6f + 3.2f * rnd(439, i)) * (1f - bt * 0.5f)
+                    drawCircle(ink.copy(alpha = 0.65f * (1f - bt) * tail), r.dp.toPx(), Offset(x, y))
                 }
+                // ④ 퍼지는 파문 + 고인 물
                 repeat(3) { k ->
                     val rt = (st - k * 0.18f).coerceIn(0f, 1f)
                     if (rt <= 0f) return@repeat
-                    drawCircle(
-                        ink.copy(alpha = 0.34f * (1f - rt) * tail),
-                        w * (0.06f + 0.40f * rt),
+                    drawOvalRing(
                         Offset(cx, floorY),
-                        style = Stroke((2.6f * (1f - rt) + 0.5f).dp.toPx()),
+                        w * (0.06f + 0.44f * rt), h * (0.012f + 0.075f * rt),
+                        ink.copy(alpha = 0.34f * (1f - rt) * tail),
+                        (2.6f * (1f - rt) + 0.5f).dp.toPx(),
                     )
                 }
+                val pool = (st * 1.4f).coerceAtMost(1f)
+                drawRect(
+                    brush = Brush.verticalGradient(
+                        listOf(Color.Transparent, ink.copy(alpha = 0.30f * pool * tail)),
+                        startY = floorY - h * 0.02f, endY = h,
+                    ),
+                    topLeft = Offset(0f, floorY - h * 0.02f), size = Size(w, h - floorY + h * 0.02f),
+                )
             }
-            if (!flowing && head < floorY) return
         }
 
         // ── 바람 ①: **회오리가 지나간다.** ②: **꽃잎이 화면을 가로질러 날린다.**

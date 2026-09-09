@@ -1,8 +1,28 @@
 package com.gatcha.log.ui.game
 
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.lerp
+import com.gatcha.log.ui.theme.toColor
+import com.gatcha.log.data.GameData
+import com.gatcha.log.data.StageSlot
+import com.gatcha.log.data.StageState
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -12,6 +32,10 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
@@ -24,6 +48,12 @@ import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Celebration
 import androidx.compose.material.icons.filled.ConfirmationNumber
 import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.ShoppingBag
+import androidx.compose.material.icons.filled.Storefront
+import androidx.compose.runtime.mutableStateListOf
+import com.gatcha.log.data.HoyolandBooth
+import com.gatcha.log.data.HoyolandGoods
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.Text
@@ -37,6 +67,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -59,6 +91,7 @@ import com.gatcha.log.ui.theme.LocalAccent
 import com.gatcha.log.ui.theme.TextPrimary
 import com.gatcha.log.ui.theme.TextSecondary
 import com.gatcha.log.ui.components.GlgSegmentedTabs
+import com.gatcha.log.ui.theme.glgShortSpec
 import com.gatcha.log.ui.theme.glgStandardSpec
 
 // ── 호요랜드(호요버스 한국 오프라인 행사) ─────────────────────────────────────
@@ -137,8 +170,227 @@ fun HoyolandSection(onOpen: () -> Unit) {
  * 뭘 보나(참여 게임·프로그램) → 곁다리(G-STAR) → 참고(지난 행사).
  * 예전에는 장소 카드가 맨 위였고 일정이 그 아래 따로 있어서, 가장 먼저 궁금한 날짜가 두 번째였다.
  */
+/**
+ * 호요랜드 상세 **페이지** — 헤더(뒤로가기 + 「G-STAR」 버튼)까지 여기서 소유한다.
+ *
+ * 예전엔 지스타가 이 페이지 본문 중간에 그냥 얹혀 있었다. 별개 행사인데다 참가사 명단이
+ * 순차 공개돼 내용이 계속 자라는 자리라, 호요랜드를 보러 온 사람의 스크롤을 가로막았다.
+ * 헤더 버튼으로 빼서 **볼 사람만** 들어가게 한다.
+ *
+ * 페이지를 통째로 내보내는 이유: 호요랜드 상세는 게임정보 탭과 홈, 두 곳에서 열린다.
+ * 헤더 액션과 하위 페이지 상태를 호출부마다 따로 두면 두 곳이 어긋난다.
+ */
 @Composable
-fun HoyolandDetailContent() {
+fun HoyolandDetailPage(onBack: () -> Unit) {
+    val e = rememberHoyolandEvent()
+    // 하위 페이지를 **상태 하나로** 모은다. 예전엔 지스타만 AnimatedContent 에 있고 굿즈샵·부스는
+    // `if … return` 으로 컴포지션을 갈아끼워, 같은 페이지에서 나가는데 어떤 건 밀려 나가고
+    // 어떤 건 0프레임으로 튀었다(홈 `HomeSub` 와 같은 이유로 하나로 합쳤다).
+    var page by remember { mutableStateOf(HoyolandSub.None) }
+    AnimatedContent(
+        targetState = page,
+        modifier = Modifier.fillMaxSize(),
+        transitionSpec = {
+            if (targetState != HoyolandSub.None) {
+                (slideInHorizontally(glgStandardSpec()) { w -> w } + fadeIn(glgStandardSpec())) togetherWith
+                    (slideOutHorizontally(glgStandardSpec()) { w -> -w / 4 } + fadeOut(glgShortSpec()))
+            } else {
+                (slideInHorizontally(glgStandardSpec()) { w -> -w / 4 } + fadeIn(glgStandardSpec())) togetherWith
+                    (slideOutHorizontally(glgStandardSpec()) { w -> w } + fadeOut(glgShortSpec()))
+            }
+        },
+        label = "hoyolandSub",
+    ) { p ->
+        when (p) {
+            HoyolandSub.Gstar ->
+                SectionPage(e.gstar.title.ifBlank { "G-STAR" }, onBack = { page = HoyolandSub.None }) {
+                    GstarDetailContent()
+                }
+            HoyolandSub.Goods ->
+                SectionPage("굿즈샵", onBack = { page = HoyolandSub.None }) { HoyolandGoodsContent(e) }
+            HoyolandSub.Booth ->
+                SectionPage("부스 체험", onBack = { page = HoyolandSub.None }) { HoyolandBoothContent(e) }
+            HoyolandSub.None ->
+                SectionPage(
+                    "호요랜드",
+                    onBack,
+                    actions = {
+                        // 아이콘 하나로는 "지스타"가 읽히지 않아 글자를 쓴다. 대신 **면·테두리·높이는
+                        // 헤더 원형 버튼([GlgCircleIconButton])과 같은 값**이라, 같은 줄에서 따로 놀지
+                        // 않는다(흰 배경 · 1.5dp 테두리 · 44dp).
+                        //
+                        // 색만 강조색을 따르지 않는다 — 지스타는 이 앱의 기능이 아니라 **바깥 행사**라,
+                        // 테마색을 입히면 앱이 미는 자리처럼 보인다. 먹색 하나로 고정한다.
+                        if (!e.gstar.isEmpty) {
+                            Row(
+                                Modifier
+                                    .height(44.dp)
+                                    .clip(RoundedCornerShape(22.dp))
+                                    .background(Color.White)
+                                    .border(1.5.dp, Color.Black.copy(alpha = 0.12f), RoundedCornerShape(22.dp))
+                                    .clickable { page = HoyolandSub.Gstar }
+                                    .padding(start = 14.dp, end = 9.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Text("G-STAR", fontSize = 12.sp, fontWeight = FontWeight.Black, color = TextPrimary)
+                                Icon(
+                                    Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                                    contentDescription = null,
+                                    tint = TextSecondary,
+                                    modifier = Modifier.size(18.dp),
+                                )
+                            }
+                        }
+                    },
+                ) {
+                    HoyolandDetailContent(onOpenSub = { page = it })
+                }
+        }
+    }
+}
+
+/**
+ * 지스타(G-STAR) — 호요랜드와 **별개 행사**지만, 호요버스가 나오는 국내 오프라인 자리라
+ * 같은 페이지 묶음에서 다룬다. 내용은 전부 shared 의 `HoyolandGstar` 에서 온다
+ * (참가사 명단이 순차 공개돼 자주 바뀐다).
+ */
+@Composable
+fun GstarDetailContent() {
+    val accent = LocalAccent.current
+    val ctx = LocalContext.current
+    val e = rememberHoyolandEvent()
+    val g = e.gstar
+    if (g.isEmpty) {
+        Text("아직 공개된 정보가 없어요.", fontSize = 13.sp, color = TextSecondary)
+        return
+    }
+
+    // ── 히어로 — 호요랜드 상세와 같은 짜임(남은 날짜를 숫자 그 자체로). 대신 이 페이지는
+    // 부속 행사라 한 단계 작다. 강조색을 쓰지 않는 것도 같은 이유다 — 앱이 미는 자리가 아니다.
+    val brief = g.homeBrief()
+    GlassCard(modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(g.title, fontSize = 17.sp, fontWeight = FontWeight.Black, color = TextPrimary)
+                Spacer(Modifier.weight(1f))
+                if (brief != null) {
+                    Text(
+                        brief.dday,
+                        fontSize = 13.sp, fontWeight = FontWeight.Black, color = TextPrimary,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(9.dp))
+                            .background(Color.Black.copy(alpha = 0.06f))
+                            .padding(horizontal = 9.dp, vertical = 4.dp),
+                    )
+                }
+            }
+            Spacer(Modifier.height(12.dp))
+            // 3칸 — 이 행사에서 먼저 궁금한 것만. 나머지는 아래 목록으로 내린다.
+            Row(Modifier.fillMaxWidth()) {
+                GstarStat("기간", g.periodShort, g.dayCountLabel, Modifier.weight(1f))
+                Box(Modifier.width(1.dp).height(34.dp).background(DividerColor))
+                GstarStat("장소", g.venueShort, "", Modifier.weight(1f))
+                Box(Modifier.width(1.dp).height(34.dp).background(DividerColor))
+                GstarStat("규모", g.scaleLabel, "", Modifier.weight(1f))
+            }
+        }
+    }
+
+    // ── 호요버스 출품작 — 이 페이지를 여는 이유다. 팩트 목록에 끼워 두지 않고 제 자리를 준다.
+    if (g.lineup.isNotEmpty()) {
+        Spacer(Modifier.height(20.dp))
+        Text("호요버스 출품작", fontSize = 16.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 10.dp))
+        GlassCard(modifier = Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(16.dp)) {
+                g.lineup.forEachIndexed { i, item ->
+                    if (i > 0) {
+                        Spacer(Modifier.height(12.dp))
+                        Box(Modifier.fillMaxWidth().height(1.dp).background(DividerColor))
+                        Spacer(Modifier.height(12.dp))
+                    }
+                    HoyolandLineupRow(item)
+                }
+            }
+        }
+    }
+
+    // ── 함께 참가 — 일곱 곳이 "·" 로 이어진 한 줄은 읽히지 않는다. 칩으로 흩어 놓는다.
+    if (g.partners.isNotEmpty()) {
+        Spacer(Modifier.height(20.dp))
+        Text("함께 참가", fontSize = 16.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 10.dp))
+        GlassCard(modifier = Modifier.fillMaxWidth()) {
+            FlowRow(
+                Modifier.padding(16.dp),
+                horizontalArrangement = Arrangement.spacedBy(7.dp),
+                verticalArrangement = Arrangement.spacedBy(7.dp),
+            ) {
+                g.partners.forEach { name ->
+                    Text(
+                        name,
+                        fontSize = 12.sp, fontWeight = FontWeight.Medium, color = TextPrimary,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(9.dp))
+                            .background(Color.Black.copy(alpha = 0.045f))
+                            .padding(horizontal = 10.dp, vertical = 6.dp),
+                    )
+                }
+            }
+        }
+    }
+
+    // ── 그 밖의 정보 — 원격이 항목을 더해도 여기로 흘러 들어온다(화면이 라벨을 몰라도 안 빠진다).
+    if (g.otherFacts.isNotEmpty()) {
+        Spacer(Modifier.height(20.dp))
+        Text("그 밖의 정보", fontSize = 16.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 10.dp))
+        GlassCard(modifier = Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(16.dp)) {
+                g.otherFacts.forEachIndexed { i, f ->
+                    if (i > 0) Spacer(Modifier.height(9.dp))
+                    HoyolandFactRow(f.label, f.value)
+                }
+            }
+        }
+    }
+
+    if (g.url.isNotBlank()) {
+        Spacer(Modifier.height(20.dp))
+        GlgOutlineButton(
+            "공식 사이트",
+            onClick = { openExternalLink(ctx, g.url) },
+            modifier = Modifier.fillMaxWidth(),
+            height = 46.dp,
+            color = accent,
+        )
+    }
+    if (g.notice.isNotBlank()) {
+        Spacer(Modifier.height(12.dp))
+        Text(g.notice, fontSize = 11.sp, color = TextSecondary)
+    }
+}
+
+/** 히어로 3칸 한 칸 — 라벨 위, 값 아래. [sub] 는 값 옆 작은 보조(기간의 "4일"). */
+@Composable
+private fun GstarStat(label: String, value: String, sub: String, modifier: Modifier = Modifier) {
+    Column(modifier, horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(label, fontSize = 10.5.sp, color = TextSecondary)
+        Spacer(Modifier.height(4.dp))
+        Text(
+            value,
+            fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = TextPrimary,
+            maxLines = 1, overflow = TextOverflow.Ellipsis,
+        )
+        if (sub.isNotBlank()) {
+            Spacer(Modifier.height(2.dp))
+            Text(sub, fontSize = 10.sp, color = TextSecondary)
+        }
+    }
+}
+
+/** 호요랜드 상세의 하위 페이지 — 진입 카드로 연다. */
+enum class HoyolandSub { None, Gstar, Goods, Booth }
+
+@Composable
+fun HoyolandDetailContent(onOpenSub: (HoyolandSub) -> Unit = {}) {
     val accent = LocalAccent.current
     val ctx = LocalContext.current
     val e = rememberHoyolandEvent()
@@ -236,6 +488,23 @@ fun HoyolandDetailContent() {
             HoyolandFactRow("장소", e.venueFull)
             Spacer(Modifier.height(8.dp))
             HoyolandFactRow("주소", e.venueAddress)
+            // ── 참여 게임 — 아래 독립 섹션이었던 것을 여기로 들였다. "어느 게임이 오나"는
+            // 이 행사의 **기본 정보**라 일정·장소와 같은 카드에 있어야 하고, 세로 목록으로
+            // 늘어놓으면 다섯 줄이 카드 하나를 통째로 먹었다. 두 칸 그리드로 접는다.
+            if (e.lineup.isNotEmpty()) {
+                Spacer(Modifier.height(14.dp))
+                Box(Modifier.fillMaxWidth().height(1.dp).background(DividerColor))
+                Spacer(Modifier.height(12.dp))
+                Text("참여 게임", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = TextSecondary)
+                Spacer(Modifier.height(9.dp))
+                // **한 줄에 전부.** 두 줄 그리드는 카드에서 차지하는 덩이가 커서, 일정·장소와
+                // 같은 무게가 됐다. 여기서 필요한 건 "어느 게임이 오나"의 목록 자체지 게임별
+                // 설명이 아니다 — 테마는 무대 시간표에서 읽힌다.
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    e.lineup.forEach { item -> HoyolandLineupTile(item, Modifier.weight(1f)) }
+                }
+            }
+
             Spacer(Modifier.height(14.dp))
             // 카드 폭을 꽉 채운다 — GlgOutlineButton 은 기본이 내용 크기라, 너비를 안 주면
             // 버튼이 글자 길이만큼만 나온다(다른 호출부는 전부 weight 로 폭을 준다).
@@ -315,20 +584,22 @@ fun HoyolandDetailContent() {
 
     Spacer(Modifier.height(20.dp))
 
-    // ── 참여 게임 — 게임마다 테마가 따로 붙는다. 공식 키비주얼은 아직 게임별로 안 나와서
-    // 썸네일 자리는 게임 대표색 칩으로 둔다(공개되면 이 자리를 이미지로 바꾼다).
-    Text("참여 게임", fontSize = 16.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 10.dp))
-    GlassCard(modifier = Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp)) {
-            e.lineup.forEachIndexed { i, item ->
-                if (i > 0) {
-                    Spacer(Modifier.height(12.dp))
-                    Box(Modifier.fillMaxWidth().height(1.dp).background(DividerColor))
-                    Spacer(Modifier.height(12.dp))
-                }
-                HoyolandLineupRow(item)
-            }
-        }
+    // ── 굿즈샵 · 부스 체험 — 현장에서 **돈과 시간을 쓰는 두 가지**라 각각 페이지를 준다.
+    // 여기 목록으로 펼치면 무대 시간표만큼 길어져 이 페이지의 본론(언제·어디서)을 밀어낸다.
+    Spacer(Modifier.height(20.dp))
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        HoyolandSubEntry(
+            "굿즈샵",
+            e.goodsPriceRange().ifBlank { "판매 목록 공개 전" },
+            Icons.Default.ShoppingBag,
+            Modifier.weight(1f),
+        ) { onOpenSub(HoyolandSub.Goods) }
+        HoyolandSubEntry(
+            "부스 체험",
+            if (e.booths.isEmpty()) "부스 정보 공개 전" else "${e.booths.size}곳 · 게임별 체험존",
+            Icons.Default.Storefront,
+            Modifier.weight(1f),
+        ) { onOpenSub(HoyolandSub.Booth) }
     }
 
     // ── 프로그램 — 본편과 별개로 **참여 마감이 따로 있는** 것들이라 날짜를 눈에 띄게 둔다.
@@ -356,55 +627,6 @@ fun HoyolandDetailContent() {
     }
 
     Spacer(Modifier.height(20.dp))
-
-    // ── 지스타 — 호요랜드와 **별개 행사**지만, 호요버스가 나오는 국내 오프라인 자리라 여기 둔다.
-    // 내용은 전부 shared 의 HoyolandGstar 에서 온다(참가사 명단이 순차 공개돼 자주 바뀐다).
-    val g = e.gstar
-    if (!g.isEmpty) {
-        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 10.dp)) {
-            Text(g.title, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
-            if (g.badge.isNotBlank()) {
-                Spacer(Modifier.width(8.dp))
-                GlgBadge(g.badge, accent)
-            }
-        }
-        GlassCard(modifier = Modifier.fillMaxWidth()) {
-            Column(Modifier.padding(16.dp)) {
-                g.facts.forEachIndexed { i, f ->
-                    if (i > 0) Spacer(Modifier.height(8.dp))
-                    HoyolandFactRow(f.label, f.value)
-                }
-                // 출품작 — 팩트 목록과 같은 카드에 두되 구분선으로 끊는다. 라벨+값이 아니라
-                // 게임 태그가 붙는 줄이라 위와 생김새가 다르고, 따로 카드를 세울 만큼 길지도 않다.
-                if (g.lineup.isNotEmpty()) {
-                    Spacer(Modifier.height(14.dp))
-                    Box(Modifier.fillMaxWidth().height(1.dp).background(DividerColor))
-                    Spacer(Modifier.height(14.dp))
-                    Text("호요버스 출품작", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
-                    Spacer(Modifier.height(10.dp))
-                    g.lineup.forEachIndexed { i, item ->
-                        if (i > 0) Spacer(Modifier.height(10.dp))
-                        HoyolandLineupRow(item)
-                    }
-                }
-                if (g.url.isNotBlank()) {
-                    Spacer(Modifier.height(14.dp))
-                    GlgOutlineButton(
-                        "공식 사이트",
-                        onClick = { openExternalLink(ctx, g.url) },
-                        modifier = Modifier.fillMaxWidth(),
-                        height = 46.dp,
-                        color = accent,
-                    )
-                }
-                if (g.notice.isNotBlank()) {
-                    Spacer(Modifier.height(10.dp))
-                    Text(g.notice, fontSize = 11.sp, color = TextSecondary)
-                }
-            }
-        }
-        Spacer(Modifier.height(20.dp))
-    }
 
     // ── 지난 행사 참고 — 실제 개최 이력(최신순). 다음 행사 규모 가늠용.
     // 지나간 정보라 기본은 접어 둔다 — 이 페이지의 본론은 위의 2026 정보다.
@@ -464,57 +686,541 @@ private fun HoyolandTimetableSection(e: HoyolandEvent) {
     if (ymds.isEmpty()) return
     // 원격 갱신으로 기간이 바뀌면 선택 인덱스가 범위를 벗어날 수 있어 목록을 키로 준다.
     var sel by remember(ymds) { mutableStateOf(e.defaultDayIndex()) }
-    val slots = e.slotsFor(ymds.getOrElse(sel) { ymds.first() })
+    val ymd = ymds.getOrElse(sel) { ymds.first() }
+    val stage = e.stageSlots(ymd)
+    val games = e.stageGames(ymd)
+    // 게임 필터 — 날짜를 바꾸면 푼다(그날 없는 게임이 걸린 채 빈 목록이 되지 않게).
+    var gameFilter by remember(ymd) { mutableStateOf<String?>(null) }
 
-    Text("일자별 시간표", fontSize = 16.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 10.dp))
+    Text("일자별 시간표", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+    Text("메인 무대 공연 편성", fontSize = 11.5.sp, color = TextSecondary, modifier = Modifier.padding(top = 2.dp, bottom = 10.dp))
     // 날짜 선택 — 앱 공용 세그먼트 탭([GlgSegmentedTabs]). 리딤코드의 게임 탭도 같은 것을 쓴다.
     GlgSegmentedTabs(
-        labels = ymds.map { e.dayTabLabel(it) },
+        labels = ymds.map { e.dayTabDate(it) },
+        subLabels = ymds.map { e.dayTabWeekday(it) },
         selected = sel,
         onSelect = { sel = it },
     )
     Spacer(Modifier.height(10.dp))
+
+    if (stage.isEmpty()) {
+        StageEmptyCard(e)
+        return
+    }
+
+    // ── 라이브 카드 — 지금 무대에서 하는 것과 바로 다음.
+    //
+    // **필터에 걸리지 않는다.** 지금 무대에서 벌어지는 일은 내가 고른 게임과 상관없이 알아야
+    // 한다(그래서 필터 칩도 이 카드 **아래**에 둔다 — 거는 대상이 목록뿐임이 눈에 보이게).
+    val live = stage.firstOrNull { it.state == StageState.LIVE }
+    val next = stage.firstOrNull { it.state == StageState.UPCOMING }
+    if (live != null) {
+        StageLiveCard(e, live, next)
+        Spacer(Modifier.height(12.dp))
+    }
+
+    // ── 게임 필터 — 그날 무대에 오르는 게임만. 한 게임뿐이면 고를 것이 없으니 줄을 안 그린다.
+    //
+    // 배타 선택은 앱 전체가 세그먼트 탭 규격이다(날짜 탭·일정/주년과 같은 것). 칩을 나란히
+    // 두면 서로 독립된 버튼처럼 보여 "이 중 하나가 지금 보고 있는 것"이 약하게 읽힌다.
+    if (games.size > 1) {
+        GlgSegmentedTabs(
+            labels = listOf("전체") + games.map { e.stageLabel(it) },
+            // 고른 칸이 **그 게임 색**으로 찬다 — 목록의 색 띠와 같은 색이라 규칙이 안 어긋난다.
+            // '전체'는 게임색이 없다 — 앱 강조색을 쓴다(먹색으로 두면 이 칸만 딴 물건이 된다).
+            selectedColors = listOf(accent) + games.map {
+                e.stageColor(it).let { c -> if (c == 0L) TextSecondary else c.toColor() }
+            },
+            selected = games.indexOf(gameFilter) + 1,
+            onSelect = { i -> gameFilter = if (i == 0) null else games.getOrNull(i - 1) },
+        )
+        Spacer(Modifier.height(10.dp))
+    }
+
+    val shown = stage.filter { gameFilter == null || it.slot.game == gameFilter }
+    GlassCard(modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(vertical = 4.dp)) {
+            shown.forEachIndexed { i, item ->
+                if (i > 0) Box(Modifier.fillMaxWidth().height(1.dp).background(DividerColor))
+                StageRow(e, item, live?.slot === item.slot)
+            }
+        }
+    }
+}
+
+/** NOW LIVE 배지 색 — 게임색 위에서도 읽히는 단 하나의 고정색(앱의 '임박' 주황과 같은 계열). */
+private val LiveRed = Color(0xFFE8634A)
+
+/** 상세 하단 진입 카드 — 굿즈샵·부스 체험 두 장을 나란히. */
+@Composable
+private fun HoyolandSubEntry(
+    title: String,
+    sub: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit,
+) {
+    val accent = LocalAccent.current
+    GlassCard(modifier = modifier.clickable { onClick() }) {
+        Column(Modifier.padding(14.dp)) {
+            Box(
+                Modifier.size(34.dp).clip(RoundedCornerShape(10.dp)).background(accent.copy(alpha = 0.12f)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(icon, contentDescription = null, tint = accent, modifier = Modifier.size(18.dp))
+            }
+            Spacer(Modifier.height(10.dp))
+            Text(title, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+            Spacer(Modifier.height(3.dp))
+            Text(sub, fontSize = 11.sp, color = TextSecondary, maxLines = 2, lineHeight = 14.sp)
+        }
+    }
+}
+
+/**
+ * 굿즈샵 — 품목과 **가격**.
+ *
+ * 이 앱은 지출을 다루는 앱이라, 굿즈 목록의 본론은 "얼마 들고 가야 하나"다. 그래서
+ * ① 맨 위에 가격대를 한 줄로 세우고 ② 행을 눌러 **담아 보면 합계**가 하단에 뜬다.
+ * 담은 것은 이 화면 안에서만 산다(저장하지 않는다) — 예산을 가늠하는 계산기지 장바구니가 아니다.
+ */
+@Composable
+fun HoyolandGoodsContent(e: HoyolandEvent) {
+    val accent = LocalAccent.current
+    val games = e.goodsGames
+    var gameFilter by remember { mutableStateOf<String?>(null) }
+    val picked = remember { mutableStateListOf<String>() }
+
+    if (e.goods.isEmpty()) {
+        GlassCard(modifier = Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(16.dp)) {
+                Text("판매 목록은 아직 공개 전이에요", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+                Spacer(Modifier.height(5.dp))
+                Text(
+                    "품목과 가격이 나오면 이 자리에 채워져요.\n지난 행사는 개막 1~2주 전에 나왔어요.",
+                    fontSize = 12.sp, color = TextSecondary, lineHeight = 18.sp,
+                )
+            }
+        }
+        return
+    }
+
+    // ── 가격대 — 목록보다 먼저. 얼마를 들고 갈지가 첫 질문이다.
     GlassCard(modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp)) {
-            if (slots.isEmpty()) {
+            Text("가격대", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = TextSecondary)
+            Spacer(Modifier.height(5.dp))
+            Text(e.goodsPriceRange(), fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+        }
+    }
+
+    if (games.size > 1) {
+        Spacer(Modifier.height(14.dp))
+        GlgSegmentedTabs(
+            labels = listOf("전체") + games.map { e.stageLabel(it) },
+            selectedColors = listOf(accent) + games.map {
+                e.stageColor(it).let { c -> if (c == 0L) TextSecondary else c.toColor() }
+            },
+            selected = games.indexOf(gameFilter) + 1,
+            onSelect = { i -> gameFilter = if (i == 0) null else games.getOrNull(i - 1) },
+        )
+    }
+
+    Spacer(Modifier.height(12.dp))
+    val shown = e.goods.filter { gameFilter == null || it.game == gameFilter }
+    GlassCard(modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(vertical = 4.dp)) {
+            shown.forEachIndexed { i, item ->
+                if (i > 0) Box(Modifier.fillMaxWidth().height(1.dp).background(DividerColor))
+                HoyolandGoodsRow(e, item, picked.contains(item.name)) {
+                    if (picked.contains(item.name)) picked.remove(item.name) else picked.add(item.name)
+                }
+            }
+        }
+    }
+
+    // ── 담은 합계 — 고른 게 있을 때만 나타난다. 예산을 가늠하는 자리다.
+    val total = e.goods.filter { picked.contains(it.name) }.sumOf { it.price }
+    if (picked.isNotEmpty()) {
+        Spacer(Modifier.height(12.dp))
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(16.dp))
+                .background(accent.copy(alpha = 0.10f))
+                .padding(horizontal = 16.dp, vertical = 13.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text("담은 ${picked.size}개", fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+            Spacer(Modifier.weight(1f))
+            Text(e.wonLabel(total), fontSize = 16.sp, fontWeight = FontWeight.Black, color = accent)
+        }
+        Spacer(Modifier.height(6.dp))
+        Text(
+            "골라 본 것을 더한 값이에요. 저장되지 않아요.",
+            fontSize = 10.5.sp, color = TextSecondary, modifier = Modifier.padding(horizontal = 4.dp),
+        )
+    }
+}
+
+/** 굿즈 한 줄 — 담기 표시 + 이름·갈래·조건 + 가격. */
+@Composable
+private fun HoyolandGoodsRow(e: HoyolandEvent, item: HoyolandGoods, picked: Boolean, onToggle: () -> Unit) {
+    val accent = LocalAccent.current
+    val c = e.stageColor(item.game).let { if (it == 0L) TextSecondary else it.toColor() }
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clickable(enabled = !item.soldOut) { onToggle() }
+            .padding(horizontal = 16.dp, vertical = 12.dp)
+            .alpha(if (item.soldOut) 0.45f else 1f),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        // 담기 표식 — 체크박스를 따로 두지 않는다. 행 전체가 누를 자리라 원 하나면 충분하다.
+        Box(
+            Modifier
+                .size(20.dp)
+                .clip(CircleShape)
+                .background(if (picked) accent else Color.Transparent)
+                .border(1.5.dp, if (picked) accent else DividerColor, CircleShape),
+            contentAlignment = Alignment.Center,
+        ) {
+            if (picked) Icon(Icons.Default.Check, null, tint = Color.White, modifier = Modifier.size(13.dp))
+        }
+        Spacer(Modifier.width(12.dp))
+        Column(Modifier.weight(1f)) {
+            Text(item.name, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextPrimary, lineHeight = 18.sp)
+            val meta = listOfNotNull(
+                item.game.ifBlank { null }?.let { e.stageLabel(it) },
+                item.category.ifBlank { null },
+                if (item.soldOut) "품절" else null,
+                item.note.ifBlank { null },
+            ).joinToString(" · ")
+            if (meta.isNotBlank()) {
+                Spacer(Modifier.height(2.dp))
+                Text(meta, fontSize = 11.sp, color = if (item.soldOut) TextSecondary else c)
+            }
+        }
+        Spacer(Modifier.width(10.dp))
+        Text(
+            if (item.price > 0) e.wonLabel(item.price) else "미정",
+            fontSize = 13.sp, fontWeight = FontWeight.Black,
+            color = if (item.price > 0) TextPrimary else TextSecondary,
+            style = LocalTextStyle.current.copy(fontFeatureSettings = "tnum"),
+        )
+    }
+}
+
+/**
+ * 게임별 부스 체험.
+ *
+ * 무대와 달리 **시각이 없다** — 상시 운영이고 대신 줄을 서거나 예약을 잡는다. 그래서
+ * 시간표가 아니라 게임별 카드로 그리고, 현장에서 먼저 찾는 값(위치)을 제목 옆에 붙인다.
+ */
+@Composable
+fun HoyolandBoothContent(e: HoyolandEvent) {
+    if (e.booths.isEmpty()) {
+        GlassCard(modifier = Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(16.dp)) {
+                Text("부스 정보는 아직 공개 전이에요", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+                Spacer(Modifier.height(5.dp))
                 Text(
-                    if (e.hasTimetable) "이 날의 프로그램은 아직 공개되지 않았습니다."
-                    else "일자별 프로그램은 아직 공개 전입니다.",
-                    fontSize = 13.sp, fontWeight = FontWeight.Medium, color = TextPrimary,
+                    "게임별 체험존과 위치가 나오면 이 자리에 채워져요.\n부스 배치도는 보통 개막 직전에 나와요.",
+                    fontSize = 12.sp, color = TextSecondary, lineHeight = 18.sp,
                 )
-                Spacer(Modifier.height(4.dp))
+            }
+        }
+        return
+    }
+    e.booths.forEachIndexed { i, b ->
+        if (i > 0) Spacer(Modifier.height(12.dp))
+        HoyolandBoothCard(e, b)
+    }
+}
+
+@Composable
+private fun HoyolandBoothCard(e: HoyolandEvent, b: HoyolandBooth) {
+    val c = e.stageColor(b.game).let { if (it == 0L) TextSecondary else it.toColor() }
+    GlassCard(modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    "공개되면 이 자리에 채워집니다. 지난 행사는 개막 2~3주 전에 공개됐습니다.",
-                    fontSize = 12.sp, color = TextSecondary,
+                    e.stageLabel(b.game),
+                    fontSize = 9.5.sp, fontWeight = FontWeight.Black, color = c,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(c.copy(alpha = 0.14f))
+                        .padding(horizontal = 6.dp, vertical = 3.dp),
                 )
-            } else {
-                slots.forEachIndexed { i, slot ->
-                    if (i > 0) {
-                        Spacer(Modifier.height(10.dp))
-                        Box(Modifier.fillMaxWidth().height(1.dp).background(DividerColor))
-                        Spacer(Modifier.height(10.dp))
-                    }
-                    Row(Modifier.fillMaxWidth()) {
+                Spacer(Modifier.width(8.dp))
+                Text(b.title, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+                Spacer(Modifier.weight(1f))
+                // 예약이 필요한 곳은 **가서 줄만 서면 되는 곳과 다른 준비**가 든다.
+                if (b.needsReservation) GlgBadge("예약 필요", c)
+            }
+            if (b.desc.isNotBlank()) {
+                Spacer(Modifier.height(6.dp))
+                Text(b.desc, fontSize = 12.5.sp, color = TextSecondary, lineHeight = 18.sp)
+            }
+            Spacer(Modifier.height(12.dp))
+            Box(Modifier.fillMaxWidth().height(1.dp).background(DividerColor))
+            Spacer(Modifier.height(12.dp))
+            if (b.location.isNotBlank()) {
+                HoyolandFactRow("위치", b.location)
+                Spacer(Modifier.height(8.dp))
+            }
+            if (b.duration.isNotBlank()) {
+                HoyolandFactRow("소요", b.duration)
+                Spacer(Modifier.height(8.dp))
+            }
+            if (b.capacity.isNotBlank()) {
+                HoyolandFactRow("정원", b.capacity)
+                Spacer(Modifier.height(8.dp))
+            }
+            // 보상은 줄 설 이유가 되는 값이라 목록 끝이 아니라 **눈에 띄는 자리**에 둔다.
+            if (b.reward.isNotBlank()) {
+                Text(
+                    b.reward,
+                    fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = c,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(9.dp))
+                        .background(c.copy(alpha = 0.10f))
+                        .padding(horizontal = 10.dp, vertical = 7.dp),
+                )
+            }
+        }
+    }
+}
+
+/** 시간표가 아직 없는 날 — 빈 카드가 아니라 **언제 채워지는지**를 말한다. */
+@Composable
+private fun StageEmptyCard(e: HoyolandEvent) {
+    GlassCard(modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(16.dp)) {
+            Text(
+                if (e.hasTimetable) "이 날 무대 편성은 아직이에요" else "무대 편성은 아직 공개 전이에요",
+                fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TextPrimary,
+            )
+            Spacer(Modifier.height(5.dp))
+            Text(
+                "공개되면 게임별 무대 순서와 시각이 이 자리에 채워져요.\n지난 행사는 개막 2~3주 전에 나왔어요.",
+                fontSize = 12.sp, color = TextSecondary, lineHeight = 18.sp,
+            )
+        }
+    }
+}
+
+/**
+ * 지금 무대에서 — 배경색이 **그 무대의 게임색**을 입는다(공통 무대면 먹색).
+ * 현장 화면의 본론이라 화면 위쪽 한 장을 통째로 준다.
+ */
+@Composable
+private fun StageLiveCard(e: HoyolandEvent, live: StageSlot, next: StageSlot?) {
+    val raw = e.stageColor(live.slot.game)
+    val base = if (raw == 0L) Color(0xFF39204E) else raw.toColor()
+    val top = lerp(base, Color.Black, 0.22f)
+    val bottom = lerp(base, Color.White, 0.06f)
+    Box(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(22.dp))
+            .background(Brush.linearGradient(listOf(top, bottom))),
+    ) {
+        Box(
+            Modifier
+                .align(Alignment.TopEnd)
+                .size(150.dp)
+                .offset(x = 40.dp, y = (-52).dp)
+                .background(
+                    Brush.radialGradient(listOf(Color.White.copy(alpha = 0.22f), Color.Transparent)),
+                    CircleShape,
+                ),
+        )
+        Column(Modifier.padding(horizontal = 16.dp, vertical = 15.dp)) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                // NOW LIVE — 카드에서 가장 먼저 읽혀야 하는 한 마디다. 배경이 게임색이라
+                // 흰 반투명 배지로는 묻힌다. **붉은 면**으로 채우고 점을 깜빡여 시선을 잡는다.
+                val pulse = rememberInfiniteTransition(label = "livePulse")
+                val dotAlpha by pulse.animateFloat(
+                    initialValue = 1f,
+                    targetValue = 0.25f,
+                    animationSpec = infiniteRepeatable(tween(760), RepeatMode.Reverse),
+                    label = "liveDot",
+                )
+                Row(
+                    Modifier
+                        .clip(RoundedCornerShape(9.dp))
+                        .background(LiveRed)
+                        .padding(horizontal = 11.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Box(Modifier.size(7.dp).clip(CircleShape).background(Color.White.copy(alpha = dotAlpha)))
+                    Spacer(Modifier.width(6.dp))
+                    Text(
+                        "NOW LIVE",
+                        fontSize = 12.sp, fontWeight = FontWeight.Black, color = Color.White,
+                        letterSpacing = 0.7.sp,
+                    )
+                }
+                // 게임 배지는 **칸 반대쪽 끝**으로 — 두 배지가 붙어 있으면 어느 쪽이 무엇인지
+                // 한 덩이로 뭉쳐 읽힌다. NOW LIVE 와 같은 크기로 양쪽 어깨를 맞춘다.
+                Spacer(Modifier.weight(1f))
+                if (live.slot.game.isNotBlank()) {
+                    Text(
+                        // 카드는 한 장뿐이고 폭도 넉넉하다 — 여기서는 온이름을 쓴다.
+                        e.stageFullName(live.slot.game),
+                        fontSize = 12.sp, fontWeight = FontWeight.Black, color = base,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(9.dp))
+                            .background(Color.White.copy(alpha = 0.92f))
+                            .padding(horizontal = 11.dp, vertical = 6.dp),
+                    )
+                }
+            }
+            Spacer(Modifier.height(9.dp))
+            // 무대명은 자르지 않는다 — 이 카드의 본론이고, 공연명은 길어야 두 줄이다.
+            Text(
+                live.slot.title,
+                fontSize = 17.5.sp, fontWeight = FontWeight.Black, color = Color.White,
+                lineHeight = 22.sp,
+            )
+            Spacer(Modifier.height(4.dp))
+            Text(
+                listOfNotNull(
+                    live.rangeLabel.ifBlank { null },
+                    if (live.remainMin > 0) "${live.remainMin}분 남음" else null,
+                ).joinToString(" · "),
+                fontSize = 11.5.sp, color = Color.White.copy(alpha = 0.85f),
+            )
+            if (live.slot.cast.isNotBlank()) {
+                Spacer(Modifier.height(3.dp))
+                Text(
+                    "출연 · ${live.slot.cast}",
+                    fontSize = 11.5.sp, fontWeight = FontWeight.Medium, color = Color.White.copy(alpha = 0.92f),
+                )
+            }
+            // 진행 막대 — 공연은 길이가 있다. 시작 시각만으로는 놓친 건지 아직인지 모른다.
+            Spacer(Modifier.height(11.dp))
+            Box(Modifier.fillMaxWidth().height(4.dp).clip(RoundedCornerShape(3.dp)).background(Color.White.copy(alpha = 0.24f))) {
+                Box(
+                    Modifier
+                        .fillMaxWidth(live.progress.coerceIn(0f, 1f))
+                        .fillMaxHeight()
+                        .clip(RoundedCornerShape(3.dp))
+                        .background(Color.White),
+                )
+            }
+            if (next != null) {
+                Spacer(Modifier.height(12.dp))
+                Box(Modifier.fillMaxWidth().height(1.dp).background(Color.White.copy(alpha = 0.20f)))
+                Spacer(Modifier.height(11.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("다음", fontSize = 10.5.sp, fontWeight = FontWeight.Bold, color = Color.White.copy(alpha = 0.72f))
+                    if (next.slot.game.isNotBlank()) {
+                        Spacer(Modifier.width(7.dp))
+                        val nc = e.stageColor(next.slot.game).let { if (it == 0L) Color(0xFF98A0AB) else it.toColor() }
                         Text(
-                            slot.time,
-                            fontSize = 12.sp, color = TextSecondary,
-                            // 시각이 세로로 맞아떨어지게 고정폭 숫자.
-                            style = LocalTextStyle.current.copy(fontFeatureSettings = "tnum"),
-                            modifier = Modifier.width(56.dp),
+                            e.stageLabel(next.slot.game),
+                            fontSize = 9.5.sp, fontWeight = FontWeight.Black, color = Color.White,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(nc)
+                                .padding(horizontal = 6.dp, vertical = 2.dp),
                         )
-                        Column(Modifier.weight(1f)) {
-                            Text(slot.title, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
-                            if (slot.desc.isNotBlank()) {
-                                Spacer(Modifier.height(2.dp))
-                                Text(slot.desc, fontSize = 12.sp, color = TextSecondary)
-                            }
-                        }
                     }
+                    Spacer(Modifier.width(7.dp))
+                    Text(
+                        next.slot.title,
+                        fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(next.slot.time, fontSize = 11.5.sp, fontWeight = FontWeight.Black, color = Color.White.copy(alpha = 0.85f))
                 }
             }
         }
     }
 }
+
+/** 무대 한 줄 — 시각 + 게임 정사각 배지 + 제목·설명·출연. 지난 편은 흐리게. */
+@Composable
+private fun StageRow(e: HoyolandEvent, item: StageSlot, isLive: Boolean) {
+    val raw = e.stageColor(item.slot.game)
+    val c = if (raw == 0L) Color(0xFF98A0AB) else raw.toColor()
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .alpha(if (item.state == StageState.DONE) 0.40f else 1f)
+            .padding(start = 16.dp, end = 14.dp, top = 11.dp, bottom = 11.dp),
+    ) {
+        // 좌측 열 — 시각 **아래**에 게임 이름. 배지 상자에 넣으면 "스타레일"이 안 들어가
+        // 두 자로 잘리는데, 그러면 무슨 게임인지가 오히려 흐려진다. 열을 세로로 쓰면
+        // 이름을 온전히 쓸 수 있고 시각과 게임이 한 덩이로 읽힌다.
+        // 좌측 열은 **자기 칸 정중앙**에 놓는다 — 시각·배지 폭이 게임마다 달라 왼쪽 정렬로 두면
+        // 줄마다 들쭉날쭉해 보인다. 세로도 가운데라 오른쪽 본문과 무게가 맞는다.
+        Column(
+            Modifier.width(58.dp).align(Alignment.CenterVertically),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            // 진행 중인 줄의 시각은 **먹색**으로 진하게 — 게임색으로 칠하면 바로 아래 배지와
+            // 같은 색이 되어 둘이 한 덩이로 뭉치고, 색이 곧 게임이라는 규칙도 흐려진다.
+            Text(
+                item.slot.time,
+                fontSize = 12.sp,
+                fontWeight = if (isLive) FontWeight.Black else FontWeight.Bold,
+                color = if (isLive) TextPrimary else TextSecondary,
+                style = LocalTextStyle.current.copy(fontFeatureSettings = "tnum"),
+            )
+            Spacer(Modifier.height(4.dp))
+            // 게임은 **배지**로 — 시각과 같은 무게의 맨글자로 두면 둘이 한 덩이로 뭉쳐
+            // "14:00 스타레일"이 한 줄처럼 읽힌다. 면을 깔아 둘을 갈라 둔다.
+            Text(
+                e.stageLabel(item.slot.game),
+                fontSize = 9.5.sp, fontWeight = FontWeight.Black, color = c, maxLines = 1,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(6.dp))
+                    .background(c.copy(alpha = 0.14f))
+                    .padding(horizontal = 5.dp, vertical = 2.5.dp),
+            )
+        }
+        Spacer(Modifier.width(12.dp))
+        // 세로 구분선 — 시각·게임(언제·누구)과 공연 내용(무엇)을 가른다. 라이브 카드의
+        // 큰 숫자 옆 구분선과 같은 규칙이다.
+        Box(
+            Modifier
+                .padding(top = 2.dp)
+                .width(1.dp)
+                .height(if (item.slot.cast.isBlank()) 30.dp else 42.dp)
+                .background(DividerColor),
+        )
+        Spacer(Modifier.width(12.dp))
+        Column(Modifier.padding(top = 1.dp)) {
+            Text(
+                item.slot.title,
+                fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextPrimary,
+                lineHeight = 18.sp,
+            )
+            val sub = listOfNotNull(
+                item.slot.desc.ifBlank { null },
+                if (item.slot.minutes > 0) "${item.slot.minutes}분" else null,
+            ).joinToString(" · ")
+            if (sub.isNotBlank()) {
+                Spacer(Modifier.height(2.dp))
+                Text(sub, fontSize = 11.5.sp, color = TextSecondary)
+            }
+            // 출연자 — 무대를 고르는 기준이 공연명보다 출연자일 때가 많다(성우 무대가 특히).
+            if (item.slot.cast.isNotBlank()) {
+                Spacer(Modifier.height(3.dp))
+                Text(
+                    "출연 · ${item.slot.cast}",
+                    fontSize = 11.sp, fontWeight = FontWeight.Medium, color = c,
+                )
+            }
+        }
+    }
+}
+
+
 
 /** 지난 행사 1건 카드 — 제목 + "종료" 배지 + 팩트 목록. */
 @Composable
@@ -536,6 +1242,33 @@ private fun HoyolandPastEventCard(title: String, facts: List<HoyolandFact>) {
 }
 
 /** 참여 게임 1줄 — 게임 태그 + 게임명 + 테마 제목. */
+/**
+ * 참여 게임 한 칸(그리드) — 게임색 면 + 이름 + 테마.
+ *
+ * 공식 키비주얼이 게임별로 나오기 전이라 썸네일 자리를 색면으로 대신한다.
+ * 공개되면 이 칸의 배경을 이미지로 바꾸면 된다(칸 크기는 그대로 쓸 수 있게 고정 높이).
+ */
+@Composable
+private fun HoyolandLineupTile(item: HoyolandLineup, modifier: Modifier = Modifier) {
+    val c = if (item.colorArgb != 0L) item.colorArgb.toColor() else GameData.colorFor(item.game).toColor()
+    Box(
+        modifier
+            .height(40.dp)
+            .clip(RoundedCornerShape(11.dp))
+            .background(c.copy(alpha = 0.10f))
+            .padding(horizontal = 4.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        // 다섯 칸이 한 줄에 들어가야 해서 폭이 좁다 — 두 줄까지 접고 글자를 줄인다.
+        Text(
+            GameData.byNameOrNull(item.game)?.shortName ?: item.game,
+            fontSize = 9.5.sp, fontWeight = FontWeight.Black, color = c,
+            textAlign = TextAlign.Center, maxLines = 2, lineHeight = 11.sp,
+            overflow = TextOverflow.Ellipsis,
+        )
+    }
+}
+
 @Composable
 private fun HoyolandLineupRow(item: HoyolandLineup) {
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {

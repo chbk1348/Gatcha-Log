@@ -40,6 +40,7 @@ import com.gatcha.log.ui.theme.TextSecondary
 fun DeveloperScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
     val accent = LocalAccent.current
     var pityGuaranteed by remember { mutableStateOf(false) }
+    var stageMock by remember { mutableStateOf(viewModel.debugStageMockOn()) }
     // 진단 결과는 누른 시점의 스냅샷이다 — 계속 갱신되면 무엇을 보고 있는지 알 수 없다.
     var report by remember { mutableStateOf<Pair<String, List<String>>?>(null) }
 
@@ -78,6 +79,16 @@ fun DeveloperScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
                             Icons.Default.QueryStats, "유물 점수 분포 덤프",
                             "보유 로스터의 장당·평균·합계 백분위를 로그로 (GatchaScore)",
                         ) { viewModel.debugDumpScoreDistribution() }
+                        DevDivider()
+                        // 실제 무대 편성이 공개되기 전에 라이브 카드·게임 레인·필터를 보는 자리.
+                        // 기간이 오늘부터 4일로 옮겨져 늘 진행 중인 무대가 하나 잡힌다.
+                        DevRow(
+                            Icons.Default.Theaters, "호요랜드 무대 시간표 목업",
+                            if (stageMock) "켜짐 — 다시 누르면 원래 데이터로" else "라이브 카드·게임 레인 확인용",
+                        ) {
+                            stageMock = !stageMock
+                            viewModel.debugStageMock(stageMock)
+                        }
                         DevDivider()
                         DevRow(
                             Icons.Default.Notifications, "천장 하드 직전 (89)",

@@ -101,15 +101,91 @@ data class HoyolandTicket(
 }
 
 /**
- * 일자별 프로그램 한 줄.
+ * 일자별 프로그램 한 줄 — **무대 편성**이다.
  *
- * [time] 은 표기 그대로 쓴다("10:00", "13:00 ~ 14:30"). 시각을 파싱하지 않는 이유는
- * 시간표가 "종일"·"수시" 같은 칸을 섞어 내기 때문이다 — 정렬은 원본 순서를 그대로 따른다.
+ * 한 칸 = 메인/서브 무대의 공연 한 편. 개장·체험존·부대 프로그램은 여기 오지 않는다
+ * (그건 [HoyolandEvent.programs] 몫). 그래서 칸의 주인은 거의 언제나 **게임**이다.
+ *
+ * [time] 은 표기 그대로 쓴다("14:00", "종일"). 정렬도 원본 순서를 그대로 따른다 —
+ * 시간표가 "종일"·"수시" 같은 칸을 섞어 낼 수 있어서다. 다만 "HH:mm" 꼴이면
+ * [HoyolandEvent.stageSlots] 가 그 칸만 골라 '지금/다음'을 계산한다(못 읽는 칸은 그냥 목록).
+ *
+ * @param game 어느 게임 무대인지. 비어 있으면 전 IP 공통(합동 무대·인사).
+ * @param minutes 공연 길이(분). 0이면 **다음 편 시작 전까지**로 본다.
+ * @param cast 출연자 — "성우 OOO · 밴드 OOO" 처럼 **표기 그대로** 받는다. 무대를 고르는 기준이
+ *   공연명보다 출연자인 사람이 많아서(성우 무대가 특히 그렇다) 목록에 같이 싣는다.
  */
-data class HoyolandSlot(val time: String, val title: String, val desc: String = "")
+data class HoyolandSlot(
+    val time: String,
+    val title: String,
+    val desc: String = "",
+    val game: String = "",
+    val minutes: Int = 0,
+    val cast: String = "",
+)
+
+/** 무대 한 편이 지금 기준으로 어디쯤인지. */
+enum class StageState { DONE, LIVE, UPCOMING }
+
+/**
+ * 무대 한 편 + 지금 기준 상태. 화면은 이 목록 하나로 라이브 카드·목록을 다 그린다
+ * (같은 판정을 두 곳에서 다시 하면 카드와 목록이 어긋난다).
+ */
+data class StageSlot(
+    val slot: HoyolandSlot,
+    val state: StageState,
+    /** [StageState.LIVE] 일 때 남은 분. 그 밖엔 0. */
+    val remainMin: Int = 0,
+    /** [StageState.LIVE] 일 때 진행률 0f~1f. 그 밖엔 0f. */
+    val progress: Float = 0f,
+    /** "14:00 ~ 14:40" — 길이를 모르면 "14:00". */
+    val rangeLabel: String = "",
+)
 
 /** 행사 하루치. [ymd] 는 `yyyy-MM-dd`. */
 data class HoyolandDay(val ymd: String, val slots: List<HoyolandSlot>)
+
+/**
+ * 굿즈 한 점.
+ *
+ * 이 앱이 지출을 다루는 앱이라 **가격이 본론**이다. 현장에서 "얼마 들고 가야 하나"에 답해야
+ * 하므로 값은 원 단위 숫자로 받는다(문자열로 받으면 합계를 못 낸다). 미정이면 0.
+ *
+ * @param game 어느 게임 굿즈인지. 비면 공용(행사 로고·아트북 등).
+ * @param category "아크릴"·"인형"·"의류" 같은 갈래. 목록을 훑는 눈금이 된다.
+ * @param note "1인 2개 한정" 처럼 살 때 걸리는 조건.
+ */
+data class HoyolandGoods(
+    val name: String,
+    val price: Int = 0,
+    val game: String = "",
+    val category: String = "",
+    val note: String = "",
+    val soldOut: Boolean = false,
+)
+
+/**
+ * 게임별 부스 체험 한 칸.
+ *
+ * 무대([HoyolandSlot])와 달리 **시각이 없다** — 상시 운영이고, 대신 줄을 서거나 예약을 잡는다.
+ * 그래서 시간표가 아니라 게임별 카드로 그린다.
+ *
+ * @param location "8홀 A-12" 같은 부스 위치. 현장에서 가장 먼저 찾는 값이다.
+ * @param duration "회차당 20분" — 체험 한 번에 드는 시간.
+ * @param capacity "회차당 20명" — 한 번에 몇 명이 들어가는지(대기 길이를 가늠한다).
+ * @param reward "참여 시 아크릴 뱃지 증정" — 줄 설 이유가 되는 값이라 따로 둔다.
+ * @param needsReservation 현장 예약·앱 사전예약이 필요한지.
+ */
+data class HoyolandBooth(
+    val game: String,
+    val title: String,
+    val desc: String = "",
+    val location: String = "",
+    val duration: String = "",
+    val capacity: String = "",
+    val reward: String = "",
+    val needsReservation: Boolean = false,
+)
 
 /**
  * 지스타(G-STAR) — 호요랜드와 **별개 행사**지만, 호요버스가 나오는 국내 오프라인 자리라
@@ -130,7 +206,127 @@ data class HoyolandGstar(
 ) {
     /** 내용이 하나도 없으면 섹션을 통째로 접는다(원격에서 비워 내릴 수 있게). */
     val isEmpty: Boolean get() = title.isBlank() || (facts.isEmpty() && lineup.isEmpty())
+
+    /**
+     * 배너 아래 칸에 들어가는 **한 줄 요약** — "G-STAR 2026 · D-71 · 11.19~11.22 · 부산 벡스코".
+     *
+     * 지스타는 호요랜드보다 한 달 반 뒤라 배너의 주인공이 될 수 없다. 그렇다고 상세 페이지에만
+     * 두면 "호요랜드 말고 또 뭐가 있나"를 아무도 모른다 — 배너 밑단의 작은 줄이 그 자리다.
+     *
+     * 상세용 값을 그대로 쓰지 않고 줄인다. [facts] 의 기간은 `"2026.11.19(목) ~ 11.22(일) (4일)"`,
+     * 장소는 `"부산 벡스코(BEXCO)"` 로 **한 줄에 안 들어간다.** 요일·연도·괄호를 떼는 건 여기서만
+     * 하고(상세는 원본 그대로), 양 플랫폼이 같은 문구를 쓰도록 공유 계층에 둔다.
+     *
+     * 남은 날짜는 [facts] 의 기간 문자열에서 읽는다. 지스타는 호요랜드와 달리 날짜 필드가 따로
+     * 없고 원격 JSON 이 사람이 읽는 문장으로 내려주는데, 그 한 줄을 위해 스키마를 늘리기보다
+     * 여기서 앞머리 `yyyy.M.d` 만 읽는 편이 원격 갱신을 막지 않는다.
+     * 행사가 끝났으면 `null` — 지난 일정을 홈에 남겨 둘 이유가 없다.
+     */
+    fun homeLine(nowMillis: Long = currentTimeMillis()): String? =
+        homeBrief(nowMillis)?.let { "${it.title} · ${it.dday} · ${it.detail}" }
+
+    /**
+     * 같은 값을 **조각으로** — 배너 밑단은 한 덩어리 문장이 아니라 호요랜드 위 칸과 같은 짜임
+     * (남은 날짜 · 이름 · 나머지)으로 그린다. 그리는 쪽이 문자열을 다시 자르지 않게 여기서 나눈다.
+     */
+    fun homeBrief(nowMillis: Long = currentTimeMillis()): HoyolandGstarBrief? {
+        if (isEmpty) return null
+        val period = factValue("기간") ?: return null
+        val dday = ddayLabel(period, nowMillis) ?: return null   // 이미 끝난 행사
+        val detail = listOfNotNull(shorten(period), factValue("장소")?.let { shorten(it) })
+            .joinToString(" · ")
+        if (title.isBlank() || detail.isBlank()) return null
+        return HoyolandGstarBrief(dday = dday, title = title, detail = detail)
+    }
+
+    private fun factValue(label: String): String? =
+        facts.firstOrNull { it.label == label }?.value?.takeIf { it.isNotBlank() }
+
+    // ── 상세 화면이 쓰는 조각들 ────────────────────────────────────────────
+    //
+    // [facts] 는 원격이 내려주는 **자유 목록**이다(라벨이 늘거나 바뀔 수 있다). 화면이 라벨을
+    // 하나하나 찾아 쓰면 원격에서 항목을 더했을 때 그 항목만 어디에도 안 나온다. 그래서
+    // "아는 라벨은 제자리에, 모르는 라벨은 [otherFacts] 로" 흘려보낸다.
+
+    /** 히어로 아래 3칸 — 기간(일수) · 장소 · 규모. 없는 칸은 "—". */
+    val periodShort: String get() = factValue("기간")?.let { shorten(it) } ?: "—"
+
+    /** "4일" — 기간 문자열의 "(4일)" 을 그대로 읽는다. 없으면 빈 문자열. */
+    val dayCountLabel: String
+        get() = factValue("기간")?.let { DAY_COUNT.find(it)?.groupValues?.get(1) }?.let { "${it}일" } ?: ""
+
+    /** "부산 벡스코" — 영문 병기 괄호를 뗀다. */
+    val venueShort: String get() = factValue("장소")?.let { shorten(it) } ?: "—"
+
+    val scaleLabel: String get() = factValue("규모") ?: badge.ifBlank { "—" }
+
+    /**
+     * 함께 참가하는 곳 — 한 줄에 "·" 로 이어 붙은 값을 낱개로 가른다.
+     * 이름이 일곱 개씩 이어진 한 줄은 읽히지 않는다(칩으로 흩어 놓으면 눈이 하나씩 짚는다).
+     */
+    val partners: List<String>
+        get() = factValue("함께")?.split("·")?.map { it.trim() }?.filter { it.isNotEmpty() } ?: emptyList()
+
+    /** 히어로·3칸·칩이 이미 쓴 라벨을 뺀 나머지 — 라벨/값 목록으로 그대로 그린다. */
+    val otherFacts: List<HoyolandFact>
+        get() = facts.filter { it.label !in HERO_LABELS }
+
+
+    /**
+     * "D-71" / "오늘 개막" / "진행 중" — 폐막일이 지났으면 null.
+     *
+     * 폐막일에는 연도가 없다("~ 11.22"). 개막 연도를 그대로 쓴다 — 해를 넘겨 이어지는 행사는
+     * 지스타에 없다.
+     */
+    @OptIn(ExperimentalTime::class)
+    private fun ddayLabel(period: String, nowMillis: Long): String? {
+        val head = DATE_HEAD.find(period) ?: return null
+        val year = head.groupValues[1].toInt()
+        val start = runCatching {
+            LocalDate(year, head.groupValues[2].toInt(), head.groupValues[3].toInt())
+        }.getOrNull() ?: return null
+        val tail = DATE_TAIL.find(period)
+        val end = tail?.let {
+            runCatching { LocalDate(year, it.groupValues[1].toInt(), it.groupValues[2].toInt()) }.getOrNull()
+        } ?: start
+        val today = Instant.fromEpochMilliseconds(nowMillis)
+            .toLocalDateTime(DateUtil.timeZone).date
+        val d = today.daysUntil(start)
+        return when {
+            d > 0 -> "D-$d"
+            today <= end -> if (d == 0) "오늘 개막" else "진행 중"
+            else -> null
+        }
+    }
+
+    /** 괄호(요일·영문 표기·"(4일)")를 떼고 공백을 정리한다. "11.19 ~ 11.22" 는 "11.19~11.22" 로. */
+    private fun shorten(v: String): String =
+        v.replace(PAREN, "")
+            .replace(YEAR, "")
+            .replace(SPACES, " ")
+            .trim()
+            .replace(" ~ ", "~")
+
+    private companion object {
+        val PAREN = Regex("\\([^)]*\\)")
+        val YEAR = Regex("(^|\\s)\\d{4}\\.")
+        val SPACES = Regex("\\s+")
+        /** "2026.11.19(목) ~ …" 앞머리. */
+        val DATE_HEAD = Regex("(\\d{4})\\.(\\d{1,2})\\.(\\d{1,2})")
+        /** "~ 11.22(일)" 꼬리 — 연도는 개막과 같다고 본다. */
+        val DATE_TAIL = Regex("~\\s*(\\d{1,2})\\.(\\d{1,2})")
+        /** "(4일)" 의 숫자. */
+        val DAY_COUNT = Regex("\\((\\d+)일\\)")
+        /** 히어로·3칸·칩이 이미 소비하는 라벨 — [otherFacts] 에서 뺀다. */
+        val HERO_LABELS = setOf("기간", "장소", "규모", "함께")
+    }
 }
+
+/**
+ * 배너 밑단 한 칸에 들어가는 지스타 조각 — "D-71" · "G-STAR 2026" · "11.19~11.22 · 부산 벡스코".
+ * 조립은 [HoyolandGstar.homeBrief] 가 한다(양 플랫폼이 같은 값을 그리게).
+ */
+data class HoyolandGstarBrief(val dday: String, val title: String, val detail: String)
 
 /** 지난 행사 1건 — 다음 행사 규모를 가늠하는 참고 자료로만 쓴다. */
 data class HoyolandPastEvent(val title: String, val facts: List<HoyolandFact>)
@@ -170,6 +366,13 @@ data class HoyolandEvent(
     val days: List<HoyolandDay>,
     val gstar: HoyolandGstar,
     val past: List<HoyolandPastEvent>,
+    /**
+     * 굿즈샵 품목. **비어 있는 게 정상인 기간이 있다** — 판매 목록은 시간표만큼 늦게 나온다.
+     * 그때까지 화면은 "공개 전"이라고 말한다.
+     */
+    val goods: List<HoyolandGoods> = emptyList(),
+    /** 게임별 부스 체험. 위와 같은 이유로 비어 있을 수 있다. */
+    val booths: List<HoyolandBooth> = emptyList(),
 ) {
 
     private val start: LocalDate? get() = runCatching { LocalDate.parse(startYmd) }.getOrNull()
@@ -276,12 +479,29 @@ data class HoyolandEvent(
             return (0 until n).map { s.plus(it, DateTimeUnit.DAY).toString() }
         }
 
-    /** 날짜 탭 라벨 — "10.2(금)". */
+    /** 날짜 탭 라벨 — "10.2(금)". 한 줄로 써야 하는 자리(알림 문구 등)에서 쓴다. */
     fun dayTabLabel(ymd: String): String {
+        val date = dayTabDate(ymd)
+        val week = dayTabWeekday(ymd)
+        return if (week.isBlank()) date else "$date(${week.removeSuffix("요일")})"
+    }
+
+    /** 날짜 탭 윗줄 — "10.2". */
+    fun dayTabDate(ymd: String): String {
         val p = ymd.split("-")
         if (p.size < 3) return ymd
-        val d = runCatching { LocalDate.parse(ymd) }.getOrNull() ?: return ymd
-        return "${p[1].trimStart('0')}.${p[2].trimStart('0')}(${d.dayOfWeek.koLabel})"
+        return "${p[1].trimStart('0')}.${p[2].trimStart('0')}"
+    }
+
+    /**
+     * 날짜 탭 아랫줄 — "금요일".
+     *
+     * "(금)" 처럼 괄호 한 글자로 붙이면 날짜에 딸린 기호처럼 읽힌다. 줄을 나눠 온말로 쓰면
+     * "무슨 요일에 갈까"가 날짜와 같은 무게로 읽힌다(주말이 언제인지가 이 화면의 첫 질문이다).
+     */
+    fun dayTabWeekday(ymd: String): String {
+        val d = runCatching { LocalDate.parse(ymd) }.getOrNull() ?: return ""
+        return "${d.dayOfWeek.koLabel}요일"
     }
 
     /** 그날의 프로그램. 없으면 빈 목록. */
@@ -290,6 +510,129 @@ data class HoyolandEvent(
 
     /** 한 칸이라도 공개된 시간표가 있는지 — 없으면 화면이 '공개 전' 안내로 갈린다. */
     val hasTimetable: Boolean get() = days.any { it.slots.isNotEmpty() }
+
+    /**
+     * 그날 무대 편성 + **지금 기준 상태**.
+     *
+     * 오늘이 아닌 날은 전부 [StageState.UPCOMING] — 지나간 날을 흐리게 칠하지 않는다.
+     * "어제 걸 왜 보나" 싶지만, 놓친 무대를 나중에 찾아보는 사람이 있고 그때 회색 목록은
+     * 읽히지 않는다.
+     *
+     * 끝나는 시각은 [HoyolandSlot.minutes] 로 잡되, 없으면 **다음 편 시작 전까지**로 본다.
+     * 마지막 편이면서 길이도 없으면 [FALLBACK_STAGE_MIN] 을 쓴다 — 무한정 "진행 중"으로
+     * 남는 것보다 낫다.
+     */
+    @OptIn(ExperimentalTime::class)
+    fun stageSlots(ymd: String, nowMillis: Long = currentTimeMillis()): List<StageSlot> {
+        val slots = slotsFor(ymd)
+        if (slots.isEmpty()) return emptyList()
+        val nowLocal = Instant.fromEpochMilliseconds(nowMillis).toLocalDateTime(DateUtil.timeZone)
+        val isToday = nowLocal.date.toString() == ymd
+        val nowMin = nowLocal.hour * 60 + nowLocal.minute
+        val starts = slots.map { minutesOfDay(it.time) }
+        return slots.mapIndexed { i, slot ->
+            val start = starts[i]
+            val nextStart = starts.drop(i + 1).firstOrNull { it != null }
+            val end = when {
+                start == null -> null
+                slot.minutes > 0 -> start + slot.minutes
+                nextStart != null -> nextStart
+                else -> start + FALLBACK_STAGE_MIN
+            }
+            val label = if (start != null && end != null && slot.minutes > 0) {
+                "${slot.time} ~ ${hhmm(end)}"
+            } else {
+                slot.time
+            }
+            when {
+                !isToday || start == null || end == null ->
+                    StageSlot(slot, StageState.UPCOMING, rangeLabel = label)
+                nowMin >= end -> StageSlot(slot, StageState.DONE, rangeLabel = label)
+                nowMin >= start -> StageSlot(
+                    slot,
+                    StageState.LIVE,
+                    remainMin = end - nowMin,
+                    progress = if (end > start) (nowMin - start).toFloat() / (end - start) else 0f,
+                    rangeLabel = label,
+                )
+                else -> StageSlot(slot, StageState.UPCOMING, rangeLabel = label)
+            }
+        }
+    }
+
+    /**
+     * 무대 배지·띠에 쓸 색(ARGB).
+     *
+     * ① 앱이 아는 게임이면 `GameData` 의 대표색 — 앱 전체(지출 행·일정 줄)와 같은 색이어야
+     *    "이 색은 이 게임"이라는 규칙이 화면마다 어긋나지 않는다.
+     * ② 앱 밖 IP(붕괴3rd·미해결사건부)는 참가 목록의 `colorArgb`.
+     * ③ 둘 다 없으면 0 — 화면이 회색('전 IP')으로 떨어뜨린다.
+     */
+    fun stageColor(game: String): Long {
+        if (game.isBlank()) return 0L
+        GameData.byNameOrNull(game)?.let { return it.color }
+        return lineup.firstOrNull { it.game == game }?.colorArgb ?: 0L
+    }
+
+    /**
+     * 배지·탭 글자 — **짧은 쪽부터** 고른다. 둘 다 폭이 좁은 자리라(배지 한 칸, 탭 한 칸)
+     * "붕괴: 스타레일" 이 그대로 들어가면 잘린다.
+     *
+     * ① `GameData` 약칭("스타레일") ② 참가 목록의 `abbr`("HI3") ③ 게임 이름 그대로.
+     */
+    fun stageLabel(game: String): String {
+        if (game.isBlank()) return "전 IP"
+        GameData.byNameOrNull(game)?.let { return it.shortName }
+        val item = lineup.firstOrNull { it.game == game } ?: return game
+        return item.abbr.ifBlank { item.game }
+    }
+
+    /**
+     * 라이브 카드가 쓰는 **온이름** — "붕괴: 스타레일". 카드는 한 장에 하나만 뜨고 폭도 넉넉해서
+     * 줄여 쓸 이유가 없다(목록·탭은 자리가 좁아 [stageLabel]·[stageAbbr] 를 쓴다).
+     */
+    fun stageFullName(game: String): String {
+        if (game.isBlank()) return "전 IP"
+        return GameData.byNameOrNull(game)?.displayName ?: game
+    }
+
+    /** 그날 무대에 오르는 게임들(원본 순서, 중복 제거) — 필터 칩이 쓴다. */
+    fun stageGames(ymd: String): List<String> =
+        slotsFor(ymd).map { it.game }.filter { it.isNotBlank() }.distinct()
+
+    /** 굿즈 목록에 등장하는 게임들(원본 순서, 중복 제거) — 굿즈샵 탭이 쓴다. */
+    val goodsGames: List<String>
+        get() = goods.map { it.game }.filter { it.isNotBlank() }.distinct()
+
+    /**
+     * 굿즈 가격대 한 줄 — "₩8,000 ~ ₩89,000 · 45점".
+     *
+     * 목록 맨 위에 **얼마를 들고 가야 하는지**를 먼저 말한다. 값을 못 받은 품목(0)은 범위 계산에서
+     * 빼되 개수에는 넣는다 — "가격 미정 3점"이 숨으면 예산을 잘못 잡는다.
+     */
+    fun goodsPriceRange(): String {
+        if (goods.isEmpty()) return ""
+        val priced = goods.mapNotNull { it.price.takeIf { p -> p > 0 } }
+        val count = "${goods.size}점"
+        if (priced.isEmpty()) return "가격 공개 전 · $count"
+        val lo = priced.min()
+        val hi = priced.max()
+        val range = if (lo == hi) wonLabel(lo) else "${wonLabel(lo)} ~ ${wonLabel(hi)}"
+        val unpriced = goods.size - priced.size
+        val tail = if (unpriced > 0) " · 가격 미정 ${unpriced}점" else ""
+        return "$range · $count$tail"
+    }
+
+    /** "₩12,000" — 천 단위 콤마. 굿즈 목록·합계가 같은 표기를 쓰도록 여기 하나만 둔다. */
+    fun wonLabel(v: Int): String {
+        val sb = StringBuilder()
+        val digits = v.toString()
+        for (i in digits.indices) {
+            if (i > 0 && (digits.length - i) % 3 == 0) sb.append(',')
+            sb.append(digits[i])
+        }
+        return "₩$sb"
+    }
 
     /**
      * 처음 열었을 때 선택돼 있을 날짜 칸. 행사 중이면 **오늘**, 아니면 첫날.
@@ -339,6 +682,28 @@ data class HoyolandEvent(
     companion object {
         /** 홈·일정 탭 노출을 시작하는 시점(개막 D-60). 그 전엔 게임정보 탭에서만 보인다. */
         const val FEATURE_WINDOW_DAYS = 60
+
+        /** 길이도 다음 편도 없는 마지막 무대의 기본 길이(분). */
+        const val FALLBACK_STAGE_MIN = 40
+
+        /** "14:00" → 840. "종일"·"수시"처럼 못 읽는 칸은 null(목록에만 남고 라이브 판정에서 빠진다). */
+        internal fun minutesOfDay(time: String): Int? {
+            val m = HHMM.find(time.trim()) ?: return null
+            val h = m.groupValues[1].toIntOrNull() ?: return null
+            val min = m.groupValues[2].toIntOrNull() ?: return null
+            if (h !in 0..47 || min !in 0..59) return null
+            return h * 60 + min
+        }
+
+        /** 840 → "14:00". 자정을 넘긴 값(1500)도 그날 시각 표기로 돌린다. */
+        internal fun hhmm(minutes: Int): String {
+            val h = (minutes / 60) % 24
+            val m = minutes % 60
+            return "${if (h < 10) "0" else ""}$h:${if (m < 10) "0" else ""}$m"
+        }
+
+        /** 문자열 맨 앞의 "H:mm"/"HH:mm". */
+        private val HHMM = Regex("^(\\d{1,2}):(\\d{2})")
     }
 }
 
@@ -386,15 +751,16 @@ object HoyolandDefaults {
         // 공식 시간표 미공개 — 날짜 탭은 기간에서 만들어지므로 여기는 비워 둔다.
         // 공개되면 hoyoland.json 의 days 를 채우는 것만으로 화면이 찬다(앱 업데이트 불필요).
         days = emptyList(),
-        // 2026-09-03 1차 참가사 발표 기준. 호요버스는 100부스로 4년 만에 복귀한다.
+        // 2026-09-03 1차 참가사 발표 기준. 부스 규모는 **호요버스를 포함한 100부스**다 —
+        // 호요버스 단독 규모로 읽히지 않게 라벨을 "규모"로 둔다.
         gstar = HoyolandGstar(
             title = "G-STAR 2026",
-            badge = "호요버스 100부스",
+            badge = "호요버스 포함 100부스",
             facts = listOf(
                 HoyolandFact("기간", "2026.11.19(목) ~ 11.22(일) (4일)"),
                 HoyolandFact("장소", "부산 벡스코(BEXCO)"),
                 HoyolandFact("전시", "BTC 11.19 ~ 11.22 · BTB 11.19 ~ 11.21"),
-                HoyolandFact("호요버스", "100부스 · 4년 만의 복귀"),
+                HoyolandFact("규모", "호요버스 포함 100부스"),
                 HoyolandFact("함께", "크래프톤 · 구글플레이 · 웹젠 · 팀42 · 넷이즈게임즈 · 빌리빌리게임즈 · 센추리게임즈"),
                 HoyolandFact("스폰서", "크랙(뤼튼) — 게임사가 아닌 AI 기업의 첫 메인 스폰서"),
                 HoyolandFact("G-CON", "11.19 ~ 11.20 · 벡스코 · 1,500석 · 주제 '내러티브'"),
@@ -437,4 +803,125 @@ object HoyolandDefaults {
             ),
         ),
     )
+
+    /**
+     * **개발자 화면 전용** 무대 시간표 목업.
+     *
+     * 실제 편성이 공개되기 전에도 라이브 카드·게임 레인·필터가 실제로 어떻게 보이는지 확인해야
+     * 한다. 그런데 번들 기본값([event])에 넣으면 **사용자 화면에 가짜 일정이 뜬다** — 그래서
+     * 여기서만 만들어 [com.gatcha.log.data.api.HoyolandApi] 캐시에 얹는다.
+     *
+     * 기간을 **오늘부터 4일**로 옮긴다. 실제 개막일(10.2)로 두면 오늘이 행사 기간 밖이라
+     * 모든 칸이 '예정'이 되어 라이브 카드를 볼 수 없다.
+     *
+     * 오늘 편성은 **지금 시각을 기준으로 상대 배치**한다 — 언제 눌러도 진행 중인 무대가 하나
+     * 잡히도록. 새벽·심야에 눌러도 시각이 자정을 넘지 않게 기준 시각을 낮 구간으로 당긴다.
+     */
+    @OptIn(ExperimentalTime::class)
+    fun stageMockEvent(nowMillis: Long = currentTimeMillis()): HoyolandEvent {
+        val now = Instant.fromEpochMilliseconds(nowMillis).toLocalDateTime(DateUtil.timeZone)
+        val today = now.date
+        val ymd = { d: Int -> today.plus(d, DateTimeUnit.DAY).toString() }
+        // 기준 시각 — 상대 배치가 자정을 넘지 않도록 낮 구간(04:00~19:00)으로 당긴다.
+        val base = (now.hour * 60 + now.minute).coerceIn(4 * 60, 19 * 60)
+        val at = { offset: Int -> HoyolandEvent.hhmm((base + offset).coerceIn(0, 23 * 60 + 59)) }
+
+        return event.copy(
+            startYmd = ymd(0),
+            endYmd = ymd(3),
+            days = listOf(
+                // 오늘 — 지금 기준 [지난 2편 · 진행 중 1편 · 남은 3편].
+                HoyolandDay(
+                    ymd(0),
+                    listOf(
+                        HoyolandSlot(at(-180), "달빛에 전하는 세레나데", "메인 무대", game = "원신", minutes = 40,
+                            cast = "오케스트라 · 성우 3인"),
+                        HoyolandSlot(at(-90), "환락, 상상 그 이상으로", "메인 무대", game = "붕괴: 스타레일", minutes = 30,
+                            cast = "성우 4인 토크"),
+                        HoyolandSlot(at(-12), "구름 너머로 내려앉은 시", "메인 무대", game = "젠레스 존 제로", minutes = 40,
+                            cast = "밴드 라이브 · 성우 2인"),
+                        HoyolandSlot(at(80), "성유물 세팅 클래스", "서브 무대", game = "원신", minutes = 35),
+                        HoyolandSlot(at(170), "개발자 인터뷰", "메인 무대", game = "붕괴: 스타레일", minutes = 30,
+                            cast = "개발팀 2인"),
+                        HoyolandSlot(at(260), "합동 피날레 스테이지", "메인 무대 · 전 IP 인사", minutes = 20,
+                            cast = "전 출연진"),
+                    ),
+                ),
+                // 내일 — 고정 편성(오늘이 아닌 날은 전부 '예정'으로 그려지는지 보는 자리).
+                HoyolandDay(
+                    ymd(1),
+                    listOf(
+                        HoyolandSlot("11:00", "포토존 토크", "서브 무대", game = "원신", minutes = 25),
+                        HoyolandSlot("14:00", "신규 캐릭터 공개", "메인 무대", game = "붕괴: 스타레일", minutes = 45,
+                            cast = "성우 2인"),
+                        HoyolandSlot("16:30", "시연 하이라이트", "메인 무대", game = "젠레스 존 제로", minutes = 30),
+                    ),
+                ),
+                // 모레 — 한 게임뿐인 날(게임 탭 줄이 사라지는지 보는 자리).
+                HoyolandDay(
+                    ymd(2),
+                    listOf(
+                        HoyolandSlot("12:00", "코스프레 스테이지", "메인 무대", game = "원신", minutes = 40),
+                        HoyolandSlot("15:00", "팬 아트 시상", "메인 무대", game = "원신", minutes = 20),
+                    ),
+                ),
+                // 글피 — 길이·게임이 없는 칸(폴백이 어떻게 보이는지 보는 자리).
+                HoyolandDay(
+                    ymd(3),
+                    listOf(
+                        HoyolandSlot("종일", "굿즈 부스 운영", "7홀"),
+                        HoyolandSlot("13:00", "폐막 인사", "메인 무대"),
+                    ),
+                ),
+            ),
+            goods = listOf(
+                HoyolandGoods("아크릴 스탠드 (푸리나)", 18000, "원신", "아크릴", note = "1인 2개 한정"),
+                HoyolandGoods("아크릴 키링 랜덤", 9000, "원신", "아크릴", note = "8종 중 1종"),
+                HoyolandGoods("나선 비경 티셔츠", 39000, "원신", "의류"),
+                HoyolandGoods("캐스토리스 인형", 45000, "붕괴: 스타레일", "인형", soldOut = true),
+                HoyolandGoods("피노코니 머그컵", 22000, "붕괴: 스타레일", "생활"),
+                HoyolandGoods("개척 여행 스티커팩", 8000, "붕괴: 스타레일", "문구"),
+                HoyolandGoods("에이전트 후드집업", 89000, "젠레스 존 제로", "의류", note = "S·M·L·XL"),
+                HoyolandGoods("호요랜드 2026 아트북", 35000, category = "도서"),
+                HoyolandGoods("행사 기념 에코백", 15000, category = "생활"),
+                HoyolandGoods("한정 뱃지 세트", 0, "젠레스 존 제로", "아크릴", note = "가격 미정"),
+            ),
+            booths = listOf(
+                HoyolandBooth(
+                    game = "원신",
+                    title = "나타 시연존",
+                    desc = "신규 지역을 현장 PC 로 체험",
+                    location = "7홀 A-12",
+                    duration = "회차당 20분",
+                    capacity = "회차당 12명",
+                    reward = "참여 시 아크릴 뱃지 증정",
+                    needsReservation = true,
+                ),
+                HoyolandBooth(
+                    game = "붕괴: 스타레일",
+                    title = "개척 사진관",
+                    desc = "캐릭터 배경 앞에서 즉석 사진 촬영",
+                    location = "8홀 B-03",
+                    duration = "1인 5분",
+                    reward = "인화 사진 1장",
+                ),
+                HoyolandBooth(
+                    game = "젠레스 존 제로",
+                    title = "홀로우 챌린지",
+                    desc = "제한 시간 안에 스테이지 클리어",
+                    location = "8홀 C-07",
+                    duration = "회차당 15분",
+                    capacity = "회차당 8명",
+                    reward = "클리어 시 키링 증정",
+                ),
+                HoyolandBooth(
+                    game = "",
+                    title = "포토존 · 대형 조형물",
+                    desc = "전 IP 합동 포토존",
+                    location = "후면광장",
+                    duration = "상시",
+                ),
+            ),
+        )
+    }
 }

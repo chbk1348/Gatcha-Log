@@ -171,10 +171,7 @@ private struct RecentSpendRow: View {
                 .frame(width: 36, height: 36)
                 .background(gameColor.opacity(0.14), in: RoundedRectangle(cornerRadius: 11, style: .continuous))
             VStack(alignment: .leading, spacing: 2) {
-                HStack(spacing: 5) {
-                    Text(spending.gameName).font(.pretendard(size: 14, weight: .bold)).foregroundStyle(GLGColor.textPrimary).lineLimit(1)
-                    if spending.isSubscription { GLGBadge(label: "정기", color: gameColor) }
-                }
+                Text(spending.gameName).font(.pretendard(size: 14, weight: .bold)).foregroundStyle(GLGColor.textPrimary).lineLimit(1)
                 if !subtitle.isEmpty {
                     Text(subtitle).font(.pretendard(size: 11)).foregroundStyle(GLGColor.textSecondary).lineLimit(1)
                 }

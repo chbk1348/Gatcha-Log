@@ -7,7 +7,6 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		04D900E4303215C82AEA7A1B /* GachaCalculatorSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = BFE5396217B0F6A1F487F364 /* GachaCalculatorSection.swift */; };
 		083956C63C4E239E7C23BB9C /* DeveloperView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E89E41FF15F08E1D17459394 /* DeveloperView.swift */; };
 		1431B09C96CB6ADF4D51B094 /* AnniversarySection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 75EFB2FF99DCA036AE774E6A /* AnniversarySection.swift */; };
 		14AFD15B3420C392511D404A /* CalendarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A84E3B9B9790F13D3F75EE5E /* CalendarView.swift */; };
@@ -32,7 +31,6 @@
 		5A20E9FA5EC5B018222B4775 /* Pretendard-Bold.otf in Resources */ = {isa = PBXBuildFile; fileRef = EDA6932189E1AD9D46B8D081 /* Pretendard-Bold.otf */; };
 		63BB6DD0D19A0B7E102937BD /* HeaderButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 32BBA1BA7898178C15DF09E1 /* HeaderButton.swift */; };
 		66655B48380F2D5C59045C50 /* PerfSignpost.swift in Sources */ = {isa = PBXBuildFile; fileRef = D784E55E4619CB1F45BC57A8 /* PerfSignpost.swift */; };
-		69FEE9E24FEB8301D5F8DA75 /* SubscriptionCenterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1DC14C41EE7ECD2B59515D4 /* SubscriptionCenterView.swift */; };
 		753F215D683DBB9FEBA60F13 /* SpendingStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = C3BE8BD3C2DD8BC4F707DE6D /* SpendingStore.swift */; };
 		76C8B5CC8DB8D93A0C9CE484 /* LoginView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE2C3F8DE0C369D621CCC112 /* LoginView.swift */; };
 		76FA3F68B6DA27D846A2CDA7 /* GlassCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB188D8B07C1771A193CF288 /* GlassCard.swift */; };
@@ -62,6 +60,7 @@
 		D1638799928C16B92E7BA17C /* Glass.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16692A76093EA64BC84CA502 /* Glass.swift */; };
 		D258D0F696A2DE0A54983D75 /* RemoteImage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9DE3D98E8895CBF8B3C201DE /* RemoteImage.swift */; };
 		D29010B2FCC6ADC85F2CC6E8 /* HoyolandSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = E487840A2C618D74E853EFC7 /* HoyolandSection.swift */; };
+		A1B2C3D40001HOYOSHOP0001 /* HoyolandShopSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002HOYOSHOP0002 /* HoyolandShopSection.swift */; };
 		D3C86098452712BF2EF2F566 /* HomeRedesign.swift in Sources */ = {isa = PBXBuildFile; fileRef = D68A3D0581AB9E49D5412A97 /* HomeRedesign.swift */; };
 		D518B6D75F70EEA8A1332D03 /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = 27054819557D026D9CB4FE7D /* GoogleService-Info.plist */; };
 		E04926A07296AA0D760F37A8 /* GLGSkeleton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 716CDDC7D2BB3BEC9580864E /* GLGSkeleton.swift */; };
@@ -128,7 +127,7 @@
 		5964E551478F1EBAFEFA8CAD /* AnnualReportView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnnualReportView.swift; sourceTree = "<group>"; };
 		5F47E41FAFDD2FD2F4E72EEE /* AdaptiveLayout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdaptiveLayout.swift; sourceTree = "<group>"; };
 		607DE67679739531B7DC4652 /* GlassButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlassButton.swift; sourceTree = "<group>"; };
-		6367C84794DC1C3725F7FCD5 /* GL_IOSTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = GL_IOSTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		6367C84794DC1C3725F7FCD5 /* GL_IOSTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = GL_IOSTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		68D6D7AAE7CA1EEF965F0455 /* GL_IOS.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = GL_IOS.entitlements; sourceTree = "<group>"; };
 		6A7AD50D44CC890634902ADD /* GachaDashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GachaDashboardView.swift; sourceTree = "<group>"; };
 		6BC1EE0970AA53D756A149E4 /* StorageTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StorageTests.swift; sourceTree = "<group>"; };
@@ -151,7 +150,6 @@
 		B5ED3CFA3D2AA76242DA2D87 /* HomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeView.swift; sourceTree = "<group>"; };
 		B8E1563A89FD1762C317ABC2 /* EnkaCharSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EnkaCharSection.swift; sourceTree = "<group>"; };
 		BF8DB30C236AF02D78678047 /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
-		BFE5396217B0F6A1F487F364 /* GachaCalculatorSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GachaCalculatorSection.swift; sourceTree = "<group>"; };
 		C3BE8BD3C2DD8BC4F707DE6D /* SpendingStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpendingStore.swift; sourceTree = "<group>"; };
 		C54C8FB382375CEA96A2F41B /* NotificationSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationSettingsView.swift; sourceTree = "<group>"; };
 		C6A123A37D43A8A1E98AF768 /* SelectableText.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SelectableText.swift; sourceTree = "<group>"; };
@@ -162,18 +160,18 @@
 		D68A3D0581AB9E49D5412A97 /* HomeRedesign.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeRedesign.swift; sourceTree = "<group>"; };
 		D784E55E4619CB1F45BC57A8 /* PerfSignpost.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PerfSignpost.swift; sourceTree = "<group>"; };
 		E167D2DF62218A027D330ECD /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
-		E1DC14C41EE7ECD2B59515D4 /* SubscriptionCenterView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionCenterView.swift; sourceTree = "<group>"; };
 		E487840A2C618D74E853EFC7 /* HoyolandSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HoyolandSection.swift; sourceTree = "<group>"; };
+		A1B2C3D40002HOYOSHOP0002 /* HoyolandShopSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HoyolandShopSection.swift; sourceTree = "<group>"; };
 		E89E41FF15F08E1D17459394 /* DeveloperView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeveloperView.swift; sourceTree = "<group>"; };
 		EBE3389ACB5917724A4C6DD5 /* Pretendard-SemiBold.otf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Pretendard-SemiBold.otf"; sourceTree = "<group>"; };
 		EC551FFC4A65F19F94A1987B /* SettingsDialogs.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsDialogs.swift; sourceTree = "<group>"; };
 		EDA6932189E1AD9D46B8D081 /* Pretendard-Bold.otf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Pretendard-Bold.otf"; sourceTree = "<group>"; };
 		F1B20A3BE3C43A7ADDFEB789 /* MyPageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MyPageView.swift; sourceTree = "<group>"; };
 		F22E3DACB374BECF7DBF2B1C /* AppMarkLogo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppMarkLogo.swift; sourceTree = "<group>"; };
-		F54315F0900C3C41178F8697 /* Gatcha-Log.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Gatcha-Log.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		F54315F0900C3C41178F8697 /* GL_IOS.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = GL_IOS.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		FAB28B37B0E20AFF6F250226 /* NewsDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NewsDetailView.swift; sourceTree = "<group>"; };
 		FEA0ECFE89434FBD76D2E252 /* GLGChip.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GLGChip.swift; sourceTree = "<group>"; };
-		FFB32546BFA3569C58B4338A /* GL_IOSUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = GL_IOSUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		FFB32546BFA3569C58B4338A /* GL_IOSUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = GL_IOSUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -192,7 +190,7 @@
 		0FDF273AAA05F684579FB85C /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				F54315F0900C3C41178F8697 /* Gatcha-Log.app */,
+				F54315F0900C3C41178F8697 /* GL_IOS.app */,
 				6367C84794DC1C3725F7FCD5 /* GL_IOSTests.xctest */,
 				FFB32546BFA3569C58B4338A /* GL_IOSUITests.xctest */,
 			);
@@ -226,7 +224,6 @@
 				1684DC3A94F3A86481854D57 /* DailyHeroSection.swift */,
 				D2FE9BDEC6CAA956275D8B50 /* ElementFxView.swift */,
 				B8E1563A89FD1762C317ABC2 /* EnkaCharSection.swift */,
-				BFE5396217B0F6A1F487F364 /* GachaCalculatorSection.swift */,
 				6A7AD50D44CC890634902ADD /* GachaDashboardView.swift */,
 				4A3AE615BDC494C0880E998A /* GachaReportSection.swift */,
 				11D16F5E46E7E8DC2FD63907 /* GameInfoView.swift */,
@@ -234,6 +231,7 @@
 				846F3D6CE1BD91FB25597AA6 /* GiftCodeSheet.swift */,
 				24406A47C5595952918ABF5B /* HoyolabLinkView.swift */,
 				E487840A2C618D74E853EFC7 /* HoyolandSection.swift */,
+				A1B2C3D40002HOYOSHOP0002 /* HoyolandShopSection.swift */,
 				FAB28B37B0E20AFF6F250226 /* NewsDetailView.swift */,
 				08F1ECE04BB2DA0CB5B2C723 /* NewsSection.swift */,
 				85473AA00EECC1459C27D0DB /* TaskCompletionSection.swift */,
@@ -264,7 +262,6 @@
 				4E67D38A3417978B0AEDC5AE /* SpendingDetailView.swift */,
 				762960D1C044CF4E4506D38C /* SpendingInsightView.swift */,
 				7A348DAF50519ABD14014AA0 /* SpendingView.swift */,
-				E1DC14C41EE7ECD2B59515D4 /* SubscriptionCenterView.swift */,
 			);
 			path = Spending;
 			sourceTree = "<group>";
@@ -464,7 +461,7 @@
 				8271CA7956D21511F8C90ED4 /* FirebaseFirestore */,
 			);
 			productName = GL_IOS;
-			productReference = F54315F0900C3C41178F8697 /* Gatcha-Log.app */;
+			productReference = F54315F0900C3C41178F8697 /* GL_IOS.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
@@ -474,7 +471,7 @@
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = YES;
-				LastUpgradeCheck = 2700;
+				LastUpgradeCheck = 1430;
 				TargetAttributes = {
 					A801CFA63E2EF76C1A108400 = {
 						DevelopmentTeam = CCTT9CBG38;
@@ -576,7 +573,6 @@
 				966D49408353ADE28FB496BA /* Format.swift in Sources */,
 				5037A67CE3B8E588DCC2F809 /* GLGChip.swift in Sources */,
 				E04926A07296AA0D760F37A8 /* GLGSkeleton.swift in Sources */,
-				04D900E4303215C82AEA7A1B /* GachaCalculatorSection.swift in Sources */,
 				FE473FA3E330163CA197055C /* GachaDashboardView.swift in Sources */,
 				AC21306B60B6E218C753C1A5 /* GachaReportSection.swift in Sources */,
 				3CEC973D3915C5EAA8F3144D /* GameInfoView.swift in Sources */,
@@ -593,6 +589,7 @@
 				BEDE307204D0F9A558DFFEB0 /* HomeView.swift in Sources */,
 				BCE6291BF8A244C01AF6F8F1 /* HoyolabLinkView.swift in Sources */,
 				D29010B2FCC6ADC85F2CC6E8 /* HoyolandSection.swift in Sources */,
+				A1B2C3D40001HOYOSHOP0001 /* HoyolandShopSection.swift in Sources */,
 				516633AC40C13ACD8FEE9995 /* ImageViewer.swift in Sources */,
 				76C8B5CC8DB8D93A0C9CE484 /* LoginView.swift in Sources */,
 				80AB71E69B0A2282D237A141 /* Motion.swift in Sources */,
@@ -615,7 +612,6 @@
 				39F1A4E784F62CEA98CDDCD1 /* SpendingInsightView.swift in Sources */,
 				753F215D683DBB9FEBA60F13 /* SpendingStore.swift in Sources */,
 				311A9FB837CB5310C4AB5714 /* SpendingView.swift in Sources */,
-				69FEE9E24FEB8301D5F8DA75 /* SubscriptionCenterView.swift in Sources */,
 				EC60C004B10BC14684E3258F /* TaskCompletionSection.swift in Sources */,
 				17991733B1B0EC7204C21DEB /* Theme.swift in Sources */,
 				BF372FCD149E818166E7F9E3 /* Toast.swift in Sources */,
@@ -659,7 +655,6 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
-				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
 				CLANG_ANALYZER_NONNULL = YES;
 				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
 				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
@@ -691,7 +686,6 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
-				DEVELOPMENT_TEAM = CCTT9CBG38;
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
@@ -708,7 +702,6 @@
 				MTL_FAST_MATH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
-				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_COMPILATION_MODE = wholemodule;
 				SWIFT_OPTIMIZATION_LEVEL = "-O";
 				SWIFT_VERSION = 6.0;
@@ -719,7 +712,6 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
-				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
 				CLANG_ANALYZER_NONNULL = YES;
 				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
 				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
@@ -751,7 +743,6 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = dwarf;
-				DEVELOPMENT_TEAM = CCTT9CBG38;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
@@ -775,7 +766,6 @@
 				ONLY_ACTIVE_ARCH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
-				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 6.0;
@@ -789,19 +779,17 @@
 				CODE_SIGN_ENTITLEMENTS = GL_IOS/GL_IOS.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = CCTT9CBG38;
 				"EXCLUDED_ARCHS[sdk=iphonesimulator*]" = x86_64;
-				FRAMEWORK_SEARCH_PATHS = "\"$(SRCROOT)/../Gatcha Log Shared/build/xcode-frameworks/$(CONFIGURATION)/$(SDK_NAME)\"";
+				FRAMEWORK_SEARCH_PATHS = (
+					"\"$(SRCROOT)/../Gatcha Log Shared/build/xcode-frameworks/$(CONFIGURATION)/$(SDK_NAME)\"",
+				);
 				INFOPLIST_FILE = GL_IOS/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				OTHER_LDFLAGS = (
-					"$(inherited)",
-					"-framework",
-					Shared,
-					"-ObjC",
-				);
+				OTHER_LDFLAGS = "$(inherited) -framework Shared -ObjC";
 				PRODUCT_BUNDLE_IDENTIFIER = com.gatcha.log.ios;
 				PRODUCT_NAME = "Gatcha-Log";
 				SDKROOT = iphoneos;
@@ -815,8 +803,11 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = CCTT9CBG38;
 				"EXCLUDED_ARCHS[sdk=iphonesimulator*]" = x86_64;
-				FRAMEWORK_SEARCH_PATHS = "\"$(SRCROOT)/../Gatcha Log Shared/build/xcode-frameworks/$(CONFIGURATION)/$(SDK_NAME)\"";
+				FRAMEWORK_SEARCH_PATHS = (
+					"\"$(SRCROOT)/../Gatcha Log Shared/build/xcode-frameworks/$(CONFIGURATION)/$(SDK_NAME)\"",
+				);
 				GENERATE_INFOPLIST_FILE = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -835,8 +826,11 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = CCTT9CBG38;
 				"EXCLUDED_ARCHS[sdk=iphonesimulator*]" = x86_64;
-				FRAMEWORK_SEARCH_PATHS = "\"$(SRCROOT)/../Gatcha Log Shared/build/xcode-frameworks/$(CONFIGURATION)/$(SDK_NAME)\"";
+				FRAMEWORK_SEARCH_PATHS = (
+					"\"$(SRCROOT)/../Gatcha Log Shared/build/xcode-frameworks/$(CONFIGURATION)/$(SDK_NAME)\"",
+				);
 				GENERATE_INFOPLIST_FILE = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -855,6 +849,7 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = CCTT9CBG38;
 				GENERATE_INFOPLIST_FILE = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -875,19 +870,17 @@
 				CODE_SIGN_ENTITLEMENTS = GL_IOS/GL_IOS.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = CCTT9CBG38;
 				"EXCLUDED_ARCHS[sdk=iphonesimulator*]" = x86_64;
-				FRAMEWORK_SEARCH_PATHS = "\"$(SRCROOT)/../Gatcha Log Shared/build/xcode-frameworks/$(CONFIGURATION)/$(SDK_NAME)\"";
+				FRAMEWORK_SEARCH_PATHS = (
+					"\"$(SRCROOT)/../Gatcha Log Shared/build/xcode-frameworks/$(CONFIGURATION)/$(SDK_NAME)\"",
+				);
 				INFOPLIST_FILE = GL_IOS/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				OTHER_LDFLAGS = (
-					"$(inherited)",
-					"-framework",
-					Shared,
-					"-ObjC",
-				);
+				OTHER_LDFLAGS = "$(inherited) -framework Shared -ObjC";
 				PRODUCT_BUNDLE_IDENTIFIER = com.gatcha.log.ios;
 				PRODUCT_NAME = "Gatcha-Log";
 				SDKROOT = iphoneos;
@@ -901,6 +894,7 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = CCTT9CBG38;
 				GENERATE_INFOPLIST_FILE = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",

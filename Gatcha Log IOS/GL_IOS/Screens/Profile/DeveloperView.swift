@@ -16,6 +16,8 @@ struct DeveloperView: View {
 
     /// 위 천장 버튼에 함께 적용. 같은 천장이라도 이것 하나로 필요 뽑기가 한 사이클(원신 90뽑) 갈린다.
     @State private var pityGuaranteed = false
+    /// 목업 상태는 캐시에 얹히는 것이라 화면을 다시 열면 읽어 온다(onAppear).
+    @State private var stageMock = false
     /// 진단 결과는 누른 시점의 스냅샷이다 — 계속 갱신되면 무엇을 보고 있는지 알 수 없다.
     @State private var reportTitle: String? = nil
     @State private var reportLines: [String] = []
@@ -46,6 +48,7 @@ struct DeveloperView: View {
         .background(GLGBackground { Color.clear })
         .glgPageTitle("개발자 메뉴")
         .navigationBarTitleDisplayMode(.inline)
+        .onAppear { stageMock = store.debugStageMockOn() }
     }
 
     // ── 상태 만들기 — "그 화면"을 지금 보고 싶을 때 ──
@@ -53,6 +56,14 @@ struct DeveloperView: View {
         sectionCard("상태 만들기") {
             devRow("bolt.fill", "행동력 3게임 가득", "행동력 카드의 비상벨이 뜨는 조건을 만든다") {
                 store.debugFillAllResin()
+            }
+            Divider()
+            // 실제 무대 편성이 공개되기 전에 라이브 카드·게임 레인·필터를 보는 자리.
+            // 기간이 오늘부터 4일로 옮겨져 늘 진행 중인 무대가 하나 잡힌다.
+            devRow("theatermasks.fill", "호요랜드 무대 시간표 목업",
+                   stageMock ? "켜짐 — 다시 누르면 원래 데이터로" : "라이브 카드·게임 레인 확인용") {
+                stageMock.toggle()
+                store.debugStageMock(stageMock)
             }
             Divider()
             devRow("bell.fill", "천장 하드 직전 (89)", "계산기 경고색·임박 토스트 확인") {

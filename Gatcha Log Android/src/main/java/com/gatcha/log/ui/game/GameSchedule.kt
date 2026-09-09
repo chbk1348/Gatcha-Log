@@ -72,7 +72,7 @@ import com.gatcha.log.data.isCollabBanner
 import com.gatcha.log.ui.components.GlgBadgeText
 import com.gatcha.log.data.HoyolandEvent
 import com.gatcha.log.ui.components.GlassCard
-import com.gatcha.log.ui.components.GlgChip
+import com.gatcha.log.ui.components.GlgSegmentedTabs
 import com.gatcha.log.ui.theme.DividerColor
 import com.gatcha.log.ui.theme.LocalAccent
 import com.gatcha.log.ui.theme.TextPrimary
@@ -372,13 +372,14 @@ fun GameScheduleFullPage(
             contentPadding = PaddingValues(bottom = 24.dp),
         ) {
             item(key = "tabs") {
-                Row(
-                    Modifier.fillMaxWidth().padding(top = 4.dp, bottom = 14.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    GlgChip("일정", selected = tab == 0) { tab = 0 }
-                    GlgChip("주년", selected = tab == 1) { tab = 1 }
-                }
+                // 칩이 아니라 세그먼트 탭 — 둘 중 하나만 고르는 자리는 앱 전체가 이 규격이다
+                // (iOS 는 여기서 `.pickerStyle(.segmented)` 를 쓴다).
+                GlgSegmentedTabs(
+                    labels = listOf("일정", "주년"),
+                    selected = tab,
+                    modifier = Modifier.padding(top = 4.dp, bottom = 14.dp),
+                    onSelect = { tab = it },
+                )
             }
 
             when (tab) {
