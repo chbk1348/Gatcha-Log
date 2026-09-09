@@ -13,8 +13,11 @@ import com.gatcha.log.data.HoyolandProgram
 import com.gatcha.log.data.HoyolandSlot
 import com.gatcha.log.data.HoyolandTicket
 import com.gatcha.log.data.HoyolandTicketStatus
+import com.gatcha.log.data.firebaseAppExists
 import com.gatcha.log.json.JSONArray
 import com.gatcha.log.json.JSONObject
+import dev.gitlive.firebase.Firebase
+import dev.gitlive.firebase.firestore.firestore
 
 /**
  * 호요랜드 정보 원격 갱신.
@@ -22,6 +25,15 @@ import com.gatcha.log.json.JSONObject
  * 행사 정보는 개최 전까지 **순차로 공개된다** — 지금은 예매만 미정이지만, 공개되는 순간
  * 앱을 업데이트하지 않고도 바뀌어야 한다. `version.json` 과 같은 저장소에 `hoyoland.json` 을
  * 두고 raw 로 읽는다([UpdateChecker] 의 매니페스트와 같은 경로 규칙).
+ *
+ * **출처는 두 곳이고 순서가 있다.**
+ *  1. Firestore `config/hoyoland` — 운영 어드민(`Gatcha Log Admin/`)이 쓰는 자리. 커밋 없이 즉시 반영된다.
+ *     행사 당일 현장에서 시간표가 바뀌는 상황을 위한 것이다.
+ *  2. raw `hoyoland.json` — git 에 남는 정본. Firestore 가 비었거나 못 읽으면 여기로 내려온다.
+ *  3. 번들 [HoyolandDefaults] — 둘 다 실패했을 때.
+ *
+ * 어드민은 1번에 쓰면서 2번용 JSON 도 함께 뽑아 준다. 즉 **Firestore 는 캐시가 아니라 앞선 정본**이고,
+ * git 은 이력과 최종 폴백을 맡는다. 둘이 어긋나면 앱은 Firestore 를 믿는다.
  *
  * **실패는 조용히 폴백한다.** 이 화면은 로그인·인증과 무관한 읽기 전용 소개 페이지라,
  * 네트워크가 없다고 빈 화면을 보여 줄 이유가 없다 — 번들된 [HoyolandDefaults] 로 그린다.
@@ -32,6 +44,11 @@ object HoyolandApi {
 
     private const val URL =
         "https://raw.githubusercontent.com/chbk1348/Gatcha-Log/main/hoyoland.json"
+
+    /** 운영 어드민이 쓰는 라이브 문서 — `users/{uid}` 와 같이 JSON 한 덩어리(`data`)로 둔다. */
+    private const val CONFIG_COLLECTION = "config"
+    private const val CONFIG_DOC = "hoyoland"
+    private const val FIELD_DATA = "data"
 
     /**
      * 한 번 받아온 값은 프로세스가 살아 있는 동안 재사용한다 — 게임정보 탭·홈·일정 탭이
@@ -69,12 +86,31 @@ object HoyolandApi {
      */
     suspend fun load(force: Boolean = false): HoyolandEvent {
         cached?.let { if (!force) return it }
-        val res = Net.get(URL)
-        if (!res.isOk) return current
-        val parsed = runCatching { parse(JSONObject(res.body)) }.getOrNull() ?: return current
-        cached = parsed
-        return parsed
+        // 라이브 → 정본 순으로 내려온다. 앞 단계가 깨진 JSON 이어도 다음 단계로 넘어간다 —
+        // 어드민이 잘못 쓴 문서 하나로 화면이 비어 버리면 안 된다.
+        val parsed = fetchLive()?.let(::parseOrNull) ?: fetchRaw()?.let(::parseOrNull)
+        if (parsed != null) cached = parsed
+        return parsed ?: current
     }
+
+    private fun parseOrNull(body: String): HoyolandEvent? =
+        runCatching { parse(JSONObject(body)) }.getOrNull()
+
+    /**
+     * Firestore `config/hoyoland` 의 `data`(JSON 문자열). 규칙상 **비로그인도 읽을 수 있다** —
+     * 이 화면은 인증과 무관한 소개 페이지다(firestore.rules 의 config 블록).
+     *
+     * Firebase 가 초기화되지 않은 빌드(google-services.json 없는 로컬 모드)에서는 건너뛴다.
+     */
+    private suspend fun fetchLive(): String? {
+        if (!firebaseAppExists()) return null
+        return runCatching {
+            val snap = Firebase.firestore.collection(CONFIG_COLLECTION).document(CONFIG_DOC).get()
+            if (snap.exists) snap.get<String?>(FIELD_DATA) else null
+        }.getOrNull()?.takeIf { it.isNotBlank() }
+    }
+
+    private suspend fun fetchRaw(): String? = Net.get(URL).takeIf { it.isOk }?.body
 
     /**
      * JSON → 모델. **빠진 키는 전부 번들 기본값으로 메운다** — 원격 파일이 일부만 갱신돼도
