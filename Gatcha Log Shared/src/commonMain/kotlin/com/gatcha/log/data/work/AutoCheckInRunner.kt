@@ -1,6 +1,7 @@
 package com.gatcha.log.data.work
 
 import com.gatcha.log.data.AppSettings
+import com.gatcha.log.data.AttendanceBus
 import com.gatcha.log.data.DateUtil
 import com.gatcha.log.data.GameData
 import com.gatcha.log.data.GatchaRepository
@@ -76,7 +77,12 @@ object AutoCheckInRunner {
                 else -> otherFails += game.shortName to r.message
             }
         }
-        if (changed) repo.saveAttendance(attendance)
+        if (changed) {
+            repo.saveAttendance(attendance)
+            // 화면은 자기 메모리로 출석을 들고 있다. 여기서 알리지 않으면 출석은 끝났는데
+            // 출석 체크 페이지가 계속 "0/3" 으로 남는다([AttendanceBus] 주석 참고).
+            AttendanceBus.notifyChanged()
+        }
 
         val outcome = Outcome(newSuccess, alreadyDone, authFails, netFails, otherFails)
         // 토큰 만료 플래그 동기화 — 홈 상단 배너 표시에 사용.
