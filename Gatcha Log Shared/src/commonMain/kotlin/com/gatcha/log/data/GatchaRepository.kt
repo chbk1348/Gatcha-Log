@@ -597,6 +597,28 @@ class GatchaRepository(
         prefs.putString(KEY_COMBAT_CLEAR, arr.toString())
     }
 
+    // ---------------------------------------------------------------- 캐릭터 소속 캐시 (로컬 전용)
+    /**
+     * 캐릭터 소속(원신 국가·스타레일 진영) — 키는 "게임키:캐릭터id".
+     *
+     * 도감에서 받아 오는 값이라 상세에 들어선 뒤에야 도착한다. 그러면 배지가 **뒤늦게 튀어나온다.**
+     * 한 번 받은 값은 바뀌지 않으므로 남겨 두고, 다음부터는 화면이 뜨는 순간 함께 그린다.
+     */
+    fun loadCharCamps(): Map<String, String> {
+        val raw = prefs.getString(KEY_CHAR_CAMPS, null) ?: return emptyMap()
+        return runCatching {
+            val o = JSONObject(raw)
+            // 빈 값도 그대로 싣는다 — "물어봤는데 없더라"는 기록이라 지우면 매번 다시 묻는다.
+            buildMap { o.keys().forEach { k -> put(k, o.optString(k)) } }
+        }.getOrDefault(emptyMap())
+    }
+
+    fun saveCharCamps(map: Map<String, String>) {
+        val o = JSONObject()
+        map.forEach { (k, v) -> o.put(k, v) }
+        prefs.putString(KEY_CHAR_CAMPS, o.toString())
+    }
+
     // ---------------------------------------------------------------- 실시간 노트 캐시 (로컬 전용 — 예약 알림 계산용)
     /** 최근 받아온 실시간 노트. '재화가 가득 차는 시각'을 앱 실행 없이 예약하는 데 쓴다. */
     fun loadLiveNotes(): List<LiveNote> {
@@ -950,6 +972,7 @@ class GatchaRepository(
         const val KEY_COMBAT = "combat_modes"     // 로컬 전용(전투 시즌 마감 알림 점검 캐시)
         const val KEY_COMBAT_CLEAR = "combat_clears" // 로컬 전용(엔드 콘텐츠 클리어 편성 캐시)
         const val KEY_NOTES = "live_notes"        // 로컬 전용(재화 가득참 예약 알림 계산 캐시)
+        const val KEY_CHAR_CAMPS = "char_camps"   // 로컬 전용(도감에서 받은 캐릭터 소속)
         const val KEY_EVENTS = "game_events"      // 로컬 전용(홈 '이번주 일정' 즉시 표출 캐시)
         const val KEY_CHALLENGES = "game_challenges" // 로컬 전용(홈 '이번주 일정' 즉시 표출 캐시)
         const val KEY_NEWS = "game_news"          // 로컬 전용(홈 '게임 소식' 즉시 표출 캐시)

@@ -128,7 +128,7 @@
 		5964E551478F1EBAFEFA8CAD /* AnnualReportView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnnualReportView.swift; sourceTree = "<group>"; };
 		5F47E41FAFDD2FD2F4E72EEE /* AdaptiveLayout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdaptiveLayout.swift; sourceTree = "<group>"; };
 		607DE67679739531B7DC4652 /* GlassButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlassButton.swift; sourceTree = "<group>"; };
-		6367C84794DC1C3725F7FCD5 /* GL_IOSTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = GL_IOSTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		6367C84794DC1C3725F7FCD5 /* GL_IOSTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = GL_IOSTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		68D6D7AAE7CA1EEF965F0455 /* GL_IOS.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = GL_IOS.entitlements; sourceTree = "<group>"; };
 		6A7AD50D44CC890634902ADD /* GachaDashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GachaDashboardView.swift; sourceTree = "<group>"; };
 		6BC1EE0970AA53D756A149E4 /* StorageTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StorageTests.swift; sourceTree = "<group>"; };
@@ -170,10 +170,10 @@
 		EDA6932189E1AD9D46B8D081 /* Pretendard-Bold.otf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Pretendard-Bold.otf"; sourceTree = "<group>"; };
 		F1B20A3BE3C43A7ADDFEB789 /* MyPageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MyPageView.swift; sourceTree = "<group>"; };
 		F22E3DACB374BECF7DBF2B1C /* AppMarkLogo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppMarkLogo.swift; sourceTree = "<group>"; };
-		F54315F0900C3C41178F8697 /* GL_IOS.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = GL_IOS.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		F54315F0900C3C41178F8697 /* Gatcha-Log.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Gatcha-Log.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		FAB28B37B0E20AFF6F250226 /* NewsDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NewsDetailView.swift; sourceTree = "<group>"; };
 		FEA0ECFE89434FBD76D2E252 /* GLGChip.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GLGChip.swift; sourceTree = "<group>"; };
-		FFB32546BFA3569C58B4338A /* GL_IOSUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = GL_IOSUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		FFB32546BFA3569C58B4338A /* GL_IOSUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = GL_IOSUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -192,7 +192,7 @@
 		0FDF273AAA05F684579FB85C /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				F54315F0900C3C41178F8697 /* GL_IOS.app */,
+				F54315F0900C3C41178F8697 /* Gatcha-Log.app */,
 				6367C84794DC1C3725F7FCD5 /* GL_IOSTests.xctest */,
 				FFB32546BFA3569C58B4338A /* GL_IOSUITests.xctest */,
 			);
@@ -464,7 +464,7 @@
 				8271CA7956D21511F8C90ED4 /* FirebaseFirestore */,
 			);
 			productName = GL_IOS;
-			productReference = F54315F0900C3C41178F8697 /* GL_IOS.app */;
+			productReference = F54315F0900C3C41178F8697 /* Gatcha-Log.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
@@ -474,7 +474,7 @@
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = YES;
-				LastUpgradeCheck = 1430;
+				LastUpgradeCheck = 2700;
 				TargetAttributes = {
 					A801CFA63E2EF76C1A108400 = {
 						DevelopmentTeam = CCTT9CBG38;
@@ -659,6 +659,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
 				CLANG_ANALYZER_NONNULL = YES;
 				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
 				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
@@ -690,6 +691,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = CCTT9CBG38;
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
@@ -706,6 +708,7 @@
 				MTL_FAST_MATH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_COMPILATION_MODE = wholemodule;
 				SWIFT_OPTIMIZATION_LEVEL = "-O";
 				SWIFT_VERSION = 6.0;
@@ -716,6 +719,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
 				CLANG_ANALYZER_NONNULL = YES;
 				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
 				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
@@ -747,6 +751,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = CCTT9CBG38;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
@@ -770,6 +775,7 @@
 				ONLY_ACTIVE_ARCH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 6.0;
@@ -783,17 +789,19 @@
 				CODE_SIGN_ENTITLEMENTS = GL_IOS/GL_IOS.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				DEVELOPMENT_TEAM = CCTT9CBG38;
 				"EXCLUDED_ARCHS[sdk=iphonesimulator*]" = x86_64;
-				FRAMEWORK_SEARCH_PATHS = (
-					"\"$(SRCROOT)/../Gatcha Log Shared/build/xcode-frameworks/$(CONFIGURATION)/$(SDK_NAME)\"",
-				);
+				FRAMEWORK_SEARCH_PATHS = "\"$(SRCROOT)/../Gatcha Log Shared/build/xcode-frameworks/$(CONFIGURATION)/$(SDK_NAME)\"";
 				INFOPLIST_FILE = GL_IOS/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				OTHER_LDFLAGS = "$(inherited) -framework Shared -ObjC";
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"-framework",
+					Shared,
+					"-ObjC",
+				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.gatcha.log.ios;
 				PRODUCT_NAME = "Gatcha-Log";
 				SDKROOT = iphoneos;
@@ -807,11 +815,8 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
-				DEVELOPMENT_TEAM = CCTT9CBG38;
 				"EXCLUDED_ARCHS[sdk=iphonesimulator*]" = x86_64;
-				FRAMEWORK_SEARCH_PATHS = (
-					"\"$(SRCROOT)/../Gatcha Log Shared/build/xcode-frameworks/$(CONFIGURATION)/$(SDK_NAME)\"",
-				);
+				FRAMEWORK_SEARCH_PATHS = "\"$(SRCROOT)/../Gatcha Log Shared/build/xcode-frameworks/$(CONFIGURATION)/$(SDK_NAME)\"";
 				GENERATE_INFOPLIST_FILE = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -830,11 +835,8 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
-				DEVELOPMENT_TEAM = CCTT9CBG38;
 				"EXCLUDED_ARCHS[sdk=iphonesimulator*]" = x86_64;
-				FRAMEWORK_SEARCH_PATHS = (
-					"\"$(SRCROOT)/../Gatcha Log Shared/build/xcode-frameworks/$(CONFIGURATION)/$(SDK_NAME)\"",
-				);
+				FRAMEWORK_SEARCH_PATHS = "\"$(SRCROOT)/../Gatcha Log Shared/build/xcode-frameworks/$(CONFIGURATION)/$(SDK_NAME)\"";
 				GENERATE_INFOPLIST_FILE = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -853,7 +855,6 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
-				DEVELOPMENT_TEAM = CCTT9CBG38;
 				GENERATE_INFOPLIST_FILE = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -874,17 +875,19 @@
 				CODE_SIGN_ENTITLEMENTS = GL_IOS/GL_IOS.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				DEVELOPMENT_TEAM = CCTT9CBG38;
 				"EXCLUDED_ARCHS[sdk=iphonesimulator*]" = x86_64;
-				FRAMEWORK_SEARCH_PATHS = (
-					"\"$(SRCROOT)/../Gatcha Log Shared/build/xcode-frameworks/$(CONFIGURATION)/$(SDK_NAME)\"",
-				);
+				FRAMEWORK_SEARCH_PATHS = "\"$(SRCROOT)/../Gatcha Log Shared/build/xcode-frameworks/$(CONFIGURATION)/$(SDK_NAME)\"";
 				INFOPLIST_FILE = GL_IOS/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				OTHER_LDFLAGS = "$(inherited) -framework Shared -ObjC";
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"-framework",
+					Shared,
+					"-ObjC",
+				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.gatcha.log.ios;
 				PRODUCT_NAME = "Gatcha-Log";
 				SDKROOT = iphoneos;
@@ -898,7 +901,6 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
-				DEVELOPMENT_TEAM = CCTT9CBG38;
 				GENERATE_INFOPLIST_FILE = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",

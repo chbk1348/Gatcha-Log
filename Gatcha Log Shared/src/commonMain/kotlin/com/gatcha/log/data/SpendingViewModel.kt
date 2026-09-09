@@ -30,7 +30,15 @@ import com.gatcha.log.data.MonthlyLedger
 import com.gatcha.log.data.Spending
 import com.gatcha.log.data.Subscription
 import com.gatcha.log.data.UserProfile
+import com.gatcha.log.util.fixed
+import kotlin.math.roundToInt
 import com.gatcha.log.data.api.EnkaApi
+import com.gatcha.log.data.api.usesArtifactScore
+import com.gatcha.log.data.api.RosterStanding
+import com.gatcha.log.data.api.metricOf
+import com.gatcha.log.data.api.resolveKeyStats
+import com.gatcha.log.data.api.ArtifactScoring
+import com.gatcha.log.data.api.EnkaChar
 import com.gatcha.log.data.api.NanokaApi
 import com.gatcha.log.data.api.WeaponRefinement
 import com.gatcha.log.data.api.EnkaResult
@@ -430,11 +438,9 @@ class SpendingViewModel : ViewModel() {
         lastForegroundDayKey = today
 
         if (!firstForeground) {
-            if (dayRolled) {
-                // 출석·스트릭은 [loadAll] 때 굳은 값이라 자정을 넘겨도 어제 상태로 남는다.
-                _attendanceToday.value = attendanceMap[today] ?: emptySet()
-                _attendanceStreak.value = computeAttendanceStreak()
-            }
+            // 출석·스트릭은 [loadAll] 때 굳은 값이다. 자정을 넘겼거나, 백그라운드 자동 출석이
+            // 앱이 잠든 사이에 저장소만 고쳐 놨을 수 있다 — **메모리가 아니라 저장소에서** 읽는다.
+            reloadAttendance()
             // 게임 정보 전체(캘린더·공지·원장·전투). 노트도 이 안에서 함께 받으므로 아래는 건너뛴다.
             if (dayRolled || now - lastGameInfoLoadAt >= GAME_INFO_MAX_AGE_MS) {
                 refreshGameInfo(force = true, silent = true)
@@ -1217,6 +1223,82 @@ class SpendingViewModel : ViewModel() {
     // **호출부는 디버그 빌드에서만 그려진다**(Android `BuildConfig.DEBUG` · iOS `#if DEBUG`).
     // 값은 메모리에만 쓰고 저장하지 않는다 — 다음 새로고침이 서버 값으로 덮어쓰는 게 맞다.
 
+    /**
+     * 보유 로스터의 **유물 점수 분포**를 로그로 덤프한다 — 등급 밴드를 감이 아니라 값으로 정하려고.
+     *
+     * 지금 밴드(CV 40/30/20/10 · 유효 롤 6/4.5/3/1.5)와 링 분모는 근거 없이 정해진 상수다.
+     * 그 탓에 **1장 기준 밴드가 캐릭터 평균에도 그대로 걸려** 링이 구조적으로 절반에서 멈춘다.
+     * 실제 분포를 봐야 문턱을 다시 정할 수 있다.
+     *
+     * 세 축을 함께 찍는다 — 장당 점수 · 캐릭터 평균 · 캐릭터 합계. 지금은 등급이 평균이고
+     * 순위가 합계라 축이 둘이므로, 둘의 분포를 나란히 봐야 한다.
+     * 출력은 "GatchaScore" 로 검색한다.
+     */
+    fun debugDumpScoreDistribution() {
+        viewModelScope.launch {
+            val out = StringBuilder()
+            ENKA_GAMES.filter { usesArtifactScore(it) }.forEach { game ->
+                val chars = _enkaResults.value[game]?.profile?.chars.orEmpty()
+                    .filter { it.detailed && it.artifacts.isNotEmpty() }
+                if (chars.isEmpty()) {
+                    out.appendLine("GatchaScore: [$game] 표본 없음")
+                    return@forEach
+                }
+                val perArtifact = mutableListOf<Double>()
+                val perCharAvg = mutableListOf<Double>()
+                val perCharTotal = mutableListOf<Double>()
+                var slotSum = 0
+                chars.forEach { c ->
+                    val keys = resolveKeyStats(game, c, _keyStatOverrides.value).stats
+                    val sc = ArtifactScoring.scoreChar(c.artifacts, keys, game)
+                    sc.ranked.forEach { perArtifact += it.score.value }
+                    perCharAvg += sc.average
+                    perCharTotal += sc.total
+                    slotSum += c.artifacts.size
+                }
+                val metric = metricOf(game)
+                out.appendLine(
+                    "GatchaScore: [$game] 캐릭터=${chars.size} 유물=${perArtifact.size} " +
+                        "평균장수=${fixed(slotSum.toDouble() / chars.size, 2)} 지표=${metric.name}",
+                )
+                // 착용 칸 분포 — "덜 낀 것"과 "응답이 빠진 것"을 가르는 근거를 모은다.
+                // 슬롯 이름별 착용 수까지 찍는다. 특정 슬롯만 통째로 비면 그건 결손 신호다.
+                // ⚠️ `toSortedMap()` 은 JVM 전용이다 — commonMain 이라 iOS 빌드가 깨진다.
+                val bySlotCount = chars.groupingBy { it.artifacts.size }.eachCount()
+                    .entries.sortedBy { it.key }
+                val slotNames = chars.flatMap { c -> c.artifacts.map { it.slot.ifBlank { "(무명)" } } }
+                    .groupingBy { it }.eachCount().toList().sortedByDescending { it.second }
+                val lvLow = chars.count { it.level < RosterStanding.MIN_LEVEL }
+                out.appendLine(
+                    "GatchaScore: [$game] 착용칸 " +
+                        bySlotCount.joinToString(" ") { "${it.key}장=${it.value}명" } +
+                        " · 레벨${RosterStanding.MIN_LEVEL}미만=${lvLow}명",
+                )
+                out.appendLine(
+                    "GatchaScore: [$game] 슬롯별 " + slotNames.joinToString(" ") { "${it.first}=${it.second}" },
+                )
+                out.appendLine("GatchaScore: [$game] 장당      ${percentileLine(perArtifact)}")
+                out.appendLine("GatchaScore: [$game] 캐릭터평균 ${percentileLine(perCharAvg)}")
+                out.appendLine("GatchaScore: [$game] 캐릭터합계 ${percentileLine(perCharTotal)}")
+            }
+            println(out.toString().trimEnd())
+            emitStatus("점수 분포를 로그로 남겼어요 — GatchaScore 로 검색")
+        }
+    }
+
+    /** 백분위 한 줄 — 밴드 문턱은 이 숫자들 사이에서 고른다. */
+    private fun percentileLine(values: List<Double>): String {
+        if (values.isEmpty()) return "표본 없음"
+        val v = values.sorted()
+        fun q(p: Double): String {
+            val idx = ((v.size - 1) * p).roundToInt().coerceIn(0, v.size - 1)
+            return fixed(v[idx], 1)
+        }
+        val mean = v.sum() / v.size
+        return "n=${v.size} min=${fixed(v.first(), 1)} p10=${q(0.10)} p25=${q(0.25)} " +
+            "p50=${q(0.50)} p75=${q(0.75)} p90=${q(0.90)} max=${fixed(v.last(), 1)} mean=${fixed(mean, 1)}"
+    }
+
     /** 3게임 행동력을 가득으로. 노트가 없으면(미연동) 확인용 노트를 만들어 넣는다. */
     fun debugFillAllResin() {
         val prev = _liveNotes.value
@@ -1366,7 +1448,10 @@ class SpendingViewModel : ViewModel() {
             val uid = enkaUidFor(game).takeIf { it.isNotBlank() } ?: return@mapNotNull null
             enkaCache["$game:$uid"]?.let { game to it.second }
         }
-        if (seeded.isNotEmpty()) _enkaResults.update { it + seeded }
+        if (seeded.isNotEmpty()) {
+            _enkaResults.update { it + seeded }
+            seeded.forEach { (g, r) -> prefetchCharCamps(g, r.profile?.chars.orEmpty()) }
+        }
     }
 
     /** Enka UID 로 프로필 조회 + UID 계정별 영속(클라우드 동기화 포함). */
@@ -1455,6 +1540,7 @@ class SpendingViewModel : ViewModel() {
     private fun publishEnka(game: String, result: EnkaResult) {
         _enkaResult.value = result
         _enkaResults.update { it + (game to result) }
+        prefetchCharCamps(game, result.profile?.chars.orEmpty())
     }
 
     /** 게임 탭 전환 시 이전 결과 정리 */
@@ -1500,6 +1586,7 @@ class SpendingViewModel : ViewModel() {
                     // 캐시(신선/오래됨 무관)가 있으면 즉시 표시 — stale-while-revalidate
                     if (cached != null) {
                         _enkaResults.update { it + (game to cached.second) }
+                        prefetchCharCamps(game, cached.second.profile?.chars.orEmpty())
                         if (fresh && !force) return@async   // 신선하면 네트워크 생략
                     } else {
                         _enkaLoadingGames.update { it + game }   // 보여줄 캐시가 없을 때만 스피너
@@ -1511,6 +1598,7 @@ class SpendingViewModel : ViewModel() {
                     if (r.profile != null) {
                         enkaCache[key] = currentTimeMillis() to r
                         _enkaResults.update { it + (game to r) }   // 갱신분 반영
+                        prefetchCharCamps(game, r.profile?.chars.orEmpty())
                     } else if (cached == null) {
                         _enkaResults.update { it + (game to r) }   // 캐시 없고 실패 → 에러 표시(캐시 있으면 기존 유지)
                     }
@@ -1561,6 +1649,66 @@ class SpendingViewModel : ViewModel() {
      */
     /** 정련 효과 조회가 진행 중인 키. 결과 맵과 별개다 — 맵은 응답이 온 뒤에야 채워진다. */
     private val refinementInFlight = mutableSetOf<String>()
+
+    // 저장해 둔 값으로 시작한다 — 화면이 뜨는 순간부터 배지가 보이게. 도감 응답은 그 뒤에 채운다.
+    private val _charCamp = MutableStateFlow(repo.loadCharCamps())
+
+    /** 캐릭터 소속(진영) — 키는 "게임키:캐릭터id". 젠레스는 응답이 직접 주므로 여기 없다. */
+    val charCamp: StateFlow<Map<String, String>> = _charCamp.asStateFlow()
+    private val charCampInFlight = mutableSetOf<String>()
+
+    /**
+     * 로스터가 들어오면 **소속을 미리 받아 둔다.**
+     *
+     * 상세에 들어선 뒤에 부르면 도감 응답을 기다리는 1초 남짓 동안 배지 자리가 비었다가
+     * 뒤늦게 튀어나온다(2026-09-09 제보). 목록을 받는 시점에 미리 채워 두면 상세는 이미
+     * 손에 든 값을 그린다.
+     *
+     * 캐시에 있는 것은 건너뛰므로 캐릭터당 **한 번만** 나간다. 도감은 정적 파일이라
+     * 부담이 적지만, 그래도 한꺼번에 쏟지 않게 넷씩 끊어 보낸다.
+     */
+    private fun prefetchCharCamps(gameKey: String, chars: List<EnkaChar>) {
+        if (gameKey != "genshin" && gameKey != "hsr" && gameKey != "starrail") return
+        val need = chars.map { it.id }.filter { it > 0 && !_charCamp.value.containsKey("$gameKey:$it") }
+        if (need.isEmpty()) return
+        viewModelScope.launch {
+            need.chunked(4).forEach { batch ->
+                val found = withContext(Dispatchers.IO) {
+                    batch.map { id -> async { id to NanokaApi.charCamp(gameKey, id) } }.awaitAll()
+                }
+                // ⚠️ **소속이 없는 캐릭터도 기록한다.** 값이 있는 것만 넣었더니, 도감에 없거나
+                // (404) 지역 코드를 모르는 캐릭터는 맵에 영영 안 들어가서 로스터가 갱신될 때마다
+                // 같은 요청이 다시 나갔다 — 실측으로 같은 id 를 여섯 번까지 불렀다.
+                // 빈 문자열이 "물어봤고 없더라"는 뜻이다. 화면은 빈 값을 그리지 않는다.
+                val add = found.map { (id, camp) -> "$gameKey:$id" to camp.orEmpty() }
+                _charCamp.update { it + add }
+                repo.saveCharCamps(_charCamp.value)
+            }
+        }
+    }
+
+    /**
+     * 캐릭터 소속을 도감에서 받아 온다 — 원신·스타레일만.
+     *
+     * 상세 화면에 들어설 때 한 캐릭터만 부른다. 목록에서 부르면 캐릭터 수만큼 요청이 나간다.
+     * 정련([loadWeaponRefinement])과 같은 규칙으로 중복 요청을 막는다.
+     */
+    fun loadCharCamp(gameKey: String, charId: Int) {
+        if (charId <= 0) return
+        val key = "$gameKey:$charId"
+        if (_charCamp.value.containsKey(key)) return
+        if (!charCampInFlight.add(key)) return
+        viewModelScope.launch {
+            try {
+                // 없어도 기록한다 — 재요청을 막는다([prefetchCharCamps] 주석 참고).
+                val camp = withContext(Dispatchers.IO) { NanokaApi.charCamp(gameKey, charId) }
+                _charCamp.update { it + (key to camp.orEmpty()) }
+                repo.saveCharCamps(_charCamp.value)
+            } finally {
+                charCampInFlight.remove(key)
+            }
+        }
+    }
 
     fun loadWeaponRefinement(gameKey: String, weaponId: Int, level: Int) {
         if (weaponId <= 0) return
@@ -1781,6 +1929,26 @@ class SpendingViewModel : ViewModel() {
         networkFailedAt.entries.removeAll { now - it.value > NETWORK_CORROBORATE_MS }
         networkFailedAt[source] = now
         return networkFailedAt.size >= 2
+    }
+
+    /**
+     * 앱 밖(백그라운드 작업·알람)에서 출석이 바뀌면 저장소에서 다시 읽는다.
+     *
+     * 자동 출석은 [GatchaRepository] 를 새로 만들어 저장소에 직접 쓰므로, 여기서 다시 읽지
+     * 않으면 화면의 `attendanceMap` 이 낡은 채로 남는다.
+     */
+    private fun observeAttendance() {
+        viewModelScope.launch {
+            AttendanceBus.changed.collect { reloadAttendance() }
+        }
+    }
+
+    /** 출석 기록을 저장소에서 다시 읽어 화면 상태를 맞춘다. */
+    private fun reloadAttendance() {
+        attendanceMap = repo.loadAttendance()
+        _attendanceHistory.value = attendanceMap
+        _attendanceToday.value = attendanceMap[todayKey()] ?: emptySet()
+        _attendanceStreak.value = computeAttendanceStreak()
     }
 
     private fun observeErrors() {
@@ -2825,6 +2993,7 @@ const val ERROR_TOAST_COOLDOWN_MS = 180_000L
             combine(_spendings, _subscriptions) { _, _ -> Unit }.collect { recomputeSpendingDerived() }
         }
         observeErrors()   // 데이터 계층이 삼키던 실패를 화면으로 올린다
+        observeAttendance()   // 백그라운드 자동 출석의 결과를 화면에 반영한다
         bootstrapAuthAndSync()
     }
 }

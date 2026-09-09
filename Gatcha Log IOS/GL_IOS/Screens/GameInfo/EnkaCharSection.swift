@@ -282,12 +282,16 @@ func enkaRosterCard(_ c: EnkaChar, _ game: String, compact: Bool = false) -> som
                 enkaConstellationRing(c, ink: ink, rarityColor: rarityColor, side: 50)
                     .padding(.top, 24)   // 위쪽은 모서리 배지 둘이 차지한다
                 // 이름은 자르지 않는다 — 세 글자만 남은 "산고노미야 코…" 로는 누군지 알 수 없다.
+                // 카드 높이가 고정이라 한 줄짜리 이름은 아래가 빈다. 이름에 **남는 공간을 통째로
+                // 주고 그 안에서 가운데 정렬**한다 — 여백이 아래에만 몰리지 않고, 레벨 막대가
+                // 카드마다 같은 높이에 온다.
                 Text(c.name)
                     .font(.pretendard(size: 11.5, weight: .bold))
                     .foregroundStyle(GLGColor.textPrimary)
                     .multilineTextAlignment(.center)
                     .lineLimit(2).minimumScaleFactor(0.85)
                     .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .padding(.top, 7)
                 enkaLevelBar(Int(c.level), maxLv, atMax: atMax, fill: enkaElementInk(c.element, 0.45), ink: ink, compact: true)
             }
@@ -309,11 +313,13 @@ func enkaRosterCard(_ c: EnkaChar, _ game: String, compact: Bool = false) -> som
                         enkaElementBadge(c.element, bg: elBg, compact: false)
                         enkaRarityBadge(game, Int(c.rarity), color: rarityColor, compact: false)
                     }
+                    // 3열과 같은 이유로 남는 공간을 이름이 받는다.
                     Text(c.name)
                         .font(.pretendard(size: 13.5, weight: .bold))
                         .foregroundStyle(GLGColor.textPrimary)
                         .lineLimit(2).minimumScaleFactor(0.82)
                         .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
                         .padding(.top, 4)
                     enkaLevelBar(Int(c.level), maxLv, atMax: atMax, fill: enkaElementInk(c.element, 0.45), ink: ink, compact: false)
                 }
@@ -323,6 +329,7 @@ func enkaRosterCard(_ c: EnkaChar, _ game: String, compact: Bool = false) -> som
         }
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+    .contentShape(Rectangle())
     .background(
         LinearGradient(colors: [tileTop, tileBottom], startPoint: .topLeading, endPoint: .bottomTrailing),
         in: RoundedRectangle(cornerRadius: radius, style: .continuous)
@@ -433,6 +440,12 @@ struct EnkaRosterPage: View {
 
     /// 열 수 — 60명 넘는 계정은 3열이 훨씬 덜 스크롤한다. 기본은 2열(넓은 카드가 읽기 쉽다).
     @AppStorage("roster_cols") private var colCount = 2
+    /// 카드 높이 — 이름이 두 줄이어도 들어가는 값으로 **고정**한다.
+    ///
+    /// 줄 안에서 카드마다 높이가 다르면 격자가 어긋난다. 내용 구성이 고정(링·이름·레벨 막대)이라
+    /// 미리 정할 수 있다. 글꼴 크기 설정은 `@ScaledMetric` 이 함께 키워 준다.
+    @ScaledMetric(relativeTo: .body) private var rosterRowHeight: CGFloat = 104
+    @ScaledMetric(relativeTo: .body) private var rosterTileHeight: CGFloat = 146
     private var cols: [GridItem] {
         Array(repeating: GridItem(.flexible(), spacing: colCount >= 3 ? 8 : 10), count: colCount)
     }
@@ -476,6 +489,8 @@ struct EnkaRosterPage: View {
                              roster: store.enkaResults[game]?.profile?.chars ?? [],
                              overrides: store.keyStatOverrides,
                              onSetOverride: { k, v in store.setKeyStatOverride(k, v) },
+                             camp: store.charCamp["\(game):\(c.id)"],
+                             onNeedCamp: { id in store.loadCharCamp(game, id) },
                              elementFxEnabled: store.charElementFx)
             }
             // 캐릭터별로 다른 뷰 — 재사용되면 직전 캐릭터의 유효옵션이 한 프레임 남는다.
@@ -521,6 +536,7 @@ struct EnkaRosterPage: View {
                     // 갈린 상태에선 push 하지 않는다 — 우측 패널만 바꾼다.
                     Button { statChar = c; if !isWide { showStat = true } } label: {
                         enkaRosterCard(c, game, compact: colCount >= 3)
+                            .frame(height: colCount >= 3 ? rosterTileHeight : rosterRowHeight)
                     }
                     .buttonStyle(.plain)
                 }
@@ -577,6 +593,8 @@ struct EnkaRosterPage: View {
                              roster: store.enkaResults[game]?.profile?.chars ?? [],
                              overrides: store.keyStatOverrides,
                              onSetOverride: { k, v in store.setKeyStatOverride(k, v) },
+                             camp: store.charCamp["\(game):\(c.id)"],
+                             onNeedCamp: { id in store.loadCharCamp(game, id) },
                              elementFxEnabled: store.charElementFx)
                     // 캐릭터별로 다른 뷰 — 재사용되면 직전 캐릭터의 유효옵션이 한 프레임 남는다.
                     .id(c.id)
@@ -614,6 +632,9 @@ struct EnkaStatPage: View {
     var onSetOverride: (String, Set<String>) -> Void = { _, _ in }
     var refinement: WeaponRefinement? = nil
     var onNeedRefinement: (Int32, Int32) -> Void = { _, _ in }
+    /// 캐릭터 소속 — 원신은 국가, 스타레일은 진영. 젠레스는 응답이 직접 준다.
+    var camp: String? = nil
+    var onNeedCamp: (Int32) -> Void = { _ in }
     /// 속성 연출 재생 여부(설정). 끄면 움직임 없이 속성 테두리만 남는다.
     var elementFxEnabled: Bool = true
 
@@ -622,6 +643,7 @@ struct EnkaStatPage: View {
             char: char, game: game, roster: roster,
             overrides: overrides, onSetOverride: onSetOverride,
             refinement: refinement, onNeedRefinement: onNeedRefinement,
+            camp: camp, onNeedCamp: onNeedCamp,
             elementFxEnabled: elementFxEnabled,
         )
     }
@@ -639,6 +661,9 @@ struct EnkaStatPageBody: View {
     var refinement: WeaponRefinement? = nil
     /// 정련 효과가 필요할 때 (무기 id, 정련 단계)를 올려보낸다.
     var onNeedRefinement: (Int32, Int32) -> Void = { _, _ in }
+    /// 캐릭터 소속 — 도감에서 오는 값이라 없을 수 있다. 없으면 그 줄을 그리지 않는다.
+    var camp: String? = nil
+    var onNeedCamp: (Int32) -> Void = { _ in }
 
     /// 유효옵션 판정과 성유물 점수 — **뷰가 만들어질 때 한 번** 낸다.
     ///
@@ -658,7 +683,6 @@ struct EnkaStatPageBody: View {
     /// 로스터 안에서의 위치. 모수를 못 채우면 `hasRank == false` 로 온다.
     private let standing: RosterStanding
     /// 다음 한 걸음. 근거가 없으면 nil — 그때는 줄 자체를 그리지 않는다.
-    private let step: NextStep?
 
     init(char: EnkaChar, game: String,
          roster: [EnkaChar] = [],
@@ -666,6 +690,8 @@ struct EnkaStatPageBody: View {
          onSetOverride: @escaping (String, Set<String>) -> Void = { _, _ in },
          refinement: WeaponRefinement? = nil,
          onNeedRefinement: @escaping (Int32, Int32) -> Void = { _, _ in },
+         camp: String? = nil,
+         onNeedCamp: @escaping (Int32) -> Void = { _ in },
          elementFxEnabled: Bool = true) {
         self.char = char
         self.game = game
@@ -674,6 +700,8 @@ struct EnkaStatPageBody: View {
         self.onSetOverride = onSetOverride
         self.refinement = refinement
         self.onNeedRefinement = onNeedRefinement
+        self.camp = camp
+        self.onNeedCamp = onNeedCamp
         self.elementFxEnabled = elementFxEnabled
         let v = KeyStatRulesKt.resolveKeyStats(gameKey: game, char: char, overrides: overrides)
         self.verdict = v
@@ -683,7 +711,6 @@ struct EnkaStatPageBody: View {
         self.artScore = ArtifactScoring.shared.scoreChar(artifacts: char.artifacts, keySet: v.stats, gameKey: game)
         // 순위·다음 한 걸음도 같은 이유로 여기서 확정한다 — 첫 프레임부터 맞는 값이 보여야 한다.
         self.standing = RosterStandings.shared.of(target: char, roster: roster, gameKey: game, overrides: overrides)
-        self.step = RosterStandings.shared.nextStep(c: char, gameKey: game, overrides: overrides)
     }
 
     @Environment(\.glgAccent) private var accent
@@ -717,6 +744,19 @@ struct EnkaStatPageBody: View {
         // 주면 안 된다 — 뒤로가기 버튼을 길게 눌렀을 때 뜨는 이동 메뉴가 **공백 줄**이 된다
         // (2026-09-08 제보). 그 메뉴는 `navigationTitle` 을 그대로 읽는다.
         // 제목은 채우고, 가운데 자리를 빈 뷰로 덮어 표시만 막는다.
+        .task(id: char.id) { onNeedCamp(char.id) }
+        .toolbar {
+            // 점수 기준 — 이 화면의 점수 전체가 무엇을 세는지 여는 곳이라 헤더에 둔다.
+            // 점수를 안 쓰는 게임(젠레스)에는 없다.
+            if CharDisplayKt.usesArtifactScore(gameKey: game) {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button { basisOpen = true } label: {
+                        Image(systemName: "slider.horizontal.3")
+                    }
+                    .accessibilityLabel("점수 기준")
+                }
+            }
+        }
         .navigationTitle(char.name)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar { ToolbarItem(placement: .principal) { Color.clear.frame(width: 1, height: 1) } }
@@ -735,18 +775,9 @@ struct EnkaStatPageBody: View {
 
                     // ① 현재 스탯 — 점수의 기준(유효옵션)은 머리말 우측 버튼으로 연다.
                     VStack(alignment: .leading, spacing: 0) {
-                        sectionHead(1, "현재 스탯", action: !CharDisplayKt.usesArtifactScore(gameKey: game) ? nil : {
-                            AnyView(
-                                Button { basisOpen = true } label: {
-                                    Text("기준")
-                                        .font(.pretendard(size: 11.5, weight: .bold))
-                                        .foregroundStyle(accent.primary)
-                                        .padding(.horizontal, 9).padding(.vertical, 4)
-                                        .background(accent.primary.opacity(0.10), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-                                }
-                                .buttonStyle(.plain)
-                            )
-                        })
+                        // '기준'(점수 기준) 버튼은 여기 있었다. 섹션 머리말에 두면 그 섹션에 딸린
+                        // 것으로 읽히는데, 실제로는 **화면 전체의 점수 규칙**이다. 툴바로 옮겼다.
+                        sectionHead(1, "현재 스탯")
                         statList
                     }
 
@@ -926,7 +957,9 @@ struct EnkaStatPageBody: View {
             let badge = CharDisplayKt.specialBadge(gameKey: game, char: char)
             // 젠레스는 **모든 캐릭터가 진영을 갖는다.** 특별 배지가 붙은 캐릭터는 그쪽이 우선이고,
             // 나머지는 진영을 일반 톤으로 보여준다 — 소속이 캐릭터를 설명하는 게임이라 값이 있다.
-            let campText: String? = (badge == nil && !char.camp.isEmpty) ? char.camp : nil
+            // 젠레스만 응답이 직접 준다([EnkaChar.camp]). 원신·스타레일은 도감에서 온 [camp].
+            let campRaw = char.camp.isEmpty ? (camp ?? "") : char.camp
+            let campText: String? = (badge == nil && !campRaw.isEmpty) ? campRaw : nil
             if !rarityText.isEmpty || badge != nil || campText != nil {
                 HStack(spacing: 7) {
                     if !rarityText.isEmpty {
@@ -974,11 +1007,22 @@ struct EnkaStatPageBody: View {
         .frame(maxWidth: .infinity)
         .background(
             ZStack {
-                LinearGradient(colors: [heroTop, heroBottom],
-                               startPoint: .topLeading, endPoint: .bottomTrailing)
-                    // 아래로 당겼을 때(바운스) 히어로 위가 드러나 흰 배경이 비치는 걸 막는다.
+                // 바탕은 **위로 800 만큼 빼서 그린다.** 스크롤을 아래로 당기면(바운스) 히어로 위가
+                // 드러나는데, 여기가 비어 있으면 흰 화면이 비쳤다. 지출 상세와 같은 방식이다.
+                //
+                // ⚠️ 이 층은 아래의 `clipShape` **밖**에 둔다. 예전엔 광채·연출과 함께 한 번에
+                // 잘라내는 바람에 위로 뺀 800 이 그대로 잘려 나가 아무 효과가 없었다.
+                // 아래 라운드는 도형 자체가 들고 있으므로 클립 없이도 그대로다.
+                UnevenRoundedRectangle(bottomLeadingRadius: 30, bottomTrailingRadius: 30, style: .continuous)
+                    .fill(LinearGradient(colors: [heroTop, heroBottom],
+                                         startPoint: .topLeading, endPoint: .bottomTrailing))
                     .padding(.top, -800)
+
                 // 중앙 상단 광채 — RPG 캐릭터 카드의 배경 광.
+                //
+                // ⚠️ 이것도 클립 밖이다. 히어로 위쪽 절반이 잘린 채로 그려지는데, 당겨서 그 위가
+                // 드러나면 **잘린 자리가 직선으로 보인다.** 원 자체는 히어로 폭보다 좁고(300)
+                // 가장자리가 투명으로 사라지므로 잘라내지 않아도 밖으로 새지 않는다.
                 VStack {
                     Circle()
                         .fill(RadialGradient(colors: [Color.white.opacity(0.55), .clear],
@@ -988,13 +1032,15 @@ struct EnkaStatPageBody: View {
                     Spacer(minLength: 0)
                 }
                 .allowsHitTesting(false)
-                // 속성 연출 — 켜면 진입할 때 한 번 재생하고, 꺼도 **정적 테두리**는 남긴다.
+
+                // 속성 연출만 **히어로 안에서만** 보여야 한다 — 이쪽은 잘라낸다.
+                // (물리의 벽·에테르의 띠처럼 화면을 가득 채우는 형상이 밖으로 새면 안 된다)
                 // 초상 한가운데 y — 양자·허수·루멘처럼 썸네일 위에서 도는 연출이 기준으로 쓴다.
                 // (상단 패딩 topInset+38 다음에 오는 150 링의 한가운데)
                 ElementFxOverlay(element: char.element, animated: elementFxEnabled,
                                  focusY: topInset + 38 + (scored ? 75 : 64))
+                    .clipShape(UnevenRoundedRectangle(bottomLeadingRadius: 30, bottomTrailingRadius: 30, style: .continuous))
             }
-            .clipShape(UnevenRoundedRectangle(bottomLeadingRadius: 30, bottomTrailingRadius: 30, style: .continuous))
         )
         .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { heroHeight = $0 }
     }
@@ -1433,6 +1479,18 @@ struct EnkaStatPageBody: View {
                             .foregroundStyle(keyLabelColor(r.artifact.main))
                         Text(r.artifact.main.value).font(.pretendard(size: 15, weight: .bold))
                             .foregroundStyle(keyColor(r.artifact.main, fallback: accent.primary))
+                        // 메인 적합 — 점수는 서브 옵션만 보지만 실제 성능은 메인이 가른다.
+                        // **맞을 때만** 표시한다. 유효옵션 집합은 서브 기준이라 메인의 정답을
+                        // 다 담고 있지 않아, 없다고 틀렸다 말할 근거가 없다.
+                        if KeyStatRulesKt.isMainFit(gameKey: game, slot: r.artifact.slot,
+                                                    mainLabel: r.artifact.main.label,
+                                                    mainValue: r.artifact.main.value,
+                                                    keySet: effectiveKeys) {
+                            Image(systemName: "checkmark.circle.fill")
+                                .font(.system(size: 11, weight: .bold))
+                                .foregroundStyle(accent.primary)
+                                .accessibilityLabel("이 캐릭터에 맞는 메인 옵션")
+                        }
                     }
                 }
                 Spacer(minLength: 8)
