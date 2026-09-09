@@ -6,10 +6,10 @@ import com.gatcha.log.data.GameData
 import com.gatcha.log.data.GatchaRepository
 import com.gatcha.log.data.HomeLogic
 import com.gatcha.log.data.HoyolabConfig
+import com.gatcha.log.data.Josa
 import com.gatcha.log.data.LiveNote
 import com.gatcha.log.data.Notifier
 import com.gatcha.log.data.TaskCompletion
-import com.gatcha.log.data.subscriptionNotificationId
 import com.gatcha.log.data.api.HoyolabApi
 import com.gatcha.log.data.api.NewsApi
 import com.gatcha.log.util.currentTimeMillis
@@ -100,8 +100,13 @@ object NotificationChecker {
                     val key = "$y-$m:$level"
                     if (settings.lastNotified("budget") != key) {
                         settings.setLastNotified("budget", key)
-                        if (level == "over") Notifier.notify(Notifier.ID_BUDGET, "예산 초과", "이번 달 예산을 초과했어요 (${pct}%)")
-                        else Notifier.notify(Notifier.ID_BUDGET, "예산 임박", "이번 달 예산의 ${pct}%를 사용했어요")
+                        if (level == "over") Notifier.notify(
+                            Notifier.ID_BUDGET, "이번 달 예산을 넘었어요",
+                            "₩${won(total - budget)} 더 썼어요 (${pct}%)",
+                        ) else Notifier.notify(
+                            Notifier.ID_BUDGET, "예산이 얼마 안 남았어요",
+                            "이번 달 ${pct}% 사용 · ₩${won(budget - total)} 남았어요",
+                        )
                     }
                 }
             }
@@ -124,8 +129,13 @@ object NotificationChecker {
                     if (settings.lastNotified(tag) != key) {
                         settings.setLastNotified(tag, key)
                         val nid = Notifier.ID_BUDGET_GAME_BASE + game.ordinal
-                        if (level == "over") Notifier.notify(nid, "${game.shortName} 예산 초과", "${game.shortName} 이번 달 한도를 초과했어요 (${pct}%)")
-                        else Notifier.notify(nid, "${game.shortName} 예산 임박", "${game.shortName} 한도의 ${pct}%를 사용했어요")
+                        if (level == "over") Notifier.notify(
+                            nid, "${game.shortName} 한도를 넘었어요",
+                            "₩${won(total - limit)} 더 썼어요 (${pct}%)",
+                        ) else Notifier.notify(
+                            nid, "${game.shortName} 한도가 얼마 안 남았어요",
+                            "${pct}% 사용 · ₩${won(limit - total)} 남았어요",
+                        )
                     }
                 }
             }
@@ -139,7 +149,10 @@ object NotificationChecker {
                 val pending = GameData.attendanceGames.filter { it.key !in done }
                 if (pending.isNotEmpty() && settings.lastNotified("attend") != today) {
                     settings.setLastNotified("attend", today)
-                    Notifier.notify(Notifier.ID_ATTEND, "출석 체크 알림", "${pending.joinToString(", ") { it.shortName }} 아직 출석 안 했어요")
+                    Notifier.notify(
+                        Notifier.ID_ATTEND, "오늘 출석 아직이에요",
+                        "${pending.joinToString("·") { it.shortName }} 남았어요. 1분이면 끝나요",
+                    )
                 }
             }
         }
@@ -155,8 +168,8 @@ object NotificationChecker {
                 settings.setLastNotified(tag, today)
                 Notifier.notify(
                     Notifier.ID_RESIN_BASE + game.ordinal,
-                    "${game.shortName} 행동력 가득참",
-                    "${note.resinLabel}가 가득 찼어요 (${note.currentResin}/${note.maxResin})",
+                    "${game.shortName} ${Josa.subj(note.resinLabel)} 가득 찼어요",
+                    "${note.currentResin}/${note.maxResin} 이에요. 지금부터는 더 쌓이지 않아요",
                 )
             }
         }
@@ -179,32 +192,13 @@ object NotificationChecker {
                         val shortName = game?.shortName ?: gameName
                         val nid = Notifier.ID_PICKUP_BASE + (game?.ordinal ?: 0)
                         val names = withD.filter { it.second <= 3 }.joinToString(", ") { it.first.name }
-                        val whenLabel = if (minD <= 1) "오늘·내일 종료" else "D-$minD 종료"
-                        Notifier.notify(nid, "$shortName 픽업 마감 임박", "$names — $whenLabel 전 마지막 기회예요")
+                        val whenLabel = if (minD <= 1) "오늘·내일까지예요" else "D-$minD 남았어요"
+                        Notifier.notify(nid, "$shortName 픽업이 곧 끝나요", "$names · $whenLabel. 뽑을 거면 지금이에요")
                     }
                 }
         }
 
-        // ⑤ 정기결제 갱신 임박 (로컬 구독 목록) — D-1/오늘, 구독별 월 1회.
-        if (settings.notifySubscription && !AlertScheduler.schedulesAhead) {
-            val now = currentTimeMillis()
-            val ym = "${DateUtil.year(now)}-${DateUtil.month(now)}"
-            repo.loadSubscriptions().forEach { sub ->
-                val d = sub.dDay(now)
-                if (d <= 1) {
-                    val tag = "sub:${sub.id}"
-                    if (settings.lastNotified(tag) != ym) {
-                        settings.setLastNotified(tag, ym)
-                        val whenLabel = if (d <= 0) "오늘" else "내일"
-                        Notifier.notify(
-                            subscriptionNotificationId(sub.id),
-                            "정기결제 갱신 $whenLabel",
-                            "${sub.name} ₩${won(sub.amount)} 결제 예정이에요",
-                        )
-                    }
-                }
-            }
-        }
+        // ⑤ 정기결제 갱신 알림은 여기 있었다 — 기능째 걷어냈다(2026-09-09).
 
         // ⑥ 전투 콘텐츠 시즌 마감 임박 (로컬 진행도 캐시) — 게임+모드별 1회, D-3/D-1 레벨.
         //    놓치면 그 시즌 보상은 복구가 안 되므로 미클리어일 때만 알린다(판정은 HomeLogic 공유 룰).
@@ -217,11 +211,11 @@ object NotificationChecker {
                     settings.setLastNotified(tag, level)
                     val game = GameData.byNameOrNull(c.gameShort)   // 이름 인덱스 — shortName 도 키다
                     val nid = Notifier.ID_COMBAT_BASE + (game?.ordinal ?: 0)
-                    val whenLabel = if (c.dDay <= 0) "오늘 마감" else if (c.dDay == 1) "내일 마감" else "D-${c.dDay}"
+                    val whenLabel = if (c.dDay <= 0) "오늘" else if (c.dDay == 1) "내일" else "D-${c.dDay} 에"
                     Notifier.notify(
                         nid,
-                        "${c.gameShort} ${c.mode} 마감 임박",
-                        "${c.stars}/${c.maxStars} — $whenLabel 이에요. 시즌이 끝나면 보상이 사라져요",
+                        "${c.gameShort} ${Josa.subj(c.mode)} 곧 끝나요",
+                        "${c.stars}/${c.maxStars} 에서 멈춰 있어요. $whenLabel 끝나면 남은 보상은 사라져요",
                     )
                 }
             }
@@ -258,10 +252,10 @@ object NotificationChecker {
                     if (AppVisibility.isForeground) return@forEach
                     settings.setLastNotified(tag, latest.createdAtMillis.toString())
                     val newCount = notices.count { it.createdAtMillis > lastSeen }
-                    val more = if (newCount > 1) " 외 ${newCount - 1}건" else ""
+                    val more = if (newCount > 1) " (+${newCount - 1}건)" else ""
                     Notifier.notify(
                         Notifier.ID_NEWS_BASE + game.ordinal,
-                        "${game.shortName} 새 공지",
+                        "${game.shortName} 소식이 올라왔어요",
                         latest.title + more,
                         link = "news:${latest.id}",
                     )
@@ -321,7 +315,7 @@ object NotificationChecker {
         val lines = buildSummaryLines(settings, repo, cfg, now)
         settings.setLastNotified("summary", dayKey) // 빈 내용이어도 오늘은 더 띄우지 않음
         if (lines.isEmpty()) return
-        Notifier.notify(Notifier.ID_DAILY_SUMMARY, "오늘의 가챠 요약", lines.joinToString("\n• ", prefix = "• "))
+        Notifier.notify(Notifier.ID_DAILY_SUMMARY, "오늘 챙길 것 모았어요", lines.joinToString("\n• ", prefix = "• "))
     }
 
     /** 요약 본문 줄 — 켜진 토글에 한해 그날 상태를 한 줄씩 모은다(개별 알림과 동일 데이터 소스). */
@@ -335,15 +329,15 @@ object NotificationChecker {
                 val total = repo.loadSpendings().filter { DateUtil.isSameMonth(it.dateMillis, y, m) }.sumOf { it.amount }
                 val pct = (total * 100 / budget).toInt()
                 if (pct >= 90) {
-                    lines += if (total > budget) "이번 달 예산 초과 (${pct}%)"
-                    else "이번 달 예산 ${pct}% 사용 · ₩${won((budget - total).coerceAtLeast(0))} 남음"
+                    lines += if (total > budget) "예산을 ₩${won(total - budget)} 넘겼어요 (${pct}%)"
+                    else "예산 ${pct}% 사용 · ₩${won(budget - total)} 남았어요"
                 }
             }
         }
         if (settings.notifyAttendance && cfg.isLinked && DateUtil.hoyoHour(now) >= 18) {
             val done = repo.loadAttendance()[DateUtil.hoyoDayKey(now)] ?: emptySet()
             val pending = GameData.attendanceGames.filter { it.key !in done }
-            if (pending.isNotEmpty()) lines += "미출석 ${pending.size}개 · ${pending.joinToString(", ") { it.shortName }}"
+            if (pending.isNotEmpty()) lines += "출석 안 한 게임 ${pending.size}개 · ${pending.joinToString("·") { it.shortName }}"
         }
         if (settings.notifyResin && cfg.isLinked) {
             // 캐시를 읽는다 — [run] 이 이 직전에 [fetchLiveNotes] 로 갱신해 뒀다.
@@ -351,7 +345,7 @@ object NotificationChecker {
             val full = repo.loadLiveNotes()
                 .filter { it.maxResin > 0 && it.currentResin >= it.maxResin }
                 .mapNotNull { GameData.byNameOrNull(it.game)?.shortName }
-            if (full.isNotEmpty()) lines += "행동력 가득참 · ${full.joinToString(", ")}"
+            if (full.isNotEmpty()) lines += "행동력이 가득 찼어요 · ${full.joinToString("·")}"
         }
         if (settings.notifyPickup) {
             repo.loadActiveBanners().filter { it.endMillis > now }
@@ -360,20 +354,13 @@ object NotificationChecker {
                     val minD = list.minOf { it.dDay(now) }
                     if (minD <= 3) {
                         val shortName = GameData.byNameOrNull(gameName)?.shortName ?: gameName
-                        lines += "픽업 마감 ${if (minD <= 1) "임박" else "D-$minD"} · $shortName"
+                        lines += "픽업이 ${if (minD <= 1) "곧" else "D-$minD 에"} 끝나요 · $shortName"
                     }
                 }
         }
-        if (settings.notifySubscription) {
-            // dDay 를 구독당 한 번만(필터·문구에서 각각 계산하던 것). dDay 는 날짜 연산이라 공짜가 아니다.
-            repo.loadSubscriptions().forEach { sub ->
-                val d = sub.dDay(now)
-                if (d <= 1) lines += "${if (d <= 0) "오늘" else "내일"} 결제 · ${sub.name} ₩${won(sub.amount)}"
-            }
-        }
         if (settings.notifyCombat) {
             HomeLogic.combatDeadlines(repo.loadCombatModes(), now).forEach { c ->
-                lines += "${c.mode} 마감 ${if (c.dDay <= 0) "오늘" else "D-${c.dDay}"} · ${c.gameShort} ${c.stars}/${c.maxStars}"
+                lines += "${Josa.subj(c.mode)} ${if (c.dDay <= 0) "오늘" else "D-${c.dDay} 에"} 끝나요 · ${c.gameShort} ${c.stars}/${c.maxStars}"
             }
         }
         return lines

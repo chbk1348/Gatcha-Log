@@ -114,9 +114,9 @@ object AutoCheckInRunner {
         if (settings.lastNotified("auto_checkin_ok") == today) return
         settings.setLastNotified("auto_checkin_ok", today)
         val games = o.newSuccess.joinToString("·")
-        val body = if (o.hasAnyFail) "$games 출석을 마쳤어요.\n나머지는 잠시 후 다시 시도해요."
-        else "$games 출석을 마쳤어요."
-        Notifier.notify(Notifier.ID_AUTO_CHECKIN, "자동 출석 완료", body)
+        val body = if (o.hasAnyFail) "$games 완료. 남은 게임은 잠시 후 다시 해 볼게요."
+        else "$games 완료. 오늘 보상 챙기세요."
+        Notifier.notify(Notifier.ID_AUTO_CHECKIN, "출석 대신 해 뒀어요", body)
     }
 
     /** 실패가 있으면 하루 1회 알림. AUTH 가 있으면 재연동 안내, 그 외엔 자동 재시도 안내. */
@@ -127,15 +127,15 @@ object AutoCheckInRunner {
 
         if (o.authFails.isNotEmpty()) {
             val games = (o.authFails + o.netFails + o.otherFails.map { it.first }).joinToString("·")
-            val body = "${games}: HoYoLAB 쿠키가 만료된 것 같아요.\n설정 ▸ HoYoLAB 연동에서 다시 연동해주세요."
-            Notifier.notify(Notifier.ID_AUTO_CHECKIN, "자동 출석 — 재연동 필요", body)
+            val body = "$games 로그인이 풀렸어요.\n설정 ▸ HoYoLAB 연동에서 다시 연결하면 내일부터 이어서 해 드릴게요."
+            Notifier.notify(Notifier.ID_AUTO_CHECKIN, "자동 출석이 멈췄어요", body)
             return
         }
         val lines = buildList {
-            if (o.netFails.isNotEmpty()) add("${o.netFails.joinToString("·")}: 네트워크 오류")
+            if (o.netFails.isNotEmpty()) add("${o.netFails.joinToString("·")} — 서버에 닿지 못했어요")
             o.otherFails.forEach { (name, msg) -> add("$name: $msg") }
         }
-        val body = lines.joinToString("\n") + "\n\n잠시 후 자동으로 다시 시도해요."
-        Notifier.notify(Notifier.ID_AUTO_CHECKIN, "자동 출석 일부 실패", body)
+        val body = lines.joinToString("\n") + "\n\n잠시 후 다시 해 볼게요. 급하면 앱에서 직접 출석해도 돼요."
+        Notifier.notify(Notifier.ID_AUTO_CHECKIN, "출석 일부를 못 했어요", body)
     }
 }
