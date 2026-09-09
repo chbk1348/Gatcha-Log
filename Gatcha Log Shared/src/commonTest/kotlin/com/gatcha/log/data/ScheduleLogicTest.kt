@@ -87,12 +87,8 @@ class ScheduleLogicTest {
         assertEquals(0f, unknown.progress(base))
     }
 
-    @Test
-    fun endUnknownBannerIsSkippedBySavingsPlanner() {
-        // 남은 일수를 모르면 하루 저축 목표를 역산할 수 없다.
-        val unknown = banner("콜라보", 0, "4.4", game = Game.HSR).copy(endMillis = 0L)
-        assertTrue(SavingsPlanner.build(listOf(unknown), emptyMap(), emptyMap(), base).isEmpty())
-    }
+    // 종료 미정 배너를 저축 플래너가 건너뛰는지 보던 테스트는 여기 있었다 —
+    // 플래너를 기능째 걷어내며(2026-09-09) 함께 지웠다.
 
     // ── 상세: 마감 날짜 타임라인 ─────────────────────────────────────────────
 

@@ -80,7 +80,6 @@ struct SpendingInsightView: View {
                         breakdownCard("결제수단별 비중", nil, stats.paymentRows)
                         breakdownCard("충전 플랫폼별 비중", nil, stats.platformRows)
                         breakdownCard("태그별 지출", "여러 태그가 달린 지출은 중복 집계돼요", stats.tagRows)
-                        subscriptionCard
                     } else {
                         AnnualReportContent(store: store)
                     }
@@ -229,50 +228,6 @@ struct SpendingInsightView: View {
         }
         .frame(maxWidth: .infinity).padding(.vertical, 11)
         .background(Color.black.opacity(0.03), in: RoundedRectangle(cornerRadius: 12))
-    }
-
-    // ── 신규) 정기결제 요약 ──
-    @ViewBuilder private var subscriptionCard: some View {
-        let subs = store.subscriptions
-        let total = subs.reduce(Int64(0)) { $0 + $1.amount }
-        GLGCard(cornerRadius: 20, padding: 16) {
-            VStack(alignment: .leading, spacing: 0) {
-                HStack {
-                    cardTitle("정기결제 요약", nil)
-                    Spacer()
-                    NavigationLink {
-                        SubscriptionCenterView(store: store)
-                    } label: {
-                        Text("관리").font(.pretendard(size: 12.5, weight: .bold)).foregroundStyle(accent.primary)
-                            .padding(.horizontal, 12).padding(.vertical, 6)
-                            .background(accent.primary.opacity(0.12), in: RoundedRectangle(cornerRadius: 10))
-                    }.buttonStyle(.plain)
-                }
-                if subs.isEmpty {
-                    Text("월정액·패스를 등록하고 갱신일을 관리하세요")
-                        .font(.pretendard(size: 13)).foregroundStyle(GLGColor.textSecondary)
-                        .padding(.top, 10)
-                } else {
-                    HStack(alignment: .bottom) {
-                        Text("월 정기결제 \(subs.count)건").font(.pretendard(size: 13)).foregroundStyle(GLGColor.textSecondary)
-                        Spacer()
-                        Text("\(won(total)) / 월").font(.pretendard(size: 16, weight: .bold)).foregroundStyle(accent.primary)
-                    }.padding(.top, 10)
-                    ForEach(Array(subs.prefix(5).enumerated()), id: \.offset) { _, s in
-                        HStack(spacing: 9) {
-                            Circle().fill(Color(argb64: s.gameColor)).frame(width: 8, height: 8)
-                            Text(s.name).font(.pretendard(size: 13, weight: .medium)).foregroundStyle(GLGColor.textPrimary).lineLimit(1)
-                            Spacer()
-                            Text(won(s.amount)).font(.pretendard(size: 13, weight: .bold))
-                            Text("D-\(s.dDay(nowMillis: nowMs()))").font(.pretendard(size: 11)).foregroundStyle(GLGColor.textSecondary)
-                        }.padding(.top, 11)
-                    }
-                    if subs.count > 5 {
-                        Text("+\(subs.count - 5)건").font(.pretendard(size: 11)).foregroundStyle(GLGColor.textSecondary).padding(.top, 8)
-                    }
-                }
-            }
-        }
     }
 
     @ViewBuilder

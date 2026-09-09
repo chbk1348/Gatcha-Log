@@ -33,8 +33,7 @@ struct AnnualReportContent: View {
     /// 옛 수치를 그대로 들고 있게 된다(1건 삭제 + 1건 추가, 일괄 편집도 같은 함정).
     ///
     /// 목록 자체를 키로 쓴다. Swift `Array.==` 는 버퍼가 같으면 O(1)로 끝나므로, 변화가 없는
-    /// 대부분의 평가에서는 비용이 사실상 없다. `SubscriptionCenterView` 가 이미 같은 방식이다
-    /// (`.task(id: store.subscriptions)`).
+    /// 대부분의 평가에서는 비용이 사실상 없다.
     private struct StatsKey: Equatable {
         let spendings: [Spending]
         let selectedYear: Int

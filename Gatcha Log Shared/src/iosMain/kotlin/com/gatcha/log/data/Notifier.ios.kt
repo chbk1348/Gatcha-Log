@@ -23,7 +23,6 @@ actual object Notifier {
     actual val ID_RESIN_BASE: Int = 2100
     actual val ID_BUDGET_GAME_BASE: Int = 3300
     actual val ID_PICKUP_BASE: Int = 3400
-    actual val ID_SUBSCRIPTION_BASE: Int = 3500
     actual val ID_DAILY_SUMMARY: Int = 2004
     actual val ID_NEWS_BASE: Int = 3600
     actual val ID_COMBAT_BASE: Int = 3700

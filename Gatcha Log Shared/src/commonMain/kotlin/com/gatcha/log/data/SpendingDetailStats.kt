@@ -112,10 +112,9 @@ object SpendingDetailStats {
         nowMillis: Long = currentTimeMillis(),
         months: Int = TYPICAL_MONTHS,
     ): SpendingVsTypical? {
-        if (target.isSubscription) return null
         val since = nowMillis - months * 30L * DAY_MS
         val amounts = all.asSequence()
-            .filter { it.id != target.id && !it.isSubscription }
+            .filter { it.id != target.id }
             .filter { it.gameName == target.gameName }
             .filter { it.dateMillis >= since }
             .map { it.amount }

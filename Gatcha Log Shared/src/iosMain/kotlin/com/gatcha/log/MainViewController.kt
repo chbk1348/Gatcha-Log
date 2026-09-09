@@ -96,7 +96,6 @@ fun saveSpending(
     itemName: String,
     memo: String,
     tags: List<String>,
-    isSubscription: Boolean,
 ) {
     val vm = IosAppState.viewModel
     val game = GameData.byName(gameName)
@@ -111,7 +110,6 @@ fun saveSpending(
         itemName = itemName,
         memo = memo,
         tags = tags,
-        isSubscription = isSubscription,
         gameColor = game.color,
     )
     if (target == null) vm.addSpending(s) else vm.updateSpending(s)

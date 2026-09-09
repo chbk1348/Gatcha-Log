@@ -86,7 +86,6 @@ final class SpendingStore {
 
     // ── Phase 3 (지출) ──
     private(set) var isRefreshing: Bool = false
-    private(set) var subscriptions: [Shared.Subscription] = []
     private(set) var attendanceHistory: [String: Set<String>] = [:]
     private(set) var activeBanners: [GachaBanner] = []
 
@@ -111,12 +110,6 @@ final class SpendingStore {
     private(set) var attendanceToday: Set<String> = []
     private(set) var checkingIn: String? = nil
     private(set) var pity: [String: PityState] = [:]
-    private(set) var savingsPlans: [SavingsPlan] = []
-    private(set) var hiddenSavingsPlans: [SavingsPlan] = []
-    /// 게임별 보유 재화 — 저축 플래너와 계산기가 같은 저장소를 쓴다.
-    private(set) var savingsHeld: [String: Int] = [:]
-    /// 계산기의 "저축 계획" — 홈 탭으로 옮긴 뒤 플래너까지 이어 열기 위한 신호.
-    private(set) var pendingSavingsPlanner: Bool = false
     private(set) var challenge: ChallengeSummary? = nil
     // Phase 4 chunk ③ (가챠 도구)
     private(set) var enkaGiUid: String = ""
@@ -151,8 +144,7 @@ final class SpendingStore {
     private(set) var readAlerts: Set<String> = []
     private(set) var dismissedAlerts: Set<String> = []
 
-    // ── Phase 6 (27.33.0 알림 설정 — 정기결제 갱신·방해금지·데일리 요약) ──
-    private(set) var notifySubscription: Bool = false
+    // ── Phase 6 (27.33.0 알림 설정 — 방해금지·데일리 요약) ──
     private(set) var notifyNews: Bool = false
     private(set) var notifyHoyoland: Bool = false
     private(set) var notifyCombat: Bool = true
@@ -173,8 +165,6 @@ final class SpendingStore {
     private(set) var prevMonthTotal: Int64 = 0
     /// 이번 달 게임별 지출 합계(gameKey → 금액).
     private(set) var monthlyTotalsByGame: [String: Int64] = [:]
-    /// 아직 정기결제로 등록 안 된 '구독 표시' 지출 건수.
-    private(set) var unlinkedSubCount: Int = 0
     /// 최근 6개월 총 지출(오래된 달 → 이번 달 순) — 마이페이지 월별 추이 차트.
     private(set) var recentMonthlyTotals: [Int64] = []
 
@@ -194,7 +184,6 @@ final class SpendingStore {
         monthlyTotal = vm.currentMonthTotal.value.int64Value
         prevMonthTotal = vm.previousMonthTotal.value.int64Value
         monthlyTotalsByGame = vm.currentMonthTotalsByGame.value.mapValues { $0.int64Value }
-        unlinkedSubCount = Int(vm.unlinkedSubCount.value.int32Value)
         recentMonthlyTotals = vm.recentMonthlyTotals.value.map { $0.int64Value }
         seedDeferredScalars()
         observe()
@@ -240,7 +229,6 @@ final class SpendingStore {
         heroGlow = vm.heroGlow.value.boolValue
         charElementFx = vm.charElementFx.value.boolValue
         nudgeThreshold = vm.nudgeThreshold.value.int64Value
-        notifySubscription = vm.notifySubscription.value.boolValue
         notifyNews = vm.notifyNews.value.boolValue
         notifyHoyoland = vm.notifyHoyoland.value.boolValue
         notifyCombat = vm.notifyCombat.value.boolValue
@@ -293,9 +281,6 @@ final class SpendingStore {
         bind(vm.hoyoTokenExpired) { [weak self] in self?.hoyoTokenExpired = $0.boolValue }
         bind(vm.readAlerts) { [weak self] in self?.readAlerts = $0 }
         bind(vm.dismissedAlerts) { [weak self] in self?.dismissedAlerts = $0 }
-        bind(vm.savingsPlans) { [weak self] in self?.savingsPlans = $0 }
-        bind(vm.savingsHeld) { [weak self] in self?.savingsHeld = $0.mapValues { $0.intValue } }
-        bind(vm.pendingSavingsPlanner) { [weak self] in self?.pendingSavingsPlanner = $0.boolValue }
         bind(vm.challenge) { [weak self] in self?.challenge = $0 }
         bind(vm.pendingTab) { [weak self] in self?.pendingTab = $0?.intValue }
         bind(vm.pendingNewsId) { [weak self] in self?.pendingNewsId = $0 }
@@ -306,7 +291,6 @@ final class SpendingStore {
     private func observeDeferred() {
         bind(vm.gachaStats) { [weak self] in self?.gachaStats = $0 }
         bind(vm.recentMonthlyTotals) { [weak self] in self?.recentMonthlyTotals = $0.map { $0.int64Value } }
-        bind(vm.unlinkedSubCount) { [weak self] in self?.unlinkedSubCount = Int($0.int32Value) }
         bind(vm.autoCheckIn) { [weak self] in self?.autoCheckIn = $0.boolValue }
         bind(vm.notifyBudget) { [weak self] in self?.notifyBudget = $0.boolValue }
         bind(vm.notifyAttendance) { [weak self] in self?.notifyAttendance = $0.boolValue }
@@ -325,7 +309,6 @@ final class SpendingStore {
         }
 
         // Phase 3
-        bind(vm.subscriptions) { [weak self] in self?.subscriptions = $0 }
         bind(vm.attendanceHistory) { [weak self] in self?.attendanceHistory = $0 }
 
         // Phase 4
@@ -335,7 +318,6 @@ final class SpendingStore {
         bind(vm.ledgers) { [weak self] in self?.ledgers = $0 }
         bind(vm.pity) { [weak self] in self?.pity = $0 }
         // 저축 플래너 · 절약 챌린지 (27.35)
-        bind(vm.hiddenSavingsPlans) { [weak self] in self?.hiddenSavingsPlans = $0 }
         // chunk ③
         bind(vm.enkaGiUid) { [weak self] in self?.enkaGiUid = $0 }
         bind(vm.enkaHsrUid) { [weak self] in self?.enkaHsrUid = $0 }
@@ -355,7 +337,6 @@ final class SpendingStore {
         bind(vm.unusableCodes) { [weak self] in self?.unusableCodes = $0 }
         // Phase 5
         // Phase 6 (알림 설정)
-        bind(vm.notifySubscription) { [weak self] in self?.notifySubscription = $0.boolValue }
         bind(vm.notifyNews) { [weak self] in self?.notifyNews = $0.boolValue }
         bind(vm.notifyHoyoland) { [weak self] in self?.notifyHoyoland = $0.boolValue }
         bind(vm.notifyCombat) { [weak self] in self?.notifyCombat = $0.boolValue }
@@ -417,8 +398,7 @@ final class SpendingStore {
     func setNotifyAttendance(_ v: Bool) { vm.setNotifyAttendance(v: v) }
     func setNotifyResin(_ v: Bool) { vm.setNotifyResin(v: v) }
     func setNotifyPickup(_ v: Bool) { vm.setNotifyPickup(v: v) }
-    // Phase 6 (27.33.0) — 정기결제 갱신·방해금지·데일리 요약
-    func setNotifySubscription(_ v: Bool) { vm.setNotifySubscription(v: v) }
+    // Phase 6 (27.33.0) — 방해금지·데일리 요약
     func setNotifyNews(_ v: Bool) { vm.setNotifyNews(v: v) }
     func setNotifyHoyoland(_ v: Bool) { vm.setNotifyHoyoland(v: v) }
     func setNotifyCombat(_ v: Bool) { vm.setNotifyCombat(v: v) }
@@ -459,16 +439,11 @@ final class SpendingStore {
     // ── Phase 3 액션 ──────────────────────────────────────────────────────
     func deleteSpending(_ id: String) { vm.deleteSpending(id: id) }
     func refreshSpending() { vm.refreshSpending() }
-    func addSubscription(_ sub: Shared.Subscription) { vm.addSubscription(sub: sub) }
-    func updateSubscription(_ sub: Shared.Subscription) { vm.updateSubscription(sub: sub) }
-    func deleteSubscription(_ id: String) { vm.deleteSubscription(id: id) }
-    /// '구독 표시' 지출을 정기결제로 일괄 등록(중복 제외). subscriptions 는 VM StateFlow bind 로 자동 갱신.
-    func importSubscriptionsFromSpendings() { _ = vm.importSubscriptionsFromSpendings() }
     /// 지출 추가/수정 저장 (Spending 생성은 Kotlin 헬퍼).
     func saveSpending(editingId: String?, gameName: String, amount: Int64, dateMillis: Int64,
-                      paymentMethod: String, chargePlatform: String, itemName: String, memo: String, tags: [String], isSubscription: Bool) {
+                      paymentMethod: String, chargePlatform: String, itemName: String, memo: String, tags: [String]) {
         MainViewControllerKt.saveSpending(editingId: editingId, gameName: gameName, amount: amount, dateMillis: dateMillis,
-                                          paymentMethod: paymentMethod, chargePlatform: chargePlatform, itemName: itemName, memo: memo, tags: tags, isSubscription: isSubscription)
+                                          paymentMethod: paymentMethod, chargePlatform: chargePlatform, itemName: itemName, memo: memo, tags: tags)
     }
     /// N6 과소비 넛지 판정 — 경고 메시지 또는 nil.
     func overspendNudge(game: Game, amount: Int64, editingId: String?) -> String? {
@@ -495,24 +470,22 @@ final class SpendingStore {
     func attemptCheckIn(_ gameKey: String) { vm.attemptCheckIn(gameKey: gameKey) }
     func checkInAll() { vm.checkInAll() }
     func adjustPity(gameKey: String, delta: Int) { vm.adjustPity(gameKey: gameKey, delta: Int32(delta)) }
-    func setPityCount(gameKey: String, value: Int) { vm.setPityCount(gameKey: gameKey, value: Int32(value)) }
     func resetPity(gameKey: String) { vm.resetPity(gameKey: gameKey) }
     func setPityGuaranteed(gameKey: String, _ g: Bool) { vm.setPityGuaranteed(gameKey: gameKey, g: g) }
-    func setHeldCurrency(gameKey: String, value: Int) { vm.setHeldCurrency(gameKey: gameKey, value: Int32(value)) }
-    func requestSavingsPlanner() { vm.requestSavingsPlanner() }
-    func consumePendingSavingsPlanner() { vm.consumePendingSavingsPlanner() }
 
     // ── 개발자 메뉴 (디버그 빌드 전용) ──
     // 어떤 UI 는 특정 상태에서만 나타나 눈으로 확인할 방법이 없다(3게임 행동력 가득의 비상벨 등).
     // 판단·계산은 전부 공유 VM 의 debug* 가 한다 — 여기는 넘겨주기만.
     func debugFillAllResin() { vm.debugFillAllResin() }
+    /// 호요랜드 무대 시간표 목업 — 실제 편성 공개 전에 라이브 카드·게임 레인·필터를 본다.
+    func debugStageMock(_ on: Bool) { vm.debugStageMock(on: on) }
+    func debugStageMockOn() -> Bool { vm.debugStageMockOn() }
     func debugSetPityAll(count: Int, guaranteed: Bool) { vm.debugSetPityAll(count: Int32(count), guaranteed: guaranteed) }
     func debugResetOnboarding() { vm.debugResetOnboarding() }
     func debugAccountSummary() -> String { vm.debugAccountSummary() }
     func debugScheduledAlerts() -> [String] { vm.debugScheduledAlerts() }
     func debugReadyStates() -> String { vm.debugReadyStates() }
     func debugPerGameData() -> [String] { vm.debugPerGameData() }
-    func setSavingsHidden(key: String, hidden: Bool) { vm.setSavingsHidden(key: key, hidden: hidden) }
     // chunk ③
     func loadEnkaProfile(game: String, uid: String) { vm.loadEnkaProfile(game: game, uid: uid) }
     func autoLoadEnka(game: String, force: Bool = false) { vm.autoLoadEnka(game: game, force: force) }
@@ -540,13 +513,10 @@ final class SpendingStore {
     func showStatus(_ msg: String) { vm.showStatus(msg: msg) }
     /// 초기 동기화 로딩 게이트 완료 표시 (AccountLoadingView 완료 시).
     func markSyncLoadingDone() { MainViewControllerKt.markSyncLoadingDone() }
-    func maxPullsToSecure(count: Int, guaranteed: Bool, banner: GachaBannerRate) -> Int {
-        Int(GachaRateData.shared.maxPullsToSecure(count: Int32(count), guaranteed: guaranteed, b: banner))
-    }
-    /// 가챠 단가 계산용 게임별(비구독) 지출 — 키: genshin/starrail/zzz (GachaStats.byGame 키와 일치).
+    /// 가챠 단가 계산용 게임별 지출 — 키: genshin/starrail/zzz (GachaStats.byGame 키와 일치).
     func gachaSpendByGame() -> [String: Int64] {
         var m: [String: Int64] = [:]
-        for s in spendings where !s.isSubscription {
+        for s in spendings {
             let key: String? = s.gameName == "원신" ? "genshin"
                 : (s.gameName == "붕괴: 스타레일" ? "starrail" : (s.gameName == "젠레스 존 제로" ? "zzz" : nil))
             if let k = key { m[k, default: 0] += s.amount }

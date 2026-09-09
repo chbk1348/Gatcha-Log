@@ -23,7 +23,6 @@ struct AddSpendingView: View {
     @State private var memo: String = ""
     @State private var customTags: String = ""
     @State private var selectedTags: [String] = []
-    @State private var isSubscription = false
     @State private var selectedPkg: String? = nil
     // 한 번에 같은 상품을 여러 번 산 경우 — 횟수만큼 금액·재화를 곱해 한 건으로 기록.
     @State private var quantity: Int = 1
@@ -175,14 +174,6 @@ struct AddSpendingView: View {
             if !itemName.isEmpty {
                 HStack(spacing: 6) {
                     Text(itemName).font(.pretendard(size: 13, weight: .bold)).lineLimit(1)
-                    // 월정액/패스를 고르면 구독이 **자동으로 켜진다**. 그 상태가 접힌 '자세히' 안에만
-                    // 있으면 켜진 줄 모르므로 히어로가 대신 말한다.
-                    if isSubscription {
-                        Text("정기").font(.pretendard(size: 10, weight: .black))
-                            .foregroundStyle(accent.primary)
-                            .padding(.horizontal, 6).padding(.vertical, 2)
-                            .background(accent.primary.opacity(0.14), in: RoundedRectangle(cornerRadius: 6))
-                    }
                 }
                 .padding(.top, 3)
             }
@@ -237,7 +228,7 @@ struct AddSpendingView: View {
         // 레이아웃 변화까지 딸려 들어갔다.** 상품 그리드가 게임에 따라 줄 수가 달라지는데,
         // 그 크기 변화가 전환에 실려 안쪽 버튼이 한참 뒤에 따라왔다.
         gameName = name
-        selectedPkg = nil; quantity = 1; itemName = ""; isSubscription = false
+        selectedPkg = nil; quantity = 1; itemName = ""
         if editing == nil {
             chargePlatform = SpendingDefaults.shared.lastPlatform(spendings: store.spendings, gameName: name) ?? ""
         }
@@ -299,8 +290,6 @@ struct AddSpendingView: View {
             quantity = 1
             itemName = f.itemName
             amount = "\(f.amount)"
-            // 상품 정의에 있으면 월정액 여부를 따라간다(없으면 사용자가 직접 적은 항목).
-            if let pkg = packages.first(where: { $0.name == f.itemName }) { isSubscription = (pkg.bonus == "월정액") }
         } label: {
             HStack(spacing: 9) {
                 Text(f.itemName).font(.pretendard(size: 13, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
@@ -326,7 +315,7 @@ struct AddSpendingView: View {
                 ForEach(Array(packages.enumerated()), id: \.offset) { _, pkg in
                     let sel = selectedPkg == pkg.name
                     Button {
-                        selectedPkg = pkg.name; quantity = 1; amount = "\(pkg.price)"; itemName = pkg.name; isSubscription = (pkg.bonus == "월정액")
+                        selectedPkg = pkg.name; quantity = 1; amount = "\(pkg.price)"; itemName = pkg.name
                     } label: {
                         VStack(spacing: 3) {
                             Text(pkg.name).font(.pretendard(size: 13, weight: .bold)).foregroundStyle(GLGColor.textPrimary).lineLimit(1)
@@ -431,14 +420,13 @@ struct AddSpendingView: View {
         if !chargePlatform.isEmpty { parts.append(chargePlatform) }
         let tagCount = selectedTags.count + customTags.split(whereSeparator: { $0 == "," || $0 == " " }).count
         parts.append(tagCount > 0 ? "태그 \(tagCount)" : "태그 없음")
-        if isSubscription { parts.append("정기") }
         if !memo.isEmpty { parts.append("메모") }
         return parts.joined(separator: " · ")
     }
 
     /// 기본값에서 벗어난 값이 있는가 — 요약을 강조할지 정한다.
     private var detailIsCustom: Bool {
-        !chargePlatform.isEmpty || !selectedTags.isEmpty || !customTags.isEmpty || !memo.isEmpty || isSubscription
+        !chargePlatform.isEmpty || !selectedTags.isEmpty || !customTags.isEmpty || !memo.isEmpty
     }
 
     private var detailFields: some View {
@@ -466,15 +454,6 @@ struct AddSpendingView: View {
             .padding(.top, 8)
             field("", "직접 입력 (쉼표로 구분)", $customTags).padding(.top, 10)
             field("메모", "이벤트 구입", $memo).padding(.top, 14)
-            HStack {
-                VStack(alignment: .leading, spacing: 0) {
-                    Text("구독(월정액·패스)으로 기록").font(.pretendard(size: 15, weight: .medium))
-                    Text("정기 결제 항목으로 분류됩니다").font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary)
-                }
-                Spacer()
-                Toggle("", isOn: $isSubscription).labelsHidden().tint(accent.primary)
-            }
-            .padding(.top, 16)
         }
     }
 
@@ -526,7 +505,7 @@ struct AddSpendingView: View {
             gameName = e.gameName; amount = e.amount > 0 ? "\(e.amount)" : ""; dateMillis = e.dateMillis
             paymentMethod = e.paymentMethod.isEmpty ? "카드" : e.paymentMethod
             chargePlatform = e.chargePlatform
-            itemName = e.itemName; memo = e.memo; selectedTags = e.tags; isSubscription = e.isSubscription
+            itemName = e.itemName; memo = e.memo; selectedTags = e.tags
             // 저장된 항목명("창세의 결정 300 ×3")에서 상품·구매 횟수 복원 → 스텝퍼 노출.
             quantity = detectQuantity(e.itemName)
             let base = stripMult(e.itemName)
@@ -562,7 +541,7 @@ struct AddSpendingView: View {
         var tags: [String] = []
         for t in (selectedTags + extra) { let tt = t.trimmingCharacters(in: .whitespaces); if !tt.isEmpty && !tags.contains(tt) { tags.append(tt) } }
         store.saveSpending(editingId: editing?.id, gameName: gameName, amount: parsed, dateMillis: dateMillis,
-                           paymentMethod: paymentMethod, chargePlatform: chargePlatform, itemName: itemName, memo: memo, tags: tags, isSubscription: isSubscription)
+                           paymentMethod: paymentMethod, chargePlatform: chargePlatform, itemName: itemName, memo: memo, tags: tags)
         onClose()
     }
 

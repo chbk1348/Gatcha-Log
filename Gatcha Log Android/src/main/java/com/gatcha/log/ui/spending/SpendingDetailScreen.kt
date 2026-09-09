@@ -212,17 +212,6 @@ private fun Hero(s: Spending, modifier: Modifier = Modifier) {
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(s.gameName, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = ink)
-            Spacer(Modifier.width(7.dp))
-            Text(
-                if (s.isSubscription) "정기" else "일반",
-                fontSize = 10.sp,
-                fontWeight = FontWeight.Bold,
-                color = ink,
-                modifier = Modifier
-                    .clip(CircleShape)
-                    .background(Color.White.copy(alpha = 0.75f))
-                    .padding(horizontal = 8.dp, vertical = 2.5.dp),
-            )
             Spacer(Modifier.weight(1f))
             // 게임 코드 — 읽으라고 넣은 글자가 아니라 **여백을 채우는 표식**이다.
             // 우측 상단이 비면 히어로가 왼쪽으로 쏠려 보인다.
@@ -264,8 +253,8 @@ private fun HeroFacts(s: Spending, ink: Color) {
         listOf(currency, "뽑기" to (pulls?.replace(" 가능", "") ?: "—"))
     } else {
         listOf(
-            "구분" to if (s.isSubscription) "정기" else "일반",
             "결제" to s.paymentMethod.ifBlank { "—" },
+            "충전처" to s.chargePlatform.ifBlank { "—" },
         )
     }
 
@@ -338,9 +327,6 @@ private fun ShareCard(s: Spending, all: List<Spending>) {
                     fontSize = 10.5.sp,
                     color = TextSecondary,
                 )
-            } else if (s.isSubscription) {
-                Spacer(Modifier.height(14.dp))
-                Text("정기 결제는 매달 같은 금액이라 평소와 견주지 않아요.", fontSize = 11.5.sp, color = TextSecondary)
             }
         }
     }

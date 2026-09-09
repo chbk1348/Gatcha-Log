@@ -47,7 +47,7 @@ class GatchaRepositorySnapshotTest {
                 Spending(
                     id = "s2", gameName = "스타레일", amount = 32_000,
                     dateMillis = 1_754_200_000_000, paymentMethod = "간편결제",
-                    memo = "복각", isSubscription = true,
+                    memo = "복각",
                 ),
             ),
         )

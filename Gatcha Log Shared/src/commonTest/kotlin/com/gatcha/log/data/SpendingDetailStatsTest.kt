@@ -31,7 +31,7 @@ class SpendingDetailStatsTest {
         game: String = "원신",
         item: String = "",
         sub: Boolean = false,
-    ) = Spending(id = id, gameName = game, amount = amount, dateMillis = millis, itemName = item, isSubscription = sub)
+    ) = Spending(id = id, gameName = game, amount = amount, dateMillis = millis, itemName = item)
 
     // ── share ────────────────────────────────────────────────────────────────
 
@@ -100,13 +100,8 @@ class SpendingDetailStatsTest {
         assertTrue(r.isNotable)
     }
 
-    @Test
-    fun `정기결제는 평소와 견주지 않는다`() {
-        val now = at(2026, 7, 20)
-        val target = spend("t", 4_900, at(2026, 7, 15), sub = true)
-        val all = listOf(target) + (1..5).map { spend("a$it", 10_000, at(2026, 7, it)) }
-        assertNull(SpendingDetailStats.vsTypical(target, all, nowMillis = now))
-    }
+    // '정기결제는 평소와 견주지 않는다' 테스트는 여기 있었다 —
+    // 정기결제를 기능째 걷어내며(2026-09-09) 함께 지웠다. 이제 모든 지출을 같은 잣대로 견준다.
 
     @Test
     fun `다른 게임 지출은 표본에 들어가지 않는다`() {

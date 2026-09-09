@@ -84,7 +84,6 @@ class GatchaRepository(
         put("chargePlatform", chargePlatform)
         put("itemName", itemName)
         put("memo", memo)
-        put("isSubscription", isSubscription)
         // gameColor 는 gameName 으로 항상 재계산 가능 → 저장 안 함(용량 절감, 로드 시 복원)
         put("tags", JSONArray(tags))
     }
@@ -118,7 +117,6 @@ class GatchaRepository(
             itemName = optString("itemName", ""),
             memo = optString("memo", ""),
             tags = tags,
-            isSubscription = optBoolean("isSubscription", false),
             gameColor = color,
         )
     }
@@ -388,43 +386,11 @@ class GatchaRepository(
         prefs.putString(KEY_DISMISSED_ALERTS, JSONArray(keys.toList()).toString())
     }
 
-    // ---------------------------------------------------------------- 구독 관리 (정기결제)
-    fun loadSubscriptions(): List<Subscription> = Subscriptions.fromJsonArray(prefs.getString(KEY_SUBS, null))
-    fun saveSubscriptions(list: List<Subscription>) {
-        prefs.putString(KEY_SUBS, Subscriptions.toJsonArray(list))
-        changed()
-    }
+    // 구독(정기결제) 저장/복원은 여기 있었다 — 기능째 걷어냈다(2026-09-09).
 
-    // ---------------------------------------------------------------- 저축 플래너 · 절약 챌린지 (27.35)
-    /** 게임별 보유 재화 입력(gameKey → 재화량). 저축 플래너 필요분 차감용. */
-    fun loadSavingsHeld(): Map<String, Int> {
-        val raw = prefs.getString(KEY_SAVINGS_HELD, null) ?: return emptyMap()
-        return runCatching {
-            val o = JSONObject(raw)
-            buildMap { o.keys().forEach { k -> o.optInt(k, 0).takeIf { it > 0 }?.let { put(k, it) } } }
-        }.getOrDefault(emptyMap())
-    }
 
-    fun saveSavingsHeld(map: Map<String, Int>) {
-        val o = JSONObject()
-        map.forEach { (k, v) -> if (v > 0) o.put(k, v) }
-        prefs.putString(KEY_SAVINGS_HELD, o.toString())
-        changed()
-    }
 
-    /** "안 뽑는" 픽업 목표 숨김 키 집합(SavingsPlan.key). 저축 플래너에서 미노출 처리용. */
-    fun loadSavingsHidden(): Set<String> {
-        val raw = prefs.getString(KEY_SAVINGS_HIDDEN, null) ?: return emptySet()
-        return runCatching {
-            val arr = JSONArray(raw)
-            (0 until arr.length()).map { arr.getString(it) }.toSet()
-        }.getOrDefault(emptySet())
-    }
 
-    fun saveSavingsHidden(keys: Set<String>) {
-        prefs.putString(KEY_SAVINGS_HIDDEN, JSONArray(keys.toList()).toString())
-        changed()
-    }
 
     /** 최고 무지출 스트릭(일) — 단조 증가 기록. */
     fun loadBestNoSpend(): Int = prefs.getInt(KEY_BEST_NOSPEND, 0)
@@ -857,12 +823,9 @@ class GatchaRepository(
         prefs.getString(KEY_ATTENDANCE, null)?.let { o.put(KEY_ATTENDANCE, JSONObject(it)) }
         prefs.getString(KEY_PITY, null)?.let { o.put(KEY_PITY, JSONObject(it)) }
         prefs.getString(KEY_EVENT_CHECKS, null)?.let { o.put(KEY_EVENT_CHECKS, JSONArray(it)) }
-        prefs.getString(KEY_SUBS, null)?.let { o.put(KEY_SUBS, JSONArray(it)) }
         prefs.getString(KEY_GACHA, null)?.let { o.put(KEY_GACHA, JSONArray(it)) }
         prefs.getString(KEY_HOME_CARDS, null)?.let { o.put(KEY_HOME_CARDS, JSONArray(it)) }
         prefs.getString(KEY_REDEEMED, null)?.let { o.put(KEY_REDEEMED, JSONArray(it)) }
-        prefs.getString(KEY_SAVINGS_HELD, null)?.let { o.put(KEY_SAVINGS_HELD, JSONObject(it)) }
-        prefs.getString(KEY_SAVINGS_HIDDEN, null)?.let { o.put(KEY_SAVINGS_HIDDEN, JSONArray(it)) }
         o.put(KEY_BEST_NOSPEND, loadBestNoSpend())
         prefs.getString(KEY_BADGES, null)?.let { o.put(KEY_BADGES, JSONArray(it)) }
         return o
@@ -913,7 +876,6 @@ class GatchaRepository(
         if (o.has(KEY_ATTENDANCE)) prefs.putString(KEY_ATTENDANCE, o.getJSONObject(KEY_ATTENDANCE).toString())
         if (o.has(KEY_PITY)) prefs.putString(KEY_PITY, o.getJSONObject(KEY_PITY).toString())
         if (o.has(KEY_EVENT_CHECKS)) prefs.putString(KEY_EVENT_CHECKS, o.getJSONArray(KEY_EVENT_CHECKS).toString())
-        if (o.has(KEY_SUBS)) prefs.putString(KEY_SUBS, o.getJSONArray(KEY_SUBS).toString())
         if (o.has(KEY_GACHA)) prefs.putString(KEY_GACHA, o.getJSONArray(KEY_GACHA).toString())
         if (o.has(KEY_HOME_CARDS)) prefs.putString(KEY_HOME_CARDS, o.getJSONArray(KEY_HOME_CARDS).toString())
         // 교환한 코드는 **합집합 병합**(덮어쓰기 금지) — 오래된/빈 스냅샷이 로컬 '받음'을 되돌리지 않도록(받음은 단조 증가).
@@ -923,8 +885,6 @@ class GatchaRepository(
             val merged = loadRedeemedCodes() + incoming
             prefs.putString(KEY_REDEEMED, JSONArray(merged.toList()).toString())
         }
-        if (o.has(KEY_SAVINGS_HELD)) prefs.putString(KEY_SAVINGS_HELD, o.getJSONObject(KEY_SAVINGS_HELD).toString())
-        if (o.has(KEY_SAVINGS_HIDDEN)) prefs.putString(KEY_SAVINGS_HIDDEN, o.getJSONArray(KEY_SAVINGS_HIDDEN).toString())
         // 최고 스트릭·배지는 **단조 증가**로 병합(스냅샷이 로컬 기록을 되돌리지 않도록).
         if (o.has(KEY_BEST_NOSPEND)) prefs.putInt(KEY_BEST_NOSPEND, maxOf(loadBestNoSpend(), o.getInt(KEY_BEST_NOSPEND)))
         if (o.has(KEY_BADGES)) {
@@ -984,10 +944,7 @@ class GatchaRepository(
         const val KEY_TASK_LOG = "task_logs"      // 로컬 전용(일일·주간 숙제 완주율 관측 기록)
         const val KEY_KEYSTAT_OVERRIDE = "keystat_override"  // 캐릭터별 유효옵션 직접 설정
         const val KEY_GACHA = "gacha_records"
-        const val KEY_SUBS = "subscriptions"
         const val KEY_HOME_CARDS = "home_cards"
-        const val KEY_SAVINGS_HELD = "savings_held"   // 저축 플래너 보유 재화(gameKey→Int)
-        const val KEY_SAVINGS_HIDDEN = "savings_hidden" // 저축 플래너 숨긴 목표 키 집합(SavingsPlan.key)
         const val KEY_BEST_NOSPEND = "best_nospend"    // 최고 무지출 스트릭(일)
         const val KEY_BADGES = "badges"                // 획득 절약 배지 id 집합
 

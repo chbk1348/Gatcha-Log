@@ -622,7 +622,6 @@ private fun NotificationSettingsScreen(viewModel: SpendingViewModel, onBack: () 
     val notifyResin by viewModel.notifyResin.collectAsStateWithLifecycle()
     val notifyPickup by viewModel.notifyPickup.collectAsStateWithLifecycle()
     val notifyHoyoland by viewModel.notifyHoyoland.collectAsStateWithLifecycle()
-    val notifySubscription by viewModel.notifySubscription.collectAsStateWithLifecycle()
     val notifyNews by viewModel.notifyNews.collectAsStateWithLifecycle()
     val notifyCombat by viewModel.notifyCombat.collectAsStateWithLifecycle()
     val notifyDndEnabled by viewModel.notifyDndEnabled.collectAsStateWithLifecycle()
@@ -685,7 +684,6 @@ private fun NotificationSettingsScreen(viewModel: SpendingViewModel, onBack: () 
         // 항목 정의(제목·설명·묶음)는 공유 소스 NotificationCatalog 하나뿐이다.
         val notifyState: Map<NotifyKey, Boolean> = mapOf(
             NotifyKey.BUDGET to notifyBudget,
-            NotifyKey.SUBSCRIPTION to notifySubscription,
             NotifyKey.RESIN to notifyResin,
             NotifyKey.ATTENDANCE to notifyAttendance,
             NotifyKey.PICKUP to notifyPickup,
@@ -697,7 +695,6 @@ private fun NotificationSettingsScreen(viewModel: SpendingViewModel, onBack: () 
             if (on) ensureNotifPerm()
             when (key) {
                 NotifyKey.BUDGET -> viewModel.setNotifyBudget(on)
-                NotifyKey.SUBSCRIPTION -> viewModel.setNotifySubscription(on)
                 NotifyKey.RESIN -> viewModel.setNotifyResin(on)
                 NotifyKey.ATTENDANCE -> viewModel.setNotifyAttendance(on)
                 NotifyKey.PICKUP -> viewModel.setNotifyPickup(on)
@@ -880,7 +877,6 @@ private fun NotificationSettingsScreen(viewModel: SpendingViewModel, onBack: () 
  */
 private fun notifyIcon(key: NotifyKey): ImageVector = when (key) {
     NotifyKey.BUDGET -> Icons.Default.Savings
-    NotifyKey.SUBSCRIPTION -> Icons.Default.Autorenew
     NotifyKey.RESIN -> Icons.Default.Bolt
     NotifyKey.ATTENDANCE -> Icons.Default.EventAvailable
     NotifyKey.PICKUP -> Icons.Default.Event

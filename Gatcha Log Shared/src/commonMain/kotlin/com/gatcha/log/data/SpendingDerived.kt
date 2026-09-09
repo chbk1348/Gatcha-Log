@@ -26,9 +26,7 @@ object SpendingDerived {
         val currentMonthTotalsByGame: Map<String, Long>,
         /** 최근 N개월 총 지출 — **오래된 달 → 이번 달** 순. */
         val recentMonthlyTotals: List<Long>,
-        /** 아직 정기결제로 등록되지 않은 '구독 표시' 지출 건수. */
-        val unlinkedSubCount: Int,
-    )
+        )
 
     /**
      * 파생값 전량을 산출한다.
@@ -38,7 +36,6 @@ object SpendingDerived {
      */
     fun compute(
         spendings: List<Spending>,
-        subscriptions: List<Subscription>,
         year: Int,
         month: Int,
         recentMonths: Int,
@@ -61,11 +58,9 @@ object SpendingDerived {
         var previousTotal = 0L
         val byGame = LinkedHashMap<String, Long>()
         val recent = LongArray(recentMonths)
-        val subSpendings = mutableListOf<Spending>()
 
         // ── 단 한 번의 순회. 항목당 날짜 변환도 1회(yearMonthKey).
         spendings.forEach { s ->
-            if (s.isSubscription) subSpendings += s
             val k = DateUtil.yearMonthKey(s.dateMillis)
             if (k == curKey) {
                 currentTotal += s.amount
@@ -81,43 +76,10 @@ object SpendingDerived {
             previousMonthTotal = previousTotal,
             currentMonthTotalsByGame = byGame,
             recentMonthlyTotals = recent.toList(),
-            unlinkedSubCount = unlinkedSubscriptions(subSpendings, subscriptions).size,
         )
     }
 
-    /**
-     * '구독으로 기록'한 지출 중 아직 정기결제로 등록되지 않은 것 → 등록 후보.
-     *
-     * 이름·게임·금액이 같으면 같은 구독으로 보고 중복을 제거한다. 결제일은 **최신 지출** 기준이라
-     * 날짜 내림차순으로 훑는다(같은 구독이 여러 달 기록돼 있으면 가장 최근 것이 남는다).
-     *
-     * [subscriptionSpendings] 는 `isSubscription == true` 인 것만 담겨 있다고 가정한다 —
-     * [compute] 가 순회 중에 이미 걸러 담아 두므로 여기서 다시 전체를 훑지 않는다.
-     */
-    fun unlinkedSubscriptions(
-        subscriptionSpendings: List<Spending>,
-        existing: List<Subscription>,
-    ): List<Subscription> {
-        if (subscriptionSpendings.isEmpty()) return emptyList()
-        val result = mutableListOf<Subscription>()
-        subscriptionSpendings.sortedByDescending { it.dateMillis }.forEach { s ->
-            val name = subscriptionName(s)
-            if (existing.hasMatch(name, s) || result.hasMatch(name, s)) return@forEach
-            result += Subscription(
-                name = name,
-                gameName = s.gameName,
-                amount = s.amount,
-                billingDay = DateUtil.dayOfMonth(s.dateMillis).coerceIn(1, 31),
-            )
-        }
-        return result
-    }
+    // '구독 등록 후보'(unlinkedSubscriptions·subscriptionName·hasMatch)는 여기 있었다 —
+    // 정기결제를 기능째 걷어내며(2026-09-09) 함께 지웠다.
 
-    /** 정기결제용 표시명 — 아이템명 우선, 없으면 "<게임> 정기결제". */
-    fun subscriptionName(s: Spending): String =
-        s.itemName.ifBlank { "${GameData.byNameOrNull(s.gameName)?.shortName ?: s.gameName} 정기결제" }
-
-    /** 같은 구독이 이미 목록에 있는지(이름·게임·금액 기준). */
-    private fun List<Subscription>.hasMatch(name: String, s: Spending): Boolean =
-        any { it.name == name && it.gameName == s.gameName && it.amount == s.amount }
 }

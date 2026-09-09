@@ -15,7 +15,6 @@ data class Spending(
     val itemName: String = "",
     val memo: String = "",
     val tags: List<String> = emptyList(),
-    val isSubscription: Boolean = false,
     val gameColor: Long = GameData.colorFor(gameName),
 ) {
     /** "2026년 5월 20일" */

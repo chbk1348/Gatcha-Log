@@ -28,7 +28,6 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.gatcha.log.data.GameData
 import com.gatcha.log.data.Spending
-import com.gatcha.log.data.Subscription
 import com.gatcha.log.data.SpendingInsightStats
 import com.gatcha.log.ui.components.GlassCard
 import com.gatcha.log.ui.components.GlgDetailHeaderOverlay
@@ -49,17 +48,11 @@ private val EtcColor = Color(0xFFB8BDC6)
 /** 지출 인사이트 — 예산 페이스 예측 + 게임별 월 추이 + 카테고리(결제수단·태그) 비중. */
 @Composable
 fun SpendingInsightScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
-    var showSubCenter by remember { mutableStateOf(false) }
-    if (showSubCenter) {
-        SubscriptionCenterScreen(viewModel, onBack = { showSubCenter = false })
-        return
-    }
     BackHandler { onBack() }
     val accent = LocalAccent.current
     val spendings by viewModel.spendings.collectAsStateWithLifecycle()
     val budget by viewModel.budget.collectAsStateWithLifecycle()
-    val subscriptions by viewModel.subscriptions.collectAsStateWithLifecycle()
-    // 전월 합계는 VM 이 지출·정기결제 변경마다 한 번의 순회로 만들어 둔다.
+    // 전월 합계는 VM 이 지출 변경마다 한 번의 순회로 만들어 둔다.
     // 여기서 prevMonthTotal() 을 부르면 재구성마다 지출 전체를 다시 훑는다.
     val prevMonthTotal by viewModel.previousMonthTotal.collectAsStateWithLifecycle()
     val year = viewModel.displayYear
@@ -97,7 +90,6 @@ fun SpendingInsightScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
                 PaymentBreakdownCard(spendings, accent)
                 PlatformBreakdownCard(spendings, accent)
                 TagBreakdownCard(spendings, accent)
-                SubscriptionSummaryCard(subscriptions, accent, onManage = { showSubCenter = true })
             } else {
                 AnnualReportContent(viewModel)
             }
@@ -274,49 +266,6 @@ private fun PlatformBreakdownCard(spendings: List<Spending>, accent: Color) {
     }
 }
 
-// ---------------------------------------------------------------- 신규) 정기결제 요약
-@Composable
-private fun SubscriptionSummaryCard(subs: List<Subscription>, accent: Color, onManage: () -> Unit) {
-    val total = subs.sumOf { it.amount }
-    DashCard {
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.weight(1f)) { CardTitle("정기결제 요약") }
-            Surface(
-                color = accent.copy(alpha = 0.12f),
-                shape = RoundedCornerShape(10.dp),
-                modifier = Modifier.clickable { onManage() },
-            ) {
-                Text("관리", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = accent, modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp))
-            }
-        }
-        if (subs.isEmpty()) {
-            Spacer(Modifier.height(10.dp))
-            Text("월정액·패스를 등록하고 갱신일을 관리하세요", fontSize = 13.sp, color = TextSecondary)
-            return@DashCard
-        }
-        Spacer(Modifier.height(10.dp))
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
-            Text("월 정기결제 ${subs.size}건", fontSize = 13.sp, color = TextSecondary)
-            Spacer(Modifier.weight(1f))
-            Text("${won(total)} / 월", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = accent)
-        }
-        subs.take(5).forEach { s ->
-            Spacer(Modifier.height(11.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(Modifier.size(8.dp).clip(CircleShape).background(GameData.colorFor(s.gameName).toColor()))
-                Spacer(Modifier.width(9.dp))
-                Text(s.name, fontSize = 13.sp, fontWeight = FontWeight.Medium, color = TextPrimary, maxLines = 1, modifier = Modifier.weight(1f))
-                Text(won(s.amount), fontSize = 13.sp, fontWeight = FontWeight.Bold)
-                Spacer(Modifier.width(8.dp))
-                Text("D-${s.dDay()}", fontSize = 11.sp, color = TextSecondary)
-            }
-        }
-        if (subs.size > 5) {
-            Spacer(Modifier.height(8.dp))
-            Text("+${subs.size - 5}건", fontSize = 11.sp, color = TextSecondary)
-        }
-    }
-}
 
 // ---------------------------------------------------------------- 4) 태그별 지출
 @Composable
