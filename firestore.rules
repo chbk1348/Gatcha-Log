@@ -28,6 +28,24 @@ service cloud.firestore {
                          && request.auth.uid == uid;
     }
 
+    // ── 운영 설정 — 어드민이 쓰고 앱 전체가 읽는다 ──────────────────
+    //
+    // 읽기가 공개인 이유: 호요랜드 화면은 로그인과 무관한 읽기 전용 소개 페이지다
+    // (HoyolandApi.fetchLive). 비로그인 사용자도 행사 정보를 봐야 하므로 인증을 걸 수 없다.
+    // 담기는 내용은 이미 GitHub raw 로 전세계 공개된 hoyoland.json 과 동일하다 —
+    // ⚠️ 그러므로 이 문서에는 비공개 값을 절대 넣지 않는다.
+    //
+    // 쓰기는 운영자 uid 화이트리스트로 막는다. 커스텀 클레임은 Functions(유료 플랜)가
+    // 필요해서 과하고, 문서 기반 역할 조회는 규칙 평가마다 읽기가 한 번 더 든다.
+    // uid 확인: Firebase Console → Authentication → 사용자, 또는 앱 개발자 화면.
+    match /config/{doc} {
+      allow read: if true;
+      allow write: if request.auth != null
+                   && request.auth.uid in [
+                        'REPLACE_WITH_ADMIN_UID'
+                      ];
+    }
+
     // 그 외 모든 경로는 기본 차단(명시적 deny — 규칙 추가 시 실수 방지)
     match /{document=**} {
       allow read, write: if false;

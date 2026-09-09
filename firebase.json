@@ -1,5 +1,15 @@
 {
   "firestore": {
     "rules": "firestore.rules"
+  },
+  "hosting": {
+    "public": "Gatcha Log Admin",
+    "ignore": ["README.md", "firebase-config.local.js"],
+    "headers": [
+      {
+        "source": "**/*.@(js|css|html)",
+        "headers": [{ "key": "Cache-Control", "value": "no-cache" }]
+      }
+    ]
   }
 }
