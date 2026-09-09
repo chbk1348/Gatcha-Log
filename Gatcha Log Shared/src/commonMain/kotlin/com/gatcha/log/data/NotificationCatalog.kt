@@ -11,7 +11,7 @@ package com.gatcha.log.data
  */
 
 /** 알림 항목 식별자 — 화면이 토글 상태·설정 함수를 이 키로 연결한다. */
-enum class NotifyKey { BUDGET, SUBSCRIPTION, RESIN, ATTENDANCE, PICKUP, COMBAT, NEWS, HOYOLAND }
+enum class NotifyKey { BUDGET, RESIN, ATTENDANCE, PICKUP, COMBAT, NEWS, HOYOLAND }
 
 /**
  * 알림 묶음. 일곱 개를 한 덩어리로 늘어놓으면 훑을 수가 없어서 성격으로 나눴다 —
@@ -39,16 +39,15 @@ object NotificationCatalog {
 
     /** 전체 항목 — 묶음 순서대로. */
     val items: List<NotifyItem> = listOf(
-        NotifyItem(NotifyKey.BUDGET, NotifyGroup.MONEY, "예산", "예산 90% · 초과 시"),
-        NotifyItem(NotifyKey.SUBSCRIPTION, NotifyGroup.MONEY, "정기결제 갱신", "결제 하루 전(D-1)"),
+        NotifyItem(NotifyKey.BUDGET, NotifyGroup.MONEY, "예산", "이번 달 예산의 90%를 쓰거나 넘겼을 때"),
 
-        NotifyItem(NotifyKey.RESIN, NotifyGroup.PLAY, "행동력 가득참", "레진·개척력·배터리가 가득 차면"),
-        NotifyItem(NotifyKey.ATTENDANCE, NotifyGroup.PLAY, "출석 리마인더", "저녁까지 미출석이면"),
-        NotifyItem(NotifyKey.PICKUP, NotifyGroup.PLAY, "픽업 마감", "진행 중인 픽업이 끝나기 전"),
-        NotifyItem(NotifyKey.COMBAT, NotifyGroup.PLAY, "전투 시즌 마감", "못 깬 콘텐츠가 남은 채 시즌이 끝나기 전"),
+        NotifyItem(NotifyKey.RESIN, NotifyGroup.PLAY, "행동력 가득참", "레진·개척력·배터리가 가득 차서 더 안 쌓일 때"),
+        NotifyItem(NotifyKey.ATTENDANCE, NotifyGroup.PLAY, "출석 리마인더", "저녁이 되도록 출석을 안 했을 때"),
+        NotifyItem(NotifyKey.PICKUP, NotifyGroup.PLAY, "픽업 마감", "뽑고 있는 픽업이 끝나기 3일 전부터"),
+        NotifyItem(NotifyKey.COMBAT, NotifyGroup.PLAY, "전투 시즌 마감", "못 깬 콘텐츠를 남긴 채 시즌이 끝나기 전"),
 
-        NotifyItem(NotifyKey.NEWS, NotifyGroup.NEWS, "새 공지", "게임에 새 공지가 올라오면"),
-        NotifyItem(NotifyKey.HOYOLAND, NotifyGroup.NEWS, "호요랜드", "예매 오픈 · 개막 전에"),
+        NotifyItem(NotifyKey.NEWS, NotifyGroup.NEWS, "새 소식", "게임에 새 공지가 올라왔을 때"),
+        NotifyItem(NotifyKey.HOYOLAND, NotifyGroup.NEWS, "호요랜드", "예매가 열리기 전과 개막 전에"),
     )
 
     /**

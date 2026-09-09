@@ -77,8 +77,8 @@ object AttendanceReminder {
         val trigger = UNCalendarNotificationTrigger.triggerWithDateMatchingComponents(comps, repeats = false)
 
         val content = UNMutableNotificationContent().apply {
-            setTitle("출석 체크 알림")
-            setBody("오늘 출석 체크 잊지 마세요 — 아직 안 한 게임이 있으면 출석하세요.")
+            setTitle("오늘 출석 아직이에요")
+            setBody("탭하면 바로 출석할 수 있어요. 1분이면 끝나요")
         }
         val request = UNNotificationRequest.requestWithIdentifier(ID, content, trigger)
         // 등록이 끝날 때까지 기다린다 — 예전엔 null 핸들러로 걸어두고 즉시 반환했다.

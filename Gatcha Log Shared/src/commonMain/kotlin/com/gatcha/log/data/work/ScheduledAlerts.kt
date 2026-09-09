@@ -4,9 +4,9 @@ import com.gatcha.log.data.AppSettings
 import com.gatcha.log.data.DateUtil
 import com.gatcha.log.data.GameData
 import com.gatcha.log.data.GatchaRepository
+import com.gatcha.log.data.Josa
 import com.gatcha.log.data.Notifier
 import com.gatcha.log.data.api.HoyolandApi
-import com.gatcha.log.data.subscriptionNotificationId
 import com.gatcha.log.util.currentTimeMillis
 
 /**
@@ -110,8 +110,8 @@ object ScheduledAlerts {
                 listOf(
                     ScheduledAlert(
                         key = KEY_DAILY_SUMMARY,
-                        title = "오늘의 가챠 요약",
-                        text = "출석·일일 임무·재화 상태를 확인할 시간이에요",
+                        title = "오늘 챙길 것 모았어요",
+                        text = "출석·일일 임무·재화를 확인할 시간이에요",
                         whenMillis = DateUtil.localTimeOnDay(nowMillis, settings.notifyDailySummaryHour),
                         repeatsDaily = true,
                     ),
@@ -135,8 +135,8 @@ object ScheduledAlerts {
                             scheduledAny = true
                             out += ScheduledAlert(
                                 key = "pickup:${game?.key ?: gameName}:$lead",
-                                title = "$shortName 픽업 마감 임박",
-                                text = "$names — D-$lead 예요. 마지막 기회를 놓치지 마세요",
+                                title = "$shortName 픽업이 곧 끝나요",
+                                text = "$names · D-$lead 남았어요. 뽑을 거면 지금이에요",
                                 whenMillis = at,
                             )
                         }
@@ -149,11 +149,11 @@ object ScheduledAlerts {
                             if (settings.lastNotified(tag) != level) {
                                 val urgent = list.filter { it.dDay(nowMillis) <= 3 }
                                     .joinToString(", ") { it.name }
-                                val whenLabel = if (minD <= 1) "오늘·내일 종료" else "D-$minD 종료"
+                                val whenLabel = if (minD <= 1) "오늘·내일까지예요" else "D-$minD 남았어요"
                                 now += ImmediateAlert(
                                     id = Notifier.ID_PICKUP_BASE + (game?.ordinal ?: 0),
-                                    title = "$shortName 픽업 마감 임박",
-                                    text = "$urgent — $whenLabel 전 마지막 기회예요",
+                                    title = "$shortName 픽업이 곧 끝나요",
+                                    text = "$urgent · $whenLabel. 뽑을 거면 지금이에요",
                                     dedupTag = tag,
                                     dedupValue = level,
                                 )
@@ -177,8 +177,8 @@ object ScheduledAlerts {
                             scheduledAny = true
                             out += ScheduledAlert(
                                 key = "combat:${game?.key ?: c.game}:${c.name}:$lead",
-                                title = "$shortName ${c.name} 마감 임박",
-                                text = "${c.stars}/${c.maxStars} — D-$lead 예요. 시즌이 끝나면 보상이 사라져요",
+                                title = "$shortName ${Josa.subj(c.name)} 곧 끝나요",
+                                text = "${c.stars}/${c.maxStars} 에서 멈춰 있어요. D-$lead 에 끝나면 남은 보상은 사라져요",
                                 whenMillis = at,
                             )
                         }
@@ -190,14 +190,14 @@ object ScheduledAlerts {
                             val tag = "combat:$shortName:${c.name}"
                             if (settings.lastNotified(tag) != level) {
                                 val whenLabel = when {
-                                    d <= 0 -> "오늘 마감"
-                                    d == 1 -> "내일 마감"
-                                    else -> "D-$d"
+                                    d <= 0 -> "오늘"
+                                    d == 1 -> "내일"
+                                    else -> "D-$d 에"
                                 }
                                 now += ImmediateAlert(
                                     id = Notifier.ID_COMBAT_BASE + (game?.ordinal ?: 0),
-                                    title = "$shortName ${c.name} 마감 임박",
-                                    text = "${c.stars}/${c.maxStars} — $whenLabel 이에요. 시즌이 끝나면 보상이 사라져요",
+                                    title = "$shortName ${Josa.subj(c.name)} 곧 끝나요",
+                                    text = "${c.stars}/${c.maxStars} 에서 멈춰 있어요. $whenLabel 끝나면 남은 보상은 사라져요",
                                     dedupTag = tag,
                                     dedupValue = level,
                                 )
@@ -207,32 +207,7 @@ object ScheduledAlerts {
                 }
         }
 
-        // ③ 정기결제 갱신 — 결제 전날 아침.
-        if (settings.notifySubscription) {
-            val ym = "${DateUtil.year(nowMillis)}-${DateUtil.month(nowMillis)}"
-            repo.loadSubscriptions().forEach { sub ->
-                val d = sub.dDay(nowMillis)
-                // 결제일(오늘로부터 d일 뒤)의 전날 09:00.
-                val at = shiftOutOfQuiet(settings, DateUtil.localTimeOnDay(nowMillis + (d - 1) * DAY_MS, ALERT_HOUR))
-                if (at > nowMillis) {
-                    out += ScheduledAlert(
-                        key = "sub:${sub.id}",
-                        title = "정기결제 갱신 내일",
-                        text = "${sub.name} ₩${comma(sub.amount)} 결제 예정이에요",
-                        whenMillis = at,
-                    )
-                } else if (d <= 1 && settings.lastNotified("sub:${sub.id}") != ym) {
-                    // 결제 당일이거나, D-1 인데 09시를 넘겨 확인한 경우 — 예약 시각이 이미 지났다.
-                    now += ImmediateAlert(
-                        id = subscriptionNotificationId(sub.id),
-                        title = "정기결제 갱신 ${if (d <= 0) "오늘" else "내일"}",
-                        text = "${sub.name} ₩${comma(sub.amount)} 결제 예정이에요",
-                        dedupTag = "sub:${sub.id}",
-                        dedupValue = ym,
-                    )
-                }
-            }
-        }
+        // ③ 정기결제 갱신 예약은 여기 있었다 — 기능째 걷어냈다(2026-09-09).
 
         // ④ 행동력(레진·개척력·배터리) 가득참 — 상류가 '남은 초'를 주므로 가득 차는 시각을 정확히 안다.
         //    실시간으로 와야 하는 알림이지만, 시각을 계산할 수 있으니 미리 예약해 앱 실행과 무관하게 보낸다.
@@ -249,8 +224,8 @@ object ScheduledAlerts {
                 val at = shiftOutOfQuiet(settings, n.resinFullAtMillis)
                 out += ScheduledAlert(
                     key = "resin:$gameKey",
-                    title = "${game?.shortName ?: n.game} 행동력 가득참",
-                    text = "${n.resinLabel}가 가득 찼어요 (${n.maxResin}/${n.maxResin})",
+                    title = "${game?.shortName ?: n.game} ${Josa.subj(n.resinLabel)} 가득 찼어요",
+                    text = "${n.maxResin}/${n.maxResin} 이에요. 지금부터는 더 쌓이지 않아요",
                     whenMillis = at,
                     dedupTag = "resin:$gameKey",
                     dedupValue = DateUtil.hoyoDayKey(at),
@@ -272,8 +247,8 @@ object ScheduledAlerts {
                 if (dayBefore > nowMillis) {
                     out += ScheduledAlert(
                         key = "hoyoland:ticket:d1",
-                        title = "${event.edition} 예매 내일",
-                        text = "${event.ticket.openLabel} 오픈이에요. 미리 준비해 두세요",
+                        title = "${event.edition} 예매가 내일이에요",
+                        text = "${event.ticket.openLabel} 에 열려요. 미리 로그인해 두세요",
                         whenMillis = dayBefore,
                     )
                 }
@@ -282,7 +257,7 @@ object ScheduledAlerts {
                 if (hourBefore > nowMillis) {
                     out += ScheduledAlert(
                         key = "hoyoland:ticket:h1",
-                        title = "${event.edition} 예매 1시간 전",
+                        title = "${event.edition} 예매 1시간 남았어요",
                         text = "${event.ticket.openLabel}${if (event.ticket.vendor.isBlank()) "" else " · ${event.ticket.vendor}"}",
                         whenMillis = hourBefore,
                         link = event.ticket.url,
@@ -296,7 +271,7 @@ object ScheduledAlerts {
                 if (event.startAtMillis(ALERT_HOUR) > 0L && at > nowMillis) {
                     out += ScheduledAlert(
                         key = "hoyoland:open:$lead",
-                        title = if (lead == 0) "${event.edition} 오늘 개막" else "${event.edition} D-$lead",
+                        title = if (lead == 0) "${event.edition} 오늘 열려요" else "${event.edition} ${lead}일 남았어요",
                         text = "${event.periodLabel} · ${event.venueShort}",
                         whenMillis = at,
                     )
