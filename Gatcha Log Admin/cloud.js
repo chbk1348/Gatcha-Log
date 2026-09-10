@@ -13,6 +13,8 @@ const COLLECTION = 'config';
 /** admin.js 가 보는 인터페이스. 연결 전에도 호출은 안전하게 실패한다. */
 const cloud = {
   available: false,   // SDK 로드 + 설정값이 갖춰졌는가
+  signInError: null,  // 리다이렉트 로그인이 실패한 이유(있으면 로그인 화면이 보여 준다)
+  authReady: false,   // 인증 상태가 확정됐는가 — false 면 user: null 은 "아직 모름" 이다
   user: null,         // { uid, email, name } 또는 null
   onChange: null,     // admin.js 가 꽂는 콜백 — 로그인 상태가 바뀌면 호출
   signIn: async () => { throw new Error('클라우드가 설정되지 않았습니다.'); },
@@ -45,15 +47,31 @@ async function boot() {
 
   cloud.available = true;
 
+  // 팝업이 막히는 환경(모바일 사파리 등)에서만 리다이렉트로 넘어간다.
+  // 사용자가 팝업을 직접 닫은 것과 브라우저가 막은 것은 다르다 — 전자까지 리다이렉트로
+  // 넘기면 취소했는데 페이지가 통째로 떠나 버린다.
+  const REDIRECT_ON = ['auth/popup-blocked', 'auth/operation-not-supported-in-this-environment'];
+  const CANCELLED = ['auth/popup-closed-by-user', 'auth/cancelled-popup-request'];
+
   cloud.signIn = async () => {
-    // 팝업이 막히는 환경(모바일 사파리 등)에서는 리다이렉트로 넘어간다.
     try {
       await authMod.signInWithPopup(auth, provider);
     } catch (e) {
-      if (String(e.code).includes('popup')) await authMod.signInWithRedirect(auth, provider);
+      if (REDIRECT_ON.includes(e.code)) await authMod.signInWithRedirect(auth, provider);
+      else if (CANCELLED.includes(e.code)) return;   // 사용자가 취소했다 — 실패로 알리지 않는다
       else throw e;
     }
   };
+
+  /*
+   * 리다이렉트로 돌아온 결과를 여기서 거둔다. 실패를 잡지 않으면 사용자는 Firebase 헬퍼 페이지의
+   * 날 것 그대로인 영문 오류만 보게 된다(대표적으로 authDomain 이 서빙 도메인과 다를 때 나는
+   * "missing initial state"). 어드민 안에서 우리말로 알리려고 붙잡아 둔다.
+   */
+  authMod.getRedirectResult(auth).catch((e) => {
+    cloud.signInError = e.message || String(e.code);
+    notify();
+  });
 
   cloud.signOut = () => authMod.signOut(auth);
 
@@ -79,6 +97,7 @@ async function boot() {
   };
 
   authMod.onAuthStateChanged(auth, (u) => {
+    cloud.authReady = true;
     cloud.user = u ? { uid: u.uid, email: u.email, name: u.displayName } : null;
     notify();
   });

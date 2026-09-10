@@ -2,7 +2,13 @@
 <html lang="ko">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- viewport-fit=cover — 이게 없으면 노치 주변 안전영역을 사파리가 자기 색으로 채워서
+     페이지 위에 띠가 얹힌 것처럼 보인다. 대신 콘텐츠가 노치에 가리지 않게 admin.css 에서
+     env(safe-area-inset-*) 만큼 여백을 준다. -->
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<!-- 모바일 주소창 색. 값은 admin.css 의 --panel(상단바)과 같다 — 주소창과 상단바가 이어져 보인다.
+     지정하지 않으면 브라우저가 밝은 기본색을 써서 다크 화면 위에 밝은 띠가 얹힌 것처럼 보인다. -->
+<meta name="theme-color" content="#161923">
 <title>Gatcha Log Admin</title>
 <link rel="stylesheet" href="admin.css">
 <link rel="stylesheet" href="ui.css">
@@ -20,11 +26,13 @@
   <nav id="nav"></nav>
   <div class="sidebar-foot">
     <div id="source-label" class="muted">불러온 소스 없음</div>
+    <button id="btn-load-nav" class="btn btn-sm nav-only">원격에서 불러오기</button>
   </div>
 </aside>
 
 <header class="topbar">
-  <div>
+  <button id="btn-menu" class="icon-btn" aria-label="메뉴 열기" aria-expanded="false"><span></span></button>
+  <div class="topbar-title">
     <h1 id="page-title">대시보드</h1>
     <p id="page-desc" class="muted"></p>
   </div>
@@ -41,6 +49,8 @@
 
 <main id="main"></main>
 
+<div id="nav-backdrop" class="nav-backdrop" hidden></div>
+<div id="gate" class="gate" hidden></div>
 <div id="toast" class="toast" hidden></div>
 
 <script src="firebase-config.js"></script>

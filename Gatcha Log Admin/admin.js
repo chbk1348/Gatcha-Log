@@ -62,6 +62,8 @@ const GOODS_CATEGORIES = ['아크릴', '아크릴 스탠드', '뱃지', '키링'
 const TICKET_VENDORS = ['인터파크 티켓', 'NOL 티켓', '예스24 티켓', '멜론티켓', '티켓링크', '공식 홈페이지'];
 const FACT_LABELS = ['기간', '장소', '규모', '관람객', '티켓', '참여 IP', '구성', '전시', '스폰서', '주최'];
 const BOOTH_DURATIONS = ['약 5분', '약 10분', '약 15분', '약 20분', '약 30분'];
+/* 무대 시각 칸에 들어가는 비시각 표기. 앱은 이런 칸을 목록에만 남기고 '지금/다음' 판정에서 뺀다. */
+const STAGE_TIME_PRESETS = ['종일', '수시', '미정'];
 const VENUE_NAMES = ['일산 킨텍스 제1전시장', '일산 킨텍스 제2전시장', '코엑스',
   '세텍(SETEC)', '부산 벡스코(BEXCO)', 'DDP'];
 
@@ -120,8 +122,7 @@ const HOYOLAND = {
 
   clean: (key, v) => {
     if (key === 'ticket') return { ...v, openHour: Number(v.openHour) || 0 };
-    if (key === 'goods') return v.map((g) => ({ ...g, price: Number(g.price) || 0, soldOut: !!g.soldOut }));
-    if (key === 'booths') return v.map((b) => ({ ...b, needsReservation: !!b.needsReservation }));
+    if (key === 'goods') return v.map((g) => ({ ...g, price: Number(g.price) || 0 }));
     if (key === 'days') return v.map((day) => ({
       ...day, slots: day.slots.map((s) => (s.minutes ? { ...s, minutes: Number(s.minutes) || 0 } : s)),
     }));
@@ -190,6 +191,12 @@ const HOYOLAND = {
         add('warn', 'days', `${day.ymd} 는 행사 기간 밖입니다 — 날짜 탭이 없어 노출되지 않습니다.`);
       const blank = day.slots.filter((s) => !String(s.title ?? '').trim()).length;
       if (blank) add('error', 'days', `${day.ymd || i + 1} 의 슬롯 ${blank}건에 제목이 없습니다 — 버려집니다.`);
+      // 앱은 시작 시각 + 길이로 "13:00 ~ 14:30" 을 만든다. time 에 이미 범위가 적혀 있으면
+      // "13:00 ~ 14:30 ~ 15:30" 이 된다.
+      for (const s of day.slots) {
+        if (/~/.test(String(s.time ?? '')) && Number(s.minutes) > 0)
+          add('warn', 'days', `"${s.title || day.ymd}" 의 시작에 범위가 적혀 있는데 길이도 채워져 있습니다 — 앱이 "${s.time} ~ …" 로 한 번 더 이어 붙입니다.`);
+      }
     });
 
     for (const g of d.goods) {
@@ -248,19 +255,16 @@ const HOYOLAND = {
         { key: 'game', label: '게임', type: 'game', width: '150px' },
         { key: 'category', label: '분류', type: 'suggest', options: GOODS_CATEGORIES, width: '130px' },
         { key: 'price', label: '가격(원)', type: 'number', width: '130px', min: 0 },
-        { key: 'soldOut', label: '품절', type: 'bool', width: '60px' },
         { key: 'note', label: '비고', type: 'text' },
       ] },
     { id: 'booths', group: '행사', label: '부스 체험', type: 'list', path: 'booths', countable: true,
-      desc: '체험존 운영 정보. 예약이 필요한 부스는 needsReservation 을 켭니다.',
+      desc: '체험존 운영 정보. 호요랜드 부스는 예약제도 회차·정원도 없습니다.',
       columns: [
         { key: 'title', label: '부스명', type: 'text', required: true },
         { key: 'game', label: '게임', type: 'game', width: '150px' },
         { key: 'location', label: '위치', type: 'text', width: '120px' },
         { key: 'duration', label: '소요', type: 'suggest', options: BOOTH_DURATIONS, width: '110px' },
-        { key: 'capacity', label: '정원', type: 'text', width: '90px' },
         { key: 'reward', label: '보상', type: 'text', width: '140px' },
-        { key: 'needsReservation', label: '예약', type: 'bool', width: '60px' },
         { key: 'desc', label: '설명', type: 'text' },
       ] },
     { id: 'gstar', group: '연계', label: 'G-STAR', type: 'gstar', path: 'gstar',
@@ -636,6 +640,9 @@ function inputFor(cfg, value, onChange) {
         note: '목록에 없으면 검색창에 그대로 적어 “직접 입력”으로 넣습니다.',
       });
 
+    case 'hhmm':
+      return glTime({ value, onChange: commit, defaultHour: 11, presets: STAGE_TIME_PRESETS });
+
     case 'bool':
       return glToggle({ value: !!value, title: cfg.label || '', onChange: commit });
 
@@ -713,7 +720,7 @@ function renderList(sec, opts = {}) {
   }
   rows.forEach((row, i) => {
     const tr = el('tr');
-    for (const c of columns) tr.append(el('td', {}, [inputFor(c, row[c.key], (v) => { row[c.key] = v; })]));
+    for (const c of columns) tr.append(el('td', { 'data-label': c.label }, [inputFor(c, row[c.key], (v) => { row[c.key] = v; })]));
     tr.append(el('td', { class: 'actions' }, [
       el('button', { class: 'btn btn-sm', title: '위로', disabled: i === 0, onclick: () => move(rows, i, -1) }, ['↑']), ' ',
       el('button', { class: 'btn btn-sm', title: '아래로', disabled: i === rows.length - 1, onclick: () => move(rows, i, 1) }, ['↓']), ' ',
@@ -769,11 +776,9 @@ function move(arr, i, delta) {
 
 function renderGoods(sec) {
   const rows = get(state.draft, sec.path);
-  const live = rows.filter((g) => !g.soldOut);
   const sum = rows.reduce((a, g) => a + (Number(g.price) || 0), 0);
   const summary = el('div', { class: 'tiles', style: 'margin-top:14px;margin-bottom:0' }, [
     tile('총 상품', rows.length + '개'),
-    tile('판매 중', live.length + '개', rows.length - live.length ? `품절 ${rows.length - live.length}` : ''),
     tile('평균가', (rows.length ? Math.round(sum / rows.length) : 0).toLocaleString('ko-KR') + '원'),
     tile('가격 미정', rows.filter((g) => !Number(g.price)).length + '개', '', rows.some((g) => !Number(g.price)) ? 'warn' : ''),
   ]);
@@ -783,7 +788,9 @@ function renderGoods(sec) {
 function renderDays(sec) {
   const days = get(state.draft, sec.path);
   const SLOT_COLS = [
-    { key: 'time', label: '시간', type: 'text', width: '130px', placeholder: '13:00 ~ 14:30' },
+    // 앱은 이 값을 **시작 시각**으로 읽고 길이(분)로 끝 시각을 계산해 "13:00 ~ 14:30" 을 만든다.
+    // 여기에 범위를 적으면 그 계산과 겹쳐 라벨이 깨진다 — 시작만 넣는다.
+    { key: 'time', label: '시작', type: 'hhmm', width: '130px' },
     { key: 'title', label: '제목', type: 'text', required: true },
     { key: 'game', label: '게임', type: 'game', width: '150px', placeholder: '비우면 합동' },
     { key: 'cast', label: '출연', type: 'text', width: '160px' },
@@ -962,15 +969,13 @@ function renderLive(sec) {
   const kids = [];
   if (!c.user) {
     kids.push(card({ label: '운영자 로그인', desc: '쓰기는 firestore.rules 의 uid 화이트리스트에 등록된 계정만 됩니다.' }, [
-      el('button', { class: 'btn btn-primary', onclick: async () => {
-        try { await c.signIn(); } catch (e) { toast('로그인 실패: ' + e.message); }
-      } }, ['구글로 로그인']),
+      el('button', { class: 'btn btn-primary', onclick: signIn }, ['구글로 로그인']),
     ]));
   } else {
     kids.push(card({ label: '운영자', desc: '' }, [
       el('div', { class: 'grid' }, [
-        tile('계정', c.user.email || c.user.name || '—'),
-        tile('uid', c.user.uid, 'firestore.rules 화이트리스트 값'),
+        tile('계정', c.user.email || c.user.name || '—', '', 'sm'),
+        tile('uid', c.user.uid, 'firestore.rules 화이트리스트 값', 'sm'),
       ]),
       el('div', { style: 'margin-top:12px;display:flex;gap:8px' }, [
         el('button', { class: 'btn btn-sm', onclick: () => { navigator.clipboard.writeText(c.user.uid); toast('uid 를 복사했습니다.'); } }, ['uid 복사']),
@@ -986,8 +991,8 @@ function renderLive(sec) {
   else {
     const same = st.json.trim() === toJson().trim();
     statusKids.push(el('div', { class: 'tiles', style: 'margin-bottom:0' }, [
-      tile('마지막 반영', st.updatedAt ? new Date(st.updatedAt).toLocaleString('ko-KR') : '—'),
-      tile('반영한 계정', st.updatedBy || '—'),
+      tile('마지막 반영', st.updatedAt ? new Date(st.updatedAt).toLocaleString('ko-KR') : '—', '', 'sm'),
+      tile('반영한 계정', st.updatedBy || '—', '', 'sm'),
       tile('현재 편집본', same ? '라이브와 동일' : '라이브와 다름', '', same ? 'ok' : 'warn'),
     ]));
   }
@@ -1017,6 +1022,253 @@ function renderLive(sec) {
   kids.push(card({ label: '반영', desc: '' }, pub));
 
   return el('div', {}, kids);
+}
+
+/* ═════════════════════════════════════════════════════════════
+ * 로그인 화면
+ *
+ * 어드민에 들어오면 먼저 이 화면이 선다. 로그인해야 어드민 본체가 보인다 — 우회로는 없다.
+ *
+ * 예외는 **클라우드를 아예 쓰지 않는 배포**뿐이다(firebase-config.js 가 비어 있는 경우).
+ * 거기서는 로그인이라는 개념 자체가 없고 라이브 반영도 꺼져 있어서, 화면을 세워도 통과할
+ * 방법이 없다. 그 환경은 편집 · 검증 · 정본 내보내기 전용으로 그대로 둔다.
+ *
+ * 클라우드를 쓸 환경인지는 firebase-config.js 의 값으로 **즉시** 판단한다(cloud.js 는 ESM 이라
+ * 늦게 온다). 그래야 대시보드가 잠깐 보였다가 화면에 덮이는 깜빡임이 없다.
+ * ═════════════════════════════════════════════════════════════ */
+
+/**
+ * 어드민에 들어올 수 있는 계정. **firestore.rules 의 config/{doc} 화이트리스트와 같은 값**이라
+ * 운영자를 더하거나 뺄 때 두 곳을 같이 고치고 둘 다 배포한다.
+ *
+ * 한 곳으로 합칠 수 없다 — 규칙은 JS 를 읽지 못하고, 목록을 Firestore 문서에 두면 규칙 평가마다
+ * 읽기가 한 번 더 든다. 대신 어긋났을 때의 결과가 한쪽으로 기울게 해 둔다:
+ *   여기에만 있음 → 들어오지만 반영이 거부된다(어드민이 그대로 알려 준다)
+ *   규칙에만 있음 → **아예 못 들어온다** ← 이쪽이 위험하므로, 규칙에 uid 를 넣을 때 여기부터 넣는다.
+ *
+ * 이 목록은 화면 접근을 막을 뿐 데이터를 지키지 않는다. 브라우저에서 도는 코드라 우회할 수 있고,
+ * 실제 방어선은 언제나 firestore.rules 다(읽기는 애초에 공개다 — 앱이 로그인 없이 읽는다).
+ */
+const OPERATOR_UIDS = [
+  'kc6zQnqGCseoL0yHKNwmqriO23j2',   // 운영자
+];
+
+const isOperator = (u) => !!u && OPERATOR_UIDS.includes(u.uid);
+
+let cloudTimedOut = false;
+
+async function signIn() {
+  try {
+    await window.cloud.signIn();
+  } catch (e) {
+    toast('로그인 실패: ' + e.message);
+  }
+}
+
+/**
+ * 지금 그려야 할 로그인 화면의 정체성. 이게 그대로면 다시 그리지 않는다.
+ *
+ * cloud.js 는 상태가 바뀔 때마다 알린다 — 부팅, 인증 복원, 리다이렉트 결과, 타임아웃. 알림마다
+ * 카드를 새로 만들면 등장 애니메이션이 그 횟수만큼 재생돼, 로그인 화면이 두 번 세 번 뜨는 것처럼
+ * 보인다(느린 모바일에서 특히).
+ */
+function gateSig(c) {
+  if (c && c.user) return 'denied:' + c.user.uid;               // 로그인은 됐지만 운영자가 아님
+  if (c && !c.available && c.reason) return 'blocked:' + c.reason;
+  if (settling(c)) return 'splash';
+  return 'login:' + ((c && c.signInError) || '');
+}
+
+/**
+ * 아직 "로그인 안 됨" 이라고 말할 수 없는 구간.
+ *
+ * cloud.available 은 SDK 가 뜨자마자 true 가 되지만 authReady 는 그 뒤에 온다. 그 사이의
+ * user: null 은 "로그인 안 됨" 이 아니라 "아직 모름" 이다. 여기서 로그인 카드를 그리면
+ * **이미 로그인한 사람도 새로고침할 때마다 로그인 화면을 1초쯤 보게 된다.**
+ *
+ * 그래서 이 구간에는 브랜드 마크와 스피너만 둔다. 끝내 답이 없으면(cloudTimedOut) 그때 카드를 낸다.
+ */
+function settling(c) {
+  if (cloudTimedOut) return false;
+  return !c || !c.available || !c.authReady;
+}
+
+function syncGate() {
+  const gate = document.getElementById('gate');
+  if (!gate) return;
+  const c = window.cloud;
+  const configured = !!(window.FIREBASE_CONFIG && window.FIREBASE_CONFIG.apiKey && window.FIREBASE_CONFIG.appId);
+  const show = configured && !isOperator(c && c.user);
+  gate.hidden = !show;
+  document.body.classList.toggle('gated', show);   // 뒤 화면 스크롤바가 새어 나오지 않게
+
+  if (!show) { gate.dataset.sig = ''; gate.replaceChildren(); return; }
+  const sig = gateSig(c);
+  if (gate.dataset.sig === sig) return;
+  gate.dataset.sig = sig;
+  renderGate(gate, c);
+}
+
+/* 구글 브랜드 버튼의 G. 외부 아이콘 폰트를 쓰지 않는 원칙대로 인라인 SVG 로 둔다(고정 문자열). */
+const GOOGLE_G =
+  '<svg viewBox="0 0 48 48" width="18" height="18" aria-hidden="true">' +
+  '<path fill="#4285F4" d="M45.12 24.5c0-1.56-.14-3.06-.4-4.5H24v8.51h11.84c-.51 2.75-2.06 5.08-4.39 6.64v5.52h7.11c4.16-3.83 6.56-9.47 6.56-16.17z"/>' +
+  '<path fill="#34A853" d="M24 46c5.94 0 10.92-1.97 14.56-5.33l-7.11-5.52c-1.97 1.32-4.49 2.1-7.45 2.1-5.73 0-10.58-3.87-12.31-9.07H4.34v5.7C7.96 41.07 15.4 46 24 46z"/>' +
+  '<path fill="#FBBC05" d="M11.69 28.18C11.25 26.86 11 25.45 11 24s.25-2.86.69-4.18v-5.7H4.34C2.85 17.09 2 20.45 2 24s.85 6.91 2.34 9.88l7.35-5.7z"/>' +
+  '<path fill="#EA4335" d="M24 10.75c3.23 0 6.13 1.11 8.41 3.29l6.31-6.31C34.91 4.18 29.93 2 24 2 15.4 2 7.96 6.93 4.34 14.12l7.35 5.7c1.73-5.2 6.58-9.07 12.31-9.07z"/>' +
+  '</svg>';
+
+/** 로그인 · 접근 거부가 같은 껍데기를 쓴다 — 둘은 같은 자리에서 이어지는 화면이다. */
+function gateShell(gate, kids) {
+  gate.replaceChildren(
+    el('div', { class: 'gate-card' }, [
+      el('div', { class: 'gate-mark', text: 'GL' }),
+      el('div', { class: 'gate-brand' }, [
+        el('strong', { text: 'Gatcha Log' }),
+        el('span', { text: '운영 어드민' }),
+      ]),
+      ...kids,
+    ]),
+    el('div', { class: 'gate-foot', text: '호요랜드 · ZZZ 배너 · 앱 배포' }),
+  );
+}
+
+function renderGate(gate, c) {
+  // 로그인은 됐는데 운영자가 아닌 경우 — 다시 로그인시키는 게 아니라 계정을 바꾸게 한다.
+  if (c && c.user) { renderDenied(gate, c); return; }
+
+  // 로그인 여부를 아직 모르는 동안은 카드를 내지 않는다.
+  if (settling(c)) {
+    gate.replaceChildren(el('div', { class: 'gate-splash' }, [
+      el('div', { class: 'gate-mark', text: 'GL' }),
+      el('div', { class: 'gate-spin', 'aria-hidden': 'true' }),
+    ]));
+    return;
+  }
+
+  const blocked = !!(c && !c.available && c.reason);
+  const dead = !c || !c.available;   // 시간이 다 됐는데도 클라우드가 오지 않았다
+  const failed = !!(c && c.signInError);
+
+  const body = blocked ? c.reason
+    : dead ? '이 환경에서는 로그인을 쓸 수 없습니다 — file:// 에서는 ES 모듈이 로드되지 않습니다. localhost 또는 배포 주소에서 여세요.'
+    : failed ? '로그인이 끝나지 못했습니다. 다시 시도해 주세요.'
+    : '구글 계정으로 로그인해야 어드민을 쓸 수 있습니다.';
+
+  gateShell(gate, [
+    el('h2', { text: '운영자 로그인' }),
+    el('p', { class: 'gate-lead' + (blocked || failed || dead ? ' warn' : '') }, [
+      el('span', { text: body }),
+    ]),
+    failed ? el('p', { class: 'gate-err', text: c.signInError }) : null,
+    el('button', {
+      class: 'gate-go' + (blocked || dead ? '' : ' google'),
+      disabled: blocked || dead, onclick: signIn,
+    }, [
+      blocked || dead ? null : el('span', { class: 'gate-g', html: GOOGLE_G }),
+      el('span', { text: 'Google 계정으로 로그인' }),
+    ]),
+    el('p', { class: 'gate-note', text:
+      '로그인해도 라이브 반영은 firestore.rules 의 uid 화이트리스트에 등록된 계정만 됩니다 — ' +
+      '목록에 없으면 반영이 거부됩니다.' }),
+  ]);
+}
+
+function renderDenied(gate, c) {
+  const who = c.user.email || c.user.name || c.user.uid;
+  gateShell(gate, [
+    el('div', { class: 'gate-badge', text: '접근 거부' }),
+    el('h2', { text: '운영자 계정이 아닙니다' }),
+    el('p', { class: 'gate-lead' }, [el('span', { text: `${who} 으로 로그인했지만 이 어드민의 운영자 목록에 없습니다.` })]),
+    el('button', { class: 'gate-go', onclick: () => window.cloud.signOut() }, [el('span', { text: '다른 계정으로 로그인' })]),
+    el('div', { class: 'gate-note' }, [
+      el('div', { text: '이 계정을 운영자로 추가하려면 아래 uid 를 firestore.rules 와 admin.js 의 목록에 넣고 둘 다 배포하세요.' }),
+      el('div', { class: 'gate-uid' }, [
+        el('code', { text: c.user.uid }),
+        el('button', { class: 'gl-mini', onclick: () => {
+          navigator.clipboard.writeText(c.user.uid);
+          toast('uid 를 복사했습니다.');
+        } }, ['복사']),
+      ]),
+    ]),
+  ]);
+}
+
+/* ═════════════════════════════════════════════════════════════
+ * 원격에서 값 받아오기
+ *
+ * 앱과 **같은 순서**로 내려간다: 라이브(Firestore) → 정본(raw json). 어긋나면 어드민이
+ * 거짓말을 한다. version.json 처럼 라이브가 없는 리소스는 정본만 본다.
+ * ═════════════════════════════════════════════════════════════ */
+
+/** 리소스 하나를 원격에서 읽어 { raw, label } 로 준다. 라이브 상태(d.live)도 같이 채운다. */
+async function pullResource(res) {
+  const c = window.cloud || {};
+  if (res.live && c.available) {
+    try {
+      const live = await c.pull(res.doc);
+      docs[res.id].live = live;
+      if (live && String(live.json).trim()) {
+        return { raw: JSON.parse(live.json), label: `라이브 · ${new Date(live.updatedAt).toLocaleString('ko-KR')}` };
+      }
+    } catch (e) {
+      // 라이브를 못 읽거나 JSON 이 깨졌다 — 앱도 이때 정본으로 내려간다. 같은 길을 간다.
+    }
+  }
+  const r = await fetch(REPO_RAW + res.file + '?t=' + Date.now(), { cache: 'no-store' });
+  if (!r.ok) throw new Error('HTTP ' + r.status);
+  return { raw: await r.json(), label: `정본 main · ${new Date().toLocaleTimeString('ko-KR')}` };
+}
+
+/* ═════════════════════════════════════════════════════════════
+ * 로그인 직후 전 리소스 맞추기
+ *
+ * 진입할 때 loadRemote() 가 한 번 내려오지만 그건 **현재 리소스 하나**를, 그것도 로그인 화면
+ * 뒤에서 받는다. 그래서 두 가지가 어긋난 채 남는다:
+ *   · 안 열어 본 리소스는 빈 문서 그대로다 — 앱 배포 탭을 처음 열면 "versionName 이 비었습니다"
+ *     같은 오류가 잔뜩 뜬다. 값이 잘못된 게 아니라 아직 안 받아온 것이다.
+ *   · cloud.js(ESM)가 늦게 오면 라이브 대신 정본으로 내려간 채로 남는다. 그 상태로 편집하면
+ *     "지금 앱이 보는 값" 이 아니라 커밋된 값을 고치게 된다.
+ *
+ * 그래서 운영자로 확정되는 순간 전 리소스를 원격 값으로 맞춘다.
+ *
+ * ⚠️ **편집 중(dirty)인 초안은 말없이 덮지 않는다.** 로컬 초안은 복원된 어제 작업일 수 있다.
+ * 대신 어느 리소스를 그대로 뒀는지 알린다 — 원격 값이 필요하면 "불러오기" 로 받는다.
+ * ═════════════════════════════════════════════════════════════ */
+
+let liveSynced = false;
+
+async function syncAll() {
+  const c = window.cloud;
+  if (liveSynced || !c || !c.available || !isOperator(c.user)) return;
+  liveSynced = true;
+
+  const pulled = [];
+  const kept = [];
+  const failed = [];
+
+  for (const res of RESOURCES) {
+    const d = docs[res.id];
+    if (d.dirty) { kept.push(res.label); continue; }
+    try {
+      const { raw, label } = await pullResource(res);
+      d.original = JSON.parse(JSON.stringify(raw));
+      d.draft = res.normalize(raw);
+      d.source = label;
+      d.dirty = false;
+      pulled.push(res.label);
+    } catch (e) {
+      failed.push(res.label);
+    }
+  }
+
+  saveDraft();
+  render();
+
+  const tail = (kept.length ? ` (편집 중인 ${kept.join(' · ')} 은 그대로 뒀습니다)` : '')
+    + (failed.length ? ` · ${failed.join(' · ')} 은 받지 못했습니다` : '');
+  if (pulled.length) toast(`앱이 지금 보는 값으로 맞췄습니다 — ${pulled.join(' · ')}${tail}`);
+  else if (kept.length || failed.length) toast(`값을 맞추지 않았습니다${tail}`);
 }
 
 async function refreshLive() {
@@ -1194,7 +1446,7 @@ function renderNav() {
   for (const r of RESOURCES) {
     sw.append(el('button', {
       class: 'res' + (r.id === state.resource ? ' active' : ''),
-      onclick: () => { state.resource = r.id; state.active = 'dashboard'; render(); },
+      onclick: () => { state.resource = r.id; state.active = 'dashboard'; setNav(false); render(); ensureLoaded(); },
     }, [
       el('strong', { text: r.label }),
       el('small', { text: r.hint }),
@@ -1218,7 +1470,15 @@ function renderNav() {
 }
 
 function go(id) {
-  if (findSection(id)) { state.active = id; render(); }
+  if (findSection(id)) { state.active = id; setNav(false); render(); }
+}
+
+/** 모바일 사이드바(드로어). 데스크톱에서는 클래스만 붙었다 떨어질 뿐 아무 일도 하지 않는다. */
+function setNav(open) {
+  document.body.classList.toggle('nav-open', open);
+  document.getElementById('nav-backdrop').hidden = !open;
+  const b = document.getElementById('btn-menu');
+  if (b) b.setAttribute('aria-expanded', String(open));
 }
 
 function syncDirtyBadge() {
@@ -1258,29 +1518,21 @@ function setData(raw, label) {
   render();
 }
 
-/**
- * 앱과 **같은 순서**로 내려간다: 라이브(Firestore) → 정본(raw). 어긋나면 어드민이 거짓말을 한다.
- * version.json 처럼 라이브가 없는 리소스는 정본만 본다.
- */
+/** 지금 보고 있는 리소스만 원격에서 다시 받는다(상단바 "불러오기"). */
 async function loadRemote() {
   const res = state.res;
-  const c = window.cloud || {};
-  if (res.live && c.available) {
-    try {
-      state.live = await c.pull(res.doc);
-      if (state.live && state.live.json.trim()) {
-        setData(JSON.parse(state.live.json), `라이브 · ${new Date(state.live.updatedAt).toLocaleString('ko-KR')}`);
-        toast('라이브 값을 불러왔습니다 — 앱이 지금 보는 값입니다.');
-        return;
-      }
-    } catch (e) { toast('라이브를 읽지 못해 정본으로 내려갑니다: ' + e.message); }
-  }
   try {
-    const r = await fetch(REPO_RAW + res.file + '?t=' + Date.now(), { cache: 'no-store' });
-    if (!r.ok) throw new Error('HTTP ' + r.status);
-    setData(await r.json(), `정본 main · ${new Date().toLocaleTimeString('ko-KR')}`);
-    toast(`${res.file} 정본을 불러왔습니다.`);
+    const { raw, label } = await pullResource(res);
+    setData(raw, label);
+    toast(label.startsWith('라이브')
+      ? '라이브 값을 불러왔습니다 — 앱이 지금 보는 값입니다.'
+      : `${res.file} 정본을 불러왔습니다.`);
   } catch (e) { toast('불러오지 못했습니다: ' + e.message); }
+}
+
+/** 아직 한 번도 받아오지 않은 리소스로 옮겼을 때 조용히 채운다(빈 문서로 오류가 뜨는 것을 막는다). */
+function ensureLoaded() {
+  if (state.d.original == null && !state.dirty) loadRemote();
 }
 
 function toast(msg) {
@@ -1356,10 +1608,9 @@ function selftest() {
   });
   check('타입이 스키마대로 나간다', () => {
     const out = serialize(HOYOLAND.normalize({
-      goods: [{ name: '아크릴', price: '15000' }], booths: [{ title: '체험', needsReservation: 1 }], ticket: { openHour: '14' },
+      goods: [{ name: '아크릴', price: '15000' }], booths: [{ title: '체험' }], ticket: { openHour: '14' },
     }), {}, HOYOLAND);
     assert(out.goods[0].price === 15000, '가격이 숫자가 아니다');
-    assert(out.booths[0].needsReservation === true, '예약 여부가 불리언이 아니다');
     assert(out.ticket.openHour === 14, '오픈 시각이 숫자가 아니다');
   });
   check('빈 배열은 그대로 나간다(폴백 방지)', () => {
@@ -1401,6 +1652,26 @@ function selftest() {
     assert(col('goods', 'category') === 'suggest', '굿즈샵 분류가 드롭다운이 아니다');
     assert(col('booths', 'game') === 'game', '부스 게임이 드롭다운이 아니다');
     assert(col('lineup', 'game') === 'game', '참여 게임이 드롭다운이 아니다');
+  });
+
+  check('무대 시각이 선택 위젯으로 렌더된다', () => {
+    const col = HOYOLAND.sections.find((x) => x.id === 'days');
+    assert(col, '무대 시간표 섹션이 없다');
+    assert(inputFor({ type: 'hhmm' }, '13:00', () => {}).classList.contains('gl-select'), '시각 칸이 선택 위젯이 아니다');
+  });
+
+  check('시각 칸이 비시각 표기를 구분해 보여준다', () => {
+    const t = glTime({ value: '종일' });
+    assert(/종일/.test(t.textContent), '값이 표시되지 않았다');
+    assert(t.querySelector('.gl-tag'), '"종일" 에 표기 배지가 없다');
+    assert(!/null/.test(t.textContent), 'null 이 화면에 새어 나왔다');
+    const h = glTime({ value: '13:00' });
+    assert(/13:00/.test(h.textContent) && !h.querySelector('.gl-tag'), 'HH:mm 인데 표기 배지가 붙었다');
+  });
+
+  check('시작에 범위를 적고 길이도 채우면 경고', () => {
+    const v = H({ days: [{ ymd: '2026-10-02', slots: [{ time: '13:00 ~ 14:30', title: '무대', minutes: 90 }] }] });
+    assert(has(v, 'warn', /한 번 더 이어 붙입니다/), '중복 범위를 못 잡았다');
   });
 
   check('추천 목록에 빈 값 · 중복이 없다', () => {
@@ -1469,6 +1740,49 @@ function selftest() {
     assert(v === 23, '00 이전이 23 이 아니다: ' + v);
   });
 
+  check('운영자 목록이 규칙과 같은 형태다', () => {
+    assert(OPERATOR_UIDS.length, '운영자 목록이 비었다 — 아무도 들어오지 못한다');
+    assert(new Set(OPERATOR_UIDS).size === OPERATOR_UIDS.length, '목록에 중복이 있다');
+    const bad = OPERATOR_UIDS.filter((u) => !/^[A-Za-z0-9]{20,}$/.test(u));
+    assert(!bad.length, bad.join(', ') + ' 은 Firebase uid 형태가 아니다(이메일을 넣지 않는다)');
+  });
+
+  check('운영자가 아닌 계정은 로그인해도 막힌다', () => {
+    assert(isOperator({ uid: OPERATOR_UIDS[0] }), '운영자 uid 가 막혔다');
+    assert(!isOperator({ uid: 'stranger', email: 'x@y.z' }), '모르는 uid 가 통과했다');
+    assert(!isOperator(null) && !isOperator(undefined), '비로그인이 통과했다');
+  });
+
+  check('authDomain 이 어드민을 서빙하는 도메인과 같다', () => {
+    const host = location.hostname;
+    if (location.protocol === 'file:' || host === 'localhost' || host === '127.0.0.1') return;   // 로컬은 해당 없음
+    const cfg = window.FIREBASE_CONFIG || {};
+    assert(cfg.authDomain === host,
+      `authDomain(${cfg.authDomain}) 이 ${host} 과 다르다 — 모바일 리다이렉트 로그인이 ` +
+      '"missing initial state" 로 죽는다. 도메인을 바꿨다면 OAuth 승인 리디렉션 URI 도 같이 넣는다');
+  });
+
+  check('로그인 화면은 상태가 그대로면 다시 그리지 않는다', () => {
+    const gate = document.getElementById('gate');
+    if (!(window.FIREBASE_CONFIG && window.FIREBASE_CONFIG.apiKey)) return;   // 클라우드 미설정 배포는 해당 없음
+    syncGate();
+    const first = gate.firstElementChild;
+    syncGate();
+    syncGate();
+    assert(first && gate.firstElementChild === first,
+      '같은 상태인데 카드를 다시 만들었다 — 등장 애니메이션이 반복돼 여러 번 뜨는 것처럼 보인다');
+    document.body.classList.remove('gated');
+  });
+
+  check('로그인 화면에 우회로가 없다', () => {
+    const gate = document.getElementById('gate');
+    const configured = !!(window.FIREBASE_CONFIG && window.FIREBASE_CONFIG.apiKey && window.FIREBASE_CONFIG.appId);
+    syncGate();
+    assert(gate.hidden === !configured, configured ? '설정이 있는데 로그인 화면이 뜨지 않는다' : '설정이 없는데 로그인 화면이 떴다');
+    assert(!gate.querySelector('.gate-skip'), '로그인 없이 들어가는 길이 남아 있다');
+    document.body.classList.remove('gated');   // 점검 결과 화면은 스크롤돼야 한다
+  });
+
   check('확인 모달이 Escape 로 닫힌다', () => {
     glConfirm('테스트');
     assert(document.querySelector('.gl-backdrop'), '모달이 뜨지 않았다');
@@ -1520,13 +1834,26 @@ function init() {
     if (RESOURCES.some((r) => docs[r.id].dirty)) e.preventDefault();
   });
 
+  // 모바일에서는 상단바에 자리가 없어 "불러오기" 가 드로어 아래로 내려간다(.nav-only).
+  document.getElementById('btn-load-nav').onclick = () => { setNav(false); document.getElementById('btn-load-remote').click(); };
+  document.getElementById('btn-menu').onclick = () => setNav(!document.body.classList.contains('nav-open'));
+  document.getElementById('nav-backdrop').onclick = () => setNav(false);
+
+  syncGate();
+  // cloud.js 가 끝내 오지 않는 환경(file://)에서 "연결하는 중" 에 멈춰 있지 않게 한다.
+  setTimeout(() => { cloudTimedOut = true; syncGate(); }, 2500);
+
   if (window.cloud) window.cloud.onChange = () => {
     const c = window.cloud;
     const who = document.getElementById('who');
     who.hidden = !c.user;
     if (c.user) who.textContent = c.user.email || c.user.name || '로그인됨';
-    if (c.user && state.res.live && state.live === undefined) refreshLive();
-    else if (state.active === 'live') render();
+    // 버튼은 authReady 를 기다리지 않는다 — 인증 복원이 느리거나 실패해도 로그인 경로는 남아야 한다.
+    // (이미 로그인돼 있으면 곧 도착하는 authReady 콜백에서 사라진다.)
+    // 모달은 반대로 확정된 뒤에만 띄운다. 이미 로그인한 사람에게 뜨면 그게 더 나쁘다.
+    syncGate();
+    if (isOperator(c.user)) syncAll();
+    else liveSynced = false;   // 로그아웃하면 다음 로그인에 다시 맞춘다
   };
 
   const saved = loadDraft();

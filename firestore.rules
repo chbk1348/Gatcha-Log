@@ -38,6 +38,11 @@ service cloud.firestore {
     // 쓰기는 운영자 uid 화이트리스트로 막는다. 커스텀 클레임은 Functions(유료 플랜)가
     // 필요해서 과하고, 문서 기반 역할 조회는 규칙 평가마다 읽기가 한 번 더 든다.
     // uid 확인: Firebase Console → Authentication → 사용자, 또는 앱 개발자 화면.
+    //
+    // ⚠️ 어드민의 `OPERATOR_UIDS`(Gatcha Log Admin/admin.js)와 **같은 값**이다. 그쪽은 로그인
+    // 후 어드민 화면에 들어올 수 있는지를 정하고, 여기는 실제로 쓸 수 있는지를 정한다.
+    // 운영자를 더하거나 뺄 때 두 곳을 같이 고치고 둘 다 배포한다 — 여기에만 넣으면 그 사람은
+    // 어드민 화면에 아예 들어오지 못한다.
     match /config/{doc} {
       allow read: if true;
       allow write: if request.auth != null
