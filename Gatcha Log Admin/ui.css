@@ -1,0 +1,183 @@
+/* Gatcha Log Admin — 커스텀 UI 컴포넌트 스타일. admin.css 의 토큰(--panel · --line …)을 그대로 쓴다.
+   여기 있는 규칙만으로 브라우저 기본 위젯의 자리를 메운다. */
+
+/* 공통 — admin.css 의 input 과 같은 높이 · 테두리를 쓴다. 테이블 안에서는 한 칸 좁아진다. */
+.gl-field {
+  display: flex; align-items: center; gap: 8px;
+  width: 100%; padding: 8px 10px;
+  background: var(--panel-2); color: var(--text);
+  border: 1px solid var(--line); border-radius: 8px;
+  font: inherit; text-align: left;
+}
+td .gl-field { padding: 6px 8px; }
+.gl-field:focus-within { border-color: var(--accent); }
+
+/* .gl-field 안에 들어가는 입력은 껍데기가 테두리를 그리므로 자기 테두리를 지운다. */
+.gl-field > .gl-input {
+  flex: 1; min-width: 0;
+  padding: 0; background: none; border: 0; border-radius: 0;
+}
+.gl-field > .gl-input:focus { outline: 0; }
+
+.gl-dot { width: 9px; height: 9px; border-radius: 50%; flex: none; box-shadow: 0 0 0 1px rgba(0,0,0,.35) inset; }
+.gl-note { font-size: 11px; color: var(--muted); }
+
+/* ── 드롭다운 ─────────────────────────────────────── */
+.gl-select { cursor: pointer; }
+.gl-select:hover, .gl-select:focus { border-color: var(--accent); outline: 0; }
+.gl-select .gl-val { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gl-select .gl-ph { color: #5b6076; }
+.gl-select .gl-tag {
+  flex: none; font-size: 10px; padding: 1px 6px; border-radius: 999px;
+  background: rgba(111,140,255,.16); color: var(--accent);
+}
+.gl-caret {
+  flex: none; width: 8px; height: 8px; margin-left: 2px;
+  border-right: 1.5px solid var(--muted); border-bottom: 1.5px solid var(--muted);
+  transform: translateY(-2px) rotate(45deg);
+}
+.gl-select[aria-expanded=true] .gl-caret { transform: translateY(1px) rotate(-135deg); }
+
+/* ── 팝오버 공통 ──────────────────────────────────── */
+.gl-pop {
+  position: fixed; z-index: 60;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+  box-shadow: 0 14px 40px rgba(0,0,0,.5);
+  overflow: hidden;
+}
+.gl-menu { max-width: min(420px, calc(100vw - 16px)); }
+.gl-menu-head { padding: 8px; border-bottom: 1px solid var(--line); font-size: 11px; color: var(--muted); }
+.gl-menu-head .gl-search {
+  width: 100%; padding: 7px 9px;
+  background: var(--panel-2); color: var(--text);
+  border: 1px solid var(--line); border-radius: 7px; font: inherit;
+}
+.gl-menu-head .gl-search:focus { outline: 0; border-color: var(--accent); }
+.gl-menu-foot { padding: 8px 12px; border-top: 1px solid var(--line); font-size: 11px; color: var(--muted); }
+
+.gl-opts { max-height: 288px; overflow-y: auto; padding: 6px; }
+.gl-opts:focus { outline: 0; }
+.gl-opt {
+  display: flex; align-items: center; gap: 9px;
+  padding: 7px 9px; border-radius: 7px; cursor: pointer; font-size: 13px;
+}
+.gl-opt.cur { background: var(--panel-2); }
+.gl-opt.on { color: #fff; }
+.gl-opt.muted { color: var(--muted); }
+.gl-opt.custom { color: var(--accent); }
+.gl-opt-t { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.gl-opt-t small { font-size: 11px; color: var(--muted); }
+.gl-opt .gl-check { margin-left: auto; color: var(--accent); }
+.gl-empty { padding: 18px; text-align: center; color: var(--muted); font-size: 12px; }
+
+/* ── 스위치 ───────────────────────────────────────── */
+.gl-switch {
+  width: 38px; height: 22px; padding: 2px; flex: none;
+  border: 1px solid var(--line); border-radius: 999px;
+  background: var(--panel-2); cursor: pointer;
+  display: inline-flex; align-items: center;
+}
+.gl-switch .gl-knob {
+  width: 16px; height: 16px; border-radius: 50%;
+  background: var(--muted); transition: transform .13s ease, background .13s ease;
+}
+.gl-switch.on { background: var(--accent-2); border-color: var(--accent); }
+.gl-switch.on .gl-knob { transform: translateX(16px); background: var(--accent); }
+.gl-switch:focus { outline: 0; border-color: var(--accent); }
+
+/* ── 숫자 스테퍼 ──────────────────────────────────── */
+.gl-num { gap: 2px; padding: 3px 4px; }
+td .gl-num { padding: 2px 3px; }
+.gl-num.tight { width: 78px; flex: none; }
+.gl-num-b {
+  flex: none; width: 24px; height: 24px; line-height: 1;
+  /* 테이블 열은 좁다 — 버튼을 줄여 숫자에 자리를 내준다 */
+  border: 0; border-radius: 6px; background: none;
+  color: var(--muted); font: inherit; cursor: pointer;
+}
+.gl-num-b:hover { background: var(--panel); color: var(--text); }
+td .gl-num-b { width: 20px; height: 22px; }
+.gl-num-in { flex: 1; min-width: 0; text-align: center; }
+
+/* ── 날짜 · 시각 ──────────────────────────────────── */
+.gl-date { gap: 6px; }
+.gl-date .gl-date-in { letter-spacing: .01em; }
+.gl-icon-b {
+  flex: none; display: grid; place-items: center;
+  width: 26px; height: 24px; padding: 0;
+  border: 0; border-radius: 6px; background: none;
+  color: var(--muted); font: inherit; cursor: pointer;
+}
+.gl-icon-b:hover { background: var(--panel); color: var(--text); }
+.gl-cal-ico {
+  width: 13px; height: 12px; border: 1.5px solid currentColor; border-radius: 2px;
+  border-top-width: 4px; display: block;
+}
+
+.gl-cal-pop { padding: 10px; }
+.gl-cal-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+.gl-cal-head strong { font-size: 13px; }
+.gl-cal-grid { display: grid; grid-template-columns: repeat(7, 32px); gap: 2px; }
+.gl-cal-w { display: grid; place-items: center; height: 22px; font-size: 11px; color: var(--muted); }
+.gl-cal-d {
+  height: 30px; border: 1px solid transparent; border-radius: 7px;
+  background: none; color: var(--text); font: inherit; font-size: 12px; cursor: pointer;
+}
+.gl-cal-d:hover { background: var(--panel-2); }
+.gl-cal-d.today { border-color: var(--line); color: var(--warn); }
+.gl-cal-d.on { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+.gl-cal-foot { display: flex; align-items: center; gap: 6px; margin-top: 9px; padding-top: 9px; border-top: 1px solid var(--line); }
+.gl-mini {
+  padding: 4px 9px; border: 1px solid var(--line); border-radius: 7px;
+  background: var(--panel-2); color: var(--muted); font: inherit; font-size: 12px; cursor: pointer;
+}
+.gl-mini:hover { border-color: var(--accent); color: var(--text); }
+
+.gl-time { display: flex; align-items: center; gap: 6px; margin-top: 9px; padding-top: 9px; border-top: 1px solid var(--line); }
+.gl-time-l { font-size: 11px; color: var(--muted); }
+.gl-time-c { color: var(--muted); }
+
+/* ── 색 ───────────────────────────────────────────── */
+.gl-color { gap: 8px; }
+.gl-swatch {
+  flex: none; width: 20px; height: 20px; padding: 0;
+  border: 1px solid var(--line); border-radius: 5px; cursor: pointer;
+}
+.gl-swatch.empty {
+  background-image: linear-gradient(45deg, var(--line) 25%, transparent 25%, transparent 75%, var(--line) 75%),
+                    linear-gradient(45deg, var(--line) 25%, transparent 25%, transparent 75%, var(--line) 75%);
+  background-size: 8px 8px; background-position: 0 0, 4px 4px;
+}
+.gl-color-pop { width: 194px; padding: 0; }
+.gl-color-pop .gl-cal-foot { flex-wrap: wrap; margin: 0; padding: 9px 10px; }
+.gl-color-pop .gl-note { flex: 1 1 100%; }
+.gl-pal { display: grid; grid-template-columns: repeat(5, 30px); gap: 6px; padding: 10px; }
+.gl-pal-c { height: 30px; border: 1px solid var(--line); border-radius: 7px; cursor: pointer; }
+.gl-pal-c.on { box-shadow: 0 0 0 2px var(--accent); }
+
+/* ── 확인 모달 ────────────────────────────────────── */
+.gl-backdrop {
+  position: fixed; inset: 0; z-index: 80;
+  display: grid; place-items: center;
+  background: rgba(6,8,13,.62);
+}
+.gl-modal {
+  width: min(420px, calc(100vw - 32px)); padding: 20px;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
+  box-shadow: 0 20px 60px rgba(0,0,0,.55);
+}
+.gl-modal h3 { margin: 0 0 8px; font-size: 15px; }
+.gl-modal p { margin: 0 0 6px; font-size: 13px; color: var(--text); line-height: 1.65; }
+.gl-modal .gl-note { margin-top: 10px; font-size: 11px; color: var(--muted); }
+.gl-modal-act { display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px; }
+.btn-danger-solid { background: var(--err); border-color: var(--err); color: #fff; font-weight: 600; }
+
+/* 포커스 링 — 브라우저 기본 링은 파란 고정색이라 다크 테마와 겉돈다. */
+.btn:focus-visible, .gl-mini:focus-visible, .gl-icon-b:focus-visible, .gl-num-b:focus-visible,
+.gl-cal-d:focus-visible, .gl-swatch:focus-visible, .gl-pal-c:focus-visible, .gl-switch:focus-visible {
+  outline: 2px solid var(--accent); outline-offset: 1px;
+}
+
+/* ── 배치 보정 ────────────────────────────────────── */
+.day-head .gl-field { width: 176px; flex: none; }
+.day-head > .gl-input { width: 240px; flex: none; }

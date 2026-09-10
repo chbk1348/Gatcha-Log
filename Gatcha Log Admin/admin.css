@@ -140,13 +140,15 @@ body {
 .field .note { font-size: 11px; color: var(--muted); }
 .field.wide { grid-column: 1 / -1; }
 
-input[type=text], input[type=number], input[type=date], input[type=url], select, textarea {
+/* 기본 위젯(select · number · date · datetime-local · checkbox)은 쓰지 않는다 — ui.js 의
+   커스텀 컴포넌트가 대신한다. 여기 남은 건 텍스트 계열과 그 껍데기(.gl-field)뿐이다. */
+input[type=text], textarea {
   width: 100%; padding: 8px 10px;
   background: var(--panel-2); color: var(--text);
   border: 1px solid var(--line); border-radius: 8px;
   font: inherit;
 }
-input:focus, select:focus, textarea:focus { outline: 0; border-color: var(--accent); }
+input:focus, textarea:focus { outline: 0; border-color: var(--accent); }
 textarea { resize: vertical; min-height: 68px; }
 input::placeholder, textarea::placeholder { color: #5b6076; }
 
@@ -169,13 +171,9 @@ th {
 }
 td { padding: 4px 8px; border-bottom: 1px solid var(--line); vertical-align: middle; }
 tr:last-child td { border-bottom: 0; }
-td input[type=text], td input[type=number], td select { padding: 6px 8px; }
+td input[type=text] { padding: 6px 8px; }
 td.actions { white-space: nowrap; text-align: right; }
 .row-empty { padding: 22px; text-align: center; color: var(--muted); }
-
-.swatch { width: 20px; height: 20px; border-radius: 5px; border: 1px solid var(--line); display: inline-block; vertical-align: -5px; }
-
-.chk { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
 
 .bar { height: 4px; border-radius: 2px; background: var(--panel-2); margin: 5px 0 3px; overflow: hidden; }
 .bar > span { display: block; height: 100%; border-radius: 2px; }

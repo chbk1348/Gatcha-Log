@@ -3,9 +3,9 @@
  * 이 저장소가 발행하는 운영 JSON 을 편집·검증·반영한다. 리소스마다 스키마와 검증 규칙만
  * 다르고, 폼/테이블 렌더 · 직렬화 · 라이브 반영 · 내보내기는 전부 공용이다.
  *
- *   호요랜드   hoyoland.json    ← config/hoyoland    (HoyolandApi)
- *   ZZZ 배너   zzz_banners.json ← config/zzzBanners  (ZzzBannerApi)
- *   앱 배포    version.json     ← 라이브 없음         (UpdateChecker)
+ *   호요랜드   config/hoyoland.json    ← config/hoyoland    (HoyolandApi)
+ *   ZZZ 배너   config/zzz_banners.json ← config/zzzBanners  (ZzzBannerApi)
+ *   앱 배포    version.json            ← 라이브 없음         (UpdateChecker)
  *
  * 앱은 라이브(Firestore) → 정본(raw json) → 번들 순으로 내려온다. 검증 규칙의 정본은
  * 각 API 의 파서다 — 파서를 고치면 여기 SECTIONS 와 validate 도 같이 고친다.
@@ -22,6 +22,50 @@ const YMD = /^\d{4}-\d{2}-\d{2}$/;
 const KST_DT = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/;
 
 /* ═════════════════════════════════════════════════════════════
+ * 게임 카탈로그 — 게임 이름은 고르는 값이지 적는 값이 아니다.
+ *
+ * 이름이 한 글자만 어긋나도 앱은 다른 게임으로 본다("젠레스 존 제로" ≠ "젠레스존제로").
+ * GameData.byNameOrNull 이 displayName · shortName · key 로만 찾기 때문이다.
+ *
+ * 앞의 6개는 앱 GameData.Game 과 1:1 이다 — 약칭 · 색을 앱이 이미 알아서 lineup 의
+ * abbr · colorArgb 를 비워 둔다. 뒤의 4개는 행사에만 나와 앱이 모르므로 둘을 채워야 한다.
+ * 정본은 GameData.kt 다. 게임이 늘면 여기도 같이 고친다.
+ * ═════════════════════════════════════════════════════════════ */
+
+const GAME_CATALOG = [
+  { name: '원신', abbr: 'GI', argb: '0xFF4F8EF7', app: true },
+  { name: '붕괴: 스타레일', abbr: 'HSR', argb: '0xFFB06BFF', app: true },
+  { name: '젠레스 존 제로', abbr: 'ZZZ', argb: '0xFFF5A623', app: true },
+  { name: '명조', abbr: 'WW', argb: '0xFFE5007F', app: true },
+  { name: '명일방주: 엔드필드', abbr: 'EF', argb: '0xFF1CB8A8', app: true },
+  { name: '이환', abbr: 'NTE', argb: '0xFF6C5CE7', app: true },
+  { name: '붕괴3rd', abbr: 'HI3', argb: '0xFF30C6E8' },
+  { name: '미해결사건부', abbr: 'ToT', argb: '0xFFE0557B' },
+  { name: '붕괴: 넥서스 아니마', abbr: 'NXA', argb: '0xFF3FBF7F' },
+  { name: '쁘띠플래닛', abbr: 'PP', argb: '0xFF9BC53D' },
+];
+
+const GAME_OPTIONS = GAME_CATALOG.map((g) => ({
+  value: g.name,
+  label: g.name,
+  dot: argbToHex(g.argb),
+  hint: g.app ? `${g.abbr} · 앱이 아는 게임` : `${g.abbr} · 앱에 없음 — 약칭 · 색을 채우세요`,
+}));
+
+const GAME_PALETTE = GAME_CATALOG.map((g) => ({ name: g.name, argb: g.argb }));
+
+/* 값의 집합이 사실상 정해진 칸들 — 드롭다운(type: 'suggest')으로 고르되 목록 밖 값도 그대로 받는다.
+ * 앱은 이 값들을 문자열로 그대로 노출할 뿐이라 목록을 지킬 의무는 없다. 매번 같은 걸 다시 타이핑하며
+ * "아크릴" 과 "아크릴스탠드" 가 뒤섞이는 걸 막는 게 전부다. */
+const GOODS_CATEGORIES = ['아크릴', '아크릴 스탠드', '뱃지', '키링', '인형', '피규어',
+  '포스터', '화보집', '의류', '문구', '식음료', '세트', '랜덤박스'];
+const TICKET_VENDORS = ['인터파크 티켓', 'NOL 티켓', '예스24 티켓', '멜론티켓', '티켓링크', '공식 홈페이지'];
+const FACT_LABELS = ['기간', '장소', '규모', '관람객', '티켓', '참여 IP', '구성', '전시', '스폰서', '주최'];
+const BOOTH_DURATIONS = ['약 5분', '약 10분', '약 15분', '약 20분', '약 30분'];
+const VENUE_NAMES = ['일산 킨텍스 제1전시장', '일산 킨텍스 제2전시장', '코엑스',
+  '세텍(SETEC)', '부산 벡스코(BEXCO)', 'DDP'];
+
+/* ═════════════════════════════════════════════════════════════
  * 리소스 1 — 호요랜드 (HoyolandApi.parse)
  * ═════════════════════════════════════════════════════════════ */
 
@@ -33,14 +77,14 @@ const TICKET_STATUS = [
 ];
 
 const LINEUP_COLS = [
-  { key: 'game', label: '게임', type: 'text', required: true, placeholder: '원신' },
+  { key: 'game', label: '게임', type: 'game', required: true },
   { key: 'theme', label: '테마 · 출품 내용', type: 'text' },
   { key: 'abbr', label: '약칭', type: 'text', width: '80px', placeholder: 'HI3' },
   { key: 'colorArgb', label: '색(ARGB)', type: 'argb', width: '150px' },
 ];
 
 const FACT_COLS = [
-  { key: 'label', label: '항목', type: 'text', required: true, width: '160px', placeholder: '기간' },
+  { key: 'label', label: '항목', type: 'suggest', options: FACT_LABELS, required: true, width: '160px' },
   { key: 'value', label: '내용', type: 'text' },
 ];
 
@@ -48,7 +92,7 @@ const HOYOLAND = {
   id: 'hoyoland',
   label: '호요랜드',
   hint: '행사 정보',
-  file: 'hoyoland.json',
+  file: 'config/hoyoland.json',
   doc: 'hoyoland',
   live: true,
 
@@ -163,7 +207,7 @@ const HOYOLAND = {
         { key: 'startYmd', label: '시작일', type: 'date', note: '날짜 탭이 이 범위로 만들어집니다' },
         { key: 'endYmd', label: '종료일', type: 'date' },
         { key: 'announceYmd', label: '개최 발표일', type: 'date', note: '카운트다운 진행 바의 출발점' },
-        { key: 'venueName', label: '장소', type: 'text', placeholder: '일산 킨텍스 제2전시장' },
+        { key: 'venueName', label: '장소', type: 'suggest', options: VENUE_NAMES },
         { key: 'venueHall', label: '홀', type: 'text', placeholder: '7·8홀 · 후면광장' },
         { key: 'venueAddress', label: '주소', type: 'text', wide: true },
         { key: 'mapUrl', label: '지도 URL', type: 'url', wide: true, note: '네이버 지도 등 1순위 링크' },
@@ -176,7 +220,7 @@ const HOYOLAND = {
       desc: '상태를 바꾸면 앱의 예매 카드가 바뀝니다. 알림 예약은 openYmd · openHour 를 읽습니다.',
       fields: [
         { key: 'status', label: '상태', type: 'select', options: TICKET_STATUS, wide: true },
-        { key: 'vendor', label: '예매처', type: 'text', placeholder: '인터파크 티켓' },
+        { key: 'vendor', label: '예매처', type: 'suggest', options: TICKET_VENDORS },
         { key: 'priceLabel', label: '가격 표기', type: 'text', placeholder: '30,000원' },
         { key: 'openLabel', label: '오픈 표기', type: 'text', placeholder: '9.20(토) 14:00', note: '화면에 보이는 문구' },
         { key: 'openYmd', label: '오픈 날짜', type: 'date', note: '알림 예약이 읽는 값 — 표기와 별도로 채워야 알림이 갑니다' },
@@ -201,9 +245,9 @@ const HOYOLAND = {
       desc: '가격은 숫자로 넣습니다 — 문자열이면 앱이 합계를 내지 못합니다. 미정이면 0.',
       columns: [
         { key: 'name', label: '상품명', type: 'text', required: true },
-        { key: 'game', label: '게임', type: 'text', width: '130px' },
-        { key: 'category', label: '분류', type: 'text', width: '110px', placeholder: '아크릴' },
-        { key: 'price', label: '가격(원)', type: 'number', width: '110px', min: 0 },
+        { key: 'game', label: '게임', type: 'game', width: '150px' },
+        { key: 'category', label: '분류', type: 'suggest', options: GOODS_CATEGORIES, width: '130px' },
+        { key: 'price', label: '가격(원)', type: 'number', width: '130px', min: 0 },
         { key: 'soldOut', label: '품절', type: 'bool', width: '60px' },
         { key: 'note', label: '비고', type: 'text' },
       ] },
@@ -211,9 +255,9 @@ const HOYOLAND = {
       desc: '체험존 운영 정보. 예약이 필요한 부스는 needsReservation 을 켭니다.',
       columns: [
         { key: 'title', label: '부스명', type: 'text', required: true },
-        { key: 'game', label: '게임', type: 'text', width: '130px' },
+        { key: 'game', label: '게임', type: 'game', width: '150px' },
         { key: 'location', label: '위치', type: 'text', width: '120px' },
-        { key: 'duration', label: '소요', type: 'text', width: '90px', placeholder: '약 10분' },
+        { key: 'duration', label: '소요', type: 'suggest', options: BOOTH_DURATIONS, width: '110px' },
         { key: 'capacity', label: '정원', type: 'text', width: '90px' },
         { key: 'reward', label: '보상', type: 'text', width: '140px' },
         { key: 'needsReservation', label: '예약', type: 'bool', width: '60px' },
@@ -239,7 +283,7 @@ const ZZZ = {
   id: 'zzz',
   label: 'ZZZ 배너',
   hint: '픽업 일정',
-  file: 'zzz_banners.json',
+  file: 'config/zzz_banners.json',
   doc: 'zzzBanners',
   live: true,
 
@@ -418,15 +462,15 @@ const GLOBAL_SECTIONS = [
  * ═════════════════════════════════════════════════════════════ */
 
 const EXTERNAL_APIS = [
-  { name: 'Hoyoland 정본', host: 'raw.githubusercontent.com', path: 'chbk1348/Gatcha-Log/main/hoyoland.json',
+  { name: 'Hoyoland 정본', host: 'raw.githubusercontent.com', path: 'chbk1348/Gatcha-Log/main/config/hoyoland.json',
     use: '호요랜드 행사 정보', auth: '없음', onFail: '번들 HoyolandDefaults 로 조용히 폴백', owned: true,
-    probe: 'https://raw.githubusercontent.com/chbk1348/Gatcha-Log/main/hoyoland.json' },
+    probe: 'https://raw.githubusercontent.com/chbk1348/Gatcha-Log/main/config/hoyoland.json' },
   { name: '버전 매니페스트', host: 'raw.githubusercontent.com', path: 'chbk1348/Gatcha-Log/main/version.json',
     use: '인앱 업데이트 · 강제 업데이트', auth: '없음', onFail: '업데이트 안내 생략', owned: true,
     probe: 'https://raw.githubusercontent.com/chbk1348/Gatcha-Log/main/version.json' },
-  { name: 'ZZZ 픽업 배너', host: 'raw.githubusercontent.com', path: 'chbk1348/Gatcha-Log/main/zzz_banners.json',
+  { name: 'ZZZ 픽업 배너', host: 'raw.githubusercontent.com', path: 'chbk1348/Gatcha-Log/main/config/zzz_banners.json',
     use: 'ZZZ 배너 수동 관리(공개 API 부재)', auth: '없음', onFail: '배너 섹션 미표시', owned: true,
-    probe: 'https://raw.githubusercontent.com/chbk1348/Gatcha-Log/main/zzz_banners.json' },
+    probe: 'https://raw.githubusercontent.com/chbk1348/Gatcha-Log/main/config/zzz_banners.json' },
   { name: 'HoyoLab 게임기록', host: 'bbs-api-os.hoyolab.com', path: 'game_record/app/**',
     use: '실시간 메모 · 캐릭터 · 심연/혼돈', auth: '쿠키(ltoken · ltuid)', onFail: '해당 카드 미표시',
     probe: 'https://bbs-api-os.hoyolab.com/' },
@@ -535,20 +579,6 @@ function get(obj, path) {
   return path.split('.').reduce((o, k) => (o == null ? o : o[k]), obj);
 }
 
-const el = (tag, props = {}, children = []) => {
-  const n = document.createElement(tag);
-  for (const [k, v] of Object.entries(props)) {
-    if (k === 'class') n.className = v;
-    else if (k === 'html') n.innerHTML = v;
-    else if (k === 'text') n.textContent = v;
-    else if (k.startsWith('on')) n.addEventListener(k.slice(2), v);
-    else if (v === true) n.setAttribute(k, '');
-    else if (v !== false && v != null) n.setAttribute(k, v);
-  }
-  for (const c of [].concat(children)) if (c != null) n.append(c);
-  return n;
-};
-
 /** "yyyy-MM-dd HH:mm" (KST) → epoch millis. ZzzBannerApi.millis 와 같은 규칙. 실패 시 0. */
 function kstMillis(s) {
   const v = String(s ?? '').trim();
@@ -572,50 +602,65 @@ const toJson = () => JSON.stringify(serialize(state.draft, state.original, state
 const issuesNow = () => state.res.validate(state.draft);
 
 /* ═════════════════════════════════════════════════════════════
- * 입력 위젯
+ * 입력 위젯 — 실물은 전부 ui.js 의 커스텀 컴포넌트다.
+ *
+ * 여기서는 스키마의 type 을 컴포넌트로 잇고, **언제 dirty 를 찍을지**만 정한다.
+ *   onInput  타이핑 중 — 초안에만 반영(저장 배지를 매 글자 흔들지 않는다)
+ *   onChange 확정 — 초안 + dirty
  * ═════════════════════════════════════════════════════════════ */
 
 function inputFor(cfg, value, onChange) {
   const commit = (v) => { onChange(v); markDirty(); };
 
-  if (cfg.type === 'select') {
-    const s = el('select', { onchange: (e) => commit(e.target.value) });
-    for (const o of cfg.options) s.append(el('option', { value: o.value, selected: o.value === value, text: o.label }));
-    return s;
+  switch (cfg.type) {
+    case 'select':
+      return glSelect({ value, options: cfg.options, placeholder: cfg.placeholder, onChange: commit });
+
+    case 'game':
+      // 목록에 없는 게임(신작 · 협업 부스)은 검색창에 적어 그대로 넣는다 — 앱이 이름으로만 찾으므로
+      // 오타를 막는 게 목적이지 값을 가두는 게 목적이 아니다.
+      return glSelect({
+        value, options: GAME_OPTIONS, onChange: commit,
+        searchable: true, allowCustom: true, clearable: !cfg.required,
+        placeholder: cfg.placeholder || '게임 선택',
+        note: '목록에 없으면 검색창에 그대로 적어 “직접 입력”으로 넣습니다.',
+      });
+
+    case 'suggest':
+      // 게임과 같은 드롭다운이되 색 점 · 앱 지원 표시가 없는 형태. 목록은 거들 뿐이라 직접 입력이 열려 있다.
+      return glSelect({
+        value, onChange: commit,
+        options: cfg.options.map((o) => (typeof o === 'string' ? { value: o, label: o } : o)),
+        searchable: true, allowCustom: true, clearable: !cfg.required,
+        placeholder: cfg.placeholder || '선택 · 직접 입력',
+        note: '목록에 없으면 검색창에 그대로 적어 “직접 입력”으로 넣습니다.',
+      });
+
+    case 'bool':
+      return glToggle({ value: !!value, title: cfg.label || '', onChange: commit });
+
+    case 'date':
+      return glDate({ value, onInput: onChange, onChange: commit });
+
+    case 'kstdt':
+      return glDateTime({ value, onInput: onChange, onChange: commit });
+
+    case 'number':
+      return glNumber({ value, min: cfg.min, max: cfg.max, onInput: onChange, onChange: commit });
+
+    case 'argb':
+      return glColor({ value, palette: GAME_PALETTE, onInput: onChange, onChange: commit });
+
+    case 'textarea':
+      return glTextarea({ value, placeholder: cfg.placeholder, onInput: onChange, onChange: commit });
+
+    default:
+      return glText({
+        value, placeholder: cfg.placeholder,
+        inputmode: cfg.type === 'url' ? 'url' : null,
+        onInput: onChange, onChange: commit,
+      });
   }
-  if (cfg.type === 'textarea') {
-    return el('textarea', { placeholder: cfg.placeholder || '', oninput: (e) => onChange(e.target.value), onchange: () => markDirty() }, [value ?? '']);
-  }
-  if (cfg.type === 'bool') {
-    return el('input', { type: 'checkbox', checked: !!value, onchange: (e) => commit(e.target.checked) });
-  }
-  if (cfg.type === 'kstdt') {
-    // datetime-local 은 "yyyy-MM-ddTHH:mm" 를 준다 — 저장은 앱 파서가 읽는 공백 구분으로 되돌린다.
-    return el('input', {
-      type: 'datetime-local', value: String(value ?? '').replace(' ', 'T'),
-      onchange: (e) => commit(e.target.value ? e.target.value.replace('T', ' ').slice(0, 16) : ''),
-    });
-  }
-  if (cfg.type === 'argb') {
-    const wrap = el('div', { style: 'display:flex;gap:6px;align-items:center' });
-    const sw = el('span', { class: 'swatch' });
-    const paint = (v) => {
-      const hex = String(v || '').replace(/^0x|^#/i, '');
-      sw.style.background = /^[0-9a-f]{8}$/i.test(hex) ? '#' + hex.slice(2) : 'transparent';
-    };
-    paint(value);
-    wrap.append(sw, el('input', {
-      type: 'text', value: value ?? '', placeholder: '0xFF30C6E8',
-      oninput: (e) => { paint(e.target.value); onChange(e.target.value); }, onchange: () => markDirty(),
-    }));
-    return wrap;
-  }
-  const type = cfg.type === 'number' ? 'number' : cfg.type === 'date' ? 'date' : cfg.type === 'url' ? 'url' : 'text';
-  return el('input', {
-    type, value: value ?? '', placeholder: cfg.placeholder || '', min: cfg.min, max: cfg.max,
-    oninput: (e) => onChange(type === 'number' ? Number(e.target.value) : e.target.value),
-    onchange: () => markDirty(),
-  });
 }
 
 /* ═════════════════════════════════════════════════════════════
@@ -740,9 +785,9 @@ function renderDays(sec) {
   const SLOT_COLS = [
     { key: 'time', label: '시간', type: 'text', width: '130px', placeholder: '13:00 ~ 14:30' },
     { key: 'title', label: '제목', type: 'text', required: true },
-    { key: 'game', label: '게임', type: 'text', width: '130px', placeholder: '비우면 합동' },
+    { key: 'game', label: '게임', type: 'game', width: '150px', placeholder: '비우면 합동' },
     { key: 'cast', label: '출연', type: 'text', width: '160px' },
-    { key: 'minutes', label: '길이(분)', type: 'number', width: '90px', min: 0 },
+    { key: 'minutes', label: '길이(분)', type: 'number', width: '110px', min: 0 },
     { key: 'desc', label: '설명', type: 'text' },
   ];
   const kids = [el('div', { class: 'section-head' }, [
@@ -750,8 +795,12 @@ function renderDays(sec) {
     el('div', { class: 'tools' }, [
       el('button', { class: 'btn btn-sm', onclick: fillDaysFromRange }, ['행사 기간으로 날짜 채우기']),
       el('button', { class: 'btn btn-sm', onclick: () => { days.push({ ymd: '', slots: [] }); markDirty(); render(); } }, ['+ 날짜 추가']),
-      el('button', { class: 'btn btn-sm btn-danger', onclick: () => {
-        if (confirm('시간표를 전부 비웁니다. 빈 배열도 유효한 값이라 앱에서 시간표가 사라집니다.')) { days.length = 0; markDirty(); render(); }
+      el('button', { class: 'btn btn-sm btn-danger', onclick: async () => {
+        const ok = await glConfirm(`${days.length}일 · 슬롯 ${days.reduce((a, d) => a + d.slots.length, 0)}건을 전부 지웁니다.`, {
+          title: '무대 시간표 비우기', ok: '비우기', danger: true,
+          note: '빈 배열도 유효한 값이라 앱에서 시간표가 통째로 사라집니다.',
+        });
+        if (ok) { days.length = 0; markDirty(); render(); }
       } }, ['전체 비우기']),
     ]),
   ])];
@@ -766,8 +815,12 @@ function renderDays(sec) {
         el('div', { class: 'tools' }, [
           el('button', { class: 'btn btn-sm', disabled: i === 0, onclick: () => move(days, i, -1) }, ['↑']),
           el('button', { class: 'btn btn-sm', disabled: i === days.length - 1, onclick: () => move(days, i, 1) }, ['↓']),
-          el('button', { class: 'btn btn-sm btn-danger', onclick: () => {
-            if (confirm(`${day.ymd || 'Day ' + (i + 1)} 을 삭제합니다.`)) { days.splice(i, 1); markDirty(); render(); }
+          el('button', { class: 'btn btn-sm btn-danger', onclick: async () => {
+            const ok = await glConfirm(`${day.ymd || 'Day ' + (i + 1)} 을 삭제합니다.`, {
+              title: '날짜 삭제', ok: '삭제', danger: true,
+              note: day.slots.length ? `이 날의 슬롯 ${day.slots.length}건도 같이 사라집니다.` : '',
+            });
+            if (ok) { days.splice(i, 1); markDirty(); render(); }
           } }, ['✕']),
         ]),
       ]),
@@ -835,8 +888,9 @@ function renderPast(sec) {
         el('div', { class: 'tools' }, [
           el('button', { class: 'btn btn-sm', disabled: i === 0, onclick: () => move(list, i, -1) }, ['↑']),
           el('button', { class: 'btn btn-sm', disabled: i === list.length - 1, onclick: () => move(list, i, 1) }, ['↓']),
-          el('button', { class: 'btn btn-sm btn-danger', onclick: () => {
-            if (confirm(`"${ev.title || '무제'}" 를 삭제합니다.`)) { list.splice(i, 1); markDirty(); render(); }
+          el('button', { class: 'btn btn-sm btn-danger', onclick: async () => {
+            const ok = await glConfirm(`“${ev.title || '무제'}” 를 삭제합니다.`, { title: '지난 행사 삭제', ok: '삭제', danger: true });
+            if (ok) { list.splice(i, 1); markDirty(); render(); }
           } }, ['✕']),
         ]),
       ]),
@@ -873,7 +927,7 @@ function renderDashboard(sec) {
        '앱은 다음 조회부터 이 값을 읽습니다 — 커밋 · 앱 업데이트 불필요',
        `현장 대응이 끝나면 “정본 내보내기”로 ${res.file} 도 갱신해 커밋 (라이브가 비면 앱이 여기로 내려옵니다)`]
     : ['어드민에서 편집 → “정본 내보내기”로 JSON 복사 또는 다운로드',
-       `저장소 루트의 ${res.file} 를 교체하고 커밋 · 푸시`,
+       `저장소의 ${res.file} 를 교체하고 커밋 · 푸시`,
        '앱은 다음 실행에 raw 로 읽어 반영 — 앱 업데이트 불필요'];
 
   return el('div', {}, [
@@ -941,9 +995,11 @@ function renderLive(sec) {
     el('span', {}),
     el('div', { class: 'tools' }, [
       el('button', { class: 'btn btn-sm', onclick: refreshLive }, ['라이브 상태 새로고침']),
-      el('button', { class: 'btn btn-sm', disabled: !st, onclick: () => {
+      el('button', { class: 'btn btn-sm', disabled: !st, onclick: async () => {
         if (!state.live) return;
-        if (state.dirty && !confirm('편집 중인 내용을 라이브 값으로 덮어쓸까요?')) return;
+        if (state.dirty && !await glConfirm('편집 중인 내용을 라이브 값으로 덮어씁니다.', {
+          title: '라이브 값 불러오기', ok: '덮어쓰기', danger: true, note: '되돌릴 수 없습니다.',
+        })) return;
         setData(JSON.parse(state.live.json), '라이브 · Firestore');
         toast('라이브 값을 불러왔습니다.');
       } }, ['라이브 값 불러오기']),
@@ -977,7 +1033,11 @@ async function publish() {
   const res = state.res;
   if (!res.live) { toast('이 리소스는 라이브 반영을 쓰지 않습니다.'); return; }
   const json = toJson();
-  if (!confirm(`앱이 즉시 이 값을 읽게 됩니다(${res.label}). 반영할까요?`)) return;
+  const errCount = issuesNow().filter((i) => i.level === 'error').length;
+  if (!await glConfirm(`${res.label} 을 라이브(config/${res.doc})에 씁니다. 앱은 다음 조회부터 이 값을 읽습니다.`, {
+    title: '라이브 반영', ok: '반영',
+    note: errCount ? `검증 오류 ${errCount}건이 남아 있습니다 — 앱이 해당 값을 버립니다.` : '',
+  })) return;
   try {
     await c.push(res.doc, json);
     state.live = { json, updatedAt: Date.now(), updatedBy: c.user.email || c.user.uid };
@@ -1093,10 +1153,12 @@ function renderExport(sec) {
 function download() {
   const res = state.res;
   const blob = new Blob([toJson()], { type: 'application/json' });
-  const a = el('a', { href: URL.createObjectURL(blob), download: res.file });
+  // 정본은 저장소 안 경로(config/hoyoland.json)로 적혀 있지만, download 속성에는 **파일명만**
+  // 넣는다 — 브라우저가 경로 구분자를 허용하지 않아 이름이 `config_hoyoland.json` 으로 바뀐다.
+  const a = el('a', { href: URL.createObjectURL(blob), download: res.file.split('/').pop() });
   a.click();
   URL.revokeObjectURL(a.href);
-  toast(`${res.file} 을 내려받았습니다. 저장소 루트에 덮어쓰고 커밋하세요.`);
+  toast(`${res.file.split('/').pop()} 을 내려받았습니다. 저장소의 ${res.file} 에 덮어쓰고 커밋하세요.`);
 }
 
 /* ═════════════════════════════════════════════════════════════
@@ -1110,6 +1172,7 @@ const RENDERERS = {
 };
 
 function render() {
+  closePop();   // 다시 그리면 팝오버가 붙어 있던 앵커가 사라진다 — 허공에 뜬 패널을 남기지 않는다
   renderNav();
   const sec = findSection(state.active) || findSection('dashboard');
   state.active = sec.id;
@@ -1318,6 +1381,101 @@ function selftest() {
     assert(VERSION.live === false, 'version.json 은 라이브를 쓰지 않아야 한다');
   });
 
+  /* ── 게임 카탈로그 · 커스텀 컴포넌트 ─────────────────── */
+
+  check('게임 카탈로그가 형식을 지킨다', () => {
+    const names = GAME_CATALOG.map((g) => g.name);
+    assert(new Set(names).size === names.length, '이름이 겹친다 — 드롭다운에 같은 항목이 두 번 뜬다');
+    const bad = GAME_CATALOG.filter((g) => !/^0xFF[0-9A-F]{6}$/.test(g.argb));
+    assert(!bad.length, bad.map((g) => g.name).join(', ') + ' 의 색이 0xFFRRGGBB 가 아니다');
+    assert(GAME_CATALOG.filter((g) => g.app).length === 6,
+      '앱이 아는 게임은 GameData.Game 의 6종이다 — GameData.kt 를 같이 고쳤는지 확인하세요');
+  });
+
+  check('게임 · 추천 칸이 드롭다운으로 렌더된다', () => {
+    for (const cfg of [{ type: 'game' }, { type: 'suggest', options: GOODS_CATEGORIES }]) {
+      assert(inputFor(cfg, '', () => {}).classList.contains('gl-select'), cfg.type + ' 이 드롭다운이 아니다');
+    }
+    const col = (id, key) => HOYOLAND.sections.find((x) => x.id === id).columns.find((c) => c.key === key).type;
+    assert(col('goods', 'game') === 'game', '굿즈샵 게임이 드롭다운이 아니다');
+    assert(col('goods', 'category') === 'suggest', '굿즈샵 분류가 드롭다운이 아니다');
+    assert(col('booths', 'game') === 'game', '부스 게임이 드롭다운이 아니다');
+    assert(col('lineup', 'game') === 'game', '참여 게임이 드롭다운이 아니다');
+  });
+
+  check('추천 목록에 빈 값 · 중복이 없다', () => {
+    for (const [name, list] of [['굿즈 분류', GOODS_CATEGORIES], ['예매처', TICKET_VENDORS],
+      ['정보 항목', FACT_LABELS], ['부스 소요', BOOTH_DURATIONS], ['행사장', VENUE_NAMES]]) {
+      assert(list.every((v) => v.trim()), name + ' 에 빈 값이 있다');
+      assert(new Set(list).size === list.length, name + ' 에 중복이 있다');
+    }
+  });
+
+  check('색이 ARGB 와 hex 를 왕복한다', () => {
+    assert(argbToHex('0xFF30C6E8') === '#30c6e8', 'ARGB → hex 가 틀렸다');
+    assert(hexToArgb('#30c6e8') === '0xFF30C6E8', 'hex → ARGB 가 틀렸다');
+    assert(argbToHex('#E0557B') === '#e0557b', '# 표기를 못 읽는다');
+    assert(argbToHex('색없음') === '', '잘못된 값을 걸러내지 못한다');
+  });
+
+  check('달력이 월말과 윤년을 맞게 센다', () => {
+    assert(monthGrid(2026, 1)[1] === 28, '2026년 2월이 28일이 아니다');
+    assert(monthGrid(2028, 1)[1] === 29, '2028년 2월이 29일이 아니다');
+    assert(monthGrid(2026, 0)[0] === 4, '2026-01-01 이 목요일(4)이 아니다');
+  });
+
+  check('게임 드롭다운이 검색하고 목록 밖 이름도 받는다', () => {
+    let got = null;
+    const sel = glSelect({
+      value: '원신', options: GAME_OPTIONS, searchable: true, allowCustom: true,
+      onChange: (v) => { got = v; },
+    });
+    document.body.append(sel);
+    sel.click();
+    const panel = document.querySelector('.gl-menu');
+    assert(panel, '드롭다운이 열리지 않았다');
+    const q = panel.querySelector('.gl-search');
+    q.value = '넥서스';
+    q.dispatchEvent(new Event('input'));
+    // .custom 은 "직접 입력" 항목이라 목록 필터 결과가 아니다.
+    const hit = [...panel.querySelectorAll('.gl-opt:not(.custom)')];
+    assert(hit.length === 1 && /넥서스/.test(hit[0].textContent), `검색이 ${hit.length}건을 남겼다`);
+    q.value = '신작 미정';
+    q.dispatchEvent(new Event('input'));
+    const custom = panel.querySelector('.gl-opt.custom');
+    assert(custom, '목록에 없는 이름에 “직접 입력” 항목이 뜨지 않는다');
+    custom.click();
+    assert(got === '신작 미정', '직접 입력한 값이 그대로 오지 않았다: ' + got);
+    closePop();
+    sel.remove();
+  });
+
+  check('스위치가 불리언을 준다', () => {
+    let v = null;
+    const t = glToggle({ value: false, onChange: (x) => { v = x; } });
+    t.click();
+    assert(v === true && t.classList.contains('on'), '켜지지 않았다');
+    t.click();
+    assert(v === false, '꺼지지 않았다');
+  });
+
+  check('숫자 스테퍼가 시각 범위를 되돌린다', () => {
+    let v = null;
+    const n = glNumber({ value: 23, min: 0, max: 23, pad: true, wrap: true, onChange: (x) => { v = x; } });
+    const [dec, input, inc] = n.children;
+    inc.click();
+    assert(v === 0 && input.value === '00', '23 다음이 00 이 아니다: ' + v);
+    dec.click();
+    assert(v === 23, '00 이전이 23 이 아니다: ' + v);
+  });
+
+  check('확인 모달이 Escape 로 닫힌다', () => {
+    glConfirm('테스트');
+    assert(document.querySelector('.gl-backdrop'), '모달이 뜨지 않았다');
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    assert(!document.querySelector('.gl-backdrop'), 'Escape 로 닫히지 않았다');
+  });
+
   const failed = results.filter((r) => r[0] === 'FAIL');
   document.body.innerHTML = '';
   document.body.style.cssText = 'display:block;padding:32px;font:14px/1.8 monospace;background:#0e1016;color:#e6e8ef';
@@ -1335,8 +1493,10 @@ function selftest() {
 function init() {
   if (location.hash === '#selftest') { selftest(); return; }
 
-  document.getElementById('btn-load-remote').onclick = () => {
-    if (state.dirty && !confirm('저장하지 않은 편집이 있습니다. 원격 값으로 덮어쓸까요?')) return;
+  document.getElementById('btn-load-remote').onclick = async () => {
+    if (state.dirty && !await glConfirm('저장하지 않은 편집이 있습니다. 원격 값으로 덮어씁니다.', {
+      title: '불러오기', ok: '덮어쓰기', danger: true, note: '지금까지의 편집은 사라집니다.',
+    })) return;
     loadRemote();
   };
   document.getElementById('btn-export').onclick = () => go('export');
