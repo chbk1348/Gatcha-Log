@@ -23,6 +23,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.gatcha.log.ui.theme.TextSecondary
+import com.gatcha.log.ui.theme.LocalAccentTint
 
 /**
  * HoYoLAB 로그인 WebView — 로그인하면 인증 쿠키(ltoken_v2 / ltuid_v2 / cookie_token_v2 + 전체 쿠키)를 자동 추출해
@@ -36,7 +37,7 @@ import com.gatcha.log.ui.theme.TextSecondary
 fun HoyolabLoginDialog(onCollected: (String, String, String, String) -> Unit, onDismiss: () -> Unit) {
     val collectedCb = rememberUpdatedState(onCollected)
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
-        Column(Modifier.fillMaxSize().background(Color.White)) {
+        Column(Modifier.fillMaxSize().background(LocalAccentTint.current)) {
             Row(
                 Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,

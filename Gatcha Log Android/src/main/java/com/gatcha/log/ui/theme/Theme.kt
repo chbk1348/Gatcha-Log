@@ -95,10 +95,18 @@ private val PretendardTypography: Typography = Typography().run {
 }
 
 /**
- * 앱 전체 강조색. MyPage 테마 선택에 따라 바뀌며, 화면들은 [LocalAccent] 를 통해 읽는다.
+ * 앱 전체 강조색. MyPage 테마 선택에 따라 바뀌며, 화면들은 이 컴포지션 로컬로 읽는다.
+ *
+ * **3톤을 구분해 쓴다** ([AccentOption] 문서 참고) —
+ * [LocalAccent] 면·게이지·버튼(대비 3.90) / [LocalAccentDeep] **글자·아이콘**(5.20) /
+ * [LocalAccentTint] 아주 옅은 면(1.06) / [LocalAccentSecondary] 그라데이션 끝단(1.90).
+ *
+ * 글자에 [LocalAccent] 를 쓰면 테마에 따라 흐려진다 — 그 자리는 [LocalAccentDeep] 이다.
  */
 val LocalAccent = staticCompositionLocalOf { MintPrimary }
 val LocalAccentSecondary = staticCompositionLocalOf { MintSecondary }
+val LocalAccentDeep = staticCompositionLocalOf { MintPrimary }
+val LocalAccentTint = staticCompositionLocalOf { Color(0xFFF1FBFC) }
 
 /**
  * 회색 박스/리플 대신, 누르는 동안 콘텐츠가 살짝 작아졌다(0.95) 떼면 돌아오는 "눌린 느낌" 인디케이션.
@@ -152,12 +160,13 @@ fun GatchaLogTheme(
     accentIndex: Int = 0,
     content: @Composable () -> Unit,
 ) {
-    val accent = AccentPalette.getOrElse(accentIndex) { AccentPalette[0] }
+    val accent = AccentPalette.getOrElse(accentIndex) { AccentPalette[DEFAULT_ACCENT_INDEX] }
 
     val colorScheme = lightColorScheme(
         primary = accent.color.toColor(),
         secondary = accent.secondary.toColor(),
-        background = Color.White,
+        // 배경은 옅은 강조색 면, 카드·시트는 흰 면 — 27.50.0 면 체계 뒤집기(Glass.kt 참고)
+        background = accent.tint.toColor(),
         surface = Color.White,
         onPrimary = Color.White,
         onSecondary = Color.Black,
@@ -176,6 +185,8 @@ fun GatchaLogTheme(
     CompositionLocalProvider(
         LocalAccent provides accent.color.toColor(),
         LocalAccentSecondary provides accent.secondary.toColor(),
+        LocalAccentDeep provides accent.deep.toColor(),
+        LocalAccentTint provides accent.tint.toColor(),
         LocalReduceMotion provides reduceMotion,
         LocalShimmerPhase provides shimmerPhase,
         // 회색 박스/리플 대신 "눌린 느낌"(축소) 인디케이션을 전역 적용

@@ -27,7 +27,7 @@ struct BudgetSheet: View {
                         TextField("예산 (원)", text: $overall)
                             .textFieldStyle(.plain)
                             .keyboardType(.numberPad)
-                            .glgPillField()
+                            .glgField()
                             .onChange(of: overall) { _, newValue in overall = newValue.filter(\.isNumber) }
                     }
                     // 게임별 한도 — 섹션 카드
@@ -51,7 +51,7 @@ struct BudgetSheet: View {
                                         .textFieldStyle(.plain)
                                         .keyboardType(.numberPad)
                                         .multilineTextAlignment(.trailing)
-                                        .glgPillField()
+                                        .glgField()
                                         .frame(width: 120)
                                 }
                             }

@@ -51,40 +51,53 @@ enum GLGColor {
 }
 
 /// 강조색 팔레트 (Color.kt 의 AccentPalette 와 동일 순서·색상).
+///
+/// **3톤을 구분해 쓴다** — `primary` 면·게이지·버튼(흰 바탕 대비 3.90) /
+/// `deep` **글자·아이콘**(5.20, 본문 크기 AA 통과) / `tint` 아주 옅은 면(명도 96.8 · 채도 20 고정) /
+/// `secondary` 그라데이션 끝단(1.90).
+///
+/// 글자에 `primary` 를 쓰면 테마에 따라 흐려진다 — 그 자리는 `deep` 이다.
+/// 자세한 근거는 Kotlin 쪽 `AccentOption` 문서에 있다.
 struct GLGAccent: Identifiable {
     let index: Int
     let label: String
     let primary: Color
     let secondary: Color
+    let deep: Color
+    let tint: Color
     var id: Int { index }
 }
 
 enum GLGTheme {
     /// AccentPalette — 민트·퍼플·인디고·블루·로즈 (Color.kt 와 동일).
+    /// AccentPalette — 색조 36도 균등 10색(Color.kt 와 동일 순서·색상).
+    /// 기본값은 틸(index 5) — 앱 아이콘 색조에 가장 가까운 슬롯이다.
     static let palette: [GLGAccent] = [
-        GLGAccent(index: 0, label: "민트", primary: Color(hex: 0xFF34D1B6), secondary: Color(hex: 0xFF7FE3D0)),
-        GLGAccent(index: 1, label: "퍼플", primary: Color(hex: 0xFF8B5CF6), secondary: Color(hex: 0xFFC4B5FD)),
-        GLGAccent(index: 2, label: "인디고", primary: Color(hex: 0xFF4F46E5), secondary: Color(hex: 0xFFA5B4FC)),
-        GLGAccent(index: 3, label: "블루", primary: Color(hex: 0xFF3B82F6), secondary: Color(hex: 0xFF93C5FD)),
-        GLGAccent(index: 4, label: "로즈", primary: Color(hex: 0xFFF43F5E), secondary: Color(hex: 0xFFFDA4AF)),
-        // 추가 5색 — 기존 인덱스(0~4) 보존 위해 끝에 append. (Color.kt AccentPalette 와 동일)
-        GLGAccent(index: 5, label: "오렌지", primary: Color(hex: 0xFFF97316), secondary: Color(hex: 0xFFFDBA74)),
-        GLGAccent(index: 6, label: "앰버", primary: Color(hex: 0xFFF59E0B), secondary: Color(hex: 0xFFFCD34D)),
-        GLGAccent(index: 7, label: "그린", primary: Color(hex: 0xFF22C55E), secondary: Color(hex: 0xFF86EFAC)),
-        GLGAccent(index: 8, label: "시안", primary: Color(hex: 0xFF06B6D4), secondary: Color(hex: 0xFF67E8F9)),
-        GLGAccent(index: 9, label: "핑크", primary: Color(hex: 0xFFEC4899), secondary: Color(hex: 0xFFF9A8D4)),
+        GLGAccent(index: 0, label: "레드", primary: Color(hex: 0xFFDE5145), secondary: Color(hex: 0xFFEFABA5), deep: Color(hex: 0xFFCC3224), tint: Color(hex: 0xFFF8F5F5)),
+        GLGAccent(index: 1, label: "머스터드", primary: Color(hex: 0xFFAC7704), secondary: Color(hex: 0xFFF9AE0C), deep: Color(hex: 0xFF916404), tint: Color(hex: 0xFFF8F7F5)),
+        GLGAccent(index: 2, label: "올리브", primary: Color(hex: 0xFF668D04), secondary: Color(hex: 0xFF95CD05), deep: Color(hex: 0xFF567703), tint: Color(hex: 0xFFF8F8F5)),
+        GLGAccent(index: 3, label: "그린", primary: Color(hex: 0xFF1C950C), secondary: Color(hex: 0xFF29D912), deep: Color(hex: 0xFF187E0A), tint: Color(hex: 0xFFF6F8F5)),
+        GLGAccent(index: 4, label: "에메랄드", primary: Color(hex: 0xFF159452), secondary: Color(hex: 0xFF1FD778), deep: Color(hex: 0xFF127D46), tint: Color(hex: 0xFFF5F8F7)),
+        GLGAccent(index: 5, label: "틸", primary: Color(hex: 0xFF1B8E99), secondary: Color(hex: 0xFF38CEDC), deep: Color(hex: 0xFF177881), tint: Color(hex: 0xFFF5F8F8)),
+        GLGAccent(index: 6, label: "블루", primary: Color(hex: 0xFF507EE0), secondary: Color(hex: 0xFFA5BCEF), deep: Color(hex: 0xFF3066DA), tint: Color(hex: 0xFFF5F6F8)),
+        GLGAccent(index: 7, label: "바이올렛", primary: Color(hex: 0xFF8E6BE5), secondary: Color(hex: 0xFFC4B3F2), deep: Color(hex: 0xFF7950E0), tint: Color(hex: 0xFFF6F5F8)),
+        GLGAccent(index: 8, label: "마젠타", primary: Color(hex: 0xFFCB42DE), secondary: Color(hex: 0xFFE7A6EF), deep: Color(hex: 0xFFB523C8), tint: Color(hex: 0xFFF8F5F8)),
+        GLGAccent(index: 9, label: "핑크", primary: Color(hex: 0xFFDE4594), secondary: Color(hex: 0xFFEFA7CC), deep: Color(hex: 0xFFCA247A), tint: Color(hex: 0xFFF8F5F7)),
     ]
 
-    /// 인덱스 → 강조색 (범위를 벗어나면 민트로 폴백 — Kotlin getOrElse 동작과 동일).
+    /// 기본 강조색 인덱스 — 틸. Kotlin `DEFAULT_ACCENT_INDEX` 와 같은 값이어야 한다.
+    static let defaultIndex: Int = 5
+
+    /// 인덱스 → 강조색 (범위를 벗어나면 기본값으로 폴백 — Kotlin getOrElse 동작과 동일).
     static func accent(_ index: Int) -> GLGAccent {
-        palette.indices.contains(index) ? palette[index] : palette[0]
+        palette.indices.contains(index) ? palette[index] : palette[defaultIndex]
     }
 }
 
 // ── Environment 주입 — 화면들이 강조색을 읽는 경로 ──────────────────────────
 
 private struct GLGAccentKey: EnvironmentKey {
-    static let defaultValue: GLGAccent = GLGTheme.palette[0]
+    static let defaultValue: GLGAccent = GLGTheme.palette[GLGTheme.defaultIndex]
 }
 
 extension EnvironmentValues {

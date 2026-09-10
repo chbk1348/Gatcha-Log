@@ -36,6 +36,7 @@ import com.gatcha.log.ui.components.glgDetailContentTop
 import com.gatcha.log.ui.components.GlgHeaderTitlePill
 import com.gatcha.log.ui.components.GlgChip
 import com.gatcha.log.ui.components.GlgSegmentedTabs
+import com.gatcha.log.ui.theme.LocalAccentTint
 
 // 목업(06_ChangeLog.html) 색 토큰 — 분류 의미색은 디자인 고정값을 그대로 사용(패리티).
 private val CAccent = Color(0xFF15C7A8)
@@ -82,7 +83,7 @@ internal fun UpdateLogScreen(onBack: () -> Unit) {
     val scrolled by remember {
         derivedStateOf { listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 0 }
     }
-    Box(Modifier.fillMaxSize().background(Color.White)) {
+    Box(Modifier.fillMaxSize().background(LocalAccentTint.current)) {
     LazyColumn(
         state = listState,
         modifier = Modifier
@@ -99,9 +100,14 @@ internal fun UpdateLogScreen(onBack: () -> Unit) {
             // 예전엔 분류색으로 칠한 칩 다섯이었다. 배타 선택인데 독립 버튼처럼 보였고,
             // 선택된 칩의 색이 그때그때 달라 "지금 무엇으로 걸러져 있나"가 한눈에 안 들어왔다.
             // 분류색은 아래 항목의 태그가 이미 말해 준다. (iOS 는 같은 자리에 시스템 세그먼트)
+            // 배경은 **화면 배경과 같은 색**이어야 한다 — 스티키 헤더가 스크롤되는 카드를
+            // 가려 주는 불투명 베이스라서, 흰색으로 두면 27.50.0 면 뒤집기 뒤에 이 띠만 하얗게 뜬다.
+            // 위아래 여백이 다르다 — 위는 고정 헤더에 붙고(4), 아래는 카드 간 간격(12)에 맞춘다.
+            // 예전엔 위아래 10 에 더해 아래 `Spacer(14)` 까지 있어 탭과 첫 카드가 24 로 벌어졌다.
             Box(
-                Modifier.fillMaxWidth().background(Color.White)
-                    .padding(horizontal = 14.dp, vertical = 10.dp),
+                Modifier.fillMaxWidth().background(LocalAccentTint.current)
+                    .padding(horizontal = 14.dp)
+                    .padding(top = 4.dp, bottom = 12.dp),
             ) {
                 val kinds = listOf(null, ChangeKind.NEW, ChangeKind.IMP, ChangeKind.FIX, ChangeKind.SEC)
                 GlgSegmentedTabs(
@@ -111,8 +117,6 @@ internal fun UpdateLogScreen(onBack: () -> Unit) {
                 )
             }
         }
-
-        item { Spacer(Modifier.height(14.dp)) }
 
         if (shown.isEmpty()) {
             item {

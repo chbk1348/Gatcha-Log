@@ -11,6 +11,9 @@ import com.gatcha.log.storage.SecureKeyValueStore
 import com.gatcha.log.storage.SecureStore
 import com.gatcha.log.storage.asKvStore
 import com.gatcha.log.storage.asSecureStore
+import com.gatcha.log.ui.theme.AccentPalette
+import com.gatcha.log.ui.theme.DEFAULT_ACCENT_INDEX
+import com.gatcha.log.ui.theme.migrateAccentIndex
 import com.gatcha.log.util.currentTimeMillis
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
@@ -214,8 +217,34 @@ class GatchaRepository(
     }
 
     // ---------------------------------------------------------------- 테마 강조색
-    fun loadAccentIndex(): Int = prefs.getInt(KEY_ACCENT, 0)
-    fun saveAccentIndex(index: Int) { prefs.putInt(KEY_ACCENT, index); changed() }
+    /**
+     * 저장된 강조색 인덱스. 팔레트가 바뀐 버전에서 처음 읽을 때 **한 번만** 새 슬롯으로 옮긴다.
+     *
+     * 27.50.0 에서 팔레트를 색조 균등 10색으로 교체했다(`AccentPalette` 문서 참고).
+     * 인덱스가 가리키는 색이 통째로 달라지므로, 옛 값을 그대로 쓰면 민트를 고른 사람이
+     * 초록을 받는다. [migrateAccentIndex] 로 **색조가 가장 가까운 슬롯**으로 옮긴다.
+     *
+     * [KEY_ACCENT_VER] 로 이미 옮겼는지를 가른다 — 이 플래그가 없으면 앱을 켤 때마다
+     * 변환이 다시 돌아 색이 계속 밀린다(틸 → 머스터드 → …).
+     */
+    fun loadAccentIndex(): Int {
+        val saved = prefs.getInt(KEY_ACCENT, UNSET_ACCENT)
+        if (prefs.getInt(KEY_ACCENT_VER, 0) >= ACCENT_PALETTE_VER) {
+            return if (saved in AccentPalette.indices) saved else DEFAULT_ACCENT_INDEX
+        }
+        // 고른 적이 없으면(신규·초기화) 마이그레이션 대상이 아니라 그냥 기본값이다.
+        val next = if (saved == UNSET_ACCENT) DEFAULT_ACCENT_INDEX else migrateAccentIndex(saved)
+        prefs.putInt(KEY_ACCENT, next)
+        prefs.putInt(KEY_ACCENT_VER, ACCENT_PALETTE_VER)
+        return next
+    }
+
+    fun saveAccentIndex(index: Int) {
+        prefs.putInt(KEY_ACCENT, index)
+        // 사용자가 직접 고른 값은 새 팔레트 기준이므로 버전을 올려 둔다(다시 변환되면 안 된다).
+        prefs.putInt(KEY_ACCENT_VER, ACCENT_PALETTE_VER)
+        changed()
+    }
 
     // 홈 카드 구성(표시·순서)은 27.43.0 에서 제거했다 — 27.32.0 홈 대시보드 개편(`9779244`) 때
     // 양 플랫폼 렌더 루프가 사라져 저장만 되고 화면엔 반영되지 않는 상태였다.
@@ -915,6 +944,13 @@ class GatchaRepository(
         const val KEY_HOYO_COOKIETOKEN = "hoyo_cookietoken"
         const val KEY_HOYO_WEBCOOKIE = "hoyo_webcookie"
         const val KEY_ACCENT = "accent_index"
+
+        /** 저장된 인덱스가 어느 팔레트 기준인지 — 0=27.43.x 이하(옛 10색), 2=27.50.0 색조 균등 10색 */
+        const val KEY_ACCENT_VER = "accent_palette_ver"
+        private const val ACCENT_PALETTE_VER = 2
+
+        /** 강조색을 한 번도 고르지 않은 상태 — 0 은 실제 인덱스라 미설정 표시로 쓸 수 없다. */
+        private const val UNSET_ACCENT = -1
         const val KEY_ATTENDANCE = "attendance"
         const val KEY_ENKA_GI = "enka_gi"
         const val KEY_ENKA_HSR = "enka_hsr"
