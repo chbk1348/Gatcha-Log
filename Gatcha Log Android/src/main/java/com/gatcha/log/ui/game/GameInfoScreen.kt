@@ -391,7 +391,7 @@ fun GameInfoScreen(
                     NewsFullContent(gameNews, newsChip, onOpen = { openNews(it, GiSub.News) })
                 }
             }
-            GiSub.Hoyoland -> HoyolandDetailPage(onBack = { subPage = hoyolandReturn })
+            GiSub.Hoyoland -> HoyolandDetailPage(viewModel, onBack = { subPage = hoyolandReturn })
             GiSub.Main -> Box(Modifier.fillMaxSize()) {
             val topInset = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
             // 상단 스크림 — 콘텐츠가 헤더(버튼) 아래로 스크롤될 때만 배경색 그라데이션으로 살짝 흐린다.
@@ -573,12 +573,40 @@ internal fun SectionPage(
     onBack: () -> Unit,
     /** 헤더 우측 액션(공유·브라우저 등). 없으면 제목만. */
     actions: @Composable RowScope.() -> Unit = {},
+    /**
+     * 당겨서 새로고침 — 주면 붙고, 안 주면 없다(기본).
+     *
+     * 원격 데이터를 그리는 페이지에만 필요하다. 호요랜드가 대표적이다 —
+     * 운영 어드민에서 고친 값을 **기다리지 않고 지금 확인**하는 통로가 있어야 한다.
+     */
+    isRefreshing: Boolean = false,
+    onRefresh: (() -> Unit)? = null,
+    /**
+     * 화면 아래에 **고정으로 붙는 줄** — 스크롤과 무관하게 늘 보인다.
+     * 굿즈 목록의 합계 바처럼 "지금까지 고른 결과"를 계속 보여줘야 하는 자리에 쓴다.
+     */
+    bottomBar: (@Composable () -> Unit)? = null,
     content: @Composable () -> Unit,
 ) {
     BackHandler { onBack() }
     // 탭 페이지와 같은 구조 — 콘텐츠는 상태바 뒤까지 스크롤되고, 헤더는 그 위에 고정된다.
     val scrollState = rememberScrollState()
     Box(Modifier.fillMaxSize()) {
+        if (onRefresh != null) {
+            GlgPullToRefreshBox(isRefreshing = isRefreshing, onRefresh = onRefresh, modifier = Modifier.fillMaxSize()) {
+                Column(
+                    Modifier.fillMaxSize().navigationBarsPadding().verticalScroll(scrollState)
+                        .padding(horizontal = 16.dp)
+                        .padding(top = glgDetailContentTop()),
+                ) {
+                    content()
+                    Spacer(Modifier.height(24.dp))
+                }
+            }
+            GlgDetailHeaderOverlay(title, onBack, scrollState = scrollState, actions = actions)
+            bottomBar?.let { Box(Modifier.align(Alignment.BottomCenter)) { it() } }
+            return@Box
+        }
         Column(
             Modifier.fillMaxSize().navigationBarsPadding().verticalScroll(scrollState)
                 .padding(horizontal = 16.dp)
@@ -588,5 +616,6 @@ internal fun SectionPage(
             Spacer(Modifier.height(24.dp))
         }
         GlgDetailHeaderOverlay(title, onBack, scrollState = scrollState, actions = actions)
+        bottomBar?.let { Box(Modifier.align(Alignment.BottomCenter)) { it() } }
     }
 }

@@ -72,6 +72,17 @@ final class SpendingStore {
     private(set) var nudgeOverspend: Bool = false
     private(set) var spendingCompact: Bool = false
     private(set) var collabBannerExpanded: Bool = false
+    /// 호요랜드 굿즈 장바구니 — 담은 것은 공유 계층(AppSettings)에 저장된다.
+    private(set) var hoyolandCart: Shared.HoyolandCart = Shared.HoyolandCart(items: [:])
+
+    /**
+     하단에 액션 바가 떠 있어 '추가' FAB 를 감춰야 하는가.
+
+     지출 목록은 같은 목적을 `ContentView` 의 `@State` + `Binding` 으로 넘기지만(SpendingView 가
+     탭 바로 아래라 가능하다), 굿즈 목록은 **게임정보 탭 ▸ 호요랜드 ▸ 굿즈**로 세 단계 아래라
+     바인딩을 줄줄이 내려야 한다. 스토어에 두면 어디서든 같은 신호를 쓸 수 있다.
+     */
+    var hidesAddButton: Bool = false
     /// 홈 히어로 글로우 애니메이션 사용 여부 — 끄면 그라데이션만 남는다.
     private(set) var heroGlow: Bool = true
     /// 캐릭터 상세 속성 연출 — 끄면 움직임 없이 속성 테두리만 남는다.
@@ -300,6 +311,7 @@ final class SpendingStore {
         bind(vm.spendingCompact) { [weak self] in self?.spendingCompact = $0.boolValue }
         bind(vm.charElementFx) { [weak self] in self?.charElementFx = $0.boolValue }
         bind(vm.collabBannerExpanded) { [weak self] in self?.collabBannerExpanded = $0.boolValue }
+        bind(vm.hoyolandCart) { [weak self] in self?.hoyolandCart = $0 }
         bind(vm.heroGlow) { [weak self] in self?.heroGlow = $0.boolValue }
         bind(vm.nudgeThreshold) { [weak self] in self?.nudgeThreshold = $0.int64Value }
         bind(vm.pendingOpenHoyolabLink) { [weak self] in self?.pendingOpenHoyolabLink = $0.boolValue }
@@ -387,6 +399,10 @@ final class SpendingStore {
     func setNudgeOverspend(_ v: Bool) { vm.setNudgeOverspend(v: v) }
     func setSpendingCompact(_ v: Bool) { vm.setSpendingCompact(v: v) }
     func setCollabBannerExpanded(_ v: Bool) { vm.setCollabBannerExpanded(v: v) }
+    // ── 호요랜드 굿즈 장바구니 — 예산 가늠용(주문이 아니다) ──────────────
+    func toggleGoods(_ name: String) { vm.toggleGoods(name: name) }
+    func setGoodsQuantity(_ name: String, _ quantity: Int) { vm.setGoodsQuantity(name: name, quantity: Int32(quantity)) }
+    func clearGoodsCart() { vm.clearGoodsCart() }
     func setHeroGlow(_ v: Bool) { vm.setHeroGlow(v: v) }
     func setCharElementFx(_ v: Bool) { vm.setCharElementFx(v: v) }
     func setNudgeThreshold(_ v: Int64) { vm.setNudgeThreshold(v: v) }

@@ -6,6 +6,11 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.lerp
 import com.gatcha.log.ui.theme.toColor
+import androidx.compose.runtime.collectAsState
+import com.gatcha.log.data.HoyolandCart
+import com.gatcha.log.data.HoyolandCartLine
+import com.gatcha.log.data.SpendingViewModel
+import com.gatcha.log.ui.theme.DangerText
 import com.gatcha.log.data.GameData
 import com.gatcha.log.data.StageSlot
 import com.gatcha.log.data.StageState
@@ -34,6 +39,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -49,9 +55,12 @@ import androidx.compose.material.icons.filled.Celebration
 import androidx.compose.material.icons.filled.ConfirmationNumber
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.ShoppingBag
 import androidx.compose.material.icons.filled.Storefront
 import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
 import com.gatcha.log.data.HoyolandBooth
 import com.gatcha.log.data.HoyolandGoods
 import androidx.compose.material3.Icon
@@ -110,6 +119,30 @@ private fun rememberHoyolandEvent(): HoyolandEvent {
     var event by remember { mutableStateOf(HoyolandApi.current) }
     LaunchedEffect(Unit) { event = HoyolandApi.load() }
     return event
+}
+
+/**
+ * 호요랜드 값 + **다시 읽기** — 상세 페이지의 당겨서 새로고침이 쓴다.
+ *
+ * `force` 로 읽으므로 캐시 나이와 무관하게 라이브(어드민)부터 다시 훑는다.
+ * 개발자 목업이 얹혀 있었다면 여기서 걷힌다.
+ */
+@Composable
+private fun rememberHoyolandRefresher(): Triple<HoyolandEvent, Boolean, () -> Unit> {
+    var event by remember { mutableStateOf(HoyolandApi.current) }
+    var refreshing by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+    LaunchedEffect(Unit) { event = HoyolandApi.load() }
+    val refresh: () -> Unit = {
+        if (!refreshing) {
+            refreshing = true
+            scope.launch {
+                event = HoyolandApi.load(force = true)
+                refreshing = false
+            }
+        }
+    }
+    return Triple(event, refreshing, refresh)
 }
 
 /**
@@ -181,9 +214,10 @@ fun HoyolandSection(onOpen: () -> Unit) {
  * 헤더 액션과 하위 페이지 상태를 호출부마다 따로 두면 두 곳이 어긋난다.
  */
 @Composable
-fun HoyolandDetailPage(onBack: () -> Unit) {
-    val e = rememberHoyolandEvent()
-    // 하위 페이지를 **상태 하나로** 모은다. 예전엔 지스타만 AnimatedContent 에 있고 굿즈샵·부스는
+fun HoyolandDetailPage(viewModel: SpendingViewModel, onBack: () -> Unit) {
+    val (e, refreshing, refresh) = rememberHoyolandRefresher()
+    val cart by viewModel.hoyolandCart.collectAsState()
+    // 하위 페이지를 **상태 하나로** 모은다. 예전엔 지스타만 AnimatedContent 에 있고 굿즈·부스는
     // `if … return` 으로 컴포지션을 갈아끼워, 같은 페이지에서 나가는데 어떤 건 밀려 나가고
     // 어떤 건 0프레임으로 튀었다(홈 `HomeSub` 와 같은 이유로 하나로 합쳤다).
     var page by remember { mutableStateOf(HoyolandSub.None) }
@@ -206,14 +240,51 @@ fun HoyolandDetailPage(onBack: () -> Unit) {
                 SectionPage(e.gstar.title.ifBlank { "G-STAR" }, onBack = { page = HoyolandSub.None }) {
                     GstarDetailContent()
                 }
+            HoyolandSub.Stage ->
+                SectionPage(
+                    "일자별 시간표",
+                    onBack = { page = HoyolandSub.None },
+                    isRefreshing = refreshing,
+                    onRefresh = refresh,
+                ) {
+                    HoyolandTimetableSection(e)
+                }
             HoyolandSub.Goods ->
-                SectionPage("굿즈샵", onBack = { page = HoyolandSub.None }) { HoyolandGoodsContent(e) }
+                SectionPage(
+                    "굿즈 목록",
+                    onBack = { page = HoyolandSub.None },
+                    bottomBar = { HoyolandGoodsBar(e, cart) { page = HoyolandSub.Cart } },
+                ) {
+                    HoyolandGoodsContent(e, cart) { name, n -> viewModel.setGoodsQuantity(name, n) }
+                }
+            HoyolandSub.Cart ->
+                SectionPage(
+                    "장바구니",
+                    onBack = { page = HoyolandSub.Goods },
+                    actions = {
+                        // 비우기는 헤더 우측 — 실수로 누르기 어려운 자리다.
+                        if (!cart.isEmpty) {
+                            Text(
+                                "비우기",
+                                fontSize = 12.sp, fontWeight = FontWeight.Bold, color = DangerText,
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .clickable { viewModel.clearGoodsCart() }
+                                    .padding(horizontal = 10.dp, vertical = 8.dp),
+                            )
+                        }
+                    },
+                ) {
+                    HoyolandCartContent(e, cart) { name, n -> viewModel.setGoodsQuantity(name, n) }
+                }
             HoyolandSub.Booth ->
                 SectionPage("부스 체험", onBack = { page = HoyolandSub.None }) { HoyolandBoothContent(e) }
             HoyolandSub.None ->
                 SectionPage(
                     "호요랜드",
                     onBack,
+                    isRefreshing = refreshing,
+                    onRefresh = refresh,
                     actions = {
                         // 아이콘 하나로는 "지스타"가 읽히지 않아 글자를 쓴다. 대신 **면·테두리·높이는
                         // 헤더 원형 버튼([GlgCircleIconButton])과 같은 값**이라, 같은 줄에서 따로 놀지
@@ -387,7 +458,7 @@ private fun GstarStat(label: String, value: String, sub: String, modifier: Modif
 }
 
 /** 호요랜드 상세의 하위 페이지 — 진입 카드로 연다. */
-enum class HoyolandSub { None, Gstar, Goods, Booth }
+enum class HoyolandSub { None, Gstar, Stage, Goods, Cart, Booth }
 
 @Composable
 fun HoyolandDetailContent(onOpenSub: (HoyolandSub) -> Unit = {}) {
@@ -574,22 +645,25 @@ fun HoyolandDetailContent(onOpenSub: (HoyolandSub) -> Unit = {}) {
         }
     }
 
+    // ── 현장에서 — 시간표 · 굿즈 목록 · 부스 체험.
+    //
+    // 셋 다 본문에 펼치면 이 페이지의 본론(언제·어디서)이 스크롤 저 아래로 밀린다.
+    // 시간표만 **전체 폭**을 주는 이유: 나머지 둘과 달리 "지금 무대에서 무엇을 하는가"는
+    // 이 페이지가 답해야 하는 질문에 가장 가깝다. 카드 한 줄이 그 답을 미리 말한다.
+    //
+    // 제목을 붙이는 이유: 다른 섹션은 전부 [여백 20 + 제목 + 10] 인데 여기만 제목이 없어
+    // **예매 카드에 딸린 것처럼** 보였다. 셋의 공통점이 "현장에서 쓰는 것" 이라 그렇게 부른다.
     Spacer(Modifier.height(20.dp))
-
-    // ── 일자별 시간표 — 현장에서 손에 들고 보는 자리.
-    // **날짜 탭은 시간표 유무와 무관하게 선다.** 탭을 기간(개막~폐막)에서 만들기 때문인데,
-    // 공식 시간표가 개막 2~3주 전에야 나오는 탓에 그 전까지는 채울 내용이 없다.
-    // 그 구간에도 "며칠짜리 행사인지"는 알려 줘야 해서, 빈 채로 숨기지 않고 안내를 놓는다.
-    HoyolandTimetableSection(e)
-
-    Spacer(Modifier.height(20.dp))
-
-    // ── 굿즈샵 · 부스 체험 — 현장에서 **돈과 시간을 쓰는 두 가지**라 각각 페이지를 준다.
-    // 여기 목록으로 펼치면 무대 시간표만큼 길어져 이 페이지의 본론(언제·어디서)을 밀어낸다.
-    Spacer(Modifier.height(20.dp))
+    Text("현장에서", fontSize = 16.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 10.dp))
+    HoyolandSubEntryWide(
+        "일자별 시간표",
+        e.stageEntryLine(),
+        Icons.Default.Schedule,
+    ) { onOpenSub(HoyolandSub.Stage) }
+    Spacer(Modifier.height(10.dp))
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         HoyolandSubEntry(
-            "굿즈샵",
+            "굿즈 목록",
             e.goodsPriceRange().ifBlank { "판매 목록 공개 전" },
             Icons.Default.ShoppingBag,
             Modifier.weight(1f),
@@ -680,7 +754,7 @@ fun HoyolandDetailContent(onOpenSub: (HoyolandSub) -> Unit = {}) {
  * 첫날이 선택돼 있으면 매번 한 번 더 눌러야 한다.
  */
 @Composable
-private fun HoyolandTimetableSection(e: HoyolandEvent) {
+fun HoyolandTimetableSection(e: HoyolandEvent) {
     val accent = LocalAccent.current
     val ymds = e.dayYmds
     if (ymds.isEmpty()) return
@@ -751,7 +825,45 @@ private fun HoyolandTimetableSection(e: HoyolandEvent) {
 /** NOW LIVE 배지 색 — 게임색 위에서도 읽히는 단 하나의 고정색(앱의 '임박' 주황과 같은 계열). */
 private val LiveRed = Color(0xFFE8634A)
 
-/** 상세 하단 진입 카드 — 굿즈샵·부스 체험 두 장을 나란히. */
+/**
+ * 전체 폭 진입 카드 — 아이콘 + 제목 + 요약 + 셰브론.
+ * 두 칸 카드보다 요약을 길게 쓸 수 있어, 들어가기 전에 볼 값이 있는지 알 수 있다.
+ */
+@Composable
+private fun HoyolandSubEntryWide(
+    title: String,
+    sub: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    onClick: () -> Unit,
+) {
+    val accent = LocalAccent.current
+    GlassCard(modifier = Modifier.fillMaxWidth().clickable { onClick() }) {
+        Row(
+            Modifier.fillMaxWidth().padding(18.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box(
+                Modifier.size(44.dp).clip(RoundedCornerShape(13.dp)).background(accent.copy(alpha = 0.12f)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(icon, contentDescription = null, tint = accent, modifier = Modifier.size(22.dp))
+            }
+            Column(Modifier.weight(1f).padding(start = 13.dp)) {
+                Text(title, fontSize = 15.5.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+                Spacer(Modifier.height(4.dp))
+                Text(sub, fontSize = 12.sp, color = TextSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+            Icon(
+                Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                contentDescription = null,
+                tint = TextSecondary,
+                modifier = Modifier.size(20.dp),
+            )
+        }
+    }
+}
+
+/** 상세 하단 진입 카드 — 굿즈 목록·부스 체험 두 장을 나란히. */
 @Composable
 private fun HoyolandSubEntry(
     title: String,
@@ -778,20 +890,22 @@ private fun HoyolandSubEntry(
 }
 
 /**
- * 굿즈샵 — 품목과 **가격**.
+ * 굿즈 목록 — 품목과 **가격**.
  *
  * 이 앱은 지출을 다루는 앱이라, 굿즈 목록의 본론은 "얼마 들고 가야 하나"다. 그래서
- * ① 맨 위에 가격대를 한 줄로 세우고 ② 행을 눌러 **담아 보면 합계**가 하단에 뜬다.
- * 담은 것은 이 화면 안에서만 산다(저장하지 않는다) — 예산을 가늠하는 계산기지 장바구니가 아니다.
+ * ① 맨 위에 가격대를 세우고 ② 행을 눌러 담으면 ③ 하단 고정 바가 합계를 계속 말한다.
+ *
+ * **싣는 굿즈는 앱이 다루는 세 게임 + 행사 공용뿐이다**([HoyolandEvent.visibleGoods]).
+ * 목업: `Gatcha Log MD/design_hoyoland_goods_mockup.html` A 안.
  */
 @Composable
-fun HoyolandGoodsContent(e: HoyolandEvent) {
+fun HoyolandGoodsContent(e: HoyolandEvent, cart: HoyolandCart, onQuantity: (String, Int) -> Unit) {
     val accent = LocalAccent.current
+    val all = e.visibleGoods
     val games = e.goodsGames
     var gameFilter by remember { mutableStateOf<String?>(null) }
-    val picked = remember { mutableStateListOf<String>() }
 
-    if (e.goods.isEmpty()) {
+    if (all.isEmpty()) {
         GlassCard(modifier = Modifier.fillMaxWidth()) {
             Column(Modifier.padding(16.dp)) {
                 Text("판매 목록은 아직 공개 전이에요", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
@@ -807,15 +921,28 @@ fun HoyolandGoodsContent(e: HoyolandEvent) {
 
     // ── 가격대 — 목록보다 먼저. 얼마를 들고 갈지가 첫 질문이다.
     GlassCard(modifier = Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp)) {
-            Text("가격대", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = TextSecondary)
-            Spacer(Modifier.height(5.dp))
-            Text(e.goodsPriceRange(), fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.Bottom,
+        ) {
+            Column(Modifier.weight(1f)) {
+                Text("가격대", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = TextSecondary)
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    e.goodsPriceRange().substringBefore(" · "),
+                    fontSize = 16.sp, fontWeight = FontWeight.Black, color = TextPrimary,
+                    style = LocalTextStyle.current.copy(fontFeatureSettings = "tnum"),
+                )
+            }
+            Text(
+                e.goodsPriceRange().substringAfter(" · ", ""),
+                fontSize = 11.sp, color = TextThird,
+            )
         }
     }
 
     if (games.size > 1) {
-        Spacer(Modifier.height(14.dp))
+        Spacer(Modifier.height(12.dp))
         GlgSegmentedTabs(
             labels = listOf("전체") + games.map { e.stageLabel(it) },
             selectedColors = listOf(accent) + games.map {
@@ -827,89 +954,390 @@ fun HoyolandGoodsContent(e: HoyolandEvent) {
     }
 
     Spacer(Modifier.height(12.dp))
-    val shown = e.goods.filter { gameFilter == null || it.game == gameFilter }
+    val shown = all.filter { gameFilter == null || it.game == gameFilter }
     GlassCard(modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(vertical = 4.dp)) {
             shown.forEachIndexed { i, item ->
                 if (i > 0) Box(Modifier.fillMaxWidth().height(1.dp).background(DividerColor))
-                HoyolandGoodsRow(e, item, picked.contains(item.name)) {
-                    if (picked.contains(item.name)) picked.remove(item.name) else picked.add(item.name)
+                HoyolandGoodsRow(e, item, cart.quantityOf(item.name), onQuantity)
+            }
+        }
+    }
+    // 하단 고정 바에 가리지 않게 — 바 높이(알약 + 위아래 여백)만큼 비워 둔다.
+    Spacer(Modifier.height(84.dp))
+}
+
+/**
+ * 굿즈 한 줄 — [썸네일 48 · 이름·갈래 · 가격/수량].
+ *
+ * A 안(담기 원)에서 갈아탔다. 훑기는 리스트가 낫고, 수량은 **목록에서 바로** 정하는 편이
+ * 자연스럽다 — 같은 키링을 두 개 사는 일이 흔한데 담기 토글만 있으면 장바구니까지 들어가야 했다.
+ *
+ * 담기 전에는 「담기」 버튼, 담은 뒤에는 스테퍼로 바뀐다. 품절은 흐리게 두고 담기만 막는다 —
+ * 가격을 기억하러 오는 사람이 있다.
+ */
+@Composable
+private fun HoyolandGoodsRow(
+    e: HoyolandEvent,
+    item: HoyolandGoods,
+    quantity: Int,
+    onQuantity: (String, Int) -> Unit,
+) {
+    val accent = LocalAccent.current
+    val raw = e.stageColor(item.game)
+    val c = if (raw == 0L) TextSecondary else raw.toColor()
+    val label = if (item.game.isBlank()) "공용" else e.stageLabel(item.game)
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 11.dp)
+            .alpha(if (item.soldOut) 0.45f else 1f),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        // 썸네일 자리 — 공식 굿즈 이미지가 나오면 이 칸을 그대로 이미지로 바꾼다.
+        Box(
+            Modifier
+                .size(48.dp)
+                .clip(RoundedCornerShape(12.dp))
+                .background(if (item.soldOut) DividerColor else c.copy(alpha = 0.12f)),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                label,
+                fontSize = 9.5.sp, fontWeight = FontWeight.Black,
+                color = if (item.soldOut) TextThird else c,
+                textAlign = TextAlign.Center, lineHeight = 11.sp, maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(horizontal = 3.dp),
+            )
+        }
+        Column(Modifier.weight(1f).padding(start = 11.dp)) {
+            Text(item.name, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextPrimary, lineHeight = 18.sp)
+            Spacer(Modifier.height(3.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    label,
+                    fontSize = 9.5.sp, fontWeight = FontWeight.Black, color = c,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(c.copy(alpha = 0.14f))
+                        .padding(horizontal = 6.dp, vertical = 2.dp),
+                )
+                val meta = listOfNotNull(
+                    item.category.ifBlank { null },
+                    if (item.soldOut) "품절" else null,
+                    item.note.ifBlank { null },
+                ).joinToString(" · ")
+                if (meta.isNotBlank()) {
+                    Spacer(Modifier.width(5.dp))
+                    Text(meta, fontSize = 11.sp, color = if (item.soldOut) TextSecondary else c)
+                }
+            }
+        }
+        Column(
+            Modifier.padding(start = 11.dp),
+            horizontalAlignment = Alignment.End,
+        ) {
+            Text(
+                if (item.price > 0) e.wonLabel(item.price) else "미정",
+                fontSize = 13.sp,
+                fontWeight = if (item.price > 0) FontWeight.Black else FontWeight.Bold,
+                color = if (item.price > 0) TextPrimary else TextThird,
+                style = LocalTextStyle.current.copy(fontFeatureSettings = "tnum"),
+            )
+            Spacer(Modifier.height(6.dp))
+            when {
+                item.soldOut -> GoodsAddButton("품절", enabled = false) {}
+                quantity <= 0 -> GoodsAddButton("담기", enabled = true) { onQuantity(item.name, 1) }
+                else -> Row(
+                    Modifier.clip(RoundedCornerShape(9.dp)).border(1.dp, DividerColor, RoundedCornerShape(9.dp)),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    GoodsStepButton("−") { onQuantity(item.name, quantity - 1) }
+                    Text(
+                        "$quantity",
+                        fontSize = 12.sp, fontWeight = FontWeight.Black, color = TextPrimary,
+                        textAlign = TextAlign.Center, modifier = Modifier.width(30.dp),
+                    )
+                    GoodsStepButton("+") { onQuantity(item.name, quantity + 1) }
                 }
             }
         }
     }
+}
 
-    // ── 담은 합계 — 고른 게 있을 때만 나타난다. 예산을 가늠하는 자리다.
-    val total = e.goods.filter { picked.contains(it.name) }.sumOf { it.price }
-    if (picked.isNotEmpty()) {
-        Spacer(Modifier.height(12.dp))
+/** 담기/품절 버튼 — 스테퍼와 같은 높이라 담기 전후로 줄 높이가 흔들리지 않는다. */
+@Composable
+private fun GoodsAddButton(label: String, enabled: Boolean, onClick: () -> Unit) {
+    val accent = LocalAccent.current
+    Box(
+        Modifier
+            .height(26.dp)
+            .clip(RoundedCornerShape(9.dp))
+            .border(1.dp, if (enabled) accent else DividerColor, RoundedCornerShape(9.dp))
+            .then(if (enabled) Modifier.clickable { onClick() } else Modifier)
+            .padding(horizontal = 12.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            label,
+            fontSize = 11.5.sp, fontWeight = FontWeight.Bold,
+            color = if (enabled) accent else TextThird,
+        )
+    }
+}
+
+@Composable
+private fun GoodsStepButton(label: String, onClick: () -> Unit) {
+    Box(
+        Modifier
+            .size(width = 28.dp, height = 26.dp)
+            .background(CartRowBg)
+            .clickable { onClick() },
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(label, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TextSecondary)
+    }
+}
+
+/**
+ * 굿즈 목록 하단 고정 바 — 담은 종수·개수와 **합계**, 탭하면 장바구니.
+ * 스크롤과 무관하게 늘 보여야 한다. 지금까지 고른 결과가 곧 이 화면의 답이다.
+ */
+@Composable
+fun HoyolandGoodsBar(e: HoyolandEvent, cart: HoyolandCart, onOpenCart: () -> Unit) {
+    if (cart.isEmpty) return
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .background(Color.White.copy(alpha = 0.94f))
+            .padding(start = 16.dp, end = 16.dp, top = 12.dp)
+            .navigationBarsPadding()
+            .padding(bottom = 8.dp),
+    ) {
         Row(
             Modifier
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(16.dp))
-                .background(accent.copy(alpha = 0.10f))
+                .background(TextPrimary)
+                .clickable { onOpenCart() }
                 .padding(horizontal = 16.dp, vertical = 13.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text("담은 ${picked.size}개", fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+            Text(
+                "담은 ${cart.kindCount}종 · ${cart.totalCount}개",
+                fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = Color.White.copy(alpha = 0.72f),
+            )
             Spacer(Modifier.weight(1f))
-            Text(e.wonLabel(total), fontSize = 16.sp, fontWeight = FontWeight.Black, color = accent)
+            Text(
+                e.wonLabel(e.cartTotal(cart)),
+                fontSize = 16.sp, fontWeight = FontWeight.Black, color = Color.White,
+                style = LocalTextStyle.current.copy(fontFeatureSettings = "tnum"),
+            )
+            Spacer(Modifier.width(10.dp))
+            Text("장바구니 ›", fontSize = 12.sp, fontWeight = FontWeight.Black, color = Color.White.copy(alpha = 0.85f))
         }
-        Spacer(Modifier.height(6.dp))
-        Text(
-            "골라 본 것을 더한 값이에요. 저장되지 않아요.",
-            fontSize = 10.5.sp, color = TextSecondary, modifier = Modifier.padding(horizontal = 4.dp),
-        )
     }
 }
 
-/** 굿즈 한 줄 — 담기 표시 + 이름·갈래·조건 + 가격. */
+/**
+ * 장바구니 — **게임별 묶음**.
+ *
+ * 현장에서는 게임 부스를 하나씩 돈다. 게임별로 묶고 소계를 붙이면 "원신 부스에서 얼마" 가
+ * 보인다. 줄이 촘촘해 수량 스테퍼를 늘 띄우지 않고, **줄을 누르면 그 줄에서 펼친다.**
+ *
+ * 결제 버튼은 두지 않는다 — 현장 판매라 앱이 낄 자리가 없다. 여기서 하는 일은 예산 가늠이다.
+ * 목업: `Gatcha Log MD/design_hoyoland_goods_mockup.html` D 안.
+ */
 @Composable
-private fun HoyolandGoodsRow(e: HoyolandEvent, item: HoyolandGoods, picked: Boolean, onToggle: () -> Unit) {
-    val accent = LocalAccent.current
-    val c = e.stageColor(item.game).let { if (it == 0L) TextSecondary else it.toColor() }
-    Row(
+fun HoyolandCartContent(
+    e: HoyolandEvent,
+    cart: HoyolandCart,
+    onQuantity: (String, Int) -> Unit,
+) {
+    val groups = e.cartGroups(cart)
+    if (groups.isEmpty()) {
+        Column(
+            Modifier.fillMaxWidth().padding(top = 52.dp, bottom = 20.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Text("담은 굿즈가 없어요", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+            Spacer(Modifier.height(5.dp))
+            Text(
+                "굿즈 목록에서 사고 싶은 것을 담으면\n여기서 예상 지출을 볼 수 있어요.",
+                fontSize = 12.sp, color = TextSecondary, lineHeight = 19.sp, textAlign = TextAlign.Center,
+            )
+        }
+        return
+    }
+
+    // ── 합계 — 이 페이지의 답이라 맨 위에 둔다.
+    val total = e.cartTotal(cart)
+    val unpriced = e.cartUnpricedCount(cart)
+    Column(
         Modifier
             .fillMaxWidth()
-            .clickable(enabled = !item.soldOut) { onToggle() }
-            .padding(horizontal = 16.dp, vertical = 12.dp)
-            .alpha(if (item.soldOut) 0.45f else 1f),
-        verticalAlignment = Alignment.CenterVertically,
+            .clip(RoundedCornerShape(20.dp))
+            .background(TextPrimary)
+            .padding(16.dp),
     ) {
-        // 담기 표식 — 체크박스를 따로 두지 않는다. 행 전체가 누를 자리라 원 하나면 충분하다.
-        Box(
-            Modifier
-                .size(20.dp)
-                .clip(CircleShape)
-                .background(if (picked) accent else Color.Transparent)
-                .border(1.5.dp, if (picked) accent else DividerColor, CircleShape),
-            contentAlignment = Alignment.Center,
-        ) {
-            if (picked) Icon(Icons.Default.Check, null, tint = Color.White, modifier = Modifier.size(13.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("담은 굿즈", fontSize = 12.5.sp, color = Color.White.copy(alpha = 0.72f))
+            Spacer(Modifier.weight(1f))
+            Text(
+                "${cart.kindCount}종 · ${cart.totalCount}개",
+                fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = Color.White,
+            )
         }
-        Spacer(Modifier.width(12.dp))
-        Column(Modifier.weight(1f)) {
-            Text(item.name, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextPrimary, lineHeight = 18.sp)
-            val meta = listOfNotNull(
-                item.game.ifBlank { null }?.let { e.stageLabel(it) },
-                item.category.ifBlank { null },
-                if (item.soldOut) "품절" else null,
-                item.note.ifBlank { null },
-            ).joinToString(" · ")
-            if (meta.isNotBlank()) {
-                Spacer(Modifier.height(2.dp))
-                Text(meta, fontSize = 11.sp, color = if (item.soldOut) TextSecondary else c)
+        if (unpriced > 0) {
+            Spacer(Modifier.height(9.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("가격 미정", fontSize = 12.5.sp, color = Color.White.copy(alpha = 0.72f))
+                Spacer(Modifier.weight(1f))
+                Text("${unpriced}종", fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = Color.White)
             }
         }
-        Spacer(Modifier.width(10.dp))
-        Text(
-            if (item.price > 0) e.wonLabel(item.price) else "미정",
-            fontSize = 13.sp, fontWeight = FontWeight.Black,
-            color = if (item.price > 0) TextPrimary else TextSecondary,
-            style = LocalTextStyle.current.copy(fontFeatureSettings = "tnum"),
-        )
+        Spacer(Modifier.height(11.dp))
+        Box(Modifier.fillMaxWidth().height(1.dp).background(Color.White.copy(alpha = 0.18f)))
+        Spacer(Modifier.height(11.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("예상 지출", fontSize = 13.sp, color = Color.White.copy(alpha = 0.80f))
+            Spacer(Modifier.weight(1f))
+            Text(
+                e.wonLabel(total),
+                fontSize = 20.sp, fontWeight = FontWeight.Black, color = Color.White,
+                style = LocalTextStyle.current.copy(fontFeatureSettings = "tnum"),
+            )
+        }
+    }
+
+    groups.forEach { g ->
+        val c = e.stageColor(g.game).let { if (it == 0L) TextSecondary else it.toColor() }
+        Row(
+            Modifier.fillMaxWidth().padding(top = 16.dp, bottom = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                if (g.game.isBlank()) "공용" else e.stageLabel(g.game),
+                fontSize = 9.5.sp, fontWeight = FontWeight.Black, color = c,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(6.dp))
+                    .background(c.copy(alpha = 0.14f))
+                    .padding(horizontal = 6.dp, vertical = 2.dp),
+            )
+            Spacer(Modifier.width(7.dp))
+            Box(Modifier.weight(1f).height(1.dp).background(DividerColor))
+            Spacer(Modifier.width(7.dp))
+            // 게임별 소계가 **부스에서 꺼낼 금액**이다.
+            Text(
+                if (g.allUnpriced) "미정" else e.wonLabel(g.subtotal),
+                fontSize = 11.5.sp, fontWeight = FontWeight.Black,
+                color = if (g.allUnpriced) TextThird else TextSecondary,
+                style = LocalTextStyle.current.copy(fontFeatureSettings = "tnum"),
+            )
+        }
+        g.lines.forEach { line -> HoyolandCartRow(e, line, onQuantity) }
+    }
+
+    if (unpriced > 0) {
+        Spacer(Modifier.height(10.dp))
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(12.dp))
+                .background(WarnBg)
+                .padding(horizontal = 12.dp, vertical = 10.dp),
+        ) {
+            Text("⚠️", fontSize = 11.sp)
+            Spacer(Modifier.width(7.dp))
+            Text(
+                "가격 미정 ${unpriced}종은 합계에 없어요. 값이 공개되면 자동으로 더해져요.",
+                fontSize = 11.sp, color = WarnText, lineHeight = 17.sp,
+            )
+        }
     }
 }
+
+/**
+ * 장바구니 한 줄 — 접힌 기본 모습은 [이름 · ×수량 · 소계].
+ * 누르면 그 줄에서 수량 스테퍼가 펼쳐진다(줄이 촘촘해 늘 띄우면 목록이 읽히지 않는다).
+ */
+@Composable
+private fun HoyolandCartRow(e: HoyolandEvent, line: HoyolandCartLine, onQuantity: (String, Int) -> Unit) {
+    var expanded by remember(line.goods.name) { mutableStateOf(false) }
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .padding(bottom = 7.dp)
+            .clip(RoundedCornerShape(14.dp))
+            .background(CartRowBg)
+            .clickable { expanded = !expanded }
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                line.goods.name,
+                fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = TextPrimary,
+                modifier = Modifier.weight(1f), lineHeight = 17.sp,
+            )
+            Text(
+                "×${line.quantity}",
+                fontSize = 11.sp, fontWeight = FontWeight.Black, color = TextSecondary,
+                modifier = Modifier.padding(end = 9.dp),
+            )
+            Text(
+                if (line.goods.price > 0) e.wonLabel(line.subtotal) else "—",
+                fontSize = 12.5.sp, fontWeight = FontWeight.Black,
+                color = if (line.goods.price > 0) TextPrimary else TextThird,
+                style = LocalTextStyle.current.copy(fontFeatureSettings = "tnum"),
+            )
+        }
+        AnimatedVisibility(visible = expanded) {
+            Row(
+                Modifier.fillMaxWidth().padding(top = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                CartStepButton("−") { onQuantity(line.goods.name, line.quantity - 1) }
+                Text(
+                    "${line.quantity}",
+                    fontSize = 12.5.sp, fontWeight = FontWeight.Black, color = TextPrimary,
+                    textAlign = TextAlign.Center, modifier = Modifier.width(40.dp),
+                )
+                CartStepButton("+") { onQuantity(line.goods.name, line.quantity + 1) }
+                Spacer(Modifier.weight(1f))
+                Text(
+                    "빼기",
+                    fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = DangerText,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable { onQuantity(line.goods.name, 0) }
+                        .padding(horizontal = 10.dp, vertical = 5.dp),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun CartStepButton(label: String, onClick: () -> Unit) {
+    Box(
+        Modifier
+            .size(width = 30.dp, height = 26.dp)
+            .clip(RoundedCornerShape(9.dp))
+            .background(Color.White)
+            .border(1.dp, DividerColor, RoundedCornerShape(9.dp))
+            .clickable { onClick() },
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(label, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TextSecondary)
+    }
+}
+
+/** 목업 색 — 장바구니 줄 바탕과 '가격 미정' 안내. */
+private val CartRowBg = Color(0xFFF7F8FA)
+private val WarnBg = Color(0xFFFFF6E0)
+private val WarnText = Color(0xFF8A6A1E)
+private val TextThird = Color(0xFF98A0AB)
 
 /**
  * 게임별 부스 체험.

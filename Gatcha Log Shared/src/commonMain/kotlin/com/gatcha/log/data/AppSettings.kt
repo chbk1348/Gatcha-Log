@@ -190,12 +190,23 @@ class AppSettings {
         get() = prefs.getLong(KEY_LAST_FG_CHECK, 0L)
         set(v) { prefs.putLong(KEY_LAST_FG_CHECK, v) }
 
+    /**
+     * 호요랜드 굿즈 장바구니 — [HoyolandCart.serialize] 형태의 문자열.
+     *
+     * 담은 것을 저장하는 이유: 처음엔 화면 안에서만 살게 뒀는데, 그러면 목록을 나갔다 오면
+     * 비어 있어 **며칠에 걸쳐 고르는 물건**에 쓸 수 없었다. 행사는 나흘이고 굿즈는 그 전부터 본다.
+     */
+    var hoyolandCartRaw: String
+        get() = prefs.getString(KEY_HOYOLAND_CART, "") ?: ""
+        set(v) { prefs.putString(KEY_HOYOLAND_CART, v) }
+
     /** 알림 중복 방지용 마지막 발송 키 저장/조회 (예: "budget:2026-05"). */
     fun lastNotified(tag: String): String = prefs.getString("notif_last_$tag", "") ?: ""
     fun setLastNotified(tag: String, value: String) { prefs.putString("notif_last_$tag", value) }
 
     companion object {
         private const val PREFS = "gatcha_settings"
+        private const val KEY_HOYOLAND_CART = "hoyoland_cart"
         private const val KEY_AUTO_CHECKIN = "auto_checkin"
         private const val KEY_NOTIFY_RESIN = "notify_resin"
         private const val KEY_NOTIFY_ATTEND = "notify_attendance"

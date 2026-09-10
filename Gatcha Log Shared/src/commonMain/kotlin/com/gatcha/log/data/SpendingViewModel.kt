@@ -235,6 +235,29 @@ class SpendingViewModel : ViewModel() {
     val spendingCompact: StateFlow<Boolean> = _spendingCompact.asStateFlow()
     fun setSpendingCompact(v: Boolean) { appSettings.spendingCompact = v; _spendingCompact.value = v }
 
+    /**
+     * 호요랜드 굿즈 장바구니 — 담은 것은 [AppSettings] 에 남는다.
+     *
+     * 화면 안 상태로 두지 않는 이유: 목록과 장바구니가 **다른 페이지**라 오갈 때마다 비면
+     * 쓸 수가 없고, 행사는 나흘인데 굿즈는 그 전부터 본다.
+     */
+    private val _hoyolandCart = MutableStateFlow(HoyolandCart.parse(appSettings.hoyolandCartRaw))
+    val hoyolandCart: StateFlow<HoyolandCart> = _hoyolandCart.asStateFlow()
+
+    /** 담기/빼기 — 담을 때 수량 1 로 시작한다. */
+    fun toggleGoods(name: String) = updateCart { it.toggle(name) }
+
+    /** 수량 지정 — 0 이하면 목록에서 빠진다. */
+    fun setGoodsQuantity(name: String, quantity: Int) = updateCart { it.withQuantity(name, quantity) }
+
+    fun clearGoodsCart() = updateCart { it.cleared() }
+
+    private inline fun updateCart(edit: (HoyolandCart) -> HoyolandCart) {
+        val next = edit(_hoyolandCart.value)
+        appSettings.hoyolandCartRaw = next.serialize()
+        _hoyolandCart.value = next
+    }
+
     private val _collabBannerExpanded = MutableStateFlow(appSettings.collabBannerExpanded)
     val collabBannerExpanded: StateFlow<Boolean> = _collabBannerExpanded.asStateFlow()
     fun setCollabBannerExpanded(v: Boolean) { appSettings.collabBannerExpanded = v; _collabBannerExpanded.value = v }

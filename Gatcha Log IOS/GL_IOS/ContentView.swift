@@ -16,6 +16,9 @@ struct ContentView: View {
     @State private var selectedTab: Int = 0
     /// 지출 목록이 다중 선택 중인가 — 선택 하단바가 떠 있는 동안 '추가' 버튼을 감춘다.
     /// (SpendingView 의 로컬 상태로 두면 TabView 오버레이인 그 버튼이 볼 수 없다)
+    ///
+    /// 더 깊은 화면(굿즈 목록)은 같은 목적으로 `store.hidesAddButton` 을 쓴다 —
+    /// 바인딩을 세 단계 내리는 대신 스토어를 통한다.
     @State private var spendingSelectionMode = false
     /// 앱 복귀 감지 — 밀린 알림 점검 트리거(BGAppRefreshTask 는 실행 시점이 OS 재량이라 보조가 필요).
     @Environment(\.scenePhase) private var scenePhase
@@ -400,7 +403,7 @@ struct ContentView: View {
                 // '일괄 편집'이 '+' 에 가려 눌리지 않았다. 같은 이유로 '맨 위로'도 이미 숨긴다.
                 // (지출을 고르는 중에 새 지출을 추가하는 흐름도 아니다)
                 if selectedTab <= 1 && !tabsWithSubPage.contains(selectedTab)
-                    && !bottomChromeHidden && !spendingSelectionMode {
+                    && !bottomChromeHidden && !spendingSelectionMode && !store.hidesAddButton {
                     legacyAddButton
                         .padding(.trailing, GLGLegacyAddButton.trailingInset)
                         .padding(.bottom, GLGLegacyAddButton.bottomInset)
