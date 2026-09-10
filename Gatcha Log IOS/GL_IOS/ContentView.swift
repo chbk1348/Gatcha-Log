@@ -39,7 +39,8 @@ struct ContentView: View {
     /// `.sheet(item:)` 은 대상 값을 표시 시점에 확정해 넘기므로 이 경합 자체가 성립하지 않는다.
     @State private var spendingSheet: SpendingSheetTarget? = nil
 
-    /// 지출 편집 페이지의 대상. `.navigationDestination(item:)` 에 넘기기 위해 Identifiable + Hashable.
+    /// 지출 편집 페이지의 대상. `.sheet(item:)`·`.navigationDestination(item:)` 에 넘기기 위해
+    /// Identifiable + Hashable.
     ///
     /// 동등성·해시는 **[id] 로만** 판단한다. Kotlin `Spending` 은 Swift 쪽에서 값 동등성이
     /// 보장되지 않아 그대로 해싱하면 같은 대상이 매번 달라 보일 수 있고, 그러면
@@ -291,11 +292,23 @@ struct ContentView: View {
         )
     }
 
-    /// 각 탭 스택 루트에 다는 지출 편집 목적지 — 상세 페이지처럼 밀려 들어온다(시트 아님).
+    /**
+     지출 편집을 **시트로** 띄운다(지출 탭 제외 — 거긴 경로에 쌓는다).
+
+     예전엔 탭 스택 루트에 `navigationDestination(item:)` 으로 걸어 상세처럼 밀어 넣었다.
+     그런데 **같은 뷰에 navigationDestination 이 둘이면 동시에 살 수 없다.** 홈은 호요랜드도
+     `navigationDestination(isPresented:)` 로 여는데, 하위 페이지를 보다 '+' 를 누르면 지출
+     페이지가 그 push 를 밀어내고 올라왔다 — 취소하면 호요랜드가 아니라 **루트(홈)로 떨어졌다**
+     (2026-09-10 제보).
+
+     시트는 스택을 건드리지 않으므로 어느 화면 위에서 열든 **뒤 화면이 그대로 유지된다.**
+     의미상으로도 맞다 — 홈·게임정보·마이페이지에서 '+' 는 그 화면의 다음 단계가 아니라
+     **끼어드는 별개 작업**이다(지출 탭의 목록 → 추가와 다르다).
+     */
     @ViewBuilder
-    private func spendingEditorDestination<V: View>(tab: Int, _ content: V) -> some View {
-        content.navigationDestination(item: spendingEditorBinding(tab: tab)) { target in
-            AddSpendingView(store: store, editing: target.spending, pushed: true) { spendingSheet = nil }
+    private func spendingEditorSheet<V: View>(tab: Int, _ content: V) -> some View {
+        content.sheet(item: spendingEditorBinding(tab: tab)) { target in
+            AddSpendingView(store: store, editing: target.spending) { spendingSheet = nil }
         }
     }
 
@@ -456,7 +469,7 @@ struct ContentView: View {
     // Phase 5 — SwiftUI 네이티브 홈. 시작 로직(refreshGameInfo)은 HomeView.task 에서 트리거.
     private var homeTabContent: some View {
         NavigationStack {
-            spendingEditorDestination(tab: 0, HomeView(store: store, onSwitchTab: { selectedTab = $0 }))
+            spendingEditorSheet(tab: 0, HomeView(store: store, onSwitchTab: { selectedTab = $0 }))
         }
         .glgAccent(index: store.accentIndex)
         .toolbar(tabBarVisibility, for: .tabBar)
@@ -502,7 +515,7 @@ struct ContentView: View {
 
     // Phase 4 chunk ② — SwiftUI 게임정보(데일리·배너/전투/일지·패치·위시·천장·이벤트). 가챠 도구는 chunk ③.
     private var gameInfoTabContent: some View {
-        NavigationStack { spendingEditorDestination(tab: 2, GameInfoView(store: store)) }
+        NavigationStack { spendingEditorSheet(tab: 2, GameInfoView(store: store)) }
             .glgAccent(index: store.accentIndex)
             .toolbar(tabBarVisibility, for: .tabBar)
     }
@@ -511,7 +524,7 @@ struct ContentView: View {
     // 설정은 NavigationStack push(시스템 슬라이드·뒤로가기), 탭바 숨김은 SettingsView 가 .toolbar(.hidden) 로 처리.
     private var myPageTabContent: some View {
         NavigationStack {
-            spendingEditorDestination(tab: 3, MyPageView(store: store))
+            spendingEditorSheet(tab: 3, MyPageView(store: store))
         }
         .glgAccent(index: store.accentIndex)
         // 초기 동기화 게이트(로딩) 중에는 탭바 숨김 — 서브페이지(설정)에서는 노출 유지
