@@ -12,7 +12,16 @@
  */
 window.FIREBASE_CONFIG = {
   apiKey: 'AIzaSyAzU_VzXsBARf3sMydJBGQEdb7kCJB9RmA',
-  authDomain: 'gatcha-log.firebaseapp.com',
+  // ⚠️ 어드민이 서빙되는 도메인과 **같게** 둔다(기본값 gatcha-log.firebaseapp.com 이 아니라).
+  //
+  // 리다이렉트 로그인은 authDomain 의 /__/auth/handler 를 거치는데, 그게 다른 사이트면
+  // 모바일 브라우저의 저장소 파티셔닝에 막혀 이렇게 죽는다:
+  //   "Unable to process request due to missing initial state"
+  // Firebase Hosting 은 모든 사이트에 auth 헬퍼를 함께 제공하므로 여기만 맞추면 same-origin 이 된다.
+  //
+  // 커스텀 도메인을 붙이면 이 값도 같이 바꾸고, Google Cloud Console → 사용자 인증 정보 →
+  // OAuth 클라이언트의 승인된 리디렉션 URI 에 https://<도메인>/__/auth/handler 를 넣는다.
+  authDomain: 'gatcha-log.web.app',
   projectId: 'gatcha-log',
   appId: '1:711708512022:web:3595e213bc18ab15fa4a37',
 };

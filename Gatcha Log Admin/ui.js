@@ -437,6 +437,67 @@ function glDateTime(cfg) {
 }
 
 /* ═════════════════════════════════════════════════════════════
+ * 시각 — "HH:mm" 한 칸
+ *
+ * 날짜 없이 시각만 받는 자리(무대 시간표의 시작 시각)에 쓴다. 값은 "14:00" 처럼 앱이 읽는
+ * 표기 그대로 나가되, "종일" · "수시" 같은 비시각 표기도 유효한 값이라 칩으로 같이 준다.
+ *
+ * cfg: { value, onChange, placeholder, defaultHour, presets: ['종일', …] }
+ * ═════════════════════════════════════════════════════════════ */
+
+const HHMM_RE = /^([01]?\d|2[0-3]):[0-5]\d$/;
+
+function glTime(cfg) {
+  let value = String(cfg.value ?? '');
+
+  const trig = el('button', { type: 'button', class: 'gl-field gl-select', 'aria-haspopup': 'dialog', 'aria-expanded': 'false' });
+  const paint = () => {
+    const raw = value.trim();
+    // replaceChildren 은 el() 과 달리 null 을 걸러 주지 않는다 — 그대로 넣으면 "null" 이 찍힌다.
+    trig.replaceChildren(...[
+      el('span', { class: 'gl-val' + (raw ? '' : ' gl-ph'), text: raw || cfg.placeholder || '시각 선택' }),
+      raw && !HHMM_RE.test(raw) ? el('span', { class: 'gl-tag', text: '표기' }) : null,
+      el('span', { class: 'gl-caret', 'aria-hidden': 'true' }),
+    ].filter(Boolean));
+  };
+  paint();
+
+  const set = (v) => {
+    value = v;
+    paint();
+    if (cfg.onChange) cfg.onChange(v);
+  };
+
+  trig.addEventListener('click', () => {
+    if (isOpen(trig)) { closePop(); return; }
+    const m = HHMM_RE.exec(value.trim());
+    let h = m ? +value.trim().split(':')[0] : (cfg.defaultHour ?? 10);
+    let mi = m ? +value.trim().split(':')[1] : 0;
+    const emit = () => set(`${pad2(h)}:${pad2(mi)}`);
+
+    const panel = el('div', { class: 'gl-cal-pop gl-time-pop' }, [
+      el('div', { class: 'gl-time' }, [
+        glNumber({ value: h, min: 0, max: 23, pad: true, wrap: true, onChange: (v) => { h = v; emit(); } }),
+        el('span', { class: 'gl-time-c', text: ':' }),
+        glNumber({ value: mi, min: 0, max: 59, step: 5, pad: true, wrap: true, onChange: (v) => { mi = v; emit(); } }),
+      ]),
+      (cfg.presets || []).length ? el('div', { class: 'gl-chips' },
+        cfg.presets.map((t) => el('button', {
+          type: 'button', class: 'gl-mini' + (t === value.trim() ? ' on' : ''),
+          onclick: () => { set(t); closePop(); },
+        }, [t]))) : null,
+      el('div', { class: 'gl-cal-foot' }, [
+        el('button', { type: 'button', class: 'gl-mini', onclick: () => { set(''); closePop(); } }, ['비우기']),
+        el('button', { type: 'button', class: 'gl-mini', style: 'margin-left:auto', onclick: () => closePop() }, ['닫기']),
+      ]),
+    ]);
+    openPop(trig, panel);
+  });
+
+  return trig;
+}
+
+/* ═════════════════════════════════════════════════════════════
  * 색 — 앱이 읽는 값은 ARGB 문자열("0xFF30C6E8")이다
  * ═════════════════════════════════════════════════════════════ */
 
