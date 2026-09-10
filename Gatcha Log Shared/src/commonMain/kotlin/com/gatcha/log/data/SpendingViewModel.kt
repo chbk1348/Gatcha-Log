@@ -1316,7 +1316,9 @@ class SpendingViewModel : ViewModel() {
     private fun refreshChallenge() {
         val prevBest = repo.loadBestNoSpend()
         val prevBadges = repo.loadEarnedBadges()
-        val summary = SavingsChallenge.evaluate(_spendings.value, _budget.value, prevBest, prevBadges)
+        val summary = SavingsChallenge.evaluate(
+            _spendings.value, _budget.value, prevBest, prevBadges, _gameBudgets.value,
+        )
         if (summary.bestStreak > prevBest) repo.saveBestNoSpend(summary.bestStreak)
         val earned = SavingsChallenge.earnedIds(summary)
         if (earned != prevBadges) repo.saveEarnedBadges(earned)

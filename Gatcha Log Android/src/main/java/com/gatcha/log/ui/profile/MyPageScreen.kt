@@ -53,6 +53,18 @@ import com.gatcha.log.data.SpendingViewModel
 import com.gatcha.log.ui.theme.*
 import com.gatcha.log.util.percentShares
 import com.gatcha.log.util.won
+import com.gatcha.log.ui.components.GlgCardSurface
+import com.gatcha.log.ui.savings.SavingsChallengeHomeCard
+import com.gatcha.log.ui.savings.SavingsChallengeScreen
+
+/**
+ * 마이페이지의 하위 페이지 갈래 — 홈의 `HomeSub` 와 같은 방식이다.
+ *
+ * 예전엔 설정 하나뿐이라 `Boolean` 으로 갈랐는데, 절약 챌린지가 이관되며 둘이 됐다.
+ * Boolean 두 개로 두면 `onSubPageChange` 에 서로 다른 값을 밀어 하단바·FAB 표시가
+ * 순서에 좌우된다(홈에서 겪은 문제다) — 파생값 하나를 단일 진실로 둔다.
+ */
+private enum class MyPageSub { Main, Settings, Challenge }
 
 @Composable
 fun MyPageScreen(
@@ -65,14 +77,30 @@ fun MyPageScreen(
     val account by viewModel.account.collectAsStateWithLifecycle()
     val attendanceStreak by viewModel.attendanceStreak.collectAsStateWithLifecycle()
     val gachaStats by viewModel.gachaStats.collectAsStateWithLifecycle()
+    val challenge by viewModel.challenge.collectAsStateWithLifecycle()
 
     val showSettings = remember { mutableStateOf(false) }
+    // 절약 챌린지 — 27.50.0 에서 홈에서 이관했다. 스트릭·배지는 "내가 얼마나 해왔나" 라
+    // 마이페이지의 통계·활동 카드와 같은 묶음이 맞다(홈은 "지금 무엇을 할까" 를 말하는 자리).
+    var showChallenge by remember { mutableStateOf(false) }
     // 로드인 스태거 — 앱 진입 후 1회만(탭 재진입 재생 방지, 세션 영속).
 
-    // 설정 페이지에서 시스템/제스처 뒤로가기 시 홈이 아니라 마이페이지로 복귀
-    BackHandler(enabled = showSettings.value) { showSettings.value = false }
-    // 설정 페이지가 열리면 상위(Scaffold)에 알려 하단바·FAB를 숨김
-    LaunchedEffect(showSettings.value) { onSubPageChange(showSettings.value) }
+    /**
+     * 하위 페이지 갈래. 둘 다 마이페이지 바로 아래 한 층이고 서로 오갈 수 없다
+     * (하위에서 나가는 길은 마이페이지뿐) — push/pop 판정에 [MyPageSub.Main] 인지만 보면 된다.
+     */
+    val sub = when {
+        showSettings.value -> MyPageSub.Settings
+        showChallenge -> MyPageSub.Challenge
+        else -> MyPageSub.Main
+    }
+    // 하위 페이지에서 시스템/제스처 뒤로가기 시 홈이 아니라 마이페이지로 복귀
+    BackHandler(enabled = sub != MyPageSub.Main) {
+        showSettings.value = false
+        showChallenge = false
+    }
+    // 하위 페이지가 열리면 상위(Scaffold)에 알려 하단바·FAB를 숨김
+    LaunchedEffect(sub) { onSubPageChange(sub != MyPageSub.Main) }
 
     // 홈 만료 배너 CTA 가 마이페이지 → 설정으로 자동 진입시키도록(C4 흐름).
     val pendingOpenHoyolab by viewModel.pendingOpenHoyolabLink.collectAsStateWithLifecycle()
@@ -105,11 +133,11 @@ fun MyPageScreen(
     val spendCount = spendings.size
 
     AnimatedContent(
-        targetState = showSettings.value,
+        targetState = sub,
         modifier = Modifier.fillMaxSize(),
         transitionSpec = {
-            if (targetState) {
-                // 설정 열기: 오른쪽에서 슬라이드 인 (push)
+            if (targetState != MyPageSub.Main) {
+                // 하위 열기: 오른쪽에서 슬라이드 인 (push)
                 (slideInHorizontally(glgStandardSpec()) { w -> w } + fadeIn(glgStandardSpec())) togetherWith
                     (slideOutHorizontally(glgStandardSpec()) { w -> -w / 4 } + fadeOut(glgShortSpec()))
             } else {
@@ -118,11 +146,18 @@ fun MyPageScreen(
                     (slideOutHorizontally(glgStandardSpec()) { w -> w } + fadeOut(glgShortSpec()))
             }
         },
-        label = "mypageSettings",
-    ) { settings ->
-        if (settings) {
-            SettingsScreen(viewModel) { showSettings.value = false }
-            return@AnimatedContent
+        label = "mypageSub",
+    ) { target ->
+        when (target) {
+            MyPageSub.Settings -> {
+                SettingsScreen(viewModel) { showSettings.value = false }
+                return@AnimatedContent
+            }
+            MyPageSub.Challenge -> {
+                SavingsChallengeScreen(viewModel) { showChallenge = false }
+                return@AnimatedContent
+            }
+            MyPageSub.Main -> Unit
         }
 
     val topInset = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
@@ -187,7 +222,12 @@ fun MyPageScreen(
         }
         item { Spacer(Modifier.height(13.dp)) }
 
-        // ⑤ 게임별 지출 (도넛)
+        // ⑤ 절약 챌린지 — 홈에서 이관(27.50.0). 「활동」 지표 바로 뒤가 성격이 맞다.
+        item { SectionLabel("절약 챌린지") }
+        item { SavingsChallengeHomeCard(challenge) { showChallenge = true } }
+        item { Spacer(Modifier.height(13.dp)) }
+
+        // ⑥ 게임별 지출 (도넛)
         item { SectionLabel("게임별 지출") }
         item { Box(Modifier.fillMaxWidth()) { GameDonutCard(spendings) } }
     }
@@ -230,6 +270,13 @@ private fun SectionLabel(text: String) {
 // ============================================================
 
 /** 연회색 섹션 카드 — 앱 공통 카드 규격(GlassCard/iOS glgGlass 동일: F6F7F9 · 헤어라인). */
+/**
+ * 마이페이지 카드 — [GlassCard] 와 같은 면이지만 `Surface` 기반이다.
+ *
+ * 이 화면은 카드 안에 도넛·추세 그래프를 얹어 `Surface` 의 클립·엘리베이션 처리를 쓰고 있어
+ * [GlassCard](Box 기반)로 갈아타지 않았다. 대신 **표면색은 [GlgCardSurface] 를 공유**한다 —
+ * 값을 따로 들고 있었더니 면 체계를 뒤집을 때 이 화면만 연회색으로 남았다.
+ */
 @Composable
 private fun OutlineCard(
     modifier: Modifier = Modifier,
@@ -239,7 +286,7 @@ private fun OutlineCard(
     Surface(
         modifier = modifier,
         shape = shape,
-        color = Color(0xFFF6F7F9),
+        color = GlgCardSurface,
         border = BorderStroke(1.dp, Color.Black.copy(alpha = 0.06f)),
         shadowElevation = 0.dp,
         content = content,

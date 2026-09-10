@@ -3,7 +3,8 @@ import Shared
 
 // ════════════════════════════════════════════════════════════════════════════
 // 마이페이지 2.0 — 대시보드. (Compose MyPageScreen 대응 · 흰 카드+아웃라인)
-// 섹션 4개: ① 프로필 헤더 ② 이번 달 지출 KPI ③ 월별 지출 추이 ④ 활동 메트릭 + 게임별 지출.
+// 섹션 6개: ① 프로필 헤더 ② 이번 달 지출 KPI ③ 월별 지출 추이 ④ 활동 메트릭
+//           ⑤ 절약 챌린지(27.50.0 에 홈에서 이관) ⑥ 게임별 지출.
 // 계정 전환·내보내기·테마 등 관리 항목은 ⚙ 설정에서 처리.
 // ════════════════════════════════════════════════════════════════════════════
 
@@ -35,7 +36,15 @@ struct MyPageView: View {
                 SectionLabel("활동")
                 metricGrid
 
-                // ⑤ 게임별 지출
+                // ⑤ 절약 챌린지 — 홈에서 이관(27.50.0). 「활동」 지표 바로 뒤가 성격이 맞다.
+                Spacer().frame(height: 13)
+                SectionLabel("절약 챌린지")
+                NavigationLink { SavingsChallengeView(store: store) } label: {
+                    SavingsChallengeHomeCard(store: store)
+                }
+                .buttonStyle(.plain)
+
+                // ⑥ 게임별 지출
                 Spacer().frame(height: 13)
                 SectionLabel("게임별 지출")
                 GameDonutCard(spendings: store.spendings)

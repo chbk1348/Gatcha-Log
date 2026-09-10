@@ -28,6 +28,7 @@ private func badgeSymbol(_ id: String) -> String {
     case "budget_3mo": return "trophy.fill"
     case "nospend_month": return "snowflake"
     case "save_3mo": return "chart.line.downtrend.xyaxis"
+    case "game_budget": return "gamecontroller.fill"
     case "king": return "crown.fill"
     default: return "star.fill"
     }
@@ -120,8 +121,17 @@ struct SavingsChallengeView: View {
     }
 
     private func challengeRow(_ c: ChallengeProgress) -> some View {
-        VStack(alignment: .leading, spacing: 0) {
+        // 게임별 챌린지는 **게임색**으로 진행바와 점을 칠한다(27.50.0 고도화).
+        // 전부 강조색이면 "이게 어느 게임 것인가" 를 제목 글자로만 읽어야 한다.
+        let gameColor: Color? = c.game.isEmpty ? nil
+            : GameData.shared.byNameOrNull(name: c.game).map { Color(argb64: $0.color) }
+        let tone = gameColor ?? accent.primary
+        return VStack(alignment: .leading, spacing: 0) {
             HStack(alignment: .top) {
+                if let gameColor {
+                    Circle().fill(gameColor).frame(width: 7, height: 7).padding(.top, 5)
+                    Spacer().frame(width: 7)
+                }
                 VStack(alignment: .leading, spacing: 1) {
                     Text(c.title).font(.pretendard(size: 13.5, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
                     Text(c.desc).font(.pretendard(size: 11)).foregroundStyle(GLGColor.textSecondary)
@@ -129,9 +139,9 @@ struct SavingsChallengeView: View {
                 Spacer()
                 Text(c.reached ? "달성 ✓" : "\(c.current) / \(c.target)")
                     .font(.pretendard(size: 13, weight: .bold))
-                    .foregroundStyle(c.reached ? accent.primary : GLGColor.textPrimary)
+                    .foregroundStyle(c.reached ? tone : GLGColor.textPrimary)
             }
-            progressBar(Double(c.ratio), c.warn ? warnAmber : accent.primary).padding(.top, 9)
+            progressBar(Double(c.ratio), c.warn ? warnAmber : tone).padding(.top, 9)
         }.padding(.vertical, 13)
     }
 

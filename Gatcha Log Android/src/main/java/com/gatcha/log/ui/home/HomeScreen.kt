@@ -53,8 +53,6 @@ import kotlinx.coroutines.launch
 import com.gatcha.log.data.HomeAlert
 import com.gatcha.log.data.HomeAlertKind
 import com.gatcha.log.data.HomeLogic
-import com.gatcha.log.ui.savings.SavingsChallengeHomeCard
-import com.gatcha.log.ui.savings.SavingsChallengeScreen
 import com.gatcha.log.data.GachaReport
 import com.gatcha.log.data.GachaStats
 import com.gatcha.log.data.HoyolabConfig
@@ -82,6 +80,7 @@ import com.gatcha.log.ui.components.BudgetDialog
 import com.gatcha.log.ui.components.BottomNavBar
 import com.gatcha.log.ui.theme.*
 import com.gatcha.log.util.num
+import com.gatcha.log.ui.theme.LocalAccentTint
 
 /**
  * 지출 에디터 페이지의 대상. 홀더 자체의 존재(null 아님)가 곧 "에디터가 열려 있다"이고,
@@ -329,7 +328,7 @@ fun HomeScreen(viewModel: SpendingViewModel = viewModel()) {
  * 게임정보 탭의 `GiSub` 처럼 깊이를 나누지 않는다 — 셋 다 홈 바로 아래 한 층이고, 서로
  * 오갈 수 없다(하위에서 나가는 길은 홈뿐). push/pop 판정에 `Home` 인지만 보면 된다.
  */
-private enum class HomeSub { Home, Notifications, SavingsChallenge, Hoyoland }
+private enum class HomeSub { Home, Notifications, Hoyoland }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -354,7 +353,6 @@ fun HomeContent(
     val attendanceStreak by viewModel.attendanceStreak.collectAsStateWithLifecycle()
     val account by viewModel.account.collectAsStateWithLifecycle()
     val gachaStats by viewModel.gachaStats.collectAsStateWithLifecycle()
-    val challenge by viewModel.challenge.collectAsStateWithLifecycle()
     val gameInfoReady by viewModel.gameInfoReady.collectAsStateWithLifecycle()
     // 일정·소식은 출처가 달라 게이트도 따로다 — 배너·노트가 캐시로 즉시 차도 이 둘은 아직 로딩일 수 있다.
     val scheduleReady by viewModel.scheduleReady.collectAsStateWithLifecycle()
@@ -420,11 +418,6 @@ fun HomeContent(
     val showNotifications = remember { mutableStateOf(false) }
     val showBudgetDialog = remember { mutableStateOf(false) }
 
-    // 절약 챌린지 하위 화면(홈 카드 진입). 0=없음 2=챌린지.
-    // (1 은 저축 플래너였다 — 2026-09-09 에 기능째 걷어냈다. 값은 그대로 둔다)
-    var savingsScreen by remember { mutableStateOf(0) }
-    BackHandler(enabled = savingsScreen != 0) { savingsScreen = 0 }
-
     // 호요랜드 상세 — **홈에서 바로 연다.** 예전엔 게임정보 탭으로 옮긴 뒤 그 탭의 앵커가
     // 상세를 열어, 한 번 탭에 화면이 두 번 바뀌었다(탭 전환이 눈에 보였다).
     var showHoyoland by remember { mutableStateOf(false) }
@@ -441,7 +434,6 @@ fun HomeContent(
      * 표시가 순서에 좌우됐다. 지금은 파생값 하나가 단일 진실이다.
      */
     val homeSub = when {
-        savingsScreen == 2 -> HomeSub.SavingsChallenge
         showHoyoland -> HomeSub.Hoyoland
         showNotifications.value -> HomeSub.Notifications
         else -> HomeSub.Home
@@ -496,10 +488,6 @@ fun HomeContent(
         label = "homeSub",
     ) { sub ->
         when (sub) {
-            HomeSub.SavingsChallenge -> {
-                SavingsChallengeScreen(viewModel) { savingsScreen = 0 }
-                return@AnimatedContent
-            }
             HomeSub.Hoyoland -> {
                 HoyolandDetailPage(viewModel, onBack = { showHoyoland = false })
                 return@AnimatedContent
@@ -581,20 +569,16 @@ fun HomeContent(
             else DashScheduleCard(gameEvents, gameChallenges, titleOutside = true) { viewModel.requestGameInfoAnchor(GameInfoAnchor.SCHEDULE); onNavigateToGameInfo() }
             Spacer(Modifier.height(16.dp))
         }
+        // 절약 챌린지는 **마이페이지**로 옮겼다(27.50.0) — 홈은 "지금 무엇을 할까" 를 말하는
+        // 자리고, 스트릭·배지는 "내가 얼마나 해왔나" 라 성격이 다르다. 마이페이지의 통계·활동
+        // 카드들과 같은 묶음에 있는 편이 찾기도 쉽다.
+        //
+        // 그래서 **소식 카드가 마지막**이다. 마지막 카드 뒤에는 여백을 두지 않는다 —
+        // 탭바까지의 간격은 contentPadding(glgTabContentBottom)이 전담한다. 여기서 또 더하면
+        // 이 탭만 간격이 넓어진다(예전에 24dp 였다).
         glgCardItem() {
             if (!newsReady) DashCardSkeleton(rows = 2)
             else DashNewsCard(gameNews, anniversaries, titleOutside = true) { viewModel.requestGameInfoAnchor(GameInfoAnchor.NEWS); onNavigateToGameInfo() }
-            Spacer(Modifier.height(16.dp))
-        }
-        // 나를 위한 — 절약 챌린지
-        glgCardItem() {
-            HomeSectionHeader("나를 위한")
-            Spacer(Modifier.height(10.dp))
-        }
-        // 마지막 카드 뒤에는 여백을 두지 않는다 — 탭바까지의 간격은 contentPadding(glgTabContentBottom)이
-        // 전담한다. 여기서 또 더하면 이 탭만 간격이 넓어진다(예전에 24dp 였다).
-        glgCardItem() {
-            SavingsChallengeHomeCard(challenge) { savingsScreen = 2 }
         }
     }
     // 상단 스크림 — **상태바 영역만** 덮는다(헤더 버튼 줄은 그대로 투명).
@@ -659,7 +643,7 @@ private fun NotificationDetailScreen(
     val scrolled by remember {
         derivedStateOf { listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 0 }
     }
-    Box(Modifier.fillMaxSize().background(Color.White)) {
+    Box(Modifier.fillMaxSize().background(LocalAccentTint.current)) {
         Column(Modifier.fillMaxSize().padding(top = glgDetailContentTop())) {
         if (alerts.isEmpty()) {
             Column(

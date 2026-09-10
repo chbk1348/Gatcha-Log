@@ -153,9 +153,8 @@ struct HomeView: View {
                 }
                 RecentSpendCard(spendings: store.spendings, onSeeAll: { onSwitchTab(1) })
                 dashboardSlots(titleOutside: true)
-                HomeSectionHeader(title: "나를 위한")
-                NavigationLink { SavingsChallengeView(store: store) } label: { SavingsChallengeHomeCard(store: store) }
-                    .buttonStyle(.plain)
+                // 절약 챌린지는 **마이페이지**로 옮겼다(27.50.0) — 홈은 "지금 무엇을 할까" 를
+                // 말하는 자리고, 스트릭·배지는 "내가 얼마나 해왔나" 라 성격이 다르다.
             }
             .padding(.horizontal, 16)
             .padding(.bottom, 16)
@@ -180,8 +179,7 @@ struct HomeView: View {
                 todayTaskView(titleOutside: false)
             }
             dashboardSlots(titleOutside: false)
-            NavigationLink { SavingsChallengeView(store: store) } label: { SavingsChallengeHomeCard(store: store) }
-                .buttonStyle(.plain)
+            // 절약 챌린지 → 마이페이지(27.50.0). 위 newHomeContent 와 같은 이유.
         }
         .padding(.horizontal, 16)
         .padding(.top, 4)
