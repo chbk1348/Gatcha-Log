@@ -1,6 +1,6 @@
 # Gatcha Log Admin
 
-이 저장소가 발행하는 운영 JSON 의 편집 콘솔. 빌드 없음 · 의존 없음 — 정적 파일 5개가 전부다.
+이 저장소가 발행하는 운영 JSON 의 편집 콘솔. 빌드 없음 · 의존 없음 — 정적 파일 7개가 전부다.
 
 배포: <https://gatcha-log.web.app>
 
@@ -8,9 +8,9 @@
 
 | 리소스 | 정본 파일 | 라이브 문서 | 앱 |
 |---|---|---|---|
-| 호요랜드 | `hoyoland.json` | `config/hoyoland` | `HoyolandApi` |
-| ZZZ 배너 | `zzz_banners.json` | `config/zzzBanners` | `ZzzBannerApi` |
-| 앱 배포 | `version.json` | **없음** (아래 참고) | `UpdateChecker` |
+| 호요랜드 | `config/hoyoland.json` | `config/hoyoland` | `HoyolandApi` |
+| ZZZ 배너 | `config/zzz_banners.json` | `config/zzzBanners` | `ZzzBannerApi` |
+| 앱 배포 | `version.json` (루트) | **없음** (아래 참고) | `UpdateChecker` |
 
 좌측 상단 스위처로 전환한다. 리소스마다 초안 · 검증 · 라이브 상태가 따로 붙는다.
 
@@ -75,9 +75,48 @@
 |---|---|
 | `index.html` | 셸 |
 | `admin.css` | 스타일 |
-| `admin.js` | 리소스 정의 · 폼/테이블 렌더 · 검증 · 직렬화 · 지연 측정 |
+| `admin.js` | 리소스 정의 · 게임 카탈로그 · 폼/테이블 렌더 · 검증 · 직렬화 · 지연 측정 |
+| `ui.js` | 커스텀 UI 컴포넌트(드롭다운 · 달력 · 스테퍼 · 스위치 · 색 · 확인 모달) |
+| `ui.css` | 컴포넌트 스타일 |
 | `cloud.js` | Firebase 브릿지. **없어도 어드민은 동작한다**(라이브만 꺼짐) |
 | `firebase-config.js` | 웹 앱 구성값 |
+
+## 입력 위젯
+
+브라우저 기본 위젯을 쓰지 않는다. `<select>` · checkbox · `date` · `datetime-local` ·
+`number` · `window.confirm` 은 OS · 브라우저마다 생김새와 동작이 다르고 다크 테마를 따르지 않는다.
+`ui.js` 의 컴포넌트가 그 자리를 대신하고, `admin.js` 의 `inputFor` 가 스키마의 `type` 을
+컴포넌트로 잇는다.
+
+값 콜백은 둘로 나뉜다 — `onInput` 은 타이핑 중이라 초안에만 반영하고, `onChange` 는 확정이라
+저장 배지(dirty)까지 찍는다. 매 글자 배지가 흔들리지 않게 하려는 구분이다.
+
+### 게임은 고르는 값이다
+
+`lineup` · `goods` · `booths` · 시간표 슬롯의 `game` 은 드롭다운(`type: 'game'`)이다.
+이름이 한 글자만 어긋나도 앱은 다른 게임으로 본다 — `GameData.byNameOrNull` 이 `displayName` ·
+`shortName` · `key` 로만 찾기 때문이다.
+
+목록의 정본은 `GameData.kt` 다. 앱이 아는 6종은 약칭 · 색을 앱이 이미 알아서 `abbr` ·
+`colorArgb` 를 비워 두고, 행사에만 나오는 게임(붕괴3rd · 미해결사건부 등)은 둘을 채워야 태그가
+제대로 나온다. 드롭다운이 어느 쪽인지 항목마다 표시한다.
+
+신작 · 협업 부스처럼 목록에 없는 이름은 검색창에 그대로 적어 **직접 입력**으로 넣는다.
+오타를 막는 게 목적이지 값을 가두는 게 목적이 아니다. 게임이 늘면 `GameData.kt` 와
+`admin.js` 의 `GAME_CATALOG` 를 같이 고친다.
+
+### 자주 쓰는 값도 고른다
+
+값의 집합이 사실상 정해진 칸은 `type: 'suggest'` 다 — 장소 · 예매처 · 굿즈 분류 · 부스 소요 ·
+정보 항목(`facts.label`). 게임과 같은 드롭다운이지만 색 점 · 앱 지원 표시가 없다.
+
+앱은 이 값들을 문자열로 그대로 노출할 뿐이라 목록을 지킬 의무가 없다. 매번 같은 걸 다시
+타이핑하며 "아크릴" 과 "아크릴스탠드" 가 뒤섞이는 걸 막는 게 전부라, 여기도 직접 입력이 열려 있다.
+목록은 `admin.js` 상단(`GOODS_CATEGORIES` · `TICKET_VENDORS` · `FACT_LABELS` ·
+`BOOTH_DURATIONS` · `VENUE_NAMES`)에 모여 있다.
+
+반대로 행사마다 값이 새로 나오는 칸(부스 위치 · 정원 · 보상 · 슬롯 시간 · 출연 · 배너 이름)은
+자유 입력으로 뒀다. 목록이 도움이 안 되면서 선택 단계만 늘기 때문이다.
 
 ## 스키마를 고칠 때
 
@@ -98,5 +137,6 @@
 
 ## 자체 점검
 
-`#selftest` — 검증 · 직렬화 · KST 변환 등 19건을 돌린다(<https://gatcha-log.web.app/#selftest>).
-폼이 아니라 "앱이 버리는 값을 어드민이 잡아내는가"만 본다.
+`#selftest` — 검증 · 직렬화 · KST 변환 · 게임 카탈로그 · 입력 위젯 등 28건을 돌린다
+(<https://gatcha-log.web.app/#selftest>).
+"앱이 버리는 값을 어드민이 잡아내는가" 와 "위젯이 값을 제대로 돌려주는가" 만 본다 — 생김새는 보지 않는다.
