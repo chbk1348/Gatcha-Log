@@ -2,7 +2,13 @@ package com.gatcha.log.data
 
 import com.gatcha.log.util.currentTimeMillis
 
-/** 진행 중 챌린지 한 건의 상태(결정형 룰로 지출·예산에서 파생). */
+/**
+ * 진행 중 챌린지 한 건의 상태(결정형 룰로 지출·예산에서 파생).
+ *
+ * @param game 게임 키([Game.key]). **비어 있으면 전체 챌린지**, 값이 있으면 그 게임 것이다 —
+ *   UI 가 게임색·약칭을 붙이는 근거다. 이 앱의 지출은 게임별로 집계되므로 절약도 게임별로
+ *   보는 편이 자연스럽다(27.50.0 고도화).
+ */
 data class ChallengeProgress(
     val id: String,
     val title: String,
@@ -12,6 +18,7 @@ data class ChallengeProgress(
     val ratio: Float,       // 0..1 (진행바)
     val reached: Boolean,   // 현재 달성/온트랙
     val warn: Boolean = false, // 예산 임박·초과 등 주의
+    val game: String = "",
 )
 
 /** 배지 한 개(획득 여부). 아이콘은 emoji 로 표기 — UI에서 실제 에셋으로 교체 가능. */
@@ -48,6 +55,7 @@ object SavingsChallenge {
     const val B_BUDGET_3MO = "budget_3mo"
     const val B_NOSPEND_MONTH = "nospend_month"
     const val B_SAVE_3MO = "save_3mo"
+    const val B_GAME_BUDGET = "game_budget"
     const val B_KING = "king"
 
     private data class BadgeDef(val id: String, val emoji: String, val title: String)
@@ -59,16 +67,22 @@ object SavingsChallenge {
         BadgeDef(B_BUDGET_3MO, "🏆", "3개월 예산"),
         BadgeDef(B_NOSPEND_MONTH, "🧊", "한 달 무지출"),
         BadgeDef(B_SAVE_3MO, "📉", "3개월 절약"),
+        BadgeDef(B_GAME_BUDGET, "🎮", "게임별 예산"),
         BadgeDef(B_KING, "👑", "절약왕"),
     )
 
     private const val STREAK_CAP = 366
 
+    /**
+     * @param gameBudgets 게임 키 → 월 한도. 0 이하는 "정하지 않음" 이라 건너뛴다.
+     *   설정된 게임마다 챌린지 한 줄이 생긴다(27.50.0).
+     */
     fun evaluate(
         spendings: List<Spending>,
         budget: Long,
         bestStreakStored: Int,
         earnedStored: Set<String>,
+        gameBudgets: Map<String, Long> = emptyMap(),
         nowMillis: Long = currentTimeMillis(),
     ): ChallengeSummary {
         val spentDays: Set<String> = spendings.map { it.dayKey }.toSet()
@@ -145,6 +159,36 @@ object SavingsChallenge {
             )
         }
 
+        // 4) 게임별 예산 — **설정된 게임만**, 많이 쓴 순.
+        //
+        // 이 앱의 지출은 게임별로 집계되고 예산도 게임별로 정할 수 있다. 그런데 챌린지는
+        // 전체 합계만 보고 있어서, "원신은 줄였는데 스타레일이 늘었다" 같은 실제 사정이
+        // 화면에 드러나지 않았다. 게임별 한도를 정해 둔 사람에겐 그게 본론이다.
+        val ymNow = y * 100 + m
+        val monthByGame = HashMap<String, Long>()
+        spendings.forEach { sp ->
+            if (DateUtil.yearMonthKey(sp.dateMillis) != ymNow) return@forEach
+            val key = GameData.byNameOrNull(sp.gameName)?.key ?: return@forEach
+            monthByGame[key] = (monthByGame[key] ?: 0L) + sp.amount
+        }
+        val liveGameBudgets = gameBudgets.filterValues { it > 0 }
+        liveGameBudgets.entries
+            .sortedByDescending { monthByGame[it.key] ?: 0L }
+            .forEach { (key, limit) ->
+                val g = GameData.byNameOrNull(key) ?: return@forEach
+                val spent = monthByGame[key] ?: 0L
+                challenges += ChallengeProgress(
+                    id = "game_budget_$key",
+                    title = "${g.shortName} 예산 안에서",
+                    desc = "월 예산 ₩${comma(limit)} 넘지 않기",
+                    current = spent, target = limit,
+                    ratio = (spent.toFloat() / limit).coerceIn(0f, 1f),
+                    reached = spent <= limit,
+                    warn = spent >= limit * 8 / 10,
+                    game = key,
+                )
+            }
+
         // ── 배지 판정(현재 충족) → 저장된 획득과 합집합(단조 증가)
         val freshly = buildSet {
             if (best >= 1) add(B_FIRST)
@@ -154,6 +198,13 @@ object SavingsChallenge {
             if (budgetRun >= 3) add(B_BUDGET_3MO)
             if (zeroMonthAny) add(B_NOSPEND_MONTH)
             if (savingRun >= 3) add(B_SAVE_3MO)
+            // 게임별 예산을 **하나 이상 정해 두고 전부 지키고 있으면** 획득.
+            // 한 게임만 지켜도 주면 여러 게임을 관리하는 사람에게 의미가 없다.
+            if (liveGameBudgets.isNotEmpty() &&
+                liveGameBudgets.all { (k, limit) -> (monthByGame[k] ?: 0L) <= limit }
+            ) {
+                add(B_GAME_BUDGET)
+            }
         }
         val earned = (earnedStored + freshly).toMutableSet()
         // 절약왕 = 나머지 7종 모두 획득

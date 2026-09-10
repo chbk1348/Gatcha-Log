@@ -54,6 +54,9 @@ import com.gatcha.log.ui.theme.TextPrimary
 import com.gatcha.log.ui.theme.TextSecondary
 import com.gatcha.log.ui.theme.toColor
 import com.gatcha.log.util.won
+import com.gatcha.log.data.GameData
+import androidx.compose.material.icons.filled.SportsEsports
+import androidx.compose.foundation.shape.CircleShape
 
 private val WarnAmber = Color(0xFFF59E0B)
 private val GoldEarn = Color(0xFFF2B441)
@@ -75,6 +78,7 @@ private fun badgeIcon(id: String): ImageVector = when (id) {
     com.gatcha.log.data.SavingsChallenge.B_BUDGET_3MO -> Icons.Default.EmojiEvents
     com.gatcha.log.data.SavingsChallenge.B_NOSPEND_MONTH -> Icons.Default.AcUnit
     com.gatcha.log.data.SavingsChallenge.B_SAVE_3MO -> Icons.AutoMirrored.Filled.TrendingDown
+    com.gatcha.log.data.SavingsChallenge.B_GAME_BUDGET -> Icons.Default.SportsEsports
     com.gatcha.log.data.SavingsChallenge.B_KING -> Icons.Default.WorkspacePremium
     else -> Icons.Default.Savings
 }
@@ -196,8 +200,16 @@ private fun WeekStrip(viewModel: SpendingViewModel, accent: Color) {
 
 @Composable
 private fun ChallengeRow(c: ChallengeProgress, accent: Color) {
+    // 게임별 챌린지는 **게임색**으로 진행바와 점을 칠한다(27.50.0 고도화).
+    // 전부 강조색이면 "이게 어느 게임 것인가" 를 제목 글자로만 읽어야 한다.
+    val gameColor = c.game.takeIf { it.isNotBlank() }
+        ?.let { GameData.byNameOrNull(it)?.color?.toColor() }
     Column(Modifier.fillMaxWidth().padding(vertical = 13.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
+            if (gameColor != null) {
+                Box(Modifier.size(7.dp).clip(CircleShape).background(gameColor))
+                Spacer(Modifier.width(7.dp))
+            }
             Column(Modifier.weight(1f)) {
                 Text(c.title, fontSize = 13.5.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
                 Text(c.desc, fontSize = 11.sp, color = TextSecondary)
@@ -205,11 +217,11 @@ private fun ChallengeRow(c: ChallengeProgress, accent: Color) {
             Text(
                 if (c.reached) "달성 ✓" else "${c.current} / ${c.target}",
                 fontSize = 13.sp, fontWeight = FontWeight.Bold,
-                color = if (c.reached) accent else TextPrimary,
+                color = if (c.reached) (gameColor ?: accent) else TextPrimary,
             )
         }
         Spacer(Modifier.height(9.dp))
-        ProgressBar(c.ratio, if (c.warn) WarnAmber else accent)
+        ProgressBar(c.ratio, if (c.warn) WarnAmber else (gameColor ?: accent))
     }
 }
 
