@@ -17,7 +17,14 @@ import Shared
 private let GLGStageLiveRed = Color(hex: 0xFFE8634A)
 
 struct HoyolandStageView: View {
-    let event: HoyolandEvent
+    /// 넘겨받은 값으로 시작하되 **자체 상태로 들고 있는다** — 당겨서 새로고침으로 여기서
+    /// 다시 읽어야 하기 때문이다(`let` 이면 갱신값을 화면에 반영할 방법이 없다).
+    @State private var event: HoyolandEvent
+
+    init(event: HoyolandEvent) {
+        _event = State(initialValue: event)
+    }
+
     @Environment(\.glgAccent) private var accent
     /// 선택된 날짜 칸. 행사 중이면 오늘부터 — 현장에서 첫날이 선택돼 있으면 매번 한 번 더 눌러야 한다.
     @State private var selectedDay: Int = Int(HoyolandApi.shared.current.defaultDayIndex(nowMillis: nowMs()))
@@ -39,6 +46,13 @@ struct HoyolandStageView: View {
         .background(GLGBackground { Color.clear })
         .glgPageTitle("일자별 시간표")
         .navigationBarTitleDisplayMode(.inline)
+        // 당겨서 새로고침 — 무대 편성은 **행사 당일 현장에서 바뀐다.** 운영 어드민에서 고친
+        // 값을 기다리지 않고 지금 확인하는 통로다(`force` 라 라이브부터 다시 훑는다).
+        .refreshable {
+            if let fresh = try? await HoyolandApi.shared.load(force: true) { event = fresh }
+        }
+        // 진입할 때도 한 번 — 상세에서 받은 값이 캐시 나이에 걸려 오래됐을 수 있다.
+        .loadHoyoland(into: $event)
     }
 
     // ── 일자별 시간표 — 현장에서 손에 들고 보는 자리.

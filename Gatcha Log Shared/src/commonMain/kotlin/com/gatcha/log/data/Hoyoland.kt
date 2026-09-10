@@ -154,6 +154,9 @@ data class HoyolandDay(val ymd: String, val slots: List<HoyolandSlot>)
  * @param game 어느 게임 굿즈인지. 비면 공용(행사 로고·아트북 등).
  * @param category "아크릴"·"인형"·"의류" 같은 갈래. 목록을 훑는 눈금이 된다.
  * @param note "1인 2개 한정" 처럼 살 때 걸리는 조건.
+ *
+ * 품절 필드는 두지 않는다 — **호요랜드 굿즈샵은 품절을 따로 알리지 않는다**(2026-09-10 확인).
+ * 팔지 않는 물건은 목록에서 내리면 그만이라, 있지도 않은 상태를 화면에 세울 이유가 없다.
  */
 data class HoyolandGoods(
     val name: String,
@@ -161,20 +164,24 @@ data class HoyolandGoods(
     val game: String = "",
     val category: String = "",
     val note: String = "",
-    val soldOut: Boolean = false,
 )
 
 /**
  * 게임별 부스 체험 한 칸.
  *
- * 무대([HoyolandSlot])와 달리 **시각이 없다** — 상시 운영이고, 대신 줄을 서거나 예약을 잡는다.
+ * 무대([HoyolandSlot])와 달리 **시각이 없다** — 상시 운영이라 시간표에 얹을 것이 없다.
  * 그래서 시간표가 아니라 게임별 카드로 그린다.
  *
  * @param location "8홀 A-12" 같은 부스 위치. 현장에서 가장 먼저 찾는 값이다.
- * @param duration "회차당 20분" — 체험 한 번에 드는 시간.
- * @param capacity "회차당 20명" — 한 번에 몇 명이 들어가는지(대기 길이를 가늠한다).
- * @param reward "참여 시 아크릴 뱃지 증정" — 줄 설 이유가 되는 값이라 따로 둔다.
- * @param needsReservation 현장 예약·앱 사전예약이 필요한지.
+ * @param duration "약 20분" — 체험 한 번에 드는 시간.
+ * @param reward "참여 시 아크릴 뱃지 증정" — 부스를 고르는 기준이 되는 값이라 따로 둔다.
+ *
+ * 예약 필드는 두지 않는다 — **호요랜드 부스는 예약제가 없다**(2026-09-10 확인).
+ * 있지도 않은 갈래를 화면에 세우면 "예약이 있는 곳도 있나" 로 읽힌다.
+ *
+ * **정원 · 회차 필드도 두지 않는다**(2026-09-10 확인). 부스는 회차로 끊어 돌리지 않아서
+ * "회차당 몇 명" 이 성립하지 않고, 현장이 지금 얼마나 붐비는지는 알 길도 없다.
+ * 이 화면은 공지된 정보를 그대로 옮기는 자리다.
  */
 data class HoyolandBooth(
     val game: String,
@@ -182,9 +189,7 @@ data class HoyolandBooth(
     val desc: String = "",
     val location: String = "",
     val duration: String = "",
-    val capacity: String = "",
     val reward: String = "",
-    val needsReservation: Boolean = false,
 )
 
 /**
@@ -648,6 +653,15 @@ data class HoyolandEvent(
         get() = visibleGoods.map { it.game }.filter { it.isNotBlank() }.distinct()
 
     /**
+     * 부스 목록에 등장하는 게임들(원본 순서, 중복 제거) — 부스 페이지의 게임 탭이 쓴다.
+     *
+     * `game` 이 빈 부스(전 IP 공통 포토존 같은 것)는 탭을 만들지 않는다. 탭은 "그 게임 것만
+     * 보기" 라서, 소속이 없는 자리는 「전체」에만 있으면 된다.
+     */
+    val boothGames: List<String>
+        get() = booths.map { it.game }.filter { it.isNotBlank() }.distinct()
+
+    /**
      * 굿즈 가격대 한 줄 — "₩8,000 ~ ₩89,000 · 45점".
      *
      * 목록 맨 위에 **얼마를 들고 가야 하는지**를 먼저 말한다. 값을 못 받은 품목(0)은 범위 계산에서
@@ -965,7 +979,7 @@ object HoyolandDefaults {
                 HoyolandGoods("아크릴 스탠드 (푸리나)", 18000, "원신", "아크릴", note = "1인 2개 한정"),
                 HoyolandGoods("아크릴 키링 랜덤", 9000, "원신", "아크릴", note = "8종 중 1종"),
                 HoyolandGoods("나선 비경 티셔츠", 39000, "원신", "의류"),
-                HoyolandGoods("캐스토리스 인형", 45000, "붕괴: 스타레일", "인형", soldOut = true),
+                HoyolandGoods("캐스토리스 인형", 45000, "붕괴: 스타레일", "인형"),
                 HoyolandGoods("피노코니 머그컵", 22000, "붕괴: 스타레일", "생활"),
                 HoyolandGoods("개척 여행 스티커팩", 8000, "붕괴: 스타레일", "문구"),
                 HoyolandGoods("에이전트 후드집업", 89000, "젠레스 존 제로", "의류", note = "S·M·L·XL"),
@@ -979,10 +993,8 @@ object HoyolandDefaults {
                     title = "나타 시연존",
                     desc = "신규 지역을 현장 PC 로 체험",
                     location = "7홀 A-12",
-                    duration = "회차당 20분",
-                    capacity = "회차당 12명",
+                    duration = "약 20분",
                     reward = "참여 시 아크릴 뱃지 증정",
-                    needsReservation = true,
                 ),
                 HoyolandBooth(
                     game = "붕괴: 스타레일",
@@ -997,8 +1009,7 @@ object HoyolandDefaults {
                     title = "홀로우 챌린지",
                     desc = "제한 시간 안에 스테이지 클리어",
                     location = "8홀 C-07",
-                    duration = "회차당 15분",
-                    capacity = "회차당 8명",
+                    duration = "약 15분",
                     reward = "클리어 시 키링 증정",
                 ),
                 HoyolandBooth(
