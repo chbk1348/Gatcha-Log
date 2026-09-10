@@ -2,150 +2,251 @@
 //  HoyolandShopSection.swift
 //  GL_IOS
 //
-// ── 호요랜드 하위 페이지 두 장 — 굿즈샵 · 부스 체험 ─────────────────────────
+// ── 호요랜드 하위 페이지 세 장 — 굿즈 목록 · 장바구니 · 부스 체험 ─────────────
 //
 // 상세(HoyolandDetailView) 본문에 목록으로 펼치면 무대 시간표만큼 길어져 이 페이지의
 // 본론(언제·어디서)을 밀어낸다. 현장에서 **돈과 시간을 쓰는 두 가지**라 각각 페이지를 준다.
-// (Android `HoyolandGoodsContent`·`HoyolandBoothContent` 와 파리티)
+//
+// 목업: `Gatcha Log MD/design_hoyoland_goods_mockup.html` — 굿즈 목록 A 안 · 장바구니 D 안.
+// (Android `HoyolandGoodsContent`·`HoyolandCartContent` 와 파리티)
 
 import SwiftUI
 import Shared
 
+/// 목업 색 — 장바구니 줄 바탕과 '가격 미정' 안내.
+private let GLGCartRowBg = Color(hex: 0xFFF7F8FA)
+private let GLGWarnBg = Color(hex: 0xFFFFF6E0)
+private let GLGWarnText = Color(hex: 0xFF8A6A1E)
+private let GLGTextThird = Color(hex: 0xFF98A0AB)
+private let GLGDanger = Color(hex: 0xFFD8574A)
+
 /**
- 굿즈샵 — 품목과 **가격**.
+ 굿즈 목록 — 품목과 **가격**.
 
  이 앱은 지출을 다루는 앱이라, 굿즈 목록의 본론은 "얼마 들고 가야 하나"다. 그래서
- ① 맨 위에 가격대를 한 줄로 세우고 ② 행을 눌러 **담아 보면 합계**가 아래에 뜬다.
- 담은 것은 이 화면 안에서만 산다(저장하지 않는다) — 예산을 가늠하는 계산기지 장바구니가 아니다.
+ ① 맨 위에 가격대를 세우고 ② 행을 눌러 담으면 ③ 하단 고정 바가 합계를 계속 말한다.
+
+ **싣는 굿즈는 앱이 다루는 세 게임 + 행사 공용뿐이다**(`HoyolandEvent.visibleGoods`).
  */
 struct HoyolandGoodsView: View {
     let event: HoyolandEvent
+    var store: SpendingStore
     @Environment(\.glgAccent) private var accent
     @State private var gameFilter: String? = nil
-    @State private var picked: Set<String> = []
+    @State private var showCart = false
 
     var body: some View {
+        let all = event.visibleGoods
         let games = event.goodsGames
-        let shown = event.goods.filter { gameFilter == nil || $0.game == gameFilter }
-        let total = event.goods.filter { picked.contains($0.name) }.reduce(Int32(0)) { $0 + $1.price }
+        let cart = store.hoyolandCart
+        let shown = all.filter { gameFilter == nil || $0.game == gameFilter }
 
         ScrollView {
-            VStack(alignment: .leading, spacing: 0) {
-                if event.goods.isEmpty {
-                    emptyCard
-                } else {
-                    // ── 가격대 — 목록보다 먼저. 얼마를 들고 갈지가 첫 질문이다.
-                    GLGCard(cornerRadius: 24, padding: 16) {
-                        VStack(alignment: .leading, spacing: 5) {
-                            Text("가격대").font(.pretendard(size: 11.5, weight: .bold))
-                                .foregroundStyle(GLGColor.textSecondary)
-                            Text(event.goodsPriceRange())
-                                .font(.pretendard(size: 15, weight: .bold))
-                                .foregroundStyle(GLGColor.textPrimary)
-                            Spacer(minLength: 0)
-                        }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                    if games.count > 1 {
-                        GLGSegmentedTabs(
-                            labels: ["전체"] + games.map { event.stageLabel(game: $0) },
-                            selectedColors: [accent.primary] + games.map { gameColor($0) },
-                            selection: Binding(
-                                get: { gameFilter.flatMap { games.firstIndex(of: $0).map { $0 + 1 } } ?? 0 },
-                                set: { gameFilter = $0 == 0 ? nil : games[$0 - 1] }
+                VStack(alignment: .leading, spacing: 0) {
+                    if all.isEmpty {
+                        emptyCard
+                    } else {
+                        priceRangeCard
+                        if games.count > 1 {
+                            GLGSegmentedTabs(
+                                labels: ["전체"] + games.map { event.stageLabel(game: $0) },
+                                selectedColors: [accent.primary] + games.map { gameColor($0) },
+                                selection: Binding(
+                                    get: { gameFilter.flatMap { games.firstIndex(of: $0).map { $0 + 1 } } ?? 0 },
+                                    set: { gameFilter = $0 == 0 ? nil : games[$0 - 1] }
+                                )
                             )
-                        )
-                        .padding(.top, 14)
-                    }
-                    GLGCard(cornerRadius: 24, padding: 0) {
-                        VStack(spacing: 0) {
-                            ForEach(Array(shown.enumerated()), id: \.offset) { i, item in
-                                if i > 0 { Divider() }
-                                goodsRow(item)
+                            .padding(.top, 12)
+                        }
+                        GLGCard(cornerRadius: 24, padding: 0) {
+                            VStack(spacing: 0) {
+                                ForEach(Array(shown.enumerated()), id: \.offset) { i, item in
+                                    if i > 0 { Divider() }
+                                    goodsRow(item, quantity: Int(cart.quantityOf(name: item.name)))
+                                }
                             }
+                            .padding(.vertical, 4)
                         }
-                        .padding(.vertical, 4)
-                    }
-                    .padding(.top, 12)
-
-                    // ── 담은 합계 — 고른 게 있을 때만 나타난다. 예산을 가늠하는 자리다.
-                    if !picked.isEmpty {
-                        HStack {
-                            Text("담은 \(picked.count)개").font(.pretendard(size: 12.5, weight: .bold))
-                                .foregroundStyle(GLGColor.textPrimary)
-                            Spacer(minLength: 8)
-                            Text(event.wonLabel(v: total)).font(.pretendard(size: 16, weight: .black))
-                                .foregroundStyle(accent.primary)
-                        }
-                        .padding(.horizontal, 16).padding(.vertical, 13)
-                        .background(accent.primary.opacity(0.10),
-                                    in: RoundedRectangle(cornerRadius: 16, style: .continuous))
                         .padding(.top, 12)
-                        Text("골라 본 것을 더한 값이에요. 저장되지 않아요.")
-                            .font(.pretendard(size: 10.5)).foregroundStyle(GLGColor.textSecondary)
-                            .padding(.top, 6).padding(.horizontal, 4)
                     }
+                    Color.clear.frame(height: 24)
                 }
-                Color.clear.frame(height: 24)
-            }
-            .padding(.horizontal, 16)
-            .glgReadableWidth(720)
+                .padding(.horizontal, 16)
+                .glgReadableWidth(720)
         }
         .scrollIndicators(.hidden)
+        // 하단 바 — 지출 선택 모드와 **같은 규격**(safeAreaInset + SystemGlassBar).
+        //
+        // ⚠️ `ToolbarItem(placement: .bottomBar)` 는 쓸 수 없다. 이 앱은 하위 화면에서도
+        // 탭바를 계속 띄우므로(`ContentView.tabBarVisibility`) 하단이 이미 차 있어 그 툴바가
+        // 나타나지 않는다(2026-09-10 실기기 확인). 이 페이지만 탭바를 숨기는 것도 안 된다 —
+        // pop 될 때 탭바가 튀어나오고 push 애니메이션이 사라진다.
+        //
+        // overlay 가 아니라 safeAreaInset 인 이유: overlay 는 콘텐츠를 안 밀어 마지막 굿즈가
+        // 바에 가려 눌리지 않는다(지출 목록에서 같은 문제를 겪고 고친 자리다).
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            if !cart.isEmpty {
+                goodsBar(cart).transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+        }
+        .animation(GLGMotion.standard(), value: cart.isEmpty)
+        // 하단 바가 떠 있는 동안 '추가' FAB 를 감춘다 — 조작 대상이 둘이면 산만하고,
+        // 굿즈를 보는 화면에서 '지출 추가'는 맥락에도 없다(지출 목록의 선택 바와 같은 규칙).
+        // 장바구니로 들어가면 이 화면이 사라지며 FAB 가 돌아온다(그쪽엔 하단 바가 없다).
+        .onAppear { store.hidesAddButton = !cart.isEmpty }
+        .onDisappear { store.hidesAddButton = false }
+        .onChange(of: cart.isEmpty) { _, empty in store.hidesAddButton = !empty }
         .background(GLGBackground { Color.clear })
-        .glgPageTitle("굿즈샵")
+        .glgPageTitle("굿즈 목록")
         .navigationBarTitleDisplayMode(.inline)
+        .navigationDestination(isPresented: $showCart) {
+            HoyolandCartView(event: event, store: store)
+        }
     }
 
-    private func gameColor(_ game: String) -> Color {
-        let raw = event.stageColor(game: game)
-        return raw == 0 ? GLGColor.textSecondary : Color(argb64: raw)
+    // ── 가격대 — 목록보다 먼저. 얼마를 들고 갈지가 첫 질문이다.
+    private var priceRangeCard: some View {
+        let range = event.goodsPriceRange()
+        return GLGCard(cornerRadius: 24, padding: 0) {
+            HStack(alignment: .bottom, spacing: 8) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("가격대").font(.pretendard(size: 11.5, weight: .bold))
+                        .foregroundStyle(GLGColor.textSecondary)
+                    Text(range.components(separatedBy: " · ").first ?? range)
+                        .font(.pretendard(size: 16, weight: .black)).monospacedDigit()
+                        .foregroundStyle(GLGColor.textPrimary)
+                }
+                Spacer(minLength: 0)
+                Text(range.components(separatedBy: " · ").dropFirst().joined(separator: " · "))
+                    .font(.pretendard(size: 11)).foregroundStyle(GLGTextThird)
+            }
+            .padding(.horizontal, 16).padding(.vertical, 14)
+        }
     }
 
-    /// 굿즈 한 줄 — 담기 표시 + 이름·갈래·조건 + 가격.
-    @ViewBuilder private func goodsRow(_ item: HoyolandGoods) -> some View {
+    /**
+     굿즈 한 줄 — [썸네일 48 · 이름·갈래 · 가격/수량].
+
+     A 안(담기 원)에서 갈아탔다. 훑기는 리스트가 낫고, 수량은 **목록에서 바로** 정하는 편이
+     자연스럽다 — 같은 키링을 두 개 사는 일이 흔한데 담기 토글만 있으면 장바구니까지 들어가야 했다.
+
+     담기 전에는 「담기」 버튼, 담은 뒤에는 스테퍼로 바뀐다. 품절은 흐리게 두고 담기만 막는다 —
+     가격을 기억하러 오는 사람이 있다.
+     */
+    @ViewBuilder private func goodsRow(_ item: HoyolandGoods, quantity: Int) -> some View {
         let c = gameColor(item.game)
-        let isPicked = picked.contains(item.name)
-        let meta = [item.game.isEmpty ? nil : event.stageLabel(game: item.game),
-                    item.category.isEmpty ? nil : item.category,
+        let label = item.game.isEmpty ? "공용" : event.stageLabel(game: item.game)
+        let meta = [item.category.isEmpty ? nil : item.category,
                     item.soldOut ? "품절" : nil,
                     item.note.isEmpty ? nil : item.note]
                     .compactMap { $0 }.joined(separator: " · ")
-        Button {
-            if isPicked { picked.remove(item.name) } else { picked.insert(item.name) }
-        } label: {
-            HStack(spacing: 0) {
-                // 담기 표식 — 체크박스를 따로 두지 않는다. 행 전체가 누를 자리라 원 하나면 충분하다.
-                ZStack {
-                    Circle().fill(isPicked ? accent.primary : .clear)
-                    Circle().stroke(isPicked ? accent.primary : .black.opacity(0.10), lineWidth: 1.5)
-                    if isPicked {
-                        Image(systemName: "checkmark").font(.system(size: 10, weight: .black))
-                            .foregroundStyle(.white)
-                    }
-                }
-                .frame(width: 20, height: 20)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(item.name).font(.pretendard(size: 13, weight: .bold))
-                        .foregroundStyle(GLGColor.textPrimary)
-                        .fixedSize(horizontal: false, vertical: true)
+        HStack(spacing: 0) {
+            // 썸네일 자리 — 공식 굿즈 이미지가 나오면 이 칸을 그대로 이미지로 바꾼다.
+            Text(label)
+                .font(.pretendard(size: 9.5, weight: .black))
+                .foregroundStyle(item.soldOut ? GLGTextThird : c)
+                .multilineTextAlignment(.center).lineLimit(2)
+                .padding(.horizontal, 3)
+                .frame(width: 48, height: 48)
+                .background(item.soldOut ? Color.black.opacity(0.06) : c.opacity(0.12),
+                            in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            VStack(alignment: .leading, spacing: 3) {
+                Text(item.name).font(.pretendard(size: 13, weight: .bold))
+                    .foregroundStyle(GLGColor.textPrimary)
+                    .fixedSize(horizontal: false, vertical: true)
+                HStack(spacing: 5) {
+                    Text(label)
+                        .font(.pretendard(size: 9.5, weight: .black)).foregroundStyle(c)
+                        .padding(.horizontal, 6).padding(.vertical, 2)
+                        .background(c.opacity(0.14), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
                     if !meta.isEmpty {
                         Text(meta).font(.pretendard(size: 11))
                             .foregroundStyle(item.soldOut ? GLGColor.textSecondary : c)
                     }
                 }
-                .padding(.leading, 12)
-                Spacer(minLength: 10)
-                Text(item.price > 0 ? event.wonLabel(v: item.price) : "미정")
-                    .font(.pretendard(size: 13, weight: .black)).monospacedDigit()
-                    .foregroundStyle(item.price > 0 ? GLGColor.textPrimary : GLGColor.textSecondary)
             }
-            .padding(.horizontal, 16).padding(.vertical, 12)
-            .contentShape(Rectangle())
-            .opacity(item.soldOut ? 0.45 : 1)
+            .padding(.leading, 11)
+            Spacer(minLength: 11)
+            VStack(alignment: .trailing, spacing: 6) {
+                Text(item.price > 0 ? event.wonLabel(v: item.price) : "미정")
+                    .font(.pretendard(size: 13, weight: item.price > 0 ? .black : .bold)).monospacedDigit()
+                    .foregroundStyle(item.price > 0 ? GLGColor.textPrimary : GLGTextThird)
+                if item.soldOut {
+                    addButton("품절", enabled: false) {}
+                } else if quantity <= 0 {
+                    addButton("담기", enabled: true) { store.setGoodsQuantity(item.name, 1) }
+                } else {
+                    HStack(spacing: 0) {
+                        stepButton("−") { store.setGoodsQuantity(item.name, quantity - 1) }
+                        Text("\(quantity)")
+                            .font(.pretendard(size: 12, weight: .black)).foregroundStyle(GLGColor.textPrimary)
+                            .frame(width: 30)
+                        stepButton("+") { store.setGoodsQuantity(item.name, quantity + 1) }
+                    }
+                    .overlay(RoundedRectangle(cornerRadius: 9, style: .continuous)
+                        .stroke(.black.opacity(0.10), lineWidth: 1))
+                    .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+                }
+            }
+        }
+        .padding(.horizontal, 16).padding(.vertical, 11)
+        .opacity(item.soldOut ? 0.45 : 1)
+    }
+
+    /// 담기/품절 버튼 — 스테퍼와 같은 높이라 담기 전후로 줄 높이가 흔들리지 않는다.
+    @ViewBuilder private func addButton(_ label: String, enabled: Bool, _ onTap: @escaping () -> Void) -> some View {
+        Button(action: onTap) {
+            Text(label).font(.pretendard(size: 11.5, weight: .bold))
+                .foregroundStyle(enabled ? accent.primary : GLGTextThird)
+                .padding(.horizontal, 12)
+                .frame(height: 26)
+                .overlay(RoundedRectangle(cornerRadius: 9, style: .continuous)
+                    .stroke(enabled ? accent.primary : .black.opacity(0.10), lineWidth: 1))
         }
         .buttonStyle(.plain)
-        .disabled(item.soldOut)
+        .disabled(!enabled)
+    }
+
+    @ViewBuilder private func stepButton(_ label: String, _ onTap: @escaping () -> Void) -> some View {
+        Button(action: onTap) {
+            Text(label).font(.pretendard(size: 14, weight: .bold))
+                .foregroundStyle(GLGColor.textSecondary)
+                .frame(width: 28, height: 26)
+                .background(GLGCartRowBg)
+        }
+        .buttonStyle(.plain)
+    }
+
+    /**
+     하단 고정 바 — 담은 종수·개수와 **합계**, 탭하면 장바구니.
+     스크롤과 무관하게 늘 보여야 한다. 지금까지 고른 결과가 곧 이 화면의 답이다.
+     */
+    @ViewBuilder private func goodsBar(_ cart: HoyolandCart) -> some View {
+        HStack(spacing: 8) {
+            VStack(alignment: .leading, spacing: 1) {
+                Text("담은 \(cart.kindCount)종 · \(cart.totalCount)개")
+                    .font(.pretendard(size: 11.5, weight: .bold))
+                    .foregroundStyle(GLGColor.textSecondary)
+                Text(event.wonLabel(v: event.cartTotal(cart: cart)))
+                    .font(.pretendard(size: 17, weight: .black)).monospacedDigit()
+                    .foregroundStyle(GLGColor.textPrimary)
+            }
+            Spacer(minLength: 8)
+            Button("장바구니") { showCart = true }
+                .buttonStyle(.borderedProminent).tint(accent.primary)
+        }
+        .padding(.horizontal, 16).padding(.vertical, 12)
+        // 시스템 글래스(iOS26 Liquid Glass, 폴백 ultraThinMaterial) — 떠 있는 라운드 바.
+        .modifier(SystemGlassBar())
+        .padding(.horizontal, 16)
+        // 비켜나는 여백을 두지 않는다 — 바가 뜨는 동안 FAB 자체를 감추기 때문이다.
+        // (iOS 18~25 는 FAB 가 TabView 바깥 오버레이라 그냥 두면 바를 덮는다)
+        .padding(.bottom, 8)
+    }
+
+    private func gameColor(_ game: String) -> Color {
+        let raw = event.stageColor(game: game)
+        return raw == 0 ? GLGColor.textSecondary : Color(argb64: raw)
     }
 
     private var emptyCard: some View {
@@ -159,6 +260,184 @@ struct HoyolandGoodsView: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
+    }
+}
+
+/**
+ 장바구니 — **게임별 묶음**.
+
+ 현장에서는 게임 부스를 하나씩 돈다. 게임별로 묶고 소계를 붙이면 "원신 부스에서 얼마" 가
+ 보인다. 줄이 촘촘해 수량 스테퍼를 늘 띄우지 않고, **줄을 누르면 그 줄에서 펼친다.**
+
+ 결제 버튼은 두지 않는다 — 현장 판매라 앱이 낄 자리가 없다. 여기서 하는 일은 예산 가늠이다.
+ */
+struct HoyolandCartView: View {
+    let event: HoyolandEvent
+    var store: SpendingStore
+    @State private var expanded: String? = nil
+
+    var body: some View {
+        let cart = store.hoyolandCart
+        let groups = event.cartGroups(cart: cart)
+        let total = event.cartTotal(cart: cart)
+        let unpriced = Int(event.cartUnpricedCount(cart: cart))
+
+        ScrollView {
+            VStack(alignment: .leading, spacing: 0) {
+                if groups.isEmpty {
+                    VStack(spacing: 5) {
+                        Text("담은 굿즈가 없어요")
+                            .font(.pretendard(size: 14, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
+                        Text("굿즈 목록에서 사고 싶은 것을 담으면\n여기서 예상 지출을 볼 수 있어요.")
+                            .font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary)
+                            .multilineTextAlignment(.center)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.top, 52).padding(.bottom, 20)
+                } else {
+                    summaryCard(cart, total: total, unpriced: unpriced)
+                    ForEach(Array(groups.enumerated()), id: \.offset) { _, g in
+                        groupHeader(g)
+                        ForEach(Array(g.lines.enumerated()), id: \.offset) { _, line in
+                            cartRow(line)
+                        }
+                    }
+                    if unpriced > 0 {
+                        HStack(alignment: .top, spacing: 7) {
+                            Text("⚠️").font(.pretendard(size: 11))
+                            Text("가격 미정 \(unpriced)종은 합계에 없어요. 값이 공개되면 자동으로 더해져요.")
+                                .font(.pretendard(size: 11)).foregroundStyle(GLGWarnText)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        .padding(.horizontal, 12).padding(.vertical, 10)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(GLGWarnBg, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                        .padding(.top, 10)
+                    }
+                }
+                Color.clear.frame(height: 24)
+            }
+            .padding(.horizontal, 16)
+            .glgReadableWidth(720)
+        }
+        .scrollIndicators(.hidden)
+        .background(GLGBackground { Color.clear })
+        .glgPageTitle("장바구니")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            // 비우기는 헤더 우측 — 실수로 누르기 어려운 자리다.
+            if !store.hoyolandCart.isEmpty {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button { store.clearGoodsCart() } label: {
+                        Text("비우기").font(.pretendard(size: 12, weight: .bold))
+                            .foregroundStyle(GLGDanger)
+                    }
+                }
+            }
+        }
+    }
+
+    // ── 합계 — 이 페이지의 답이라 맨 위에 둔다.
+    @ViewBuilder private func summaryCard(_ cart: HoyolandCart, total: Int32, unpriced: Int) -> some View {
+        VStack(spacing: 0) {
+            HStack {
+                Text("담은 굿즈").font(.pretendard(size: 12.5)).foregroundStyle(.white.opacity(0.72))
+                Spacer(minLength: 8)
+                Text("\(cart.kindCount)종 · \(cart.totalCount)개")
+                    .font(.pretendard(size: 12.5, weight: .bold)).foregroundStyle(.white)
+            }
+            if unpriced > 0 {
+                HStack {
+                    Text("가격 미정").font(.pretendard(size: 12.5)).foregroundStyle(.white.opacity(0.72))
+                    Spacer(minLength: 8)
+                    Text("\(unpriced)종").font(.pretendard(size: 12.5, weight: .bold)).foregroundStyle(.white)
+                }
+                .padding(.top, 9)
+            }
+            Rectangle().fill(.white.opacity(0.18)).frame(height: 1).padding(.vertical, 11)
+            HStack {
+                Text("예상 지출").font(.pretendard(size: 13)).foregroundStyle(.white.opacity(0.80))
+                Spacer(minLength: 8)
+                Text(event.wonLabel(v: total))
+                    .font(.pretendard(size: 20, weight: .black)).monospacedDigit()
+                    .foregroundStyle(.white)
+            }
+        }
+        .padding(16)
+        .background(GLGColor.textPrimary, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+    }
+
+    @ViewBuilder private func groupHeader(_ g: HoyolandCartGroup) -> some View {
+        let raw = event.stageColor(game: g.game)
+        let c = raw == 0 ? GLGColor.textSecondary : Color(argb64: raw)
+        HStack(spacing: 7) {
+            Text(g.game.isEmpty ? "공용" : event.stageLabel(game: g.game))
+                .font(.pretendard(size: 9.5, weight: .black)).foregroundStyle(c)
+                .padding(.horizontal, 6).padding(.vertical, 2)
+                .background(c.opacity(0.14), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+            Rectangle().fill(.black.opacity(0.06)).frame(height: 1)
+            // 게임별 소계가 **부스에서 꺼낼 금액**이다.
+            Text(g.allUnpriced ? "미정" : event.wonLabel(v: g.subtotal))
+                .font(.pretendard(size: 11.5, weight: .black)).monospacedDigit()
+                .foregroundStyle(g.allUnpriced ? GLGTextThird : GLGColor.textSecondary)
+        }
+        .padding(.top, 16).padding(.bottom, 8)
+    }
+
+    /**
+     장바구니 한 줄 — 접힌 기본 모습은 [이름 · ×수량 · 소계].
+     누르면 그 줄에서 수량 스테퍼가 펼쳐진다(줄이 촘촘해 늘 띄우면 목록이 읽히지 않는다).
+     */
+    @ViewBuilder private func cartRow(_ line: HoyolandCartLine) -> some View {
+        let name = line.goods.name
+        let isOpen = expanded == name
+        VStack(spacing: 0) {
+            HStack(spacing: 0) {
+                Text(name).font(.pretendard(size: 12.5, weight: .bold))
+                    .foregroundStyle(GLGColor.textPrimary)
+                    .fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: 8)
+                Text("×\(line.quantity)")
+                    .font(.pretendard(size: 11, weight: .black))
+                    .foregroundStyle(GLGColor.textSecondary).padding(.trailing, 9)
+                Text(line.goods.price > 0 ? event.wonLabel(v: line.subtotal) : "—")
+                    .font(.pretendard(size: 12.5, weight: .black)).monospacedDigit()
+                    .foregroundStyle(line.goods.price > 0 ? GLGColor.textPrimary : GLGTextThird)
+            }
+            if isOpen {
+                HStack(spacing: 0) {
+                    stepButton("−") { store.setGoodsQuantity(name, Int(line.quantity) - 1) }
+                    Text("\(line.quantity)")
+                        .font(.pretendard(size: 12.5, weight: .black)).foregroundStyle(GLGColor.textPrimary)
+                        .frame(width: 40)
+                    stepButton("+") { store.setGoodsQuantity(name, Int(line.quantity) + 1) }
+                    Spacer(minLength: 0)
+                    Button { store.setGoodsQuantity(name, 0) } label: {
+                        Text("빼기").font(.pretendard(size: 11.5, weight: .bold))
+                            .foregroundStyle(GLGDanger)
+                            .padding(.horizontal, 10).padding(.vertical, 5)
+                    }
+                    .buttonStyle(.plain)
+                }
+                .padding(.top, 10)
+            }
+        }
+        .padding(.horizontal, 12).padding(.vertical, 10)
+        .background(GLGCartRowBg, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .padding(.bottom, 7)
+        .contentShape(Rectangle())
+        .onTapGesture { withAnimation(.easeInOut(duration: 0.18)) { expanded = isOpen ? nil : name } }
+    }
+
+    @ViewBuilder private func stepButton(_ label: String, _ onTap: @escaping () -> Void) -> some View {
+        Button(action: onTap) {
+            Text(label).font(.pretendard(size: 14, weight: .bold))
+                .foregroundStyle(GLGColor.textSecondary)
+                .frame(width: 30, height: 26)
+                .background(Color.white, in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: 9, style: .continuous).stroke(.black.opacity(0.06), lineWidth: 1))
+        }
+        .buttonStyle(.plain)
     }
 }
 

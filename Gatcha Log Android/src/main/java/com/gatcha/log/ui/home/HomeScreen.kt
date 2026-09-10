@@ -501,7 +501,7 @@ fun HomeContent(
                 return@AnimatedContent
             }
             HomeSub.Hoyoland -> {
-                HoyolandDetailPage(onBack = { showHoyoland = false })
+                HoyolandDetailPage(viewModel, onBack = { showHoyoland = false })
                 return@AnimatedContent
             }
             HomeSub.Notifications -> {

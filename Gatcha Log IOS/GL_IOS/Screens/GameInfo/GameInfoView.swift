@@ -69,7 +69,7 @@ struct GameInfoView: View {
         .navigationDestination(isPresented: $showNewsDetail) {
             if let n = selectedNews { NewsDetailView(store: store, item: n) }
         }
-        .navigationDestination(isPresented: $showHoyoland) { HoyolandDetailView() }
+        .navigationDestination(isPresented: $showHoyoland) { HoyolandDetailView(store: store) }
         .navigationDestination(isPresented: $showAttendance) { AttendanceDetailView(store: store) }
         .navigationDestination(isPresented: $showGameContent) {
             sectionPage("전투 · 수입 일지") {
@@ -572,7 +572,7 @@ struct GameSchedulePage: View {
         .refreshable { store.refreshGameInfo(force: true) }
         .glgPageTitle("게임 일정")
         .navigationBarTitleDisplayMode(.inline)
-        .navigationDestination(isPresented: $showHoyoland) { HoyolandDetailView() }
+        .navigationDestination(isPresented: $showHoyoland) { HoyolandDetailView(store: store) }
         // 일정 집계는 필터/원본이 바뀔 때만. 예전엔 body 첫 줄에서 5종을 조건 없이 계산해,
         // '주년' 탭을 보고 있어도(그때는 하나도 안 쓰는데) 세그먼트를 누를 때마다 전부 다시 돌았다.
         .task(id: scheduleKey) { sched = Self.buildSchedule(store: store) }

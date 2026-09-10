@@ -19,7 +19,7 @@ import kotlin.time.Instant
  * 두 벌을 손으로 맞추면 한쪽만 고쳐 갈라진다 — [NotificationCatalog] 와 같은 이유로 여기에 모은다.
  *
  * 갱신 경로는 두 갈래다:
- *  - **원격**: `hoyoland.json` ([com.gatcha.log.data.api.HoyolandApi]) — 앱 업데이트 없이 바뀐다.
+ *  - **원격**: `config/hoyoland.json` ([com.gatcha.log.data.api.HoyolandApi]) — 앱 업데이트 없이 바뀐다.
  *  - **번들**: [HoyolandDefaults] — 네트워크가 없거나 JSON 이 깨져도 화면이 비지 않게 하는 폴백.
  *
  * 표시 문자열(기간 라벨·D-day)은 전부 이 파일의 파생값으로 만든다. 플랫폼이 각자 조립하면
@@ -367,7 +367,7 @@ data class HoyolandEvent(
     val gstar: HoyolandGstar,
     val past: List<HoyolandPastEvent>,
     /**
-     * 굿즈샵 품목. **비어 있는 게 정상인 기간이 있다** — 판매 목록은 시간표만큼 늦게 나온다.
+     * 굿즈 품목. **비어 있는 게 정상인 기간이 있다** — 판매 목록은 시간표만큼 늦게 나온다.
      * 그때까지 화면은 "공개 전"이라고 말한다.
      */
     val goods: List<HoyolandGoods> = emptyList(),
@@ -596,13 +596,56 @@ data class HoyolandEvent(
         return GameData.byNameOrNull(game)?.displayName ?: game
     }
 
+    /**
+     * 시간표 **진입 카드 한 줄** — "지금 진행 중 · 다음 15:30" / "오늘 3편" / "무대 편성 공개 전".
+     *
+     * 페이지를 열지 않고도 지금 볼 값이 있는지 알아야 한다. 카드에 "일자별 시간표" 라고만
+     * 적혀 있으면 들어가 보기 전까지 편성이 공개됐는지도 모른다.
+     */
+    fun stageEntryLine(nowMillis: Long = currentTimeMillis()): String {
+        if (!hasTimetable) return "무대 편성 공개 전"
+        val today = todayYmd(nowMillis)
+        val list = if (today != null) stageSlots(today, nowMillis) else emptyList()
+        if (list.isEmpty()) {
+            val total = days.sumOf { it.slots.size }
+            return if (total > 0) "무대 ${total}편 · 날짜별로 보기" else "무대 편성 공개 전"
+        }
+        val live = list.firstOrNull { it.state == StageState.LIVE }
+        val next = list.firstOrNull { it.state == StageState.UPCOMING }
+        return when {
+            live != null && next != null -> "지금 진행 중 · 다음 ${next.slot.time}"
+            live != null -> "지금 진행 중 · 오늘 마지막"
+            next != null -> "다음 ${next.slot.time} · 오늘 ${list.size}편"
+            else -> "오늘 편성 종료 · 날짜별로 보기"
+        }
+    }
+
+    /** 오늘이 행사 기간 안이면 그 `yyyy-MM-dd`, 아니면 null. */
+    @OptIn(ExperimentalTime::class)
+    private fun todayYmd(nowMillis: Long): String? {
+        val today = Instant.fromEpochMilliseconds(nowMillis).toLocalDateTime(DateUtil.timeZone).date.toString()
+        return today.takeIf { it in dayYmds }
+    }
+
     /** 그날 무대에 오르는 게임들(원본 순서, 중복 제거) — 필터 칩이 쓴다. */
     fun stageGames(ymd: String): List<String> =
         slotsFor(ymd).map { it.game }.filter { it.isNotBlank() }.distinct()
 
-    /** 굿즈 목록에 등장하는 게임들(원본 순서, 중복 제거) — 굿즈샵 탭이 쓴다. */
+    /**
+     * 화면에 싣는 굿즈 — **앱이 다루는 게임 것과 행사 공용만.**
+     *
+     * 호요랜드에는 붕괴3rd·미해결사건부처럼 이 앱이 기록을 다루지 않는 IP 도 나온다. 그 굿즈까지
+     * 실으면 "내 게임 굿즈가 얼마인지"를 보러 온 사람의 목록이 두 배가 된다 — 여기서 걸러
+     * 낸다(무대 시간표는 그대로 다 싣는다. 거기서는 무대가 겹치는지가 정보다).
+     *
+     * `game` 이 빈 것은 행사 공용(아트북·에코백)이라 남긴다.
+     */
+    val visibleGoods: List<HoyolandGoods>
+        get() = goods.filter { it.game.isBlank() || GameData.byNameOrNull(it.game) != null }
+
+    /** 굿즈 목록에 등장하는 게임들(원본 순서, 중복 제거) — 게임 탭이 쓴다. */
     val goodsGames: List<String>
-        get() = goods.map { it.game }.filter { it.isNotBlank() }.distinct()
+        get() = visibleGoods.map { it.game }.filter { it.isNotBlank() }.distinct()
 
     /**
      * 굿즈 가격대 한 줄 — "₩8,000 ~ ₩89,000 · 45점".
@@ -611,16 +654,60 @@ data class HoyolandEvent(
      * 빼되 개수에는 넣는다 — "가격 미정 3점"이 숨으면 예산을 잘못 잡는다.
      */
     fun goodsPriceRange(): String {
-        if (goods.isEmpty()) return ""
-        val priced = goods.mapNotNull { it.price.takeIf { p -> p > 0 } }
-        val count = "${goods.size}점"
+        val list = visibleGoods
+        if (list.isEmpty()) return ""
+        val priced = list.mapNotNull { it.price.takeIf { p -> p > 0 } }
+        // 단위는 **종** — 장바구니가 "3종 · 4개" 로 세므로 같은 말을 쓴다.
+        // ("점" 은 점수로 읽힌다는 지적이 있었다 — 2026-09-10)
+        val count = "${list.size}종"
         if (priced.isEmpty()) return "가격 공개 전 · $count"
         val lo = priced.min()
         val hi = priced.max()
         val range = if (lo == hi) wonLabel(lo) else "${wonLabel(lo)} ~ ${wonLabel(hi)}"
-        val unpriced = goods.size - priced.size
-        val tail = if (unpriced > 0) " · 가격 미정 ${unpriced}점" else ""
+        val unpriced = list.size - priced.size
+        val tail = if (unpriced > 0) " · 가격 미정 ${unpriced}종" else ""
         return "$range · $count$tail"
+    }
+
+    /**
+     * 장바구니에 담긴 줄 — **지금 목록에 있는 굿즈만.**
+     *
+     * 이름이 바뀌거나 판매 목록에서 내려간 굿즈는 조용히 빠진다. 옛 이름으로 담아 둔 값을
+     * 그대로 합계에 넣으면 이미 없는 물건의 가격을 세는 셈이다(원격 JSON 에 안정적인 id 가
+     * 없어 이름으로 담는다 — [HoyolandCart] 참고).
+     */
+    fun cartLines(cart: HoyolandCart): List<HoyolandCartLine> =
+        visibleGoods.mapNotNull { g ->
+            cart.quantityOf(g.name).takeIf { it > 0 }?.let { HoyolandCartLine(g, it) }
+        }
+
+    /** 장바구니 합계(원). 가격 미정 품목은 0 으로 더해진다. */
+    fun cartTotal(cart: HoyolandCart): Int = cartLines(cart).sumOf { it.subtotal }
+
+    /**
+     * 장바구니에서 **가격을 모르는 품목 수** — 합계 옆에 따로 말해 줘야 한다.
+     * 숨기면 "이 값이 전부"로 읽혀 예산을 잘못 잡는다.
+     */
+    fun cartUnpricedCount(cart: HoyolandCart): Int = cartLines(cart).count { it.goods.price <= 0 }
+
+    /**
+     * 장바구니를 **게임별로 묶는다** — 굿즈 목록의 원본 순서를 그대로 따른다(정렬하지 않는다).
+     * 화면에서 목록과 장바구니의 순서가 달라지면 같은 물건을 두 번 찾게 된다.
+     * 행사 공용(`game` 이 빈 것)은 맨 뒤로 — 게임 부스를 다 돈 뒤에 들르는 자리다.
+     */
+    fun cartGroups(cart: HoyolandCart): List<HoyolandCartGroup> {
+        val lines = cartLines(cart)
+        if (lines.isEmpty()) return emptyList()
+        val order = lines.map { it.goods.game }.distinct().sortedBy { if (it.isBlank()) 1 else 0 }
+        return order.map { game ->
+            val mine = lines.filter { it.goods.game == game }
+            HoyolandCartGroup(
+                game = game,
+                lines = mine,
+                subtotal = mine.sumOf { it.subtotal },
+                unpriced = mine.count { it.goods.price <= 0 },
+            )
+        }
     }
 
     /** "₩12,000" — 천 단위 콤마. 굿즈 목록·합계가 같은 표기를 쓰도록 여기 하나만 둔다. */
@@ -749,7 +836,7 @@ object HoyolandDefaults {
         ),
         notice = "일정 · 장소 · 참여 게임이 모두 확정됐습니다. 예매와 일자별 시간표는 아직 공개 전입니다.",
         // 공식 시간표 미공개 — 날짜 탭은 기간에서 만들어지므로 여기는 비워 둔다.
-        // 공개되면 hoyoland.json 의 days 를 채우는 것만으로 화면이 찬다(앱 업데이트 불필요).
+        // 공개되면 config/hoyoland.json 의 days 를 채우는 것만으로 화면이 찬다(앱 업데이트 불필요).
         days = emptyList(),
         // 2026-09-03 1차 참가사 발표 기준. 부스 규모는 **호요버스를 포함한 100부스**다 —
         // 호요버스 단독 규모로 읽히지 않게 라벨을 "규모"로 둔다.

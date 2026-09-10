@@ -745,7 +745,13 @@ struct TagChip: View {
 }
 
 /// 시스템 글래스 배경 — iOS 26 Liquid Glass(.glassEffect), 그 이하 ultraThinMaterial 폴백.
-private struct SystemGlassBar: ViewModifier {
+/**
+ 떠 있는 하단 액션 바의 바탕 — iOS 26 Liquid Glass, 그 아래는 `ultraThinMaterial` 폴백.
+
+ 지출 선택 모드와 굿즈 목록이 같이 쓴다. `.safeAreaInset(edge: .bottom)` 과 짝이다 —
+ overlay 로 얹으면 콘텐츠를 안 밀어 최하단 항목이 바에 가려진다.
+ */
+struct SystemGlassBar: ViewModifier {
     func body(content: Content) -> some View {
         let shape = Capsule(style: .continuous)
         if #available(iOS 26.0, *) {
