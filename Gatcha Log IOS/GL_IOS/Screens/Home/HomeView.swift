@@ -16,8 +16,19 @@ struct HomeView: View {
     /// 상세를 열어, 한 번 탭에 화면이 두 번 바뀌었다(탭 전환이 눈에 보였다).
     @State private var showHoyoland = false
 
-    /// iPad = 분할뷰 detail 안이라 상단바 처리 방식이 다르다(HomeTopBarStyle).
-    private var isPad: Bool { UIDevice.current.userInterfaceIdiom == .pad }
+    @Environment(\.horizontalSizeClass) private var hSizeClass
+
+    /**
+     넓은 화면인가 — 홈 레이아웃과 상단바 처리가 갈리는 기준.
+
+     **기기 종류(`userInterfaceIdiom`)로 판단하면 안 된다.** 예전엔 `.pad` 인지로 갈랐는데
+     같은 iPad 라도 분할뷰에서 좁아지면 iPhone 레이아웃이 맞고, 반대로 폴더블(iPhone Duo)은
+     펼쳐도 idiom 이 `.phone` 이라 7.6" 화면에 iPhone 레이아웃이 늘어난다.
+     Apple 도 방향·기기 대신 **size class** 로 판단하라고 안내한다.
+
+     내부 디스플레이는 가로·세로 모두 `.regular` 이므로 이 값 하나로 둘 다 잡힌다.
+     */
+    private var isWide: Bool { hSizeClass == .regular }
 
     var body: some View {
       // 홈 body 가 몇 번 평가되는지 세는 계측점. 홈은 관측 필드 ~25개를 읽어 재평가가 잦고,
@@ -26,22 +37,23 @@ struct HomeView: View {
       let _ = GLGPerf.event("homeBody")
       GeometryReader { geo in
         ScrollView {
-            if isPad {
-                // iPad — 히어로 섹션 이전(재구성 전) 홈으로 리버트: 지출 카드·오늘 할 일·일정·소식·저축.
+            if isWide {
+                // 넓은 화면(iPad 전체·폴더블 펼침) — 히어로 섹션 이전(재구성 전) 홈:
+                // 지출 카드·오늘 할 일·일정·소식·저축.
                 legacyHomeContent
             } else {
-                // iPhone — Figma Make 재구성 홈(그라데이션 히어로 + 퀵액션 + 최근 지출).
+                // 좁은 화면 — Figma Make 재구성 홈(그라데이션 히어로 + 퀵액션 + 최근 지출).
                 newHomeContent(topInset: geo.safeAreaInsets.top)
             }
         }
         .scrollIndicators(.hidden)
-        // iPhone: 스크롤을 상단바 뒤까지 확장해 '투명해진 내비바' 뒤로 실제 그라데이션을 노출.
-        // iPad: 그라데이션을 아예 끄므로(흰 히어로) 기본 내비바와 자연스럽게 어울린다 — 특별 처리 없음.
-        .modifier(HomeTopBarStyle(isPad: isPad))
+        // 좁은 화면: 스크롤을 상단바 뒤까지 확장해 '투명해진 내비바' 뒤로 실제 그라데이션을 노출.
+        // 넓은 화면: 그라데이션을 아예 끄므로(흰 히어로) 기본 내비바와 자연스럽게 어울린다.
+        .modifier(HomeTopBarStyle(isWide: isWide))
         // 히어로 그라데이션 = ScrollView 고정 배경(스크롤 콘텐츠가 아님) → PTR 당김·스크롤에도 그대로 고정.
         // 하단은 라운드 클립 대신 '완전 투명'으로 페이드해 흰 배경과의 경계선을 없앤다(부드럽게 사라짐).
         .background(alignment: .top) {
-            if !isPad {
+            if !isWide {
                 AmbientHeroGradient(secondary: accent.secondary, primary: accent.primary, glow: store.heroGlow)
                     .frame(height: geo.safeAreaInsets.top + 254)
                     .clipped()   // 글로우가 그라데이션 영역 밖(흰 콘텐츠)으로 새지 않게
@@ -95,7 +107,7 @@ struct HomeView: View {
                 .simultaneousGesture(TapGesture().onEnded { store.markAlertsRead(alerts.map { $0.key }) })
             }
         }
-        .navigationDestination(isPresented: $showHoyoland) { HoyolandDetailView() }
+        .navigationDestination(isPresented: $showHoyoland) { HoyolandDetailView(store: store) }
         .sheet(isPresented: $showBudget) { BudgetSheet(store: store) }
         .fileImporter(isPresented: $importingGacha, allowedContentTypes: [.json], allowsMultipleSelection: true) { result in
             if case .success(let urls) = result {
