@@ -2,6 +2,7 @@ package com.gatcha.log.data
 
 import com.gatcha.log.storage.InMemoryKvStore
 import com.gatcha.log.storage.InMemorySecureStore
+import com.gatcha.log.ui.theme.migrateAccentIndex
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -97,6 +98,30 @@ class GatchaRepositorySnapshotTest {
         target.importSnapshotJson(exported)
 
         assertEquals(exported, target.exportSnapshotJson(), "import → export 왕복에서 문자열이 변했다")
+    }
+
+    /**
+     * 스냅샷의 강조색은 **현재 팔레트 기준으로 이미 옮겨진 값**이다. 받는 쪽이 기준을 모르면
+     * 변환이 한 번 더 걸려 색이 밀린다(틸 → 머스터드). 왕복 멱등성이 깨지는 원인이기도 했다.
+     */
+    @Test
+    fun importedAccentIndexIsNotMigratedAgain() {
+        val (source, _) = repo()
+        source.saveAccentIndex(2)
+
+        val (target, _) = repo()
+        target.importSnapshotJson(source.exportSnapshotJson())
+
+        assertEquals(2, target.loadAccentIndex(), "이미 변환된 값에 변환이 덧걸렸다")
+    }
+
+    /** 반대쪽 — 팔레트 기준이 없는 옛 스냅샷(27.43.x 이하)은 변환을 **거쳐야** 한다. */
+    @Test
+    fun oldSnapshotWithoutPaletteVersionStillMigrates() {
+        val (target, _) = repo()
+        target.importSnapshotJson("""{"accent_index":2}""")
+
+        assertEquals(migrateAccentIndex(2), target.loadAccentIndex(), "옛 스냅샷인데 변환이 돌지 않았다")
     }
 
     @Test

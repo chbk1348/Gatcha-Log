@@ -846,7 +846,10 @@ class GatchaRepository(
         prefs.getString(KEY_HOYO_GI, null)?.let { o.put(KEY_HOYO_GI, it) }
         prefs.getString(KEY_HOYO_HSR, null)?.let { o.put(KEY_HOYO_HSR, it) }
         prefs.getString(KEY_HOYO_ZZZ, null)?.let { o.put(KEY_HOYO_ZZZ, it) }
+        // 강조색은 **값과 기준을 함께** 내보낸다. loadAccentIndex 가 돌려주는 값은 이미 현재
+        // 팔레트로 옮겨진 값이라, 받는 쪽이 기준을 모르면 변환을 한 번 더 걸어 색이 밀린다.
         o.put(KEY_ACCENT, loadAccentIndex())
+        o.put(KEY_ACCENT_VER, ACCENT_PALETTE_VER)
         prefs.getString(KEY_ENKA_GI, null)?.let { o.put(KEY_ENKA_GI, it) }
         prefs.getString(KEY_ENKA_HSR, null)?.let { o.put(KEY_ENKA_HSR, it) }
         prefs.getString(KEY_ATTENDANCE, null)?.let { o.put(KEY_ATTENDANCE, JSONObject(it)) }
@@ -899,7 +902,15 @@ class GatchaRepository(
         if (o.has(KEY_HOYO_HSR)) prefs.putString(KEY_HOYO_HSR, o.getString(KEY_HOYO_HSR))
         if (o.has(KEY_HOYO_ZZZ)) prefs.putString(KEY_HOYO_ZZZ, o.getString(KEY_HOYO_ZZZ))
         hoyolabCache = null   // 스냅샷이 UID 를 덮어썼을 수 있다 — 다음 읽기에서 다시 만든다
-        if (o.has(KEY_ACCENT)) prefs.putInt(KEY_ACCENT, o.getInt(KEY_ACCENT))
+        if (o.has(KEY_ACCENT)) {
+            prefs.putInt(KEY_ACCENT, o.getInt(KEY_ACCENT))
+            // 스냅샷이 어느 팔레트 기준인지도 함께 옮긴다.
+            //  · 새 스냅샷: 기준이 실려 있다 → 변환하지 않는다(이미 변환된 값이다).
+            //  · 옛 스냅샷(27.43.x 이하): 키가 없어 0 → 다음 loadAccentIndex 가 변환한다.
+            // 이 줄이 없으면 왕복할 때마다 변환이 덧걸려 색이 밀린다(틸 → 머스터드 → …).
+            // 두 기기가 서로의 스냅샷을 계속 '변경'으로 보고 끝없이 밀어 올리는 원인이기도 하다.
+            prefs.putInt(KEY_ACCENT_VER, o.optInt(KEY_ACCENT_VER, 0))
+        }
         if (o.has(KEY_ENKA_GI)) prefs.putString(KEY_ENKA_GI, o.getString(KEY_ENKA_GI))
         if (o.has(KEY_ENKA_HSR)) prefs.putString(KEY_ENKA_HSR, o.getString(KEY_ENKA_HSR))
         if (o.has(KEY_ATTENDANCE)) prefs.putString(KEY_ATTENDANCE, o.getJSONObject(KEY_ATTENDANCE).toString())
