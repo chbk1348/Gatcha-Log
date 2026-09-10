@@ -143,15 +143,18 @@ struct AddSpendingView: View {
                 Text("게임을 선택해주세요")
                     .font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary)
                     .padding(.top, 3)
-                // 가로 스크롤이 아니라 **줄바꿈**이다 — 첫 할 일이 "게임 고르기"인데 스크롤로 접어 두면
-                // 화면 밖 게임은 있는 줄도 모른다(고를 수 있는 게 몇 개인지조차 안 보인다).
-                // 카드 폭 안에서 전부 한눈에 들어와야 고르는 화면 구실을 한다.
-                FlowLayout(spacing: 8, lineSpacing: 8) {
+                // **리스트형**이다(27.50.0). 이전에는 칩을 줄바꿈으로 늘어놓았는데, 이름 길이가
+                // 제각각이라(「원신」 vs 「명일방주: 엔드필드」) 줄이 들쭉날쭉해 훑기 어려웠다.
+                // 한 줄에 하나면 눈이 세로로만 움직이고, 게임 수가 늘어도 규격이 흔들리지 않는다.
+                //
+                // 가로 스크롤은 여전히 쓰지 않는다 — 첫 할 일이 "게임 고르기" 인데 접어 두면
+                // 화면 밖 게임은 있는 줄도 모른다. 시트가 세로로 스크롤되므로 전부 닿는다.
+                // 한 덩어리 리스트가 아니라 **낱개 카드**로 떼어 놓는다 — 구분선으로만 나뉜 목록은
+                // "표" 처럼 읽혀 고르는 자리라는 느낌이 약했다.
+                VStack(spacing: 8) {
                     ForEach(GLGGames.all, id: \.key) { g in
-                        GLGChip(label: g.shortName, selected: false, color: Color(argb64: g.color)) {
-                            selectGame(g.displayName)
-                        }
-                        .fixedSize()  // 칩 안 텍스트는 줄바꿈 없이 고유 너비 — 줄바꿈은 FlowLayout 이 칩 단위로 한다
+                        Button { selectGame(g.displayName) } label: { gameSelectRow(g) }
+                            .buttonStyle(.plain)
                     }
                 }
                 .padding(.top, 12)
@@ -217,6 +220,40 @@ struct AddSpendingView: View {
     /// 늦게 내려왔다. 타이밍은 바깥 `withAnimation` 하나가 정하고, 여기서는 **모양만** 정한다.
     private var cardReveal: AnyTransition {
         .asymmetric(insertion: .opacity.combined(with: .offset(y: 14)), removal: .opacity)
+    }
+
+    /// 게임 선택 한 줄 — [게임색 썸네일 · 이름 · 화살표]. Compose `GameSelectRow` 와 패리티.
+    ///
+    /// 썸네일과 글자에 **게임 대표색**을 쓴다. 강조색을 쓰면 테마에 따라 전부 같은 색이 되어
+    /// 게임 구분이 사라진다 — 이 목록은 색으로 먼저 읽힌다.
+    @ViewBuilder private func gameSelectRow(_ g: Game) -> some View {
+        let c = Color(argb64: g.color)
+        HStack(spacing: 0) {
+            // 배지는 **영어 약칭**(GI · HSR · ZZZ …) — 지출 목록 행과 같은 값이다.
+            // 한국어 약칭은 길이가 제각각이라 36 칸에서 두 줄로 접혔다.
+            Text(g.abbr)
+                .font(.pretendard(size: 11, weight: .black))
+                .foregroundStyle(c)
+                .multilineTextAlignment(.center)
+                .lineLimit(1)
+                .padding(.horizontal, 2)
+                .frame(width: 36, height: 36)
+                .background(c.opacity(0.12), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+            Text(g.displayName)
+                .font(.pretendard(size: 13.5, weight: .bold))
+                .foregroundStyle(GLGColor.textPrimary)
+                .padding(.leading, 11)
+            Spacer(minLength: 6)
+            Image(systemName: "chevron.right")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(GLGColor.textSecondary.opacity(0.6))
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        // 테두리는 **게임색**이다 — 강조색을 쓰면 카드 아홉 장이 전부 같은 색이 되어
+        // 게임 구분이 사라진다. 이 목록은 색으로 먼저 읽힌다.
+        .glgGlass(in: RoundedRectangle(cornerRadius: 14, style: .continuous), border: c.opacity(0.20))
+        .contentShape(Rectangle())
     }
 
     private func selectGame(_ name: String) {
@@ -379,7 +416,7 @@ struct AddSpendingView: View {
                         Text(DateUtil.shared.labelWithWeekday(millis: dateMillis)).foregroundStyle(GLGColor.textPrimary)
                         Spacer(); Image(systemName: "calendar").foregroundStyle(accent.primary)
                     }
-                    .font(.pretendard(size: 15)).glgPillField()
+                    .font(.pretendard(size: 15)).glgField()
                 }
             }.buttonStyle(.plain)
         }
@@ -411,7 +448,8 @@ struct AddSpendingView: View {
             if detailsExpanded { detailFields.padding(.top, 14) }
         }
         .padding(16).frame(maxWidth: .infinity, alignment: .leading)
-        .glgGlass(in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+        .glgGlass(in: RoundedRectangle(cornerRadius: 22, style: .continuous),
+                     border: accent.primary.opacity(0.28))
     }
 
     /// 접힌 상태에서 보여줄 한 줄 — "카카오페이 · 구글플레이 · 태그 2".
@@ -549,7 +587,8 @@ struct AddSpendingView: View {
     private func sectionCard<C: View>(@ViewBuilder _ content: () -> C) -> some View {
         VStack(alignment: .leading, spacing: 0) { content() }
             .padding(16).frame(maxWidth: .infinity, alignment: .leading)
-            .glgGlass(in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+            .glgGlass(in: RoundedRectangle(cornerRadius: 22, style: .continuous),
+                     border: accent.primary.opacity(0.28))
     }
     private func label(_ t: String) -> some View { Text(t).font(.pretendard(size: 14, weight: .bold)).foregroundStyle(GLGColor.textSecondary) }
     private func field(_ label: String, _ ph: String, _ text: Binding<String>, number: Bool = false) -> some View {
@@ -559,7 +598,7 @@ struct AddSpendingView: View {
                 .textFieldStyle(.plain)
                 .font(.pretendard(size: 15))
                 .keyboardType(number ? .numberPad : .default)
-                .glgPillField()
+                .glgField()
                 .onChange(of: text.wrappedValue) { _, newValue in if number { text.wrappedValue = newValue.filter(\.isNumber) } }
         }
     }
