@@ -22,6 +22,7 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material.icons.filled.Check
@@ -36,6 +37,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import com.gatcha.log.ui.components.GlassCard
+import com.gatcha.log.ui.components.glgAccentCardBorder
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
@@ -75,6 +77,9 @@ import com.gatcha.log.ui.theme.LocalAccent
 import com.gatcha.log.ui.theme.TextPrimary
 import com.gatcha.log.ui.theme.TextSecondary
 import com.gatcha.log.util.won
+
+/** 3차 텍스트 — 화살표·보조 라벨. 다른 화면들과 같은 값. */
+private val TextThird = androidx.compose.ui.graphics.Color(0xFF98A0AB)
 
 private val SheetBg = Color.White   // D · 모달 배경 흰색(연회색 카드와 대비)
 private val CardBg = Color.White
@@ -562,18 +567,17 @@ private fun AmountHero(
             Text("어느 게임인가요?", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
             Text("게임을 선택해주세요", fontSize = 12.sp, color = TextSecondary, modifier = Modifier.padding(top = 3.dp))
             Spacer(Modifier.height(12.dp))
-            // 가로 스크롤이 아니라 **줄바꿈**이다 — 첫 할 일이 "게임 고르기"인데 스크롤로 접어 두면
-            // 화면 밖 게임은 있는 줄도 모른다(고를 수 있는 게 몇 개인지조차 안 보인다).
-            // 카드 폭 안에서 전부 한눈에 들어와야 고르는 화면 구실을 한다. (iOS FlowLayout 과 파리티)
-            FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                GameData.games.forEach { g ->
-                    // 게임 칩은 **게임 대표색**을 쓴다 — ChoiceChip 은 색을 넘기지 않아
-                    // 전부 강조색(민트)으로 떨어진다. 게임 구분이 색으로 읽혀야 한다.
-                    GameSelectItem(game = g, isSelected = false) { onGameChange(g) }
-                }
+            // **리스트형**이다(27.50.0). 이전에는 칩을 줄바꿈으로 늘어놓았는데, 이름 길이가
+            // 제각각이라(「원신」 vs 「명일방주: 엔드필드」) 줄이 들쭉날쭉해 훑기 어려웠다.
+            // 한 줄에 하나면 눈이 세로로만 움직이고, 게임 수가 늘어도 규격이 흔들리지 않는다.
+            //
+            // 가로 스크롤은 여전히 쓰지 않는다 — 첫 할 일이 "게임 고르기" 인데 접어 두면
+            // 화면 밖 게임은 있는 줄도 모른다. 모달이 세로로 스크롤되므로 전부 닿는다.
+            // 한 덩어리 리스트가 아니라 **낱개 카드**로 떼어 놓는다 — 구분선으로만 나뉜 목록은
+            // "표" 처럼 읽혀 고르는 자리라는 느낌이 약했다. 카드마다 여백이 생기니 누를 대상이
+            // 뚜렷하고, 게임색 테두리가 카드 단위로 서서 구분도 색으로 먼저 온다.
+            Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                GameData.games.forEach { g -> GameSelectRow(game = g) { onGameChange(g) } }
             }
             return@Column
         }
@@ -678,10 +682,19 @@ private fun FrequentItemRow(item: FrequentItem, selected: Boolean, onClick: () -
     }
 }
 
-/** 그룹 섹션 카드 — 앱 표준 [GlassCard](흰 배경·아웃라인·평면, 22dp)와 동일하게 통일. */
+/**
+ * 그룹 섹션 카드 — 앱 표준 [GlassCard] 규격에 **강조색 테두리**를 입힌다.
+ *
+ * 목록 화면의 카드는 중립 테두리를 쓰지만(여러 장 늘어서면 색 테두리가 산만하다),
+ * 모달은 한 번에 한 흐름이라 테두리에 테마색이 도는 편이 "지금 입력하는 화면" 신호가 된다.
+ * 히어로 카드는 예외다 — 그쪽은 **게임색** 테두리라 강조색으로 덮지 않는다.
+ */
 @Composable
 private fun SectionCard(content: @Composable ColumnScope.() -> Unit) {
-    GlassCard(modifier = Modifier.fillMaxWidth().animateContentSize()) {
+    GlassCard(
+        modifier = Modifier.fillMaxWidth().animateContentSize(),
+        borderColor = glgAccentCardBorder(),
+    ) {
         Column(Modifier.padding(16.dp), content = content)
     }
 }
@@ -691,9 +704,62 @@ private fun SectionRowLabel(text: String) {
     Text(text, fontSize = 14.sp, color = TextSecondary, fontWeight = FontWeight.Bold)
 }
 
+/**
+ * 게임 선택 칩 — **선택 후 펼치는 줄**에서만 쓴다(히어로 안이라 자리가 좁다).
+ * 미선택 상태의 첫 선택은 [GameSelectRow] 리스트가 받는다.
+ */
 @Composable
 private fun GameSelectItem(game: Game, isSelected: Boolean, onClick: () -> Unit) {
     GlgChip(label = game.shortName, selected = isSelected, color = game.color.toColor(), onClick = onClick)
+}
+
+/**
+ * 게임 선택 한 줄 — [게임색 썸네일 · 이름 · 화살표].
+ *
+ * 썸네일과 이름 색에 **게임 대표색**을 쓴다. 강조색을 쓰면 테마에 따라 전부 같은 색이 되어
+ * 게임 구분이 사라진다 — 이 목록은 색으로 먼저 읽힌다.
+ */
+@Composable
+private fun GameSelectRow(game: Game, onClick: () -> Unit) {
+    val c = game.color.toColor()
+    val shape = RoundedCornerShape(14.dp)
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .background(Color.White)
+            // 테두리는 **게임색**이다 — 강조색을 쓰면 카드 아홉 장이 전부 같은 색이 되어
+            // 게임 구분이 사라진다. 이 목록은 색으로 먼저 읽힌다.
+            .border(1.dp, c.copy(alpha = 0.20f), shape)
+            .clickable { onClick() }
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        // 배지는 **영어 약칭**(GI · HSR · ZZZ …)이다 — 지출 목록 행([SpendingRow])과 같은 값을
+        // 써야 한다. 한국어 약칭은 길이가 제각각(「원신」 vs 「엔드필드」)이라 36dp 칸에서
+        // 두 줄로 접히거나 잘렸다. 영어 약칭은 2~3자로 고르다.
+        Box(
+            Modifier.size(36.dp).clip(RoundedCornerShape(10.dp)).background(c.copy(alpha = 0.12f)),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                game.abbr,
+                fontSize = 11.sp, fontWeight = FontWeight.Black, color = c,
+                textAlign = TextAlign.Center, maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(horizontal = 2.dp),
+            )
+        }
+        Text(
+            game.displayName,
+            fontSize = 13.5.sp, fontWeight = FontWeight.Bold, color = TextPrimary,
+            modifier = Modifier.weight(1f).padding(start = 11.dp),
+        )
+        Icon(
+            Icons.AutoMirrored.Filled.KeyboardArrowRight, null,
+            tint = TextThird, modifier = Modifier.size(18.dp),
+        )
+    }
 }
 
 @Composable
