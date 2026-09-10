@@ -15,9 +15,9 @@ extension View {
     ///   - interactive: iOS 26 인터랙티브 글래스(탭 시 반응) 여부
     // D · Soft Modern 카드 — 흰 배경 위 연회색 솔리드 면 + 약간의 아웃라인(헤어라인). Android GlassCard 와 파리티.
     @ViewBuilder
-    func glgGlass<S: Shape>(in shape: S, interactive: Bool = false) -> some View {
-        self.background(Color(hex: 0xFFF6F7F9), in: shape)
-            .overlay(shape.stroke(Color.black.opacity(0.06), lineWidth: 1).allowsHitTesting(false))
+    func glgGlass<S: Shape>(in shape: S, interactive: Bool = false, border: Color? = nil) -> some View {
+        self.background(Color.white, in: shape)
+            .overlay(shape.stroke(border ?? Color.black.opacity(0.06), lineWidth: 1).allowsHitTesting(false))
     }
 
     /// 가독성이 더 필요한 패널(시트/다이얼로그 본문)용 — 흰 배경 + 아웃라인(전역 유리 제거).
@@ -75,16 +75,32 @@ struct GLGVisualEffectBlur: UIViewRepresentable {
     }
 }
 
-/// 앱 전역 배경 — D · Soft Modern: 솔리드 흰색(연회색 카드 대비 확보). Android GlassBackground 와 파리티.
+/// 앱 전역 배경 — **강조색을 아주 옅게 입힌 면**(`glgAccent.tint`, 흰 바탕 대비 1.06).
+///
+/// 27.50.0 에서 면 체계를 뒤집었다. 이전에는 `흰 배경 + 연회색 카드` 였는데, 그러면 테마를
+/// 바꿔도 화면의 대부분(배경)이 그대로여서 **고른 색이 화면에서 느껴지지 않았다**.
+/// 지금은 `옅은 강조색 배경 + 흰 카드` 다. Android `GlassBackground` 와 패리티.
+///
+/// 게임색·속성 연출 글로우는 이 축과 무관하다 — 그쪽은 건드리지 않는다.
 struct GLGBackground<Content: View>: View {
     @ViewBuilder var content: Content
+    @Environment(\.glgAccent) private var accent
 
     var body: some View {
         ZStack {
-            Color.white.ignoresSafeArea()
+            accent.tint.ignoresSafeArea()
             content
         }
     }
+}
+
+/// 카드 안에 두는 **옅은 보조 칸** — 흰 카드 위에서 한 단 눌린 면.
+///
+/// 뒤집기 전에는 이 자리에 흰색을 썼다(연회색 카드 위에서 도드라지게). 카드가 흰색이 된 뒤로는
+/// 흰색을 쓰면 카드에 묻히므로, 배경과 같은 `glgAccent.tint` 를 쓴다.
+struct GLGInsetSurface: View {
+    @Environment(\.glgAccent) private var accent
+    var body: some View { accent.tint }
 }
 
 /**

@@ -179,7 +179,7 @@ struct GiftCodePage: View {
     private var directInput: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("직접 입력 (새 코드)").font(.pretendard(size: 11, weight: .semibold)).foregroundStyle(GLGColor.textSecondary)
-            TextField("예: GENSHINGIFT", text: $code).textFieldStyle(.plain).glgPillField().autocapitalization(.allCharacters)
+            TextField("예: GENSHINGIFT", text: $code).textFieldStyle(.plain).glgField().autocapitalization(.allCharacters)
                 .onChange(of: code) { _, newValue in code = newValue.uppercased().filter { $0.isLetter || $0.isNumber } }
             if !code.isEmpty {
                 Button { store.redeemGiftCode(gameKey: selected, code: code.trimmingCharacters(in: .whitespaces)); code = "" } label: {

@@ -73,7 +73,22 @@ import com.gatcha.log.ui.theme.TextSecondary
 // ============================================================
 //  Gatcha LOG 커스텀 디자인 토큰 (웹앱 스타일 이식)
 // ============================================================
-private val FieldShape = RoundedCornerShape(percent = 50)  // 알약(pill) 형태
+/**
+ * 컨트롤 라운드 — 주 버튼([GlgButton]) · 보조 버튼([GlgOutlineButton]) · 입력필드([GlgTextField])가
+ * 모두 이 값을 쓴다.
+ *
+ * 알약은 **폭이 넓어질수록 뚱뚱해 보인다.** 전체 폭 CTA·입력필드는 좌우 반원이 커져 글자보다
+ * 모서리가 먼저 읽혔고, 카드(24dp 라운드) 안에서 완전 원호만 튀었다.
+ *
+ * 헤더 알약(`GlgHeaderActionPill` 등)과 원형 아이콘 버튼은 **알약·원형을 유지한다** —
+ * 그쪽은 폭이 좁아 뚱뚱해 보이지 않고, 상태바 옆에서 작은 알약으로 읽히는 편이 자연스럽다.
+ *
+ * **iOS 는 버튼만 캡슐을 유지한다**(2026-09-10 결정) — 시스템 버튼 스타일(`.glassProminent`)의
+ * 기본 모양이 캡슐이고, 그게 OS 관용구다. 입력필드는 양쪽 모두 이 값을 쓴다(iOS `GLGFieldRadius`).
+ */
+val GlgButtonRadius = 16.dp
+
+private val FieldShape = RoundedCornerShape(GlgButtonRadius)  // 버튼·입력필드 공용(위 문서 참고)
 private val FieldBgIdle = Color(0xFFFFFFFF)   // D · 입력필드 배경 흰색 고정(테두리로 구분)
 private val FieldBgFocus = Color(0xFFFFFFFF)
 private val FieldBorderIdle = Color(0x1F000000)   // rgba(0,0,0,0.12) — 약간의 아웃라인
@@ -84,6 +99,7 @@ private val GhostBorder = Color(0xFFE3E3EA)
 private val GhostText = Color(0xFF6C727A)
 
 /** 입력 필드 위 라벨 (대문자 느낌의 작은 라벨) */
+
 @Composable
 fun GlgFieldLabel(text: String, modifier: Modifier = Modifier) {
     Text(
@@ -191,9 +207,12 @@ fun GlgButton(
     } else {
         SolidColor(Color(0xFFD8D8DE))
     }
-    // 알약(캡슐) — iOS 와 동일. iOS 는 GLGButton 이 .buttonBorderShape(.capsule) 을 쓰고,
-    // Android 도 GlgOutlineButton 은 이미 캡슐이었다. 주 버튼만 각진 사각형으로 남아 어긋나 있었다.
-    val shape = CircleShape
+    // 둥근 사각형(16dp) — 27.50.0 에서 알약을 걷었다.
+    //
+    // 알약은 **폭이 넓어질수록 뚱뚱해 보인다.** 전체 폭 CTA 는 좌우 반원이 커져 글자보다
+    // 모서리가 먼저 읽혔다. 카드가 24dp 라운드인데 그 안에서 버튼만 완전 원호라 결도 어긋났다.
+    // iOS 는 시스템 버튼에 `.buttonBorderShape(.roundedRectangle(radius: 16))` 로 같은 값을 준다.
+    val shape = RoundedCornerShape(GlgButtonRadius)
     Box(
         modifier = modifier
             .height(height)
@@ -826,8 +845,9 @@ fun GlgOutlineButton(
     )
     val bg by animateColorAsState(if (pressed) tint.copy(alpha = 0.08f) else Color.Transparent, label = "outBtnBg")
     val textColor by animateColorAsState(if (pressed || color != null) tint else GhostText, label = "outBtnText")
-    // 알약(캡슐) — 주 버튼(GlgButton)·iOS 와 동일. 나란히 놓이는 '취소 + 저장하기' 짝의 모서리가 맞아야 한다.
-    val shape = CircleShape
+    // 둥근 사각형(16dp) — 주 버튼([GlgButton])과 같은 값. 나란히 놓이는 '취소 + 저장하기' 짝의
+    // 모서리가 맞아야 한다.
+    val shape = RoundedCornerShape(GlgButtonRadius)
     Box(
         modifier = modifier
             .height(height)

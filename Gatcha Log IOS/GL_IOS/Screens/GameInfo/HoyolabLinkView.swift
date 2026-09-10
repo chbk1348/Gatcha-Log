@@ -126,7 +126,7 @@ struct HoyolabLinkView: View {
                 .textFieldStyle(.plain)
                 .font(.pretendard(size: 15))
                 .autocapitalization(.none).disableAutocorrection(true)
-                .glgPillField()
+                .glgField()
         }
     }
 }

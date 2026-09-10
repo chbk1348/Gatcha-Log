@@ -19,7 +19,8 @@ private func hoyoURL(_ raw: String) -> URL? {
  (두 번째 화면부터는 네트워크를 안 탄다), Swift 쪽에 같은 캐시를 한 겹 더 쌓을 이유가 없다.
  로딩 스켈레톤도 두지 않는다 — 폴백이 **항상 유효한 확정 정보**라 빈 상태가 존재하지 않는다.
  */
-private extension View {
+extension View {
+    /// (시간표 페이지도 진입할 때 같은 갱신을 하므로 파일 밖에서도 쓴다)
     func loadHoyoland(into event: Binding<HoyolandEvent>) -> some View {
         task {
             if let fresh = try? await HoyolandApi.shared.load(force: false) { event.wrappedValue = fresh }
@@ -91,6 +92,7 @@ struct HoyolandDetailView: View {
     /// 굿즈 장바구니가 저장을 쓰므로 상세도 스토어를 받는다(하위 페이지로 넘긴다).
     var store: SpendingStore
     @Environment(\.glgAccent) private var accent
+    @Environment(\.openURL) private var openURL
     @State private var pastExpanded = false
     @State private var event: HoyolandEvent = HoyolandApi.shared.current
 
@@ -260,12 +262,13 @@ struct HoyolandDetailView: View {
                     }
                 }
                 if let url = hoyoURL(e.mapUrl) {
-                    Link(destination: url) {
-                        Text("지도에서 보기").font(.pretendard(size: 14, weight: .semibold))
-                            .foregroundStyle(accent.primary).frame(maxWidth: .infinity)
-                            .padding(.vertical, 12)
-                            .overlay(RoundedRectangle(cornerRadius: 23, style: .continuous)
-                                .stroke(accent.primary.opacity(0.5), lineWidth: 1))
+                    // **시스템 버튼**을 쓴다([GLGOutlineButton] → iOS 26 `.glass` / 이하 `.bordered`).
+                    // 직접 그린 테두리는 OS 가 버튼에 주는 눌림·하이라이트·접근성 처리를 못 받고,
+                    // 반지름을 숫자로 박아 두면(23) 높이가 바뀌는 순간 알약이 아니게 된다.
+                    // `Link` 대신 `openURL` 로 여는 것도 그래서다 — 모양을 시스템에 맡기려면
+                    // 컴포넌트가 `Button` 이어야 한다.
+                    GLGOutlineButton(title: "지도에서 보기", systemImage: "map") {
+                        openURL(url)
                     }
                     .padding(.top, 14)
                 }
