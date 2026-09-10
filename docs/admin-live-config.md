@@ -131,22 +131,28 @@ commonMain 만 손댔다 — GitLive firebase-firestore 가 KMP 라 Android/iOS 
 
 | | |
 |---|---|
-| 소스 · 커밋 | ✅ `5897ad2` (origin/main 동기화) |
+| 소스 · 커밋 | ✅ `0aa9bf5` (origin/main 동기화) |
 | Firestore 규칙 | ✅ 배포됨 (운영자 uid `kc6zQnqG…` 등록) |
 | 어드민 Hosting | ✅ <https://gatcha-log.web.app> |
 | 앱 컴파일 · 테스트 | ✅ iOS · Android · `testAndroidHostTest` 통과 |
-| **기기 설치 검증** | ❌ **미완** |
+| **기기 설치 검증** | ✅ **완료 (2026-09-10)** — 어드민 반영 → 앱 확인까지 |
 
-### 미검증 구간
+### 검증하며 드러난 것 — 앱이 즉시성을 잡아먹고 있었다
 
-**커밋이 곧 배포가 아니다.** 라이브 읽기 코드는 커밋됐지만 어느 기기에도 설치되지 않았다.
-지금 어드민에서 라이브 반영해도 폰의 앱은 여전히 raw JSON 을 본다.
+읽기 코드는 맞았는데 **화면이 안 바뀌었다.** `HoyolandApi` 가 캐시를 프로세스 수명 내내
+붙들고 있어서, 라이브 반영을 해도 **앱을 완전히 껐다 켜야** 새 값이 보였다. 커밋 없이 즉시
+고치자고 만든 구조인데 그 즉시성이 앱에서 사라진 셈이다(ZZZ 는 캐시가 없어 멀쩡했다).
 
-```powershell
-.\gradlew.bat ":Gatcha Log Android:installDebug"
-```
+고친 내용(`773c1c2`):
 
-> ⚠️ **먼저 볼 것**: 디버그 빌드에 `google-services.json` 이 있는가.
+- **캐시 15초 TTL** — 화면에 다시 들어오면 새로 읽는다. 0 으로 두면 홈↔게임정보를 오갈 때
+  같은 요청이 겹치고, 길게 잡으면 그 시간이 곧 현장 대응의 반응 속도가 된다
+- **당겨서 새로고침** — 호요랜드 상세 · 일자별 시간표 · 게임 일정 · 홈. `force` 라 캐시 나이와
+  무관하게 라이브부터 다시 훑는다
+- **`?t=` CDN 우회** — GitHub raw 는 커밋 뒤에도 몇 분간 옛 내용을 준다(ZZZ 가 쓰던 방식)
+- 개발자 목업은 TTL 로 안 풀리고 새로고침으로만 걷힌다
+
+> ⚠️ **연동이 안 될 때 먼저 볼 것**: 디버그 빌드에 `google-services.json` 이 있는가.
 > 없으면 `firebaseAppExists()` 가 false 라 `LiveConfig.get()` 이 통째로 건너뛰고 정본으로
 > 내려간다. **에러가 아니라 조용한 폴백**이라 "연동이 안 되네" 로만 보인다.
 > (`Gatcha Log Android/build.gradle.kts` 가 json 이 있을 때만 Firebase 플러그인을 적용한다.)
@@ -157,8 +163,10 @@ commonMain 만 손댔다 — GitLive firebase-firestore 가 KMP 라 Android/iOS 
 
 ## 8. 다음 할 일
 
-- [ ] 기기 설치 검증 (§7)
+- [x] 기기 설치 검증 (§7) — 2026-09-10
 - [ ] `config/hoyoland.json` 의 `goods` · `booths` 채우기 — 앱은 이미 읽을 수 있는데 JSON 에만 없다
+      (굿즈 목록 · 장바구니 · 부스 체험 화면은 `009f746` 로 들어갔다. 판매 목록이 공개되면
+      어드민에서 채우는 것만 남는다)
 - [ ] 어드민 기능 보강 (참고 아티팩트 내용 확인 후 결정)
       후보: 필드 단위 diff · 되돌리기 · 앱 화면 미리보기 · TSV 일괄 붙여넣기 · 반영 이력
 - [x] `firestore.rules` 의 "명시적 deny" 주석 정정 (§4) — 2026-09-10
