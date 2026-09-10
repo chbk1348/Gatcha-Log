@@ -19,6 +19,10 @@ private let GLGWarnBg = Color(hex: 0xFFFFF6E0)
 private let GLGWarnText = Color(hex: 0xFF8A6A1E)
 private let GLGTextThird = Color(hex: 0xFF98A0AB)
 private let GLGDanger = Color(hex: 0xFFD8574A)
+/// 보상 면 — **게임색이 아니라 한 가지 색으로 통일한다.** 부스 목록을 훑을 때 "받는 게 있는 곳" 이
+/// 한눈에 걸려야 하는데, 게임색을 쓰면 그 줄이 게임 배지와 섞여 보상인지 소속인지 흐려진다.
+private let GLGGiftText = Color(hex: 0xFFE0557B)
+private let GLGGiftBg = Color(hex: 0x14E0557B)
 
 /**
  굿즈 목록 — 품목과 **가격**.
@@ -90,9 +94,9 @@ struct HoyolandGoodsView: View {
             }
         }
         .animation(GLGMotion.standard(), value: cart.isEmpty)
-        // 하단 바가 떠 있는 동안 '추가' FAB 를 감춘다 — 조작 대상이 둘이면 산만하고,
-        // 굿즈를 보는 화면에서 '지출 추가'는 맥락에도 없다(지출 목록의 선택 바와 같은 규칙).
-        // 장바구니로 들어가면 이 화면이 사라지며 FAB 가 돌아온다(그쪽엔 하단 바가 없다).
+        // 하단 바가 떠 있는 동안만 '추가' FAB 를 감춘다 — 자리가 겹쳐 「장바구니」 버튼이
+        // '+' 에 가린다(iOS 18~25 는 FAB 가 TabView 바깥 오버레이라 그냥 두면 덮는다).
+        // 담은 게 없으면 바가 없으므로 FAB 는 그대로 둔다.
         .onAppear { store.hidesAddButton = !cart.isEmpty }
         .onDisappear { store.hidesAddButton = false }
         .onChange(of: cart.isEmpty) { _, empty in store.hidesAddButton = !empty }
@@ -130,26 +134,23 @@ struct HoyolandGoodsView: View {
      A 안(담기 원)에서 갈아탔다. 훑기는 리스트가 낫고, 수량은 **목록에서 바로** 정하는 편이
      자연스럽다 — 같은 키링을 두 개 사는 일이 흔한데 담기 토글만 있으면 장바구니까지 들어가야 했다.
 
-     담기 전에는 「담기」 버튼, 담은 뒤에는 스테퍼로 바뀐다. 품절은 흐리게 두고 담기만 막는다 —
-     가격을 기억하러 오는 사람이 있다.
+     담기 전에는 「담기」 버튼, 담은 뒤에는 스테퍼로 바뀐다.
      */
     @ViewBuilder private func goodsRow(_ item: HoyolandGoods, quantity: Int) -> some View {
         let c = gameColor(item.game)
         let label = item.game.isEmpty ? "공용" : event.stageLabel(game: item.game)
         let meta = [item.category.isEmpty ? nil : item.category,
-                    item.soldOut ? "품절" : nil,
                     item.note.isEmpty ? nil : item.note]
                     .compactMap { $0 }.joined(separator: " · ")
         HStack(spacing: 0) {
             // 썸네일 자리 — 공식 굿즈 이미지가 나오면 이 칸을 그대로 이미지로 바꾼다.
             Text(label)
                 .font(.pretendard(size: 9.5, weight: .black))
-                .foregroundStyle(item.soldOut ? GLGTextThird : c)
+                .foregroundStyle(c)
                 .multilineTextAlignment(.center).lineLimit(2)
                 .padding(.horizontal, 3)
                 .frame(width: 48, height: 48)
-                .background(item.soldOut ? Color.black.opacity(0.06) : c.opacity(0.12),
-                            in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .background(c.opacity(0.12), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
             VStack(alignment: .leading, spacing: 3) {
                 Text(item.name).font(.pretendard(size: 13, weight: .bold))
                     .foregroundStyle(GLGColor.textPrimary)
@@ -161,7 +162,7 @@ struct HoyolandGoodsView: View {
                         .background(c.opacity(0.14), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
                     if !meta.isEmpty {
                         Text(meta).font(.pretendard(size: 11))
-                            .foregroundStyle(item.soldOut ? GLGColor.textSecondary : c)
+                            .foregroundStyle(c)
                     }
                 }
             }
@@ -171,10 +172,8 @@ struct HoyolandGoodsView: View {
                 Text(item.price > 0 ? event.wonLabel(v: item.price) : "미정")
                     .font(.pretendard(size: 13, weight: item.price > 0 ? .black : .bold)).monospacedDigit()
                     .foregroundStyle(item.price > 0 ? GLGColor.textPrimary : GLGTextThird)
-                if item.soldOut {
-                    addButton("품절", enabled: false) {}
-                } else if quantity <= 0 {
-                    addButton("담기", enabled: true) { store.setGoodsQuantity(item.name, 1) }
+                if quantity <= 0 {
+                    addButton("담기") { store.setGoodsQuantity(item.name, 1) }
                 } else {
                     HStack(spacing: 0) {
                         stepButton("−") { store.setGoodsQuantity(item.name, quantity - 1) }
@@ -190,21 +189,19 @@ struct HoyolandGoodsView: View {
             }
         }
         .padding(.horizontal, 16).padding(.vertical, 11)
-        .opacity(item.soldOut ? 0.45 : 1)
     }
 
-    /// 담기/품절 버튼 — 스테퍼와 같은 높이라 담기 전후로 줄 높이가 흔들리지 않는다.
-    @ViewBuilder private func addButton(_ label: String, enabled: Bool, _ onTap: @escaping () -> Void) -> some View {
+    /// 담기 버튼 — 스테퍼와 같은 높이라 담기 전후로 줄 높이가 흔들리지 않는다.
+    @ViewBuilder private func addButton(_ label: String, _ onTap: @escaping () -> Void) -> some View {
         Button(action: onTap) {
             Text(label).font(.pretendard(size: 11.5, weight: .bold))
-                .foregroundStyle(enabled ? accent.primary : GLGTextThird)
+                .foregroundStyle(accent.primary)
                 .padding(.horizontal, 12)
                 .frame(height: 26)
                 .overlay(RoundedRectangle(cornerRadius: 9, style: .continuous)
-                    .stroke(enabled ? accent.primary : .black.opacity(0.10), lineWidth: 1))
+                    .stroke(accent.primary, lineWidth: 1))
         }
         .buttonStyle(.plain)
-        .disabled(!enabled)
     }
 
     @ViewBuilder private func stepButton(_ label: String, _ onTap: @escaping () -> Void) -> some View {
@@ -444,14 +441,22 @@ struct HoyolandCartView: View {
 /**
  게임별 부스 체험.
 
- 무대와 달리 **시각이 없다** — 상시 운영이고 대신 줄을 서거나 예약을 잡는다. 그래서
- 시간표가 아니라 게임별 카드로 그리고, 현장에서 먼저 찾는 값(위치)을 카드 안에 세운다.
+ 무대와 달리 **시각이 없다** — 상시 운영이라 시간표에 얹을 것이 없다. 그래서
+ 시간표가 아니라 게임별 카드로 그린다.
+
+ 예약제도 정원 · 회차도 다루지 않는다 — 공지된 정보를 그대로 보여줄 뿐이다. 그래서 카드에
+ 남는 값은 **위치 · 소요 · 보상** 셋뿐이고, 그중 **보상을 주인공으로 세운다**(목업 C안):
+ 예약도 정원도 없는 마당에 부스를 고르는 기준은 결국 받는 것이라서다.
  */
 struct HoyolandBoothView: View {
     let event: HoyolandEvent
     @Environment(\.glgAccent) private var accent
+    @State private var gameFilter: String? = nil
 
     var body: some View {
+        let games = event.boothGames
+        let shown = event.booths.filter { gameFilter == nil || $0.game == gameFilter }
+
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
                 if event.booths.isEmpty {
@@ -466,7 +471,18 @@ struct HoyolandBoothView: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                     }
                 } else {
-                    ForEach(Array(event.booths.enumerated()), id: \.offset) { _, b in
+                    // 굿즈 목록과 같은 게임 탭 — 두 화면을 오갈 때 거르는 방법이 달라지면 손이 헷갈린다.
+                    if games.count > 1 {
+                        GLGSegmentedTabs(
+                            labels: ["전체"] + games.map { event.stageLabel(game: $0) },
+                            selectedColors: [accent.primary] + games.map { boothColor($0) },
+                            selection: Binding(
+                                get: { gameFilter.flatMap { games.firstIndex(of: $0).map { $0 + 1 } } ?? 0 },
+                                set: { gameFilter = $0 == 0 ? nil : games[$0 - 1] }
+                            )
+                        )
+                    }
+                    ForEach(Array(shown.enumerated()), id: \.offset) { _, b in
                         boothCard(b)
                     }
                 }
@@ -482,50 +498,69 @@ struct HoyolandBoothView: View {
     }
 
     @ViewBuilder private func boothCard(_ b: HoyolandBooth) -> some View {
-        let raw = event.stageColor(game: b.game)
-        let c = raw == 0 ? GLGColor.textSecondary : Color(argb64: raw)
-        GLGCard(cornerRadius: 24, padding: 16) {
+        let c = boothColor(b.game)
+        GLGCard(cornerRadius: 24, padding: 0) {
             VStack(alignment: .leading, spacing: 0) {
                 HStack(spacing: 8) {
                     Text(event.stageLabel(game: b.game))
                         .font(.pretendard(size: 9.5, weight: .black)).foregroundStyle(c)
                         .padding(.horizontal, 6).padding(.vertical, 3)
                         .background(c.opacity(0.14), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
-                    Text(b.title).font(.pretendard(size: 15, weight: .bold))
+                    Text(b.title).font(.pretendard(size: 14.5, weight: .bold))
                         .foregroundStyle(GLGColor.textPrimary)
                     Spacer(minLength: 6)
-                    // 예약이 필요한 곳은 **가서 줄만 서면 되는 곳과 다른 준비**가 든다.
-                    if b.needsReservation { GLGBadge(label: "예약 필요", color: c) }
                 }
+                .padding(.horizontal, 14).padding(.top, 13).padding(.bottom, 11)
                 if !b.desc.isEmpty {
-                    Text(b.desc).font(.pretendard(size: 12.5))
+                    Text(b.desc).font(.pretendard(size: 12))
                         .foregroundStyle(GLGColor.textSecondary)
                         .fixedSize(horizontal: false, vertical: true)
-                        .padding(.top, 6)
+                        .padding(.horizontal, 14).padding(.bottom, 11)
                 }
-                Divider().padding(.vertical, 12)
-                if !b.location.isEmpty { boothFact("위치", b.location) }
-                if !b.duration.isEmpty { boothFact("소요", b.duration) }
-                if !b.capacity.isEmpty { boothFact("정원", b.capacity) }
-                // 보상은 줄 설 이유가 되는 값이라 목록 끝이 아니라 **눈에 띄는 자리**에 둔다.
+                // 보상은 부스를 고르는 기준이라 카드의 **주인공 자리**를 준다 — 폭을 꽉 채운 한 면.
                 if !b.reward.isEmpty {
-                    Text(b.reward).font(.pretendard(size: 11.5, weight: .bold)).foregroundStyle(c)
-                        .padding(.horizontal, 10).padding(.vertical, 7)
-                        .background(c.opacity(0.10), in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+                    HStack(spacing: 9) {
+                        Image(systemName: "gift").font(.system(size: 14, weight: .semibold))
+                        Text(b.reward).font(.pretendard(size: 12.5, weight: .bold))
+                            .fixedSize(horizontal: false, vertical: true)
+                        Spacer(minLength: 0)
+                    }
+                    .foregroundStyle(GLGGiftText)
+                    .padding(.horizontal, 14).padding(.vertical, 11)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(GLGGiftBg)
+                } else {
+                    // 빈칸으로 두면 **값이 빠진 것처럼** 읽힌다 — 없다고 적는다.
+                    Text("받는 것 없음").font(.pretendard(size: 12))
+                        .foregroundStyle(GLGTextThird)
+                        .padding(.horizontal, 14).padding(.bottom, 11)
                 }
+                Divider()
+                HStack(spacing: 0) {
+                    boothMeta("위치", b.location)
+                    Divider()
+                    boothMeta("소요", b.duration)
+                }
+                .fixedSize(horizontal: false, vertical: true)
             }
         }
     }
 
-    @ViewBuilder private func boothFact(_ label: String, _ value: String) -> some View {
-        HStack(alignment: .top, spacing: 0) {
-            Text(label).font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary)
-                .frame(width: 44, alignment: .leading)
-            Text(value).font(.pretendard(size: 12.5, weight: .medium))
+    /// 부스 카드 아래 칸 — 라벨을 위, 값을 아래로 눌러 담아 두 값이 같은 폭을 나눠 갖는다.
+    @ViewBuilder private func boothMeta(_ label: String, _ value: String) -> some View {
+        VStack(spacing: 11) {
+            Text(label).font(.pretendard(size: 10)).foregroundStyle(GLGTextThird)
+            Text(value.isEmpty ? "—" : value)
+                .font(.pretendard(size: 11.5, weight: .bold))
                 .foregroundStyle(GLGColor.textPrimary)
-                .fixedSize(horizontal: false, vertical: true)
-            Spacer(minLength: 0)
+                .multilineTextAlignment(.center)
         }
-        .padding(.bottom, 8)
+        .frame(maxWidth: .infinity)
+        .padding(.horizontal, 6).padding(.vertical, 18)
+    }
+
+    private func boothColor(_ game: String) -> Color {
+        let raw = event.stageColor(game: game)
+        return raw == 0 ? GLGColor.textSecondary : Color(argb64: raw)
     }
 }

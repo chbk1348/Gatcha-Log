@@ -265,7 +265,6 @@ object HoyolandApi {
                 game = o.optString("game").trim(),
                 category = o.optString("category").trim(),
                 note = o.optString("note").trim(),
-                soldOut = o.optBoolean("soldOut", false),
             )
         }
     }
@@ -282,9 +281,7 @@ object HoyolandApi {
                 desc = o.optString("desc").trim(),
                 location = o.optString("location").trim(),
                 duration = o.optString("duration").trim(),
-                capacity = o.optString("capacity").trim(),
                 reward = o.optString("reward").trim(),
-                needsReservation = o.optBoolean("needsReservation", false),
             )
         }
     }

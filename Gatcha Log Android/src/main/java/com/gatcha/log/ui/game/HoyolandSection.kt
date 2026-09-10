@@ -40,6 +40,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -56,6 +57,7 @@ import androidx.compose.material.icons.filled.ConfirmationNumber
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Schedule
+import androidx.compose.material.icons.outlined.Redeem
 import androidx.compose.material.icons.filled.ShoppingBag
 import androidx.compose.material.icons.filled.Storefront
 import androidx.compose.runtime.mutableStateListOf
@@ -225,7 +227,9 @@ fun HoyolandDetailPage(viewModel: SpendingViewModel, onBack: () -> Unit) {
         targetState = page,
         modifier = Modifier.fillMaxSize(),
         transitionSpec = {
-            if (targetState != HoyolandSub.None) {
+            // **계층 깊이로 방향을 정한다** — "상세가 아니면 push" 로 두면 굿즈 목록 ↔ 장바구니처럼
+            // 둘 다 하위인 전환에서 돌아올 때도 밀려 나갔다(게임정보 탭 `subDepth` 와 같은 규칙).
+            if (hoyolandDepth(targetState) >= hoyolandDepth(initialState)) {
                 (slideInHorizontally(glgStandardSpec()) { w -> w } + fadeIn(glgStandardSpec())) togetherWith
                     (slideOutHorizontally(glgStandardSpec()) { w -> -w / 4 } + fadeOut(glgShortSpec()))
             } else {
@@ -459,6 +463,18 @@ private fun GstarStat(label: String, value: String, sub: String, modifier: Modif
 
 /** 호요랜드 상세의 하위 페이지 — 진입 카드로 연다. */
 enum class HoyolandSub { None, Gstar, Stage, Goods, Cart, Booth }
+
+/**
+ * 전환 방향을 정하는 계층 깊이 — 상세(0) < 하위 페이지(1) < 장바구니(2).
+ *
+ * 장바구니는 **굿즈 목록에서만** 들어간다. 같은 깊이로 두면 돌아올 때도 push 로 밀려
+ * "뒤로 가는데 화면이 앞으로 나가는" 것처럼 보인다.
+ */
+private fun hoyolandDepth(p: HoyolandSub): Int = when (p) {
+    HoyolandSub.None -> 0
+    HoyolandSub.Cart -> 2
+    else -> 1
+}
 
 @Composable
 fun HoyolandDetailContent(onOpenSub: (HoyolandSub) -> Unit = {}) {
@@ -973,8 +989,7 @@ fun HoyolandGoodsContent(e: HoyolandEvent, cart: HoyolandCart, onQuantity: (Stri
  * A 안(담기 원)에서 갈아탔다. 훑기는 리스트가 낫고, 수량은 **목록에서 바로** 정하는 편이
  * 자연스럽다 — 같은 키링을 두 개 사는 일이 흔한데 담기 토글만 있으면 장바구니까지 들어가야 했다.
  *
- * 담기 전에는 「담기」 버튼, 담은 뒤에는 스테퍼로 바뀐다. 품절은 흐리게 두고 담기만 막는다 —
- * 가격을 기억하러 오는 사람이 있다.
+ * 담기 전에는 「담기」 버튼, 담은 뒤에는 스테퍼로 바뀐다.
  */
 @Composable
 private fun HoyolandGoodsRow(
@@ -990,8 +1005,7 @@ private fun HoyolandGoodsRow(
     Row(
         Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 11.dp)
-            .alpha(if (item.soldOut) 0.45f else 1f),
+            .padding(horizontal = 16.dp, vertical = 11.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         // 썸네일 자리 — 공식 굿즈 이미지가 나오면 이 칸을 그대로 이미지로 바꾼다.
@@ -999,13 +1013,13 @@ private fun HoyolandGoodsRow(
             Modifier
                 .size(48.dp)
                 .clip(RoundedCornerShape(12.dp))
-                .background(if (item.soldOut) DividerColor else c.copy(alpha = 0.12f)),
+                .background(c.copy(alpha = 0.12f)),
             contentAlignment = Alignment.Center,
         ) {
             Text(
                 label,
                 fontSize = 9.5.sp, fontWeight = FontWeight.Black,
-                color = if (item.soldOut) TextThird else c,
+                color = c,
                 textAlign = TextAlign.Center, lineHeight = 11.sp, maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.padding(horizontal = 3.dp),
@@ -1025,12 +1039,11 @@ private fun HoyolandGoodsRow(
                 )
                 val meta = listOfNotNull(
                     item.category.ifBlank { null },
-                    if (item.soldOut) "품절" else null,
                     item.note.ifBlank { null },
                 ).joinToString(" · ")
                 if (meta.isNotBlank()) {
                     Spacer(Modifier.width(5.dp))
-                    Text(meta, fontSize = 11.sp, color = if (item.soldOut) TextSecondary else c)
+                    Text(meta, fontSize = 11.sp, color = c)
                 }
             }
         }
@@ -1047,8 +1060,7 @@ private fun HoyolandGoodsRow(
             )
             Spacer(Modifier.height(6.dp))
             when {
-                item.soldOut -> GoodsAddButton("품절", enabled = false) {}
-                quantity <= 0 -> GoodsAddButton("담기", enabled = true) { onQuantity(item.name, 1) }
+                quantity <= 0 -> GoodsAddButton("담기") { onQuantity(item.name, 1) }
                 else -> Row(
                     Modifier.clip(RoundedCornerShape(9.dp)).border(1.dp, DividerColor, RoundedCornerShape(9.dp)),
                     verticalAlignment = Alignment.CenterVertically,
@@ -1066,24 +1078,20 @@ private fun HoyolandGoodsRow(
     }
 }
 
-/** 담기/품절 버튼 — 스테퍼와 같은 높이라 담기 전후로 줄 높이가 흔들리지 않는다. */
+/** 담기 버튼 — 스테퍼와 같은 높이라 담기 전후로 줄 높이가 흔들리지 않는다. */
 @Composable
-private fun GoodsAddButton(label: String, enabled: Boolean, onClick: () -> Unit) {
+private fun GoodsAddButton(label: String, onClick: () -> Unit) {
     val accent = LocalAccent.current
     Box(
         Modifier
             .height(26.dp)
             .clip(RoundedCornerShape(9.dp))
-            .border(1.dp, if (enabled) accent else DividerColor, RoundedCornerShape(9.dp))
-            .then(if (enabled) Modifier.clickable { onClick() } else Modifier)
+            .border(1.dp, accent, RoundedCornerShape(9.dp))
+            .clickable { onClick() }
             .padding(horizontal = 12.dp),
         contentAlignment = Alignment.Center,
     ) {
-        Text(
-            label,
-            fontSize = 11.5.sp, fontWeight = FontWeight.Bold,
-            color = if (enabled) accent else TextThird,
-        )
+        Text(label, fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = accent)
     }
 }
 
@@ -1340,10 +1348,21 @@ private val WarnText = Color(0xFF8A6A1E)
 private val TextThird = Color(0xFF98A0AB)
 
 /**
+ * 보상 면 — **게임색이 아니라 한 가지 색으로 통일한다.** 부스 목록을 훑을 때 "받는 게 있는 곳" 이
+ * 한눈에 걸려야 하는데, 게임색을 쓰면 그 줄이 게임 배지와 섞여 보상인지 소속인지 흐려진다.
+ */
+private val GiftText = Color(0xFFE0557B)
+private val GiftBg = Color(0x14E0557B)
+
+/**
  * 게임별 부스 체험.
  *
- * 무대와 달리 **시각이 없다** — 상시 운영이고 대신 줄을 서거나 예약을 잡는다. 그래서
- * 시간표가 아니라 게임별 카드로 그리고, 현장에서 먼저 찾는 값(위치)을 제목 옆에 붙인다.
+ * 무대와 달리 **시각이 없다** — 상시 운영이라 시간표에 얹을 것이 없다. 그래서
+ * 시간표가 아니라 게임별 카드로 그린다.
+ *
+ * 예약제도 정원 · 회차도 다루지 않는다 — 공지된 정보를 그대로 보여줄 뿐이다. 그래서 카드에
+ * 남는 값은 **위치 · 소요 · 보상** 셋뿐이고, 그중 **보상을 주인공으로 세운다**(목업 C안):
+ * 예약도 정원도 없는 마당에 부스를 고르는 기준은 결국 받는 것이라서다.
  */
 @Composable
 fun HoyolandBoothContent(e: HoyolandEvent) {
@@ -1360,18 +1379,37 @@ fun HoyolandBoothContent(e: HoyolandEvent) {
         }
         return
     }
-    e.booths.forEachIndexed { i, b ->
-        if (i > 0) Spacer(Modifier.height(12.dp))
-        HoyolandBoothCard(e, b)
+    // 굿즈 목록과 같은 게임 탭 — 두 화면을 오갈 때 거르는 방법이 달라지면 손이 헷갈린다.
+    val accent = LocalAccent.current
+    val games = e.boothGames
+    var gameFilter by remember { mutableStateOf<String?>(null) }
+    if (games.size > 1) {
+        GlgSegmentedTabs(
+            labels = listOf("전체") + games.map { e.stageLabel(it) },
+            selectedColors = listOf(accent) + games.map {
+                e.stageColor(it).let { c -> if (c == 0L) TextSecondary else c.toColor() }
+            },
+            selected = games.indexOf(gameFilter) + 1,
+            onSelect = { i -> gameFilter = if (i == 0) null else games.getOrNull(i - 1) },
+        )
+        Spacer(Modifier.height(12.dp))
     }
+    e.booths.filter { gameFilter == null || it.game == gameFilter }
+        .forEachIndexed { i, b ->
+            if (i > 0) Spacer(Modifier.height(12.dp))
+            HoyolandBoothCard(e, b)
+        }
 }
 
 @Composable
 private fun HoyolandBoothCard(e: HoyolandEvent, b: HoyolandBooth) {
     val c = e.stageColor(b.game).let { if (it == 0L) TextSecondary else it.toColor() }
     GlassCard(modifier = Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+        Column {
+            Row(
+                Modifier.padding(start = 14.dp, end = 14.dp, top = 13.dp, bottom = 11.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
                 Text(
                     e.stageLabel(b.game),
                     fontSize = 9.5.sp, fontWeight = FontWeight.Black, color = c,
@@ -1381,42 +1419,62 @@ private fun HoyolandBoothCard(e: HoyolandEvent, b: HoyolandBooth) {
                         .padding(horizontal = 6.dp, vertical = 3.dp),
                 )
                 Spacer(Modifier.width(8.dp))
-                Text(b.title, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+                Text(b.title, fontSize = 14.5.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
                 Spacer(Modifier.weight(1f))
-                // 예약이 필요한 곳은 **가서 줄만 서면 되는 곳과 다른 준비**가 든다.
-                if (b.needsReservation) GlgBadge("예약 필요", c)
             }
             if (b.desc.isNotBlank()) {
-                Spacer(Modifier.height(6.dp))
-                Text(b.desc, fontSize = 12.5.sp, color = TextSecondary, lineHeight = 18.sp)
-            }
-            Spacer(Modifier.height(12.dp))
-            Box(Modifier.fillMaxWidth().height(1.dp).background(DividerColor))
-            Spacer(Modifier.height(12.dp))
-            if (b.location.isNotBlank()) {
-                HoyolandFactRow("위치", b.location)
-                Spacer(Modifier.height(8.dp))
-            }
-            if (b.duration.isNotBlank()) {
-                HoyolandFactRow("소요", b.duration)
-                Spacer(Modifier.height(8.dp))
-            }
-            if (b.capacity.isNotBlank()) {
-                HoyolandFactRow("정원", b.capacity)
-                Spacer(Modifier.height(8.dp))
-            }
-            // 보상은 줄 설 이유가 되는 값이라 목록 끝이 아니라 **눈에 띄는 자리**에 둔다.
-            if (b.reward.isNotBlank()) {
                 Text(
-                    b.reward,
-                    fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = c,
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(9.dp))
-                        .background(c.copy(alpha = 0.10f))
-                        .padding(horizontal = 10.dp, vertical = 7.dp),
+                    b.desc,
+                    fontSize = 12.sp, color = TextSecondary, lineHeight = 17.sp,
+                    modifier = Modifier.padding(start = 14.dp, end = 14.dp, bottom = 11.dp),
                 )
             }
+            // 보상은 부스를 고르는 기준이라 카드의 **주인공 자리**를 준다 — 폭을 꽉 채운 한 면.
+            if (b.reward.isNotBlank()) {
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .background(GiftBg)
+                        .padding(horizontal = 14.dp, vertical = 11.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(Icons.Outlined.Redeem, null, tint = GiftText, modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.width(9.dp))
+                    Text(b.reward, fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = GiftText)
+                }
+            } else {
+                // 빈칸으로 두면 **값이 빠진 것처럼** 읽힌다 — 없다고 적는다.
+                Text(
+                    "받는 것 없음",
+                    fontSize = 12.sp, color = TextThird,
+                    modifier = Modifier.padding(start = 14.dp, end = 14.dp, bottom = 11.dp),
+                )
+            }
+            Box(Modifier.fillMaxWidth().height(1.dp).background(DividerColor))
+            // fillMaxWidth 가 없으면 Row 가 내용 폭으로 줄어 weight 가 나눌 여백이 사라진다
+            // — 목업처럼 **카드 폭을 반씩** 갖게 하려면 폭을 먼저 채워야 한다.
+            Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
+                BoothMetaCell("위치", b.location, Modifier.weight(1f))
+                Box(Modifier.fillMaxHeight().width(1.dp).background(DividerColor))
+                BoothMetaCell("소요", b.duration, Modifier.weight(1f))
+            }
         }
+    }
+}
+
+/** 부스 카드 아래 칸 — 라벨을 위, 값을 아래로 눌러 담아 두 값이 같은 폭을 나눠 갖는다. */
+@Composable
+private fun BoothMetaCell(label: String, value: String, modifier: Modifier = Modifier) {
+    Column(
+        modifier.padding(horizontal = 6.dp, vertical = 18.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Text(label, fontSize = 10.sp, color = TextThird)
+        Spacer(Modifier.height(11.dp))
+        Text(
+            value.ifBlank { "—" },
+            fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = TextPrimary,
+        )
     }
 }
 
