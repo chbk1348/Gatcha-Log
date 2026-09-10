@@ -1,5 +1,6 @@
 package com.gatcha.log.data.api
 
+import com.gatcha.log.util.currentTimeMillis
 import com.gatcha.log.data.HoyolandDefaults
 import com.gatcha.log.data.HoyolandEvent
 import com.gatcha.log.data.HoyolandBooth
@@ -20,13 +21,14 @@ import com.gatcha.log.json.JSONObject
  * 호요랜드 정보 원격 갱신.
  *
  * 행사 정보는 개최 전까지 **순차로 공개된다** — 지금은 예매만 미정이지만, 공개되는 순간
- * 앱을 업데이트하지 않고도 바뀌어야 한다. `version.json` 과 같은 저장소에 `hoyoland.json` 을
- * 두고 raw 로 읽는다([UpdateChecker] 의 매니페스트와 같은 경로 규칙).
+ * 앱을 업데이트하지 않고도 바뀌어야 한다. 같은 저장소의 `config/hoyoland.json` 을 raw 로 읽는다.
+ * ([UpdateChecker] 의 `version.json` 은 **루트에 남겨 둔다** — 이미 설치된 앱이 새 버전을 찾는
+ * 유일한 통로라 경로를 옮기면 구버전이 업데이트를 영영 못 본다.)
  *
  * **출처는 두 곳이고 순서가 있다.**
  *  1. Firestore `config/hoyoland` — 운영 어드민(`Gatcha Log Admin/`)이 쓰는 자리. 커밋 없이 즉시 반영된다.
  *     행사 당일 현장에서 시간표가 바뀌는 상황을 위한 것이다.
- *  2. raw `hoyoland.json` — git 에 남는 정본. Firestore 가 비었거나 못 읽으면 여기로 내려온다.
+ *  2. raw `config/hoyoland.json` — git 에 남는 정본. Firestore 가 비었거나 못 읽으면 여기로 내려온다.
  *  3. 번들 [HoyolandDefaults] — 둘 다 실패했을 때.
  *
  * 어드민은 1번에 쓰면서 2번용 JSON 도 함께 뽑아 준다. 즉 **Firestore 는 캐시가 아니라 앞선 정본**이고,
@@ -40,16 +42,35 @@ import com.gatcha.log.json.JSONObject
 object HoyolandApi {
 
     private const val URL =
-        "https://raw.githubusercontent.com/chbk1348/Gatcha-Log/main/hoyoland.json"
+        "https://raw.githubusercontent.com/chbk1348/Gatcha-Log/main/config/hoyoland.json"
 
     /** 운영 어드민이 쓰는 라이브 문서 이름 — [LiveConfig] 참고. */
     private const val CONFIG_DOC = "hoyoland"
 
     /**
-     * 한 번 받아온 값은 프로세스가 살아 있는 동안 재사용한다 — 게임정보 탭·홈·일정 탭이
-     * 각자 부르는데, 하루에 몇 번 바뀔 정보가 아니라 매번 네트워크를 태울 이유가 없다.
+     * 받아온 값을 짧게 재사용한다 — 게임정보 탭·홈·일정 탭이 각자 부르는데, 한 번 화면을
+     * 오가는 동안 같은 요청을 세 번 태울 이유가 없다.
+     *
+     * **프로세스 내내 붙들지는 않는다.** 예전엔 캐시가 있으면 무조건 재사용해서, 어드민에서
+     * 라이브 반영을 해도 **앱을 완전히 껐다 켜기 전까지 바뀌지 않았다**(2026-09-10 확인).
+     * 커밋 없이 즉시 고치자고 만든 구조인데 정작 앱이 그 즉시성을 잡아먹고 있었다.
+     * [FRESH_MS] 가 지나면 화면에 다시 들어오는 것만으로 새로 읽는다.
      */
     private var cached: HoyolandEvent? = null
+    private var cachedAtMillis = 0L
+
+    /**
+     * 개발자 목업이 얹혀 있는지 — 얹힌 동안에는 [FRESH_MS] 가 지나도 원격으로 덮지 않는다.
+     * 목업을 보려고 켜 뒀는데 잠깐 다른 화면 갔다 오면 풀려 버리면 쓸모가 없다.
+     */
+    private var stageMockOn = false
+
+    /**
+     * 캐시를 신선하다고 보는 시간. 짧게 잡은 이유는 이 값이 **현장 대응의 반응 속도**이기
+     * 때문이다 — 무대 편성이 바뀌어 어드민에서 고쳤는데 앱이 1분을 기다리면 늦다.
+     * 그렇다고 0 으로 두면 홈↔게임정보를 오갈 때마다 같은 요청이 겹친다.
+     */
+    private const val FRESH_MS = 15_000L
 
     /** 캐시된 값 또는 번들 폴백 — **네트워크를 타지 않는다.** 첫 프레임을 그릴 때 쓴다. */
     val current: HoyolandEvent get() = cached ?: HoyolandDefaults.event
@@ -63,16 +84,19 @@ object HoyolandApi {
      */
     fun debugInjectStageMock() {
         cached = HoyolandDefaults.stageMockEvent()
+        cachedAtMillis = currentTimeMillis()
+        stageMockOn = true
     }
 
     /** 목업 해제 — 다음 조회에서 원격/번들 값을 다시 잡는다. */
     fun debugClearStageMock() {
         cached = null
+        cachedAtMillis = 0L
+        stageMockOn = false
     }
 
     /** 지금 목업이 얹혀 있는지 — 개발자 화면 토글 표시에 쓴다. */
-    val isStageMock: Boolean get() = cached?.days?.any { it.slots.isNotEmpty() } == true &&
-        cached?.startYmd != HoyolandDefaults.event.startYmd
+    val isStageMock: Boolean get() = stageMockOn
 
     /**
      * 원격 갱신 시도. 실패하면 [HoyolandDefaults] 를 그대로 돌려주므로 **호출부는 널을 다루지 않는다.**
@@ -80,11 +104,17 @@ object HoyolandApi {
      * @param force true 면 캐시를 무시하고 다시 받는다(당겨서 새로고침).
      */
     suspend fun load(force: Boolean = false): HoyolandEvent {
-        cached?.let { if (!force) return it }
+        // 목업은 당겨서 새로고침(force)으로만 걷힌다 — 시간이 지났다고 풀리면 안 된다.
+        if (stageMockOn && !force) return current
+        cached?.let { if (!force && currentTimeMillis() - cachedAtMillis < FRESH_MS) return it }
         // 라이브 → 정본 순으로 내려온다. 앞 단계가 깨진 JSON 이어도 다음 단계로 넘어간다 —
         // 어드민이 잘못 쓴 문서 하나로 화면이 비어 버리면 안 된다.
         val parsed = fetchLive()?.let(::parseOrNull) ?: fetchRaw()?.let(::parseOrNull)
-        if (parsed != null) cached = parsed
+        if (parsed != null) {
+            cached = parsed
+            cachedAtMillis = currentTimeMillis()
+            stageMockOn = false
+        }
         return parsed ?: current
     }
 
@@ -93,7 +123,13 @@ object HoyolandApi {
 
     private suspend fun fetchLive(): String? = LiveConfig.get(CONFIG_DOC)
 
-    private suspend fun fetchRaw(): String? = Net.get(URL).takeIf { it.isOk }?.body
+    /**
+     * `?t=` 로 CDN 캐시를 우회한다 — raw.githubusercontent 는 커밋 뒤에도 몇 분간 옛 내용을
+     * 준다. 정본을 고쳐 커밋했는데 앱이 안 바뀌면 라이브 반영과 구분이 안 된다
+     * ([ZzzBannerApi] 도 같은 이유로 같은 방식을 쓴다).
+     */
+    private suspend fun fetchRaw(): String? =
+        Net.get("$URL?t=${currentTimeMillis()}").takeIf { it.isOk }?.body
 
     /**
      * JSON → 모델. **빠진 키는 전부 번들 기본값으로 메운다** — 원격 파일이 일부만 갱신돼도

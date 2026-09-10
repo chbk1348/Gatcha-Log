@@ -10,7 +10,7 @@
 
 ## 1. 왜 만들었나
 
-호요랜드 행사 정보는 개최 전까지 순차로 공개된다. 지금까지는 `hoyoland.json` 을 손으로 고쳤는데
+호요랜드 행사 정보는 개최 전까지 순차로 공개된다. 지금까지는 `config/hoyoland.json` 을 손으로 고쳤는데
 두 가지가 문제였다.
 
 - **오타가 조용히 먹힌다.** 파서가 필수 키 없는 행을 그냥 버린다(`lineup.game`, 슬롯 `title` 등).
@@ -40,9 +40,13 @@ git 은 이력과 최종 폴백을 맡는다 — 현장 대응이 끝나면 정�
 
 | 리소스 | 정본 파일 | 라이브 문서 | 앱 |
 |---|---|---|---|
-| 호요랜드 | `hoyoland.json` | `config/hoyoland` | `HoyolandApi` |
-| ZZZ 배너 | `zzz_banners.json` | `config/zzzBanners` | `ZzzBannerApi` |
-| 앱 배포 | `version.json` | **없음** | `UpdateChecker` |
+| 호요랜드 | `config/hoyoland.json` | `config/hoyoland` | `HoyolandApi` |
+| ZZZ 배너 | `config/zzz_banners.json` | `config/zzzBanners` | `ZzzBannerApi` |
+| 앱 배포 | `version.json` (루트) | **없음** | `UpdateChecker` |
+
+정본 JSON 은 `config/` 아래 둔다(2026-09-10 이동). **`version.json` 만 루트에 남긴다** —
+이미 설치된 앱이 새 버전을 확인하는 유일한 통로라, 경로를 바꾸면 구버전이 업데이트를 영영 못 본다.
+호요랜드·ZZZ 는 못 읽어도 번들 폴백이 있어 화면이 비지 않으므로 옮겨도 안전하다.
 
 ### version.json 을 라이브에서 뺀 이유
 
@@ -89,7 +93,8 @@ commonMain 만 손댔다 — GitLive firebase-firestore 가 KMP 라 Android/iOS 
 참고로 Firestore 규칙에는 **deny 문법이 없다.** 규칙은 OR 로 평가되어 매칭되는 allow 가 하나라도
 있으면 허용된다. `firestore.rules` 끝의 `match /{document=**} { allow read, write: if false; }` 는
 차단이 아니라 "아무것도 허용하지 않음"일 뿐이고, 실제로 막아주는 것은 **매칭되는 allow 가 없다는
-사실**이다. 주석의 "명시적 deny" 표현은 이 점에서 부정확하다.
+사실**이다. (2026-09-10: "명시적 deny" 로 적혀 있던 주석을 이 내용으로 고쳤다. 블록 자체는
+남겼다 — 새 경로를 열 때 여기 말고 위쪽에 더하라는 표지 역할은 한다.)
 
 ---
 
@@ -153,10 +158,10 @@ commonMain 만 손댔다 — GitLive firebase-firestore 가 KMP 라 Android/iOS 
 ## 8. 다음 할 일
 
 - [ ] 기기 설치 검증 (§7)
-- [ ] `hoyoland.json` 의 `goods` · `booths` 채우기 — 앱은 이미 읽을 수 있는데 JSON 에만 없다
+- [ ] `config/hoyoland.json` 의 `goods` · `booths` 채우기 — 앱은 이미 읽을 수 있는데 JSON 에만 없다
 - [ ] 어드민 기능 보강 (참고 아티팩트 내용 확인 후 결정)
       후보: 필드 단위 diff · 되돌리기 · 앱 화면 미리보기 · TSV 일괄 붙여넣기 · 반영 이력
-- [ ] `firestore.rules` 의 "명시적 deny" 주석 정정 (§4)
+- [x] `firestore.rules` 의 "명시적 deny" 주석 정정 (§4) — 2026-09-10
 
 ---
 
