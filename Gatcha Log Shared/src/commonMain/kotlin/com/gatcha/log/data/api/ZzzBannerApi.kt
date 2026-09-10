@@ -11,13 +11,13 @@ import kotlin.time.ExperimentalTime
 
 /**
  * 젠레스 존 제로 픽업 배너 — 공개 캘린더 API 가 없어(ennead 미지원·공식 ZZZ 공지 호스트 부재)
- * 레포의 수동 관리 JSON(zzz_banners.json)을 읽는다.
+ * 레포의 수동 관리 JSON(`config/zzz_banners.json`)을 읽는다.
  * 패치마다 JSON 만 갱신하면 앱 업데이트 없이 반영(원격 데이터). 원신·스타레일은 그대로 ennead 사용.
  */
 object ZzzBannerApi {
 
     private const val URL =
-        "https://raw.githubusercontent.com/chbk1348/Gatcha-Log/main/zzz_banners.json"
+        "https://raw.githubusercontent.com/chbk1348/Gatcha-Log/main/config/zzz_banners.json"
 
     private val seoulTz = TimeZone.of("Asia/Seoul")
 
