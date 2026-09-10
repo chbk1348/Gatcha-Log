@@ -259,12 +259,13 @@ struct HomeSectionHeader: View {
 /// 홈 상단바(내비게이션 바) 처리.
 ///
 /// - iPhone: 히어로 그라데이션이 상태바까지 이어지도록, 내비바 배경을 숨기고 스크롤을 바 뒤까지 확장한다.
-/// - iPad: 홈이 NavigationSplitView 의 detail 컬럼 안이라 바 뒤 확장이 먹지 않아 흰 바가 남았다.
+/// - 넓은 화면: 홈이 NavigationSplitView 의 detail 컬럼 안이라 바 뒤 확장이 먹지 않아 흰 바가 남았다.
 ///         → 히어로 그라데이션 자체를 끄고(흰 히어로), 기본 내비바와 자연스럽게 어울리게 둔다(특별 처리 없음).
 struct HomeTopBarStyle: ViewModifier {
-    let isPad: Bool
+    /// 넓은 화면인가 — **기기 종류가 아니라 size class 로 판단한 값**을 받는다(HomeView.isWide).
+    let isWide: Bool
     func body(content: Content) -> some View {
-        if isPad {
+        if isWide {
             content
         } else {
             content

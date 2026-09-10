@@ -46,7 +46,10 @@ struct GLGSelectableText: UIViewRepresentable {
     /// 폭은 부모가 제안한 값을 그대로 쓰고, 높이는 그 폭에서 실제로 필요한 만큼 계산한다.
     /// (isScrollEnabled=false 라 intrinsic 높이가 나오지만, 부모 폭을 반영하려면 여기서 맞춰줘야 한다)
     func sizeThatFits(_ proposal: ProposedViewSize, uiView: UITextView, context: Context) -> CGSize? {
-        let width = proposal.width ?? UIScreen.main.bounds.width
+        // `UIScreen.main` 을 쓰지 않는다 — 다중 디스플레이·분할뷰·폴더블에서 **이 뷰가 실제로
+        // 놓인 폭과 무관한 값**이다(Apple 도 금지한다). 제안값이 없으면 SwiftUI 가 주는
+        // 기본 대체 치수를 쓴다.
+        let width = proposal.replacingUnspecifiedDimensions().width
         let fitted = uiView.sizeThatFits(CGSize(width: width, height: .greatestFiniteMagnitude))
         return CGSize(width: width, height: fitted.height)
     }

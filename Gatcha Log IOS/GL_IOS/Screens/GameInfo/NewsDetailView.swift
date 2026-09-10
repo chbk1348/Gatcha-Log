@@ -27,6 +27,9 @@ struct NewsDetailView: View {
 
     /// 본문 제목이 헤더 위로 스크롤돼 사라졌는지 — true 면 네비 바에 제목을 노출.
     @State private var showBarTitle = false
+    /// 본문 컨테이너 폭 — 이미지 디코딩 목표 크기로 쓴다(첫 프레임 전에는 기본값).
+    /// 화면 폭이 아니라 **이 뷰가 놓인 폭**이라 분할뷰·폴더블에서도 맞는다.
+    @State private var bodyWidth: CGFloat = 390
 
     /// 스크롤 위치 추적용 좌표공간 이름.
     private static let scrollSpace = "newsDetailScroll"
@@ -99,6 +102,10 @@ struct NewsDetailView: View {
             }
         }
         .scrollIndicators(.hidden)
+        // 본문 폭을 한 번 재어 둔다 — 이미지 디코딩 목표로 쓴다(화면 폭이 아니라 **놓인 폭**).
+        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { w in
+            if w > 0 { bodyWidth = w }
+        }
         .background(GLGBackground { Color.clear })
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -153,8 +160,13 @@ struct NewsDetailView: View {
     /// 들어오면 스켈레톤부터 다시 시작한다. 공지 본문은 이미지가 여러 장 이어지는 구조라 그게 눈에 띈다.
     /// (전체화면 뷰어는 그대로 둔다 — 확대해서 보는 화면이라 축소 디코딩이 손해다)
     private func bodyImage(_ url: String) -> some View {
-        // 본문은 화면 폭이 상한이다. 디코딩 목표를 폭 기준으로 잡는다(원본이 작으면 그대로 둔다).
-        GLGRemoteImage(url: URL(string: url), side: UIScreen.main.bounds.width, contentMode: .fit) {
+        // 디코딩 목표는 **이 뷰가 실제로 놓인 폭**이다. 예전엔 `UIScreen.main.bounds.width` 를
+        // 썼는데, 분할뷰·폴더블처럼 창이 화면보다 좁은 자리에서는 필요보다 큰 이미지를 받아
+        // 디코딩한다(Apple 도 다중 디스플레이에서 이 값을 쓰지 말라고 안내한다).
+        //
+        // 폭은 본문 컨테이너에서 한 번 재어 둔 값을 쓴다([bodyWidth]) — 이미지마다
+        // `GeometryReader` 를 두면 높이가 내용에 맞춰 늘지 못해 잘린다.
+        GLGRemoteImage(url: URL(string: url), side: bodyWidth, contentMode: .fit) {
             GLGSkeleton().frame(height: 160)
         }
         .frame(maxWidth: .infinity)
