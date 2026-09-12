@@ -51,7 +51,7 @@
         { "time": "11:00", "minutes": 60, "title": "코스프레 런웨이" },
         { "time": "12:30", "minutes": 60, "game": "원신", "title": "도전! 모험가 길드 에이스" },
         { "time": "14:00", "minutes": 60, "game": "젠레스 존 제로", "title": "로스캘리퍼 특별 의회 with Google Play" },
-        { "time": "15:30", "minutes": 60, "game": "붕괴: 스타레일", "title": "Star Symphony at 호요랜드", "desc": "로빈 원곡 가수 Chevy의 신곡 포함 메들리, NIDA의 「둔기 전」, 「Side Quest King」까지 라이브로.", "cast": "Chevy · NIDA · 성우 김정준" },
+        { "time": "15:30", "minutes": 60, "game": "붕괴: 스타레일", "title": "Star Symphony at 호요랜드", "desc": "로빈 원곡 가수 Chevy의 신곡 포함 메들리, NIDA의 「둔기 전」, 「Side Quest King」까지 라이브로.", "cast": "Chevy · NIDA · 성우 김명준" },
         { "time": "17:00", "minutes": 60, "title": "럭키드로우", "desc": "무대에서 현장 추첨으로 굿즈 증정" },
         { "time": "18:00", "title": "퇴장 시간" }
       ]
@@ -61,7 +61,7 @@
       "slots": [
         { "time": "11:00", "minutes": 60, "game": "원신", "title": "여행자의 스케치!" },
         { "time": "12:30", "minutes": 60, "game": "젠레스 존 제로", "title": "도전! 위험한 강습전", "desc": "호요랜드에 방문한 로프꾼을 위한 강습전의 최강자는?" },
-        { "time": "14:00", "minutes": 60, "game": "붕괴: 스타레일", "title": "Star Symphony at 호요랜드", "desc": "로빈 원곡 가수 Chevy의 신곡 포함 메들리, NIDA의 「둔기 전」, 「Side Quest King」까지 라이브로.", "cast": "Chevy · NIDA · 성우 김정준" },
+        { "time": "14:00", "minutes": 60, "game": "붕괴: 스타레일", "title": "Star Symphony at 호요랜드", "desc": "로빈 원곡 가수 Chevy의 신곡 포함 메들리, NIDA의 「둔기 전」, 「Side Quest King」까지 라이브로.", "cast": "Chevy · NIDA · 성우 김명준" },
         { "time": "15:30", "minutes": 60, "game": "젠레스 존 제로", "title": "호요랜드 엔젤디 특별 공연!", "desc": "사랑과 꿈에 관한 무대에 여러분을 초대합니다!" },
         { "time": "17:00", "minutes": 60, "title": "럭키드로우", "desc": "무대에서 현장 추첨으로 굿즈 증정" },
         { "time": "18:00", "title": "퇴장 시간" }
@@ -72,7 +72,7 @@
       "slots": [
         { "time": "10:30", "minutes": 60, "game": "젠레스 존 제로", "title": "뉴에리두 제복학원 w.Fairy", "desc": "로프꾼님의 상상력으로 완성한 제복, Fairy 의 심사를 받아보세요!" },
         { "time": "12:00", "minutes": 60, "game": "원신", "title": "도전! 천상의 선율" },
-        { "time": "13:30", "minutes": 60, "game": "붕괴: 스타레일", "title": "Star Symphony at 호요랜드", "desc": "로빈 원곡 가수 Chevy의 신곡 포함 메들리, NIDA의 「둔기 전」, 「Side Quest King」까지 라이브로.", "cast": "Chevy · NIDA · 성우 김정준" },
+        { "time": "13:30", "minutes": 60, "game": "붕괴: 스타레일", "title": "Star Symphony at 호요랜드", "desc": "로빈 원곡 가수 Chevy의 신곡 포함 메들리, NIDA의 「둔기 전」, 「Side Quest King」까지 라이브로.", "cast": "Chevy · NIDA · 성우 김명준" },
         { "time": "15:00", "minutes": 60, "game": "원신", "title": "선율이 흐르는 음악회" },
         { "time": "16:30", "minutes": 60, "title": "럭키드로우", "desc": "무대에서 현장 추첨으로 굿즈 증정" },
         { "time": "18:00", "minutes": 60, "title": "코스프레 퍼레이드" },
@@ -85,7 +85,7 @@
         { "time": "10:30", "minutes": 60, "game": "붕괴: 스타레일", "title": "도전! 그래피아 아카데미 학력고사" },
         { "time": "12:00", "minutes": 60, "game": "젠레스 존 제로", "title": "도전! 위험한 강습전", "desc": "호요랜드에 방문한 로프꾼을 위한 강습전의 최강자는?" },
         { "time": "13:30", "minutes": 60, "game": "원신", "title": "선율이 흐르는 음악회" },
-        { "time": "15:30", "minutes": 60, "game": "붕괴: 스타레일", "title": "Star Symphony at 호요랜드", "desc": "로빈 원곡 가수 Chevy의 신곡 포함 메들리, NIDA의 「둔기 전」, 「Side Quest King」까지 라이브로.", "cast": "Chevy · NIDA · 성우 김정준" },
+        { "time": "15:30", "minutes": 60, "game": "붕괴: 스타레일", "title": "Star Symphony at 호요랜드", "desc": "로빈 원곡 가수 Chevy의 신곡 포함 메들리, NIDA의 「둔기 전」, 「Side Quest King」까지 라이브로.", "cast": "Chevy · NIDA · 성우 김명준" },
         { "time": "16:30", "minutes": 60, "title": "럭키드로우", "desc": "무대에서 현장 추첨으로 굿즈 증정" },
         { "time": "18:00", "minutes": 60, "title": "코스프레 퍼레이드" },
         { "time": "19:00", "title": "퇴장 시간" }
