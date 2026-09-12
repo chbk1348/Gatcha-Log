@@ -1293,7 +1293,11 @@ async function syncAll() {
 
 async function refreshLive() {
   const c = window.cloud || {};
-  if (!c.available || !state.res.live) return;
+  if (!state.res.live) { toast('이 리소스는 라이브 반영을 쓰지 않습니다.'); return; }
+  // 예전에는 여기서 조용히 return 했다 — 버튼을 눌러도 화면이 '아직 조회하지 않았습니다' 에
+  // 그대로 멈춰, 클라우드가 안 붙었다는 사실 자체를 알 길이 없었다. cloud.reason 에 원인이
+  // 이미 담겨 있으므로 그대로 내보인다(SDK 로드 실패 · 설정 누락 · 아직 부팅 중).
+  if (!c.available) { toast('클라우드 미연결 — ' + (c.reason || '연결을 준비하는 중입니다. 잠시 후 다시 눌러 주세요.')); return; }
   try {
     state.live = await c.pull(state.res.doc);
     render();
