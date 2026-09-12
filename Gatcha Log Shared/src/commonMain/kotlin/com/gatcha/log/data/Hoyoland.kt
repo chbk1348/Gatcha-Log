@@ -153,7 +153,8 @@ data class HoyolandDay(val ymd: String, val slots: List<HoyolandSlot>)
  *
  * @param game 어느 게임 굿즈인지. 비면 공용(행사 로고·아트북 등).
  * @param category "아크릴"·"인형"·"의류" 같은 갈래. 목록을 훑는 눈금이 된다.
- * @param note "1인 2개 한정" 처럼 살 때 걸리는 조건.
+ * @param note "호요랜드2026 시리즈 · 디자인 2종 · 1인 5개 한정" 처럼 살 때 걸리는 조건. 구매 제한은
+ *   [limitLabel] 이 여기서 떼어 따로 보여준다.
  *
  * 품절 필드는 두지 않는다 — **호요랜드 굿즈샵은 품절을 따로 알리지 않는다**(2026-09-10 확인).
  * 팔지 않는 물건은 목록에서 내리면 그만이라, 있지도 않은 상태를 화면에 세울 이유가 없다.
@@ -164,7 +165,29 @@ data class HoyolandGoods(
     val game: String = "",
     val category: String = "",
     val note: String = "",
-)
+) {
+    /** `note` 를 " · " 로 끊은 토막들. 공식 표가 조건을 이 구분자로 이어 붙여 낸다. */
+    private val noteParts: List<String>
+        get() = note.split(" · ").map { it.trim() }.filter { it.isNotEmpty() }
+
+    /**
+     * "1인 5개 한정" — 구매 제한 한 토막만. 없으면 빈 문자열.
+     *
+     * 별도 필드로 받지 않는 이유: 이 값은 **원본 표에서 다른 조건과 한 칸에 섞여 나온다**
+     * ("호요랜드2026 시리즈 · 디자인 2종 · 1인 5개 한정"). 91건을 손으로 쪼개 두면 다음 갱신 때
+     * 누가 다시 쪼개야 하고, 한 건만 빠뜨려도 화면에서 조용히 사라진다. 표기 규칙이 한 가지라
+     * 읽는 쪽에서 떼는 편이 싸다.
+     */
+    val limitLabel: String get() = noteParts.firstOrNull { LimitRegex.matches(it) } ?: ""
+
+    /** [limitLabel] 을 뺀 나머지 비고 — 갈래 옆에 붙는 줄이 제한 표기와 겹치지 않게 한다. */
+    val noteRest: String get() = noteParts.filterNot { LimitRegex.matches(it) }.joinToString(" · ")
+
+    private companion object {
+        /** "1인 5개 한정" · "1인 2매 한정" 을 모두 받는다. 수량 단위는 품목마다 다르다. */
+        val LimitRegex = Regex("""^1인\s+\S+\s*한정$""")
+    }
+}
 
 /**
  * 게임별 부스 체험 한 칸.
@@ -172,8 +195,10 @@ data class HoyolandGoods(
  * 무대([HoyolandSlot])와 달리 **시각이 없다** — 상시 운영이라 시간표에 얹을 것이 없다.
  * 그래서 시간표가 아니라 게임별 카드로 그린다.
  *
- * @param location "8홀 A-12" 같은 부스 위치. 현장에서 가장 먼저 찾는 값이다.
- * @param duration "약 20분" — 체험 한 번에 드는 시간.
+ * @param location "무료 체험존" · "유료 체험존" — 부스가 어느 구역 소속인지. 부스 배치도가 개막
+ *   직전에나 나와서 "8홀 A-12" 같은 좌표는 쓸 수 없고, 세 게임이 공통으로 내는 건 이 구분뿐이다.
+ *   [price] 와 겹쳐 보이지만 값은 부스 한 건의 참가비고 이쪽은 구역이라, 무료 구역 안의
+ *   유료 부스 같은 조합도 표시된다.
  * @param reward "참여 시 아크릴 뱃지 증정" — 부스를 고르는 기준이 되는 값이라 따로 둔다.
  *
  * 예약 필드는 두지 않는다 — **호요랜드 부스는 예약제가 없다**(2026-09-10 확인).
@@ -188,7 +213,6 @@ data class HoyolandBooth(
     val title: String,
     val desc: String = "",
     val location: String = "",
-    val duration: String = "",
     val reward: String = "",
     /**
      * 1회 참가비(원). **0 이면 무료**다.
@@ -1014,7 +1038,6 @@ object HoyolandDefaults {
                     title = "나타 시연존",
                     desc = "신규 지역을 현장 PC 로 체험",
                     location = "7홀 A-12",
-                    duration = "약 20분",
                     reward = "참여 시 아크릴 뱃지 증정",
                 ),
                 HoyolandBooth(
@@ -1022,7 +1045,6 @@ object HoyolandDefaults {
                     title = "개척 사진관",
                     desc = "캐릭터 배경 앞에서 즉석 사진 촬영",
                     location = "8홀 B-03",
-                    duration = "1인 5분",
                     reward = "인화 사진 1장",
                 ),
                 HoyolandBooth(
@@ -1030,7 +1052,6 @@ object HoyolandDefaults {
                     title = "홀로우 챌린지",
                     desc = "제한 시간 안에 스테이지 클리어",
                     location = "8홀 C-07",
-                    duration = "약 15분",
                     reward = "클리어 시 키링 증정",
                 ),
                 HoyolandBooth(
@@ -1038,7 +1059,6 @@ object HoyolandDefaults {
                     title = "포토존 · 대형 조형물",
                     desc = "전 IP 합동 포토존",
                     location = "후면광장",
-                    duration = "상시",
                 ),
             ),
         )

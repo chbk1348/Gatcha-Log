@@ -40,7 +40,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.navigationBarsPadding
-import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -912,7 +911,8 @@ private fun HoyolandSubEntry(
  * ① 맨 위에 가격대를 세우고 ② 행을 눌러 담으면 ③ 하단 고정 바가 합계를 계속 말한다.
  *
  * **싣는 굿즈는 앱이 다루는 세 게임 + 행사 공용뿐이다**([HoyolandEvent.visibleGoods]).
- * 목업: `Gatcha Log MD/design_hoyoland_goods_mockup.html` A 안.
+ * 목업: `Gatcha Log MD/design_hoyoland_goods_mockup.html` A 안 — 다만 목록은 한 장에 줄을
+ * 쌓지 않고 **품목당 카드**로 낸다([HoyolandGoodsCard] 참고).
  */
 @Composable
 fun HoyolandGoodsContent(e: HoyolandEvent, cart: HoyolandCart, onQuantity: (String, Int) -> Unit) {
@@ -969,14 +969,11 @@ fun HoyolandGoodsContent(e: HoyolandEvent, cart: HoyolandCart, onQuantity: (Stri
         )
     }
 
-    Spacer(Modifier.height(12.dp))
     val shown = all.filter { gameFilter == null || it.game == gameFilter }
-    GlassCard(modifier = Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(vertical = 4.dp)) {
-            shown.forEachIndexed { i, item ->
-                if (i > 0) Box(Modifier.fillMaxWidth().height(1.dp).background(DividerColor))
-                HoyolandGoodsRow(e, item, cart.quantityOf(item.name), onQuantity)
-            }
+    shown.forEach { item ->
+        Spacer(Modifier.height(10.dp))
+        GlassCard(modifier = Modifier.fillMaxWidth()) {
+            HoyolandGoodsCard(e, item, cart.quantityOf(item.name), onQuantity)
         }
     }
     // 하단 고정 바에 가리지 않게 — 바 높이(알약 + 위아래 여백)만큼 비워 둔다.
@@ -984,20 +981,22 @@ fun HoyolandGoodsContent(e: HoyolandEvent, cart: HoyolandCart, onQuantity: (Stri
 }
 
 /**
- * 굿즈 한 줄 — [썸네일 48 · 이름·갈래 · 가격/수량].
+ * 굿즈 한 장 — [썸네일 48 · 이름·갈래 · 가격/수량] + 구매 제한 띠.
  *
- * A 안(담기 원)에서 갈아탔다. 훑기는 리스트가 낫고, 수량은 **목록에서 바로** 정하는 편이
- * 자연스럽다 — 같은 키링을 두 개 사는 일이 흔한데 담기 토글만 있으면 장바구니까지 들어가야 했다.
+ * 한 장짜리 카드에 줄을 divider 로 쌓다가 **품목당 카드**로 갈아탔다. 줄 목록은 훑기엔 좋지만
+ * 구매 제한("1인 5개 한정")을 놓을 자리가 없다 — 갈래 옆 회색 줄에 묻으면 현장에서 못 보고
+ * 계산대에서 되돌아온다. 카드 아래를 띠 한 줄로 비워 그 조건만 세운다.
  *
- * 담기 전에는 「담기」 버튼, 담은 뒤에는 스테퍼로 바뀐다.
+ * 수량은 **목록에서 바로** 정한다 — 같은 키링을 두 개 사는 일이 흔한데 담기 토글만 있으면
+ * 장바구니까지 들어가야 했다. 담기 전에는 「담기」 버튼, 담은 뒤에는 스테퍼로 바뀐다.
  */
 @Composable
-private fun HoyolandGoodsRow(
+private fun HoyolandGoodsCard(
     e: HoyolandEvent,
     item: HoyolandGoods,
     quantity: Int,
     onQuantity: (String, Int) -> Unit,
-) {
+) = Column {
     val accent = LocalAccent.current
     val raw = e.stageColor(item.game)
     val c = if (raw == 0L) TextSecondary else raw.toColor()
@@ -1005,7 +1004,7 @@ private fun HoyolandGoodsRow(
     Row(
         Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 11.dp),
+            .padding(horizontal = 16.dp, vertical = 13.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         // 썸네일 자리 — 공식 굿즈 이미지가 나오면 이 칸을 그대로 이미지로 바꾼다.
@@ -1029,10 +1028,10 @@ private fun HoyolandGoodsRow(
             Text(item.name, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextPrimary, lineHeight = 18.sp)
             Spacer(Modifier.height(3.dp))
             // 게임 라벨은 왼쪽 48 칸이 이미 말하고 있다 — 여기 칩까지 두면 한 줄에 같은
-            // 글자가 두 번 나온다. 갈래·비고만 남긴다.
+            // 글자가 두 번 나온다. 갈래·비고만 남긴다(구매 제한은 아래 띠로 빠진다).
             val meta = listOfNotNull(
                 item.category.ifBlank { null },
-                item.note.ifBlank { null },
+                item.noteRest.ifBlank { null },
             ).joinToString(" · ")
             if (meta.isNotBlank()) {
                 Text(meta, fontSize = 11.sp, color = c)
@@ -1065,6 +1064,22 @@ private fun HoyolandGoodsRow(
                     GoodsStepButton("+") { onQuantity(item.name, quantity + 1) }
                 }
             }
+        }
+    }
+    // 구매 제한 — 카드 폭을 꽉 채운 띠 한 줄. 사기 전에 걸리는 조건이라 '가격 미정' 안내와
+    // 같은 경고색을 쓴다. 제한이 없는 품목은 띠 자체를 세우지 않는다(전부 붙이면 눈이 거른다).
+    if (item.limitLabel.isNotBlank()) {
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .background(WarnBg)
+                .padding(horizontal = 16.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                item.limitLabel,
+                fontSize = 11.sp, fontWeight = FontWeight.Bold, color = WarnText,
+            )
         }
     }
 }
@@ -1352,7 +1367,7 @@ private val GiftBg = Color(0x14E0557B)
  * 시간표가 아니라 게임별 카드로 그린다.
  *
  * 예약제도 정원 · 회차도 다루지 않는다 — 공지된 정보를 그대로 보여줄 뿐이다. 그래서 카드에
- * 남는 값은 **위치 · 소요 · 보상** 셋뿐이고, 그중 **보상을 주인공으로 세운다**(목업 C안):
+ * 남는 값은 **위치 · 보상** 둘뿐이고, 그중 **보상을 주인공으로 세운다**(목업 C안):
  * 예약도 정원도 없는 마당에 부스를 고르는 기준은 결국 받는 것이라서다.
  */
 @Composable
@@ -1454,18 +1469,12 @@ private fun HoyolandBoothCard(e: HoyolandEvent, b: HoyolandBooth) {
                 )
             }
             Box(Modifier.fillMaxWidth().height(1.dp).background(DividerColor))
-            // fillMaxWidth 가 없으면 Row 가 내용 폭으로 줄어 weight 가 나눌 여백이 사라진다
-            // — 목업처럼 **카드 폭을 반씩** 갖게 하려면 폭을 먼저 채워야 한다.
-            Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
-                BoothMetaCell("위치", b.location, Modifier.weight(1f))
-                Box(Modifier.fillMaxHeight().width(1.dp).background(DividerColor))
-                BoothMetaCell("소요", b.duration, Modifier.weight(1f))
-            }
+            BoothMetaCell("구분", b.location, Modifier.fillMaxWidth())
         }
     }
 }
 
-/** 부스 카드 아래 칸 — 라벨을 위, 값을 아래로 눌러 담아 두 값이 같은 폭을 나눠 갖는다. */
+/** 부스 카드 아래 칸 — 라벨을 위, 값을 아래로 눌러 담는다. */
 @Composable
 private fun BoothMetaCell(label: String, value: String, modifier: Modifier = Modifier) {
     Column(
