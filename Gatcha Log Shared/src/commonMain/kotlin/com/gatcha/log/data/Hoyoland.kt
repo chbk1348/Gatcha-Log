@@ -190,7 +190,18 @@ data class HoyolandBooth(
     val location: String = "",
     val duration: String = "",
     val reward: String = "",
-)
+    /**
+     * 1회 참가비(원). **0 이면 무료**다.
+     *
+     * 설명에 묻어 두면 "얼마 들고 가야 하나"를 문장에서 캐내야 한다 — 유료 체험존은 회차마다
+     * 값이 다르고(2,000 / 3,000 / 4,000 / 8,000 / 10,000) 무료 부스와 섞여 있어서, 훑을 때
+     * 바로 갈려야 하는 값이다. 굿즈의 `price` 와 같은 이유로 숫자로 받는다.
+     */
+    val price: Int = 0,
+) {
+    /** 참가비가 있는 부스인가 — 화면이 값 대신 이 술어로 갈린다. */
+    val isPaid: Boolean get() = price > 0
+}
 
 /**
  * 지스타(G-STAR) — 호요랜드와 **별개 행사**지만, 호요버스가 나오는 국내 오프라인 자리라
@@ -647,6 +658,11 @@ data class HoyolandEvent(
      */
     val visibleGoods: List<HoyolandGoods>
         get() = goods.filter { it.game.isBlank() || GameData.byNameOrNull(it.game) != null }
+            // 「전체」에서는 게임 순서(원신 → 스타레일 → 젠레스 …)로 묶어 보여 준다. 원격 JSON 은
+            // 공개된 순서대로 쌓이므로 그대로 두면 게임이 뒤섞인다. sortedBy 는 안정 정렬이라
+            // 같은 게임 안에서는 JSON 에 적힌 순서가 그대로 남는다(공식 표의 배열이 정보다).
+            // 게임 없는 행사 공용은 맨 뒤로 — 어느 게임에도 속하지 않아 사이에 끼면 경계가 흐려진다.
+            .sortedBy { GameData.byNameOrNull(it.game)?.ordinal ?: Int.MAX_VALUE }
 
     /** 굿즈 목록에 등장하는 게임들(원본 순서, 중복 제거) — 게임 탭이 쓴다. */
     val goodsGames: List<String>
@@ -662,7 +678,7 @@ data class HoyolandEvent(
         get() = booths.map { it.game }.filter { it.isNotBlank() }.distinct()
 
     /**
-     * 굿즈 가격대 한 줄 — "₩8,000 ~ ₩89,000 · 45점".
+     * 굿즈 가격대 한 줄 — "8,000원 ~ 89,000원 · 45종".
      *
      * 목록 맨 위에 **얼마를 들고 가야 하는지**를 먼저 말한다. 값을 못 받은 품목(0)은 범위 계산에서
      * 빼되 개수에는 넣는다 — "가격 미정 3점"이 숨으면 예산을 잘못 잡는다.
@@ -724,7 +740,12 @@ data class HoyolandEvent(
         }
     }
 
-    /** "₩12,000" — 천 단위 콤마. 굿즈 목록·합계가 같은 표기를 쓰도록 여기 하나만 둔다. */
+    /**
+     * "12,000원" — 천 단위 콤마. 굿즈 목록·합계·부스 참가비가 같은 표기를 쓰도록 여기 하나만 둔다.
+     *
+     * ₩ 기호를 앞에 붙이던 것을 뒤의 "원" 으로 바꿨다. 공식 굿즈표가 전부 "24,000원" 으로 적고,
+     * 앱의 다른 금액 표기도 원 단위라 기호만 이 화면에서 튀었다.
+     */
     fun wonLabel(v: Int): String {
         val sb = StringBuilder()
         val digits = v.toString()
@@ -732,7 +753,7 @@ data class HoyolandEvent(
             if (i > 0 && (digits.length - i) % 3 == 0) sb.append(',')
             sb.append(digits[i])
         }
-        return "₩$sb"
+        return "${sb}원"
     }
 
     /**

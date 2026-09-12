@@ -1028,23 +1028,14 @@ private fun HoyolandGoodsRow(
         Column(Modifier.weight(1f).padding(start = 11.dp)) {
             Text(item.name, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextPrimary, lineHeight = 18.sp)
             Spacer(Modifier.height(3.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    label,
-                    fontSize = 9.5.sp, fontWeight = FontWeight.Black, color = c,
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(6.dp))
-                        .background(c.copy(alpha = 0.14f))
-                        .padding(horizontal = 6.dp, vertical = 2.dp),
-                )
-                val meta = listOfNotNull(
-                    item.category.ifBlank { null },
-                    item.note.ifBlank { null },
-                ).joinToString(" · ")
-                if (meta.isNotBlank()) {
-                    Spacer(Modifier.width(5.dp))
-                    Text(meta, fontSize = 11.sp, color = c)
-                }
+            // 게임 라벨은 왼쪽 48 칸이 이미 말하고 있다 — 여기 칩까지 두면 한 줄에 같은
+            // 글자가 두 번 나온다. 갈래·비고만 남긴다.
+            val meta = listOfNotNull(
+                item.category.ifBlank { null },
+                item.note.ifBlank { null },
+            ).joinToString(" · ")
+            if (meta.isNotBlank()) {
+                Text(meta, fontSize = 11.sp, color = c)
             }
         }
         Column(
@@ -1421,6 +1412,18 @@ private fun HoyolandBoothCard(e: HoyolandEvent, b: HoyolandBooth) {
                 Spacer(Modifier.width(8.dp))
                 Text(b.title, fontSize = 14.5.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
                 Spacer(Modifier.weight(1f))
+                // 참가비는 제목 줄 오른쪽. 유료 체험존은 회차마다 값이 다르고 무료 부스와 섞여
+                // 있어서, 설명을 읽기 전에 먼저 갈려야 하는 값이다.
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    if (b.isPaid) e.wonLabel(b.price) else "무료",
+                    fontSize = 11.5.sp, fontWeight = FontWeight.Black,
+                    color = if (b.isPaid) TextPrimary else GiftText,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(999.dp))
+                        .background(if (b.isPaid) c.copy(alpha = 0.12f) else GiftBg)
+                        .padding(horizontal = 7.dp, vertical = 3.dp),
+                )
             }
             if (b.desc.isNotBlank()) {
                 Text(

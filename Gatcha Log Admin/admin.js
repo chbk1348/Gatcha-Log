@@ -123,6 +123,7 @@ const HOYOLAND = {
   clean: (key, v) => {
     if (key === 'ticket') return { ...v, openHour: Number(v.openHour) || 0 };
     if (key === 'goods') return v.map((g) => ({ ...g, price: Number(g.price) || 0 }));
+    if (key === 'booths') return v.map((b) => ({ ...b, price: Number(b.price) || 0 }));
     if (key === 'days') return v.map((day) => ({
       ...day, slots: day.slots.map((s) => (s.minutes ? { ...s, minutes: Number(s.minutes) || 0 } : s)),
     }));
@@ -258,12 +259,15 @@ const HOYOLAND = {
         { key: 'note', label: '비고', type: 'text' },
       ] },
     { id: 'booths', group: '행사', label: '부스 체험', type: 'list', path: 'booths', countable: true,
-      desc: '체험존 운영 정보. 호요랜드 부스는 예약제도 회차·정원도 없습니다.',
+      desc: '체험존 운영 정보. 호요랜드 부스는 예약제도 회차·정원도 없습니다. 참가비는 숫자로 넣고, 무료면 0 입니다.',
       columns: [
         { key: 'title', label: '부스명', type: 'text', required: true },
         { key: 'game', label: '게임', type: 'game', width: '150px' },
         { key: 'location', label: '위치', type: 'text', width: '120px' },
         { key: 'duration', label: '소요', type: 'suggest', options: BOOTH_DURATIONS, width: '110px' },
+        // 참가비를 설명에 묻어 두면 "얼마 들고 가야 하나"를 문장에서 캐야 한다. 앱도 이 값으로
+        // 무료/유료 배지를 가른다(HoyolandBooth.isPaid) — 0 이 곧 '무료' 다.
+        { key: 'price', label: '참가비(원)', type: 'number', width: '110px', min: 0 },
         { key: 'reward', label: '보상', type: 'text', width: '140px' },
         { key: 'desc', label: '설명', type: 'text' },
       ] },
@@ -1008,6 +1012,18 @@ function renderLive(sec) {
         setData(JSON.parse(state.live.json), '라이브 · Firestore');
         toast('라이브 값을 불러왔습니다.');
       } }, ['라이브 값 불러오기']),
+      // 정본을 git 에서 고쳐 커밋했을 때 쓰는 문. 평소 순서(라이브 우선)로는 옛 라이브 문서가
+      // 계속 잡혀 새 정본이 화면에 오지 않는다. 받아온 뒤 '라이브에 반영' 까지 해야 앱이 본다.
+      el('button', { class: 'btn btn-sm', onclick: async () => {
+        if (state.dirty && !await glConfirm('편집 중인 내용을 정본(git) 값으로 덮어씁니다.', {
+          title: '정본 불러오기', ok: '덮어쓰기', danger: true, note: '되돌릴 수 없습니다.',
+        })) return;
+        try {
+          const { raw } = await pullResource(state.res, { rawOnly: true });
+          setData(raw, `정본 main · ${new Date().toLocaleTimeString('ko-KR')}`);
+          toast('정본을 불러왔습니다. 앱에 반영하려면 “라이브에 반영” 을 누르세요.');
+        } catch (e) { toast('정본을 불러오지 못했습니다: ' + e.message); }
+      } }, ['정본 불러오기']),
     ]),
   ]));
   kids.push(card({ label: '라이브 문서', desc: `config/${res.doc} — 앱이 가장 먼저 읽는 자리입니다.` }, statusKids));
@@ -1201,10 +1217,16 @@ function renderDenied(gate, c) {
  * 거짓말을 한다. version.json 처럼 라이브가 없는 리소스는 정본만 본다.
  * ═════════════════════════════════════════════════════════════ */
 
-/** 리소스 하나를 원격에서 읽어 { raw, label } 로 준다. 라이브 상태(d.live)도 같이 채운다. */
-async function pullResource(res) {
+/**
+ * 리소스 하나를 원격에서 읽어 { raw, label } 로 준다. 라이브 상태(d.live)도 같이 채운다.
+ *
+ * [rawOnly] 면 라이브를 건너뛰고 정본만 읽는다. 정본을 git 에서 고쳐 커밋했는데 라이브에
+ * 옛 문서가 남아 있으면 평소 순서로는 그 옛 값만 잡혀, **어드민에서 새 정본을 꺼낼 길이 없다.**
+ * 굿즈 55건을 커밋하고도 화면이 0건이던 게 이 경우다(2026-09-10).
+ */
+async function pullResource(res, { rawOnly = false } = {}) {
   const c = window.cloud || {};
-  if (res.live && c.available) {
+  if (!rawOnly && res.live && c.available) {
     try {
       const live = await c.pull(res.doc);
       docs[res.id].live = live;
