@@ -281,6 +281,8 @@ object HoyolandApi {
                 desc = o.optString("desc").trim(),
                 location = o.optString("location").trim(),
                 duration = o.optString("duration").trim(),
+                // 참가비도 굿즈 가격과 같이 숫자로 받는다 — 0 이면 무료.
+                price = o.optInt("price", 0),
                 reward = o.optString("reward").trim(),
             )
         }

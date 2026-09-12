@@ -155,15 +155,11 @@ struct HoyolandGoodsView: View {
                 Text(item.name).font(.pretendard(size: 13, weight: .bold))
                     .foregroundStyle(GLGColor.textPrimary)
                     .fixedSize(horizontal: false, vertical: true)
-                HStack(spacing: 5) {
-                    Text(label)
-                        .font(.pretendard(size: 9.5, weight: .black)).foregroundStyle(c)
-                        .padding(.horizontal, 6).padding(.vertical, 2)
-                        .background(c.opacity(0.14), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
-                    if !meta.isEmpty {
-                        Text(meta).font(.pretendard(size: 11))
-                            .foregroundStyle(c)
-                    }
+                // 게임 라벨은 왼쪽 48 칸이 이미 말하고 있다 — 여기 칩까지 두면 한 줄에 같은
+                // 글자가 두 번 나온다. 갈래·비고만 남긴다.
+                if !meta.isEmpty {
+                    Text(meta).font(.pretendard(size: 11))
+                        .foregroundStyle(c)
                 }
             }
             .padding(.leading, 11)
@@ -509,6 +505,15 @@ struct HoyolandBoothView: View {
                     Text(b.title).font(.pretendard(size: 14.5, weight: .bold))
                         .foregroundStyle(GLGColor.textPrimary)
                     Spacer(minLength: 6)
+                    // 참가비는 제목 줄 오른쪽. 유료 체험존은 회차마다 값이 다르고 무료 부스와
+                    // 섞여 있어서, 설명을 읽기 전에 먼저 갈려야 하는 값이다.
+                    Text(b.isPaid ? event.wonLabel(v: b.price) : "무료")
+                        .font(.pretendard(size: 11.5, weight: .black)).monospacedDigit()
+                        .foregroundStyle(b.isPaid ? GLGColor.textPrimary : GLGGiftText)
+                        .padding(.horizontal, 7).padding(.vertical, 3)
+                        .background(b.isPaid ? AnyShapeStyle(c.opacity(0.12)) : AnyShapeStyle(GLGGiftBg),
+                                    in: Capsule())
+                        .layoutPriority(1)
                 }
                 .padding(.horizontal, 14).padding(.top, 13).padding(.bottom, 11)
                 if !b.desc.isEmpty {

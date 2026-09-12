@@ -46,7 +46,7 @@ class HoyolandGoodsTest {
             HoyolandGoods("집업", 89000, "젠레스 존 제로"),
             HoyolandGoods("앱_밖_비싼_굿즈", 500000, "붕괴3rd"),  // 범위에 들어가면 안 된다
         )
-        assertEquals("₩9,000 ~ ₩89,000 · 2종", e.goodsPriceRange())
+        assertEquals("9,000원 ~ 89,000원 · 2종", e.goodsPriceRange())
     }
 
     @Test
@@ -55,7 +55,7 @@ class HoyolandGoodsTest {
             HoyolandGoods("키링", 9000, "원신"),
             HoyolandGoods("미정 굿즈", 0, "원신"),
         )
-        assertEquals("₩9,000 · 2종 · 가격 미정 1종", e.goodsPriceRange())
+        assertEquals("9,000원 · 2종 · 가격 미정 1종", e.goodsPriceRange())
     }
 
     @Test
