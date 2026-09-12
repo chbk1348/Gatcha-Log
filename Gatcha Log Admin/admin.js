@@ -61,7 +61,6 @@ const GOODS_CATEGORIES = ['아크릴', '아크릴 스탠드', '뱃지', '키링'
   '포스터', '화보집', '의류', '문구', '식음료', '세트', '랜덤박스'];
 const TICKET_VENDORS = ['인터파크 티켓', 'NOL 티켓', '예스24 티켓', '멜론티켓', '티켓링크', '공식 홈페이지'];
 const FACT_LABELS = ['기간', '장소', '규모', '관람객', '티켓', '참여 IP', '구성', '전시', '스폰서', '주최'];
-const BOOTH_DURATIONS = ['약 5분', '약 10분', '약 15분', '약 20분', '약 30분'];
 /* 무대 시각 칸에 들어가는 비시각 표기. 앱은 이런 칸을 목록에만 남기고 '지금/다음' 판정에서 뺀다. */
 const STAGE_TIME_PRESETS = ['종일', '수시', '미정'];
 const VENUE_NAMES = ['일산 킨텍스 제1전시장', '일산 킨텍스 제2전시장', '코엑스',
@@ -263,8 +262,7 @@ const HOYOLAND = {
       columns: [
         { key: 'title', label: '부스명', type: 'text', required: true },
         { key: 'game', label: '게임', type: 'game', width: '150px' },
-        { key: 'location', label: '위치', type: 'text', width: '120px' },
-        { key: 'duration', label: '소요', type: 'suggest', options: BOOTH_DURATIONS, width: '110px' },
+        { key: 'location', label: '구분', type: 'text', width: '120px' },
         // 참가비를 설명에 묻어 두면 "얼마 들고 가야 하나"를 문장에서 캐야 한다. 앱도 이 값으로
         // 무료/유료 배지를 가른다(HoyolandBooth.isPaid) — 0 이 곧 '무료' 다.
         { key: 'price', label: '참가비(원)', type: 'number', width: '110px', min: 0 },
@@ -1698,7 +1696,7 @@ function selftest() {
 
   check('추천 목록에 빈 값 · 중복이 없다', () => {
     for (const [name, list] of [['굿즈 분류', GOODS_CATEGORIES], ['예매처', TICKET_VENDORS],
-      ['정보 항목', FACT_LABELS], ['부스 소요', BOOTH_DURATIONS], ['행사장', VENUE_NAMES]]) {
+      ['정보 항목', FACT_LABELS], ['행사장', VENUE_NAMES]]) {
       assert(list.every((v) => v.trim()), name + ' 에 빈 값이 있다');
       assert(new Set(list).size === list.length, name + ' 에 중복이 있다');
     }

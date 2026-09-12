@@ -62,16 +62,12 @@ struct HoyolandGoodsView: View {
                             )
                             .padding(.top, 12)
                         }
-                        GLGCard(cornerRadius: 24, padding: 0) {
-                            VStack(spacing: 0) {
-                                ForEach(Array(shown.enumerated()), id: \.offset) { i, item in
-                                    if i > 0 { Divider() }
-                                    goodsRow(item, quantity: Int(cart.quantityOf(name: item.name)))
-                                }
+                        ForEach(Array(shown.enumerated()), id: \.offset) { _, item in
+                            GLGCard(cornerRadius: 24, padding: 0) {
+                                goodsCard(item, quantity: Int(cart.quantityOf(name: item.name)))
                             }
-                            .padding(.vertical, 4)
+                            .padding(.top, 10)
                         }
-                        .padding(.top, 12)
                     }
                     Color.clear.frame(height: 24)
                 }
@@ -129,20 +125,24 @@ struct HoyolandGoodsView: View {
     }
 
     /**
-     굿즈 한 줄 — [썸네일 48 · 이름·갈래 · 가격/수량].
+     굿즈 한 장 — [썸네일 48 · 이름·갈래 · 가격/수량] + 구매 제한 띠.
 
-     A 안(담기 원)에서 갈아탔다. 훑기는 리스트가 낫고, 수량은 **목록에서 바로** 정하는 편이
-     자연스럽다 — 같은 키링을 두 개 사는 일이 흔한데 담기 토글만 있으면 장바구니까지 들어가야 했다.
+     한 장짜리 카드에 줄을 Divider 로 쌓다가 **품목당 카드**로 갈아탔다. 줄 목록은 훑기엔 좋지만
+     구매 제한("1인 5개 한정")을 놓을 자리가 없다 — 갈래 옆 회색 줄에 묻으면 현장에서 못 보고
+     계산대에서 되돌아온다. 카드 아래를 띠 한 줄로 비워 그 조건만 세운다.
 
-     담기 전에는 「담기」 버튼, 담은 뒤에는 스테퍼로 바뀐다.
+     수량은 **목록에서 바로** 정한다 — 같은 키링을 두 개 사는 일이 흔한데 담기 토글만 있으면
+     장바구니까지 들어가야 했다. 담기 전에는 「담기」 버튼, 담은 뒤에는 스테퍼로 바뀐다.
      */
-    @ViewBuilder private func goodsRow(_ item: HoyolandGoods, quantity: Int) -> some View {
+    @ViewBuilder private func goodsCard(_ item: HoyolandGoods, quantity: Int) -> some View {
         let c = gameColor(item.game)
         let label = item.game.isEmpty ? "공용" : event.stageLabel(game: item.game)
+        // 갈래·비고만 남긴다(구매 제한은 아래 띠로 빠진다).
         let meta = [item.category.isEmpty ? nil : item.category,
-                    item.note.isEmpty ? nil : item.note]
+                    item.noteRest.isEmpty ? nil : item.noteRest]
                     .compactMap { $0 }.joined(separator: " · ")
-        HStack(spacing: 0) {
+        VStack(spacing: 0) {
+            HStack(spacing: 0) {
             // 썸네일 자리 — 공식 굿즈 이미지가 나오면 이 칸을 그대로 이미지로 바꾼다.
             Text(label)
                 .font(.pretendard(size: 9.5, weight: .black))
@@ -183,8 +183,20 @@ struct HoyolandGoodsView: View {
                     .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
                 }
             }
+            }
+            .padding(.horizontal, 16).padding(.vertical, 13)
+            // 구매 제한 — 카드 폭을 꽉 채운 띠 한 줄. 사기 전에 걸리는 조건이라 '가격 미정'
+            // 안내와 같은 경고색을 쓴다. 제한이 없는 품목은 띠 자체를 세우지 않는다
+            // (전부 붙이면 눈이 거른다).
+            if !item.limitLabel.isEmpty {
+                Text(item.limitLabel)
+                    .font(.pretendard(size: 11, weight: .bold))
+                    .foregroundStyle(GLGWarnText)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 16).padding(.vertical, 8)
+                    .background(GLGWarnBg)
+            }
         }
-        .padding(.horizontal, 16).padding(.vertical, 11)
     }
 
     /// 담기 버튼 — 스테퍼와 같은 높이라 담기 전후로 줄 높이가 흔들리지 않는다.
@@ -441,7 +453,7 @@ struct HoyolandCartView: View {
  시간표가 아니라 게임별 카드로 그린다.
 
  예약제도 정원 · 회차도 다루지 않는다 — 공지된 정보를 그대로 보여줄 뿐이다. 그래서 카드에
- 남는 값은 **위치 · 소요 · 보상** 셋뿐이고, 그중 **보상을 주인공으로 세운다**(목업 C안):
+ 남는 값은 **위치 · 보상** 둘뿐이고, 그중 **보상을 주인공으로 세운다**(목업 C안):
  예약도 정원도 없는 마당에 부스를 고르는 기준은 결국 받는 것이라서다.
  */
 struct HoyolandBoothView: View {
@@ -541,17 +553,13 @@ struct HoyolandBoothView: View {
                         .padding(.horizontal, 14).padding(.bottom, 11)
                 }
                 Divider()
-                HStack(spacing: 0) {
-                    boothMeta("위치", b.location)
-                    Divider()
-                    boothMeta("소요", b.duration)
-                }
-                .fixedSize(horizontal: false, vertical: true)
+                boothMeta("구분", b.location)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
     }
 
-    /// 부스 카드 아래 칸 — 라벨을 위, 값을 아래로 눌러 담아 두 값이 같은 폭을 나눠 갖는다.
+    /// 부스 카드 아래 칸 — 라벨을 위, 값을 아래로 눌러 담는다.
     @ViewBuilder private func boothMeta(_ label: String, _ value: String) -> some View {
         VStack(spacing: 11) {
             Text(label).font(.pretendard(size: 10)).foregroundStyle(GLGTextThird)

@@ -62,4 +62,40 @@ class HoyolandGoodsTest {
     fun 굿즈가_없으면_빈_문자열() {
         assertEquals("", event().goodsPriceRange())
     }
+
+    // ── 구매 제한은 note 에서 떼어 카드 아래 띠로 나간다(HoyolandGoods.limitLabel).
+
+    @Test
+    fun 한정_표기를_비고에서_떼어낸다() {
+        val g = HoyolandGoods("아크릴 스탠드", 24000, note = "호요랜드2026 시리즈 · 디자인 2종 · 1인 5개 한정")
+        assertEquals("1인 5개 한정", g.limitLabel)
+        assertEquals("호요랜드2026 시리즈 · 디자인 2종", g.noteRest)
+    }
+
+    @Test
+    fun 한정이_없으면_비고를_그대로_둔다() {
+        val g = HoyolandGoods("봉제인형 키링", 26000, note = "눈속의 즐거움")
+        assertEquals("", g.limitLabel)
+        assertEquals("눈속의 즐거움", g.noteRest)
+    }
+
+    @Test
+    fun 한정만_있으면_나머지_비고는_빈다() {
+        val g = HoyolandGoods("여권 케이스", 24000, note = "1인 5개 한정")
+        assertEquals("1인 5개 한정", g.limitLabel)
+        assertEquals("", g.noteRest)
+    }
+
+    @Test
+    fun 수량_단위가_달라도_한정으로_읽는다() {
+        assertEquals("1인 2매 한정", HoyolandGoods("색지", 0, note = "랜덤 · 1인 2매 한정").limitLabel)
+    }
+
+    @Test
+    fun 한정이_아닌_문구는_떼지_않는다() {
+        // '한정' 으로 끝나지 않거나 '1인' 으로 시작하지 않으면 그냥 비고다.
+        val g = HoyolandGoods("테마 패키지", 39000, note = "한정판 · 구성: 키링 · 캔배지")
+        assertEquals("", g.limitLabel)
+        assertEquals("한정판 · 구성: 키링 · 캔배지", g.noteRest)
+    }
 }
