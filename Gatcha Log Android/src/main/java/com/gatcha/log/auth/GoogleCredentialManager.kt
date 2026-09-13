@@ -22,6 +22,11 @@ import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
  *
  * 사용자가 시트를 직접 닫은 경우([Outcome.Cancelled])는 폴백하지 않는다 — 취소했는데 브라우저가
  * 뜨면 유저 입장에선 "닫았는데 또 뜬다"가 된다.
+ *
+ * ⚠️ **취소와 실패가 같은 예외로 온다.** GMS 는 제공자 쪽 실패도 `TYPE_USER_CANCELED` 로 보고해서,
+ * 예외 종류만 보고 갈랐더니 위의 폴백이 한 번도 열리지 않았다(2026-09-13 수정). 실제로 SHA-1 이
+ * 등록되지 않은 기기는 1순위에서 그대로 끝나 로그인이 불가능했다. 지금은 [isUserCancel] 이
+ * 메시지로 갈라내며, 그 판정 근거와 위험 방향은 거기 적어 뒀다.
  */
 object GoogleCredentialManager {
 
@@ -79,6 +84,30 @@ object GoogleCredentialManager {
         }.onFailure { Log.w(TAG, "clearCredentialState 실패(무시)", it) }
     }
 
+    /**
+     * '취소' 로 올라온 예외가 **진짜 사용자 취소인지** 가린다.
+     *
+     * GMS 는 제공자 쪽 실패도 취소로 보고한다. 에뮬레이터 실측(2026-09-13):
+     *
+     * | 상황 | type | errorMessage |
+     * |---|---|---|
+     * | SHA-1 미등록 | `TYPE_USER_CANCELED` | `[16] Account reauth failed.` |
+     * | 사용자가 시트를 닫음 | `TYPE_USER_CANCELED` | `[16] Cancelled by user.` |
+     *
+     * type 이 같아 구분에 쓸 수 없고, `[16]`(GMS CANCELED) 도 양쪽에 똑같이 붙는다.
+     * 남는 신호가 이 문구뿐이라 문자열로 가린다 — GMS 가 표기를 바꾸면 이 목록도 같이 바뀐다.
+     *
+     * **모르는 문구는 실패로 본다.** 두 오판의 무게가 다르기 때문이다: 잘못 폴백하면 닫았는데
+     * 브라우저가 한 번 뜨고 끝이지만, 잘못 취소로 읽으면 **그 기기는 로그인이 아예 막힌다**.
+     * 실제로 그렇게 막혀 있었다 — 주석에는 'SHA 미등록 → 폴백' 이라 적혀 있었는데,
+     * 그 경로가 취소로 와서 한 번도 열리지 않았다.
+     */
+    private fun isUserCancel(message: String?): Boolean {
+        val m = message?.lowercase() ?: return false
+        return "cancelled by user" in m || "canceled by user" in m ||
+            "user cancelled" in m || "user canceled" in m
+    }
+
     private fun googleIdRequest(filterByAuthorized: Boolean): GetCredentialRequest =
         GetCredentialRequest.Builder()
             .addCredentialOption(
@@ -115,8 +144,15 @@ object GoogleCredentialManager {
             Outcome.Unavailable
         }
     } catch (e: GetCredentialCancellationException) {
-        Log.i(TAG, "사용자가 계정 시트를 닫음 — 폴백하지 않음")
-        Outcome.Cancelled
+        val msg = e.errorMessage?.toString()
+        if (isUserCancel(msg)) {
+            Log.i(TAG, "사용자가 계정 시트를 닫음 — 폴백하지 않음")
+            Outcome.Cancelled
+        } else {
+            // 취소 껍데기를 쓴 제공자 실패. 여기서 멈추면 그 기기는 로그인이 아예 막힌다.
+            Log.w(TAG, "취소로 보고됐지만 제공자 실패다 → 웹 OAuth 폴백: $msg")
+            Outcome.Unavailable
+        }
     } catch (e: NoCredentialException) {
         Log.i(TAG, "사용 가능한 자격증명 없음 → 다음 경로")
         Outcome.Unavailable
