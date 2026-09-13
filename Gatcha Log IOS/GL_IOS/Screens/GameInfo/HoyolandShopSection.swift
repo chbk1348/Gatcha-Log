@@ -458,7 +458,7 @@ struct HoyolandCartView: View {
  시간표가 아니라 게임별 카드로 그린다.
 
  예약제도 정원 · 회차도 다루지 않는다 — 공지된 정보를 그대로 보여줄 뿐이다. 그래서 카드에
- 남는 값은 **위치 · 보상** 둘뿐이고, 그중 **보상을 주인공으로 세운다**(목업 C안):
+ 카드가 내는 값은 **참가비 · 보상 · 설명** 셋이고, 그중 **보상을 주인공으로 세운다**(목업 C안):
  예약도 정원도 없는 마당에 부스를 고르는 기준은 결국 받는 것이라서다.
  */
 struct HoyolandBoothView: View {
@@ -533,12 +533,6 @@ struct HoyolandBoothView: View {
                         .layoutPriority(1)
                 }
                 .padding(.horizontal, 14).padding(.top, 13).padding(.bottom, 11)
-                if !b.desc.isEmpty {
-                    Text(b.desc).font(.pretendard(size: 12))
-                        .foregroundStyle(GLGColor.textSecondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .padding(.horizontal, 14).padding(.bottom, 11)
-                }
                 // 보상은 부스를 고르는 기준이라 카드의 **주인공 자리**를 준다 — 폭을 꽉 채운 한 면.
                 if !b.reward.isEmpty {
                     HStack(spacing: 9) {
@@ -557,24 +551,21 @@ struct HoyolandBoothView: View {
                         .foregroundStyle(GLGTextThird)
                         .padding(.horizontal, 14).padding(.bottom, 11)
                 }
-                Divider()
-                boothMeta("구분", b.location)
-                    .fixedSize(horizontal: false, vertical: true)
+                // 설명이 카드 아래 한 면을 통째로 쓴다. 예전엔 제목 밑 회색 한 줄이었고 이 자리에는
+                // '구분'(무료/유료 체험존)이 있었는데, 무료·유료는 **우상단 배지가 이미 말한다** —
+                // 같은 걸 두 번 적느라 정작 무엇을 하는 체험인지가 눌려 있었다. 자리를 맞바꾼다.
+                if !b.desc.isEmpty {
+                    Divider()
+                    Text(b.desc)
+                        .font(.pretendard(size: 13))
+                        .foregroundStyle(GLGColor.textSecondary)
+                        .lineSpacing(4)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, 14).padding(.vertical, 13)
+                }
             }
         }
-    }
-
-    /// 부스 카드 아래 칸 — 라벨을 위, 값을 아래로 눌러 담는다.
-    @ViewBuilder private func boothMeta(_ label: String, _ value: String) -> some View {
-        VStack(spacing: 11) {
-            Text(label).font(.pretendard(size: 10)).foregroundStyle(GLGTextThird)
-            Text(value.isEmpty ? "—" : value)
-                .font(.pretendard(size: 11.5, weight: .bold))
-                .foregroundStyle(GLGColor.textPrimary)
-                .multilineTextAlignment(.center)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.horizontal, 6).padding(.vertical, 18)
     }
 
     private func boothColor(_ game: String) -> Color {
