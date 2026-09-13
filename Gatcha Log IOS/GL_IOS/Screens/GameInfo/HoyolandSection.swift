@@ -413,29 +413,55 @@ struct HoyolandDetailView: View {
         }
     }
 
+    /// 프로그램 카드의 게임색 — 라인업에 색이 없으면 먹색으로 물러선다(부스 카드와 같은 규칙).
+    private func programColor(_ e: HoyolandEvent, _ game: String) -> Color {
+        let raw = e.stageColor(game: game)
+        return raw == 0 ? GLGColor.textSecondary : Color(argb64: raw)
+    }
+
     // ── 프로그램 — 본편과 별개로 **참여 마감이 따로 있는** 것들이라 날짜를 눈에 띄게 둔다.
     @ViewBuilder private func programSection(_ e: HoyolandEvent) -> some View {
         if !e.programs.isEmpty {
             Text("프로그램").font(.pretendard(size: 16, weight: .bold)).padding(.top, 20).padding(.bottom, 10)
-            GLGCard(cornerRadius: 24, padding: 16) {
-                VStack(alignment: .leading, spacing: 0) {
-                    ForEach(Array(e.programs.enumerated()), id: \.offset) { i, p in
-                        if i > 0 { Divider().padding(.vertical, 12) }
-                        VStack(alignment: .leading, spacing: 3) {
+            // 한 장짜리 카드에 구분선으로 쌓다가 **항목당 카드**로 갈아탔다. 웰컴 키트가 들어오며
+            // 항목이 다섯으로 늘고 본문이 여러 줄이 되자, 구분선 하나로는 어디서 끊기는지 안 보여
+            // 글자 벽이 됐다. 굿즈·부스가 이미 카드 목록이라 규격도 그쪽에 맞춘다.
+            //
+            // 게임 배지는 HoyolandEvent.programGame 이 제목에서 가려낸다 — 웰컴 키트 넷이 나란히
+            // 서기 때문에 색이 없으면 내 것을 찾으려고 매번 제목을 읽어야 한다.
+            ForEach(Array(e.programs.enumerated()), id: \.offset) { i, p in
+                let pg = e.programGame(title: p.title)
+                let pc = pg.isEmpty ? GLGColor.textSecondary : programColor(e, pg)
+                GLGCard(cornerRadius: 24, padding: 0) {
+                    VStack(alignment: .leading, spacing: 0) {
+                        HStack(spacing: 8) {
+                            if !pg.isEmpty {
+                                Text(e.stageLabel(game: pg))
+                                    .font(.pretendard(size: 9.5, weight: .black)).foregroundStyle(pc)
+                                    .padding(.horizontal, 6).padding(.vertical, 3)
+                                    .background(pc.opacity(0.14),
+                                                in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+                            }
                             Text(p.title).font(.pretendard(size: 14, weight: .bold))
                                 .foregroundStyle(GLGColor.textPrimary)
-                            // 웰컴 키트처럼 구성품을 줄바꿈으로 늘어놓는 값이 있어 줄간을 준다.
-                            Text(p.desc).font(.pretendard(size: 12.5))
-                                .foregroundStyle(GLGColor.textSecondary)
-                                .lineSpacing(4)
-                                .fixedSize(horizontal: false, vertical: true)
-                            if !p.deadline.isEmpty {
-                                hoyoBadge(p.deadline, accent.primary).padding(.top, 5)
-                            }
+                            Spacer(minLength: 0)
                         }
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                        if !p.desc.isEmpty {
+                            // 웰컴 키트처럼 구성품을 줄바꿈으로 늘어놓는 값이 있어 줄간을 넉넉히 준다.
+                            Text(p.desc).font(.pretendard(size: 13))
+                                .foregroundStyle(GLGColor.textSecondary)
+                                .lineSpacing(5)
+                                .fixedSize(horizontal: false, vertical: true)
+                                .padding(.top, 9)
+                        }
+                        if !p.deadline.isEmpty {
+                            hoyoBadge(p.deadline, accent.primary).padding(.top, 10)
+                        }
                     }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 16).padding(.vertical, 14)
                 }
+                .padding(.top, i > 0 ? 10 : 0)
             }
         }
     }

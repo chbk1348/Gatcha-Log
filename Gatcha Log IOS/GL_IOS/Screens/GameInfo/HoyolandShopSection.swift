@@ -137,10 +137,9 @@ struct HoyolandGoodsView: View {
     @ViewBuilder private func goodsCard(_ item: HoyolandGoods, quantity: Int) -> some View {
         let c = gameColor(item.game)
         let label = item.game.isEmpty ? "공용" : event.stageLabel(game: item.game)
-        // 갈래·비고만 남긴다(구매 제한은 아래 띠로 빠진다).
-        let meta = [item.category.isEmpty ? nil : item.category,
-                    item.noteRest.isEmpty ? nil : item.noteRest]
-                    .compactMap { $0 }.joined(separator: " · ")
+        // 갈래(분류)는 싣지 않는다 — '아크릴 스탠드' 처럼 이름과 거의 같은 말이 한 줄 아래 또
+        // 나오고, 고를 때 실제로 쓰이는 값은 가격과 한정 여부다. 시리즈·구매 제한은 아래 띠로 뺀다.
+        let meta = item.noteRest
         VStack(spacing: 0) {
             HStack(spacing: 0) {
             // 썸네일 자리 — 공식 굿즈 이미지가 나오면 이 칸을 그대로 이미지로 바꾼다.
@@ -158,8 +157,11 @@ struct HoyolandGoodsView: View {
                 // 게임 라벨은 왼쪽 48 칸이 이미 말하고 있다 — 여기 칩까지 두면 한 줄에 같은
                 // 글자가 두 번 나온다. 갈래·비고만 남긴다.
                 if !meta.isEmpty {
+                    // 구성품이 긴 품목(테마 패키지)은 note 안에 줄바꿈이 들어 있어 두 줄이 된다.
                     Text(meta).font(.pretendard(size: 11))
                         .foregroundStyle(c)
+                        .lineSpacing(3)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
             .padding(.leading, 11)
@@ -168,33 +170,58 @@ struct HoyolandGoodsView: View {
                 Text(item.price > 0 ? event.wonLabel(v: item.price) : "미정")
                     .font(.pretendard(size: 13, weight: item.price > 0 ? .black : .bold)).monospacedDigit()
                     .foregroundStyle(item.price > 0 ? GLGColor.textPrimary : GLGTextThird)
-                if quantity <= 0 {
-                    addButton("담기") { store.setGoodsQuantity(item.name, 1) }
-                } else {
-                    HStack(spacing: 0) {
-                        stepButton("−") { store.setGoodsQuantity(item.name, quantity - 1) }
-                        Text("\(quantity)")
-                            .font(.pretendard(size: 12, weight: .black)).foregroundStyle(GLGColor.textPrimary)
-                            .frame(width: 30)
-                        stepButton("+") { store.setGoodsQuantity(item.name, quantity + 1) }
+                // 「담기」 ↔ 스테퍼 전환. 값만 갈아 끼우면 버튼이 있던 자리에 스테퍼가 **툭 나타나서**
+                // 내가 누른 것이 반영된 것인지, 원래 그랬던 것인지 순간 헷갈린다. 담을 때도 뺄 때도
+                // 같은 전환을 태워 "이게 방금 내가 만든 변화" 라는 것을 보이게 한다.
+                // 두 상태의 높이가 26 으로 같아 전환 중에도 줄이 흔들리지 않는다.
+                Group {
+                    if quantity <= 0 {
+                        addButton("담기") { store.setGoodsQuantity(item.name, 1) }
+                            .transition(.opacity.combined(with: .scale(scale: 0.9)))
+                    } else {
+                        HStack(spacing: 0) {
+                            stepButton("−") { store.setGoodsQuantity(item.name, quantity - 1) }
+                            Text("\(quantity)")
+                                .font(.pretendard(size: 12, weight: .black)).foregroundStyle(GLGColor.textPrimary)
+                                .frame(width: 30)
+                            stepButton("+") { store.setGoodsQuantity(item.name, quantity + 1) }
+                        }
+                        .overlay(RoundedRectangle(cornerRadius: 9, style: .continuous)
+                            .stroke(.black.opacity(0.10), lineWidth: 1))
+                        .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+                        .transition(.opacity.combined(with: .scale(scale: 0.9)))
                     }
-                    .overlay(RoundedRectangle(cornerRadius: 9, style: .continuous)
-                        .stroke(.black.opacity(0.10), lineWidth: 1))
-                    .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
                 }
+                .animation(GLGMotion.standard(), value: quantity > 0)
             }
             }
             .padding(.horizontal, 16).padding(.vertical, 13)
-            // 구매 제한 — 카드 폭을 꽉 채운 띠 한 줄. 사기 전에 걸리는 조건이라 '가격 미정'
-            // 안내와 같은 경고색을 쓴다. 제한이 없는 품목은 띠 자체를 세우지 않는다
+            // 행사 한정 조건 띠 — 카드 폭을 꽉 채운 한 줄. 사기 전에 걸리는 값이라 '가격 미정'
+            // 안내와 같은 경고색을 쓴다. 둘 다 없는 품목은 띠 자체를 세우지 않는다
             // (전부 붙이면 눈이 거른다).
-            if !item.limitLabel.isEmpty {
-                Text(item.limitLabel)
-                    .font(.pretendard(size: 11, weight: .bold))
-                    .foregroundStyle(GLGWarnText)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, 16).padding(.vertical, 8)
-                    .background(GLGWarnBg)
+            //
+            // '호요랜드2026 시리즈' 는 **이 행사에서만 파는 물건**이라는 뜻이라 배지로 뺀다.
+            // 상설 굿즈는 다음에 사면 되지만 이건 놓치면 끝이고, 그 판단이 갈래 옆 회색 줄에
+            // 묻혀 있었다.
+            if !item.limitLabel.isEmpty || !item.seriesLabel.isEmpty {
+                HStack(spacing: 7) {
+                    if !item.seriesLabel.isEmpty {
+                        Text(item.seriesLabel)
+                            .font(.pretendard(size: 10, weight: .black))
+                            .foregroundStyle(GLGWarnText)
+                            .padding(.horizontal, 7).padding(.vertical, 2)
+                            .background(GLGWarnText.opacity(0.14), in: Capsule())
+                    }
+                    if !item.limitLabel.isEmpty {
+                        Text(item.limitLabel)
+                            .font(.pretendard(size: 11, weight: .bold))
+                            .foregroundStyle(GLGWarnText)
+                    }
+                    Spacer(minLength: 0)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 16).padding(.vertical, 8)
+                .background(GLGWarnBg)
             }
         }
         // 띠가 카드 아래 모서리에 그대로 닿는다. `glgGlass` 는 배경과 테두리만 둥글게 그리고
