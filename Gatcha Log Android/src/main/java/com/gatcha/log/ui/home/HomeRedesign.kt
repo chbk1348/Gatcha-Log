@@ -961,9 +961,13 @@ private fun NewsBody(anni: AnniversaryInfo?, topNews: List<NewsItem>) {
 fun DashHoyolandCard(event: HoyolandEvent, onTap: () -> Unit) {
     val accent = LocalAccent.current
     val phase = event.phase()
-    // 배너 바탕 — accent 를 축제 톤으로 옮긴다. 흰 글자가 얹히므로 충분히 진하게.
-    val top = lerp(accent, Color.Black, 0.10f)
-    val bottom = lerp(accent, Color(0xFF6A2BD9), 0.45f)
+    // 배너 바탕 — 강조색을 **짙은 슬레이트** 쪽으로 가라앉힌다. 흰 글자가 얹히므로 충분히 진하게.
+    //
+    // 예전엔 선명한 보라(#6A2BD9)로 45% 섞어 '축제 톤' 을 냈다. 27.50.0 팔레트가 대비 3.9 로 진해지고
+    // 배경이 옅은 틴트가 된 뒤로는 이 면만 혼자 튀었다(2026-09-11 "색이 좀 강하다"). 슬레이트로 섞으면
+    // 10색 평균 채도 0.57 → 0.47 로 차분해지고, 흰 글자 대비는 4.7 → 5.8 로 오히려 좋아진다.
+    val top = lerp(accent, Color(0xFF2E3440), 0.35f)
+    val bottom = lerp(accent, Color(0xFF2E3440), 0.50f)
     val shape = RoundedCornerShape(20.dp)
     // 남은 날짜를 숫자와 말로 가른다 — 숫자만 크게 세우려는 것.
     val bigText: String
