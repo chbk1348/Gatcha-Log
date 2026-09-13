@@ -55,6 +55,15 @@ data class HoyolandLineup(
     val theme: String,
     val abbr: String = "",
     val colorArgb: Long = 0L,
+    /**
+     * 그 게임의 행사 공지 주소(카페 글·하나링크 등). 비면 칩이 눌리지 않는다.
+     *
+     * 공지는 **게임마다 다른 곳에 올라온다** — 원신·스타레일은 네이버 카페, 젠레스는 게임라운지,
+     * 붕괴3rd·미해결사건부는 hoyo.link 다. 앱이 하나의 공식 주소([HoyolandEvent.officialUrl])만
+     * 들고 있으면 "내 게임 공지" 로는 못 간다. 참여 게임 칩이 이미 게임별로 서 있으므로
+     * 그 칩을 그대로 문으로 쓴다.
+     */
+    val url: String = "",
 )
 
 /**

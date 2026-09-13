@@ -82,6 +82,8 @@ const LINEUP_COLS = [
   { key: 'theme', label: '테마 · 출품 내용', type: 'text' },
   { key: 'abbr', label: '약칭', type: 'text', width: '80px', placeholder: 'HI3' },
   { key: 'colorArgb', label: '색(ARGB)', type: 'argb', width: '150px' },
+  // 게임별 행사 공지. 참여 게임 칩을 누르면 열린다 — 비우면 그 칩은 눌리지 않는다.
+  { key: 'url', label: '공지 주소', type: 'text', placeholder: 'https://cafe.naver.com/...' },
 ];
 
 const FACT_COLS = [
@@ -236,7 +238,7 @@ const HOYOLAND = {
         { key: 'note', label: '안내 문구', type: 'textarea', wide: true },
       ] },
     { id: 'lineup', group: '행사', label: '참여 게임', type: 'list', path: 'lineup', countable: true,
-      desc: 'abbr · colorArgb 는 앱 GameData 에 없는 게임(붕괴3rd · 미해결사건부 등)만 채웁니다.',
+      desc: 'abbr · colorArgb 는 앱 GameData 에 없는 게임(붕괴3rd · 미해결사건부 등)만 채웁니다. 공지 주소를 넣으면 앱에서 그 게임 칩을 눌러 열 수 있습니다.',
       warnEmpty: '비우면 앱이 번들 기본 라인업으로 폴백합니다(빈 목록으로 내릴 수 없음).',
       columns: LINEUP_COLS },
     { id: 'programs', group: '행사', label: '프로그램', type: 'list', path: 'programs', countable: true,

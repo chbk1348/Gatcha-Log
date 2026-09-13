@@ -194,6 +194,7 @@ object HoyolandApi {
                 // 색은 "0xFF30C6E8" 같은 16진 문자열로 적는다 — JSON 숫자로 두면 부호 있는 정수
                 // 범위를 넘어가는 값(0xFFxxxxxx)이 파서·에디터마다 다르게 읽힌다.
                 colorArgb = parseArgb(o.optString("colorArgb")),
+                url = o.optString("url").trim(),
             )
         }
 

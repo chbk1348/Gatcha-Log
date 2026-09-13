@@ -592,7 +592,17 @@ fun HoyolandDetailContent(onOpenSub: (HoyolandSub) -> Unit = {}) {
                 // 같은 무게가 됐다. 여기서 필요한 건 "어느 게임이 오나"의 목록 자체지 게임별
                 // 설명이 아니다 — 테마는 무대 시간표에서 읽힌다.
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    e.lineup.forEach { item -> HoyolandLineupTile(item, Modifier.weight(1f)) }
+                    e.lineup.forEach { item ->
+                        HoyolandLineupTile(item, Modifier.weight(1f)) { openExternalLink(ctx, item.url) }
+                    }
+                }
+                if (e.lineup.any { it.url.isNotBlank() }) {
+                    Spacer(Modifier.height(7.dp))
+                    // 칩이 눌린다는 걸 알려 준다 — 모양만으로는 라벨과 구분되지 않는다.
+                    Text(
+                        "게임을 누르면 그 게임 행사 공지가 열려요",
+                        fontSize = 11.sp, color = TextThird,
+                    )
                 }
             }
 
@@ -1816,13 +1826,20 @@ private fun HoyolandPastEventCard(title: String, facts: List<HoyolandFact>) {
  * 공개되면 이 칸의 배경을 이미지로 바꾸면 된다(칸 크기는 그대로 쓸 수 있게 고정 높이).
  */
 @Composable
-private fun HoyolandLineupTile(item: HoyolandLineup, modifier: Modifier = Modifier) {
+private fun HoyolandLineupTile(
+    item: HoyolandLineup,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit = {},
+) {
     val c = if (item.colorArgb != 0L) item.colorArgb.toColor() else GameData.colorFor(item.game).toColor()
+    // 공지 주소가 있는 게임만 눌린다 — 없는 칩까지 눌리는 척하면 눌러 보고 아무 일도 안 일어난다.
+    val linked = item.url.isNotBlank()
     Box(
         modifier
             .height(40.dp)
             .clip(RoundedCornerShape(11.dp))
-            .background(c.copy(alpha = 0.10f))
+            .background(c.copy(alpha = if (linked) 0.14f else 0.10f))
+            .then(if (linked) Modifier.clickable { onClick() } else Modifier)
             .padding(horizontal = 4.dp),
         contentAlignment = Alignment.Center,
     ) {

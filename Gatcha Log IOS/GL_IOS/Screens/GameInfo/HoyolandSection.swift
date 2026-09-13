@@ -257,8 +257,21 @@ struct HoyolandDetailView: View {
                     // 설명이 아니다 — 테마는 무대 시간표에서 읽힌다.
                     HStack(spacing: 6) {
                         ForEach(Array(e.lineup.enumerated()), id: \.offset) { _, item in
-                            lineupTile(item)
+                            // 공지 주소가 있는 게임만 눌린다 — 없는 칩까지 눌리는 척하면
+                            // 눌러 보고 아무 일도 안 일어난다.
+                            if let url = hoyoURL(item.url) {
+                                Button { openURL(url) } label: { lineupTile(item) }
+                                    .buttonStyle(.plain)
+                            } else {
+                                lineupTile(item)
+                            }
                         }
+                    }
+                    if e.lineup.contains(where: { !$0.url.isEmpty }) {
+                        // 칩이 눌린다는 걸 알려 준다 — 모양만으로는 라벨과 구분되지 않는다.
+                        Text("게임을 누르면 그 게임 행사 공지가 열려요")
+                            .font(.pretendard(size: 11)).foregroundStyle(GLGColor.textSecondary)
+                            .padding(.top, 7)
                     }
                 }
                 if let url = hoyoURL(e.mapUrl) {
@@ -365,7 +378,9 @@ struct HoyolandDetailView: View {
             .multilineTextAlignment(.center).lineLimit(2)
             .padding(.horizontal, 4)
             .frame(maxWidth: .infinity, minHeight: 40)
-            .background(c.opacity(0.10), in: RoundedRectangle(cornerRadius: 11, style: .continuous))
+            // 공지가 붙은 칩은 조금 더 진하게 — 누를 수 있다는 유일한 시각 신호다(Android 와 같은 값).
+            .background(c.opacity(item.url.isEmpty ? 0.10 : 0.14),
+                        in: RoundedRectangle(cornerRadius: 11, style: .continuous))
     }
 
     /**
