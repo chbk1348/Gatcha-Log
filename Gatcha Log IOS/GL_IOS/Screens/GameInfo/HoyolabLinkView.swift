@@ -36,9 +36,14 @@ struct HoyolabLinkView: View {
                             }
                             Spacer(minLength: 0)
                         }
+                        // 부제가 있는 두 줄짜리라 GLGOutlineButton 으로는 못 바꾼다(제목만 받는다).
+                        // 대신 반지름은 **토큰을 쓴다** — 14 를 숫자로 박아 둔 탓에 버튼 규격을
+                        // 16 으로 통일할 때 이 버튼만 혼자 남았다. 토큰이면 다음 변경에 같이 따라온다.
                         .padding(14).frame(maxWidth: .infinity, alignment: .leading)
-                        .background(accent.primary.opacity(0.12), in: RoundedRectangle(cornerRadius: 14))
-                        .overlay(RoundedRectangle(cornerRadius: 14).stroke(accent.primary.opacity(0.4), lineWidth: 1))
+                        .background(accent.primary.opacity(0.12),
+                                    in: RoundedRectangle(cornerRadius: GLGControlRadius, style: .continuous))
+                        .overlay(RoundedRectangle(cornerRadius: GLGControlRadius, style: .continuous)
+                            .stroke(accent.primary.opacity(0.4), lineWidth: 1))
                     }.buttonStyle(.plain)
 
                     if let msg = collectedMsg {

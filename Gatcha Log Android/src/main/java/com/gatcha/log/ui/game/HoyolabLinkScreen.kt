@@ -24,6 +24,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import androidx.compose.ui.draw.clip
+import com.gatcha.log.ui.components.GlgButtonRadius
 import com.gatcha.log.ui.components.GlgDialog
 import com.gatcha.log.ui.components.GlgBackButton
 import com.gatcha.log.ui.components.GlgDetailHeaderOverlay
@@ -67,9 +68,12 @@ fun HoyolabLinkScreen(config: HoyolabConfig, onSave: (HoyolabConfig) -> Unit, on
                 fontSize = 11.sp, color = TextSecondary,
             )
             // 로그인으로 자동 가져오기 (WebView → 쿠키 추출)
+            // 부제가 있는 두 줄짜리라 GlgButton 으로는 못 바꾼다(제목만 받는다). 대신 반지름은
+            // **토큰을 쓴다** — 14 를 숫자로 박아 둔 탓에 버튼 규격을 16 으로 통일할 때 이 버튼만
+            // 혼자 남았다. 토큰이면 다음 변경에 같이 따라온다.
             Surface(
                 modifier = Modifier.fillMaxWidth().clickable { showEmailGuide = true },
-                shape = RoundedCornerShape(14.dp),
+                shape = RoundedCornerShape(GlgButtonRadius),
                 color = accent.copy(alpha = 0.12f),
                 border = BorderStroke(1.dp, accent.copy(alpha = 0.4f)),
             ) {

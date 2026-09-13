@@ -33,6 +33,8 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.gatcha.log.data.DateUtil
@@ -586,36 +588,67 @@ internal fun SectionPage(
      * 굿즈 목록의 합계 바처럼 "지금까지 고른 결과"를 계속 보여줘야 하는 자리에 쓴다.
      */
     bottomBar: (@Composable () -> Unit)? = null,
+    /**
+     * 헤더 **바로 아래에 붙박이로 서는 줄** — [bottomBar] 의 짝이다.
+     *
+     * 굿즈 목록의 게임 탭처럼 "지금 무엇으로 거르고 있는가" 를 스크롤 내내 보여야 하는 자리에
+     * 쓴다. 목록이 100줄이라 탭이 같이 밀려 올라가면, 거르는 중이라는 사실도 바꾸는 방법도
+     * 화면에서 사라진다.
+     *
+     * 높이는 재서 콘텐츠 위 여백으로 되돌린다 — 숫자로 박아 두면 탭이 한 줄에서 두 줄이 되는
+     * 순간(게임이 늘거나 글자가 길어지면) 첫 항목이 가린다.
+     */
+    stickyTop: (@Composable () -> Unit)? = null,
     content: @Composable () -> Unit,
 ) {
     BackHandler { onBack() }
     // 탭 페이지와 같은 구조 — 콘텐츠는 상태바 뒤까지 스크롤되고, 헤더는 그 위에 고정된다.
     val scrollState = rememberScrollState()
+    val density = LocalDensity.current
+    var stickyHeight by remember { mutableStateOf(0.dp) }
+    // 붙박이 줄 자체를 그리는 조각.
+    //
+    // **바탕판을 깔지 않는다.** 페이지 바탕색을 한 겹 깔아 봤더니 탭 둘레로 네모난 판이 생겨
+    // 화면이 거기서 잘린 것처럼 보였다(하단 합계 바에서 흰 판을 걷어낸 것과 같은 판단이다).
+    // 탭 컴포넌트 자체가 불투명한 흰 면이라 글자는 그대로 읽히고, 비치는 건 좌우 여백뿐이다.
+    val stickyBar: (@Composable BoxScope.() -> Unit)? = stickyTop?.let { slot ->
+        {
+            Box(
+                Modifier
+                    .align(Alignment.TopCenter)
+                    .padding(top = glgDetailContentTop())
+                    .padding(horizontal = 16.dp)
+                    .onSizeChanged { stickyHeight = with(density) { it.height.toDp() } },
+            ) { slot() }
+        }
+    }
     Box(Modifier.fillMaxSize()) {
         if (onRefresh != null) {
             GlgPullToRefreshBox(isRefreshing = isRefreshing, onRefresh = onRefresh, modifier = Modifier.fillMaxSize()) {
                 Column(
                     Modifier.fillMaxSize().navigationBarsPadding().verticalScroll(scrollState)
                         .padding(horizontal = 16.dp)
-                        .padding(top = glgDetailContentTop()),
+                        .padding(top = glgDetailContentTop() + stickyHeight),
                 ) {
                     content()
                     Spacer(Modifier.height(24.dp))
                 }
             }
             GlgDetailHeaderOverlay(title, onBack, scrollState = scrollState, actions = actions)
+            stickyBar?.invoke(this)
             bottomBar?.let { Box(Modifier.align(Alignment.BottomCenter)) { it() } }
             return@Box
         }
         Column(
             Modifier.fillMaxSize().navigationBarsPadding().verticalScroll(scrollState)
                 .padding(horizontal = 16.dp)
-                .padding(top = glgDetailContentTop()),
+                .padding(top = glgDetailContentTop() + stickyHeight),
         ) {
             content()
             Spacer(Modifier.height(24.dp))
         }
         GlgDetailHeaderOverlay(title, onBack, scrollState = scrollState, actions = actions)
+        stickyBar?.invoke(this)
         bottomBar?.let { Box(Modifier.align(Alignment.BottomCenter)) { it() } }
     }
 }
