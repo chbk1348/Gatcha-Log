@@ -748,6 +748,49 @@ data class HoyolandEvent(
         lineup.map { it.game }.firstOrNull { it.isNotBlank() && it in title } ?: ""
 
     /**
+     * 푸드존 — 프로그램 목록에서 **먹는 것만** 따로 뽑는다(별도 페이지가 쓴다).
+     *
+     * 게임마다 메뉴가 10줄 가까이 되어, 프로그램 목록에 그대로 두면 웰컴 키트·전시존이
+     * 메뉴판 사이에 파묻혔다. 성격도 다르다 — 나머지는 "신청·수령"이고 이건 **현장에서
+     * 골라 사는 것**이라 굿즈와 같은 줄에 있어야 한다.
+     *
+     * [programGame] 과 같은 이유로 제목만 본다(config 에 필드를 늘리면 옛 빌드에서 안 걸린다).
+     * '푸드존' · '푸드트럭' 둘 다 쓰이므로 접두사로 받는다.
+     */
+    val foodPrograms: List<HoyolandProgram>
+        get() = programs.filter { it.title.startsWith("푸드") }
+
+    /** 푸드존을 뺀 나머지 프로그램 — 프로그램 섹션이 쓴다. */
+    val otherPrograms: List<HoyolandProgram>
+        get() = programs.filterNot { it.title.startsWith("푸드") }
+
+    /**
+     * 푸드존 입구 줄 — "3곳 · 3,000원 ~ 13,500원".
+     *
+     * 값은 메뉴 본문에서 긁는다. 가격은 원격 config 의 설명 글에만 있고 별도 필드가 없다 —
+     * 굿즈처럼 숫자 필드로 올리면 메뉴가 바뀔 때마다 두 군데를 고쳐야 한다.
+     *
+     * **메뉴 줄(`· 이름 — 7,000원`)만 센다.** 설명 글 전체에서 "원"을 긁으면 "(우유·펄 추가
+     * 시 1,000원)" · "따로 사면 13,000원" 같은 문장 속 숫자가 섞여 최저가가 1,000원이 됐다.
+     * 화면이 값으로 인정하는 줄([HoyolandRichText] 규칙)과 같은 것만 본다.
+     */
+    fun foodEntryLine(): String {
+        val list = foodPrograms
+        if (list.isEmpty()) return "푸드존 정보 공개 전"
+        val prices = list.flatMap { p ->
+            p.desc.split("\n")
+                .filter { it.startsWith("· ") && " — " in it }
+                .mapNotNull { PriceRegex.find(it.substringAfterLast(" — "))?.groupValues?.get(1) }
+                .mapNotNull { it.replace(",", "").toIntOrNull() }
+        }
+        val count = "${list.size}곳"
+        if (prices.isEmpty()) return "$count · 게임별 메뉴"
+        val lo = prices.min()
+        val hi = prices.max()
+        return if (lo == hi) "$count · ${wonLabel(lo)}" else "$count · ${wonLabel(lo)} ~ ${wonLabel(hi)}"
+    }
+
+    /**
      * 화면에 싣는 굿즈 — **앱이 다루는 게임 것과 행사 공용만.**
      *
      * 호요랜드에는 붕괴3rd·미해결사건부처럼 이 앱이 기록을 다루지 않는 IP 도 나온다. 그 굿즈까지
@@ -902,6 +945,9 @@ data class HoyolandEvent(
     }
 
     companion object {
+        /** 푸드존 메뉴 글에서 "7,000원" 같은 값을 긁는다 — [foodEntryLine] 의 가격대. */
+        private val PriceRegex = Regex("""([\d,]+)원""")
+
         /** 홈·일정 탭 노출을 시작하는 시점(개막 D-60). 그 전엔 게임정보 탭에서만 보인다. */
         const val FEATURE_WINDOW_DAYS = 60
 

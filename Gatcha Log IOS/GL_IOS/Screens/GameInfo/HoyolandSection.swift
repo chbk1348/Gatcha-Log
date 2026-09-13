@@ -126,37 +126,21 @@ struct HoyolandDetailView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
                 heroCard(e)
-                ticketSection(e)
-                // ── 현장에서 — 시간표 · 굿즈 목록 · 부스 체험.
+                // ── 두 섹션의 순서는 **개막일에 뒤집힌다.**
                 //
-                // 셋 다 본문에 펼치면 이 페이지의 본론(언제·어디서)이 스크롤 저 아래로 밀린다.
-                // 시간표만 **전체 폭**을 주는 이유: 나머지 둘과 달리 "지금 무대에서 무엇을
-                // 하는가"는 이 페이지가 답해야 하는 질문에 가장 가깝다.
-                //
-                // 제목을 붙이는 이유: 다른 섹션은 전부 [여백 20 + 제목 + 10] 인데 여기만 제목이
-                // 없어 **예매 카드에 딸린 것처럼** 보였다.
-                Text("현장에서").font(.pretendard(size: 16, weight: .bold))
-                    .padding(.top, 20).padding(.bottom, 10)
-                NavigationLink { HoyolandStageView(event: event) } label: {
-                    subEntryWideCard("일자별 시간표", event.stageEntryLine(nowMillis: nowMs()), "calendar")
-                }
-                .buttonStyle(.plain)
-                HStack(spacing: 10) {
-                    NavigationLink { HoyolandGoodsView(event: event, store: store) } label: {
-                        subEntryCard("굿즈 목록",
-                                     event.goodsPriceRange().isEmpty ? "판매 목록 공개 전" : event.goodsPriceRange(),
-                                     "bag.fill")
+                // 개막 전에는 이 페이지를 여는 이유가 "표를 어떻게 사나" 하나뿐이라 예매가 위다.
+                // 개막일 0시부터는 반대다 — 표는 이미 있고, 현장에서 꺼내 드는 건 시간표·굿즈·
+                // 부스·푸드존이다. 그때도 예매가 위에 있으면 매번 지나쳐 스크롤해야 하는 덩이가 된다.
+                // (HoyolandEvent.phase 가 기기 시간의 날짜로 판정하므로 10.2 00:00 에 그대로 바뀐다.)
+                Group {
+                    if e.phase(nowMillis: nowMs()) == .before {
+                        ticketSection(e).padding(.top, 20)
+                        onsiteSection(e).padding(.top, 20)
+                    } else {
+                        onsiteSection(e).padding(.top, 20)
+                        ticketSection(e).padding(.top, 20)
                     }
-                    .buttonStyle(.plain)
-                    NavigationLink { HoyolandBoothView(event: event) } label: {
-                        subEntryCard("부스 체험",
-                                     event.booths.isEmpty ? "부스 정보 공개 전"
-                                                          : "\(event.booths.count)곳 · 게임별 체험존",
-                                     "storefront.fill")
-                    }
-                    .buttonStyle(.plain)
                 }
-                .padding(.top, 10)
                 programSection(e)
                 pastSection(e)
 
@@ -360,13 +344,27 @@ struct HoyolandDetailView: View {
     @ViewBuilder private func ticketSection(_ e: HoyolandEvent) -> some View {
         // 미정일 때 강조색을 쓰면 정해진 것처럼 보인다 — 회색으로 낮춘다.
         let tone: Color = e.ticket.isUndecided ? GLGColor.textSecondary : accent.primary
-        let facts: [(String, String)] = [
-            ("예매처", e.ticket.vendor), ("오픈", e.ticket.openLabel), ("가격", e.ticket.priceLabel),
-        ].filter { !$0.1.isEmpty }
+        // config 값은 "29,000원 · 수수료 1,000원 (결제 30,000원)" 한 줄이다. 그대로 깔면 세 숫자가
+        // 같은 크기로 붙어 있어 얼마를 내는지 한 번에 안 읽힌다. 괄호 안을 머리로 올리고 내역은
+        // 작게 내린다 — 괄호가 없는 표기로 바뀌어도 줄 전체가 머리로 간다.
+        let paid = e.ticket.priceLabel.components(separatedBy: "(").count > 1
+            ? e.ticket.priceLabel.components(separatedBy: "(")[1]
+                .components(separatedBy: ")")[0].trimmingCharacters(in: .whitespaces)
+            : ""
+        let breakdown = (e.ticket.priceLabel.components(separatedBy: "(").first ?? "")
+            .trimmingCharacters(in: .whitespaces)
 
-        Text("예매").font(.pretendard(size: 16, weight: .bold)).padding(.top, 20).padding(.bottom, 10)
+        // 섹션 전체를 하나의 VStack 으로 낸다 — 개막일에 「현장에서」와 자리를 맞바꾸느라
+        // 이 함수의 결과에 통째로 여백을 거는데, 여러 뷰를 흩어 내면 그게 걸리지 않는다.
+        VStack(alignment: .leading, spacing: 0) {
+        Text("예매").font(.pretendard(size: 16, weight: .bold)).padding(.bottom, 10)
         GLGCard(cornerRadius: 24, padding: 16) {
             VStack(alignment: .leading, spacing: 0) {
+                // ── 머리 — **언제 여는지**가 이 카드의 답이다.
+                //
+                // 예전엔 오픈 일시가 아래 "오픈  9월 14일(월) 19:00" 라벨 줄에 있었고, 아이콘 옆
+                // 오른칸은 안내문 열 줄이 차지했다. 폭이 좁은 칸에 긴 글이 접혀 들어가 카드에서
+                // 제일 큰 덩이가 됐는데, 정작 먼저 읽어야 할 날짜·시각은 그 아래 작은 라벨이었다.
                 HStack(spacing: 12) {
                     ZStack {
                         RoundedRectangle(cornerRadius: 11, style: .continuous)
@@ -374,23 +372,46 @@ struct HoyolandDetailView: View {
                         Image(systemName: "ticket.fill").font(.system(size: 18, weight: .semibold))
                             .foregroundStyle(tone)
                     }
-                    VStack(alignment: .leading, spacing: 6) {
-                        HStack { hoyoBadge(e.ticket.statusLabel, tone); Spacer(minLength: 0) }
-                        // 예매 절차를 번호로 내려놓는 값이라 여러 줄이 된다 — 줄간을 준다.
-                        Text(e.ticket.note).font(.pretendard(size: 12.5))
-                            .foregroundStyle(GLGColor.textSecondary)
-                            .lineSpacing(5)
-                            .fixedSize(horizontal: false, vertical: true)
+                    VStack(alignment: .leading, spacing: 7) {
+                        HStack(spacing: 6) {
+                            hoyoBadge(e.ticket.statusLabel, tone)
+                            // 예매처는 배지 옆 부제 — 라벨 줄 하나를 쓰기엔 값이 한 낱말이다.
+                            if !e.ticket.vendor.isEmpty {
+                                hoyoBadge(e.ticket.vendor, GLGColor.textSecondary)
+                            }
+                            Spacer(minLength: 0)
+                        }
+                        if !e.ticket.openLabel.isEmpty {
+                            Text(e.ticket.openLabel)
+                                .font(.pretendard(size: 17, weight: .bold))
+                                .foregroundStyle(GLGColor.textPrimary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
                     }
                     Spacer(minLength: 0)
                 }
-                // 예매가 공개되면 채워지는 자리 — 값이 없는 줄은 아예 그리지 않는다.
-                if !facts.isEmpty {
+                // ── 가격 — **실제로 결제하는 금액**을 제일 크게.
+                if !e.ticket.priceLabel.isEmpty {
                     Divider().padding(.vertical, 14)
-                    ForEach(Array(facts.enumerated()), id: \.offset) { i, f in
-                        if i > 0 { Spacer().frame(height: 8) }
-                        factRow(f.0, f.1)
+                    HStack(spacing: 10) {
+                        Text("가격").font(.pretendard(size: 13)).foregroundStyle(GLGColor.textSecondary)
+                        Spacer(minLength: 0)
+                        VStack(alignment: .trailing, spacing: 3) {
+                            Text(paid.isEmpty ? breakdown : paid)
+                                .font(.pretendard(size: 18, weight: .bold)).monospacedDigit()
+                                .foregroundStyle(tone)
+                            if !paid.isEmpty && !breakdown.isEmpty {
+                                Text(breakdown).font(.pretendard(size: 11.5))
+                                    .foregroundStyle(GLGColor.textSecondary)
+                            }
+                        }
                     }
+                }
+                // ── 안내 — 카드 **전체 폭**으로 내린다. 순서·조별 시각이 줄 단위로 서야
+                // 현장에서 훑어 읽을 수 있다(HoyolandRichText).
+                if !e.ticket.note.isEmpty {
+                    Divider().padding(.vertical, 14)
+                    HoyolandRichText(text: e.ticket.note, valueColor: tone)
                 }
                 if let url = hoyoURL(e.ticket.url) {
                     // 아래 '지도에서 보기' 와 **같은 컴포넌트**를 쓴다([GLGOutlineButton]).
@@ -419,6 +440,53 @@ struct HoyolandDetailView: View {
                     }
                     .padding(.top, 14)
                 }
+            }
+        }
+        }
+    }
+
+    /**
+     현장에서 — 시간표 · 굿즈 목록 · 부스 체험 · 푸드존.
+
+     넷 다 본문에 펼치면 이 페이지의 본론(언제·어디서)이 스크롤 저 아래로 밀린다.
+     시간표·푸드존에 **전체 폭**을 주는 이유: 요약 한 줄(지금 무대 / 가격대)이 들어가야
+     눌러 보기 전에 값을 안다.
+
+     제목을 붙이는 이유: 다른 섹션은 전부 [여백 20 + 제목 + 10] 인데 여기만 제목이 없어
+     **예매 카드에 딸린 것처럼** 보였다.
+     */
+    @ViewBuilder private func onsiteSection(_ e: HoyolandEvent) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text("현장에서").font(.pretendard(size: 16, weight: .bold)).padding(.bottom, 10)
+            NavigationLink { HoyolandStageView(event: e) } label: {
+                subEntryWideCard("일자별 시간표", e.stageEntryLine(nowMillis: nowMs()), "calendar")
+            }
+            .buttonStyle(.plain)
+            HStack(spacing: 10) {
+                NavigationLink { HoyolandGoodsView(event: e, store: store) } label: {
+                    subEntryCard("굿즈 목록",
+                                 e.goodsPriceRange().isEmpty ? "판매 목록 공개 전" : e.goodsPriceRange(),
+                                 "bag.fill")
+                }
+                .buttonStyle(.plain)
+                NavigationLink { HoyolandBoothView(event: e) } label: {
+                    subEntryCard("부스 체험",
+                                 e.booths.isEmpty ? "부스 정보 공개 전"
+                                                  : "\(e.booths.count)곳 · 게임별 체험존",
+                                 "storefront.fill")
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(.top, 10)
+            // 푸드존은 **프로그램 목록에서 빼내 여기로** 옮겼다. 게임마다 메뉴가 열 줄 가까이라
+            // 프로그램 섹션에 두면 웰컴 키트·전시존이 메뉴판 사이에 파묻혔고, 성격도 "현장에서
+            // 골라 사는 것"이라 굿즈·부스와 같은 줄이 맞다.
+            if !e.foodPrograms.isEmpty {
+                NavigationLink { HoyolandFoodView(event: e) } label: {
+                    subEntryWideCard("푸드존", e.foodEntryLine(), "fork.knife")
+                }
+                .buttonStyle(.plain)
+                .padding(.top, 10)
             }
         }
     }
@@ -496,15 +564,18 @@ struct HoyolandDetailView: View {
 
     // ── 프로그램 — 본편과 별개로 **참여 마감이 따로 있는** 것들이라 날짜를 눈에 띄게 둔다.
     @ViewBuilder private func programSection(_ e: HoyolandEvent) -> some View {
-        if !e.programs.isEmpty {
-            Text("프로그램").font(.pretendard(size: 16, weight: .bold)).padding(.top, 20).padding(.bottom, 10)
+        if !e.otherPrograms.isEmpty {
+            // 제목이 "프로그램" 이었을 때는 시간표·부스·푸드존까지 다 프로그램이라 위 「현장에서」와
+            // 경계가 없었다. 푸드존이 빠져나간 지금 이 섹션에 남은 건 **미리 신청하거나(전시존)
+            // 받는 것(웰컴 키트)** 뿐이라, 하는 일로 부른다.
+            Text("응모 · 특전").font(.pretendard(size: 16, weight: .bold)).padding(.top, 20).padding(.bottom, 10)
             // 한 장짜리 카드에 구분선으로 쌓다가 **항목당 카드**로 갈아탔다. 웰컴 키트가 들어오며
             // 항목이 다섯으로 늘고 본문이 여러 줄이 되자, 구분선 하나로는 어디서 끊기는지 안 보여
             // 글자 벽이 됐다. 굿즈·부스가 이미 카드 목록이라 규격도 그쪽에 맞춘다.
             //
             // 게임 배지는 HoyolandEvent.programGame 이 제목에서 가려낸다 — 웰컴 키트 넷이 나란히
             // 서기 때문에 색이 없으면 내 것을 찾으려고 매번 제목을 읽어야 한다.
-            ForEach(Array(e.programs.enumerated()), id: \.offset) { i, p in
+            ForEach(Array(e.otherPrograms.enumerated()), id: \.offset) { i, p in
                 let pg = e.programGame(title: p.title)
                 let pc = pg.isEmpty ? GLGColor.textSecondary : programColor(e, pg)
                 GLGCard(cornerRadius: 24, padding: 0) {
