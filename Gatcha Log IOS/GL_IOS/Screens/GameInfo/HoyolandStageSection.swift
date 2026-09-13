@@ -244,8 +244,10 @@ struct HoyolandStageView: View {
     /// 무대 한 줄 — [시각 · 게임 배지] | 제목 · 설명 · 출연. 지난 편은 흐리게.
     @ViewBuilder private func stageRow(_ e: HoyolandEvent, _ item: StageSlot, isLive: Bool) -> some View {
         let c = stageColor(e, item.slot.game)
-        let sub = [item.slot.desc.isEmpty ? nil : item.slot.desc,
-                   item.slot.minutes > 0 ? "\(item.slot.minutes)분" : nil]
+        // 길이를 **설명 앞**에 둔다. 뒤에 붙이면 설명이 여러 줄일 때 "60분" 이 마지막 줄 꼬리에
+        // 달라붙는데, 그 줄이 하필 "※ 주의…" 여서 주의 문구가 길이 표기에 먹혔다.
+        let sub = [item.slot.minutes > 0 ? "\(item.slot.minutes)분" : nil,
+                   item.slot.desc.isEmpty ? nil : item.slot.desc]
                     .compactMap { $0 }.joined(separator: " · ")
         HStack(alignment: .center, spacing: 0) {
             // 좌측 열은 **자기 칸 정중앙**에 놓는다 — 시각·배지 폭이 게임마다 달라 왼쪽 정렬로
@@ -273,8 +275,12 @@ struct HoyolandStageView: View {
                     .foregroundStyle(GLGColor.textPrimary)
                     .fixedSize(horizontal: false, vertical: true)
                 if !sub.isEmpty {
+                    // 설명에 줄바꿈이 들어 있다(조별 입장 시각 · ※ 주의) — 줄간을 준다.
                     Text(sub).font(.pretendard(size: 11.5))
-                        .foregroundStyle(GLGColor.textSecondary).padding(.top, 2)
+                        .foregroundStyle(GLGColor.textSecondary)
+                        .lineSpacing(4)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.top, 2)
                 }
                 // 출연자 — 무대를 고르는 기준이 공연명보다 출연자일 때가 많다(성우 무대가 특히).
                 if !item.slot.cast.isEmpty {
