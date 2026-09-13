@@ -350,12 +350,13 @@ struct HoyolandDetailView: View {
                     }
                 }
                 if let url = hoyoURL(e.ticket.url) {
-                    Link(destination: url) {
-                        Text("예매하기").font(.pretendard(size: 14, weight: .semibold))
-                            .foregroundStyle(accent.primary).frame(maxWidth: .infinity)
-                            .padding(.vertical, 12)
-                            .overlay(RoundedRectangle(cornerRadius: 23, style: .continuous)
-                                .stroke(accent.primary.opacity(0.5), lineWidth: 1))
+                    // 아래 '지도에서 보기' 와 **같은 컴포넌트**를 쓴다([GLGOutlineButton]).
+                    // 여기만 직접 그린 테두리(반지름 23)에 Link 로 남아 있어서, 버튼 규격을 16 으로
+                    // 통일한 뒤에도 한 카드 안에서 두 버튼의 모서리가 서로 달랐다. 직접 그리면
+                    // OS 가 버튼에 주는 눌림·하이라이트·접근성 처리도 못 받는다.
+                    // Link 대신 openURL 인 것도 같은 이유다 — 모양을 시스템에 맡기려면 Button 이어야 한다.
+                    GLGOutlineButton(title: "예매하기", systemImage: "ticket") {
+                        openURL(url)
                     }
                     .padding(.top, 14)
                 }
@@ -524,6 +525,7 @@ private let GLGLiveRed = Color(hex: 0xFFE8634A)
  */
 struct GstarDetailView: View {
     @Environment(\.glgAccent) private var accent
+    @Environment(\.openURL) private var openURL
     @State private var event: HoyolandEvent = HoyolandApi.shared.current
 
     var body: some View {
@@ -540,12 +542,10 @@ struct GstarDetailView: View {
                     partnerSection(g)
                     otherFactSection(g)
                     if let url = hoyoURL(g.url) {
-                        Link(destination: url) {
-                            Text("공식 사이트").font(.pretendard(size: 14, weight: .semibold))
-                                .foregroundStyle(accent.primary).frame(maxWidth: .infinity)
-                                .padding(.vertical, 12)
-                                .overlay(RoundedRectangle(cornerRadius: 23, style: .continuous)
-                                    .stroke(accent.primary.opacity(0.5), lineWidth: 1))
+                        // 예매하기·지도에서 보기와 같은 컴포넌트. 직접 그린 테두리는 버튼 규격이
+                        // 바뀔 때마다 이렇게 혼자 남는다.
+                        GLGOutlineButton(title: "공식 사이트", systemImage: "safari") {
+                            openURL(url)
                         }
                         .padding(.top, 20)
                     }
