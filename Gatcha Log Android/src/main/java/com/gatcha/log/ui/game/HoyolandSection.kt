@@ -41,6 +41,9 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
@@ -999,9 +1002,14 @@ fun HoyolandGoodsContent(e: HoyolandEvent, cart: HoyolandCart, onQuantity: (Stri
             HoyolandGoodsCard(e, item, cart.quantityOf(item.name), onQuantity)
         }
     }
-    // 하단 고정 바에 가리지 않게 — 바 높이(알약 + 위아래 여백)만큼 비워 둔다.
-    // **담은 게 없으면 바도 없다.** 84dp 를 늘 비워 두면 빈 화면이 한 뼘 딸려 나온다.
-    Spacer(Modifier.height(if (cart.isEmpty) 24.dp else 84.dp))
+    // 하단 고정 바에 가리지 않게 비워 둔다. 이 바는 콘텐츠를 밀지 않고 **위에 겹치므로**
+    // (SectionPage 가 Box.align(BottomCenter) 로 얹는다) 여기서 비운 만큼만 안전해진다.
+    //
+    // 제스처 바 높이를 더한다 — 바 자신은 navigationBarsPadding 으로 그만큼 위로 올라앉는데
+    // 여백은 84dp 고정이라, 기기마다 마지막 굿즈가 알약에 조금씩 덮였다.
+    // **담은 게 없으면 바도 없다** — 그땐 24dp 만 둔다(늘 비우면 빈 화면이 한 뼘 딸려 나온다).
+    val navBottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+    Spacer(Modifier.height(if (cart.isEmpty) 24.dp else 84.dp + navBottom))
 }
 
 /**
