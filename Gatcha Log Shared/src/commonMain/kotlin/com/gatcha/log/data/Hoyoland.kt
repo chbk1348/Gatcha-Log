@@ -180,12 +180,38 @@ data class HoyolandGoods(
      */
     val limitLabel: String get() = noteParts.firstOrNull { LimitRegex.matches(it) } ?: ""
 
-    /** [limitLabel] 을 뺀 나머지 비고 — 갈래 옆에 붙는 줄이 제한 표기와 겹치지 않게 한다. */
-    val noteRest: String get() = noteParts.filterNot { LimitRegex.matches(it) }.joinToString(" · ")
+    /**
+     * "호요랜드2026 시리즈" — **이 행사에서만 파는 물건**이라는 표기. 없으면 빈 문자열.
+     *
+     * 다음에 사면 되는 상설 굿즈와 달리 여기서 놓치면 끝이라, 갈래 옆 회색 줄에 묻어 두지 않고
+     * 배지로 뺀다. '신월의 축복' 같은 값은 상품 라인업 이름이지 행사 한정이 아니므로 걸리지
+     * 않는다 — "시리즈" 로 끝나는 조각만 본다.
+     */
+    val seriesLabel: String get() = noteParts.firstOrNull { it.endsWith("시리즈") } ?: ""
+
+    /** 배지로 빠진 [limitLabel]·[seriesLabel] 을 뺀 나머지 비고 — 같은 값이 두 번 나오지 않게 한다. */
+    val noteRest: String
+        get() = noteParts.filterNot { LimitRegex.matches(it) || it == seriesLabel }.joinToString(" · ")
+
+    /**
+     * "1인 5개 한정" 에서 **5**. 제한이 없거나 숫자를 못 읽으면 0.
+     *
+     * 표시만 하고 끝내면 장바구니에 열 개를 담아 놓고 현장에서야 못 산다는 걸 안다 — 이 앱이
+     * 답하려는 "얼마 들고 가야 하나" 가 그만큼 틀어진다. 담기 수량을 실제로 이 값에서 끊는다
+     * (`SpendingViewModel.setGoodsQuantity`).
+     */
+    val limitPerPerson: Int
+        get() = LimitCountRegex.find(limitLabel)?.groupValues?.get(1)?.toIntOrNull() ?: 0
 
     private companion object {
         /** "1인 5개 한정" · "1인 2매 한정" 을 모두 받는다. 수량 단위는 품목마다 다르다. */
         val LimitRegex = Regex("""^1인\s+\S+\s*한정$""")
+
+        /**
+         * 수량 자리만 집는다. 숫자를 통째로 긁으면 **'1인' 의 1 이 앞에 붙어** "1인 5개" 가
+         * 15 가 된다 — 다섯 개 제한이 열다섯 개로 풀린다.
+         */
+        val LimitCountRegex = Regex("""^1인\s+(\d+)""")
     }
 }
 
@@ -670,6 +696,22 @@ data class HoyolandEvent(
     /** 그날 무대에 오르는 게임들(원본 순서, 중복 제거) — 필터 칩이 쓴다. */
     fun stageGames(ymd: String): List<String> =
         slotsFor(ymd).map { it.game }.filter { it.isNotBlank() }.distinct()
+
+    /**
+     * 프로그램 제목에 든 게임 이름. 없으면 빈 문자열.
+     *
+     * 웰컴 키트처럼 **게임별로 갈리는 항목**이 프로그램 목록에 섞여 든다("웰컴 키트 — 원신").
+     * 카드에 게임 배지를 달아 주면 넷이 나란히 서도 내 것이 한눈에 걸린다.
+     *
+     * [HoyolandProgram] 에 game 필드를 새로 두지 않는 이유: 이 목록은 **앱 업데이트 없이 갱신되는
+     * 원격 설정**이다. 필드를 늘리면 그 값을 읽는 빌드가 깔리기 전까지는 배지가 안 나오는데,
+     * 제목에서 가려내면 오늘 올린 config 가 오늘 그대로 걸린다.
+     *
+     * 제목만 본다 — 설명까지 뒤지면 '2차 창작물 전시존' 처럼 본문에 세 게임을 나열하는 항목이
+     * 엉뚱한 색을 얻는다. [lineup] 에 있는 이름만 찾으므로 행사에 없는 게임은 걸리지 않는다.
+     */
+    fun programGame(title: String): String =
+        lineup.map { it.game }.firstOrNull { it.isNotBlank() && it in title } ?: ""
 
     /**
      * 화면에 싣는 굿즈 — **앱이 다루는 게임 것과 행사 공용만.**

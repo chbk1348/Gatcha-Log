@@ -248,7 +248,22 @@ class SpendingViewModel : ViewModel() {
     fun toggleGoods(name: String) = updateCart { it.toggle(name) }
 
     /** 수량 지정 — 0 이하면 목록에서 빠진다. */
-    fun setGoodsQuantity(name: String, quantity: Int) = updateCart { it.withQuantity(name, quantity) }
+    /**
+     * 굿즈 담기 수량. **품목별 '1인 N개 한정' 에서 끊는다.**
+     *
+     * 제한을 화면에만 적어 두면 장바구니에 열 개를 담아 놓고 현장에서야 못 산다는 걸 안다 —
+     * 이 앱이 답하려는 "얼마 들고 가야 하나" 가 그만큼 틀어진다. 여기서 막는 이유는 굿즈 목록과
+     * 장바구니, 안드로이드와 iOS 의 모든 스테퍼가 이 한 함수를 지나기 때문이다. 화면마다 막으면
+     * 한 곳을 빠뜨렸을 때 조용히 새는데, 새는 쪽이 하필 "더 담을 수 있다" 다.
+     */
+    fun setGoodsQuantity(name: String, quantity: Int) =
+        updateCart { it.withQuantity(name, quantity.coerceAtMost(goodsLimitFor(name))) }
+
+    /** 그 굿즈의 1인 한정 수량. 제한이 없으면 장바구니 공통 상한. */
+    private fun goodsLimitFor(name: String): Int =
+        HoyolandApi.current.goods.firstOrNull { it.name == name }
+            ?.limitPerPerson?.takeIf { it > 0 }
+            ?: HoyolandCart.MAX_QUANTITY
 
     fun clearGoodsCart() = updateCart { it.cleared() }
 

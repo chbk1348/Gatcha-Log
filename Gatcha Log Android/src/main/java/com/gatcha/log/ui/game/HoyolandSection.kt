@@ -18,6 +18,8 @@ import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
@@ -692,23 +694,43 @@ fun HoyolandDetailContent(onOpenSub: (HoyolandSub) -> Unit = {}) {
     }
 
     // ── 프로그램 — 본편과 별개로 **참여 마감이 따로 있는** 것들이라 날짜를 눈에 띄게 둔다.
+    //
+    // 한 장짜리 카드에 구분선으로 쌓다가 **항목당 카드**로 갈아탔다. 웰컴 키트가 들어오면서
+    // 항목이 다섯으로 늘고 본문이 여러 줄이 되자, 구분선 하나로는 어디서 끊기는지 안 보여
+    // 글자 벽이 됐다. 굿즈·부스가 이미 카드 목록이라 규격도 그쪽에 맞춘다.
+    //
+    // 게임 배지는 [HoyolandEvent.programGame] 이 제목에서 가려낸다 — 웰컴 키트 넷이 나란히
+    // 서기 때문에 색이 없으면 내 것을 찾으려고 매번 제목을 읽어야 한다.
     if (e.programs.isNotEmpty()) {
         Spacer(Modifier.height(20.dp))
         Text("프로그램", fontSize = 16.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 10.dp))
-        GlassCard(modifier = Modifier.fillMaxWidth()) {
-            Column(Modifier.padding(16.dp)) {
-                e.programs.forEachIndexed { i, p ->
-                    if (i > 0) {
-                        Spacer(Modifier.height(12.dp))
-                        Box(Modifier.fillMaxWidth().height(1.dp).background(DividerColor))
-                        Spacer(Modifier.height(12.dp))
+        e.programs.forEachIndexed { i, p ->
+            if (i > 0) Spacer(Modifier.height(10.dp))
+            val pg = e.programGame(p.title)
+            val pc = e.stageColor(pg).let { if (it == 0L) TextSecondary else it.toColor() }
+            GlassCard(modifier = Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(start = 16.dp, end = 16.dp, top = 14.dp, bottom = 14.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        if (pg.isNotBlank()) {
+                            Text(
+                                e.stageLabel(pg),
+                                fontSize = 9.5.sp, fontWeight = FontWeight.Black, color = pc,
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .background(pc.copy(alpha = 0.14f))
+                                    .padding(horizontal = 6.dp, vertical = 3.dp),
+                            )
+                            Spacer(Modifier.width(8.dp))
+                        }
+                        Text(p.title, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
                     }
-                    Text(p.title, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
-                    Spacer(Modifier.height(3.dp))
-                    // 웰컴 키트처럼 구성품을 줄바꿈으로 늘어놓는 값이 있어 줄간을 준다.
-                    Text(p.desc, fontSize = 12.5.sp, color = TextSecondary, lineHeight = 19.sp)
+                    if (p.desc.isNotBlank()) {
+                        Spacer(Modifier.height(9.dp))
+                        // 웰컴 키트처럼 구성품을 줄바꿈으로 늘어놓는 값이 있어 줄간을 넉넉히 준다.
+                        Text(p.desc, fontSize = 13.sp, color = TextSecondary, lineHeight = 21.sp)
+                    }
                     if (p.deadline.isNotBlank()) {
-                        Spacer(Modifier.height(8.dp))
+                        Spacer(Modifier.height(10.dp))
                         GlgBadge(p.deadline, accent)
                     }
                 }
@@ -1030,13 +1052,12 @@ private fun HoyolandGoodsCard(
             Text(item.name, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextPrimary, lineHeight = 18.sp)
             Spacer(Modifier.height(3.dp))
             // 게임 라벨은 왼쪽 48 칸이 이미 말하고 있다 — 여기 칩까지 두면 한 줄에 같은
-            // 글자가 두 번 나온다. 갈래·비고만 남긴다(구매 제한은 아래 띠로 빠진다).
-            val meta = listOfNotNull(
-                item.category.ifBlank { null },
-                item.noteRest.ifBlank { null },
-            ).joinToString(" · ")
-            if (meta.isNotBlank()) {
-                Text(meta, fontSize = 11.sp, color = c)
+            // 글자가 두 번 나온다. 갈래(분류)도 싣지 않는다 — '아크릴 스탠드' 처럼 이름과 거의
+            // 같은 말이 한 줄 아래 또 나오고, 고를 때 실제로 쓰이는 값은 가격과 한정 여부다.
+            // 시리즈·구매 제한은 아래 띠에 배지로 빠진다.
+            if (item.noteRest.isNotBlank()) {
+                // 구성품이 긴 품목(테마 패키지)은 note 안에 줄바꿈이 들어 있어 두 줄이 된다.
+                Text(item.noteRest, fontSize = 11.sp, color = c, lineHeight = 16.sp)
             }
         }
         Column(
@@ -1051,26 +1072,43 @@ private fun HoyolandGoodsCard(
                 style = LocalTextStyle.current.copy(fontFeatureSettings = "tnum"),
             )
             Spacer(Modifier.height(6.dp))
-            when {
-                quantity <= 0 -> GoodsAddButton("담기") { onQuantity(item.name, 1) }
-                else -> Row(
-                    Modifier.clip(RoundedCornerShape(9.dp)).border(1.dp, DividerColor, RoundedCornerShape(9.dp)),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    GoodsStepButton("−") { onQuantity(item.name, quantity - 1) }
-                    Text(
-                        "$quantity",
-                        fontSize = 12.sp, fontWeight = FontWeight.Black, color = TextPrimary,
-                        textAlign = TextAlign.Center, modifier = Modifier.width(30.dp),
-                    )
-                    GoodsStepButton("+") { onQuantity(item.name, quantity + 1) }
+            // 「담기」 ↔ 스테퍼 전환. 값만 갈아 끼우면 버튼이 있던 자리에 스테퍼가 **툭 나타나서**
+            // 내가 누른 것이 반영된 것인지, 원래 그랬던 것인지 순간 헷갈린다. 담을 때도 뺄 때도
+            // 같은 전환을 태워 "이게 방금 내가 만든 변화" 라는 것을 보이게 한다.
+            // 두 상태의 높이가 26dp 로 같아 전환 중에도 줄이 흔들리지 않는다.
+            AnimatedContent(
+                targetState = quantity > 0,
+                transitionSpec = {
+                    (fadeIn(glgStandardSpec()) + scaleIn(glgStandardSpec(), initialScale = 0.9f))
+                        .togetherWith(fadeOut(glgShortSpec()) + scaleOut(glgShortSpec(), targetScale = 0.9f))
+                },
+                label = "goodsQuantity",
+            ) { added ->
+                if (!added) {
+                    GoodsAddButton("담기") { onQuantity(item.name, 1) }
+                } else {
+                    Row(
+                        Modifier.clip(RoundedCornerShape(9.dp)).border(1.dp, DividerColor, RoundedCornerShape(9.dp)),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        GoodsStepButton("−") { onQuantity(item.name, quantity - 1) }
+                        Text(
+                            "$quantity",
+                            fontSize = 12.sp, fontWeight = FontWeight.Black, color = TextPrimary,
+                            textAlign = TextAlign.Center, modifier = Modifier.width(30.dp),
+                        )
+                        GoodsStepButton("+") { onQuantity(item.name, quantity + 1) }
+                    }
                 }
             }
         }
     }
-    // 구매 제한 — 카드 폭을 꽉 채운 띠 한 줄. 사기 전에 걸리는 조건이라 '가격 미정' 안내와
-    // 같은 경고색을 쓴다. 제한이 없는 품목은 띠 자체를 세우지 않는다(전부 붙이면 눈이 거른다).
-    if (item.limitLabel.isNotBlank()) {
+    // 행사 한정 조건 띠 — 카드 폭을 꽉 채운 한 줄. 사기 전에 걸리는 값이라 '가격 미정' 안내와
+    // 같은 경고색을 쓴다. 둘 다 없는 품목은 띠 자체를 세우지 않는다(전부 붙이면 눈이 거른다).
+    //
+    // '호요랜드2026 시리즈' 는 **이 행사에서만 파는 물건**이라는 뜻이라 배지로 뺀다. 상설 굿즈는
+    // 다음에 사면 되지만 이건 놓치면 끝이고, 그 판단이 갈래 옆 회색 줄에 묻혀 있었다.
+    if (item.limitLabel.isNotBlank() || item.seriesLabel.isNotBlank()) {
         Row(
             Modifier
                 .fillMaxWidth()
@@ -1078,10 +1116,23 @@ private fun HoyolandGoodsCard(
                 .padding(horizontal = 16.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(
-                item.limitLabel,
-                fontSize = 11.sp, fontWeight = FontWeight.Bold, color = WarnText,
-            )
+            if (item.seriesLabel.isNotBlank()) {
+                Text(
+                    item.seriesLabel,
+                    fontSize = 10.sp, fontWeight = FontWeight.Black, color = WarnText,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(999.dp))
+                        .background(WarnText.copy(alpha = 0.14f))
+                        .padding(horizontal = 7.dp, vertical = 2.dp),
+                )
+                if (item.limitLabel.isNotBlank()) Spacer(Modifier.width(7.dp))
+            }
+            if (item.limitLabel.isNotBlank()) {
+                Text(
+                    item.limitLabel,
+                    fontSize = 11.sp, fontWeight = FontWeight.Bold, color = WarnText,
+                )
+            }
         }
     }
 }

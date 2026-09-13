@@ -69,7 +69,8 @@ class HoyolandGoodsTest {
     fun 한정_표기를_비고에서_떼어낸다() {
         val g = HoyolandGoods("아크릴 스탠드", 24000, note = "호요랜드2026 시리즈 · 디자인 2종 · 1인 5개 한정")
         assertEquals("1인 5개 한정", g.limitLabel)
-        assertEquals("호요랜드2026 시리즈 · 디자인 2종", g.noteRest)
+        // 시리즈도 배지로 빠지므로 본문에는 나머지만 남는다.
+        assertEquals("디자인 2종", g.noteRest)
     }
 
     @Test
@@ -89,6 +90,30 @@ class HoyolandGoodsTest {
     @Test
     fun 수량_단위가_달라도_한정으로_읽는다() {
         assertEquals("1인 2매 한정", HoyolandGoods("색지", 0, note = "랜덤 · 1인 2매 한정").limitLabel)
+    }
+
+    @Test
+    fun 한정_수량을_숫자로_읽는다() {
+        // 숫자를 통째로 긁으면 '1인' 의 1 이 앞에 붙어 15 가 된다 — 다섯 개 제한이 열다섯이 된다.
+        assertEquals(5, HoyolandGoods("여권 케이스", 0, note = "1인 5개 한정").limitPerPerson)
+        assertEquals(2, HoyolandGoods("색지", 0, note = "랜덤 · 1인 2매 한정").limitPerPerson)
+        assertEquals(0, HoyolandGoods("장우산", 0, note = "잡화").limitPerPerson)
+    }
+
+    @Test
+    fun 행사_한정_시리즈는_배지로_뗀다() {
+        val g = HoyolandGoods("아크릴 스탠드", 24000, note = "호요랜드2026 시리즈 · 디자인 2종 · 1인 5개 한정")
+        assertEquals("호요랜드2026 시리즈", g.seriesLabel)
+        assertEquals("1인 5개 한정", g.limitLabel)
+        assertEquals("디자인 2종", g.noteRest)   // 배지로 뺀 둘은 본문에 다시 나오지 않는다
+    }
+
+    @Test
+    fun 상품_라인업_이름은_행사_한정이_아니다() {
+        // '신월의 축복' 은 상품 시리즈명이지 이 행사 한정이 아니다 — 배지로 빼면 뜻이 달라진다.
+        val g = HoyolandGoods("SD캔배지", 5000, note = "신월의 축복 · 랜덤")
+        assertEquals("", g.seriesLabel)
+        assertEquals("신월의 축복 · 랜덤", g.noteRest)
     }
 
     @Test
