@@ -705,7 +705,8 @@ fun HoyolandDetailContent(onOpenSub: (HoyolandSub) -> Unit = {}) {
                     }
                     Text(p.title, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
                     Spacer(Modifier.height(3.dp))
-                    Text(p.desc, fontSize = 12.5.sp, color = TextSecondary)
+                    // 웰컴 키트처럼 구성품을 줄바꿈으로 늘어놓는 값이 있어 줄간을 준다.
+                    Text(p.desc, fontSize = 12.5.sp, color = TextSecondary, lineHeight = 19.sp)
                     if (p.deadline.isNotBlank()) {
                         Spacer(Modifier.height(8.dp))
                         GlgBadge(p.deadline, accent)
