@@ -231,6 +231,8 @@ const HOYOLAND = {
         { key: 'status', label: '상태', type: 'select', options: TICKET_STATUS, wide: true },
         { key: 'vendor', label: '예매처', type: 'suggest', options: TICKET_VENDORS },
         { key: 'priceLabel', label: '가격 표기', type: 'text', placeholder: '30,000원' },
+        // 예매처 앱 패키지 — 있으면 앱으로 먼저 열고, 없으면 브라우저로 떨어진다(안드로이드 전용).
+        { key: 'appPackage', label: '앱 패키지', type: 'text', width: '180px', placeholder: 'kr.co.ticketlink.cne' },
         { key: 'openLabel', label: '오픈 표기', type: 'text', placeholder: '9.20(토) 14:00', note: '화면에 보이는 문구' },
         { key: 'openYmd', label: '오픈 날짜', type: 'date', note: '알림 예약이 읽는 값 — 표기와 별도로 채워야 알림이 갑니다' },
         { key: 'openHour', label: '오픈 시각(시)', type: 'number', min: 0, max: 23 },

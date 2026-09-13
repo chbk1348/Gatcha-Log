@@ -711,7 +711,16 @@ fun HoyolandDetailContent(onOpenSub: (HoyolandSub) -> Unit = {}) {
                 Spacer(Modifier.height(14.dp))
                 GlgOutlineButton(
                     "예매하기",
-                    onClick = { openExternalLink(ctx, e.ticket.url) },
+                    // 예매처 앱이 깔려 있으면 그리로 먼저 보낸다 — 예매는 분 단위 경쟁이라
+                    // 브라우저에서 로그인부터 다시 하면 그 사이에 자리가 빠진다.
+                    // 앱이 없거나 이 주소를 못 받으면 조용히 브라우저로 떨어진다.
+                    onClick = {
+                        openExternalLink(
+                            ctx,
+                            e.ticket.url,
+                            preferPackage = e.ticket.appPackage.ifBlank { null },
+                        )
+                    },
                     modifier = Modifier.fillMaxWidth(),
                     height = 46.dp,
                     color = accent,

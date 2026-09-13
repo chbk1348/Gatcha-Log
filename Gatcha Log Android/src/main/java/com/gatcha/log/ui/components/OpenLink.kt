@@ -16,14 +16,31 @@ import android.widget.Toast
  *
  * 1) 원래 주소로 시도 → 2) [fallbackUrl] 이 있으면 그걸로 재시도 → 3) 둘 다 안 되면 안내 토스트.
  */
-fun openExternalLink(ctx: Context, url: String, fallbackUrl: String? = null) {
+fun openExternalLink(
+    ctx: Context,
+    url: String,
+    fallbackUrl: String? = null,
+    /**
+     * 이 앱으로 먼저 열어 본다(예: 티켓링크 `kr.co.ticketlink.cne`). 없거나 이 주소를 못 받으면
+     * 조용히 평소 경로로 내려간다.
+     *
+     * **커스텀 스킴(`ticketlink://…`)을 쓰지 않는 이유**: 공개된 문서가 없어 지어내야 하는데,
+     * 스킴이 틀리면 그 앱이 깔려 있어도 영영 안 열린다. 패키지를 지정해 같은 https 주소를
+     * 보내면 앱이 자기 주소로 등록해 둔 화면을 스스로 고르고, 못 고르면 예외가 나 브라우저로
+     * 떨어진다 — 틀려도 지금과 같아질 뿐이다.
+     */
+    preferPackage: String? = null,
+) {
+    if (preferPackage != null && tryOpen(ctx, url, preferPackage)) return
     if (tryOpen(ctx, url)) return
     if (fallbackUrl != null && tryOpen(ctx, fallbackUrl)) return
     Toast.makeText(ctx, "링크를 열 수 있는 앱이 없어요", Toast.LENGTH_SHORT).show()
 }
 
-private fun tryOpen(ctx: Context, url: String): Boolean = try {
-    ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)).newTaskIfNeeded(ctx))
+private fun tryOpen(ctx: Context, url: String, pkg: String? = null): Boolean = try {
+    val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url)).newTaskIfNeeded(ctx)
+    if (pkg != null) intent.setPackage(pkg)
+    ctx.startActivity(intent)
     true
 } catch (e: ActivityNotFoundException) {
     false
