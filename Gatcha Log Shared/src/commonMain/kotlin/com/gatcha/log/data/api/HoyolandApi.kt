@@ -204,6 +204,7 @@ object HoyolandApi {
         openYmd = o.optString("openYmd"),
         openHour = o.optInt("openHour", 0),
         priceLabel = o.optString("priceLabel"),
+        appPackage = o.optString("appPackage").trim(),
         url = o.optString("url"),
         note = o.optString("note"),
     )
