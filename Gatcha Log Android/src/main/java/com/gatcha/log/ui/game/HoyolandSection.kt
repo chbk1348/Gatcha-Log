@@ -977,7 +977,8 @@ fun HoyolandGoodsContent(e: HoyolandEvent, cart: HoyolandCart, onQuantity: (Stri
         }
     }
     // 하단 고정 바에 가리지 않게 — 바 높이(알약 + 위아래 여백)만큼 비워 둔다.
-    Spacer(Modifier.height(84.dp))
+    // **담은 게 없으면 바도 없다.** 84dp 를 늘 비워 두면 빈 화면이 한 뼘 딸려 나온다.
+    Spacer(Modifier.height(if (cart.isEmpty) 24.dp else 84.dp))
 }
 
 /**
