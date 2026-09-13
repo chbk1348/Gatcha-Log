@@ -138,6 +138,9 @@ struct iOSApp: App {
             // 개발자 전용 — 속성 연출 콘택트 시트(실행 인자 `-fxPreview 번개:1`). 앱 대신 이 화면만 띄운다.
             if let spec = UserDefaults.standard.string(forKey: "fxPreview") {
                 ElementFxContactSheet(spec: spec)
+            } else if UserDefaults.standard.string(forKey: "uiPreview") == "buttons" {
+                // 개발자 전용 — 버튼 미리보기(실행 인자 `-uiPreview buttons`).
+                GLGButtonPreviewSheet()
             } else {
                 ContentView()
             }
