@@ -134,7 +134,16 @@ struct iOSApp: App {
 
     var body: some Scene {
         WindowGroup {
+            #if DEBUG
+            // 개발자 전용 — 속성 연출 콘택트 시트(실행 인자 `-fxPreview 번개:1`). 앱 대신 이 화면만 띄운다.
+            if let spec = UserDefaults.standard.string(forKey: "fxPreview") {
+                ElementFxContactSheet(spec: spec)
+            } else {
+                ContentView()
+            }
+            #else
             ContentView()
+            #endif
         }
     }
 }
