@@ -1367,7 +1367,7 @@ private val GiftBg = Color(0x14E0557B)
  * 시간표가 아니라 게임별 카드로 그린다.
  *
  * 예약제도 정원 · 회차도 다루지 않는다 — 공지된 정보를 그대로 보여줄 뿐이다. 그래서 카드에
- * 남는 값은 **위치 · 보상** 둘뿐이고, 그중 **보상을 주인공으로 세운다**(목업 C안):
+ * 카드가 내는 값은 **참가비 · 보상 · 설명** 셋이고, 그중 **보상을 주인공으로 세운다**(목업 C안):
  * 예약도 정원도 없는 마당에 부스를 고르는 기준은 결국 받는 것이라서다.
  */
 @Composable
@@ -1440,13 +1440,6 @@ private fun HoyolandBoothCard(e: HoyolandEvent, b: HoyolandBooth) {
                         .padding(horizontal = 7.dp, vertical = 3.dp),
                 )
             }
-            if (b.desc.isNotBlank()) {
-                Text(
-                    b.desc,
-                    fontSize = 12.sp, color = TextSecondary, lineHeight = 17.sp,
-                    modifier = Modifier.padding(start = 14.dp, end = 14.dp, bottom = 11.dp),
-                )
-            }
             // 보상은 부스를 고르는 기준이라 카드의 **주인공 자리**를 준다 — 폭을 꽉 채운 한 면.
             if (b.reward.isNotBlank()) {
                 Row(
@@ -1468,25 +1461,18 @@ private fun HoyolandBoothCard(e: HoyolandEvent, b: HoyolandBooth) {
                     modifier = Modifier.padding(start = 14.dp, end = 14.dp, bottom = 11.dp),
                 )
             }
-            Box(Modifier.fillMaxWidth().height(1.dp).background(DividerColor))
-            BoothMetaCell("구분", b.location, Modifier.fillMaxWidth())
+            // 설명이 카드 아래 한 면을 통째로 쓴다. 예전엔 제목 밑 회색 한 줄이었고 이 자리에는
+            // '구분'(무료/유료 체험존)이 있었는데, 무료·유료는 **우상단 배지가 이미 말한다** —
+            // 같은 걸 두 번 적느라 정작 무엇을 하는 체험인지가 눌려 있었다. 자리를 맞바꾼다.
+            if (b.desc.isNotBlank()) {
+                Box(Modifier.fillMaxWidth().height(1.dp).background(DividerColor))
+                Text(
+                    b.desc,
+                    fontSize = 13.sp, color = TextSecondary, lineHeight = 20.sp,
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 13.dp),
+                )
+            }
         }
-    }
-}
-
-/** 부스 카드 아래 칸 — 라벨을 위, 값을 아래로 눌러 담는다. */
-@Composable
-private fun BoothMetaCell(label: String, value: String, modifier: Modifier = Modifier) {
-    Column(
-        modifier.padding(horizontal = 6.dp, vertical = 18.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        Text(label, fontSize = 10.sp, color = TextThird)
-        Spacer(Modifier.height(11.dp))
-        Text(
-            value.ifBlank { "—" },
-            fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = TextPrimary,
-        )
     }
 }
 
