@@ -24,13 +24,13 @@
     "note": "예매는 10월 5일(월) 17:00 까지 · 매진되면 그때 닫힙니다. 티켓링크 로그인 후 '호요랜드2026' 을 검색해 입장 일자 → 게임 → 입장 그룹 순으로 고릅니다."
   },
 
-  "_lineup_comment": "abbr·colorArgb 는 GameData 에 없는 게임(붕괴3rd·미해결사건부)만 채운다. 비우면 앱 기본 태그 규격을 따른다.",
+  "_lineup_comment": "abbr·colorArgb 는 GameData 에 없는 게임(붕괴3rd·미해결사건부)만 채운다. 비우면 앱 기본 태그 규격을 따른다. url 은 그 게임의 행사 공지 — 참여 게임 칩을 누르면 열린다. 게임마다 올라오는 곳이 달라(원신·스타레일 네이버 카페 / 젠레스 게임라운지 / 붕괴3rd·미해결사건부 hoyo.link) 공식 주소 하나로는 '내 게임 공지' 에 못 간다. 비우면 그 칩은 눌리지 않는다.",
   "lineup": [
-    { "game": "원신", "theme": "달빛에 전하는 세레나데" },
-    { "game": "붕괴: 스타레일", "theme": "환락, 상상 그 이상으로" },
-    { "game": "젠레스 존 제로", "theme": "구름 너머로 내려앉은 시" },
-    { "game": "붕괴3rd", "theme": "환야의 숨바꼭질", "abbr": "HI3", "colorArgb": "0xFF30C6E8" },
-    { "game": "미해결사건부", "theme": "미림 장터·사계절의 러브레터", "abbr": "ToT", "colorArgb": "0xFFE0557B" }
+    { "game": "원신", "theme": "달빛에 전하는 세레나데", "url": "https://cafe.naver.com/genshin/6723746" },
+    { "game": "붕괴: 스타레일", "theme": "환락, 상상 그 이상으로", "url": "https://cafe.naver.com/honkaistarrail/802882" },
+    { "game": "젠레스 존 제로", "theme": "구름 너머로 내려앉은 시", "url": "https://game.naver.com/lounge/ZZZ/board/detail/8182885" },
+    { "game": "붕괴3rd", "theme": "환야의 숨바꼭질", "abbr": "HI3", "colorArgb": "0xFF30C6E8", "url": "https://hoyo.link/cQ986740X" },
+    { "game": "미해결사건부", "theme": "미림 장터·사계절의 러브레터", "abbr": "ToT", "colorArgb": "0xFFE0557B", "url": "https://hoyo.link/acZETxlUc" }
   ],
 
   "_programs_comment": "부대 프로그램 + 입장 특전(웰컴 키트). 웰컴 키트는 엄밀히 프로그램이 아니라 입장권에 딸린 특전이지만, 제목·설명·마감을 그대로 낼 수 있는 목록이 여기뿐이라 같이 싣는다(라인업의 theme 는 호요랜드 화면에서 렌더링되지 않아 못 쓴다). 리딤코드 교환 기한은 deadline 자리에 그대로 맞는다. 출처: sites.google.com/mihoyo.com/hoyoland2026 게임별 '웰컴 키트' 페이지(2026-09-13 확인).",
