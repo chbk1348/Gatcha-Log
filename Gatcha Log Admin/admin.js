@@ -1258,6 +1258,38 @@ async function pullResource(res, { rawOnly = false } = {}) {
 
 let liveSynced = false;
 
+/**
+ * 라이브 **상태만** 먼저 채운다 — 초안과 무관하고 로그인도 필요 없다.
+ *
+ * syncAll() 은 편집 중(dirty)인 리소스를 통째로 건너뛴다. 초안을 말없이 덮지 않으려는 것이라
+ * 그 자체는 맞다. 문제는 라이브 상태를 채우는 곳이 그 안의 pullResource() **하나뿐**이라,
+ * 초안이 있으면 읽기 전용인 라이브 상태까지 같이 빠졌다는 것이다. 운영자가 아니어도 마찬가지다
+ * (syncAll 이 isOperator 로 막혀 있다). 그래서 진입 직후 카드가 늘 '아직 조회하지 않았습니다'
+ * 였고, 매번 버튼을 눌러야 지금 앱이 뭘 보고 있는지 알 수 있었다.
+ *
+ * 이 함수는 문서를 **읽기만 한다** — config 는 규칙상 공개 읽기라 비로그인도 되고, 초안은
+ * 건드리지 않으니 dirty 를 볼 이유가 없다. 덮어쓰기(syncAll)와 조회를 갈라 두면 초안 보호는
+ * 그대로 두면서 상태는 늘 보인다.
+ *
+ * 이미 읽은 리소스는 건너뛴다(live 가 undefined 일 때만 읽는다). 문서가 없으면 null 이 담기는데
+ * 그것도 '읽었다' 는 뜻이라 다시 읽지 않는다 — 갱신은 '라이브 상태 새로고침' 이 맡는다.
+ */
+async function syncLiveStatus() {
+  const c = window.cloud || {};
+  if (!c.available) return;
+  let changed = false;
+  await Promise.all(RESOURCES.filter((r) => r.live).map(async (r) => {
+    if (docs[r.id].live !== undefined) return;
+    try {
+      docs[r.id].live = await c.pull(r.doc);
+      changed = true;
+    } catch (e) {
+      // 못 읽어도 진입을 막지 않는다 — 버튼으로 다시 시도할 수 있고, 그쪽은 사유를 알린다.
+    }
+  }));
+  if (changed) render();
+}
+
 async function syncAll() {
   const c = window.cloud;
   if (liveSynced || !c || !c.available || !isOperator(c.user)) return;
@@ -1876,6 +1908,9 @@ function init() {
     // (이미 로그인돼 있으면 곧 도착하는 authReady 콜백에서 사라진다.)
     // 모달은 반대로 확정된 뒤에만 띄운다. 이미 로그인한 사람에게 뜨면 그게 더 나쁘다.
     syncGate();
+    // 라이브 상태는 로그인·초안과 무관하게 늘 먼저 채운다(공개 읽기). 덮어쓰기인 syncAll 과
+    // 갈라 둔 이유는 syncLiveStatus 주석 참고 — 예전엔 초안이 있으면 상태까지 같이 빠졌다.
+    syncLiveStatus();
     if (isOperator(c.user)) syncAll();
     else liveSynced = false;   // 로그아웃하면 다음 로그인에 다시 맞춘다
   };
