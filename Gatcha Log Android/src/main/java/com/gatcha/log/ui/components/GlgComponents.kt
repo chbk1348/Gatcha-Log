@@ -67,6 +67,7 @@ import com.gatcha.log.ui.theme.DangerText
 import com.gatcha.log.ui.theme.DividerColor
 import com.gatcha.log.ui.theme.glgShortSpec
 import com.gatcha.log.ui.theme.LocalAccent
+import com.gatcha.log.ui.theme.LocalAccentDeep
 import com.gatcha.log.ui.theme.TextPrimary
 import com.gatcha.log.ui.theme.TextSecondary
 
@@ -191,7 +192,8 @@ fun GlgButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
-    height: androidx.compose.ui.unit.Dp = 50.dp,
+    // 44dp — 50 은 목록 · 모달에서 버튼이 덩어리처럼 무거웠다(2026-09-11). iOS `.regular` 와 같은 높이.
+    height: androidx.compose.ui.unit.Dp = 44.dp,
 ) {
     val accent = LocalAccent.current
     val interaction = remember { MutableInteractionSource() }
@@ -818,46 +820,44 @@ fun GlgBadge(label: String, color: Color, modifier: Modifier = Modifier) {
     }
 }
 
-/** 보조/취소 버튼 — 고스트 스타일 + 누르면 옅은 강조색 호버(플랫) */
+/**
+ * 일반(보조) 버튼 — **옅은 강조색 면 + 진한 강조색 글자**, 테두리 없음. 둥근 사각형 16.
+ *
+ * 예전엔 고스트(투명 면 + 연회색 테두리)였다. 2026-09-11 에 강조색 버튼과 한 쌍으로 쓰는
+ * 모습(목업 `design_accent_palette_mockup.html` 의 「호요랩 기록 가져오기」)으로 바꿨다 —
+ * 테두리만 있는 버튼은 옅은 틴트 배경 위에서 선이 묻혀 버튼인지 잘 안 보였다.
+ *
+ * 면은 [LocalAccentTint] 가 아니라 **강조색 12%** 다. 틴트는 화면 배경과 같은 색이라
+ * 배경 위에 놓이면 면이 사라진다. 글자는 대비 5.2 인 [LocalAccentDeep].
+ * iOS 는 시스템 `.bordered` + 강조색 tint 로 같은 모습을 낸다.
+ */
 @Composable
 fun GlgOutlineButton(
     text: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    height: androidx.compose.ui.unit.Dp = 50.dp,
-    /**
-     * 아웃라인·글자색. null 이면 기본 고스트(연회색).
-     *
-     * 고스트 테두리([GhostBorder] #E3E3EA)는 흰 배경 위를 전제로 고른 값이라,
-     * **[GlassCard] 위(#F6F7F9)에 놓으면 배경과 밝기가 거의 같아 테두리가 사라져 보인다.**
-     * 그런 자리엔 강조색을 넘긴다 — iOS 는 이미 같은 자리에서 강조색 stroke 를 쓴다.
-     */
+    // 44dp — 50 은 목록 · 모달에서 버튼이 덩어리처럼 무거웠다(2026-09-11). iOS `.regular` 와 같은 높이.
+    height: androidx.compose.ui.unit.Dp = 44.dp,
+    /** 면·글자색. null 이면 테마 강조색. */
     color: Color? = null,
 ) {
-    val accent = LocalAccent.current
+    val accent = color ?: LocalAccent.current
+    val textColor = color ?: LocalAccentDeep.current
     val interaction = remember { MutableInteractionSource() }
     val pressed by interaction.collectIsPressedAsState()
-    // 호버풍(플랫): 누르면 옅은 강조색 배경 + 강조색 테두리/글자. 그림자/이동 없음.
-    val tint = color ?: accent
-    val borderColor by animateColorAsState(
-        if (pressed || color != null) tint.copy(alpha = 0.5f) else GhostBorder,
-        label = "outBtnBorder",
-    )
-    val bg by animateColorAsState(if (pressed) tint.copy(alpha = 0.08f) else Color.Transparent, label = "outBtnBg")
-    val textColor by animateColorAsState(if (pressed || color != null) tint else GhostText, label = "outBtnText")
-    // 둥근 사각형(16dp) — 주 버튼([GlgButton])과 같은 값. 나란히 놓이는 '취소 + 저장하기' 짝의
-    // 모서리가 맞아야 한다.
+    // 누르면 면이 한 단 진해진다 — 그림자·이동 없음.
+    val bg by animateColorAsState(accent.copy(alpha = if (pressed) 0.20f else 0.12f), label = "outBtnBg")
+    // 둥근 사각형(16dp) — 강조색 버튼([GlgButton])과 같은 값. '취소 + 저장하기' 짝의 모서리가 맞아야 한다.
     val shape = RoundedCornerShape(GlgButtonRadius)
     Box(
         modifier = modifier
             .height(height)
             .clip(shape)
             .background(bg)
-            .border(1.dp, borderColor, shape)
             .clickable(interactionSource = interaction, indication = null) { onClick() },
         contentAlignment = Alignment.Center,
     ) {
-        Text(text, color = textColor, fontWeight = FontWeight.Medium, fontSize = 15.sp)
+        Text(text, color = textColor, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
     }
 }
 

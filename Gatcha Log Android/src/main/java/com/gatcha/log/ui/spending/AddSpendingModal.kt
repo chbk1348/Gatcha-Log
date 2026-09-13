@@ -486,7 +486,7 @@ fun AddSpendingModal(
                 ) {
                     val amountValid = (amount.toLongOrNull() ?: 0L) > 0
                     val canSave = gameChosen && amountValid
-                    GlgOutlineButton("취소", onDismiss, Modifier.weight(1f), height = 54.dp)
+                    GlgOutlineButton("취소", onDismiss, Modifier.weight(1f))
                     GlgButton(
                         // 흐린 버튼만 두지 않는다 — 왜 못 누르는지 버튼이 직접 말한다.
                         text = when {
@@ -498,7 +498,6 @@ fun AddSpendingModal(
                         onClick = { attemptSave() },
                         modifier = Modifier.weight(1.5f),
                         enabled = canSave,
-                        height = 54.dp,
                     )
                 }
             }
