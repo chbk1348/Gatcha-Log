@@ -265,11 +265,31 @@ struct HoyolandDetailView: View {
                 }
 
                 Divider().padding(.vertical, 14)
-                factRow("일정", e.periodLongLabel)
-                Spacer().frame(height: 8)
-                factRow("장소", e.venueFull)
-                Spacer().frame(height: 8)
-                factRow("주소", e.venueAddress)
+                // 지도 버튼은 **일정·장소·주소 묶음 전체의 오른쪽**에 세로 가운데로 선다. 카드 맨
+                // 아래 폭 꽉 찬 버튼으로 두면 참여 게임까지 지나야 만나는데, 누르는 이유는 이
+                // 묶음이다. 주소 한 줄에만 붙이면 세 줄짜리 덩이 옆에서 버튼만 아래로 치우쳐 보인다.
+                HStack(spacing: 12) {
+                    VStack(alignment: .leading, spacing: 0) {
+                        factRow("일정", e.periodLongLabel)
+                        Spacer().frame(height: 8)
+                        factRow("장소", e.venueFull)
+                        Spacer().frame(height: 8)
+                        factRow("주소", e.venueAddress)
+                    }
+                    if let url = hoyoURL(e.mapUrl) {
+                        // 세로 구분선 — 버튼이 주소 덩이에 딸린 글자가 아니라 **따로 누르는 것**
+                        // 임을 가른다. 여백만으로는 세 줄짜리 덩이 옆에서 같은 묶음으로 읽힌다.
+                        Divider().frame(height: 40)
+                        Button { openURL(url) } label: {
+                            Image(systemName: "map")
+                                .font(.system(size: 16, weight: .semibold))
+                                .foregroundStyle(accent.primary)
+                                .frame(width: 40, height: 40)
+                                .overlay(Circle().stroke(accent.primary.opacity(0.4), lineWidth: 1))
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
                 // ── 참여 게임 — 아래 독립 섹션이었던 것을 여기로 들였다. "어느 게임이 오나"는
                 // 이 행사의 **기본 정보**라 일정·장소와 같은 카드에 있어야 하고, 세로 목록으로
                 // 늘어놓으면 다섯 줄이 카드 하나를 통째로 먹었다. 두 칸 그리드로 접는다.
@@ -299,17 +319,8 @@ struct HoyolandDetailView: View {
                             .padding(.top, 7)
                     }
                 }
-                if let url = hoyoURL(e.mapUrl) {
-                    // **시스템 버튼**을 쓴다([GLGOutlineButton] → iOS 26 `.glass` / 이하 `.bordered`).
-                    // 직접 그린 테두리는 OS 가 버튼에 주는 눌림·하이라이트·접근성 처리를 못 받고,
-                    // 반지름을 숫자로 박아 두면(23) 높이가 바뀌는 순간 알약이 아니게 된다.
-                    // `Link` 대신 `openURL` 로 여는 것도 그래서다 — 모양을 시스템에 맡기려면
-                    // 컴포넌트가 `Button` 이어야 한다.
-                    GLGOutlineButton(title: "지도에서 보기", systemImage: "map") {
-                        openURL(url)
-                    }
-                    .padding(.top, 14)
-                }
+                // 지도 버튼은 주소 줄로 올라갔다 — 카드 맨 아래 폭 꽉 찬 버튼이었을 때는 참여
+                // 게임을 지나야 만났는데, 누르는 이유가 그 위 주소 한 줄이라 자리가 어긋나 있었다.
             }
         }
     }
