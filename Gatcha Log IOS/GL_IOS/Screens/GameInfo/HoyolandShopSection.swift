@@ -524,13 +524,27 @@ struct HoyolandBoothView: View {
                     Spacer(minLength: 6)
                     // 참가비는 제목 줄 오른쪽. 유료 체험존은 회차마다 값이 다르고 무료 부스와
                     // 섞여 있어서, 설명을 읽기 전에 먼저 갈려야 하는 값이다.
-                    Text(b.isPaid ? event.wonLabel(v: b.price) : "무료")
-                        .font(.pretendard(size: 11.5, weight: .black)).monospacedDigit()
-                        .foregroundStyle(b.isPaid ? GLGColor.textPrimary : GLGGiftText)
-                        .padding(.horizontal, 7).padding(.vertical, 3)
-                        .background(b.isPaid ? AnyShapeStyle(c.opacity(0.12)) : AnyShapeStyle(GLGGiftBg),
-                                    in: Capsule())
-                        .layoutPriority(1)
+                    //
+                    // **유료 쪽을 더 세게 칠한다.** 예전에는 무료가 분홍 알약이고 유료는 먹색이라,
+                    // 지출을 다루는 앱에서 정작 돈이 드는 칸이 덜 보였다. 유료는 게임색을 꽉 채우고
+                    // 흰 글자를 얹고, 무료는 테두리만 남겨 물러세운다.
+                    if b.isPaid {
+                        Text(event.wonLabel(v: b.price))
+                            .font(.pretendard(size: 13, weight: .black)).monospacedDigit()
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 10).padding(.vertical, 4)
+                            .background(c, in: Capsule())
+                            .layoutPriority(1)
+                    } else {
+                        // 무료는 유료와 **같은 알약 규격**을 쓰되 색을 뺀다. 색을 '돈이 든다' 에만
+                        // 쓰면 목록을 훑을 때 유채색 칸만 세면 된다. 분홍은 보상 띠가 가져간다.
+                        Text("무료")
+                            .font(.pretendard(size: 12, weight: .black))
+                            .foregroundStyle(GLGColor.textSecondary)
+                            .padding(.horizontal, 10).padding(.vertical, 4)
+                            .background(GLGTextThird.opacity(0.16), in: Capsule())
+                            .layoutPriority(1)
+                    }
                 }
                 .padding(.horizontal, 14).padding(.top, 13).padding(.bottom, 11)
                 // 보상은 부스를 고르는 기준이라 카드의 **주인공 자리**를 준다 — 폭을 꽉 채운 한 면.
