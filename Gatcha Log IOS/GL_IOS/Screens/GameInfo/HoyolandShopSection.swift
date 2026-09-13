@@ -164,8 +164,28 @@ struct HoyolandGoodsView: View {
                 Text(item.name).font(.pretendard(size: 13, weight: .bold))
                     .foregroundStyle(GLGColor.textPrimary)
                     .fixedSize(horizontal: false, vertical: true)
+                // 가격은 **이름 바로 아래 왼쪽**이다. 예전엔 오른쪽 담기 버튼 위에 얹혀 있었는데,
+                // 그 열은 버튼 폭에 갇혀 있어 값을 키울 자리가 없었고 버튼과 시선을 나눠 가졌다.
+                // 이름 밑으로 내리면 폭 제약이 사라져 한 단계 더 키울 수 있고, 값이 **그 이름의
+                // 값**이라는 것도 붙어 있어야 읽힌다.
+                HStack(alignment: .lastTextBaseline, spacing: 6) {
+                    Text(item.price > 0
+                         ? event.wonLabel(v: quantity > 0 ? item.price * Int32(quantity) : item.price)
+                         : "미정")
+                        .font(.pretendard(size: item.price > 0 ? 16 : 13, weight: .black)).monospacedDigit()
+                        // 담은 뒤의 소계는 강조색 — "내가 쓰기로 한 돈" 이다. 담기 전 단가는 먹색.
+                        .foregroundStyle(item.price <= 0 ? GLGTextThird
+                                         : (quantity > 0 ? accent.primary : GLGColor.textPrimary))
+                    // 담은 뒤에만 단가×수량을 뒤에 받친다 — 소계가 어떻게 나온 값인지 보여준다.
+                    if quantity > 0 && item.price > 0 {
+                        Text("\(event.wonLabel(v: item.price)) × \(quantity)")
+                            .font(.pretendard(size: 11)).monospacedDigit()
+                            .foregroundStyle(GLGTextThird)
+                    }
+                }
+                .padding(.top, 2)
                 // 게임 라벨은 왼쪽 48 칸이 이미 말하고 있다 — 여기 칩까지 두면 한 줄에 같은
-                // 글자가 두 번 나온다. 갈래·비고만 남긴다.
+                // 글자가 두 번 나온다. 갈래(분류)도 싣지 않는다.
                 if !meta.isEmpty {
                     // 구성품이 긴 품목(테마 패키지)은 note 안에 줄바꿈이 들어 있어 두 줄이 된다.
                     Text(meta).font(.pretendard(size: 11))
@@ -176,25 +196,9 @@ struct HoyolandGoodsView: View {
             }
             .padding(.leading, 11)
             Spacer(minLength: 11)
+            // 오른쪽 열에는 **담기만** 남는다 — 가격이 이름 밑으로 내려가면서 이 열은 누르는
+            // 것 하나만 갖는다. 값과 버튼이 좁은 한 열에서 시선을 나눠 갖던 것이 풀린다.
             VStack(alignment: .trailing, spacing: 6) {
-                // 담은 뒤에는 **그 줄에서 나갈 돈**(소계)을 크게 세우고, 단가×수량을 작게 받친다.
-                // 단가만 두면 세 개를 담아도 18,000원 으로 보여, 정작 이 앱이 답하려는
-                // "얼마 들고 가야 하나" 를 카드마다 암산하게 만든다. 장바구니 줄 소계와 같은 값이다.
-                if quantity > 0 && item.price > 0 {
-                    Text("\(event.wonLabel(v: item.price)) × \(quantity)")
-                        .font(.pretendard(size: 10.5)).monospacedDigit()
-                        .foregroundStyle(GLGTextThird)
-                }
-                // 이름과 같은 13 이었더니 목록을 훑을 때 값이 제목에 묻혔다 — 이 앱에서 카드를
-                // 고르는 기준은 가격이라 한 단계 키운다. 담은 뒤의 소계는 **강조색**으로
-                // "내가 쓰기로 한 돈" 임을 드러낸다(담기 전 단가는 먹색 그대로).
-                Text(item.price > 0
-                     ? event.wonLabel(v: quantity > 0 ? item.price * Int32(quantity) : item.price)
-                     : "미정")
-                    .font(.pretendard(size: item.price > 0 ? 15 : 13,
-                                      weight: item.price > 0 ? .black : .bold)).monospacedDigit()
-                    .foregroundStyle(item.price <= 0 ? GLGTextThird
-                                     : (quantity > 0 ? accent.primary : GLGColor.textPrimary))
                 // 「담기」 ↔ 스테퍼 전환. 값만 갈아 끼우면 버튼이 있던 자리에 스테퍼가 **툭 나타나서**
                 // 내가 누른 것이 반영된 것인지, 원래 그랬던 것인지 순간 헷갈린다. 담을 때도 뺄 때도
                 // 같은 전환을 태워 "이게 방금 내가 만든 변화" 라는 것을 보이게 한다.
