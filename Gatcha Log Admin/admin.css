@@ -13,6 +13,10 @@
   --warn: #f0b429;
   --err: #f2555a;
   --radius: 10px;
+  /* 본문·상단바가 함께 지킬 최대 폭. 초광폭 모니터에서 한 줄이 화면 끝까지 늘어나면 눈이
+     줄 끝에서 다음 줄 머리로 못 돌아온다. 표는 이 안에서 가로 스크롤된다 —
+     값을 더 키우면 굿즈 100줄짜리 표가 읽히는 대신 설명 문단이 읽히지 않는다. */
+  --content-max: 1440px;
 }
 
 * { box-sizing: border-box; }
@@ -110,6 +114,14 @@ body {
   border-bottom: 1px solid var(--line);
   position: sticky; top: 0; z-index: 5;
 }
+/* 상단바 안쪽도 본문과 **같은 폭**으로 묶는다. 바 자체는 화면을 가로지르되(줄이 끊기면 바가
+   아니라 카드로 보인다) 그 안의 제목·버튼은 본문 가장자리에 맞춰 선다. 안 맞추면 초광폭에서
+   버튼만 저 멀리 오른쪽 끝에 떨어져, 지금 보고 있는 카드와 상관없는 것처럼 읽힌다. */
+.topbar-inner {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 16px; width: 100%; min-width: 0;
+  max-width: var(--content-max); margin-inline: auto;
+}
 .topbar h1 { margin: 0; font-size: 17px; }
 .topbar p { margin: 0; font-size: 12px; }
 .topbar-actions { display: flex; align-items: center; gap: 8px; }
@@ -133,6 +145,10 @@ body {
   grid-area: main; overflow-x: hidden;
   padding: 22px max(24px, env(safe-area-inset-right, 0px)) calc(60px + env(safe-area-inset-bottom, 0px)) max(24px, env(safe-area-inset-left, 0px));
 }
+/* admin.js 가 #main 안에 루트 <div> 하나를 갈아 끼운다 — 그 한 겹만 묶으면 카드가 전부 따라온다.
+   래퍼를 새로 만들지 않는 이유: 렌더 코드가 그 구조를 알고 있어야 하는데, 폭은 표시 규격이라
+   CSS 가 알고 있으면 된다. */
+#main > * { max-width: var(--content-max); margin-inline: auto; }
 .muted { color: var(--muted); }
 
 .card {
@@ -282,6 +298,7 @@ a { color: var(--accent); }
   body.nav-open .sidebar { transform: none; }
   body.nav-open { overflow: hidden; }
 
+  .topbar-inner { gap: 10px; }
   .topbar {
     gap: 10px; min-width: 0;
     padding: env(safe-area-inset-top, 0px) max(12px, env(safe-area-inset-right, 0px)) 0 max(12px, env(safe-area-inset-left, 0px));

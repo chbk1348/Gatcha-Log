@@ -31,6 +31,8 @@
 </aside>
 
 <header class="topbar">
+  <!-- 안쪽 한 겹 — 바는 화면을 가로지르되 제목·버튼은 본문과 같은 폭(--content-max)에 맞춰 선다. -->
+  <div class="topbar-inner">
   <button id="btn-menu" class="icon-btn" aria-label="메뉴 열기" aria-expanded="false"><span></span></button>
   <div class="topbar-title">
     <h1 id="page-title">대시보드</h1>
@@ -44,6 +46,7 @@
     <input id="file-input" type="file" accept=".json,application/json" hidden>
     <button id="btn-export" class="btn">내보내기</button>
     <button id="btn-publish" class="btn btn-primary">라이브 반영</button>
+  </div>
   </div>
 </header>
 
