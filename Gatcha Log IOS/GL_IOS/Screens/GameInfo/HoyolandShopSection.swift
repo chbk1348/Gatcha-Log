@@ -197,6 +197,11 @@ struct HoyolandGoodsView: View {
                     .background(GLGWarnBg)
             }
         }
+        // 띠가 카드 아래 모서리에 그대로 닿는다. `glgGlass` 는 배경과 테두리만 둥글게 그리고
+        // **자식을 자르지 않으므로**(Android `GlassCard` 는 .clip 이 있어 이 문제가 없다),
+        // 여기서 카드와 같은 반경으로 잘라 줘야 띠의 각진 모서리가 삐져나오지 않는다.
+        // 반경 24 는 이 카드를 세우는 GLGCard(cornerRadius: 24) 와 같아야 한다.
+        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
     }
 
     /// 담기 버튼 — 스테퍼와 같은 높이라 담기 전후로 줄 높이가 흔들리지 않는다.
