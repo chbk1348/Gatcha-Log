@@ -62,6 +62,7 @@ import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.filled.ConfirmationNumber
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Restaurant
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.outlined.Redeem
 import androidx.compose.material.icons.filled.ShoppingBag
@@ -100,6 +101,7 @@ import com.gatcha.log.data.HoyolandEvent
 import com.gatcha.log.data.HoyolandFact
 import com.gatcha.log.data.HoyolandLineup
 import com.gatcha.log.data.HoyolandPhase
+import com.gatcha.log.data.HoyolandProgram
 import com.gatcha.log.data.api.HoyolandApi
 import com.gatcha.log.ui.components.GlassCard
 import com.gatcha.log.ui.components.GlgCircleIconButton
@@ -321,6 +323,8 @@ fun HoyolandDetailPage(viewModel: SpendingViewModel, onBack: () -> Unit) {
                 }
             HoyolandSub.Booth ->
                 SectionPage("부스 체험", onBack = { page = HoyolandSub.None }) { HoyolandBoothContent(e) }
+            HoyolandSub.Food ->
+                SectionPage("푸드존", onBack = { page = HoyolandSub.None }) { HoyolandFoodContent(e) }
             HoyolandSub.None ->
                 SectionPage(
                     "호요랜드",
@@ -500,7 +504,7 @@ private fun GstarStat(label: String, value: String, sub: String, modifier: Modif
 }
 
 /** 호요랜드 상세의 하위 페이지 — 진입 카드로 연다. */
-enum class HoyolandSub { None, Gstar, Stage, Goods, Cart, Booth }
+enum class HoyolandSub { None, Gstar, Stage, Goods, Cart, Booth, Food }
 
 /**
  * 전환 방향을 정하는 계층 깊이 — 상세(0) < 하위 페이지(1) < 장바구니(2).
@@ -668,45 +672,84 @@ fun HoyolandDetailContent(onOpenSub: (HoyolandSub) -> Unit = {}) {
 
     // ── 예매 — **이 페이지에서 유일하게 안 정해진 항목**이라 단독 카드로 세운다.
     // 다른 정보와 같은 목록에 섞어 두면 "미정" 한 줄이 확정 정보들 사이에 묻힌다.
+    val ticketSection: @Composable () -> Unit = {
     Text("예매", fontSize = 16.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 10.dp))
     GlassCard(modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp)) {
+            // 미정일 때 강조색을 쓰면 정해진 것처럼 보인다 — 회색으로 낮춘다.
+            val tc = if (e.ticket.isUndecided) TextSecondary else accent
+            // ── 머리 — **언제 여는지**가 이 카드의 답이다.
+            //
+            // 예전엔 오픈 일시가 아래 "오픈  9월 14일(월) 19:00" 라벨 줄에 있었고, 아이콘 옆
+            // 오른칸은 안내문 열 줄이 차지했다. 폭이 좁은 칸에 긴 글이 접혀 들어가 카드에서
+            // 제일 큰 덩이가 됐는데, 정작 먼저 읽어야 할 날짜·시각은 그 아래 작은 라벨이었다.
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(
                     Modifier.size(40.dp).clip(RoundedCornerShape(11.dp))
-                        .background((if (e.ticket.isUndecided) TextSecondary else accent).copy(alpha = 0.12f)),
+                        .background(tc.copy(alpha = 0.12f)),
                     contentAlignment = Alignment.Center,
                 ) {
                     Icon(
                         Icons.Default.ConfirmationNumber,
                         contentDescription = null,
-                        tint = if (e.ticket.isUndecided) TextSecondary else accent,
+                        tint = tc,
                         modifier = Modifier.size(20.dp),
                     )
                 }
                 Spacer(Modifier.width(12.dp))
                 Column(Modifier.weight(1f)) {
-                    // 미정일 때 강조색 배지를 쓰면 정해진 것처럼 보인다 — 회색으로 낮춘다.
-                    GlgBadge(e.ticket.statusLabel, if (e.ticket.isUndecided) TextSecondary else accent)
-                    Spacer(Modifier.height(6.dp))
-                    // 예매 절차를 번호로 내려놓는 값이라 여러 줄이 된다 — 줄간을 준다.
-                    Text(e.ticket.note, fontSize = 12.5.sp, color = TextSecondary, lineHeight = 20.sp)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        GlgBadge(e.ticket.statusLabel, tc)
+                        if (e.ticket.vendor.isNotBlank()) {
+                            Spacer(Modifier.width(6.dp))
+                            // 예매처는 배지 옆 부제 — 라벨 줄 하나를 쓰기엔 값이 한 낱말이다.
+                            GlgBadge(e.ticket.vendor, TextSecondary)
+                        }
+                    }
+                    if (e.ticket.openLabel.isNotBlank()) {
+                        Spacer(Modifier.height(7.dp))
+                        Text(
+                            e.ticket.openLabel,
+                            fontSize = 17.sp, fontWeight = FontWeight.Bold, color = TextPrimary,
+                            lineHeight = 22.sp,
+                        )
+                    }
                 }
             }
-            // 예매가 공개되면 채워지는 자리 — 값이 없는 줄은 아예 그리지 않는다.
-            val ticketFacts = listOfNotNull(
-                e.ticket.vendor.takeIf { it.isNotBlank() }?.let { HoyolandFact("예매처", it) },
-                e.ticket.openLabel.takeIf { it.isNotBlank() }?.let { HoyolandFact("오픈", it) },
-                e.ticket.priceLabel.takeIf { it.isNotBlank() }?.let { HoyolandFact("가격", it) },
-            )
-            if (ticketFacts.isNotEmpty()) {
+            // ── 가격 — **실제로 결제하는 금액**을 제일 크게.
+            //
+            // config 값은 "29,000원 · 수수료 1,000원 (결제 30,000원)" 한 줄이다. 그대로 깔면
+            // 세 숫자가 같은 크기로 붙어 있어 얼마를 내는지 한 번에 안 읽힌다. 괄호 안을 머리로
+            // 올리고 내역은 작게 내린다 — 괄호가 없는 표기로 바뀌어도 줄 전체가 머리로 간다.
+            if (e.ticket.priceLabel.isNotBlank()) {
+                val paid = e.ticket.priceLabel.substringAfter('(', "").substringBefore(')').trim()
+                val breakdown = e.ticket.priceLabel.substringBefore('(').trim()
                 Spacer(Modifier.height(14.dp))
                 Box(Modifier.fillMaxWidth().height(1.dp).background(DividerColor))
                 Spacer(Modifier.height(14.dp))
-                ticketFacts.forEachIndexed { i, f ->
-                    if (i > 0) Spacer(Modifier.height(8.dp))
-                    HoyolandFactRow(f.label, f.value)
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Text("가격", fontSize = 13.sp, color = TextSecondary)
+                    Spacer(Modifier.weight(1f))
+                    Column(horizontalAlignment = Alignment.End) {
+                        Text(
+                            paid.ifBlank { breakdown },
+                            fontSize = 18.sp, fontWeight = FontWeight.Bold, color = tc,
+                            lineHeight = 22.sp,
+                        )
+                        if (paid.isNotBlank() && breakdown.isNotBlank()) {
+                            Spacer(Modifier.height(3.dp))
+                            Text(breakdown, fontSize = 11.5.sp, color = TextSecondary)
+                        }
+                    }
                 }
+            }
+            // ── 안내 — 카드 **전체 폭**으로 내린다. 순서·조별 시각이 줄 단위로 서야
+            // 현장에서 훑어 읽을 수 있다([HoyolandRichText]).
+            if (e.ticket.note.isNotBlank()) {
+                Spacer(Modifier.height(14.dp))
+                Box(Modifier.fillMaxWidth().height(1.dp).background(DividerColor))
+                Spacer(Modifier.height(14.dp))
+                HoyolandRichText(e.ticket.note, valueColor = tc)
             }
             if (e.ticket.url.isNotBlank()) {
                 Spacer(Modifier.height(14.dp))
@@ -729,16 +772,17 @@ fun HoyolandDetailContent(onOpenSub: (HoyolandSub) -> Unit = {}) {
             }
         }
     }
+    }
 
-    // ── 현장에서 — 시간표 · 굿즈 목록 · 부스 체험.
+    // ── 현장에서 — 시간표 · 굿즈 목록 · 부스 체험 · 푸드존.
     //
-    // 셋 다 본문에 펼치면 이 페이지의 본론(언제·어디서)이 스크롤 저 아래로 밀린다.
-    // 시간표만 **전체 폭**을 주는 이유: 나머지 둘과 달리 "지금 무대에서 무엇을 하는가"는
+    // 넷 다 본문에 펼치면 이 페이지의 본론(언제·어디서)이 스크롤 저 아래로 밀린다.
+    // 시간표만 **전체 폭**을 주는 이유: 나머지와 달리 "지금 무대에서 무엇을 하는가"는
     // 이 페이지가 답해야 하는 질문에 가장 가깝다. 카드 한 줄이 그 답을 미리 말한다.
     //
     // 제목을 붙이는 이유: 다른 섹션은 전부 [여백 20 + 제목 + 10] 인데 여기만 제목이 없어
-    // **예매 카드에 딸린 것처럼** 보였다. 셋의 공통점이 "현장에서 쓰는 것" 이라 그렇게 부른다.
-    Spacer(Modifier.height(20.dp))
+    // **예매 카드에 딸린 것처럼** 보였다. 넷의 공통점이 "현장에서 쓰는 것" 이라 그렇게 부른다.
+    val onsiteSection: @Composable () -> Unit = {
     Text("현장에서", fontSize = 16.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 10.dp))
     HoyolandSubEntryWide(
         "일자별 시간표",
@@ -760,6 +804,35 @@ fun HoyolandDetailContent(onOpenSub: (HoyolandSub) -> Unit = {}) {
             Modifier.weight(1f),
         ) { onOpenSub(HoyolandSub.Booth) }
     }
+    // 푸드존은 **프로그램 목록에서 빼내 여기로** 옮겼다. 게임마다 메뉴가 열 줄 가까이라
+    // 프로그램 섹션에 두면 웰컴 키트·전시존이 메뉴판 사이에 파묻혔고, 성격도 "현장에서 골라
+    // 사는 것"이라 굿즈·부스와 같은 줄이 맞다. 폭을 꽉 주는 이유는 시간표와 같다 — 가격대가
+    // 한 줄로 들어가야 눌러 보기 전에 얼마짜리인지 알 수 있다.
+    if (e.foodPrograms.isNotEmpty()) {
+        Spacer(Modifier.height(10.dp))
+        HoyolandSubEntryWide(
+            "푸드존",
+            e.foodEntryLine(),
+            Icons.Default.Restaurant,
+        ) { onOpenSub(HoyolandSub.Food) }
+    }
+    }
+
+    // ── 두 섹션의 순서는 **개막일에 뒤집힌다.**
+    //
+    // 개막 전에는 이 페이지를 여는 이유가 "표를 어떻게 사나" 하나뿐이라 예매가 위다.
+    // 개막일 0시부터는 반대다 — 표는 이미 있고, 현장에서 꺼내 드는 건 시간표·굿즈·부스·푸드존
+    // 이다. 그때도 예매가 위에 있으면 매번 지나쳐 스크롤해야 하는 덩이가 된다.
+    // ([HoyolandEvent.phase] 가 기기 시간의 날짜로 판정하므로 10.2 00:00 에 그대로 바뀐다.)
+    if (phase == HoyolandPhase.BEFORE) {
+        ticketSection()
+        Spacer(Modifier.height(20.dp))
+        onsiteSection()
+    } else {
+        onsiteSection()
+        Spacer(Modifier.height(20.dp))
+        ticketSection()
+    }
 
     // ── 프로그램 — 본편과 별개로 **참여 마감이 따로 있는** 것들이라 날짜를 눈에 띄게 둔다.
     //
@@ -769,10 +842,13 @@ fun HoyolandDetailContent(onOpenSub: (HoyolandSub) -> Unit = {}) {
     //
     // 게임 배지는 [HoyolandEvent.programGame] 이 제목에서 가려낸다 — 웰컴 키트 넷이 나란히
     // 서기 때문에 색이 없으면 내 것을 찾으려고 매번 제목을 읽어야 한다.
-    if (e.programs.isNotEmpty()) {
+    if (e.otherPrograms.isNotEmpty()) {
         Spacer(Modifier.height(20.dp))
-        Text("프로그램", fontSize = 16.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 10.dp))
-        e.programs.forEachIndexed { i, p ->
+        // 제목이 "프로그램" 이었을 때는 시간표·부스·푸드존까지 다 프로그램이라 위 「현장에서」와
+        // 경계가 없었다. 푸드존이 빠져나간 지금 이 섹션에 남은 건 **미리 신청하거나(전시존)
+        // 받는 것(웰컴 키트)** 뿐이라, 하는 일로 부른다.
+        Text("응모 · 특전", fontSize = 16.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 10.dp))
+        e.otherPrograms.forEachIndexed { i, p ->
             if (i > 0) Spacer(Modifier.height(10.dp))
             val pg = e.programGame(p.title)
             val pc = e.stageColor(pg).let { if (it == 0L) TextSecondary else it.toColor() }
@@ -1595,6 +1671,191 @@ fun HoyolandBoothContent(e: HoyolandEvent) {
         }
 }
 
+/**
+ * 푸드존 — 게임별 메뉴판.
+ *
+ * 값은 프로그램 목록에 있던 것 그대로다([HoyolandEvent.foodPrograms] 가 제목으로 갈라낸다).
+ * 어드민에서 이미 관리되고 있어 config 스키마도 입력 화면도 건드리지 않는다.
+ *
+ * 게임 탭은 달지 않는다 — 굿즈(100종)·부스(24곳)와 달리 카드가 게임당 하나라 목록 전체가
+ * 세 장이다. 거를 것이 없는 자리에 탭을 세우면 화면 위 한 줄을 늘 먹는다.
+ */
+@Composable
+fun HoyolandFoodContent(e: HoyolandEvent) {
+    val list = e.foodPrograms
+    if (list.isEmpty()) {
+        GlassCard(modifier = Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(16.dp)) {
+                Text("메뉴는 아직 공개 전이에요", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+                Spacer(Modifier.height(5.dp))
+                Text(
+                    "게임별 푸드존·푸드트럭 메뉴가 나오면 이 자리에 채워져요.",
+                    fontSize = 12.sp, color = TextSecondary, lineHeight = 18.sp,
+                )
+            }
+        }
+        return
+    }
+    list.forEachIndexed { i, p ->
+        if (i > 0) Spacer(Modifier.height(12.dp))
+        HoyolandFoodCard(e, p)
+    }
+    Spacer(Modifier.height(14.dp))
+    // 넛지 — 이 화면의 숫자는 **공지 기준**이라는 것만 분명히 한다. 현장 메뉴판과 다를 때
+    // "앱이 틀렸다"가 아니라 "바뀌었구나"로 읽히게 하는 한 줄이다.
+    Text(
+        "가격·구성은 공식 공지 기준이에요. 현장 사정으로 바뀔 수 있어요.",
+        fontSize = 11.sp, color = TextThird, lineHeight = 16.sp,
+    )
+}
+
+/**
+ * 푸드존 한 칸 — 게임 배지 + 유형(푸드존/푸드트럭) + 메뉴 수, 그리고 메뉴판.
+ *
+ * 제목("푸드트럭 — 붕괴: 스타레일")을 통째로 쓰지 않는다. 게임은 이미 배지로 서 있어
+ * 같은 말이 두 번 나오고, 남는 폭이 그만큼 줄어든다 — 앞쪽 유형만 제목으로 쓴다.
+ */
+@Composable
+private fun HoyolandFoodCard(e: HoyolandEvent, p: HoyolandProgram) {
+    val game = e.programGame(p.title)
+    val c = e.stageColor(game).let { if (it == 0L) TextSecondary else it.toColor() }
+    // 메뉴 줄 세기 — 카드를 열기 전에 "몇 가지나 파나"가 보이게. 들여쓴 부연은 빼고 센다.
+    val menuCount = p.desc.split("\n").count { it.startsWith("· ") && " — " in it }
+    GlassCard(modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (game.isNotBlank()) {
+                    Text(
+                        e.stageLabel(game),
+                        fontSize = 9.5.sp, fontWeight = FontWeight.Black, color = c,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(c.copy(alpha = 0.14f))
+                            .padding(horizontal = 6.dp, vertical = 3.dp),
+                    )
+                    Spacer(Modifier.width(8.dp))
+                }
+                Text(
+                    p.title.substringBefore(" — "),
+                    fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TextPrimary,
+                )
+                Spacer(Modifier.weight(1f))
+                if (menuCount > 0) GlgBadge("${menuCount}종", TextSecondary)
+            }
+            val blocks = parseFoodBlocks(p.desc)
+            blocks.forEachIndexed { bi, block ->
+                Spacer(Modifier.height(12.dp))
+                when (block) {
+                    // 메뉴 **바로 앞**에 오는 문장은 그 메뉴를 파는 곳의 이름이다("오렐리아 아카데미
+                    // 카페테리아" · "CuppaMoment"). 뒤에 오는 문장은 그 메뉴에 붙는 안내다
+                    // ("코스 A·B 를 주문하면 …"). 같은 회색 문단으로 두면 한 카드 안에 카운터가
+                    // 둘이라는 사실이 안 보여, 아래 메뉴가 어느 가게 것인지 흐려진다.
+                    is FoodBlock.Para -> if (blocks.getOrNull(bi + 1) is FoodBlock.Menu) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(Modifier.width(3.dp).height(13.dp).clip(RoundedCornerShape(2.dp)).background(c))
+                            Spacer(Modifier.width(7.dp))
+                            Text(
+                                block.text,
+                                fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextPrimary,
+                                lineHeight = 18.sp,
+                            )
+                        }
+                    } else {
+                        Text(block.text, fontSize = 12.5.sp, color = TextSecondary, lineHeight = 19.sp)
+                    }
+                    // 메뉴는 **면 위의 목록**으로 묶는다. 본문과 같은 바닥에 줄만 세우면
+                    // 소제목·안내 문장과 경계가 없어 "어디까지가 파는 것인가"가 안 보였다.
+                    is FoodBlock.Menu -> Column(
+                        Modifier.fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(CartRowBg),
+                    ) {
+                        block.rows.forEachIndexed { i, row ->
+                            if (i > 0) Box(Modifier.fillMaxWidth().height(1.dp).background(DividerColor))
+                            Column(Modifier.padding(horizontal = 13.dp, vertical = 11.dp)) {
+                                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                                    Text(
+                                        row.name,
+                                        fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextPrimary,
+                                        lineHeight = 18.sp, modifier = Modifier.weight(1f),
+                                    )
+                                    if (row.price.isNotBlank()) {
+                                        Spacer(Modifier.width(10.dp))
+                                        Text(row.price, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = c)
+                                    }
+                                }
+                                if (row.sub.isNotBlank()) {
+                                    Spacer(Modifier.height(3.dp))
+                                    Text(row.sub, fontSize = 11.5.sp, color = TextThird, lineHeight = 16.sp)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            if (p.deadline.isNotBlank()) {
+                Spacer(Modifier.height(10.dp))
+                GlgBadge(p.deadline, c)
+            }
+        }
+    }
+}
+
+/** 메뉴판 한 덩이 — 파는 것들의 목록이거나, 그 앞뒤의 문장(소제목·세트 안내)이다. */
+private sealed interface FoodBlock {
+    data class Menu(val rows: List<FoodRow>) : FoodBlock
+    data class Para(val text: String) : FoodBlock
+}
+
+private data class FoodRow(val name: String, val price: String, val sub: String)
+
+/**
+ * 메뉴 설명글을 **파는 줄 / 읽는 줄**로 가른다 — [HoyolandRichText] 와 같은 줄 규칙을 쓴다.
+ *
+ * `· 이름 — 7,000원` 이 이어지는 구간만 하나의 목록으로 묶는다. 그 사이에 낀 문장
+ * ("코스 A·B 를 주문하면 …")에서 목록이 끊기는 건 의도다 — 그 문장은 앞 목록에만 걸린다.
+ */
+private fun parseFoodBlocks(desc: String): List<FoodBlock> {
+    val blocks = mutableListOf<FoodBlock>()
+    val buffer = mutableListOf<FoodRow>()
+    fun flush() {
+        if (buffer.isNotEmpty()) {
+            blocks.add(FoodBlock.Menu(buffer.toList()))
+            buffer.clear()
+        }
+    }
+    desc.split("\n").forEach { raw ->
+        val indented = raw.isNotBlank() && (raw.startsWith("  ") || raw.startsWith("\t"))
+        val line = raw.trim()
+        when {
+            line.isEmpty() -> Unit
+            // 들여쓴 줄은 **바로 위 메뉴의 부연**이다(리딤코드처럼 `·` 가 붙어 있어도 마찬가지).
+            indented && buffer.isNotEmpty() -> {
+                val last = buffer.removeAt(buffer.lastIndex)
+                val sub = line.removePrefix("· ")
+                buffer.add(last.copy(sub = if (last.sub.isBlank()) sub else "${last.sub} $sub"))
+            }
+            line.startsWith("· ") -> {
+                val item = line.removePrefix("· ")
+                val hasValue = " — " in item
+                buffer.add(
+                    FoodRow(
+                        name = if (hasValue) item.substringBeforeLast(" — ") else item,
+                        price = if (hasValue) item.substringAfterLast(" — ") else "",
+                        sub = "",
+                    ),
+                )
+            }
+            else -> {
+                flush()
+                blocks.add(FoodBlock.Para(line))
+            }
+        }
+    }
+    flush()
+    return blocks
+}
+
 @Composable
 private fun HoyolandBoothCard(e: HoyolandEvent, b: HoyolandBooth) {
     val c = e.stageColor(b.game).let { if (it == 0L) TextSecondary else it.toColor() }
@@ -1988,6 +2249,86 @@ private fun HoyolandLineupRow(item: HoyolandLineup) {
         }
     }
 }
+
+/**
+ * 원격 config 의 **여러 줄 설명글**을 줄 단위로 읽어 그린다 — 푸드존 메뉴판과 예매 안내가 쓴다.
+ *
+ * 둘 다 `Text` 하나에 통째로 넣던 자리였다. 그러면 "· 행운의 황금 레몬 만두 — 7,000원" 이
+ * 본문과 같은 무게로 깔려 **가격이 글 속에 묻히고**, 예매 안내의 1~4 순서도 문단처럼 읽혔다.
+ * 값은 그대로 두고 표시만 나눈다(config 스키마를 늘리지 않는다 — 옛 빌드에서도 글자는 나온다).
+ *
+ * 줄 규칙 — 위에서부터 먼저 맞는 것:
+ *  - 들여쓴 줄  → 바로 위 항목의 부연(작게·흐리게). 리딤코드 구성처럼 `· ` 가 붙어 있어도 부연이다.
+ *  - `· …`      → 항목 줄. ` — ` 가 있으면 **뒤가 값**(가격·시각)이라 오른쪽에 붙여 강조한다.
+ *  - `1. …`     → 순서 줄. 번호만 색을 준다.
+ *  - 빈 줄      → 문단 사이 간격.
+ *  - 그 외      → 문단(소제목 포함 — 짧은 줄은 어차피 한 줄로 선다).
+ */
+@Composable
+private fun HoyolandRichText(text: String, valueColor: Color, modifier: Modifier = Modifier) {
+    Column(modifier) {
+        var first = true
+        text.split("\n").forEach { raw ->
+            val line = raw.trimEnd()
+            val indented = line.isNotBlank() && (line.startsWith("  ") || line.startsWith("\t"))
+            val body = line.trim()
+            if (body.isEmpty()) {
+                // 빈 줄은 그 자체가 문단 구분이다 — 간격만 주고 다음 줄에 위 여백을 또 주지 않는다.
+                Spacer(Modifier.height(10.dp))
+                first = true
+                return@forEach
+            }
+            if (!first) Spacer(Modifier.height(if (indented) 2.dp else 6.dp))
+            first = false
+            when {
+                indented -> Text(
+                    body,
+                    fontSize = 11.5.sp, color = TextThird, lineHeight = 17.sp,
+                    modifier = Modifier.padding(start = 12.dp),
+                )
+                body.startsWith("· ") -> {
+                    val item = body.removePrefix("· ")
+                    val hasValue = " — " in item
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        Text("·", fontSize = 13.sp, color = TextThird)
+                        Spacer(Modifier.width(7.dp))
+                        Text(
+                            if (hasValue) item.substringBeforeLast(" — ") else item,
+                            fontSize = 13.sp, fontWeight = FontWeight.Medium, color = TextPrimary,
+                            lineHeight = 19.sp, modifier = Modifier.weight(1f),
+                        )
+                        if (hasValue) {
+                            Spacer(Modifier.width(10.dp))
+                            Text(
+                                item.substringAfterLast(" — "),
+                                fontSize = 13.sp, fontWeight = FontWeight.Bold, color = valueColor,
+                            )
+                        }
+                    }
+                }
+                StepRegex.matches(body) -> {
+                    val no = body.substringBefore(". ")
+                    Row(Modifier.fillMaxWidth()) {
+                        Text(
+                            no,
+                            fontSize = 12.sp, fontWeight = FontWeight.Black, color = valueColor,
+                            textAlign = TextAlign.Center, lineHeight = 19.sp,
+                            modifier = Modifier.width(18.dp),
+                        )
+                        Text(
+                            body.substringAfter(". "),
+                            fontSize = 13.sp, color = TextPrimary, lineHeight = 19.sp,
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
+                }
+                else -> Text(body, fontSize = 12.5.sp, color = TextSecondary, lineHeight = 19.sp)
+            }
+        }
+    }
+}
+
+private val StepRegex = Regex("""^\d+\. .*""")
 
 /** 라벨(고정폭) + 값(줄바꿈 허용). */
 @Composable

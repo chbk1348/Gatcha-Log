@@ -397,15 +397,18 @@ fun AddSpendingModal(
                         val custom = chargePlatform.isNotBlank() || selectedTags.isNotEmpty() ||
                             customTags.isNotBlank() || memo.isNotBlank()
                         Row(
+                            // clip 을 걸지 않는다. 리플이 없는 앱(PressScaleIndication)이라 모양을 깎을
+                            // 이유가 없는데, `clip` 은 **자기 자식까지 깎는다** — 이 줄은 좌우 패딩이
+                            // 없어서 "자세히" 의 'ㅈ' 가 x=0 에서 시작하고, 12dp 모서리 곡선이 그
+                            // 왼쪽 위를 잘라 먹었다. 밀도가 높은 에뮬레이터에선 몇 px 라 안 보이고
+                            // 실기기에서만 보였다.
                             Modifier.fillMaxWidth()
-                                .clip(RoundedCornerShape(12.dp))
                                 .clickable { detailsExpanded = !detailsExpanded },
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             // 제목·요약 모두 한 줄로 끊되 **말줄임표로** 끊는다. 예전엔 maxLines 만
                             // 걸려 있어 "카드 · 태그 없음" 이 "카드 · 태그" 에서 그냥 잘렸다 —
-                            // 글자가 잘린 것인지 원래 그 값인지 구분이 안 된다. 글꼴 배율을 키운
-                            // 기기에서 특히 자주 났다.
+                            // 글자가 잘린 것인지 원래 그 값인지 구분이 안 된다.
                             Column(Modifier.weight(1f)) {
                                 Text(
                                     "자세히",
