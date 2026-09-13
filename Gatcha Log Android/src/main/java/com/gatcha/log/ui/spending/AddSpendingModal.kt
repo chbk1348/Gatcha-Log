@@ -402,8 +402,16 @@ fun AddSpendingModal(
                                 .clickable { detailsExpanded = !detailsExpanded },
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
+                            // 제목·요약 모두 한 줄로 끊되 **말줄임표로** 끊는다. 예전엔 maxLines 만
+                            // 걸려 있어 "카드 · 태그 없음" 이 "카드 · 태그" 에서 그냥 잘렸다 —
+                            // 글자가 잘린 것인지 원래 그 값인지 구분이 안 된다. 글꼴 배율을 키운
+                            // 기기에서 특히 자주 났다.
                             Column(Modifier.weight(1f)) {
-                                Text("자세히", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+                                Text(
+                                    "자세히",
+                                    fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextPrimary,
+                                    maxLines = 1, overflow = TextOverflow.Ellipsis,
+                                )
                                 Text(
                                     buildList {
                                         add(paymentMethod.ifBlank { "카드" })
@@ -411,12 +419,13 @@ fun AddSpendingModal(
                                         add(if (tagCount > 0) "태그 $tagCount" else "태그 없음")
                                         if (memo.isNotBlank()) add("메모")
                                     }.joinToString(" · "),
-                                    fontSize = 11.5.sp, maxLines = 1,
+                                    fontSize = 11.5.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
                                     // 기본값과 다른 값이 있으면 강조 — "뭔가 정해져 있다"가 보이게.
                                     color = if (custom) LocalAccent.current else TextSecondary,
                                     modifier = Modifier.padding(top = 3.dp),
                                 )
                             }
+                            Spacer(Modifier.width(8.dp))
                             val arrow by animateFloatAsState(if (detailsExpanded) 180f else 0f, glgStandardSpec(), label = "detailsArrow")
                             Text("▾", fontSize = 13.sp, color = TextSecondary, modifier = Modifier.rotate(arrow))
                         }

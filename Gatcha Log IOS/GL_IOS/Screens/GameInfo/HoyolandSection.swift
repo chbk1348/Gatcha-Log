@@ -286,6 +286,11 @@ struct HoyolandDetailView: View {
                                 .foregroundStyle(accent.primary)
                                 .frame(width: 40, height: 40)
                                 .overlay(Circle().stroke(accent.primary.opacity(0.4), lineWidth: 1))
+                                // 보이는 원은 40 이지만 **잡히는 범위는 44**(HIG 최소)로 넓힌다.
+                                // 손가락이 가장자리를 스치면 아무 일도 일어나지 않아 "가끔 안
+                                // 눌린다" 가 된다. contentShape 가 없으면 그려진 획만 눌린다.
+                                .frame(width: 44, height: 44)
+                                .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
                     }

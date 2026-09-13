@@ -25,6 +25,7 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalTextStyle
+import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -954,6 +955,11 @@ fun GlgCircleIconButton(
     Box(modifier) {
         Box(
             modifier = Modifier
+                // 터치 영역을 **보이는 원보다 크게** 잡는다(48dp 최소). 예전엔 .size(size) 에 곧바로
+                // clickable 을 걸어 손가락이 원 가장자리를 스치면 아무 일도 일어나지 않았다 —
+                // "가끔 안 눌린다" 로 제보되는 종류의 문제다(지도 버튼 40dp 에서 실제로 났다).
+                // 보이는 크기는 그대로 두고 잡히는 범위만 넓힌다.
+                .minimumInteractiveComponentSize()
                 .size(size)
                 .clip(CircleShape)
                 .then(
