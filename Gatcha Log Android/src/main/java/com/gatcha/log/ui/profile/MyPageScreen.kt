@@ -574,19 +574,19 @@ private fun currentDayOfMonth(): Int = Calendar.getInstance().get(Calendar.DAY_O
 // ============================================================
 
 @Composable
-fun ThemeColorGrid(selectedIndex: Int, onSelect: (Int) -> Unit) {
-    // 색상이 늘어 한 줄을 넘기므로 5개씩 끊어 2행으로 배치. (제목·카드는 호출부에서 — UI 섹션 카드에 임베드)
+fun ThemeColorGrid(selectedIndex: Int, range: IntRange = AccentPalette.indices, onSelect: (Int) -> Unit) {
+    // 5개씩 끊어 배치. [range] 로 팔레트 일부(선명 · 차분)만 그린다. (제목·카드는 호출부에서)
     Column(
         modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        AccentPalette.chunked(5).forEachIndexed { rowIdx, rowOptions ->
+        range.chunked(5).forEach { rowIndices ->
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                rowOptions.forEachIndexed { colIdx, option ->
-                    val index = rowIdx * 5 + colIdx
+                rowIndices.forEach { index ->
+                    val option = AccentPalette[index]
                     Column(
                         modifier = Modifier.weight(1f).clickable { onSelect(index) },
                         horizontalAlignment = Alignment.CenterHorizontally,

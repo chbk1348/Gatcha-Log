@@ -26,6 +26,7 @@ struct SettingsView: View {
     @State private var showDataManagement = false
     @State private var showUplog = false
     @State private var showCredits = false
+    @State private var showTheme = false
     #if DEBUG
     @State private var showDeveloper = false
     #endif
@@ -110,6 +111,9 @@ struct SettingsView: View {
         .navigationDestination(isPresented: $showUplog) {
             UpdateLogPage(version: version)
         }
+        .navigationDestination(isPresented: $showTheme) {
+            ThemeView(store: store)
+        }
         #if DEBUG
         .navigationDestination(isPresented: $showDeveloper) {
             DeveloperView(store: store)
@@ -144,9 +148,7 @@ struct SettingsView: View {
 
     // ── UI — 표시(컴팩트) + 테마 색상을 한 섹션으로 통합 ──
     private var displaySection: some View {
-        // 색상이 늘어 한 줄을 넘기므로 5열 그리드로 래핑(2행).
-        let cols = Array(repeating: GridItem(.flexible(), spacing: 12), count: 5)
-        return sectionCard("UI") {
+        sectionCard("UI") {
             toggleRow("list.bullet", "지출 내역 컴팩트 보기",
                       "지출 목록을 한 줄로 빽빽하게 표시해요 (태그·결제수단 숨김)",
                       bind(\.spendingCompact, store.setSpendingCompact))
@@ -159,30 +161,9 @@ struct SettingsView: View {
                       "홈 상단에서 은은하게 떠다니는 빛 효과예요. 끄면 그라데이션만 남아요",
                       bind(\.heroGlow, store.setHeroGlow))
             Divider()
-            HStack {
-                rowLabel(icon: "paintpalette", title: "테마 색상")
-                Spacer()
-            }
-            .padding(.top, 12)
-            LazyVGrid(columns: cols, spacing: 16) {
-                ForEach(GLGTheme.palette) { opt in
-                    VStack(spacing: 4) {
-                        ZStack {
-                            Circle().fill(opt.primary).frame(width: 40, height: 40)
-                            if opt.index == store.accentIndex {
-                                Image(systemName: "checkmark").font(.pretendard(size: 18, weight: .bold))
-                                    .foregroundStyle(.white)
-                            }
-                        }
-                        Text(opt.label).font(.pretendard(size: 10))
-                            .foregroundStyle(opt.index == store.accentIndex ? opt.primary : GLGColor.textSecondary)
-                    }
-                    .onTapGesture { store.setAccentIndex(opt.index) }
-                }
-            }
-            .frame(maxWidth: .infinity)
-            .padding(.top, 10)
-            .padding(.bottom, 14)
+            // 20색이 되어 카드 안 그리드로는 길어져 전용 페이지로 옮겼다.
+            navRow(icon: "paintpalette", title: "테마",
+                   value: GLGTheme.accent(store.accentIndex).label) { showTheme = true }
         }
     }
 
@@ -361,6 +342,102 @@ struct SettingsView: View {
     /// store 의 읽기전용 @Published + setter 를 Toggle 용 Binding 으로.
     private func bind(_ keyPath: KeyPath<SpendingStore, Bool>, _ setter: @escaping (Bool) -> Void) -> Binding<Bool> {
         Binding(get: { store[keyPath: keyPath] }, set: { setter($0) })
+    }
+}
+
+// ── 테마 — 미리보기 카드 + 선명 · 차분 두 벌 (Android ThemeScreen 파리티 · 목업 B안) ──────────
+struct ThemeView: View {
+    var store: SpendingStore
+
+    /// 환경값 대신 store 에서 바로 읽는다 — 고르는 즉시 이 페이지부터 바뀌어야 미리보기가 된다.
+    private var accent: GLGAccent { GLGTheme.accent(store.accentIndex) }
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 18) {
+                preview
+                group("선명", Array(0..<GLGTheme.vividCount))
+                group("차분", Array(GLGTheme.vividCount..<GLGTheme.palette.count),
+                      footer: "두 벌은 같은 색조 · 다른 채도예요. 게임별 색상과 속성 연출은 테마와 상관없이 그대로예요.")
+            }
+            .padding(16)
+            .glgReadableWidth(640)
+        }
+        .scrollIndicators(.hidden)
+        .background(GLGBackground { Color.clear })
+        .glgPageTitle("테마")
+        .navigationBarTitleDisplayMode(.inline)
+        .environment(\.glgAccent, accent)
+    }
+
+    /// 금액(deep) · 게이지(primary) · 칩(옅은 면) · 버튼 쌍. 누르는 곳이 아니라 보여주는 곳이다.
+    private var preview: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text("미리보기 · \(accent.label)").font(.pretendard(size: 11, weight: .bold))
+                .foregroundStyle(GLGColor.textSecondary)
+            Text("428,000원").font(.pretendard(size: 26, weight: .black))
+                .foregroundStyle(accent.deep).padding(.top, 4)
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    Capsule().fill(Color(hex: 0xFFEEEFF3))
+                    Capsule().fill(accent.primary).frame(width: geo.size.width * 0.62)
+                }
+            }
+            .frame(height: 8).padding(.vertical, 10)
+            HStack(spacing: 6) {
+                ForEach(Array(["전체", "원신", "스타레일"].enumerated()), id: \.offset) { i, label in
+                    Text(label).font(.pretendard(size: 11, weight: .bold))
+                        .foregroundStyle(i == 0 ? accent.deep : GLGColor.textSecondary)
+                        .padding(.horizontal, 10).padding(.vertical, 5)
+                        .background(i == 0 ? accent.primary.opacity(0.14) : Color(hex: 0xFFF4F5F8), in: Capsule())
+                }
+            }
+            HStack(spacing: 8) {
+                GLGOutlineButton(title: "취소") {}
+                GLGButton(title: "저장하기") {}
+            }
+            .allowsHitTesting(false)
+            .padding(.top, 12)
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .glgGlass(in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+    }
+
+    private func group(_ title: String, _ indices: [Int], footer: String? = nil) -> some View {
+        let cols = Array(repeating: GridItem(.flexible(), spacing: 12), count: 5)
+        return VStack(alignment: .leading, spacing: 7) {
+            HStack {
+                Text(title).font(.pretendard(size: 13, weight: .semibold))
+                Spacer()
+                Text("\(indices.count)").font(.pretendard(size: 11))
+            }
+            .foregroundStyle(GLGColor.textSecondary).padding(.horizontal, 4)
+            LazyVGrid(columns: cols, spacing: 16) {
+                ForEach(indices, id: \.self) { i in
+                    let opt = GLGTheme.palette[i]
+                    let selected = i == store.accentIndex
+                    VStack(spacing: 4) {
+                        ZStack {
+                            Circle().fill(opt.primary).frame(width: 40, height: 40)
+                            if selected {
+                                Image(systemName: "checkmark").font(.pretendard(size: 18, weight: .bold))
+                                    .foregroundStyle(.white)
+                            }
+                        }
+                        Text(opt.label).font(.pretendard(size: 10)).lineLimit(1).minimumScaleFactor(0.8)
+                            .foregroundStyle(selected ? opt.deep : GLGColor.textSecondary)
+                    }
+                    .contentShape(Rectangle())
+                    .onTapGesture { store.setAccentIndex(i) }
+                }
+            }
+            .padding(.horizontal, 10).padding(.vertical, 16)
+            .glgGlass(in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+            if let footer {
+                Text(footer).font(.pretendard(size: 11)).foregroundStyle(GLGColor.textSecondary).padding(.horizontal, 4)
+            }
+        }
     }
 }
 
