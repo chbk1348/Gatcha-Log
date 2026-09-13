@@ -397,7 +397,23 @@ struct HoyolandDetailView: View {
                     // OS 가 버튼에 주는 눌림·하이라이트·접근성 처리도 못 받는다.
                     // Link 대신 openURL 인 것도 같은 이유다 — 모양을 시스템에 맡기려면 Button 이어야 한다.
                     GLGOutlineButton(title: "예매하기", systemImage: "ticket") {
-                        openURL(url)
+                        // 예매처 앱이 있으면 그리로 먼저 보낸다 — 예매는 분 단위 경쟁이라
+                        // 브라우저에서 로그인부터 다시 하면 그 사이에 자리가 빠진다.
+                        //
+                        // **https 주소로는 앱이 안 열린다.** 티켓링크는 유니버설 링크를 지원하지
+                        // 않아(2026-09-13 확인 — AASA 404) 커스텀 스킴 말고는 길이 없다.
+                        // 그 스킴은 아직 확인된 값이 없어 config 가 비어 있고, 그동안은 이 분기가
+                        // 통째로 건너뛰어 지금과 똑같이 웹으로 간다.
+                        //
+                        // completion 으로 받는 이유: 스킴이 틀렸거나 앱이 없으면 accepted 가 false
+                        // 로 와서 웹으로 되돌릴 수 있다. canOpenURL 을 쓰면 Info.plist 에
+                        // LSApplicationQueriesSchemes 를 미리 박아야 하는데, 예매처가 바뀌면
+                        // 앱을 새로 내야 한다 — 그러면 config 로 빼 둔 의미가 없다.
+                        if let app = hoyoURL(e.ticket.appScheme) {
+                            openURL(app) { accepted in if !accepted { openURL(url) } }
+                        } else {
+                            openURL(url)
+                        }
                     }
                     .padding(.top, 14)
                 }
