@@ -1892,13 +1892,16 @@ private fun StageRow(e: HoyolandEvent, item: StageSlot, isLive: Boolean) {
                 fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextPrimary,
                 lineHeight = 18.sp,
             )
+            // 길이를 **설명 앞**에 둔다. 뒤에 붙이면 설명이 여러 줄일 때 "60분" 이 마지막 줄
+            // 꼬리에 달라붙는데, 그 줄이 하필 "※ 주의…" 여서 주의 문구가 길이 표기에 먹혔다.
             val sub = listOfNotNull(
-                item.slot.desc.ifBlank { null },
                 if (item.slot.minutes > 0) "${item.slot.minutes}분" else null,
+                item.slot.desc.ifBlank { null },
             ).joinToString(" · ")
             if (sub.isNotBlank()) {
                 Spacer(Modifier.height(2.dp))
-                Text(sub, fontSize = 11.5.sp, color = TextSecondary)
+                // 설명에 줄바꿈이 들어 있다(조별 입장 시각 · ※ 주의) — 줄간을 준다.
+                Text(sub, fontSize = 11.5.sp, color = TextSecondary, lineHeight = 17.sp)
             }
             // 출연자 — 무대를 고르는 기준이 공연명보다 출연자일 때가 많다(성우 무대가 특히).
             if (item.slot.cast.isNotBlank()) {
