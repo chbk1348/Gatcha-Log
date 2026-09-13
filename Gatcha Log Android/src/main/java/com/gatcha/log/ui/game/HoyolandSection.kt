@@ -25,6 +25,7 @@ import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.animateIntAsState
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
@@ -1132,21 +1133,33 @@ private fun HoyolandGoodsCard(
             // 그 열은 버튼 폭(≈26dp 높이의 알약)에 갇혀 있어 값을 키울 자리가 없었고 버튼과
             // 시선을 나눠 가졌다. 이름 밑으로 내리면 폭 제약이 사라져 한 단계 더 키울 수 있고,
             // 값이 **그 이름의 값**이라는 것도 붙어 있어야 읽힌다.
+            // 수량을 바꾸면 값이 **굴러간다**. 숫자가 툭 갈아 끼워지면 방금 내가 만든 변화인지
+            // 원래 그랬는지 알기 어렵다 — 24,000 에서 48,000 으로 흘러가는 동안 눈이 그 변화를
+            // 따라간다. 첫 합성에서는 애니메이션이 없다(animateIntAsState 가 목표값에서 시작한다)
+            // — 스크롤로 카드가 들어올 때마다 0 부터 세면 목록 전체가 요동친다.
+            //
+            // 색도 같이 흐른다: 담는 순간 먹색 → 강조색. tnum 고정폭이라 굴러가는 동안에도
+            // 자릿수가 흔들리지 않는다.
+            val shownPrice by animateIntAsState(
+                targetValue = if (quantity > 0) item.price * quantity else item.price,
+                animationSpec = glgStandardSpec(),
+                label = "goodsPrice",
+            )
+            val priceColor by animateColorAsState(
+                targetValue = when {
+                    item.price <= 0 -> TextThird
+                    quantity > 0 -> accent
+                    else -> TextPrimary
+                },
+                animationSpec = glgStandardSpec(),
+                label = "goodsPriceColor",
+            )
             Row(verticalAlignment = Alignment.Bottom) {
                 Text(
-                    when {
-                        item.price <= 0 -> "미정"
-                        quantity > 0 -> e.wonLabel(item.price * quantity)
-                        else -> e.wonLabel(item.price)
-                    },
+                    if (item.price <= 0) "미정" else e.wonLabel(shownPrice),
                     fontSize = if (item.price > 0) 16.sp else 13.sp,
                     fontWeight = FontWeight.Black,
-                    // 담은 뒤의 소계는 강조색 — "내가 쓰기로 한 돈" 이다. 담기 전 단가는 먹색이다.
-                    color = when {
-                        item.price <= 0 -> TextThird
-                        quantity > 0 -> accent
-                        else -> TextPrimary
-                    },
+                    color = priceColor,
                     style = LocalTextStyle.current.copy(fontFeatureSettings = "tnum"),
                 )
                 // 담은 뒤에만 단가×수량을 뒤에 받친다 — 소계가 어떻게 나온 값인지 보여준다.
@@ -1301,8 +1314,15 @@ fun HoyolandGoodsBar(e: HoyolandEvent, cart: HoyolandCart, onOpenCart: () -> Uni
                 fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = Color.White.copy(alpha = 0.72f),
             )
             Spacer(Modifier.weight(1f))
+            // 합계도 카드 가격과 **같이 굴러간다**. 카드만 흘러가고 여기만 툭 바뀌면 두 값이
+            // 서로 다른 시점을 말하는 것처럼 보인다.
+            val shownTotal by animateIntAsState(
+                targetValue = e.cartTotal(cart),
+                animationSpec = glgStandardSpec(),
+                label = "cartTotal",
+            )
             Text(
-                e.wonLabel(e.cartTotal(cart)),
+                e.wonLabel(shownTotal),
                 fontSize = 16.sp, fontWeight = FontWeight.Black, color = Color.White,
                 style = LocalTextStyle.current.copy(fontFeatureSettings = "tnum"),
             )

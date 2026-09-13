@@ -168,14 +168,20 @@ struct HoyolandGoodsView: View {
                 // 그 열은 버튼 폭에 갇혀 있어 값을 키울 자리가 없었고 버튼과 시선을 나눠 가졌다.
                 // 이름 밑으로 내리면 폭 제약이 사라져 한 단계 더 키울 수 있고, 값이 **그 이름의
                 // 값**이라는 것도 붙어 있어야 읽힌다.
+                // 수량을 바꾸면 값이 **굴러간다**. 숫자가 툭 갈아 끼워지면 방금 내가 만든 변화인지
+                // 원래 그랬는지 알기 어렵다 — 시스템의 numericText 전환이 자릿수별로 굴려 준다
+                // (Android 는 같은 효과를 animateIntAsState 로 낸다). monospacedDigit 이라
+                // 굴러가는 동안에도 자릿수가 흔들리지 않는다.
+                let subtotal = quantity > 0 ? item.price * Int32(quantity) : item.price
                 HStack(alignment: .lastTextBaseline, spacing: 6) {
-                    Text(item.price > 0
-                         ? event.wonLabel(v: quantity > 0 ? item.price * Int32(quantity) : item.price)
-                         : "미정")
+                    Text(item.price > 0 ? event.wonLabel(v: subtotal) : "미정")
                         .font(.pretendard(size: item.price > 0 ? 16 : 13, weight: .black)).monospacedDigit()
+                        .contentTransition(.numericText(value: Double(subtotal)))
+                        .animation(GLGMotion.standard(), value: subtotal)
                         // 담은 뒤의 소계는 강조색 — "내가 쓰기로 한 돈" 이다. 담기 전 단가는 먹색.
                         .foregroundStyle(item.price <= 0 ? GLGTextThird
                                          : (quantity > 0 ? accent.primary : GLGColor.textPrimary))
+                        .animation(GLGMotion.standard(), value: quantity > 0)
                     // 담은 뒤에만 단가×수량을 뒤에 받친다 — 소계가 어떻게 나온 값인지 보여준다.
                     if quantity > 0 && item.price > 0 {
                         Text("\(event.wonLabel(v: item.price)) × \(quantity)")
@@ -293,8 +299,12 @@ struct HoyolandGoodsView: View {
                 Text("담은 \(cart.kindCount)종 · \(cart.totalCount)개")
                     .font(.pretendard(size: 11.5, weight: .bold))
                     .foregroundStyle(GLGColor.textSecondary)
-                Text(event.wonLabel(v: event.cartTotal(cart: cart)))
+                let total = event.cartTotal(cart: cart)
+                Text(event.wonLabel(v: total))
                     .font(.pretendard(size: 17, weight: .black)).monospacedDigit()
+                    // 합계도 카드 가격과 같이 굴러간다 — 한쪽만 툭 바뀌면 두 값이 다른 시점을 말한다.
+                    .contentTransition(.numericText(value: Double(total)))
+                    .animation(GLGMotion.standard(), value: total)
                     .foregroundStyle(GLGColor.textPrimary)
             }
             Spacer(minLength: 8)
