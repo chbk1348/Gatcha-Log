@@ -233,6 +233,9 @@ const HOYOLAND = {
         { key: 'priceLabel', label: '가격 표기', type: 'text', placeholder: '30,000원' },
         // 예매처 앱 패키지 — 있으면 앱으로 먼저 열고, 없으면 브라우저로 떨어진다(안드로이드 전용).
         { key: 'appPackage', label: '앱 패키지', type: 'text', width: '180px', placeholder: 'kr.co.ticketlink.cne' },
+        // iOS 는 패키지로 못 보낸다 — 티켓링크는 유니버설 링크가 없어(AASA 404) 커스텀 스킴만이 길이다.
+        // 확인된 값이 없으면 비워 둔다. 틀린 스킴은 조용히 웹으로 떨어져 티가 안 난다.
+        { key: 'appScheme', label: '앱 스킴(iOS)', type: 'text', width: '200px', placeholder: 'ticketlink://…' },
         { key: 'openLabel', label: '오픈 표기', type: 'text', placeholder: '9.20(토) 14:00', note: '화면에 보이는 문구' },
         { key: 'openYmd', label: '오픈 날짜', type: 'date', note: '알림 예약이 읽는 값 — 표기와 별도로 채워야 알림이 갑니다' },
         { key: 'openHour', label: '오픈 시각(시)', type: 'number', min: 0, max: 23 },
