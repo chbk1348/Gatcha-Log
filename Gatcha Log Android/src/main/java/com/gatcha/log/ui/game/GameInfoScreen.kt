@@ -606,11 +606,26 @@ internal fun SectionPage(
     val scrollState = rememberScrollState()
     val density = LocalDensity.current
     var stickyHeight by remember { mutableStateOf(0.dp) }
-    // 붙박이 줄 자체를 그리는 조각.
+    // 헤더 + 붙박이 줄 뒤에 깔리는 바탕 — **스크롤할 때만 찬다.**
     //
-    // **바탕판을 깔지 않는다.** 페이지 바탕색을 한 겹 깔아 봤더니 탭 둘레로 네모난 판이 생겨
-    // 화면이 거기서 잘린 것처럼 보였다(하단 합계 바에서 흰 판을 걷어낸 것과 같은 판단이다).
-    // 탭 컴포넌트 자체가 불투명한 흰 면이라 글자는 그대로 읽히고, 비치는 건 좌우 여백뿐이다.
+    // 늘 깔아 두면 탭 둘레로 네모난 판이 서서 화면이 거기서 잘린 것처럼 보이고, 아예 없애면
+    // 목록이 헤더·탭 사이 틈으로 비쳐 지나간다. 맨 위에서는 투명, 내리면 차오르게 해서 둘 다
+    // 피한다(헤더 스크림이 상태바에 쓰는 방식과 같은 규칙이다).
+    //
+    // 공용 부품인 GlgDetailHeaderOverlay 를 고치지 않는 이유: 거긴 "콘텐츠가 헤더 밑으로
+    // 지나가는 연출" 을 일부러 유지하는 자리라, 손대면 상세 페이지 전부가 같이 바뀐다.
+    val scrolled = scrollState.value > 0
+    val backdropAlpha by animateFloatAsState(if (scrolled) 1f else 0f, label = "sectionBackdrop")
+    val backdrop: @Composable BoxScope.() -> Unit = {
+        Box(
+            Modifier
+                .align(Alignment.TopStart)
+                .fillMaxWidth()
+                .height(glgDetailContentTop() + stickyHeight)
+                .graphicsLayer { alpha = backdropAlpha }
+                .background(LocalAccentTint.current),
+        )
+    }
     val stickyBar: (@Composable BoxScope.() -> Unit)? = stickyTop?.let { slot ->
         {
             Box(
@@ -634,6 +649,7 @@ internal fun SectionPage(
                     Spacer(Modifier.height(24.dp))
                 }
             }
+            backdrop()
             GlgDetailHeaderOverlay(title, onBack, scrollState = scrollState, actions = actions)
             stickyBar?.invoke(this)
             bottomBar?.let { Box(Modifier.align(Alignment.BottomCenter)) { it() } }
@@ -647,6 +663,7 @@ internal fun SectionPage(
             content()
             Spacer(Modifier.height(24.dp))
         }
+        backdrop()
         GlgDetailHeaderOverlay(title, onBack, scrollState = scrollState, actions = actions)
         stickyBar?.invoke(this)
         bottomBar?.let { Box(Modifier.align(Alignment.BottomCenter)) { it() } }
