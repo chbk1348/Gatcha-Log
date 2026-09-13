@@ -4,7 +4,7 @@
   "startYmd": "2026-10-02",
   "endYmd": "2026-10-05",
   "venueName": "일산 킨텍스 제2전시장",
-  "venueHall": "7·8홀 · 후면광장",
+  "venueHall": "7·8홀(실내) · 후면광장(야외)",
   "venueAddress": "경기도 고양시 일산서구 킨텍스로 217-60",
   "mapUrl": "https://map.naver.com/p/search/%ED%82%A8%ED%85%8D%EC%8A%A4%20%EC%A0%9C2%EC%A0%84%EC%8B%9C%EC%9E%A5",
   "mapFallbackUrl": "https://www.google.com/maps/search/%EC%9D%BC%EC%82%B0+%ED%82%A8%ED%85%8D%EC%8A%A4+%EC%A0%9C2%EC%A0%84%EC%8B%9C%EC%9E%A5",
@@ -48,6 +48,7 @@
     {
       "ymd": "2026-10-02",
       "slots": [
+        { "time": "10:00", "title": "개장", "desc": "7·8홀 · 후면광장" },
         { "time": "11:00", "minutes": 60, "title": "코스프레 런웨이" },
         { "time": "12:30", "minutes": 60, "game": "원신", "title": "도전! 모험가 길드 에이스" },
         { "time": "14:00", "minutes": 60, "game": "젠레스 존 제로", "title": "로스캘리퍼 특별 의회 with Google Play" },
@@ -59,6 +60,7 @@
     {
       "ymd": "2026-10-03",
       "slots": [
+        { "time": "10:00", "title": "개장", "desc": "7·8홀 · 후면광장" },
         { "time": "11:00", "minutes": 60, "game": "원신", "title": "여행자의 스케치!" },
         { "time": "12:30", "minutes": 60, "game": "젠레스 존 제로", "title": "도전! 위험한 강습전", "desc": "호요랜드에 방문한 로프꾼을 위한 강습전의 최강자는?" },
         { "time": "14:00", "minutes": 60, "game": "붕괴: 스타레일", "title": "Star Symphony at 호요랜드", "desc": "로빈 원곡 가수 Chevy의 신곡 포함 메들리, NIDA의 「동트기 전」, 「Side Quest King」까지 라이브로.", "cast": "Chevy · NIDA · 성우 김명준" },
@@ -70,6 +72,7 @@
     {
       "ymd": "2026-10-04",
       "slots": [
+        { "time": "10:00", "title": "개장", "desc": "7·8홀 · 후면광장" },
         { "time": "10:30", "minutes": 60, "game": "젠레스 존 제로", "title": "뉴에리두 제복학원 w.Fairy", "desc": "로프꾼님의 상상력으로 완성한 제복, Fairy 의 심사를 받아보세요!" },
         { "time": "12:00", "minutes": 60, "game": "원신", "title": "도전! 천상의 선율" },
         { "time": "13:30", "minutes": 60, "game": "붕괴: 스타레일", "title": "Star Symphony at 호요랜드", "desc": "로빈 원곡 가수 Chevy의 신곡 포함 메들리, NIDA의 「동트기 전」, 「Side Quest King」까지 라이브로.", "cast": "Chevy · NIDA · 성우 김명준" },
@@ -82,6 +85,7 @@
     {
       "ymd": "2026-10-05",
       "slots": [
+        { "time": "10:00", "title": "개장", "desc": "7·8홀 · 후면광장" },
         { "time": "10:30", "minutes": 60, "game": "붕괴: 스타레일", "title": "도전! 그래피아 아카데미 학력고사" },
         { "time": "12:00", "minutes": 60, "game": "젠레스 존 제로", "title": "도전! 위험한 강습전", "desc": "호요랜드에 방문한 로프꾼을 위한 강습전의 최강자는?" },
         { "time": "13:30", "minutes": 60, "game": "원신", "title": "선율이 흐르는 음악회" },
