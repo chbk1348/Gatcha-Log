@@ -1,6 +1,7 @@
 package com.gatcha.log.data.api
 
 import com.gatcha.log.util.currentTimeMillis
+import com.gatcha.log.data.AppSettings
 import com.gatcha.log.data.HoyolandDefaults
 import com.gatcha.log.data.HoyolandEvent
 import com.gatcha.log.data.HoyolandBooth
@@ -55,9 +56,19 @@ object HoyolandApi {
      * 라이브 반영을 해도 **앱을 완전히 껐다 켜기 전까지 바뀌지 않았다**(2026-09-10 확인).
      * 커밋 없이 즉시 고치자고 만든 구조인데 정작 앱이 그 즉시성을 잡아먹고 있었다.
      * [FRESH_MS] 가 지나면 화면에 다시 들어오는 것만으로 새로 읽는다.
+     *
+     * ⚠️ 그 전제가 성립하려면 **화면이 다시 물어봐야 한다**. 홈 배너는 앱을 켜 두는 내내
+     * composition 에 남아 있어 최초 1회만 묻고 끝이었고, 그래서 라이브 반영을 해도 재실행
+     * 전까지 옛 값을 보여줬다(2026-09-13 확인 — 장소의 '(실내)' 표기). 지금은 화면 쪽에서
+     * ON_RESUME 마다 다시 묻는다(`rememberHoyolandEvent`). 여기 캐시가 15초로 막으므로
+     * 매번 네트워크를 타지는 않는다.
      */
     private var cached: HoyolandEvent? = null
     private var cachedAtMillis = 0L
+
+    /** 첫 프레임용 디스크 보관. 파싱은 프로세스당 한 번만 시도한다([restoreTried]). */
+    private val settings by lazy { AppSettings() }
+    private var restoreTried = false
 
     /**
      * 개발자 목업이 얹혀 있는지 — 얹힌 동안에는 [FRESH_MS] 가 지나도 원격으로 덮지 않는다.
@@ -73,7 +84,27 @@ object HoyolandApi {
     private const val FRESH_MS = 15_000L
 
     /** 캐시된 값 또는 번들 폴백 — **네트워크를 타지 않는다.** 첫 프레임을 그릴 때 쓴다. */
-    val current: HoyolandEvent get() = cached ?: HoyolandDefaults.event
+    /**
+     * 지금 화면이 쓸 값 — **메모리 → 디스크 → 번들** 순으로 내려온다.
+     *
+     * 디스크 단계가 있는 이유: 예전엔 켤 때마다 번들 기본값으로 시작해 원격을 받은 뒤 갈아
+     * 끼웠다. 그래서 그 사이에 바뀐 표기(장소의 '(실내)' 같은)가 **없다가 잠시 뒤 생기는**
+     * 것으로 보였다(2026-09-13 확인). 마지막으로 본 값을 들고 시작하면 첫 프레임이 이미 맞다.
+     *
+     * 디스크 값이 깨져 있으면 번들로 떨어진다 — 어떤 경우에도 화면은 선다.
+     */
+    val current: HoyolandEvent get() = cached ?: restored() ?: HoyolandDefaults.event
+
+    /** 디스크에 남은 마지막 원격 값. 한 번만 파싱하고 결과를 [cached] 에 얹는다. */
+    private fun restored(): HoyolandEvent? {
+        if (restoreTried) return null
+        restoreTried = true
+        val raw = runCatching { settings.hoyolandConfigRaw }.getOrNull().orEmpty()
+        if (raw.isBlank()) return null
+        // cachedAtMillis 는 0 으로 둔다 — 디스크 값은 '지금 받은 값' 이 아니므로 다음 load() 에서
+        // 바로 원격을 다시 훑어야 한다. 여기서 신선도를 주면 15초 캐시가 낡은 값을 붙든다.
+        return parseOrNull(raw)?.also { cached = it }
+    }
 
     /**
      * 개발자 화면 전용 — 무대 시간표 목업을 **캐시에 얹는다.**
@@ -109,11 +140,14 @@ object HoyolandApi {
         cached?.let { if (!force && currentTimeMillis() - cachedAtMillis < FRESH_MS) return it }
         // 라이브 → 정본 순으로 내려온다. 앞 단계가 깨진 JSON 이어도 다음 단계로 넘어간다 —
         // 어드민이 잘못 쓴 문서 하나로 화면이 비어 버리면 안 된다.
-        val parsed = fetchLive()?.let(::parseOrNull) ?: fetchRaw()?.let(::parseOrNull)
+        val body = fetchLive()?.takeIf { parseOrNull(it) != null } ?: fetchRaw()
+        val parsed = body?.let(::parseOrNull)
         if (parsed != null) {
             cached = parsed
             cachedAtMillis = currentTimeMillis()
             stageMockOn = false
+            // 다음 실행의 첫 프레임이 번들이 아니라 이 값으로 서도록 남긴다.
+            runCatching { settings.hoyolandConfigRaw = body }
         }
         return parsed ?: current
     }

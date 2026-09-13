@@ -73,7 +73,12 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -119,11 +124,29 @@ import com.gatcha.log.ui.theme.glgStandardSpec
  *
  * 로딩 스켈레톤을 두지 않는 이유: 폴백이 **항상 유효한 확정 정보**라 빈 상태가 존재하지 않는다.
  * 스켈레톤을 깔면 이미 맞는 내용을 일부러 감췄다가 같은 내용을 다시 보여주는 꼴이 된다.
+ *
+ * **ON_RESUME 마다 다시 읽는다.** `LaunchedEffect(Unit)` 하나로 두면 최초 1회만 묻고 끝인데,
+ * 홈 배너는 앱을 켜 두는 내내 composition 에 남아 있어 어드민에서 값을 고쳐도 재실행 전까지
+ * 옛 값을 보여줬다(2026-09-13 확인 — 장소의 '(실내)' 표기가 그랬다). 홈의 당겨서 새로고침도
+ * `refreshGameInfo` 만 불러 이 배너를 비켜간다.
+ *
+ * 매번 네트워크를 타지는 않는다 — [HoyolandApi.load] 가 15초 캐시로 막는다. 화면에 돌아올
+ * 때마다 값을 다시 **묻기만** 하는 것이고, 이건 그 API 주석이 처음부터 전제한 동작이다.
  */
 @Composable
 private fun rememberHoyolandEvent(): HoyolandEvent {
     var event by remember { mutableStateOf(HoyolandApi.current) }
-    LaunchedEffect(Unit) { event = HoyolandApi.load() }
+    // 화면에 돌아올 때(ON_RESUME) 다시 읽는다 — 설정 화면의 배터리·권한 배너가 쓰는 방식과 같다.
+    var resumeTick by remember { mutableIntStateOf(0) }
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, e ->
+            if (e == Lifecycle.Event.ON_RESUME) resumeTick++
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+    LaunchedEffect(resumeTick) { event = HoyolandApi.load() }
     return event
 }
 
@@ -227,6 +250,9 @@ fun HoyolandDetailPage(viewModel: SpendingViewModel, onBack: () -> Unit) {
     // `if … return` 으로 컴포지션을 갈아끼워, 같은 페이지에서 나가는데 어떤 건 밀려 나가고
     // 어떤 건 0프레임으로 튀었다(홈 `HomeSub` 와 같은 이유로 하나로 합쳤다).
     var page by remember { mutableStateOf(HoyolandSub.None) }
+    // 굿즈 게임 필터는 페이지 바깥에 둔다 — 탭이 SectionPage 의 붙박이 줄(stickyTop)로 올라가
+    // 본문과 분리되므로, 상태를 본문 안에 두면 둘이 서로를 못 본다.
+    var goodsFilter by remember { mutableStateOf<String?>(null) }
     AnimatedContent(
         targetState = page,
         modifier = Modifier.fillMaxSize(),
@@ -262,8 +288,13 @@ fun HoyolandDetailPage(viewModel: SpendingViewModel, onBack: () -> Unit) {
                     "굿즈 목록",
                     onBack = { page = HoyolandSub.None },
                     bottomBar = { HoyolandGoodsBar(e, cart) { page = HoyolandSub.Cart } },
+                    // 게임 탭은 붙박이다 — 100줄짜리 목록에서 같이 밀려 올라가면 지금 무엇으로
+                    // 거르고 있는지도, 바꾸는 방법도 화면에서 사라진다.
+                    stickyTop = if (e.goodsGames.size > 1) {
+                        { HoyolandGoodsTabs(e, goodsFilter) { goodsFilter = it } }
+                    } else null,
                 ) {
-                    HoyolandGoodsContent(e, cart) { name, n -> viewModel.setGoodsQuantity(name, n) }
+                    HoyolandGoodsContent(e, cart, goodsFilter) { name, n -> viewModel.setGoodsQuantity(name, n) }
                 }
             HoyolandSub.Cart ->
                 SectionPage(
@@ -950,12 +981,33 @@ private fun HoyolandSubEntry(
  * 목업: `Gatcha Log MD/design_hoyoland_goods_mockup.html` A 안 — 다만 목록은 한 장에 줄을
  * 쌓지 않고 **품목당 카드**로 낸다([HoyolandGoodsCard] 참고).
  */
+/** 굿즈 목록의 게임 탭 — 헤더 밑에 붙박이로 선다(SectionPage.stickyTop). */
 @Composable
-fun HoyolandGoodsContent(e: HoyolandEvent, cart: HoyolandCart, onQuantity: (String, Int) -> Unit) {
+fun HoyolandGoodsTabs(e: HoyolandEvent, selected: String?, onSelect: (String?) -> Unit) {
     val accent = LocalAccent.current
-    val all = e.visibleGoods
     val games = e.goodsGames
-    var gameFilter by remember { mutableStateOf<String?>(null) }
+    Column {
+        Spacer(Modifier.height(6.dp))
+        GlgSegmentedTabs(
+            labels = listOf("전체") + games.map { e.stageLabel(it) },
+            selectedColors = listOf(accent) + games.map {
+                e.stageColor(it).let { c -> if (c == 0L) TextSecondary else c.toColor() }
+            },
+            selected = games.indexOf(selected) + 1,
+            onSelect = { i -> onSelect(if (i == 0) null else games.getOrNull(i - 1)) },
+        )
+        Spacer(Modifier.height(10.dp))
+    }
+}
+
+@Composable
+fun HoyolandGoodsContent(
+    e: HoyolandEvent,
+    cart: HoyolandCart,
+    gameFilter: String?,
+    onQuantity: (String, Int) -> Unit,
+) {
+    val all = e.visibleGoods
 
     if (all.isEmpty()) {
         GlassCard(modifier = Modifier.fillMaxWidth()) {
@@ -993,17 +1045,8 @@ fun HoyolandGoodsContent(e: HoyolandEvent, cart: HoyolandCart, onQuantity: (Stri
         }
     }
 
-    if (games.size > 1) {
-        Spacer(Modifier.height(12.dp))
-        GlgSegmentedTabs(
-            labels = listOf("전체") + games.map { e.stageLabel(it) },
-            selectedColors = listOf(accent) + games.map {
-                e.stageColor(it).let { c -> if (c == 0L) TextSecondary else c.toColor() }
-            },
-            selected = games.indexOf(gameFilter) + 1,
-            onSelect = { i -> gameFilter = if (i == 0) null else games.getOrNull(i - 1) },
-        )
-    }
+    // 게임 탭은 여기 없다 — SectionPage 의 stickyTop 으로 올라가 헤더 밑에 붙박이로 선다
+    // ([HoyolandGoodsTabs]). 100줄짜리 목록에서 같이 밀려 올라가면 안 되는 값이라서다.
 
     val shown = all.filter { gameFilter == null || it.game == gameFilter }
     shown.forEach { item ->
@@ -1082,8 +1125,23 @@ private fun HoyolandGoodsCard(
             Modifier.padding(start = 11.dp),
             horizontalAlignment = Alignment.End,
         ) {
+            // 담은 뒤에는 **그 줄에서 나갈 돈**(소계)을 크게 세우고, 단가×수량을 작게 받친다.
+            // 단가만 두면 세 개를 담아도 18,000원 으로 보여, 정작 이 앱이 답하려는
+            // "얼마 들고 가야 하나" 를 카드마다 암산하게 만든다. 장바구니의 줄 소계와 같은 값이다.
+            if (quantity > 0 && item.price > 0) {
+                Text(
+                    "${e.wonLabel(item.price)} × $quantity",
+                    fontSize = 10.5.sp, color = TextThird,
+                    style = LocalTextStyle.current.copy(fontFeatureSettings = "tnum"),
+                )
+                Spacer(Modifier.height(1.dp))
+            }
             Text(
-                if (item.price > 0) e.wonLabel(item.price) else "미정",
+                when {
+                    item.price <= 0 -> "미정"
+                    quantity > 0 -> e.wonLabel(item.price * quantity)
+                    else -> e.wonLabel(item.price)
+                },
                 fontSize = 13.sp,
                 fontWeight = if (item.price > 0) FontWeight.Black else FontWeight.Bold,
                 color = if (item.price > 0) TextPrimary else TextThird,

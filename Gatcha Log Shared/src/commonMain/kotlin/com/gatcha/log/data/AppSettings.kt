@@ -200,6 +200,19 @@ class AppSettings {
         get() = prefs.getString(KEY_HOYOLAND_CART, "") ?: ""
         set(v) { prefs.putString(KEY_HOYOLAND_CART, v) }
 
+    /**
+     * 마지막으로 받아 온 호요랜드 설정 원문(JSON).
+     *
+     * 첫 프레임을 **번들 기본값이 아니라 마지막으로 본 값**으로 그리려고 둔다. 예전엔 켤 때마다
+     * 앱에 박제된 기본값으로 시작해 원격을 받은 뒤 갈아 끼웠는데, 그 사이에 장소 표기 같은 것이
+     * 바뀌면 "없던 글자가 잠시 뒤 생기는" 것으로 보였다(2026-09-13 확인).
+     *
+     * 파싱 실패는 호출부가 번들 기본값으로 떨어뜨린다 — 깨진 값이 저장돼 있어도 화면은 선다.
+     */
+    var hoyolandConfigRaw: String
+        get() = prefs.getString(KEY_HOYOLAND_CONFIG, "") ?: ""
+        set(v) { prefs.putString(KEY_HOYOLAND_CONFIG, v) }
+
     /** 알림 중복 방지용 마지막 발송 키 저장/조회 (예: "budget:2026-05"). */
     fun lastNotified(tag: String): String = prefs.getString("notif_last_$tag", "") ?: ""
     fun setLastNotified(tag: String, value: String) { prefs.putString("notif_last_$tag", value) }
@@ -207,6 +220,7 @@ class AppSettings {
     companion object {
         private const val PREFS = "gatcha_settings"
         private const val KEY_HOYOLAND_CART = "hoyoland_cart"
+        private const val KEY_HOYOLAND_CONFIG = "hoyoland_config_raw"
         private const val KEY_AUTO_CHECKIN = "auto_checkin"
         private const val KEY_NOTIFY_RESIN = "notify_resin"
         private const val KEY_NOTIFY_ATTEND = "notify_attendance"
