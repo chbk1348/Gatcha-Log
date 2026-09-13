@@ -1,5 +1,5 @@
 import SwiftUI
-import GatchaLogShared
+import Shared
 
 // ── 호요랜드 푸드존 ─────────────────────────────────────────────────────────
 // 값은 프로그램 목록에 있던 것 그대로다(HoyolandEvent.foodPrograms 가 제목으로 갈라낸다).
