@@ -45,23 +45,32 @@ struct HoyolandGoodsView: View {
         let cart = store.hoyolandCart
         let shown = all.filter { gameFilter == nil || $0.game == gameFilter }
 
-        ScrollView {
+        // 게임 탭은 **스크롤 바깥**이다 — 헤더 밑에 붙박이로 선다(Android 는 SectionPage 의
+        // stickyTop 이 같은 일을 한다). 100줄짜리 목록에서 탭이 같이 밀려 올라가면 지금 무엇으로
+        // 거르는 중인지도, 바꾸는 방법도 화면에서 사라진다.
+        //
+        // Android 처럼 오버레이로 얹고 높이를 재서 되돌릴 필요가 없다. 여기서는 ScrollView 를
+        // VStack 아래로 내리면 레이아웃이 알아서 자리를 잡고, 바탕도 페이지 것이 그대로 깔려
+        // 목록이 탭 뒤로 비치지 않는다.
+        VStack(alignment: .leading, spacing: 0) {
+            if !all.isEmpty && games.count > 1 {
+                GLGSegmentedTabs(
+                    labels: ["전체"] + games.map { event.stageLabel(game: $0) },
+                    selectedColors: [accent.primary] + games.map { gameColor($0) },
+                    selection: Binding(
+                        get: { gameFilter.flatMap { games.firstIndex(of: $0).map { $0 + 1 } } ?? 0 },
+                        set: { gameFilter = $0 == 0 ? nil : games[$0 - 1] }
+                    )
+                )
+                .padding(.horizontal, 16).padding(.bottom, 10)
+                .glgReadableWidth(720)
+            }
+            ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
                     if all.isEmpty {
                         emptyCard
                     } else {
                         priceRangeCard
-                        if games.count > 1 {
-                            GLGSegmentedTabs(
-                                labels: ["전체"] + games.map { event.stageLabel(game: $0) },
-                                selectedColors: [accent.primary] + games.map { gameColor($0) },
-                                selection: Binding(
-                                    get: { gameFilter.flatMap { games.firstIndex(of: $0).map { $0 + 1 } } ?? 0 },
-                                    set: { gameFilter = $0 == 0 ? nil : games[$0 - 1] }
-                                )
-                            )
-                            .padding(.top, 12)
-                        }
                         ForEach(Array(shown.enumerated()), id: \.offset) { _, item in
                             GLGCard(cornerRadius: 24, padding: 0) {
                                 goodsCard(item, quantity: Int(cart.quantityOf(name: item.name)))
@@ -73,8 +82,9 @@ struct HoyolandGoodsView: View {
                 }
                 .padding(.horizontal, 16)
                 .glgReadableWidth(720)
+            }
+            .scrollIndicators(.hidden)
         }
-        .scrollIndicators(.hidden)
         // 하단 바 — 지출 선택 모드와 **같은 규격**(safeAreaInset + SystemGlassBar).
         //
         // ⚠️ `ToolbarItem(placement: .bottomBar)` 는 쓸 수 없다. 이 앱은 하위 화면에서도
@@ -167,9 +177,24 @@ struct HoyolandGoodsView: View {
             .padding(.leading, 11)
             Spacer(minLength: 11)
             VStack(alignment: .trailing, spacing: 6) {
-                Text(item.price > 0 ? event.wonLabel(v: item.price) : "미정")
-                    .font(.pretendard(size: 13, weight: item.price > 0 ? .black : .bold)).monospacedDigit()
-                    .foregroundStyle(item.price > 0 ? GLGColor.textPrimary : GLGTextThird)
+                // 담은 뒤에는 **그 줄에서 나갈 돈**(소계)을 크게 세우고, 단가×수량을 작게 받친다.
+                // 단가만 두면 세 개를 담아도 18,000원 으로 보여, 정작 이 앱이 답하려는
+                // "얼마 들고 가야 하나" 를 카드마다 암산하게 만든다. 장바구니 줄 소계와 같은 값이다.
+                if quantity > 0 && item.price > 0 {
+                    Text("\(event.wonLabel(v: item.price)) × \(quantity)")
+                        .font(.pretendard(size: 10.5)).monospacedDigit()
+                        .foregroundStyle(GLGTextThird)
+                }
+                // 이름과 같은 13 이었더니 목록을 훑을 때 값이 제목에 묻혔다 — 이 앱에서 카드를
+                // 고르는 기준은 가격이라 한 단계 키운다. 담은 뒤의 소계는 **강조색**으로
+                // "내가 쓰기로 한 돈" 임을 드러낸다(담기 전 단가는 먹색 그대로).
+                Text(item.price > 0
+                     ? event.wonLabel(v: quantity > 0 ? item.price * Int32(quantity) : item.price)
+                     : "미정")
+                    .font(.pretendard(size: item.price > 0 ? 15 : 13,
+                                      weight: item.price > 0 ? .black : .bold)).monospacedDigit()
+                    .foregroundStyle(item.price <= 0 ? GLGTextThird
+                                     : (quantity > 0 ? accent.primary : GLGColor.textPrimary))
                 // 「담기」 ↔ 스테퍼 전환. 값만 갈아 끼우면 버튼이 있던 자리에 스테퍼가 **툭 나타나서**
                 // 내가 누른 것이 반영된 것인지, 원래 그랬던 것인지 순간 헷갈린다. 담을 때도 뺄 때도
                 // 같은 전환을 태워 "이게 방금 내가 만든 변화" 라는 것을 보이게 한다.

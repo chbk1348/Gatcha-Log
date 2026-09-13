@@ -22,9 +22,34 @@ private func hoyoURL(_ raw: String) -> URL? {
 extension View {
     /// (시간표 페이지도 진입할 때 같은 갱신을 하므로 파일 밖에서도 쓴다)
     func loadHoyoland(into event: Binding<HoyolandEvent>) -> some View {
-        task {
-            if let fresh = try? await HoyolandApi.shared.load(force: false) { event.wrappedValue = fresh }
-        }
+        modifier(HoyolandAutoLoad(event: event))
+    }
+}
+
+/**
+ 진입할 때 + **앱으로 돌아올 때마다** 다시 묻는다.
+
+ `task {}` 하나로 두면 최초 1회로 끝인데, 홈 배너는 앱을 켜 두는 내내 살아 있어 어드민에서
+ 값을 고쳐도 재실행 전까지 옛 값을 보여줬다(2026-09-13 확인 — 장소의 '(실내)' 표기).
+ Android 는 같은 이유로 ON_RESUME 마다 다시 묻는다(`rememberHoyolandEvent`).
+
+ 매번 네트워크를 타지는 않는다 — `HoyolandApi.load` 가 15초 캐시로 막는다. 여기서 하는 일은
+ 값을 다시 **묻는 것**뿐이다.
+ */
+private struct HoyolandAutoLoad: ViewModifier {
+    @Binding var event: HoyolandEvent
+    @Environment(\.scenePhase) private var scenePhase
+
+    func body(content: Content) -> some View {
+        content
+            .task { await reload() }
+            .onChange(of: scenePhase) { _, phase in
+                if phase == .active { Task { await reload() } }
+            }
+    }
+
+    private func reload() async {
+        if let fresh = try? await HoyolandApi.shared.load(force: false) { event = fresh }
     }
 }
 

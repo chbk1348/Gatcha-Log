@@ -1136,15 +1136,22 @@ private fun HoyolandGoodsCard(
                 )
                 Spacer(Modifier.height(1.dp))
             }
+            // 이름과 같은 13sp 였더니 목록을 훑을 때 값이 제목에 묻혔다 — 이 앱에서 카드를 고르는
+            // 기준은 가격이라 한 단계 키운다. 담은 뒤의 소계는 **강조색**으로 "내가 쓰기로 한 돈"
+            // 임을 드러낸다(담기 전 단가는 먹색 그대로 — 아직 내 돈이 아니다).
             Text(
                 when {
                     item.price <= 0 -> "미정"
                     quantity > 0 -> e.wonLabel(item.price * quantity)
                     else -> e.wonLabel(item.price)
                 },
-                fontSize = 13.sp,
+                fontSize = if (item.price > 0) 15.sp else 13.sp,
                 fontWeight = if (item.price > 0) FontWeight.Black else FontWeight.Bold,
-                color = if (item.price > 0) TextPrimary else TextThird,
+                color = when {
+                    item.price <= 0 -> TextThird
+                    quantity > 0 -> accent
+                    else -> TextPrimary
+                },
                 style = LocalTextStyle.current.copy(fontFeatureSettings = "tnum"),
             )
             Spacer(Modifier.height(6.dp))
