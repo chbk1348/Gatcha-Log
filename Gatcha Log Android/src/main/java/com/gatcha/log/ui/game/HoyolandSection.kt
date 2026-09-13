@@ -1174,10 +1174,12 @@ private fun GoodsStepButton(label: String, onClick: () -> Unit) {
 @Composable
 fun HoyolandGoodsBar(e: HoyolandEvent, cart: HoyolandCart, onOpenCart: () -> Unit) {
     if (cart.isEmpty) return
+    // 알약 뒤에 흰 판을 깔지 않는다. 판이 있으면 화면 아래 한 뼘이 통째로 막힌 것처럼 보여
+    // 목록이 거기서 끝난 줄 알게 된다 — 실제로는 계속 스크롤된다. 알약 자체가 불투명해
+    // 합계는 그대로 읽히고, iOS 도 알약만 띄운다(SystemGlassBar).
     Column(
         Modifier
             .fillMaxWidth()
-            .background(Color.White.copy(alpha = 0.94f))
             .padding(start = 16.dp, end = 16.dp, top = 12.dp)
             .navigationBarsPadding()
             .padding(bottom = 8.dp),
