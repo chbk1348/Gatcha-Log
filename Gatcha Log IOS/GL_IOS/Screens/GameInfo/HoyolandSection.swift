@@ -376,8 +376,10 @@ struct HoyolandDetailView: View {
                     }
                     VStack(alignment: .leading, spacing: 6) {
                         HStack { hoyoBadge(e.ticket.statusLabel, tone); Spacer(minLength: 0) }
+                        // 예매 절차를 번호로 내려놓는 값이라 여러 줄이 된다 — 줄간을 준다.
                         Text(e.ticket.note).font(.pretendard(size: 12.5))
                             .foregroundStyle(GLGColor.textSecondary)
+                            .lineSpacing(5)
                             .fixedSize(horizontal: false, vertical: true)
                     }
                     Spacer(minLength: 0)

@@ -689,7 +689,8 @@ fun HoyolandDetailContent(onOpenSub: (HoyolandSub) -> Unit = {}) {
                     // 미정일 때 강조색 배지를 쓰면 정해진 것처럼 보인다 — 회색으로 낮춘다.
                     GlgBadge(e.ticket.statusLabel, if (e.ticket.isUndecided) TextSecondary else accent)
                     Spacer(Modifier.height(6.dp))
-                    Text(e.ticket.note, fontSize = 12.5.sp, color = TextSecondary)
+                    // 예매 절차를 번호로 내려놓는 값이라 여러 줄이 된다 — 줄간을 준다.
+                    Text(e.ticket.note, fontSize = 12.5.sp, color = TextSecondary, lineHeight = 20.sp)
                 }
             }
             // 예매가 공개되면 채워지는 자리 — 값이 없는 줄은 아예 그리지 않는다.
