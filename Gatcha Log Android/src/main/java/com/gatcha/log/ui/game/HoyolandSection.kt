@@ -57,6 +57,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Celebration
+import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.filled.ConfirmationNumber
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Check
@@ -100,6 +101,7 @@ import com.gatcha.log.data.HoyolandLineup
 import com.gatcha.log.data.HoyolandPhase
 import com.gatcha.log.data.api.HoyolandApi
 import com.gatcha.log.ui.components.GlassCard
+import com.gatcha.log.ui.components.GlgCircleIconButton
 import com.gatcha.log.ui.components.GlgBadge
 import com.gatcha.log.ui.components.ChipIdleBorder
 import com.gatcha.log.ui.components.ChipIdleText
@@ -605,11 +607,30 @@ fun HoyolandDetailContent(onOpenSub: (HoyolandSub) -> Unit = {}) {
             Spacer(Modifier.height(14.dp))
             Box(Modifier.fillMaxWidth().height(1.dp).background(DividerColor))
             Spacer(Modifier.height(14.dp))
-            HoyolandFactRow("일정", e.periodLongLabel)
-            Spacer(Modifier.height(8.dp))
-            HoyolandFactRow("장소", e.venueFull)
-            Spacer(Modifier.height(8.dp))
-            HoyolandFactRow("주소", e.venueAddress)
+            // 지도 버튼은 **일정·장소·주소 묶음 전체의 오른쪽**에 세로 가운데로 선다. 카드 맨
+            // 아래 폭 꽉 찬 버튼으로 두면 참여 게임까지 지나야 만나는데, 누르는 이유는 이 묶음
+            // 이다. 주소 한 줄에만 붙이면 세 줄짜리 덩이 옆에서 버튼만 아래로 치우쳐 보인다.
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    HoyolandFactRow("일정", e.periodLongLabel)
+                    Spacer(Modifier.height(8.dp))
+                    HoyolandFactRow("장소", e.venueFull)
+                    Spacer(Modifier.height(8.dp))
+                    HoyolandFactRow("주소", e.venueAddress)
+                }
+                Spacer(Modifier.width(12.dp))
+                // 세로 구분선 — 버튼이 주소 덩이에 딸린 글자가 아니라 **따로 누르는 것**임을
+                // 가른다. 여백만으로는 세 줄짜리 덩이 옆에서 같은 묶음으로 읽힌다.
+                Box(Modifier.width(1.dp).height(40.dp).background(DividerColor))
+                Spacer(Modifier.width(12.dp))
+                GlgCircleIconButton(
+                    icon = Icons.Default.Map,
+                    contentDescription = "지도에서 보기",
+                    size = 40.dp,
+                    outlined = true,
+                    onClick = { openExternalLink(ctx, e.mapUrl, e.mapFallbackUrl) },
+                )
+            }
             // ── 참여 게임 — 아래 독립 섹션이었던 것을 여기로 들였다. "어느 게임이 오나"는
             // 이 행사의 **기본 정보**라 일정·장소와 같은 카드에 있어야 하고, 세로 목록으로
             // 늘어놓으면 다섯 줄이 카드 하나를 통째로 먹었다. 두 칸 그리드로 접는다.
@@ -637,16 +658,8 @@ fun HoyolandDetailContent(onOpenSub: (HoyolandSub) -> Unit = {}) {
                 }
             }
 
-            Spacer(Modifier.height(14.dp))
-            // 카드 폭을 꽉 채운다 — GlgOutlineButton 은 기본이 내용 크기라, 너비를 안 주면
-            // 버튼이 글자 길이만큼만 나온다(다른 호출부는 전부 weight 로 폭을 준다).
-            GlgOutlineButton(
-                "지도에서 보기",
-                onClick = { openExternalLink(ctx, e.mapUrl, e.mapFallbackUrl) },
-                modifier = Modifier.fillMaxWidth(),
-                height = 46.dp,
-                color = accent, // 카드 위라 고스트 테두리는 배경에 묻힌다(iOS 와 동일하게 강조색)
-            )
+            // 지도 버튼은 주소 줄로 올라갔다 — 카드 맨 아래 폭 꽉 찬 버튼이었을 때는 참여 게임을
+            // 지나야 만났는데, 누르는 이유가 그 위 주소 한 줄이라 자리가 어긋나 있었다.
         }
     }
 
@@ -1086,11 +1099,14 @@ private fun HoyolandGoodsCard(
     val raw = e.stageColor(item.game)
     val c = if (raw == 0L) TextSecondary else raw.toColor()
     val label = if (item.game.isBlank()) "공용" else e.stageLabel(item.game)
+    // **위 정렬**이다. 가운데로 두면 오른쪽 열(가격·담기)이 왼쪽 이름 높이를 따라 카드마다
+    // 위아래로 흔들려, 목록을 훑을 때 값과 버튼이 한 줄로 안 선다. 이름이 한 줄이든 두 줄이든
+    // 가격은 이름 첫 줄 옆에 오고 담기는 늘 그 밑이다.
     Row(
         Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 13.dp),
-        verticalAlignment = Alignment.CenterVertically,
+        verticalAlignment = Alignment.Top,
     ) {
         // 썸네일 자리 — 공식 굿즈 이미지가 나오면 이 칸을 그대로 이미지로 바꾼다.
         Box(
