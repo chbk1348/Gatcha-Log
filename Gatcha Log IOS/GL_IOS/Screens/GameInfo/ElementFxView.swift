@@ -148,6 +148,19 @@ private func fillGlow(_ ctx: GraphicsContext, center: CGPoint, radius: Double, c
     )
 }
 
+/// 타원의 호 — [startDeg] 에서 [sweepDeg] 만큼(도, 0 = 3시, 시계 방향). Compose `drawArc` 와 같은 규약.
+/// 움푹 팬 자리의 테두리처럼 **비스듬히 본 원의 일부**에 쓴다.
+private func ellipseArc(_ c: CGPoint, _ rx: Double, _ ry: Double, _ startDeg: Double, _ sweepDeg: Double) -> Path {
+    var path = Path()
+    let n = 24
+    for k in 0...n {
+        let th = (startDeg + sweepDeg * Double(k) / Double(n)) * .pi / 180
+        let pt = CGPoint(x: c.x + cos(th) * rx, y: c.y + sin(th) * ry)
+        if k == 0 { path.move(to: pt) } else { path.addLine(to: pt) }
+    }
+    return path
+}
+
 // ---------------------------------------------------------------- 형상
 
 /// 속성 형상 그리기. [p] 는 0→1 진행도이며 끝에서 자연히 사라진다.
@@ -1219,63 +1232,205 @@ private func drawElementFxAlt(
 
     switch fx {
 
-    // ── 번개 ①: 구체 번개  ②: 전극 아크
+    // ── 번개 ①: 구체 번개(방전 · 그을음 · 터짐)  ②: 야곱의 사다리
+    // Compose `drawElementFxAlt` 와 같은 알고리즘이다 — 왜 이렇게 그리는지는 그쪽 주석에 있다.
     case .bolt:
         if second {
-            let tail = fxTail(p, 0.72)
-            let t = p
-            let cx = w * (-0.1 + 1.2 * t)
-            let cy = h * (0.24 + 0.38 * t * t)
-            let r = w * 0.075 * (0.6 + 0.4 * sin(t * 12))
-            // 지나온 자취
-            for g in 0..<6 {
-                let gt = max(0, t - Double(g) * 0.045)
-                let gx = w * (-0.1 + 1.2 * gt)
-                let gy = h * (0.24 + 0.38 * gt * gt)
-                ctx.fill(circlePath(CGPoint(x: gx, y: gy), r * (0.9 - Double(g) * 0.1)),
-                         with: .color(hot.opacity(0.16 * (1 - Double(g) / 6) * tail)))
+            let tail = fxTail(p, 0.86)
+            let groundY = h * 0.93
+            let pop = 0.76
+            let step = Int(p * 26)
+            let scorch = enkaElementInk(element, 0.70)
+            func posAt(_ t: Double) -> CGPoint {
+                CGPoint(x: w * (0.08 + 0.84 * t) + sin(t * 9) * w * 0.03,
+                        y: h * (0.28 + 0.16 * t) + sin(t * 13 + 1) * h * 0.035)
             }
-            fillGlow(ctx, center: CGPoint(x: cx, y: cy), radius: r * 2.6,
-                     colors: [.white.opacity(0.95 * tail), hot.opacity(0.55 * tail), .clear])
-            ctx.fill(circlePath(CGPoint(x: cx, y: cy), r * 0.5), with: .color(.white.opacity(0.9 * tail)))
-            // 방전 — 프레임마다 자리가 바뀌어야 지직거린다.
-            let step = Int(p * 24)
-            for i in 0..<9 {
-                let ang = fxRnd(step * 7 + 3, i) * .pi * 2
-                let len = r * (1.4 + 2.6 * fxRnd(step * 11 + 5, i))
-                let pts = boltPoints(cx, cy, cy + len, spread: r * 0.5, seed: step * 13 + i, steps: 4)
-                    .map { o -> CGPoint in
-                        let d = o.y - cy
-                        return CGPoint(x: cx + cos(ang) * d + (o.x - cx) * 0.6, y: cy + sin(ang) * d)
+            let c = posAt(clamp01(p / pop))
+            let r = w * 0.056 * (1 + 0.10 * sin(p * 44))
+            let strikes: [Double] = [0.14, 0.32, 0.50, 0.66]
+            let strikeX: [Double] = strikes.enumerated().map { k, st in posAt(st / pop).x + (fxRnd(301, k) - 0.5) * w * 0.18 }
+
+            // ⑤ 그을음 — 끝까지 남는다
+            for (k, st) in strikes.enumerated() where p >= st + 0.04 {
+                let gx = strikeX[k]
+                let rx = w * 0.075
+                ctx.fill(Path(ellipseIn: CGRect(x: gx - rx, y: groundY - rx * 0.26, width: rx * 2, height: rx * 0.52)),
+                         with: .radialGradient(Gradient(colors: [scorch.opacity(0.55 * tail), .clear]),
+                                               center: CGPoint(x: gx, y: groundY), startRadius: 0, endRadius: rx))
+                // 그을린 결 — 바닥을 따라 좌우로 짧게(사방으로 뻗으면 별표처럼 보였다).
+                for q in 0..<3 {
+                    let sd: Double = q % 2 == 0 ? -1 : 1
+                    let len = rx * (0.5 + 0.35 * fxRnd(311 + k, q))
+                    let dy = (fxRnd(307 + k, q) - 0.5) * rx * 0.10
+                    var ln = Path()
+                    ln.move(to: CGPoint(x: gx + sd * rx * 0.2, y: groundY + dy))
+                    ln.addLine(to: CGPoint(x: gx + sd * len, y: groundY + dy * 1.6))
+                    ctx.stroke(ln, with: .color(scorch.opacity(0.35 * tail)), style: StrokeStyle(lineWidth: 1.2, lineCap: .round))
+                }
+            }
+            // ④ 방전 — 그을음 자리에 정확히 꽂힌다
+            for (k, st) in strikes.enumerated() {
+                let t = clamp01((p - st) / 0.07)
+                if t <= 0 || t >= 1 { continue }
+                let from = posAt(st / pop)
+                let gx = strikeX[k]
+                let raw = boltPoints(from.x, from.y + r * 0.6, groundY, spread: w * 0.035, seed: 313 + k * 11, steps: 8)
+                let dx = gx - raw.last!.x
+                let y0 = raw.first!.y
+                let pts = raw.map { o in CGPoint(x: o.x + dx * clamp01((o.y - y0) / (groundY - y0)), y: o.y) }
+                let a = (t < 0.35 ? 1 : (1 - t) / 0.65) * tail
+                drawBolt(ctx, pts, ink, headWidth: 9, alpha: 0.28 * a)
+                drawBolt(ctx, pts, hot, headWidth: 4, alpha: 0.85 * a)
+                drawBolt(ctx, pts, .white, headWidth: 1.6, alpha: 0.95 * a)
+                let tip = pts.last!
+                let mid = pts[pts.count - 3]
+                for sd in [-1.0, 1.0] {
+                    let fork = [mid, CGPoint(x: mid.x + sd * w * 0.03, y: (mid.y + tip.y) / 2),
+                                CGPoint(x: tip.x + sd * w * 0.05, y: groundY)]
+                    drawBolt(ctx, fork, hot, headWidth: 2.4, alpha: 0.7 * a)
+                }
+                fillGlow(ctx, center: tip, radius: w * 0.07, colors: [.white.opacity(0.8 * a), hot.opacity(0.3 * a), .clear])
+            }
+            if p < pop {
+                for g in 0..<5 {
+                    let gp = posAt(clamp01((p - Double(g + 1) * 0.035) / pop))
+                    ctx.fill(circlePath(gp, r * (1 - Double(g) * 0.12)), with: .color(ink.opacity(0.14 * (1 - Double(g) / 5) * tail)))
+                }
+                // ① 짙은 후광 ② 코어
+                fillGlow(ctx, center: c, radius: r * 3.2, colors: [ink.opacity(0.40 * tail), .clear])
+                ctx.fill(circlePath(c, r), with: .color(hot.opacity(0.95 * tail)))
+                fillGlow(ctx, center: c, radius: r * 0.85, colors: [.white.opacity(0.95 * tail), .white.opacity(0)])
+                ctx.fill(circlePath(c, r * 0.32), with: .color(.white.opacity(tail)))
+                // ③ 표면을 기는 잔 아크
+                for k in 0..<5 {
+                    let a0 = fxRnd(step * 5 + 17, k) * .pi * 2
+                    let span = 0.7 + 0.8 * fxRnd(step * 3 + 19, k)
+                    var path = Path()
+                    for q in 0...6 {
+                        let ang = a0 + span * Double(q) / 6
+                        let rr = r * (1.05 + 0.35 * fxRnd(step * 7 + 23 + k, q))
+                        let pt = CGPoint(x: c.x + cos(ang) * rr, y: c.y + sin(ang) * rr)
+                        if q == 0 { path.move(to: pt) } else { path.addLine(to: pt) }
                     }
-                drawBolt(ctx, pts, hot, headWidth: 3.2, alpha: 0.55 * tail)
-                drawBolt(ctx, pts, .white, headWidth: 1.4, alpha: 0.8 * tail)
+                    ctx.stroke(path, with: .color(hot.opacity(0.6 * tail)), style: StrokeStyle(lineWidth: 3.2, lineCap: .round, lineJoin: .round))
+                    ctx.stroke(path, with: .color(.white.opacity(0.85 * tail)), style: StrokeStyle(lineWidth: 1.5, lineCap: .round, lineJoin: .round))
+                }
+            } else {
+                // ⑥ 터짐
+                let bt = clamp01((p - pop) / (1 - pop))
+                let c0 = posAt(1)
+                let a = (1 - bt) * tail
+                ctx.stroke(circlePath(c0, w * (0.04 + 0.22 * bt)), with: .color(ink.opacity(0.55 * a)), lineWidth: 4 * (1 - bt) + 0.8)
+                let fr = w * 0.10 * (1 - bt * 0.5)
+                fillGlow(ctx, center: c0, radius: fr, colors: [.white.opacity(0.9 * (1 - bt)), hot.opacity(0.5 * (1 - bt)), .clear])
+                for k in 0..<16 {
+                    let ang = Double(k) / 16 * .pi * 2 + fxRnd(331, k) * 0.4
+                    let sp = w * (0.10 + 0.20 * fxRnd(337, k))
+                    let d0 = sp * bt
+                    let d1 = sp * max(0, bt - 0.12)
+                    let gy = h * 0.25 * bt * bt
+                    var ln = Path()
+                    ln.move(to: CGPoint(x: c0.x + cos(ang) * d1, y: c0.y + sin(ang) * d1 + gy * 0.6))
+                    ln.addLine(to: CGPoint(x: c0.x + cos(ang) * d0, y: c0.y + sin(ang) * d0 + gy))
+                    ctx.stroke(ln, with: .color(hot.opacity(0.85 * a)), style: StrokeStyle(lineWidth: 2, lineCap: .round))
+                }
             }
         } else {
-            let tail = fxTail(p, 0.78)
-            let ey = h * 0.44
-            let lx = w * 0.06
-            let rx = w * 0.94
-            for x in [lx, rx] {
-                var rod = Path()
-                rod.move(to: CGPoint(x: x, y: ey - h * 0.06))
-                rod.addLine(to: CGPoint(x: x, y: ey + h * 0.06))
-                ctx.stroke(rod, with: .color(ink.opacity(0.85 * tail)),
-                           style: StrokeStyle(lineWidth: 5, lineCap: .round))
+            let tail = fxTail(p, 0.86)
+            let cx = w * 0.5
+            let baseY = h * 0.96
+            let topY = h * 0.10
+            let metal = enkaElementInk(element, 0.62)
+            let sheen = enkaElementLight(element, 0.70)
+            func halfGap(_ y: Double) -> Double {
+                let f = clamp01((baseY - y) / (baseY - topY))
+                return w * (0.025 + 0.19 * f)
             }
-            for (k, at) in [0.02, 0.34, 0.66].enumerated() {
-                let t = clamp01((p - at) / 0.26)
+            let step = Int(p * 30)
+            func arcStroke(_ pts: [CGPoint], _ color: Color, _ width: Double, _ alpha: Double) {
+                var path = Path()
+                for (i, o) in pts.enumerated() { if i == 0 { path.move(to: o) } else { path.addLine(to: o) } }
+                ctx.stroke(path, with: .color(color.opacity(alpha)), style: StrokeStyle(lineWidth: width, lineCap: .round, lineJoin: .round))
+            }
+            // ⑤ 오존 김
+            for k in 0..<5 {
+                let st = 0.18 + Double(k) * 0.12
+                let t = clamp01((p - st) / 0.55)
+                if t <= 0 { continue }
+                let x0 = cx + (fxRnd(347, k) - 0.5) * w * 0.2
+                let y0 = h * (0.72 - 0.1 * fxRnd(349, k))
+                let y1 = y0 - h * 0.45 * t
+                var path = Path()
+                path.move(to: CGPoint(x: x0, y: y0))
+                path.addCurve(to: CGPoint(x: x0 + w * 0.02 * sin(t * 4 + Double(k)), y: y1),
+                              control1: CGPoint(x: x0 + w * 0.05, y: y0 - (y0 - y1) * 0.33),
+                              control2: CGPoint(x: x0 - w * 0.05, y: y0 - (y0 - y1) * 0.66))
+                ctx.stroke(path, with: .color(ink.opacity(0.16 * (1 - t) * tail)), style: StrokeStyle(lineWidth: 3, lineCap: .round))
+            }
+            // ① 전극 · 받침
+            for sd in [-1.0, 1.0] {
+                let wb = 3.2, wt = 2.2
+                var rod = Path()
+                rod.move(to: CGPoint(x: cx + sd * halfGap(baseY) - wb, y: baseY))
+                rod.addLine(to: CGPoint(x: cx + sd * halfGap(topY) - wt, y: topY))
+                rod.addLine(to: CGPoint(x: cx + sd * halfGap(topY) + wt, y: topY))
+                rod.addLine(to: CGPoint(x: cx + sd * halfGap(baseY) + wb, y: baseY))
+                rod.closeSubpath()
+                ctx.fill(rod, with: .color(metal.opacity(0.92 * tail)))
+                var sh = Path()
+                sh.move(to: CGPoint(x: cx + sd * halfGap(baseY) - sd * 1.2, y: baseY))
+                sh.addLine(to: CGPoint(x: cx + sd * halfGap(topY) - sd * 0.8, y: topY))
+                ctx.stroke(sh, with: .color(sheen.opacity(0.7 * tail)), lineWidth: 1)
+            }
+            ctx.fill(Path(roundedRect: CGRect(x: cx - w * 0.09, y: baseY - h * 0.02, width: w * 0.18, height: h * 0.05), cornerRadius: 3),
+                     with: .color(metal.opacity(0.85 * tail)))
+            // ② 오르는 아크 — 세 번, 끝에서 끊어진다(④)
+            for (k, start) in [0.02, 0.30, 0.58].enumerated() {
+                let t = clamp01((p - start) / 0.30)
                 if t <= 0 || t >= 1 { continue }
-                let a = (t < 0.2 ? 1 : 1 - (t - 0.2) / 0.8) * tail
-                // 가로로 흐르는 아크 — boltPoints 를 눕혀 쓴다.
-                let pts = boltPoints(ey, lx, rx, spread: h * 0.05, seed: 61 + k * 17, steps: 12)
-                    .map { CGPoint(x: $0.y, y: $0.x) }
-                drawBolt(ctx, pts, ink, headWidth: 10, alpha: 0.22 * a)
-                drawBolt(ctx, pts, hot, headWidth: 4.5, alpha: 0.7 * a)
-                drawBolt(ctx, pts, .white, headWidth: 2, alpha: 0.95 * a)
-                for x in [lx, rx] {
-                    fillGlow(ctx, center: CGPoint(x: x, y: ey), radius: w * 0.09,
-                             colors: [.white.opacity(0.6 * a), .clear])
+                let climb = 1 - (1 - t) * (1 - t)
+                let y = baseY - h * 0.05 - (baseY - topY - h * 0.06) * climb
+                let hg = halfGap(y)
+                let lx = cx - hg
+                let rx = cx + hg
+                let sag = hg * 0.55
+                let n = 16
+                let pts: [CGPoint] = (0...n).map { i in
+                    let f = Double(i) / Double(n)
+                    let jit = (fxRnd(step * 7 + k * 13, i) - 0.5) * h * (0.012 + 0.03 * (hg / w))
+                    let yy = y - sin(f * .pi) * sag + ((i == 0 || i == n) ? 0 : jit)
+                    return CGPoint(x: lx + (rx - lx) * f, y: yy)
+                }
+                if t <= 0.86 {
+                    arcStroke(pts, ink, 12, 0.22 * tail)
+                    arcStroke(pts, hot, 4.2, 0.85 * tail)
+                    arcStroke(pts, .white, 1.7, 0.95 * tail)
+                } else {
+                    let st = (t - 0.86) / 0.14
+                    let keep = max(1, Int((1 - st) * Double(n) / 2))
+                    for half in [Array(pts[0...keep]), Array(pts[(n - keep)...n])] {
+                        arcStroke(half, hot, 3.4, 0.8 * (1 - st) * tail)
+                        arcStroke(half, .white, 1.4, 0.9 * (1 - st) * tail)
+                    }
+                    let mid = pts[n / 2]
+                    for q in 0..<10 {
+                        let ang = -Double.pi / 2 + (fxRnd(353 + k, q) - 0.5) * 2.2
+                        let sp = w * (0.06 + 0.10 * fxRnd(359 + k, q))
+                        let x = mid.x + cos(ang) * sp * st
+                        let yy = mid.y + sin(ang) * sp * st + h * 0.10 * st * st
+                        ctx.fill(circlePath(CGPoint(x: x, y: yy), 2.4 - st), with: .color(hot.opacity(0.9 * (1 - st) * tail)))
+                    }
+                }
+                for e in [pts.first!, pts.last!] {
+                    fillGlow(ctx, center: e, radius: w * 0.04, colors: [.white.opacity(0.75 * tail), hot.opacity(0.35 * tail), .clear])
+                }
+            }
+            // ⑤ 달궈진 전극 끝
+            let heat = clamp01((p - 0.28) / 0.2) * (1 - clamp01((p - 0.6) / 0.4) * 0.6)
+            if heat > 0 {
+                for sd in [-1.0, 1.0] {
+                    fillGlow(ctx, center: CGPoint(x: cx + sd * halfGap(topY), y: topY), radius: w * 0.05,
+                             colors: [hot.opacity(0.55 * heat * tail), .clear])
                 }
             }
         }
@@ -1395,44 +1550,166 @@ private func drawElementFxAlt(
                      with: .linearGradient(Gradient(colors: [.clear, .white.opacity(0.32 * tail)]),
                                            startPoint: CGPoint(x: 0, y: h - edge), endPoint: CGPoint(x: 0, y: h)))
         } else {
-            // 고드름 — 자라 내려오다 일부가 부러져 떨어진다.
-            let tail = fxTail(p, 0.86)
-            let cols: [(Double, Double, Double)] = [
-                (0.10, 0.00, 0.30), (0.22, 0.08, 0.44), (0.35, 0.03, 0.24), (0.48, 0.12, 0.38),
-                (0.61, 0.05, 0.50), (0.74, 0.14, 0.28), (0.87, 0.02, 0.40), (0.95, 0.18, 0.22),
-            ]
-            for (i, item) in cols.enumerated() {
-                let (x0, delay, lenR) = item
-                let t = clamp01((p - delay) / 0.55)
-                if t <= 0 { continue }
-                let x = w * x0
-                let len = h * lenR * (1 - (1 - t) * (1 - t))
-                let halfW = (7 + 5 * fxRnd(91, i)) * (0.6 + 0.4 * lenR * 2)
-                let breaks = fxRnd(97, i) > 0.45
-                let bt = breaks ? clamp01((p - delay - 0.52) / 0.4) : 0
-                let drop = h * 1.1 * bt * bt
-                let a = (breaks ? 1 - bt * 0.2 : 1) * tail
-
-                var spike = Path()
-                spike.move(to: CGPoint(x: x - halfW, y: drop))
-                spike.addLine(to: CGPoint(x: x + halfW, y: drop))
-                spike.addLine(to: CGPoint(x: x + halfW * 0.15, y: drop + len))
-                spike.addLine(to: CGPoint(x: x - halfW * 0.15, y: drop + len))
-                spike.closeSubpath()
-                ctx.fill(spike, with: .color(ink.opacity(0.80 * a)))
-                var hl = Path()
-                hl.move(to: CGPoint(x: x - halfW * 0.35, y: drop + len * 0.08))
-                hl.addLine(to: CGPoint(x: x - halfW * 0.05, y: drop + len * 0.9))
-                ctx.stroke(hl, with: .color(.white.opacity(0.55 * a)),
-                           style: StrokeStyle(lineWidth: 2, lineCap: .round))
-                if t > 0.8 && !breaks {
-                    ctx.fill(circlePath(CGPoint(x: x, y: drop + len + 3), 3), with: .color(hot.opacity(0.6 * a)))
+            // 고드름 — 마디 · 속이 비침 · 처마 얼음 · 물방울 · 부러짐(밑동은 남는다). 주석은 Compose 쪽.
+            let tail = fxTail(p, 0.88)
+            let eaveY = h * 0.055
+            let floorY = h * 0.96
+            let core = enkaElementInk(element, 0.55)
+            func eaveAt(_ x: Double) -> Double {
+                eaveY + (sin(x / w * 17) * 0.5 + sin(x / w * 41) * 0.3 + 0.4) * h * 0.014
+            }
+            do {
+                let n = 48
+                var body = Path()
+                body.move(to: .zero)
+                body.addLine(to: CGPoint(x: w, y: 0))
+                for k in 0...n {
+                    let x = w - w * Double(k) / Double(n)
+                    body.addLine(to: CGPoint(x: x, y: eaveAt(x)))
+                }
+                body.closeSubpath()
+                ctx.fill(body, with: .color(ink.opacity(0.60 * tail)))
+                var edge = Path()
+                for k in 0...n {
+                    let x = w * Double(k) / Double(n)
+                    let pt = CGPoint(x: x, y: eaveAt(x) - 1.5)
+                    if k == 0 { edge.move(to: pt) } else { edge.addLine(to: pt) }
+                }
+                ctx.stroke(edge, with: .color(.white.opacity(0.45 * tail)), lineWidth: 1.3)
+            }
+            func drawIcicle(_ x: Double, _ top: Double, _ len: Double, _ halfW: Double, _ from: Double, _ to: Double,
+                            _ dy: Double, _ ang: Double, _ a: Double, _ front: Bool) {
+                if len <= 1 || to <= from { return }
+                let pivot = CGPoint(x: x, y: top + len * from)
+                func place(_ px: Double, _ py: Double) -> CGPoint {
+                    let rx = px - pivot.x
+                    let ry = py - pivot.y
+                    return CGPoint(x: pivot.x + rx * cos(ang) - ry * sin(ang), y: pivot.y + rx * sin(ang) + ry * cos(ang) + dy)
+                }
+                func widthAt(_ f: Double) -> Double { halfW * pow(max(0, 1 - f), 0.85) * (1 + 0.16 * sin(f * len / 9)) }
+                let n = 14
+                var body = Path()
+                for k in 0...n {
+                    let f = from + (to - from) * Double(k) / Double(n)
+                    let o = place(x - widthAt(f), top + len * f)
+                    if k == 0 { body.move(to: o) } else { body.addLine(to: o) }
+                }
+                for k in 0...n {
+                    let f = to - (to - from) * Double(k) / Double(n)
+                    body.addLine(to: place(x + widthAt(f) * 0.9, top + len * f))
+                }
+                body.closeSubpath()
+                ctx.fill(body, with: .color(ink.opacity((front ? 0.80 : 0.46) * a)))
+                let f0 = from + (to - from) * 0.08
+                let f1 = from + (to - from) * 0.82
+                func seg(_ q0: CGPoint, _ q1: CGPoint, _ c: Color, _ lw: Double) {
+                    var l = Path()
+                    l.move(to: q0)
+                    l.addLine(to: q1)
+                    ctx.stroke(l, with: .color(c), style: StrokeStyle(lineWidth: lw, lineCap: .round))
+                }
+                seg(place(x, top + len * f0), place(x, top + len * f1), core.opacity(0.35 * a), 1.4)
+                if front {
+                    seg(place(x - widthAt(f0) * 0.5, top + len * f0), place(x - widthAt(f1) * 0.5, top + len * f1), .white.opacity(0.65 * a), 1.6)
+                    let fm = f0 + (f1 - f0) * 0.6
+                    seg(place(x + widthAt(f0) * 0.55, top + len * f0), place(x + widthAt(fm) * 0.5, top + len * fm), .white.opacity(0.25 * a), 1)
                 }
             }
-            // 천장 서리
-            ctx.fill(Path(CGRect(x: 0, y: 0, width: w, height: h * 0.07)),
-                     with: .linearGradient(Gradient(colors: [ink.opacity(0.55 * tail), .clear]),
-                                           startPoint: CGPoint(x: 0, y: 0), endPoint: CGPoint(x: 0, y: h * 0.07)))
+            struct Ice { let x, delay, lenR: Double; let front, breaks: Bool }
+            let ices: [Ice] = [
+                Ice(x: 0.07, delay: 0.00, lenR: 0.20, front: false, breaks: false),
+                Ice(x: 0.25, delay: 0.06, lenR: 0.27, front: false, breaks: false),
+                Ice(x: 0.42, delay: 0.02, lenR: 0.17, front: false, breaks: false),
+                Ice(x: 0.60, delay: 0.08, lenR: 0.25, front: false, breaks: false),
+                Ice(x: 0.77, delay: 0.04, lenR: 0.21, front: false, breaks: false),
+                Ice(x: 0.94, delay: 0.10, lenR: 0.23, front: false, breaks: false),
+                Ice(x: 0.15, delay: 0.04, lenR: 0.42, front: true, breaks: true),
+                Ice(x: 0.34, delay: 0.10, lenR: 0.33, front: true, breaks: false),
+                Ice(x: 0.53, delay: 0.00, lenR: 0.50, front: true, breaks: true),
+                Ice(x: 0.70, delay: 0.14, lenR: 0.36, front: true, breaks: false),
+                Ice(x: 0.87, delay: 0.06, lenR: 0.44, front: true, breaks: true),
+            ]
+            for (i, ic) in ices.enumerated() {
+                let grow = clamp01((p - ic.delay) / 0.46)
+                if grow <= 0 { continue }
+                let x = w * ic.x
+                let top = eaveAt(x) - 2
+                let fullLen = h * ic.lenR
+                let len = fullLen * (1 - (1 - grow) * (1 - grow))
+                let halfW = (ic.front ? 8.5 : 4.5) * (0.75 + 0.6 * ic.lenR)
+                if !ic.breaks {
+                    drawIcicle(x, top, len, halfW, 0, 1, 0, 0, tail, ic.front)
+                    if ic.front {
+                        for k in 0..<2 {
+                            let tipY = top + fullLen
+                            let dt = clamp01((p - ic.delay - 0.48 - Double(k) * 0.16) / 0.20)
+                            if dt > 0 && dt < 1 {
+                                if dt < 0.4 {
+                                    ctx.fill(circlePath(CGPoint(x: x, y: tipY + 2), 1.5 + 2.2 * dt / 0.4), with: .color(hot.opacity(0.75 * tail)))
+                                } else {
+                                    let ft = (dt - 0.4) / 0.6
+                                    ctx.fill(circlePath(CGPoint(x: x, y: tipY + (floorY - tipY) * ft * ft), 3), with: .color(hot.opacity(0.75 * tail)))
+                                }
+                            }
+                            let sp = clamp01((p - ic.delay - 0.68 - Double(k) * 0.16) / 0.12)
+                            if sp > 0 && sp < 1 {
+                                ovalRing(ctx, CGPoint(x: x, y: floorY), w * 0.035 * (0.4 + sp), w * 0.009 * (0.4 + sp), hot.opacity(0.6 * (1 - sp) * tail), 1.4)
+                                for sd in [-1.0, 0.0, 1.0] {
+                                    var l = Path()
+                                    l.move(to: CGPoint(x: x + sd * w * 0.006, y: floorY))
+                                    l.addLine(to: CGPoint(x: x + sd * w * 0.018 * sp, y: floorY - h * 0.03 * sin(sp * .pi)))
+                                    ctx.stroke(l, with: .color(hot.opacity(0.6 * (1 - sp) * tail)), style: StrokeStyle(lineWidth: 1.3, lineCap: .round))
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    let crackF = 0.42 + 0.1 * fxRnd(401, i)
+                    let crackT = clamp01((p - ic.delay - 0.50) / 0.06)
+                    let fallT = clamp01((p - ic.delay - 0.56) / 0.34)
+                    drawIcicle(x, top, len, halfW, 0, fallT > 0 ? crackF : 1, 0, 0, tail, true)
+                    if crackT > 0 && fallT <= 0 {
+                        let cy = top + len * crackF
+                        let ww = halfW * (1 - crackF)
+                        var l = Path()
+                        l.move(to: CGPoint(x: x - ww, y: cy - 1))
+                        l.addLine(to: CGPoint(x: x - ww + ww * 1.8 * crackT, y: cy + 1.5))
+                        ctx.stroke(l, with: .color(core.opacity(0.85 * tail)), lineWidth: 1.6)
+                    }
+                    if fallT > 0 {
+                        let pieceTop = top + fullLen * crackF
+                        let pieceLen = fullLen * (1 - crackF)
+                        let travel = (floorY - pieceTop) * 1.25
+                        let hitT = sqrt(clamp01((floorY - pieceTop - pieceLen) / travel))
+                        if fallT < hitT {
+                            let ang = fallT * 0.5 * (i % 2 == 0 ? 1.0 : -1.0)
+                            drawIcicle(x, top, fullLen, halfW, crackF, 1, travel * fallT * fallT, ang, tail, true)
+                        }
+                        let hitP = ic.delay + 0.56 + 0.34 * hitT
+                        let sa = clamp01((p - hitP) / 0.22)
+                        if p >= hitP {
+                            ovalRing(ctx, CGPoint(x: x, y: floorY), w * 0.05 * (0.3 + sa), w * 0.012 * (0.3 + sa), ink.opacity(0.4 * (1 - sa) * tail), 1.4)
+                            for k in 0..<7 {
+                                let vx = (fxRnd(409 + i, k) - 0.5) * w * 0.18
+                                let vy = -h * (0.05 + 0.08 * fxRnd(419 + i, k))
+                                let sx = x + vx * sa
+                                let sy = floorY + vy * 4 * sa * (1 - sa) - 2
+                                let sz = 3 + 2.5 * fxRnd(421 + i, k)
+                                let rot = sa * 6 + Double(k)
+                                var shard = Path()
+                                for q in 0..<3 {
+                                    let aa = (Double.pi * 2 / 3) * Double(q) + rot
+                                    let pt = CGPoint(x: sx + cos(aa) * sz * (q == 0 ? 1.5 : 0.8), y: sy + sin(aa) * sz * 0.8)
+                                    if q == 0 { shard.move(to: pt) } else { shard.addLine(to: pt) }
+                                }
+                                shard.closeSubpath()
+                                ctx.fill(shard, with: .color(ink.opacity(0.8 * tail)))
+                                ctx.stroke(shard, with: .color(.white.opacity(0.4 * tail)), lineWidth: 0.9)
+                            }
+                        }
+                    }
+                }
+            }
         }
 
     // ── 불 ①: 화염 분출  ②: 불티 소용돌이
@@ -1911,87 +2188,247 @@ private func drawElementFxAlt(
             }
         }
 
-    // ── 바위 ①: 낙석  ②: 암석 기둥
+    // ── 바위 ①: 낙석(세 톤 면 · 세 겹 깊이 · 바닥 그림자 · 쌓임)  ②: 암석 기둥(각기둥 세 면)
     case .rock:
         if second {
-            let tail = fxTail(p, 0.86)
-            let groundY = h * 0.88
-            let edge = enkaElementInk(element, 0.6)
-            for i in 0..<11 {
-                let seed = fxRnd(181, i)
-                let t = clamp01((p - seed * 0.42) / 0.5)
-                if t <= 0 { continue }
-                let x = w * (0.06 + 0.88 * fxRnd(191, i))
-                let r = w * (0.035 + 0.055 * seed)
-                let fall = min(1, t * t)
-                let y = -h * 0.1 + (groundY - r) * fall + (t > 0.86 ? -abs(sin((t - 0.86) * 22)) * h * 0.05 : 0)
-                let rot = t * (3 + 4 * seed)
-                var path = Path()
-                for k in 0..<7 {
-                    let ang = (.pi * 2 / 7) * Double(k) + rot
-                    let jitter = 0.76 + 0.28 * abs(sin(Double(k + i) * 2.7))
-                    let pt = CGPoint(x: x + cos(ang) * r * jitter, y: y + sin(ang) * r * jitter)
-                    if k == 0 { path.move(to: pt) } else { path.addLine(to: pt) }
+            let tail = fxTail(p, 0.88)
+            let groundY = h * 0.90
+            let lit = enkaElementInk(element, 0.08)
+            let shade = enkaElementInk(element, 0.58)
+            func drawRock(_ cx: Double, _ cy: Double, _ r: Double, _ rot: Double, _ seed: Int, _ a: Double) {
+                let n = 7
+                let v: [CGPoint] = (0..<n).map { k in
+                    let ang = (Double.pi * 2 / Double(n)) * Double(k) + rot
+                    let j = 0.74 + 0.30 * abs(sin(Double(k + seed) * 2.7))
+                    return CGPoint(x: cx + cos(ang) * r * j, y: cy + sin(ang) * r * j)
                 }
-                path.closeSubpath()
-                ctx.fill(path, with: .color(ink.opacity(0.82 * tail)))
-                ctx.stroke(path, with: .color(edge.opacity(0.5 * tail)), lineWidth: 1.6)
-                if t > 0.88 {
-                    ctx.fill(circlePath(CGPoint(x: x, y: groundY), r * 1.8),
-                             with: .color(ink.opacity(0.20 * (1 - (t - 0.88) / 0.12) * tail)))
+                for k in 0..<n {
+                    let a1 = v[k]
+                    let b1 = v[(k + 1) % n]
+                    let mx = (a1.x + b1.x) / 2 - cx
+                    let my = (a1.y + b1.y) / 2 - cy
+                    let len = max(0.001, sqrt(mx * mx + my * my))
+                    let facing = (-0.7 * mx - 0.7 * my) / len
+                    let col = facing > 0.3 ? lit : (facing < -0.3 ? shade : ink)
+                    var tri = Path()
+                    tri.move(to: CGPoint(x: cx, y: cy))
+                    tri.addLine(to: a1)
+                    tri.addLine(to: b1)
+                    tri.closeSubpath()
+                    ctx.fill(tri, with: .color(col.opacity(a)))
+                }
+                var outline = Path()
+                outline.addLines(v)
+                outline.closeSubpath()
+                ctx.stroke(outline, with: .color(shade.opacity(0.6 * a)), style: StrokeStyle(lineWidth: 1.2, lineJoin: .round))
+            }
+            let scales: [Double] = [0.62, 0.90, 1.25]
+            let alphas: [Double] = [0.45, 0.72, 0.95]
+            for i in (0..<12).sorted(by: { $0 % 3 < $1 % 3 }) {
+                let layer = i % 3
+                let lg = groundY - Double(2 - layer) * h * 0.035
+                let r = w * (0.030 + 0.035 * fxRnd(193, i)) * scales[layer]
+                let al = alphas[layer] * tail
+                let delay = fxRnd(181, i) * 0.45
+                let t = clamp01((p - delay) / 0.42)
+                if t <= 0 { continue }
+                let land = 0.62
+                let spin = 2 + 3 * fxRnd(197, i)
+                let dir: Double = fxRnd(199, i) > 0.5 ? 1 : -1
+                let x0 = w * (0.06 + 0.88 * fxRnd(191, i))
+                var x = x0
+                var y = 0.0
+                var rot = 0.0
+                var bt = 0.0
+                if t < land {
+                    let fall = (t / land) * (t / land)
+                    y = -r * 2 + (lg - r + r * 2) * fall
+                    rot = t * spin
+                } else {
+                    bt = (t - land) / (1 - land)
+                    x = x0 + dir * r * 0.8 * bt
+                    y = lg - r - abs(sin(bt * .pi)) * h * 0.05 * (1 - bt)
+                    rot = land * spin + bt * 0.6 * dir
+                }
+                let near = clamp01((y + r) / lg)
+                let sw = r * (0.6 + 1.0 * near)
+                ctx.fill(Path(ellipseIn: CGRect(x: x - sw, y: lg - sw * 0.16, width: sw * 2, height: sw * 0.32)),
+                         with: .color(shade.opacity(0.32 * near * near * al)))
+                if t < land {
+                    for sd in [-0.4, 0.4] {
+                        var l = Path()
+                        l.move(to: CGPoint(x: x + sd * r, y: y - r))
+                        l.addLine(to: CGPoint(x: x + sd * r, y: y - r - h * 0.08 * (t / land)))
+                        ctx.stroke(l, with: .color(ink.opacity(0.25 * al)), style: StrokeStyle(lineWidth: 1.4, lineCap: .round))
+                    }
+                }
+                drawRock(x, y, r, rot, i, al)
+                if t >= land && bt < 0.5 {
+                    let st = bt / 0.5
+                    let fa = (1 - st) * al
+                    for k in 0..<3 {
+                        let px = x0 + Double(k - 1) * r * 0.9
+                        ctx.fill(circlePath(CGPoint(x: px, y: lg - h * 0.04 * st), r * (0.8 + 1.6 * st)), with: .color(ink.opacity(0.20 * fa)))
+                    }
+                    ovalRing(ctx, CGPoint(x: x0, y: lg), r * (1 + 3 * st), r * 0.3 * (1 + 3 * st), ink.opacity(0.30 * fa), 1.4)
+                    for k in 0..<3 {
+                        let cx2 = x0 + Double(k - 1) * r * 2.2 * st
+                        let cy2 = lg - r * 0.4 - h * 0.10 * 4 * st * (1 - st)
+                        var tri = Path()
+                        tri.move(to: CGPoint(x: cx2, y: cy2 - r * 0.25))
+                        tri.addLine(to: CGPoint(x: cx2 + r * 0.22, y: cy2 + r * 0.15))
+                        tri.addLine(to: CGPoint(x: cx2 - r * 0.2, y: cy2 + r * 0.12))
+                        tri.closeSubpath()
+                        ctx.fill(tri, with: .color(shade.opacity(0.8 * fa)))
+                    }
+                }
+                if t >= land && layer == 2 {
+                    let cg = clamp01((t - land) / 0.15)
+                    for sd in [-1.0, 1.0] {
+                        let k1 = CGPoint(x: x0 + sd * r * 1.4 * cg, y: lg + h * 0.006)
+                        let k2 = CGPoint(x: x0 + sd * r * 2.6 * cg, y: lg - h * 0.004)
+                        var l1 = Path()
+                        l1.move(to: CGPoint(x: x0 + sd * r * 0.6, y: lg))
+                        l1.addLine(to: k1)
+                        ctx.stroke(l1, with: .color(shade.opacity(0.5 * tail)), style: StrokeStyle(lineWidth: 1.6, lineCap: .round))
+                        var l2 = Path()
+                        l2.move(to: k1)
+                        l2.addLine(to: k2)
+                        ctx.stroke(l2, with: .color(shade.opacity(0.4 * tail)), style: StrokeStyle(lineWidth: 1, lineCap: .round))
+                    }
                 }
             }
         } else {
-            let tail = fxTail(p, 0.84)
-            let groundY = h * 0.86
-            let crack = clamp01(p / 0.20)
-            let edge = enkaElementInk(element, 0.6)
-            let grain = enkaElementInk(element, 0.5)
-            // 갈라진 금
-            var pts: [CGPoint] = []
-            var x = w * 0.5 - w * 0.5 * crack
-            pts.append(CGPoint(x: x, y: groundY))
-            for k in 0..<9 {
-                x += w * 0.11 * crack
-                pts.append(CGPoint(x: x, y: groundY + (fxRnd(193, k) - 0.5) * h * 0.02))
+            let tail = fxTail(p, 0.86)
+            let groundY = h * 0.88
+            let lit = enkaElementInk(element, 0.08)
+            let shade = enkaElementInk(element, 0.58)
+            let crack = clamp01(p / 0.18)
+            for sd in [-1.0, 1.0] {
+                var x = w * 0.5
+                var y = groundY
+                let segs = 6
+                let shown = crack * Double(segs)
+                for k in 0..<segs {
+                    let part = clamp01(shown - Double(k))
+                    if part <= 0 { break }
+                    let ang = (fxRnd(193, k + (sd > 0 ? 10 : 0)) - 0.5) * 0.5
+                    let seg = w * 0.085
+                    let nx = x + sd * seg * cos(ang) * part
+                    let ny = y + seg * sin(ang) * 0.35 * part
+                    var l = Path()
+                    l.move(to: CGPoint(x: x, y: y))
+                    l.addLine(to: CGPoint(x: nx, y: ny))
+                    ctx.stroke(l, with: .color(shade.opacity(0.75 * tail)), style: StrokeStyle(lineWidth: 3.2 - 0.36 * Double(k), lineCap: .round))
+                    if k % 2 == 1 && part >= 1 {
+                        var b = Path()
+                        b.move(to: CGPoint(x: nx, y: ny))
+                        b.addLine(to: CGPoint(x: nx + sd * seg * 0.3, y: ny - h * 0.02))
+                        ctx.stroke(b, with: .color(shade.opacity(0.5 * tail)), style: StrokeStyle(lineWidth: 1, lineCap: .round))
+                    }
+                    x = nx
+                    y = ny
+                }
             }
-            drawBolt(ctx, pts, enkaElementInk(element, 0.55), headWidth: 4, alpha: 0.7 * tail)
-
-            let cols: [(Double, Double, Double, Double)] = [
-                (0.18, 0.06, 0.30, 0.9), (0.40, 0.14, 0.44, 1.1),
-                (0.62, 0.10, 0.36, 1.0), (0.83, 0.20, 0.26, 0.8),
+            let cols: [[Double]] = [
+                [0.28, 0.12, 0.26, 0.75, 0], [0.72, 0.16, 0.22, 0.70, 0],
+                [0.16, 0.06, 0.30, 0.95, 1], [0.42, 0.10, 0.46, 1.15, 1],
+                [0.62, 0.08, 0.38, 1.00, 1], [0.86, 0.20, 0.28, 0.85, 1],
             ]
-            for (i, item) in cols.enumerated() {
-                let (x0, delay, hR, wR) = item
-                let t = clamp01((p - delay) / 0.46)
+            for (i, cd) in cols.enumerated() {
+                let front = cd[4] > 0.5
+                let t = clamp01((p - cd[1]) / 0.40)
                 if t <= 0 { continue }
-                let rise = 1 - (1 - t) * (1 - t)
-                let cx = w * x0
-                let ph = h * hR * rise
-                let pw = w * 0.075 * wR
-                let tilt = (fxRnd(197, i) - 0.5) * pw * 0.9
-                var col = Path()
-                col.move(to: CGPoint(x: cx - pw, y: groundY))
-                col.addLine(to: CGPoint(x: cx - pw * 0.62 + tilt, y: groundY - ph))
-                col.addLine(to: CGPoint(x: cx + pw * 0.55 + tilt, y: groundY - ph * 0.86))
-                col.addLine(to: CGPoint(x: cx + pw, y: groundY))
-                col.closeSubpath()
-                ctx.fill(col, with: .color(ink.opacity(0.85 * tail)))
-                ctx.stroke(col, with: .color(edge.opacity(0.55 * tail)), lineWidth: 1.8)
+                let c1 = 1.4
+                let tm = t - 1
+                let rise = 1 + (c1 + 1) * tm * tm * tm + c1 * tm * tm
+                let al = (front ? 0.92 : 0.55) * tail
+                let gy = groundY - (front ? 0 : h * 0.04)
+                let shake = t < 0.6 ? sin(t * 60) * w * 0.004 * (1 - t / 0.6) : 0
+                let cx = w * cd[0] + shake
+                let ph = h * cd[2] * rise
+                let pw = w * 0.07 * cd[3] * (front ? 1 : 0.75)
+                let depth = pw * 0.45
+                let tilt = (fxRnd(197, i) - 0.5) * pw * 0.6
+                let ddx = depth
+                let ddy = -depth * 0.35
+                // 윤곽 — 모서리가 어긋나고 꼭대기는 부러진 듯 들쭉날쭉(반듯하면 건물로 읽혔다).
+                func edge(_ x0: Double, _ taper: Double, _ seed: Int) -> [CGPoint] {
+                    (0...3).map { k in
+                        let f = Double(k) / 3
+                        let jit = (k == 0 || k == 3) ? 0 : (fxRnd(seed, k) - 0.5) * pw * 0.22
+                        return CGPoint(x: x0 + (cx - x0) * taper * f + tilt * f + jit, y: gy - ph * f * (x0 > cx ? 0.9 : 1))
+                    }
+                }
+                let left = edge(cx - pw, 0.25, 601 + i)
+                let right = edge(cx + pw * 0.7, 0.2, 607 + i)
+                let tl = left.last!
+                let tr = right.last!
+                let top = [tl,
+                           CGPoint(x: tl.x + (tr.x - tl.x) * 0.35, y: min(tl.y, tr.y) - ph * 0.07),
+                           CGPoint(x: tl.x + (tr.x - tl.x) * 0.62, y: (tl.y + tr.y) / 2 + ph * 0.03),
+                           tr]
+                func poly(_ pts: [CGPoint]) -> Path {
+                    var pp = Path()
+                    pp.addLines(pts)
+                    pp.closeSubpath()
+                    return pp
+                }
+                if t < 0.7 {
+                    let st = t / 0.7
+                    for k in 0..<3 {
+                        let rr = pw * (0.4 + 1.0 * st)
+                        let px = cx + (Double(k) - 1) * pw * 0.9
+                        ctx.fill(Path(ellipseIn: CGRect(x: px - rr, y: gy - rr * 0.35 - h * 0.015 * st, width: rr * 2, height: rr * 0.7)),
+                                 with: .color(ink.opacity(0.16 * (1 - st) * al)))
+                    }
+                }
+                let shifted: [CGPoint] = right.reversed().map { o in
+                    let f = clamp01((gy - o.y) / max(1, ph))
+                    return CGPoint(x: o.x + ddx, y: o.y + ddy * (0.2 + 0.8 * f))
+                }
+                let side = poly(right + shifted)
+                let face = poly(left + Array(top.dropFirst().dropLast()) + Array(right.reversed()))
+                let topFace = poly(top + top.reversed().map { CGPoint(x: $0.x + ddx, y: $0.y + ddy) })
+                ctx.fill(side, with: .color(shade.opacity(al)))
+                ctx.fill(face, with: .color(ink.opacity(al)))
+                ctx.fill(topFace, with: .color(lit.opacity(al)))
+                for pth in [side, face, topFace] {
+                    ctx.stroke(pth, with: .color(shade.opacity(0.55 * al)), style: StrokeStyle(lineWidth: 1.2, lineJoin: .round))
+                }
                 for k in 0..<2 {
                     let f = 0.3 + 0.35 * Double(k)
-                    var line = Path()
-                    line.move(to: CGPoint(x: cx - pw * 0.7 + tilt * f, y: groundY - ph * f))
-                    line.addLine(to: CGPoint(x: cx + pw * 0.6 + tilt * f, y: groundY - ph * f * 0.92))
-                    ctx.stroke(line, with: .color(grain.opacity(0.4 * tail)), lineWidth: 1.4)
+                    let y0 = gy - ph * f
+                    let xL = cx - pw * 0.8 + tilt * f
+                    let xR = cx + pw * 0.6 + tilt * f
+                    let gapAt = 0.35 + 0.3 * fxRnd(613 + i, k)
+                    var l1 = Path()
+                    l1.move(to: CGPoint(x: xL, y: y0))
+                    l1.addLine(to: CGPoint(x: xL + (xR - xL) * gapAt, y: y0 + ph * 0.012))
+                    var l2 = Path()
+                    l2.move(to: CGPoint(x: xL + (xR - xL) * (gapAt + 0.12), y: y0 + ph * 0.02))
+                    l2.addLine(to: CGPoint(x: xR, y: y0 - ph * 0.005))
+                    ctx.stroke(l1, with: .color(shade.opacity(0.45 * al)), lineWidth: 1.3)
+                    ctx.stroke(l2, with: .color(shade.opacity(0.45 * al)), lineWidth: 1.3)
+                }
+                if front {
+                    for k in 0..<2 {
+                        let ft = clamp01((t - 0.35 - Double(k) * 0.15) / 0.45)
+                        if ft <= 0 || ft >= 1 { continue }
+                        let sx = k == 0 ? tl.x : tr.x + ddx
+                        let sy = k == 0 ? tl.y : tr.y
+                        let px = sx + (k == 0 ? -1.0 : 1.0) * pw * 0.3 * ft
+                        let py = sy + (gy - sy) * ft * ft
+                        ctx.fill(poly([CGPoint(x: px, y: py - 3), CGPoint(x: px + 3, y: py + 1.8), CGPoint(x: px - 2.4, y: py + 1.5)]),
+                                 with: .color(shade.opacity(0.8 * al)))
+                    }
                 }
                 if t < 0.5 {
-                    for k in 0..<4 {
-                        let a2 = (1 - t / 0.5) * tail
-                        let ang = -2.4 + Double(k) * 0.6
-                        let d = w * 0.10 * (t / 0.5)
-                        ctx.fill(circlePath(CGPoint(x: cx + cos(ang) * d, y: groundY + sin(ang) * d * 0.6), 3),
-                                 with: .color(ink.opacity(0.5 * a2)))
+                    let st = t / 0.5
+                    for k in 0..<5 {
+                        let vx = (fxRnd(211 + i, k) - 0.5) * pw * 4
+                        ctx.fill(circlePath(CGPoint(x: cx + vx * st, y: gy - h * 0.14 * 4 * st * (1 - st)), 2 + 1.5 * fxRnd(223 + i, k)),
+                                 with: .color(shade.opacity(0.7 * (1 - st) * al)))
                     }
                 }
             }
@@ -2000,81 +2437,107 @@ private func drawElementFxAlt(
     // ── 물리 ①: 주먹 자국  ②: 참격(상처)
     case .impact:
         if second {
-            // 참격 — 빛이 아니라 상처를 그린다. 밝은 선을 쓰면 번개가 된다.
-            let tail = fxTail(p, 0.84)
-            let dark = enkaElementInk(element, 0.72)
-            let cut = enkaElementLight(element, 0.55)
-            let slashes: [(Double, Double, Double)] = [(0.02, -0.62, 0.34), (0.20, 0.70, 0.56), (0.38, -0.30, 0.74)]
-            for (i, item) in slashes.enumerated() {
-                let (delay, slope, yc) = item
-                let t = clamp01((p - delay) / 0.14)
-                if t <= 0 { continue }
-                let cy = h * yc
-                func yAt(_ x: Double) -> Double { cy + slope * (x - w * 0.5) * 0.5 }
-                let x0 = -w * 0.15, x1 = w * 1.15
-                let open = (1 - clamp01((p - delay - 0.14) / 0.55)) * 0.75 + 0.25
-                let a = tail * open
-                let headX = x0 + (x1 - x0) * t
-                let ex = min(x1, headX)
-
-                // ① 어긋남
-                let shear = w * 0.030 * a
-                for sideDir in [-1.0, 1.0] {
-                    let bandH = h * 0.075
-                    var band = Path()
-                    band.move(to: CGPoint(x: x0 - shear * sideDir, y: yAt(x0)))
-                    band.addLine(to: CGPoint(x: ex - shear * sideDir, y: yAt(ex)))
-                    band.addLine(to: CGPoint(x: ex - shear * sideDir, y: yAt(ex) + bandH * sideDir))
-                    band.addLine(to: CGPoint(x: x0 - shear * sideDir, y: yAt(x0) + bandH * sideDir))
-                    band.closeSubpath()
-                    ctx.fill(band, with: .color(ink.opacity(0.14 * a)))
-                }
-                // ② 벌어진 틈 — 곧아야 칼자국이다
-                let gapMid = h * 0.016 * a
-                var gap = Path()
-                gap.move(to: CGPoint(x: x0, y: yAt(x0)))
-                gap.addQuadCurve(to: CGPoint(x: ex, y: yAt(ex)),
-                                 control: CGPoint(x: (x0 + ex) / 2, y: (yAt(x0) + yAt(ex)) / 2 - gapMid))
-                gap.addQuadCurve(to: CGPoint(x: x0, y: yAt(x0)),
-                                 control: CGPoint(x: (x0 + ex) / 2, y: (yAt(x0) + yAt(ex)) / 2 + gapMid))
-                gap.closeSubpath()
-                ctx.fill(gap, with: .color(dark.opacity(0.85 * a)))
-                // ③ 잘린 단면
-                var edgeLine = Path()
-                edgeLine.move(to: CGPoint(x: x0, y: yAt(x0) - gapMid * 0.8))
-                edgeLine.addLine(to: CGPoint(x: ex, y: yAt(ex) - gapMid * 0.8))
-                ctx.stroke(edgeLine, with: .color(cut.opacity(0.55 * a)), lineWidth: 1.6)
-
-                // 날 — 그림자로만 스친다
-                if t < 1 {
-                    let trail = max(x0, headX - w * 0.42)
-                    var blade = Path()
-                    blade.move(to: CGPoint(x: trail, y: yAt(trail)))
-                    blade.addQuadCurve(to: CGPoint(x: headX, y: yAt(headX)),
-                                       control: CGPoint(x: (trail + headX) / 2, y: (yAt(trail) + yAt(headX)) / 2 - h * 0.022))
-                    blade.addQuadCurve(to: CGPoint(x: trail, y: yAt(trail)),
-                                       control: CGPoint(x: (trail + headX) / 2, y: (yAt(trail) + yAt(headX)) / 2 + h * 0.006))
-                    blade.closeSubpath()
-                    ctx.fill(blade, with: .color(dark.opacity(0.35 * (1 - t) * tail)))
-                }
-                // 파편 — 각진 조각
-                for k in 0..<9 {
-                    let f = fxRnd(269 + i, k)
-                    if f > t { continue }
-                    let px = x0 + (x1 - x0) * f
-                    let up: Double = k % 2 == 0 ? -1 : 1
-                    let ft = clamp01((t - f) / 0.55)
-                    let py = yAt(px) + up * h * 0.10 * ft
-                    let sz = 4.5 - 2 * ft
-                    let rot = ft * 4 + Double(k)
-                    var frag = Path()
-                    for q in 0..<3 {
-                        let ang2 = (.pi * 2 / 3) * Double(q) + rot
-                        let pt = CGPoint(x: px + cos(ang2) * sz, y: py + sin(ang2) * sz)
-                        if q == 0 { frag.move(to: pt) } else { frag.addLine(to: pt) }
+            // 주먹 자국 — 예고 속도선 · 파인 면(윗 테두리 그늘·아랫 테두리 빛) · 곧은 금 · 흔들림. 주석은 Compose 쪽.
+            let tail = fxTail(p, 0.86)
+            let shade = enkaElementInk(element, 0.60)
+            let hits: [[Double]] = [[0.30, 0.40, 0.04, 1.00], [0.66, 0.52, 0.24, 0.85], [0.44, 0.66, 0.42, 1.15], [0.74, 0.30, 0.60, 0.90]]
+            var shake = 0.0
+            for hd in hits {
+                let hs = clamp01((p - hd[2]) / 0.12)
+                if hs > 0 && hs < 1 { shake += sin(hs * 50) * w * 0.012 * (1 - hs) }
+            }
+            for (i, hd) in hits.enumerated() {
+                let delay = hd[2]
+                let sz = hd[3]
+                let cx = w * hd[0] + shake
+                let cy = h * hd[1] + shake * 0.4
+                let rx = w * 0.075 * sz
+                let ry = rx * 0.84
+                let pre = clamp01((p - (delay - 0.07)) / 0.07)
+                if pre > 0 && pre < 1 {
+                    for k in 0..<7 {
+                        let ang = (Double.pi * 2 / 7) * Double(k) + Double(i)
+                        let r0 = w * (0.36 - 0.22 * pre)
+                        var l = Path()
+                        l.move(to: CGPoint(x: cx + cos(ang) * r0, y: cy + sin(ang) * r0))
+                        l.addLine(to: CGPoint(x: cx + cos(ang) * (r0 + w * 0.09), y: cy + sin(ang) * (r0 + w * 0.09)))
+                        ctx.stroke(l, with: .color(ink.opacity(0.35 * pre * tail)), style: StrokeStyle(lineWidth: 1.6, lineCap: .round))
                     }
-                    frag.closeSubpath()
-                    ctx.fill(frag, with: .color(dark.opacity(0.6 * (1 - ft) * tail)))
+                }
+                if p < delay { continue }
+                let t = clamp01((p - delay) / 0.40)
+                let g0 = 1 - clamp01(t / 0.25)
+                let grow = 1 - g0 * g0
+                let a = tail
+                // 치는 순간의 **충격 별** + 작은 자국 · 짧은 금 셋. 방사선 자국은 거미 · 파리 · 거미줄로
+                // 읽혔다(2026-09-11) — '때렸다' 는 순간에 걸려야 한다. 주석은 Compose 쪽.
+                func seg(_ a0: CGPoint, _ b0: CGPoint, _ col: Color, _ lw: Double) {
+                    var l = Path()
+                    l.move(to: a0)
+                    l.addLine(to: b0)
+                    ctx.stroke(l, with: .color(col), style: StrokeStyle(lineWidth: lw, lineCap: .round))
+                }
+                var hole = Path()
+                for q in 0..<8 {
+                    let th = (Double.pi * 2 / 8) * Double(q)
+                    let j = 0.6 + 0.5 * fxRnd(311 + i, q)
+                    let pt = CGPoint(x: cx + cos(th) * rx * 0.55 * j, y: cy + sin(th) * ry * 0.55 * j)
+                    if q == 0 { hole.move(to: pt) } else { hole.addLine(to: pt) }
+                }
+                hole.closeSubpath()
+                ctx.fill(hole, with: .color(shade.opacity(0.7 * a)))
+                ctx.stroke(ellipseArc(CGPoint(x: cx, y: cy), rx * 0.55, ry * 0.55, 20, 120),
+                           with: .color(.white.opacity(0.55 * a)), style: StrokeStyle(lineWidth: 1.2, lineCap: .round))
+                for k in 0..<3 {
+                    var ang = fxRnd(331 + i, k) * 6.28
+                    let len = w * (0.06 + 0.06 * fxRnd(337 + i, k)) * sz * grow
+                    if len <= 0 { continue }
+                    var pt = CGPoint(x: cx + cos(ang) * rx * 0.5, y: cy + sin(ang) * ry * 0.5)
+                    for q in 0..<2 {
+                        ang += (fxRnd(341 + i * 5 + k, q) - 0.5) * 0.6
+                        let np = CGPoint(x: pt.x + cos(ang) * len / 2, y: pt.y + sin(ang) * len / 2)
+                        seg(pt, np, shade.opacity((0.8 - 0.2 * Double(q)) * a), 2.2 - 0.8 * Double(q))
+                        pt = np
+                    }
+                }
+                let burst = clamp01(t / 0.16)
+                if burst < 1 {
+                    let br = rx * 1.9 * (1.25 - 0.25 * burst)
+                    func starPath(_ r: Double) -> Path {
+                        var pp = Path()
+                        let m = 14
+                        for q in 0..<(m * 2) {
+                            let th = (Double.pi / Double(m)) * Double(q) + Double(i)
+                            let rr = q % 2 == 0 ? r * (0.85 + 0.3 * fxRnd(321 + i, q)) : r * 0.52
+                            let pt = CGPoint(x: cx + cos(th) * rr, y: cy + sin(th) * rr)
+                            if q == 0 { pp.move(to: pt) } else { pp.addLine(to: pt) }
+                        }
+                        pp.closeSubpath()
+                        return pp
+                    }
+                    let ba = (1 - burst) * a
+                    ctx.fill(starPath(br), with: .color(ink.opacity(0.85 * ba)))
+                    ctx.fill(starPath(br * 0.58), with: .color(.white.opacity(0.95 * ba)))
+                }
+                let sh = clamp01(t / 0.35)
+                if sh < 1 {
+                    ovalRing(ctx, CGPoint(x: cx, y: cy), rx * (1 + 2.8 * sh), ry * (1 + 2.8 * sh), ink.opacity(0.45 * (1 - sh) * a), 3 * (1 - sh) + 0.6)
+                }
+                let db = clamp01(t / 0.5)
+                if db < 1 {
+                    for k in 0..<6 {
+                        let ang = (Double.pi * 2 / 6) * Double(k) + fxRnd(229, i) * 2
+                        let sp = w * 0.12 * (0.5 + 0.5 * fxRnd(233 + i, k))
+                        let px = cx + cos(ang) * sp * db
+                        let py = cy + sin(ang) * sp * db * 0.7 + h * 0.30 * db * db
+                        let s2 = 3.5
+                        var tri = Path()
+                        tri.move(to: CGPoint(x: px, y: py - s2))
+                        tri.addLine(to: CGPoint(x: px + s2 * 0.9, y: py + s2 * 0.6))
+                        tri.addLine(to: CGPoint(x: px - s2 * 0.8, y: py + s2 * 0.5))
+                        tri.closeSubpath()
+                        ctx.fill(tri, with: .color(shade.opacity(0.8 * (1 - db) * a)))
+                    }
                 }
             }
         } else {
@@ -2106,229 +2569,713 @@ private func drawElementFxAlt(
             }
         }
 
-    // ── 허수 ①: 굴절  ②: 상 분열
+    // ── 허수 ①: 렌즈가 지나가며 격자가 굴절된다  ②: 거울이 깨져 상이 갈라진다
+    // Compose `drawElementFxAlt` 와 같은 알고리즘이다 — 왜 이렇게 그리는지는 그쪽 주석에 있다.
     case .imaginary:
         if second {
-            let tail = fxTail(p, 0.72)
-            let cx = w * 0.5
-            let cy = Double(focusY)
-            for k in 0..<9 {
-                let t = clamp01((p - Double(k) * 0.06) / 0.7)
-                if t <= 0 { continue }
-                let r = minDim * (0.08 + 0.55 * t)
-                let a = (1 - t) * tail
-                ctx.stroke(circlePath(CGPoint(x: cx, y: cy), r),
-                           with: .color(hot.opacity(0.5 * a)), lineWidth: 3.4 * (1 - t) + 0.6)
-                ctx.stroke(circlePath(CGPoint(x: cx + w * 0.012 * sin(p * 9 + Double(k)), y: cy - h * 0.006), r * 1.04),
-                           with: .color(ink.opacity(0.28 * a)), lineWidth: 1.8)
-            }
-            for k in 0..<5 {
-                let f = (Double(k) + 0.5) / 5
-                let x = w * f
-                let amp = w * 0.03 * sin(p * 6 + Double(k) * 1.3)
-                ctx.fill(Path(CGRect(x: x - w * 0.06 + amp, y: 0, width: w * 0.12, height: h)),
-                         with: .linearGradient(Gradient(colors: [.clear, hot.opacity(0.22 * tail), .clear]),
-                                               startPoint: CGPoint(x: x - w * 0.06 + amp, y: 0),
-                                               endPoint: CGPoint(x: x + w * 0.06 + amp, y: 0)))
-            }
-        } else {
-            let tail = fxTail(p, 0.76)
-            let cx = w * 0.5
-            let cy = Double(focusY)
-            let spread = sin(p * .pi)
-            let r0 = minDim * 0.26
-            for k in 0..<5 {
-                let ang = (.pi * 2 / 5) * Double(k) + p * 1.2
-                let d = minDim * 0.22 * spread
-                let ox = cx + cos(ang) * d
-                let oy = cy + sin(ang) * d * 0.6
-                let a = (0.75 - 0.1 * Double(k)) * tail
-                ctx.stroke(circlePath(CGPoint(x: ox, y: oy), r0), with: .color(hot.opacity(a * 0.8)), lineWidth: 2.4)
-                ctx.stroke(circlePath(CGPoint(x: ox, y: oy), r0), with: .color(ink.opacity(a * 0.25)), lineWidth: 6)
-                ctx.fill(circlePath(CGPoint(x: ox, y: oy), 4), with: .color(.white.opacity(a * 0.6)))
-            }
-            fillGlow(ctx, center: CGPoint(x: cx, y: cy), radius: r0 * 0.8,
-                     colors: [hot.opacity(0.45 * tail), .clear])
-        }
-
-    // ── 에테르 ①: 침식  ②: 노이즈
-    case .ether:
-        let cyan = Color(hex: 0xFF3AD6E0)
-        let magenta = Color(hex: 0xFFE03AB4)
-        if second {
-            let tail = fxTail(p, 0.72)
-            let eat = sin(p * .pi)
-            for i in 0..<64 {
-                let side = i % 4
-                let f = fxRnd(229, i)
-                let depth = minDim * (0.05 + 0.30 * fxRnd(233, i)) * eat
-                var x = 0.0, y = 0.0
-                switch side {
-                case 0: x = w * f; y = depth * fxRnd(239, i)
-                case 1: x = w - depth * fxRnd(239, i); y = h * f
-                case 2: x = w * f; y = h - depth * fxRnd(239, i)
-                default: x = depth * fxRnd(239, i); y = h * f
+            let tail = fxTail(p, 0.84)
+            let shade = enkaElementInk(element, 0.60)
+            let ease = p * p * (3 - 2 * p)
+            let lr = minDim * 0.30
+            let lc = CGPoint(x: w * (-0.15 + 1.30 * ease), y: Double(focusY) + sin(p * .pi) * h * 0.04)
+            let gridIn = clamp01(p / 0.12) * tail
+            func warp(_ o: CGPoint) -> CGPoint {
+                let dx = o.x - lc.x
+                let dy = o.y - lc.y
+                let d = sqrt(dx * dx + dy * dy)
+                var q = o
+                if d < lr && d > 0.01 {
+                    let nd = lr * pow(d / lr, 0.62)
+                    q = CGPoint(x: lc.x + dx / d * nd, y: lc.y + dy / d * nd)
                 }
-                let r = (5 + 16 * fxRnd(241, i)) * eat
-                let c: Color = i % 3 == 0 ? ink : (i % 3 == 1 ? cyan : magenta)
-                ctx.fill(circlePath(CGPoint(x: x, y: y), r), with: .color(c.opacity(0.30 * tail)))
+                if o.x < lc.x {
+                    let behind = (lc.x - o.x) / w
+                    q.y += sin(o.x / w * 30 + p * 22) * w * 0.010 * exp(-behind * 4)
+                }
+                return q
             }
-            let inset = minDim * 0.26 * eat
-            var path = Path()
-            for k in 0...64 {
-                let th = (.pi * 2 / 64) * Double(k)
-                let wob = 1 + sin(th * 6 + p * 8) * 0.10 + sin(th * 11 - p * 5) * 0.06
-                let pt = CGPoint(x: w * 0.5 + cos(th) * (w * 0.5 - inset) * wob,
-                                 y: h * 0.5 + sin(th) * (h * 0.5 - inset) * wob)
-                if k == 0 { path.move(to: pt) } else { path.addLine(to: pt) }
+            func gridLine(_ ax: Double, _ ay: Double, _ bx: Double, _ by: Double) {
+                let n = 40
+                var prev = warp(CGPoint(x: ax, y: ay))
+                for k in 1...n {
+                    let t = Double(k) / Double(n)
+                    let o = CGPoint(x: ax + (bx - ax) * t, y: ay + (by - ay) * t)
+                    let q = warp(o)
+                    let inside = hypot(o.x - lc.x, o.y - lc.y) < lr
+                    var l = Path()
+                    l.move(to: prev)
+                    l.addLine(to: q)
+                    ctx.stroke(l, with: .color(ink.opacity((inside ? 0.55 : 0.22) * gridIn)), lineWidth: inside ? 1.8 : 1.0)
+                    prev = q
+                }
             }
-            path.closeSubpath()
-            ctx.stroke(path, with: .color(hot.opacity(0.45 * tail)), lineWidth: 2.2)
+            for k in 0..<10 { let x = w * Double(k) / 9; gridLine(x, 0, x, h) }
+            for k in 0..<8 { let y = h * Double(k) / 7; gridLine(0, y, w, y) }
+            ctx.fill(Path(ellipseIn: CGRect(x: lc.x - lr * 0.65, y: lc.y + lr * 0.95, width: lr * 1.8, height: lr * 0.28)),
+                     with: .color(shade.opacity(0.16 * tail)))
+            ctx.fill(circlePath(lc, lr), with: .color(.white.opacity(0.14 * tail)))
+            ctx.stroke(circlePath(lc, lr), with: .color(ink.opacity(0.80 * tail)), lineWidth: 2.6)
+            ctx.stroke(circlePath(lc, lr - 3), with: .color(shade.opacity(0.35 * tail)), lineWidth: 1)
+            ctx.stroke(ellipseArc(lc, lr * 0.78, lr * 0.78, 200, 55), with: .color(.white.opacity(0.8 * tail)), style: StrokeStyle(lineWidth: 3, lineCap: .round))
+            ctx.stroke(ellipseArc(lc, lr * 0.78, lr * 0.78, 20, 35), with: .color(.white.opacity(0.5 * tail)), style: StrokeStyle(lineWidth: 1.6, lineCap: .round))
+            let fp = CGPoint(x: lc.x + lr * 0.1, y: lc.y + lr * 1.55)
+            let pulse = 0.7 + 0.3 * sin(p * 18)
+            for sd in [-1.0, 1.0] {
+                var l = Path()
+                l.move(to: CGPoint(x: lc.x + sd * lr * 0.8, y: lc.y + lr * 0.55))
+                l.addLine(to: fp)
+                ctx.stroke(l, with: .color(.white.opacity(0.45 * tail)), lineWidth: 1.2)
+            }
+            fillGlow(ctx, center: fp, radius: lr * 0.35, colors: [ink.opacity(0.35 * tail), .clear])
+            ctx.fill(circlePath(fp, 3), with: .color(.white.opacity(0.95 * pulse * tail)))
         } else {
-            let density = sin(p * .pi)
-            let tail = fxTail(p, 0.80)
-            let step = Int(p * 30)
-            let count = max(0, Int(140 * density))
-            for i in 0..<count {
-                let x = w * fxRnd(step * 3 + 1, i)
-                let y = h * fxRnd(step * 5 + 2, i + 70)
-                let sz = 2 + 7 * fxRnd(step * 7 + 4, i)
-                let c: Color = i % 4 == 0 ? cyan : (i % 4 == 1 ? magenta : (i % 4 == 2 ? ink : .white))
-                ctx.fill(Path(CGRect(x: x, y: y, width: sz, height: sz * 0.7)),
-                         with: .color(c.opacity(0.55 * tail)))
+            // 갈라지는 상 — **액자에 든 둥근 거울**. 똑같은 쐐기 여섯은 피자로 읽혔다(2026-09-11). 주석은 Compose 쪽.
+            let tail = fxTail(p, 0.86)
+            let shade = enkaElementInk(element, 0.60)
+            let c = CGPoint(x: w * 0.5, y: Double(focusY))
+            let rr = minDim * 0.36
+            let crack = clamp01(p / 0.15)
+            let sepT = clamp01((p - 0.15) / 0.70)
+            let sep = sin(sepT * .pi)
+            let hub = CGPoint(x: c.x + rr * 0.18, y: c.y - rr * 0.12)
+            let n = 7
+            let angs: [Double] = (0..<n).map { k in (Double.pi * 2 / Double(n)) * Double(k) + (fxRnd(611, k) - 0.5) * 0.55 }.sorted()
+            func rim(_ a: Double) -> CGPoint {
+                let dx = cos(a)
+                let dy = sin(a)
+                let fx = hub.x - c.x
+                let fy = hub.y - c.y
+                let b = fx * dx + fy * dy
+                let cc = fx * fx + fy * fy - rr * rr
+                let t = -b + sqrt(max(0, b * b - cc))
+                return CGPoint(x: hub.x + dx * t, y: hub.y + dy * t)
             }
-            let sweep = h * (-0.1 + 1.2 * p)
-            ctx.fill(Path(CGRect(x: 0, y: sweep - h * 0.08, width: w, height: h * 0.16)),
-                     with: .linearGradient(Gradient(colors: [.clear, .white.opacity(0.22 * tail), .clear]),
-                                           startPoint: CGPoint(x: 0, y: sweep - h * 0.08),
-                                           endPoint: CGPoint(x: 0, y: sweep + h * 0.08)))
+            func along(_ a: Double, _ f: Double) -> CGPoint {
+                let r = rim(a)
+                return CGPoint(x: hub.x + (r.x - hub.x) * f, y: hub.y + (r.y - hub.y) * f)
+            }
+            func arcPts(_ a1: Double, _ a2: Double) -> [CGPoint] {
+                let r1 = rim(a1)
+                let r2 = rim(a2)
+                let t1 = atan2(r1.y - c.y, r1.x - c.x)
+                var t2 = atan2(r2.y - c.y, r2.x - c.x)
+                while t2 < t1 { t2 += .pi * 2 }
+                return (0...6).map { q in
+                    let t = t1 + (t2 - t1) * Double(q) / 6
+                    return CGPoint(x: c.x + cos(t) * rr, y: c.y + sin(t) * rr)
+                }
+            }
+            func poly(_ pts: [CGPoint]) -> Path {
+                var pp = Path()
+                pp.addLines(pts)
+                pp.closeSubpath()
+                return pp
+            }
+            func splitAt(_ k: Int) -> Double { 0.42 + 0.12 * fxRnd(613, k) }
+            func seg(_ a0: CGPoint, _ b0: CGPoint, _ col: Color, _ lw: Double) {
+                var l = Path()
+                l.move(to: a0)
+                l.addLine(to: b0)
+                ctx.stroke(l, with: .color(col), style: StrokeStyle(lineWidth: lw, lineCap: .round))
+            }
+            var pieces: [([CGPoint], Double)] = []
+            for k in 0..<n {
+                let a1 = angs[k]
+                let a2 = k + 1 < n ? angs[k + 1] : angs[0] + .pi * 2
+                let sp = splitAt(k)
+                pieces.append(([hub, along(a1, sp), along(a2, sp)], 0.45))
+                pieces.append(([along(a1, sp)] + arcPts(a1, a2) + [along(a2, sp)], 1.0))
+            }
+            ctx.fill(circlePath(c, rr), with: .color(shade.opacity(0.18 * tail)))
+            for (idx, piece) in pieces.enumerated() {
+                let pts = piece.0
+                let far = piece.1
+                let cen = CGPoint(x: pts.map { $0.x }.reduce(0, +) / Double(pts.count),
+                                  y: pts.map { $0.y }.reduce(0, +) / Double(pts.count))
+                let dvx = cen.x - hub.x
+                let dvy = cen.y - hub.y
+                let dl = max(0.001, hypot(dvx, dvy))
+                let offx = dvx / dl * rr * 0.30 * far * sep
+                let offy = dvy / dl * rr * 0.30 * far * sep
+                let rot = (fxRnd(617, idx) - 0.5) * 0.6 * sep
+                let moved: [CGPoint] = pts.map { o in
+                    let x0 = o.x - cen.x
+                    let y0 = o.y - cen.y
+                    return CGPoint(x: cen.x + x0 * cos(rot) - y0 * sin(rot) + offx, y: cen.y + x0 * sin(rot) + y0 * cos(rot) + offy)
+                }
+                let path = poly(moved)
+                if sep > 0.02 {
+                    ctx.fill(path.offsetBy(dx: rr * 0.05 * sep, dy: rr * 0.09 * sep), with: .color(shade.opacity(0.18 * sep * tail)))
+                }
+                ctx.fill(path, with: .color(.white.opacity(0.30 * tail)))
+                var cl = ctx
+                cl.clip(to: path)
+                for k in 0..<3 {
+                    let o = Double(k - 1) * rr * 0.55
+                    var l = Path()
+                    l.move(to: CGPoint(x: c.x + o - rr + offx * 1.5, y: c.y + rr + offy * 1.5))
+                    l.addLine(to: CGPoint(x: c.x + o + rr + offx * 1.5, y: c.y - rr + offy * 1.5))
+                    cl.stroke(l, with: .color(.white.opacity((k == 1 ? 0.7 : 0.45) * tail)), lineWidth: k == 1 ? 10 : 5)
+                }
+                ctx.stroke(path, with: .color(ink.opacity(0.8 * tail)), style: StrokeStyle(lineWidth: 1.4, lineJoin: .round))
+            }
+            ctx.stroke(circlePath(c, rr + 3), with: .color(ink.opacity(0.85 * tail)), lineWidth: 5)
+            ctx.stroke(circlePath(c, rr + 5.5), with: .color(.white.opacity(0.35 * tail)), lineWidth: 1)
+            if sepT <= 0 { for a in angs { seg(hub, along(a, crack), shade.opacity(0.85 * tail), 1.5) } }
+            if sepT >= 1 {
+                let ft = clamp01((p - 0.85) / 0.10)
+                ctx.stroke(circlePath(c, rr * (1 + 0.3 * ft)), with: .color(.white.opacity(0.7 * (1 - ft) * tail)), lineWidth: 4 * (1 - ft) + 0.5)
+                for a in angs { seg(hub, rim(a), shade.opacity(0.5 * tail), 1) }
+                for k in 0..<n {
+                    let a2 = k + 1 < n ? angs[k + 1] : angs[0]
+                    seg(along(angs[k], splitAt(k)), along(a2, splitAt(k)), shade.opacity(0.4 * tail), 0.9)
+                }
+            }
         }
 
-    // ── 루멘 ①: 프리즘  ②: 빛기둥
+    // ── 에테르 ①: 결정이 자라며 침식한다  ②: 화면이 칸 단위로 무너졌다 걷힌다
+    case .ether:
+        if second {
+            // 침식 — 굵고 비스듬히 잘린 육각 결정이 덩어리 진 바탕에서 솟고, 이음매(짙은 테 + 밝은 심)가 번진다.
+            // 가는 부채꼴 결정 + 가늘어지는 가지 금은 **잎 달린 나뭇가지**로 읽혔다(2026-09-11). 주석은 Compose 쪽.
+            let tail = fxTail(p, 0.86)
+            let shade = enkaElementInk(element, 0.62)
+            let lit = enkaElementLight(element, 0.15)
+            let g0 = clamp01(p / 0.55)
+            let grow = 1 - (1 - g0) * (1 - g0)
+            let veinGrow = clamp01(p / 0.35)
+            let breakT = clamp01((p - 0.60) / 0.30)
+            let target = CGPoint(x: w * 0.5, y: Double(focusY))
+            let origins = [CGPoint(x: 0, y: 0), CGPoint(x: w, y: h), CGPoint(x: w, y: h * 0.22)]
+            let md = minDim
+            func seg(_ a0: CGPoint, _ b0: CGPoint, _ col: Color, _ lw: Double) {
+                var l = Path()
+                l.move(to: a0)
+                l.addLine(to: b0)
+                ctx.stroke(l, with: .color(col), style: StrokeStyle(lineWidth: lw, lineCap: .round))
+            }
+            for (oi, o) in origins.enumerated() {
+                let base0 = atan2(target.y - o.y, target.x - o.x)
+                fillGlow(ctx, center: o, radius: md * 0.38,
+                         colors: [ink.opacity(0.26 * (0.7 + 0.3 * sin(p * 12 + Double(oi))) * grow * tail), .clear])
+                for vi in 0..<2 {
+                    var pt = o
+                    var ang = base0 + (vi == 0 ? -0.35 : 0.35)
+                    let segs = 5
+                    let shown = veinGrow * Double(segs)
+                    for k in 0..<segs {
+                        let part = clamp01(shown - Double(k))
+                        if part <= 0 { break }
+                        ang += (fxRnd(471 + oi * 13 + vi, k) - 0.5) * 1.1
+                        let np = CGPoint(x: pt.x + cos(ang) * md * 0.12 * part, y: pt.y + sin(ang) * md * 0.12 * part)
+                        let va = (0.8 - 0.35 * breakT) * tail
+                        seg(pt, np, shade.opacity(0.7 * va), 3.2)
+                        seg(pt, np, lit.opacity(va), 1.2)
+                        pt = np
+                    }
+                }
+                var crust = Path()
+                crust.move(to: o)
+                for q in 0...10 {
+                    let th = base0 - 1.4 + 2.8 * Double(q) / 10
+                    let cr = md * (0.10 + 0.05 * fxRnd(481 + oi, q)) * grow
+                    crust.addLine(to: CGPoint(x: o.x + cos(th) * cr, y: o.y + sin(th) * cr))
+                }
+                crust.closeSubpath()
+                ctx.fill(crust, with: .color(shade.opacity(0.85 * tail)))
+                for k in 0..<5 {
+                    let ang = base0 + (fxRnd(479 + oi, k) - 0.5) * 1.8
+                    let len = md * (0.13 + 0.15 * fxRnd(487 + oi, k)) * grow
+                    if len <= 1 { continue }
+                    let wd = w * (0.06 + 0.035 * fxRnd(491 + oi, k))
+                    let ux = cos(ang)
+                    let uy = sin(ang)
+                    let b = CGPoint(x: o.x + ux * md * 0.05, y: o.y + uy * md * 0.05)
+                    func at(_ f: Double, _ side: Double) -> CGPoint {
+                        CGPoint(x: b.x + ux * len * f - uy * wd / 2 * side, y: b.y + uy * len * f + ux * wd / 2 * side)
+                    }
+                    let topL = at(1, 1)
+                    let topR = at(0.82, -1)
+                    let topM = at(0.93, 0.1)
+                    let ridge0 = at(0.02, 0.1)
+                    var front = Path()
+                    front.addLines([at(0, 1), topL, topM, ridge0])
+                    front.closeSubpath()
+                    var side = Path()
+                    side.addLines([ridge0, topM, topR, at(0, -1)])
+                    side.closeSubpath()
+                    var cap = Path()
+                    cap.addLines([topL, topM, topR, at(1.05, -0.2)])
+                    cap.closeSubpath()
+                    func drawPrism(_ g: GraphicsContext, _ alpha: Double) {
+                        g.fill(side, with: .color(shade.opacity(alpha)))
+                        g.fill(front, with: .color(hot.opacity(alpha)))
+                        g.fill(cap, with: .color(lit.opacity(alpha)))
+                        for pth in [front, side, cap] {
+                            g.stroke(pth, with: .color(ink.opacity(0.7 * alpha)), style: StrokeStyle(lineWidth: 1, lineJoin: .round))
+                        }
+                        var hl = Path()
+                        hl.move(to: at(0.1, 0.6))
+                        hl.addLine(to: at(0.85, 0.6))
+                        g.stroke(hl, with: .color(.white.opacity(0.5 * alpha)), style: StrokeStyle(lineWidth: 1.2, lineCap: .round))
+                    }
+                    let cut = 0.55
+                    if breakT <= 0 {
+                        drawPrism(ctx, 0.92 * tail)
+                    } else {
+                        let q1 = at(cut, 1.8)
+                        let q2 = at(cut, -1.8)
+                        var bottom = Path()
+                        bottom.addLines([CGPoint(x: b.x - ux * wd, y: b.y - uy * wd), q1, q2])
+                        bottom.closeSubpath()
+                        var upper = Path()
+                        upper.addLines([q1, q2, at(1.4, -1.8), at(1.4, 1.8)])
+                        upper.closeSubpath()
+                        var c1 = ctx
+                        c1.clip(to: bottom)
+                        drawPrism(c1, 0.92 * tail)
+                        var c2 = ctx
+                        c2.clip(to: upper)
+                        drawPrism(c2, 0.92 * tail * (1 - breakT))
+                        seg(at(cut, 1), at(cut, -1), ink.opacity(0.85 * tail), 1.6)
+                        for q in 0..<6 {
+                            let f = cut + (1 - cut) * fxRnd(497 + oi, k * 6 + q)
+                            let st = at(f, (fxRnd(499, k * 6 + q) - 0.5) * 1.6)
+                            let drift = md * 0.14 * breakT
+                            let x = st.x + ux * drift * 0.6 + (fxRnd(503, q) - 0.5) * drift
+                            let y = st.y + uy * drift * 0.6 - drift * 0.5
+                            let sz = (3 + 2.5 * fxRnd(509, q)) * (1 - breakT * 0.5)
+                            ctx.fill(Path(CGRect(x: x, y: y, width: sz, height: sz)),
+                                     with: .color((q % 2 == 0 ? hot : shade).opacity(0.8 * (1 - breakT) * tail)))
+                        }
+                    }
+                }
+            }
+        } else {
+            let tail = fxTail(p, 0.88)
+            let cyan = Color(hex: 0xFF3AD6E0)
+            let magenta = Color(hex: 0xFFE03AB4)
+            let shade = enkaElementInk(element, 0.62)
+            let cols = 14
+            let cs = w / Double(cols)
+            let rows = Int(ceil(h / cs))
+            let c = CGPoint(x: w * 0.5, y: Double(focusY))
+            let maxR = hypot(max(c.x, w - c.x), max(c.y, h - c.y))
+            let eat = clamp01(p / 0.45)
+            let rf = maxR * eat * eat * (3 - 2 * eat) * 1.05
+            let clr = clamp01((p - 0.50) / 0.40)
+            let rc = maxR * clr * 1.1
+            let step = Int(p * 20)
+            let gap = 1.2
+            let shift = 2.0
+            func cellD(_ r: Int, _ col: Int) -> Double {
+                let dx = Double(col) * cs + cs / 2 - c.x
+                let dy = Double(r) * cs + cs / 2 - c.y
+                return sqrt(dx * dx + dy * dy) + (fxRnd(501, r * cols + col) - 0.5) * cs * 1.2
+            }
+            for r in 0..<rows {
+                for col in 0..<cols {
+                    let d = cellD(r, col)
+                    if d > rf || d < rc { continue }
+                    let x = Double(col) * cs
+                    let y = Double(r) * cs
+                    let a = (0.35 + 0.45 * fxRnd(step * 3 + 7, r * cols + col)) * tail
+                    let front = rf - d < cs * 1.4 || (clr > 0 && d - rc < cs * 1.4)
+                    if front {
+                        ctx.fill(Path(CGRect(x: x - shift, y: y, width: cs - gap, height: cs - gap)), with: .color(cyan.opacity(0.7 * a)))
+                        ctx.fill(Path(CGRect(x: x + shift, y: y, width: cs - gap, height: cs - gap)), with: .color(magenta.opacity(0.7 * a)))
+                        ctx.fill(Path(CGRect(x: x, y: y + cs * 0.4, width: cs - gap, height: cs * 0.18)), with: .color(.white.opacity(0.5 * a)))
+                    } else {
+                        ctx.fill(Path(CGRect(x: x, y: y, width: cs - gap, height: cs - gap)), with: .color(ink.opacity(a)))
+                    }
+                }
+            }
+            if clr > 0 {
+                for k in 0..<8 {
+                    let idx = min(rows * cols - 1, max(0, Int(fxRnd(503, k) * Double(rows * cols))))
+                    let r = idx / cols
+                    let col = idx % cols
+                    if cellD(r, col) >= rc { continue }
+                    ctx.fill(Path(CGRect(x: Double(col) * cs, y: Double(r) * cs, width: cs - gap, height: cs - gap)),
+                             with: .color((k % 3 == 0 ? cyan : shade).opacity(0.75 * tail)))
+                }
+            }
+        }
+
+    // ── 루멘 ①: 프리즘(삼각기둥 · 면 스펙트럼 · 벽의 무지개)  ②: 구름을 가르는 빛기둥(주변이 어두워야 선다)
+    // Compose `drawElementFxAlt` 와 같은 알고리즘이다 — 왜 이렇게 그리는지는 그쪽 주석에 있다.
     case .lumen:
         if second {
-            let tail = fxTail(p, 0.70)
-            let cx = w * 0.5
+            let tail = fxTail(p, 0.84)
+            let shade = enkaElementInk(element, 0.62)
+            let cx = w * 0.42
             let cy = Double(focusY)
-            let open = clamp01(p / 0.30)
-            var beam = Path()
-            beam.move(to: CGPoint(x: -w * 0.05, y: cy - h * 0.16))
-            beam.addLine(to: CGPoint(x: cx, y: cy))
-            ctx.stroke(beam, with: .color(.white.opacity(0.75 * tail)),
-                       style: StrokeStyle(lineWidth: 3, lineCap: .round))
-            let spectrum: [Color] = [
-                Color(hex: 0xFFE04B4B), Color(hex: 0xFFE0913A), Color(hex: 0xFFE0D23A),
-                Color(hex: 0xFF5CC46A), Color(hex: 0xFF3A9BE0), Color(hex: 0xFF5A5AD8), Color(hex: 0xFF9B5BD6),
-            ]
-            for (k, c) in spectrum.enumerated() {
-                let ang = -0.22 + Double(k) * 0.075
-                let len = w * 0.95 * open
-                var ray = Path()
-                ray.move(to: CGPoint(x: cx, y: cy))
-                ray.addLine(to: CGPoint(x: cx + cos(ang) * len, y: cy + sin(ang) * len))
-                ctx.stroke(ray, with: .color(c.opacity(0.55 * tail)),
-                           style: StrokeStyle(lineWidth: 7 - Double(k) * 0.3, lineCap: .round))
+            let pr = minDim * 0.17
+            let a0 = CGPoint(x: cx, y: cy - pr)
+            let bl = CGPoint(x: cx - pr * 0.95, y: cy + pr * 0.75)
+            let br = CGPoint(x: cx + pr * 0.95, y: cy + pr * 0.75)
+            let bkx = pr * 0.32
+            let bky = -pr * 0.20
+            let enter = CGPoint(x: (a0.x + bl.x) / 2, y: (a0.y + bl.y) / 2)
+            let exit = CGPoint(x: (a0.x + br.x) / 2 + pr * 0.04, y: (a0.y + br.y) / 2 + pr * 0.1)
+            let beamIn = clamp01(p / 0.15)
+            let f0 = clamp01((p - 0.15) / 0.30)
+            let fan = 1 - (1 - f0) * (1 - f0)
+            let wallX = w * 0.97
+            func line(_ a: CGPoint, _ b: CGPoint, _ c: Color, _ lw: Double) {
+                var l = Path()
+                l.move(to: a)
+                l.addLine(to: b)
+                ctx.stroke(l, with: .color(c), style: StrokeStyle(lineWidth: lw, lineCap: .round))
             }
-            let pr = minDim * 0.11
-            var tri = Path()
-            tri.move(to: CGPoint(x: cx, y: cy - pr))
-            tri.addLine(to: CGPoint(x: cx + pr * 0.9, y: cy + pr * 0.7))
-            tri.addLine(to: CGPoint(x: cx - pr * 0.9, y: cy + pr * 0.7))
-            tri.closeSubpath()
-            ctx.fill(tri, with: .color(.white.opacity(0.30 * tail)))
-            ctx.stroke(tri, with: .color(hot.opacity(0.75 * tail)), lineWidth: 2.4)
-        } else {
-            let tail = fxTail(p, 0.68)
-            let cx = w * 0.5
-            let drop = clamp01(p / 0.22)
-            let floorY = h * 0.82
-            let beamW = w * 0.16 * (0.5 + 0.5 * drop)
-            var beam = Path()
-            beam.move(to: CGPoint(x: cx - beamW * 0.45, y: 0))
-            beam.addLine(to: CGPoint(x: cx + beamW * 0.45, y: 0))
-            beam.addLine(to: CGPoint(x: cx + beamW, y: floorY * drop))
-            beam.addLine(to: CGPoint(x: cx - beamW, y: floorY * drop))
-            beam.closeSubpath()
-            ctx.fill(beam, with: .linearGradient(
-                Gradient(colors: [.white.opacity(0.55 * tail), hot.opacity(0.28 * tail), .clear]),
-                startPoint: CGPoint(x: 0, y: 0), endPoint: CGPoint(x: 0, y: floorY)))
-            if drop >= 1 {
-                let st = clamp01((p - 0.22) / 0.78)
-                for k in 0..<3 {
-                    let rt = clamp01(st - Double(k) * 0.16)
-                    if rt <= 0 { continue }
-                    ctx.stroke(circlePath(CGPoint(x: cx, y: floorY), w * (0.10 + 0.42 * rt)),
-                               with: .color(.white.opacity(0.40 * (1 - rt) * tail)),
-                               lineWidth: 3 * (1 - rt) + 0.6)
-                }
-                for i in 0..<16 {
-                    let seed = fxRnd(251, i)
-                    let t = clamp01((st - seed * 0.5) / 0.5)
-                    if t <= 0 { continue }
-                    let x = cx + (seed - 0.5) * w * 0.5
-                    let y = floorY - h * 0.35 * t
-                    ctx.fill(circlePath(CGPoint(x: x, y: y), 3 - 1.6 * t),
-                             with: .color(.white.opacity(0.7 * (1 - t) * tail)))
+            let src = CGPoint(x: -w * 0.02, y: cy - h * 0.22)
+            let head = CGPoint(x: src.x + (enter.x - src.x) * beamIn, y: src.y + (enter.y - src.y) * beamIn)
+            line(src, head, shade.opacity(0.55 * tail), 7)
+            line(src, head, .white.opacity(0.95 * tail), 3.4)
+            let spectrum: [Color] = [Color(hex: 0xFFE04B4B), Color(hex: 0xFFE0913A), Color(hex: 0xFFE0D23A), Color(hex: 0xFF5CC46A),
+                                     Color(hex: 0xFF3A9BE0), Color(hex: 0xFF5A5AD8), Color(hex: 0xFF9B5BD6)]
+            let spread0 = -0.20
+            let spreadStep = 0.062
+            func rayEnd(_ ang: Double) -> CGPoint {
+                let t = (wallX - exit.x) / cos(ang)
+                return CGPoint(x: exit.x + cos(ang) * t * fan, y: exit.y + sin(ang) * t * fan)
+            }
+            if fan > 0 {
+                for (k, col) in spectrum.enumerated() {
+                    var wedge = Path()
+                    wedge.move(to: exit)
+                    wedge.addLine(to: rayEnd(spread0 + Double(k) * spreadStep))
+                    wedge.addLine(to: rayEnd(spread0 + Double(k + 1) * spreadStep))
+                    wedge.closeSubpath()
+                    ctx.fill(wedge, with: .color(col.opacity(0.50 * tail)))
                 }
             }
-        }
-
-    // ── 양자 ①: 간섭무늬  ②: 중첩 → 확정
-    case .pulse:
-        if second {
-            let tail = fxTail(p, 0.74)
-            let cy = Double(focusY)
-            let s1 = CGPoint(x: w * 0.30, y: cy)
-            let s2 = CGPoint(x: w * 0.70, y: cy)
-            let reach = clamp01(p / 0.5)
-            for (si, src) in [s1, s2].enumerated() {
-                for k in 0..<11 {
-                    let rr = minDim * (0.06 + 0.075 * Double(k)) * (0.4 + 0.6 * reach)
-                    let phase = p * 6 - Double(k) * 0.4 - Double(si) * 0.2
-                    let a = (0.42 - 0.03 * Double(k)) * tail * (0.5 + 0.5 * sin(phase))
-                    if a <= 0 { continue }
-                    ctx.stroke(circlePath(src, rr), with: .color(hot.opacity(a)), lineWidth: 1.8)
+            let wa = clamp01((p - 0.40) / 0.10) * tail
+            if wa > 0 {
+                line(CGPoint(x: wallX, y: h * 0.05), CGPoint(x: wallX, y: h * 0.95), shade.opacity(0.7 * wa), 2)
+                for (k, col) in spectrum.enumerated() {
+                    let y1 = rayEnd(spread0 + Double(k) * spreadStep).y
+                    let y2 = rayEnd(spread0 + Double(k + 1) * spreadStep).y
+                    ctx.fill(Path(CGRect(x: wallX - 5, y: y1, width: 5, height: max(1, y2 - y1))), with: .color(col.opacity(0.9 * wa)))
                 }
-                ctx.fill(circlePath(src, 5), with: .color(.white.opacity(0.8 * tail)))
             }
-            let bandY = cy + minDim * 0.42
-            for k in 0..<13 {
-                let f = (Double(k) - 6) / 6
-                let x = w * 0.5 + f * w * 0.46
-                let bright = abs(cos(f * 5.2))
-                ctx.fill(Path(CGRect(x: x - w * 0.016, y: bandY, width: w * 0.032, height: h * 0.06)),
-                         with: .color(hot.opacity(0.45 * bright * reach * tail)))
+            if fan > 0 {
+                for k in 0..<14 {
+                    let ang = spread0 + spreadStep * 7 * fxRnd(523, k)
+                    let d = (wallX - exit.x) * fan * (0.2 + 0.75 * fxRnd(521, k))
+                    let m = CGPoint(x: exit.x + cos(ang) * d, y: exit.y + sin(ang) * d + sin(p * 8 + Double(k)) * h * 0.01)
+                    let tw = 0.5 + 0.5 * sin(p * 20 + Double(k) * 1.7)
+                    ctx.fill(circlePath(m, 2.2), with: .color(shade.opacity(0.5 * tail)))
+                    ctx.fill(circlePath(m, 1.3), with: .color(.white.opacity(tw * tail)))
+                }
+            }
+            func off(_ v: CGPoint) -> CGPoint { CGPoint(x: v.x + bkx, y: v.y + bky) }
+            var backTri = Path()
+            backTri.addLines([off(a0), off(bl), off(br)])
+            backTri.closeSubpath()
+            ctx.stroke(backTri, with: .color(ink.opacity(0.40 * tail)), lineWidth: 1.4)
+            var sideFace = Path()
+            sideFace.addLines([a0, off(a0), off(br), br])
+            sideFace.closeSubpath()
+            ctx.fill(sideFace, with: .color(shade.opacity(0.22 * tail)))
+            for v in [a0, bl, br] { line(v, off(v), ink.opacity(0.5 * tail), 1.4) }
+            var frontTri = Path()
+            frontTri.addLines([a0, bl, br])
+            frontTri.closeSubpath()
+            ctx.fill(frontTri, with: .color(.white.opacity(0.35 * tail)))
+            ctx.stroke(frontTri, with: .color(ink.opacity(0.85 * tail)), style: StrokeStyle(lineWidth: 2.4, lineJoin: .round))
+            line(CGPoint(x: a0.x - pr * 0.06, y: a0.y + pr * 0.25), CGPoint(x: bl.x + pr * 0.30, y: bl.y - pr * 0.15), .white.opacity(0.8 * tail), 1.6)
+            if beamIn >= 1 {
+                line(enter, exit, shade.opacity(0.4 * tail), 4)
+                line(enter, exit, .white.opacity(0.9 * tail), 2)
             }
         } else {
             let tail = fxTail(p, 0.82)
+            let shade = enkaElementInk(element, 0.62)
             let cx = w * 0.5
-            let cy = Double(focusY)
-            let collapse = clamp01((p - 0.42) / 0.42)
-            let spread = 1 - collapse
-            for k in 0..<7 {
-                let ang = (.pi * 2 / 7) * Double(k) + p * 2.2
-                let d = minDim * 0.34 * spread
-                let x = cx + cos(ang) * d
-                let y = cy + sin(ang) * d * 0.7
-                let a = (0.30 + 0.5 * collapse) * tail
-                fillGlow(ctx, center: CGPoint(x: x, y: y), radius: 18 * (0.6 + spread),
-                         colors: [hot.opacity(a * 0.7), .clear])
-                ctx.fill(circlePath(CGPoint(x: x, y: y), 5 - 2 * spread), with: .color(.white.opacity(a)))
-                if collapse > 0 {
-                    var line = Path()
-                    line.move(to: CGPoint(x: x, y: y))
-                    line.addLine(to: CGPoint(x: cx, y: cy))
-                    ctx.stroke(line, with: .color(hot.opacity(0.35 * collapse * tail)), lineWidth: 1.4)
+            let floorY = h * 0.84
+            let topY = h * 0.08
+            let open = clamp01(p / 0.22)
+            let env = max(0, sin(p * .pi)) * tail
+            ctx.fill(Path(CGRect(x: 0, y: 0, width: w, height: h)),
+                     with: .linearGradient(Gradient(stops: [
+                        .init(color: shade.opacity(0.40 * env), location: 0),
+                        .init(color: shade.opacity(0.10 * env), location: 0.32),
+                        .init(color: .clear, location: 0.5),
+                        .init(color: shade.opacity(0.10 * env), location: 0.68),
+                        .init(color: shade.opacity(0.40 * env), location: 1),
+                     ]), startPoint: CGPoint(x: 0, y: 0), endPoint: CGPoint(x: w, y: 0)))
+            for sd in [-1.0, 1.0] {
+                let gapHalf = w * (0.04 + 0.14 * open)
+                let baseX = cx + sd * gapHalf
+                for k in 0..<5 {
+                    let rr = w * (0.07 + 0.04 * fxRnd(531 + (sd > 0 ? 7 : 0), k))
+                    let x = baseX + sd * (Double(k) * w * 0.075 + rr * 0.6)
+                    let y = h * (0.06 + 0.03 * sin(Double(k) * 1.7))
+                    ctx.fill(circlePath(CGPoint(x: x, y: y), rr), with: .color(ink.opacity(0.55 * tail)))
+                    if k == 0 {
+                        ctx.stroke(ellipseArc(CGPoint(x: x, y: y), rr, rr, sd < 0 ? 10 : 100, 70),
+                                   with: .color(.white.opacity(0.6 * open * tail)), style: StrokeStyle(lineWidth: 2, lineCap: .round))
+                    }
                 }
             }
-            if collapse > 0 {
-                fillGlow(ctx, center: CGPoint(x: cx, y: cy), radius: minDim * 0.16 * collapse,
-                         colors: [.white.opacity(0.9 * collapse * tail), hot.opacity(0.4 * collapse * tail), .clear])
+            let topW = w * 0.05 + w * 0.07 * open
+            let botW = w * 0.10 + w * 0.12 * open
+            let bottomY = topY + (floorY - topY) * open
+            var beam = Path()
+            beam.addLines([CGPoint(x: cx - topW, y: topY), CGPoint(x: cx + topW, y: topY),
+                           CGPoint(x: cx + botW, y: bottomY), CGPoint(x: cx - botW, y: bottomY)])
+            beam.closeSubpath()
+            ctx.fill(beam, with: .linearGradient(Gradient(stops: [
+                .init(color: .white.opacity(0), location: 0),
+                .init(color: .white.opacity(0.55 * tail), location: 0.35),
+                .init(color: .white.opacity(0.9 * tail), location: 0.5),
+                .init(color: .white.opacity(0.55 * tail), location: 0.65),
+                .init(color: .white.opacity(0), location: 1),
+            ]), startPoint: CGPoint(x: cx - botW, y: 0), endPoint: CGPoint(x: cx + botW, y: 0)))
+            for sd in [-1.0, 1.0] {
+                var l = Path()
+                l.move(to: CGPoint(x: cx + sd * topW, y: topY))
+                l.addLine(to: CGPoint(x: cx + sd * botW, y: bottomY))
+                ctx.stroke(l, with: .color(shade.opacity(0.35 * tail)), lineWidth: 1.4)
+            }
+            for k in 0..<4 {
+                let f = (Double(k) + 0.5) / 4 - 0.5
+                let sway = sin(p * 6 + Double(k)) * w * 0.01
+                var l = Path()
+                l.move(to: CGPoint(x: cx + f * topW * 1.4, y: topY))
+                l.addLine(to: CGPoint(x: cx + f * botW * 1.4 + sway, y: bottomY))
+                ctx.stroke(l, with: .color(.white.opacity((0.5 + 0.3 * sin(p * 10 + Double(k) * 2)) * tail)), lineWidth: 1.2)
+            }
+            let st = clamp01((p - 0.22) / 0.40)
+            if st > 0 {
+                let rx = w * 0.30 * (0.4 + 0.6 * st)
+                let ry = rx * 0.26
+                ctx.fill(Path(ellipseIn: CGRect(x: cx - rx * 0.5, y: floorY - ry * 0.5, width: rx, height: ry)), with: .color(.white.opacity(0.55 * tail)))
+                ovalRing(ctx, CGPoint(x: cx, y: floorY), rx, ry, shade.opacity(0.75 * tail), 1.8)
+                ovalRing(ctx, CGPoint(x: cx, y: floorY), rx * 0.72, ry * 0.72, shade.opacity(0.5 * tail), 1.1)
+                for k in 0..<16 {
+                    let th = (Double(k) / 16) * .pi * 2 + p * 1.5
+                    let outer = k % 4 == 0 ? 1.08 : 0.9
+                    var l = Path()
+                    l.move(to: CGPoint(x: cx + cos(th) * rx * 0.72, y: floorY + sin(th) * ry * 0.72))
+                    l.addLine(to: CGPoint(x: cx + cos(th) * rx * outer, y: floorY + sin(th) * ry * outer))
+                    ctx.stroke(l, with: .color(shade.opacity(0.6 * st * tail)), lineWidth: 1.2)
+                }
+                for i in 0..<14 {
+                    let seed = fxRnd(541, i)
+                    let t = clamp01((st - seed * 0.5) / 0.6)
+                    if t <= 0 || t >= 1 { continue }
+                    let ang = t * 7 + seed * 6.28
+                    let r = botW * (0.9 - 0.5 * t)
+                    let m = CGPoint(x: cx + cos(ang) * r, y: floorY - (floorY - h * 0.15) * t)
+                    let front = sin(ang) > 0
+                    let sz = front ? 2.6 : 1.8
+                    ctx.fill(circlePath(m, sz + 1), with: .color(shade.opacity((front ? 0.6 : 0.3) * (1 - t) * tail)))
+                    ctx.fill(circlePath(m, sz), with: .color(.white.opacity((1 - t) * tail)))
+                }
             }
         }
 
-    // 아직 다른 그림을 그리지 않은 속성 — 0번을 그대로 쓴다.
+    // ── 양자 ①: 이중 슬릿(간섭 무늬 · 스크린에 쌓이는 입자)  ②: 관측하면 확률 구름이 한 점으로 무너진다
+    case .pulse:
+        if second {
+            let tail = fxTail(p, 0.86)
+            let shade = enkaElementInk(element, 0.55)
+            let bx = w * 0.30
+            let sx = w * 0.94
+            let cy = Double(focusY)
+            let slitDy = h * 0.09
+            let slitH = h * 0.035
+            let s1 = CGPoint(x: bx, y: cy - slitDy)
+            let s2 = CGPoint(x: bx, y: cy + slitDy)
+            let lambda = w * 0.03
+            func intensity(_ pt: CGPoint) -> Double {
+                let c = cos(.pi * (hypot(pt.x - s1.x, pt.y - s1.y) - hypot(pt.x - s2.x, pt.y - s2.y)) / lambda)
+                return c * c
+            }
+            let waveIn = clamp01(p / 0.2)
+            for k in 0..<7 {
+                let x = (p * 1.8 * w + Double(k) * lambda * 1.6).truncatingRemainder(dividingBy: bx + lambda) - lambda * 0.5
+                if x > bx - 2 || x < 0 { continue }
+                var l = Path()
+                l.move(to: CGPoint(x: x, y: h * 0.08))
+                l.addLine(to: CGPoint(x: x, y: h * 0.92))
+                ctx.stroke(l, with: .color(hot.opacity(0.45 * waveIn * tail)), lineWidth: 1.6)
+            }
+            let reach = clamp01((p - 0.15) / 0.40) * (sx - bx) * 1.25
+            if reach > 0 {
+                let step = w * 0.024
+                var x = bx + step
+                while x < sx - step * 0.5 {
+                    var y = h * 0.04
+                    while y < h * 0.96 {
+                        let pt = CGPoint(x: x, y: y)
+                        if hypot(pt.x - s1.x, pt.y - s1.y) < reach && hypot(pt.x - s2.x, pt.y - s2.y) < reach {
+                            let v = intensity(pt)
+                            if v > 0.15 { ctx.fill(circlePath(pt, 1.8), with: .color(hot.opacity(0.6 * v * tail))) }
+                        }
+                        y += step
+                    }
+                    x += step
+                }
+            }
+            let bw = 6.0
+            let barA = 0.88 * tail
+            ctx.fill(Path(CGRect(x: bx - bw / 2, y: 0, width: bw, height: s1.y - slitH / 2)), with: .color(shade.opacity(barA)))
+            ctx.fill(Path(CGRect(x: bx - bw / 2, y: s1.y + slitH / 2, width: bw, height: (s2.y - slitH / 2) - (s1.y + slitH / 2))),
+                     with: .color(shade.opacity(barA)))
+            ctx.fill(Path(CGRect(x: bx - bw / 2, y: s2.y + slitH / 2, width: bw, height: h - (s2.y + slitH / 2))), with: .color(shade.opacity(barA)))
+            for sl in [s1, s2] {
+                fillGlow(ctx, center: sl, radius: w * 0.035, colors: [.white.opacity(0.8 * waveIn * tail), .clear])
+            }
+            var scr = Path()
+            scr.move(to: CGPoint(x: sx, y: h * 0.04))
+            scr.addLine(to: CGPoint(x: sx, y: h * 0.96))
+            ctx.stroke(scr, with: .color(shade.opacity(0.7 * tail)), lineWidth: 2)
+            let hits = Int(clamp01((p - 0.35) / 0.50) * 140)
+            var placed = 0
+            var tries = 0
+            while placed < hits && tries < 600 {
+                let y = h * (0.06 + 0.88 * fxRnd(551, tries))
+                let z = (y - cy) / (h * 0.42)
+                if fxRnd(557, tries) < intensity(CGPoint(x: sx, y: y)) * exp(-z * z) {
+                    let jx = (fxRnd(563, tries) - 0.5) * 5
+                    ctx.fill(circlePath(CGPoint(x: sx - 4 + jx, y: y), 1.5), with: .color(ink.opacity(0.85 * tail)))
+                    placed += 1
+                }
+                tries += 1
+            }
+        } else {
+            let tail = fxTail(p, 0.86)
+            let shade = enkaElementInk(element, 0.55)
+            let c = CGPoint(x: w * 0.5, y: Double(focusY))
+            let rr0 = minDim * 0.40
+            let axisAng = 0.5 + p * 0.8
+            let ax = cos(axisAng)
+            let ay = sin(axisAng)
+            let px = -ay
+            let py = ax
+            let obs = clamp01((p - 0.30) / 0.18)
+            let c0 = clamp01((p - 0.46) / 0.20)
+            let col = c0 * c0
+            let target = CGPoint(x: c.x + ax * rr0 * 0.55, y: c.y + ay * rr0 * 0.55)
+            let step = Int(p * 30)
+            if col < 1 {
+                for i in 0..<150 {
+                    let t = fxRnd(571, i) * 2 - 1
+                    let width = rr0 * 0.42 * sin(.pi * abs(t))
+                    let lat = (fxRnd(577, i) - 0.5) * 2 * width
+                    let depth = fxRnd(587, i)
+                    let jx = (fxRnd(step + 3, i) - 0.5) * 3 * (1 - col)
+                    let jy = (fxRnd(step + 5, i) - 0.5) * 3 * (1 - col)
+                    let home = CGPoint(x: c.x + ax * t * rr0 + px * lat + jx, y: c.y + ay * t * rr0 + py * lat + jy)
+                    let pt = CGPoint(x: home.x + (target.x - home.x) * col, y: home.y + (target.y - home.y) * col)
+                    let sz = (1.3 + 1.4 * depth) * (1 - 0.5 * col)
+                    let a = (0.25 + 0.45 * depth) * tail * (1 - col * 0.5)
+                    if col > 0 {
+                        var l = Path()
+                        l.move(to: CGPoint(x: home.x + (target.x - home.x) * (col * 0.7), y: home.y + (target.y - home.y) * (col * 0.7)))
+                        l.addLine(to: pt)
+                        ctx.stroke(l, with: .color(ink.opacity(a * 0.5)), lineWidth: 1)
+                    }
+                    ctx.fill(circlePath(pt, sz), with: .color(ink.opacity(a)))
+                }
+            }
+            if obs > 0 && col < 1 {
+                let rr = rr0 * (1.5 - 1.3 * obs)
+                let oa = 0.6 * obs * (1 - col) * tail
+                ctx.stroke(circlePath(target, rr), with: .color(shade.opacity(oa)), lineWidth: 2)
+                for k in 0..<4 {
+                    let th = Double(k) * .pi / 2
+                    var l = Path()
+                    l.move(to: CGPoint(x: target.x + cos(th) * rr * 0.85, y: target.y + sin(th) * rr * 0.85))
+                    l.addLine(to: CGPoint(x: target.x + cos(th) * rr * 1.15, y: target.y + sin(th) * rr * 1.15))
+                    ctx.stroke(l, with: .color(shade.opacity(oa)), lineWidth: 1.6)
+                }
+            }
+            if col >= 1 {
+                let st = clamp01((p - 0.66) / 0.25)
+                for k in 0..<2 {
+                    let rt = clamp01(st - Double(k) * 0.25)
+                    if rt > 0 {
+                        ctx.stroke(circlePath(target, rr0 * (0.1 + 0.6 * rt)), with: .color(ink.opacity(0.45 * (1 - rt) * tail)), lineWidth: 1.6)
+                    }
+                }
+                fillGlow(ctx, center: target, radius: rr0 * 0.22, colors: [ink.opacity(0.35 * tail), .clear])
+                ctx.fill(circlePath(target, 6), with: .color(hot.opacity(tail)))
+                ctx.stroke(circlePath(target, 6), with: .color(shade.opacity(0.9 * tail)), lineWidth: 1.6)
+                ctx.fill(circlePath(CGPoint(x: target.x - 1.5, y: target.y - 1.5), 2), with: .color(.white.opacity(0.9 * tail)))
+                for k in 0..<4 {
+                    let th = Double(k) * .pi / 2 + .pi / 4
+                    var l = Path()
+                    l.move(to: CGPoint(x: target.x + cos(th) * 10, y: target.y + sin(th) * 10))
+                    l.addLine(to: CGPoint(x: target.x + cos(th) * 16, y: target.y + sin(th) * 16))
+                    ctx.stroke(l, with: .color(shade.opacity(0.7 * tail)), style: StrokeStyle(lineWidth: 1.4, lineCap: .round))
+                }
+            }
+        }
     default:
         drawElementFx(ctx, size: size, fx: fx, element: element, p: p, focusY: focusY, variant: 0)
     }
 }
+
+#if DEBUG
+/**
+ **개발자 전용** — 속성 연출 한 장면을 **여덟 시점**으로 펼쳐 한 화면에 그린다(콘택트 시트).
+ Compose `ElementFxContactSheet` 와 같은 규격이다.
+
+ 연출은 1~2.6초 한 번 재생되고 끝나 멈춰 볼 방법이 없었다. 진행도를 고정해 그리므로
+ 스크린샷 한 장에 한 장면의 흐름이 다 담긴다. 칸마다 **실제 히어로 크기(392×330)로 그린 뒤
+ 줄여** 넣는다 — 작은 캔버스에 바로 그리면 선 굵기가 상대적으로 두꺼워져 실물과 달라진다.
+
+ 여는 법: 실행 인자 `-fxPreview 번개:1` (인자 도메인이라 저장되지 않는다).
+ */
+struct ElementFxContactSheet: View {
+    let spec: String
+
+    var body: some View {
+        let parts = spec.split(separator: ":")
+        let element = String(parts.first ?? "번개")
+        let variant = parts.count > 1 ? (Int(parts[1]) ?? 0) : 0
+        let fx = ElementFxKt.elementFx(element: element)
+        let frames: [Double] = [0.06, 0.18, 0.30, 0.42, 0.54, 0.66, 0.78, 0.90]
+        let heroW: CGFloat = 392
+        let heroH: CGFloat = 330
+        ScrollView {
+            VStack(alignment: .leading, spacing: 6) {
+                Text("\(element) · 변주 \(variant) · \(String(describing: fx))")
+                    .font(.system(size: 14, weight: .bold))
+                LazyVGrid(columns: [GridItem(.flexible(), spacing: 6), GridItem(.flexible(), spacing: 6)], spacing: 6) {
+                    ForEach(frames, id: \.self) { p in
+                        VStack(alignment: .leading, spacing: 2) {
+                            GeometryReader { geo in
+                                Canvas { ctx, size in
+                                    // 상단 광채(히어로의 300pt 흰 원, 위로 46pt 올림)
+                                    let c = CGPoint(x: size.width / 2, y: 150 - 46)
+                                    ctx.fill(Path(ellipseIn: CGRect(x: c.x - 150, y: c.y - 150, width: 300, height: 300)),
+                                             with: .radialGradient(Gradient(colors: [.white.opacity(0.55), .clear]),
+                                                                   center: c, startRadius: 0, endRadius: 150))
+                                    drawElementFx(ctx, size: size, fx: fx, element: element,
+                                                  p: p, focusY: heroH * 0.42, variant: variant)
+                                }
+                                .frame(width: heroW, height: heroH)
+                                .scaleEffect(geo.size.width / heroW, anchor: .topLeading)
+                            }
+                            .aspectRatio(heroW / heroH, contentMode: .fit)
+                            // 배경은 **실제 히어로와 같게** — 연출의 강조색은 진한 쪽이라 배경 농도에
+                            // 따라 보이는 정도가 크게 달라진다(히어로: 흰색 62%→45%).
+                            .background(LinearGradient(colors: [enkaElementLight(element, 0.62), enkaElementLight(element, 0.45)],
+                                                       startPoint: .topLeading, endPoint: .bottomTrailing))
+                            .clipShape(RoundedRectangle(cornerRadius: 6))
+                            Text(String(format: "p=%.2f", p)).font(.system(size: 9)).foregroundStyle(.gray)
+                        }
+                    }
+                }
+            }
+            .padding(10)
+        }
+        .background(Color.white)
+    }
+}
+#endif

@@ -41,6 +41,8 @@ import com.gatcha.log.data.GameData
 import com.gatcha.log.data.GatchaRepository
 import com.gatcha.log.data.Notifier
 import com.gatcha.log.data.work.AndroidWorkScheduler
+import androidx.compose.runtime.remember
+import com.gatcha.log.ui.game.ElementFxContactSheet
 
 class MainActivity : ComponentActivity() {
 
@@ -94,6 +96,14 @@ class MainActivity : ComponentActivity() {
         }
         intent?.getStringExtra(Notifier.EXTRA_LINK)?.let { pendingLink = it }
         setContent {
+            // 개발자 전용 — 속성 연출 콘택트 시트(`--es fx_preview 번개:1`). 앱 대신 이 화면만 띄운다.
+            // 릴리스 빌드에서는 extra 를 읽지 않는다.
+            val fxPreview = remember { if (BuildConfig.DEBUG) intent?.getStringExtra("fx_preview") else null }
+            if (fxPreview != null) {
+                val parts = fxPreview.split(":")
+                ElementFxContactSheet(parts[0], parts.getOrNull(1)?.toIntOrNull() ?: 0)
+                return@setContent
+            }
             val viewModel: SpendingViewModel = viewModel()
             // 알림 딥링크 소비 — 탭 전환·상세 진입은 VM 상태(pendingTab/pendingNewsId)를 화면이 구독해 처리.
             LaunchedEffect(pendingLink) {
