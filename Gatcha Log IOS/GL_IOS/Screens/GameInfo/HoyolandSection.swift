@@ -687,9 +687,11 @@ struct HoyolandHomeCard: View {
     }
 
     private var card: some View {
-        // 배너 바탕 — accent 를 축제 톤으로 옮긴다. 흰 글자가 얹히므로 충분히 진하게.
-        let top = glgMix(accent.primary, .black, 0.10)
-        let bottom = glgMix(accent.primary, Color(hex: 0xFF6A2BD9), 0.45)
+        // 배너 바탕 — 강조색을 **짙은 슬레이트** 쪽으로 가라앉힌다. 흰 글자가 얹히므로 충분히 진하게.
+        // 선명한 보라(#6A2BD9)로 섞던 '축제 톤' 은 새 팔레트 · 틴트 배경 위에서 혼자 튀었다
+        // (2026-09-11). 채도 0.57 → 0.47, 흰 글자 대비 4.7 → 5.8. Android `DashHoyolandCard` 와 같은 값.
+        let top = glgMix(accent.primary, Color(hex: 0xFF2E3440), 0.35)
+        let bottom = glgMix(accent.primary, Color(hex: 0xFF2E3440), 0.50)
         // 지스타 줄이 있으면 배너 밑단에 한 칸을 더 낸다(없으면 원래 높이 그대로).
         let gstar = event.gstar.homeBrief(nowMillis: nowMs())
         return Button(action: onTap) {
