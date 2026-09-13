@@ -1099,14 +1099,14 @@ private fun HoyolandGoodsCard(
     val raw = e.stageColor(item.game)
     val c = if (raw == 0L) TextSecondary else raw.toColor()
     val label = if (item.game.isBlank()) "공용" else e.stageLabel(item.game)
-    // **위 정렬**이다. 가운데로 두면 오른쪽 열(가격·담기)이 왼쪽 이름 높이를 따라 카드마다
-    // 위아래로 흔들려, 목록을 훑을 때 값과 버튼이 한 줄로 안 선다. 이름이 한 줄이든 두 줄이든
-    // 가격은 이름 첫 줄 옆에 오고 담기는 늘 그 밑이다.
+    // 가운데 정렬이다. 가격이 왼쪽으로 내려가면서 오른쪽에는 담기 버튼 하나만 남았으므로,
+    // 위로 붙이면 왼쪽 덩이(이름+가격+비고)보다 훨씬 짧은 버튼이 카드 꼭대기에 홀로 뜬다.
+    // (가격이 오른쪽에 있던 동안에는 위 정렬이 맞았다 — 그때는 그 열도 세 줄이었다.)
     Row(
         Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 13.dp),
-        verticalAlignment = Alignment.Top,
+        verticalAlignment = Alignment.CenterVertically,
     ) {
         // 썸네일 자리 — 공식 굿즈 이미지가 나오면 이 칸을 그대로 이미지로 바꾼다.
         Box(
@@ -1127,50 +1127,54 @@ private fun HoyolandGoodsCard(
         }
         Column(Modifier.weight(1f).padding(start = 11.dp)) {
             Text(item.name, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextPrimary, lineHeight = 18.sp)
-            Spacer(Modifier.height(3.dp))
+            Spacer(Modifier.height(5.dp))
+            // 가격은 **이름 바로 아래 왼쪽**이다. 예전엔 오른쪽 담기 버튼 위에 얹혀 있었는데,
+            // 그 열은 버튼 폭(≈26dp 높이의 알약)에 갇혀 있어 값을 키울 자리가 없었고 버튼과
+            // 시선을 나눠 가졌다. 이름 밑으로 내리면 폭 제약이 사라져 한 단계 더 키울 수 있고,
+            // 값이 **그 이름의 값**이라는 것도 붙어 있어야 읽힌다.
+            Row(verticalAlignment = Alignment.Bottom) {
+                Text(
+                    when {
+                        item.price <= 0 -> "미정"
+                        quantity > 0 -> e.wonLabel(item.price * quantity)
+                        else -> e.wonLabel(item.price)
+                    },
+                    fontSize = if (item.price > 0) 16.sp else 13.sp,
+                    fontWeight = FontWeight.Black,
+                    // 담은 뒤의 소계는 강조색 — "내가 쓰기로 한 돈" 이다. 담기 전 단가는 먹색이다.
+                    color = when {
+                        item.price <= 0 -> TextThird
+                        quantity > 0 -> accent
+                        else -> TextPrimary
+                    },
+                    style = LocalTextStyle.current.copy(fontFeatureSettings = "tnum"),
+                )
+                // 담은 뒤에만 단가×수량을 뒤에 받친다 — 소계가 어떻게 나온 값인지 보여준다.
+                if (quantity > 0 && item.price > 0) {
+                    Spacer(Modifier.width(6.dp))
+                    Text(
+                        "${e.wonLabel(item.price)} × $quantity",
+                        fontSize = 11.sp, color = TextThird,
+                        style = LocalTextStyle.current.copy(fontFeatureSettings = "tnum"),
+                    )
+                }
+            }
             // 게임 라벨은 왼쪽 48 칸이 이미 말하고 있다 — 여기 칩까지 두면 한 줄에 같은
             // 글자가 두 번 나온다. 갈래(분류)도 싣지 않는다 — '아크릴 스탠드' 처럼 이름과 거의
             // 같은 말이 한 줄 아래 또 나오고, 고를 때 실제로 쓰이는 값은 가격과 한정 여부다.
             // 시리즈·구매 제한은 아래 띠에 배지로 빠진다.
             if (item.noteRest.isNotBlank()) {
+                Spacer(Modifier.height(3.dp))
                 // 구성품이 긴 품목(테마 패키지)은 note 안에 줄바꿈이 들어 있어 두 줄이 된다.
                 Text(item.noteRest, fontSize = 11.sp, color = c, lineHeight = 16.sp)
             }
         }
+        // 오른쪽 열에는 **담기만** 남는다 — 가격이 이름 밑으로 내려가면서 이 열은 누르는
+        // 것 하나만 갖는다. 값과 버튼이 좁은 한 열에서 시선을 나눠 갖던 것이 풀린다.
         Column(
             Modifier.padding(start = 11.dp),
             horizontalAlignment = Alignment.End,
         ) {
-            // 담은 뒤에는 **그 줄에서 나갈 돈**(소계)을 크게 세우고, 단가×수량을 작게 받친다.
-            // 단가만 두면 세 개를 담아도 18,000원 으로 보여, 정작 이 앱이 답하려는
-            // "얼마 들고 가야 하나" 를 카드마다 암산하게 만든다. 장바구니의 줄 소계와 같은 값이다.
-            if (quantity > 0 && item.price > 0) {
-                Text(
-                    "${e.wonLabel(item.price)} × $quantity",
-                    fontSize = 10.5.sp, color = TextThird,
-                    style = LocalTextStyle.current.copy(fontFeatureSettings = "tnum"),
-                )
-                Spacer(Modifier.height(1.dp))
-            }
-            // 이름과 같은 13sp 였더니 목록을 훑을 때 값이 제목에 묻혔다 — 이 앱에서 카드를 고르는
-            // 기준은 가격이라 한 단계 키운다. 담은 뒤의 소계는 **강조색**으로 "내가 쓰기로 한 돈"
-            // 임을 드러낸다(담기 전 단가는 먹색 그대로 — 아직 내 돈이 아니다).
-            Text(
-                when {
-                    item.price <= 0 -> "미정"
-                    quantity > 0 -> e.wonLabel(item.price * quantity)
-                    else -> e.wonLabel(item.price)
-                },
-                fontSize = if (item.price > 0) 15.sp else 13.sp,
-                fontWeight = if (item.price > 0) FontWeight.Black else FontWeight.Bold,
-                color = when {
-                    item.price <= 0 -> TextThird
-                    quantity > 0 -> accent
-                    else -> TextPrimary
-                },
-                style = LocalTextStyle.current.copy(fontFeatureSettings = "tnum"),
-            )
-            Spacer(Modifier.height(6.dp))
             // 「담기」 ↔ 스테퍼 전환. 값만 갈아 끼우면 버튼이 있던 자리에 스테퍼가 **툭 나타나서**
             // 내가 누른 것이 반영된 것인지, 원래 그랬던 것인지 순간 헷갈린다. 담을 때도 뺄 때도
             // 같은 전환을 태워 "이게 방금 내가 만든 변화" 라는 것을 보이게 한다.
