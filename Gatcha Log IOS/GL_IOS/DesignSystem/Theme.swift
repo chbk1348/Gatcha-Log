@@ -83,7 +83,21 @@ enum GLGTheme {
         GLGAccent(index: 7, label: "바이올렛", primary: Color(hex: 0xFF8E6BE5), secondary: Color(hex: 0xFFC4B3F2), deep: Color(hex: 0xFF7950E0), tint: Color(hex: 0xFFF6F5F8)),
         GLGAccent(index: 8, label: "마젠타", primary: Color(hex: 0xFFCB42DE), secondary: Color(hex: 0xFFE7A6EF), deep: Color(hex: 0xFFB523C8), tint: Color(hex: 0xFFF8F5F8)),
         GLGAccent(index: 9, label: "핑크", primary: Color(hex: 0xFFDE4594), secondary: Color(hex: 0xFFEFA7CC), deep: Color(hex: 0xFFCA247A), tint: Color(hex: 0xFFF8F5F7)),
+        // 차분 10색 — 같은 색조 순서, 채도만 낮춤(Color.kt 주석 참고)
+        GLGAccent(index: 10, label: "더스티 로즈", primary: Color(hex: 0xFFBA6B64), secondary: Color(hex: 0xFFDBB3AF), deep: Color(hex: 0xFFA9544C), tint: Color(hex: 0xFFF8F5F5)),
+        GLGAccent(index: 11, label: "샌드", primary: Color(hex: 0xFF9B7D3B), secondary: Color(hex: 0xFFD1BA86), deep: Color(hex: 0xFF836932), tint: Color(hex: 0xFFF8F7F5)),
+        GLGAccent(index: 12, label: "세이지", primary: Color(hex: 0xFF73893B), secondary: Color(hex: 0xFFAFC577), deep: Color(hex: 0xFF617432), tint: Color(hex: 0xFFF8F8F5)),
+        GLGAccent(index: 13, label: "모스", primary: Color(hex: 0xFF548E4D), secondary: Color(hex: 0xFF9DC797), deep: Color(hex: 0xFF477841), tint: Color(hex: 0xFFF6F8F5)),
+        GLGAccent(index: 14, label: "파인", primary: Color(hex: 0xFF4C8E6C), secondary: Color(hex: 0xFF96C7AE), deep: Color(hex: 0xFF40785B), tint: Color(hex: 0xFFF5F8F7)),
+        GLGAccent(index: 15, label: "스틸", primary: Color(hex: 0xFF4B8B91), secondary: Color(hex: 0xFF95C4C9), deep: Color(hex: 0xFF3F757A), tint: Color(hex: 0xFFF5F8F8)),
+        GLGAccent(index: 16, label: "슬레이트", primary: Color(hex: 0xFF6881B6), secondary: Color(hex: 0xFFAFBCD9), deep: Color(hex: 0xFF506CA7), tint: Color(hex: 0xFFF5F6F8)),
+        GLGAccent(index: 17, label: "라벤더", primary: Color(hex: 0xFF8977B9), secondary: Color(hex: 0xFFC1B7DA), deep: Color(hex: 0xFF7660AD), tint: Color(hex: 0xFFF6F5F8)),
+        GLGAccent(index: 18, label: "모브", primary: Color(hex: 0xFFA76BAF), secondary: Color(hex: 0xFFD1B2D6), deep: Color(hex: 0xFF94559D), tint: Color(hex: 0xFFF8F5F8)),
+        GLGAccent(index: 19, label: "로즈우드", primary: Color(hex: 0xFFB66890), secondary: Color(hex: 0xFFD9B1C6), deep: Color(hex: 0xFFA5507C), tint: Color(hex: 0xFFF8F5F7)),
     ]
+
+    /// 「선명」 묶음 크기 — Kotlin `ACCENT_VIVID_COUNT` 와 같은 값.
+    static let vividCount: Int = 10
 
     /// 기본 강조색 인덱스 — 틸. Kotlin `DEFAULT_ACCENT_INDEX` 와 같은 값이어야 한다.
     static let defaultIndex: Int = 5

@@ -71,7 +71,24 @@ val AccentPalette: List<AccentOption> = listOf(
     AccentOption("바이올렛", 0xFF8E6BE5L, 0xFFC4B3F2L, 0xFF7950E0L, 0xFFF6F5F8L),
     AccentOption("마젠타", 0xFFCB42DEL, 0xFFE7A6EFL, 0xFFB523C8L, 0xFFF8F5F8L),
     AccentOption("핑크", 0xFFDE4594L, 0xFFEFA7CCL, 0xFFCA247AL, 0xFFF8F5F7L),
+    // ── 차분 10색(인덱스 10~19) — 위와 **같은 색조 순서**, 채도만 30~45 로 낮췄다. 대비 규칙은 같다.
+    // 색조를 18도씩 끼워 넣는 안도 봤지만, 노랑~연두 구간은 대비를 맞추면 머스터드·올리브와
+    // 거의 같은 황록색이 돼 구분이 안 됐다(2026-09-11 목업 비교). 그래서 채도로 한 벌을 더 만든다.
+    // 뒤에 붙이기만 하므로 이미 저장된 0~9 선택은 그대로다.
+    AccentOption("더스티 로즈", 0xFFBA6B64L, 0xFFDBB3AFL, 0xFFA9544CL, 0xFFF8F5F5L),
+    AccentOption("샌드", 0xFF9B7D3BL, 0xFFD1BA86L, 0xFF836932L, 0xFFF8F7F5L),
+    AccentOption("세이지", 0xFF73893BL, 0xFFAFC577L, 0xFF617432L, 0xFFF8F8F5L),
+    AccentOption("모스", 0xFF548E4DL, 0xFF9DC797L, 0xFF477841L, 0xFFF6F8F5L),
+    AccentOption("파인", 0xFF4C8E6CL, 0xFF96C7AEL, 0xFF40785BL, 0xFFF5F8F7L),
+    AccentOption("스틸", 0xFF4B8B91L, 0xFF95C4C9L, 0xFF3F757AL, 0xFFF5F8F8L),
+    AccentOption("슬레이트", 0xFF6881B6L, 0xFFAFBCD9L, 0xFF506CA7L, 0xFFF5F6F8L),
+    AccentOption("라벤더", 0xFF8977B9L, 0xFFC1B7DAL, 0xFF7660ADL, 0xFFF6F5F8L),
+    AccentOption("모브", 0xFFA76BAFL, 0xFFD1B2D6L, 0xFF94559DL, 0xFFF8F5F8L),
+    AccentOption("로즈우드", 0xFFB66890L, 0xFFD9B1C6L, 0xFFA5507CL, 0xFFF8F5F7L),
 )
+
+/** 「선명」 묶음 크기 — 테마 페이지가 [AccentPalette] 를 선명(0 until 이 값) · 차분(나머지)으로 나눠 보여준다. */
+const val ACCENT_VIVID_COUNT: Int = 10
 
 /** 기본 강조색 — 틸(앱 아이콘 색조에 가장 가까운 슬롯). */
 const val DEFAULT_ACCENT_INDEX: Int = 5

@@ -68,6 +68,11 @@ import com.gatcha.log.util.SafIO
 import kotlinx.coroutines.launch
 import com.gatcha.log.ui.theme.DividerColor
 import com.gatcha.log.ui.theme.LocalAccent
+import com.gatcha.log.ui.theme.LocalAccentDeep
+import com.gatcha.log.ui.theme.AccentPalette
+import com.gatcha.log.ui.theme.ACCENT_VIVID_COUNT
+import com.gatcha.log.ui.theme.DEFAULT_ACCENT_INDEX
+import com.gatcha.log.ui.components.GlgOutlineButton
 import com.gatcha.log.ui.theme.glgShortSpec
 import com.gatcha.log.ui.theme.glgStandardSpec
 import com.gatcha.log.ui.theme.TextPrimary
@@ -134,10 +139,12 @@ fun SettingsScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
     val showCredits = remember { mutableStateOf(false) }
     // 개발자 메뉴 — 디버그 빌드에서만 진입점이 그려진다.
     val showDev = remember { mutableStateOf(false) }
+    val showTheme = remember { mutableStateOf(false) }
 
-    // 설정 하위 페이지 스택: 0=메인, 1=알림 설정, 2=데이터 관리, 3=HoYoLAB 연동, 4=업데이트 로그, 5=개발자 메뉴.
+    // 설정 하위 페이지 스택: 0=메인, 1=알림 설정, 2=데이터 관리, 3=HoYoLAB 연동, 4=업데이트 로그, 5=개발자 메뉴, 6=테마.
     // 깊어지면 우→좌 슬라이드 push/pop.
     val subPage = when {
+        showTheme.value -> 6
         showDev.value -> 5
         showUplog.value -> 4
         showHoyolab.value -> 3
@@ -149,6 +156,7 @@ fun SettingsScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
     // 자체 핸들러가 없으면 MyPageScreen 의 BackHandler 로 새어 마이페이지로 튕긴다.
     BackHandler(enabled = subPage > 0) {
         when {
+            showTheme.value -> showTheme.value = false
             showDev.value -> showDev.value = false
             showUplog.value -> showUplog.value = false
             showHoyolab.value -> showHoyolab.value = false
@@ -169,7 +177,9 @@ fun SettingsScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
         },
         label = "settingsPage",
     ) { page ->
-        if (page == 5) {
+        if (page == 6) {
+            ThemeScreen(accentIndex, onSelect = { viewModel.setAccentIndex(it) }, onBack = { showTheme.value = false })
+        } else if (page == 5) {
             DeveloperScreen(viewModel, onBack = { showDev.value = false })
         } else if (page == 4) {
             UpdateLogScreen(onBack = { showUplog.value = false })
@@ -233,15 +243,11 @@ fun SettingsScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
                         heroGlow,
                     ) { viewModel.setHeroGlow(it) }
                     HorizontalDivider(color = DividerColor, modifier = Modifier.padding(horizontal = 16.dp))
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 14.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Icon(Icons.Default.Palette, null, tint = accent, modifier = Modifier.size(20.dp))
-                        Spacer(Modifier.width(12.dp))
-                        Text("테마 색상", fontSize = 14.sp, fontWeight = FontWeight.Medium)
-                    }
-                    ThemeColorGrid(accentIndex) { viewModel.setAccentIndex(it) }
+                    // 20색이 되어 카드 안 그리드로는 길어져 전용 페이지로 옮겼다.
+                    SettingsItem(
+                        "테마", Icons.Default.Palette,
+                        value = AccentPalette.getOrElse(accentIndex) { AccentPalette[DEFAULT_ACCENT_INDEX] }.label,
+                    ) { showTheme.value = true }
                 }
             }
         }
@@ -883,6 +889,90 @@ private fun notifyIcon(key: NotifyKey): ImageVector = when (key) {
     NotifyKey.COMBAT -> Icons.Default.MilitaryTech
     NotifyKey.NEWS -> Icons.Default.Campaign
     NotifyKey.HOYOLAND -> Icons.Default.Celebration
+}
+
+/**
+ * 테마 하위 페이지 — 맨 위 미리보기 카드가 고른 색으로 바로 바뀌고, 아래에 선명 · 차분 두 벌을 나눠 보여준다.
+ * (설정 ▸ UI ▸ 테마에서 슬라이드 진입 · iOS ThemeView 파리티 · 목업 design_theme_page_mockup.html B안)
+ */
+@Composable
+private fun ThemeScreen(accentIndex: Int, onSelect: (Int) -> Unit, onBack: () -> Unit) {
+    val accent = LocalAccent.current
+    val deep = LocalAccentDeep.current
+    val current = AccentPalette.getOrElse(accentIndex) { AccentPalette[DEFAULT_ACCENT_INDEX] }
+    val listState = rememberLazyListState()
+    val scrolled by remember {
+        derivedStateOf { listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 0 }
+    }
+    Box(Modifier.fillMaxSize()) {
+    LazyColumn(
+        state = listState,
+        modifier = Modifier.fillMaxSize().navigationBarsPadding().padding(horizontal = 16.dp),
+        contentPadding = PaddingValues(top = glgDetailContentTop(), bottom = 24.dp),
+    ) {
+        // 미리보기 — 금액(deep) · 게이지(main) · 칩(옅은 면) · 버튼 쌍. 누르는 곳이 아니라 보여주는 곳이다.
+        item {
+            GlassCard(shape = RoundedCornerShape(22.dp), modifier = Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(16.dp)) {
+                    Text("미리보기 · ${current.label}", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextSecondary)
+                    Spacer(Modifier.height(4.dp))
+                    Text("428,000원", fontSize = 26.sp, fontWeight = FontWeight.Black, color = deep)
+                    Spacer(Modifier.height(10.dp))
+                    Box(Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(99.dp)).background(Color(0xFFEEEFF3))) {
+                        Box(Modifier.fillMaxWidth(0.62f).fillMaxHeight().clip(RoundedCornerShape(99.dp)).background(accent))
+                    }
+                    Spacer(Modifier.height(12.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        listOf("전체", "원신", "스타레일").forEachIndexed { i, label ->
+                            val on = i == 0
+                            Text(
+                                label, fontSize = 11.sp, fontWeight = FontWeight.Bold,
+                                color = if (on) deep else TextSecondary,
+                                modifier = Modifier.clip(RoundedCornerShape(99.dp))
+                                    .background(if (on) accent.copy(alpha = 0.14f) else Color(0xFFF4F5F8))
+                                    .padding(horizontal = 10.dp, vertical = 5.dp),
+                            )
+                        }
+                    }
+                    Spacer(Modifier.height(12.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        GlgOutlineButton("취소", onClick = {}, modifier = Modifier.weight(1f), height = 40.dp)
+                        GlgButton("저장하기", onClick = {}, modifier = Modifier.weight(1f), height = 40.dp)
+                    }
+                }
+            }
+        }
+        item { Spacer(Modifier.height(20.dp)) }
+        item { ThemeGroupTitle("선명", ACCENT_VIVID_COUNT) }
+        item {
+            GlassCard(shape = RoundedCornerShape(24.dp), modifier = Modifier.fillMaxWidth()) {
+                ThemeColorGrid(accentIndex, 0 until ACCENT_VIVID_COUNT, onSelect)
+            }
+        }
+        item { Spacer(Modifier.height(20.dp)) }
+        item { ThemeGroupTitle("차분", AccentPalette.size - ACCENT_VIVID_COUNT) }
+        item {
+            GlassCard(shape = RoundedCornerShape(24.dp), modifier = Modifier.fillMaxWidth()) {
+                ThemeColorGrid(accentIndex, ACCENT_VIVID_COUNT until AccentPalette.size, onSelect)
+            }
+            Text(
+                "두 벌은 같은 색조 · 다른 채도예요. 게임별 색상과 속성 연출은 테마와 상관없이 그대로예요.",
+                fontSize = 11.sp, color = TextSecondary,
+                modifier = Modifier.padding(top = 8.dp, start = 4.dp, end = 4.dp),
+            )
+        }
+    }
+    GlgDetailHeaderOverlay("테마", onBack, scrolled)
+    }
+}
+
+@Composable
+private fun ThemeGroupTitle(text: String, count: Int) {
+    Row(Modifier.fillMaxWidth().padding(bottom = 10.dp, start = 4.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text(text, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextSecondary)
+        Spacer(Modifier.weight(1f))
+        Text("$count", fontSize = 11.sp, color = TextSecondary)
+    }
 }
 
 @Composable

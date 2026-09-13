@@ -141,6 +141,13 @@ struct iOSApp: App {
             } else if UserDefaults.standard.string(forKey: "uiPreview") == "buttons" {
                 // 개발자 전용 — 버튼 미리보기(실행 인자 `-uiPreview buttons`).
                 GLGButtonPreviewSheet()
+            } else if UserDefaults.standard.string(forKey: "uiPreview") == "theme" {
+                // 개발자 전용 — 테마 페이지(실행 인자 `-uiPreview theme`, 선택 `-uiPreviewAccent 16`).
+                NavigationStack { ThemeView(store: .shared) }
+                    .onAppear {
+                        let i = UserDefaults.standard.integer(forKey: "uiPreviewAccent")
+                        if UserDefaults.standard.object(forKey: "uiPreviewAccent") != nil { SpendingStore.shared.setAccentIndex(i) }
+                    }
             } else {
                 ContentView()
             }
