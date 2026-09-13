@@ -424,8 +424,10 @@ struct HoyolandDetailView: View {
                         VStack(alignment: .leading, spacing: 3) {
                             Text(p.title).font(.pretendard(size: 14, weight: .bold))
                                 .foregroundStyle(GLGColor.textPrimary)
+                            // 웰컴 키트처럼 구성품을 줄바꿈으로 늘어놓는 값이 있어 줄간을 준다.
                             Text(p.desc).font(.pretendard(size: 12.5))
                                 .foregroundStyle(GLGColor.textSecondary)
+                                .lineSpacing(4)
                                 .fixedSize(horizontal: false, vertical: true)
                             if !p.deadline.isEmpty {
                                 hoyoBadge(p.deadline, accent.primary).padding(.top, 5)
