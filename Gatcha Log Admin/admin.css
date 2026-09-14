@@ -122,9 +122,21 @@ body {
   gap: 16px; width: 100%; min-width: 0;
   max-width: var(--content-max); margin-inline: auto;
 }
-.topbar h1 { margin: 0; font-size: 17px; }
-.topbar p { margin: 0; font-size: 12px; }
-.topbar-actions { display: flex; align-items: center; gap: 8px; }
+/* 제목은 **줄지 않고 줄임표로 끊는다.** 자리가 모자라면 여기서 양보해야 오른쪽 버튼이 온전히 선다. */
+.topbar-title { min-width: 0; flex: 1 1 auto; }
+.topbar h1 { margin: 0; font-size: 17px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* 설명은 상단바에 싣지 않는다 — 바로 아래 카드 머리에 같은 문장이 있다(`card()`). 예전엔
+   좁은 화면에서만 숨겼는데, 넓은 화면에서도 한 화면에 같은 말이 두 번 보였다. */
+.topbar p { display: none; }
+/*
+ * 버튼 줄 — **줄지도, 글자를 쪼개지도 않는다.**
+ *
+ * flex 자식은 기본이 `flex-shrink: 1` 이라, 제목까지 다 줄어들고 나면 버튼 자체가 눌린다.
+ * 그때 `min-width: auto` 가 글자 단위 줄바꿈을 허용해 "불러오기" 가 불/러/오/기 네 줄로
+ * 서 버렸다(1000px 안팎에서 재현). 버튼은 고정폭으로 두고 제목에서 자리를 얻는다.
+ */
+.topbar-actions { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; }
+.topbar-actions .btn, .topbar-actions .badge { white-space: nowrap; }
 
 .btn {
   padding: 7px 13px; border-radius: 8px;
@@ -158,6 +170,7 @@ body {
   padding: 18px;
   margin-bottom: 16px;
 }
+/* h2 는 로그인·권한 안내 카드에만 남았다 — 섹션 제목은 붙박이 상단바가 든다(`card()` 주석). */
 .card > h2 { margin: 0 0 4px; font-size: 15px; }
 .card > .hint { margin: 0 0 14px; font-size: 12px; color: var(--muted); }
 
@@ -279,6 +292,15 @@ a { color: var(--accent); }
 .nav-only { display: none; }
 .nav-backdrop[hidden] { display: none; }
 
+/* ── 중간 폭(사이드바는 있는데 상단바가 빡빡한 구간) ────────────────────
+ * 로그인 계정 칩이 상단바에서 제일 긴 조각인데(이메일 한 줄), 누가 켜 뒀는지는
+ * **작업 중에 계속 볼 값이 아니다.** 버튼 넷을 온전히 세우는 쪽이 먼저다.
+ * 계정은 사이드바 하단 소스 표시와 로그인 화면에서 확인된다.
+ */
+@media (max-width: 1240px) {
+  #who { display: none; }
+}
+
 /* ── 모바일 ───────────────────────────────────────────
  * 예전에는 사이드바를 통째로 숨겼다(display:none). 그러면 리소스 전환도 섹션 이동도 못 해서
  * 화면이 대시보드에 갇힌다. 덮어서 여는 드로어로 바꾸고, 항목을 고르면 닫는다.
@@ -303,10 +325,7 @@ a { color: var(--accent); }
     gap: 10px; min-width: 0;
     padding: env(safe-area-inset-top, 0px) max(12px, env(safe-area-inset-right, 0px)) 0 max(12px, env(safe-area-inset-left, 0px));
   }
-  .topbar-title { min-width: 0; flex: 1; }
-  .topbar-actions { min-width: 0; }
-  .topbar h1 { font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .topbar p { display: none; }          /* 같은 설명이 카드 머리에도 있다 */
+  .topbar h1 { font-size: 15px; }
   .topbar-actions { gap: 6px; }
   .topbar-actions .btn { padding: 7px 10px; font-size: 12px; }
 

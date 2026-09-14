@@ -692,9 +692,16 @@ function inputFor(cfg, value, onChange) {
  * 렌더러
  * ═════════════════════════════════════════════════════════════ */
 
+/*
+ * 섹션 카드 — **제목은 붙박이 상단바가 맡는다.**
+ *
+ * 예전엔 상단바(제목 + 설명)와 이 카드 머리(제목 + 설명)가 같은 두 값을 동시에 그렸다.
+ * 8px 떨어진 자리에 "예매 / 상태를 바꾸면 …" 이 두 번 서 있어서, 스크롤하기 전 첫 화면이
+ * 통째로 중복이었다. 제목은 스크롤해도 남아야 하니 상단바에 두고, 설명은 한 번만 —
+ * 읽고 지나가는 값이라 본문에 둔다(상단바 쪽은 admin.css 에서 숨긴다).
+ */
 function card(sec, kids) {
   return el('div', { class: 'card' }, [
-    sec.label ? el('h2', { text: sec.label }) : null,
     sec.desc ? el('p', { class: 'hint', text: sec.desc }) : null,
     ...kids,
   ]);
