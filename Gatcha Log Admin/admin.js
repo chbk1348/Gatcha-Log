@@ -566,7 +566,7 @@ async function probe(api) {
  * ═════════════════════════════════════════════════════════════ */
 
 const docs = {};
-for (const r of RESOURCES) docs[r.id] = { original: null, draft: r.normalize({}), live: undefined, dirty: false, source: '빈 문서' };
+for (const r of RESOURCES) docs[r.id] = { original: null, draft: r.normalize({}), live: undefined, source: '빈 문서' };
 
 const state = {
   resource: 'hoyoland',
@@ -577,7 +577,7 @@ const state = {
   get original() { return this.d.original; },
   get live() { return this.d.live; },
   set live(v) { this.d.live = v; },
-  get dirty() { return this.d.dirty; },
+  get dirty() { return isDirty(this.resource); },
 };
 
 const sectionsOf = (res) => [
@@ -620,7 +620,24 @@ function serialize(d, original, res) {
   return out;
 }
 
-const toJson = () => JSON.stringify(serialize(state.draft, state.original, state.res), null, 2) + '\n';
+const jsonOfDoc = (d, r) => JSON.stringify(serialize(d.draft, d.original, r), null, 2) + '\n';
+const toJson = () => jsonOfDoc(state.d, state.res);
+
+/**
+ * 이 리소스에 **저장할 것이 남아 있는가** — 불러온 원본과 지금 초안을 직렬화해 맞대 본다.
+ *
+ * 예전엔 `dirty` 가 한 번 켜지면 안 꺼지는 플래그였다(`markDirty()`). 값을 고쳤다가 원래대로
+ * 돌려놔도 상단바는 계속 "저장 안 됨" 인데, 라이브 카드는 내용을 비교하니 "라이브와 동일" —
+ * 같은 화면이 서로 다른 말을 했다. 기준을 내용 하나로 모은다(라이브 카드와 같은 잣대다).
+ *
+ * 기준값을 따로 보관하지 않는 이유: 불러온 직후의 초안은 `normalize(original)` 이라,
+ * `original` 만 있으면 그때의 직렬화 결과를 언제든 다시 만들 수 있다. 보관하지 않으면
+ * 초안 복원(localStorage)이나 리소스 전환에서 어긋날 자리도 없다.
+ */
+const isDirty = (id) => {
+  const d = docs[id], r = byId(id);
+  return jsonOfDoc(d, r) !== jsonOfDoc({ draft: r.normalize(d.original || {}), original: d.original }, r);
+};
 const issuesNow = () => state.res.validate(state.draft);
 
 /* ═════════════════════════════════════════════════════════════
@@ -1324,13 +1341,12 @@ async function syncAll() {
 
   for (const res of RESOURCES) {
     const d = docs[res.id];
-    if (d.dirty) { kept.push(res.label); continue; }
+    if (isDirty(res.id)) { kept.push(res.label); continue; }
     try {
       const { raw, label } = await pullResource(res);
       d.original = JSON.parse(JSON.stringify(raw));
       d.draft = res.normalize(raw);
       d.source = label;
-      d.dirty = false;
       pulled.push(res.label);
     } catch (e) {
       failed.push(res.label);
@@ -1372,6 +1388,11 @@ async function publish() {
   try {
     await c.push(res.doc, json);
     state.live = { json, updatedAt: Date.now(), updatedBy: c.user.email || c.user.uid };
+    // 반영한 값이 곧 **새 기준**이다. 안 바꾸면 [isDirty] 가 아직 옛 원본과 비교해,
+    // 방금 저장한 직후에도 "저장 안 됨" 으로 되돌아간다(배지는 다음 render 에서 다시 계산된다).
+    state.d.original = JSON.parse(json);
+    state.d.draft = res.normalize(state.d.original);
+    saveDraft();
     markClean('라이브 반영됨');
     render();
     toast('라이브에 반영했습니다. 앱은 다음 조회부터 이 값을 읽습니다.');
@@ -1529,7 +1550,7 @@ function renderNav() {
     }, [
       el('strong', { text: r.label }),
       el('small', { text: r.hint }),
-      docs[r.id].dirty ? el('span', { class: 'dot', style: 'background:var(--warn)' }) : null,
+      isDirty(r.id) ? el('span', { class: 'dot', style: 'background:var(--warn)' }) : null,
     ]));
   }
   nav.append(sw);
@@ -1566,15 +1587,18 @@ function syncDirtyBadge() {
   b.textContent = state.dirty ? '저장 안 됨' : '변경 없음';
 }
 
+/** 값이 바뀌었다 — 배지·초안 보관·사이드바 점을 다시 맞춘다([isDirty] 가 실제 판정을 한다). */
 function markDirty() {
-  state.d.dirty = true;
   syncDirtyBadge();
   saveDraft();
   renderNav();
 }
 
+/**
+ * 반영·불러오기 직후의 한마디("라이브 반영됨"). 배지 **글자만** 바꾼다 —
+ * 깨끗한지 아닌지는 [isDirty] 가 내용으로 판정하므로 여기서 꺼 둘 상태가 없다.
+ */
 function markClean(label) {
-  state.d.dirty = false;
   const b = document.getElementById('dirty');
   b.className = 'badge badge-clean';
   b.textContent = label || '변경 없음';
@@ -1583,7 +1607,7 @@ function markClean(label) {
 function saveDraft() {
   try {
     const dump = {};
-    for (const r of RESOURCES) dump[r.id] = { draft: docs[r.id].draft, original: docs[r.id].original, source: docs[r.id].source, dirty: docs[r.id].dirty };
+    for (const r of RESOURCES) dump[r.id] = { draft: docs[r.id].draft, original: docs[r.id].original, source: docs[r.id].source };
     localStorage.setItem(DRAFT_KEY, JSON.stringify({ docs: dump, at: Date.now() }));
   } catch (e) { /* 용량 초과 등 — 초안 보관은 편의 기능이라 실패해도 편집을 막지 않는다 */ }
 }
@@ -1703,6 +1727,25 @@ function selftest() {
     const out = serialize(HOYOLAND.normalize({ days: [], goods: [] }), {}, HOYOLAND);
     assert(Array.isArray(out.days) && !out.days.length, 'days 가 빈 배열이 아니다');
     assert(Array.isArray(out.goods) && !out.goods.length, 'goods 가 빈 배열이 아니다');
+  });
+
+  // 저장 배지 — 플래그가 아니라 **내용 비교**다. 되돌리면 꺼져야 하고, 그래야 라이브
+  // 카드의 "라이브와 동일" 과 같은 말을 한다(그 둘이 어긋나 있던 게 이 검사의 이유다).
+  check('되돌리면 저장 배지가 꺼진다', () => {
+    const d = docs.hoyoland;
+    const keepOriginal = d.original, keepDraft = d.draft;
+    try {
+      const raw = { startYmd: '2026-10-02', endYmd: '2026-10-05', notice: '공지', lineup: [{ game: '원신' }] };
+      d.original = JSON.parse(JSON.stringify(raw));
+      d.draft = HOYOLAND.normalize(raw);
+      assert(!isDirty('hoyoland'), '불러온 직후인데 저장 안 됨이다');
+      d.draft.notice = '고친 공지';
+      assert(isDirty('hoyoland'), '값을 고쳤는데 변경 없음이다');
+      d.draft.notice = '공지';
+      assert(!isDirty('hoyoland'), '원래대로 돌렸는데 저장 안 됨으로 남았다');
+    } finally {
+      d.original = keepOriginal; d.draft = keepDraft;
+    }
   });
   check('중앙값이 홀수 · 짝수 개수 모두 맞다', () => {
     assert(median([30, 10, 20]) === 20, '홀수 개수가 틀렸다');
@@ -1917,7 +1960,7 @@ function init() {
     e.target.value = '';
   };
   window.addEventListener('beforeunload', (e) => {
-    if (RESOURCES.some((r) => docs[r.id].dirty)) e.preventDefault();
+    if (RESOURCES.some((r) => isDirty(r.id))) e.preventDefault();
   });
 
   // 모바일에서는 상단바에 자리가 없어 "불러오기" 가 드로어 아래로 내려간다(.nav-only).
@@ -1950,7 +1993,7 @@ function init() {
     for (const r of RESOURCES) {
       const s = saved.docs[r.id];
       if (!s) continue;
-      docs[r.id] = { original: s.original, draft: r.normalize(s.draft || {}), live: undefined, dirty: !!s.dirty, source: s.source || '로컬 초안' };
+      docs[r.id] = { original: s.original, draft: r.normalize(s.draft || {}), live: undefined, source: s.source || '로컬 초안' };
     }
     render();
     toast(`로컬 초안을 복원했습니다 · ${new Date(saved.at).toLocaleString('ko-KR')}`);
