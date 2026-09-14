@@ -415,9 +415,17 @@ const VERSION = {
       add('error', 'manifest', `versionName "${d.versionName}" 이 x.y.z 형식이 아닙니다.`);
     } else {
       const expect = (+m[1]) * 10000 + (+m[2]) * 100 + (+m[3]) * 10;
-      if (Number(d.versionCode) !== expect)
+      const code = Number(d.versionCode);
+      // patch 자리가 ×10 이라 expect+1 ~ expect+9 는 **같은 버전의 재빌드** 몫으로 비워 둔 칸이다.
+      // 사이드로드로 미리 돌린 검증본이 있으면 배포본 코드를 그보다 올려야 업데이트 알림이 뜬다
+      // (UpdateChecker 는 `latest <= current` 면 알리지 않는다). 27.50.0 을 275002 로 낸 것이 그 경우다.
+      if (code > expect && code < expect + 10)
+        add('info', 'manifest',
+          `versionCode ${code} — "${d.versionName}" 의 기본값 ${expect} 에 재빌드 번호 ${code - expect} 이 붙었습니다(유효합니다).`);
+      else if (code !== expect)
         add('error', 'manifest',
-          `versionCode 가 규칙과 어긋납니다 — "${d.versionName}" 이면 ${expect} 여야 하는데 ${d.versionCode} 입니다.`);
+          `versionCode 가 규칙과 어긋납니다 — "${d.versionName}" 이면 ${expect}` +
+          `(재빌드는 ${expect + 1}~${expect + 9}) 여야 하는데 ${code} 입니다.`);
     }
     if (!Number(d.versionCode)) add('error', 'manifest', 'versionCode 가 비었습니다 — 업데이트 안내가 뜨지 않습니다.');
 
@@ -446,10 +454,11 @@ const VERSION = {
 
   sections: [
     { id: 'manifest', group: '배포', label: '매니페스트', type: 'form', path: '',
-      desc: 'versionCode 는 versionName 에서 계산됩니다 — major×10000 + minor×100 + patch×10.',
+      desc: 'versionCode 는 versionName 에서 계산됩니다 — major×10000 + minor×100 + patch×10. ' +
+        '뒤 한 자리는 같은 버전을 다시 구울 때 쓰는 재빌드 번호입니다(27.50.0 → 275000, 재빌드는 275001~275009).',
       fields: [
         { key: 'versionName', label: '버전명', type: 'text', placeholder: '27.43.1' },
-        { key: 'versionCode', label: '버전코드', type: 'number', note: '27.43.1 → 274310' },
+        { key: 'versionCode', label: '버전코드', type: 'number', note: '27.43.1 → 274310 · 재빌드는 274311~274319' },
         { key: 'minVersionCode', label: '강제 업데이트 최소 버전', type: 'number',
           note: '이 값 미만이면 반드시 업데이트. 0 이면 강제 없음' },
         { key: 'sha256', label: 'APK SHA-256', type: 'text', wide: true, note: '소문자 16진수 64자리 — Android 설치 직전 검증' },
@@ -1656,6 +1665,13 @@ function selftest() {
   check('배포 · 정상 매니페스트는 오류 없음', () => assert(!V({}).some((i) => i.level === 'error'), '오류가 잡혔다'));
   check('배포 · versionCode 규칙 위반은 오류', () =>
     assert(has(V({ versionCode: 274300 }), 'error', /규칙과 어긋납니다/), '규칙 위반을 못 잡았다'));
+  check('배포 · 재빌드 번호(+1~+9)는 오류가 아니다', () => {
+    const out = V({ versionCode: 274312 });
+    assert(!out.some((i) => i.level === 'error'), '재빌드 번호를 오류로 잡았다');
+    assert(has(out, 'info', /재빌드 번호 2/), '재빌드 안내가 없다');
+  });
+  check('배포 · 재빌드 칸을 넘으면 오류', () =>
+    assert(has(V({ versionCode: 274320 }), 'error', /규칙과 어긋납니다/), '다음 patch 자리를 못 잡았다'));
   check('배포 · minVersionCode 가 배포본보다 높으면 오류', () =>
     assert(has(V({ minVersionCode: 999999 }), 'error', /존재하지 않는 버전/), '소프트 브릭을 못 잡았다'));
   check('배포 · sha256 길이 오류를 잡는다', () =>
