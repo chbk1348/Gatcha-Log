@@ -70,7 +70,10 @@ Gatcha Log IOS/build_x27_rel/
 
 # 에디터·SourceKit LSP 로컬 설정 (.idea/ · .claude/ 와 같은 취급 — 머신마다 다르다)
 # buildServer.json 은 xcode-build-server 가 생성하며 절대 경로와 DerivedData 해시가 박힌다.
-.vscode/
+# 디렉터리째 무시하면 안쪽 파일을 되살릴 수 없다(git 규칙) — 내용만 무시하고 하나를 되살린다.
+.vscode/*
+# 에디터 스키마 차단 설정은 저장소와 함께 옮겨져야 한다 — version.json 자동완성 사고 방지.
+!.vscode/settings.json
 .vs/
 buildServer.json
 
