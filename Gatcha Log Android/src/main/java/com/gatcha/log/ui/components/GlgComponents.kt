@@ -285,49 +285,57 @@ fun GlgScreenHeader(
     buttonBackground: Color? = null,
     actions: @Composable RowScope.() -> Unit = {},
 ) {
-    Row(
-        // edge-to-edge: 하위 페이지 헤더가 상태바 인셋을 직접 소유(공용 상단 패딩 없음).
-        modifier = modifier
-            .fillMaxWidth()
-            .statusBarsPadding()
-            // 헤더는 콘텐츠 **위에 떠 있다**(오버레이). 그래서 누를 것이 없는 자리 — 제목 알약,
-            // 버튼 사이 빈 공간 — 에서는 탭이 그대로 뒤로 통과해, **헤더에 가려 보이지도 않는**
-            // 칩·카드가 눌렸다. 지출 추가에서 제목을 눌렀는데 뒤의 필터가 바뀌거나 시트가 떠서
-            // "앱이 멈췄다" 로 보이던 것이 이것이다(2026-09-13 제보).
-            //
-            // Main 패스에서 삼킨다 — 자식(뒤로가기·액션 버튼)이 먼저 보고, 아무도 안 가져간
-            // 탭만 여기서 없앤다. Initial 로 잡으면 자식 버튼까지 죽는다.
-            // clickable 대신 pointerInput 인 이유: clickable 은 이 줄 전체에 '버튼' 시맨틱을
-            // 붙여, 스크린 리더가 누를 수 없는 헤더를 누를 수 있는 것처럼 읽는다.
-            .pointerInput(Unit) {
-                awaitPointerEventScope {
-                    while (true) {
-                        awaitPointerEvent().changes.forEach { if (!it.isConsumed) it.consume() }
+    // 헤더는 콘텐츠 **위에 떠 있다**(오버레이). 그래서 누를 것이 없는 자리 — 제목 알약,
+    // 버튼 사이 빈 공간 — 에서는 탭이 그대로 뒤로 통과해, **헤더에 가려 보이지도 않는**
+    // 칩·카드가 눌렸다. 지출 추가에서 제목을 눌렀는데 뒤의 필터가 바뀌거나 시트가 떠서
+    // "앱이 멈췄다" 로 보이던 것이 이것이다(2026-09-13 제보).
+    //
+    // ⚠️ 삼키는 자리는 **자식들 아래 형제**여야 한다. 조상(헤더 Row 자신)에서 삼키면 뒤로가기가
+    // 죽는다(2026-09-14 제보). clickable 의 탭 판정은 조상이 소비한 change 를 보면 제스처를
+    // **취소**한다 — 자식이 Main 을 먼저 본다는 것과 별개로 걸리고, down 만 삼켜도 같았다.
+    // 뒤판으로 내리면 버튼 위 탭은 애초에 여기까지 오지 않아 자식 제스처를 건드릴 일이 없다.
+    //
+    // 재현은 **실기기 손가락**으로만 된다. adb `input tap` 은 down·up 만 보내 이 경로를
+    // 지나지 않는다 — 확인은 `input swipe x y x y 200`(move 포함)으로 한다.
+    Box(modifier = modifier.fillMaxWidth().statusBarsPadding()) {
+        // 뒤판 — clickable 이 아니라 pointerInput 인 이유: clickable 은 '버튼' 시맨틱을 붙여
+        // 스크린 리더가 누를 수 없는 헤더를 누를 수 있는 것처럼 읽는다.
+        Spacer(
+            Modifier
+                .matchParentSize()
+                .pointerInput(Unit) {
+                    awaitPointerEventScope {
+                        while (true) {
+                            awaitPointerEvent().changes.forEach { if (!it.isConsumed) it.consume() }
+                        }
                     }
                 }
-            }
-            .padding(top = 12.dp, bottom = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        GlgBackButton(onBack, tint = buttonTint, background = buttonBackground)
-        Spacer(Modifier.width(GlgHeaderItemGap))
-        // 제목 영역이 **남은 폭을 전부** 차지하고, 그 안에서 알약은 글자 길이만큼만 커진다.
-        //
-        // 예전엔 알약에 weight(1f, fill=false) 를 주고 그 뒤에 Spacer(weight(1f)) 를 뒀는데,
-        // 가중치가 둘이면 남은 폭을 **반씩 나눠** 갖는다 → 자리가 남아도 알약이 절반에서 잘렸다.
-        // 가중치는 이 영역 하나만 갖고, 우측 액션은 콘텐츠 크기로 밀려난다.
+        )
         Row(
-            modifier = Modifier.weight(1f),
+            // edge-to-edge: 하위 페이지 헤더가 상태바 인셋을 직접 소유(공용 상단 패딩 없음).
+            modifier = Modifier.fillMaxWidth().padding(top = 12.dp, bottom = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            if (title.isNotEmpty()) GlgHeaderTitlePill(title)
+            GlgBackButton(onBack, tint = buttonTint, background = buttonBackground)
+            Spacer(Modifier.width(GlgHeaderItemGap))
+            // 제목 영역이 **남은 폭을 전부** 차지하고, 그 안에서 알약은 글자 길이만큼만 커진다.
+            //
+            // 예전엔 알약에 weight(1f, fill=false) 를 주고 그 뒤에 Spacer(weight(1f)) 를 뒀는데,
+            // 가중치가 둘이면 남은 폭을 **반씩 나눠** 갖는다 → 자리가 남아도 알약이 절반에서 잘렸다.
+            // 가중치는 이 영역 하나만 갖고, 우측 액션은 콘텐츠 크기로 밀려난다.
+            Row(
+                modifier = Modifier.weight(1f),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                if (title.isNotEmpty()) GlgHeaderTitlePill(title)
+            }
+            // 우측 액션 슬롯 — 제목을 좌측에 붙이고 액션은 우측 정렬.
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(GlgHeaderItemGap),
+                content = actions,
+            )
         }
-        // 우측 액션 슬롯 — 제목을 좌측에 붙이고 액션은 우측 정렬.
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(GlgHeaderItemGap),
-            content = actions,
-        )
     }
 }
 
