@@ -2469,37 +2469,49 @@ private func drawElementFxAlt(
                 let g0 = 1 - clamp01(t / 0.25)
                 let grow = 1 - g0 * g0
                 let a = tail
-                // 치는 순간의 **충격 별** + 작은 자국 · 짧은 금 셋. 방사선 자국은 거미 · 파리 · 거미줄로
-                // 읽혔다(2026-09-11) — '때렸다' 는 순간에 걸려야 한다. 주석은 Compose 쪽.
+                // 치는 순간의 **충격 별** + 관통 균열 둘 + 눌린 자국. 방사선 자국은 거미 · 파리 · 거미줄(2026-09-11),
+                // 작은 자국에 붙인 금 셋은 진드기로 읽혔다(2026-09-14) — 금은 자국을 관통시킨다. 주석은 Compose 쪽.
                 func seg(_ a0: CGPoint, _ b0: CGPoint, _ col: Color, _ lw: Double) {
                     var l = Path()
                     l.move(to: a0)
                     l.addLine(to: b0)
                     ctx.stroke(l, with: .color(col), style: StrokeStyle(lineWidth: lw, lineCap: .round))
                 }
-                var hole = Path()
-                for q in 0..<8 {
-                    let th = (Double.pi * 2 / 8) * Double(q)
-                    let j = 0.6 + 0.5 * fxRnd(311 + i, q)
-                    let pt = CGPoint(x: cx + cos(th) * rx * 0.55 * j, y: cy + sin(th) * ry * 0.55 * j)
-                    if q == 0 { hole.move(to: pt) } else { hole.addLine(to: pt) }
+                var grime = Path()
+                for q in 0..<12 {
+                    let th = (Double.pi * 2 / 12) * Double(q)
+                    let j = 0.85 + 0.3 * fxRnd(353 + i, q)
+                    let pt = CGPoint(x: cx + cos(th) * rx * 0.95 * j, y: cy + sin(th) * ry * 0.95 * j)
+                    if q == 0 { grime.move(to: pt) } else { grime.addLine(to: pt) }
                 }
-                hole.closeSubpath()
-                ctx.fill(hole, with: .color(shade.opacity(0.7 * a)))
-                ctx.stroke(ellipseArc(CGPoint(x: cx, y: cy), rx * 0.55, ry * 0.55, 20, 120),
-                           with: .color(.white.opacity(0.55 * a)), style: StrokeStyle(lineWidth: 1.2, lineCap: .round))
-                for k in 0..<3 {
-                    var ang = fxRnd(331 + i, k) * 6.28
-                    let len = w * (0.06 + 0.06 * fxRnd(337 + i, k)) * sz * grow
+                grime.closeSubpath()
+                ctx.fill(grime, with: .color(shade.opacity(0.07 * a)))
+                for k in 0..<2 {
+                    let ang0 = fxRnd(331 + i, k) * 6.28
+                    let len = w * (0.20 + 0.10 * fxRnd(337 + i, k)) * sz * grow
                     if len <= 0 { continue }
-                    var pt = CGPoint(x: cx + cos(ang) * rx * 0.5, y: cy + sin(ang) * ry * 0.5)
-                    for q in 0..<2 {
-                        ang += (fxRnd(341 + i * 5 + k, q) - 0.5) * 0.6
-                        let np = CGPoint(x: pt.x + cos(ang) * len / 2, y: pt.y + sin(ang) * len / 2)
-                        seg(pt, np, shade.opacity((0.8 - 0.2 * Double(q)) * a), 2.2 - 0.8 * Double(q))
+                    var pt = CGPoint(x: cx - cos(ang0) * len * 0.55, y: cy - sin(ang0) * len * 0.55)
+                    var ang = ang0
+                    let lws: [Double] = [1.3, 2.6, 1.4]
+                    let als: [Double] = [0.55, 0.80, 0.58]
+                    for q in 0..<3 {
+                        ang += (fxRnd(341 + i * 5 + k, q) - 0.5) * 0.35
+                        let np = CGPoint(x: pt.x + cos(ang) * len / 3, y: pt.y + sin(ang) * len / 3)
+                        seg(pt, np, shade.opacity(als[q] * a), lws[q])
                         pt = np
                     }
                 }
+                var hole = Path()
+                for q in 0..<7 {
+                    let th = (Double.pi * 2 / 7) * Double(q)
+                    let j = 0.5 + 0.8 * fxRnd(311 + i, q)
+                    let pt = CGPoint(x: cx + cos(th) * rx * 0.58 * j, y: cy + sin(th) * ry * 0.46 * j)
+                    if q == 0 { hole.move(to: pt) } else { hole.addLine(to: pt) }
+                }
+                hole.closeSubpath()
+                ctx.fill(hole, with: .color(shade.opacity(0.72 * a)))
+                ctx.stroke(ellipseArc(CGPoint(x: cx, y: cy), rx * 0.34, ry * 0.26, 200, 140),
+                           with: .color(enkaElementInk(element, 0.80).opacity(0.55 * a)), style: StrokeStyle(lineWidth: 1.8, lineCap: .round))
                 let burst = clamp01(t / 0.16)
                 if burst < 1 {
                     let br = rx * 1.9 * (1.25 - 0.25 * burst)
