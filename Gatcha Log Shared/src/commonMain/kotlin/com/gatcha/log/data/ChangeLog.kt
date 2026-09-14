@@ -45,7 +45,7 @@ data class ChangeEntry(
 object ChangeLog {
 
     /** 헤더 메타 — 업데이트 기간 라벨. */
-    const val periodLabel: String = "2026.05.23 ~ 10.06"
+    const val periodLabel: String = "2026.05.23 ~ 09.14"
 
     /**
      * 강제 업데이트 최소 지원 버전코드(version.json 의 minVersionCode 와 동일하게 유지).
@@ -54,14 +54,11 @@ object ChangeLog {
     const val minSupportedVersionCode: Long = 273000
 
     val entries: List<ChangeEntry> = buildList {
-        // ⚠️ 아직 배포 전이다 — 날짜는 잠정. 실제 배포일이 정해지면 그날로 맞출 것
-        //    (다른 항목은 전부 실제 릴리즈 날짜다). periodLabel 도 함께 본다.
-        //
         // 27.43.5 는 배포되지 않았다(version.json 은 274310 에서 멈춰 있다). 그 사이클의 항목을
         // 따로 남겨 두면 유저가 받은 적 없는 릴리스가 목록에 뜨므로, 이번 27.50.0 으로 합친다.
         //
         // 문장 규칙은 아래 27.43.0 엔트리 상단 주석과 같다 — 체언 종결, " — " 부연 금지, 중요한 것만.
-        add(ChangeEntry("27.50.0", "2026.10.06", milestone = true, featured = true, items = listOf(
+        add(ChangeEntry("27.50.0", "2026.09.14", milestone = true, featured = true, items = listOf(
             // ── 신규 ──
             new("캐릭터 상세를 스탯 · 장비 · 성유물 · 돌파 4단 구성으로 개편"),
             new("캐릭터 상세 진입 시 속성 연출 추가 (설정 ▸ 캐릭터 속성 연출)"),
