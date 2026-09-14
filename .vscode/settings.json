@@ -1,0 +1,9 @@
+{
+  // version.json 은 이 저장소의 OTA 매니페스트다. 그런데 파일명이 흔해서 에디터가
+  // Nerdbank.GitVersioning 스키마를 자동으로 붙이고, 자동완성으로 gitCommitIdPrefix ·
+  // assemblyVersion 같은 남의 키를 밀어넣는다(2026-09-14 실제 사고 — 값이 비어 JSON 이 깨졌다).
+  // 빈 스키마를 명시해 스키마 스토어 매칭을 이긴다.
+  "json.schemas": [
+    { "fileMatch": ["/version.json"], "schema": {} }
+  ]
+}
