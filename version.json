@@ -1,11 +1,22 @@
 {
-  "versionCode": 274310,
-  "versionName": "27.43.1",
+  "versionCode": 275002,
+  "versionName": "27.50.0",
   "minVersionCode": 273000,
   "url": "https://github.com/chbk1348/Gatcha-Log/releases/latest",
   "apkUrl": "https://github.com/chbk1348/Gatcha-Log/releases/latest/download/app-release.apk",
-  "sha256": "6648bed219a628cecf66ed98305c8644be71b335aee89c6cbed71de38d968b27",
+  "sha256": "bdb4583940d682bbf5d18b674efa4ff726cda177436e85f59487bd516fd81d9e",
   "notes": [
-    "호요랜드 2026 장소를 확정 정보로 갱신"
+    "캐릭터 상세를 스탯 · 장비 · 성유물 · 돌파 4단 구성으로 개편",
+    "캐릭터 상세 진입 시 속성 연출 추가 (설정 ▸ 캐릭터 속성 연출)",
+    "캐릭터 목록을 돌파 링 · 레벨 막대 · 배지 카드로 개편",
+    "게임별 절약 챌린지 추가",
+    "자동 출석 완료 알림 추가",
+    "홈 · 게임 일정에 호요랜드 개막 D-day 카드 추가",
+    "호요랜드 개막 · 예매 오픈 알림 추가 (설정 ▸ 알림 설정)",
+    "테마 페이지 추가 · 테마 색상 20종 제공 (설정 ▸ 테마)",
+    "호요랜드 페이지를 개막 카운트다운 · 일자별 시간표 · 굿즈샵 · 예매 안내 구성으로 개편",
+    "알림 문구를 상황이 드러나는 문장으로 개편",
+    "가챠 계산기 · 저축 플래너 · 정기결제 지출 제거",
+    "게임 일정 '방송' 탭 일시 제거 (개선 후 다시 제공 예정)"
   ]
 }
