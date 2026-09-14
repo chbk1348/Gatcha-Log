@@ -5508,34 +5508,62 @@ private fun DrawScope.drawElementFxAlt(
                 // ⚠️ 세 번 틀렸다(2026-09-11 콘택트 시트). 자국 둘레에 금을 고르게 붙이면 **거미**, 쏠리게
                 // 붙이면 **파리**, 가운데서 뻗고 둘레 금으로 이으면 **거미줄**이었다. 빈 벽에 점 하나와 방사선을
                 // 그리면 무엇이든 벌레가 된다 — 금의 개수를 바꿔서는 안 풀린다. '때렸다' 는 **때리는 순간**에
-                // 걸려야 하고, 그 순간의 약속된 그림이 만화의 충격 별(톱니 별)이다. 자국은 작게, 금은 셋만 남긴다.
+                // 걸려야 하고, 그 순간의 약속된 그림이 만화의 충격 별(톱니 별)이다.
+                //
+                // ⚠️ 네 번째(2026-09-14 콘택트 시트). 위 결론대로 "자국은 작게, 금은 셋" 으로 두었더니 p=0.9 에
+                // **진드기 넷**이 되었다. 작게 만든 것이 오히려 몸통 비율을 만들었다 — 자국 반지름이 rx*0.55 인데
+                // 금은 w*0.12 까지라 몸통 대비 다리가 3배였고, 아랫 흰 호는 **껍질 광택**으로 읽혔다.
+                // 개수가 아니라 **금이 자국에 붙어 있다는 것**이 문제다. 그래서 금은 자국을 **관통시킨다** —
+                // 몸통을 뚫고 지나가는 선은 다리가 될 수 없다. 흰 호는 걷어내고 파인 면은 안쪽 위 그늘로 만든다.
                 val shadeA = a
-                // 남는 자국 — 작고 각졌다. 아랫 가장자리만 빛을 받는다.
-                val hole = Path().apply {
-                    repeat(8) { q ->
-                        val th = (PI.toFloat() * 2f / 8f) * q
-                        val j = 0.6f + 0.5f * rnd(311 + i, q)
-                        val px = cx + cos(th) * rx * 0.55f * j
-                        val py = cy + sin(th) * ry * 0.55f * j
+                // 상한 벽면 — 자국 둘레의 옅은 번짐. 크고 각지게 두면 alpha 0.12 로도 **경계가 읽혀**
+                // 바닥에 놓인 종잇조각이 된다(2026-09-14 시트). 자국을 겨우 감싸는 크기로, 각을 죽여 둔다.
+                val grime = Path().apply {
+                    repeat(12) { q ->
+                        val th = (PI.toFloat() * 2f / 12f) * q
+                        val j = 0.85f + 0.3f * rnd(353 + i, q)
+                        val px = cx + cos(th) * rx * 0.95f * j
+                        val py = cy + sin(th) * ry * 0.95f * j
                         if (q == 0) moveTo(px, py) else lineTo(px, py)
                     }
                     close()
                 }
-                drawPath(hole, shade.copy(alpha = 0.7f * shadeA))
-                drawArc(Color.White.copy(alpha = 0.55f * shadeA), 20f, 120f, false, Offset(cx - rx * 0.55f, cy - ry * 0.55f), Size(rx * 1.1f, ry * 1.1f), style = Stroke(1.2.dp.toPx(), cap = StrokeCap.Round))
-                // 짧은 금 셋 — 방향이 제각각. 끝을 Y 자로 가르면 **잔가지**로 읽혀 가르지 않는다.
-                repeat(3) { k ->
-                    var ang = rnd(331 + i, k) * 6.28f
-                    val len = w * (0.06f + 0.06f * rnd(337 + i, k)) * sz * grow
+                drawPath(grime, shade.copy(alpha = 0.07f * shadeA))
+                // 벽의 균열 둘 — 자국에서 뻗지 않고 자국을 **관통한다**. 그래서 자국보다 **먼저** 그려
+                // 양옆으로 삐져나오게 둔다. 꺾임은 작게 — 크게 꺾으면 번개가 된다(참격에서 배운 것).
+                repeat(2) { k ->
+                    val ang0 = rnd(331 + i, k) * 6.28f
+                    val len = w * (0.20f + 0.10f * rnd(337 + i, k)) * sz * grow
                     if (len <= 0f) return@repeat
-                    var pt = Offset(cx + cos(ang) * rx * 0.5f, cy + sin(ang) * ry * 0.5f)
-                    repeat(2) { q ->
-                        ang += (rnd(341 + i * 5 + k, q) - 0.5f) * 0.6f
-                        val np = Offset(pt.x + cos(ang) * len / 2f, pt.y + sin(ang) * len / 2f)
-                        drawLine(shade.copy(alpha = (0.8f - 0.2f * q) * shadeA), pt, np, (2.2f - 0.8f * q).dp.toPx(), cap = StrokeCap.Round)
+                    // 자국이 균열 한가운데 오면 대칭이라 눈에 띈다. 앞뒤를 55:45 로 어긋나게 잡는다.
+                    var pt = Offset(cx - cos(ang0) * len * 0.55f, cy - sin(ang0) * len * 0.55f)
+                    var ang = ang0
+                    // 굵기·짙기는 **자국을 지나는 가운데가 가장 굵다**. 한 방향으로만 가늘어지면
+                    // 관통이 아니라 한쪽에서 뻗어 나온 실로 읽힌다.
+                    val lw = floatArrayOf(1.3f, 2.6f, 1.4f)
+                    val al = floatArrayOf(0.55f, 0.80f, 0.58f)
+                    repeat(3) { q ->
+                        ang += (rnd(341 + i * 5 + k, q) - 0.5f) * 0.35f
+                        val np = Offset(pt.x + cos(ang) * len / 3f, pt.y + sin(ang) * len / 3f)
+                        drawLine(shade.copy(alpha = al[q] * shadeA), pt, np, lw[q].dp.toPx(), cap = StrokeCap.Round)
                         pt = np
                     }
                 }
+                // 남는 자국 — 각지고 **세로로 눌렸다**(rx 0.58 · ry 0.46). 매끈한 원은 몸통으로 읽힌다.
+                val hole = Path().apply {
+                    repeat(7) { q ->
+                        val th = (PI.toFloat() * 2f / 7f) * q
+                        val j = 0.5f + 0.8f * rnd(311 + i, q)
+                        val px = cx + cos(th) * rx * 0.58f * j
+                        val py = cy + sin(th) * ry * 0.46f * j
+                        if (q == 0) moveTo(px, py) else lineTo(px, py)
+                    }
+                    close()
+                }
+                drawPath(hole, shade.copy(alpha = 0.72f * shadeA))
+                // 파인 면 — 구멍 **안쪽 위벽**이 그늘이다. 흰 하이라이트를 아래 두면 껍질 광택이 된다.
+                // 자국 밖으로 삐져나오면 눈썹으로 읽히므로, 자국 평균 반경(j≈0.9)의 안쪽에 확실히 넣는다.
+                drawArc(lerp(base, Color.Black, 0.80f).copy(alpha = 0.55f * shadeA), 200f, 140f, false, Offset(cx - rx * 0.34f, cy - ry * 0.26f), Size(rx * 0.68f, ry * 0.52f), style = Stroke(1.8.dp.toPx(), cap = StrokeCap.Round))
                 // 충격 별 — 톱니 별이 튀어나왔다(1.25 → 1.0) 사라진다. 짙은 별 안에 흰 별.
                 val burst = (t / 0.16f).coerceIn(0f, 1f)
                 if (burst < 1f) {
