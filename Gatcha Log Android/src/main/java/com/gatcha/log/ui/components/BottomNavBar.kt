@@ -9,8 +9,11 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -81,6 +84,9 @@ private val TAB_H_PADDING = 10.dp
  * 대신 **넓게 퍼뜨리고 알파를 아주 낮춘** 그림자를 직접 그린다 — 경계는 아웃라인이 잡고,
  * 그림자는 바닥에서 살짝 뜬 느낌만 남긴다. (예전 FAB 구현도 같은 방식으로 색을 지정했다)
  */
+/** 화면 아래 끝에서 탭바까지 보장하는 최소 여백. 인셋이 이보다 작게 오는 기기에서만 발동한다. */
+private val BOTTOM_MIN = 20.dp
+
 private val LIFT_BLUR = 10.dp
 private val LIFT_AMBIENT = Color.Black.copy(alpha = 0.04f)
 private val LIFT_SPOT = Color.Black.copy(alpha = 0.06f)
@@ -89,13 +95,22 @@ private val LIFT_SPOT = Color.Black.copy(alpha = 0.06f)
 fun BottomNavBar(selectedTab: Int, onTabSelected: (Int) -> Unit, onAddClick: () -> Unit, accent: Color, showFab: Boolean) {
     // 툴바가 실제로 쓰는 모양 토큰 — 아웃라인도 같은 모양으로 그려야 캡슐과 어긋나지 않는다.
     val toolbarShape = FloatingToolbarDefaults.ContainerShape
+    // 바닥 최소 여백 — 아래 여백이 **인셋 + 4dp** 뿐이라 인셋이 작게 오는 기기에서 바가 화면
+    // 끝에 붙는다(2026-09-14 제보). 인셋은 기기마다 제각각이다 — 3버튼 약 48dp, 픽셀 제스처
+    // 약 24dp, 삼성 제스처 약 18dp, 제스처 힌트를 끈 스킨·내비바 없는 기기는 0 에 가깝다.
+    //
+    // 화면 끝에서 최소 BOTTOM_MIN 은 띄운다. **이미 그보다 넉넉한 기기는 건드리지 않는다** —
+    // 일괄로 더 띄우면 탭이 위로 치우쳐 보인다는 2026-08-03 지적으로 되돌아간다.
+    val navBottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+    val bottomFloor = (BOTTOM_MIN - (navBottom + 4.dp)).coerceAtLeast(0.dp)
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .navigationBarsPadding()
             // 좌우는 순정 권장 여백(ScreenOffset), 아래는 좁힌다 — ScreenOffset 을 사방에 주면
             // 제스처 바 위로 더 떠서 탭이 위로 치우쳐 보인다(2026-08-03 지적).
-            .padding(horizontal = FloatingToolbarDefaults.ScreenOffset, vertical = 4.dp),
+            .padding(horizontal = FloatingToolbarDefaults.ScreenOffset, vertical = 4.dp)
+            .padding(bottom = bottomFloor),
         contentAlignment = Alignment.Center,
     ) {
         // FAB 는 **항상** 띄운다. 예전엔 홈·지출 탭에서만 보이게 `showFab` 로 껐다 켰는데,
