@@ -260,6 +260,12 @@ pre.json {
 .pill.warn { background: rgba(240,180,41,.15); color: var(--warn); }
 .pill.err { background: rgba(242,85,90,.15); color: var(--err); }
 
+/* 굿즈 비고가 앱에서 배지로 갈린 결과 */
+.note-preview { margin-top: 14px; padding: 12px 14px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel); }
+.note-preview > .k { margin-bottom: 6px; font-size: 11px; color: var(--muted); }
+.np-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 7px 0; border-top: 1px solid var(--line); font-size: 12px; }
+.note-preview > .k + .np-row { border-top: 0; }
+
 a { color: var(--accent); }
 
 .toast {

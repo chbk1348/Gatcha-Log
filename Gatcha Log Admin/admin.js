@@ -21,6 +21,31 @@ const DRAFT_KEY = 'gl-admin-draft-v2';
 const YMD = /^\d{4}-\d{2}-\d{2}$/;
 const KST_DT = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/;
 
+/*
+ * 굿즈 비고 규칙 — Hoyoland.kt 의 HoyolandGoods 와 **같아야 한다.** 앱은 note 를 " · " 로 쪼개고
+ * "1인 N개 한정" 조각은 구매 제한 배지로, "…시리즈" 조각은 행사 한정 배지로 뺀다. N 은 장바구니
+ * 담기 수량을 실제로 끊는 값이다(limitPerPerson). 꼴이 조금만 어긋나도 배지와 수량 제한이 조용히 사라진다.
+ */
+const NOTE_SEP = ' · ';
+const LIMIT_RE = /^1인\s+\S+\s*한정$/;
+const LIMIT_COUNT_RE = /^1인\s+(\d+)/;
+
+/** 앱이 표준 값과 똑같이 읽는 예매 상태 별칭(HoyolandApi.ticketStatusOf). */
+const TICKET_STATUS_ALIAS = { onsale: 'on_sale', soldout: 'sold_out' };
+
+/** 비고를 앱과 같은 규칙으로 가른다. */
+function goodsNote(note) {
+  const parts = String(note ?? '').split(NOTE_SEP).map((p) => p.trim()).filter(Boolean);
+  const limit = parts.find((p) => LIMIT_RE.test(p)) || '';
+  const series = parts.find((p) => p.endsWith('시리즈')) || '';
+  const m = LIMIT_COUNT_RE.exec(limit);
+  return {
+    parts, limit, series,
+    limitCount: m ? Number(m[1]) : 0,
+    rest: parts.filter((p) => !LIMIT_RE.test(p) && p !== series).join(NOTE_SEP),
+  };
+}
+
 /* ═════════════════════════════════════════════════════════════
  * 게임 카탈로그 — 게임 이름은 고르는 값이지 적는 값이 아니다.
  *
@@ -157,7 +182,10 @@ const HOYOLAND = {
     if (!String(d.notice).trim()) add('warn', 'meta', '공지 문구가 비었습니다.');
 
     const st = TICKET_STATUS.map((s) => s.value);
-    if (!st.includes(d.ticket.status))
+    const alias = TICKET_STATUS_ALIAS[d.ticket.status];
+    if (alias)
+      add('info', 'ticket', `예매 상태 "${d.ticket.status}" 는 앱이 "${alias}" 와 똑같이 읽습니다 — 드롭다운에서 고르면 표준 값으로 바뀝니다.`);
+    else if (!st.includes(d.ticket.status))
       add('error', 'ticket', `알 수 없는 예매 상태 "${d.ticket.status}" — 앱은 미정으로 처리합니다.`);
     if (d.ticket.status !== 'undecided') {
       if (!YMD.test(d.ticket.openYmd))
@@ -166,6 +194,30 @@ const HOYOLAND = {
     }
     const oh = Number(d.ticket.openHour);
     if (!Number.isFinite(oh) || oh < 0 || oh > 23) add('error', 'ticket', '오픈 시각은 0~23 이어야 합니다.');
+
+    // 링크 — 앱은 이 값을 그대로 연다. 스킴이 빠진 "naver.me/…" 같은 값은 열리지 않는다.
+    const link = (v, section, what) => {
+      const s = String(v ?? '').trim();
+      if (s && !/^https:\/\//.test(s))
+        add('warn', section, `${what} "${s}" 가 https:// 로 시작하지 않습니다 — 앱이 링크를 열지 못할 수 있습니다.`);
+    };
+    link(d.mapUrl, 'meta', '지도 URL');
+    link(d.mapFallbackUrl, 'meta', '지도 대체 URL');
+    link(d.officialUrl, 'meta', '공식 URL');
+    link(d.ticket.url, 'ticket', '예매 URL');
+    for (const r of d.lineup) link(r.url, 'lineup', `"${r.game}" 공지 주소`);
+    link(d.gstar.url, 'gstar', 'G-STAR 공식 URL');
+    for (const r of d.gstar.lineup) link(r.url, 'gstar', `G-STAR "${r.game}" 공지 주소`);
+
+    // 예매처 앱 연결 — 두 플랫폼 모두 예매 URL 이 있을 때만 "예매하기" 버튼을 세운다.
+    const pkg = String(d.ticket.appPackage ?? '').trim();
+    const scheme = String(d.ticket.appScheme ?? '').trim();
+    if ((pkg || scheme) && !String(d.ticket.url ?? '').trim())
+      add('warn', 'ticket', '예매 URL 이 비어 "예매하기" 버튼이 뜨지 않습니다 — 앱 패키지 · 스킴이 쓰이지 않습니다.');
+    if (pkg && !/^[a-zA-Z]\w*(\.[a-zA-Z]\w*)+$/.test(pkg))
+      add('warn', 'ticket', `앱 패키지 "${pkg}" 가 Android 패키지명 꼴(kr.co.ticketlink.cne)이 아닙니다 — 예매처 앱을 찾지 못하고 브라우저로 엽니다.`);
+    if (scheme && !/^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//.test(scheme))
+      add('warn', 'ticket', `앱 스킴 "${scheme}" 에 :// 가 없습니다 — iOS 가 받아 줄 앱을 찾지 못하고 웹으로 엽니다.`);
 
     const dropped = (arr, key, section, what) => {
       const n = arr.filter((r) => !String(r[key] ?? '').trim()).length;
@@ -204,6 +256,25 @@ const HOYOLAND = {
     for (const g of d.goods) {
       if (g.price !== '' && g.price != null && !Number.isFinite(Number(g.price)))
         add('error', 'goods', `"${g.name}" 의 가격이 숫자가 아닙니다 — 앱이 0 으로 읽습니다.`);
+
+      const note = String(g.note ?? '');
+      if (!note.trim()) continue;
+      const n = goodsNote(note);
+      const who = g.name || '이름 없는 굿즈';
+      // " · " 로 나뉘지 않은 조각에 가운뎃점이 남아 있으면 앞뒤 공백이 빠진 것이다.
+      if (n.parts.some((p) => p.includes('·')))
+        add('warn', 'goods', `"${who}" 비고의 가운뎃점 앞뒤에 공백이 없습니다 — " · " 로 나눠야 앱이 조각을 가릅니다.`);
+      if (note.includes('1인') && !n.limit)
+        add('warn', 'goods', `"${who}" 비고의 "1인 …" 이 구매 제한으로 읽히지 않습니다 — "1인 N개 한정" 꼴이어야 배지가 뜨고 장바구니 수량이 끊깁니다.`);
+      else if (n.limit && !n.limitCount)
+        add('warn', 'goods', `"${who}" 의 "${n.limit}" 에서 숫자를 못 읽습니다 — 배지는 뜨지만 장바구니 수량 제한이 걸리지 않습니다.`);
+      if (note.includes('시리즈') && !n.series)
+        add('warn', 'goods', `"${who}" 비고의 "시리즈" 가 행사 한정 배지로 읽히지 않습니다 — 조각이 "…시리즈" 로 끝나야 합니다.`);
+    }
+
+    for (const b of d.booths) {
+      if (b.price !== '' && b.price != null && !Number.isFinite(Number(b.price)))
+        add('error', 'booths', `"${b.title}" 의 참가비가 숫자가 아닙니다 — 앱이 0(무료)으로 읽습니다.`);
     }
     return out;
   },
@@ -262,7 +333,7 @@ const HOYOLAND = {
         { key: 'game', label: '게임', type: 'game', width: '150px' },
         { key: 'category', label: '분류', type: 'suggest', options: GOODS_CATEGORIES, width: '130px' },
         { key: 'price', label: '가격(원)', type: 'number', width: '130px', min: 0 },
-        { key: 'note', label: '비고', type: 'text' },
+        { key: 'note', label: '비고', type: 'text', placeholder: '호요랜드2026 시리즈 · 1인 5개 한정' },
       ] },
     { id: 'booths', group: '행사', label: '부스 체험', type: 'list', path: 'booths', countable: true,
       desc: '체험존 운영 정보. 호요랜드 부스는 예약제도 회차·정원도 없습니다. 참가비는 숫자로 넣고, 무료면 0 입니다.',
@@ -819,12 +890,39 @@ function move(arr, i, delta) {
 function renderGoods(sec) {
   const rows = get(state.draft, sec.path);
   const sum = rows.reduce((a, g) => a + (Number(g.price) || 0), 0);
-  const summary = el('div', { class: 'tiles', style: 'margin-top:14px;margin-bottom:0' }, [
+  const tiles = el('div', { class: 'tiles', style: 'margin-top:14px;margin-bottom:0' }, [
     tile('총 상품', rows.length + '개'),
     tile('평균가', (rows.length ? Math.round(sum / rows.length) : 0).toLocaleString('ko-KR') + '원'),
     tile('가격 미정', rows.filter((g) => !Number(g.price)).length + '개', '', rows.some((g) => !Number(g.price)) ? 'warn' : ''),
   ]);
-  return renderList(sec, { summary });
+
+  // 비고는 앱이 쪼개서 배지로 뺀다 — 적은 대로 보이지 않으니 갈린 결과를 옆에 세운다.
+  // 타이핑할 때마다 표 전체를 다시 그리면 입력 포커스가 날아가므로 이 상자만 갈아 끼운다.
+  const preview = el('div');
+  const paint = () => {
+    const noted = rows.filter((g) => String(g.note ?? '').trim());
+    preview.replaceChildren(...(noted.length ? [el('div', { class: 'note-preview' }, [
+      el('div', { class: 'k', text: '비고가 앱에서 이렇게 갈립니다' }),
+      ...noted.map((g) => {
+        const n = goodsNote(g.note);
+        return el('div', { class: 'np-row' }, [
+          el('strong', { text: g.name || '(이름 없음)' }),
+          n.series ? el('span', { class: 'pill ok', text: n.series }) : null,
+          n.limit ? el('span', {
+            class: 'pill ' + (n.limitCount ? 'warn' : 'err'),
+            text: n.limit + (n.limitCount ? ` · 담기 최대 ${n.limitCount}개` : ' · 수량 못 읽음'),
+          }) : null,
+          n.rest ? el('span', { class: 'muted', text: n.rest }) : null,
+        ]);
+      }),
+    ])] : []));
+  };
+  paint();
+
+  const node = renderList(sec, { summary: el('div', {}, [tiles, preview]) });
+  node.addEventListener('input', paint);    // 입력 칸의 onInput 이 먼저 row 를 고친 뒤 여기로 올라온다
+  node.addEventListener('change', paint);
+  return node;
 }
 
 function renderDays(sec) {
@@ -1672,6 +1770,25 @@ function selftest() {
     assert(has(H({ ticket: { status: 'OPEN' } }), 'error', /예매 상태/), '못 잡았다'));
   check('호요랜드 · 판매 중인데 오픈일 없으면 경고', () =>
     assert(has(H({ ticket: { status: 'on_sale', url: 'u' } }), 'warn', /알림이 예약되지 않/), '못 잡았다'));
+  check('굿즈 비고를 앱과 같은 규칙으로 가른다', () => {
+    const n = goodsNote('호요랜드2026 시리즈 · 디자인 2종 · 1인 5개 한정');
+    assert(n.limit === '1인 5개 한정' && n.limitCount === 5, '구매 제한을 못 뽑았다');
+    assert(n.series === '호요랜드2026 시리즈', '행사 한정을 못 뽑았다');
+    assert(n.rest === '디자인 2종', '나머지 비고가 틀렸다: ' + n.rest);
+  });
+  check('호요랜드 · 구매 제한 꼴이 어긋나면 경고', () =>
+    assert(has(H({ goods: [{ name: 'a', note: '1인 2개' }] }), 'warn', /구매 제한으로 읽히지/), '못 잡았다'));
+  check('호요랜드 · 비고 가운뎃점 공백 누락은 경고', () =>
+    assert(has(H({ goods: [{ name: 'a', note: '디자인 2종·1인 2개 한정' }] }), 'warn', /공백이 없습니다/), '못 잡았다'));
+  check('호요랜드 · https 가 아닌 링크는 경고', () =>
+    assert(has(H({ officialUrl: 'naver.me/abc' }), 'warn', /https:\/\//), '못 잡았다'));
+  check('호요랜드 · 예매 URL 없이 앱 패키지만 있으면 경고', () =>
+    assert(has(H({ ticket: { appPackage: 'kr.co.ticketlink.cne' } }), 'warn', /버튼이 뜨지 않습니다/), '못 잡았다'));
+  check('호요랜드 · 예매 상태 별칭은 오류가 아니다', () =>
+    assert(!has(H({ ticket: { status: 'onsale', openYmd: '2026-09-20', url: 'https://x' } }), 'error', /예매 상태/), '거짓 오류를 냈다'));
+  check('호요랜드 · 부스 참가비가 숫자가 아니면 오류', () =>
+    assert(has(H({ booths: [{ title: 'b', price: '3,000' }] }), 'error', /참가비/), '못 잡았다'));
+
   check('호요랜드 · 빈 라인업은 폴백 경고', () =>
     assert(has(H({ lineup: [] }), 'warn', /폴백/), '못 잡았다'));
 
