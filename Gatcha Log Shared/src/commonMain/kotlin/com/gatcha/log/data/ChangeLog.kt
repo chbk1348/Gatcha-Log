@@ -45,7 +45,7 @@ data class ChangeEntry(
 object ChangeLog {
 
     /** 헤더 메타 — 업데이트 기간 라벨. */
-    const val periodLabel: String = "2026.05.23 ~ 09.14"
+    const val periodLabel: String = "2026.05.23 ~ 09.15"
 
     /**
      * 강제 업데이트 최소 지원 버전코드(version.json 의 minVersionCode 와 동일하게 유지).
@@ -54,11 +54,15 @@ object ChangeLog {
     const val minSupportedVersionCode: Long = 273000
 
     val entries: List<ChangeEntry> = buildList {
-        // ⚠️ 27.50.2 날짜는 잠정 — 배포일이 정해지면 그날로 맞출 것. 27.50.1 은 배포되지 않고 이번으로 합쳤다.
+        // 27.50.1 은 배포되지 않고 이번으로 합쳤다. (시즌 배너는 섹션 개편으로 대체돼 항목에서 뺐다)
         add(ChangeEntry("27.50.2", "2026.09.15", items = listOf(
+            // ── 신규 ──
             new("호요랜드 굿즈 · 푸드 메뉴 사진 추가"),
-            new("게임 정보 탭에 호요랜드 배너 추가"),
+            new("굿즈존 이용 안내 추가 (굿즈 목록 ▸ 안내 버튼)"),
+            // ── 개선 ──
+            imp("게임 정보 탭 호요랜드 섹션을 D-day · 예매 · 바로가기 구성으로 개편"),
             imp("호요랜드 굿즈를 디자인별 항목으로 분리"),
+            imp("굿즈 목록 진입 · 스크롤 속도 개선"),
         )))
         // 27.43.5 는 배포되지 않았다(version.json 은 274310 에서 멈춰 있다). 그 사이클의 항목을
         // 따로 남겨 두면 유저가 받은 적 없는 릴리스가 목록에 뜨므로, 이번 27.50.0 으로 합친다.
