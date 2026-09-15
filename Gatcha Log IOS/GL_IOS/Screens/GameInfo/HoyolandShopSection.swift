@@ -40,6 +40,8 @@ struct HoyolandGoodsView: View {
     @State private var showCart = false
     /// 크게 보기 중인 품목 — 사진이 있는 카드를 누르면 바텀시트(목업 A안).
     @State private var viewing: HoyolandGoods? = nil
+    /// 굿즈존 공통 안내 시트 — 헤더 인포 버튼이 연다.
+    @State private var showGuide = false
 
     var body: some View {
         let all = event.visibleGoods
@@ -68,12 +70,12 @@ struct HoyolandGoodsView: View {
                 .glgReadableWidth(720)
             }
             ScrollView {
-                VStack(alignment: .leading, spacing: 0) {
+                // LazyVStack — 굿즈 105장을 진입할 때 한꺼번에 짓지 않고 보이는 것만 만든다.
+                // (VStack 이면 카드마다 사진 요청 · 담기 전환이 첫 프레임에 몰려 들어갈 때 버벅였다)
+                LazyVStack(alignment: .leading, spacing: 0) {
                     if all.isEmpty {
                         emptyCard
                     } else {
-                        // 굿즈존 공통 안내 — 맨 위. 목록과 같이 스크롤돼 올라가 가려진다(게임 탭만 붙박이).
-                        if !event.goodsGuide.isEmpty { goodsGuideCard.padding(.bottom, 10) }
                         priceRangeCard
                         ForEach(Array(shown.enumerated()), id: \.offset) { _, item in
                             GLGCard(cornerRadius: 24, padding: 0) {
@@ -116,22 +118,20 @@ struct HoyolandGoodsView: View {
         .navigationDestination(isPresented: $showCart) {
             HoyolandCartView(event: event, store: store)
         }
+        // 굿즈존 공통 안내 — 목록 위 카드였다가 헤더 인포 버튼으로 옮겼다. 사기 전에 한 번 보면 되는 값이라
+        // 목록 첫 화면을 차지할 이유가 없다. (Android `HoyolandGuideSheet` 와 파리티)
+        .toolbar {
+            if !event.goodsGuide.isEmpty {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button { showGuide = true } label: { Image(systemName: "info.circle") }
+                }
+            }
+        }
+        .sheet(isPresented: $showGuide) { HoyolandGuideSheet(text: event.goodsGuide) }
         .sheet(isPresented: Binding(get: { viewing != nil }, set: { if !$0 { viewing = nil } })) {
             if let v = viewing {
                 HoyolandGoodsImageSheet(event: event, store: store, start: v)
             }
-        }
-    }
-
-    // ── 굿즈존 공통 안내 — 주문·결제·수령·사은품·교환. 사기 전에 한 번 읽으면 되는 값이라 붙박이로 두지 않는다.
-    private var goodsGuideCard: some View {
-        GLGCard(cornerRadius: 24, padding: 16) {
-            VStack(alignment: .leading, spacing: 10) {
-                Text("굿즈존 이용 안내").font(.pretendard(size: 14, weight: .bold))
-                    .foregroundStyle(GLGColor.textPrimary)
-                HoyolandRichText(text: event.goodsGuide, valueColor: accent.primary)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 
@@ -701,8 +701,8 @@ struct HoyolandBoothView: View {
 /**
  굿즈 크게 보기 — 바텀시트(목업 `design_hoyoland_goods_image_mockup.html` A안).
 
- 사진 + 이름·가격·배지 + 담기까지 한 장에서 끝낸다. 같은 물건의 다른 디자인(`designGroup` · 같은 게임 ·
- 같은 가격)은 좌우로 넘겨 본다. Android `HoyolandGoodsImageSheet` 와 파리티.
+ 사진 + 이름·가격·배지 + 담기까지 한 장에서 끝낸다. 누른 품목 한 장만 보여 준다 — 디자인 형제를
+ 좌우로 넘기던 스와이프는 걷어냈다(2026-09-15 요청). Android `HoyolandGoodsImageSheet` 와 파리티.
  */
 struct HoyolandGoodsImageSheet: View {
     let event: HoyolandEvent
@@ -710,43 +710,18 @@ struct HoyolandGoodsImageSheet: View {
     let start: HoyolandGoods
     @Environment(\.glgAccent) private var accent
     @Environment(\.dismiss) private var dismiss
-    @State private var page = 0
-
-    private var siblings: [HoyolandGoods] {
-        let list = event.visibleGoods.filter {
-            !$0.imageUrl.isEmpty && $0.game == start.game && $0.price == start.price && $0.designGroup == start.designGroup
-        }
-        return list.isEmpty ? [start] : list
-    }
 
     var body: some View {
-        let list = siblings
-        let item = list[min(max(page, 0), list.count - 1)]
+        let item = start
         let raw = event.stageColor(game: item.game)
         let c: Color = raw == 0 ? GLGColor.textSecondary : Color(argb64: raw)
         let quantity = Int(store.hoyolandCart.quantityOf(name: item.name))
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
-                TabView(selection: $page) {
-                    ForEach(Array(list.enumerated()), id: \.offset) { i, g in
-                        HoyolandZoomableImage(url: URL(string: g.imageUrl)).tag(i)
-                    }
-                }
-                .tabViewStyle(.page(indexDisplayMode: .never))
-                .frame(height: 320)
-                .background(GLGCartRowBg, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-                .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-                if list.count > 1 {
-                    HStack(spacing: 5) {
-                        ForEach(0..<list.count, id: \.self) { i in
-                            Capsule().fill(i == page ? c : Color.black.opacity(0.12))
-                                .frame(width: i == page ? 16 : 6, height: 6)
-                        }
-                    }
-                    .frame(maxWidth: .infinity)
-                    .padding(.top, 9)
-                    .animation(GLGMotion.standard(), value: page)
-                }
+                HoyolandZoomableImage(url: URL(string: item.imageUrl))
+                    .frame(height: 320)
+                    .background(GLGCartRowBg, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                    .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
                 hoyolandSheetBadge(item.game.isEmpty ? "공용" : event.stageLabel(game: item.game), c)
                     .padding(.top, 12)
                 Text(item.name).font(.pretendard(size: 18, weight: .bold))
@@ -801,8 +776,33 @@ struct HoyolandGoodsImageSheet: View {
             .padding(.horizontal, 18).padding(.top, 22).padding(.bottom, 16)
         }
         .scrollIndicators(.hidden)
-        .onAppear { page = list.firstIndex(where: { $0.name == start.name }) ?? 0 }
         .presentationDetents([.large])
+        .presentationDragIndicator(.visible)
+    }
+}
+
+/// 굿즈존 공통 이용 안내 — 굿즈 목록 헤더의 인포 버튼이 연다.
+struct HoyolandGuideSheet: View {
+    let text: String
+    @Environment(\.glgAccent) private var accent
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 12) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("굿즈존 이용 안내").font(.pretendard(size: 18, weight: .bold))
+                        .foregroundStyle(GLGColor.textPrimary)
+                    Text("모든 게임 굿즈존 공통 · 공식 공지 기준").font(.pretendard(size: 12))
+                        .foregroundStyle(GLGColor.textSecondary)
+                }
+                HoyolandGuideContent(text: text)
+                GLGOutlineButton(title: "닫기") { dismiss() }.padding(.top, 6)
+            }
+            .padding(.horizontal, 18).padding(.top, 22).padding(.bottom, 16)
+        }
+        .scrollIndicators(.hidden)
+        .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
     }
 }
@@ -828,5 +828,84 @@ struct HoyolandZoomableImage: View {
                 state = min(max(v.magnification, 1), 4)
             })
             .animation(.spring(duration: 0.25), value: zoom)
+    }
+}
+
+
+/**
+ 굿즈존 안내 본문 — **묶음 카드 + [항목 이름 | 값] 줄**. Android `HoyolandGuideContent` 와 파리티.
+
+ 예매 안내용 `HoyolandRichText` 는 값을 오른쪽 한 줄로 붙여, 안내 문장이 값으로 들어오면 항목 이름이
+ 글자 단위로 접히고 부연이 연회색에 묻혔다(2026-09-15 지적). 안내 전용으로 따로 둔다.
+ 줄 규칙: 글머리 없는 줄 = 묶음 제목 · `· 이름 — 값` = 줄 · 들여쓴 줄 = 위 줄의 부연 · 빈 줄 = 묶음 사이.
+ */
+struct HoyolandGuideContent: View {
+    let text: String
+    @Environment(\.glgAccent) private var accent
+
+    private struct Row { var label: String; var value: String; var subs: [String] }
+    private struct Group { var title: String; var rows: [Row] }
+
+    private var groups: [Group] {
+        var out: [Group] = []
+        var title = ""
+        var rows: [Row] = []
+        func flush() {
+            if !title.isEmpty || !rows.isEmpty { out.append(Group(title: title, rows: rows)) }
+            title = ""; rows = []
+        }
+        for raw in text.components(separatedBy: "\n") {
+            let body = raw.trimmingCharacters(in: .whitespaces)
+            let indented = !body.isEmpty && (raw.hasPrefix("  ") || raw.hasPrefix("\t"))
+            if body.isEmpty { flush(); continue }
+            if indented, !rows.isEmpty {
+                rows[rows.count - 1].subs.append(body.hasPrefix("· ") ? String(body.dropFirst(2)) : body)
+            } else if body.hasPrefix("· ") {
+                let item = String(body.dropFirst(2))
+                if let r = item.range(of: " — ") {
+                    rows.append(Row(label: String(item[..<r.lowerBound]), value: String(item[r.upperBound...]), subs: []))
+                } else {
+                    rows.append(Row(label: item, value: "", subs: []))
+                }
+            } else {
+                if !rows.isEmpty { flush() }
+                title = body
+            }
+        }
+        flush()
+        return out
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            ForEach(Array(groups.enumerated()), id: \.offset) { _, g in
+                VStack(alignment: .leading, spacing: 9) {
+                    if !g.title.isEmpty {
+                        Text(g.title).font(.pretendard(size: 12.5, weight: .black)).foregroundStyle(accent.primary)
+                            .padding(.bottom, -1)
+                    }
+                    ForEach(Array(g.rows.enumerated()), id: \.offset) { _, r in
+                        HStack(alignment: .firstTextBaseline, spacing: 0) {
+                            Text(r.label).font(.pretendard(size: 13, weight: .bold)).foregroundStyle(GLGColor.textSecondary)
+                                .frame(width: 78, alignment: .leading)
+                            VStack(alignment: .leading, spacing: 2) {
+                                if !r.value.isEmpty {
+                                    Text(r.value).font(.pretendard(size: 13.5, weight: .medium)).foregroundStyle(GLGColor.textPrimary)
+                                        .lineSpacing(2).fixedSize(horizontal: false, vertical: true)
+                                }
+                                ForEach(r.subs, id: \.self) { sub in
+                                    Text(sub).font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary)
+                                        .lineSpacing(2).fixedSize(horizontal: false, vertical: true)
+                                }
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                    }
+                }
+                .padding(.horizontal, 14).padding(.vertical, 12)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(GLGCartRowBg, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+            }
+        }
     }
 }

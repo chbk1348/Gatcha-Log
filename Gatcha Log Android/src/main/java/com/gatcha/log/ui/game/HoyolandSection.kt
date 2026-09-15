@@ -1,6 +1,8 @@
 package com.gatcha.log.ui.game
 
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.calculateZoom
@@ -70,6 +72,16 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Restaurant
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.outlined.Redeem
+import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material.icons.outlined.OpenInFull
+import androidx.compose.material.icons.outlined.CalendarMonth
+import androidx.compose.material.icons.outlined.ShoppingBag
+import androidx.compose.material.icons.outlined.Storefront
+import androidx.compose.material.icons.outlined.Restaurant
+import androidx.compose.material.icons.outlined.ConfirmationNumber
+import androidx.compose.material.icons.outlined.Place
+import androidx.compose.material.icons.outlined.PlayCircle
+import androidx.compose.material.icons.outlined.Celebration
 import androidx.compose.material.icons.filled.ShoppingBag
 import androidx.compose.material.icons.filled.Storefront
 import androidx.compose.runtime.mutableStateListOf
@@ -193,45 +205,198 @@ private fun rememberHoyolandRefresher(): Triple<HoyolandEvent, Boolean, () -> Un
 @Composable
 fun rememberFeaturedHoyoland(): HoyolandEvent? = rememberHoyolandEvent().takeIf { it.isFeatured() }
 
-/** 게임정보 탭에 임베드되는 요약 카드 — 탭하면 상세([HoyolandDetailContent])로 이동. */
+/**
+ * 게임정보 탭 요약 섹션 — 「오늘 할 일」 바로 밑(목업 `design_gameinfo_hoyoland_section_mockup.html` A · B 합본).
+ *
+ * - 위: D-day 타일 + 행사명 · 기간/장소 · 참여 게임 칩(A)
+ * - 가운데: **행동이 붙은** 정보 줄 — 예매 → 상세, 장소 → 지도. 행사 중엔 「무대」 줄이 끼어든다(B)
+ * - 아래: 시간표 · 굿즈 · 부스 · 푸드로 상세를 거치지 않고 **곧장** 들어가는 바로가기 4칸(A)
+ *
+ * 예전 카드는 일정 · 장소 · 예매 상태 세 줄뿐이라 열어 봐야 뭘 할 수 있는지 보였다. 폐막 뒤에는 한 줄로 줄어든다.
+ * 아이콘은 이모지가 아니라 아웃라인 머티리얼 아이콘이다. iOS `HoyolandSection` 과 파리티.
+ *
+ * @param onOpen 열 하위 페이지. [HoyolandSub.None] 이면 상세 페이지.
+ */
 @Composable
-fun HoyolandSection(onOpen: () -> Unit) {
+fun HoyolandSection(onOpen: (HoyolandSub) -> Unit) {
     val accent = LocalAccent.current
+    val ctx = LocalContext.current
     val e = rememberHoyolandEvent()
-    Text("호요랜드", fontSize = 16.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 10.dp))
-    GlassCard(modifier = Modifier.fillMaxWidth().clickable { onOpen() }) {
-        Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        Modifier.size(44.dp).clip(RoundedCornerShape(12.dp)).background(accent.copy(alpha = 0.12f)),
-                        contentAlignment = Alignment.Center,
-                    ) { Icon(Icons.Default.Celebration, contentDescription = null, tint = accent, modifier = Modifier.size(22.dp)) }
-                    Spacer(Modifier.width(14.dp))
-                    Column(Modifier.weight(1f)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(e.edition, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
-                            Spacer(Modifier.width(8.dp))
-                            // 예전엔 "준비 중" 고정 배지였다 — 확정 뒤에도 준비 중이라 적혀 있으면
-                            // 카드를 열어 볼 이유가 없어 보인다. 지금은 남은 날짜가 그 자리를 대신한다.
-                            GlgBadge(e.statusLabel(), accent)
+    val phase = e.phase()
+    val status = e.statusLabel()
+    Row(Modifier.fillMaxWidth().padding(bottom = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text("호요랜드", fontSize = 16.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+        Text(
+            "전체 보기", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = TextSecondary,
+            modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable { onOpen(HoyolandSub.None) }
+                .padding(horizontal = 6.dp, vertical = 4.dp),
+        )
+    }
+    if (phase == HoyolandPhase.ENDED) {
+        GlassCard(modifier = Modifier.fillMaxWidth().clickable { onOpen(HoyolandSub.None) }) {
+            Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Outlined.Celebration, null, tint = TextSecondary, modifier = Modifier.size(20.dp))
+                Spacer(Modifier.width(12.dp))
+                Text("${e.edition} · 종료", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = TextPrimary, modifier = Modifier.weight(1f))
+                Text("지난 행사 보기", fontSize = 12.sp, color = TextSecondary)
+            }
+        }
+        return
+    }
+    GlassCard(modifier = Modifier.fillMaxWidth()) {
+        Column {
+            // ── 위 — 남은 날짜가 주인공이다. 배지 크기로 두면 D-60 이든 D-1 이든 똑같아 보인다.
+            Row(
+                Modifier.fillMaxWidth().clickable { onOpen(HoyolandSub.None) }.padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                // 홈 배너와 같은 톤 — 강조색을 슬레이트로 가라앉혀 흰 글자가 읽힌다.
+                val tileTop = lerp(accent, Color(0xFF2E3440), 0.35f)
+                val tileBottom = lerp(accent, Color(0xFF2E3440), 0.50f)
+                Column(
+                    Modifier.size(62.dp).clip(RoundedCornerShape(16.dp))
+                        .background(Brush.linearGradient(listOf(tileTop, tileBottom))),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center,
+                ) {
+                    Text(
+                        if (phase == HoyolandPhase.ONGOING) "진행 중" else "개막까지",
+                        fontSize = 9.5.sp, fontWeight = FontWeight.SemiBold, color = Color.White.copy(alpha = 0.85f),
+                    )
+                    Text(
+                        status, fontSize = if (status.length <= 4) 20.sp else 13.sp,
+                        fontWeight = FontWeight.Black, color = Color.White, maxLines = 1, lineHeight = 22.sp,
+                    )
+                }
+                Spacer(Modifier.width(14.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(e.edition, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+                    Spacer(Modifier.height(3.dp))
+                    Text("${e.periodLabel} · ${e.venueShort}", fontSize = 12.sp, color = TextSecondary, lineHeight = 16.sp)
+                    if (e.lineup.isNotEmpty()) {
+                        Spacer(Modifier.height(6.dp))
+                        Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                            e.lineup.take(3).forEach { l ->
+                                val raw = e.stageColor(l.game)
+                                val c = if (raw == 0L) TextSecondary else raw.toColor()
+                                HoyolandMiniChip(e.stageLabel(l.game), c)
+                            }
+                            if (e.lineup.size > 3) HoyolandMiniChip("+${e.lineup.size - 3}", TextSecondary)
                         }
-                        Spacer(Modifier.height(3.dp))
-                        Text("호요버스 게임 IP 통합 오프라인 행사", fontSize = 12.sp, color = TextSecondary)
                     }
                 }
-                Spacer(Modifier.height(14.dp))
-                Box(Modifier.fillMaxWidth().height(1.dp).background(DividerColor))
-                Spacer(Modifier.height(14.dp))
-                HoyolandInfoRow("일정", e.periodLabel)
-                Spacer(Modifier.height(8.dp))
-                HoyolandInfoRow("장소", e.venueShort)
-                Spacer(Modifier.height(8.dp))
-                HoyolandInfoRow("예매", e.ticket.statusLabel)
             }
-            Spacer(Modifier.width(8.dp))
-            Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null, tint = TextSecondary, modifier = Modifier.size(18.dp))
+            // ── 정보 줄 — 줄마다 누르면 할 수 있는 일이 있다.
+            HoyolandActionRow(Icons.Outlined.ConfirmationNumber, "예매", hoyolandTicketSummary(e), accent) {
+                // 예매 주소가 있으면 곧장 예매처로 — 상세 페이지의 「예매하기」와 같은 동작(앱이 깔려 있으면 앱 먼저).
+                // 주소가 아직 없으면(예매 미정) 상세로 간다.
+                if (e.ticket.url.isNotBlank()) {
+                    openExternalLink(ctx, e.ticket.url, preferPackage = e.ticket.appPackage.ifBlank { null })
+                } else {
+                    onOpen(HoyolandSub.None)
+                }
+            }
+            if (e.mapUrl.isNotBlank()) {
+                HoyolandActionRow(Icons.Outlined.Place, "장소", "${e.venueShort} · 지도", accent) {
+                    openExternalLink(ctx, e.mapUrl)
+                }
+            }
+            // 행사 중에만 — 지금 무대가 이 카드가 답할 첫 질문이 된다.
+            if (phase == HoyolandPhase.ONGOING && e.hasTimetable) {
+                HoyolandActionRow(Icons.Outlined.PlayCircle, "무대", e.stageEntryLine(), Color(0xFFE5484D)) {
+                    onOpen(HoyolandSub.Stage)
+                }
+            }
+            // ── 바로가기 4칸 — 상세를 한 번 거치지 않고 곧장.
+            Row(
+                Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, top = 4.dp, bottom = 14.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                val slots = e.days.sumOf { it.slots.size }
+                HoyolandQuickTile(Icons.Outlined.CalendarMonth, "시간표", if (slots > 0) "${slots}편" else "공개 전", Modifier.weight(1f)) {
+                    onOpen(HoyolandSub.Stage)
+                }
+                HoyolandQuickTile(Icons.Outlined.ShoppingBag, "굿즈", e.visibleGoods.size.let { if (it > 0) "${it}종" else "공개 전" }, Modifier.weight(1f)) {
+                    onOpen(HoyolandSub.Goods)
+                }
+                HoyolandQuickTile(Icons.Outlined.Storefront, "부스", e.booths.size.let { if (it > 0) "${it}곳" else "공개 전" }, Modifier.weight(1f)) {
+                    onOpen(HoyolandSub.Booth)
+                }
+                HoyolandQuickTile(Icons.Outlined.Restaurant, "푸드", e.foodPrograms.size.let { if (it > 0) "${it}곳" else "공개 전" }, Modifier.weight(1f)) {
+                    onOpen(HoyolandSub.Food)
+                }
+            }
         }
+    }
+}
+
+/** 예매 줄 한 마디 — "판매 중 · 티켓링크" / "9월 14일(월) 19:00 오픈 · 티켓링크" / "매진". */
+private fun hoyolandTicketSummary(e: HoyolandEvent): String {
+    val t = e.ticket
+    val vendor = t.vendor.ifBlank { null }
+    return when (t.status) {
+        com.gatcha.log.data.HoyolandTicketStatus.ON_SALE -> listOfNotNull("판매 중", vendor).joinToString(" · ")
+        com.gatcha.log.data.HoyolandTicketStatus.ANNOUNCED ->
+            listOfNotNull(t.openLabel.ifBlank { null }?.let { "$it 오픈" } ?: "오픈 예정", vendor).joinToString(" · ")
+        com.gatcha.log.data.HoyolandTicketStatus.SOLD_OUT -> "매진"
+        com.gatcha.log.data.HoyolandTicketStatus.UNDECIDED -> "예매 일정 미정"
+    }
+}
+
+@Composable
+private fun HoyolandMiniChip(text: String, color: Color) {
+    Text(
+        text, fontSize = 9.5.sp, fontWeight = FontWeight.Black, color = color,
+        modifier = Modifier.clip(RoundedCornerShape(6.dp)).background(color.copy(alpha = 0.12f))
+            .padding(horizontal = 6.dp, vertical = 2.dp),
+    )
+}
+
+/** 정보 줄 — 아이콘 · 라벨 · 값 · 셰브론. 줄 전체가 누르는 자리다. */
+@Composable
+private fun HoyolandActionRow(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String,
+    value: String,
+    tint: Color,
+    onClick: () -> Unit,
+) {
+    Column {
+        Box(Modifier.fillMaxWidth().padding(horizontal = 16.dp).height(1.dp).background(DividerColor))
+        Row(
+            Modifier.fillMaxWidth().clickable { onClick() }.padding(horizontal = 16.dp, vertical = 11.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(icon, null, tint = tint, modifier = Modifier.size(18.dp))
+            Spacer(Modifier.width(10.dp))
+            Text(label, fontSize = 12.5.sp, color = TextSecondary, modifier = Modifier.width(34.dp))
+            Text(
+                value, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = TextPrimary,
+                maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f),
+            )
+            Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null, tint = TextThird, modifier = Modifier.size(16.dp))
+        }
+    }
+}
+
+/** 바로가기 한 칸 — 아이콘 · 이름 · 규모(몇 편 · 몇 종). */
+@Composable
+private fun HoyolandQuickTile(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    title: String,
+    sub: String,
+    modifier: Modifier,
+    onClick: () -> Unit,
+) {
+    val accent = LocalAccent.current
+    Column(
+        modifier.clip(RoundedCornerShape(14.dp)).background(CartRowBg).clickable { onClick() }.padding(vertical = 10.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Icon(icon, null, tint = accent, modifier = Modifier.size(20.dp))
+        Spacer(Modifier.height(4.dp))
+        Text(title, fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+        Text(sub, fontSize = 10.sp, color = TextThird, maxLines = 1)
     }
 }
 
@@ -253,16 +418,27 @@ fun HoyolandSection(onOpen: () -> Unit) {
  * 헤더 액션과 하위 페이지 상태를 호출부마다 따로 두면 두 곳이 어긋난다.
  */
 @Composable
-fun HoyolandDetailPage(viewModel: SpendingViewModel, onBack: () -> Unit) {
+fun HoyolandDetailPage(
+    viewModel: SpendingViewModel,
+    onBack: () -> Unit,
+    /** 게임정보 탭 바로가기가 곧장 열 하위 페이지. 거기서 뒤로 가면 상세로 온다. */
+    initialPage: HoyolandSub = HoyolandSub.None,
+) {
     val (e, refreshing, refresh) = rememberHoyolandRefresher()
     val cart by viewModel.hoyolandCart.collectAsState()
     // 하위 페이지를 **상태 하나로** 모은다. 예전엔 지스타만 AnimatedContent 에 있고 굿즈·부스는
     // `if … return` 으로 컴포지션을 갈아끼워, 같은 페이지에서 나가는데 어떤 건 밀려 나가고
     // 어떤 건 0프레임으로 튀었다(홈 `HomeSub` 와 같은 이유로 하나로 합쳤다).
-    var page by remember { mutableStateOf(HoyolandSub.None) }
+    var page by remember { mutableStateOf(initialPage) }
+    // 바로가기로 곧장 들어온 하위 페이지에서 뒤로 가면 **상세가 아니라 들어온 곳(게임정보 탭)** 으로 간다.
+    // 상세를 거치지 않고 들어왔는데 뒤로가기에 상세가 끼어들면 한 번 더 눌러야 했다(2026-09-15 지적).
+    val backFromSub: () -> Unit = { if (initialPage != HoyolandSub.None) onBack() else page = HoyolandSub.None }
     // 굿즈 게임 필터는 페이지 바깥에 둔다 — 탭이 SectionPage 의 붙박이 줄(stickyTop)로 올라가
     // 본문과 분리되므로, 상태를 본문 안에 두면 둘이 서로를 못 본다.
     var goodsFilter by remember { mutableStateOf<String?>(null) }
+    // 굿즈 크게 보기 · 굿즈존 안내 시트 — 목록이 게으른 목록이라 상태를 목록 바깥에 둔다.
+    var goodsViewing by remember { mutableStateOf<HoyolandGoods?>(null) }
+    var goodsGuideOpen by remember { mutableStateOf(false) }
     AnimatedContent(
         targetState = page,
         modifier = Modifier.fillMaxSize(),
@@ -281,31 +457,51 @@ fun HoyolandDetailPage(viewModel: SpendingViewModel, onBack: () -> Unit) {
     ) { p ->
         when (p) {
             HoyolandSub.Gstar ->
-                SectionPage(e.gstar.title.ifBlank { "G-STAR" }, onBack = { page = HoyolandSub.None }) {
+                SectionPage(e.gstar.title.ifBlank { "G-STAR" }, onBack = backFromSub) {
                     GstarDetailContent()
                 }
             HoyolandSub.Stage ->
                 SectionPage(
                     "일자별 시간표",
-                    onBack = { page = HoyolandSub.None },
+                    onBack = backFromSub,
                     isRefreshing = refreshing,
                     onRefresh = refresh,
                 ) {
                     HoyolandTimetableSection(e)
                 }
-            HoyolandSub.Goods ->
+            HoyolandSub.Goods -> {
                 SectionPage(
                     "굿즈 목록",
-                    onBack = { page = HoyolandSub.None },
+                    onBack = backFromSub,
                     bottomBar = { HoyolandGoodsBar(e, cart) { page = HoyolandSub.Cart } },
                     // 게임 탭은 붙박이다 — 100줄짜리 목록에서 같이 밀려 올라가면 지금 무엇으로
                     // 거르고 있는지도, 바꾸는 방법도 화면에서 사라진다.
                     stickyTop = if (e.goodsGames.size > 1) {
                         { HoyolandGoodsTabs(e, goodsFilter) { goodsFilter = it } }
                     } else null,
-                ) {
-                    HoyolandGoodsContent(e, cart, goodsFilter) { name, n -> viewModel.setGoodsQuantity(name, n) }
+                    // 굿즈존 공통 안내 — 목록 위 카드였다가 헤더 인포 버튼으로 옮겼다. 사기 전에 한 번 보면
+                    // 되는 값이라 목록 첫 화면을 차지할 이유가 없다.
+                    actions = {
+                        if (e.goodsGuide.isNotBlank()) {
+                            com.gatcha.log.ui.components.GlgCircleIconButton(
+                                // 다른 헤더 원형 버튼과 같은 규격 — 아웃라인 + 불투명 면.
+                                Icons.Outlined.Info, "굿즈존 이용 안내", outlined = true, solidBackground = true,
+                            ) { goodsGuideOpen = true }
+                        }
+                    },
+                    lazyContent = {
+                        hoyolandGoodsItems(
+                            e, cart, goodsFilter,
+                            onQuantity = { name, n -> viewModel.setGoodsQuantity(name, n) },
+                            onImage = { goodsViewing = it },
+                        )
+                    },
+                )
+                goodsViewing?.let { v ->
+                    HoyolandGoodsImageSheet(e, v, cart, { name, n -> viewModel.setGoodsQuantity(name, n) }) { goodsViewing = null }
                 }
+                if (goodsGuideOpen) HoyolandGuideSheet(e.goodsGuide) { goodsGuideOpen = false }
+            }
             HoyolandSub.Cart ->
                 SectionPage(
                     "장바구니",
@@ -327,15 +523,17 @@ fun HoyolandDetailPage(viewModel: SpendingViewModel, onBack: () -> Unit) {
                     HoyolandCartContent(e, cart) { name, n -> viewModel.setGoodsQuantity(name, n) }
                 }
             HoyolandSub.Booth ->
-                SectionPage("부스 체험", onBack = { page = HoyolandSub.None }) { HoyolandBoothContent(e) }
+                SectionPage("부스 체험", onBack = backFromSub) { HoyolandBoothContent(e) }
             HoyolandSub.Food ->
-                SectionPage("푸드존", onBack = { page = HoyolandSub.None }) { HoyolandFoodContent(e) }
+                SectionPage("푸드존", onBack = backFromSub) { HoyolandFoodContent(e) }
             HoyolandSub.None ->
                 SectionPage(
                     "호요랜드",
                     onBack,
                     isRefreshing = refreshing,
                     onRefresh = refresh,
+                    // 상세 페이지만 — 붙박이 줄이 없어 바탕판이 필요 없다. 다른 상세처럼 콘텐츠가 헤더 밑으로 지나간다.
+                    showBackdrop = false,
                     actions = {
                         // 아이콘 하나로는 "지스타"가 읽히지 않아 글자를 쓴다. 대신 **면·테두리·높이는
                         // 헤더 원형 버튼([GlgCircleIconButton])과 같은 값**이라, 같은 줄에서 따로 놀지
@@ -580,7 +778,7 @@ fun HoyolandDetailContent(onOpenSub: (HoyolandSub) -> Unit = {}) {
                     Text(countUnit, fontSize = 12.sp, color = TextSecondary, modifier = Modifier.padding(bottom = 6.dp))
                 }
                 Spacer(Modifier.weight(1f))
-                GlgBadge(
+                HoyolandInfoBadge(
                     if (phase == HoyolandPhase.ENDED) "종료" else "${e.periodLabel.substringBefore(" ~ ").substringAfter('.')} 개막",
                     if (phase == HoyolandPhase.ENDED) TextSecondary else accent,
                     modifier = Modifier.padding(bottom = 6.dp),
@@ -704,11 +902,11 @@ fun HoyolandDetailContent(onOpenSub: (HoyolandSub) -> Unit = {}) {
                 Spacer(Modifier.width(12.dp))
                 Column(Modifier.weight(1f)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        GlgBadge(e.ticket.statusLabel, tc)
+                        HoyolandInfoBadge(e.ticket.statusLabel, tc)
                         if (e.ticket.vendor.isNotBlank()) {
                             Spacer(Modifier.width(6.dp))
                             // 예매처는 배지 옆 부제 — 라벨 줄 하나를 쓰기엔 값이 한 낱말이다.
-                            GlgBadge(e.ticket.vendor, TextSecondary)
+                            HoyolandInfoBadge(e.ticket.vendor, TextSecondary)
                         }
                     }
                     if (e.ticket.openLabel.isNotBlank()) {
@@ -880,7 +1078,7 @@ fun HoyolandDetailContent(onOpenSub: (HoyolandSub) -> Unit = {}) {
                     }
                     if (p.deadline.isNotBlank()) {
                         Spacer(Modifier.height(10.dp))
-                        GlgBadge(p.deadline, accent)
+                        HoyolandInfoBadge(p.deadline, accent)
                     }
                 }
             }
@@ -1105,90 +1303,86 @@ fun HoyolandGoodsTabs(e: HoyolandEvent, selected: String?, onSelect: (String?) -
     }
 }
 
-@Composable
-fun HoyolandGoodsContent(
+/**
+ * 굿즈 목록 — [SectionPage] 의 게으른 목록 모드에 얹는 항목들.
+ *
+ * 예전엔 Column 에 105장을 한꺼번에 쌓는 컴포저블이었다. 들어갈 때와 첫 스크롤에서 버벅여서
+ * (2026-09-15 갤럭시) 화면에 보이는 카드만 만드는 게으른 목록으로 바꿨다.
+ */
+internal fun androidx.compose.foundation.lazy.LazyListScope.hoyolandGoodsItems(
     e: HoyolandEvent,
     cart: HoyolandCart,
     gameFilter: String?,
     onQuantity: (String, Int) -> Unit,
+    onImage: (HoyolandGoods) -> Unit,
 ) {
     val all = e.visibleGoods
 
     if (all.isEmpty()) {
-        GlassCard(modifier = Modifier.fillMaxWidth()) {
-            Column(Modifier.padding(16.dp)) {
-                Text("판매 목록은 아직 공개 전이에요", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
-                Spacer(Modifier.height(5.dp))
-                Text(
-                    "품목과 가격이 나오면 이 자리에 채워져요.\n지난 행사는 개막 1~2주 전에 나왔어요.",
-                    fontSize = 12.sp, color = TextSecondary, lineHeight = 18.sp,
-                )
+        item {
+            GlassCard(modifier = Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(16.dp)) {
+                    Text("판매 목록은 아직 공개 전이에요", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+                    Spacer(Modifier.height(5.dp))
+                    Text(
+                        "품목과 가격이 나오면 이 자리에 채워져요.\n지난 행사는 개막 1~2주 전에 나왔어요.",
+                        fontSize = 12.sp, color = TextSecondary, lineHeight = 18.sp,
+                    )
+                }
             }
         }
         return
     }
 
-    // ── 굿즈존 공통 안내 — 맨 위. 목록과 같이 스크롤돼 올라가 가려진다(게임 탭만 붙박이).
-    // 주문·결제·수령 방식은 사기 전에 한 번 읽으면 되는 값이라 붙박이로 둘 이유가 없다.
-    if (e.goodsGuide.isNotBlank()) {
-        GlassCard(modifier = Modifier.fillMaxWidth()) {
-            Column(Modifier.padding(16.dp)) {
-                Text("굿즈존 이용 안내", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
-                Spacer(Modifier.height(10.dp))
-                HoyolandRichText(e.goodsGuide, valueColor = LocalAccent.current)
-            }
-        }
-        Spacer(Modifier.height(10.dp))
-    }
-
     // ── 가격대 — 목록보다 먼저. 얼마를 들고 갈지가 첫 질문이다.
-    GlassCard(modifier = Modifier.fillMaxWidth()) {
-        Row(
-            Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp),
-            verticalAlignment = Alignment.Bottom,
-        ) {
-            Column(Modifier.weight(1f)) {
-                Text("가격대", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = TextSecondary)
-                Spacer(Modifier.height(4.dp))
+    item(key = "priceRange") {
+        GlassCard(modifier = Modifier.fillMaxWidth()) {
+            Row(
+                Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp),
+                verticalAlignment = Alignment.Bottom,
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text("가격대", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = TextSecondary)
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        e.goodsPriceRange().substringBefore(" · "),
+                        fontSize = 16.sp, fontWeight = FontWeight.Black, color = TextPrimary,
+                        style = LocalTextStyle.current.copy(fontFeatureSettings = "tnum"),
+                    )
+                }
                 Text(
-                    e.goodsPriceRange().substringBefore(" · "),
-                    fontSize = 16.sp, fontWeight = FontWeight.Black, color = TextPrimary,
-                    style = LocalTextStyle.current.copy(fontFeatureSettings = "tnum"),
+                    e.goodsPriceRange().substringAfter(" · ", ""),
+                    fontSize = 11.sp, color = TextThird,
                 )
             }
-            Text(
-                e.goodsPriceRange().substringAfter(" · ", ""),
-                fontSize = 11.sp, color = TextThird,
-            )
         }
     }
 
     // 게임 탭은 여기 없다 — SectionPage 의 stickyTop 으로 올라가 헤더 밑에 붙박이로 선다
     // ([HoyolandGoodsTabs]). 100줄짜리 목록에서 같이 밀려 올라가면 안 되는 값이라서다.
-
     val shown = all.filter { gameFilter == null || it.game == gameFilter }
-    // 크게 보기 — 사진이 있는 품목을 누르면 바텀시트(목업 A안). 목록 위치를 잃지 않는다.
-    val viewing = androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<HoyolandGoods?>(null) }
-    shown.forEach { item ->
-        Spacer(Modifier.height(10.dp))
-        GlassCard(modifier = Modifier.fillMaxWidth()) {
-            HoyolandGoodsCard(
-                e, item, cart.quantityOf(item.name), onQuantity,
-                onImage = if (item.imageUrl.isNotBlank()) ({ viewing.value = item }) else null,
-            )
+    // 키는 게임 + 이름 — 장패드처럼 두 IP 에 같은 이름이 있다.
+    items(shown, key = { "${it.game}|${it.name}" }) { item ->
+        Column {
+            Spacer(Modifier.height(10.dp))
+            GlassCard(modifier = Modifier.fillMaxWidth()) {
+                HoyolandGoodsCard(
+                    e, item, cart.quantityOf(item.name), onQuantity,
+                    onImage = if (item.imageUrl.isNotBlank()) ({ onImage(item) }) else null,
+                )
+            }
         }
-    }
-    viewing.value?.let { v ->
-        HoyolandGoodsImageSheet(e, v, all, cart, onQuantity, onDismiss = { viewing.value = null })
     }
     // 하단 고정 바에 가리지 않게 비워 둔다. 이 바는 콘텐츠를 밀지 않고 **위에 겹치므로**
     // (SectionPage 가 Box.align(BottomCenter) 로 얹는다) 여기서 비운 만큼만 안전해진다.
     //
-    // 제스처 바 높이를 더한다 — 바 자신은 navigationBarsPadding 으로 그만큼 위로 올라앉는데
-    // 여백은 84dp 고정이라, 기기마다 마지막 굿즈가 알약에 조금씩 덮였다.
-    // **담은 게 없으면 바도 없다** — 그땐 24dp 만 둔다(늘 비우면 빈 화면이 한 뼘 딸려 나온다).
-    val navBottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
-    Spacer(Modifier.height(if (cart.isEmpty) 24.dp else 84.dp + navBottom))
+    // **제스처 바 높이는 여기서 더하지 않는다** — 게으른 목록의 아래 여백이 이미 [24dp + 제스처 바] 다.
+    // 여기엔 바 몸통(위 12 + 알약 ≈ 46 + 아래 8 = 66)에서 그 24 를 뺀 42 에, 바와 마지막 카드 사이 12 를 더한다.
+    // (예전엔 84 + 제스처 바를 또 더해 바 위가 한 뼘 넘게 비었다 — 3버튼 내비 기기에서 특히 컸다)
+    // **담은 게 없으면 바도 없다** — 그땐 더 비우지 않는다.
+    item(key = "bottomSpace") {
+        Spacer(Modifier.height(if (cart.isEmpty) 0.dp else 54.dp))
+    }
 }
 
 /**
@@ -1243,16 +1437,18 @@ private fun HoyolandGoodsCard(
                     modifier = Modifier.fillMaxSize().padding(3.dp),
                 )
                 // 확대 표시 — 누르면 크게 볼 수 있다는 것만 알린다.
-                Text(
-                    "⤢",
-                    fontSize = 8.sp, lineHeight = 10.sp, color = Color.White,
-                    modifier = Modifier
+                // 글자(⤢)로 그렸더니 기기 글꼴에 그 기호가 없어 **세모로 깨져** 보였다(갤럭시). 아이콘으로 그린다.
+                Box(
+                    Modifier
                         .align(Alignment.BottomEnd)
                         .padding(2.dp)
+                        .size(13.dp)
                         .clip(RoundedCornerShape(4.dp))
-                        .background(Color(0x8C1A1C1E))
-                        .padding(horizontal = 2.dp),
-                )
+                        .background(Color(0x8C1A1C1E)),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(Icons.Outlined.OpenInFull, contentDescription = null, tint = Color.White, modifier = Modifier.size(9.dp))
+                }
             } else {
                 Text(
                     label,
@@ -1394,32 +1590,20 @@ private fun HoyolandGoodsCard(
 /**
  * 굿즈 크게 보기 — 바텀시트(목업 `design_hoyoland_goods_image_mockup.html` A안).
  *
- * 사진 + 이름·가격·배지 + 담기까지 한 장에서 끝낸다. 같은 물건의 다른 디자인([HoyolandGoods.designGroup]
- * · 같은 게임 · 같은 가격)은 좌우로 넘겨 본다 — 어벤츄린·웨이브를 보다가 펄로 넘어가는 흐름이 흔하다.
- * 캐릭터별 상품("봉제인형 키링 - 종려")도 같은 꼴이라, 같은 가격 조건이 없으면 가격이 다른 줄까지 묶인다.
+ * 사진 + 이름·가격·배지 + 담기까지 한 장에서 끝낸다. 누른 품목 한 장만 보여 준다 — 좌우로 디자인
+ * 형제를 넘기던 스와이프는 걷어냈다(2026-09-15 요청). 사진은 두 손가락으로 확대한다.
  * iOS `HoyolandGoodsImageSheet` 와 파리티.
  */
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
 private fun HoyolandGoodsImageSheet(
     e: HoyolandEvent,
-    start: HoyolandGoods,
-    all: List<HoyolandGoods>,
+    item: HoyolandGoods,
     cart: HoyolandCart,
     onQuantity: (String, Int) -> Unit,
     onDismiss: () -> Unit,
 ) {
     val accent = LocalAccent.current
-    val siblings = androidx.compose.runtime.remember(start, all) {
-        all.filter {
-            it.imageUrl.isNotBlank() && it.game == start.game && it.price == start.price &&
-                it.designGroup == start.designGroup
-        }.ifEmpty { listOf(start) }
-    }
-    val pager = androidx.compose.foundation.pager.rememberPagerState(
-        initialPage = siblings.indexOf(start).coerceAtLeast(0),
-    ) { siblings.size }
-    val item = siblings[pager.currentPage.coerceIn(0, siblings.lastIndex)]
     val raw = e.stageColor(item.game)
     val c = if (raw == 0L) TextSecondary else raw.toColor()
     val quantity = cart.quantityOf(item.name)
@@ -1431,23 +1615,10 @@ private fun HoyolandGoodsImageSheet(
         Column(
             Modifier.fillMaxWidth().padding(horizontal = 18.dp).navigationBarsPadding().padding(bottom = 16.dp),
         ) {
-            androidx.compose.foundation.pager.HorizontalPager(
-                state = pager,
-                modifier = Modifier.fillMaxWidth().height(320.dp)
-                    .clip(RoundedCornerShape(18.dp)).background(CartRowBg),
-            ) { page ->
-                HoyolandZoomableImage(siblings[page].imageUrl, siblings[page].name)
-            }
-            if (siblings.size > 1) {
-                Row(Modifier.fillMaxWidth().padding(top = 9.dp), horizontalArrangement = Arrangement.Center) {
-                    siblings.indices.forEach { i ->
-                        val on = i == pager.currentPage
-                        Box(
-                            Modifier.padding(horizontal = 2.5.dp).height(6.dp).width(if (on) 16.dp else 6.dp)
-                                .clip(RoundedCornerShape(99.dp)).background(if (on) c else DividerColor),
-                        )
-                    }
-                }
+            Box(
+                Modifier.fillMaxWidth().height(320.dp).clip(RoundedCornerShape(18.dp)).background(CartRowBg),
+            ) {
+                HoyolandZoomableImage(item.imageUrl, item.name)
             }
             Spacer(Modifier.height(12.dp))
             HoyolandSheetBadge(if (item.game.isBlank()) "공용" else e.stageLabel(item.game), c)
@@ -1505,6 +1676,127 @@ private fun HoyolandGoodsImageSheet(
                     }
                 }
             }
+        }
+    }
+}
+
+/**
+ * 호요랜드 정보 넛지 배지 — 앱 공용 [com.gatcha.log.ui.components.GlgBadge] 보다 **한 단계 세게** 쓴다.
+ *
+ * 이 페이지의 배지(D-day · 예매 상태 · 마감 · 메뉴 수)는 장식이 아니라 "지금 챙길 것" 이라 본문에 묻히면 안 된다
+ * (2026-09-15 요청). 공용 배지를 고치면 앱 전체가 같이 굵어지므로 여기서만 따로 둔다. iOS `hoyoBadge` 와 같은 값.
+ */
+@Composable
+private fun HoyolandInfoBadge(label: String, color: Color, modifier: Modifier = Modifier) {
+    Text(
+        label,
+        fontSize = 11.sp, fontWeight = FontWeight.Bold, color = color, lineHeight = 14.sp,
+        modifier = modifier
+            .clip(RoundedCornerShape(7.dp))
+            .background(color.copy(alpha = 0.16f))
+            .padding(horizontal = 8.dp, vertical = 3.dp),
+    )
+}
+
+/**
+ * 굿즈존 안내 본문 — **묶음 카드 + [항목 이름 | 값] 줄**.
+ *
+ * 처음엔 예매 안내용 [HoyolandRichText] 를 빌려 썼는데, 그 렌더러는 값이 가격 · 시각처럼 짧다고 보고
+ * **값을 오른쪽에 한 줄로** 붙인다. 안내 문장이 값으로 들어오자 값이 폭을 먹어 항목 이름이 글자 단위로
+ * 접혔고, 들여쓴 부연은 연회색이라 읽히지 않았다(2026-09-15 지적). 안내 전용으로 따로 둔다.
+ *
+ * 줄 규칙: 글머리 없는 줄 = 묶음 제목 · `· 이름 — 값` = 줄 · 들여쓴 줄 = 위 줄의 부연 · 빈 줄 = 묶음 사이.
+ * iOS `HoyolandGuideContent` 와 파리티.
+ */
+@Composable
+private fun HoyolandGuideContent(text: String) {
+    val groups = remember(text) { parseHoyolandGuide(text) }
+    val accent = LocalAccent.current
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        groups.forEach { g ->
+            Column(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(CartRowBg)
+                    .padding(horizontal = 14.dp, vertical = 12.dp),
+            ) {
+                if (g.title.isNotBlank()) {
+                    Text(g.title, fontSize = 12.5.sp, fontWeight = FontWeight.Black, color = accent)
+                    Spacer(Modifier.height(8.dp))
+                }
+                g.rows.forEachIndexed { i, r ->
+                    if (i > 0) Spacer(Modifier.height(9.dp))
+                    Row(Modifier.fillMaxWidth()) {
+                        Text(
+                            r.label, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextSecondary,
+                            lineHeight = 19.sp, modifier = Modifier.width(78.dp),
+                        )
+                        Column(Modifier.weight(1f)) {
+                            if (r.value.isNotBlank()) {
+                                Text(r.value, fontSize = 13.5.sp, fontWeight = FontWeight.Medium, color = TextPrimary, lineHeight = 19.sp)
+                            }
+                            r.subs.forEach {
+                                Spacer(Modifier.height(2.dp))
+                                Text(it, fontSize = 12.sp, color = TextSecondary, lineHeight = 17.sp)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+private data class HoyolandGuideRow(val label: String, val value: String, val subs: List<String>)
+private data class HoyolandGuideGroup(val title: String, val rows: List<HoyolandGuideRow>)
+
+private fun parseHoyolandGuide(text: String): List<HoyolandGuideGroup> {
+    val groups = mutableListOf<HoyolandGuideGroup>()
+    var title = ""
+    val rows = mutableListOf<HoyolandGuideRow>()
+    fun flush() {
+        if (title.isNotBlank() || rows.isNotEmpty()) groups.add(HoyolandGuideGroup(title, rows.toList()))
+        title = ""; rows.clear()
+    }
+    text.split("\n").forEach { raw ->
+        val indented = raw.isNotBlank() && (raw.startsWith("  ") || raw.startsWith("\t"))
+        val body = raw.trim()
+        when {
+            body.isEmpty() -> flush()
+            indented && rows.isNotEmpty() -> {
+                val last = rows.removeAt(rows.lastIndex)
+                rows.add(last.copy(subs = last.subs + body.removePrefix("· ")))
+            }
+            body.startsWith("· ") -> {
+                val item = body.removePrefix("· ")
+                if (" — " in item) rows.add(HoyolandGuideRow(item.substringBefore(" — "), item.substringAfter(" — "), emptyList()))
+                else rows.add(HoyolandGuideRow(item, "", emptyList()))
+            }
+            else -> { if (rows.isNotEmpty()) flush(); title = body }
+        }
+    }
+    flush()
+    return groups
+}
+
+/** 굿즈존 공통 이용 안내 — 굿즈 목록 헤더의 인포 버튼이 연다. */
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+@Composable
+private fun HoyolandGuideSheet(text: String, onDismiss: () -> Unit) {
+    androidx.compose.material3.ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        containerColor = Color.White,
+    ) {
+        Column(
+            Modifier.fillMaxWidth().padding(horizontal = 18.dp).navigationBarsPadding().padding(bottom = 16.dp)
+                .verticalScroll(rememberScrollState()),
+        ) {
+            Text("굿즈존 이용 안내", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+            Spacer(Modifier.height(3.dp))
+            Text("모든 게임 굿즈존 공통 · 공식 공지 기준", fontSize = 12.sp, color = TextSecondary)
+            Spacer(Modifier.height(14.dp))
+            HoyolandGuideContent(text)
+            Spacer(Modifier.height(18.dp))
+            com.gatcha.log.ui.components.GlgOutlineButton("닫기", onClick = onDismiss, modifier = Modifier.fillMaxWidth())
         }
     }
 }
@@ -1993,7 +2285,7 @@ private fun HoyolandFoodCard(e: HoyolandEvent, p: HoyolandProgram) {
                     fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TextPrimary,
                 )
                 Spacer(Modifier.weight(1f))
-                if (menuCount > 0) GlgBadge("${menuCount}종", TextSecondary)
+                if (menuCount > 0) HoyolandInfoBadge("${menuCount}종", TextSecondary)
             }
             val blocks = parseFoodBlocks(p.desc)
             blocks.forEachIndexed { bi, block ->
@@ -2033,8 +2325,9 @@ private fun HoyolandFoodCard(e: HoyolandEvent, p: HoyolandProgram) {
                                     model = photo,
                                     contentDescription = row.name,
                                     contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                                    // 위아래 10 — 줄 여백이 글자 칸에만 있으면 사진이 줄 경계에 붙는다.
                                     modifier = Modifier
-                                        .padding(start = 12.dp)
+                                        .padding(start = 12.dp, top = 10.dp, bottom = 10.dp)
                                         .size(52.dp)
                                         .clip(RoundedCornerShape(10.dp))
                                         .background(Color.White)
@@ -2042,7 +2335,12 @@ private fun HoyolandFoodCard(e: HoyolandEvent, p: HoyolandProgram) {
                                         .clickable { viewingFood.value = Triple(row.name, row.price, photo) },
                                 )
                             }
-                            Column(Modifier.weight(1f).padding(horizontal = 13.dp, vertical = 11.dp)) {
+                            Column(
+                                Modifier.weight(1f).padding(
+                                    start = if (photo.isNotBlank()) 12.dp else 13.dp, end = 13.dp,
+                                    top = 11.dp, bottom = 11.dp,
+                                ),
+                            ) {
                                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                                     Text(
                                         row.name,
@@ -2066,7 +2364,7 @@ private fun HoyolandFoodCard(e: HoyolandEvent, p: HoyolandProgram) {
             }
             if (p.deadline.isNotBlank()) {
                 Spacer(Modifier.height(10.dp))
-                GlgBadge(p.deadline, c)
+                HoyolandInfoBadge(p.deadline, c)
             }
         }
     }
@@ -2457,7 +2755,7 @@ private fun HoyolandPastEventCard(title: String, facts: List<HoyolandFact>) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(title, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
                 Spacer(Modifier.width(8.dp))
-                GlgBadge("종료", TextSecondary)
+                HoyolandInfoBadge("종료", TextSecondary)
             }
             Spacer(Modifier.height(12.dp))
             facts.forEachIndexed { i, f ->

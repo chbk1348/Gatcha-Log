@@ -151,6 +151,8 @@ fun GameInfoScreen(
     // 늘 Main 으로 돌아가던 시절엔 일정 페이지에서 들어간 사람이 한 번의 뒤로가기로
     // 두 페이지를 건너뛰었다(일정 → 게임정보 메인).
     var hoyolandReturn by remember { mutableStateOf(GiSub.Main) }
+    // 호요랜드 상세에 들어가며 곧장 열 하위 페이지(섹션의 바로가기 4칸). 다른 진입점은 None.
+    var hoyolandInitial by remember { mutableStateOf(HoyolandSub.None) }
     val openNews: (NewsItem, GiSub) -> Unit = { n, from ->
         newsItem = n
         newsReturn = from
@@ -182,10 +184,6 @@ fun GameInfoScreen(
     val redeemedCodes by viewModel.redeemedCodes.collectAsStateWithLifecycle()
     val unusableCodes by viewModel.unusableCodes.collectAsStateWithLifecycle()
 
-    // 호요랜드 배너 — 시즌(개막 D-60 ~ 폐막일)에만 값이 있다. 폐막 다음 날(10월 6일)부터 null 이라 스스로 빠진다.
-    // 아래 앵커 계산이 섹션 칸 수를 세므로 목록과 같은 값을 여기서 한 번만 읽는다.
-    val featuredHoyoland = rememberFeaturedHoyoland()
-
     // 홈 대시보드 카드에서 넘어온 경우 해당 섹션으로 스크롤 앵커링(1회성).
     //
     // 섹션은 아래 LazyColumn 에 [스페이서, 본문] 2칸씩 쌓이고 일부는 조건부(미연동·일정 없음)라,
@@ -198,13 +196,12 @@ fun GameInfoScreen(
         val scheduleShown = schedule.isNotEmpty()
         var cursor = 1                                       // 0 헤더 스페이서 · 1 데일리
         val notesIdx = cursor                                // 섹션이 없을 때의 공통 폴백
-        if (featuredHoyoland != null) cursor += 2            // 호요랜드 배너(시즌에만)
+        cursor += 2                                          // 호요랜드(데일리 바로 밑)
         if (linked) cursor += 2                              // 내 캐릭터
         val scheduleIdx = if (scheduleShown) cursor + 2 else notesIdx
         if (scheduleShown) cursor += 2                       // 게임 일정
         // ⚠️ 여기서 '주년'을 한 칸 더 세고 있었다. 주년은 게임 일정 상세의 탭으로 옮겨져
         // 이 목록에 없는데도 계산에만 남아, NEWS 앵커가 두 칸 밀려 계산기 자리로 스크롤됐다.
-        cursor += 2                                          // 호요랜드
         val newsIdx = cursor + 2
         cursor += 2                                          // 공지
         // 전투 진행도는 본문 섹션이 아니라 데일리에서 들어가는 상세 페이지로 옮겼다 → 스크롤 대신 페이지 진입.
@@ -217,6 +214,7 @@ fun GameInfoScreen(
         // 게임정보 목록의 그 자리가 아니라 상세 내용이다.
         if (anchor == GameInfoAnchor.HOYOLAND) {
             hoyolandReturn = GiSub.Main
+            hoyolandInitial = HoyolandSub.None
             subPage = GiSub.Hoyoland
             viewModel.consumeGameInfoAnchor()
             return@LaunchedEffect
@@ -357,7 +355,7 @@ fun GameInfoScreen(
                     banners, events, challenges,
                     collabExpanded = collabExpanded,
                     onToggleCollab = { viewModel.setCollabBannerExpanded(!collabExpanded) },
-                    onOpenHoyoland = { hoyolandReturn = GiSub.Schedule; subPage = GiSub.Hoyoland },
+                    onOpenHoyoland = { hoyolandReturn = GiSub.Schedule; hoyolandInitial = HoyolandSub.None; subPage = GiSub.Hoyoland },
                     onBack = { subPage = GiSub.Main },
                     isRefreshing = isRefreshing,
                     onRefresh = { viewModel.refreshGameInfo(force = true) },
@@ -398,7 +396,7 @@ fun GameInfoScreen(
                     NewsFullContent(gameNews, newsChip, onOpen = { openNews(it, GiSub.News) })
                 }
             }
-            GiSub.Hoyoland -> HoyolandDetailPage(viewModel, onBack = { subPage = hoyolandReturn })
+            GiSub.Hoyoland -> HoyolandDetailPage(viewModel, onBack = { subPage = hoyolandReturn }, initialPage = hoyolandInitial)
             GiSub.Main -> Box(Modifier.fillMaxSize()) {
             val topInset = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
             // 상단 스크림 — 콘텐츠가 헤더(버튼) 아래로 스크롤될 때만 배경색 그라데이션으로 살짝 흐린다.
@@ -443,17 +441,16 @@ fun GameInfoScreen(
                     onOpenClears = { subPage = GiSub.CombatClear },
                 )
             }
-            // 호요랜드 배너 — 「오늘 할 일」 바로 밑(미연동이면 데일리 자리의 연동 안내 밑). 시즌에만 뜨고
-            // 폐막 다음 날부터 사라진다. 배너 규격은 홈과 같은 DashHoyolandCard 를 그대로 쓴다.
-            featuredHoyoland?.let { hoyoland ->
-                item { Spacer(Modifier.height(20.dp)) }
-                item {
-                    GiSection {
-                        com.gatcha.log.ui.home.DashHoyolandCard(hoyoland) {
-                            hoyolandReturn = GiSub.Main
-                            subPage = GiSub.Hoyoland
-                        }
-                    }
+            // 호요랜드 — 「오늘 할 일」 바로 밑(미연동이면 데일리 자리의 연동 안내 밑). 바로가기 4칸이 하위 페이지로
+            // 곧장 들어간다. 폐막 뒤에는 섹션이 한 줄로 줄어든다(HoyolandSection).
+            item { Spacer(Modifier.height(20.dp)) }
+            item {
+                GiSection {
+                    HoyolandSection(onOpen = { sub ->
+                        hoyolandReturn = GiSub.Main
+                        hoyolandInitial = sub
+                        subPage = GiSub.Hoyoland
+                    })
                 }
             }
             // 숙제 완주율은 별도 섹션을 두지 않는다 — 데일리의 게임 줄에 완주율까지 함께 들어간다.
@@ -477,9 +474,6 @@ fun GameInfoScreen(
                 item { Spacer(Modifier.height(20.dp)) }
                 item { GiSection { GameScheduleSection(schedule, banners, onSeeAll = { subPage = GiSub.Schedule }) } }
             }
-            // 호요랜드 — 호요버스 한국 오프라인 행사(플레이스홀더). 정보 확정 전 "준비 중" 티저.
-            item { Spacer(Modifier.height(20.dp)) }
-            item { GiSection { HoyolandSection(onOpen = { hoyolandReturn = GiSub.Main; subPage = GiSub.Hoyoland }) } }
             // 공지·뉴스 — 게임별 최신 공지(탭하면 HoYoLab 열기).
             item { Spacer(Modifier.height(20.dp)) }
             item {
@@ -617,7 +611,21 @@ internal fun SectionPage(
      * 순간(게임이 늘거나 글자가 길어지면) 첫 항목이 가린다.
      */
     stickyTop: (@Composable () -> Unit)? = null,
-    content: @Composable () -> Unit,
+    /**
+     * 본문을 **게으른 목록**으로 그린다 — 주면 [content] 대신 쓴다.
+     *
+     * 기본 본문은 Column 스크롤이라 항목이 몇 개든 진입 첫 프레임에 전부 합성된다. 굿즈 105장처럼
+     * 카드마다 애니메이션 · 사진 요청이 걸린 목록은 들어갈 때와 첫 스크롤에서 버벅였다(2026-09-15 갤럭시).
+     * 당겨서 새로고침은 이 모드에서 붙지 않는다(쓰는 곳이 굿즈 목록뿐이고 거기엔 없다).
+     */
+    lazyContent: (androidx.compose.foundation.lazy.LazyListScope.() -> Unit)? = null,
+    /**
+     * 스크롤하면 헤더 뒤에 차오르는 바탕판. 기본은 켜짐 — 붙박이 줄(탭)이 있는 페이지는 판이 없으면 목록이
+     * 헤더 · 탭 사이로 비쳐 지나간다. 붙박이 줄이 없는 페이지는 끄면 **다른 상세 페이지처럼** 콘텐츠가
+     * 헤더 밑으로 지나간다(호요랜드 상세, 2026-09-15 요청).
+     */
+    showBackdrop: Boolean = true,
+    content: @Composable () -> Unit = {},
 ) {
     BackHandler { onBack() }
     // 탭 페이지와 같은 구조 — 콘텐츠는 상태바 뒤까지 스크롤되고, 헤더는 그 위에 고정된다.
@@ -655,6 +663,38 @@ internal fun SectionPage(
             ) { slot() }
         }
     }
+    if (lazyContent != null) {
+        val listState = androidx.compose.foundation.lazy.rememberLazyListState()
+        val listScrolled by remember {
+            derivedStateOf { listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 0 }
+        }
+        val listBackdropAlpha by animateFloatAsState(if (listScrolled) 1f else 0f, label = "sectionBackdropList")
+        Box(Modifier.fillMaxSize()) {
+            // 제스처 바 **밑까지** 스크롤된다(다른 상세 페이지와 같다). 대신 그 높이를 아래 여백에 한 번만 넣는다 —
+            // navigationBarsPadding 으로 목록을 잘라 두고 하단 바 여백에 또 더하면 바 위가 제스처 바만큼 더 비었다.
+            val navBottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+            LazyColumn(
+                state = listState,
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(
+                    start = 16.dp, end = 16.dp,
+                    top = glgDetailContentTop() + stickyHeight, bottom = 24.dp + navBottom,
+                ),
+            ) { lazyContent() }
+            Box(
+                Modifier
+                    .align(Alignment.TopStart)
+                    .fillMaxWidth()
+                    .height(glgDetailContentTop() + stickyHeight)
+                    .graphicsLayer { alpha = listBackdropAlpha }
+                    .background(LocalAccentTint.current),
+            )
+            GlgDetailHeaderOverlay(title, onBack, listScrolled, actions = actions)
+            stickyBar?.invoke(this)
+            bottomBar?.let { Box(Modifier.align(Alignment.BottomCenter)) { it() } }
+        }
+        return
+    }
     Box(Modifier.fillMaxSize()) {
         if (onRefresh != null) {
             GlgPullToRefreshBox(isRefreshing = isRefreshing, onRefresh = onRefresh, modifier = Modifier.fillMaxSize()) {
@@ -667,7 +707,7 @@ internal fun SectionPage(
                     Spacer(Modifier.height(24.dp))
                 }
             }
-            backdrop()
+            if (showBackdrop) backdrop()
             GlgDetailHeaderOverlay(title, onBack, scrollState = scrollState, actions = actions)
             stickyBar?.invoke(this)
             bottomBar?.let { Box(Modifier.align(Alignment.BottomCenter)) { it() } }
@@ -681,7 +721,7 @@ internal fun SectionPage(
             content()
             Spacer(Modifier.height(24.dp))
         }
-        backdrop()
+        if (showBackdrop) backdrop()
         GlgDetailHeaderOverlay(title, onBack, scrollState = scrollState, actions = actions)
         stickyBar?.invoke(this)
         bottomBar?.let { Box(Modifier.align(Alignment.BottomCenter)) { it() } }
