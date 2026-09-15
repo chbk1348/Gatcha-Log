@@ -1434,6 +1434,8 @@ private fun HoyolandGoodsCard(
                     model = item.imageUrl,
                     contentDescription = item.name,
                     contentScale = androidx.compose.ui.layout.ContentScale.Fit,
+                    // 기본값(Low)은 늘리거나 줄여 그릴 때 계단이 진다 — 원본이 192~300px 이라 iOS 보다 거칠게 보였다.
+                    filterQuality = androidx.compose.ui.graphics.FilterQuality.High,
                     modifier = Modifier.fillMaxSize().padding(3.dp),
                 )
                 // 확대 표시 — 누르면 크게 볼 수 있다는 것만 알린다.
@@ -1786,17 +1788,23 @@ private fun HoyolandGuideSheet(text: String, onDismiss: () -> Unit) {
         sheetState = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = true),
         containerColor = Color.White,
     ) {
-        Column(
-            Modifier.fillMaxWidth().padding(horizontal = 18.dp).navigationBarsPadding().padding(bottom = 16.dp)
-                .verticalScroll(rememberScrollState()),
-        ) {
-            Text("굿즈존 이용 안내", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
-            Spacer(Modifier.height(3.dp))
-            Text("모든 게임 굿즈존 공통 · 공식 공지 기준", fontSize = 12.sp, color = TextSecondary)
-            Spacer(Modifier.height(14.dp))
-            HoyolandGuideContent(text)
-            Spacer(Modifier.height(18.dp))
-            com.gatcha.log.ui.components.GlgOutlineButton("닫기", onClick = onDismiss, modifier = Modifier.fillMaxWidth())
+        Column(Modifier.fillMaxWidth().navigationBarsPadding().padding(bottom = 16.dp)) {
+            // 본문만 스크롤한다 — 닫기는 **늘 아래에 보인다**(2026-09-15 요청). 안내가 길어 시트를 꽉 채우면
+            // 닫기가 스크롤 끝에 숨어 끌어내리는 것 말고는 닫을 방법이 안 보였다.
+            Column(
+                Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()).padding(horizontal = 18.dp),
+            ) {
+                Text("굿즈존 이용 안내", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+                Spacer(Modifier.height(3.dp))
+                Text("모든 게임 굿즈존 공통 · 공식 공지 기준", fontSize = 12.sp, color = TextSecondary)
+                Spacer(Modifier.height(14.dp))
+                HoyolandGuideContent(text)
+                Spacer(Modifier.height(12.dp))
+            }
+            com.gatcha.log.ui.components.GlgOutlineButton(
+                "닫기", onClick = onDismiss,
+                modifier = Modifier.fillMaxWidth().padding(start = 18.dp, end = 18.dp, top = 6.dp),
+            )
         }
     }
 }
@@ -1869,6 +1877,8 @@ private fun HoyolandZoomableImage(url: String, desc: String) {
             model = url,
             contentDescription = desc,
             contentScale = androidx.compose.ui.layout.ContentScale.Fit,
+            // 시트에서는 원본(≈300px)을 3배 가까이 늘려 그린다 — 고품질 보간이 아니면 뭉개진다.
+            filterQuality = androidx.compose.ui.graphics.FilterQuality.High,
             modifier = Modifier.fillMaxSize().padding(20.dp)
                 .graphicsLayer { scaleX = zoom.floatValue; scaleY = zoom.floatValue },
         )
@@ -2325,6 +2335,7 @@ private fun HoyolandFoodCard(e: HoyolandEvent, p: HoyolandProgram) {
                                     model = photo,
                                     contentDescription = row.name,
                                     contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                                    filterQuality = androidx.compose.ui.graphics.FilterQuality.High,
                                     // 위아래 10 — 줄 여백이 글자 칸에만 있으면 사진이 줄 경계에 붙는다.
                                     modifier = Modifier
                                         .padding(start = 12.dp, top = 10.dp, bottom = 10.dp)

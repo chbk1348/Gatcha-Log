@@ -92,7 +92,9 @@ struct GLGRemoteImage<Placeholder: View>: View {
     var body: some View {
         Group {
             if let image {
-                Image(uiImage: image).resizable().aspectRatio(contentMode: contentMode)
+                // 고품질 보간 — 작은 원본(호요랜드 굿즈 · 푸드 사진은 192~300px)을 시트에서 크게 늘려 그릴 때
+                // 기본 보간은 가장자리가 뭉개졌다(2026-09-15). 비용은 그리기 한 번의 보간이라 무시할 만하다.
+                Image(uiImage: image).resizable().interpolation(.high).antialiased(true).aspectRatio(contentMode: contentMode)
             } else {
                 placeholder()
             }
