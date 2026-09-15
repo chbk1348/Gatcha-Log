@@ -77,8 +77,18 @@ func hoyolandFoodBlocks(_ desc: String) -> [HoyolandFoodBlock] {
  게임 탭은 달지 않는다 — 굿즈(100종)·부스(24곳)와 달리 카드가 게임당 하나라 목록 전체가
  세 장이다. 거를 것이 없는 자리에 탭을 세우면 화면 위 한 줄을 늘 먹는다.
  */
+/// 크게 보기 중인 메뉴 사진.
+private struct HoyolandFoodPhoto: Identifiable {
+    let name: String
+    let price: String
+    let url: String
+    let game: String
+    var id: String { url }
+}
+
 struct HoyolandFoodView: View {
     let event: HoyolandEvent
+    @State private var viewingFood: HoyolandFoodPhoto? = nil
 
     var body: some View {
         let list = event.foodPrograms
@@ -115,6 +125,12 @@ struct HoyolandFoodView: View {
         .background(GLGBackground { Color.clear })
         .glgPageTitle("푸드존")
         .navigationBarTitleDisplayMode(.inline)
+        .sheet(item: $viewingFood) { f in
+            let raw = event.stageColor(game: f.game)
+            HoyolandPhotoSheet(label: f.game.isEmpty ? "" : event.stageLabel(game: f.game),
+                               color: raw == 0 ? GLGColor.textSecondary : Color(argb64: raw),
+                               title: f.name, price: f.price, url: URL(string: f.url))
+        }
     }
 
     /**
@@ -184,6 +200,22 @@ struct HoyolandFoodView: View {
                         VStack(spacing: 0) {
                             ForEach(Array(rows.enumerated()), id: \.offset) { i, row in
                                 if i > 0 { Divider() }
+                                // 메뉴 사진 — 있으면 줄 왼쪽 52칸(누르면 크게 보기). 없으면 지금처럼 글만.
+                                let photo = p.menuImageUrl(name: row.name)
+                                HStack(spacing: 0) {
+                                if !photo.isEmpty {
+                                    Button {
+                                        viewingFood = HoyolandFoodPhoto(name: row.name, price: row.price, url: photo, game: game)
+                                    } label: {
+                                        GLGRemoteImage(url: URL(string: photo), side: 52) { Color.white }
+                                            .frame(width: 52, height: 52)
+                                            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                                            .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                                .stroke(.black.opacity(0.06), lineWidth: 1))
+                                    }
+                                    .buttonStyle(.plain)
+                                    .padding(.leading, 12)
+                                }
                                 VStack(alignment: .leading, spacing: 3) {
                                     HStack(spacing: 10) {
                                         Text(row.name).font(.pretendard(size: 13, weight: .bold))
@@ -206,6 +238,7 @@ struct HoyolandFoodView: View {
                                 }
                                 .frame(maxWidth: .infinity, alignment: .leading)
                                 .padding(.horizontal, 13).padding(.vertical, 11)
+                                }
                             }
                         }
                         .background(GLGFoodRowBg,
@@ -303,5 +336,41 @@ struct HoyolandRichText: View {
                 .fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
+    }
+}
+
+
+/// 푸드 메뉴 사진 크게 보기 — 담기가 없는 `HoyolandGoodsImageSheet`. 음식은 장바구니에 담지 않는다.
+struct HoyolandPhotoSheet: View {
+    let label: String
+    let color: Color
+    let title: String
+    let price: String
+    let url: URL?
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HoyolandZoomableImage(url: url)
+                .frame(height: 300)
+                .background(GLGFoodRowBg, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+            if !label.isEmpty {
+                hoyolandSheetBadge(label, color).padding(.top, 12)
+            }
+            Text(title).font(.pretendard(size: 18, weight: .bold))
+                .foregroundStyle(GLGColor.textPrimary)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.top, 7)
+            if !price.isEmpty {
+                Text(price).font(.pretendard(size: 20, weight: .black)).monospacedDigit()
+                    .foregroundStyle(color).padding(.top, 4)
+            }
+            Spacer(minLength: 18)
+            GLGOutlineButton(title: "닫기") { dismiss() }
+        }
+        .padding(.horizontal, 18).padding(.top, 22).padding(.bottom, 16)
+        .presentationDetents([.fraction(0.72), .large])
+        .presentationDragIndicator(.visible)
     }
 }

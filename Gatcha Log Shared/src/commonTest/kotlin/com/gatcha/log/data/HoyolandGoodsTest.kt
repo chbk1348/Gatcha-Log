@@ -123,4 +123,28 @@ class HoyolandGoodsTest {
         assertEquals("", g.limitLabel)
         assertEquals("한정판 · 구성: 키링 · 캔배지", g.noteRest)
     }
+
+    @Test
+    fun imageUrlResolvesAgainstConfigRaw() {
+        // 상대 경로는 정본과 같은 raw 주소의 config/ 아래로, http 로 시작하면 그대로, 비면 사진 없음.
+        assertEquals(HOYOLAND_ASSET_BASE + "goods/hsr-037.webp", HoyolandGoods("아크릴 스탠드 - 펄", image = "goods/hsr-037.webp").imageUrl)
+        assertEquals(HOYOLAND_ASSET_BASE + "goods/a.webp", HoyolandGoods("x", image = " /goods/a.webp ").imageUrl)
+        assertEquals("https://example.com/a.webp", HoyolandGoods("x", image = "https://example.com/a.webp").imageUrl)
+        assertEquals("", HoyolandGoods("x").imageUrl)
+    }
+
+    @Test
+    fun designGroupDropsOnlyTheLastDesignSuffix() {
+        assertEquals("아크릴 스탠드", HoyolandGoods("아크릴 스탠드 - 펄").designGroup)
+        assertEquals("유사 아크릴 스탠드 (광추 시리즈)", HoyolandGoods("유사 아크릴 스탠드 (광추 시리즈) - 다음 꽃피는 계절의 만남").designGroup)
+        assertEquals("1/7 피규어", HoyolandGoods("1/7 피규어 - 어벤츄린").designGroup)   // 축척 표기는 건드리지 않는다
+        assertEquals("장패드", HoyolandGoods("장패드").designGroup)
+    }
+
+    @Test
+    fun menuImageUrlMatchesMenuRowName() {
+        val p = HoyolandProgram("푸드트럭 — 붕괴: 스타레일", "· 개척 여정의 커피 — 6,000원", menuImages = mapOf("개척 여정의 커피" to "food/hsr-09.webp"))
+        assertEquals(HOYOLAND_ASSET_BASE + "food/hsr-09.webp", p.menuImageUrl("개척 여정의 커피"))
+        assertEquals("", p.menuImageUrl("없는 메뉴"))
+    }
 }

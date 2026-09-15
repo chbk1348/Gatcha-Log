@@ -126,7 +126,7 @@ const HOYOLAND = {
 
   blank: () => ({
     edition: '', startYmd: '', endYmd: '', venueName: '', venueHall: '', venueAddress: '',
-    mapUrl: '', mapFallbackUrl: '', officialUrl: '', announceYmd: '', notice: '',
+    mapUrl: '', mapFallbackUrl: '', officialUrl: '', announceYmd: '', notice: '', goodsGuide: '',
     ticket: { status: 'undecided', vendor: '', openLabel: '', openYmd: '', openHour: 0, priceLabel: '', url: '', note: '' },
     lineup: [], programs: [], days: [], goods: [], booths: [],
     gstar: { title: '', badge: '', facts: [], lineup: [], url: '', notice: '' },
@@ -295,6 +295,9 @@ const HOYOLAND = {
         { key: 'officialUrl', label: '공식 URL', type: 'url', wide: true },
         { key: 'notice', label: '공지 문구', type: 'textarea', wide: true,
           note: '상단에 그대로 노출됩니다. 확정된 것과 미정인 것을 구분해 적으세요' },
+        // 굿즈존 공통 안내 — 굿즈 목록 맨 위 카드(스크롤하면 올라가 가려진다). 비우면 카드가 없다.
+        { key: 'goodsGuide', label: '굿즈존 안내', type: 'textarea', wide: true,
+          note: '굿즈 목록 맨 위 카드. 줄 규칙: “· 항목 — 값”, 들여쓴 줄은 위 항목의 부연' },
       ] },
     { id: 'ticket', group: '행사', label: '예매', type: 'form', path: 'ticket',
       desc: '상태를 바꾸면 앱의 예매 카드가 바뀝니다. 알림 예약은 openYmd · openHour 를 읽습니다.',
@@ -323,6 +326,8 @@ const HOYOLAND = {
         { key: 'title', label: '제목', type: 'text', required: true },
         { key: 'desc', label: '설명', type: 'text' },
         { key: 'deadline', label: '마감 표기', type: 'text' },
+        // 푸드 프로그램(제목이 '푸드'로 시작)만 쓴다 — 설명글의 메뉴 줄마다 사진 경로를 건다.
+        { key: 'menuImages', label: '메뉴 사진', type: 'menuImages', width: '300px' },
       ] },
     { id: 'days', group: '행사', label: '무대 시간표', type: 'days', path: 'days', countable: true,
       desc: '일자별 편성. 빈 배열도 유효한 값이라 시간표를 통째로 내릴 수 있습니다.' },
@@ -334,6 +339,8 @@ const HOYOLAND = {
         { key: 'category', label: '분류', type: 'suggest', options: GOODS_CATEGORIES, width: '130px' },
         { key: 'price', label: '가격(원)', type: 'number', width: '130px', min: 0 },
         { key: 'note', label: '비고', type: 'text', placeholder: '호요랜드2026 시리즈 · 1인 5개 한정' },
+        // 사진 — config/ 기준 경로(goods/hsr-036.webp). 파일은 저장소 config/goods/ 에 올린다.
+        { key: 'image', label: '사진', type: 'image', width: '230px', placeholder: 'goods/hsr-036.webp' },
       ] },
     { id: 'booths', group: '행사', label: '부스 체험', type: 'list', path: 'booths', countable: true,
       desc: '체험존 운영 정보. 호요랜드 부스는 예약제도 회차·정원도 없습니다. 참가비는 숫자로 넣고, 무료면 0 입니다.',
@@ -719,7 +726,21 @@ const issuesNow = () => state.res.validate(state.draft);
  *   onChange 확정 — 초안 + dirty
  * ═════════════════════════════════════════════════════════════ */
 
-function inputFor(cfg, value, onChange) {
+/** 저장소 config/ 기준 사진 미리보기. 못 읽으면 빨간 테두리(커밋 · 푸시 전 파일도 그렇게 보인다). */
+function assetThumb() {
+  const img = el('img', { class: 'img-cell-thumb', alt: '' });
+  img.onerror = () => img.classList.add('broken');
+  img.onload = () => img.classList.remove('broken');
+  const paint = (v) => {
+    const path = String(v ?? '').trim();
+    img.classList.remove('broken');
+    img.style.visibility = path ? 'visible' : 'hidden';
+    img.src = path ? (/^https?:\/\//.test(path) ? path : REPO_RAW + 'config/' + path.replace(/^\//, '')) : '';
+  };
+  return { img, paint };
+}
+
+function inputFor(cfg, value, onChange, row) {
   const commit = (v) => { onChange(v); markDirty(); };
 
   switch (cfg.type) {
@@ -766,6 +787,57 @@ function inputFor(cfg, value, onChange) {
 
     case 'textarea':
       return glTextarea({ value, placeholder: cfg.placeholder, onInput: onChange, onChange: commit });
+
+    case 'image': {
+      // 사진 경로 + 미리보기. 경로 오타는 앱에서 조용히 자리표시로만 보이므로 여기서 바로 드러낸다.
+      // 저장소 raw 를 읽으므로 **커밋 · 푸시 전 파일은 깨진 표시**가 정상이다.
+      const { img, paint } = assetThumb();
+      paint(value);
+      const input = glText({
+        value, placeholder: cfg.placeholder,
+        onInput: (v) => { onChange(v); paint(v); },
+        onChange: (v) => { commit(v); paint(v); },
+      });
+      return el('div', { class: 'img-cell' }, [img, input]);
+    }
+
+    case 'menuImages': {
+      // 푸드 메뉴 사진 — 설명글의 "· 이름 — 가격" 줄마다 경로 칸. 앱이 **이름 글자 그대로** 맞춰 붙이므로
+      // 이름은 여기서 설명글에서 뽑아 보여 준다(손으로 적게 하면 한 글자 틀려도 조용히 안 붙는다).
+      if (!row || !String(row.title ?? '').startsWith('푸드')) {
+        return el('span', { class: 'muted', text: '푸드 프로그램만' });
+      }
+      const names = String(row.desc ?? '').split('\n')
+        .filter((l) => l.startsWith('· ') && l.includes(' — '))
+        .map((l) => l.slice(2, l.lastIndexOf(' — ')).trim());
+      if (!names.length) return el('span', { class: 'muted', text: '설명글에 메뉴 줄이 없습니다' });
+      const map = { ...(value || {}) };
+      const save = (fin) => {
+        for (const k of Object.keys(map)) if (!String(map[k] ?? '').trim()) delete map[k];
+        const next = Object.keys(map).length ? { ...map } : undefined;
+        if (fin) commit(next); else onChange(next);
+      };
+      // 설명글에서 사라진 메뉴에 남은 사진은 앱에서 안 붙는다 — 알려 준다.
+      const orphan = Object.keys(map).filter((k) => !names.includes(k));
+      return el('div', { class: 'menu-img-list' }, [
+        ...names.map((name) => {
+          const { img, paint } = assetThumb();
+          paint(map[name]);
+          return el('div', { class: 'img-cell' }, [
+            img,
+            el('div', { class: 'menu-img-body' }, [
+              el('div', { class: 'menu-img-name', text: name }),
+              glText({
+                value: map[name] ?? '', placeholder: 'food/hsr-06.webp',
+                onInput: (v) => { map[name] = v; paint(v); save(false); },
+                onChange: (v) => { map[name] = v; paint(v); save(true); },
+              }),
+            ]),
+          ]);
+        }),
+        orphan.length ? el('div', { class: 'note', text: `⚠ 설명글에 없는 메뉴의 사진: ${orphan.join(', ')}` }) : null,
+      ]);
+    }
 
     default:
       return glText({
@@ -833,7 +905,7 @@ function renderList(sec, opts = {}) {
   }
   rows.forEach((row, i) => {
     const tr = el('tr');
-    for (const c of columns) tr.append(el('td', { 'data-label': c.label }, [inputFor(c, row[c.key], (v) => { row[c.key] = v; })]));
+    for (const c of columns) tr.append(el('td', { 'data-label': c.label }, [inputFor(c, row[c.key], (v) => { row[c.key] = v; }, row)]));
     tr.append(el('td', { class: 'actions' }, [
       el('button', { class: 'btn btn-sm', title: '위로', disabled: i === 0, onclick: () => move(rows, i, -1) }, ['↑']), ' ',
       el('button', { class: 'btn btn-sm', title: '아래로', disabled: i === rows.length - 1, onclick: () => move(rows, i, 1) }, ['↓']), ' ',
