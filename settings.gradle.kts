@@ -21,3 +21,5 @@ include(":Gatcha Log Android")
 include(":Gatcha Log Shared")
 // Baseline Profile 생성 전용 테스트 모듈(Macrobenchmark). release 빌드에만 영향, 평소 빌드 무관.
 include(":baselineprofile")
+// Baseline Profile 모듈은 Android 앱 전용이라 그 폴더 안에 둔다.
+project(":baselineprofile").projectDir = file("Gatcha Log Android/baselineprofile")

@@ -53,6 +53,7 @@
 3. **배포**
 
    ```bash
+   cd "Gatcha Log Admin"   # firebase.json 이 이 폴더에 있다
    firebase deploy --only firestore:rules,hosting
    ```
 
