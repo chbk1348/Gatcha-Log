@@ -214,7 +214,8 @@ struct HoyolandFoodView: View {
                                                 .stroke(.black.opacity(0.06), lineWidth: 1))
                                     }
                                     .buttonStyle(.plain)
-                                    .padding(.leading, 12)
+                                    // 위아래 10 — 줄 여백이 글자 칸에만 있으면 사진이 줄 경계에 붙는다.
+                                    .padding(.leading, 12).padding(.vertical, 10)
                                 }
                                 VStack(alignment: .leading, spacing: 3) {
                                     HStack(spacing: 10) {
@@ -237,7 +238,7 @@ struct HoyolandFoodView: View {
                                     }
                                 }
                                 .frame(maxWidth: .infinity, alignment: .leading)
-                                .padding(.horizontal, 13).padding(.vertical, 11)
+                                .padding(.leading, photo.isEmpty ? 13 : 12).padding(.trailing, 13).padding(.vertical, 11)
                                 }
                             }
                         }

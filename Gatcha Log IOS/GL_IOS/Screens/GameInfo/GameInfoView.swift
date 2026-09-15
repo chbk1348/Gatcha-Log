@@ -15,8 +15,8 @@ struct GameInfoView: View {
     @State private var showSchedule = false
     @State private var showNews = false
     @State private var showHoyoland = false
-    /// 호요랜드 배너 노출 판정용 — 시즌(개막 D-60 ~ 폐막일)에만 섹션을 세운다.
-    @State private var hoyolandEvent: HoyolandEvent = HoyolandApi.shared.current
+    /// 호요랜드 상세에 들어가며 곧장 열 하위 페이지(섹션의 바로가기 4칸). 다른 진입점은 `.none`.
+    @State private var hoyolandInitial: HoyolandSubPage = .none
     /// 출석 체크 상세(데일리 타일에서 진입).
     @State private var showAttendance = false
     /// 전투 진행도·수입 일지 상세(데일리에서 진입).
@@ -71,7 +71,17 @@ struct GameInfoView: View {
         .navigationDestination(isPresented: $showNewsDetail) {
             if let n = selectedNews { NewsDetailView(store: store, item: n) }
         }
-        .navigationDestination(isPresented: $showHoyoland) { HoyolandDetailView(store: store) }
+        .navigationDestination(isPresented: $showHoyoland) {
+            // 바로가기 4칸은 상세를 거치지 않고 **그 페이지를 곧장** 띄운다 — 상세 위에 올리면 뒤로가기에
+            // 상세가 끼어들어 게임정보 탭으로 한 번에 못 돌아왔다(2026-09-15 지적).
+            switch hoyolandInitial {
+            case .stage: HoyolandStageView(event: HoyolandApi.shared.current)
+            case .goods: HoyolandGoodsView(event: HoyolandApi.shared.current, store: store)
+            case .booth: HoyolandBoothView(event: HoyolandApi.shared.current)
+            case .food: HoyolandFoodView(event: HoyolandApi.shared.current)
+            case .none: HoyolandDetailView(store: store)
+            }
+        }
         .navigationDestination(isPresented: $showAttendance) { AttendanceDetailView(store: store) }
         .navigationDestination(isPresented: $showGameContent) {
             sectionPage("전투 · 수입 일지") {
@@ -128,6 +138,7 @@ struct GameInfoView: View {
         // 호요랜드도 스크롤이 아니라 페이지 진입이다 — 홈 카드에서 온 사람이 보려는 건
         // 게임정보 목록의 그 자리가 아니라 상세 내용이다.
         if anchor == .hoyoland {
+            hoyolandInitial = .none
             showHoyoland = true
             store.consumeGameInfoAnchor()
             return
@@ -185,12 +196,9 @@ struct GameInfoView: View {
                                  onOpenAttendance: { showAttendance = true },
                                  onOpenGameContent: { showGameContent = true },
                                  onOpenClears: { showCombatClears = true }).id("NOTES")
-                // 호요랜드 배너 — 「오늘 할 일」 바로 밑(미연동이면 데일리 자리의 연동 안내 밑).
-                // 시즌에만 섹션을 세운다 — 카드가 스스로 숨어도 section 의 위 여백은 남기 때문이다.
-                // 폐막 다음 날(10월 6일)부터 isFeatured 가 false 라 사라진다. 규격은 홈 배너와 같은 카드.
-                if hoyolandEvent.isFeatured(nowMillis: Int64(Date().timeIntervalSince1970 * 1000)) {
-                    section { HoyolandHomeCard(onTap: { showHoyoland = true }) }
-                }
+                // 호요랜드 — 「오늘 할 일」 바로 밑(미연동이면 데일리 자리의 연동 안내 밑). 바로가기 4칸이
+                // 하위 페이지로 곧장 들어간다. 폐막 뒤에는 섹션이 한 줄로 줄어든다(HoyolandSection).
+                section { HoyolandSection(onOpen: { sub in hoyolandInitial = sub; showHoyoland = true }) }
                 // 숙제 완주율은 별도 섹션을 두지 않는다 — 데일리의 게임 줄에 완주율까지 들어간다.
                 // 내 캐릭터(보유 전체 로스터) — 데일리 다음 핵심 콘텐츠로 상단 배치
                 // 미연동이면 섹션·상단 여백까지 통째 생략(빈 여백 방지).
@@ -207,8 +215,6 @@ struct GameInfoView: View {
                 if !schedule.isEmpty {
                     section { GameScheduleSection(entries: schedule, banners: store.activeBanners, onSeeAll: { showSchedule = true }) }.id("SCHEDULE")
                 }
-                // 호요랜드 — 호요버스 한국 오프라인 행사(플레이스홀더). 탭하면 예상 장소·지난 행사 상세로.
-                section { HoyolandSection(onOpen: { showHoyoland = true }) }
                 // 공지·뉴스 — 게임별 최신 공지(탭하면 HoYoLab 열기). 더보기로 전체 페이지.
                 section { NewsSection(store: store, onSeeAll: { showNews = true }, onOpenNews: { selectedNews = $0; showNewsDetail = true }) }.id("NEWS")
                 // 진입 카드 — 가챠 도구.
@@ -221,7 +227,6 @@ struct GameInfoView: View {
             .glgReadableWidth(720)
         }
         .scrollIndicators(.hidden)
-        .loadHoyoland(into: $hoyolandEvent)
         // 홈 카드 딥링크 — 진입 시점(onAppear)·이미 떠 있는 상태에서 재요청(onChange) 모두 처리.
         .onAppear { scrollToPendingAnchor(proxy) }
         .onChange(of: store.pendingGameInfoAnchor) { _, _ in scrollToPendingAnchor(proxy) }
