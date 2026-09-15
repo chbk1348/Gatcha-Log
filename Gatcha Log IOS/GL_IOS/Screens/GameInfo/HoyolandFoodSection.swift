@@ -349,6 +349,8 @@ struct HoyolandPhotoSheet: View {
     let price: String
     let url: URL?
     @Environment(\.dismiss) private var dismiss
+    /// 시트 높이 = 내용 높이 — 굿즈 시트와 같은 이유(끝까지 올라오면 닫기가 떠 보인다).
+    @State private var contentHeight: CGFloat = 560
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -367,11 +369,14 @@ struct HoyolandPhotoSheet: View {
                 Text(price).font(.pretendard(size: 20, weight: .black)).monospacedDigit()
                     .foregroundStyle(color).padding(.top, 4)
             }
-            Spacer(minLength: 18)
             GLGOutlineButton(title: "닫기") { dismiss() }
+                .padding(.top, 18)
         }
         .padding(.horizontal, 18).padding(.top, 22).padding(.bottom, 16)
-        .presentationDetents([.fraction(0.72), .large])
+        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { contentHeight = $0 }
+        .frame(maxHeight: .infinity, alignment: .top)
+        .presentationDetents([.height(contentHeight)])
         .presentationDragIndicator(.visible)
+        .presentationBackground(.white)
     }
 }

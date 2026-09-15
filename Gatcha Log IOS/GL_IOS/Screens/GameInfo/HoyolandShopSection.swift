@@ -710,14 +710,16 @@ struct HoyolandGoodsImageSheet: View {
     let start: HoyolandGoods
     @Environment(\.glgAccent) private var accent
     @Environment(\.dismiss) private var dismiss
+    /// 시트 높이 = 내용 높이. `.large` 로 열면 화면 끝까지 올라와 닫기 · 담기가 내용 바로 밑이 아니라
+    /// 위쪽에 떠 보였다(2026-09-15 iOS 지적). 재서 그만큼만 연다.
+    @State private var contentHeight: CGFloat = 640
 
     var body: some View {
         let item = start
         let raw = event.stageColor(game: item.game)
         let c: Color = raw == 0 ? GLGColor.textSecondary : Color(argb64: raw)
         let quantity = Int(store.hoyolandCart.quantityOf(name: item.name))
-        ScrollView {
-            VStack(alignment: .leading, spacing: 0) {
+        VStack(alignment: .leading, spacing: 0) {
                 HoyolandZoomableImage(url: URL(string: item.imageUrl))
                     .frame(height: 320)
                     .background(GLGCartRowBg, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
@@ -772,12 +774,14 @@ struct HoyolandGoodsImageSheet: View {
                     }
                 }
                 .padding(.top, 18)
-            }
-            .padding(.horizontal, 18).padding(.top, 22).padding(.bottom, 16)
         }
-        .scrollIndicators(.hidden)
-        .presentationDetents([.large])
+        .padding(.horizontal, 18).padding(.top, 22).padding(.bottom, 16)
+        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { contentHeight = $0 }
+        .frame(maxHeight: .infinity, alignment: .top)
+        .presentationDetents([.height(contentHeight)])
         .presentationDragIndicator(.visible)
+        // iOS 26+ 시트 기본 배경은 반투명 유리라 사진 · 가격이 뒤 목록과 겹쳐 보인다 — 흰 면으로 고정.
+        .presentationBackground(.white)
     }
 }
 
@@ -786,6 +790,9 @@ struct HoyolandGuideSheet: View {
     let text: String
     @Environment(\.glgAccent) private var accent
     @Environment(\.dismiss) private var dismiss
+    /// 시트 높이 = 본문 + 하단 닫기 영역. 길면 화면 높이에서 멈추고 본문만 스크롤된다(2026-09-15 요청).
+    @State private var bodyHeight: CGFloat = 480
+    @State private var footerHeight: CGFloat = 64
 
     var body: some View {
         ScrollView {
@@ -797,13 +804,22 @@ struct HoyolandGuideSheet: View {
                         .foregroundStyle(GLGColor.textSecondary)
                 }
                 HoyolandGuideContent(text: text)
-                GLGOutlineButton(title: "닫기") { dismiss() }.padding(.top, 6)
             }
-            .padding(.horizontal, 18).padding(.top, 22).padding(.bottom, 16)
+            .padding(.horizontal, 18).padding(.top, 22).padding(.bottom, 12)
+            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { bodyHeight = $0 }
         }
         .scrollIndicators(.hidden)
-        .presentationDetents([.medium, .large])
+        // 닫기는 **늘 아래에 보인다**(2026-09-15 요청) — 본문 끝에 두면 안내가 길 때 스크롤해야 나왔다.
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            GLGOutlineButton(title: "닫기") { dismiss() }
+                .padding(.horizontal, 18).padding(.top, 8).padding(.bottom, 12)
+                .background(Color.white)
+                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { footerHeight = $0 }
+        }
+        .presentationDetents([.height(bodyHeight + footerHeight)])
         .presentationDragIndicator(.visible)
+        // iOS 26+ 시트 기본 배경은 반투명 유리 — 안내 글이 뒤 목록과 겹쳐 읽히지 않았다(2026-09-15). 흰 면으로 고정.
+        .presentationBackground(.white)
     }
 }
 
