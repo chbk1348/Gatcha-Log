@@ -54,6 +54,12 @@ object ChangeLog {
     const val minSupportedVersionCode: Long = 273000
 
     val entries: List<ChangeEntry> = buildList {
+        // ⚠️ 27.50.2 날짜는 잠정 — 배포일이 정해지면 그날로 맞출 것. 27.50.1 은 배포되지 않고 이번으로 합쳤다.
+        add(ChangeEntry("27.50.2", "2026.09.15", items = listOf(
+            new("호요랜드 굿즈 · 푸드 메뉴 사진 추가"),
+            new("게임 정보 탭에 호요랜드 배너 추가"),
+            imp("호요랜드 굿즈를 디자인별 항목으로 분리"),
+        )))
         // 27.43.5 는 배포되지 않았다(version.json 은 274310 에서 멈춰 있다). 그 사이클의 항목을
         // 따로 남겨 두면 유저가 받은 적 없는 릴리스가 목록에 뜨므로, 이번 27.50.0 으로 합친다.
         //
