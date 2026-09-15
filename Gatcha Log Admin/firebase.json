@@ -3,8 +3,8 @@
     "rules": "firestore.rules"
   },
   "hosting": {
-    "public": "Gatcha Log Admin",
-    "ignore": ["README.md", "firebase-config.local.js"],
+    "public": ".",
+    "ignore": ["firebase.json", "firestore.rules", "README.md", "firebase-config.local.js", "**/.*", "**/node_modules/**"],
     "headers": [
       {
         "source": "**/*.@(js|css|html)",

@@ -26,7 +26,7 @@ import org.junit.runner.RunWith
  *   -Pandroid.testInstrumentationRunnerArguments.class=com.gatcha.log.baselineprofile.StartupBenchmark
  * ```
  *
- * USB 연결 실기기 1대 필요. 결과는 `baselineprofile/build/outputs/connected_android_test_additional_output/`
+ * USB 연결 실기기 1대 필요. 결과는 `Gatcha Log Android/baselineprofile/build/outputs/connected_android_test_additional_output/`
  * 의 json 과 logcat 에 나온다. **timeToInitialDisplayMs 를 본다.**
  *
  * ## 읽는 법
