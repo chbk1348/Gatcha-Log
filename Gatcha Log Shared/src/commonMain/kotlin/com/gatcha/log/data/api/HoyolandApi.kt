@@ -194,6 +194,7 @@ object HoyolandApi {
             // goods·booths 도 days 와 같다 — **빈 배열이 유효한 값**이라 걸러내지 않는다.
             goods = o.optJSONArray("goods")?.let { parseGoods(it) } ?: d.goods,
             booths = o.optJSONArray("booths")?.let { parseBooths(it) } ?: d.booths,
+            goodsGuide = o.optString("goodsGuide", d.goodsGuide).trim(),
         )
     }
 
@@ -245,7 +246,18 @@ object HoyolandApi {
             val o = arr.optJSONObject(i) ?: return@mapNotNull null
             val title = o.optString("title").trim()
             if (title.isBlank()) return@mapNotNull null
-            HoyolandProgram(title, o.optString("desc"), o.optString("deadline"))
+            HoyolandProgram(
+                title, o.optString("desc"), o.optString("deadline"),
+                // 푸드 메뉴 사진 — { "메뉴 줄 이름": "food/hsr-06.webp" }. 빈 값은 버린다.
+                menuImages = o.optJSONObject("menuImages")?.let { m ->
+                    buildMap {
+                        m.keys().forEach { k ->
+                            val v = m.optString(k).trim()
+                            if (k.isNotBlank() && v.isNotEmpty()) put(k.trim(), v)
+                        }
+                    }
+                } ?: emptyMap(),
+            )
         }
 
     /** 지스타 — 여기도 빠진 키는 번들 기본값으로 메운다(참가사만 갱신하는 일이 잦다). */
@@ -302,6 +314,8 @@ object HoyolandApi {
                 game = o.optString("game").trim(),
                 category = o.optString("category").trim(),
                 note = o.optString("note").trim(),
+                // 사진 경로 — 앱이 raw 주소로 바꿔 읽는다(hoyolandAssetUrl). 없으면 자리표시.
+                image = o.optString("image").trim(),
             )
         }
     }

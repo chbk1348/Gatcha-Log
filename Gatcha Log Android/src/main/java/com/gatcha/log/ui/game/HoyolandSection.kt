@@ -1,6 +1,11 @@
 package com.gatcha.log.ui.game
 
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.calculateZoom
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Brush
@@ -1123,6 +1128,19 @@ fun HoyolandGoodsContent(
         return
     }
 
+    // ── 굿즈존 공통 안내 — 맨 위. 목록과 같이 스크롤돼 올라가 가려진다(게임 탭만 붙박이).
+    // 주문·결제·수령 방식은 사기 전에 한 번 읽으면 되는 값이라 붙박이로 둘 이유가 없다.
+    if (e.goodsGuide.isNotBlank()) {
+        GlassCard(modifier = Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(16.dp)) {
+                Text("굿즈존 이용 안내", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+                Spacer(Modifier.height(10.dp))
+                HoyolandRichText(e.goodsGuide, valueColor = LocalAccent.current)
+            }
+        }
+        Spacer(Modifier.height(10.dp))
+    }
+
     // ── 가격대 — 목록보다 먼저. 얼마를 들고 갈지가 첫 질문이다.
     GlassCard(modifier = Modifier.fillMaxWidth()) {
         Row(
@@ -1149,11 +1167,19 @@ fun HoyolandGoodsContent(
     // ([HoyolandGoodsTabs]). 100줄짜리 목록에서 같이 밀려 올라가면 안 되는 값이라서다.
 
     val shown = all.filter { gameFilter == null || it.game == gameFilter }
+    // 크게 보기 — 사진이 있는 품목을 누르면 바텀시트(목업 A안). 목록 위치를 잃지 않는다.
+    val viewing = androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<HoyolandGoods?>(null) }
     shown.forEach { item ->
         Spacer(Modifier.height(10.dp))
         GlassCard(modifier = Modifier.fillMaxWidth()) {
-            HoyolandGoodsCard(e, item, cart.quantityOf(item.name), onQuantity)
+            HoyolandGoodsCard(
+                e, item, cart.quantityOf(item.name), onQuantity,
+                onImage = if (item.imageUrl.isNotBlank()) ({ viewing.value = item }) else null,
+            )
         }
+    }
+    viewing.value?.let { v ->
+        HoyolandGoodsImageSheet(e, v, all, cart, onQuantity, onDismiss = { viewing.value = null })
     }
     // 하단 고정 바에 가리지 않게 비워 둔다. 이 바는 콘텐츠를 밀지 않고 **위에 겹치므로**
     // (SectionPage 가 Box.align(BottomCenter) 로 얹는다) 여기서 비운 만큼만 안전해진다.
@@ -1181,6 +1207,8 @@ private fun HoyolandGoodsCard(
     item: HoyolandGoods,
     quantity: Int,
     onQuantity: (String, Int) -> Unit,
+    /** 사진을 크게 보기. null 이면 사진이 없는 품목 — 칸은 게임 자리표시로 그린다. */
+    onImage: (() -> Unit)? = null,
 ) = Column {
     val accent = LocalAccent.current
     val raw = e.stageColor(item.game)
@@ -1189,28 +1217,52 @@ private fun HoyolandGoodsCard(
     // 가운데 정렬이다. 가격이 왼쪽으로 내려가면서 오른쪽에는 담기 버튼 하나만 남았으므로,
     // 위로 붙이면 왼쪽 덩이(이름+가격+비고)보다 훨씬 짧은 버튼이 카드 꼭대기에 홀로 뜬다.
     // (가격이 오른쪽에 있던 동안에는 위 정렬이 맞았다 — 그때는 그 열도 세 줄이었다.)
+    // 사진이 있는 카드는 **카드 어디를 눌러도** 크게 보기다(담기·스테퍼는 자기 클릭을 먼저 먹는다).
+    val hasImage = onImage != null
     Row(
         Modifier
             .fillMaxWidth()
+            .then(if (hasImage) Modifier.clickable { onImage?.invoke() } else Modifier)
             .padding(horizontal = 16.dp, vertical = 13.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        // 썸네일 자리 — 공식 굿즈 이미지가 나오면 이 칸을 그대로 이미지로 바꾼다.
+        // 썸네일 — 사진이 있으면 사진(흰 바탕 + 확대 표시), 없으면 게임 자리표시.
         Box(
             Modifier
                 .size(48.dp)
                 .clip(RoundedCornerShape(12.dp))
-                .background(c.copy(alpha = 0.12f)),
+                .background(if (hasImage) Color.White else c.copy(alpha = 0.12f))
+                .then(if (hasImage) Modifier.border(1.dp, DividerColor, RoundedCornerShape(12.dp)) else Modifier),
             contentAlignment = Alignment.Center,
         ) {
-            Text(
-                label,
-                fontSize = 9.5.sp, fontWeight = FontWeight.Black,
-                color = c,
-                textAlign = TextAlign.Center, lineHeight = 11.sp, maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(horizontal = 3.dp),
-            )
+            if (hasImage) {
+                coil.compose.AsyncImage(
+                    model = item.imageUrl,
+                    contentDescription = item.name,
+                    contentScale = androidx.compose.ui.layout.ContentScale.Fit,
+                    modifier = Modifier.fillMaxSize().padding(3.dp),
+                )
+                // 확대 표시 — 누르면 크게 볼 수 있다는 것만 알린다.
+                Text(
+                    "⤢",
+                    fontSize = 8.sp, lineHeight = 10.sp, color = Color.White,
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .padding(2.dp)
+                        .clip(RoundedCornerShape(4.dp))
+                        .background(Color(0x8C1A1C1E))
+                        .padding(horizontal = 2.dp),
+                )
+            } else {
+                Text(
+                    label,
+                    fontSize = 9.5.sp, fontWeight = FontWeight.Black,
+                    color = c,
+                    textAlign = TextAlign.Center, lineHeight = 11.sp, maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(horizontal = 3.dp),
+                )
+            }
         }
         Column(Modifier.weight(1f).padding(start = 11.dp)) {
             Text(item.name, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextPrimary, lineHeight = 18.sp)
@@ -1336,6 +1388,198 @@ private fun HoyolandGoodsCard(
                 )
             }
         }
+    }
+}
+
+/**
+ * 굿즈 크게 보기 — 바텀시트(목업 `design_hoyoland_goods_image_mockup.html` A안).
+ *
+ * 사진 + 이름·가격·배지 + 담기까지 한 장에서 끝낸다. 같은 물건의 다른 디자인([HoyolandGoods.designGroup]
+ * · 같은 게임 · 같은 가격)은 좌우로 넘겨 본다 — 어벤츄린·웨이브를 보다가 펄로 넘어가는 흐름이 흔하다.
+ * 캐릭터별 상품("봉제인형 키링 - 종려")도 같은 꼴이라, 같은 가격 조건이 없으면 가격이 다른 줄까지 묶인다.
+ * iOS `HoyolandGoodsImageSheet` 와 파리티.
+ */
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+@Composable
+private fun HoyolandGoodsImageSheet(
+    e: HoyolandEvent,
+    start: HoyolandGoods,
+    all: List<HoyolandGoods>,
+    cart: HoyolandCart,
+    onQuantity: (String, Int) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val accent = LocalAccent.current
+    val siblings = androidx.compose.runtime.remember(start, all) {
+        all.filter {
+            it.imageUrl.isNotBlank() && it.game == start.game && it.price == start.price &&
+                it.designGroup == start.designGroup
+        }.ifEmpty { listOf(start) }
+    }
+    val pager = androidx.compose.foundation.pager.rememberPagerState(
+        initialPage = siblings.indexOf(start).coerceAtLeast(0),
+    ) { siblings.size }
+    val item = siblings[pager.currentPage.coerceIn(0, siblings.lastIndex)]
+    val raw = e.stageColor(item.game)
+    val c = if (raw == 0L) TextSecondary else raw.toColor()
+    val quantity = cart.quantityOf(item.name)
+    androidx.compose.material3.ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        containerColor = Color.White,
+    ) {
+        Column(
+            Modifier.fillMaxWidth().padding(horizontal = 18.dp).navigationBarsPadding().padding(bottom = 16.dp),
+        ) {
+            androidx.compose.foundation.pager.HorizontalPager(
+                state = pager,
+                modifier = Modifier.fillMaxWidth().height(320.dp)
+                    .clip(RoundedCornerShape(18.dp)).background(CartRowBg),
+            ) { page ->
+                HoyolandZoomableImage(siblings[page].imageUrl, siblings[page].name)
+            }
+            if (siblings.size > 1) {
+                Row(Modifier.fillMaxWidth().padding(top = 9.dp), horizontalArrangement = Arrangement.Center) {
+                    siblings.indices.forEach { i ->
+                        val on = i == pager.currentPage
+                        Box(
+                            Modifier.padding(horizontal = 2.5.dp).height(6.dp).width(if (on) 16.dp else 6.dp)
+                                .clip(RoundedCornerShape(99.dp)).background(if (on) c else DividerColor),
+                        )
+                    }
+                }
+            }
+            Spacer(Modifier.height(12.dp))
+            HoyolandSheetBadge(if (item.game.isBlank()) "공용" else e.stageLabel(item.game), c)
+            Spacer(Modifier.height(7.dp))
+            Text(item.name, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = TextPrimary, lineHeight = 24.sp)
+            Spacer(Modifier.height(4.dp))
+            Text(
+                if (item.price > 0) e.wonLabel(item.price) else "가격 미정",
+                fontSize = 22.sp, fontWeight = FontWeight.Black, color = TextPrimary,
+                style = LocalTextStyle.current.copy(fontFeatureSettings = "tnum"),
+            )
+            if (item.noteRest.isNotBlank()) {
+                Spacer(Modifier.height(4.dp))
+                Text(item.noteRest, fontSize = 12.sp, color = c, lineHeight = 17.sp)
+            }
+            val badges = listOf(item.seriesLabel, item.limitLabel).filter { it.isNotBlank() }
+            if (badges.isNotEmpty()) {
+                Spacer(Modifier.height(10.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    badges.forEach {
+                        Text(
+                            it, fontSize = 10.5.sp, fontWeight = FontWeight.Bold, color = WarnText,
+                            modifier = Modifier.clip(RoundedCornerShape(6.dp)).background(WarnBg)
+                                .padding(horizontal = 7.dp, vertical = 3.dp),
+                        )
+                    }
+                }
+            }
+            Spacer(Modifier.height(18.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                com.gatcha.log.ui.components.GlgOutlineButton("닫기", onClick = onDismiss, modifier = Modifier.weight(1f))
+                if (quantity <= 0) {
+                    com.gatcha.log.ui.components.GlgButton(
+                        "담기", onClick = { onQuantity(item.name, 1) }, modifier = Modifier.weight(1f),
+                    )
+                } else {
+                    // 담은 뒤에는 스테퍼 — 목록 카드와 같은 동작을 시트에서도 한다.
+                    Row(
+                        Modifier.weight(1f).height(44.dp).clip(RoundedCornerShape(16.dp))
+                            .border(1.dp, DividerColor, RoundedCornerShape(16.dp)),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Box(
+                            Modifier.weight(1f).fillMaxHeight().clickable { onQuantity(item.name, quantity - 1) },
+                            contentAlignment = Alignment.Center,
+                        ) { Text("−", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = TextSecondary) }
+                        Text(
+                            "$quantity", fontSize = 15.sp, fontWeight = FontWeight.Black, color = accent,
+                            style = LocalTextStyle.current.copy(fontFeatureSettings = "tnum"),
+                        )
+                        Box(
+                            Modifier.weight(1f).fillMaxHeight().clickable { onQuantity(item.name, quantity + 1) },
+                            contentAlignment = Alignment.Center,
+                        ) { Text("+", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = TextSecondary) }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** 푸드 메뉴 사진 크게 보기 — 담기가 없는 [HoyolandGoodsImageSheet]. 음식은 장바구니에 담지 않는다. */
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+@Composable
+private fun HoyolandPhotoSheet(label: String, color: Color, title: String, price: String, url: String, onDismiss: () -> Unit) {
+    androidx.compose.material3.ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        containerColor = Color.White,
+    ) {
+        Column(Modifier.fillMaxWidth().padding(horizontal = 18.dp).navigationBarsPadding().padding(bottom = 16.dp)) {
+            Box(Modifier.fillMaxWidth().height(300.dp).clip(RoundedCornerShape(18.dp)).background(CartRowBg)) {
+                HoyolandZoomableImage(url, title)
+            }
+            Spacer(Modifier.height(12.dp))
+            if (label.isNotBlank()) {
+                HoyolandSheetBadge(label, color)
+                Spacer(Modifier.height(7.dp))
+            }
+            Text(title, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = TextPrimary, lineHeight = 24.sp)
+            if (price.isNotBlank()) {
+                Spacer(Modifier.height(4.dp))
+                Text(price, fontSize = 20.sp, fontWeight = FontWeight.Black, color = color)
+            }
+            Spacer(Modifier.height(18.dp))
+            com.gatcha.log.ui.components.GlgOutlineButton("닫기", onClick = onDismiss, modifier = Modifier.fillMaxWidth())
+        }
+    }
+}
+
+@Composable
+private fun HoyolandSheetBadge(text: String, color: Color) {
+    Text(
+        text, fontSize = 10.sp, fontWeight = FontWeight.Black, color = color,
+        modifier = Modifier.clip(RoundedCornerShape(6.dp)).background(color.copy(alpha = 0.12f))
+            .padding(horizontal = 7.dp, vertical = 2.dp),
+    )
+}
+
+/**
+ * 두 손가락 확대 — 떼면 제자리로 돌아온다.
+ *
+ * **두 손가락일 때만** 입력을 먹는다. 한 손가락 끌기까지 가져가면 시트의 페이저가 좌우로 넘어가지 않는다.
+ */
+@Composable
+private fun HoyolandZoomableImage(url: String, desc: String) {
+    val zoom = androidx.compose.runtime.remember(url) { androidx.compose.runtime.mutableFloatStateOf(1f) }
+    Box(
+        Modifier
+            .fillMaxSize()
+            .pointerInput(url) {
+                awaitEachGesture {
+                    awaitFirstDown(requireUnconsumed = false)
+                    do {
+                        val event = awaitPointerEvent()
+                        if (event.changes.count { it.pressed } >= 2) {
+                            zoom.floatValue = (zoom.floatValue * event.calculateZoom()).coerceIn(1f, 4f)
+                            event.changes.forEach { it.consume() }
+                        }
+                    } while (event.changes.any { it.pressed })
+                    zoom.floatValue = 1f
+                }
+            },
+        contentAlignment = Alignment.Center,
+    ) {
+        coil.compose.AsyncImage(
+            model = url,
+            contentDescription = desc,
+            contentScale = androidx.compose.ui.layout.ContentScale.Fit,
+            modifier = Modifier.fillMaxSize().padding(20.dp)
+                .graphicsLayer { scaleX = zoom.floatValue; scaleY = zoom.floatValue },
+        )
     }
 }
 
@@ -1721,6 +1965,15 @@ private fun HoyolandFoodCard(e: HoyolandEvent, p: HoyolandProgram) {
     val c = e.stageColor(game).let { if (it == 0L) TextSecondary else it.toColor() }
     // 메뉴 줄 세기 — 카드를 열기 전에 "몇 가지나 파나"가 보이게. 들여쓴 부연은 빼고 센다.
     val menuCount = p.desc.split("\n").count { it.startsWith("· ") && " — " in it }
+    // 메뉴 사진 크게 보기 — (이름, 가격, 주소).
+    val viewingFood = androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<Triple<String, String, String>?>(null) }
+    viewingFood.value?.let { (name, price, url) ->
+        HoyolandPhotoSheet(
+            label = if (game.isBlank()) "" else e.stageLabel(game), color = c,
+            title = name, price = price, url = url,
+            onDismiss = { viewingFood.value = null },
+        )
+    }
     GlassCard(modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -1772,7 +2025,24 @@ private fun HoyolandFoodCard(e: HoyolandEvent, p: HoyolandProgram) {
                     ) {
                         block.rows.forEachIndexed { i, row ->
                             if (i > 0) Box(Modifier.fillMaxWidth().height(1.dp).background(DividerColor))
-                            Column(Modifier.padding(horizontal = 13.dp, vertical = 11.dp)) {
+                            // 메뉴 사진 — 있으면 줄 왼쪽 52칸(누르면 크게 보기). 없으면 지금처럼 글만.
+                            val photo = p.menuImageUrl(row.name)
+                            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                            if (photo.isNotBlank()) {
+                                coil.compose.AsyncImage(
+                                    model = photo,
+                                    contentDescription = row.name,
+                                    contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                                    modifier = Modifier
+                                        .padding(start = 12.dp)
+                                        .size(52.dp)
+                                        .clip(RoundedCornerShape(10.dp))
+                                        .background(Color.White)
+                                        .border(1.dp, DividerColor, RoundedCornerShape(10.dp))
+                                        .clickable { viewingFood.value = Triple(row.name, row.price, photo) },
+                                )
+                            }
+                            Column(Modifier.weight(1f).padding(horizontal = 13.dp, vertical = 11.dp)) {
                                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                                     Text(
                                         row.name,
@@ -1788,6 +2058,7 @@ private fun HoyolandFoodCard(e: HoyolandEvent, p: HoyolandProgram) {
                                     Spacer(Modifier.height(3.dp))
                                     Text(row.sub, fontSize = 11.5.sp, color = TextThird, lineHeight = 16.sp)
                                 }
+                            }
                             }
                         }
                     }

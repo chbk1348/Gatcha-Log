@@ -75,7 +75,33 @@ data class HoyolandProgram(
     val desc: String,
     /** 참여 마감 안내. 없으면 빈 문자열. */
     val deadline: String = "",
-)
+    /**
+     * 푸드 메뉴 사진 — **메뉴 줄 이름 → 파일 경로**(`food/hsr-06.webp`).
+     *
+     * 메뉴는 설명글(`· 이름 — 7,000원`)에만 있고 항목 필드가 없어서, 사진을 줄 이름에 건다.
+     * 설명글 모양을 바꾸지 않으므로 이 칸을 모르는 옛 빌드는 지금 화면 그대로다.
+     */
+    val menuImages: Map<String, String> = emptyMap(),
+) {
+    /** 메뉴 줄 이름에 걸린 사진의 전체 주소. 없으면 빈 문자열. */
+    fun menuImageUrl(name: String): String = hoyolandAssetUrl(menuImages[name.trim()].orEmpty())
+}
+
+/**
+ * 호요랜드 사진 파일 경로 → 전체 주소.
+ *
+ * 사진은 `config/hoyoland.json` 옆(`config/goods/` · `config/food/`)에 두고 **정본과 같은 raw 주소**로
+ * 읽는다. JSON 에는 짧은 상대 경로만 적는다 — 저장소 주소가 바뀌면 여기 한 곳만 고친다.
+ * `http` 로 시작하면 외부 주소로 보고 그대로 쓴다. 비면 빈 문자열(= 사진 없음).
+ */
+fun hoyolandAssetUrl(path: String): String {
+    val p = path.trim()
+    if (p.isEmpty()) return ""
+    if (p.startsWith("http://") || p.startsWith("https://")) return p
+    return HOYOLAND_ASSET_BASE + p.removePrefix("/")
+}
+
+const val HOYOLAND_ASSET_BASE = "https://raw.githubusercontent.com/chbk1348/Gatcha-Log/main/config/"
 
 /** 예매 정보. [status] 가 [HoyolandTicketStatus.UNDECIDED] 면 [note] 만 보여 준다. */
 data class HoyolandTicket(
@@ -197,7 +223,20 @@ data class HoyolandGoods(
     val game: String = "",
     val category: String = "",
     val note: String = "",
+    /** 사진 파일 경로(`goods/hsr-036.webp`). 없으면 빈 문자열 — 화면은 게임 자리표시로 그린다. */
+    val image: String = "",
 ) {
+    /** 사진의 전체 주소([hoyolandAssetUrl]). 없으면 빈 문자열. */
+    val imageUrl: String get() = hoyolandAssetUrl(image)
+
+    /**
+     * 같은 물건의 다른 디자인을 묶는 이름 — "아크릴 스탠드 - 펄" 의 "아크릴 스탠드".
+     *
+     * 크게 보기에서 형제 디자인을 좌우로 넘길 때 쓴다. 공식 표가 디자인을 " - " 뒤에 붙여 내고,
+     * 캐릭터별 상품("봉제인형 키링 - 종려")도 같은 꼴이라 **같은 게임 · 같은 가격**까지 맞아야 형제로 본다.
+     */
+    val designGroup: String get() = name.substringBeforeLast(" - ").trim()
+
     /** `note` 를 " · " 로 끊은 토막들. 공식 표가 조건을 이 구분자로 이어 붙여 낸다. */
     private val noteParts: List<String>
         get() = note.split(" · ").map { it.trim() }.filter { it.isNotEmpty() }
@@ -473,6 +512,12 @@ data class HoyolandEvent(
     val goods: List<HoyolandGoods> = emptyList(),
     /** 게임별 부스 체험. 위와 같은 이유로 비어 있을 수 있다. */
     val booths: List<HoyolandBooth> = emptyList(),
+    /**
+     * 굿즈존 공통 이용 안내(주문·결제·수령·사은품·교환) — 굿즈 목록 맨 위 카드. 비면 카드가 없다.
+     *
+     * 품목이 아니라 **굿즈존 운영 규칙**이라 굿즈 행에 흩을 수 없다. 줄 규칙은 예매 안내와 같다.
+     */
+    val goodsGuide: String = "",
 ) {
 
     private val start: LocalDate? get() = runCatching { LocalDate.parse(startYmd) }.getOrNull()

@@ -38,6 +38,8 @@ struct HoyolandGoodsView: View {
     @Environment(\.glgAccent) private var accent
     @State private var gameFilter: String? = nil
     @State private var showCart = false
+    /// 크게 보기 중인 품목 — 사진이 있는 카드를 누르면 바텀시트(목업 A안).
+    @State private var viewing: HoyolandGoods? = nil
 
     var body: some View {
         let all = event.visibleGoods
@@ -70,6 +72,8 @@ struct HoyolandGoodsView: View {
                     if all.isEmpty {
                         emptyCard
                     } else {
+                        // 굿즈존 공통 안내 — 맨 위. 목록과 같이 스크롤돼 올라가 가려진다(게임 탭만 붙박이).
+                        if !event.goodsGuide.isEmpty { goodsGuideCard.padding(.bottom, 10) }
                         priceRangeCard
                         ForEach(Array(shown.enumerated()), id: \.offset) { _, item in
                             GLGCard(cornerRadius: 24, padding: 0) {
@@ -112,6 +116,23 @@ struct HoyolandGoodsView: View {
         .navigationDestination(isPresented: $showCart) {
             HoyolandCartView(event: event, store: store)
         }
+        .sheet(isPresented: Binding(get: { viewing != nil }, set: { if !$0 { viewing = nil } })) {
+            if let v = viewing {
+                HoyolandGoodsImageSheet(event: event, store: store, start: v)
+            }
+        }
+    }
+
+    // ── 굿즈존 공통 안내 — 주문·결제·수령·사은품·교환. 사기 전에 한 번 읽으면 되는 값이라 붙박이로 두지 않는다.
+    private var goodsGuideCard: some View {
+        GLGCard(cornerRadius: 24, padding: 16) {
+            VStack(alignment: .leading, spacing: 10) {
+                Text("굿즈존 이용 안내").font(.pretendard(size: 14, weight: .bold))
+                    .foregroundStyle(GLGColor.textPrimary)
+                HoyolandRichText(text: event.goodsGuide, valueColor: accent.primary)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
     }
 
     // ── 가격대 — 목록보다 먼저. 얼마를 들고 갈지가 첫 질문이다.
@@ -152,14 +173,31 @@ struct HoyolandGoodsView: View {
         let meta = item.noteRest
         VStack(spacing: 0) {
             HStack(spacing: 0) {
-            // 썸네일 자리 — 공식 굿즈 이미지가 나오면 이 칸을 그대로 이미지로 바꾼다.
-            Text(label)
-                .font(.pretendard(size: 9.5, weight: .black))
-                .foregroundStyle(c)
-                .multilineTextAlignment(.center).lineLimit(2)
-                .padding(.horizontal, 3)
-                .frame(width: 48, height: 48)
-                .background(c.opacity(0.12), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            // 썸네일 — 사진이 있으면 사진(흰 바탕 + 확대 표시), 없으면 게임 자리표시.
+            if !item.imageUrl.isEmpty {
+                GLGRemoteImage(url: URL(string: item.imageUrl), side: 48, contentMode: .fit) { Color.clear }
+                    .padding(3)
+                    .frame(width: 48, height: 48)
+                    .background(Color.white, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .stroke(.black.opacity(0.06), lineWidth: 1))
+                    .overlay(alignment: .bottomTrailing) {
+                        // 확대 표시 — 누르면 크게 볼 수 있다는 것만 알린다.
+                        Image(systemName: "arrow.up.left.and.arrow.down.right")
+                            .font(.system(size: 6.5, weight: .bold)).foregroundStyle(.white)
+                            .padding(2.5)
+                            .background(Color.black.opacity(0.55), in: RoundedRectangle(cornerRadius: 4, style: .continuous))
+                            .padding(2)
+                    }
+            } else {
+                Text(label)
+                    .font(.pretendard(size: 9.5, weight: .black))
+                    .foregroundStyle(c)
+                    .multilineTextAlignment(.center).lineLimit(2)
+                    .padding(.horizontal, 3)
+                    .frame(width: 48, height: 48)
+                    .background(c.opacity(0.12), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            }
             VStack(alignment: .leading, spacing: 3) {
                 Text(item.name).font(.pretendard(size: 13, weight: .bold))
                     .foregroundStyle(GLGColor.textPrimary)
@@ -231,6 +269,9 @@ struct HoyolandGoodsView: View {
             }
             }
             .padding(.horizontal, 16).padding(.vertical, 13)
+            // 사진이 있는 카드는 **어디를 눌러도** 크게 보기다(담기·스테퍼 버튼은 자기 탭을 먼저 받는다).
+            .contentShape(Rectangle())
+            .onTapGesture { if !item.imageUrl.isEmpty { viewing = item } }
             // 행사 한정 조건 띠 — 카드 폭을 꽉 채운 한 줄. 사기 전에 걸리는 값이라 '가격 미정'
             // 안내와 같은 경고색을 쓴다. 둘 다 없는 품목은 띠 자체를 세우지 않는다
             // (전부 붙이면 눈이 거른다).
@@ -651,5 +692,141 @@ struct HoyolandBoothView: View {
     private func boothColor(_ game: String) -> Color {
         let raw = event.stageColor(game: game)
         return raw == 0 ? GLGColor.textSecondary : Color(argb64: raw)
+    }
+}
+
+
+// ── 굿즈 크게 보기 ─────────────────────────────────────────────────────────────
+
+/**
+ 굿즈 크게 보기 — 바텀시트(목업 `design_hoyoland_goods_image_mockup.html` A안).
+
+ 사진 + 이름·가격·배지 + 담기까지 한 장에서 끝낸다. 같은 물건의 다른 디자인(`designGroup` · 같은 게임 ·
+ 같은 가격)은 좌우로 넘겨 본다. Android `HoyolandGoodsImageSheet` 와 파리티.
+ */
+struct HoyolandGoodsImageSheet: View {
+    let event: HoyolandEvent
+    var store: SpendingStore
+    let start: HoyolandGoods
+    @Environment(\.glgAccent) private var accent
+    @Environment(\.dismiss) private var dismiss
+    @State private var page = 0
+
+    private var siblings: [HoyolandGoods] {
+        let list = event.visibleGoods.filter {
+            !$0.imageUrl.isEmpty && $0.game == start.game && $0.price == start.price && $0.designGroup == start.designGroup
+        }
+        return list.isEmpty ? [start] : list
+    }
+
+    var body: some View {
+        let list = siblings
+        let item = list[min(max(page, 0), list.count - 1)]
+        let raw = event.stageColor(game: item.game)
+        let c: Color = raw == 0 ? GLGColor.textSecondary : Color(argb64: raw)
+        let quantity = Int(store.hoyolandCart.quantityOf(name: item.name))
+        ScrollView {
+            VStack(alignment: .leading, spacing: 0) {
+                TabView(selection: $page) {
+                    ForEach(Array(list.enumerated()), id: \.offset) { i, g in
+                        HoyolandZoomableImage(url: URL(string: g.imageUrl)).tag(i)
+                    }
+                }
+                .tabViewStyle(.page(indexDisplayMode: .never))
+                .frame(height: 320)
+                .background(GLGCartRowBg, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                if list.count > 1 {
+                    HStack(spacing: 5) {
+                        ForEach(0..<list.count, id: \.self) { i in
+                            Capsule().fill(i == page ? c : Color.black.opacity(0.12))
+                                .frame(width: i == page ? 16 : 6, height: 6)
+                        }
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.top, 9)
+                    .animation(GLGMotion.standard(), value: page)
+                }
+                hoyolandSheetBadge(item.game.isEmpty ? "공용" : event.stageLabel(game: item.game), c)
+                    .padding(.top, 12)
+                Text(item.name).font(.pretendard(size: 18, weight: .bold))
+                    .foregroundStyle(GLGColor.textPrimary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.top, 7)
+                Text(item.price > 0 ? event.wonLabel(v: item.price) : "가격 미정")
+                    .font(.pretendard(size: 22, weight: .black)).monospacedDigit()
+                    .foregroundStyle(GLGColor.textPrimary)
+                    .padding(.top, 4)
+                if !item.noteRest.isEmpty {
+                    Text(item.noteRest).font(.pretendard(size: 12)).foregroundStyle(c)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.top, 4)
+                }
+                let badges = [item.seriesLabel, item.limitLabel].filter { !$0.isEmpty }
+                if !badges.isEmpty {
+                    HStack(spacing: 6) {
+                        ForEach(badges, id: \.self) { b in
+                            Text(b).font(.pretendard(size: 10.5, weight: .bold)).foregroundStyle(GLGWarnText)
+                                .padding(.horizontal, 7).padding(.vertical, 3)
+                                .background(GLGWarnBg, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+                        }
+                    }
+                    .padding(.top, 10)
+                }
+                HStack(spacing: 8) {
+                    GLGOutlineButton(title: "닫기") { dismiss() }
+                    if quantity <= 0 {
+                        GLGButton(title: "담기") { store.setGoodsQuantity(item.name, 1) }
+                    } else {
+                        // 담은 뒤에는 스테퍼 — 목록 카드와 같은 동작을 시트에서도 한다.
+                        HStack(spacing: 0) {
+                            Button { store.setGoodsQuantity(item.name, quantity - 1) } label: {
+                                Text("−").font(.pretendard(size: 18, weight: .bold)).foregroundStyle(GLGColor.textSecondary)
+                                    .frame(maxWidth: .infinity, maxHeight: .infinity).contentShape(Rectangle())
+                            }.buttonStyle(.plain)
+                            Text("\(quantity)").font(.pretendard(size: 15, weight: .black)).monospacedDigit()
+                                .foregroundStyle(accent.primary)
+                            Button { store.setGoodsQuantity(item.name, quantity + 1) } label: {
+                                Text("+").font(.pretendard(size: 18, weight: .bold)).foregroundStyle(GLGColor.textSecondary)
+                                    .frame(maxWidth: .infinity, maxHeight: .infinity).contentShape(Rectangle())
+                            }.buttonStyle(.plain)
+                        }
+                        .frame(maxWidth: .infinity).frame(height: 44)
+                        .overlay(RoundedRectangle(cornerRadius: GLGControlRadius, style: .continuous)
+                            .stroke(.black.opacity(0.10), lineWidth: 1))
+                    }
+                }
+                .padding(.top, 18)
+            }
+            .padding(.horizontal, 18).padding(.top, 22).padding(.bottom, 16)
+        }
+        .scrollIndicators(.hidden)
+        .onAppear { page = list.firstIndex(where: { $0.name == start.name }) ?? 0 }
+        .presentationDetents([.large])
+        .presentationDragIndicator(.visible)
+    }
+}
+
+/// 사진 시트의 게임 배지 — 굿즈·푸드 시트가 같이 쓴다.
+func hoyolandSheetBadge(_ text: String, _ color: Color) -> some View {
+    Text(text).font(.pretendard(size: 10, weight: .black)).foregroundStyle(color)
+        .padding(.horizontal, 7).padding(.vertical, 2)
+        .background(color.opacity(0.12), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+}
+
+/// 두 손가락 확대 — 떼면 제자리로 돌아온다. 페이지 넘김(한 손가락)과 겹치지 않는다.
+struct HoyolandZoomableImage: View {
+    let url: URL?
+    @GestureState private var zoom: CGFloat = 1
+
+    var body: some View {
+        GLGRemoteImage(url: url, side: 320, contentMode: .fit) { ProgressView() }
+            .padding(20)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .scaleEffect(zoom)
+            .gesture(MagnifyGesture().updating($zoom) { v, state, _ in
+                state = min(max(v.magnification, 1), 4)
+            })
+            .animation(.spring(duration: 0.25), value: zoom)
     }
 }
