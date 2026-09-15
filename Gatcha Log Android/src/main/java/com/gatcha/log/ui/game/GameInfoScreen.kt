@@ -182,6 +182,10 @@ fun GameInfoScreen(
     val redeemedCodes by viewModel.redeemedCodes.collectAsStateWithLifecycle()
     val unusableCodes by viewModel.unusableCodes.collectAsStateWithLifecycle()
 
+    // 호요랜드 배너 — 시즌(개막 D-60 ~ 폐막일)에만 값이 있다. 폐막 다음 날(10월 6일)부터 null 이라 스스로 빠진다.
+    // 아래 앵커 계산이 섹션 칸 수를 세므로 목록과 같은 값을 여기서 한 번만 읽는다.
+    val featuredHoyoland = rememberFeaturedHoyoland()
+
     // 홈 대시보드 카드에서 넘어온 경우 해당 섹션으로 스크롤 앵커링(1회성).
     //
     // 섹션은 아래 LazyColumn 에 [스페이서, 본문] 2칸씩 쌓이고 일부는 조건부(미연동·일정 없음)라,
@@ -194,6 +198,7 @@ fun GameInfoScreen(
         val scheduleShown = schedule.isNotEmpty()
         var cursor = 1                                       // 0 헤더 스페이서 · 1 데일리
         val notesIdx = cursor                                // 섹션이 없을 때의 공통 폴백
+        if (featuredHoyoland != null) cursor += 2            // 호요랜드 배너(시즌에만)
         if (linked) cursor += 2                              // 내 캐릭터
         val scheduleIdx = if (scheduleShown) cursor + 2 else notesIdx
         if (scheduleShown) cursor += 2                       // 게임 일정
@@ -437,6 +442,19 @@ fun GameInfoScreen(
                     onOpenGameContent = { subPage = GiSub.GameContent },
                     onOpenClears = { subPage = GiSub.CombatClear },
                 )
+            }
+            // 호요랜드 배너 — 「오늘 할 일」 바로 밑(미연동이면 데일리 자리의 연동 안내 밑). 시즌에만 뜨고
+            // 폐막 다음 날부터 사라진다. 배너 규격은 홈과 같은 DashHoyolandCard 를 그대로 쓴다.
+            featuredHoyoland?.let { hoyoland ->
+                item { Spacer(Modifier.height(20.dp)) }
+                item {
+                    GiSection {
+                        com.gatcha.log.ui.home.DashHoyolandCard(hoyoland) {
+                            hoyolandReturn = GiSub.Main
+                            subPage = GiSub.Hoyoland
+                        }
+                    }
+                }
             }
             // 숙제 완주율은 별도 섹션을 두지 않는다 — 데일리의 게임 줄에 완주율까지 함께 들어간다.
             // 내 캐릭터(보유 전체 로스터) — 데일리 다음. 미연동이면 섹션·상단 여백까지 통째 생략(빈 여백 방지).

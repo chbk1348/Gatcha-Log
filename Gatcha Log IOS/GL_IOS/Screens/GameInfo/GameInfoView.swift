@@ -15,6 +15,8 @@ struct GameInfoView: View {
     @State private var showSchedule = false
     @State private var showNews = false
     @State private var showHoyoland = false
+    /// 호요랜드 배너 노출 판정용 — 시즌(개막 D-60 ~ 폐막일)에만 섹션을 세운다.
+    @State private var hoyolandEvent: HoyolandEvent = HoyolandApi.shared.current
     /// 출석 체크 상세(데일리 타일에서 진입).
     @State private var showAttendance = false
     /// 전투 진행도·수입 일지 상세(데일리에서 진입).
@@ -183,6 +185,12 @@ struct GameInfoView: View {
                                  onOpenAttendance: { showAttendance = true },
                                  onOpenGameContent: { showGameContent = true },
                                  onOpenClears: { showCombatClears = true }).id("NOTES")
+                // 호요랜드 배너 — 「오늘 할 일」 바로 밑(미연동이면 데일리 자리의 연동 안내 밑).
+                // 시즌에만 섹션을 세운다 — 카드가 스스로 숨어도 section 의 위 여백은 남기 때문이다.
+                // 폐막 다음 날(10월 6일)부터 isFeatured 가 false 라 사라진다. 규격은 홈 배너와 같은 카드.
+                if hoyolandEvent.isFeatured(nowMillis: Int64(Date().timeIntervalSince1970 * 1000)) {
+                    section { HoyolandHomeCard(onTap: { showHoyoland = true }) }
+                }
                 // 숙제 완주율은 별도 섹션을 두지 않는다 — 데일리의 게임 줄에 완주율까지 들어간다.
                 // 내 캐릭터(보유 전체 로스터) — 데일리 다음 핵심 콘텐츠로 상단 배치
                 // 미연동이면 섹션·상단 여백까지 통째 생략(빈 여백 방지).
@@ -213,6 +221,7 @@ struct GameInfoView: View {
             .glgReadableWidth(720)
         }
         .scrollIndicators(.hidden)
+        .loadHoyoland(into: $hoyolandEvent)
         // 홈 카드 딥링크 — 진입 시점(onAppear)·이미 떠 있는 상태에서 재요청(onChange) 모두 처리.
         .onAppear { scrollToPendingAnchor(proxy) }
         .onChange(of: store.pendingGameInfoAnchor) { _, _ in scrollToPendingAnchor(proxy) }
