@@ -273,6 +273,29 @@ class SpendingViewModel : ViewModel() {
         _hoyolandCart.value = next
     }
 
+    /**
+     * 호요랜드 내 입장권 — 날짜마다 정해 둔 조([HoyolandEntry]).
+     *
+     * 장바구니와 같은 이유로 저장한다. 표는 개막 2주 전에 사고 조는 그때 정해지는데, 현장에
+     * 서서 "내가 몇 시 조였지" 를 다시 입력하게 둘 수는 없다.
+     */
+    private val _hoyolandEntry = MutableStateFlow(HoyolandEntry.parse(appSettings.hoyolandEntryRaw))
+    val hoyolandEntry: StateFlow<HoyolandEntry> = _hoyolandEntry.asStateFlow()
+
+    /**
+     * 그날의 조를 정한다. **같은 조를 다시 누르면 해제**되어 안 가는 날로 돌아간다
+     * ([HoyolandEntry.withGroup]) — 화면에 "안 감" 칸을 따로 두지 않으려는 것이다.
+     */
+    fun setEntryGroup(ymd: String, group: String) = updateEntry { it.withGroup(ymd, group) }
+
+    fun clearEntry() = updateEntry { it.cleared() }
+
+    private inline fun updateEntry(edit: (HoyolandEntry) -> HoyolandEntry) {
+        val next = edit(_hoyolandEntry.value)
+        appSettings.hoyolandEntryRaw = next.serialize()
+        _hoyolandEntry.value = next
+    }
+
     private val _collabBannerExpanded = MutableStateFlow(appSettings.collabBannerExpanded)
     val collabBannerExpanded: StateFlow<Boolean> = _collabBannerExpanded.asStateFlow()
     fun setCollabBannerExpanded(v: Boolean) { appSettings.collabBannerExpanded = v; _collabBannerExpanded.value = v }
@@ -1255,6 +1278,45 @@ class SpendingViewModel : ViewModel() {
 
     /** 지금 목업이 얹혀 있는지 — 개발자 화면 토글 표시. */
     fun debugStageMockOn(): Boolean = HoyolandApi.isStageMock
+
+    /**
+     * 호요랜드 **행사 단계** 목업 — 개막 전 → 진행 중 → 종료 → 끔을 돌아가며 얹는다.
+     *
+     * 이 화면은 단계마다 답하는 말이 통째로 바뀌는데(카운트다운 → 일차 · 게이지 → 없음 ·
+     * 예매와 「현장에서」 순서 뒤집힘 · 라인업 부제가 테마 → 무대 상태) 실제 개막일까지는
+     * 개막 전 하나만 볼 수 있었다. 날짜만 옮긴 이벤트를 얹어 셋을 바로 확인한다.
+     *
+     * @return 바뀐 뒤의 키(`""` 면 껐다는 뜻) — 화면이 그대로 표시에 쓴다.
+     */
+    fun debugCycleHoyolandPhase(): String {
+        val next = when (HoyolandApi.debugPhaseMockKey) {
+            HoyolandDefaults.PHASE_MOCK_BEFORE -> HoyolandDefaults.PHASE_MOCK_LIVE
+            HoyolandDefaults.PHASE_MOCK_LIVE -> HoyolandDefaults.PHASE_MOCK_ENDED
+            HoyolandDefaults.PHASE_MOCK_ENDED -> ""
+            else -> HoyolandDefaults.PHASE_MOCK_BEFORE
+        }
+        HoyolandApi.debugInjectPhaseMock(next)
+        emitStatus(
+            when (next) {
+                HoyolandDefaults.PHASE_MOCK_BEFORE -> "호요랜드를 개막 전(D-16)으로 뒀어요"
+                HoyolandDefaults.PHASE_MOCK_LIVE -> "호요랜드를 진행 중으로 뒀어요 — 무대도 같이 돕니다"
+                HoyolandDefaults.PHASE_MOCK_ENDED -> "호요랜드를 종료 상태로 뒀어요"
+                else -> "호요랜드 단계 목업을 껐어요"
+            },
+        )
+        return next
+    }
+
+    /** 지금 얹힌 단계 목업 키(`""` = 없음) — 개발자 화면 표시. */
+    fun debugHoyolandPhaseKey(): String = HoyolandApi.debugPhaseMockKey
+
+    /** 단계 목업 키를 사람이 읽는 말로. 개발자 화면 부제에 쓴다. */
+    fun debugHoyolandPhaseLabel(key: String): String = when (key) {
+        HoyolandDefaults.PHASE_MOCK_BEFORE -> "개막 전"
+        HoyolandDefaults.PHASE_MOCK_LIVE -> "진행 중"
+        HoyolandDefaults.PHASE_MOCK_ENDED -> "종료"
+        else -> ""
+    }
 
     fun debugFillAllResin() {
         val prev = _liveNotes.value

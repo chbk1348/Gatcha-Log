@@ -26,8 +26,34 @@ import kotlin.time.Instant
  * "2026.10.2(금) ~ 10.5(월)" 같은 표기가 또 갈라진다.
  */
 
-/** 행사 진행 단계 — 배지·D-day 문구가 이 값으로 갈린다. */
-enum class HoyolandPhase { BEFORE, ONGOING, ENDED }
+/**
+ * 행사 진행 단계 — 배지·D-day 문구가 이 값으로 갈린다.
+ *
+ * 예전에는 `BEFORE / ONGOING / ENDED` 셋이었다. 개막 하루 전([TOMORROW])과 개막 당일([TODAY])은
+ * **화면이 달라야 하는 날**인데 각각 BEFORE·ONGOING 에 묻혀 있어 구분할 수가 없었다.
+ *
+ * ⚠️ 늘어난 만큼 **`== ONGOING` 같은 직접 비교는 위험하다** — 개막 당일이 TODAY 로 갈라져 나가
+ * 그 조건이 조용히 false 가 된다. 기간을 묻는 자리는 [isBeforeEvent] · [isEventLive] 를 쓴다.
+ * (Swift 는 exhaustive switch 가 아니라 컴파일러가 안 잡아 주므로 더더욱.)
+ */
+enum class HoyolandPhase {
+    /** 개막 이틀 이상 남음. */
+    UPCOMING,
+    /** 개막 하루 전. */
+    TOMORROW,
+    /** 개막 당일(= 1일차). */
+    TODAY,
+    /** 2일차 이후 ~ 폐막일. */
+    ONGOING,
+    /** 폐막일이 지났다. */
+    ENDED;
+
+    /** 개막 전인가 — 옛 `BEFORE` 자리. */
+    val isBeforeEvent: Boolean get() = this == UPCOMING || this == TOMORROW
+
+    /** 행사 기간 중인가 — 옛 `ONGOING` 자리. */
+    val isEventLive: Boolean get() = this == TODAY || this == ONGOING
+}
 
 /**
  * 예매 상태. 2026 은 일정·장소·라인업이 모두 확정됐는데 **예매만 미공개**라,
@@ -40,6 +66,75 @@ enum class HoyolandTicketStatus { UNDECIDED, ANNOUNCED, ON_SALE, SOLD_OUT }
  * 호출부가 지저분해지기 때문이다([NotificationCatalog] 의 `groups`/`itemsIn` 분리와 같은 이유).
  */
 data class HoyolandFact(val label: String, val value: String)
+
+/**
+ * 행사장 배치도의 **구역 한 칸** — 공식 BOOTH MAP 을 앱에서 다시 그리는 단위.
+ *
+ * 좌표를 **비율(0~100)** 로 두는 이유: 화면 폭이 기기마다 다르고 가로/세로도 바뀌는데, px 로
+ * 두면 배치도가 기기마다 깨진다. 비율이면 어떤 폭에서도 같은 그림이 나온다.
+ *
+ * 공식 배치도는 이미지 한 장으로만 공개된다. 그걸 그대로 띄우면 확대해서 보는 것 말고는 할 수
+ * 있는 게 없는데, 구역을 **데이터로** 들고 있으면 누른 구역의 굿즈·부스·무대로 곧장 갈 수 있다
+ * (앱이 그 목록을 이미 들고 있다). 지도가 목록의 입구가 되는 셈이다.
+ *
+ * @param id 구역 식별자. [kind] 가 같은 구역이 여럿일 때 구분한다(입장 접수 좌/우).
+ * @param label 화면에 쓰는 이름.
+ * @param kind `goods` · `stage` · `booth` · `food` · `game` · `entry` · `etc`.
+ *   누르면 어디로 가는지와 색이 이 값으로 갈린다.
+ * @param game [kind] 가 `game` 일 때 그 게임 이름 — 색을 게임색으로 칠하고 목록을 그 게임으로 좁힌다.
+ * @param x 왼쪽 위 X(0~100). @param y 왼쪽 위 Y(0~100).
+ * @param w 폭(0~100). @param h 높이(0~100).
+ * @param accent true 면 강조 구역(공식 배치도에서 흰 면으로 띄운 칸).
+ */
+data class HoyolandMapZone(
+    val id: String,
+    val label: String,
+    val kind: String = "etc",
+    val game: String = "",
+    val x: Float = 0f,
+    val y: Float = 0f,
+    val w: Float = 0f,
+    val h: Float = 0f,
+    val accent: Boolean = false,
+) {
+    /** 그릴 수 있는 칸인가 — 폭이나 높이가 0 이면 화면에 자리를 못 잡는다. */
+    val isDrawable: Boolean get() = w > 0f && h > 0f && label.isNotBlank()
+}
+
+/**
+ * 행사장 배치도 — 구역 목록 + 안내 문구.
+ *
+ * 비어 있으면 **「맵스」 칸이 통째로 사라진다.** 배치도는 개막 몇 주 전에야 공개된다.
+ */
+data class HoyolandMap(
+    val title: String = "",
+    val note: String = "",
+    /**
+     * 배치도 판의 **가로÷세로** 비율. 공식 도면이 가로로 길어 기본 1.64 다.
+     *
+     * 좌표가 비율이라 판의 비율까지 맞아야 도면이 안 눌린다 — 정사각 판에 그리면 가로로 긴
+     * 도면이 세로로 늘어난다.
+     */
+    val ratio: Float = 1.64f,
+    val zones: List<HoyolandMapZone> = emptyList(),
+) {
+    val isEmpty: Boolean get() = zones.none { it.isDrawable }
+
+    /** 그릴 수 있는 구역만 — 좌표가 빠진 줄은 조용히 버린다. */
+    val drawable: List<HoyolandMapZone> get() = zones.filter { it.isDrawable }
+}
+
+/**
+ * 입장 조 한 줄 — 예매할 때 고르는 **회차**다(2026 은 A~F 여섯 조).
+ *
+ * 조마다 입장 시각이 다른데, 지금까지 이 값은 예매 안내문 **문장 속에만** 있었다
+ * (`· A·B조 — 오전 10시`). 글로만 있으면 「내 입장권」이 내 조 시각을 짚어 줄 수가 없어
+ * config 에 구조로 따로 둔다 — 안내문은 읽는 자리로 그대로 남는다.
+ *
+ * @param name 조 이름. `A` 처럼 **조 글자만** 담는다("A조"가 아니다 — 붙이는 건 화면 몫이다).
+ * @param time 입장 시각 `10:00`. 비어 있어도 조는 고를 수 있다(시각만 안 보인다).
+ */
+data class HoyolandEntryGroup(val name: String, val time: String = "")
 
 /**
  * 참여 게임 한 줄.
@@ -518,7 +613,55 @@ data class HoyolandEvent(
      * 품목이 아니라 **굿즈존 운영 규칙**이라 굿즈 행에 흩을 수 없다. 줄 규칙은 예매 안내와 같다.
      */
     val goodsGuide: String = "",
+    /**
+     * 대표 이미지(키 비주얼) — 히어로 맨 위에 깔린다. **비어 있는 게 정상**이고, 그러면 카드는
+     * 지금처럼 글자로만 선다. 행사 키아트는 보통 개막 몇 주 전에야 나온다.
+     *
+     * 굿즈·푸드 사진과 **같은 규칙**이다 — 상대 경로(`event/key-2026.webp`)면 [hoyolandAssetUrl]
+     * 이 raw 주소를 붙이고, `http` 로 시작하면 외부 주소로 그대로 쓴다.
+     */
+    val keyImage: String = "",
+    /**
+     * 행사명 영문 표기 — 히어로 머리줄이 쓴다. **비어 있으면 [edition] 을 그대로** 쓴다.
+     *
+     * 한글 행사명을 그대로 걸면 바로 아래 큰 숫자 · 영문 단계 배지와 결이 갈린다. 영문은
+     * 대문자로 짧게 서서 머리줄 노릇을 한다(`HOYOLAND 2026`).
+     */
+    val editionEn: String = "",
+    /**
+     * 입장 조 편성 — 「내 입장권」이 고르게 할 목록이다. **비어 있으면 그 기능이 통째로 사라진다**
+     * (조가 뭔지 모르는 채로 고르게 할 수는 없다).
+     *
+     * 예매 안내문([HoyolandTicket.note])에 같은 내용이 글로도 있지만 그쪽은 **읽는 자리**고,
+     * 이쪽은 고르는 자리다. 조 편성이 바뀌면 둘 다 고쳐야 한다.
+     */
+    val entryGroups: List<HoyolandEntryGroup> = emptyList(),
+    /**
+     * 행사장 배치도 — 「둘러보기」의 맵스 칸이 연다. **비어 있으면 그 칸이 사라진다**
+     * (배치도는 개막 몇 주 전에야 공개된다).
+     */
+    val map: HoyolandMap = HoyolandMap(),
 ) {
+
+    /** 대표 이미지 전체 주소. 없으면 빈 문자열이라 호출부는 `isNotEmpty()` 로 가른다. */
+    val keyImageUrl: String get() = hoyolandAssetUrl(keyImage)
+
+    /** 히어로 머리줄에 걸 행사명 — 영문이 있으면 영문, 없으면 한글. */
+    val editionLabel: String get() = editionEn.ifBlank { edition }
+
+    /** 배치도를 열 수 있는가 — 그릴 수 있는 구역이 하나라도 있어야 한다. */
+    val hasMap: Boolean get() = !map.isEmpty
+
+    /** 맵스 칸 부제 — 구역이 몇 곳인지. */
+    fun onsiteMapLine(): String =
+        if (map.isEmpty) "배치도 공개 전" else "${map.drawable.size}개 구역"
+
+    /** 「내 입장권」을 열 수 있는가 — 조 편성이 있어야 고를 것이 있다. */
+    val hasEntryGroups: Boolean get() = entryGroups.isNotEmpty()
+
+    /** 그 조의 입장 시각. 모르는 조(편성이 바뀐 뒤 남은 옛 값)면 빈 문자열이다. */
+    fun entryTimeOf(group: String): String =
+        entryGroups.firstOrNull { it.name == group }?.time.orEmpty()
 
     private val start: LocalDate? get() = runCatching { LocalDate.parse(startYmd) }.getOrNull()
     private val end: LocalDate? get() = runCatching { LocalDate.parse(endYmd) }.getOrNull()
@@ -574,17 +717,30 @@ data class HoyolandEvent(
         Instant.fromEpochMilliseconds(nowMillis)
             .toLocalDateTime(DateUtil.timeZone).date   // 캐시된 타임존(시스템 조회 우회 금지)
 
-    /** 지금이 개최 전인지·중인지·끝났는지. */
+    /**
+     * 지금이 개최 전인지·중인지·끝났는지.
+     *
+     * 판정 순서가 곧 우선순위다 — 폐막을 먼저 걸러야 기간이 하루인 행사에서 TODAY 와 ENDED 가
+     * 겹치지 않는다. 날짜를 못 읽으면 [HoyolandPhase.UPCOMING] 으로 본다(옛 BEFORE 와 같은 자리).
+     */
     fun phase(nowMillis: Long = currentTimeMillis()): HoyolandPhase {
-        val s = start ?: return HoyolandPhase.BEFORE
-        val e = end ?: return HoyolandPhase.BEFORE
+        val s = start ?: return HoyolandPhase.UPCOMING
+        val e = end ?: return HoyolandPhase.UPCOMING
         val t = today(nowMillis)
         return when {
-            t < s -> HoyolandPhase.BEFORE
             t > e -> HoyolandPhase.ENDED
-            else -> HoyolandPhase.ONGOING
+            t == s -> HoyolandPhase.TODAY
+            t > s -> HoyolandPhase.ONGOING
+            t.daysUntil(s) == 1 -> HoyolandPhase.TOMORROW
+            else -> HoyolandPhase.UPCOMING
         }
     }
+
+    /** 개막 전인가(UPCOMING·TOMORROW). Swift 에서도 쓰라고 함수로 둔다. */
+    fun isBeforeEvent(nowMillis: Long = currentTimeMillis()): Boolean = phase(nowMillis).isBeforeEvent
+
+    /** 행사 기간 중인가(TODAY·ONGOING). Swift 에서도 쓰라고 함수로 둔다. */
+    fun isEventLive(nowMillis: Long = currentTimeMillis()): Boolean = phase(nowMillis).isEventLive
 
     /** 개막까지 남은 일수(0 = 오늘 개막). 이미 시작했으면 0. */
     fun daysUntilStart(nowMillis: Long = currentTimeMillis()): Int {
@@ -595,7 +751,7 @@ data class HoyolandEvent(
 
     /** 진행 중일 때 오늘이 몇 일차인지(1 = 첫날). 진행 중이 아니면 0. */
     fun dayOrdinal(nowMillis: Long = currentTimeMillis()): Int {
-        if (phase(nowMillis) != HoyolandPhase.ONGOING) return 0
+        if (!phase(nowMillis).isEventLive) return 0
         val s = start ?: return 0
         return s.daysUntil(today(nowMillis)) + 1
     }
@@ -605,8 +761,9 @@ data class HoyolandEvent(
      * 진입 카드·홈 카드·일정 탭이 전부 이 값을 쓴다(자리마다 다르게 조립하면 또 갈라진다).
      */
     fun statusLabel(nowMillis: Long = currentTimeMillis()): String = when (phase(nowMillis)) {
-        HoyolandPhase.BEFORE -> daysUntilStart(nowMillis).let { if (it == 0) "오늘 개막" else "D-$it" }
-        HoyolandPhase.ONGOING -> "${dayOrdinal(nowMillis)}일차"
+        HoyolandPhase.UPCOMING -> "D-${daysUntilStart(nowMillis)}"
+        HoyolandPhase.TOMORROW -> "내일 개막"
+        HoyolandPhase.TODAY, HoyolandPhase.ONGOING -> "${dayOrdinal(nowMillis)}일차"
         HoyolandPhase.ENDED -> "종료"
     }
 
@@ -763,6 +920,149 @@ data class HoyolandEvent(
             next != null -> "다음 ${next.slot.time} · 오늘 ${list.size}편"
             else -> "오늘 편성 종료 · 날짜별로 보기"
         }
+    }
+
+    /**
+     * 내 입장권에서 **다음에 가는 날**(오늘 포함). 가는 날이 없거나 다 지났으면 빈 문자열.
+     *
+     * 히어로가 묻는 말이 단계마다 다르다 — 개막 전에는 "첫날 몇 시에 들어가나", 행사 중에는
+     * "오늘 내가 가나"다. 둘 다 답이 이 값 하나라 한 자리에 모은다(오늘이 가는 날이면 오늘이
+     * 먼저 잡힌다 — `>=` 비교라 오늘이 걸러지지 않는다).
+     */
+    fun nextEntryYmd(entry: HoyolandEntry, nowMillis: Long = currentTimeMillis()): String {
+        if (!hasEntryGroups) return ""
+        val t = today(nowMillis).toString()
+        val inRange = dayYmds.toSet()
+        return entry.goingYmds.firstOrNull { it in inRange && it >= t }.orEmpty()
+    }
+
+    /**
+     * 히어로에 걸 한 줄 — "10.2(금) A조 · 10:00". 그날 안 가면 빈 문자열.
+     *
+     * 시각은 config 에서 온다. 조 편성이 바뀌어 시각을 못 찾으면 **조까지만** 적는다 —
+     * 모르는 값을 "미정" 같은 말로 채우면 그게 확정 정보처럼 읽힌다.
+     */
+    fun entryLine(entry: HoyolandEntry, ymd: String): String {
+        val group = entry.groupOn(ymd)
+        if (group.isBlank()) return ""
+        val time = entryTimeOf(group)
+        val head = "${dayTabLabel(ymd)} ${group}조"
+        return if (time.isBlank()) head else "$head · $time"
+    }
+
+    /**
+     * 고른 날 **전부**의 줄 목록 — 히어로 `MY ENTRY` 가 통째로 건다.
+     *
+     * 한 줄(다음에 가는 날)만 걸었더니, 나흘 중 이틀을 고른 사람이 나머지 하루를 확인하려면
+     * 시트를 다시 열어야 했다. 내 입장권은 **나흘을 한눈에 보는 값**이라 고른 만큼 다 건다.
+     * 안 가는 날은 줄이 없으므로 하루만 가면 한 줄이다.
+     */
+    fun entryLines(entry: HoyolandEntry): List<String> {
+        // 조 편성을 내리면(어드민에서 `entryGroups` 를 비우면) 고르는 시트도 같이 사라진다 —
+        // 그때 줄만 남겨 두면 **지울 방법이 없는 값**이 히어로에 박힌다.
+        if (!hasEntryGroups) return emptyList()
+        // 기간이 바뀌면 이미 고른 날이 행사 밖으로 밀려난다. 시트는 기간 안 날짜만 보여 주므로
+        // 그 줄도 고칠 수가 없다 — 화면에서는 거르고, 저장된 값은 건드리지 않는다(기간이
+        // 되돌아오면 그대로 되살아난다).
+        val inRange = dayYmds.toSet()
+        return entry.goingYmds.filter { it in inRange }
+            .map { entryLine(entry, it) }
+            .filter { it.isNotEmpty() }
+    }
+
+    // ── 「현장에서」 네 칸의 부제 ─────────────────────────────────────────────
+    //
+    // 한 곳에 모으는 이유가 둘이다. 하나는 **양 플랫폼이 같은 말을 해야** 해서고, 다른 하나는
+    // 이 줄들이 "들어가기 전에 볼 값이 있는지" 를 답하는 자리라 규칙이 한 벌이어야 해서다.
+
+    /** 시간표 칸 — 행사 중이면 **지금 몇 편이 도는지**, 아니면 며칠 몇 편인지. */
+    fun onsiteStageLine(nowMillis: Long = currentTimeMillis()): String {
+        if (!hasTimetable) return "무대 편성 공개 전"
+        val today = todayYmd(nowMillis)
+        if (today != null) {
+            val live = stageSlots(today, nowMillis).count { it.state == StageState.LIVE }
+            if (live > 0) return "지금 ${live}편 진행 중"
+            val next = nextStageSlot(nowMillis)
+            if (next != null) return "다음 ${next.slot.time} · 오늘 ${slotsFor(today).size}편"
+        }
+        val total = days.sumOf { it.slots.size }
+        return if (dayCount > 0) "${dayCount}일 · ${total}편" else "${total}편"
+    }
+
+    /** 지금 무대가 돌고 있는가 — 시간표 칸을 빨갛게 세울지 가른다. */
+    fun isStageLiveNow(nowMillis: Long = currentTimeMillis()): Boolean =
+        liveStageSlot(nowMillis) != null
+
+    /**
+     * 굿즈 칸 — **담은 게 있으면 담은 것**이 답이다.
+     *
+     * 목록에 몇 종이 있는지는 한 번 보면 끝이지만, 담은 금액은 행사가 다가올수록 계속 바뀐다.
+     * 이 앱이 지출을 다루는 앱이라 "얼마 들고 가야 하나" 가 굿즈 칸이 답할 질문이다.
+     */
+    fun onsiteGoodsLine(cart: HoyolandCart): String {
+        if (goods.isEmpty()) return "판매 목록 공개 전"
+        val picked = cartLines(cart)
+        if (picked.isEmpty()) return "${goods.size}종 · 아직 안 담았어요"
+        val total = cartTotal(cart)
+        val kinds = "담은 ${picked.size}종"
+        return if (total > 0) "$kinds · ${wonLabel(total)}" else kinds
+    }
+
+    /** 부스 칸. */
+    fun onsiteBoothLine(): String =
+        if (booths.isEmpty()) "부스 정보 공개 전" else "${booths.size}곳"
+
+    /** 푸드 칸 — 몇 곳에 메뉴가 몇 종인지. 가격대는 하위 페이지가 말한다. */
+    fun onsiteFoodLine(): String {
+        val list = foodPrograms
+        if (list.isEmpty()) return "푸드존 정보 공개 전"
+        val menus = list.sumOf { p ->
+            p.desc.split("\n").count { it.startsWith("· ") }
+        }
+        return if (menus > 0) "${list.size}곳 · ${menus}종" else "${list.size}곳"
+    }
+
+    /**
+     * 지금 무대(LIVE). 없으면 null — 행사 전 · 쉬는 시간 · 편성 미공개.
+     *
+     * 히어로가 행사 기간에 카운트다운 대신 **이 무대를 통째로** 건다. [stageEntryLine] 이
+     * 같은 값을 한 줄로 줄여 쓰는데, 히어로는 제목 · 시각 · 남은 시간을 따로 놓아야 해서
+     * 슬롯 자체가 필요하다.
+     */
+    fun liveStageSlot(nowMillis: Long = currentTimeMillis()): StageSlot? {
+        val today = todayYmd(nowMillis) ?: return null
+        return stageSlots(today, nowMillis).firstOrNull { it.state == StageState.LIVE }
+    }
+
+    /** 오늘 다음 무대. 없으면 null — 오늘 편성이 끝났다는 뜻이다. */
+    fun nextStageSlot(nowMillis: Long = currentTimeMillis()): StageSlot? {
+        val today = todayYmd(nowMillis) ?: return null
+        return stageSlots(today, nowMillis).firstOrNull { it.state == StageState.UPCOMING }
+    }
+
+    /** 지금 무대에 올라 있는 게임. 없으면 빈 문자열(행사 전·쉬는 시간·편성 미공개). */
+    fun liveStageGame(nowMillis: Long = currentTimeMillis()): String {
+        val today = todayYmd(nowMillis) ?: return ""
+        return stageSlots(today, nowMillis).firstOrNull { it.state == StageState.LIVE }
+            ?.slot?.game.orEmpty()
+    }
+
+    /**
+     * 라인업 목록에 걸 **오늘 그 게임의 무대 상태** — "지금 메인 무대" / "15:30 다음 무대" /
+     * "무대 종료" / "오늘 무대 없음".
+     *
+     * 빈 문자열이면 화면은 대신 [HoyolandLineup.theme](게임별 테마)을 쓴다. 행사 전에는 테마가
+     * 답할 질문("어느 게임이 뭘 들고 오나")이고, 행사 중에는 이 줄이 답할 질문("지금 어디로
+     * 갈까")으로 바뀐다 — 같은 자리가 단계에 따라 다른 말을 한다.
+     */
+    fun lineupStatusOf(game: String, nowMillis: Long = currentTimeMillis()): String {
+        if (game.isBlank()) return ""
+        val today = todayYmd(nowMillis) ?: return ""
+        val mine = stageSlots(today, nowMillis).filter { it.slot.game == game }
+        if (mine.isEmpty()) return "오늘 무대 없음"
+        mine.firstOrNull { it.state == StageState.LIVE }?.let { return "지금 무대" }
+        mine.firstOrNull { it.state == StageState.UPCOMING }?.let { return "${it.slot.time} 다음 무대" }
+        return "오늘 무대 종료"
     }
 
     /** 오늘이 행사 기간 안이면 그 `yyyy-MM-dd`, 아니면 null. */
@@ -984,8 +1284,8 @@ data class HoyolandEvent(
 
     /** 홈·일정 탭에 노출할 값어치가 있는 기간인지 — 개막 60일 전부터 폐막일까지. */
     fun isFeatured(nowMillis: Long = currentTimeMillis()): Boolean = when (phase(nowMillis)) {
-        HoyolandPhase.BEFORE -> daysUntilStart(nowMillis) <= FEATURE_WINDOW_DAYS
-        HoyolandPhase.ONGOING -> true
+        HoyolandPhase.UPCOMING, HoyolandPhase.TOMORROW -> daysUntilStart(nowMillis) <= FEATURE_WINDOW_DAYS
+        HoyolandPhase.TODAY, HoyolandPhase.ONGOING -> true
         HoyolandPhase.ENDED -> false
     }
 
@@ -1039,7 +1339,7 @@ object HoyolandDefaults {
         venueAddress = "경기도 고양시 일산서구 킨텍스로 217-60",
         mapUrl = "https://map.naver.com/p/search/%ED%82%A8%ED%85%8D%EC%8A%A4%20%EC%A0%9C2%EC%A0%84%EC%8B%9C%EC%9E%A5",
         mapFallbackUrl = "https://www.google.com/maps/search/%EC%9D%BC%EC%82%B0+%ED%82%A8%ED%85%8D%EC%8A%A4+%EC%A0%9C2%EC%A0%84%EC%8B%9C%EC%9E%A5",
-        officialUrl = "https://www.hoyolab.com/",
+        officialUrl = "https://sites.google.com/mihoyo.com/hoyoland2026/hoyoland2026",
         announceYmd = "2026-08-31",
         ticket = HoyolandTicket(
             status = HoyolandTicketStatus.UNDECIDED,
@@ -1060,7 +1360,43 @@ object HoyolandDefaults {
                 deadline = "모집 9.13(일) 23:59 마감 · 결과 9.15(화) 발표",
             ),
         ),
+        editionEn = "HOYOLAND 2026",
+        // 공식 BOOTH MAP(2026-09-16 공개분) — 좌표는 도면에서 잰 비율이다. 어드민에서 고치면
+        // 그쪽이 이긴다. 번들에 두는 이유는 네트워크 없이도 현장에서 길을 찾을 수 있어야 해서다.
+        map = HoyolandMap(
+            title = "행사장 내부 배치도",
+            note = "공식 배치도 기준입니다. 현장 사정으로 바뀔 수 있어요.",
+            zones = listOf(
+                HoyolandMapZone("goods", "굿즈존", "goods", x = 7.9f, y = 15.6f, w = 7.9f, h = 43.9f),
+                HoyolandMapZone("hsr", "붕괴: 스타레일", "game", "붕괴: 스타레일", 17.2f, 14.5f, 20.8f, 26.7f, accent = true),
+                HoyolandMapZone("stage", "무대존", "stage", x = 39.1f, y = 15.6f, w = 22.3f, h = 8.8f),
+                HoyolandMapZone("genshin", "원신", "game", "원신", 62.5f, 15.2f, 30.3f, 25.9f),
+                HoyolandMapZone("googleplay", "구글플레이", "booth", x = 80.8f, y = 48.5f, w = 12f, h = 13f),
+                HoyolandMapZone("galaxy", "갤럭시 스토어", "booth", x = 31.2f, y = 58f, w = 7.2f, h = 9.7f),
+                HoyolandMapZone("fanart-l", "2차 창작 전시존", "booth", x = 31.2f, y = 70.6f, w = 14.2f, h = 6.4f),
+                HoyolandMapZone("reception-l", "입장 접수", "entry", x = 31.2f, y = 78f, w = 14.2f, h = 13.5f),
+                HoyolandMapZone("gate", "입장 게이트", "entry", x = 46.3f, y = 67.7f, w = 7.9f, h = 9.2f),
+                HoyolandMapZone("fanart-r", "2차 창작 전시존", "booth", x = 55.2f, y = 70.6f, w = 14f, h = 6.4f),
+                HoyolandMapZone("reception-r", "입장 접수", "entry", x = 55.2f, y = 78f, w = 14f, h = 13.5f),
+                HoyolandMapZone("zzz", "젠레스 존 제로", "game", "젠레스 존 제로", 7.9f, 66f, 17.5f, 25.5f),
+                HoyolandMapZone("diy", "DIY존", "booth", x = 75.3f, y = 66f, w = 17.5f, h = 25.5f),
+                // 동선 — 공식 도면의 화살표. 구역이 아니라 **지나는 방향**이라 면도 글자도 없다.
+                HoyolandMapZone("flow-out-l", "퇴장", "flow-out", x = 27.2f, y = 71.2f, w = 2.2f, h = 20.3f),
+                HoyolandMapZone("flow-in", "입장", "flow-in", x = 49.2f, y = 77.7f, w = 2.1f, h = 13.8f),
+                HoyolandMapZone("flow-out-r", "퇴장", "flow-out", x = 71.15f, y = 71.2f, w = 2.2f, h = 20.3f),
+            ),
+        ),
         notice = "일정 · 장소 · 참여 게임이 모두 확정됐습니다. 예매와 일자별 시간표는 아직 공개 전입니다.",
+        // 조 편성은 예매 안내와 함께 확정됐다 — 네트워크 없이도 「내 입장권」을 고를 수 있어야
+        // 현장에서 쓸모가 있다(들어가는 순간이 가장 안 터지는 자리다).
+        entryGroups = listOf(
+            HoyolandEntryGroup("A", "10:00"),
+            HoyolandEntryGroup("B", "10:00"),
+            HoyolandEntryGroup("C", "11:00"),
+            HoyolandEntryGroup("D", "11:00"),
+            HoyolandEntryGroup("E", "12:00"),
+            HoyolandEntryGroup("F", "12:00"),
+        ),
         // 공식 시간표 미공개 — 날짜 탭은 기간에서 만들어지므로 여기는 비워 둔다.
         // 공개되면 config/hoyoland.json 의 days 를 채우는 것만으로 화면이 찬다(앱 업데이트 불필요).
         days = emptyList(),
@@ -1131,7 +1467,47 @@ object HoyolandDefaults {
      * 잡히도록. 새벽·심야에 눌러도 시각이 자정을 넘지 않게 기준 시각을 낮 구간으로 당긴다.
      */
     @OptIn(ExperimentalTime::class)
-    fun stageMockEvent(nowMillis: Long = currentTimeMillis()): HoyolandEvent {
+    /**
+     * 행사 **단계** 목업 — 개막 전 · 진행 중 · 종료를 개발자 화면에서 바로 본다.
+     *
+     * 이 화면은 단계마다 답하는 말이 통째로 바뀐다(카운트다운 → 일차 · 게이지 → 없음 ·
+     * 예매와 「현장에서」 순서 뒤집힘 · 라인업 부제가 테마 → 무대 상태). 실제 개막일을
+     * 기다리지 않고 그 셋을 확인하려고 **날짜만 옮긴** 이벤트를 만든다.
+     *
+     * 진행 중은 [stageMockEvent] 를 그대로 쓴다 — 거긴 오늘 편성이 지금 시각 기준이라
+     * 진행 중인 무대가 늘 하나 잡히고, 라인업의 "지금 무대" 표시까지 같이 보인다.
+     *
+     * @param key `before` · `live` · `ended`. 그 밖의 값이면 null(목업 끔).
+     */
+    fun phaseMockEvent(
+        key: String,
+        source: HoyolandEvent = event,
+        nowMillis: Long = currentTimeMillis(),
+    ): HoyolandEvent? {
+        val today = Instant.fromEpochMilliseconds(nowMillis).toLocalDateTime(DateUtil.timeZone).date
+        val ymd = { d: Int -> today.plus(d, DateTimeUnit.DAY).toString() }
+        return when (key) {
+            // D-16 — 게이지가 절반쯤 찬 자리(발표는 16일 전으로 당겨 둔다).
+            PHASE_MOCK_BEFORE -> source.copy(
+                startYmd = ymd(16), endYmd = ymd(19), announceYmd = ymd(-16),
+            )
+            PHASE_MOCK_LIVE -> stageMockEvent(source, nowMillis)
+            // 폐막 이틀 뒤 — 히어로가 EVENT ENDED 로 굳고 액션 줄이 사라지는 자리.
+            PHASE_MOCK_ENDED -> source.copy(
+                startYmd = ymd(-5), endYmd = ymd(-2), announceYmd = ymd(-40),
+            )
+            else -> null
+        }
+    }
+
+    const val PHASE_MOCK_BEFORE = "before"
+    const val PHASE_MOCK_LIVE = "live"
+    const val PHASE_MOCK_ENDED = "ended"
+
+    fun stageMockEvent(
+        source: HoyolandEvent = event,
+        nowMillis: Long = currentTimeMillis(),
+    ): HoyolandEvent {
         val now = Instant.fromEpochMilliseconds(nowMillis).toLocalDateTime(DateUtil.timeZone)
         val today = now.date
         val ymd = { d: Int -> today.plus(d, DateTimeUnit.DAY).toString() }
@@ -1139,7 +1515,7 @@ object HoyolandDefaults {
         val base = (now.hour * 60 + now.minute).coerceIn(4 * 60, 19 * 60)
         val at = { offset: Int -> HoyolandEvent.hhmm((base + offset).coerceIn(0, 23 * 60 + 59)) }
 
-        return event.copy(
+        return source.copy(
             startYmd = ymd(0),
             endYmd = ymd(3),
             days = listOf(

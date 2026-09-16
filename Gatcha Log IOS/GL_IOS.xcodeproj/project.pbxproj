@@ -8,13 +8,16 @@
 
 /* Begin PBXBuildFile section */
 		083956C63C4E239E7C23BB9C /* DeveloperView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E89E41FF15F08E1D17459394 /* DeveloperView.swift */; };
+		0FF92F5B75308AF5B1BA8A11 /* HoyolandStageSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B37442CBBC81555E93CE322 /* HoyolandStageSection.swift */; };
 		1431B09C96CB6ADF4D51B094 /* AnniversarySection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 75EFB2FF99DCA036AE774E6A /* AnniversarySection.swift */; };
 		14AFD15B3420C392511D404A /* CalendarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A84E3B9B9790F13D3F75EE5E /* CalendarView.swift */; };
 		169ACD2F4B8A99D2183912C3 /* SettingsDialogs.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC551FFC4A65F19F94A1987B /* SettingsDialogs.swift */; };
 		17991733B1B0EC7204C21DEB /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = E167D2DF62218A027D330ECD /* Theme.swift */; };
+		17D53BC5E5E758194F473721 /* HoyolandShopSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E6DCC50F3A5EFADAD75CAB7 /* HoyolandShopSection.swift */; };
 		1D250F6F9E0E2AD9495CE146 /* NewsSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 08F1ECE04BB2DA0CB5B2C723 /* NewsSection.swift */; };
 		21D7656AF322C290D874AFFA /* HomeComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 016E2C9FECC1E779E9DFEC65 /* HomeComponents.swift */; };
 		23F844366ABC2775F890F5C8 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2EAD6CB38E6E41AADF430D6E /* SettingsView.swift */; };
+		293454B2DC9DA97586FED990 /* HoyolandFoodSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 06206732FB7CC16D60E12713 /* HoyolandFoodSection.swift */; };
 		311A9FB837CB5310C4AB5714 /* SpendingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A348DAF50519ABD14014AA0 /* SpendingView.swift */; };
 		39F1A4E784F62CEA98CDDCD1 /* SpendingInsightView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 762960D1C044CF4E4506D38C /* SpendingInsightView.swift */; };
 		3CEC973D3915C5EAA8F3144D /* GameInfoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11D16F5E46E7E8DC2FD63907 /* GameInfoView.swift */; };
@@ -31,6 +34,7 @@
 		5A20E9FA5EC5B018222B4775 /* Pretendard-Bold.otf in Resources */ = {isa = PBXBuildFile; fileRef = EDA6932189E1AD9D46B8D081 /* Pretendard-Bold.otf */; };
 		63BB6DD0D19A0B7E102937BD /* HeaderButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 32BBA1BA7898178C15DF09E1 /* HeaderButton.swift */; };
 		66655B48380F2D5C59045C50 /* PerfSignpost.swift in Sources */ = {isa = PBXBuildFile; fileRef = D784E55E4619CB1F45BC57A8 /* PerfSignpost.swift */; };
+		71308621BBEA0A1DF3992CF2 /* HoyolandMapView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 097FED4ED1DB4B20E25E6ED1 /* HoyolandMapView.swift */; };
 		753F215D683DBB9FEBA60F13 /* SpendingStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = C3BE8BD3C2DD8BC4F707DE6D /* SpendingStore.swift */; };
 		76C8B5CC8DB8D93A0C9CE484 /* LoginView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE2C3F8DE0C369D621CCC112 /* LoginView.swift */; };
 		76FA3F68B6DA27D846A2CDA7 /* GlassCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB188D8B07C1771A193CF288 /* GlassCard.swift */; };
@@ -60,9 +64,6 @@
 		D1638799928C16B92E7BA17C /* Glass.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16692A76093EA64BC84CA502 /* Glass.swift */; };
 		D258D0F696A2DE0A54983D75 /* RemoteImage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9DE3D98E8895CBF8B3C201DE /* RemoteImage.swift */; };
 		D29010B2FCC6ADC85F2CC6E8 /* HoyolandSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = E487840A2C618D74E853EFC7 /* HoyolandSection.swift */; };
-		A1B2C3D40001HOYOSHOP0001 /* HoyolandShopSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002HOYOSHOP0002 /* HoyolandShopSection.swift */; };
-		A1B2C3D40001HOYOFOOD0001 /* HoyolandFoodSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40002HOYOFOOD0002 /* HoyolandFoodSection.swift */; };
-		A1B2C3D40003HOYOSTAGE003 /* HoyolandStageSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D40004HOYOSTAGE004 /* HoyolandStageSection.swift */; };
 		D3C86098452712BF2EF2F566 /* HomeRedesign.swift in Sources */ = {isa = PBXBuildFile; fileRef = D68A3D0581AB9E49D5412A97 /* HomeRedesign.swift */; };
 		D518B6D75F70EEA8A1332D03 /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = 27054819557D026D9CB4FE7D /* GoogleService-Info.plist */; };
 		E04926A07296AA0D760F37A8 /* GLGSkeleton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 716CDDC7D2BB3BEC9580864E /* GLGSkeleton.swift */; };
@@ -103,7 +104,9 @@
 		016E2C9FECC1E779E9DFEC65 /* HomeComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeComponents.swift; sourceTree = "<group>"; };
 		021C3B715D801AE05013FE3B /* GoogleWebOAuth.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoogleWebOAuth.swift; sourceTree = "<group>"; };
 		05DA476A730AFA37D40240E5 /* iOSApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = iOSApp.swift; sourceTree = "<group>"; };
+		06206732FB7CC16D60E12713 /* HoyolandFoodSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HoyolandFoodSection.swift; sourceTree = "<group>"; };
 		08F1ECE04BB2DA0CB5B2C723 /* NewsSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NewsSection.swift; sourceTree = "<group>"; };
+		097FED4ED1DB4B20E25E6ED1 /* HoyolandMapView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HoyolandMapView.swift; sourceTree = "<group>"; };
 		0AB3CC660B02C393DA32935B /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		10A462DEE6CE546DFBF6BBA9 /* PillField.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PillField.swift; sourceTree = "<group>"; };
 		11D16F5E46E7E8DC2FD63907 /* GameInfoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameInfoView.swift; sourceTree = "<group>"; };
@@ -125,6 +128,7 @@
 		43857C0EDD6E6397211940A6 /* GameTabbedSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameTabbedSection.swift; sourceTree = "<group>"; };
 		439879BBC52F89415C2831E6 /* GameTag.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameTag.swift; sourceTree = "<group>"; };
 		4A3AE615BDC494C0880E998A /* GachaReportSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GachaReportSection.swift; sourceTree = "<group>"; };
+		4B37442CBBC81555E93CE322 /* HoyolandStageSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HoyolandStageSection.swift; sourceTree = "<group>"; };
 		4E67D38A3417978B0AEDC5AE /* SpendingDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpendingDetailView.swift; sourceTree = "<group>"; };
 		5964E551478F1EBAFEFA8CAD /* AnnualReportView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnnualReportView.swift; sourceTree = "<group>"; };
 		5F47E41FAFDD2FD2F4E72EEE /* AdaptiveLayout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdaptiveLayout.swift; sourceTree = "<group>"; };
@@ -141,6 +145,7 @@
 		846F3D6CE1BD91FB25597AA6 /* GiftCodeSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GiftCodeSheet.swift; sourceTree = "<group>"; };
 		85473AA00EECC1459C27D0DB /* TaskCompletionSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskCompletionSection.swift; sourceTree = "<group>"; };
 		89BBE3C4BD9EFC3A287B0BBF /* AddSpendingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddSpendingView.swift; sourceTree = "<group>"; };
+		8E6DCC50F3A5EFADAD75CAB7 /* HoyolandShopSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HoyolandShopSection.swift; sourceTree = "<group>"; };
 		93E186FAED8474F05E404889 /* CombatClearSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CombatClearSection.swift; sourceTree = "<group>"; };
 		9DCA63DF57F1FB2FF1334148 /* LaunchBenchmark.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaunchBenchmark.swift; sourceTree = "<group>"; };
 		9DE3D98E8895CBF8B3C201DE /* RemoteImage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemoteImage.swift; sourceTree = "<group>"; };
@@ -163,9 +168,6 @@
 		D784E55E4619CB1F45BC57A8 /* PerfSignpost.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PerfSignpost.swift; sourceTree = "<group>"; };
 		E167D2DF62218A027D330ECD /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
 		E487840A2C618D74E853EFC7 /* HoyolandSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HoyolandSection.swift; sourceTree = "<group>"; };
-		A1B2C3D40002HOYOSHOP0002 /* HoyolandShopSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HoyolandShopSection.swift; sourceTree = "<group>"; };
-		A1B2C3D40002HOYOFOOD0002 /* HoyolandFoodSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HoyolandFoodSection.swift; sourceTree = "<group>"; };
-		A1B2C3D40004HOYOSTAGE004 /* HoyolandStageSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HoyolandStageSection.swift; sourceTree = "<group>"; };
 		E89E41FF15F08E1D17459394 /* DeveloperView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeveloperView.swift; sourceTree = "<group>"; };
 		EBE3389ACB5917724A4C6DD5 /* Pretendard-SemiBold.otf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Pretendard-SemiBold.otf"; sourceTree = "<group>"; };
 		EC551FFC4A65F19F94A1987B /* SettingsDialogs.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsDialogs.swift; sourceTree = "<group>"; };
@@ -234,10 +236,11 @@
 				43857C0EDD6E6397211940A6 /* GameTabbedSection.swift */,
 				846F3D6CE1BD91FB25597AA6 /* GiftCodeSheet.swift */,
 				24406A47C5595952918ABF5B /* HoyolabLinkView.swift */,
+				06206732FB7CC16D60E12713 /* HoyolandFoodSection.swift */,
+				097FED4ED1DB4B20E25E6ED1 /* HoyolandMapView.swift */,
 				E487840A2C618D74E853EFC7 /* HoyolandSection.swift */,
-				A1B2C3D40002HOYOSHOP0002 /* HoyolandShopSection.swift */,
-				A1B2C3D40002HOYOFOOD0002 /* HoyolandFoodSection.swift */,
-				A1B2C3D40004HOYOSTAGE004 /* HoyolandStageSection.swift */,
+				8E6DCC50F3A5EFADAD75CAB7 /* HoyolandShopSection.swift */,
+				4B37442CBBC81555E93CE322 /* HoyolandStageSection.swift */,
 				FAB28B37B0E20AFF6F250226 /* NewsDetailView.swift */,
 				08F1ECE04BB2DA0CB5B2C723 /* NewsSection.swift */,
 				85473AA00EECC1459C27D0DB /* TaskCompletionSection.swift */,
@@ -594,10 +597,11 @@
 				D3C86098452712BF2EF2F566 /* HomeRedesign.swift in Sources */,
 				BEDE307204D0F9A558DFFEB0 /* HomeView.swift in Sources */,
 				BCE6291BF8A244C01AF6F8F1 /* HoyolabLinkView.swift in Sources */,
+				293454B2DC9DA97586FED990 /* HoyolandFoodSection.swift in Sources */,
+				71308621BBEA0A1DF3992CF2 /* HoyolandMapView.swift in Sources */,
 				D29010B2FCC6ADC85F2CC6E8 /* HoyolandSection.swift in Sources */,
-				A1B2C3D40001HOYOSHOP0001 /* HoyolandShopSection.swift in Sources */,
-				A1B2C3D40001HOYOFOOD0001 /* HoyolandFoodSection.swift in Sources */,
-				A1B2C3D40003HOYOSTAGE003 /* HoyolandStageSection.swift in Sources */,
+				17D53BC5E5E758194F473721 /* HoyolandShopSection.swift in Sources */,
+				0FF92F5B75308AF5B1BA8A11 /* HoyolandStageSection.swift in Sources */,
 				516633AC40C13ACD8FEE9995 /* ImageViewer.swift in Sources */,
 				76C8B5CC8DB8D93A0C9CE484 /* LoginView.swift in Sources */,
 				80AB71E69B0A2282D237A141 /* Motion.swift in Sources */,

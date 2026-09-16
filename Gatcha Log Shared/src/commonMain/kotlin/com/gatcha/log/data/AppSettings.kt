@@ -201,6 +201,16 @@ class AppSettings {
         set(v) { prefs.putString(KEY_HOYOLAND_CART, v) }
 
     /**
+     * 호요랜드 내 입장권 — [HoyolandEntry.serialize] 형태의 문자열(`날짜\t조` 줄바꿈 구분).
+     *
+     * 표를 사는 날과 들어가는 날 사이가 2주 넘게 뜨고, 나흘 중 며칠을 가는지도 사람마다 다르다.
+     * 화면 안에서만 살면 현장에서 다시 입력해야 하므로 여기 남긴다.
+     */
+    var hoyolandEntryRaw: String
+        get() = prefs.getString(KEY_HOYOLAND_ENTRY, "") ?: ""
+        set(v) { prefs.putString(KEY_HOYOLAND_ENTRY, v) }
+
+    /**
      * 마지막으로 받아 온 호요랜드 설정 원문(JSON).
      *
      * 첫 프레임을 **번들 기본값이 아니라 마지막으로 본 값**으로 그리려고 둔다. 예전엔 켤 때마다
@@ -220,6 +230,7 @@ class AppSettings {
     companion object {
         private const val PREFS = "gatcha_settings"
         private const val KEY_HOYOLAND_CART = "hoyoland_cart"
+        private const val KEY_HOYOLAND_ENTRY = "hoyoland_entry"
         private const val KEY_HOYOLAND_CONFIG = "hoyoland_config_raw"
         private const val KEY_AUTO_CHECKIN = "auto_checkin"
         private const val KEY_NOTIFY_RESIN = "notify_resin"

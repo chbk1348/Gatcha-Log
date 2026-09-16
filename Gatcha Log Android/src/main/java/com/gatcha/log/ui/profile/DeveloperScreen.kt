@@ -41,6 +41,8 @@ fun DeveloperScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
     val accent = LocalAccent.current
     var pityGuaranteed by remember { mutableStateOf(false) }
     var stageMock by remember { mutableStateOf(viewModel.debugStageMockOn()) }
+    // 호요랜드 행사 단계 목업 — 누를 때마다 개막 전 → 진행 중 → 종료 → 끔.
+    var hoyoPhase by remember { mutableStateOf(viewModel.debugHoyolandPhaseKey()) }
     // 진단 결과는 누른 시점의 스냅샷이다 — 계속 갱신되면 무엇을 보고 있는지 알 수 없다.
     var report by remember { mutableStateOf<Pair<String, List<String>>?>(null) }
 
@@ -88,6 +90,22 @@ fun DeveloperScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
                         ) {
                             stageMock = !stageMock
                             viewModel.debugStageMock(stageMock)
+                            hoyoPhase = viewModel.debugHoyolandPhaseKey()
+                        }
+                        DevDivider()
+                        // 이 화면은 단계마다 답하는 말이 통째로 바뀐다 — 카운트다운이 일차로,
+                        // 게이지가 사라지고, 예매와 「현장에서」 순서가 뒤집히고, 라인업 부제가
+                        // 테마에서 무대 상태로 간다. 개막일을 기다리지 않고 셋을 돌려 본다.
+                        DevRow(
+                            Icons.Default.EventAvailable, "호요랜드 행사 단계",
+                            if (hoyoPhase.isBlank()) {
+                                "누를 때마다 개막 전 → 진행 중 → 종료 → 끔"
+                            } else {
+                                "${viewModel.debugHoyolandPhaseLabel(hoyoPhase)} — 다시 누르면 다음 단계"
+                            },
+                        ) {
+                            hoyoPhase = viewModel.debugCycleHoyolandPhase()
+                            stageMock = viewModel.debugStageMockOn() && hoyoPhase.isBlank()
                         }
                         DevDivider()
                         DevRow(

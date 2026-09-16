@@ -79,6 +79,7 @@ struct GameInfoView: View {
             case .goods: HoyolandGoodsView(event: HoyolandApi.shared.current, store: store)
             case .booth: HoyolandBoothView(event: HoyolandApi.shared.current)
             case .food: HoyolandFoodView(event: HoyolandApi.shared.current)
+            case .map: HoyolandMapView(event: HoyolandApi.shared.current, store: store)
             case .none: HoyolandDetailView(store: store)
             }
         }

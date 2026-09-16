@@ -23,6 +23,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.minimumInteractiveComponentSize
@@ -196,21 +197,21 @@ fun GlgButton(
     enabled: Boolean = true,
     // 44dp — 50 은 목록 · 모달에서 버튼이 덩어리처럼 무거웠다(2026-09-11). iOS `.regular` 와 같은 높이.
     height: androidx.compose.ui.unit.Dp = 44.dp,
+    /** 글자 왼쪽 아이콘. null 이면 글자만(기본) — 전체 폭 CTA 는 글자만으로 충분하다. */
+    icon: ImageVector? = null,
 ) {
     val accent = LocalAccent.current
     val interaction = remember { MutableInteractionSource() }
     val pressed by interaction.collectIsPressedAsState()
-    val hovering = pressed && enabled
-    // 호버풍(플랫): 누르면 반투명 흰 오버레이가 얹혀 버튼이 '밝아진다'. 그림자/이동 없음.
-    val overlay by animateColorAsState(
-        if (hovering) Color.White.copy(alpha = 0.18f) else Color.Transparent,
-        label = "btnHover",
-    )
-    val brush = if (enabled) {
-        Brush.horizontalGradient(listOf(accent, lerp(accent, Color.Black, 0.18f)))
-    } else {
-        SolidColor(Color(0xFFD8D8DE))
+    // **단색 면.** 예전엔 가로 그라데이션 + 누를 때 흰 오버레이(글로우)였는데, 면이 한쪽으로
+    // 어두워져 같은 강조색이 버튼마다 달라 보였다(2026-09-16 지적). 누름은 면을 한 단
+    // 어둡게 하는 것으로만 알린다 — 밝히면 그게 곧 글로우다.
+    val fill = when {
+        !enabled -> Color(0xFFD8D8DE)
+        pressed -> lerp(accent, Color.Black, 0.10f)
+        else -> accent
     }
+    val bg by animateColorAsState(fill, label = "btnFill")
     // 둥근 사각형(16dp) — 27.50.0 에서 알약을 걷었다.
     //
     // 알약은 **폭이 넓어질수록 뚱뚱해 보인다.** 전체 폭 CTA 는 좌우 반원이 커져 글자보다
@@ -221,12 +222,16 @@ fun GlgButton(
         modifier = modifier
             .height(height)
             .clip(shape)
-            .background(brush)
+            .background(bg)
             .then(if (enabled) Modifier.clickable(interactionSource = interaction, indication = null) { onClick() } else Modifier),
         contentAlignment = Alignment.Center,
     ) {
-        Box(Modifier.matchParentSize().background(overlay))
-        Text(text, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+            if (icon != null) {
+                Icon(icon, contentDescription = null, tint = Color.White, modifier = Modifier.size(17.dp))
+            }
+            Text(text, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+        }
     }
 }
 
@@ -869,13 +874,24 @@ fun GlgOutlineButton(
     height: androidx.compose.ui.unit.Dp = 44.dp,
     /** 면·글자색. null 이면 테마 강조색. */
     color: Color? = null,
+    /** 글자 왼쪽 아이콘. null 이면 글자만(기본). */
+    icon: ImageVector? = null,
+    /** 면을 흰색으로 — 강조 틴트 면 **위**에 놓일 때. 틴트 위 틴트는 면이 사라진다. */
+    onTint: Boolean = false,
 ) {
     val accent = color ?: LocalAccent.current
     val textColor = color ?: LocalAccentDeep.current
     val interaction = remember { MutableInteractionSource() }
     val pressed by interaction.collectIsPressedAsState()
     // 누르면 면이 한 단 진해진다 — 그림자·이동 없음.
-    val bg by animateColorAsState(accent.copy(alpha = if (pressed) 0.20f else 0.12f), label = "outBtnBg")
+    val bg by animateColorAsState(
+        if (onTint) {
+            if (pressed) Color(0xFFEDEFF3) else Color.White
+        } else {
+            accent.copy(alpha = if (pressed) 0.20f else 0.12f)
+        },
+        label = "outBtnBg",
+    )
     // 둥근 사각형(16dp) — 강조색 버튼([GlgButton])과 같은 값. '취소 + 저장하기' 짝의 모서리가 맞아야 한다.
     val shape = RoundedCornerShape(GlgButtonRadius)
     Box(
@@ -886,7 +902,12 @@ fun GlgOutlineButton(
             .clickable(interactionSource = interaction, indication = null) { onClick() },
         contentAlignment = Alignment.Center,
     ) {
-        Text(text, color = textColor, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+            if (icon != null) {
+                Icon(icon, contentDescription = null, tint = textColor, modifier = Modifier.size(17.dp))
+            }
+            Text(text, color = textColor, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
+        }
     }
 }
 

@@ -75,6 +75,9 @@ final class SpendingStore {
     /// 호요랜드 굿즈 장바구니 — 담은 것은 공유 계층(AppSettings)에 저장된다.
     private(set) var hoyolandCart: Shared.HoyolandCart = Shared.HoyolandCart(items: [:])
 
+    /// 호요랜드 내 입장권 — 날짜마다 정해 둔 조. 저장은 공유 계층(AppSettings)이 맡는다.
+    private(set) var hoyolandEntry: Shared.HoyolandEntry = Shared.HoyolandEntry(groups: [:])
+
     /**
      하단에 액션 바가 떠 있어 '추가' FAB 를 감춰야 하는가.
 
@@ -312,6 +315,7 @@ final class SpendingStore {
         bind(vm.charElementFx) { [weak self] in self?.charElementFx = $0.boolValue }
         bind(vm.collabBannerExpanded) { [weak self] in self?.collabBannerExpanded = $0.boolValue }
         bind(vm.hoyolandCart) { [weak self] in self?.hoyolandCart = $0 }
+        bind(vm.hoyolandEntry) { [weak self] in self?.hoyolandEntry = $0 }
         bind(vm.heroGlow) { [weak self] in self?.heroGlow = $0.boolValue }
         bind(vm.nudgeThreshold) { [weak self] in self?.nudgeThreshold = $0.int64Value }
         bind(vm.pendingOpenHoyolabLink) { [weak self] in self?.pendingOpenHoyolabLink = $0.boolValue }
@@ -403,6 +407,10 @@ final class SpendingStore {
     func toggleGoods(_ name: String) { vm.toggleGoods(name: name) }
     func setGoodsQuantity(_ name: String, _ quantity: Int) { vm.setGoodsQuantity(name: name, quantity: Int32(quantity)) }
     func clearGoodsCart() { vm.clearGoodsCart() }
+
+    /// 그날의 조를 정한다. **같은 조를 다시 누르면 해제**되어 안 가는 날로 돌아간다(공유 계층 규칙).
+    func setEntryGroup(_ ymd: String, _ group: String) { vm.setEntryGroup(ymd: ymd, group: group) }
+    func clearEntry() { vm.clearEntry() }
     func setHeroGlow(_ v: Bool) { vm.setHeroGlow(v: v) }
     func setCharElementFx(_ v: Bool) { vm.setCharElementFx(v: v) }
     func setNudgeThreshold(_ v: Int64) { vm.setNudgeThreshold(v: v) }
@@ -496,6 +504,10 @@ final class SpendingStore {
     /// 호요랜드 무대 시간표 목업 — 실제 편성 공개 전에 라이브 카드·게임 레인·필터를 본다.
     func debugStageMock(_ on: Bool) { vm.debugStageMock(on: on) }
     func debugStageMockOn() -> Bool { vm.debugStageMockOn() }
+    /// 호요랜드 행사 단계 목업 — 개막 전 → 진행 중 → 종료 → 끔. 바뀐 뒤의 키를 돌려준다.
+    func debugCycleHoyolandPhase() -> String { vm.debugCycleHoyolandPhase() }
+    func debugHoyolandPhaseKey() -> String { vm.debugHoyolandPhaseKey() }
+    func debugHoyolandPhaseLabel(_ key: String) -> String { vm.debugHoyolandPhaseLabel(key: key) }
     func debugSetPityAll(count: Int, guaranteed: Bool) { vm.debugSetPityAll(count: Int32(count), guaranteed: guaranteed) }
     func debugResetOnboarding() { vm.debugResetOnboarding() }
     func debugAccountSummary() -> String { vm.debugAccountSummary() }
