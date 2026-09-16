@@ -64,8 +64,37 @@ class HoyolandFoodTest {
     @Test
     fun 개막일_0시에_진행중으로_바뀐다() {
         val e = HoyolandDefaults.event.copy(startYmd = "2026-10-02", endYmd = "2026-10-05")
-        assertEquals(HoyolandPhase.BEFORE, e.phase(ymdMillis("2026-10-01", 23, 59)))
-        assertEquals(HoyolandPhase.ONGOING, e.phase(ymdMillis("2026-10-02", 0, 0)))
+        // 화면이 보는 판정은 구체 단계가 아니라 이 둘이다 — 단계가 늘어도 순서 뒤집기는 그대로여야 한다.
+        assertEquals(true, e.isBeforeEvent(ymdMillis("2026-10-01", 23, 59)))
+        assertEquals(true, e.isEventLive(ymdMillis("2026-10-02", 0, 0)))
+    }
+
+    /** 단계 5종 — 개막 하루 전과 개막 당일이 각자 제 이름을 갖는다. */
+    @Test
+    fun 단계는_다가옴_내일_당일_진행중_종료로_갈린다() {
+        val e = HoyolandDefaults.event.copy(startYmd = "2026-10-02", endYmd = "2026-10-05")
+        assertEquals(HoyolandPhase.UPCOMING, e.phase(ymdMillis("2026-09-30", 12, 0)))
+        assertEquals(HoyolandPhase.TOMORROW, e.phase(ymdMillis("2026-10-01", 23, 59)))
+        assertEquals(HoyolandPhase.TODAY, e.phase(ymdMillis("2026-10-02", 0, 0)))
+        assertEquals(HoyolandPhase.ONGOING, e.phase(ymdMillis("2026-10-03", 9, 0)))
+        assertEquals(HoyolandPhase.ENDED, e.phase(ymdMillis("2026-10-06", 0, 0)))
+    }
+
+    /** 개막 당일도 1일차다 — TODAY 가 갈라져 나가며 0 이 되면 히어로 숫자가 사라진다. */
+    @Test
+    fun 개막_당일은_1일차다() {
+        val e = HoyolandDefaults.event.copy(startYmd = "2026-10-02", endYmd = "2026-10-05")
+        assertEquals(1, e.dayOrdinal(ymdMillis("2026-10-02", 10, 0)))
+        assertEquals("1일차", e.statusLabel(ymdMillis("2026-10-02", 10, 0)))
+        assertEquals(2, e.dayOrdinal(ymdMillis("2026-10-03", 10, 0)))
+    }
+
+    /** 기간이 하루인 행사 — TODAY 와 ENDED 가 겹치지 않아야 한다(폐막 판정이 먼저다). */
+    @Test
+    fun 하루짜리_행사도_당일에는_진행중이다() {
+        val e = HoyolandDefaults.event.copy(startYmd = "2026-10-02", endYmd = "2026-10-02")
+        assertEquals(HoyolandPhase.TODAY, e.phase(ymdMillis("2026-10-02", 12, 0)))
+        assertEquals(HoyolandPhase.ENDED, e.phase(ymdMillis("2026-10-03", 0, 0)))
     }
 
     /** 홈 배너 — 폐막일까지는 뜨고, **다음 날 0시에 스스로 빠진다.** */

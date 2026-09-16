@@ -10,6 +10,9 @@ import com.gatcha.log.data.HoyolandFact
 import com.gatcha.log.data.HoyolandGstar
 import com.gatcha.log.data.HoyolandLineup
 import com.gatcha.log.data.HoyolandDay
+import com.gatcha.log.data.HoyolandEntryGroup
+import com.gatcha.log.data.HoyolandMap
+import com.gatcha.log.data.HoyolandMapZone
 import com.gatcha.log.data.HoyolandPastEvent
 import com.gatcha.log.data.HoyolandProgram
 import com.gatcha.log.data.HoyolandSlot
@@ -114,16 +117,56 @@ object HoyolandApi {
      * [debugClearStageMock] 이나 당겨서 새로고침 한 번이면 원래대로 돌아온다.
      */
     fun debugInjectStageMock() {
-        cached = HoyolandDefaults.stageMockEvent()
+        cached = HoyolandDefaults.stageMockEvent(mockBase())
         cachedAtMillis = currentTimeMillis()
         stageMockOn = true
+        phaseMockKey = ""
     }
+
+    /**
+     * 개발자 화면 전용 — **행사 단계** 목업을 캐시에 얹는다(개막 전 · 진행 중 · 종료).
+     *
+     * [debugInjectStageMock] 과 같은 자리를 쓰므로 둘은 서로를 덮고, 당겨서 새로고침 한 번이면
+     * 똑같이 걷힌다. 빈 키(또는 모르는 키)면 목업을 끈다.
+     */
+    fun debugInjectPhaseMock(key: String) {
+        val mock = HoyolandDefaults.phaseMockEvent(key, mockBase())
+        if (mock == null) {
+            debugClearStageMock()
+            return
+        }
+        cached = mock
+        cachedAtMillis = currentTimeMillis()
+        stageMockOn = true
+        phaseMockKey = key
+    }
+
+    /** 지금 얹힌 단계 목업 키. 없으면 빈 문자열 — 개발자 화면이 다음 단계를 고를 때 쓴다. */
+    val debugPhaseMockKey: String get() = if (stageMockOn) phaseMockKey else ""
+
+    private var phaseMockKey = ""
+
+    /**
+     * 목업이 **날짜만 옮길 기준값**. 목업을 처음 켤 때의 실제 값을 붙들어 둔다.
+     *
+     * 예전엔 번들 [HoyolandDefaults.event] 를 기준으로 만들었는데, 그건 예매가 공개되기 전에
+     * 박제된 값이라 목업으로 넘어가는 순간 예매가 **"미정"으로 되돌아갔다**(2026-09-16 제보).
+     * 확인하려던 건 날짜가 바뀐 화면이지 옛 데이터가 아니다.
+     *
+     * 이미 목업이 얹힌 상태에서 또 부르면 목업을 기준으로 삼아 버리므로, 한 번 잡은 값을
+     * [debugClearStageMock] 까지 유지한다.
+     */
+    private var preMockEvent: HoyolandEvent? = null
+
+    private fun mockBase(): HoyolandEvent = preMockEvent ?: current.also { preMockEvent = it }
 
     /** 목업 해제 — 다음 조회에서 원격/번들 값을 다시 잡는다. */
     fun debugClearStageMock() {
         cached = null
         cachedAtMillis = 0L
         stageMockOn = false
+        phaseMockKey = ""
+        preMockEvent = null
     }
 
     /** 지금 목업이 얹혀 있는지 — 개발자 화면 토글 표시에 쓴다. */
@@ -173,6 +216,9 @@ object HoyolandApi {
         val d = HoyolandDefaults.event
         return HoyolandEvent(
             edition = o.optString("edition", d.edition),
+            // 빈 문자열은 **값 없음**으로 본다 — 어드민이 새 필드를 처음 저장할 때 빈 기본값을
+            // 올리는데, 그걸 "일부러 비웠다" 로 받으면 번들에 있는 표기까지 같이 죽는다.
+            editionEn = o.optString("editionEn", d.editionEn).ifBlank { d.editionEn },
             startYmd = o.optString("startYmd", d.startYmd),
             endYmd = o.optString("endYmd", d.endYmd),
             venueName = o.optString("venueName", d.venueName),
@@ -181,6 +227,7 @@ object HoyolandApi {
             mapUrl = o.optString("mapUrl", d.mapUrl),
             mapFallbackUrl = o.optString("mapFallbackUrl", d.mapFallbackUrl),
             officialUrl = o.optString("officialUrl", d.officialUrl),
+            keyImage = o.optString("keyImage", d.keyImage),
             announceYmd = o.optString("announceYmd", d.announceYmd),
             ticket = o.optJSONObject("ticket")?.let { parseTicket(it) } ?: d.ticket,
             lineup = o.optJSONArray("lineup")?.let { parseLineup(it) }?.takeIf { it.isNotEmpty() } ?: d.lineup,
@@ -195,8 +242,60 @@ object HoyolandApi {
             goods = o.optJSONArray("goods")?.let { parseGoods(it) } ?: d.goods,
             booths = o.optJSONArray("booths")?.let { parseBooths(it) } ?: d.booths,
             goodsGuide = o.optString("goodsGuide", d.goodsGuide).trim(),
+            // 조 편성은 `lineup` 과 같다 — **빈 배열이면 번들로 폴백**한다.
+            //
+            // days·goods 처럼 "내렸다" 가 뜻을 갖는 값이 아니기 때문이다. 조 없이 입장하는
+            // 행사는 없고, 어드민이 새 필드를 처음 저장할 때 올라가는 빈 배열이 번들 편성을
+            // 죽여 「내 입장권」이 통째로 사라졌다(2026-09-16 실측 — 라이브에 `entryGroups: []`).
+            // 정말로 내려야 하면 번들에서 지운다.
+            entryGroups = o.optJSONArray("entryGroups")?.let { parseEntryGroups(it) }
+                ?.takeIf { it.isNotEmpty() } ?: d.entryGroups,
+            // 배치도도 **빈 구역 목록이면 번들로 폴백**한다(조 편성과 같은 이유).
+            map = o.optJSONObject("map")?.let { parseMap(it, d.map) } ?: d.map,
         )
     }
+
+    /**
+     * 행사장 배치도 — 좌표가 없는 줄(폭·높이 0)은 [HoyolandMapZone.isDrawable] 이 걸러내므로
+     * 여기서는 읽기만 한다. 구역이 하나도 안 남으면 번들 배치도로 돌아간다.
+     */
+    private fun parseMap(o: JSONObject, d: HoyolandMap): HoyolandMap {
+        val zones = o.optJSONArray("zones")?.let { arr ->
+            (0 until arr.length()).mapNotNull { i ->
+                val z = arr.optJSONObject(i) ?: return@mapNotNull null
+                val id = z.optString("id").trim()
+                val label = z.optString("label").trim()
+                if (id.isEmpty() || label.isEmpty()) return@mapNotNull null
+                HoyolandMapZone(
+                    id = id,
+                    label = label,
+                    kind = z.optString("kind", "etc").trim().ifBlank { "etc" },
+                    game = z.optString("game").trim(),
+                    x = z.optDouble("x", 0.0).toFloat(),
+                    y = z.optDouble("y", 0.0).toFloat(),
+                    w = z.optDouble("w", 0.0).toFloat(),
+                    h = z.optDouble("h", 0.0).toFloat(),
+                    accent = z.optBoolean("accent", false),
+                )
+            }
+        }.orEmpty()
+        if (zones.none { it.isDrawable }) return d
+        return HoyolandMap(
+            title = o.optString("title", d.title),
+            note = o.optString("note", d.note),
+            ratio = o.optDouble("ratio", d.ratio.toDouble()).toFloat().takeIf { it > 0f } ?: d.ratio,
+            zones = zones,
+        )
+    }
+
+    /** 입장 조 편성 — 이름 없는 줄은 버린다(시각만 있는 줄은 고를 수가 없다). */
+    private fun parseEntryGroups(arr: JSONArray): List<HoyolandEntryGroup> =
+        (0 until arr.length()).mapNotNull { i ->
+            val o = arr.optJSONObject(i) ?: return@mapNotNull null
+            val name = o.optString("name").trim()
+            if (name.isEmpty()) return@mapNotNull null
+            HoyolandEntryGroup(name = name, time = o.optString("time").trim())
+        }
 
     private fun parseTicket(o: JSONObject): HoyolandTicket = HoyolandTicket(
         status = ticketStatusOf(o.optString("status")),

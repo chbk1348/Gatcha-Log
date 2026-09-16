@@ -973,10 +973,17 @@ fun DashHoyolandCard(event: HoyolandEvent, onTap: () -> Unit) {
     val bigText: String
     val capText: String
     when (phase) {
-        HoyolandPhase.BEFORE -> {
-            val d = event.daysUntilStart()
-            bigText = if (d == 0) "TODAY" else "D-$d"
-            capText = if (d == 0) "오늘 개막" else "개막까지"
+        HoyolandPhase.UPCOMING -> {
+            bigText = "D-${event.daysUntilStart()}"
+            capText = "개막까지"
+        }
+        HoyolandPhase.TOMORROW -> {
+            bigText = "D-1"
+            capText = "내일 개막"
+        }
+        HoyolandPhase.TODAY -> {
+            bigText = "TODAY"
+            capText = "오늘 개막"
         }
         HoyolandPhase.ONGOING -> {
             bigText = "${event.dayOrdinal()}일차"

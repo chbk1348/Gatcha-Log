@@ -570,6 +570,8 @@ struct HoyolandCartView: View {
  */
 struct HoyolandBoothView: View {
     let event: HoyolandEvent
+    /// 배치도에서 그 게임 부스를 눌러 들어오면 미리 걸려 있다. nil 이면 전체.
+    var initialGame: String? = nil
     @Environment(\.glgAccent) private var accent
     @State private var gameFilter: String? = nil
 
@@ -614,6 +616,12 @@ struct HoyolandBoothView: View {
         .scrollIndicators(.hidden)
         .background(GLGBackground { Color.clear })
         .glgPageTitle("부스 체험")
+        .onAppear {
+            // 배치도에서 들어온 경우에만 한 번 — 탭을 직접 바꾼 뒤 돌아와도 덮지 않는다.
+            if gameFilter == nil, let initialGame, event.boothGames.contains(initialGame) {
+                gameFilter = initialGame
+            }
+        }
         .navigationBarTitleDisplayMode(.inline)
     }
 

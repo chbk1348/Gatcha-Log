@@ -596,6 +596,13 @@ internal fun SectionPage(
     isRefreshing: Boolean = false,
     onRefresh: (() -> Unit)? = null,
     /**
+     * 스크롤 상태 — 주지 않으면 이 페이지가 직접 만든다(기본).
+     *
+     * 밖에서 주는 경우는 하나다: **하위 페이지를 다녀와도 스크롤이 남아야 할 때.** 페이지가
+     * `AnimatedContent` 로 갈아 끼워지면 안에서 만든 상태는 매번 새로 생겨 맨 위로 돌아간다.
+     */
+    scrollState: androidx.compose.foundation.ScrollState? = null,
+    /**
      * 화면 아래에 **고정으로 붙는 줄** — 스크롤과 무관하게 늘 보인다.
      * 굿즈 목록의 합계 바처럼 "지금까지 고른 결과"를 계속 보여줘야 하는 자리에 쓴다.
      */
@@ -629,7 +636,8 @@ internal fun SectionPage(
 ) {
     BackHandler { onBack() }
     // 탭 페이지와 같은 구조 — 콘텐츠는 상태바 뒤까지 스크롤되고, 헤더는 그 위에 고정된다.
-    val scrollState = rememberScrollState()
+    @Suppress("NAME_SHADOWING")
+    val scrollState = scrollState ?: rememberScrollState()
     val density = LocalDensity.current
     var stickyHeight by remember { mutableStateOf(0.dp) }
     // 헤더 + 붙박이 줄 뒤에 깔리는 바탕 — **스크롤할 때만 찬다.**

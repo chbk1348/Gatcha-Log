@@ -18,6 +18,8 @@ struct DeveloperView: View {
     @State private var pityGuaranteed = false
     /// 목업 상태는 캐시에 얹히는 것이라 화면을 다시 열면 읽어 온다(onAppear).
     @State private var stageMock = false
+    /// 호요랜드 행사 단계 목업 키(`""` = 없음).
+    @State private var hoyoPhase = ""
     /// 진단 결과는 누른 시점의 스냅샷이다 — 계속 갱신되면 무엇을 보고 있는지 알 수 없다.
     @State private var reportTitle: String? = nil
     @State private var reportLines: [String] = []
@@ -48,7 +50,10 @@ struct DeveloperView: View {
         .background(GLGBackground { Color.clear })
         .glgPageTitle("개발자 메뉴")
         .navigationBarTitleDisplayMode(.inline)
-        .onAppear { stageMock = store.debugStageMockOn() }
+        .onAppear {
+            stageMock = store.debugStageMockOn()
+            hoyoPhase = store.debugHoyolandPhaseKey()
+        }
     }
 
     // ── 상태 만들기 — "그 화면"을 지금 보고 싶을 때 ──
@@ -64,6 +69,18 @@ struct DeveloperView: View {
                    stageMock ? "켜짐 — 다시 누르면 원래 데이터로" : "라이브 카드·게임 레인 확인용") {
                 stageMock.toggle()
                 store.debugStageMock(stageMock)
+                hoyoPhase = store.debugHoyolandPhaseKey()
+            }
+            Divider()
+            // 이 화면은 단계마다 답하는 말이 통째로 바뀐다 — 카운트다운이 일차로, 게이지가
+            // 사라지고, 예매와 「현장에서」 순서가 뒤집히고, 라인업 부제가 테마에서 무대 상태로
+            // 간다. 개막일을 기다리지 않고 셋을 돌려 본다.
+            devRow("calendar.badge.clock", "호요랜드 행사 단계",
+                   hoyoPhase.isEmpty
+                     ? "누를 때마다 개막 전 → 진행 중 → 종료 → 끔"
+                     : "\(store.debugHoyolandPhaseLabel(hoyoPhase)) — 다시 누르면 다음 단계") {
+                hoyoPhase = store.debugCycleHoyolandPhase()
+                stageMock = store.debugStageMockOn() && hoyoPhase.isEmpty
             }
             Divider()
             devRow("bell.fill", "천장 하드 직전 (89)", "계산기 경고색·임박 토스트 확인") {
