@@ -20,6 +20,8 @@ const DRAFT_KEY = 'gl-admin-draft-v2';
 
 const YMD = /^\d{4}-\d{2}-\d{2}$/;
 const KST_DT = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/;
+/* 입장 조 시각 — 앱은 받은 문자열을 그대로 적으므로 꼴이 어긋나면 화면에서 튄다. */
+const HHMM = /^([01]?\d|2[0-3]):[0-5]\d$/;
 
 /*
  * 굿즈 비고 규칙 — Hoyoland.kt 의 HoyolandGoods 와 **같아야 한다.** 앱은 note 를 " · " 로 쪼개고
@@ -125,10 +127,10 @@ const HOYOLAND = {
   live: true,
 
   blank: () => ({
-    edition: '', startYmd: '', endYmd: '', venueName: '', venueHall: '', venueAddress: '',
+    edition: '', editionEn: '', startYmd: '', endYmd: '', venueName: '', venueHall: '', venueAddress: '',
     mapUrl: '', mapFallbackUrl: '', officialUrl: '', announceYmd: '', notice: '', goodsGuide: '',
     ticket: { status: 'undecided', vendor: '', openLabel: '', openYmd: '', openHour: 0, priceLabel: '', url: '', note: '' },
-    lineup: [], programs: [], days: [], goods: [], booths: [],
+    lineup: [], programs: [], days: [], goods: [], booths: [], entryGroups: [],
     gstar: { title: '', badge: '', facts: [], lineup: [], url: '', notice: '' },
     past: [],
   }),
@@ -138,7 +140,7 @@ const HOYOLAND = {
     const o = { ...d, ...raw };
     o.ticket = { ...d.ticket, ...(raw.ticket || {}) };
     o.gstar = { ...d.gstar, ...(raw.gstar || {}) };
-    for (const k of ['lineup', 'programs', 'days', 'goods', 'booths', 'past']) if (!Array.isArray(o[k])) o[k] = [];
+    for (const k of ['lineup', 'programs', 'days', 'goods', 'booths', 'past', 'entryGroups']) if (!Array.isArray(o[k])) o[k] = [];
     if (!Array.isArray(o.gstar.facts)) o.gstar.facts = [];
     if (!Array.isArray(o.gstar.lineup)) o.gstar.lineup = [];
     o.days = o.days.map((day) => ({ ymd: '', ...day, slots: Array.isArray(day.slots) ? day.slots : [] }));
@@ -230,6 +232,29 @@ const HOYOLAND = {
     dropped(d.past, 'title', 'past', '지난 행사');
     dropped(d.gstar.lineup, 'game', 'gstar', 'G-STAR 라인업');
 
+    dropped(d.entryGroups, 'name', 'entryGroups', '입장 조');
+
+    // 입장 조 — 앱 「내 입장권」이 날짜마다 이 중 하나를 고르게 한다. 이름이 곧 저장 키라
+    // 편성을 고치면 이미 고른 사람의 값이 어긋난다(앱은 시각 없이 조 이름만 보여 준다).
+    if (!d.entryGroups.length) {
+      add('warn', 'entryGroups', '입장 조가 비었습니다 — 앱에서 「내 입장권」 섹션이 뜨지 않습니다.');
+    } else {
+      const seenGroup = new Set();
+      for (const g of d.entryGroups) {
+        const n = String(g.name ?? '').trim();
+        if (!n) continue;
+        if (seenGroup.has(n))
+          add('error', 'entryGroups', `조 "${n}" 이 두 번 있습니다 — 앱이 먼저 나온 시각을 씁니다.`);
+        seenGroup.add(n);
+        // 앱이 "${n}조" 로 적는다 — 여기에 '조'까지 넣으면 "A조조" 가 된다.
+        if (/조$/.test(n))
+          add('warn', 'entryGroups', `조 이름 "${n}" 이 '조'로 끝납니다 — 앱이 "${n}조" 로 적습니다. 글자만 넣으세요.`);
+        const t = String(g.time ?? '').trim();
+        if (t && !HHMM.test(t))
+          add('warn', 'entryGroups', `조 "${n}" 의 시각 "${t}" 이 HH:mm 꼴이 아닙니다 — 앱이 받은 그대로 적습니다.`);
+      }
+    }
+
     if (!d.lineup.length) add('warn', 'lineup', '참여 게임이 비었습니다 — 앱이 번들 기본 라인업으로 폴백합니다.');
     if (!d.past.length) add('warn', 'past', '지난 행사가 비었습니다 — 앱이 번들 기본값으로 폴백합니다.');
 
@@ -284,6 +309,9 @@ const HOYOLAND = {
       desc: '행사 명칭 · 기간 · 장소 · 공지. 빠뜨린 키는 앱이 번들 기본값으로 메웁니다.',
       fields: [
         { key: 'edition', label: '행사명', type: 'text', wide: true, placeholder: '호요랜드 2026' },
+        // 히어로 머리줄이 쓰는 영문 표기 — 비우면 한글 행사명을 그대로 쓴다.
+        { key: 'editionEn', label: '행사명(영문)', type: 'text', wide: true, placeholder: 'HOYOLAND 2026',
+          note: '히어로 맨 윗줄. 비우면 한글 행사명을 씁니다' },
         { key: 'startYmd', label: '시작일', type: 'date', note: '날짜 탭이 이 범위로 만들어집니다' },
         { key: 'endYmd', label: '종료일', type: 'date' },
         { key: 'announceYmd', label: '개최 발표일', type: 'date', note: '카운트다운 진행 바의 출발점' },
@@ -315,6 +343,15 @@ const HOYOLAND = {
         { key: 'openHour', label: '오픈 시각(시)', type: 'number', min: 0, max: 23 },
         { key: 'url', label: '예매 URL', type: 'url', wide: true },
         { key: 'note', label: '안내 문구', type: 'textarea', wide: true },
+      ] },
+    // 입장 조 — 예매 안내문(ticket.note)에도 같은 내용이 글로 있지만 그쪽은 읽는 자리고,
+    // 여기는 앱의 「내 입장권」이 **고르게 할 목록**이다. 편성이 바뀌면 둘 다 고쳐야 한다.
+    { id: 'entryGroups', group: '행사', label: '입장 조', type: 'list', path: 'entryGroups', countable: true,
+      desc: '예매할 때 고르는 회차(조)와 입장 시각. 앱 「내 입장권」이 날짜마다 이 중 하나를 고르게 합니다. 이름은 조 글자만(“A조”가 아니라 “A”), 시각은 24시간 HH:mm.',
+      warnEmpty: '비우면 앱에서 「내 입장권」 섹션이 통째로 사라집니다.',
+      columns: [
+        { key: 'name', label: '조', type: 'text', required: true, width: '110px', placeholder: 'A' },
+        { key: 'time', label: '입장 시각', type: 'text', width: '140px', placeholder: '10:00' },
       ] },
     { id: 'lineup', group: '행사', label: '참여 게임', type: 'list', path: 'lineup', countable: true,
       desc: 'abbr · colorArgb 는 앱 GameData 에 없는 게임(붕괴3rd · 미해결사건부 등)만 채웁니다. 공지 주소를 넣으면 앱에서 그 게임 칩을 눌러 열 수 있습니다.',
@@ -644,7 +681,11 @@ async function probe(api) {
  * ═════════════════════════════════════════════════════════════ */
 
 const docs = {};
-for (const r of RESOURCES) docs[r.id] = { original: null, draft: r.normalize({}), live: undefined, source: '빈 문서' };
+for (const r of RESOURCES) docs[r.id] = {
+  original: null, draft: r.normalize({}), live: undefined, source: '빈 문서',
+  history: undefined,      // undefined=아직 안 읽음 · 'loading' · 배열 · { error }
+  historyDiff: null,       // { id, list } — 이력 한 판과 지금 편집본의 차이
+};
 
 const state = {
   resource: 'hoyoland',
@@ -661,8 +702,12 @@ const state = {
 const sectionsOf = (res) => [
   { id: 'dashboard', group: '개요', label: '대시보드', type: 'dashboard', desc: '현황과 검증 결과입니다.' },
   ...res.sections,
+  ...(res.live ? [{ id: 'changes', group: '반영', label: '변경사항', type: 'changes',
+    desc: '지금 편집본이 라이브와 무엇이 다른지 값 단위로 봅니다.' }] : []),
   { id: 'live', group: '반영', label: '라이브 반영', type: 'live',
     desc: res.live ? `Firestore config/${res.doc} 에 쓰면 커밋 없이 앱에 즉시 반영됩니다.` : '이 리소스는 라이브 반영을 쓰지 않습니다.' },
+  ...(res.live ? [{ id: 'history', group: '반영', label: '발행 이력', type: 'history',
+    desc: '반영할 때마다 한 벌씩 남습니다. 예전 값을 편집본으로 되돌릴 수 있습니다.' }] : []),
   { id: 'export', group: '반영', label: '정본 내보내기', type: 'export',
     desc: `git 에 남는 정본 ${res.file} 입니다.` },
   ...GLOBAL_SECTIONS,
@@ -717,6 +762,112 @@ const isDirty = (id) => {
   return jsonOfDoc(d, r) !== jsonOfDoc({ draft: r.normalize(d.original || {}), original: d.original }, r);
 };
 const issuesNow = () => state.res.validate(state.draft);
+
+/* ═════════════════════════════════════════════════════════════
+ * 변경사항 비교
+ *
+ * 발행 전에 "무엇이 바뀌는지" 를 값 단위로 보여 준다. 지금까지는 "라이브와 다름" 한 줄이라
+ * 오타 하나를 고쳤는지 시간표를 통째로 갈았는지 구분할 수 없었다.
+ *
+ * 배열은 **자리(index)로 맞춰 비교한다.** 항목에 ID 가 없어서(앱 스키마에 ID 칸이 없다) 옮긴
+ * 것과 고친 것을 구별할 방법이 없다 — 행을 하나 끼워 넣으면 그 아래가 전부 바뀐 것으로 보인다.
+ * 화면에서 그 사실을 같이 알린다.
+ * ═════════════════════════════════════════════════════════════ */
+
+const DIFF_MAX = 400;   // 그 이상은 어차피 눈으로 못 읽는다 — 세는 것만 이어 간다
+
+/** 두 값을 견줘 [{ path, kind: 'add'|'remove'|'change', before, after }] 로 준다. */
+function diffJson(before, after) {
+  const out = [];
+  let more = 0;
+  const push = (path, kind, b, a) => {
+    if (out.length < DIFF_MAX) out.push({ path, kind, before: b, after: a });
+    else more++;
+  };
+  const isObj = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
+
+  const walk = (b, a, path) => {
+    if (b === a) return;
+    if (Array.isArray(b) && Array.isArray(a)) {
+      for (let i = 0; i < Math.max(b.length, a.length); i++) {
+        if (i >= b.length) push(`${path}[${i}]`, 'add', undefined, a[i]);
+        else if (i >= a.length) push(`${path}[${i}]`, 'remove', b[i], undefined);
+        else walk(b[i], a[i], `${path}[${i}]`);
+      }
+      return;
+    }
+    if (isObj(b) && isObj(a)) {
+      for (const k of new Set([...Object.keys(b), ...Object.keys(a)])) {
+        const sub = path ? `${path}.${k}` : k;
+        if (!(k in b)) push(sub, 'add', undefined, a[k]);
+        else if (!(k in a)) push(sub, 'remove', b[k], undefined);
+        else walk(b[k], a[k], sub);
+      }
+      return;
+    }
+    if (JSON.stringify(b) !== JSON.stringify(a)) push(path, 'change', b, a);
+  };
+
+  walk(before, after, '');
+  out.more = more;
+  return out;
+}
+
+/** 최상위 키별 건수 — "goods 3 · days 1" 처럼 한 줄로 줄인다. */
+function diffSummary(list) {
+  const by = {};
+  for (const d of list) {
+    const top = d.path.split(/[.[]/)[0] || '(루트)';
+    by[top] = (by[top] || 0) + 1;
+  }
+  return Object.entries(by).sort((a, b) => b[1] - a[1]).map(([k, n]) => `${k} ${n}`).join(' · ');
+}
+
+/** 값 한 칸을 사람이 읽을 수 있는 짧은 문자열로. */
+function diffValue(v) {
+  if (v === undefined) return '—';
+  if (typeof v === 'string') return v === '' ? '(빈 값)' : v;
+  const s = JSON.stringify(v);
+  return s.length > 120 ? s.slice(0, 120) + '…' : s;
+}
+
+/**
+ * 값이 통째로 비어 있는가 — `""` · `0` · `false` · `[]` · 빈 껍데기 객체.
+ *
+ * 앱 파서는 **키가 없는 것과 기본값이 든 것을 똑같이 읽는다**(optString → "", optInt → 0).
+ * 그래서 이런 값이 새로 생긴 것은 "스키마가 자란" 것이지 운영값이 바뀐 게 아니다.
+ */
+function allDefault(v) {
+  if (v === '' || v === 0 || v === false || v === null || v === undefined) return true;
+  if (Array.isArray(v)) return v.length === 0;
+  if (typeof v === 'object') return Object.values(v).every(allDefault);
+  return false;
+}
+
+/**
+ * 스키마 기본값이 채워진 것뿐인 줄을 접는다.
+ *
+ * 라이브가 옛 스키마로 저장돼 있으면(예전에 없던 칸이 생긴 뒤) 발행할 때마다 "빈 값 추가" 가
+ * 수십 줄 뜬다 — 정작 봐야 할 한 줄이 묻힌다. 접은 건수는 화면에 적어 둔다.
+ */
+function pruneDefaults(list) {
+  const kept = list.filter((d) => !(
+    (d.kind === 'add' && allDefault(d.after)) || (d.kind === 'remove' && allDefault(d.before))
+  ));
+  kept.more = list.more;
+  kept.hidden = list.length - kept.length;
+  return kept;
+}
+
+/** 지금 편집본과 라이브의 차이. 라이브를 아직 못 읽었으면 null. */
+function liveDiff() {
+  if (!state.live || !String(state.live.json).trim()) return null;
+  try {
+    return pruneDefaults(diffJson(JSON.parse(state.live.json), JSON.parse(toJson())));
+  } catch (e) {
+    return null;
+  }
+}
 
 /* ═════════════════════════════════════════════════════════════
  * 입력 위젯 — 실물은 전부 ui.js 의 커스텀 컴포넌트다.
@@ -1551,9 +1702,13 @@ async function publish() {
   if (!res.live) { toast('이 리소스는 라이브 반영을 쓰지 않습니다.'); return; }
   const json = toJson();
   const errCount = issuesNow().filter((i) => i.level === 'error').length;
+  const changes = liveDiff();
+  const what = changes === null ? ''
+    : changes.length ? `바뀌는 값 ${changes.length}건${changes.more ? '+' : ''} — ${diffSummary(changes)}.`
+    : '라이브와 같은 값이라 바뀌는 것이 없습니다.';
   if (!await glConfirm(`${res.label} 을 라이브(config/${res.doc})에 씁니다. 앱은 다음 조회부터 이 값을 읽습니다.`, {
     title: '라이브 반영', ok: '반영',
-    note: errCount ? `검증 오류 ${errCount}건이 남아 있습니다 — 앱이 해당 값을 버립니다.` : '',
+    note: [what, errCount ? `검증 오류 ${errCount}건이 남아 있습니다 — 앱이 해당 값을 버립니다.` : ''].filter(Boolean).join(' '),
   })) return;
   try {
     await c.push(res.doc, json);
@@ -1562,10 +1717,14 @@ async function publish() {
     // 방금 저장한 직후에도 "저장 안 됨" 으로 되돌아간다(배지는 다음 render 에서 다시 계산된다).
     state.d.original = JSON.parse(json);
     state.d.draft = res.normalize(state.d.original);
+    state.d.history = undefined;      // 방금 한 판이 늘었다 — 다음에 열 때 다시 읽는다
+    state.d.historyDiff = null;
     saveDraft();
     markClean('라이브 반영됨');
     render();
-    toast('라이브에 반영했습니다. 앱은 다음 조회부터 이 값을 읽습니다.');
+    toast(c.historyDisabled
+      ? '라이브에 반영했습니다. 다만 발행 이력이 남지 않았습니다 — firestore.rules 를 배포하세요.'
+      : '라이브에 반영했습니다. 앱은 다음 조회부터 이 값을 읽습니다.');
   } catch (e) {
     toast('반영 실패: ' + (e.code === 'permission-denied' ? '쓰기 권한이 없습니다(uid 화이트리스트 확인).' : e.message));
   }
@@ -1647,6 +1806,174 @@ function renderApis(sec) {
   ]);
 }
 
+/** 값 하나가 어떻게 바뀌는지 한 줄. 모바일에서 카드로 쌓이도록 data-label 을 단다. */
+function diffRow(d) {
+  const kind = d.kind === 'add' ? ['추가', 'ok'] : d.kind === 'remove' ? ['삭제', 'err'] : ['변경', 'warn'];
+  return el('tr', {}, [
+    el('td', { 'data-label': '구분' }, [el('span', { class: 'pill ' + kind[1], text: kind[0] })]),
+    el('td', { 'data-label': '위치' }, [el('code', { class: 'muted', text: d.path || '(루트)' })]),
+    el('td', { 'data-label': '전' }, [el('span', { class: 'muted', text: diffValue(d.before) })]),
+    el('td', { 'data-label': '후' }, [el('span', { text: diffValue(d.after) })]),
+  ]);
+}
+
+function diffTable(list) {
+  const table = el('table');
+  table.append(el('thead', {}, [el('tr', {}, [
+    el('th', { style: 'width:62px', text: '구분' }),
+    el('th', { style: 'width:220px', text: '위치' }),
+    el('th', { text: '전' }),
+    el('th', { text: '후' }),
+  ])]));
+  table.append(el('tbody', {}, list.map(diffRow)));
+  const kids = [el('div', { class: 'table-wrap' }, [table])];
+  if (list.more) kids.push(el('p', { class: 'note', style: 'margin-top:10px', text: `그 밖에 ${list.more}건 더 — 너무 많아 생략했습니다.` }));
+  if (list.hidden) kids.push(el('p', { class: 'note', style: 'margin-top:10px', text:
+    `빈 기본값이 채워진 ${list.hidden}건은 접었습니다 — 앱이 읽는 값은 그대로입니다(없는 키와 기본값을 같게 읽습니다).` }));
+  kids.push(el('p', { class: 'note', style: 'margin-top:10px', text:
+    '목록의 항목은 자리(순서)로 견줍니다 — 행을 끼워 넣거나 옮기면 그 아래가 전부 바뀐 것으로 보입니다(앱 스키마에 행 ID 가 없습니다).' }));
+  return kids;
+}
+
+function renderChanges(sec) {
+  const res = state.res;
+
+  if (state.live === undefined) {
+    return card(sec, [
+      el('p', { class: 'muted', text: '라이브 상태를 아직 읽지 않았습니다 — 무엇과 견줄지 먼저 받아야 합니다.' }),
+      el('button', { class: 'btn', onclick: refreshLive }, ['라이브 상태 읽기']),
+    ]);
+  }
+  if (state.live === null) {
+    return card(sec, [el('p', { class: 'muted', text:
+      `라이브 문서(config/${res.doc})가 아직 없습니다 — 첫 반영이 통째로 새 값입니다.` })]);
+  }
+
+  const list = liveDiff();
+  if (!list) {
+    return card(sec, [el('p', { class: 'muted', text:
+      '라이브 JSON 을 읽지 못해 견줄 수 없습니다 — 라이브 값이 깨져 있습니다(앱도 이때 정본으로 내려갑니다).' })]);
+  }
+  if (!list.length) {
+    return card(sec, [el('p', {}, [
+      el('span', { class: 'pill ok', text: '동일' }), ' ',
+      el('span', { text: '편집본이 라이브와 같습니다 — 반영할 것이 없습니다.' }),
+    ])]);
+  }
+
+  return el('div', {}, [
+    el('div', { class: 'tiles' }, [
+      tile('바뀌는 값', list.length + '건' + (list.more ? '+' : ''), diffSummary(list), 'warn'),
+      tile('마지막 반영', state.live.updatedAt ? new Date(state.live.updatedAt).toLocaleString('ko-KR') : '—', state.live.updatedBy || '', 'sm'),
+    ]),
+    card(sec, diffTable(list)),
+  ]);
+}
+
+/** 이력 문서 ID(20260916-143205) → 사람이 읽는 시각. */
+const versionLabel = (id) => /^\d{8}-\d{6}$/.test(id)
+  ? `${id.slice(0, 4)}-${id.slice(4, 6)}-${id.slice(6, 8)} ${id.slice(9, 11)}:${id.slice(11, 13)}:${id.slice(13, 15)}`
+  : id;
+
+async function loadHistory() {
+  const c = window.cloud || {};
+  if (!c.available || typeof c.history !== 'function') return;
+  const id = state.resource;
+  docs[id].history = 'loading';
+  try {
+    docs[id].history = await c.history(byId(id).doc, 10);
+  } catch (e) {
+    docs[id].history = { error: e.code === 'permission-denied'
+      ? '이력 읽기 권한이 없습니다 — firestore.rules 의 history 규칙을 배포했는지 확인하세요.'
+      : e.message };
+  }
+  render();
+}
+
+function renderHistory(sec) {
+  const c = window.cloud || {};
+  const h = state.d.history;
+
+  if (!c.available) {
+    return card(sec, [el('p', { class: 'muted', text: c.reason || '클라우드에 연결되지 않아 이력을 읽을 수 없습니다.' })]);
+  }
+  if (h === undefined) {
+    loadHistory();      // 처음 열었다 — 받아 오고 끝나면 다시 그린다
+    return card(sec, [el('p', { class: 'muted', text: '이력을 읽는 중입니다…' })]);
+  }
+  if (h === 'loading') return card(sec, [el('p', { class: 'muted', text: '이력을 읽는 중입니다…' })]);
+  if (h.error) {
+    return card(sec, [
+      el('p', { class: 'muted', text: h.error }),
+      el('button', { class: 'btn', onclick: () => { state.d.history = undefined; render(); } }, ['다시 시도']),
+    ]);
+  }
+  if (!h.length) {
+    return card(sec, [el('p', { class: 'muted', text: c.historyDisabled
+      ? '이력 쓰기가 규칙에 막혀 있습니다 — firestore.rules 를 배포하면 다음 반영부터 남습니다(반영 자체는 그대로 됩니다).'
+      : '아직 이력이 없습니다 — 다음 "라이브 반영" 부터 한 판씩 남습니다.' })]);
+  }
+
+  const table = el('table');
+  table.append(el('thead', {}, [el('tr', {}, [
+    el('th', { style: 'width:180px', text: '반영 시각' }),
+    el('th', { text: '반영한 계정' }),
+    el('th', { style: 'width:80px', text: '크기' }),
+    el('th', { style: 'width:220px' }),
+  ])]));
+
+  const body = el('tbody');
+  h.forEach((v, i) => {
+    body.append(el('tr', {}, [
+      el('td', { 'data-label': '반영 시각' }, [
+        el('strong', { text: versionLabel(v.id) }),
+        i === 0 ? el('span', { class: 'pill ok', style: 'margin-left:6px', text: '최신' }) : null,
+      ]),
+      el('td', { 'data-label': '반영한 계정', class: 'muted', text: v.updatedBy || '—' }),
+      el('td', { 'data-label': '크기', class: 'muted', text: (new TextEncoder().encode(v.json).length / 1024).toFixed(1) + 'KB' }),
+      el('td', { class: 'actions' }, [
+        el('button', { class: 'btn btn-sm', onclick: () => {
+          const cur = state.d.historyDiff;
+          state.d.historyDiff = cur && cur.id === v.id
+            ? null
+            : { id: v.id, list: pruneDefaults(diffJson(JSON.parse(v.json), JSON.parse(toJson()))) };
+          render();
+        } }, ['편집본과 비교']), ' ',
+        el('button', { class: 'btn btn-sm btn-danger', onclick: async () => {
+          const ok = await glConfirm(`${versionLabel(v.id)} 판을 편집본으로 되돌립니다.`, {
+            title: '이 판으로 되돌리기', ok: '되돌리기', danger: true,
+            note: '라이브는 아직 그대로입니다 — 되돌린 값을 변경사항 · 검증으로 확인한 뒤 "라이브 반영" 해야 앱에 적용됩니다.',
+          });
+          if (!ok) return;
+          setData(JSON.parse(v.json), `이력 ${versionLabel(v.id)}`);
+          toast('편집본으로 되돌렸습니다. 확인 후 라이브 반영하세요.');
+          go('changes');
+        } }, ['되돌리기']),
+      ]),
+    ]));
+  });
+  table.append(body);
+
+  const kids = [
+    el('div', { class: 'section-head' }, [
+      el('span', { class: 'muted', text: `${h.length}판 · 최신 10판까지 봅니다` }),
+      el('div', { class: 'tools' }, [
+        el('button', { class: 'btn btn-sm', onclick: () => { state.d.history = undefined; state.d.historyDiff = null; render(); } }, ['새로고침']),
+      ]),
+    ]),
+    el('div', { class: 'table-wrap' }, [table]),
+  ];
+
+  const d = state.d.historyDiff;
+  if (d) {
+    kids.push(el('h2', { style: 'margin:18px 0 6px;font-size:14px', text: `${versionLabel(d.id)} → 지금 편집본` }));
+    if (!d.list.length) kids.push(el('p', { class: 'muted', text: '그 판과 지금 편집본이 같습니다.' }));
+    else kids.push(...diffTable(d.list));
+  }
+
+  return card(sec, kids);
+}
+
 function renderExport(sec) {
   const res = state.res;
   const json = toJson();
@@ -1691,6 +2018,7 @@ const RENDERERS = {
   dashboard: renderDashboard, form: renderForm, list: renderList, strlist: renderStrList,
   days: renderDays, goods: renderGoods, gstar: renderGstar, past: renderPast,
   apis: renderApis, export: renderExport, live: renderLive,
+  changes: renderChanges, history: renderHistory,
 };
 
 function render() {
@@ -1842,6 +2170,46 @@ function selftest() {
     assert(has(H({ ticket: { status: 'OPEN' } }), 'error', /예매 상태/), '못 잡았다'));
   check('호요랜드 · 판매 중인데 오픈일 없으면 경고', () =>
     assert(has(H({ ticket: { status: 'on_sale', url: 'u' } }), 'warn', /알림이 예약되지 않/), '못 잡았다'));
+  check('호요랜드 · 입장 조가 비면 경고', () =>
+    assert(has(H({ entryGroups: [] }), 'warn', /내 입장권/), '못 잡았다'));
+  check('호요랜드 · 조가 겹치면 오류', () =>
+    assert(has(H({ entryGroups: [{ name: 'A', time: '10:00' }, { name: 'A', time: '11:00' }] }), 'error', /두 번/), '못 잡았다'));
+  check('호요랜드 · 조 이름이 "조"로 끝나면 경고', () =>
+    assert(has(H({ entryGroups: [{ name: 'A조', time: '10:00' }] }), 'warn', /글자만/), '못 잡았다'));
+  check('호요랜드 · 입장 시각 꼴이 어긋나면 경고', () =>
+    assert(has(H({ entryGroups: [{ name: 'A', time: '오전 10시' }] }), 'warn', /HH:mm/), '못 잡았다'));
+  check('호요랜드 · 정상 조 편성은 조용하다', () =>
+    assert(!H({ entryGroups: [{ name: 'A', time: '10:00' }, { name: 'B', time: '11:00' }] })
+      .some((i) => i.section === 'entryGroups'), '멀쩡한 편성에 지적이 붙었다'));
+  check('변경사항이 값 단위로 잡힌다', () => {
+    const d = diffJson(
+      { a: 1, arr: [{ x: 1 }, { x: 2 }], gone: 'y' },
+      { a: 2, arr: [{ x: 1 }, { x: 9 }, { x: 3 }], added: 'z' },
+    );
+    const at = (p) => d.find((i) => i.path === p);
+    assert(at('a') && at('a').kind === 'change' && at('a').after === 2, 'a 변경을 못 잡았다');
+    assert(at('arr[1].x') && at('arr[1].x').before === 2, '배열 안 값 변경을 못 잡았다');
+    assert(at('arr[2]') && at('arr[2]').kind === 'add', '늘어난 행을 못 잡았다');
+    assert(at('gone') && at('gone').kind === 'remove', '사라진 키를 못 잡았다');
+    assert(at('added') && at('added').kind === 'add', '새 키를 못 잡았다');
+  });
+  check('스키마 기본값만 채워진 줄은 접는다', () => {
+    const raw = diffJson({ a: 1 }, { a: 1, notice: '', days: [], gstar: { title: '', facts: [] }, openHour: 0, real: '값' });
+    const kept = pruneDefaults(raw);
+    assert(kept.length === 1 && kept[0].path === 'real', '접고 남은 것이 틀렸다: ' + kept.map((d) => d.path).join(','));
+    assert(kept.hidden === 4, '접은 건수가 틀렸다: ' + kept.hidden);
+  });
+  check('같은 값이면 변경사항이 없다', () => {
+    const o = { a: [1, { b: 'x' }], c: null, d: '' };
+    assert(diffJson(o, JSON.parse(JSON.stringify(o))).length === 0, '같은 값인데 차이를 냈다');
+  });
+  check('변경 요약이 최상위 키로 묶인다', () => {
+    const s = diffSummary(diffJson({ goods: [{ p: 1 }, { p: 2 }], days: [] }, { goods: [{ p: 9 }, { p: 8 }], days: [1] }));
+    assert(/goods 2/.test(s) && /days 1/.test(s), '요약이 틀렸다: ' + s);
+  });
+  check('이력 버전 ID 를 시각으로 읽는다', () =>
+    assert(versionLabel('20260916-143205') === '2026-09-16 14:32:05', '버전 표기가 틀렸다'));
+
   check('굿즈 비고를 앱과 같은 규칙으로 가른다', () => {
     const n = goodsNote('호요랜드2026 시리즈 · 디자인 2종 · 1인 5개 한정');
     assert(n.limit === '1인 5개 한정' && n.limitCount === 5, '구매 제한을 못 뽑았다');
