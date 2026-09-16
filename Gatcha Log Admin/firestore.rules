@@ -51,6 +51,20 @@ service cloud.firestore {
                       ];
     }
 
+    // ── 발행 이력 — 반영할 때마다 한 벌씩 쌓인다(어드민의 "발행 이력") ────────────
+    //
+    // 규칙은 상위 문서에서 **내려오지 않는다** — 서브컬렉션은 이렇게 따로 열어야 한다.
+    // 읽기를 공개로 두지 않는 이유: 앱은 이 경로를 쓰지 않고(config/{doc} 만 본다), 지난 판까지
+    // 공개할 이유가 없다. 쓰기는 create 만 연다 — 한 번 남긴 판을 고치거나 지우면 되돌릴 자리가
+    // 사라져서 이력을 둔 의미가 없어진다.
+    match /config/{doc}/history/{version} {
+      allow read, create: if request.auth != null
+                          && request.auth.uid in [
+                               'kc6zQnqGCseoL0yHKNwmqriO23j2'  // 운영자
+                             ];
+      allow update, delete: if false;
+    }
+
     // 그 외 모든 경로.
     //
     // ⚠️ 이 블록이 막아 주는 것이 아니다. Firestore 규칙에는 **deny 문법이 없고**, 규칙은
