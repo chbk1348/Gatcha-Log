@@ -88,7 +88,7 @@ mkdir -p build
 set +e
 xcodebuild archive \
   -project GL_IOS.xcodeproj \
-  -scheme GL_IOS \
+  -scheme Gatcha_LOG_iOS \
   -configuration Release \
   -destination 'generic/platform=iOS' \
   -archivePath "$ARCHIVE_PATH" \

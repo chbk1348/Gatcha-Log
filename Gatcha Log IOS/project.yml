@@ -184,9 +184,9 @@ targets:
         CODE_SIGN_STYLE: Automatic
         DEVELOPMENT_TEAM: CCTT9CBG38
 
-# 공유 스킴 — `xcodebuild -scheme GL_IOS` / 아카이브(build-ipa.sh) 용. xcodegen 재생성 후에도 유지.
+# 공유 스킴 — `xcodebuild -scheme Gatcha_LOG_iOS` / 아카이브(build-ipa.sh) 용. xcodegen 재생성 후에도 유지.
 schemes:
-  GL_IOS:
+  Gatcha_LOG_iOS:
     build:
       targets:
         GL_IOS: all

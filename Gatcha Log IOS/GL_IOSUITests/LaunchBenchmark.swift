@@ -12,7 +12,7 @@ import XCTest
 ///
 /// ```
 /// DEVELOPER_DIR=/Applications/Xcode-beta.app/Contents/Developer \
-/// xcodebuild test -project GL_IOS/GL_IOS.xcodeproj -scheme GL_IOS \
+/// xcodebuild test -project GL_IOS/GL_IOS.xcodeproj -scheme Gatcha_LOG_iOS \
 ///   -destination 'platform=iOS,name=<기기명>'
 /// ```
 ///
