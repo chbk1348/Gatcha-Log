@@ -1,6 +1,8 @@
 {
   "_comment": "호요랜드 정보 정본 — 앱 업데이트 없이 갱신되는 원격 소스. 앱은 이 파일을 raw 로 읽고, 실패하면 번들된 HoyolandDefaults 로 폴백한다. 빠진 키는 번들 기본값으로 메워지므로 바뀐 항목만 고쳐도 된다.",
   "edition": "호요랜드 2026",
+  "_editionEn_comment": "히어로 머리줄에 쓰는 영문 표기. 비우면 edition(한글)을 그대로 씁니다.",
+  "editionEn": "HOYOLAND 2026",
   "startYmd": "2026-10-02",
   "endYmd": "2026-10-05",
   "venueName": "일산 킨텍스 제2전시장",
@@ -8,7 +10,7 @@
   "venueAddress": "경기도 고양시 일산서구 킨텍스로 217-60",
   "mapUrl": "https://map.naver.com/p/search/%ED%82%A8%ED%85%8D%EC%8A%A4%20%EC%A0%9C2%EC%A0%84%EC%8B%9C%EC%9E%A5",
   "mapFallbackUrl": "https://www.google.com/maps/search/%EC%9D%BC%EC%82%B0+%ED%82%A8%ED%85%8D%EC%8A%A4+%EC%A0%9C2%EC%A0%84%EC%8B%9C%EC%9E%A5",
-  "officialUrl": "https://www.hoyolab.com/",
+  "officialUrl": "https://sites.google.com/mihoyo.com/hoyoland2026/hoyoland2026",
   "_announce_comment": "개최 발표일 — 상세 페이지 카운트다운 진행 바의 출발점이다.",
   "announceYmd": "2026-08-31",
 
@@ -25,6 +27,16 @@
     "appPackage": "kr.co.ticketlink.cne",
     "appScheme": ""
   },
+
+  "_entryGroups_comment": "입장 조 편성 — 「내 입장권」이 고르게 할 목록이다. name 은 조 글자만(\"A조\" 가 아니라 \"A\"), time 은 24시간 표기 HH:mm. 위 ticket.note 안내문에도 같은 내용이 글로 있는데, 그쪽은 읽는 자리고 여기는 고르는 자리다 — 조 편성이 바뀌면 둘 다 고친다. 비우면 「내 입장권」 섹션이 통째로 사라진다.",
+  "entryGroups": [
+    { "name": "A", "time": "10:00" },
+    { "name": "B", "time": "10:00" },
+    { "name": "C", "time": "11:00" },
+    { "name": "D", "time": "11:00" },
+    { "name": "E", "time": "12:00" },
+    { "name": "F", "time": "12:00" }
+  ],
 
   "_lineup_comment": "abbr·colorArgb 는 GameData 에 없는 게임(붕괴3rd·미해결사건부)만 채운다. 비우면 앱 기본 태그 규격을 따른다. url 은 그 게임의 행사 공지 — 참여 게임 칩을 누르면 열린다. 게임마다 올라오는 곳이 달라(원신·스타레일 네이버 카페 / 젠레스 게임라운지 / 붕괴3rd·미해결사건부 hoyo.link) 공식 주소 하나로는 '내 게임 공지' 에 못 간다. 비우면 그 칩은 눌리지 않는다. hoyo.link 단축 주소는 쓰지 않는다 — 한 번 더 거쳐 가고, 직접 주소여야 모바일에서 네이버 카페 앱으로 바로 넘어간다(2026-09-13 에 단축 주소 4개를 풀어 확인했고, 공식 사이트가 가리키는 곳이 원신·젠레스 주소와 정확히 같았다).",
   "lineup": [
