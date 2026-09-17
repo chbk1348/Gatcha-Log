@@ -2478,10 +2478,10 @@ function selftest() {
 
   const failed = results.filter((r) => r[0] === 'FAIL');
   document.body.innerHTML = '';
-  document.body.style.cssText = 'display:block;padding:32px;font:14px/1.8 monospace;background:#0e1016;color:#e6e8ef';
+  document.body.style.cssText = 'display:block;padding:32px;font:14px/1.8 monospace;background:#f5f6f9;color:#1b1f2a';
   document.body.append(el('h1', { text: failed.length ? `${failed.length}건 실패 / ${results.length}건` : `자체 점검 ${results.length}건 전부 통과` }));
   for (const [st, name] of results) {
-    document.body.append(el('div', { style: `color:${st === 'PASS' ? '#3ecf8e' : '#f2555a'}`, text: `${st}  ${name}` }));
+    document.body.append(el('div', { style: `color:${st === 'PASS' ? '#0d7a4d' : '#d0343a'}`, text: `${st}  ${name}` }));
   }
   return failed.length === 0;
 }

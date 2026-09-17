@@ -5,7 +5,7 @@
 .gl-field {
   display: flex; align-items: center; gap: 8px;
   width: 100%; padding: 8px 10px;
-  background: var(--panel-2); color: var(--text);
+  background: var(--panel); color: var(--text);
   border: 1px solid var(--line); border-radius: 8px;
   font: inherit; text-align: left;
 }
@@ -19,17 +19,17 @@ td .gl-field { padding: 6px 8px; }
 }
 .gl-field > .gl-input:focus { outline: 0; }
 
-.gl-dot { width: 9px; height: 9px; border-radius: 50%; flex: none; box-shadow: 0 0 0 1px rgba(0,0,0,.35) inset; }
+.gl-dot { width: 9px; height: 9px; border-radius: 50%; flex: none; box-shadow: 0 0 0 1px rgba(0,0,0,.14) inset; }
 .gl-note { font-size: 11px; color: var(--muted); }
 
 /* ── 드롭다운 ─────────────────────────────────────── */
 .gl-select { cursor: pointer; }
 .gl-select:hover, .gl-select:focus { border-color: var(--accent); outline: 0; }
 .gl-select .gl-val { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.gl-select .gl-ph { color: #5b6076; }
+.gl-select .gl-ph { color: #888f9e; }
 .gl-select .gl-tag {
   flex: none; font-size: 10px; padding: 1px 6px; border-radius: 999px;
-  background: rgba(111,140,255,.16); color: var(--accent);
+  background: rgba(69,89,217,.12); color: var(--accent);
 }
 .gl-caret {
   flex: none; width: 8px; height: 8px; margin-left: 2px;
@@ -42,14 +42,14 @@ td .gl-field { padding: 6px 8px; }
 .gl-pop {
   position: fixed; z-index: 60;
   background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
-  box-shadow: 0 14px 40px rgba(0,0,0,.5);
+  box-shadow: 0 12px 32px rgba(20,24,36,.14);
   overflow: hidden;
 }
 .gl-menu { max-width: min(420px, calc(100vw - 16px)); }
 .gl-menu-head { padding: 8px; border-bottom: 1px solid var(--line); font-size: 11px; color: var(--muted); }
 .gl-menu-head .gl-search {
   width: 100%; padding: 7px 9px;
-  background: var(--panel-2); color: var(--text);
+  background: var(--panel); color: var(--text);
   border: 1px solid var(--line); border-radius: 7px; font: inherit;
 }
 .gl-menu-head .gl-search:focus { outline: 0; border-color: var(--accent); }
@@ -62,7 +62,7 @@ td .gl-field { padding: 6px 8px; }
   padding: 7px 9px; border-radius: 7px; cursor: pointer; font-size: 13px;
 }
 .gl-opt.cur { background: var(--panel-2); }
-.gl-opt.on { color: #fff; }
+.gl-opt.on { color: var(--text); font-weight: 600; }
 .gl-opt.muted { color: var(--muted); }
 .gl-opt.custom { color: var(--accent); }
 .gl-opt-t { display: flex; flex-direction: column; min-width: 0; flex: 1; }
@@ -81,8 +81,8 @@ td .gl-field { padding: 6px 8px; }
   width: 16px; height: 16px; border-radius: 50%;
   background: var(--muted); transition: transform .13s ease, background .13s ease;
 }
-.gl-switch.on { background: var(--accent-2); border-color: var(--accent); }
-.gl-switch.on .gl-knob { transform: translateX(16px); background: var(--accent); }
+.gl-switch.on { background: var(--accent); border-color: var(--accent); }
+.gl-switch.on .gl-knob { transform: translateX(16px); background: #fff; }
 .gl-switch:focus { outline: 0; border-color: var(--accent); }
 
 /* ── 숫자 스테퍼 ──────────────────────────────────── */
@@ -95,7 +95,7 @@ td .gl-num { padding: 2px 3px; }
   border: 0; border-radius: 6px; background: none;
   color: var(--muted); font: inherit; cursor: pointer;
 }
-.gl-num-b:hover { background: var(--panel); color: var(--text); }
+.gl-num-b:hover { background: var(--panel-2); color: var(--text); }
 td .gl-num-b { width: 20px; height: 22px; }
 .gl-num-in { flex: 1; min-width: 0; text-align: center; }
 
@@ -108,7 +108,7 @@ td .gl-num-b { width: 20px; height: 22px; }
   border: 0; border-radius: 6px; background: none;
   color: var(--muted); font: inherit; cursor: pointer;
 }
-.gl-icon-b:hover { background: var(--panel); color: var(--text); }
+.gl-icon-b:hover { background: var(--panel-2); color: var(--text); }
 .gl-cal-ico {
   width: 13px; height: 12px; border: 1.5px solid currentColor; border-radius: 2px;
   border-top-width: 4px; display: block;
@@ -141,7 +141,7 @@ td .gl-num-b { width: 20px; height: 22px; }
 .gl-time-pop { min-width: 188px; }
 .gl-time-pop .gl-time { justify-content: center; margin-top: 0; padding-top: 0; border-top: 0; }
 .gl-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
-.gl-mini.on { background: var(--accent-2); border-color: var(--accent); color: #fff; }
+.gl-mini.on { background: var(--accent-2); border-color: var(--accent); color: var(--accent); }
 
 /* ── 색 ───────────────────────────────────────────── */
 .gl-color { gap: 8px; }
@@ -165,12 +165,12 @@ td .gl-num-b { width: 20px; height: 22px; }
 .gl-backdrop {
   position: fixed; inset: 0; z-index: 80;
   display: grid; place-items: center;
-  background: rgba(6,8,13,.62);
+  background: rgba(23,27,38,.42);
 }
 .gl-modal {
   width: min(420px, calc(100vw - 32px)); padding: 20px;
   background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
-  box-shadow: 0 20px 60px rgba(0,0,0,.55);
+  box-shadow: 0 18px 48px rgba(20,24,36,.18);
 }
 .gl-modal h3 { margin: 0 0 8px; font-size: 15px; }
 .gl-modal p { margin: 0 0 6px; font-size: 13px; color: var(--text); line-height: 1.65; }
@@ -178,7 +178,7 @@ td .gl-num-b { width: 20px; height: 22px; }
 .gl-modal-act { display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px; }
 .btn-danger-solid { background: var(--err); border-color: var(--err); color: #fff; font-weight: 600; }
 
-/* 포커스 링 — 브라우저 기본 링은 파란 고정색이라 다크 테마와 겉돈다. */
+/* 포커스 링 — 브라우저 기본 링은 파란 고정색이라 테마 색과 겉돈다. */
 .btn:focus-visible, .gl-mini:focus-visible, .gl-icon-b:focus-visible, .gl-num-b:focus-visible,
 .gl-cal-d:focus-visible, .gl-swatch:focus-visible, .gl-pal-c:focus-visible, .gl-switch:focus-visible {
   outline: 2px solid var(--accent); outline-offset: 1px;
@@ -194,10 +194,11 @@ td .gl-num-b { width: 20px; height: 22px; }
   display: grid; place-content: center; justify-items: center; gap: 20px;
   padding: max(24px, env(safe-area-inset-top, 0px)) max(24px, env(safe-area-inset-right, 0px))
            max(24px, env(safe-area-inset-bottom, 0px)) max(24px, env(safe-area-inset-left, 0px));
-  /* 어드민 본문은 평평한 단색이라, 여기만 accent 두 색으로 깊이를 준다. */
+  /* 어드민 본문은 평평한 단색이라, 여기만 accent 두 색으로 깊이를 준다.
+     라이트 바탕에서는 같은 농도가 탁하게 번진다 — 절반 아래로 낮춰 물든 정도만 남긴다. */
   background:
-    radial-gradient(880px 520px at 12% -12%, rgba(111,140,255,.20), transparent 62%),
-    radial-gradient(680px 460px at 96% 104%, rgba(176,111,255,.20), transparent 62%),
+    radial-gradient(880px 520px at 12% -12%, rgba(69,89,217,.12), transparent 62%),
+    radial-gradient(680px 460px at 96% 104%, rgba(155,92,240,.10), transparent 62%),
     var(--bg);
   overflow: hidden;
 }
@@ -211,7 +212,7 @@ body.gated { overflow: hidden; }
     linear-gradient(var(--line) 1px, transparent 1px),
     linear-gradient(90deg, var(--line) 1px, transparent 1px);
   background-size: 46px 46px;
-  opacity: .22;
+  opacity: .8;
   -webkit-mask-image: radial-gradient(circle at 50% 42%, #000 0%, transparent 70%);
   mask-image: radial-gradient(circle at 50% 42%, #000 0%, transparent 70%);
 }
@@ -219,16 +220,16 @@ body.gated { overflow: hidden; }
 .gate-card {
   position: relative;
   width: min(392px, calc(100vw - 32px)); padding: 32px 30px 24px;
-  background: linear-gradient(180deg, rgba(29,33,48,.94), rgba(21,24,34,.96));
+  background: linear-gradient(180deg, #ffffff, #fafbfe);
   border: 1px solid var(--line); border-radius: 18px;
-  box-shadow: 0 30px 80px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,255,255,.04);
+  box-shadow: 0 24px 60px rgba(20,24,36,.14), 0 2px 6px rgba(20,24,36,.06);
   text-align: center;
   animation: gate-in .34s cubic-bezier(.2,.7,.3,1) both;
 }
 /* 카드 윗변을 훑는 한 줄 — 브랜드 마크의 그라데이션과 같은 색을 쓴다. */
 .gate-card::before {
   content: ''; position: absolute; left: 26px; right: 26px; top: -1px; height: 1px;
-  background: linear-gradient(90deg, transparent, var(--accent), #b06fff, transparent);
+  background: linear-gradient(90deg, transparent, var(--accent), #9b5cf0, transparent);
 }
 @keyframes gate-in {
   from { opacity: 0; transform: translateY(12px) scale(.985); }
@@ -239,9 +240,9 @@ body.gated { overflow: hidden; }
   width: 58px; height: 58px; margin: 0 auto 14px;
   display: grid; place-items: center;
   border-radius: 17px;
-  background: linear-gradient(135deg, var(--accent), #b06fff);
+  background: linear-gradient(135deg, var(--accent), #9b5cf0);
   color: #fff; font-size: 21px; font-weight: 800; letter-spacing: .02em;
-  box-shadow: 0 12px 32px rgba(111,140,255,.38);
+  box-shadow: 0 12px 28px rgba(69,89,217,.30);
 }
 .gate-brand { display: flex; flex-direction: column; gap: 2px; margin-bottom: 22px; }
 .gate-brand strong { font-size: 15px; }
@@ -250,7 +251,7 @@ body.gated { overflow: hidden; }
 .gate-badge {
   display: inline-block; margin-bottom: 10px;
   padding: 3px 10px; border-radius: 999px;
-  background: rgba(242,85,90,.14); color: var(--err);
+  background: rgba(208,52,58,.12); color: var(--err);
   font-size: 11px; font-weight: 700;
 }
 .gate-card h2 { margin: 0 0 10px; font-size: 18px; }
@@ -279,9 +280,10 @@ body.gated { overflow: hidden; }
 .gate-go:active { transform: translateY(1px); }
 .gate-go[disabled] { opacity: .45; cursor: default; }
 .gate-go[disabled]:hover { border-color: var(--line); }
-/* 구글 버튼은 구글 표기를 따른다 — 다크 위에서는 흰 배경이 가장 알아보기 쉽다. */
-.gate-go.google { background: #fff; border-color: #dadce0; color: #1f1f1f; }
-.gate-go.google:hover { background: #f1f3f9; border-color: #c9cdd6; }
+/* 구글 버튼은 구글 표기를 따른다 — 흰 배경 · 회색 테두리 · 검정에 가까운 글자.
+   카드도 흰색이라 배경으로는 갈리지 않는다. 테두리를 한 단계 진하게 써서 면을 세운다. */
+.gate-go.google { background: #fff; border-color: #c6cad4; color: #1f1f1f; }
+.gate-go.google:hover { background: #f5f6fa; border-color: #a8aeba; }
 .gate-g { display: grid; place-items: center; }
 
 .gate-note {
@@ -292,7 +294,7 @@ body.gated { overflow: hidden; }
 .gate-uid { display: flex; align-items: center; gap: 8px; margin-top: 10px; }
 .gate-uid code {
   flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-  padding: 5px 8px; border-radius: 6px; background: var(--bg);
+  padding: 5px 8px; border-radius: 6px; background: var(--panel-2);
   font-size: 11px; color: var(--text);
 }
 
@@ -310,7 +312,7 @@ body.gated { overflow: hidden; }
 }
 .gate-err {
   margin: -12px 0 18px; padding: 9px 12px;
-  border-radius: 8px; background: rgba(242,85,90,.10); border: 1px solid rgba(242,85,90,.25);
+  border-radius: 8px; background: rgba(208,52,58,.08); border: 1px solid rgba(208,52,58,.22);
   font-size: 11px; line-height: 1.6; color: var(--err); text-align: left; word-break: break-word;
 }
 

@@ -1,17 +1,23 @@
 /* Gatcha Log Admin — 빌드 없이 도는 정적 어드민. 폰트·아이콘 등 외부 의존 없음. */
 
 :root {
-  --bg: #0e1016;
-  --panel: #161923;
-  --panel-2: #1d2130;
-  --line: #2a2f40;
-  --text: #e6e8ef;
-  --muted: #8b91a6;
-  --accent: #6f8cff;
-  --accent-2: #2f3d6b;
-  --ok: #3ecf8e;
-  --warn: #f0b429;
-  --err: #f2555a;
+  /* 라이트 팔레트. --bg 는 바탕, --panel 은 그 위에 뜨는 면(카드 · 사이드바 · 상단바),
+     --panel-2 는 면 안에서 한 겹 들어간 자리(입력창 · 배지 · 표 머리)다. 강조색 넷은
+     흰 바탕에 **글자로 얹히므로** 다크 시절보다 진하다 — 옅은 형광색은 여기서 읽히지 않는다. */
+  --bg: #f5f6f9;
+  --panel: #ffffff;
+  --panel-2: #eef0f5;
+  --line: #dfe2ea;
+  --text: #1b1f2a;
+  --muted: #616878;
+  --accent: #4559d9;
+  /* accent 를 배경으로 깔 때 쓰는 옅은 짝. 그 위 글자는 흰색이 아니라 --accent 다. */
+  --accent-2: #e9edfc;
+  --ok: #0d7a4d;
+  --warn: #965d00;
+  --err: #d0343a;
+  /* 면을 띄우는 그림자 한 겹. 라이트에서는 테두리만으로 카드가 바탕에 눌어붙어 보인다. */
+  --shadow: 0 1px 2px rgba(20, 24, 36, .05);
   --radius: 10px;
   /* 본문·상단바가 함께 지킬 최대 폭. 초광폭 모니터에서 한 줄이 화면 끝까지 늘어나면 눈이
      줄 끝에서 다음 줄 머리로 못 돌아온다. 표는 이 안에서 가로 스크롤된다 —
@@ -21,9 +27,9 @@
 
 * { box-sizing: border-box; }
 
-/* 브라우저가 그리는 것들(스크롤바 · 기본 위젯 · 오버스크롤 영역)도 다크로 맞춘다.
-   html 배경까지 칠해야 스크롤 바운스에서 흰 바탕이 비치지 않는다. */
-html { color-scheme: dark; background: var(--bg); }
+/* 브라우저가 그리는 것들(스크롤바 · 기본 위젯 · 오버스크롤 영역)도 라이트로 맞춘다.
+   html 배경까지 칠해야 스크롤 바운스에서 다른 색이 비치지 않는다. */
+html { color-scheme: light; background: var(--bg); }
 
 body {
   margin: 0;
@@ -59,7 +65,7 @@ body {
   width: 32px; height: 32px;
   display: grid; place-items: center;
   border-radius: 8px;
-  background: linear-gradient(135deg, var(--accent), #b06fff);
+  background: linear-gradient(135deg, var(--accent), #9b5cf0);
   font-weight: 700; font-size: 13px; color: #fff;
 }
 .brand strong { display: block; font-size: 14px; }
@@ -90,13 +96,13 @@ body {
   font: inherit; text-align: left; cursor: pointer;
 }
 .nav-item:hover { background: var(--panel-2); color: var(--text); }
-.nav-item.active { background: var(--accent-2); color: #fff; }
+.nav-item.active { background: var(--accent-2); color: var(--accent); font-weight: 600; }
 .nav-item .count {
   margin-left: auto;
   font-size: 11px; color: var(--muted);
   background: var(--panel-2); border-radius: 999px; padding: 1px 7px;
 }
-.nav-item.active .count { background: rgba(0,0,0,.28); color: #dfe4ff; }
+.nav-item.active .count { background: rgba(69,89,217,.14); color: var(--accent); }
 .nav-item .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--warn); margin-left: auto; }
 
 .sidebar-foot {
@@ -150,7 +156,7 @@ body {
 
 .badge { font-size: 11px; padding: 4px 9px; border-radius: 999px; }
 .badge-clean { background: var(--panel-2); color: var(--muted); }
-.badge-dirty { background: rgba(240,180,41,.16); color: var(--warn); }
+.badge-dirty { background: rgba(150,93,0,.12); color: var(--warn); }
 
 /* ── 본문 ─────────────────────────────────────────── */
 #main {
@@ -169,6 +175,7 @@ body {
   border-radius: var(--radius);
   padding: 18px;
   margin-bottom: 16px;
+  box-shadow: var(--shadow);
 }
 /* h2 는 로그인·권한 안내 카드에만 남았다 — 섹션 제목은 붙박이 상단바가 든다(`card()` 주석). */
 .card > h2 { margin: 0 0 4px; font-size: 15px; }
@@ -186,17 +193,17 @@ body {
    커스텀 컴포넌트가 대신한다. 여기 남은 건 텍스트 계열과 그 껍데기(.gl-field)뿐이다. */
 input[type=text], textarea {
   width: 100%; padding: 8px 10px;
-  background: var(--panel-2); color: var(--text);
+  background: var(--panel); color: var(--text);
   border: 1px solid var(--line); border-radius: 8px;
   font: inherit;
 }
 input:focus, textarea:focus { outline: 0; border-color: var(--accent); }
 textarea { resize: vertical; min-height: 68px; }
-input::placeholder, textarea::placeholder { color: #5b6076; }
+input::placeholder, textarea::placeholder { color: #888f9e; }
 
 /* ── 통계 타일 ────────────────────────────────────── */
 .tiles { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); margin-bottom: 16px; }
-.tile { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px 16px; }
+.tile { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px 16px; box-shadow: var(--shadow); }
 .tile .k { font-size: 11px; color: var(--muted); }
 .tile .v { font-size: 22px; font-weight: 700; margin-top: 3px; }
 .tile .s { font-size: 11px; color: var(--muted); }
@@ -230,16 +237,16 @@ td.actions { white-space: nowrap; text-align: right; }
   background: var(--panel-2); font-size: 13px;
 }
 .issues .lv { font-size: 11px; font-weight: 700; padding: 1px 7px; border-radius: 999px; flex: none; }
-.issues .lv.error { background: rgba(242,85,90,.16); color: var(--err); }
-.issues .lv.warn  { background: rgba(240,180,41,.16); color: var(--warn); }
-.issues .lv.info  { background: rgba(111,140,255,.16); color: var(--accent); }
+.issues .lv.error { background: rgba(208,52,58,.12); color: var(--err); }
+.issues .lv.warn  { background: rgba(150,93,0,.12); color: var(--warn); }
+.issues .lv.info  { background: rgba(69,89,217,.12); color: var(--accent); }
 .issues .go { margin-left: auto; flex: none; }
 
 /* ── 코드 미리보기 ────────────────────────────────── */
 pre.json {
   margin: 0; padding: 14px; max-height: 460px; overflow: auto;
-  background: #0b0d13; border: 1px solid var(--line); border-radius: 8px;
-  font: 12px/1.6 "Cascadia Mono", Consolas, monospace; color: #cfd6e6;
+  background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px;
+  font: 12px/1.6 "Cascadia Mono", Consolas, monospace; color: #2f3546;
   white-space: pre;
 }
 
@@ -256,9 +263,9 @@ pre.json {
 .day-body { padding: 6px 12px 12px; }
 
 .pill { font-size: 11px; padding: 2px 8px; border-radius: 999px; background: var(--panel-2); color: var(--muted); }
-.pill.ok { background: rgba(62,207,142,.15); color: var(--ok); }
-.pill.warn { background: rgba(240,180,41,.15); color: var(--warn); }
-.pill.err { background: rgba(242,85,90,.15); color: var(--err); }
+.pill.ok { background: rgba(13,122,77,.12); color: var(--ok); }
+.pill.warn { background: rgba(150,93,0,.12); color: var(--warn); }
+.pill.err { background: rgba(208,52,58,.12); color: var(--err); }
 
 /* 굿즈 비고가 앱에서 배지로 갈린 결과 */
 .note-preview { margin-top: 14px; padding: 12px 14px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel); }
@@ -270,8 +277,9 @@ a { color: var(--accent); }
 
 .toast {
   position: fixed; left: 50%; bottom: calc(26px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%);
-  background: var(--panel-2); border: 1px solid var(--line);
+  background: var(--panel); border: 1px solid var(--line);
   padding: 10px 18px; border-radius: 999px; font-size: 13px; z-index: 50;
+  box-shadow: 0 8px 24px rgba(20,24,36,.12);
 }
 
 /* 햄버거 — 데스크톱에서는 사이드바가 늘 보이므로 숨는다. */
@@ -291,7 +299,7 @@ a { color: var(--accent); }
 
 .nav-backdrop {
   position: fixed; inset: 0; z-index: 65;
-  background: rgba(6,8,13,.55);
+  background: rgba(23,27,38,.38);
 }
 
 /* 드로어 전용 동작 — 데스크톱에서는 상단바에 같은 버튼이 있다. */
@@ -321,7 +329,7 @@ a { color: var(--accent); }
     width: min(276px, 84vw); height: 100dvh;
     transform: translateX(-100%);
     transition: transform .22s cubic-bezier(.2,.7,.3,1);
-    box-shadow: 24px 0 60px rgba(0,0,0,.5);
+    box-shadow: 18px 0 48px rgba(20,24,36,.16);
   }
   body.nav-open .sidebar { transform: none; }
   body.nav-open { overflow: hidden; }
@@ -392,4 +400,4 @@ a { color: var(--accent); }
 .img-cell-thumb.broken{border-color:#D8574A;background:#FDECEA}
 .menu-img-list{display:flex;flex-direction:column;gap:6px}
 .menu-img-body{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}
-.menu-img-name{font-size:11.5px;font-weight:700;color:#4A5158;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.menu-img-name{font-size:11.5px;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
