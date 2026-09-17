@@ -54,7 +54,7 @@ Google Apps Script 웹앱에서 출발해 **Kotlin Multiplatform + Compose Multi
 - **상세 페이지** — 개막 카운트다운 · 일자별 무대 시간표(진행 중 표시) · 예매 안내 · 웰컴 키트 · 부대 프로그램
 - **굿즈샵** — 게임별 목록 · **품목별 사진과 크게 보기** · 구매 제한 · 장바구니로 예상 지출 합계 · 굿즈존 이용 안내
 - **부스 체험 · 푸드존** — 무료/유료 체험존 · 게임별 메뉴판과 메뉴 사진
-- **라이브 갱신** — 행사 정보는 운영 어드민에서 고치면 앱 업데이트 없이 바로 반영 · 개막/예매 오픈 알림
+- **라이브 갱신** — 행사 정보는 앱 업데이트 없이 바로 반영 · 개막/예매 오픈 알림
 
 ### 🗓 배너 · 일정
 - **게임 일정** — 게임당 한 줄 요약 카드로 진입 → 상세는 **마감 날짜 타임라인**(픽업 종료·이벤트·정기 콘텐츠를 날짜순으로 한 줄기에). '주년' 탭 포함
@@ -90,7 +90,6 @@ Google Apps Script 웹앱에서 출발해 **Kotlin Multiplatform + Compose Multi
 | 공유 코드 (KMP) | Kotlin 2.3.21 · Compose Multiplatform 1.11 (Material 3) · kotlinx-{coroutines, serialization, datetime} · Ktor |
 | Android | Jetpack Compose · AGP 9.3.1 · compileSdk 37 / minSdk 31 · WorkManager · Credential Manager |
 | iOS | SwiftUI(네이티브 탭바·리퀴드 글래스) · Swift 6 언어 모드 · BGTaskScheduler · GoogleSignIn SDK · Xcode 27 정식(iOS 27 SDK) / iOS 18+ |
-| 운영 어드민 | 빌드 없는 정적 웹(Firebase Hosting) — 호요랜드 · 배너 라이브 설정을 Firestore 에 반영 |
 | 클라우드 | Firebase Auth + Cloud Firestore (Android: Firebase SDK / iOS: GitLive KMP + Firebase iOS SDK) |
 | 로컬 저장 | Android: SharedPreferences(토큰은 EncryptedSharedPreferences) / iOS: UserDefaults(토큰은 Keychain) |
 | 빌드 | Gradle 9.6.1 · XcodeGen |
@@ -103,7 +102,6 @@ Google Apps Script 웹앱에서 출발해 **Kotlin Multiplatform + Compose Multi
 Gatcha Log Android/  Android 앱 (프로덕션 · Jetpack Compose) · baselineprofile/ (Baseline Profile 생성 모듈)
 Gatcha Log Shared/   KMP 공유 모듈 — commonMain(데이터·비즈니스 로직·VM) + androidMain / iosMain
 Gatcha Log IOS/      iOS 앱 — SwiftUI 호스트(네이티브 탭바·글래스 버튼) + Xcode 프로젝트
-Gatcha Log Admin/    운영 어드민(정적 웹) + Firebase 배포 설정(firebase.json · firestore.rules)
 config/              앱이 원격으로 읽는 정본 JSON(호요랜드 · ZZZ 배너) · goods/ · food/ 사진 — 경로 고정
 version.json         Android 인앱 업데이트 매니페스트 — 경로 고정
 ```
@@ -156,13 +154,6 @@ open "Gatcha Log IOS/GL_IOS.xcodeproj"   # Xcode 에서 열고 시뮬레이터/�
 > JDK는 Android Studio 번들 JBR(OpenJDK 21) 사용 권장.
 > `google-services.json` 이 없어도 빌드됩니다(클라우드 비활성·로컬 모드로 동작).
 > iOS 의 `project.yml` 을 수정한 경우 `xcodegen generate` 로 .xcodeproj 재생성.
-
-**운영 어드민** (Firebase Hosting)
-
-```bash
-cd "Gatcha Log Admin"          # firebase.json 이 이 폴더에 있습니다
-firebase deploy --only firestore:rules,hosting
-```
 
 ### 📲 iOS 설치 (사이드로딩)
 
