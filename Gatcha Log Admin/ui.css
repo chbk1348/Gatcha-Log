@@ -207,7 +207,7 @@ body.gated { overflow: hidden; }
 
 /* 격자 — 가운데만 남기고 가장자리로 사라지게 마스크를 씌운다. */
 .gate::before {
-  content: ''; position: absolute; inset: 0; pointer-events: none;
+  content: ''; position: absolute; inset: 0; z-index: -1; pointer-events: none;
   background-image:
     linear-gradient(var(--line) 1px, transparent 1px),
     linear-gradient(90deg, var(--line) 1px, transparent 1px);
@@ -263,7 +263,7 @@ body.gated { overflow: hidden; }
 
 .gate-spin {
   flex: none; width: 14px; height: 14px; border-radius: 50%;
-  border: 2px solid var(--line); border-top-color: var(--accent);
+  border: 2px solid rgba(69,89,217,.22); border-top-color: var(--accent);
   animation: gate-spin .8s linear infinite;
 }
 @keyframes gate-spin { to { transform: rotate(360deg); } }
@@ -317,6 +317,9 @@ body.gated { overflow: hidden; }
 }
 
 /* 로그인 여부를 아직 모르는 동안 — 카드 대신 이것만 둔다. */
-.gate-splash { display: grid; place-items: center; gap: 20px; }
-.gate-splash .gate-mark { margin: 0; }
-.gate-splash .gate-spin { width: 18px; height: 18px; border-width: 2px; }
+.gate-splash { display: grid; place-items: center; gap: 22px; }
+.gate-splash .gate-mark {
+  margin: 0; width: 68px; height: 68px; border-radius: 20px; font-size: 25px;
+  box-shadow: 0 14px 34px rgba(69,89,217,.34);
+}
+.gate-splash .gate-spin { width: 22px; height: 22px; border-width: 2.5px; }
