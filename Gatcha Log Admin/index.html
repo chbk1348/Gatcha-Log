@@ -39,6 +39,9 @@
     <p id="page-desc" class="muted"></p>
   </div>
   <div class="topbar-actions">
+    <!-- 되돌리기 — 세션 안에서만 산다. 창을 닫으면 사라지므로 초안(localStorage)과는 다른 물건이다. -->
+    <button id="btn-undo" class="btn btn-step" disabled>↶</button>
+    <button id="btn-redo" class="btn btn-step" disabled>↷</button>
     <span id="dirty" class="badge badge-clean">변경 없음</span>
     <span id="who" class="badge badge-clean" hidden></span>
     <button id="btn-load-remote" class="btn">불러오기</button>

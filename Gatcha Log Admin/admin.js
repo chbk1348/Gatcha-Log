@@ -688,6 +688,8 @@ for (const r of RESOURCES) docs[r.id] = {
   original: null, draft: r.normalize({}), live: undefined, source: '빈 문서',
   history: undefined,      // undefined=아직 안 읽음 · 'loading' · 배열 · { error }
   historyDiff: null,       // { id, list } — 이력 한 판과 지금 편집본의 차이
+  // 되돌리기 — 리소스마다 따로 쌓는다. 굿즈를 고치다 배너로 갔다 와도 자기 이력이 남아 있다.
+  undo: [], redo: [], snap: null,
 };
 
 const state = {
@@ -2538,6 +2540,7 @@ function render() {
   document.getElementById('page-desc').textContent = sec.desc || '';
   document.getElementById('source-label').textContent = `${state.res.file} · ${state.d.source}`;
   syncDirtyBadge();
+  syncUndoButtons();
   const main = document.getElementById('main');
   main.replaceChildren();
   main.append(RENDERERS[sec.type](sec));
@@ -2593,11 +2596,90 @@ function syncDirtyBadge() {
   b.textContent = state.dirty ? '저장 안 됨' : '변경 없음';
 }
 
-/** 값이 바뀌었다 — 배지·초안 보관·사이드바 점을 다시 맞춘다([isDirty] 가 실제 판정을 한다). */
-function markDirty() {
+/* ═════════════════════════════════════════════════════════════
+ * 되돌리기
+ *
+ * 편집 지점마다 역연산을 적어 두는 대신 **편집 직전의 편집본을 통째로** 쌓는다. 값 입력 ·
+ * 행 추가 · 여러 행 삭제 · 붙여넣기 · 순서 바꾸기가 전부 [markDirty] 라는 한 통로를 지나므로,
+ * 거기서 한 박자 늦게 찍으면 모든 편집이 저절로 들어온다.
+ *
+ * 이력은 **메모리에만** 둔다. 초안은 localStorage 에 남지만 되돌리기는 창을 닫으면 끝이다 —
+ * 어제 작업을 오늘 되돌리는 것은 「불러오기」와 「발행 이력」이 할 일이다.
+ * ═════════════════════════════════════════════════════════════ */
+
+/** 한 리소스가 들고 있을 되돌리기 칸 수. 굿즈 105행이 한 판에 60KB 안팎이다. */
+const UNDO_MAX = 40;
+
+const snapOf = () => JSON.stringify(state.d.draft);
+
+/**
+ * 직전 상태를 더미에 쌓는다 — 실제로 쌓였으면 true.
+ * 기준이 없거나 값이 그대로면 아무것도 하지 않는다(같은 칸을 두 번 확정해도 한 칸만 남는다).
+ */
+function pushUndo(d, prev, now) {
+  if (prev === null || prev === undefined || prev === now) return false;
+  d.undo.push(prev);
+  if (d.undo.length > UNDO_MAX) d.undo.shift();
+  d.redo.length = 0;          // 새 편집이 갈라져 나왔다 — 앞으로 갈 길은 사라진다
+  return true;
+}
+
+/** 새 기준이 생겼다(불러오기 · 파일 열기 · 라이브 반영) — 그 전으로 되돌릴 일은 없다. */
+function resetUndo() {
+  const d = state.d;
+  d.undo = [];
+  d.redo = [];
+  d.snap = snapOf();
+}
+
+/** 되돌리기로 편집본을 통째로 갈아 끼운다. 화면이 들고 있던 행 참조가 죽으므로 고른 것도 비운다. */
+function applySnap(json) {
+  state.d.draft = JSON.parse(json);
+  state.d.snap = json;
+  if (state.sel) for (const k of Object.keys(state.sel)) state.sel[k].clear();
   syncDirtyBadge();
   saveDraft();
   renderNav();
+  syncUndoButtons();
+  render();
+}
+
+function undo() {
+  const d = state.d;
+  if (!d.undo.length) { toast('되돌릴 것이 없습니다.'); return; }
+  d.redo.push(snapOf());
+  applySnap(d.undo.pop());
+  toast('되돌렸습니다.');
+}
+
+function redo() {
+  const d = state.d;
+  if (!d.redo.length) { toast('다시 할 것이 없습니다.'); return; }
+  d.undo.push(snapOf());
+  applySnap(d.redo.pop());
+  toast('다시 했습니다.');
+}
+
+/** 상단바의 ↶ ↷ — 쌓인 것이 없으면 눌리지 않는다. */
+function syncUndoButtons() {
+  const d = state.d;
+  const u = document.getElementById('btn-undo');
+  const r = document.getElementById('btn-redo');
+  if (u) { u.disabled = !d.undo.length; u.title = d.undo.length ? `되돌리기 (${d.undo.length}단계)` : '되돌릴 것이 없습니다'; }
+  if (r) { r.disabled = !d.redo.length; r.title = d.redo.length ? `다시 하기 (${d.redo.length}단계)` : '다시 할 것이 없습니다'; }
+}
+
+/** 값이 바뀌었다 — 배지·초안 보관·사이드바 점을 다시 맞춘다([isDirty] 가 실제 판정을 한다). */
+function markDirty() {
+  // 직전 상태를 쌓는다. **한 박자 늦다** — 지금 찍으면 이미 바뀐 뒤라 되돌릴 자리가 없다.
+  const d = state.d;
+  const now = snapOf();
+  pushUndo(d, d.snap, now);
+  d.snap = now;
+  syncDirtyBadge();
+  saveDraft();
+  renderNav();
+  syncUndoButtons();
 }
 
 /**
@@ -2608,6 +2690,8 @@ function markClean(label) {
   const b = document.getElementById('dirty');
   b.className = 'badge badge-clean';
   b.textContent = label || '변경 없음';
+  resetUndo();
+  syncUndoButtons();
 }
 
 function saveDraft() {
@@ -2701,6 +2785,26 @@ function selftest() {
     assert(at('gone') && at('gone').kind === 'remove', '사라진 키를 못 잡았다');
     assert(at('added') && at('added').kind === 'add', '새 키를 못 잡았다');
   });
+  // 되돌리기 더미 — 값 입력 · 행 추가 · 붙여넣기가 전부 markDirty 한 통로를 지나므로
+  // 여기만 맞으면 모든 편집이 되돌아간다.
+  check('되돌리기 더미는 바뀐 것만 쌓고 앞으로 갈 길을 지운다', () => {
+    const d = { undo: [], redo: ['앞으로 갈 길'] };
+    assert(!pushUndo(d, null, 'a'), '기준이 없는데 쌓았다');
+    assert(!pushUndo(d, 'a', 'a'), '같은 값을 쌓았다(같은 칸을 두 번 확정한 경우)');
+    assert(d.redo.length === 1, '아무것도 안 쌓였는데 앞길을 지웠다');
+    assert(pushUndo(d, 'a', 'b'), '바뀐 값을 안 쌓았다');
+    assert(d.undo.length === 1 && d.undo[0] === 'a', '쌓인 것이 직전 상태가 아니다');
+    assert(d.redo.length === 0, '새 편집인데 앞길이 남아 있다');
+  });
+
+  check('되돌리기 더미가 한도를 넘으면 오래된 것부터 버린다', () => {
+    const d = { undo: [], redo: [] };
+    for (let i = 0; i < UNDO_MAX + 5; i++) pushUndo(d, 's' + i, 's' + (i + 1));
+    assert(d.undo.length === UNDO_MAX, '한도를 넘겼다: ' + d.undo.length);
+    assert(d.undo[0] === 's5', '오래된 것부터 빠지지 않았다: ' + d.undo[0]);
+    assert(d.undo[d.undo.length - 1] === 's' + (UNDO_MAX + 4), '최근 것이 빠졌다');
+  });
+
   // 붙여넣기 — 스프레드시트는 전부 문자열로 준다. 가격이 문자열로 들어가면 앱이 합계를
   // 내지 못하므로(검증기가 잡는 바로 그 사고) 여기서 열 타입에 맞춰 바꿔 둔다.
   check('붙여넣은 표를 열 타입에 맞춰 읽는다', () => {
@@ -3184,6 +3288,21 @@ function init() {
     })) return;
     loadRemote();
   };
+  document.getElementById('btn-undo').onclick = undo;
+  document.getElementById('btn-redo').onclick = redo;
+  /*
+   * ⌘Z · ⌘⇧Z — **입력 칸 안에서는 넘긴다.** 거기서 가로채면 방금 친 글자를 지우는
+   * 브라우저 기본 되돌리기가 막혀, 오타 하나를 고치려다 편집 한 판이 통째로 되돌아간다.
+   */
+  document.addEventListener('keydown', (e) => {
+    const key = String(e.key || '').toLowerCase();
+    if (key !== 'z' && key !== 'y') return;
+    if (!(e.metaKey || e.ctrlKey)) return;
+    const t = e.target;
+    if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+    e.preventDefault();
+    if (key === 'y' || e.shiftKey) redo(); else undo();
+  });
   document.getElementById('btn-export').onclick = () => go('export');
   document.getElementById('btn-publish').onclick = () => {
     const c = window.cloud || {};
@@ -3209,6 +3328,9 @@ function init() {
   document.getElementById('btn-load-nav').onclick = () => { setNav(false); document.getElementById('btn-load-remote').click(); };
   document.getElementById('btn-menu').onclick = () => setNav(!document.body.classList.contains('nav-open'));
   document.getElementById('nav-backdrop').onclick = () => setNav(false);
+
+  for (const r of RESOURCES) docs[r.id].snap = JSON.stringify(docs[r.id].draft);
+  syncUndoButtons();
 
   syncGate();
   // cloud.js 가 끝내 오지 않는 환경(file://)에서 "연결하는 중" 에 멈춰 있지 않게 한다.
