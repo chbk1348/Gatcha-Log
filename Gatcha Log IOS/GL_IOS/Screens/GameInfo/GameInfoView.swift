@@ -75,7 +75,7 @@ struct GameInfoView: View {
             // 바로가기 4칸은 상세를 거치지 않고 **그 페이지를 곧장** 띄운다 — 상세 위에 올리면 뒤로가기에
             // 상세가 끼어들어 게임정보 탭으로 한 번에 못 돌아왔다(2026-09-15 지적).
             switch hoyolandInitial {
-            case .stage: HoyolandStageView(event: HoyolandApi.shared.current)
+            case .stage: HoyolandStageView(event: HoyolandApi.shared.current, entry: store.hoyolandEntry)
             case .goods: HoyolandGoodsView(event: HoyolandApi.shared.current, store: store)
             case .booth: HoyolandBoothView(event: HoyolandApi.shared.current)
             case .food: HoyolandFoodView(event: HoyolandApi.shared.current)

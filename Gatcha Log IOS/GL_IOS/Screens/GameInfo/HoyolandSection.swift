@@ -343,7 +343,7 @@ struct HoyolandDetailView: View {
         }
         .navigationDestination(item: $openSub) { sub in
             switch sub {
-            case .stage: HoyolandStageView(event: e)
+            case .stage: HoyolandStageView(event: e, entry: store.hoyolandEntry)
             case .goods: HoyolandGoodsView(event: e, store: store)
             case .booth: HoyolandBoothView(event: e)
             case .food: HoyolandFoodView(event: e)
@@ -1062,7 +1062,7 @@ struct HoyolandDetailView: View {
             // 한 줄인 칸과 두 줄인 칸이 나란히 서면 카드 아래가 서로 다른 자리에서 끝나 격자가
             // 어긋나 보인다. 높이를 맞춘 뒤 글자는 칸 안에서 **세로 가운데**에 둔다.
             HStack(spacing: 8) {
-                NavigationLink { HoyolandStageView(event: e) } label: {
+                NavigationLink { HoyolandStageView(event: e, entry: store.hoyolandEntry) } label: {
                     // 지금 무대가 돌고 있으면 이 칸만 빨갛다 — 넷 중 **지금 열어야 하는 칸**이다.
                     onsiteTile("clock", "시간표", e.onsiteStageLine(nowMillis: nowMs()),
                                subColor: e.isStageLiveNow(nowMillis: nowMs()) ? GLGLiveRed : nil,

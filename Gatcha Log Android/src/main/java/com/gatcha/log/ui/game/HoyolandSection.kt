@@ -473,6 +473,9 @@ fun HoyolandDetailPage(
     // 굿즈 게임 필터는 페이지 바깥에 둔다 — 탭이 SectionPage 의 붙박이 줄(stickyTop)로 올라가
     // 본문과 분리되므로, 상태를 본문 안에 두면 둘이 서로를 못 본다.
     var goodsFilter by remember { mutableStateOf<String?>(null) }
+    // 시간표 날짜도 같다. 기본은 **행사 중이면 오늘** — 현장에서 첫날이 선택돼 있으면 매번
+    // 한 번 더 눌러야 한다. 원격 갱신으로 기간이 바뀌면 목록을 키로 다시 잡는다.
+    var stageDay by remember(e.dayYmds) { mutableStateOf(e.defaultDayIndex()) }
     // 굿즈 크게 보기 · 굿즈존 안내 시트 — 목록이 게으른 목록이라 상태를 목록 바깥에 둔다.
     var goodsViewing by remember { mutableStateOf<HoyolandGoods?>(null) }
     var goodsGuideOpen by remember { mutableStateOf(false) }
@@ -499,8 +502,11 @@ fun HoyolandDetailPage(
                     onBack = backFromSub,
                     isRefreshing = refreshing,
                     onRefresh = refresh,
+                    stickyTop = if (e.dayYmds.size > 1) {
+                        { HoyolandDayTabs(e, stageDay) { stageDay = it } }
+                    } else null,
                 ) {
-                    HoyolandTimetableSection(e)
+                    HoyolandTimetableSection(e, entry, stageDay)
                 }
             HoyolandSub.Goods -> {
                 SectionPage(
@@ -986,27 +992,44 @@ fun HoyolandDetailContent(
  * 첫날이 선택돼 있으면 매번 한 번 더 눌러야 한다.
  */
 @Composable
-fun HoyolandTimetableSection(e: HoyolandEvent) {
+fun HoyolandTimetableSection(
+    e: HoyolandEvent,
+    entry: HoyolandEntry = HoyolandEntry(),
+    /**
+     * 고른 날짜 칸 — 날짜 탭이 [SectionPage] 의 붙박이 줄로 올라가 본문 바깥에 서므로,
+     * 상태도 바깥이 든다(굿즈 게임 필터와 같은 이유).
+     */
+    selectedDay: Int = 0,
+) {
     val accent = LocalAccent.current
     val ymds = e.dayYmds
     if (ymds.isEmpty()) return
-    // 원격 갱신으로 기간이 바뀌면 선택 인덱스가 범위를 벗어날 수 있어 목록을 키로 준다.
-    var sel by remember(ymds) { mutableStateOf(e.defaultDayIndex()) }
-    val ymd = ymds.getOrElse(sel) { ymds.first() }
+    // 원격 갱신으로 기간이 줄면 인덱스가 범위를 벗어날 수 있다 — 첫날로 떨어뜨린다.
+    val ymd = ymds.getOrElse(selectedDay) { ymds.first() }
     val stage = e.stageSlots(ymd)
     val games = e.stageGames(ymd)
     // 게임 필터 — 날짜를 바꾸면 푼다(그날 없는 게임이 걸린 채 빈 목록이 되지 않게).
     var gameFilter by remember(ymd) { mutableStateOf<String?>(null) }
+    // 내 입장 시각(분) — 「내 입장권」에서 그날 조를 정했을 때만 0 보다 크다.
+    val entryMin = e.entryMinutesOn(ymd, entry)
+    val entryNote = e.entryStageNote(ymd, entry)
 
-    Text("일자별 시간표", fontSize = 16.sp, fontWeight = FontWeight.Bold)
-    Text("메인 무대 공연 편성", fontSize = 11.5.sp, color = TextSecondary, modifier = Modifier.padding(top = 2.dp, bottom = 10.dp))
-    // 날짜 선택 — 앱 공용 세그먼트 탭([GlgSegmentedTabs]). 리딤코드의 게임 탭도 같은 것을 쓴다.
-    GlgSegmentedTabs(
-        labels = ymds.map { e.dayTabDate(it) },
-        subLabels = ymds.map { e.dayTabWeekday(it) },
-        selected = sel,
-        onSelect = { sel = it },
-    )
+    // 제목 · 부제 · 날짜 탭은 여기 없다 — 제목은 헤더가, 탭은 붙박이 줄([HoyolandDayTabs])이
+    // 맡는다. 본문에 제목을 한 번 더 쓰던 때는 헤더와 같은 말이 화면에 두 번 서 있었다.
+    // ── 그날 내 입장 시각 — 고른 날에만 선다.
+    //
+    // 목록을 흐리게 칠하기만 하면 "왜 흐린가" 를 화면이 답하지 않는다. 이 줄이 그 답이라
+    // 흐린 줄과 같은 화면에 있어야 한다(다른 날 탭으로 옮기면 같이 사라진다).
+    if (entryNote.isNotBlank()) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                Icons.Outlined.ConfirmationNumber, null,
+                tint = LocalAccentDeep.current, modifier = Modifier.size(14.dp),
+            )
+            Spacer(Modifier.width(6.dp))
+            Text(entryNote, fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = LocalAccentDeep.current)
+        }
+    }
     Spacer(Modifier.height(10.dp))
 
     if (stage.isEmpty()) {
@@ -1048,7 +1071,7 @@ fun HoyolandTimetableSection(e: HoyolandEvent) {
         Column(Modifier.padding(vertical = 4.dp)) {
             shown.forEachIndexed { i, item ->
                 if (i > 0) Box(Modifier.fillMaxWidth().height(1.dp).background(DividerColor))
-                StageRow(e, item, live?.slot === item.slot)
+                StageRow(e, item, live?.slot === item.slot, item.isBeforeEntry(entryMin))
             }
         }
     }
@@ -1229,6 +1252,28 @@ private fun HoyolandSubEntry(
  * 목업: `Gatcha Log MD/design_hoyoland_goods_mockup.html` A 안 — 다만 목록은 한 장에 줄을
  * 쌓지 않고 **품목당 카드**로 낸다([HoyolandGoodsCard] 참고).
  */
+/**
+ * 시간표의 날짜 탭 — 헤더 밑에 붙박이로 선다([SectionPage] 의 `stickyTop`).
+ *
+ * 본문과 같이 밀려 올라가면 나흘짜리 편성을 훑는 동안 **지금 어느 날을 보고 있는지**도,
+ * 다른 날로 옮기는 방법도 화면에서 사라진다(굿즈 게임 탭과 같은 이유).
+ */
+@Composable
+fun HoyolandDayTabs(e: HoyolandEvent, selected: Int, onSelect: (Int) -> Unit) {
+    val ymds = e.dayYmds
+    if (ymds.isEmpty()) return
+    Column {
+        Spacer(Modifier.height(6.dp))
+        GlgSegmentedTabs(
+            labels = ymds.map { e.dayTabDate(it) },
+            subLabels = ymds.map { e.dayTabWeekday(it) },
+            selected = selected.coerceIn(0, ymds.lastIndex),
+            onSelect = onSelect,
+        )
+        Spacer(Modifier.height(10.dp))
+    }
+}
+
 /** 굿즈 목록의 게임 탭 — 헤더 밑에 붙박이로 선다(SectionPage.stickyTop). */
 @Composable
 fun HoyolandGoodsTabs(e: HoyolandEvent, selected: String?, onSelect: (String?) -> Unit) {
@@ -2631,13 +2676,21 @@ private fun StageLiveCard(e: HoyolandEvent, live: StageSlot, next: StageSlot?) {
 
 /** 무대 한 줄 — 시각 + 게임 정사각 배지 + 제목·설명·출연. 지난 편은 흐리게. */
 @Composable
-private fun StageRow(e: HoyolandEvent, item: StageSlot, isLive: Boolean) {
+private fun StageRow(
+    e: HoyolandEvent,
+    item: StageSlot,
+    isLive: Boolean,
+    /** 내가 들어가기 전에 끝나는 편 — 끝난 편과 같은 무게로 내린다([StageSlot.isBeforeEntry]). */
+    beforeEntry: Boolean = false,
+) {
     val raw = e.stageColor(item.slot.game)
     val c = if (raw == 0L) Color(0xFF98A0AB) else raw.toColor()
     Row(
         Modifier
             .fillMaxWidth()
-            .alpha(if (item.state == StageState.DONE) 0.40f else 1f)
+            // 지나간 편과 **같은 값으로** 내린다. 둘은 "지금 내가 볼 수 없다" 는 같은 말이고,
+            // 단계를 나누면 흐린 줄이 두 종류가 되어 무엇이 더 흐린지 세게 된다.
+            .alpha(if (item.state == StageState.DONE || beforeEntry) 0.40f else 1f)
             .padding(start = 16.dp, end = 14.dp, top = 11.dp, bottom = 11.dp),
     ) {
         // 좌측 열 — 시각 **아래**에 게임 이름. 배지 상자에 넣으면 "스타레일"이 안 들어가

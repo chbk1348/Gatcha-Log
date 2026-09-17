@@ -20,9 +20,13 @@ struct HoyolandStageView: View {
     /// 넘겨받은 값으로 시작하되 **자체 상태로 들고 있는다** — 당겨서 새로고침으로 여기서
     /// 다시 읽어야 하기 때문이다(`let` 이면 갱신값을 화면에 반영할 방법이 없다).
     @State private var event: HoyolandEvent
+    /// 내 입장권 — 그날 조와 입장 시각을 알면 **내가 못 보는 편**을 흐리게 칠한다.
+    /// 안 넘기면(빈 값) 시간표는 예전 그대로 선다.
+    private let entry: Shared.HoyolandEntry
 
-    init(event: HoyolandEvent) {
+    init(event: HoyolandEvent, entry: Shared.HoyolandEntry = Shared.HoyolandEntry(groups: [:])) {
         _event = State(initialValue: event)
+        self.entry = entry
     }
 
     @Environment(\.glgAccent) private var accent
@@ -34,15 +38,33 @@ struct HoyolandStageView: View {
     @State private var livePulse = false
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 0) {
-                timetableSection(event)
-                Color.clear.frame(height: 24)
+        // ── 날짜 탭은 **스크롤 바깥**이다(굿즈 목록의 게임 탭과 같은 짜임).
+        //
+        // 본문과 같이 밀려 올라가면 나흘짜리 편성을 훑는 동안 지금 어느 날을 보고 있는지도,
+        // 다른 날로 옮기는 방법도 화면에서 사라진다. ScrollView 를 VStack 아래로 내리면
+        // 레이아웃이 알아서 자리를 잡고 목록이 탭 뒤로 비치지도 않는다.
+        VStack(alignment: .leading, spacing: 0) {
+            let ymds = event.dayYmds
+            if ymds.count > 1 {
+                GLGSegmentedTabs(
+                    labels: ymds.map { event.dayTabDate(ymd: $0) },
+                    subLabels: ymds.map { event.dayTabWeekday(ymd: $0) },
+                    selection: $selectedDay
+                )
+                .padding(.horizontal, 16).padding(.bottom, 10)
+                .glgReadableWidth(720)
+                .onChange(of: selectedDay) { _, _ in stageFilter = nil }
             }
-            .padding(.horizontal, 16)
-            .glgReadableWidth(720)
+            ScrollView {
+                VStack(alignment: .leading, spacing: 0) {
+                    timetableSection(event)
+                    Color.clear.frame(height: 24)
+                }
+                .padding(.horizontal, 16)
+                .glgReadableWidth(720)
+            }
+            .scrollIndicators(.hidden)
         }
-        .scrollIndicators(.hidden)
         .background(GLGBackground { Color.clear })
         .glgPageTitle("일자별 시간표")
         .navigationBarTitleDisplayMode(.inline)
@@ -68,21 +90,23 @@ struct HoyolandStageView: View {
             let live = stage.first { $0.state == .live }
             let next = stage.first { $0.state == .upcoming }
             let shown = stage.filter { stageFilter == nil || $0.slot.game == stageFilter }
+            // 내 입장 시각(분) — 「내 입장권」에서 그날 조를 정했을 때만 0 보다 크다.
+            let entryMin = e.entryMinutesOn(ymd: ymd, entry: entry)
+            let entryNote = e.entryStageNote(ymd: ymd, entry: entry, nowMillis: nowMs())
 
-            // 페이지 제목은 네비게이션 바가 맡는다 — 본문에는 부제만 남긴다.
-            Text("메인 무대 공연 편성").font(.pretendard(size: 11.5))
-                .foregroundStyle(GLGColor.textSecondary).padding(.bottom, 10)
-            // 날짜 선택은 **한 덩어리 탭**이다. 칩 넷을 나란히 두면 서로 독립된 버튼처럼 보여
-            // "이 중 하나가 지금 보고 있는 날"이라는 게 약하게 읽힌다.
-            // 요일은 날짜 **아래 온말**로 — "(금)" 처럼 괄호 한 글자로 붙이면 날짜에 딸린
-            // 기호처럼 읽힌다. 주말이 언제인지가 이 화면의 첫 질문이라 같은 무게로 세운다.
-            GLGSegmentedTabs(
-                labels: ymds.map { e.dayTabDate(ymd: $0) },
-                subLabels: ymds.map { e.dayTabWeekday(ymd: $0) },
-                selection: $selectedDay
-            )
-            .padding(.bottom, 10)
-            .onChange(of: selectedDay) { _, _ in stageFilter = nil }
+            // 제목 · 부제 · 날짜 탭은 여기 없다 — 제목은 네비게이션 바가, 탭은 스크롤 바깥이 맡는다.
+            // ── 그날 내 입장 시각 — 고른 날에만 선다.
+            //
+            // 목록을 흐리게 칠하기만 하면 "왜 흐린가" 를 화면이 답하지 않는다. 이 줄이 그
+            // 답이라 흐린 줄과 같은 화면에 있어야 한다(다른 날 탭으로 옮기면 같이 사라진다).
+            if !entryNote.isEmpty {
+                HStack(spacing: 6) {
+                    Image(systemName: "ticket").font(.system(size: 12, weight: .semibold))
+                    Text(entryNote).font(.pretendard(size: 11.5, weight: .bold))
+                }
+                .foregroundStyle(accent.deep)
+                .padding(.bottom, 10)
+            }
 
             if stage.isEmpty {
                 stageEmptyCard(e)
@@ -116,7 +140,8 @@ struct HoyolandStageView: View {
                     VStack(alignment: .leading, spacing: 0) {
                         ForEach(Array(shown.enumerated()), id: \.offset) { i, item in
                             if i > 0 { Divider() }
-                            stageRow(e, item, isLive: item.state == .live)
+                            stageRow(e, item, isLive: item.state == .live,
+                                     beforeEntry: item.isBeforeEntry(entryMin: entryMin))
                         }
                     }
                     .padding(.vertical, 4)
@@ -242,7 +267,9 @@ struct HoyolandStageView: View {
     }
 
     /// 무대 한 줄 — [시각 · 게임 배지] | 제목 · 설명 · 출연. 지난 편은 흐리게.
-    @ViewBuilder private func stageRow(_ e: HoyolandEvent, _ item: StageSlot, isLive: Bool) -> some View {
+    /// - Parameter beforeEntry: 내가 들어가기 전에 끝나는 편 — 끝난 편과 같은 무게로 내린다.
+    @ViewBuilder private func stageRow(_ e: HoyolandEvent, _ item: StageSlot, isLive: Bool,
+                                       beforeEntry: Bool = false) -> some View {
         let c = stageColor(e, item.slot.game)
         // 길이를 **설명 앞**에 둔다. 뒤에 붙이면 설명이 여러 줄일 때 "60분" 이 마지막 줄 꼬리에
         // 달라붙는데, 그 줄이 하필 "※ 주의…" 여서 주의 문구가 길이 표기에 먹혔다.
@@ -293,7 +320,9 @@ struct HoyolandStageView: View {
         }
         .padding(.leading, 16).padding(.trailing, 14)
         .padding(.vertical, 11)
-        .opacity(item.state == .done ? 0.40 : 1)
+        // 지나간 편과 **같은 값으로** 내린다. 둘은 "지금 내가 볼 수 없다" 는 같은 말이고,
+        // 단계를 나누면 흐린 줄이 두 종류가 되어 무엇이 더 흐린지 세게 된다.
+        .opacity(item.state == .done || beforeEntry ? 0.40 : 1)
     }
 
 }
