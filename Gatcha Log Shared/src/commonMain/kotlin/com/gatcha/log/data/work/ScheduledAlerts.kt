@@ -4,6 +4,7 @@ import com.gatcha.log.data.AppSettings
 import com.gatcha.log.data.DateUtil
 import com.gatcha.log.data.GameData
 import com.gatcha.log.data.GatchaRepository
+import com.gatcha.log.data.HoyolandEntry
 import com.gatcha.log.data.Josa
 import com.gatcha.log.data.Notifier
 import com.gatcha.log.data.api.HoyolandApi
@@ -274,6 +275,52 @@ object ScheduledAlerts {
                         title = if (lead == 0) "${event.edition} 오늘 열려요" else "${event.edition} ${lead}일 남았어요",
                         text = "${event.periodLabel} · ${event.venueShort}",
                         whenMillis = at,
+                    )
+                }
+            }
+
+            // 내 입장권 — **고른 날에만** 간다(「내 입장권」에서 조를 정한 날). 나흘 내내 여는
+            // 행사라도 가는 날은 사람마다 다르고, 안 고른 사람에게는 한 건도 만들지 않는다.
+            //
+            // 위 개막 알림과 겹치지 않는다: 저건 "행사가 열린다", 이건 "내가 몇 시에 들어간다"
+            // 다. 개막일 하루만 가는 사람에게는 같은 날 아침에 둘이 오지만, 조·입장 시각은
+            // 개막 알림이 답하지 않는 값이라 묶어서 한 건으로 줄이지 않았다.
+            val entry = HoyolandEntry.parse(settings.hoyolandEntryRaw)
+            event.dayYmds.filter { entry.isGoing(it) }.forEach { ymd ->
+                val group = entry.groupOn(ymd)
+                val at = event.entryAtMillis(ymd, group)
+                // 조 편성이 바뀌어 시각을 잃으면 예약하지 않는다 — 시각 없는 입장 알림은
+                // "오늘 갑니다" 밖에 말하지 못하는데 그건 개막 알림이 이미 한다.
+                if (at <= 0L) return@forEach
+                val timeLabel = event.entryTimeOf(group)
+
+                // ── 가는 날 아침 — 그날 채비. 무대 편성이 있으면 편수와 첫 무대까지 싣는다
+                //    (현장에서 첫 무대를 보려면 입장 시각을 그쪽에 맞춰 잡아야 한다).
+                //    입장이 아침 알림 시각보다 이르면(이른 조) 건너뛴다 — 들어간 뒤 도착한다.
+                val morning = shiftOutOfQuiet(settings, DateUtil.localTimeOnDay(at, ALERT_HOUR))
+                if (morning > nowMillis && morning < at) {
+                    val slots = event.slotsFor(ymd)
+                    val first = slots.firstOrNull()?.time.orEmpty()
+                    out += ScheduledAlert(
+                        key = "hoyoland:entry:$ymd:day",
+                        title = "오늘 ${group}조 $timeLabel 입장이에요",
+                        text = if (slots.isEmpty()) "${event.venueShort} · ${event.edition}"
+                               else "무대 ${slots.size}편" +
+                                   (if (first.isBlank()) "" else " · 첫 무대 $first") +
+                                   " · ${event.venueShort}",
+                        whenMillis = morning,
+                    )
+                }
+
+                // ── 입장 1시간 전. 예매 오픈과 같은 이유로 **방해금지로 밀지 않는다** —
+                //    밀면 이미 들어간 뒤에 도착한다.
+                val hourBefore = at - 3_600_000L
+                if (hourBefore > nowMillis) {
+                    out += ScheduledAlert(
+                        key = "hoyoland:entry:$ymd:h1",
+                        title = "${group}조 입장 1시간 전이에요",
+                        text = "$timeLabel 입장 · ${event.venueShort}",
+                        whenMillis = hourBefore,
                     )
                 }
             }
