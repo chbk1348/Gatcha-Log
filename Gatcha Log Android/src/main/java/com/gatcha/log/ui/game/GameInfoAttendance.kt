@@ -44,6 +44,7 @@ import com.gatcha.log.data.DailyLogic
 import com.gatcha.log.data.DailyTask
 import com.gatcha.log.data.DateUtil
 import com.gatcha.log.data.GameVersionLine
+import com.gatcha.log.data.GameVersions
 import com.gatcha.log.data.HoyoCalendar
 import com.gatcha.log.data.Game
 import com.gatcha.log.data.GameData
@@ -534,16 +535,18 @@ private fun GameVersionStripSkeleton() {
             Text("현재 버전", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = TextSecondary)
             Spacer(Modifier.height(8.dp))
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                // 출석 3게임 자리 — 실제로 몇 칸이 올지는 받아 봐야 알지만, 셋이 아닌 적이 없다.
-                repeat(3) {
+                // 칸 수는 데이터 쪽이 안다([GameVersions.trackedCount]) — 여기에 숫자를 박으면
+                // 게임이 늘 때 스켈레톤만 옛 칸 수로 남는다.
+                repeat(GameVersions.trackedCount) {
                     Column(
                         Modifier.weight(1f),
                         horizontalAlignment = Alignment.CenterHorizontally,
                     ) {
                         // 게임명(10.5sp) · 버전(16sp) 두 줄과 같은 높이로 맞춘다.
-                        SkeletonBox(Modifier.width(44.dp).height(11.dp))
+                        // 다섯 칸이 한 줄에 서므로 칸 폭(약 58dp)을 넘지 않게 잡는다.
+                        SkeletonBox(Modifier.fillMaxWidth(0.8f).height(11.dp))
                         Spacer(Modifier.height(5.dp))
-                        SkeletonBox(Modifier.width(34.dp).height(17.dp))
+                        SkeletonBox(Modifier.fillMaxWidth(0.6f).height(17.dp))
                     }
                 }
             }

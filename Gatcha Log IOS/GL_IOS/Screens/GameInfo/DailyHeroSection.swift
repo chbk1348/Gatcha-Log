@@ -116,12 +116,14 @@ struct DailyHeroSection: View {
                     .font(.pretendard(size: 10, weight: .bold))
                     .foregroundStyle(GLGColor.textSecondary)
                 HStack(spacing: 10) {
-                    // 출석 3게임 자리 — 실제로 몇 칸이 올지는 받아 봐야 알지만, 셋이 아닌 적이 없다.
-                    ForEach(0..<3, id: \.self) { _ in
+                    // 칸 수는 데이터 쪽이 안다(GameVersions.trackedCount) — 여기에 숫자를
+                    // 박으면 게임이 늘 때 스켈레톤만 옛 칸 수로 남는다.
+                    ForEach(0..<Int(GameVersions.shared.trackedCount), id: \.self) { _ in
+                        // 게임명(10.5) · 버전(16) 두 줄과 같은 높이로. 다섯 칸이 한 줄에
+                        // 서므로 폭은 칸에 맡기고 비율로 잡는다.
                         VStack(spacing: 5) {
-                            // 게임명(10.5) · 버전(16) 두 줄과 같은 높이로 맞춘다.
-                            GLGSkeleton().frame(width: 44, height: 11)
-                            GLGSkeleton().frame(width: 34, height: 17)
+                            GLGSkeleton().frame(height: 11).padding(.horizontal, 6)
+                            GLGSkeleton().frame(height: 17).padding(.horizontal, 12)
                         }
                         .frame(maxWidth: .infinity)
                     }
