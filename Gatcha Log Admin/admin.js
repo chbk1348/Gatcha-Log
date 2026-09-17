@@ -319,7 +319,7 @@ const HOYOLAND = {
         // 굿즈존 공통 안내 — 굿즈 목록 맨 위 카드(스크롤하면 올라가 가려진다). 비우면 카드가 없다.
         { key: 'goodsGuide', label: '굿즈존 안내', type: 'textarea', wide: true,
           note: '굿즈 목록 맨 위 카드. 줄 규칙: “· 항목 — 값”, 들여쓴 줄은 위 항목의 부연',
-          preview: guidePreview },
+          tools: guideTools, preview: guidePreview },
       ] },
     { id: 'ticket', group: '행사', label: '예매', type: 'form', path: 'ticket',
       desc: '상태를 바꾸면 앱의 예매 카드가 바뀝니다. 알림 예약은 openYmd · openHour 를 읽습니다.',
@@ -1073,12 +1073,64 @@ function guidePreview(text) {
   ]);
 }
 
+/*
+ * 안내 글 툴바 — 규칙에 쓰는 글자가 키보드에 없다(`·` 가운뎃점 · `—` 줄표). 버튼은 커서가
+ * **놓인 줄을 기준으로** 끼워 넣고, 채워야 할 자리를 선택해 둔다 — 누르고 바로 타이핑하면 덮인다.
+ */
+function guideTools(ta) {
+  // 커서가 놓인 줄의 시작 · 끝(줄바꿈 제외)
+  const lineAt = () => {
+    const v = ta.value, i = ta.selectionStart;
+    const start = v.lastIndexOf('\n', i - 1) + 1;
+    const nl = v.indexOf('\n', i);
+    return { start, end: nl < 0 ? v.length : nl };
+  };
+  const fire = () => {
+    ta.dispatchEvent(new Event('input', { bubbles: true }));    // 값 반영 · 미리보기 갱신
+    // 타이핑은 손을 뗄 때(change) 저장 표시가 켜지지만, 버튼은 한 번 누른 것이 곧 한 번의 편집이다.
+    // 이걸 빼면 값만 바뀌고 "변경 없음" 인 채로 남아 초안에 저장되지 않는다.
+    ta.dispatchEvent(new Event('change', { bubbles: true }));
+  };
+
+  /** 빈 줄이면 그 자리에, 쓰던 줄이면 아래에 새 줄을 연다. [from, to) 는 선택해 둘 자리. */
+  const put = (text, from, to) => {
+    const v = ta.value, { start, end } = lineAt();
+    const fresh = !v.slice(start, end).trim();
+    const at = fresh ? start : end;
+    const body = fresh ? text : '\n' + text;
+    ta.value = v.slice(0, at) + body + v.slice(fresh ? end : at);
+    const head = at + body.length - text.length;
+    ta.focus();
+    ta.setSelectionRange(head + from, head + to);
+    fire();
+  };
+
+  const atCaret = (t) => {
+    const v = ta.value, a = ta.selectionStart, b = ta.selectionEnd;
+    ta.value = v.slice(0, a) + t + v.slice(b);
+    ta.focus();
+    ta.setSelectionRange(a + t.length, a + t.length);
+    fire();
+  };
+
+  const b = (label, title, fn) => el('button', { class: 'btn btn-sm', type: 'button', title, onclick: fn }, [label]);
+  return el('div', { class: 'guide-tools' }, [
+    // 묶음은 **빈 줄로** 갈린다 — 앞줄에 붙여 쓰면 같은 카드 안에 제목이 하나 더 생긴 꼴이 된다.
+    b('묶음 제목', '빈 줄을 띄우고 새 묶음을 연다', () => put('\n묶음 제목', 1, 6)),
+    b('· 항목 — 값', '한 줄 추가 — 이름과 값을 줄표로 가른다', () => put('· 이름 — 값', 2, 4)),
+    b('부연 줄', '바로 위 줄에 붙는 작은 설명', () => put('   부연', 3, 5)),
+    b('—', '줄표만 끼워 넣는다', () => atCaret(' — ')),
+  ]);
+}
+
 function renderForm(sec) {
   const base = sec.path ? get(state.draft, sec.path) : state.draft;
   const grid = el('div', { class: 'grid' });
   for (const f of sec.fields) {
     const field = el('div', { class: 'field' + (f.wide ? ' wide' : '') });
-    field.append(el('label', { text: f.label }), inputFor(f, base[f.key], (v) => { base[f.key] = v; }));
+    const input = inputFor(f, base[f.key], (v) => { base[f.key] = v; });
+    field.append(el('label', { text: f.label }), input);
+    if (f.tools) field.insertBefore(f.tools(input), input);
     if (f.note) field.append(el('div', { class: 'note', text: f.note }));
     if (f.preview) {
       const box = el('div');
@@ -2459,6 +2511,39 @@ function selftest() {
     assert(g[0].rows[0].label === '주문' && g[0].rows[0].value === '입장 팔찌 QR', '“ — ” 로 이름·값이 갈리지 않았다');
     assert(g[0].rows[1].subs.length === 1, '들여쓴 줄이 위 줄의 부연으로 붙지 않았다');
     assert(g[1].rows[0].label === '제한 없음' && g[1].rows[0].value === '', '“ — ” 없는 줄은 이름만 남아야 한다');
+  });
+
+  check('안내 도구가 커서 놓인 줄을 기준으로 끼워 넣는다', () => {
+    const ta = el('textarea');
+    document.body.append(ta);
+    const [group, item, sub, dash] = [...guideTools(ta).querySelectorAll('button')];
+    const sel = () => ta.value.slice(ta.selectionStart, ta.selectionEnd);
+
+    // 빈 줄에서는 그 자리에 선다 — 앞에 빈 줄을 하나 더 만들지 않는다.
+    ta.value = ''; ta.setSelectionRange(0, 0);
+    item.click();
+    assert(ta.value === '· 이름 — 값', '빈 칸에서 줄이 잘못 났다: ' + JSON.stringify(ta.value));
+    assert(sel() === '이름', '채울 자리가 선택되지 않았다: ' + sel());
+
+    // 쓰던 줄 아래로 새 줄을 연다.
+    ta.setSelectionRange(3, 3);
+    sub.click();
+    assert(ta.value === '· 이름 — 값\n   부연', '부연 줄이 잘못 붙었다: ' + JSON.stringify(ta.value));
+    assert(sel() === '부연', '부연 자리가 선택되지 않았다');
+
+    // 묶음은 빈 줄로 갈린다.
+    group.click();
+    assert(ta.value.endsWith('\n\n묶음 제목'), '묶음 앞 빈 줄이 없다: ' + JSON.stringify(ta.value));
+
+    // 줄표는 **커서 자리에 그대로** 들어간다 — 양옆 공백을 알아서 먹지 않는다(예측 가능한 쪽).
+    ta.value = '· 이름값'; ta.setSelectionRange(4, 4);
+    dash.click();
+    assert(ta.value === '· 이름 — 값', '줄표가 커서 자리에 들어가지 않았다: ' + JSON.stringify(ta.value));
+
+    // 도구가 만든 꼴을 파서가 그대로 읽는다 — 셋(어드민 도구 · 파서 · 앱)이 한 규칙이어야 한다.
+    const g = parseGuide('묶음 제목\n· 이름 — 값\n   부연');
+    assert(g.length === 1 && g[0].rows[0].value === '값' && g[0].rows[0].subs[0] === '부연', '도구가 만든 글을 파서가 달리 읽는다');
+    ta.remove();
   });
 
   check('안내 미리보기가 빈 글을 빈 카드로 알린다', () => {
