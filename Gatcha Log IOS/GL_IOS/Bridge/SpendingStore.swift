@@ -135,6 +135,8 @@ final class SpendingStore {
     private(set) var enkaLoadingGames: Set<String> = []
     // 현재 게임 버전(nanoka) — 데일리 타일 아래 한 줄
     private(set) var gameVersions: [GameVersionLine] = []
+    /// 그 값을 처음 받아오는 중 — 데일리가 그동안 같은 자리에 스켈레톤을 세운다.
+    private(set) var gameVersionsLoading: Bool = false
     private(set) var weaponRefinement: [String: WeaponRefinement] = [:]
     /// 캐릭터 소속 — 원신은 국가, 스타레일은 진영. 키는 "게임키:캐릭터id".
     private(set) var charCamp: [String: String] = [:]
@@ -340,6 +342,7 @@ final class SpendingStore {
         bind(vm.enkaResult) { [weak self] in self?.enkaResult = $0 }
         bind(vm.enkaLoading) { [weak self] in self?.enkaLoading = $0.boolValue }
         bind(vm.gameVersions) { [weak self] in self?.gameVersions = $0 }
+        bind(vm.gameVersionsLoading) { [weak self] in self?.gameVersionsLoading = $0.boolValue }
         bind(vm.weaponRefinement) { [weak self] in self?.weaponRefinement = $0 }
         bind(vm.charCamp) { [weak self] in self?.charCamp = $0 }
         bind(vm.enkaResults) { [weak self] in self?.enkaResults = $0 }

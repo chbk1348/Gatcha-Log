@@ -137,6 +137,7 @@ fun GameInfoScreen(
     val weaponRefinements by viewModel.weaponRefinement.collectAsStateWithLifecycle()
     val charCamps by viewModel.charCamp.collectAsStateWithLifecycle()
     val gameVersions by viewModel.gameVersions.collectAsStateWithLifecycle()
+    val gameVersionsLoading by viewModel.gameVersionsLoading.collectAsStateWithLifecycle()
     // 게임정보 하위 풀스크린 페이지(연동 / 가챠 통계) — 열리면 상위(Scaffold)에 알려 하단바·FAB 숨김
     var subPage by remember { mutableStateOf(GiSub.Main) }
     // Enka 캐릭터 스탯 페이지 랜딩 대상
@@ -453,6 +454,7 @@ fun GameInfoScreen(
                     streak = attendanceStreak,
                     taskStats = taskStats,
                     gameVersions = gameVersions,
+                    gameVersionsLoading = gameVersionsLoading,
                     onCheckIn = { viewModel.attemptCheckIn(it) },
                     onCheckInAll = { viewModel.checkInAll() },
                     onConfigClick = { subPage = GiSub.HoyoLink },

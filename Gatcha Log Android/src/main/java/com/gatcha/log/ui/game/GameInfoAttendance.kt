@@ -54,6 +54,7 @@ import com.gatcha.log.data.TaskStats
 import com.gatcha.log.ui.components.GameTagSize
 import com.gatcha.log.ui.components.GlgGameTag
 import com.gatcha.log.ui.components.GlassCard
+import com.gatcha.log.ui.components.SkeletonBox
 import com.gatcha.log.ui.components.GlgTabHeaderHeight
 import com.gatcha.log.ui.components.GlgButton
 import com.gatcha.log.ui.theme.*
@@ -88,6 +89,8 @@ internal fun DailyHeroSection(
     taskStats: List<TaskStats>,
     /** 지금 돌고 있는 게임 버전 — 타일 아래 한 줄. 비면 줄 자체를 안 그린다. */
     gameVersions: List<GameVersionLine> = emptyList(),
+    /** 그 값을 처음 받아오는 중인가 — 그동안 같은 자리에 스켈레톤을 세운다. */
+    gameVersionsLoading: Boolean = false,
     onCheckIn: (String) -> Unit,
     onCheckInAll: () -> Unit,
     onConfigClick: () -> Unit,
@@ -152,9 +155,15 @@ internal fun DailyHeroSection(
                 onOpenGameContent = onOpenGameContent,
                 onOpenClears = onOpenClears,
             )
+            // 값이 오면 카드가 **없다가 생기는** 대신 스켈레톤이 내용으로 바뀐다. 예전엔 로딩이
+            // 끝나는 순간 카드 한 장이 통째로 끼어들어 아래 목록이 밀려 내려갔다(2026-09-17 제보).
+            // 실패해서 끝내 비면 그때는 줄 자체를 안 그린다 — 없는 값을 빈 카드로 세우지 않는다.
             if (gameVersions.isNotEmpty()) {
                 Spacer(Modifier.height(12.dp))
                 GameVersionStrip(gameVersions)
+            } else if (gameVersionsLoading) {
+                Spacer(Modifier.height(12.dp))
+                GameVersionStripSkeleton()
             }
         }
     }
@@ -505,6 +514,36 @@ private fun GameVersionStrip(versions: List<GameVersionLine>) {
                                 maxLines = 1,
                             )
                         }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * 현재 버전 스켈레톤 — [GameVersionStrip] 과 **같은 카드 · 같은 높이**.
+ *
+ * "현재 버전" 라벨은 스켈레톤으로 덮지 않는다. 글자가 고정이라 가릴 이유가 없고, 카드가
+ * 무엇인지 먼저 읽히면 채워지는 것이 무엇인지도 같이 읽힌다.
+ */
+@Composable
+private fun GameVersionStripSkeleton() {
+    GlassCard(shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.fillMaxWidth().padding(16.dp)) {
+            Text("현재 버전", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = TextSecondary)
+            Spacer(Modifier.height(8.dp))
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                // 출석 3게임 자리 — 실제로 몇 칸이 올지는 받아 봐야 알지만, 셋이 아닌 적이 없다.
+                repeat(3) {
+                    Column(
+                        Modifier.weight(1f),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                    ) {
+                        // 게임명(10.5sp) · 버전(16sp) 두 줄과 같은 높이로 맞춘다.
+                        SkeletonBox(Modifier.width(44.dp).height(11.dp))
+                        Spacer(Modifier.height(5.dp))
+                        SkeletonBox(Modifier.width(34.dp).height(17.dp))
                     }
                 }
             }

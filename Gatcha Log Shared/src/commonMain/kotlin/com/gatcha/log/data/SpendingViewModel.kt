@@ -1614,6 +1614,15 @@ class SpendingViewModel : ViewModel() {
 
     private var gameVersionsLoaded = false
 
+    private val _gameVersionsLoading = MutableStateFlow(false)
+    /**
+     * 현재 버전을 **처음 받아오는 중**인가 — 화면이 그동안 스켈레톤을 세운다.
+     *
+     * 값이 없을 때만 켠다. 이미 한 줄이 서 있는데 갱신마다 스켈레톤으로 되돌리면 카드가
+     * 껌뻑인다 — 이 값은 몇 주에 한 번 바뀌므로 옛 값을 그대로 둬도 틀리지 않는다.
+     */
+    val gameVersionsLoading: StateFlow<Boolean> = _gameVersionsLoading.asStateFlow()
+
     /**
      * 현재 버전 로드. 화면 진입 시 부르며 **한 번만** 실제로 돈다.
      *
@@ -1625,9 +1634,13 @@ class SpendingViewModel : ViewModel() {
     fun loadGameVersions(force: Boolean = false) {
         if (gameVersionsLoaded && !force) return
         gameVersionsLoaded = true
+        if (_gameVersions.value.isEmpty()) _gameVersionsLoading.value = true
         viewModelScope.launch {
             val versions = withContext(Dispatchers.IO) { GameVersions.live() }
             if (versions.isEmpty()) gameVersionsLoaded = false else _gameVersions.value = versions
+            // 실패해도 끈다 — 다음 진입에서 다시 받으므로, 여기서 켜 둔 채로 두면 네트워크가
+            // 죽은 동안 스켈레톤이 영원히 흐른다.
+            _gameVersionsLoading.value = false
         }
     }
 
