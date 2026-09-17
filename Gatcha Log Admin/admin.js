@@ -113,6 +113,17 @@ const LINEUP_COLS = [
   { key: 'url', label: '공지 주소', type: 'text', placeholder: 'https://cafe.naver.com/...' },
 ];
 
+const SLOT_COLS = [
+  // 앱은 이 값을 **시작 시각**으로 읽고 길이(분)로 끝 시각을 계산해 "13:00 ~ 14:30" 을 만든다.
+  // 여기에 범위를 적으면 그 계산과 겹쳐 라벨이 깨진다 — 시작만 넣는다.
+  { key: 'time', label: '시작', type: 'hhmm', width: '130px' },
+  { key: 'title', label: '제목', type: 'text', required: true },
+  { key: 'game', label: '게임', type: 'game', width: '150px', placeholder: '비우면 합동' },
+  { key: 'cast', label: '출연', type: 'text', width: '160px' },
+  { key: 'minutes', label: '길이(분)', type: 'number', width: '110px', min: 0 },
+  { key: 'desc', label: '설명', type: 'text' },
+];
+
 const FACT_COLS = [
   { key: 'label', label: '항목', type: 'suggest', options: FACT_LABELS, required: true, width: '160px' },
   { key: 'value', label: '내용', type: 'text' },
@@ -769,6 +780,36 @@ const issuesNow = () => state.res.validate(state.draft);
 const DIFF_MAX = 400;   // 그 이상은 어차피 눈으로 못 읽는다 — 세는 것만 이어 간다
 
 /** 두 값을 견줘 [{ path, kind: 'add'|'remove'|'change', before, after }] 로 준다. */
+/** 행을 알아보는 데 쓰는 키 후보 — [rowLabel] 과 같은 순서로 본다. */
+const ROW_KEYS = ['name', 'title', 'game', 'label', 'ymd'];
+
+/**
+ * 두 목록을 **자리가 아니라 내용으로** 짝지을 키를 고른다. 양쪽 모두에서 값이 다 차 있고
+ * 중복이 없어야 한다 — 하나라도 비거나 겹치면 짝짓기가 엉키므로 자리 비교로 떨어진다.
+ *
+ * 이게 없으면 목록 한가운데에 행 하나를 끼워 넣었을 때 그 아래가 통째로 "바뀜" 으로 뜬다.
+ * 반영 직전에 그 노이즈가 진짜 변경을 덮는다.
+ */
+function listKey(b, a) {
+  const ok = (arr, k) => {
+    const vals = arr.map((r) => (r && typeof r === 'object' && !Array.isArray(r)) ? String(r[k] ?? '').trim() : '');
+    return vals.every((v) => v) && new Set(vals).size === vals.length;
+  };
+  for (const k of ROW_KEYS) if (ok(b, k) && ok(a, k)) return k;
+  return null;
+}
+
+/** 두 행이 얼마나 같은가(0~1) — 짝짓기 키는 빼고 센다. 이름만 고친 행을 알아보는 데 쓴다. */
+function sameness(x, y, skip) {
+  const isRow = (v) => v && typeof v === 'object' && !Array.isArray(v);
+  if (!isRow(x) || !isRow(y)) return 0;
+  const keys = [...new Set([...Object.keys(x), ...Object.keys(y)])].filter((k) => k !== skip);
+  if (!keys.length) return 0;
+  let same = 0;
+  for (const k of keys) if (JSON.stringify(x[k]) === JSON.stringify(y[k])) same++;
+  return same / keys.length;
+}
+
 function diffJson(before, after) {
   const out = [];
   let more = 0;
@@ -781,6 +822,39 @@ function diffJson(before, after) {
   const walk = (b, a, path) => {
     if (b === a) return;
     if (Array.isArray(b) && Array.isArray(a)) {
+      const key = listKey(b, a);
+      if (key) {
+        const at = (arr) => new Map(arr.map((r, i) => [String(r[key]).trim(), i]));
+        const bi = at(b);
+        const ai = at(a);
+        const pairs = [];
+        for (const [k, j] of ai) if (bi.has(k)) pairs.push([bi.get(k), j]);
+
+        // 키로 못 만난 것들 — **이름을 고친 행**이 여기 있다. 나머지 칸이 대부분 같으면
+        // 같은 행으로 본다. 안 그러면 상품명 한 글자만 고쳐도 "삭제 + 추가" 두 줄이 된다.
+        const leftB = [...bi].filter(([k]) => !ai.has(k)).map(([, i]) => i);
+        const leftA = [...ai].filter(([k]) => !bi.has(k)).map(([, j]) => j);
+        const takenA = new Set();
+        for (const i of leftB) {
+          let best = -1;
+          let score = 0;
+          for (const j of leftA) {
+            if (takenA.has(j)) continue;
+            const sc = sameness(b[i], a[j], key);
+            if (sc > score) { score = sc; best = j; }
+          }
+          if (best >= 0 && score >= 0.5) { takenA.add(best); pairs.push([i, best]); }
+          else push(`${path}[${i}]`, 'remove', b[i], undefined);
+        }
+        for (const j of leftA) if (!takenA.has(j)) push(`${path}[${j}]`, 'add', undefined, a[j]);
+
+        pairs.sort((p, q) => p[1] - q[1]);
+        for (const [i, j] of pairs) walk(b[i], a[j], `${path}[${j}]`);
+        // 값은 그대로인데 **자리만** 바뀐 경우 — 위 비교로는 안 잡히지만 앱은 이 순서대로 그린다.
+        const moved = pairs.some(([i], n) => pairs.slice(0, n).some(([p]) => p > i));
+        if (moved) push(path, 'order', b.map((r) => String(r[key]).trim()).join(' · '), a.map((r) => String(r[key]).trim()).join(' · '));
+        return;
+      }
       for (let i = 0; i < Math.max(b.length, a.length); i++) {
         if (i >= b.length) push(`${path}[${i}]`, 'add', undefined, a[i]);
         else if (i >= a.length) push(`${path}[${i}]`, 'remove', b[i], undefined);
@@ -806,13 +880,105 @@ function diffJson(before, after) {
 }
 
 /** 최상위 키별 건수 — "goods 3 · days 1" 처럼 한 줄로 줄인다. */
-function diffSummary(list) {
-  const by = {};
-  for (const d of list) {
-    const top = d.path.split(/[.[]/)[0] || '(루트)';
-    by[top] = (by[top] || 0) + 1;
+/* ═════════════════════════════════════════════════════════════
+ * 변경사항을 사람 말로
+ *
+ * `goods[57].price` 는 **어느 상품이 바뀌는지 말해 주지 않는다.** 반영 직전에 알아야 하는 건
+ * 경로가 아니라 "어떤 굿즈의 가격이 얼마로 바뀌나" 다. 섹션 정의(label · columns)가 그 말을
+ * 이미 들고 있으니, 경로를 그쪽 말로 옮긴다.
+ * ═════════════════════════════════════════════════════════════ */
+
+/** 중첩 목록의 열 정의 — 섹션 정의에 없는 것만 여기서 찾는다. */
+const NESTED_COLS = { slots: SLOT_COLS, facts: FACT_COLS };
+
+/** "goods[57].price" → [{key:'goods'}, {idx:57}, {key:'price'}] */
+function pathTokens(path) {
+  const out = [];
+  for (const m of String(path ?? '').matchAll(/\[(\d+)\]|([^.[\]]+)/g)) {
+    out.push(m[1] !== undefined ? { idx: Number(m[1]) } : { key: m[2] });
   }
-  return Object.entries(by).sort((a, b) => b[1] - a[1]).map(([k, n]) => `${k} ${n}`).join(' · ');
+  return out;
+}
+
+/** 행을 가리키는 이름 — 표의 식별 열(required)이 먼저, 없으면 흔한 이름 키, 그래도 없으면 자리. */
+function rowLabel(row, cols, i) {
+  if (row && typeof row === 'object' && !Array.isArray(row)) {
+    const keys = [...(cols || []).filter((c) => c.required).map((c) => c.key), 'name', 'title', 'game', 'label', 'ymd'];
+    for (const k of keys) {
+      const v = String(row[k] ?? '').trim();
+      if (v) return v;
+    }
+  }
+  return `${i + 1}번째`;
+}
+
+/**
+ * 경로 한 줄을 `{ sectionId, section, crumbs, field }` 로 옮긴다.
+ *
+ * `tree` 는 그 값이 **살아 있는 쪽**이다 — 삭제된 행은 편집본에 없으므로 라이브 트리를 넘겨야
+ * 이름이 나온다. 트리에서 못 찾으면 자리("3번째")로 떨어진다.
+ */
+function explainPath(path, tree) {
+  const toks = pathTokens(path);
+  if (!toks.length) return { section: '(전체)', crumbs: [], field: '' };
+
+  const secs = sectionsOf(state.res);
+  const head = toks[0].key;
+  const sec = secs.find((x) => x.path && x.path === head)
+    || secs.find((x) => x.path === '' && (x.fields || []).some((f) => f.key === head));
+  const labelOf = (cols, key) => (cols || []).find((c) => c.key === key)?.label || key;
+
+  let node = tree;
+  let cols = sec ? (sec.columns || sec.fields) : null;
+  const crumbs = [];
+  let field = '';
+  let i = 0;
+
+  // 섹션이 배열·객체를 든 경우엔 그 한 겹을 건너뛴다 — 이름은 섹션 라벨이 이미 말한다.
+  if (sec && sec.path) { node = node?.[head]; i = 1; }
+
+  for (; i < toks.length; i++) {
+    const t = toks[i];
+    if (t.idx !== undefined) {
+      const row = Array.isArray(node) ? node[t.idx] : undefined;
+      crumbs.push(rowLabel(row, cols, t.idx));
+      node = row;
+    } else if (i === toks.length - 1) {
+      field = labelOf(cols, t.key);
+    } else {
+      // 중첩 목록(slots · facts) — 이름 자체는 crumb 에 넣지 않는다. 뒤에 그 열 이름이 따라온다.
+      cols = NESTED_COLS[t.key] || cols;
+      node = node?.[t.key];
+    }
+  }
+  return { sectionId: sec?.id, section: sec?.label || head, crumbs, field, cols };
+}
+
+/**
+ * 행 하나가 통째로 들고 날 때 — `{"name":"C","time":"11:00"}` 대신 "조 C · 입장 시각 11:00".
+ * 반영 직전에 읽어야 하는 건 JSON 모양이 아니라 **무엇이 들어오나** 다.
+ */
+function rowSummary(row, cols) {
+  if (!row || typeof row !== 'object' || Array.isArray(row)) return null;
+  const labelOf = (k) => (cols || []).find((c) => c.key === k)?.label || k;
+  const parts = [];
+  for (const [k, v] of Object.entries(row)) {
+    if (v === '' || v === null || v === undefined) continue;
+    if (Array.isArray(v)) { if (v.length) parts.push(`${labelOf(k)} ${v.length}건`); continue; }
+    if (typeof v === 'object') continue;
+    parts.push(`${labelOf(k)} ${v}`);
+  }
+  return parts.join(' · ') || null;
+}
+
+/** "굿즈샵 2 · 예매 1" — 반영 직전 한 줄 요약. 경로 키(goods)가 아니라 **화면에서 부르는 이름**이다. */
+function diffSummary(list) {
+  const by = new Map();
+  for (const d of list) {
+    const e = explainPath(d.path, d.kind === 'remove' ? list.beforeTree : list.afterTree);
+    by.set(e.section, (by.get(e.section) || 0) + 1);
+  }
+  return [...by].sort((a, b) => b[1] - a[1]).map(([k, n]) => `${k} ${n}`).join(' · ');
 }
 
 /** 값 한 칸을 사람이 읽을 수 있는 짧은 문자열로. */
@@ -855,7 +1021,12 @@ function pruneDefaults(list) {
 function liveDiff() {
   if (!state.live || !String(state.live.json).trim()) return null;
   try {
-    return pruneDefaults(diffJson(JSON.parse(state.live.json), JSON.parse(toJson())));
+    const before = JSON.parse(state.live.json);
+    const after = JSON.parse(toJson());
+    const list = pruneDefaults(diffJson(before, after));
+    list.beforeTree = before;
+    list.afterTree = after;
+    return list;
   } catch (e) {
     return null;
   }
@@ -1258,16 +1429,6 @@ function renderGoods(sec) {
 
 function renderDays(sec) {
   const days = get(state.draft, sec.path);
-  const SLOT_COLS = [
-    // 앱은 이 값을 **시작 시각**으로 읽고 길이(분)로 끝 시각을 계산해 "13:00 ~ 14:30" 을 만든다.
-    // 여기에 범위를 적으면 그 계산과 겹쳐 라벨이 깨진다 — 시작만 넣는다.
-    { key: 'time', label: '시작', type: 'hhmm', width: '130px' },
-    { key: 'title', label: '제목', type: 'text', required: true },
-    { key: 'game', label: '게임', type: 'game', width: '150px', placeholder: '비우면 합동' },
-    { key: 'cast', label: '출연', type: 'text', width: '160px' },
-    { key: 'minutes', label: '길이(분)', type: 'number', width: '110px', min: 0 },
-    { key: 'desc', label: '설명', type: 'text' },
-  ];
   const kids = [el('div', { class: 'section-head' }, [
     el('span', { class: 'muted', text: `${days.length}일 · 슬롯 ${days.reduce((a, d) => a + d.slots.length, 0)}건` }),
     el('div', { class: 'tools' }, [
@@ -1892,27 +2053,66 @@ function renderApis(sec) {
   ]);
 }
 
-/** 값 하나가 어떻게 바뀌는지 한 줄. 모바일에서 카드로 쌓이도록 data-label 을 단다. */
-function diffRow(d) {
-  const kind = d.kind === 'add' ? ['추가', 'ok'] : d.kind === 'remove' ? ['삭제', 'err'] : ['변경', 'warn'];
+/**
+ * 값 하나가 어떻게 바뀌는지 한 줄. 모바일에서 카드로 쌓이도록 data-label 을 단다.
+ *
+ * 위치는 **사람 말이 먼저**다("아크릴 스탠드 - 어벤츄린·웨이브 › 가격(원)"). 원래 경로는
+ * 그 밑에 작게 남긴다 — 값이 이상할 때 JSON 어디를 볼지는 결국 경로가 답한다.
+ */
+function diffRow(d, trees) {
+  const kind = d.kind === 'add' ? ['추가', 'ok'] : d.kind === 'remove' ? ['삭제', 'err']
+    : d.kind === 'order' ? ['순서', ''] : ['변경', 'warn'];
+  const e = explainPath(d.path, d.kind === 'remove' ? trees?.before : trees?.after);
+  const where = d.kind === 'order' ? '나열 순서'
+    : [...e.crumbs, e.field].filter(Boolean).join(' › ');
   return el('tr', {}, [
     el('td', { 'data-label': '구분' }, [el('span', { class: 'pill ' + kind[1], text: kind[0] })]),
-    el('td', { 'data-label': '위치' }, [el('code', { class: 'muted', text: d.path || '(루트)' })]),
-    el('td', { 'data-label': '전' }, [el('span', { class: 'muted', text: diffValue(d.before) })]),
-    el('td', { 'data-label': '후' }, [el('span', { text: diffValue(d.after) })]),
+    el('td', { 'data-label': '위치' }, [
+      el('div', { class: 'diff-where', text: where || '항목 전체' }),
+      el('code', { class: 'diff-path', text: d.path || '(루트)' }),
+    ]),
+    el('td', { 'data-label': '전' }, [el('span', { class: 'muted', text: rowSummary(d.before, e.cols) || diffValue(d.before) })]),
+    el('td', { 'data-label': '후' }, [el('span', { text: rowSummary(d.after, e.cols) || diffValue(d.after) })]),
   ]);
 }
 
-function diffTable(list) {
+/** 한 섹션 몫의 표. */
+function diffTableFor(rows, trees) {
   const table = el('table');
   table.append(el('thead', {}, [el('tr', {}, [
     el('th', { style: 'width:62px', text: '구분' }),
-    el('th', { style: 'width:220px', text: '위치' }),
+    el('th', { style: 'width:280px', text: '위치' }),
     el('th', { text: '전' }),
     el('th', { text: '후' }),
   ])]));
-  table.append(el('tbody', {}, list.map(diffRow)));
-  const kids = [el('div', { class: 'table-wrap' }, [table])];
+  table.append(el('tbody', {}, rows.map((d) => diffRow(d, trees))));
+  return el('div', { class: 'table-wrap' }, [table]);
+}
+
+/**
+ * 바뀌는 값을 **섹션별로 묶어** 보여 준다. 한 표에 쏟아 놓으면 굿즈 가격 세 줄과 예매 상태
+ * 한 줄이 같은 높이로 섞여, 무엇이 바뀌는지가 아니라 몇 줄이 바뀌는지만 남는다.
+ */
+function diffTable(list) {
+  const trees = { before: list.beforeTree, after: list.afterTree };
+  const groups = new Map();
+  for (const d of list) {
+    const e = explainPath(d.path, d.kind === 'remove' ? trees.before : trees.after);
+    const key = e.sectionId || e.section;
+    if (!groups.has(key)) groups.set(key, { id: e.sectionId, label: e.section, rows: [] });
+    groups.get(key).rows.push(d);
+  }
+
+  const kids = [...groups.values()].map((g) => el('div', { class: 'day-block' }, [
+    el('div', { class: 'day-head' }, [
+      el('strong', { text: g.label }),
+      el('span', { class: 'pill', text: `${g.rows.length}건` }),
+      el('div', { class: 'tools' }, [
+        g.id && findSection(g.id) ? el('button', { class: 'btn btn-sm', onclick: () => go(g.id) }, ['이동']) : null,
+      ]),
+    ]),
+    el('div', { class: 'day-body' }, [diffTableFor(g.rows, trees)]),
+  ]));
   if (list.more) kids.push(el('p', { class: 'note', style: 'margin-top:10px', text: `그 밖에 ${list.more}건 더 — 너무 많아 생략했습니다.` }));
   if (list.hidden) kids.push(el('p', { class: 'note', style: 'margin-top:10px', text:
     `빈 기본값이 채워진 ${list.hidden}건은 접었습니다 — 앱이 읽는 값은 그대로입니다(없는 키와 기본값을 같게 읽습니다).` }));
@@ -2279,6 +2479,89 @@ function selftest() {
     assert(at('gone') && at('gone').kind === 'remove', '사라진 키를 못 잡았다');
     assert(at('added') && at('added').kind === 'add', '새 키를 못 잡았다');
   });
+  // 목록 비교 — 자리로 견주면 행 하나를 끼워 넣었을 때 그 아래가 통째로 "바뀜" 이 된다.
+  // 반영 직전에 진짜 변경을 덮어 버리는 노이즈라, 내용으로 짝짓는 쪽을 붙든다.
+  check('목록에 행을 끼워 넣어도 나머지는 그대로 본다', () => {
+    const b = { rows: [{ name: 'A', v: 1 }, { name: 'B', v: 2 }, { name: 'C', v: 3 }] };
+    const a = { rows: [{ name: 'A', v: 1 }, { name: 'X', v: 9 }, { name: 'B', v: 2 }, { name: 'C', v: 3 }] };
+    const d = diffJson(b, a);
+    assert(d.length === 1, '한 건(추가)만 나와야 하는데 ' + d.length + '건: ' + d.map((x) => x.path + ':' + x.kind).join(','));
+    assert(d[0].kind === 'add' && d[0].after.name === 'X', '끼워 넣은 행을 추가로 못 잡았다');
+  });
+
+  check('행을 지우면 지운 것만, 값을 고치면 그 값만', () => {
+    const b = { rows: [{ name: 'A', v: 1 }, { name: 'B', v: 2 }, { name: 'C', v: 3 }] };
+    const gone = diffJson(b, { rows: [{ name: 'A', v: 1 }, { name: 'C', v: 3 }] });
+    assert(gone.length === 1 && gone[0].kind === 'remove' && gone[0].before.name === 'B', '삭제가 한 건이 아니다: ' + gone.length);
+    const edit = diffJson(b, { rows: [{ name: 'A', v: 1 }, { name: 'B', v: 22 }, { name: 'C', v: 3 }] });
+    assert(edit.length === 1 && edit[0].path === 'rows[1].v', '값 변경 경로가 틀렸다: ' + edit.map((x) => x.path).join(','));
+  });
+
+  check('이름만 고친 행은 삭제 · 추가가 아니라 한 칸 변경으로 본다', () => {
+    const b = { rows: [{ name: '아크릴 스탠드', price: 24000, game: '원신' }] };
+    const a = { rows: [{ name: '아크릴 스탠드 - 개정', price: 24000, game: '원신' }] };
+    const d = diffJson(b, a);
+    assert(d.length === 1 && d[0].kind === 'change' && d[0].path === 'rows[0].name',
+      '이름 변경이 한 줄로 안 나온다: ' + d.map((x) => x.kind + ':' + x.path).join(','));
+  });
+
+  check('아주 다른 행은 이름이 비슷해도 삭제 · 추가로 남는다', () => {
+    const b = { rows: [{ name: 'A', price: 1000, game: '원신', note: 'x' }] };
+    const a = { rows: [{ name: 'B', price: 9999, game: '붕괴', note: 'y' }] };
+    const kinds = diffJson(b, a).map((x) => x.kind).sort().join(',');
+    assert(kinds === 'add,remove', '엉뚱한 행끼리 묶였다: ' + kinds);
+  });
+
+  check('자리만 바뀐 목록은 순서 한 줄로 말한다', () => {
+    const b = { rows: [{ name: 'A' }, { name: 'B' }, { name: 'C' }] };
+    const a = { rows: [{ name: 'C' }, { name: 'A' }, { name: 'B' }] };
+    const d = diffJson(b, a);
+    assert(d.length === 1 && d[0].kind === 'order', '순서 변경이 한 줄로 안 나온다: ' + d.map((x) => x.kind).join(','));
+    assert(d[0].after === 'C · A · B', '바뀐 순서를 못 적었다: ' + d[0].after);
+  });
+
+  check('이름이 겹치거나 비면 예전처럼 자리로 견준다', () => {
+    const b = { rows: [{ name: 'A', v: 1 }, { name: 'A', v: 2 }] };
+    const a = { rows: [{ name: 'A', v: 1 }, { name: 'A', v: 3 }] };
+    const d = diffJson(b, a);
+    assert(d.length === 1 && d[0].path === 'rows[1].v', '자리 비교로 안 떨어졌다: ' + d.map((x) => x.path).join(','));
+  });
+
+  // 경로 번역 — 반영 직전에 "어느 상품이 바뀌나" 를 답하는 자리다. 섹션 정의가 바뀌면
+  // 조용히 경로가 그대로 노출되므로(라벨을 못 찾으면 키로 떨어진다) 여기서 붙든다.
+  check('변경 경로를 섹션 · 행 이름 · 열 이름으로 옮긴다', () => {
+    const tree = {
+      goods: [{ name: '아크릴 스탠드', price: 24000 }, { name: '뱃지', price: 7000 }],
+      days: [{ ymd: '2026-10-02', slots: [{ time: '13:00', title: '개막 무대' }] }],
+      past: [{ title: '호요랜드 2025', facts: [{ label: '기간', value: '2025.10.9 ~ 10.12' }] }],
+      ticket: { url: 'https://x' },
+      notice: '공지',
+    };
+    const say = (p) => { const e = explainPath(p, tree); return [e.section, ...e.crumbs, e.field].filter(Boolean).join('/'); };
+    assert(say('goods[1].price') === '굿즈샵/뱃지/가격(원)', '굿즈 경로가 틀렸다: ' + say('goods[1].price'));
+    assert(say('goods[0]') === '굿즈샵/아크릴 스탠드', '행 전체 경로가 틀렸다: ' + say('goods[0]'));
+    assert(say('days[0].slots[0].title') === '무대 시간표/2026-10-02/개막 무대/제목', '중첩 경로가 틀렸다: ' + say('days[0].slots[0].title'));
+    assert(say('past[0].facts[0].value') === '지난 행사/호요랜드 2025/기간/내용', '지난 행사 경로가 틀렸다: ' + say('past[0].facts[0].value'));
+    assert(say('ticket.url') === '예매/예매 URL', '예매 경로가 틀렸다: ' + say('ticket.url'));
+    assert(say('notice') === '기본 정보/공지 문구', '최상위 필드 경로가 틀렸다: ' + say('notice'));
+  });
+
+  check('통째로 들고 나는 행은 열 이름을 붙여 읽힌다', () => {
+    const cols = [{ key: 'name', label: '조' }, { key: 'time', label: '입장 시각' }];
+    assert(rowSummary({ name: 'C', time: '11:00' }, cols) === '조 C · 입장 시각 11:00',
+      '행 요약이 틀렸다: ' + rowSummary({ name: 'C', time: '11:00' }, cols));
+    assert(rowSummary({ name: 'C', note: '' }, cols) === '조 C', '빈 칸이 끼어들었다: ' + rowSummary({ name: 'C', note: '' }, cols));
+    assert(rowSummary({ ymd: '2026-10-02', slots: [1, 2] }, null) === 'ymd 2026-10-02 · slots 2건',
+      '중첩 목록을 건수로 안 적었다: ' + rowSummary({ ymd: '2026-10-02', slots: [1, 2] }, null));
+    assert(rowSummary('문자열', cols) === null, '행이 아닌 값에 요약이 나왔다');
+  });
+
+  check('트리에 없는 행은 자리로 가리킨다', () => {
+    const e = explainPath('goods[7].price', { goods: [] });
+    assert(e.crumbs[0] === '8번째', '자리 표기가 틀렸다: ' + e.crumbs[0]);
+    assert(e.field === '가격(원)', '열 이름이 빠졌다: ' + e.field);
+  });
+
   check('스키마 기본값만 채워진 줄은 접는다', () => {
     const raw = diffJson({ a: 1 }, { a: 1, notice: '', days: [], ticket: { vendor: '', note: '' }, openHour: 0, real: '값' });
     const kept = pruneDefaults(raw);
@@ -2289,9 +2572,9 @@ function selftest() {
     const o = { a: [1, { b: 'x' }], c: null, d: '' };
     assert(diffJson(o, JSON.parse(JSON.stringify(o))).length === 0, '같은 값인데 차이를 냈다');
   });
-  check('변경 요약이 최상위 키로 묶인다', () => {
+  check('변경 요약이 화면에서 부르는 이름으로 묶인다', () => {
     const s = diffSummary(diffJson({ goods: [{ p: 1 }, { p: 2 }], days: [] }, { goods: [{ p: 9 }, { p: 8 }], days: [1] }));
-    assert(/goods 2/.test(s) && /days 1/.test(s), '요약이 틀렸다: ' + s);
+    assert(/굿즈샵 2/.test(s) && /무대 시간표 1/.test(s), '요약이 틀렸다: ' + s);
   });
   check('이력 버전 ID 를 시각으로 읽는다', () =>
     assert(versionLabel('20260916-143205') === '2026-09-16 14:32:05', '버전 표기가 틀렸다'));

@@ -275,6 +275,10 @@ pre.json {
 
 /* 굿즈존 안내 미리보기 — 앱 시트(묶음 카드 · [이름 | 값] 줄 · 부연)의 축소판.
    치수는 앱을 따른다: 라벨 78 · 제목은 accent · 부연은 한 단계 작고 흐리게. */
+/* 변경사항 — 위치 칸은 사람 말이 먼저고 경로는 밑에 작게. */
+.diff-where { font-size: 13px; line-height: 1.45; overflow-wrap: anywhere; }
+.diff-path { display: block; margin-top: 2px; font-size: 10.5px; color: var(--muted); overflow-wrap: anywhere; }
+
 /* 안내 글 도구 줄 — 입력 칸 바로 위에 붙는다. */
 .guide-tools { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 2px; }
 
