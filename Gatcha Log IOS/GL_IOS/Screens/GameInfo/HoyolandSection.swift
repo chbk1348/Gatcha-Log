@@ -389,11 +389,13 @@ struct HoyolandDetailView: View {
                     .foregroundStyle(accent.deep)
                 Spacer(minLength: 0)
                 Text(stageLabel(phase))
-                    .font(.pretendard(size: 9.5, weight: .black)).kerning(1.2)
+                    // 머리줄(17) 옆에 서는 배지 — 9.5 로는 같은 줄에서 곁다리처럼 읽혔다.
+                    // 이 배지가 답하는 건 "지금 어느 단계인가" 라 행사명 다음으로 먼저 읽혀야 한다.
+                    .font(.pretendard(size: 12, weight: .black)).kerning(1.2)
                     .foregroundStyle(live ? Color.white : (ended ? GLGColor.textSecondary : accent.deep))
                     // 진행 중만 **면이 찬 빨강**이다 — 다른 단계와 같은 옅은 배지로 두면
                     // "지금 열리고 있다" 가 배지에서 안 읽힌다.
-                    .padding(.horizontal, 7).padding(.vertical, 3)
+                    .padding(.horizontal, 9).padding(.vertical, 4.5)
                     .background(live ? GLGLiveRed : (ended ? GLGColor.divider : accent.primary.opacity(0.16)),
                                 in: RoundedRectangle(cornerRadius: 4, style: .continuous))
             }
