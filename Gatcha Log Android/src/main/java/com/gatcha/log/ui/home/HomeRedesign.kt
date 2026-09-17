@@ -995,12 +995,10 @@ fun DashHoyolandCard(event: HoyolandEvent, onTap: () -> Unit) {
         }
     }
 
-    // 지스타 줄이 있으면 배너 밑단에 한 칸을 더 낸다(없으면 원래 높이 그대로).
-    val gstar = event.gstar.homeBrief()
     Box(
         Modifier
             .fillMaxWidth()
-            .height(if (gstar == null) 86.dp else 104.dp)
+            .height(86.dp)
             .clip(shape)
             .background(Brush.linearGradient(listOf(top, bottom)))
             .clickable { onTap() },
@@ -1077,42 +1075,6 @@ fun DashHoyolandCard(event: HoyolandEvent, onTap: () -> Unit) {
                 tint = Color.White.copy(alpha = 0.8f),
                 modifier = Modifier.size(20.dp),
             )
-        }
-        // 지스타는 호요랜드보다 한 달 반 뒤다 — 배너의 주인공이 될 수 없지만, 상세에만 두면
-        // "또 뭐가 있나"를 아무도 모른다. 배너 밑단의 작은 칸이 그 자리다(문구는 공유 계층).
-        //
-        // 짜임은 위 칸과 같다(남은 날짜 · 이름 · 나머지). 대신 **한 단계 작게** — 같은 크기로
-        // 두면 배너에 주인공이 둘이 된다.
-        gstar?.let { g ->
-            // 위 칸과 가르는 얇은 선 — 배너 안에서 층이 나뉘어 보이게.
-            Box(Modifier.fillMaxWidth().height(1.dp).background(Color.White.copy(alpha = 0.18f)))
-            Row(
-                Modifier.fillMaxWidth().padding(top = 6.dp, bottom = 7.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    g.dday,
-                    fontSize = 9.5.sp, fontWeight = FontWeight.Black, color = Color.White,
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(5.dp))
-                        .background(Color.White.copy(alpha = 0.18f))
-                        .padding(horizontal = 5.dp, vertical = 1.5.dp),
-                )
-                Spacer(Modifier.width(7.dp))
-                Text(
-                    g.title,
-                    fontSize = 10.sp, fontWeight = FontWeight.Bold,
-                    color = Color.White.copy(alpha = 0.88f), maxLines = 1,
-                )
-                Spacer(Modifier.width(6.dp))
-                Box(Modifier.width(1.dp).height(9.dp).background(Color.White.copy(alpha = 0.24f)))
-                Spacer(Modifier.width(6.dp))
-                Text(
-                    g.detail,
-                    fontSize = 9.5.sp, color = Color.White.copy(alpha = 0.66f),
-                    maxLines = 1, overflow = TextOverflow.Ellipsis,
-                )
-            }
         }
         }
     }
