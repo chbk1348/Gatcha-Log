@@ -44,9 +44,9 @@
     "note": "공식 배치도 기준입니다. 현장 사정으로 바뀔 수 있어요.",
     "zones": [
       { "id": "goods",      "label": "굿즈존",        "kind": "goods", "x": 7.9,  "y": 15.6, "w": 7.9,  "h": 43.9 },
-      { "id": "hsr",        "label": "붕괴: 스타레일", "kind": "game",  "game": "붕괴: 스타레일", "x": 17.2, "y": 14.5, "w": 20.8, "h": 26.7, "accent": true },
+      { "id": "hsr",        "label": "붕괴: 스타레일", "kind": "game",  "game": "붕괴: 스타레일", "x": 17.2, "y": 15.6, "w": 20.8, "h": 25.6, "accent": true },
       { "id": "stage",      "label": "무대존",        "kind": "stage", "x": 39.1, "y": 15.6, "w": 22.3, "h": 8.8 },
-      { "id": "genshin",    "label": "원신",          "kind": "game",  "game": "원신", "x": 62.5, "y": 15.2, "w": 30.3, "h": 25.9 },
+      { "id": "genshin",    "label": "원신",          "kind": "game",  "game": "원신", "x": 62.5, "y": 15.6, "w": 30.3, "h": 25.6 },
       { "id": "googleplay", "label": "구글플레이",    "kind": "booth", "x": 80.8, "y": 48.5, "w": 12.0, "h": 13.0 },
       { "id": "galaxy",     "label": "갤럭시 스토어",  "kind": "booth", "x": 31.2, "y": 58.0, "w": 7.2,  "h": 9.7 },
       { "id": "fanart-l",   "label": "2차 창작 전시존", "kind": "booth", "x": 31.2, "y": 70.6, "w": 14.2, "h": 6.4 },
