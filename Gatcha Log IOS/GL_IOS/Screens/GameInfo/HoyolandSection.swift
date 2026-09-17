@@ -237,7 +237,7 @@ struct HoyolandSection: View {
  호요랜드 상세 페이지.
 
  구성 순서는 **지금 알아야 하는 것부터**다: 언제·어디서(히어로) → 어떻게 가나(예매) →
- 뭘 보나(참여 게임·프로그램) → 곁다리(G-STAR) → 참고(지난 행사).
+ 뭘 보나(참여 게임·프로그램) → 참고(지난 행사).
  예전에는 장소 카드가 맨 위였고 일정이 그 아래 따로 있어서, 가장 먼저 궁금한 날짜가 두 번째였다.
  */
 struct HoyolandDetailView: View {
@@ -304,9 +304,6 @@ struct HoyolandDetailView: View {
         .refreshable {
             if let fresh = try? await HoyolandApi.shared.load(force: true) { event = fresh }
         }
-        // 지스타는 별개 행사인데다 참가사 명단이 순차 공개돼 내용이 계속 자란다. 본문 중간에
-        // 얹혀 있으면 호요랜드를 보러 온 사람의 스크롤을 가로막는다 — 헤더 버튼으로 빼서
-        // **볼 사람만** 들어가게 한다. (Android `HoyolandDetailPage` 와 파리티)
         .toolbar {
             // ── 내 입장권 — 고르는 일은 **표를 살 때 한 번**이고 그 뒤로는 읽기만 한다.
             // 나흘 × 여섯 조를 본문에 늘 펼쳐 두면 다 고른 사람에게는 스크롤을 먹는 격자일
