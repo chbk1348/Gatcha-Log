@@ -140,7 +140,7 @@ fun HoyolandMapContent(e: HoyolandEvent, onOpenZone: (HoyolandMapZone) -> Unit =
             }
         }
         Spacer(Modifier.height(12.dp))
-        HoyolandMapLegend()
+        HoyolandMapLegend(map.drawable)
     }
 }
 
@@ -283,10 +283,23 @@ private fun HoyolandMapFlow(up: Boolean, label: String, modifier: Modifier = Mod
     }
 }
 
-/** 색이 무엇을 뜻하는지 — 판만 보고는 알 수 없다. */
+/**
+ * 색이 무엇을 뜻하는지 — 판만 보고는 알 수 없다.
+ *
+ * **판에 실제로 선 종류만 세운다.** 목록을 고정해 두면 둘 다 틀린다 — 아직 구역이 없는
+ * 푸드존은 설명할 색이 없는데 칸을 차지하고, 반대로 어드민이 새 종류를 올리면 판에는 뜨는데
+ * 범례에는 없는 색이 생긴다(푸드가 그 상태였다). 칠하는 규칙([HoyolandMapZoneBox])과 같은
+ * 순서로 훑어 있는 것만 남긴다.
+ *
+ * 게임 칸은 **판에 든 게임 색을 그대로** 점으로 찍는다. 대표로 원신 하나만 걸던 때는 판에
+ * 색이 셋인데 범례는 하나라, 스타레일 보라가 무슨 색인지 범례가 답하지 못했다.
+ */
 @Composable
-private fun HoyolandMapLegend() {
+private fun HoyolandMapLegend(zones: List<HoyolandMapZone>) {
     val accent = LocalAccent.current
+    val kinds = zones.map { it.kind }.toSet()
+    // 판에 선 게임들(원본 순서, 중복 제거) — 색 점이 판의 칸 색과 하나씩 대응한다.
+    val games = zones.filter { it.kind == "game" }.map { it.game }.filter { it.isNotBlank() }.distinct()
     // **한 줄에 가운데.** 범례는 색과 이름이 짝지어 보이는 게 전부라, 줄이 나뉘면 짝이
     // 흐트러진다. 좁으면 줄을 나누는 대신 항목 간격과 글자를 줄여 한 줄을 지킨다.
     Row(
@@ -294,20 +307,33 @@ private fun HoyolandMapLegend() {
         horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        // 게임 부스는 게임색이라 대표로 원신 색을 건다 — 나머지는 테마 강조색 계열이다.
-        HoyolandMapLegendItem(GameData.colorFor("원신").toColor().copy(alpha = 0.85f), "게임 부스")
-        HoyolandMapLegendItem(accent.copy(alpha = 0.75f), "무대")
-        HoyolandMapLegendItem(accent.copy(alpha = 0.55f), "굿즈")
-        HoyolandMapLegendItem(accent.copy(alpha = 0.30f), "체험")
-        HoyolandMapLegendItem(HoyolandMapEntry, "입장")
-        HoyolandMapLegendItem(LocalAccentDeep.current.copy(alpha = 0.45f), "동선")
+        if (games.isNotEmpty()) {
+            HoyolandMapLegendItem(
+                games.map { GameData.colorFor(it).toColor().copy(alpha = 0.85f) },
+                "게임",
+            )
+        }
+        if ("stage" in kinds) HoyolandMapLegendItem(listOf(accent.copy(alpha = 0.75f)), "무대")
+        if ("goods" in kinds) HoyolandMapLegendItem(listOf(accent.copy(alpha = 0.55f)), "굿즈")
+        if ("food" in kinds) HoyolandMapLegendItem(listOf(accent.copy(alpha = 0.45f)), "푸드")
+        // 「체험」 이었던 자리 — 이 색으로 칠하는 건 파트너사 부스 · 창작 전시존 · DIY 존이라
+        // 체험이 아닌 칸이 더 많았다. 넷을 다 덮는 말로 부른다.
+        if ("booth" in kinds) HoyolandMapLegendItem(listOf(accent.copy(alpha = 0.30f)), "부스")
+        if ("entry" in kinds) HoyolandMapLegendItem(listOf(HoyolandMapEntry), "입장")
+        if (kinds.any { it == "flow-in" || it == "flow-out" }) {
+            HoyolandMapLegendItem(listOf(LocalAccentDeep.current.copy(alpha = 0.45f)), "동선")
+        }
     }
 }
 
+/** 범례 한 칸 — 색 점 하나(게임만 여럿) + 이름. */
 @Composable
-private fun HoyolandMapLegendItem(color: Color, label: String) {
+private fun HoyolandMapLegendItem(colors: List<Color>, label: String) {
     Row(verticalAlignment = Alignment.CenterVertically) {
-        Box(Modifier.size(8.dp).clip(RoundedCornerShape(2.dp)).background(color))
+        colors.forEachIndexed { i, c ->
+            if (i > 0) Spacer(Modifier.width(2.dp))
+            Box(Modifier.size(8.dp).clip(RoundedCornerShape(2.dp)).background(c))
+        }
         Spacer(Modifier.width(4.dp))
         Text(
             label,
