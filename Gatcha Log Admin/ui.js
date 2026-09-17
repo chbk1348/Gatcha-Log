@@ -244,6 +244,26 @@ function glToggle(cfg) {
   return btn;
 }
 
+/**
+ * 체크박스 — 여러 행을 고를 때 쓴다. 스위치([glToggle])와 뜻이 다르다:
+ * 스위치는 **값을 켜고 끄는 것**이고, 이건 **대상을 고르는 것**이다.
+ * cfg: { value, title, onChange }
+ */
+function glCheck(cfg) {
+  let on = !!cfg.value;
+  const btn = el('button', {
+    type: 'button', class: 'gl-cb' + (on ? ' on' : ''), role: 'checkbox',
+    'aria-checked': String(on), title: cfg.title || '',
+  });
+  btn.addEventListener('click', () => {
+    on = !on;
+    btn.classList.toggle('on', on);
+    btn.setAttribute('aria-checked', String(on));
+    if (cfg.onChange) cfg.onChange(on);
+  });
+  return btn;
+}
+
 /* ═════════════════════════════════════════════════════════════
  * 텍스트 · 여러 줄
  * ═════════════════════════════════════════════════════════════ */
