@@ -1327,6 +1327,39 @@ function rowHits(row, columns, q) {
 /** 검색창을 낼 만큼 긴 표인가 — 짧은 표에서는 군더더기다. */
 const LIST_SEARCH_MIN = 12;
 
+/** 칸 하나를 그 열의 타입에 맞는 값으로. 스프레드시트는 전부 문자열로 주기 때문이다. */
+function tsvCell(text, col) {
+  const t = String(text ?? '').trim();
+  if (!col) return t;
+  if (col.type === 'number') return Number(String(t).replace(/[,\s원]/g, '')) || 0;
+  if (col.type === 'bool') return /^(o|y|예|참|true|1)$/i.test(t);
+  return t;
+}
+
+/**
+ * 스프레드시트에서 복사한 표(탭으로 갈린 글)를 행 목록으로.
+ *
+ * 첫 줄이 **열 이름으로만** 되어 있으면 그 줄로 열을 맞춘다(순서가 달라도 된다).
+ * 아니면 표의 왼쪽 열부터 차례로 넣는다. 비어 있는 칸은 그 타입의 빈값이 된다.
+ */
+function parseTsv(text, columns) {
+  const lines = String(text ?? '').replace(/\r\n?/g, '\n').split('\n').filter((l) => l.trim());
+  if (!lines.length) return { rows: [], keys: [], header: false };
+  const cells = lines.map((l) => l.split('\t'));
+  const find = (t) => columns.find((c) => c.label === t.trim() || c.key === t.trim());
+  const head = cells[0];
+  const header = head.length > 1 && head.every((t) => find(t));
+  const width = Math.max(...cells.map((r) => r.length));
+  const keys = header ? head.map((t) => find(t).key) : columns.slice(0, width).map((c) => c.key);
+  const body = header ? cells.slice(1) : cells;
+  const rows = body.map((r) => {
+    const o = {};
+    keys.forEach((k, i) => { o[k] = tsvCell(r[i], columns.find((c) => c.key === k)); });
+    return o;
+  });
+  return { rows, keys, header };
+}
+
 function renderList(sec, opts = {}) {
   const path = opts.path || sec.path;
   const columns = opts.columns || sec.columns;
@@ -1468,7 +1501,52 @@ function renderList(sec, opts = {}) {
   syncSel();
   table.append(body);
 
+  /*
+   * 스프레드시트에서 그대로 옮겨 붙이기 — 굿즈 100줄을 한 칸씩 치는 것은 어드민의 일이 아니다.
+   * 붙여넣은 글이 **어느 열로 들어가는지 먼저 보여 주고** 나서 넣는다.
+   */
+  const paste = el('div', { class: 'list-paste', hidden: true });
+  const pasteInfo = el('div', { class: 'note' });
+  let parsed = { rows: [], keys: [], header: false };
+  const pasteBox = glTextarea({
+    placeholder: '스프레드시트에서 복사해 붙여넣으세요 — 탭으로 갈린 표.\n첫 줄이 열 이름이면 순서가 달라도 맞춰 넣습니다.',
+    onInput: (v) => {
+      parsed = parseTsv(v, columns);
+      const cols = parsed.keys.map((k) => (columns.find((c) => c.key === k) || {}).label || k).join(' · ');
+      pasteInfo.textContent = parsed.rows.length
+        ? `${parsed.rows.length}행 — ${cols} 로 들어갑니다.${parsed.header ? ' (첫 줄은 열 이름으로 읽었습니다)' : ''}`
+        : '아직 읽을 것이 없습니다.';
+      for (const b of paste.querySelectorAll('.paste-go')) b.disabled = !parsed.rows.length;
+    },
+  });
+  const fillBlanks = (r) => ({ ...blank(), ...r });
+  paste.append(
+    pasteBox,
+    pasteInfo,
+    el('div', { class: 'tools' }, [
+      el('button', { class: 'btn btn-sm btn-primary paste-go', disabled: true, onclick: async () => {
+        const n = parsed.rows.length;
+        if (!await glConfirm(`${n}행을 표 끝에 더합니다.`, { title: '붙여넣기', ok: `${n}행 추가` })) return;
+        rows.push(...parsed.rows.map(fillBlanks));
+        markDirty();
+        render();
+      } }, ['끝에 추가']),
+      el('button', { class: 'btn btn-sm btn-danger paste-go', disabled: true, onclick: async () => {
+        const n = parsed.rows.length;
+        if (!await glConfirm(`지금 ${rows.length}행을 모두 버리고 붙여넣은 ${n}행으로 바꿉니다.`, {
+          title: '표 전체 교체', ok: `${n}행으로 교체`, danger: true,
+        })) return;
+        rows.splice(0, rows.length, ...parsed.rows.map(fillBlanks));
+        sel.clear();
+        markDirty();
+        render();
+      } }, ['전체 교체']),
+      el('button', { class: 'btn btn-sm', onclick: () => { paste.hidden = true; } }, ['닫기']),
+    ]),
+  );
+
   const tools = el('div', { class: 'tools' }, [
+    el('button', { class: 'btn btn-sm', title: '스프레드시트에서 복사한 표를 붙여넣는다', onclick: () => { paste.hidden = !paste.hidden; } }, ['붙여넣기']),
     selectable ? el('button', { class: 'btn btn-sm', title: '지금 보이는 행을 모두 고른다', onclick: () => {
       const all = visible.every((r) => sel.has(r));
       for (const r of visible) { if (all) sel.delete(r); else sel.add(r); }
@@ -1495,6 +1573,7 @@ function renderList(sec, opts = {}) {
     el('div', { class: 'section-head' }, headRow),
     bulk,
     fill,
+    paste,
     el('div', { class: 'table-wrap' }, [table]),
   ];
   if (sec.warnEmpty && !rows.length) kids.push(el('div', { class: 'note', style: 'margin-top:10px', text: '⚠ ' + sec.warnEmpty }));
@@ -2622,6 +2701,30 @@ function selftest() {
     assert(at('gone') && at('gone').kind === 'remove', '사라진 키를 못 잡았다');
     assert(at('added') && at('added').kind === 'add', '새 키를 못 잡았다');
   });
+  // 붙여넣기 — 스프레드시트는 전부 문자열로 준다. 가격이 문자열로 들어가면 앱이 합계를
+  // 내지 못하므로(검증기가 잡는 바로 그 사고) 여기서 열 타입에 맞춰 바꿔 둔다.
+  check('붙여넣은 표를 열 타입에 맞춰 읽는다', () => {
+    const cols = [{ key: 'name', label: '상품명' }, { key: 'price', label: '가격(원)', type: 'number' }, { key: 'note', label: '비고' }];
+    const p = parseTsv('아크릴\t24,000\t한정\n키링\t7000\t', cols);
+    assert(!p.header, '열 이름 줄이 없는데 있다고 읽었다');
+    assert(p.rows.length === 2, '행 수가 틀렸다: ' + p.rows.length);
+    assert(p.rows[0].price === 24000, '쉼표 낀 숫자를 못 읽었다: ' + JSON.stringify(p.rows[0].price));
+    assert(p.rows[1].note === '', '빈 칸이 빈 값으로 안 들어갔다: ' + JSON.stringify(p.rows[1].note));
+  });
+
+  check('첫 줄이 열 이름이면 순서가 달라도 맞춘다', () => {
+    const cols = [{ key: 'name', label: '상품명' }, { key: 'price', label: '가격(원)', type: 'number' }, { key: 'note', label: '비고' }];
+    const p = parseTsv('가격(원)\t상품명\n9800\t미니 피규어', cols);
+    assert(p.header, '열 이름 줄을 못 알아봤다');
+    assert(p.keys.join(',') === 'price,name', '열 짝짓기가 틀렸다: ' + p.keys.join(','));
+    assert(p.rows[0].name === '미니 피규어' && p.rows[0].price === 9800, '값이 뒤바뀌었다: ' + JSON.stringify(p.rows[0]));
+  });
+
+  check('빈 글을 붙여넣으면 아무 행도 만들지 않는다', () => {
+    assert(parseTsv('', [{ key: 'name' }]).rows.length === 0, '빈 글에서 행이 나왔다');
+    assert(parseTsv('  \n\n', [{ key: 'name' }]).rows.length === 0, '빈 줄에서 행이 나왔다');
+  });
+
   check('표 검색은 낱말을 모두 품는 행만 남긴다', () => {
     const cols = [{ key: 'name' }, { key: 'game' }, { key: 'price' }];
     const row = { name: '아크릴 스탠드 - 어벤츄린', game: '붕괴: 스타레일', price: 24000 };
