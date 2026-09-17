@@ -131,7 +131,6 @@ const HOYOLAND = {
     mapUrl: '', mapFallbackUrl: '', officialUrl: '', announceYmd: '', notice: '', goodsGuide: '',
     ticket: { status: 'undecided', vendor: '', openLabel: '', openYmd: '', openHour: 0, priceLabel: '', url: '', note: '' },
     lineup: [], programs: [], days: [], goods: [], booths: [], entryGroups: [],
-    gstar: { title: '', badge: '', facts: [], lineup: [], url: '', notice: '' },
     past: [],
   }),
 
@@ -139,10 +138,7 @@ const HOYOLAND = {
     const d = this.blank();
     const o = { ...d, ...raw };
     o.ticket = { ...d.ticket, ...(raw.ticket || {}) };
-    o.gstar = { ...d.gstar, ...(raw.gstar || {}) };
     for (const k of ['lineup', 'programs', 'days', 'goods', 'booths', 'past', 'entryGroups']) if (!Array.isArray(o[k])) o[k] = [];
-    if (!Array.isArray(o.gstar.facts)) o.gstar.facts = [];
-    if (!Array.isArray(o.gstar.lineup)) o.gstar.lineup = [];
     o.days = o.days.map((day) => ({ ymd: '', ...day, slots: Array.isArray(day.slots) ? day.slots : [] }));
     o.past = o.past.map((p) => ({ title: '', ...p, facts: Array.isArray(p.facts) ? p.facts : [] }));
     return o;
@@ -208,8 +204,6 @@ const HOYOLAND = {
     link(d.officialUrl, 'meta', '공식 URL');
     link(d.ticket.url, 'ticket', '예매 URL');
     for (const r of d.lineup) link(r.url, 'lineup', `"${r.game}" 공지 주소`);
-    link(d.gstar.url, 'gstar', 'G-STAR 공식 URL');
-    for (const r of d.gstar.lineup) link(r.url, 'gstar', `G-STAR "${r.game}" 공지 주소`);
 
     // 예매처 앱 연결 — 두 플랫폼 모두 예매 URL 이 있을 때만 "예매하기" 버튼을 세운다.
     const pkg = String(d.ticket.appPackage ?? '').trim();
@@ -230,7 +224,6 @@ const HOYOLAND = {
     dropped(d.goods, 'name', 'goods', '굿즈');
     dropped(d.booths, 'title', 'booths', '부스');
     dropped(d.past, 'title', 'past', '지난 행사');
-    dropped(d.gstar.lineup, 'game', 'gstar', 'G-STAR 라인업');
 
     dropped(d.entryGroups, 'name', 'entryGroups', '입장 조');
 
@@ -258,7 +251,7 @@ const HOYOLAND = {
     if (!d.lineup.length) add('warn', 'lineup', '참여 게임이 비었습니다 — 앱이 번들 기본 라인업으로 폴백합니다.');
     if (!d.past.length) add('warn', 'past', '지난 행사가 비었습니다 — 앱이 번들 기본값으로 폴백합니다.');
 
-    for (const r of d.lineup.concat(d.gstar.lineup)) {
+    for (const r of d.lineup) {
       const c = String(r.colorArgb ?? '').trim();
       if (c && !/^(0x|#)?[0-9a-fA-F]{6,8}$/.test(c))
         add('warn', 'lineup', `"${r.game}" 의 색 "${c}" 을 읽지 못합니다 — 앱이 0(기본 태그)으로 처리합니다.`);
@@ -391,8 +384,6 @@ const HOYOLAND = {
         { key: 'reward', label: '보상', type: 'text', width: '140px' },
         { key: 'desc', label: '설명', type: 'text' },
       ] },
-    { id: 'gstar', group: '연계', label: 'G-STAR', type: 'gstar', path: 'gstar',
-      desc: '호요랜드와 별개 행사지만 같은 페이지에서 다룹니다. 참가사가 순차 공개되므로 그때그때 고칩니다.' },
     { id: 'past', group: '연계', label: '지난 행사', type: 'past', path: 'past', countable: true,
       desc: '이력 카드. 비우면 앱이 번들 기본값으로 폴백합니다.' },
   ],
@@ -1219,28 +1210,6 @@ function fillDaysFromRange() {
   toast(added ? `${added}일 추가했습니다.` : '이미 모든 날짜가 있습니다.');
 }
 
-function renderGstar(sec) {
-  const g = get(state.draft, sec.path);
-  const grid = el('div', { class: 'grid' });
-  for (const f of [
-    { key: 'title', label: '행사명', type: 'text' },
-    { key: 'badge', label: '배지 문구', type: 'text', placeholder: '호요버스 포함 100부스' },
-    { key: 'url', label: '공식 URL', type: 'url', wide: true },
-    { key: 'notice', label: '공지', type: 'textarea', wide: true },
-  ]) {
-    const field = el('div', { class: 'field' + (f.wide ? ' wide' : '') });
-    field.append(el('label', { text: f.label }), inputFor(f, g[f.key], (v) => { g[f.key] = v; }));
-    grid.append(field);
-  }
-  return el('div', {}, [
-    card(sec, [grid]),
-    card({ label: 'G-STAR 정보 항목', desc: 'label · value 쌍. label 이 비면 앱이 버립니다.' },
-      [renderList({}, { path: `${sec.path}.facts`, columns: FACT_COLS, bare: true })]),
-    card({ label: 'G-STAR 라인업', desc: 'theme 자리에는 출품작이 무엇을 하는지 적습니다(체험 부스 · 무대 등).' },
-      [renderList({}, { path: `${sec.path}.lineup`, columns: LINEUP_COLS, bare: true })]),
-  ]);
-}
-
 function renderPast(sec) {
   const list = get(state.draft, sec.path);
   const kids = [el('div', { class: 'section-head' }, [
@@ -2016,7 +1985,7 @@ function download() {
 
 const RENDERERS = {
   dashboard: renderDashboard, form: renderForm, list: renderList, strlist: renderStrList,
-  days: renderDays, goods: renderGoods, gstar: renderGstar, past: renderPast,
+  days: renderDays, goods: renderGoods, past: renderPast,
   apis: renderApis, export: renderExport, live: renderLive,
   changes: renderChanges, history: renderHistory,
 };
@@ -2194,7 +2163,7 @@ function selftest() {
     assert(at('added') && at('added').kind === 'add', '새 키를 못 잡았다');
   });
   check('스키마 기본값만 채워진 줄은 접는다', () => {
-    const raw = diffJson({ a: 1 }, { a: 1, notice: '', days: [], gstar: { title: '', facts: [] }, openHour: 0, real: '값' });
+    const raw = diffJson({ a: 1 }, { a: 1, notice: '', days: [], ticket: { vendor: '', note: '' }, openHour: 0, real: '값' });
     const kept = pruneDefaults(raw);
     assert(kept.length === 1 && kept[0].path === 'real', '접고 남은 것이 틀렸다: ' + kept.map((d) => d.path).join(','));
     assert(kept.hidden === 4, '접은 건수가 틀렸다: ' + kept.hidden);
