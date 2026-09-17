@@ -318,7 +318,8 @@ const HOYOLAND = {
           note: '상단에 그대로 노출됩니다. 확정된 것과 미정인 것을 구분해 적으세요' },
         // 굿즈존 공통 안내 — 굿즈 목록 맨 위 카드(스크롤하면 올라가 가려진다). 비우면 카드가 없다.
         { key: 'goodsGuide', label: '굿즈존 안내', type: 'textarea', wide: true,
-          note: '굿즈 목록 맨 위 카드. 줄 규칙: “· 항목 — 값”, 들여쓴 줄은 위 항목의 부연' },
+          note: '굿즈 목록 맨 위 카드. 줄 규칙: “· 항목 — 값”, 들여쓴 줄은 위 항목의 부연',
+          preview: guidePreview },
       ] },
     { id: 'ticket', group: '행사', label: '예매', type: 'form', path: 'ticket',
       desc: '상태를 바꾸면 앱의 예매 카드가 바뀝니다. 알림 예약은 openYmd · openHour 를 읽습니다.',
@@ -1016,6 +1017,62 @@ function tile(k, v, s = '', cls = '') {
   ]);
 }
 
+/*
+ * 굿즈존 안내 — 앱이 이 글을 **구조로 읽는다.** 규칙은 Android `parseHoyolandGuide` ·
+ * iOS `HoyolandGuideSheet` 와 같아야 한다(양쪽 주석에 "파리티"). 여기 셋이 어긋나면
+ * 어드민에서는 멀쩡해 보이는 글이 앱에서만 다른 모양으로 그려진다 — 셀프테스트가 규칙을 붙든다.
+ *
+ * 빈 줄 = 묶음 나누기 · 글머리 없는 줄 = 묶음 제목 · "· 이름 — 값" = 한 줄 · 들여쓴 줄 = 위 줄의 부연
+ */
+function parseGuide(text) {
+  const groups = [];
+  let title = '';
+  let rows = [];
+  const flush = () => {
+    if (title.trim() || rows.length) groups.push({ title, rows });
+    title = ''; rows = [];
+  };
+  for (const raw of String(text ?? '').split('\n')) {
+    const body = raw.trim();
+    const indented = body !== '' && (raw.startsWith('  ') || raw.startsWith('\t'));
+    if (body === '') {
+      flush();
+    } else if (indented && rows.length) {
+      rows[rows.length - 1].subs.push(body.startsWith('· ') ? body.slice(2) : body);
+    } else if (body.startsWith('· ')) {
+      const item = body.slice(2);
+      const i = item.indexOf(' — ');
+      rows.push(i >= 0
+        ? { label: item.slice(0, i), value: item.slice(i + 3), subs: [] }
+        : { label: item, value: '', subs: [] });
+    } else {
+      if (rows.length) flush();
+      title = body;
+    }
+  }
+  flush();
+  return groups;
+}
+
+/** 위 규칙으로 읽은 결과를 앱 시트와 같은 모양으로 세운다 — 적은 대로 보이지 않기 때문이다. */
+function guidePreview(text) {
+  const groups = parseGuide(text);
+  if (!groups.length) return el('div', { class: 'note-preview' }, [el('div', { class: 'k', text: '안내가 비어 있습니다 — 앱에서 카드가 뜨지 않습니다.' })]);
+  return el('div', { class: 'note-preview' }, [
+    el('div', { class: 'k', text: '앱에서 이렇게 보입니다' }),
+    ...groups.map((g) => el('div', { class: 'gp-group' }, [
+      g.title.trim() ? el('div', { class: 'gp-title', text: g.title }) : null,
+      ...g.rows.map((r) => el('div', { class: 'gp-row' }, [
+        el('div', { class: 'gp-label', text: r.label }),
+        el('div', { class: 'gp-body' }, [
+          r.value.trim() ? el('div', { class: 'gp-value', text: r.value }) : null,
+          ...r.subs.map((t) => el('div', { class: 'gp-sub', text: t })),
+        ]),
+      ])),
+    ])),
+  ]);
+}
+
 function renderForm(sec) {
   const base = sec.path ? get(state.draft, sec.path) : state.draft;
   const grid = el('div', { class: 'grid' });
@@ -1023,6 +1080,14 @@ function renderForm(sec) {
     const field = el('div', { class: 'field' + (f.wide ? ' wide' : '') });
     field.append(el('label', { text: f.label }), inputFor(f, base[f.key], (v) => { base[f.key] = v; }));
     if (f.note) field.append(el('div', { class: 'note', text: f.note }));
+    if (f.preview) {
+      const box = el('div');
+      const paint = () => box.replaceChildren(f.preview(base[f.key]));
+      paint();
+      field.addEventListener('input', paint);   // 입력 칸이 먼저 값을 고친 뒤 여기로 올라온다
+      field.addEventListener('change', paint);
+      field.append(box);
+    }
     grid.append(field);
   }
   return card(sec, [grid]);
@@ -2374,6 +2439,32 @@ function selftest() {
     assert(got === '신작 미정', '직접 입력한 값이 그대로 오지 않았다: ' + got);
     closePop();
     sel.remove();
+  });
+
+  // 굿즈존 안내 — 여기 규칙이 앱(Android `parseHoyolandGuide` · iOS `HoyolandGuideSheet`)과
+  // 어긋나면 미리보기가 거짓말을 한다. 네 규칙을 한 벌씩 붙들어 둔다.
+  check('굿즈존 안내를 앱과 같은 규칙으로 읽는다', () => {
+    const g = parseGuide([
+      '주문 · 결제',
+      '· 주문 — 입장 팔찌 QR',
+      '· 수령 — 당일 픽업존에서만',
+      '   2시간 넘기면 자동 취소돼요',
+      '',
+      '구매 제한',
+      '· 제한 없음',
+    ].join('\n'));
+    assert(g.length === 2, '빈 줄로 묶음이 갈리지 않았다: ' + g.length);
+    assert(g[0].title === '주문 · 결제', '글머리 없는 줄이 제목이 아니다: ' + g[0].title);
+    assert(g[0].rows.length === 2, '“· ” 줄 수가 틀렸다: ' + g[0].rows.length);
+    assert(g[0].rows[0].label === '주문' && g[0].rows[0].value === '입장 팔찌 QR', '“ — ” 로 이름·값이 갈리지 않았다');
+    assert(g[0].rows[1].subs.length === 1, '들여쓴 줄이 위 줄의 부연으로 붙지 않았다');
+    assert(g[1].rows[0].label === '제한 없음' && g[1].rows[0].value === '', '“ — ” 없는 줄은 이름만 남아야 한다');
+  });
+
+  check('안내 미리보기가 빈 글을 빈 카드로 알린다', () => {
+    assert(parseGuide('').length === 0, '빈 글에서 묶음이 나왔다');
+    assert(parseGuide('   \n\n  ').length === 0, '공백만 있는 글에서 묶음이 나왔다');
+    assert(guidePreview('').textContent.includes('비어 있습니다'), '빈 글 안내가 없다');
   });
 
   check('스위치가 불리언을 준다', () => {
