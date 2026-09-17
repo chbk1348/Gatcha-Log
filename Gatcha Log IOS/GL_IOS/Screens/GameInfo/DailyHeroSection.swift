@@ -68,8 +68,13 @@ struct DailyHeroSection: View {
                                     onOpenAttendance: onOpenAttendance,
                                     onOpenGameContent: onOpenGameContent,
                                     onOpenClears: onOpenClears)
+                    // 값이 오면 카드가 **없다가 생기는** 대신 스켈레톤이 내용으로 바뀐다.
+                    // 예전엔 로딩이 끝나는 순간 카드 한 장이 통째로 끼어들어 아래가 밀려 내려갔다.
+                    // 실패해서 끝내 비면 그때는 줄 자체를 안 그린다.
                     if !store.gameVersions.isEmpty {
                         versionStrip(store.gameVersions)
+                    } else if store.gameVersionsLoading {
+                        versionStripSkeleton
                     }
                 }
                 .padding(.horizontal, 16)
@@ -98,6 +103,33 @@ struct DailyHeroSection: View {
      표식이라 옅어도 되고, 색면이 두 줄 높이로 서니 점보다 알아보기도 쉽다. 그러면서 칸을
      가르는 일까지 겸해 구분선을 따로 그을 필요가 없어진다.
      */
+    /**
+     현재 버전 스켈레톤 — `versionStrip` 과 **같은 카드 · 같은 높이**.
+
+     "현재 버전" 라벨은 스켈레톤으로 덮지 않는다. 글자가 고정이라 가릴 이유가 없고, 카드가
+     무엇인지 먼저 읽히면 채워지는 것이 무엇인지도 같이 읽힌다. (Android `GameVersionStripSkeleton` 파리티)
+     */
+    private var versionStripSkeleton: some View {
+        GLGCard(cornerRadius: 20, padding: 16) {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("현재 버전")
+                    .font(.pretendard(size: 10, weight: .bold))
+                    .foregroundStyle(GLGColor.textSecondary)
+                HStack(spacing: 10) {
+                    // 출석 3게임 자리 — 실제로 몇 칸이 올지는 받아 봐야 알지만, 셋이 아닌 적이 없다.
+                    ForEach(0..<3, id: \.self) { _ in
+                        VStack(spacing: 5) {
+                            // 게임명(10.5) · 버전(16) 두 줄과 같은 높이로 맞춘다.
+                            GLGSkeleton().frame(width: 44, height: 11)
+                            GLGSkeleton().frame(width: 34, height: 17)
+                        }
+                        .frame(maxWidth: .infinity)
+                    }
+                }
+            }
+        }
+    }
+
     @ViewBuilder
     private func versionStrip(_ versions: [GameVersionLine]) -> some View {
         GLGCard(cornerRadius: 20, padding: 16) {
