@@ -68,6 +68,7 @@ import com.gatcha.log.data.api.EnkaChar
 import com.gatcha.log.data.api.NewsItem
 import com.gatcha.log.util.SafIO
 import com.gatcha.log.ui.theme.*
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 /** 게임정보 탭의 풀스크린 하위 페이지 (열리면 하단바·FAB 숨김) */
@@ -230,6 +231,25 @@ fun GameInfoScreen(
 
     // HoYoLAB 연동 페이지 — 화면 스왑(게임정보 ↔ 연동) 슬라이드 push/pop
     val subPageStateHolder = rememberSaveableStateHolder()
+    // ── 하위 페이지에서 **빠져나올 때** 그 페이지가 남긴 상태를 버린다.
+    //
+    // [rememberSaveableStateHolder] 는 키마다 상태를 들고 있어, 하위 페이지를 스크롤한 뒤
+    // 메인으로 나왔다 다시 들어가면 **스크롤 위치가 그대로 복원됐다**(2026-09-17 제보).
+    // 목록을 다시 여는 것은 "이어 보기" 가 아니라 처음부터 보는 일이라 맨 위에서 시작해야 한다.
+    // iOS 는 NavigationLink 가 pop 할 때 뷰를 버리므로 이미 그렇게 동작한다 — 파리티도 맞는다.
+    //
+    // **얕은 쪽으로 나갈 때만** 버린다. 목록 → 상세 → 목록처럼 더 깊이 들어갔다 돌아오는
+    // 경우는 보던 자리에 남아야 한다(그 자리로 돌아오려고 뒤로 간 것이다).
+    var prevSub by remember { mutableStateOf(subPage) }
+    LaunchedEffect(subPage) {
+        val from = prevSub
+        prevSub = subPage
+        if (subDepth(subPage) < subDepth(from)) {
+            // 전환이 끝난 뒤에 버린다 — 도중에 지우면 밀려 나가는 화면이 빈 채로 깜빡인다.
+            delay(GlgMotion.DurationStandard + 140L)
+            subPageStateHolder.removeState(from)
+        }
+    }
     AnimatedContent(
         targetState = subPage,
         transitionSpec = {
