@@ -234,7 +234,9 @@ private fun HudLabelRow(e: HoyolandEvent, phase: HoyolandPhase, ended: Boolean) 
         }
         Text(
             stage,
-            fontSize = 9.5.sp, fontWeight = FontWeight.Black,
+            // 머리줄(17sp) 옆에 서는 배지 — 9.5sp 로는 같은 줄에서 곁다리처럼 읽혔다.
+            // 이 배지가 답하는 건 "지금 어느 단계인가" 라 행사명 다음으로 먼저 읽혀야 한다.
+            fontSize = 12.sp, fontWeight = FontWeight.Black,
             color = when {
                 phase.isEventLive -> Color.White
                 ended -> TextSecondary
@@ -252,7 +254,7 @@ private fun HudLabelRow(e: HoyolandEvent, phase: HoyolandPhase, ended: Boolean) 
                         else -> accent.copy(alpha = 0.16f)
                     },
                 )
-                .padding(horizontal = 7.dp, vertical = 3.dp),
+                .padding(horizontal = 9.dp, vertical = 4.5.dp),
         )
     }
 }
