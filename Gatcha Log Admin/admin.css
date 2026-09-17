@@ -275,6 +275,10 @@ pre.json {
 
 /* 굿즈존 안내 미리보기 — 앱 시트(묶음 카드 · [이름 | 값] 줄 · 부연)의 축소판.
    치수는 앱을 따른다: 라벨 78 · 제목은 accent · 부연은 한 단계 작고 흐리게. */
+/* 표 검색 — 머리줄 가운데에서 늘어난다. 건수와 도구 사이 자리다. */
+.list-search-wrap { display: flex; align-items: center; gap: 6px; flex: 1 1 auto; min-width: 0; max-width: 360px; }
+.list-search { flex: 1; min-width: 0; }
+
 /* 변경사항 — 위치 칸은 사람 말이 먼저고 경로는 밑에 작게. */
 .diff-where { font-size: 13px; line-height: 1.45; overflow-wrap: anywhere; }
 .diff-path { display: block; margin-top: 2px; font-size: 10.5px; color: var(--muted); overflow-wrap: anywhere; }

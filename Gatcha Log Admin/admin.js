@@ -1316,12 +1316,29 @@ function renderForm(sec) {
   return card(sec, [grid]);
 }
 
+/** 한 행을 검색어와 맞춰 본다 — 열 값을 다 이어 붙여 놓고 공백으로 끊은 낱말을 **모두** 품는지 본다. */
+function rowHits(row, columns, q) {
+  const words = q.toLowerCase().split(/\s+/).filter(Boolean);
+  if (!words.length) return true;
+  const text = columns.map((c) => String(row[c.key] ?? '')).join(' ').toLowerCase();
+  return words.every((w) => text.includes(w));
+}
+
+/** 검색창을 낼 만큼 긴 표인가 — 짧은 표에서는 군더더기다. */
+const LIST_SEARCH_MIN = 12;
+
 function renderList(sec, opts = {}) {
   const path = opts.path || sec.path;
   const columns = opts.columns || sec.columns;
   const rows = get(state.draft, path);
   const blank = () => Object.fromEntries(columns.map((c) =>
     [c.key, c.type === 'bool' ? false : c.type === 'number' ? 0 : c.type === 'select' ? c.options[0].value : '']));
+
+  // 검색어는 state 에 둔다 — 행을 지우거나 더하면 render() 가 표를 통째로 다시 그리는데,
+  // 그때 검색어가 날아가면 105줄짜리 표에서 방금 보던 자리를 다시 찾아야 한다.
+  const searchable = opts.searchable ?? (rows.length >= LIST_SEARCH_MIN);
+  state.q ||= {};
+  const q = () => (searchable ? (state.q[path] || '') : '');
 
   const table = el('table');
   const head = el('tr');
@@ -1330,19 +1347,43 @@ function renderList(sec, opts = {}) {
   table.append(el('thead', {}, [head]));
 
   const body = el('tbody');
-  if (!rows.length) {
-    body.append(el('tr', {}, [el('td', { colspan: columns.length + 1, class: 'row-empty', text: '항목이 없습니다. “행 추가”로 시작하세요.' })]));
-  }
-  rows.forEach((row, i) => {
-    const tr = el('tr');
-    for (const c of columns) tr.append(el('td', { 'data-label': c.label }, [inputFor(c, row[c.key], (v) => { row[c.key] = v; }, row)]));
-    tr.append(el('td', { class: 'actions' }, [
-      el('button', { class: 'btn btn-sm', title: '위로', disabled: i === 0, onclick: () => move(rows, i, -1) }, ['↑']), ' ',
-      el('button', { class: 'btn btn-sm', title: '아래로', disabled: i === rows.length - 1, onclick: () => move(rows, i, 1) }, ['↓']), ' ',
-      el('button', { class: 'btn btn-sm btn-danger', title: '삭제', onclick: () => { rows.splice(i, 1); markDirty(); render(); } }, ['✕']),
-    ]));
-    body.append(tr);
-  });
+  const count = el('span', { class: 'muted' });
+
+  /*
+   * 표 본문만 다시 그린다. **화면의 줄과 배열의 자리는 다르다** — 걸러낸 표에서 세 번째로
+   * 보이는 줄이 배열에서도 세 번째라는 보장이 없다. 그래서 행마다 원래 자리(i)를 들고 다니고
+   * 편집 · 삭제 · 이동은 전부 그 i 로 한다.
+   */
+  const paint = () => {
+    const hits = rows.map((row, i) => ({ row, i })).filter(({ row }) => rowHits(row, columns, q()));
+    count.textContent = hits.length === rows.length ? `${rows.length}건` : `${rows.length}건 중 ${hits.length}건`;
+    body.replaceChildren();
+    if (!rows.length) {
+      body.append(el('tr', {}, [el('td', { colspan: columns.length + 1, class: 'row-empty', text: '항목이 없습니다. “행 추가”로 시작하세요.' })]));
+    } else if (!hits.length) {
+      body.append(el('tr', {}, [el('td', { colspan: columns.length + 1, class: 'row-empty', text: `“${q()}” 에 걸리는 행이 없습니다.` })]));
+    }
+    const filtered = hits.length !== rows.length;
+    for (const { row, i } of hits) {
+      const tr = el('tr');
+      for (const c of columns) tr.append(el('td', { 'data-label': c.label }, [inputFor(c, row[c.key], (v) => { row[c.key] = v; }, row)]));
+      tr.append(el('td', { class: 'actions' }, [
+        // 걸러낸 상태에서는 순서를 못 바꾼다 — 화면의 이웃과 배열의 이웃이 달라, 누른 사람이
+        // 보고 있는 줄이 아니라 숨은 줄을 넘어간다.
+        el('button', {
+          class: 'btn btn-sm', title: filtered ? '검색을 지워야 순서를 바꿀 수 있습니다' : '위로',
+          disabled: filtered || i === 0, onclick: () => move(rows, i, -1),
+        }, ['↑']), ' ',
+        el('button', {
+          class: 'btn btn-sm', title: filtered ? '검색을 지워야 순서를 바꿀 수 있습니다' : '아래로',
+          disabled: filtered || i === rows.length - 1, onclick: () => move(rows, i, 1),
+        }, ['↓']), ' ',
+        el('button', { class: 'btn btn-sm btn-danger', title: '삭제', onclick: () => { rows.splice(i, 1); markDirty(); render(); } }, ['✕']),
+      ]));
+      body.append(tr);
+    }
+  };
+  paint();
   table.append(body);
 
   const tools = el('div', { class: 'tools' }, [
@@ -1350,8 +1391,20 @@ function renderList(sec, opts = {}) {
   ]);
   if (opts.extraTools) tools.append(...opts.extraTools);
 
+  const headRow = [count];
+  if (searchable) {
+    const input = glText({
+      value: q(), placeholder: '검색 — 여러 낱말은 모두 걸립니다',
+      onInput: (v) => { state.q[path] = v; paint(); },
+    });
+    input.classList.add('list-search');
+    const clear = el('button', { class: 'btn btn-sm', title: '검색 지우기', onclick: () => { state.q[path] = ''; input.value = ''; paint(); } }, ['✕']);
+    headRow.push(el('div', { class: 'list-search-wrap' }, [input, clear]));
+  }
+  headRow.push(tools);
+
   const kids = [
-    el('div', { class: 'section-head' }, [el('span', { class: 'muted', text: `${rows.length}건` }), tools]),
+    el('div', { class: 'section-head' }, headRow),
     el('div', { class: 'table-wrap' }, [table]),
   ];
   if (sec.warnEmpty && !rows.length) kids.push(el('div', { class: 'note', style: 'margin-top:10px', text: '⚠ ' + sec.warnEmpty }));
@@ -2479,6 +2532,17 @@ function selftest() {
     assert(at('gone') && at('gone').kind === 'remove', '사라진 키를 못 잡았다');
     assert(at('added') && at('added').kind === 'add', '새 키를 못 잡았다');
   });
+  check('표 검색은 낱말을 모두 품는 행만 남긴다', () => {
+    const cols = [{ key: 'name' }, { key: 'game' }, { key: 'price' }];
+    const row = { name: '아크릴 스탠드 - 어벤츄린', game: '붕괴: 스타레일', price: 24000 };
+    assert(rowHits(row, cols, ''), '빈 검색어가 행을 걸렀다');
+    assert(rowHits(row, cols, '아크릴'), '한 낱말을 못 찾았다');
+    assert(rowHits(row, cols, '아크릴 스타레일'), '여러 낱말이 AND 로 안 걸린다');
+    assert(rowHits(row, cols, '24000'), '숫자 칸을 못 찾았다');
+    assert(!rowHits(row, cols, '아크릴 원신'), '한 낱말이 안 맞는데 걸렸다');
+    assert(rowHits(row, cols, '어벤츄린'), '대소문자·부분 일치가 안 된다');
+  });
+
   // 목록 비교 — 자리로 견주면 행 하나를 끼워 넣었을 때 그 아래가 통째로 "바뀜" 이 된다.
   // 반영 직전에 진짜 변경을 덮어 버리는 노이즈라, 내용으로 짝짓는 쪽을 붙든다.
   check('목록에 행을 끼워 넣어도 나머지는 그대로 본다', () => {
