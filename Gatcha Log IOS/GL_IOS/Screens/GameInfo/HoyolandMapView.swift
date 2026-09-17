@@ -199,30 +199,58 @@ struct HoyolandMapView: View {
 
     // ── 범례 ──────────────────────────────────────────────────────────────
 
-    /// 색이 무엇을 뜻하는지 — 판만 보고는 알 수 없다. 좁은 화면에서는 다음 줄로 접힌다.
+    /**
+     색이 무엇을 뜻하는지 — 판만 보고는 알 수 없다.
+
+     **판에 실제로 선 종류만 세운다.** 목록을 고정해 두면 둘 다 틀린다 — 아직 구역이 없는
+     푸드존은 설명할 색이 없는데 칸을 차지하고, 반대로 어드민이 새 종류를 올리면 판에는 뜨는데
+     범례에는 없는 색이 생긴다(푸드가 그 상태였다).
+
+     게임 칸은 **판에 든 게임 색을 그대로** 점으로 찍는다. 대표로 원신 하나만 걸던 때는 판에
+     색이 셋인데 범례는 하나라, 스타레일 보라가 무슨 색인지 범례가 답하지 못했다.
+     (Android `HoyolandMapLegend` 와 파리티)
+     */
     private var legend: some View {
-        let items: [(Color, String)] = [
-            (Color(argb64: GameData.shared.colorFor(name: "원신")).opacity(0.85), "게임 부스"),
-            (accent.primary.opacity(0.75), "무대"),
-            (accent.primary.opacity(0.55), "굿즈"),
-            (accent.primary.opacity(0.30), "체험"),
-            (HoyolandMapEntryColor, "입장"),
-            (accent.deep.opacity(0.45), "동선"),
-        ]
+        let zones = event.map.drawable
+        let kinds = Set(zones.map(\.kind))
+        // 판에 선 게임들(원본 순서, 중복 제거) — 색 점이 판의 칸 색과 하나씩 대응한다.
+        var games: [String] = []
+        for z in zones where z.kind == "game" && !z.game.isEmpty && !games.contains(z.game) {
+            games.append(z.game)
+        }
+        var items: [([Color], String)] = []
+        if !games.isEmpty {
+            items.append((games.map { Color(argb64: GameData.shared.colorFor(name: $0)).opacity(0.85) }, "게임"))
+        }
+        if kinds.contains("stage") { items.append(([accent.primary.opacity(0.75)], "무대")) }
+        if kinds.contains("goods") { items.append(([accent.primary.opacity(0.55)], "굿즈")) }
+        if kinds.contains("food") { items.append(([accent.primary.opacity(0.45)], "푸드")) }
+        // 「체험」 이었던 자리 — 이 색으로 칠하는 건 파트너사 부스 · 창작 전시존 · DIY 존이라
+        // 체험이 아닌 칸이 더 많았다. 넷을 다 덮는 말로 부른다.
+        if kinds.contains("booth") { items.append(([accent.primary.opacity(0.30)], "부스")) }
+        if kinds.contains("entry") { items.append(([HoyolandMapEntryColor], "입장")) }
+        if kinds.contains("flow-in") || kinds.contains("flow-out") {
+            items.append(([accent.deep.opacity(0.45)], "동선"))
+        }
         return HoyolandMapLegendRow(items: items)
     }
 }
 
 /// 범례 — **한 줄에 가운데**. 좁으면 글자가 줄어들 뿐 줄은 나뉘지 않는다.
 private struct HoyolandMapLegendRow: View {
-    let items: [(Color, String)]
+    /// 색 점(게임만 여럿) + 이름.
+    let items: [([Color], String)]
 
     var body: some View {
         HStack(spacing: 8) {
             ForEach(Array(items.enumerated()), id: \.offset) { _, it in
                 HStack(spacing: 4) {
-                    RoundedRectangle(cornerRadius: 2, style: .continuous)
-                        .fill(it.0).frame(width: 8, height: 8)
+                    HStack(spacing: 2) {
+                        ForEach(Array(it.0.enumerated()), id: \.offset) { _, c in
+                            RoundedRectangle(cornerRadius: 2, style: .continuous)
+                                .fill(c).frame(width: 8, height: 8)
+                        }
+                    }
                     Text(it.1).font(.pretendard(size: 10))
                         .foregroundStyle(GLGColor.textSecondary)
                         .lineLimit(1)
