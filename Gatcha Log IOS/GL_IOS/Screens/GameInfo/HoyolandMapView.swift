@@ -159,7 +159,7 @@ struct HoyolandMapView: View {
                 // 알아서 하므로(스크롤 위치까지) 따로 기억할 것이 없다.
                 switch z.kind {
                 case "goods": HoyolandGoodsView(event: event, store: store)
-                case "stage": HoyolandStageView(event: event)
+                case "stage": HoyolandStageView(event: event, entry: store.hoyolandEntry)
                 case "food": HoyolandFoodView(event: event)
                 default: HoyolandBoothView(event: event, initialGame: z.game.isEmpty ? nil : z.game)
                 }

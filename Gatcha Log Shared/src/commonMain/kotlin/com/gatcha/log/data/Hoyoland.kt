@@ -293,7 +293,23 @@ data class StageSlot(
     val progress: Float = 0f,
     /** "14:00 ~ 14:40" — 길이를 모르면 "14:00". */
     val rangeLabel: String = "",
-)
+    /**
+     * 끝나는 시각(자정부터의 분). 못 읽으면 0.
+     *
+     * [rangeLabel] 에 이미 글자로 들어 있지만, **내 입장 시각과 견주려면 숫자가 필요하다**
+     * ([HoyolandEvent.entryMinutesOn]). 화면에서 다시 세면 여기 끝 시각 규칙(길이 없으면
+     * 다음 편 시작까지)을 두 번 구현하게 된다.
+     */
+    val endMin: Int = 0,
+) {
+    /**
+     * 내가 들어가기 **전에 이미 끝나는** 편인가 — [entryMin] 은 그날 내 입장 시각(분).
+     *
+     * 시작이 아니라 **끝**을 본다. 시작으로 가르면 입장하는 순간 진행 중인 편까지 못 보는
+     * 것으로 접히는데, 그건 늦게라도 들어가서 뒷부분을 볼 수 있는 편이다.
+     */
+    fun isBeforeEntry(entryMin: Int): Boolean = entryMin > 0 && endMin in 1..entryMin
+}
 
 /** 행사 하루치. [ymd] 는 `yyyy-MM-dd`. */
 data class HoyolandDay(val ymd: String, val slots: List<HoyolandSlot>)
@@ -846,18 +862,20 @@ data class HoyolandEvent(
             } else {
                 slot.time
             }
+            val endMin = end ?: 0
             when {
                 !isToday || start == null || end == null ->
-                    StageSlot(slot, StageState.UPCOMING, rangeLabel = label)
-                nowMin >= end -> StageSlot(slot, StageState.DONE, rangeLabel = label)
+                    StageSlot(slot, StageState.UPCOMING, rangeLabel = label, endMin = endMin)
+                nowMin >= end -> StageSlot(slot, StageState.DONE, rangeLabel = label, endMin = endMin)
                 nowMin >= start -> StageSlot(
                     slot,
                     StageState.LIVE,
                     remainMin = end - nowMin,
                     progress = if (end > start) (nowMin - start).toFloat() / (end - start) else 0f,
                     rangeLabel = label,
+                    endMin = endMin,
                 )
-                else -> StageSlot(slot, StageState.UPCOMING, rangeLabel = label)
+                else -> StageSlot(slot, StageState.UPCOMING, rangeLabel = label, endMin = endMin)
             }
         }
     }
@@ -1276,6 +1294,32 @@ data class HoyolandEvent(
 
     /** 개막일 [hour] 시의 로컬 시각(밀리초). 날짜를 못 읽으면 0. */
     fun startAtMillis(hour: Int): Long = millisAt(start, hour)
+
+    /**
+     * 그날 **내 입장 시각**(자정부터의 분). 안 가는 날이거나 시각을 모르면 0.
+     *
+     * 시간표가 "내가 못 보는 편"을 가리는 데 쓴다 — 10시 입장인데 9시 편이 목록 맨 위에
+     * 서 있으면, 그날 무대를 훑을 때마다 볼 수 없는 편부터 읽게 된다.
+     */
+    fun entryMinutesOn(ymd: String, entry: HoyolandEntry): Int {
+        val group = entry.groupOn(ymd)
+        if (group.isBlank()) return 0
+        return minutesOfDay(entryTimeOf(group)) ?: 0
+    }
+
+    /**
+     * 시간표 머리에 걸 한 줄 — "A조 10:00 입장 · 그 전 2편은 흐리게". 안 가는 날이면 빈 문자열.
+     *
+     * 못 보는 편이 없으면 셈을 빼고 입장 시각만 말한다 — 없는 것을 "0편" 으로 적으면
+     * 그 줄을 한 번 더 읽게 된다.
+     */
+    fun entryStageNote(ymd: String, entry: HoyolandEntry, nowMillis: Long = currentTimeMillis()): String {
+        val at = entryMinutesOn(ymd, entry)
+        if (at <= 0) return ""
+        val head = "${entry.groupOn(ymd)}조 ${entryTimeOf(entry.groupOn(ymd))} 입장"
+        val missed = stageSlots(ymd, nowMillis).count { it.isBeforeEntry(at) }
+        return if (missed <= 0) head else "$head · 그 전 ${missed}편은 흐리게"
+    }
 
     /**
      * 그날 **내 입장 시각**(밀리초) — [entryTimeOf] 의 "HH:mm" 을 그 날짜에 얹는다.
