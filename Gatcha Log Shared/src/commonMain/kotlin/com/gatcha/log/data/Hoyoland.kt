@@ -1368,9 +1368,9 @@ object HoyolandDefaults {
             note = "공식 배치도 기준입니다. 현장 사정으로 바뀔 수 있어요.",
             zones = listOf(
                 HoyolandMapZone("goods", "굿즈존", "goods", x = 7.9f, y = 15.6f, w = 7.9f, h = 43.9f),
-                HoyolandMapZone("hsr", "붕괴: 스타레일", "game", "붕괴: 스타레일", 17.2f, 14.5f, 20.8f, 26.7f, accent = true),
+                HoyolandMapZone("hsr", "붕괴: 스타레일", "game", "붕괴: 스타레일", 17.2f, 15.6f, 20.8f, 25.6f, accent = true),
                 HoyolandMapZone("stage", "무대존", "stage", x = 39.1f, y = 15.6f, w = 22.3f, h = 8.8f),
-                HoyolandMapZone("genshin", "원신", "game", "원신", 62.5f, 15.2f, 30.3f, 25.9f),
+                HoyolandMapZone("genshin", "원신", "game", "원신", 62.5f, 15.6f, 30.3f, 25.6f),
                 HoyolandMapZone("googleplay", "구글플레이", "booth", x = 80.8f, y = 48.5f, w = 12f, h = 13f),
                 HoyolandMapZone("galaxy", "갤럭시 스토어", "booth", x = 31.2f, y = 58f, w = 7.2f, h = 9.7f),
                 HoyolandMapZone("fanart-l", "2차 창작 전시존", "booth", x = 31.2f, y = 70.6f, w = 14.2f, h = 6.4f),
