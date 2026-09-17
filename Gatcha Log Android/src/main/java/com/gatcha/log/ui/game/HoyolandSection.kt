@@ -56,6 +56,7 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
@@ -807,30 +808,33 @@ fun HoyolandDetailContent(
     // **넷이 같은 크기의 네 칸.** 예전엔 시간표·푸드존만 전체 폭이고 굿즈·부스가 반 폭이라
     // 크기가 곧 중요도로 읽혔는데, 현장에서 넷 중 무엇을 먼저 여는지는 그날 그때마다 다르다.
     // 같은 칸으로 두면 한 화면에 넷이 다 들어와 고르는 눈이 위아래로 움직이지 않는다.
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    // 한 줄에 선 두 칸은 **높이를 맞춘다**([IntrinsicSize.Min] + `fillMaxHeight`). 부제가 한 줄인
+    // 칸과 두 줄인 칸이 나란히 서면 카드 아래가 서로 다른 자리에서 끝나 격자가 어긋나 보인다.
+    // 높이를 맞춘 뒤 글자는 칸 안에서 **세로 가운데**에 둔다([HoyolandOnsiteTile]).
+    Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         HoyolandOnsiteTile(
             Icons.Default.Schedule, "시간표", e.onsiteStageLine(),
-            Modifier.weight(1f),
+            Modifier.weight(1f).fillMaxHeight(),
             // 지금 무대가 돌고 있으면 이 칸만 빨갛다 — 넷 중 **지금 열어야 하는 칸**이다.
             subColor = if (e.isStageLiveNow()) LiveRed else null,
         ) { onOpenSub(HoyolandSub.Stage) }
         HoyolandOnsiteTile(
             Icons.Default.ShoppingBag, "굿즈", e.onsiteGoodsLine(cart),
-            Modifier.weight(1f),
+            Modifier.weight(1f).fillMaxHeight(),
         ) { onOpenSub(HoyolandSub.Goods) }
     }
     Spacer(Modifier.height(8.dp))
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         HoyolandOnsiteTile(
             Icons.Default.Storefront, "부스", e.onsiteBoothLine(),
-            Modifier.weight(1f),
+            Modifier.weight(1f).fillMaxHeight(),
         ) { onOpenSub(HoyolandSub.Booth) }
         // 푸드존은 **프로그램 목록에서 빼내 여기로** 옮겼다. 성격이 "현장에서 골라 사는 것"이라
         // 굿즈·부스와 같은 줄이 맞다. 메뉴가 비면 빈 칸을 세워 넷의 격자를 지킨다.
         if (e.foodPrograms.isNotEmpty()) {
             HoyolandOnsiteTile(
                 Icons.Default.Restaurant, "푸드존", e.onsiteFoodLine(),
-                Modifier.weight(1f),
+                Modifier.weight(1f).fillMaxHeight(),
             ) { onOpenSub(HoyolandSub.Food) }
         } else {
             Spacer(Modifier.weight(1f))
@@ -840,10 +844,7 @@ fun HoyolandDetailContent(
     // 한 줄을 통째로 준다 — 지도는 폭이 넓을수록 구역 이름이 안 잘린다.
     if (e.hasMap) {
         Spacer(Modifier.height(8.dp))
-        HoyolandOnsiteTile(
-            Icons.Default.Map, "맵스", e.onsiteMapLine(),
-            Modifier.fillMaxWidth(),
-        ) { onOpenSub(HoyolandSub.Map) }
+        HoyolandOnsiteWideTile(Icons.Default.Map, "맵스", e.onsiteMapLine()) { onOpenSub(HoyolandSub.Map) }
     }
     }
 
@@ -1087,9 +1088,14 @@ private fun HoyolandOnsiteTile(
         Column(
             Modifier
                 .fillMaxWidth()
+                .fillMaxHeight()
                 .clickable { onClick() }
                 .padding(14.dp)
                 .heightIn(min = 68.dp),
+            // 칸 안에서 **왼쪽 · 세로 가운데**. 한 줄짜리 칸이 두 줄짜리 옆에서 위로 붙으면
+            // 아이콘 높이가 칸마다 달라져 줄이 삐뚤어 보인다(맵스처럼 혼자 서는 칸은 높이가
+            // 내용에 딱 맞아 가운데 정렬이 아무것도 바꾸지 않는다).
+            verticalArrangement = Arrangement.Center,
         ) {
             Icon(icon, contentDescription = null, tint = deep, modifier = Modifier.size(20.dp))
             Spacer(Modifier.height(9.dp))
@@ -1102,6 +1108,52 @@ private fun HoyolandOnsiteTile(
                 color = subColor ?: TextSecondary,
                 maxLines = 2, lineHeight = 15.sp,
                 overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+            )
+        }
+    }
+}
+
+/**
+ * 한 줄을 통째로 쓰는 「둘러보기」 칸 — 지금은 맵스 하나.
+ *
+ * 네 칸짜리 격자([HoyolandOnsiteTile])와 달리 **가로 한 줄**로 눕히고 높이를 낮춘다. 폭이
+ * 두 배인데 같은 세로 배치를 쓰면 아이콘 아래 글자 두 줄만 왼쪽에 몰리고 오른쪽 절반이 통째로
+ * 비어, 칸 하나가 격자보다 크게 자리를 먹는다. 오른쪽 끝 쉐브론은 **이 줄이 어디로 간다**는
+ * 표시다 — 네 칸은 격자 모양만으로 눌리는 게 읽히지만 한 줄짜리는 그 단서가 없다.
+ */
+@Composable
+private fun HoyolandOnsiteWideTile(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    title: String,
+    sub: String,
+    onClick: () -> Unit,
+) {
+    val deep = LocalAccentDeep.current
+    GlassCard(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(18.dp)) {
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .clickable { onClick() }
+                // 세로 16 — 네 칸(68dp)보다 확실히 낮으면서도(52dp) 한 줄짜리가 너무 납작해
+                // 눌리는 면으로 안 읽히는 선은 넘지 않는 값이다.
+                .padding(horizontal = 14.dp, vertical = 16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(icon, contentDescription = null, tint = deep, modifier = Modifier.size(20.dp))
+            Spacer(Modifier.width(10.dp))
+            Text(title, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+            Spacer(Modifier.width(8.dp))
+            Text(
+                sub,
+                fontSize = 11.5.sp, color = TextSecondary,
+                maxLines = 1, overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f),
+            )
+            Icon(
+                Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                contentDescription = null,
+                tint = TextSecondary,
+                modifier = Modifier.size(18.dp),
             )
         }
     }

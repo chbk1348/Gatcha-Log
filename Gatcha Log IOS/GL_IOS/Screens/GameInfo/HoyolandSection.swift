@@ -1056,40 +1056,47 @@ struct HoyolandDetailView: View {
                     .font(.pretendard(size: 11.5)).foregroundStyle(GLGColor.textSecondary)
             }
             .padding(.bottom, 10)
+            // 한 줄에 선 두 칸은 **높이를 맞춘다**(`fillHeight` + HStack 의 `fixedSize`). 부제가
+            // 한 줄인 칸과 두 줄인 칸이 나란히 서면 카드 아래가 서로 다른 자리에서 끝나 격자가
+            // 어긋나 보인다. 높이를 맞춘 뒤 글자는 칸 안에서 **세로 가운데**에 둔다.
             HStack(spacing: 8) {
                 NavigationLink { HoyolandStageView(event: e) } label: {
                     // 지금 무대가 돌고 있으면 이 칸만 빨갛다 — 넷 중 **지금 열어야 하는 칸**이다.
                     onsiteTile("clock", "시간표", e.onsiteStageLine(nowMillis: nowMs()),
-                               subColor: e.isStageLiveNow(nowMillis: nowMs()) ? GLGLiveRed : nil)
+                               subColor: e.isStageLiveNow(nowMillis: nowMs()) ? GLGLiveRed : nil,
+                               fillHeight: true)
                 }
                 .buttonStyle(.plain)
                 NavigationLink { HoyolandGoodsView(event: e, store: store) } label: {
-                    onsiteTile("bag.fill", "굿즈", e.onsiteGoodsLine(cart: store.hoyolandCart))
+                    onsiteTile("bag.fill", "굿즈", e.onsiteGoodsLine(cart: store.hoyolandCart),
+                               fillHeight: true)
                 }
                 .buttonStyle(.plain)
             }
+            .fixedSize(horizontal: false, vertical: true)
             HStack(spacing: 8) {
                 NavigationLink { HoyolandBoothView(event: e) } label: {
-                    onsiteTile("storefront.fill", "부스", e.onsiteBoothLine())
+                    onsiteTile("storefront.fill", "부스", e.onsiteBoothLine(), fillHeight: true)
                 }
                 .buttonStyle(.plain)
                 // 푸드존은 **프로그램 목록에서 빼내 여기로** 옮겼다. 성격이 "현장에서 골라 사는 것"
                 // 이라 굿즈·부스와 같은 줄이 맞다. 메뉴가 비면 빈 칸을 세워 넷의 격자를 지킨다.
                 if !e.foodPrograms.isEmpty {
                     NavigationLink { HoyolandFoodView(event: e) } label: {
-                        onsiteTile("fork.knife", "푸드존", e.onsiteFoodLine())
+                        onsiteTile("fork.knife", "푸드존", e.onsiteFoodLine(), fillHeight: true)
                     }
                     .buttonStyle(.plain)
                 } else {
                     Color.clear.frame(maxWidth: .infinity)
                 }
             }
+            .fixedSize(horizontal: false, vertical: true)
             .padding(.top, 8)
             // ── 맵스 — 배치도가 공개돼야 선다. 넷과 성격이 달라(고르는 게 아니라 **찾아가는**
             // 것) 한 줄을 통째로 준다 — 지도는 폭이 넓을수록 구역 이름이 안 잘린다.
             if e.hasMap {
                 NavigationLink { HoyolandMapView(event: e, store: store) } label: {
-                    onsiteTile("map", "맵스", e.onsiteMapLine())
+                    onsiteWideTile("map", "맵스", e.onsiteMapLine())
                 }
                 .buttonStyle(.plain)
                 .padding(.top, 8)
@@ -1104,7 +1111,9 @@ struct HoyolandDetailView: View {
      요약은 **들어가기 전에 볼 값이 있는지** 알려 주는 줄이라 잘리면 칸이 제목만 남는다.
      */
     @ViewBuilder private func onsiteTile(_ icon: String, _ title: String, _ sub: String,
-                                         subColor: Color? = nil) -> some View {
+                                         subColor: Color? = nil,
+                                         /// 한 줄에 선 칸 — 형제 칸과 높이를 맞춘다(맵스처럼 혼자 서는 칸은 false).
+                                         fillHeight: Bool = false) -> some View {
         GLGCard(cornerRadius: 18, padding: 14) {
             VStack(alignment: .leading, spacing: 0) {
                 Image(systemName: icon).font(.system(size: 17, weight: .semibold))
@@ -1119,7 +1128,43 @@ struct HoyolandDetailView: View {
                     .fixedSize(horizontal: false, vertical: true)
                     .padding(.top, 2)
             }
-            .frame(maxWidth: .infinity, minHeight: 68, alignment: .topLeading)
+            // 왼쪽 · 세로 가운데. 한 줄짜리 칸이 두 줄짜리 옆에서 위로 붙으면 아이콘 높이가
+            // 칸마다 달라져 줄이 삐뚤어 보인다.
+            .frame(maxWidth: .infinity, minHeight: 68,
+                   maxHeight: fillHeight ? .infinity : nil, alignment: .leading)
+        }
+    }
+
+    /**
+     한 줄을 통째로 쓰는 「둘러보기」 칸 — 지금은 맵스 하나.
+
+     네 칸짜리 격자(`onsiteTile`)와 달리 **가로 한 줄**로 눕히고 높이를 낮춘다. 폭이 두 배인데
+     같은 세로 배치를 쓰면 아이콘 아래 글자 두 줄만 왼쪽에 몰리고 오른쪽 절반이 통째로 비어,
+     칸 하나가 격자보다 크게 자리를 먹는다. 오른쪽 끝 쉐브론은 **이 줄이 어디로 간다**는
+     표시다 — 네 칸은 격자 모양만으로 눌리는 게 읽히지만 한 줄짜리는 그 단서가 없다.
+     (Android `HoyolandOnsiteWideTile` 과 파리티)
+     */
+    @ViewBuilder private func onsiteWideTile(_ icon: String, _ title: String, _ sub: String) -> some View {
+        GLGCard(cornerRadius: 18, padding: 0) {
+            HStack(spacing: 0) {
+                Image(systemName: icon).font(.system(size: 17, weight: .semibold))
+                    .foregroundStyle(accent.deep)
+                    .frame(width: 20, alignment: .leading)
+                Text(title).font(.pretendard(size: 14, weight: .bold))
+                    .foregroundStyle(GLGColor.textPrimary)
+                    .padding(.leading, 10)
+                Text(sub).font(.pretendard(size: 11.5))
+                    .foregroundStyle(GLGColor.textSecondary)
+                    .lineLimit(1)
+                    .padding(.leading, 8)
+                Spacer(minLength: 8)
+                Image(systemName: "chevron.right").font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(GLGColor.textSecondary)
+            }
+            // 세로 16 — 네 칸(68)보다 확실히 낮으면서도(52) 한 줄짜리가 너무 납작해 눌리는
+            // 면으로 안 읽히는 선은 넘지 않는 값이다.
+            .padding(.horizontal, 14).padding(.vertical, 16)
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 
