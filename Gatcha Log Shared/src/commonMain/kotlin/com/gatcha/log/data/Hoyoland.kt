@@ -437,147 +437,6 @@ data class HoyolandBooth(
     val isPaid: Boolean get() = price > 0
 }
 
-/**
- * 지스타(G-STAR) — 호요랜드와 **별개 행사**지만, 호요버스가 나오는 국내 오프라인 자리라
- * 같은 페이지에서 다룬다. 출처와 갱신 주기(참가사 명단이 순차 공개된다)도 호요랜드와 같아
- * 원격 JSON 한 파일에 함께 둔다.
- *
- * @param lineup 호요버스 출품작. [HoyolandLineup.theme] 자리에 **무엇을 하는지**가 들어간다
- *   ("한국 첫 오프라인 시연", "무대"). 호요랜드의 게임별 테마와 같은 줄 규격을 쓰려는 것이다.
- */
-data class HoyolandGstar(
-    val title: String,
-    /** 제목 옆 배지 — 호요버스가 어느 규모로 나오는지 한 마디. */
-    val badge: String,
-    val facts: List<HoyolandFact>,
-    val lineup: List<HoyolandLineup>,
-    val url: String,
-    val notice: String,
-) {
-    /** 내용이 하나도 없으면 섹션을 통째로 접는다(원격에서 비워 내릴 수 있게). */
-    val isEmpty: Boolean get() = title.isBlank() || (facts.isEmpty() && lineup.isEmpty())
-
-    /**
-     * 배너 아래 칸에 들어가는 **한 줄 요약** — "G-STAR 2026 · D-71 · 11.19~11.22 · 부산 벡스코".
-     *
-     * 지스타는 호요랜드보다 한 달 반 뒤라 배너의 주인공이 될 수 없다. 그렇다고 상세 페이지에만
-     * 두면 "호요랜드 말고 또 뭐가 있나"를 아무도 모른다 — 배너 밑단의 작은 줄이 그 자리다.
-     *
-     * 상세용 값을 그대로 쓰지 않고 줄인다. [facts] 의 기간은 `"2026.11.19(목) ~ 11.22(일) (4일)"`,
-     * 장소는 `"부산 벡스코(BEXCO)"` 로 **한 줄에 안 들어간다.** 요일·연도·괄호를 떼는 건 여기서만
-     * 하고(상세는 원본 그대로), 양 플랫폼이 같은 문구를 쓰도록 공유 계층에 둔다.
-     *
-     * 남은 날짜는 [facts] 의 기간 문자열에서 읽는다. 지스타는 호요랜드와 달리 날짜 필드가 따로
-     * 없고 원격 JSON 이 사람이 읽는 문장으로 내려주는데, 그 한 줄을 위해 스키마를 늘리기보다
-     * 여기서 앞머리 `yyyy.M.d` 만 읽는 편이 원격 갱신을 막지 않는다.
-     * 행사가 끝났으면 `null` — 지난 일정을 홈에 남겨 둘 이유가 없다.
-     */
-    fun homeLine(nowMillis: Long = currentTimeMillis()): String? =
-        homeBrief(nowMillis)?.let { "${it.title} · ${it.dday} · ${it.detail}" }
-
-    /**
-     * 같은 값을 **조각으로** — 배너 밑단은 한 덩어리 문장이 아니라 호요랜드 위 칸과 같은 짜임
-     * (남은 날짜 · 이름 · 나머지)으로 그린다. 그리는 쪽이 문자열을 다시 자르지 않게 여기서 나눈다.
-     */
-    fun homeBrief(nowMillis: Long = currentTimeMillis()): HoyolandGstarBrief? {
-        if (isEmpty) return null
-        val period = factValue("기간") ?: return null
-        val dday = ddayLabel(period, nowMillis) ?: return null   // 이미 끝난 행사
-        val detail = listOfNotNull(shorten(period), factValue("장소")?.let { shorten(it) })
-            .joinToString(" · ")
-        if (title.isBlank() || detail.isBlank()) return null
-        return HoyolandGstarBrief(dday = dday, title = title, detail = detail)
-    }
-
-    private fun factValue(label: String): String? =
-        facts.firstOrNull { it.label == label }?.value?.takeIf { it.isNotBlank() }
-
-    // ── 상세 화면이 쓰는 조각들 ────────────────────────────────────────────
-    //
-    // [facts] 는 원격이 내려주는 **자유 목록**이다(라벨이 늘거나 바뀔 수 있다). 화면이 라벨을
-    // 하나하나 찾아 쓰면 원격에서 항목을 더했을 때 그 항목만 어디에도 안 나온다. 그래서
-    // "아는 라벨은 제자리에, 모르는 라벨은 [otherFacts] 로" 흘려보낸다.
-
-    /** 히어로 아래 3칸 — 기간(일수) · 장소 · 규모. 없는 칸은 "—". */
-    val periodShort: String get() = factValue("기간")?.let { shorten(it) } ?: "—"
-
-    /** "4일" — 기간 문자열의 "(4일)" 을 그대로 읽는다. 없으면 빈 문자열. */
-    val dayCountLabel: String
-        get() = factValue("기간")?.let { DAY_COUNT.find(it)?.groupValues?.get(1) }?.let { "${it}일" } ?: ""
-
-    /** "부산 벡스코" — 영문 병기 괄호를 뗀다. */
-    val venueShort: String get() = factValue("장소")?.let { shorten(it) } ?: "—"
-
-    val scaleLabel: String get() = factValue("규모") ?: badge.ifBlank { "—" }
-
-    /**
-     * 함께 참가하는 곳 — 한 줄에 "·" 로 이어 붙은 값을 낱개로 가른다.
-     * 이름이 일곱 개씩 이어진 한 줄은 읽히지 않는다(칩으로 흩어 놓으면 눈이 하나씩 짚는다).
-     */
-    val partners: List<String>
-        get() = factValue("함께")?.split("·")?.map { it.trim() }?.filter { it.isNotEmpty() } ?: emptyList()
-
-    /** 히어로·3칸·칩이 이미 쓴 라벨을 뺀 나머지 — 라벨/값 목록으로 그대로 그린다. */
-    val otherFacts: List<HoyolandFact>
-        get() = facts.filter { it.label !in HERO_LABELS }
-
-
-    /**
-     * "D-71" / "오늘 개막" / "진행 중" — 폐막일이 지났으면 null.
-     *
-     * 폐막일에는 연도가 없다("~ 11.22"). 개막 연도를 그대로 쓴다 — 해를 넘겨 이어지는 행사는
-     * 지스타에 없다.
-     */
-    @OptIn(ExperimentalTime::class)
-    private fun ddayLabel(period: String, nowMillis: Long): String? {
-        val head = DATE_HEAD.find(period) ?: return null
-        val year = head.groupValues[1].toInt()
-        val start = runCatching {
-            LocalDate(year, head.groupValues[2].toInt(), head.groupValues[3].toInt())
-        }.getOrNull() ?: return null
-        val tail = DATE_TAIL.find(period)
-        val end = tail?.let {
-            runCatching { LocalDate(year, it.groupValues[1].toInt(), it.groupValues[2].toInt()) }.getOrNull()
-        } ?: start
-        val today = Instant.fromEpochMilliseconds(nowMillis)
-            .toLocalDateTime(DateUtil.timeZone).date
-        val d = today.daysUntil(start)
-        return when {
-            d > 0 -> "D-$d"
-            today <= end -> if (d == 0) "오늘 개막" else "진행 중"
-            else -> null
-        }
-    }
-
-    /** 괄호(요일·영문 표기·"(4일)")를 떼고 공백을 정리한다. "11.19 ~ 11.22" 는 "11.19~11.22" 로. */
-    private fun shorten(v: String): String =
-        v.replace(PAREN, "")
-            .replace(YEAR, "")
-            .replace(SPACES, " ")
-            .trim()
-            .replace(" ~ ", "~")
-
-    private companion object {
-        val PAREN = Regex("\\([^)]*\\)")
-        val YEAR = Regex("(^|\\s)\\d{4}\\.")
-        val SPACES = Regex("\\s+")
-        /** "2026.11.19(목) ~ …" 앞머리. */
-        val DATE_HEAD = Regex("(\\d{4})\\.(\\d{1,2})\\.(\\d{1,2})")
-        /** "~ 11.22(일)" 꼬리 — 연도는 개막과 같다고 본다. */
-        val DATE_TAIL = Regex("~\\s*(\\d{1,2})\\.(\\d{1,2})")
-        /** "(4일)" 의 숫자. */
-        val DAY_COUNT = Regex("\\((\\d+)일\\)")
-        /** 히어로·3칸·칩이 이미 소비하는 라벨 — [otherFacts] 에서 뺀다. */
-        val HERO_LABELS = setOf("기간", "장소", "규모", "함께")
-    }
-}
-
-/**
- * 배너 밑단 한 칸에 들어가는 지스타 조각 — "D-71" · "G-STAR 2026" · "11.19~11.22 · 부산 벡스코".
- * 조립은 [HoyolandGstar.homeBrief] 가 한다(양 플랫폼이 같은 값을 그리게).
- */
-data class HoyolandGstarBrief(val dday: String, val title: String, val detail: String)
-
 /** 지난 행사 1건 — 다음 행사 규모를 가늠하는 참고 자료로만 쓴다. */
 data class HoyolandPastEvent(val title: String, val facts: List<HoyolandFact>)
 
@@ -614,7 +473,6 @@ data class HoyolandEvent(
      * 공개된다(2025 기준). 그때까지 화면은 날짜 탭만 세우고 "공개 전"이라고 말한다.
      */
     val days: List<HoyolandDay>,
-    val gstar: HoyolandGstar,
     val past: List<HoyolandPastEvent>,
     /**
      * 굿즈 품목. **비어 있는 게 정상인 기간이 있다** — 판매 목록은 시간표만큼 늦게 나온다.
@@ -1457,32 +1315,6 @@ object HoyolandDefaults {
         // 공식 시간표 미공개 — 날짜 탭은 기간에서 만들어지므로 여기는 비워 둔다.
         // 공개되면 config/hoyoland.json 의 days 를 채우는 것만으로 화면이 찬다(앱 업데이트 불필요).
         days = emptyList(),
-        // 2026-09-03 1차 참가사 발표 기준. 부스 규모는 **호요버스를 포함한 100부스**다 —
-        // 호요버스 단독 규모로 읽히지 않게 라벨을 "규모"로 둔다.
-        gstar = HoyolandGstar(
-            title = "G-STAR 2026",
-            badge = "호요버스 포함 100부스",
-            facts = listOf(
-                HoyolandFact("기간", "2026.11.19(목) ~ 11.22(일) (4일)"),
-                HoyolandFact("장소", "부산 벡스코(BEXCO)"),
-                HoyolandFact("전시", "BTC 11.19 ~ 11.22 · BTB 11.19 ~ 11.21"),
-                HoyolandFact("규모", "호요버스 포함 100부스"),
-                HoyolandFact("함께", "크래프톤 · 구글플레이 · 웹젠 · 팀42 · 넷이즈게임즈 · 빌리빌리게임즈 · 센추리게임즈"),
-                HoyolandFact("스폰서", "크랙(뤼튼) — 게임사가 아닌 AI 기업의 첫 메인 스폰서"),
-                HoyolandFact("G-CON", "11.19 ~ 11.20 · 벡스코 · 1,500석 · 주제 '내러티브'"),
-            ),
-            lineup = listOf(
-                HoyolandLineup("젠레스 존 제로", "체험 부스"),
-                // 넥서스 아니마·쁘띠플래닛은 앱이 가챠를 다루는 게임이 아니라 GameData 에 없다.
-                // 색은 이미 쓰는 다섯(파랑·보라·주황·시안·로즈)과 겹치지 않게 초록 계열로 고른다.
-                HoyolandLineup("붕괴: 넥서스 아니마", "한국 첫 오프라인 시연", abbr = "NXA", colorArgb = 0xFF3FBF7FL),
-                HoyolandLineup("쁘띠플래닛", "한국 첫 오프라인 시연", abbr = "PP", colorArgb = 0xFF9BC53DL),
-                HoyolandLineup("원신", "무대"),
-                HoyolandLineup("붕괴: 스타레일", "무대"),
-            ),
-            url = "https://www.gstar.or.kr/",
-            notice = "1차 참가사 명단입니다. 넥슨 · 엔씨 · 넷마블 · 카카오게임즈는 현재 명단에 없고, 최종 명단과 부스 배치도는 9월 중 공개됩니다.",
-        ),
         past = listOf(
             HoyolandPastEvent(
                 "호요랜드 2025",
