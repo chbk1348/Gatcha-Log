@@ -1367,6 +1367,7 @@ function renderList(sec, opts = {}) {
   const syncSel = () => {
     for (const r of [...sel]) if (!rows.includes(r)) sel.delete(r);   // 지워진 행의 잔재
     bulk.hidden = !sel.size;
+    if (!sel.size) fill.hidden = true;
     bulk.querySelector('.list-bulk-n').textContent = `${sel.size}건 선택`;
   };
 
@@ -1407,10 +1408,52 @@ function renderList(sec, opts = {}) {
       body.append(tr);
     }
   };
+  /*
+   * 고른 행에 같은 값을 넣는다 — 굿즈 스무 줄의 게임을 하나씩 고르는 일이 흔하다.
+   * 값 칸은 **고른 열의 타입 그대로** 세운다(게임은 드롭다운, 가격은 스테퍼). 열이 바뀌면
+   * 위젯을 갈아 끼우고 값도 그 타입의 빈값으로 되돌린다 — 앞 열의 값이 남아 넘어가면 안 된다.
+   */
+  const fill = el('div', { class: 'list-fill', hidden: true });
+  let fillKey = columns[0].key;
+  let fillValue = '';
+  const fillBox = el('div', { class: 'list-fill-v' });
+  const paintFill = () => {
+    const c = columns.find((x) => x.key === fillKey) || columns[0];
+    fillValue = c.type === 'number' ? 0 : c.type === 'bool' ? false : '';
+    fillBox.replaceChildren(inputFor(c, fillValue, (v) => { fillValue = v; }));
+  };
+  paintFill();
+  fill.append(
+    el('span', { class: 'muted', text: '고른 행의' }),
+    glSelect({
+      value: fillKey, width: '160px',
+      options: columns.map((c) => ({ value: c.key, label: c.label })),
+      onChange: (v) => { fillKey = v; paintFill(); },
+    }),
+    el('span', { class: 'muted', text: '을' }),
+    fillBox,
+    el('span', { class: 'muted', text: '로' }),
+    el('div', { class: 'tools' }, [
+      el('button', { class: 'btn btn-sm btn-primary', onclick: async () => {
+        const n = sel.size;
+        const c = columns.find((x) => x.key === fillKey) || columns[0];
+        const shown = fillValue === '' ? '(빈 값)' : String(fillValue);
+        if (!await glConfirm(`고른 ${n}건의 “${c.label}” 을 같은 값으로 채웁니다.`, {
+          title: '값 채우기', ok: `${n}건 채우기`, note: `값: ${shown}`,
+        })) return;
+        for (const r of rows) if (sel.has(r)) r[fillKey] = fillValue;
+        markDirty();
+        render();
+      } }, ['채우기']),
+      el('button', { class: 'btn btn-sm', onclick: () => { fill.hidden = true; } }, ['닫기']),
+    ]),
+  );
+
   bulk.append(
     el('span', { class: 'list-bulk-n muted' }),
     el('div', { class: 'tools' }, [
-      el('button', { class: 'btn btn-sm', onclick: () => { sel.clear(); paint(); syncSel(); } }, ['선택 해제']),
+      el('button', { class: 'btn btn-sm', onclick: () => { fill.hidden = !fill.hidden; } }, ['값 채우기']),
+      el('button', { class: 'btn btn-sm', onclick: () => { sel.clear(); paint(); syncSel(); fill.hidden = true; } }, ['선택 해제']),
       el('button', { class: 'btn btn-sm btn-danger', onclick: async () => {
         const n = sel.size;
         if (!await glConfirm(`고른 ${n}건을 지웁니다.`, { title: '여러 행 삭제', ok: `${n}건 삭제`, danger: true })) return;
@@ -1451,6 +1494,7 @@ function renderList(sec, opts = {}) {
   const kids = [
     el('div', { class: 'section-head' }, headRow),
     bulk,
+    fill,
     el('div', { class: 'table-wrap' }, [table]),
   ];
   if (sec.warnEmpty && !rows.length) kids.push(el('div', { class: 'note', style: 'margin-top:10px', text: '⚠ ' + sec.warnEmpty }));
