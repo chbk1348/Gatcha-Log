@@ -1277,6 +1277,19 @@ data class HoyolandEvent(
     /** 개막일 [hour] 시의 로컬 시각(밀리초). 날짜를 못 읽으면 0. */
     fun startAtMillis(hour: Int): Long = millisAt(start, hour)
 
+    /**
+     * 그날 **내 입장 시각**(밀리초) — [entryTimeOf] 의 "HH:mm" 을 그 날짜에 얹는다.
+     *
+     * [millisAt] 은 시 단위인데 조 편성은 분까지 있을 수 있어([HoyolandEntryGroup.time])
+     * 자정에 분을 더한다. 조 편성이 바뀌어 시각을 못 찾거나 날짜를 못 읽으면 0 —
+     * 호출부는 0 을 "예약 대상 아님" 으로 다룬다.
+     */
+    fun entryAtMillis(ymd: String, group: String): Long {
+        val date = runCatching { LocalDate.parse(ymd) }.getOrNull() ?: return 0L
+        val minutes = minutesOfDay(entryTimeOf(group)) ?: return 0L
+        return millisAt(date, 0) + minutes * 60_000L
+    }
+
     /** 예매 오픈 시각(밀리초). 미정이면 0. */
     fun ticketOpenMillis(): Long =
         if (ticket.openYmd.isBlank()) 0L
