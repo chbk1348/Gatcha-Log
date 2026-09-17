@@ -273,6 +273,19 @@ pre.json {
 .np-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 7px 0; border-top: 1px solid var(--line); font-size: 12px; }
 .note-preview > .k + .np-row { border-top: 0; }
 
+/* 굿즈존 안내 미리보기 — 앱 시트(묶음 카드 · [이름 | 값] 줄 · 부연)의 축소판.
+   치수는 앱을 따른다: 라벨 78 · 제목은 accent · 부연은 한 단계 작고 흐리게. */
+.gp-group { padding: 11px 13px; border-radius: 12px; background: var(--panel-2); }
+.note-preview > .k + .gp-group { margin-top: 0; }
+.gp-group + .gp-group { margin-top: 8px; }
+.gp-title { margin-bottom: 7px; font-size: 12px; font-weight: 800; color: var(--accent); }
+.gp-row { display: flex; gap: 10px; }
+.gp-row + .gp-row { margin-top: 8px; }
+.gp-label { flex: none; width: 78px; font-size: 12.5px; font-weight: 700; color: var(--muted); line-height: 1.5; overflow-wrap: anywhere; }
+.gp-body { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.gp-value { font-size: 13px; color: var(--text); line-height: 1.5; }
+.gp-sub { margin-top: 2px; font-size: 11.5px; color: var(--muted); line-height: 1.5; }
+
 a { color: var(--accent); }
 
 .toast {
