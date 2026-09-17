@@ -1337,35 +1337,59 @@ function renderList(sec, opts = {}) {
   // 검색어는 state 에 둔다 — 행을 지우거나 더하면 render() 가 표를 통째로 다시 그리는데,
   // 그때 검색어가 날아가면 105줄짜리 표에서 방금 보던 자리를 다시 찾아야 한다.
   const searchable = opts.searchable ?? (rows.length >= LIST_SEARCH_MIN);
+  const selectable = opts.selectable ?? (rows.length >= LIST_SEARCH_MIN);
   state.q ||= {};
   const q = () => (searchable ? (state.q[path] || '') : '');
 
+  // 고른 행은 **자리가 아니라 행 자체**로 기억한다. 자리로 들고 있으면 위아래로 옮기거나
+  // 중간을 지운 순간 엉뚱한 행이 선택된 것으로 남는다.
+  state.sel ||= {};
+  const sel = selectable ? (state.sel[path] ||= new Set()) : new Set();
+
   const table = el('table');
   const head = el('tr');
+  if (selectable) head.append(el('th', { style: 'width:34px' }));
   for (const c of columns) head.append(el('th', { style: c.width ? `width:${c.width}` : '', text: c.label }));
   head.append(el('th', { style: 'width:96px' }));
   table.append(el('thead', {}, [head]));
 
   const body = el('tbody');
   const count = el('span', { class: 'muted' });
+  const bulk = el('div', { class: 'list-bulk', hidden: true });
+  let visible = [];
 
   /*
    * 표 본문만 다시 그린다. **화면의 줄과 배열의 자리는 다르다** — 걸러낸 표에서 세 번째로
    * 보이는 줄이 배열에서도 세 번째라는 보장이 없다. 그래서 행마다 원래 자리(i)를 들고 다니고
    * 편집 · 삭제 · 이동은 전부 그 i 로 한다.
    */
+  /** 고른 건수와 도구 줄만 맞춘다 — 표를 다시 그리면 편집 중이던 칸의 포커스가 날아간다. */
+  const syncSel = () => {
+    for (const r of [...sel]) if (!rows.includes(r)) sel.delete(r);   // 지워진 행의 잔재
+    bulk.hidden = !sel.size;
+    bulk.querySelector('.list-bulk-n').textContent = `${sel.size}건 선택`;
+  };
+
   const paint = () => {
     const hits = rows.map((row, i) => ({ row, i })).filter(({ row }) => rowHits(row, columns, q()));
+    visible = hits.map((h) => h.row);
     count.textContent = hits.length === rows.length ? `${rows.length}건` : `${rows.length}건 중 ${hits.length}건`;
     body.replaceChildren();
+    const span = columns.length + 1 + (selectable ? 1 : 0);
     if (!rows.length) {
-      body.append(el('tr', {}, [el('td', { colspan: columns.length + 1, class: 'row-empty', text: '항목이 없습니다. “행 추가”로 시작하세요.' })]));
+      body.append(el('tr', {}, [el('td', { colspan: span, class: 'row-empty', text: '항목이 없습니다. “행 추가”로 시작하세요.' })]));
     } else if (!hits.length) {
-      body.append(el('tr', {}, [el('td', { colspan: columns.length + 1, class: 'row-empty', text: `“${q()}” 에 걸리는 행이 없습니다.` })]));
+      body.append(el('tr', {}, [el('td', { colspan: span, class: 'row-empty', text: `“${q()}” 에 걸리는 행이 없습니다.` })]));
     }
     const filtered = hits.length !== rows.length;
     for (const { row, i } of hits) {
       const tr = el('tr');
+      if (selectable) {
+        tr.append(el('td', { class: 'sel', 'data-label': '선택' }, [glCheck({
+          value: sel.has(row), title: '이 행 고르기',
+          onChange: (v) => { if (v) sel.add(row); else sel.delete(row); syncSel(); },
+        })]));
+      }
       for (const c of columns) tr.append(el('td', { 'data-label': c.label }, [inputFor(c, row[c.key], (v) => { row[c.key] = v; }, row)]));
       tr.append(el('td', { class: 'actions' }, [
         // 걸러낸 상태에서는 순서를 못 바꾼다 — 화면의 이웃과 배열의 이웃이 달라, 누른 사람이
@@ -1383,10 +1407,31 @@ function renderList(sec, opts = {}) {
       body.append(tr);
     }
   };
+  bulk.append(
+    el('span', { class: 'list-bulk-n muted' }),
+    el('div', { class: 'tools' }, [
+      el('button', { class: 'btn btn-sm', onclick: () => { sel.clear(); paint(); syncSel(); } }, ['선택 해제']),
+      el('button', { class: 'btn btn-sm btn-danger', onclick: async () => {
+        const n = sel.size;
+        if (!await glConfirm(`고른 ${n}건을 지웁니다.`, { title: '여러 행 삭제', ok: `${n}건 삭제`, danger: true })) return;
+        for (let i = rows.length - 1; i >= 0; i--) if (sel.has(rows[i])) rows.splice(i, 1);
+        sel.clear();
+        markDirty();
+        render();
+      } }, ['선택 삭제']),
+    ]),
+  );
   paint();
+  syncSel();
   table.append(body);
 
   const tools = el('div', { class: 'tools' }, [
+    selectable ? el('button', { class: 'btn btn-sm', title: '지금 보이는 행을 모두 고른다', onclick: () => {
+      const all = visible.every((r) => sel.has(r));
+      for (const r of visible) { if (all) sel.delete(r); else sel.add(r); }
+      paint();
+      syncSel();
+    } }, ['보이는 행 선택']) : null,
     el('button', { class: 'btn btn-sm', onclick: () => { rows.push(blank()); markDirty(); render(); } }, ['+ 행 추가']),
   ]);
   if (opts.extraTools) tools.append(...opts.extraTools);
@@ -1405,6 +1450,7 @@ function renderList(sec, opts = {}) {
 
   const kids = [
     el('div', { class: 'section-head' }, headRow),
+    bulk,
     el('div', { class: 'table-wrap' }, [table]),
   ];
   if (sec.warnEmpty && !rows.length) kids.push(el('div', { class: 'note', style: 'margin-top:10px', text: '⚠ ' + sec.warnEmpty }));

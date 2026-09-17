@@ -85,6 +85,23 @@ td .gl-field { padding: 6px 8px; }
 .gl-switch.on .gl-knob { transform: translateX(16px); background: #fff; }
 .gl-switch:focus { outline: 0; border-color: var(--accent); }
 
+/* ── 체크박스 ─────────────────────────────────────── */
+.gl-cb {
+  width: 18px; height: 18px; flex: none; padding: 0;
+  border: 1px solid var(--line); border-radius: 5px;
+  background: var(--panel); cursor: pointer;
+  display: inline-grid; place-items: center;
+}
+.gl-cb:hover { border-color: var(--accent); }
+.gl-cb.on { background: var(--accent); border-color: var(--accent); }
+/* 체크 표시 — 글자가 아니라 꺾인 선이라 크기를 줄여도 뭉개지지 않는다. */
+.gl-cb.on::after {
+  content: ''; width: 4px; height: 8px;
+  border: solid #fff; border-width: 0 2px 2px 0;
+  transform: translateY(-1px) rotate(45deg);
+}
+.gl-cb:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
 /* ── 숫자 스테퍼 ──────────────────────────────────── */
 .gl-num { gap: 2px; padding: 3px 4px; }
 td .gl-num { padding: 2px 3px; }
