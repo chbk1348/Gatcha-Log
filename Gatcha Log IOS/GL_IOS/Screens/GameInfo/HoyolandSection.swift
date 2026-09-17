@@ -1292,8 +1292,6 @@ struct HoyolandHomeCard: View {
         // (2026-09-11). 채도 0.57 → 0.47, 흰 글자 대비 4.7 → 5.8. Android `DashHoyolandCard` 와 같은 값.
         let top = glgMix(accent.primary, Color(hex: 0xFF2E3440), 0.35)
         let bottom = glgMix(accent.primary, Color(hex: 0xFF2E3440), 0.50)
-        // 지스타 줄이 있으면 배너 밑단에 한 칸을 더 낸다(없으면 원래 높이 그대로).
-        let gstar = event.gstar.homeBrief(nowMillis: nowMs())
         return Button(action: onTap) {
             ZStack {
                 LinearGradient(colors: [top, bottom], startPoint: .topLeading, endPoint: .bottomTrailing)
@@ -1330,38 +1328,10 @@ struct HoyolandHomeCard: View {
                         .foregroundStyle(.white.opacity(0.8))
                 }
                 .frame(maxHeight: .infinity)
-                // 지스타는 호요랜드보다 한 달 반 뒤다 — 배너의 주인공이 될 수 없지만, 상세에만
-                // 두면 "또 뭐가 있나"를 아무도 모른다. 배너 밑단의 작은 칸이 그 자리다(문구는 공유 계층).
-                //
-                // 짜임은 위 칸과 같다(남은 날짜 · 이름 · 나머지). 대신 **한 단계 작게** — 같은
-                // 크기로 두면 배너에 주인공이 둘이 된다.
-                if let gstar {
-                    // 위 칸과 가르는 얇은 선 — 배너 안에서 층이 나뉘어 보이게.
-                    Rectangle().fill(.white.opacity(0.18)).frame(height: 1)
-                    HStack(spacing: 0) {
-                        Text(gstar.dday)
-                            .font(.pretendard(size: 9.5, weight: .black))
-                            .foregroundStyle(.white)
-                            .padding(.horizontal, 5).padding(.vertical, 1.5)
-                            .background(.white.opacity(0.18), in: RoundedRectangle(cornerRadius: 5, style: .continuous))
-                        Spacer().frame(width: 7)
-                        Text(gstar.title)
-                            .font(.pretendard(size: 10, weight: .bold))
-                            .foregroundStyle(.white.opacity(0.88)).lineLimit(1)
-                        Spacer().frame(width: 6)
-                        Rectangle().fill(.white.opacity(0.24)).frame(width: 1, height: 9)
-                        Spacer().frame(width: 6)
-                        Text(gstar.detail)
-                            .font(.pretendard(size: 9.5))
-                            .foregroundStyle(.white.opacity(0.66)).lineLimit(1)
-                        Spacer(minLength: 0)
-                    }
-                    .padding(.top, 6).padding(.bottom, 7)
-                }
                 }
                 .padding(.horizontal, 16)
             }
-            .frame(height: gstar == nil ? 86 : 104)
+            .frame(height: 86)
             .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
             .contentShape(Rectangle())
         }
