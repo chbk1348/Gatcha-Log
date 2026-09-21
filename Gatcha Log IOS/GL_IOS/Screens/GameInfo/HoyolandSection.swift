@@ -293,6 +293,9 @@ struct HoyolandDetailView: View {
     /// large 에선 아래가 비었다. 내용만큼만 올라오게 직접 잰다.
     @State private var entryContentHeight: CGFloat = 420
     @State private var entryChromeHeight: CGFloat = 0
+    /// 예매 안내 시트 높이 — 내 입장권과 같은 방식으로 내용만큼만 올린다.
+    @State private var noteContentHeight: CGFloat = 420
+    @State private var noteChromeHeight: CGFloat = 0
     /// 넓은 창(iPad) 두 열 — [hoyolandWide] 가 채운다.
     @State private var wide = false
     /// 펼친 iPhone Duo 의 경첩 — 두 열 사이 빈틈을 이 자리에 맞춘다([glgHinge]).
@@ -392,7 +395,9 @@ struct HoyolandDetailView: View {
         }
         .sheet(isPresented: $ticketNoteOpen) {
             ticketNoteSheet(e)
-                .presentationDetents([.medium, .large])
+                // 내용만큼만 올라온다 — 고정 medium/large 에선 안내가 짧으면 아래가 비었다
+                // (2026-09-21 지시). 화면을 넘기면 시스템이 멈추고 본문이 스크롤된다.
+                .presentationDetents([.height(noteContentHeight + noteChromeHeight)])
                 .presentationDragIndicator(.visible)
                 .presentationBackground(.white)
         }
@@ -961,6 +966,8 @@ struct HoyolandDetailView: View {
                 }
                 .padding(.horizontal, 18).padding(.top, 8).padding(.bottom, 24)
                 .frame(maxWidth: .infinity, alignment: .leading)
+                // 스크롤 **안쪽**에서 잰다(→ [entrySheet] 와 같은 이유).
+                .glgSheetContentHeight($noteContentHeight)
             }
             .scrollIndicators(.hidden)
             .scrollContentBackground(.hidden)
@@ -972,6 +979,7 @@ struct HoyolandDetailView: View {
                     GLGSheetCloseButton { ticketNoteOpen = false }
                 }
             }
+            .glgSheetChromeHeight($noteChromeHeight)
         }
     }
 
