@@ -88,11 +88,11 @@ Google Apps Script 웹앱에서 출발해 **Kotlin Multiplatform + Compose Multi
 | 영역 | 사용 기술 |
 |---|---|
 | 공유 코드 (KMP) | Kotlin 2.3.21 · Compose Multiplatform 1.11 (Material 3) · kotlinx-{coroutines, serialization, datetime} · Ktor |
-| Android | Jetpack Compose · AGP 9.3.1 · compileSdk 37 / minSdk 31 · WorkManager · Credential Manager |
-| iOS | SwiftUI(네이티브 탭바·리퀴드 글래스) · Swift 6 언어 모드 · BGTaskScheduler · GoogleSignIn SDK · Xcode 27 정식(iOS 27 SDK) / iOS 18+ |
+| Android | Jetpack Compose · AGP 9.4.1 · compileSdk 37 / minSdk 31 · WorkManager · Credential Manager |
+| iOS | SwiftUI(네이티브 탭바·리퀴드 글래스) · Swift 6 언어 모드 · BGTaskScheduler · GoogleSignIn SDK · Xcode 27.1(iOS 27.1 SDK) / iOS 18+ · iPhone · iPhone Duo · iPad |
 | 클라우드 | Firebase Auth + Cloud Firestore (Android: Firebase SDK / iOS: GitLive KMP + Firebase iOS SDK) |
 | 로컬 저장 | Android: SharedPreferences(토큰은 EncryptedSharedPreferences) / iOS: UserDefaults(토큰은 Keychain) |
-| 빌드 | Gradle 9.6.1 · XcodeGen |
+| 빌드 | Gradle 9.7.1 · XcodeGen |
 
 ---
 
@@ -113,8 +113,8 @@ version.json         Android 인앱 업데이트 매니페스트 — 경로 고�
 - 원격 설정은 **라이브(Firestore) → 정본(raw `config/*.json`) → 앱 번들** 순으로 내려와, 어느 단계가 실패해도 화면이 선다
 - iOS 는 시스템 네이티브 UI 우선 — SwiftUI TabView(리퀴드 글래스 탭바) + UIGlassEffect 버튼,
   콘텐츠만 Compose 공유 코드로 채움
-- Xcode 프로젝트·타깃·스킴 이름은 `GL_IOS` 그대로입니다 — 산출물 이름·서명 설정이 딸려
-  흔들리는 것을 피하려고 폴더명만 바꿨습니다
+- Xcode 프로젝트·타깃 이름은 `GL_IOS` 그대로입니다 — 산출물 이름·서명 설정이 딸려
+  흔들리는 것을 피하려고 폴더명만 바꿨습니다. 스킴은 `Gatcha_LOG_iOS` 입니다
 
 ---
 
@@ -134,7 +134,7 @@ cd Gatcha-Log
 
 > 모듈 이름에 공백이 있으므로 Gradle 태스크 경로는 **따옴표로 감싸야** 합니다.
 
-**iOS** (macOS + **Xcode 27 필요** — iOS 27 SDK)
+**iOS** (macOS + **Xcode 27.1 필요** — iOS 27.1 SDK)
 
 ```bash
 open "Gatcha Log IOS/GL_IOS.xcodeproj"   # Xcode 에서 열고 시뮬레이터/기기로 실행
@@ -144,9 +144,9 @@ open "Gatcha Log IOS/GL_IOS.xcodeproj"   # Xcode 에서 열고 시뮬레이터/�
                                          # (Gatcha Log IOS/build/Gatcha-Log-<버전>.ipa)
 ```
 
-> **Xcode 26 이하로는 빌드되지 않습니다.** 탭바의 분리형 '추가' 버튼이 iOS 27 SDK 에만 있는
-> `TabRole.prominent` 를 쓰기 때문이며, `#available` 로 감싸도 컴파일 시점에 심볼이 필요합니다.
-> `build-ipa.sh` 는 27 SDK 를 가진 Xcode 를 스스로 찾아 `DEVELOPER_DIR` 로 지정하고,
+> **Xcode 27.0 이하로는 빌드되지 않습니다.** iPhone Duo 대응이 iOS 27.1 SDK 에만 있는
+> `toolbarVerticalCompressionBehavior` 를 쓰기 때문이며, `#available` 로 감싸도 컴파일 시점에 심볼이 필요합니다.
+> `build-ipa.sh` 는 27.1 SDK 를 가진 Xcode 를 정식판부터 찾아 `DEVELOPER_DIR` 로 지정하고,
 > 못 찾으면 설치된 Xcode 목록을 출력하고 즉시 실패합니다(구버전으로 조용히 빌드되는 것 방지).
 > 툴체인을 바꿔 가며 빌드했다면 `./gradlew ":Gatcha Log Shared:clean"` 을 먼저 — KMP/SKIE 가 생성한
 > Swift 모듈이 툴체인 포맷에 묶여 있어 `Unable to resolve Swift module 'Shared'` 로 깨집니다.
