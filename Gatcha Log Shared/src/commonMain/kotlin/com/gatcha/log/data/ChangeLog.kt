@@ -45,7 +45,7 @@ data class ChangeEntry(
 object ChangeLog {
 
     /** 헤더 메타 — 업데이트 기간 라벨. */
-    const val periodLabel: String = "2026.05.23 ~ 09.15"
+    const val periodLabel: String = "2026.05.23 ~ 09.21"
 
     /**
      * 강제 업데이트 최소 지원 버전코드(version.json 의 minVersionCode 와 동일하게 유지).
@@ -54,6 +54,23 @@ object ChangeLog {
     const val minSupportedVersionCode: Long = 273000
 
     val entries: List<ChangeEntry> = buildList {
+        // 27.50.3 · 27.50.4 는 배포되지 않고 이번으로 합쳤다. 날짜는 배포일이 정해지면 맞춘다.
+        // 이 사이클 안에서 생겼다 고쳐진 것(예매 안내 시트 높이)과 잔손질(현재 버전 카드 로딩 모양 등)은 뺐다.
+        add(ChangeEntry("27.50.5", "2026.09.21", items = listOf(
+            // ── 신규 ──
+            new("호요랜드 내 입장권 추가 (입장 날짜 · 조 선택)"),
+            new("내 입장권에 맞춘 입장 알림 추가 (가는 날 아침 · 입장 1시간 전)"),
+            new("펼친 iPhone Duo · iPad 넓은 창 레이아웃 지원 (iOS)"),
+            // ── 개선 ──
+            imp("호요랜드 페이지를 D-day 머리판 · 라인업 · 둘러보기 · 맵스 구성으로 개편"),
+            imp("호요랜드 시간표에 내 입장 시각 표시 · 날짜 탭 상단 고정"),
+            imp("호요랜드 DIY존 안내를 공식 정보로 갱신"),
+            imp("금액 입력에 세 자리 쉼표 · 원 단위 표시 (Android)"),
+            // 없어진 것은 반드시 적는다.
+            imp("홈 호요랜드 배너에서 G-STAR 안내 제거"),
+            // ── 수정 ──
+            fix("자동 출석 후 앱을 열면 출석 기록이 사라지던 문제 수정"),
+        )))
         // 27.50.1 은 배포되지 않고 이번으로 합쳤다. (시즌 배너는 섹션 개편으로 대체돼 항목에서 뺐다)
         add(ChangeEntry("27.50.2", "2026.09.15", items = listOf(
             // ── 신규 ──
