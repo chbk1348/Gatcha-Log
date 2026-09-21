@@ -294,6 +294,8 @@ class SpendingViewModel : ViewModel() {
         val next = edit(_hoyolandEntry.value)
         appSettings.hoyolandEntryRaw = next.serialize()
         _hoyolandEntry.value = next
+        // 입장 알림은 가는 날 · 조에서 시각이 나온다 — 바꾼 즉시 다시 걸어야 옛 조의 알림이 남지 않는다.
+        rescheduleTimedAlerts()
     }
 
     private val _collabBannerExpanded = MutableStateFlow(appSettings.collabBannerExpanded)
