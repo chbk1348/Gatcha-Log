@@ -351,6 +351,9 @@ struct ContentView: View {
     private var isCompactWindow: Bool { hSizeClass == .compact }
     /// iPad 인가 — '추가' 를 **탭바에서 떼어** 우측 하단 FAB 로 둘지 가른다.
     private var isPad: Bool { GLGFormFactor.current == .pad }
+    /// '추가' 를 우측 하단 FAB 로 뗄 것인가 — **넓은 창의 iPad 만.** 좁게 줄인 iPad 창은 탭바가
+    /// 아래로 내려오므로 iPhone 처럼 탭바 옆 '+' 로 돌려야 FAB 가 마지막 탭을 덮지 않는다.
+    private var usesFloatingAdd: Bool { isPad && !isCompactWindow }
     /// 넓은 창인가 — 지출 탭이 좌/우로 갈리는 폭이면 '추가' 를 경로가 아니라 시트로 연다.
     private var isWideCanvas: Bool { glgIsWideCanvas(width: canvasWidth, sizeClass: hSizeClass) }
 
@@ -375,10 +378,10 @@ struct ContentView: View {
                 // '추가' 는 **시스템 바에 맡긴다** — 좁은 창이면 하단 탭바 옆 원형 버튼,
                 // 펼친 iPhone Duo 면 세로로 선 바에서 **4탭 아래**에 선다(iOS 27.1).
                 //
-                // **iPad 만 예외다.** 탭바가 화면 위라 손이 가장 먼 자리에 놓여 아래 우측 FAB 로
-                // 떼어 둔다(2026-09-21 지시).
+                // **넓은 창의 iPad 만 예외다.** 탭바가 화면 위라 손이 가장 먼 자리에 놓여 아래 우측 FAB 로
+                // 떼어 둔다(2026-09-21 지시). 좁게 줄인 창은 탭바가 아래라 여기로 돌아온다.
                 // 초기 동기화 게이트 동안에는 어느 쪽도 표시하지 않는다.
-                if !syncGateActive && !isPad {
+                if !syncGateActive && !usesFloatingAdd {
                     Tab(value: 4, role: separatedActionRole) { Color.clear } label: {
                         Label("추가", systemImage: "plus")
                     }
@@ -392,7 +395,7 @@ struct ContentView: View {
             // 하위 화면이 하단 바를 띄우면(굿즈 목록의 장바구니 바) 감춘다 — 같은 우측 하단이라
             // 「장바구니」 버튼이 '+' 에 가렸다(2026-09-18 iPad 지적).
             .overlay(alignment: .bottomTrailing) {
-                if isPad && !syncGateActive && !store.hidesAddButton {
+                if usesFloatingAdd && !syncGateActive && !store.hidesAddButton {
                     fabAddButton
                         .padding(.trailing, 24).padding(.bottom, 28)
                         // 창 **바닥** 기준으로 붙인다. `TabView` 가 아래에 남겨 둔 자리(탭바가
