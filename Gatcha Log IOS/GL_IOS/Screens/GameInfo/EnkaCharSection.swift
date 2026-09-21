@@ -1041,6 +1041,9 @@ struct EnkaStatPageBody: View {
                                  focusY: topInset + 38 + (scored ? 75 : 64))
                     .clipShape(UnevenRoundedRectangle(bottomLeadingRadius: 30, bottomTrailingRadius: 30, style: .continuous))
             }
+            // 가로 안전영역도 무시한다 — 바가 **옆에 서는 기기**(펼친 iPhone Duo)에서는 히어로가
+            // 그 바 앞에서 끊겨 오른쪽에 흰 띠가 남는다(2026-09-21 지적). 글자는 그대로 안전영역 안이다.
+            .ignoresSafeArea(edges: .horizontal)
         )
         .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { heroHeight = $0 }
     }
@@ -1178,8 +1181,8 @@ struct EnkaStatPageBody: View {
             .navigationTitle("점수 기준")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button("닫기") { basisOpen = false }
+                ToolbarItem(placement: .cancellationAction) {
+                    GLGSheetCloseButton { basisOpen = false }
                 }
             }
         }
@@ -1838,20 +1841,31 @@ struct EnkaStatPageBody: View {
 
                 if editingKeyStats {
                     statCheckGrid(selectable)
-                    // 액션 버튼은 디자인 시스템의 **캡슐** 버튼을 쓴다.
-                    // 예전엔 둘 다 손으로 그린 반경 14 둥근 사각이라, '저장'은 선택된 칩과,
-                    // '기본값으로'는 선택 안 된 칩과 모양·색이 똑같아서 버튼으로 안 읽혔다.
+                    // 시트의 액션 버튼은 **시스템 버튼**이다(2026-09-21 지시). 손으로 그리던
+                    // 캡슐을 OS 에 넘긴다 — 눌림·비활성·다크모드·리퀴드 글래스가 따라온다.
+                    // 예전엔 손으로 그린 반경 14 둥근 사각이라 '저장'은 선택된 칩과, '기본값으로'는
+                    // 선택 안 된 칩과 모양·색이 같아 버튼으로 안 읽히기도 했다.
                     HStack(spacing: 8) {
-                        GLGButton(title: "저장") {
+                        Button {
                             onSetOverride(KeyStatRulesKt.keyStatOverrideKey(gameKey: game, charId: char.id), picked)
                             editingKeyStats = false
+                        } label: {
+                            Text("저장").frame(maxWidth: .infinity)
                         }
+                        .glgProminentButton()
+                        .tint(accent.primary)
                         // 설정 해제 = 빈 집합 저장 → 앱 룰 추정으로 되돌아간다.
                         if v.source == .user {
-                            GLGOutlineButton(title: "기본값으로") {
+                            Button {
                                 onSetOverride(KeyStatRulesKt.keyStatOverrideKey(gameKey: game, charId: char.id), [])
                                 editingKeyStats = false
+                            } label: {
+                                Text("기본값으로").frame(maxWidth: .infinity)
                             }
+                            .buttonStyle(.bordered)
+                            .buttonBorderShape(.capsule)
+                            .controlSize(.large)
+                            .tint(accent.deep)
                         }
                     }
                     .padding(.top, 12)

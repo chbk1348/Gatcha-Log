@@ -7,6 +7,23 @@ struct SpendingDetailView: View {
     let spendingId: String
     let onEdit: (Spending) -> Void
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.horizontalSizeClass) private var hSizeClass
+    @Environment(\.glgCanvasWidth) private var canvasWidth
+    /// 좌 목록 / 우 상세로 **갈린 자리에 놓였는가.** 호출부(`SpendingView.detailPane`)가 알려 준다.
+    ///
+    /// 이 값을 환경(창 폭)만으로 판단하지 않는 이유: 갈림 여부를 정하는 쪽은 `GLGSplitDetail` 이고,
+    /// 그 판정과 여기가 어긋나면 수정·삭제가 **어느 쪽에도 안 보이는** 상태가 된다(2026-09-21).
+    var inSplitPane: Bool = false
+
+    /// 갈린 오른쪽 자리를 **닫는다**(고른 지출 해제) — 분할 화면에서만 넘어온다.
+    /// 좁은 화면에는 뒤로가기가 있지만 갈린 화면에는 되돌아갈 자리가 없어 닫을 길이 없었다
+    /// (2026-09-21 지적).
+    var onClose: (() -> Void)? = nil
+
+    /// 수정·삭제를 본문에 세울 자리인가 — 갈린 자리이거나 창이 넓으면.
+    private var isWideCanvas: Bool {
+        inSplitPane || glgIsWideCanvas(width: canvasWidth, sizeClass: hSizeClass)
+    }
     @State private var confirmDelete = false
     /// 히어로 실제 높이 — 스크롤이 이걸 넘어가면 헤더를 밝은 배경 모드로 되돌린다.
     @State private var heroHeight: CGFloat = 0
@@ -93,6 +110,9 @@ struct SpendingDetailView: View {
         } action: { _, newValue in
             pastHero = newValue
         }
+        // 세로로 선 바에서 **툴바 항목을 먼저** 남긴다 — 앱 전역은 탭바 우선이라(ContentView),
+        // 그대로 두면 이 화면의 수정·삭제가 접혀 사라진다.
+        .modifier(GLGVerticalBarPrefersToolbar())
         .alert("이 지출을 삭제할까요?", isPresented: $confirmDelete) {
             Button("취소", role: .cancel) {}.glgAlertTint()
             Button("삭제", role: .destructive) { store.deleteSpending(s.id); dismiss() }.glgAlertTint()
@@ -105,17 +125,42 @@ struct SpendingDetailView: View {
             // ⚠️ **이 화면 안에서 `.navigationDestination` 을 선언하면 안 된다.** 이 화면 자체가
             // 이미 목적지라, 목적지 안에서 목적지를 또 등록하면 스택이 초기화돼 목록으로 튕긴다.
             // 실제로 그 구조로 만들었다가 수정 버튼이 목록으로 빠지는 버그를 냈다.
-            ToolbarItem(placement: .topBarTrailing) {
-                Button { onEdit(s) } label: { Image(systemName: "pencil") }
+            //
+            // 넓은 창에서는 **우리 메뉴 하나로 접는다.** 이 화면의 툴바는 옆(또는 위)의 공용
+            // 시스템 바로 옮겨 가는데, 자리가 모자라면 시스템이 `•••` 로 접고 그 메뉴가 열리지
+            // 않았다(2026-09-21 듀오). 항목을 하나로 줄여 접히지 않게 하고, 접는 일도 직접 한다.
+            // 그래도 눌려 접히는 일이 없도록 이 화면은 **툴바 항목을 우선**으로 선언한다
+            // (→ [GLGVerticalBarPrefersToolbar]).
+            if let onClose {
+                ToolbarItem(placement: .cancellationAction) {
+                    GLGSheetCloseButton { onClose() }
+                }
             }
-            if #available(iOS 26.0, *) {
-                ToolbarSpacer(.fixed, placement: .topBarTrailing)
+            if isWideCanvas {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Menu {
+                        Button { onEdit(s) } label: { Label("수정", systemImage: "pencil") }
+                        Button(role: .destructive) { confirmDelete = true } label: {
+                            Label("삭제", systemImage: "trash")
+                        }
+                    } label: {
+                        Image(systemName: "ellipsis")
+                    }
+                }
             }
-            ToolbarItem(placement: .topBarTrailing) {
-                Button(role: .destructive) { confirmDelete = true } label: { Image(systemName: "trash") }
-                    // 삭제만 위험색으로 가른다 — `role: .destructive` 는 툴바에서 색까지 바꿔 주지
-                    // 않아서, 수정과 똑같은 색으로 나란히 놓여 있었다.
-                    .tint(needsBarTint ? GLGColor.dangerText : nil)
+            if !isWideCanvas {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button { onEdit(s) } label: { Image(systemName: "pencil") }
+                }
+                if #available(iOS 26.0, *) {
+                    ToolbarSpacer(.fixed, placement: .topBarTrailing)
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button(role: .destructive) { confirmDelete = true } label: { Image(systemName: "trash") }
+                        // 삭제만 위험색으로 가른다 — `role: .destructive` 는 툴바에서 색까지 바꿔 주지
+                        // 않아서, 수정과 똑같은 색으로 나란히 놓여 있었다.
+                        .tint(needsBarTint ? GLGColor.dangerText : nil)
+                }
             }
         }
         // 뒤로가기(시스템 back)와 수정 아이콘 색 — 툴바 전체에 건다.
@@ -199,6 +244,9 @@ struct SpendingDetailView: View {
                     colors: [base.mix(with: .white, by: 0.80), base.mix(with: .white, by: 0.66)],
                     startPoint: .topLeading, endPoint: .bottomTrailing))
                 .padding(.top, -800)
+                // 가로 안전영역도 무시한다 — 바가 **옆에 서는 기기**(펼친 iPhone Duo)에서는
+                // 히어로가 그 바 앞에서 끊겨 오른쪽에 흰 띠가 남는다(2026-09-21 지적).
+                .ignoresSafeArea(edges: .horizontal)
         )
         .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { heroHeight = $0 }
     }

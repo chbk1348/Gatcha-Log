@@ -20,6 +20,8 @@ struct ContentView: View {
     /// 더 깊은 화면(굿즈 목록)은 같은 목적으로 `store.hidesAddButton` 을 쓴다 —
     /// 바인딩을 세 단계 내리는 대신 스토어를 통한다.
     @State private var spendingSelectionMode = false
+    /// 창 실제 가로 — 다단 레이아웃 판정의 정본([glgMeasureCanvas]).
+    @State private var canvasWidth: CGFloat = 0
     /// 앱 복귀 감지 — 밀린 알림 점검 트리거(BGAppRefreshTask 는 실행 시점이 OS 재량이라 보조가 필요).
     @Environment(\.scenePhase) private var scenePhase
 
@@ -73,16 +75,8 @@ struct ContentView: View {
     /// 지출 탭 스택 경로 — 목록 → 상세 → 수정이 여기 쌓인다.
     @State private var spendingPath: [SpendingRoute] = []
 
-    /// 지출 입력 페이지(추가·수정)가 경로에 올라와 있는가.
-    ///
-    /// 숨김을 그 화면이 스스로 선언하면, pop 되는 순간 선언이 사라져 탭바가 **애니메이션 없이
-    /// 즉시** 나타난다(짠 하고 등장). 경로를 보고 상위가 판단하면 값 변화가 전환에 실린다.
-    private var spendingEditorOpen: Bool {
-        spendingPath.contains {
-            if case .detail = $0 { return false }
-            return true
-        }
-    }
+    /// 지출 입력(추가·수정)이 열려 있는가 — 이제 **시트**라 경로가 아니라 이 상태를 본다.
+    private var spendingEditorOpen: Bool { spendingSheet != nil }
 
     /// 초기 클라우드 동기화 게이트(로딩 화면) 활성 여부 — 게이트 동안 탭바·추가 버튼 숨김
     ///
@@ -274,8 +268,12 @@ struct ContentView: View {
         // 탭을 옮기지 않는다 — **보고 있던 탭 위에** 밀어 넣는다.
         // (예전엔 지출 탭으로 강제 이동시켰는데, 홈에서 '+'를 눌렀다가 닫으면 엉뚱하게 지출 탭에 남았다.)
         //
-        // 지출 탭만 경로 기반이라 경로에 쌓고, 나머지 탭은 기존 item 목적지를 쓴다.
-        if selectedTab == 1 { spendingPath.append(.add) } else { spendingSheet = .add }
+        // **어느 탭이든 시트다.** 예전엔 지출 탭만 경로에 페이지로 쌓았는데,
+        //  · 넓은 창에서는 그 탭이 좌 목록 / 우 상세로 갈려 있어 바깥 경로를 밀어 넣는 순간
+        //    SwiftUI 가 `NavigationColumnState.boundPathChange` 에서 죽었고(2026-09-21 크래시),
+        //  · 들어가는 모양도 탭마다 달랐다(어디선 페이지, 어디선 시트).
+        // 추가·수정은 그 화면의 다음 단계가 아니라 **끼어드는 별개 작업**이라 시트가 맞다.
+        spendingSheet = .add
     }
 
     /**
@@ -351,6 +349,15 @@ struct ContentView: View {
     /// **우측 하단 FAB 가 그 하단 탭바 위에 겹친다.** 폭으로 판단해야 맞다.
     @Environment(\.horizontalSizeClass) private var hSizeClass
     private var isCompactWindow: Bool { hSizeClass == .compact }
+    /// iPad 인가 — '추가' 를 **탭바에서 떼어** 우측 하단 FAB 로 둘지 가른다.
+    private var isPad: Bool { UIDevice.current.userInterfaceIdiom == .pad }
+    /// 넓은 창인가 — 지출 탭이 좌/우로 갈리는 폭이면 '추가' 를 경로가 아니라 시트로 연다.
+    private var isWideCanvas: Bool { glgIsWideCanvas(width: canvasWidth, sizeClass: hSizeClass) }
+    /// '추가' 를 탭바에서 떼어 우측 하단 FAB 로 두는가 — iPad, 그리고 **펼친 iPhone Duo**.
+    ///
+    /// 펼친 Duo 에서는 바가 옆에 세로로 서는데, 거기 맡긴 분리 탭('추가')은 그 바에
+    /// 그려지지 않고 통째로 사라졌다(2026-09-21 지적). 넓은 창이면 바에 기대지 않는다.
+    private var addAsFab: Bool { isPad || isWideCanvas }
 
     @ViewBuilder
     private var authenticatedRoot: some View {
@@ -370,27 +377,45 @@ struct ContentView: View {
                 Tab("지출", systemImage: "creditcard.fill", value: 1) { spendingTabContent }
                 Tab("게임 정보", systemImage: "gamecontroller.fill", value: 2) { gameInfoTabContent }
                 Tab("마이페이지", systemImage: "person.fill", value: 3) { myPageTabContent }
-                // 좁은 창: 탭바에서 분리된 원형 '추가' 버튼(탭바가 하단이라 FAB 를 놓을 자리가 없다).
-                // 넓은 창은 아래 우측 하단 FAB 로 대신한다. 초기 동기화 게이트 동안에는 둘 다 미표시.
-                if !syncGateActive && isCompactWindow {
+                // '추가' 는 좁은 창이면 **시스템 바에 맡긴다** — 하단 탭바 옆 원형 버튼.
+                //
+                // iPad·펼친 iPhone Duo 는 예외다([addAsFab]). iPad 는 탭바가 화면 위라 손이 가장
+                // 먼 자리에 놓이고(2026-09-21 지시), 펼친 Duo 는 세로로 선 바에서 이 탭이
+                // 사라졌다 — 둘 다 아래 우측 FAB 로 떼어 둔다.
+                // 초기 동기화 게이트 동안에는 어느 쪽도 표시하지 않는다.
+                if !syncGateActive && !addAsFab {
                     Tab(value: 4, role: separatedActionRole) { Color.clear } label: {
                         Label("추가", systemImage: "plus")
                     }
                 }
             }
             .tint(accent)
+            .glgMeasureCanvas($canvasWidth)
             .tabBarMinimizeBehavior(.never) // 스크롤 시 탭바 축소 안 함(항상 전체 크기 유지)
+            // iPad·펼친 Duo: 탭바에서 뗀 '추가' 를 우측 하단에 둔다.
+            //
+            // 하위 화면이 하단 바를 띄우면(굿즈 목록의 장바구니 바) 감춘다 — 같은 우측 하단이라
+            // 「장바구니」 버튼이 '+' 에 가렸다(2026-09-18 iPad 지적).
+            .overlay(alignment: .bottomTrailing) {
+                if addAsFab && !syncGateActive && !store.hidesAddButton {
+                    fabAddButton
+                        .padding(.trailing, 24).padding(.bottom, 28)
+                        // 창 **바닥** 기준으로 붙인다. `TabView` 가 아래에 남겨 둔 자리(탭바가
+                        // 위로 올라가도 인셋은 남는다)를 그대로 쓰면 버튼이 허공에 뜬다
+                        // (2026-09-21 iPad 지적 — 바닥에서 100pt 가까이 떠 있었다).
+                        .ignoresSafeArea(.container, edges: .bottom)
+                }
+            }
+            // iPhone Duo — 화면이 좁고 길어 바가 **세로로 설 때** 무엇을 남길지 고른다.
+            //
+            // 27.1 부터 시스템이 탭바·툴바를 화면 옆면에 세우는데, 자리가 모자라면 둘 중 하나를
+            // 접는다. 이 앱은 탭 넷이 이동의 전부라(툴바 항목은 화면마다 곁다리다) **탭바를 남긴다.**
+            .modifier(GLGVerticalBarPrefersTabs())
             .onChange(of: selectedTab) { oldValue, newValue in
                 if newValue == 4 {
                     // "추가" 는 탭이 아니라 액션 — 모달 열고 이전 탭으로 복귀
                     selectedTab = oldValue
                     openAddSpending()
-                }
-            }
-            // 넓은 창(탭바가 상단): 지출 추가를 우측 하단 FAB 로.
-            .overlay(alignment: .bottomTrailing) {
-                if !isCompactWindow && !syncGateActive {
-                    fabAddButton.padding(.trailing, 24).padding(.bottom, 24)
                 }
             }
         } else {
@@ -483,34 +508,22 @@ struct ContentView: View {
         // `navigationDestination(수정)` 이 섞여 있었다. 목적지 안에서 목적지를 등록하면
         // SwiftUI 가 스택을 초기화해 **수정 버튼이 목록으로 튕겼다.**
         // 목적지는 여기서 한 번만 등록하고, 각 화면은 경로에 값을 밀어 넣기만 한다.
-        NavigationStack(path: $spendingPath) {
+        // 경로에는 **상세만** 쌓인다 — 추가·수정은 시트로 연다(→ [openAddSpending]).
+        spendingEditorSheet(tab: 1, NavigationStack(path: $spendingPath) {
             SpendingView(store: store, onEdit: { spending in
-                spendingPath.append(.edit(spending.id))
+                spendingSheet = .edit(spending)
             }, selectionMode: $spendingSelectionMode)
             .navigationDestination(for: SpendingRoute.self) { route in
                 switch route {
                 case .detail(let id):
                     SpendingDetailView(store: store, spendingId: id, onEdit: { s in
-                        spendingPath.append(.edit(s.id))
+                        spendingSheet = .edit(s)
                     })
-                case .edit(let id):
-                    AddSpendingView(
-                        store: store,
-                        editing: store.spendings.first { $0.id == id },
-                        pushed: true,
-                    ) { popSpendingPath() }
-                case .add:
-                    AddSpendingView(store: store, editing: nil, pushed: true) { popSpendingPath() }
                 }
             }
-        }
+        })
         .glgAccent(index: store.accentIndex)
         .toolbar(tabBarVisibility, for: .tabBar)
-    }
-
-    /// 편집 페이지를 닫는다 — 경로에서 한 칸만 뺀다(상세가 아래 있으면 상세로 돌아간다).
-    private func popSpendingPath() {
-        if !spendingPath.isEmpty { spendingPath.removeLast() }
     }
 
     // Phase 4 chunk ② — SwiftUI 게임정보(데일리·배너/전투/일지·패치·위시·천장·이벤트). 가챠 도구는 chunk ③.

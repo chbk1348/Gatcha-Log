@@ -18,6 +18,24 @@ struct HoyolandMapView: View {
     let event: HoyolandEvent
     let store: SpendingStore
     @Environment(\.glgAccent) private var accent
+    @Environment(\.horizontalSizeClass) private var hSize
+    /// 페이지(창) 크기 — 판 크기를 여기서 뽑는다.
+    ///
+    /// `UIScreen.main.bounds` 를 쓰던 자리다. 기기 화면은 **창이 아니다** — iPad 분할·Stage Manager
+    /// 에서는 창이 화면보다 한참 작은데 그 값으로 재면 판이 창을 넘고, 반대로 화면을 꽉 쓰는
+    /// iPad 에서는 판이 520 에 묶여 가운데 작게 남았다(2026-09-21 지적).
+    @State private var viewport: CGSize = .zero
+
+    /// 판을 놓을 수 있는 가로 — 창에서 페이지 여백(16×2)과 읽기 폭 제한을 뺀 값.
+    private var contentWidth: CGFloat {
+        let w = max(viewport.width, 320) - 32
+        return hSize == .regular ? min(w, HoyolandMapReadableWidth - 32) : w
+    }
+
+    /// 판 높이 상한의 바탕이 되는 세로 — 아직 재기 전이면 화면 값으로 시작한다.
+    private var viewportHeight: CGFloat {
+        viewport.height > 0 ? viewport.height : UIScreen.main.bounds.height
+    }
 
     var body: some View {
         let map = event.map
@@ -36,8 +54,9 @@ struct HoyolandMapView: View {
                 Color.clear.frame(height: 24)
             }
             .padding(16)
-            .glgReadableWidth(720)
+            .glgReadableWidth(HoyolandMapReadableWidth)
         }
+        .onGeometryChange(for: CGSize.self) { $0.size } action: { viewport = $0 }
         .scrollIndicators(.hidden)
         .background(GLGBackground { Color.clear })
         .glgPageTitle(map.title.isEmpty ? "행사장 배치도" : map.title)
@@ -67,9 +86,10 @@ struct HoyolandMapView: View {
 
         GeometryReader { geo in
             let pad: CGFloat = 10
-            let screenH = UIScreen.main.bounds.height
-            let widthCap = min(geo.size.width, HoyolandMapMaxWidth)
-            let heightCap = (screenH * 0.52) * CGFloat(ratio)
+            // 폭 상한(520)을 걷었다 — 판은 **창이 주는 만큼** 쓰고, 세로가 모자라면 아래 높이
+            // 상한이 먼저 걸린다. 두 값 중 작은 쪽이라 창을 넘지 않는다.
+            let widthCap = geo.size.width
+            let heightCap = (viewportHeight * 0.52) * CGFloat(ratio)
             let boardW = max(min(widthCap, heightCap), 160)
             let innerW = boardW - pad * 2
             let innerH = innerW / CGFloat(ratio)
@@ -111,9 +131,9 @@ struct HoyolandMapView: View {
         let spanX = max(maxX - minX, 1)
         let spanY = max(maxY - minY, 1)
         let ratio = min(max((spanX / spanY) * map.ratio, 0.4), 4)
-        let screenW = UIScreen.main.bounds.width - 32
-        let screenH = UIScreen.main.bounds.height
-        let boardW = max(min(min(screenW, HoyolandMapMaxWidth), (screenH * 0.52) * CGFloat(ratio)), 160)
+        // `board` 안의 `GeometryReader` 와 **같은 식**이어야 한다 — 여기서 잡아 주는 높이가 그
+        // 판이 실제로 그리는 크기와 어긋나면 판 아래가 비거나 범례를 덮는다.
+        let boardW = max(min(contentWidth, (viewportHeight * 0.52) * CGFloat(ratio)), 160)
         return (boardW - 20) / CGFloat(ratio) + 20
     }
 
@@ -306,7 +326,9 @@ private struct HoyolandMapFlow: View {
 }
 
 /// 판 최대 폭 — 아이패드에서 도면만 커지고 글자가 둥둥 뜨는 것을 막는다.
-private let HoyolandMapMaxWidth: CGFloat = 520
+/// 배치도 페이지 읽기 폭 — 판이 창을 따라 커지므로 다른 호요랜드 페이지(720)보다 넉넉히 준다.
+/// 안내 · 범례는 한 줄짜리라 이 폭에서도 늘어져 읽히지 않는다.
+private let HoyolandMapReadableWidth: CGFloat = 960
 
 /**
  입장 동선 색 — 테마 강조색을 따르지 않는 유일한 구역이다.

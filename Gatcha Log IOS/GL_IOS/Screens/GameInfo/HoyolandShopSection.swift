@@ -42,6 +42,23 @@ struct HoyolandGoodsView: View {
     @State private var viewing: HoyolandGoods? = nil
     /// 굿즈존 공통 안내 시트 — 헤더 인포 버튼이 연다.
     @State private var showGuide = false
+    /// 넓은 창(iPad) 두 열 — [hoyolandWide] 가 채운다.
+    @State private var wide = false
+    /// 펼친 iPhone Duo 의 경첩 — 두 칸 사이 빈틈을 접힘선에 맞춘다([glgHinge]).
+    @State private var hinge: GLGHinge? = nil
+
+    /// 굿즈 격자의 두 칸 — 경첩이 있으면 왼쪽 칸이 **접힘선 앞까지**이고 빈틈이 경첩 폭이다.
+    /// 없으면(iPad · 접은 듀오) 반반으로 나눈다.
+    private func goodsColumns() -> [GridItem] {
+        let gap = hinge?.width ?? 12
+        if let hinge {
+            let leftW = max(hinge.midX - hinge.width / 2 - (wide ? 24 : 16), 200)
+            return [GridItem(.fixed(leftW), spacing: gap, alignment: .top),
+                    GridItem(.flexible(), spacing: gap, alignment: .top)]
+        }
+        return [GridItem(.flexible(), spacing: gap, alignment: .top),
+                GridItem(.flexible(), spacing: gap, alignment: .top)]
+    }
 
     var body: some View {
         let all = event.visibleGoods
@@ -66,8 +83,8 @@ struct HoyolandGoodsView: View {
                         set: { gameFilter = $0 == 0 ? nil : games[$0 - 1] }
                     )
                 )
-                .padding(.horizontal, 16).padding(.bottom, 10)
-                .glgReadableWidth(720)
+                .padding(.horizontal, wide ? 24 : 16).padding(.bottom, 10)
+                .glgReadableWidth(wide ? HoyolandWideMaxWidth : 720)
             }
             ScrollView {
                 // LazyVStack — 굿즈 105장을 진입할 때 한꺼번에 짓지 않고 보이는 것만 만든다.
@@ -77,20 +94,40 @@ struct HoyolandGoodsView: View {
                         emptyCard
                     } else {
                         priceRangeCard
-                        ForEach(Array(shown.enumerated()), id: \.offset) { _, item in
-                            GLGCard(cornerRadius: 24, padding: 0) {
-                                goodsCard(item, quantity: Int(cart.quantityOf(name: item.name)))
+                        if wide {
+                            // 넓은 창은 **두 칸 격자** — 가격대 카드는 목록 전체의 요약이라 전폭에 둔다.
+                            //
+                            // 행을 `HStack` + `fixedSize` 로 세워 좌우 높이를 맞췄더니, 105장을
+                            // 스크롤하는 동안 격자가 흔들리고 카드가 깨졌다(2026-09-21 iPad 지적) —
+                            // `LazyVStack` 은 행이 화면에 들어올 때마다 높이를 다시 재는데, `fixedSize`
+                            // 가 그 자리에서 이웃 카드까지 같이 재게 만든다. 격자는 칸 높이를 서로
+                            // 묻지 않는 `LazyVGrid` 에 맡긴다 — 짧은 카드 아래가 조금 비는 대신 흔들리지 않는다.
+                            LazyVGrid(columns: goodsColumns(), alignment: .leading, spacing: 12) {
+                                ForEach(Array(shown.enumerated()), id: \.offset) { _, item in
+                                    GLGCard(cornerRadius: 24, padding: 0) {
+                                        goodsCard(item, quantity: Int(cart.quantityOf(name: item.name)))
+                                    }
+                                }
                             }
-                            .padding(.top, 10)
+                            .padding(.top, 12)
+                        } else {
+                            ForEach(Array(shown.enumerated()), id: \.offset) { _, item in
+                                GLGCard(cornerRadius: 24, padding: 0) {
+                                    goodsCard(item, quantity: Int(cart.quantityOf(name: item.name)))
+                                }
+                                .padding(.top, 10)
+                            }
                         }
                     }
                     Color.clear.frame(height: 24)
                 }
-                .padding(.horizontal, 16)
-                .glgReadableWidth(720)
+                .padding(.horizontal, wide ? 24 : 16)
+                .glgReadableWidth(wide ? HoyolandWideMaxWidth : 720)
             }
             .scrollIndicators(.hidden)
         }
+        .hoyolandWide($wide)
+        .glgHinge($hinge)
         // 하단 바 — 지출 선택 모드와 **같은 규격**(safeAreaInset + SystemGlassBar).
         //
         // ⚠️ `ToolbarItem(placement: .bottomBar)` 는 쓸 수 없다. 이 앱은 하위 화면에서도
@@ -392,6 +429,8 @@ struct HoyolandCartView: View {
     let event: HoyolandEvent
     var store: SpendingStore
     @State private var expanded: String? = nil
+    /// 넓은 창(iPad) 두 열 — [hoyolandWide] 가 채운다.
+    @State private var wide = false
 
     var body: some View {
         let cart = store.hoyolandCart
@@ -411,32 +450,31 @@ struct HoyolandCartView: View {
                     }
                     .frame(maxWidth: .infinity)
                     .padding(.top, 52).padding(.bottom, 20)
+                } else if wide {
+                    // 넓은 창 — **왼쪽 합계 · 오른쪽 품목.** 합계는 품목을 늘리고 줄이는 동안 계속
+                    // 봐야 하는 값인데, 한 열이면 품목을 내려 보는 순간 위로 밀려 사라진다.
+                    HStack(alignment: .top, spacing: 20) {
+                        VStack(alignment: .leading, spacing: 0) {
+                            summaryCard(cart, total: total, unpriced: unpriced)
+                            if unpriced > 0 { unpricedNote(unpriced) }
+                        }
+                        .frame(width: 360)
+                        VStack(alignment: .leading, spacing: 0) {
+                            cartGroups(groups)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .topLeading)
+                    }
                 } else {
                     summaryCard(cart, total: total, unpriced: unpriced)
-                    ForEach(Array(groups.enumerated()), id: \.offset) { _, g in
-                        groupHeader(g)
-                        ForEach(Array(g.lines.enumerated()), id: \.offset) { _, line in
-                            cartRow(line)
-                        }
-                    }
-                    if unpriced > 0 {
-                        HStack(alignment: .top, spacing: 7) {
-                            Text("⚠️").font(.pretendard(size: 11))
-                            Text("가격 미정 \(unpriced)종은 합계에 없어요. 값이 공개되면 자동으로 더해져요.")
-                                .font(.pretendard(size: 11)).foregroundStyle(GLGWarnText)
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
-                        .padding(.horizontal, 12).padding(.vertical, 10)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(GLGWarnBg, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-                        .padding(.top, 10)
-                    }
+                    cartGroups(groups)
+                    if unpriced > 0 { unpricedNote(unpriced) }
                 }
                 Color.clear.frame(height: 24)
             }
-            .padding(.horizontal, 16)
-            .glgReadableWidth(720)
+            .padding(.horizontal, wide ? 24 : 16)
+            .glgReadableWidth(wide ? HoyolandWideMaxWidth : 720)
         }
+        .hoyolandWide($wide)
         .scrollIndicators(.hidden)
         .background(GLGBackground { Color.clear })
         .glgPageTitle("장바구니")
@@ -452,6 +490,30 @@ struct HoyolandCartView: View {
                 }
             }
         }
+    }
+
+    /// 게임별 품목 묶음 — 한 열이든 넓은 창 오른쪽 열이든 같은 모양이다.
+    @ViewBuilder private func cartGroups(_ groups: [HoyolandCartGroup]) -> some View {
+        ForEach(Array(groups.enumerated()), id: \.offset) { _, g in
+            groupHeader(g)
+            ForEach(Array(g.lines.enumerated()), id: \.offset) { _, line in
+                cartRow(line)
+            }
+        }
+    }
+
+    /// 가격 미정 안내 — 합계에 빠진 것이 있다는 것을 합계 **바로 곁**에서 말한다.
+    @ViewBuilder private func unpricedNote(_ unpriced: Int) -> some View {
+        HStack(alignment: .top, spacing: 7) {
+            Text("⚠️").font(.pretendard(size: 11))
+            Text("가격 미정 \(unpriced)종은 합계에 없어요. 값이 공개되면 자동으로 더해져요.")
+                .font(.pretendard(size: 11)).foregroundStyle(GLGWarnText)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(.horizontal, 12).padding(.vertical, 10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(GLGWarnBg, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .padding(.top, 10)
     }
 
     // ── 합계 — 이 페이지의 답이라 맨 위에 둔다.
@@ -574,6 +636,8 @@ struct HoyolandBoothView: View {
     var initialGame: String? = nil
     @Environment(\.glgAccent) private var accent
     @State private var gameFilter: String? = nil
+    /// 넓은 창(iPad) 두 열 — [hoyolandWide] 가 채운다.
+    @State private var wide = false
 
     var body: some View {
         let games = event.boothGames
@@ -604,15 +668,26 @@ struct HoyolandBoothView: View {
                             )
                         )
                     }
-                    ForEach(Array(shown.enumerated()), id: \.offset) { _, b in
-                        boothCard(b)
+                    if wide {
+                        // 넓은 창은 **벽돌쌓기 두 열** — 부스 카드는 설명 길이가 제각각이라 행으로
+                        // 맞추면 짧은 카드가 긴 이웃 높이까지 늘어나 속이 빈다. 짧은 열부터 채운다.
+                        GLGColumnMasonry(cards: shown.enumerated().map { i, b in
+                            GLGMasonryCard(id: i, weight: 120 + Double(b.desc.count + b.reward.count)) {
+                                boothCard(b)
+                            }
+                        })
+                    } else {
+                        ForEach(Array(shown.enumerated()), id: \.offset) { _, b in
+                            boothCard(b)
+                        }
                     }
                 }
                 Color.clear.frame(height: 24)
             }
-            .padding(.horizontal, 16)
-            .glgReadableWidth(720)
+            .padding(.horizontal, wide ? 24 : 16)
+            .glgReadableWidth(wide ? HoyolandWideMaxWidth : 720)
         }
+        .hoyolandWide($wide)
         .scrollIndicators(.hidden)
         .background(GLGBackground { Color.clear })
         .glgPageTitle("부스 체험")
@@ -718,16 +793,20 @@ struct HoyolandGoodsImageSheet: View {
     let start: HoyolandGoods
     @Environment(\.glgAccent) private var accent
     @Environment(\.dismiss) private var dismiss
-    /// 시트 높이 = 내용 높이. `.large` 로 열면 화면 끝까지 올라와 닫기 · 담기가 내용 바로 밑이 아니라
-    /// 위쪽에 떠 보였다(2026-09-15 iOS 지적). 재서 그만큼만 연다.
-    @State private var contentHeight: CGFloat = 640
-
+    @State private var contentHeight: CGFloat = 570
+    /// 담기 바 높이 — 내용에서 떨어져 나와 바닥에 붙으므로 시트 높이에 따로 더한다.
+    @State private var barHeight: CGFloat = 70
+    @State private var chromeHeight: CGFloat = 0
+    /// 시트 아래 안전영역(홈 인디케이터). iPad 폼 시트는 0 이다 — 담기 바 아래 여백을 여기에 맞춘다.
+    @State private var safeBottom: CGFloat = 0
     var body: some View {
         let item = start
         let raw = event.stageColor(game: item.game)
         let c: Color = raw == 0 ? GLGColor.textSecondary : Color(argb64: raw)
         let quantity = Int(store.hoyolandCart.quantityOf(name: item.name))
-        VStack(alignment: .leading, spacing: 0) {
+        // 제목과 닫기는 **시스템 네비 바**가 맡는다 — 내 입장권 · 예매 안내 시트와 같은 구조다.
+        NavigationStack {
+            VStack(alignment: .leading, spacing: 0) {
                 HoyolandZoomableImage(url: URL(string: item.imageUrl))
                     .frame(height: 320)
                     .background(GLGCartRowBg, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
@@ -758,38 +837,108 @@ struct HoyolandGoodsImageSheet: View {
                     }
                     .padding(.top, 10)
                 }
-                HStack(spacing: 8) {
-                    GLGOutlineButton(title: "닫기") { dismiss() }
-                    if quantity <= 0 {
-                        GLGButton(title: "담기") { store.setGoodsQuantity(item.name, 1) }
-                    } else {
-                        // 담은 뒤에는 스테퍼 — 목록 카드와 같은 동작을 시트에서도 한다.
-                        HStack(spacing: 0) {
-                            Button { store.setGoodsQuantity(item.name, quantity - 1) } label: {
-                                Text("−").font(.pretendard(size: 18, weight: .bold)).foregroundStyle(GLGColor.textSecondary)
-                                    .frame(maxWidth: .infinity, maxHeight: .infinity).contentShape(Rectangle())
-                            }.buttonStyle(.plain)
-                            Text("\(quantity)").font(.pretendard(size: 15, weight: .black)).monospacedDigit()
-                                .foregroundStyle(accent.primary)
-                            Button { store.setGoodsQuantity(item.name, quantity + 1) } label: {
-                                Text("+").font(.pretendard(size: 18, weight: .bold)).foregroundStyle(GLGColor.textSecondary)
-                                    .frame(maxWidth: .infinity, maxHeight: .infinity).contentShape(Rectangle())
-                            }.buttonStyle(.plain)
-                        }
-                        .frame(maxWidth: .infinity).frame(height: 44)
-                        .overlay(RoundedRectangle(cornerRadius: GLGControlRadius, style: .continuous)
-                            .stroke(.black.opacity(0.10), lineWidth: 1))
-                    }
-                }
-                .padding(.top, 18)
+            }
+            // 아래 여백은 담기 바가 이어 받는다 — 바의 윗여백과 합쳐 예전 간격(18)이 된다.
+            .padding(.horizontal, 18).padding(.top, 8).padding(.bottom, 6)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .glgSheetContentHeight($contentHeight)
+            // 재고 나서 위로 붙인다 — `NavigationStack` 은 자식을 세로 가운데 놓아,
+            // 시트에 남는 자리가 생기면 내용이 반씩 위아래로 떠 버린다.
+            .frame(maxHeight: .infinity, alignment: .top)
+            // 담기는 내용에 딸려 흐르지 않고 **시트 바닥에 붙는다** — 지출 추가 · 수정 모달의
+            // 저장 바와 같은 자리다(2026-09-17 요청). 이름이 길거나 글씨가 커져 내용이 길어져도
+            // 담기는 늘 같은 자리에 있다.
+            //
+            // 네비 바 · 홈 인디케이터를 재는 [glgSheetChromeHeight] 보다 **안쪽**에 건다 —
+            // 바깥에 걸면 시트가 바 높이를 chrome 으로 한 번, [barHeight] 로 또 한 번 세어
+            // 그만큼 아래가 빈다.
+            .safeAreaInset(edge: .bottom) { cartBar(item: item, quantity: quantity) }
+            .navigationTitle("굿즈 사진")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { GLGSheetCloseButton { dismiss() } }
+            }
+            .glgSheetChromeHeight($chromeHeight)
+            // 담기 바 **바깥**에서 잰다 — 안쪽에서 재면 바 자신의 높이가 섞인다.
+            .onGeometryChange(for: CGFloat.self) { $0.safeAreaInsets.bottom } action: { safeBottom = $0 }
         }
-        .padding(.horizontal, 18).padding(.top, 22).padding(.bottom, 16)
-        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { contentHeight = $0 }
-        .frame(maxHeight: .infinity, alignment: .top)
-        .presentationDetents([.height(contentHeight)])
+        // ── 시트 높이 = **내용 + 담기 바 + 네비 바 · 홈 인디케이터**(→ [glgSheetContentHeight]).
+        //
+        // `presentationSizing(.fitted)` 는 iPhone 시트에서 듣지 않는다(iPad · macOS 용이고,
+        // 여기서는 시트가 화면 가까이까지 커져 아래가 통째로 비었다 — 2026-09-17 실측).
+        // iPhone 은 detent 가 높이를 정하므로 직접 잰다.
+        .presentationDetents([.height(contentHeight + barHeight + chromeHeight)])
         .presentationDragIndicator(.visible)
         // iOS 26+ 시트 기본 배경은 반투명 유리라 사진 · 가격이 뒤 목록과 겹쳐 보인다 — 흰 면으로 고정.
         .presentationBackground(.white)
+    }
+
+    /**
+     담기 바 — 시트 바닥에 붙는 **주 액션 한 줄**. 닫기는 머리 줄 오른쪽으로 갔으니 여기 남는
+     것은 담기 하나다.
+
+     높이는 따로 잰다. 바는 시트가 준 높이에 좌우되지 않는 **자연 높이**라 [glgSheetContentHeight]
+     와 같은 자로 재도 되먹임이 돌지 않는다. 담기(캡슐)와 스테퍼는 높이가 달라 상수로 박으면
+     한쪽에서 어긋난다.
+     */
+    @ViewBuilder
+    private func cartBar(item: HoyolandGoods, quantity: Int) -> some View {
+        // 담기와 스테퍼는 **같은 자리를 나눠 쓴다** — `if` 로 갈아 끼우면 둘의 높이 차만큼
+        // 바가 들썩이고 시트 높이(detent)까지 따라 흔들린다(2026-09-17 지적). 겹쳐 두면 바
+        // 높이는 늘 둘 중 큰 쪽이라 제자리에 있고, 바뀌는 것은 투명도뿐이다.
+        //
+        // 숨은 쪽은 **탭도 낭독도 막는다** — 자리는 지키되 없는 것처럼 굴어야 한다.
+        ZStack {
+            Button { store.setGoodsQuantity(item.name, 1) } label: {
+                Text("담기").frame(maxWidth: .infinity)
+            }
+            .glgProminentButton()
+            .tint(accent.primary)
+            .opacity(quantity <= 0 ? 1 : 0)
+            .allowsHitTesting(quantity <= 0)
+            .accessibilityHidden(quantity > 0)
+
+            // 담은 뒤에는 **시스템 스테퍼**다. −/+ 를 직접 그리던 것을 OS 에 맡긴다 —
+            // 눌린 모양 · 길게 눌러 연속 증감 · 한계값에서 한쪽만 흐려지는 것까지 따라온다.
+            // `in: 0...99` 라 −로 0 까지 내리면 장바구니에서 빠지고 담기로 되돌아간다.
+            Stepper(
+                value: Binding(get: { quantity }, set: { store.setGoodsQuantity(item.name, $0) }),
+                in: 0...99
+            ) {
+                HStack(spacing: 6) {
+                    Text("담은 개수").font(.pretendard(size: 14, weight: .bold))
+                        .foregroundStyle(GLGColor.textSecondary)
+                    Text("\(quantity)개").font(.pretendard(size: 15, weight: .black)).monospacedDigit()
+                        .foregroundStyle(accent.primary)
+                        // 숫자는 자리를 굴려 바꾼다 — 눌렀다는 것이 값에서 바로 읽힌다.
+                        .contentTransition(.numericText(value: Double(quantity)))
+                    // 위쪽 큰 가격은 **한 개 값**이다. 여기서는 담은 만큼 곱한 **합계**를 둔다 —
+                    // 개수를 올리며 얼마가 되는지 그 자리에서 보게 한다. 가격 미정이면 뺀다.
+                    if item.price > 0 {
+                        Text("·").font(.pretendard(size: 13)).foregroundStyle(GLGTextThird)
+                        Text(event.wonLabel(v: item.price * Int32(quantity)))
+                            .font(.pretendard(size: 14, weight: .bold)).monospacedDigit()
+                            .foregroundStyle(GLGColor.textPrimary)
+                            .contentTransition(.numericText(value: Double(quantity)))
+                    }
+                }
+                // 좁은 폭에서 스테퍼와 부딪히면 줄을 늘리지 말고 글자를 조금 줄인다.
+                .lineLimit(1).minimumScaleFactor(0.85)
+            }
+            .controlSize(.large)
+            .tint(accent.primary)
+            .opacity(quantity <= 0 ? 0 : 1)
+            .allowsHitTesting(quantity > 0)
+            .accessibilityHidden(quantity <= 0)
+        }
+        // 지출 추가 · 수정 모달의 저장 바와 같은 여백 규격이다. 아래 6 은 **홈 인디케이터 여백 위에**
+        // 더해지는 값이라, 그 여백이 없는 iPad 폼 시트에서는 버튼이 바닥에 붙었다(2026-09-18 지적).
+        // 그때는 좌우와 같은 18 을 준다.
+        .padding(.horizontal, 18).padding(.top, 12).padding(.bottom, safeBottom > 0 ? 6 : 18)
+        .background(Color.white)
+        // 수량이 바뀌는 결 — 담기 ↔ 스테퍼는 흐려지며 갈리고, 개수 · 합계는 자리가 굴러간다.
+        .animation(.snappy(duration: 0.28), value: quantity)
+        .glgSheetContentHeight($barHeight)
     }
 }
 
@@ -798,33 +947,36 @@ struct HoyolandGuideSheet: View {
     let text: String
     @Environment(\.glgAccent) private var accent
     @Environment(\.dismiss) private var dismiss
-    /// 시트 높이 = 본문 + 하단 닫기 영역. 길면 화면 높이에서 멈추고 본문만 스크롤된다(2026-09-15 요청).
-    @State private var bodyHeight: CGFloat = 480
-    @State private var footerHeight: CGFloat = 64
+    /// 시트 높이 = 안내 글 + 네비 바. 길면 화면 높이에서 멈추고 본문만 스크롤된다(2026-09-15 요청).
+    @State private var contentHeight: CGFloat = 480
+    @State private var chromeHeight: CGFloat = 0
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 12) {
-                VStack(alignment: .leading, spacing: 3) {
-                    Text("굿즈존 이용 안내").font(.pretendard(size: 18, weight: .bold))
-                        .foregroundStyle(GLGColor.textPrimary)
+        // 사진 시트와 **같은 짜임** — 제목·닫기는 시스템 네비 바, 높이는 내용이 정한다.
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 12) {
                     Text("모든 게임 굿즈존 공통 · 공식 공지 기준").font(.pretendard(size: 12))
                         .foregroundStyle(GLGColor.textSecondary)
+                    HoyolandGuideContent(text: text)
                 }
-                HoyolandGuideContent(text: text)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 18).padding(.top, 8).padding(.bottom, 16)
+                // 재는 자리는 스크롤 **안쪽** — 바깥 `ScrollView` 는 시트가 준 높이를 그대로
+                // 돌려주므로, 그걸로 시트 높이를 정하면 열 때마다 시트가 커진다.
+                .glgSheetContentHeight($contentHeight)
             }
-            .padding(.horizontal, 18).padding(.top, 22).padding(.bottom, 12)
-            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { bodyHeight = $0 }
+            .scrollIndicators(.hidden)
+            .navigationTitle("굿즈존 이용 안내")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { GLGSheetCloseButton { dismiss() } }
+            }
+            .glgSheetChromeHeight($chromeHeight)
         }
-        .scrollIndicators(.hidden)
-        // 닫기는 **늘 아래에 보인다**(2026-09-15 요청) — 본문 끝에 두면 안내가 길 때 스크롤해야 나왔다.
-        .safeAreaInset(edge: .bottom, spacing: 0) {
-            GLGOutlineButton(title: "닫기") { dismiss() }
-                .padding(.horizontal, 18).padding(.top, 8).padding(.bottom, 12)
-                .background(Color.white)
-                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { footerHeight = $0 }
-        }
-        .presentationDetents([.height(bodyHeight + footerHeight)])
+        // ── 시트 높이 = **내용 + 네비 바 · 홈 인디케이터**(→ [glgSheetContentHeight]).
+        // 안내가 길어 화면을 넘으면 시스템이 화면 높이에서 멈추고, 그 안에서 본문이 스크롤된다.
+        .presentationDetents([.height(contentHeight + chromeHeight)])
         .presentationDragIndicator(.visible)
         // iOS 26+ 시트 기본 배경은 반투명 유리 — 안내 글이 뒤 목록과 겹쳐 읽히지 않았다(2026-09-15). 흰 면으로 고정.
         .presentationBackground(.white)
