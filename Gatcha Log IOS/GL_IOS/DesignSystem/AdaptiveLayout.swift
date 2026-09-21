@@ -36,6 +36,40 @@ extension EnvironmentValues {
     }
 }
 
+// ── 폼팩터 — iPhone · iPhone Duo · iPad ────────────────────────────────────
+//
+// **기기가 무엇인가**와 **지금 창이 넓은가**는 다른 질문이다. 레이아웃(다단·최대폭)은 창 폭으로
+// 가르고([glgIsWideCanvas]), 기기마다 자리가 정해진 것 — '추가' 버튼 위치·회전 허용·경첩 — 은
+// 이 폼팩터로 가른다. 예전엔 `userInterfaceIdiom` 과 창 폭을 곳곳에서 섞어 쓰다
+// Duo 가 어디선 iPhone, 어디선 iPad 로 취급됐다(2026-09-21 지적).
+
+/// 폼팩터를 가르는 화면 짧은 변(pt) — iPhone 최대폭(440)과 iPhone Duo 접은 화면(466) 사이.
+let GLGWideScreenMinSide: CGFloat = 460
+
+enum GLGFormFactor {
+    /// 보통 iPhone — 세로 고정, 하단 탭바.
+    case phone
+    /// iPhone Duo(접는 폰) — 접으면 iPhone 처럼, 펼치면 옆에 세로로 선 바 + 넓은 창.
+    case duo
+    /// iPad — 위쪽 탭바, 창 크기는 자유(분할·Stage Manager).
+    case pad
+
+    /// 이 화면을 가진 기기의 폼팩터. Duo 는 접든 펴든 **화면 짧은 변**이 460pt 를 넘는다.
+    @MainActor
+    static func of(screen: UIScreen?) -> GLGFormFactor {
+        if UIDevice.current.userInterfaceIdiom == .pad { return .pad }
+        guard let b = screen?.bounds else { return .phone }
+        return min(b.width, b.height) >= GLGWideScreenMinSide ? .duo : .phone
+    }
+
+    /// 지금 실행 중인 기기의 폼팩터.
+    @MainActor
+    static var current: GLGFormFactor {
+        of(screen: UIApplication.shared.connectedScenes
+            .compactMap { ($0 as? UIWindowScene)?.screen }.first)
+    }
+}
+
 /// 다단 레이아웃을 켜는 창 폭 — iPhone 최대(440)·듀오 접은 화면(466)보다 위, 듀오 펼친 화면(951)·iPad 아래.
 let GLGWideCanvasMinWidth: CGFloat = 700
 
@@ -230,7 +264,7 @@ struct GLGSplitDetail<L: View, D: View>: View {
             //
             // ②를 상태로 들고 있지 않고 **여기서 폭으로 바로 계산**한다. 상태로 두면 접는 순간
             // 갈림 여부와 갱신 시점이 어긋나 목록이 좁아졌다 다시 펴진다(2026-09-21 지적).
-            let isFoldable = UIDevice.current.userInterfaceIdiom == .phone
+            let isFoldable = GLGFormFactor.current == .duo
             let listW: CGFloat = {
                 if let hinge { return max(hinge.midX - hinge.width / 2, 240) }
                 if isFoldable && split { return geo.size.width / 2 }

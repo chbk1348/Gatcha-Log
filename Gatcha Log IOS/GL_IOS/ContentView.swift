@@ -350,14 +350,9 @@ struct ContentView: View {
     @Environment(\.horizontalSizeClass) private var hSizeClass
     private var isCompactWindow: Bool { hSizeClass == .compact }
     /// iPad 인가 — '추가' 를 **탭바에서 떼어** 우측 하단 FAB 로 둘지 가른다.
-    private var isPad: Bool { UIDevice.current.userInterfaceIdiom == .pad }
+    private var isPad: Bool { GLGFormFactor.current == .pad }
     /// 넓은 창인가 — 지출 탭이 좌/우로 갈리는 폭이면 '추가' 를 경로가 아니라 시트로 연다.
     private var isWideCanvas: Bool { glgIsWideCanvas(width: canvasWidth, sizeClass: hSizeClass) }
-    /// '추가' 를 탭바에서 떼어 우측 하단 FAB 로 두는가 — iPad, 그리고 **펼친 iPhone Duo**.
-    ///
-    /// 펼친 Duo 에서는 바가 옆에 세로로 서는데, 거기 맡긴 분리 탭('추가')은 그 바에
-    /// 그려지지 않고 통째로 사라졌다(2026-09-21 지적). 넓은 창이면 바에 기대지 않는다.
-    private var addAsFab: Bool { isPad || isWideCanvas }
 
     @ViewBuilder
     private var authenticatedRoot: some View {
@@ -377,13 +372,13 @@ struct ContentView: View {
                 Tab("지출", systemImage: "creditcard.fill", value: 1) { spendingTabContent }
                 Tab("게임 정보", systemImage: "gamecontroller.fill", value: 2) { gameInfoTabContent }
                 Tab("마이페이지", systemImage: "person.fill", value: 3) { myPageTabContent }
-                // '추가' 는 좁은 창이면 **시스템 바에 맡긴다** — 하단 탭바 옆 원형 버튼.
+                // '추가' 는 **시스템 바에 맡긴다** — 좁은 창이면 하단 탭바 옆 원형 버튼,
+                // 펼친 iPhone Duo 면 세로로 선 바에서 **4탭 아래**에 선다(iOS 27.1).
                 //
-                // iPad·펼친 iPhone Duo 는 예외다([addAsFab]). iPad 는 탭바가 화면 위라 손이 가장
-                // 먼 자리에 놓이고(2026-09-21 지시), 펼친 Duo 는 세로로 선 바에서 이 탭이
-                // 사라졌다 — 둘 다 아래 우측 FAB 로 떼어 둔다.
+                // **iPad 만 예외다.** 탭바가 화면 위라 손이 가장 먼 자리에 놓여 아래 우측 FAB 로
+                // 떼어 둔다(2026-09-21 지시).
                 // 초기 동기화 게이트 동안에는 어느 쪽도 표시하지 않는다.
-                if !syncGateActive && !addAsFab {
+                if !syncGateActive && !isPad {
                     Tab(value: 4, role: separatedActionRole) { Color.clear } label: {
                         Label("추가", systemImage: "plus")
                     }
@@ -392,12 +387,12 @@ struct ContentView: View {
             .tint(accent)
             .glgMeasureCanvas($canvasWidth)
             .tabBarMinimizeBehavior(.never) // 스크롤 시 탭바 축소 안 함(항상 전체 크기 유지)
-            // iPad·펼친 Duo: 탭바에서 뗀 '추가' 를 우측 하단에 둔다.
+            // iPad: 탭바에서 뗀 '추가' 를 우측 하단에 둔다.
             //
             // 하위 화면이 하단 바를 띄우면(굿즈 목록의 장바구니 바) 감춘다 — 같은 우측 하단이라
             // 「장바구니」 버튼이 '+' 에 가렸다(2026-09-18 iPad 지적).
             .overlay(alignment: .bottomTrailing) {
-                if addAsFab && !syncGateActive && !store.hidesAddButton {
+                if isPad && !syncGateActive && !store.hidesAddButton {
                     fabAddButton
                         .padding(.trailing, 24).padding(.bottom, 28)
                         // 창 **바닥** 기준으로 붙인다. `TabView` 가 아래에 남겨 둔 자리(탭바가
@@ -561,8 +556,9 @@ struct ContentView: View {
     private var fabAddButton: some View {
         Button(action: { openAddSpending() }) {
             Image(systemName: "plus")
-                .font(.system(size: 24, weight: .semibold))
-                .frame(width: 60, height: 60)
+                // 60pt 는 글래스 버튼이 제 여백을 더 얹어 화면에서 과하게 컸다(2026-09-21 지적).
+                .font(.system(size: 20, weight: .semibold))
+                .frame(width: 48, height: 48)
         }
         .accessibilityLabel("지출 추가")
         .modifier(GLGFabStyle(tint: accent))
