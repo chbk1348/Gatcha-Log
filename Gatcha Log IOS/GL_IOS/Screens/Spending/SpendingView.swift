@@ -72,6 +72,8 @@ struct SpendingView: View {
 
     /// 넓은 창인가 — 좌/우로 갈리는 폭인지.
     private var isWideCanvas: Bool { glgIsWideCanvas(width: canvasWidth, sizeClass: hSizeClass) }
+    /// 펼친 iPhone Duo 인가 — 넓은 창이면서 iPad 가 아닌 경우. 여기서는 제목을 **보인다**.
+    private var isUnfoldedDuo: Bool { isWideCanvas && GLGFormFactor.current == .duo }
 
     /// 우측 상세 — 고른 게 없으면 안내만.
     @ViewBuilder
@@ -155,7 +157,10 @@ struct SpendingView: View {
         // 펼친 iPhone Duo 에서 또 한 번 그렇게 잃었다(2026-09-21). 지우는 건 **제목 하나**다. iPadOS 26+ 는 툴바 아이콘을 위쪽 탭바 줄로
         // 끌어올리는데, 제목이 남아 있으면 그 아래 내비 바가 빈 채로 높이를 그대로 차지한다
         // (2026-09-21 iPad — 필터 위에 100pt 가까운 빈칸). 항목은 위 줄에 그대로 있다.
-        .toolbar(removing: isWideCanvas ? .title : nil)
+        //
+        // 펼친 iPhone Duo 는 예외 — 바가 옆에 서서 위쪽 빈 바가 생기지 않으니 제목 「지출」을
+        // 그대로 보인다(2026-09-21 지시). 위 더미도 넓은 창이라 붙지 않는다.
+        .toolbar(removing: isWideCanvas && !isUnfoldedDuo ? .title : nil)
         // 좌측 = 보기 전환(캘린더·인사이트), 우측 = 목록 조작(선택·필터).
         // 성격이 다른 버튼 4개가 우측에 뭉쳐 있어 무엇이 무엇인지 구분되지 않던 걸 갈랐다.
         //
