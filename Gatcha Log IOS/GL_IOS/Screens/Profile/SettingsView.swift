@@ -392,9 +392,11 @@ struct ThemeView: View {
                         .background(i == 0 ? accent.primary.opacity(0.14) : Color(hex: 0xFFF4F5F8), in: Capsule())
                 }
             }
+            // 문구는 **버튼 이름이 아니라 모양 이름**이다. 「취소 · 저장하기」로 두었더니 테마 고른 걸
+            // 저장하거나 되돌리는 진짜 버튼으로 읽혔다(2026-09-21 지적 — 누르지 못하는 미리보기다).
             HStack(spacing: 8) {
-                GLGOutlineButton(title: "취소") {}
-                GLGButton(title: "저장하기") {}
+                GLGOutlineButton(title: "보조 버튼") {}
+                GLGButton(title: "강조 버튼") {}
             }
             .allowsHitTesting(false)
             .padding(.top, 12)

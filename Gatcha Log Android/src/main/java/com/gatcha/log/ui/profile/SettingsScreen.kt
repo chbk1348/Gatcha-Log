@@ -935,9 +935,11 @@ private fun ThemeScreen(accentIndex: Int, onSelect: (Int) -> Unit, onBack: () ->
                         }
                     }
                     Spacer(Modifier.height(12.dp))
+                    // 문구는 버튼 이름이 아니라 모양 이름이다 — 「취소 · 저장하기」는 테마를 저장·되돌리는
+                    // 진짜 버튼으로 읽혔다(2026-09-21 지적).
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        GlgOutlineButton("취소", onClick = {}, modifier = Modifier.weight(1f), height = 40.dp)
-                        GlgButton("저장하기", onClick = {}, modifier = Modifier.weight(1f), height = 40.dp)
+                        GlgOutlineButton("보조 버튼", onClick = {}, modifier = Modifier.weight(1f), height = 40.dp)
+                        GlgButton("강조 버튼", onClick = {}, modifier = Modifier.weight(1f), height = 40.dp)
                     }
                 }
             }
