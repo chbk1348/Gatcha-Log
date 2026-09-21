@@ -20,7 +20,6 @@ data class ChangeEntry(
     val version: String,
     val date: String,
     val milestone: Boolean = false,
-    val featured: Boolean = false,
     val pill: String? = null,        // 예: "첫 출시"
     val securityPill: Boolean = false, // "보안 필수" 강조
     val items: List<ChangeItem>,
@@ -34,6 +33,14 @@ data class ChangeEntry(
             val patch = p.getOrNull(2)?.toLongOrNull() ?: 0
             return major * 10000 + minor * 100 + patch * 10
         }
+
+    /**
+     * 「최신 버전」 카드로 그릴 엔트리인가 — **목록에서 가장 높은 버전이면 저절로 그렇다.**
+     *
+     * 예전에는 생성자 인자로 손수 붙였는데, 새 엔트리를 쓸 때 옮기는 걸 잊어 27.50.2 · 27.50.5 가
+     * 나간 뒤에도 27.50.0 에 「최신 버전」 배지가 붙어 있었다. 손으로 붙일 수 없게 인자를 없앴다.
+     */
+    val featured: Boolean get() = versionCode == ChangeLog.latestVersionCode
 
     /** 이 릴리스에 포함된 분류 집합(필터칩 매칭용). */
     val kinds: Set<ChangeKind> get() = items.map { it.kind }.toSet()
@@ -70,6 +77,8 @@ object ChangeLog {
             imp("홈 호요랜드 배너에서 G-STAR 안내 제거"),
             // ── 수정 ──
             fix("자동 출석 후 앱을 열면 출석 기록이 사라지던 문제 수정"),
+            // 빌드 275051 로 다시 냈다(버전 이름은 그대로) — 27.50.2 부터 배지가 27.50.0 에 남아 있었다.
+            fix("업데이트 로그의 최신 버전 표시가 이전 버전에 붙어 있던 문제 수정"),
         )))
         // 27.50.1 은 배포되지 않고 이번으로 합쳤다. (시즌 배너는 섹션 개편으로 대체돼 항목에서 뺐다)
         add(ChangeEntry("27.50.2", "2026.09.15", items = listOf(
@@ -85,7 +94,7 @@ object ChangeLog {
         // 따로 남겨 두면 유저가 받은 적 없는 릴리스가 목록에 뜨므로, 이번 27.50.0 으로 합친다.
         //
         // 문장 규칙은 아래 27.43.0 엔트리 상단 주석과 같다 — 체언 종결, " — " 부연 금지, 중요한 것만.
-        add(ChangeEntry("27.50.0", "2026.09.14", milestone = true, featured = true, items = listOf(
+        add(ChangeEntry("27.50.0", "2026.09.14", milestone = true, items = listOf(
             // ── 신규 ──
             new("캐릭터 상세를 스탯 · 장비 · 성유물 · 돌파 4단 구성으로 개편"),
             new("캐릭터 상세 진입 시 속성 연출 추가 (설정 ▸ 캐릭터 속성 연출)"),
@@ -469,6 +478,13 @@ object ChangeLog {
             new("구글 계정 클라우드 동기화·인앱 업데이트"),
         )))
     }
+
+    /**
+     * 목록에서 가장 높은 버전 — [ChangeEntry.featured] 가 이것과 같은지로 「최신 버전」 카드를 가른다.
+     * 추가 순서가 아니라 버전으로 고른다(엔트리를 중간에 끼워 넣어도 틀리지 않게).
+     * ⚠️ [entries] **아래**에 둔다 — object 초기화는 선언 순서라 위에 두면 빈 목록을 본다.
+     */
+    val latestVersionCode: Long = entries.maxOf { it.versionCode }
 }
 
 private fun new(t: String) = ChangeItem(ChangeKind.NEW, t)
