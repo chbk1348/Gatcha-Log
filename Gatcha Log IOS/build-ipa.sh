@@ -24,11 +24,11 @@ cd "$(dirname "$0")"
 # Xcode 빌드 환경에 JAVA_HOME 이 없으므로 지정 (Kotlin 프레임워크 빌드용)
 export JAVA_HOME="${JAVA_HOME:-/Applications/Android Studio.app/Contents/jbr/Contents/Home}"
 
-# ── iOS 27 SDK 툴체인 선택 ──────────────────────────────────────────────
-# ContentView 의 '추가' 버튼이 TabRole.prominent 를 쓰는데 이 심볼은 iOS 27 SDK 에만 있다.
-# #available 로 감싸도 컴파일 타임에는 심볼이 필요해서 26 SDK 로는 아예 빌드가 안 된다.
+# ── iOS 27.1 SDK 툴체인 선택 ────────────────────────────────────────────
+# iPhone Duo 대응(iOSApp.swift)이 toolbarVerticalCompressionBehavior 를 쓰는데 이 심볼은 iOS 27.1 SDK 에만 있다.
+# #available 로 감싸도 컴파일 타임에는 심볼이 필요해서 27.0 SDK 로는 아예 빌드가 안 된다.
 # 시스템 툴체인(sudo xcode-select)은 건드리지 않고 DEVELOPER_DIR 로만 격리한다.
-REQUIRED_IOS_SDK="27.0"
+REQUIRED_IOS_SDK="27.1"
 
 has_required_sdk() {  # $1 = <Xcode>.app/Contents/Developer
   [ -d "$1" ] && DEVELOPER_DIR="$1" /usr/bin/xcodebuild -showsdks 2>/dev/null \
@@ -36,13 +36,14 @@ has_required_sdk() {  # $1 = <Xcode>.app/Contents/Developer
 }
 
 if [ -n "${DEVELOPER_DIR:-}" ]; then
-  # 호출자가 지정했으면 존중하되, SDK 가 없으면 조용히 26 으로 빌드되게 두지 않는다
+  # 호출자가 지정했으면 존중하되, SDK 가 없으면 조용히 낮은 SDK 로 빌드되게 두지 않는다
   has_required_sdk "$DEVELOPER_DIR" || {
     echo "❌ 지정된 DEVELOPER_DIR 에 iOS ${REQUIRED_IOS_SDK} SDK 가 없습니다: $DEVELOPER_DIR"
     exit 1
   }
 else
-  for app in /Applications/Xcode-beta.app $(ls -d /Applications/Xcode*.app 2>/dev/null | sort -Vr); do
+  # 정식판을 먼저 본다 — 베타가 같이 깔려 있어도 배포본은 정식 툴체인으로 굽는다
+  for app in /Applications/Xcode.app $(ls -d /Applications/Xcode*.app 2>/dev/null | sort -Vr); do
     if has_required_sdk "$app/Contents/Developer"; then
       export DEVELOPER_DIR="$app/Contents/Developer"
       break

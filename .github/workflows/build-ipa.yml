@@ -25,11 +25,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
 
-      # ContentView.swift 의 '추가' 버튼이 TabRole.prominent 를 쓰는데 이 심볼은
-      # iOS 27 SDK 에만 있다(#available 로 감싸도 컴파일에는 심볼이 필요).
-      # 러너 이미지에 27 SDK 가 없으면 30분짜리 Kotlin 빌드를 돌린 뒤에야 깨지므로
+      # iPhone Duo 대응(iOSApp.swift)이 toolbarVerticalCompressionBehavior 를 쓰는데 이 심볼은
+      # iOS 27.1 SDK 에만 있다(#available 로 감싸도 컴파일에는 심볼이 필요).
+      # 러너 이미지에 27.1 SDK 가 없으면 30분짜리 Kotlin 빌드를 돌린 뒤에야 깨지므로
       # 여기서 먼저 확인하고 끊는다. 실제 선택은 build-ipa.sh 가 DEVELOPER_DIR 로 한다.
-      - name: Verify iOS 27 SDK is available
+      - name: Verify iOS 27.1 SDK is available
         run: |
           echo "── 러너에 설치된 Xcode ──"
           FOUND=""
@@ -38,13 +38,13 @@ jobs:
             SDKS=$(DEVELOPER_DIR="$app/Contents/Developer" xcodebuild -showsdks 2>/dev/null \
                      | grep -o 'iphoneos[0-9.]*' | tr '\n' ' ')
             echo "  $app — $VER — SDK: ${SDKS:-none}"
-            case "$SDKS" in *iphoneos27.0*) FOUND="$app" ;; esac
+            case "$SDKS" in *iphoneos27.1*) FOUND="$app" ;; esac
           done
           if [ -z "$FOUND" ]; then
-            echo "::error::iOS 27.0 SDK 를 가진 Xcode 가 러너에 없습니다. macos 러너 이미지 갱신 대기 또는 self-hosted 필요."
+            echo "::error::iOS 27.1 SDK 를 가진 Xcode 가 러너에 없습니다. macos 러너 이미지 갱신 대기 또는 self-hosted 필요."
             exit 1
           fi
-          echo "✅ iOS 27.0 SDK: $FOUND"
+          echo "✅ iOS 27.1 SDK: $FOUND"
 
       # Kotlin 프레임워크(embedAndSignAppleFrameworkForXcode) 빌드용 JDK
       - name: Set up JDK 17
