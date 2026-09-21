@@ -1798,7 +1798,7 @@ class SpendingViewModel : ViewModel() {
                 emitStatus("백업 파일을 읽지 못했어요 (형식 확인)")
                 return@launch
             }
-            repo.importSnapshotJson(json)
+            repo.importSnapshotJson(json, keepUnpushedAttendance = false)
             loadAll()
             // 로그인 상태면 복원 결과를 클라우드에도 업로드(다른 기기와 일치)
             if (cloudConfigured) CloudSync.currentUid()?.let { uid ->

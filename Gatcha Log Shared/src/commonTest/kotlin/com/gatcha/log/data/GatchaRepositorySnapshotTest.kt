@@ -204,4 +204,21 @@ class GatchaRepositorySnapshotTest {
 
         assertEquals(setOf("genshin"), local.loadAttendance()["2026-09-21"] ?: emptySet())
     }
+
+    /** 백업 파일 복원은 파일이 정본이다 — 못 올린 출석 표시가 켜져 있어도(게스트는 늘 그렇다) 받아야 한다. */
+    @Test
+    fun backupRestoreImportsAttendanceEvenWhenUnpushed() {
+        val (local, _) = repo()
+        local.saveAttendance(mapOf("2026-09-21" to setOf("genshin")))   // 게스트 출석 — 표시가 켜진 채 남는다
+
+        val (backup, _) = repo()
+        backup.saveAttendance(mapOf("2026-09-01" to setOf("genshin", "hsr")))
+
+        local.importSnapshotJson(backup.exportSnapshotJson(), keepUnpushedAttendance = false)
+
+        assertEquals(
+            setOf("genshin", "hsr"), local.loadAttendance()["2026-09-01"] ?: emptySet(),
+            "백업 복원에서 출석 이력이 빠졌다",
+        )
+    }
 }
