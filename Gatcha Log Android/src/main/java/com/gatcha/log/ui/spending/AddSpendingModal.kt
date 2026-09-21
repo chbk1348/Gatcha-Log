@@ -42,6 +42,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.input.OffsetMapping
+import androidx.compose.ui.text.input.TransformedText
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -627,22 +631,38 @@ private fun AmountHero(
             }
         }
         Spacer(Modifier.height(11.dp))
-        BasicTextField(
-            value = amount,
-            onValueChange = onAmountChange,
-            textStyle = LocalTextStyle.current.copy(
-                fontSize = 34.sp, fontWeight = FontWeight.Black, color = TextPrimary,
-            ),
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-            singleLine = true,
-            modifier = Modifier.fillMaxWidth(),
-            decorationBox = { inner ->
-                if (amount.isEmpty()) {
-                    Text("0", fontSize = 34.sp, fontWeight = FontWeight.Black, color = TextSecondary.copy(alpha = 0.35f))
-                }
-                inner()
-            },
-        )
+        // 치는 동안에도 **읽는 모양 그대로** — 세 자리 쉼표를 넣고 뒤에 「원」을 붙인다(iOS 와 같이,
+        // 2026-09-21 지시). 쉼표는 보이는 글자에만 넣고([ThousandsTransformation]) 값은 숫자뿐이다.
+        Row(verticalAlignment = Alignment.Bottom) {
+            BasicTextField(
+                value = amount,
+                onValueChange = onAmountChange,
+                textStyle = LocalTextStyle.current.copy(
+                    fontSize = 34.sp, fontWeight = FontWeight.Black, color = TextPrimary,
+                ),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                visualTransformation = ThousandsTransformation,
+                singleLine = true,
+                modifier = Modifier.width(IntrinsicSize.Min).alignByBaseline(),
+                decorationBox = { inner ->
+                    if (amount.isEmpty()) {
+                        Text("0", fontSize = 34.sp, fontWeight = FontWeight.Black, color = TextSecondary.copy(alpha = 0.35f))
+                    }
+                    inner()
+                },
+            )
+            if (amount.isNotEmpty()) {
+                Text(
+                    "원", fontSize = 24.sp, fontWeight = FontWeight.Black, color = TextSecondary,
+                    modifier = Modifier.padding(start = 4.dp).alignByBaseline(),
+                )
+            }
+        }
+        // 비어 있으면 무엇을 넣어야 하는지 한 줄로 말한다 — 자리표시자 「0」만으로는
+        // 이미 0 원을 적어 둔 것처럼 읽힌다(iOS 와 같이, 2026-09-21 지시).
+        if (amount.isEmpty()) {
+            Text("금액을 입력해주세요", fontSize = 12.sp, color = TextSecondary, modifier = Modifier.padding(top = 3.dp))
+        }
         if (itemName.isNotBlank()) {
             Row(Modifier.padding(top = 3.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text(itemName, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextPrimary, maxLines = 1)
@@ -873,3 +893,26 @@ private fun detectEditPackage(s: Spending?): GamePackage? {
     return GameData.packagesFor(GameData.byName(s.gameName)).firstOrNull { it.name == base }
 }
 
+/**
+ * 숫자만 든 금액에 세 자리 쉼표를 **보이는 글자에만** 넣는다 — 값(숫자)은 그대로다.
+ *
+ * 커서 위치도 옮겨 준다. 쉼표가 끼어든 만큼 앞뒤로 밀어야 지우기·중간 입력이 제자리에서 된다.
+ */
+private object ThousandsTransformation : VisualTransformation {
+    override fun filter(text: AnnotatedString): TransformedText {
+        val digits = text.text
+        val n = digits.length
+        // 원본 i 번째 글자 앞에 쉼표가 붙는가 — 끝에서 세 자리마다.
+        fun commaBefore(i: Int) = i > 0 && (n - i) % 3 == 0
+        val out = StringBuilder()
+        digits.forEachIndexed { i, c -> if (commaBefore(i)) out.append(','); out.append(c) }
+        val mapping = object : OffsetMapping {
+            override fun originalToTransformed(offset: Int): Int =
+                offset + (1 until offset).count { commaBefore(it) }
+            override fun transformedToOriginal(offset: Int): Int =
+                (offset - out.substring(0, offset.coerceAtMost(out.length)).count { it == ',' })
+                    .coerceIn(0, n)
+        }
+        return TransformedText(AnnotatedString(out.toString()), mapping)
+    }
+}
