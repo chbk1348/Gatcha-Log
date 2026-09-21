@@ -21,6 +21,11 @@ func won(_ amount: Int64) -> String {
 
 func won(_ amount: Int) -> String { won(Int64(amount)) }
 
+/// 숫자만 세 자리 쉼표로 — 단위(「원」)를 따로 붙이는 자리에서 쓴다(금액 입력 필드).
+func grouped(_ amount: Int64) -> String {
+    wonFormatter.string(from: NSNumber(value: amount)) ?? "\(amount)"
+}
+
 /// 천 단위 콤마 숫자(원 없음) — Kotlin util.num 대응.
 func num(_ v: Int64) -> String { wonFormatter.string(from: NSNumber(value: v)) ?? "\(v)" }
 func num(_ v: Int) -> String { num(Int64(v)) }

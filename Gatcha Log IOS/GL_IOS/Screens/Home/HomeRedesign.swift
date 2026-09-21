@@ -56,7 +56,9 @@ struct HeroBalanceCard: View {
                 LinearGradient(colors: [accent.secondary.opacity(0.45), accent.secondary.opacity(0.04)],
                                startPoint: .top, endPoint: .bottom)
                     .clipShape(UnevenRoundedRectangle(bottomLeadingRadius: 30, bottomTrailingRadius: 30, style: .continuous))
-                    .ignoresSafeArea(edges: .top)
+                    // 옆으로도 끝까지 — 펼친 iPhone Duo 는 상태바·탭바가 오른쪽에 서서,
+                    // 위만 무시하면 그 바 뒤가 흰 면으로 남는다(2026-09-21 지적).
+                    .ignoresSafeArea(edges: [.top, .horizontal])
             }
         }
     }

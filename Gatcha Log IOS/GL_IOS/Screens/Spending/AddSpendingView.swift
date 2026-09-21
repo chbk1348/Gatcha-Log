@@ -45,6 +45,18 @@ struct AddSpendingView: View {
 
     private var game: Game { GameData.shared.byName(name: gameName) }
     private var amountValid: Bool { (Int64(amount) ?? 0) > 0 }
+    /// 금액 입력칸에 **보이는 글자**(쉼표 포함). 저장값 [amount] 은 숫자만 남긴다.
+    ///
+    /// 계산 바인딩(`get` 에서 쉼표를 넣는 방식)으로 하면 쉼표가 **한 글자 늦게** 붙는다 —
+    /// 필드가 제 글자를 먼저 그리고 그 뒤에야 우리 값이 돌아오기 때문이다(2026-09-21 지적).
+    /// 필드가 쥐는 상태를 따로 두고, 바뀔 때마다 그 자리에서 다시 써 넣는다.
+    @State private var amountText: String = ""
+
+    /// 금액을 **두 벌 다** 맞춘다 — 저장값(숫자)과 보이는 글자(쉼표).
+    private func setAmount(_ value: Int64) {
+        amount = value > 0 ? "\(value)" : ""
+        amountText = value > 0 ? grouped(value) : ""
+    }
     private var canSave: Bool { gameChosen && amountValid }
     /// 못 누르는 이유를 버튼이 직접 말한다 — 게임 먼저, 그다음 금액.
     private var saveTitle: String {
@@ -72,10 +84,17 @@ struct AddSpendingView: View {
         .scrollDismissesKeyboard(.interactively)
         .navigationTitle(editing == nil ? "지출 추가" : "지출 수정")
         .navigationBarTitleDisplayMode(.inline)
-        .safeAreaInset(edge: .bottom) { bottomBar }
+        // 취소·저장은 **네비 바**에 둔다(2026-09-21 지시 — 시트는 시스템 규격을 따른다).
+        //
+        // 하단에 우리가 그린 바를 깔던 자리다. 버튼만 시스템 것으로 바꿔도 **자리**가 남의
+        // 규격이면 시스템 시트로 읽히지 않는다. 시트 폼의 표준은 왼쪽 취소 · 오른쪽 저장이다.
+        // 못 누르는 이유는 입력 자리에서 말한다 — 금액이 비면 「금액을 입력해주세요」.
         .toolbar {
-            if !pushed {
-                ToolbarItem(placement: .cancellationAction) { Button("닫기") { onClose() } }
+            ToolbarItem(placement: .cancellationAction) { Button("취소") { onClose() } }
+            ToolbarItem(placement: .confirmationAction) {
+                Button(editing == nil ? "저장" : "수정") { attemptSave() }
+                    .fontWeight(.bold)
+                    .disabled(!canSave)
             }
         }
         // 입력 화면에서는 하단 탭바를 감춘다 — 저장/취소 바가 이미 하단을 쓰고 있어 두 겹이 되고,
@@ -162,17 +181,42 @@ struct AddSpendingView: View {
 
             if gameChosen {
             // 금액 — 히어로 안에서 바로 고친다(별도 필드로 내려보내지 않는다).
-            TextField("0", text: Binding(
-                get: { amount },
-                set: { newValue in
-                    amount = newValue.filter(\.isNumber)
-                    selectedPkg = nil; quantity = 1   // 직접 고치면 자동 곱 상태 해제
+            //
+            // 치는 동안에도 **읽는 모양 그대로** 보여 준다 — 세 자리 쉼표를 넣고 뒤에 「원」을
+            // 붙인다(2026-09-21 지시). 저장하는 값은 숫자뿐이라, 넣을 때 쉼표를 넣고 받을 때
+            // 숫자만 거른다.
+            HStack(alignment: .firstTextBaseline, spacing: 4) {
+                TextField("0", text: $amountText)
+                    .textFieldStyle(.plain)
+                    .font(.pretendard(size: 34, weight: .black))
+                    .keyboardType(.numberPad)
+                    .fixedSize(horizontal: true, vertical: false)
+                    .onChange(of: amountText) { _, newValue in
+                        let digits = newValue.filter(\.isNumber)
+                        if digits != amount {
+                            amount = digits
+                            selectedPkg = nil; quantity = 1   // 직접 고치면 자동 곱 상태 해제
+                        }
+                        // 친 그 자리에서 쉼표를 다시 박는다.
+                        let shown = digits.isEmpty ? "" : grouped(Int64(digits) ?? 0)
+                        if shown != newValue { amountText = shown }
+                    }
+                if !amount.isEmpty {
+                    Text("원").font(.pretendard(size: 24, weight: .black))
+                        .foregroundStyle(GLGColor.textSecondary)
                 }
-            ))
-            .textFieldStyle(.plain)
-            .font(.pretendard(size: 34, weight: .black))
-            .keyboardType(.numberPad)
+                Spacer(minLength: 0)
+            }
             .padding(.top, 11)
+
+            // 비어 있으면 **무엇을 넣어야 하는지** 한 줄로 말한다. 자리표시자 「0」만으로는
+            // 이미 0 원을 적어 둔 것처럼 읽힌다(2026-09-21 지시).
+            if amount.isEmpty {
+                Text("금액을 입력해주세요")
+                    .font(.pretendard(size: 12))
+                    .foregroundStyle(GLGColor.textSecondary)
+                    .padding(.top, 3)
+            }
 
             if !itemName.isEmpty {
                 HStack(spacing: 6) {
@@ -326,7 +370,7 @@ struct AddSpendingView: View {
             selectedPkg = f.itemName
             quantity = 1
             itemName = f.itemName
-            amount = "\(f.amount)"
+            setAmount(f.amount)
         } label: {
             HStack(spacing: 9) {
                 Text(f.itemName).font(.pretendard(size: 13, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
@@ -352,7 +396,7 @@ struct AddSpendingView: View {
                 ForEach(Array(packages.enumerated()), id: \.offset) { _, pkg in
                     let sel = selectedPkg == pkg.name
                     Button {
-                        selectedPkg = pkg.name; quantity = 1; amount = "\(pkg.price)"; itemName = pkg.name
+                        selectedPkg = pkg.name; quantity = 1; setAmount(pkg.price); itemName = pkg.name
                     } label: {
                         VStack(spacing: 3) {
                             Text(pkg.name).font(.pretendard(size: 13, weight: .bold)).foregroundStyle(GLGColor.textPrimary).lineLimit(1)
@@ -495,17 +539,6 @@ struct AddSpendingView: View {
         }
     }
 
-    private var bottomBar: some View {
-        HStack(spacing: 12) {
-            GLGOutlineButton(title: "취소") { onClose() }
-            // 흐린 버튼만 두지 않는다 — 왜 못 누르는지 버튼이 직접 말한다.
-            GLGButton(title: saveTitle) { attemptSave() }
-                .opacity(canSave ? 1 : 0.5).disabled(!canSave)
-        }
-        .padding(.horizontal, 16).padding(.top, 12).padding(.bottom, 6)
-        .background(Color.white)
-    }
-
     // ── 로직 ──
     private var selectedPackage: GamePackage? {
         guard let name = selectedPkg else { return nil }
@@ -517,7 +550,7 @@ struct AddSpendingView: View {
         let qty = min(max(q, 1), 99)
         quantity = qty
         if let pkg = selectedPackage {
-            amount = "\(pkg.price * Int64(qty))"
+            setAmount(pkg.price * Int64(qty))
             itemName = qty > 1 ? "\(pkg.name) ×\(qty)" : pkg.name
         }
     }
@@ -540,7 +573,7 @@ struct AddSpendingView: View {
     private func prefill() {
         guard !didInit else { return }; didInit = true
         if let e = editing {
-            gameName = e.gameName; amount = e.amount > 0 ? "\(e.amount)" : ""; dateMillis = e.dateMillis
+            gameName = e.gameName; setAmount(e.amount); dateMillis = e.dateMillis
             paymentMethod = e.paymentMethod.isEmpty ? "카드" : e.paymentMethod
             chargePlatform = e.chargePlatform
             itemName = e.itemName; memo = e.memo; selectedTags = e.tags

@@ -89,6 +89,8 @@ private struct HoyolandFoodPhoto: Identifiable {
 struct HoyolandFoodView: View {
     let event: HoyolandEvent
     @State private var viewingFood: HoyolandFoodPhoto? = nil
+    /// 넓은 창(iPad) 두 열 — [hoyolandWide] 가 채운다.
+    @State private var wide = false
 
     var body: some View {
         let list = event.foodPrograms
@@ -106,8 +108,16 @@ struct HoyolandFoodView: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                     }
                 } else {
-                    ForEach(Array(list.enumerated()), id: \.offset) { _, p in
-                        foodCard(p)
+                    if wide {
+                        // 넓은 창은 **벽돌쌓기 두 열** — 메뉴 수가 게임마다 달라 카드 높이가 크게
+                        // 벌어진다. 행으로 맞추면 짧은 카드 아래가 통째로 빈다.
+                        GLGColumnMasonry(cards: list.enumerated().map { i, p in
+                            GLGMasonryCard(id: i, weight: 120 + Double(p.desc.count)) { foodCard(p) }
+                        })
+                    } else {
+                        ForEach(Array(list.enumerated()), id: \.offset) { _, p in
+                            foodCard(p)
+                        }
                     }
                     // 넛지 — 이 화면의 숫자는 **공지 기준**이라는 것만 분명히 한다. 현장 메뉴판과
                     // 다를 때 "앱이 틀렸다"가 아니라 "바뀌었구나"로 읽히게 하는 한 줄이다.
@@ -118,9 +128,10 @@ struct HoyolandFoodView: View {
                 }
                 Color.clear.frame(height: 24)
             }
-            .padding(.horizontal, 16)
-            .glgReadableWidth(720)
+            .padding(.horizontal, wide ? 24 : 16)
+            .glgReadableWidth(wide ? HoyolandWideMaxWidth : 720)
         }
+        .hoyolandWide($wide)
         .scrollIndicators(.hidden)
         .background(GLGBackground { Color.clear })
         .glgPageTitle("푸드존")
@@ -349,11 +360,12 @@ struct HoyolandPhotoSheet: View {
     let price: String
     let url: URL?
     @Environment(\.dismiss) private var dismiss
-    /// 시트 높이 = 내용 높이 — 굿즈 시트와 같은 이유(끝까지 올라오면 닫기가 떠 보인다).
     @State private var contentHeight: CGFloat = 560
-
+    @State private var chromeHeight: CGFloat = 0
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
+        // 굿즈 사진 시트와 같은 짜임 — 제목·닫기는 시스템 네비 바, 높이는 내용이 정한다.
+        NavigationStack {
+            VStack(alignment: .leading, spacing: 0) {
             HoyolandZoomableImage(url: url)
                 .frame(height: 300)
                 .background(GLGFoodRowBg, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
@@ -369,13 +381,27 @@ struct HoyolandPhotoSheet: View {
                 Text(price).font(.pretendard(size: 20, weight: .black)).monospacedDigit()
                     .foregroundStyle(color).padding(.top, 4)
             }
-            GLGOutlineButton(title: "닫기") { dismiss() }
-                .padding(.top, 18)
+            }
+            // 마지막 줄이 값(가격)이라 아래 여백을 넉넉히 준다.
+            .padding(.horizontal, 18).padding(.top, 8).padding(.bottom, 22)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .glgSheetContentHeight($contentHeight)
+            // 재고 나서 위로 붙인다 — `NavigationStack` 은 자식을 세로 가운데 놓아,
+            // 시트에 남는 자리가 생기면 내용이 반씩 위아래로 떠 버린다.
+            .frame(maxHeight: .infinity, alignment: .top)
+            .navigationTitle("메뉴 사진")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { GLGSheetCloseButton { dismiss() } }
+            }
+            .glgSheetChromeHeight($chromeHeight)
         }
-        .padding(.horizontal, 18).padding(.top, 22).padding(.bottom, 16)
-        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { contentHeight = $0 }
-        .frame(maxHeight: .infinity, alignment: .top)
-        .presentationDetents([.height(contentHeight)])
+        // ── 시트 높이 = **내용 + 네비 바 · 홈 인디케이터**(→ [glgSheetContentHeight]).
+        //
+        // `presentationSizing(.fitted)` 는 iPhone 시트에서 듣지 않는다(iPad · macOS 용이고,
+        // 여기서는 시트가 화면 가까이까지 커져 아래가 통째로 비었다 — 2026-09-17 실측).
+        // iPhone 은 detent 가 높이를 정하므로 직접 잰다.
+        .presentationDetents([.height(contentHeight + chromeHeight)])
         .presentationDragIndicator(.visible)
         .presentationBackground(.white)
     }

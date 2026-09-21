@@ -26,6 +26,40 @@ extension View {
     }
 }
 
+// ── 넓은 창(iPad) — 호요랜드 상세와 하위 페이지가 **같은 선**에서 두 열로 갈린다 ────────
+
+/// 이 폭부터 두 열. 열마다 iPhone 한 장(370 남짓)은 나와야 가르는 의미가 있다.
+let HoyolandWideMinWidth: CGFloat = 760
+/// 두 열일 때 내용 최대폭 — 720 에 두 열을 세우면 열이 iPhone 보다 좁아진다.
+/// 1120 은 iPad 13" 가로에서도 양옆에 여백이 남는 선이다.
+let HoyolandWideMaxWidth: CGFloat = 1120
+
+extension View {
+    /**
+     페이지 폭을 재서 두 열로 가를지 [wide] 에 돌려준다 — 페이지 **루트**(스크롤 바깥)에 붙인다.
+
+     판정은 사이즈 클래스가 아니라 **실제 폭**이다(→ [glgIsSplit]). iPadOS 26 자유 창에서는
+     창을 줄여도 `.regular` 로 남을 수 있어서, 그때는 한 열로 접혀야 한다.
+     */
+    func hoyolandWide(_ wide: Binding<Bool>) -> some View {
+        modifier(HoyolandWideReader(wide: wide))
+    }
+}
+
+private struct HoyolandWideReader: ViewModifier {
+    @Binding var wide: Bool
+    @Environment(\.horizontalSizeClass) private var hSize
+    @State private var width: CGFloat = 0
+
+    func body(content: Content) -> some View {
+        content
+            // 재는 것은 루트 폭이라 안쪽이 두 열로 바뀌어도 이 값은 그대로다 — 되먹임이 없다.
+            .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
+            .onChange(of: glgIsSplit(width: width, sizeClass: hSize, minSplitWidth: HoyolandWideMinWidth),
+                      initial: true) { _, now in wide = now }
+    }
+}
+
 /**
  진입할 때 + **앱으로 돌아올 때마다** 다시 묻는다.
 
@@ -255,12 +289,28 @@ struct HoyolandDetailView: View {
     @State private var entrySheetOpen = false
     /// 예매 안내 전문 — 열 줄이 넘어 카드에 펼치지 않고 시트로 연다.
     @State private var ticketNoteOpen = false
+    /// 내 입장권 시트 높이 — 내용 + 네비 바(→ [glgSheetContentHeight]). 나흘·엿조라 medium 에선 잘리고
+    /// large 에선 아래가 비었다. 내용만큼만 올라오게 직접 잰다.
+    @State private var entryContentHeight: CGFloat = 420
+    @State private var entryChromeHeight: CGFloat = 0
+    /// 넓은 창(iPad) 두 열 — [hoyolandWide] 가 채운다.
+    @State private var wide = false
+    /// 펼친 iPhone Duo 의 경첩 — 두 열 사이 빈틈을 이 자리에 맞춘다([glgHinge]).
+    @State private var hinge: GLGHinge? = nil
+    /// 페이지가 받은 안전영역 — 머리판을 **바 뒤까지** 늘릴 때 쓴다(→ [heroCard]).
+    ///
+    /// 바가 옆에 서는 기기(펼친 iPhone Duo)에서는 좌우에 안전영역이 잡히는데, 스크롤 안쪽에서는
+    /// 이미 소비된 뒤라 0 으로 보인다. 그래서 **바깥**에서 재 둔다.
+    @State private var pageInsets = EdgeInsets()
 
     var body: some View {
         let e = event
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
                 heroCard(e)
+                if wide {
+                    wideColumns(e)
+                } else {
                 // ── 세 섹션의 순서는 **개막일에 통째로 뒤집힌다.**
                 //
                 // 개막 전에는 "어느 게임이 오나(라인업) → 뭘 볼 수 있나(현장에서) → 표는 어떻게
@@ -282,6 +332,7 @@ struct HoyolandDetailView: View {
                 }
                 programSection(e)
                 pastSection(e)
+                }
 
                 Text(e.notice)
                     .font(.pretendard(size: 11)).foregroundStyle(GLGColor.textSecondary)
@@ -289,9 +340,12 @@ struct HoyolandDetailView: View {
 
                 Color.clear.frame(height: 24)
             }
-            .padding(.horizontal, 16)
-            .glgReadableWidth(720)
+            .padding(.horizontal, wide ? 24 : 16)
+            .glgReadableWidth(wide ? HoyolandWideMaxWidth : 720)
         }
+        .hoyolandWide($wide)
+        .glgHinge($hinge)
+        .onGeometryChange(for: EdgeInsets.self) { $0.safeAreaInsets } action: { pageInsets = $0 }
         .scrollIndicators(.hidden)
         .background(GLGBackground { Color.clear })
         .glgPageTitle("호요랜드")
@@ -309,7 +363,8 @@ struct HoyolandDetailView: View {
             // 나흘 × 여섯 조를 본문에 늘 펼쳐 두면 다 고른 사람에게는 스크롤을 먹는 격자일
             // 뿐이라, 정해 둔 값은 히어로 `MY ENTRY` 줄이 답하고 고치는 자리만 여기 둔다.
             // 조 편성이 공개되기 전에는 버튼부터 서지 않는다. (Android 와 파리티)
-            if e.hasEntryGroups {
+            // 넓은 화면에서는 히어로 액션 줄이 대신 맡는다(→ [heroActions]).
+            if e.hasEntryGroups && !wide {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button { entrySheetOpen = true } label: {
                         HStack(spacing: 5) {
@@ -326,7 +381,10 @@ struct HoyolandDetailView: View {
         }
         .sheet(isPresented: $entrySheetOpen) {
             entrySheet(e)
-                .presentationDetents([.medium, .large])
+                // 내용만큼만 올라온다(→ [glgSheetContentHeight]). 조를 고르면 줄 높이가 바뀌는데,
+                // 잰 값이 그때 같이 따라가므로 시트도 그만큼만 자란다. 화면을 넘기면 시스템이
+                // 화면 높이에서 멈추고 그 안에서 본문이 스크롤된다.
+                .presentationDetents([.height(entryContentHeight + entryChromeHeight)])
                 .presentationDragIndicator(.visible)
                 // 흰 바탕 — Android `ModalBottomSheet(containerColor = White)` 와 같은 값이다.
                 // 기본값(시스템 그룹 배경)은 이 앱의 회색 페이지 배경과 겹쳐 시트가 떠 보이지 않는다.
@@ -355,6 +413,49 @@ struct HoyolandDetailView: View {
             if initialSub != .none { openSub = initialSub }
         }
         .loadHoyoland(into: $event)
+    }
+
+    /**
+     넓은 창(iPad) — 히어로 아래를 **두 열**로 가른다.
+
+     한 열로 세로 쌓기만 하면 iPad 에서는 카드가 가운데 좁은 띠로 모이고 양옆이 통째로 빈다.
+     히어로는 페이지의 머리라 전폭에 두고, 그 아래를 둘로 나눈다.
+
+     - **왼쪽 = 이 행사에서 볼 것.** 개막 전에는 라인업 → 둘러보기, 개막하면 둘러보기가 맨 위로
+       올라온다 — 한 열일 때와 **같은 순서 규칙**이다.
+     - **오른쪽 = 곁들여 읽는 것.** 예매(개막하면 내린다) · 응모·특전 · 지난 행사.
+
+     개막하면 예매가 빠져 오른쪽이 짧아지므로 응모·특전을 왼쪽으로 옮기고 라인업을 오른쪽 머리로
+     보낸다. 두 열의 첫 섹션은 모두 **제목에 윗여백을 품지 않은** 것이라 머리 줄이 같은 높이에서 선다.
+     */
+    @ViewBuilder private func wideColumns(_ e: HoyolandEvent) -> some View {
+        let live = e.isEventLive(nowMillis: nowMs())
+        // 경첩이 있으면 **왼쪽 열을 경첩 앞까지**로 잡고 빈틈을 경첩 폭만큼 준다 — 카드가 접힌
+        // 선 위에 걸치지 않는다. 경첩이 없으면(iPad · 접은 듀오) 반반으로 나눈다.
+        let gap: CGFloat = hinge.map { max($0.width, 20) } ?? 20
+        HStack(alignment: .top, spacing: gap) {
+            VStack(alignment: .leading, spacing: 0) {
+                if live {
+                    onsiteSection(e)
+                    programSection(e)
+                } else {
+                    lineupSection(e)
+                    onsiteSection(e).padding(.top, 22)
+                }
+            }
+            .modifier(GLGHingeColumnWidth(hinge: hinge, contentInset: 24))
+            VStack(alignment: .leading, spacing: 0) {
+                if live {
+                    lineupSection(e)
+                } else {
+                    ticketSection(e)
+                    programSection(e)
+                }
+                pastSection(e)
+            }
+            .frame(maxWidth: .infinity, alignment: .topLeading)
+        }
+        .padding(.top, 22)
     }
 
     // ── 히어로 — **Game HUD** 패널. (Android `HoyolandHero` 와 파리티)
@@ -478,9 +579,15 @@ struct HoyolandDetailView: View {
             UnevenRoundedRectangle(bottomLeadingRadius: 30, bottomTrailingRadius: 30, style: .continuous)
                 .fill(accent.primary.opacity(0.10))
                 .padding(.top, -400)
+                // **면만** 안전영역 밖으로 더 나간다 — 바가 옆에 서는 기기(펼친 iPhone Duo)에서는
+                // 그 바만큼 스크롤 콘텐츠가 안으로 들어와 있어, 여기서 되물리지 않으면 머리판이
+                // 바 앞에서 끊긴다. 글자·버튼까지 같이 밀면 이번엔 그것들이 바에 깔린다
+                // (2026-09-21 겹침 지적). 늘리는 건 면, 남는 건 내용이다.
+                .padding(.leading, -pageInsets.leading)
+                .padding(.trailing, -pageInsets.trailing)
         }
-        // 본문 좌우 패딩(16)을 되물려 가장자리까지 나간다.
-        .padding(.horizontal, -16)
+        // 본문 좌우 패딩(한 열 16 · 두 열 24)을 되물려 가장자리까지 나간다.
+        .padding(.horizontal, -(wide ? 24 : 16))
     }
 
     /**
@@ -639,8 +746,18 @@ struct HoyolandDetailView: View {
             // 보조 둘을 **한 묶음**으로 싸서 바깥 HStack 이 예매와 반씩 나누게 한다 —
             // 셋을 나란히 `maxWidth: .infinity` 로 두면 1:1:1 이 되어 Android 의 2:1:1 과
             // 어긋난다(SwiftUI 에는 weight 가 없다).
-            if mapURL != nil || officialURL != nil {
+            // 넓은 화면(펼친 iPhone Duo · iPad)에서는 **내 입장권도 이 줄에 선다.**
+            //
+            // 좁은 화면에서는 네비 바 오른쪽에 있는데, 바가 옆으로 서는 기기에서는 그 자리가
+            // 상태바·뒤로가기와 한 줄에 몰려 서로 부딪힌다(2026-09-21 지적). 히어로 안으로
+            // 내리면 행사 정보 바로 아래, 예매·지도와 같은 무게로 읽힌다.
+            if mapURL != nil || officialURL != nil || (wide && e.hasEntryGroups) {
                 HStack(spacing: 8) {
+                    if wide && e.hasEntryGroups {
+                        heroActionButton(store.hoyolandEntry.isEmpty ? "내 입장권"
+                                                                     : "\(Int(store.hoyolandEntry.dayCount))일",
+                                         "ticket", primary: false) { entrySheetOpen = true }
+                    }
                     if let mapURL {
                         heroActionButton("지도", "mappin.and.ellipse", primary: false) { openURL(mapURL) }
                     }
@@ -809,6 +926,9 @@ struct HoyolandDetailView: View {
                 }
                 .padding(.horizontal, 18).padding(.top, 8).padding(.bottom, 24)
                 .frame(maxWidth: .infinity, alignment: .leading)
+                // 재는 자리는 스크롤 **안쪽** — 바깥 `ScrollView` 는 시트가 준 높이를 그대로
+                // 돌려주므로, 그걸로 시트 높이를 정하면 열 때마다 시트가 커진다.
+                .glgSheetContentHeight($entryContentHeight)
             }
             .scrollIndicators(.hidden)
             .scrollContentBackground(.hidden)
@@ -816,10 +936,11 @@ struct HoyolandDetailView: View {
             .navigationTitle("내 입장권")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button("닫기") { entrySheetOpen = false }
+                ToolbarItem(placement: .cancellationAction) {
+                    GLGSheetCloseButton { entrySheetOpen = false }
                 }
             }
+            .glgSheetChromeHeight($entryChromeHeight)
         }
     }
 
@@ -847,8 +968,8 @@ struct HoyolandDetailView: View {
             .navigationTitle("예매 안내")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button("닫기") { ticketNoteOpen = false }
+                ToolbarItem(placement: .cancellationAction) {
+                    GLGSheetCloseButton { ticketNoteOpen = false }
                 }
             }
         }

@@ -96,7 +96,7 @@ struct HoyolabLinkView: View {
             .ignoresSafeArea(edges: .bottom)
             .navigationTitle("HoYoLAB 로그인")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar { ToolbarItem(placement: .cancellationAction) { Button("닫기") { showLogin = false } } }
+            .toolbar { ToolbarItem(placement: .cancellationAction) { GLGSheetCloseButton { showLogin = false } } }
         }
     }
 

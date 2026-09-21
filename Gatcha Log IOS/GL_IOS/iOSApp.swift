@@ -76,6 +76,26 @@ class AppDelegate: NSObject, UIApplicationDelegate, @preconcurrency UNUserNotifi
         return true
     }
 
+    /**
+     회전 허용 범위 — **화면이 넓을 때만** 연다.
+
+     iPhone Duo 처럼 펼치면 넓어지는 기기는 세로 하나만 선언해 두면 시스템이 앱을 **호환 캔버스**에
+     가둔다 — 펼친 화면 가운데 아이폰 크기 창만 뜨고 양옆이 까맣게 남는다(2026-09-21 실측).
+     `Info.plist` 에서 가로를 열어 그 가둠은 풀되, 보통 iPhone 은 **예전처럼 세로 고정**이다.
+     이 앱의 화면은 좁은 가로를 위해 만든 적이 없어서, 손에 쥔 폰이 돌아가면 그대로 깨진다.
+
+     기준은 **화면 짧은 변**이다. 지금 가장 넓은 iPhone 이 440pt 인데 듀오는 접어도 466pt,
+     펼치면 669pt 라 이 선으로 갈린다. iPad 는 idiom 으로 먼저 걸러 낸다.
+     */
+    func application(
+        _ application: UIApplication,
+        supportedInterfaceOrientationsFor window: UIWindow?
+    ) -> UIInterfaceOrientationMask {
+        if UIDevice.current.userInterfaceIdiom == .pad { return .all }
+        guard let bounds = window?.screen.bounds else { return .portrait }
+        return min(bounds.width, bounds.height) >= GLGWideScreenMinSide ? .allButUpsideDown : .portrait
+    }
+
     /// 앱이 포그라운드일 때도 로컬 알림을 배너로 표시 (UNUserNotificationCenterDelegate)
     func userNotificationCenter(
         _ center: UNUserNotificationCenter,
@@ -111,6 +131,31 @@ class AppDelegate: NSObject, UIApplicationDelegate, @preconcurrency UNUserNotifi
             NotificationCenter.default.post(name: .glgOpenTab, object: tab)
         }
         completionHandler()
+    }
+}
+
+/// 회전을 열어 주는 화면 짧은 변(pt) — iPhone 최대폭(440)과 iPhone Duo 접은 화면(466) 사이.
+let GLGWideScreenMinSide: CGFloat = 460
+
+/// 세로로 선 바에서 **툴바 항목을 남긴다** — 그 화면의 액션이 탭 이동보다 중요한 경우(iOS 27.1).
+struct GLGVerticalBarPrefersToolbar: ViewModifier {
+    func body(content: Content) -> some View {
+        if #available(iOS 27.1, *) {
+            content.toolbarVerticalCompressionBehavior(.prefersToolbarItems)
+        } else {
+            content
+        }
+    }
+}
+
+/// 세로로 선 바에서는 **탭바를 남긴다** — iPhone Duo 대응(iOS 27.1). 그 아래 버전에서는 아무 일도 안 한다.
+struct GLGVerticalBarPrefersTabs: ViewModifier {
+    func body(content: Content) -> some View {
+        if #available(iOS 27.1, *) {
+            content.toolbarVerticalCompressionBehavior(.prefersTabBar)
+        } else {
+            content
+        }
     }
 }
 

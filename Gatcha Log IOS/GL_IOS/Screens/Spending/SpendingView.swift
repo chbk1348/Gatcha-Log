@@ -11,10 +11,10 @@ import Shared
 ///
 /// 뷰 기반 `NavigationLink { ... }` 와 목적지 안의 `navigationDestination` 을 섞어 쓰다
 /// 스택이 교체되거나 루트로 튕기는 버그를 반복해서 냈다 — 경로 한 곳에서만 관리한다.
+/// 지출 탭 스택에 쌓이는 것 — **상세뿐**이다.
+/// 추가·수정은 경로가 아니라 시트로 연다(`ContentView.openAddSpending`).
 enum SpendingRoute: Hashable {
     case detail(String)   // 지출 id
-    case edit(String)     // 지출 id
-    case add
 }
 
 private enum PeriodFilter: String, CaseIterable { case all="전체", thisMonth="이번 달", lastMonth="지난 달", thisYear="올해", custom="기간 지정" }
@@ -31,6 +31,8 @@ struct SpendingView: View {
     /// '일괄 편집'이 '+' 에 가려 눌리지 않았다.
     @Binding var selectionMode: Bool
     @Environment(\.glgAccent) private var accent
+    @Environment(\.horizontalSizeClass) private var hSizeClass
+    @Environment(\.glgCanvasWidth) private var canvasWidth
     /// 지금 좌/우로 갈려 있는가 — GLGSplitDetail 이 돌려주는 값(폭 기준, iPadOS 26 자유 창 대응).
     @State private var isWide = false
     /// 우측 상세에 띄울 지출. iPhone 에서는 쓰지 않는다(기존대로 push).
@@ -68,12 +70,18 @@ struct SpendingView: View {
             }
     }
 
+    /// 넓은 창인가 — 좌/우로 갈리는 폭인지.
+    private var isWideCanvas: Bool { glgIsWideCanvas(width: canvasWidth, sizeClass: hSizeClass) }
+
     /// 우측 상세 — 고른 게 없으면 안내만.
     @ViewBuilder
     private var detailPane: some View {
         if let id = selectedId, store.spendings.contains(where: { $0.id == id }) {
             NavigationStack {
-                SpendingDetailView(store: store, spendingId: id, onEdit: onEdit)
+                // 갈린 오른쪽 자리라고 알려 준다 — 수정·삭제를 본문에 세운다(툴바는 공용 바로
+                // 옮겨 가 `•••` 안에 접혀 열리지 않는다).
+                SpendingDetailView(store: store, spendingId: id, onEdit: onEdit,
+                                   inSplitPane: true, onClose: { selectedId = nil })
             }
             .id(id)   // 다른 지출을 고르면 상세를 새로 세운다(스크롤·히어로 상태가 남지 않게)
         } else {
@@ -92,6 +100,8 @@ struct SpendingView: View {
                 //
                 // 선택 모드에서도 **치우지 않는다.** 예전엔 숨겼는데, 선택을 켜는 순간 이 줄이 사라지며
                 // 리스트 전체가 위로 훅 밀려 올라가 화면이 튀었다(선택하려던 항목이 손가락 아래에서 이동).
+                // 내비 바를 걷은 넓은 창에서는 그 자리를 **여백 한 줄**로 대신한다 —
+                // 바를 지우고 나니 필터 칩이 화면 맨 위에 딱 붙었다(2026-09-21 지적).
                 quickFilters
                 // "N월 지출" 요약 헤더는 지출 인사이트 '월간' 탭으로 이동(MonthSummaryHeader).
                 if listIsEmpty {
@@ -129,8 +139,23 @@ struct SpendingView: View {
         .background(GLGBackground { Color.clear })
         // 화면에는 안 보이지만 제목은 채운다 — 비우면 뒤로가기 길게 누르기 메뉴가 공백 줄이 된다.
         .navigationTitle("지출")
-        .toolbar { ToolbarItem(placement: .principal) { Color.clear.frame(width: 1, height: 1) } }
+        // 제목 자리를 **빈 뷰로 덮는** 수법은 좁은 화면에서만 쓴다. 넓은 창(iPad·펼친 듀오)에서는
+        // 이 더미가 내비 바를 살려 둬, 아이콘이 위쪽 탭바 줄로 합쳐진 뒤에도 빈 바가 자리를
+        // 그대로 먹었다(2026-09-21 iPad 여백 지적).
+        .toolbar {
+            if !isWideCanvas {
+                ToolbarItem(placement: .principal) { Color.clear.frame(width: 1, height: 1) }
+            }
+        }
         .navigationBarTitleDisplayMode(.inline)
+        // 넓은 창에서는 **제목 자리를 아예 없앤다.**
+        //
+        // ⚠️ 바를 통째로 걷는 방법(`toolbarVisibility(.hidden, for: .navigationBar)`)은 쓰지 않는다 —
+        // 그 바에 매달린 툴바 아이콘(캘린더·인사이트·선택·필터)까지 같이 사라진다. iPad 에서 한 번,
+        // 펼친 iPhone Duo 에서 또 한 번 그렇게 잃었다(2026-09-21). 지우는 건 **제목 하나**다. iPadOS 26+ 는 툴바 아이콘을 위쪽 탭바 줄로
+        // 끌어올리는데, 제목이 남아 있으면 그 아래 내비 바가 빈 채로 높이를 그대로 차지한다
+        // (2026-09-21 iPad — 필터 위에 100pt 가까운 빈칸). 항목은 위 줄에 그대로 있다.
+        .toolbar(removing: isWideCanvas ? .title : nil)
         // 좌측 = 보기 전환(캘린더·인사이트), 우측 = 목록 조작(선택·필터).
         // 성격이 다른 버튼 4개가 우측에 뭉쳐 있어 무엇이 무엇인지 구분되지 않던 걸 갈랐다.
         //
@@ -269,7 +294,16 @@ struct SpendingView: View {
             // iPad — 밀어 넣지 않고 **오른쪽 상세를 갈아 끼운다**. 지금 보고 있는 행은 배경으로 표시.
             Button { selectedId = s.id } label: {
                 SpendingRow(spending: s, compact: store.spendingCompact)
-                    .background(selectedId == s.id ? accent.primary.opacity(0.10) : Color.clear)
+                    // 고른 행 표시는 **안쪽으로 물린 둥근 면**이다. 예전엔 각진 면이 카드 폭을
+                    // 그대로 채워, 첫 줄·마지막 줄에서 카드의 둥근 모서리 밖으로 삐져나왔다
+                    // (2026-09-21 iPad · 듀오 지적).
+                    .background(alignment: .center) {
+                        if selectedId == s.id {
+                            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                .fill(accent.primary.opacity(0.10))
+                                .padding(.horizontal, 6).padding(.vertical, 2)
+                        }
+                    }
             }
             .buttonStyle(.plain)
         } else {
