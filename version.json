@@ -1,15 +1,19 @@
 {
-  "versionCode": 275020,
-  "versionName": "27.50.2",
+  "versionCode": 275050,
+  "versionName": "27.50.5",
   "minVersionCode": 273000,
   "url": "https://github.com/chbk1348/Gatcha-Log/releases/latest",
   "apkUrl": "https://github.com/chbk1348/Gatcha-Log/releases/latest/download/app-release.apk",
-  "sha256": "7bd1add34b89616d96ae047f3febf9c41230202948a8288bb629fbf929ed538a",
+  "sha256": "d5d59a9ae666632aeb82758fca419cec5109df6112b2d081ec848cb17cc434c6",
   "notes": [
-    "호요랜드 굿즈 · 푸드 메뉴 사진 추가",
-    "굿즈존 이용 안내 추가 (굿즈 목록 ▸ 안내 버튼)",
-    "게임 정보 탭 호요랜드 섹션을 D-day · 예매 · 바로가기 구성으로 개편",
-    "호요랜드 굿즈를 디자인별 항목으로 분리",
-    "굿즈 목록 진입 · 스크롤 속도 개선"
+    "호요랜드 내 입장권 추가 (입장 날짜 · 조 선택)",
+    "내 입장권에 맞춘 입장 알림 추가 (가는 날 아침 · 입장 1시간 전)",
+    "펼친 iPhone Duo · iPad 넓은 창 레이아웃 지원 (iOS)",
+    "호요랜드 페이지를 D-day 머리판 · 라인업 · 둘러보기 · 맵스 구성으로 개편",
+    "호요랜드 시간표에 내 입장 시각 표시 · 날짜 탭 상단 고정",
+    "호요랜드 DIY존 안내를 공식 정보로 갱신",
+    "금액 입력에 세 자리 쉼표 · 원 단위 표시 (Android)",
+    "홈 호요랜드 배너에서 G-STAR 안내 제거",
+    "자동 출석 후 앱을 열면 출석 기록이 사라지던 문제 수정"
   ]
 }
