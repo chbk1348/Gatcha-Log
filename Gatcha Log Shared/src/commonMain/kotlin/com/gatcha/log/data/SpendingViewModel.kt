@@ -1920,7 +1920,12 @@ class SpendingViewModel : ViewModel() {
      */
     private fun observeAttendance() {
         viewModelScope.launch {
-            AttendanceBus.changed.collect { reloadAttendance() }
+            AttendanceBus.changed.collect {
+                reloadAttendance()
+                // 자동 출석은 따로 만든 저장소에 써서 onChange 가 안 걸린다 — 여기서 올리기를 예약하지
+                // 않으면 다음 변경 전까지 클라우드는 출석 전 값이고, 그 사이 pull 이 오늘 출석을 지운다.
+                scheduleCloudSync()
+            }
         }
     }
 
@@ -2780,10 +2785,13 @@ class SpendingViewModel : ViewModel() {
         // 지출을 저장할 때마다 1.5초 뒤 그게 UI 스레드에서 돌고 있었다.
         // (직렬화 형식 자체는 건드리지 않는다 — lastPushedSnapshot 비교와 Firestore 중복 쓰기
         //  생략이 바이트 동일성에 걸려 있다.)
+        // 출석 원문은 스냅샷보다 **먼저** 뜬다. 그 사이에 출석이 바뀌면 둘이 어긋나 표시가 남는
+        // 쪽으로 기운다(안전한 쪽) — 거꾸로 뜨면 올리지 않은 출석의 보호를 풀 수 있다.
+        val attendanceAtExport = repo.attendanceRaw()
         val json = withContext(Dispatchers.IO) { repo.exportSnapshotJson() }
         if (json == lastPushedSnapshot) {
             // 올릴 것이 없다 = 원격이 이미 로컬과 같다 → 출석 보호 표시도 풀어 준다.
-            repo.clearAttendanceDirty()
+            repo.clearAttendanceDirtyIfUnchanged(attendanceAtExport)
             return true   // 변경 없음 → write 생략
         }
         // 문서의 **실제** 크기로 잰다 — 한도는 UTF-16 단위가 아니라 UTF-8 바이트 기준이다.
@@ -2799,8 +2807,9 @@ class SpendingViewModel : ViewModel() {
         if (ok) {
             lastPushedSnapshot = json
             pushFailureNotified = false
-            // 올라갔으니 다음 pull 은 출석을 그대로 받아도 된다(→ [GatchaRepository.clearAttendanceDirty]).
-            repo.clearAttendanceDirty()
+            // 올라갔으니 다음 pull 은 출석을 그대로 받아도 된다 — 단 푸시 도중 자동 출석이 새로
+            // 쓰지 않았을 때만(→ [GatchaRepository.clearAttendanceDirtyIfUnchanged]).
+            repo.clearAttendanceDirtyIfUnchanged(attendanceAtExport)
         } else if (!pushFailureNotified) {
             // 실패를 삼키면 로컬만 계속 쌓이고 클라우드는 멈춘 채로, 기기를 바꾸는 순간에야 발견된다.
             // 할 일이 원인마다 다르므로 용량 초과와 그 외를 나눠 안내한다.

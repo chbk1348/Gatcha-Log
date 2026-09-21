@@ -313,6 +313,21 @@ class GatchaRepository(
         prefs.putBoolean(KEY_ATTENDANCE_DIRTY, false)
     }
 
+    /** 지금 저장된 출석 원문 — 푸시 **직전**에 떠 두고 [clearAttendanceDirtyIfUnchanged] 에 넘긴다. */
+    fun attendanceRaw(): String? = prefs.getString(KEY_ATTENDANCE, null)
+
+    /**
+     * 올린 스냅샷에 실린 출석이 **지금도 그대로일 때만** 표시를 푼다.
+     *
+     * 포그라운드 복귀 때 클라우드 동기화와 자동 출석이 동시에 돈다. 푸시가 스냅샷을 뜬 **뒤**
+     * 자동 출석이 저장하면, 무조건 푸는 [clearAttendanceDirty] 는 올라가지도 않은 오늘 출석의
+     * 보호를 풀어 버리고 다음 pull 이 그것을 지운다. 떠 둔 원문과 다르면 표시를 남겨 두고
+     * 다음 푸시가 새 출석을 올린 뒤에 푼다.
+     */
+    fun clearAttendanceDirtyIfUnchanged(pushedRaw: String?) {
+        if (attendanceRaw() == pushedRaw) clearAttendanceDirty()
+    }
+
 
     // ---------------------------------------------------------------- 천장 카운터 (gameKey -> PityState)
     fun loadPity(): Map<String, PityState> {
