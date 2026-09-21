@@ -898,8 +898,14 @@ class GatchaRepository(
     /** 계정의 모든 데이터를 단일 JSON 문자열로 직렬화(Firestore 저장·파일 백업용). */
     fun exportSnapshotJson(): String = exportSnapshot().toString()
 
-    /** Firestore/백업 파일에서 받은 스냅샷 JSON 을 로컬에 반영. (onChange 미발생 → 푸시 루프 방지) */
-    fun importSnapshotJson(json: String) {
+    /**
+     * Firestore/백업 파일에서 받은 스냅샷 JSON 을 로컬에 반영. (onChange 미발생 → 푸시 루프 방지)
+     *
+     * @param keepUnpushedAttendance 아직 못 올린 로컬 출석이 있으면 스냅샷의 출석을 받지 않는다.
+     *   클라우드 pull 용이다. **백업 파일 복원은 false** — 사용자가 고른 파일이 정본이고, 게스트는 푸시가
+     *   돌지 않아 이 표시가 늘 켜져 있으므로 막으면 백업의 출석 이력이 통째로 빠진다.
+     */
+    fun importSnapshotJson(json: String, keepUnpushedAttendance: Boolean = true) {
         val o = runCatching { JSONObject(json) }.getOrNull() ?: return
         // 지출: id 기준 합집합 병합 + 삭제 tombstone 적용 — 구/스테일 스냅샷이 최신 로컬 지출을 덮어 삭제하지
         // 못하게 한다. 실제 삭제는 tombstone(deleted_spendings)으로만 전파. (이번 유실 사고 재발 방지)
@@ -954,7 +960,8 @@ class GatchaRepository(
         //
         // 합집합으로 병합하지 않는 이유: 출석은 화면에서 **해제**할 수 있다(`toggleAttendance`).
         // 합치면 방금 푼 체크가 옛 스냅샷에서 되살아난다.
-        if (o.has(KEY_ATTENDANCE) && !prefs.getBoolean(KEY_ATTENDANCE_DIRTY, false)) {
+        val skipAttendance = keepUnpushedAttendance && prefs.getBoolean(KEY_ATTENDANCE_DIRTY, false)
+        if (o.has(KEY_ATTENDANCE) && !skipAttendance) {
             prefs.putString(KEY_ATTENDANCE, o.getJSONObject(KEY_ATTENDANCE).toString())
         }
         if (o.has(KEY_PITY)) prefs.putString(KEY_PITY, o.getJSONObject(KEY_PITY).toString())
