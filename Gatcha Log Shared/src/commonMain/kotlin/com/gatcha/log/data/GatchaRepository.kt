@@ -298,7 +298,19 @@ class GatchaRepository(
         val obj = JSONObject()
         map.forEach { (day, set) -> obj.put(day, JSONArray(set.toList())) }
         prefs.putString(KEY_ATTENDANCE, obj.toString())
+        // 아직 클라우드에 못 올린 출석이라는 표시 — 다음 pull 이 이 값을 덮지 못하게 막는다.
+        // (→ [importSnapshotJson] · [clearAttendanceDirty])
+        prefs.putBoolean(KEY_ATTENDANCE_DIRTY, true)
         changed()
+    }
+
+    /**
+     * 출석을 클라우드로 올렸다 — 이제 원격이 로컬과 같으므로 다음 스냅샷은 그대로 받아도 된다.
+     *
+     * 푸시에 성공한 쪽([com.gatcha.log.data.SpendingViewModel] 의 cloudPush)이 부른다.
+     */
+    fun clearAttendanceDirty() {
+        prefs.putBoolean(KEY_ATTENDANCE_DIRTY, false)
     }
 
 
@@ -933,7 +945,18 @@ class GatchaRepository(
         }
         if (o.has(KEY_ENKA_GI)) prefs.putString(KEY_ENKA_GI, o.getString(KEY_ENKA_GI))
         if (o.has(KEY_ENKA_HSR)) prefs.putString(KEY_ENKA_HSR, o.getString(KEY_ENKA_HSR))
-        if (o.has(KEY_ATTENDANCE)) prefs.putString(KEY_ATTENDANCE, o.getJSONObject(KEY_ATTENDANCE).toString())
+        // 출석은 **아직 못 올린 로컬 기록이 있으면 받지 않는다.**
+        //
+        // 자동 출석은 백그라운드에서 돌면서 저장소에만 쓴다 — 그때는 화면도 푸시도 없다. 다음에 앱을
+        // 열면 pull 이 먼저 도는데, 원격 스냅샷은 출석하기 **전**의 것이라 그대로 받으면 오늘 출석이
+        // 지워진다. 알림으로는 "출석해 뒀다" 고 해 놓고 앱은 다시 출석하라는 화면을 띄웠다
+        // (2026-09-21 iOS 제보). 여기서 건너뛰면 곧이어 도는 push 가 로컬을 올려 양쪽이 맞는다.
+        //
+        // 합집합으로 병합하지 않는 이유: 출석은 화면에서 **해제**할 수 있다(`toggleAttendance`).
+        // 합치면 방금 푼 체크가 옛 스냅샷에서 되살아난다.
+        if (o.has(KEY_ATTENDANCE) && !prefs.getBoolean(KEY_ATTENDANCE_DIRTY, false)) {
+            prefs.putString(KEY_ATTENDANCE, o.getJSONObject(KEY_ATTENDANCE).toString())
+        }
         if (o.has(KEY_PITY)) prefs.putString(KEY_PITY, o.getJSONObject(KEY_PITY).toString())
         if (o.has(KEY_EVENT_CHECKS)) prefs.putString(KEY_EVENT_CHECKS, o.getJSONArray(KEY_EVENT_CHECKS).toString())
         if (o.has(KEY_GACHA)) prefs.putString(KEY_GACHA, o.getJSONArray(KEY_GACHA).toString())
@@ -983,6 +1006,9 @@ class GatchaRepository(
         /** 강조색을 한 번도 고르지 않은 상태 — 0 은 실제 인덱스라 미설정 표시로 쓸 수 없다. */
         private const val UNSET_ACCENT = -1
         const val KEY_ATTENDANCE = "attendance"
+
+        /** 로컬 출석이 클라우드보다 앞선다는 표시(로컬 전용 — 스냅샷에 싣지 않는다). */
+        const val KEY_ATTENDANCE_DIRTY = "attendance_dirty"
         const val KEY_ENKA_GI = "enka_gi"
         const val KEY_ENKA_HSR = "enka_hsr"
         /**

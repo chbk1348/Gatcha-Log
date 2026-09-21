@@ -164,4 +164,44 @@ class GatchaRepositorySnapshotTest {
 
         assertEquals(setOf("local", "remote"), local.loadSpendings().map { it.id }.toSet())
     }
+
+    /**
+     * 아직 못 올린 출석은 **옛 스냅샷이 덮지 못한다.**
+     *
+     * 자동 출석은 백그라운드에서 저장소에만 쓴다. 다음에 앱을 열면 pull 이 먼저 도는데, 그때 원격은
+     * 출석하기 전의 값이라 그대로 받으면 오늘 출석이 지워진다 — 알림은 "해 뒀다" 인데 화면은 다시
+     * 출석하라고 했다(2026-09-21 iOS 제보).
+     */
+    @Test
+    fun importDoesNotOverwriteUnpushedAttendance() {
+        val (local, _) = repo()
+        local.saveAttendance(mapOf("2026-09-21" to setOf("genshin", "hsr")))
+
+        // 원격은 출석 전 스냅샷(그날 기록이 없다).
+        val (remote, _) = repo()
+        remote.saveAttendance(mapOf("2026-09-20" to setOf("genshin")))
+        remote.clearAttendanceDirty()
+
+        local.importSnapshotJson(remote.exportSnapshotJson())
+
+        assertEquals(
+            setOf("genshin", "hsr"), local.loadAttendance()["2026-09-21"] ?: emptySet(),
+            "백그라운드 자동 출석이 옛 클라우드 스냅샷에 지워졌다",
+        )
+    }
+
+    /** 반대로 **올리고 난 뒤**에는 원격이 정본이다 — 다른 기기에서 푼 체크가 되살아나면 안 된다. */
+    @Test
+    fun importOverwritesAttendanceOncePushed() {
+        val (local, _) = repo()
+        local.saveAttendance(mapOf("2026-09-21" to setOf("genshin", "hsr")))
+        local.clearAttendanceDirty()   // 푸시 성공 상황
+
+        val (remote, _) = repo()
+        remote.saveAttendance(mapOf("2026-09-21" to setOf("genshin")))
+
+        local.importSnapshotJson(remote.exportSnapshotJson())
+
+        assertEquals(setOf("genshin"), local.loadAttendance()["2026-09-21"] ?: emptySet())
+    }
 }
