@@ -2779,7 +2779,11 @@ class SpendingViewModel : ViewModel() {
         // (직렬화 형식 자체는 건드리지 않는다 — lastPushedSnapshot 비교와 Firestore 중복 쓰기
         //  생략이 바이트 동일성에 걸려 있다.)
         val json = withContext(Dispatchers.IO) { repo.exportSnapshotJson() }
-        if (json == lastPushedSnapshot) return true   // 변경 없음 → write 생략
+        if (json == lastPushedSnapshot) {
+            // 올릴 것이 없다 = 원격이 이미 로컬과 같다 → 출석 보호 표시도 풀어 준다.
+            repo.clearAttendanceDirty()
+            return true   // 변경 없음 → write 생략
+        }
         // 문서의 **실제** 크기로 잰다 — 한도는 UTF-16 단위가 아니라 UTF-8 바이트 기준이다.
         // (섹션 dual-write 를 걷어내기 전에는 여기에 ×2 가 더 붙었다. 지금은 `data` 한 벌뿐이다.)
         val docBytes = utf8Bytes(json)
@@ -2793,6 +2797,8 @@ class SpendingViewModel : ViewModel() {
         if (ok) {
             lastPushedSnapshot = json
             pushFailureNotified = false
+            // 올라갔으니 다음 pull 은 출석을 그대로 받아도 된다(→ [GatchaRepository.clearAttendanceDirty]).
+            repo.clearAttendanceDirty()
         } else if (!pushFailureNotified) {
             // 실패를 삼키면 로컬만 계속 쌓이고 클라우드는 멈춘 채로, 기기를 바꾸는 순간에야 발견된다.
             // 할 일이 원인마다 다르므로 용량 초과와 그 외를 나눠 안내한다.
