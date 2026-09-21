@@ -221,4 +221,39 @@ class GatchaRepositorySnapshotTest {
             "백업 복원에서 출석 이력이 빠졌다",
         )
     }
+
+    /**
+     * 푸시가 스냅샷을 뜬 **뒤** 자동 출석이 저장하면, 푸시 성공이 그 출석의 보호를 풀면 안 된다.
+     * 풀면 다음 pull 이 옛 원격값으로 오늘 출석을 지운다(포그라운드 복귀 때 동기화 · 자동 출석 동시 실행).
+     */
+    @Test
+    fun pushDoesNotClearDirtyForAttendanceSavedDuringPush() {
+        val (local, _) = repo()
+        val pushed = local.attendanceRaw()                                   // 푸시 직전(출석 전)
+        local.saveAttendance(mapOf("2026-09-21" to setOf("genshin")))       // 푸시 도중 자동 출석
+        local.clearAttendanceDirtyIfUnchanged(pushed)                        // 푸시 성공
+
+        val (remote, _) = repo()
+        remote.saveAttendance(mapOf("2026-09-20" to setOf("genshin")))
+        local.importSnapshotJson(remote.exportSnapshotJson())               // 다음 pull
+
+        assertEquals(
+            setOf("genshin"), local.loadAttendance()["2026-09-21"] ?: emptySet(),
+            "푸시 도중 저장된 출석이 다음 pull 에 지워졌다",
+        )
+    }
+
+    /** 올린 출석이 지금과 같으면 표시를 푼다 — 그래야 다른 기기의 출석을 다시 받는다. */
+    @Test
+    fun pushClearsDirtyWhenAttendanceUnchanged() {
+        val (local, _) = repo()
+        local.saveAttendance(mapOf("2026-09-21" to setOf("genshin")))
+        local.clearAttendanceDirtyIfUnchanged(local.attendanceRaw())
+
+        val (remote, _) = repo()
+        remote.saveAttendance(mapOf("2026-09-21" to setOf("genshin", "hsr")))
+        local.importSnapshotJson(remote.exportSnapshotJson())
+
+        assertEquals(setOf("genshin", "hsr"), local.loadAttendance()["2026-09-21"] ?: emptySet())
+    }
 }
