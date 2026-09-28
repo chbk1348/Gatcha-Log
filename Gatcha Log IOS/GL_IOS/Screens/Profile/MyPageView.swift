@@ -57,8 +57,7 @@ struct MyPageView: View {
         .background(GLGBackground { Color.clear })
         // 프로필 카드가 헤더 역할이라 막대에는 안 보인다. 다만 제목 자체는 채운다 —
         // 비우면 뒤로가기 길게 누르기 메뉴가 공백 줄이 된다.
-        .navigationTitle("마이페이지")
-        .toolbar { ToolbarItem(placement: .principal) { Color.clear.frame(width: 1, height: 1) } }
+        .glgTabRootTitle("마이페이지")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar { ToolbarItem(placement: .topBarTrailing) { settingsButton } }
         .task(id: store.spendings) { totals = Self.computeTotals(store.spendings) }
