@@ -343,26 +343,39 @@ private struct DailyQuickButtons: View {
     var onOpenClears: (() -> Void)? = nil
 
     var body: some View {
+        // 가로형(아이콘 옆 글자)이 **글자를 자르지 않고** 들어가면 가로형, 아니면 세 칸 모두 세로형.
+        // 화면이 좁은 기기에서 가로형은 「전투 진행도」가 말줄임표로 잘렸다(2026-09-28 지적).
+        // 칸마다 따로 고르면 한 줄에 두 모양이 섞이므로 줄 단위로 고른다.
+        ViewThatFits(in: .horizontal) {
+            row(vertical: false)
+            row(vertical: true)
+        }
+    }
+
+    private func row(vertical: Bool) -> some View {
         // 세 칸 모두 **진입만 한다** — 칸 안에 버튼을 두면 탭 대상이 둘이라 어디를 누른 건지 애매해진다.
         HStack(spacing: 7) {
             DailyQuickButton(icon: "calendar.badge.checkmark", title: "출석 체크",
                              sub: summary.allDone ? "\(summary.todayDone)/\(summary.todayTotal) 완료"
                                                   : "\(summary.pending)개 남음",
-                             highlight: !summary.allDone, onTap: onOpenAttendance)
+                             highlight: !summary.allDone, vertical: vertical, onTap: onOpenAttendance)
             if let onOpenGameContent {
-                DailyQuickButton(icon: "medal", title: "전투 진행도", sub: "수입 일지", onTap: onOpenGameContent)
+                DailyQuickButton(icon: "medal", title: "전투 진행도", sub: "수입 일지",
+                                 vertical: vertical, onTap: onOpenGameContent)
             }
             if let onOpenClears {
-                DailyQuickButton(icon: "person.3", title: "클리어 편성", sub: "나선 · 혼돈", onTap: onOpenClears)
+                DailyQuickButton(icon: "person.3", title: "클리어 편성", sub: "나선 · 혼돈",
+                                 vertical: vertical, onTap: onOpenClears)
             }
         }
+        .fixedSize(horizontal: false, vertical: true)
     }
 }
 
 /**
- 퀵버튼 한 칸 — 아이콘 옆에 제목 · 상태를 두는 **가로형**, 흰 면 + 얇은 테두리.
+ 퀵버튼 한 칸 — 흰 면 + 얇은 테두리. 넓으면 아이콘 옆에 제목 · 상태(가로형), 좁으면 아이콘 아래(세로형).
 
- 호요랜드 카드의 바로가기 칸(회색 면 · 세로형)과 **일부러 다르게** 간다(2026-09-28 지시) — 같은 탭에
+ 호요랜드 카드의 바로가기 칸(회색 면)과 **일부러 다르게** 간다(2026-09-28 지시) — 같은 탭에
  같은 모양이 두 번 나오면 어느 카드 소속인지 흐려진다. [highlight] 면 아이콘과 상태를 위험색으로.
  Android `DailyQuickButton` 과 같은 값.
  */
@@ -371,34 +384,55 @@ private struct DailyQuickButton: View {
     let title: String
     let sub: String
     var highlight: Bool = false
+    var vertical: Bool = false
     let onTap: () -> Void
     @Environment(\.glgAccent) private var accent
 
     var body: some View {
         let mark = highlight ? GLGColor.dangerText : accent.primary
         Button(action: onTap) {
-            HStack(spacing: 8) {
-                // 아이콘은 **같은 상자(20×20)에 맞춰** 넣는다. SF Symbols 는 기호마다 폭이 달라(person.3 은 넓고
-                // medal 은 좁다) 글꼴 크기로만 두면 세 칸의 글자 시작점이 제각각 어긋났다(2026-09-28 지적).
-                Image(systemName: icon).resizable().scaledToFit().fontWeight(.semibold)
-                    .foregroundStyle(mark)
-                    .frame(width: 20, height: 20)
-                VStack(alignment: .leading, spacing: 1) {
-                    // 글자를 줄이지 않는다 — 칸마다 축소 비율이 달라 제목 크기가 세 가지로 갈렸다.
-                    Text(title).font(.pretendard(size: 12.5, weight: .bold))
-                        .foregroundStyle(GLGColor.textPrimary).lineLimit(1)
-                    Text(sub).font(.pretendard(size: 11, weight: highlight ? .bold : .regular))
-                        .foregroundStyle(highlight ? GLGColor.dangerText : GLGColor.textSecondary).lineLimit(1)
+            Group {
+                if vertical {
+                    VStack(spacing: 4) {
+                        iconView(mark)
+                        texts(alignment: .center)
+                    }
+                    .padding(.vertical, 10)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else {
+                    HStack(spacing: 8) {
+                        iconView(mark)
+                        texts(alignment: .leading)
+                        Spacer(minLength: 0)
+                    }
+                    .padding(.horizontal, 10)
+                    .frame(maxWidth: .infinity, minHeight: 52, maxHeight: .infinity)
                 }
-                Spacer(minLength: 0)
             }
-            .padding(.horizontal, 10)
-            .frame(maxWidth: .infinity, minHeight: 52)
             .background(Color.white, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
             .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).stroke(Color(hex: 0xFFE3E6EA), lineWidth: 1))
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+    }
+
+    // 아이콘은 **같은 상자(20×20)에 맞춰** 넣는다. SF Symbols 는 기호마다 폭이 달라(person.3 은 넓고
+    // medal 은 좁다) 글꼴 크기로만 두면 세 칸의 글자 시작점이 제각각 어긋났다.
+    private func iconView(_ mark: Color) -> some View {
+        Image(systemName: icon).resizable().scaledToFit().fontWeight(.semibold)
+            .foregroundStyle(mark)
+            .frame(width: 20, height: 20)
+    }
+
+    // 글자는 **줄이지도 자르지도 않는다**(fixedSize) — 들어가지 않으면 줄 전체가 세로형으로 바뀐다.
+    private func texts(alignment: HorizontalAlignment) -> some View {
+        VStack(alignment: alignment, spacing: 1) {
+            Text(title).font(.pretendard(size: 12.5, weight: .bold))
+                .foregroundStyle(GLGColor.textPrimary).lineLimit(1).fixedSize()
+            Text(sub).font(.pretendard(size: 11, weight: highlight ? .bold : .regular))
+                .foregroundStyle(highlight ? GLGColor.dangerText : GLGColor.textSecondary)
+                .lineLimit(1).fixedSize()
+        }
     }
 }
 
