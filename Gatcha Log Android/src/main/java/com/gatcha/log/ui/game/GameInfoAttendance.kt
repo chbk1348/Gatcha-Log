@@ -418,25 +418,33 @@ private fun DailyQuickButtons(
     onOpenGameContent: (() -> Unit)?,
     onOpenClears: (() -> Unit)?,
 ) {
-    // 세 칸 모두 **진입만 한다** — 칸 안에 버튼을 두면 탭 대상이 둘이라 어디를 누른 건지 애매해진다.
-    Row(
-        Modifier.fillMaxWidth().height(IntrinsicSize.Min),
-        horizontalArrangement = Arrangement.spacedBy(7.dp),
-    ) {
-        DailyQuickButton(
-            icon = Icons.Default.EventAvailable,
-            title = "출석 체크",
-            sub = if (attendance.allDone) "${attendance.todayDone}/${attendance.todayTotal} 완료"
-                  else "${attendance.pending}개 남음",
-            highlight = !attendance.allDone,
-            modifier = Modifier.weight(1f),
-            onClick = onOpenAttendance,
-        )
-        if (onOpenGameContent != null) {
-            DailyQuickButton(Icons.Default.MilitaryTech, "전투 진행도", "수입 일지", modifier = Modifier.weight(1f), onClick = onOpenGameContent)
-        }
-        if (onOpenClears != null) {
-            DailyQuickButton(Icons.Default.Groups, "클리어 편성", "나선 · 혼돈", modifier = Modifier.weight(1f), onClick = onOpenClears)
+    // 칸 폭이 좁으면(화면이 작은 기기) 세 칸 모두 **세로형**(아이콘 아래 글자) — 가로형은 「전투 진행도」가
+    // 말줄임표로 잘렸다(2026-09-28 지적). 칸마다 따로 고르면 한 줄에 두 모양이 섞이므로 줄 단위로 고른다.
+    androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxWidth()) {
+        val count = 1 + (if (onOpenGameContent != null) 1 else 0) + (if (onOpenClears != null) 1 else 0)
+        val cellWidth = (maxWidth - 7.dp * (count - 1)) / count
+        val vertical = cellWidth < 104.dp
+        // 세 칸 모두 **진입만 한다** — 칸 안에 버튼을 두면 탭 대상이 둘이라 어디를 누른 건지 애매해진다.
+        Row(
+            Modifier.fillMaxWidth().height(IntrinsicSize.Min),
+            horizontalArrangement = Arrangement.spacedBy(7.dp),
+        ) {
+            DailyQuickButton(
+                icon = Icons.Default.EventAvailable,
+                title = "출석 체크",
+                sub = if (attendance.allDone) "${attendance.todayDone}/${attendance.todayTotal} 완료"
+                      else "${attendance.pending}개 남음",
+                highlight = !attendance.allDone,
+                vertical = vertical,
+                modifier = Modifier.weight(1f),
+                onClick = onOpenAttendance,
+            )
+            if (onOpenGameContent != null) {
+                DailyQuickButton(Icons.Default.MilitaryTech, "전투 진행도", "수입 일지", vertical = vertical, modifier = Modifier.weight(1f), onClick = onOpenGameContent)
+            }
+            if (onOpenClears != null) {
+                DailyQuickButton(Icons.Default.Groups, "클리어 편성", "나선 · 혼돈", vertical = vertical, modifier = Modifier.weight(1f), onClick = onOpenClears)
+            }
         }
     }
 }
@@ -550,25 +558,39 @@ private fun DailyQuickButton(
     sub: String,
     modifier: Modifier = Modifier,
     highlight: Boolean = false,
+    /** 좁은 화면 — 아이콘 아래에 글자를 가운데 정렬로. */
+    vertical: Boolean = false,
     onClick: () -> Unit,
 ) {
     val mark = if (highlight) DangerText else LocalAccent.current
     val shape = RoundedCornerShape(12.dp)
-    Row(
-        modifier.fillMaxHeight().heightIn(min = 52.dp).clip(shape).background(Color.White)
-            .border(1.dp, Color(0xFFE3E6EA), shape)
-            .clickable { onClick() }.padding(horizontal = 10.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Icon(icon, null, tint = mark, modifier = Modifier.size(18.dp))
-        Spacer(Modifier.width(8.dp))
-        Column(Modifier.weight(1f)) {
-            Text(title, fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = TextPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(
-                sub, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
-                color = if (highlight) DangerText else TextSecondary,
-                fontWeight = if (highlight) FontWeight.Bold else FontWeight.Normal,
-            )
+    val base = modifier.fillMaxHeight().clip(shape).background(Color.White)
+        .border(1.dp, Color(0xFFE3E6EA), shape).clickable { onClick() }
+    val subColor = if (highlight) DangerText else TextSecondary
+    val subWeight = if (highlight) FontWeight.Bold else FontWeight.Normal
+    if (vertical) {
+        Column(
+            base.padding(vertical = 10.dp, horizontal = 4.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterVertically),
+        ) {
+            Icon(icon, null, tint = mark, modifier = Modifier.size(20.dp))
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(title, fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = TextPrimary, maxLines = 1, softWrap = false)
+                Text(sub, fontSize = 11.sp, color = subColor, fontWeight = subWeight, maxLines = 1, softWrap = false)
+            }
+        }
+    } else {
+        Row(
+            base.heightIn(min = 52.dp).padding(horizontal = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(icon, null, tint = mark, modifier = Modifier.size(18.dp))
+            Spacer(Modifier.width(8.dp))
+            Column(Modifier.weight(1f)) {
+                Text(title, fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = TextPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(sub, fontSize = 11.sp, color = subColor, fontWeight = subWeight, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
         }
     }
 }
