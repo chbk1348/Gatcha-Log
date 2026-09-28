@@ -795,7 +795,10 @@ struct HoyolandDetailView: View {
                 Text(title).font(.pretendard(size: 15, weight: primary ? .bold : .semibold))
                     .lineLimit(1).minimumScaleFactor(0.85)
             }
-            .foregroundStyle(primary ? Color.white : accent.deep)
+            // 못 누를 때는 글자를 **회색**으로 — 흰 글자는 연회색 면 위에서 대비가 1.4:1 이라
+            // 「매진」 같은 상태 문구가 읽히지 않았다. 버튼 전체를 흐리던 투명도도 걷었다 — 글자까지
+            // 같이 흐려질 뿐, 누를 수 없다는 건 면 색이 이미 말한다(2026-09-28 지적, Android GlgButton 과 같은 값).
+            .foregroundStyle(primary ? (enabled ? Color.white : GLGColor.textSecondary) : accent.deep)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(primary ? (enabled ? accent.primary : Color(hex: 0xFFD8D8DE)) : Color.white,
                         in: RoundedRectangle(cornerRadius: 16, style: .continuous))
@@ -803,7 +806,6 @@ struct HoyolandDetailView: View {
         }
         .buttonStyle(.plain)
         .disabled(!enabled)
-        .opacity(enabled ? 1 : 0.55)
     }
 
     /**
