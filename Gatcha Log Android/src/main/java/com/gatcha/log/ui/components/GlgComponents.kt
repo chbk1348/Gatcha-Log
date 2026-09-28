@@ -99,7 +99,8 @@ private val FieldBorderIdle = Color(0x1F000000)   // rgba(0,0,0,0.12) — 약간
 private val FieldText = Color(0xFF1A1C1E)
 private val FieldPlaceholder = Color(0x40000000)  // rgba(0,0,0,0.25)
 private val LabelColor = Color(0x66000000)        // rgba(0,0,0,0.4)
-private val GhostBorder = Color(0xFFE3E3EA)
+// 뒤로가기 버튼 테두리 — #E3E3EA 는 연회색 면(#F2F2F6)과 거의 같아 윤곽이 흐렸다(2026-09-28 지적). 한 단 진하게.
+private val GhostBorder = Color(0xFFC8CBD3)
 private val GhostText = Color(0xFF6C727A)
 
 /** 입력 필드 위 라벨 (대문자 느낌의 작은 라벨) */
