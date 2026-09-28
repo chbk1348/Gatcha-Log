@@ -7,6 +7,8 @@ import Shared
 struct GameInfoView: View {
     var store: SpendingStore
     @Environment(\.glgAccent) private var accent
+    @Environment(\.horizontalSizeClass) private var hSizeClass
+    @Environment(\.glgCanvasWidth) private var canvasWidth
     @State private var showHoyolab = false
     @State private var showGift = false
     @State private var showDashboard = false
@@ -157,18 +159,33 @@ struct GameInfoView: View {
             // iOS 26 은 인접한 툴바 아이템을 하나의 글래스 캡슐로 묶어버리므로, 스페이서로 갈라야
             // 버튼이 각각 독립된 원형으로 떨어진다. (지출 탭 헤더와 동일)
             // 순서: 새로고침 → 리딤코드 → 설정.
-            ToolbarItem(placement: .topBarTrailing) {
-                // 새로고침 중에는 아이콘 자리를 스피너로 바꾼다 — 당겨서 새로고침과 달리
-                // 버튼을 눌렀을 때는 화면 어디에도 진행 표시가 없어, 눌린 건지 알 수 없었다.
-                Button { store.refreshGameInfo(force: true) } label: {
-                    if store.isRefreshing { ProgressView().controlSize(.small) }
-                    else { Image(systemName: "arrow.clockwise") }
-                }
-                .disabled(store.isRefreshing)
+            // iPhone Duo — 새로고침은 **옆 레일에 상시 고정**한다(2026-09-28 지시). 스피너로 바뀌는 순간이나
+            // 접어서 레일이 짧아질 때 레일 밖으로 밀려나지 않게, 세로 배치를 우선하고 가장 늦게 접히게 한다.
+            if GLGFormFactor.current == .duo, #available(iOS 27.1, *) {
+                refreshItem
+                    .axisBehavior(.verticalPreferred)
+                    .visibilityPriority(.high)
+            } else {
+                refreshItem
             }
             if #available(iOS 26.0, *) {
                 ToolbarSpacer(.fixed, placement: .topBarTrailing)
             }
+            if isFoldedDuo {
+                // 접은 iPhone Duo — 레일이 짧아 세 버튼이 다 서지 못하고, 시스템이 새로고침을 레일 밖으로
+                // 밀어냈다(2026-09-28 지적). 리딤코드 · 연동을 **우리 메뉴 하나로 접어** 새로고침이 레일에 남게 한다.
+                // (시스템 `•••` 로 접히게 두면 그 메뉴가 열리지 않는다 — 지출 탭과 같은 처리)
+                ToolbarItem(placement: .topBarTrailing) {
+                    Menu {
+                        if store.hoyolabConfig.isLinked {
+                            Button { showGift = true } label: { Label("리딤코드", systemImage: "gift") }
+                        }
+                        Button { showHoyolab = true } label: { Label("HoYoLAB 연동", systemImage: "key.fill") }
+                    } label: {
+                        Image(systemName: "ellipsis")
+                    }
+                }
+            } else {
             if store.hoyolabConfig.isLinked {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button { showGift = true } label: { Image(systemName: "gift") }
@@ -182,6 +199,24 @@ struct GameInfoView: View {
                 // **HoYoLAB 쿠키를 넣는 곳**이라 열쇠를 쓴다. (Android `Icons.Default.Key` 와 파리티)
                 Button { showHoyolab = true } label: { Image(systemName: "key.fill") }
             }
+            }
+    }
+
+    @ToolbarContentBuilder private var refreshItem: some ToolbarContent {
+        ToolbarItem(placement: .topBarTrailing) {
+            // 새로고침 중에는 아이콘 자리를 스피너로 바꾼다 — 당겨서 새로고침과 달리
+            // 버튼을 눌렀을 때는 화면 어디에도 진행 표시가 없어, 눌린 건지 알 수 없었다.
+            Button { store.refreshGameInfo(force: true) } label: {
+                if store.isRefreshing { ProgressView().controlSize(.small) }
+                else { Image(systemName: "arrow.clockwise") }
+            }
+            .disabled(store.isRefreshing)
+        }
+    }
+
+    /// 접은 iPhone Duo 인가 — 레일이 짧아 툴바 버튼을 줄여야 하는 자리.
+    private var isFoldedDuo: Bool {
+        GLGFormFactor.current == .duo && !glgIsWideCanvas(width: canvasWidth, sizeClass: hSizeClass)
     }
 
     /// 탭 본문 — 스크롤 + 섹션 + 수집 트리거 + 헤더.
