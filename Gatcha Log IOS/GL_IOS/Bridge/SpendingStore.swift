@@ -86,6 +86,9 @@ final class SpendingStore {
      바인딩을 줄줄이 내려야 한다. 스토어에 두면 어디서든 같은 신호를 쓸 수 있다.
      */
     var hidesAddButton: Bool = false
+    /// 홈에서 호요랜드 페이지가 열려 있는가 — iOS 18(탭바 위 '+' 오버레이)에서 그동안 '추가'를 감춘다.
+    /// 호요랜드의 하위 페이지(굿즈 · 부스 · 배치도 …)는 같은 스택 위에 쌓이므로 홈으로 돌아올 때까지 참이다.
+    var hoyolandOpenOnHome: Bool = false
     /// 홈 히어로 글로우 애니메이션 사용 여부 — 끄면 그라데이션만 남는다.
     private(set) var heroGlow: Bool = true
     /// 캐릭터 상세 속성 연출 — 끄면 움직임 없이 속성 테두리만 남는다.

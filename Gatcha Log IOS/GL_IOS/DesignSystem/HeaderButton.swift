@@ -94,12 +94,25 @@ extension View {
                 self.buttonStyle(.glass).buttonBorderShape(.capsule).controlSize(.regular)
             }
         } else {
-            if selected {
-                self.buttonStyle(.borderedProminent).buttonBorderShape(.capsule).controlSize(.regular)
-            } else {
-                self.buttonStyle(.bordered).buttonBorderShape(.capsule).controlSize(.regular)
-            }
+            // iOS 26 미만 — 시스템 bordered(회색 면)는 앱 톤과 따로 놀았다. **강조색 옅은 면 + 강조색 글자**로
+            // 그리고, 선택은 강조색 채움 + 흰 글자(2026-09-28 지시).
+            self.buttonStyle(GLGLegacyChipStyle(selected: selected))
         }
+    }
+}
+
+/// iOS 26 미만의 칩 — 캡슐 · 강조색 10% 면 · 강조색 글자. 선택이면 강조색 채움 · 흰 글자.
+private struct GLGLegacyChipStyle: ButtonStyle {
+    let selected: Bool
+    @Environment(\.glgAccent) private var accent
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .foregroundStyle(selected ? Color.white : accent.primary)
+            .padding(.horizontal, 12).padding(.vertical, 7)
+            .background(selected ? accent.primary : accent.primary.opacity(0.10), in: Capsule())
+            .opacity(configuration.isPressed ? 0.7 : 1)
+            .contentShape(Capsule())
     }
 }
 

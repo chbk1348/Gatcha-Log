@@ -113,6 +113,9 @@ struct HomeView: View {
             }
         }
         .navigationDestination(isPresented: $showHoyoland) { HoyolandDetailView(store: store) }
+        // 호요랜드가 열려 있는 동안 iOS 18 의 '+' 를 감춘다 — 행사 페이지에서 지출 추가는 할 일이 아니고,
+        // 떠 있는 버튼이 목록 · 배치도를 가렸다(2026-09-28 지적).
+        .onChange(of: showHoyoland) { _, open in store.hoyolandOpenOnHome = open }
         .sheet(isPresented: $showBudget) { BudgetSheet(store: store) }
         .fileImporter(isPresented: $importingGacha, allowedContentTypes: [.json], allowsMultipleSelection: true) { result in
             if case .success(let urls) = result {

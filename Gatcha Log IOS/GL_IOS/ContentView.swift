@@ -439,7 +439,8 @@ struct ContentView: View {
                 // '일괄 편집'이 '+' 에 가려 눌리지 않았다. 같은 이유로 '맨 위로'도 이미 숨긴다.
                 // (지출을 고르는 중에 새 지출을 추가하는 흐름도 아니다)
                 if selectedTab <= 1 && !tabsWithSubPage.contains(selectedTab)
-                    && !bottomChromeHidden && !spendingSelectionMode && !store.hidesAddButton {
+                    && !bottomChromeHidden && !spendingSelectionMode && !store.hidesAddButton
+                    && !(selectedTab == 0 && store.hoyolandOpenOnHome) {
                     legacyAddButton
                         .padding(.trailing, GLGLegacyAddButton.trailingInset)
                         .padding(.bottom, GLGLegacyAddButton.bottomInset)
