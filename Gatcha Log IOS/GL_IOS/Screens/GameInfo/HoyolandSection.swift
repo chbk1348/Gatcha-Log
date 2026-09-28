@@ -154,7 +154,7 @@ struct HoyolandSection: View {
             Button { onOpen(.none) } label: {
                 HStack(spacing: 0) {
                     VStack(alignment: .leading, spacing: 6) {
-                        HoyolandTicketKicker(deep: deep)
+                        HoyolandTicketKicker(text: e.editionLabel, deep: deep)
                         Text(e.edition).font(.pretendard(size: 17, weight: .bold))
                             .foregroundStyle(GLGColor.textPrimary).lineLimit(1)
                         if !e.lineup.isEmpty {
@@ -1473,7 +1473,7 @@ struct HoyolandHomeCard: View {
         return Button(action: onTap) {
             HStack(spacing: 0) {
                 VStack(alignment: .leading, spacing: 5) {
-                    HoyolandTicketKicker(deep: deep)
+                    HoyolandTicketKicker(text: event.editionLabel, deep: deep)
                     Text(event.edition).font(.pretendard(size: 17, weight: .bold))
                         .foregroundStyle(GLGColor.textPrimary).lineLimit(1)
                     Text("\(event.periodNoYearLabel) · \(event.venueTicketLabel)").font(.pretendard(size: 13))
@@ -1701,11 +1701,13 @@ struct HoyolandDashedLine: Shape {
     }
 }
 
-/// 머리글 — 「HOYOLAND · ADMIT ONE」. 입장권이라는 인상은 이 한 줄에서 나온다.
+/// 머리글 — 영문 행사명(「HOYOLAND 2026」, `editionLabel`). 입장권이라는 인상은 이 한 줄에서 나온다.
+/// 시안의 「ADMIT ONE」(1인 입장)은 한국어 화면에서 뜻이 안 읽혀 뺐다(2026-09-28 지시).
 struct HoyolandTicketKicker: View {
+    let text: String
     let deep: Color
     var body: some View {
-        Text("HOYOLAND · ADMIT ONE").font(.pretendard(size: 11, weight: .heavy)).tracking(1.1)
+        Text(text).font(.pretendard(size: 11, weight: .heavy)).tracking(1.1)
             .foregroundStyle(deep).lineLimit(1)
     }
 }
