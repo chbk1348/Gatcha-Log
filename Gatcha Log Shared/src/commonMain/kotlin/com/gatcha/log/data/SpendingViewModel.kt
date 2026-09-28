@@ -783,10 +783,26 @@ class SpendingViewModel : ViewModel() {
     }
 
     // ----------------------------------------------------------------- 지출
+    /** 저장 전 검증 — 금액 1원 ~ [Spending.MAX_AMOUNT], 게임명 필수. 어긋나면 안내하고 false. */
+    private fun validSpending(s: Spending): Boolean {
+        val msg = when {
+            s.amount <= 0 -> "금액을 입력해 주세요"
+            s.amount > Spending.MAX_AMOUNT -> "금액이 너무 커요"
+            s.gameName.isBlank() -> "게임을 골라 주세요"
+            else -> return true
+        }
+        emitStatus(msg)
+        return false
+    }
+
     fun addSpending(spending: Spending) {
+        if (!validSpending(spending)) return
+        // 같은 id 가 이미 있으면 추가하지 않는다 — 저장 버튼 연타 · 재시도로 같은 기록이 두 번 들어가 합계가 부풀었다.
+        if (_spendings.value.any { it.id == spending.id }) return
+        val stamped = spending.copy(updatedAt = currentTimeMillis())
         // 상태 갱신과 저장을 분리한다 — update {} 블록은 CAS 재시도 시 통째로 다시 실행되므로
         // 그 안에 저장을 넣으면 디스크 쓰기와 클라우드 푸시 예약이 한 번 더 일어날 수 있다.
-        val next = (listOf(spending) + _spendings.value).sortedByDescending { it.dateMillis }
+        val next = (listOf(stamped) + _spendings.value).sortedByDescending { it.dateMillis }
         _spendings.value = next
         repo.saveSpendings(next)
         refreshChallenge()
@@ -794,7 +810,12 @@ class SpendingViewModel : ViewModel() {
     }
 
     fun updateSpending(updated: Spending) {
-        val next = _spendings.value.map { if (it.id == updated.id) updated else it }
+        if (!validSpending(updated)) return
+        // 그사이 지워진 지출(다른 기기 삭제 · 동기화)이면 수정하지 않는다 — 예전엔 조용히 아무것도 안 하면서
+        // "수정되었어요" 를 띄웠다.
+        if (_spendings.value.none { it.id == updated.id }) { emitStatus("이미 삭제된 지출이에요"); return }
+        val stamped = updated.copy(updatedAt = currentTimeMillis())
+        val next = _spendings.value.map { if (it.id == stamped.id) stamped else it }
             .sortedByDescending { it.dateMillis }
         _spendings.value = next
         repo.saveSpendings(next)
@@ -831,11 +852,16 @@ class SpendingViewModel : ViewModel() {
     fun bulkEditSpendings(ids: Set<String>, gameName: String?, dateMillis: Long?, addTags: List<String>) {
         if (ids.isEmpty()) return
         val next = _spendings.value.map { s ->
+            // 빈 게임명도 "변경 없음" — null 만 그렇게 봐서, 빈 문자열이 오면 선택한 기록의 게임이 전부 비었다.
+            val newGame = gameName?.takeIf { it.isNotBlank() }
             if (s.id !in ids) s else s.copy(
-                gameName = gameName ?: s.gameName,
-                gameColor = gameName?.let { GameData.colorFor(it) } ?: s.gameColor,
-                dateMillis = dateMillis ?: s.dateMillis,
+                gameName = newGame ?: s.gameName,
+                gameColor = newGame?.let { GameData.colorFor(it) } ?: s.gameColor,
+                // 날짜만 바꾸고 **시각은 그대로** — 예전엔 고른 날의 시각으로 전부 덮여 하루 안의 순서가 뭉개졌다.
+                dateMillis = dateMillis?.let { DateUtil.startOfDay(it) + (s.dateMillis - DateUtil.startOfDay(s.dateMillis)) }
+                    ?: s.dateMillis,
                 tags = if (addTags.isEmpty()) s.tags else (s.tags + addTags).distinct(),
+                updatedAt = currentTimeMillis(),
             )
         }.sortedByDescending { it.dateMillis }
         _spendings.value = next
@@ -846,6 +872,8 @@ class SpendingViewModel : ViewModel() {
 
     /** 모든 지출 기록 삭제. */
     fun clearSpendings() {
+        // 삭제 기록(tombstone)을 남긴다 — 없으면 다음 동기화의 합집합 병합이 지운 지출을 되살렸다.
+        repo.addDeletedSpendingIds(_spendings.value.map { it.id }.toSet())
         _spendings.value = emptyList()
         repo.saveSpendings(emptyList())
         refreshChallenge()
@@ -2873,10 +2901,16 @@ class SpendingViewModel : ViewModel() {
             // 멀쩡한 클라우드를 빈/구 로컬로 덮어쓰지 않는다(이번 유실 사고 재발 방지).
             when (val outcome = withTimeoutOrNull(SYNC_TIMEOUT_MS) { CloudSync.pullOutcome(uid) }) {
                 is CloudSync.PullOutcome.Loaded -> {
-                    outcome.json?.let { repo.importSnapshotJson(it) }
-                    // 원격/계정에 호요랩 연동이 없고 게스트에 있으면 계정으로 승계(귀속 누락 복구)
-                    carryOverGuestHoyolab()
-                    loadAll()
+                    // 저장소를 읽고-합치고-쓰는 구간은 **메인에서** — 지출 추가 · 수정 · 삭제가 메인에서 저장소를
+                    // 쓰므로 한 줄로 세워야 서로 끼어들지 않는다. 예전엔 IO 에서 돌아 그사이 추가한 지출이
+                    // 병합 결과에서 빠지고 loadAll 이 그 목록으로 덮었다(2026-09-28 점검).
+                    // ponytail: 스냅샷 파싱까지 메인에서 돈다 — 지출이 수천 건이 되어 복귀가 버벅이면 파싱만 IO 로 떼고 쓰기만 메인에 둔다.
+                    withContext(Dispatchers.Main) {
+                        outcome.json?.let { repo.importSnapshotJson(it) }
+                        // 원격/계정에 호요랩 연동이 없고 게스트에 있으면 계정으로 승계(귀속 누락 복구)
+                        carryOverGuestHoyolab()
+                        loadAll()
+                    }
                     // 병합 결과를 다시 업로드 → 유실됐던 호요랩 토큰 등을 클라우드에 자가 복구
                     withTimeoutOrNull(SYNC_TIMEOUT_MS) { cloudPush(uid) }
                 }
