@@ -757,9 +757,8 @@ struct EnkaStatPageBody: View {
                 }
             }
         }
-        .navigationTitle(char.name)
+        .glgHiddenTitle(char.name)
         .navigationBarTitleDisplayMode(.inline)
-        .toolbar { ToolbarItem(placement: .principal) { Color.clear.frame(width: 1, height: 1) } }
         .modifier(GLGHiddenToolbarBackground(hidden: !pastHero))
         .animation(.easeInOut(duration: 0.18), value: pastHero)
         .sheet(isPresented: $basisOpen) { keyStatSheet }

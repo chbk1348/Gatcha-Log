@@ -185,7 +185,12 @@ private struct GLGPageTitle: ViewModifier {
         // (굿즈 목록 · 보유 캐릭터 · 게임 일정 …) 탭 이름과 같은 말이 아니다. 제목이 없으면
         // 넓은 화면에서 "지금 어느 페이지인가"를 화면이 답하지 않고, 빈 바만 남아 여백으로
         // 보인다(2026-09-21 점검). 탭 **뿌리** 화면은 탭 이름이 이미 답하므로 거기서만 지운다.
-        content.navigationTitle(title)
+        //
+        // **iPhone Duo 는 예외로 걷는다.** 탭 · 툴바가 옆 레일에 서는 기기라 제목만 위쪽에 가로 바를
+        // 따로 세워 한 줄을 통째로 먹었다 — 탭 뿌리와 같이 제목 없이 콘텐츠를 위로 올린다(2026-09-28 지시).
+        content
+            .navigationTitle(title)
+            .toolbar(removing: GLGFormFactor.current == .duo ? .title : nil)
     }
 }
 
@@ -194,13 +199,14 @@ extension View {
     func glgPageTitle(_ title: String) -> some View { modifier(GLGPageTitle(title: title)) }
 }
 
-/// 탭 **뿌리** 화면의 제목 — 어느 기기에서도 **보이지 않는다.** 문자열은 채워 둔다(비우면 뒤로가기 길게 누르기
+/// **보이지 않는** 제목 — 탭 뿌리 화면, 히어로가 제목을 대신하는 상세 화면(지출 상세 · 캐릭터 상세)용.
+/// 어느 기기에서도 보이지 않는다. 문자열은 채워 둔다(비우면 뒤로가기 길게 누르기
 /// 메뉴가 공백 줄이 된다).
 ///
 /// iPhone · iPad 는 제목 자리를 **빈 뷰로 덮는다**(탭 이름이 이미 "어느 화면인가" 를 답한다).
 /// iPhone Duo 는 그 수법을 쓰면 안 된다 — 탭 · 툴바가 옆 레일에 서는데, 빈 뷰는 레일로 못 가서 **위쪽에 가로 바를
 /// 따로 세우고** 그 바가 빈 채로 자리를 먹었다. Duo 는 덮지 않고 제목 자리를 **걷는다**(2026-09-28 지시).
-private struct GLGTabRootTitle: ViewModifier {
+private struct GLGHiddenTitle: ViewModifier {
     let title: String
 
     func body(content: Content) -> some View {
@@ -217,8 +223,8 @@ private struct GLGTabRootTitle: ViewModifier {
 }
 
 extension View {
-    /// 탭 뿌리 화면의 (보이지 않는) 제목 — [GLGTabRootTitle] 참고.
-    func glgTabRootTitle(_ title: String) -> some View { modifier(GLGTabRootTitle(title: title)) }
+    /// 보이지 않는 제목 — [GLGHiddenTitle] 참고.
+    func glgHiddenTitle(_ title: String) -> some View { modifier(GLGHiddenTitle(title: title)) }
 }
 
 private struct GLGReadableWidth: ViewModifier {
