@@ -277,7 +277,10 @@ struct GLGSplitDetail<L: View, D: View>: View {
                         if let hinge {
                             // 접힘선 자리는 **비워 둔다.** 물리적으로 이미 갈라진 자리라 선을 더
                             // 그으면 두 겹이 된다.
-                            Color.clear.frame(width: hinge.width)
+                            //
+                            // 비우되 **앱 배경은 깐다.** 투명으로 두면 밑의 흰 바탕이 드러나, 접을수록
+                            // 넓어지는 경첩 여백이 가운데 흰 띠로 벌어졌다(2026-09-28 지적).
+                            GLGBackground { Color.clear }.frame(width: hinge.width)
                         } else {
                             // 목록과 상세 사이 선 — 앱의 다른 구분선과 **같은 색·같은 두께**다.
                             // 시스템 `Divider()` 는 회색이 더 진해 여기만 선이 굵어 보였다(2026-09-21 지적).
@@ -289,6 +292,10 @@ struct GLGSplitDetail<L: View, D: View>: View {
                     list()
                 }
             }
+            // 컨테이너 **전체 뒤에** 앱 배경을 깐다. 접는 동안 목록·경첩·상세 폭이 프레임마다 바뀌면서
+            // 셋 중 누구도 덮지 않는 틈이 잠깐씩 생기고, 거기로 창의 흰 바탕이 경첩 자리에 번쩍였다
+            // (2026-09-28 지적 — 경첩 칸만 칠해서는 남았다).
+            .background(GLGBackground { Color.clear })
             .glgHinge($hinge)
             // 레이아웃 도중에 상태를 쓰면 "Modifying state during view update" 가 된다 → 반영은 밖에서.
             .onAppear { if isSplit != split { isSplit = split } }
@@ -346,8 +353,11 @@ struct GLGSplitPlaceholder: View {
 struct GLGHinge: Equatable {
     /// 경첩 한가운데의 x — 재는 뷰의 좌표계 기준.
     var midX: CGFloat
-    /// 경첩 폭 + 좌우 여백. 이만큼은 비워 둔다.
+    /// 경첩 폭 + 좌우 여백. 이만큼은 비워 둔다(최대 [maxWidth]).
     var width: CGFloat
+
+    /// 비우는 폭의 상한 — 다 펼친 상태의 폭(17pt 안팎)에 조금 여유를 둔 값.
+    static let maxWidth: CGFloat = 24
 }
 
 extension View {
@@ -366,8 +376,11 @@ extension View {
             if let region = proxy.reservedRegions(kind: .division)
                 .first(where: { $0.isActive && $0.frame.height >= $0.frame.width }) {
                 let f = region.frame
-                return GLGHinge(midX: f.midX,
-                                width: f.width + region.margins.leading + region.margins.trailing)
+                // 비우는 폭에 **상한**을 둔다. 다 펼치면 경첩+여백이 17pt 안팎인데, 접어 가는 동안
+                // 시스템이 여백을 계속 키워 접히기 직전엔 80pt 가까이 벌어졌다 — 화면 한가운데가
+                // 통째로 빈 칸으로 보였다(2026-09-28 지적). 가운데 자리(midX)는 그대로 따른다.
+                let reported = f.width + region.margins.leading + region.margins.trailing
+                return GLGHinge(midX: f.midX, width: min(reported, GLGHinge.maxWidth))
             }
             // 보고가 없으면 **여기서 지어내지 않는다.** 폭에서 유추한 값(절반)을 상태로 들고 있으면,
             // 접는 순간 갈림 여부와 이 값이 **서로 다른 프레임에** 갱신돼 목록이 한 번 좁아졌다
