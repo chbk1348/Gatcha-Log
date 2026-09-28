@@ -16,9 +16,13 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -56,37 +60,128 @@ import com.gatcha.log.ui.theme.toColor
  * 판의 가로세로 비율은 config 가 정한다 — 도면이 가로로 길어 정사각 판에 그리면 세로로 늘어난다.
  */
 @Composable
-fun HoyolandMapContent(e: HoyolandEvent, onOpenZone: (HoyolandMapZone) -> Unit = {}) {
+fun HoyolandMapContent(
+    e: HoyolandEvent,
+    /**
+     * 가로 보기 — 판과 범례를 **통째로 90° 돌려** 페이지를 꽉 채운다(스크롤 없음). 가로로 긴 도면을
+     * 세로 화면에 눕혀 그리면 칸이 작아 글자가 잘렸다(2026-09-28 지시, 헤더 「화면 돌리기」 버튼).
+     * 호출부는 스크롤하지 않는 페이지([SectionPage] `scrollable = false`)에 넣는다.
+     */
+    rotated: Boolean = false,
+    /** 이번에 그릴 때 전환 애니메이션을 탈지 — 돌리기 버튼을 누른 직후에만 참. 구역에서 돌아올 땐 거짓. */
+    animateTransition: Boolean = false,
+    onTransitionDone: () -> Unit = {},
+    onOpenZone: (HoyolandMapZone) -> Unit = {},
+) {
     val map = e.map
     if (map.isEmpty) return
     // 판 바탕 — `LocalAccentTint` 는 이 페이지의 회색 배경 위에서 거의 안 보여 판의 경계가
     // 사라졌다(히어로가 같은 이유로 강조색 옅은 면을 쓴다). 여기도 같은 값으로 맞춘다.
     val board = LocalAccent.current.copy(alpha = 0.10f)
+    // ── 판의 좌표 범위 — 구역을 비율 좌표로 얹는다.
+    //
+    // 좌표를 **구역들이 실제로 차지하는 범위로 다시 펴서** 그린다. 원본 도면에는 판 둘레에
+    // 빈 여백이 있는데(구역은 x 8~93 · y 15~92 만 쓴다), 그걸 그대로 옮기면 화면에서
+    // 배치도만 작아지고 둘레가 텅 빈다(2026-09-16 지적). 여백을 걷어내면 같은 폭에서
+    // 구역이 커지고 글자도 산다.
+    //
+    // 판의 세로 비율도 그 범위로 다시 잡는다 — `map.ratio` 는 **원본 도면**의 비율이라
+    // 잘라낸 범위의 가로세로 비를 곱해야 도면이 안 눌린다.
+    val zones = map.drawable
+    val minX = zones.minOf { it.x }
+    val maxX = zones.maxOf { it.x + it.w }
+    val minY = zones.minOf { it.y }
+    val maxY = zones.maxOf { it.y + it.h }
+    val spanX = (maxX - minX).coerceAtLeast(1f)
+    val spanY = (maxY - minY).coerceAtLeast(1f)
+    val boardRatio = ((spanX / spanY) * map.ratio).coerceIn(0.4f, 4f)
+    val pad = 10.dp
 
-    Column(Modifier.fillMaxWidth()) {
+    @Composable
+    fun Board(boardW: androidx.compose.ui.unit.Dp, modifier: Modifier = Modifier) {
+        val innerW = boardW - pad * 2
+        val innerH = innerW / boardRatio
+        Box(
+            modifier
+                .width(boardW)
+                .height(innerH + pad * 2)
+                .clip(RoundedCornerShape(20.dp))
+                .background(board)
+                .padding(pad),
+        ) {
+            zones.forEach { z ->
+                val zoneModifier = Modifier
+                    .offset(
+                        x = innerW * ((z.x - minX) / spanX),
+                        y = innerH * ((z.y - minY) / spanY),
+                    )
+                    .size(
+                        width = innerW * (z.w / spanX),
+                        height = innerH * (z.h / spanY),
+                    )
+                if (z.kind == "flow-in" || z.kind == "flow-out") {
+                    HoyolandMapFlow(up = z.kind == "flow-in", label = z.label, modifier = zoneModifier)
+                } else {
+                    HoyolandMapZoneBox(z, zoneModifier) { onOpenZone(z) }
+                }
+            }
+        }
+    }
+
+    if (rotated) {
+        // 돌리기 **전** 좌표계로 판을 잡는다 — 판의 가로가 화면 세로를, 판의 세로(+범례)가 화면 가로를 넘지 않는
+        // 가장 큰 크기. 그 판을 90° 돌려 가운데 세운다. `graphicsLayer` 회전은 누르는 좌표도 같이 돌린다.
+        BoxWithConstraints(Modifier.fillMaxSize()) {
+            val logicalW = maxHeight
+            val logicalH = maxWidth
+            val legendH = 34.dp   // 범례 한 줄 + 판과의 간격 12
+            val boardW = minOf(logicalW, (logicalH - legendH - pad * 2) * boardRatio + pad * 2)
+                .coerceAtLeast(160.dp)
+            // 전환 — **세로 상태에서 90° 돌아 눕는다.** 도는 동안은 판을 줄여 화면을 넘지 않게 한다
+            // (세로로 선 순간엔 판의 긴 변이 화면 폭을 넘는다). 2026-09-28 지시.
+            val spin = remember { androidx.compose.animation.core.Animatable(if (animateTransition) 0f else 1f) }
+            LaunchedEffect(Unit) {
+                if (animateTransition) {
+                    spin.animateTo(1f, androidx.compose.animation.core.spring(dampingRatio = 0.8f, stiffness = 300f))
+                    onTransitionDone()
+                }
+            }
+            Column(
+                Modifier
+                    .align(Alignment.Center)
+                    .requiredSize(width = logicalW, height = logicalH)
+                    .graphicsLayer {
+                        val t = spin.value
+                        rotationZ = 90f * t
+                        val s = 0.6f + 0.4f * t
+                        scaleX = s; scaleY = s
+                        alpha = t.coerceIn(0f, 1f)
+                    },
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center,
+            ) {
+                Board(boardW)
+                Spacer(Modifier.height(12.dp))
+                HoyolandMapLegend(map.drawable)
+            }
+        }
+        return
+    }
+
+    // 세로 보기로 돌아올 때는 페이드로 들어온다(가로 보기는 위에서 돌아 들어온다).
+    val appear = remember { androidx.compose.animation.core.Animatable(if (animateTransition) 0f else 1f) }
+    LaunchedEffect(Unit) {
+        if (animateTransition) {
+            appear.animateTo(1f, androidx.compose.animation.core.tween(220))
+            onTransitionDone()
+        }
+    }
+    Column(Modifier.fillMaxWidth().graphicsLayer { alpha = appear.value }) {
         if (map.note.isNotBlank()) {
             Text(map.note, fontSize = 12.sp, color = TextSecondary, lineHeight = 18.sp)
             Spacer(Modifier.height(12.dp))
         }
-        // ── 판 — 구역을 비율 좌표로 얹는다.
-        //
-        // 좌표를 **구역들이 실제로 차지하는 범위로 다시 펴서** 그린다. 원본 도면에는 판 둘레에
-        // 빈 여백이 있는데(구역은 x 8~93 · y 15~92 만 쓴다), 그걸 그대로 옮기면 화면에서
-        // 배치도만 작아지고 둘레가 텅 빈다(2026-09-16 지적). 여백을 걷어내면 같은 폭에서
-        // 구역이 커지고 글자도 산다.
-        //
-        // 판의 세로 비율도 그 범위로 다시 잡는다 — `map.ratio` 는 **원본 도면**의 비율이라
-        // 잘라낸 범위의 가로세로 비를 곱해야 도면이 안 눌린다.
-        val zones = map.drawable
-        val minX = zones.minOf { it.x }
-        val maxX = zones.maxOf { it.x + it.w }
-        val minY = zones.minOf { it.y }
-        val maxY = zones.maxOf { it.y + it.h }
-        val spanX = (maxX - minX).coerceAtLeast(1f)
-        val spanY = (maxY - minY).coerceAtLeast(1f)
         BoxWithConstraints(Modifier.fillMaxWidth()) {
-            val pad = 10.dp
-            val boardRatio = ((spanX / spanY) * map.ratio).coerceIn(0.4f, 4f)
             // ── 판 크기는 **폭과 높이 양쪽에서 막는다.**
             //
             // 폭만 보고 그리면 태블릿·폴더블 펼침에서 판이 화면 폭만큼 커져 글자만 둥둥 뜨고,
@@ -96,48 +191,7 @@ fun HoyolandMapContent(e: HoyolandEvent, onOpenZone: (HoyolandMapZone) -> Unit =
             val widthCap = maxWidth.coerceAtMost(HoyolandMapMaxWidth)
             val heightCap = (screenH * 0.52f) * boardRatio   // 높이 상한을 폭으로 환산
             val boardW = minOf(widthCap, heightCap).coerceAtLeast(160.dp)
-            val innerW = boardW - pad * 2
-            val innerH = innerW / boardRatio
-            Box(
-                Modifier
-                    .align(Alignment.TopCenter)
-                    .width(boardW)
-                    .height(innerH + pad * 2)
-                    .clip(RoundedCornerShape(20.dp))
-                    .background(board)
-                    .padding(pad),
-            ) {
-                zones.forEach { z ->
-                    if (z.kind == "flow-in" || z.kind == "flow-out") {
-                        HoyolandMapFlow(
-                            up = z.kind == "flow-in",
-                            label = z.label,
-                            modifier = Modifier
-                                .offset(
-                                    x = innerW * ((z.x - minX) / spanX),
-                                    y = innerH * ((z.y - minY) / spanY),
-                                )
-                                .size(
-                                    width = innerW * (z.w / spanX),
-                                    height = innerH * (z.h / spanY),
-                                ),
-                        )
-                        return@forEach
-                    }
-                    HoyolandMapZoneBox(
-                        z,
-                        Modifier
-                            .offset(
-                                x = innerW * ((z.x - minX) / spanX),
-                                y = innerH * ((z.y - minY) / spanY),
-                            )
-                            .size(
-                                width = innerW * (z.w / spanX),
-                                height = innerH * (z.h / spanY),
-                            ),
-                    ) { onOpenZone(z) }
-                }
-            }
+            Board(boardW, Modifier.align(Alignment.TopCenter))
         }
         Spacer(Modifier.height(12.dp))
         HoyolandMapLegend(map.drawable)

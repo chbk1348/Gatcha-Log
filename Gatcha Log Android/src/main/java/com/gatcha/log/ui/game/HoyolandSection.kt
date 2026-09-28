@@ -84,6 +84,7 @@ import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Restaurant
 import androidx.compose.material.icons.filled.Schedule
+import androidx.compose.material.icons.outlined.ScreenRotation
 import androidx.compose.material.icons.outlined.Redeem
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.OpenInFull
@@ -455,7 +456,18 @@ fun HoyolandDetailPage(
     // 새로 생겨 맨 위로 튄다 — 굿즈 한 번 보고 나올 때마다 다시 내려야 했다).
     val detailScroll = rememberScrollState()
     /** 하위 페이지로 **들어간다** — 전환 방향까지 같이 남긴다. */
-    val goSub: (HoyolandSub) -> Unit = { navBack = false; page = it }
+    // 배치도 가로 보기 — 구역 목록을 다녀와도 돌린 상태가 남도록 페이지 바깥에 둔다.
+    // 배치도에 **새로 들어갈 때**는 처음 상태(세로)로 되돌린다(goSub) — 돌린 채 나갔다 다시 들어오면
+    // 가로로 열려 헷갈렸다(2026-09-28 지적).
+    var mapRotated by remember { mutableStateOf(false) }
+    // 돌리기 애니메이션은 **버튼을 누른 그 한 번만** — 구역 목록에서 돌아와 판이 다시 그려질 때마다
+    // 또 돌았다(2026-09-28 지적). 누를 때 세우고, 애니메이션이 끝나면 내린다.
+    var mapSpinOnce by remember { mutableStateOf(false) }
+    val goSub: (HoyolandSub) -> Unit = {
+        navBack = false
+        if (it == HoyolandSub.Map) mapRotated = false
+        page = it
+    }
     // 바로가기로 곧장 들어온 하위 페이지에서 뒤로 가면 **상세가 아니라 들어온 곳(게임정보 탭)** 으로 간다.
     // 상세를 거치지 않고 들어왔는데 뒤로가기에 상세가 끼어들면 한 번 더 눌러야 했다(2026-09-15 지적).
     val backFromSub: () -> Unit = {
@@ -566,9 +578,27 @@ fun HoyolandDetailPage(
             HoyolandSub.Food ->
                 SectionPage("푸드존", onBack = backFromSub) { HoyolandFoodContent(e) }
             HoyolandSub.Map ->
-                SectionPage(e.map.title.ifBlank { "행사장 배치도" }, onBack = backFromSub) {
+                SectionPage(
+                    e.map.title.ifBlank { "행사장 배치도" },
+                    onBack = backFromSub,
+                    // 화면 돌리기 — 가로로 긴 도면을 눕혀 페이지를 꽉 채운다. 돌린 동안은 스크롤하지 않는다.
+                    actions = {
+                        GlgCircleIconButton(
+                            Icons.Outlined.ScreenRotation,
+                            if (mapRotated) "세로로 보기" else "가로로 보기",
+                            // 다른 헤더 원형 버튼과 같은 규격 — 아웃라인 + 불투명 면.
+                            outlined = true, solidBackground = true,
+                        ) { mapSpinOnce = true; mapRotated = !mapRotated }
+                    },
+                    scrollable = !mapRotated,
+                ) {
                     // 구역을 누르면 그 존의 목록으로 간다 — 지도가 목록의 입구가 된다.
-                    HoyolandMapContent(e) { z ->
+                    HoyolandMapContent(
+                        e,
+                        rotated = mapRotated,
+                        animateTransition = mapSpinOnce,
+                        onTransitionDone = { mapSpinOnce = false },
+                    ) { z ->
                         // 게임 부스 칸은 **그 게임으로 걸러진** 부스 목록으로 보낸다 — 지도에서
                         // 원신 부스를 눌렀는데 24곳 전체가 나오면 다시 찾아야 한다.
                         val target = when (z.kind) {

@@ -19,17 +19,32 @@ struct HoyolandMapView: View {
     let store: SpendingStore
     @Environment(\.glgAccent) private var accent
     @Environment(\.horizontalSizeClass) private var hSize
+    @Environment(\.glgCanvasWidth) private var canvasWidth
     /// 페이지(창) 크기 — 판 크기를 여기서 뽑는다.
     ///
     /// `UIScreen.main.bounds` 를 쓰던 자리다. 기기 화면은 **창이 아니다** — iPad 분할·Stage Manager
     /// 에서는 창이 화면보다 한참 작은데 그 값으로 재면 판이 창을 넘고, 반대로 화면을 꽉 쓰는
     /// iPad 에서는 판이 520 에 묶여 가운데 작게 남았다(2026-09-21 지적).
     @State private var viewport: CGSize = .zero
+    /// 가로 보기 — 판과 범례를 **통째로 90° 돌려** 페이지를 꽉 채운다(스크롤 없음). 가로로 긴 도면을
+    /// 세로 화면에 눕혀 그리면 칸이 작아 글자가 잘렸다(2026-09-28 지시, 헤더 「화면 돌리기」 버튼).
+    @State private var rotated = false
 
-    /// 판을 놓을 수 있는 가로 — 창에서 페이지 여백(16×2)과 읽기 폭 제한을 뺀 값.
+    /// 넓은 창(펼친 iPhone Duo · iPad)인가 — 판이 **기기 화면만큼** 커지고, 돌리기 버튼은 없다.
+    private var isWide: Bool { glgIsWideCanvas(width: canvasWidth, sizeClass: hSize) }
+
+    /// 판을 놓을 수 있는 가로 — 창에서 페이지 여백(16×2)을 뺀 값. 좁은 창은 읽기 폭 제한도 뺀다.
+    ///
+    /// 넓은 창은 읽기 폭(520대)에 묶지 않는다 — 가운데 작게 남아 큰 화면이 놀았다(2026-09-28 지시).
     private var contentWidth: CGFloat {
         let w = max(viewport.width, 320) - 32
+        if isWide { return w }
         return hSize == .regular ? min(w, HoyolandMapReadableWidth - 32) : w
+    }
+
+    /// 판 높이 상한 — 좁은 창은 화면의 52%(아래 범례까지 한 화면), 넓은 창은 안내 · 범례 자리만 남기고 **전부**.
+    private var boardHeightCap: CGFloat {
+        isWide ? max(viewportHeight - 140, 240) : viewportHeight * 0.52
     }
 
     /// 판 높이 상한의 바탕이 되는 세로 — 아직 재기 전이면 화면 값으로 시작한다.
@@ -39,6 +54,61 @@ struct HoyolandMapView: View {
 
     var body: some View {
         let map = event.map
+        // 전환 — 가로 보기는 **세로 상태에서 90° 돌아 눕는다**(돌리는 동안 판을 줄여 화면을 넘지 않게).
+        // 되돌릴 때는 거꾸로 돌며 빠지고 세로 판이 페이드로 들어온다(2026-09-28 지시).
+        //
+        // 배경은 **전환 바깥의 고정 층**이다. `Group` 에 `.background` 를 걸면 안쪽 화면마다 따로 붙어,
+        // 가로 보기가 돌며 들어올 때 배경까지 같이 돌고 줄고 흐려졌다가 뒤늦게 차올랐다(2026-09-28 iOS 18 지적).
+        ZStack {
+            GLGBackground { Color.clear }
+            if rotated {
+                rotatedPage(map)
+                    .transition(.modifier(active: HoyolandMapSpin(angle: -90, scale: 0.6, opacity: 0),
+                                          identity: HoyolandMapSpin(angle: 0, scale: 1, opacity: 1)))
+            } else {
+                scrollPage(map).transition(.opacity)
+            }
+        }
+        // 돌린 채로 듀오를 펼치면 가로 보기를 걷는다 — 넓은 창엔 돌리기 버튼이 없어 되돌릴 방법이 사라진다.
+        .onChange(of: isWide) { _, wide in if wide && rotated { rotated = false } }
+        .glgPageTitle(map.title.isEmpty ? "행사장 배치도" : map.title)
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            // 좁은 화면에서만 — 폰 · 접은 듀오. 펼친 듀오 · iPad 는 화면이 넓어 판이 기기 크기만큼 커진다(2026-09-28 지시).
+            if GLGFormFactor.current != .pad && !isWide {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button { withAnimation(.spring(duration: 0.45, bounce: 0.12)) { rotated.toggle() } } label: {
+                        // `rotate.right` 는 화살표가 한쪽 모서리에 붙은 비대칭 기호라 원형 버튼 안에서 왼쪽 아래로
+                        // 쏠려 보였다(윤곽 -4 · 무게중심 +3.5 / 64pt, 2026-09-28 지적). 가운데가 맞는 기호로 바꾼다.
+                        Image(systemName: "rectangle.portrait.rotate")
+                    }
+                    .accessibilityLabel(rotated ? "세로로 보기" : "가로로 보기")
+                }
+            }
+        }
+    }
+
+    /// 가로 보기 — 돌리기 **전** 좌표계로 판을 잡는다. 판의 가로가 화면 세로를, 판의 세로(+범례)가 화면
+    /// 가로를 넘지 않는 가장 큰 크기로 그리고, 그 묶음을 90° 돌려 가운데 세운다. `rotationEffect` 는
+    /// 누르는 자리도 같이 돌린다.
+    private func rotatedPage(_ map: HoyolandMap) -> some View {
+        GeometryReader { g in
+            let logicalW = g.size.height - 32
+            let logicalH = g.size.width - 32
+            let legendH: CGFloat = 34   // 범례 한 줄 + 판과의 간격 12
+            let ratio = CGFloat(boardRatio(map))
+            let boardW = max(min(logicalW, (logicalH - legendH - 20) * ratio + 20), 160)
+            VStack(spacing: 12) {
+                boardFace(map, boardW: boardW)
+                legend
+            }
+            .frame(width: max(logicalW, 0), height: max(logicalH, 0))
+            .rotationEffect(.degrees(90))
+            .frame(width: g.size.width, height: g.size.height)
+        }
+    }
+
+    private func scrollPage(_ map: HoyolandMap) -> some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
                 if !map.note.isEmpty {
@@ -54,13 +124,22 @@ struct HoyolandMapView: View {
                 Color.clear.frame(height: 24)
             }
             .padding(16)
-            .glgReadableWidth(HoyolandMapReadableWidth)
+            .glgReadableWidth(isWide ? .infinity : HoyolandMapReadableWidth)
         }
         .onGeometryChange(for: CGSize.self) { $0.size } action: { viewport = $0 }
         .scrollIndicators(.hidden)
-        .background(GLGBackground { Color.clear })
-        .glgPageTitle(map.title.isEmpty ? "행사장 배치도" : map.title)
-        .navigationBarTitleDisplayMode(.inline)
+    }
+
+    /// 판의 가로세로 비 — 구역이 실제로 차지하는 범위 × 원본 도면 비율.
+    private func boardRatio(_ map: HoyolandMap) -> Double {
+        let zones = map.drawable
+        let minX = zones.map(\.x).min() ?? 0
+        let maxX = zones.map { $0.x + $0.w }.max() ?? 100
+        let minY = zones.map(\.y).min() ?? 0
+        let maxY = zones.map { $0.y + $0.h }.max() ?? 100
+        let spanX = max(maxX - minX, 1)
+        let spanY = max(maxY - minY, 1)
+        return Double(min(max((spanX / spanY) * map.ratio, 0.4), 4))
     }
 
     // ── 판 ────────────────────────────────────────────────────────────────
@@ -75,50 +154,55 @@ struct HoyolandMapView: View {
      커져 글자만 둥둥 뜨고, 세로가 짧은 기기에서는 판이 화면을 넘겨 아래가 잘린다.
      */
     @ViewBuilder private func board(_ map: HoyolandMap) -> some View {
-        let zones = map.drawable
-        let minX = zones.map(\.x).min() ?? 0
-        let maxX = zones.map { $0.x + $0.w }.max() ?? 100
-        let minY = zones.map(\.y).min() ?? 0
-        let maxY = zones.map { $0.y + $0.h }.max() ?? 100
-        let spanX = max(maxX - minX, 1)
-        let spanY = max(maxY - minY, 1)
-        let ratio = min(max((spanX / spanY) * map.ratio, 0.4), 4)
-
+        let ratio = CGFloat(boardRatio(map))
         GeometryReader { geo in
-            let pad: CGFloat = 10
             // 폭 상한(520)을 걷었다 — 판은 **창이 주는 만큼** 쓰고, 세로가 모자라면 아래 높이
             // 상한이 먼저 걸린다. 두 값 중 작은 쪽이라 창을 넘지 않는다.
             let widthCap = geo.size.width
-            let heightCap = (viewportHeight * 0.52) * CGFloat(ratio)
+            let heightCap = boardHeightCap * ratio
             let boardW = max(min(widthCap, heightCap), 160)
-            let innerW = boardW - pad * 2
-            let innerH = innerW / CGFloat(ratio)
-            ZStack(alignment: .topLeading) {
-                ForEach(Array(zones.enumerated()), id: \.offset) { _, z in
-                    let x = innerW * CGFloat((z.x - minX) / spanX)
-                    let y = innerH * CGFloat((z.y - minY) / spanY)
-                    let w = innerW * CGFloat(z.w / spanX)
-                    let h = innerH * CGFloat(z.h / spanY)
-                    Group {
-                        if z.kind == "flow-in" || z.kind == "flow-out" {
-                            HoyolandMapFlow(up: z.kind == "flow-in", tint: accent.deep.opacity(0.45))
-                                .frame(width: w, height: h)
-                        } else {
-                            zoneBox(z).frame(width: w, height: h)
-                        }
-                    }
-                    .offset(x: x, y: y)
-                }
-            }
-            .frame(width: innerW, height: innerH, alignment: .topLeading)
-            .padding(pad)
-            // 판 바탕 — `accent.tint` 는 이 페이지의 회색 배경 위에서 거의 안 보여 판의 경계가
-            // 사라진다(히어로가 같은 이유로 강조색 옅은 면을 쓴다).
-            .background(accent.primary.opacity(0.10),
-                        in: RoundedRectangle(cornerRadius: 20, style: .continuous))
-            .frame(maxWidth: .infinity, alignment: .center)
+            boardFace(map, boardW: boardW)
+                .frame(maxWidth: .infinity, alignment: .center)
         }
         .frame(height: boardHeight(map))
+    }
+
+    /// 판 한 장 — 폭 [boardW] 로 그린다(높이는 비율에서 나온다). 세로 보기 · 가로 보기가 같이 쓴다.
+    @ViewBuilder private func boardFace(_ map: HoyolandMap, boardW: CGFloat) -> some View {
+        let zones = map.drawable
+        let minX = zones.map(\.x).min() ?? 0
+        let minY = zones.map(\.y).min() ?? 0
+        let maxX = zones.map { $0.x + $0.w }.max() ?? 100
+        let maxY = zones.map { $0.y + $0.h }.max() ?? 100
+        let spanX = max(maxX - minX, 1)
+        let spanY = max(maxY - minY, 1)
+        let ratio = CGFloat(boardRatio(map))
+        let pad: CGFloat = 10
+        let innerW = boardW - pad * 2
+        let innerH = innerW / ratio
+        ZStack(alignment: .topLeading) {
+            ForEach(Array(zones.enumerated()), id: \.offset) { _, z in
+                let x = innerW * CGFloat((z.x - minX) / spanX)
+                let y = innerH * CGFloat((z.y - minY) / spanY)
+                let w = innerW * CGFloat(z.w / spanX)
+                let h = innerH * CGFloat(z.h / spanY)
+                Group {
+                    if z.kind == "flow-in" || z.kind == "flow-out" {
+                        HoyolandMapFlow(up: z.kind == "flow-in", tint: accent.deep.opacity(0.45))
+                            .frame(width: w, height: h)
+                    } else {
+                        zoneBox(z).frame(width: w, height: h)
+                    }
+                }
+                .offset(x: x, y: y)
+            }
+        }
+        .frame(width: innerW, height: innerH, alignment: .topLeading)
+        .padding(pad)
+        // 판 바탕 — `accent.tint` 는 이 페이지의 회색 배경 위에서 거의 안 보여 판의 경계가
+        // 사라진다(히어로가 같은 이유로 강조색 옅은 면을 쓴다).
+        .background(accent.primary.opacity(0.10),
+                    in: RoundedRectangle(cornerRadius: 20, style: .continuous))
     }
 
     /// 판이 차지할 높이 — `GeometryReader` 는 높이를 스스로 못 정해서 밖에서 잡아 준다.
@@ -133,7 +217,7 @@ struct HoyolandMapView: View {
         let ratio = min(max((spanX / spanY) * map.ratio, 0.4), 4)
         // `board` 안의 `GeometryReader` 와 **같은 식**이어야 한다 — 여기서 잡아 주는 높이가 그
         // 판이 실제로 그리는 크기와 어긋나면 판 아래가 비거나 범례를 덮는다.
-        let boardW = max(min(contentWidth, (viewportHeight * 0.52) * CGFloat(ratio)), 160)
+        let boardW = max(min(contentWidth, boardHeightCap * CGFloat(ratio)), 160)
         return (boardW - 20) / CGFloat(ratio) + 20
     }
 
@@ -337,3 +421,13 @@ private let HoyolandMapReadableWidth: CGFloat = 960
  자리처럼 보인다. 공식 배치도도 이 칸만 짙은 먹색으로 빼 뒀다.
  */
 private let HoyolandMapEntryColor = Color(hex: 0xFF4A5A6B)
+
+/// 배치도 가로 보기 전환 — 회전 · 크기 · 투명도를 한 번에 움직인다.
+private struct HoyolandMapSpin: ViewModifier {
+    let angle: Double
+    let scale: CGFloat
+    let opacity: Double
+    func body(content: Content) -> some View {
+        content.rotationEffect(.degrees(angle)).scaleEffect(scale).opacity(opacity)
+    }
+}
