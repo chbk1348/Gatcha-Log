@@ -52,7 +52,7 @@ data class ChangeEntry(
 object ChangeLog {
 
     /** 헤더 메타 — 업데이트 기간 라벨. */
-    const val periodLabel: String = "2026.05.23 ~ 09.21"
+    const val periodLabel: String = "2026.05.23 ~ 09.28"
 
     /**
      * 강제 업데이트 최소 지원 버전코드(version.json 의 minVersionCode 와 동일하게 유지).
@@ -61,6 +61,11 @@ object ChangeLog {
     const val minSupportedVersionCode: Long = 273000
 
     val entries: List<ChangeEntry> = buildList {
+        // 날짜는 잠정이다 — 배포일이 정해지면 맞춘다.
+        add(ChangeEntry("27.50.6", "2026.09.28", items = listOf(
+            // ── 수정 ──
+            fix("iPhone Duo 지출 목록 제목 누락 · 더보기 메뉴 · 경첩 여백 문제 수정 (iOS)"),
+        )))
         // 27.50.3 · 27.50.4 는 배포되지 않고 이번으로 합쳤다. 날짜는 배포일이 정해지면 맞춘다.
         // 이 사이클 안에서 생겼다 고쳐진 것(예매 안내 시트 높이)과 잔손질(현재 버전 카드 로딩 모양 등)은 뺐다.
         add(ChangeEntry("27.50.5", "2026.09.21", items = listOf(
