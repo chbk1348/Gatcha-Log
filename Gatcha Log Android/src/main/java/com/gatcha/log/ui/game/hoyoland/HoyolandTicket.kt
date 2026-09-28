@@ -93,11 +93,14 @@ fun HoyolandEvent.ticketCountdown(): Pair<String, String> = when (phase()) {
     HoyolandPhase.ENDED -> "다음을 기다려요" to "종료"
 }
 
-/** 머리글 — 「HOYOLAND · ADMIT ONE」. 입장권이라는 인상은 이 한 줄에서 나온다. */
+/**
+ * 머리글 — 영문 행사명(「HOYOLAND 2026」, [HoyolandEvent.editionLabel]). 입장권이라는 인상은 이 한 줄에서 나온다.
+ * 시안의 「ADMIT ONE」(1인 입장)은 한국어 화면에서 뜻이 안 읽혀 뺐다(2026-09-28 지시).
+ */
 @Composable
-fun HoyolandTicketKicker(deep: Color) {
+fun HoyolandTicketKicker(text: String, deep: Color) {
     Text(
-        "HOYOLAND · ADMIT ONE",
+        text,
         fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 1.1.sp, color = deep,
         maxLines = 1,
     )

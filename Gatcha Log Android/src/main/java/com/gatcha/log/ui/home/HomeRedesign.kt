@@ -981,7 +981,7 @@ fun DashHoyolandCard(event: HoyolandEvent, onTap: () -> Unit) {
                 .padding(horizontal = 16.dp, vertical = 14.dp),
             verticalArrangement = Arrangement.Center,
         ) {
-            HoyolandTicketKicker(deep)
+            HoyolandTicketKicker(event.editionLabel, deep)
             Spacer(Modifier.height(5.dp))
             Text(
                 event.edition, fontSize = 17.sp, fontWeight = FontWeight.Bold, color = TextPrimary,

@@ -279,7 +279,7 @@ fun HoyolandSection(onOpen: (HoyolandSub) -> Unit) {
                 Modifier.weight(1f).fillMaxHeight().padding(horizontal = 16.dp, vertical = 14.dp),
                 verticalArrangement = Arrangement.Center,
             ) {
-                HoyolandTicketKicker(deep)
+                HoyolandTicketKicker(e.editionLabel, deep)
                 Spacer(Modifier.height(6.dp))
                 Text(
                     e.edition, fontSize = 17.sp, fontWeight = FontWeight.Bold, color = TextPrimary,
