@@ -51,6 +51,8 @@ struct SpendingView: View {
     @State private var showFilter = false
     @State private var selectedIds: Set<String> = []
     @State private var showBulkEdit = false
+    /// 일괄 삭제 확인 — 예전엔 누르는 즉시 지워졌다(단건 삭제는 묻는데 여기만 빠져 있었다).
+    @State private var confirmBulkDelete = false
     // 성능: 필터/정렬/그룹 결과를 캐시 — 스크롤(콜랩스)로 body 가 매 프레임 재평가돼도 리스트를
     // 다시 필터·정렬·그룹하지 않는다. 데이터/필터/정렬이 바뀔 때만 recompute 로 갱신.
     @State private var displayGroups: [DayGroup] = []
@@ -360,9 +362,14 @@ struct SpendingView: View {
             Spacer()
             Button("삭제") {
                 if selectedIds.isEmpty { store.showStatus("선택된 항목이 없어요") }
-                else { store.deleteSpendings(selectedIds); selectionMode = false; selectedIds = [] }
+                else { confirmBulkDelete = true }
             }
             .buttonStyle(.bordered).tint(GLGColor.dangerText)
+            .confirmationDialog("\(selectedIds.count)건을 삭제할까요?", isPresented: $confirmBulkDelete, titleVisibility: .visible) {
+                Button("삭제", role: .destructive) {
+                    store.deleteSpendings(selectedIds); selectionMode = false; selectedIds = []
+                }
+            } message: { Text("삭제한 지출은 되돌릴 수 없어요.") }
             Button("일괄 편집") {
                 if selectedIds.isEmpty { store.showStatus("선택된 항목이 없어요") } else { showBulkEdit = true }
             }
@@ -391,8 +398,17 @@ struct SpendingView: View {
     private var emptyState: some View {
         VStack(spacing: 6) {
             Image(systemName: "doc.text").font(.pretendard(size: 44)).foregroundStyle(Color(.systemGray3))
-            Text("아직 기록된 지출이 없어요").font(.pretendard(size: 14)).foregroundStyle(GLGColor.textSecondary)
-            Text("+ 버튼으로 첫 지출을 기록해보세요").font(.pretendard(size: 12)).foregroundStyle(Color(.systemGray3))
+            // 기록은 있는데 필터에 다 걸렸으면 "없어요" 가 아니라 필터를 풀 길을 준다.
+            if !store.spendings.isEmpty {
+                Text("조건에 맞는 지출이 없어요").font(.pretendard(size: 14)).foregroundStyle(GLGColor.textSecondary)
+                GLGGlassChip(label: "필터 초기화") {
+                    gameFilters = []; period = .all; paymentFilter = nil; sortOrder = .dateDesc
+                }
+                .padding(.top, 6)
+            } else {
+                Text("아직 기록된 지출이 없어요").font(.pretendard(size: 14)).foregroundStyle(GLGColor.textSecondary)
+                Text("+ 버튼으로 첫 지출을 기록해보세요").font(.pretendard(size: 12)).foregroundStyle(Color(.systemGray3))
+            }
         }
         .frame(maxWidth: .infinity).padding(.vertical, 48)
     }
@@ -690,6 +706,8 @@ struct SpendingView: View {
     private func recompute(_ list: [Spending]) {
         let items = filteredList(list)
         listIsEmpty = items.isEmpty
+        // 선택은 **보이는 것만** — 필터로 가려진 기록이 선택된 채 남으면 일괄 삭제 · 편집이 안 보이는 것까지 건드렸다.
+        if !selectedIds.isEmpty { selectedIds.formIntersection(items.map(\.id)) }
         switch sortOrder {
         case .amountDesc:
             displayGroups = items.sorted { $0.amount > $1.amount }
@@ -887,7 +905,9 @@ private struct BulkEditSheet: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("취소") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
+                    // 아무것도 안 바꿨으면 적용할 게 없다 — 예전엔 눌리면 선택만 풀렸다.
                     Button("적용") { onApply(game, date.map { Int64($0.timeIntervalSince1970 * 1000) }, Array(tags)) }
+                        .disabled(game == nil && date == nil && tags.isEmpty)
                 }
             }
             .sheet(isPresented: $showDate) {

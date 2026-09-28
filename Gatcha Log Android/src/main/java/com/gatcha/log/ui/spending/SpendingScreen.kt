@@ -38,6 +38,7 @@ import com.gatcha.log.ui.components.GlgDropdownMenu
 import com.gatcha.log.ui.components.GlgHeaderPillChip
 import com.gatcha.log.ui.components.GlgCircleIconButton
 import com.gatcha.log.ui.components.GlgDatePickerDialog
+import com.gatcha.log.ui.components.GlgDialog
 import com.gatcha.log.ui.components.GlgPullToRefreshBox
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -102,20 +103,26 @@ fun SpendingScreen(
     val isRefreshing by viewModel.isRefreshing.collectAsStateWithLifecycle()
     val compact by viewModel.spendingCompact.collectAsStateWithLifecycle()
     // 게임 필터 — 다중 선택(빈 Set = 전체). 필터 바텀시트에서 토글.
-    var selectedGames by remember { mutableStateOf<Set<String>>(emptySet()) }
-    var period by remember { mutableStateOf(PeriodFilter.ALL) }
+    // 필터 · 정렬은 rememberSaveable — 지출을 추가 · 수정하고 돌아오거나 탭을 오가면 이 화면이 컴포지션에서
+    // 빠졌다 들어오는데, remember 라 그때마다 초기화됐다(2026-09-28 점검). 탭의 SaveableStateProvider 가 지켜 준다.
+    var selectedGames by rememberSaveable(
+        stateSaver = androidx.compose.runtime.saveable.listSaver<Set<String>, String>({ it.toList() }, { it.toSet() }),
+    ) { mutableStateOf(emptySet()) }
+    var period by rememberSaveable { mutableStateOf(PeriodFilter.ALL) }
     // 기간 지정(직접 범위) — 기본값 '최근 한 달'. 시작>끝이면 판정에서 뒤집어 쓴다.
-    var customStart by remember { mutableStateOf(System.currentTimeMillis() - 30 * DAY_MS) }
-    var customEnd by remember { mutableStateOf(System.currentTimeMillis()) }
+    var customStart by rememberSaveable { mutableStateOf(System.currentTimeMillis() - 30 * DAY_MS) }
+    var customEnd by rememberSaveable { mutableStateOf(System.currentTimeMillis()) }
     // 퀵필터에서 연 날짜 선택 대상 — null=닫힘, 0=시작, 1=종료.
     var quickPickTarget by remember { mutableStateOf<Int?>(null) }
-    var paymentFilter by remember { mutableStateOf<String?>(null) }
-    var sortOrder by remember { mutableStateOf(SortOrder.DATE_DESC) }
+    var paymentFilter by rememberSaveable { mutableStateOf<String?>(null) }
+    var sortOrder by rememberSaveable { mutableStateOf(SortOrder.DATE_DESC) }
     val showFilterSheet = remember { mutableStateOf(false) }
     // 선택 모드(다중 선택) — 일괄 편집/삭제용.
     var selectionMode by remember { mutableStateOf(false) }
     var selectedIds by remember { mutableStateOf<Set<String>>(emptySet()) }
     val showBulkEdit = remember { mutableStateOf(false) }
+    // 일괄 삭제 확인 — 예전엔 누르는 즉시 지워졌다(단건 삭제는 묻는데 여기만 빠져 있었다).
+    val confirmBulkDelete = remember { mutableStateOf(false) }
     fun exitSelection() { selectionMode = false; selectedIds = emptySet() }
     // 지출 추가/수정 에디터는 루트 페이지 전환이라 이 화면이 컴포지션에서 빠진다 → 상세 진입 후
     // 에디터를 그냥 닫으면 nav 가 List 로 초기화돼 리스트로 튕기던 문제. 열린 상세 id 를
@@ -138,11 +145,10 @@ fun SpendingScreen(
     }
 
 
-    // 지난 달 연/월 계산
-    val (lastY, lastM) = remember {
-        val c = Calendar.getInstance().apply { add(Calendar.MONTH, -1) }
-        c.get(Calendar.YEAR) to (c.get(Calendar.MONTH) + 1)
-    }
+    // 지난 달 연/월 — 「이번 달」과 **같은 시계**(displayYear/Month)에서 뺀다. 예전엔 처음 그릴 때 한 번만 계산해
+    // 앱을 켠 채 달이 바뀌면 틀린 달을 가리켰다.
+    val (lastY, lastM) = if (viewModel.displayMonth == 1) (viewModel.displayYear - 1) to 12
+                         else viewModel.displayYear to (viewModel.displayMonth - 1)
     val activeFilterCount = listOf(
         selectedGames.isNotEmpty(),
         period != PeriodFilter.ALL,
@@ -216,6 +222,13 @@ fun SpendingScreen(
                 }
         }
     }
+    // 선택은 **보이는 것만** — 필터로 가려진 기록이 선택된 채 남으면 일괄 삭제 · 편집이 안 보이는 것까지 건드렸다.
+    LaunchedEffect(filtered) {
+        if (selectedIds.isNotEmpty()) {
+            val visible = filtered.mapTo(HashSet()) { it.id }
+            selectedIds = selectedIds.filterTo(HashSet()) { it in visible }
+        }
+    }
     // 표시 그룹 — 금액순=항목별 단일 그룹, 날짜순=같은 날짜 묶음. 정렬/필터 바뀔 때만 재계산.
     val amountMode = sortOrder == SortOrder.AMOUNT_DESC
     val dayGroups: List<List<Spending>> = remember(filtered, sortOrder) {
@@ -275,7 +288,12 @@ fun SpendingScreen(
                 } else nav = SpendingScreenNav.Detail(sp)
             }
             if (filtered.isEmpty()) {
-                item { EmptyState() }
+                // 기록은 있는데 필터에 다 걸렸으면 "없어요" 가 아니라 필터를 풀 길을 준다.
+                item {
+                    EmptyState(filteredOut = spendings.isNotEmpty()) {
+                        selectedGames = emptySet(); period = PeriodFilter.ALL; paymentFilter = null; sortOrder = SortOrder.DATE_DESC
+                    }
+                }
             } else {
                 // 미리 계산된 dayGroups 를 순회만 한다(매 프레임 재정렬·재그룹 없음).
                 dayGroups.forEachIndexed { gi, dayItems ->
@@ -367,13 +385,28 @@ fun SpendingScreen(
                 count = selectedIds.size,
                 onEdit = { if (selectedIds.isNotEmpty()) showBulkEdit.value = true else viewModel.showStatus("선택된 항목이 없어요") },
                 onDelete = {
-                    if (selectedIds.isNotEmpty()) { viewModel.deleteSpendings(selectedIds); exitSelection() }
+                    if (selectedIds.isNotEmpty()) confirmBulkDelete.value = true
                     else viewModel.showStatus("선택된 항목이 없어요")
                 },
                 onCancel = { exitSelection() },
             )
         }
     }
+    }
+
+    if (confirmBulkDelete.value) {
+        GlgDialog(
+            title = "${selectedIds.size}건을 삭제할까요?",
+            onDismiss = { confirmBulkDelete.value = false },
+            confirmText = "삭제",
+            onConfirm = {
+                viewModel.deleteSpendings(selectedIds)
+                confirmBulkDelete.value = false
+                exitSelection()
+            },
+        ) {
+            Text("삭제한 지출은 되돌릴 수 없어요.", fontSize = 14.sp, color = TextSecondary)
+        }
     }
 
     // 퀵필터의 기간 지정 날짜 선택 — 시트를 거치지 않고 리스트에서 바로 연다.
@@ -894,29 +927,39 @@ private fun BulkEditSheet(count: Int, onApply: (String?, Long?, List<String>) ->
             Spacer(Modifier.height(8.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 GlgOutlineButton("취소", onDismiss, Modifier.weight(1f))
-                GlgButton("적용", { onApply(game, dateMillis, tags.toList()) }, Modifier.weight(1.4f))
+                // 아무것도 안 바꿨으면 적용할 게 없다 — 예전엔 눌리면 선택만 풀렸다.
+                GlgButton(
+                    "적용", { onApply(game, dateMillis, tags.toList()) }, Modifier.weight(1.4f),
+                    enabled = game != null || dateMillis != null || tags.isNotEmpty(),
+                )
             }
         }
     }
     if (showDate.value) {
-        val dps = rememberDatePickerState(initialSelectedDateMillis = dateMillis ?: System.currentTimeMillis())
-        DatePickerDialog(
-            onDismissRequest = { showDate.value = false },
-            confirmButton = { TextButton({ dateMillis = dps.selectedDateMillis; showDate.value = false }) { Text("확인") } },
-            dismissButton = { TextButton({ showDate.value = false }) { Text("취소") } },
-        ) { DatePicker(state = dps) }
+        // 앱 공용 날짜 선택기 — M3 DatePicker 는 UTC 자정을 돌려줘 날짜가 하루 밀릴 수 있었다.
+        GlgDatePickerDialog(
+            initialMillis = dateMillis ?: System.currentTimeMillis(),
+            onDismiss = { showDate.value = false },
+            onConfirm = { m -> dateMillis = m; showDate.value = false },
+        )
     }
 }
 
 @Composable
-private fun EmptyState() {
+private fun EmptyState(filteredOut: Boolean = false, onClearFilters: () -> Unit = {}) {
     Column(
         modifier = Modifier.fillMaxWidth().padding(vertical = 48.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Icon(Icons.AutoMirrored.Filled.ReceiptLong, null, tint = Color.LightGray, modifier = Modifier.size(48.dp))
         Spacer(Modifier.height(12.dp))
-        Text("아직 기록된 지출이 없어요", color = TextSecondary, fontSize = 14.sp)
-        Text("+ 버튼으로 첫 지출을 기록해보세요", color = Color.LightGray, fontSize = 12.sp)
+        if (filteredOut) {
+            Text("조건에 맞는 지출이 없어요", color = TextSecondary, fontSize = 14.sp)
+            Spacer(Modifier.height(10.dp))
+            com.gatcha.log.ui.components.GlgChip("필터 초기화", selected = false) { onClearFilters() }
+        } else {
+            Text("아직 기록된 지출이 없어요", color = TextSecondary, fontSize = 14.sp)
+            Text("+ 버튼으로 첫 지출을 기록해보세요", color = Color.LightGray, fontSize = 12.sp)
+        }
     }
 }
