@@ -100,6 +100,8 @@ enum HoyolandSubPage: Hashable { case none, stage, goods, booth, food, map }
 struct HoyolandSection: View {
     var onOpen: (HoyolandSubPage) -> Void = { _ in }
     @Environment(\.glgAccent) private var accent
+    @Environment(\.horizontalSizeClass) private var hSizeClass
+    @Environment(\.glgCanvasWidth) private var canvasWidth
     @Environment(\.openURL) private var openURL
     @State private var event: HoyolandEvent = HoyolandApi.shared.current
 
@@ -109,10 +111,10 @@ struct HoyolandSection: View {
         let phase = e.phase(nowMillis: now)
         VStack(alignment: .leading, spacing: 10) {
             HStack {
-                Text("호요랜드").font(.pretendard(size: 16, weight: .bold))
+                Text("호요랜드").font(.pretendard(size: 17, weight: .bold))
                 Spacer()
                 Button { onOpen(.none) } label: {
-                    Text("전체 보기").font(.pretendard(size: 12, weight: .semibold)).foregroundStyle(GLGColor.textSecondary)
+                    Text("전체 보기").font(.pretendard(size: 13, weight: .semibold)).foregroundStyle(HoyolandTicketColor.subText)
                 }
                 .buttonStyle(.plain)
             }
@@ -138,65 +140,73 @@ struct HoyolandSection: View {
         .loadHoyoland(into: $event)
     }
 
+    /// 입장권 카드 — 홈 배너와 같은 부품(파일 끝 「입장권 배너 부품」). 디자인 정본은 아티팩트
+    /// 「호요랜드 배너 시안」 C안(2026-09-28 확정): 머리는 입장권(흰 면 + 짙은 조각), 절취선 아래는
+    /// 누르면 할 일이 있는 줄(예매 · 장소)과 바로가기 4칸. Android `HoyolandSection` 과 같은 값.
     @ViewBuilder private func card(_ e: HoyolandEvent, status: String, ongoing: Bool, now: Int64) -> some View {
-        GLGCard(cornerRadius: 24, padding: 0) {
-            VStack(spacing: 0) {
-                // ── 위 — 남은 날짜가 주인공이다.
-                Button { onOpen(.none) } label: {
-                    HStack(spacing: 14) {
-                        VStack(spacing: 1) {
-                            Text(ongoing ? "진행 중" : "개막까지").font(.pretendard(size: 9.5, weight: .semibold))
-                                .foregroundStyle(.white.opacity(0.85))
-                            Text(status).font(.pretendard(size: status.count <= 4 ? 20 : 13, weight: .black))
-                                .foregroundStyle(.white).lineLimit(1).minimumScaleFactor(0.7)
-                        }
-                        .frame(width: 62, height: 62)
-                        // 홈 배너와 같은 톤 — 강조색을 슬레이트로 가라앉혀 흰 글자가 읽힌다.
-                        .background(LinearGradient(colors: [glgMix(accent.primary, Color(hex: 0xFF2E3440), 0.35),
-                                                            glgMix(accent.primary, Color(hex: 0xFF2E3440), 0.50)],
-                                                   startPoint: .topLeading, endPoint: .bottomTrailing),
-                                    in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-                        VStack(alignment: .leading, spacing: 3) {
-                            Text(e.edition).font(.pretendard(size: 15, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
-                            Text("\(e.periodLabel) · \(e.venueShort)").font(.pretendard(size: 12))
-                                .foregroundStyle(GLGColor.textSecondary).lineLimit(2)
-                            if !e.lineup.isEmpty {
-                                HStack(spacing: 5) {
-                                    ForEach(Array(e.lineup.prefix(3).enumerated()), id: \.offset) { _, l in
-                                        let raw = e.stageColor(game: l.game)
-                                        miniChip(e.stageLabel(game: l.game), raw == 0 ? GLGColor.textSecondary : Color(argb64: raw))
-                                    }
-                                    if e.lineup.count > 3 { miniChip("+\(e.lineup.count - 3)", GLGColor.textSecondary) }
+        let deep = hoyolandTicketDeep(accent.primary)
+        let count = hoyolandTicketCountdown(e, now: now)
+        // 머리 104 · 줄 44 · 칸 68 — 시안(116 · 48 · 88)보다 한 단씩 낮췄다. 폰에서 카드 하나가
+        // 한 화면 절반을 넘게 먹었다(2026-09-28 지적).
+        let headHeight: CGFloat = 104
+        VStack(spacing: 0) {
+            // ── 머리 — 남은 날짜가 주인공이다.
+            Button { onOpen(.none) } label: {
+                HStack(spacing: 0) {
+                    VStack(alignment: .leading, spacing: 6) {
+                        HoyolandTicketKicker(deep: deep)
+                        Text(e.edition).font(.pretendard(size: 17, weight: .bold))
+                            .foregroundStyle(GLGColor.textPrimary).lineLimit(1)
+                        if !e.lineup.isEmpty {
+                            HStack(spacing: 5) {
+                                ForEach(Array(e.lineup.prefix(3).enumerated()), id: \.offset) { _, l in
+                                    let raw = e.stageColor(game: l.game)
+                                    miniChip(e.stageLabel(game: l.game), raw == 0 ? HoyolandTicketColor.subText : Color(argb64: raw))
                                 }
-                                .padding(.top, 3)
+                                if e.lineup.count > 3 { miniChip("+\(e.lineup.count - 3)", HoyolandTicketColor.subText) }
                             }
                         }
-                        Spacer(minLength: 0)
                     }
-                    .padding(16)
-                    .contentShape(Rectangle())
+                    .padding(.horizontal, 16).padding(.vertical, 14)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+                    .background(Color.white)
+                    HoyolandTicketStub(cap: count.cap, big: count.big, deep: deep, sub: e.periodDotsLabel)
                 }
-                .buttonStyle(.plain)
-                // ── 정보 줄 — 줄마다 누르면 할 수 있는 일이 있다.
+                .frame(height: headHeight)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            HoyolandDashedLine(vertical: false)
+                .stroke(HoyolandTicketColor.rule, style: StrokeStyle(lineWidth: 2, dash: [5, 4]))
+                .frame(height: 2)
+            // 본문 — 정보 줄은 **구분선으로** 가른다. 간격만으로 띄우면 줄과 줄의 경계가 흐려지고
+            // 세로가 헐거워졌다(2026-09-28 지적). 줄 높이는 44(터치 최소), 사이 간격은 0.
+            VStack(spacing: 0) {
                 // 예매 주소가 있으면 곧장 예매처로 — 상세의 「예매하기」와 같은 동작. 없으면(예매 미정) 상세로.
-                actionRow("ticket", "예매", ticketSummary(e), accent.primary) { openTicket(e) }
+                actionRow("예매", ticketSummary(e)) { openTicket(e) }
                 if !e.mapUrl.isEmpty, let u = URL(string: e.mapUrl) {
-                    actionRow("mappin.and.ellipse", "장소", "\(e.venueShort) · 지도", accent.primary) { openURL(u) }
+                    rowDivider
+                    actionRow("장소", "\(e.venueRowLabel) · 지도") { openURL(u) }
                 }
                 if ongoing && e.hasTimetable {
-                    actionRow("play.circle", "무대", e.stageEntryLine(nowMillis: now), Color(hex: 0xFFE5484D)) { onOpen(.stage) }
+                    rowDivider
+                    actionRow("무대", e.stageEntryLine(nowMillis: now)) { onOpen(.stage) }
                 }
                 // ── 바로가기 4칸 — 상세를 한 번 거치지 않고 곧장.
                 let slots = e.days.reduce(0) { $0 + $1.slots.count }
-                HStack(spacing: 6) {
-                    quickTile("calendar", "시간표", slots > 0 ? "\(slots)편" : "공개 전") { onOpen(.stage) }
-                    quickTile("bag", "굿즈", e.visibleGoods.isEmpty ? "공개 전" : "\(e.visibleGoods.count)종") { onOpen(.goods) }
-                    quickTile("storefront", "부스", e.booths.isEmpty ? "공개 전" : "\(e.booths.count)곳") { onOpen(.booth) }
-                    quickTile("fork.knife", "푸드", e.foodPrograms.isEmpty ? "공개 전" : "\(e.foodPrograms.count)곳") { onOpen(.food) }
+                HStack(spacing: 7) {
+                    quickTile("calendar", "시간표", slots > 0 ? "\(slots)편" : "공개 전", deep) { onOpen(.stage) }
+                    quickTile("bag", "굿즈", e.visibleGoods.isEmpty ? "공개 전" : "\(e.visibleGoods.count)종", deep) { onOpen(.goods) }
+                    quickTile("storefront", "부스", e.booths.isEmpty ? "공개 전" : "\(e.booths.count)곳", deep) { onOpen(.booth) }
+                    quickTile("fork.knife", "푸드", e.foodPrograms.isEmpty ? "공개 전" : "\(e.foodPrograms.count)곳", deep) { onOpen(.food) }
                 }
-                .padding(.horizontal, 12).padding(.top, 4).padding(.bottom, 14)
+                .padding(.top, 10)
             }
+            .padding(.horizontal, 16).padding(.top, 4).padding(.bottom, 14)
+            .background(Color.white)
         }
+        // 반원 홈은 머리와 본문이 만나는 **절취선 한가운데** 하나 — 카드 안쪽에 뚫린 구멍이다.
+        .clipShape(HoyolandTicketShape(notchAtEdges: false, notchAt: headHeight), style: FillStyle(eoFill: true))
     }
 
     /// 예매처 열기 — 상세 `ticketSection` 의 「예매하기」와 같은 순서(앱 스킴 → 실패 시 웹). 주소가 없으면 상세로.
@@ -222,45 +232,79 @@ struct HoyolandSection: View {
     }
 
     private func miniChip(_ text: String, _ color: Color) -> some View {
-        Text(text).font(.pretendard(size: 9.5, weight: .black)).foregroundStyle(color)
-            .padding(.horizontal, 6).padding(.vertical, 2)
-            .background(color.opacity(0.12), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+        Text(text).font(.pretendard(size: 12, weight: .bold)).foregroundStyle(color).lineLimit(1)
+            .padding(.horizontal, 8).padding(.vertical, 3)
+            .background(color.opacity(0.12), in: RoundedRectangle(cornerRadius: 7, style: .continuous))
     }
 
-    /// 정보 줄 — 아이콘 · 라벨 · 값 · 셰브론. 줄 전체가 누르는 자리다.
-    private func actionRow(_ icon: String, _ label: String, _ value: String, _ tint: Color,
+    /// 정보 줄 사이 구분선 — 카드 흰 면 위에서 보이는 한 단 짙은 회색.
+    private var rowDivider: some View {
+        Rectangle().fill(HoyolandTicketColor.rowDivider).frame(height: 1)
+    }
+
+    /// 정보 줄 — 라벨 · 값 · 셰브론. 줄 전체가 누르는 자리다(44pt).
+    private func actionRow(_ label: String, _ value: String, _ action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 10) {
+                Text(label).font(.pretendard(size: 14)).foregroundStyle(HoyolandTicketColor.labelText)
+                    .frame(width: 40, alignment: .leading)
+                Text(value).font(.pretendard(size: 14, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
+                    .lineLimit(1)
+                Spacer(minLength: 0)
+                Image(systemName: "chevron.right").font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(HoyolandTicketColor.chevron)
+            }
+            .frame(minHeight: 44)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+
+    /// 넓은 창(펼친 iPhone Duo · iPad)인가 — 바로가기 칸을 가로형으로 낮춘다.
+    private var isWide: Bool { glgIsWideCanvas(width: canvasWidth, sizeClass: hSizeClass) }
+
+    /// 바로가기 한 칸 — 아이콘 · 이름 · 규모(몇 편 · 몇 종).
+    ///
+    /// 넓은 창에서는 **가로형**(아이콘 옆에 글자, 높이 56)이다. 세로형 그대로 네 칸을 늘리면 칸마다
+    /// 200pt 가까이 퍼져 버튼 덩치만 커졌다(2026-09-28 지적). 좁은 화면은 시안 그대로 세로형.
+    @ViewBuilder
+    private func quickTile(_ icon: String, _ title: String, _ sub: String, _ tint: Color,
                            _ action: @escaping () -> Void) -> some View {
-        VStack(spacing: 0) {
-            Divider().padding(.horizontal, 16)
+        if isWide {
             Button(action: action) {
                 HStack(spacing: 10) {
-                    Image(systemName: icon).font(.system(size: 15, weight: .regular)).foregroundStyle(tint).frame(width: 18)
-                    Text(label).font(.pretendard(size: 12.5)).foregroundStyle(GLGColor.textSecondary).frame(width: 34, alignment: .leading)
-                    Text(value).font(.pretendard(size: 13, weight: .semibold)).foregroundStyle(GLGColor.textPrimary)
-                        .lineLimit(1)
+                    Image(systemName: icon).font(.system(size: 18, weight: .regular)).foregroundStyle(tint)
+                        .frame(width: 22)
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(title).font(.pretendard(size: 13, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
+                        Text(sub).font(.pretendard(size: 12)).foregroundStyle(HoyolandTicketColor.labelText).lineLimit(1)
+                    }
                     Spacer(minLength: 0)
-                    Image(systemName: "chevron.right").font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(Color(.tertiaryLabel))
                 }
-                .padding(.horizontal, 16).padding(.vertical, 11)
+                .padding(.horizontal, 14)
+                .frame(maxWidth: .infinity, minHeight: 56)
+                .background(HoyolandTicketColor.tileBg, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+        } else {
+            compactQuickTile(icon, title, sub, tint, action)
         }
     }
 
-    /// 바로가기 한 칸 — 아이콘 · 이름 · 규모(몇 편 · 몇 종).
-    private func quickTile(_ icon: String, _ title: String, _ sub: String, _ action: @escaping () -> Void) -> some View {
+    private func compactQuickTile(_ icon: String, _ title: String, _ sub: String, _ tint: Color,
+                                  _ action: @escaping () -> Void) -> some View {
         Button(action: action) {
             VStack(spacing: 3) {
-                Image(systemName: icon).font(.system(size: 18, weight: .regular)).foregroundStyle(accent.primary)
-                    .frame(height: 22)
-                Text(title).font(.pretendard(size: 11.5, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
-                Text(sub).font(.pretendard(size: 10)).foregroundStyle(Color(hex: 0xFF98A0AB)).lineLimit(1)
+                Image(systemName: icon).font(.system(size: 18, weight: .regular)).foregroundStyle(tint)
+                    .frame(height: 20)
+                Text(title).font(.pretendard(size: 13, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
+                Text(sub).font(.pretendard(size: 12)).foregroundStyle(HoyolandTicketColor.labelText).lineLimit(1)
             }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 10)
-            .background(Color(hex: 0xFFF7F8FA), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+            // 여백을 먼저 주고 높이를 잡는다 — 반대 순서면 여백이 68 바깥에 붙어 칸이 87 로 자란다.
+            .padding(.top, 10).padding(.bottom, 9)
+            .frame(maxWidth: .infinity, minHeight: 68)
+            .background(HoyolandTicketColor.tileBg, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -1414,79 +1458,31 @@ struct HoyolandHomeCard: View {
         .loadHoyoland(into: $event)
     }
 
+    /// 입장권 배너 — 디자인 정본은 아티팩트 「호요랜드 배너 시안」 C안(2026-09-28 확정).
+    /// 예전 슬레이트 그라데이션 광고 배너를 대체했다. Android `DashHoyolandCard` 와 같은 값.
     private var card: some View {
-        // 배너 바탕 — 강조색을 **짙은 슬레이트** 쪽으로 가라앉힌다. 흰 글자가 얹히므로 충분히 진하게.
-        // 선명한 보라(#6A2BD9)로 섞던 '축제 톤' 은 새 팔레트 · 틴트 배경 위에서 혼자 튀었다
-        // (2026-09-11). 채도 0.57 → 0.47, 흰 글자 대비 4.7 → 5.8. Android `DashHoyolandCard` 와 같은 값.
-        let top = glgMix(accent.primary, Color(hex: 0xFF2E3440), 0.35)
-        let bottom = glgMix(accent.primary, Color(hex: 0xFF2E3440), 0.50)
+        let deep = hoyolandTicketDeep(accent.primary)
+        let count = hoyolandTicketCountdown(event, now: nowMs())
         return Button(action: onTap) {
-            ZStack {
-                LinearGradient(colors: [top, bottom], startPoint: .topLeading, endPoint: .bottomTrailing)
-                // 장식 — 오른쪽 위에서 번지는 광채와 겹친 원. 배너라는 인상은 여기서 나온다.
-                GeometryReader { _ in
-                    Color.clear
-                        .overlay(alignment: .topTrailing) { glow(size: 124, opacity: 0.22).offset(x: 36, y: -46) }
-                        .overlay(alignment: .bottomTrailing) { glow(size: 80, opacity: 0.14).offset(x: 22, y: 28) }
+            HStack(spacing: 0) {
+                VStack(alignment: .leading, spacing: 5) {
+                    HoyolandTicketKicker(deep: deep)
+                    Text(event.edition).font(.pretendard(size: 17, weight: .bold))
+                        .foregroundStyle(GLGColor.textPrimary).lineLimit(1)
+                    Text("\(event.periodNoYearLabel) · \(event.venueTicketLabel)").font(.pretendard(size: 13))
+                        .foregroundStyle(HoyolandTicketColor.subText).lineLimit(1)
                 }
-                VStack(spacing: 0) {
-                HStack(spacing: 0) {
-                    // 남은 날짜 — 배너의 주인공.
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(capText).font(.pretendard(size: 10, weight: .bold))
-                            .foregroundStyle(.white.opacity(0.75))
-                        Text(bigText)
-                            .font(.pretendard(size: bigText.count > 4 ? 21 : 26, weight: .black))
-                            .foregroundStyle(.white).lineLimit(1)
-                    }
-                    Spacer().frame(width: 13)
-                    // 세로 구분선 — 숫자와 설명을 가른다.
-                    Rectangle().fill(.white.opacity(0.28)).frame(width: 1, height: 38)
-                    Spacer().frame(width: 13)
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text(event.edition).font(.pretendard(size: 14, weight: .bold))
-                            .foregroundStyle(.white).lineLimit(1)
-                        Text(event.periodLabel).font(.pretendard(size: 11))
-                            .foregroundStyle(.white.opacity(0.82)).lineLimit(1)
-                        Text(event.venueShort).font(.pretendard(size: 11))
-                            .foregroundStyle(.white.opacity(0.70)).lineLimit(1)
-                    }
-                    Spacer(minLength: 8)
-                    Image(systemName: "chevron.right").font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(.white.opacity(0.8))
-                }
-                .frame(maxHeight: .infinity)
-                }
-                .padding(.horizontal, 16)
+                .padding(.horizontal, 16).padding(.vertical, 14)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+                .background(Color.white)
+                HoyolandTicketStub(cap: count.cap, big: count.big, deep: deep)
             }
-            .frame(height: 86)
-            .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+            .frame(height: 104)
+            // 절취선 위 · 아래 가장자리에 반원 홈.
+            .clipShape(HoyolandTicketShape(notchAtEdges: true, notchAt: nil), style: FillStyle(eoFill: true))
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-    }
-
-    private func glow(size: CGFloat, opacity: Double) -> some View {
-        Circle()
-            .fill(RadialGradient(colors: [.white.opacity(opacity), .clear],
-                                 center: .center, startRadius: 0, endRadius: size / 2))
-            .frame(width: size, height: size)
-    }
-
-    /// 큰 숫자와 그 위의 한 마디 — Android 배너와 같은 문구.
-    /// 진행 중 판정은 Kotlin enum 브리징 대신 '몇 일차'로 한다.
-    private var bigText: String {
-        let label = event.statusLabel(nowMillis: nowMs())
-        return label == "오늘 개막" ? "TODAY" : label
-    }
-
-    private var capText: String {
-        if event.dayOrdinal(nowMillis: nowMs()) > 0 { return "진행 중" }
-        switch event.statusLabel(nowMillis: nowMs()) {
-        case "종료": return "다음을 기다려요"
-        case "오늘 개막": return "오늘 개막"
-        default: return "개막까지"
-        }
     }
 }
 
@@ -1623,4 +1619,107 @@ func glgMix(_ a: Color, _ b: Color, _ t: Double) -> Color {
     return Color(.sRGB,
                  red: r1 + (r2 - r1) * f, green: g1 + (g2 - g1) * f,
                  blue: b1 + (b2 - b1) * f, opacity: a1 + (a2 - a1) * f)
+}
+
+// MARK: - 입장권 배너 부품 (홈 · 게임정보 탭)
+//
+// 디자인 정본은 아티팩트 「호요랜드 배너 시안」 C안(`C_Ticket.dc.html`, 2026-09-28 확정).
+// 왼쪽은 흰 면에 행사 정보, 오른쪽은 짙은 강조색 조각(D-day), 둘 사이에 점선 절취선과 반원 홈.
+// Android `HoyolandTicket.kt` 와 같은 값이다.
+
+/// 조각 폭 — 절취선이 오른쪽 끝에서 이만큼 들어온 자리에 선다.
+let HoyolandTicketStubWidth: CGFloat = 100
+
+/// 시안의 회색 단계 — 앱 공용 토큰보다 한 단 짙다(흰 면 위 작은 글자의 대비를 맞춘 값).
+enum HoyolandTicketColor {
+    static let subText = Color(hex: 0xFF4B5259)
+    static let labelText = Color(hex: 0xFF5E666E)
+    static let chevron = Color(hex: 0xFF8A9099)
+    static let tileBg = Color(hex: 0xFFF2F4F7)
+    static let rule = Color(hex: 0xFFDDE1E6)
+    /// 게임정보 카드의 정보 줄(예매 · 장소) 사이 실선.
+    static let rowDivider = Color(hex: 0xFFE8EBEF)
+}
+
+/// 조각 · 머리글 색 — 강조색을 짙은 남색으로 55% 가라앉힌다(흰 글자가 얹힌다).
+func hoyolandTicketDeep(_ accent: Color) -> Color { glgMix(accent, Color(hex: 0xFF1B2233), 0.55) }
+
+/// 남은 날짜를 말과 숫자로 가른다 — 조각의 윗줄(말) · 큰 글자(숫자).
+func hoyolandTicketCountdown(_ e: HoyolandEvent, now: Int64) -> (cap: String, big: String) {
+    let phase = e.phase(nowMillis: now)
+    if phase == .ended { return ("다음을 기다려요", "종료") }
+    if phase == .ongoing { return ("진행 중", "\(Int(e.dayOrdinal(nowMillis: now)))일차") }
+    if phase == .today { return ("오늘 개막", "TODAY") }
+    if phase == .tomorrow { return ("내일 개막", "D-1") }
+    return ("개막까지", "D-\(Int(e.daysUntilStart(nowMillis: now)))")
+}
+
+/**
+ 입장권 모양 — 둥근 사각형에 절취선 자리의 **반원 홈**을 겹쳐 그린다. `FillStyle(eoFill: true)` 로 잘라야
+ 겹친 원이 구멍이 된다. 홈을 배경색 원으로 덧그리지 않아 뒤 배경(강조색 틴트)이 무엇이든 그대로 비친다.
+ */
+struct HoyolandTicketShape: Shape {
+    /// 위 · 아래 가장자리(홈 배너).
+    var notchAtEdges: Bool
+    /// 카드 안쪽의 한 높이(게임정보 카드의 가로 절취선).
+    var notchAt: CGFloat?
+
+    func path(in rect: CGRect) -> Path {
+        var p = Path(roundedRect: rect, cornerRadius: 20, style: .continuous)
+        let cx = rect.maxX - HoyolandTicketStubWidth
+        var ys: [CGFloat] = notchAtEdges ? [rect.minY, rect.maxY] : []
+        if let notchAt { ys.append(rect.minY + notchAt) }
+        for cy in ys { p.addEllipse(in: CGRect(x: cx - 8, y: cy - 8, width: 16, height: 16)) }
+        return p
+    }
+}
+
+/// 점선 한 줄 — 세로(조각 왼쪽 절취선) · 가로(게임정보 카드 머리 아래).
+struct HoyolandDashedLine: Shape {
+    var vertical: Bool
+    func path(in rect: CGRect) -> Path {
+        var p = Path()
+        if vertical {
+            p.move(to: CGPoint(x: rect.midX, y: rect.minY)); p.addLine(to: CGPoint(x: rect.midX, y: rect.maxY))
+        } else {
+            p.move(to: CGPoint(x: rect.minX, y: rect.midY)); p.addLine(to: CGPoint(x: rect.maxX, y: rect.midY))
+        }
+        return p
+    }
+}
+
+/// 머리글 — 「HOYOLAND · ADMIT ONE」. 입장권이라는 인상은 이 한 줄에서 나온다.
+struct HoyolandTicketKicker: View {
+    let deep: Color
+    var body: some View {
+        Text("HOYOLAND · ADMIT ONE").font(.pretendard(size: 11, weight: .heavy)).tracking(1.1)
+            .foregroundStyle(deep).lineLimit(1)
+    }
+}
+
+/// 오른쪽 조각 — 짙은 면 + 왼쪽 점선 절취선 + 남은 날짜. [sub] 는 게임정보 카드에서만(기간).
+struct HoyolandTicketStub: View {
+    let cap: String
+    let big: String
+    let deep: Color
+    var sub: String? = nil
+
+    var body: some View {
+        VStack(spacing: 3) {
+            Text(cap).font(.pretendard(size: 11, weight: .bold)).foregroundStyle(.white.opacity(0.95)).lineLimit(1)
+            Text(big).font(.pretendard(size: big.count > 4 ? 22 : 30, weight: .black)).foregroundStyle(.white)
+                .lineLimit(1).minimumScaleFactor(0.7)
+            if let sub, !sub.isEmpty {
+                Text(sub).font(.pretendard(size: 12)).foregroundStyle(.white.opacity(0.92)).lineLimit(1)
+            }
+        }
+        .frame(width: HoyolandTicketStubWidth)
+        .frame(maxHeight: .infinity)
+        .background(deep)
+        .overlay(alignment: .leading) {
+            HoyolandDashedLine(vertical: true)
+                .stroke(.white.opacity(0.55), style: StrokeStyle(lineWidth: 2, dash: [5, 4]))
+                .frame(width: 2)
+        }
+    }
 }

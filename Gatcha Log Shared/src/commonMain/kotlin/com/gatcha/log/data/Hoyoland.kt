@@ -586,6 +586,42 @@ data class HoyolandEvent(
             return if (firstHall.isBlank()) venueName else "$venueName $firstHall"
         }
 
+    // ── 입장권 배너(홈 · 게임정보 탭) 전용 짧은 표기 — 폭이 [venueShort] 보다도 좁다.
+
+    /** "10.2(금) ~ 10.5(월)" — [periodLabel] 에서 연도만 뗀다. */
+    val periodNoYearLabel: String
+        get() = periodLabel.substringAfter('.', periodLabel)
+
+    /** "10.2 – 10.5" — 입장권 조각(D-day 칸) 아래 한 줄. 요일도 뗀다. */
+    val periodDotsLabel: String
+        get() {
+            val sp = startYmd.split("-")
+            val ep = endYmd.split("-")
+            if (sp.size < 3 || ep.size < 3) return ""
+            fun md(p: List<String>) = "${p[1].trimStart('0')}.${p[2].trimStart('0')}"
+            return "${md(sp)} – ${md(ep)}"
+        }
+
+    /** 첫 홀 표기에서 괄호 부연을 뗀 값 — "7·8홀(실내) · 후면광장(야외)" → "7·8홀". */
+    private val hallCore: String
+        get() = venueHall.split(" · ").firstOrNull().orEmpty()
+            .replace(Regex("\\(.*?\\)"), "").trim()
+
+    /** 장소명 앞의 지역명("일산")을 뗀 단어들. 두 단어 이하면 그대로 둔다(뗄 지역명이 없다). */
+    private val venueCoreWords: List<String>
+        get() {
+            val words = venueName.split(" ").filter { it.isNotBlank() }
+            return if (words.size >= 3) words.drop(1) else words
+        }
+
+    /** "킨텍스 제2전시장 7·8홀" — 게임정보 카드의 장소 줄. */
+    val venueRowLabel: String
+        get() = (venueCoreWords.joinToString(" ") + " " + hallCore).trim()
+
+    /** "킨텍스 7·8홀" — 홈 입장권 배너의 한 줄(기간과 나란히 선다). */
+    val venueTicketLabel: String
+        get() = ((venueCoreWords.firstOrNull() ?: venueName) + " " + hallCore).trim()
+
     @OptIn(ExperimentalTime::class)
     private fun today(nowMillis: Long): LocalDate =
         Instant.fromEpochMilliseconds(nowMillis)

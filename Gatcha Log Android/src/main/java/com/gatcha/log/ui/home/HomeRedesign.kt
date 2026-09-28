@@ -1,5 +1,11 @@
 package com.gatcha.log.ui.home
 
+import com.gatcha.log.ui.game.hoyoland.HoyolandTicketKicker
+import com.gatcha.log.ui.game.hoyoland.HoyolandTicketShape
+import com.gatcha.log.ui.game.hoyoland.HoyolandTicketStub
+import com.gatcha.log.ui.game.hoyoland.TicketSubText
+import com.gatcha.log.ui.game.hoyoland.hoyolandTicketDeep
+import com.gatcha.log.ui.game.hoyoland.ticketCountdown
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -949,133 +955,45 @@ private fun NewsBody(anni: AnniversaryInfo?, topNews: List<NewsItem>) {
     }
 }
 /**
- * 홈의 호요랜드 — **광고 배너**로 세운다.
+ * 홈의 호요랜드 — **입장권 배너**.
  *
- * 예전엔 아이콘 + 두 줄 텍스트의 목록형 카드였다. 그런데 이건 1년에 한 번 열리는 행사고,
- * 홈에 뜨는 기간도 개막 D-60 안쪽뿐이다. 다른 카드와 같은 무게로 늘어놓으면 그냥 지나친다.
+ * 1년에 한 번 열리는 행사라 다른 카드와 같은 무게로 늘어놓으면 그냥 지나친다. 입장권 모양으로
+ * 세워 "표가 있는 행사" 라는 걸 모양으로 먼저 말한다. 주인공은 오른쪽 조각의 **남은 날짜**다.
  *
- * 배너의 주인공은 **남은 날짜**다. 큰 숫자 하나가 "언제인가"에 즉답하고, 나머지(행사명·기간·
- * 장소)는 그 옆에서 거든다. 배경은 그라디언트 + 장식 광채라 카드 목록에서 혼자 떠오른다.
+ * 디자인 정본은 아티팩트 「호요랜드 배너 시안」 C안(2026-09-28 확정) — 부품은 `HoyolandTicket.kt`.
+ * 예전 슬레이트 그라데이션 광고 배너를 대체했다. iOS `HoyolandHomeBanner` 와 파리티.
  */
 @Composable
 fun DashHoyolandCard(event: HoyolandEvent, onTap: () -> Unit) {
-    val accent = LocalAccent.current
-    val phase = event.phase()
-    // 배너 바탕 — 강조색을 **짙은 슬레이트** 쪽으로 가라앉힌다. 흰 글자가 얹히므로 충분히 진하게.
-    //
-    // 예전엔 선명한 보라(#6A2BD9)로 45% 섞어 '축제 톤' 을 냈다. 27.50.0 팔레트가 대비 3.9 로 진해지고
-    // 배경이 옅은 틴트가 된 뒤로는 이 면만 혼자 튀었다(2026-09-11 "색이 좀 강하다"). 슬레이트로 섞으면
-    // 10색 평균 채도 0.57 → 0.47 로 차분해지고, 흰 글자 대비는 4.7 → 5.8 로 오히려 좋아진다.
-    val top = lerp(accent, Color(0xFF2E3440), 0.35f)
-    val bottom = lerp(accent, Color(0xFF2E3440), 0.50f)
-    val shape = RoundedCornerShape(20.dp)
-    // 남은 날짜를 숫자와 말로 가른다 — 숫자만 크게 세우려는 것.
-    val bigText: String
-    val capText: String
-    when (phase) {
-        HoyolandPhase.UPCOMING -> {
-            bigText = "D-${event.daysUntilStart()}"
-            capText = "개막까지"
-        }
-        HoyolandPhase.TOMORROW -> {
-            bigText = "D-1"
-            capText = "내일 개막"
-        }
-        HoyolandPhase.TODAY -> {
-            bigText = "TODAY"
-            capText = "오늘 개막"
-        }
-        HoyolandPhase.ONGOING -> {
-            bigText = "${event.dayOrdinal()}일차"
-            capText = "진행 중"
-        }
-        HoyolandPhase.ENDED -> {
-            bigText = "종료"
-            capText = "다음을 기다려요"
-        }
-    }
-
-    Box(
+    val deep = hoyolandTicketDeep()
+    val (cap, big) = event.ticketCountdown()
+    // 절취선 위 · 아래 가장자리에 반원 홈.
+    val shape = remember { HoyolandTicketShape { h -> listOf(0f, h) } }
+    Row(
         Modifier
             .fillMaxWidth()
-            .height(86.dp)
+            .height(104.dp)
             .clip(shape)
-            .background(Brush.linearGradient(listOf(top, bottom)))
             .clickable { onTap() },
     ) {
-        // 장식 — 오른쪽 위에서 번지는 광채와 겹친 원. 배너라는 인상은 여기서 나온다.
-        Box(
-            Modifier
-                .align(Alignment.TopEnd)
-                .size(124.dp)
-                .offset(x = 36.dp, y = (-46).dp)
-                .background(
-                    Brush.radialGradient(listOf(Color.White.copy(alpha = 0.22f), Color.Transparent)),
-                    CircleShape,
-                ),
-        )
-        Box(
-            Modifier
-                .align(Alignment.BottomEnd)
-                .size(80.dp)
-                .offset(x = 22.dp, y = 28.dp)
-                .background(
-                    Brush.radialGradient(listOf(Color.White.copy(alpha = 0.14f), Color.Transparent)),
-                    CircleShape,
-                ),
-        )
-
-        Column(Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
-        Row(
-            Modifier.fillMaxWidth().weight(1f),
-            verticalAlignment = Alignment.CenterVertically,
+        Column(
+            Modifier.weight(1f).fillMaxHeight().background(Color.White)
+                .padding(horizontal = 16.dp, vertical = 14.dp),
+            verticalArrangement = Arrangement.Center,
         ) {
-            // 남은 날짜 — 배너의 주인공.
-            Column(horizontalAlignment = Alignment.Start) {
-                Text(
-                    capText,
-                    fontSize = 10.sp, fontWeight = FontWeight.Bold,
-                    color = Color.White.copy(alpha = 0.75f),
-                )
-                Spacer(Modifier.height(2.dp))
-                Text(
-                    bigText,
-                    fontSize = if (bigText.length > 4) 21.sp else 26.sp,
-                    fontWeight = FontWeight.Black,
-                    color = Color.White,
-                    maxLines = 1,
-                )
-            }
-            Spacer(Modifier.width(13.dp))
-            // 세로 구분선 — 숫자와 설명을 가른다.
-            Box(Modifier.width(1.dp).height(38.dp).background(Color.White.copy(alpha = 0.28f)))
-            Spacer(Modifier.width(13.dp))
-            Column(Modifier.weight(1f)) {
-                Text(
-                    event.edition,
-                    fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.White,
-                    maxLines = 1, overflow = TextOverflow.Ellipsis,
-                )
-                Spacer(Modifier.height(3.dp))
-                Text(
-                    event.periodLabel,
-                    fontSize = 11.sp, color = Color.White.copy(alpha = 0.82f),
-                    maxLines = 1, overflow = TextOverflow.Ellipsis,
-                )
-                Spacer(Modifier.height(2.dp))
-                Text(
-                    event.venueShort,
-                    fontSize = 11.sp, color = Color.White.copy(alpha = 0.70f),
-                    maxLines = 1, overflow = TextOverflow.Ellipsis,
-                )
-            }
-            Icon(
-                Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                contentDescription = null,
-                tint = Color.White.copy(alpha = 0.8f),
-                modifier = Modifier.size(20.dp),
+            HoyolandTicketKicker(deep)
+            Spacer(Modifier.height(5.dp))
+            Text(
+                event.edition, fontSize = 17.sp, fontWeight = FontWeight.Bold, color = TextPrimary,
+                maxLines = 1, overflow = TextOverflow.Ellipsis,
+            )
+            Spacer(Modifier.height(5.dp))
+            Text(
+                "${event.periodNoYearLabel} · ${event.venueTicketLabel}",
+                fontSize = 13.sp, color = TicketSubText,
+                maxLines = 1, overflow = TextOverflow.Ellipsis,
             )
         }
-        }
+        HoyolandTicketStub(cap, big, deep)
     }
 }
