@@ -1,5 +1,16 @@
 package com.gatcha.log.ui.game
 
+import com.gatcha.log.ui.game.hoyoland.HoyolandTicketKicker
+import com.gatcha.log.ui.game.hoyoland.HoyolandTicketRule
+import com.gatcha.log.ui.game.hoyoland.HoyolandTicketShape
+import com.gatcha.log.ui.game.hoyoland.HoyolandTicketStub
+import com.gatcha.log.ui.game.hoyoland.TicketChevron
+import com.gatcha.log.ui.game.hoyoland.TicketLabelText
+import com.gatcha.log.ui.game.hoyoland.TicketRowDivider
+import com.gatcha.log.ui.game.hoyoland.TicketSubText
+import com.gatcha.log.ui.game.hoyoland.TicketTileBg
+import com.gatcha.log.ui.game.hoyoland.hoyolandTicketDeep
+import com.gatcha.log.ui.game.hoyoland.ticketCountdown
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.items
@@ -227,15 +238,13 @@ fun rememberFeaturedHoyoland(): HoyolandEvent? = rememberHoyolandEvent().takeIf 
  */
 @Composable
 fun HoyolandSection(onOpen: (HoyolandSub) -> Unit) {
-    val accent = LocalAccent.current
     val ctx = LocalContext.current
     val e = rememberHoyolandEvent()
     val phase = e.phase()
-    val status = e.statusLabel()
     Row(Modifier.fillMaxWidth().padding(bottom = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-        Text("호요랜드", fontSize = 16.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+        Text("호요랜드", fontSize = 17.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
         Text(
-            "전체 보기", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = TextSecondary,
+            "전체 보기", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = TicketSubText,
             modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable { onOpen(HoyolandSub.None) }
                 .padding(horizontal = 6.dp, vertical = 4.dp),
         )
@@ -251,51 +260,49 @@ fun HoyolandSection(onOpen: (HoyolandSub) -> Unit) {
         }
         return
     }
-    GlassCard(modifier = Modifier.fillMaxWidth()) {
-        Column {
-            // ── 위 — 남은 날짜가 주인공이다. 배지 크기로 두면 D-60 이든 D-1 이든 똑같아 보인다.
-            Row(
-                Modifier.fillMaxWidth().clickable { onOpen(HoyolandSub.None) }.padding(16.dp),
-                verticalAlignment = Alignment.CenterVertically,
+    // ── 입장권 카드 — 홈 배너와 같은 부품(`HoyolandTicket.kt`). 디자인 정본은 아티팩트
+    // 「호요랜드 배너 시안」 C안(2026-09-28 확정): 머리는 입장권(흰 면 + 짙은 조각), 절취선 아래는
+    // 누르면 할 일이 있는 줄(예매 · 장소)과 바로가기 4칸.
+    val deep = hoyolandTicketDeep()
+    val (cap, big) = e.ticketCountdown()
+    // 머리 104 · 줄 44 · 칸 68 — 시안(116 · 48 · 88)보다 한 단씩 낮췄다. 폰에서 카드 하나가
+    // 한 화면 절반을 넘게 먹었다(2026-09-28 지적).
+    val headHeight = 104.dp
+    // 반원 홈은 머리와 본문이 만나는 **절취선 한가운데** 하나 — 카드 안쪽에 뚫린 구멍이다.
+    val shape = remember { HoyolandTicketShape { listOf(headHeight.toPx()) } }
+    Column(Modifier.fillMaxWidth().clip(shape).background(Color.White)) {
+        // ── 머리 — 남은 날짜가 주인공이다.
+        Row(Modifier.fillMaxWidth().height(headHeight).clickable { onOpen(HoyolandSub.None) }) {
+            Column(
+                Modifier.weight(1f).fillMaxHeight().padding(horizontal = 16.dp, vertical = 14.dp),
+                verticalArrangement = Arrangement.Center,
             ) {
-                // 홈 배너와 같은 톤 — 강조색을 슬레이트로 가라앉혀 흰 글자가 읽힌다.
-                val tileTop = lerp(accent, Color(0xFF2E3440), 0.35f)
-                val tileBottom = lerp(accent, Color(0xFF2E3440), 0.50f)
-                Column(
-                    Modifier.size(62.dp).clip(RoundedCornerShape(16.dp))
-                        .background(Brush.linearGradient(listOf(tileTop, tileBottom))),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center,
-                ) {
-                    Text(
-                        if (phase.isEventLive) "진행 중" else "개막까지",
-                        fontSize = 9.5.sp, fontWeight = FontWeight.SemiBold, color = Color.White.copy(alpha = 0.85f),
-                    )
-                    Text(
-                        status, fontSize = if (status.length <= 4) 20.sp else 13.sp,
-                        fontWeight = FontWeight.Black, color = Color.White, maxLines = 1, lineHeight = 22.sp,
-                    )
-                }
-                Spacer(Modifier.width(14.dp))
-                Column(Modifier.weight(1f)) {
-                    Text(e.edition, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
-                    Spacer(Modifier.height(3.dp))
-                    Text("${e.periodLabel} · ${e.venueShort}", fontSize = 12.sp, color = TextSecondary, lineHeight = 16.sp)
-                    if (e.lineup.isNotEmpty()) {
-                        Spacer(Modifier.height(6.dp))
-                        Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-                            e.lineup.take(3).forEach { l ->
-                                val raw = e.stageColor(l.game)
-                                val c = if (raw == 0L) TextSecondary else raw.toColor()
-                                HoyolandMiniChip(e.stageLabel(l.game), c)
-                            }
-                            if (e.lineup.size > 3) HoyolandMiniChip("+${e.lineup.size - 3}", TextSecondary)
+                HoyolandTicketKicker(deep)
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    e.edition, fontSize = 17.sp, fontWeight = FontWeight.Bold, color = TextPrimary,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis,
+                )
+                if (e.lineup.isNotEmpty()) {
+                    Spacer(Modifier.height(6.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                        e.lineup.take(3).forEach { l ->
+                            val raw = e.stageColor(l.game)
+                            val c = if (raw == 0L) TicketSubText else raw.toColor()
+                            HoyolandMiniChip(e.stageLabel(l.game), c)
                         }
+                        if (e.lineup.size > 3) HoyolandMiniChip("+${e.lineup.size - 3}", TicketSubText)
                     }
                 }
             }
+            HoyolandTicketStub(cap, big, deep, sub = e.periodDotsLabel)
+        }
+        HoyolandTicketRule()
+        // 본문 — 정보 줄은 **구분선으로** 가른다. 간격만으로 띄우면 줄과 줄의 경계가 흐려지고
+        // 세로가 헐거워졌다(2026-09-28 지적). 줄 높이는 44(터치 최소), 사이 간격은 0.
+        Column(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 14.dp)) {
             // ── 정보 줄 — 줄마다 누르면 할 수 있는 일이 있다.
-            HoyolandActionRow(Icons.Outlined.ConfirmationNumber, "예매", hoyolandTicketSummary(e), accent) {
+            HoyolandActionRow("예매", hoyolandTicketSummary(e)) {
                 // 예매 주소가 있으면 곧장 예매처로 — 상세 페이지의 「예매하기」와 같은 동작(앱이 깔려 있으면 앱 먼저).
                 // 주소가 아직 없으면(예매 미정) 상세로 간다.
                 if (e.ticket.url.isNotBlank()) {
@@ -305,32 +312,30 @@ fun HoyolandSection(onOpen: (HoyolandSub) -> Unit) {
                 }
             }
             if (e.mapUrl.isNotBlank()) {
-                HoyolandActionRow(Icons.Outlined.Place, "장소", "${e.venueShort} · 지도", accent) {
+                HoyolandRowDivider()
+                HoyolandActionRow("장소", "${e.venueRowLabel} · 지도") {
                     openExternalLink(ctx, e.mapUrl)
                 }
             }
             // 행사 중에만 — 지금 무대가 이 카드가 답할 첫 질문이 된다.
             if (phase.isEventLive && e.hasTimetable) {
-                HoyolandActionRow(Icons.Outlined.PlayCircle, "무대", e.stageEntryLine(), Color(0xFFE5484D)) {
-                    onOpen(HoyolandSub.Stage)
-                }
+                HoyolandRowDivider()
+                HoyolandActionRow("무대", e.stageEntryLine()) { onOpen(HoyolandSub.Stage) }
             }
             // ── 바로가기 4칸 — 상세를 한 번 거치지 않고 곧장.
-            Row(
-                Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, top = 4.dp, bottom = 14.dp),
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-            ) {
+            Spacer(Modifier.height(10.dp))
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
                 val slots = e.days.sumOf { it.slots.size }
-                HoyolandQuickTile(Icons.Outlined.CalendarMonth, "시간표", if (slots > 0) "${slots}편" else "공개 전", Modifier.weight(1f)) {
+                HoyolandQuickTile(Icons.Outlined.CalendarMonth, "시간표", if (slots > 0) "${slots}편" else "공개 전", deep, Modifier.weight(1f)) {
                     onOpen(HoyolandSub.Stage)
                 }
-                HoyolandQuickTile(Icons.Outlined.ShoppingBag, "굿즈", e.visibleGoods.size.let { if (it > 0) "${it}종" else "공개 전" }, Modifier.weight(1f)) {
+                HoyolandQuickTile(Icons.Outlined.ShoppingBag, "굿즈", e.visibleGoods.size.let { if (it > 0) "${it}종" else "공개 전" }, deep, Modifier.weight(1f)) {
                     onOpen(HoyolandSub.Goods)
                 }
-                HoyolandQuickTile(Icons.Outlined.Storefront, "부스", e.booths.size.let { if (it > 0) "${it}곳" else "공개 전" }, Modifier.weight(1f)) {
+                HoyolandQuickTile(Icons.Outlined.Storefront, "부스", e.booths.size.let { if (it > 0) "${it}곳" else "공개 전" }, deep, Modifier.weight(1f)) {
                     onOpen(HoyolandSub.Booth)
                 }
-                HoyolandQuickTile(Icons.Outlined.Restaurant, "푸드", e.foodPrograms.size.let { if (it > 0) "${it}곳" else "공개 전" }, Modifier.weight(1f)) {
+                HoyolandQuickTile(Icons.Outlined.Restaurant, "푸드", e.foodPrograms.size.let { if (it > 0) "${it}곳" else "공개 전" }, deep, Modifier.weight(1f)) {
                     onOpen(HoyolandSub.Food)
                 }
             }
@@ -354,36 +359,32 @@ private fun hoyolandTicketSummary(e: HoyolandEvent): String {
 @Composable
 private fun HoyolandMiniChip(text: String, color: Color) {
     Text(
-        text, fontSize = 9.5.sp, fontWeight = FontWeight.Black, color = color,
-        modifier = Modifier.clip(RoundedCornerShape(6.dp)).background(color.copy(alpha = 0.12f))
-            .padding(horizontal = 6.dp, vertical = 2.dp),
+        text, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = color, maxLines = 1,
+        modifier = Modifier.clip(RoundedCornerShape(7.dp)).background(color.copy(alpha = 0.12f))
+            .padding(horizontal = 8.dp, vertical = 3.dp),
     )
 }
 
-/** 정보 줄 — 아이콘 · 라벨 · 값 · 셰브론. 줄 전체가 누르는 자리다. */
+/** 정보 줄 사이 구분선 — 카드 흰 면 위에서 보이는 한 단 짙은 회색. */
 @Composable
-private fun HoyolandActionRow(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    label: String,
-    value: String,
-    tint: Color,
-    onClick: () -> Unit,
-) {
-    Column {
-        Box(Modifier.fillMaxWidth().padding(horizontal = 16.dp).height(1.dp).background(DividerColor))
-        Row(
-            Modifier.fillMaxWidth().clickable { onClick() }.padding(horizontal = 16.dp, vertical = 11.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Icon(icon, null, tint = tint, modifier = Modifier.size(18.dp))
-            Spacer(Modifier.width(10.dp))
-            Text(label, fontSize = 12.5.sp, color = TextSecondary, modifier = Modifier.width(34.dp))
-            Text(
-                value, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = TextPrimary,
-                maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f),
-            )
-            Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null, tint = TextThird, modifier = Modifier.size(16.dp))
-        }
+private fun HoyolandRowDivider() {
+    Box(Modifier.fillMaxWidth().height(1.dp).background(TicketRowDivider))
+}
+
+/** 정보 줄 — 라벨 · 값 · 셰브론. 줄 전체가 누르는 자리다(44dp). */
+@Composable
+private fun HoyolandActionRow(label: String, value: String, onClick: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().heightIn(min = 44.dp).clickable { onClick() },
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(label, fontSize = 14.sp, color = TicketLabelText, modifier = Modifier.width(40.dp))
+        Spacer(Modifier.width(10.dp))
+        Text(
+            value, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TextPrimary,
+            maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f),
+        )
+        Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null, tint = TicketChevron, modifier = Modifier.size(18.dp))
     }
 }
 
@@ -393,18 +394,19 @@ private fun HoyolandQuickTile(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     title: String,
     sub: String,
+    tint: Color,
     modifier: Modifier,
     onClick: () -> Unit,
 ) {
-    val accent = LocalAccent.current
     Column(
-        modifier.clip(RoundedCornerShape(14.dp)).background(CartRowBg).clickable { onClick() }.padding(vertical = 10.dp),
+        modifier.heightIn(min = 68.dp).clip(RoundedCornerShape(14.dp)).background(TicketTileBg)
+            .clickable { onClick() }.padding(top = 10.dp, bottom = 9.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(3.dp),
     ) {
-        Icon(icon, null, tint = accent, modifier = Modifier.size(20.dp))
-        Spacer(Modifier.height(4.dp))
-        Text(title, fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
-        Text(sub, fontSize = 10.sp, color = TextThird, maxLines = 1)
+        Icon(icon, null, tint = tint, modifier = Modifier.size(20.dp))
+        Text(title, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+        Text(sub, fontSize = 12.sp, color = TicketLabelText, maxLines = 1)
     }
 }
 
