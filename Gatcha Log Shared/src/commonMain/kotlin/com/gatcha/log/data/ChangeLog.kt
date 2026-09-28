@@ -61,7 +61,7 @@ object ChangeLog {
     const val minSupportedVersionCode: Long = 273000
 
     val entries: List<ChangeEntry> = buildList {
-        // 날짜는 잠정이다 — 배포일이 정해지면 맞춘다.
+        // 2026-09-28 배포.
         // 이 사이클 안에서 생겼다 고쳐진 것(좁은 화면 퀵버튼 말줄임 · 듀오 새로고침 위치)과
         // 잔손질(뒤로가기 버튼 테두리)은 뺐다.
         add(ChangeEntry("27.50.6", "2026.09.28", items = listOf(
