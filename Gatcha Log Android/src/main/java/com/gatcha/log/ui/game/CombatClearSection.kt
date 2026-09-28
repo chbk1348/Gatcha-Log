@@ -81,8 +81,17 @@ fun CombatClearContent(clears: List<CombatClear>, loading: Boolean, linked: Bool
     }
     val modes = remember(clears) { CombatClearLogic.byMode(clears) }
     if (modes.isEmpty()) {
+        // 불러오는 동안은 **스피너** — 「불러오는 중이에요」 글자만으로는 멈춘 건지 도는 건지 안 보였다(2026-09-28 지적).
         // 로딩 중이 아닌데 비었다면 정말로 기록이 없는 것 — 둘을 구분해서 안내한다.
-        EmptyNote(if (loading) "불러오는 중이에요" else "아직 클리어 기록이 없어요")
+        if (loading) {
+            Box(Modifier.fillMaxWidth().padding(vertical = 48.dp), contentAlignment = Alignment.Center) {
+                androidx.compose.material3.CircularProgressIndicator(
+                    color = LocalAccent.current, strokeWidth = 2.5.dp, modifier = Modifier.size(28.dp),
+                )
+            }
+        } else {
+            EmptyNote("아직 클리어 기록이 없어요")
+        }
         return
     }
     // ⚠️ LazyColumn 금지 — [SectionPage] 가 이미 세로 스크롤을 걸어 놨다. 그 안에 지연 목록을 넣으면

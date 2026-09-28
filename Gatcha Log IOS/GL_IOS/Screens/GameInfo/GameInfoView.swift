@@ -96,6 +96,17 @@ struct GameInfoView: View {
         // 일어나지 않던 원인이다(상태만 true 로 바뀌고 push 할 destination 이 없었다).
         .navigationDestination(isPresented: $showCombatClears) {
             sectionPage("클리어 편성") { CombatClearSection(store: store) }
+                // 헤더 새로고침 — 진입할 때 한 번 받는 값이라(10분 안엔 캐시) 방금 깬 층을 보려면 직접 당겨야 한다.
+                .toolbar {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button { store.refreshCombatClears(force: true) } label: {
+                            if store.combatClearsLoading { ProgressView().controlSize(.small) }
+                            else { Image(systemName: "arrow.clockwise") }
+                        }
+                        .disabled(store.combatClearsLoading || !store.hoyolabConfig.isLinked)
+                        .accessibilityLabel("새로고침")
+                    }
+                }
         }
         .navigationDestination(isPresented: $showStats) {
             if let c = statChar {

@@ -15,6 +15,7 @@ private let avatarSize: CGFloat = 46
 private let avatarCell: CGFloat = 50
 
 struct CombatClearSection: View {
+    @Environment(\.glgAccent) private var accent
     let store: SpendingStore
 
     private var modes: [CombatModeClears] {
@@ -27,7 +28,16 @@ struct CombatClearSection: View {
                 emptyNote("HoYoLAB을 연동하면 클리어 편성을 볼 수 있어요")
             } else if modes.isEmpty {
                 // 로딩 중이 아닌데 비었다면 정말로 기록이 없는 것 — 둘을 구분해서 안내한다.
-                emptyNote(store.combatClearsLoading ? "불러오는 중이에요" : "아직 클리어 기록이 없어요")
+                // 불러오는 동안은 **스피너** — 「불러오는 중이에요」 글자만으로는 멈춘 건지 도는 건지 안 보였다(2026-09-28 지적).
+                if store.combatClearsLoading {
+                    ProgressView()
+                        .controlSize(.regular)
+                        .tint(accent.primary)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 48)
+                } else {
+                    emptyNote("아직 클리어 기록이 없어요")
+                }
             } else {
                 // 좌우 여백은 상위 sectionPage 가 준다 — 여기서 또 주면 다른 페이지보다 좁아 보인다.
                 LazyVStack(spacing: 14) {

@@ -350,7 +350,20 @@ fun GameInfoScreen(
             }
             // 진입은 데일리 카드 한 곳뿐이라 뒤로는 항상 메인이다(예전엔 '전투 · 수입 일지' 안에도
             // 같은 진입 행이 있어 돌아갈 곳을 기억해야 했는데, 그게 진입점 중복이었다).
-            GiSub.CombatClear -> SectionPage("클리어 편성", onBack = { subPage = GiSub.Main }) {
+            GiSub.CombatClear -> SectionPage(
+                "클리어 편성",
+                onBack = { subPage = GiSub.Main },
+                // 헤더 새로고침 — 진입할 때 한 번 받는 값이라(10분 안엔 캐시) 방금 깬 층을 보려면 직접 당겨야 한다.
+                actions = {
+                    GlgCircleIconButton(
+                        Icons.Default.Refresh, "새로고침",
+                        loading = combatClearsLoading,
+                        enabled = hoyolab.isLinked && !combatClearsLoading,
+                        // 다른 헤더 원형 버튼과 같은 규격 — 아웃라인 + 불투명 면.
+                        outlined = true, solidBackground = true,
+                    ) { viewModel.refreshCombatClears(force = true) }
+                },
+            ) {
                 // 진입할 때 받는다 — 시즌 2개치라 무거워서 게임정보 새로고침에 얹지 않았다.
                 LaunchedEffect(Unit) { viewModel.refreshCombatClears() }
                 CombatClearContent(
@@ -654,6 +667,11 @@ internal fun SectionPage(
      * 헤더 밑으로 지나간다(호요랜드 상세, 2026-09-15 요청).
      */
     showBackdrop: Boolean = true,
+    /**
+     * 본문을 스크롤하지 않는다 — 본문이 헤더 아래 **남은 화면 전체**를 받는다(`fillMaxSize` 로 채운다).
+     * 화면에 꼭 맞춰 그리는 페이지(배치도 가로 보기)에 쓴다. 당겨서 새로고침과 함께 쓰지 않는다.
+     */
+    scrollable: Boolean = true,
     content: @Composable () -> Unit = {},
 ) {
     BackHandler { onBack() }
@@ -722,6 +740,17 @@ internal fun SectionPage(
             GlgDetailHeaderOverlay(title, onBack, listScrolled, actions = actions)
             stickyBar?.invoke(this)
             bottomBar?.let { Box(Modifier.align(Alignment.BottomCenter)) { it() } }
+        }
+        return
+    }
+    if (!scrollable) {
+        Box(Modifier.fillMaxSize()) {
+            Column(
+                Modifier.fillMaxSize().navigationBarsPadding()
+                    .padding(horizontal = 16.dp)
+                    .padding(top = glgDetailContentTop() + stickyHeight, bottom = 16.dp),
+            ) { content() }
+            GlgDetailHeaderOverlay(title, onBack, scrollState = scrollState, actions = actions)
         }
         return
     }
