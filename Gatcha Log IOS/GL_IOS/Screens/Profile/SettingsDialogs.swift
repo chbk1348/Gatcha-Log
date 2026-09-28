@@ -21,8 +21,8 @@ struct BudgetSheet: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(alignment: .leading, spacing: 14) {
-                    // 전체 월 예산 — 섹션 카드(지출 추가 모달과 동일 규격: 연회색 카드)
+                VStack(alignment: .leading, spacing: 22) {
+                    // 전체 월 예산
                     budgetSection("전체 월 예산") {
                         TextField("예산 (원)", text: $overall)
                             .textFieldStyle(.plain)
@@ -30,7 +30,7 @@ struct BudgetSheet: View {
                             .glgField()
                             .onChange(of: overall) { _, newValue in overall = newValue.filter(\.isNumber) }
                     }
-                    // 게임별 한도 — 섹션 카드
+                    // 게임별 한도
                     budgetSection("게임별 한도 (선택)", footer: "비워두면 한도 없음 · 이번 달 사용액 함께 표시") {
                         VStack(spacing: 12) {
                             ForEach(games, id: \.key) { game in
@@ -72,18 +72,21 @@ struct BudgetSheet: View {
         }
     }
 
-    // 예산 섹션 카드 — 제목(카드 위) + 연회색 카드(지출 추가 모달 sectionCard 와 동일 규격). 선택적 footer.
+    // 예산 섹션 — 소제목 + 설명(선택) + 내용. **카드로 감싸지 않는다.**
+    //
+    // 유리 카드 + 안쪽 여백 16 이 겹쳐 입력칸이 시트 폭보다 한 단 좁게 들어가 있었다(2026-09-28 지적).
+    // 내용은 시트 본문 폭을 그대로 쓰고, 섹션은 간격과 소제목으로만 가른다. (Android BudgetDialog 와 같은 배치 —
+    // 설명은 소제목 바로 아래에 둔다.)
     @ViewBuilder
     private func budgetSection<C: View>(_ title: String, footer: String? = nil, @ViewBuilder content: () -> C) -> some View {
-        VStack(alignment: .leading, spacing: 7) {
-            Text(title).font(.pretendard(size: 13, weight: .semibold)).foregroundStyle(GLGColor.textSecondary).padding(.leading, 4)
+        VStack(alignment: .leading, spacing: 0) {
+            Text(title).font(.pretendard(size: 13, weight: .semibold)).foregroundStyle(GLGColor.textSecondary)
+            if let footer {
+                Text(footer).font(.pretendard(size: 11)).foregroundStyle(GLGColor.textSecondary)
+            }
             content()
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(16)
-                .glgGlass(in: RoundedRectangle(cornerRadius: 22, style: .continuous))
-            if let footer {
-                Text(footer).font(.pretendard(size: 11)).foregroundStyle(GLGColor.textSecondary).padding(.leading, 4)
-            }
+                .padding(.top, 8)
         }
     }
 
