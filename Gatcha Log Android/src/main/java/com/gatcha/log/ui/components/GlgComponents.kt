@@ -226,11 +226,14 @@ fun GlgButton(
             .then(if (enabled) Modifier.clickable(interactionSource = interaction, indication = null) { onClick() } else Modifier),
         contentAlignment = Alignment.Center,
     ) {
+        // 못 누를 때는 글자를 **회색**으로 — 흰 글자는 연회색 면 위에서 대비가 1.4:1 이라 「매진」 같은
+        // 상태 문구가 읽히지 않았다(2026-09-28 지적). 누를 수 없다는 건 면 색이 이미 말한다.
+        val content = if (enabled) Color.White else TextSecondary
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
             if (icon != null) {
-                Icon(icon, contentDescription = null, tint = Color.White, modifier = Modifier.size(17.dp))
+                Icon(icon, contentDescription = null, tint = content, modifier = Modifier.size(17.dp))
             }
-            Text(text, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+            Text(text, color = content, fontWeight = FontWeight.Bold, fontSize = 15.sp)
         }
     }
 }
