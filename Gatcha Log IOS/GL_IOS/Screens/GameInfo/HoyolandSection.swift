@@ -381,9 +381,12 @@ struct HoyolandDetailView: View {
                 pastSection(e)
                 }
 
-                Text(e.notice)
-                    .font(.pretendard(size: 11)).foregroundStyle(GLGColor.textSecondary)
-                    .padding(.top, 14).padding(.horizontal, 2)
+                // 공지가 비면 **자리째 뺀다** — 빈 글자에 위 여백만 남으면 페이지 끝이 이유 없이 떴다(2026-09-28).
+                if !e.notice.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    Text(e.notice)
+                        .font(.pretendard(size: 11)).foregroundStyle(GLGColor.textSecondary)
+                        .padding(.top, 14).padding(.horizontal, 2)
+                }
 
                 Color.clear.frame(height: 24)
             }

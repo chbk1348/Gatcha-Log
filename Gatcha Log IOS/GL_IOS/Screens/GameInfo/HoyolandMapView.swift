@@ -265,7 +265,9 @@ struct HoyolandMapView: View {
                 case "goods": HoyolandGoodsView(event: event, store: store)
                 case "stage": HoyolandStageView(event: event, entry: store.hoyolandEntry)
                 case "food": HoyolandFoodView(event: event)
-                default: HoyolandBoothView(event: event, initialGame: z.game.isEmpty ? nil : z.game)
+                default: HoyolandBoothView(event: event, initialGame: z.game.isEmpty ? nil : z.game,
+                                           initialSpecial: z.label.contains("DIY") ? "diy"
+                                               : (event.partnerForZone(label: z.label) != nil ? "partner" : nil))
                 }
             } label: {
                 zoneFace(z, fill: fill, fg: fg)
