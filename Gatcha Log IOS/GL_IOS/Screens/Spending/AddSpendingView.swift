@@ -28,6 +28,11 @@ struct AddSpendingView: View {
     @State private var quantity: Int = 1
     @State private var showDate = false
     @State private var nudgeMsg: String? = nil
+    /// 한 번만 저장한다 — 시트가 닫히는 동안 버튼이 살아 있어, 빠르게 두 번 누르면 두 건이 들어갔다.
+    @State private var saved = false
+    /// 처음 채운 입력의 지문 — 바뀌었으면 쓸어 닫기를 막고 취소에서 한 번 묻는다(입력이 경고 없이 날아갔다).
+    @State private var initialFingerprint: String? = nil
+    @State private var confirmDiscard = false
     @State private var didInit = false
     /// '자주 사는 것' 아래 전체 상품 그리드를 폈는가.
     @State private var showAllPackages = false
@@ -90,11 +95,16 @@ struct AddSpendingView: View {
         // 규격이면 시스템 시트로 읽히지 않는다. 시트 폼의 표준은 왼쪽 취소 · 오른쪽 저장이다.
         // 못 누르는 이유는 입력 자리에서 말한다 — 금액이 비면 「금액을 입력해주세요」.
         .toolbar {
-            ToolbarItem(placement: .cancellationAction) { Button("취소") { onClose() } }
+            ToolbarItem(placement: .cancellationAction) {
+                Button("취소") { if isDirty { confirmDiscard = true } else { onClose() } }
+                    .confirmationDialog("입력한 내용을 버릴까요?", isPresented: $confirmDiscard, titleVisibility: .visible) {
+                        Button("버리기", role: .destructive) { onClose() }
+                    }
+            }
             ToolbarItem(placement: .confirmationAction) {
                 Button(editing == nil ? "저장" : "수정") { attemptSave() }
                     .fontWeight(.bold)
-                    .disabled(!canSave)
+                    .disabled(!canSave || saved)
             }
         }
         // 입력 화면에서는 하단 탭바를 감춘다 — 저장/취소 바가 이미 하단을 쓰고 있어 두 겹이 되고,
@@ -112,7 +122,11 @@ struct AddSpendingView: View {
         Group {
             if pushed { form } else { NavigationStack { form } }
         }
-        .onAppear(perform: prefill)
+        .onAppear {
+            prefill()
+            if initialFingerprint == nil { initialFingerprint = fingerprint }
+        }
+        .interactiveDismissDisabled(isDirty)
         .sheet(isPresented: $showDate) {
             NavigationStack {
                 DatePicker("날짜", selection: Binding(
@@ -192,7 +206,8 @@ struct AddSpendingView: View {
                     .keyboardType(.numberPad)
                     .fixedSize(horizontal: true, vertical: false)
                     .onChange(of: amountText) { _, newValue in
-                        let digits = newValue.filter(\.isNumber)
+                        // 11자리(999억)까지만 — 더 긴 붙여넣기는 조용히 0 이 됐다. 상한(100억)은 저장할 때 VM 이 막는다.
+                        let digits = String(newValue.filter(\.isNumber).prefix(11))
                         if digits != amount {
                             amount = digits
                             selectedPkg = nil; quantity = 1   // 직접 고치면 자동 곱 상태 해제
@@ -605,7 +620,16 @@ struct AddSpendingView: View {
         else { doSave() }
     }
 
+    /// 입력 지문 — 이 값이 처음과 다르면 "고친 게 있다".
+    private var fingerprint: String {
+        [gameName, amount, "\(dateMillis)", paymentMethod, chargePlatform, itemName, memo, customTags,
+         selectedTags.joined(separator: ",")].joined(separator: "|")
+    }
+    private var isDirty: Bool { initialFingerprint != nil && fingerprint != initialFingerprint }
+
     private func doSave() {
+        guard !saved else { return }
+        saved = true
         nudgeMsg = nil
         let parsed = Int64(amount) ?? 0
         let extra = customTags.components(separatedBy: CharacterSet(charactersIn: ", "))

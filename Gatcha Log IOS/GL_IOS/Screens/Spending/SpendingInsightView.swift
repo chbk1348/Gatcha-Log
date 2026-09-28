@@ -77,9 +77,10 @@ struct SpendingInsightView: View {
                         if let trend = stats.trend {
                             MonthlyTrendCard(trend: trend, year: store.displayYear)
                         }
-                        breakdownCard("결제수단별 비중", nil, stats.paymentRows)
-                        breakdownCard("충전 플랫폼별 비중", nil, stats.platformRows)
-                        breakdownCard("태그별 지출", "여러 태그가 달린 지출은 중복 집계돼요", stats.tagRows)
+                        // 이 카드들은 **전체 기간** 값이다 — 위쪽 월간 카드와 기준이 달라 섞여 읽혔다.
+                        breakdownCard("결제수단별 비중", "전체 기간", stats.paymentRows)
+                        breakdownCard("충전 플랫폼별 비중", "전체 기간", stats.platformRows)
+                        breakdownCard("태그별 지출", "전체 기간 · 여러 태그가 달린 지출은 중복 집계돼요", stats.tagRows)
                     } else {
                         AnnualReportContent(store: store)
                     }
@@ -183,7 +184,8 @@ struct SpendingInsightView: View {
                 cardTitle("전월 대비", "이번 달 vs 지난 달 지출")
                 HStack(alignment: .bottom, spacing: 10) {
                     Text(won(mom.thisMonth)).font(.pretendard(size: 24, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
-                    if mom.percent >= 0 {
+                    // 지난달 기록 유무는 금액으로 가른다 — 줄어든 달은 증감률이 음수라 `percent >= 0` 으로는 "기록 없음" 이 떴다.
+                    if mom.lastMonth > 0 {
                         Text("\(up ? "▲" : "▼") \(abs(Int(mom.percent)))% · \(up ? "+" : "-")\(won(abs(mom.delta)))")
                             .font(.pretendard(size: 12, weight: .bold)).foregroundStyle(up ? warn : accent.primary)
                             .padding(.horizontal, 9).padding(.vertical, 4)

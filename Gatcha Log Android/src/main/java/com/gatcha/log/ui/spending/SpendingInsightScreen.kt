@@ -157,7 +157,8 @@ private fun MoMCard(spendings: List<Spending>, year: Int, month: Int, accent: Co
         Row(verticalAlignment = Alignment.Bottom) {
             Text(won(mom.thisMonth), fontSize = 24.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
             Spacer(Modifier.width(10.dp))
-            if (mom.percent >= 0) {
+            // 지난달 기록 유무는 금액으로 가른다 — 줄어든 달은 증감률이 음수라 `percent >= 0` 으로는 "기록 없음" 이 떴다.
+            if (mom.lastMonth > 0) {
                 val clr = if (up) warn else accent
                 Surface(color = clr.copy(alpha = 0.12f), shape = RoundedCornerShape(9.dp)) {
                     Text(
@@ -244,7 +245,8 @@ private fun PaymentBreakdownCard(spendings: List<Spending>, accent: Color) {
     val rows = remember(spendings) { SpendingInsightStats.paymentBreakdown(spendings) }
     if (rows.isEmpty()) return
     DashCard {
-        CardTitle("결제수단별 비중")
+        // 이 카드들은 **전체 기간** 값이다 — 위쪽 월간 카드와 기준이 달라 섞여 읽혔다.
+        CardTitle("결제수단별 비중", "전체 기간")
         Spacer(Modifier.height(12.dp))
         rows.forEach { r ->
             BreakdownRow(r.name, r.amount, if (r.total > 0) r.amount.toFloat() / r.total else 0f, accent)
@@ -258,7 +260,7 @@ private fun PlatformBreakdownCard(spendings: List<Spending>, accent: Color) {
     val rows = remember(spendings) { SpendingInsightStats.platformBreakdown(spendings) }
     if (rows.isEmpty()) return
     DashCard {
-        CardTitle("충전 플랫폼별 비중")
+        CardTitle("충전 플랫폼별 비중", "전체 기간")
         Spacer(Modifier.height(12.dp))
         rows.forEach { r ->
             BreakdownRow(r.name, r.amount, if (r.total > 0) r.amount.toFloat() / r.total else 0f, accent)
@@ -273,7 +275,7 @@ private fun TagBreakdownCard(spendings: List<Spending>, accent: Color) {
     val rows = remember(spendings) { SpendingInsightStats.tagBreakdown(spendings) }
     if (rows.isEmpty()) return
     DashCard {
-        CardTitle("태그별 지출", "여러 태그가 달린 지출은 중복 집계돼요")
+        CardTitle("태그별 지출", "전체 기간 · 여러 태그가 달린 지출은 중복 집계돼요")
         Spacer(Modifier.height(12.dp))
         // 태그는 중복 집계라 합계 비율이 100%를 넘을 수 있어, 막대 분모는 전체합이 아닌 최대 태그 금액(r.total).
         rows.forEach { r ->

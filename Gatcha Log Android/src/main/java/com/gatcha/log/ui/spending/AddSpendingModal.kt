@@ -200,11 +200,15 @@ fun AddSpendingModal(
         )
     }
 
+    // 한 번만 저장한다 — 페이지가 닫히는 애니메이션 동안 버튼이 살아 있어, 빠르게 두 번 누르면 두 건이 들어갔다.
+    var saved by remember { mutableStateOf(false) }
+    fun save(s: com.gatcha.log.data.Spending) { if (!saved) { saved = true; onSave(s) } }
+
     // 저장 시도 — 넛지 메시지가 있으면 확인 다이얼로그를 띄우고, 없으면 즉시 저장.
     fun attemptSave() {
         val parsed = amount.toLongOrNull() ?: 0L
         val msg = nudgeMessage(game, parsed)
-        if (msg != null) nudgeMsg = msg else onSave(buildSpending())
+        if (msg != null) nudgeMsg = msg else save(buildSpending())
     }
 
     // 시스템 뒤로가기 처리(풀스크린 페이지처럼 동작) — 시트 외부 dismiss 가 사라졌으므로 명시.
@@ -238,7 +242,8 @@ fun AddSpendingModal(
                         game = game,
                         amount = amount,
                         onAmountChange = { input ->
-                            amount = input.filter { it.isDigit() }
+                            // 11자리(999억)까지만 — 더 긴 붙여넣기는 조용히 0 이 됐다. 상한(100억)은 저장할 때 VM 이 막는다.
+                            amount = input.filter { it.isDigit() }.take(11)
                             // 금액을 직접 손대면 자동 곱 상태를 해제(스텝퍼 계산과 어긋나지 않게).
                             selectedPackage = null
                             quantity = 1
@@ -541,7 +546,7 @@ fun AddSpendingModal(
             onConfirm = {
                 val s = buildSpending()
                 nudgeMsg = null
-                onSave(s)
+                save(s)
             },
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
