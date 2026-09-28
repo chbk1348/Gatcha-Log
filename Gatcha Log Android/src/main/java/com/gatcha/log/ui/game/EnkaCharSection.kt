@@ -245,23 +245,32 @@ fun EnkaCharSection(
         Text("내 캐릭터", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
         Spacer(Modifier.height(11.dp))
 
-        // 게임별로 한 카드씩 — 각 게임 로스터를 카드로 묶고 게임 라벨을 카드 헤더로 표시.
-        games.forEachIndexed { i, g ->
-            if (i > 0) Spacer(Modifier.height(12.dp))
-            GameRosterBlock(
-                game = g,
-                showLabel = true,
-                result = results[g],
-                loading = g in loadingGames,
-                accent = accent,
-                onOpenStats = onOpenStats,
-                onOpenAll = onOpenAll,
-            )
+        // 게임들을 **카드 한 장**에 담는다(2026-09-28 지시). 게임마다 카드를 세우면 세로로 세 번
+        // 끊겨 읽혔다. 대신 게임 사이 구분선은 카드 **가장자리까지** 긋는다 — 안쪽 여백만큼 들여
+        // 그으면 한 목록의 줄 구분처럼 읽혀, 게임이 갈린다는 게 약했다.
+        GlassCard(shape = RoundedCornerShape(24.dp), modifier = Modifier.fillMaxWidth()) {
+            Column {
+                games.forEachIndexed { i, g ->
+                    if (i > 0) Box(Modifier.fillMaxWidth().height(1.dp).background(RosterGameDivider))
+                    GameRosterBlock(
+                        game = g,
+                        showLabel = true,
+                        result = results[g],
+                        loading = g in loadingGames,
+                        accent = accent,
+                        onOpenStats = onOpenStats,
+                        onOpenAll = onOpenAll,
+                    )
+                }
+            }
         }
     }
 }
 
-/** '내 캐릭터' 단일 게임 블록 — (라벨) + 한 줄 로스터. 로딩 시 스켈레톤. */
+/** 내 캐릭터 카드의 게임 사이 실선 — 흰 면 위에서 또렷하게 보이는 회색. */
+private val RosterGameDivider = Color(0xFFE3E6EA)
+
+/** '내 캐릭터' 단일 게임 블록 — (라벨) + 한 줄 로스터. 로딩 시 스켈레톤. 카드는 호출부가 한 장으로 감싼다. */
 @Composable
 private fun GameRosterBlock(
     game: String,
@@ -273,28 +282,26 @@ private fun GameRosterBlock(
     onOpenAll: (String) -> Unit,
 ) {
     val chars = result?.profile?.chars.orEmpty()
-    GlassCard(shape = RoundedCornerShape(24.dp), modifier = Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp)) {
-            if (showLabel) {
-                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 12.dp)) {
-                    // 게임 태그 — 예전엔 닷이 앱 강조색이라 세 게임이 전부 같은 색이었다(구분 불가).
-                    GlgGameTag(game, size = GameTagSize.Small)
-                    Spacer(Modifier.width(8.dp))
-                    Text(gameLabel(game), fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
-                    if (chars.isNotEmpty()) {
-                        Spacer(Modifier.width(6.dp))
-                        Text("${chars.size}", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextSecondary)
-                    }
+    Column(Modifier.fillMaxWidth().padding(16.dp)) {
+        if (showLabel) {
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 12.dp)) {
+                // 게임 태그 — 예전엔 닷이 앱 강조색이라 세 게임이 전부 같은 색이었다(구분 불가).
+                GlgGameTag(game, size = GameTagSize.Small)
+                Spacer(Modifier.width(8.dp))
+                Text(gameLabel(game), fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+                if (chars.isNotEmpty()) {
+                    Spacer(Modifier.width(6.dp))
+                    Text("${chars.size}", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextSecondary)
                 }
             }
-            when {
-                // 로드 전(result null)·로딩 중엔 스켈레톤, 로드 완료 후에만 빈/에러 표시
-                chars.isEmpty() && (result == null || loading) -> RosterSkeleton()
-                chars.isEmpty() -> Hint(
-                    result?.error ?: "표시할 캐릭터가 없어요 (인게임 쇼케이스 공개 확인)",
-                )
-                else -> RosterRow(chars, game, accent, onOpenStats, onOpenAll)
-            }
+        }
+        when {
+            // 로드 전(result null)·로딩 중엔 스켈레톤, 로드 완료 후에만 빈/에러 표시
+            chars.isEmpty() && (result == null || loading) -> RosterSkeleton()
+            chars.isEmpty() -> Hint(
+                result?.error ?: "표시할 캐릭터가 없어요 (인게임 쇼케이스 공개 확인)",
+            )
+            else -> RosterRow(chars, game, accent, onOpenStats, onOpenAll)
         }
     }
 }
@@ -631,11 +638,13 @@ private fun RosterRow(
     // 넘치면 마지막 칸은 "+N" — 앞의 (칸-1)명만 보여준다.
     val shown = if (overflow) chars.take(ROSTER_SLOTS - 1) else chars.take(ROSTER_SLOTS)
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        // 칸 안에서 **가운데** — 예전엔 칸(Box) 기본 정렬(왼쪽 위)에 붙어, 여섯 칸이 모두 칸 폭의 남는
+        // 만큼 왼쪽으로 쏠려 줄 끝에 빈 자리가 남았다(2026-09-28 지적).
         shown.forEach { c ->
-            Box(Modifier.weight(1f)) { RosterSlot(c, Modifier) { onOpenStats(c, game) } }
+            Box(Modifier.weight(1f), contentAlignment = Alignment.TopCenter) { RosterSlot(c, Modifier) { onOpenStats(c, game) } }
         }
         if (overflow) {
-            Box(Modifier.weight(1f)) { MoreSlot(chars.size - shown.size, accent) { onOpenAll(game) } }
+            Box(Modifier.weight(1f), contentAlignment = Alignment.TopCenter) { MoreSlot(chars.size - shown.size, accent) { onOpenAll(game) } }
         }
         // 인원이 칸보다 적어도 칸 폭은 고정 — 두 명뿐인 게임의 초상이 혼자 커지지 않게.
         repeat(ROSTER_SLOTS - shown.size - if (overflow) 1 else 0) { Spacer(Modifier.weight(1f)) }

@@ -45,29 +45,31 @@ struct DailyHeroSection: View {
                 headlineHero(headline)
 
                 VStack(alignment: .leading, spacing: 12) {
-                    resinCard(summaries)
-                    if !grouped.isEmpty {
-                        GLGCard(cornerRadius: 20, padding: 16) {
-                            VStack(alignment: .leading, spacing: 0) {
+                    // 행동력 · 오늘 할 일 · 바로가기를 **카드 한 장**에 담는다(2026-09-28 지시). 셋 다 "오늘 뭘 하나" 라
+                    // 같은 덩어리인데, 카드 셋으로 갈라져 있어 세로로 세 번 끊겨 읽혔다. 사이는 구분선으로 가른다.
+                    GLGCard(cornerRadius: 20, padding: 16) {
+                        VStack(alignment: .leading, spacing: 0) {
+                            resinSection(summaries)
+                            if !grouped.isEmpty {
+                                Divider().padding(.top, 14).padding(.bottom, 12)
                                 Text("오늘 할 일")
-                                    .font(.pretendard(size: 12, weight: .bold))
-                                    .foregroundStyle(GLGColor.textSecondary)
+                                    .font(.pretendard(size: 14, weight: .bold))
+                                    .foregroundStyle(GLGColor.textPrimary)
                                     .padding(.bottom, 4)
                                 ForEach(Array(grouped.enumerated()), id: \.offset) { i, g in
                                     if i > 0 { Divider() }
                                     gameTaskRow(g)
                                 }
                             }
+                            // 출석 · 전투 진행도 · 클리어 편성 — 들어가서 보는 기록이라 **퀵버튼**으로 둔다.
+                            // 출석 실행은 위 게임별 줄과 상세에서.
+                            DailyQuickButtons(summary: attendanceSummary,
+                                              onOpenAttendance: onOpenAttendance,
+                                              onOpenGameContent: onOpenGameContent,
+                                              onOpenClears: onOpenClears)
+                                .padding(.top, 12)
                         }
                     }
-                    // 출석 · 전투 진행도 · 클리어 편성 — 한 줄 3칸.
-                    // 셋 다 '들어가서 보는 기록'이라 성격이 같은데, 예전엔 접히는 카드 하나와
-                    // 두 줄짜리 카드 하나로 갈라져 세로로 세 덩어리를 잡아먹고 있었다.
-                    // 타일은 상태를 보여주고 들여보내기만 한다 — 출석 실행은 위 '오늘 할 일'과 상세에서.
-                    DailyEntryTiles(summary: attendanceSummary,
-                                    onOpenAttendance: onOpenAttendance,
-                                    onOpenGameContent: onOpenGameContent,
-                                    onOpenClears: onOpenClears)
                     // 값이 오면 카드가 **없다가 생기는** 대신 스켈레톤이 내용으로 바뀐다.
                     // 예전엔 로딩이 끝나는 순간 카드 한 장이 통째로 끼어들어 아래가 밀려 내려갔다.
                     // 실패해서 끝내 비면 그때는 줄 자체를 안 그린다.
@@ -213,14 +215,14 @@ struct DailyHeroSection: View {
         }
     }
 
-    /// 행동력 카드 — 3게임을 **한 카드에 나란히**. 세로로 쌓으면 세 덩어리로 읽힌다.
+    /// 행동력 — 3게임을 **나란히**(데일리 카드의 첫 덩어리). 세로로 쌓으면 세 덩어리로 읽힌다.
     @ViewBuilder
-    private func resinCard(_ items: [DailyGameSummary]) -> some View {
-        GLGCard(cornerRadius: 20, padding: 16) {
+    private func resinSection(_ items: [DailyGameSummary]) -> some View {
             VStack(alignment: .leading, spacing: 12) {
                 HStack(spacing: 5) {
-                    Text("행동력").font(.pretendard(size: 12, weight: .bold))
-                        .foregroundStyle(GLGColor.textSecondary)
+                    // 카드 안 덩어리 제목 — 회색 12 로는 본문에 묻혀(2026-09-28 지적) 진한 14 로 세운다.
+                    Text("행동력").font(.pretendard(size: 14, weight: .bold))
+                        .foregroundStyle(GLGColor.textPrimary)
                     if DailyLogic.shared.allResinFull(summaries: items) {
                         AlarmBell().padding(.leading, 2)
                         Text("모두 가득").font(.pretendard(size: 11, weight: .bold))
@@ -231,7 +233,6 @@ struct DailyHeroSection: View {
                     ForEach(items, id: \.gameKey) { resinCell($0) }
                 }
             }
-        }
     }
 
     @ViewBuilder
@@ -335,43 +336,39 @@ struct DailyHeroSection: View {
  타일 안에 다시 버튼을 넣으므로 **탭 영역을 겹치지 않게** 나눈다 — 진입은 위쪽 본문,
  출석은 아래 버튼. `Button` 안에 `Button` 을 넣으면 SwiftUI 는 바깥 것만 먹인다.
  */
-private struct DailyEntryTiles: View {
+private struct DailyQuickButtons: View {
     let summary: AttendanceSummary
     let onOpenAttendance: () -> Void
     var onOpenGameContent: (() -> Void)? = nil
     var onOpenClears: (() -> Void)? = nil
 
     var body: some View {
-        // 세 칸 모두 **진입만 한다** — 타일 안에 버튼을 두면 같은 카드에 탭 대상이 둘이라
-        // 어디를 누른 건지 애매해지고, 출석 칸만 높이가 길어져 줄이 어긋난다.
-        // 출석 자체는 '오늘 할 일'의 게임별 버튼과 상세 페이지에서 한다.
-        HStack(alignment: .top, spacing: 10) {
-            EntryTile(icon: "calendar.badge.checkmark",
-                      title: "출석 체크",
-                      value: "\(summary.todayDone)/\(summary.todayTotal)",
-                      sub: summary.allDone ? "오늘 완료" : "\(summary.pending)개 남음",
-                      highlight: !summary.allDone,
-                      onTap: onOpenAttendance)
+        // 세 칸 모두 **진입만 한다** — 칸 안에 버튼을 두면 탭 대상이 둘이라 어디를 누른 건지 애매해진다.
+        HStack(spacing: 7) {
+            DailyQuickButton(icon: "calendar.badge.checkmark", title: "출석 체크",
+                             sub: summary.allDone ? "\(summary.todayDone)/\(summary.todayTotal) 완료"
+                                                  : "\(summary.pending)개 남음",
+                             highlight: !summary.allDone, onTap: onOpenAttendance)
             if let onOpenGameContent {
-                EntryTile(icon: "medal", title: "전투 진행도", value: "주간", sub: "수입 일지",
-                          onTap: onOpenGameContent)
+                DailyQuickButton(icon: "medal", title: "전투 진행도", sub: "수입 일지", onTap: onOpenGameContent)
             }
             if let onOpenClears {
-                EntryTile(icon: "person.3.fill", title: "클리어 편성", value: "편성", sub: "나선 · 혼돈",
-                          onTap: onOpenClears)
+                DailyQuickButton(icon: "person.3", title: "클리어 편성", sub: "나선 · 혼돈", onTap: onOpenClears)
             }
         }
-        // 세 칸의 높이를 가장 큰 칸에 맞춘다 — 각 타일이 maxHeight 로 늘어나고,
-        // HStack 은 fixedSize 로 '가장 큰 이상적 높이'에 고정된다.
-        .fixedSize(horizontal: false, vertical: true)
     }
 }
 
-/// 3칸 타일 하나 — 아이콘 · 제목 · 값 · 부제. 카드 전체가 하나의 탭 영역이다.
-private struct EntryTile: View {
+/**
+ 퀵버튼 한 칸 — 아이콘 옆에 제목 · 상태를 두는 **가로형**, 흰 면 + 얇은 테두리.
+
+ 호요랜드 카드의 바로가기 칸(회색 면 · 세로형)과 **일부러 다르게** 간다(2026-09-28 지시) — 같은 탭에
+ 같은 모양이 두 번 나오면 어느 카드 소속인지 흐려진다. [highlight] 면 아이콘과 상태를 위험색으로.
+ Android `DailyQuickButton` 과 같은 값.
+ */
+private struct DailyQuickButton: View {
     let icon: String
     let title: String
-    let value: String
     let sub: String
     var highlight: Bool = false
     let onTap: () -> Void
@@ -380,31 +377,28 @@ private struct EntryTile: View {
     var body: some View {
         let mark = highlight ? GLGColor.dangerText : accent.primary
         Button(action: onTap) {
-            // 가운데 정렬 — 타일이 좁아 글자 길이가 제각각이라, 좌측 정렬이면 세 칸의
-            // 글자가 서로 다른 지점에서 끝나 줄이 삐뚤어져 보인다.
-            // 치수는 Compose EntryTile 과 같은 값으로 맞춘다(아이콘 26 · 여백 10/11 ·
-            // 글자 11/14/10). 폭이 화면 1/3 이라 이 정도로 눌러 담아야 정사각에 가깝게 읽힌다.
-            VStack(alignment: .center, spacing: 0) {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 9, style: .continuous).fill(mark.opacity(0.12))
-                    Image(systemName: icon).font(.pretendard(size: 13, weight: .semibold)).foregroundStyle(mark)
+            HStack(spacing: 8) {
+                // 아이콘은 **같은 상자(20×20)에 맞춰** 넣는다. SF Symbols 는 기호마다 폭이 달라(person.3 은 넓고
+                // medal 은 좁다) 글꼴 크기로만 두면 세 칸의 글자 시작점이 제각각 어긋났다(2026-09-28 지적).
+                Image(systemName: icon).resizable().scaledToFit().fontWeight(.semibold)
+                    .foregroundStyle(mark)
+                    .frame(width: 20, height: 20)
+                VStack(alignment: .leading, spacing: 1) {
+                    // 글자를 줄이지 않는다 — 칸마다 축소 비율이 달라 제목 크기가 세 가지로 갈렸다.
+                    Text(title).font(.pretendard(size: 12.5, weight: .bold))
+                        .foregroundStyle(GLGColor.textPrimary).lineLimit(1)
+                    Text(sub).font(.pretendard(size: 11, weight: highlight ? .bold : .regular))
+                        .foregroundStyle(highlight ? GLGColor.dangerText : GLGColor.textSecondary).lineLimit(1)
                 }
-                .frame(width: 26, height: 26)
-                Text(title).font(.pretendard(size: 11, weight: .bold))
-                    .foregroundStyle(GLGColor.textSecondary).lineLimit(1).padding(.top, 6)
-                Text(value).font(.pretendard(size: 14, weight: .bold))
-                    .foregroundStyle(highlight ? GLGColor.dangerText : GLGColor.textPrimary)
-                    .lineLimit(1)
-                Text(sub).font(.pretendard(size: 10)).foregroundStyle(GLGColor.textSecondary)
-                    .lineLimit(1).minimumScaleFactor(0.85).multilineTextAlignment(.center)
+                Spacer(minLength: 0)
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-            .padding(.horizontal, 10).padding(.vertical, 11)
+            .padding(.horizontal, 10)
+            .frame(maxWidth: .infinity, minHeight: 52)
+            .background(Color.white, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).stroke(Color(hex: 0xFFE3E6EA), lineWidth: 1))
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .glgGlass(in: RoundedRectangle(cornerRadius: 18, style: .continuous))
     }
 }
 

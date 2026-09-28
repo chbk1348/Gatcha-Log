@@ -108,9 +108,16 @@ struct EnkaCharSection: View {
             VStack(alignment: .leading, spacing: 11) {
                 Text("내 캐릭터").font(.pretendard(size: 16, weight: .bold))
                     .frame(maxWidth: .infinity, alignment: .leading)
-                // 게임별로 한 카드씩 — 각 게임 로스터를 카드로 묶고 게임 라벨을 카드 헤더로 표시.
-                ForEach(Array(games.enumerated()), id: \.offset) { _, g in
-                    gameBlock(g, showLabel: true)
+                // 게임들을 **카드 한 장**에 담는다(2026-09-28 지시). 게임마다 카드를 세우면 세로로 세 번
+                // 끊겨 읽혔다. 대신 게임 사이 구분선은 카드 **가장자리까지** 긋는다 — 안쪽 여백만큼 들여
+                // 그으면 한 목록의 줄 구분처럼 읽혀, 게임이 갈린다는 게 약했다. (Android 와 같은 값)
+                GLGCard(cornerRadius: 24, padding: 0) {
+                    VStack(spacing: 0) {
+                        ForEach(Array(games.enumerated()), id: \.offset) { i, g in
+                            if i > 0 { Rectangle().fill(Color(hex: 0xFFE3E6EA)).frame(height: 1) }
+                            gameBlock(g, showLabel: true)
+                        }
+                    }
                 }
             }
             // 로드 시작은 **화면 진입**에서 한다(GameInfoView). 여기(섹션)에서 걸면 LazyVStack 이
@@ -119,13 +126,12 @@ struct EnkaCharSection: View {
         }
     }
 
-    /// '내 캐릭터' 단일 게임 블록 — (라벨) + 한 줄 로스터. 로딩 시 스켈레톤.
+    /// '내 캐릭터' 단일 게임 블록 — (라벨) + 한 줄 로스터. 로딩 시 스켈레톤. 카드는 호출부가 한 장으로 감싼다.
     @ViewBuilder
     private func gameBlock(_ game: String, showLabel: Bool) -> some View {
         let result = store.enkaResults[game]
         let loading = store.enkaLoadingGames.contains(game)
         let chars = result?.profile?.chars ?? []
-        GLGCard(cornerRadius: 24, padding: 16) {
         VStack(alignment: .leading, spacing: 10) {
             if showLabel {
                 HStack(spacing: 7) {
@@ -146,7 +152,8 @@ struct EnkaCharSection: View {
                 RosterRow(chars: chars, game: game, onOpen: onOpen, onOpenAll: onOpenAll)
             }
         }
-        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(16)
     }
 
     /// 로딩 스켈레톤 — 실제 로스터와 **같은 한 줄 배치**(원형 초상 + 이름 두 줄).

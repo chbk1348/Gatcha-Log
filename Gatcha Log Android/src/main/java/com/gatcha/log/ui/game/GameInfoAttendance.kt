@@ -124,17 +124,18 @@ internal fun DailyHeroSection(
         DailyHeadlineHero(headline, headTop, streak)
 
         Column(Modifier.padding(horizontal = 16.dp)) {
-            ResinCard(summaries)
-            Spacer(Modifier.height(12.dp))
-            if (grouped.isNotEmpty()) {
-                GlassCard(shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth()) {
-                    // 카드 안쪽 여백은 **16 사방** — 이 섹션의 다른 카드(행동력·현재 버전)와 같은 값이다.
-                    // 예전엔 세로만 4 라 제목이 카드 천장에 붙고 마지막 줄이 바닥에 닿아, 같은 카드끼리
-                    // 위아래 숨이 달랐다(iOS 는 셋 다 16).
-                    Column(Modifier.padding(16.dp)) {
+            // 행동력 · 오늘 할 일 · 바로가기를 **카드 한 장**에 담는다(2026-09-28 지시). 셋 다 "오늘 뭘 하나" 라
+            // 같은 덩어리인데, 카드 셋으로 갈라져 있어 세로로 세 번 끊겨 읽혔다. 사이는 구분선으로 가른다.
+            GlassCard(shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth()) {
+                Column(Modifier.fillMaxWidth().padding(16.dp)) {
+                    ResinSection(summaries)
+                    if (grouped.isNotEmpty()) {
+                        Spacer(Modifier.height(14.dp))
+                        HorizontalDivider(color = DividerColor)
+                        Spacer(Modifier.height(12.dp))
                         Text(
                             "오늘 할 일",
-                            fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextSecondary,
+                            fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TextPrimary,
                             modifier = Modifier.padding(bottom = 4.dp),
                         )
                         grouped.forEachIndexed { i, g ->
@@ -142,20 +143,17 @@ internal fun DailyHeroSection(
                             GameTaskRow(g, inProgress = checkingIn == g.gameKey) { onCheckIn(g.gameKey) }
                         }
                     }
+                    // 출석 · 전투 진행도 · 클리어 편성 — 들어가서 보는 기록이라 **퀵버튼**으로 둔다.
+                    // 출석 실행은 위 게임별 줄과 상세에서.
+                    Spacer(Modifier.height(12.dp))
+                    DailyQuickButtons(
+                        attendance = attendance,
+                        onOpenAttendance = onOpenAttendance,
+                        onOpenGameContent = onOpenGameContent,
+                        onOpenClears = onOpenClears,
+                    )
                 }
-                Spacer(Modifier.height(12.dp))
             }
-
-            // 출석 · 전투 진행도 · 클리어 편성 — 한 줄 3칸.
-            // 셋 다 '들어가서 보는 기록'이라 성격이 같은데, 예전엔 접히는 카드 하나와
-            // 두 줄짜리 카드 하나로 갈라져 세로로 세 덩어리를 잡아먹고 있었다.
-            // 타일은 상태를 보여주고 들여보내기만 한다 — 출석 실행은 위 '오늘 할 일'과 상세에서.
-            DailyEntryTiles(
-                attendance = attendance,
-                onOpenAttendance = onOpenAttendance,
-                onOpenGameContent = onOpenGameContent,
-                onOpenClears = onOpenClears,
-            )
             // 값이 오면 카드가 **없다가 생기는** 대신 스켈레톤이 내용으로 바뀐다. 예전엔 로딩이
             // 끝나는 순간 카드 한 장이 통째로 끼어들어 아래 목록이 밀려 내려갔다(2026-09-17 제보).
             // 실패해서 끝내 비면 그때는 줄 자체를 안 그린다 — 없는 값을 빈 카드로 세우지 않는다.
@@ -249,29 +247,29 @@ private fun LinkPrompt(headTop: Dp, onConfigClick: () -> Unit) {
 }
 
 /**
- * 행동력 카드 — 3게임을 **한 카드에 나란히**.
+ * 행동력 — 3게임을 **나란히**(데일리 카드의 첫 덩어리).
  *
  * 세로로 3행 쌓으면 여전히 세 덩어리로 읽힌다. 가로로 나란히 두면 눈이 한 번에 훑고
  * 어느 게임이 차 있는지 비교된다 — 게임 수가 셋으로 고정이라 폭이 흔들리지 않는다.
  */
 @Composable
-private fun ResinCard(items: List<DailyGameSummary>) {
+private fun ResinSection(items: List<DailyGameSummary>) {
     val allFull = remember(items) { DailyLogic.allResinFull(items) }
-    GlassCard(shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth()) {
-        Column(Modifier.fillMaxWidth().padding(16.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("행동력", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextSecondary)
-                if (allFull) {
-                    Spacer(Modifier.width(7.dp))
-                    AlarmBell()
-                    Spacer(Modifier.width(5.dp))
-                    Text("모두 가득", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = DangerText)
-                }
+    Column(Modifier.fillMaxWidth()) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            // 카드 안 덩어리 제목 — 행동력 · 오늘 할 일은 한 카드에 합쳐졌으므로 제목이 **덩어리를 가른다.**
+            // 회색 12 로는 본문에 묻혀(2026-09-28 지적) 진한 14 로 세운다.
+            Text("행동력", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+            if (allFull) {
+                Spacer(Modifier.width(7.dp))
+                AlarmBell()
+                Spacer(Modifier.width(5.dp))
+                Text("모두 가득", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = DangerText)
             }
-            Spacer(Modifier.height(12.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                items.forEach { s -> ResinCell(s, Modifier.weight(1f)) }
-            }
+        }
+        Spacer(Modifier.height(12.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            items.forEach { s -> ResinCell(s, Modifier.weight(1f)) }
         }
     }
 }
@@ -414,47 +412,31 @@ private fun GameTaskRow(g: DailyGameTasks, inProgress: Boolean, onCheckIn: () ->
  * 눈으로 구분되지 않는다.
  */
 @Composable
-private fun DailyEntryTiles(
+private fun DailyQuickButtons(
     attendance: AttendanceSummary,
     onOpenAttendance: () -> Unit,
     onOpenGameContent: (() -> Unit)?,
     onOpenClears: (() -> Unit)?,
 ) {
-    // 세 칸 모두 **진입만 한다** — 타일 안에 버튼을 두면 같은 카드에 탭 대상이 둘이라
-    // 어디를 누른 건지 애매해지고, 출석 칸만 높이가 길어져 줄이 어긋난다.
-    // 출석 자체는 '오늘 할 일'의 게임별 버튼과 상세 페이지에서 한다.
+    // 세 칸 모두 **진입만 한다** — 칸 안에 버튼을 두면 탭 대상이 둘이라 어디를 누른 건지 애매해진다.
     Row(
         Modifier.fillMaxWidth().height(IntrinsicSize.Min),
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        horizontalArrangement = Arrangement.spacedBy(7.dp),
     ) {
-        EntryTile(
+        DailyQuickButton(
             icon = Icons.Default.EventAvailable,
             title = "출석 체크",
-            value = "${attendance.todayDone}/${attendance.todayTotal}",
-            sub = if (attendance.allDone) "오늘 완료" else "${attendance.pending}개 남음",
+            sub = if (attendance.allDone) "${attendance.todayDone}/${attendance.todayTotal} 완료"
+                  else "${attendance.pending}개 남음",
             highlight = !attendance.allDone,
             modifier = Modifier.weight(1f),
             onClick = onOpenAttendance,
         )
         if (onOpenGameContent != null) {
-            EntryTile(
-                icon = Icons.Default.MilitaryTech,
-                title = "전투 진행도",
-                value = "주간",
-                sub = "수입 일지",
-                modifier = Modifier.weight(1f),
-                onClick = onOpenGameContent,
-            )
+            DailyQuickButton(Icons.Default.MilitaryTech, "전투 진행도", "수입 일지", modifier = Modifier.weight(1f), onClick = onOpenGameContent)
         }
         if (onOpenClears != null) {
-            EntryTile(
-                icon = Icons.Default.Groups,
-                title = "클리어 편성",
-                value = "편성",
-                sub = "나선 · 혼돈",
-                modifier = Modifier.weight(1f),
-                onClick = onOpenClears,
-            )
+            DailyQuickButton(Icons.Default.Groups, "클리어 편성", "나선 · 혼돈", modifier = Modifier.weight(1f), onClick = onOpenClears)
         }
     }
 }
@@ -554,47 +536,38 @@ private fun GameVersionStripSkeleton() {
     }
 }
 
-/** 3칸 타일 하나 — 아이콘 · 제목 · 값 · 부제. 카드 전체가 하나의 탭 영역이다. */
+/**
+ * 퀵버튼 한 칸 — 아이콘 옆에 제목 · 상태를 두는 **가로형**, 흰 면 + 얇은 테두리.
+ *
+ * 호요랜드 카드의 바로가기 칸(회색 면 · 세로형)과 **일부러 다르게** 간다(2026-09-28 지시) — 같은 탭에
+ * 같은 모양이 두 번 나오면 어느 카드 소속인지 흐려진다. [highlight] 면 아이콘과 상태를 위험색으로.
+ * iOS `DailyQuickButton` 과 같은 값.
+ */
 @Composable
-private fun EntryTile(
+private fun DailyQuickButton(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     title: String,
-    value: String,
     sub: String,
     modifier: Modifier = Modifier,
     highlight: Boolean = false,
     onClick: () -> Unit,
 ) {
-    val accent = LocalAccent.current
-    val mark = if (highlight) DangerText else accent
-    GlassCard(shape = RoundedCornerShape(18.dp), modifier = modifier.fillMaxHeight().clickable { onClick() }) {
-        // 가운데 정렬 — 타일이 좁아 글자 길이가 제각각이라, 좌측 정렬이면 세 칸의
-        // 글자가 서로 다른 지점에서 끝나 줄이 삐뚤어져 보인다.
-        // 세로로 길쭉해지지 않게 눌러 담는다 — 폭이 화면 1/3(≈100dp)이라 높이가 그만큼
-        // 나와야 정사각에 가깝게 읽힌다. 아이콘·제목·값을 한 줄씩 크게 쌓으면 금세 넘긴다.
-        Column(
-            Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 11.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            Box(
-                Modifier.size(26.dp).clip(RoundedCornerShape(9.dp)).background(mark.copy(alpha = 0.12f)),
-                contentAlignment = Alignment.Center,
-            ) { Icon(icon, null, tint = mark, modifier = Modifier.size(15.dp)) }
-            Spacer(Modifier.height(6.dp))
-            // 줄 간격은 손대지 않는다 — 폰트 패딩을 테마에서 껐으므로(GatchaLogTheme) 글꼴이
-            // 정한 행높이가 그대로 서고, 그게 iOS 와 같은 값이다. 예전엔 여기서 lineHeight 를
-            // 눌러 패딩을 상쇄했는데 이제 그러면 iOS 보다 좁아진다.
+    val mark = if (highlight) DangerText else LocalAccent.current
+    val shape = RoundedCornerShape(12.dp)
+    Row(
+        modifier.fillMaxHeight().heightIn(min = 52.dp).clip(shape).background(Color.White)
+            .border(1.dp, Color(0xFFE3E6EA), shape)
+            .clickable { onClick() }.padding(horizontal = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(icon, null, tint = mark, modifier = Modifier.size(18.dp))
+        Spacer(Modifier.width(8.dp))
+        Column(Modifier.weight(1f)) {
+            Text(title, fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = TextPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text(
-                title, fontSize = 11.sp, fontWeight = FontWeight.Bold,
-                color = TextSecondary, maxLines = 1,
-            )
-            Text(
-                value, fontSize = 14.sp, fontWeight = FontWeight.Bold,
-                color = if (highlight) DangerText else TextPrimary, maxLines = 1,
-            )
-            Text(
-                sub, fontSize = 10.sp, color = TextSecondary,
-                maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center,
+                sub, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                color = if (highlight) DangerText else TextSecondary,
+                fontWeight = if (highlight) FontWeight.Bold else FontWeight.Normal,
             )
         }
     }
