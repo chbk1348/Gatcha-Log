@@ -165,6 +165,46 @@ class GatchaRepositorySnapshotTest {
         assertEquals(setOf("local", "remote"), local.loadSpendings().map { it.id }.toSet())
     }
 
+    /** 깨진 기록 하나가 목록 전체를 비우면 안 된다 — 그 상태로 저장하면 원본을 덮어썼다. */
+    @Test
+    fun corruptSpendingRecordIsSkippedNotWholeList() {
+        val (repo, store) = repo()
+        store.putString(
+            "spendings",
+            """[{"id":"ok","gameName":"원신","amount":1000},"not-an-object",{"id":"","gameName":"원신","amount":500}]""",
+        )
+        val list = repo.loadSpendings()
+        assertEquals(2, list.size)
+        assertTrue(list.all { it.id.isNotBlank() }, "id 없는 기록은 새 id 를 받는다")
+    }
+
+    /** 배열 자체가 깨지면 빈 목록 + 원본 백업 — 이후 저장이 원본을 덮어도 복구할 수 있다. */
+    @Test
+    fun brokenSpendingArrayIsBackedUp() {
+        val (repo, store) = repo()
+        store.putString("spendings", "{broken")
+        assertTrue(repo.loadSpendings().isEmpty())
+        assertEquals("{broken", store.getString("spendings_corrupt_backup", null))
+    }
+
+    /** 같은 id 는 더 최신(updatedAt) 쪽이 남는다 — 예전엔 원격이 무조건 이겨 로컬 수정이 사라졌다. */
+    @Test
+    fun importKeepsNewerLocalEdit() {
+        val (local, _) = repo()
+        local.saveSpendings(listOf(Spending(id = "a", gameName = "원신", amount = 9_000, updatedAt = 2_000)))
+        val (remote, _) = repo()
+        remote.saveSpendings(listOf(Spending(id = "a", gameName = "원신", amount = 1_000, updatedAt = 1_000)))
+
+        local.importSnapshotJson(remote.exportSnapshotJson())
+        assertEquals(9_000, local.loadSpendings().single().amount)
+
+        // 원격이 더 최신이면 원격이 이긴다.
+        val (remote2, _) = repo()
+        remote2.saveSpendings(listOf(Spending(id = "a", gameName = "원신", amount = 5_000, updatedAt = 3_000)))
+        local.importSnapshotJson(remote2.exportSnapshotJson())
+        assertEquals(5_000, local.loadSpendings().single().amount)
+    }
+
     /**
      * 아직 못 올린 출석은 **옛 스냅샷이 덮지 못한다.**
      *

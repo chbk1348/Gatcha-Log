@@ -1,5 +1,7 @@
 package com.gatcha.log.data
 
+import com.gatcha.log.util.randomUuid
+
 import com.gatcha.log.data.api.EnkaResult
 import com.gatcha.log.data.api.NewsItem
 import com.gatcha.log.data.api.NewsSource
@@ -65,10 +67,16 @@ class GatchaRepository(
     // ---------------------------------------------------------------- 지출
     fun loadSpendings(): List<Spending> {
         val raw = prefs.getString(KEY_SPENDINGS, null) ?: return emptyList()
-        return runCatching {
-            val arr = JSONArray(raw)
-            (0 until arr.length()).map { i -> arr.getJSONObject(i).toSpending() }
-        }.getOrDefault(emptyList())
+        // **한 건씩** 읽는다 — 예전엔 목록 전체를 한 번에 감싸서, 깨진 기록 하나에 전체가 빈 목록으로
+        // 읽혔고 그 상태로 지출을 추가하면 저장된 원본을 덮어썼다(2026-09-28 점검).
+        val arr = runCatching { JSONArray(raw) }.getOrElse {
+            // 배열 자체가 깨졌다 — 원본을 백업 키에 남겨 복구할 길을 둔다(이후 저장이 원본을 덮어도 남는다).
+            if (prefs.getString(KEY_SPENDINGS_CORRUPT, null) == null) prefs.putString(KEY_SPENDINGS_CORRUPT, raw)
+            return emptyList()
+        }
+        return (0 until arr.length()).mapNotNull { i ->
+            runCatching { arr.getJSONObject(i).toSpending() }.getOrNull()
+        }
     }
 
     fun saveSpendings(list: List<Spending>) {
@@ -89,6 +97,7 @@ class GatchaRepository(
         put("memo", memo)
         // gameColor 는 gameName 으로 항상 재계산 가능 → 저장 안 함(용량 절감, 로드 시 복원)
         put("tags", JSONArray(tags))
+        if (updatedAt > 0) put("updatedAt", updatedAt)
     }
 
     private fun JSONObject.toSpending(): Spending {
@@ -97,7 +106,8 @@ class GatchaRepository(
         val gameName = optString("gameName", "원신")
         val color = if (has("gameColor")) (getInt("gameColor").toLong() and 0xFFFFFFFFL) else GameData.colorFor(gameName)
         return Spending(
-            id = optString("id"),
+            // id 없는 기록은 새 id 를 준다 — 빈 id 끼리는 병합 · 수정 · 삭제에서 하나로 뭉쳤다.
+            id = optString("id").ifBlank { randomUuid() },
             gameName = gameName,
             amount = optLong("amount", 0L),
             dateMillis = optLong("dateMillis", currentTimeMillis()),
@@ -121,6 +131,7 @@ class GatchaRepository(
             memo = optString("memo", ""),
             tags = tags,
             gameColor = color,
+            updatedAt = optLong("updatedAt", 0L),
         )
     }
 
@@ -933,13 +944,24 @@ class GatchaRepository(
             val tomb = loadDeletedSpendingIds()
             if (o.has(KEY_SPENDINGS) || tomb.isNotEmpty()) {
                 val byId = LinkedHashMap<String, JSONObject>()
+                // 깨진 로컬 · 원격 기록은 건너뛴다 — 예전엔 예외 하나에 병합이 중간에서 멈춰 이후 키가 전부 빠졌다.
                 prefs.getString(KEY_SPENDINGS, null)?.let { localRaw ->
-                    val local = JSONArray(localRaw)
-                    for (i in 0 until local.length()) { val obj = local.getJSONObject(i); byId[obj.getString("id")] = obj }
+                    val local = runCatching { JSONArray(localRaw) }.getOrNull() ?: JSONArray()
+                    for (i in 0 until local.length()) {
+                        val obj = local.optJSONObject(i) ?: continue
+                        val id = obj.optString("id").ifBlank { null } ?: continue
+                        byId[id] = obj
+                    }
                 }
                 if (o.has(KEY_SPENDINGS)) {
-                    val incoming = o.getJSONArray(KEY_SPENDINGS)
-                    for (i in 0 until incoming.length()) { val obj = incoming.getJSONObject(i); byId[obj.getString("id")] = obj } // 같은 id 는 원격 우선
+                    val incoming = o.optJSONArray(KEY_SPENDINGS) ?: JSONArray()
+                    for (i in 0 until incoming.length()) {
+                        val obj = incoming.optJSONObject(i) ?: continue
+                        val id = obj.optString("id").ifBlank { null } ?: continue
+                        // 같은 id 는 **더 최신 쪽**이 남는다(updatedAt). 둘 다 모르면(0) 예전처럼 원격 우선.
+                        val local = byId[id]
+                        if (local == null || obj.optLong("updatedAt", 0L) >= local.optLong("updatedAt", 0L)) byId[id] = obj
+                    }
                 }
                 val result = JSONArray()
                 byId.forEach { (id, obj) -> if (id !in tomb) result.put(obj) }
@@ -1007,6 +1029,8 @@ class GatchaRepository(
         const val KEY_READ_ALERTS = "read_alerts"
         const val KEY_DISMISSED_ALERTS = "dismissed_alerts"
         const val KEY_SPENDINGS = "spendings"
+        /** 지출 배열이 통째로 깨졌을 때 원본을 남겨 두는 자리(복구용). 스냅샷 · 동기화 대상이 아니다. */
+        const val KEY_SPENDINGS_CORRUPT = "spendings_corrupt_backup"
         const val KEY_DELETED_SPENDINGS = "deleted_spendings" // 삭제된 지출 id tombstone(합집합 병합 방어 — 삭제 전파용)
         const val KEY_BUDGET = "budget"
         const val KEY_BUDGET_GAMES = "budget_games"
