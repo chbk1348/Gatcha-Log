@@ -109,7 +109,9 @@ struct NewsDetailView: View {
         .background(GLGBackground { Color.clear })
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            if !embedded {
+            // iPhone Duo 는 두지 않는다 — 글자 뷰는 옆 레일로 못 가서 위쪽에 가로 바를 따로 세우고
+            // 한 줄을 먹는다(다른 하위 페이지와 같이 제목 없이 콘텐츠를 올린다, 2026-09-28).
+            if !embedded && GLGFormFactor.current != .duo {
                 ToolbarItem(placement: .principal) {
                     // 상단에선 "공지", 스크롤로 본문 제목이 사라지면 그 제목을 헤더에 표시.
                     Text(showBarTitle ? item.title : "공지")

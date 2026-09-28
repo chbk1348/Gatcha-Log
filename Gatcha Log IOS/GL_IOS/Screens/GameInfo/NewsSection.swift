@@ -187,6 +187,8 @@ struct NewsPage: View {
         // 갈린 상태에선 타이틀을 비운다 — 오른쪽 본문이 자기 바("공지" + 공유)를 갖고 있어
         // 바가 두 줄로 겹쳐 보이고, 왼쪽은 어차피 목록인 게 한눈에 보인다. 뒤로가기는 남는다.
         .navigationTitle(isWide ? "" : "공지·뉴스")
+        // iPhone Duo 는 제목을 걷는다 — 다른 하위 페이지와 같다(GLGPageTitle 참고).
+        .toolbar(removing: GLGFormFactor.current == .duo ? .title : nil)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) { filterMenu }
