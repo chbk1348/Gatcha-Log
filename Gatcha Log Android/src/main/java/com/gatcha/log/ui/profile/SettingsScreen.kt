@@ -164,6 +164,8 @@ fun SettingsScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
             showNotif.value -> showNotif.value = false
         }
     }
+    // 설정 메인 목록의 스크롤 — 하위 페이지를 다녀와도 보던 자리에 남도록 전환 바깥에 둔다.
+    val settingsListState = rememberLazyListState()
     AnimatedContent(
         targetState = subPage,
         transitionSpec = {
@@ -195,7 +197,9 @@ fun SettingsScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
             NotificationSettingsScreen(viewModel, onBack = { showNotif.value = false })
         } else Box(Modifier.fillMaxSize()) {
         // 탭 페이지와 같은 구조 — 콘텐츠는 상태바 뒤까지 스크롤되고, 헤더는 그 위에 고정된다.
-        val listState = rememberLazyListState()
+        // 스크롤 상태는 페이지 전환 **바깥**(settingsListState)에 있다 — 여기서 만들면 하위 페이지를 열 때마다
+        // 버려져, 뒤로 돌아오면 맨 위에서 다시 시작했다(2026-09-28 지적).
+        val listState = settingsListState
         val scrolled by remember {
             derivedStateOf { listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 0 }
         }
