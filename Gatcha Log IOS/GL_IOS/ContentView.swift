@@ -545,14 +545,15 @@ struct ContentView: View {
     // ── iOS 16~25 폴백 버튼 (무색 글래스) ───────────────────────────────
 
     private var legacyAddButton: some View {
+        // 강조색으로 채운 원 + 흰 '+' — iPad FAB 와 같은 모양(GLGFabStyle 의 iOS 26 미만 갈래).
+        // 반투명 흰 원은 흰 카드 위에 뜨면 윤곽이 묻혀 버튼으로 잘 안 읽혔다(2026-09-28 지적).
         Button(action: { openAddSpending() }) {
             Image(systemName: "plus")
-                .font(.pretendard(size: 19, weight: .semibold))
-                .foregroundColor(.primary)
+                .font(.system(size: 20, weight: .semibold))
                 .frame(width: GLGLegacyAddButton.size, height: GLGLegacyAddButton.size)
-                .background { GLGVisualEffectBlur(style: .systemUltraThinMaterial).clipShape(Circle()) }
-                .shadow(color: .black.opacity(0.15), radius: 10, y: 4)
         }
+        .accessibilityLabel("지출 추가")
+        .modifier(GLGFabStyle(tint: accent))
     }
 
     // ── iPad: 우측 하단 지출 추가 FAB (강조색 채움 원형 + 흰 '+') ─────────────

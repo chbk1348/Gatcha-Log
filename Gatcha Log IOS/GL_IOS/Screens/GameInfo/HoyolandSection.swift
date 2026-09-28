@@ -399,7 +399,11 @@ struct HoyolandDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
         // 머리판이 내비 바 **뒤로** 이어지므로 바의 바탕을 지운다 — 바탕이 남으면 면 위에
         // 회색 띠가 한 겹 더 앉아 머리판이 거기서 잘린 것처럼 보인다.
-        .toolbarBackground(.hidden, for: .navigationBar)
+        //
+        // **iOS 26 미만은 숨기지 않는다.** 그 버전엔 스크롤 콘텐츠 밑에 흐림 띠(scroll edge effect)가 없어,
+        // 바탕까지 숨기면 스크롤한 본문이 뒤로가기 · 제목과 그대로 겹쳐 읽혔다(2026-09-28 iOS 18 지적).
+        // 시스템 기본값은 맨 위에선 투명(머리판이 바 뒤로 이어진다), 스크롤하면 바탕을 깐다.
+        .toolbarBackground(hoyolandBarBackgroundHidden ? .hidden : .automatic, for: .navigationBar)
         // 당겨서 새로고침 — 운영 어드민에서 고친 값을 **기다리지 않고 지금** 확인하는 통로.
         // `force` 라 캐시 나이와 무관하게 라이브부터 다시 훑는다(개발자 목업도 여기서 걷힌다).
         .refreshable {
@@ -1626,6 +1630,12 @@ func glgMix(_ a: Color, _ b: Color, _ t: Double) -> Color {
 // 디자인 정본은 아티팩트 「호요랜드 배너 시안」 C안(`C_Ticket.dc.html`, 2026-09-28 확정).
 // 왼쪽은 흰 면에 행사 정보, 오른쪽은 짙은 강조색 조각(D-day), 둘 사이에 점선 절취선과 반원 홈.
 // Android `HoyolandTicket.kt` 와 같은 값이다.
+
+/// 호요랜드 상세의 내비 바 배경을 숨길지 — iOS 26 이상만(그 아래는 흐림 띠가 없어 본문과 겹친다).
+var hoyolandBarBackgroundHidden: Bool {
+    if #available(iOS 26.0, *) { return true }
+    return false
+}
 
 /// 조각 폭 — 절취선이 오른쪽 끝에서 이만큼 들어온 자리에 선다.
 let HoyolandTicketStubWidth: CGFloat = 100
