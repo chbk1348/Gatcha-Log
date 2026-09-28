@@ -634,14 +634,29 @@ struct HoyolandBoothView: View {
     let event: HoyolandEvent
     /// 배치도에서 그 게임 부스를 눌러 들어오면 미리 걸려 있다. nil 이면 전체.
     var initialGame: String? = nil
+    /// 배치도에서 DIY존 · 파트너사 칸을 눌러 들어오면 그 탭으로 연다("diy" · "partner").
+    var initialSpecial: String? = nil
     @Environment(\.glgAccent) private var accent
     @State private var gameFilter: String? = nil
+    /// 게임 탭 끝에 붙는 특수 탭 — "partner"(파트너사) · "diy"(DIY). nil 이면 전체 · 게임 탭이다.
+    /// 2026-09-28 신설 — 제휴사 부스와 DIY존은 게임 체험과 성격이 달라 따로 읽힌다.
+    @State private var special: String? = nil
+    /// 게임 탭의 무료 · 유료 칩 — 0 = 전체 · 1 = 무료 · 2 = 유료(2026-09-28 신설). DIY · 파트너사에는 걸지 않는다.
+    @State private var priceFilter = 0
     /// 넓은 창(iPad) 두 열 — [hoyolandWide] 가 채운다.
     @State private var wide = false
 
     var body: some View {
         let games = event.boothGames
-        let shown = event.booths.filter { gameFilter == nil || $0.game == gameFilter }
+        let extras: [(key: String, label: String)] =
+            (event.partnerBooths.isEmpty ? [] : [("partner", "파트너사")]) + (event.hasDiy ? [("diy", "DIY")] : [])
+        // 「전체」 탭은 두지 않는다(2026-09-28 지시) — 필터가 비어 있으면 **첫 게임**이 선택된 것으로 본다.
+        let shownGame = gameFilter.flatMap { games.contains($0) ? $0 : nil } ?? games.first
+        let shown = event.experienceBooths
+            .filter { shownGame == nil || $0.game == shownGame }
+            .filter { priceFilter == 1 ? !$0.isPaid : (priceFilter == 2 ? $0.isPaid : true) }
+        // 지금 DIY · 파트너사 페이지를 그리는 중인가 — 그땐 부스 카드 목록 · 무료/유료 칩을 두지 않는다.
+        let specialShown = (special == "diy" && event.hasDiy) || (special == "partner" && !event.partnerBooths.isEmpty)
 
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
@@ -658,17 +673,44 @@ struct HoyolandBoothView: View {
                     }
                 } else {
                     // 굿즈 목록과 같은 게임 탭 — 두 화면을 오갈 때 거르는 방법이 달라지면 손이 헷갈린다.
-                    if games.count > 1 {
+                    if games.count > 1 || !extras.isEmpty {
                         GLGSegmentedTabs(
-                            labels: ["전체"] + games.map { event.stageLabel(game: $0) },
-                            selectedColors: [accent.primary] + games.map { boothColor($0) },
+                            labels: games.map { event.stageLabel(game: $0) } + extras.map(\.label),
+                            selectedColors: games.map { boothColor($0) } + extras.map { _ in accent.primary },
                             selection: Binding(
-                                get: { gameFilter.flatMap { games.firstIndex(of: $0).map { $0 + 1 } } ?? 0 },
-                                set: { gameFilter = $0 == 0 ? nil : games[$0 - 1] }
+                                get: {
+                                    if let special, let k = extras.firstIndex(where: { $0.key == special }) {
+                                        return games.count + k
+                                    }
+                                    return shownGame.flatMap { games.firstIndex(of: $0) } ?? 0
+                                },
+                                set: { i in
+                                    if i >= games.count {
+                                        special = extras[i - games.count].key; gameFilter = nil
+                                    } else {
+                                        special = nil
+                                        gameFilter = games[i]
+                                    }
+                                }
                             )
                         )
                     }
-                    if wide {
+                    if special == "diy" && event.hasDiy {
+                        diyPage.padding(.top, 6)
+                    } else if special == "partner" && !event.partnerBooths.isEmpty {
+                        partnerPage.padding(.top, 6)
+                    } else {
+                        // 게임 탭에서만 **무료 · 유료** 칩 — 체험 부스는 무료 줄과 유료 줄이 섞여 있어 "얼마 들고 가나" 를
+                        // 먼저 가르고 싶어진다(2026-09-28 지시). DIY · 파트너사는 성격이 달라 걸지 않는다.
+                        HStack(spacing: 6) {
+                            ForEach(Array(["전체", "무료", "유료"].enumerated()), id: \.offset) { i, label in
+                                GLGGlassChip(label: label, selected: priceFilter == i) { priceFilter = i }
+                            }
+                        }
+                    }
+                    if specialShown {
+                        EmptyView()
+                    } else if wide {
                         // 넓은 창은 **벽돌쌓기 두 열** — 부스 카드는 설명 길이가 제각각이라 행으로
                         // 맞추면 짧은 카드가 긴 이웃 높이까지 늘어나 속이 빈다. 짧은 열부터 채운다.
                         GLGColumnMasonry(cards: shown.enumerated().map { i, b in
@@ -696,6 +738,7 @@ struct HoyolandBoothView: View {
             if gameFilter == nil, let initialGame, event.boothGames.contains(initialGame) {
                 gameFilter = initialGame
             }
+            if special == nil && gameFilter == nil, let initialSpecial { special = initialSpecial }
         }
         .navigationBarTitleDisplayMode(.inline)
     }
@@ -770,6 +813,109 @@ struct HoyolandBoothView: View {
                 }
             }
         }
+    }
+
+    /**
+     DIY 탭 — **페이지 형식**(카드 없이 페이지 바탕에 바로 쓴다, 2026-09-28 지시).
+
+     위는 이용 안내(어떻게 줄 서고 사서 만드는지), 아래는 만들기 항목. 항목은 제목 · 가격 · 받는 것 · 설명을
+     한 덩어리로 두고 **구분선**으로 가른다 — 부스 카드처럼 칸마다 면을 세우면 안내문이 카드 틈에 조각나 읽혔다.
+     (Android `HoyolandDiyPage` 와 같은 배치)
+     */
+    @ViewBuilder private var diyPage: some View {
+        // 맨 위 제목(「DIY존」)은 두지 않는다 — 바로 위 탭이 이미 말한다(2026-09-28 지시).
+        VStack(alignment: .leading, spacing: 0) {
+            if let guide = event.diyGuide {
+                if !guide.desc.isEmpty {
+                    Text(guide.desc).font(.pretendard(size: 13.5)).foregroundStyle(GLGColor.textSecondary)
+                        .lineSpacing(5).fixedSize(horizontal: false, vertical: true)
+                }
+                if !guide.reward.isEmpty { diyReward(guide.reward).padding(.top, 12) }
+            }
+            ForEach(Array(event.diyItems.enumerated()), id: \.offset) { _, b in
+                Divider().padding(.vertical, 20)
+                HStack(alignment: .firstTextBaseline) {
+                    Text(b.title).font(.pretendard(size: 17, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
+                    Spacer(minLength: 8)
+                    Text(event.wonLabel(v: b.price)).font(.pretendard(size: 16, weight: .black)).monospacedDigit()
+                        .foregroundStyle(accent.primary)
+                }
+                if !b.desc.isEmpty {
+                    Text(b.desc).font(.pretendard(size: 13.5)).foregroundStyle(GLGColor.textSecondary)
+                        .lineSpacing(5).fixedSize(horizontal: false, vertical: true)
+                        .padding(.top, 10)
+                }
+                // 받는 것은 **섹션 맨 아래**(2026-09-28 지시) — 설명을 다 읽은 끝에 "그래서 뭘 받나" 로 맺는다.
+                if !b.reward.isEmpty { diyReward(b.reward).padding(.top, 12) }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    /// 파트너사 탭 — DIY 탭과 같은 **페이지 형식**. 부스마다 이름 · 위치 · 받는 것 · 설명을 한 덩어리로 두고
+    /// 구분선으로 가른다. 끝에 공식 주의사항 안내 한 줄. (Android `HoyolandPartnerPage` 와 같은 배치)
+    @ViewBuilder private var partnerPage: some View {
+        // 맨 위 제목(「파트너사 부스」)은 두지 않는다 — 바로 위 탭이 이미 말한다(2026-09-28 지시).
+        VStack(alignment: .leading, spacing: 0) {
+            ForEach(Array(event.partnerBooths.enumerated()), id: \.offset) { i, b in
+                if i > 0 { Divider().padding(.top, 20) }
+                // 로고가 있으면 이름 대신 로고 — 브랜드는 글자보다 로고로 먼저 알아본다(2026-09-28 지시).
+                // 못 불러오는 동안 · 실패하면 이름 글자가 그 자리를 지킨다.
+                Group {
+                    if let u = URL(string: b.logoUrl), !b.logoUrl.isEmpty {
+                        GLGRemoteImage(url: u, side: 160, contentMode: .fit) {
+                            Text(b.title).font(.pretendard(size: 17, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
+                        }
+                        .frame(height: 28, alignment: .leading)
+                        .accessibilityLabel(b.title)
+                    } else {
+                        Text(b.title).font(.pretendard(size: 17, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.top, i == 0 ? 0 : 20)
+                if !b.partnerHall.isEmpty {
+                    // 위치는 **알약 + 진한 글자**로 — 회색 작은 한 줄로는 설명 문단에 묻혔다(2026-09-28 지적).
+                    // 공식 안내의 「부스 위치」 표기를 따른다.
+                    HStack(spacing: 8) {
+                        HStack(spacing: 3) {
+                            Image(systemName: "mappin.and.ellipse").font(.system(size: 11, weight: .bold))
+                            Text("부스 위치").font(.pretendard(size: 12, weight: .bold))
+                        }
+                        .foregroundStyle(accent.primary)
+                        .padding(.horizontal, 8).padding(.vertical, 4)
+                        .background(accent.primary.opacity(0.12), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                        Text(b.partnerHall).font(.pretendard(size: 14, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
+                    }
+                    .padding(.top, 8)
+                }
+                if !b.desc.isEmpty {
+                    Text(b.desc).font(.pretendard(size: 13.5)).foregroundStyle(GLGColor.textSecondary)
+                        .lineSpacing(5).fixedSize(horizontal: false, vertical: true)
+                        .padding(.top, 10)
+                }
+                // 받는 것은 **섹션 맨 아래**(2026-09-28 지시).
+                if !b.reward.isEmpty { diyReward(b.reward).padding(.top, 12) }
+            }
+            Text("파트너사 부스 관련 자세한 사항은 호요랜드 2026 통합 주의사항에서 확인해 주세요.")
+                .font(.pretendard(size: 11.5)).foregroundStyle(GLGTextThird)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.top, 20)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    /// DIY · 파트너사 탭의 받는 것 — 선물색 옅은 **박스**로 강조한다(2026-09-28 지시). 페이지 형식이라 다른 줄은
+    /// 면이 없는데, 받는 것만은 고르는 기준이라 한 면을 준다(부스 카드의 받는 것 띠와 같은 색).
+    private func diyReward(_ text: String) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 7) {
+            Image(systemName: "gift").font(.system(size: 13, weight: .semibold))
+            Text(text).font(.pretendard(size: 13, weight: .bold)).fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: 0)
+        }
+        .foregroundStyle(GLGGiftText)
+        .padding(.horizontal, 12).padding(.vertical, 10)
+        .background(GLGGiftBg, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 
     private func boothColor(_ game: String) -> Color {

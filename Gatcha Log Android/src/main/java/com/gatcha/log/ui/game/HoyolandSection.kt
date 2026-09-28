@@ -136,6 +136,7 @@ import com.gatcha.log.data.HoyolandPhase
 import com.gatcha.log.data.HoyolandProgram
 import com.gatcha.log.data.api.HoyolandApi
 import com.gatcha.log.ui.components.GlassCard
+import com.gatcha.log.ui.components.GlgChip
 import com.gatcha.log.ui.components.GlgCircleIconButton
 import com.gatcha.log.ui.components.GlgBadge
 import com.gatcha.log.ui.components.ChipIdleBorder
@@ -610,7 +611,12 @@ fun HoyolandDetailPage(
                         }
                         if (target != HoyolandSub.None) {
                             if (target == HoyolandSub.Booth) {
-                                boothFilter = z.game.takeIf { it.isNotBlank() && it in e.boothGames }
+                                // DIY존 칸은 DIY 탭으로 곧장.
+                                boothFilter = when {
+                                    z.label.contains("DIY") && e.hasDiy -> HOYOLAND_BOOTH_DIY
+                                    e.partnerForZone(z.label) != null -> HOYOLAND_BOOTH_PARTNER
+                                    else -> z.game.takeIf { it.isNotBlank() && it in e.boothGames }
+                                }
                             }
                             if (target == HoyolandSub.Goods) {
                                 goodsFilter = z.game.takeIf { it.isNotBlank() }
@@ -993,8 +999,11 @@ fun HoyolandDetailContent(
         }
     }
 
-    Spacer(Modifier.height(14.dp))
-    Text(e.notice, fontSize = 11.sp, color = TextSecondary)
+    // 공지가 비면 **자리째 뺀다** — 빈 글자에 위 여백만 남으면 페이지 끝이 이유 없이 떴다(2026-09-28).
+    if (e.notice.isNotBlank()) {
+        Spacer(Modifier.height(14.dp))
+        Text(e.notice, fontSize = 11.sp, color = TextSecondary)
+    }
 
     if (ticketNoteOpen) {
         HoyolandGuideSheet(
@@ -2224,24 +2233,183 @@ fun HoyolandBoothContent(
         return
     }
     // 굿즈 목록과 같은 게임 탭 — 두 화면을 오갈 때 거르는 방법이 달라지면 손이 헷갈린다.
+    // 끝에 **파트너사 · DIY** 탭이 붙는다(2026-09-28 신설) — 제휴사 부스와 DIY존은 게임 체험과 성격이 달라 따로 읽힌다.
     val accent = LocalAccent.current
     val games = e.boothGames
-    if (games.size > 1) {
-        GlgSegmentedTabs(
-            labels = listOf("전체") + games.map { e.stageLabel(it) },
-            selectedColors = listOf(accent) + games.map {
-                e.stageColor(it).let { c -> if (c == 0L) TextSecondary else c.toColor() }
-            },
-            selected = games.indexOf(gameFilter) + 1,
-            onSelect = { i -> onGameFilter(if (i == 0) null else games.getOrNull(i - 1)) },
-        )
-        Spacer(Modifier.height(12.dp))
+    // 게임 뒤에 붙는 특수 탭 — (필터 값, 탭 이름). 자리가 있을 때만 선다.
+    val extras = buildList {
+        if (e.partnerBooths.isNotEmpty()) add(HOYOLAND_BOOTH_PARTNER to "파트너사")
+        if (e.hasDiy) add(HOYOLAND_BOOTH_DIY to "DIY")
     }
-    e.booths.filter { gameFilter == null || it.game == gameFilter }
+    val extraIndex = extras.indexOfFirst { it.first == gameFilter }
+    // 「전체」 탭은 두지 않는다(2026-09-28 지시) — 필터가 비어 있으면 **첫 게임**이 선택된 것으로 본다.
+    val shownGame = gameFilter?.takeIf { it in games } ?: games.firstOrNull()
+    if (games.size > 1 || extras.isNotEmpty()) {
+        GlgSegmentedTabs(
+            labels = games.map { e.stageLabel(it) } + extras.map { it.second },
+            selectedColors = games.map {
+                e.stageColor(it).let { c -> if (c == 0L) TextSecondary else c.toColor() }
+            } + extras.map { accent },
+            selected = if (extraIndex >= 0) games.size + extraIndex else games.indexOf(shownGame).coerceAtLeast(0),
+            onSelect = { i ->
+                onGameFilter(if (i >= games.size) extras.getOrNull(i - games.size)?.first else games.getOrNull(i))
+            },
+        )
+        Spacer(Modifier.height(if (extraIndex >= 0) 18.dp else 12.dp))
+    }
+    when (extras.getOrNull(extraIndex)?.first) {
+        HOYOLAND_BOOTH_DIY -> { HoyolandDiyPage(e); return }
+        HOYOLAND_BOOTH_PARTNER -> { HoyolandPartnerPage(e); return }
+    }
+    // 게임 탭에서만 **무료 · 유료** 칩 — 체험 부스는 무료 줄과 유료 줄이 섞여 있어 "얼마 들고 가나" 를 먼저
+    // 가르고 싶어진다(2026-09-28 지시). DIY · 파트너사는 성격이 달라 걸지 않는다. 0 = 전체 · 1 = 무료 · 2 = 유료.
+    var priceFilter by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(0) }
+    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        listOf("전체", "무료", "유료").forEachIndexed { i, label ->
+            GlgChip(label, selected = priceFilter == i) { priceFilter = i }
+        }
+    }
+    Spacer(Modifier.height(12.dp))
+    e.experienceBooths
+        .filter { shownGame == null || it.game == shownGame }
+        .filter { when (priceFilter) { 1 -> !it.isPaid; 2 -> it.isPaid; else -> true } }
         .forEachIndexed { i, b ->
             if (i > 0) Spacer(Modifier.height(12.dp))
             HoyolandBoothCard(e, b)
         }
+}
+
+/** 부스 필터의 파트너사 탭 값 — 게임 이름과 겹치지 않는 표식. */
+const val HOYOLAND_BOOTH_PARTNER = "__partner__"
+
+/**
+ * 파트너사 탭 — DIY 탭과 같은 **페이지 형식**. 부스마다 이름 · 위치 · 받는 것 · 설명을 한 덩어리로 두고
+ * 구분선으로 가른다. 끝에 공식 주의사항 안내 한 줄.
+ */
+@Composable
+private fun HoyolandPartnerPage(e: HoyolandEvent) {
+    // 맨 위 제목(「파트너사 부스」)은 두지 않는다 — 바로 위 탭이 이미 말한다(2026-09-28 지시).
+    Column(Modifier.fillMaxWidth()) {
+        e.partnerBooths.forEachIndexed { i, b ->
+            if (i > 0) {
+                Spacer(Modifier.height(20.dp))
+                androidx.compose.material3.HorizontalDivider(color = DividerColor)
+                Spacer(Modifier.height(20.dp))
+            }
+            // 로고가 있으면 이름 대신 로고 — 브랜드는 글자보다 로고로 먼저 알아본다(2026-09-28 지시).
+            // 못 불러오면 이름 글자로 돌아간다.
+            var logoFailed by remember(b.logoUrl) { mutableStateOf(false) }
+            if (b.logoUrl.isNotBlank() && !logoFailed) {
+                coil.compose.AsyncImage(
+                    model = b.logoUrl,
+                    contentDescription = b.title,
+                    contentScale = androidx.compose.ui.layout.ContentScale.Fit,
+                    alignment = Alignment.CenterStart,
+                    onError = { logoFailed = true },
+                    modifier = Modifier.height(28.dp).fillMaxWidth(),
+                )
+            } else {
+                Text(b.title, fontSize = 17.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+            }
+            if (b.partnerHall.isNotBlank()) {
+                // 위치는 **알약 + 진한 글자**로 — 회색 작은 한 줄로는 설명 문단에 묻혔다(2026-09-28 지적).
+                // 공식 안내의 「부스 위치」 표기를 따른다.
+                Spacer(Modifier.height(8.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Row(
+                        Modifier.clip(RoundedCornerShape(8.dp)).background(LocalAccent.current.copy(alpha = 0.12f))
+                            .padding(horizontal = 8.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Icon(Icons.Outlined.Place, null, tint = LocalAccent.current, modifier = Modifier.size(14.dp))
+                        Spacer(Modifier.width(3.dp))
+                        Text("부스 위치", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = LocalAccent.current)
+                    }
+                    Spacer(Modifier.width(8.dp))
+                    Text(b.partnerHall, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+                }
+            }
+            if (b.desc.isNotBlank()) {
+                Spacer(Modifier.height(10.dp))
+                Text(b.desc, fontSize = 13.5.sp, color = TextSecondary, lineHeight = 21.sp)
+            }
+            // 받는 것은 **섹션 맨 아래**(2026-09-28 지시).
+            if (b.reward.isNotBlank()) {
+                Spacer(Modifier.height(12.dp))
+                DiyRewardLine(b.reward)
+            }
+        }
+        Spacer(Modifier.height(20.dp))
+        Text(
+            "파트너사 부스 관련 자세한 사항은 호요랜드 2026 통합 주의사항에서 확인해 주세요.",
+            fontSize = 11.5.sp, color = TextThird, lineHeight = 17.sp,
+        )
+    }
+}
+
+/** 부스 필터의 DIY 탭 값 — 게임 이름과 겹치지 않는 표식. */
+const val HOYOLAND_BOOTH_DIY = "__diy__"
+
+/**
+ * DIY 탭 — **페이지 형식**(카드 없이 페이지 바탕에 바로 쓴다, 2026-09-28 지시).
+ *
+ * 위는 이용 안내(어떻게 줄 서고 사서 만드는지), 아래는 만들기 항목. 항목은 제목 · 가격 · 받는 것 · 설명을
+ * 한 덩어리로 두고 **구분선**으로 가른다 — 부스 카드처럼 칸마다 면을 세우면 안내문이 카드 틈에 조각나 읽혔다.
+ */
+@Composable
+private fun HoyolandDiyPage(e: HoyolandEvent) {
+    val accent = LocalAccent.current
+    val guide = e.diyGuide
+    // 맨 위 제목(「DIY존」)은 두지 않는다 — 바로 위 탭이 이미 말한다(2026-09-28 지시).
+    Column(Modifier.fillMaxWidth()) {
+        if (guide != null) {
+            if (guide.desc.isNotBlank()) {
+                Text(guide.desc, fontSize = 13.5.sp, color = TextSecondary, lineHeight = 21.sp)
+            }
+            if (guide.reward.isNotBlank()) {
+                Spacer(Modifier.height(12.dp))
+                DiyRewardLine(guide.reward)
+            }
+        }
+        e.diyItems.forEach { b ->
+            Spacer(Modifier.height(20.dp))
+            androidx.compose.material3.HorizontalDivider(color = DividerColor)
+            Spacer(Modifier.height(20.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    b.title, fontSize = 17.sp, fontWeight = FontWeight.Bold, color = TextPrimary,
+                    modifier = Modifier.weight(1f),
+                )
+                Text(e.wonLabel(b.price), fontSize = 16.sp, fontWeight = FontWeight.Black, color = accent)
+            }
+            if (b.desc.isNotBlank()) {
+                Spacer(Modifier.height(10.dp))
+                Text(b.desc, fontSize = 13.5.sp, color = TextSecondary, lineHeight = 21.sp)
+            }
+            // 받는 것은 **섹션 맨 아래**(2026-09-28 지시) — 설명을 다 읽은 끝에 "그래서 뭘 받나" 로 맺는다.
+            if (b.reward.isNotBlank()) {
+                Spacer(Modifier.height(12.dp))
+                DiyRewardLine(b.reward)
+            }
+        }
+    }
+}
+
+/**
+ * DIY · 파트너사 탭의 받는 것 — 선물색 옅은 **박스**로 강조한다(2026-09-28 지시). 페이지 형식이라 다른 줄은
+ * 면이 없는데, 받는 것만은 고르는 기준이라 한 면을 준다(부스 카드의 받는 것 띠와 같은 색).
+ */
+@Composable
+private fun DiyRewardLine(text: String) {
+    Row(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(GiftBg)
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.Top,
+    ) {
+        Icon(Icons.Outlined.Redeem, null, tint = GiftText, modifier = Modifier.size(16.dp).padding(top = 1.dp))
+        Spacer(Modifier.width(7.dp))
+        Text(text, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = GiftText, lineHeight = 18.sp)
+    }
 }
 
 /**

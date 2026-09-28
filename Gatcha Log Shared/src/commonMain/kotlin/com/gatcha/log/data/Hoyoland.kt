@@ -432,9 +432,32 @@ data class HoyolandBooth(
      * 바로 갈려야 하는 값이다. 굿즈의 `price` 와 같은 이유로 숫자로 받는다.
      */
     val price: Int = 0,
+    /**
+     * 로고 이미지 경로(저장소 `config/` 기준, 예: "partner/googleplay.png") — 파트너사 부스가 이름 옆에 쓴다.
+     * 없으면 빈 문자열. 옛 빌드는 모르는 칸을 무시한다.
+     */
+    val logo: String = "",
 ) {
+    /** 로고의 전체 주소([hoyolandAssetUrl]). 없으면 빈 문자열. */
+    val logoUrl: String get() = hoyolandAssetUrl(logo)
+
     /** 참가비가 있는 부스인가 — 화면이 값 대신 이 술어로 갈린다. */
     val isPaid: Boolean get() = price > 0
+
+    /**
+     * DIY존 자리인가 — 소속 게임 없이 「DIY존」에 선 부스. 부스 페이지의 **DIY 탭**이 모은다.
+     * 게임 체험과 성격이 달라(사서 만드는 곳) 게임 탭 · 전체 목록에서 빼고 따로 읽힌다.
+     */
+    val isDiy: Boolean get() = game.isBlank() && location.contains("DIY")
+
+    /**
+     * 파트너사 부스인가 — 호요버스가 아니라 제휴사(구글 플레이 · 갤럭시 스토어)가 여는 자리.
+     * 위치를 「파트너사 · 제2전시장 8홀」 꼴로 적는다. 부스 페이지의 **파트너사 탭**이 모은다.
+     */
+    val isPartner: Boolean get() = game.isBlank() && location.startsWith("파트너사")
+
+    /** 파트너사 부스의 실제 위치 — 위치 칸에서 「파트너사 · 」 머리를 뗀 값("제2전시장 8홀"). */
+    val partnerHall: String get() = location.removePrefix("파트너사").trimStart(' ', '·').trim()
 }
 
 /** 지난 행사 1건 — 다음 행사 규모를 가늠하는 참고 자료로만 쓴다. */
@@ -1076,6 +1099,27 @@ data class HoyolandEvent(
      */
     val boothGames: List<String>
         get() = booths.map { it.game }.filter { it.isNotBlank() }.distinct()
+
+    /** 체험 부스(전체 · 게임 탭) — DIY존 · 파트너사 자리는 각자 탭으로 빠진다. */
+    val experienceBooths: List<HoyolandBooth> get() = booths.filter { !it.isDiy && !it.isPartner }
+
+    /** 파트너사 부스(구글 플레이 · 갤럭시 스토어 …) — 부스 페이지의 파트너사 탭. */
+    val partnerBooths: List<HoyolandBooth> get() = booths.filter { it.isPartner }
+
+    /** 배치도 칸 이름에 맞는 파트너사 부스 — 띄어쓰기를 무시하고 부스 이름과 견준다("구글플레이" = "구글 플레이"). */
+    fun partnerForZone(label: String): HoyolandBooth? {
+        val key = label.replace(" ", "")
+        return partnerBooths.firstOrNull { it.title.replace(" ", "") == key }
+    }
+
+    /** DIY 탭을 세울 만큼 DIY 자리가 있는가. */
+    val hasDiy: Boolean get() = booths.any { it.isDiy }
+
+    /** DIY존 이용 안내 — DIY 자리 중 **참가비 없는** 한 건(만들기가 아니라 안내문이다). */
+    val diyGuide: HoyolandBooth? get() = booths.firstOrNull { it.isDiy && !it.isPaid }
+
+    /** DIY 만들기 목록 — 참가비가 있는 DIY 자리(에코백 · 키링 …). */
+    val diyItems: List<HoyolandBooth> get() = booths.filter { it.isDiy && it.isPaid }
 
     /**
      * 굿즈 가격대 한 줄 — "8,000원 ~ 89,000원 · 45종".
