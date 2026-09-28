@@ -257,8 +257,7 @@ struct GameInfoView: View {
             if linked { store.refreshGameInfo(force: true) }
         }
         // 화면에는 안 보이지만 제목은 채운다 — 비우면 뒤로가기 길게 누르기 메뉴가 공백 줄이 된다.
-        .navigationTitle("게임 정보")
-        .toolbar { ToolbarItem(placement: .principal) { Color.clear.frame(width: 1, height: 1) } }
+        .glgTabRootTitle("게임 정보")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar { toolbarContent }
     }

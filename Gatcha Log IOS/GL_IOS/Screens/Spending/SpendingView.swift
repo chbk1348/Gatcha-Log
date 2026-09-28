@@ -72,7 +72,7 @@ struct SpendingView: View {
 
     /// 넓은 창인가 — 좌/우로 갈리는 폭인지.
     private var isWideCanvas: Bool { glgIsWideCanvas(width: canvasWidth, sizeClass: hSizeClass) }
-    /// iPhone Duo 인가 — 접었든 펼쳤든. 제목을 목록 칸 안에 직접 그린다.
+    /// iPhone Duo 인가 — 접었든 펼쳤든. 제목을 두지 않는다.
     private var isDuo: Bool { GLGFormFactor.current == .duo }
 
     /// 우측 상세 — 고른 게 없으면 안내만.
@@ -105,28 +105,20 @@ struct SpendingView: View {
                 // 내비 바를 걷은 넓은 창에서는 그 자리를 **여백 한 줄**로 대신한다 —
                 // 바를 지우고 나니 필터 칩이 화면 맨 위에 딱 붙었다(2026-09-21 지적).
                 //
-                // iPhone Duo 는 제목을 **목록 칸 안에** 직접 그린다. 펼치면 바의 제목이 두 칸 전체 폭의
-                // 가운데(= 경첩 언저리)에 놓여 상세 히어로 밑에 깔렸고, 접으면 iPhone 용 더미가 제목을
-                // 덮어 둘 다 빈 바만 여백으로 남았다(2026-09-28 지적). 바 제목은 걷고 여기서 대신한다.
+                // iPhone Duo 는 제목을 **어디에도 두지 않는다**(2026-09-28 지시). 바 제목은 걷고(아래
+                // `toolbar(removing:)`), 위쪽 안전 영역이 없어(상태 표시는 옆 레일) 칩이 화면 모서리 곡선에
+                // 닿지 않게 직접 띄운다.
                 //
-                // 선택 모드의 「취소」도 이 줄 오른쪽에 둔다. 글자 버튼이라 세로 레일에 못 서고, 시스템이
-                // 위쪽에 가로 바를 따로 세워 올려 두어 제목보다 한 줄 위에 떠 있었다(2026-09-28 지적).
-                if isDuo {
-                    HStack(alignment: .center) {
-                        Text("지출")
-                            .font(.pretendard(size: 22, weight: .bold))
-                            .foregroundStyle(GLGColor.textPrimary)
-                            .accessibilityAddTraits(.isHeader)
-                        Spacer(minLength: 8)
-                        if selectionMode {
-                            GLGGlassChip(label: "취소") { selectionMode = false; selectedIds = [] }
-                        }
+                // 선택 모드의 「취소」는 이 줄 **오른쪽 끝**에 둔다. 글자 버튼이라 세로 레일에 못 서고, 툴바에
+                // 두면 시스템이 위쪽에 가로 바를 따로 세워 한 줄 위에 떠 있었다. 줄을 새로 만들지 않고 칩 옆에
+                // 붙이므로 선택을 켜고 꺼도 목록이 밀리지 않는다.
+                HStack(alignment: .top, spacing: 8) {
+                    quickFilters
+                    if isDuo && selectionMode {
+                        GLGGlassChip(label: "취소") { selectionMode = false; selectedIds = [] }
                     }
-                    // 듀오는 위쪽 안전 영역이 없어(상태 표시는 옆 레일) 화면 모서리 곡선에 닿는다 → 직접 띄운다.
-                    .padding(.top, 20)
-                    .padding(.bottom, 10)
                 }
-                quickFilters
+                .padding(.top, isDuo ? 20 : 0)
                 // "N월 지출" 요약 헤더는 지출 인사이트 '월간' 탭으로 이동(MonthSummaryHeader).
                 if listIsEmpty {
                     emptyState
@@ -180,7 +172,7 @@ struct SpendingView: View {
         // 끌어올리는데, 제목이 남아 있으면 그 아래 내비 바가 빈 채로 높이를 그대로 차지한다
         // (2026-09-21 iPad — 필터 위에 100pt 가까운 빈칸). 항목은 위 줄에 그대로 있다.
         //
-        // iPhone Duo 는 접었든 펼쳤든 바 제목을 걷는다 — 「지출」은 목록 칸 맨 위에 따로 그린다(listContent 참고).
+        // iPhone Duo 는 접었든 펼쳤든 바 제목을 걷는다 — 제목은 두지 않는다(listContent 참고).
         .toolbar(removing: isWideCanvas || isDuo ? .title : nil)
         // 좌측 = 보기 전환(캘린더·인사이트), 우측 = 목록 조작(선택·필터).
         // 성격이 다른 버튼 4개가 우측에 뭉쳐 있어 무엇이 무엇인지 구분되지 않던 걸 갈랐다.
@@ -202,7 +194,7 @@ struct SpendingView: View {
             }
 
             if selectionMode {
-                // 듀오는 「취소」를 목록 칸 제목 줄에 둔다(listContent 참고).
+                // 듀오는 「취소」를 필터 칩 줄 오른쪽 끝에 둔다(listContent 참고).
                 if !isDuo {
                     ToolbarItem(placement: .topBarTrailing) {
                         Button("취소") { selectionMode = false; selectedIds = [] }

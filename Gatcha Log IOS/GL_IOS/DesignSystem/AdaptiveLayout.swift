@@ -194,6 +194,33 @@ extension View {
     func glgPageTitle(_ title: String) -> some View { modifier(GLGPageTitle(title: title)) }
 }
 
+/// 탭 **뿌리** 화면의 제목 — 어느 기기에서도 **보이지 않는다.** 문자열은 채워 둔다(비우면 뒤로가기 길게 누르기
+/// 메뉴가 공백 줄이 된다).
+///
+/// iPhone · iPad 는 제목 자리를 **빈 뷰로 덮는다**(탭 이름이 이미 "어느 화면인가" 를 답한다).
+/// iPhone Duo 는 그 수법을 쓰면 안 된다 — 탭 · 툴바가 옆 레일에 서는데, 빈 뷰는 레일로 못 가서 **위쪽에 가로 바를
+/// 따로 세우고** 그 바가 빈 채로 자리를 먹었다. Duo 는 덮지 않고 제목 자리를 **걷는다**(2026-09-28 지시).
+private struct GLGTabRootTitle: ViewModifier {
+    let title: String
+
+    func body(content: Content) -> some View {
+        let isDuo = GLGFormFactor.current == .duo
+        content
+            .navigationTitle(title)
+            .toolbar {
+                if !isDuo {
+                    ToolbarItem(placement: .principal) { Color.clear.frame(width: 1, height: 1) }
+                }
+            }
+            .toolbar(removing: isDuo ? .title : nil)
+    }
+}
+
+extension View {
+    /// 탭 뿌리 화면의 (보이지 않는) 제목 — [GLGTabRootTitle] 참고.
+    func glgTabRootTitle(_ title: String) -> some View { modifier(GLGTabRootTitle(title: title)) }
+}
+
 private struct GLGReadableWidth: ViewModifier {
     @Environment(\.horizontalSizeClass) private var hSize
     @Environment(\.glgCanvasWidth) private var canvasWidth
