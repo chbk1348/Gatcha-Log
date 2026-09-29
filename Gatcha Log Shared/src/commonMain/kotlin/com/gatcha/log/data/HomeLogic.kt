@@ -136,8 +136,8 @@ object HomeLogic {
             }
 
     /** 미출석 게임 수 — '오늘 할 일'·알림 공통 입력. */
-    fun pendingAttendanceCount(attendanceToday: Set<String>): Int =
-        GameData.attendanceGames.count { it.key !in attendanceToday }
+    fun pendingAttendanceCount(attendanceToday: Set<String>, games: List<Game> = GameData.attendanceGames): Int =
+        games.count { it.key !in attendanceToday }
 
     /** 전투 콘텐츠 시즌 마감 경고를 띄우기 시작하는 잔여 일수(D-3부터). */
     const val COMBAT_WARN_DAYS = 3
@@ -216,6 +216,7 @@ object HomeLogic {
         attendanceToday: Set<String>,
         monthKey: String,
         nowMillis: Long = currentTimeMillis(),
+        attendanceGames: List<Game> = GameData.attendanceGames,
     ): List<HomeAlert> = buildList {
         if (budget > 0) {
             val pct = (monthlyTotal * 100 / budget).toInt()
@@ -231,7 +232,7 @@ object HomeLogic {
                 add(HomeAlert(HomeAlertKind.BANNER, "${b.name} 픽업 배너 종료 ${if (d == 0) "D-DAY" else "D-$d"}", "banner:${b.name}"))
             }
         }
-        val pending = pendingAttendanceCount(attendanceToday)
+        val pending = pendingAttendanceCount(attendanceToday, attendanceGames)
         if (pending > 0) add(HomeAlert(HomeAlertKind.ATTENDANCE, "오늘 출석체크가 ${pending}개 남아있어요", "attendance:${DateUtil.hoyoDayKey(nowMillis)}"))
     }
 }

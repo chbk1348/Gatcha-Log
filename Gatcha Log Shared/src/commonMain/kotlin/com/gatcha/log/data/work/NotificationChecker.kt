@@ -146,7 +146,7 @@ object NotificationChecker {
             if (DateUtil.hoyoHour() >= 18) {
                 val today = DateUtil.hoyoDayKey()
                 val done = repo.loadAttendance()[today] ?: emptySet()
-                val pending = GameData.attendanceGames.filter { it.key !in done }
+                val pending = GameData.trackedAttendanceGames(cfg).filter { it.key !in done }
                 if (pending.isNotEmpty() && settings.lastNotified("attend") != today) {
                     settings.setLastNotified("attend", today)
                     Notifier.notify(
@@ -336,7 +336,7 @@ object NotificationChecker {
         }
         if (settings.notifyAttendance && cfg.isLinked && DateUtil.hoyoHour(now) >= 18) {
             val done = repo.loadAttendance()[DateUtil.hoyoDayKey(now)] ?: emptySet()
-            val pending = GameData.attendanceGames.filter { it.key !in done }
+            val pending = GameData.trackedAttendanceGames(cfg).filter { it.key !in done }
             if (pending.isNotEmpty()) lines += "출석 안 한 게임 ${pending.size}개 · ${pending.joinToString("·") { it.shortName }}"
         }
         if (settings.notifyResin && cfg.isLinked) {

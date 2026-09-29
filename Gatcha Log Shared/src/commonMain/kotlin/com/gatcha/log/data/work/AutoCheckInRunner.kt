@@ -60,7 +60,7 @@ object AutoCheckInRunner {
         val netFails = mutableListOf<String>()
         val otherFails = mutableListOf<Pair<String, String>>()
 
-        for (game in GameData.attendanceGames) {
+        for (game in GameData.trackedAttendanceGames(cfg)) {
             if (game.key in (attendance[today] ?: emptySet())) {
                 alreadyDone += game.shortName
                 continue
@@ -78,7 +78,11 @@ object AutoCheckInRunner {
             }
         }
         if (changed) {
-            repo.saveAttendance(attendance)
+            // 저장 직전에 다시 읽어 오늘 몫만 얹는다. 체크인 왕복이 수 초라 그 사이 화면에서 한 출석을
+            // 처음 읽은 [attendance] 로 통째로 덮으면 지워진다.
+            val latest = repo.loadAttendance()
+            val mine = attendance[today].orEmpty()
+            repo.saveAttendance(latest + (today to latest[today].orEmpty() + mine))
             // 화면은 자기 메모리로 출석을 들고 있다. 여기서 알리지 않으면 출석은 끝났는데
             // 출석 체크 페이지가 계속 "0/3" 으로 남는다([AttendanceBus] 주석 참고).
             AttendanceBus.notifyChanged()

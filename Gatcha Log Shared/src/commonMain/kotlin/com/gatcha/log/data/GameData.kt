@@ -125,6 +125,13 @@ object GameData {
     /** 출석/실시간 노트 등 호요버스 게임만 */
     val attendanceGames: List<Game> = games.filter { it.supportsAttendance }
 
+    /** 출석을 세는 게임 — 연동 계정에 UID 가 있는 게임만. 미연동이거나 UID 를 하나도 모르면 전부. */
+    fun trackedAttendanceGames(cfg: HoyolabConfig): List<Game> {
+        if (!cfg.isLinked) return attendanceGames
+        val uids = mapOf("genshin" to cfg.genshinUid, "hsr" to cfg.hsrUid, "zzz" to cfg.zzzUid)
+        return attendanceGames.filter { uids[it.key].orEmpty().isNotBlank() }.ifEmpty { attendanceGames }
+    }
+
     /** 결제 수단 — 카드 + 한국 간편결제 + 기타 (Android·iOS 공통). 레거시 값은 GatchaRepository 로드에서 정규화. */
     val paymentMethods: List<String> = listOf("카드", "카카오페이", "네이버페이", "토스", "기타")
 

@@ -296,4 +296,20 @@ class GatchaRepositorySnapshotTest {
 
         assertEquals(setOf("genshin", "hsr"), local.loadAttendance()["2026-09-21"] ?: emptySet())
     }
+
+    @Test
+    fun `출석 원문 한 칸이 깨져도 나머지 날은 살아남는다`() {
+        val (r, store) = repo()
+        store.putString("attendance", """{"2026-09-01":["genshin"],"2026-09-02":"oops"}""")
+        assertEquals(mapOf("2026-09-01" to setOf("genshin")), r.loadAttendance())
+    }
+
+    @Test
+    fun `출석 원문이 통째로 깨지면 저장 전에 따로 떠 둔다`() {
+        val (r, store) = repo()
+        store.putString("attendance", "{broken")
+        assertEquals(emptyMap(), r.loadAttendance())
+        r.saveAttendance(mapOf("2026-09-03" to setOf("hsr")))
+        assertEquals("{broken", store.getString("attendance_corrupt", null))
+    }
 }
