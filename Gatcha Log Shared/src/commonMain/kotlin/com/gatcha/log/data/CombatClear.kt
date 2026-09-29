@@ -19,6 +19,8 @@ data class CombatAvatar(
     val iconUrl: String = "",
     val level: Int = 0,
     val rarity: Int = 0,
+    /** 젠레스 뱅부 — 편성 끝에 작게 붙이고, 주력 · 등장 횟수에는 넣지 않는다. */
+    val isBuddy: Boolean = false,
 )
 
 /**
@@ -33,6 +35,8 @@ data class CombatRoom(
     val maxStars: Int = 0,
     /** 클리어 시각·점수 등 보조 표기. 비어 있을 수 있다. */
     val detail: String = "",
+    /** 별 대신 쓰는 평가(시유 방어전 "S"). 비어 있지 않으면 화면은 별 칩 자리에 평가 칩을 그린다. */
+    val rating: String = "",
     val firstHalf: List<CombatAvatar> = emptyList(),
     val secondHalf: List<CombatAvatar> = emptyList(),
 ) {
@@ -55,6 +59,11 @@ data class CombatClear(
      * 0 이면 모름 → [CombatClearLogic.summary] 가 층 만점을 더해 쓴다.
      */
     val maxTotal: Int = 0,
+    /**
+     * 별 대신 쓰는 시즌 요약(시유 방어전 "S+ · 120,234 / 150,000"). 비어 있지 않으면 화면은 ★ 요약 대신
+     * 이걸 그리고 진행 막대는 그리지 않는다.
+     */
+    val scoreLabel: String = "",
 ) {
     val gameColor: Long get() = GameData.colorFor(game)
 
@@ -62,6 +71,7 @@ data class CombatClear(
     val roster: List<CombatAvatar>
         get() = rooms
             .flatMap { it.firstHalf + it.secondHalf }
+            .filterNot { it.isBuddy }
             .groupBy { it.id }
             .entries
             .sortedWith(compareByDescending<Map.Entry<Int, List<CombatAvatar>>> { it.value.size }.thenBy { it.key })
@@ -69,7 +79,7 @@ data class CombatClear(
 
     /** 캐릭터별 등장 횟수(id → 판 수). '이 시즌 주력'을 보여줄 때 쓴다. */
     val usage: Map<Int, Int>
-        get() = rooms.flatMap { it.firstHalf + it.secondHalf }.groupingBy { it.id }.eachCount()
+        get() = rooms.flatMap { it.firstHalf + it.secondHalf }.filterNot { it.isBuddy }.groupingBy { it.id }.eachCount()
 }
 
 /**

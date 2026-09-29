@@ -339,6 +339,11 @@ data class CombatMode(
     val detail: String = "",  // 최고 기록·시즌·보스 등 보조 표시
     val endMillis: Long = 0,  // 시즌 종료 (0이면 D-day 미표시)
     val hasData: Boolean = true,
+    /**
+     * 별 대신 보여줄 평가(시유 방어전 "S+"). 비어 있지 않으면 화면은 별 개수 자리에 이걸 그리고,
+     * 진행 막대는 [stars]/[maxStars](점수/만점)로 그대로 그린다.
+     */
+    val badge: String = "",
 ) {
     val gameColor: Long get() = GameData.colorFor(game)
     val ratio: Float get() = if (maxStars <= 0) 0f else (stars.toFloat() / maxStars).coerceIn(0f, 1f)

@@ -668,6 +668,7 @@ class GatchaRepository(
                     detail = o.optString("detail", ""),
                     endMillis = o.optLong("endMillis", 0L),
                     hasData = o.optBoolean("hasData", true),
+                    badge = o.optString("badge", ""),
                 )
             }
         }.getOrDefault(emptyList())
@@ -680,7 +681,7 @@ class GatchaRepository(
             arr.put(JSONObject().apply {
                 put("game", c.game); put("name", c.name)
                 put("stars", c.stars); put("maxStars", c.maxStars)
-                put("detail", c.detail); put("endMillis", c.endMillis); put("hasData", c.hasData)
+                put("detail", c.detail); put("endMillis", c.endMillis); put("hasData", c.hasData); put("badge", c.badge)
             })
         }
         prefs.putString(KEY_COMBAT, arr.toString())
@@ -703,6 +704,7 @@ class GatchaRepository(
                     season = o.optString("season", ""),
                     current = o.optBoolean("current", true),
                     maxTotal = o.optInt("maxTotal", 0),
+                    scoreLabel = o.optString("scoreLabel", ""),
                     rooms = o.optJSONArray("rooms").let { rs ->
                         (0 until (rs?.length() ?: 0)).mapNotNull { ri ->
                             val r = rs?.optJSONObject(ri) ?: return@mapNotNull null
@@ -711,6 +713,7 @@ class GatchaRepository(
                                 stars = r.optInt("stars", 0),
                                 maxStars = r.optInt("maxStars", 0),
                                 detail = r.optString("detail", ""),
+                                rating = r.optString("rating", ""),
                                 firstHalf = avatarsFrom(r.optJSONArray("first")),
                                 secondHalf = avatarsFrom(r.optJSONArray("second")),
                             )
@@ -730,6 +733,7 @@ class GatchaRepository(
                 iconUrl = a.optString("icon", ""),
                 level = a.optInt("level", 0),
                 rarity = a.optInt("rarity", 0),
+                isBuddy = a.optBoolean("buddy", false),
             )
         }
 
@@ -738,7 +742,7 @@ class GatchaRepository(
         list.forEach { a ->
             arr.put(JSONObject().apply {
                 put("id", a.id); put("name", a.name); put("icon", a.iconUrl)
-                put("level", a.level); put("rarity", a.rarity)
+                put("level", a.level); put("rarity", a.rarity); if (a.isBuddy) put("buddy", true)
             })
         }
         return arr
@@ -752,13 +756,13 @@ class GatchaRepository(
             c.rooms.forEach { r ->
                 rooms.put(JSONObject().apply {
                     put("name", r.name); put("stars", r.stars); put("maxStars", r.maxStars)
-                    put("detail", r.detail)
+                    put("detail", r.detail); put("rating", r.rating)
                     put("first", avatarsTo(r.firstHalf)); put("second", avatarsTo(r.secondHalf))
                 })
             }
             arr.put(JSONObject().apply {
                 put("game", c.game); put("mode", c.mode); put("season", c.season)
-                put("current", c.current); put("rooms", rooms); put("maxTotal", c.maxTotal)
+                put("current", c.current); put("rooms", rooms); put("maxTotal", c.maxTotal); put("scoreLabel", c.scoreLabel)
             })
         }
         prefs.putString(KEY_COMBAT_CLEAR, arr.toString())
