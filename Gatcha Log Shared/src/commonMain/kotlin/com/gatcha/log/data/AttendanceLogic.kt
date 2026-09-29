@@ -20,16 +20,18 @@ object AttendanceLogic {
      * @param today 오늘 출석을 마친 게임 키 집합
      * @param streak 연속 기록(일). 계산은 [SpendingViewModel] 이 하고 여기선 실어 나르기만 한다
      * @param todayKey 오늘 날짜 키. 테스트가 시각을 고정할 수 있도록 인자로 받는다
+     * @param games 출석을 세는 게임([SpendingViewModel.trackedAttendanceGames]) — 안 하는 게임은 분모에서 뺀다
      */
     fun summary(
         history: Map<String, Set<String>>,
         today: Set<String>,
         streak: Int,
         todayKey: String = DateUtil.hoyoDayKey(),
+        games: List<Game> = GameData.attendanceGames,
     ): AttendanceSummary {
         val monthPrefix = todayKey.take(7)
         val monthEntries = history.filterKeys { it.startsWith(monthPrefix) }
-        val games = GameData.attendanceGames.map { game ->
+        val stats = games.map { game ->
             AttendanceGameStat(
                 gameKey = game.key,
                 gameShort = game.shortName,
@@ -39,15 +41,15 @@ object AttendanceLogic {
             )
         }
         return AttendanceSummary(
-            todayDone = games.count { it.checkedToday },
-            todayTotal = games.size,
+            todayDone = stats.count { it.checkedToday },
+            todayTotal = stats.size,
             streak = streak,
             // '기록이 있는 날'이 아니라 **전체 출석한 날**만 센다. 한 게임만 한 날을 출석일로
             // 세면 달력의 진한 원 개수와 숫자가 어긋나 보인다.
-            monthFullDays = monthEntries.count { (_, set) -> games.all { it.gameKey in set } },
+            monthFullDays = monthEntries.count { (_, set) -> stats.all { it.gameKey in set } },
             // 분모는 이번 달 전체가 아니라 **오늘까지** — 아직 오지 않은 날을 못 지킨 날로 세면 안 된다.
             monthElapsedDays = todayKey.takeLast(2).toIntOrNull() ?: 0,
-            games = games,
+            games = stats,
         )
     }
 }

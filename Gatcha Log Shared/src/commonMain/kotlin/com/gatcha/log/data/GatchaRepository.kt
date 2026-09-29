@@ -294,15 +294,19 @@ class GatchaRepository(
     // ---------------------------------------------------------------- 출석 (dayKey -> set<gameKey>)
     fun loadAttendance(): Map<String, Set<String>> {
         val raw = prefs.getString(KEY_ATTENDANCE, null) ?: return emptyMap()
-        return runCatching {
-            val obj = JSONObject(raw)
-            buildMap {
-                obj.keys().forEach { day ->
-                    val arr = obj.getJSONArray(day)
-                    put(day, (0 until arr.length()).map { arr.getString(it) }.toSet())
-                }
+        // 날짜 하나가 깨져도 그날만 버린다. 예전엔 한 칸만 어긋나도 빈 맵을 돌려줬고, 다음 저장이
+        // 그 빈 맵으로 원문을 덮어 출석 기록이 통째로 사라졌다.
+        val obj = runCatching { JSONObject(raw) }.getOrElse {
+            // 전체가 안 읽히면 원문을 따로 떠 둔다 — 다음 저장이 덮어도 복구할 거리가 남는다.
+            if (prefs.getString(KEY_ATTENDANCE_CORRUPT, null) == null) prefs.putString(KEY_ATTENDANCE_CORRUPT, raw)
+            return emptyMap()
+        }
+        return buildMap {
+            obj.keys().forEach { day ->
+                val arr = obj.optJSONArray(day) ?: return@forEach
+                put(day, (0 until arr.length()).mapNotNull { arr.optString(it).ifBlank { null } }.toSet())
             }
-        }.getOrDefault(emptyMap())
+        }
     }
 
     fun saveAttendance(map: Map<String, Set<String>>) {
@@ -1055,6 +1059,7 @@ class GatchaRepository(
 
         /** 로컬 출석이 클라우드보다 앞선다는 표시(로컬 전용 — 스냅샷에 싣지 않는다). */
         const val KEY_ATTENDANCE_DIRTY = "attendance_dirty"
+        const val KEY_ATTENDANCE_CORRUPT = "attendance_corrupt"
         const val KEY_ENKA_GI = "enka_gi"
         const val KEY_ENKA_HSR = "enka_hsr"
         /**

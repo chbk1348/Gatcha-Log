@@ -67,7 +67,10 @@ import kotlinx.coroutines.yield
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
@@ -528,6 +531,8 @@ class SpendingViewModel : ViewModel() {
      * 바뀌지 않는다. 반대로 행동력은 계속 차오르므로 앱을 다시 열 때마다 맞아야 한다.
      * 인디케이터는 켜지 않는다 — 사용자가 부른 갱신이 아니다.
      */
+    private var liveNotesJob: Job? = null
+
     private fun refreshLiveNotesQuiet() {
         val cfg = _hoyolabConfig.value
         if (!cfg.isLinked) return
@@ -538,7 +543,7 @@ class SpendingViewModel : ViewModel() {
             "zzz" to cfg.zzzUid,
         ).filterValues { it.isNotBlank() }
         if (uids.isEmpty()) return
-        viewModelScope.launch {
+        liveNotesJob = viewModelScope.launch {
             if (!NetworkMonitor.isOnline()) return@launch
             // 전체 갱신 쪽과 같은 이유로 **도착하는 대로** 싣는다 — `awaitAll` 은 제일 느린 게임에
             // 나머지를 묶는다. 원자적 갱신([update])이어야 늦게 끝난 쪽이 남의 결과를 지우지 않는다.
@@ -770,6 +775,7 @@ class SpendingViewModel : ViewModel() {
     }
 
     private fun switchAccount(acc: Account) {
+        cancelAccountWork()
         repo = GatchaRepository(acc.id)
         repo.onChange = { scheduleCloudSync() }
         loadAll()
@@ -780,6 +786,35 @@ class SpendingViewModel : ViewModel() {
             repo.saveProfile(p)
         }
         refreshGameInfo(force = true)
+    }
+
+    /**
+     * 계정 전환·연동 해제 — 옛 계정의 요청을 끊고 계정에 딸린 화면 상태를 비운다.
+     *
+     * [loadAll] 의 디스크 시드는 **새 계정 캐시가 있을 때만** 값을 갈아끼워서, 캐시가 없는 계정으로
+     * 바꾸면 옛 계정의 행동력·원장·전투가 그대로 남았다. 게다가 진행 중인 새로고침이 가드에 걸려
+     * force 새로고침이 버려졌고, 그 회차가 옛 토큰으로 받은 값을 새 저장소에 썼다.
+     */
+    private fun cancelAccountWork() {
+        gameInfoJob?.cancel()
+        liveNotesJob?.cancel()
+        combatClearsJob?.cancel()
+        checkInJob?.cancel()
+        redeemJob?.cancel()
+        _redeemState.value = RedeemState.Idle
+        clearHoyolabState()
+        enkaUidsSynced = false
+    }
+
+    /** HoYoLAB 계정에 딸린 화면 상태 — 연동이 바뀌면 다른 사람 것이 된다. */
+    private fun clearHoyolabState() {
+        _liveNotes.value = emptyList()
+        _ledgers.value = emptyList()
+        _combat.value = emptyList()
+        _combatClears.value = emptyList()
+        _combatClearsFailed.value = false
+        lastCombatClearAt = 0L
+        lastLiveNoteAt = 0L
     }
 
     // ----------------------------------------------------------------- 지출
@@ -905,12 +940,25 @@ class SpendingViewModel : ViewModel() {
     }
 
     // ----------------------------------------------------------------- HoYoLAB
-    fun updateHoyolabConfig(config: HoyolabConfig) {
+    /** 저장했으면 true — 폼은 false 일 때 닫지 않는다(검증 실패로 입력이 날아가지 않게). */
+    fun updateHoyolabConfig(input: HoyolabConfig): Boolean {
+        val prev = _hoyolabConfig.value
+        val config = input.trimmed().let { c ->
+            // 계정(ltuid)이 바뀌었는데 교환 쿠키는 그대로면 옛 계정 것이다 — 남기면 선물코드가 다른
+            // 계정으로 교환된다. 새 로그인에서 함께 들어온 쿠키(값이 바뀐 것)는 그대로 둔다.
+            if (c.ltuid == prev.ltuid) c
+            else c.copy(
+                webCookie = c.webCookie.takeIf { it != prev.webCookie }.orEmpty(),
+                cookieToken = c.cookieToken.takeIf { it != prev.cookieToken }.orEmpty(),
+            )
+        }
+        hoyolabInputError(config)?.let { emitStatus(it); return false }
+        if (prev.isLinked && (!config.isLinked || config.ltuid != prev.ltuid)) cancelAccountWork()
         _hoyolabConfig.value = config
         // 보안 저장소를 못 쓰면 토큰은 저장되지 않는다(평문 폴백 금지) — 조용히 넘기지 않고 알린다.
         if (!repo.saveHoyolab(config)) {
             emitStatus("보안 저장소를 쓸 수 없어 토큰을 저장하지 못했어요 — 앱을 재설치하거나 기기를 재시작해주세요")
-            return
+            return false
         }
         // 새 토큰이 들어왔으면 만료 플래그 자동 클리어 — 홈 상단 배너 즉시 사라짐.
         if (config.isLinked && config.ltoken.isNotBlank()) {
@@ -920,7 +968,7 @@ class SpendingViewModel : ViewModel() {
         // 연동 성공/실패 넛징(전역 토스트). 토큰이 있으면 실제 유효성 검증 후 안내.
         if (!config.isLinked) {
             emitStatus("연동되지 않았어요 — ltuid·ltoken을 입력하거나 로그인으로 가져오세요")
-            return
+            return true
         }
         viewModelScope.launch {
             val uids = withContext(Dispatchers.IO) {
@@ -940,6 +988,16 @@ class SpendingViewModel : ViewModel() {
                 else "연동 실패 — 토큰이 만료됐을 수 있어요. 다시 로그인해 가져와주세요",
             )
         }
+        return true
+    }
+
+    /** 토큰 폼 검증 — 저장하면 안 되는 입력이면 안내 문구. 빈 칸 전부는 '연동 해제'라 통과. */
+    private fun hoyolabInputError(c: HoyolabConfig): String? = when {
+        c.ltuid.isBlank() && c.ltoken.isBlank() -> null
+        c.ltuid.isBlank() || c.ltoken.isBlank() -> "ltuid 와 ltoken 을 둘 다 넣어 주세요"
+        !c.ltuid.all { it.isDigit() } -> "ltuid 는 숫자만 들어가요"
+        listOf(c.genshinUid, c.hsrUid, c.zzzUid).any { it.isNotEmpty() && !it.all { ch -> ch.isDigit() } } -> "게임 UID 는 숫자만 들어가요"
+        else -> null
     }
 
     // fetchGameUids 결과를 config(genshin/hsr/zzz) + Enka 섹션 UID 로 반영(공통).
@@ -982,16 +1040,34 @@ class SpendingViewModel : ViewModel() {
     }
 
     // ----------------------------------------------------------------- 출석
-    fun toggleAttendance(gameKey: String) {
+    fun toggleAttendance(gameKey: String) =
+        editTodayAttendance { if (gameKey in it) it - gameKey else it + gameKey }
+
+    /**
+     * 저장소의 출석 원본. 자동 출석([AutoCheckInRunner])은 따로 만든 저장소로 쓰므로 메모리 사본
+     * [attendanceMap] 으로 고치면 그쪽이 방금 저장한 출석을 덮어 지운다 — 고치기 직전에 늘 다시 읽는다.
+     */
+    private fun currentAttendance(): Map<String, Set<String>> = repo.loadAttendance()
+
+    private fun editTodayAttendance(edit: (Set<String>) -> Set<String>) {
         val today = todayKey()
-        val current = attendanceMap[today]?.toMutableSet() ?: mutableSetOf()
-        if (gameKey in current) current.remove(gameKey) else current.add(gameKey)
-        attendanceMap = attendanceMap.toMutableMap().apply { put(today, current) }
+        val map = currentAttendance()
+        val next = edit(map[today].orEmpty())
+        attendanceMap = map + (today to next)
         repo.saveAttendance(attendanceMap)
         _attendanceHistory.value = attendanceMap
-        _attendanceToday.value = current
+        _attendanceToday.value = next
         _attendanceStreak.value = computeAttendanceStreak()
     }
+
+    /**
+     * 출석을 세는 게임 — 연동 계정에 UID 가 있는 게임만. 안 하는 게임까지 분모에 넣으면
+     * 매일 "2/3" 으로 남고, 전체 출석이 없는 계정에 체크인을 쏴서 실패 알림까지 냈다.
+     * 미연동이거나 UID 를 하나도 모르면 전부 센다(판단할 근거가 없다).
+     */
+    val trackedAttendanceGames: StateFlow<List<Game>> = _hoyolabConfig
+        .map { GameData.trackedAttendanceGames(it) }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, GameData.attendanceGames)
 
     // ----------------------------------------------------------------- 배너 / 실시간 노트
     // 더미 없음 — 실제 ennead.cc API(refreshGameInfo)로만 채워진다.
@@ -1037,8 +1113,13 @@ class SpendingViewModel : ViewModel() {
     private val _combatClearsLoading = MutableStateFlow(false)
     val combatClearsLoading: StateFlow<Boolean> = _combatClearsLoading.asStateFlow()
 
+    /** 마지막 조회가 전부 실패했다 — 화면은 '기록 없음'이 아니라 '불러오지 못함'을 보여야 한다. */
+    private val _combatClearsFailed = MutableStateFlow(false)
+    val combatClearsFailed: StateFlow<Boolean> = _combatClearsFailed.asStateFlow()
+
     /** 마지막으로 클리어 편성을 받아온 시각 — 페이지 재진입마다 다시 받지 않게. */
     private var lastCombatClearAt = 0L
+    private var combatClearsJob: Job? = null
 
     /**
      * 엔드 콘텐츠 클리어 편성 조회. 캐시가 신선하면(30분) 건너뛴다.
@@ -1052,20 +1133,22 @@ class SpendingViewModel : ViewModel() {
         if (!cfg.isLinked) return
         val now = currentTimeMillis()
         if (!force && _combatClears.value.isNotEmpty() && now - lastCombatClearAt < COMBAT_CLEAR_FRESH_MS) return
-        viewModelScope.launch {
+        combatClearsJob = viewModelScope.launch {
             _combatClearsLoading.value = true
             try {
                 val uids = mapOf("genshin" to cfg.genshinUid, "hsr" to cfg.hsrUid).filterValues { it.isNotBlank() }
-                val fetched = coroutineScope {
+                // 게임별로 받는다 — null 은 실패. 예전엔 실패를 빈 목록으로 뭉개서 '기록 없음'으로 보였고,
+                // 한 게임만 실패해도 다른 게임 결과만으로 통째로 갈아끼워 그 게임 편성이 사라졌다.
+                val perGame = coroutineScope {
                     uids.map { (key, uid) ->
-                        async(Dispatchers.IO) {
-                            runCatching { HoyolabApi.getCombatClears(cfg.ltuid, cfg.ltoken, key, uid) }
-                                .getOrDefault(emptyList())
-                        }
-                    }.awaitAll().flatten()
+                        async(Dispatchers.IO) { HoyolabApi.getCombatClears(cfg.ltuid, cfg.ltoken, key, uid) }
+                    }.awaitAll()
                 }
-                // 한 게임이라도 응답이 비면 옛 결과를 지우지 않는다 — 화면이 통째로 비는 것보다 낫다.
-                if (fetched.isEmpty()) return@launch
+                val loadedGames = uids.keys.zip(perGame).filter { it.second != null }
+                    .map { GameData.byName(it.first).displayName }.toSet()
+                _combatClearsFailed.value = uids.isNotEmpty() && loadedGames.isEmpty()
+                if (loadedGames.isEmpty()) return@launch
+                val fetched = perGame.filterNotNull().flatten()
                 // 이름 출처는 두 겹이다. ①전체 캐릭터 메타(yatta) — 쇼케이스에 없는 캐릭터까지 덮는다.
                 // ②보유 캐릭터 캐시 — 메타에 아직 없는 신규 캐릭터를 보완한다(우선순위가 더 높다).
                 //
@@ -1084,7 +1167,9 @@ class SpendingViewModel : ViewModel() {
                     metaNames[key].orEmpty() + ownedNames[key].orEmpty()
                 }
                 val named = CombatClearLogic.withNames(fetched, namesByGame)
-                val grouped = CombatClearLogic.grouped(named)
+                val grouped = CombatClearLogic.grouped(
+                    mergeByGame(_combatClears.value, named, loadedGames) { it.game },
+                )
                 _combatClears.value = grouped
                 lastCombatClearAt = currentTimeMillis()
                 runCatching { repo.saveCombatClears(grouped) }
@@ -1146,16 +1231,22 @@ class SpendingViewModel : ViewModel() {
         _newsArticleFailed.value = false
         if (item.id.isBlank()) { _newsArticleFailed.value = true; return }
         _newsArticleLoading.value = true
-        viewModelScope.launch {
+        // 앞 글 요청을 끊는다 — 안 그러면 늦게 온 A 글 본문이 B 글 제목 아래에 앉는다.
+        newsArticleJob?.cancel()
+        newsArticleJob = viewModelScope.launch {
             val article = NewsApi.article(item)
+            if (newsArticleItemId != item.id) return@launch   // 취소가 닿기 전에 끝난 경우까지 막는다
             _newsArticle.value = article
             _newsArticleFailed.value = article == null
             _newsArticleLoading.value = false
         }
     }
 
+    private var newsArticleJob: Job? = null
+
     /** 공지 상세 이탈 — 다음 진입 때 이전 글이 비치지 않도록 정리. */
     fun clearNewsArticle() {
+        newsArticleJob?.cancel()
         newsArticleItemId = null
         _newsArticle.value = null
         _newsArticleLoading.value = false
@@ -1545,6 +1636,7 @@ class SpendingViewModel : ViewModel() {
             try {
                 val cfg = _hoyolabConfig.value
                 val r = withContext(Dispatchers.IO) { EnkaApi.fetchProfile(game, uid, cfg.ltuid, cfg.ltoken) }
+                if (enkaUidFor(game) != uid) return@launch   // 그 사이 계정이 바뀌었다 — 옛 로스터를 싣지 않는다
                 when {
                     r.profile != null -> {
                         enkaCache[key] = currentTimeMillis() to r; repo.saveEnkaCache(enkaCache); publishEnka(game, r)
@@ -1619,6 +1711,7 @@ class SpendingViewModel : ViewModel() {
                     try {
                     val cfg = _hoyolabConfig.value
                     val r = withContext(Dispatchers.IO) { EnkaApi.fetchProfile(game, uid, cfg.ltuid, cfg.ltoken) }
+                    if (enkaUidFor(game) != uid) return@async   // 그 사이 계정이 바뀌었다 — 옛 로스터를 싣지 않는다
                     if (r.profile != null) {
                         enkaCache[key] = currentTimeMillis() to r
                         _enkaResults.update { it + (game to r) }   // 갱신분 반영
@@ -1863,6 +1956,10 @@ class SpendingViewModel : ViewModel() {
     private val _scheduleReady = MutableStateFlow(false)
     val scheduleReady: StateFlow<Boolean> = _scheduleReady.asStateFlow()
     private val _newsReady = MutableStateFlow(false)
+
+    /** 공지를 한 게임도 못 받았다 — 화면은 '소식 없음'이 아니라 실패 + 다시 시도를 보여야 한다. */
+    private val _newsFailed = MutableStateFlow(false)
+    val newsFailed: StateFlow<Boolean> = _newsFailed.asStateFlow()
     val newsReady: StateFlow<Boolean> = _newsReady.asStateFlow()
     /** 마지막 게임정보 성공 로드 시각 — freshness 캐시(재진입 시 불필요한 재요청 생략). */
     private var lastGameInfoLoadAt = 0L
@@ -1879,7 +1976,12 @@ class SpendingViewModel : ViewModel() {
      * 진행 중이던 게임 정보 새로고침의 중복 차단이 풀렸다. 그러면 18건짜리 요청 세트가 겹쳐 나간다.
      * [_isRefreshing] 은 UI 스피너 표시용으로 그대로 두고, 중복 차단만 이 플래그가 맡는다.
      */
-    private var _gameInfoRefreshing = false
+    private val _gameInfoRefreshing: Boolean get() = gameInfoJob?.isActive == true
+
+    /** 진행 중인 게임 정보 새로고침. 계정을 바꿀 때 끊는다 — 옛 계정 토큰으로 받은 노트가 새 계정에 실리면 안 된다. */
+    private var gameInfoJob: Job? = null
+    /** 새로고침 회차. 끊긴 회차의 finally 가 새 회차의 스피너·게이트를 건드리지 않게 가른다. */
+    private var gameInfoGen = 0
 
     /** 지출 탭 당겨서 새로고침 진행 여부 — 연타로 pull/push 가 겹치지 않게. */
     private var _spendingRefreshing = false
@@ -1947,6 +2049,15 @@ class SpendingViewModel : ViewModel() {
      * 않으면 화면의 `attendanceMap` 이 낡은 채로 남는다.
      */
     private fun observeAttendance() {
+        // 앱을 켜 둔 채 베이징 자정(출석 초기화)을 넘기면 '오늘 출석'이 어제 값으로 남았다 —
+        // 복귀 갱신([onAppForeground])은 백그라운드를 거쳐야만 돈다. 자정마다 저장소에서 다시 읽는다.
+        viewModelScope.launch {
+            while (true) {
+                val now = currentTimeMillis()
+                delay(((now + HOYO_TZ_SHIFT_MS) / DAY_MS + 1) * DAY_MS - HOYO_TZ_SHIFT_MS - now + 1_000)
+                reloadAttendance()
+            }
+        }
         viewModelScope.launch {
             AttendanceBus.changed.collect {
                 reloadAttendance()
@@ -2104,6 +2215,9 @@ class SpendingViewModel : ViewModel() {
         )
     }
 
+    /** 진행 중인 체크인 — 계정을 바꾸면 끊는다(옛 계정 결과가 새 계정 출석으로 찍히지 않게). */
+    private var checkInJob: Job? = null
+
     /** 현재 출석 처리 중인 게임 키 (버튼 진행 표시용). null 이면 진행 중 아님. */
     private val _checkingIn = MutableStateFlow<String?>(null)
     val checkingIn: StateFlow<String?> = _checkingIn.asStateFlow()
@@ -2134,8 +2248,8 @@ class SpendingViewModel : ViewModel() {
     fun refreshGameInfo(force: Boolean = false, silent: Boolean = false) {
         if (_gameInfoRefreshing) return // 동시 새로고침 차단
         if (!force && _gameInfoReady.value && currentTimeMillis() - lastGameInfoLoadAt < gameInfoFreshMs) return
-        viewModelScope.launch {
-            _gameInfoRefreshing = true
+        val gen = ++gameInfoGen
+        gameInfoJob = viewModelScope.launch {
             // silent(백그라운드 복귀 자동 갱신)는 인디케이터를 켜지 않는다.
             // `_isRefreshing` 은 홈·지출·게임정보 세 탭의 당겨서-새로고침 표시와 새로고침 버튼
             // 비활성, 배너 스켈레톤을 한꺼번에 움직인다. 전체 갱신은 HoYoLAB 왕복까지 포함해
@@ -2149,6 +2263,7 @@ class SpendingViewModel : ViewModel() {
                 // 때마다 오프라인 얼럿이 뜨면 방해만 된다.
                 if (!NetworkMonitor.isOnline()) {
                     if (!silent) emitNetworkAlert()
+                    if (_gameNews.value.isEmpty()) _newsFailed.value = true
                     return@launch
                 }
                 // ennead(공개 API·인증 불필요) 가 한 게임이라도 실패하면 신선도 캐시를 짧게 잡아 곧 재시도한다.
@@ -2296,6 +2411,7 @@ class SpendingViewModel : ViewModel() {
                         newsLoaded += game.displayName
                         news += list
                     }
+                    _newsFailed.value = newsLoaded.isEmpty()
                     if (newsLoaded.isNotEmpty()) {
                         _gameNews.value = mergeByGame(_gameNews.value, news, newsLoaded) { it.game }
                             .sortedByDescending { it.createdAtMillis }
@@ -2337,15 +2453,17 @@ class SpendingViewModel : ViewModel() {
                 lastGameInfoLoadAt = currentTimeMillis() -
                     if (partial || noteRetry) gameInfoFreshMs - gameInfoRetryMs else 0L
             } finally {
-                _gameInfoRefreshing = false
-                if (!silent) _isRefreshing.value = false
-                // 예외·오프라인으로 중간에 빠져나가도 스켈레톤이 영구 고착되지 않게 게이트를 모두 연다.
-                _gameInfoReady.value = true
-                _scheduleReady.value = true
-                _newsReady.value = true
-                // 예약 알림은 여기서 **한 번만** 갱신한다. 예전엔 배너·노트·전투 각 단계에서 따로 불러
-                // 새로고침 1회에 3번 돌았고, 매번 prefs 4키를 읽고 대기 알림을 최대 48건 교체했다.
-                rescheduleTimedAlerts()
+                // 계정 전환으로 끊긴 회차면 뒤를 새 회차에 맡긴다(아래를 돌면 새 회차의 스피너를 끈다).
+                if (gen == gameInfoGen) {
+                    if (!silent) _isRefreshing.value = false
+                    // 예외·오프라인으로 중간에 빠져나가도 스켈레톤이 영구 고착되지 않게 게이트를 모두 연다.
+                    _gameInfoReady.value = true
+                    _scheduleReady.value = true
+                    _newsReady.value = true
+                    // 예약 알림은 여기서 **한 번만** 갱신한다. 예전엔 배너·노트·전투 각 단계에서 따로 불러
+                    // 새로고침 1회에 3번 돌았고, 매번 prefs 4키를 읽고 대기 알림을 최대 48건 교체했다.
+                    rescheduleTimedAlerts()
+                }
             }
         }
     }
@@ -2402,14 +2520,19 @@ class SpendingViewModel : ViewModel() {
 
     /** 출석체크 시도. HoYoLAB 연동 시 실제 API 호출, 미연동 시 로컬 수동 토글. */
     fun attemptCheckIn(gameKey: String) {
+        // 한 번에 한 건만 — 다른 게임이 진행 중이어도 막는다. 예전엔 가드가 없어 연타가 체크인을
+        // 두 번 쐈고, 먼저 끝난 쪽 finally 가 `_checkingIn` 을 풀어 [checkInAll] 가드까지 풀렸다.
+        if (_checkingIn.value != null) return
         val cfg = _hoyolabConfig.value
         if (!cfg.isLinked) {
+            // 출석 버튼은 '하기'만 한다 — toggle 로 두면 두 번 탭이 방금 한 출석을 취소했다.
+            if (gameKey in currentAttendance()[todayKey()].orEmpty()) return
             toggleAttendance(gameKey)
             emitStatus("수동 출석 처리 (HoYoLAB 미연동)")
             return
         }
-        viewModelScope.launch {
-            _checkingIn.value = gameKey
+        _checkingIn.value = gameKey   // launch 전에 세운다 — 같은 프레임의 두 번째 탭도 위 가드에 걸리게
+        checkInJob = viewModelScope.launch {
             try {
                 val r = HoyolabApi.checkIn(cfg.ltuid, cfg.ltoken, gameKey)
                 if (r.success) markCheckedIn(gameKey)
@@ -2422,8 +2545,10 @@ class SpendingViewModel : ViewModel() {
 
     /** 전체 출석 한번에 — 오늘 미출석 게임을 순차로 체크인(연동 시 실제 API, 미연동 시 로컬 토글). */
     fun checkInAll() {
-        val done = attendanceToday.value
-        val pending = GameData.attendanceGames.filter { it.key !in done }
+        if (_checkingIn.value != null) return // 이미 진행 중
+        // 메모리 값이 아니라 저장소에서 — 자정을 넘겼거나 자동 출석이 방금 저장했을 수 있다.
+        val done = currentAttendance()[todayKey()].orEmpty()
+        val pending = trackedAttendanceGames.value.filter { it.key !in done }
         if (pending.isEmpty()) {
             emitStatus("오늘 출석을 모두 완료했어요")
             return
@@ -2434,8 +2559,8 @@ class SpendingViewModel : ViewModel() {
             emitStatus("수동 출석 ${pending.size}건 처리 (HoYoLAB 미연동)")
             return
         }
-        if (_checkingIn.value != null) return // 이미 진행 중
-        viewModelScope.launch {
+        _checkingIn.value = pending.first().key
+        checkInJob = viewModelScope.launch {
             var ok = 0
             try {
                 for (g in pending) {
@@ -2561,7 +2686,8 @@ class SpendingViewModel : ViewModel() {
 
     /** HoYoLAB 선물코드 교환(단건). 결과는 [redeemState] 로 노출. */
     fun redeemGiftCode(gameKey: String, code: String) {
-        viewModelScope.launch {
+        if (redeemJob?.isActive == true) return
+        redeemJob = viewModelScope.launch {
             _redeemState.value = RedeemState.Loading
             val r = doRedeem(gameKey, code.trim().uppercase())
             _redeemState.value = RedeemState.Done(r.success, r.message)
@@ -2578,8 +2704,9 @@ class SpendingViewModel : ViewModel() {
      */
     fun redeemAllCodes(gameKey: String) {
         val targets = _activeCodes.value.map { it.code }.filter { it !in _redeemedCodes.value }
+        if (redeemJob?.isActive == true) return
         if (targets.isEmpty()) { _redeemState.value = RedeemState.Done(true, "교환할 새 코드가 없어요"); return }
-        viewModelScope.launch {
+        redeemJob = viewModelScope.launch {
             var ok = 0; var fail = 0; var lastFailMsg = ""
             var sameFailStreak = 0
             var lastFailRetcode: Int? = null
@@ -2610,17 +2737,16 @@ class SpendingViewModel : ViewModel() {
         }
     }
 
-    fun resetRedeem() { _redeemState.value = RedeemState.Idle }
+    /**
+     * 진행 중인 교환 — 한 번에 하나만. 화면을 나갔다 들어오면 [resetRedeem] 이 상태를 Idle 로 되돌려
+     * 버튼이 다시 살아났고, 5.5초 대기 중이던 루프 옆에 두 번째 루프가 붙었다.
+     */
+    private var redeemJob: Job? = null
 
-    private fun markCheckedIn(gameKey: String) {
-        val today = todayKey()
-        val current = (attendanceMap[today] ?: emptySet()) + gameKey
-        attendanceMap = attendanceMap.toMutableMap().apply { put(today, current) }
-        repo.saveAttendance(attendanceMap)
-        _attendanceHistory.value = attendanceMap
-        _attendanceToday.value = current
-        _attendanceStreak.value = computeAttendanceStreak()
-    }
+    /** 화면 이탈 시 결과 표시를 걷는다. 교환이 도는 중이면 그대로 둔다 — 돌아왔을 때 진행 중으로 보여야 한다. */
+    fun resetRedeem() { if (redeemJob?.isActive != true) _redeemState.value = RedeemState.Idle }
+
+    private fun markCheckedIn(gameKey: String) = editTodayAttendance { it + gameKey }
 
     // ── 파생 StateFlow(이번 달) ────────────────────────────────────────────────
     //
@@ -2990,6 +3116,9 @@ const val ERROR_TOAST_COOLDOWN_MS = 180_000L
 
         /** 엔드 콘텐츠 클리어 편성 신선도(ms). 시즌 단위로 바뀌는 데이터라 넉넉히 잡는다. */
         const val COMBAT_CLEAR_FRESH_MS = 30L * 60 * 1000
+        const val DAY_MS = 86_400_000L
+        /** 출석 초기화 기준(베이징 UTC+8) — DST 가 없어 고정 오프셋으로 충분하다. */
+        const val HOYO_TZ_SHIFT_MS = 8L * 60 * 60 * 1000
         /** 월별 지출 추이 차트가 보여주는 개월 수. */
         const val RECENT_MONTHS = 6
     }

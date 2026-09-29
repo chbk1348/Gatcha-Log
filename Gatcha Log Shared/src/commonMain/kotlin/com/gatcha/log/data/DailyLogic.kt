@@ -65,9 +65,10 @@ object DailyLogic {
         notes: List<LiveNote>,
         attendanceToday: Set<String>,
         nowMillis: Long = currentTimeMillis(),
+        games: List<Game> = GameData.attendanceGames,
     ): List<DailyTask> {
         val out = mutableListOf<DailyTask>()
-        for (game in GameData.attendanceGames) {
+        for (game in games) {
             val note = notes.firstOrNull { GameData.byNameOrNull(it.game)?.key == game.key }
 
             // ① 행동력 — 유일하게 시각이 정확한 항목
@@ -209,7 +210,8 @@ object DailyLogic {
         notes: List<LiveNote>,
         attendanceToday: Set<String>,
         tasks: List<DailyTask>,
-    ): List<DailyGameSummary> = GameData.attendanceGames.map { game ->
+        games: List<Game> = GameData.attendanceGames,
+    ): List<DailyGameSummary> = games.map { game ->
         val note = notes.firstOrNull { GameData.byNameOrNull(it.game)?.key == game.key }
         val mine = tasks.filter { it.gameKey == game.key }
         DailyGameSummary(

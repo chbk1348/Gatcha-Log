@@ -19,6 +19,13 @@ data class HoyolabConfig(
     val webCookie: String = "",
 ) {
     val isLinked: Boolean get() = ltuid.isNotBlank() && ltoken.isNotBlank()
+
+    /** 붙여 넣은 값의 앞뒤 공백·줄바꿈을 걷는다 — 줄바꿈이 섞인 토큰은 인증에서 조용히 실패한다. */
+    fun trimmed(): HoyolabConfig = copy(
+        ltuid = ltuid.trim(), ltoken = ltoken.trim(),
+        genshinUid = genshinUid.trim(), hsrUid = hsrUid.trim(), zzzUid = zzzUid.trim(),
+        cookieToken = cookieToken.trim(), webCookie = webCookie.trim(),
+    )
 }
 
 /** 사용자 프로필 (로컬 저장) */

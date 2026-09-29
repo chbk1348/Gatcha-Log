@@ -69,4 +69,20 @@ class AttendanceLogicTest {
         assertEquals(0, s.pending)
         assertEquals(12, s.streak)
     }
+
+    @Test
+    fun `안 하는 게임은 분모에서 빠진다`() {
+        val cfg = HoyolabConfig(ltuid = "1", ltoken = "t", genshinUid = "800000001")
+        val games = GameData.trackedAttendanceGames(cfg)
+        assertEquals(listOf("genshin"), games.map { it.key })
+        val s = AttendanceLogic.summary(emptyMap(), setOf("genshin"), streak = 0, todayKey = today, games = games)
+        assertTrue(s.allDone)
+        assertEquals(1, s.todayTotal)
+    }
+
+    @Test
+    fun `미연동이거나 UID 를 모르면 전부 센다`() {
+        assertEquals(keys, GameData.trackedAttendanceGames(HoyolabConfig()).map { it.key })
+        assertEquals(keys, GameData.trackedAttendanceGames(HoyolabConfig(ltuid = "1", ltoken = "t")).map { it.key })
+    }
 }

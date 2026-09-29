@@ -897,8 +897,10 @@ object HoyolabApi {
      *
      * ZZZ 는 [getCombat] 과 마찬가지로 제외 — 엔드포인트가 다르고 challenge 헤더가 따로 필요하다.
      */
-    suspend fun getCombatClears(ltuid: String, ltoken: String, gameKey: String, uid: String): List<CombatClear> {
+    /** null = 요청이 하나도 성공하지 못함(네트워크·인증). 빈 목록은 '정말 기록이 없다'. */
+    suspend fun getCombatClears(ltuid: String, ltoken: String, gameKey: String, uid: String): List<CombatClear>? {
         if (ltuid.isBlank() || ltoken.isBlank() || uid.isBlank()) return emptyList()
+        var anyOk = false
         val server = inferServer(gameKey, uid)
         val cookie = "ltuid_v2=$ltuid; ltoken_v2=$ltoken; ltuid=$ltuid; ltoken=$ltoken;"
         suspend fun fetch(base: String, query: String): JSONObject? {
@@ -911,7 +913,7 @@ object HoyolabApi {
             val res = Net.get("$base?$query", headers)
             return runCatching {
                 JSONObject(res.body).takeIf { it.optInt("retcode", -1) == 0 }?.optJSONObject("data")
-            }.getOrNull()
+            }.getOrNull()?.also { anyOk = true }
         }
         val game = gameFor(gameKey).displayName
         // 시즌 2개(이번·지난)를 순차로 받는다. 병렬로 붙이면 HoYoLAB 이 레이트리밋을 걸어 통째로 비는 편이다.
@@ -950,8 +952,8 @@ object HoyolabApi {
                     }
                 }
             }
-            else -> emptyList()
-        }.filter { it.rooms.isNotEmpty() }
+            else -> emptyList<CombatClear>()
+        }.filter { it.rooms.isNotEmpty() }.takeIf { anyOk }
     }
 
     /** 나선 비경: floors[] → levels[] → battles[](1=상반, 2=하반). */
@@ -1048,12 +1050,14 @@ object HoyolabApi {
     private fun avatars(arr: JSONArray?): List<CombatAvatar> = buildList {
         for (i in 0 until (arr?.length() ?: 0)) {
             val a = arr?.optJSONObject(i) ?: continue
-            val id = a.optInt("id")
+            // 환상극(role_combat)은 필드명이 다르다 — `avatar_id` · `image`. `id` 만 보면
+            // 0 으로 읽혀 그 막의 파티원이 통째로 빠졌다.
+            val id = a.optInt("id").takeIf { it != 0 } ?: a.optInt("avatar_id")
             if (id == 0) continue
             add(
                 CombatAvatar(
                     id = id,
-                    iconUrl = a.optString("icon"),
+                    iconUrl = a.optString("icon").ifBlank { a.optString("image") },
                     level = a.optInt("level"),
                     rarity = a.optInt("rarity"),
                 ),
