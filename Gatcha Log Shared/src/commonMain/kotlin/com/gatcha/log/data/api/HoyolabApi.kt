@@ -72,6 +72,12 @@ object HoyolabApi {
 
     private const val DS_SALT = "okr4obncj8bw5a65hbnn5oo6ixjc3l9w"
 
+    /** 혼돈의 기억 스타라이즈 모드 층 이름에 들어가는 말 — 이 층은 만점 1별이다. */
+    private const val STARRISE = "스타라이즈"
+
+    /** 혼돈의 기억 시즌 만점 — 일반 층 9별 + 스타라이즈 1별(스타라이즈 도입 이후). */
+    private const val MOC_MAX_STARS = 10
+
     // 공통 헤더 값 — 호출별로 흩어져 있던 매직 문자열을 단일 출처로 모은다.
     private const val APP_VERSION = "2.55.0"
     private const val LANG = "ko-kr"
@@ -917,7 +923,7 @@ object HoyolabApi {
                 }
             }
             "hsr" -> buildList {
-                fetch("https://bbs-api-os.hoyolab.com/game_record/app/hkrpg/api/challenge", "role_id=$uid&schedule_type=1&server=$server")?.let { add(hsrMode(game, "혼돈의 기억", it, 36)) }
+                fetch("https://bbs-api-os.hoyolab.com/game_record/app/hkrpg/api/challenge", "role_id=$uid&schedule_type=1&server=$server")?.let { add(hsrMode(game, "혼돈의 기억", it, MOC_MAX_STARS)) }
                 fetch("https://bbs-api-os.hoyolab.com/game_record/app/hkrpg/api/challenge_story", "need_all=true&role_id=$uid&schedule_type=1&server=$server")?.let { add(hsrMode(game, "허구 이야기", it, 12)) }
                 fetch("https://bbs-api-os.hoyolab.com/game_record/app/hkrpg/api/challenge_boss", "need_all=true&role_id=$uid&schedule_type=1&server=$server")?.let { add(hsrMode(game, "종말의 환영", it, 12)) }
             }
@@ -1054,8 +1060,12 @@ object HoyolabApi {
     /**
      * 스타레일 3종 공통: all_floor_detail[] → node_1 / node_2.
      *
-     * [starMax] 는 층당 만점. 혼돈의 기억만 3별 고정이고, 허구 이야기·종말의 환영은 점수 기반이라
+     * [starMax] 는 층당 만점. 혼돈의 기억은 3별이고, 허구 이야기·종말의 환영은 점수 기반이라
      * 층마다 별 수가 다르다(0 을 넘기면 화면이 "★4/3" 같은 엉터리 분모 대신 "★4" 로 그린다).
+     *
+     * 혼돈의 기억은 스타라이즈 모드가 들어오며 **일반 층 9별 + 스타라이즈 1별 = 10별**이 됐다. 스타라이즈 층은
+     * 만점 1, 그 층이 있는 시즌은 총합 만점 10 으로 둔다(예전엔 층당 3 · 시즌 36 고정이라 "★1/3", "35/36" 이 됐다).
+     * 스타라이즈가 없는 옛 시즌(지난 시즌 기록)은 층 만점의 합으로 센다.
      */
     private fun hsrClear(game: String, mode: String, d: JSONObject, current: Boolean, starMax: Int): CombatClear {
         val floors = d.optJSONArray("all_floor_detail")
@@ -1065,7 +1075,7 @@ object HoyolabApi {
             val room = CombatRoom(
                 name = f.optString("name").ifBlank { "${i + 1}층" },
                 stars = f.optInt("star_num"),
-                maxStars = starMax,
+                maxStars = if (starMax > 0 && f.optString("name").contains(STARRISE)) 1 else starMax,
                 firstHalf = avatars(f.optJSONObject("node_1")?.optJSONArray("avatars")),
                 secondHalf = avatars(f.optJSONObject("node_2")?.optJSONArray("avatars")),
             )
@@ -1081,7 +1091,10 @@ object HoyolabApi {
         } else {
             groups.firstOrNull { it.optString("status") != "Running" } ?: groups.lastOrNull()
         }
-        return CombatClear(game, mode, group?.optString("name_mi18n").orEmpty(), current, rooms)
+        return CombatClear(
+            game, mode, group?.optString("name_mi18n").orEmpty(), current, rooms,
+            maxTotal = if (rooms.any { it.name.contains(STARRISE) }) MOC_MAX_STARS else 0,
+        )
     }
 
     /** 전투 응답의 avatars 배열 → 모델. 원신·스타레일이 같은 필드명을 쓴다(id·icon·level·rarity). */

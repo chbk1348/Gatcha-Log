@@ -50,6 +50,11 @@ data class CombatClear(
     /** 이번 시즌인가(false = 지난 시즌). */
     val current: Boolean = true,
     val rooms: List<CombatRoom> = emptyList(),
+    /**
+     * 시즌 총합 만점 — 층 목록만으로는 알 수 없을 때(안 깬 층은 목록에 없다) API 쪽이 아는 값을 싣는다.
+     * 0 이면 모름 → [CombatClearLogic.summary] 가 층 만점을 더해 쓴다.
+     */
+    val maxTotal: Int = 0,
 ) {
     val gameColor: Long get() = GameData.colorFor(game)
 
@@ -165,7 +170,8 @@ object CombatClearLogic {
      */
     fun summary(clear: CombatClear): ClearSummary {
         val rooms = clear.rooms.filterNot { it.isEmpty }
-        val max = if (rooms.isNotEmpty() && rooms.all { it.maxStars > 0 }) rooms.sumOf { it.maxStars } else 0
+        val max = clear.maxTotal.takeIf { it > 0 }
+            ?: if (rooms.isNotEmpty() && rooms.all { it.maxStars > 0 }) rooms.sumOf { it.maxStars } else 0
         return ClearSummary(stars = rooms.sumOf { it.stars }, maxStars = max, rooms = rooms.size)
     }
 
