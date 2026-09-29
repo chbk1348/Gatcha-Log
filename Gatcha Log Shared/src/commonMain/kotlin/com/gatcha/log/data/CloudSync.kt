@@ -1,5 +1,6 @@
 package com.gatcha.log.data
 
+import kotlinx.coroutines.CancellationException
 import com.gatcha.log.util.currentTimeMillis
 import dev.gitlive.firebase.Firebase
 import dev.gitlive.firebase.auth.GoogleAuthProvider
@@ -102,6 +103,7 @@ object CloudSync {
         if (!snap.exists) PullOutcome.Loaded(null)
         else PullOutcome.Loaded(snap.get<String?>(FIELD_DATA))
     }.getOrElse {
+        if (it is CancellationException) throw it   // 취소는 실패가 아니다 — 오류 토스트를 띄우지 않는다
         println("GatchaCloudSync: pullOutcome 실패 — ${it::class.simpleName}: ${it.message}")
         ErrorBus.report(ErrorBus.Kind.SERVER, "클라우드", "불러오기 실패")
         PullOutcome.Failed
@@ -115,7 +117,11 @@ object CloudSync {
         Firebase.firestore.collection(COLLECTION).document(uid)
             .set(SnapshotDoc(data = json, updatedAt = currentTimeMillis()))
         true
-    }.getOrDefault(false)
+    }.getOrElse {
+        // 취소(디바운스 재예약 · 타임아웃)를 실패로 돌려주면 호출부가 "백업에 실패했어요" 모달을 세웠다.
+        if (it is CancellationException) throw it
+        false
+    }
 }
 
 /**

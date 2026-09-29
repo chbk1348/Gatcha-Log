@@ -312,4 +312,63 @@ class GatchaRepositorySnapshotTest {
         r.saveAttendance(mapOf("2026-09-03" to setOf("hsr")))
         assertEquals("{broken", store.getString("attendance_corrupt", null))
     }
+
+    private fun sp(id: String, updatedAt: Long = 0) = Spending(id = id, gameName = "원신", amount = 1_000, dateMillis = 1_754_000_000_000, updatedAt = updatedAt)
+
+    @Test
+    fun `tombstone 상한을 넘으면 오래된 삭제부터 버린다`() {
+        val (r, _) = repo()
+        r.addDeletedSpendingIds((1..1999).map { "old$it" }.toSet())
+        r.addDeletedSpendingIds(setOf("old1"))          // 다시 지운 것은 최신으로 간다
+        r.addDeletedSpendingIds(setOf("new1", "new2"))
+        val tomb = r.loadDeletedSpendingIds()
+        assertEquals(2000, tomb.size)
+        assertTrue("new1" in tomb && "new2" in tomb && "old1" in tomb)
+        assertFalse("old2" in tomb)
+    }
+
+    @Test
+    fun `전체 삭제 시각 이전 기록은 다른 기기에서 와도 되살아나지 않는다`() {
+        val (local, _) = repo()
+        val (remote, _) = repo()
+        remote.saveSpendings(listOf(sp("before", updatedAt = 1_000), sp("legacy"), sp("after", updatedAt = 5_000)))
+        local.markSpendingsCleared(2_000)
+        local.importSnapshotJson(remote.exportSnapshotJson())
+        assertEquals(listOf("after"), local.loadSpendings().map { it.id })
+        // 시각은 스냅샷에 실려 다른 기기로도 간다
+        val (third, _) = repo()
+        third.saveSpendings(listOf(sp("before", updatedAt = 1_000)))
+        third.importSnapshotJson(local.exportSnapshotJson())
+        assertEquals(listOf("after"), third.loadSpendings().map { it.id })
+    }
+
+    @Test
+    fun `전체 삭제한 적이 없으면 updatedAt 없는 옛 기록도 유지된다`() {
+        val (local, _) = repo()
+        val (remote, _) = repo()
+        remote.saveSpendings(listOf(sp("legacy")))
+        local.importSnapshotJson(remote.exportSnapshotJson())
+        assertEquals(listOf("legacy"), local.loadSpendings().map { it.id })
+    }
+
+    @Test
+    fun `백업 복원은 삭제 기록보다 앞선다`() {
+        val (r, _) = repo()
+        val (backupSrc, _) = repo()
+        backupSrc.saveSpendings(listOf(sp("a", updatedAt = 1_000), sp("b", updatedAt = 1_000)))
+        val backup = backupSrc.exportSnapshotJson()
+        r.addDeletedSpendingIds(setOf("a"))
+        r.markSpendingsCleared(3_000)
+        r.importBackupJson(backup)
+        assertEquals(setOf("a", "b"), r.loadSpendings().map { it.id }.toSet())
+        assertFalse("a" in r.loadDeletedSpendingIds())
+    }
+
+    @Test
+    fun `스냅샷 한 키의 타입이 어긋나도 나머지는 받는다`() {
+        val (r, _) = repo()
+        r.importSnapshotJson("""{"budget":"oops","budget_games":[1],"spendings":[{"id":"x","gameName":"원신","amount":500,"dateMillis":1}]}""")
+        assertEquals(listOf("x"), r.loadSpendings().map { it.id })
+        assertEquals(0L, r.loadBudget())
+    }
 }

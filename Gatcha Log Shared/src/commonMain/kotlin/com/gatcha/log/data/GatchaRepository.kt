@@ -79,11 +79,12 @@ class GatchaRepository(
         }
     }
 
-    fun saveSpendings(list: List<Spending>) {
+    /** [notify]=false 면 동기화 예약을 호출부가 직접 한다(백그라운드 스레드에서 저장할 때 — VM persistSpendings). */
+    fun saveSpendings(list: List<Spending>, notify: Boolean = true) {
         val arr = JSONArray()
         list.forEach { arr.put(it.toJson()) }
         prefs.putString(KEY_SPENDINGS, arr.toString())
-        changed()
+        if (notify) changed()
     }
 
     private fun Spending.toJson(): JSONObject = JSONObject().apply {
@@ -423,8 +424,52 @@ class GatchaRepository(
     /** tombstone 합집합 추가(단조). changed() 는 호출부(saveSpendings)가 트리거하므로 여기선 생략. */
     fun addDeletedSpendingIds(ids: Set<String>) {
         if (ids.isEmpty()) return
-        val merged = (loadDeletedSpendingIds() + ids).toList().let { if (it.size > 2000) it.takeLast(2000) else it }
+        // 새로 지운 id 를 **뒤로** 보낸다. 예전엔 이미 있던 id 가 제자리에 남고 상한 초과분을 앞에서 잘라,
+        // 방금 지운 것이 오래된 것보다 먼저 버려질 수 있었다(버려지면 다른 기기에서 부활한다).
+        val merged = ((loadDeletedSpendingIds() - ids) + ids).toList().takeLast(DELETED_SPENDINGS_MAX)
         prefs.putString(KEY_DELETED_SPENDINGS, JSONArray(merged).toString())
+    }
+
+    /** 백업 복원처럼 **의도적으로 되살릴 때만** — 복원한 지출이 tombstone 에 걸려 걸러지지 않게. */
+    fun removeDeletedSpendingIds(ids: Set<String>) {
+        val cur = loadDeletedSpendingIds()
+        if (ids.none { it in cur }) return
+        prefs.putString(KEY_DELETED_SPENDINGS, JSONArray((cur - ids).toList()).toString())
+    }
+
+    /**
+     * 전체 삭제 시각. 이 시각까지 수정된(updatedAt ≤) 지출은 어느 기기 · 스냅샷에서 와도 버린다.
+     *
+     * 예전엔 전체 삭제도 id 마다 tombstone 을 남겼는데, 상한(2000)을 넘는 만큼은 잘려서 다른 기기에서
+     * 되살아났다. 시각 하나면 건수와 무관하고 문서 크기도 늘지 않는다.
+     */
+    fun loadSpendingsClearedAt(): Long = prefs.getLong(KEY_SPENDINGS_CLEARED_AT, 0L)
+
+    fun markSpendingsCleared(at: Long) {
+        prefs.putLong(KEY_SPENDINGS_CLEARED_AT, maxOf(loadSpendingsClearedAt(), at))
+    }
+
+    /**
+     * 백업 파일 복원 — 파일 속 지출을 **지금 수정한 것**으로 되살린다.
+     *
+     * 그냥 스냅샷처럼 병합하면 실수로 지운 뒤 복원할 때 tombstone · 전체 삭제 시각에 모두 걸려
+     * "복원했어요" 만 뜨고 0건이었다. 사용자가 고른 파일이 정본이므로 삭제 기록보다 앞선다.
+     */
+    fun importBackupJson(json: String) {
+        val o = runCatching { JSONObject(json) }.getOrNull() ?: return
+        o.optJSONArray(KEY_SPENDINGS)?.let { arr ->
+            val now = currentTimeMillis()
+            val ids = mutableSetOf<String>()
+            val restamped = JSONArray()
+            for (i in 0 until arr.length()) {
+                val s = arr.optJSONObject(i) ?: continue
+                s.optString("id").ifBlank { null }?.let { ids += it }
+                restamped.put(s.put("updatedAt", now))
+            }
+            removeDeletedSpendingIds(ids)
+            o.put(KEY_SPENDINGS, restamped)
+        }
+        importSnapshotJson(o.toString(), keepUnpushedAttendance = false)
     }
 
     // ---------------------------------------------------------------- 읽은 홈 알림 넛징 키 — 로컬 전용(기기별 UI 상태)
@@ -899,6 +944,7 @@ class GatchaRepository(
         val o = JSONObject()
         prefs.getString(KEY_SPENDINGS, null)?.let { o.put(KEY_SPENDINGS, JSONArray(it)) }
         prefs.getString(KEY_DELETED_SPENDINGS, null)?.let { o.put(KEY_DELETED_SPENDINGS, JSONArray(it)) }
+        loadSpendingsClearedAt().takeIf { it > 0 }?.let { o.put(KEY_SPENDINGS_CLEARED_AT, it) }
         o.put(KEY_BUDGET, loadBudget())
         prefs.getString(KEY_BUDGET_GAMES, null)?.let { o.put(KEY_BUDGET_GAMES, JSONObject(it)) }
         prefs.getString(KEY_PROFILE_NAME, null)?.let { o.put(KEY_PROFILE_NAME, it) }
@@ -939,14 +985,18 @@ class GatchaRepository(
         val o = runCatching { JSONObject(json) }.getOrNull() ?: return
         // 지출: id 기준 합집합 병합 + 삭제 tombstone 적용 — 구/스테일 스냅샷이 최신 로컬 지출을 덮어 삭제하지
         // 못하게 한다. 실제 삭제는 tombstone(deleted_spendings)으로만 전파. (이번 유실 사고 재발 방지)
-        run {
-            val incomingTomb: Set<String> = if (o.has(KEY_DELETED_SPENDINGS)) {
-                val t = o.getJSONArray(KEY_DELETED_SPENDINGS)
-                (0 until t.length()).map { t.getString(it) }.toSet()
-            } else emptySet()
+        // 키마다 따로 감싼다 — 스냅샷 한 칸의 타입이 어긋나면(`getLong` 에 실수 등) 예외가 호출부까지 올라가
+        // 켤 때마다 동기화에서 죽었다. 깨진 키만 건너뛰고 나머지는 받는다.
+        fun step(block: () -> Unit) { runCatching(block).onFailure { println("GatchaRepository: 스냅샷 키 건너뜀 — ${it.message}") } }
+        step {
+            val incomingTomb: Set<String> = o.optJSONArray(KEY_DELETED_SPENDINGS)?.let { t ->
+                (0 until t.length()).mapNotNull { t.optString(it).ifBlank { null } }.toSet()
+            }.orEmpty()
             if (incomingTomb.isNotEmpty()) addDeletedSpendingIds(incomingTomb) // tombstone 합집합 영속(삭제 전파)
+            markSpendingsCleared(o.optLong(KEY_SPENDINGS_CLEARED_AT, 0L))
             val tomb = loadDeletedSpendingIds()
-            if (o.has(KEY_SPENDINGS) || tomb.isNotEmpty()) {
+            val clearedAt = loadSpendingsClearedAt()
+            if (o.has(KEY_SPENDINGS) || tomb.isNotEmpty() || clearedAt > 0) {
                 val byId = LinkedHashMap<String, JSONObject>()
                 // 깨진 로컬 · 원격 기록은 건너뛴다 — 예전엔 예외 하나에 병합이 중간에서 멈춰 이후 키가 전부 빠졌다.
                 prefs.getString(KEY_SPENDINGS, null)?.let { localRaw ->
@@ -968,20 +1018,24 @@ class GatchaRepository(
                     }
                 }
                 val result = JSONArray()
-                byId.forEach { (id, obj) -> if (id !in tomb) result.put(obj) }
+                byId.forEach { (id, obj) ->
+                    // clearedAt == 0 이면 전체 삭제를 한 적이 없다 — updatedAt 이 없는(0) 옛 기록까지 버리면 안 된다.
+                    // ponytail: 기기 시계 비교라 시계가 한참 느린 기기에서 삭제 직후 추가한 건은 같이 버려질 수 있다 — 서버 시각을 쓰려면 문서 구조 변경이 필요하다.
+                    if (id !in tomb && (clearedAt == 0L || obj.optLong("updatedAt", 0L) > clearedAt)) result.put(obj)
+                }
                 prefs.putString(KEY_SPENDINGS, result.toString())
             }
         }
-        if (o.has(KEY_BUDGET)) prefs.putLong(KEY_BUDGET, o.getLong(KEY_BUDGET))
-        if (o.has(KEY_BUDGET_GAMES)) prefs.putString(KEY_BUDGET_GAMES, o.getJSONObject(KEY_BUDGET_GAMES).toString())
-        if (o.has(KEY_PROFILE_NAME)) prefs.putString(KEY_PROFILE_NAME, o.getString(KEY_PROFILE_NAME))
-        if (o.has(KEY_PROFILE_EMAIL)) prefs.putString(KEY_PROFILE_EMAIL, o.getString(KEY_PROFILE_EMAIL))
+        step { if (o.has(KEY_BUDGET)) prefs.putLong(KEY_BUDGET, o.getLong(KEY_BUDGET)) }
+        step { if (o.has(KEY_BUDGET_GAMES)) prefs.putString(KEY_BUDGET_GAMES, o.getJSONObject(KEY_BUDGET_GAMES).toString()) }
+        step { if (o.has(KEY_PROFILE_NAME)) prefs.putString(KEY_PROFILE_NAME, o.getString(KEY_PROFILE_NAME)) }
+        step { if (o.has(KEY_PROFILE_EMAIL)) prefs.putString(KEY_PROFILE_EMAIL, o.getString(KEY_PROFILE_EMAIL)) }
         // 토큰 키는 스냅샷에서 의도적으로 제외 — 구버전 클라우드/백업에 토큰이 남아 있어도 가져오지 않는다.
-        if (o.has(KEY_HOYO_GI)) prefs.putString(KEY_HOYO_GI, o.getString(KEY_HOYO_GI))
-        if (o.has(KEY_HOYO_HSR)) prefs.putString(KEY_HOYO_HSR, o.getString(KEY_HOYO_HSR))
-        if (o.has(KEY_HOYO_ZZZ)) prefs.putString(KEY_HOYO_ZZZ, o.getString(KEY_HOYO_ZZZ))
+        step { if (o.has(KEY_HOYO_GI)) prefs.putString(KEY_HOYO_GI, o.getString(KEY_HOYO_GI)) }
+        step { if (o.has(KEY_HOYO_HSR)) prefs.putString(KEY_HOYO_HSR, o.getString(KEY_HOYO_HSR)) }
+        step { if (o.has(KEY_HOYO_ZZZ)) prefs.putString(KEY_HOYO_ZZZ, o.getString(KEY_HOYO_ZZZ)) }
         hoyolabCache = null   // 스냅샷이 UID 를 덮어썼을 수 있다 — 다음 읽기에서 다시 만든다
-        if (o.has(KEY_ACCENT)) {
+        if (o.has(KEY_ACCENT)) step {
             prefs.putInt(KEY_ACCENT, o.getInt(KEY_ACCENT))
             // 스냅샷이 어느 팔레트 기준인지도 함께 옮긴다.
             //  · 새 스냅샷: 기준이 실려 있다 → 변환하지 않는다(이미 변환된 값이다).
@@ -990,8 +1044,8 @@ class GatchaRepository(
             // 두 기기가 서로의 스냅샷을 계속 '변경'으로 보고 끝없이 밀어 올리는 원인이기도 하다.
             prefs.putInt(KEY_ACCENT_VER, o.optInt(KEY_ACCENT_VER, 0))
         }
-        if (o.has(KEY_ENKA_GI)) prefs.putString(KEY_ENKA_GI, o.getString(KEY_ENKA_GI))
-        if (o.has(KEY_ENKA_HSR)) prefs.putString(KEY_ENKA_HSR, o.getString(KEY_ENKA_HSR))
+        step { if (o.has(KEY_ENKA_GI)) prefs.putString(KEY_ENKA_GI, o.getString(KEY_ENKA_GI)) }
+        step { if (o.has(KEY_ENKA_HSR)) prefs.putString(KEY_ENKA_HSR, o.getString(KEY_ENKA_HSR)) }
         // 출석은 **아직 못 올린 로컬 기록이 있으면 받지 않는다.**
         //
         // 자동 출석은 백그라운드에서 돌면서 저장소에만 쓴다 — 그때는 화면도 푸시도 없다. 다음에 앱을
@@ -1002,23 +1056,23 @@ class GatchaRepository(
         // 합집합으로 병합하지 않는 이유: 출석은 화면에서 **해제**할 수 있다(`toggleAttendance`).
         // 합치면 방금 푼 체크가 옛 스냅샷에서 되살아난다.
         val skipAttendance = keepUnpushedAttendance && prefs.getBoolean(KEY_ATTENDANCE_DIRTY, false)
-        if (o.has(KEY_ATTENDANCE) && !skipAttendance) {
+        if (o.has(KEY_ATTENDANCE) && !skipAttendance) step {
             prefs.putString(KEY_ATTENDANCE, o.getJSONObject(KEY_ATTENDANCE).toString())
         }
-        if (o.has(KEY_PITY)) prefs.putString(KEY_PITY, o.getJSONObject(KEY_PITY).toString())
-        if (o.has(KEY_EVENT_CHECKS)) prefs.putString(KEY_EVENT_CHECKS, o.getJSONArray(KEY_EVENT_CHECKS).toString())
-        if (o.has(KEY_GACHA)) prefs.putString(KEY_GACHA, o.getJSONArray(KEY_GACHA).toString())
-        if (o.has(KEY_HOME_CARDS)) prefs.putString(KEY_HOME_CARDS, o.getJSONArray(KEY_HOME_CARDS).toString())
+        step { if (o.has(KEY_PITY)) prefs.putString(KEY_PITY, o.getJSONObject(KEY_PITY).toString()) }
+        step { if (o.has(KEY_EVENT_CHECKS)) prefs.putString(KEY_EVENT_CHECKS, o.getJSONArray(KEY_EVENT_CHECKS).toString()) }
+        step { if (o.has(KEY_GACHA)) prefs.putString(KEY_GACHA, o.getJSONArray(KEY_GACHA).toString()) }
+        step { if (o.has(KEY_HOME_CARDS)) prefs.putString(KEY_HOME_CARDS, o.getJSONArray(KEY_HOME_CARDS).toString()) }
         // 교환한 코드는 **합집합 병합**(덮어쓰기 금지) — 오래된/빈 스냅샷이 로컬 '받음'을 되돌리지 않도록(받음은 단조 증가).
-        if (o.has(KEY_REDEEMED)) {
+        if (o.has(KEY_REDEEMED)) step {
             val arr = o.getJSONArray(KEY_REDEEMED)
             val incoming = (0 until arr.length()).map { arr.getString(it) }
             val merged = loadRedeemedCodes() + incoming
             prefs.putString(KEY_REDEEMED, JSONArray(merged.toList()).toString())
         }
         // 최고 스트릭·배지는 **단조 증가**로 병합(스냅샷이 로컬 기록을 되돌리지 않도록).
-        if (o.has(KEY_BEST_NOSPEND)) prefs.putInt(KEY_BEST_NOSPEND, maxOf(loadBestNoSpend(), o.getInt(KEY_BEST_NOSPEND)))
-        if (o.has(KEY_BADGES)) {
+        step { if (o.has(KEY_BEST_NOSPEND)) prefs.putInt(KEY_BEST_NOSPEND, maxOf(loadBestNoSpend(), o.getInt(KEY_BEST_NOSPEND))) }
+        if (o.has(KEY_BADGES)) step {
             val arr = o.getJSONArray(KEY_BADGES)
             val incoming = (0 until arr.length()).map { arr.getString(it) }
             prefs.putString(KEY_BADGES, JSONArray((loadEarnedBadges() + incoming).toList()).toString())
@@ -1035,6 +1089,8 @@ class GatchaRepository(
         const val KEY_SPENDINGS = "spendings"
         /** 지출 배열이 통째로 깨졌을 때 원본을 남겨 두는 자리(복구용). 스냅샷 · 동기화 대상이 아니다. */
         const val KEY_SPENDINGS_CORRUPT = "spendings_corrupt_backup"
+        const val KEY_SPENDINGS_CLEARED_AT = "spendings_cleared_at"
+        const val DELETED_SPENDINGS_MAX = 2000
         const val KEY_DELETED_SPENDINGS = "deleted_spendings" // 삭제된 지출 id tombstone(합집합 병합 방어 — 삭제 전파용)
         const val KEY_BUDGET = "budget"
         const val KEY_BUDGET_GAMES = "budget_games"
