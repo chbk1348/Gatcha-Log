@@ -78,7 +78,8 @@ class GatchaRepositorySnapshotTest {
         val (a, _) = repo()
         val (b, _) = repo()
         a.seed()
-        b.seed()
+        // 따로 저장하면 키별 수정 시각(sync_meta)이 달라 스냅샷도 달라지는 게 맞다 — 같은 상태를 옮겨 싣고 비교한다.
+        b.importSnapshotJson(a.exportSnapshotJson())
 
         assertEquals(a.exportSnapshotJson(), b.exportSnapshotJson(), "같은 데이터인데 인스턴스가 다르면 결과가 다르다")
     }

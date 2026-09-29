@@ -1933,6 +1933,7 @@ class SpendingViewModel : ViewModel() {
 
     fun clearGachaRecords() {
         gachaRecords = emptyList()
+        repo.markGachaCleared(currentTimeMillis())   // 병합이 합집합이라, 시각 없이 비우면 다른 기기 기록이 되살아난다
         repo.saveGachaRecords(emptyList())
         _gachaStats.value = null
         _gachaDashboard.value = null
@@ -3003,9 +3004,24 @@ class SpendingViewModel : ViewModel() {
                 emitStatus("클라우드 백업 용량이 한계에 근접했어요 (${docBytes / 1024}KB / ${CLOUD_DOC_LIMIT_BYTES / 1024}KB) — 오래된 뽑기 기록 정리를 권장해요")
             }
         } else docSizeWarned = false
-        val ok = CloudSync.push(uid, json)
-        if (ok) {
-            lastPushedSnapshot = json
+        // 원격을 읽고 합쳐서 쓴다(트랜잭션) — 다른 기기가 방금 올린 변경을 덮지 않는다.
+        val target = repo
+        val merged = withContext(Dispatchers.IO) {
+            CloudSync.pushMerged(uid) { remote -> target.mergeForPush(json, remote) }
+        }
+        val ok = merged != null
+        if (merged != null) {
+            if (merged != json) {
+                // 원격에 이 기기가 모르던 변경이 있었다 — 합친 결과를 로컬에도 싣는다. 저장 큐가 끝난 뒤,
+                // 여전히 같은 계정일 때만(병합 결과가 이 기기의 최신 수정을 되돌리지는 않는다 — 수정 시각 비교).
+                withContext(Dispatchers.Main) {
+                    persistJob?.join()
+                    if (repo === target) { repo.importSnapshotJson(merged); loadAll() }
+                }
+            }
+            // 원격과 같다고 확신할 수 있을 때만 중복 생략 기준으로 삼는다. 합쳐졌으면 다음 push 가 한 번 더
+            // 읽어 보고(대개 쓰기 없이) 끝난다.
+            lastPushedSnapshot = if (merged == json) json else null
             pushFailureNotified = false
             // 올라갔으니 다음 pull 은 출석을 그대로 받아도 된다 — 단 푸시 도중 자동 출석이 새로
             // 쓰지 않았을 때만(→ [GatchaRepository.clearAttendanceDirtyIfUnchanged]).

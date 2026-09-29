@@ -39,6 +39,11 @@ object CloudSync {
     private data class SnapshotDoc(
         val data: String,
         val updatedAt: Long,
+        /**
+         * 쓸 때마다 1씩 오르는 판 번호([pushMerged]). 지금은 기록만 한다 — 옛 버전이 set 하면 필드째 사라져
+         * 0 부터 다시 센다. 옛 버전을 강제 업데이트로 걷어낸 뒤 보안 규칙에서 역행을 막는 데 쓴다.
+         */
+        val rev: Long = 0,
     )
 
     /**
@@ -110,17 +115,30 @@ object CloudSync {
     }
 
     /**
-     * uid 문서에 스냅샷 JSON(평문) 저장. 실패 시 false 반환(set 미적용 → 기존 문서 보존, 손상 없음).
-     * 1MB 초과 등으로 실패해도 클라우드 데이터를 비우지 않는다.
+     * **원격을 읽고 합친 결과를** 트랜잭션으로 쓴다. 성공하면 원격에 실제로 남은 스냅샷(=병합 결과)을,
+     * 실패하면 null 을 돌려준다.
+     *
+     * 예전 push 는 원격을 보지 않고 이 기기 스냅샷으로 문서를 통째로 덮어써서, 다른 기기가 방금 올린
+     * 예산 · 가챠가 사라졌다. 트랜잭션은 읽은 뒤 누가 먼저 쓰면 [merge] 를 다시 돌린다(최대 5회) —
+     * 그래서 [merge] 는 부작용이 없어야 한다. 오프라인이면 실패한다(오프라인 큐에 옛 set 이 쌓였다가
+     * 나중에 반영되는 일도 함께 사라진다).
+     *
+     * 병합 결과가 원격과 같으면 쓰지 않는다(읽기 1회로 끝).
      */
-    suspend fun push(uid: String, json: String): Boolean = runCatching {
-        Firebase.firestore.collection(COLLECTION).document(uid)
-            .set(SnapshotDoc(data = json, updatedAt = currentTimeMillis()))
-        true
+    suspend fun pushMerged(uid: String, merge: (remote: String?) -> String): String? = runCatching {
+        val ref = Firebase.firestore.collection(COLLECTION).document(uid)
+        Firebase.firestore.runTransaction {
+            val snap = get(ref)
+            val remote = if (snap.exists) snap.get<String?>(FIELD_DATA) else null
+            val rev = if (snap.exists) runCatching { snap.get<Long?>("rev") }.getOrNull() ?: 0L else 0L
+            val merged = merge(remote)
+            if (merged != remote) set(ref, SnapshotDoc(data = merged, updatedAt = currentTimeMillis(), rev = rev + 1))
+            merged
+        }
     }.getOrElse {
-        // 취소(디바운스 재예약 · 타임아웃)를 실패로 돌려주면 호출부가 "백업에 실패했어요" 모달을 세웠다.
         if (it is CancellationException) throw it
-        false
+        println("GatchaCloudSync: pushMerged 실패 — ${it::class.simpleName}: ${it.message}")
+        null
     }
 }
 
