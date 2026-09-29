@@ -107,4 +107,14 @@ class CombatClearLogicTest {
         val score = CombatClear("붕괴: 스타레일", "허구 이야기", rooms = listOf(room("4층", 3, 0), room("3층", 2, 0)))
         assertEquals(ClearSummary(5, 0, 2), CombatClearLogic.summary(score))
     }
+
+    @Test
+    fun `혼돈의 기억 — 시즌 만점을 알면 그 값을 쓴다(일반 9 + 스타라이즈 1)`() {
+        val moc = CombatClear(
+            "붕괴: 스타레일", "혼돈의 기억",
+            rooms = listOf(room("12층", 3, 3), room("12스타라이즈 모드", 1, 1)),
+            maxTotal = 10,
+        )
+        assertEquals(ClearSummary(4, 10, 2), CombatClearLogic.summary(moc))
+    }
 }
