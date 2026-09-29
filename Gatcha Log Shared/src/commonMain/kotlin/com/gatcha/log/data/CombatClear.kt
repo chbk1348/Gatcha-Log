@@ -158,4 +158,43 @@ object CombatClearLogic {
      *  쓰는 형식을 그대로 따른 것이다 — [HoyolabApi.abyssClear] 주석 참고.)
      */
     fun roomLabel(name: String, season: String): String = name
+
+    /**
+     * 카드 상단 요약 — 별 총합과 만점. 만점을 모르는 모드(허구 이야기 · 종말의 환영은 점수 기반)가
+     * 한 층이라도 섞이면 [ClearSummary.maxStars] 는 0 이고, 화면은 분모 없이 "★ 12" 로 그린다.
+     */
+    fun summary(clear: CombatClear): ClearSummary {
+        val rooms = clear.rooms.filterNot { it.isEmpty }
+        val max = if (rooms.isNotEmpty() && rooms.all { it.maxStars > 0 }) rooms.sumOf { it.maxStars } else 0
+        return ClearSummary(stars = rooms.sumOf { it.stars }, maxStars = max, rooms = rooms.size)
+    }
+
+    /**
+     * 화면에 그릴 층 순서 — **가장 높은 층이 맨 위**(맨 위 층을 펼쳐 둔다).
+     *
+     * API 마다 순서가 반대다(나선 비경은 9층부터, 혼돈의 기억은 12층부터 온다). 층 이름의 숫자를 비교해
+     * 오름차순으로 왔으면 뒤집는다. 이름에서 숫자를 못 읽는 층이 있으면 API 순서를 그대로 둔다 —
+     * 표기를 우리가 재구성하지 않는 것과 같은 이유다([roomLabel]).
+     */
+    fun displayRooms(clear: CombatClear): List<CombatRoom> {
+        val rooms = clear.rooms.filterNot { it.isEmpty }
+        if (rooms.size < 2) return rooms
+        val keys = rooms.map { floorKey(it.name) }
+        if (keys.any { it.isEmpty() }) return rooms
+        return if (compareKeys(keys.first(), keys.last()) < 0) rooms.reversed() else rooms
+    }
+
+    /** 게임 필터 칩에 올릴 게임(표시명) — 카드 순서 그대로, 중복 없이. */
+    fun games(modes: List<CombatModeClears>): List<String> = modes.map { it.game }.distinct()
+
+    private fun floorKey(name: String): List<Int> =
+        Regex("\\d+").findAll(name).mapNotNull { it.value.toIntOrNull() }.toList()
+
+    private fun compareKeys(a: List<Int>, b: List<Int>): Int {
+        for (i in 0 until minOf(a.size, b.size)) if (a[i] != b[i]) return a[i].compareTo(b[i])
+        return a.size.compareTo(b.size)
+    }
 }
+
+/** 모드 카드 상단 요약. [maxStars] 가 0 이면 만점을 모른다(점수 기반 모드). */
+data class ClearSummary(val stars: Int, val maxStars: Int, val rooms: Int)

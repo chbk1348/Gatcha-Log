@@ -82,4 +82,29 @@ class CombatClearLogicTest {
         val input = listOf(clear(Game.HSR, 1409))
         assertTrue(CombatClearLogic.withNames(input, emptyMap()) === input)
     }
+
+    private fun room(name: String, stars: Int = 3, max: Int = 3) =
+        CombatRoom(name = name, stars = stars, maxStars = max, firstHalf = listOf(CombatAvatar(1)))
+
+    @Test
+    fun `층은 높은 층이 맨 위 — 오름차순으로 오면 뒤집는다`() {
+        val abyss = CombatClear("원신", "나선 비경", rooms = listOf(room("11-3"), room("12-1"), room("12-3")))
+        assertEquals(listOf("12-3", "12-1", "11-3"), CombatClearLogic.displayRooms(abyss).map { it.name })
+        val moc = CombatClear("붕괴: 스타레일", "혼돈의 기억", rooms = listOf(room("12층"), room("11층")))
+        assertEquals(listOf("12층", "11층"), CombatClearLogic.displayRooms(moc).map { it.name })
+    }
+
+    @Test
+    fun `숫자를 못 읽는 층이 있으면 API 순서 그대로`() {
+        val c = CombatClear("붕괴: 스타레일", "허구 이야기", rooms = listOf(room("시작"), room("2층")))
+        assertEquals(listOf("시작", "2층"), CombatClearLogic.displayRooms(c).map { it.name })
+    }
+
+    @Test
+    fun `요약 — 만점을 모르는 층이 섞이면 분모 없음`() {
+        val full = CombatClear("원신", "나선 비경", rooms = listOf(room("12-1", 3), room("12-2", 2)))
+        assertEquals(ClearSummary(5, 6, 2), CombatClearLogic.summary(full))
+        val score = CombatClear("붕괴: 스타레일", "허구 이야기", rooms = listOf(room("4층", 3, 0), room("3층", 2, 0)))
+        assertEquals(ClearSummary(5, 0, 2), CombatClearLogic.summary(score))
+    }
 }
