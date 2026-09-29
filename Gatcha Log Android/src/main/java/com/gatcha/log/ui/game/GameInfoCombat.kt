@@ -87,6 +87,8 @@ private fun CombatRow(m: CombatMode) {
             Spacer(Modifier.width(8.dp))
             Column(horizontalAlignment = Alignment.End) {
                 when {
+                    // 시유 방어전 — 별 대신 평가(S+/S/A). 진행 막대는 점수/만점으로 아래에서 그대로 그린다.
+                    m.badge.isNotBlank() -> Text(m.badge, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = m.gameColor.toColor())
                     m.maxStars > 0 -> StarCount(
                         label = "${m.stars}/${m.maxStars}",
                         color = m.gameColor.toColor(),

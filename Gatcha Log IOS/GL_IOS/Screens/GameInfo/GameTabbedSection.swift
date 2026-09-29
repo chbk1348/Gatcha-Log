@@ -80,7 +80,10 @@ private struct CombatCard: View {
                 }
                 Spacer(minLength: 8)
                 VStack(alignment: .trailing, spacing: 2) {
-                    if m.maxStars > 0 {
+                    if !m.badge.isEmpty {
+                        // 평가 모드(시유 방어전) — 별 대신 등급. 막대는 점수/만점으로 아래에서 그대로 그린다.
+                        Text(m.badge).font(.pretendard(size: 15, weight: .bold)).foregroundStyle(Color(argb64: m.gameColor))
+                    } else if m.maxStars > 0 {
                         StarCount(label: "\(m.stars)/\(m.maxStars)",
                                   description: "별 \(m.stars) / \(m.maxStars)",
                                   size: 13)
