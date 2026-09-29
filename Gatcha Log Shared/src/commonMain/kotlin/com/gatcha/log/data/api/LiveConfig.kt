@@ -35,9 +35,13 @@ internal object LiveConfig {
      */
     suspend fun get(doc: String): String? {
         if (!firebaseAppExists()) return null
-        return runCatching {
-            val snap = Firebase.firestore.collection(COLLECTION).document(doc).get()
-            if (snap.exists) snap.get<String?>(FIELD_DATA) else null
-        }.getOrNull()?.takeIf { it.isNotBlank() }
+        // 상한을 둔다 — 오프라인이면 Firestore 가 캐시 확인 뒤 한참 매달려, 정본(GitHub raw)으로 내려가는
+        // 것까지 그만큼 늦었다. 라이브 문서는 없으면 정본을 쓰면 되는 보조 경로다.
+        return kotlinx.coroutines.withTimeoutOrNull(4_000) {
+            runCatching {
+                val snap = Firebase.firestore.collection(COLLECTION).document(doc).get()
+                if (snap.exists) snap.get<String?>(FIELD_DATA) else null
+            }.getOrNull()
+        }?.takeIf { it.isNotBlank() }
     }
 }
