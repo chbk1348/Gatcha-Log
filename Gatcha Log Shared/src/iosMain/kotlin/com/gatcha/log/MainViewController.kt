@@ -20,7 +20,10 @@ import kotlinx.coroutines.launch
 
 /** 모든 화면이 공유하는 앱 상태 (앱 수명과 동일) */
 object IosAppState {
-    val viewModel: SpendingViewModel by lazy { SpendingViewModel() }
+    val viewModel: SpendingViewModel by lazy {
+        com.gatcha.log.storage.purgeKeychainIfFreshInstall()
+        SpendingViewModel()
+    }
 
     /**
      * 초기 동기화 로딩 화면 완료 여부 (프로세스 수명 동안 유지).
@@ -42,13 +45,11 @@ fun setSelectedTab(tab: Int) {
 }
 
 /** 초기 동기화 게이트 활성 여부 — Swift 가 탭바·추가 버튼 숨김 초기값으로 사용 */
-// 로컬 데이터가 이미 있으면(재실행) 로딩 게이트를 건너뛰고 즉시 앱을 보여준다 — 동기화는 백그라운드.
-// 첫 로그인·재설치(로컬 없음)에서만 게이트가 활성.
+// 이 기기에서 이 계정을 이미 한 번 동기화했으면 게이트 없이 즉시 앱을 보여준다 — 동기화는 백그라운드.
+// 첫 로그인·재설치에서만 게이트가 활성(SpendingViewModel.needsSyncGate).
 @Suppress("unused")
 fun isSyncGateActive(): Boolean =
-    !IosAppState.viewModel.account.value.isGuest &&
-        !IosAppState.syncLoadingDone.value &&
-        !IosAppState.viewModel.hasLocalData
+    !IosAppState.syncLoadingDone.value && IosAppState.viewModel.needsSyncGate
 
 // observeSyncGate 콜백·컬렉터 시작 가드 — SwiftUI 의 onAppear 는 루트 뷰가 다시 나타날 때마다
 // 호출되므로, 가드 없이 매번 collect 를 시작하면 무한 코루틴이 누적된다 (observeAccentColor 와 동일 패턴).
@@ -58,6 +59,7 @@ private var syncGateCollectorStarted = false
 /** SwiftUI AccountLoadingView 게이트 완료 시 호출 — 초기 동기화 로딩 완료 표시. */
 @Suppress("unused")
 fun markSyncLoadingDone() {
+    IosAppState.viewModel.markAccountSynced()
     IosAppState.syncLoadingDone.value = true
 }
 
@@ -74,8 +76,8 @@ fun observeSyncGate(onChange: (Boolean) -> Unit) {
     if (!syncGateCollectorStarted) {
         syncGateCollectorStarted = true
         CoroutineScope(Dispatchers.Main).launch {
-            combine(IosAppState.viewModel.account, IosAppState.syncLoadingDone) { account, done ->
-                !account.isGuest && !done && !IosAppState.viewModel.hasLocalData
+            combine(IosAppState.viewModel.account, IosAppState.syncLoadingDone) { _, done ->
+                !done && IosAppState.viewModel.needsSyncGate
             }.collect { syncGateObserver?.invoke(it) }
         }
     }

@@ -8,6 +8,7 @@ import kotlinx.cinterop.value
 import platform.CoreFoundation.CFDictionaryAddValue
 import platform.CoreFoundation.CFDictionaryCreateMutable
 import platform.CoreFoundation.CFRelease
+import platform.CoreFoundation.CFRetain
 import platform.CoreFoundation.CFTypeRefVar
 import platform.CoreFoundation.kCFBooleanTrue
 import platform.CoreFoundation.kCFTypeDictionaryKeyCallBacks
@@ -30,6 +31,9 @@ import platform.Security.kSecAttrAccount
 import platform.Security.kSecAttrService
 import platform.Security.kSecClass
 import platform.Security.kSecClassGenericPassword
+import platform.Security.kSecMatchLimit
+import platform.Security.kSecMatchLimitAll
+import platform.Security.kSecReturnAttributes
 import platform.Security.kSecReturnData
 import platform.Security.kSecValueData
 
@@ -90,6 +94,8 @@ actual class SecureKeyValueStore actual constructor(private val name: String) {
     actual val isSecure: Boolean get() = error == null
 
     actual val lastError: String? get() = error
+
+    init { purgeKeychainIfFreshInstall() }
 
     actual fun getString(key: String, default: String?): String? = memScoped {
         val query = CFDictionaryCreateMutable(null, 5, kCFTypeDictionaryKeyCallBacks.ptr, kCFTypeDictionaryValueCallBacks.ptr)
@@ -166,4 +172,53 @@ actual class SecureKeyValueStore actual constructor(private val name: String) {
         CFRelease(serviceRef)
         CFRelease(accountRef)
     }
+}
+
+/**
+ * Keychain 은 앱을 지워도 남는다 — 재설치하면 연동하지 않은 HoYoLAB 토큰이 되살아났다(9/29).
+ * 새로 설치한 첫 실행(설정 저장소 파일이 아직 없다)에서 우리 항목(service `gatcha_sec_*`)만 지운다.
+ * 업데이트한 기존 사용자는 설정 파일이 있어 표시만 남기고 건너뛴다. 저장소를 처음 만지기 전에 불려야 해서
+ * [com.gatcha.log.IosAppState.viewModel] 생성 때도 부른다.
+ */
+private var keychainInstallChecked = false
+
+@OptIn(ExperimentalForeignApi::class)
+fun purgeKeychainIfFreshInstall() {
+    if (keychainInstallChecked) return
+    keychainInstallChecked = true
+    val std = NSUserDefaults.standardUserDefaults
+    if (std.boolForKey(KEYCHAIN_OWNED)) return
+    if (std.persistentDomainForName("gatcha_settings") == null) {
+        memScoped {
+            val query = CFDictionaryCreateMutable(null, 3, kCFTypeDictionaryKeyCallBacks.ptr, kCFTypeDictionaryValueCallBacks.ptr)
+            CFDictionaryAddValue(query, kSecClass, kSecClassGenericPassword)
+            CFDictionaryAddValue(query, kSecReturnAttributes, kCFBooleanTrue)
+            CFDictionaryAddValue(query, kSecMatchLimit, kSecMatchLimitAll)
+            val result = alloc<CFTypeRefVar>()
+            val status = SecItemCopyMatching(query, result.ptr)
+            CFRelease(query)
+            if (status == errSecSuccess) {
+                val serviceKey = CFBridgingRelease(CFRetain(kSecAttrService))  // 상수는 빌린 참조 — 하나 올려서 넘긴다
+                (CFBridgingRelease(result.value) as? List<*>).orEmpty()
+                    .mapNotNull { (it as? Map<*, *>)?.get(serviceKey) as? String }
+                    .filter { it.startsWith("gatcha_sec_") }
+                    .toSet()
+                    .forEach { deleteKeychainService(it) }
+            }
+        }
+    }
+    std.setBool(true, KEYCHAIN_OWNED)
+}
+
+private const val KEYCHAIN_OWNED = "glg_keychain_owned"
+
+@OptIn(ExperimentalForeignApi::class)
+private fun deleteKeychainService(service: String) {
+    val query = CFDictionaryCreateMutable(null, 2, kCFTypeDictionaryKeyCallBacks.ptr, kCFTypeDictionaryValueCallBacks.ptr)
+    val serviceRef = CFBridgingRetain(service as NSString)
+    CFDictionaryAddValue(query, kSecClass, kSecClassGenericPassword)
+    CFDictionaryAddValue(query, kSecAttrService, serviceRef)
+    SecItemDelete(query)
+    CFRelease(query)
+    CFRelease(serviceRef)
 }

@@ -26,7 +26,6 @@
 		41B110450192D19FA4D5F232 /* GameTag.swift in Sources */ = {isa = PBXBuildFile; fileRef = 439879BBC52F89415C2831E6 /* GameTag.swift */; };
 		41BA11D397320A28DF713F55 /* StorageTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6BC1EE0970AA53D756A149E4 /* StorageTests.swift */; };
 		4555A80BB2A3E811ABE1E7B6 /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF8DB30C236AF02D78678047 /* OnboardingView.swift */; };
-		4BAE0AF1CFCBD6A920A5E1E6 /* AppMarkLogo.swift in Sources */ = {isa = PBXBuildFile; fileRef = F22E3DACB374BECF7DBF2B1C /* AppMarkLogo.swift */; };
 		5037A67CE3B8E588DCC2F809 /* GLGChip.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEA0ECFE89434FBD76D2E252 /* GLGChip.swift */; };
 		516633AC40C13ACD8FEE9995 /* ImageViewer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2362CDCB428FA687B73D5535 /* ImageViewer.swift */; };
 		53DA02B1AA33DC0B59A484D3 /* Pretendard-Medium.otf in Resources */ = {isa = PBXBuildFile; fileRef = B0AC89C74883ECB4D4534D65 /* Pretendard-Medium.otf */; };
@@ -173,7 +172,6 @@
 		EC551FFC4A65F19F94A1987B /* SettingsDialogs.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsDialogs.swift; sourceTree = "<group>"; };
 		EDA6932189E1AD9D46B8D081 /* Pretendard-Bold.otf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Pretendard-Bold.otf"; sourceTree = "<group>"; };
 		F1B20A3BE3C43A7ADDFEB789 /* MyPageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MyPageView.swift; sourceTree = "<group>"; };
-		F22E3DACB374BECF7DBF2B1C /* AppMarkLogo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppMarkLogo.swift; sourceTree = "<group>"; };
 		F54315F0900C3C41178F8697 /* GL_IOS.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = GL_IOS.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		FAB28B37B0E20AFF6F250226 /* NewsDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NewsDetailView.swift; sourceTree = "<group>"; };
 		FEA0ECFE89434FBD76D2E252 /* GLGChip.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GLGChip.swift; sourceTree = "<group>"; };
@@ -279,7 +277,6 @@
 			isa = PBXGroup;
 			children = (
 				30864BF6E1651C389D2661B1 /* AccountLoadingView.swift */,
-				F22E3DACB374BECF7DBF2B1C /* AppMarkLogo.swift */,
 				AE2C3F8DE0C369D621CCC112 /* LoginView.swift */,
 			);
 			path = Auth;
@@ -569,7 +566,6 @@
 				87BCB4BC1FDA9A8B97CB3D98 /* AddSpendingView.swift in Sources */,
 				1431B09C96CB6ADF4D51B094 /* AnniversarySection.swift in Sources */,
 				98B4EF7E15CE5D1D3F10446D /* AnnualReportView.swift in Sources */,
-				4BAE0AF1CFCBD6A920A5E1E6 /* AppMarkLogo.swift in Sources */,
 				89EC1FB90A1E22C63ECF76C0 /* BrandGauge.swift in Sources */,
 				14AFD15B3420C392511D404A /* CalendarView.swift in Sources */,
 				FDB02BE156F3DD718824DF6B /* CombatClearSection.swift in Sources */,

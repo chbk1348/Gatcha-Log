@@ -1,5 +1,17 @@
 package com.gatcha.log.ui.onboarding
 
+import androidx.compose.material.icons.outlined.History
+import androidx.compose.material.icons.filled.Person
+import com.gatcha.log.data.AppSettings
+import androidx.compose.ui.platform.LocalContext
+import androidx.core.content.ContextCompat
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.compose.rememberLauncherForActivityResult
+import android.os.Build
+import android.content.pm.PackageManager
+import android.Manifest
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.annotation.DrawableRes
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
@@ -115,13 +127,25 @@ private const val WARN_BUDGET = 500_000L
 
 private fun won(n: Long) = "%,d".format(n)
 
+/** 완료 요약 한 줄 — 짧은 이름으로, 넷 이상이면 「앞 셋 외 N」(오른쪽 정렬 값이 여러 줄로 꺾이지 않게, 9/29). */
+private fun shortList(names: List<String>, empty: String = "—"): String = when {
+    names.isEmpty() -> empty
+    names.size <= 3 -> names.joinToString(" · ")
+    else -> names.take(3).joinToString(" · ") + " 외 ${names.size - 3}"
+}
+
 @Composable
-fun OnboardingScreen(viewModel: SpendingViewModel, onFinish: (requestNotification: Boolean) -> Unit) {
+/**
+ * @param loginOnly 온보딩을 마친 뒤 로그아웃 등으로 로그인이 필요할 때 — 옛 로그인 화면(온보딩 1.0) 대신
+ *   ⑥ 복원 화면(「로그인하면 불러와요」 + 구글 로그인 버튼)만 띄운다(9/29).
+ */
+fun OnboardingScreen(viewModel: SpendingViewModel, loginOnly: Boolean = false, onFinish: (requestNotification: Boolean, signIn: Boolean) -> Unit) {
+    val account by viewModel.account.collectAsStateWithLifecycle()
     val hoyo by viewModel.hoyolabConfig.collectAsStateWithLifecycle()
     val dndStart by viewModel.notifyDndStartHour.collectAsStateWithLifecycle()
     val dndEnd by viewModel.notifyDndEndHour.collectAsStateWithLifecycle()
 
-    var step by rememberSaveable { mutableIntStateOf(0) }
+    var step by rememberSaveable { mutableIntStateOf(if (loginOnly) 5 else 0) }
     var forward by rememberSaveable { mutableStateOf(true) }
     // Set 은 번들에 못 넣어 쉼표 문자열로 보관한다.
     var gamesRaw by rememberSaveable { mutableStateOf(viewModel.myGames.value.filter { k -> GameData.onboardingGames.any { it.key == k } }.joinToString(",")) }
@@ -133,11 +157,18 @@ fun OnboardingScreen(viewModel: SpendingViewModel, onFinish: (requestNotificatio
     var pickup by rememberSaveable { mutableStateOf(true) }
     var budgetAlert by rememberSaveable { mutableStateOf(false) }
     var alerts by rememberSaveable { mutableStateOf(true) }
-    var restored by rememberSaveable { mutableStateOf(false) }
+    var restored by rememberSaveable { mutableStateOf(loginOnly) }
     var settled by rememberSaveable { mutableStateOf(false) }   // ② 첫 진입 차례 등장은 한 번만
     var busy by remember { mutableStateOf(false) }
 
     val noHoyo = games.none { it in HOYO_KEYS.split(',') }
+    var applied by rememberSaveable { mutableStateOf(false) }   // 로그인 재시도로 다시 눌러도 설정은 한 번만
+    var finished by remember { mutableStateOf(false) }
+    var loginRequested by remember { mutableStateOf(false) }
+    // 완료 화면에서 띄운 구글 로그인이 끝나면 온보딩을 마친다(로그인 화면을 거치지 않는다).
+    LaunchedEffect(account.isGuest) {
+        if (!account.isGuest && (step == 5 || loginRequested) && !finished) { finished = true; onFinish(false, false) }
+    }
     val scope = rememberCoroutineScope()
 
     /** 페이지 이동 — 전환 중엔 입력 무시. ④는 호요버스 게임이 없으면 건너뛴다. */
@@ -150,10 +181,26 @@ fun OnboardingScreen(viewModel: SpendingViewModel, onFinish: (requestNotificatio
         scope.launch { delay(260); busy = false }
     }
 
+    // ⑤ 「알림 켜고 시작하기」 — OS 알림 권한을 그 자리에서 묻고, 답하면 ⑥ 완료로(9/29). 완료 화면은 구글 로그인만.
+    val context = LocalContext.current
+    val permLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { go(5) }
+    fun askPermissionThenDone() {
+        val needPrompt = Build.VERSION.SDK_INT >= 33 &&
+            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+        if (needPrompt) {
+            AppSettings().notifPermAsked = true   // 실제로 띄울 때만 — '영구 거부' 판별 근거
+            permLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        } else go(5)
+    }
+
     val total = if (noHoyo) 3 else 4
     val shown = if (noHoyo && step == 4) 3 else step
 
-    Column(Modifier.fillMaxSize().background(Color.White).systemBarsPadding().imePadding()) {
+    // 태블릿 · 폴더블 대응: 폭은 폰 크기(480)로 가운데에 모은다.
+    Box(Modifier.fillMaxSize().background(Color.White), contentAlignment = Alignment.TopCenter) {
+    Column(
+        Modifier.widthIn(max = 480.dp).fillMaxSize().systemBarsPadding().imePadding(),
+    ) {
         // 상단: 뒤로 + 진행 막대(②~⑤)
         Box(Modifier.fillMaxWidth().height(64.dp).padding(horizontal = 24.dp)) {
             if (step in 1..4) {
@@ -182,58 +229,78 @@ fun OnboardingScreen(viewModel: SpendingViewModel, onFinish: (requestNotificatio
             modifier = Modifier.weight(1f),
             label = "onboarding",
         ) { s ->
-            Column(Modifier.fillMaxSize().padding(horizontal = 24.dp)) {
+            // 스크롤 없이(9/29) — 버튼 틀은 하단에 상시 고정, 화면이 낮으면(작은 폰 · 가로 · 폴더블) 각 단계가
+            // 이 높이를 보고 촘촘한 배치로 바꿔 한 화면에 넣는다(게임 줄 높이 · HoYoLAB 3열 · 알림 미리보기 생략).
+            BoxWithConstraints(Modifier.fillMaxSize()) {
+            val viewport = maxHeight
+            Box(Modifier.fillMaxSize().padding(horizontal = 24.dp)) {
                 when (s) {
                     0 -> WelcomeStep(
                         onStart = { leave ->
                             if (!busy) { busy = true; scope.launch { leave(); busy = false; settled = false; restored = false; go(1) } }
                         },
-                        onRestore = { restored = true; go(5) },
+                        // 「구글 로그인 하기」 — 설정 단계 없이 바로 구글 로그인(기존 사용자 복원). 성공하면 아래 LaunchedEffect 가 마친다.
+                        onRestore = { loginRequested = true; viewModel.signIn() },
                     )
-                    1 -> GamesStep(games, stagger = !settled, onToggle = { k -> gamesRaw = (if (k in games) games - k else games + k).joinToString(",") }) {
+                    1 -> GamesStep(games, viewport, stagger = !settled, onToggle = { k -> gamesRaw = (if (k in games) games - k else games + k).joinToString(",") }) {
                         settled = true; go(2)
                     }
                     2 -> BudgetStep(budget, custom, onBudget = { v, c -> budget = v; custom = c }, onNext = { go(3) }, onSkip = { budget = -1L; go(3) })
-                    3 -> HoyolabStep(viewModel, hoyo, games, onNext = { go(4) })
+                    3 -> HoyolabStep(viewModel, hoyo, games, viewport, onNext = { go(4) })
                     4 -> NotifyStep(
-                        noHoyo, attend, resin, pickup, budgetAlert, dndStart, dndEnd,
+                        noHoyo, attend, resin, pickup, budgetAlert, dndStart, dndEnd, viewport,
                         onToggle = { k ->
                             when (k) { 0 -> attend = !attend; 1 -> resin = !resin; 2 -> pickup = !pickup; else -> budgetAlert = !budgetAlert }
                         },
-                        onFinish = { a -> alerts = a; restored = false; go(5) },
+                        onFinish = { a -> alerts = a; restored = false; if (a) askPermissionThenDone() else go(5) },
                     )
                     else -> DoneStep(
                         restored = restored,
+                        // 로그인 전이면(첫 사용자 · 복원) 완료 버튼이 곧 구글 로그인 — 로그인 화면을 따로 거치지 않는다(9/29).
+                        signInNext = account.isGuest,
+                        // 로그인 유도 화면(restored) — 로그인하면 좋은 점 세 줄(9/29 목적 변경).
                         summary = if (restored) listOf(
-                            Triple(Icons.Outlined.Person, "로그인", "Google 계정"),
-                            Triple(Icons.Outlined.Cloud, "설정", "클라우드에서 복원"),
+                            Triple(Icons.Outlined.Cloud, "기기를 바꿔도 그대로", "지출 · 예산 · 설정이 구글 계정에 저장돼요"),
+                            Triple(Icons.Outlined.History, "쓰던 계정이면 기록 복원", "로그인만 하면 이전 기록이 돌아와요"),
+                            Triple(Icons.Outlined.Person, "가입 없이 구글 계정 하나로", "따로 만들 계정도, 비밀번호도 없어요"),
                         ) else buildList {
-                            add(Triple(Icons.Outlined.SportsEsports, "게임", GameData.onboardingGames.filter { it.key in games }.joinToString(" · ") { it.displayName }.ifEmpty { "—" }))
+                            add(Triple(Icons.Outlined.SportsEsports, "게임", shortList(GameData.onboardingGames.filter { it.key in games }.map { it.shortName })))
                             add(Triple(Icons.Outlined.AccountBalanceWallet, "월 예산", if (budget > 0) "${won(budget)}원" else "없음"))
                             if (!noHoyo) add(Triple(Icons.Outlined.Link, "HoYoLAB", if (hoyo.isLinked) "연결됨" else "나중에"))
                             val on = buildList {
                                 if (!noHoyo && attend) add("출석"); if (!noHoyo && resin) add("행동력 가득")
                                 if (pickup) add("픽업 마감"); if (budgetAlert) add("예산 초과")
                             }
-                            add(Triple(Icons.Outlined.Notifications, "알림", if (alerts) on.joinToString(" · ").ifEmpty { "모두 끔" } else "받지 않음"))
+                            add(Triple(Icons.Outlined.Notifications, "알림", if (alerts) shortList(on, empty = "모두 끔") else "받지 않음"))
                         },
                     ) {
-                        if (restored) { onFinish(false); return@DoneStep }
-                        // 호요버스 게임이 없으면 숨긴 두 알림은 켜지 않는다(쓸 데가 없다).
-                        viewModel.applyOnboarding(
-                            games = games.toList(),
-                            budget = if (budget > 0) budget else -1L,
-                            alerts = alerts,
-                            attendance = !noHoyo && attend,
-                            resin = !noHoyo && resin,
-                            pickup = pickup,
-                            budgetAlert = budgetAlert,
-                        )
-                        onFinish(alerts)
+                        if (finished) return@DoneStep
+                        // 설정값은 누르는 순간 저장한다(게스트여도 — 예산은 로그인 직후 계정에 적용된다).
+                        if (!restored && !applied) {
+                            applied = true
+                            // 호요버스 게임이 없으면 숨긴 두 알림은 켜지 않는다(쓸 데가 없다).
+                            viewModel.applyOnboarding(
+                                games = games.toList(),
+                                budget = if (budget > 0) budget else -1L,
+                                alerts = alerts,
+                                attendance = !noHoyo && attend,
+                                resin = !noHoyo && resin,
+                                pickup = pickup,
+                                budgetAlert = budgetAlert,
+                            )
+                        }
+                        // 로그인 전이면 온보딩을 **띄운 채로** 구글 로그인만 띄운다 — 먼저 끝내면 뒤에 옛 로그인 화면이
+                        // 깔려 보였다(9/29). 로그인이 끝나면 아래 LaunchedEffect 가 마친다. 취소하면 이 화면에 남는다.
+                        if (account.isGuest) { viewModel.signIn(); return@DoneStep }
+                        finished = true
+                        // 퇴장 연출은 MainActivity 루트 전환이 맡는다 — 여기서 먼저 지우면 빈 화면이 스쳤다(9/29).
+                        onFinish(false, false)   // 알림 권한은 ⑤에서 이미 물었다
                     }
                 }
             }
+            }
         }
+    }
     }
 }
 
@@ -368,14 +435,14 @@ private fun WelcomeStep(onStart: (leave: suspend () -> Unit) -> Unit, onRestore:
             Spacer(Modifier.height(12.dp))
             Text("약 1분 · 게임 고르기 말고는 전부 건너뛸 수 있어요", fontSize = 12.sp, color = Sub, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
         }
-        CtaButton("내 앱으로 맞추기", primary = true, onClick = {
+        CtaButton("시작하기", primary = true, onClick = {
             onStart {
                 // 타일이 차례로 위로 흩어진 뒤 넘어간다(0.32초)
                 leaves.forEachIndexed { i, a -> scope.launch { delay(i * 30L); a.animateTo(1f, tween(300)) } }
                 delay(320)
             }
         })
-        CtaButton("이미 쓰고 있어요 · 불러오기", primary = false, onClick = onRestore)
+        CtaButton("구글 로그인 하기", primary = false, onClick = onRestore)
         Spacer(Modifier.height(16.dp))
     }
 }
@@ -383,12 +450,12 @@ private fun WelcomeStep(onStart: (leave: suspend () -> Unit) -> Unit, onRestore:
 // ── ② 게임 ─────────────────────────────────────────────────────────────────
 
 @Composable
-private fun GamesStep(games: Set<String>, stagger: Boolean, onToggle: (String) -> Unit, onNext: () -> Unit) {
+private fun GamesStep(games: Set<String>, viewport: Dp, stagger: Boolean, onToggle: (String) -> Unit, onNext: () -> Unit) {
     Column(Modifier.fillMaxSize()) {
         Column(if (stagger) Modifier.enterUp(40, 16.dp) else Modifier) {
             Title("어떤 게임을 하세요?", "고른 게임이 지출 입력 맨 위에 오고, 출석도 고른 게임만 챙겨요.")
         }
-        Spacer(Modifier.height(24.dp))
+        Spacer(Modifier.height(if (viewport < 640.dp) 16.dp else 24.dp))
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             GameData.onboardingGames.forEachIndexed { i, g ->
                 val on = g.key in games
@@ -396,7 +463,7 @@ private fun GamesStep(games: Set<String>, stagger: Boolean, onToggle: (String) -
                 Row(
                     (if (stagger) Modifier.enterUp(160 + i * 60, 16.dp) else Modifier)
                         .fillMaxWidth()
-                        .height(58.dp)
+                        .height(if (viewport < 640.dp) 46.dp else 58.dp)
                         .clip(RoundedCornerShape(16.dp))
                         .background(if (on) TealTint else Color.White)
                         .border(if (on) 2.dp else 1.dp, border, RoundedCornerShape(16.dp))
@@ -541,7 +608,8 @@ private fun AmountChip(label: String, on: Boolean, modifier: Modifier, icon: Ima
 // ── ④ HoYoLAB ─────────────────────────────────────────────────────────────
 
 @Composable
-private fun HoyolabStep(viewModel: SpendingViewModel, hoyo: HoyolabConfig, games: Set<String>, onNext: () -> Unit) {
+private fun HoyolabStep(viewModel: SpendingViewModel, hoyo: HoyolabConfig, games: Set<String>, viewport: Dp, onNext: () -> Unit) {
+    val compact = viewport < 750.dp   // 낮은 화면: 히어로 얇게 · 타일 3열 · 설명 생략
     var showLogin by remember { mutableStateOf(false) }
     var working by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
@@ -554,7 +622,7 @@ private fun HoyolabStep(viewModel: SpendingViewModel, hoyo: HoyolabConfig, games
         // 히어로
         Row(
             Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp))
-                .background(Brush.linearGradient(listOf(Ink, Color(0xFF23345C)))).padding(horizontal = 20.dp, vertical = 18.dp),
+                .background(Brush.linearGradient(listOf(Ink, Color(0xFF23345C)))).padding(horizontal = 20.dp, vertical = if (compact) 12.dp else 18.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Column(Modifier.weight(1f)) {
@@ -581,16 +649,16 @@ private fun HoyolabStep(viewModel: SpendingViewModel, hoyo: HoyolabConfig, games
             Triple(Icons.Outlined.ConfirmationNumber, "리딤 코드", "눌러서 바로 교환"),
             Triple(Icons.Outlined.EmojiEvents, "클리어 · 캐릭터", "편성과 육성 현황"),
         )
-        perks.chunked(2).forEach { row ->
+        perks.chunked(if (compact) 3 else 2).forEach { row ->
             Row(Modifier.padding(bottom = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 row.forEach { (ic, t, d) ->
-                    Column(Modifier.weight(1f).clip(RoundedCornerShape(16.dp)).background(Ground).padding(14.dp)) {
+                    Column(Modifier.weight(1f).clip(RoundedCornerShape(16.dp)).background(Ground).padding(if (compact) 10.dp else 14.dp)) {
                         Box(Modifier.size(34.dp).shadow(1.dp, RoundedCornerShape(11.dp)).clip(RoundedCornerShape(11.dp)).background(Color.White), contentAlignment = Alignment.Center) {
                             Icon(ic, null, tint = Teal, modifier = Modifier.size(18.dp))
                         }
-                        Spacer(Modifier.height(10.dp))
-                        Text(t, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Ink)
-                        Text(d, fontSize = 12.sp, color = Sub)
+                        Spacer(Modifier.height(if (compact) 8.dp else 10.dp))
+                        Text(t, fontSize = if (compact) 13.sp else 14.sp, fontWeight = FontWeight.Bold, color = Ink, maxLines = 1)
+                        if (!compact) Text(d, fontSize = 12.sp, color = Sub)
                     }
                 }
             }
@@ -639,7 +707,7 @@ private fun HoyolabStep(viewModel: SpendingViewModel, hoyo: HoyolabConfig, games
 @Composable
 private fun NotifyStep(
     noHoyo: Boolean, attend: Boolean, resin: Boolean, pickup: Boolean, budgetAlert: Boolean,
-    dndStart: Int, dndEnd: Int, onToggle: (Int) -> Unit, onFinish: (Boolean) -> Unit,
+    dndStart: Int, dndEnd: Int, viewport: Dp, onToggle: (Int) -> Unit, onFinish: (Boolean) -> Unit,
 ) {
     data class Row5(val k: Int, val icon: ImageVector, val fg: Color, val bg: Color, val t: String, val d: String, val on: Boolean)
     val rows = buildList {
@@ -653,8 +721,8 @@ private fun NotifyStep(
     Column(Modifier.fillMaxSize()) {
         Title("어떤 알림을 받을까요?", "필요한 것만 켜 두세요. 설정 ▸ 알림에서 언제든 바꿀 수 있어요.")
         Spacer(Modifier.height(20.dp))
-        // 미리보기 알림 — 호요버스 게임이 없으면 예산 알림으로
-        Column(
+        // 미리보기 알림 — 호요버스 게임이 없으면 예산 알림으로. 화면이 낮으면 건너뛴다(스위치가 먼저).
+        if (viewport >= 680.dp) Column(
             Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(Brush.linearGradient(listOf(TealTint, Color(0xFFDCF0EE))))
                 .padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 18.dp),
         ) {
@@ -726,7 +794,7 @@ private fun Toggle(on: Boolean) {
 // ── ⑥ 완료 ─────────────────────────────────────────────────────────────────
 
 @Composable
-private fun DoneStep(restored: Boolean, summary: List<Triple<ImageVector, String, String>>, onDone: () -> Unit) {
+private fun DoneStep(restored: Boolean, signInNext: Boolean, summary: List<Triple<ImageVector, String, String>>, onDone: () -> Unit) {
     val pop = remember { Animatable(0.4f) }
     LaunchedEffect(Unit) { pop.animateTo(1f, tween(420, easing = FastOutSlowInEasing)) }
     Column(Modifier.fillMaxSize()) {
@@ -744,13 +812,17 @@ private fun DoneStep(restored: Boolean, summary: List<Triple<ImageVector, String
                         .shadow(12.dp, CircleShape, ambientColor = Teal.copy(alpha = 0.3f), spotColor = Teal.copy(alpha = 0.3f))
                         .clip(CircleShape).background(Brush.linearGradient(listOf(Color(0xFF1FA0AB), Color(0xFF146E77)))),
                     contentAlignment = Alignment.Center,
-                ) { Icon(Icons.Filled.Check, null, tint = Color.White, modifier = Modifier.size(36.dp)) }
+                ) { Icon(if (restored) Icons.Filled.Person else Icons.Filled.Check, null, tint = Color.White, modifier = Modifier.size(36.dp)) }
             }
             Spacer(Modifier.height(10.dp))
-            Text(if (restored) "로그인하면 불러와요" else "준비 끝!", fontSize = 26.sp, fontWeight = FontWeight.Bold, color = Ink, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+            Text(if (restored) "로그인하고 시작해요" else "준비 끝!", fontSize = 26.sp, fontWeight = FontWeight.Bold, color = Ink, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
             Spacer(Modifier.height(6.dp))
             Text(
-                if (restored) "Google 계정으로 로그인하면 설정과 기록을 모두 가져와요" else "이제 홈에서 내 기록을 볼 수 있어요",
+                when {
+                    restored -> "Gatcha Log 는 기록을 구글 계정에 안전하게 저장해요"
+                    signInNext -> "Google 계정으로 로그인하면 바로 시작해요"
+                    else -> "이제 홈에서 내 기록을 볼 수 있어요"
+                },
                 fontSize = 13.5.sp, color = Sub, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth(),
             )
             Spacer(Modifier.height(22.dp))
@@ -761,17 +833,56 @@ private fun DoneStep(restored: Boolean, summary: List<Triple<ImageVector, String
                             Icon(ic, null, tint = Teal, modifier = Modifier.size(16.dp))
                         }
                         Spacer(Modifier.width(12.dp))
-                        Text(k, fontSize = 13.sp, color = Sub)
-                        Spacer(Modifier.width(12.dp))
-                        Text(v, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Ink, textAlign = TextAlign.End, modifier = Modifier.weight(1f))
+                        if (restored) {
+                            // 좋은 점 — 제목(굵게) + 설명 두 줄
+                            Column(Modifier.weight(1f)) {
+                                Text(k, fontSize = 13.5.sp, fontWeight = FontWeight.Bold, color = Ink)
+                                Text(v, fontSize = 12.sp, color = Sub)
+                            }
+                        } else {
+                            Text(k, fontSize = 13.sp, color = Sub)
+                            Spacer(Modifier.width(12.dp))
+                            Text(v, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Ink, textAlign = TextAlign.End, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                        }
                     }
                     if (i < summary.lastIndex) Box(Modifier.fillMaxWidth().height(1.dp).background(Color(0xFFE6ECEA)))
                 }
             }
             Spacer(Modifier.height(22.dp))
-            Text("설정 ▸ 내 설정에서 언제든 바꿀 수 있어요", fontSize = 12.sp, color = Color(0xFF7A8784), textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+            Text(
+                when {
+                    restored -> "구글 로그인만 써요 · 게스트 모드는 없어요"
+                    signInNext -> "고른 설정은 구글 계정에 저장돼 기기를 바꿔도 그대로예요"
+                    else -> "설정 ▸ 내 설정에서 언제든 바꿀 수 있어요"
+                },
+                fontSize = 12.sp, color = Color(0xFF7A8784), textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth(),
+            )
         }
-        CtaButton(if (restored) "로그인하고 불러오기" else "홈으로 이동하기", primary = true, onClick = onDone)
+        if (signInNext) {
+            // 로그인 전(첫 사용자 · 복원) — 구글 로그인 버튼(9/29). 누르면 로그인 화면을 거치지 않고 바로 구글 계정 선택이 뜬다.
+            Box(Modifier.enterUp(140).padding(horizontal = 8.dp)) {
+                GoogleSignInButton(if (restored) "Google로 로그인하기" else "Google로 로그인하고 시작하기", onClick = onDone)
+            }
+        } else {
+            CtaButton("홈으로 이동하기", primary = true, onClick = onDone)
+        }
         Spacer(Modifier.height(16.dp))
+    }
+}
+
+/**
+ * 구글 로그인 버튼 — 구글 로그인 브랜딩 가이드의 밝은 스타일(흰 바탕 · #747775 테두리 · 4색 G 로고 · #1F1F1F 글자).
+ * 로그인 화면과 온보딩 복원 화면이 같이 쓴다(9/29).
+ */
+@Composable
+internal fun GoogleSignInButton(text: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    Row(
+        modifier.fillMaxWidth().height(50.dp).clip(RoundedCornerShape(16.dp)).background(Color.White)
+            .border(1.dp, Color(0xFF747775), RoundedCornerShape(16.dp)).clickable(onClick = onClick),
+        horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Image(painterResource(R.drawable.ic_google_g), null, Modifier.size(20.dp))
+        Spacer(Modifier.width(10.dp))
+        Text(text, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Color(0xFF1F1F1F))
     }
 }

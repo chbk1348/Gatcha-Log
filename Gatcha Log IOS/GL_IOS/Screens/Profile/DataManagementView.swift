@@ -29,7 +29,7 @@ struct DataManagementView: View {
         ScrollView {
             // 설정 메인과 같은 결(9/29) — 묶음 제목 + 흰 카드 + 색 아이콘 줄. Android DataManagementScreen 파리티.
             VStack(alignment: .leading, spacing: 0) {
-                SetGroupTitle(title: "백업 · 복원", caption: "재설치 · 기기 변경 대비")
+                SetGroupTitle(title: "백업 · 복원", caption: "재설치 · 기기 변경 대비", first: true)
                 SetCard {
                     SetNavRow(symbol: "arrow.up.doc", tint: .teal, title: "백업 파일 내보내기", value: "전체 데이터") { exportBackup = true }
                     SetDivider()

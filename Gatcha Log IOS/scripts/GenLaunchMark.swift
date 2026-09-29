@@ -8,7 +8,7 @@
 // iOS 런치스크린(Info.plist UILaunchScreen)은 앱 코드가 뜨기 전에 시스템이 그리므로 SwiftUI 를 쓸 수 없다.
 // 그래서 앱 아이콘과 같은 게이지 링을 PNG 로 미리 구워둔다. 이미지는 자연 크기로 화면 중앙에 놓인다.
 //
-// 색·비율은 앱 아이콘(ic_launcher_foreground.xml / AppMarkLogo.swift)과 동일하게 맞춘다.
+// 색·비율은 앱 아이콘(ic_launcher_foreground.xml)과 동일하게 맞춘다.
 // 테마 강조색을 따르지 않고 아이콘 고유의 민트를 쓰는 게 맞다 — 런치스크린은 "아이콘이 확대되는" 순간이고,
 // 그 시점엔 사용자의 테마 설정을 읽을 수도 없다.
 //
