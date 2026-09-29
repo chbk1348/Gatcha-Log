@@ -96,7 +96,7 @@ fun saveSpending(
     itemName: String,
     memo: String,
     tags: List<String>,
-) {
+): Boolean {   // false = 검증 실패(안내는 VM 이 띄웠다) — 폼은 닫지 않는다
     val vm = IosAppState.viewModel
     val game = GameData.byName(gameName)
     val target = editingId?.let { id -> vm.spendings.value.firstOrNull { it.id == id } }
@@ -114,7 +114,7 @@ fun saveSpending(
     )
     // 수정인데 대상이 없으면(그사이 삭제 · 동기화) **추가로 넘기지 않는다** — 예전엔 새 기록으로 되살아났다.
     // updateSpending 이 "이미 삭제된 지출이에요" 를 알린다.
-    if (editingId == null) vm.addSpending(s) else vm.updateSpending(s.copy(id = editingId))
+    return if (editingId == null) vm.addSpending(s) else vm.updateSpending(s.copy(id = editingId))
 }
 
 // ── 테마(액센트) 색상 브리지 — 네이티브 탭바 틴트를 앱 테마와 연동 ──────────────
