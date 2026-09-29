@@ -1,8 +1,7 @@
 package com.gatcha.log.ui.game
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -11,13 +10,17 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.HorizontalDivider
@@ -25,28 +28,39 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import com.gatcha.log.data.ClearSummary
 import com.gatcha.log.data.CombatAvatar
 import com.gatcha.log.data.CombatClear
 import com.gatcha.log.data.CombatClearLogic
 import com.gatcha.log.data.CombatModeClears
 import com.gatcha.log.data.CombatRoom
+import com.gatcha.log.data.GameData
 import com.gatcha.log.ui.components.GlassCard
 import com.gatcha.log.ui.components.GlgBadgeText
 import com.gatcha.log.ui.components.GlgButton
@@ -54,25 +68,45 @@ import com.gatcha.log.ui.theme.DividerColor
 import com.gatcha.log.ui.theme.LocalAccent
 import com.gatcha.log.ui.theme.TextPrimary
 import com.gatcha.log.ui.theme.TextSecondary
-import com.gatcha.log.ui.theme.glgStandardSpec
 import com.gatcha.log.ui.theme.toColor
 
 // ============================================================
 // 클리어 편성 — 엔드 콘텐츠를 어떤 캐릭터로 깼는지.
 //
 // 데이터는 나선 비경·혼돈의 기억 응답에 원래 들어 있던 층별 투입 캐릭터다(GL_Shared CombatClear).
-// **모드 하나 = 카드 하나.** 이번 시즌은 펼쳐 두고, 지난 시즌은 접어 둔다 —
+// **모드 하나 = 카드 하나.** 이번/지난 시즌은 카드 머리의 세그먼트로 바꿔 본다 —
 // 시즌마다 카드를 내면 같은 모드가 두 번 나와 목록이 두 배가 되고 지난 기록이 과대 표시된다.
+//
+// 1안「요약 먼저 · 층 접기」(2026-09-29) — 층을 전부 펼쳐 두면 12층 × 8명이 한 화면을 넘겨
+// 정작 "몇 별 받았나"가 스크롤 밑에 묻혔다. 별 요약을 맨 위에 두고, 맨 위 층만 펼친다.
 // (iOS CombatClearSection 패리티)
 // ============================================================
 
 private val StarGold = Color(0xFFF2B233)
+private val StarGoldSoft = Color(0xFFF8DE9C)
 private val AvatarSize = 46.dp
 private val AvatarCell = 50.dp
 
 /** 층별 편성용 아이콘·칸 폭 — 4명이 한 줄에 이름까지 들어가야 한다. */
-private val RoomAvatarSize = 48.dp
+private val RoomAvatarSize = 44.dp
 private val RoomAvatarCell = 56.dp
+private val MiniAvatarSize = 22.dp
+
+/** 전반/후반 색 — 접힌 줄의 막대와 펼친 판의 칩이 같은 색이라야 둘이 이어져 읽힌다. */
+private val FirstHalfColor = Color(0xFF2F5BBF)
+private val FirstHalfChipBg = Color(0xFFE4ECFB)
+private val SecondHalfBar = Color(0xFFC46A1F)
+private val SecondHalfText = Color(0xFFA8561A)
+private val SecondHalfChipBg = Color(0xFFFBEBDC)
+
+private val RowDivider = Color(0xFFF0F0F0)
+private val PanelBg = Color(0xFFF8F8F8)
+private val PanelDivider = Color(0xFFECECEC)
+private val ChipBorder = Color(0xFFE3E5E8)
+private val SegmentBg = Color(0xFFF1F2F4)
+
+/** 처음부터 펼쳐 둘 층 수(맨 위 1층 펼침 + 3층 접힘) — 나머지는 '더 보기' 뒤로. */
+private const val VisibleFloors = 4
 
 @Composable
 fun CombatClearContent(
@@ -112,6 +146,11 @@ fun CombatClearContent(
         }
         return
     }
+    val games = remember(modes) { CombatClearLogic.games(modes) }
+    // null = 전체. 새로고침 뒤 그 게임 기록이 사라졌으면 전체로 돌아간다(빈 화면이 남지 않게).
+    var filter by rememberSaveable { mutableStateOf<String?>(null) }
+    val selected = filter?.takeIf { it in games }
+    val shown = if (selected == null) modes else modes.filter { it.game == selected }
     // ⚠️ LazyColumn 금지 — [SectionPage] 가 이미 세로 스크롤을 걸어 놨다. 그 안에 지연 목록을 넣으면
     // 높이 제약이 무한이 되어 "Vertically scrollable component was measured with an infinity maximum
     // height" 로 **크래시**한다(2026-08-05 실기기). 항목이 십여 개뿐이라 지연 로딩도 불필요하다.
@@ -122,33 +161,359 @@ fun CombatClearContent(
         modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-        modes.forEach { ModeCard(it) }
+        // 게임이 하나뿐이면 '전체'와 그 게임이 같은 목록이라 칩이 할 일이 없다.
+        if (games.size >= 2) GameFilter(games, selected) { filter = it }
+        shown.forEachIndexed { i, m ->
+            // 첫 카드만 펼쳐 둔다 — 모드마다 12층씩 펼치면 두 번째 카드는 몇 화면 아래로 밀린다.
+            key(m.game, m.mode) { ModeCard(m, initiallyExpanded = i == 0) }
+        }
+    }
+}
+
+/** 게임 필터 — '전체' + 게임별 칩. */
+@Composable
+private fun GameFilter(games: List<String>, selected: String?, onSelect: (String?) -> Unit) {
+    Row(Modifier.selectableGroup(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        FilterChip("전체", selected == null) { onSelect(null) }
+        games.forEach { g ->
+            FilterChip(GameData.byNameOrNull(g)?.shortName ?: g, selected == g) { onSelect(g) }
+        }
     }
 }
 
 @Composable
-private fun ModeCard(m: CombatModeClears) {
-    var expanded by remember(m.game, m.mode) { mutableStateOf(false) }
+private fun FilterChip(label: String, selected: Boolean, onClick: () -> Unit) {
+    val shape = RoundedCornerShape(17.dp)
+    // 34dp 칩이라도 터치는 Compose 가 최소 48dp 로 넓혀 잡는다(minimumTouchTargetSize).
+    Box(
+        Modifier
+            .height(34.dp)
+            .clip(shape)
+            .background(if (selected) TextPrimary else Color.White)
+            .then(if (selected) Modifier else Modifier.border(1.dp, ChipBorder, shape))
+            .selectable(selected = selected, role = Role.Tab, onClick = onClick)
+            .padding(horizontal = 14.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            label,
+            fontSize = 13.sp,
+            fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+            color = if (selected) Color.White else TextPrimary,
+        )
+    }
+}
+
+@Composable
+private fun ModeCard(m: CombatModeClears, initiallyExpanded: Boolean) {
+    var expanded by rememberSaveable(m.game, m.mode) { mutableStateOf(initiallyExpanded) }
+    // 지역 변수로 받아야 스마트 캐스트가 된다(모듈이 달라 프로퍼티 직접 참조로는 안 된다).
+    val current = m.current
+    val previous = m.previous
+    var showPrevious by rememberSaveable(m.game, m.mode) { mutableStateOf(false) }
+    // 이번 시즌 미도전이면 지난 시즌을 바로 보여 준다 — 빈 카드에 토글만 남으면 고장 난 것처럼 보인다.
+    val clear = if (current == null || (showPrevious && previous != null)) previous else current
+    clear ?: return
+    val summary = remember(clear) { CombatClearLogic.summary(clear) }
+
     GlassCard(shape = RoundedCornerShape(22.dp), modifier = Modifier.fillMaxWidth()) {
-        Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 18.dp)) {
-            ModeHeader(m)
-            val current = m.current
-            Spacer(Modifier.height(14.dp))
-            if (current != null && current.rooms.isNotEmpty()) {
-                SeasonBody(current)
-            } else {
-                // 이번 시즌 미도전 — 안내 없이 토글만 남으면 카드가 고장 난 것처럼 보인다.
-                Text("이번 시즌 기록이 없어요", fontSize = 12.sp, color = TextSecondary)
+        if (!expanded) {
+            // 접힌 카드 = 요약 한 줄. 누르면 펼친다.
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable(role = Role.Button, onClickLabel = "펼치기") { expanded = true }
+                    .semantics { stateDescription = "접힘" }
+                    .padding(16.dp),
+            ) {
+                GameTag(m)
+                Spacer(Modifier.width(8.dp))
+                ModeTitle(m.mode, Modifier.weight(1f))
+                Spacer(Modifier.width(8.dp))
+                StarTotal(summary, big = 14.sp, small = 12.sp)
+                Spacer(Modifier.width(8.dp))
+                Chevron(up = false)
             }
-            // 지역 변수로 받아야 스마트 캐스트가 된다(모듈이 달라 프로퍼티 직접 참조로는 안 된다).
-            val previous = m.previous
-            if (previous != null && previous.rooms.isNotEmpty()) {
-                Spacer(Modifier.height(12.dp))
-                PreviousToggle(expanded) { expanded = !expanded }
-                AnimatedVisibility(visible = expanded) {
-                    Column {
-                        Spacer(Modifier.height(12.dp))
-                        SeasonBody(previous, seasonLabel = previous.season)
+            return@GlassCard
+        }
+        Column(
+            Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 18.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                GameTag(m)
+                Spacer(Modifier.width(8.dp))
+                // ⚠️ weight(fill = false) + Spacer(weight) 조합 금지 — 남는 폭을 **절반씩 나눠 가져서**
+                // 우측 요소가 오른쪽 끝이 아니라 한가운데에 선다(2026-08-05 "왼쪽으로 치우쳤다" 지적).
+                // 제목이 남는 폭을 전부 먹어야 뒤따르는 것이 오른쪽 끝으로 밀린다.
+                // 제목 줄 자체를 누르면 카드를 접는다 — 펼친 카드엔 따로 접기 버튼을 두지 않는다.
+                ModeTitle(
+                    m.mode,
+                    Modifier
+                        .weight(1f)
+                        .clickable(role = Role.Button, onClickLabel = "접기") { expanded = false },
+                )
+                if (current != null && previous != null) {
+                    Spacer(Modifier.width(8.dp))
+                    SeasonSegment(showPrevious) { showPrevious = it }
+                }
+            }
+            SummaryBlock(clear, summary, isPrevious = !clear.current)
+            if (summary.maxStars > 0) {
+                ProgressBar(remember(clear) { CombatClearLogic.displayRooms(clear) })
+            }
+            // 시즌마다 펼침 상태를 따로 둔다 — 지난 시즌으로 바꿨을 때 이번 시즌 층 이름이 섞이지 않게.
+            key(clear.season, clear.current) { SeasonBody(clear) }
+        }
+    }
+}
+
+/** 게임 태그 — 색 점만으로는 무슨 게임인지 알 수 없다(GI·HSR 표기와 동일 체계). */
+@Composable
+private fun GameTag(m: CombatModeClears) {
+    val color = m.gameColor.toColor()
+    Text(
+        m.gameShort,
+        fontSize = 10.sp,
+        fontWeight = FontWeight.Bold,
+        color = color,
+        modifier = Modifier
+            .clip(RoundedCornerShape(6.dp))
+            .background(color.copy(alpha = 0.12f))
+            .padding(horizontal = 6.dp, vertical = 3.dp),
+    )
+}
+
+@Composable
+private fun ModeTitle(mode: String, modifier: Modifier) {
+    Text(
+        mode,
+        fontSize = 16.sp,
+        fontWeight = FontWeight.Bold,
+        color = TextPrimary,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+        modifier = modifier,
+    )
+}
+
+/** 이번 시즌 | 지난 시즌. 둘 다 있을 때만 그린다. */
+@Composable
+private fun SeasonSegment(showPrevious: Boolean, onChange: (Boolean) -> Unit) {
+    Row(
+        Modifier
+            .clip(RoundedCornerShape(10.dp))
+            .background(SegmentBg)
+            .padding(2.dp)
+            .selectableGroup(),
+    ) {
+        SegmentButton("이번 시즌", !showPrevious) { onChange(false) }
+        SegmentButton("지난 시즌", showPrevious) { onChange(true) }
+    }
+}
+
+@Composable
+private fun SegmentButton(label: String, selected: Boolean, onClick: () -> Unit) {
+    val shape = RoundedCornerShape(8.dp)
+    Box(
+        Modifier
+            .height(28.dp)
+            .then(if (selected) Modifier.shadow(1.dp, shape) else Modifier)
+            .clip(shape)
+            .background(if (selected) Color.White else Color.Transparent)
+            .selectable(selected = selected, role = Role.Tab, onClick = onClick)
+            .padding(horizontal = 10.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            label,
+            fontSize = 11.sp,
+            fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+            color = if (selected) TextPrimary else TextSecondary,
+        )
+    }
+}
+
+/** "★ 35 / 36" — 만점을 모르면(점수 기반 모드) 분모 없이. */
+@Composable
+private fun StarTotal(s: ClearSummary, big: TextUnit, small: TextUnit) {
+    Text(
+        buildAnnotatedString {
+            append("★ ${s.stars}")
+            if (s.maxStars > 0) {
+                withStyle(SpanStyle(fontSize = small, color = TextSecondary, fontWeight = FontWeight.Medium)) {
+                    append(" / ${s.maxStars}")
+                }
+            }
+        },
+        fontSize = big,
+        fontWeight = FontWeight.Bold,
+        color = TextPrimary,
+        modifier = Modifier.semantics {
+            contentDescription = if (s.maxStars > 0) "별 ${s.stars} / ${s.maxStars}" else "별 ${s.stars}"
+        },
+    )
+}
+
+@Composable
+private fun SummaryBlock(clear: CombatClear, s: ClearSummary, isPrevious: Boolean) {
+    Row(verticalAlignment = Alignment.Bottom) {
+        StarTotal(s, big = 26.sp, small = 15.sp)
+        Spacer(Modifier.width(10.dp))
+        val parts = listOfNotNull(
+            // 이번 시즌이 없어 지난 시즌을 바로 보여 줄 때도 어느 시즌인지는 밝힌다.
+            "지난 시즌".takeIf { isPrevious },
+            clear.season.takeIf { it.isNotBlank() },
+            "${s.rooms}개 층 기록",
+        )
+        Text(
+            parts.joinToString(" · "),
+            fontSize = 12.sp,
+            color = TextSecondary,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(bottom = 2.dp),
+        )
+    }
+}
+
+/** 층마다 한 칸 — 만점은 진한 금색, 덜 받은 층은 옅은 금색, 0별은 빈 칸. */
+@Composable
+private fun ProgressBar(rooms: List<CombatRoom>) {
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+        repeat(rooms.size) { i ->
+            val r = rooms[i]
+            val color = when {
+                r.stars <= 0 -> DividerColor
+                r.stars < r.maxStars -> StarGoldSoft
+                else -> StarGold
+            }
+            Box(Modifier.weight(1f).height(6.dp).clip(RoundedCornerShape(3.dp)).background(color))
+        }
+    }
+}
+
+/** 시즌 하나 = 주력 스트립 + 층 목록. */
+@Composable
+private fun SeasonBody(clear: CombatClear) {
+    val roster = clear.roster
+    if (roster.isNotEmpty()) {
+        val usage = clear.usage
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Label("이 시즌 주력")
+            // 6명을 좌우 끝까지 벌린다 — 왼쪽에 몰아두면 오른쪽이 통째로 비어 화면이 치우쳐 보인다.
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                roster.take(6).forEach { AvatarChip(it, count = usage[it.id] ?: 0) }
+            }
+        }
+    }
+    val rooms = remember(clear) { CombatClearLogic.displayRooms(clear) }
+    // 맨 위(가장 높은) 층만 펼쳐 둔다. List 로 둬야 rememberSaveable 이 그대로 저장한다.
+    var open by rememberSaveable { mutableStateOf(rooms.take(1).map { it.name }) }
+    var showAll by rememberSaveable { mutableStateOf(false) }
+    val visible = if (showAll) rooms else rooms.take(VisibleFloors)
+    Column(Modifier.fillMaxWidth()) {
+        visible.forEach { room ->
+            HorizontalDivider(color = RowDivider)
+            val isOpen = room.name in open
+            val toggle = { open = if (isOpen) open - room.name else open + room.name }
+            if (isOpen) RoomExpanded(room, clear.season, toggle) else RoomCollapsed(room, clear.season, toggle)
+        }
+        if (visible.size < rooms.size) {
+            HorizontalDivider(color = RowDivider)
+            Text(
+                "아래 ${rooms.size - visible.size}개 층 더 보기",
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+                color = LocalAccent.current,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 44.dp)
+                    .clickable(role = Role.Button) { showAll = true }
+                    .padding(top = 14.dp),
+            )
+        }
+    }
+}
+
+/** 층 이름 — 표기는 API 원문 그대로. 인게임 용어를 우리가 재구성하지 않는다. */
+@Composable
+private fun FloorName(room: CombatRoom, season: String, modifier: Modifier) {
+    Text(
+        CombatClearLogic.roomLabel(room.name, season),
+        fontSize = 14.sp,
+        fontWeight = FontWeight.Bold,
+        color = TextPrimary,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+        modifier = modifier,
+    )
+}
+
+/** 접힌 층 — 이름 · 별 · 전반/후반 미니 편성. 누르면 펼친다. */
+@Composable
+private fun RoomCollapsed(room: CombatRoom, season: String, onToggle: () -> Unit) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 44.dp)
+            .clickable(role = Role.Button, onClickLabel = "펼치기", onClick = onToggle)
+            .semantics { stateDescription = "접힘" }
+            .padding(vertical = 12.dp),
+    ) {
+        FloorName(room, season, Modifier.width(36.dp))
+        Spacer(Modifier.width(8.dp))
+        StarChip(room)
+        Row(
+            Modifier.weight(1f),
+            horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            // 후반이 없는 모드(환상극)는 막대가 가리킬 짝이 없어 막대 없이 한 묶음만.
+            val single = room.secondHalf.isEmpty()
+            MiniTeam(room.firstHalf, bar = if (single) null else FirstHalfColor)
+            if (!single) MiniTeam(room.secondHalf, bar = SecondHalfBar)
+        }
+        Spacer(Modifier.width(8.dp))
+        Chevron(up = false)
+    }
+}
+
+/**
+ * 미니 편성 — 색 막대 + 22dp 아이콘 4개.
+ *
+ * 아이콘끼리 살짝 겹친다(흰 테두리로 구분). 목업처럼 3dp 씩 띄우면 8명 + 막대 2개가 폭 360dp 기기의
+ * 카드 안에 안 들어가 별 칩을 밀어낸다.
+ */
+@Composable
+private fun MiniTeam(team: List<CombatAvatar>, bar: Color?) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        bar?.let {
+            Box(Modifier.size(width = 5.dp, height = 18.dp).clip(RoundedCornerShape(3.dp)).background(it))
+            Spacer(Modifier.width(3.dp))
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy((-4).dp)) {
+            team.forEach { a ->
+                Box(
+                    Modifier
+                        .size(MiniAvatarSize)
+                        .clip(CircleShape)
+                        .background(DividerColor)
+                        .border(1.dp, Color.White, CircleShape),
+                ) {
+                    if (a.iconUrl.isNotBlank()) {
+                        AsyncImage(
+                            model = a.iconUrl,
+                            // 이름은 펼친 판에서 읽힌다 — 접힌 줄에서 8명을 다 읽으면 한 줄이 너무 길다.
+                            contentDescription = null,
+                            modifier = Modifier.size(MiniAvatarSize),
+                            contentScale = ContentScale.Crop,
+                        )
                     }
                 }
             }
@@ -156,148 +521,117 @@ private fun ModeCard(m: CombatModeClears) {
     }
 }
 
-/** 게임 배지 + 모드명 + 이번 시즌명. */
+/** 펼친 층 — 머리 줄(누르면 접힘) + 전반/후반 판. */
 @Composable
-private fun ModeHeader(m: CombatModeClears) {
-    val color = m.gameColor.toColor()
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        // 색 점만으로는 무슨 게임인지 알 수 없다 — 짧은 태그를 함께 둔다(GI·HSR 표기와 동일 체계).
-        Text(
-            m.gameShort,
-            fontSize = 10.sp,
-            fontWeight = FontWeight.Bold,
-            color = color,
-            modifier = Modifier
-                .clip(RoundedCornerShape(6.dp))
-                .background(color.copy(alpha = 0.12f))
-                .padding(horizontal = 6.dp, vertical = 3.dp),
-        )
-        Spacer(Modifier.width(8.dp))
-        // ⚠️ weight(fill = false) + Spacer(weight) 조합 금지 — 남는 폭을 **절반씩 나눠 가져서**
-        // 우측 요소가 오른쪽 끝이 아니라 한가운데에 선다(2026-08-05 "왼쪽으로 치우쳤다" 지적).
-        // 제목이 남는 폭을 전부 먹어야 뒤따르는 것이 오른쪽 끝으로 밀린다.
-        Text(
-            m.mode,
-            fontSize = 16.sp,
-            fontWeight = FontWeight.Bold,
-            color = TextPrimary,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f),
-        )
-        m.current?.season?.takeIf { it.isNotBlank() }?.let {
-            Spacer(Modifier.width(8.dp))
-            Text(it, fontSize = 11.sp, color = TextSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
-        }
-    }
-}
-
-/** 시즌 하나 = 주력 스트립 + 층 목록. [seasonLabel] 이 있으면 상단에 시즌명을 덧붙인다(지난 시즌용). */
-@Composable
-private fun SeasonBody(clear: CombatClear, seasonLabel: String? = null) {
-    seasonLabel?.takeIf { it.isNotBlank() }?.let {
-        Label(it)
-        Spacer(Modifier.height(10.dp))
-    }
-    val roster = clear.roster
-    if (roster.isNotEmpty()) {
-        val usage = clear.usage
-        Label("이 시즌 주력")
-        Spacer(Modifier.height(8.dp))
-        // 6명을 좌우 끝까지 벌린다 — 왼쪽에 몰아두면 오른쪽이 통째로 비어 화면이 치우쳐 보인다.
+private fun RoomExpanded(room: CombatRoom, season: String, onToggle: () -> Unit) {
+    Column(Modifier.fillMaxWidth().padding(bottom = 12.dp)) {
         Row(
-            Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(min = 44.dp)
+                .clickable(role = Role.Button, onClickLabel = "접기", onClick = onToggle)
+                .semantics { stateDescription = "펼침" },
         ) {
-            roster.take(6).forEach { AvatarChip(it, count = usage[it.id] ?: 0) }
-        }
-    }
-    clear.rooms.forEachIndexed { i, room ->
-        if (i > 0 || roster.isNotEmpty()) {
-            Spacer(Modifier.height(14.dp))
-            HorizontalDivider(color = DividerColor)
-            Spacer(Modifier.height(14.dp))
-        }
-        RoomRow(room, clear.season)
-    }
-}
-
-@Composable
-private fun RoomRow(room: CombatRoom, season: String) {
-    Column(Modifier.fillMaxWidth()) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                // 표기는 API 원문 그대로 — 인게임 용어를 우리가 재구성하지 않는다.
-                CombatClearLogic.roomLabel(room.name, season),
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Bold,
-                color = TextPrimary,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f),
-            )
-            // 별은 칩으로 키운다 — 층을 구분하는 유일한 수치인데 예전엔 아이콘 더미에 묻혔다.
-            // 만점을 아는 모드만 분모를 붙인다(점수 기반은 층마다 만점이 달라 "★4/3" 이 된다).
-            if (room.stars > 0) {
-                val label = if (room.maxStars > 0) "${room.stars}/${room.maxStars}" else "${room.stars}"
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(2.dp),
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(StarGold.copy(alpha = 0.12f))
-                        .padding(horizontal = 7.dp, vertical = 3.dp)
-                        // 아이콘엔 설명을 달지 않는다 — 숫자만 읽히면 무엇의 개수인지 알 수 없어 칩 전체에 하나만 준다.
-                        .semantics(mergeDescendants = true) {
-                            contentDescription = if (room.maxStars > 0) "별 ${room.stars} / ${room.maxStars}" else "별 ${room.stars}"
-                        },
-                ) {
-                    Icon(
-                        Icons.Default.Star,
-                        contentDescription = null,
-                        tint = StarGold,
-                        modifier = Modifier.size(11.dp),
-                    )
-                    Text(label, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = StarGold)
-                }
-            }
+            FloorName(room, season, Modifier.weight(1f))
+            Spacer(Modifier.width(8.dp))
+            StarChip(room)
+            Spacer(Modifier.width(8.dp))
+            Chevron(up = true)
         }
         if (room.detail.isNotBlank()) {
-            Spacer(Modifier.height(2.dp))
             Text(room.detail, fontSize = 10.sp, color = TextSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Spacer(Modifier.height(6.dp))
         }
-        Spacer(Modifier.height(8.dp))
         // 전반/후반을 한 덩어리로 묶는다 — 옅은 판 위에 올려야 층 경계가 눈에 잡힌다.
         Column(
             Modifier
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(14.dp))
-                .background(DividerColor.copy(alpha = 0.35f))
-                .padding(horizontal = 10.dp, vertical = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp),
+                .background(PanelBg)
+                .padding(10.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            HalfRow("전반", room.firstHalf)
-            if (room.secondHalf.isNotEmpty()) HalfRow("후반", room.secondHalf)
+            if (room.secondHalf.isEmpty()) {
+                // 한 편성뿐인 모드(현실 속 환상극) — '전반' 칩이 붙으면 후반이 빠진 것처럼 읽힌다.
+                HalfRow(null, room.firstHalf)
+            } else {
+                HalfRow(HalfChip("전반", FirstHalfColor, FirstHalfChipBg), room.firstHalf)
+                HorizontalDivider(color = PanelDivider)
+                HalfRow(HalfChip("후반", SecondHalfText, SecondHalfChipBg), room.secondHalf)
+            }
         }
     }
 }
 
+private data class HalfChip(val label: String, val text: Color, val bg: Color)
+
 /**
- * 편성 한 줄 — 아이콘 + 이름.
+ * 편성 한 줄 — 색 칩 + 아이콘 + 이름.
  *
  * 한때 이름을 빼서 높이를 줄여 봤는데, 정작 "누구로 깼는지"가 이 화면의 전부라 아이콘만으로는
  * 쓸모가 줄었다(2026-08-05 지적). 이름은 두고 아이콘을 조금 줄여 균형을 맞춘다.
  */
 @Composable
-private fun HalfRow(label: String, team: List<CombatAvatar>) {
+private fun HalfRow(chip: HalfChip?, team: List<CombatAvatar>) {
     if (team.isEmpty()) return
     Row(verticalAlignment = Alignment.CenterVertically) {
-        Text(label, fontSize = 10.sp, color = TextSecondary, modifier = Modifier.width(26.dp))
+        chip?.let {
+            Text(
+                it.label,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold,
+                color = it.text,
+                textAlign = TextAlign.Center,
+                modifier = Modifier
+                    .width(38.dp)
+                    .clip(CircleShape)
+                    .background(it.bg)
+                    .padding(vertical = 4.dp),
+            )
+            Spacer(Modifier.width(8.dp))
+        }
         // 4명이 남는 폭을 나눠 가지게 한다 — 왼쪽에 붙여 두면 오른쪽 절반이 비어 치우쳐 보인다.
         Row(Modifier.weight(1f), horizontalArrangement = Arrangement.SpaceBetween) {
-            team.forEach { AvatarChip(it, count = 0, size = RoomAvatarSize, cell = RoomAvatarCell) }
+            team.forEach {
+                AvatarChip(it, count = 0, size = RoomAvatarSize, cell = RoomAvatarCell, nameSize = 10.5.sp)
+            }
         }
     }
+}
+
+/** 층 별 칩 — 층을 구분하는 유일한 수치라 아이콘 더미에 묻히지 않게 칩으로 키운다. */
+@Composable
+private fun StarChip(room: CombatRoom) {
+    if (room.stars <= 0) return
+    // 만점을 아는 모드만 분모를 붙인다(점수 기반은 층마다 만점이 달라 "★4/3" 이 된다).
+    val label = if (room.maxStars > 0) "${room.stars}/${room.maxStars}" else "${room.stars}"
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(2.dp),
+        modifier = Modifier
+            .clip(RoundedCornerShape(8.dp))
+            .background(StarGold.copy(alpha = 0.12f))
+            .padding(horizontal = 7.dp, vertical = 3.dp)
+            // 아이콘엔 설명을 달지 않는다 — 숫자만 읽히면 무엇의 개수인지 알 수 없어 칩 전체에 하나만 준다.
+            .semantics(mergeDescendants = true) {
+                contentDescription = if (room.maxStars > 0) "별 ${room.stars} / ${room.maxStars}" else "별 ${room.stars}"
+            },
+    ) {
+        Icon(Icons.Default.Star, contentDescription = null, tint = StarGold, modifier = Modifier.size(11.dp))
+        Text(label, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = StarGold)
+    }
+}
+
+@Composable
+private fun Chevron(up: Boolean) {
+    // 설명은 달지 않는다 — 눌리는 줄 전체에 역할·상태가 이미 붙어 있다.
+    Icon(
+        if (up) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+        contentDescription = null,
+        tint = TextSecondary,
+        modifier = Modifier.size(18.dp),
+    )
 }
 
 /**
@@ -311,8 +645,9 @@ private fun HalfRow(label: String, team: List<CombatAvatar>) {
 private fun AvatarChip(
     a: CombatAvatar,
     count: Int,
-    size: androidx.compose.ui.unit.Dp = AvatarSize,
-    cell: androidx.compose.ui.unit.Dp = AvatarCell,
+    size: Dp = AvatarSize,
+    cell: Dp = AvatarCell,
+    nameSize: TextUnit = 10.sp,
 ) {
     Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.width(cell)) {
         Box {
@@ -348,45 +683,16 @@ private fun AvatarChip(
         }
         if (a.name.isNotBlank()) {
             Spacer(Modifier.height(3.dp))
+            // 이름이 이 화면의 요점이라 보조색이 아니라 본문색으로 — 9sp 회색은 흐려서 읽히지 않았다.
             Text(
                 a.name,
-                fontSize = 9.sp,
-                fontWeight = FontWeight.Bold,
-                color = TextSecondary,
+                fontSize = nameSize,
+                color = TextPrimary,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 textAlign = TextAlign.Center,
             )
         }
-    }
-}
-
-/** 지난 시즌 펼치기 — 기본은 접힘. 화살표만 돌려 접힘/펼침을 나타낸다. */
-@Composable
-private fun PreviousToggle(expanded: Boolean, onToggle: () -> Unit) {
-    val accent = LocalAccent.current
-    val rotation by animateFloatAsState(if (expanded) 180f else 0f, glgStandardSpec(), label = "prevArrow")
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
-            .clickable { onToggle() }
-            .padding(vertical = 6.dp),
-    ) {
-        Text(
-            if (expanded) "지난 시즌 접기" else "지난 시즌 기록 보기",
-            fontSize = 12.sp,
-            fontWeight = FontWeight.Bold,
-            color = accent,
-        )
-        Spacer(Modifier.width(4.dp))
-        Icon(
-            Icons.Default.ExpandMore,
-            contentDescription = null,
-            tint = accent,
-            modifier = Modifier.size(16.dp).rotate(rotation),
-        )
     }
 }
 
