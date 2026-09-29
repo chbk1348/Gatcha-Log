@@ -33,6 +33,7 @@ struct SpendingView: View {
     @Environment(\.glgAccent) private var accent
     @Environment(\.horizontalSizeClass) private var hSizeClass
     @Environment(\.glgCanvasWidth) private var canvasWidth
+    @Environment(\.scenePhase) private var scenePhase
     /// 지금 좌/우로 갈려 있는가 — GLGSplitDetail 이 돌려주는 값(폭 기준, iPadOS 26 자유 창 대응).
     @State private var isWide = false
     /// 우측 상세에 띄울 지출. iPhone 에서는 쓰지 않는다(기존대로 push).
@@ -144,7 +145,15 @@ struct SpendingView: View {
             .padding(.horizontal, 16)
         }
         .scrollIndicators(.hidden)
-        .refreshable { store.refreshSpending() }
+        .refreshable {
+            store.refreshSpending()
+            // 동기화가 끝날 때까지 스피너를 붙잡는다 — 바로 돌아오면 끝나기도 전에 스피너가 걷혔다.
+            // isRefreshing 은 코루틴 안에서 켜지므로 한 박자 쉬고 본다. 최대 10초.
+            for _ in 0..<100 {
+                try? await Task.sleep(nanoseconds: 100_000_000)
+                if !store.isRefreshing { break }
+            }
+        }
         // 그룹 재계산 — 데이터/필터/정렬 변화 시에만(스크롤과 무관). $spendings 는 새 값을 전달받아 사용.
         .onAppear { recompute(store.spendings) }
         .onChange(of: store.spendings) { _, new in recompute(new) }
@@ -154,6 +163,8 @@ struct SpendingView: View {
         .onChange(of: customEnd) { _, _ in if period == .custom { recompute(store.spendings) } }
         .onChange(of: paymentFilter) { _, _ in recompute(store.spendings) }
         .onChange(of: sortOrder) { _, _ in recompute(store.spendings) }
+        // 앱에 돌아올 때도 — '이번 달/지난 달/올해' 는 오늘 기준이라 달이 넘어가면 캐시가 옛 달에 머문다.
+        .onChange(of: scenePhase) { _, phase in if phase == .active { recompute(store.spendings) } }
         .background(GLGBackground { Color.clear })
         // 화면에는 안 보이지만 제목은 채운다 — 비우면 뒤로가기 길게 누르기 메뉴가 공백 줄이 된다.
         .navigationTitle("지출")
@@ -712,10 +723,11 @@ struct SpendingView: View {
         case .amountDesc:
             displayGroups = items.sorted { $0.amount > $1.amount }
                 .map { DayGroup(key: $0.id, items: [$0], dateLabel: nil, total: 0) }
+        // store.spendings 는 이미 날짜 내림차순(VM loadAll)이고 filter 는 순서를 지킨다 — 다시 정렬하지 않는다.
         case .dateAsc:
-            displayGroups = groupByDay(items.sorted { $0.dateMillis < $1.dateMillis })
+            displayGroups = groupByDay(items.reversed())
         default:
-            displayGroups = groupByDay(items.sorted { $0.dateMillis > $1.dateMillis })
+            displayGroups = groupByDay(items)
         }
     }
     private func periodMatch(_ s: Spending, _ dy: Int, _ dm: Int, _ ly: Int, _ lm: Int, _ range: (Int64, Int64)) -> Bool {
@@ -914,6 +926,8 @@ private struct BulkEditSheet: View {
                 NavigationStack {
                     DatePicker("날짜", selection: Binding(get: { date ?? Date() }, set: { date = $0 }), displayedComponents: .date)
                         .datePickerStyle(.graphical).padding()
+                        // 보이는 값(오늘)을 그대로 확인해도 적용되게 — 안 건드리면 date 가 nil 로 남아 '변경 안 함'이었다.
+                        .onAppear { if date == nil { date = Date() } }
                         .navigationTitle("날짜 선택").navigationBarTitleDisplayMode(.inline)
                         .toolbar { ToolbarItem(placement: .confirmationAction) { Button("확인") { showDate = false } } }
                 }

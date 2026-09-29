@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths>
+    <!-- 공유용 임시 파일만 연다(CSV 내보내기). -->
+    <cache-path name="exports" path="exports/" />
+</paths>

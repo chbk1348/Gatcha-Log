@@ -235,7 +235,8 @@ fun SpendingScreen(
         when (sortOrder) {
             SortOrder.AMOUNT_DESC -> filtered.sortedByDescending { it.amount }.map { listOf(it) }
             SortOrder.DATE_ASC -> filtered.sortedBy { it.dateMillis }.groupBy { it.dayKey }.values.toList()
-            else -> filtered.sortedByDescending { it.dateMillis }.groupBy { it.dayKey }.values.toList()
+            // filtered 는 VM 목록(날짜 내림차순)을 순서 그대로 거른 것이라 다시 정렬하지 않는다.
+            else -> filtered.groupBy { it.dayKey }.values.toList()
         }
     }
 
@@ -257,13 +258,13 @@ fun SpendingScreen(
                 contentPadding = PaddingValues(bottom = glgTabContentBottom()),
             ) {
                 // 히어로 자리(고정) — 위에 히어로 오버레이가 뜬다.
-                item { Spacer(Modifier.height(heroSpacerDp)) }
+                item(contentType = "heroSpacer") { Spacer(Modifier.height(heroSpacerDp)) }
 
                 // 퀵필터 — 시트를 열지 않고 기간을 바꾸고, 걸린 필터를 바로 뗄 수 있게.
                 // 리스트와 함께 스크롤된다(고정하면 상단 두 줄을 영구히 먹는다).
                 // 선택 모드에서도 치우지 않는다 — 사라지면 리스트가 위로 밀려 올라가 화면이 튄다(iOS 파리티).
                 run {
-                    item {
+                    item(contentType = "quickFilters") {
                         SpendingQuickFilters(
                             period = period,
                             onPeriod = { period = it },
@@ -289,7 +290,7 @@ fun SpendingScreen(
             }
             if (filtered.isEmpty()) {
                 // 기록은 있는데 필터에 다 걸렸으면 "없어요" 가 아니라 필터를 풀 길을 준다.
-                item {
+                item(contentType = "empty") {
                     EmptyState(filteredOut = spendings.isNotEmpty()) {
                         selectedGames = emptySet(); period = PeriodFilter.ALL; paymentFilter = null; sortOrder = SortOrder.DATE_DESC
                     }
@@ -297,7 +298,8 @@ fun SpendingScreen(
             } else {
                 // 미리 계산된 dayGroups 를 순회만 한다(매 프레임 재정렬·재그룹 없음).
                 dayGroups.forEachIndexed { gi, dayItems ->
-                    item(key = if (amountMode) dayItems.first().id else dayItems.first().dayKey) {
+                    // contentType 을 나눠 둬야 스크롤 중 날짜 카드끼리만 컴포지션을 재사용한다.
+                    item(key = if (amountMode) dayItems.first().id else dayItems.first().dayKey, contentType = "dayCard") {
                         Box {
                             SpendingDayCard(
                                 dateLabel = if (amountMode) null else dayItems.first().dateLabel,

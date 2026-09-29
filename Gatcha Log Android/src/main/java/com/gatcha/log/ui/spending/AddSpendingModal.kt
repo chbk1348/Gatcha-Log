@@ -97,7 +97,8 @@ fun AddSpendingModal(
     recentSpendings: List<Spending> = emptyList(),
     nudgeMessage: (game: Game, amount: Long) -> String? = { _, _ -> null },
     onDismiss: () -> Unit,
-    onSave: (Spending) -> Unit,
+    /** 저장됐으면 true. false(검증 실패 — 안내는 VM 이 띄운다)면 페이지를 그대로 둔다. */
+    onSave: (Spending) -> Boolean,
 ) {
     val editing = spendingToEdit != null
 
@@ -201,8 +202,19 @@ fun AddSpendingModal(
     }
 
     // 한 번만 저장한다 — 페이지가 닫히는 애니메이션 동안 버튼이 살아 있어, 빠르게 두 번 누르면 두 건이 들어갔다.
+    // 저장이 거절되면(검증 실패) 다시 누를 수 있게 푼다 — 페이지가 안 닫히니 고쳐서 다시 저장한다.
     var saved by remember { mutableStateOf(false) }
-    fun save(s: com.gatcha.log.data.Spending) { if (!saved) { saved = true; onSave(s) } }
+    fun save(s: com.gatcha.log.data.Spending) { if (!saved) { saved = true; if (!onSave(s)) saved = false } }
+
+    // 입력 지문 — 처음과 다르면 "고친 게 있다". 뒤로가기 · 취소가 예전엔 묻지 않고 입력을 버렸다(iOS 와 같은 판정).
+    // 게임을 고른 것도 입력이다 — 기본값이 원신이라 원신을 고르면 이름만으론 안 바뀐다.
+    fun fingerprint() = listOf(
+        gameChosen, game.displayName, amount, dateMillis, paymentMethod, chargePlatform,
+        itemName, memo, customTags, selectedTags.joinToString(","),
+    ).joinToString("|")
+    val initialFingerprint = remember(spendingToEdit) { fingerprint() }
+    var confirmDiscard by remember { mutableStateOf(false) }
+    fun requestDismiss() { if (!saved && fingerprint() != initialFingerprint) confirmDiscard = true else onDismiss() }
 
     // 저장 시도 — 넛지 메시지가 있으면 확인 다이얼로그를 띄우고, 없으면 즉시 저장.
     fun attemptSave() {
@@ -212,7 +224,7 @@ fun AddSpendingModal(
     }
 
     // 시스템 뒤로가기 처리(풀스크린 페이지처럼 동작) — 시트 외부 dismiss 가 사라졌으므로 명시.
-    androidx.activity.compose.BackHandler { onDismiss() }
+    androidx.activity.compose.BackHandler { requestDismiss() }
 
     Surface(
         color = SheetBg,
@@ -505,13 +517,17 @@ fun AddSpendingModal(
                     modifier = Modifier.fillMaxWidth().navigationBarsPadding().padding(20.dp),
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
-                    val amountValid = (amount.toLongOrNull() ?: 0L) > 0
+                    // 상한도 여기서 막는다 — 넘으면 VM 이 저장을 거절하는데, 버튼이 살아 있으면 누를 때마다 토스트만 뜬다.
+                    val parsedAmount = amount.toLongOrNull() ?: 0L
+                    val amountTooBig = parsedAmount > Spending.MAX_AMOUNT
+                    val amountValid = parsedAmount > 0 && !amountTooBig
                     val canSave = gameChosen && amountValid
-                    GlgOutlineButton("취소", onDismiss, Modifier.weight(1f))
+                    GlgOutlineButton("취소", { requestDismiss() }, Modifier.weight(1f))
                     GlgButton(
                         // 흐린 버튼만 두지 않는다 — 왜 못 누르는지 버튼이 직접 말한다.
                         text = when {
                             !gameChosen -> "게임을 선택하세요"
+                            amountTooBig -> "금액이 너무 커요"
                             !amountValid -> "금액을 입력하세요"
                             editing -> "수정하기"
                             else -> "저장하기"
@@ -524,7 +540,7 @@ fun AddSpendingModal(
             }
         }
         // 오버레이는 **마지막에** — 콘텐츠 위에 그려져야 한다.
-        GlgDetailHeaderOverlay(if (editing) "지출 수정" else "지출 추가", onDismiss, scrolled)
+        GlgDetailHeaderOverlay(if (editing) "지출 수정" else "지출 추가", { requestDismiss() }, scrolled)
         }
     }
 
@@ -534,6 +550,16 @@ fun AddSpendingModal(
             onDismiss = { showDatePicker.value = false },
             onConfirm = { dateMillis = it; showDatePicker.value = false },
         )
+    }
+
+    if (confirmDiscard) {
+        GlgDialog(
+            title = "입력한 내용을 버릴까요?",
+            onDismiss = { confirmDiscard = false },
+            confirmText = "버리기",
+            onConfirm = { confirmDiscard = false; onDismiss() },
+            dismissText = "계속 입력",
+        ) {}
     }
 
     // N6 과소비 리플렉션 넛지 — 예산·평소치 초과 시 저장 직전 한 번 더 확인(예방형).

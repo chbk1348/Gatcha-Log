@@ -481,8 +481,9 @@ final class SpendingStore {
     func deleteSpending(_ id: String) { vm.deleteSpending(id: id) }
     func refreshSpending() { vm.refreshSpending() }
     /// 지출 추가/수정 저장 (Spending 생성은 Kotlin 헬퍼).
+    @discardableResult
     func saveSpending(editingId: String?, gameName: String, amount: Int64, dateMillis: Int64,
-                      paymentMethod: String, chargePlatform: String, itemName: String, memo: String, tags: [String]) {
+                      paymentMethod: String, chargePlatform: String, itemName: String, memo: String, tags: [String]) -> Bool {
         MainViewControllerKt.saveSpending(editingId: editingId, gameName: gameName, amount: amount, dateMillis: dateMillis,
                                           paymentMethod: paymentMethod, chargePlatform: chargePlatform, itemName: itemName, memo: memo, tags: tags)
     }
