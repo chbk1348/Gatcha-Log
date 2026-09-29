@@ -29,6 +29,9 @@ struct SpendingDetailView: View {
     @State private var heroHeight: CGFloat = 0
     /// 히어로를 지나쳤는가. 헤더 아이콘 색·바 배경이 여기에 달려 있다.
     @State private var pastHero = false
+    /// 비중 · 평소 대비 · 같은 항목 이력 캐시 — 전체 지출을 세 번 훑으므로 body 에서 매번 세지 않고
+    /// 지출 목록이 바뀔 때만 다시 센다(스크롤로 pastHero 가 바뀌어도 그대로).
+    @State private var stats: (share: SpendingShare, typical: SpendingVsTypical?, same: SameItemHistory?)? = nil
 
     /// 편집 반영 위해 라이브 목록에서 재조회.
     private var spending: Spending? { store.spendings.first { $0.id == spendingId } }
@@ -67,8 +70,10 @@ struct SpendingDetailView: View {
         ScrollView {
             VStack(spacing: 12) {
                 hero(s, topInset: topInset)
-                shareCard(s)
-                sameItemCard(s)
+                if let st = stats {
+                    shareCard(s, share: st.share, typical: st.typical)
+                    sameItemCard(s, history: st.same)
+                }
                 // 상세 정보 — 히어로가 금액·재화·날짜·결제를 흡수했으므로 남은 것만.
                 GLGCard(cornerRadius: 24, padding: 20) {
                     VStack(spacing: 0) {
@@ -98,6 +103,15 @@ struct SpendingDetailView: View {
             .padding(.bottom, 8)
         }
         .scrollIndicators(.hidden)
+        // 통계는 지출 목록이 바뀔 때만(편집 · 삭제 · 동기화). 대상 지출도 이 목록에서 다시 찾는다.
+        // initial: true — 첫 그리기 전에 채운다. 배열은 버퍼가 같으면 비교가 즉시 끝난다.
+        .onChange(of: store.spendings, initial: true) { _, all in
+            guard let t = all.first(where: { $0.id == spendingId }) else { return }
+            let st = SpendingDetailStats.shared
+            stats = (st.share(target: t, all: all),
+                     st.vsTypical(target: t, all: all, nowMillis: nowMs(), months: st.TYPICAL_MONTHS),
+                     st.sameItemHistory(target: t, all: all))
+        }
         // 히어로 색이 상태바까지 이어지도록 스크롤 영역을 위로 올린다. 대신 히어로가
         // `topInset` 만큼 스스로 내려가므로 글자는 안전 영역 안에 남는다.
         .ignoresSafeArea(.container, edges: .top)
@@ -257,10 +271,7 @@ struct SpendingDetailView: View {
      비중은 막대로 보면 숫자를 읽지 않아도 대략이 잡힌다.
      */
     @ViewBuilder
-    private func shareCard(_ s: Spending) -> some View {
-        let share = SpendingDetailStats.shared.share(target: s, all: store.spendings)
-        let typical = SpendingDetailStats.shared.vsTypical(
-            target: s, all: store.spendings, nowMillis: nowMs(), months: SpendingDetailStats.shared.TYPICAL_MONTHS)
+    private func shareCard(_ s: Spending, share: SpendingShare, typical: SpendingVsTypical?) -> some View {
         let base = Color(argb64: s.gameColor)
         GLGCard(cornerRadius: 24, padding: 20) {
             VStack(alignment: .leading, spacing: 0) {
@@ -389,8 +400,8 @@ struct SpendingDetailView: View {
      빈 카드를 남기면 화면만 길어진다.
      */
     @ViewBuilder
-    private func sameItemCard(_ s: Spending) -> some View {
-        if let h = SpendingDetailStats.shared.sameItemHistory(target: s, all: store.spendings), h.count > 1 {
+    private func sameItemCard(_ s: Spending, history: SameItemHistory?) -> some View {
+        if let h = history, h.count > 1 {
             GLGCard(cornerRadius: 24, padding: 20) {
                 VStack(alignment: .leading, spacing: 0) {
                     Text("같은 항목을 산 적")

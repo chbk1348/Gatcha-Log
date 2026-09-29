@@ -1094,10 +1094,16 @@ private fun HourPickerDialog(title: String, current: Int, onDismiss: () -> Unit,
 }
 
 private fun shareCsvFile(context: Context, csv: String) {
+    // 캐시 파일로 써서 URI 로 넘긴다 — EXTRA_TEXT 로 본문을 실으면 기록이 많을 때
+    // TransactionTooLargeException 으로 앱이 죽었다. 같은 이름을 덮어써 캐시가 쌓이지 않는다.
+    val file = java.io.File(context.cacheDir, "exports").apply { mkdirs() }.resolve("gatcha_log_spending.csv")
+    file.writeText(csv)
+    val uri = androidx.core.content.FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
     val intent = Intent(Intent.ACTION_SEND).apply {
-        type = "text/plain"
+        type = "text/csv"
         putExtra(Intent.EXTRA_SUBJECT, "Gatcha LOG 지출 내역")
-        putExtra(Intent.EXTRA_TEXT, csv)
+        putExtra(Intent.EXTRA_STREAM, uri)
+        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
     }
     context.startActivity(Intent.createChooser(intent, "지출 내역 내보내기"))
 }

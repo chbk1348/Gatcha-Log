@@ -40,6 +40,8 @@ struct AddSpendingView: View {
     @State private var detailsExpanded = false
     /// 히어로에 바로 뜨는 과소비 경고 — 저장을 누른 뒤가 아니라 금액이 정해지는 순간에 알린다.
     @State private var inlineNudge: String? = nil
+    /// 자주 사는 것(productCard) 캐시 — gameName 이 바뀔 때만 다시 계산한다.
+    @State private var frequent: [FrequentItem] = []
     /// 사용자가 게임을 **직접 골랐는가.**
     ///
     /// 추가 진입은 게임을 미리 정해두지 않는다. 마지막에 기록한 게임을 자동으로 넣으면
@@ -335,9 +337,6 @@ struct AddSpendingView: View {
 
     private var productCard: some View {
         sectionCard {
-            let frequent = editing == nil
-                ? SpendingDefaults.shared.frequentItems(spendings: store.spendings, gameName: gameName, limit: 3)
-                : []
             let packages = GameData.shared.packagesFor(game: game)
 
             // 자주 사는 것 — 같은 게임에서 2회 이상 산 것만, 많이 산 순.
@@ -375,6 +374,13 @@ struct AddSpendingView: View {
                     .font(.pretendard(size: 10.5)).foregroundStyle(GLGColor.textSecondary)
                     .fixedSize(horizontal: false, vertical: true).padding(.top, 6)
             }
+        }
+        // 자주 사는 것은 게임이 바뀔 때만 다시 센다 — body 안에서 세면 글자 하나 칠 때마다 전체 지출을 훑었다.
+        // initial: true — 첫 그리기 전에 채워 전체 그리드가 한 프레임 떴다 접히지 않게(.task 는 한 박자 늦다).
+        .onChange(of: gameName, initial: true) {
+            frequent = editing == nil
+                ? SpendingDefaults.shared.frequentItems(spendings: store.spendings, gameName: gameName, limit: 3)
+                : []
         }
     }
 
@@ -635,8 +641,10 @@ struct AddSpendingView: View {
         let extra = customTags.components(separatedBy: CharacterSet(charactersIn: ", "))
         var tags: [String] = []
         for t in (selectedTags + extra) { let tt = t.trimmingCharacters(in: .whitespaces); if !tt.isEmpty && !tags.contains(tt) { tags.append(tt) } }
-        store.saveSpending(editingId: editing?.id, gameName: gameName, amount: parsed, dateMillis: dateMillis,
-                           paymentMethod: paymentMethod, chargePlatform: chargePlatform, itemName: itemName, memo: memo, tags: tags)
+        // 거절(금액 상한 초과 등)이면 폼을 닫지 않는다 — 닫으면 입력한 게 통째로 사라졌다.
+        guard store.saveSpending(editingId: editing?.id, gameName: gameName, amount: parsed, dateMillis: dateMillis,
+                                 paymentMethod: paymentMethod, chargePlatform: chargePlatform, itemName: itemName, memo: memo, tags: tags)
+        else { saved = false; return }
         onClose()
     }
 

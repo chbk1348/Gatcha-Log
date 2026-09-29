@@ -131,7 +131,7 @@ struct RecentSpendCard: View {
     let onSeeAll: () -> Void
 
     var body: some View {
-        let recent = Array(spendings.sorted { $0.dateMillis > $1.dateMillis }.prefix(4))
+        let recent = Array(spendings.prefix(4))   // store.spendings 는 이미 날짜 내림차순(VM loadAll)
         VStack(alignment: .leading, spacing: 10) {
             // 제목은 카드 바깥 위로(전체보기 액션도 헤더에서)
             HomeSectionHeader(title: "최근 지출", actionTitle: recent.isEmpty ? nil : "전체보기", action: onSeeAll)

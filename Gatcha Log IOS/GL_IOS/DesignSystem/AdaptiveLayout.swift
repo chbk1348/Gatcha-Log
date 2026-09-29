@@ -131,8 +131,11 @@ struct GLGColumnMasonry: View {
     var stackSpacing: CGFloat = 12
 
     var body: some View {
-        if glgIsWideCanvas(width: canvasWidth, sizeClass: hSize) {
-            let cols = distribute(cards, into: max(1, columns))
+        let wide = glgIsWideCanvas(width: canvasWidth, sizeClass: hSize)
+        // 1열이면 넓은 창이어도 LazyVStack — 비지연 VStack 은 카드(지출 날짜 수천 개)를 한 번에 다 세웠다.
+        // 간격은 넓은 창 값(spacing)을 그대로 써서 배치는 예전과 같다.
+        if wide && columns > 1 {
+            let cols = distribute(cards, into: columns)
             HStack(alignment: .top, spacing: spacing) {
                 ForEach(0..<cols.count, id: \.self) { ci in
                     VStack(spacing: spacing) {
@@ -142,7 +145,7 @@ struct GLGColumnMasonry: View {
                 }
             }
         } else {
-            LazyVStack(alignment: .leading, spacing: stackSpacing) {
+            LazyVStack(alignment: .leading, spacing: wide ? spacing : stackSpacing) {
                 ForEach(cards) { $0.view }
             }
         }

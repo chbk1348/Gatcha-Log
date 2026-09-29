@@ -212,9 +212,11 @@ fun HomeScreen(viewModel: SpendingViewModel = viewModel()) {
                     nudgeMessage = { game, amount -> viewModel.overspendNudge(game, amount, editing?.id) },
                     onDismiss = { spendingEditor.value = null },
                     onSave = { spending ->
-                        if (editing == null) viewModel.addSpending(spending)
+                        // 저장이 거절되면(금액 상한 등) 닫지 않는다 — 예전엔 닫혀서 입력이 통째로 사라졌다.
+                        val ok = if (editing == null) viewModel.addSpending(spending)
                         else viewModel.updateSpending(spending)
-                        spendingEditor.value = null
+                        if (ok) spendingEditor.value = null
+                        ok
                     },
                 )
             }
@@ -370,8 +372,10 @@ fun HomeContent(
     // 홈 진입·복귀 시 워커가 백그라운드에서 바꾼 플래그를 다시 읽어 배너에 반영.
     LaunchedEffect(Unit) { viewModel.refreshHoyoTokenExpired() }
 
-    val monthlyTotal = remember(spendings) { viewModel.monthlyTotal() }
-    val prevTotal = remember(spendings) { viewModel.prevMonthTotal() }
+    // VM 이 지출 변경·포그라운드 복귀(달 바뀜)마다 한 번 계산해 둔 값을 받는다 — remember(spendings) 로
+    // 직접 계산하면 지출이 안 바뀐 채 달이 넘어가도 지난달 합계가 남았고, 그릴 때마다 전체를 훑었다.
+    val monthlyTotal by viewModel.currentMonthTotal.collectAsStateWithLifecycle()
+    val prevTotal by viewModel.previousMonthTotal.collectAsStateWithLifecycle()
     // 헤더 닉네임 — 게스트/빈 값 폴백
     val nickname = if (account.isGuest) "게스트" else profile.name.ifBlank { "회원" }
 
@@ -618,7 +622,7 @@ fun HomeContent(
         BudgetDialog(
             overall = budget,
             gameBudgets = gameBudgets,
-            monthlyTotals = remember(spendings) { viewModel.monthlyTotalsByGame() },
+            monthlyTotals = monthlyTotalsByGame,
             onDismiss = { showBudgetDialog.value = false },
             onConfirm = { o, perGame -> viewModel.setBudgets(o, perGame); showBudgetDialog.value = false },
         )

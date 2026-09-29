@@ -357,9 +357,8 @@ fun HeroGradientBackground(modifier: Modifier = Modifier, glow: Boolean = true) 
 // ── 최근 지출 (목업 Transaction 리스트) ──────────────────────────────────────
 @Composable
 fun RecentSpendCard(spendings: List<Spending>, onSeeAll: () -> Unit) {
-    // 지출이 바뀔 때만 정렬한다. 예전엔 remember 가 없어 이 카드가 재구성될 때마다
-    // **지출 전체를 정렬**했다(4건만 쓰는데). 홈은 스크롤·애니메이션으로 재구성이 잦다.
-    val recent = remember(spendings) { spendings.sortedByDescending { it.dateMillis }.take(4) }
+    // VM 이 지출을 날짜 내림차순으로 들고 있어 앞 4건이 곧 최근이다 — 정렬할 필요가 없다.
+    val recent = remember(spendings) { spendings.take(4) }
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         HomeSectionHeader("최근 지출", actionTitle = if (recent.isEmpty()) null else "전체보기", onAction = onSeeAll)
         GlassCard(shape = RoundedCornerShape(22.dp), modifier = Modifier.fillMaxWidth()) {

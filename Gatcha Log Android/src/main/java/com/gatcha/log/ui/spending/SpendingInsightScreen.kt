@@ -57,7 +57,8 @@ fun SpendingInsightScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
     val prevMonthTotal by viewModel.previousMonthTotal.collectAsStateWithLifecycle()
     val year = viewModel.displayYear
     val month = viewModel.displayMonth
-    val monthTotal = remember(spendings) { viewModel.monthlyTotal() }
+    // 이번 달 합계도 VM 값을 받는다 — remember(spendings) 는 달이 바뀌어도 지난달 값을 붙들었다.
+    val monthTotal by viewModel.currentMonthTotal.collectAsStateWithLifecycle()
 
     // 탭 페이지와 같은 구조 — 콘텐츠는 상태바 뒤까지 스크롤되고, 헤더는 그 위에 고정된다.
     val scrollState = rememberScrollState()
