@@ -154,6 +154,16 @@ class AppSettings {
         set(v) { prefs.putString(KEY_MY_GAMES, v.joinToString(",")) }
 
     /**
+     * 이 기기에서 **첫 클라우드 동기화를 마친 계정 id** 들(쉼표 구분).
+     * 로딩 게이트(계정 데이터 불러오는 중)를 띄울지 가르는 기준이다. 예전엔 "로컬에 지출이 있는가"로 갈랐는데,
+     * 앱을 켤 때 계정이 한 박자 늦게 복원되면 그 순간엔 아직 게스트 저장소를 보고 있어 **데이터가 있는 계정도
+     * 없다고 판단** — 홈이 먼저 뜬 뒤 로딩 화면이 덮였다(9/29). 저장된 값이라 복원 타이밍과 상관없다.
+     */
+    var syncedAccounts: Set<String>
+        get() = prefs.getString(KEY_SYNCED_ACCOUNTS, "").orEmpty().split(',').filter { it.isNotBlank() }.toSet()
+        set(v) { prefs.putString(KEY_SYNCED_ACCOUNTS, v.joinToString(",")) }
+
+    /**
      * 온보딩 ③에서 고른 월 예산(원). -1 = 없음.
      * 로그인 전에 고르므로 게스트 저장소에 쓰면 로그인할 때 계정 저장소로 바뀌며 사라진다 —
      * 여기 보관했다가 로그인 · 클라우드 복원 직후 계정 예산이 비어 있을 때만 적용한다.
@@ -255,6 +265,7 @@ class AppSettings {
         private const val KEY_NOTIF_PERM_ASKED = "notif_perm_asked"
         private const val KEY_ONBOARDING_DONE = "onboarding_done"
         private const val KEY_MY_GAMES = "my_games"
+        private const val KEY_SYNCED_ACCOUNTS = "synced_accounts"
         private const val KEY_PENDING_ONBOARDING_BUDGET = "pending_onboarding_budget"
         private const val KEY_SPENDING_COMPACT = "spending_compact"
         private const val KEY_COLLAB_BANNER_EXPANDED = "collab_banner_expanded"

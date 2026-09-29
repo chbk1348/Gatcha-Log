@@ -212,7 +212,7 @@ struct SettingsView: View {
     // ── 알림 — 항목별 알림 · 방해금지를 모은 하위 페이지로 진입 ──
     @ViewBuilder
     private var notificationLinkSection: some View {
-        SetGroupTitle(title: "알림", caption: "받을 알림 · 방해 금지")
+        SetGroupTitle(title: "알림", caption: "받을 알림 · 방해 금지", first: true)
         SetCard {
             SetNavRow(symbol: "bell", tint: .teal, title: "알림 설정",
                       value: NotificationCatalog.shared.enabledLabel(onCount: Int32(notifyOnCount))) { showNotifSettings = true }
@@ -353,7 +353,7 @@ struct ThemeView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
-                preview.padding(.top, 8)
+                preview
                 group("선명", Array(0..<GLGTheme.vividCount))
                 group("차분", Array(GLGTheme.vividCount..<GLGTheme.palette.count),
                       footer: "두 벌은 같은 색조 · 다른 채도예요. 게임별 색상과 속성 연출은 테마와 상관없이 그대로예요.")
@@ -497,7 +497,7 @@ struct BudgetSettingsView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
-                BudgetAmountEditor(budget: $amount, custom: $custom).padding(.top, 8)
+                BudgetAmountEditor(budget: $amount, custom: $custom)
                 SetGroupTitle(title: "게임별 한도", caption: "선택 · 비워 두면 한도 없음")
                 SetCard {
                     ForEach(Array(order.enumerated()), id: \.element.key) { i, g in

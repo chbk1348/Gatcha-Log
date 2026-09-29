@@ -765,16 +765,24 @@ object HoyolabApi {
     }
 
     /** 에이전트 3명 + 뱅부(있으면 끝에). 등급은 "S"/"A" 문자열로 온다. */
+    /**
+     * 젠레스 초상은 원본이 커서(role_square 304×372 PNG ≈ 167KB — 원신 · 스타레일 아이콘의 2배 이상)
+     * 클리어 편성에서 젠레스만 한 박자 늦게 떴다(9/29 지적). 같은 CDN 이 축소 · WebP 변환을 받아 주므로
+     * 200px WebP(≈13KB)로 받는다. 이미 쿼리가 붙은 주소는 건드리지 않는다.
+     */
+    private fun zzzIcon(url: String): String =
+        if (url.isBlank() || '?' in url) url else "$url?x-oss-process=image/resize,w_200/format,webp"
+
     private fun zzzTeam(avatars: JSONArray?, buddy: JSONObject?): List<CombatAvatar> = buildList {
         for (i in 0 until (avatars?.length() ?: 0)) {
             val a = avatars?.optJSONObject(i) ?: continue
             val id = a.optInt("id")
             if (id == 0) continue
-            add(CombatAvatar(id, iconUrl = a.optString("role_square_url"), level = a.optInt("level"), rarity = zzzRarity(a.optString("rarity"))))
+            add(CombatAvatar(id, iconUrl = zzzIcon(a.optString("role_square_url")), level = a.optInt("level"), rarity = zzzRarity(a.optString("rarity"))))
         }
         buddy?.let { b ->
             val id = b.optInt("id")
-            if (id != 0) add(CombatAvatar(id, iconUrl = b.optString("bangboo_rectangle_url"), level = b.optInt("level"), rarity = zzzRarity(b.optString("rarity")), isBuddy = true))
+            if (id != 0) add(CombatAvatar(id, iconUrl = zzzIcon(b.optString("bangboo_rectangle_url")), level = b.optInt("level"), rarity = zzzRarity(b.optString("rarity")), isBuddy = true))
         }
     }
 

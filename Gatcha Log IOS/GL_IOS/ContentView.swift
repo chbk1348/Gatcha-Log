@@ -117,15 +117,16 @@ struct ContentView: View {
             if needsIntro {
                 // 첫 실행 온보딩 — 앱 아이콘의 게이지 링을 페이지마다 다른 의미로 변주해 소개하고,
                 // 마지막 페이지에서 맥락과 함께 알림 권한을 요청한다.
-                OnboardingView(store: store) { requestNotification in
-                    finishOnboarding(requestNotification: requestNotification)
+                OnboardingView(store: store) { requestNotification, signIn in
+                    finishOnboarding(requestNotification: requestNotification, signIn: signIn)
                 }
                 .glgAccent(index: preLoginAccent)
-                .transition(.opacity)
+                // 「홈으로 이동하기」 — 온보딩은 살짝 커지며 사라지고, 다음 화면이 그 위로 겹쳐 나타난다(빈 화면 없이, 9/29).
+                .transition(.asymmetric(insertion: .opacity, removal: .scale(scale: 1.06).combined(with: .opacity)))
             } else if store.needsLogin {
-                // Phase 1 — SwiftUI 네이티브 로그인 (구 ComposeView LoginViewController 대체).
                 // 로그인 완료 시 공유 VM 의 account 가 바뀌어 자동으로 탭 화면으로 전환.
-                LoginView(store: store)
+                // 로그아웃 등으로 로그인이 필요하면 온보딩의 로그인 화면만(옛 로그인 화면 · 온보딩 1.0 은 9/29 제거).
+                OnboardingView(store: store, loginOnly: true) { _, _ in }
                     .glgAccent(index: preLoginAccent)
                     .transition(.opacity)
             } else if syncGateActive {
@@ -216,6 +217,8 @@ struct ContentView: View {
         // 알림 탭 → 해당 탭으로 이동(AppDelegate.didReceive 가 glgOpenTab 으로 탭 인덱스 전달).
         // 개발자 메뉴 「온보딩 초기화」 — 재시작 없이 바로 온보딩으로 돌아간다.
         .onChange(of: store.onboardingReplay) { _, v in if v > 0 { needsIntro = true } }
+        // 로그인 화면에서 로그인한 경우도 같은 이유로 게이트를 즉시 다시 잰다.
+        .onChange(of: store.needsLogin) { _, _ in syncGateActive = MainViewControllerKt.isSyncGateActive() }
         .onReceive(NotificationCenter.default.publisher(for: .glgOpenTab)) { note in
             if let tab = note.object as? Int, !syncGateActive, !needsIntro, !store.needsLogin {
                 selectedTab = tab
@@ -321,13 +324,21 @@ struct ContentView: View {
      「알림 없이 시작」이면 프롬프트를 띄우지 않으므로 notifPermAsked 도 건드리지 않는다 — 그 플래그는
      "OS 프롬프트를 실제로 띄운 적 있는가"라서, 안 띄우고 true 로 만들면 이후 '영구 거부' 판별이 틀어진다.
      */
-    private func finishOnboarding(requestNotification: Bool) {
+    private func finishOnboarding(requestNotification: Bool, signIn: Bool) {
         AppSettings().onboardingDone = true
+        // 로딩 게이트를 **같은 순간에** 켠다 — 구독(observeSyncGate)은 한 박자 늦게 와서, 로그인 직후
+        // 홈이 한 프레임 보였다가 로딩(스플래시)으로 바뀌었다(9/29).
+        syncGateActive = MainViewControllerKt.isSyncGateActive()
         // 알림 항목은 온보딩 ⑤에서 고른 값을 이미 설정에 썼다(applyOnboarding) — 여기서는 OS 권한만 받는다.
         // 허용돼도 다른 항목을 일괄로 켜지 않는다(고른 값 유지).
+        // 로그인 전이면 권한 창 뒤에(없으면 바로) 구글 로그인 — 순서: 권한 → 구글 로그인 → 홈(9/29).
         if requestNotification {
             AppSettings().notifPermAsked = true
-            NotificationPermission.request { _ in }
+            NotificationPermission.request { _ in
+                if signIn { DispatchQueue.main.async { store.signIn() } }
+            }
+        } else if signIn {
+            store.signIn()
         }
         needsIntro = false
     }

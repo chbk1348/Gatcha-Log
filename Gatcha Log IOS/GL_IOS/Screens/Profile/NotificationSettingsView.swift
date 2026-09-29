@@ -213,12 +213,14 @@ struct SetTint {
 struct SetGroupTitle: View {
     let title: String
     let caption: String
+    /// 페이지 첫 묶음이면 위 여백을 줄인다 — 페이지 여백(16)에 20 이 더해져 헤더 아래가 36 으로 떠 보였다(9/29 지적).
+    var first: Bool = false
     var body: some View {
         HStack(alignment: .lastTextBaseline, spacing: 6) {
             Text(title).font(.pretendard(size: 13, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
             Text(caption).font(.pretendard(size: 11.5)).foregroundStyle(Color(hex: 0xFF7A8784))
         }
-        .padding(.horizontal, 4).padding(.top, 20).padding(.bottom, 8)
+        .padding(.horizontal, 4).padding(.top, first ? 4 : 20).padding(.bottom, 8)
     }
 }
 

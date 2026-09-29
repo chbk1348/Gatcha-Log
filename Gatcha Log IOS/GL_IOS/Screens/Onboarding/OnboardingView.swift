@@ -28,6 +28,13 @@ private enum OB {
     static let games: [Game] = GameData.shared.onboardingGames
 }
 
+/// 완료 요약 한 줄 — 짧은 이름으로, 넷 이상이면 「앞 셋 외 N」(오른쪽 정렬 값이 여러 줄로 꺾이지 않게, 9/29).
+private func shortList(_ names: [String], empty: String = "—") -> String {
+    if names.isEmpty { return empty }
+    if names.count <= 3 { return names.joined(separator: " · ") }
+    return names.prefix(3).joined(separator: " · ") + " 외 \(names.count - 3)"
+}
+
 private func obWon(_ n: Int64) -> String {
     let f = NumberFormatter(); f.numberStyle = .decimal
     return f.string(from: NSNumber(value: n)) ?? "\(n)"
@@ -53,8 +60,11 @@ private let obTiles: [GlyphTile] = [
 
 struct OnboardingView: View {
     var store: SpendingStore
+    /// 온보딩을 마친 뒤 로그아웃 등으로 로그인이 필요할 때 — 옛 로그인 화면(온보딩 1.0) 대신
+    /// ⑥ 복원 화면(「로그인하면 불러와요」 + 구글 로그인 버튼)만 띄운다(9/29).
+    var loginOnly: Bool = false
     /// 온보딩 종료. requestNotification=true 면 호출부가 OS 알림 권한을 요청한다(「알림 켜고 시작하기」).
-    let onFinish: (_ requestNotification: Bool) -> Void
+    let onFinish: (_ requestNotification: Bool, _ signIn: Bool) -> Void
 
     @State private var step = 0
     @State private var forward = true
@@ -70,6 +80,9 @@ struct OnboardingView: View {
     @State private var restored = false
     @State private var settled = false   // ② 첫 진입 차례 등장은 한 번만
     @State private var leaving = false   // ① → ② 타일 흩어짐
+    @State private var exiting = false   // ⑥ → 홈 연타 방지
+    @State private var loginRequested = false
+    @State private var applied = false   // 완료 버튼을 다시 눌러도(로그인 재시도) 설정은 한 번만 쓴다
 
     private var noHoyo: Bool { games.isDisjoint(with: OB.hoyoKeys) }
     private var total: Int { noHoyo ? 3 : 4 }
@@ -78,8 +91,15 @@ struct OnboardingView: View {
     var body: some View {
         VStack(spacing: 0) {
             topBar
+                .padding(.horizontal, 24)
+                .frame(maxWidth: 480)
+            // iPad · 듀오 대응(9/29): 폭은 폰 크기(480)로 가운데에 모은다. 480 제한은 **페이지 안쪽**에만 —
+            // 바깥 틀에 걸면 옆으로 밀리는 전환이 틀 가장자리에서 잘렸다. 버튼 틀은 하단에 상시 고정,
+            // 세로가 모자라면 스크롤 대신 촘촘한 배치로(StepBody).
             ZStack {
                 page(step)
+                    .padding(.horizontal, 24)
+                    .frame(maxWidth: 480, maxHeight: .infinity)
                     .id(step)
                     .transition(.asymmetric(
                         insertion: .offset(x: forward ? 36 : -36).combined(with: .opacity),
@@ -89,10 +109,18 @@ struct OnboardingView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .clipped()
         }
-        .padding(.horizontal, 24)
+        .frame(maxWidth: .infinity)
         .background(Color.white.ignoresSafeArea())
         .onAppear {
             games = store.myGames.intersection(Set(OB.games.map { $0.key }))
+            if loginOnly { step = 5; restored = true }
+        }
+        // 완료 화면에서 띄운 구글 로그인이 끝나면 온보딩을 마친다(로그인 화면을 거치지 않는다).
+        .onChange(of: store.needsLogin) { _, needs in
+            if !needs && (step == 5 || loginRequested) && !exiting {
+                exiting = true
+                onFinish(false, false)
+            }
         }
     }
 
@@ -145,8 +173,7 @@ struct OnboardingView: View {
     // ── ① 환영 ──
     private var welcome: some View {
         VStack(spacing: 0) {
-            VStack(spacing: 0) {
-                Spacer()
+            StepBody(center: true) { _ in
                 TileFan(leaving: leaving)
                 Spacer().frame(height: 28)
                 Text("하는 게임에 맞춘\n나만의 게임 가계부")
@@ -166,10 +193,8 @@ struct OnboardingView: View {
                 .padding(.top, 24)
                 Text("약 1분 · 게임 고르기 말고는 전부 건너뛸 수 있어요")
                     .font(.pretendard(size: 12)).foregroundStyle(OB.sub).padding(.top, 12)
-                Spacer()
             }
-            .frame(maxWidth: .infinity)
-            CtaButton(title: "내 앱으로 맞추기", primary: true) {
+            CtaButton(title: "시작하기", primary: true) {
                 guard !busy, !leaving else { return }
                 // 타일이 차례로 위로 흩어진 뒤 넘어간다(0.32초)
                 leaving = true
@@ -179,7 +204,8 @@ struct OnboardingView: View {
                     leaving = false
                 }
             }
-            CtaButton(title: "이미 쓰고 있어요 · 불러오기", primary: false) { restored = true; go(5) }
+            // 「구글 로그인 하기」 — 설정 단계 없이 바로 구글 로그인(기존 사용자 복원). 성공하면 onChange 가 마친다.
+            CtaButton(title: "구글 로그인 하기", primary: false) { loginRequested = true; store.signIn() }
             Spacer().frame(height: 16)
         }
     }
@@ -187,36 +213,37 @@ struct OnboardingView: View {
     // ── ② 게임 ──
     private var gamesPage: some View {
         VStack(alignment: .leading, spacing: 0) {
-            PageTitle(title: "어떤 게임을 하세요?", sub: "고른 게임이 지출 입력 맨 위에 오고, 출석도 고른 게임만 챙겨요.")
-                .enterUp(delay: settled ? nil : 0.04)
-            VStack(spacing: 8) {
-                ForEach(Array(OB.games.enumerated()), id: \.element.key) { i, g in
-                    let on = games.contains(g.key)
-                    Button {
-                        withAnimation(.easeOut(duration: 0.18)) {
-                            if on { games.remove(g.key) } else { games.insert(g.key) }
-                        }
-                    } label: {
-                        HStack {
-                            Text(g.displayName).font(.pretendard(size: 15, weight: .bold)).foregroundStyle(OB.ink)
-                            Spacer()
-                            ZStack {
-                                Circle().fill(on ? OB.tealBright : OB.line).frame(width: 22, height: 22)
-                                if on { Image(systemName: "checkmark").font(.system(size: 11, weight: .bold)).foregroundStyle(.white) }
+            StepBody { h in
+                PageTitle(title: "어떤 게임을 하세요?", sub: "고른 게임이 지출 입력 맨 위에 오고, 출석도 고른 게임만 챙겨요.")
+                    .enterUp(delay: settled ? nil : 0.04)
+                VStack(spacing: 8) {
+                    ForEach(Array(OB.games.enumerated()), id: \.element.key) { i, g in
+                        let on = games.contains(g.key)
+                        Button {
+                            withAnimation(.easeOut(duration: 0.18)) {
+                                if on { games.remove(g.key) } else { games.insert(g.key) }
                             }
-                            .scaleEffect(on ? 1 : 0.75)
+                        } label: {
+                            HStack {
+                                Text(g.displayName).font(.pretendard(size: 15, weight: .bold)).foregroundStyle(OB.ink)
+                                Spacer()
+                                ZStack {
+                                    Circle().fill(on ? OB.tealBright : OB.line).frame(width: 22, height: 22)
+                                    if on { Image(systemName: "checkmark").font(.system(size: 11, weight: .bold)).foregroundStyle(.white) }
+                                }
+                                .scaleEffect(on ? 1 : 0.75)
+                            }
+                            .padding(.horizontal, 16).frame(height: h < 520 ? 46 : 58)
+                            .background(on ? OB.tealTint : .white, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                            .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(on ? OB.tealBright : OB.line, lineWidth: on ? 2 : 1))
+                            .contentShape(Rectangle())
                         }
-                        .padding(.horizontal, 16).frame(height: 58)
-                        .background(on ? OB.tealTint : .white, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-                        .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(on ? OB.tealBright : OB.line, lineWidth: on ? 2 : 1))
-                        .contentShape(Rectangle())
+                        .buttonStyle(.plain)
+                        .enterUp(delay: settled ? nil : 0.16 + Double(i) * 0.06)
                     }
-                    .buttonStyle(.plain)
-                    .enterUp(delay: settled ? nil : 0.16 + Double(i) * 0.06)
                 }
+                .padding(.top, h < 520 ? 16 : 24)
             }
-            .padding(.top, 24)
-            Spacer()
             CtaButton(title: games.isEmpty ? "게임을 하나 이상 골라 주세요" : "\(games.count)개 선택 · 다음",
                       primary: true, enabled: !games.isEmpty, delay: settled ? 0.14 : 0.46) {
                 settled = true; go(2)
@@ -228,39 +255,48 @@ struct OnboardingView: View {
     // ── ⑤ 알림 ──
     private var notifyPage: some View {
         VStack(alignment: .leading, spacing: 0) {
-            PageTitle(title: "어떤 알림을 받을까요?", sub: "필요한 것만 켜 두세요. 설정 ▸ 알림에서 언제든 바꿀 수 있어요.")
-            NotifyPreviewCard(title: noHoyo ? "이번 달 예산의 90% 를 썼어요" : "레진이 곧 가득 차요",
-                              detail: noHoyo ? "150,000원 중 135,000원 · 남은 15,000원" : "원신 190 / 200 · 20분 뒤 가득")
-                .padding(.top, 20)
-            VStack(spacing: 0) {
-                // 호요버스 게임이 없으면 출석 · 행동력은 쓸 데가 없어 숨긴다.
-                if !noHoyo {
-                    notifyRow("calendar.badge.checkmark", .teal, "출석", "자동 출석 결과 · 저녁까지 미출석이면", $attend)
-                    SetDivider()
-                    notifyRow("clock", .blue, "행동력 가득", "가득 차기 전 한 번", $resin)
-                    SetDivider()
+            StepBody { h in
+                PageTitle(title: "어떤 알림을 받을까요?", sub: "필요한 것만 켜 두세요. 설정 ▸ 알림에서 언제든 바꿀 수 있어요.")
+                // 화면이 낮으면 미리보기 카드는 건너뛴다 — 고를 스위치가 먼저다.
+                if h >= 560 {
+                    NotifyPreviewCard(title: noHoyo ? "이번 달 예산의 90% 를 썼어요" : "레진이 곧 가득 차요",
+                                      detail: noHoyo ? "150,000원 중 135,000원 · 남은 15,000원" : "원신 190 / 200 · 20분 뒤 가득")
+                        .padding(.top, 20)
                 }
-                notifyRow("star", .purple, "픽업 마감", "D-3 · D-1", $pickup)
-                SetDivider()
-                notifyRow("creditcard", .orange, "예산 초과", "90% · 100% 넘을 때", $budgetAlert)
+                VStack(spacing: 0) {
+                    // 호요버스 게임이 없으면 출석 · 행동력은 쓸 데가 없어 숨긴다.
+                    if !noHoyo {
+                        notifyRow("calendar.badge.checkmark", .teal, "출석", "자동 출석 결과 · 저녁까지 미출석이면", $attend)
+                        SetDivider()
+                        notifyRow("clock", .blue, "행동력 가득", "가득 차기 전 한 번", $resin)
+                        SetDivider()
+                    }
+                    notifyRow("star", .purple, "픽업 마감", "D-3 · D-1", $pickup)
+                    SetDivider()
+                    notifyRow("creditcard", .orange, "예산 초과", "90% · 100% 넘을 때", $budgetAlert)
+                }
+                .background(Color.white, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).strokeBorder(OB.line, lineWidth: 1))
+                .padding(.top, 14)
+                HStack(spacing: 12) {
+                    Image(systemName: "moon").font(.system(size: 16, weight: .semibold)).foregroundStyle(Color(hex: 0xFF4F5C59))
+                    Text("방해 금지 시간").font(.pretendard(size: 13, weight: .bold)).foregroundStyle(OB.ink)
+                    Spacer()
+                    Text(String(format: "%02d:00 ~ %02d:00", store.notifyDndStartHour, store.notifyDndEndHour))
+                        .font(.pretendard(size: 12.5, weight: .bold)).foregroundStyle(Color(hex: 0xFF4F5C59))
+                        .padding(.horizontal, 12).padding(.vertical, 5)
+                        .background(Color.white, in: Capsule()).overlay(Capsule().strokeBorder(OB.line, lineWidth: 1))
+                }
+                .padding(.horizontal, 14).padding(.vertical, 10)
+                .background(OB.ground, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                .padding(.top, 10)
             }
-            .background(Color.white, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).strokeBorder(OB.line, lineWidth: 1))
-            .padding(.top, 14)
-            HStack(spacing: 12) {
-                Image(systemName: "moon").font(.system(size: 16, weight: .semibold)).foregroundStyle(Color(hex: 0xFF4F5C59))
-                Text("방해 금지 시간").font(.pretendard(size: 13, weight: .bold)).foregroundStyle(OB.ink)
-                Spacer()
-                Text(String(format: "%02d:00 ~ %02d:00", store.notifyDndStartHour, store.notifyDndEndHour))
-                    .font(.pretendard(size: 12.5, weight: .bold)).foregroundStyle(Color(hex: 0xFF4F5C59))
-                    .padding(.horizontal, 12).padding(.vertical, 5)
-                    .background(Color.white, in: Capsule()).overlay(Capsule().strokeBorder(OB.line, lineWidth: 1))
+            // OS 알림 권한을 그 자리에서 묻고, 답하면 ⑥ 완료로(9/29). 완료 화면은 구글 로그인만.
+            CtaButton(title: "알림 켜고 시작하기", primary: true) {
+                alerts = true; restored = false
+                AppSettings().notifPermAsked = true
+                NotificationPermission.request { _ in go(5) }
             }
-            .padding(.horizontal, 14).padding(.vertical, 10)
-            .background(OB.ground, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-            .padding(.top, 10)
-            Spacer()
-            CtaButton(title: "알림 켜고 시작하기", primary: true) { alerts = true; restored = false; go(5) }
             CtaButton(title: "알림 없이 시작", primary: false) { alerts = false; restored = false; go(5) }
             Spacer().frame(height: 16)
         }
@@ -287,10 +323,14 @@ struct OnboardingView: View {
 
     // ── ⑥ 완료 ──
     private var summary: [(String, String, String)] {
-        if restored { return [("person", "로그인", "Google 계정"), ("icloud", "설정", "클라우드에서 복원")] }
+        // 로그인 유도 화면(restored) — 로그인하면 좋은 점 세 줄(9/29 목적 변경).
+        if restored {
+            return [("icloud", "기기를 바꿔도 그대로", "지출 · 예산 · 설정이 구글 계정에 저장돼요"),
+                    ("clock.arrow.circlepath", "쓰던 계정이면 기록 복원", "로그인만 하면 이전 기록이 돌아와요"),
+                    ("person", "가입 없이 구글 계정 하나로", "따로 만들 계정도, 비밀번호도 없어요")]
+        }
         var rows: [(String, String, String)] = []
-        let names = OB.games.filter { games.contains($0.key) }.map { $0.displayName }.joined(separator: " · ")
-        rows.append(("gamecontroller", "게임", names.isEmpty ? "—" : names))
+        rows.append(("gamecontroller", "게임", shortList(OB.games.filter { games.contains($0.key) }.map { $0.shortName })))
         rows.append(("wallet.pass", "월 예산", budget > 0 ? "\(obWon(budget))원" : "없음"))
         if !noHoyo { rows.append(("link", "HoYoLAB", store.hoyolabConfig.isLinked ? "연결됨" : "나중에")) }
         var on: [String] = []
@@ -298,18 +338,40 @@ struct OnboardingView: View {
         if !noHoyo && resin { on.append("행동력 가득") }
         if pickup { on.append("픽업 마감") }
         if budgetAlert { on.append("예산 초과") }
-        rows.append(("bell", "알림", alerts ? (on.isEmpty ? "모두 끔" : on.joined(separator: " · ")) : "받지 않음"))
+        rows.append(("bell", "알림", alerts ? shortList(on, empty: "모두 끔") : "받지 않음"))
         return rows
+    }
+
+    private func finishDone() {
+        guard !exiting else { return }
+        // 설정값은 누르는 순간 저장한다(게스트여도 — 예산은 로그인 직후 계정에 적용된다).
+        if !restored && !applied {
+            applied = true
+            // 호요버스 게임이 없으면 숨긴 두 알림은 켜지 않는다(쓸 데가 없다).
+            store.applyOnboarding(
+                games: games, budget: budget > 0 ? budget : -1, alerts: alerts,
+                attendance: !noHoyo && attend, resin: !noHoyo && resin, pickup: pickup, budgetAlert: budgetAlert
+            )
+        }
+        // 로그인 전이면 온보딩을 **띄운 채로** 구글 로그인만 띄운다 — 먼저 끝내면 뒤에 옛 로그인 화면이 깔려 보였다(9/29).
+        // 로그인이 끝나면(needsLogin → false) 아래 onChange 가 온보딩을 마친다. 취소하면 이 화면에 그대로 남는다.
+        if store.needsLogin {
+            store.signIn()
+            return
+        }
+        // 퇴장 연출은 ContentView 루트 전환이 맡는다 — 여기서 먼저 지우면 다음 화면이 오기 전 빈 화면이 스쳤다(9/29).
+        exiting = true
+        onFinish(false, false)   // 알림 권한은 ⑤에서 이미 물었다
     }
 
     private var donePage: some View {
         VStack(spacing: 0) {
-            VStack(spacing: 0) {
-                Spacer()
-                DoneBurst()
-                Text(restored ? "로그인하면 불러와요" : "준비 끝!")
+            StepBody(center: true) { _ in
+                DoneBurst(symbol: restored ? "person.fill" : "checkmark")
+                Text(restored ? "로그인하고 시작해요" : "준비 끝!")
                     .font(.pretendard(size: 26, weight: .bold)).foregroundStyle(OB.ink).padding(.top, 10)
-                Text(restored ? "Google 계정으로 로그인하면 설정과 기록을 모두 가져와요" : "이제 홈에서 내 기록을 볼 수 있어요")
+                Text(restored ? "Gatcha Log 는 기록을 구글 계정에 안전하게 저장해요"
+                     : (store.needsLogin ? "Google 계정으로 로그인하면 바로 시작해요" : "이제 홈에서 내 기록을 볼 수 있어요"))
                     .font(.pretendard(size: 13.5)).foregroundStyle(OB.sub).multilineTextAlignment(.center).padding(.top, 6)
                 VStack(spacing: 0) {
                     ForEach(Array(summary.enumerated()), id: \.offset) { i, row in
@@ -317,9 +379,18 @@ struct OnboardingView: View {
                         HStack(spacing: 12) {
                             Image(systemName: row.0).font(.system(size: 14, weight: .semibold)).foregroundStyle(OB.teal)
                                 .frame(width: 30, height: 30).background(Color.white, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-                            Text(row.1).font(.pretendard(size: 13)).foregroundStyle(OB.sub)
-                            Spacer(minLength: 12)
-                            Text(row.2).font(.pretendard(size: 13, weight: .bold)).foregroundStyle(OB.ink).multilineTextAlignment(.trailing)
+                            if restored {
+                                // 좋은 점 — 제목(굵게) + 설명
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(row.1).font(.pretendard(size: 13.5, weight: .bold)).foregroundStyle(OB.ink)
+                                    Text(row.2).font(.pretendard(size: 12)).foregroundStyle(OB.sub)
+                                }
+                                Spacer(minLength: 0)
+                            } else {
+                                Text(row.1).font(.pretendard(size: 13)).foregroundStyle(OB.sub)
+                                Spacer(minLength: 12)
+                                Text(row.2).font(.pretendard(size: 13, weight: .bold)).foregroundStyle(OB.ink).lineLimit(1).truncationMode(.tail)
+                            }
                         }
                         .padding(.vertical, 12)
                     }
@@ -327,18 +398,18 @@ struct OnboardingView: View {
                 .padding(.horizontal, 16).padding(.vertical, 6)
                 .background(OB.ground, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
                 .padding(.top, 22)
-                Text("설정 ▸ 내 설정에서 언제든 바꿀 수 있어요")
-                    .font(.pretendard(size: 12)).foregroundStyle(Color(hex: 0xFF7A8784)).padding(.top, 22)
-                Spacer()
+                Text(restored ? "구글 로그인만 써요 · 게스트 모드는 없어요"
+                     : (store.needsLogin ? "고른 설정은 구글 계정에 저장돼 기기를 바꿔도 그대로예요" : "설정 ▸ 내 설정에서 언제든 바꿀 수 있어요"))
+                    .font(.pretendard(size: 12)).foregroundStyle(Color(hex: 0xFF7A8784)).multilineTextAlignment(.center).padding(.top, 22)
             }
-            CtaButton(title: restored ? "로그인하고 불러오기" : "홈으로 이동하기", primary: true) {
-                if restored { onFinish(false); return }
-                // 호요버스 게임이 없으면 숨긴 두 알림은 켜지 않는다(쓸 데가 없다).
-                store.applyOnboarding(
-                    games: games, budget: budget > 0 ? budget : -1, alerts: alerts,
-                    attendance: !noHoyo && attend, resin: !noHoyo && resin, pickup: pickup, budgetAlert: budgetAlert
-                )
-                onFinish(alerts)
+            // 로그인 전(첫 사용자 · 복원)이면 구글 로그인 버튼(9/29) — 누르면 로그인 화면을 거치지 않고 바로 구글 로그인이 뜬다.
+            Group {
+                if store.needsLogin {
+                    GoogleSignInButton(title: restored ? "Google로 로그인하기" : "Google로 로그인하고 시작하기") { finishDone() }
+                        .padding(.horizontal, 8).enterUp(delay: 0.14)
+                } else {
+                    CtaButton(title: "홈으로 이동하기", primary: true) { finishDone() }
+                }
             }
             Spacer().frame(height: 16)
         }
@@ -346,6 +417,20 @@ struct OnboardingView: View {
 }
 
 // ── 공통 조각 ─────────────────────────────────────────────────────────────
+
+/// 단계 내용 칸 — 버튼 틀 위의 남는 높이를 다 쓰고, 그 높이를 내용에 넘긴다(스크롤 없음, 9/29).
+/// 화면이 낮으면(작은 폰 · 듀오 · 가로 iPad) 각 단계가 이 높이를 보고 촘촘한 배치로 바꿔 한 화면에 넣는다.
+/// 버튼 틀은 이 칸 밖(아래)이라 하단에 상시 고정된다. center 면 가운데(환영 · 완료), 아니면 위에서부터.
+private struct StepBody<Content: View>: View {
+    var center: Bool = false
+    @ViewBuilder var content: (_ height: CGFloat) -> Content
+    var body: some View {
+        GeometryReader { geo in
+            VStack(alignment: center ? .center : .leading, spacing: 0) { content(geo.size.height) }
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: center ? .center : .topLeading)
+        }
+    }
+}
 
 private struct PageTitle: View {
     let title: String
@@ -466,6 +551,7 @@ private struct TileFan: View {
 
 /// ⑥ 체크 원 + 게임 색 점.
 private struct DoneBurst: View {
+    var symbol: String = "checkmark"
     @State private var pop = false
     private let dots: [(CGFloat, CGFloat, CGFloat, UInt32)] = [
         (8, 22, 10, 0xFF6FA5FA), (22, 70, 7, 0xFFC48CFF), (104, 14, 8, 0xFFFFC15A),
@@ -476,7 +562,7 @@ private struct DoneBurst: View {
             ForEach(Array(dots.enumerated()), id: \.offset) { _, d in
                 Circle().fill(Color(hex: d.3)).frame(width: d.2, height: d.2).offset(x: d.0, y: d.1).opacity(pop ? 1 : 0)
             }
-            Image(systemName: "checkmark").font(.system(size: 32, weight: .bold)).foregroundStyle(.white)
+            Image(systemName: symbol).font(.system(size: 32, weight: .bold)).foregroundStyle(.white)
                 .frame(width: 72, height: 72)
                 .background(LinearGradient(colors: [Color(hex: 0xFF1FA0AB), Color(hex: 0xFF146E77)],
                                            startPoint: .topLeading, endPoint: .bottomTrailing), in: Circle())
@@ -499,9 +585,10 @@ private struct BudgetPage: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            PageTitle(title: "한 달에 얼마까지 쓸까요?", sub: "넘기기 전에 알려 드려요. 게임별 한도는 나중에 정해도 돼요.")
-            BudgetAmountEditor(budget: $budget, custom: $custom).padding(.top, 28)
-            Spacer()
+            StepBody { _ in
+                PageTitle(title: "한 달에 얼마까지 쓸까요?", sub: "넘기기 전에 알려 드려요. 게임별 한도는 나중에 정해도 돼요.")
+                BudgetAmountEditor(budget: $budget, custom: $custom).padding(.top, 28)
+            }
             CtaButton(title: "다음", primary: true) { hideKeyboard(); onNext() }
             CtaButton(title: "예산 없이 쓸게요", primary: false) { hideKeyboard(); onSkip() }
             Spacer().frame(height: 16)
@@ -668,58 +755,61 @@ private struct HoyolabPage: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            PageTitle(title: "HoYoLAB을 연결할까요?", sub: "비밀번호는 저장하지 않아요. 언제든 연결을 끊을 수 있어요.")
-            // 히어로
-            HStack {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("연결하면").font(.pretendard(size: 12, weight: .bold)).foregroundStyle(Color(hex: 0xFF8FE3DA))
-                    Text("매일 할 일 6가지를\n앱이 대신 챙겨요").font(.pretendard(size: 18, weight: .bold)).foregroundStyle(.white).lineSpacing(4)
-                }
-                Spacer()
-                HStack(spacing: -10) {
-                    ForEach(Array(obTiles.prefix(3).enumerated()), id: \.offset) { i, t in
-                        Image(t.asset).resizable().scaledToFit().frame(width: i == 0 ? 24 : 26, height: i == 0 ? 24 : 26)
-                            .frame(width: 36, height: 36)
-                            .background(LinearGradient(colors: [t.from, t.to], startPoint: .topLeading, endPoint: .bottomTrailing),
-                                        in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-                            .padding(2)
-                            .background(Color(hex: 0xFF1A2847), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-                            .zIndex(Double(3 - i))
+            StepBody { h in
+                PageTitle(title: "HoYoLAB을 연결할까요?", sub: "비밀번호는 저장하지 않아요. 언제든 연결을 끊을 수 있어요.")
+                // 히어로
+                HStack {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("연결하면").font(.pretendard(size: 12, weight: .bold)).foregroundStyle(Color(hex: 0xFF8FE3DA))
+                        Text("매일 할 일 6가지를\n앱이 대신 챙겨요").font(.pretendard(size: 18, weight: .bold)).foregroundStyle(.white).lineSpacing(4)
                     }
-                }
-            }
-            .padding(.horizontal, 20).padding(.vertical, 18)
-            .background(LinearGradient(colors: [OB.ink, Color(hex: 0xFF23345C)], startPoint: .topLeading, endPoint: .bottomTrailing),
-                        in: RoundedRectangle(cornerRadius: 20, style: .continuous))
-            .padding(.top, 20)
-            LazyVGrid(columns: [GridItem(.flexible(), spacing: 8), GridItem(.flexible(), spacing: 8)], spacing: 8) {
-                ForEach(Array(perks.enumerated()), id: \.offset) { _, p in
-                    VStack(alignment: .leading, spacing: 10) {
-                        Image(systemName: p.0).font(.system(size: 16, weight: .semibold)).foregroundStyle(OB.teal)
-                            .frame(width: 34, height: 34)
-                            .background(Color.white, in: RoundedRectangle(cornerRadius: 11, style: .continuous))
-                            .shadow(color: OB.ink.opacity(0.06), radius: 1.5, y: 1)
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(p.1).font(.pretendard(size: 14, weight: .bold)).foregroundStyle(OB.ink)
-                            Text(p.2).font(.pretendard(size: 12)).foregroundStyle(OB.sub)
+                    Spacer()
+                    HStack(spacing: -10) {
+                        ForEach(Array(obTiles.prefix(3).enumerated()), id: \.offset) { i, t in
+                            Image(t.asset).resizable().scaledToFit().frame(width: i == 0 ? 24 : 26, height: i == 0 ? 24 : 26)
+                                .frame(width: 36, height: 36)
+                                .background(LinearGradient(colors: [t.from, t.to], startPoint: .topLeading, endPoint: .bottomTrailing),
+                                            in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                                .padding(2)
+                                .background(Color(hex: 0xFF1A2847), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                                .zIndex(Double(3 - i))
                         }
                     }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(14)
-                    .background(OB.ground, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                }
+                .padding(.horizontal, 20).padding(.vertical, h < 630 ? 12 : 18)
+                .background(LinearGradient(colors: [OB.ink, Color(hex: 0xFF23345C)], startPoint: .topLeading, endPoint: .bottomTrailing),
+                            in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+                .padding(.top, h < 630 ? 14 : 20)
+                // 화면이 낮으면 3열 · 설명 줄 생략(스크롤 없이 한 화면에, 9/29).
+                LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: h < 630 ? 3 : 2), spacing: 8) {
+                    ForEach(Array(perks.enumerated()), id: \.offset) { _, p in
+                        VStack(alignment: .leading, spacing: h < 630 ? 8 : 10) {
+                            Image(systemName: p.0).font(.system(size: 16, weight: .semibold)).foregroundStyle(OB.teal)
+                                .frame(width: 34, height: 34)
+                                .background(Color.white, in: RoundedRectangle(cornerRadius: 11, style: .continuous))
+                                .shadow(color: OB.ink.opacity(0.06), radius: 1.5, y: 1)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(p.1).font(.pretendard(size: h < 630 ? 13 : 14, weight: .bold)).foregroundStyle(OB.ink)
+                                    .lineLimit(1).minimumScaleFactor(0.8)
+                                if h >= 630 { Text(p.2).font(.pretendard(size: 12)).foregroundStyle(OB.sub) }
+                            }
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(h < 630 ? 10 : 14)
+                        .background(OB.ground, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                    }
+                }
+                .padding(.top, 12)
+                if linked {
+                    Text("연결됐어요 · \(picked.isEmpty ? "게임" : picked) UID 를 채웠어요")
+                        .font(.pretendard(size: 13, weight: .bold)).foregroundStyle(OB.teal)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, 14).padding(.vertical, 12)
+                        .background(OB.tealTint, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                        .padding(.top, 8)
+                        .transition(.opacity.combined(with: .offset(y: 8)))
                 }
             }
-            .padding(.top, 12)
-            if linked {
-                Text("연결됐어요 · \(picked.isEmpty ? "게임" : picked) UID 를 채웠어요")
-                    .font(.pretendard(size: 13, weight: .bold)).foregroundStyle(OB.teal)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, 14).padding(.vertical, 12)
-                    .background(OB.tealTint, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-                    .padding(.top, 8)
-                    .transition(.opacity.combined(with: .offset(y: 8)))
-            }
-            Spacer()
             if linked {
                 CtaButton(title: "다음", primary: true, action: onNext)
                 CtaButton(title: "연결 해제", primary: false, bg: Color(hex: 0xFFECEFF4), fg: OB.ink) {

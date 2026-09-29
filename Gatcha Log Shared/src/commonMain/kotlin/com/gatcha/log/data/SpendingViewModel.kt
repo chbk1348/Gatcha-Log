@@ -724,7 +724,8 @@ class SpendingViewModel : ViewModel() {
     fun signIn() {
         viewModelScope.launch {
             if (cloudConfigured) _initialSyncing.value = true
-            when (val outcome = authManager.signIn(autoSelectOnly = false)) {
+            signInInFlight = true
+            try { when (val outcome = authManager.signIn(autoSelectOnly = false)) {
                 is SignInOutcome.Success -> {
                     if (!completeSignIn(outcome.account)) {
                         _initialSyncing.value = false
@@ -733,9 +734,15 @@ class SpendingViewModel : ViewModel() {
                 }
                 SignInOutcome.NoCredential -> { _initialSyncing.value = false; emitStatus("로그인이 취소되었거나 완료되지 못했어요") }
                 is SignInOutcome.Error -> { _initialSyncing.value = false; emitStatus(outcome.message) }
-            }
+            } } finally { signInInFlight = false }
         }
     }
+
+    /**
+     * 로그인 진행 중 — 계정은 이미 바뀌었는데 저장소는 아직 게스트 것인 구간이 있다(email 계정 → uid 계정 사이).
+     * 그때 [hasLocalData] 가 게스트 데이터를 보고 게이트를 꺼서 홈 → 로딩 순으로 뒤바뀌었다(iOS, 9/29 로그로 확인).
+     */
+    private var signInInFlight = false
 
     /**
      * 로그인 성공 공통 처리: Firebase 인증 → uid 로 계정 식별자 통일 → 계정 전환 → 클라우드 복원.
@@ -3030,6 +3037,24 @@ class SpendingViewModel : ViewModel() {
     val hasLocalData: Boolean
         get() = _spendings.value.isNotEmpty() || gachaRecords.isNotEmpty()
 
+    /**
+     * 로딩 게이트(계정 데이터 불러오는 중)가 필요한가 — 로그인했고, 이 기기에서 이 계정을 아직 한 번도
+     * 동기화하지 않았을 때만. [AppSettings.syncedAccounts] 참고(앱을 켤 때 홈 → 로딩 순으로 뒤바뀌던 것, 9/29).
+     * 로컬에 이미 기록이 있으면(이 플래그가 생기기 전부터 써 온 기기) 건너뛴다.
+     */
+    val needsSyncGate: Boolean
+        get() {
+            val acc = account.value
+            return !acc.isGuest && acc.id !in appSettings.syncedAccounts && (signInInFlight || !hasLocalData)
+        }
+
+    /** 로딩 게이트를 마쳤다(또는 첫 동기화가 끝났다) — 이 계정은 다음부터 게이트 없이 바로 연다. */
+    fun markAccountSynced() {
+        val acc = account.value
+        if (acc.isGuest) return
+        appSettings.syncedAccounts = appSettings.syncedAccounts + acc.id
+    }
+
     /** 데이터 변경 시 디바운스(1.5s) 후 Firestore 에 전체 스냅샷 푸시. */
     private fun scheduleCloudSync() {
         if (!cloudConfigured) return
@@ -3230,6 +3255,7 @@ class SpendingViewModel : ViewModel() {
                         // 원격/계정에 호요랩 연동이 없고 게스트에 있으면 계정으로 승계(귀속 누락 복구)
                         carryOverGuestHoyolab()
                         loadAll()
+                        markAccountSynced()   // 첫 동기화 성공 — 다음 실행부터 로딩 게이트 없음
                     }
                     // 병합 결과를 다시 업로드 → 유실됐던 호요랩 토큰 등을 클라우드에 자가 복구
                     withTimeoutOrNull(SYNC_TIMEOUT_MS) { cloudPush(uid) }
@@ -3327,7 +3353,7 @@ const val ERROR_TOAST_COOLDOWN_MS = 180_000L
 
     /**
      * 콜드 스타트 부트스트랩: 이미 Firebase 세션이 살아있으면(앱 재실행) 바로 클라우드 동기화.
-     * 세션이 없으면(재설치/데이터삭제/로그아웃) 자동 로그인하지 않고 온보딩(LoginScreen)에서
+     * 세션이 없으면(재설치/데이터삭제/로그아웃) 자동 로그인하지 않고 온보딩의 로그인 화면에서
      * 사용자가 직접 'Google 로그인' 또는 '게스트'를 선택한다. 로그인 시 [signIn] → [completeSignIn] 으로 복원.
      */
     private fun bootstrapAuthAndSync() {

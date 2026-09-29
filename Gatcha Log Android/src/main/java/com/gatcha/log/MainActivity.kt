@@ -1,5 +1,11 @@
 package com.gatcha.log
 
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.togetherWith
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.AnimatedContent
 import android.Manifest
 import android.content.Context
 import android.content.Intent
@@ -30,7 +36,6 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.gatcha.log.ui.auth.AccountLoadingScreen
 import com.gatcha.log.ui.components.GlgDialog
-import com.gatcha.log.ui.auth.LoginScreen
 import com.gatcha.log.ui.home.HomeScreen
 import com.gatcha.log.ui.onboarding.OnboardingScreen
 import com.gatcha.log.data.SpendingViewModel
@@ -69,7 +74,9 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         // 시스템 스플래시(Theme.GatchaLog.Splash) — 반드시 super.onCreate 앞. 첫 프레임이 그려지면 자동으로 걷힌다.
         // 앱 진입을 붙잡아두지는 않는다: 클라우드 동기화 대기는 AccountLoadingScreen(게이지 링)이 맡는다.
-        installSplashScreen()
+        // 기본 종료 연출(아이콘째 서서히 사라짐)을 쓰지 않는다 — 이미 그려진 홈 위에 링 아이콘이 겹쳐 남아
+        // "홈이 보였다가 스플래시가 다시 뜬다"로 보였다(9/29 S23 녹화로 확인). 첫 프레임에 바로 걷는다.
+        installSplashScreen().setOnExitAnimationListener { it.remove() }
         super.onCreate(savedInstanceState)
         // 시스템 바 아이콘은 **항상 어두운 색**(라이트 배경용)으로 고정한다.
         // 인자 없는 enableEdgeToEdge() 는 아이콘 색을 시스템 다크모드 설정에 맡긴다. 이 앱은
@@ -132,14 +139,19 @@ class MainActivity : ComponentActivity() {
             // 신규 유저는 온보딩 ⑥(알림을 켰을 때)에서 맥락과 함께 요청하고, 기존 유저는 이미 물어본 적이 있으며,
             // 그 외에는 알림 설정 화면의 안내 배너에서 직접 허용할 수 있다.
             // 온보딩 전용 런처 — 항목은 온보딩 ⑤에서 고른 값 그대로 두고 권한만 받는다.
-            val notifPermLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
+            // 온보딩 끝 → 알림 권한 창을 닫으면 이어서 구글 로그인(두 시스템 창이 겹치지 않게, 9/29).
+            var signInAfterPermission by remember { mutableStateOf(false) }
+            val notifPermLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
+                if (signInAfterPermission) { signInAfterPermission = false; viewModel.signIn() }
+            }
             val accentIndex by viewModel.accentIndex.collectAsStateWithLifecycle()
             val account by viewModel.account.collectAsStateWithLifecycle()
             val initialSyncing by viewModel.initialSyncing.collectAsStateWithLifecycle()
             val errorAlert by viewModel.errorAlert.collectAsStateWithLifecycle()
             // 로컬 데이터가 이미 있으면(재실행) 로딩 게이트를 건너뛰고 즉시 진입 — 동기화는 백그라운드.
             // 첫 로그인·재설치(로컬 없음)에서만 게이지 링 로딩 화면을 보여준다.
-            var loadingDone by rememberSaveable { mutableStateOf(viewModel.hasLocalData) }
+            // 로딩 게이트는 "이 기기에서 이 계정을 한 번이라도 동기화했는가"로 가른다(needsSyncGate, 9/29).
+            var loadingDone by rememberSaveable { mutableStateOf(false) }
             var onboardingDone by rememberSaveable { mutableStateOf(AppSettings().onboardingDone) }
             // 개발자 메뉴 「온보딩 초기화」 — 재시작 없이 바로 온보딩으로 돌아간다.
             val onboardingReplay by viewModel.onboardingReplay.collectAsStateWithLifecycle()
@@ -153,21 +165,36 @@ class MainActivity : ComponentActivity() {
             // 로그인 전 구간은 앱 아이콘의 색으로 통일한다.
             val preLogin = !onboardingDone || account.isGuest
             GatchaLogTheme(accentIndex = if (preLogin) 0 else accentIndex) {
+                // 온보딩 → 다음 화면: 온보딩은 살짝 커지며 사라지고 다음 화면이 그 위로 겹쳐 나타난다
+                // (「홈으로 이동하기」 뒤 빈 화면이 스치던 것, 9/29). 전환은 온보딩 경계에서만 — 로그인 · 로딩 · 홈 사이는 그대로.
+                AnimatedContent(
+                    targetState = onboardingDone,
+                    transitionSpec = {
+                        fadeIn(tween(420)) togetherWith (fadeOut(tween(380)) + scaleOut(tween(380), targetScale = 1.06f))
+                    },
+                    label = "onboardingRoot",
+                ) { done ->
                 when {
-                    // 첫 실행 → 앱 소개 4페이지(로그인보다 앞). 재설치 전까지 다시 뜨지 않는다.
-                    !onboardingDone -> OnboardingScreen(viewModel, onFinish = { requestNotification ->
+                    // 첫 실행 → 앱 소개(로그인보다 앞). 재설치 전까지 다시 뜨지 않는다.
+                    !done -> OnboardingScreen(viewModel, onFinish = { requestNotification, signIn ->
                         AppSettings().onboardingDone = true
                         // 알림 항목은 온보딩 ⑤에서 고른 값을 이미 설정에 썼다(applyOnboarding) —
                         // 여기서는 OS 권한만 받는다. 허용돼도 다른 항목을 일괄로 켜지 않는다(고른 값 유지).
-                        if (requestNotification) requestNotificationPermission(notifPermLauncher::launch)
+                        // 로그인 전이면 권한 창 뒤에(없으면 바로) 구글 로그인을 띄운다 — 순서: 권한 → 구글 로그인 → 홈.
+                        val prompted = requestNotification && run {
+                            signInAfterPermission = signIn
+                            requestNotificationPermission(notifPermLauncher::launch)
+                        }
+                        if (!prompted) { signInAfterPermission = false; if (signIn) viewModel.signIn() }
                         onboardingDone = true
                     })
-                    // 미로그인 → 로그인 화면(게스트 모드 없음, 구글 로그인 필수)
-                    account.isGuest -> LoginScreen(viewModel)
+                    // 미로그인(로그아웃 등) → 온보딩의 로그인 화면(구글 로그인 필수). 옛 로그인 화면(온보딩 1.0)은 9/29 제거.
+                    account.isGuest -> OnboardingScreen(viewModel, loginOnly = true, onFinish = { _, _ -> })
                     // 로그인 유저 → 계정 데이터 불러오는 중(게이지 링 0~100%)
-                    !account.isGuest && !loadingDone ->
-                        AccountLoadingScreen(loading = initialSyncing, onFinished = { loadingDone = true })
+                    !account.isGuest && !loadingDone && viewModel.needsSyncGate ->
+                        AccountLoadingScreen(loading = initialSyncing, onFinished = { viewModel.markAccountSynced(); loadingDone = true })
                     else -> HomeScreen(viewModel)
+                }
                 }
                 // 오류 얼럿 — 네트워크 미연결·연동 만료·클라우드 백업 실패 공통(앱 루트에 한 번만).
                 // 제목이 종류마다 달라서 ErrorAlert 가 제목까지 들고 온다.
