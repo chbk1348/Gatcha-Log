@@ -317,6 +317,14 @@ private struct SeasonBody: View {
                     .buttonStyle(.plain)
                     .padding(.top, 4)
                 }
+                // 편성 상세가 안 오는 층(시유 방어전 1~3층) 안내 — 목록에서 말없이 빠지면 누락처럼 보인다.
+                if !clear.note.isEmpty {
+                    Rectangle().fill(GLGColor.divider).frame(height: 1)
+                    Text(clear.note)
+                        .font(.pretendard(size: 11))
+                        .foregroundStyle(GLGColor.textSecondary)
+                        .padding(.top, 12)
+                }
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)

@@ -731,7 +731,7 @@ object HoyolabApi {
                 val o = list.optJSONObject(i) ?: continue
                 val score = o.optInt("score")
                 rooms += CombatRoom(
-                    name = "5층 ${i + 1}",
+                    name = "5층 ${i + 1}번 스테이지",   // 인게임 표기(방 = 스테이지)에 맞춘다
                     rating = o.optString("rating"),
                     detail = if (score > 0) "${thousands(score)} / ${thousands(o.optInt("max_score"))}점" else "",
                     firstHalf = zzzTeam(o.optJSONArray("avatar_list"), o.optJSONObject("buddy")),
@@ -755,9 +755,12 @@ object HoyolabApi {
             listOfNotNull(b?.optString("rating")?.ifBlank { null }, "${thousands(score)} / ${thousands(b?.optInt("max_score") ?: 0)}")
                 .joinToString(" · ")
         } else ""
+        // 1~3층은 API 가 편성을 주지 않는다(통과 층 수만) — 말없이 빠져 있으면 누락처럼 보여 한 줄로 밝힌다.
+        val passed = minOf(b?.optInt("cur_period_zone_layer_count") ?: 0, 3)
+        val note = if (passed > 0) "1~${passed}층 통과 · HoYoLAB 이 이 층들의 편성은 주지 않아요" else ""
         return CombatClear(
             Game.ZZZ.displayName, "시유 방어전", season = periodLabel(h), current = current,
-            rooms = rooms.filterNot { it.isEmpty }, scoreLabel = scoreLabel,
+            rooms = rooms.filterNot { it.isEmpty }, scoreLabel = scoreLabel, note = note,
         )
     }
 

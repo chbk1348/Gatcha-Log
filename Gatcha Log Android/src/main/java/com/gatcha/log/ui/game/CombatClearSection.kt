@@ -444,6 +444,11 @@ private fun SeasonBody(clear: CombatClear) {
                     .padding(top = 14.dp),
             )
         }
+        // 편성 상세가 안 오는 층(시유 방어전 1~3층) 안내 — 목록에서 말없이 빠지면 누락처럼 보인다.
+        if (clear.note.isNotBlank()) {
+            HorizontalDivider(color = RowDivider)
+            Text(clear.note, fontSize = 11.sp, color = TextSecondary, modifier = Modifier.padding(top = 12.dp))
+        }
     }
 }
 
