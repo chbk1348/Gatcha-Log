@@ -90,14 +90,12 @@ struct SettingsView: View {
                 store.consumePendingOpenHoyolabLink()
             }
         }
-        .sheet(isPresented: $showBudget) { BudgetSheet(store: store) }
-        // 넛지 기준 금액 — 단일 입력이라 바텀시트 대신 중앙 모달(네이티브 alert + 입력 필드).
-        .alert("넛지 기준 금액", isPresented: $showNudge) {
-            TextField("기준 금액 (원)", text: $nudgeText).keyboardType(.numberPad).glgAlertTint()
-            Button("저장") { store.setNudgeThreshold(Int64(nudgeText.filter(\.isNumber)) ?? 0) }.glgAlertTint()
-            Button("취소", role: .cancel) { }.glgAlertTint()
-        } message: {
-            Text("단건 지출이 이 금액 이상이면 추가 전 한 번 더 확인해요.")
+        // 예산 관리 — 팝업에서 페이지로(아티팩트 S3).
+        .navigationDestination(isPresented: $showBudget) { BudgetSettingsView(store: store) }
+        // 넛지 기준 금액 — 네이티브 alert 입력칸이 오른쪽으로 쏠려 보여(9/29 지적) 작은 시트로 바꿨다.
+        .sheet(isPresented: $showNudge) {
+            NudgeThresholdSheet(text: $nudgeText) { store.setNudgeThreshold(Int64(nudgeText.filter(\.isNumber)) ?? 0) }
+                .presentationDetents([.height(250)])
         }
         .sheet(isPresented: $showCredits) { CreditsSheet() }
         .navigationDestination(isPresented: $showHoyolab) {
@@ -355,7 +353,7 @@ struct ThemeView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
-                preview
+                preview.padding(.top, 8)
                 group("선명", Array(0..<GLGTheme.vividCount))
                 group("차분", Array(GLGTheme.vividCount..<GLGTheme.palette.count),
                       footer: "두 벌은 같은 색조 · 다른 채도예요. 게임별 색상과 속성 연출은 테마와 상관없이 그대로예요.")
@@ -403,18 +401,15 @@ struct ThemeView: View {
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .glgGlass(in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+        .background(Color.white, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).strokeBorder(Color(hex: 0xFFE3E8E6), lineWidth: 1))
     }
 
     private func group(_ title: String, _ indices: [Int], footer: String? = nil) -> some View {
         let cols = Array(repeating: GridItem(.flexible(), spacing: 12), count: 5)
         return VStack(alignment: .leading, spacing: 7) {
-            HStack {
-                Text(title).font(.pretendard(size: 13, weight: .semibold))
-                Spacer()
-                Text("\(indices.count)").font(.pretendard(size: 11))
-            }
-            .foregroundStyle(GLGColor.textSecondary).padding(.horizontal, 4)
+            // 설정 메인과 같은 묶음 제목(9/29).
+            SetGroupTitle(title: title, caption: "\(indices.count)색").padding(.bottom, -7)
             LazyVGrid(columns: cols, spacing: 16) {
                 ForEach(indices, id: \.self) { i in
                     let opt = GLGTheme.palette[i]
@@ -435,7 +430,8 @@ struct ThemeView: View {
                 }
             }
             .padding(.horizontal, 10).padding(.vertical, 16)
-            .glgGlass(in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+            .background(Color.white, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).strokeBorder(Color(hex: 0xFFE3E8E6), lineWidth: 1))
             if let footer {
                 Text(footer).font(.pretendard(size: 11)).foregroundStyle(GLGColor.textSecondary).padding(.horizontal, 4)
             }
@@ -480,5 +476,169 @@ struct TextDocument: FileDocument {
     }
     func fileWrapper(configuration: WriteConfiguration) throws -> FileWrapper {
         FileWrapper(regularFileWithContents: text.data(using: .utf8) ?? Data())
+    }
+}
+
+// ── 설정 ▸ 예산 관리(아티팩트 S3) — 위는 온보딩 ③과 같은 금액 카드, 아래는 게임별 한도. Android BudgetScreen 파리티. ──
+struct BudgetSettingsView: View {
+    var store: SpendingStore
+    @Environment(\.dismiss) private var dismiss
+    @State private var amount: Int64 = 0
+    @State private var custom = false
+    @State private var limits: [String: String] = [:]
+    @State private var loaded = false
+
+    /// 내 게임이 위(GameData.pickerGames 파리티).
+    private var order: [Game] {
+        store.myGames.isEmpty ? GLGGames.all
+            : GLGGames.all.filter { store.myGames.contains($0.key) } + GLGGames.all.filter { !store.myGames.contains($0.key) }
+    }
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 0) {
+                BudgetAmountEditor(budget: $amount, custom: $custom).padding(.top, 8)
+                SetGroupTitle(title: "게임별 한도", caption: "선택 · 비워 두면 한도 없음")
+                SetCard {
+                    ForEach(Array(order.enumerated()), id: \.element.key) { i, g in
+                        if i > 0 { SetDivider() }
+                        limitRow(g)
+                    }
+                }
+                Text("내 게임이 위에 와요. 이번 달 사용액이 한도를 넘으면 주황으로 표시돼요.")
+                    .font(.pretendard(size: 11.5)).foregroundStyle(Color(hex: 0xFF7A8784))
+                    .padding(.horizontal, 4).padding(.top, 10)
+            }
+            .padding(16)
+            .glgReadableWidth(640)
+        }
+        // iOS 는 「월 예산 끄기」 · 「저장」을 상단 내비게이션 바에 상시 고정(9/29) — HoYoLAB 연동의 「저장」과 같은 자리.
+        // (Android 는 하단 고정 버튼)
+        .toolbar {
+            // 두 버튼을 한 알약으로 묶지 않고 떼어 놓는다(9/29) — 끄기와 저장은 성격이 달라 붙어 있으면 잘못 누른다.
+            ToolbarItem(placement: .topBarTrailing) {
+                Button("월 예산 끄기") { save(0) }
+            }
+            // iOS 26+ 는 툴바 버튼을 한 유리 알약으로 묶는다 — 간격으로 떼어 놓는다(18 이하는 원래 따로 그려진다).
+            if #available(iOS 26.0, *) {
+                ToolbarSpacer(.fixed, placement: .topBarTrailing)
+            }
+            ToolbarItem(placement: .topBarTrailing) {
+                Button("저장") { save(amount) }.fontWeight(.bold)
+            }
+        }
+        .scrollIndicators(.hidden)
+        .scrollDismissesKeyboard(.interactively)
+        .background(Color.white.ignoresSafeArea())
+        .glgPageTitle("예산 관리")
+        .navigationBarTitleDisplayMode(.inline)
+        // 입력 페이지라 하단 탭바를 숨긴다(업데이트 로그와 같은 처리).
+        .toolbar(.hidden, for: .tabBar)
+        .onAppear {
+            guard !loaded else { return }
+            loaded = true
+            amount = store.budget
+            custom = store.budget > 0 && ![50_000, 100_000, 150_000, 300_000].contains(store.budget)
+            for g in GLGGames.all {
+                let v = store.gameBudgets[g.key] ?? 0
+                limits[g.key] = v > 0 ? won0(v) : ""
+            }
+        }
+    }
+
+    private func limitRow(_ g: Game) -> some View {
+        let spent = store.monthlyTotalsByGame[g.key] ?? 0
+        let limit = Int64((limits[g.key] ?? "").filter(\.isNumber)) ?? 0
+        let over = limit > 0 && spent > limit
+        return HStack(spacing: 12) {
+            Circle().fill(Color(argb64: g.color)).frame(width: 10, height: 10)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(g.displayName).font(.pretendard(size: 14, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
+                Text("이번 달 \(won(spent))" + (over ? " · 한도 초과" : ""))
+                    .font(.pretendard(size: 12, weight: over ? .bold : .regular))
+                    .foregroundStyle(over ? Color(hex: 0xFFC2410C) : GLGColor.textSecondary)
+            }
+            Spacer(minLength: 8)
+            HStack(spacing: 2) {
+                TextField("한도 없음", text: Binding(
+                    get: { limits[g.key] ?? "" },
+                    set: { raw in
+                        let n = Int64(String(raw.filter(\.isNumber).prefix(9))) ?? 0
+                        limits[g.key] = n > 0 ? won0(n) : ""
+                    }))
+                    .keyboardType(.numberPad)
+                    .multilineTextAlignment(.trailing)
+                    .font(.pretendard(size: 14, weight: .bold))
+                if limit > 0 { Text("원").font(.pretendard(size: 14, weight: .bold)) }
+            }
+            .padding(.horizontal, 12)
+            .frame(width: 118, height: 38)
+            .background(Color(hex: 0xFFF5F8F8), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .strokeBorder(over ? Color(hex: 0xFFFED7AA) : .clear, lineWidth: 1.5))
+        }
+        .padding(.horizontal, 14).padding(.vertical, 11)
+    }
+
+    private func won0(_ n: Int64) -> String {
+        let f = NumberFormatter(); f.numberStyle = .decimal
+        return f.string(from: NSNumber(value: n)) ?? "\(n)"
+    }
+
+    private func save(_ overall: Int64) {
+        var per: [String: Int64] = [:]
+        for (k, v) in limits { if let n = Int64(v.filter(\.isNumber)), n > 0 { per[k] = n } }
+        store.setBudgets(overall: max(overall, 0), perGame: per)
+        dismiss()
+    }
+
+
+}
+
+// ── 넛지 기준 금액 — 작은 시트(입력칸이 가운데 · 화면 폭에 맞게). ──
+struct NudgeThresholdSheet: View {
+    @Binding var text: String
+    let onSave: () -> Void
+    @Environment(\.dismiss) private var dismiss
+    @FocusState private var focused: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text("넛지 기준 금액").font(.pretendard(size: 17, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
+            Text("단건 지출이 이 금액 이상이면 추가 전 한 번 더 확인해요.")
+                .font(.pretendard(size: 13)).foregroundStyle(GLGColor.textSecondary).padding(.top, 6)
+            HStack(spacing: 4) {
+                TextField("100,000", text: $text)
+                    .keyboardType(.numberPad)
+                    .focused($focused)
+                    .font(.pretendard(size: 18, weight: .bold))
+                    .onChange(of: text) { _, v in
+                        let digits = String(v.filter(\.isNumber).prefix(9))
+                        if digits != v { text = digits }
+                    }
+                Text("원").font(.pretendard(size: 16, weight: .bold)).foregroundStyle(GLGColor.textSecondary)
+            }
+            .padding(.horizontal, 14).frame(height: 50)
+            .background(Color(hex: 0xFFF5F8F8), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .padding(.top, 16)
+            HStack(spacing: 8) {
+                Button { dismiss() } label: {
+                    Text("취소").font(.pretendard(size: 15, weight: .bold)).foregroundStyle(Color(hex: 0xFF177881))
+                        .frame(maxWidth: .infinity).frame(height: 48)
+                        .background(Color(hex: 0xFFE3F2F1), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                }
+                Button { onSave(); dismiss() } label: {
+                    Text("저장").font(.pretendard(size: 15, weight: .bold)).foregroundStyle(.white)
+                        .frame(maxWidth: .infinity).frame(height: 48)
+                        .background(Color(hex: 0xFF177881), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                }
+            }
+            .buttonStyle(.plain)
+            .padding(.top, 18)
+        }
+        .padding(20)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .background(Color.white.ignoresSafeArea())
+        .onAppear { focused = true }
     }
 }

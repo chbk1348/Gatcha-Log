@@ -241,7 +241,7 @@ fun OnboardingScreen(viewModel: SpendingViewModel, onFinish: (requestNotificatio
 
 /** 눌림(0.96배) + 아래에서 올라오는 등장. 주 버튼 50 · 보조 42, 좌우 8 들여씀. */
 @Composable
-private fun CtaButton(
+internal fun CtaButton(
     text: String,
     primary: Boolean,
     onClick: () -> Unit,
@@ -427,6 +427,23 @@ private fun GamesStep(games: Set<String>, stagger: Boolean, onToggle: (String) -
 
 @Composable
 private fun BudgetStep(budget: Long, custom: Boolean, onBudget: (Long, Boolean) -> Unit, onNext: () -> Unit, onSkip: () -> Unit) {
+    Column(Modifier.fillMaxSize()) {
+        Title("한 달에 얼마까지 쓸까요?", "넘기기 전에 알려 드려요. 게임별 한도는 나중에 정해도 돼요.")
+        Spacer(Modifier.height(28.dp))
+        BudgetAmountEditor(budget, custom, onBudget)
+        Spacer(Modifier.weight(1f))
+        CtaButton("다음", primary = true, onClick = onNext)
+        CtaButton("예산 없이 쓸게요", primary = false, onClick = onSkip)
+        Spacer(Modifier.height(16.dp))
+    }
+}
+
+/**
+ * 월 예산 금액 카드 — 직접 입력(숫자만 · 콤마 · 9자리) + 5만~30만원 버튼(숫자가 굴러감) + 직접 입력 버튼 + 50만원 이상 주의.
+ * 온보딩 ③과 설정 ▸ 예산 관리(아티팩트 S3)가 같이 쓴다.
+ */
+@Composable
+internal fun BudgetAmountEditor(budget: Long, custom: Boolean, onBudget: (Long, Boolean) -> Unit) {
     val value = budget.coerceAtLeast(0L)
     // 금액 버튼을 누르면 숫자가 0.45초 동안 굴러간다(직접 입력 중에는 바로 반영).
     val rolling = remember { Animatable(value.toFloat()) }
@@ -449,9 +466,7 @@ private fun BudgetStep(budget: Long, custom: Boolean, onBudget: (Long, Boolean) 
     val labelColor = if (warn) Warn else Teal
     val amtColor = if (warn) Warn else Ink
 
-    Column(Modifier.fillMaxSize()) {
-        Title("한 달에 얼마까지 쓸까요?", "넘기기 전에 알려 드려요. 게임별 한도는 나중에 정해도 돼요.")
-        Spacer(Modifier.height(28.dp))
+    Column(Modifier.fillMaxWidth()) {
         Column(
             Modifier
                 .fillMaxWidth()
@@ -507,10 +522,6 @@ private fun BudgetStep(budget: Long, custom: Boolean, onBudget: (Long, Boolean) 
         AmountChip("직접 입력", customOn, Modifier.fillMaxWidth().height(40.dp), icon = Icons.Filled.Edit, fg = Teal) {
             onBudget(value, true); runCatching { focus.requestFocus() }
         }
-        Spacer(Modifier.weight(1f))
-        CtaButton("다음", primary = true, onClick = onNext)
-        CtaButton("예산 없이 쓸게요", primary = false, onClick = onSkip)
-        Spacer(Modifier.height(16.dp))
     }
 }
 

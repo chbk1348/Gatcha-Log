@@ -497,6 +497,28 @@ private struct BudgetPage: View {
     let onNext: () -> Void
     let onSkip: () -> Void
 
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            PageTitle(title: "한 달에 얼마까지 쓸까요?", sub: "넘기기 전에 알려 드려요. 게임별 한도는 나중에 정해도 돼요.")
+            BudgetAmountEditor(budget: $budget, custom: $custom).padding(.top, 28)
+            Spacer()
+            CtaButton(title: "다음", primary: true) { hideKeyboard(); onNext() }
+            CtaButton(title: "예산 없이 쓸게요", primary: false) { hideKeyboard(); onSkip() }
+            Spacer().frame(height: 16)
+        }
+    }
+}
+
+private func hideKeyboard() {
+    UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+}
+
+/// 월 예산 금액 카드 — 직접 입력 + 5만~30만원(숫자가 굴러감) + 직접 입력 버튼 + 50만원 이상 주의.
+/// 온보딩 ③과 설정 ▸ 예산 관리(아티팩트 S3)가 같이 쓴다. Android BudgetAmountEditor 파리티.
+struct BudgetAmountEditor: View {
+    @Binding var budget: Int64
+    @Binding var custom: Bool
+
     @State private var text = ""
     @State private var shake: CGFloat = 0
     @State private var glow = false
@@ -508,7 +530,6 @@ private struct BudgetPage: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            PageTitle(title: "한 달에 얼마까지 쓸까요?", sub: "넘기기 전에 알려 드려요. 게임별 한도는 나중에 정해도 돼요.")
             VStack(alignment: .leading, spacing: 6) {
                 Text("월 예산").font(.pretendard(size: 13, weight: .bold)).foregroundStyle(warn ? OB.warn : OB.teal)
                 HStack(alignment: .firstTextBaseline, spacing: 4) {
@@ -540,7 +561,6 @@ private struct BudgetPage: View {
                 .strokeBorder(Color(hex: 0xFFEA580C).opacity(warn ? (glow ? 0.16 : 0) : 0), lineWidth: 5))
             .offset(x: shake)
             .animation(.easeInOut(duration: 0.3), value: warn)
-            .padding(.top, 28)
 
             if warn {
                 HStack(alignment: .top, spacing: 8) {
@@ -568,10 +588,6 @@ private struct BudgetPage: View {
             }
             .frame(height: 40)
             .padding(.top, 8)
-            Spacer()
-            CtaButton(title: "다음", primary: true) { focused = false; onNext() }
-            CtaButton(title: "예산 없이 쓸게요", primary: false) { focused = false; onSkip() }
-            Spacer().frame(height: 16)
         }
         .animation(.easeOut(duration: 0.3), value: warn)
         .onAppear { text = value > 0 ? obWon(value) : "" }

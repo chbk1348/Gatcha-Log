@@ -1,5 +1,11 @@
 package com.gatcha.log.ui.game
 
+import androidx.compose.foundation.background
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import com.gatcha.log.ui.profile.NotifyCard
+import com.gatcha.log.ui.profile.NotifyGroupTitle
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
@@ -60,45 +66,54 @@ fun HoyolabLinkScreen(config: HoyolabConfig, onSave: (HoyolabConfig) -> Unit, on
             Modifier.fillMaxSize().navigationBarsPadding().verticalScroll(scrollState)
                 .padding(horizontal = 16.dp)
                 .padding(top = glgDetailContentTop()),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
+            verticalArrangement = Arrangement.spacedBy(0.dp),
         ) {
-            // 비공식 연동 + 토큰 보관 위치 사전 고지 (로그인 직전)
-            Text(
-                "이 기능은 비공식 연동이며, 토큰은 이 기기에만 저장됩니다 (클라우드·백업에 포함되지 않음).",
-                fontSize = 11.sp, color = TextSecondary,
-            )
+            // 설정 하위 페이지 다듬기(9/29) — 온보딩 ④와 같은 남색 로그인 카드 + 묶음 제목 + 흰 카드.
             // 로그인으로 자동 가져오기 (WebView → 쿠키 추출)
-            // 부제가 있는 두 줄짜리라 GlgButton 으로는 못 바꾼다(제목만 받는다). 대신 반지름은
-            // **토큰을 쓴다** — 14 를 숫자로 박아 둔 탓에 버튼 규격을 16 으로 통일할 때 이 버튼만
-            // 혼자 남았다. 토큰이면 다음 변경에 같이 따라온다.
-            Surface(
-                modifier = Modifier.fillMaxWidth().clickable { showEmailGuide = true },
-                shape = RoundedCornerShape(GlgButtonRadius),
-                color = accent.copy(alpha = 0.12f),
-                border = BorderStroke(1.dp, accent.copy(alpha = 0.4f)),
+            Row(
+                Modifier.padding(top = 4.dp).fillMaxWidth().clip(RoundedCornerShape(20.dp))
+                    .background(Brush.linearGradient(listOf(Color(0xFF0F1A33), Color(0xFF23345C))))
+                    .clickable { showEmailGuide = true }.padding(horizontal = 18.dp, vertical = 16.dp),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.AutoMirrored.Filled.Login, null, tint = accent, modifier = Modifier.size(20.dp))
-                    Spacer(Modifier.width(10.dp))
-                    Column(Modifier.weight(1f)) {
-                        Text("HoYoLAB 로그인으로 자동 가져오기", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = accent)
-                        Text("로그인하면 ltuid·ltoken·cookie_token·UID를 자동 입력해요", fontSize = 11.sp, color = TextSecondary)
-                    }
+                Column(Modifier.weight(1f)) {
+                    Text(if (config.isLinked) "연동됨 · 다시 가져오기" else "로그인으로 자동 가져오기", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFF8FE3DA))
+                    Text("HoYoLAB 로그인", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                    Text("ltuid · ltoken · cookie_token · UID 를 자동 입력해요", fontSize = 11.5.sp, color = Color.White.copy(alpha = 0.7f))
+                }
+                Icon(Icons.AutoMirrored.Filled.Login, null, tint = Color.White, modifier = Modifier.size(22.dp))
+            }
+            collectedMsg?.let {
+                Text(
+                    it, fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = Color(0xFF177881),
+                    modifier = Modifier.padding(top = 8.dp).fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Color(0xFFEEF8F8)).padding(horizontal = 14.dp, vertical = 11.dp),
+                )
+            }
+            Text(
+                "비공식 연동이며, 토큰은 이 기기에만 저장돼요(클라우드 · 백업에 포함되지 않음).",
+                fontSize = 11.5.sp, lineHeight = 17.sp, color = Color(0xFF7A8784), modifier = Modifier.padding(top = 10.dp, start = 4.dp, end = 4.dp),
+            )
+
+            NotifyGroupTitle("계정 토큰", "개인 정보 · 공유 금지")
+            NotifyCard {
+                Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    GlgTextField(ltuid, { ltuid = it }, label = "ltuid", modifier = Modifier.fillMaxWidth())
+                    GlgTextField(ltoken, { ltoken = it }, label = "ltoken", modifier = Modifier.fillMaxWidth())
+                    GlgTextField(cookieToken, { cookieToken = it }, label = "cookie_token (리딤코드 교환용·선택)", modifier = Modifier.fillMaxWidth())
                 }
             }
-            collectedMsg?.let { Text(it, fontSize = 12.sp, fontWeight = FontWeight.Medium, color = accent) }
-
-            Text("쿠키(ltuid·ltoken)는 개인 정보입니다. 타인과 공유하지 마세요. 수동 입력도 가능해요.", fontSize = 11.sp, color = TextSecondary)
-            GlgTextField(ltuid, { ltuid = it }, label = "ltuid", modifier = Modifier.fillMaxWidth())
-            GlgTextField(ltoken, { ltoken = it }, label = "ltoken", modifier = Modifier.fillMaxWidth())
-            GlgTextField(cookieToken, { cookieToken = it }, label = "cookie_token (리딤코드 교환용·선택)", modifier = Modifier.fillMaxWidth())
-            GlgTextField(gi, { gi = it }, label = "원신 UID", modifier = Modifier.fillMaxWidth())
-            GlgTextField(hsr, { hsr = it }, label = "스타레일 UID", modifier = Modifier.fillMaxWidth())
-            GlgTextField(zzz, { zzz = it }, label = "젠레스 UID", modifier = Modifier.fillMaxWidth())
+            NotifyGroupTitle("게임 UID", "로그인하면 자동으로 채워져요")
+            NotifyCard {
+                Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    GlgTextField(gi, { gi = it }, label = "원신 UID", modifier = Modifier.fillMaxWidth())
+                    GlgTextField(hsr, { hsr = it }, label = "스타레일 UID", modifier = Modifier.fillMaxWidth())
+                    GlgTextField(zzz, { zzz = it }, label = "젠레스 UID", modifier = Modifier.fillMaxWidth())
+                }
+            }
             Text(
                 "구글 로그인 시 게임 UID 는 계정에 함께 동기화돼 다른 기기에서도 그대로 사용돼요. " +
                     "보안을 위해 ltuid·ltoken·cookie_token 등 토큰은 동기화하지 않으며, 새 기기에서는 다시 로그인해 가져와야 해요.",
-                fontSize = 11.sp, color = TextSecondary,
+                fontSize = 11.5.sp, lineHeight = 17.sp, color = Color(0xFF7A8784), modifier = Modifier.padding(top = 10.dp, start = 4.dp, end = 4.dp),
             )
             Spacer(Modifier.height(24.dp))
         }

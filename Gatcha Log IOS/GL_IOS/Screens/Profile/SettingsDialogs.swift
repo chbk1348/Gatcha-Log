@@ -241,8 +241,9 @@ struct UpdateLogPage: View {
     // ── 릴리스 카드 ──
     @ViewBuilder
     private func releaseCard(_ entry: ChangeEntry) -> some View {
-        let items = filter == nil ? entry.orderedItems : entry.orderedItems.filter { $0.kind.key == filter }
-        if !items.isEmpty {
+        // 카드 안을 분류별 묶음으로(9/29 개편) — 신규 기능 · 수정 사항 · 개선 사항. Android ReleaseCard 파리티.
+        let kinds: [ChangeKind] = filter == nil ? entry.groupKinds : entry.groupKinds.filter { $0.key == filter }
+        if !kinds.isEmpty {
             VStack(alignment: .leading, spacing: 0) {
                 if entry.featured {
                     Text("최신 버전").font(.pretendard(size: 11.5, weight: .bold)).foregroundStyle(.white)
@@ -258,15 +259,25 @@ struct UpdateLogPage: View {
                     if let pill = entry.pill { pillView(pill, false) }
                     if entry.securityPill { pillView("보안 필수", true) }
                 }.padding(.bottom, 10)
-                ForEach(Array(items.enumerated()), id: \.offset) { _, item in
-                    let c = kindColors(item.kind.key)
-                    HStack(alignment: .top, spacing: 10) {
-                        Text(item.kind.label).font(.pretendard(size: 10.5, weight: .bold)).foregroundStyle(c.2)
-                            .frame(minWidth: 34).padding(.horizontal, 7).padding(.vertical, 2)
-                            .background(c.1, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
-                        Text(item.text).font(.pretendard(size: 14)).foregroundStyle(cItem)
-                        Spacer(minLength: 0)
-                    }.padding(.vertical, 5)
+                ForEach(Array(kinds.enumerated()), id: \.offset) { gi, kind in
+                    let list = entry.itemsOf(kind: kind)
+                    let c = kindColors(kind.key)
+                    HStack(spacing: 6) {
+                        Circle().fill(c.0).frame(width: 6, height: 6)
+                        Text(kind.groupLabel).font(.pretendard(size: 12, weight: .bold)).foregroundStyle(c.2)
+                        Text("\(list.count)").font(.pretendard(size: 12, weight: .bold)).foregroundStyle(c.2.opacity(0.7))
+                    }
+                    .padding(.horizontal, 9).padding(.vertical, 4)
+                    .background(c.1, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    .padding(.top, gi == 0 ? 0 : 16).padding(.bottom, 4)
+                    ForEach(Array(list.enumerated()), id: \.offset) { _, item in
+                        HStack(alignment: .top, spacing: 10) {
+                            Circle().fill(c.0).frame(width: 4, height: 4).padding(.top, 8)
+                            Text(item.text).font(.pretendard(size: 14)).foregroundStyle(cItem).lineSpacing(3)
+                            Spacer(minLength: 0)
+                        }
+                        .padding(.leading, 2).padding(.top, 6)
+                    }
                 }
             }
             .padding(entry.featured ? 22 : 18)
