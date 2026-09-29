@@ -17,16 +17,18 @@ struct DailyHeroSection: View {
     @Environment(\.glgAccent) private var accent
 
     private var tasks: [DailyTask] {
-        DailyLogic.shared.tasks(notes: store.liveNotes, attendanceToday: Set(store.attendanceToday), nowMillis: nowMs())
+        DailyLogic.shared.tasks(notes: store.liveNotes, attendanceToday: Set(store.attendanceToday), nowMillis: nowMs(),
+                                games: store.trackedAttendanceGames)
     }
 
     /// 출석 집계 — 숫자는 공유 로직이 만든다(두 플랫폼이 각자 세면 값이 갈린다).
-    /// `todayKey` 는 기본 인자가 Swift 로 안 넘어와 직접 넘긴다.
+    /// `todayKey`·`games` 는 기본 인자가 Swift 로 안 넘어와 직접 넘긴다.
     private var attendanceSummary: AttendanceSummary {
         AttendanceLogic.shared.summary(history: store.attendanceHistory,
                                        today: Set(store.attendanceToday),
                                        streak: Int32(store.attendanceStreak),
-                                       todayKey: DateUtil.shared.hoyoDayKey(millis: nowMs()))
+                                       todayKey: DateUtil.shared.hoyoDayKey(millis: nowMs()),
+                                       games: store.trackedAttendanceGames)
     }
 
     var body: some View {
@@ -39,7 +41,8 @@ struct DailyHeroSection: View {
             let grouped = DailyLogic.shared.byGame(tasks: list, stats: store.taskStats)
             // 행동력 카드는 3게임을 나란히 놓고 비교하는 게 쓸모다 — 게임을 골라 좁히지 않는다.
             let summaries = DailyLogic.shared
-                .summaries(notes: store.liveNotes, attendanceToday: Set(store.attendanceToday), tasks: list)
+                .summaries(notes: store.liveNotes, attendanceToday: Set(store.attendanceToday), tasks: list,
+                           games: GLGGames.attendance)
 
             VStack(alignment: .leading, spacing: 0) {
                 headlineHero(headline)
@@ -301,6 +304,8 @@ struct DailyHeroSection: View {
                             .background(accent.primary.opacity(0.14),
                                         in: RoundedRectangle(cornerRadius: 9, style: .continuous))
                     }.buttonStyle(.plain)
+                    // 체크인은 한 번에 한 건 — 다른 게임이 도는 중이면 VM 이 무시하므로 버튼도 막는다.
+                    .disabled(store.checkingIn != nil)
                 }
             }
         }
@@ -452,7 +457,8 @@ struct AttendanceDetailView: View {
         AttendanceLogic.shared.summary(history: store.attendanceHistory,
                                        today: Set(store.attendanceToday),
                                        streak: Int32(store.attendanceStreak),
-                                       todayKey: DateUtil.shared.hoyoDayKey(millis: nowMs()))
+                                       todayKey: DateUtil.shared.hoyoDayKey(millis: nowMs()),
+                                       games: store.trackedAttendanceGames)
     }
 
     var body: some View {
@@ -472,8 +478,8 @@ struct AttendanceDetailView: View {
                     VStack(alignment: .leading, spacing: 12) {
                         Text("최근 7일").font(.pretendard(size: 12, weight: .bold))
                             .foregroundStyle(GLGColor.textSecondary)
-                        WeekAttendanceStrip(history: store.attendanceHistory)
-                        MonthAttendanceCalendar(history: store.attendanceHistory)
+                        WeekAttendanceStrip(history: store.attendanceHistory, total: store.trackedAttendanceGames.count)
+                        MonthAttendanceCalendar(history: store.attendanceHistory, total: store.trackedAttendanceGames.count)
                     }
                 }
             }
@@ -558,16 +564,17 @@ struct AttendanceDetailView: View {
                                     in: RoundedRectangle(cornerRadius: 9, style: .continuous))
                 }
                 .buttonStyle(.plain)
+                // 체크인은 한 번에 한 건 — 다른 게임이 도는 중이면 VM 이 무시하므로 버튼도 막는다.
+                .disabled(store.checkingIn != nil)
             }
         }
         .padding(.vertical, 13)
     }
 }
 
-// 출석 완료도
+// 출석 완료도 — total 은 출석을 세는 게임 수(store.trackedAttendanceGames)
 enum AttendLevel { case none, partial, full }
-func attendLevel(_ count: Int) -> AttendLevel {
-    let total = GLGGames.attendance.count
+func attendLevel(_ count: Int, total: Int) -> AttendLevel {
     if count <= 0 { return .none }
     if count >= total { return .full }
     return .partial
@@ -575,6 +582,7 @@ func attendLevel(_ count: Int) -> AttendLevel {
 
 private struct WeekAttendanceStrip: View {
     let history: [String: Set<String>]
+    let total: Int
     @Environment(\.glgAccent) private var accent
     var body: some View {
         let du = DateUtil.shared
@@ -585,7 +593,7 @@ private struct WeekAttendanceStrip: View {
                 let dow = du.hoyoWeekdayKoAgo(daysAgo: off)
                 let count = history[du.hoyoDayKeyAgoKey(daysAgo: off)]?.count ?? 0
                 let isToday = idx == 6
-                let level = attendLevel(count)
+                let level = attendLevel(count, total: total)
                 VStack(spacing: 5) {
                     Text(dow).font(.pretendard(size: 10, weight: isToday ? .bold : .regular))
                         .foregroundStyle(isToday ? accent.primary : GLGColor.textSecondary)
@@ -635,6 +643,7 @@ private struct WeekAttendanceStrip: View {
 
 private struct MonthAttendanceCalendar: View {
     let history: [String: Set<String>]
+    let total: Int
     @Environment(\.glgAccent) private var accent
     @State private var monthOffset: Int32 = 0
     var body: some View {
@@ -665,7 +674,7 @@ private struct MonthAttendanceCalendar: View {
                         if i < week.count, week[i] > 0 {
                             let day = week[i]
                             let key = String(format: "%04d-%02d-%02d", year, monthNum, day)
-                            let level = attendLevel(history[key]?.count ?? 0)
+                            let level = attendLevel(history[key]?.count ?? 0, total: total)
                             let isToday = key == todayKey
                             Text("\(day)").font(.pretendard(size: 12, weight: level != .none || isToday ? .bold : .regular))
                                 .foregroundStyle(dayColor(level, isToday))

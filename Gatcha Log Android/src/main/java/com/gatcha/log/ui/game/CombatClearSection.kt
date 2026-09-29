@@ -49,6 +49,7 @@ import com.gatcha.log.data.CombatModeClears
 import com.gatcha.log.data.CombatRoom
 import com.gatcha.log.ui.components.GlassCard
 import com.gatcha.log.ui.components.GlgBadgeText
+import com.gatcha.log.ui.components.GlgButton
 import com.gatcha.log.ui.theme.DividerColor
 import com.gatcha.log.ui.theme.LocalAccent
 import com.gatcha.log.ui.theme.TextPrimary
@@ -74,7 +75,14 @@ private val RoomAvatarSize = 48.dp
 private val RoomAvatarCell = 56.dp
 
 @Composable
-fun CombatClearContent(clears: List<CombatClear>, loading: Boolean, linked: Boolean) {
+fun CombatClearContent(
+    clears: List<CombatClear>,
+    loading: Boolean,
+    linked: Boolean,
+    /** 마지막 조회가 전부 실패했다 — 빈 목록이어도 '기록 없음'이 아니다. */
+    failed: Boolean = false,
+    onRetry: () -> Unit = {},
+) {
     if (!linked) {
         EmptyNote("HoYoLAB을 연동하면 클리어 편성을 볼 수 있어요")
         return
@@ -88,6 +96,16 @@ fun CombatClearContent(clears: List<CombatClear>, loading: Boolean, linked: Bool
                 androidx.compose.material3.CircularProgressIndicator(
                     color = LocalAccent.current, strokeWidth = 2.5.dp, modifier = Modifier.size(28.dp),
                 )
+            }
+        } else if (failed) {
+            // 조회 실패를 '기록 없음'으로 보이면 깬 층이 날아간 줄 안다 — 사유를 밝히고 재시도를 준다.
+            Column(
+                Modifier.fillMaxWidth().padding(32.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Text("불러오지 못했어요", fontSize = 13.sp, color = TextSecondary, textAlign = TextAlign.Center)
+                Spacer(Modifier.height(10.dp))
+                GlgButton("다시 시도", onClick = onRetry, height = 34.dp, modifier = Modifier.width(96.dp))
             }
         } else {
             EmptyNote("아직 클리어 기록이 없어요")

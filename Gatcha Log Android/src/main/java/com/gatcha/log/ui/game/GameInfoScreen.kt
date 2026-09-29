@@ -97,12 +97,15 @@ fun GameInfoScreen(
     val events by viewModel.gameEvents.collectAsStateWithLifecycle()
     val notes by viewModel.liveNotes.collectAsStateWithLifecycle()
     val gameNews by viewModel.gameNews.collectAsStateWithLifecycle()
+    val newsFailed by viewModel.newsFailed.collectAsStateWithLifecycle()
     val ledgers by viewModel.ledgers.collectAsStateWithLifecycle()
     val combat by viewModel.combat.collectAsStateWithLifecycle()
     val combatClears by viewModel.combatClears.collectAsStateWithLifecycle()
     val combatClearsLoading by viewModel.combatClearsLoading.collectAsStateWithLifecycle()
+    val combatClearsFailed by viewModel.combatClearsFailed.collectAsStateWithLifecycle()
     val attendanceToday by viewModel.attendanceToday.collectAsStateWithLifecycle()
     val attendanceHistory by viewModel.attendanceHistory.collectAsStateWithLifecycle()
+    val attendanceGames by viewModel.trackedAttendanceGames.collectAsStateWithLifecycle()
     val hoyolab by viewModel.hoyolabConfig.collectAsStateWithLifecycle()
     val isRefreshing by viewModel.isRefreshing.collectAsStateWithLifecycle()
     val challenges by viewModel.challenges.collectAsStateWithLifecycle()
@@ -270,9 +273,11 @@ fun GameInfoScreen(
             GiSub.HoyoLink -> HoyolabLinkScreen(
                 config = hoyolab,
                 onSave = {
-                    viewModel.updateHoyolabConfig(it)
-                    subPage = GiSub.Main
-                    viewModel.refreshGameInfo(force = true)
+                    // 검증·저장에 실패하면(안내는 VM 이 띄운다) 폼을 닫지 않는다 — 입력을 다시 치게 하지 않는다.
+                    if (viewModel.updateHoyolabConfig(it)) {
+                        subPage = GiSub.Main
+                        viewModel.refreshGameInfo(force = true)
+                    }
                 },
                 onBack = { subPage = GiSub.Main },
             )
@@ -370,11 +375,13 @@ fun GameInfoScreen(
                     clears = combatClears,
                     loading = combatClearsLoading,
                     linked = hoyolab.isLinked,
+                    failed = combatClearsFailed,
+                    onRetry = { viewModel.refreshCombatClears(force = true) },
                 )
             }
             GiSub.Attendance -> SectionPage("출석 체크 현황", onBack = { subPage = GiSub.Main }) {
                 AttendanceDetailContent(
-                    summary = AttendanceLogic.summary(attendanceHistory, attendanceToday, attendanceStreak),
+                    summary = AttendanceLogic.summary(attendanceHistory, attendanceToday, attendanceStreak, games = attendanceGames),
                     history = attendanceHistory,
                     checkingIn = checkingIn,
                     onCheckIn = { viewModel.attemptCheckIn(it) },
@@ -465,6 +472,7 @@ fun GameInfoScreen(
                     hoyolab = hoyolab,
                     checkingIn = checkingIn,
                     streak = attendanceStreak,
+                    attendanceGames = attendanceGames,
                     taskStats = taskStats,
                     gameVersions = gameVersions,
                     gameVersionsLoading = gameVersionsLoading,
@@ -517,6 +525,8 @@ fun GameInfoScreen(
                         gameNews,
                         onSeeAll = { subPage = GiSub.News },
                         onOpen = { openNews(it, GiSub.Main) },
+                        failed = newsFailed,
+                        onRetry = { viewModel.refreshGameInfo(force = true) },
                     )
                 }
             }

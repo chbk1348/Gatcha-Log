@@ -124,6 +124,10 @@ final class SpendingStore {
     /// 엔드 콘텐츠 클리어 편성(층·간별로 어떤 캐릭터를 썼는지).
     private(set) var combatClears: [CombatClear] = []
     private(set) var combatClearsLoading: Bool = false
+    /// 클리어 편성 조회가 전부 실패 — '기록 없음'과 구분(재시도 UI 표시용).
+    private(set) var combatClearsFailed: Bool = false
+    /// 출석을 세는 게임(연동 계정에 UID 가 있는 게임만) — 출석 분모·미출석 개수에 쓴다.
+    private(set) var trackedAttendanceGames: [Game] = GameData.shared.attendanceGames
     private(set) var attendanceToday: Set<String> = []
     private(set) var checkingIn: String? = nil
     private(set) var pity: [String: PityState] = [:]
@@ -159,6 +163,8 @@ final class SpendingStore {
     /// 일정·소식 카드 각각의 표출 준비 상태 — 출처가 달라 `gameInfoReady` 와 따로 둔다(VM 주석 참고).
     private(set) var scheduleReady: Bool = false
     private(set) var newsReady: Bool = false
+    /// 소식을 한 게임도 못 받았다 — '소식 없음'과 구분(재시도 UI 표시용).
+    private(set) var newsFailed: Bool = false
     private(set) var hoyoTokenExpired: Bool = false
     private(set) var readAlerts: Set<String> = []
     private(set) var dismissedAlerts: Set<String> = []
@@ -292,11 +298,14 @@ final class SpendingStore {
         bind(vm.combat) { [weak self] in self?.combat = $0 }
         bind(vm.combatClears) { [weak self] in self?.combatClears = $0 }
         bind(vm.combatClearsLoading) { [weak self] in self?.combatClearsLoading = $0.boolValue }
+        bind(vm.combatClearsFailed) { [weak self] in self?.combatClearsFailed = $0.boolValue }
+        bind(vm.trackedAttendanceGames) { [weak self] in self?.trackedAttendanceGames = $0 }
         bind(vm.attendanceToday) { [weak self] in self?.attendanceToday = $0 }
         bind(vm.checkingIn) { [weak self] in self?.checkingIn = $0 }
         bind(vm.gameInfoReady) { [weak self] in self?.gameInfoReady = $0.boolValue }
         bind(vm.scheduleReady) { [weak self] in self?.scheduleReady = $0.boolValue }
         bind(vm.newsReady) { [weak self] in self?.newsReady = $0.boolValue }
+        bind(vm.newsFailed) { [weak self] in self?.newsFailed = $0.boolValue }
         bind(vm.hoyoTokenExpired) { [weak self] in self?.hoyoTokenExpired = $0.boolValue }
         bind(vm.readAlerts) { [weak self] in self?.readAlerts = $0 }
         bind(vm.dismissedAlerts) { [weak self] in self?.dismissedAlerts = $0 }
@@ -451,7 +460,9 @@ final class SpendingStore {
     func checkForUpdate(manual: Bool = true) { vm.checkForUpdate(manual: manual) }
     /// 강제 업데이트 화면의 '지금 업데이트' — iOS 는 릴리스 페이지를 연다(사이드로딩).
     func startInAppUpdate() { vm.startInAppUpdate() }
-    func updateHoyolabConfig(_ config: HoyolabConfig) { vm.updateHoyolabConfig(config: config) }
+    /// false 면 검증·저장 실패(안내 토스트는 VM 이 띄운다) — 폼은 닫지 않는다.
+    @discardableResult
+    func updateHoyolabConfig(_ config: HoyolabConfig) -> Bool { vm.updateHoyolabConfig(input: config) }
     func consumePendingOpenHoyolabLink() { vm.consumePendingOpenHoyolabLink() }
     /// 홈 카드 → 게임 정보 탭 스크롤 앵커 요청/소비.
     func requestGameInfoAnchor(_ anchor: GameInfoAnchor) { vm.requestGameInfoAnchor(anchor: anchor) }

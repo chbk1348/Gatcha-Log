@@ -146,8 +146,18 @@ struct EnkaCharSection: View {
             if chars.isEmpty && (result == nil || loading) {
                 // 로드 전(result nil)·로딩 중엔 스켈레톤, 로드 완료 후에만 빈/에러 표시
                 rosterSkeleton
+            } else if chars.isEmpty, let err = result?.error {
+                // 조회 실패 — 사유 + 다시 시도(캐시 무시 재조회). '캐릭터 없음'과 구분한다.
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(err).font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary)
+                    Button { store.autoLoadEnka(game: game, force: true) } label: {
+                        Text("다시 시도").font(.pretendard(size: 12, weight: .bold)).foregroundStyle(accent.primary)
+                    }.buttonStyle(.plain)
+                }
+                .padding(.vertical, 12)
             } else if chars.isEmpty {
-                hint(result?.error ?? "표시할 캐릭터가 없어요 (인게임 쇼케이스 공개 확인)")
+                // profile·error 가 둘 다 nil 이면 UID 가 비어 조회를 안 한 것이다.
+                hint(result?.profile == nil ? "게임 UID 가 없어요 — HoYoLAB 연동 또는 UID 입력" : "표시할 캐릭터가 없어요 (인게임 쇼케이스 공개 확인)")
             } else {
                 RosterRow(chars: chars, game: game, onOpen: onOpen, onOpenAll: onOpenAll)
             }
@@ -435,6 +445,7 @@ func enkaRarityBadge(_ game: String, _ rarity: Int, color: Color, compact: Bool)
 /// 보유 캐릭터 전체 목록 페이지 — 탭 시 스탯 상세로 랜딩(뒤로 가면 이 목록으로 복귀).
 struct EnkaRosterPage: View {
     var store: SpendingStore
+    @Environment(\.glgAccent) private var accent
     let game: String
     @State private var statChar: EnkaChar? = nil
     @State private var showStat = false
@@ -529,8 +540,18 @@ struct EnkaRosterPage: View {
             if all.isEmpty && (loading || result == nil) {
                 // 아직 받아오는 중 — 빈 목록을 '없음'으로 보여주면 안 된다.
                 rosterPageSkeleton
+            } else if all.isEmpty, let err = result?.error {
+                // 조회 실패 — 사유 + 다시 시도(캐시 무시 재조회). '캐릭터 없음'과 구분한다.
+                VStack(spacing: 6) {
+                    Text(err).font(.pretendard(size: 13)).foregroundStyle(GLGColor.textSecondary)
+                    Button { store.autoLoadEnka(game: game, force: true) } label: {
+                        Text("다시 시도").font(.pretendard(size: 12, weight: .bold)).foregroundStyle(accent.primary)
+                    }.buttonStyle(.plain)
+                }
+                .frame(maxWidth: .infinity).padding(.top, 40)
             } else if all.isEmpty {
-                Text(result?.error ?? "표시할 캐릭터가 없어요 (인게임 쇼케이스 공개 확인)")
+                // profile·error 가 둘 다 nil 이면 UID 가 비어 조회를 안 한 것이다.
+                Text(result?.profile == nil ? "게임 UID 가 없어요 — HoYoLAB 연동 또는 UID 입력" : "표시할 캐릭터가 없어요 (인게임 쇼케이스 공개 확인)")
                     .font(.pretendard(size: 13)).foregroundStyle(GLGColor.textSecondary)
                     .frame(maxWidth: .infinity).padding(.top, 40)
             } else if chars.isEmpty {

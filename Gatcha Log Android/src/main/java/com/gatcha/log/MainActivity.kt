@@ -89,7 +89,9 @@ class MainActivity : ComponentActivity() {
                 val repo = GatchaRepository(AppSettings.currentAccountId())
                 val today = DateUtil.hoyoDayKey()
                 val done = repo.loadAttendance()[today].orEmpty()
-                if (done.size < GameData.attendanceGames.size) {
+                // 출석을 세는 게임만 본다 — UID 없는 게임이 남은 걸로 치면 실행마다 워커를 헛돌린다.
+                val games = GameData.trackedAttendanceGames(repo.loadHoyolab())
+                if (games.any { it.key !in done }) {
                     AndroidWorkScheduler.runNow(ctx)
                 }
             }
