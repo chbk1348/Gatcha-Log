@@ -56,6 +56,18 @@ class SyncMergeTest {
     }
 
     @Test
+    fun `내 게임은 계정을 따라 동기화되고 나중에 고친 쪽이 이긴다`() {
+        val base = device().exportSnapshotJson()
+        val (a, b) = twoDevicesFrom(base)
+        a.saveMyGames(setOf("genshin", "hsr", "zzz"))
+        b.saveMyGames(setOf("genshin", "hsr", "zzz", "wuwa", "endfield", "nte"))   // 나중에 고쳤다
+        var cloud = b.push(base)
+        cloud = a.push(cloud)   // A 가 늦게 올려도 B 의 더 최근 값을 덮지 못한다
+        assertEquals(6, device().apply { importSnapshotJson(cloud) }.loadMyGames().size)
+        assertEquals(6, a.loadMyGames().size)   // A 기기에도 6개가 내려온다
+    }
+
+    @Test
     fun `가챠 기록은 두 기기에서 가져온 것이 합쳐진다`() {
         val base = device().exportSnapshotJson()
         val (a, b) = twoDevicesFrom(base)

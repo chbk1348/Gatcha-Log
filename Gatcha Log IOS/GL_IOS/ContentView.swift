@@ -194,6 +194,8 @@ struct ContentView: View {
         .animation(GLGMotion.standard(), value: store.forceUpdate)
         // 루트 상태 전환(로그인→로딩→탭)만 standard 크로스페이드 — 네이티브 내비 UX 보존.
         .animation(GLGMotion.standard(), value: rootPhase)
+        // 홈이 뜨기 전(온보딩 · 로그인 · 불러오기)에는 알림을 붙잡았다가 홈에서 보낸다(9/29).
+        .task(id: rootPhase) { store.setRootReady(rootPhase == .tabs) }
         .onAppear {
             // 테마(액센트) 변경 구독 — 마이페이지에서 테마를 바꾸면 탭바 틴트도 즉시 반영
             MainViewControllerKt.observeAccentColor { argb in

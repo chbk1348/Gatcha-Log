@@ -145,13 +145,12 @@ class AppSettings {
     }
 
     /**
-     * 내 게임 — 온보딩 ②와 설정 ▸ 내 게임이 같이 쓰는 값(게임 key 집합).
-     * **비어 있으면 전부**로 본다 — 이 설정이 없던 기존 사용자는 동작이 그대로다.
-     * 지출 입력 게임 목록의 순서와 출석 집계에만 쓰고, 기록 자체는 거르지 않는다.
+     * 로그인 전 온보딩 ②에서 고른 내 게임 — 내 게임은 계정 데이터([GatchaRepository.loadMyGames])라
+     * 로그인 뒤 계정 값이 비어 있을 때만 옮기고 비운다([pendingOnboardingBudget] 와 같은 방식).
      */
-    var myGames: Set<String>
-        get() = prefs.getString(KEY_MY_GAMES, "").orEmpty().split(',').filter { it.isNotBlank() }.toSet()
-        set(v) { prefs.putString(KEY_MY_GAMES, v.joinToString(",")) }
+    var pendingOnboardingGames: Set<String>
+        get() = prefs.getString(KEY_PENDING_ONBOARDING_GAMES, "").orEmpty().split(',').filter { it.isNotBlank() }.toSet()
+        set(v) { prefs.putString(KEY_PENDING_ONBOARDING_GAMES, v.joinToString(",")) }
 
     /**
      * 이 기기에서 **첫 클라우드 동기화를 마친 계정 id** 들(쉼표 구분).
@@ -264,7 +263,7 @@ class AppSettings {
         private const val KEY_NUDGE_THRESHOLD = "nudge_threshold"
         private const val KEY_NOTIF_PERM_ASKED = "notif_perm_asked"
         private const val KEY_ONBOARDING_DONE = "onboarding_done"
-        private const val KEY_MY_GAMES = "my_games"
+        private const val KEY_PENDING_ONBOARDING_GAMES = "pending_onboarding_games"
         private const val KEY_SYNCED_ACCOUNTS = "synced_accounts"
         private const val KEY_PENDING_ONBOARDING_BUDGET = "pending_onboarding_budget"
         private const val KEY_SPENDING_COMPACT = "spending_compact"
