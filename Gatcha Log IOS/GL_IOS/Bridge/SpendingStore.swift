@@ -532,6 +532,7 @@ final class SpendingStore {
     func debugSetPityAll(count: Int, guaranteed: Bool) { vm.debugSetPityAll(count: Int32(count), guaranteed: guaranteed) }
     func debugResetOnboarding() { vm.debugResetOnboarding() }
     func debugAccountSummary() -> String { vm.debugAccountSummary() }
+    func debugProbeZzzCombat(_ onResult: @escaping ([String]) -> Void) { vm.debugProbeZzzCombat(onResult: onResult) }
     func debugScheduledAlerts() -> [String] { vm.debugScheduledAlerts() }
     func debugReadyStates() -> String { vm.debugReadyStates() }
     func debugPerGameData() -> [String] { vm.debugPerGameData() }

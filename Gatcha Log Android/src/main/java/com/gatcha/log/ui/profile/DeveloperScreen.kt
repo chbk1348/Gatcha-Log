@@ -173,6 +173,15 @@ fun DeveloperScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
                             "계정이 갈렸는지, 데이터가 실렸는지",
                         ) { report = "계정·데이터" to listOf(viewModel.debugAccountSummary()) }
                         DevDivider()
+                        // 붙이기 전에 실제 응답 구조를 본다 — 경로 · 필드가 공개 라이브러리 기준 추정이다.
+                        DevRow(
+                            Icons.Default.Dataset, "젠레스 전투 API 확인",
+                            "시유 방어전 · 위험 구역 응답 구조",
+                        ) {
+                            report = "젠레스 전투 API" to listOf("불러오는 중…")
+                            viewModel.debugProbeZzzCombat { report = "젠레스 전투 API" to it }
+                        }
+                        DevDivider()
                         DevRow(
                             Icons.Default.CloudSync, "캐시 무시하고 전체 재조회",
                             "게임 정보·일정·소식을 강제로 다시 받는다",

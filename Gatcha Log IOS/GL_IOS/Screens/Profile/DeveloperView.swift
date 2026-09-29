@@ -137,6 +137,12 @@ struct DeveloperView: View {
                 show("계정·데이터", [store.debugAccountSummary()])
             }
             Divider()
+            // 붙이기 전에 실제 응답 구조를 본다 — 경로 · 필드가 공개 라이브러리 기준 추정이다.
+            devRow("shield.lefthalf.filled", "젠레스 전투 API 확인", "시유 방어전 · 위험 구역 응답 구조") {
+                show("젠레스 전투 API", ["불러오는 중…"])
+                store.debugProbeZzzCombat { show("젠레스 전투 API", $0) }
+            }
+            Divider()
             devRow("arrow.triangle.2.circlepath", "캐시 무시하고 전체 재조회", "게임 정보·일정·소식을 강제로 다시 받는다") {
                 store.refreshGameInfo(force: true)
             }

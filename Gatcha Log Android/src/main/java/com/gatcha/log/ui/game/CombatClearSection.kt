@@ -231,7 +231,7 @@ private fun ModeCard(m: CombatModeClears, initiallyExpanded: Boolean) {
                 Spacer(Modifier.width(8.dp))
                 ModeTitle(m.mode, Modifier.weight(1f))
                 Spacer(Modifier.width(8.dp))
-                StarTotal(summary, big = 14.sp, small = 12.sp)
+                if (clear.scoreLabel.isNotBlank()) ScoreLabel(clear.scoreLabel, 14.sp) else StarTotal(summary, big = 14.sp, small = 12.sp)
                 Spacer(Modifier.width(8.dp))
                 Chevron(up = false)
             }
@@ -260,7 +260,8 @@ private fun ModeCard(m: CombatModeClears, initiallyExpanded: Boolean) {
                 }
             }
             SummaryBlock(clear, summary, isPrevious = !clear.current)
-            if (summary.maxStars > 0) {
+            // 점수 모드(시유 방어전)는 별 칸 막대가 뜻이 없다 — 요약 문구만.
+            if (summary.maxStars > 0 && clear.scoreLabel.isBlank()) {
                 ProgressBar(remember(clear) { CombatClearLogic.displayRooms(clear) })
             }
             // 시즌마다 펼침 상태를 따로 둔다 — 지난 시즌으로 바꿨을 때 이번 시즌 층 이름이 섞이지 않게.
@@ -356,10 +357,16 @@ private fun StarTotal(s: ClearSummary, big: TextUnit, small: TextUnit) {
     )
 }
 
+/** 별 대신 평가·점수 요약("S+ · 120,234 / 150,000") — 시유 방어전. */
+@Composable
+private fun ScoreLabel(label: String, size: TextUnit) {
+    Text(label, fontSize = size, fontWeight = FontWeight.Bold, color = TextPrimary, maxLines = 1)
+}
+
 @Composable
 private fun SummaryBlock(clear: CombatClear, s: ClearSummary, isPrevious: Boolean) {
     Row(verticalAlignment = Alignment.Bottom) {
-        StarTotal(s, big = 26.sp, small = 15.sp)
+        if (clear.scoreLabel.isNotBlank()) ScoreLabel(clear.scoreLabel, 20.sp) else StarTotal(s, big = 26.sp, small = 15.sp)
         Spacer(Modifier.width(10.dp))
         val parts = listOfNotNull(
             // 이번 시즌이 없어 지난 시즌을 바로 보여 줄 때도 어느 시즌인지는 밝힌다.
@@ -498,7 +505,8 @@ private fun MiniTeam(team: List<CombatAvatar>, bar: Color?) {
             Spacer(Modifier.width(3.dp))
         }
         Row(horizontalArrangement = Arrangement.spacedBy((-4).dp)) {
-            team.forEach { a ->
+            // 뱅부는 뺀다 — 8명 + 뱅부 2개면 폭 360dp 기기에서 별 칩을 밀어낸다. 펼친 판에서 보인다.
+            team.filterNot { it.isBuddy }.forEach { a ->
                 Box(
                     Modifier
                         .size(MiniAvatarSize)
@@ -603,6 +611,21 @@ private fun HalfRow(chip: HalfChip?, team: List<CombatAvatar>) {
 /** 층 별 칩 — 층을 구분하는 유일한 수치라 아이콘 더미에 묻히지 않게 칩으로 키운다. */
 @Composable
 private fun StarChip(room: CombatRoom) {
+    // 평가 모드(시유 방어전) — 같은 칩 모양에 별 대신 등급만.
+    if (room.rating.isNotBlank()) {
+        Text(
+            room.rating,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Bold,
+            color = StarGold,
+            modifier = Modifier
+                .clip(RoundedCornerShape(8.dp))
+                .background(StarGold.copy(alpha = 0.12f))
+                .padding(horizontal = 7.dp, vertical = 3.dp)
+                .semantics { contentDescription = "평가 ${room.rating}" },
+        )
+        return
+    }
     if (room.stars <= 0) return
     // 만점을 아는 모드만 분모를 붙인다(점수 기반은 층마다 만점이 달라 "★4/3" 이 된다).
     val label = if (room.maxStars > 0) "${room.stars}/${room.maxStars}" else "${room.stars}"
@@ -649,6 +672,10 @@ private fun AvatarChip(
     cell: Dp = AvatarCell,
     nameSize: TextUnit = 10.sp,
 ) {
+    if (a.isBuddy) {
+        BuddyChip(a, top = (size - BuddySize) / 2)
+        return
+    }
     Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.width(cell)) {
         Box {
             Box(Modifier.size(size).clip(CircleShape).background(DividerColor)) {
@@ -691,6 +718,27 @@ private fun AvatarChip(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 textAlign = TextAlign.Center,
+            )
+        }
+    }
+}
+
+private val BuddySize = 32.dp
+
+/**
+ * 젠레스 뱅부 — 요원보다 작은 둥근 사각형, 이름 없음(HoYoLAB 이 뱅부 이름을 주지 않는다).
+ * [top] 만큼 내려 요원 아이콘과 세로 가운데를 맞춘다.
+ */
+@Composable
+private fun BuddyChip(a: CombatAvatar, top: Dp) {
+    val shape = RoundedCornerShape(8.dp)
+    Box(Modifier.padding(top = top).size(BuddySize).clip(shape).background(DividerColor)) {
+        if (a.iconUrl.isNotBlank()) {
+            AsyncImage(
+                model = a.iconUrl,
+                contentDescription = "뱅부",
+                modifier = Modifier.size(BuddySize),
+                contentScale = ContentScale.Crop,
             )
         }
     }

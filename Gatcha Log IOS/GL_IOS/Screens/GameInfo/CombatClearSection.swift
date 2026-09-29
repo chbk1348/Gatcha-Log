@@ -226,7 +226,16 @@ private struct ModeCard: View {
                 modeTitle
                 Spacer(minLength: 8)
                 if let clear {
-                    StarTotal(summary: CombatClearLogic.shared.summary(clear: clear), size: 14, denominatorSize: 12)
+                    if clear.scoreLabel.isEmpty {
+                        StarTotal(summary: CombatClearLogic.shared.summary(clear: clear), size: 14, denominatorSize: 12)
+                    } else {
+                        // 평가 모드(시유 방어전) — 별 대신 "S+ · 점수 / 만점".
+                        Text(clear.scoreLabel)
+                            .font(.pretendard(size: 13, weight: .bold))
+                            .foregroundStyle(GLGColor.textPrimary)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.8)
+                    }
                 }
                 Image(systemName: "chevron.down")
                     .font(.system(size: 13, weight: .semibold))
@@ -255,8 +264,8 @@ private struct SeasonBody: View {
         let visible = showAll ? rooms : Array(rooms.prefix(visibleFloors))
         VStack(alignment: .leading, spacing: 14) {
             summaryBlock(summary)
-            // 만점을 모르면(점수 기반 모드) 채울 기준이 없다 — 막대를 그리지 않는다.
-            if summary.maxStars > 0 {
+            // 만점을 모르면(점수 기반 모드) 채울 기준이 없다 — 막대를 그리지 않는다. 평가 모드도 별 막대는 뺀다.
+            if summary.maxStars > 0 && clear.scoreLabel.isEmpty {
                 HStack(spacing: 3) {
                     ForEach(Array(rooms.enumerated()), id: \.offset) { _, r in
                         Capsule()
@@ -316,7 +325,15 @@ private struct SeasonBody: View {
     /// "★ 35 / 36" + 시즌명 · N개 층 기록. 만점을 모르면 분모를 뺀다.
     private func summaryBlock(_ s: ClearSummary) -> some View {
         HStack(alignment: .lastTextBaseline, spacing: 10) {
-            StarTotal(summary: s, size: 26, denominatorSize: 15)
+            if clear.scoreLabel.isEmpty {
+                StarTotal(summary: s, size: 26, denominatorSize: 15)
+            } else {
+                Text(clear.scoreLabel)
+                    .font(.pretendard(size: 20, weight: .bold))
+                    .foregroundStyle(GLGColor.textPrimary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+            }
             Text(clear.season.isEmpty ? "\(s.rooms)개 층 기록" : "\(clear.season) · \(s.rooms)개 층 기록")
                 .font(.pretendard(size: 12))
                 .foregroundStyle(GLGColor.textSecondary)
@@ -411,7 +428,13 @@ private struct RoomRow: View {
     /// 만점을 아는 모드만 분모를 붙인다 — 점수 기반(허구 이야기·종말의 환영)은 만점이 층마다 달라
     /// 고정 분모를 쓰면 "★4/3" 같은 값이 나온다.
     @ViewBuilder private var stars: some View {
-        if room.stars > 0 {
+        if !room.rating.isEmpty {
+            // 평가 모드(시유 방어전) — 별 칩 자리에 같은 모양·색으로 등급을 둔다.
+            Text(room.rating)
+                .font(.pretendard(size: 12, weight: .bold))
+                .foregroundStyle(starGold)
+                .accessibilityLabel("평가 \(room.rating)")
+        } else if room.stars > 0 {
             StarCount(label: room.maxStars > 0 ? "\(room.stars)/\(room.maxStars)" : "\(room.stars)",
                       description: room.maxStars > 0 ? "별 \(room.stars) / \(room.maxStars)" : "별 \(room.stars)",
                       size: 11)
@@ -439,11 +462,13 @@ private struct RoomRow: View {
         HStack(spacing: 3) {
             if let bar { RoundedRectangle(cornerRadius: 3).fill(bar).frame(width: 5, height: 18) }
             ForEach(Array(team.prefix(4).enumerated()), id: \.offset) { _, a in
-                GLGRemoteImage(url: URL(string: a.iconUrl), side: 22) {
-                    Circle().fill(Color.gray.opacity(0.15))
+                // 뱅부는 작은 둥근 사각형 — 요원 얼굴과 구분한다. 폭이 모자라면 ViewThatFits 가 후반째 걷는다.
+                let side: CGFloat = a.isBuddy ? 16 : 22
+                GLGRemoteImage(url: URL(string: a.iconUrl), side: side) {
+                    Color.gray.opacity(0.15)
                 }
-                .frame(width: 22, height: 22)
-                .clipShape(Circle())
+                .frame(width: side, height: side)
+                .clipShape(a.isBuddy ? AnyShape(RoundedRectangle(cornerRadius: 4)) : AnyShape(Circle()))
             }
         }
     }
@@ -504,6 +529,20 @@ private struct AvatarChip: View {
     let nameSize: CGFloat
 
     var body: some View {
+        if avatar.isBuddy { buddy } else { agent }
+    }
+
+    /// 젠레스 뱅부 — 요원보다 작은 32pt 둥근 사각형, 이름 없이. 편성 끝에 붙는 보조라 눈에 덜 띄게 둔다.
+    private var buddy: some View {
+        GLGRemoteImage(url: URL(string: avatar.iconUrl), side: 32) {
+            Color.gray.opacity(0.15)
+        }
+        .frame(width: 32, height: 32)
+        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .frame(width: 36)
+    }
+
+    private var agent: some View {
         VStack(spacing: 3) {
             ZStack(alignment: .topTrailing) {
                 GLGRemoteImage(url: URL(string: avatar.iconUrl), side: side) {
