@@ -46,16 +46,6 @@ class ScheduledAlertsTest {
         assertEquals("k60", result.first().key)   // 가장 임박한 것부터
     }
 
-    @Test
-    fun dailySummaryUsesConfiguredHourAndRepeats() {
-        val a = ScheduledAlert(
-            key = "daily_summary", title = "오늘의 가챠 요약", text = "x",
-            whenMillis = DateUtil.localTimeOnDay(base, 21), repeatsDaily = true,
-        )
-        assertEquals(21, DateUtil.hourOf(a.whenMillis))
-        assertTrue(a.repeatsDaily)
-    }
-
     // ── 게임 리셋 기준 날짜 키(숙제 완주율·예약 공용) ─────────────────────────
 
     @Test

@@ -1,5 +1,10 @@
 package com.gatcha.log.ui.profile
 
+import androidx.compose.foundation.shape.CircleShape
+import com.gatcha.log.data.GameData
+import androidx.compose.foundation.border
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
 import android.app.Activity
 import android.content.Context
 import android.content.ContextWrapper
@@ -100,6 +105,21 @@ fun SettingsScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
     val spendingCompact by viewModel.spendingCompact.collectAsStateWithLifecycle()
     val heroGlow by viewModel.heroGlow.collectAsStateWithLifecycle()
     val charElementFx by viewModel.charElementFx.collectAsStateWithLifecycle()
+    val myGames by viewModel.myGames.collectAsStateWithLifecycle()
+    // 알림 설정 줄 옆 「7개 중 N개 켜짐」
+    val nBudget by viewModel.notifyBudget.collectAsStateWithLifecycle()
+    val nResin by viewModel.notifyResin.collectAsStateWithLifecycle()
+    val nAttend by viewModel.notifyAttendance.collectAsStateWithLifecycle()
+    val nPickup by viewModel.notifyPickup.collectAsStateWithLifecycle()
+    val nCombat by viewModel.notifyCombat.collectAsStateWithLifecycle()
+    val nNews by viewModel.notifyNews.collectAsStateWithLifecycle()
+    val nHoyoland by viewModel.notifyHoyoland.collectAsStateWithLifecycle()
+    val notifyOnCount = NotificationCatalog.items.count {
+        when (it.key) {
+            NotifyKey.BUDGET -> nBudget; NotifyKey.RESIN -> nResin; NotifyKey.ATTENDANCE -> nAttend; NotifyKey.PICKUP -> nPickup
+            NotifyKey.COMBAT -> nCombat; NotifyKey.NEWS -> nNews; NotifyKey.HOYOLAND -> nHoyoland
+        }
+    }
     val versionName = remember { com.gatcha.log.data.api.UpdateChecker.currentVersionName() }
     // 상태 메시지 토스트는 상위 HomeScreen 의 전역 GlgStatusToast 가 처리
 
@@ -140,10 +160,12 @@ fun SettingsScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
     // 개발자 메뉴 — 디버그 빌드에서만 진입점이 그려진다.
     val showDev = remember { mutableStateOf(false) }
     val showTheme = remember { mutableStateOf(false) }
+    val showMyGames = remember { mutableStateOf(false) }
 
-    // 설정 하위 페이지 스택: 0=메인, 1=알림 설정, 2=데이터 관리, 3=HoYoLAB 연동, 4=업데이트 로그, 5=개발자 메뉴, 6=테마.
+    // 설정 하위 페이지 스택: 0=메인, 1=알림 설정, 2=데이터 관리, 3=HoYoLAB 연동, 4=업데이트 로그, 5=개발자 메뉴, 6=테마, 7=내 게임.
     // 깊어지면 우→좌 슬라이드 push/pop.
     val subPage = when {
+        showMyGames.value -> 7
         showTheme.value -> 6
         showDev.value -> 5
         showUplog.value -> 4
@@ -156,6 +178,7 @@ fun SettingsScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
     // 자체 핸들러가 없으면 MyPageScreen 의 BackHandler 로 새어 마이페이지로 튕긴다.
     BackHandler(enabled = subPage > 0) {
         when {
+            showMyGames.value -> showMyGames.value = false
             showTheme.value -> showTheme.value = false
             showDev.value -> showDev.value = false
             showUplog.value -> showUplog.value = false
@@ -179,7 +202,9 @@ fun SettingsScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
         },
         label = "settingsPage",
     ) { page ->
-        if (page == 6) {
+        if (page == 7) {
+            MyGamesScreen(myGames, onToggle = { k -> viewModel.setMyGames(if (k in myGames) myGames - k else myGames + k) }, onBack = { showMyGames.value = false })
+        } else if (page == 6) {
             ThemeScreen(accentIndex, onSelect = { viewModel.setAccentIndex(it) }, onBack = { showTheme.value = false })
         } else if (page == 5) {
             DeveloperScreen(viewModel, onBack = { showDev.value = false })
@@ -211,135 +236,49 @@ fun SettingsScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
             contentPadding = PaddingValues(top = glgDetailContentTop(), bottom = 24.dp),
         ) {
 
-        // 1) 알림 — 항목별 알림·방해금지·데일리 요약을 모은 하위 페이지로 진입
-        item { SectionTitle("알림") }
+        // 설정 메인 개편(아티팩트 S0) — 알림 설정과 같은 결: 묶음 제목 + 흰 카드 + 색 아이콘 줄.
+        item { NotifyGroupTitle("알림", "받을 알림 · 방해 금지") }
         item {
-            GlassCard(shape = RoundedCornerShape(24.dp), modifier = Modifier.fillMaxWidth()) {
-                Column {
-                    SettingsItem("알림 설정", Icons.Default.Notifications, value = "방해금지 · 요약 · 항목별") { showNotif.value = true }
+            NotifyCard {
+                SettingsNavRow(Icons.Default.Notifications, Tint.teal, "알림 설정", NotificationCatalog.enabledLabel(notifyOnCount)) { showNotif.value = true }
+            }
+        }
+
+        item { NotifyGroupTitle("내 게임 · 예산", "온보딩에서 고른 값과 같아요") }
+        item {
+            NotifyCard {
+                SettingsNavRow(Icons.Default.SportsEsports, Tint.purple, "내 게임", myGamesLabel(myGames)) { showMyGames.value = true }
+                HorizontalDivider(color = RowDivider)
+                SettingsNavRow(Icons.Default.Savings, Tint.orange, "월 예산", if (budget > 0) won(budget) else "미설정") { showBudget.value = true }
+                HorizontalDivider(color = RowDivider)
+                NotifyRow(Icons.Default.Psychology, Tint.amber.first, Tint.amber.second, "과소비 예방 넛지", "예산 · 평소치를 넘으면 저장 전에 한 번 더 확인", nudgeOverspend) {
+                    viewModel.setNudgeOverspend(it)
+                }
+                if (nudgeOverspend) {
+                    HorizontalDivider(color = RowDivider)
+                    SettingsNavRow(Icons.Default.PriceCheck, Tint.amber, "넛지 기준 금액", won(nudgeThreshold)) { showNudgeThreshold.value = true }
                 }
             }
         }
 
-        // 2) UI — 표시(컴팩트) + 테마 색상을 한 섹션으로 통합
-        item { Spacer(Modifier.height(20.dp)) }
-        item { SectionTitle("UI") }
+        item { NotifyGroupTitle("연동 · 자동화", "HoYoLAB") }
         item {
-            GlassCard(shape = RoundedCornerShape(24.dp), modifier = Modifier.fillMaxWidth()) {
-                Column {
-                    SettingsToggleRow(
-                        Icons.Default.ViewAgenda,
-                        "지출 내역 컴팩트 보기",
-                        "지출 목록을 한 줄로 빽빽하게 표시해요 (태그·결제수단 숨김)",
-                        spendingCompact,
-                    ) { viewModel.setSpendingCompact(it) }
-                    HorizontalDivider(color = DividerColor, modifier = Modifier.padding(horizontal = 16.dp))
-                    SettingsToggleRow(
-                        Icons.Default.Bolt,
-                        "캐릭터 속성 연출",
-                        "캐릭터 상세에 들어갈 때 속성 효과를 한 번 재생해요. 꺼도 속성 테두리는 남아요",
-                        charElementFx,
-                    ) { viewModel.setCharElementFx(it) }
-                    HorizontalDivider(color = DividerColor, modifier = Modifier.padding(horizontal = 16.dp))
-                    SettingsToggleRow(
-                        Icons.Default.AutoAwesome,
-                        "홈 히어로 글로우",
-                        "홈 상단에서 은은하게 떠다니는 빛 효과예요. 끄면 그라데이션만 남아요",
-                        heroGlow,
-                    ) { viewModel.setHeroGlow(it) }
-                    HorizontalDivider(color = DividerColor, modifier = Modifier.padding(horizontal = 16.dp))
-                    // 20색이 되어 카드 안 그리드로는 길어져 전용 페이지로 옮겼다.
-                    SettingsItem(
-                        "테마", Icons.Default.Palette,
-                        value = AccentPalette.getOrElse(accentIndex) { AccentPalette[DEFAULT_ACCENT_INDEX] }.label,
-                    ) { showTheme.value = true }
-                }
-            }
-        }
-
-        // 3) 예산·연동 (계정은 마이페이지 히어로로 일원화 — 중복 카드 제거)
-        item { Spacer(Modifier.height(20.dp)) }
-        item { SectionTitle("예산·연동") }
-        item {
-            GlassCard(shape = RoundedCornerShape(24.dp), modifier = Modifier.fillMaxWidth()) {
-                Column {
-                    SettingsItem("월 예산", Icons.Default.Savings, value = if (budget > 0) won(budget) else "미설정") { showBudget.value = true }
-                    HorizontalDivider(color = DividerColor, modifier = Modifier.padding(horizontal = 16.dp))
-                    SettingsToggleRow(
-                        Icons.Default.Psychology,
-                        "과소비 예방 넛지",
-                        "지출 추가 시 예산·평소치를 넘으면 한 번 더 확인해요",
-                        nudgeOverspend,
-                    ) { viewModel.setNudgeOverspend(it) }
-                    if (nudgeOverspend) {
-                        HorizontalDivider(color = DividerColor, modifier = Modifier.padding(horizontal = 16.dp))
-                        SettingsItem("넛지 기준 금액", Icons.Default.PriceCheck, value = won(nudgeThreshold)) { showNudgeThreshold.value = true }
+            NotifyCard {
+                SettingsNavRow(Icons.Default.Link, Tint.navy, "HoYoLAB 계정 연동", if (hoyolab.isLinked) "연동됨" else "미연동") { showHoyolab.value = true }
+                HorizontalDivider(color = RowDivider)
+                NotifyRow(
+                    Icons.Default.EventAvailable, Tint.teal.first, Tint.teal.second, "자동 출석체크",
+                    if (hoyolab.isLinked) "매일 자동으로 출석을 챙겨요 (켜면 지금 한 번 바로 시도)" else "HoYoLAB을 연동하면 사용할 수 있어요",
+                    hoyolab.isLinked && autoCheckIn,
+                ) { on ->
+                    if (!hoyolab.isLinked) { showHoyolab.value = true; return@NotifyRow }
+                    // 자동 출석 실패 시 알림으로 안내하려면 POST_NOTIFICATIONS(API33+) 권한 필요.
+                    // 도즈/스탠바이로 워커가 며칠 누락되는 케이스 회복을 위해 배터리 최적화 화이트리스트도 요청.
+                    if (on) {
+                        ensureNotifPerm()
+                        (context as? android.app.Activity)?.let { com.gatcha.log.data.BatteryOptimization.request(it) }
                     }
-                    HorizontalDivider(color = DividerColor, modifier = Modifier.padding(horizontal = 16.dp))
-                    SettingsItem("HoYoLAB 계정 연동", Icons.Default.Link, value = if (hoyolab.isLinked) "연동됨" else "미연동") { showHoyolab.value = true }
-                }
-            }
-        }
-
-        // 4) 데이터 관리 — 백업·복원/내보내기/위험 구역을 모은 하위 페이지로 진입
-        item { Spacer(Modifier.height(20.dp)) }
-        item { SectionTitle("데이터 관리") }
-        item {
-            GlassCard(shape = RoundedCornerShape(24.dp), modifier = Modifier.fillMaxWidth()) {
-                Column {
-                    SettingsItem("데이터 관리", Icons.Default.Storage, value = "백업·복원 · 초기화") { showData.value = true }
-                }
-            }
-        }
-
-        // 4-1) 개발자 메뉴 — **디버그 빌드에서만**. 릴리스에서는 이 블록 자체가 그려지지 않는다.
-        if (BuildConfig.DEBUG) {
-            item { Spacer(Modifier.height(20.dp)) }
-            item { SectionTitle("개발자") }
-            item {
-                GlassCard(shape = RoundedCornerShape(24.dp), modifier = Modifier.fillMaxWidth()) {
-                    Column {
-                        SettingsItem("개발자 메뉴", Icons.Default.BugReport, value = "상태 만들기 · 진단") { showDev.value = true }
-                    }
-                }
-            }
-        }
-
-        // 5) 나머지 — 자동화
-        item { Spacer(Modifier.height(20.dp)) }
-        item { SectionTitle("자동화") }
-        item {
-            GlassCard(shape = RoundedCornerShape(24.dp), modifier = Modifier.fillMaxWidth()) {
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Icon(Icons.Default.EventAvailable, null, tint = accent, modifier = Modifier.size(20.dp))
-                    Spacer(Modifier.width(12.dp))
-                    Column(Modifier.weight(1f)) {
-                        Text("자동 출석체크", fontSize = 14.sp, fontWeight = FontWeight.Medium)
-                        Text(
-                            if (hoyolab.isLinked) "켜두면 매일 잊지 않고 자동으로 출석을 챙겨드려요 (지금 한 번 바로 시도)"
-                            else "HoYoLAB을 연동하면 사용할 수 있어요",
-                            fontSize = 11.sp, color = TextSecondary,
-                        )
-                    }
-                    Spacer(Modifier.width(8.dp))
-                    if (hoyolab.isLinked) {
-                        // 자동 출석 실패 시 알림으로 안내하려면 POST_NOTIFICATIONS(API33+) 권한 필요.
-                        // 도즈/스탠바이로 워커가 며칠 누락되는 케이스 회복을 위해 배터리 최적화 화이트리스트도 요청.
-                        GlgSwitch(autoCheckIn) { on ->
-                            if (on) {
-                                ensureNotifPerm()
-                                (context as? android.app.Activity)?.let {
-                                    com.gatcha.log.data.BatteryOptimization.request(it)
-                                }
-                            }
-                            viewModel.setAutoCheckIn(on)
-                        }
-                    } else {
-                        GlgSwitch(false) { showHoyolab.value = true }
-                    }
+                    viewModel.setAutoCheckIn(on)
                 }
             }
         }
@@ -350,58 +289,64 @@ fun SettingsScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
                 com.gatcha.log.data.BatteryOptimization.isIgnoring(context)
             }
             if (autoCheckIn && hoyolab.isLinked && !ignoring) {
-                Spacer(Modifier.height(8.dp))
-                GlassCard(
-                    shape = RoundedCornerShape(20.dp),
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(16.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Icon(Icons.Default.BatteryAlert, null, tint = Color(0xFFFB8C00), modifier = Modifier.size(20.dp))
-                        Spacer(Modifier.width(12.dp))
-                        Column(Modifier.weight(1f)) {
-                            Text("배터리 최적화로 자동 출석이 막힐 수 있어요", fontSize = 13.sp, fontWeight = FontWeight.Medium, color = Color(0xFFFB8C00))
-                            Text(
-                                "절전 정책 때문에 며칠씩 자동 출석이 안 되는 분들은 이 앱을 \"제한 안함\"으로 등록해주세요.",
-                                fontSize = 11.sp, color = TextSecondary,
-                            )
-                        }
-                        Spacer(Modifier.width(8.dp))
-                        GlgButton(
-                            "허용",
-                            onClick = {
-                                (context as? android.app.Activity)?.let {
-                                    com.gatcha.log.data.BatteryOptimization.request(it)
-                                }
-                            },
-                            modifier = Modifier.width(72.dp),
-                            height = 36.dp,
-                        )
-                    }
+                WarnBanner(
+                    "배터리 최적화로 자동 출석이 막힐 수 있어요. 이 앱을 「제한 안함」으로 등록해 주세요.", "허용",
+                ) { (context as? android.app.Activity)?.let { com.gatcha.log.data.BatteryOptimization.request(it) } }
+            }
+        }
+
+        item { NotifyGroupTitle("화면", "표시 · 테마") }
+        item {
+            NotifyCard {
+                NotifyRow(Icons.Default.ViewAgenda, Tint.slate.first, Tint.slate.second, "지출 내역 컴팩트 보기", "지출 목록을 한 줄로 빽빽하게 (태그 · 결제수단 숨김)", spendingCompact) {
+                    viewModel.setSpendingCompact(it)
+                }
+                HorizontalDivider(color = RowDivider)
+                NotifyRow(Icons.Default.Bolt, Tint.pink.first, Tint.pink.second, "캐릭터 속성 연출", "캐릭터 상세에 들어갈 때 속성 효과를 한 번 재생", charElementFx) {
+                    viewModel.setCharElementFx(it)
+                }
+                HorizontalDivider(color = RowDivider)
+                NotifyRow(Icons.Default.AutoAwesome, Tint.blue.first, Tint.blue.second, "홈 히어로 글로우", "홈 상단에서 은은하게 떠다니는 빛 효과", heroGlow) {
+                    viewModel.setHeroGlow(it)
+                }
+                HorizontalDivider(color = RowDivider)
+                // 20색이 되어 카드 안 그리드로는 길어져 전용 페이지로 옮겼다.
+                SettingsNavRow(
+                    Icons.Default.Palette, Tint.purple, "테마",
+                    AccentPalette.getOrElse(accentIndex) { AccentPalette[DEFAULT_ACCENT_INDEX] }.label,
+                ) { showTheme.value = true }
+            }
+        }
+
+        item { NotifyGroupTitle("데이터", "백업 · 복원 · 초기화") }
+        item {
+            NotifyCard {
+                SettingsNavRow(Icons.Default.Storage, Tint.slate, "데이터 관리", "백업 · 복원 · 초기화") { showData.value = true }
+            }
+        }
+
+        // 개발자 메뉴 — **디버그 빌드에서만**. 릴리스에서는 이 블록 자체가 그려지지 않는다.
+        if (BuildConfig.DEBUG) {
+            item { NotifyGroupTitle("개발자", "디버그 빌드 전용") }
+            item {
+                NotifyCard {
+                    SettingsNavRow(Icons.Default.BugReport, Tint.red, "개발자 메뉴", "상태 만들기 · 진단") { showDev.value = true }
                 }
             }
         }
 
-        // 앱 정보
-        item { Spacer(Modifier.height(20.dp)) }
-        item { SectionTitle("앱 정보") }
+        item { NotifyGroupTitle("앱 정보", "v$versionName") }
         item {
-            GlassCard(shape = RoundedCornerShape(24.dp), modifier = Modifier.fillMaxWidth()) {
-                Column {
-                    SettingsItem("업데이트 확인", Icons.Default.SystemUpdate) { viewModel.checkForUpdate(manual = true) }
-                    HorizontalDivider(color = DividerColor, modifier = Modifier.padding(horizontal = 16.dp))
-                    SettingsItem("업데이트 로그", Icons.Default.NewReleases) { showUplog.value = true }
-                    HorizontalDivider(color = DividerColor, modifier = Modifier.padding(horizontal = 16.dp))
-                    SettingsItem("출처 · 저작권", Icons.Default.Copyright) { showCredits.value = true }
-                    HorizontalDivider(color = DividerColor, modifier = Modifier.padding(horizontal = 16.dp))
-                    SettingsItem("GitHub", ImageVector.vectorResource(R.drawable.ic_github)) {
-                        openExternalLink(ctx, GITHUB_REPO_URL)
-                    }
-                    HorizontalDivider(color = DividerColor, modifier = Modifier.padding(horizontal = 16.dp))
-                    SettingsItem("앱 버전", Icons.Default.Info, value = "v$versionName", trailing = { BuildVariantChip() }) {}
-                }
+            NotifyCard {
+                SettingsNavRow(Icons.Default.SystemUpdate, Tint.teal, "업데이트 확인", null) { viewModel.checkForUpdate(manual = true) }
+                HorizontalDivider(color = RowDivider)
+                SettingsNavRow(Icons.Default.NewReleases, Tint.blue, "업데이트 로그", null) { showUplog.value = true }
+                HorizontalDivider(color = RowDivider)
+                SettingsNavRow(Icons.Default.Copyright, Tint.slate, "출처 · 저작권", null) { showCredits.value = true }
+                HorizontalDivider(color = RowDivider)
+                SettingsNavRow(ImageVector.vectorResource(R.drawable.ic_github), Tint.navy, "GitHub", null) { openExternalLink(ctx, GITHUB_REPO_URL) }
+                HorizontalDivider(color = RowDivider)
+                SettingsNavRow(Icons.Default.Info, Tint.slate, "앱 버전", "v$versionName", trailing = { BuildVariantChip() }, chevron = false) {}
             }
         }
         }
@@ -638,8 +583,6 @@ private fun NotificationSettingsScreen(viewModel: SpendingViewModel, onBack: () 
     val notifyDndEnabled by viewModel.notifyDndEnabled.collectAsStateWithLifecycle()
     val notifyDndStartHour by viewModel.notifyDndStartHour.collectAsStateWithLifecycle()
     val notifyDndEndHour by viewModel.notifyDndEndHour.collectAsStateWithLifecycle()
-    val notifyDailySummary by viewModel.notifyDailySummary.collectAsStateWithLifecycle()
-    val notifyDailySummaryHour by viewModel.notifyDailySummaryHour.collectAsStateWithLifecycle()
 
     // 알림 권한(Android 13+) — 알림 토글 켤 때 요청.
     // permRefresh: 권한 요청/화면 복귀 후 권한 상태를 다시 읽게 하는 트리거(권한은 Compose 상태가 아니라 OS 상태).
@@ -670,10 +613,9 @@ private fun NotificationSettingsScreen(viewModel: SpendingViewModel, onBack: () 
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
-    // 알림 시각 피커(0~23시) — 방해금지 시작/종료, 데일리 요약 시각
+    // 알림 시각 피커(0~23시) — 방해금지 시작/종료
     val showDndStartPicker = remember { mutableStateOf(false) }
     val showDndEndPicker = remember { mutableStateOf(false) }
-    val showSummaryPicker = remember { mutableStateOf(false) }
 
     // 탭 페이지와 같은 구조 — 콘텐츠는 상태바 뒤까지 스크롤되고, 헤더는 그 위에 고정된다.
     val listState = rememberLazyListState()
@@ -715,41 +657,9 @@ private fun NotificationSettingsScreen(viewModel: SpendingViewModel, onBack: () 
             }
         }
 
-        item {
-            // 헤더에 지금 상태를 붙인다 — 목록을 훑지 않고도 몇 개가 살아 있는지 보인다.
-            Row(Modifier.fillMaxWidth().padding(bottom = 10.dp, start = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text("알림", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextSecondary)
-                Spacer(Modifier.weight(1f))
-                Text(
-                    NotificationCatalog.enabledLabel(notifyState.count { it.value }),
-                    fontSize = 11.sp, color = TextSecondary, modifier = Modifier.padding(end = 4.dp),
-                )
-            }
-        }
-        NotificationCatalog.groups.forEach { group ->
-            val groupItems = NotificationCatalog.itemsIn(group)
-            item {
-                Row(Modifier.fillMaxWidth().padding(bottom = 6.dp, start = 4.dp), verticalAlignment = Alignment.Bottom) {
-                    Text(group.title, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
-                    Spacer(Modifier.width(6.dp))
-                    Text(group.caption, fontSize = 10.5.sp, color = TextSecondary)
-                }
-            }
-            item {
-                GlassCard(shape = RoundedCornerShape(24.dp), modifier = Modifier.fillMaxWidth()) {
-                    Column {
-                        groupItems.forEachIndexed { i, entry ->
-                            if (i > 0) HorizontalDivider(color = DividerColor, modifier = Modifier.padding(horizontal = 16.dp))
-                            SettingsToggleRow(
-                                notifyIcon(entry.key), entry.title, entry.desc,
-                                notifyState[entry.key] == true,
-                            ) { on -> setNotify(entry.key, on) }
-                        }
-                    }
-                }
-                Spacer(Modifier.height(12.dp))
-            }
-        }
+        // 설정 ▸ 알림 설정 개편(아티팩트 S1) — 온보딩 ⑤와 같은 결: 미리보기 알림 + 묶음별 색 아이콘 줄 + 보내는 방식.
+        // 보이는 항목만 센다 — 행사가 끝난 호요랜드는 목록에서 빠진다(NotificationCatalog.hoyolandAlertsActive).
+        item { NotifyPreviewCard(NotificationCatalog.enabledLabel(NotificationCatalog.items.count { notifyState[it.key] == true })) }
         item {
             // 토글은 켰는데 시스템 알림 권한이 꺼져 있으면 안내.
             // **일곱 개 전부**를 본다 — 예전엔 앞 네 개만 봐서, 픽업·전투·정기결제·공지만 켠 사람에겐
@@ -772,94 +682,58 @@ private fun NotificationSettingsScreen(viewModel: SpendingViewModel, onBack: () 
                     )
             }
             if (notifOn && !notifEnabled) {
-                Spacer(Modifier.height(8.dp))
-                GlassCard(shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth()) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(16.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Icon(Icons.Default.NotificationsOff, null, tint = Color(0xFFFB8C00), modifier = Modifier.size(20.dp))
-                        Spacer(Modifier.width(12.dp))
-                        Column(Modifier.weight(1f)) {
-                            Text("알림 권한이 꺼져 있어요", fontSize = 13.sp, fontWeight = FontWeight.Medium, color = Color(0xFFFB8C00))
-                            Text(
-                                if (canPromptNotifPerm) "알림을 받으려면 권한을 허용해주세요."
-                                else "권한이 막혀 있어 알림이 표시되지 않아요. 시스템 설정에서 알림을 켜주세요.",
-                                fontSize = 11.sp, color = TextSecondary,
-                            )
-                        }
-                        Spacer(Modifier.width(8.dp))
-                        GlgButton(
-                            if (canPromptNotifPerm) "허용" else "설정",
-                            onClick = {
-                                if (canPromptNotifPerm) ensureNotifPermForAll() else openAppNotificationSettings(context)
-                            },
-                            modifier = Modifier.width(72.dp),
-                            height = 36.dp,
-                        )
+                Row(
+                    Modifier.padding(top = 12.dp).fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Color(0xFFFFF4E8))
+                        .border(1.dp, Color(0xFFFED7AA), RoundedCornerShape(14.dp)).padding(horizontal = 14.dp, vertical = 11.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(Icons.Default.WarningAmber, null, tint = NotifyWarn, modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.width(10.dp))
+                    Text(
+                        if (canPromptNotifPerm) "알림 권한이 꺼져 있어요. 허용해야 알림이 와요."
+                        else "권한이 막혀 있어 알림이 표시되지 않아요. 시스템 설정에서 켜 주세요.",
+                        fontSize = 12.5.sp, lineHeight = 18.sp, color = Color(0xFF9A3412), modifier = Modifier.weight(1f),
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        if (canPromptNotifPerm) "허용" else "설정", fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = Color.White,
+                        modifier = Modifier.clip(RoundedCornerShape(15.dp)).background(NotifyWarn)
+                            .clickable { if (canPromptNotifPerm) ensureNotifPermForAll() else openAppNotificationSettings(context) }
+                            .padding(horizontal = 12.dp, vertical = 6.dp),
+                    )
+                }
+            }
+        }
+        NotificationCatalog.groups.forEach { group ->
+            val groupItems = NotificationCatalog.itemsIn(group)
+            item { NotifyGroupTitle(group.title, group.caption) }
+            item {
+                NotifyCard {
+                    groupItems.forEachIndexed { i, entry ->
+                        if (i > 0) HorizontalDivider(color = Color(0xFFF0F3F2))
+                        val (fg, bg) = notifyTint(entry.key)
+                        NotifyRow(notifyIcon(entry.key), fg, bg, entry.title, entry.desc, notifyState[entry.key] == true) { on -> setNotify(entry.key, on) }
                     }
                 }
             }
         }
 
-        // 방해금지 — 지정한 시간대엔 알림을 억제
-        item { Spacer(Modifier.height(20.dp)) }
-        item { SectionTitle("방해금지") }
+        // 보내는 방식 — 방해금지(시간대 억제). 데일리 요약은 9/29 제거.
+        item { NotifyGroupTitle("보내는 방식", "언제 · 어떻게") }
         item {
-            GlassCard(shape = RoundedCornerShape(24.dp), modifier = Modifier.fillMaxWidth()) {
-                Column {
-                    SettingsToggleRow(
-                        Icons.Default.Bedtime,
-                        "방해금지 시간",
-                        "이 시간대엔 알림을 보내지 않아요",
-                        notifyDndEnabled,
-                    ) { viewModel.setNotifyDndEnabled(it) }
-                    if (notifyDndEnabled) {
-                        HorizontalDivider(color = DividerColor, modifier = Modifier.padding(horizontal = 16.dp))
-                        Row(
-                            modifier = Modifier.fillMaxWidth().padding(16.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(10.dp),
-                        ) {
-                            HourBox("시작", notifyDndStartHour, Modifier.weight(1f)) { showDndStartPicker.value = true }
-                            Text("~", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = TextSecondary)
-                            HourBox("종료", notifyDndEndHour, Modifier.weight(1f)) { showDndEndPicker.value = true }
-                        }
-                        Text(
-                            "자정을 넘는 시간대도 지원 · 기준 기기 로컬 시각",
-                            fontSize = 11.sp, color = TextSecondary,
-                            modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 14.dp),
-                        )
+            NotifyCard {
+                NotifyRow(Icons.Default.Bedtime, Color(0xFF4F5C59), Color(0xFFF5F8F8), "방해 금지 시간", "이 시간대엔 알림을 보내지 않아요", notifyDndEnabled) {
+                    viewModel.setNotifyDndEnabled(it)
+                }
+                if (notifyDndEnabled) {
+                    Row(Modifier.padding(start = 60.dp, end = 14.dp, bottom = 14.dp), verticalAlignment = Alignment.CenterVertically) {
+                        TimePill(hourLabel(notifyDndStartHour)) { showDndStartPicker.value = true }
+                        Text("~", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color(0xFF7A8784), modifier = Modifier.padding(horizontal = 8.dp))
+                        TimePill(hourLabel(notifyDndEndHour)) { showDndEndPicker.value = true }
+                        Text("기기 시각", fontSize = 11.5.sp, color = Color(0xFF7A8784), modifier = Modifier.padding(start = 10.dp))
                     }
                 }
             }
-        }
-
-        // 데일리 요약 — 흩어진 알림을 묶어 하루 한 번 발송
-        item { Spacer(Modifier.height(20.dp)) }
-        item { SectionTitle("데일리 요약") }
-        item {
-            GlassCard(shape = RoundedCornerShape(24.dp), modifier = Modifier.fillMaxWidth()) {
-                Column {
-                    SettingsToggleRow(
-                        Icons.Default.MarkEmailRead,
-                        "하루 한 번 요약",
-                        "흩어진 알림을 묶어 1건으로 보내요",
-                        notifyDailySummary,
-                    ) { on ->
-                        if (on) ensureNotifPerm(); viewModel.setNotifyDailySummary(on)
-                    }
-                    if (notifyDailySummary) {
-                        HorizontalDivider(color = DividerColor, modifier = Modifier.padding(horizontal = 16.dp))
-                        SettingsItem("요약 보낼 시각", Icons.Default.Schedule, value = hourLabel(notifyDailySummaryHour)) { showSummaryPicker.value = true }
-                    }
-                }
-            }
-            Text(
-                "요약을 켜면 그날 개별 알림은 묶어 한 건으로 발송하고, 끄면 기존처럼 개별 발송해요.",
-                fontSize = 11.sp, color = TextSecondary,
-                modifier = Modifier.padding(top = 8.dp, start = 4.dp, end = 4.dp),
-            )
         }
     }
     GlgDetailHeaderOverlay("알림 설정", onBack, scrolled)
@@ -875,11 +749,223 @@ private fun NotificationSettingsScreen(viewModel: SpendingViewModel, onBack: () 
             viewModel.setNotifyDndEndHour(it); showDndEndPicker.value = false
         }
     }
-    if (showSummaryPicker.value) {
-        HourPickerDialog("요약 보낼 시각", notifyDailySummaryHour, { showSummaryPicker.value = false }) {
-            viewModel.setNotifyDailySummaryHour(it); showSummaryPicker.value = false
+}
+
+private val NotifyWarn = Color(0xFFC2410C)
+private val RowDivider = Color(0xFFF0F3F2)
+
+/** 설정 줄 아이콘 색 짝(글자색, 옅은 바탕) — 아티팩트 S0 · S1. */
+private object Tint {
+    val teal = Color(0xFF177881) to Color(0xFFE3F2F1)
+    val purple = Color(0xFF9350F0) to Color(0xFFF1E8FD)
+    val orange = Color(0xFFC2410C) to Color(0xFFFFF1E6)
+    val amber = Color(0xFFB45309) to Color(0xFFFEF3C7)
+    val navy = Color(0xFF0F1A33) to Color(0xFFECEFF4)
+    val slate = Color(0xFF475569) to Color(0xFFEEF1F5)
+    val pink = Color(0xFFDB2777) to Color(0xFFFCE7F3)
+    val blue = Color(0xFF3E76E0) to Color(0xFFE8F0FD)
+    val red = Color(0xFFB91C1C) to Color(0xFFFEE2E2)
+}
+
+/** 「원신 · 스타레일 외 1」 — 비어 있으면 전체. */
+private fun myGamesLabel(keys: Set<String>): String {
+    val names = GameData.games.filter { it.key in keys }.map { it.shortName }
+    return when {
+        names.isEmpty() -> "전체"
+        names.size <= 2 -> names.joinToString(" · ")
+        else -> "${names.take(2).joinToString(" · ")} 외 ${names.size - 2}"
+    }
+}
+
+/** 색 아이콘 + 제목 + 값 + 화살표(하위 페이지 · 다이얼로그로 가는 줄). */
+@Composable
+private fun SettingsNavRow(
+    icon: ImageVector, tint: Pair<Color, Color>, title: String, value: String?,
+    trailing: (@Composable () -> Unit)? = null, chevron: Boolean = true, onClick: () -> Unit,
+) {
+    Row(
+        Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 14.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(Modifier.size(34.dp).clip(RoundedCornerShape(11.dp)).background(tint.second), contentAlignment = Alignment.Center) {
+            Icon(icon, null, tint = tint.first, modifier = Modifier.size(18.dp))
+        }
+        Spacer(Modifier.width(12.dp))
+        Text(title, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TextPrimary, modifier = Modifier.weight(1f))
+        value?.let { Text(it, fontSize = 12.5.sp, color = TextSecondary) }
+        trailing?.let { Spacer(Modifier.width(6.dp)); it() }
+        if (chevron) {
+            Spacer(Modifier.width(4.dp))
+            Icon(Icons.Default.ChevronRight, null, tint = Color(0xFFB8C4C1), modifier = Modifier.size(18.dp))
         }
     }
+}
+
+/** 주황 안내 띠 + 버튼 — 권한 · 배터리 최적화 경고 공용. */
+@Composable
+private fun WarnBanner(text: String, action: String, onAction: () -> Unit) {
+    Row(
+        Modifier.padding(top = 10.dp).fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Color(0xFFFFF4E8))
+            .border(1.dp, Color(0xFFFED7AA), RoundedCornerShape(14.dp)).padding(horizontal = 14.dp, vertical = 11.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(Icons.Default.WarningAmber, null, tint = NotifyWarn, modifier = Modifier.size(16.dp))
+        Spacer(Modifier.width(10.dp))
+        Text(text, fontSize = 12.5.sp, lineHeight = 18.sp, color = Color(0xFF9A3412), modifier = Modifier.weight(1f))
+        Spacer(Modifier.width(8.dp))
+        Text(
+            action, fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = Color.White,
+            modifier = Modifier.clip(RoundedCornerShape(15.dp)).background(NotifyWarn).clickable(onClick = onAction)
+                .padding(horizontal = 12.dp, vertical = 6.dp),
+        )
+    }
+}
+
+/**
+ * 설정 ▸ 내 게임(아티팩트 S2) — 온보딩 ②와 같은 값([SpendingViewModel.setMyGames]).
+ * 6게임 전부(이환 포함). 비우면 전부로 본다.
+ */
+@Composable
+private fun MyGamesScreen(myGames: Set<String>, onToggle: (String) -> Unit, onBack: () -> Unit) {
+    val listState = rememberLazyListState()
+    val scrolled by remember { derivedStateOf { listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 0 } }
+    Box(Modifier.fillMaxSize()) {
+        LazyColumn(
+            state = listState,
+            modifier = Modifier.fillMaxSize().navigationBarsPadding().padding(horizontal = 16.dp),
+            contentPadding = PaddingValues(top = glgDetailContentTop(), bottom = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            item {
+                Text(
+                    "고른 게임이 지출 입력 맨 위에 오고, 출석도 고른 게임만 챙겨요. 기록은 거르지 않아요.",
+                    fontSize = 13.5.sp, lineHeight = 20.sp, color = TextSecondary, modifier = Modifier.padding(start = 4.dp, end = 4.dp, bottom = 8.dp),
+                )
+            }
+            items(GameData.games.size) { i ->
+                val g = GameData.games[i]
+                val on = g.key in myGames
+                Row(
+                    Modifier.fillMaxWidth().height(58.dp).clip(RoundedCornerShape(16.dp))
+                        .background(if (on) Color(0xFFEEF8F8) else Color.White)
+                        .border(if (on) 2.dp else 1.dp, if (on) Color(0xFF1B8E99) else Color(0xFFE3E8E6), RoundedCornerShape(16.dp))
+                        .clickable { onToggle(g.key) }.padding(horizontal = 16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Box(Modifier.size(10.dp).clip(CircleShape).background(Color(g.color)))
+                    Spacer(Modifier.width(12.dp))
+                    Text(g.displayName, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TextPrimary, modifier = Modifier.weight(1f))
+                    Box(
+                        Modifier.size(22.dp).clip(CircleShape).background(if (on) Color(0xFF1B8E99) else Color(0xFFE3E8E6)),
+                        contentAlignment = Alignment.Center,
+                    ) { if (on) Icon(Icons.Default.Check, null, tint = Color.White, modifier = Modifier.size(14.dp)) }
+                }
+            }
+            item {
+                Text(
+                    "하나도 고르지 않으면 전부 보여요. 온보딩에서 고른 게임과 같은 값이에요.",
+                    fontSize = 11.5.sp, lineHeight = 17.sp, color = Color(0xFF7A8784), modifier = Modifier.padding(start = 4.dp, end = 4.dp, top = 4.dp),
+                )
+            }
+        }
+        GlgDetailHeaderOverlay("내 게임", onBack, scrolled)
+    }
+}
+
+
+/** 알림 항목별 아이콘 색(글자색, 옅은 바탕) — 아티팩트 S1 · 온보딩 ⑤와 같은 짝. */
+private fun notifyTint(key: NotifyKey): Pair<Color, Color> = when (key) {
+    NotifyKey.BUDGET -> NotifyWarn to Color(0xFFFFF1E6)
+    NotifyKey.RESIN -> Color(0xFF3E76E0) to Color(0xFFE8F0FD)
+    NotifyKey.ATTENDANCE -> Color(0xFF177881) to Color(0xFFE3F2F1)
+    NotifyKey.PICKUP -> Color(0xFF9350F0) to Color(0xFFF1E8FD)
+    NotifyKey.COMBAT -> Color(0xFFB45309) to Color(0xFFFEF3C7)
+    NotifyKey.NEWS -> Color(0xFF475569) to Color(0xFFEEF1F5)
+    NotifyKey.HOYOLAND -> Color(0xFFDB2777) to Color(0xFFFCE7F3)
+}
+
+/** 미리보기 알림 카드 — 켜면 어떤 알림이 오는지 먼저 보여 주고, 오른쪽 위에 켜진 개수. */
+@Composable
+private fun NotifyPreviewCard(status: String) {
+    Column(
+        Modifier.padding(top = 4.dp).fillMaxWidth().clip(RoundedCornerShape(20.dp))
+            .background(Brush.linearGradient(listOf(Color(0xFFEEF8F8), Color(0xFFDCF0EE))))
+            .padding(start = 16.dp, end = 16.dp, top = 14.dp, bottom = 18.dp),
+    ) {
+        Row(Modifier.fillMaxWidth().padding(bottom = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text("이렇게 알려 드려요", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFF177881), modifier = Modifier.weight(1f))
+            Text(
+                status, fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = Color(0xFF177881),
+                modifier = Modifier.clip(RoundedCornerShape(12.dp)).background(Color.White).padding(horizontal = 10.dp, vertical = 4.dp),
+            )
+        }
+        Box(Modifier.padding(horizontal = 10.dp).fillMaxWidth().height(12.dp).clip(RoundedCornerShape(topStart = 12.dp, topEnd = 12.dp)).background(Color.White.copy(alpha = 0.55f)))
+        Row(
+            Modifier.fillMaxWidth().shadow(8.dp, RoundedCornerShape(16.dp), ambientColor = Color(0x1A0F1A33), spotColor = Color(0x1A0F1A33))
+                .clip(RoundedCornerShape(16.dp)).background(Color.White).padding(horizontal = 14.dp, vertical = 12.dp),
+        ) {
+            Box(
+                Modifier.size(34.dp).clip(RoundedCornerShape(9.dp)).background(Brush.linearGradient(listOf(Color(0xFF1FA0AB), Color(0xFF146E77)))),
+                contentAlignment = Alignment.Center,
+            ) { Icon(Icons.Default.Notifications, null, tint = Color.White, modifier = Modifier.size(18.dp)) }
+            Spacer(Modifier.width(10.dp))
+            Column(Modifier.weight(1f)) {
+                Row {
+                    Text("Gatcha Log", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = Color(0xFF4F5C59), modifier = Modifier.weight(1f))
+                    Text("지금", fontSize = 11.5.sp, color = Color(0xFF7A8784))
+                }
+                Text("레진이 곧 가득 차요", fontSize = 13.5.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+                Text("원신 190 / 200 · 20분 뒤 가득", fontSize = 12.sp, color = TextSecondary)
+            }
+        }
+    }
+}
+
+@Composable
+private fun NotifyGroupTitle(title: String, caption: String) {
+    Row(Modifier.fillMaxWidth().padding(start = 4.dp, end = 4.dp, top = 20.dp, bottom = 8.dp), verticalAlignment = Alignment.Bottom) {
+        Text(title, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+        Spacer(Modifier.width(6.dp))
+        Text(caption, fontSize = 11.5.sp, color = Color(0xFF7A8784))
+    }
+}
+
+@Composable
+private fun NotifyCard(content: @Composable ColumnScope.() -> Unit) {
+    Column(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(Color.White).border(1.dp, Color(0xFFE3E8E6), RoundedCornerShape(18.dp)),
+        content = content,
+    )
+}
+
+/** 색 아이콘 칸 + 제목/설명 + 스위치. 줄 전체를 눌러도 토글된다. */
+@Composable
+private fun NotifyRow(icon: ImageVector, fg: Color, bg: Color, title: String, desc: String, checked: Boolean, onToggle: (Boolean) -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().clickable { onToggle(!checked) }.padding(horizontal = 14.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(Modifier.size(34.dp).clip(RoundedCornerShape(11.dp)).background(bg), contentAlignment = Alignment.Center) {
+            Icon(icon, null, tint = fg, modifier = Modifier.size(18.dp))
+        }
+        Spacer(Modifier.width(12.dp))
+        Column(Modifier.weight(1f)) {
+            Text(title, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+            Text(desc, fontSize = 12.sp, color = TextSecondary)
+        }
+        Spacer(Modifier.width(8.dp))
+        GlgSwitch(checked, onToggle)
+    }
+}
+
+/** 시각 알약 — 누르면 시각 선택. */
+@Composable
+private fun TimePill(text: String, onClick: () -> Unit) {
+    Text(
+        text, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextPrimary,
+        modifier = Modifier.clip(RoundedCornerShape(15.dp)).background(Color.White).border(1.dp, Color(0xFFE3E8E6), RoundedCornerShape(15.dp))
+            .clickable(onClick = onClick).padding(horizontal = 14.dp, vertical = 6.dp),
+    )
 }
 
 /**

@@ -125,12 +125,25 @@ object GameData {
     /** 출석/실시간 노트 등 호요버스 게임만 */
     val attendanceGames: List<Game> = games.filter { it.supportsAttendance }
 
-    /** 출석을 세는 게임 — 연동 계정에 UID 가 있는 게임만. 미연동이거나 UID 를 하나도 모르면 전부. */
-    fun trackedAttendanceGames(cfg: HoyolabConfig): List<Game> {
-        if (!cfg.isLinked) return attendanceGames
+    /**
+     * 출석을 세는 게임 — 연동 계정에 UID 가 있는 게임만. 미연동이거나 UID 를 하나도 모르면 전부.
+     * [myGames](내 게임)를 정했으면 그중 고른 것만 — 겹치는 게 없으면(호요버스 게임을 안 고름) 거르지 않는다.
+     */
+    fun trackedAttendanceGames(cfg: HoyolabConfig, myGames: Set<String> = emptySet()): List<Game> {
         val uids = mapOf("genshin" to cfg.genshinUid, "hsr" to cfg.hsrUid, "zzz" to cfg.zzzUid)
-        return attendanceGames.filter { uids[it.key].orEmpty().isNotBlank() }.ifEmpty { attendanceGames }
+        val base = if (!cfg.isLinked) attendanceGames
+        else attendanceGames.filter { uids[it.key].orEmpty().isNotBlank() }.ifEmpty { attendanceGames }
+        if (myGames.isEmpty()) return base
+        return base.filter { it.key in myGames }.ifEmpty { base }
     }
+
+    /** 지출 입력 게임 목록 — 내 게임이 앞, 나머지는 뒤(「다른 게임」). 내 게임이 비어 있으면 전부 앞. */
+    fun pickerGames(myGames: Set<String>): Pair<List<Game>, List<Game>> =
+        if (myGames.isEmpty()) games to emptyList()
+        else games.partition { it.key in myGames }
+
+    /** 온보딩 ②에 나오는 게임 — 설정 ▸ 내 게임과 같은 6게임(9/29 이환 추가). */
+    val onboardingGames: List<Game> = games
 
     /** 결제 수단 — 카드 + 한국 간편결제 + 기타 (Android·iOS 공통). 레거시 값은 GatchaRepository 로드에서 정규화. */
     val paymentMethods: List<String> = listOf("카드", "카카오페이", "네이버페이", "토스", "기타")

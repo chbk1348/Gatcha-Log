@@ -117,7 +117,7 @@ struct ContentView: View {
             if needsIntro {
                 // 첫 실행 온보딩 — 앱 아이콘의 게이지 링을 페이지마다 다른 의미로 변주해 소개하고,
                 // 마지막 페이지에서 맥락과 함께 알림 권한을 요청한다.
-                OnboardingView { requestNotification in
+                OnboardingView(store: store) { requestNotification in
                     finishOnboarding(requestNotification: requestNotification)
                 }
                 .glgAccent(index: preLoginAccent)
@@ -214,6 +214,8 @@ struct ContentView: View {
             }
         }
         // 알림 탭 → 해당 탭으로 이동(AppDelegate.didReceive 가 glgOpenTab 으로 탭 인덱스 전달).
+        // 개발자 메뉴 「온보딩 초기화」 — 재시작 없이 바로 온보딩으로 돌아간다.
+        .onChange(of: store.onboardingReplay) { _, v in if v > 0 { needsIntro = true } }
         .onReceive(NotificationCenter.default.publisher(for: .glgOpenTab)) { note in
             if let tab = note.object as? Int, !syncGateActive, !needsIntro, !store.needsLogin {
                 selectedTab = tab
@@ -313,28 +315,19 @@ struct ContentView: View {
     /**
      온보딩 종료 — 다시 뜨지 않도록 플래그를 굳히고, 알림을 켜기로 했으면 실제로 켠다.
 
-     [requestNotification] 은 OS 권한만이 아니라 **앱 내부 알림 토글까지** 함께 켠다.
-     권한만 받고 토글이 전부 꺼진 채로 두면 "알림 켜고 시작하기"를 눌러도 알림이 한 건도 오지 않는다.
+     온보딩 B안은 ⑤에서 고른 알림 항목을 이미 설정에 썼다(store.applyOnboarding). 여기서는
+     [requestNotification](「알림 켜고 시작하기」)일 때 OS 권한만 요청한다.
 
-     먼저 온보딩 ④에서 약속한 세 개(픽업 마감·예산 초과·재화 가득 참)를 켠다 — 권한을 **거부해도**
-     약속한 항목은 켜져 있어야 나중에 시스템 설정에서 허용했을 때 바로 알림이 온다.
-     그리고 사용자가 '허용'을 누르면 나머지까지 **항목 일곱 개 전부**로 넓힌다.
-     (데일리 요약·방해금지는 제외 — 발송 방식 설정이라 임의로 켜면 알림이 되레 줄거나 늦는다)
-     (VM 세터·`enableAllNotifyItems` 가 네이티브 스케줄 갱신까지 처리)
-
-     "나중에 할게요"면 프롬프트를 띄우지 않으므로 notifPermAsked 도 건드리지 않는다 — 그 플래그는
+     「알림 없이 시작」이면 프롬프트를 띄우지 않으므로 notifPermAsked 도 건드리지 않는다 — 그 플래그는
      "OS 프롬프트를 실제로 띄운 적 있는가"라서, 안 띄우고 true 로 만들면 이후 '영구 거부' 판별이 틀어진다.
      */
     private func finishOnboarding(requestNotification: Bool) {
         AppSettings().onboardingDone = true
+        // 알림 항목은 온보딩 ⑤에서 고른 값을 이미 설정에 썼다(applyOnboarding) — 여기서는 OS 권한만 받는다.
+        // 허용돼도 다른 항목을 일괄로 켜지 않는다(고른 값 유지).
         if requestNotification {
-            store.setNotifyPickup(true)
-            store.setNotifyBudget(true)
-            store.setNotifyResin(true)
             AppSettings().notifPermAsked = true
-            NotificationPermission.request { newlyGranted in
-                if newlyGranted { store.enableAllNotifyItems() }
-            }
+            NotificationPermission.request { _ in }
         }
         needsIntro = false
     }

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 온보딩 게임 기호(genshin) — 공식 로고가 아닌 자체 기호. 원본 SVG: 아티팩트 B① 환영 타일. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="24dp" android:height="24dp"
+    android:viewportWidth="24" android:viewportHeight="24">
+    <path android:pathData="M12 2.5Q13.6 10.4 21.5 12Q13.6 13.6 12 21.5Q10.4 13.6 2.5 12Q10.4 10.4 12 2.5z" android:fillColor="#FFFFFF" android:strokeColor="#FFFFFF" android:strokeWidth="1.2" android:strokeLineJoin="round"/>
+    <path android:pathData="M12 12V2.5Q13.6 10.4 21.5 12z M12 12V21.5Q10.4 13.6 2.5 12z" android:fillColor="#BFD6FF"/>
+    <path android:pathData="M12 9.6l1.2 2.4-1.2 2.4-1.2-2.4z" android:fillColor="#FFFFFF"/>
+    <path android:pathData="M19 3.2l.4 1.1 1.1.4-1.1.4-.4 1.1-.4-1.1-1.1-.4 1.1-.4z" android:fillColor="#FFFFFF" android:fillAlpha="0.85"/>
+</vector>

@@ -1,5 +1,7 @@
 package com.gatcha.log.data
 
+import com.gatcha.log.data.api.HoyolandApi
+
 /**
  * 항목별 알림 목록 — **Android·iOS 가 이 한 소스를 공유한다.**
  *
@@ -37,8 +39,19 @@ data class NotifyItem(
 
 object NotificationCatalog {
 
-    /** 전체 항목 — 묶음 순서대로. */
-    val items: List<NotifyItem> = listOf(
+    /**
+     * 호요랜드 알림을 아직 보여 줄 때인가 — 행사가 끝나면(폐막일 다음 날부터) 설정 목록에서 빠지고
+     * 예약도 멈춘다([ScheduledAlerts]). 기준 날짜는 호요랜드 설정(config/hoyoland — 어드민에서 관리)의 폐막일이다.
+     * TODO(호요랜드 종료): 2026 행사가 끝나면 다음 업데이트에서 호요랜드 알림 기능을 통째로 제거할 예정.
+     */
+    val hoyolandAlertsActive: Boolean
+        get() = HoyolandApi.current.phase() != HoyolandPhase.ENDED
+
+    /** 전체 항목 — 묶음 순서대로. 호요랜드는 행사 중일 때만([hoyolandAlertsActive]). */
+    val items: List<NotifyItem>
+        get() = allItems.filter { it.key != NotifyKey.HOYOLAND || hoyolandAlertsActive }
+
+    private val allItems: List<NotifyItem> = listOf(
         NotifyItem(NotifyKey.BUDGET, NotifyGroup.MONEY, "예산", "이번 달 예산의 90%를 쓰거나 넘겼을 때"),
 
         NotifyItem(NotifyKey.RESIN, NotifyGroup.PLAY, "행동력 가득참", "레진·개척력·배터리가 가득 차서 더 안 쌓일 때"),
@@ -56,7 +69,8 @@ object NotificationCatalog {
      * `List<Pair<...>>` 로 묶어 내보내지 않는다 — Swift 에서 `KotlinPair` 를 벗겨 써야 해서
      * 호출부가 지저분해진다. 묶음 목록과 [itemsIn] 두 개로 나눠 양쪽이 같은 모양으로 쓰게 한다.
      */
-    val groups: List<NotifyGroup> = NotifyGroup.entries.filter { g -> items.any { it.group == g } }
+    val groups: List<NotifyGroup>
+        get() = NotifyGroup.entries.filter { g -> items.any { it.group == g } }
 
     /** 그 묶음의 항목들. */
     fun itemsIn(group: NotifyGroup): List<NotifyItem> = items.filter { it.group == group }

@@ -141,7 +141,7 @@ fun DeveloperScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
                         DevDivider()
                         DevRow(
                             Icons.Default.Refresh, "온보딩 초기화",
-                            "앱을 다시 시작하면 온보딩이 나온다",
+                            "누르면 바로 온보딩으로 돌아간다",
                         ) { viewModel.debugResetOnboarding() }
                     }
                 }

@@ -32,25 +32,13 @@ class AlertAlarmReceiver : BroadcastReceiver() {
 
         // 알림 발송·재예약은 suspend 다. goAsync 로 브로드캐스트 수명을 늘려 두지 않으면
         // onReceive 반환과 동시에 프로세스가 죽어 둘 다 유실된다(제한시간 약 10초).
-        val daily = intent.getBooleanExtra(AlertScheduler.EXTRA_DAILY_SUMMARY, false)
 
         val pending = goAsync()
         CoroutineScope(Dispatchers.IO).launch {
             try {
                 val settings = AppSettings()
                 val repo = GatchaRepository(AppSettings.currentAccountId())
-                if (daily) {
-                    // 데일리 요약만은 예약에 담긴 고정 문구를 쓰지 않는다 — 예약을 만든 시점엔
-                    // 그날 수치를 알 수 없어서다. 알람이 우리 프로세스를 깨웠으니 지금 계산한다.
-                    // (iOS 는 OS 가 직접 쏘는 구조라 이걸 못 해서 고정 문구로 남는다.)
-                    runCatching {
-                        NotificationChecker.maybeSendDailySummary(
-                            settings, repo, repo.loadHoyolab(), currentTimeMillis(), skipHourCheck = true,
-                        )
-                    }
-                } else {
-                    runCatching { Notifier.notify(id, title, text, link) }
-                }
+                runCatching { Notifier.notify(id, title, text, link) }
                 runCatching { ScheduledAlerts.reschedule(settings, repo) }
             } finally {
                 pending.finish()
