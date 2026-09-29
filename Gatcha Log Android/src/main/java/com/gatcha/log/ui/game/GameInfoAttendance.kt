@@ -80,6 +80,8 @@ import com.gatcha.log.ui.theme.*
 internal fun DailyHeroSection(
     topInset: Dp,
     notes: List<LiveNote>,
+    /** 게임별 노트 실패 사유 — 노트가 비었을 때 "노트 없음" 대신 보여준다. */
+    noteErrors: Map<String, String> = emptyMap(),
     attendanceToday: Set<String>,
     attendanceHistory: Map<String, Set<String>>,
     hoyolab: HoyolabConfig,
@@ -131,7 +133,7 @@ internal fun DailyHeroSection(
             // 같은 덩어리인데, 카드 셋으로 갈라져 있어 세로로 세 번 끊겨 읽혔다. 사이는 구분선으로 가른다.
             GlassCard(shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth()) {
                 Column(Modifier.fillMaxWidth().padding(16.dp)) {
-                    ResinSection(summaries)
+                    ResinSection(summaries, noteErrors)
                     if (grouped.isNotEmpty()) {
                         Spacer(Modifier.height(14.dp))
                         HorizontalDivider(color = DividerColor)
@@ -256,7 +258,7 @@ private fun LinkPrompt(headTop: Dp, onConfigClick: () -> Unit) {
  * 어느 게임이 차 있는지 비교된다 — 게임 수가 셋으로 고정이라 폭이 흔들리지 않는다.
  */
 @Composable
-private fun ResinSection(items: List<DailyGameSummary>) {
+private fun ResinSection(items: List<DailyGameSummary>, noteErrors: Map<String, String>) {
     val allFull = remember(items) { DailyLogic.allResinFull(items) }
     Column(Modifier.fillMaxWidth()) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -272,7 +274,7 @@ private fun ResinSection(items: List<DailyGameSummary>) {
         }
         Spacer(Modifier.height(12.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            items.forEach { s -> ResinCell(s, Modifier.weight(1f)) }
+            items.forEach { s -> ResinCell(s, noteErrors[s.gameKey], Modifier.weight(1f)) }
         }
     }
 }
@@ -321,7 +323,7 @@ private fun AlarmBell() {
 
 /** 행동력 한 칸 — 게임 약칭 · 현재/최대 · 게이지 · 언제 가득. */
 @Composable
-private fun ResinCell(s: DailyGameSummary, modifier: Modifier = Modifier) {
+private fun ResinCell(s: DailyGameSummary, error: String?, modifier: Modifier = Modifier) {
     val color = s.colorArgb.toColor()
     Column(modifier) {
         // 게임명 옆에 **그 게임의 인게임 명칭**을 붙인다. 셋 다 세는 것이 다른 재화인데
@@ -358,7 +360,11 @@ private fun ResinCell(s: DailyGameSummary, modifier: Modifier = Modifier) {
             Spacer(Modifier.height(7.dp))
             Box(Modifier.fillMaxWidth().height(4.dp).clip(CircleShape).background(ProgressEmpty))
             Spacer(Modifier.height(6.dp))
-            Text("노트 없음", fontSize = 10.5.sp, color = TextSecondary, maxLines = 1)
+            // 실패 사유가 있으면(비공개 전적 등) 그걸 보여준다 — 칸이 좁아 두 줄까지만.
+            Text(
+                error ?: "노트 없음", fontSize = 10.5.sp, color = TextSecondary,
+                maxLines = 2, overflow = TextOverflow.Ellipsis,
+            )
         }
     }
 }

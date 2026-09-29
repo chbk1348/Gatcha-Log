@@ -125,11 +125,16 @@ fun HoyolabLinkScreen(config: HoyolabConfig, onSave: (HoyolabConfig) -> Unit, on
                 collectedMsg = "토큰을 가져왔어요. 게임 UID 확인 중…"
                 // 토큰으로 게임 UID 자동 조회(getGameRecordCard)
                 scope.launch {
+                    val ck = if (c.isBlank()) " · cookie_token 없음(교환은 수동)" else " · cookie_token 포함"
+                    // null = 네트워크 실패 — 계정에 UID 가 없는 것과 구분해 안내한다.
                     val uids = withContext(Dispatchers.IO) { HoyolabApi.fetchGameUids(u, t) }
+                    if (uids == null) {
+                        collectedMsg = "토큰 가져옴 (네트워크 오류로 UID 조회 못 함 — 수동 입력)$ck"
+                        return@launch
+                    }
                     uids["genshin"]?.let { gi = it }
                     uids["hsr"]?.let { hsr = it }
                     uids["zzz"]?.let { zzz = it }
-                    val ck = if (c.isBlank()) " · cookie_token 없음(교환은 수동)" else " · cookie_token 포함"
                     collectedMsg = if (uids.isNotEmpty()) "토큰 + UID ${uids.size}개 자동 입력 완료$ck"
                     else "토큰 가져옴 (UID 자동조회 실패 — 수동 입력)$ck"
                 }

@@ -96,6 +96,7 @@ fun GameInfoScreen(
     val banners by viewModel.activeBanners.collectAsStateWithLifecycle()
     val events by viewModel.gameEvents.collectAsStateWithLifecycle()
     val notes by viewModel.liveNotes.collectAsStateWithLifecycle()
+    val noteErrors by viewModel.noteErrors.collectAsStateWithLifecycle()
     val gameNews by viewModel.gameNews.collectAsStateWithLifecycle()
     val newsFailed by viewModel.newsFailed.collectAsStateWithLifecycle()
     val ledgers by viewModel.ledgers.collectAsStateWithLifecycle()
@@ -338,7 +339,7 @@ fun GameInfoScreen(
                 codesFailed = codesFailed,
                 redeemedCodes = redeemedCodes,
                 unusableCount = unusableCodes.size,
-                onLoadCodes = { key -> viewModel.loadActiveCodes(key) },
+                onLoadCodes = { key, force -> viewModel.loadActiveCodes(key, force) },
                 onRedeem = { key, c -> viewModel.redeemGiftCode(key, c) },
                 onRedeemAll = { key -> viewModel.redeemAllCodes(key) },
                 onRestoreUnusable = { key -> viewModel.restoreUnusableCodes(key) },
@@ -467,6 +468,7 @@ fun GameInfoScreen(
                 DailyHeroSection(
                     topInset = topInset,
                     notes = notes,
+                    noteErrors = noteErrors,
                     attendanceToday = attendanceToday,
                     attendanceHistory = attendanceHistory,
                     hoyolab = hoyolab,

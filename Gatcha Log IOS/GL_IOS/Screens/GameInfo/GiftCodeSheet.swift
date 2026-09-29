@@ -80,7 +80,7 @@ struct GiftCodePage: View {
         HStack {
             Text("활성 코드 (자동 수집)").font(.pretendard(size: 13, weight: .bold)).foregroundStyle(GLGColor.textSecondary)
             Spacer()
-            Button { store.loadActiveCodes(selected) } label: {
+            Button { store.loadActiveCodes(selected, force: true) } label: {
                 if store.codesLoading { ProgressView().controlSize(.mini).tint(accent.primary) }
                 else { Image(systemName: "arrow.clockwise").font(.pretendard(size: 14)).foregroundStyle(accent.primary) }
             }.buttonStyle(.plain).disabled(store.codesLoading)
@@ -108,7 +108,7 @@ struct GiftCodePage: View {
             // 수집 실패는 '코드 없음'과 다르다 — 사유를 밝히고 재시도를 준다. (Android 파리티)
             VStack(alignment: .leading, spacing: 6) {
                 Text("코드를 불러오지 못했어요").font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary)
-                Button { store.loadActiveCodes(selected) } label: {
+                Button { store.loadActiveCodes(selected, force: true) } label: {
                     Text("다시 시도").font(.pretendard(size: 12, weight: .bold)).foregroundStyle(accent.primary)
                 }.buttonStyle(.plain)
             }

@@ -49,7 +49,8 @@ internal fun GiftCodePage(
     codesFailed: Boolean,
     redeemedCodes: Set<String>,
     unusableCount: Int,
-    onLoadCodes: (String) -> Unit,
+    /** force — 새로고침·다시 시도처럼 사용자가 직접 누를 때만 true(10분 캐시 무시). */
+    onLoadCodes: (String, Boolean) -> Unit,
     onRedeem: (String, String) -> Unit,
     onRedeemAll: (String) -> Unit,
     onRestoreUnusable: (String) -> Unit,
@@ -69,7 +70,7 @@ internal fun GiftCodePage(
     var showRedeemed by remember { mutableStateOf(false) }
     val loading = state is RedeemState.Loading
     // 선택 게임 바뀌면(최초 포함) 활성 코드 자동 수집
-    LaunchedEffect(selected) { if (games.isNotEmpty()) onLoadCodes(selected) }
+    LaunchedEffect(selected) { if (games.isNotEmpty()) onLoadCodes(selected, false) }
     val pending = activeCodes.count { it.code !in redeemedCodes }
 
     // 탭 페이지와 같은 구조 — 콘텐츠는 상태바 뒤까지 스크롤되고, 헤더는 그 위에 고정된다.
@@ -102,7 +103,7 @@ internal fun GiftCodePage(
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                             Text("활성 코드 (자동 수집)", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextSecondary)
                             Box(
-                                Modifier.size(28.dp).clip(CircleShape).clickable(enabled = !codesLoading) { onLoadCodes(selected) },
+                                Modifier.size(28.dp).clip(CircleShape).clickable(enabled = !codesLoading) { onLoadCodes(selected, true) },
                                 contentAlignment = Alignment.Center,
                             ) {
                                 if (codesLoading) CircularProgressIndicator(Modifier.size(15.dp), strokeWidth = 2.dp, color = accent)
@@ -134,7 +135,7 @@ internal fun GiftCodePage(
                             codesFailed && activeCodes.isEmpty() -> Column(Modifier.padding(vertical = 6.dp)) {
                                 Text("코드를 불러오지 못했어요", fontSize = 12.sp, color = TextSecondary)
                                 Spacer(Modifier.height(6.dp))
-                                GlgButton("다시 시도", onClick = { onLoadCodes(selected) }, height = 34.dp, modifier = Modifier.width(96.dp))
+                                GlgButton("다시 시도", onClick = { onLoadCodes(selected, true) }, height = 34.dp, modifier = Modifier.width(96.dp))
                             }
                             activeCodes.isEmpty() -> Text("지금은 활성 코드가 없어요", fontSize = 12.sp, color = TextSecondary, modifier = Modifier.padding(vertical = 6.dp))
                             else -> {
