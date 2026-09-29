@@ -15,7 +15,6 @@ expect object Notifier {
     val ID_RESIN_BASE: Int        // + game.ordinal
     val ID_BUDGET_GAME_BASE: Int  // 게임별 예산 초과/임박. + game.ordinal
     val ID_PICKUP_BASE: Int       // 픽업 마감 임박. + game.ordinal
-    val ID_DAILY_SUMMARY: Int     // 데일리 요약(1건 통합)
     val ID_NEWS_BASE: Int         // 새 게임 공지. + game.ordinal
     val ID_COMBAT_BASE: Int       // 전투 콘텐츠 시즌 마감 임박. + game.ordinal
 

@@ -152,13 +152,17 @@ struct AddSpendingView: View {
     // 금액은 지출에서 가장 중요한 값인데 예전엔 '빠른 상품' 카드 **안쪽**, 그리드 아래
     // 일반 필드로 있었다. 목록·상세·인사이트에서는 전부 금액이 히어로인데 입력할 때만 아니었다.
     // 지출 상세 히어로와 같은 짜임이라 '기록한 것'과 '나중에 보는 것'이 같은 모양이 된다.
+    /// 지출 입력 게임 목록 — 내 게임이 앞, 나머지는 뒤. 내 게임이 비어 있으면 전부 앞(GameData.pickerGames 파리티).
+    private var pickerMine: [Game] { store.myGames.isEmpty ? GLGGames.all : GLGGames.all.filter { store.myGames.contains($0.key) } }
+    private var pickerOthers: [Game] { store.myGames.isEmpty ? [] : GLGGames.all.filter { !store.myGames.contains($0.key) } }
+
     private var amountHero: some View {
         let gameColor = gameChosen ? Color(argb64: game.color) : GLGColor.textSecondary
         return VStack(alignment: .leading, spacing: 0) {
             if gameChosen {
                 // 게임 — 칩 줄을 늘어놓지 않고 메뉴로 접었다(히어로가 금액을 가리면 안 된다).
                 Menu {
-                    ForEach(GLGGames.all, id: \.key) { g in
+                    ForEach(pickerMine + pickerOthers, id: \.key) { g in
                         Button(g.displayName) { selectGame(g.displayName) }
                     }
                 } label: {
@@ -186,10 +190,19 @@ struct AddSpendingView: View {
                 // 화면 밖 게임은 있는 줄도 모른다. 시트가 세로로 스크롤되므로 전부 닿는다.
                 // 한 덩어리 리스트가 아니라 **낱개 카드**로 떼어 놓는다 — 구분선으로만 나뉜 목록은
                 // "표" 처럼 읽혀 고르는 자리라는 느낌이 약했다.
-                VStack(spacing: 8) {
-                    ForEach(GLGGames.all, id: \.key) { g in
+                // 내 게임(온보딩 ② · 설정 ▸ 내 게임)이 위, 나머지는 「다른 게임」 아래 — 기록할 수 있는 게임은 줄이지 않는다.
+                VStack(alignment: .leading, spacing: 8) {
+                    ForEach(pickerMine, id: \.key) { g in
                         Button { selectGame(g.displayName) } label: { gameSelectRow(g) }
                             .buttonStyle(.plain)
+                    }
+                    if !pickerOthers.isEmpty {
+                        Text("다른 게임").font(.pretendard(size: 12, weight: .bold)).foregroundStyle(GLGColor.textSecondary)
+                            .padding(.top, 6).padding(.leading, 2)
+                        ForEach(pickerOthers, id: \.key) { g in
+                            Button { selectGame(g.displayName) } label: { gameSelectRow(g) }
+                                .buttonStyle(.plain)
+                        }
                     }
                 }
                 .padding(.top, 12)

@@ -75,16 +75,6 @@ class AppSettings {
         get() = prefs.getInt(KEY_DND_END, 8)
         set(v) { prefs.putInt(KEY_DND_END, v.coerceIn(0, 23)) }
 
-    // ── 데일리 요약 — 흩어진 알림을 정한 시각에 1건으로 묶어 발송(opt-in). ──
-    var notifyDailySummary: Boolean
-        get() = prefs.getBoolean(KEY_SUMMARY_ENABLED, false)
-        set(v) { prefs.putBoolean(KEY_SUMMARY_ENABLED, v) }
-
-    /** 데일리 요약 발송 시각(0~23). 기본 21시. */
-    var notifyDailySummaryHour: Int
-        get() = prefs.getInt(KEY_SUMMARY_HOUR, 21)
-        set(v) { prefs.putInt(KEY_SUMMARY_HOUR, v.coerceIn(0, 23)) }
-
     /** 과소비 리플렉션 넛지(지출 추가 시점) — 예산·평소치 초과면 저장 직전 한 번 더 확인. 기본 ON. */
     var nudgeOverspend: Boolean
         get() = prefs.getBoolean(KEY_NUDGE, true)
@@ -147,10 +137,30 @@ class AppSettings {
      * 진짜 신규 설치는 hasUsedAppBefore()=false 라 아무것도 쓰지 않고 정상적으로 온보딩을 탄다.
      */
     fun freezeOnboardingVerdict() {
-        if (!prefs.getBoolean(KEY_ONBOARDING_DONE, false) && hasUsedAppBefore()) {
+        // 키가 **아예 없을 때만**(이 키가 생기기 전 버전에서 업데이트한 경우) 굳힌다. 예전엔 저장된 false 도
+        // 덮어써서, 개발자 메뉴 「온보딩 초기화」가 로그인된 기기에서는 재시작하는 순간 되돌려졌다.
+        if (!prefs.contains(KEY_ONBOARDING_DONE) && hasUsedAppBefore()) {
             prefs.putBoolean(KEY_ONBOARDING_DONE, true)
         }
     }
+
+    /**
+     * 내 게임 — 온보딩 ②와 설정 ▸ 내 게임이 같이 쓰는 값(게임 key 집합).
+     * **비어 있으면 전부**로 본다 — 이 설정이 없던 기존 사용자는 동작이 그대로다.
+     * 지출 입력 게임 목록의 순서와 출석 집계에만 쓰고, 기록 자체는 거르지 않는다.
+     */
+    var myGames: Set<String>
+        get() = prefs.getString(KEY_MY_GAMES, "").orEmpty().split(',').filter { it.isNotBlank() }.toSet()
+        set(v) { prefs.putString(KEY_MY_GAMES, v.joinToString(",")) }
+
+    /**
+     * 온보딩 ③에서 고른 월 예산(원). -1 = 없음.
+     * 로그인 전에 고르므로 게스트 저장소에 쓰면 로그인할 때 계정 저장소로 바뀌며 사라진다 —
+     * 여기 보관했다가 로그인 · 클라우드 복원 직후 계정 예산이 비어 있을 때만 적용한다.
+     */
+    var pendingOnboardingBudget: Long
+        get() = prefs.getLong(KEY_PENDING_ONBOARDING_BUDGET, -1L)
+        set(v) { prefs.putLong(KEY_PENDING_ONBOARDING_BUDGET, v) }
 
     /** 지출 내역 목록을 컴팩트(한 줄)로 표시. 기본 false(기존 — 아이템·결제수단·태그 노출). */
     var spendingCompact: Boolean
@@ -177,10 +187,11 @@ class AppSettings {
         get() = prefs.getBoolean(KEY_HERO_GLOW, true)
         set(v) { prefs.putBoolean(KEY_HERO_GLOW, v) }
 
+
     /** 백그라운드 주기 작업이 필요한지(하나라도 켜져 있으면 스케줄 유지). */
     fun needsPeriodicWork(): Boolean =
         autoCheckIn || notifyResin || notifyAttendance || notifyBudget || notifyPickup ||
-            notifyDailySummary || notifyNews || notifyCombat || notifyHoyoland
+            notifyNews || notifyCombat || notifyHoyoland
 
     /**
      * 마지막 포그라운드 점검 시각 — 앱을 열 때마다 밀린 알림을 정리하되, 전환할 때마다
@@ -243,6 +254,8 @@ class AppSettings {
         private const val KEY_NUDGE_THRESHOLD = "nudge_threshold"
         private const val KEY_NOTIF_PERM_ASKED = "notif_perm_asked"
         private const val KEY_ONBOARDING_DONE = "onboarding_done"
+        private const val KEY_MY_GAMES = "my_games"
+        private const val KEY_PENDING_ONBOARDING_BUDGET = "pending_onboarding_budget"
         private const val KEY_SPENDING_COMPACT = "spending_compact"
         private const val KEY_COLLAB_BANNER_EXPANDED = "collab_banner_expanded"
         private const val KEY_HERO_GLOW = "hero_glow"
@@ -253,8 +266,6 @@ class AppSettings {
         private const val KEY_DND_ENABLED = "notify_dnd_enabled"
         private const val KEY_DND_START = "notify_dnd_start"
         private const val KEY_DND_END = "notify_dnd_end"
-        private const val KEY_SUMMARY_ENABLED = "notify_daily_summary"
-        private const val KEY_SUMMARY_HOUR = "notify_daily_summary_hour"
 
         /** 인증 저장소 — 호출마다 새로 만들지 않는다(iOS 는 NSUserDefaults 인스턴스 생성이 붙는다). */
         private val authStore by lazy { KeyValueStore("gatcha_auth") }

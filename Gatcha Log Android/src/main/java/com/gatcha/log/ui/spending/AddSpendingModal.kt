@@ -1,5 +1,6 @@
 package com.gatcha.log.ui.spending
 
+import com.gatcha.log.data.AppSettings
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.expandVertically
@@ -622,8 +623,14 @@ private fun AmountHero(
             // 한 덩어리 리스트가 아니라 **낱개 카드**로 떼어 놓는다 — 구분선으로만 나뉜 목록은
             // "표" 처럼 읽혀 고르는 자리라는 느낌이 약했다. 카드마다 여백이 생기니 누를 대상이
             // 뚜렷하고, 게임색 테두리가 카드 단위로 서서 구분도 색으로 먼저 온다.
+            // 내 게임(온보딩 ② · 설정 ▸ 내 게임)이 위, 나머지는 「다른 게임」 아래 — 기록할 수 있는 게임은 줄이지 않는다.
+            val (mine, others) = remember { GameData.pickerGames(AppSettings().myGames) }
             Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                GameData.games.forEach { g -> GameSelectRow(game = g) { onGameChange(g) } }
+                mine.forEach { g -> GameSelectRow(game = g) { onGameChange(g) } }
+                if (others.isNotEmpty()) {
+                    Text("다른 게임", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextSecondary, modifier = Modifier.padding(top = 6.dp, start = 2.dp))
+                    others.forEach { g -> GameSelectRow(game = g) { onGameChange(g) } }
+                }
             }
             return@Column
         }
@@ -652,10 +659,11 @@ private fun AmountHero(
             enter = expandVertically(glgStandardSpec()) + fadeIn(glgStandardSpec()),
             exit = shrinkVertically(glgShortSpec()) + fadeOut(glgShortSpec()),
         ) {
+            val pickerOrder = remember { GameData.pickerGames(AppSettings().myGames).let { it.first + it.second } }
             Column {
                 Spacer(Modifier.height(10.dp))
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    items(GameData.games) { g ->
+                    items(pickerOrder) { g ->
                         GameSelectItem(game = g, isSelected = g == game) { onGameChange(g); pickGame = false }
                     }
                 }

@@ -41,14 +41,6 @@ object NotificationChecker {
         // 숙제 완주율 관측 — 앱을 안 열어도 기록이 쌓인다(예전엔 포그라운드 ViewModel 전용이었다).
         runCatching { TaskCompletion.recordAll(repo, notes, now) }
 
-        // 데일리 요약 모드: 개별 알림 억제, 정한 시각에 1건 통합 발송(하루 1회).
-        // 사전 예약 플랫폼(iOS)에서는 요약도 예약이 담당하므로 여기선 아무것도 하지 않는다
-        // — 둘 다 쏘면 같은 날 요약이 두 번 온다.
-        if (settings.notifyDailySummary) {
-            if (!AlertScheduler.schedulesAhead) maybeSendDailySummary(settings, repo, cfg, now)
-            return
-        }
-
         // 방해금지: 조용한 시간대엔 개별 알림 보류(다음 주기에 재평가).
         if (isQuietNow(settings, now)) return
 
@@ -290,80 +282,6 @@ object NotificationChecker {
         val end = settings.notifyDndEndHour
         if (start == end) return false
         return if (start < end) h in start until end else h >= start || h < end
-    }
-
-    /**
-     * 데일리 요약 — 정한 시각 이후 하루 1회, 그날 상태를 재계산해 1건으로 발송.
-     *
-     * [skipHourCheck] 는 **예약 알람이 정시에 깨워서 부른 경우**다(Android). 예약은 이미 사용자가
-     * 정한 시각에 울리므로 시각 조건을 다시 볼 이유가 없고, 알람이 15분쯤 일찍 울리면
-     * (비정확 알람) 조건에 걸려 그날 요약이 통째로 날아간다.
-     *
-     * iOS 는 OS 가 직접 쏘는 구조라 발송 순간에 코드가 못 돌아 고정 문구뿐이다. Android 는
-     * 알람이 우리 프로세스를 깨우므로 여기서 **그날 실제 수치**를 계산해 보낼 수 있다.
-     */
-    internal suspend fun maybeSendDailySummary(
-        settings: AppSettings,
-        repo: GatchaRepository,
-        cfg: HoyolabConfig,
-        now: Long,
-        skipHourCheck: Boolean = false,
-    ) {
-        if (!skipHourCheck && DateUtil.localHour(now) < settings.notifyDailySummaryHour) return
-        val dayKey = DateUtil.dayKey(now)
-        if (settings.lastNotified("summary") == dayKey) return
-        val lines = buildSummaryLines(settings, repo, cfg, now)
-        settings.setLastNotified("summary", dayKey) // 빈 내용이어도 오늘은 더 띄우지 않음
-        if (lines.isEmpty()) return
-        Notifier.notify(Notifier.ID_DAILY_SUMMARY, "오늘 챙길 것 모았어요", lines.joinToString("\n• ", prefix = "• "))
-    }
-
-    /** 요약 본문 줄 — 켜진 토글에 한해 그날 상태를 한 줄씩 모은다(개별 알림과 동일 데이터 소스). */
-    private suspend fun buildSummaryLines(settings: AppSettings, repo: GatchaRepository, cfg: HoyolabConfig, now: Long): List<String> {
-        val lines = mutableListOf<String>()
-        val y = DateUtil.year(now); val m = DateUtil.month(now)
-
-        if (settings.notifyBudget) {
-            val budget = repo.loadBudget()
-            if (budget > 0) {
-                val total = repo.loadSpendings().filter { DateUtil.isSameMonth(it.dateMillis, y, m) }.sumOf { it.amount }
-                val pct = (total * 100 / budget).toInt()
-                if (pct >= 90) {
-                    lines += if (total > budget) "예산을 ₩${won(total - budget)} 넘겼어요 (${pct}%)"
-                    else "예산 ${pct}% 사용 · ₩${won(budget - total)} 남았어요"
-                }
-            }
-        }
-        if (settings.notifyAttendance && cfg.isLinked && DateUtil.hoyoHour(now) >= 18) {
-            val done = repo.loadAttendance()[DateUtil.hoyoDayKey(now)] ?: emptySet()
-            val pending = GameData.trackedAttendanceGames(cfg).filter { it.key !in done }
-            if (pending.isNotEmpty()) lines += "출석 안 한 게임 ${pending.size}개 · ${pending.joinToString("·") { it.shortName }}"
-        }
-        if (settings.notifyResin && cfg.isLinked) {
-            // 캐시를 읽는다 — [run] 이 이 직전에 [fetchLiveNotes] 로 갱신해 뒀다.
-            // 예전엔 여기서 3게임을 다시 조회해서, 요약 1건 만드는 데 왕복이 두 배로 났다.
-            val full = repo.loadLiveNotes()
-                .filter { it.maxResin > 0 && it.currentResin >= it.maxResin }
-                .mapNotNull { GameData.byNameOrNull(it.game)?.shortName }
-            if (full.isNotEmpty()) lines += "행동력이 가득 찼어요 · ${full.joinToString("·")}"
-        }
-        if (settings.notifyPickup) {
-            repo.loadActiveBanners().filter { it.endMillis > now }
-                .groupBy { it.game }
-                .forEach { (gameName, list) ->
-                    val minD = list.minOf { it.dDay(now) }
-                    if (minD <= 3) {
-                        val shortName = GameData.byNameOrNull(gameName)?.shortName ?: gameName
-                        lines += "픽업이 ${if (minD <= 1) "곧" else "D-$minD 에"} 끝나요 · $shortName"
-                    }
-                }
-        }
-        if (settings.notifyCombat) {
-            HomeLogic.combatDeadlines(repo.loadCombatModes(), now).forEach { c ->
-                lines += "${Josa.subj(c.mode)} ${if (c.dDay <= 0) "오늘" else "D-${c.dDay} 에"} 끝나요 · ${c.gameShort} ${c.stars}/${c.maxStars}"
-            }
-        }
-        return lines
     }
 
     /** 천 단위 콤마(비음수 금액). */

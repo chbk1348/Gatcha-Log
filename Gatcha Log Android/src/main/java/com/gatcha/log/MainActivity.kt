@@ -129,13 +129,10 @@ class MainActivity : ComponentActivity() {
             // 알림 권한 런처. Compose 런처라 Activity registerForActivityResult lint 회피.
             //
             // 앱 시작 시 자동 요청은 없앴다(v27.38.0) — 켜자마자 맥락 없이 뜨던 팝업이었다.
-            // 신규 유저는 온보딩 ④에서 맥락과 함께 요청하고, 기존 유저는 이미 물어본 적이 있으며,
+            // 신규 유저는 온보딩 ⑥(알림을 켰을 때)에서 맥락과 함께 요청하고, 기존 유저는 이미 물어본 적이 있으며,
             // 그 외에는 알림 설정 화면의 안내 배너에서 직접 허용할 수 있다.
-            // 온보딩 전용 런처 — 여기서 처음 허용하면 항목 일곱 개를 한꺼번에 켠다.
-            // (설정 화면의 개별 토글은 그 항목만 켠다 — SettingsScreen 의 런처가 따로 있다)
-            val notifPermLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-                if (granted) viewModel.enableAllNotifyItems()
-            }
+            // 온보딩 전용 런처 — 항목은 온보딩 ⑤에서 고른 값 그대로 두고 권한만 받는다.
+            val notifPermLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
             val accentIndex by viewModel.accentIndex.collectAsStateWithLifecycle()
             val account by viewModel.account.collectAsStateWithLifecycle()
             val initialSyncing by viewModel.initialSyncing.collectAsStateWithLifecycle()
@@ -144,6 +141,9 @@ class MainActivity : ComponentActivity() {
             // 첫 로그인·재설치(로컬 없음)에서만 게이지 링 로딩 화면을 보여준다.
             var loadingDone by rememberSaveable { mutableStateOf(viewModel.hasLocalData) }
             var onboardingDone by rememberSaveable { mutableStateOf(AppSettings().onboardingDone) }
+            // 개발자 메뉴 「온보딩 초기화」 — 재시작 없이 바로 온보딩으로 돌아간다.
+            val onboardingReplay by viewModel.onboardingReplay.collectAsStateWithLifecycle()
+            LaunchedEffect(onboardingReplay) { if (onboardingReplay > 0) onboardingDone = false }
 
             // 로그인 전(온보딩·로그인) 화면은 **사용자 테마를 따르지 않고 브랜드 민트로 고정**(index 0).
             //
@@ -155,23 +155,11 @@ class MainActivity : ComponentActivity() {
             GatchaLogTheme(accentIndex = if (preLogin) 0 else accentIndex) {
                 when {
                     // 첫 실행 → 앱 소개 4페이지(로그인보다 앞). 재설치 전까지 다시 뜨지 않는다.
-                    !onboardingDone -> OnboardingScreen(onFinish = { requestNotification ->
+                    !onboardingDone -> OnboardingScreen(viewModel, onFinish = { requestNotification ->
                         AppSettings().onboardingDone = true
-                        if (requestNotification) {
-                            // OS 권한만 받고 앱 내부 토글이 꺼져 있으면 알림이 한 건도 오지 않는다.
-                            // 온보딩 ④에서 약속한 3종을 먼저 켠다 — 권한을 **거부해도** 이건 켜져 있어야
-                            // 나중에 시스템 설정에서 허용했을 때 바로 알림이 온다.
-                            // (VM 세터가 주기 작업 스케줄까지 갱신)
-                            viewModel.setNotifyPickup(true)
-                            viewModel.setNotifyBudget(true)
-                            viewModel.setNotifyResin(true)
-                            // 프롬프트를 띄웠으면 허용 결과는 런처 콜백이 받아 일곱 개로 넓힌다.
-                            // 안 띄운 경우(이미 허용 상태이거나 API 32 이하 — 권한 개념 자체가 없다)는
-                            // 콜백이 영영 안 오므로 여기서 바로 넓힌다.
-                            if (!requestNotificationPermission(notifPermLauncher::launch)) {
-                                viewModel.enableAllNotifyItems()
-                            }
-                        }
+                        // 알림 항목은 온보딩 ⑤에서 고른 값을 이미 설정에 썼다(applyOnboarding) —
+                        // 여기서는 OS 권한만 받는다. 허용돼도 다른 항목을 일괄로 켜지 않는다(고른 값 유지).
+                        if (requestNotification) requestNotificationPermission(notifPermLauncher::launch)
                         onboardingDone = true
                     })
                     // 미로그인 → 로그인 화면(게스트 모드 없음, 구글 로그인 필수)

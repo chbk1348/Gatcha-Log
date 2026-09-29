@@ -112,7 +112,7 @@ struct DeveloperView: View {
             }
             .buttonStyle(.plain)
             Divider()
-            devRow("arrow.clockwise", "온보딩 초기화", "앱을 다시 시작하면 온보딩이 나온다") {
+            devRow("arrow.clockwise", "온보딩 초기화", "누르면 바로 온보딩으로 돌아간다") {
                 store.debugResetOnboarding()
             }
         }

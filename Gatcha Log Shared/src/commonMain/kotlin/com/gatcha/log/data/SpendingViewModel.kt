@@ -193,6 +193,13 @@ class SpendingViewModel : ViewModel() {
     // 로컬 알림 토글 (예산·출석·재화)
     private val _notifyBudget = MutableStateFlow(appSettings.notifyBudget)
     val notifyBudget: StateFlow<Boolean> = _notifyBudget.asStateFlow()
+    // 내 게임 — 온보딩 ②와 설정 ▸ 내 게임이 같은 값을 쓴다(비어 있으면 전부).
+    private val _myGames = MutableStateFlow(appSettings.myGames)
+    val myGames: StateFlow<Set<String>> = _myGames.asStateFlow()
+    fun setMyGames(keys: Set<String>) { appSettings.myGames = keys; _myGames.value = keys }
+    /** Swift 용 — SKIE 가 Set 을 NSSet 으로 넘겨 다루기 번거롭다. */
+    fun setMyGamesList(keys: List<String>) = setMyGames(keys.toSet())
+
     private val _notifyAttendance = MutableStateFlow(appSettings.notifyAttendance)
     val notifyAttendance: StateFlow<Boolean> = _notifyAttendance.asStateFlow()
     private val _notifyResin = MutableStateFlow(appSettings.notifyResin)
@@ -215,10 +222,6 @@ class SpendingViewModel : ViewModel() {
     val notifyDndEndHour: StateFlow<Int> = _notifyDndEndHour.asStateFlow()
 
     // 데일리 요약 — 정한 시각에 1건 통합
-    private val _notifyDailySummary = MutableStateFlow(appSettings.notifyDailySummary)
-    val notifyDailySummary: StateFlow<Boolean> = _notifyDailySummary.asStateFlow()
-    private val _notifyDailySummaryHour = MutableStateFlow(appSettings.notifyDailySummaryHour)
-    val notifyDailySummaryHour: StateFlow<Int> = _notifyDailySummaryHour.asStateFlow()
 
     // 과소비 리플렉션 넛지(지출 추가 시점) — 토글 + 평소치 기준액
     private val _nudgeOverspend = MutableStateFlow(appSettings.nudgeOverspend)
@@ -354,8 +357,6 @@ class SpendingViewModel : ViewModel() {
     fun setNotifyDndEnabled(v: Boolean) { appSettings.notifyDndEnabled = v; _notifyDndEnabled.value = v; NativeScheduler.apply() }
     fun setNotifyDndStartHour(v: Int) { appSettings.notifyDndStartHour = v; _notifyDndStartHour.value = appSettings.notifyDndStartHour }
     fun setNotifyDndEndHour(v: Int) { appSettings.notifyDndEndHour = v; _notifyDndEndHour.value = appSettings.notifyDndEndHour }
-    fun setNotifyDailySummary(v: Boolean) { appSettings.notifyDailySummary = v; _notifyDailySummary.value = v; applyNativeAfterNotifyChange(v) }
-    fun setNotifyDailySummaryHour(v: Int) { appSettings.notifyDailySummaryHour = v; _notifyDailySummaryHour.value = appSettings.notifyDailySummaryHour }
 
     /**
      * OS 알림 권한을 **처음 허용**했을 때 — 항목별 알림([NotificationCatalog.items]) 일곱 개를 한꺼번에 켠다.
@@ -756,6 +757,7 @@ class SpendingViewModel : ViewModel() {
         authManager.setAccount(finalAcc)
         switchAccount(finalAcc)
         cloudSyncPullOrSeed()
+        applyPendingOnboardingBudget()
         emitStatus("${finalAcc.name}님으로 로그인되었어요")
         return true
     }
@@ -1080,9 +1082,9 @@ class SpendingViewModel : ViewModel() {
      * 매일 "2/3" 으로 남고, 전체 출석이 없는 계정에 체크인을 쏴서 실패 알림까지 냈다.
      * 미연동이거나 UID 를 하나도 모르면 전부 센다(판단할 근거가 없다).
      */
-    val trackedAttendanceGames: StateFlow<List<Game>> = _hoyolabConfig
-        .map { GameData.trackedAttendanceGames(it) }
-        .stateIn(viewModelScope, SharingStarted.Eagerly, GameData.attendanceGames)
+    val trackedAttendanceGames: StateFlow<List<Game>> = combine(_hoyolabConfig, _myGames) { cfg, mine ->
+        GameData.trackedAttendanceGames(cfg, mine)
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, GameData.trackedAttendanceGames(_hoyolabConfig.value, _myGames.value))
 
     // ----------------------------------------------------------------- 배너 / 실시간 노트
     // 더미 없음 — 실제 ennead.cc API(refreshGameInfo)로만 채워진다.
@@ -1489,10 +1491,62 @@ class SpendingViewModel : ViewModel() {
     }
 
     /** 온보딩을 안 본 상태로 되돌린다(다음 실행부터 다시 노출). */
+    /**
+     * 온보딩을 **지금** 다시 띄운다(개발자 메뉴). 예전엔 플래그만 내리고 "재시작하면 나온다"고 안내했는데,
+     * 화면은 시작 때 읽은 값을 들고 있어 바로 안 떴고, 재시작하면 [AppSettings.freezeOnboardingVerdict] 가
+     * 되돌려서 끝내 안 떴다. 화면은 [onboardingReplay] 가 바뀌면 온보딩으로 넘어간다.
+     */
     fun debugResetOnboarding() {
         appSettings.onboardingDone = false
-        emitStatus("온보딩을 초기화했어요 — 앱을 다시 시작하면 나옵니다")
+        _onboardingReplay.value += 1
     }
+
+    /**
+     * 온보딩 B안에서 고른 값을 **설정과 같은 저장소**에 쓴다(설정 화면에 그대로 보인다).
+     *
+     * @param games 내 게임(설정 ▸ 내 게임)
+     * @param budget 월 예산(설정 ▸ 예산). -1 = 「예산 없이」 — 건드리지 않는다.
+     *   게스트(로그인 전)면 보관했다가 로그인 직후 [applyPendingOnboardingBudget] 가 적용한다.
+     *   이미 로그인돼 있으면(개발자 메뉴로 다시 본 경우) 바로 적용 — 단 계정 예산이 비어 있을 때만.
+     * @param alerts 「알림 켜고 시작하기」면 true — 네 항목을 스위치 값 그대로 쓰고 방해 금지를 켠다.
+     *   false(「알림 없이 시작」)면 알림 설정은 건드리지 않는다.
+     */
+    fun applyOnboarding(
+        games: List<String>,
+        budget: Long,
+        alerts: Boolean,
+        attendance: Boolean,
+        resin: Boolean,
+        pickup: Boolean,
+        budgetAlert: Boolean,
+    ) {
+        setMyGames(games.toSet())
+        if (budget >= 0) {
+            if (account.value.isGuest) appSettings.pendingOnboardingBudget = budget
+            else if (_budget.value <= 0L) setBudgets(budget, _gameBudgets.value)
+        } else appSettings.pendingOnboardingBudget = -1L
+        if (alerts) {
+            // 세터를 네 번 부르면 워커 재등록이 네 번 돈다 — 값만 쓰고 반영은 한 번([enableAllNotifyItems] 와 같은 이유).
+            appSettings.notifyAttendance = attendance; _notifyAttendance.value = attendance
+            appSettings.notifyResin = resin; _notifyResin.value = resin
+            appSettings.notifyPickup = pickup; _notifyPickup.value = pickup
+            appSettings.notifyBudget = budgetAlert; _notifyBudget.value = budgetAlert
+            appSettings.notifyDndEnabled = true; _notifyDndEnabled.value = true
+            applyNativeAfterNotifyChange(attendance || resin || pickup || budgetAlert)
+        }
+    }
+
+    /** 로그인 · 클라우드 복원 직후 — 온보딩에서 고른 예산을 계정 예산이 비어 있을 때만 적용하고 비운다. */
+    private fun applyPendingOnboardingBudget() {
+        val pending = appSettings.pendingOnboardingBudget
+        if (pending < 0) return
+        appSettings.pendingOnboardingBudget = -1L
+        if (_budget.value <= 0L) setBudgets(pending, _gameBudgets.value)
+    }
+
+    private val _onboardingReplay = MutableStateFlow(0)
+    /** 0 보다 크면 화면이 온보딩을 다시 띄운다(개발자 메뉴 「온보딩 초기화」를 누를 때마다 1 씩 오른다). */
+    val onboardingReplay: StateFlow<Int> = _onboardingReplay.asStateFlow()
 
     /** 지금 로그인된 계정과 동기화 상태를 한 줄로. 계정이 갈렸는지 확인할 때 쓴다. */
     fun debugAccountSummary(): String {

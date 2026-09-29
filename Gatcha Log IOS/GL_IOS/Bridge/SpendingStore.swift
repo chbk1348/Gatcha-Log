@@ -42,6 +42,8 @@ final class SpendingStore {
     // ── 미러링된 상태 ──────────────────────────────────────────────────────
     private(set) var account: Account
     private(set) var accentIndex: Int
+    /** 개발자 메뉴 「온보딩 초기화」 누른 횟수 — 바뀌면 ContentView 가 온보딩을 다시 띄운다. */
+    private(set) var onboardingReplay: Int = 0
     private(set) var profile: UserProfile
     private(set) var statusMessage: String?
     /// 오류 얼럿 모달용(nil 이 아니면 표시). 토스트(statusMessage)와 분리.
@@ -176,10 +178,10 @@ final class SpendingStore {
     private(set) var notifyHoyoland: Bool = false
     private(set) var notifyCombat: Bool = true
     private(set) var notifyDndEnabled: Bool = false
+    /// 내 게임(온보딩 ② · 설정 ▸ 내 게임). 비어 있으면 전부.
+    private(set) var myGames: Set<String> = []
     private(set) var notifyDndStartHour: Int = 23
     private(set) var notifyDndEndHour: Int = 8
-    private(set) var notifyDailySummary: Bool = false
-    private(set) var notifyDailySummaryHour: Int = 21
 
     // ── 파생값(Kotlin 에서 한 번 계산해 내려온다) ─────────────────────────────
     //
@@ -260,16 +262,16 @@ final class SpendingStore {
         notifyHoyoland = vm.notifyHoyoland.value.boolValue
         notifyCombat = vm.notifyCombat.value.boolValue
         notifyDndEnabled = vm.notifyDndEnabled.value.boolValue
+        myGames = Set(vm.myGames.value.compactMap { $0 as? String })
         notifyDndStartHour = Int(vm.notifyDndStartHour.value.int32Value)
         notifyDndEndHour = Int(vm.notifyDndEndHour.value.int32Value)
-        notifyDailySummary = vm.notifyDailySummary.value.boolValue
-        notifyDailySummaryHour = Int(vm.notifyDailySummaryHour.value.int32Value)
     }
 
     /// 첫 화면(루트 판정 + 홈 탭)이 실제로 읽는 것들.
     private func observeCritical() {
         bind(vm.account) { [weak self] in self?.account = $0 }
         bind(vm.accentIndex) { [weak self] in self?.accentIndex = Int($0.int32Value) }
+        bind(vm.onboardingReplay) { [weak self] in self?.onboardingReplay = Int($0.int32Value) }
         bind(vm.profile) { [weak self] in self?.profile = $0 }
         bind(vm.statusMessage) { [weak self] in self?.statusMessage = $0 }
         bind(vm.errorAlert) { [weak self] in self?.errorAlert = $0 }
@@ -375,10 +377,9 @@ final class SpendingStore {
         bind(vm.notifyHoyoland) { [weak self] in self?.notifyHoyoland = $0.boolValue }
         bind(vm.notifyCombat) { [weak self] in self?.notifyCombat = $0.boolValue }
         bind(vm.notifyDndEnabled) { [weak self] in self?.notifyDndEnabled = $0.boolValue }
+        bind(vm.myGames) { [weak self] in self?.myGames = Set($0.compactMap { $0 as? String }) }
         bind(vm.notifyDndStartHour) { [weak self] in self?.notifyDndStartHour = Int($0.int32Value) }
         bind(vm.notifyDndEndHour) { [weak self] in self?.notifyDndEndHour = Int($0.int32Value) }
-        bind(vm.notifyDailySummary) { [weak self] in self?.notifyDailySummary = $0.boolValue }
-        bind(vm.notifyDailySummaryHour) { [weak self] in self?.notifyDailySummaryHour = Int($0.int32Value) }
     }
 
     /// StateFlow(SKIE AsyncSequence)를 구독해 메인 액터에서 [apply] 로 반영한다.
@@ -450,8 +451,11 @@ final class SpendingStore {
     func setNotifyDndEnabled(_ v: Bool) { vm.setNotifyDndEnabled(v: v) }
     func setNotifyDndStartHour(_ v: Int) { vm.setNotifyDndStartHour(v: Int32(v)) }
     func setNotifyDndEndHour(_ v: Int) { vm.setNotifyDndEndHour(v: Int32(v)) }
-    func setNotifyDailySummary(_ v: Bool) { vm.setNotifyDailySummary(v: v) }
-    func setNotifyDailySummaryHour(_ v: Int) { vm.setNotifyDailySummaryHour(v: Int32(v)) }
+    func setMyGames(_ keys: Set<String>) { vm.setMyGamesList(keys: Array(keys)) }
+    /// 온보딩 B안에서 고른 값을 설정과 같은 저장소에 쓴다(Kotlin applyOnboarding). budget -1 = 예산 없이.
+    func applyOnboarding(games: Set<String>, budget: Int64, alerts: Bool, attendance: Bool, resin: Bool, pickup: Bool, budgetAlert: Bool) {
+        vm.applyOnboarding(games: Array(games), budget: budget, alerts: alerts, attendance: attendance, resin: resin, pickup: pickup, budgetAlert: budgetAlert)
+    }
     func deleteSpendings(_ ids: Set<String>) { vm.deleteSpendings(ids: ids) }
     /// 선택 지출 일괄 변경(게임/날짜/추가 태그). nil·빈값은 미변경.
     func bulkEditSpendings(ids: Set<String>, gameName: String?, dateMillis: Int64?, addTags: [String]) {

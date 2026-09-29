@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 온보딩 게임 기호(nte) — 공식 로고가 아닌 자체 기호. 원본 SVG: 아티팩트 B① 환영 타일. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="24dp" android:height="24dp"
+    android:viewportWidth="24" android:viewportHeight="24">
+    <path android:pathData="M10.9,2.9a1.1,1.1 0 1,0 2.2,0a1.1,1.1 0 1,0 -2.2,0z" android:strokeColor="#FFFFFF" android:strokeWidth="0.8"/>
+    <path android:pathData="M11.4,3.9h1.2a0.4,0.4 0 0,1 0.4,0.4v1.4a0.4,0.4 0 0,1 -0.4,0.4h-1.2a0.4,0.4 0 0,1 -0.4,-0.4v-1.4a0.4,0.4 0 0,1 0.4,-0.4z" android:fillColor="#FFFFFF"/>
+    <path android:pathData="M12.00 5.80L13.84 6.03L14.59 6.27L15.14 6.50L15.60 6.73L15.99 6.97L16.33 7.20L16.64 7.43L16.91 7.67L17.16 7.90L17.39 8.13L17.60 8.37L17.80 8.60L17.97 8.83L18.14 9.07L18.29 9.30L18.43 9.53L18.56 9.77L18.67 10.00L18.78 10.23L18.88 10.47L18.96 10.70L19.04 10.93L19.12 11.17L19.18 11.40L4.82 11.40L4.88 11.17L4.96 10.93L5.04 10.70L5.12 10.47L5.22 10.23L5.33 10.00L5.44 9.77L5.57 9.53L5.71 9.30L5.86 9.07L6.03 8.83L6.20 8.60L6.40 8.37L6.61 8.13L6.84 7.90L7.09 7.67L7.36 7.43L7.67 7.20L8.01 6.97L8.40 6.73L8.86 6.50L9.41 6.27L10.16 6.03L12.00 5.80z" android:fillColor="#FFFFFF"/>
+    <path android:pathData="M20.98 11.40L21.01 11.52L21.03 11.63L21.06 11.75L21.08 11.87L21.10 11.98L21.12 12.10L21.13 12.22L21.15 12.33L21.16 12.45L21.17 12.57L21.18 12.68L21.19 12.80L21.19 12.92L21.20 13.03L21.20 13.15L21.20 13.27L21.20 13.38L21.19 13.50L21.19 13.62L21.18 13.73L21.17 13.85L21.16 13.97L21.15 14.08L21.13 14.20L6.47 14.20L6.45 14.08L6.44 13.97L6.43 13.85L6.42 13.73L6.41 13.62L6.41 13.50L6.40 13.38L6.40 13.27L6.40 13.15L6.40 13.03L6.41 12.92L6.41 12.80L6.42 12.68L6.43 12.57L6.44 12.45L6.45 12.33L6.47 12.22L6.48 12.10L6.50 11.98L6.52 11.87L6.54 11.75L6.57 11.63L6.59 11.52L6.62 11.40z" android:fillColor="#FFFFFF"/>
+    <path android:pathData="M18.43 14.20L18.39 14.47L18.34 14.73L18.28 15.00L18.21 15.27L18.12 15.53L18.03 15.80L17.92 16.07L17.80 16.33L17.67 16.60L17.53 16.87L17.37 17.13L17.19 17.40L17.00 17.67L16.79 17.93L16.56 18.20L16.30 18.47L16.01 18.73L15.70 19.00L15.34 19.27L14.93 19.53L14.45 19.80L13.86 20.07L13.07 20.33L11.10 20.60L11.10 20.60L9.13 20.33L8.34 20.07L7.75 19.80L7.27 19.53L6.86 19.27L6.50 19.00L6.19 18.73L5.90 18.47L5.64 18.20L5.41 17.93L5.20 17.67L5.01 17.40L4.83 17.13L4.67 16.87L4.53 16.60L4.40 16.33L4.28 16.07L4.17 15.80L4.08 15.53L3.99 15.27L3.92 15.00L3.86 14.73L3.81 14.47L3.77 14.20z" android:fillColor="#FFFFFF"/>
+    <path android:pathData="M12 7.2V8.1M7.4 10.6H8.3M16.6 10.6H15.7" android:fillColor="#000000" android:strokeColor="#3B2F8F" android:strokeWidth="0.7" android:strokeLineCap="round"/>
+    <path android:pathData="M12 10.6V8.6M12 10.6L14.4 9.5" android:fillColor="#000000" android:strokeColor="#3B2F8F" android:strokeWidth="0.9" android:strokeLineCap="round"/>
+    <path android:pathData="M11.4,10.6a0.6,0.6 0 1,0 1.2,0a0.6,0.6 0 1,0 -1.2,0z" android:fillColor="#3B2F8F"/>
+    <path android:pathData="M5.2 11.4H9.4" android:fillColor="#000000" android:strokeColor="#7FF3FF" android:strokeWidth="0.7" android:strokeLineCap="round"/>
+    <path android:pathData="M15.4 14.2H19.8" android:fillColor="#000000" android:strokeColor="#FF7AD9" android:strokeWidth="0.7" android:strokeLineCap="round"/>
+</vector>

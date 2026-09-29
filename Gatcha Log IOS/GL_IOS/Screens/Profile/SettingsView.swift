@@ -27,6 +27,7 @@ struct SettingsView: View {
     @State private var showUplog = false
     @State private var showCredits = false
     @State private var showTheme = false
+    @State private var showMyGames = false
     #if DEBUG
     @State private var showDeveloper = false
     #endif
@@ -61,18 +62,18 @@ struct SettingsView: View {
 
     var body: some View {
         ScrollView {
-            VStack(spacing: 18) {
-                // 1) 알림  2) UI  3) 예산·연동  4) 데이터 관리  5) 나머지(자동화·테마·정보)
-                // (계정은 마이페이지 히어로로 일원화 — 중복 카드 제거)
+            // 설정 메인 개편(아티팩트 S0) — 알림 설정과 같은 결: 묶음 제목 + 흰 카드 + 색 아이콘 줄.
+            // (계정은 마이페이지 히어로로 일원화 — 중복 카드 제거)
+            VStack(alignment: .leading, spacing: 0) {
                 notificationLinkSection
-                displaySection
                 budgetLinkSection
+                automationSection
+                displaySection
                 dataManagementLinkSection
                 // 개발자 메뉴 — 릴리스 빌드에는 이 섹션 자체가 컴파일되지 않는다.
                 #if DEBUG
                 developerLinkSection
                 #endif
-                automationSection
                 infoSection
             }
             .padding(16)
@@ -114,6 +115,9 @@ struct SettingsView: View {
         .navigationDestination(isPresented: $showTheme) {
             ThemeView(store: store)
         }
+        .navigationDestination(isPresented: $showMyGames) {
+            MyGamesView(store: store)
+        }
         #if DEBUG
         .navigationDestination(isPresented: $showDeveloper) {
             DeveloperView(store: store)
@@ -122,128 +126,137 @@ struct SettingsView: View {
     }
 
     #if DEBUG
+    @ViewBuilder
     private var developerLinkSection: some View {
-        sectionCard("개발자") {
-            navRow(icon: "ladybug", title: "개발자 메뉴", value: "상태 만들기 · 진단") { showDeveloper = true }
+        SetGroupTitle(title: "개발자", caption: "디버그 빌드 전용")
+        SetCard {
+            SetNavRow(symbol: "ladybug", tint: .red, title: "개발자 메뉴", value: "상태 만들기 · 진단") { showDeveloper = true }
         }
     }
     #endif
 
-    // ── 섹션 카드 — D · Soft Modern: 연회색 면 + 헤어라인(지출 추가 모달 sectionCard·Android GlassCard 와 동일 규격). 선택적 제목·footer. ──
+    // ── 화면 — 표시(컴팩트 · 연출) + 테마 ──
     @ViewBuilder
-    private func sectionCard<C: View>(_ title: String? = nil, footer: String? = nil, @ViewBuilder content: () -> C) -> some View {
-        VStack(alignment: .leading, spacing: 7) {
-            if let title {
-                Text(title).font(.pretendard(size: 13, weight: .semibold))
-                    .foregroundStyle(GLGColor.textSecondary).padding(.leading, 4)
-            }
-            VStack(spacing: 0) { content() }
-                .padding(.horizontal, 16)
-                .glgGlass(in: RoundedRectangle(cornerRadius: 22, style: .continuous))
-            if let footer {
-                Text(footer).font(.pretendard(size: 11)).foregroundStyle(GLGColor.textSecondary).padding(.horizontal, 4)
-            }
-        }
-    }
-
-    // ── UI — 표시(컴팩트) + 테마 색상을 한 섹션으로 통합 ──
     private var displaySection: some View {
-        sectionCard("UI") {
-            toggleRow("list.bullet", "지출 내역 컴팩트 보기",
-                      "지출 목록을 한 줄로 빽빽하게 표시해요 (태그·결제수단 숨김)",
-                      bind(\.spendingCompact, store.setSpendingCompact))
-            Divider()
-            toggleRow("bolt.fill", "캐릭터 속성 연출",
-                      "캐릭터 상세에 들어갈 때 속성 효과를 한 번 재생해요. 꺼도 속성 테두리는 남아요",
-                      bind(\.charElementFx, store.setCharElementFx))
-            Divider()
-            toggleRow("sparkles", "홈 히어로 글로우",
-                      "홈 상단에서 은은하게 떠다니는 빛 효과예요. 끄면 그라데이션만 남아요",
-                      bind(\.heroGlow, store.setHeroGlow))
-            Divider()
+        SetGroupTitle(title: "화면", caption: "표시 · 테마")
+        SetCard {
+            SetToggleRow(symbol: "list.bullet", tint: .slate, title: "지출 내역 컴팩트 보기",
+                         desc: "지출 목록을 한 줄로 빽빽하게 (태그 · 결제수단 숨김)",
+                         isOn: bind(\.spendingCompact, store.setSpendingCompact))
+            SetDivider()
+            SetToggleRow(symbol: "bolt.fill", tint: .pink, title: "캐릭터 속성 연출",
+                         desc: "캐릭터 상세에 들어갈 때 속성 효과를 한 번 재생",
+                         isOn: bind(\.charElementFx, store.setCharElementFx))
+            SetDivider()
+            SetToggleRow(symbol: "sparkles", tint: .blue, title: "홈 히어로 글로우",
+                         desc: "홈 상단에서 은은하게 떠다니는 빛 효과",
+                         isOn: bind(\.heroGlow, store.setHeroGlow))
+            SetDivider()
             // 20색이 되어 카드 안 그리드로는 길어져 전용 페이지로 옮겼다.
-            navRow(icon: "paintpalette", title: "테마",
-                   value: GLGTheme.accent(store.accentIndex).label) { showTheme = true }
+            SetNavRow(symbol: "paintpalette", tint: .purple, title: "테마",
+                      value: GLGTheme.accent(store.accentIndex).label) { showTheme = true }
         }
     }
 
-    // ── 예산·연동 ──
+    // ── 내 게임 · 예산 ──
+    @ViewBuilder
     private var budgetLinkSection: some View {
-        sectionCard("예산·연동") {
-            navRow(icon: "banknote", title: "월 예산",
-                   value: store.budget > 0 ? won(store.budget) : "미설정") { showBudget = true }
-            Divider()
-            Toggle(isOn: bind(\.nudgeOverspend, store.setNudgeOverspend)) {
-                rowLabel(icon: "brain.head.profile", title: "과소비 예방 넛지",
-                         subtitle: "지출 추가 시 예산·평소치를 넘으면 한 번 더 확인해요")
-            }.tint(accent.primary).padding(.vertical, 10)
+        SetGroupTitle(title: "내 게임 · 예산", caption: "온보딩에서 고른 값과 같아요")
+        SetCard {
+            SetNavRow(symbol: "gamecontroller", tint: .purple, title: "내 게임", value: myGamesLabel) { showMyGames = true }
+            SetDivider()
+            SetNavRow(symbol: "banknote", tint: .orange, title: "월 예산",
+                      value: store.budget > 0 ? won(store.budget) : "미설정") { showBudget = true }
+            SetDivider()
+            SetToggleRow(symbol: "brain.head.profile", tint: .amber, title: "과소비 예방 넛지",
+                         desc: "예산 · 평소치를 넘으면 저장 전에 한 번 더 확인",
+                         isOn: bind(\.nudgeOverspend, store.setNudgeOverspend))
             if store.nudgeOverspend {
-                Divider()
-                navRow(icon: "checkmark.circle", title: "넛지 기준 금액",
-                       value: won(store.nudgeThreshold)) {
+                SetDivider()
+                SetNavRow(symbol: "checkmark.circle", tint: .amber, title: "넛지 기준 금액",
+                          value: won(store.nudgeThreshold)) {
                     nudgeText = store.nudgeThreshold > 0 ? "\(store.nudgeThreshold)" : ""
                     showNudge = true
                 }
             }
-            Divider()
-            navRow(icon: "link", title: "HoYoLAB 계정 연동",
-                   value: store.hoyolabConfig.isLinked ? "연동됨" : "미연동") { showHoyolab = true }
         }
     }
 
-    // ── 자동화 ──
+    /// 「원신 · 스타레일 외 1」 — 비어 있으면 전체. Android myGamesLabel 파리티.
+    private var myGamesLabel: String {
+        let names = GLGGames.all.filter { store.myGames.contains($0.key) }.map { $0.shortName }
+        if names.isEmpty { return "전체" }
+        if names.count <= 2 { return names.joined(separator: " · ") }
+        return names.prefix(2).joined(separator: " · ") + " 외 \(names.count - 2)"
+    }
+
+    // ── 연동 · 자동화 ──
+    @ViewBuilder
     private var automationSection: some View {
-        sectionCard("자동화") {
-            Toggle(isOn: Binding(
-                get: { store.hoyolabConfig.isLinked && store.autoCheckIn },
-                set: { on in
-                    if store.hoyolabConfig.isLinked { store.setAutoCheckIn(on) } else { showHoyolab = true }
-                }
-            )) {
-                rowLabel(icon: "calendar.badge.checkmark", title: "자동 출석체크",
-                         subtitle: store.hoyolabConfig.isLinked
-                            ? "켜두면 매일 자동으로 출석을 챙겨드려요 (지금 한 번 바로 시도)"
-                            : "HoYoLAB을 연동하면 사용할 수 있어요")
-            }.tint(accent.primary).padding(.vertical, 10)
+        SetGroupTitle(title: "연동 · 자동화", caption: "HoYoLAB")
+        SetCard {
+            SetNavRow(symbol: "link", tint: .navy, title: "HoYoLAB 계정 연동",
+                      value: store.hoyolabConfig.isLinked ? "연동됨" : "미연동") { showHoyolab = true }
+            SetDivider()
+            SetToggleRow(symbol: "calendar.badge.checkmark", tint: .teal, title: "자동 출석체크",
+                         desc: store.hoyolabConfig.isLinked
+                            ? "매일 자동으로 출석을 챙겨요 (켜면 지금 한 번 바로 시도)"
+                            : "HoYoLAB을 연동하면 사용할 수 있어요",
+                         isOn: Binding(
+                            get: { store.hoyolabConfig.isLinked && store.autoCheckIn },
+                            set: { on in
+                                if store.hoyolabConfig.isLinked { store.setAutoCheckIn(on) } else { showHoyolab = true }
+                            }
+                         ))
         }
     }
 
-    // ── 알림 — 항목별 알림·방해금지·데일리 요약을 모은 하위 페이지로 진입 ──
+    // ── 알림 — 항목별 알림 · 방해금지를 모은 하위 페이지로 진입 ──
+    @ViewBuilder
     private var notificationLinkSection: some View {
-        sectionCard("알림") {
-            navRow(icon: "bell.badge", title: "알림 설정",
-                   value: "방해금지 · 요약 · 항목별") { showNotifSettings = true }
+        SetGroupTitle(title: "알림", caption: "받을 알림 · 방해 금지")
+        SetCard {
+            SetNavRow(symbol: "bell", tint: .teal, title: "알림 설정",
+                      value: NotificationCatalog.shared.enabledLabel(onCount: Int32(notifyOnCount))) { showNotifSettings = true }
         }
+    }
+
+    /// 보이는 알림 항목 중 켜진 개수(행사가 끝난 호요랜드는 세지 않는다).
+    private var notifyOnCount: Int {
+        let on: [NotifyKey: Bool] = [.budget: store.notifyBudget, .resin: store.notifyResin, .attendance: store.notifyAttendance,
+                                      .pickup: store.notifyPickup, .combat: store.notifyCombat, .news: store.notifyNews,
+                                      .hoyoland: store.notifyHoyoland]
+        return NotificationCatalog.shared.items.filter { on[$0.key] == true }.count
     }
 
     // ── 데이터 관리 — 백업·복원/내보내기/위험 구역을 모은 하위 페이지로 진입 ──
+    @ViewBuilder
     private var dataManagementLinkSection: some View {
-        sectionCard("데이터 관리") {
-            navRow(icon: "externaldrive", title: "데이터 관리",
-                   value: "백업·복원 · 초기화") { showDataManagement = true }
+        SetGroupTitle(title: "데이터", caption: "백업 · 복원 · 초기화")
+        SetCard {
+            SetNavRow(symbol: "externaldrive", tint: .slate, title: "데이터 관리", value: "백업 · 복원 · 초기화") { showDataManagement = true }
         }
     }
 
     // ── 정보 ──
+    @ViewBuilder
     private var infoSection: some View {
-        sectionCard("정보") {
+        SetGroupTitle(title: "앱 정보", caption: "v\(version)")
+        SetCard {
             // iOS 앱은 업데이트 확인 기능 제거(IPA 사이드로드 배포 — 원격 버전 확인 부적합). 업데이트 로그만 유지.
-            navRow(icon: "sparkles", title: "업데이트 로그") { showUplog = true }
-            Divider()
-            navRow(icon: "c.circle", title: "출처 · 저작권") { showCredits = true }
-            Divider()
-            linkRow(asset: "GitHubMark", title: "GitHub", url: Self.githubRepoURL)
-            Divider()
-            HStack {
-                rowLabel(icon: "info.circle", title: "앱 버전")
-                Spacer()
-                buildVariantChip
-                Text("v\(version)").font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary)
+            SetNavRow(symbol: "sparkles", tint: .blue, title: "업데이트 로그") { showUplog = true }
+            SetDivider()
+            SetNavRow(symbol: "c.circle", tint: .slate, title: "출처 · 저작권") { showCredits = true }
+            SetDivider()
+            SetNavRow(asset: "GitHubMark", tint: .navy, title: "GitHub", chevron: "arrow.up.right") {
+                if let u = URL(string: Self.githubRepoURL) { openURL(u) }
             }
-            .padding(.vertical, 13)
+            SetDivider()
+            SetNavRow(symbol: "info.circle", tint: .slate, title: "앱 버전", value: "v\(version)", chevron: nil,
+                      trailing: { buildVariantChip }, action: {})
             // 서명(프로비저닝) 만료 — 무료 계정 7일 서명. 만료 시각(초 단위) + 남은 시간 라이브 카운트다운.
             if let exp = SigningInfo.expirationDate {
-                Divider()
+                SetDivider()
                 signingExpiryRow(exp)
             }
         }
@@ -252,8 +265,10 @@ struct SettingsView: View {
     /// 서명 만료 행 — 1초마다 갱신되는 남은 시간 표시.
     private func signingExpiryRow(_ exp: Date) -> some View {
         TimelineView(.periodic(from: .now, by: 1)) { ctx in
-            HStack(alignment: .top) {
-                rowLabel(icon: "checkmark.seal", title: "서명 만료")
+            // 아이콘 칸(34) 가운데에 맞춘다 — .top 이면 제목이 위로 붙어 보였다(9/29 지적).
+            HStack(alignment: .center, spacing: 12) {
+                SetIcon(symbol: "checkmark.seal", tint: .teal)
+                Text("서명 만료").font(.pretendard(size: 14, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
                 Spacer()
                 VStack(alignment: .trailing, spacing: 2) {
                     Text(SigningInfo.absFormatter.string(from: exp))
@@ -263,7 +278,7 @@ struct SettingsView: View {
                         .foregroundStyle(exp.timeIntervalSince(ctx.date) < 86_400 ? .red : accent.primary)
                 }
             }
-            .padding(.vertical, 11)
+            .padding(.horizontal, 14).padding(.vertical, 11)
         }
     }
 
@@ -275,73 +290,58 @@ struct SettingsView: View {
         return String(format: "%d일 %02d:%02d:%02d 남음", d, h, m, s)
     }
 
-    // ── 행 헬퍼 ──
-    private func rowLabel(icon: String, title: String, subtitle: String? = nil) -> some View {
-        HStack(spacing: 12) {
-            Image(systemName: icon).font(.pretendard(size: 18)).foregroundStyle(accent.primary).frame(width: 24)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title).font(.pretendard(size: 14, weight: .medium))
-                if let subtitle {
-                    Text(subtitle).font(.pretendard(size: 11)).foregroundStyle(GLGColor.textSecondary)
-                }
-            }
-        }
-    }
-
-    /// 에셋 카탈로그의 커스텀 벡터(template)를 쓰는 행 라벨. SF Symbols 에 없는 브랜드 마크(GitHub 등)용.
-    private func rowLabel(asset: String, title: String) -> some View {
-        HStack(spacing: 12) {
-            Image(asset)
-                .renderingMode(.template)
-                .resizable()
-                .scaledToFit()
-                .frame(width: 18, height: 18)
-                .foregroundStyle(accent.primary)
-                .frame(width: 24)
-            Text(title).font(.pretendard(size: 14, weight: .medium))
-        }
-    }
-
-    private func navRow(icon: String, title: String, value: String? = nil, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            HStack {
-                rowLabel(icon: icon, title: title)
-                Spacer()
-                if let value { Text(value).font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary) }
-                Image(systemName: "chevron.right").font(.pretendard(size: 13, weight: .semibold))
-                    .foregroundStyle(Color(.tertiaryLabel))
-            }
-            .contentShape(Rectangle())
-            .padding(.vertical, 13)
-        }
-        .buttonStyle(.plain)
-    }
-
-    /// 커스텀 에셋 아이콘 + 외부 링크 행. 시스템 브라우저로 나가므로 chevron 대신 arrow.up.right 표시.
-    private func linkRow(asset: String, title: String, url: String) -> some View {
-        Button {
-            if let u = URL(string: url) { openURL(u) }
-        } label: {
-            HStack {
-                rowLabel(asset: asset, title: title)
-                Spacer()
-                Image(systemName: "arrow.up.right").font(.pretendard(size: 13, weight: .semibold))
-                    .foregroundStyle(Color(.tertiaryLabel))
-            }
-            .contentShape(Rectangle())
-            .padding(.vertical, 13)
-        }
-        .buttonStyle(.plain)
-    }
-
-    private func toggleRow(_ icon: String, _ title: String, _ subtitle: String, _ binding: Binding<Bool>) -> some View {
-        Toggle(isOn: binding) { rowLabel(icon: icon, title: title, subtitle: subtitle) }
-            .tint(accent.primary).padding(.vertical, 10)
-    }
-
     /// store 의 읽기전용 @Published + setter 를 Toggle 용 Binding 으로.
     private func bind(_ keyPath: KeyPath<SpendingStore, Bool>, _ setter: @escaping (Bool) -> Void) -> Binding<Bool> {
         Binding(get: { store[keyPath: keyPath] }, set: { setter($0) })
+    }
+}
+
+// ── 설정 ▸ 내 게임(아티팩트 S2) — 온보딩 ②와 같은 값(myGames). 6게임 전부(이환 포함), 비우면 전부. ──
+struct MyGamesView: View {
+    var store: SpendingStore
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("고른 게임이 지출 입력 맨 위에 오고, 출석도 고른 게임만 챙겨요. 기록은 거르지 않아요.")
+                    .font(.pretendard(size: 13.5)).foregroundStyle(GLGColor.textSecondary)
+                    .padding(.horizontal, 4).padding(.bottom, 8)
+                ForEach(GLGGames.all, id: \.key) { g in
+                    let on = store.myGames.contains(g.key)
+                    Button {
+                        var next = store.myGames
+                        if on { next.remove(g.key) } else { next.insert(g.key) }
+                        store.setMyGames(next)
+                    } label: {
+                        HStack(spacing: 12) {
+                            Circle().fill(Color(argb64: g.color)).frame(width: 10, height: 10)
+                            Text(g.displayName).font(.pretendard(size: 15, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
+                            Spacer()
+                            ZStack {
+                                Circle().fill(on ? Color(hex: 0xFF1B8E99) : Color(hex: 0xFFE3E8E6)).frame(width: 22, height: 22)
+                                if on { Image(systemName: "checkmark").font(.system(size: 11, weight: .bold)).foregroundStyle(.white) }
+                            }
+                        }
+                        .padding(.horizontal, 16)
+                        .frame(height: 58)
+                        .background(on ? Color(hex: 0xFFEEF8F8) : .white, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                        .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous)
+                            .strokeBorder(on ? Color(hex: 0xFF1B8E99) : Color(hex: 0xFFE3E8E6), lineWidth: on ? 2 : 1))
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                }
+                Text("하나도 고르지 않으면 전부 보여요. 온보딩에서 고른 게임과 같은 값이에요.")
+                    .font(.pretendard(size: 11.5)).foregroundStyle(Color(hex: 0xFF7A8784))
+                    .padding(.horizontal, 4).padding(.top, 4)
+            }
+            .padding(16)
+            .glgReadableWidth(640)
+        }
+        .scrollIndicators(.hidden)
+        .background(GLGBackground { Color.clear })
+        .glgPageTitle("내 게임")
+        .navigationBarTitleDisplayMode(.inline)
     }
 }
 

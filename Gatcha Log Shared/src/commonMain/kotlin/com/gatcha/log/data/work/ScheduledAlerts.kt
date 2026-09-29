@@ -3,6 +3,7 @@ package com.gatcha.log.data.work
 import com.gatcha.log.data.AppSettings
 import com.gatcha.log.data.DateUtil
 import com.gatcha.log.data.GameData
+import com.gatcha.log.data.NotificationCatalog
 import com.gatcha.log.data.GatchaRepository
 import com.gatcha.log.data.HoyolandEntry
 import com.gatcha.log.data.Josa
@@ -75,13 +76,6 @@ object ScheduledAlerts {
     /** iOS 는 앱당 대기 알림 64건 한도 — 여유를 두고 자른다. */
     const val MAX_PENDING = 48
 
-    /**
-     * 데일리 요약 예약의 키. 이 예약만은 **문구가 발송 시점에야 정해진다**(그날 수치).
-     * Android 는 알람이 우리 코드를 깨우므로 [AlertScheduler] 가 이 키를 알아보고
-     * 고정 문구 대신 실제 요약을 만들어 보낸다.
-     */
-    const val KEY_DAILY_SUMMARY = "daily_summary"
-
     /** 마감 알림을 띄울 로컬 시각(시). 마감 시각이 새벽이어도 사람이 볼 시간에 울린다. */
     private const val ALERT_HOUR = 9
 
@@ -103,22 +97,6 @@ object ScheduledAlerts {
     ): AlertPlan {
         val out = mutableListOf<ScheduledAlert>()
         val now = mutableListOf<ImmediateAlert>()
-
-        // 데일리 요약 모드는 개별 알림을 억제하고 하루 1건으로 합친다([NotificationChecker] 와 동일 정책).
-        // 예약 시점엔 그날 수치를 알 수 없어 문구는 고정 — 자세한 내용은 앱에서 본다.
-        if (settings.notifyDailySummary) {
-            return AlertPlan(
-                listOf(
-                    ScheduledAlert(
-                        key = KEY_DAILY_SUMMARY,
-                        title = "오늘 챙길 것 모았어요",
-                        text = "출석·일일 임무·재화를 확인할 시간이에요",
-                        whenMillis = DateUtil.localTimeOnDay(nowMillis, settings.notifyDailySummaryHour),
-                        repeatsDaily = true,
-                    ),
-                ),
-            )
-        }
 
         // ① 픽업 마감 — 게임별로 가장 임박한 종료 기준 D-3/D-1.
         if (settings.notifyPickup) {
@@ -238,7 +216,8 @@ object ScheduledAlerts {
         //    예약과 가장 잘 맞는다(원본도 네트워크 없이 읽는 번들/캐시값이다).
         //    즉시 발송 갈래를 두지 않는 이유: 놓쳐서 아쉬운 건 '예매 시작'과 '개막'이라는 시점 자체지,
         //    지나간 뒤 뒤늦게 알리는 건 알림이 아니라 소음이다.
-        if (settings.notifyHoyoland) {
+        // TODO(호요랜드 종료): 행사가 끝나면 예약하지 않는다 — 다음 업데이트에서 이 갈래째 제거 예정.
+        if (settings.notifyHoyoland && NotificationCatalog.hoyolandAlertsActive) {
             val event = HoyolandApi.current
 
             // 예매 오픈 — 하루 전 아침과 **오픈 1시간 전**. 예매는 분 단위 경쟁이라 당일 알림이 본론이다.

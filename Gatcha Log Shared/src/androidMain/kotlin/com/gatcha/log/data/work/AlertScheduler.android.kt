@@ -48,7 +48,6 @@ actual object AlertScheduler {
     const val EXTRA_NOTIF_ID = "gl_alert_notif_id"
 
     /** 데일리 요약 예약 표식 — 수신부가 고정 문구 대신 그날 수치를 계산해 보낸다. */
-    const val EXTRA_DAILY_SUMMARY = "gl_alert_daily_summary"
 
     /**
      * 예약 키 → 알림 ID. 같은 논리 알림은 재예약해도 같은 ID 를 받아야 알림창에 중복으로 쌓이지 않는다.
@@ -107,7 +106,6 @@ actual object AlertScheduler {
                     putExtra(EXTRA_TEXT, a.text)
                     putExtra(EXTRA_LINK, a.link)
                     putExtra(EXTRA_NOTIF_ID, notificationId(a.key))
-                    putExtra(EXTRA_DAILY_SUMMARY, a.key == ScheduledAlerts.KEY_DAILY_SUMMARY)
                 },
                 // extra 는 PendingIntent 동등성에 안 들어가므로 UPDATE_CURRENT 로 내용만 갈아끼운다.
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
