@@ -705,6 +705,7 @@ class GatchaRepository(
                     current = o.optBoolean("current", true),
                     maxTotal = o.optInt("maxTotal", 0),
                     scoreLabel = o.optString("scoreLabel", ""),
+                    note = o.optString("note", ""),
                     rooms = o.optJSONArray("rooms").let { rs ->
                         (0 until (rs?.length() ?: 0)).mapNotNull { ri ->
                             val r = rs?.optJSONObject(ri) ?: return@mapNotNull null
@@ -762,7 +763,7 @@ class GatchaRepository(
             }
             arr.put(JSONObject().apply {
                 put("game", c.game); put("mode", c.mode); put("season", c.season)
-                put("current", c.current); put("rooms", rooms); put("maxTotal", c.maxTotal); put("scoreLabel", c.scoreLabel)
+                put("current", c.current); put("rooms", rooms); put("maxTotal", c.maxTotal); put("scoreLabel", c.scoreLabel); put("note", c.note)
             })
         }
         prefs.putString(KEY_COMBAT_CLEAR, arr.toString())

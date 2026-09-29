@@ -64,6 +64,8 @@ data class CombatClear(
      * 이걸 그리고 진행 막대는 그리지 않는다.
      */
     val scoreLabel: String = "",
+    /** 층 목록 아래 안내 한 줄(예: 편성 상세가 안 오는 층). 비어 있으면 안 그린다. */
+    val note: String = "",
 ) {
     val gameColor: Long get() = GameData.colorFor(game)
 
