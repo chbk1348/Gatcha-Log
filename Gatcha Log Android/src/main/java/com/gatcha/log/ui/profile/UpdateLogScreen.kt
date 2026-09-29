@@ -167,8 +167,7 @@ internal fun UpdateLogScreen(onBack: () -> Unit) {
 
 @Composable
 private fun ReleaseCard(entry: ChangeEntry, filter: ChangeKind?) {
-    val items = if (filter == null) entry.orderedItems else entry.orderedItems.filter { it.kind == filter }
-    if (items.isEmpty()) return
+    if (filter != null && entry.itemsOf(filter).isEmpty()) return
 
     val shape = RoundedCornerShape(24.dp)
     val base = when {
@@ -199,17 +198,29 @@ private fun ReleaseCard(entry: ChangeEntry, filter: ChangeKind?) {
             entry.pill?.let { Pill(it, false) }
             if (entry.securityPill) Pill("보안 필수", true)
         }
-        Spacer(Modifier.height(10.dp))
-        items.forEach { item ->
-            Row(Modifier.padding(vertical = 5.dp), verticalAlignment = Alignment.Top) {
-                val st = styleOf(item.kind)
-                Box(
-                    Modifier.clip(RoundedCornerShape(7.dp)).background(st.badgeBg)
-                        .widthIn(min = 34.dp).padding(horizontal = 7.dp, vertical = 2.dp),
-                    contentAlignment = Alignment.Center,
-                ) { Text(item.kind.label, color = st.badgeFg, fontSize = 10.5.sp, fontWeight = FontWeight.Bold, maxLines = 1) }
-                Spacer(Modifier.width(10.dp))
-                Text(item.text, fontSize = 14.sp, color = CItemText, modifier = Modifier.weight(1f))
+        // 카드 안을 분류별 묶음으로(9/29 개편) — 신규 기능 · 수정 사항 · 개선 사항. 항목마다 붙던 태그 대신 묶음 제목.
+        val kinds = if (filter == null) entry.groupKinds else listOf(filter)
+        kinds.forEachIndexed { gi, kind ->
+            val list = entry.itemsOf(kind)
+            val st = styleOf(kind)
+            Spacer(Modifier.height(if (gi == 0) 8.dp else 16.dp))
+            Row(
+                Modifier.clip(RoundedCornerShape(8.dp)).background(st.badgeBg).padding(horizontal = 9.dp, vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Box(Modifier.size(6.dp).clip(RoundedCornerShape(3.dp)).background(st.dot))
+                Spacer(Modifier.width(6.dp))
+                Text(kind.groupLabel, color = st.badgeFg, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.width(4.dp))
+                Text("${list.size}", color = st.badgeFg.copy(alpha = 0.7f), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+            }
+            Spacer(Modifier.height(4.dp))
+            list.forEach { item ->
+                Row(Modifier.padding(top = 6.dp, start = 2.dp), verticalAlignment = Alignment.Top) {
+                    Box(Modifier.padding(top = 8.dp).size(4.dp).clip(RoundedCornerShape(2.dp)).background(st.dot))
+                    Spacer(Modifier.width(10.dp))
+                    Text(item.text, fontSize = 14.sp, lineHeight = 20.sp, color = CItemText, modifier = Modifier.weight(1f))
+                }
             }
         }
     }

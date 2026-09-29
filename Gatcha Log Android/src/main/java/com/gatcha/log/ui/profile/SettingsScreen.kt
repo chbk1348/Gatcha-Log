@@ -1,5 +1,8 @@
 package com.gatcha.log.ui.profile
 
+import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.foundation.shape.CircleShape
 import com.gatcha.log.data.GameData
 import androidx.compose.foundation.border
@@ -162,9 +165,10 @@ fun SettingsScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
     val showTheme = remember { mutableStateOf(false) }
     val showMyGames = remember { mutableStateOf(false) }
 
-    // 설정 하위 페이지 스택: 0=메인, 1=알림 설정, 2=데이터 관리, 3=HoYoLAB 연동, 4=업데이트 로그, 5=개발자 메뉴, 6=테마, 7=내 게임.
+    // 설정 하위 페이지 스택: 0=메인, 1=알림 설정, 2=데이터 관리, 3=HoYoLAB 연동, 4=업데이트 로그, 5=개발자 메뉴, 6=테마, 7=내 게임, 8=예산 관리.
     // 깊어지면 우→좌 슬라이드 push/pop.
     val subPage = when {
+        showBudget.value -> 8
         showMyGames.value -> 7
         showTheme.value -> 6
         showDev.value -> 5
@@ -178,6 +182,7 @@ fun SettingsScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
     // 자체 핸들러가 없으면 MyPageScreen 의 BackHandler 로 새어 마이페이지로 튕긴다.
     BackHandler(enabled = subPage > 0) {
         when {
+            showBudget.value -> showBudget.value = false
             showMyGames.value -> showMyGames.value = false
             showTheme.value -> showTheme.value = false
             showDev.value -> showDev.value = false
@@ -202,7 +207,13 @@ fun SettingsScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
         },
         label = "settingsPage",
     ) { page ->
-        if (page == 7) {
+        if (page == 8) {
+            BudgetScreen(
+                overall = budget, gameBudgets = gameBudgets, monthlyTotals = monthlyTotalsByGame, myGames = myGames,
+                onSave = { o, perGame -> viewModel.setBudgets(o, perGame); showBudget.value = false },
+                onBack = { showBudget.value = false },
+            )
+        } else if (page == 7) {
             MyGamesScreen(myGames, onToggle = { k -> viewModel.setMyGames(if (k in myGames) myGames - k else myGames + k) }, onBack = { showMyGames.value = false })
         } else if (page == 6) {
             ThemeScreen(accentIndex, onSelect = { viewModel.setAccentIndex(it) }, onBack = { showTheme.value = false })
@@ -354,15 +365,6 @@ fun SettingsScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
         }
     }
 
-    if (showBudget.value) {
-        BudgetDialog(
-            overall = budget,
-            gameBudgets = gameBudgets,
-            monthlyTotals = monthlyTotalsByGame,
-            onDismiss = { showBudget.value = false },
-            onConfirm = { o, perGame -> viewModel.setBudgets(o, perGame); showBudget.value = false },
-        )
-    }
     if (showNudgeThreshold.value) {
         NudgeThresholdDialog(
             current = nudgeThreshold,
@@ -414,60 +416,48 @@ private fun DataManagementScreen(viewModel: SpendingViewModel, onBack: () -> Uni
         contentPadding = PaddingValues(top = glgDetailContentTop(), bottom = 24.dp),
     ) {
 
+        // 설정 메인과 같은 결(9/29) — 묶음 제목 + 흰 카드 + 색 아이콘 줄.
         // 백업·복원 — 데이터 보호가 가장 중요하므로 맨 위에 (재설치·기기 변경 대비)
-        item { SectionTitle("백업·복원") }
+        item { NotifyGroupTitle("백업 · 복원", "재설치 · 기기 변경 대비") }
         item {
-            GlassCard(shape = RoundedCornerShape(24.dp), modifier = Modifier.fillMaxWidth()) {
-                Column {
-                    SettingsItem("백업 파일 내보내기", Icons.Default.Backup, value = "전체 데이터") {
-                        val date = java.text.SimpleDateFormat("yyyyMMdd", java.util.Locale.US).format(java.util.Date())
-                        exportBackupLauncher.launch("gatchalog-backup-$date.json")
-                    }
-                    HorizontalDivider(color = DividerColor, modifier = Modifier.padding(horizontal = 16.dp))
-                    SettingsItem("백업 파일에서 복원", Icons.Default.Restore) { showImportBackup.value = true }
+            NotifyCard {
+                SettingsNavRow(Icons.Default.Backup, Tint.teal, "백업 파일 내보내기", "전체 데이터") {
+                    val date = java.text.SimpleDateFormat("yyyyMMdd", java.util.Locale.US).format(java.util.Date())
+                    exportBackupLauncher.launch("gatchalog-backup-$date.json")
                 }
+                HorizontalDivider(color = RowDivider)
+                SettingsNavRow(Icons.Default.Restore, Tint.blue, "백업 파일에서 복원", null) { showImportBackup.value = true }
             }
             Text(
                 "구글 로그인 없이도 전체 데이터(가챠 기록 포함)를 파일로 저장해 두면, 앱을 재설치하거나 기기를 바꿔도 복원할 수 있어요.",
-                fontSize = 11.sp, color = TextSecondary,
-                modifier = Modifier.padding(top = 8.dp, start = 4.dp, end = 4.dp),
+                fontSize = 11.5.sp, lineHeight = 17.sp, color = Color(0xFF7A8784),
+                modifier = Modifier.padding(top = 10.dp, start = 4.dp, end = 4.dp),
             )
         }
 
-        // 내보내기
-        item { Spacer(Modifier.height(20.dp)) }
-        item { SectionTitle("내보내기") }
+        item { NotifyGroupTitle("내보내기", "CSV") }
         item {
-            GlassCard(shape = RoundedCornerShape(24.dp), modifier = Modifier.fillMaxWidth()) {
-                Column {
-                    SettingsItem("지출 내역 내보내기 (CSV)", Icons.Default.Download) { shareCsvFile(context, viewModel.buildCsv()) }
-                }
+            NotifyCard {
+                SettingsNavRow(Icons.Default.Download, Tint.slate, "지출 내역 내보내기", "CSV") { shareCsvFile(context, viewModel.buildCsv()) }
             }
         }
 
         // 위험 구역 — 되돌릴 수 없는 파괴 작업은 빨간 톤으로 시각 분리
-        item { Spacer(Modifier.height(20.dp)) }
-        item { DangerSectionTitle("위험 구역") }
+        item { NotifyGroupTitle("위험 구역", "되돌릴 수 없어요") }
         item {
-            GlassCard(shape = RoundedCornerShape(24.dp), modifier = Modifier.fillMaxWidth()) {
-                Column {
-                    DangerItem(
-                        "가챠 기록 초기화",
-                        Icons.Default.DeleteSweep,
-                        value = gachaStats?.let { "${it.total}건" } ?: "없음",
-                    ) { if (gachaStats != null) showClearGacha.value = true }
-                    HorizontalDivider(color = DividerColor, modifier = Modifier.padding(horizontal = 16.dp))
-                    DangerItem(
-                        "지출 전체 삭제",
-                        Icons.Default.DeleteForever,
-                        value = "${spendings.size}건",
-                    ) { if (spendings.isNotEmpty()) showClearSpend.value = true }
+            NotifyCard {
+                SettingsNavRow(Icons.Default.DeleteSweep, Tint.red, "가챠 기록 초기화", gachaStats?.let { "${it.total}건" } ?: "없음", titleColor = DangerRed) {
+                    if (gachaStats != null) showClearGacha.value = true
+                }
+                HorizontalDivider(color = RowDivider)
+                SettingsNavRow(Icons.Default.DeleteForever, Tint.red, "지출 전체 삭제", "${spendings.size}건", titleColor = DangerRed) {
+                    if (spendings.isNotEmpty()) showClearSpend.value = true
                 }
             }
             Text(
                 "되돌릴 수 없는 작업이에요. 먼저 위 ‘백업 파일 내보내기’로 백업을 권장해요.",
-                fontSize = 11.sp, color = DangerRed,
-                modifier = Modifier.padding(top = 8.dp, start = 4.dp, end = 4.dp),
+                fontSize = 11.5.sp, lineHeight = 17.sp, color = DangerRed,
+                modifier = Modifier.padding(top = 10.dp, start = 4.dp, end = 4.dp),
             )
         }
     }
@@ -532,33 +522,6 @@ private fun DataManagementScreen(viewModel: SpendingViewModel, onBack: () -> Uni
                 "백업 파일을 선택해 복원할까요? 백업에 들어 있는 항목은 현재 데이터를 덮어씁니다.",
                 fontSize = 13.sp, color = TextSecondary,
             )
-        }
-    }
-}
-
-/** 위험 구역 섹션 제목 — 빨간 톤(SectionTitle 의 파괴 작업용 변형). */
-@Composable
-private fun DangerSectionTitle(text: String) {
-    Text(text, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = DangerRed, modifier = Modifier.padding(bottom = 10.dp, start = 4.dp))
-}
-
-/** 위험 구역 행 — 빨간 아이콘/제목 + 우측 값·셰브론 (되돌릴 수 없는 파괴 작업 강조). */
-@Composable
-private fun DangerItem(label: String, icon: ImageVector, value: String? = null, onClick: () -> Unit) {
-    Row(
-        modifier = Modifier.fillMaxWidth().clickable { onClick() }.padding(16.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween,
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(icon, null, tint = DangerRed, modifier = Modifier.size(20.dp))
-            Spacer(Modifier.width(12.dp))
-            Text(label, fontSize = 14.sp, fontWeight = FontWeight.Medium, color = DangerRed)
-        }
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            value?.let { Text(it, fontSize = 12.sp, color = TextSecondary) }
-            Spacer(Modifier.width(4.dp))
-            Icon(Icons.Default.ChevronRight, null, tint = DangerRed.copy(alpha = 0.4f), modifier = Modifier.size(16.dp))
         }
     }
 }
@@ -781,7 +744,7 @@ private fun myGamesLabel(keys: Set<String>): String {
 @Composable
 private fun SettingsNavRow(
     icon: ImageVector, tint: Pair<Color, Color>, title: String, value: String?,
-    trailing: (@Composable () -> Unit)? = null, chevron: Boolean = true, onClick: () -> Unit,
+    trailing: (@Composable () -> Unit)? = null, chevron: Boolean = true, titleColor: Color = TextPrimary, onClick: () -> Unit,
 ) {
     Row(
         Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 14.dp, vertical = 12.dp),
@@ -791,7 +754,7 @@ private fun SettingsNavRow(
             Icon(icon, null, tint = tint.first, modifier = Modifier.size(18.dp))
         }
         Spacer(Modifier.width(12.dp))
-        Text(title, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TextPrimary, modifier = Modifier.weight(1f))
+        Text(title, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = titleColor, modifier = Modifier.weight(1f))
         value?.let { Text(it, fontSize = 12.5.sp, color = TextSecondary) }
         trailing?.let { Spacer(Modifier.width(6.dp)); it() }
         if (chevron) {
@@ -818,6 +781,96 @@ private fun WarnBanner(text: String, action: String, onAction: () -> Unit) {
             modifier = Modifier.clip(RoundedCornerShape(15.dp)).background(NotifyWarn).clickable(onClick = onAction)
                 .padding(horizontal = 12.dp, vertical = 6.dp),
         )
+    }
+}
+
+/**
+ * 설정 ▸ 예산 관리(아티팩트 S3) — 팝업에서 페이지로. 위는 온보딩 ③과 같은 금액 카드([BudgetAmountEditor]),
+ * 아래는 게임별 한도(비우면 한도 없음 · 이번 달 사용액 · 넘으면 주황). 내 게임이 위.
+ * 「월 예산 끄기」는 월 예산만 0 으로 저장하고 게임별 한도는 그대로 둔다.
+ */
+@Composable
+private fun BudgetScreen(
+    overall: Long,
+    gameBudgets: Map<String, Long>,
+    monthlyTotals: Map<String, Long>,
+    myGames: Set<String>,
+    onSave: (Long, Map<String, Long>) -> Unit,
+    onBack: () -> Unit,
+) {
+    var amount by remember { mutableLongStateOf(overall) }
+    var custom by remember { mutableStateOf(overall > 0 && listOf(50_000L, 100_000L, 150_000L, 300_000L).none { it == overall }) }
+    val limits = remember { mutableStateMapOf<String, Long>().apply { putAll(gameBudgets.filterValues { it > 0 }) } }
+    val order = remember(myGames) { GameData.pickerGames(myGames).let { it.first + it.second } }
+    val perGame: () -> Map<String, Long> = { limits.filterValues { it > 0 } }
+    val listState = rememberLazyListState()
+    val scrolled by remember { derivedStateOf { listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 0 } }
+    Box(Modifier.fillMaxSize().background(Color.White)) {
+        LazyColumn(
+            state = listState,
+            modifier = Modifier.fillMaxSize().navigationBarsPadding().imePadding().padding(horizontal = 16.dp),
+            // 아래 고정 버튼 두 개(50 + 8 + 42 + 위아래 18) 만큼 비워 둔다.
+            contentPadding = PaddingValues(top = glgDetailContentTop(), bottom = 140.dp),
+        ) {
+            item { com.gatcha.log.ui.onboarding.BudgetAmountEditor(amount, custom) { v: Long, c: Boolean -> amount = v; custom = c } }
+            item { NotifyGroupTitle("게임별 한도", "선택 · 비워 두면 한도 없음") }
+            item {
+                NotifyCard {
+                    order.forEachIndexed { i, g ->
+                        if (i > 0) HorizontalDivider(color = RowDivider)
+                        val spent = monthlyTotals[g.key] ?: 0L
+                        val limit = limits[g.key] ?: 0L
+                        val over = limit > 0 && spent > limit
+                        Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 11.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Box(Modifier.size(10.dp).clip(CircleShape).background(Color(g.color)))
+                            Spacer(Modifier.width(12.dp))
+                            Column(Modifier.weight(1f)) {
+                                Text(g.displayName, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+                                Text(
+                                    "이번 달 ${won(spent)}" + if (over) " · 한도 초과" else "",
+                                    fontSize = 12.sp, color = if (over) NotifyWarn else TextSecondary,
+                                    fontWeight = if (over) FontWeight.Bold else FontWeight.Normal,
+                                )
+                            }
+                            Spacer(Modifier.width(8.dp))
+                            BasicTextField(
+                                value = if (limit > 0) "%,d".format(limit) else "",
+                                onValueChange = { raw -> limits[g.key] = raw.filter { it.isDigit() }.take(9).toLongOrNull() ?: 0L },
+                                singleLine = true,
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                textStyle = TextStyle(fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TextPrimary, textAlign = TextAlign.End),
+                                modifier = Modifier.width(118.dp).height(38.dp).clip(RoundedCornerShape(12.dp)).background(Color(0xFFF5F8F8))
+                                    .border(1.5.dp, if (over) Color(0xFFFED7AA) else Color.Transparent, RoundedCornerShape(12.dp)),
+                                decorationBox = { inner ->
+                                    Box(Modifier.fillMaxSize().padding(horizontal = 12.dp), contentAlignment = Alignment.CenterEnd) {
+                                        if (limit <= 0) Text("한도 없음", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color(0xFFA7B1AE))
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Box(Modifier.width(IntrinsicSize.Min)) { inner() }
+                                            if (limit > 0) Text("원", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+                                        }
+                                    }
+                                },
+                            )
+                        }
+                    }
+                }
+                Text(
+                    "내 게임이 위에 와요. 이번 달 사용액이 한도를 넘으면 주황으로 표시돼요.",
+                    fontSize = 11.5.sp, lineHeight = 17.sp, color = Color(0xFF7A8784), modifier = Modifier.padding(top = 10.dp, start = 4.dp, end = 4.dp),
+                )
+            }
+        }
+        // 「저장」 · 「월 예산 끄기」는 하단에 상시 고정(9/29) — 스크롤해도 늘 보이고, 목록은 그 위에서 끝난다.
+        Column(
+            Modifier.align(Alignment.BottomCenter).fillMaxWidth()
+                .shadow(8.dp, RectangleShape, ambientColor = Color(0x14000000), spotColor = Color(0x14000000))
+                .background(Color.White).navigationBarsPadding().imePadding()
+                .padding(start = 16.dp, end = 16.dp, top = 10.dp, bottom = 8.dp),
+        ) {
+            com.gatcha.log.ui.onboarding.CtaButton("저장", primary = true, onClick = { onSave(amount.coerceAtLeast(0L), perGame()) })
+            com.gatcha.log.ui.onboarding.CtaButton("월 예산 끄기", primary = false, onClick = { onSave(0L, perGame()) })
+        }
+        GlgDetailHeaderOverlay("예산 관리", onBack, scrolled)
     }
 }
 
@@ -922,7 +975,7 @@ private fun NotifyPreviewCard(status: String) {
 }
 
 @Composable
-private fun NotifyGroupTitle(title: String, caption: String) {
+internal fun NotifyGroupTitle(title: String, caption: String) {
     Row(Modifier.fillMaxWidth().padding(start = 4.dp, end = 4.dp, top = 20.dp, bottom = 8.dp), verticalAlignment = Alignment.Bottom) {
         Text(title, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
         Spacer(Modifier.width(6.dp))
@@ -931,7 +984,7 @@ private fun NotifyGroupTitle(title: String, caption: String) {
 }
 
 @Composable
-private fun NotifyCard(content: @Composable ColumnScope.() -> Unit) {
+internal fun NotifyCard(content: @Composable ColumnScope.() -> Unit) {
     Column(
         Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(Color.White).border(1.dp, Color(0xFFE3E8E6), RoundedCornerShape(18.dp)),
         content = content,
@@ -1003,7 +1056,7 @@ private fun ThemeScreen(accentIndex: Int, onSelect: (Int) -> Unit, onBack: () ->
     ) {
         // 미리보기 — 금액(deep) · 게이지(main) · 칩(옅은 면) · 버튼 쌍. 누르는 곳이 아니라 보여주는 곳이다.
         item {
-            GlassCard(shape = RoundedCornerShape(22.dp), modifier = Modifier.fillMaxWidth()) {
+            NotifyCard {
                 Column(Modifier.padding(16.dp)) {
                     Text("미리보기 · ${current.label}", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextSecondary)
                     Spacer(Modifier.height(4.dp))
@@ -1035,17 +1088,15 @@ private fun ThemeScreen(accentIndex: Int, onSelect: (Int) -> Unit, onBack: () ->
                 }
             }
         }
-        item { Spacer(Modifier.height(20.dp)) }
-        item { ThemeGroupTitle("선명", ACCENT_VIVID_COUNT) }
+        item { NotifyGroupTitle("선명", "${ACCENT_VIVID_COUNT}색") }
         item {
-            GlassCard(shape = RoundedCornerShape(24.dp), modifier = Modifier.fillMaxWidth()) {
+            NotifyCard {
                 ThemeColorGrid(accentIndex, 0 until ACCENT_VIVID_COUNT, onSelect)
             }
         }
-        item { Spacer(Modifier.height(20.dp)) }
-        item { ThemeGroupTitle("차분", AccentPalette.size - ACCENT_VIVID_COUNT) }
+        item { NotifyGroupTitle("차분", "${AccentPalette.size - ACCENT_VIVID_COUNT}색") }
         item {
-            GlassCard(shape = RoundedCornerShape(24.dp), modifier = Modifier.fillMaxWidth()) {
+            NotifyCard {
                 ThemeColorGrid(accentIndex, ACCENT_VIVID_COUNT until AccentPalette.size, onSelect)
             }
             Text(
@@ -1059,14 +1110,6 @@ private fun ThemeScreen(accentIndex: Int, onSelect: (Int) -> Unit, onBack: () ->
     }
 }
 
-@Composable
-private fun ThemeGroupTitle(text: String, count: Int) {
-    Row(Modifier.fillMaxWidth().padding(bottom = 10.dp, start = 4.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-        Text(text, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextSecondary)
-        Spacer(Modifier.weight(1f))
-        Text("$count", fontSize = 11.sp, color = TextSecondary)
-    }
-}
 
 @Composable
 private fun SectionTitle(text: String) {

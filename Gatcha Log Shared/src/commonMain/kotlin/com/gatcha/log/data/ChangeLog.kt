@@ -7,11 +7,11 @@ package com.gatcha.log.data
  * 분류(kind): NEW 신규 / IMP 개선 / FIX 수정 / SEC 보안.
  * 색상은 플랫폼 UI 레이어에서 kind 별로 매핑한다(여기서는 데이터만 보유).
  */
-enum class ChangeKind(val key: String, val label: String) {
-    NEW("new", "신규"),
-    IMP("imp", "개선"),
-    FIX("fix", "수정"),
-    SEC("sec", "보안"),
+enum class ChangeKind(val key: String, val label: String, val groupLabel: String) {
+    NEW("new", "신규", "신규 기능"),
+    IMP("imp", "개선", "개선 사항"),
+    FIX("fix", "수정", "수정 사항"),
+    SEC("sec", "보안", "보안"),
 }
 
 data class ChangeItem(val kind: ChangeKind, val text: String)
@@ -47,9 +47,18 @@ data class ChangeEntry(
 
     /** 항목을 분류 태그 순(신규→개선→수정→보안)으로 정렬해 노출 — 태그 순서 통일. */
     val orderedItems: List<ChangeItem> get() = items.sortedBy { it.kind.ordinal }
+
+    /** 카드 안 묶음 순서(9/29 개편) — 신규 기능 → 수정 사항 → 개선 사항 → 보안. 항목이 있는 분류만. */
+    val groupKinds: List<ChangeKind> get() = ChangeLog.GROUP_ORDER.filter { k -> items.any { it.kind == k } }
+
+    /** 그 분류의 항목(쓴 순서 그대로). */
+    fun itemsOf(kind: ChangeKind): List<ChangeItem> = items.filter { it.kind == kind }
 }
 
 object ChangeLog {
+
+    /** 업데이트 로그 카드의 묶음 순서 — 사용자 지정(9/29): 신규 기능 · 수정 사항 · 개선 사항. */
+    val GROUP_ORDER: List<ChangeKind> = listOf(ChangeKind.NEW, ChangeKind.FIX, ChangeKind.IMP, ChangeKind.SEC)
 
     /** 헤더 메타 — 업데이트 기간 라벨. */
     const val periodLabel: String = "2026.05.23 ~ 09.28"

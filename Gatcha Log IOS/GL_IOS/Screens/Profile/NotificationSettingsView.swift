@@ -286,13 +286,14 @@ struct SetNavRow<Trailing: View>: View {
     let title: String
     var value: String? = nil
     var chevron: String? = "chevron.right"
+    var titleColor: Color = GLGColor.textPrimary
     @ViewBuilder var trailing: Trailing
     let action: () -> Void
     var body: some View {
         Button(action: action) {
             HStack(spacing: 12) {
                 SetIcon(symbol: symbol, asset: asset, tint: tint)
-                Text(title).font(.pretendard(size: 14, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
+                Text(title).font(.pretendard(size: 14, weight: .bold)).foregroundStyle(titleColor)
                 Spacer(minLength: 8)
                 trailing
                 if let value { Text(value).font(.pretendard(size: 12.5)).foregroundStyle(GLGColor.textSecondary) }
@@ -309,9 +310,9 @@ struct SetNavRow<Trailing: View>: View {
 
 extension SetNavRow where Trailing == EmptyView {
     init(symbol: String? = nil, asset: String? = nil, tint: SetTint, title: String, value: String? = nil,
-         chevron: String? = "chevron.right", action: @escaping () -> Void) {
+         chevron: String? = "chevron.right", titleColor: Color = GLGColor.textPrimary, action: @escaping () -> Void) {
         self.init(symbol: symbol, asset: asset, tint: tint, title: title, value: value, chevron: chevron,
-                  trailing: { EmptyView() }, action: action)
+                  titleColor: titleColor, trailing: { EmptyView() }, action: action)
     }
 }
 

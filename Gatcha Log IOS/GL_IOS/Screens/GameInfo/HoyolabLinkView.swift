@@ -23,43 +23,55 @@ struct HoyolabLinkView: View {
 
     var body: some View {
         ScrollView {
-                VStack(alignment: .leading, spacing: 10) {
-                    Text("이 기능은 비공식 연동이며, 토큰은 이 기기에만 저장됩니다 (클라우드·백업에 포함되지 않음).")
-                        .font(.pretendard(size: 11)).foregroundStyle(GLGColor.textSecondary)
-
+                // 설정 하위 페이지 다듬기(9/29) — 온보딩 ④와 같은 남색 로그인 카드 + 묶음 제목 + 흰 카드. Android 파리티.
+                VStack(alignment: .leading, spacing: 0) {
                     Button { showEmailGuide = true } label: {
-                        HStack(spacing: 10) {
-                            Image(systemName: "person.badge.key.fill").font(.pretendard(size: 20)).foregroundStyle(accent.primary)
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text("HoYoLAB 로그인으로 자동 가져오기").font(.pretendard(size: 14, weight: .bold)).foregroundStyle(accent.primary)
-                                Text("로그인하면 ltuid·ltoken·cookie_token·UID를 자동 입력해요").font(.pretendard(size: 11)).foregroundStyle(GLGColor.textSecondary)
+                        HStack(spacing: 12) {
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text(store.hoyolabConfig.isLinked ? "연동됨 · 다시 가져오기" : "로그인으로 자동 가져오기")
+                                    .font(.pretendard(size: 12, weight: .bold)).foregroundStyle(Color(hex: 0xFF8FE3DA))
+                                Text("HoYoLAB 로그인").font(.pretendard(size: 18, weight: .bold)).foregroundStyle(.white)
+                                Text("ltuid · ltoken · cookie_token · UID 를 자동 입력해요")
+                                    .font(.pretendard(size: 11.5)).foregroundStyle(.white.opacity(0.7))
                             }
                             Spacer(minLength: 0)
+                            Image(systemName: "person.badge.key.fill").font(.system(size: 20)).foregroundStyle(.white)
                         }
-                        // 부제가 있는 두 줄짜리라 GLGOutlineButton 으로는 못 바꾼다(제목만 받는다).
-                        // 대신 반지름은 **토큰을 쓴다** — 14 를 숫자로 박아 둔 탓에 버튼 규격을
-                        // 16 으로 통일할 때 이 버튼만 혼자 남았다. 토큰이면 다음 변경에 같이 따라온다.
-                        .padding(14).frame(maxWidth: .infinity, alignment: .leading)
-                        .background(accent.primary.opacity(0.12),
-                                    in: RoundedRectangle(cornerRadius: GLGControlRadius, style: .continuous))
-                        .overlay(RoundedRectangle(cornerRadius: GLGControlRadius, style: .continuous)
-                            .stroke(accent.primary.opacity(0.4), lineWidth: 1))
+                        .padding(.horizontal, 18).padding(.vertical, 16)
+                        .background(LinearGradient(colors: [Color(hex: 0xFF0F1A33), Color(hex: 0xFF23345C)],
+                                                   startPoint: .topLeading, endPoint: .bottomTrailing),
+                                    in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+                        .contentShape(Rectangle())
                     }.buttonStyle(.plain)
 
                     if let msg = collectedMsg {
-                        Text(msg).font(.pretendard(size: 12, weight: .medium)).foregroundStyle(accent.primary)
+                        Text(msg).font(.pretendard(size: 12.5, weight: .bold)).foregroundStyle(Color(hex: 0xFF177881))
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.horizontal, 14).padding(.vertical, 11)
+                            .background(Color(hex: 0xFFEEF8F8), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                            .padding(.top, 8)
                     }
+                    Text("비공식 연동이며, 토큰은 이 기기에만 저장돼요(클라우드 · 백업에 포함되지 않음).")
+                        .font(.pretendard(size: 11.5)).foregroundStyle(Color(hex: 0xFF7A8784)).padding(.horizontal, 4).padding(.top, 10)
 
-                    Text("쿠키(ltuid·ltoken)는 개인 정보입니다. 타인과 공유하지 마세요. 수동 입력도 가능해요.")
-                        .font(.pretendard(size: 11)).foregroundStyle(GLGColor.textSecondary)
-                    field("ltuid", $ltuid)
-                    field("ltoken", $ltoken)
-                    field("cookie_token (리딤코드 교환용·선택)", $cookieToken)
-                    field("원신 UID", $gi)
-                    field("스타레일 UID", $hsr)
-                    field("젠레스 UID", $zzz)
+                    SetGroupTitle(title: "계정 토큰", caption: "개인 정보 · 공유 금지")
+                    SetCard {
+                        VStack(spacing: 10) {
+                            field("ltuid", $ltuid)
+                            field("ltoken", $ltoken)
+                            field("cookie_token (리딤코드 교환용·선택)", $cookieToken)
+                        }.padding(14)
+                    }
+                    SetGroupTitle(title: "게임 UID", caption: "로그인하면 자동으로 채워져요")
+                    SetCard {
+                        VStack(spacing: 10) {
+                            field("원신 UID", $gi)
+                            field("스타레일 UID", $hsr)
+                            field("젠레스 UID", $zzz)
+                        }.padding(14)
+                    }
                     Text("구글 로그인 시 게임 UID 는 계정에 함께 동기화돼 다른 기기에서도 그대로 사용돼요. 보안을 위해 ltuid·ltoken·cookie_token 등 토큰은 동기화하지 않으며, 새 기기에서는 다시 로그인해 가져와야 해요.")
-                        .font(.pretendard(size: 11)).foregroundStyle(GLGColor.textSecondary)
+                        .font(.pretendard(size: 11.5)).foregroundStyle(Color(hex: 0xFF7A8784)).padding(.horizontal, 4).padding(.top, 10)
                 }
                 .padding(.horizontal, 16).padding(.top, 16).padding(.bottom, 8)
             }
