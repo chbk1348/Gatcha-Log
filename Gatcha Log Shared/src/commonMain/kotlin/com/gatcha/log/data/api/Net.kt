@@ -36,6 +36,12 @@ object Net {
     private const val TIMEOUT_MS = 12_000L
 
     /**
+     * 연결(SYN) 대기 상한 — 요청 전체 상한과 따로 둔다. 약한 망에서 연결이 블랙홀되면 예전엔 12초를
+     * 다 기다린 뒤에야 실패했다. 연결만 되면 응답은 느려도 괜찮으니 전체 상한은 그대로 둔다.
+     */
+    private const val CONNECT_TIMEOUT_MS = 5_000L
+
+    /**
      * 호스트를 사용자에게 보일 이름으로 바꾼다 — 오류 안내에 도메인을 그대로 노출하지 않는다.
      * 모르는 호스트는 호스트명 그대로 둔다(진단 가치가 더 크다).
      */
@@ -61,8 +67,33 @@ object Net {
         install(HttpTimeout)
     }
 
-    suspend fun get(url: String, headers: Map<String, String> = emptyMap(), timeoutMs: Int = TIMEOUT_MS.toInt()): NetResult =
-        request(HttpMethod.Get, url, headers, null, timeoutMs.toLong())
+    /**
+     * 수동 `Cookie` 헤더가 실린 요청(HoYoLAB 인증) 전용 — **리다이렉트를 따라가지 않는다.**
+     * Ktor 의 리다이렉트는 다른 호스트로 넘어갈 때 `Authorization` 만 지우고 `Cookie` 는 그대로 싣는다.
+     * HoYoLAB 이 3xx 를 줄 일은 드물지만, 주는 순간 ltoken 이 남의 호스트로 나간다.
+     */
+    private val cookieClient = createHttpClient {
+        expectSuccess = false
+        followRedirects = false
+        install(HttpTimeout)
+    }
+
+    /** 한 번 더 시도해 볼 만한 실패인가 — 연결 실패 · 5xx. 취소는 제외(취소된 요청은 결과를 안 쓴다). */
+    private fun NetResult.retryable(): Boolean = (code == -1 && body != "cancelled") || code in 500..599
+
+    /** 재시도해도 되는 호스트인가 — HoYoLAB 은 레이트리밋이 있어 재시도가 되레 막힘을 부른다. */
+    private fun retryableHost(url: String): Boolean = sourceOf(url) != "HoYoLAB"
+
+    /**
+     * GET. 공개 API(캘린더 · 공지 · 메타)는 **한 번 재시도**한다(300ms 뒤) — 일시 실패 하나로 섹션이 비고
+     * 다음 갱신(30초)까지 기다리던 것을 줄인다. HoYoLAB 은 재시도하지 않는다([retryableHost]).
+     */
+    suspend fun get(url: String, headers: Map<String, String> = emptyMap(), timeoutMs: Int = TIMEOUT_MS.toInt()): NetResult {
+        val first = request(HttpMethod.Get, url, headers, null, timeoutMs.toLong())
+        if (!first.retryable() || !retryableHost(url)) return first
+        kotlinx.coroutines.delay(300)
+        return request(HttpMethod.Get, url, headers, null, timeoutMs.toLong())
+    }
 
     suspend fun post(url: String, headers: Map<String, String> = emptyMap(), body: String = "{}", timeoutMs: Int = TIMEOUT_MS.toInt()): NetResult =
         request(HttpMethod.Post, url, headers, body, timeoutMs.toLong())
@@ -74,7 +105,7 @@ object Net {
         body: String?,
         timeoutMs: Long,
     ): NetResult = try {
-        val response = client.request(url) {
+        val response = (if (headers.keys.any { it.equals("Cookie", ignoreCase = true) }) cookieClient else client).request(url) {
             this.method = method
             header("Accept", "application/json")
             headers.forEach { (k, v) -> header(k, v) }
@@ -82,7 +113,7 @@ object Net {
             if (body != null) setBody(TextContent(body, ContentType.Application.Json))
             timeout {
                 requestTimeoutMillis = timeoutMs
-                connectTimeoutMillis = timeoutMs
+                connectTimeoutMillis = minOf(timeoutMs, CONNECT_TIMEOUT_MS)
                 socketTimeoutMillis = timeoutMs
             }
         }

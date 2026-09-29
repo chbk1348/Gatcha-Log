@@ -44,7 +44,8 @@ data class CheckInResult(
     val retcode: Int = 0,
     val reason: CheckInResult.Reason = Reason.NONE,
 ) {
-    enum class Reason { NONE, AUTH, NETWORK, OTHER }
+    /** CAPTCHA = HoYoLAB 이 보안 인증(지오테스트)을 요구해 서명이 안 됐다 — 사용자가 HoYoLAB 에서 직접 출석해야 한다. */
+    enum class Reason { NONE, AUTH, NETWORK, CAPTCHA, OTHER }
 }
 /** [alreadyRedeemed] = 이미 계정에 귀속(수령)된 코드(retcode -2017/-2018). '받음' 처리 분기에 사용 — 메시지 문자열 매칭 금지. */
 /**
@@ -233,7 +234,7 @@ object HoyolabApi {
             onNetwork = { NoteResult(null, Err.NETWORK, transient = true) },
             onParse = { NoteResult(null, Err.PARSE, transient = true) },
         ) { retcode, message, json ->
-            if (retcode != 0) NoteResult(null, message.ifBlank { "오류 ($retcode)" })
+            if (retcode != 0) NoteResult(null, hoyoMsg(0, retcode) ?: message.ifBlank { "오류 ($retcode)" })
             else NoteResult(parseNote(gameKey, json.getJSONObject("data")), null)
         }
     }
@@ -363,16 +364,34 @@ object HoyolabApi {
             .put("Content-Type", "application/json")
             .build()
 
+        // 이미 출석했는지 먼저 본다(GET info) — 서명 POST 를 덜 보낼수록 보안 인증(캡차)에 덜 걸린다.
+        // 조회가 실패하면 예전처럼 곧장 서명한다(조회는 보조 수단이다).
+        val signed = Net.get(url.replace("/sign?", "/info?"), headers, timeoutMs = 8_000).parse(
+            reportAuth = false, onNetwork = { null }, onParse = { null },
+        ) { retcode, _, json -> if (retcode == 0) json.optJSONObject("data")?.optBoolean("is_sign") else null }
+        if (signed == true) return CheckInResult(true, true, "이미 출석했어요")
+
         // HoYoLAB sign 응답은 느릴 수 있어 30초까지 대기 (웹앱 GAS 와 동일)
         return Net.post(url, headers, "{}", timeoutMs = 30_000).parse(
             onNetwork = { CheckInResult(false, false, Err.NETWORK, reason = CheckInResult.Reason.NETWORK) },
             onParse = { CheckInResult(false, false, Err.PARSE, reason = CheckInResult.Reason.OTHER) },
-        ) { retcode, msg, _ ->
+        ) { retcode, msg, json ->
+            // retcode 0 인데 서명이 안 된 경우 — 보안 인증(지오테스트)을 요구했다. 이걸 성공으로 치면 출석 기록 ·
+            // "출석 대신 해 뒀어요" 알림까지 나가고, 그날은 다시 시도하지 않아 보상을 놓친다.
+            val gt = json.optJSONObject("data")
+            val risky = gt?.optJSONObject("gt_result")?.let { it.optBoolean("is_risk") || it.optInt("risk_code") != 0 } == true ||
+                (gt?.optInt("risk_code", 0) ?: 0) != 0
+            if (retcode == 0 && risky) {
+                return@parse CheckInResult(false, false, "HoYoLAB 보안 인증이 필요해요 — HoYoLAB 에서 직접 출석해 주세요", retcode, CheckInResult.Reason.CAPTCHA)
+            }
             when (retcode) {
                 0 -> CheckInResult(true, false, "출석 완료", retcode)
                 -5003 -> CheckInResult(true, true, "이미 출석했어요", retcode)
                 // 쿠키 인증 만료 — 재연동 필요
-                in LOGIN_REQUIRED_RETCODES -> CheckInResult(false, false, "쿠키 인증 만료", retcode, CheckInResult.Reason.AUTH)
+                in AUTH_RETCODES -> CheckInResult(false, false, "쿠키 인증 만료", retcode, CheckInResult.Reason.AUTH)
+                // -100 은 만료가 아니라 범용 거절이다(위 AUTH_RETCODES 주석) — 이걸 AUTH 로 두면 계정에 없는
+                // 게임을 추적할 때 연동이 멀쩡해도 매일 "로그인이 풀렸어요" 알림 · 만료 배너가 떴다.
+                -100 -> CheckInResult(false, false, "이 HoYoLAB 계정에서 찾을 수 없는 게임이에요", retcode, CheckInResult.Reason.OTHER)
                 else -> CheckInResult(false, false, msg.ifBlank { "출석 실패 ($retcode)" }, retcode, CheckInResult.Reason.OTHER)
             }
         }
@@ -470,15 +489,18 @@ object HoyolabApi {
     // ----------------------------------------------------------------- 게임 UID 자동 조회
     /**
      * ltuid/ltoken 으로 계정에 연결된 게임 UID 를 가져온다.
-     * 반환: gameKey(genshin/hsr/zzz) → UID. 실패 시 빈 맵.
+     * 반환: gameKey(genshin/hsr/zzz) → UID. 서버가 거절하면 빈 맵, **서버에 닿지 못하면 null**.
      *
      * 1순위 바인딩 API(getUserGameRolesByLtoken) — 모든 게임 역할(ZZZ=nap_global 포함)을 나열.
      * 2순위 getGameRecordCard — 바인딩에서 빠진 게임 보강(ZZZ 는 record card 에 없을 수 있음).
      */
-    suspend fun fetchGameUids(ltuid: String, ltoken: String): Map<String, String> {
+    suspend fun fetchGameUids(ltuid: String, ltoken: String): Map<String, String>? {
         if (ltuid.isBlank() || ltoken.isBlank()) return emptyMap()
         val cookie = cookieFull(ltuid, ltoken) + " account_id=$ltuid; account_id_v2=$ltuid;"
         val out = linkedMapOf<String, String>()
+        // 서버에 한 번이라도 닿았는가 — 못 닿았으면 null 로 돌려 "토큰 만료" 가 아니라 "연결 확인" 으로 안내하게 한다.
+        // 예전엔 오프라인 연동도 빈 맵이라 "토큰이 만료됐을 수 있어요" 가 떠서 멀쩡한 토큰을 다시 뽑게 했다.
+        var reached = false
 
         // 1) 바인딩 API — game_biz 로 모든 게임 역할(ZZZ 포함)
         runCatching {
@@ -489,6 +511,7 @@ object HoyolabApi {
                 .put("Referer", ACT_REFERER)
                 .build()
             val res = Net.get("https://api-account-os.hoyoverse.com/account/binding/api/getUserGameRolesByLtoken?game_biz=", h)
+            if (res.code != -1) reached = true
             JSONObject(res.body).optJSONObject("data")?.optJSONArray("list")?.let { list ->
                 // 한 게임에 여러 역할(지역/부계정)이 올 수 있다 → 게임별 후보를 모은 뒤 대표 1개만 선택
                 data class Role(val uid: String, val chosen: Boolean, val level: Int)
@@ -522,6 +545,7 @@ object HoyolabApi {
                 .withUserAgent(UA_BBS)
                 .build()
             val res = Net.get("https://bbs-api-os.hoyolab.com/game_record/card/wapi/getGameRecordCard?$query", h)
+            if (res.code != -1) reached = true
             JSONObject(res.body).optJSONObject("data")?.optJSONArray("list")?.let { list ->
                 for (i in 0 until list.length()) {
                     val o = list.optJSONObject(i) ?: continue
@@ -534,7 +558,7 @@ object HoyolabApi {
                 }
             }
         }
-        return out
+        return if (out.isEmpty() && !reached) null else out
     }
 
     // ----------------------------------------------------------------- HSR 보유 캐릭터(avatar/info)
@@ -580,12 +604,22 @@ object HoyolabApi {
     var zzzLastError: String? = null
 
     /** HoYoLAB retcode/HTTP → 사용자 메시지 분기. */
-    private fun zzzMsg(http: Int, rc: Int): String = when {
+    private fun zzzMsg(http: Int, rc: Int): String =
+        if (http == -1) Err.NETWORK   // 연결 실패를 "연동 · 공개 설정 확인" 으로 돌려 말하면 멀쩡한 설정을 뒤지게 된다
+        else hoyoMsg(http, rc) ?: "젠레스 정보를 불러오지 못했어요 (HoYoLAB 연동·전투 기록 공개 확인) [$rc]"
+
+    /**
+     * 사용자가 **할 일이 있는** retcode 를 안내 문구로 바꾼다(노트 · 로스터 공통). 해당 없으면 null.
+     *
+     * 예전엔 노트 실패가 문구 없이 카드만 사라져서, 공개 설정 하나만 켜면 되는 사람이 그걸 알 길이 없었다.
+     */
+    fun hoyoMsg(http: Int, rc: Int): String? = when {
         http == 429 || rc == 10101 -> "요청이 많아요. 잠시 후 다시 시도해주세요"
         rc in AUTH_RETCODES -> "HoYoLAB 토큰이 만료됐어요 — 재연동이 필요해요"
-        rc == 1034 || rc == 10035 || rc == 5003 -> "HoYoLAB 보안 인증이 필요해요 — 앱에서 인증 후 다시 시도해주세요"
-        rc == 10104 || rc == 10103 || rc == -10001 -> "전투 기록이 비공개예요 — HoYoLAB에서 공개로 설정해주세요"
-        else -> "젠레스 정보를 불러오지 못했어요 (HoYoLAB 연동·전투 기록 공개 확인) [$rc]"
+        rc == 1034 || rc == 10035 || rc == 5003 -> "HoYoLAB 보안 인증이 필요해요 — HoYoLAB 앱에서 전적을 한 번 열어 주세요"
+        rc == 10102 || rc == 10103 || rc == 10104 -> "전적이 비공개예요 — HoYoLAB ▸ 전적 설정에서 공개로 바꿔 주세요"
+        rc == -100 -> "이 HoYoLAB 계정에서 찾을 수 없는 게임이에요"
+        else -> null
     }
 
     suspend fun fetchZzzAvatars(ltuid: String, ltoken: String, uid: String): List<JSONObject>? {
@@ -734,7 +768,10 @@ object HoyolabApi {
                 .build()
 
             var code = -999
+            // 원장은 쿠키 후보를 차례로 시도한다 — 첫 후보(webCookie)의 cookie_token 만 만료돼도 -1071 이 오는데,
+            // 다음 후보로는 성공한다. 그걸 전역 "연동 만료" 로 올리면 멀쩡한 연동을 만료라고 알린다.
             val ledger = Net.get("${spec.endpoint}?$query", headers).parse<MonthlyLedger?>(
+                reportAuth = false,
                 onNetwork = { null },
                 onParse = { null },
             ) { retcode, _, json ->
@@ -787,6 +824,7 @@ object HoyolabApi {
             .withUserAgent(UA_BBS)
             .build()
         return Net.get("https://sg-public-api.hoyolab.com/event/nap_ledger/month_info?$query", headers).parse<MonthlyLedger?>(
+            reportAuth = false,
             onNetwork = { null },
             onParse = { null },
         ) { retcode, _, json ->
@@ -1105,8 +1143,10 @@ object HoyolabApi {
             "hsr" -> when (first) {
                 "6" -> "prod_official_usa"; "7" -> "prod_official_euro"; "9" -> "prod_official_cht"; else -> "prod_official_asia"
             }
-            "zzz" -> when (uid.take(2)) {
-                "10" -> "prod_gf_us"; "11" -> "prod_gf_eu"; "13" -> "prod_gf_jp"; "14" -> "prod_gf_sg"; else -> "prod_gf_jp"
+            "zzz" -> when (uid.dropLast(8)) {
+                // 젠레스 UID 는 앞자리(끝 8자리를 뺀 부분)가 서버다: 10 미주 · 13 아시아 · 15 유럽 · 17 대만·홍콩·마카오.
+                // 예전 표(11=유럽 · 14=대만)는 틀려서 유럽 · 대만 계정이 전부 아시아 서버로 요청해 실패했다.
+                "10" -> "prod_gf_us"; "15" -> "prod_gf_eu"; "17" -> "prod_gf_sg"; else -> "prod_gf_jp"
             }
             else -> ""
         }
