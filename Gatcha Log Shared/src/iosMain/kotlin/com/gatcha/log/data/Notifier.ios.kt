@@ -40,6 +40,7 @@ actual object Notifier {
      * 보이던 이유다([AlertScheduler] 예약 경로와 같은 결함).
      */
     actual suspend fun notify(id: Int, title: String, text: String, link: String) {
+        if (NotifyHold.defer(id, title, text, link)) return   // 첫 화면(온보딩 · 로딩) 동안은 홈이 뜰 때까지 붙잡는다
         val center = UNUserNotificationCenter.currentNotificationCenter()
         if (!awaitEnabled(center)) return
         val content = UNMutableNotificationContent().apply {

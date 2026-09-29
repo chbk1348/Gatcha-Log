@@ -185,6 +185,20 @@ class GatchaRepository(
         changed()
     }
 
+    // ---------------------------------------------------------------- 내 게임
+    /**
+     * 내 게임 — 온보딩 ②와 설정 ▸ 내 게임이 같이 쓰는 값(게임 key 집합). **계정에 딸려 기기 간 동기화**된다.
+     * 비어 있으면 전부로 본다. 지출 입력 게임 순서와 출석 집계에만 쓰고, 기록 자체는 거르지 않는다.
+     */
+    fun loadMyGames(): Set<String> =
+        prefs.getString(KEY_MY_GAMES, "").orEmpty().split(',').filter { it.isNotBlank() }.toSet()
+
+    fun saveMyGames(keys: Set<String>) {
+        prefs.putString(KEY_MY_GAMES, keys.joinToString(","))
+        stamp(KEY_MY_GAMES)
+        changed()
+    }
+
     // ---------------------------------------------------------------- 프로필
     fun loadProfile(): UserProfile = UserProfile(
         name = prefs.getString(KEY_PROFILE_NAME, "게스트") ?: "게스트",
@@ -1041,6 +1055,7 @@ class GatchaRepository(
         o.put(KEY_BUDGET, loadBudget())
         prefs.getString(KEY_BUDGET_GAMES, null)?.let { o.put(KEY_BUDGET_GAMES, JSONObject(it)) }
         prefs.getString(KEY_PROFILE_NAME, null)?.let { o.put(KEY_PROFILE_NAME, it) }
+        prefs.getString(KEY_MY_GAMES, null)?.let { o.put(KEY_MY_GAMES, it) }
         prefs.getString(KEY_PROFILE_EMAIL, null)?.let { o.put(KEY_PROFILE_EMAIL, it) }
         // 토큰(ltuid/ltoken/cookieToken/webCookie)은 보안상 스냅샷에 절대 포함하지 않는다(암호화 저장소 전용).
         // 게임 UID 만 포함 — 토큰이 아니므로 기기 간 동기화에 필요.
@@ -1143,6 +1158,7 @@ class GatchaRepository(
         }
         step { if (o.has(KEY_BUDGET) && wins(KEY_BUDGET)) prefs.putLong(KEY_BUDGET, o.getLong(KEY_BUDGET)) }
         step { if (o.has(KEY_BUDGET_GAMES) && wins(KEY_BUDGET_GAMES)) prefs.putString(KEY_BUDGET_GAMES, o.getJSONObject(KEY_BUDGET_GAMES).toString()) }
+        step { if (o.has(KEY_MY_GAMES) && wins(KEY_MY_GAMES)) prefs.putString(KEY_MY_GAMES, o.getString(KEY_MY_GAMES)) }
         if (wins(KEY_PROFILE_NAME)) {
             step { if (o.has(KEY_PROFILE_NAME)) prefs.putString(KEY_PROFILE_NAME, o.getString(KEY_PROFILE_NAME)) }
             step { if (o.has(KEY_PROFILE_EMAIL)) prefs.putString(KEY_PROFILE_EMAIL, o.getString(KEY_PROFILE_EMAIL)) }
@@ -1247,11 +1263,12 @@ class GatchaRepository(
         const val KEY_META = "sync_meta"
         const val KEY_GACHA_CLEARED_AT = "gacha_cleared_at"
         /** [stamp] 로 수정 시각을 적는 키 — 묶음은 대표 키 하나로 적는다(프로필 · 게임 UID · Enka UID). */
-        val SYNC_META_KEYS = listOf(KEY_BUDGET, KEY_BUDGET_GAMES, KEY_PROFILE_NAME, KEY_HOYO_GI, KEY_ACCENT, KEY_ENKA_GI, KEY_PITY, KEY_EVENT_CHECKS)
+        val SYNC_META_KEYS = listOf(KEY_BUDGET, KEY_BUDGET_GAMES, KEY_MY_GAMES, KEY_PROFILE_NAME, KEY_HOYO_GI, KEY_ACCENT, KEY_ENKA_GI, KEY_PITY, KEY_EVENT_CHECKS)
         const val DELETED_SPENDINGS_MAX = 2000
         const val KEY_DELETED_SPENDINGS = "deleted_spendings" // 삭제된 지출 id tombstone(합집합 병합 방어 — 삭제 전파용)
         const val KEY_BUDGET = "budget"
         const val KEY_BUDGET_GAMES = "budget_games"
+        const val KEY_MY_GAMES = "my_games"
         const val KEY_PROFILE_NAME = "profile_name"
         const val KEY_PROFILE_EMAIL = "profile_email"
         const val KEY_HOYO_LTUID = "hoyo_ltuid"

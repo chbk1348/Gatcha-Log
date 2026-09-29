@@ -164,6 +164,9 @@ class MainActivity : ComponentActivity() {
             // 테마를 읽을 수 없는 시스템 스플래시(항상 아이콘 민트)와도 어긋난다.
             // 로그인 전 구간은 앱 아이콘의 색으로 통일한다.
             val preLogin = !onboardingDone || account.isGuest
+            // 홈이 뜨기 전(온보딩 · 로그인 · 불러오기)에는 알림을 붙잡았다가 홈에서 보낸다(9/29).
+            val homeShown = !preLogin && (loadingDone || !viewModel.needsSyncGate)
+            LaunchedEffect(homeShown) { viewModel.setRootReady(homeShown) }
             GatchaLogTheme(accentIndex = if (preLogin) 0 else accentIndex) {
                 // 온보딩 → 다음 화면: 온보딩은 살짝 커지며 사라지고 다음 화면이 그 위로 겹쳐 나타난다
                 // (「홈으로 이동하기」 뒤 빈 화면이 스치던 것, 9/29). 전환은 온보딩 경계에서만 — 로그인 · 로딩 · 홈 사이는 그대로.

@@ -54,6 +54,7 @@ actual object Notifier {
     // suspend 는 iOS 콜백을 기다리기 위한 것(expect 문서 참고) — 여기선 중단 지점이 없다.
     @SuppressLint("MissingPermission")
     actual suspend fun notify(id: Int, title: String, text: String, link: String) {
+        if (NotifyHold.defer(id, title, text, link)) return   // 첫 화면(온보딩 · 로딩) 동안은 홈이 뜰 때까지 붙잡는다
         val ctx = AppContext.appContext
         // Android 13+ 는 POST_NOTIFICATIONS 런타임 권한 필요 — 미허용이면 조용히 무시
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&

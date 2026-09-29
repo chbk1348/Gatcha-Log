@@ -1,6 +1,5 @@
 package com.gatcha.log.ui.spending
 
-import com.gatcha.log.data.AppSettings
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.expandVertically
@@ -97,6 +96,8 @@ fun AddSpendingModal(
     /** 스마트 기본값·'자주 사는 것'의 근거. 비어 있으면 추론하지 않는다. */
     recentSpendings: List<Spending> = emptyList(),
     nudgeMessage: (game: Game, amount: Long) -> String? = { _, _ -> null },
+    /** 내 게임(계정 데이터 — 비어 있으면 전부). 게임 목록에서 위로 올린다. */
+    myGames: Set<String> = emptySet(),
     onDismiss: () -> Unit,
     /** 저장됐으면 true. false(검증 실패 — 안내는 VM 이 띄운다)면 페이지를 그대로 둔다. */
     onSave: (Spending) -> Boolean,
@@ -252,6 +253,7 @@ fun AddSpendingModal(
                 // 일반 필드로 있었다. 목록·상세·인사이트는 전부 금액이 히어로인데 입력할 때만 아니었다.
                 item {
                     AmountHero(
+                        myGames = myGames,
                         game = game,
                         amount = amount,
                         onAmountChange = { input ->
@@ -592,6 +594,7 @@ fun AddSpendingModal(
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun AmountHero(
+    myGames: Set<String>,
     game: Game,
     amount: String,
     onAmountChange: (String) -> Unit,
@@ -624,7 +627,7 @@ private fun AmountHero(
             // "표" 처럼 읽혀 고르는 자리라는 느낌이 약했다. 카드마다 여백이 생기니 누를 대상이
             // 뚜렷하고, 게임색 테두리가 카드 단위로 서서 구분도 색으로 먼저 온다.
             // 내 게임(온보딩 ② · 설정 ▸ 내 게임)이 위, 나머지는 「다른 게임」 아래 — 기록할 수 있는 게임은 줄이지 않는다.
-            val (mine, others) = remember { GameData.pickerGames(AppSettings().myGames) }
+            val (mine, others) = remember(myGames) { GameData.pickerGames(myGames) }
             Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 mine.forEach { g -> GameSelectRow(game = g) { onGameChange(g) } }
                 if (others.isNotEmpty()) {
@@ -659,7 +662,7 @@ private fun AmountHero(
             enter = expandVertically(glgStandardSpec()) + fadeIn(glgStandardSpec()),
             exit = shrinkVertically(glgShortSpec()) + fadeOut(glgShortSpec()),
         ) {
-            val pickerOrder = remember { GameData.pickerGames(AppSettings().myGames).let { it.first + it.second } }
+            val pickerOrder = remember(myGames) { GameData.pickerGames(myGames).let { it.first + it.second } }
             Column {
                 Spacer(Modifier.height(10.dp))
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {

@@ -210,6 +210,7 @@ fun HomeScreen(viewModel: SpendingViewModel = viewModel()) {
                     // 스마트 기본값·'자주 사는 것'의 근거.
                     recentSpendings = editorSpendings,
                     nudgeMessage = { game, amount -> viewModel.overspendNudge(game, amount, editing?.id) },
+                    myGames = viewModel.myGames.collectAsStateWithLifecycle().value,
                     onDismiss = { spendingEditor.value = null },
                     onSave = { spending ->
                         // 저장이 거절되면(금액 상한 등) 닫지 않는다 — 예전엔 닫혀서 입력이 통째로 사라졌다.

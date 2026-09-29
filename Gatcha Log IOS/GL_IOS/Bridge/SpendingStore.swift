@@ -506,6 +506,7 @@ final class SpendingStore {
     func refreshGameInfo(force: Bool = false) { vm.refreshGameInfo(force: force, silent: false) }
     /// 앱 복귀 — 오래 떠나 있었으면 데이터 갱신 + 밀린 알림 1회 점검(BGTask 가 OS 재량이라 그것만으론 구멍이 크다).
     func onAppForeground() { vm.onAppForeground() }
+    func setRootReady(_ ready: Bool) { vm.setRootReady(ready: ready) }
     /// 앱이 백그라운드로 내려간 시각 기록 — 복귀 시 '얼마나 떠나 있었는지' 판정에 쓴다.
     func onAppBackground() { vm.onAppBackground() }
     /// 클리어 편성 조회 — 전용 페이지 진입 시에만(시즌 2개치라 무겁다).

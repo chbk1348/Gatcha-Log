@@ -193,10 +193,10 @@ class SpendingViewModel : ViewModel() {
     // 로컬 알림 토글 (예산·출석·재화)
     private val _notifyBudget = MutableStateFlow(appSettings.notifyBudget)
     val notifyBudget: StateFlow<Boolean> = _notifyBudget.asStateFlow()
-    // 내 게임 — 온보딩 ②와 설정 ▸ 내 게임이 같은 값을 쓴다(비어 있으면 전부).
-    private val _myGames = MutableStateFlow(appSettings.myGames)
+    // 내 게임 — 온보딩 ②와 설정 ▸ 내 게임이 같은 값을 쓴다(비어 있으면 전부). 계정 데이터라 기기 간 동기화된다.
+    private val _myGames = MutableStateFlow(repo.loadMyGames())
     val myGames: StateFlow<Set<String>> = _myGames.asStateFlow()
-    fun setMyGames(keys: Set<String>) { appSettings.myGames = keys; _myGames.value = keys }
+    fun setMyGames(keys: Set<String>) { repo.saveMyGames(keys); _myGames.value = keys }
     /** Swift 용 — SKIE 가 Set 을 NSSet 으로 넘겨 다루기 번거롭다. */
     fun setMyGamesList(keys: List<String>) = setMyGames(keys.toSet())
 
@@ -481,6 +481,12 @@ class SpendingViewModel : ViewModel() {
      * 순간'에만 오는 것처럼 보였다. 앱을 여는 순간을 보조 트리거로 쓰되, 전환할 때마다 HoYoLAB 을
      * 두드리면 안 되므로 [FOREGROUND_CHECK_MIN_INTERVAL_MS] 간격을 둔다.
      */
+    /** 루트 화면이 홈이면 true — 그 전(온보딩 · 로그인 · 불러오기)에는 알림을 붙잡는다([NotifyHold]). */
+    fun setRootReady(ready: Boolean) {
+        if (!ready) NotifyHold.hold()
+        else if (NotifyHold.held) viewModelScope.launch { NotifyHold.release() }
+    }
+
     fun onAppForeground() {
         AppVisibility.onForeground()  // 알림을 쏠지 말지의 판정 근거 — 아래 ② 점검보다 **먼저** 세운다
         DateUtil.refreshTimeZone()    // 캐시된 로컬 타임존 갱신(여행·자동 시간대 변경) — 알림 조건과 무관하게 항상
@@ -626,6 +632,7 @@ class SpendingViewModel : ViewModel() {
         _spendings.value = repo.loadSpendings().sortedByDescending { it.dateMillis }
         _budget.value = repo.loadBudget()
         _gameBudgets.value = repo.loadGameBudgets()
+        _myGames.value = repo.loadMyGames()
         _profile.value = repo.loadProfile()
         _hoyolabConfig.value = repo.loadHoyolab()
         _accentIndex.value = repo.loadAccentIndex()
@@ -764,7 +771,7 @@ class SpendingViewModel : ViewModel() {
         authManager.setAccount(finalAcc)
         switchAccount(finalAcc)
         cloudSyncPullOrSeed()
-        applyPendingOnboardingBudget()
+        applyPendingOnboarding()
         emitStatus("${finalAcc.name}님으로 로그인되었어요")
         return true
     }
@@ -1528,6 +1535,7 @@ class SpendingViewModel : ViewModel() {
         budgetAlert: Boolean,
     ) {
         setMyGames(games.toSet())
+        appSettings.pendingOnboardingGames = if (account.value.isGuest) games.toSet() else emptySet()
         if (budget >= 0) {
             if (account.value.isGuest) appSettings.pendingOnboardingBudget = budget
             else if (_budget.value <= 0L) setBudgets(budget, _gameBudgets.value)
@@ -1543,12 +1551,21 @@ class SpendingViewModel : ViewModel() {
         }
     }
 
-    /** 로그인 · 클라우드 복원 직후 — 온보딩에서 고른 예산을 계정 예산이 비어 있을 때만 적용하고 비운다. */
-    private fun applyPendingOnboardingBudget() {
+    /**
+     * 로그인 · 클라우드 복원 직후 — 온보딩에서 고른 예산 · 내 게임을 계정 값이 비어 있을 때만 적용하고 비운다.
+     * 다른 기기에서 이미 정한 계정 값이 있으면 그쪽이 이긴다.
+     */
+    private fun applyPendingOnboarding() {
         val pending = appSettings.pendingOnboardingBudget
-        if (pending < 0) return
-        appSettings.pendingOnboardingBudget = -1L
-        if (_budget.value <= 0L) setBudgets(pending, _gameBudgets.value)
+        if (pending >= 0) {
+            appSettings.pendingOnboardingBudget = -1L
+            if (_budget.value <= 0L) setBudgets(pending, _gameBudgets.value)
+        }
+        val games = appSettings.pendingOnboardingGames
+        if (games.isNotEmpty()) {
+            appSettings.pendingOnboardingGames = emptySet()
+            if (_myGames.value.isEmpty()) setMyGames(games)
+        }
     }
 
     private val _onboardingReplay = MutableStateFlow(0)

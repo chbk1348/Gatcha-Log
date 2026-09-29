@@ -35,3 +35,33 @@ expect object Notifier {
      */
     fun notificationsEnabled(): Boolean
 }
+
+/**
+ * 온보딩 · 로그인 · 데이터 불러오기 화면이 떠 있는 동안 알림을 붙잡아 두는 곳 — 홈이 뜨면 한꺼번에 보낸다.
+ * 앱을 켜는 순간 자동 출석 · 알림 점검이 돌아 첫 화면을 다 보기도 전에 배너가 떴다(9/29).
+ * 화면이 [release]/[hold] 로만 바꾸고, 기본은 붙잡지 않는다(백그라운드 실행은 화면이 없다).
+ * ponytail: 붙잡은 채 앱이 종료되면 그 알림은 사라진다(중복 방지 표시는 이미 찍혔다) — 잦으면 저장소에 쌓는다.
+ */
+object NotifyHold {
+    private data class Pending(val title: String, val text: String, val link: String)
+
+    var held: Boolean = false
+        private set
+    private val queue = LinkedHashMap<Int, Pending>()   // 같은 id 는 마지막 것만 — 알림도 id 로 갱신된다
+
+    fun hold() { held = true }
+
+    /** 붙잡혔으면 true — 호출부(actual notify)는 그대로 반환한다. */
+    fun defer(id: Int, title: String, text: String, link: String): Boolean {
+        if (!held) return false
+        queue[id] = Pending(title, text, link)
+        return true
+    }
+
+    suspend fun release() {
+        held = false
+        val items = queue.toList()
+        queue.clear()
+        items.forEach { (id, p) -> runCatching { Notifier.notify(id, p.title, p.text, p.link) } }
+    }
+}
