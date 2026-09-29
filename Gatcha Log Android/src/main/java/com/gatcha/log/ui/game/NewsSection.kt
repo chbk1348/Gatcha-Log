@@ -36,6 +36,7 @@ import com.gatcha.log.ui.components.GameTagSize
 import com.gatcha.log.ui.components.GlgChip
 import com.gatcha.log.ui.components.GlgGameTag
 import com.gatcha.log.ui.components.GlassCard
+import com.gatcha.log.ui.components.GlgButton
 import com.gatcha.log.ui.components.GlgBadge
 import com.gatcha.log.ui.theme.DividerColor
 import com.gatcha.log.ui.theme.LocalAccent
@@ -58,9 +59,30 @@ private fun filterNews(news: List<NewsItem>, gameKey: String): List<NewsItem> =
 
 /** 공지·뉴스 섹션 — 게임별 최신 공지(상위 [max]), 탭하면 앱 안에서 본문 열기. 더 있으면 '더보기'로 전체 페이지. */
 @Composable
-fun NewsSection(news: List<NewsItem>, onSeeAll: () -> Unit, onOpen: (NewsItem) -> Unit, max: Int = 5) {
+fun NewsSection(
+    news: List<NewsItem>,
+    onSeeAll: () -> Unit,
+    onOpen: (NewsItem) -> Unit,
+    max: Int = 5,
+    /** 한 게임의 공지도 못 받았다 — 빈 목록이어도 섹션을 숨기지 않고 실패 + 다시 시도를 보인다. */
+    failed: Boolean = false,
+    onRetry: () -> Unit = {},
+) {
     val accent = LocalAccent.current
-    if (news.isEmpty()) return
+    if (news.isEmpty()) {
+        // 불러오기 실패는 '소식 없음'과 다르다 — 섹션째 사라지면 사용자는 공지가 없는 줄 안다.
+        if (failed) {
+            Text("공지·뉴스", fontSize = 16.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 10.dp))
+            GlassCard(modifier = Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(16.dp)) {
+                    Text("소식을 불러오지 못했어요", fontSize = 12.sp, color = TextSecondary)
+                    Spacer(Modifier.height(6.dp))
+                    GlgButton("다시 시도", onClick = onRetry, height = 34.dp, modifier = Modifier.width(96.dp))
+                }
+            }
+        }
+        return
+    }
     // 그냥 take 하면 공지를 많이 올리는 게임(엔드필드)이 5칸을 다 먹는다 — 게임을 돌아가며 뽑는다.
     val items = remember(news, max) { NewsLogic.previewTop(news, max) }
     // 더보기는 **타이틀 줄 우측**. 카드 맨 아래에 두면 목록 다섯 줄을 다 지나야 보이는데,

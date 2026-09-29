@@ -35,6 +35,16 @@ struct CombatClearSection: View {
                         .tint(accent.primary)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 48)
+                } else if store.combatClearsFailed {
+                    // 조회 실패는 '기록 없음'과 다르다 — 사유를 밝히고 재시도를 준다.
+                    VStack(spacing: 6) {
+                        Text("불러오지 못했어요").font(.pretendard(size: 13)).foregroundStyle(GLGColor.textSecondary)
+                        Button { store.refreshCombatClears(force: true) } label: {
+                            Text("다시 시도").font(.pretendard(size: 12, weight: .bold)).foregroundStyle(accent.primary)
+                        }.buttonStyle(.plain)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(32)
                 } else {
                     emptyNote("아직 클리어 기록이 없어요")
                 }

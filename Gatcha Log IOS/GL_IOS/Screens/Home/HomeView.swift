@@ -262,14 +262,15 @@ struct HomeView: View {
     private var alerts: [HomeAlert] {
         HomeLogic.shared.buildAlerts(monthlyTotal: monthlyTotal, budget: store.budget, gameOverBudget: gameOverBudget,
                                      banners: store.activeBanners, attendanceToday: store.attendanceToday,
-                                     monthKey: "\(store.displayYear)-\(store.displayMonth)", nowMillis: nowMs())
+                                     monthKey: "\(store.displayYear)-\(store.displayMonth)", nowMillis: nowMs(),
+                                     attendanceGames: store.trackedAttendanceGames)
             .filter { !store.dismissedAlerts.contains($0.key) }
     }
     private var unreadCount: Int { alerts.filter { !store.readAlerts.contains($0.key) }.count }
     private var todayTasks: [TodayItem] {
         // 픽업은 '이번주 일정' 카드·게임 정보 페이지에서 확인 — 오늘 할 일에서는 제외(urgentBanner: nil)
         HomeLogic.shared.resolveTodayTasks(
-            pendingAttendance: HomeLogic.shared.pendingAttendanceCount(attendanceToday: store.attendanceToday),
+            pendingAttendance: HomeLogic.shared.pendingAttendanceCount(attendanceToday: store.attendanceToday, games: store.trackedAttendanceGames),
             resins: HomeLogic.shared.resinAlerts(liveNotes: store.liveNotes),
             urgentBanner: nil, budget: store.budget, monthlyTotal: monthlyTotal,
             combats: HomeLogic.shared.combatDeadlines(combats: store.combat, nowMillis: nowMs()),

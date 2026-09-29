@@ -188,7 +188,8 @@ fun SettingsScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
         } else if (page == 3) {
             HoyolabLinkScreen(
                 config = hoyolab,
-                onSave = { viewModel.updateHoyolabConfig(it); showHoyolab.value = false },
+                // 실패하면(안내는 VM 이 띄운다) 폼을 그대로 둔다.
+                onSave = { if (viewModel.updateHoyolabConfig(it)) showHoyolab.value = false },
                 onBack = { showHoyolab.value = false },
             )
         } else if (page == 2) {

@@ -47,7 +47,6 @@ import com.gatcha.log.data.GameVersionLine
 import com.gatcha.log.data.GameVersions
 import com.gatcha.log.data.HoyoCalendar
 import com.gatcha.log.data.Game
-import com.gatcha.log.data.GameData
 import com.gatcha.log.data.HoyolabConfig
 import com.gatcha.log.data.LiveNote
 import com.gatcha.log.data.NoteStat
@@ -86,6 +85,8 @@ internal fun DailyHeroSection(
     hoyolab: HoyolabConfig,
     checkingIn: String?,
     streak: Int,
+    /** 출석을 세는 게임([SpendingViewModel.trackedAttendanceGames]) — UID 없는 게임은 할 일·분모에서 뺀다. */
+    attendanceGames: List<Game>,
     /** 숙제 완주율 — 게임 줄 우측에 함께 보여준다(별도 섹션 폐기). */
     taskStats: List<TaskStats>,
     /** 지금 돌고 있는 게임 버전 — 타일 아래 한 줄. 비면 줄 자체를 안 그린다. */
@@ -110,14 +111,16 @@ internal fun DailyHeroSection(
         return
     }
 
-    val tasks = remember(notes, attendanceToday) { DailyLogic.tasks(notes, attendanceToday) }
+    val tasks = remember(notes, attendanceToday, attendanceGames) {
+        DailyLogic.tasks(notes, attendanceToday, games = attendanceGames)
+    }
     val headline = remember(tasks) { DailyLogic.headline(tasks) }
     // 행동력은 위 카드가 전담한다 — 목록에는 일일·주간·출석만, 그것도 게임당 한 줄로 묶는다.
     val grouped = remember(tasks, taskStats) { DailyLogic.byGame(tasks, taskStats) }
     // 행동력 카드는 3게임을 나란히 놓고 비교하는 게 쓸모다 — 게임을 골라 좁히지 않는다.
     val summaries = remember(notes, attendanceToday, tasks) { DailyLogic.summaries(notes, attendanceToday, tasks) }
-    val attendance = remember(attendanceHistory, attendanceToday, streak) {
-        AttendanceLogic.summary(attendanceHistory, attendanceToday, streak)
+    val attendance = remember(attendanceHistory, attendanceToday, streak, attendanceGames) {
+        AttendanceLogic.summary(attendanceHistory, attendanceToday, streak, games = attendanceGames)
     }
 
     Column {
@@ -140,7 +143,7 @@ internal fun DailyHeroSection(
                         )
                         grouped.forEachIndexed { i, g ->
                             if (i > 0) HorizontalDivider(color = DividerColor)
-                            GameTaskRow(g, inProgress = checkingIn == g.gameKey) { onCheckIn(g.gameKey) }
+                            GameTaskRow(g, inProgress = checkingIn == g.gameKey, enabled = checkingIn == null) { onCheckIn(g.gameKey) }
                         }
                     }
                     // 출석 · 전투 진행도 · 클리어 편성 — 들어가서 보는 기록이라 **퀵버튼**으로 둔다.
@@ -368,7 +371,9 @@ private fun ResinCell(s: DailyGameSummary, modifier: Modifier = Modifier) {
  * 묶으면 세 줄로 끝나고, 어느 게임에 뭐가 남았는지가 한눈에 들어온다.
  */
 @Composable
-private fun GameTaskRow(g: DailyGameTasks, inProgress: Boolean, onCheckIn: () -> Unit) {
+// enabled — 다른 게임이 출석 중이어도 막는다. 스피너는 그 게임 줄에만 뜨므로 나머지 버튼이 눌려
+// 보이는데, 눌러도 VM 이 무시해 아무 반응이 없었다.
+private fun GameTaskRow(g: DailyGameTasks, inProgress: Boolean, enabled: Boolean, onCheckIn: () -> Unit) {
     val accent = LocalAccent.current
     Row(
         Modifier.fillMaxWidth().padding(vertical = 13.dp),
@@ -394,7 +399,7 @@ private fun GameTaskRow(g: DailyGameTasks, inProgress: Boolean, onCheckIn: () ->
             } else {
                 Box(
                     Modifier.clip(RoundedCornerShape(9.dp)).background(accent.copy(alpha = 0.14f))
-                        .clickable { onCheckIn() }.padding(horizontal = 14.dp, vertical = 7.dp),
+                        .clickable(enabled = enabled) { onCheckIn() }.padding(horizontal = 14.dp, vertical = 7.dp),
                 ) { Text("출석", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = accent) }
             }
         }
@@ -618,7 +623,7 @@ internal fun AttendanceDetailContent(
         Column(Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
             summary.games.forEachIndexed { i, g ->
                 if (i > 0) HorizontalDivider(color = DividerColor)
-                AttendanceGameRow(g, summary.monthElapsedDays, inProgress = checkingIn == g.gameKey) {
+                AttendanceGameRow(g, summary.monthElapsedDays, inProgress = checkingIn == g.gameKey, enabled = checkingIn == null) {
                     onCheckIn(g.gameKey)
                 }
             }
@@ -629,9 +634,9 @@ internal fun AttendanceDetailContent(
         Column(Modifier.padding(16.dp)) {
             Text("최근 7일", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextSecondary)
             Spacer(Modifier.height(12.dp))
-            WeekAttendanceStrip(history)
+            WeekAttendanceStrip(history, summary.todayTotal)
             Spacer(Modifier.height(16.dp))
-            MonthAttendanceCalendar(history)
+            MonthAttendanceCalendar(history, summary.todayTotal)
         }
     }
 }
@@ -695,7 +700,8 @@ private fun AttendanceStat(label: String, value: String, modifier: Modifier = Mo
 
 /** 게임 한 줄 — 오늘 상태 + 이번 달 누계, 안 했으면 그 자리에서 출석. */
 @Composable
-private fun AttendanceGameRow(g: AttendanceGameStat, elapsed: Int, inProgress: Boolean, onCheckIn: () -> Unit) {
+// enabled — [GameTaskRow] 와 같은 이유로 어느 게임이든 출석 중이면 막는다.
+private fun AttendanceGameRow(g: AttendanceGameStat, elapsed: Int, inProgress: Boolean, enabled: Boolean, onCheckIn: () -> Unit) {
     val accent = LocalAccent.current
     Row(
         Modifier.fillMaxWidth().padding(vertical = 13.dp),
@@ -721,7 +727,7 @@ private fun AttendanceGameRow(g: AttendanceGameStat, elapsed: Int, inProgress: B
             }
             else -> Box(
                 Modifier.clip(RoundedCornerShape(9.dp)).background(accent.copy(alpha = 0.14f))
-                    .clickable { onCheckIn() }.padding(horizontal = 14.dp, vertical = 7.dp),
+                    .clickable(enabled = enabled) { onCheckIn() }.padding(horizontal = 14.dp, vertical = 7.dp),
             ) { Text("출석", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = accent) }
         }
     }
@@ -733,9 +739,10 @@ private fun AttendanceGameRow(g: AttendanceGameStat, elapsed: Int, inProgress: B
 /** 출석 완료도: 모든 게임 출석=full, 일부=partial, 없음=none */
 private enum class AttendLevel { NONE, PARTIAL, FULL }
 
-private fun attendLevel(count: Int): AttendLevel = when {
+// total 은 출석을 세는 게임 수 — 안 하는 게임까지 분모에 넣으면 다 한 날도 '일부'로 칠해진다.
+private fun attendLevel(count: Int, total: Int): AttendLevel = when {
     count <= 0 -> AttendLevel.NONE
-    count >= GameData.attendanceGames.size -> AttendLevel.FULL
+    count >= total -> AttendLevel.FULL
     else -> AttendLevel.PARTIAL
 }
 
@@ -744,7 +751,7 @@ private fun dowKo(cal: java.util.Calendar): String =
 
 /** 최근 7일 출석 스트립 (오늘 = 맨 오른쪽). */
 @Composable
-private fun WeekAttendanceStrip(history: Map<String, Set<String>>) {
+private fun WeekAttendanceStrip(history: Map<String, Set<String>>, total: Int) {
     val accent = LocalAccent.current
     val days = remember(history) {
         (6 downTo 0).map { offset ->
@@ -755,7 +762,7 @@ private fun WeekAttendanceStrip(history: Map<String, Set<String>>) {
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
         days.forEachIndexed { i, (dayNum, dow, count) ->
             val isToday = i == 6
-            val level = attendLevel(count)
+            val level = attendLevel(count, total)
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(dow, fontSize = 10.sp, color = if (isToday) accent else TextSecondary, fontWeight = if (isToday) FontWeight.Bold else FontWeight.Normal)
                 Spacer(Modifier.height(5.dp))
@@ -810,7 +817,7 @@ private fun WeekAttendanceStrip(history: Map<String, Set<String>>) {
 
 /** 월간 출석 달력 (인라인). 일자별 출석 완료도 표시 + 이전/이번 달 이동. */
 @Composable
-private fun MonthAttendanceCalendar(history: Map<String, Set<String>>) {
+private fun MonthAttendanceCalendar(history: Map<String, Set<String>>, total: Int) {
     val accent = LocalAccent.current
     var monthOffset by remember { mutableIntStateOf(0) } // 0 = 이번 달
     val base = remember(monthOffset) {
@@ -853,7 +860,7 @@ private fun MonthAttendanceCalendar(history: Map<String, Set<String>>) {
                         Box(Modifier.weight(1f).padding(2.dp), contentAlignment = Alignment.Center) {
                             if (day != null) {
                                 val key = "%04d-%02d-%02d".format(year, month + 1, day)
-                                val level = attendLevel(history[key]?.size ?: 0)
+                                val level = attendLevel(history[key]?.size ?: 0, total)
                                 val isToday = key == todayKey
                                 Box(
                                     Modifier

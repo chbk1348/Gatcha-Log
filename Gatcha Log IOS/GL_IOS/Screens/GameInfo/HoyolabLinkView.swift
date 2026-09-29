@@ -111,15 +111,16 @@ struct HoyolabLinkView: View {
 
     private func save() {
         let config = HoyolabConfig(
-            ltuid: ltuid.trimmingCharacters(in: .whitespaces),
-            ltoken: ltoken.trimmingCharacters(in: .whitespaces),
-            genshinUid: gi.trimmingCharacters(in: .whitespaces),
-            hsrUid: hsr.trimmingCharacters(in: .whitespaces),
-            zzzUid: zzz.trimmingCharacters(in: .whitespaces),
-            cookieToken: cookieToken.trimmingCharacters(in: .whitespaces),
+            ltuid: ltuid.trimmingCharacters(in: .whitespacesAndNewlines),
+            ltoken: ltoken.trimmingCharacters(in: .whitespacesAndNewlines),
+            genshinUid: gi.trimmingCharacters(in: .whitespacesAndNewlines),
+            hsrUid: hsr.trimmingCharacters(in: .whitespacesAndNewlines),
+            zzzUid: zzz.trimmingCharacters(in: .whitespacesAndNewlines),
+            cookieToken: cookieToken.trimmingCharacters(in: .whitespacesAndNewlines),
             webCookie: webCookie
         )
-        store.updateHoyolabConfig(config)
+        // 검증·저장에 실패하면 폼을 그대로 둔다 — 안내 토스트는 VM 이 띄운다.
+        guard store.updateHoyolabConfig(config) else { return }
         store.refreshGameInfo(force: true)
         onClose()
     }

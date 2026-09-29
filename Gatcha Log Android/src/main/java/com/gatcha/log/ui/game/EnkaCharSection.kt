@@ -260,6 +260,7 @@ fun EnkaCharSection(
                         accent = accent,
                         onOpenStats = onOpenStats,
                         onOpenAll = onOpenAll,
+                        onRetry = { viewModel.autoLoadEnkaSection(listOf(g), force = true) },
                     )
                 }
             }
@@ -280,6 +281,7 @@ private fun GameRosterBlock(
     accent: Color,
     onOpenStats: (EnkaChar, String) -> Unit,
     onOpenAll: (String) -> Unit,
+    onRetry: () -> Unit,
 ) {
     val chars = result?.profile?.chars.orEmpty()
     Column(Modifier.fillMaxWidth().padding(16.dp)) {
@@ -298,9 +300,14 @@ private fun GameRosterBlock(
         when {
             // 로드 전(result null)·로딩 중엔 스켈레톤, 로드 완료 후에만 빈/에러 표시
             chars.isEmpty() && (result == null || loading) -> RosterSkeleton()
-            chars.isEmpty() -> Hint(
-                result?.error ?: "표시할 캐릭터가 없어요 (인게임 쇼케이스 공개 확인)",
-            )
+            // 조회 실패 — 사유와 함께 재시도를 준다. 글만 두면 '캐릭터 없음'처럼 읽혔다.
+            chars.isEmpty() && result?.error != null -> Column {
+                Hint(result.error.orEmpty())
+                GlgButton("다시 시도", onClick = onRetry, height = 34.dp, modifier = Modifier.width(96.dp))
+            }
+            // 프로필도 에러도 없으면 조회할 UID 가 없던 것(VM 이 빈 결과로 채운다) — '캐릭터 없음'이 아니다.
+            chars.isEmpty() && result?.profile == null -> Hint("게임 UID 가 없어요 — HoYoLAB 연동 또는 UID 입력")
+            chars.isEmpty() -> Hint("표시할 캐릭터가 없어요 (인게임 쇼케이스 공개 확인)")
             else -> RosterRow(chars, game, accent, onOpenStats, onOpenAll)
         }
     }

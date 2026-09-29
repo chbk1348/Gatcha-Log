@@ -75,7 +75,8 @@ struct NewsSection: View {
 
     var body: some View {
         let all = store.gameNews
-        if !all.isEmpty {
+        // 비어도 섹션은 남긴다 — 통째로 사라지면 불러오기 실패를 '소식 없음'으로 오해한다.
+        Group {
             // 그냥 prefix 하면 공지를 많이 올리는 게임(엔드필드)이 목록을 다 먹는다 —
             // 게임을 번갈아 뽑는 로직은 commonMain 단일 소스(Android 와 같은 함수).
             let items = NewsLogic.shared.previewTop(news: all, max: Int32(maxCount))
@@ -101,10 +102,35 @@ struct NewsSection: View {
                     }
                 }
                 GLGCard(cornerRadius: 24, padding: 0) {
-                    VStack(spacing: 0) {
-                        ForEach(Array(items.enumerated()), id: \.offset) { i, n in
-                            if i > 0 { Divider() }
-                            newsRow(n, onOpen: onOpenNews)
+                    VStack(alignment: .leading, spacing: 0) {
+                        if !all.isEmpty {
+                            ForEach(Array(items.enumerated()), id: \.offset) { i, n in
+                                if i > 0 { Divider() }
+                                newsRow(n, onOpen: onOpenNews)
+                            }
+                        } else if !store.newsReady || store.isRefreshing {
+                            // 첫 로딩·재시도 중 — 제목·메타 두 줄짜리 행 모양 스켈레톤.
+                            VStack(alignment: .leading, spacing: 14) {
+                                ForEach(0..<3, id: \.self) { _ in
+                                    VStack(alignment: .leading, spacing: 7) {
+                                        GLGSkeleton().frame(height: 14)
+                                        GLGSkeleton().frame(width: 120, height: 11)
+                                    }
+                                }
+                            }
+                            .padding(.vertical, 6)
+                        } else if store.newsFailed {
+                            // 수집 실패는 '소식 없음'과 다르다 — 사유를 밝히고 재시도를 준다. (Android 파리티)
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text("소식을 불러오지 못했어요").font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary)
+                                Button { store.refreshGameInfo(force: true) } label: {
+                                    Text("다시 시도").font(.pretendard(size: 12, weight: .bold)).foregroundStyle(accent.primary)
+                                }.buttonStyle(.plain)
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        } else {
+                            Text("새 소식이 없어요").font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary)
+                                .frame(maxWidth: .infinity, alignment: .leading)
                         }
                     }
                     .padding(.horizontal, 16).padding(.vertical, 16)
