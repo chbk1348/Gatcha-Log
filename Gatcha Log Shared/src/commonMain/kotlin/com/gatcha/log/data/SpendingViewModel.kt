@@ -1165,7 +1165,7 @@ class SpendingViewModel : ViewModel() {
         combatClearsJob = viewModelScope.launch {
             _combatClearsLoading.value = true
             try {
-                val uids = mapOf("genshin" to cfg.genshinUid, "hsr" to cfg.hsrUid).filterValues { it.isNotBlank() }
+                val uids = mapOf("genshin" to cfg.genshinUid, "hsr" to cfg.hsrUid, "zzz" to cfg.zzzUid).filterValues { it.isNotBlank() }
                 // 게임별로 받는다 — null 은 실패. 예전엔 실패를 빈 목록으로 뭉개서 '기록 없음'으로 보였고,
                 // 한 게임만 실패해도 다른 게임 결과만으로 통째로 갈아끼워 그 게임 편성이 사라졌다.
                 val perGame = coroutineScope {
@@ -1520,6 +1520,14 @@ class SpendingViewModel : ViewModel() {
                 val whenText = if (a.repeatsDaily) "매일" else DateUtil.shortDateTime(a.whenMillis)
                 "$whenText · ${a.title}"
             }
+    }
+
+    /** 젠레스 전투 콘텐츠 API 확인(개발자 화면) — 결과는 [onResult] 로 돌려준다(메인에서 호출). */
+    fun debugProbeZzzCombat(onResult: (List<String>) -> Unit) {
+        val cfg = _hoyolabConfig.value
+        viewModelScope.launch {
+            onResult(withContext(Dispatchers.IO) { HoyolabApi.debugProbeZzzCombat(cfg.ltuid, cfg.ltoken, cfg.zzzUid) })
+        }
     }
 
     /** 로딩 게이트 상태 — "왜 스켈레톤이 안 걷히나"를 볼 때. */

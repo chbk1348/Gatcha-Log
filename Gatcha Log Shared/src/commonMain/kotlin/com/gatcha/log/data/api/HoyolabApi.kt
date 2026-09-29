@@ -628,6 +628,196 @@ object HoyolabApi {
         else -> null
     }
 
+    /**
+     * **개발자 화면 전용** — 젠레스 전투 콘텐츠(시유 방어전 · 위험 구역) 엔드포인트가 실제로 무엇을 주는지 본다.
+     *
+     * 경로 · 필드는 공개 라이브러리 기준 추정이라 붙이기 전에 실제 응답 구조를 확인한다. 후보마다 retcode 와
+     * 키 구조(두 단계까지)를 돌려주고, 원문 앞부분을 로그("GatchaHoyo zzzProbe")에 남긴다. 토큰은 싣지 않는다.
+     */
+    suspend fun debugProbeZzzCombat(ltuid: String, ltoken: String, uid: String): List<String> {
+        if (ltuid.isBlank() || ltoken.isBlank() || uid.isBlank()) return listOf("HoYoLAB 연동 · 젠레스 UID 가 필요해요")
+        val server = inferServer("zzz", uid)
+        val base = "https://sg-public-api.hoyolab.com/event/game_record_zzz/api/zzz/"
+        // 1차 확인(9/29): 옛 `challenge` 는 404, `hadal_info_v2` · `mem_detail` 이 현행. 이번엔 속 구조를 본다.
+        val candidates = listOf(
+            Triple("시유 방어전 v2 (이번)", "hadal_info_v2", "role_id=$uid&server=$server&schedule_type=1"),
+            Triple("시유 방어전 v2 (지난)", "hadal_info_v2", "role_id=$uid&server=$server&schedule_type=2"),
+            Triple("위험 구역 (이번)", "mem_detail", "uid=$uid&region=$server&schedule_type=1"),
+            Triple("위험 구역 (지난)", "mem_detail", "uid=$uid&region=$server&schedule_type=2"),
+        )
+        val out = mutableListOf("UID $uid · 서버 $server")
+        for ((label, path, query) in candidates) {
+            val res = Net.get("$base$path?$query", zzzHeaders(ltuid, ltoken, query, path))
+            println("GatchaHoyo zzzProbe [$path?${query.substringAfter("server=").substringBefore('&')}] HTTP ${res.code} ${res.body.take(3000)}")
+            val json = runCatching { JSONObject(res.body) }.getOrNull()
+            if (json == null) { out += "$label — HTTP ${res.code} · JSON 아님"; continue }
+            val data = json.optJSONObject("data")
+            out += "$label — HTTP ${res.code} · retcode ${json.optInt("retcode", -999)} ${json.optString("message")}"
+            if (data != null) out += "  data: ${describeKeys(data, maxDepth = 4)}"
+        }
+        return out
+    }
+
+    // ----------------------------------------------------------------- 젠레스 전투(시유 방어전 · 위험 구역)
+    //
+    // 2026-09-29 실측(개발자 메뉴 「젠레스 전투 API 확인」): 옛 `zzz/challenge` 는 404, 시유 방어전은
+    // `hadal_info_v2`, 위험 구역은 `mem_detail` 이 현행이다. 시유 방어전은 별이 아니라 **평가(S+) · 점수**라
+    // CombatMode.badge / CombatClear.scoreLabel / CombatRoom.rating 으로 싣는다.
+
+    /** 젠레스 game_record 조회 한 건 — 성공(retcode 0)이면 data, 아니면 null. */
+    private suspend fun zzzRecord(ltuid: String, ltoken: String, path: String, query: String): JSONObject? {
+        val res = Net.get("https://sg-public-api.hoyolab.com/event/game_record_zzz/api/zzz/$path?$query", zzzHeaders(ltuid, ltoken, query, path))
+        return res.parse(reportAuth = false, onNetwork = { null }, onParse = { null }) { rc, _, json ->
+            if (rc == 0) json.optJSONObject("data") else null
+        }
+    }
+
+    /** 전투 진행도 카드용 — 시유 방어전 · 위험 구역 이번 기간 요약. */
+    private suspend fun zzzCombat(ltuid: String, ltoken: String, uid: String): List<CombatMode> {
+        val server = inferServer("zzz", uid)
+        val game = Game.ZZZ.displayName
+        return buildList {
+            zzzRecord(ltuid, ltoken, "hadal_info_v2", "role_id=$uid&server=$server&schedule_type=1")
+                ?.optJSONObject("hadal_info_v2")?.let { h ->
+                    val b = h.optJSONObject("brief")
+                    val layers = b?.optInt("cur_period_zone_layer_count") ?: 0
+                    val score = b?.optInt("score") ?: 0
+                    val rank = b?.optInt("rank_percent") ?: 0
+                    val detail = listOfNotNull(
+                        when { h.optBoolean("pass_fifth_floor") -> "5층 통과"; layers > 0 -> "${layers}층 통과"; else -> null },
+                        score.takeIf { it > 0 }?.let { "${thousands(it)}점" },
+                        rank.takeIf { it > 0 }?.let { "상위 ${percentLabel(it)}" },
+                    ).joinToString(" · ").ifBlank { "이번 기간 미도전" }
+                    add(CombatMode(
+                        game, "시유 방어전", stars = score, maxStars = b?.optInt("max_score") ?: 0,
+                        detail = detail, endMillis = h.optLong("end_time") * 1000, hasData = layers > 0,
+                        badge = b?.optString("rating").orEmpty(),
+                    ))
+                }
+            zzzRecord(ltuid, ltoken, "mem_detail", "uid=$uid&region=$server&schedule_type=1")?.let { d ->
+                val has = d.optBoolean("has_data")
+                add(CombatMode(
+                    game, "위험 구역", stars = d.optInt("total_star"), maxStars = DEADLY_ASSAULT_MAX_STARS,
+                    detail = if (has) "총점 ${thousands(d.optInt("total_score"))}" else "이번 기간 미도전",
+                    endMillis = d.optJSONObject("end_time")?.let { hsrTimeMillis(it) } ?: 0L,
+                    hasData = has,
+                ))
+            }
+        }
+    }
+
+    /** 클리어 편성용 — 시유 방어전 이번 · 지난 기간. 둘 다 못 받으면 null(실패). */
+    private suspend fun zzzClears(ltuid: String, ltoken: String, uid: String): List<CombatClear>? {
+        val server = inferServer("zzz", uid)
+        var anyOk = false
+        val out = mutableListOf<CombatClear>()
+        for ((type, current) in listOf(1 to true, 2 to false)) {
+            val d = zzzRecord(ltuid, ltoken, "hadal_info_v2", "role_id=$uid&server=$server&schedule_type=$type") ?: continue
+            anyOk = true
+            d.optJSONObject("hadal_info_v2")?.let { hadalClear(it, current) }?.takeIf { it.rooms.isNotEmpty() }?.let { out += it }
+        }
+        return out.takeIf { anyOk }
+    }
+
+    /**
+     * 시유 방어전 한 기간 → 클리어 편성. 상세는 4층 · 5층만 온다(1~3층은 통과 층 수뿐).
+     * 5층은 **방 3개**(방마다 평가 · 점수, 편성 하나), 4층은 **전반 · 후반** 편성 둘에 평가 하나다.
+     * `fitfh_layer_detail` 은 API 쪽 오타를 그대로 쓴다.
+     */
+    private fun hadalClear(h: JSONObject, current: Boolean): CombatClear {
+        val rooms = mutableListOf<CombatRoom>()
+        h.optJSONObject("fitfh_layer_detail")?.optJSONArray("layer_challenge_info_list")?.let { list ->
+            for (i in 0 until list.length()) {
+                val o = list.optJSONObject(i) ?: continue
+                val score = o.optInt("score")
+                rooms += CombatRoom(
+                    name = "5층 ${i + 1}",
+                    rating = o.optString("rating"),
+                    detail = if (score > 0) "${thousands(score)} / ${thousands(o.optInt("max_score"))}점" else "",
+                    firstHalf = zzzTeam(o.optJSONArray("avatar_list"), o.optJSONObject("buddy")),
+                )
+            }
+        }
+        h.optJSONObject("fourth_layer_detail")?.let { f ->
+            val list = f.optJSONArray("layer_challenge_info_list")
+            val first = list?.optJSONObject(0)
+            val second = list?.optJSONObject(1)
+            rooms += CombatRoom(
+                name = "4층",
+                rating = f.optString("rating"),
+                firstHalf = zzzTeam(first?.optJSONArray("avatar_list"), first?.optJSONObject("buddy")),
+                secondHalf = zzzTeam(second?.optJSONArray("avatar_list"), second?.optJSONObject("buddy")),
+            )
+        }
+        val b = h.optJSONObject("brief")
+        val score = b?.optInt("score") ?: 0
+        val scoreLabel = if (score > 0) {
+            listOfNotNull(b?.optString("rating")?.ifBlank { null }, "${thousands(score)} / ${thousands(b?.optInt("max_score") ?: 0)}")
+                .joinToString(" · ")
+        } else ""
+        return CombatClear(
+            Game.ZZZ.displayName, "시유 방어전", season = periodLabel(h), current = current,
+            rooms = rooms.filterNot { it.isEmpty }, scoreLabel = scoreLabel,
+        )
+    }
+
+    /** 에이전트 3명 + 뱅부(있으면 끝에). 등급은 "S"/"A" 문자열로 온다. */
+    private fun zzzTeam(avatars: JSONArray?, buddy: JSONObject?): List<CombatAvatar> = buildList {
+        for (i in 0 until (avatars?.length() ?: 0)) {
+            val a = avatars?.optJSONObject(i) ?: continue
+            val id = a.optInt("id")
+            if (id == 0) continue
+            add(CombatAvatar(id, iconUrl = a.optString("role_square_url"), level = a.optInt("level"), rarity = zzzRarity(a.optString("rarity"))))
+        }
+        buddy?.let { b ->
+            val id = b.optInt("id")
+            if (id != 0) add(CombatAvatar(id, iconUrl = b.optString("bangboo_rectangle_url"), level = b.optInt("level"), rarity = zzzRarity(b.optString("rarity")), isBuddy = true))
+        }
+    }
+
+    private fun zzzRarity(r: String): Int = when (r) { "S" -> 5; "A" -> 4; "B" -> 3; else -> 0 }
+
+    /** "9/18~10/2" — 기간 시작 · 끝(서버가 준 연월일 그대로). */
+    private fun periodLabel(h: JSONObject): String {
+        val b = h.optJSONObject("hadal_begin_time") ?: return ""
+        val e = h.optJSONObject("hadal_end_time") ?: return ""
+        return "${b.optInt("month")}/${b.optInt("day")}~${e.optInt("month")}/${e.optInt("day")}"
+    }
+
+    private fun thousands(n: Int): String = n.toString().reversed().chunked(3).joinToString(",").reversed()
+
+    /**
+     * 상위 % — API 는 만분율 정수로 준다(1559 → 15.59%). 실측 한 건으로 잡은 단위라 추정이다.
+     * ponytail: 단위가 틀렸으면 이 한 곳만 고치면 된다.
+     */
+    private fun percentLabel(v: Int): String = "${v / 100}.${(v % 100).toString().padStart(2, '0')}%"
+
+    /** 위험 구역 만점 — 보스 3마리 × 3별. */
+    private const val DEADLY_ASSAULT_MAX_STARS = 9
+
+    /**
+     * 객체의 키 구조를 [maxDepth] 단계까지 — 하위 객체는 {…}, 객체 배열은 첫 원소의 키를 [n개 …] 로.
+     * 짧은 문자열 · 숫자 값은 `키=값` 으로 붙인다(평가 등급 · 층 번호 같은 값의 모양을 보려고).
+     */
+    private fun describeKeys(o: JSONObject, depth: Int = 0, maxDepth: Int = 1): String {
+        val parts = mutableListOf<String>()
+        val it = o.keys()
+        while (it.hasNext()) {
+            val k = it.next()
+            val child = o.optJSONObject(k)
+            val arr = o.optJSONArray(k)
+            parts += when {
+                child != null && depth < maxDepth -> "$k{${describeKeys(child, depth + 1, maxDepth)}}"
+                arr != null -> {
+                    val first = if (arr.length() > 0) arr.optJSONObject(0) else null
+                    if (first != null && depth < maxDepth) "$k[${arr.length()}개 ${describeKeys(first, depth + 1, maxDepth)}]" else "$k[${arr.length()}]"
+                }
+                else -> o.optString(k).let { v -> if (v.length in 1..12 && !v.startsWith("http")) "$k=$v" else k }
+            }
+        }
+        return parts.joinToString(", ")
+    }
+
     suspend fun fetchZzzAvatars(ltuid: String, ltoken: String, uid: String): List<JSONObject>? {
         zzzLastError = null
         if (ltuid.isBlank() || ltoken.isBlank() || uid.isBlank()) {
@@ -884,6 +1074,7 @@ object HoyolabApi {
      */
     suspend fun getCombat(ltuid: String, ltoken: String, gameKey: String, uid: String): List<CombatMode> {
         if (ltuid.isBlank() || ltoken.isBlank() || uid.isBlank()) return emptyList()
+        if (gameKey == "zzz") return zzzCombat(ltuid, ltoken, uid)
         val server = inferServer(gameKey, uid)
         val cookie = "ltuid_v2=$ltuid; ltoken_v2=$ltoken; ltuid=$ltuid; ltoken=$ltoken;"
         suspend fun fetch(base: String, query: String): JSONObject? {
@@ -944,6 +1135,7 @@ object HoyolabApi {
     /** null = 요청이 하나도 성공하지 못함(네트워크·인증). 빈 목록은 '정말 기록이 없다'. */
     suspend fun getCombatClears(ltuid: String, ltoken: String, gameKey: String, uid: String): List<CombatClear>? {
         if (ltuid.isBlank() || ltoken.isBlank() || uid.isBlank()) return emptyList()
+        if (gameKey == "zzz") return zzzClears(ltuid, ltoken, uid)
         var anyOk = false
         val server = inferServer(gameKey, uid)
         val cookie = "ltuid_v2=$ltuid; ltoken_v2=$ltoken; ltuid=$ltuid; ltoken=$ltoken;"
