@@ -265,9 +265,11 @@ struct DailyHeroSection: View {
                 }
             }
             .frame(height: 4).padding(.top, 7)
-            Text(s.hasNote ? (s.resinFull ? "가득" : (s.resinRecovery.isEmpty ? "—" : s.resinRecovery)) : "노트 없음")
+            // 노트가 없으면 VM 이 남긴 실패 이유(있을 때만)를 "노트 없음" 대신 두 줄까지 보여준다.
+            let noteError = s.hasNote ? nil : store.noteErrors[s.gameKey]
+            Text(s.hasNote ? (s.resinFull ? "가득" : (s.resinRecovery.isEmpty ? "—" : s.resinRecovery)) : (noteError ?? "노트 없음"))
                 .font(.pretendard(size: 10.5)).foregroundStyle(GLGColor.textSecondary)
-                .lineLimit(1).padding(.top, 6)
+                .lineLimit(noteError == nil ? 1 : 2).padding(.top, 6)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }

@@ -101,11 +101,15 @@ struct HoyolabLinkView: View {
     }
 
     private func fetchUids(_ u: String, _ t: String, hasCookie: Bool) async {
-        let uids = (try? await HoyolabApi.shared.fetchGameUids(ltuid: u, ltoken: t)) ?? [:]
+        let ck = hasCookie ? " · cookie_token 포함" : " · cookie_token 없음(교환은 수동)"
+        // nil = 네트워크 실패 — 계정에 UID 가 없는 것과 구분해 안내한다.
+        guard let uids = try? await HoyolabApi.shared.fetchGameUids(ltuid: u, ltoken: t) else {
+            collectedMsg = "토큰 가져옴 (네트워크 오류로 UID 조회 못 함 — 수동 입력)\(ck)"
+            return
+        }
         if let g = uids["genshin"] { gi = g }
         if let h = uids["hsr"] { hsr = h }
         if let z = uids["zzz"] { zzz = z }
-        let ck = hasCookie ? " · cookie_token 포함" : " · cookie_token 없음(교환은 수동)"
         collectedMsg = uids.isEmpty ? "토큰 가져옴 (UID 자동조회 실패 — 수동 입력)\(ck)" : "토큰 + UID \(uids.count)개 자동 입력 완료\(ck)"
     }
 

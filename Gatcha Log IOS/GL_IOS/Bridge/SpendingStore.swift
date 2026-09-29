@@ -150,6 +150,8 @@ final class SpendingStore {
     private(set) var gachaDashboard: GachaDashboard? = nil
     private(set) var redeemState: RedeemState = RedeemStateIdle.shared
     private(set) var activeCodes: [GiftCode] = []
+    /// 게임키 → 실시간 노트가 실패한 이유(사용자가 손쓸 수 있는 것만). 노트 없는 칸에 대신 보여준다.
+    private(set) var noteErrors: [String: String] = [:]
     private(set) var codesLoading: Bool = false
     /// 코드 수집 실패 — '활성 코드 없음'과 구분(재시도 UI 표시용).
     private(set) var codesFailed: Bool = false
@@ -362,6 +364,7 @@ final class SpendingStore {
         bind(vm.gachaDashboard) { [weak self] in self?.gachaDashboard = $0 }
         bind(vm.redeemState) { [weak self] in self?.redeemState = $0 }
         bind(vm.activeCodes) { [weak self] in self?.activeCodes = $0 }
+        bind(vm.noteErrors) { [weak self] in self?.noteErrors = $0 }
         bind(vm.codesLoading) { [weak self] in self?.codesLoading = $0.boolValue }
         bind(vm.codesFailed) { [weak self] in self?.codesFailed = $0.boolValue }
         bind(vm.redeemedCodes) { [weak self] in self?.redeemedCodes = $0 }
@@ -535,7 +538,8 @@ final class SpendingStore {
     // chunk ③
     func loadEnkaProfile(game: String, uid: String) { vm.loadEnkaProfile(game: game, uid: uid) }
     func autoLoadEnka(game: String, force: Bool = false) { vm.autoLoadEnka(game: game, force: force) }
-    func autoLoadEnkaSection(games: [String], force: Bool = false) { vm.autoLoadEnkaSection(games: games, force: force) }
+    // ttlMs 300_000 = VM 의 enkaTtlMs(5분) — Kotlin 기본값이 Swift 에 안 보여 명시한다.
+    func autoLoadEnkaSection(games: [String], force: Bool = false) { vm.autoLoadEnkaSection(games: games, force: force, ttlMs: 300_000) }
     func loadGameVersions() { vm.loadGameVersions(force: false) }
     func loadCharCamp(_ gameKey: String, _ charId: Int32) { vm.loadCharCamp(gameKey: gameKey, charId: charId) }
 
@@ -544,7 +548,8 @@ final class SpendingStore {
     }
     func clearEnkaResult() { vm.clearEnkaResult() }
     func importGachaFromContents(_ contents: [String]) { vm.importGachaFromContents(contents: contents) }
-    func loadActiveCodes(_ gameKey: String) { vm.loadActiveCodes(gameKey: gameKey) }
+    // force = true 면 게임별 10분 캐시를 건너뛴다(재시도·새로고침 버튼용).
+    func loadActiveCodes(_ gameKey: String, force: Bool = false) { vm.loadActiveCodes(gameKey: gameKey, force: force) }
     func redeemGiftCode(gameKey: String, code: String) { vm.redeemGiftCode(gameKey: gameKey, code: code) }
     func redeemAllCodes(_ gameKey: String) { vm.redeemAllCodes(gameKey: gameKey) }
     /// 가려 둔 코드를 전부 되살린다(잘못된 판정 복구).
