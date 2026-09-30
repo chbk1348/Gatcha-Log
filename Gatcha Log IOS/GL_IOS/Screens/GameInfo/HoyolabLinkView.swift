@@ -72,14 +72,14 @@ struct HoyolabLinkView: View {
                     }
                     Text("구글 로그인 시 게임 UID 는 계정에 함께 동기화돼 다른 기기에서도 그대로 사용돼요. 보안을 위해 ltuid·ltoken·cookie_token 등 토큰은 동기화하지 않으며, 새 기기에서는 다시 로그인해 가져와야 해요.")
                         .font(.pretendard(size: 11.5)).foregroundStyle(Color(hex: 0xFF7A8784)).padding(.horizontal, 4).padding(.top, 10)
+                    // 저장 — 주 액션은 화면 아래 ODS 버튼(예전엔 툴바). Android 와 같은 자리.
+                    OdsButton(title: "저장", size: .l) { save() }.padding(.top, 20)
                 }
                 .padding(.horizontal, 16).padding(.top, 16).padding(.bottom, 8)
             }
             .background(GLGBackground { Color.clear })
             .glgPageTitle("HoYoLAB 계정 연동")
             .navigationBarTitleDisplayMode(.inline)
-            // 저장 버튼을 헤더(우상단)로 이관
-            .toolbar { ToolbarItem(placement: .topBarTrailing) { Button("저장") { save() }.fontWeight(.bold) } }
         .onAppear {
             guard !didInit else { return }; didInit = true
             let c = store.hoyolabConfig
@@ -142,14 +142,8 @@ struct HoyolabLinkView: View {
     }
 
     private func field(_ label: String, _ text: Binding<String>) -> some View {
-        VStack(alignment: .leading, spacing: 5) {
-            Text(label).font(.pretendard(size: 11, weight: .semibold)).foregroundStyle(GLGColor.textSecondary)
-            TextField("", text: text)
-                .textFieldStyle(.plain)
-                .font(.pretendard(size: 15))
-                .autocapitalization(.none).disableAutocorrection(true)
-                .glgField()
-        }
+        OdsTextField(label: label, placeholder: "", text: text)
+            .autocapitalization(.none).disableAutocorrection(true)
     }
 }
 

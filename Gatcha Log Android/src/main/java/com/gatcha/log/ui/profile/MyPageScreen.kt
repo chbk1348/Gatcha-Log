@@ -1,5 +1,8 @@
 package com.gatcha.log.ui.profile
 
+import com.gatcha.log.ui.components.OdsButton
+import com.gatcha.log.ui.components.OdsSize
+import com.gatcha.log.ui.components.OdsVariant
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.animateFloatAsState
@@ -337,30 +340,12 @@ private fun ProfileHeader(
                 }
                 if (!isGuest) {
                     // 계정 단일화: 로그아웃을 마이페이지 헤더로 일원화 (설정의 중복 계정 카드 제거)
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(11.dp))
-                            .border(BorderStroke(1.dp, Color.Black.copy(alpha = 0.12f)), RoundedCornerShape(11.dp))
-                            .clickable { onLogout() }
-                            .padding(horizontal = 11.dp, vertical = 7.dp),
-                    ) {
-                        Text("로그아웃", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextSecondary)
-                    }
+                    OdsButton("로그아웃", onLogout, variant = OdsVariant.Neutral, size = OdsSize.XS)
                 }
             }
             if (isGuest) {
                 Spacer(Modifier.height(14.dp))
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(14.dp))
-                        .background(accent)
-                        .clickable { onLogin() }
-                        .padding(vertical = 12.dp),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text("Google로 로그인", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.White)
-                }
+                OdsButton("Google로 로그인", onLogin, Modifier.fillMaxWidth())
             }
         }
     }

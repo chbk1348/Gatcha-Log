@@ -24,10 +24,7 @@ struct BudgetSheet: View {
                 VStack(alignment: .leading, spacing: 22) {
                     // 전체 월 예산
                     budgetSection("전체 월 예산") {
-                        TextField("예산 (원)", text: $overall)
-                            .textFieldStyle(.plain)
-                            .keyboardType(.numberPad)
-                            .glgField()
+                        OdsTextField(placeholder: "0", text: $overall, suffix: "원", keyboard: .numberPad)
                             .onChange(of: overall) { _, newValue in overall = newValue.filter(\.isNumber) }
                     }
                     // 게임별 한도
@@ -47,11 +44,8 @@ struct BudgetSheet: View {
                                             .fontWeight(over ? .bold : .regular)
                                     }
                                     Spacer()
-                                    TextField("한도", text: bindGame(game.key))
-                                        .textFieldStyle(.plain)
-                                        .keyboardType(.numberPad)
-                                        .multilineTextAlignment(.trailing)
-                                        .glgField()
+                                    OdsTextField(placeholder: "한도", text: bindGame(game.key), size: .s, suffix: "원",
+                                                 alignment: .trailing, bold: true, keyboard: .numberPad)
                                         .frame(width: 120)
                                 }
                             }
@@ -64,9 +58,18 @@ struct BudgetSheet: View {
             .background(Color.white)
             .navigationTitle("예산 관리")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("취소") { dismiss() } }
-                ToolbarItem(placement: .confirmationAction) { Button("저장") { save() } }
+            // 취소 · 저장은 하단 ODS 버튼(9/30) — Android BudgetDialog(GlgDialog) 와 같은 1 : 1.4.
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                GeometryReader { g in
+                    HStack(spacing: 10) {
+                        OdsButton(title: "취소", variant: .secondary) { dismiss() }
+                            .frame(width: (g.size.width - 10) / 2.4)
+                        OdsButton(title: "저장") { save() }
+                    }
+                }
+                .frame(height: OdsSize.m.height)
+                .padding(.horizontal, 16).padding(.vertical, 12)
+                .background(Color.white)
             }
             .onAppear(perform: load)
         }
@@ -133,7 +136,10 @@ struct CreditsSheet: View {
             .background(GLGBackground { Color.clear })
             .navigationTitle("출처 · 저작권")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar { ToolbarItem(placement: .confirmationAction) { Button("확인") { dismiss() } } }
+            // 「확인」은 하단 ODS 버튼(9/30) — Android CreditsDialog 와 같은 자리.
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                OdsButton(title: "확인") { dismiss() }.padding(.horizontal, 20).padding(.vertical, 12)
+            }
         }
     }
 

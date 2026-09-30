@@ -41,7 +41,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.gatcha.log.R
 import com.gatcha.log.ui.components.BrandGaugeRing
 import com.gatcha.log.ui.components.BrandStar
-import com.gatcha.log.ui.components.GlgButton
 import com.gatcha.log.ui.components.GlgStatusToast
 import com.gatcha.log.ui.components.brandGroundBrush
 import com.gatcha.log.data.SpendingViewModel

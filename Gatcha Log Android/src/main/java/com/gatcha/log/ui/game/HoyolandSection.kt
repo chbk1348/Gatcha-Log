@@ -142,7 +142,6 @@ import com.gatcha.log.ui.components.GlgBadge
 import com.gatcha.log.ui.components.ChipIdleBorder
 import com.gatcha.log.ui.components.ChipIdleText
 import com.gatcha.log.ui.components.GlgGameTag
-import com.gatcha.log.ui.components.GlgOutlineButton
 import com.gatcha.log.ui.components.openExternalLink
 import com.gatcha.log.ui.theme.DividerColor
 import com.gatcha.log.ui.game.hoyoland.HoyolandEntrySheet
@@ -1564,7 +1563,7 @@ private fun HoyolandGoodsCard(
                 label = "goodsQuantity",
             ) { added ->
                 if (!added) {
-                    GoodsAddButton("담기") { onQuantity(item.name, 1) }
+                    com.gatcha.log.ui.components.OdsButton("담기", onClick = { onQuantity(item.name, 1) }, variant = com.gatcha.log.ui.components.OdsVariant.Secondary, size = com.gatcha.log.ui.components.OdsSize.XS)
                 } else {
                     Row(
                         Modifier.clip(RoundedCornerShape(9.dp)).border(1.dp, DividerColor, RoundedCornerShape(9.dp)),
@@ -1678,9 +1677,9 @@ private fun HoyolandGoodsImageSheet(
             }
             Spacer(Modifier.height(18.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                com.gatcha.log.ui.components.GlgOutlineButton("닫기", onClick = onDismiss, modifier = Modifier.weight(1f))
+                com.gatcha.log.ui.components.OdsButton("닫기", onClick = onDismiss, modifier = Modifier.weight(1f), variant = com.gatcha.log.ui.components.OdsVariant.Secondary)
                 if (quantity <= 0) {
-                    com.gatcha.log.ui.components.GlgButton(
+                    com.gatcha.log.ui.components.OdsButton(
                         "담기", onClick = { onQuantity(item.name, 1) }, modifier = Modifier.weight(1f),
                     )
                 } else {
@@ -1833,9 +1832,10 @@ private fun HoyolandGuideSheet(
                 HoyolandGuideContent(text)
                 Spacer(Modifier.height(12.dp))
             }
-            com.gatcha.log.ui.components.GlgOutlineButton(
+            com.gatcha.log.ui.components.OdsButton(
                 "닫기", onClick = onDismiss,
-                modifier = Modifier.fillMaxWidth().padding(start = 18.dp, end = 18.dp, top = 6.dp),
+                modifier = Modifier.padding(start = 18.dp, end = 18.dp, top = 6.dp).fillMaxWidth(),
+                variant = com.gatcha.log.ui.components.OdsVariant.Secondary,
             )
         }
     }
@@ -1865,7 +1865,7 @@ private fun HoyolandPhotoSheet(label: String, color: Color, title: String, price
                 Text(price, fontSize = 20.sp, fontWeight = FontWeight.Black, color = color)
             }
             Spacer(Modifier.height(18.dp))
-            com.gatcha.log.ui.components.GlgOutlineButton("닫기", onClick = onDismiss, modifier = Modifier.fillMaxWidth())
+            com.gatcha.log.ui.components.OdsButton("닫기", onClick = onDismiss, modifier = Modifier.fillMaxWidth(), variant = com.gatcha.log.ui.components.OdsVariant.Secondary)
         }
     }
 }
@@ -1914,23 +1914,6 @@ private fun HoyolandZoomableImage(url: String, desc: String) {
             modifier = Modifier.fillMaxSize().padding(20.dp)
                 .graphicsLayer { scaleX = zoom.floatValue; scaleY = zoom.floatValue },
         )
-    }
-}
-
-/** 담기 버튼 — 스테퍼와 같은 높이라 담기 전후로 줄 높이가 흔들리지 않는다. */
-@Composable
-private fun GoodsAddButton(label: String, onClick: () -> Unit) {
-    val accent = LocalAccent.current
-    Box(
-        Modifier
-            .height(26.dp)
-            .clip(RoundedCornerShape(9.dp))
-            .border(1.dp, accent, RoundedCornerShape(9.dp))
-            .clickable { onClick() }
-            .padding(horizontal = 12.dp),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(label, fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = accent)
     }
 }
 

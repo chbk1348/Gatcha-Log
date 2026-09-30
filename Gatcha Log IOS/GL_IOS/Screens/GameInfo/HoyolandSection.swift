@@ -824,39 +824,18 @@ struct HoyolandDetailView: View {
                 .frame(maxWidth: .infinity)
             }
         }
-        .frame(height: 48)
+        .frame(height: OdsSize.l.height)
     }
 
     /**
-     히어로 액션 버튼 — 주(강조 면 + 흰 글자) · 부(흰 면 + 강조색 글자)를 **한 규격**에서 낸다.
-
-     `GLGButton` · `GLGOutlineButton` 을 쓰지 않는 이유가 둘이다. 하나는 규격 — 높이 48 ·
-     글자 15 · 아이콘 16 · 간격 7 · 모서리 16 을 Android 와 한 자리에서 맞춰야 한다. 다른 하나는
-     면 — 이 줄은 강조 틴트 패널 **안**에 있어서, 틴트 위에 틴트(=`GLGOutlineButton`)를 놓으면
-     면이 사라져 버튼이 글자만 남는다.
+     히어로 액션 버튼 — ODS L. 주는 Primary, 부는 OnTint(흰 면 + 강조색 글자).
+     이 줄은 강조 틴트 패널 옆이라 틴트 위에 틴트(Secondary)를 놓으면 면이 사라져 OnTint 를 쓴다. Android 와 같은 규격.
      */
     @ViewBuilder private func heroActionButton(_ title: String, _ icon: String?,
                                                primary: Bool, enabled: Bool = true,
                                                _ action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            HStack(spacing: 7) {
-                if let icon {
-                    Image(systemName: icon).font(.system(size: 16, weight: .semibold))
-                }
-                Text(title).font(.pretendard(size: 15, weight: primary ? .bold : .semibold))
-                    .lineLimit(1).minimumScaleFactor(0.85)
-            }
-            // 못 누를 때는 글자를 **회색**으로 — 흰 글자는 연회색 면 위에서 대비가 1.4:1 이라
-            // 「매진」 같은 상태 문구가 읽히지 않았다. 버튼 전체를 흐리던 투명도도 걷었다 — 글자까지
-            // 같이 흐려질 뿐, 누를 수 없다는 건 면 색이 이미 말한다(2026-09-28 지적, Android GlgButton 과 같은 값).
-            .foregroundStyle(primary ? (enabled ? Color.white : GLGColor.textSecondary) : accent.deep)
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(primary ? (enabled ? accent.primary : Color(hex: 0xFFD8D8DE)) : Color.white,
-                        in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .disabled(!enabled)
+        OdsButton(title: title, variant: primary ? .primary : .onTint, size: .l, systemImage: icon, action: action)
+            .disabled(!enabled)
     }
 
     /**

@@ -30,13 +30,13 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import androidx.compose.ui.draw.clip
-import com.gatcha.log.ui.components.GlgButtonRadius
 import com.gatcha.log.ui.components.GlgDialog
 import com.gatcha.log.ui.components.GlgBackButton
 import com.gatcha.log.ui.components.GlgDetailHeaderOverlay
 import com.gatcha.log.ui.components.glgDetailContentTop
-import com.gatcha.log.ui.components.GlgHeaderActionPill
-import com.gatcha.log.ui.components.GlgTextField
+import com.gatcha.log.ui.components.OdsButton
+import com.gatcha.log.ui.components.OdsSize
+import com.gatcha.log.ui.components.OdsTextField
 import com.gatcha.log.ui.theme.LocalAccent
 import com.gatcha.log.ui.theme.TextSecondary
 
@@ -97,17 +97,17 @@ fun HoyolabLinkScreen(config: HoyolabConfig, onSave: (HoyolabConfig) -> Unit, on
             NotifyGroupTitle("계정 토큰", "개인 정보 · 공유 금지")
             NotifyCard {
                 Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    GlgTextField(ltuid, { ltuid = it }, label = "ltuid", modifier = Modifier.fillMaxWidth())
-                    GlgTextField(ltoken, { ltoken = it }, label = "ltoken", modifier = Modifier.fillMaxWidth())
-                    GlgTextField(cookieToken, { cookieToken = it }, label = "cookie_token (리딤코드 교환용·선택)", modifier = Modifier.fillMaxWidth())
+                    OdsTextField(ltuid, { ltuid = it }, label = "ltuid", modifier = Modifier.fillMaxWidth())
+                    OdsTextField(ltoken, { ltoken = it }, label = "ltoken", modifier = Modifier.fillMaxWidth())
+                    OdsTextField(cookieToken, { cookieToken = it }, label = "cookie_token (리딤코드 교환용·선택)", modifier = Modifier.fillMaxWidth())
                 }
             }
             NotifyGroupTitle("게임 UID", "로그인하면 자동으로 채워져요")
             NotifyCard {
                 Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    GlgTextField(gi, { gi = it }, label = "원신 UID", modifier = Modifier.fillMaxWidth())
-                    GlgTextField(hsr, { hsr = it }, label = "스타레일 UID", modifier = Modifier.fillMaxWidth())
-                    GlgTextField(zzz, { zzz = it }, label = "젠레스 UID", modifier = Modifier.fillMaxWidth())
+                    OdsTextField(gi, { gi = it }, label = "원신 UID", modifier = Modifier.fillMaxWidth())
+                    OdsTextField(hsr, { hsr = it }, label = "스타레일 UID", modifier = Modifier.fillMaxWidth())
+                    OdsTextField(zzz, { zzz = it }, label = "젠레스 UID", modifier = Modifier.fillMaxWidth())
                 }
             }
             Text(
@@ -115,19 +115,24 @@ fun HoyolabLinkScreen(config: HoyolabConfig, onSave: (HoyolabConfig) -> Unit, on
                     "보안을 위해 ltuid·ltoken·cookie_token 등 토큰은 동기화하지 않으며, 새 기기에서는 다시 로그인해 가져와야 해요.",
                 fontSize = 11.5.sp, lineHeight = 17.sp, color = Color(0xFF7A8784), modifier = Modifier.padding(top = 10.dp, start = 4.dp, end = 4.dp),
             )
+            // 저장 — 주 액션은 화면 아래 ODS 버튼(예전엔 헤더 알약). iOS 와 같은 자리.
+            OdsButton(
+                "저장",
+                onClick = {
+                    onSave(
+                        HoyolabConfig(
+                            ltuid = ltuid.trim(), ltoken = ltoken.trim(),
+                            genshinUid = gi.trim(), hsrUid = hsr.trim(), zzzUid = zzz.trim(),
+                            cookieToken = cookieToken.trim(), webCookie = webCookie,
+                        ),
+                    )
+                },
+                size = OdsSize.L,
+                modifier = Modifier.padding(top = 20.dp).fillMaxWidth(),
+            )
             Spacer(Modifier.height(24.dp))
         }
-        GlgDetailHeaderOverlay("HoYoLAB 계정 연동", onBack, scrollState = scrollState) {
-            GlgHeaderActionPill("저장") {
-                onSave(
-                    HoyolabConfig(
-                        ltuid = ltuid.trim(), ltoken = ltoken.trim(),
-                        genshinUid = gi.trim(), hsrUid = hsr.trim(), zzzUid = zzz.trim(),
-                        cookieToken = cookieToken.trim(), webCookie = webCookie,
-                    ),
-                )
-            }
-        }
+        GlgDetailHeaderOverlay("HoYoLAB 계정 연동", onBack, scrollState = scrollState)
     }
 
     if (showLogin) {

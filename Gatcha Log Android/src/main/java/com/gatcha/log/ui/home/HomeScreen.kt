@@ -1,5 +1,7 @@
 package com.gatcha.log.ui.home
 
+import com.gatcha.log.ui.components.OdsButton
+import com.gatcha.log.ui.components.OdsSize
 import android.app.Activity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -69,7 +71,6 @@ import com.gatcha.log.data.SpendingViewModel
 import com.gatcha.log.util.SafIO
 import com.gatcha.log.ui.components.GlassBackground
 import com.gatcha.log.ui.components.GlassCard
-import com.gatcha.log.ui.components.GlgButton
 import com.gatcha.log.ui.components.GlgDetailHeaderOverlay
 import com.gatcha.log.ui.components.glgDetailContentTop
 import com.gatcha.log.ui.components.GlgScreenHeader
@@ -759,7 +760,7 @@ private fun TokenExpiredBanner(onReconnect: () -> Unit) {
                 Text("재연동하지 않으면 자동 출석이 안 돼요", fontSize = 11.sp, color = TextSecondary)
             }
             Spacer(Modifier.width(8.dp))
-            GlgButton("재연동", onClick = onReconnect, height = 36.dp, modifier = Modifier.width(80.dp))
+            OdsButton("재연동", onReconnect, size = OdsSize.S)
         }
     }
 }

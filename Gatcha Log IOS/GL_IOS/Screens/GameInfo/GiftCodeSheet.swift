@@ -39,6 +39,11 @@ struct GiftCodePage: View {
                             codeList.padding(.top, 10)
                         }
                     }
+                    // 모두 교환 — Android 와 같이 코드 카드 아래 ODS 버튼(예전엔 툴바).
+                    if pending > 0 {
+                        OdsButton(title: loading ? "교환 중…" : "모두 교환 (\(pending))") { store.redeemAllCodes(selected) }
+                            .disabled(loading)
+                    }
                     GLGCard(cornerRadius: 20, padding: 16) { directInput }
                     statusText.padding(.horizontal, 2)
                 }
@@ -50,12 +55,6 @@ struct GiftCodePage: View {
         .background(GLGBackground { Color.clear })
         .glgPageTitle("리딤코드")
         .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                Button(loading ? "교환 중…" : "모두 교환") { store.redeemAllCodes(selected) }
-                    .disabled(pending == 0 || loading || games.isEmpty)
-            }
-        }
         .onAppear {
             if !didInit { didInit = true; selected = games.first?.0 ?? "genshin"; if !games.isEmpty { store.loadActiveCodes(selected) } }
         }
@@ -93,9 +92,7 @@ struct GiftCodePage: View {
             HStack(spacing: 8) {
                 Text("가려진 코드 \(store.unusableCodes.count)개")
                     .font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary)
-                Button { store.restoreUnusableCodes(selected) } label: {
-                    Text("되살리기").font(.pretendard(size: 12, weight: .bold)).foregroundStyle(accent.primary)
-                }.buttonStyle(.plain)
+                OdsButton(title: "되살리기", variant: .secondary, size: .xs, fullWidth: false) { store.restoreUnusableCodes(selected) }
             }
             .padding(.vertical, 6)
         }
@@ -108,9 +105,7 @@ struct GiftCodePage: View {
             // 수집 실패는 '코드 없음'과 다르다 — 사유를 밝히고 재시도를 준다. (Android 파리티)
             VStack(alignment: .leading, spacing: 6) {
                 Text("코드를 불러오지 못했어요").font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary)
-                Button { store.loadActiveCodes(selected, force: true) } label: {
-                    Text("다시 시도").font(.pretendard(size: 12, weight: .bold)).foregroundStyle(accent.primary)
-                }.buttonStyle(.plain)
+                OdsButton(title: "다시 시도", variant: .secondary, size: .s, fullWidth: false) { store.loadActiveCodes(selected, force: true) }
             }
             .padding(.vertical, 6)
         } else if store.activeCodes.isEmpty {
@@ -157,11 +152,9 @@ struct GiftCodePage: View {
             if redeemed {
                 HStack(spacing: 3) { Image(systemName: "checkmark").font(.pretendard(size: 13)).foregroundStyle(accent.primary); Text("받음").font(.pretendard(size: 11, weight: .bold)).foregroundStyle(accent.primary) }
             } else {
-                Button { store.redeemGiftCode(gameKey: selected, code: c.code) } label: {
-                    Text("교환").font(.pretendard(size: 12, weight: .bold)).foregroundStyle(highlight ? .white : accent.primary)
-                        .padding(.horizontal, 12).padding(.vertical, 6)
-                        .background(highlight ? accent.primary : accent.primary.opacity(0.12), in: Capsule())
-                }.buttonStyle(.plain).disabled(loading)
+                OdsButton(title: "교환", variant: highlight ? .primary : .secondary, size: .xs, fullWidth: false) {
+                    store.redeemGiftCode(gameKey: selected, code: c.code)
+                }.disabled(loading)
             }
         }
         return Group {
@@ -178,16 +171,12 @@ struct GiftCodePage: View {
 
     private var directInput: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("직접 입력 (새 코드)").font(.pretendard(size: 11, weight: .semibold)).foregroundStyle(GLGColor.textSecondary)
-            TextField("예: GENSHINGIFT", text: $code).textFieldStyle(.plain).glgField().autocapitalization(.allCharacters)
+            OdsTextField(label: "직접 입력 (새 코드)", placeholder: "예: GENSHINGIFT", text: $code).autocapitalization(.allCharacters)
                 .onChange(of: code) { _, newValue in code = newValue.uppercased().filter { $0.isLetter || $0.isNumber } }
             if !code.isEmpty {
-                Button { store.redeemGiftCode(gameKey: selected, code: code.trimmingCharacters(in: .whitespaces)); code = "" } label: {
-                    Text("이 코드 교환").font(.pretendard(size: 12, weight: .bold)).foregroundStyle(accent.primary)
-                        .padding(.horizontal, 14).padding(.vertical, 7)
-                        .background(accent.primary.opacity(0.12), in: RoundedRectangle(cornerRadius: 16))
-                        .overlay(RoundedRectangle(cornerRadius: 16).stroke(accent.primary.opacity(0.4), lineWidth: 1))
-                }.buttonStyle(.plain).disabled(loading)
+                OdsButton(title: "이 코드 교환", variant: .secondary, size: .xs, fullWidth: false) {
+                    store.redeemGiftCode(gameKey: selected, code: code.trimmingCharacters(in: .whitespaces)); code = ""
+                }.disabled(loading)
             }
         }
     }
@@ -206,22 +195,15 @@ struct GiftCodePage: View {
     }
 }
 
-// 리딤코드 복사 버튼 — accent 틴트 pill(‘교환’ 버튼과 동일 톤). 탭하면 클립보드 저장 + 잠깐 ‘복사됨’ 표시.
+// 리딤코드 복사 버튼 — ‘교환’ 버튼과 같은 ODS XS Secondary. 탭하면 클립보드 저장 + 잠깐 ‘복사됨’ 표시.
 private struct CopyCodeButton: View {
     let code: String
-    @Environment(\.glgAccent) private var accent
     @State private var copied = false
     var body: some View {
-        Button {
+        OdsButton(title: copied ? "복사됨" : "복사", variant: .secondary, size: .xs, fullWidth: false) {
             UIPasteboard.general.string = code
             withAnimation(.easeOut(duration: 0.15)) { copied = true }
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { withAnimation { copied = false } }
-        } label: {
-            // '교환' 버튼과 동일 규격(텍스트 전용 · Capsule · accent 0.12 틴트 · h12 v6 · 12 bold).
-            Text(copied ? "복사됨" : "복사").font(.pretendard(size: 12, weight: .bold))
-                .foregroundStyle(accent.primary)
-                .padding(.horizontal, 12).padding(.vertical, 6)
-                .background(accent.primary.opacity(0.12), in: Capsule())
-        }.buttonStyle(.plain)
+        }
     }
 }

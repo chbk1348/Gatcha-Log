@@ -42,8 +42,9 @@ import com.gatcha.log.data.HoyolandTicketStatus
 import com.gatcha.log.ui.game.LiveRed
 import com.gatcha.log.ui.components.GlassCard
 import com.gatcha.log.ui.components.glgDetailContentTop
-import com.gatcha.log.ui.components.GlgButton
-import com.gatcha.log.ui.components.GlgOutlineButton
+import com.gatcha.log.ui.components.OdsButton
+import com.gatcha.log.ui.components.OdsSize
+import com.gatcha.log.ui.components.OdsVariant
 import com.gatcha.log.ui.theme.DividerColor
 import com.gatcha.log.ui.theme.LocalAccent
 import com.gatcha.log.ui.theme.LocalAccentDeep
@@ -200,9 +201,6 @@ private fun Modifier.heroBleed(
  * 시스템 색은 기기·다크모드에 따라 또 갈라지므로 **검정 12%** 로 못 박는다.
  */
 private val HeroDivider = Color.Black.copy(alpha = 0.12f)
-
-/** 히어로 액션 줄 높이 — 아이콘 + 글자가 같이 서는 줄이라 본문 버튼(44dp)보다 한 단 키운다. */
-private val HERO_ACTION_HEIGHT = 48.dp
 
 /** 행사명 줄 — 왼쪽은 이름, 오른쪽은 지금 어느 단계인지. */
 @Composable
@@ -477,7 +475,7 @@ private fun HeroActions(
     // 예매처는 아래 「예매」 카드의 배지가 말한다. 보조 둘의 면이 **흰색**인 이유는 이 줄이
     // 강조 틴트 패널 바로 아래에 붙어서다: 틴트 면 위에 틴트 버튼을 놓으면 면이 사라진다.
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        GlgButton(
+        OdsButton(
             text = when {
                 live -> "오늘 시간표"
                 soldOut -> "매진"
@@ -490,7 +488,7 @@ private fun HeroActions(
             onClick = { if (live) onStage() else if (canBuy) onTicket() },
             enabled = live || canBuy,
             modifier = Modifier.weight(if (hasMap || hasOfficial) 2f else 1f),
-            height = HERO_ACTION_HEIGHT,
+            size = OdsSize.L,
             icon = when {
                 live -> Icons.Outlined.CalendarMonth
                 canBuy || soldOut -> Icons.Outlined.ConfirmationNumber
@@ -498,15 +496,15 @@ private fun HeroActions(
             },
         )
         if (hasMap) {
-            GlgOutlineButton(
+            OdsButton(
                 "지도", onMap, Modifier.weight(1f),
-                height = HERO_ACTION_HEIGHT, icon = Icons.Outlined.Place, onTint = true,
+                variant = OdsVariant.OnTint, size = OdsSize.L, icon = Icons.Outlined.Place,
             )
         }
         if (hasOfficial) {
-            GlgOutlineButton(
+            OdsButton(
                 "공식", onOfficial, Modifier.weight(1f),
-                height = HERO_ACTION_HEIGHT, icon = Icons.Outlined.Language, onTint = true,
+                variant = OdsVariant.OnTint, size = OdsSize.L, icon = Icons.Outlined.Language,
             )
         }
     }

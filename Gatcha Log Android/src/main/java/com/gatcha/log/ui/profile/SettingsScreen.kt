@@ -1,7 +1,6 @@
 package com.gatcha.log.ui.profile
 
 import androidx.compose.ui.graphics.RectangleShape
-import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.shape.CircleShape
 import com.gatcha.log.data.GameData
 import androidx.compose.foundation.border
@@ -55,14 +54,17 @@ import com.gatcha.log.R
 import com.gatcha.log.ui.components.BudgetDialog
 import com.gatcha.log.ui.components.GlassCard
 import com.gatcha.log.ui.components.openExternalLink
-import com.gatcha.log.ui.components.GlgButton
 import androidx.compose.foundation.lazy.rememberLazyListState
 import com.gatcha.log.ui.components.GlgDetailHeaderOverlay
 import com.gatcha.log.ui.components.glgDetailContentTop
 import com.gatcha.log.ui.components.GlgScreenHeader
 import com.gatcha.log.ui.components.GlgDialog
 import com.gatcha.log.ui.components.GlgSwitch
-import com.gatcha.log.ui.components.GlgTextField
+import com.gatcha.log.ui.components.OdsButton
+import com.gatcha.log.ui.components.OdsFieldSize
+import com.gatcha.log.ui.components.OdsSize
+import com.gatcha.log.ui.components.OdsTextField
+import com.gatcha.log.ui.components.OdsVariant
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -79,7 +81,6 @@ import com.gatcha.log.ui.theme.LocalAccentDeep
 import com.gatcha.log.ui.theme.AccentPalette
 import com.gatcha.log.ui.theme.ACCENT_VIVID_COUNT
 import com.gatcha.log.ui.theme.DEFAULT_ACCENT_INDEX
-import com.gatcha.log.ui.components.GlgOutlineButton
 import com.gatcha.log.ui.theme.glgShortSpec
 import com.gatcha.log.ui.theme.glgStandardSpec
 import com.gatcha.log.ui.theme.TextPrimary
@@ -832,23 +833,16 @@ private fun BudgetScreen(
                                 )
                             }
                             Spacer(Modifier.width(8.dp))
-                            BasicTextField(
+                            OdsTextField(
                                 value = if (limit > 0) "%,d".format(limit) else "",
                                 onValueChange = { raw -> limits[g.key] = raw.filter { it.isDigit() }.take(9).toLongOrNull() ?: 0L },
-                                singleLine = true,
+                                placeholder = "한도 없음",
+                                size = OdsFieldSize.S,
+                                suffix = "원",
+                                textAlign = TextAlign.End,
+                                bold = true,
                                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                                textStyle = LocalTextStyle.current.copy(fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TextPrimary, textAlign = TextAlign.End),
-                                modifier = Modifier.width(118.dp).height(38.dp).clip(RoundedCornerShape(12.dp)).background(Color(0xFFF5F8F8))
-                                    .border(1.5.dp, if (over) Color(0xFFFED7AA) else Color.Transparent, RoundedCornerShape(12.dp)),
-                                decorationBox = { inner ->
-                                    Box(Modifier.fillMaxSize().padding(horizontal = 12.dp), contentAlignment = Alignment.CenterEnd) {
-                                        if (limit <= 0) Text("한도 없음", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color(0xFFA7B1AE))
-                                        Row(verticalAlignment = Alignment.CenterVertically) {
-                                            Box(Modifier.width(IntrinsicSize.Min)) { inner() }
-                                            if (limit > 0) Text("원", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
-                                        }
-                                    }
-                                },
+                                modifier = Modifier.width(118.dp),
                             )
                         }
                     }
@@ -866,8 +860,8 @@ private fun BudgetScreen(
                 .background(Color.White).navigationBarsPadding().imePadding()
                 .padding(start = 16.dp, end = 16.dp, top = 10.dp, bottom = 8.dp),
         ) {
-            com.gatcha.log.ui.onboarding.CtaButton("저장", primary = true, onClick = { onSave(amount.coerceAtLeast(0L), perGame()) })
-            com.gatcha.log.ui.onboarding.CtaButton("월 예산 끄기", primary = false, onClick = { onSave(0L, perGame()) })
+            OdsButton("저장", { onSave(amount.coerceAtLeast(0L), perGame()) }, Modifier.fillMaxWidth(), size = OdsSize.L)
+            OdsButton("월 예산 끄기", { onSave(0L, perGame()) }, Modifier.padding(top = 8.dp).fillMaxWidth(), variant = OdsVariant.Secondary)
         }
         GlgDetailHeaderOverlay("예산 관리", onBack, scrolled)
     }
@@ -1081,8 +1075,8 @@ private fun ThemeScreen(accentIndex: Int, onSelect: (Int) -> Unit, onBack: () ->
                     // 문구는 버튼 이름이 아니라 모양 이름이다 — 「취소 · 저장하기」는 테마를 저장·되돌리는
                     // 진짜 버튼으로 읽혔다(2026-09-21 지적).
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        GlgOutlineButton("보조 버튼", onClick = {}, modifier = Modifier.weight(1f), height = 40.dp)
-                        GlgButton("강조 버튼", onClick = {}, modifier = Modifier.weight(1f), height = 40.dp)
+                        OdsButton("보조 버튼", {}, Modifier.weight(1f), variant = OdsVariant.Secondary)
+                        OdsButton("강조 버튼", {}, Modifier.weight(1f))
                     }
                 }
             }
@@ -1128,11 +1122,12 @@ private fun NudgeThresholdDialog(current: Long, onDismiss: () -> Unit, onConfirm
         Column {
             Text("단건 지출이 이 금액 이상이면 추가 전 한 번 더 확인해요.", fontSize = 12.sp, color = TextSecondary)
             Spacer(Modifier.height(12.dp))
-            GlgTextField(
+            OdsTextField(
                 value = text,
-                onValueChange = { v -> text = v.filter { it.isDigit() } },
-                label = "기준 금액 (원)",
-                placeholder = "100000",
+                onValueChange = { v -> text = v.filter { it.isDigit() }.take(9) },
+                placeholder = "100,000",
+                suffix = "원",
+                bold = true,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                 modifier = Modifier.fillMaxWidth(),
             )

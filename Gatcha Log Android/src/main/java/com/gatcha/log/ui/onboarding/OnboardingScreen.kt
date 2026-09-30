@@ -37,8 +37,6 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -64,6 +62,9 @@ import androidx.compose.material.icons.outlined.WarningAmber
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.Icon
+import com.gatcha.log.ui.components.OdsButton
+import com.gatcha.log.ui.components.OdsSize
+import com.gatcha.log.ui.components.OdsVariant
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -306,37 +307,10 @@ fun OnboardingScreen(viewModel: SpendingViewModel, loginOnly: Boolean = false, o
 
 // ── 공통 조각 ──────────────────────────────────────────────────────────────
 
-/** 눌림(0.96배) + 아래에서 올라오는 등장. 주 버튼 50 · 보조 42, 좌우 8 들여씀. */
+/** ODS 하단 버튼 자리 — 아래에서 올라오는 등장 + 좌우 8 들여씀, 보조는 위 8. */
 @Composable
-internal fun CtaButton(
-    text: String,
-    primary: Boolean,
-    onClick: () -> Unit,
-    enabled: Boolean = true,
-    bg: Color = if (primary) Teal else TealSoft,
-    fg: Color = if (primary) Color.White else Teal,
-    delayMs: Int = if (primary) 140 else 200,
-) {
-    val src = remember { MutableInteractionSource() }
-    val pressed by src.collectIsPressedAsState()
-    val press by animateFloatAsState(if (pressed) 0.96f else 1f, tween(120), label = "press")
-    val bgc by animateColorAsState(if (enabled) bg else Color(0xFFB8C4C1), label = "ctaBg")
-    Box(
-        Modifier
-            .enterUp(delayMs)
-            .padding(horizontal = 8.dp)
-            .padding(top = if (primary) 0.dp else 8.dp)
-            .fillMaxWidth()
-            .height(if (primary) 50.dp else 42.dp)
-            .scale(press)
-            .clip(RoundedCornerShape(16.dp))
-            .background(bgc)
-            .clickable(interactionSource = src, indication = null, enabled = enabled, onClick = onClick),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(text, fontSize = if (primary) 15.sp else 13.sp, fontWeight = FontWeight.Bold, color = fg)
-    }
-}
+private fun Modifier.cta(primary: Boolean, delayMs: Int = if (primary) 140 else 200): Modifier =
+    enterUp(delayMs).padding(horizontal = 8.dp).padding(top = if (primary) 0.dp else 8.dp).fillMaxWidth()
 
 /** 처음 그려질 때 아래(18dp)에서 올라오며 나타남. */
 @Composable
@@ -435,14 +409,14 @@ private fun WelcomeStep(onStart: (leave: suspend () -> Unit) -> Unit, onRestore:
             Spacer(Modifier.height(12.dp))
             Text("약 1분 · 게임 고르기 말고는 전부 건너뛸 수 있어요", fontSize = 12.sp, color = Sub, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
         }
-        CtaButton("시작하기", primary = true, onClick = {
+        OdsButton("시작하기", size = OdsSize.L, modifier = Modifier.cta(true), onClick = {
             onStart {
                 // 타일이 차례로 위로 흩어진 뒤 넘어간다(0.32초)
                 leaves.forEachIndexed { i, a -> scope.launch { delay(i * 30L); a.animateTo(1f, tween(300)) } }
                 delay(320)
             }
         })
-        CtaButton("구글 로그인 하기", primary = false, onClick = onRestore)
+        OdsButton("구글 로그인 하기", onRestore, Modifier.cta(false), variant = OdsVariant.Secondary)
         Spacer(Modifier.height(16.dp))
     }
 }
@@ -482,9 +456,9 @@ private fun GamesStep(games: Set<String>, viewport: Dp, stagger: Boolean, onTogg
         }
         Spacer(Modifier.weight(1f))
         val n = games.size
-        CtaButton(
-            if (n > 0) "${n}개 선택 · 다음" else "게임을 하나 이상 골라 주세요", primary = true,
-            enabled = n > 0, onClick = onNext, delayMs = if (stagger) 460 else 140,
+        OdsButton(
+            if (n > 0) "${n}개 선택 · 다음" else "게임을 하나 이상 골라 주세요", onNext,
+            Modifier.cta(true, if (stagger) 460 else 140), size = OdsSize.L, enabled = n > 0,
         )
         Spacer(Modifier.height(16.dp))
     }
@@ -499,8 +473,8 @@ private fun BudgetStep(budget: Long, custom: Boolean, onBudget: (Long, Boolean) 
         Spacer(Modifier.height(28.dp))
         BudgetAmountEditor(budget, custom, onBudget)
         Spacer(Modifier.weight(1f))
-        CtaButton("다음", primary = true, onClick = onNext)
-        CtaButton("예산 없이 쓸게요", primary = false, onClick = onSkip)
+        OdsButton("다음", onNext, Modifier.cta(true), size = OdsSize.L)
+        OdsButton("예산 없이 쓸게요", onSkip, Modifier.cta(false), variant = OdsVariant.Secondary)
         Spacer(Modifier.height(16.dp))
     }
 }
@@ -671,11 +645,11 @@ private fun HoyolabStep(viewModel: SpendingViewModel, hoyo: HoyolabConfig, games
         }
         Spacer(Modifier.weight(1f))
         if (linked) {
-            CtaButton("다음", primary = true, onClick = onNext)
-            CtaButton("연결 해제", primary = false, bg = Color(0xFFECEFF4), fg = Ink, onClick = { viewModel.updateHoyolabConfig(HoyolabConfig()) })
+            OdsButton("다음", onNext, Modifier.cta(true), size = OdsSize.L)
+            OdsButton("연결 해제", { viewModel.updateHoyolabConfig(HoyolabConfig()) }, Modifier.cta(false), variant = OdsVariant.Neutral)
         } else {
-            CtaButton(if (working) "UID 확인 중…" else "HoYoLAB 로그인", primary = true, bg = Ink, enabled = !working, onClick = { showLogin = true })
-            CtaButton("나중에 연결할게요", primary = false, bg = Color(0xFFECEFF4), fg = Ink, onClick = onNext)
+            OdsButton(if (working) "UID 확인 중…" else "HoYoLAB 로그인", { showLogin = true }, Modifier.cta(true), variant = OdsVariant.Inverse, size = OdsSize.L, enabled = !working)
+            OdsButton("나중에 연결할게요", onNext, Modifier.cta(false), variant = OdsVariant.Neutral)
         }
         Spacer(Modifier.height(16.dp))
     }
@@ -776,8 +750,8 @@ private fun NotifyStep(
             )
         }
         Spacer(Modifier.weight(1f))
-        CtaButton("알림 켜고 시작하기", primary = true, onClick = { onFinish(true) })
-        CtaButton("알림 없이 시작", primary = false, onClick = { onFinish(false) })
+        OdsButton("알림 켜고 시작하기", { onFinish(true) }, Modifier.cta(true), size = OdsSize.L)
+        OdsButton("알림 없이 시작", { onFinish(false) }, Modifier.cta(false), variant = OdsVariant.Secondary)
         Spacer(Modifier.height(16.dp))
     }
 }
@@ -864,7 +838,7 @@ private fun DoneStep(restored: Boolean, signInNext: Boolean, summary: List<Tripl
                 GoogleSignInButton(if (restored) "Google로 로그인하기" else "Google로 로그인하고 시작하기", onClick = onDone)
             }
         } else {
-            CtaButton("홈으로 이동하기", primary = true, onClick = onDone)
+            OdsButton("홈으로 이동하기", onDone, Modifier.cta(true), size = OdsSize.L)
         }
         Spacer(Modifier.height(16.dp))
     }

@@ -299,13 +299,7 @@ struct DailyHeroSection: View {
                 if store.checkingIn == g.gameKey {
                     ProgressView().controlSize(.small)
                 } else {
-                    Button { store.attemptCheckIn(g.gameKey) } label: {
-                        Text("출석").font(.pretendard(size: 11.5, weight: .bold))
-                            .foregroundStyle(accent.primary)
-                            .padding(.horizontal, 14).padding(.vertical, 7)
-                            .background(accent.primary.opacity(0.14),
-                                        in: RoundedRectangle(cornerRadius: 9, style: .continuous))
-                    }.buttonStyle(.plain)
+                    OdsButton(title: "출석", variant: .secondary, size: .xs, fullWidth: false) { store.attemptCheckIn(g.gameKey) }
                     // 체크인은 한 번에 한 건 — 다른 게임이 도는 중이면 VM 이 무시하므로 버튼도 막는다.
                     .disabled(store.checkingIn != nil)
                 }
@@ -323,13 +317,8 @@ struct DailyHeroSection: View {
                 .foregroundStyle(GLGColor.textPrimary).padding(.top, 12)
             Text("연동하면 행동력·일일 숙제·출석을 한곳에서 볼 수 있어요.")
                 .font(.pretendard(size: 13)).foregroundStyle(GLGColor.textSecondary).padding(.top, 8)
-            Button(action: onConfig) {
-                Text("연동하기").font(.pretendard(size: 13, weight: .bold)).foregroundStyle(.white)
-                    .padding(.horizontal, 18).padding(.vertical, 11)
-                    .background(accent.primary, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-            }
-            .buttonStyle(.plain)
-            .padding(.top, 16)
+            OdsButton(title: "연동하기", fullWidth: false, action: onConfig)
+                .padding(.top, 16)
         }
     }
 }
@@ -507,16 +496,7 @@ struct AttendanceDetailView: View {
                         .foregroundStyle(GLGColor.textSecondary).padding(.bottom, 5)
                     Spacer(minLength: 8)
                     if !s.allDone {
-                        Button { store.checkInAll() } label: {
-                            Group {
-                                if store.checkingIn != nil { ProgressView().controlSize(.small).tint(.white) }
-                                else { Text("전체 출석").font(.pretendard(size: 12.5, weight: .bold)).foregroundStyle(.white) }
-                            }
-                            .padding(.horizontal, 16).padding(.vertical, 9)
-                            .background(accent.primary, in: RoundedRectangle(cornerRadius: 11, style: .continuous))
-                        }
-                        .buttonStyle(.plain)
-                        .disabled(store.checkingIn != nil)
+                        OdsButton(title: "전체 출석", size: .s, fullWidth: false, loading: store.checkingIn != nil) { store.checkInAll() }
                     }
                 }
                 .padding(.top, 10)
@@ -559,13 +539,7 @@ struct AttendanceDetailView: View {
                     Text("완료").font(.pretendard(size: 11.5, weight: .bold)).foregroundStyle(accent.primary)
                 }
             } else {
-                Button { store.attemptCheckIn(g.gameKey) } label: {
-                    Text("출석").font(.pretendard(size: 11.5, weight: .bold)).foregroundStyle(accent.primary)
-                        .padding(.horizontal, 14).padding(.vertical, 7)
-                        .background(accent.primary.opacity(0.14),
-                                    in: RoundedRectangle(cornerRadius: 9, style: .continuous))
-                }
-                .buttonStyle(.plain)
+                OdsButton(title: "출석", variant: .secondary, size: .xs, fullWidth: false) { store.attemptCheckIn(g.gameKey) }
                 // 체크인은 한 번에 한 건 — 다른 게임이 도는 중이면 VM 이 무시하므로 버튼도 막는다.
                 .disabled(store.checkingIn != nil)
             }
@@ -771,12 +745,7 @@ private struct DailyGameRow: View {
         } else if checked {
             HStack(spacing: 4) { Image(systemName: "checkmark.circle.fill").font(.pretendard(size: 18)).foregroundStyle(accent.primary); Text("완료").font(.pretendard(size: 12, weight: .bold)).foregroundStyle(accent.primary) }
         } else {
-            Button(action: onCheckIn) {
-                Text("출석").font(.pretendard(size: 11, weight: .bold)).foregroundStyle(accent.primary)
-                    .padding(.horizontal, 16).padding(.vertical, 7)
-                    .background(accent.primary.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
-            }
-            .buttonStyle(.plain)
+            OdsButton(title: "출석", variant: .secondary, size: .xs, fullWidth: false, action: onCheckIn)
         }
     }
 

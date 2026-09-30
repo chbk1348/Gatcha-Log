@@ -108,20 +108,10 @@ struct HeroBalanceCard: View {
                     .font(.pretendard(size: 12, weight: .semibold)).foregroundStyle(over ? dangerRed : accent.primary)
             } else {
                 Text("미설정").font(.pretendard(size: 30, weight: .heavy)).foregroundStyle(GLGColor.textSecondary)
-                pillButton("예산 설정하기", action: onBudget).padding(.top, 3)
+                OdsButton(title: "예산 설정하기", variant: .onTint, size: .s, fullWidth: false, action: onBudget).padding(.top, 3)
             }
         }
         .frame(maxWidth: .infinity)
-    }
-
-    private func pillButton(_ title: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Text(title)
-                .font(.pretendard(size: 13, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
-                .padding(.horizontal, 18).padding(.vertical, 9)
-                .background(.white, in: Capsule())
-                .overlay(Capsule().stroke(Color.black.opacity(0.05), lineWidth: 1))
-        }.buttonStyle(.plain)
     }
 }
 

@@ -36,7 +36,9 @@ import com.gatcha.log.ui.components.GameTagSize
 import com.gatcha.log.ui.components.GlgChip
 import com.gatcha.log.ui.components.GlgGameTag
 import com.gatcha.log.ui.components.GlassCard
-import com.gatcha.log.ui.components.GlgButton
+import com.gatcha.log.ui.components.OdsButton
+import com.gatcha.log.ui.components.OdsSize
+import com.gatcha.log.ui.components.OdsVariant
 import com.gatcha.log.ui.components.GlgBadge
 import com.gatcha.log.ui.theme.DividerColor
 import com.gatcha.log.ui.theme.LocalAccent
@@ -77,7 +79,7 @@ fun NewsSection(
                 Column(Modifier.padding(16.dp)) {
                     Text("소식을 불러오지 못했어요", fontSize = 12.sp, color = TextSecondary)
                     Spacer(Modifier.height(6.dp))
-                    GlgButton("다시 시도", onClick = onRetry, height = 34.dp, modifier = Modifier.width(96.dp))
+                    OdsButton("다시 시도", onClick = onRetry, variant = OdsVariant.Secondary, size = OdsSize.S)
                 }
             }
         }

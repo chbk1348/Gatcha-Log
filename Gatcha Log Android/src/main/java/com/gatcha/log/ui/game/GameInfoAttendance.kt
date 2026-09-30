@@ -56,7 +56,9 @@ import com.gatcha.log.ui.components.GlgGameTag
 import com.gatcha.log.ui.components.GlassCard
 import com.gatcha.log.ui.components.SkeletonBox
 import com.gatcha.log.ui.components.GlgTabHeaderHeight
-import com.gatcha.log.ui.components.GlgButton
+import com.gatcha.log.ui.components.OdsButton
+import com.gatcha.log.ui.components.OdsSize
+import com.gatcha.log.ui.components.OdsVariant
 import com.gatcha.log.ui.theme.*
 
 // ============================================================ 데일리 히어로 2.0
@@ -241,13 +243,7 @@ private fun LinkPrompt(headTop: Dp, onConfigClick: () -> Unit) {
             fontSize = 13.sp, color = TextSecondary,
         )
         Spacer(Modifier.height(16.dp))
-        Box(
-            Modifier.clip(RoundedCornerShape(12.dp)).background(accent)
-                .clickable { onConfigClick() }
-                .padding(horizontal = 18.dp, vertical = 11.dp),
-        ) {
-            Text("연동하기", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White)
-        }
+        OdsButton("연동하기", onClick = onConfigClick)
     }
 }
 
@@ -403,10 +399,7 @@ private fun GameTaskRow(g: DailyGameTasks, inProgress: Boolean, enabled: Boolean
             if (inProgress) {
                 CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp, color = accent)
             } else {
-                Box(
-                    Modifier.clip(RoundedCornerShape(9.dp)).background(accent.copy(alpha = 0.14f))
-                        .clickable(enabled = enabled) { onCheckIn() }.padding(horizontal = 14.dp, vertical = 7.dp),
-                ) { Text("출석", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = accent) }
+                OdsButton("출석", onClick = onCheckIn, variant = OdsVariant.Secondary, size = OdsSize.XS, enabled = enabled)
             }
         }
     }
@@ -667,17 +660,7 @@ private fun AttendanceTodayCard(summary: AttendanceSummary, checkingIn: String?,
                 )
                 Spacer(Modifier.weight(1f))
                 if (!summary.allDone) {
-                    Box(
-                        Modifier.clip(RoundedCornerShape(11.dp)).background(accent)
-                            .clickable(enabled = checkingIn == null) { onCheckInAll() }
-                            .padding(horizontal = 16.dp, vertical = 9.dp),
-                    ) {
-                        if (checkingIn != null) {
-                            CircularProgressIndicator(Modifier.size(14.dp), strokeWidth = 2.dp, color = Color.White)
-                        } else {
-                            Text("전체 출석", fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = Color.White)
-                        }
-                    }
+                    OdsButton("전체 출석", onClick = onCheckInAll, size = OdsSize.S, loading = checkingIn != null)
                 }
             }
             Spacer(Modifier.height(14.dp))
@@ -731,10 +714,7 @@ private fun AttendanceGameRow(g: AttendanceGameStat, elapsed: Int, inProgress: B
                 Spacer(Modifier.width(5.dp))
                 Text("완료", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = accent)
             }
-            else -> Box(
-                Modifier.clip(RoundedCornerShape(9.dp)).background(accent.copy(alpha = 0.14f))
-                    .clickable(enabled = enabled) { onCheckIn() }.padding(horizontal = 14.dp, vertical = 7.dp),
-            ) { Text("출석", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = accent) }
+            else -> OdsButton("출석", onClick = onCheckIn, variant = OdsVariant.Secondary, size = OdsSize.XS, enabled = enabled)
         }
     }
 }
@@ -961,16 +941,7 @@ private fun DailyGameRow(game: Game, note: LiveNote?, uid: String, checked: Bool
                     Spacer(Modifier.width(4.dp))
                     Text("완료", fontSize = 12.sp, color = accent, fontWeight = FontWeight.Bold)
                 }
-                else -> Box(
-                    Modifier
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(accent.copy(alpha = 0.12f))
-                        .clickable { onCheckIn() }
-                        .padding(horizontal = 16.dp, vertical = 7.dp),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text("출석", fontSize = 11.sp, color = accent, fontWeight = FontWeight.Bold)
-                }
+                else -> OdsButton("출석", onClick = onCheckIn, variant = OdsVariant.Secondary, size = OdsSize.XS)
             }
         }
         if (note != null && note.maxResin > 0) {

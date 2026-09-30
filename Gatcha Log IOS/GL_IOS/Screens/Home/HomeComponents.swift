@@ -134,7 +134,7 @@ struct TokenExpiredBanner: View {
                 Text("재연동하지 않으면 자동 출석이 안 돼요").font(.pretendard(size: 11)).foregroundStyle(GLGColor.textSecondary)
             }
             Spacer()
-            Button(action: onReconnect) { Text("재연동").font(.pretendard(size: 13, weight: .bold)).foregroundStyle(.white).padding(.horizontal, 14).padding(.vertical, 9).background(accent.primary, in: RoundedRectangle(cornerRadius: 10)) }.buttonStyle(.plain)
+            OdsButton(title: "재연동", size: .s, fullWidth: false, action: onReconnect)
         }
         .padding(.horizontal, 16).padding(.vertical, 12)
         .background(accent.primary.opacity(0.10), in: RoundedRectangle(cornerRadius: 20))

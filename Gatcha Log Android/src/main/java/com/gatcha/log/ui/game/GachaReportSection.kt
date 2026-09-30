@@ -30,8 +30,7 @@ import com.gatcha.log.data.GachaReport
 import com.gatcha.log.data.GachaStats
 import com.gatcha.log.ui.components.GlassCard
 import com.gatcha.log.ui.components.openExternalLink
-import com.gatcha.log.ui.components.GlgButton
-import com.gatcha.log.ui.components.GlgOutlineButton
+import com.gatcha.log.ui.components.OdsButton
 import com.gatcha.log.ui.theme.DividerColor
 import com.gatcha.log.ui.theme.toColor
 import com.gatcha.log.ui.theme.LocalAccent
@@ -105,7 +104,7 @@ private fun EmptyState(onImport: () -> Unit) {
             textAlign = androidx.compose.ui.text.style.TextAlign.Center,
         )
         Spacer(Modifier.height(16.dp))
-        GlgButton("가챠 기록 JSON 가져오기", onClick = onImport, modifier = Modifier.fillMaxWidth())
+        OdsButton("가챠 기록 JSON 가져오기", onClick = onImport, modifier = Modifier.fillMaxWidth())
         Spacer(Modifier.height(10.dp))
         Text(
             "UIGF/SRGF가 뭔가요?",
@@ -123,10 +122,7 @@ private fun ReportContent(stats: GachaStats, spendByGameKey: Map<String, Long>, 
             val g = stats.byGame[gk] ?: return@forEachIndexed
             GameCard(gk, g, spendByGameKey[gk] ?: 0L, showDash = idx == 0, onOpenDashboard)
         }
-        GlgButton(
-            "기록 추가 가져오기", onClick = onImport,
-            modifier = Modifier.fillMaxWidth(), height = 46.dp,
-        )
+        OdsButton("기록 추가 가져오기", onClick = onImport, modifier = Modifier.fillMaxWidth())
     }
 }
 
