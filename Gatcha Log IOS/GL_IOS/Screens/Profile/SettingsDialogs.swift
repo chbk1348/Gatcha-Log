@@ -125,7 +125,9 @@ struct UpdateLogPage: View {
         ))
         .padding(.horizontal, 18)
         .padding(.vertical, 10)
-        .background(Color.white)
+        // 흰 면을 **위로 넉넉히** 늘린다(9/30) — 제목 바를 걷은 듀오에서는 붙어 있는 탭 줄 위가 비어,
+        // 스크롤한 내용이 탭 위로 비쳐 보였다.
+        .background(Color.white.padding(.top, -400))
         .overlay(alignment: .bottom) { Rectangle().fill(cLine).frame(height: 1) }
     }
 
