@@ -44,12 +44,15 @@
           초기화돼(로딩 게이트부터 다시) 사용자 눈엔 앱이 재시작한 것처럼 보인다.
           singleTask 면 이미 떠 있는 인스턴스를 그대로 되살리고 onNewIntent 로 인텐트만 전달한다.
         -->
+        <!-- adjustResize(9/30): 기본값(pan)은 키보드가 뜨면 창 전체를 밀어 올려, imePadding 을 쓴 하단 고정 바가
+             밀린 만큼 한 번 더 떠 화면 중간에 걸렸다. 창은 그대로 두고 키보드 높이는 인셋으로 받아 Compose 가 맞춘다. -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
             android:launchMode="singleTask"
             android:resizeableActivity="false"
             android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden"
+            android:windowSoftInputMode="adjustResize"
             android:theme="@style/Theme.GatchaLog.Splash">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />

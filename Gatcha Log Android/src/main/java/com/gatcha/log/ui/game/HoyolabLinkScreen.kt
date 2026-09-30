@@ -3,7 +3,6 @@ package com.gatcha.log.ui.game
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.filled.WarningAmber
 import androidx.compose.foundation.border
-import androidx.compose.foundation.layout.imePadding
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.draw.shadow
 import androidx.compose.foundation.background
@@ -69,7 +68,9 @@ fun HoyolabLinkScreen(config: HoyolabConfig, onSave: (HoyolabConfig) -> Unit, on
     val scrollState = rememberScrollState()
     Box(Modifier.fillMaxSize()) {
         Column(
-            Modifier.fillMaxSize().navigationBarsPadding().verticalScroll(scrollState)
+            // 스크롤 영역은 **저장 바 위에서 끝난다**(bottom 76) — 바 밑까지 두면 포커스된 입력칸이 스크롤로 보이는
+            // 자리에 와도 바에 가렸다(9/30). 키보드가 뜨면 루트 imePadding 으로 영역이 줄고 입력칸이 스스로 스크롤돼 온다.
+            Modifier.fillMaxSize().navigationBarsPadding().padding(bottom = 76.dp).verticalScroll(scrollState)
                 .padding(horizontal = 16.dp)
                 .padding(top = glgDetailContentTop()),
             verticalArrangement = Arrangement.spacedBy(0.dp),
@@ -114,8 +115,7 @@ fun HoyolabLinkScreen(config: HoyolabConfig, onSave: (HoyolabConfig) -> Unit, on
                     OdsTextField(zzz, { zzz = it }, label = "젠레스 UID", modifier = Modifier.fillMaxWidth())
                 }
             }
-            // 하단 고정 저장 바에 가리지 않게 — 바 높이(10 + 50 + 8) + 여유.
-            Spacer(Modifier.height(92.dp))
+            Spacer(Modifier.height(16.dp))
         }
         // 「저장」은 하단에 상시 고정 — 예산 관리와 같은 바(스크롤해도 늘 보인다). iOS 와 같은 자리.
         OdsButton(
@@ -130,9 +130,8 @@ fun HoyolabLinkScreen(config: HoyolabConfig, onSave: (HoyolabConfig) -> Unit, on
                 )
             },
             size = OdsSize.L,
-            // imePadding 은 **흰 바 바깥**에 — 안쪽에 두면 흰 면이 키보드 높이만큼 늘어나 입력칸을 가리고
-            // 버튼이 그 위로 떠 보였다(9/30 S23). 키보드가 뜨면 바 전체가 키보드 위로 올라간다.
-            modifier = Modifier.align(Alignment.BottomCenter).imePadding().fillMaxWidth()
+            // 키보드 여백은 앱 루트(MainActivity)가 준다 — 여기서 더하면 두 배로 떴다(9/30 S23).
+            modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth()
                 .shadow(8.dp, RectangleShape, ambientColor = Color(0x14000000), spotColor = Color(0x14000000))
                 .background(Color.White).navigationBarsPadding()
                 .padding(start = 16.dp, end = 16.dp, top = 10.dp, bottom = 8.dp),

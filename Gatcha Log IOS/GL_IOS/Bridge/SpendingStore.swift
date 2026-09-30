@@ -472,6 +472,8 @@ final class SpendingStore {
     @discardableResult
     func updateHoyolabConfig(_ config: HoyolabConfig) -> Bool { vm.updateHoyolabConfig(input: config) }
     func consumePendingOpenHoyolabLink() { vm.consumePendingOpenHoyolabLink() }
+    /// 개발자 메뉴의 테스트용 온보딩이었으면 모드를 풀고 true.
+    func finishOnboardingPreview() -> Bool { vm.finishOnboardingPreview() }
     /// 홈 카드 → 게임 정보 탭 스크롤 앵커 요청/소비.
     func requestGameInfoAnchor(_ anchor: GameInfoAnchor) { vm.requestGameInfoAnchor(anchor: anchor) }
     func consumeGameInfoAnchor() { vm.consumeGameInfoAnchor() }

@@ -132,8 +132,8 @@ fun DeveloperScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
                         DevToggleRow(Icons.Default.Verified, Tint.teal, "확정 보유로 설정", "위 천장 버튼에 함께 적용", pityGuaranteed) { pityGuaranteed = it }
                         HorizontalDivider(color = RowDivider)
                         DevRow(
-                            Icons.Default.Refresh, Tint.navy, "온보딩 초기화",
-                            "누르면 바로 온보딩으로 돌아간다",
+                            Icons.Default.Refresh, Tint.navy, "온보딩 미리보기",
+                            "테스트용 — 저장 · 로그인 · 클라우드 복원 안 함",
                         ) { viewModel.debugResetOnboarding() }
                     }
                 }

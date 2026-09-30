@@ -19,6 +19,7 @@ struct SettingsView: View {
 
     // 시트/다이얼로그 상태
     @State private var showBudget = false
+    @State private var showNudge = false
     @State private var showHoyolab = false
     @State private var showNotifSettings = false
     @State private var showDataManagement = false
@@ -91,6 +92,13 @@ struct SettingsView: View {
         // 예산 관리 — 팝업에서 페이지로(아티팩트 S3).
         .navigationDestination(isPresented: $showBudget) { BudgetSettingsView(store: store) }
         .sheet(isPresented: $showCredits) { CreditsSheet() }
+        // 넛지 기준 금액 — iOS 26+ 는 작은 **시스템 시트**(9/30). 글래스 알림창은 입력칸이 오른쪽으로 넘쳐
+        // (앱과 무관한 OS 버그, 27.1 시뮬에서 재현) 시트 + 헤더 취소 · 저장. iOS 18 은 알림창 유지. Android 는 GlgDialog.
+        .sheet(isPresented: $showNudge) {
+            NudgeThresholdSheet(text: store.nudgeThreshold > 0 ? "\(store.nudgeThreshold)" : "") { v in
+                store.setNudgeThreshold(Int64(String(v.filter(\.isNumber).prefix(9))) ?? 0)
+            }
+        }
         .navigationDestination(isPresented: $showHoyolab) {
             HoyolabLinkView(store: store) { showHoyolab = false }
         }
@@ -166,10 +174,15 @@ struct SettingsView: View {
                 SetDivider()
                 SetNavRow(symbol: "checkmark.circle", tint: .amber, title: "넛지 기준 금액",
                           value: won(store.nudgeThreshold)) {
-                    SystemTextAlert.present(
-                        title: "넛지 기준 금액", message: "단건 지출이 이 금액 이상이면 추가 전 한 번 더 확인해요.",
-                        text: store.nudgeThreshold > 0 ? "\(store.nudgeThreshold)" : "", placeholder: "100000"
-                    ) { v in store.setNudgeThreshold(Int64(String(v.filter(\.isNumber).prefix(9))) ?? 0) }
+                    // iOS 26+ 는 시스템 시트, 그 아래(iOS 18)는 시스템 알림창 — 알림창 입력칸 넘침은 새 글래스 알림창에서만 난다.
+                    if #available(iOS 26.0, *) {
+                        showNudge = true
+                    } else {
+                        SystemTextAlert.present(
+                            title: "넛지 기준 금액", message: "단건 지출이 이 금액 이상이면 추가 전 한 번 더 확인해요.",
+                            text: store.nudgeThreshold > 0 ? "\(store.nudgeThreshold)" : "", placeholder: "100000"
+                        ) { v in store.setNudgeThreshold(Int64(String(v.filter(\.isNumber).prefix(9))) ?? 0) }
+                    }
                 }
             }
         }
@@ -572,18 +585,57 @@ struct BudgetSettingsView: View {
 
 }
 
-/// 입력칸 하나짜리 **시스템 알림창**(UIAlertController) — 넛지 기준 금액(9/30).
-/// SwiftUI `.alert` 안에 `TextField` 를 넣으면 입력칸이 오른쪽으로 쏠려 보였다(9/29 · 9/30 지적).
-/// 입력칸까지 UIKit 이 그리게 하면 시스템 모양 그대로 가운데 정렬된다. Android 는 GlgDialog(커스텀) 유지.
+/// 넛지 기준 금액 — 시스템 폼 시트. 저장은 헤더 시스템 버튼(iOS 저장류 규칙).
+struct NudgeThresholdSheet: View {
+    @State var text: String
+    let onSave: (String) -> Void
+    @Environment(\.dismiss) private var dismiss
+    @FocusState private var focused: Bool
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    TextField("100000", text: $text)
+                        .keyboardType(.numberPad)
+                        .focused($focused)
+                        .onChange(of: text) { _, v in
+                            let digits = String(v.filter(\.isNumber).prefix(9))
+                            if digits != v { text = digits }
+                        }
+                } header: {
+                    Text("기준 금액 (원)")
+                } footer: {
+                    Text("단건 지출이 이 금액 이상이면 추가 전 한 번 더 확인해요.")
+                }
+            }
+            .navigationTitle("넛지 기준 금액")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("취소") { dismiss() } }
+                ToolbarItem(placement: .confirmationAction) { Button("저장") { onSave(text); dismiss() }.fontWeight(.bold) }
+            }
+            // 시트가 올라오는 도중에 거는 포커스는 무시돼 키패드가 안 떴다(iOS 18 · 26 · 27) — 올라온 뒤에 건다.
+            .task {
+                try? await Task.sleep(for: .milliseconds(450))
+                focused = true
+            }
+        }
+        .presentationDetents([.height(280)])
+    }
+}
+
+/// 입력칸 하나짜리 **시스템 알림창**(UIAlertController) — iOS 26 미만의 넛지 기준 금액.
+/// iOS 26+ 글래스 알림창은 입력칸이 오른쪽으로 넘쳐(OS 버그) 그쪽은 [NudgeThresholdSheet] 를 쓴다.
 @MainActor
 enum SystemTextAlert {
     static func present(title: String, message: String, text: String, placeholder: String,
-                        keyboard: UIKeyboardType = .numberPad, onSave: @escaping (String) -> Void) {
+                        onSave: @escaping (String) -> Void) {
         let alert = UIAlertController(title: title, message: message, preferredStyle: .alert)
         alert.addTextField { tf in
             tf.text = text
             tf.placeholder = placeholder
-            tf.keyboardType = keyboard
+            tf.keyboardType = .numberPad
             tf.clearButtonMode = .whileEditing
         }
         alert.addAction(UIAlertAction(title: "취소", style: .cancel))

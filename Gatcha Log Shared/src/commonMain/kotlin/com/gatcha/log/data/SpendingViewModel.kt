@@ -730,6 +730,7 @@ class SpendingViewModel : ViewModel() {
      * 계정 선택 시트를 띄워 한 번 탭하면 로그인 → Firebase 인증 → 클라우드 복원까지 진행.
      */
     fun signIn() {
+        if (_onboardingPreview.value) return   // 테스트용 온보딩 — 로그인 · 클라우드 불러오기 안 함
         viewModelScope.launch {
             if (cloudConfigured) _initialSyncing.value = true
             signInInFlight = true
@@ -968,6 +969,7 @@ class SpendingViewModel : ViewModel() {
     // ----------------------------------------------------------------- HoYoLAB
     /** 저장했으면 true — 폼은 false 일 때 닫지 않는다(검증 실패로 입력이 날아가지 않게). */
     fun updateHoyolabConfig(input: HoyolabConfig): Boolean {
+        if (_onboardingPreview.value) return true   // 테스트용 온보딩 — 연동 정보를 저장하지 않는다
         val prev = _hoyolabConfig.value
         val config = input.trimmed().let { c ->
             // 계정(ltuid)이 바뀌었는데 교환 쿠키는 그대로면 옛 계정 것이다 — 남기면 선물코드가 다른
@@ -1505,15 +1507,28 @@ class SpendingViewModel : ViewModel() {
         emitStatus("천장을 ${count}${if (guaranteed) " · 확정 보유" else ""}로 맞췄어요")
     }
 
-    /** 온보딩을 안 본 상태로 되돌린다(다음 실행부터 다시 노출). */
     /**
-     * 온보딩을 **지금** 다시 띄운다(개발자 메뉴). 예전엔 플래그만 내리고 "재시작하면 나온다"고 안내했는데,
-     * 화면은 시작 때 읽은 값을 들고 있어 바로 안 떴고, 재시작하면 [AppSettings.freezeOnboardingVerdict] 가
-     * 되돌려서 끝내 안 떴다. 화면은 [onboardingReplay] 가 바뀌면 온보딩으로 넘어간다.
+     * 온보딩을 **테스트용으로** 지금 띄운다(개발자 메뉴 · 디버그 빌드). 화면은 [onboardingReplay] 가 바뀌면 온보딩으로 넘어간다.
+     *
+     * 테스트 모드([onboardingPreview])에서는 **아무것도 저장하지 않는다**(9/30 사용자 지정 — "테스트 용, 클라우드 복원 X"):
+     * 고른 값 적용([applyOnboarding]) · HoYoLAB 연동 저장 · 구글 로그인(=클라우드 불러오기)을 모두 건너뛰고,
+     * 「온보딩 완료」 기록도 건드리지 않아 도중에 앱이 꺼져도 다음 실행에 실제 온보딩이 뜨지 않는다.
+     * 끝나면 화면이 [finishOnboardingPreview] 로 모드를 풀고 권한 요청 · 로그인 없이 홈으로 돌아간다.
      */
     fun debugResetOnboarding() {
-        appSettings.onboardingDone = false
+        _onboardingPreview.value = true
         _onboardingReplay.value += 1
+    }
+
+    private val _onboardingPreview = MutableStateFlow(false)
+    /** 개발자 메뉴에서 연 테스트용 온보딩인가 — 저장 · 로그인 · 복원을 모두 건너뛴다. */
+    val onboardingPreview: StateFlow<Boolean> = _onboardingPreview.asStateFlow()
+
+    /** 테스트용 온보딩이었으면 모드를 풀고 true — 화면은 권한 요청 · 로그인 · 완료 기록 없이 홈으로만 돌아간다. */
+    fun finishOnboardingPreview(): Boolean {
+        if (!_onboardingPreview.value) return false
+        _onboardingPreview.value = false
+        return true
     }
 
     /**
@@ -1535,6 +1550,7 @@ class SpendingViewModel : ViewModel() {
         pickup: Boolean,
         budgetAlert: Boolean,
     ) {
+        if (_onboardingPreview.value) return   // 테스트용 온보딩 — 설정에 쓰지 않는다
         setMyGames(games.toSet())
         appSettings.pendingOnboardingGames = if (account.value.isGuest) games.toSet() else emptySet()
         if (budget >= 0) {
