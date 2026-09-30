@@ -41,7 +41,7 @@ struct GLGImageViewer: View {
                     Text("이미지를 불러오지 못했어요")
                         .font(.pretendard(size: 14)).foregroundStyle(.white.opacity(0.7))
                 } else {
-                    ProgressView().tint(.white)
+                    GldsSpinner(size: 28, lineWidth: 2.5, color: .white)
                 }
             }
             .task { await preload() }

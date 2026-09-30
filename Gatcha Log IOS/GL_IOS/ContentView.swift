@@ -151,7 +151,7 @@ struct ContentView: View {
                 ZStack {
                     Color.black.opacity(0.4).ignoresSafeArea()
                     VStack(spacing: 14) {
-                        ProgressView().controlSize(.large).tint(accent)
+                        GldsSpinner(size: 32, lineWidth: 3, color: accent)
                         Text("로그아웃 중").font(.pretendard(size: 15, weight: .bold))
                     }
                     .padding(.horizontal, 32).padding(.vertical, 24)

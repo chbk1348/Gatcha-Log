@@ -1124,7 +1124,7 @@ struct HoyolandZoomableImage: View {
     @GestureState private var zoom: CGFloat = 1
 
     var body: some View {
-        GLGRemoteImage(url: url, side: 320, contentMode: .fit) { ProgressView() }
+        GLGRemoteImage(url: url, side: 320, contentMode: .fit) { GldsSpinner() }
             .padding(20)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .scaleEffect(zoom)

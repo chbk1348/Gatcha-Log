@@ -297,7 +297,7 @@ struct DailyHeroSection: View {
             }
             if g.canCheckIn {
                 if store.checkingIn == g.gameKey {
-                    ProgressView().controlSize(.small)
+                    GldsSpinner(size: 16, lineWidth: 2)
                 } else {
                     GldsButton(title: "출석", variant: .secondary, size: .xs, fullWidth: false) { store.attemptCheckIn(g.gameKey) }
                     // 체크인은 한 번에 한 건 — 다른 게임이 도는 중이면 VM 이 무시하므로 버튼도 막는다.
@@ -510,7 +510,7 @@ struct AttendanceDetailView: View {
             }
             Spacer(minLength: 8)
             if store.checkingIn == g.gameKey {
-                ProgressView().controlSize(.mini).tint(accent.primary)
+                GldsSpinner(size: 15, lineWidth: 2)
             } else if g.checkedToday {
                 HStack(spacing: 5) {
                     Image(systemName: "checkmark.circle.fill").font(.system(size: 15)).foregroundStyle(accent.primary)
@@ -719,7 +719,7 @@ private struct DailyGameRow: View {
 
     @ViewBuilder private var checkInControl: some View {
         if inProgress {
-            HStack(spacing: 6) { ProgressView().controlSize(.mini).tint(accent.primary); Text("처리 중").font(.pretendard(size: 11, weight: .bold)).foregroundStyle(GLGColor.textSecondary) }
+            HStack(spacing: 6) { GldsSpinner(size: 14, lineWidth: 2); Text("처리 중").font(.pretendard(size: 11, weight: .bold)).foregroundStyle(GLGColor.textSecondary) }
         } else if checked {
             HStack(spacing: 4) { Image(systemName: "checkmark.circle.fill").font(.pretendard(size: 18)).foregroundStyle(accent.primary); Text("완료").font(.pretendard(size: 12, weight: .bold)).foregroundStyle(accent.primary) }
         } else {

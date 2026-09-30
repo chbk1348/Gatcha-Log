@@ -99,9 +99,13 @@ struct GameInfoView: View {
                 // 헤더 새로고침 — 진입할 때 한 번 받는 값이라(10분 안엔 캐시) 방금 깬 층을 보려면 직접 당겨야 한다.
                 .toolbar {
                     ToolbarItem(placement: .topBarTrailing) {
+                        // 아이콘과 스피너를 **겹쳐 두고 보이기만** 바꾼다(9/30) — 내용을 갈아 끼우면 헤더 글래스 버튼이
+                        // 지웠다 다시 그려져 누를 때마다 사라졌다 나타났다.
                         Button { store.refreshCombatClears(force: true) } label: {
-                            if store.combatClearsLoading { ProgressView().controlSize(.small) }
-                            else { Image(systemName: "arrow.clockwise") }
+                            ZStack {
+                                Image(systemName: "arrow.clockwise").opacity(store.combatClearsLoading ? 0 : 1)
+                                if store.combatClearsLoading { GldsSpinner(size: 17, lineWidth: 2) }
+                            }
                         }
                         .disabled(store.combatClearsLoading || !store.hoyolabConfig.isLinked)
                         .accessibilityLabel("새로고침")
@@ -218,8 +222,12 @@ struct GameInfoView: View {
             // 새로고침 중에는 아이콘 자리를 스피너로 바꾼다 — 당겨서 새로고침과 달리
             // 버튼을 눌렀을 때는 화면 어디에도 진행 표시가 없어, 눌린 건지 알 수 없었다.
             Button { store.refreshGameInfo(force: true) } label: {
-                if store.isRefreshing { ProgressView().controlSize(.small) }
-                else { Image(systemName: "arrow.clockwise") }
+                // 아이콘과 스피너를 **겹쳐 두고 보이기만** 바꾼다 — 내용을 갈아 끼우면 헤더 글래스 버튼이
+                // 지웠다 다시 그려져 사라졌다 나타났다(9/30). 스피너는 Android 와 같은 GldsSpinner.
+                ZStack {
+                    Image(systemName: "arrow.clockwise").opacity(store.isRefreshing ? 0 : 1)
+                    if store.isRefreshing { GldsSpinner(size: 17, lineWidth: 2) }
+                }
             }
             .disabled(store.isRefreshing)
         }

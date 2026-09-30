@@ -1598,7 +1598,7 @@ struct EnkaStatPageBody: View {
     private var breakthroughCard: some View {
         if effectsLoading {
             GLGCard(cornerRadius: 24, padding: 18) {
-                HStack { Spacer(); ProgressView().tint(accent.primary); Spacer() }
+                HStack { Spacer(); GldsSpinner(); Spacer() }
             }
         } else {
             // rank: 원신 명함=0, 비공개=-1 → 활성 0개.
@@ -1684,7 +1684,7 @@ struct EnkaStatPageBody: View {
     @ViewBuilder
     private var effectsCard: some View {
         if effectsLoading {
-            HStack { Spacer(); ProgressView().tint(accent.primary); Spacer() }
+            HStack { Spacer(); GldsSpinner(); Spacer() }
                 .padding(.vertical, 18)
                 .frame(maxWidth: .infinity)
                 .glgGlass(in: RoundedRectangle(cornerRadius: 22, style: .continuous))
