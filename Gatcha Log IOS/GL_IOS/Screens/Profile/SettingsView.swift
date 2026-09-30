@@ -92,10 +92,12 @@ struct SettingsView: View {
         }
         // 예산 관리 — 팝업에서 페이지로(아티팩트 S3).
         .navigationDestination(isPresented: $showBudget) { BudgetSettingsView(store: store) }
-        // 넛지 기준 금액 — 네이티브 alert 입력칸이 오른쪽으로 쏠려 보여(9/29 지적) 작은 시트로 바꿨다.
-        .sheet(isPresented: $showNudge) {
-            NudgeThresholdSheet(text: $nudgeText) { store.setNudgeThreshold(Int64(nudgeText.filter(\.isNumber)) ?? 0) }
-                .presentationDetents([.height(250)])
+        // 넛지 기준 금액 — 중앙 모달(6/22 결정). 네이티브 alert 는 입력칸이 오른쪽으로 쏠려(9/29 지적) 직접 그린다.
+        .fullScreenCover(isPresented: $showNudge) {
+            NudgeThresholdModal(text: $nudgeText, isPresented: $showNudge) {
+                store.setNudgeThreshold(Int64(nudgeText.filter(\.isNumber)) ?? 0)
+            }
+            .presentationBackground(Color.black.opacity(0.4))
         }
         .sheet(isPresented: $showCredits) { CreditsSheet() }
         .navigationDestination(isPresented: $showHoyolab) {
@@ -174,7 +176,7 @@ struct SettingsView: View {
                 SetNavRow(symbol: "checkmark.circle", tint: .amber, title: "넛지 기준 금액",
                           value: won(store.nudgeThreshold)) {
                     nudgeText = store.nudgeThreshold > 0 ? "\(store.nudgeThreshold)" : ""
-                    showNudge = true
+                    withoutSlide { showNudge = true }
                 }
             }
         }
@@ -595,12 +597,20 @@ struct BudgetSettingsView: View {
 
 }
 
-// ── 넛지 기준 금액 — 작은 시트(입력칸이 가운데 · 화면 폭에 맞게). ──
-struct NudgeThresholdSheet: View {
+// fullScreenCover 의 아래→위 슬라이드를 끈다(중앙 모달처럼 제자리에 뜨게).
+private func withoutSlide(_ body: () -> Void) {
+    var t = Transaction(); t.disablesAnimations = true
+    withTransaction(t, body)
+}
+
+// ── 넛지 기준 금액 — 중앙 모달 카드(입력칸이 가운데 · 화면 폭에 맞게). ──
+struct NudgeThresholdModal: View {
     @Binding var text: String
+    @Binding var isPresented: Bool
     let onSave: () -> Void
-    @Environment(\.dismiss) private var dismiss
     @FocusState private var focused: Bool
+
+    private func dismiss() { withoutSlide { isPresented = false } }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -637,8 +647,9 @@ struct NudgeThresholdSheet: View {
             .padding(.top, 18)
         }
         .padding(20)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        .background(Color.white.ignoresSafeArea())
+        .background(Color.white, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+        .padding(.horizontal, 28)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .onAppear { focused = true }
     }
 }

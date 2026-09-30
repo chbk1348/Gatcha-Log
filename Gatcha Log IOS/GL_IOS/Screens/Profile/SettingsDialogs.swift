@@ -108,7 +108,7 @@ struct BudgetSheet: View {
     }
 }
 
-// 넛지 기준 금액 — 단일 입력이라 SettingsView 에서 네이티브 alert(중앙 모달)로 직접 노출(별도 시트 폐기).
+// 넛지 기준 금액 — 중앙 모달은 SettingsView.swift 의 NudgeThresholdModal.
 
 // ── 출처 · 저작권 ─────────────────────────────────────────────────────────────
 
