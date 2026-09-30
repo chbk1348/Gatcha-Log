@@ -106,7 +106,6 @@ private val SecondHalfChipBg = Color(0xFFFBEBDC)
 private val RowDivider = Color(0xFFF0F0F0)
 private val PanelBg = Color(0xFFF8F8F8)
 private val PanelDivider = Color(0xFFECECEC)
-private val ChipBorder = Color(0xFFE3E5E8)
 
 /** 처음부터 펼쳐 둘 층 수(맨 위 1층 펼침 + 3층 접힘) — 나머지는 '더 보기' 뒤로. */
 private const val VisibleFloors = 4
@@ -173,39 +172,17 @@ fun CombatClearContent(
     }
 }
 
-/** 게임 필터 — '전체' + 게임별 칩. */
+/** 게임 필터 — '전체' + 게임별. 하나만 고르는 배타 선택이라 **ODS 탭**(9/30), 고른 칸은 게임색(전체는 강조색). */
 @Composable
 private fun GameFilter(games: List<String>, selected: String?, onSelect: (String?) -> Unit) {
-    Row(Modifier.selectableGroup(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        FilterChip("전체", selected == null) { onSelect(null) }
-        games.forEach { g ->
-            FilterChip(GameData.byNameOrNull(g)?.shortName ?: g, selected == g) { onSelect(g) }
-        }
-    }
+    val accent = LocalAccent.current
+    OdsTabs(
+        labels = listOf("전체") + games.map { GameData.byNameOrNull(it)?.shortName ?: it },
+        selected = selected?.let { games.indexOf(it) + 1 } ?: 0,
+        selectedColors = listOf(accent) + games.map { GameData.byNameOrNull(it)?.color?.toColor() ?: accent },
+    ) { i -> onSelect(if (i == 0) null else games[i - 1]) }
 }
 
-@Composable
-private fun FilterChip(label: String, selected: Boolean, onClick: () -> Unit) {
-    val shape = RoundedCornerShape(17.dp)
-    // 34dp 칩이라도 터치는 Compose 가 최소 48dp 로 넓혀 잡는다(minimumTouchTargetSize).
-    Box(
-        Modifier
-            .height(34.dp)
-            .clip(shape)
-            .background(if (selected) TextPrimary else Color.White)
-            .then(if (selected) Modifier else Modifier.border(1.dp, ChipBorder, shape))
-            .selectable(selected = selected, role = Role.Tab, onClick = onClick)
-            .padding(horizontal = 14.dp),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(
-            label,
-            fontSize = 13.sp,
-            fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
-            color = if (selected) Color.White else TextPrimary,
-        )
-    }
-}
 
 @Composable
 private fun ModeCard(m: CombatModeClears, initiallyExpanded: Boolean) {

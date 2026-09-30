@@ -143,8 +143,11 @@ struct TokenExpiredBanner: View {
 
 // ── 알림 상세 (push) ──
 struct NotificationDetailView: View {
-    let alerts: [HomeAlert]; let onBudget: () -> Void; let onGameInfo: () -> Void
+    var store: SpendingStore
+    let alerts: [HomeAlert]; let onGameInfo: () -> Void
     let onDismiss: (HomeAlert) -> Void; let onDismissAll: () -> Void
+    /// 예산 관리는 **알림의 하위 페이지**로 쌓는다(9/30) — 뒤로 가면 알림으로 돌아온다(시스템 push · pop 애니메이션).
+    @State private var showBudget = false
     @Environment(\.dismiss) private var dismiss
     @Environment(\.glgAccent) private var accent
     var body: some View {
@@ -165,6 +168,7 @@ struct NotificationDetailView: View {
         }
         .background(GLGBackground { Color.clear })
         .glgPageTitle("알림").navigationBarTitleDisplayMode(.inline)
+        .navigationDestination(isPresented: $showBudget) { BudgetSettingsView(store: store) }
         .toolbar {
             // 모두 지우기 — 한 번에 전체 dismiss
             if !alerts.isEmpty {
@@ -189,7 +193,7 @@ struct NotificationDetailView: View {
         return GLGCard(cornerRadius: 18, padding: 16) {
             HStack(spacing: 12) {
                 // 본문 탭 → 관련 화면 이동
-                Button { switch a.kind { case .banner, .attendance: onGameInfo(); default: onBudget() } } label: {
+                Button { switch a.kind { case .banner, .attendance: onGameInfo(); default: showBudget = true } } label: {
                     HStack(spacing: 12) {
                         ZStack { Circle().fill(tint.opacity(0.12)).frame(width: 38, height: 38); Image(systemName: icon).font(.pretendard(size: 18)).foregroundStyle(tint) }
                         VStack(alignment: .leading, spacing: 3) {
