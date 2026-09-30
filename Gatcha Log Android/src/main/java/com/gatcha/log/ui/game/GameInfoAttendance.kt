@@ -1,5 +1,7 @@
 package com.gatcha.log.ui.game
 
+import com.gatcha.log.ui.theme.LocalAccentDeep
+import androidx.compose.ui.draw.shadow
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
@@ -422,33 +424,27 @@ private fun DailyQuickButtons(
     onOpenGameContent: (() -> Unit)?,
     onOpenClears: (() -> Unit)?,
 ) {
-    // 칸 폭이 좁으면(화면이 작은 기기) 세 칸 모두 **세로형**(아이콘 아래 글자) — 가로형은 「전투 진행도」가
-    // 말줄임표로 잘렸다(2026-09-28 지적). 칸마다 따로 고르면 한 줄에 두 모양이 섞이므로 줄 단위로 고른다.
-    androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxWidth()) {
-        val count = 1 + (if (onOpenGameContent != null) 1 else 0) + (if (onOpenClears != null) 1 else 0)
-        val cellWidth = (maxWidth - 7.dp * (count - 1)) / count
-        val vertical = cellWidth < 104.dp
-        // 세 칸 모두 **진입만 한다** — 칸 안에 버튼을 두면 탭 대상이 둘이라 어디를 누른 건지 애매해진다.
-        Row(
-            Modifier.fillMaxWidth().height(IntrinsicSize.Min),
-            horizontalArrangement = Arrangement.spacedBy(7.dp),
-        ) {
-            DailyQuickButton(
-                icon = Icons.Default.EventAvailable,
-                title = "출석 체크",
-                sub = if (attendance.allDone) "${attendance.todayDone}/${attendance.todayTotal} 완료"
-                      else "${attendance.pending}개 남음",
-                highlight = !attendance.allDone,
-                vertical = vertical,
-                modifier = Modifier.weight(1f),
-                onClick = onOpenAttendance,
-            )
-            if (onOpenGameContent != null) {
-                DailyQuickButton(Icons.Default.MilitaryTech, "전투 진행도", "수입 일지", vertical = vertical, modifier = Modifier.weight(1f), onClick = onOpenGameContent)
-            }
-            if (onOpenClears != null) {
-                DailyQuickButton(Icons.Default.Groups, "클리어 편성", "나선 · 혼돈", vertical = vertical, modifier = Modifier.weight(1f), onClick = onOpenClears)
-            }
+    // E안(9/30, 캔버스 「데일리 퀵버튼 시안」) — 세 칸을 옅은 강조색 띠 하나로 묶는다. 할 일이 남은 출석만
+    // 흰 칸으로 떠오르고 빨간 개수 배지. 늘 세로형(아이콘 위 · 글자 아래)이라 좁은 폰에서도 말줄임이 없다.
+    // 호요랜드 바로가기(회색 칸 4개)와 모양이 갈려 어느 카드 소속인지 섞이지 않는다.
+    val accent = LocalAccent.current
+    val pending = !attendance.allDone
+    Row(
+        Modifier.fillMaxWidth().height(IntrinsicSize.Min).clip(RoundedCornerShape(16.dp))
+            .background(accent.copy(alpha = 0.08f)).padding(4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        DailyQuickButton(
+            Icons.Default.EventAvailable, "출석 체크", Modifier.weight(1f),
+            raised = pending, badge = if (pending) attendance.pending else 0, onClick = onOpenAttendance,
+        )
+        if (onOpenGameContent != null) {
+            if (!pending) DailyQuickDivider()
+            DailyQuickButton(Icons.Default.MilitaryTech, "전투 진행도", Modifier.weight(1f), onClick = onOpenGameContent)
+        }
+        if (onOpenClears != null) {
+            if (onOpenGameContent != null || !pending) DailyQuickDivider()
+            DailyQuickButton(Icons.Default.Groups, "클리어 편성", Modifier.weight(1f), onClick = onOpenClears)
         }
     }
 }
@@ -552,51 +548,49 @@ private fun GameVersionStripSkeleton() {
  * 퀵버튼 한 칸 — 아이콘 옆에 제목 · 상태를 두는 **가로형**, 흰 면 + 얇은 테두리.
  *
  * 호요랜드 카드의 바로가기 칸(회색 면 · 세로형)과 **일부러 다르게** 간다(2026-09-28 지시) — 같은 탭에
- * 같은 모양이 두 번 나오면 어느 카드 소속인지 흐려진다. [highlight] 면 아이콘과 상태를 위험색으로.
- * iOS `DailyQuickButton` 과 같은 값.
+ * 같은 모양이 두 번 나오면 어느 카드 소속인지 흐려진다. iOS `DailyQuickButton` 과 같은 값.
  */
 @Composable
 private fun DailyQuickButton(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     title: String,
-    sub: String,
     modifier: Modifier = Modifier,
-    highlight: Boolean = false,
-    /** 좁은 화면 — 아이콘 아래에 글자를 가운데 정렬로. */
-    vertical: Boolean = false,
+    /** 흰 칸으로 띄운다 — 할 일이 남은 칸(출석 미완료). 아이콘은 위험색. */
+    raised: Boolean = false,
+    /** 오른쪽 위 빨간 개수 배지(0 이면 없음). */
+    badge: Int = 0,
     onClick: () -> Unit,
 ) {
-    val mark = if (highlight) DangerText else LocalAccent.current
+    val deep = LocalAccentDeep.current
     val shape = RoundedCornerShape(12.dp)
-    val base = modifier.fillMaxHeight().clip(shape).background(Color.White)
-        .border(1.dp, Color(0xFFE3E6EA), shape).clickable { onClick() }
-    val subColor = if (highlight) DangerText else TextSecondary
-    val subWeight = if (highlight) FontWeight.Bold else FontWeight.Normal
-    if (vertical) {
+    Box(
+        modifier.fillMaxHeight()
+            .then(if (raised) Modifier.shadow(1.dp, shape, ambientColor = Color(0x14000000), spotColor = Color(0x14000000)) else Modifier)
+            .clip(shape).background(if (raised) Color.White else Color.Transparent)
+            .clickable { onClick() }.padding(vertical = 10.dp, horizontal = 4.dp),
+    ) {
         Column(
-            base.padding(vertical = 10.dp, horizontal = 4.dp),
+            Modifier.align(Alignment.Center),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterVertically),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
-            Icon(icon, null, tint = mark, modifier = Modifier.size(20.dp))
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(title, fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = TextPrimary, maxLines = 1, softWrap = false)
-                Text(sub, fontSize = 11.sp, color = subColor, fontWeight = subWeight, maxLines = 1, softWrap = false)
-            }
+            Icon(icon, null, tint = if (raised) DangerText else deep, modifier = Modifier.size(20.dp))
+            Text(title, fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = if (raised) TextPrimary else deep, maxLines = 1, softWrap = false)
         }
-    } else {
-        Row(
-            base.heightIn(min = 52.dp).padding(horizontal = 10.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Icon(icon, null, tint = mark, modifier = Modifier.size(18.dp))
-            Spacer(Modifier.width(8.dp))
-            Column(Modifier.weight(1f)) {
-                Text(title, fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = TextPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text(sub, fontSize = 11.sp, color = subColor, fontWeight = subWeight, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            }
+        if (badge > 0) {
+            Box(
+                Modifier.align(Alignment.TopEnd).offset(x = (-4).dp, y = (-4).dp).heightIn(min = 18.dp).widthIn(min = 18.dp)
+                    .clip(CircleShape).background(DangerText).padding(horizontal = 5.dp),
+                contentAlignment = Alignment.Center,
+            ) { Text("$badge", fontSize = 10.5.sp, fontWeight = FontWeight.Black, color = Color.White) }
         }
     }
+}
+
+/** 띠 안 칸 사이 세로 선 — 흰 칸 옆에는 두지 않는다. */
+@Composable
+private fun DailyQuickDivider() {
+    Box(Modifier.width(1.dp).fillMaxHeight().padding(vertical = 12.dp).background(LocalAccent.current.copy(alpha = 0.2f)))
 }
 
 // ============================================================ 출석 상세 페이지
