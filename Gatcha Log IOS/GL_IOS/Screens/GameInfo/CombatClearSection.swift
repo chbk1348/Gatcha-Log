@@ -483,13 +483,19 @@ private struct HalfRow: View {
             }
             // 4명이 남는 폭을 나눠 가지게 한다 — 왼쪽에 붙여 두면 오른쪽 절반이 비어 치우쳐 보인다.
             // (Compose 패리티: CombatClearSection.kt 의 Arrangement.SpaceBetween)
-            HStack(spacing: 0) {
-                ForEach(Array(team.enumerated()), id: \.element.id) { i, a in
-                    if i > 0 { Spacer(minLength: 4) }
-                    AvatarChip(avatar: a, count: 0, side: 44, cell: 60, nameSize: 10.5)
+            // 젠레스 뱅부는 **세로 구분선 뒤**에 따로 둔다(9/30) — 요원과 같은 줄에 섞이면 네 번째 요원처럼 읽혔다.
+            let agents = team.filter { !$0.isBuddy }
+            // 칸은 **모두 같은 폭**(요원 · 뱅부) — 구분선은 1pt 라 간격을 흐트러뜨리지 않는다(Android 와 같다).
+            HStack(alignment: .top, spacing: 0) {
+                ForEach(agents, id: \.id) { a in
+                    AvatarChip(avatar: a, count: 0, side: 44, cell: 60, nameSize: 10.5).frame(maxWidth: .infinity)
+                }
+                if let buddy = team.first(where: { $0.isBuddy }) {
+                    Rectangle().fill(Color(hex: 0xFFE3E5EA)).frame(width: 1).padding(.vertical, 6)
+                    AvatarChip(avatar: buddy, count: 0, side: 44, cell: 60, nameSize: 10.5).frame(maxWidth: .infinity)
                 }
             }
-            .frame(maxWidth: .infinity)
+            .fixedSize(horizontal: false, vertical: true)
         }
     }
 }
@@ -509,14 +515,24 @@ private struct AvatarChip: View {
         if avatar.isBuddy { buddy } else { agent }
     }
 
-    /// 젠레스 뱅부 — 요원보다 작은 32pt 둥근 사각형, 이름 없이. 편성 끝에 붙는 보조라 눈에 덜 띄게 둔다.
+    /// 젠레스 뱅부 — 요원보다 작은 32pt 둥근 사각형 + 이름(nanoka 도감에서 받는다, 9/30).
+    /// 요원 아이콘 칸(side) 가운데에 놓아 이름 줄이 요원 이름과 같은 높이에 온다.
     private var buddy: some View {
-        GLGRemoteImage(url: URL(string: avatar.iconUrl), side: 32) {
-            Color.gray.opacity(0.15)
+        VStack(spacing: 3) {
+            // 요원과 같은 크기(side) — 모양(둥근 사각형)으로만 구분한다(9/30).
+            GLGRemoteImage(url: URL(string: avatar.iconUrl), side: side) {
+                Color.gray.opacity(0.15)
+            }
+            .frame(width: side, height: side)
+            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            if !avatar.name.isEmpty {
+                Text(avatar.name)
+                    .font(.pretendard(size: nameSize))
+                    .foregroundStyle(GLGColor.textPrimary)
+                    .lineLimit(1)
+            }
         }
-        .frame(width: 32, height: 32)
-        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-        .frame(width: 36)
+        .frame(width: cell)
     }
 
     private var agent: some View {

@@ -117,6 +117,19 @@ object NanokaApi {
      *
      * 값이 없는 캐릭터도 있다(스타레일 망귀인) — 그때는 null 이고, 화면은 줄을 그리지 않는다.
      */
+    /**
+     * 젠레스 뱅부 한국어 이름(id → 이름) — HoYoLAB 전투 기록은 뱅부 이름을 주지 않는다(id · 이미지뿐).
+     * 한 번 받은 이름은 앱 실행 동안 기억한다(뱅부는 몇십 종뿐이고 이름이 바뀌지 않는다).
+     */
+    suspend fun bangbooName(id: Int): String? {
+        if (id <= 0) return null
+        bangbooNames[id]?.let { return it }
+        val name = entity("zzz", "bangboo", id.toString())?.optString("name")?.takeIf { it.isNotBlank() } ?: return null
+        bangbooNames[id] = name
+        return name
+    }
+    private val bangbooNames = mutableMapOf<Int, String>()
+
     suspend fun charCamp(gameKey: String, charId: Int): String? {
         if (charId <= 0) return null
         val nanokaKey = when (gameKey) {

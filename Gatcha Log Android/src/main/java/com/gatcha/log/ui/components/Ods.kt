@@ -3,6 +3,13 @@ package com.gatcha.log.ui.components
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
+import kotlinx.coroutines.delay
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.foundation.relocation.bringIntoViewRequester
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.layout.isImeVisible
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -148,6 +155,7 @@ private val OdsFieldPlaceholder = Color(0xFFA7B1AE)
  * ODS 입력필드 — 채운 면(#F5F8F8), 포커스 때 흰 면 + 강조색 1.5 테두리, 오류면 빨강 테두리 + 아래 문구.
  * [suffix] 는 값 뒤에 붙는 단위(「원」), [trailingIcon] 은 오른쪽 끝 아이콘, [onClick] 을 주면 누르는 필드(날짜 등).
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun OdsTextField(
     value: String,
@@ -176,12 +184,22 @@ fun OdsTextField(
     )
     val bg by animateColorAsState(if (focused || error != null) Color.White else OdsFieldBg, label = "odsFieldBg")
     val shape = RoundedCornerShape(size.radius)
+    // 포커스 · 키보드가 뜨면 **입력칸 전체**(라벨 · 테두리 · 도움말)를 보이는 곳까지 스크롤한다(9/30).
+    // 텍스트필드 기본 동작은 커서가 있는 글자 줄만 보이게 해서, 칸 테두리가 하단 바에 붙거나 가렸다.
+    val bring = remember { BringIntoViewRequester() }
+    val imeVisible = WindowInsets.isImeVisible
+    LaunchedEffect(focused, imeVisible) {
+        if (focused) {
+            delay(120)   // 키보드가 자리를 잡고 스크롤 영역이 줄어든 뒤
+            bring.bringIntoView()
+        }
+    }
     val style = LocalTextStyle.current.copy(
         color = TextPrimary, fontSize = size.font, textAlign = textAlign,
         fontWeight = if (bold) FontWeight.Bold else FontWeight.Normal,
     )
 
-    Column(modifier) {
+    Column(modifier.bringIntoViewRequester(bring)) {
         label?.let { OdsFieldLabel(it) }
         Row(
             verticalAlignment = Alignment.CenterVertically,

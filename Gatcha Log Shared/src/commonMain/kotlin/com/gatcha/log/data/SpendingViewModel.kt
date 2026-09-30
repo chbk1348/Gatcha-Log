@@ -1214,7 +1214,22 @@ class SpendingViewModel : ViewModel() {
                 val namesByGame = (metaNames.keys + ownedNames.keys).associateWith { key ->
                     metaNames[key].orEmpty() + ownedNames[key].orEmpty()
                 }
-                val named = CombatClearLogic.withNames(fetched, namesByGame)
+                // 젠레스 뱅부 이름 — 요원 이름 출처(메타 · 보유 캐시)에는 뱅부가 없어 nanoka 도감에서 id 로 받는다(9/30).
+                val buddyIds = fetched.flatMap { c -> c.rooms.flatMap { it.firstHalf + it.secondHalf } }
+                    .filter { it.isBuddy && it.name.isBlank() }.map { it.id }.distinct()
+                val buddyNames = runCatching {
+                    coroutineScope {
+                        buddyIds.map { id -> async(Dispatchers.IO) { id to NanokaApi.bangbooName(id) } }.awaitAll()
+                    }.mapNotNull { (id, n) -> n?.let { id to it } }.toMap()
+                }.getOrDefault(emptyMap())
+                val named = CombatClearLogic.withNames(fetched, namesByGame).map { c ->
+                    if (buddyNames.isEmpty()) c else c.copy(rooms = c.rooms.map { r ->
+                        r.copy(
+                            firstHalf = r.firstHalf.map { a -> if (a.isBuddy && a.name.isBlank()) buddyNames[a.id]?.let { a.copy(name = it) } ?: a else a },
+                            secondHalf = r.secondHalf.map { a -> if (a.isBuddy && a.name.isBlank()) buddyNames[a.id]?.let { a.copy(name = it) } ?: a else a },
+                        )
+                    })
+                }
                 val grouped = CombatClearLogic.grouped(
                     mergeByGame(_combatClears.value, named, loadedGames) { it.game },
                 )

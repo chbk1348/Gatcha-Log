@@ -15,6 +15,8 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.CircleShape
@@ -556,10 +558,21 @@ private fun HalfRow(chip: HalfChip?, team: List<CombatAvatar>) {
             )
             Spacer(Modifier.width(8.dp))
         }
-        // 4명이 남는 폭을 나눠 가지게 한다 — 왼쪽에 붙여 두면 오른쪽 절반이 비어 치우쳐 보인다.
-        Row(Modifier.weight(1f), horizontalArrangement = Arrangement.SpaceBetween) {
-            team.forEach {
-                AvatarChip(it, count = 0, size = RoomAvatarSize, cell = RoomAvatarCell, nameSize = 10.5.sp)
+        // 요원이 남는 폭을 나눠 가지게 한다 — 왼쪽에 붙여 두면 오른쪽 절반이 비어 치우쳐 보인다.
+        // 젠레스 뱅부는 **세로 구분선 뒤**에 따로 둔다(9/30) — 요원과 같은 줄에 섞이면 네 번째 요원처럼 읽혔다.
+        // 칸은 **모두 같은 폭**(요원 · 뱅부 모두 weight 1) — 구분선은 1dp 라 간격을 흐트러뜨리지 않는다.
+        val buddy = team.firstOrNull { it.isBuddy }
+        Row(Modifier.weight(1f).height(IntrinsicSize.Min)) {
+            team.filterNot { it.isBuddy }.forEach {
+                Box(Modifier.weight(1f), contentAlignment = Alignment.TopCenter) {
+                    AvatarChip(it, count = 0, size = RoomAvatarSize, cell = RoomAvatarCell, nameSize = 10.5.sp)
+                }
+            }
+            if (buddy != null) {
+                Box(Modifier.width(1.dp).fillMaxHeight().padding(vertical = 6.dp).background(BuddyDivider))
+                Box(Modifier.weight(1f), contentAlignment = Alignment.TopCenter) {
+                    AvatarChip(buddy, count = 0, size = RoomAvatarSize, cell = RoomAvatarCell, nameSize = 10.5.sp)
+                }
             }
         }
     }
@@ -630,7 +643,7 @@ private fun AvatarChip(
     nameSize: TextUnit = 10.sp,
 ) {
     if (a.isBuddy) {
-        BuddyChip(a, top = (size - BuddySize) / 2)
+        BuddyChip(a, size = size, cell = cell, nameSize = nameSize)
         return
     }
     Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.width(cell)) {
@@ -680,23 +693,33 @@ private fun AvatarChip(
     }
 }
 
-private val BuddySize = 32.dp
+private val BuddyDivider = Color(0xFFE3E5EA)
 
 /**
- * 젠레스 뱅부 — 요원보다 작은 둥근 사각형, 이름 없음(HoYoLAB 이 뱅부 이름을 주지 않는다).
- * [top] 만큼 내려 요원 아이콘과 세로 가운데를 맞춘다.
+ * 젠레스 뱅부 — 요원보다 작은 둥근 사각형 + 이름. 이름은 HoYoLAB 이 주지 않아 nanoka 도감에서 받는다(9/30).
+ * 요원 아이콘 칸([size]) 가운데에 놓아 이름 줄이 요원 이름과 같은 높이에 온다.
  */
 @Composable
-private fun BuddyChip(a: CombatAvatar, top: Dp) {
-    val shape = RoundedCornerShape(8.dp)
-    Box(Modifier.padding(top = top).size(BuddySize).clip(shape).background(DividerColor)) {
-        if (a.iconUrl.isNotBlank()) {
-            AsyncImage(
-                model = a.iconUrl,
-                contentDescription = "뱅부",
-                modifier = Modifier.size(BuddySize),
-                contentScale = ContentScale.Crop,
-            )
+private fun BuddyChip(a: CombatAvatar, size: Dp, cell: Dp, nameSize: TextUnit) {
+    val shape = RoundedCornerShape(12.dp)
+    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.width(cell)) {
+        Box(Modifier.size(size), contentAlignment = Alignment.Center) {
+            // 요원과 같은 크기([size]) — 모양(둥근 사각형)으로만 구분한다(9/30).
+            // 배경을 깔지 않는다 — 뱅부 그림은 바탕이 투명해 회색 면이 그대로 비쳤다.
+            Box(Modifier.size(size).clip(shape)) {
+                if (a.iconUrl.isNotBlank()) {
+                    AsyncImage(
+                        model = a.iconUrl,
+                        contentDescription = a.name.ifBlank { "뱅부" },
+                        modifier = Modifier.size(size),
+                        contentScale = ContentScale.Crop,
+                    )
+                }
+            }
+        }
+        if (a.name.isNotBlank()) {
+            Spacer(Modifier.height(3.dp))
+            Text(a.name, fontSize = nameSize, color = TextPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center)
         }
     }
 }
