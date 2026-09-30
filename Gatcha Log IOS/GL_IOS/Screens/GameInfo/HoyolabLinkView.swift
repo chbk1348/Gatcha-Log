@@ -72,10 +72,14 @@ struct HoyolabLinkView: View {
                     }
                     Text("구글 로그인 시 게임 UID 는 계정에 함께 동기화돼 다른 기기에서도 그대로 사용돼요. 보안을 위해 ltuid·ltoken·cookie_token 등 토큰은 동기화하지 않으며, 새 기기에서는 다시 로그인해 가져와야 해요.")
                         .font(.pretendard(size: 11.5)).foregroundStyle(Color(hex: 0xFF7A8784)).padding(.horizontal, 4).padding(.top, 10)
-                    // 저장 — 주 액션은 화면 아래 ODS 버튼(예전엔 툴바). Android 와 같은 자리.
-                    OdsButton(title: "저장", size: .l) { save() }.padding(.top, 20)
                 }
                 .padding(.horizontal, 16).padding(.top, 16).padding(.bottom, 8)
+            }
+            // 「저장」은 하단에 상시 고정 — 예산 관리와 같은 바. Android 와 같은 자리.
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                OdsButton(title: "저장", size: .l) { save() }
+                    .padding(.horizontal, 16).padding(.top, 10).padding(.bottom, 8)
+                    .background(Color.white.shadow(color: .black.opacity(0.08), radius: 8).ignoresSafeArea(edges: .bottom))
             }
             .background(GLGBackground { Color.clear })
             .glgPageTitle("HoYoLAB 계정 연동")

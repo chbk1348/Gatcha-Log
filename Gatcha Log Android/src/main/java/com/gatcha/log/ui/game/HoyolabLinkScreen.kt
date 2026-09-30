@@ -1,5 +1,8 @@
 package com.gatcha.log.ui.game
 
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.draw.shadow
 import androidx.compose.foundation.background
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
@@ -115,23 +118,27 @@ fun HoyolabLinkScreen(config: HoyolabConfig, onSave: (HoyolabConfig) -> Unit, on
                     "보안을 위해 ltuid·ltoken·cookie_token 등 토큰은 동기화하지 않으며, 새 기기에서는 다시 로그인해 가져와야 해요.",
                 fontSize = 11.5.sp, lineHeight = 17.sp, color = Color(0xFF7A8784), modifier = Modifier.padding(top = 10.dp, start = 4.dp, end = 4.dp),
             )
-            // 저장 — 주 액션은 화면 아래 ODS 버튼(예전엔 헤더 알약). iOS 와 같은 자리.
-            OdsButton(
-                "저장",
-                onClick = {
-                    onSave(
-                        HoyolabConfig(
-                            ltuid = ltuid.trim(), ltoken = ltoken.trim(),
-                            genshinUid = gi.trim(), hsrUid = hsr.trim(), zzzUid = zzz.trim(),
-                            cookieToken = cookieToken.trim(), webCookie = webCookie,
-                        ),
-                    )
-                },
-                size = OdsSize.L,
-                modifier = Modifier.padding(top = 20.dp).fillMaxWidth(),
-            )
-            Spacer(Modifier.height(24.dp))
+            // 하단 고정 저장 바에 가리지 않게 — 바 높이(10 + 50 + 8) + 여유.
+            Spacer(Modifier.height(92.dp))
         }
+        // 「저장」은 하단에 상시 고정 — 예산 관리와 같은 바(스크롤해도 늘 보인다). iOS 와 같은 자리.
+        OdsButton(
+            "저장",
+            onClick = {
+                onSave(
+                    HoyolabConfig(
+                        ltuid = ltuid.trim(), ltoken = ltoken.trim(),
+                        genshinUid = gi.trim(), hsrUid = hsr.trim(), zzzUid = zzz.trim(),
+                        cookieToken = cookieToken.trim(), webCookie = webCookie,
+                    ),
+                )
+            },
+            size = OdsSize.L,
+            modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth()
+                .shadow(8.dp, RectangleShape, ambientColor = Color(0x14000000), spotColor = Color(0x14000000))
+                .background(Color.White).navigationBarsPadding().imePadding()
+                .padding(start = 16.dp, end = 16.dp, top = 10.dp, bottom = 8.dp),
+        )
         GlgDetailHeaderOverlay("HoYoLAB 계정 연동", onBack, scrollState = scrollState)
     }
 

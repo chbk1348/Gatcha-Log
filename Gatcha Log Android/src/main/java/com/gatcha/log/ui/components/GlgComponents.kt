@@ -694,7 +694,7 @@ fun GlgDialog(
             dismissOnClickOutside = dismissable,
         ),
     ) {
-        Box(Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) {
+        Box(Modifier.fillMaxWidth().dismissKeyboardOnTap().padding(24.dp), contentAlignment = Alignment.Center) {
             androidx.compose.material3.Surface(
                 shape = RoundedCornerShape(24.dp),
                 color = Color.White,

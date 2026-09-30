@@ -1,5 +1,7 @@
 package com.gatcha.log
 
+import androidx.compose.ui.Modifier
+import com.gatcha.log.ui.components.dismissKeyboardOnTap
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.togetherWith
 import androidx.compose.animation.scaleOut
@@ -176,6 +178,7 @@ class MainActivity : ComponentActivity() {
                         fadeIn(tween(420)) togetherWith (fadeOut(tween(380)) + scaleOut(tween(380), targetScale = 1.06f))
                     },
                     label = "onboardingRoot",
+                    modifier = Modifier.dismissKeyboardOnTap(),
                 ) { done ->
                 when {
                     // 첫 실행 → 앱 소개(로그인보다 앞). 재설치 전까지 다시 뜨지 않는다.

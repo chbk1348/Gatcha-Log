@@ -488,11 +488,8 @@ struct AddSpendingView: View {
     private var dateCard: some View {
         sectionCard {
             // 누르는 필드 — 모양은 ODS 입력필드, 탭하면 날짜 시트(Android OdsTextField(onClick) 와 같이).
-            Button { showDate = true } label: {
-                OdsTextField(label: "날짜", placeholder: "", text: .constant(DateUtil.shared.labelWithWeekday(millis: dateMillis)),
-                             trailingSystemImage: "calendar")
-                    .allowsHitTesting(false)
-            }.buttonStyle(.plain)
+            OdsTextField(label: "날짜", placeholder: "", text: .constant(DateUtil.shared.labelWithWeekday(millis: dateMillis)),
+                         trailingSystemImage: "calendar", onTap: { showDate = true })
         }
     }
 
