@@ -35,7 +35,7 @@ import com.gatcha.log.ui.components.GlgDetailHeaderOverlay
 import com.gatcha.log.ui.components.glgDetailContentTop
 import com.gatcha.log.ui.components.GlgHeaderTitlePill
 import com.gatcha.log.ui.components.GlgChip
-import com.gatcha.log.ui.components.GlgSegmentedTabs
+import com.gatcha.log.ui.components.OdsTabs
 import com.gatcha.log.ui.theme.LocalAccentTint
 
 // 목업(06_ChangeLog.html) 색 토큰 — 분류 의미색은 디자인 고정값을 그대로 사용(패리티).
@@ -95,7 +95,7 @@ internal fun UpdateLogScreen(onBack: () -> Unit) {
 
         // ── 스티키 필터칩 ──
         stickyHeader {
-            // 호요랜드 일자 탭·리딤코드 게임 탭과 **같은 세그먼트 규격**([GlgSegmentedTabs]).
+            // 호요랜드 일자 탭·리딤코드 게임 탭과 **같은 세그먼트 규격**([OdsTabs]).
             //
             // 예전엔 분류색으로 칠한 칩 다섯이었다. 배타 선택인데 독립 버튼처럼 보였고,
             // 선택된 칩의 색이 그때그때 달라 "지금 무엇으로 걸러져 있나"가 한눈에 안 들어왔다.
@@ -110,7 +110,7 @@ internal fun UpdateLogScreen(onBack: () -> Unit) {
                     .padding(top = 4.dp, bottom = 12.dp),
             ) {
                 val kinds = listOf(null, ChangeKind.NEW, ChangeKind.IMP, ChangeKind.FIX, ChangeKind.SEC)
-                GlgSegmentedTabs(
+                OdsTabs(
                     labels = listOf("전체", "신규", "개선", "수정", "보안"),
                     selected = kinds.indexOf(filter).coerceAtLeast(0),
                     onSelect = { filter = kinds[it] },

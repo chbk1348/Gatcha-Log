@@ -75,7 +75,7 @@ struct HoyolandGoodsView: View {
         // 목록이 탭 뒤로 비치지 않는다.
         VStack(alignment: .leading, spacing: 0) {
             if !all.isEmpty && games.count > 1 {
-                GLGSegmentedTabs(
+                OdsTabs(
                     labels: ["전체"] + games.map { event.stageLabel(game: $0) },
                     selectedColors: [accent.primary] + games.map { gameColor($0) },
                     selection: Binding(
@@ -660,7 +660,7 @@ struct HoyolandBoothView: View {
                 } else {
                     // 굿즈 목록과 같은 게임 탭 — 두 화면을 오갈 때 거르는 방법이 달라지면 손이 헷갈린다.
                     if games.count > 1 || !extras.isEmpty {
-                        GLGSegmentedTabs(
+                        OdsTabs(
                             labels: games.map { event.stageLabel(game: $0) } + extras.map(\.label),
                             selectedColors: games.map { boothColor($0) } + extras.map { _ in accent.primary },
                             selection: Binding(
@@ -690,7 +690,7 @@ struct HoyolandBoothView: View {
                         // 먼저 가르고 싶어진다(2026-09-28 지시). DIY · 파트너사는 성격이 달라 걸지 않는다.
                         HStack(spacing: 6) {
                             ForEach(Array(["전체", "무료", "유료"].enumerated()), id: \.offset) { i, label in
-                                GLGGlassChip(label: label, selected: priceFilter == i) { priceFilter = i }
+                                OdsChip(label: label, selected: priceFilter == i) { priceFilter = i }
                             }
                         }
                     }

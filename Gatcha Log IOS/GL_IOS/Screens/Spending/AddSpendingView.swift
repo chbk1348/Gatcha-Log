@@ -94,16 +94,13 @@ struct AddSpendingView: View {
         .scrollDismissesKeyboard(.interactively)
         .navigationTitle(editing == nil ? "지출 추가" : "지출 수정")
         .navigationBarTitleDisplayMode(.inline)
-        // 취소 · 저장은 **하단 ODS 버튼 쌍**(Android 와 같이, 2026-09-30 ODS 교체). 네비 바엔 닫기(X)만 남긴다.
-        // 못 누르는 이유는 저장 버튼이 직접 말한다(「게임을 선택하세요」 · 「금액을 입력하세요」).
-        .safeAreaInset(edge: .bottom, spacing: 0) {
-            SpendingButtonPair(secondary: "취소", primary: saveTitle, ratio: 1.5,
-                               primaryEnabled: canSave && !saved, verticalPadding: 20,
-                               onSecondary: { requestDismiss() }, onPrimary: { attemptSave() })
-        }
+        // iOS 는 저장을 헤더 시스템 버튼으로(9/30 사용자 지정) — 닫기(X) · 저장/수정. 못 누르면 시스템 비활성.
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {
                 Button { requestDismiss() } label: { Image(systemName: "xmark") }
+            }
+            ToolbarItem(placement: .confirmationAction) {
+                Button(editing == nil ? "저장" : "수정") { attemptSave() }.disabled(!canSave || saved)
             }
         }
         .confirmationDialog("입력한 내용을 버릴까요?", isPresented: $confirmDiscard, titleVisibility: .visible) {
@@ -667,6 +664,6 @@ struct AddSpendingView: View {
         OdsTextField(label: label.isEmpty ? nil : label, placeholder: ph, text: text)
     }
     private func chip(_ label: String, _ selected: Bool, _ action: @escaping () -> Void) -> some View {
-        GLGChip(label: label, selected: selected, action: action)
+        OdsChip(label: label, selected: selected, action: action)
     }
 }

@@ -158,20 +158,8 @@ struct SpendingInsightView: View {
 
     // ── 월간 인사이트 / 연간 리포트 세그먼트 토글 ──
     private var insightToggle: some View {
-        HStack(spacing: 4) {
-            ForEach(Array(["월간 인사이트", "연간 리포트"].enumerated()), id: \.offset) { i, label in
-                let sel = i == tab
-                Text(label)
-                    .font(.pretendard(size: 13, weight: .bold))
-                    .foregroundStyle(sel ? GLGColor.textPrimary : GLGColor.textSecondary)
-                    .frame(maxWidth: .infinity).padding(.vertical, 9)
-                    .background(sel ? Color.white : Color.clear, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-                    .contentShape(Rectangle())
-                    .onTapGesture { tab = i }
-            }
-        }
-        .padding(4)
-        .background(Color(hex: 0xFFF1F1F4), in: RoundedRectangle(cornerRadius: 13, style: .continuous))
+        // ODS 탭 neutral — 같은 데이터의 보기 방식 전환(9/30).
+        OdsTabs(labels: ["월간 인사이트", "연간 리포트"], selection: $tab, variant: .neutral)
     }
 
     // ── 신규) 전월 대비 ──

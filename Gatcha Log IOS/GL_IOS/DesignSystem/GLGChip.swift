@@ -71,18 +71,26 @@ struct GLGBadge: View {
 //     목록의 배지와 같은 규칙이 된다(UISegmentedControl 은 전역 appearance 뿐).
 // ════════════════════════════════════════════════════════════════════════════
 
-struct GLGSegmentedTabs: View {
+/// ODS 탭 모양 — primary: 흰 트랙 + 강조색 알약(콘텐츠 전환) · neutral: 회색 트랙 + 흰 알약(보기 방식 전환).
+enum OdsTabsVariant { case primary, neutral }
+
+/// **ODS 탭**(9/30) — Android `OdsTabs` 와 같은 값. 트랙 14 · 안쪽 3 · 칸 32(서브라벨 46) · 알약 11 · 12.5 SemiBold.
+struct OdsTabs: View {
     let labels: [String]
     /// 라벨 아래 붙는 작은 둘째 줄(요일 등). 주면 칸이 두 줄 높이가 된다.
     var subLabels: [String]? = nil
     /// 칸마다 다른 선택색. nil 이면 전부 강조색.
     var selectedColors: [Color]? = nil
     @Binding var selection: Int
+    var variant: OdsTabsVariant = .primary
     @Environment(\.glgAccent) private var accent
+    private var neutral: Bool { variant == .neutral }
+    private var selText: Color { neutral ? GLGColor.textPrimary : .white }
 
     private var height: CGFloat { subLabels == nil ? 32 : 46 }
     private var sel: Int { min(max(selection, 0), max(labels.count - 1, 0)) }
     private var fill: Color {
+        if neutral { return .white }
         if let c = selectedColors, sel < c.count { return c[sel] }
         return accent.primary
     }
@@ -97,6 +105,7 @@ struct GLGSegmentedTabs: View {
                 ZStack(alignment: .topLeading) {
                     RoundedRectangle(cornerRadius: 11, style: .continuous)
                         .fill(fill)
+                        .shadow(color: .black.opacity(neutral ? 0.08 : 0), radius: 1, y: 1)
                         .frame(width: cell, height: height)
                         .offset(x: cell * CGFloat(sel))
                         .animation(.spring(response: 0.32, dampingFraction: 0.86), value: sel)
@@ -105,13 +114,13 @@ struct GLGSegmentedTabs: View {
                         ForEach(Array(labels.enumerated()), id: \.offset) { i, label in
                             VStack(spacing: 0) {
                                 Text(label)
-                                    .font(.pretendard(size: 12.5, weight: .semibold))
-                                    .foregroundStyle(i == sel ? .white : GLGColor.textSecondary)
+                                    .font(.pretendard(size: 12.5, weight: neutral && i == sel ? .bold : .semibold))
+                                    .foregroundStyle(i == sel ? selText : GLGColor.textSecondary)
                                     .lineLimit(1)
                                 if let sub = subLabels?[safe: i], !sub.isEmpty {
                                     Text(sub)
                                         .font(.pretendard(size: 10, weight: .medium))
-                                        .foregroundStyle(i == sel ? .white.opacity(0.85)
+                                        .foregroundStyle(i == sel ? selText.opacity(0.85)
                                                                   : GLGColor.textSecondary.opacity(0.75))
                                         .lineLimit(1)
                                 }
@@ -127,10 +136,10 @@ struct GLGSegmentedTabs: View {
             }
             .frame(height: height)
             .padding(3)
-            .background(Color.white, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .background(neutral ? Color(hex: 0xFFF1F2F4) : .white, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .stroke(.black.opacity(0.06), lineWidth: 1)
+                    .strokeBorder(neutral ? .clear : Color(hex: 0xFFE3E5EA), lineWidth: 1)
             )
         }
     }

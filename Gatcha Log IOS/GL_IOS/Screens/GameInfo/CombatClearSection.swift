@@ -19,7 +19,6 @@ private let secondHalfBar = Color(hex: 0xFFC46A1F)
 private let secondHalfText = Color(hex: 0xFFA8561A)
 private let secondHalfTint = Color(hex: 0xFFFBEBDC)
 private let chipBorder = Color(hex: 0xFFE3E5E8)
-private let segmentTrack = Color(hex: 0xFFF1F2F4)
 private let panelFill = Color(hex: 0xFFF8F8F8)
 private let panelDivider = Color(hex: 0xFFECECEC)
 /// 접힌 층을 이만큼만 보여 준다(펼친 1 + 접힌 3). 나머지는 「더 보기」로.
@@ -186,33 +185,15 @@ private struct ModeCard: View {
             modeTitle
             Spacer(minLength: 8)
             if hasCurrent && mode.hasPrevious {
-                HStack(spacing: 0) {
-                    segment("이번 시즌", on: !showPrevious) { showPrevious = false }
-                    segment("지난 시즌", on: showPrevious) { showPrevious = true }
-                }
-                .padding(2)
-                .background(Capsule().fill(segmentTrack))
+                // ODS 탭 neutral(9/30) — Android SeasonSegment 와 같은 168 폭.
+                OdsTabs(labels: ["이번 시즌", "지난 시즌"], selection: Binding(
+                    get: { showPrevious ? 1 : 0 }, set: { showPrevious = $0 == 1 }
+                ), variant: .neutral)
+                .frame(width: 168)
             }
         }
     }
 
-    private func segment(_ title: String, on: Bool, action: @escaping () -> Void) -> some View {
-        Button {
-            withAnimation(.easeInOut(duration: 0.2)) { action() }
-        } label: {
-            Text(title)
-                .font(.pretendard(size: 11, weight: on ? .bold : .medium))
-                .foregroundStyle(on ? GLGColor.textPrimary : GLGColor.textSecondary)
-                .padding(.horizontal, 10)
-                .frame(height: 28)
-                .background {
-                    if on { Capsule().fill(Color.white).shadow(color: .black.opacity(0.08), radius: 1, y: 1) }
-                }
-                .contentShape(Capsule())
-        }
-        .buttonStyle(.plain)
-        .accessibilityAddTraits(on ? .isSelected : [])
-    }
 
     /// 접힌 카드 — 태그 + 모드명 + 별 요약 + 화살표. 누르면 펼친다.
     private var collapsedRow: some View {

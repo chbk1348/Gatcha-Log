@@ -715,10 +715,10 @@ private fun NotificationSettingsScreen(viewModel: SpendingViewModel, onBack: () 
 }
 
 private val NotifyWarn = Color(0xFFC2410C)
-private val RowDivider = Color(0xFFF0F3F2)
+internal val RowDivider = Color(0xFFF0F3F2)
 
 /** 설정 줄 아이콘 색 짝(글자색, 옅은 바탕) — 아티팩트 S0 · S1. */
-private object Tint {
+internal object Tint {
     val teal = Color(0xFF177881) to Color(0xFFE3F2F1)
     val purple = Color(0xFF9350F0) to Color(0xFFF1E8FD)
     val orange = Color(0xFFC2410C) to Color(0xFFFFF1E6)

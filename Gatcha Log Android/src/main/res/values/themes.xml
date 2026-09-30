@@ -1,8 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools">
     <style name="Theme.GatchaLog" parent="android:Theme.Material.Light.NoActionBar">
         <item name="android:statusBarColor">@android:color/transparent</item>
         <item name="android:navigationBarColor">@android:color/transparent</item>
+        <!-- 시스템 바 아이콘은 어둡게(라이트 전용 앱). 스플래시를 걷을 때(installSplashScreen · remove) 이 테마 값으로
+             다시 칠해져서, 여기 없으면 enableEdgeToEdge 의 어두운 아이콘이 흰색으로 덮였다(9/30 전 지면). -->
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowLightNavigationBar" tools:targetApi="27">true</item>
     </style>
 
     <!--

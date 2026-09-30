@@ -1,5 +1,6 @@
 package com.gatcha.log.ui.game
 
+import com.gatcha.log.ui.components.LightSystemBarsInWindow
 import com.gatcha.log.ui.game.hoyoland.HoyolandTicketKicker
 import com.gatcha.log.ui.game.hoyoland.HoyolandTicketRule
 import com.gatcha.log.ui.game.hoyoland.HoyolandTicketShape
@@ -135,6 +136,7 @@ import com.gatcha.log.data.HoyolandLineup
 import com.gatcha.log.data.HoyolandPhase
 import com.gatcha.log.data.HoyolandProgram
 import com.gatcha.log.data.api.HoyolandApi
+import com.gatcha.log.ui.components.OdsChip
 import com.gatcha.log.ui.components.GlassCard
 import com.gatcha.log.ui.components.GlgChip
 import com.gatcha.log.ui.components.GlgCircleIconButton
@@ -152,7 +154,7 @@ import com.gatcha.log.ui.theme.LocalAccent
 import com.gatcha.log.ui.theme.LocalAccentDeep
 import com.gatcha.log.ui.theme.TextPrimary
 import com.gatcha.log.ui.theme.TextSecondary
-import com.gatcha.log.ui.components.GlgSegmentedTabs
+import com.gatcha.log.ui.components.OdsTabs
 import com.gatcha.log.ui.theme.glgShortSpec
 import com.gatcha.log.ui.theme.glgStandardSpec
 
@@ -1089,7 +1091,7 @@ fun HoyolandTimetableSection(
     // 배타 선택은 앱 전체가 세그먼트 탭 규격이다(날짜 탭·일정/주년과 같은 것). 칩을 나란히
     // 두면 서로 독립된 버튼처럼 보여 "이 중 하나가 지금 보고 있는 것"이 약하게 읽힌다.
     if (games.size > 1) {
-        GlgSegmentedTabs(
+        OdsTabs(
             labels = listOf("전체") + games.map { e.stageLabel(it) },
             // 고른 칸이 **그 게임 색**으로 찬다 — 목록의 색 띠와 같은 색이라 규칙이 안 어긋난다.
             // '전체'는 게임색이 없다 — 앱 강조색을 쓴다(먹색으로 두면 이 칸만 딴 물건이 된다).
@@ -1300,7 +1302,7 @@ fun HoyolandDayTabs(e: HoyolandEvent, selected: Int, onSelect: (Int) -> Unit) {
     if (ymds.isEmpty()) return
     Column {
         Spacer(Modifier.height(6.dp))
-        GlgSegmentedTabs(
+        OdsTabs(
             labels = ymds.map { e.dayTabDate(it) },
             subLabels = ymds.map { e.dayTabWeekday(it) },
             selected = selected.coerceIn(0, ymds.lastIndex),
@@ -1317,7 +1319,7 @@ fun HoyolandGoodsTabs(e: HoyolandEvent, selected: String?, onSelect: (String?) -
     val games = e.goodsGames
     Column {
         Spacer(Modifier.height(6.dp))
-        GlgSegmentedTabs(
+        OdsTabs(
             labels = listOf("전체") + games.map { e.stageLabel(it) },
             selectedColors = listOf(accent) + games.map {
                 e.stageColor(it).let { c -> if (c == 0L) TextSecondary else c.toColor() }
@@ -1640,6 +1642,7 @@ private fun HoyolandGoodsImageSheet(
         sheetState = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = true),
         containerColor = Color.White,
     ) {
+        LightSystemBarsInWindow()
         Column(
             Modifier.fillMaxWidth().padding(horizontal = 18.dp).navigationBarsPadding().padding(bottom = 16.dp),
         ) {
@@ -1819,6 +1822,7 @@ private fun HoyolandGuideSheet(
         sheetState = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = true),
         containerColor = Color.White,
     ) {
+        LightSystemBarsInWindow()
         Column(Modifier.fillMaxWidth().navigationBarsPadding().padding(bottom = 16.dp)) {
             // 본문만 스크롤한다 — 닫기는 **늘 아래에 보인다**(2026-09-15 요청). 안내가 길어 시트를 꽉 채우면
             // 닫기가 스크롤 끝에 숨어 끌어내리는 것 말고는 닫을 방법이 안 보였다.
@@ -1850,6 +1854,7 @@ private fun HoyolandPhotoSheet(label: String, color: Color, title: String, price
         sheetState = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = true),
         containerColor = Color.White,
     ) {
+        LightSystemBarsInWindow()
         Column(Modifier.fillMaxWidth().padding(horizontal = 18.dp).navigationBarsPadding().padding(bottom = 16.dp)) {
             Box(Modifier.fillMaxWidth().height(300.dp).clip(RoundedCornerShape(18.dp)).background(CartRowBg)) {
                 HoyolandZoomableImage(url, title)
@@ -2228,7 +2233,7 @@ fun HoyolandBoothContent(
     // 「전체」 탭은 두지 않는다(2026-09-28 지시) — 필터가 비어 있으면 **첫 게임**이 선택된 것으로 본다.
     val shownGame = gameFilter?.takeIf { it in games } ?: games.firstOrNull()
     if (games.size > 1 || extras.isNotEmpty()) {
-        GlgSegmentedTabs(
+        OdsTabs(
             labels = games.map { e.stageLabel(it) } + extras.map { it.second },
             selectedColors = games.map {
                 e.stageColor(it).let { c -> if (c == 0L) TextSecondary else c.toColor() }
@@ -2249,7 +2254,7 @@ fun HoyolandBoothContent(
     var priceFilter by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(0) }
     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
         listOf("전체", "무료", "유료").forEachIndexed { i, label ->
-            GlgChip(label, selected = priceFilter == i) { priceFilter = i }
+            OdsChip(label, { priceFilter = i }, selected = priceFilter == i)
         }
     }
     Spacer(Modifier.height(12.dp))

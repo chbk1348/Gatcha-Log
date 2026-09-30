@@ -61,6 +61,8 @@ import com.gatcha.log.data.CombatClearLogic
 import com.gatcha.log.data.CombatModeClears
 import com.gatcha.log.data.CombatRoom
 import com.gatcha.log.data.GameData
+import com.gatcha.log.ui.components.OdsTabs
+import com.gatcha.log.ui.components.OdsTabsVariant
 import com.gatcha.log.ui.components.GlassCard
 import com.gatcha.log.ui.components.GlgBadgeText
 import com.gatcha.log.ui.components.OdsButton
@@ -105,7 +107,6 @@ private val RowDivider = Color(0xFFF0F0F0)
 private val PanelBg = Color(0xFFF8F8F8)
 private val PanelDivider = Color(0xFFECECEC)
 private val ChipBorder = Color(0xFFE3E5E8)
-private val SegmentBg = Color(0xFFF1F2F4)
 
 /** 처음부터 펼쳐 둘 층 수(맨 위 1층 펼침 + 3층 접힘) — 나머지는 '더 보기' 뒤로. */
 private const val VisibleFloors = 4
@@ -301,41 +302,13 @@ private fun ModeTitle(mode: String, modifier: Modifier) {
     )
 }
 
-/** 이번 시즌 | 지난 시즌. 둘 다 있을 때만 그린다. */
+/** 이번 시즌 | 지난 시즌. 둘 다 있을 때만 그린다. ODS 탭 Neutral(보기 방식 전환). */
 @Composable
 private fun SeasonSegment(showPrevious: Boolean, onChange: (Boolean) -> Unit) {
-    Row(
-        Modifier
-            .clip(RoundedCornerShape(10.dp))
-            .background(SegmentBg)
-            .padding(2.dp)
-            .selectableGroup(),
-    ) {
-        SegmentButton("이번 시즌", !showPrevious) { onChange(false) }
-        SegmentButton("지난 시즌", showPrevious) { onChange(true) }
-    }
-}
-
-@Composable
-private fun SegmentButton(label: String, selected: Boolean, onClick: () -> Unit) {
-    val shape = RoundedCornerShape(8.dp)
-    Box(
-        Modifier
-            .height(28.dp)
-            .then(if (selected) Modifier.shadow(1.dp, shape) else Modifier)
-            .clip(shape)
-            .background(if (selected) Color.White else Color.Transparent)
-            .selectable(selected = selected, role = Role.Tab, onClick = onClick)
-            .padding(horizontal = 10.dp),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(
-            label,
-            fontSize = 11.sp,
-            fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
-            color = if (selected) TextPrimary else TextSecondary,
-        )
-    }
+    OdsTabs(
+        listOf("이번 시즌", "지난 시즌"), if (showPrevious) 1 else 0,
+        Modifier.width(168.dp), variant = OdsTabsVariant.Neutral,
+    ) { onChange(it == 1) }
 }
 
 /** "★ 35 / 36" — 만점을 모르면(점수 기반 모드) 분모 없이. */

@@ -10,7 +10,18 @@ import Shared
 /// 지출 추가 버튼 (iOS 26 가이드라인):
 ///  - iOS 26: 탭바와 같은 높이에 분리된 원형 글래스 버튼 (Mail 컴포즈 버튼 패턴 — Tab role 사용)
 ///  - iOS 16~25: 탭바 위 우측의 글래스 원형 버튼 (오버레이 폴백)
+/// 앱 루트 위에 얹는 중앙 모달 자리 — fullScreenCover 는 뜰 때 시스템 배경이 한 프레임 비쳐 딤이 깜빡였다(9/30).
+/// 화면이 `present` 로 뷰를 넘기면 ContentView 가 탭바 · 내비 바까지 덮어 그린다. 닫기는 모달이 `dismiss()`.
+@MainActor
+final class GLGModalCenter: ObservableObject {
+    static let shared = GLGModalCenter()
+    @Published private(set) var content: AnyView?
+    func present<V: View>(_ view: V) { content = AnyView(view) }
+    func dismiss() { content = nil }
+}
+
 struct ContentView: View {
+    @ObservedObject private var modal = GLGModalCenter.shared
     /// Kotlin SpendingViewModel 브리지(공유 VM). 온보딩 게이트·강조색을 SwiftUI 에서 직접 구독.
     @State private var store = SpendingStore.shared
     @State private var selectedTab: Int = 0
@@ -161,6 +172,8 @@ struct ContentView: View {
             }
         }
         .animation(GLGMotion.standard(), value: store.signingOut)
+        // 중앙 모달(넛지 기준 금액 등) — 등장 · 퇴장 애니메이션은 모달 스스로 한다.
+        .overlay { modal.content.map { $0.glgAccent(index: store.accentIndex) } }
         // 강제 업데이트 — 현재 버전이 최소 지원 버전 미만이면 앱 전체를 덮는 닫히지 않는 화면.
         // (데이터 꼬임 방지·구버전 유지보수 종료. iOS 는 사이드로딩이라 '지금 업데이트'가 릴리스 페이지를 연다.)
         .overlay {
