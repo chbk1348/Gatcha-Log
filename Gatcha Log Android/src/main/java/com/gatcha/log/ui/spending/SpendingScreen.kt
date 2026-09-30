@@ -665,6 +665,8 @@ private fun SpendingRow(spending: Spending, selectionMode: Boolean, selected: Bo
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            // 고른 줄은 **줄 전체를 꽉 채운 면**으로(9/30) — iOS 와 같다. 카드(GlassCard)가 둥근 모서리로 자른다.
+            .background(if (selectionMode && selected) accent.copy(alpha = 0.10f) else Color.Transparent)
             .clickable { onClick() }
             .padding(horizontal = 16.dp, vertical = if (compact) 10.dp else 13.dp),
         verticalAlignment = Alignment.CenterVertically,

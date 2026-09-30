@@ -315,6 +315,8 @@ struct SpendingView: View {
                     historyRow(s)
                 }
             }
+            // 줄 선택 면이 카드의 둥근 모서리 밖으로 삐지지 않게 카드 모양으로 자른다(9/30).
+            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
         }
         .padding(.vertical, store.spendingCompact ? 4 : 6)
     }
@@ -327,22 +329,17 @@ struct SpendingView: View {
                 if selectedIds.contains(s.id) { selectedIds.remove(s.id) } else { selectedIds.insert(s.id) }
             } label: {
                 SpendingRow(spending: s, selectionMode: true, selected: selectedIds.contains(s.id), compact: store.spendingCompact)
+                    // 고른 줄은 **줄 전체를 꽉 채운 면**으로(9/30) — 카드가 둥근 모서리로 잘라 준다(dayCard).
+                    .background(selectedIds.contains(s.id) ? accent.primary.opacity(0.10) : .clear)
             }
             .buttonStyle(.plain)
         } else if isWide {
             // iPad — 밀어 넣지 않고 **오른쪽 상세를 갈아 끼운다**. 지금 보고 있는 행은 배경으로 표시.
             Button { selectedId = s.id } label: {
                 SpendingRow(spending: s, compact: store.spendingCompact)
-                    // 고른 행 표시는 **안쪽으로 물린 둥근 면**이다. 예전엔 각진 면이 카드 폭을
-                    // 그대로 채워, 첫 줄·마지막 줄에서 카드의 둥근 모서리 밖으로 삐져나왔다
-                    // (2026-09-21 iPad · 듀오 지적).
-                    .background(alignment: .center) {
-                        if selectedId == s.id {
-                            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                .fill(accent.primary.opacity(0.10))
-                                .padding(.horizontal, 6).padding(.vertical, 2)
-                        }
-                    }
+                    // 고른 행 표시는 **줄 전체를 꽉 채운 면**(9/30 지시). 예전엔 카드가 내용을 자르지 않아
+                    // 첫 줄·마지막 줄에서 둥근 모서리 밖으로 삐져나와 안쪽으로 물렸었다 — 이제 카드(dayCard)가 자른다.
+                    .background(selectedId == s.id ? accent.primary.opacity(0.10) : .clear)
             }
             .buttonStyle(.plain)
         } else {
