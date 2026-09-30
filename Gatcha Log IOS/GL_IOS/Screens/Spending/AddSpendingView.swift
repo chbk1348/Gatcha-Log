@@ -103,7 +103,10 @@ struct AddSpendingView: View {
                 Button(editing == nil ? "저장" : "수정") { attemptSave() }.disabled(!canSave || saved)
             }
         }
-        .confirmationDialog("입력한 내용을 버릴까요?", isPresented: $confirmDiscard, titleVisibility: .visible) {
+        // 가운데 알림창(9/30) — 액션 시트는 iPad · Duo 에서 누른 자리 옆 팝오버로 떠 위치가 기기마다 달랐다.
+        // 버튼은 Android GlgDialog 와 같은 「계속 입력」 · 「버리기」.
+        .alert("입력한 내용을 버릴까요?", isPresented: $confirmDiscard) {
+            Button("계속 입력", role: .cancel) {}.glgAlertTint()
             Button("버리기", role: .destructive) { onClose() }
         }
         // 입력 화면에서는 하단 탭바를 감춘다 — 저장/취소 바가 이미 하단을 쓰고 있어 두 겹이 되고,
