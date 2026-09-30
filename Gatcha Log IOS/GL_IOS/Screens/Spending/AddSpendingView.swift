@@ -487,8 +487,8 @@ struct AddSpendingView: View {
 
     private var dateCard: some View {
         sectionCard {
-            // 누르는 필드 — 모양은 ODS 입력필드, 탭하면 날짜 시트(Android OdsTextField(onClick) 와 같이).
-            OdsTextField(label: "날짜", placeholder: "", text: .constant(DateUtil.shared.labelWithWeekday(millis: dateMillis)),
+            // 누르는 필드 — 모양은 GLDS 입력필드, 탭하면 날짜 시트(Android GldsTextField(onClick) 와 같이).
+            GldsTextField(label: "날짜", placeholder: "", text: .constant(DateUtil.shared.labelWithWeekday(millis: dateMillis)),
                          trailingSystemImage: "calendar", onTap: { showDate = true })
         }
     }
@@ -664,9 +664,9 @@ struct AddSpendingView: View {
     }
     private func label(_ t: String) -> some View { Text(t).font(.pretendard(size: 14, weight: .bold)).foregroundStyle(GLGColor.textSecondary) }
     private func field(_ label: String, _ ph: String, _ text: Binding<String>) -> some View {
-        OdsTextField(label: label.isEmpty ? nil : label, placeholder: ph, text: text)
+        GldsTextField(label: label.isEmpty ? nil : label, placeholder: ph, text: text)
     }
     private func chip(_ label: String, _ selected: Bool, _ action: @escaping () -> Void) -> some View {
-        OdsChip(label: label, selected: selected, action: action)
+        GldsChip(label: label, selected: selected, action: action)
     }
 }

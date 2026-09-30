@@ -24,9 +24,9 @@ import androidx.compose.ui.unit.sp
 import com.gatcha.log.BuildConfig
 import com.gatcha.log.data.SpendingViewModel
 import com.gatcha.log.ui.components.GlgSwitch
-import com.gatcha.log.ui.components.OdsButton
-import com.gatcha.log.ui.components.OdsSize
-import com.gatcha.log.ui.components.OdsVariant
+import com.gatcha.log.ui.components.GldsButton
+import com.gatcha.log.ui.components.GldsSize
+import com.gatcha.log.ui.components.GldsVariant
 import com.gatcha.log.ui.components.GlgDetailHeaderOverlay
 import com.gatcha.log.ui.components.glgDetailContentTop
 import com.gatcha.log.ui.theme.TextPrimary
@@ -192,7 +192,7 @@ fun DeveloperScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
                                 Text(line, fontSize = 12.sp, color = TextPrimary)
                             }
                             Spacer(Modifier.height(14.dp))
-                            OdsButton("닫기", { report = null }, variant = OdsVariant.Secondary, size = OdsSize.S)
+                            GldsButton("닫기", { report = null }, variant = GldsVariant.Secondary, size = GldsSize.S)
                         }
                     }
                 }

@@ -1,7 +1,7 @@
 import SwiftUI
 
 #if DEBUG
-/// **개발자 전용** — ODS 버튼을 몇 가지 테마로 한 화면에 늘어놓는다.
+/// **개발자 전용** — GLDS 버튼을 몇 가지 테마로 한 화면에 늘어놓는다.
 /// 버튼은 대부분 하위 화면(모달 · 설정)에 있어 시뮬레이터로는 거기까지 갈 수 없다.
 /// 여는 법: 실행 인자 `-uiPreview buttons`.
 struct GLGButtonPreviewSheet: View {
@@ -14,14 +14,14 @@ struct GLGButtonPreviewSheet: View {
                     VStack(alignment: .leading, spacing: 6) {
                         Text(a.label).font(.system(size: 11)).foregroundStyle(.gray)
                         HStack(spacing: 10) {
-                            OdsButton(title: "취소", variant: .secondary) {}
-                            OdsButton(title: "저장하기") {}
+                            GldsButton(title: "취소", variant: .secondary) {}
+                            GldsButton(title: "저장하기") {}
                         }
-                        OdsButton(title: "지출 추가", size: .l) {}
+                        GldsButton(title: "지출 추가", size: .l) {}
                         HStack(spacing: 8) {
-                            OdsButton(title: "교환", variant: .secondary, size: .xs, fullWidth: false) {}
-                            OdsButton(title: "재연동", size: .s, fullWidth: false) {}
-                            OdsButton(title: "삭제", variant: .danger, size: .s, fullWidth: false) {}
+                            GldsButton(title: "교환", variant: .secondary, size: .xs, fullWidth: false) {}
+                            GldsButton(title: "재연동", size: .s, fullWidth: false) {}
+                            GldsButton(title: "삭제", variant: .danger, size: .s, fullWidth: false) {}
                         }
                     }
                     .padding(12)
@@ -36,14 +36,14 @@ struct GLGButtonPreviewSheet: View {
 #endif
 
 // ════════════════════════════════════════════════════════════════════════════
-// ODS — 앱 공용 버튼 규격 (2026-09-30). Android `ui/components/Ods.kt` 와 값이 같다.
+// GLDS — 앱 공용 버튼 규격 (2026-09-30). Android `ui/components/Glds.kt` 와 값이 같다.
 // 두 플랫폼을 픽셀까지 맞추려고 시스템 스타일 대신 직접 그린다(글자도 Pretendard).
 // ════════════════════════════════════════════════════════════════════════════
 
-enum OdsVariant { case primary, secondary, neutral, inverse, danger, onTint, text }
+enum GldsVariant { case primary, secondary, neutral, inverse, danger, onTint, text }
 
 /// 높이 · 반경 · 글자 · 아이콘 · 간격 · 좌우 여백(내용 폭일 때).
-enum OdsSize {
+enum GldsSize {
     case l, m, s, xs
     var height: CGFloat { switch self { case .l: 50; case .m: 44; case .s: 36; case .xs: 28 } }
     var radius: CGFloat { switch self { case .l, .m: 16; case .s: 12; case .xs: 9 } }
@@ -53,11 +53,11 @@ enum OdsSize {
     var padH: CGFloat { switch self { case .l: 20; case .m: 18; case .s: 14; case .xs: 12 } }
 }
 
-/// ODS 버튼. `fullWidth` 면 가로 전체, 아니면 내용 폭 + 좌우 여백. 누르면 0.97배 + 면이 한 단 진해진다.
-struct OdsButton: View {
+/// GLDS 버튼. `fullWidth` 면 가로 전체, 아니면 내용 폭 + 좌우 여백. 누르면 0.97배 + 면이 한 단 진해진다.
+struct GldsButton: View {
     let title: String
-    var variant: OdsVariant = .primary
-    var size: OdsSize = .m
+    var variant: GldsVariant = .primary
+    var size: GldsSize = .m
     var systemImage: String? = nil
     var fullWidth: Bool = true
     var loading: Bool = false
@@ -81,14 +81,14 @@ struct OdsButton: View {
             .frame(maxWidth: fullWidth ? .infinity : nil)
             .frame(height: size.height)
         }
-        .buttonStyle(OdsButtonStyle(variant: variant, size: size))
+        .buttonStyle(GldsButtonStyle(variant: variant, size: size))
         .disabled(loading)
     }
 }
 
-struct OdsButtonStyle: ButtonStyle {
-    let variant: OdsVariant
-    let size: OdsSize
+struct GldsButtonStyle: ButtonStyle {
+    let variant: GldsVariant
+    let size: GldsSize
     @Environment(\.glgAccent) private var accent
     @Environment(\.isEnabled) private var enabled
 
@@ -116,13 +116,13 @@ struct OdsButtonStyle: ButtonStyle {
 }
 
 // ════════════════════════════════════════════════════════════════════════════
-// ODS 칩(9/30) — 필터 · 선택용 알약. Android `OdsChip` 과 같은 값.
+// GLDS 칩(9/30) — 필터 · 선택용 알약. Android `GldsChip` 과 같은 값.
 // 높이 32 · 좌우 12 · 13 Bold. 기본 흰 면 + 1 #E3E5EA, 선택은 **면을 채우지 않고** 강조색 1.5 테두리 + deep 글자
 // (Menu 라벨의 글래스 모프 때 채운 면이 번져 보였다). dropdown 은 ▾, removable 은 ✕.
 // ════════════════════════════════════════════════════════════════════════════
 
 /// 모양만 — `Menu` 라벨처럼 버튼이 따로 있는 자리에서 쓴다.
-struct OdsChipLabel: View {
+struct GldsChipLabel: View {
     let label: String
     var selected: Bool = false
     var dropdown: Bool = false
@@ -149,7 +149,7 @@ struct OdsChipLabel: View {
     }
 }
 
-struct OdsChip: View {
+struct GldsChip: View {
     let label: String
     var selected: Bool = false
     var dropdown: Bool = false
@@ -158,13 +158,13 @@ struct OdsChip: View {
     let action: () -> Void
     var body: some View {
         Button(action: action) {
-            OdsChipLabel(label: label, selected: selected, dropdown: dropdown, removable: removable, color: color)
+            GldsChipLabel(label: label, selected: selected, dropdown: dropdown, removable: removable, color: color)
         }
-        .buttonStyle(OdsChipPress())
+        .buttonStyle(GldsChipPress())
     }
 }
 
-private struct OdsChipPress: ButtonStyle {
+private struct GldsChipPress: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label.scaleEffect(configuration.isPressed ? 0.95 : 1).animation(.easeOut(duration: 0.1), value: configuration.isPressed)
     }

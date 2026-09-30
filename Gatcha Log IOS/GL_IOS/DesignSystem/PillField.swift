@@ -1,11 +1,11 @@
 import SwiftUI
 
 // ════════════════════════════════════════════════════════════════════════════
-// ODS 입력필드 (2026-09-30) — Android `OdsTextField` 와 값이 같다.
+// GLDS 입력필드 (2026-09-30) — Android `GldsTextField` 와 값이 같다.
 // 채운 면 #F5F8F8, 포커스 때 흰 면 + 강조색 1.5 테두리, 오류면 빨강 테두리 + 아래 문구.
 // ════════════════════════════════════════════════════════════════════════════
 
-enum OdsFieldSize {
+enum GldsFieldSize {
     case m, s
     var height: CGFloat { self == .m ? 48 : 38 }
     var radius: CGFloat { self == .m ? 14 : 12 }
@@ -13,11 +13,11 @@ enum OdsFieldSize {
     var padH: CGFloat { self == .m ? 14 : 12 }
 }
 
-struct OdsTextField: View {
+struct GldsTextField: View {
     var label: String? = nil
     let placeholder: String
     @Binding var text: String
-    var size: OdsFieldSize = .m
+    var size: GldsFieldSize = .m
     var suffix: String? = nil
     var trailingSystemImage: String? = nil
     var helper: String? = nil
@@ -39,7 +39,7 @@ struct OdsTextField: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            if let label { OdsFieldLabel(text: label) }
+            if let label { GldsFieldLabel(text: label) }
             HStack(spacing: 0) {
                 field
                     .font(.pretendard(size: size.font, weight: bold ? .bold : .regular))
@@ -87,7 +87,7 @@ struct OdsTextField: View {
 }
 
 /// 입력필드 위 라벨 — 13 SemiBold #6C727A, 아래 6.
-struct OdsFieldLabel: View {
+struct GldsFieldLabel: View {
     let text: String
     var body: some View {
         Text(text).font(.pretendard(size: 13, weight: .semibold)).foregroundStyle(GLGColor.textSecondary).padding(.bottom, 6)

@@ -59,11 +59,11 @@ import com.gatcha.log.ui.components.glgDetailContentTop
 import com.gatcha.log.ui.components.GlgScreenHeader
 import com.gatcha.log.ui.components.GlgDialog
 import com.gatcha.log.ui.components.GlgSwitch
-import com.gatcha.log.ui.components.OdsButton
-import com.gatcha.log.ui.components.OdsFieldSize
-import com.gatcha.log.ui.components.OdsSize
-import com.gatcha.log.ui.components.OdsTextField
-import com.gatcha.log.ui.components.OdsVariant
+import com.gatcha.log.ui.components.GldsButton
+import com.gatcha.log.ui.components.GldsFieldSize
+import com.gatcha.log.ui.components.GldsSize
+import com.gatcha.log.ui.components.GldsTextField
+import com.gatcha.log.ui.components.GldsVariant
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -833,11 +833,11 @@ internal fun BudgetScreen(
                                 )
                             }
                             Spacer(Modifier.width(8.dp))
-                            OdsTextField(
+                            GldsTextField(
                                 value = if (limit > 0) "%,d".format(limit) else "",
                                 onValueChange = { raw -> limits[g.key] = raw.filter { it.isDigit() }.take(9).toLongOrNull() ?: 0L },
                                 placeholder = "한도 없음",
-                                size = OdsFieldSize.S,
+                                size = GldsFieldSize.S,
                                 suffix = "원",
                                 textAlign = TextAlign.End,
                                 bold = true,
@@ -862,8 +862,8 @@ internal fun BudgetScreen(
                 .padding(start = 16.dp, end = 16.dp, top = 10.dp, bottom = 8.dp),
             horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            OdsButton("월 예산 끄기", { onSave(0L, perGame()) }, Modifier.weight(1f), variant = OdsVariant.Secondary, size = OdsSize.L)
-            OdsButton("저장", { onSave(amount.coerceAtLeast(0L), perGame()) }, Modifier.weight(1.4f), size = OdsSize.L)
+            GldsButton("월 예산 끄기", { onSave(0L, perGame()) }, Modifier.weight(1f), variant = GldsVariant.Secondary, size = GldsSize.L)
+            GldsButton("저장", { onSave(amount.coerceAtLeast(0L), perGame()) }, Modifier.weight(1.4f), size = GldsSize.L)
         }
         GlgDetailHeaderOverlay("예산 관리", onBack, scrolled)
     }
@@ -1077,8 +1077,8 @@ private fun ThemeScreen(accentIndex: Int, onSelect: (Int) -> Unit, onBack: () ->
                     // 문구는 버튼 이름이 아니라 모양 이름이다 — 「취소 · 저장하기」는 테마를 저장·되돌리는
                     // 진짜 버튼으로 읽혔다(2026-09-21 지적).
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OdsButton("보조 버튼", {}, Modifier.weight(1f), variant = OdsVariant.Secondary)
-                        OdsButton("강조 버튼", {}, Modifier.weight(1f))
+                        GldsButton("보조 버튼", {}, Modifier.weight(1f), variant = GldsVariant.Secondary)
+                        GldsButton("강조 버튼", {}, Modifier.weight(1f))
                     }
                 }
             }
@@ -1124,7 +1124,7 @@ private fun NudgeThresholdDialog(current: Long, onDismiss: () -> Unit, onConfirm
         Column {
             Text("단건 지출이 이 금액 이상이면 추가 전 한 번 더 확인해요.", fontSize = 12.sp, color = TextSecondary)
             Spacer(Modifier.height(12.dp))
-            OdsTextField(
+            GldsTextField(
                 value = text,
                 onValueChange = { v -> text = v.filter { it.isDigit() }.take(9) },
                 placeholder = "100,000",

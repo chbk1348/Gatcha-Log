@@ -44,7 +44,7 @@ struct GachaDashboardView: View {
                 HStack(spacing: 8) {
                     ForEach(games, id: \.self) { g in
                         let gColor = GameData.shared.byNameOrNull(name: g).map { Color(argb64: $0.color) } ?? accent.primary
-                        OdsChip(label: gachaGameInfo(g).short, selected: g == sel, color: gColor) { selected = g }
+                        GldsChip(label: gachaGameInfo(g).short, selected: g == sel, color: gColor) { selected = g }
                     }
                     Spacer(minLength: 0)
                 }

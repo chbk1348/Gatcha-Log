@@ -354,13 +354,13 @@ struct SpendingView: View {
         }
     }
 
-    // 선택 모드 하단 액션 바 — 선택 개수 + 취소/삭제/일괄 편집(ODS S — Android 와 같은 세트).
+    // 선택 모드 하단 액션 바 — 선택 개수 + 취소/삭제/일괄 편집(GLDS S — Android 와 같은 세트).
     private var selectionBar: some View {
         HStack(spacing: 8) {
             Text("\(selectedIds.count)건").font(.pretendard(size: 14, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
             Spacer()
-            OdsButton(title: "취소", variant: .neutral, size: .s, fullWidth: false) { selectionMode = false; selectedIds = [] }
-            OdsButton(title: "삭제", variant: .danger, size: .s, fullWidth: false) {
+            GldsButton(title: "취소", variant: .neutral, size: .s, fullWidth: false) { selectionMode = false; selectedIds = [] }
+            GldsButton(title: "삭제", variant: .danger, size: .s, fullWidth: false) {
                 if selectedIds.isEmpty { store.showStatus("선택된 항목이 없어요") }
                 else { confirmBulkDelete = true }
             }
@@ -369,7 +369,7 @@ struct SpendingView: View {
                     store.deleteSpendings(selectedIds); selectionMode = false; selectedIds = []
                 }
             } message: { Text("삭제한 지출은 되돌릴 수 없어요.") }
-            OdsButton(title: "일괄 편집", size: .s, fullWidth: false) {
+            GldsButton(title: "일괄 편집", size: .s, fullWidth: false) {
                 if selectedIds.isEmpty { store.showStatus("선택된 항목이 없어요") } else { showBulkEdit = true }
             }
         }
@@ -399,7 +399,7 @@ struct SpendingView: View {
             // 기록은 있는데 필터에 다 걸렸으면 "없어요" 가 아니라 필터를 풀 길을 준다.
             if !store.spendings.isEmpty {
                 Text("조건에 맞는 지출이 없어요").font(.pretendard(size: 14)).foregroundStyle(GLGColor.textSecondary)
-                OdsButton(title: "필터 초기화", variant: .secondary, size: .s, fullWidth: false) {
+                GldsButton(title: "필터 초기화", variant: .secondary, size: .s, fullWidth: false) {
                     gameFilters = []; period = .all; paymentFilter = nil; sortOrder = .dateDesc
                 }
                 .padding(.top, 6)
@@ -422,7 +422,7 @@ struct SpendingView: View {
     private var quickFilters: some View {
         VStack(alignment: .leading, spacing: 6) {
             // 스크롤뷰에 넣지 않는다(9/30) — iOS 26 메뉴가 칩에서 부풀어 열릴 때 스크롤뷰가 그 바깥을 잘랐다.
-            // ODS 칩 3개라 한 줄에 들어간다.
+            // GLDS 칩 3개라 한 줄에 들어간다.
                 HStack(spacing: 6) {
                     // 기간 — 단일 선택.
                     quickMenu(label: period == .all ? "기간" : period.rawValue, active: period != .all) {
@@ -481,7 +481,7 @@ struct SpendingView: View {
                 ScrollView(.horizontal) {
                     HStack(spacing: 6) {
                         if let m = paymentFilter {
-                            OdsChip(label: m, selected: true, removable: true) { paymentFilter = nil }
+                            GldsChip(label: m, selected: true, removable: true) { paymentFilter = nil }
                         }
                     }
                     .padding(.vertical, 6)
@@ -504,10 +504,10 @@ struct SpendingView: View {
     /// 띄운다 — 크기가 구조적으로 같아진다.
     private var customRangeRow: some View {
         HStack(spacing: 6) {
-            OdsChip(label: dateChipLabel(customStart), selected: true) { showStartPicker = true }
+            GldsChip(label: dateChipLabel(customStart), selected: true) { showStartPicker = true }
                 .popover(isPresented: $showStartPicker) { datePopover($customStart) }
             Text("~").font(.pretendard(size: 12, weight: .semibold)).foregroundStyle(GLGColor.textSecondary)
-            OdsChip(label: dateChipLabel(customEnd), selected: true) { showEndPicker = true }
+            GldsChip(label: dateChipLabel(customEnd), selected: true) { showEndPicker = true }
                 .popover(isPresented: $showEndPicker) { datePopover($customEnd) }
         }
         .padding(.vertical, 4)
@@ -543,14 +543,14 @@ struct SpendingView: View {
     /// (`.transaction { $0.animation = nil }`)으로는 못 막는다 — 실제로 시도했고 효과 없었다.
     /// 채움을 빼자 즉시 사라졌다.
     ///
-    /// 그래서 걸림은 **채움이 아니라** 강조색 테두리 · 글자로 알린다(ODS 칩, 9/30) — 모프가 통째로
+    /// 그래서 걸림은 **채움이 아니라** 강조색 테두리 · 글자로 알린다(GLDS 칩, 9/30) — 모프가 통째로
     /// 스냅샷을 떠도 번질 색 면적이 없다.
     private func quickMenu<C: View>(label: String, active: Bool, @ViewBuilder content: () -> C) -> some View {
         Menu {
             content()
         } label: {
-            // ODS 칩(9/30) — 걸림은 채움이 아니라 강조색 테두리 · 글자(모프 때 번지지 않게, 위 설명).
-            OdsChipLabel(label: label, selected: active, dropdown: true)
+            // GLDS 칩(9/30) — 걸림은 채움이 아니라 강조색 테두리 · 글자(모프 때 번지지 않게, 위 설명).
+            GldsChipLabel(label: label, selected: active, dropdown: true)
                 .fixedSize()
         }
         .buttonStyle(.plain)
@@ -605,7 +605,7 @@ struct SpendingView: View {
             .background(Color.white)
             .navigationTitle("상세 필터")
             .navigationBarTitleDisplayMode(.inline)
-            // 초기화 · 적용은 시트 아래 ODS 버튼 쌍(Android 와 같이, 폭 1 : 1.4).
+            // 초기화 · 적용은 시트 아래 GLDS 버튼 쌍(Android 와 같이, 폭 1 : 1.4).
             .safeAreaInset(edge: .bottom, spacing: 0) {
                 SpendingButtonPair(secondary: "초기화", primary: "적용", ratio: 1.4, onSecondary: {
                     gameFilters = []; period = .all; paymentFilter = nil; sortOrder = .dateDesc
@@ -735,7 +735,7 @@ private func prevYM(_ y: Int, _ m: Int) -> (Int, Int) { m == 1 ? (y - 1, 12) : (
 struct GamePill: View {
     let label: String; let selected: Bool; let accent: Color; let action: () -> Void
     var body: some View {
-        OdsChip(label: label, selected: selected, color: accent, action: action)
+        GldsChip(label: label, selected: selected, color: accent, action: action)
     }
 }
 
@@ -936,7 +936,7 @@ struct FlexibleRow<Data: RandomAccessCollection, Content: View>: View where Data
     }
 }
 
-/// 화면 · 시트 아래 ODS 버튼 쌍 — 보조(Secondary) : 주(Primary) 폭을 Android Row weight 와 같은 비율로 나눈다.
+/// 화면 · 시트 아래 GLDS 버튼 쌍 — 보조(Secondary) : 주(Primary) 폭을 Android Row weight 와 같은 비율로 나눈다.
 /// 지출 추가 · 상세 필터 · 일괄 편집이 같이 쓴다.
 struct SpendingButtonPair: View {
     let secondary: String
@@ -950,12 +950,12 @@ struct SpendingButtonPair: View {
     var body: some View {
         GeometryReader { g in
             HStack(spacing: 12) {
-                OdsButton(title: secondary, variant: .secondary, action: onSecondary)
+                GldsButton(title: secondary, variant: .secondary, action: onSecondary)
                     .frame(width: (g.size.width - 12) / (1 + ratio))
-                OdsButton(title: primary, action: onPrimary).disabled(!primaryEnabled)
+                GldsButton(title: primary, action: onPrimary).disabled(!primaryEnabled)
             }
         }
-        .frame(height: OdsSize.m.height)
+        .frame(height: GldsSize.m.height)
         .padding(.horizontal, 20).padding(.vertical, verticalPadding)
         .glgReadableWidth(640)
         .background(Color.white)

@@ -108,7 +108,7 @@ struct HeroBalanceCard: View {
                     .font(.pretendard(size: 12, weight: .semibold)).foregroundStyle(over ? dangerRed : accent.primary)
             } else {
                 Text("미설정").font(.pretendard(size: 30, weight: .heavy)).foregroundStyle(GLGColor.textSecondary)
-                OdsButton(title: "예산 설정하기", variant: .onTint, size: .s, fullWidth: false, action: onBudget).padding(.top, 3)
+                GldsButton(title: "예산 설정하기", variant: .onTint, size: .s, fullWidth: false, action: onBudget).padding(.top, 3)
             }
         }
         .frame(maxWidth: .infinity)

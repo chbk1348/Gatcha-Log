@@ -33,7 +33,7 @@ import com.gatcha.log.ui.components.GlgChip
 import com.gatcha.log.ui.components.GlgChipVariant
 import com.gatcha.log.ui.components.GlgDropdownItem
 import com.gatcha.log.ui.components.GlgDropdownMenu
-import com.gatcha.log.ui.components.OdsChip
+import com.gatcha.log.ui.components.GldsChip
 import com.gatcha.log.ui.components.GlgCircleIconButton
 import com.gatcha.log.ui.components.GlgDatePickerDialog
 import com.gatcha.log.ui.components.GlgDialog
@@ -64,9 +64,9 @@ import com.gatcha.log.data.DateUtil
 import com.gatcha.log.data.GameData
 import com.gatcha.log.data.Spending
 import com.gatcha.log.ui.components.GlassCard
-import com.gatcha.log.ui.components.OdsButton
-import com.gatcha.log.ui.components.OdsSize
-import com.gatcha.log.ui.components.OdsVariant
+import com.gatcha.log.ui.components.GldsButton
+import com.gatcha.log.ui.components.GldsSize
+import com.gatcha.log.ui.components.GldsVariant
 import com.gatcha.log.ui.components.GlgTabHeader
 import com.gatcha.log.ui.components.GlgTabHeaderHeight
 import com.gatcha.log.ui.components.glgTabContentBottom
@@ -489,7 +489,7 @@ fun MonthlySummaryCard(month: Int, total: Long, prevTotal: Long, collapse: Float
 
 @Composable
 internal fun FilterPill(label: String, selected: Boolean, accent: Color, onClick: () -> Unit) {
-    OdsChip(label, onClick, selected = selected, color = accent.takeIf { it != LocalAccent.current })
+    GldsChip(label, onClick, selected = selected, color = accent.takeIf { it != LocalAccent.current })
 }
 
 /**
@@ -576,9 +576,9 @@ private fun SpendingQuickFilters(
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                OdsChip(DateUtil.dayKey(customStart), onPickStart, selected = true)
+                GldsChip(DateUtil.dayKey(customStart), onPickStart, selected = true)
                 Text("~", fontSize = 12.sp, color = TextSecondary)
-                OdsChip(DateUtil.dayKey(customEnd), onPickEnd, selected = true)
+                GldsChip(DateUtil.dayKey(customEnd), onPickEnd, selected = true)
             }
         }
         // ③ 드롭다운에 없는 필터가 걸려 있으면 해제 칩. 없으면 줄 자체가 사라져 공간을 안 먹는다.
@@ -590,7 +590,7 @@ private fun SpendingQuickFilters(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 paymentFilter?.let { m ->
-                    OdsChip(m, { onPaymentClear() }, selected = true, removable = true)
+                    GldsChip(m, { onPaymentClear() }, selected = true, removable = true)
                 }
             }
         }
@@ -610,7 +610,7 @@ private fun QuickFilterMenu(
 ) {
     var expanded by remember { mutableStateOf(false) }
     Box {
-        OdsChip(label, { expanded = true }, selected = active, dropdown = true)
+        GldsChip(label, { expanded = true }, selected = active, dropdown = true)
         GlgDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
             content { expanded = false }
         }
@@ -806,8 +806,8 @@ private fun SpendingFilterSheet(
             }
             Spacer(Modifier.height(16.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                OdsButton("초기화", onReset, Modifier.weight(1f), variant = OdsVariant.Secondary)
-                OdsButton("적용", animatedDismiss, Modifier.weight(1.4f))
+                GldsButton("초기화", onReset, Modifier.weight(1f), variant = GldsVariant.Secondary)
+                GldsButton("적용", animatedDismiss, Modifier.weight(1.4f))
             }
             Spacer(Modifier.height(8.dp))
         }
@@ -867,9 +867,9 @@ private fun SelectionActionBar(
         ) {
             Text("${count}건", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
             Spacer(Modifier.weight(1f))
-            OdsButton("취소", onCancel, variant = OdsVariant.Neutral, size = OdsSize.S)
-            OdsButton("삭제", onDelete, variant = OdsVariant.Danger, size = OdsSize.S)
-            OdsButton("일괄 편집", onEdit, size = OdsSize.S)
+            GldsButton("취소", onCancel, variant = GldsVariant.Neutral, size = GldsSize.S)
+            GldsButton("삭제", onDelete, variant = GldsVariant.Danger, size = GldsSize.S)
+            GldsButton("일괄 편집", onEdit, size = GldsSize.S)
         }
     }
 }
@@ -912,9 +912,9 @@ private fun BulkEditSheet(count: Int, onApply: (String?, Long?, List<String>) ->
             }
             Spacer(Modifier.height(8.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                OdsButton("취소", onDismiss, Modifier.weight(1f), variant = OdsVariant.Secondary)
+                GldsButton("취소", onDismiss, Modifier.weight(1f), variant = GldsVariant.Secondary)
                 // 아무것도 안 바꿨으면 적용할 게 없다 — 예전엔 눌리면 선택만 풀렸다.
-                OdsButton(
+                GldsButton(
                     "적용", { onApply(game, dateMillis, tags.toList()) }, Modifier.weight(1.4f),
                     enabled = game != null || dateMillis != null || tags.isNotEmpty(),
                 )
@@ -942,7 +942,7 @@ private fun EmptyState(filteredOut: Boolean = false, onClearFilters: () -> Unit 
         if (filteredOut) {
             Text("조건에 맞는 지출이 없어요", color = TextSecondary, fontSize = 14.sp)
             Spacer(Modifier.height(10.dp))
-            OdsButton("필터 초기화", { onClearFilters() }, variant = OdsVariant.Secondary, size = OdsSize.S)
+            GldsButton("필터 초기화", { onClearFilters() }, variant = GldsVariant.Secondary, size = GldsSize.S)
         } else {
             Text("아직 기록된 지출이 없어요", color = TextSecondary, fontSize = 14.sp)
             Text("+ 버튼으로 첫 지출을 기록해보세요", color = Color.LightGray, fontSize = 12.sp)

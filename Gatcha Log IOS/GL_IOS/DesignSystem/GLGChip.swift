@@ -71,18 +71,18 @@ struct GLGBadge: View {
 //     목록의 배지와 같은 규칙이 된다(UISegmentedControl 은 전역 appearance 뿐).
 // ════════════════════════════════════════════════════════════════════════════
 
-/// ODS 탭 모양 — primary: 흰 트랙 + 강조색 알약(콘텐츠 전환) · neutral: 회색 트랙 + 흰 알약(보기 방식 전환).
-enum OdsTabsVariant { case primary, neutral }
+/// GLDS 탭 모양 — primary: 흰 트랙 + 강조색 알약(콘텐츠 전환) · neutral: 회색 트랙 + 흰 알약(보기 방식 전환).
+enum GldsTabsVariant { case primary, neutral }
 
-/// **ODS 탭**(9/30) — Android `OdsTabs` 와 같은 값. 트랙 14 · 안쪽 3 · 칸 32(서브라벨 46) · 알약 11 · 12.5 SemiBold.
-struct OdsTabs: View {
+/// **GLDS 탭**(9/30) — Android `GldsTabs` 와 같은 값. 트랙 14 · 안쪽 3 · 칸 32(서브라벨 46) · 알약 11 · 12.5 SemiBold.
+struct GldsTabs: View {
     let labels: [String]
     /// 라벨 아래 붙는 작은 둘째 줄(요일 등). 주면 칸이 두 줄 높이가 된다.
     var subLabels: [String]? = nil
     /// 칸마다 다른 선택색. nil 이면 전부 강조색.
     var selectedColors: [Color]? = nil
     @Binding var selection: Int
-    var variant: OdsTabsVariant = .primary
+    var variant: GldsTabsVariant = .primary
     @Environment(\.glgAccent) private var accent
     private var neutral: Bool { variant == .neutral }
     private var selText: Color { neutral ? GLGColor.textPrimary : .white }

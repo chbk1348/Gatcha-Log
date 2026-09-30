@@ -46,7 +46,7 @@ struct HoyolandStageView: View {
         VStack(alignment: .leading, spacing: 0) {
             let ymds = event.dayYmds
             if ymds.count > 1 {
-                OdsTabs(
+                GldsTabs(
                     labels: ymds.map { event.dayTabDate(ymd: $0) },
                     subLabels: ymds.map { event.dayTabWeekday(ymd: $0) },
                     selection: $selectedDay
@@ -125,7 +125,7 @@ struct HoyolandStageView: View {
                 // 서로 독립된 버튼처럼 보여 "이 중 하나가 지금 보고 있는 것"이 약하게 읽힌다.
                 if games.count > 1 {
                     // 고른 칸이 **그 게임 색**으로 찬다 — 목록의 배지와 같은 색이라 규칙이 안 어긋난다.
-                    OdsTabs(
+                    GldsTabs(
                         labels: ["전체"] + games.map { e.stageLabel(game: $0) },
                         // '전체'는 게임색이 없다 — 앱 강조색을 쓴다(먹색으로 두면 이 칸만 딴 물건이 된다).
                         selectedColors: [accent.primary] + games.map { stageColor(e, $0) },

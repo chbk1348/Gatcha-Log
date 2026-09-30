@@ -63,13 +63,13 @@ import com.gatcha.log.data.CombatClearLogic
 import com.gatcha.log.data.CombatModeClears
 import com.gatcha.log.data.CombatRoom
 import com.gatcha.log.data.GameData
-import com.gatcha.log.ui.components.OdsTabs
-import com.gatcha.log.ui.components.OdsTabsVariant
+import com.gatcha.log.ui.components.GldsTabs
+import com.gatcha.log.ui.components.GldsTabsVariant
 import com.gatcha.log.ui.components.GlassCard
 import com.gatcha.log.ui.components.GlgBadgeText
-import com.gatcha.log.ui.components.OdsButton
-import com.gatcha.log.ui.components.OdsSize
-import com.gatcha.log.ui.components.OdsVariant
+import com.gatcha.log.ui.components.GldsButton
+import com.gatcha.log.ui.components.GldsSize
+import com.gatcha.log.ui.components.GldsVariant
 import com.gatcha.log.ui.theme.DividerColor
 import com.gatcha.log.ui.theme.LocalAccent
 import com.gatcha.log.ui.theme.TextPrimary
@@ -143,7 +143,7 @@ fun CombatClearContent(
             ) {
                 Text("불러오지 못했어요", fontSize = 13.sp, color = TextSecondary, textAlign = TextAlign.Center)
                 Spacer(Modifier.height(10.dp))
-                OdsButton("다시 시도", onClick = onRetry, variant = OdsVariant.Secondary, size = OdsSize.S)
+                GldsButton("다시 시도", onClick = onRetry, variant = GldsVariant.Secondary, size = GldsSize.S)
             }
         } else {
             EmptyNote("아직 클리어 기록이 없어요")
@@ -174,11 +174,11 @@ fun CombatClearContent(
     }
 }
 
-/** 게임 필터 — '전체' + 게임별. 하나만 고르는 배타 선택이라 **ODS 탭**(9/30), 고른 칸은 게임색(전체는 강조색). */
+/** 게임 필터 — '전체' + 게임별. 하나만 고르는 배타 선택이라 **GLDS 탭**(9/30), 고른 칸은 게임색(전체는 강조색). */
 @Composable
 private fun GameFilter(games: List<String>, selected: String?, onSelect: (String?) -> Unit) {
     val accent = LocalAccent.current
-    OdsTabs(
+    GldsTabs(
         labels = listOf("전체") + games.map { GameData.byNameOrNull(it)?.shortName ?: it },
         selected = selected?.let { games.indexOf(it) + 1 } ?: 0,
         selectedColors = listOf(accent) + games.map { GameData.byNameOrNull(it)?.color?.toColor() ?: accent },
@@ -281,12 +281,12 @@ private fun ModeTitle(mode: String, modifier: Modifier) {
     )
 }
 
-/** 이번 시즌 | 지난 시즌. 둘 다 있을 때만 그린다. ODS 탭 Neutral(보기 방식 전환). */
+/** 이번 시즌 | 지난 시즌. 둘 다 있을 때만 그린다. GLDS 탭 Neutral(보기 방식 전환). */
 @Composable
 private fun SeasonSegment(showPrevious: Boolean, onChange: (Boolean) -> Unit) {
-    OdsTabs(
+    GldsTabs(
         listOf("이번 시즌", "지난 시즌"), if (showPrevious) 1 else 0,
-        Modifier.width(168.dp), variant = OdsTabsVariant.Neutral,
+        Modifier.width(168.dp), variant = GldsTabsVariant.Neutral,
     ) { onChange(it == 1) }
 }
 

@@ -244,7 +244,7 @@ fun GlgHeaderTitlePill(title: String, modifier: Modifier = Modifier) {
  * 색 10% 채움, 1.5dp 색 30% 테두리. [GlgHeaderTitlePill]·[GlgCircleIconButton] 과 나란히
  * 놓았을 때 높이가 어긋나면 헤더 한 줄이 들쭉날쭉해진다.
  *
- * 지출 화면의 필터 칩([OdsChip])은 **본문 필터 줄**용이라 이보다 한참 작다 — 헤더에
+ * 지출 화면의 필터 칩([GldsChip])은 **본문 필터 줄**용이라 이보다 한참 작다 — 헤더에
  * 그걸 갖다 쓰면 옆의 44dp 버튼들 사이에서 혼자 작아 보인다(2026-08-18 지적).
  *
  * [selected] 면 [color] 로 채우고 글자를 희게 뒤집는다 — 지금 무엇에 좁혀져 있는지가
@@ -513,7 +513,7 @@ fun GlgChip(
 }
 
 // D 칩 토큰 — idle 아웃라인/글자색. (칩 규격을 따르는 다른 버튼도 참조하도록 internal)
-/** ODS 탭 한 칸 높이 — 호요랜드 일자 탭에서 정한 값. */
+/** GLDS 탭 한 칸 높이 — 호요랜드 일자 탭에서 정한 값. */
 private val GlgSegmentHeight = 32.dp
 
 /** 둘째 줄(요일)이 붙는 칸 높이 — 두 줄이 눌리지 않게 값을 못 박는다. */
@@ -532,19 +532,19 @@ private val GlgSegmentHeightTwoLine = 46.dp
  *
  * 칸 폭이 아니라 **위치만** 애니메이션한다. 회전·태블릿에서 폭이 바뀌어도 계산이 어긋나지 않는다.
  */
-/** ODS 탭 모양 — Primary: 흰 트랙 + 강조색 알약(콘텐츠 전환) · Neutral: 회색 트랙 + 흰 알약(보기 방식 전환). */
-enum class OdsTabsVariant { Primary, Neutral }
+/** GLDS 탭 모양 — Primary: 흰 트랙 + 강조색 알약(콘텐츠 전환) · Neutral: 회색 트랙 + 흰 알약(보기 방식 전환). */
+enum class GldsTabsVariant { Primary, Neutral }
 
 /**
- * **ODS 탭**(9/30) — 옛 OdsTabs 를 ODS 규격으로 올린 것. iOS `OdsTabs`(GLGChip.swift) 와 같은 값.
+ * **GLDS 탭**(9/30) — 옛 GldsTabs 를 GLDS 규격으로 올린 것. iOS `GldsTabs`(GLGChip.swift) 와 같은 값.
  * 트랙 반경 14 · 안쪽 3 · 칸 32(서브라벨 46) · 알약 반경 11 · 라벨 12.5 SemiBold, 비선택 #6C727A.
  */
 @Composable
-fun OdsTabs(
+fun GldsTabs(
     labels: List<String>,
     selected: Int,
     modifier: Modifier = Modifier,
-    variant: OdsTabsVariant = OdsTabsVariant.Primary,
+    variant: GldsTabsVariant = GldsTabsVariant.Primary,
     /**
      * 라벨 아래 붙는 작은 둘째 줄(요일 등). 주면 칸이 두 줄 높이가 된다.
      * 크기가 [labels] 와 같아야 한다 — 모자란 칸은 한 줄로 그린다.
@@ -563,7 +563,7 @@ fun OdsTabs(
     val sel = selected.coerceIn(0, labels.lastIndex)
     val twoLine = subLabels != null
     val cellHeight = if (twoLine) GlgSegmentHeightTwoLine else GlgSegmentHeight
-    val neutral = variant == OdsTabsVariant.Neutral
+    val neutral = variant == GldsTabsVariant.Neutral
     val fill = if (neutral) Color.White else selectedColors?.getOrNull(sel) ?: accent
     val fillColor by animateColorAsState(fill, glgStandardSpec(), label = "segmentFill")
     val selText = if (neutral) TextPrimary else Color.White
@@ -690,10 +690,10 @@ fun GlgDialog(
                     Spacer(Modifier.height(20.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         if (dismissText != null) {
-                            OdsButton(dismissText, onDismiss, Modifier.weight(1f), variant = OdsVariant.Secondary)
-                            OdsButton(confirmText, onConfirm, Modifier.weight(1.4f), enabled = confirmEnabled)
+                            GldsButton(dismissText, onDismiss, Modifier.weight(1f), variant = GldsVariant.Secondary)
+                            GldsButton(confirmText, onConfirm, Modifier.weight(1.4f), enabled = confirmEnabled)
                         } else {
-                            OdsButton(confirmText, onConfirm, Modifier.fillMaxWidth(), enabled = confirmEnabled)
+                            GldsButton(confirmText, onConfirm, Modifier.fillMaxWidth(), enabled = confirmEnabled)
                         }
                     }
                 }

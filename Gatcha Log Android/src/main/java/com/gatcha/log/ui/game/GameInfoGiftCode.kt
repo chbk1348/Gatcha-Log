@@ -29,12 +29,12 @@ import com.gatcha.log.data.HoyolabConfig
 import com.gatcha.log.data.api.GiftCode
 import com.gatcha.log.ui.components.GiftCodeSkeleton
 import com.gatcha.log.ui.components.GlassCard
-import com.gatcha.log.ui.components.OdsButton
-import com.gatcha.log.ui.components.OdsSize
-import com.gatcha.log.ui.components.OdsTextField
-import com.gatcha.log.ui.components.OdsVariant
+import com.gatcha.log.ui.components.GldsButton
+import com.gatcha.log.ui.components.GldsSize
+import com.gatcha.log.ui.components.GldsTextField
+import com.gatcha.log.ui.components.GldsVariant
 import com.gatcha.log.ui.components.GlgChip
-import com.gatcha.log.ui.components.OdsTabs
+import com.gatcha.log.ui.components.GldsTabs
 import com.gatcha.log.ui.components.GlgDetailHeaderOverlay
 import com.gatcha.log.ui.components.glgDetailContentTop
 import com.gatcha.log.ui.components.GlgScreenHeader
@@ -89,11 +89,11 @@ internal fun GiftCodePage(
                     Text("HoYoLAB 연동 후 UID가 있어야 코드를 교환할 수 있어요", fontSize = 13.sp, color = TextSecondary, modifier = Modifier.padding(16.dp))
                 }
             } else {
-                // 게임 탭 — 호요랜드 일자 탭과 **같은 세그먼트 규격**이다([OdsTabs]).
+                // 게임 탭 — 호요랜드 일자 탭과 **같은 세그먼트 규격**이다([GldsTabs]).
                 //
                 // 칩 셋을 나란히 두면 서로 독립된 버튼처럼 보여, 지금 어느 게임의 코드를 보고
                 // 있는지가 약하게 읽혔다. 트랙 하나에 담으면 배타 선택이라는 게 모양에서 나온다.
-                OdsTabs(
+                GldsTabs(
                     labels = games.map { it.second },
                     selected = games.indexOfFirst { it.first == selected }.coerceAtLeast(0),
                     modifier = Modifier.padding(top = 4.dp),
@@ -122,7 +122,7 @@ internal fun GiftCodePage(
                                     fontSize = 12.sp, color = TextSecondary,
                                 )
                                 Spacer(Modifier.width(8.dp))
-                                OdsButton("되살리기", onClick = { onRestoreUnusable(selected) }, variant = OdsVariant.Secondary, size = OdsSize.XS)
+                                GldsButton("되살리기", onClick = { onRestoreUnusable(selected) }, variant = GldsVariant.Secondary, size = GldsSize.XS)
                             }
                             Spacer(Modifier.height(8.dp))
                         }
@@ -132,7 +132,7 @@ internal fun GiftCodePage(
                             codesFailed && activeCodes.isEmpty() -> Column(Modifier.padding(vertical = 6.dp)) {
                                 Text("코드를 불러오지 못했어요", fontSize = 12.sp, color = TextSecondary)
                                 Spacer(Modifier.height(6.dp))
-                                OdsButton("다시 시도", onClick = { onLoadCodes(selected, true) }, variant = OdsVariant.Secondary, size = OdsSize.S)
+                                GldsButton("다시 시도", onClick = { onLoadCodes(selected, true) }, variant = GldsVariant.Secondary, size = GldsSize.S)
                             }
                             activeCodes.isEmpty() -> Text("지금은 활성 코드가 없어요", fontSize = 12.sp, color = TextSecondary, modifier = Modifier.padding(vertical = 6.dp))
                             else -> {
@@ -165,7 +165,7 @@ internal fun GiftCodePage(
                 }
                 // 모두 교환
                 if (pending > 0) {
-                    OdsButton(
+                    GldsButton(
                         if (loading) "교환 중…" else "모두 교환 ($pending)",
                         onClick = { onRedeemAll(selected) },
                         enabled = !loading,
@@ -175,7 +175,7 @@ internal fun GiftCodePage(
                 // 직접 입력 카드
                 GlassCard(shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth()) {
                     Column(Modifier.padding(16.dp)) {
-                        OdsTextField(
+                        GldsTextField(
                             value = code,
                             onValueChange = { v -> code = v.uppercase().filter { it.isLetterOrDigit() } },
                             label = "직접 입력 (새 코드)",
@@ -183,10 +183,10 @@ internal fun GiftCodePage(
                         )
                         if (code.isNotBlank()) {
                             Spacer(Modifier.height(8.dp))
-                            OdsButton(
+                            GldsButton(
                                 "이 코드 교환",
                                 onClick = { onRedeem(selected, code.trim()); code = "" },
-                                variant = OdsVariant.Secondary, size = OdsSize.XS, enabled = !loading,
+                                variant = GldsVariant.Secondary, size = GldsSize.XS, enabled = !loading,
                             )
                         }
                     }
@@ -252,9 +252,9 @@ private fun CodeRow(c: GiftCode, redeemed: Boolean, accent: Color, enabled: Bool
                     Text("받음", fontSize = 11.sp, color = accent, fontWeight = FontWeight.Bold)
                 }
             } else {
-                OdsButton(
-                    "교환", onClick = onRedeem, enabled = enabled, size = OdsSize.XS,
-                    variant = if (highlight) OdsVariant.Primary else OdsVariant.Secondary,
+                GldsButton(
+                    "교환", onClick = onRedeem, enabled = enabled, size = GldsSize.XS,
+                    variant = if (highlight) GldsVariant.Primary else GldsVariant.Secondary,
                 )
             }
         }
@@ -272,7 +272,7 @@ private fun CodeRow(c: GiftCode, redeemed: Boolean, accent: Color, enabled: Bool
 }
 
 /**
- * 리딤코드 복사 버튼 — ‘교환’ 버튼과 같은 ODS XS Secondary. 탭하면 클립보드 저장 +
+ * 리딤코드 복사 버튼 — ‘교환’ 버튼과 같은 GLDS XS Secondary. 탭하면 클립보드 저장 +
  * 아이콘이 잠깐 체크로 바뀌고 토스트로 안내.
  */
 @Composable
@@ -285,8 +285,8 @@ private fun CopyCodeButton(code: String) {
     LaunchedEffect(copied) {
         if (copied) { kotlinx.coroutines.delay(1200); copied = false }
     }
-    // '교환' 버튼과 같은 ODS XS Secondary.
-    OdsButton(
+    // '교환' 버튼과 같은 GLDS XS Secondary.
+    GldsButton(
         if (copied) "복사됨" else "복사",
         onClick = {
             scope.launch {
@@ -296,6 +296,6 @@ private fun CopyCodeButton(code: String) {
             copied = true
             android.widget.Toast.makeText(context, "코드를 복사했어요", android.widget.Toast.LENGTH_SHORT).show()
         },
-        variant = OdsVariant.Secondary, size = OdsSize.XS,
+        variant = GldsVariant.Secondary, size = GldsSize.XS,
     )
 }

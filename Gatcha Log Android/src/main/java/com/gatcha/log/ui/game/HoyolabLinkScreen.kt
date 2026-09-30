@@ -39,9 +39,9 @@ import com.gatcha.log.ui.components.GlgDialog
 import com.gatcha.log.ui.components.GlgBackButton
 import com.gatcha.log.ui.components.GlgDetailHeaderOverlay
 import com.gatcha.log.ui.components.glgDetailContentTop
-import com.gatcha.log.ui.components.OdsButton
-import com.gatcha.log.ui.components.OdsSize
-import com.gatcha.log.ui.components.OdsTextField
+import com.gatcha.log.ui.components.GldsButton
+import com.gatcha.log.ui.components.GldsSize
+import com.gatcha.log.ui.components.GldsTextField
 import com.gatcha.log.ui.theme.LocalAccent
 import com.gatcha.log.ui.theme.TextSecondary
 
@@ -102,23 +102,23 @@ fun HoyolabLinkScreen(config: HoyolabConfig, onSave: (HoyolabConfig) -> Unit, on
             NotifyGroupTitle("계정 토큰", "직접 입력해도 돼요")
             NotifyCard {
                 Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    OdsTextField(ltuid, { ltuid = it }, label = "ltuid", modifier = Modifier.fillMaxWidth())
-                    OdsTextField(ltoken, { ltoken = it }, label = "ltoken", modifier = Modifier.fillMaxWidth())
-                    OdsTextField(cookieToken, { cookieToken = it }, label = "cookie_token (리딤코드 교환용·선택)", modifier = Modifier.fillMaxWidth())
+                    GldsTextField(ltuid, { ltuid = it }, label = "ltuid", modifier = Modifier.fillMaxWidth())
+                    GldsTextField(ltoken, { ltoken = it }, label = "ltoken", modifier = Modifier.fillMaxWidth())
+                    GldsTextField(cookieToken, { cookieToken = it }, label = "cookie_token (리딤코드 교환용·선택)", modifier = Modifier.fillMaxWidth())
                 }
             }
             NotifyGroupTitle("게임 UID", "로그인하면 자동으로 채워져요")
             NotifyCard {
                 Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    OdsTextField(gi, { gi = it }, label = "원신 UID", modifier = Modifier.fillMaxWidth())
-                    OdsTextField(hsr, { hsr = it }, label = "스타레일 UID", modifier = Modifier.fillMaxWidth())
-                    OdsTextField(zzz, { zzz = it }, label = "젠레스 UID", modifier = Modifier.fillMaxWidth())
+                    GldsTextField(gi, { gi = it }, label = "원신 UID", modifier = Modifier.fillMaxWidth())
+                    GldsTextField(hsr, { hsr = it }, label = "스타레일 UID", modifier = Modifier.fillMaxWidth())
+                    GldsTextField(zzz, { zzz = it }, label = "젠레스 UID", modifier = Modifier.fillMaxWidth())
                 }
             }
             Spacer(Modifier.height(16.dp))
         }
         // 「저장」은 하단에 상시 고정 — 예산 관리와 같은 바(스크롤해도 늘 보인다). iOS 와 같은 자리.
-        OdsButton(
+        GldsButton(
             "저장",
             onClick = {
                 onSave(
@@ -129,7 +129,7 @@ fun HoyolabLinkScreen(config: HoyolabConfig, onSave: (HoyolabConfig) -> Unit, on
                     ),
                 )
             },
-            size = OdsSize.L,
+            size = GldsSize.L,
             // 키보드 여백은 앱 루트(MainActivity)가 준다 — 여기서 더하면 두 배로 떴다(9/30 S23).
             modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth()
                 .shadow(8.dp, RectangleShape, ambientColor = Color(0x14000000), spotColor = Color(0x14000000))

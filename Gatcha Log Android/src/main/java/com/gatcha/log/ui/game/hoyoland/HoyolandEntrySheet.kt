@@ -30,8 +30,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.gatcha.log.data.HoyolandEntry
 import com.gatcha.log.data.HoyolandEvent
-import com.gatcha.log.ui.components.OdsButton
-import com.gatcha.log.ui.components.OdsVariant
+import com.gatcha.log.ui.components.GldsButton
+import com.gatcha.log.ui.components.GldsVariant
 import com.gatcha.log.ui.theme.DividerColor
 import com.gatcha.log.ui.theme.LocalAccent
 import com.gatcha.log.ui.theme.LocalAccentDeep
@@ -91,10 +91,10 @@ fun HoyolandEntrySheet(
                 }
                 Spacer(Modifier.height(12.dp))
             }
-            OdsButton(
+            GldsButton(
                 "닫기", onClick = onDismiss,
                 modifier = Modifier.padding(start = 18.dp, end = 18.dp, top = 6.dp).fillMaxWidth(),
-                variant = OdsVariant.Secondary,
+                variant = GldsVariant.Secondary,
             )
         }
     }

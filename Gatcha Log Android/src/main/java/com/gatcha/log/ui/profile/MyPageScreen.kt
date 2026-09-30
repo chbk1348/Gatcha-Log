@@ -1,8 +1,8 @@
 package com.gatcha.log.ui.profile
 
-import com.gatcha.log.ui.components.OdsButton
-import com.gatcha.log.ui.components.OdsSize
-import com.gatcha.log.ui.components.OdsVariant
+import com.gatcha.log.ui.components.GldsButton
+import com.gatcha.log.ui.components.GldsSize
+import com.gatcha.log.ui.components.GldsVariant
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.animateFloatAsState
@@ -340,12 +340,12 @@ private fun ProfileHeader(
                 }
                 if (!isGuest) {
                     // 계정 단일화: 로그아웃을 마이페이지 헤더로 일원화 (설정의 중복 계정 카드 제거)
-                    OdsButton("로그아웃", onLogout, variant = OdsVariant.Neutral, size = OdsSize.XS)
+                    GldsButton("로그아웃", onLogout, variant = GldsVariant.Neutral, size = GldsSize.XS)
                 }
             }
             if (isGuest) {
                 Spacer(Modifier.height(14.dp))
-                OdsButton("Google로 로그인", onLogin, Modifier.fillMaxWidth())
+                GldsButton("Google로 로그인", onLogin, Modifier.fillMaxWidth())
             }
         }
     }

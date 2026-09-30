@@ -29,8 +29,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.gatcha.log.data.GameData
 import com.gatcha.log.data.Spending
 import com.gatcha.log.data.SpendingInsightStats
-import com.gatcha.log.ui.components.OdsTabs
-import com.gatcha.log.ui.components.OdsTabsVariant
+import com.gatcha.log.ui.components.GldsTabs
+import com.gatcha.log.ui.components.GldsTabsVariant
 import com.gatcha.log.ui.components.GlassCard
 import com.gatcha.log.ui.components.GlgDetailHeaderOverlay
 import com.gatcha.log.ui.components.glgDetailContentTop
@@ -291,8 +291,8 @@ private fun TagBreakdownCard(spendings: List<Spending>, accent: Color) {
 /** 월간 인사이트 / 연간 리포트 세그먼트 토글. */
 @Composable
 private fun InsightTabToggle(tab: Int, onTab: (Int) -> Unit) {
-    // ODS 탭 Neutral — 같은 데이터의 보기 방식 전환(9/30).
-    OdsTabs(listOf("월간 인사이트", "연간 리포트"), tab, variant = OdsTabsVariant.Neutral, onSelect = onTab)
+    // GLDS 탭 Neutral — 같은 데이터의 보기 방식 전환(9/30).
+    GldsTabs(listOf("월간 인사이트", "연간 리포트"), tab, variant = GldsTabsVariant.Neutral, onSelect = onTab)
 }
 
 @Composable

@@ -28,7 +28,7 @@ import androidx.compose.ui.unit.sp
 import com.gatcha.log.data.DashFive
 import com.gatcha.log.data.GachaDashboard
 import com.gatcha.log.data.GachaReport
-import com.gatcha.log.ui.components.OdsChip
+import com.gatcha.log.ui.components.GldsChip
 import com.gatcha.log.ui.components.GlassCard
 import com.gatcha.log.ui.components.GlgChip
 import com.gatcha.log.ui.components.GlgDetailHeaderOverlay
@@ -95,7 +95,7 @@ fun GachaDashboardScreen(
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 games.forEach { gk ->
                     val (short, _, colorLong) = GachaReport.gameInfo[gk] ?: Triple(gk, gk, 0xFF888888L)
-                    OdsChip(short, { selected = gk }, selected = gk == selected, color = colorLong.toColor())
+                    GldsChip(short, { selected = gk }, selected = gk == selected, color = colorLong.toColor())
                 }
             }
 

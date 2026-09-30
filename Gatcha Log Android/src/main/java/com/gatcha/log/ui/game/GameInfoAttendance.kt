@@ -58,9 +58,9 @@ import com.gatcha.log.ui.components.GlgGameTag
 import com.gatcha.log.ui.components.GlassCard
 import com.gatcha.log.ui.components.SkeletonBox
 import com.gatcha.log.ui.components.GlgTabHeaderHeight
-import com.gatcha.log.ui.components.OdsButton
-import com.gatcha.log.ui.components.OdsSize
-import com.gatcha.log.ui.components.OdsVariant
+import com.gatcha.log.ui.components.GldsButton
+import com.gatcha.log.ui.components.GldsSize
+import com.gatcha.log.ui.components.GldsVariant
 import com.gatcha.log.ui.theme.*
 
 // ============================================================ 데일리 히어로 2.0
@@ -245,7 +245,7 @@ private fun LinkPrompt(headTop: Dp, onConfigClick: () -> Unit) {
             fontSize = 13.sp, color = TextSecondary,
         )
         Spacer(Modifier.height(16.dp))
-        OdsButton("연동하기", onClick = onConfigClick)
+        GldsButton("연동하기", onClick = onConfigClick)
     }
 }
 
@@ -401,7 +401,7 @@ private fun GameTaskRow(g: DailyGameTasks, inProgress: Boolean, enabled: Boolean
             if (inProgress) {
                 CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp, color = accent)
             } else {
-                OdsButton("출석", onClick = onCheckIn, variant = OdsVariant.Secondary, size = OdsSize.XS, enabled = enabled)
+                GldsButton("출석", onClick = onCheckIn, variant = GldsVariant.Secondary, size = GldsSize.XS, enabled = enabled)
             }
         }
     }
@@ -654,7 +654,7 @@ private fun AttendanceTodayCard(summary: AttendanceSummary, checkingIn: String?,
                 )
                 Spacer(Modifier.weight(1f))
                 if (!summary.allDone) {
-                    OdsButton("전체 출석", onClick = onCheckInAll, size = OdsSize.S, loading = checkingIn != null)
+                    GldsButton("전체 출석", onClick = onCheckInAll, size = GldsSize.S, loading = checkingIn != null)
                 }
             }
             Spacer(Modifier.height(14.dp))
@@ -708,7 +708,7 @@ private fun AttendanceGameRow(g: AttendanceGameStat, elapsed: Int, inProgress: B
                 Spacer(Modifier.width(5.dp))
                 Text("완료", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = accent)
             }
-            else -> OdsButton("출석", onClick = onCheckIn, variant = OdsVariant.Secondary, size = OdsSize.XS, enabled = enabled)
+            else -> GldsButton("출석", onClick = onCheckIn, variant = GldsVariant.Secondary, size = GldsSize.XS, enabled = enabled)
         }
     }
 }
@@ -935,7 +935,7 @@ private fun DailyGameRow(game: Game, note: LiveNote?, uid: String, checked: Bool
                     Spacer(Modifier.width(4.dp))
                     Text("완료", fontSize = 12.sp, color = accent, fontWeight = FontWeight.Bold)
                 }
-                else -> OdsButton("출석", onClick = onCheckIn, variant = OdsVariant.Secondary, size = OdsSize.XS)
+                else -> GldsButton("출석", onClick = onCheckIn, variant = GldsVariant.Secondary, size = GldsSize.XS)
             }
         }
         if (note != null && note.maxResin > 0) {

@@ -824,17 +824,17 @@ struct HoyolandDetailView: View {
                 .frame(maxWidth: .infinity)
             }
         }
-        .frame(height: OdsSize.l.height)
+        .frame(height: GldsSize.l.height)
     }
 
     /**
-     히어로 액션 버튼 — ODS L. 주는 Primary, 부는 OnTint(흰 면 + 강조색 글자).
+     히어로 액션 버튼 — GLDS L. 주는 Primary, 부는 OnTint(흰 면 + 강조색 글자).
      이 줄은 강조 틴트 패널 옆이라 틴트 위에 틴트(Secondary)를 놓으면 면이 사라져 OnTint 를 쓴다. Android 와 같은 규격.
      */
     @ViewBuilder private func heroActionButton(_ title: String, _ icon: String?,
                                                primary: Bool, enabled: Bool = true,
                                                _ action: @escaping () -> Void) -> some View {
-        OdsButton(title: title, variant: primary ? .primary : .onTint, size: .l, systemImage: icon, action: action)
+        GldsButton(title: title, variant: primary ? .primary : .onTint, size: .l, systemImage: icon, action: action)
             .disabled(!enabled)
     }
 

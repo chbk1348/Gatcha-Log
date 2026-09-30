@@ -163,12 +163,12 @@ private struct ProfileHeader: View {
 
                 if !isGuest {
                     // 계정 단일화: 로그아웃을 마이페이지 헤더로 일원화 (설정의 중복 계정 카드 제거)
-                    OdsButton(title: "로그아웃", variant: .neutral, size: .xs, fullWidth: false) { store.signOut() }
+                    GldsButton(title: "로그아웃", variant: .neutral, size: .xs, fullWidth: false) { store.signOut() }
                 }
             }
 
             if isGuest {
-                OdsButton(title: "Google로 로그인") { store.signIn() }
+                GldsButton(title: "Google로 로그인") { store.signIn() }
                     .padding(.top, 14)
             }
         }

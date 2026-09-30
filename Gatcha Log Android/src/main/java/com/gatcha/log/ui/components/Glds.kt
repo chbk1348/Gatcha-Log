@@ -24,6 +24,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
@@ -62,35 +63,35 @@ import com.gatcha.log.ui.theme.TextPrimary
 import com.gatcha.log.ui.theme.TextSecondary
 
 // ============================================================
-//  ODS — 앱 공용 버튼 · 입력필드 규격 (2026-09-30)
+//  GLDS — 앱 공용 버튼 · 입력필드 규격 (2026-09-30)
 //  iOS `DesignSystem/GlassButton.swift` · `PillField.swift` 와 값이 같다. 규격표는 버튼 카탈로그 아티팩트.
 // ============================================================
 
 /** 버튼 모양. 색은 전부 테마 강조색에서 나온다(Inverse · Danger 만 고정). */
-enum class OdsVariant { Primary, Secondary, Neutral, Inverse, Danger, OnTint, Text }
+enum class GldsVariant { Primary, Secondary, Neutral, Inverse, Danger, OnTint, Text }
 
 /** 버튼 크기 — 높이 · 반경 · 글자 · 아이콘 · 좌우 여백(내용 폭일 때). */
-enum class OdsSize(val height: Dp, val radius: Dp, val font: TextUnit, val icon: Dp, val gap: Dp, val padH: Dp) {
+enum class GldsSize(val height: Dp, val radius: Dp, val font: TextUnit, val icon: Dp, val gap: Dp, val padH: Dp) {
     L(50.dp, 16.dp, 15.sp, 18.dp, 8.dp, 20.dp),
     M(44.dp, 16.dp, 15.sp, 17.dp, 7.dp, 18.dp),
     S(36.dp, 12.dp, 13.sp, 15.dp, 6.dp, 14.dp),
     XS(28.dp, 9.dp, 12.sp, 14.dp, 4.dp, 12.dp),
 }
 
-private val OdsDisabledBg = Color(0xFFD8D8DE)
-private val OdsNeutralBg = Color(0xFFECEFF4)
+private val GldsDisabledBg = Color(0xFFD8D8DE)
+private val GldsNeutralBg = Color(0xFFECEFF4)
 
 /**
- * ODS 버튼. 폭은 호출부가 정한다(`fillMaxWidth` · `weight`) — 안 주면 내용 폭 + [OdsSize.padH].
+ * GLDS 버튼. 폭은 호출부가 정한다(`fillMaxWidth` · `weight`) — 안 주면 내용 폭 + [GldsSize.padH].
  * 누르면 0.97배로 줄고 면이 한 단 진해진다. [loading] 이면 글자 대신 스피너.
  */
 @Composable
-fun OdsButton(
+fun GldsButton(
     text: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    variant: OdsVariant = OdsVariant.Primary,
-    size: OdsSize = OdsSize.M,
+    variant: GldsVariant = GldsVariant.Primary,
+    size: GldsSize = GldsSize.M,
     icon: ImageVector? = null,
     enabled: Boolean = true,
     loading: Boolean = false,
@@ -101,24 +102,24 @@ fun OdsButton(
     val pressed by interaction.collectIsPressedAsState()
 
     val (base, fg) = when (variant) {
-        OdsVariant.Primary -> accent to Color.White
-        OdsVariant.Secondary -> accent.copy(alpha = 0.12f) to deep
-        OdsVariant.Neutral -> OdsNeutralBg to TextPrimary
-        OdsVariant.Inverse -> TextPrimary to Color.White
-        OdsVariant.Danger -> DangerBackground to DangerText
-        OdsVariant.OnTint -> Color.White to deep
-        OdsVariant.Text -> Color.Transparent to accent
+        GldsVariant.Primary -> accent to Color.White
+        GldsVariant.Secondary -> accent.copy(alpha = 0.12f) to deep
+        GldsVariant.Neutral -> GldsNeutralBg to TextPrimary
+        GldsVariant.Inverse -> TextPrimary to Color.White
+        GldsVariant.Danger -> DangerBackground to DangerText
+        GldsVariant.OnTint -> Color.White to deep
+        GldsVariant.Text -> Color.Transparent to accent
     }
     val fill = when {
-        !enabled && variant != OdsVariant.Text -> OdsDisabledBg
+        !enabled && variant != GldsVariant.Text -> GldsDisabledBg
         !pressed -> base
-        variant == OdsVariant.Secondary -> accent.copy(alpha = 0.20f)
-        variant == OdsVariant.Text -> accent.copy(alpha = 0.08f)
+        variant == GldsVariant.Secondary -> accent.copy(alpha = 0.20f)
+        variant == GldsVariant.Text -> accent.copy(alpha = 0.08f)
         else -> lerp(base, Color.Black, 0.08f)
     }
-    val bg by animateColorAsState(fill, label = "odsBg")
+    val bg by animateColorAsState(fill, label = "gldsBg")
     val content = if (enabled) fg else TextSecondary
-    val scale by animateFloatAsState(if (pressed && enabled) 0.97f else 1f, label = "odsScale")
+    val scale by animateFloatAsState(if (pressed && enabled) 0.97f else 1f, label = "gldsScale")
     val shape = RoundedCornerShape(size.radius)
 
     Box(
@@ -134,36 +135,42 @@ fun OdsButton(
         if (loading) {
             CircularProgressIndicator(color = content, strokeWidth = 2.dp, modifier = Modifier.size(size.icon))
         } else {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(size.gap)) {
+            // 내용은 **항상 제 폭으로** 그린다(9/30) — 폭이 좁게 정해진 버튼(호요랜드 히어로 2 : 1 : 1)에서 좌우 여백을
+            // 다 챙기느라 글자가 한 글자로 잘렸다. 칸이 좁으면 여백 쪽으로 넘쳐 가운데를 지킨다(여백이 먼저 준다).
+            Row(
+                Modifier.wrapContentWidth(unbounded = true),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(size.gap),
+            ) {
                 if (icon != null) Icon(icon, contentDescription = null, tint = content, modifier = Modifier.size(size.icon))
-                Text(text, color = content, fontWeight = FontWeight.Bold, fontSize = size.font, maxLines = 1)
+                Text(text, color = content, fontWeight = FontWeight.Bold, fontSize = size.font, maxLines = 1, softWrap = false)
             }
         }
     }
 }
 
 /** 입력필드 크기 — M 은 폼 기본, S 는 목록 행 안의 짧은 숫자칸. */
-enum class OdsFieldSize(val height: Dp, val radius: Dp, val font: TextUnit, val padH: Dp) {
+enum class GldsFieldSize(val height: Dp, val radius: Dp, val font: TextUnit, val padH: Dp) {
     M(48.dp, 14.dp, 16.sp, 14.dp),
     S(38.dp, 12.dp, 14.sp, 12.dp),
 }
 
-private val OdsFieldBg = Color(0xFFF5F8F8)
-private val OdsFieldPlaceholder = Color(0xFFA7B1AE)
+private val GldsFieldBg = Color(0xFFF5F8F8)
+private val GldsFieldPlaceholder = Color(0xFFA7B1AE)
 
 /**
- * ODS 입력필드 — 채운 면(#F5F8F8), 포커스 때 흰 면 + 강조색 1.5 테두리, 오류면 빨강 테두리 + 아래 문구.
+ * GLDS 입력필드 — 채운 면(#F5F8F8), 포커스 때 흰 면 + 강조색 1.5 테두리, 오류면 빨강 테두리 + 아래 문구.
  * [suffix] 는 값 뒤에 붙는 단위(「원」), [trailingIcon] 은 오른쪽 끝 아이콘, [onClick] 을 주면 누르는 필드(날짜 등).
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun OdsTextField(
+fun GldsTextField(
     value: String,
     onValueChange: (String) -> Unit,
     modifier: Modifier = Modifier,
     label: String? = null,
     placeholder: String = "",
-    size: OdsFieldSize = OdsFieldSize.M,
+    size: GldsFieldSize = GldsFieldSize.M,
     suffix: String? = null,
     trailingIcon: ImageVector? = null,
     helper: String? = null,
@@ -180,9 +187,9 @@ fun OdsTextField(
     val interaction = remember { MutableInteractionSource() }
     val focused by interaction.collectIsFocusedAsState()
     val borderColor by animateColorAsState(
-        when { error != null -> DangerText; focused -> accent; else -> Color.Transparent }, label = "odsFieldBorder",
+        when { error != null -> DangerText; focused -> accent; else -> Color.Transparent }, label = "gldsFieldBorder",
     )
-    val bg by animateColorAsState(if (focused || error != null) Color.White else OdsFieldBg, label = "odsFieldBg")
+    val bg by animateColorAsState(if (focused || error != null) Color.White else GldsFieldBg, label = "gldsFieldBg")
     val shape = RoundedCornerShape(size.radius)
     // 포커스 · 키보드가 뜨면 **입력칸 전체**(라벨 · 테두리 · 도움말)를 보이는 곳까지 스크롤한다(9/30).
     // 텍스트필드 기본 동작은 커서가 있는 글자 줄만 보이게 해서, 칸 테두리가 하단 바에 붙거나 가렸다.
@@ -200,7 +207,7 @@ fun OdsTextField(
     )
 
     Column(modifier.bringIntoViewRequester(bring)) {
-        label?.let { OdsFieldLabel(it) }
+        label?.let { GldsFieldLabel(it) }
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier
@@ -214,7 +221,7 @@ fun OdsTextField(
         ) {
             Box(Modifier.weight(1f), contentAlignment = if (textAlign == TextAlign.End) Alignment.CenterEnd else Alignment.CenterStart) {
                 if (value.isEmpty() && placeholder.isNotEmpty()) {
-                    Text(placeholder, style = style.copy(color = OdsFieldPlaceholder), modifier = Modifier.fillMaxWidth())
+                    Text(placeholder, style = style.copy(color = GldsFieldPlaceholder), modifier = Modifier.fillMaxWidth())
                 }
                 // 누르는 필드(날짜 등)는 입력 위젯을 두지 않는다 — 비활성 텍스트필드가 탭을 먹어 필드가 안 눌렸다.
                 if (onClick != null) Text(value, style = style, maxLines = 1, modifier = Modifier.fillMaxWidth())
@@ -246,7 +253,7 @@ fun OdsTextField(
 
 /** 입력필드 위 라벨 — 13 SemiBold #6C727A, 아래 6. */
 @Composable
-fun OdsFieldLabel(text: String, modifier: Modifier = Modifier) {
+fun GldsFieldLabel(text: String, modifier: Modifier = Modifier) {
     Text(text, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = TextSecondary, modifier = modifier.padding(bottom = 6.dp))
 }
 
@@ -260,13 +267,13 @@ fun Modifier.dismissKeyboardOnTap(): Modifier = composed {
 }
 
 /**
- * ODS 칩(9/30) — 필터 · 선택용 알약. iOS `OdsChip` · `OdsChipLabel` 과 같은 값.
+ * GLDS 칩(9/30) — 필터 · 선택용 알약. iOS `GldsChip` · `GldsChipLabel` 과 같은 값.
  * 높이 32 · 좌우 12 · 13 Bold. 기본 흰 면 + 1 #E3E5EA, **선택은 면을 채우지 않고** 강조색 1.5 테두리 + deep 글자
  * (iOS 메뉴 모프 때 채운 면이 번져 보였다 — 두 플랫폼 같은 모양으로 맞춘다).
  * [dropdown] 은 ▾(메뉴가 열리는 칩), [removable] 은 ✕(눌러 해제).
  */
 @Composable
-fun OdsChip(
+fun GldsChip(
     label: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
@@ -278,7 +285,7 @@ fun OdsChip(
 ) {
     val accent = color ?: LocalAccent.current
     val deep = color ?: LocalAccentDeep.current
-    val border by animateColorAsState(if (selected) accent else OdsChipLine, label = "odsChipBorder")
+    val border by animateColorAsState(if (selected) accent else GldsChipLine, label = "gldsChipBorder")
     val shape = RoundedCornerShape(50)
     Row(
         modifier
@@ -298,7 +305,7 @@ fun OdsChip(
     }
 }
 
-private val OdsChipLine = Color(0xFFE3E5EA)
+private val GldsChipLine = Color(0xFFE3E5EA)
 
 /**
  * 다이얼로그 · 바텀시트 창에서도 상단 · 하단 시스템 바 아이콘을 어둡게(9/30) — 별도 창은 액티비티 설정을 물려받지 않아
