@@ -82,7 +82,7 @@ struct GiftCodePage: View {
             Text("활성 코드 (자동 수집)").font(.pretendard(size: 13, weight: .bold)).foregroundStyle(GLGColor.textSecondary)
             Spacer()
             Button { store.loadActiveCodes(selected, force: true) } label: {
-                if store.codesLoading { ProgressView().controlSize(.mini).tint(accent.primary) }
+                if store.codesLoading { GldsSpinner(size: 15, lineWidth: 2) }
                 else { Image(systemName: "arrow.clockwise").font(.pretendard(size: 14)).foregroundStyle(accent.primary) }
             }.buttonStyle(.plain).disabled(store.codesLoading)
         }

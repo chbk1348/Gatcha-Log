@@ -66,6 +66,8 @@ import com.gatcha.log.data.GameData
 import com.gatcha.log.ui.components.GldsTabs
 import com.gatcha.log.ui.components.GldsTabsVariant
 import com.gatcha.log.ui.components.GlassCard
+import com.gatcha.log.ui.components.RosterSkeleton
+import com.gatcha.log.ui.components.SkeletonBox
 import com.gatcha.log.ui.components.GlgBadgeText
 import com.gatcha.log.ui.components.GldsButton
 import com.gatcha.log.ui.components.GldsSize
@@ -127,14 +129,10 @@ fun CombatClearContent(
     }
     val modes = remember(clears) { CombatClearLogic.byMode(clears) }
     if (modes.isEmpty()) {
-        // 불러오는 동안은 **스피너** — 「불러오는 중이에요」 글자만으로는 멈춘 건지 도는 건지 안 보였다(2026-09-28 지적).
+        // 불러오는 동안은 **스켈레톤**(9/30) — 모드 카드와 같은 모양이라 다 불러오면 그 자리에 그대로 채워진다.
         // 로딩 중이 아닌데 비었다면 정말로 기록이 없는 것 — 둘을 구분해서 안내한다.
         if (loading) {
-            Box(Modifier.fillMaxWidth().padding(vertical = 48.dp), contentAlignment = Alignment.Center) {
-                androidx.compose.material3.CircularProgressIndicator(
-                    color = LocalAccent.current, strokeWidth = 2.5.dp, modifier = Modifier.size(28.dp),
-                )
-            }
+            CombatClearSkeleton()
         } else if (failed) {
             // 조회 실패를 '기록 없음'으로 보이면 깬 층이 날아간 줄 안다 — 사유를 밝히고 재시도를 준다.
             Column(
@@ -734,5 +732,39 @@ private fun EmptyNote(text: String) {
     // fillMaxSize 금지 — 위 Column 과 같은 이유(스크롤 컨테이너 안에서 높이 제약이 무한이다).
     Box(Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
         Text(text, fontSize = 13.sp, color = TextSecondary, textAlign = TextAlign.Center)
+    }
+}
+
+/**
+ * 클리어 편성 로딩 스켈레톤 — 모드 카드(게임 칩 · 모드명 · 점수 · 주력 6명 · 층 줄 2개)와 같은 뼈대 2장.
+ * 칸 수 · 크기 · 간격을 실물과 맞춰 로딩이 끝나는 순간 화면이 튀지 않게 한다. iOS `CombatClearSkeleton` 과 같다.
+ */
+@Composable
+private fun CombatClearSkeleton() {
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        repeat(2) {
+            GlassCard(shape = RoundedCornerShape(22.dp), modifier = Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(16.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        SkeletonBox(Modifier.size(width = 40.dp, height = 18.dp))
+                        SkeletonBox(Modifier.size(width = 110.dp, height = 16.dp))
+                    }
+                    Spacer(Modifier.height(12.dp))
+                    SkeletonBox(Modifier.size(width = 180.dp, height = 22.dp))
+                    Spacer(Modifier.height(14.dp))
+                    SkeletonBox(Modifier.size(width = 64.dp, height = 10.dp))
+                    Spacer(Modifier.height(8.dp))
+                    RosterSkeleton()
+                    repeat(2) {
+                        Spacer(Modifier.height(14.dp))
+                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                            SkeletonBox(Modifier.size(width = 90.dp, height = 14.dp))
+                            Spacer(Modifier.weight(1f))
+                            SkeletonBox(Modifier.size(width = 44.dp, height = 18.dp))
+                        }
+                    }
+                }
+            }
+        }
     }
 }

@@ -39,13 +39,9 @@ struct CombatClearSection: View {
                 emptyNote("HoYoLAB을 연동하면 클리어 편성을 볼 수 있어요")
             } else if modes.isEmpty {
                 // 로딩 중이 아닌데 비었다면 정말로 기록이 없는 것 — 둘을 구분해서 안내한다.
-                // 불러오는 동안은 **스피너** — 「불러오는 중이에요」 글자만으로는 멈춘 건지 도는 건지 안 보였다(2026-09-28 지적).
+                // 불러오는 동안은 **스켈레톤**(9/30) — 모드 카드와 같은 모양이라 다 불러오면 그 자리에 그대로 채워진다.
                 if store.combatClearsLoading {
-                    ProgressView()
-                        .controlSize(.regular)
-                        .tint(accent.primary)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 48)
+                    CombatClearSkeleton()
                 } else if store.combatClearsFailed {
                     // 조회 실패는 '기록 없음'과 다르다 — 사유를 밝히고 재시도를 준다.
                     VStack(spacing: 6) {
@@ -565,5 +561,46 @@ private struct AvatarChip: View {
             }
         }
         .frame(width: cell)
+    }
+}
+
+/// 클리어 편성 로딩 스켈레톤 — 모드 카드(게임 칩 · 모드명 · 점수 · 주력 6명 · 층 줄 2개)와 같은 뼈대 2장.
+/// 칸 수 · 크기 · 간격을 실물과 맞춰 로딩이 끝나는 순간 화면이 튀지 않게 한다. Android `CombatClearSkeleton` 과 같다.
+private struct CombatClearSkeleton: View {
+    var body: some View {
+        GLGShimmerClock {
+            VStack(spacing: 12) {
+                ForEach(0..<2, id: \.self) { _ in
+                    GLGCard(cornerRadius: 22, padding: 16) {
+                        VStack(alignment: .leading, spacing: 0) {
+                            HStack(spacing: 8) {
+                                GLGSkeleton().frame(width: 40, height: 18)
+                                GLGSkeleton().frame(width: 110, height: 16)
+                            }
+                            GLGSkeleton().frame(width: 180, height: 22).padding(.top, 12)
+                            GLGSkeleton().frame(width: 64, height: 10).padding(.top, 14)
+                            HStack(spacing: 6) {
+                                ForEach(0..<6, id: \.self) { _ in
+                                    VStack(spacing: 5) {
+                                        GLGSkeleton(cornerRadius: 22).frame(width: 44, height: 44)
+                                        GLGSkeleton().frame(height: 9)
+                                    }
+                                    .frame(maxWidth: .infinity)
+                                }
+                            }
+                            .padding(.top, 8)
+                            ForEach(0..<2, id: \.self) { _ in
+                                HStack {
+                                    GLGSkeleton().frame(width: 90, height: 14)
+                                    Spacer()
+                                    GLGSkeleton().frame(width: 44, height: 18)
+                                }
+                                .padding(.top, 14)
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 }

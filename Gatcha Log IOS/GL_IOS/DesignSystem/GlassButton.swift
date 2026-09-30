@@ -69,7 +69,7 @@ struct GldsButton: View {
         Button(action: action) {
             Group {
                 if loading {
-                    ProgressView().controlSize(.small)
+                    GldsSpinner(size: size.icon + 3, lineWidth: 2, inheritForeground: true)
                 } else {
                     HStack(spacing: size.gap) {
                         if let systemImage { Image(systemName: systemImage).font(.system(size: size.icon, weight: .semibold)) }
@@ -167,5 +167,45 @@ struct GldsChip: View {
 private struct GldsChipPress: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label.scaleEffect(configuration.isPressed ? 0.95 : 1).animation(.easeOut(duration: 0.1), value: configuration.isPressed)
+    }
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// GLDS 로딩 스피너(9/30) — Android `CircularProgressIndicator`(Material 원형 무한 로딩)와 같은 모양.
+// 강조색 호가 돌면서 늘었다 줄었다 한다. 시스템 ProgressView(톱니 모양)를 쓰지 않는다 — 두 플랫폼 로딩 모양을 하나로.
+// ════════════════════════════════════════════════════════════════════════════
+
+struct GldsSpinner: View {
+    var size: CGFloat = 20
+    var lineWidth: CGFloat = 2.5
+    /// nil 이면 강조색. `inheritForeground` 면 둘러싼 글자색(버튼 안 등)을 따른다.
+    var color: Color? = nil
+    var inheritForeground: Bool = false
+    @Environment(\.glgAccent) private var accent
+
+    var body: some View {
+        TimelineView(.animation) { ctx in
+            let arc = Self.arc(ctx.date.timeIntervalSinceReferenceDate)
+            let ring = Circle().trim(from: 0, to: arc.sweep / 360)
+                .rotation(.degrees(arc.start - 90))
+            let style = StrokeStyle(lineWidth: lineWidth, lineCap: .round)
+            if inheritForeground { ring.stroke(style: style) }
+            else { ring.stroke(color ?? accent.primary, style: style) }
+        }
+        .frame(width: size, height: size)
+        .accessibilityLabel("불러오는 중")
+    }
+
+    /// Material 무한 원형의 근사 — 1.33초마다 호가 10°→260° 로 늘었다가 꼬리가 따라와 다시 줄고,
+    /// 전체는 초당 180° 로 돈다. 주기마다 시작점이 250° 씩 앞으로 가 매번 다른 자리에서 늘어난다.
+    static func arc(_ t: Double) -> (start: Double, sweep: Double) {
+        let period = 1.333
+        let cycles = t / period
+        let c = cycles.rounded(.down), f = cycles - c
+        func ease(_ x: Double) -> Double { x < 0.5 ? 4 * x * x * x : 1 - pow(-2 * x + 2, 3) / 2 }
+        let grow = ease(min(1, f * 2)), shrink = ease(max(0, f * 2 - 1))
+        let sweep = 10 + 250 * (grow - shrink)
+        let start = (c * 250 + 250 * shrink + t * 180).truncatingRemainder(dividingBy: 360)
+        return (start, sweep)
     }
 }

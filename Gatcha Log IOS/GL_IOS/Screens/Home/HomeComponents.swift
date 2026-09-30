@@ -55,7 +55,7 @@ struct TodayTaskCard: View {
             HStack(spacing: 10) {
                 Image(systemName: t.icon).font(.pretendard(size: 18)).foregroundStyle(tint)
                 Text(t.message).font(.pretendard(size: 14)).foregroundStyle(GLGColor.textPrimary).frame(maxWidth: .infinity, alignment: .leading).lineLimit(2)
-                if busy { ProgressView().controlSize(.mini).tint(tint) }
+                if busy { GldsSpinner(size: 13, lineWidth: 2, color: tint) }
                 else {
                     HStack(spacing: 2) {
                         Text(t.cta).font(.pretendard(size: 11, weight: .bold)).foregroundStyle(tint)
