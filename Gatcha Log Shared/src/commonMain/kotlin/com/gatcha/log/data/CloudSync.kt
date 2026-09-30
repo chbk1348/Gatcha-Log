@@ -127,14 +127,20 @@ object CloudSync {
      */
     suspend fun pushMerged(uid: String, merge: (remote: String?) -> String): String? = runCatching {
         val ref = Firebase.firestore.collection(COLLECTION).document(uid)
+        // 블록 안 예외는 **블록 안에서 잡아 값으로** 내보낸다(9/30 iOS 크래시). GitLive 의 iOS 트랜잭션은 네이티브
+        // 콜백 안에서 runBlocking 으로 블록을 돌려, 거기서 던진 예외가 바깥 runCatching 까지 못 오고 앱을 죽였다
+        // (SIGABRT · terminateWithUnhandledException). Android 는 같은 예외를 트랜잭션 실패로 넘겨 멀쩡했다.
+        // 잡으면 아무것도 쓰지 않은 채 끝나 네이티브 트랜잭션은 빈 커밋 — 실패는 아래 getOrThrow 가 바깥으로 넘긴다.
         Firebase.firestore.runTransaction {
-            val snap = get(ref)
-            val remote = if (snap.exists) snap.get<String?>(FIELD_DATA) else null
-            val rev = if (snap.exists) runCatching { snap.get<Long?>("rev") }.getOrNull() ?: 0L else 0L
-            val merged = merge(remote)
-            if (merged != remote) set(ref, SnapshotDoc(data = merged, updatedAt = currentTimeMillis(), rev = rev + 1))
-            merged
-        }
+            runCatching {
+                val snap = get(ref)
+                val remote = if (snap.exists) snap.get<String?>(FIELD_DATA) else null
+                val rev = if (snap.exists) runCatching { snap.get<Long?>("rev") }.getOrNull() ?: 0L else 0L
+                val merged = merge(remote)
+                if (merged != remote) set(ref, SnapshotDoc(data = merged, updatedAt = currentTimeMillis(), rev = rev + 1))
+                merged
+            }
+        }.getOrThrow()
     }.getOrElse {
         if (it is CancellationException) throw it
         println("GatchaCloudSync: pushMerged 실패 — ${it::class.simpleName}: ${it.message}")
