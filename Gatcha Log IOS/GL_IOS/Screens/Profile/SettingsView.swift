@@ -97,7 +97,7 @@ struct SettingsView: View {
             NudgeThresholdModal(text: $nudgeText, isPresented: $showNudge) {
                 store.setNudgeThreshold(Int64(nudgeText.filter(\.isNumber)) ?? 0)
             }
-            .presentationBackground(Color.black.opacity(0.4))
+            .presentationBackground(.clear)
         }
         .sheet(isPresented: $showCredits) { CreditsSheet() }
         .navigationDestination(isPresented: $showHoyolab) {
@@ -609,10 +609,28 @@ struct NudgeThresholdModal: View {
     @Binding var isPresented: Bool
     let onSave: () -> Void
     @FocusState private var focused: Bool
+    @State private var shown = false
 
-    private func dismiss() { withoutSlide { isPresented = false } }
+    // 흐린 배경 · 카드가 사라지는 걸 본 뒤에 cover 를 닫는다.
+    private func dismiss() {
+        focused = false
+        withAnimation(.easeOut(duration: 0.18)) { shown = false } completion: {
+            withoutSlide { isPresented = false }
+        }
+    }
 
     var body: some View {
+        ZStack {
+            Color.black.opacity(shown ? 0.4 : 0).ignoresSafeArea()
+            card.scaleEffect(shown ? 1 : 1.08).opacity(shown ? 1 : 0)
+        }
+        .onAppear {
+            focused = true
+            withAnimation(.spring(duration: 0.3, bounce: 0.2)) { shown = true }
+        }
+    }
+
+    private var card: some View {
         VStack(alignment: .leading, spacing: 0) {
             Text("넛지 기준 금액").font(.pretendard(size: 17, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
             Text("단건 지출이 이 금액 이상이면 추가 전 한 번 더 확인해요.")
@@ -650,6 +668,5 @@ struct NudgeThresholdModal: View {
         .background(Color.white, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
         .padding(.horizontal, 28)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .onAppear { focused = true }
     }
 }
