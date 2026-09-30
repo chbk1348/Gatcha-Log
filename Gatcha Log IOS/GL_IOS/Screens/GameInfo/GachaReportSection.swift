@@ -50,7 +50,7 @@ struct GachaReportSection: View {
             Text("아직 가챠 기록이 없어요").font(.pretendard(size: 14, weight: .bold)).padding(.top, 12)
             Text("UIGF(원신·젠레스) / SRGF·UIGF(스타레일) 표준 JSON을 가져오면\n5성 단가 · 평균 천장 · 획득 히스토리를 분석해 드려요.")
                 .font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary).multilineTextAlignment(.center).padding(.top, 6)
-            GLGButton(title: "가챠 기록 JSON 가져오기") { importing = true }.padding(.top, 16)
+            OdsButton(title: "가챠 기록 JSON 가져오기") { importing = true }.padding(.top, 16)
         }
         .frame(maxWidth: .infinity)
     }
@@ -70,7 +70,7 @@ struct GachaReportSection: View {
                     gameCard(gk, g, labels: poolLabels[gk] ?? [:], showDash: idx == 0)
                 }
             }
-            GLGButton(title: "기록 추가 가져오기") { importing = true }
+            OdsButton(title: "기록 추가 가져오기") { importing = true }
         }
     }
 

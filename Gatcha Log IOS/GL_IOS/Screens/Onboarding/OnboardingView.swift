@@ -194,7 +194,7 @@ struct OnboardingView: View {
                 Text("약 1분 · 게임 고르기 말고는 전부 건너뛸 수 있어요")
                     .font(.pretendard(size: 12)).foregroundStyle(OB.sub).padding(.top, 12)
             }
-            CtaButton(title: "시작하기", primary: true) {
+            OdsButton(title: "시작하기", size: .l) {
                 guard !busy, !leaving else { return }
                 // 타일이 차례로 위로 흩어진 뒤 넘어간다(0.32초)
                 leaving = true
@@ -204,8 +204,9 @@ struct OnboardingView: View {
                     leaving = false
                 }
             }
+            .cta(primary: true)
             // 「구글 로그인 하기」 — 설정 단계 없이 바로 구글 로그인(기존 사용자 복원). 성공하면 onChange 가 마친다.
-            CtaButton(title: "구글 로그인 하기", primary: false) { loginRequested = true; store.signIn() }
+            OdsButton(title: "구글 로그인 하기", variant: .secondary) { loginRequested = true; store.signIn() }.cta(primary: false)
             Spacer().frame(height: 16)
         }
     }
@@ -244,10 +245,11 @@ struct OnboardingView: View {
                 }
                 .padding(.top, h < 520 ? 16 : 24)
             }
-            CtaButton(title: games.isEmpty ? "게임을 하나 이상 골라 주세요" : "\(games.count)개 선택 · 다음",
-                      primary: true, enabled: !games.isEmpty, delay: settled ? 0.14 : 0.46) {
+            OdsButton(title: games.isEmpty ? "게임을 하나 이상 골라 주세요" : "\(games.count)개 선택 · 다음", size: .l) {
                 settled = true; go(2)
             }
+            .disabled(games.isEmpty)
+            .cta(primary: true, delay: settled ? 0.14 : 0.46)
             Spacer().frame(height: 16)
         }
     }
@@ -292,12 +294,13 @@ struct OnboardingView: View {
                 .padding(.top, 10)
             }
             // OS 알림 권한을 그 자리에서 묻고, 답하면 ⑥ 완료로(9/29). 완료 화면은 구글 로그인만.
-            CtaButton(title: "알림 켜고 시작하기", primary: true) {
+            OdsButton(title: "알림 켜고 시작하기", size: .l) {
                 alerts = true; restored = false
                 AppSettings().notifPermAsked = true
                 NotificationPermission.request { _ in go(5) }
             }
-            CtaButton(title: "알림 없이 시작", primary: false) { alerts = false; restored = false; go(5) }
+            .cta(primary: true)
+            OdsButton(title: "알림 없이 시작", variant: .secondary) { alerts = false; restored = false; go(5) }.cta(primary: false)
             Spacer().frame(height: 16)
         }
     }
@@ -408,7 +411,7 @@ struct OnboardingView: View {
                     GoogleSignInButton(title: restored ? "Google로 로그인하기" : "Google로 로그인하고 시작하기") { finishDone() }
                         .padding(.horizontal, 8).enterUp(delay: 0.14)
                 } else {
-                    CtaButton(title: "홈으로 이동하기", primary: true) { finishDone() }
+                    OdsButton(title: "홈으로 이동하기", size: .l) { finishDone() }.cta(primary: true)
                 }
             }
             Spacer().frame(height: 16)
@@ -465,39 +468,10 @@ private extension View {
     func enterUp(delay: Double?) -> some View { modifier(EnterUp(delay: delay)) }
 }
 
-/// 주 버튼 50 · 보조 42, 좌우 8 들여씀. 눌림(0.96배) + 아래에서 올라오는 등장.
-private struct CtaButton: View {
-    let title: String
-    let primary: Bool
-    var enabled: Bool = true
-    var bg: Color? = nil
-    var fg: Color? = nil
-    var delay: Double? = nil
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            Text(title)
-                .font(.pretendard(size: primary ? 15 : 13, weight: .bold))
-                .foregroundStyle(fg ?? (primary ? .white : OB.teal))
-                .frame(maxWidth: .infinity)
-                .frame(height: primary ? 50 : 42)
-                .background(enabled ? (bg ?? (primary ? OB.teal : OB.tealSoft)) : Color(hex: 0xFFB8C4C1),
-                            in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-        }
-        .buttonStyle(PressScale())
-        .disabled(!enabled)
-        .padding(.horizontal, 8)
-        .padding(.top, primary ? 0 : 8)
-        .enterUp(delay: delay ?? (primary ? 0.14 : 0.2))
-    }
-}
-
-private struct PressScale: ButtonStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .scaleEffect(configuration.isPressed ? 0.96 : 1)
-            .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
+private extension View {
+    /// ODS 하단 버튼 자리 — 좌우 8 들여씀, 보조는 위 8, 아래에서 올라오는 등장.
+    func cta(primary: Bool, delay: Double? = nil) -> some View {
+        padding(.horizontal, 8).padding(.top, primary ? 0 : 8).enterUp(delay: delay ?? (primary ? 0.14 : 0.2))
     }
 }
 
@@ -589,8 +563,8 @@ private struct BudgetPage: View {
                 PageTitle(title: "한 달에 얼마까지 쓸까요?", sub: "넘기기 전에 알려 드려요. 게임별 한도는 나중에 정해도 돼요.")
                 BudgetAmountEditor(budget: $budget, custom: $custom).padding(.top, 28)
             }
-            CtaButton(title: "다음", primary: true) { hideKeyboard(); onNext() }
-            CtaButton(title: "예산 없이 쓸게요", primary: false) { hideKeyboard(); onSkip() }
+            OdsButton(title: "다음", size: .l) { hideKeyboard(); onNext() }.cta(primary: true)
+            OdsButton(title: "예산 없이 쓸게요", variant: .secondary) { hideKeyboard(); onSkip() }.cta(primary: false)
             Spacer().frame(height: 16)
         }
     }
@@ -811,13 +785,15 @@ private struct HoyolabPage: View {
                 }
             }
             if linked {
-                CtaButton(title: "다음", primary: true, action: onNext)
-                CtaButton(title: "연결 해제", primary: false, bg: Color(hex: 0xFFECEFF4), fg: OB.ink) {
+                OdsButton(title: "다음", size: .l, action: onNext).cta(primary: true)
+                OdsButton(title: "연결 해제", variant: .neutral) {
                     _ = store.updateHoyolabConfig(HoyolabConfig(ltuid: "", ltoken: "", genshinUid: "", hsrUid: "", zzzUid: "", cookieToken: "", webCookie: ""))
                 }
+                .cta(primary: false)
             } else {
-                CtaButton(title: working ? "UID 확인 중…" : "HoYoLAB 로그인", primary: true, enabled: !working, bg: OB.ink) { showEmailGuide = true }
-                CtaButton(title: "나중에 연결할게요", primary: false, bg: Color(hex: 0xFFECEFF4), fg: OB.ink, action: onNext)
+                OdsButton(title: working ? "UID 확인 중…" : "HoYoLAB 로그인", variant: .inverse, size: .l) { showEmailGuide = true }
+                    .disabled(working).cta(primary: true)
+                OdsButton(title: "나중에 연결할게요", variant: .neutral, action: onNext).cta(primary: false)
             }
             Spacer().frame(height: 16)
         }

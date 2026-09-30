@@ -25,6 +25,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.gatcha.log.data.GameData
@@ -75,11 +76,11 @@ fun BudgetDialog(
             Column(Modifier.fillMaxWidth()) {
                 Text("전체 월 예산", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextSecondary)
                 Spacer(Modifier.height(8.dp))
-                GlgTextField(
+                OdsTextField(
                     value = overallText,
                     onValueChange = { v -> overallText = v.filter { it.isDigit() } },
-                    label = "예산 (원)",
                     placeholder = "0",
+                    suffix = "원",
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     modifier = Modifier.fillMaxWidth(),
                 )
@@ -108,10 +109,14 @@ fun BudgetDialog(
                                 fontWeight = if (over) FontWeight.Bold else FontWeight.Normal,
                             )
                         }
-                        GlgTextField(
+                        OdsTextField(
                             value = perGameText[game.key].orEmpty(),
                             onValueChange = { v -> perGameText[game.key] = v.filter { it.isDigit() } },
                             placeholder = "한도",
+                            size = OdsFieldSize.S,
+                            suffix = "원",
+                            textAlign = TextAlign.End,
+                            bold = true,
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                             modifier = Modifier.width(120.dp),
                         )

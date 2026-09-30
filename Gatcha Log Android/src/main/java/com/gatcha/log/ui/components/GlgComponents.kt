@@ -77,167 +77,15 @@ import com.gatcha.log.ui.theme.TextSecondary
 // ============================================================
 //  Gatcha LOG 커스텀 디자인 토큰 (웹앱 스타일 이식)
 // ============================================================
-/**
- * 컨트롤 라운드 — 주 버튼([GlgButton]) · 보조 버튼([GlgOutlineButton]) · 입력필드([GlgTextField])가
- * 모두 이 값을 쓴다.
- *
- * 알약은 **폭이 넓어질수록 뚱뚱해 보인다.** 전체 폭 CTA·입력필드는 좌우 반원이 커져 글자보다
- * 모서리가 먼저 읽혔고, 카드(24dp 라운드) 안에서 완전 원호만 튀었다.
- *
- * 헤더 알약(`GlgHeaderActionPill` 등)과 원형 아이콘 버튼은 **알약·원형을 유지한다** —
- * 그쪽은 폭이 좁아 뚱뚱해 보이지 않고, 상태바 옆에서 작은 알약으로 읽히는 편이 자연스럽다.
- *
- * **iOS 는 버튼만 캡슐을 유지한다**(2026-09-10 결정) — 시스템 버튼 스타일(`.glassProminent`)의
- * 기본 모양이 캡슐이고, 그게 OS 관용구다. 입력필드는 양쪽 모두 이 값을 쓴다(iOS `GLGFieldRadius`).
- */
-val GlgButtonRadius = 16.dp
 
-private val FieldShape = RoundedCornerShape(GlgButtonRadius)  // 버튼·입력필드 공용(위 문서 참고)
-private val FieldBgIdle = Color(0xFFFFFFFF)   // D · 입력필드 배경 흰색 고정(테두리로 구분)
-private val FieldBgFocus = Color(0xFFFFFFFF)
-private val FieldBorderIdle = Color(0x1F000000)   // rgba(0,0,0,0.12) — 약간의 아웃라인
-private val FieldText = Color(0xFF1A1C1E)
-private val FieldPlaceholder = Color(0x40000000)  // rgba(0,0,0,0.25)
-private val LabelColor = Color(0x66000000)        // rgba(0,0,0,0.4)
 // 뒤로가기 버튼 테두리 — #E3E3EA 는 연회색 면(#F2F2F6)과 거의 같아 윤곽이 흐렸다(2026-09-28 지적). 한 단 진하게.
 private val GhostBorder = Color(0xFFC8CBD3)
 private val GhostText = Color(0xFF6C727A)
 
 /** 입력 필드 위 라벨 (대문자 느낌의 작은 라벨) */
 
-@Composable
-fun GlgFieldLabel(text: String, modifier: Modifier = Modifier) {
-    Text(
-        text = text,
-        fontSize = 13.sp,
-        fontWeight = FontWeight.SemiBold,
-        color = LabelColor,
-        modifier = modifier.padding(bottom = 6.dp),
-    )
-}
 
-/**
- * 커스텀 텍스트 필드. 포커스 시 강조색 테두리 + 은은한 글로우 링 (레이아웃 시프트 없음).
- */
-@Composable
-fun GlgTextField(
-    value: String,
-    onValueChange: (String) -> Unit,
-    modifier: Modifier = Modifier,
-    label: String? = null,
-    placeholder: String = "",
-    singleLine: Boolean = true,
-    keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
-    enabled: Boolean = true,
-    readOnly: Boolean = false,
-    trailingIcon: ImageVector? = null,
-    onClick: (() -> Unit)? = null,
-) {
-    val accent = LocalAccent.current
-    val interactionSource = remember { MutableInteractionSource() }
-    val focused by interactionSource.collectIsFocusedAsState()
 
-    val borderColor by animateColorAsState(if (focused) accent else FieldBorderIdle, label = "border")
-    val ringColor by animateColorAsState(if (focused) accent.copy(alpha = 0.12f) else Color.Transparent, label = "ring")
-    val bg by animateColorAsState(if (focused) FieldBgFocus else FieldBgIdle, label = "bg")
-
-    Column(modifier) {
-        label?.let { GlgFieldLabel(it) }
-        // 글로우 링: 항상 3dp 패딩 확보 → 포커스 시 색만 채워 시프트 방지
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(FieldShape)
-                .background(ringColor)
-                .padding(3.dp),
-        ) {
-            val fieldModifier = Modifier
-                .fillMaxWidth()
-                .clip(FieldShape)
-                .background(bg)
-                .border(1.dp, borderColor, FieldShape)
-                .then(if (onClick != null) Modifier.clickable { onClick() } else Modifier)
-                .padding(horizontal = 18.dp, vertical = 12.dp)
-
-            Row(verticalAlignment = Alignment.CenterVertically, modifier = fieldModifier) {
-                Box(Modifier.weight(1f)) {
-                    if (value.isEmpty() && placeholder.isNotEmpty()) {
-                        Text(placeholder, color = FieldPlaceholder, fontSize = 16.sp)
-                    }
-                    BasicTextField(
-                        value = value,
-                        onValueChange = onValueChange,
-                        modifier = Modifier.fillMaxWidth(),
-                        enabled = enabled && onClick == null,
-                        readOnly = readOnly,
-                        singleLine = singleLine,
-                        keyboardOptions = keyboardOptions,
-                        textStyle = LocalTextStyle.current.copy(color = FieldText, fontSize = 16.sp),
-                        cursorBrush = SolidColor(accent),
-                        interactionSource = interactionSource,
-                    )
-                }
-                trailingIcon?.let {
-                    androidx.compose.material3.Icon(
-                        it, contentDescription = null,
-                        tint = GhostText,
-                        modifier = Modifier.size(16.dp),
-                    )
-                }
-            }
-        }
-    }
-}
-
-/** 주요 액션 버튼 — 강조색 그라데이션 + 누르면 밝아지는 호버 오버레이(플랫) */
-@Composable
-fun GlgButton(
-    text: String,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-    enabled: Boolean = true,
-    // 44dp — 50 은 목록 · 모달에서 버튼이 덩어리처럼 무거웠다(2026-09-11). iOS `.regular` 와 같은 높이.
-    height: androidx.compose.ui.unit.Dp = 44.dp,
-    /** 글자 왼쪽 아이콘. null 이면 글자만(기본) — 전체 폭 CTA 는 글자만으로 충분하다. */
-    icon: ImageVector? = null,
-) {
-    val accent = LocalAccent.current
-    val interaction = remember { MutableInteractionSource() }
-    val pressed by interaction.collectIsPressedAsState()
-    // **단색 면.** 예전엔 가로 그라데이션 + 누를 때 흰 오버레이(글로우)였는데, 면이 한쪽으로
-    // 어두워져 같은 강조색이 버튼마다 달라 보였다(2026-09-16 지적). 누름은 면을 한 단
-    // 어둡게 하는 것으로만 알린다 — 밝히면 그게 곧 글로우다.
-    val fill = when {
-        !enabled -> Color(0xFFD8D8DE)
-        pressed -> lerp(accent, Color.Black, 0.10f)
-        else -> accent
-    }
-    val bg by animateColorAsState(fill, label = "btnFill")
-    // 둥근 사각형(16dp) — 27.50.0 에서 알약을 걷었다.
-    //
-    // 알약은 **폭이 넓어질수록 뚱뚱해 보인다.** 전체 폭 CTA 는 좌우 반원이 커져 글자보다
-    // 모서리가 먼저 읽혔다. 카드가 24dp 라운드인데 그 안에서 버튼만 완전 원호라 결도 어긋났다.
-    // iOS 는 시스템 버튼에 `.buttonBorderShape(.roundedRectangle(radius: 16))` 로 같은 값을 준다.
-    val shape = RoundedCornerShape(GlgButtonRadius)
-    Box(
-        modifier = modifier
-            .height(height)
-            .clip(shape)
-            .background(bg)
-            .then(if (enabled) Modifier.clickable(interactionSource = interaction, indication = null) { onClick() } else Modifier),
-        contentAlignment = Alignment.Center,
-    ) {
-        // 못 누를 때는 글자를 **회색**으로 — 흰 글자는 연회색 면 위에서 대비가 1.4:1 이라 「매진」 같은
-        // 상태 문구가 읽히지 않았다(2026-09-28 지적). 누를 수 없다는 건 면 색이 이미 말한다.
-        val content = if (enabled) Color.White else TextSecondary
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-            if (icon != null) {
-                Icon(icon, contentDescription = null, tint = content, modifier = Modifier.size(17.dp))
-            }
-            Text(text, color = content, fontWeight = FontWeight.Bold, fontSize = 15.sp)
-        }
-    }
-}
 
 /**
  * 하위 페이지 공통 뒤로가기 버튼.
@@ -363,46 +211,6 @@ val GlgHeaderItemGap = 8.dp
  * 불투명한 이유는 장식이 아니다 — 탭/하위 페이지 모두 콘텐츠가 헤더 아래를 지나가는 구조라,
  * 배경이 없으면 스크롤 중 글자가 콘텐츠와 겹쳐 읽힌다.
  */
-/**
- * 헤더의 **글자 액션 버튼**(저장·완료 등) — 알약 규격.
- *
- * 헤더 액션은 대부분 원형 아이콘 버튼([GlgCircleIconButton])이지만, 아이콘으로 뜻이 안 서는
- * 동작(저장)은 글자로 둔다. 맨 글자로 두면 같은 줄의 뒤로가기·제목 알약과 규격이 어긋나
- * 버튼으로 안 보였다. **높이 44dp** 로 같은 줄에 정렬한다.
- *
- * [primary] 면 강조색으로 꽉 채우고(주 동작), 아니면 제목 알약과 같은 틴트 톤이다.
- */
-@Composable
-fun GlgHeaderActionPill(
-    label: String,
-    modifier: Modifier = Modifier,
-    primary: Boolean = true,
-    enabled: Boolean = true,
-    color: Color = LocalAccent.current,
-    onClick: () -> Unit,
-) {
-    val shape = RoundedCornerShape(999.dp)
-    Box(
-        modifier
-            .height(44.dp)
-            .clip(shape)
-            .background(Color.White)
-            .background(if (primary) color else color.copy(alpha = 0.16f))
-            .then(if (primary) Modifier else Modifier.border(1.5.dp, color.copy(alpha = 0.45f), shape))
-            .then(if (enabled) Modifier.clickable { onClick() } else Modifier)
-            .padding(horizontal = 16.dp)
-            .alpha(if (enabled) 1f else 0.5f),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(
-            label,
-            fontSize = 14.sp,
-            fontWeight = FontWeight.Bold,
-            color = if (primary) Color.White else color,
-            maxLines = 1,
-        )
-    }
-}
 
 /**
  * 헤더 알약 규격의 **작은 칩** — 지출 리스트 퀵필터처럼 본문 위에 상시 얹히는 줄에서 쓴다.
@@ -858,62 +666,6 @@ fun GlgBadge(label: String, color: Color, modifier: Modifier = Modifier) {
     }
 }
 
-/**
- * 일반(보조) 버튼 — **옅은 강조색 면 + 진한 강조색 글자**, 테두리 없음. 둥근 사각형 16.
- *
- * 예전엔 고스트(투명 면 + 연회색 테두리)였다. 2026-09-11 에 강조색 버튼과 한 쌍으로 쓰는
- * 모습(목업 `design_accent_palette_mockup.html` 의 「호요랩 기록 가져오기」)으로 바꿨다 —
- * 테두리만 있는 버튼은 옅은 틴트 배경 위에서 선이 묻혀 버튼인지 잘 안 보였다.
- *
- * 면은 [LocalAccentTint] 가 아니라 **강조색 12%** 다. 틴트는 화면 배경과 같은 색이라
- * 배경 위에 놓이면 면이 사라진다. 글자는 대비 5.2 인 [LocalAccentDeep].
- * iOS 는 시스템 `.bordered` + 강조색 tint 로 같은 모습을 낸다.
- */
-@Composable
-fun GlgOutlineButton(
-    text: String,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-    // 44dp — 50 은 목록 · 모달에서 버튼이 덩어리처럼 무거웠다(2026-09-11). iOS `.regular` 와 같은 높이.
-    height: androidx.compose.ui.unit.Dp = 44.dp,
-    /** 면·글자색. null 이면 테마 강조색. */
-    color: Color? = null,
-    /** 글자 왼쪽 아이콘. null 이면 글자만(기본). */
-    icon: ImageVector? = null,
-    /** 면을 흰색으로 — 강조 틴트 면 **위**에 놓일 때. 틴트 위 틴트는 면이 사라진다. */
-    onTint: Boolean = false,
-) {
-    val accent = color ?: LocalAccent.current
-    val textColor = color ?: LocalAccentDeep.current
-    val interaction = remember { MutableInteractionSource() }
-    val pressed by interaction.collectIsPressedAsState()
-    // 누르면 면이 한 단 진해진다 — 그림자·이동 없음.
-    val bg by animateColorAsState(
-        if (onTint) {
-            if (pressed) Color(0xFFEDEFF3) else Color.White
-        } else {
-            accent.copy(alpha = if (pressed) 0.20f else 0.12f)
-        },
-        label = "outBtnBg",
-    )
-    // 둥근 사각형(16dp) — 강조색 버튼([GlgButton])과 같은 값. '취소 + 저장하기' 짝의 모서리가 맞아야 한다.
-    val shape = RoundedCornerShape(GlgButtonRadius)
-    Box(
-        modifier = modifier
-            .height(height)
-            .clip(shape)
-            .background(bg)
-            .clickable(interactionSource = interaction, indication = null) { onClick() },
-        contentAlignment = Alignment.Center,
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-            if (icon != null) {
-                Icon(icon, contentDescription = null, tint = textColor, modifier = Modifier.size(17.dp))
-            }
-            Text(text, color = textColor, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
-        }
-    }
-}
 
 /**
  * 커스텀 중앙 다이얼로그 (라운드 카드 + 강조 버튼).
@@ -951,7 +703,7 @@ fun GlgDialog(
                 modifier = Modifier.fillMaxWidth().heightIn(max = maxDialogHeight),
             ) {
                 Column(Modifier.padding(22.dp)) {
-                    Text(title, fontSize = 17.sp, fontWeight = FontWeight.Bold, color = FieldText)
+                    Text(title, fontSize = 17.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
                     Spacer(Modifier.height(16.dp))
                     // 본문은 남는 높이까지만 차지하고(fill=false) 길어지면 스크롤 — 버튼 Row는 항상 하단 고정
                     Column(
@@ -964,10 +716,10 @@ fun GlgDialog(
                     Spacer(Modifier.height(20.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         if (dismissText != null) {
-                            GlgOutlineButton(dismissText, onDismiss, Modifier.weight(1f))
-                            GlgButton(confirmText, onConfirm, Modifier.weight(1.4f), enabled = confirmEnabled)
+                            OdsButton(dismissText, onDismiss, Modifier.weight(1f), variant = OdsVariant.Secondary)
+                            OdsButton(confirmText, onConfirm, Modifier.weight(1.4f), enabled = confirmEnabled)
                         } else {
-                            GlgButton(confirmText, onConfirm, Modifier.fillMaxWidth(), enabled = confirmEnabled)
+                            OdsButton(confirmText, onConfirm, Modifier.fillMaxWidth(), enabled = confirmEnabled)
                         }
                     }
                 }

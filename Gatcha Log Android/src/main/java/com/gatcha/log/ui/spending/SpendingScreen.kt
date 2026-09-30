@@ -17,7 +17,6 @@ import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -29,8 +28,6 @@ import androidx.compose.material.icons.automirrored.filled.ReceiptLong
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import com.gatcha.log.ui.components.GlgBadge
-import com.gatcha.log.ui.components.ChipIdleBorder
-import com.gatcha.log.ui.components.ChipIdleText
 import com.gatcha.log.ui.components.GlgChip
 import com.gatcha.log.ui.components.GlgChipVariant
 import com.gatcha.log.ui.components.GlgDropdownItem
@@ -66,12 +63,13 @@ import com.gatcha.log.data.DateUtil
 import com.gatcha.log.data.GameData
 import com.gatcha.log.data.Spending
 import com.gatcha.log.ui.components.GlassCard
-import com.gatcha.log.ui.components.GlgButton
+import com.gatcha.log.ui.components.OdsButton
+import com.gatcha.log.ui.components.OdsSize
+import com.gatcha.log.ui.components.OdsVariant
 import com.gatcha.log.ui.components.GlgTabHeader
 import com.gatcha.log.ui.components.GlgTabHeaderHeight
 import com.gatcha.log.ui.components.glgTabContentBottom
 import com.gatcha.log.ui.components.GlgTopScrimFadeExtra as ScrimFadeExtra
-import com.gatcha.log.ui.components.GlgOutlineButton
 import com.gatcha.log.ui.theme.*
 import com.gatcha.log.util.won
 import java.util.Calendar
@@ -806,8 +804,8 @@ private fun SpendingFilterSheet(
             }
             Spacer(Modifier.height(16.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                GlgOutlineButton("초기화", onReset, Modifier.weight(1f))
-                GlgButton("적용", animatedDismiss, Modifier.weight(1.4f))
+                OdsButton("초기화", onReset, Modifier.weight(1f), variant = OdsVariant.Secondary)
+                OdsButton("적용", animatedDismiss, Modifier.weight(1.4f))
             }
             Spacer(Modifier.height(8.dp))
         }
@@ -867,27 +865,10 @@ private fun SelectionActionBar(
         ) {
             Text("${count}건", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
             Spacer(Modifier.weight(1f))
-            PillActionButton("취소", filled = false, onClick = onCancel)
-            PillActionButton("삭제", filled = false, onClick = onDelete)
-            PillActionButton("일괄 편집", filled = true, onClick = onEdit)
+            OdsButton("취소", onCancel, variant = OdsVariant.Neutral, size = OdsSize.S)
+            OdsButton("삭제", onDelete, variant = OdsVariant.Danger, size = OdsSize.S)
+            OdsButton("일괄 편집", onEdit, size = OdsSize.S)
         }
-    }
-}
-
-/** 선택 바 전용 컴팩트 알약 버튼 — filled=강조 채움, 아니면 흰 배경+아웃라인. */
-@Composable
-private fun PillActionButton(text: String, filled: Boolean, onClick: () -> Unit) {
-    val accent = LocalAccent.current
-    val shape = RoundedCornerShape(50)
-    Box(
-        modifier = Modifier
-            .clip(shape)
-            .then(if (filled) Modifier.background(accent) else Modifier.background(Color.White).border(1.dp, ChipIdleBorder, shape))
-            .clickable { onClick() }
-            .padding(horizontal = 14.dp, vertical = 7.dp),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(text, color = if (filled) Color.White else ChipIdleText, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
     }
 }
 
@@ -928,9 +909,9 @@ private fun BulkEditSheet(count: Int, onApply: (String?, Long?, List<String>) ->
             }
             Spacer(Modifier.height(8.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                GlgOutlineButton("취소", onDismiss, Modifier.weight(1f))
+                OdsButton("취소", onDismiss, Modifier.weight(1f), variant = OdsVariant.Secondary)
                 // 아무것도 안 바꿨으면 적용할 게 없다 — 예전엔 눌리면 선택만 풀렸다.
-                GlgButton(
+                OdsButton(
                     "적용", { onApply(game, dateMillis, tags.toList()) }, Modifier.weight(1.4f),
                     enabled = game != null || dateMillis != null || tags.isNotEmpty(),
                 )

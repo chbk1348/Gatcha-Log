@@ -1,103 +1,7 @@
 import SwiftUI
 
-// ════════════════════════════════════════════════════════════════════════════
-// 버튼 — 시스템 버튼 스타일에 **둥근 사각형(16)** 모양을 준다.
-//
-// Compose 의 GlgButton(강조색 채움) / GlgOutlineButton(옅은 강조색 면) 대응.
-// 시스템 디자인 원칙: 커스텀 드로잉이 아니라 시스템 버튼 스타일을 쓴다.
-//
-// 2026-09-10 에는 "iOS 버튼은 캡슐 유지" 로 정했었는데, 2026-09-11 에 **강조색 버튼 · 일반 버튼
-// 모두 둥근 모서리**로 다시 정했다(Android 와 같은 16). 헤더 알약 · 원형 아이콘 버튼은 그대로다.
-// ════════════════════════════════════════════════════════════════════════════
-
-/// 컨트롤 라운드 — 강조색 버튼 · 일반 버튼 · 입력필드가 함께 쓴다. Android `GlgButtonRadius` 와 같은 값.
-/// 헤더 알약(`Capsule()`)과 원형 아이콘 버튼은 여기서 제외한다.
-let GLGControlRadius: CGFloat = 16
-
-/// 강조색 버튼 (채움) — 로그인 · 저장 등 1차 액션.
-struct GLGButton: View {
-    let title: String
-    var systemImage: String? = nil
-    var fullWidth: Bool = true
-    let action: () -> Void
-
-    @Environment(\.glgAccent) private var accent
-
-    var body: some View {
-        Button(action: action) {
-            label
-        }
-        .modifier(GLGProminentStyle(tint: accent.primary))
-    }
-
-    @ViewBuilder private var label: some View {
-        HStack(spacing: 8) {
-            if let systemImage { Image(systemName: systemImage) }
-            Text(title).fontWeight(.semibold)
-        }
-        .frame(maxWidth: fullWidth ? .infinity : nil)
-        .frame(minHeight: 30)
-    }
-}
-
-/// 일반 버튼 — **옅은 강조색 면 + 진한 강조색 글자**. 취소 · 게스트 시작 등 2차 액션.
-///
-/// 시스템 `.bordered` 에 강조색 tint 를 주면 딱 이 모습(옅게 물든 면 + 같은 색 글자)이 된다 —
-/// 커스텀으로 그리지 않고 시스템 버튼을 쓴다. tint 는 `deep`(글자 대비 5.2)으로 준다.
-/// 예전엔 iOS 26 에서 `.glass` 였는데, 투명 유리라 옅은 틴트 배경 위에서 버튼 면이 잘 안 보였다.
-struct GLGOutlineButton: View {
-    let title: String
-    var systemImage: String? = nil
-    var fullWidth: Bool = true
-    let action: () -> Void
-
-    @Environment(\.glgAccent) private var accent
-
-    var body: some View {
-        Button(action: action) {
-            HStack(spacing: 8) {
-                if let systemImage { Image(systemName: systemImage) }
-                Text(title).fontWeight(.semibold)
-            }
-            .frame(maxWidth: fullWidth ? .infinity : nil)
-            .frame(minHeight: 30)
-        }
-        .modifier(GLGTonalStyle(tint: accent.deep))
-    }
-}
-
-// ── 버튼 스타일 ─────────────────────────────────────────────────────────────
-
-/// 1차 액션 — 모든 버전 .borderedProminent + 강조색 tint. 둥근 사각형 16, 높이 ~44.
-///
-/// iOS 26 에서 `.glassProminent` 를 썼는데, 유리 스타일은 `.roundedRectangle` 모양을 받지 않고
-/// **캡슐로 남았다**(지출 추가 모달에서 확인, 2026-09-11). 모양을 확실히 지키려고 `.borderedProminent` 로 둔다.
-private struct GLGProminentStyle: ViewModifier {
-    let tint: Color
-    func body(content: Content) -> some View {
-        content
-            .buttonStyle(.borderedProminent)
-            .tint(tint)
-            .buttonBorderShape(.roundedRectangle(radius: GLGControlRadius))
-            .controlSize(.regular)
-    }
-}
-
-/// 2차 액션 — 모든 버전 .bordered + 강조색 tint. 둥근 사각형 16, 높이 ~44.
-/// `.large`(~50)는 목록 · 모달에서 버튼이 덩어리처럼 무거웠다 — Android 44dp 와 맞춘다.
-private struct GLGTonalStyle: ViewModifier {
-    let tint: Color
-    func body(content: Content) -> some View {
-        content
-            .buttonStyle(.bordered)
-            .tint(tint)
-            .buttonBorderShape(.roundedRectangle(radius: GLGControlRadius))
-            .controlSize(.regular)
-    }
-}
-
 #if DEBUG
-/// **개발자 전용** — 강조색 버튼 · 일반 버튼을 몇 가지 테마로 한 화면에 늘어놓는다.
+/// **개발자 전용** — ODS 버튼을 몇 가지 테마로 한 화면에 늘어놓는다.
 /// 버튼은 대부분 하위 화면(모달 · 설정)에 있어 시뮬레이터로는 거기까지 갈 수 없다.
 /// 여는 법: 실행 인자 `-uiPreview buttons`.
 struct GLGButtonPreviewSheet: View {
@@ -109,12 +13,16 @@ struct GLGButtonPreviewSheet: View {
                     let a = GLGTheme.accent(idx)
                     VStack(alignment: .leading, spacing: 6) {
                         Text(a.label).font(.system(size: 11)).foregroundStyle(.gray)
-                        HStack(spacing: 12) {
-                            GLGOutlineButton(title: "취소") {}
-                            GLGButton(title: "저장하기") {}
+                        HStack(spacing: 10) {
+                            OdsButton(title: "취소", variant: .secondary) {}
+                            OdsButton(title: "저장하기") {}
                         }
-                        GLGButton(title: "지출 추가") {}
-                        GLGOutlineButton(title: "호요랩 기록 가져오기") {}
+                        OdsButton(title: "지출 추가", size: .l) {}
+                        HStack(spacing: 8) {
+                            OdsButton(title: "교환", variant: .secondary, size: .xs, fullWidth: false) {}
+                            OdsButton(title: "재연동", size: .s, fullWidth: false) {}
+                            OdsButton(title: "삭제", variant: .danger, size: .s, fullWidth: false) {}
+                        }
                     }
                     .padding(12)
                     .background(a.tint, in: RoundedRectangle(cornerRadius: 16))
@@ -126,3 +34,83 @@ struct GLGButtonPreviewSheet: View {
     }
 }
 #endif
+
+// ════════════════════════════════════════════════════════════════════════════
+// ODS — 앱 공용 버튼 규격 (2026-09-30). Android `ui/components/Ods.kt` 와 값이 같다.
+// 두 플랫폼을 픽셀까지 맞추려고 시스템 스타일 대신 직접 그린다(글자도 Pretendard).
+// ════════════════════════════════════════════════════════════════════════════
+
+enum OdsVariant { case primary, secondary, neutral, inverse, danger, onTint, text }
+
+/// 높이 · 반경 · 글자 · 아이콘 · 간격 · 좌우 여백(내용 폭일 때).
+enum OdsSize {
+    case l, m, s, xs
+    var height: CGFloat { switch self { case .l: 50; case .m: 44; case .s: 36; case .xs: 28 } }
+    var radius: CGFloat { switch self { case .l, .m: 16; case .s: 12; case .xs: 9 } }
+    var font: CGFloat { switch self { case .l, .m: 15; case .s: 13; case .xs: 12 } }
+    var icon: CGFloat { switch self { case .l: 16; case .m: 15; case .s: 13; case .xs: 12 } }  // SF Symbol pt ≈ Android 18/17/15/14dp
+    var gap: CGFloat { switch self { case .l: 8; case .m: 7; case .s: 6; case .xs: 4 } }
+    var padH: CGFloat { switch self { case .l: 20; case .m: 18; case .s: 14; case .xs: 12 } }
+}
+
+/// ODS 버튼. `fullWidth` 면 가로 전체, 아니면 내용 폭 + 좌우 여백. 누르면 0.97배 + 면이 한 단 진해진다.
+struct OdsButton: View {
+    let title: String
+    var variant: OdsVariant = .primary
+    var size: OdsSize = .m
+    var systemImage: String? = nil
+    var fullWidth: Bool = true
+    var loading: Bool = false
+    let action: () -> Void
+
+    @Environment(\.isEnabled) private var enabled
+
+    var body: some View {
+        Button(action: action) {
+            Group {
+                if loading {
+                    ProgressView().controlSize(.small)
+                } else {
+                    HStack(spacing: size.gap) {
+                        if let systemImage { Image(systemName: systemImage).font(.system(size: size.icon, weight: .semibold)) }
+                        Text(title).font(.pretendard(size: size.font, weight: .bold)).lineLimit(1)
+                    }
+                }
+            }
+            .padding(.horizontal, size.padH)
+            .frame(maxWidth: fullWidth ? .infinity : nil)
+            .frame(height: size.height)
+        }
+        .buttonStyle(OdsButtonStyle(variant: variant, size: size))
+        .disabled(loading)
+    }
+}
+
+struct OdsButtonStyle: ButtonStyle {
+    let variant: OdsVariant
+    let size: OdsSize
+    @Environment(\.glgAccent) private var accent
+    @Environment(\.isEnabled) private var enabled
+
+    func makeBody(configuration: Configuration) -> some View {
+        let pressed = configuration.isPressed && enabled
+        let (base, fg): (Color, Color) = switch variant {
+        case .primary: (accent.primary, .white)
+        case .secondary: (accent.primary.opacity(pressed ? 0.20 : 0.12), accent.deep)
+        case .neutral: (Color(hex: 0xFFECEFF4), GLGColor.textPrimary)
+        case .inverse: (GLGColor.textPrimary, .white)
+        case .danger: (GLGColor.dangerBackground, GLGColor.dangerText)
+        case .onTint: (.white, accent.deep)
+        case .text: (pressed ? accent.primary.opacity(0.08) : .clear, accent.primary)
+        }
+        let dims = pressed && variant != .secondary && variant != .text
+        let bg: Color = !enabled && variant != .text ? Color(hex: 0xFFD8D8DE) : base
+        return configuration.label
+            .foregroundStyle(enabled ? fg : GLGColor.textSecondary)
+            .background(bg, in: RoundedRectangle(cornerRadius: size.radius, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: size.radius, style: .continuous).fill(.black.opacity(dims ? 0.08 : 0)))
+            .contentShape(RoundedRectangle(cornerRadius: size.radius, style: .continuous))
+            .scaleEffect(pressed ? 0.97 : 1)
+            .animation(.easeOut(duration: 0.12), value: pressed)
+    }
+}

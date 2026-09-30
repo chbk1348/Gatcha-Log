@@ -157,27 +157,13 @@ private struct ProfileHeader: View {
 
                 if !isGuest {
                     // 계정 단일화: 로그아웃을 마이페이지 헤더로 일원화 (설정의 중복 계정 카드 제거)
-                    Button { store.signOut() } label: {
-                        Text("로그아웃")
-                            .font(.pretendard(size: 11, weight: .bold))
-                            .foregroundStyle(GLGColor.textSecondary)
-                            .padding(.horizontal, 11).padding(.vertical, 7)
-                            .overlay(RoundedRectangle(cornerRadius: 11)
-                                .stroke(Color.black.opacity(0.12), lineWidth: 1))
-                    }
-                    .buttonStyle(.plain)
+                    OdsButton(title: "로그아웃", variant: .neutral, size: .xs, fullWidth: false) { store.signOut() }
                 }
             }
 
             if isGuest {
-                Button { store.signIn() } label: {
-                    Text("Google로 로그인")
-                        .font(.pretendard(size: 14, weight: .bold))
-                        .foregroundStyle(.white)
-                        .frame(maxWidth: .infinity).padding(.vertical, 12)
-                        .background(accent.primary, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-                }
-                .padding(.top, 14)
+                OdsButton(title: "Google로 로그인") { store.signIn() }
+                    .padding(.top, 14)
             }
         }
         .padding(16)

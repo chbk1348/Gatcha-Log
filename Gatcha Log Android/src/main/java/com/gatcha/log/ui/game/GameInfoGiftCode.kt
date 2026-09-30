@@ -29,13 +29,15 @@ import com.gatcha.log.data.HoyolabConfig
 import com.gatcha.log.data.api.GiftCode
 import com.gatcha.log.ui.components.GiftCodeSkeleton
 import com.gatcha.log.ui.components.GlassCard
-import com.gatcha.log.ui.components.GlgButton
+import com.gatcha.log.ui.components.OdsButton
+import com.gatcha.log.ui.components.OdsSize
+import com.gatcha.log.ui.components.OdsTextField
+import com.gatcha.log.ui.components.OdsVariant
 import com.gatcha.log.ui.components.GlgChip
 import com.gatcha.log.ui.components.GlgSegmentedTabs
 import com.gatcha.log.ui.components.GlgDetailHeaderOverlay
 import com.gatcha.log.ui.components.glgDetailContentTop
 import com.gatcha.log.ui.components.GlgScreenHeader
-import com.gatcha.log.ui.components.GlgTextField
 import com.gatcha.log.data.RedeemState
 import com.gatcha.log.ui.theme.*
 
@@ -120,12 +122,7 @@ internal fun GiftCodePage(
                                     fontSize = 12.sp, color = TextSecondary,
                                 )
                                 Spacer(Modifier.width(8.dp))
-                                GlgButton(
-                                    "되살리기",
-                                    onClick = { onRestoreUnusable(selected) },
-                                    height = 30.dp,
-                                    modifier = Modifier.width(84.dp),
-                                )
+                                OdsButton("되살리기", onClick = { onRestoreUnusable(selected) }, variant = OdsVariant.Secondary, size = OdsSize.XS)
                             }
                             Spacer(Modifier.height(8.dp))
                         }
@@ -135,7 +132,7 @@ internal fun GiftCodePage(
                             codesFailed && activeCodes.isEmpty() -> Column(Modifier.padding(vertical = 6.dp)) {
                                 Text("코드를 불러오지 못했어요", fontSize = 12.sp, color = TextSecondary)
                                 Spacer(Modifier.height(6.dp))
-                                GlgButton("다시 시도", onClick = { onLoadCodes(selected, true) }, height = 34.dp, modifier = Modifier.width(96.dp))
+                                OdsButton("다시 시도", onClick = { onLoadCodes(selected, true) }, variant = OdsVariant.Secondary, size = OdsSize.S)
                             }
                             activeCodes.isEmpty() -> Text("지금은 활성 코드가 없어요", fontSize = 12.sp, color = TextSecondary, modifier = Modifier.padding(vertical = 6.dp))
                             else -> {
@@ -168,7 +165,7 @@ internal fun GiftCodePage(
                 }
                 // 모두 교환
                 if (pending > 0) {
-                    GlgButton(
+                    OdsButton(
                         if (loading) "교환 중…" else "모두 교환 ($pending)",
                         onClick = { onRedeemAll(selected) },
                         enabled = !loading,
@@ -178,7 +175,7 @@ internal fun GiftCodePage(
                 // 직접 입력 카드
                 GlassCard(shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth()) {
                     Column(Modifier.padding(16.dp)) {
-                        GlgTextField(
+                        OdsTextField(
                             value = code,
                             onValueChange = { v -> code = v.uppercase().filter { it.isLetterOrDigit() } },
                             label = "직접 입력 (새 코드)",
@@ -186,14 +183,11 @@ internal fun GiftCodePage(
                         )
                         if (code.isNotBlank()) {
                             Spacer(Modifier.height(8.dp))
-                            Surface(
-                                modifier = Modifier.clickable(enabled = !loading) { onRedeem(selected, code.trim()); code = "" },
-                                shape = RoundedCornerShape(16.dp),
-                                color = accent.copy(alpha = 0.12f),
-                                border = BorderStroke(1.dp, accent.copy(alpha = 0.4f)),
-                            ) {
-                                Text("이 코드 교환", modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp), fontSize = 12.sp, color = accent, fontWeight = FontWeight.Bold)
-                            }
+                            OdsButton(
+                                "이 코드 교환",
+                                onClick = { onRedeem(selected, code.trim()); code = "" },
+                                variant = OdsVariant.Secondary, size = OdsSize.XS, enabled = !loading,
+                            )
                         }
                     }
                 }
@@ -249,7 +243,7 @@ private fun CodeRow(c: GiftCode, redeemed: Boolean, accent: Color, enabled: Bool
                 if (c.rewards.isNotBlank()) Text(c.rewards, fontSize = 11.sp, color = TextSecondary, maxLines = 2)
             }
             Spacer(Modifier.width(8.dp))
-            CopyCodeButton(c.code, accent)
+            CopyCodeButton(c.code)
             Spacer(Modifier.width(6.dp))
             if (redeemed) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -258,14 +252,10 @@ private fun CodeRow(c: GiftCode, redeemed: Boolean, accent: Color, enabled: Bool
                     Text("받음", fontSize = 11.sp, color = accent, fontWeight = FontWeight.Bold)
                 }
             } else {
-                Surface(
-                    modifier = Modifier.clickable(enabled = enabled) { onRedeem() },
-                    shape = RoundedCornerShape(16.dp),
-                    color = if (highlight) accent else accent.copy(alpha = 0.12f),
-                    border = if (highlight) null else BorderStroke(1.dp, accent.copy(alpha = 0.4f)),
-                ) {
-                    Text("교환", modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp), fontSize = 12.sp, color = if (highlight) Color.White else accent, fontWeight = FontWeight.Bold)
-                }
+                OdsButton(
+                    "교환", onClick = onRedeem, enabled = enabled, size = OdsSize.XS,
+                    variant = if (highlight) OdsVariant.Primary else OdsVariant.Secondary,
+                )
             }
         }
     }
@@ -282,11 +272,11 @@ private fun CodeRow(c: GiftCode, redeemed: Boolean, accent: Color, enabled: Bool
 }
 
 /**
- * 리딤코드 복사 버튼 — accent 틴트 pill(‘교환’ 버튼과 동일 톤). 탭하면 클립보드 저장 +
+ * 리딤코드 복사 버튼 — ‘교환’ 버튼과 같은 ODS XS Secondary. 탭하면 클립보드 저장 +
  * 아이콘이 잠깐 체크로 바뀌고 토스트로 안내.
  */
 @Composable
-private fun CopyCodeButton(code: String, accent: Color) {
+private fun CopyCodeButton(code: String) {
     // LocalClipboardManager 는 deprecated → LocalClipboard(suspend setClipEntry) 사용.
     val clipboard = androidx.compose.ui.platform.LocalClipboard.current
     val context = androidx.compose.ui.platform.LocalContext.current
@@ -295,12 +285,10 @@ private fun CopyCodeButton(code: String, accent: Color) {
     LaunchedEffect(copied) {
         if (copied) { kotlinx.coroutines.delay(1200); copied = false }
     }
-    // '교환' 버튼과 동일 규격(radius 16 · accent 0.12 틴트 · border 0.4 · h12 v6 · 12sp bold).
-    Surface(
-        shape = RoundedCornerShape(16.dp),
-        color = accent.copy(alpha = 0.12f),
-        border = BorderStroke(1.dp, accent.copy(alpha = 0.4f)),
-        modifier = Modifier.clickable {
+    // '교환' 버튼과 같은 ODS XS Secondary.
+    OdsButton(
+        if (copied) "복사됨" else "복사",
+        onClick = {
             scope.launch {
                 val clip = android.content.ClipData.newPlainText("선물코드", code)
                 clipboard.setClipEntry(androidx.compose.ui.platform.ClipEntry(clip))
@@ -308,12 +296,6 @@ private fun CopyCodeButton(code: String, accent: Color) {
             copied = true
             android.widget.Toast.makeText(context, "코드를 복사했어요", android.widget.Toast.LENGTH_SHORT).show()
         },
-    ) {
-        // 교환 버튼과 동일하게 텍스트 전용(아이콘 없음)으로 크기 일치.
-        Text(
-            if (copied) "복사됨" else "복사",
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-            fontSize = 12.sp, fontWeight = FontWeight.Bold, color = accent,
-        )
-    }
+        variant = OdsVariant.Secondary, size = OdsSize.XS,
+    )
 }

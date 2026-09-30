@@ -150,9 +150,7 @@ struct EnkaCharSection: View {
                 // 조회 실패 — 사유 + 다시 시도(캐시 무시 재조회). '캐릭터 없음'과 구분한다.
                 VStack(alignment: .leading, spacing: 6) {
                     Text(err).font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary)
-                    Button { store.autoLoadEnka(game: game, force: true) } label: {
-                        Text("다시 시도").font(.pretendard(size: 12, weight: .bold)).foregroundStyle(accent.primary)
-                    }.buttonStyle(.plain)
+                    OdsButton(title: "다시 시도", variant: .secondary, size: .s, fullWidth: false) { store.autoLoadEnka(game: game, force: true) }
                 }
                 .padding(.vertical, 12)
             } else if chars.isEmpty {
@@ -544,9 +542,7 @@ struct EnkaRosterPage: View {
                 // 조회 실패 — 사유 + 다시 시도(캐시 무시 재조회). '캐릭터 없음'과 구분한다.
                 VStack(spacing: 6) {
                     Text(err).font(.pretendard(size: 13)).foregroundStyle(GLGColor.textSecondary)
-                    Button { store.autoLoadEnka(game: game, force: true) } label: {
-                        Text("다시 시도").font(.pretendard(size: 12, weight: .bold)).foregroundStyle(accent.primary)
-                    }.buttonStyle(.plain)
+                    OdsButton(title: "다시 시도", variant: .secondary, size: .s, fullWidth: false) { store.autoLoadEnka(game: game, force: true) }
                 }
                 .frame(maxWidth: .infinity).padding(.top, 40)
             } else if all.isEmpty {
@@ -1868,31 +1864,18 @@ struct EnkaStatPageBody: View {
 
                 if editingKeyStats {
                     statCheckGrid(selectable)
-                    // 시트의 액션 버튼은 **시스템 버튼**이다(2026-09-21 지시). 손으로 그리던
-                    // 캡슐을 OS 에 넘긴다 — 눌림·비활성·다크모드·리퀴드 글래스가 따라온다.
-                    // 예전엔 손으로 그린 반경 14 둥근 사각이라 '저장'은 선택된 칩과, '기본값으로'는
-                    // 선택 안 된 칩과 모양·색이 같아 버튼으로 안 읽히기도 했다.
+                    // 액션 버튼은 ODS 버튼(Primary · Secondary M) — Android 와 같은 규격(2026-09-30).
                     HStack(spacing: 8) {
-                        Button {
+                        OdsButton(title: "저장") {
                             onSetOverride(KeyStatRulesKt.keyStatOverrideKey(gameKey: game, charId: char.id), picked)
                             editingKeyStats = false
-                        } label: {
-                            Text("저장").frame(maxWidth: .infinity)
                         }
-                        .glgProminentButton()
-                        .tint(accent.primary)
                         // 설정 해제 = 빈 집합 저장 → 앱 룰 추정으로 되돌아간다.
                         if v.source == .user {
-                            Button {
+                            OdsButton(title: "기본값으로", variant: .secondary) {
                                 onSetOverride(KeyStatRulesKt.keyStatOverrideKey(gameKey: game, charId: char.id), [])
                                 editingKeyStats = false
-                            } label: {
-                                Text("기본값으로").frame(maxWidth: .infinity)
                             }
-                            .buttonStyle(.bordered)
-                            .buttonBorderShape(.capsule)
-                            .controlSize(.large)
-                            .tint(accent.deep)
                         }
                     }
                     .padding(.top, 12)

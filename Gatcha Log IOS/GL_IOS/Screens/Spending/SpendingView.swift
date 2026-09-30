@@ -111,17 +111,9 @@ struct SpendingView: View {
                 // iPhone Duo 는 제목을 **어디에도 두지 않는다**(2026-09-28 지시). 바 제목은 걷고(아래
                 // `toolbar(removing:)`), 위쪽 안전 영역이 없어(상태 표시는 옆 레일) 칩이 화면 모서리 곡선에
                 // 닿지 않게 직접 띄운다.
-                //
-                // 선택 모드의 「취소」는 이 줄 **오른쪽 끝**에 둔다. 글자 버튼이라 세로 레일에 못 서고, 툴바에
-                // 두면 시스템이 위쪽에 가로 바를 따로 세워 한 줄 위에 떠 있었다. 줄을 새로 만들지 않고 칩 옆에
-                // 붙이므로 선택을 켜고 꺼도 목록이 밀리지 않는다.
-                HStack(alignment: .top, spacing: 8) {
-                    quickFilters
-                    if isDuo && selectionMode {
-                        GLGGlassChip(label: "취소") { selectionMode = false; selectedIds = [] }
-                    }
-                }
-                .padding(.top, isDuo ? 20 : 0)
+                // 선택 모드의 「취소」는 하단 선택 바 안에 있다(Android 와 같이 — 취소 · 삭제 · 일괄 편집).
+                quickFilters
+                    .padding(.top, isDuo ? 20 : 0)
                 // "N월 지출" 요약 헤더는 지출 인사이트 '월간' 탭으로 이동(MonthSummaryHeader).
                 if listIsEmpty {
                     emptyState
@@ -206,14 +198,8 @@ struct SpendingView: View {
                 }
             }
 
-            if selectionMode {
-                // 듀오는 「취소」를 필터 칩 줄 오른쪽 끝에 둔다(listContent 참고).
-                if !isDuo {
-                    ToolbarItem(placement: .topBarTrailing) {
-                        Button("취소") { selectionMode = false; selectedIds = [] }
-                    }
-                }
-            } else if isDuo && !isWideCanvas {
+            // 선택 모드의 「취소」는 하단 선택 바에 있다 — 여기엔 아무것도 두지 않는다.
+            if !selectionMode && isDuo && !isWideCanvas {
                 // 접은 iPhone Duo 는 **우리 메뉴 하나로 접는다.** 세로 바에 자리가 모자라 시스템이
                 // 선택·필터를 `•••` 로 접는데, 그 메뉴가 열리지 않았다(2026-09-28 — 상세 화면 2026-09-21 과
                 // 같은 증상, SpendingDetailView 참고). 항목을 하나로 줄여 시스템이 접을 일을 없앤다.
@@ -230,7 +216,7 @@ struct SpendingView: View {
                         Image(systemName: "ellipsis")
                     }
                 }
-            } else {
+            } else if !selectionMode {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button { selectionMode = true; selectedIds = [] } label: { Image(systemName: "checklist") }
                 }
@@ -366,25 +352,24 @@ struct SpendingView: View {
         }
     }
 
-    // 선택 모드 하단 액션 바 — 선택 개수 + 삭제/일괄 편집.
+    // 선택 모드 하단 액션 바 — 선택 개수 + 취소/삭제/일괄 편집(ODS S — Android 와 같은 세트).
     private var selectionBar: some View {
         HStack(spacing: 8) {
-            Text("\(selectedIds.count)건 선택").font(.pretendard(size: 14, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
+            Text("\(selectedIds.count)건").font(.pretendard(size: 14, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
             Spacer()
-            Button("삭제") {
+            OdsButton(title: "취소", variant: .neutral, size: .s, fullWidth: false) { selectionMode = false; selectedIds = [] }
+            OdsButton(title: "삭제", variant: .danger, size: .s, fullWidth: false) {
                 if selectedIds.isEmpty { store.showStatus("선택된 항목이 없어요") }
                 else { confirmBulkDelete = true }
             }
-            .buttonStyle(.bordered).tint(GLGColor.dangerText)
             .confirmationDialog("\(selectedIds.count)건을 삭제할까요?", isPresented: $confirmBulkDelete, titleVisibility: .visible) {
                 Button("삭제", role: .destructive) {
                     store.deleteSpendings(selectedIds); selectionMode = false; selectedIds = []
                 }
             } message: { Text("삭제한 지출은 되돌릴 수 없어요.") }
-            Button("일괄 편집") {
+            OdsButton(title: "일괄 편집", size: .s, fullWidth: false) {
                 if selectedIds.isEmpty { store.showStatus("선택된 항목이 없어요") } else { showBulkEdit = true }
             }
-            .buttonStyle(.borderedProminent).tint(accent.primary)
         }
         .padding(.horizontal, 16).padding(.vertical, 12)
         // 시스템 글래스(iOS26 Liquid Glass, 폴백 ultraThinMaterial) — 떠 있는 라운드 바(레이아웃 유지).
@@ -633,15 +618,13 @@ struct SpendingView: View {
             .background(Color.white)
             .navigationTitle("상세 필터")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("초기화") {
-                        gameFilters = []; period = .all; paymentFilter = nil; sortOrder = .dateDesc
-                        customStart = Calendar.current.date(byAdding: .month, value: -1, to: Date()) ?? Date()
-                        customEnd = Date()
-                    }
-                }
-                ToolbarItem(placement: .confirmationAction) { Button("적용") { showFilter = false } }
+            // 초기화 · 적용은 시트 아래 ODS 버튼 쌍(Android 와 같이, 폭 1 : 1.4).
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                SpendingButtonPair(secondary: "초기화", primary: "적용", ratio: 1.4, onSecondary: {
+                    gameFilters = []; period = .all; paymentFilter = nil; sortOrder = .dateDesc
+                    customStart = Calendar.current.date(byAdding: .month, value: -1, to: Date()) ?? Date()
+                    customEnd = Date()
+                }, onPrimary: { showFilter = false })
             }
         }
         .presentationDetents([.medium, .large])
@@ -914,13 +897,13 @@ private struct BulkEditSheet: View {
             }
             .background(Color.white)
             .navigationTitle("일괄 편집").navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("취소") { dismiss() } }
-                ToolbarItem(placement: .confirmationAction) {
-                    // 아무것도 안 바꿨으면 적용할 게 없다 — 예전엔 눌리면 선택만 풀렸다.
-                    Button("적용") { onApply(game, date.map { Int64($0.timeIntervalSince1970 * 1000) }, Array(tags)) }
-                        .disabled(game == nil && date == nil && tags.isEmpty)
-                }
+            // 취소 · 적용은 시트 아래 ODS 버튼 쌍(Android 와 같이, 폭 1 : 1.4).
+            // 아무것도 안 바꿨으면 적용할 게 없다 — 예전엔 눌리면 선택만 풀렸다.
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                SpendingButtonPair(secondary: "취소", primary: "적용", ratio: 1.4,
+                           primaryEnabled: game != nil || date != nil || !tags.isEmpty,
+                           onSecondary: { dismiss() },
+                           onPrimary: { onApply(game, date.map { Int64($0.timeIntervalSince1970 * 1000) }, Array(tags)) })
             }
             .sheet(isPresented: $showDate) {
                 NavigationStack {
@@ -965,3 +948,28 @@ struct FlexibleRow<Data: RandomAccessCollection, Content: View>: View where Data
     }
 }
 
+/// 화면 · 시트 아래 ODS 버튼 쌍 — 보조(Secondary) : 주(Primary) 폭을 Android Row weight 와 같은 비율로 나눈다.
+/// 지출 추가 · 상세 필터 · 일괄 편집이 같이 쓴다.
+struct SpendingButtonPair: View {
+    let secondary: String
+    let primary: String
+    var ratio: CGFloat = 1.4
+    var primaryEnabled = true
+    var verticalPadding: CGFloat = 12
+    let onSecondary: () -> Void
+    let onPrimary: () -> Void
+
+    var body: some View {
+        GeometryReader { g in
+            HStack(spacing: 12) {
+                OdsButton(title: secondary, variant: .secondary, action: onSecondary)
+                    .frame(width: (g.size.width - 12) / (1 + ratio))
+                OdsButton(title: primary, action: onPrimary).disabled(!primaryEnabled)
+            }
+        }
+        .frame(height: OdsSize.m.height)
+        .padding(.horizontal, 20).padding(.vertical, verticalPadding)
+        .glgReadableWidth(640)
+        .background(Color.white)
+    }
+}

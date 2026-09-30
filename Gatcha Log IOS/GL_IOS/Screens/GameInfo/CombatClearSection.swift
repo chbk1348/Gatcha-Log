@@ -52,9 +52,7 @@ struct CombatClearSection: View {
                     // 조회 실패는 '기록 없음'과 다르다 — 사유를 밝히고 재시도를 준다.
                     VStack(spacing: 6) {
                         Text("불러오지 못했어요").font(.pretendard(size: 13)).foregroundStyle(GLGColor.textSecondary)
-                        Button { store.refreshCombatClears(force: true) } label: {
-                            Text("다시 시도").font(.pretendard(size: 12, weight: .bold)).foregroundStyle(accent.primary)
-                        }.buttonStyle(.plain)
+                        OdsButton(title: "다시 시도", variant: .secondary, size: .s, fullWidth: false) { store.refreshCombatClears(force: true) }
                     }
                     .frame(maxWidth: .infinity)
                     .padding(32)

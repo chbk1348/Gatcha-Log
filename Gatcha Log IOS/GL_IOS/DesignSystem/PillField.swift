@@ -1,21 +1,88 @@
 import SwiftUI
 
-extension View {
-    /// 입력필드 스타일 — **버튼과 같은 둥근 사각형**(`GLGControlRadius`) + 옅은 아웃라인.
-    ///
-    /// 27.50.0 에서 알약을 걷었다(파일명 `PillField.swift` 는 Xcode 프로젝트 참조라 그대로 둔다).
-    /// 알약은 폭이 넓어질수록 뚱뚱해 보여, 전체 폭 필드에서 글자보다 모서리가 먼저 읽혔다.
-    ///
-    /// Android `GlgTextField`(FieldShape = RoundedCornerShape(GlgButtonRadius), 아웃라인 0.12,
-    /// 좌우 18) 와 같은 값이다.
-    ///
-    /// 사용: `TextField(...).textFieldStyle(.plain).glgField()`
-    func glgField() -> some View {
-        let shape = RoundedRectangle(cornerRadius: GLGControlRadius, style: .continuous)
-        return self
-            .padding(.horizontal, 18)
-            .padding(.vertical, 12)
-            .background(Color.white, in: shape)                                  // 입력필드 배경 흰색 고정
-            .overlay(shape.stroke(Color.black.opacity(0.12), lineWidth: 1))      // 아웃라인 0.12 유지
+// ════════════════════════════════════════════════════════════════════════════
+// ODS 입력필드 (2026-09-30) — Android `OdsTextField` 와 값이 같다.
+// 채운 면 #F5F8F8, 포커스 때 흰 면 + 강조색 1.5 테두리, 오류면 빨강 테두리 + 아래 문구.
+// ════════════════════════════════════════════════════════════════════════════
+
+enum OdsFieldSize {
+    case m, s
+    var height: CGFloat { self == .m ? 48 : 38 }
+    var radius: CGFloat { self == .m ? 14 : 12 }
+    var font: CGFloat { self == .m ? 16 : 14 }
+    var padH: CGFloat { self == .m ? 14 : 12 }
+}
+
+struct OdsTextField: View {
+    var label: String? = nil
+    let placeholder: String
+    @Binding var text: String
+    var size: OdsFieldSize = .m
+    var suffix: String? = nil
+    var trailingSystemImage: String? = nil
+    var helper: String? = nil
+    var error: String? = nil
+    var alignment: TextAlignment = .leading
+    var bold: Bool = false
+    var keyboard: UIKeyboardType = .default
+    var secure: Bool = false
+    var axis: Axis = .horizontal
+    /// 바깥에서 포커스를 걸고 풀 때(모달이 열리자마자 키보드 등). 없으면 필드 자체 상태를 쓴다.
+    var focus: FocusState<Bool>.Binding? = nil
+
+    @Environment(\.glgAccent) private var accent
+    @FocusState private var ownFocus: Bool
+    private var focusBinding: FocusState<Bool>.Binding { focus ?? $ownFocus }
+    private var focused: Bool { focusBinding.wrappedValue }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            if let label { OdsFieldLabel(text: label) }
+            HStack(spacing: 0) {
+                field
+                    .font(.pretendard(size: size.font, weight: bold ? .bold : .regular))
+                    .foregroundStyle(GLGColor.textPrimary)
+                    .multilineTextAlignment(alignment)
+                    .keyboardType(keyboard)
+                    .focused(focusBinding)
+                    .tint(accent.primary)
+                if let suffix, !text.isEmpty {
+                    Text(suffix).font(.pretendard(size: size.font, weight: .bold)).foregroundStyle(GLGColor.textSecondary).padding(.leading, 4)
+                }
+                if let trailingSystemImage {
+                    Image(systemName: trailingSystemImage).font(.system(size: 15)).foregroundStyle(GLGColor.textSecondary).padding(.leading, 8)
+                }
+            }
+            .padding(.horizontal, size.padH)
+            .padding(.vertical, axis == .vertical ? 12 : 0)
+            .frame(minHeight: size.height)
+            .background(focused || error != nil ? Color.white : Color(hex: 0xFFF5F8F8), in: RoundedRectangle(cornerRadius: size.radius, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: size.radius, style: .continuous)
+                .strokeBorder(error != nil ? GLGColor.dangerText : (focused ? accent.primary : .clear), lineWidth: 1.5))
+            .contentShape(Rectangle())
+            .onTapGesture { focusBinding.wrappedValue = true }
+            .animation(.easeOut(duration: 0.15), value: focused)
+            if let msg = error ?? helper {
+                Text(msg).font(.pretendard(size: 12)).foregroundStyle(error != nil ? GLGColor.dangerText : GLGColor.textSecondary)
+                    .padding(.top, 6).padding(.leading, 2)
+            }
+        }
+    }
+
+    @ViewBuilder private var field: some View {
+        let prompt = Text(placeholder).foregroundStyle(Color(hex: 0xFFA7B1AE))
+        if secure {
+            SecureField("", text: $text, prompt: prompt)
+        } else {
+            TextField("", text: $text, prompt: prompt, axis: axis)
+        }
+    }
+}
+
+/// 입력필드 위 라벨 — 13 SemiBold #6C727A, 아래 6.
+struct OdsFieldLabel: View {
+    let text: String
+    var body: some View {
+        Text(text).font(.pretendard(size: 13, weight: .semibold)).foregroundStyle(GLGColor.textSecondary).padding(.bottom, 6)
     }
 }

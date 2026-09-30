@@ -395,8 +395,8 @@ struct ThemeView: View {
             // 문구는 **버튼 이름이 아니라 모양 이름**이다. 「취소 · 저장하기」로 두었더니 테마 고른 걸
             // 저장하거나 되돌리는 진짜 버튼으로 읽혔다(2026-09-21 지적 — 누르지 못하는 미리보기다).
             HStack(spacing: 8) {
-                GLGOutlineButton(title: "보조 버튼") {}
-                GLGButton(title: "강조 버튼") {}
+                OdsButton(title: "보조 버튼", variant: .secondary) {}
+                OdsButton(title: "강조 버튼") {}
             }
             .allowsHitTesting(false)
             .padding(.top, 12)
@@ -514,20 +514,14 @@ struct BudgetSettingsView: View {
             .padding(16)
             .glgReadableWidth(640)
         }
-        // iOS 는 「월 예산 끄기」 · 「저장」을 상단 내비게이션 바에 상시 고정(9/29) — HoYoLAB 연동의 「저장」과 같은 자리.
-        // (Android 는 하단 고정 버튼)
-        .toolbar {
-            // 두 버튼을 한 알약으로 묶지 않고 떼어 놓는다(9/29) — 끄기와 저장은 성격이 달라 붙어 있으면 잘못 누른다.
-            ToolbarItem(placement: .topBarTrailing) {
-                Button("월 예산 끄기") { save(0) }
+        // 「저장」 · 「월 예산 끄기」는 하단에 상시 고정(9/30 ODS) — Android BudgetScreen 과 같은 자리 · 같은 버튼.
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            VStack(spacing: 8) {
+                OdsButton(title: "저장", size: .l) { save(amount) }
+                OdsButton(title: "월 예산 끄기", variant: .secondary) { save(0) }
             }
-            // iOS 26+ 는 툴바 버튼을 한 유리 알약으로 묶는다 — 간격으로 떼어 놓는다(18 이하는 원래 따로 그려진다).
-            if #available(iOS 26.0, *) {
-                ToolbarSpacer(.fixed, placement: .topBarTrailing)
-            }
-            ToolbarItem(placement: .topBarTrailing) {
-                Button("저장") { save(amount) }.fontWeight(.bold)
-            }
+            .padding(.horizontal, 16).padding(.top, 10).padding(.bottom, 8)
+            .background(Color.white.shadow(color: .black.opacity(0.08), radius: 8).ignoresSafeArea(edges: .bottom))
         }
         .scrollIndicators(.hidden)
         .scrollDismissesKeyboard(.interactively)
@@ -561,23 +555,13 @@ struct BudgetSettingsView: View {
                     .foregroundStyle(over ? Color(hex: 0xFFC2410C) : GLGColor.textSecondary)
             }
             Spacer(minLength: 8)
-            HStack(spacing: 2) {
-                TextField("한도 없음", text: Binding(
-                    get: { limits[g.key] ?? "" },
-                    set: { raw in
-                        let n = Int64(String(raw.filter(\.isNumber).prefix(9))) ?? 0
-                        limits[g.key] = n > 0 ? won0(n) : ""
-                    }))
-                    .keyboardType(.numberPad)
-                    .multilineTextAlignment(.trailing)
-                    .font(.pretendard(size: 14, weight: .bold))
-                if limit > 0 { Text("원").font(.pretendard(size: 14, weight: .bold)) }
-            }
-            .padding(.horizontal, 12)
-            .frame(width: 118, height: 38)
-            .background(Color(hex: 0xFFF5F8F8), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .strokeBorder(over ? Color(hex: 0xFFFED7AA) : .clear, lineWidth: 1.5))
+            OdsTextField(placeholder: "한도 없음", text: Binding(
+                get: { limits[g.key] ?? "" },
+                set: { raw in
+                    let n = Int64(String(raw.filter(\.isNumber).prefix(9))) ?? 0
+                    limits[g.key] = n > 0 ? won0(n) : ""
+                }), size: .s, suffix: "원", alignment: .trailing, bold: true, keyboard: .numberPad)
+                .frame(width: 118)
         }
         .padding(.horizontal, 14).padding(.vertical, 11)
     }
@@ -635,34 +619,22 @@ struct NudgeThresholdModal: View {
             Text("넛지 기준 금액").font(.pretendard(size: 17, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
             Text("단건 지출이 이 금액 이상이면 추가 전 한 번 더 확인해요.")
                 .font(.pretendard(size: 13)).foregroundStyle(GLGColor.textSecondary).padding(.top, 6)
-            HStack(spacing: 4) {
-                TextField("100,000", text: $text)
-                    .keyboardType(.numberPad)
-                    .focused($focused)
-                    .font(.pretendard(size: 18, weight: .bold))
-                    .onChange(of: text) { _, v in
-                        let digits = String(v.filter(\.isNumber).prefix(9))
-                        if digits != v { text = digits }
-                    }
-                Text("원").font(.pretendard(size: 16, weight: .bold)).foregroundStyle(GLGColor.textSecondary)
-            }
-            .padding(.horizontal, 14).frame(height: 50)
-            .background(Color(hex: 0xFFF5F8F8), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-            .padding(.top, 16)
-            HStack(spacing: 8) {
-                Button { dismiss() } label: {
-                    Text("취소").font(.pretendard(size: 15, weight: .bold)).foregroundStyle(Color(hex: 0xFF177881))
-                        .frame(maxWidth: .infinity).frame(height: 48)
-                        .background(Color(hex: 0xFFE3F2F1), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+            OdsTextField(placeholder: "100,000", text: $text, suffix: "원", bold: true, keyboard: .numberPad, focus: $focused)
+                .onChange(of: text) { _, v in
+                    let digits = String(v.filter(\.isNumber).prefix(9))
+                    if digits != v { text = digits }
                 }
-                Button { onSave(); dismiss() } label: {
-                    Text("저장").font(.pretendard(size: 15, weight: .bold)).foregroundStyle(.white)
-                        .frame(maxWidth: .infinity).frame(height: 48)
-                        .background(Color(hex: 0xFF177881), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .padding(.top, 16)
+            // 폭 1 : 1.4 — Android GlgDialog 의 Row weight 와 같다.
+            GeometryReader { g in
+                HStack(spacing: 10) {
+                    OdsButton(title: "취소", variant: .secondary) { dismiss() }
+                        .frame(width: (g.size.width - 10) / 2.4)
+                    OdsButton(title: "저장") { onSave(); dismiss() }
                 }
             }
-            .buttonStyle(.plain)
-            .padding(.top, 18)
+            .frame(height: OdsSize.m.height)
+            .padding(.top, 20)
         }
         .padding(20)
         .background(Color.white, in: RoundedRectangle(cornerRadius: 22, style: .continuous))

@@ -63,7 +63,9 @@ import com.gatcha.log.data.CombatRoom
 import com.gatcha.log.data.GameData
 import com.gatcha.log.ui.components.GlassCard
 import com.gatcha.log.ui.components.GlgBadgeText
-import com.gatcha.log.ui.components.GlgButton
+import com.gatcha.log.ui.components.OdsButton
+import com.gatcha.log.ui.components.OdsSize
+import com.gatcha.log.ui.components.OdsVariant
 import com.gatcha.log.ui.theme.DividerColor
 import com.gatcha.log.ui.theme.LocalAccent
 import com.gatcha.log.ui.theme.TextPrimary
@@ -139,7 +141,7 @@ fun CombatClearContent(
             ) {
                 Text("불러오지 못했어요", fontSize = 13.sp, color = TextSecondary, textAlign = TextAlign.Center)
                 Spacer(Modifier.height(10.dp))
-                GlgButton("다시 시도", onClick = onRetry, height = 34.dp, modifier = Modifier.width(96.dp))
+                OdsButton("다시 시도", onClick = onRetry, variant = OdsVariant.Secondary, size = OdsSize.S)
             }
         } else {
             EmptyNote("아직 클리어 기록이 없어요")

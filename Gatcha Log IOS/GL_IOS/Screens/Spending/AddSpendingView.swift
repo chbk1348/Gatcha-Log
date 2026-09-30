@@ -64,10 +64,13 @@ struct AddSpendingView: View {
         amount = value > 0 ? "\(value)" : ""
         amountText = value > 0 ? grouped(value) : ""
     }
-    private var canSave: Bool { gameChosen && amountValid }
+    /// 상한도 버튼에서 막는다(Android 와 같이) — 넘으면 store 가 거절해 누를 때마다 토스트만 뜬다.
+    private var amountTooBig: Bool { (Int64(amount) ?? 0) > Spending.companion.MAX_AMOUNT }
+    private var canSave: Bool { gameChosen && amountValid && !amountTooBig }
     /// 못 누르는 이유를 버튼이 직접 말한다 — 게임 먼저, 그다음 금액.
     private var saveTitle: String {
         if !gameChosen { return "게임을 선택하세요" }
+        if amountTooBig { return "금액이 너무 커요" }
         if !amountValid { return "금액을 입력하세요" }
         return editing == nil ? "저장하기" : "수정하기"
     }
@@ -91,23 +94,20 @@ struct AddSpendingView: View {
         .scrollDismissesKeyboard(.interactively)
         .navigationTitle(editing == nil ? "지출 추가" : "지출 수정")
         .navigationBarTitleDisplayMode(.inline)
-        // 취소·저장은 **네비 바**에 둔다(2026-09-21 지시 — 시트는 시스템 규격을 따른다).
-        //
-        // 하단에 우리가 그린 바를 깔던 자리다. 버튼만 시스템 것으로 바꿔도 **자리**가 남의
-        // 규격이면 시스템 시트로 읽히지 않는다. 시트 폼의 표준은 왼쪽 취소 · 오른쪽 저장이다.
-        // 못 누르는 이유는 입력 자리에서 말한다 — 금액이 비면 「금액을 입력해주세요」.
+        // 취소 · 저장은 **하단 ODS 버튼 쌍**(Android 와 같이, 2026-09-30 ODS 교체). 네비 바엔 닫기(X)만 남긴다.
+        // 못 누르는 이유는 저장 버튼이 직접 말한다(「게임을 선택하세요」 · 「금액을 입력하세요」).
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            SpendingButtonPair(secondary: "취소", primary: saveTitle, ratio: 1.5,
+                               primaryEnabled: canSave && !saved, verticalPadding: 20,
+                               onSecondary: { requestDismiss() }, onPrimary: { attemptSave() })
+        }
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {
-                Button("취소") { if isDirty { confirmDiscard = true } else { onClose() } }
-                    .confirmationDialog("입력한 내용을 버릴까요?", isPresented: $confirmDiscard, titleVisibility: .visible) {
-                        Button("버리기", role: .destructive) { onClose() }
-                    }
+                Button { requestDismiss() } label: { Image(systemName: "xmark") }
             }
-            ToolbarItem(placement: .confirmationAction) {
-                Button(editing == nil ? "저장" : "수정") { attemptSave() }
-                    .fontWeight(.bold)
-                    .disabled(!canSave || saved)
-            }
+        }
+        .confirmationDialog("입력한 내용을 버릴까요?", isPresented: $confirmDiscard, titleVisibility: .visible) {
+            Button("버리기", role: .destructive) { onClose() }
         }
         // 입력 화면에서는 하단 탭바를 감춘다 — 저장/취소 바가 이미 하단을 쓰고 있어 두 겹이 되고,
         // 폼을 채우다 탭을 눌러 나가면 입력이 날아간다. (Android 는 루트를 스왑해 애초에 탭바가 없다.)
@@ -487,15 +487,11 @@ struct AddSpendingView: View {
 
     private var dateCard: some View {
         sectionCard {
+            // 누르는 필드 — 모양은 ODS 입력필드, 탭하면 날짜 시트(Android OdsTextField(onClick) 와 같이).
             Button { showDate = true } label: {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("날짜").font(.pretendard(size: 11, weight: .semibold)).foregroundStyle(GLGColor.textSecondary)
-                    HStack {
-                        Text(DateUtil.shared.labelWithWeekday(millis: dateMillis)).foregroundStyle(GLGColor.textPrimary)
-                        Spacer(); Image(systemName: "calendar").foregroundStyle(accent.primary)
-                    }
-                    .font(.pretendard(size: 15)).glgField()
-                }
+                OdsTextField(label: "날짜", placeholder: "", text: .constant(DateUtil.shared.labelWithWeekday(millis: dateMillis)),
+                             trailingSystemImage: "calendar")
+                    .allowsHitTesting(false)
             }.buttonStyle(.plain)
         }
     }
@@ -645,6 +641,7 @@ struct AddSpendingView: View {
          selectedTags.joined(separator: ",")].joined(separator: "|")
     }
     private var isDirty: Bool { initialFingerprint != nil && fingerprint != initialFingerprint }
+    private func requestDismiss() { if isDirty { confirmDiscard = true } else { onClose() } }
 
     private func doSave() {
         guard !saved else { return }
@@ -669,16 +666,8 @@ struct AddSpendingView: View {
                      border: accent.primary.opacity(0.28))
     }
     private func label(_ t: String) -> some View { Text(t).font(.pretendard(size: 14, weight: .bold)).foregroundStyle(GLGColor.textSecondary) }
-    private func field(_ label: String, _ ph: String, _ text: Binding<String>, number: Bool = false) -> some View {
-        VStack(alignment: .leading, spacing: 5) {
-            if !label.isEmpty { Text(label).font(.pretendard(size: 11, weight: .semibold)).foregroundStyle(GLGColor.textSecondary) }
-            TextField(ph, text: text)
-                .textFieldStyle(.plain)
-                .font(.pretendard(size: 15))
-                .keyboardType(number ? .numberPad : .default)
-                .glgField()
-                .onChange(of: text.wrappedValue) { _, newValue in if number { text.wrappedValue = newValue.filter(\.isNumber) } }
-        }
+    private func field(_ label: String, _ ph: String, _ text: Binding<String>) -> some View {
+        OdsTextField(label: label.isEmpty ? nil : label, placeholder: ph, text: text)
     }
     private func chip(_ label: String, _ selected: Bool, _ action: @escaping () -> Void) -> some View {
         GLGChip(label: label, selected: selected, action: action)

@@ -123,9 +123,7 @@ struct NewsSection: View {
                             // 수집 실패는 '소식 없음'과 다르다 — 사유를 밝히고 재시도를 준다. (Android 파리티)
                             VStack(alignment: .leading, spacing: 6) {
                                 Text("소식을 불러오지 못했어요").font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary)
-                                Button { store.refreshGameInfo(force: true) } label: {
-                                    Text("다시 시도").font(.pretendard(size: 12, weight: .bold)).foregroundStyle(accent.primary)
-                                }.buttonStyle(.plain)
+                                OdsButton(title: "다시 시도", variant: .secondary, size: .s, fullWidth: false) { store.refreshGameInfo(force: true) }
                             }
                             .frame(maxWidth: .infinity, alignment: .leading)
                         } else {

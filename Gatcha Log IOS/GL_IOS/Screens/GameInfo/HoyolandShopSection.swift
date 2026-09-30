@@ -286,7 +286,7 @@ struct HoyolandGoodsView: View {
                 // 두 상태의 높이가 26 으로 같아 전환 중에도 줄이 흔들리지 않는다.
                 Group {
                     if quantity <= 0 {
-                        addButton("담기") { store.setGoodsQuantity(item.name, 1) }
+                        OdsButton(title: "담기", variant: .secondary, size: .xs, fullWidth: false) { store.setGoodsQuantity(item.name, 1) }
                             .transition(.opacity.combined(with: .scale(scale: 0.9)))
                     } else {
                         HStack(spacing: 0) {
@@ -344,19 +344,6 @@ struct HoyolandGoodsView: View {
         .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
     }
 
-    /// 담기 버튼 — 스테퍼와 같은 높이라 담기 전후로 줄 높이가 흔들리지 않는다.
-    @ViewBuilder private func addButton(_ label: String, _ onTap: @escaping () -> Void) -> some View {
-        Button(action: onTap) {
-            Text(label).font(.pretendard(size: 11.5, weight: .bold))
-                .foregroundStyle(accent.primary)
-                .padding(.horizontal, 12)
-                .frame(height: 26)
-                .overlay(RoundedRectangle(cornerRadius: 9, style: .continuous)
-                    .stroke(accent.primary, lineWidth: 1))
-        }
-        .buttonStyle(.plain)
-    }
-
     @ViewBuilder private func stepButton(_ label: String, _ onTap: @escaping () -> Void) -> some View {
         Button(action: onTap) {
             Text(label).font(.pretendard(size: 14, weight: .bold))
@@ -386,8 +373,7 @@ struct HoyolandGoodsView: View {
                     .foregroundStyle(GLGColor.textPrimary)
             }
             Spacer(minLength: 8)
-            Button("장바구니") { showCart = true }
-                .buttonStyle(.borderedProminent).tint(accent.primary)
+            OdsButton(title: "장바구니", size: .s, fullWidth: false) { showCart = true }
         }
         .padding(.horizontal, 16).padding(.vertical, 12)
         // 시스템 글래스(iOS26 Liquid Glass, 폴백 ultraThinMaterial) — 떠 있는 라운드 바.
@@ -1035,11 +1021,7 @@ struct HoyolandGoodsImageSheet: View {
         //
         // 숨은 쪽은 **탭도 낭독도 막는다** — 자리는 지키되 없는 것처럼 굴어야 한다.
         ZStack {
-            Button { store.setGoodsQuantity(item.name, 1) } label: {
-                Text("담기").frame(maxWidth: .infinity)
-            }
-            .glgProminentButton()
-            .tint(accent.primary)
+            OdsButton(title: "담기") { store.setGoodsQuantity(item.name, 1) }
             .opacity(quantity <= 0 ? 1 : 0)
             .allowsHitTesting(quantity <= 0)
             .accessibilityHidden(quantity > 0)
