@@ -818,7 +818,7 @@ struct HoyolandDetailView: View {
                         heroActionButton("지도", "mappin.and.ellipse", primary: false) { openURL(mapURL) }
                     }
                     if let officialURL {
-                        heroActionButton("공식", "globe", primary: false) { openURL(officialURL) }
+                        heroActionButton("공식 사이트", "globe", primary: false) { openURL(officialURL) }
                     }
                 }
                 .frame(maxWidth: .infinity)

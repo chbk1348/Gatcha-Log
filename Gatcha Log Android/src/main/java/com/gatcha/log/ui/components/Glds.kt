@@ -24,7 +24,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
@@ -135,15 +134,26 @@ fun GldsButton(
         if (loading) {
             CircularProgressIndicator(color = content, strokeWidth = 2.dp, modifier = Modifier.size(size.icon))
         } else {
-            // 내용은 **항상 제 폭으로** 그린다(9/30) — 폭이 좁게 정해진 버튼(호요랜드 히어로 2 : 1 : 1)에서 좌우 여백을
-            // 다 챙기느라 글자가 한 글자로 잘렸다. 칸이 좁으면 여백 쪽으로 넘쳐 가운데를 지킨다(여백이 먼저 준다).
-            Row(
-                Modifier.wrapContentWidth(unbounded = true),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(size.gap),
-            ) {
+            // 글자는 **자르지 않는다**(9/30) — 폭이 좁게 정해진 버튼(호요랜드 히어로 2 : 1 : 1)에서 좌우 여백을 챙기느라
+            // 한 글자로 잘렸다. 아이콘까지 안 들어가면 아이콘을 빼고, 그래도 좁으면 여백 쪽으로 넘쳐 가운데를 지킨다(iOS 와 같다).
+            val gapPx = with(androidx.compose.ui.platform.LocalDensity.current) { size.gap.roundToPx() }
+            androidx.compose.ui.layout.Layout(content = {
                 if (icon != null) Icon(icon, contentDescription = null, tint = content, modifier = Modifier.size(size.icon))
                 Text(text, color = content, fontWeight = FontWeight.Bold, fontSize = size.font, maxLines = 1, softWrap = false)
+            }) { measurables, c ->
+                val free = c.copy(minWidth = 0, maxWidth = androidx.compose.ui.unit.Constraints.Infinity)
+                val placeables = measurables.map { it.measure(free) }
+                val label = placeables.last()
+                val iconP = if (icon != null) placeables.first() else null
+                val withIcon = iconP != null && iconP.width + gapPx + label.width <= c.maxWidth
+                val full = if (withIcon) iconP!!.width + gapPx + label.width else label.width
+                val w = minOf(full, c.maxWidth)
+                val h = placeables.maxOf { it.height }
+                layout(w, h) {
+                    var x = (w - full) / 2   // 넘치면 음수 — 양쪽 여백으로 고르게 넘친다
+                    if (withIcon) { iconP!!.placeRelative(x, (h - iconP.height) / 2); x += iconP.width + gapPx }
+                    label.placeRelative(x, (h - label.height) / 2)
+                }
             }
         }
     }

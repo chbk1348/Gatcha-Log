@@ -503,7 +503,7 @@ private fun HeroActions(
         }
         if (hasOfficial) {
             GldsButton(
-                "공식", onOfficial, Modifier.weight(1f),
+                "공식 사이트", onOfficial, Modifier.weight(1f),
                 variant = GldsVariant.OnTint, size = GldsSize.L, icon = Icons.Outlined.Language,
             )
         }
