@@ -93,7 +93,6 @@ import com.gatcha.log.data.api.RosterStandings
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.PlatformTextStyle
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.LineHeightStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -1332,7 +1331,7 @@ private fun CharHero(
                 c.name,
                 fontSize = 27.sp, fontWeight = FontWeight.Bold, color = TextPrimary,
                 maxLines = 1, overflow = TextOverflow.Ellipsis,
-                style = TextStyle(
+                style = LocalTextStyle.current.copy(
                     shadow = Shadow(Color.Black.copy(alpha = 0.4f), Offset(0f, 2f), 6f),
                 ),
             )

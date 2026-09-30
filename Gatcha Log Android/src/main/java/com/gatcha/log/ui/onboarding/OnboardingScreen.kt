@@ -81,7 +81,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.text.TextStyle
+import androidx.compose.material3.LocalTextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
@@ -554,7 +554,7 @@ internal fun BudgetAmountEditor(budget: Long, custom: Boolean, onBudget: (Long, 
                     },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    textStyle = TextStyle(fontSize = 40.sp, fontWeight = FontWeight.Bold, color = amtColor, letterSpacing = (-0.5).sp),
+                    textStyle = LocalTextStyle.current.copy(fontSize = 40.sp, fontWeight = FontWeight.Bold, color = amtColor, letterSpacing = (-0.5).sp),
                     cursorBrush = SolidColor(amtColor),
                     modifier = Modifier.width(IntrinsicSize.Min).widthIn(min = 24.dp).focusRequester(focus),
                     decorationBox = { inner ->
