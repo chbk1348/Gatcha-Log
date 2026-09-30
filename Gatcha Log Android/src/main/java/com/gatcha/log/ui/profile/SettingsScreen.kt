@@ -2,7 +2,6 @@ package com.gatcha.log.ui.profile
 
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.foundation.shape.CircleShape
 import com.gatcha.log.data.GameData
 import androidx.compose.foundation.border
@@ -838,7 +837,7 @@ private fun BudgetScreen(
                                 onValueChange = { raw -> limits[g.key] = raw.filter { it.isDigit() }.take(9).toLongOrNull() ?: 0L },
                                 singleLine = true,
                                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                                textStyle = TextStyle(fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TextPrimary, textAlign = TextAlign.End),
+                                textStyle = LocalTextStyle.current.copy(fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TextPrimary, textAlign = TextAlign.End),
                                 modifier = Modifier.width(118.dp).height(38.dp).clip(RoundedCornerShape(12.dp)).background(Color(0xFFF5F8F8))
                                     .border(1.5.dp, if (over) Color(0xFFFED7AA) else Color.Transparent, RoundedCornerShape(12.dp)),
                                 decorationBox = { inner ->
