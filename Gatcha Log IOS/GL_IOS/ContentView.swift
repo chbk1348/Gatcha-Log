@@ -327,6 +327,8 @@ struct ContentView: View {
      "OS 프롬프트를 실제로 띄운 적 있는가"라서, 안 띄우고 true 로 만들면 이후 '영구 거부' 판별이 틀어진다.
      */
     private func finishOnboarding(requestNotification: Bool, signIn: Bool) {
+        // 개발자 메뉴의 테스트용 온보딩 — 완료 기록 · 권한 · 로그인 없이 홈으로만(Android 와 같다).
+        if store.finishOnboardingPreview() { needsIntro = false; return }
         AppSettings().onboardingDone = true
         // 로딩 게이트를 **같은 순간에** 켠다 — 구독(observeSyncGate)은 한 박자 늦게 와서, 로그인 직후
         // 홈이 한 프레임 보였다가 로딩(스플래시)으로 바뀌었다(9/29).

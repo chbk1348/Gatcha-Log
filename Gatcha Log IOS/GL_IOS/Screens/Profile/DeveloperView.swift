@@ -98,7 +98,7 @@ struct DeveloperView: View {
             SetToggleRow(symbol: "checkmark.seal.fill", tint: .teal, title: "확정 보유로 설정",
                          desc: "위 천장 버튼에 함께 적용", isOn: $pityGuaranteed)
             SetDivider()
-            devRow("arrow.clockwise", .navy, "온보딩 초기화", "누르면 바로 온보딩으로 돌아간다") {
+            devRow("arrow.clockwise", .navy, "온보딩 미리보기", "테스트용 — 저장 · 로그인 · 클라우드 복원 안 함") {
                 store.debugResetOnboarding()
             }
         }

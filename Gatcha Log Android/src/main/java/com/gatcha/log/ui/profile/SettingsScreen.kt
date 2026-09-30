@@ -807,9 +807,10 @@ internal fun BudgetScreen(
     Box(Modifier.fillMaxSize().background(Color.White)) {
         LazyColumn(
             state = listState,
-            modifier = Modifier.fillMaxSize().navigationBarsPadding().imePadding().padding(horizontal = 16.dp),
-            // 아래 고정 버튼 두 개(50 + 8 + 42 + 위아래 18) 만큼 비워 둔다.
-            contentPadding = PaddingValues(top = glgDetailContentTop(), bottom = 140.dp),
+            // 목록은 **하단 고정 버튼 위에서 끝난다**(50 + 위아래 18 = 68) — 버튼 밑까지 두면 포커스된
+            // 한도 칸이 버튼에 가렸다(9/30). 키보드 여백은 앱 루트 imePadding 이 준다.
+            modifier = Modifier.fillMaxSize().navigationBarsPadding().padding(bottom = 68.dp).padding(horizontal = 16.dp),
+            contentPadding = PaddingValues(top = glgDetailContentTop(), bottom = 16.dp),
         ) {
             item { com.gatcha.log.ui.onboarding.BudgetAmountEditor(amount, custom) { v: Long, c: Boolean -> amount = v; custom = c } }
             item { NotifyGroupTitle("게임별 한도", "선택 · 비워 두면 한도 없음") }
@@ -852,16 +853,17 @@ internal fun BudgetScreen(
                 )
             }
         }
-        // 「저장」 · 「월 예산 끄기」는 하단에 상시 고정(9/29) — 스크롤해도 늘 보이고, 목록은 그 위에서 끝난다.
-        Column(
-            // imePadding 은 흰 바 바깥에(HoyolabLinkScreen 과 같은 이유 — 안쪽이면 흰 면이 키보드만큼 늘어난다).
-            Modifier.align(Alignment.BottomCenter).imePadding().fillMaxWidth()
+        // 「월 예산 끄기」 · 「저장」은 하단에 상시 고정(9/29), **좌우로 나눈다**(9/30 — 보조 1 : 주 1.4, 다이얼로그 짝과 같다).
+        Row(
+            // 키보드 여백은 앱 루트(MainActivity)가 준다 — 여기서 더하면 두 배로 뜬다.
+            Modifier.align(Alignment.BottomCenter).fillMaxWidth()
                 .shadow(8.dp, RectangleShape, ambientColor = Color(0x14000000), spotColor = Color(0x14000000))
                 .background(Color.White).navigationBarsPadding()
                 .padding(start = 16.dp, end = 16.dp, top = 10.dp, bottom = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            OdsButton("저장", { onSave(amount.coerceAtLeast(0L), perGame()) }, Modifier.fillMaxWidth(), size = OdsSize.L)
-            OdsButton("월 예산 끄기", { onSave(0L, perGame()) }, Modifier.padding(top = 8.dp).fillMaxWidth(), variant = OdsVariant.Secondary)
+            OdsButton("월 예산 끄기", { onSave(0L, perGame()) }, Modifier.weight(1f), variant = OdsVariant.Secondary, size = OdsSize.L)
+            OdsButton("저장", { onSave(amount.coerceAtLeast(0L), perGame()) }, Modifier.weight(1.4f), size = OdsSize.L)
         }
         GlgDetailHeaderOverlay("예산 관리", onBack, scrolled)
     }

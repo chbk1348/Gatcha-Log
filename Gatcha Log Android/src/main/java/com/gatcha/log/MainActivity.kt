@@ -1,6 +1,7 @@
 package com.gatcha.log
 
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.layout.imePadding
 import com.gatcha.log.ui.components.dismissKeyboardOnTap
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.togetherWith
@@ -178,11 +179,16 @@ class MainActivity : ComponentActivity() {
                         fadeIn(tween(420)) togetherWith (fadeOut(tween(380)) + scaleOut(tween(380), targetScale = 1.06f))
                     },
                     label = "onboardingRoot",
-                    modifier = Modifier.dismissKeyboardOnTap(),
+                    // 키보드 여백은 **앱 루트에서 한 번만**(9/30, adjustResize) — 화면 전체가 키보드 위까지 줄어들고
+                    // 포커스된 입력칸은 스스로 보이는 곳까지 스크롤된다. 화면마다 imePadding 을 두지 않는다(겹치면 두 배로 뜬다).
+                    // 다이얼로그 · 바텀시트는 별도 창이라 각자 처리된다.
+                    modifier = Modifier.imePadding().dismissKeyboardOnTap(),
                 ) { done ->
                 when {
                     // 첫 실행 → 앱 소개(로그인보다 앞). 재설치 전까지 다시 뜨지 않는다.
                     !done -> OnboardingScreen(viewModel, onFinish = { requestNotification, signIn ->
+                        // 개발자 메뉴의 테스트용 온보딩 — 완료 기록 · 권한 · 로그인 없이 홈으로만.
+                        if (viewModel.finishOnboardingPreview()) { onboardingDone = true; return@OnboardingScreen }
                         AppSettings().onboardingDone = true
                         // 알림 항목은 온보딩 ⑤에서 고른 값을 이미 설정에 썼다(applyOnboarding) —
                         // 여기서는 OS 권한만 받는다. 허용돼도 다른 항목을 일괄로 켜지 않는다(고른 값 유지).
