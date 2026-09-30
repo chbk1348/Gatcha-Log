@@ -24,6 +24,9 @@ class AppDelegate: NSObject, UIApplicationDelegate, @preconcurrency UNUserNotifi
         //      매번 계산하면 기존 유저가 로그아웃하는 순간 온보딩이 다시 뜬다. 첫 실행에 한 번 파일에 박는다.
         AppSettings().freezeOnboardingVerdict()
 
+        // 1-2. 키보드가 올라온 채 입력칸 밖을 누르면 내린다 — 창마다 탭 인식기 하나(Android 는 Modifier.dismissKeyboardOnTap).
+        KeyboardDismissTap.install()
+
         // 2. 자동 출석 백그라운드 태스크 등록 (Kotlin BGTaskScheduler 핸들러)
         NativeScheduler_iosKt.registerBackgroundTask()
 
@@ -170,6 +173,37 @@ extension Notification.Name {
     static let glgOpenTab = Notification.Name("glgOpenTab")
     /// 알림 딥링크 — object 에 링크 문자열("news:<id>"). ContentView 가 공유 VM 에 넘긴다.
     static let glgDeepLink = Notification.Name("glgDeepLink")
+}
+
+/// 입력칸 밖 탭 → 키보드 내림. 터치를 가로채지 않아서(cancelsTouchesInView = false) 버튼 · 목록은 그대로 눌린다.
+/// 입력칸 자체를 누른 탭은 건너뛴다(커서 이동 중에 키보드가 들썩이지 않게).
+@MainActor
+final class KeyboardDismissTap: NSObject, UIGestureRecognizerDelegate {
+    static let shared = KeyboardDismissTap()
+
+    static func install() {
+        NotificationCenter.default.addObserver(forName: UIWindow.didBecomeKeyNotification, object: nil, queue: .main) { note in
+            nonisolated(unsafe) let object = note.object  // queue: .main 이라 실제로 메인에서 온다
+            MainActor.assumeIsolated {
+                guard let window = object as? UIWindow,
+                      !(window.gestureRecognizers ?? []).contains(where: { $0.delegate === shared }) else { return }
+                let tap = UITapGestureRecognizer(target: shared, action: #selector(dismiss(_:)))
+                tap.cancelsTouchesInView = false
+                tap.delegate = shared
+                window.addGestureRecognizer(tap)
+            }
+        }
+    }
+
+    @objc private func dismiss(_ tap: UITapGestureRecognizer) { tap.view?.endEditing(true) }
+
+    func gestureRecognizer(_ g: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
+        var v = touch.view
+        while let cur = v { if cur is UITextField || cur is UITextView { return false }; v = cur.superview }
+        return true
+    }
+
+    func gestureRecognizer(_ g: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer) -> Bool { true }
 }
 
 @main

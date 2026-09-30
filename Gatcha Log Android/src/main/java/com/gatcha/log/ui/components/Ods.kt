@@ -5,6 +5,7 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.interaction.collectIsPressedAsState
@@ -28,12 +29,15 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.composed
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
@@ -191,11 +195,13 @@ fun OdsTextField(
                 if (value.isEmpty() && placeholder.isNotEmpty()) {
                     Text(placeholder, style = style.copy(color = OdsFieldPlaceholder), modifier = Modifier.fillMaxWidth())
                 }
-                BasicTextField(
+                // 누르는 필드(날짜 등)는 입력 위젯을 두지 않는다 — 비활성 텍스트필드가 탭을 먹어 필드가 안 눌렸다.
+                if (onClick != null) Text(value, style = style, maxLines = 1, modifier = Modifier.fillMaxWidth())
+                else BasicTextField(
                     value = value,
                     onValueChange = onValueChange,
                     modifier = Modifier.fillMaxWidth(),
-                    enabled = enabled && onClick == null,
+                    enabled = enabled,
                     readOnly = readOnly,
                     singleLine = singleLine,
                     keyboardOptions = keyboardOptions,
@@ -221,4 +227,13 @@ fun OdsTextField(
 @Composable
 fun OdsFieldLabel(text: String, modifier: Modifier = Modifier) {
     Text(text, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = TextSecondary, modifier = modifier.padding(bottom = 6.dp))
+}
+
+/**
+ * 키보드가 올라온 채 입력칸 밖을 누르면 포커스를 풀어 내린다. 앱 루트와 별도 창(다이얼로그)에 한 번씩 건다.
+ * 버튼 · 입력칸처럼 자기 탭을 먹는 요소 위에서는 발동하지 않는다(iOS 는 iOSApp.swift 의 KeyboardDismissTap).
+ */
+fun Modifier.dismissKeyboardOnTap(): Modifier = composed {
+    val focus = LocalFocusManager.current
+    pointerInput(Unit) { detectTapGestures { focus.clearFocus() } }
 }

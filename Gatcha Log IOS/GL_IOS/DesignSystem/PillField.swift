@@ -29,6 +29,8 @@ struct OdsTextField: View {
     var axis: Axis = .horizontal
     /// 바깥에서 포커스를 걸고 풀 때(모달이 열리자마자 키보드 등). 없으면 필드 자체 상태를 쓴다.
     var focus: FocusState<Bool>.Binding? = nil
+    /// 누르는 필드(날짜 등) — 입력 대신 이 동작을 한다. Android `onClick` 과 같다.
+    var onTap: (() -> Void)? = nil
 
     @Environment(\.glgAccent) private var accent
     @FocusState private var ownFocus: Bool
@@ -60,7 +62,7 @@ struct OdsTextField: View {
             .overlay(RoundedRectangle(cornerRadius: size.radius, style: .continuous)
                 .strokeBorder(error != nil ? GLGColor.dangerText : (focused ? accent.primary : .clear), lineWidth: 1.5))
             .contentShape(Rectangle())
-            .onTapGesture { focusBinding.wrappedValue = true }
+            .onTapGesture { if let onTap { onTap() } else { focusBinding.wrappedValue = true } }
             .animation(.easeOut(duration: 0.15), value: focused)
             if let msg = error ?? helper {
                 Text(msg).font(.pretendard(size: 12)).foregroundStyle(error != nil ? GLGColor.dangerText : GLGColor.textSecondary)
@@ -71,7 +73,12 @@ struct OdsTextField: View {
 
     @ViewBuilder private var field: some View {
         let prompt = Text(placeholder).foregroundStyle(Color(hex: 0xFFA7B1AE))
-        if secure {
+        if onTap != nil {
+            Text(text.isEmpty ? placeholder : text)
+                .foregroundStyle(text.isEmpty ? Color(hex: 0xFFA7B1AE) : GLGColor.textPrimary)
+                .lineLimit(1)
+                .frame(maxWidth: .infinity, alignment: alignment == .trailing ? .trailing : .leading)
+        } else if secure {
             SecureField("", text: $text, prompt: prompt)
         } else {
             TextField("", text: $text, prompt: prompt, axis: axis)
