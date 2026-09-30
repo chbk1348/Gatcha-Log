@@ -71,9 +71,16 @@ struct GldsButton: View {
                 if loading {
                     GldsSpinner(size: size.icon + 3, lineWidth: 2, inheritForeground: true)
                 } else {
-                    HStack(spacing: size.gap) {
-                        if let systemImage { Image(systemName: systemImage).font(.system(size: size.icon, weight: .semibold)) }
-                        Text(title).font(.pretendard(size: size.font, weight: .bold)).lineLimit(1)
+                    // 글자는 **자르지 않는다**(9/30) — 폭이 좁게 정해진 버튼(듀오의 호요랜드 히어로)에서 좌우 여백을
+                    // 챙기느라 한 글자로 잘렸다. 아이콘까지 안 들어가면 아이콘을 빼고, 그래도 좁으면 여백 쪽으로 넘쳐
+                    // 가운데를 지킨다(Android 와 같다).
+                    ViewThatFits(in: .horizontal) {
+                        HStack(spacing: size.gap) {
+                            if let systemImage { Image(systemName: systemImage).font(.system(size: size.icon, weight: .semibold)) }
+                            Text(title).font(.pretendard(size: size.font, weight: .bold)).lineLimit(1)
+                        }
+                        .fixedSize()
+                        Text(title).font(.pretendard(size: size.font, weight: .bold)).lineLimit(1).fixedSize()
                     }
                 }
             }
