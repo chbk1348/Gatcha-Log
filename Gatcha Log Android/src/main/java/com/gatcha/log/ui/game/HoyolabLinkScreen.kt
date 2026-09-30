@@ -130,9 +130,11 @@ fun HoyolabLinkScreen(config: HoyolabConfig, onSave: (HoyolabConfig) -> Unit, on
                 )
             },
             size = OdsSize.L,
-            modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth()
+            // imePadding 은 **흰 바 바깥**에 — 안쪽에 두면 흰 면이 키보드 높이만큼 늘어나 입력칸을 가리고
+            // 버튼이 그 위로 떠 보였다(9/30 S23). 키보드가 뜨면 바 전체가 키보드 위로 올라간다.
+            modifier = Modifier.align(Alignment.BottomCenter).imePadding().fillMaxWidth()
                 .shadow(8.dp, RectangleShape, ambientColor = Color(0x14000000), spotColor = Color(0x14000000))
-                .background(Color.White).navigationBarsPadding().imePadding()
+                .background(Color.White).navigationBarsPadding()
                 .padding(start = 16.dp, end = 16.dp, top = 10.dp, bottom = 8.dp),
         )
         GlgDetailHeaderOverlay("HoYoLAB 계정 연동", onBack, scrollState = scrollState)

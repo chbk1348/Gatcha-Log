@@ -18,7 +18,6 @@ private let firstHalfTint = Color(hex: 0xFFE4ECFB)
 private let secondHalfBar = Color(hex: 0xFFC46A1F)
 private let secondHalfText = Color(hex: 0xFFA8561A)
 private let secondHalfTint = Color(hex: 0xFFFBEBDC)
-private let chipBorder = Color(hex: 0xFFE3E5E8)
 private let panelFill = Color(hex: 0xFFF8F8F8)
 private let panelDivider = Color(hex: 0xFFECECEC)
 /// 접힌 층을 이만큼만 보여 준다(펼친 1 + 접힌 3). 나머지는 「더 보기」로.
@@ -83,27 +82,18 @@ struct CombatClearSection: View {
         .task { store.refreshCombatClears() }
     }
 
+    /// 게임 필터 — 하나만 고르는 배타 선택이라 **ODS 탭**(9/30), 고른 칸은 게임색(전체는 강조색). Android 와 같다.
     private func gameChips(_ games: [String], selected: String?) -> some View {
-        HStack(spacing: 8) {
-            chip("전체", on: selected == nil) { selectedGame = nil }
-            ForEach(games, id: \.self) { g in
-                chip(GameData.shared.byNameOrNull(name: g)?.shortName ?? g, on: selected == g) { selectedGame = g }
-            }
-        }
-    }
-
-    private func chip(_ title: String, on: Bool, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Text(title)
-                .font(.pretendard(size: 13, weight: on ? .bold : .medium))
-                .foregroundStyle(on ? Color.white : GLGColor.textPrimary)
-                .padding(.horizontal, 14)
-                .frame(height: 34)
-                .background(Capsule().fill(on ? GLGColor.textPrimary : Color.white))
-                .overlay(Capsule().strokeBorder(on ? Color.clear : chipBorder, lineWidth: 1))
-        }
-        .buttonStyle(.plain)
-        .accessibilityAddTraits(on ? .isSelected : [])
+        OdsTabs(
+            labels: ["전체"] + games.map { GameData.shared.byNameOrNull(name: $0)?.shortName ?? $0 },
+            selectedColors: [accent.primary] + games.map { g in
+                GameData.shared.byNameOrNull(name: g).map { Color(argb64: $0.color) } ?? accent.primary
+            },
+            selection: Binding(
+                get: { selected.flatMap { games.firstIndex(of: $0).map { $0 + 1 } } ?? 0 },
+                set: { i in selectedGame = i == 0 ? nil : games[i - 1] }
+            )
+        )
     }
 
     private func emptyNote(_ text: String) -> some View {

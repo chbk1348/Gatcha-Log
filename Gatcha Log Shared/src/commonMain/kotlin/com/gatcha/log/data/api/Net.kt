@@ -58,6 +58,22 @@ object Net {
         }
     }
 
+    /**
+     * 인터넷이 **실제로** 되는지 — 오류를 보고하지 않는 가벼운 확인(generate_204). 「인터넷 연결 없음」 얼럿
+     * 직전에 부른다(9/30). 앱이 백그라운드에서 돌아온 직후 OS 가 진행 중 요청을 한꺼번에 끊으면 여러 출처가
+     * 동시에 실패해 멀쩡한데도 얼럿이 떴다.
+     */
+    suspend fun isOnline(): Boolean = try {
+        client.request("https://www.gstatic.com/generate_204") {
+            method = HttpMethod.Get
+            timeout { requestTimeoutMillis = 4_000 }
+        }.status.value in 200..399
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        false
+    }
+
     private val client = createHttpClient {
         // 비-2xx 응답에서 예외 던지지 않음 (원본 Net 과 동일한 동작)
         expectSuccess = false

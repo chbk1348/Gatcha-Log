@@ -101,8 +101,7 @@ struct HomeView: View {
             // 알림(우).
             ToolbarItem(placement: .topBarTrailing) {
                 NavigationLink {
-                    NotificationDetailView(alerts: alerts,
-                                           onBudget: { showBudget = true },
+                    NotificationDetailView(store: store, alerts: alerts,
                                            onGameInfo: { onSwitchTab(2) },
                                            onDismiss: { store.dismissAlert($0.key) },
                                            onDismissAll: { store.dismissAlerts(alerts.map { $0.key }) })
@@ -115,8 +114,10 @@ struct HomeView: View {
         .navigationDestination(isPresented: $showHoyoland) { HoyolandDetailView(store: store) }
         // 호요랜드가 열려 있는 동안 iOS 18 의 '+' 를 감춘다 — 행사 페이지에서 지출 추가는 할 일이 아니고,
         // 떠 있는 버튼이 목록 · 배치도를 가렸다(2026-09-28 지적).
-        .onChange(of: showHoyoland) { _, open in store.hoyolandOpenOnHome = open }
-        .sheet(isPresented: $showBudget) { BudgetSheet(store: store) }
+        .onChange(of: showHoyoland) { _, _ in store.homeSubpageOpen = showHoyoland || showBudget }
+        // 예산 — 설정 ▸ 예산 관리와 같은 페이지를 홈의 하위 페이지로 push(9/30). 알림에서 열 때는 알림의 하위(NotificationDetailView).
+        .navigationDestination(isPresented: $showBudget) { BudgetSettingsView(store: store) }
+        .onChange(of: showBudget) { _, _ in store.homeSubpageOpen = showHoyoland || showBudget }
         .fileImporter(isPresented: $importingGacha, allowedContentTypes: [.json], allowsMultipleSelection: true) { result in
             if case .success(let urls) = result {
                 let contents = urls.compactMap { url -> String? in
@@ -177,7 +178,9 @@ struct HomeView: View {
             if store.hoyoTokenExpired {
                 TokenExpiredBanner { store.requestOpenHoyolabLink(); onSwitchTab(3) }
             }
-            DashboardSpendCard(monthlyTotal: monthlyTotal, budget: store.budget, onTap: { onSwitchTab(1) })
+            // 예산이 없으면 카드 문구(「예산을 정하면 페이스를 알려드려요」)대로 예산 관리로(9/30).
+            DashboardSpendCard(monthlyTotal: monthlyTotal, budget: store.budget,
+                               onTap: { if store.budget > 0 { onSwitchTab(1) } else { showBudget = true } })
             // 호요랜드 — 개막 D-60 이내에만 끼어드는 한시 배너(끝나면 스스로 빠진다).
             // 히어로 바로 밑이다. 광고 배너라 목록 중간에 두면 다른 카드의 리듬에 묻힌다 —
             // 첫 화면에서 한 번 눈에 걸리고 지나가는 자리가 맞다.

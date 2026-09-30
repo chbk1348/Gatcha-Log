@@ -166,10 +166,10 @@ struct SettingsView: View {
                 SetDivider()
                 SetNavRow(symbol: "checkmark.circle", tint: .amber, title: "넛지 기준 금액",
                           value: won(store.nudgeThreshold)) {
-                    // 넛지 기준 금액 — 중앙 모달(6/22 결정). 앱 루트에 얹는다(GLGModalCenter).
-                    GLGModalCenter.shared.present(NudgeThresholdModal(text: store.nudgeThreshold > 0 ? "\(store.nudgeThreshold)" : "") { v in
-                        store.setNudgeThreshold(Int64(v.filter(\.isNumber)) ?? 0)
-                    })
+                    SystemTextAlert.present(
+                        title: "넛지 기준 금액", message: "단건 지출이 이 금액 이상이면 추가 전 한 번 더 확인해요.",
+                        text: store.nudgeThreshold > 0 ? "\(store.nudgeThreshold)" : "", placeholder: "100000"
+                    ) { v in store.setNudgeThreshold(Int64(String(v.filter(\.isNumber).prefix(9))) ?? 0) }
                 }
             }
         }
@@ -572,75 +572,27 @@ struct BudgetSettingsView: View {
 
 }
 
-// ── 넛지 기준 금액 — 중앙 모달 카드(입력칸이 가운데 · 화면 폭에 맞게). ──
-struct NudgeThresholdModal: View {
-    @State var text: String
-    let onSave: (String) -> Void
-    @FocusState private var focused: Bool
-    @State private var shown = false
-    @State private var keyboardHeight: CGFloat? = nil
-    @MainActor private static var lastKeyboardHeight: CGFloat? = nil
-
-    // 흐린 배경 · 카드가 사라지는 걸 본 뒤에 모달 자리를 비운다.
-    private func dismiss() {
-        focused = false
-        withAnimation(.easeOut(duration: 0.18)) { shown = false } completion: {
-            GLGModalCenter.shared.dismiss()
+/// 입력칸 하나짜리 **시스템 알림창**(UIAlertController) — 넛지 기준 금액(9/30).
+/// SwiftUI `.alert` 안에 `TextField` 를 넣으면 입력칸이 오른쪽으로 쏠려 보였다(9/29 · 9/30 지적).
+/// 입력칸까지 UIKit 이 그리게 하면 시스템 모양 그대로 가운데 정렬된다. Android 는 GlgDialog(커스텀) 유지.
+@MainActor
+enum SystemTextAlert {
+    static func present(title: String, message: String, text: String, placeholder: String,
+                        keyboard: UIKeyboardType = .numberPad, onSave: @escaping (String) -> Void) {
+        let alert = UIAlertController(title: title, message: message, preferredStyle: .alert)
+        alert.addTextField { tf in
+            tf.text = text
+            tf.placeholder = placeholder
+            tf.keyboardType = keyboard
+            tf.clearButtonMode = .whileEditing
         }
-    }
-
-    var body: some View {
-        // 카드는 **키보드 위 남은 공간의 가운데**. 시스템 키보드 회피에 맡기면 밀려 올라갈 때 입력칸(UIKit)만
-        // 한 박자 늦게 따라왔다(9/30) — 회피를 끄고 키보드 높이를 직접 받아 자리를 잡는다.
-        // 처음 열 때는 지난번 키보드 높이(첫 실행은 화면의 36% 추정)로 미리 자리 잡아 움직임을 없앤다.
-        GeometryReader { geo in
-            let kb = keyboardHeight ?? (Self.lastKeyboardHeight ?? geo.size.height * 0.36)
-            ZStack {
-                Color.black.opacity(shown ? 0.4 : 0)
-                card.scaleEffect(shown ? 1 : 1.08).opacity(shown ? 1 : 0)
-                    .position(x: geo.size.width / 2, y: (geo.size.height - kb) / 2)
-            }
-            .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillChangeFrameNotification)) { n in
-                guard let end = n.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect else { return }
-                let h = max(0, geo.size.height - end.minY)
-                if h > 0 { Self.lastKeyboardHeight = h }
-                withAnimation(.easeOut(duration: 0.25)) { keyboardHeight = h }
-            }
-        }
-        .ignoresSafeArea()
-        .onAppear {
-            // 포커스는 애니메이션 없이 — 입력칸 면이 카드보다 늦게 흰색으로 바뀌지 않게.
-            var t = Transaction(); t.disablesAnimations = true
-            withTransaction(t) { focused = true }
-            withAnimation(.spring(duration: 0.3, bounce: 0.2)) { shown = true }
-        }
-    }
-
-    private var card: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Text("넛지 기준 금액").font(.pretendard(size: 17, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
-            Text("단건 지출이 이 금액 이상이면 추가 전 한 번 더 확인해요.")
-                .font(.pretendard(size: 13)).foregroundStyle(GLGColor.textSecondary).padding(.top, 6)
-            OdsTextField(placeholder: "100,000", text: $text, suffix: "원", bold: true, keyboard: .numberPad, focus: $focused)
-                .onChange(of: text) { _, v in
-                    let digits = String(v.filter(\.isNumber).prefix(9))
-                    if digits != v { text = digits }
-                }
-                .padding(.top, 16)
-            // 폭 1 : 1.4 — Android GlgDialog 의 Row weight 와 같다.
-            GeometryReader { g in
-                HStack(spacing: 10) {
-                    OdsButton(title: "취소", variant: .secondary) { dismiss() }
-                        .frame(width: (g.size.width - 10) / 2.4)
-                    OdsButton(title: "저장") { onSave(text); dismiss() }
-                }
-            }
-            .frame(height: OdsSize.m.height)
-            .padding(.top, 20)
-        }
-        .padding(20)
-        .background(Color.white, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
-        .padding(.horizontal, 28)
-        .frame(maxWidth: .infinity)
+        alert.addAction(UIAlertAction(title: "취소", style: .cancel))
+        alert.addAction(UIAlertAction(title: "저장", style: .default) { _ in onSave(alert.textFields?.first?.text ?? "") })
+        alert.view.tintColor = .systemBlue   // 다른 알림창과 같은 시스템 파랑(glgAlertTint)
+        guard let root = UIApplication.shared.connectedScenes
+            .compactMap({ ($0 as? UIWindowScene)?.keyWindow }).first?.rootViewController else { return }
+        var top = root
+        while let next = top.presentedViewController { top = next }
+        top.present(alert, animated: true)
     }
 }

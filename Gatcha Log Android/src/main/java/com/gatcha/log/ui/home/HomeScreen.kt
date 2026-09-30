@@ -77,7 +77,7 @@ import com.gatcha.log.ui.components.GlgScreenHeader
 import com.gatcha.log.ui.components.GlgStatusToast
 import com.gatcha.log.ui.components.NoteSkeletonRow
 import com.gatcha.log.ui.components.InfoColumn
-import com.gatcha.log.ui.components.BudgetDialog
+import com.gatcha.log.ui.profile.BudgetScreen
 import com.gatcha.log.ui.components.BottomNavBar
 import com.gatcha.log.ui.theme.*
 import com.gatcha.log.util.num
@@ -332,7 +332,8 @@ fun HomeScreen(viewModel: SpendingViewModel = viewModel()) {
  * 게임정보 탭의 `GiSub` 처럼 깊이를 나누지 않는다 — 셋 다 홈 바로 아래 한 층이고, 서로
  * 오갈 수 없다(하위에서 나가는 길은 홈뿐). push/pop 판정에 `Home` 인지만 보면 된다.
  */
-private enum class HomeSub { Home, Notifications, Hoyoland }
+/** 홈 하위 페이지 — [depth] 로 들어가기(push) · 나가기(pop) 방향을 가른다. 예산은 알림에서 열면 알림의 하위(깊이 2). */
+private enum class HomeSub(val depth: Int) { Home(0), Notifications(1), Hoyoland(1), Budget(2) }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -347,6 +348,7 @@ fun HomeContent(
     val spendings by viewModel.spendings.collectAsStateWithLifecycle()
     val budget by viewModel.budget.collectAsStateWithLifecycle()
     val gameBudgets by viewModel.gameBudgets.collectAsStateWithLifecycle()
+    val myGames by viewModel.myGames.collectAsStateWithLifecycle()
     val profile by viewModel.profile.collectAsStateWithLifecycle()
     val attendanceToday by viewModel.attendanceToday.collectAsStateWithLifecycle()
     // 출석을 세는 게임 — UID 없는 게임까지 세면 매일 '1개 남음' 알림이 남는다.
@@ -424,7 +426,7 @@ fun HomeContent(
     val unreadCount = remember(alerts, readAlerts) { alerts.count { it.key !in readAlerts } }
 
     val showNotifications = remember { mutableStateOf(false) }
-    val showBudgetDialog = remember { mutableStateOf(false) }
+    val showBudget = remember { mutableStateOf(false) }
 
     // 호요랜드 상세 — **홈에서 바로 연다.** 예전엔 게임정보 탭으로 옮긴 뒤 그 탭의 앵커가
     // 상세를 열어, 한 번 탭에 화면이 두 번 바뀌었다(탭 전환이 눈에 보였다).
@@ -443,6 +445,7 @@ fun HomeContent(
      */
     val homeSub = when {
         showHoyoland -> HomeSub.Hoyoland
+        showBudget.value -> HomeSub.Budget
         showNotifications.value -> HomeSub.Notifications
         else -> HomeSub.Home
     }
@@ -471,11 +474,12 @@ fun HomeContent(
         onResin = { viewModel.requestGameInfoAnchor(GameInfoAnchor.NOTES); onNavigateToGameInfo() },
         onCombat = { viewModel.requestGameInfoAnchor(GameInfoAnchor.COMBAT); onNavigateToGameInfo() },
         onBanner = { viewModel.requestGameInfoAnchor(GameInfoAnchor.SCHEDULE); onNavigateToGameInfo() },
-        onBudget = { showBudgetDialog.value = true },
+        onBudget = { showBudget.value = true },
     )
 
     // 알림 상세 페이지에서 시스템 뒤로가기 시 홈으로 복귀
     BackHandler(enabled = showNotifications.value) { showNotifications.value = false }
+    BackHandler(enabled = showBudget.value) { showBudget.value = false }
     // 하위 화면이 열리면 상위(Scaffold)에 알려 하단바·FAB를 숨김 — 저축·챌린지·알림 공통.
     LaunchedEffect(homeSub) { onSubPageChange(homeSub != HomeSub.Home) }
 
@@ -483,12 +487,12 @@ fun HomeContent(
         targetState = homeSub,
         modifier = Modifier.fillMaxSize(),
         transitionSpec = {
-            if (targetState != HomeSub.Home) {
-                // 하위 화면 열기: 오른쪽에서 슬라이드 인 (push)
+            if (targetState.depth > initialState.depth) {
+                // 더 깊은 화면 열기: 오른쪽에서 슬라이드 인 (push)
                 (slideInHorizontally(glgStandardSpec()) { w -> w } + fadeIn(glgStandardSpec())) togetherWith
                     (slideOutHorizontally(glgStandardSpec()) { w -> -w / 4 } + fadeOut(glgShortSpec()))
             } else {
-                // 홈 복귀: 오른쪽으로 슬라이드 아웃 (pop)
+                // 상위로 복귀: 오른쪽으로 슬라이드 아웃 (pop) — 예산 → 알림 · 알림 → 홈
                 (slideInHorizontally(glgStandardSpec()) { w -> -w / 4 } + fadeIn(glgStandardSpec())) togetherWith
                     (slideOutHorizontally(glgStandardSpec()) { w -> w } + fadeOut(glgShortSpec()))
             }
@@ -504,10 +508,21 @@ fun HomeContent(
                 NotificationDetailScreen(
                     alerts = alerts,
                     onBack = { showNotifications.value = false },
-                    onBudget = { showNotifications.value = false; showBudgetDialog.value = true },
+                    // 알림을 닫지 않는다 — 예산은 알림의 하위 페이지, 뒤로 가면 알림으로 돌아온다.
+                    onBudget = { showBudget.value = true },
                     onGameInfo = { showNotifications.value = false; onNavigateToGameInfo() },
                     onDismiss = { viewModel.dismissAlert(it.key) },
                     onDismissAll = { viewModel.dismissAlerts(alerts.map { a -> a.key }) },
+                )
+                return@AnimatedContent
+            }
+            // 예산 — 설정 ▸ 예산 관리와 같은 페이지(9/30). 옛 BudgetDialog 는 폐기.
+            HomeSub.Budget -> {
+                // 홈 · 알림 어디서 열었든 닫으면 한 단계 위로(알림에서 열었으면 알림이 그대로 남아 있다).
+                BudgetScreen(
+                    overall = budget, gameBudgets = gameBudgets, monthlyTotals = monthlyTotalsByGame, myGames = myGames,
+                    onSave = { o, perGame -> viewModel.setBudgets(o, perGame); showBudget.value = false },
+                    onBack = { showBudget.value = false },
                 )
                 return@AnimatedContent
             }
@@ -546,7 +561,7 @@ fun HomeContent(
         }
         // 히어로 — 이번 달 지출 / 예산 캐러셀 (Figma Make 참고)
         glgCardItem() {
-            HeroBalanceCard(monthlyTotal, prevTotal, budget) { showBudgetDialog.value = true }
+            HeroBalanceCard(monthlyTotal, prevTotal, budget) { showBudget.value = true }
             Spacer(Modifier.height(16.dp))
         }
         // 호요랜드 — 개막 D-60 이내에만 끼어드는 한시 카드(끝나면 스스로 빠진다).
@@ -620,15 +635,6 @@ fun HomeContent(
     }
     }
 
-    if (showBudgetDialog.value) {
-        BudgetDialog(
-            overall = budget,
-            gameBudgets = gameBudgets,
-            monthlyTotals = monthlyTotalsByGame,
-            onDismiss = { showBudgetDialog.value = false },
-            onConfirm = { o, perGame -> viewModel.setBudgets(o, perGame); showBudgetDialog.value = false },
-        )
-    }
 
 }
 

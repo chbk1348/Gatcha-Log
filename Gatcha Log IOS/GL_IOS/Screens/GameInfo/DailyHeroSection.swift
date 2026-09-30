@@ -379,10 +379,11 @@ private struct DailyQuickButton: View {
     var body: some View {
         Button(action: onTap) {
             VStack(spacing: 4) {
-                // 같은 상자(20×20)에 맞춘다 — SF Symbols 는 기호마다 폭이 달라 글자 줄이 어긋났다.
-                Image(systemName: icon).resizable().scaledToFit().fontWeight(.semibold)
+                // 같은 **글꼴 크기 · 굵기**로 그린다(9/30) — 20×20 상자에 늘려 맞추면 옆으로 넓은 person.3 만 크게
+                // 줄어 선이 혼자 얇아졌다. 세로형이라 폭이 달라도 줄이 어긋나지 않는다. 높이만 20 으로 맞춘다.
+                Image(systemName: icon).font(.system(size: 17, weight: .semibold))
                     .foregroundStyle(raised ? GLGColor.dangerText : accent.deep)
-                    .frame(width: 20, height: 20)
+                    .frame(height: 20)
                 Text(title).font(.pretendard(size: 12.5, weight: .bold))
                     .foregroundStyle(raised ? GLGColor.textPrimary : accent.deep)
                     .lineLimit(1).fixedSize()

@@ -1,5 +1,6 @@
 package com.gatcha.log.data
 
+import com.gatcha.log.data.api.Net
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.gatcha.log.data.Account
@@ -2280,12 +2281,18 @@ class SpendingViewModel : ViewModel() {
                 val detail = r.detail.takeIf { it.isNotBlank() }
                 when (r.kind) {
                     // 연결 자체가 끊긴 것만 알린다 — 사용자가 확인할 수 있는 상태다.
-                    ErrorBus.Kind.NETWORK -> emitErrorAlert(
-                        ErrorAlert(
-                            "인터넷 연결 없음",
-                            "네트워크에 연결하지 못했어요.\n연결 상태를 확인한 뒤 다시 시도해주세요.",
-                        ),
-                    )
+                    // 얼럿 전에 **진짜 끊겼는지 한 번 확인**한다(9/30) — 복귀 직후 한꺼번에 끊긴 요청들이
+                    // 두 출처 조건을 넘겨 멀쩡한데도 떴다. 잠깐 기다렸다 확인 요청이 통하면 띄우지 않는다.
+                    ErrorBus.Kind.NETWORK -> launch {
+                        delay(NETWORK_RECHECK_DELAY_MS)
+                        if (Net.isOnline()) { errorNotifiedAt.remove(key); return@launch }
+                        emitErrorAlert(
+                            ErrorAlert(
+                                "인터넷 연결 없음",
+                                "네트워크에 연결하지 못했어요.\n연결 상태를 확인한 뒤 다시 시도해주세요.",
+                            ),
+                        )
+                    }
                     ErrorBus.Kind.SERVER, ErrorBus.Kind.API, ErrorBus.Kind.PARSE -> Unit  // 위에서 걸렀다
                     ErrorBus.Kind.AUTH -> emitErrorAlert(
                         ErrorAlert(
@@ -3083,7 +3090,13 @@ class SpendingViewModel : ViewModel() {
         syncJob?.cancel()
         syncJob = viewModelScope.launch {
             delay(1500)
-            cloudPush(uid)
+            // 순간 끊김은 조용히 다시 올린다(9/30) — 9/29 부터 push 가 트랜잭션이라 오프라인 · 연결 전환 중이면
+            // 바로 실패했고(예전 set 은 오프라인 큐에 쌓였다) 그때마다 백업 실패 얼럿이 떠 잦아졌다.
+            // 얼럿은 [cloudPush] 가 연달아 PUSH_FAIL_ALERT_STREAK 번 실패했을 때만 띄운다.
+            for (wait in PUSH_RETRY_DELAYS_MS) {
+                if (wait > 0) delay(wait)
+                if (cloudPush(uid)) break
+            }
         }
     }
 
@@ -3116,6 +3129,9 @@ class SpendingViewModel : ViewModel() {
 
     /** push 실패를 이미 알렸는가 — 실패가 이어질 때 토스트가 쌓이지 않도록(성공하면 해제). */
     private var pushFailureNotified = false
+
+    /** 연달아 실패한 push 횟수(성공하면 0). 순간 끊김 한 번으로 얼럿을 띄우지 않으려고 센다. */
+    private var pushFailStreak = 0
 
     /**
      * UTF-8 인코딩 바이트 수.
@@ -3189,10 +3205,13 @@ class SpendingViewModel : ViewModel() {
             // 읽어 보고(대개 쓰기 없이) 끝난다.
             lastPushedSnapshot = if (merged == json) json else null
             pushFailureNotified = false
+            pushFailStreak = 0
             // 올라갔으니 다음 pull 은 출석을 그대로 받아도 된다 — 단 푸시 도중 자동 출석이 새로
             // 쓰지 않았을 때만(→ [GatchaRepository.clearAttendanceDirtyIfUnchanged]).
             repo.clearAttendanceDirtyIfUnchanged(attendanceAtExport)
-        } else if (!pushFailureNotified) {
+        } else if (++pushFailStreak >= PUSH_FAIL_ALERT_STREAK || docBytes > CLOUD_DOC_LIMIT_BYTES) {
+            // 용량 초과는 다시 해도 안 풀리니 바로, 그 밖은 연달아 실패했을 때만 알린다.
+            if (pushFailureNotified) return ok
             // 실패를 삼키면 로컬만 계속 쌓이고 클라우드는 멈춘 채로, 기기를 바꾸는 순간에야 발견된다.
             // 할 일이 원인마다 다르므로 용량 초과와 그 외를 나눠 안내한다.
             pushFailureNotified = true
@@ -3202,7 +3221,7 @@ class SpendingViewModel : ViewModel() {
                 if (docBytes > CLOUD_DOC_LIMIT_BYTES)
                     "백업이 용량 한도를 넘어 멈췄어요 (${docBytes / 1024}KB / ${CLOUD_DOC_LIMIT_BYTES / 1024}KB).\n오래된 뽑기 기록을 정리해주세요."
                 else
-                    "백업에 실패했어요.\n연결을 확인해주세요 — 다음 변경 때 다시 시도해요.",
+                    "백업에 여러 번 실패했어요.\n연결을 확인해주세요 — 다음 변경 때 다시 시도해요.",
             )
         }
         return ok
@@ -3319,6 +3338,12 @@ const val ERROR_TOAST_COOLDOWN_MS = 180_000L
         const val ERROR_MODAL_COOLDOWN_MS = 30L * 60 * 1000
         /** Firestore 문서 크기 한도(바이트). 이 값을 넘기면 set 이 실패한다. */
         const val CLOUD_DOC_LIMIT_BYTES = 1_048_576
+        /** 연결 오류 뒤 실제 연결을 다시 확인하기까지 기다리는 시간 — 복귀 직후 끊김이 가라앉을 틈. */
+        const val NETWORK_RECHECK_DELAY_MS = 1_500L
+        /** push 재시도 간격 — 첫 시도(0) · 15초 · 1분. 순간 끊김은 이 안에서 조용히 풀린다. */
+        val PUSH_RETRY_DELAYS_MS = longArrayOf(0L, 15_000L, 60_000L)
+        /** 연달아 이만큼 실패해야 백업 실패 얼럿(재시도 3회를 다 쓴 뒤). */
+        const val PUSH_FAIL_ALERT_STREAK = 3
         /** 한도 근접 경고 임계치(바이트, 한도의 약 86%). 초과 시 set 이 실패해 백업이 조용히 멈추므로 미리 안내. */
         const val CLOUD_DOC_WARN_BYTES = 900_000
         /** 포그라운드 알림 점검 최소 간격(ms) — 탭 전환마다 HoYoLAB 을 두드리지 않도록. */

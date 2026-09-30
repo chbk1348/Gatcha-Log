@@ -51,7 +51,6 @@ import androidx.compose.ui.unit.sp
 import android.os.Build
 import com.gatcha.log.BuildConfig
 import com.gatcha.log.R
-import com.gatcha.log.ui.components.BudgetDialog
 import com.gatcha.log.ui.components.GlassCard
 import com.gatcha.log.ui.components.openExternalLink
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -790,7 +789,7 @@ private fun WarnBanner(text: String, action: String, onAction: () -> Unit) {
  * 「월 예산 끄기」는 월 예산만 0 으로 저장하고 게임별 한도는 그대로 둔다.
  */
 @Composable
-private fun BudgetScreen(
+internal fun BudgetScreen(
     overall: Long,
     gameBudgets: Map<String, Long>,
     monthlyTotals: Map<String, Long>,
@@ -855,9 +854,10 @@ private fun BudgetScreen(
         }
         // 「저장」 · 「월 예산 끄기」는 하단에 상시 고정(9/29) — 스크롤해도 늘 보이고, 목록은 그 위에서 끝난다.
         Column(
-            Modifier.align(Alignment.BottomCenter).fillMaxWidth()
+            // imePadding 은 흰 바 바깥에(HoyolabLinkScreen 과 같은 이유 — 안쪽이면 흰 면이 키보드만큼 늘어난다).
+            Modifier.align(Alignment.BottomCenter).imePadding().fillMaxWidth()
                 .shadow(8.dp, RectangleShape, ambientColor = Color(0x14000000), spotColor = Color(0x14000000))
-                .background(Color.White).navigationBarsPadding().imePadding()
+                .background(Color.White).navigationBarsPadding()
                 .padding(start = 16.dp, end = 16.dp, top = 10.dp, bottom = 8.dp),
         ) {
             OdsButton("저장", { onSave(amount.coerceAtLeast(0L), perGame()) }, Modifier.fillMaxWidth(), size = OdsSize.L)

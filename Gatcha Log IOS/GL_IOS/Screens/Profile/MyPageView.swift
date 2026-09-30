@@ -60,6 +60,11 @@ struct MyPageView: View {
         .glgHiddenTitle("마이페이지")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar { ToolbarItem(placement: .topBarTrailing) { settingsButton } }
+        // 설정은 마이페이지의 하위 페이지. 다른 화면이 HoYoLAB 연동을 요청하면(홈 만료 배너 「재연동」) 설정까지
+        // 자동으로 들어간다 — 설정이 onAppear 에서 요청을 소비해 연동 페이지를 연다(9/30, Android 와 같은 흐름).
+        .navigationDestination(isPresented: $openSettings) { SettingsView(store: store) }
+        .onAppear { if store.pendingOpenHoyolabLink { openSettings = true } }
+        .onChange(of: store.pendingOpenHoyolabLink) { _, v in if v { openSettings = true } }
         .task(id: store.spendings) { totals = Self.computeTotals(store.spendings) }
     }
 
@@ -77,7 +82,7 @@ struct MyPageView: View {
     }
 
     private var settingsButton: some View {
-        NavigationLink { SettingsView(store: store) } label: { Image(systemName: "gearshape") }
+        Button { openSettings = true } label: { Image(systemName: "gearshape") }
     }
 
     // ── 파생 통계 (전부 기존 보유 데이터에서 계산) ──
@@ -87,6 +92,7 @@ struct MyPageView: View {
     // 지출이 바뀔 때만 계산한다.
     private struct Totals: Equatable { var amount: Int64 = 0; var games: Int = 0 }
     @State private var totals = Totals()
+    @State private var openSettings = false
 
     private static func computeTotals(_ spendings: [Spending]) -> Totals {
         var sum: Int64 = 0
