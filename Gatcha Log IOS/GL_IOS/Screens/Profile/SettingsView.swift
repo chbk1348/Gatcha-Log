@@ -19,8 +19,6 @@ struct SettingsView: View {
 
     // 시트/다이얼로그 상태
     @State private var showBudget = false
-    @State private var showNudge = false
-    @State private var nudgeText = ""
     @State private var showHoyolab = false
     @State private var showNotifSettings = false
     @State private var showDataManagement = false
@@ -92,13 +90,6 @@ struct SettingsView: View {
         }
         // 예산 관리 — 팝업에서 페이지로(아티팩트 S3).
         .navigationDestination(isPresented: $showBudget) { BudgetSettingsView(store: store) }
-        // 넛지 기준 금액 — 중앙 모달(6/22 결정). 네이티브 alert 는 입력칸이 오른쪽으로 쏠려(9/29 지적) 직접 그린다.
-        .fullScreenCover(isPresented: $showNudge) {
-            NudgeThresholdModal(text: $nudgeText, isPresented: $showNudge) {
-                store.setNudgeThreshold(Int64(nudgeText.filter(\.isNumber)) ?? 0)
-            }
-            .presentationBackground(.clear)
-        }
         .sheet(isPresented: $showCredits) { CreditsSheet() }
         .navigationDestination(isPresented: $showHoyolab) {
             HoyolabLinkView(store: store) { showHoyolab = false }
@@ -175,8 +166,10 @@ struct SettingsView: View {
                 SetDivider()
                 SetNavRow(symbol: "checkmark.circle", tint: .amber, title: "넛지 기준 금액",
                           value: won(store.nudgeThreshold)) {
-                    nudgeText = store.nudgeThreshold > 0 ? "\(store.nudgeThreshold)" : ""
-                    withoutSlide { showNudge = true }
+                    // 넛지 기준 금액 — 중앙 모달(6/22 결정). 앱 루트에 얹는다(GLGModalCenter).
+                    GLGModalCenter.shared.present(NudgeThresholdModal(text: store.nudgeThreshold > 0 ? "\(store.nudgeThreshold)" : "") { v in
+                        store.setNudgeThreshold(Int64(v.filter(\.isNumber)) ?? 0)
+                    })
                 }
             }
         }
@@ -514,14 +507,12 @@ struct BudgetSettingsView: View {
             .padding(16)
             .glgReadableWidth(640)
         }
-        // 「저장」 · 「월 예산 끄기」는 하단에 상시 고정(9/30 ODS) — Android BudgetScreen 과 같은 자리 · 같은 버튼.
-        .safeAreaInset(edge: .bottom, spacing: 0) {
-            VStack(spacing: 8) {
-                OdsButton(title: "저장", size: .l) { save(amount) }
-                OdsButton(title: "월 예산 끄기", variant: .secondary) { save(0) }
-            }
-            .padding(.horizontal, 16).padding(.top, 10).padding(.bottom, 8)
-            .background(Color.white.shadow(color: .black.opacity(0.08), radius: 8).ignoresSafeArea(edges: .bottom))
+        // iOS 는 저장을 헤더 시스템 버튼으로(9/30 사용자 지정) — 「월 예산 끄기」 · 「저장」.
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) { Button("월 예산 끄기") { save(0) } }
+            // iOS 26 은 붙은 아이템을 한 캡슐로 묶는다 — 끄기 · 저장은 성격이 달라 떼어 둔다(지출 헤더와 같은 처리).
+            if #available(iOS 26.0, *) { ToolbarSpacer(.fixed, placement: .topBarTrailing) }
+            ToolbarItem(placement: .topBarTrailing) { Button("저장") { save(amount) }.fontWeight(.bold) }
         }
         .scrollIndicators(.hidden)
         .scrollDismissesKeyboard(.interactively)
@@ -581,35 +572,46 @@ struct BudgetSettingsView: View {
 
 }
 
-// fullScreenCover 의 아래→위 슬라이드를 끈다(중앙 모달처럼 제자리에 뜨게).
-private func withoutSlide(_ body: () -> Void) {
-    var t = Transaction(); t.disablesAnimations = true
-    withTransaction(t, body)
-}
-
 // ── 넛지 기준 금액 — 중앙 모달 카드(입력칸이 가운데 · 화면 폭에 맞게). ──
 struct NudgeThresholdModal: View {
-    @Binding var text: String
-    @Binding var isPresented: Bool
-    let onSave: () -> Void
+    @State var text: String
+    let onSave: (String) -> Void
     @FocusState private var focused: Bool
     @State private var shown = false
+    @State private var keyboardHeight: CGFloat? = nil
+    @MainActor private static var lastKeyboardHeight: CGFloat? = nil
 
-    // 흐린 배경 · 카드가 사라지는 걸 본 뒤에 cover 를 닫는다.
+    // 흐린 배경 · 카드가 사라지는 걸 본 뒤에 모달 자리를 비운다.
     private func dismiss() {
         focused = false
         withAnimation(.easeOut(duration: 0.18)) { shown = false } completion: {
-            withoutSlide { isPresented = false }
+            GLGModalCenter.shared.dismiss()
         }
     }
 
     var body: some View {
-        ZStack {
-            Color.black.opacity(shown ? 0.4 : 0).ignoresSafeArea()
-            card.scaleEffect(shown ? 1 : 1.08).opacity(shown ? 1 : 0)
+        // 카드는 **키보드 위 남은 공간의 가운데**. 시스템 키보드 회피에 맡기면 밀려 올라갈 때 입력칸(UIKit)만
+        // 한 박자 늦게 따라왔다(9/30) — 회피를 끄고 키보드 높이를 직접 받아 자리를 잡는다.
+        // 처음 열 때는 지난번 키보드 높이(첫 실행은 화면의 36% 추정)로 미리 자리 잡아 움직임을 없앤다.
+        GeometryReader { geo in
+            let kb = keyboardHeight ?? (Self.lastKeyboardHeight ?? geo.size.height * 0.36)
+            ZStack {
+                Color.black.opacity(shown ? 0.4 : 0)
+                card.scaleEffect(shown ? 1 : 1.08).opacity(shown ? 1 : 0)
+                    .position(x: geo.size.width / 2, y: (geo.size.height - kb) / 2)
+            }
+            .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillChangeFrameNotification)) { n in
+                guard let end = n.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect else { return }
+                let h = max(0, geo.size.height - end.minY)
+                if h > 0 { Self.lastKeyboardHeight = h }
+                withAnimation(.easeOut(duration: 0.25)) { keyboardHeight = h }
+            }
         }
+        .ignoresSafeArea()
         .onAppear {
-            focused = true
+            // 포커스는 애니메이션 없이 — 입력칸 면이 카드보다 늦게 흰색으로 바뀌지 않게.
+            var t = Transaction(); t.disablesAnimations = true
+            withTransaction(t) { focused = true }
             withAnimation(.spring(duration: 0.3, bounce: 0.2)) { shown = true }
         }
     }
@@ -630,7 +632,7 @@ struct NudgeThresholdModal: View {
                 HStack(spacing: 10) {
                     OdsButton(title: "취소", variant: .secondary) { dismiss() }
                         .frame(width: (g.size.width - 10) / 2.4)
-                    OdsButton(title: "저장") { onSave(); dismiss() }
+                    OdsButton(title: "저장") { onSave(text); dismiss() }
                 }
             }
             .frame(height: OdsSize.m.height)
@@ -639,6 +641,6 @@ struct NudgeThresholdModal: View {
         .padding(20)
         .background(Color.white, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
         .padding(.horizontal, 28)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .frame(maxWidth: .infinity)
     }
 }

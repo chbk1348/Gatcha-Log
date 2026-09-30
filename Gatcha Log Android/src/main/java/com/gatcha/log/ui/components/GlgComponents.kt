@@ -212,44 +212,6 @@ val GlgHeaderItemGap = 8.dp
  * 배경이 없으면 스크롤 중 글자가 콘텐츠와 겹쳐 읽힌다.
  */
 
-/**
- * 헤더 알약 규격의 **작은 칩** — 지출 리스트 퀵필터처럼 본문 위에 상시 얹히는 줄에서 쓴다.
- *
- * [GlgHeaderTitlePill] 과 같은 언어(흰 베이스 + 강조색 틴트 + 강조색 아웃라인 + 캡슐)를 쓰되,
- * 치수를 줄이고 **선택 상태**를 갖는다. 틴트는 제목 알약(10%/30%)보다 **짙다** —
- * 44dp 제목과 달리 작은 칩에서는 옅은 틴트가 거의 보이지 않는다.
- *
- * 선택 시에는 [color] 로 꽉 채운다(리스트 위에서 뭐가 걸렸는지 한눈에 보여야 한다).
- * 필터 시트처럼 칩이 주인공인 화면은 [GlgChip] 의 기본 규격을 쓴다.
- */
-@Composable
-fun GlgHeaderPillChip(
-    label: String,
-    modifier: Modifier = Modifier,
-    selected: Boolean = false,
-    color: Color = LocalAccent.current,
-    onClick: () -> Unit,
-) {
-    val shape = RoundedCornerShape(999.dp)
-    Box(
-        modifier
-            .clip(shape)
-            .background(Color.White)
-            .background(if (selected) color else color.copy(alpha = 0.16f))
-            .then(if (selected) Modifier else Modifier.border(1.5.dp, color.copy(alpha = 0.45f), shape))
-            .clickable { onClick() }
-            .padding(horizontal = 12.dp, vertical = 6.dp),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(
-            label,
-            fontSize = 12.sp,
-            fontWeight = FontWeight.Bold,
-            color = if (selected) Color.White else color,
-            maxLines = 1,
-        )
-    }
-}
 
 @Composable
 fun GlgHeaderTitlePill(title: String, modifier: Modifier = Modifier) {
@@ -282,7 +244,7 @@ fun GlgHeaderTitlePill(title: String, modifier: Modifier = Modifier) {
  * 색 10% 채움, 1.5dp 색 30% 테두리. [GlgHeaderTitlePill]·[GlgCircleIconButton] 과 나란히
  * 놓았을 때 높이가 어긋나면 헤더 한 줄이 들쭉날쭉해진다.
  *
- * 지출 화면의 [GlgHeaderPillChip] 은 **본문 필터 줄**용이라 이보다 한참 작다 — 헤더에
+ * 지출 화면의 필터 칩([OdsChip])은 **본문 필터 줄**용이라 이보다 한참 작다 — 헤더에
  * 그걸 갖다 쓰면 옆의 44dp 버튼들 사이에서 혼자 작아 보인다(2026-08-18 지적).
  *
  * [selected] 면 [color] 로 채우고 글자를 희게 뒤집는다 — 지금 무엇에 좁혀져 있는지가
@@ -551,7 +513,7 @@ fun GlgChip(
 }
 
 // D 칩 토큰 — idle 아웃라인/글자색. (칩 규격을 따르는 다른 버튼도 참조하도록 internal)
-/** 세그먼트 탭 한 칸 높이 — 호요랜드 일자 탭에서 정한 값. */
+/** ODS 탭 한 칸 높이 — 호요랜드 일자 탭에서 정한 값. */
 private val GlgSegmentHeight = 32.dp
 
 /** 둘째 줄(요일)이 붙는 칸 높이 — 두 줄이 눌리지 않게 값을 못 박는다. */
@@ -570,11 +532,19 @@ private val GlgSegmentHeightTwoLine = 46.dp
  *
  * 칸 폭이 아니라 **위치만** 애니메이션한다. 회전·태블릿에서 폭이 바뀌어도 계산이 어긋나지 않는다.
  */
+/** ODS 탭 모양 — Primary: 흰 트랙 + 강조색 알약(콘텐츠 전환) · Neutral: 회색 트랙 + 흰 알약(보기 방식 전환). */
+enum class OdsTabsVariant { Primary, Neutral }
+
+/**
+ * **ODS 탭**(9/30) — 옛 OdsTabs 를 ODS 규격으로 올린 것. iOS `OdsTabs`(GLGChip.swift) 와 같은 값.
+ * 트랙 반경 14 · 안쪽 3 · 칸 32(서브라벨 46) · 알약 반경 11 · 라벨 12.5 SemiBold, 비선택 #6C727A.
+ */
 @Composable
-fun GlgSegmentedTabs(
+fun OdsTabs(
     labels: List<String>,
     selected: Int,
     modifier: Modifier = Modifier,
+    variant: OdsTabsVariant = OdsTabsVariant.Primary,
     /**
      * 라벨 아래 붙는 작은 둘째 줄(요일 등). 주면 칸이 두 줄 높이가 된다.
      * 크기가 [labels] 와 같아야 한다 — 모자란 칸은 한 줄로 그린다.
@@ -593,14 +563,16 @@ fun GlgSegmentedTabs(
     val sel = selected.coerceIn(0, labels.lastIndex)
     val twoLine = subLabels != null
     val cellHeight = if (twoLine) GlgSegmentHeightTwoLine else GlgSegmentHeight
-    val fill = selectedColors?.getOrNull(sel) ?: accent
+    val neutral = variant == OdsTabsVariant.Neutral
+    val fill = if (neutral) Color.White else selectedColors?.getOrNull(sel) ?: accent
     val fillColor by animateColorAsState(fill, glgStandardSpec(), label = "segmentFill")
+    val selText = if (neutral) TextPrimary else Color.White
     BoxWithConstraints(
         modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(14.dp))
-            .background(Color.White)
-            .border(1.dp, ChipIdleBorder, RoundedCornerShape(14.dp))
+            .background(if (neutral) Color(0xFFF1F2F4) else Color.White)
+            .border(1.dp, if (neutral) Color.Transparent else ChipIdleBorder, RoundedCornerShape(14.dp))
             .padding(3.dp),
     ) {
         val cellWidth = maxWidth / labels.size
@@ -610,13 +582,14 @@ fun GlgSegmentedTabs(
                 .offset(x = slide)
                 .width(cellWidth)
                 .height(cellHeight)
+                .then(if (neutral) Modifier.shadow(1.dp, RoundedCornerShape(11.dp), ambientColor = Color(0x14000000), spotColor = Color(0x14000000)) else Modifier)
                 .clip(RoundedCornerShape(11.dp))
                 .background(fillColor),
         )
         Row(Modifier.fillMaxWidth()) {
             labels.forEachIndexed { i, label ->
                 val labelColor by animateColorAsState(
-                    if (i == sel) Color.White else ChipIdleText,
+                    if (i == sel) selText else TextSecondary,
                     glgStandardSpec(),
                     label = "segmentLabel",
                 )
@@ -632,7 +605,7 @@ fun GlgSegmentedTabs(
                     Text(
                         label,
                         fontSize = 12.5.sp,
-                        fontWeight = FontWeight.SemiBold,
+                        fontWeight = if (neutral && i == sel) FontWeight.Bold else FontWeight.SemiBold,
                         color = labelColor,
                         maxLines = 1,
                     )
@@ -642,7 +615,7 @@ fun GlgSegmentedTabs(
                             sub,
                             fontSize = 10.sp,
                             fontWeight = FontWeight.Medium,
-                            color = if (i == sel) Color.White.copy(alpha = 0.85f) else ChipIdleText.copy(alpha = 0.75f),
+                            color = if (i == sel) selText.copy(alpha = 0.85f) else TextSecondary.copy(alpha = 0.75f),
                             maxLines = 1,
                         )
                     }
@@ -694,6 +667,7 @@ fun GlgDialog(
             dismissOnClickOutside = dismissable,
         ),
     ) {
+        LightSystemBarsInWindow()
         Box(Modifier.fillMaxWidth().dismissKeyboardOnTap().padding(24.dp), contentAlignment = Alignment.Center) {
             androidx.compose.material3.Surface(
                 shape = RoundedCornerShape(24.dp),

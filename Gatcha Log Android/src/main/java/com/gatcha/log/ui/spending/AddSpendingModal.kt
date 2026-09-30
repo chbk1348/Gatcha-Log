@@ -36,6 +36,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
+import com.gatcha.log.ui.components.OdsChip
 import com.gatcha.log.ui.components.GlassCard
 import com.gatcha.log.ui.components.glgAccentCardBorder
 import androidx.compose.ui.graphics.Color
@@ -782,7 +783,7 @@ private fun SectionRowLabel(text: String) {
  */
 @Composable
 private fun GameSelectItem(game: Game, isSelected: Boolean, onClick: () -> Unit) {
-    GlgChip(label = game.shortName, selected = isSelected, color = game.color.toColor(), onClick = onClick)
+    OdsChip(game.shortName, onClick, selected = isSelected, color = game.color.toColor())
 }
 
 /**
@@ -871,7 +872,7 @@ private fun PackageCard(pkg: GamePackage, isSelected: Boolean, modifier: Modifie
 
 @Composable
 private fun ChoiceChip(label: String, selected: Boolean, onClick: () -> Unit) {
-    GlgChip(label = label, selected = selected, onClick = onClick)
+    OdsChip(label, onClick, selected = selected)
 }
 
 /** 구매 횟수 스텝퍼 — 단가·재화 총량을 함께 보여줘 '몇 번 사서 얼마·재화 얼마인지' 검증 가능하게. */

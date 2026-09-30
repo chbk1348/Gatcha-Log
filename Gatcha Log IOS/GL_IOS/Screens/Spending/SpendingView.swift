@@ -137,6 +137,8 @@ struct SpendingView: View {
             .padding(.horizontal, 16)
         }
         .scrollIndicators(.hidden)
+        // 퀵필터 메뉴가 칩에서 부풀어 열릴 때 스크롤뷰가 그 바깥을 잘랐다(9/30) — 자르지 않는다.
+        .scrollClipDisabled()
         .refreshable {
             store.refreshSpending()
             // 동기화가 끝날 때까지 스피너를 붙잡는다 — 바로 돌아오면 끝나기도 전에 스피너가 걷혔다.
@@ -397,7 +399,7 @@ struct SpendingView: View {
             // 기록은 있는데 필터에 다 걸렸으면 "없어요" 가 아니라 필터를 풀 길을 준다.
             if !store.spendings.isEmpty {
                 Text("조건에 맞는 지출이 없어요").font(.pretendard(size: 14)).foregroundStyle(GLGColor.textSecondary)
-                GLGGlassChip(label: "필터 초기화") {
+                OdsButton(title: "필터 초기화", variant: .secondary, size: .s, fullWidth: false) {
                     gameFilters = []; period = .all; paymentFilter = nil; sortOrder = .dateDesc
                 }
                 .padding(.top, 6)
@@ -419,7 +421,8 @@ struct SpendingView: View {
     // 결제 수단·구분은 드롭다운으로 두지 않는다(자주 안 바뀐다). 걸려 있으면 아랫줄에 해제 칩으로 뜬다.
     private var quickFilters: some View {
         VStack(alignment: .leading, spacing: 6) {
-            ScrollView(.horizontal) {
+            // 스크롤뷰에 넣지 않는다(9/30) — iOS 26 메뉴가 칩에서 부풀어 열릴 때 스크롤뷰가 그 바깥을 잘랐다.
+            // ODS 칩 3개라 한 줄에 들어간다.
                 HStack(spacing: 6) {
                     // 기간 — 단일 선택.
                     quickMenu(label: period == .all ? "기간" : period.rawValue, active: period != .all) {
@@ -456,15 +459,9 @@ struct SpendingView: View {
                         }
                     }
                 }
-                // 글래스 버튼은 글자 상자보다 크게 그려진다(하이라이트·그림자·눌림 효과).
-                // 여백이 빠듯하면 스크롤뷰가 그 바깥을 잘라 위아래가 깎여 보인다.
-                .padding(.vertical, 6)
-                .padding(.horizontal, 1)
-            }
-            .scrollIndicators(.hidden)
-            // 내용이 한 줄에 다 들어가면 좌우로 안 밀린다 — 안 넘칠 때도 스와이프가 먹으면
-            // 리스트를 만지려던 손가락이 헛돈다.
-            .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
+                .padding(.vertical, 4)
+                // 라벨이 바뀌며 칩 폭이 변할 때 줄 전체가 미끄러지지 않게 — 레이아웃 애니메이션을 끊는다.
+                .transaction { $0.animation = nil }
 
             // '기간 지정'을 고르면 아래로 펼쳐진다 — 평소엔 줄 자체가 없다.
             //
@@ -484,13 +481,14 @@ struct SpendingView: View {
                 ScrollView(.horizontal) {
                     HStack(spacing: 6) {
                         if let m = paymentFilter {
-                            GLGGlassChip(label: "\(m)  ✕", selected: true) { paymentFilter = nil }
+                            OdsChip(label: m, selected: true, removable: true) { paymentFilter = nil }
                         }
                     }
                     .padding(.vertical, 6)
                     .padding(.horizontal, 1)
                 }
                 .scrollIndicators(.hidden)
+                .scrollClipDisabled()
                 .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
             }
         }
@@ -506,10 +504,10 @@ struct SpendingView: View {
     /// 띄운다 — 크기가 구조적으로 같아진다.
     private var customRangeRow: some View {
         HStack(spacing: 6) {
-            GLGGlassChip(label: dateChipLabel(customStart), selected: true) { showStartPicker = true }
+            OdsChip(label: dateChipLabel(customStart), selected: true) { showStartPicker = true }
                 .popover(isPresented: $showStartPicker) { datePopover($customStart) }
             Text("~").font(.pretendard(size: 12, weight: .semibold)).foregroundStyle(GLGColor.textSecondary)
-            GLGGlassChip(label: dateChipLabel(customEnd), selected: true) { showEndPicker = true }
+            OdsChip(label: dateChipLabel(customEnd), selected: true) { showEndPicker = true }
                 .popover(isPresented: $showEndPicker) { datePopover($customEnd) }
         }
         .padding(.vertical, 4)
@@ -545,30 +543,19 @@ struct SpendingView: View {
     /// (`.transaction { $0.animation = nil }`)으로는 못 막는다 — 실제로 시도했고 효과 없었다.
     /// 채움을 빼자 즉시 사라졌다.
     ///
-    /// 그래서 걸림은 **채움이 아니라 색**으로 알린다 — 강조색 글자 + 앞의 점. 둘 다 값 변경이라
-    /// 뷰 교체가 없고, 모프가 통째로 스냅샷을 떠도 번질 색 면적이 없다.
-    /// (`GLGGlassChip` 은 `.glassProminent` 를 계속 쓰지만 **`Menu` 가 아니라 `Button`** 이라
-    ///  모프 대상이 아니다 — 그래서 ✕ 해제 칩·날짜 알약은 멀쩡하다)
+    /// 그래서 걸림은 **채움이 아니라** 강조색 테두리 · 글자로 알린다(ODS 칩, 9/30) — 모프가 통째로
+    /// 스냅샷을 떠도 번질 색 면적이 없다.
     private func quickMenu<C: View>(label: String, active: Bool, @ViewBuilder content: () -> C) -> some View {
         Menu {
             content()
         } label: {
-            HStack(spacing: 0) {
-                // 걸림 표시 점 — 안 걸렸으면 **폭 0** 이라 글자 왼쪽에 빈 자리가 남지 않는다.
-                //
-                // 점을 `if active` 로 넣었다 뺐다 하지 않는 이유: 그건 뷰 교체라 SwiftUI 가 지웠다
-                // 새로 만들고, 그 자리에 전환 애니메이션이 붙을 여지가 생긴다. 폭·여백을 **값으로**
-                // 0 과 5 사이에서 바꾸면 같은 뷰가 그대로 남아 그럴 일이 없다.
-                Circle()
-                    .fill(active ? accent.primary : Color.clear)
-                    .frame(width: active ? 6 : 0, height: 6)
-                    .padding(.trailing, active ? 5 : 0)
-                Text("\(label)  ▾")
-            }
+            // ODS 칩(9/30) — 걸림은 채움이 아니라 강조색 테두리 · 글자(모프 때 번지지 않게, 위 설명).
+            OdsChipLabel(label: label, selected: active, dropdown: true)
+                .fixedSize()
         }
-        .font(.pretendard(size: 13, weight: .bold))
-        .glgGlassChipStyle(selected: false)
-        .tint(active ? accent.primary : GLGColor.textSecondary)
+        .buttonStyle(.plain)
+        // 라벨이 길어져도 Menu 가 옛 크기로 잘랐다(iOS 26) — 라벨이 바뀌면 새로 만들어 크기를 다시 잰다.
+        .id("\(label)|\(active)")
     }
 
     /// 접힌 상태에서도 몇 개가 걸렸는지 보이게 — 0개=축 이름, 1개=게임 약칭, 그 이상=개수.
@@ -748,7 +735,7 @@ private func prevYM(_ y: Int, _ m: Int) -> (Int, Int) { m == 1 ? (y - 1, 12) : (
 struct GamePill: View {
     let label: String; let selected: Bool; let accent: Color; let action: () -> Void
     var body: some View {
-        GLGChip(label: label, selected: selected, color: accent, action: action)
+        OdsChip(label: label, selected: selected, color: accent, action: action)
     }
 }
 
@@ -897,13 +884,14 @@ private struct BulkEditSheet: View {
             }
             .background(Color.white)
             .navigationTitle("일괄 편집").navigationBarTitleDisplayMode(.inline)
-            // 취소 · 적용은 시트 아래 ODS 버튼 쌍(Android 와 같이, 폭 1 : 1.4).
+            // iOS 는 저장(적용)을 헤더 시스템 버튼으로(9/30 사용자 지정).
             // 아무것도 안 바꿨으면 적용할 게 없다 — 예전엔 눌리면 선택만 풀렸다.
-            .safeAreaInset(edge: .bottom, spacing: 0) {
-                SpendingButtonPair(secondary: "취소", primary: "적용", ratio: 1.4,
-                           primaryEnabled: game != nil || date != nil || !tags.isEmpty,
-                           onSecondary: { dismiss() },
-                           onPrimary: { onApply(game, date.map { Int64($0.timeIntervalSince1970 * 1000) }, Array(tags)) })
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("취소") { dismiss() } }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("적용") { onApply(game, date.map { Int64($0.timeIntervalSince1970 * 1000) }, Array(tags)) }
+                        .disabled(game == nil && date == nil && tags.isEmpty)
+                }
             }
             .sheet(isPresented: $showDate) {
                 NavigationStack {

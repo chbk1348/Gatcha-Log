@@ -29,6 +29,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.gatcha.log.data.GameData
 import com.gatcha.log.data.Spending
 import com.gatcha.log.data.SpendingInsightStats
+import com.gatcha.log.ui.components.OdsTabs
+import com.gatcha.log.ui.components.OdsTabsVariant
 import com.gatcha.log.ui.components.GlassCard
 import com.gatcha.log.ui.components.GlgDetailHeaderOverlay
 import com.gatcha.log.ui.components.glgDetailContentTop
@@ -80,7 +82,7 @@ fun SpendingInsightScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
             }
 
             var tab by remember { mutableStateOf(0) }
-            InsightTabToggle(tab, { tab = it }, accent)
+            InsightTabToggle(tab, { tab = it })
             if (tab == 0) {
                 // "N월 지출" 요약(지출 목록 상단에서 이동) — 월간 인사이트 맨 위.
                 MonthlySummaryCard(month, monthTotal, prevMonthTotal)
@@ -288,24 +290,9 @@ private fun TagBreakdownCard(spendings: List<Spending>, accent: Color) {
 // ---------------------------------------------------------------- 공통 UI
 /** 월간 인사이트 / 연간 리포트 세그먼트 토글. */
 @Composable
-private fun InsightTabToggle(tab: Int, onTab: (Int) -> Unit, accent: Color) {
-    val labels = listOf("월간 인사이트", "연간 리포트")
-    Row(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(13.dp)).background(Color(0xFFF1F1F4)).padding(4.dp),
-        horizontalArrangement = Arrangement.spacedBy(4.dp),
-    ) {
-        labels.forEachIndexed { i, label ->
-            val sel = i == tab
-            Box(
-                Modifier.weight(1f).clip(RoundedCornerShape(10.dp))
-                    .background(if (sel) Color.White else Color.Transparent)
-                    .clickable { onTab(i) }.padding(vertical = 9.dp),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(label, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = if (sel) TextPrimary else TextSecondary)
-            }
-        }
-    }
+private fun InsightTabToggle(tab: Int, onTab: (Int) -> Unit) {
+    // ODS 탭 Neutral — 같은 데이터의 보기 방식 전환(9/30).
+    OdsTabs(listOf("월간 인사이트", "연간 리포트"), tab, variant = OdsTabsVariant.Neutral, onSelect = onTab)
 }
 
 @Composable

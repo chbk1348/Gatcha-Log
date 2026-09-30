@@ -1,5 +1,6 @@
 package com.gatcha.log.ui.game
 
+import com.gatcha.log.ui.components.LightSystemBarsInWindow
 import android.app.Activity
 import androidx.core.view.WindowCompat
 import androidx.compose.ui.platform.LocalView
@@ -2959,6 +2960,7 @@ private fun KeyStatSheet(
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState, containerColor = Color.White) {
+        LightSystemBarsInWindow()
         Column(Modifier.padding(horizontal = 20.dp).padding(bottom = 28.dp)) {
             Text("점수 기준", fontSize = 17.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
             Spacer(Modifier.height(4.dp))

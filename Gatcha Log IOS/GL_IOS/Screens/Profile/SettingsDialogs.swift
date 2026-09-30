@@ -58,18 +58,10 @@ struct BudgetSheet: View {
             .background(Color.white)
             .navigationTitle("예산 관리")
             .navigationBarTitleDisplayMode(.inline)
-            // 취소 · 저장은 하단 ODS 버튼(9/30) — Android BudgetDialog(GlgDialog) 와 같은 1 : 1.4.
-            .safeAreaInset(edge: .bottom, spacing: 0) {
-                GeometryReader { g in
-                    HStack(spacing: 10) {
-                        OdsButton(title: "취소", variant: .secondary) { dismiss() }
-                            .frame(width: (g.size.width - 10) / 2.4)
-                        OdsButton(title: "저장") { save() }
-                    }
-                }
-                .frame(height: OdsSize.m.height)
-                .padding(.horizontal, 16).padding(.vertical, 12)
-                .background(Color.white)
+            // iOS 는 저장을 헤더 시스템 버튼으로(9/30 사용자 지정).
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("취소") { dismiss() } }
+                ToolbarItem(placement: .confirmationAction) { Button("저장") { save() } }
             }
             .onAppear(perform: load)
         }
@@ -227,17 +219,10 @@ struct UpdateLogPage: View {
     /// 분류 필터 — iOS 시스템 세그먼트 컨트롤(가로 스크롤 칩에서 교체).
     /// 항목이 다섯뿐이라 한 화면에 들어가고, 시스템 컨트롤이라 위치·크기·동작이 OS 표준을 따른다.
     private var filterBar: some View {
-        Picker("분류", selection: Binding(
-            get: { filter ?? "" },
-            set: { filter = $0.isEmpty ? nil : $0 },
-        )) {
-            Text("전체").tag("")
-            Text("신규").tag("new")
-            Text("개선").tag("imp")
-            Text("수정").tag("fix")
-            Text("보안").tag("sec")
-        }
-        .pickerStyle(.segmented)
+        OdsTabs(labels: ["전체", "신규", "개선", "수정", "보안"], selection: Binding(
+            get: { ["", "new", "imp", "fix", "sec"].firstIndex(of: filter ?? "") ?? 0 },
+            set: { i in let k = ["", "new", "imp", "fix", "sec"][i]; filter = k.isEmpty ? nil : k }
+        ))
         .padding(.horizontal, 18)
         .padding(.vertical, 10)
         .background(Color.white)

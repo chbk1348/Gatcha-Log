@@ -114,3 +114,58 @@ struct OdsButtonStyle: ButtonStyle {
             .animation(.easeOut(duration: 0.12), value: pressed)
     }
 }
+
+// ════════════════════════════════════════════════════════════════════════════
+// ODS 칩(9/30) — 필터 · 선택용 알약. Android `OdsChip` 과 같은 값.
+// 높이 32 · 좌우 12 · 13 Bold. 기본 흰 면 + 1 #E3E5EA, 선택은 **면을 채우지 않고** 강조색 1.5 테두리 + deep 글자
+// (Menu 라벨의 글래스 모프 때 채운 면이 번져 보였다). dropdown 은 ▾, removable 은 ✕.
+// ════════════════════════════════════════════════════════════════════════════
+
+/// 모양만 — `Menu` 라벨처럼 버튼이 따로 있는 자리에서 쓴다.
+struct OdsChipLabel: View {
+    let label: String
+    var selected: Bool = false
+    var dropdown: Bool = false
+    var removable: Bool = false
+    /// 선택색 — 게임 칩처럼 칸 자체가 색을 갖는 자리. nil 이면 강조색(글자는 deep).
+    var color: Color? = nil
+    @Environment(\.glgAccent) private var accent
+
+    var body: some View {
+        let line = color ?? accent.primary
+        let fg = selected ? (color ?? accent.deep) : GLGColor.textPrimary
+        HStack(spacing: 3) {
+            Text(label).font(.pretendard(size: 13, weight: .bold)).lineLimit(1)
+            if dropdown { Image(systemName: "chevron.down").font(.system(size: 10, weight: .bold)).foregroundStyle(selected ? fg : GLGColor.textSecondary) }
+            if removable { Image(systemName: "xmark").font(.system(size: 10, weight: .bold)) }
+        }
+        .foregroundStyle(fg)
+        .padding(.horizontal, 12)
+        .frame(height: 32)
+        .background(Color.white, in: Capsule())
+        .overlay(Capsule().strokeBorder(selected ? line : Color(hex: 0xFFE3E5EA), lineWidth: selected ? 1.5 : 1))
+        .contentShape(Capsule())
+        .animation(.easeOut(duration: 0.15), value: selected)
+    }
+}
+
+struct OdsChip: View {
+    let label: String
+    var selected: Bool = false
+    var dropdown: Bool = false
+    var removable: Bool = false
+    var color: Color? = nil
+    let action: () -> Void
+    var body: some View {
+        Button(action: action) {
+            OdsChipLabel(label: label, selected: selected, dropdown: dropdown, removable: removable, color: color)
+        }
+        .buttonStyle(OdsChipPress())
+    }
+}
+
+private struct OdsChipPress: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label.scaleEffect(configuration.isPressed ? 0.95 : 1).animation(.easeOut(duration: 0.1), value: configuration.isPressed)
+    }
+}

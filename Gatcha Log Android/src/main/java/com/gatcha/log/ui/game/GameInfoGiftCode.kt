@@ -34,7 +34,7 @@ import com.gatcha.log.ui.components.OdsSize
 import com.gatcha.log.ui.components.OdsTextField
 import com.gatcha.log.ui.components.OdsVariant
 import com.gatcha.log.ui.components.GlgChip
-import com.gatcha.log.ui.components.GlgSegmentedTabs
+import com.gatcha.log.ui.components.OdsTabs
 import com.gatcha.log.ui.components.GlgDetailHeaderOverlay
 import com.gatcha.log.ui.components.glgDetailContentTop
 import com.gatcha.log.ui.components.GlgScreenHeader
@@ -89,11 +89,11 @@ internal fun GiftCodePage(
                     Text("HoYoLAB 연동 후 UID가 있어야 코드를 교환할 수 있어요", fontSize = 13.sp, color = TextSecondary, modifier = Modifier.padding(16.dp))
                 }
             } else {
-                // 게임 탭 — 호요랜드 일자 탭과 **같은 세그먼트 규격**이다([GlgSegmentedTabs]).
+                // 게임 탭 — 호요랜드 일자 탭과 **같은 세그먼트 규격**이다([OdsTabs]).
                 //
                 // 칩 셋을 나란히 두면 서로 독립된 버튼처럼 보여, 지금 어느 게임의 코드를 보고
                 // 있는지가 약하게 읽혔다. 트랙 하나에 담으면 배타 선택이라는 게 모양에서 나온다.
-                GlgSegmentedTabs(
+                OdsTabs(
                     labels = games.map { it.second },
                     selected = games.indexOfFirst { it.first == selected }.coerceAtLeast(0),
                     modifier = Modifier.padding(top = 4.dp),

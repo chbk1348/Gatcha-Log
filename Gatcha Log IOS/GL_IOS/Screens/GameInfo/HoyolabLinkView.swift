@@ -25,6 +25,8 @@ struct HoyolabLinkView: View {
         ScrollView {
                 // 설정 하위 페이지 다듬기(9/29) — 온보딩 ④와 같은 남색 로그인 카드 + 묶음 제목 + 흰 카드. Android 파리티.
                 VStack(alignment: .leading, spacing: 0) {
+                    // 주의 문구는 맨 위 배너 하나로(9/30) — 흩어져 있던 세 문구를 합쳤다. Android 와 같은 문구.
+                    notice
                     Button { showEmailGuide = true } label: {
                         HStack(spacing: 12) {
                             VStack(alignment: .leading, spacing: 3) {
@@ -42,7 +44,7 @@ struct HoyolabLinkView: View {
                                                    startPoint: .topLeading, endPoint: .bottomTrailing),
                                     in: RoundedRectangle(cornerRadius: 20, style: .continuous))
                         .contentShape(Rectangle())
-                    }.buttonStyle(.plain)
+                    }.buttonStyle(.plain).padding(.top, 12)
 
                     if let msg = collectedMsg {
                         Text(msg).font(.pretendard(size: 12.5, weight: .bold)).foregroundStyle(Color(hex: 0xFF177881))
@@ -51,10 +53,8 @@ struct HoyolabLinkView: View {
                             .background(Color(hex: 0xFFEEF8F8), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
                             .padding(.top, 8)
                     }
-                    Text("비공식 연동이며, 토큰은 이 기기에만 저장돼요(클라우드 · 백업에 포함되지 않음).")
-                        .font(.pretendard(size: 11.5)).foregroundStyle(Color(hex: 0xFF7A8784)).padding(.horizontal, 4).padding(.top, 10)
 
-                    SetGroupTitle(title: "계정 토큰", caption: "개인 정보 · 공유 금지")
+                    SetGroupTitle(title: "계정 토큰", caption: "직접 입력해도 돼요")
                     SetCard {
                         VStack(spacing: 10) {
                             field("ltuid", $ltuid)
@@ -70,17 +70,11 @@ struct HoyolabLinkView: View {
                             field("젠레스 UID", $zzz)
                         }.padding(14)
                     }
-                    Text("구글 로그인 시 게임 UID 는 계정에 함께 동기화돼 다른 기기에서도 그대로 사용돼요. 보안을 위해 ltuid·ltoken·cookie_token 등 토큰은 동기화하지 않으며, 새 기기에서는 다시 로그인해 가져와야 해요.")
-                        .font(.pretendard(size: 11.5)).foregroundStyle(Color(hex: 0xFF7A8784)).padding(.horizontal, 4).padding(.top, 10)
                 }
                 .padding(.horizontal, 16).padding(.top, 16).padding(.bottom, 8)
             }
-            // 「저장」은 하단에 상시 고정 — 예산 관리와 같은 바. Android 와 같은 자리.
-            .safeAreaInset(edge: .bottom, spacing: 0) {
-                OdsButton(title: "저장", size: .l) { save() }
-                    .padding(.horizontal, 16).padding(.top, 10).padding(.bottom, 8)
-                    .background(Color.white.shadow(color: .black.opacity(0.08), radius: 8).ignoresSafeArea(edges: .bottom))
-            }
+            // iOS 는 저장을 헤더 시스템 버튼으로(9/30 사용자 지정). Android 는 하단 고정 ODS 버튼.
+            .toolbar { ToolbarItem(placement: .topBarTrailing) { Button("저장") { save() }.fontWeight(.bold) } }
             .background(GLGBackground { Color.clear })
             .glgPageTitle("HoYoLAB 계정 연동")
             .navigationBarTitleDisplayMode(.inline)
@@ -98,6 +92,30 @@ struct HoyolabLinkView: View {
         }
         .sheet(isPresented: $showLogin) { loginSheet }
     }
+
+    /// 주의 배너 — 설정 경고 띠와 같은 주황 톤.
+    private var notice: some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: "exclamationmark.triangle.fill").font(.system(size: 14)).foregroundStyle(Color(hex: 0xFFC2410C)).padding(.top, 1)
+            VStack(alignment: .leading, spacing: 4) {
+                Text("연동 전에 확인해 주세요").font(.pretendard(size: 13, weight: .bold)).foregroundStyle(Color(hex: 0xFFC2410C))
+                ForEach(Self.noticeLines, id: \.self) { line in
+                    Text("· \(line)").font(.pretendard(size: 12)).foregroundStyle(Color(hex: 0xFF7C2D12))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 14).padding(.vertical, 12)
+        .background(Color(hex: 0xFFFFF4E8), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(Color(hex: 0xFFFED7AA), lineWidth: 1))
+    }
+
+    private static let noticeLines = [
+        "비공식 연동이에요. 토큰은 이 기기에만 저장되고 백업 · 동기화되지 않아요.",
+        "게임 UID 만 계정에 동기화돼요. 새 기기에서는 다시 로그인해 토큰을 가져와 주세요.",
+        "토큰은 개인 정보예요. 다른 사람과 공유하지 마세요."
+    ]
 
     private var loginSheet: some View {
         NavigationStack {

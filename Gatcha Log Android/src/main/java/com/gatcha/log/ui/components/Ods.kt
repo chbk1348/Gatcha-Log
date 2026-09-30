@@ -20,6 +20,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalTextStyle
@@ -236,4 +239,61 @@ fun OdsFieldLabel(text: String, modifier: Modifier = Modifier) {
 fun Modifier.dismissKeyboardOnTap(): Modifier = composed {
     val focus = LocalFocusManager.current
     pointerInput(Unit) { detectTapGestures { focus.clearFocus() } }
+}
+
+/**
+ * ODS 칩(9/30) — 필터 · 선택용 알약. iOS `OdsChip` · `OdsChipLabel` 과 같은 값.
+ * 높이 32 · 좌우 12 · 13 Bold. 기본 흰 면 + 1 #E3E5EA, **선택은 면을 채우지 않고** 강조색 1.5 테두리 + deep 글자
+ * (iOS 메뉴 모프 때 채운 면이 번져 보였다 — 두 플랫폼 같은 모양으로 맞춘다).
+ * [dropdown] 은 ▾(메뉴가 열리는 칩), [removable] 은 ✕(눌러 해제).
+ */
+@Composable
+fun OdsChip(
+    label: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    selected: Boolean = false,
+    dropdown: Boolean = false,
+    removable: Boolean = false,
+    /** 선택색 — 게임 칩처럼 칸 자체가 색을 갖는 자리. null 이면 강조색(글자는 deep). */
+    color: Color? = null,
+) {
+    val accent = color ?: LocalAccent.current
+    val deep = color ?: LocalAccentDeep.current
+    val border by animateColorAsState(if (selected) accent else OdsChipLine, label = "odsChipBorder")
+    val shape = RoundedCornerShape(50)
+    Row(
+        modifier
+            .height(32.dp)
+            .clip(shape)
+            .background(Color.White)
+            .border(if (selected) 1.5.dp else 1.dp, border, shape)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(3.dp),
+    ) {
+        val fg = if (selected) deep else TextPrimary
+        Text(label, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = fg, maxLines = 1)
+        if (dropdown) Icon(Icons.Default.KeyboardArrowDown, null, tint = if (selected) deep else TextSecondary, modifier = Modifier.size(16.dp))
+        if (removable) Icon(Icons.Default.Close, null, tint = fg, modifier = Modifier.size(14.dp))
+    }
+}
+
+private val OdsChipLine = Color(0xFFE3E5EA)
+
+/**
+ * 다이얼로그 · 바텀시트 창에서도 상단 · 하단 시스템 바 아이콘을 어둡게(9/30) — 별도 창은 액티비티 설정을 물려받지 않아
+ * 다이얼로그가 뜨면 상단바 아이콘이 흰색으로 바뀌었다. 창 content 안에서 한 번 부른다.
+ */
+@Composable
+fun LightSystemBarsInWindow() {
+    val view = androidx.compose.ui.platform.LocalView.current
+    androidx.compose.runtime.SideEffect {
+        val window = (view.parent as? androidx.compose.ui.window.DialogWindowProvider)?.window ?: return@SideEffect
+        androidx.core.view.WindowCompat.getInsetsController(window, window.decorView).apply {
+            isAppearanceLightStatusBars = true
+            isAppearanceLightNavigationBars = true
+        }
+    }
 }

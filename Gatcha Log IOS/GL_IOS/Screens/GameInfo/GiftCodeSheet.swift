@@ -39,11 +39,6 @@ struct GiftCodePage: View {
                             codeList.padding(.top, 10)
                         }
                     }
-                    // 모두 교환 — Android 와 같이 코드 카드 아래 ODS 버튼(예전엔 툴바).
-                    if pending > 0 {
-                        OdsButton(title: loading ? "교환 중…" : "모두 교환 (\(pending))") { store.redeemAllCodes(selected) }
-                            .disabled(loading)
-                    }
                     GLGCard(cornerRadius: 20, padding: 16) { directInput }
                     statusText.padding(.horizontal, 2)
                 }
@@ -55,6 +50,14 @@ struct GiftCodePage: View {
         .background(GLGBackground { Color.clear })
         .glgPageTitle("리딤코드")
         .navigationBarTitleDisplayMode(.inline)
+        // 모두 교환 — iOS 는 헤더 시스템 버튼(9/30 사용자 지정). Android 는 코드 카드 아래 ODS 버튼.
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button(loading ? "교환 중…" : "모두 교환") { store.redeemAllCodes(selected) }
+                    .fontWeight(.bold)
+                    .disabled(pending == 0 || loading || games.isEmpty)
+            }
+        }
         .onAppear {
             if !didInit { didInit = true; selected = games.first?.0 ?? "genshin"; if !games.isEmpty { store.loadActiveCodes(selected) } }
         }
@@ -67,12 +70,11 @@ struct GiftCodePage: View {
     /// 예전엔 게임별 대표색으로 칠한 칩이었다. 같은 위치에 있는 다른 상세 페이지의 탭과 혼자
     /// 달라 보였고, 세 게임 이름이 길어 폭도 들쭉날쭉했다. 색으로 게임을 말할 자리는 코드 카드다.
     private var gameTabs: some View {
-        Picker("게임", selection: $selected.animation(.easeInOut(duration: 0.2))) {
-            ForEach(games, id: \.0) { key, label in
-                Text(label).tag(key)
-            }
-        }
-        .pickerStyle(.segmented)
+        // ODS 탭(9/30) — Android 리딤코드 게임 탭과 같은 컴포넌트.
+        OdsTabs(labels: games.map(\.1), selection: Binding(
+            get: { games.firstIndex { $0.0 == selected } ?? 0 },
+            set: { i in if games.indices.contains(i) { selected = games[i].0 } }
+        ))
     }
 
     private var activeHeader: some View {

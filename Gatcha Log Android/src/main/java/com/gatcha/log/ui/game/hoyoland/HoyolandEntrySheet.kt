@@ -1,5 +1,6 @@
 package com.gatcha.log.ui.game.hoyoland
 
+import com.gatcha.log.ui.components.LightSystemBarsInWindow
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -66,6 +67,7 @@ fun HoyolandEntrySheet(
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
         containerColor = Color.White,
     ) {
+        LightSystemBarsInWindow()
         Column(Modifier.fillMaxWidth().navigationBarsPadding().padding(bottom = 16.dp)) {
             // 본문만 스크롤한다 — 닫기는 **늘 아래에 보인다**([HoyolandGuideSheet] 와 같은 규칙).
             Column(

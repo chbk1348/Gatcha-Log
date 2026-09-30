@@ -1,5 +1,6 @@
 package com.gatcha.log.ui.game
 
+import com.gatcha.log.ui.components.LightSystemBarsInWindow
 import android.annotation.SuppressLint
 import android.webkit.CookieManager
 import android.webkit.WebView
@@ -37,6 +38,7 @@ import com.gatcha.log.ui.theme.LocalAccentTint
 fun HoyolabLoginDialog(onCollected: (String, String, String, String) -> Unit, onDismiss: () -> Unit) {
     val collectedCb = rememberUpdatedState(onCollected)
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        LightSystemBarsInWindow()
         Column(Modifier.fillMaxSize().background(LocalAccentTint.current)) {
             Row(
                 Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
