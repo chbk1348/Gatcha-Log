@@ -150,7 +150,7 @@ struct EnkaCharSection: View {
                 // 조회 실패 — 사유 + 다시 시도(캐시 무시 재조회). '캐릭터 없음'과 구분한다.
                 VStack(alignment: .leading, spacing: 6) {
                     Text(err).font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary)
-                    OdsButton(title: "다시 시도", variant: .secondary, size: .s, fullWidth: false) { store.autoLoadEnka(game: game, force: true) }
+                    GldsButton(title: "다시 시도", variant: .secondary, size: .s, fullWidth: false) { store.autoLoadEnka(game: game, force: true) }
                 }
                 .padding(.vertical, 12)
             } else if chars.isEmpty {
@@ -542,7 +542,7 @@ struct EnkaRosterPage: View {
                 // 조회 실패 — 사유 + 다시 시도(캐시 무시 재조회). '캐릭터 없음'과 구분한다.
                 VStack(spacing: 6) {
                     Text(err).font(.pretendard(size: 13)).foregroundStyle(GLGColor.textSecondary)
-                    OdsButton(title: "다시 시도", variant: .secondary, size: .s, fullWidth: false) { store.autoLoadEnka(game: game, force: true) }
+                    GldsButton(title: "다시 시도", variant: .secondary, size: .s, fullWidth: false) { store.autoLoadEnka(game: game, force: true) }
                 }
                 .frame(maxWidth: .infinity).padding(.top, 40)
             } else if all.isEmpty {
@@ -1864,15 +1864,15 @@ struct EnkaStatPageBody: View {
 
                 if editingKeyStats {
                     statCheckGrid(selectable)
-                    // 액션 버튼은 ODS 버튼(Primary · Secondary M) — Android 와 같은 규격(2026-09-30).
+                    // 액션 버튼은 GLDS 버튼(Primary · Secondary M) — Android 와 같은 규격(2026-09-30).
                     HStack(spacing: 8) {
-                        OdsButton(title: "저장") {
+                        GldsButton(title: "저장") {
                             onSetOverride(KeyStatRulesKt.keyStatOverrideKey(gameKey: game, charId: char.id), picked)
                             editingKeyStats = false
                         }
                         // 설정 해제 = 빈 집합 저장 → 앱 룰 추정으로 되돌아간다.
                         if v.source == .user {
-                            OdsButton(title: "기본값으로", variant: .secondary) {
+                            GldsButton(title: "기본값으로", variant: .secondary) {
                                 onSetOverride(KeyStatRulesKt.keyStatOverrideKey(gameKey: game, charId: char.id), [])
                                 editingKeyStats = false
                             }

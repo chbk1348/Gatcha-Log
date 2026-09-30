@@ -36,7 +36,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
-import com.gatcha.log.ui.components.OdsChip
+import com.gatcha.log.ui.components.GldsChip
 import com.gatcha.log.ui.components.GlassCard
 import com.gatcha.log.ui.components.glgAccentCardBorder
 import androidx.compose.ui.graphics.Color
@@ -62,8 +62,8 @@ import com.gatcha.log.data.SpendingDefaults
 import com.gatcha.log.data.currencyAmountOrNull
 import com.gatcha.log.data.currencyPullsOrNull
 import com.gatcha.log.data.Spending
-import com.gatcha.log.ui.components.OdsButton
-import com.gatcha.log.ui.components.OdsVariant
+import com.gatcha.log.ui.components.GldsButton
+import com.gatcha.log.ui.components.GldsVariant
 import com.gatcha.log.ui.components.GlgChip
 import com.gatcha.log.ui.components.GlgChipVariant
 import com.gatcha.log.ui.components.GlgDatePickerDialog
@@ -71,7 +71,7 @@ import com.gatcha.log.ui.components.GlgDetailHeaderOverlay
 import com.gatcha.log.ui.components.glgDetailContentTop
 import com.gatcha.log.ui.components.GlgDialog
 import com.gatcha.log.ui.components.GlgSwitch
-import com.gatcha.log.ui.components.OdsTextField
+import com.gatcha.log.ui.components.GldsTextField
 import com.gatcha.log.ui.theme.GlgCardReveal
 import com.gatcha.log.ui.theme.DividerColor
 import com.gatcha.log.ui.theme.glgShortSpec
@@ -374,7 +374,7 @@ fun AddSpendingModal(
                             )
                         }
                         Spacer(Modifier.height(12.dp))
-                        OdsTextField(
+                        GldsTextField(
                             value = itemName,
                             onValueChange = { itemName = it },
                             label = "재화명",
@@ -397,7 +397,7 @@ fun AddSpendingModal(
                 item {
                     GlgCardReveal(visible = gameChosen, order = 1) {
                     SectionCard {
-                        OdsTextField(
+                        GldsTextField(
                             value = DateUtil.labelWithWeekday(dateMillis),
                             onValueChange = {},
                             label = "날짜",
@@ -493,14 +493,14 @@ fun AddSpendingModal(
                             }
                         }
                         Spacer(Modifier.height(10.dp))
-                        OdsTextField(
+                        GldsTextField(
                             value = customTags,
                             onValueChange = { customTags = it },
                             placeholder = "직접 입력 (쉼표로 구분)",
                             modifier = Modifier.fillMaxWidth(),
                         )
                         Spacer(Modifier.height(14.dp))
-                        OdsTextField(
+                        GldsTextField(
                             value = memo,
                             onValueChange = { memo = it },
                             label = "메모",
@@ -525,8 +525,8 @@ fun AddSpendingModal(
                     val amountTooBig = parsedAmount > Spending.MAX_AMOUNT
                     val amountValid = parsedAmount > 0 && !amountTooBig
                     val canSave = gameChosen && amountValid
-                    OdsButton("취소", { requestDismiss() }, Modifier.weight(1f), variant = OdsVariant.Secondary)
-                    OdsButton(
+                    GldsButton("취소", { requestDismiss() }, Modifier.weight(1f), variant = GldsVariant.Secondary)
+                    GldsButton(
                         // 흐린 버튼만 두지 않는다 — 왜 못 누르는지 버튼이 직접 말한다.
                         text = when {
                             !gameChosen -> "게임을 선택하세요"
@@ -783,7 +783,7 @@ private fun SectionRowLabel(text: String) {
  */
 @Composable
 private fun GameSelectItem(game: Game, isSelected: Boolean, onClick: () -> Unit) {
-    OdsChip(game.shortName, onClick, selected = isSelected, color = game.color.toColor())
+    GldsChip(game.shortName, onClick, selected = isSelected, color = game.color.toColor())
 }
 
 /**
@@ -872,7 +872,7 @@ private fun PackageCard(pkg: GamePackage, isSelected: Boolean, modifier: Modifie
 
 @Composable
 private fun ChoiceChip(label: String, selected: Boolean, onClick: () -> Unit) {
-    OdsChip(label, onClick, selected = selected)
+    GldsChip(label, onClick, selected = selected)
 }
 
 /** 구매 횟수 스텝퍼 — 단가·재화 총량을 함께 보여줘 '몇 번 사서 얼마·재화 얼마인지' 검증 가능하게. */

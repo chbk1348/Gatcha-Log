@@ -50,7 +50,7 @@ struct GiftCodePage: View {
         .background(GLGBackground { Color.clear })
         .glgPageTitle("리딤코드")
         .navigationBarTitleDisplayMode(.inline)
-        // 모두 교환 — iOS 는 헤더 시스템 버튼(9/30 사용자 지정). Android 는 코드 카드 아래 ODS 버튼.
+        // 모두 교환 — iOS 는 헤더 시스템 버튼(9/30 사용자 지정). Android 는 코드 카드 아래 GLDS 버튼.
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Button(loading ? "교환 중…" : "모두 교환") { store.redeemAllCodes(selected) }
@@ -70,8 +70,8 @@ struct GiftCodePage: View {
     /// 예전엔 게임별 대표색으로 칠한 칩이었다. 같은 위치에 있는 다른 상세 페이지의 탭과 혼자
     /// 달라 보였고, 세 게임 이름이 길어 폭도 들쭉날쭉했다. 색으로 게임을 말할 자리는 코드 카드다.
     private var gameTabs: some View {
-        // ODS 탭(9/30) — Android 리딤코드 게임 탭과 같은 컴포넌트.
-        OdsTabs(labels: games.map(\.1), selection: Binding(
+        // GLDS 탭(9/30) — Android 리딤코드 게임 탭과 같은 컴포넌트.
+        GldsTabs(labels: games.map(\.1), selection: Binding(
             get: { games.firstIndex { $0.0 == selected } ?? 0 },
             set: { i in if games.indices.contains(i) { selected = games[i].0 } }
         ))
@@ -94,7 +94,7 @@ struct GiftCodePage: View {
             HStack(spacing: 8) {
                 Text("가려진 코드 \(store.unusableCodes.count)개")
                     .font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary)
-                OdsButton(title: "되살리기", variant: .secondary, size: .xs, fullWidth: false) { store.restoreUnusableCodes(selected) }
+                GldsButton(title: "되살리기", variant: .secondary, size: .xs, fullWidth: false) { store.restoreUnusableCodes(selected) }
             }
             .padding(.vertical, 6)
         }
@@ -107,7 +107,7 @@ struct GiftCodePage: View {
             // 수집 실패는 '코드 없음'과 다르다 — 사유를 밝히고 재시도를 준다. (Android 파리티)
             VStack(alignment: .leading, spacing: 6) {
                 Text("코드를 불러오지 못했어요").font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary)
-                OdsButton(title: "다시 시도", variant: .secondary, size: .s, fullWidth: false) { store.loadActiveCodes(selected, force: true) }
+                GldsButton(title: "다시 시도", variant: .secondary, size: .s, fullWidth: false) { store.loadActiveCodes(selected, force: true) }
             }
             .padding(.vertical, 6)
         } else if store.activeCodes.isEmpty {
@@ -154,7 +154,7 @@ struct GiftCodePage: View {
             if redeemed {
                 HStack(spacing: 3) { Image(systemName: "checkmark").font(.pretendard(size: 13)).foregroundStyle(accent.primary); Text("받음").font(.pretendard(size: 11, weight: .bold)).foregroundStyle(accent.primary) }
             } else {
-                OdsButton(title: "교환", variant: highlight ? .primary : .secondary, size: .xs, fullWidth: false) {
+                GldsButton(title: "교환", variant: highlight ? .primary : .secondary, size: .xs, fullWidth: false) {
                     store.redeemGiftCode(gameKey: selected, code: c.code)
                 }.disabled(loading)
             }
@@ -173,10 +173,10 @@ struct GiftCodePage: View {
 
     private var directInput: some View {
         VStack(alignment: .leading, spacing: 8) {
-            OdsTextField(label: "직접 입력 (새 코드)", placeholder: "예: GENSHINGIFT", text: $code).autocapitalization(.allCharacters)
+            GldsTextField(label: "직접 입력 (새 코드)", placeholder: "예: GENSHINGIFT", text: $code).autocapitalization(.allCharacters)
                 .onChange(of: code) { _, newValue in code = newValue.uppercased().filter { $0.isLetter || $0.isNumber } }
             if !code.isEmpty {
-                OdsButton(title: "이 코드 교환", variant: .secondary, size: .xs, fullWidth: false) {
+                GldsButton(title: "이 코드 교환", variant: .secondary, size: .xs, fullWidth: false) {
                     store.redeemGiftCode(gameKey: selected, code: code.trimmingCharacters(in: .whitespaces)); code = ""
                 }.disabled(loading)
             }
@@ -197,12 +197,12 @@ struct GiftCodePage: View {
     }
 }
 
-// 리딤코드 복사 버튼 — ‘교환’ 버튼과 같은 ODS XS Secondary. 탭하면 클립보드 저장 + 잠깐 ‘복사됨’ 표시.
+// 리딤코드 복사 버튼 — ‘교환’ 버튼과 같은 GLDS XS Secondary. 탭하면 클립보드 저장 + 잠깐 ‘복사됨’ 표시.
 private struct CopyCodeButton: View {
     let code: String
     @State private var copied = false
     var body: some View {
-        OdsButton(title: copied ? "복사됨" : "복사", variant: .secondary, size: .xs, fullWidth: false) {
+        GldsButton(title: copied ? "복사됨" : "복사", variant: .secondary, size: .xs, fullWidth: false) {
             UIPasteboard.general.string = code
             withAnimation(.easeOut(duration: 0.15)) { copied = true }
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { withAnimation { copied = false } }

@@ -75,7 +75,7 @@ struct HoyolandGoodsView: View {
         // 목록이 탭 뒤로 비치지 않는다.
         VStack(alignment: .leading, spacing: 0) {
             if !all.isEmpty && games.count > 1 {
-                OdsTabs(
+                GldsTabs(
                     labels: ["전체"] + games.map { event.stageLabel(game: $0) },
                     selectedColors: [accent.primary] + games.map { gameColor($0) },
                     selection: Binding(
@@ -286,7 +286,7 @@ struct HoyolandGoodsView: View {
                 // 두 상태의 높이가 26 으로 같아 전환 중에도 줄이 흔들리지 않는다.
                 Group {
                     if quantity <= 0 {
-                        OdsButton(title: "담기", variant: .secondary, size: .xs, fullWidth: false) { store.setGoodsQuantity(item.name, 1) }
+                        GldsButton(title: "담기", variant: .secondary, size: .xs, fullWidth: false) { store.setGoodsQuantity(item.name, 1) }
                             .transition(.opacity.combined(with: .scale(scale: 0.9)))
                     } else {
                         HStack(spacing: 0) {
@@ -373,7 +373,7 @@ struct HoyolandGoodsView: View {
                     .foregroundStyle(GLGColor.textPrimary)
             }
             Spacer(minLength: 8)
-            OdsButton(title: "장바구니", size: .s, fullWidth: false) { showCart = true }
+            GldsButton(title: "장바구니", size: .s, fullWidth: false) { showCart = true }
         }
         .padding(.horizontal, 16).padding(.vertical, 12)
         // 시스템 글래스(iOS26 Liquid Glass, 폴백 ultraThinMaterial) — 떠 있는 라운드 바.
@@ -660,7 +660,7 @@ struct HoyolandBoothView: View {
                 } else {
                     // 굿즈 목록과 같은 게임 탭 — 두 화면을 오갈 때 거르는 방법이 달라지면 손이 헷갈린다.
                     if games.count > 1 || !extras.isEmpty {
-                        OdsTabs(
+                        GldsTabs(
                             labels: games.map { event.stageLabel(game: $0) } + extras.map(\.label),
                             selectedColors: games.map { boothColor($0) } + extras.map { _ in accent.primary },
                             selection: Binding(
@@ -690,7 +690,7 @@ struct HoyolandBoothView: View {
                         // 먼저 가르고 싶어진다(2026-09-28 지시). DIY · 파트너사는 성격이 달라 걸지 않는다.
                         HStack(spacing: 6) {
                             ForEach(Array(["전체", "무료", "유료"].enumerated()), id: \.offset) { i, label in
-                                OdsChip(label: label, selected: priceFilter == i) { priceFilter = i }
+                                GldsChip(label: label, selected: priceFilter == i) { priceFilter = i }
                             }
                         }
                     }
@@ -1021,7 +1021,7 @@ struct HoyolandGoodsImageSheet: View {
         //
         // 숨은 쪽은 **탭도 낭독도 막는다** — 자리는 지키되 없는 것처럼 굴어야 한다.
         ZStack {
-            OdsButton(title: "담기") { store.setGoodsQuantity(item.name, 1) }
+            GldsButton(title: "담기") { store.setGoodsQuantity(item.name, 1) }
             .opacity(quantity <= 0 ? 1 : 0)
             .allowsHitTesting(quantity <= 0)
             .accessibilityHidden(quantity > 0)

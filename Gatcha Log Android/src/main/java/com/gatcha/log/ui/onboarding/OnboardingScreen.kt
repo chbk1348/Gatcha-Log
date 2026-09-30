@@ -62,9 +62,9 @@ import androidx.compose.material.icons.outlined.WarningAmber
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.Icon
-import com.gatcha.log.ui.components.OdsButton
-import com.gatcha.log.ui.components.OdsSize
-import com.gatcha.log.ui.components.OdsVariant
+import com.gatcha.log.ui.components.GldsButton
+import com.gatcha.log.ui.components.GldsSize
+import com.gatcha.log.ui.components.GldsVariant
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -307,7 +307,7 @@ fun OnboardingScreen(viewModel: SpendingViewModel, loginOnly: Boolean = false, o
 
 // ── 공통 조각 ──────────────────────────────────────────────────────────────
 
-/** ODS 하단 버튼 자리 — 아래에서 올라오는 등장 + 좌우 8 들여씀, 보조는 위 8. */
+/** GLDS 하단 버튼 자리 — 아래에서 올라오는 등장 + 좌우 8 들여씀, 보조는 위 8. */
 @Composable
 private fun Modifier.cta(primary: Boolean, delayMs: Int = if (primary) 140 else 200): Modifier =
     enterUp(delayMs).padding(horizontal = 8.dp).padding(top = if (primary) 0.dp else 8.dp).fillMaxWidth()
@@ -409,14 +409,14 @@ private fun WelcomeStep(onStart: (leave: suspend () -> Unit) -> Unit, onRestore:
             Spacer(Modifier.height(12.dp))
             Text("약 1분 · 게임 고르기 말고는 전부 건너뛸 수 있어요", fontSize = 12.sp, color = Sub, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
         }
-        OdsButton("시작하기", size = OdsSize.L, modifier = Modifier.cta(true), onClick = {
+        GldsButton("시작하기", size = GldsSize.L, modifier = Modifier.cta(true), onClick = {
             onStart {
                 // 타일이 차례로 위로 흩어진 뒤 넘어간다(0.32초)
                 leaves.forEachIndexed { i, a -> scope.launch { delay(i * 30L); a.animateTo(1f, tween(300)) } }
                 delay(320)
             }
         })
-        OdsButton("구글 로그인 하기", onRestore, Modifier.cta(false), variant = OdsVariant.Secondary)
+        GldsButton("구글 로그인 하기", onRestore, Modifier.cta(false), variant = GldsVariant.Secondary)
         Spacer(Modifier.height(16.dp))
     }
 }
@@ -456,9 +456,9 @@ private fun GamesStep(games: Set<String>, viewport: Dp, stagger: Boolean, onTogg
         }
         Spacer(Modifier.weight(1f))
         val n = games.size
-        OdsButton(
+        GldsButton(
             if (n > 0) "${n}개 선택 · 다음" else "게임을 하나 이상 골라 주세요", onNext,
-            Modifier.cta(true, if (stagger) 460 else 140), size = OdsSize.L, enabled = n > 0,
+            Modifier.cta(true, if (stagger) 460 else 140), size = GldsSize.L, enabled = n > 0,
         )
         Spacer(Modifier.height(16.dp))
     }
@@ -473,8 +473,8 @@ private fun BudgetStep(budget: Long, custom: Boolean, onBudget: (Long, Boolean) 
         Spacer(Modifier.height(28.dp))
         BudgetAmountEditor(budget, custom, onBudget)
         Spacer(Modifier.weight(1f))
-        OdsButton("다음", onNext, Modifier.cta(true), size = OdsSize.L)
-        OdsButton("예산 없이 쓸게요", onSkip, Modifier.cta(false), variant = OdsVariant.Secondary)
+        GldsButton("다음", onNext, Modifier.cta(true), size = GldsSize.L)
+        GldsButton("예산 없이 쓸게요", onSkip, Modifier.cta(false), variant = GldsVariant.Secondary)
         Spacer(Modifier.height(16.dp))
     }
 }
@@ -645,11 +645,11 @@ private fun HoyolabStep(viewModel: SpendingViewModel, hoyo: HoyolabConfig, games
         }
         Spacer(Modifier.weight(1f))
         if (linked) {
-            OdsButton("다음", onNext, Modifier.cta(true), size = OdsSize.L)
-            OdsButton("연결 해제", { viewModel.updateHoyolabConfig(HoyolabConfig()) }, Modifier.cta(false), variant = OdsVariant.Neutral)
+            GldsButton("다음", onNext, Modifier.cta(true), size = GldsSize.L)
+            GldsButton("연결 해제", { viewModel.updateHoyolabConfig(HoyolabConfig()) }, Modifier.cta(false), variant = GldsVariant.Neutral)
         } else {
-            OdsButton(if (working) "UID 확인 중…" else "HoYoLAB 로그인", { showLogin = true }, Modifier.cta(true), variant = OdsVariant.Inverse, size = OdsSize.L, enabled = !working)
-            OdsButton("나중에 연결할게요", onNext, Modifier.cta(false), variant = OdsVariant.Neutral)
+            GldsButton(if (working) "UID 확인 중…" else "HoYoLAB 로그인", { showLogin = true }, Modifier.cta(true), variant = GldsVariant.Inverse, size = GldsSize.L, enabled = !working)
+            GldsButton("나중에 연결할게요", onNext, Modifier.cta(false), variant = GldsVariant.Neutral)
         }
         Spacer(Modifier.height(16.dp))
     }
@@ -750,8 +750,8 @@ private fun NotifyStep(
             )
         }
         Spacer(Modifier.weight(1f))
-        OdsButton("알림 켜고 시작하기", { onFinish(true) }, Modifier.cta(true), size = OdsSize.L)
-        OdsButton("알림 없이 시작", { onFinish(false) }, Modifier.cta(false), variant = OdsVariant.Secondary)
+        GldsButton("알림 켜고 시작하기", { onFinish(true) }, Modifier.cta(true), size = GldsSize.L)
+        GldsButton("알림 없이 시작", { onFinish(false) }, Modifier.cta(false), variant = GldsVariant.Secondary)
         Spacer(Modifier.height(16.dp))
     }
 }
@@ -838,7 +838,7 @@ private fun DoneStep(restored: Boolean, signInNext: Boolean, summary: List<Tripl
                 GoogleSignInButton(if (restored) "Google로 로그인하기" else "Google로 로그인하고 시작하기", onClick = onDone)
             }
         } else {
-            OdsButton("홈으로 이동하기", onDone, Modifier.cta(true), size = OdsSize.L)
+            GldsButton("홈으로 이동하기", onDone, Modifier.cta(true), size = GldsSize.L)
         }
         Spacer(Modifier.height(16.dp))
     }

@@ -28,9 +28,9 @@ struct CreditsSheet: View {
             .background(GLGBackground { Color.clear })
             .navigationTitle("출처 · 저작권")
             .navigationBarTitleDisplayMode(.inline)
-            // 「확인」은 하단 ODS 버튼(9/30) — Android CreditsDialog 와 같은 자리.
+            // 「확인」은 하단 GLDS 버튼(9/30) — Android CreditsDialog 와 같은 자리.
             .safeAreaInset(edge: .bottom, spacing: 0) {
-                OdsButton(title: "확인") { dismiss() }.padding(.horizontal, 20).padding(.vertical, 12)
+                GldsButton(title: "확인") { dismiss() }.padding(.horizontal, 20).padding(.vertical, 12)
             }
         }
     }
@@ -119,7 +119,7 @@ struct UpdateLogPage: View {
     /// 분류 필터 — iOS 시스템 세그먼트 컨트롤(가로 스크롤 칩에서 교체).
     /// 항목이 다섯뿐이라 한 화면에 들어가고, 시스템 컨트롤이라 위치·크기·동작이 OS 표준을 따른다.
     private var filterBar: some View {
-        OdsTabs(labels: ["전체", "신규", "개선", "수정", "보안"], selection: Binding(
+        GldsTabs(labels: ["전체", "신규", "개선", "수정", "보안"], selection: Binding(
             get: { ["", "new", "imp", "fix", "sec"].firstIndex(of: filter ?? "") ?? 0 },
             set: { i in let k = ["", "new", "imp", "fix", "sec"][i]; filter = k.isEmpty ? nil : k }
         ))

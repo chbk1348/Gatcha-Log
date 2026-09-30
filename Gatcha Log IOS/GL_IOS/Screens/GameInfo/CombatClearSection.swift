@@ -50,7 +50,7 @@ struct CombatClearSection: View {
                     // 조회 실패는 '기록 없음'과 다르다 — 사유를 밝히고 재시도를 준다.
                     VStack(spacing: 6) {
                         Text("불러오지 못했어요").font(.pretendard(size: 13)).foregroundStyle(GLGColor.textSecondary)
-                        OdsButton(title: "다시 시도", variant: .secondary, size: .s, fullWidth: false) { store.refreshCombatClears(force: true) }
+                        GldsButton(title: "다시 시도", variant: .secondary, size: .s, fullWidth: false) { store.refreshCombatClears(force: true) }
                     }
                     .frame(maxWidth: .infinity)
                     .padding(32)
@@ -82,9 +82,9 @@ struct CombatClearSection: View {
         .task { store.refreshCombatClears() }
     }
 
-    /// 게임 필터 — 하나만 고르는 배타 선택이라 **ODS 탭**(9/30), 고른 칸은 게임색(전체는 강조색). Android 와 같다.
+    /// 게임 필터 — 하나만 고르는 배타 선택이라 **GLDS 탭**(9/30), 고른 칸은 게임색(전체는 강조색). Android 와 같다.
     private func gameChips(_ games: [String], selected: String?) -> some View {
-        OdsTabs(
+        GldsTabs(
             labels: ["전체"] + games.map { GameData.shared.byNameOrNull(name: $0)?.shortName ?? $0 },
             selectedColors: [accent.primary] + games.map { g in
                 GameData.shared.byNameOrNull(name: g).map { Color(argb64: $0.color) } ?? accent.primary
@@ -175,8 +175,8 @@ private struct ModeCard: View {
             modeTitle
             Spacer(minLength: 8)
             if hasCurrent && mode.hasPrevious {
-                // ODS 탭 neutral(9/30) — Android SeasonSegment 와 같은 168 폭.
-                OdsTabs(labels: ["이번 시즌", "지난 시즌"], selection: Binding(
+                // GLDS 탭 neutral(9/30) — Android SeasonSegment 와 같은 168 폭.
+                GldsTabs(labels: ["이번 시즌", "지난 시즌"], selection: Binding(
                     get: { showPrevious ? 1 : 0 }, set: { showPrevious = $0 == 1 }
                 ), variant: .neutral)
                 .frame(width: 168)

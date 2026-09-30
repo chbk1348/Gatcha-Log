@@ -299,7 +299,7 @@ struct DailyHeroSection: View {
                 if store.checkingIn == g.gameKey {
                     ProgressView().controlSize(.small)
                 } else {
-                    OdsButton(title: "출석", variant: .secondary, size: .xs, fullWidth: false) { store.attemptCheckIn(g.gameKey) }
+                    GldsButton(title: "출석", variant: .secondary, size: .xs, fullWidth: false) { store.attemptCheckIn(g.gameKey) }
                     // 체크인은 한 번에 한 건 — 다른 게임이 도는 중이면 VM 이 무시하므로 버튼도 막는다.
                     .disabled(store.checkingIn != nil)
                 }
@@ -317,7 +317,7 @@ struct DailyHeroSection: View {
                 .foregroundStyle(GLGColor.textPrimary).padding(.top, 12)
             Text("연동하면 행동력·일일 숙제·출석을 한곳에서 볼 수 있어요.")
                 .font(.pretendard(size: 13)).foregroundStyle(GLGColor.textSecondary).padding(.top, 8)
-            OdsButton(title: "연동하기", fullWidth: false, action: onConfig)
+            GldsButton(title: "연동하기", fullWidth: false, action: onConfig)
                 .padding(.top, 16)
         }
     }
@@ -474,7 +474,7 @@ struct AttendanceDetailView: View {
                         .foregroundStyle(GLGColor.textSecondary).padding(.bottom, 5)
                     Spacer(minLength: 8)
                     if !s.allDone {
-                        OdsButton(title: "전체 출석", size: .s, fullWidth: false, loading: store.checkingIn != nil) { store.checkInAll() }
+                        GldsButton(title: "전체 출석", size: .s, fullWidth: false, loading: store.checkingIn != nil) { store.checkInAll() }
                     }
                 }
                 .padding(.top, 10)
@@ -517,7 +517,7 @@ struct AttendanceDetailView: View {
                     Text("완료").font(.pretendard(size: 11.5, weight: .bold)).foregroundStyle(accent.primary)
                 }
             } else {
-                OdsButton(title: "출석", variant: .secondary, size: .xs, fullWidth: false) { store.attemptCheckIn(g.gameKey) }
+                GldsButton(title: "출석", variant: .secondary, size: .xs, fullWidth: false) { store.attemptCheckIn(g.gameKey) }
                 // 체크인은 한 번에 한 건 — 다른 게임이 도는 중이면 VM 이 무시하므로 버튼도 막는다.
                 .disabled(store.checkingIn != nil)
             }
@@ -723,7 +723,7 @@ private struct DailyGameRow: View {
         } else if checked {
             HStack(spacing: 4) { Image(systemName: "checkmark.circle.fill").font(.pretendard(size: 18)).foregroundStyle(accent.primary); Text("완료").font(.pretendard(size: 12, weight: .bold)).foregroundStyle(accent.primary) }
         } else {
-            OdsButton(title: "출석", variant: .secondary, size: .xs, fullWidth: false, action: onCheckIn)
+            GldsButton(title: "출석", variant: .secondary, size: .xs, fullWidth: false, action: onCheckIn)
         }
     }
 

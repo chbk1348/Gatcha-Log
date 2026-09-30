@@ -1,7 +1,7 @@
 package com.gatcha.log.ui.home
 
-import com.gatcha.log.ui.components.OdsButton
-import com.gatcha.log.ui.components.OdsSize
+import com.gatcha.log.ui.components.GldsButton
+import com.gatcha.log.ui.components.GldsSize
 import android.app.Activity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -766,7 +766,7 @@ private fun TokenExpiredBanner(onReconnect: () -> Unit) {
                 Text("재연동하지 않으면 자동 출석이 안 돼요", fontSize = 11.sp, color = TextSecondary)
             }
             Spacer(Modifier.width(8.dp))
-            OdsButton("재연동", onReconnect, size = OdsSize.S)
+            GldsButton("재연동", onReconnect, size = GldsSize.S)
         }
     }
 }

@@ -136,10 +136,10 @@ import com.gatcha.log.ui.components.GlgDetailHeaderOverlay
 import com.gatcha.log.ui.components.glgDetailContentTop
 import com.gatcha.log.ui.components.GlgChip
 import com.gatcha.log.ui.components.GlgCircleIconButton
-import com.gatcha.log.ui.components.OdsButton
-import com.gatcha.log.ui.components.OdsSize
-import com.gatcha.log.ui.components.OdsTextField
-import com.gatcha.log.ui.components.OdsVariant
+import com.gatcha.log.ui.components.GldsButton
+import com.gatcha.log.ui.components.GldsSize
+import com.gatcha.log.ui.components.GldsTextField
+import com.gatcha.log.ui.components.GldsVariant
 import com.gatcha.log.ui.components.RosterSkeleton
 import com.gatcha.log.ui.theme.DividerColor
 import com.gatcha.log.ui.theme.LocalAccent
@@ -304,7 +304,7 @@ private fun GameRosterBlock(
             // 조회 실패 — 사유와 함께 재시도를 준다. 글만 두면 '캐릭터 없음'처럼 읽혔다.
             chars.isEmpty() && result?.error != null -> Column {
                 Hint(result.error.orEmpty())
-                OdsButton("다시 시도", onClick = onRetry, variant = OdsVariant.Secondary, size = OdsSize.S)
+                GldsButton("다시 시도", onClick = onRetry, variant = GldsVariant.Secondary, size = GldsSize.S)
             }
             // 프로필도 에러도 없으면 조회할 UID 가 없던 것(VM 이 빈 결과로 채운다) — '캐릭터 없음'이 아니다.
             chars.isEmpty() && result?.profile == null -> Hint("게임 UID 가 없어요 — HoYoLAB 연동 또는 UID 입력")
@@ -375,7 +375,7 @@ fun EnkaRosterPage(
                     val focus = remember { FocusRequester() }
                     // 열자마자 칠 수 있어야 한다. 버튼을 누르고 다시 입력칸을 누르게 하면 두 번 일이다.
                     LaunchedEffect(Unit) { runCatching { focus.requestFocus() } }
-                    OdsTextField(
+                    GldsTextField(
                         value = query,
                         onValueChange = { query = it },
                         placeholder = "캐릭터 이름 검색",
@@ -599,15 +599,15 @@ private fun KeyStatEditor(
                         if (row.size == 1) Spacer(Modifier.weight(1f))
                     }
                 }
-                // 액션 버튼은 ODS 버튼(Primary · Secondary M)을 쓴다.
+                // 액션 버튼은 GLDS 버튼(Primary · Secondary M)을 쓴다.
                 // 예전엔 GlgChip 을 그대로 썼다 — 선택 칩과 완전히 같은 컴포넌트라 '저장'이
                 // 선택된 옵션 하나처럼 보였다. iOS 도 동일하게 맞췄다.
                 Spacer(Modifier.height(12.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OdsButton("저장", { onSet(picked); editing = false }, Modifier.weight(1f))
+                    GldsButton("저장", { onSet(picked); editing = false }, Modifier.weight(1f))
                     // 설정 해제 = 빈 집합 저장 → 앱 룰 추정으로 되돌아간다.
                     if (verdict.source == KeyStatSource.USER) {
-                        OdsButton("기본값으로", { onSet(emptySet()); editing = false }, Modifier.weight(1f), variant = OdsVariant.Secondary)
+                        GldsButton("기본값으로", { onSet(emptySet()); editing = false }, Modifier.weight(1f), variant = GldsVariant.Secondary)
                     }
                 }
             } else if (verdict.stats.isNotEmpty()) {

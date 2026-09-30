@@ -1,8 +1,8 @@
 package com.gatcha.log.ui.home
 
-import com.gatcha.log.ui.components.OdsButton
-import com.gatcha.log.ui.components.OdsSize
-import com.gatcha.log.ui.components.OdsVariant
+import com.gatcha.log.ui.components.GldsButton
+import com.gatcha.log.ui.components.GldsSize
+import com.gatcha.log.ui.components.GldsVariant
 import com.gatcha.log.ui.game.hoyoland.HoyolandTicketKicker
 import com.gatcha.log.ui.game.hoyoland.HoyolandTicketShape
 import com.gatcha.log.ui.game.hoyoland.HoyolandTicketStub
@@ -291,7 +291,7 @@ private fun HeroBudgetPage(monthlyTotal: Long, budget: Long, onBudget: () -> Uni
             )
         } else {
             Text("미설정", fontSize = 30.sp, fontWeight = FontWeight.Bold, color = TextSecondary)
-            OdsButton("예산 설정하기", onBudget, variant = OdsVariant.OnTint, size = OdsSize.S)
+            GldsButton("예산 설정하기", onBudget, variant = GldsVariant.OnTint, size = GldsSize.S)
         }
     }
 }

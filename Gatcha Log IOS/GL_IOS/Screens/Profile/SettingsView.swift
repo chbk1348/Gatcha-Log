@@ -401,8 +401,8 @@ struct ThemeView: View {
             // 문구는 **버튼 이름이 아니라 모양 이름**이다. 「취소 · 저장하기」로 두었더니 테마 고른 걸
             // 저장하거나 되돌리는 진짜 버튼으로 읽혔다(2026-09-21 지적 — 누르지 못하는 미리보기다).
             HStack(spacing: 8) {
-                OdsButton(title: "보조 버튼", variant: .secondary) {}
-                OdsButton(title: "강조 버튼") {}
+                GldsButton(title: "보조 버튼", variant: .secondary) {}
+                GldsButton(title: "강조 버튼") {}
             }
             .allowsHitTesting(false)
             .padding(.top, 12)
@@ -559,7 +559,7 @@ struct BudgetSettingsView: View {
                     .foregroundStyle(over ? Color(hex: 0xFFC2410C) : GLGColor.textSecondary)
             }
             Spacer(minLength: 8)
-            OdsTextField(placeholder: "한도 없음", text: Binding(
+            GldsTextField(placeholder: "한도 없음", text: Binding(
                 get: { limits[g.key] ?? "" },
                 set: { raw in
                     let n = Int64(String(raw.filter(\.isNumber).prefix(9))) ?? 0

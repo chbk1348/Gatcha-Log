@@ -194,7 +194,7 @@ struct OnboardingView: View {
                 Text("약 1분 · 게임 고르기 말고는 전부 건너뛸 수 있어요")
                     .font(.pretendard(size: 12)).foregroundStyle(OB.sub).padding(.top, 12)
             }
-            OdsButton(title: "시작하기", size: .l) {
+            GldsButton(title: "시작하기", size: .l) {
                 guard !busy, !leaving else { return }
                 // 타일이 차례로 위로 흩어진 뒤 넘어간다(0.32초)
                 leaving = true
@@ -206,7 +206,7 @@ struct OnboardingView: View {
             }
             .cta(primary: true)
             // 「구글 로그인 하기」 — 설정 단계 없이 바로 구글 로그인(기존 사용자 복원). 성공하면 onChange 가 마친다.
-            OdsButton(title: "구글 로그인 하기", variant: .secondary) { loginRequested = true; store.signIn() }.cta(primary: false)
+            GldsButton(title: "구글 로그인 하기", variant: .secondary) { loginRequested = true; store.signIn() }.cta(primary: false)
             Spacer().frame(height: 16)
         }
     }
@@ -245,7 +245,7 @@ struct OnboardingView: View {
                 }
                 .padding(.top, h < 520 ? 16 : 24)
             }
-            OdsButton(title: games.isEmpty ? "게임을 하나 이상 골라 주세요" : "\(games.count)개 선택 · 다음", size: .l) {
+            GldsButton(title: games.isEmpty ? "게임을 하나 이상 골라 주세요" : "\(games.count)개 선택 · 다음", size: .l) {
                 settled = true; go(2)
             }
             .disabled(games.isEmpty)
@@ -294,13 +294,13 @@ struct OnboardingView: View {
                 .padding(.top, 10)
             }
             // OS 알림 권한을 그 자리에서 묻고, 답하면 ⑥ 완료로(9/29). 완료 화면은 구글 로그인만.
-            OdsButton(title: "알림 켜고 시작하기", size: .l) {
+            GldsButton(title: "알림 켜고 시작하기", size: .l) {
                 alerts = true; restored = false
                 AppSettings().notifPermAsked = true
                 NotificationPermission.request { _ in go(5) }
             }
             .cta(primary: true)
-            OdsButton(title: "알림 없이 시작", variant: .secondary) { alerts = false; restored = false; go(5) }.cta(primary: false)
+            GldsButton(title: "알림 없이 시작", variant: .secondary) { alerts = false; restored = false; go(5) }.cta(primary: false)
             Spacer().frame(height: 16)
         }
     }
@@ -411,7 +411,7 @@ struct OnboardingView: View {
                     GoogleSignInButton(title: restored ? "Google로 로그인하기" : "Google로 로그인하고 시작하기") { finishDone() }
                         .padding(.horizontal, 8).enterUp(delay: 0.14)
                 } else {
-                    OdsButton(title: "홈으로 이동하기", size: .l) { finishDone() }.cta(primary: true)
+                    GldsButton(title: "홈으로 이동하기", size: .l) { finishDone() }.cta(primary: true)
                 }
             }
             Spacer().frame(height: 16)
@@ -469,7 +469,7 @@ private extension View {
 }
 
 private extension View {
-    /// ODS 하단 버튼 자리 — 좌우 8 들여씀, 보조는 위 8, 아래에서 올라오는 등장.
+    /// GLDS 하단 버튼 자리 — 좌우 8 들여씀, 보조는 위 8, 아래에서 올라오는 등장.
     func cta(primary: Bool, delay: Double? = nil) -> some View {
         padding(.horizontal, 8).padding(.top, primary ? 0 : 8).enterUp(delay: delay ?? (primary ? 0.14 : 0.2))
     }
@@ -563,8 +563,8 @@ private struct BudgetPage: View {
                 PageTitle(title: "한 달에 얼마까지 쓸까요?", sub: "넘기기 전에 알려 드려요. 게임별 한도는 나중에 정해도 돼요.")
                 BudgetAmountEditor(budget: $budget, custom: $custom).padding(.top, 28)
             }
-            OdsButton(title: "다음", size: .l) { hideKeyboard(); onNext() }.cta(primary: true)
-            OdsButton(title: "예산 없이 쓸게요", variant: .secondary) { hideKeyboard(); onSkip() }.cta(primary: false)
+            GldsButton(title: "다음", size: .l) { hideKeyboard(); onNext() }.cta(primary: true)
+            GldsButton(title: "예산 없이 쓸게요", variant: .secondary) { hideKeyboard(); onSkip() }.cta(primary: false)
             Spacer().frame(height: 16)
         }
     }
@@ -785,15 +785,15 @@ private struct HoyolabPage: View {
                 }
             }
             if linked {
-                OdsButton(title: "다음", size: .l, action: onNext).cta(primary: true)
-                OdsButton(title: "연결 해제", variant: .neutral) {
+                GldsButton(title: "다음", size: .l, action: onNext).cta(primary: true)
+                GldsButton(title: "연결 해제", variant: .neutral) {
                     _ = store.updateHoyolabConfig(HoyolabConfig(ltuid: "", ltoken: "", genshinUid: "", hsrUid: "", zzzUid: "", cookieToken: "", webCookie: ""))
                 }
                 .cta(primary: false)
             } else {
-                OdsButton(title: working ? "UID 확인 중…" : "HoYoLAB 로그인", variant: .inverse, size: .l) { showEmailGuide = true }
+                GldsButton(title: working ? "UID 확인 중…" : "HoYoLAB 로그인", variant: .inverse, size: .l) { showEmailGuide = true }
                     .disabled(working).cta(primary: true)
-                OdsButton(title: "나중에 연결할게요", variant: .neutral, action: onNext).cta(primary: false)
+                GldsButton(title: "나중에 연결할게요", variant: .neutral, action: onNext).cta(primary: false)
             }
             Spacer().frame(height: 16)
         }

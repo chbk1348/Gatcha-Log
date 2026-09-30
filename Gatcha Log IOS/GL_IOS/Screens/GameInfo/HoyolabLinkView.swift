@@ -73,7 +73,7 @@ struct HoyolabLinkView: View {
                 }
                 .padding(.horizontal, 16).padding(.top, 16).padding(.bottom, 8)
             }
-            // iOS 는 저장을 헤더 시스템 버튼으로(9/30 사용자 지정). Android 는 하단 고정 ODS 버튼.
+            // iOS 는 저장을 헤더 시스템 버튼으로(9/30 사용자 지정). Android 는 하단 고정 GLDS 버튼.
             .toolbar { ToolbarItem(placement: .topBarTrailing) { Button("저장") { save() }.fontWeight(.bold) } }
             .background(GLGBackground { Color.clear })
             .glgPageTitle("HoYoLAB 계정 연동")
@@ -164,7 +164,7 @@ struct HoyolabLinkView: View {
     }
 
     private func field(_ label: String, _ text: Binding<String>) -> some View {
-        OdsTextField(label: label, placeholder: "", text: text)
+        GldsTextField(label: label, placeholder: "", text: text)
             .autocapitalization(.none).disableAutocorrection(true)
     }
 }

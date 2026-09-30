@@ -584,7 +584,7 @@ struct GameSchedulePage: View {
             // 화면에서 사라지지 않는다(주가 넘어가면 다음 헤더가 밀어 올린다).
             LazyVStack(alignment: .leading, spacing: 0, pinnedViews: [.sectionHeaders]) {
                 // 페이지 타이틀은 네비게이션 바(뒤로가기 + 타이틀)로 — Android 상세 헤더와 동일 형식.
-                OdsTabs(labels: ["일정", "주년"], selection: $tab)
+                GldsTabs(labels: ["일정", "주년"], selection: $tab)
                 .padding(.bottom, 14)
 
                 if tab == 1 {

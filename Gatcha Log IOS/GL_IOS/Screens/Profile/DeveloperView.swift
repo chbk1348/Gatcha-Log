@@ -144,7 +144,7 @@ struct DeveloperView: View {
                     Text(line).font(.pretendard(size: 12)).foregroundStyle(GLGColor.textPrimary)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
-                OdsButton(title: "닫기", variant: .secondary, size: .s, fullWidth: false) { reportTitle = nil; reportLines = [] }
+                GldsButton(title: "닫기", variant: .secondary, size: .s, fullWidth: false) { reportTitle = nil; reportLines = [] }
                     .padding(.top, 5)
             }
             .padding(14)

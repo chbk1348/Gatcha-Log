@@ -42,9 +42,9 @@ import com.gatcha.log.data.HoyolandTicketStatus
 import com.gatcha.log.ui.game.LiveRed
 import com.gatcha.log.ui.components.GlassCard
 import com.gatcha.log.ui.components.glgDetailContentTop
-import com.gatcha.log.ui.components.OdsButton
-import com.gatcha.log.ui.components.OdsSize
-import com.gatcha.log.ui.components.OdsVariant
+import com.gatcha.log.ui.components.GldsButton
+import com.gatcha.log.ui.components.GldsSize
+import com.gatcha.log.ui.components.GldsVariant
 import com.gatcha.log.ui.theme.DividerColor
 import com.gatcha.log.ui.theme.LocalAccent
 import com.gatcha.log.ui.theme.LocalAccentDeep
@@ -475,7 +475,7 @@ private fun HeroActions(
     // 예매처는 아래 「예매」 카드의 배지가 말한다. 보조 둘의 면이 **흰색**인 이유는 이 줄이
     // 강조 틴트 패널 바로 아래에 붙어서다: 틴트 면 위에 틴트 버튼을 놓으면 면이 사라진다.
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        OdsButton(
+        GldsButton(
             text = when {
                 live -> "오늘 시간표"
                 soldOut -> "매진"
@@ -488,7 +488,7 @@ private fun HeroActions(
             onClick = { if (live) onStage() else if (canBuy) onTicket() },
             enabled = live || canBuy,
             modifier = Modifier.weight(if (hasMap || hasOfficial) 2f else 1f),
-            size = OdsSize.L,
+            size = GldsSize.L,
             icon = when {
                 live -> Icons.Outlined.CalendarMonth
                 canBuy || soldOut -> Icons.Outlined.ConfirmationNumber
@@ -496,15 +496,15 @@ private fun HeroActions(
             },
         )
         if (hasMap) {
-            OdsButton(
+            GldsButton(
                 "지도", onMap, Modifier.weight(1f),
-                variant = OdsVariant.OnTint, size = OdsSize.L, icon = Icons.Outlined.Place,
+                variant = GldsVariant.OnTint, size = GldsSize.L, icon = Icons.Outlined.Place,
             )
         }
         if (hasOfficial) {
-            OdsButton(
+            GldsButton(
                 "공식", onOfficial, Modifier.weight(1f),
-                variant = OdsVariant.OnTint, size = OdsSize.L, icon = Icons.Outlined.Language,
+                variant = GldsVariant.OnTint, size = GldsSize.L, icon = Icons.Outlined.Language,
             )
         }
     }
