@@ -88,8 +88,15 @@ internal fun GiftCodePage(
                 Text("HoYoLAB 연동 후 UID가 있어야 코드를 교환할 수 있어요", fontSize = 13.sp, color = TextSecondary, modifier = section)
             } else {
                 // 활성 코드 섹션 — 게임 탭 · 코드 목록 · 모두 교환
-                // 모두 교환 버튼이 없으면 마지막이 「이미 받은 코드」 줄(위아래 8)이라 아래 12 — 띠까지 눈에 20(10/1).
-                Column(Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 22.dp, bottom = if (pending > 0) 20.dp else 12.dp)) {
+                // 아래 여백 = 20 − 마지막 요소 자체 여백 — 띠까지 눈에 20(10/1). 마지막이 무엇인지는 목록 상태로 정한다.
+                val tail = when {
+                    pending > 0 -> 0                                   // 모두 교환 버튼
+                    codesLoading && activeCodes.isEmpty() -> 0         // 뼈대
+                    activeCodes.isEmpty() -> 6                         // 실패 · 빈 문구(위아래 6)
+                    activeCodes.all { it.code in redeemedCodes } && !showRedeemed -> 8 // 「이미 받은 코드」 줄
+                    else -> 12                                         // 받은 코드 줄(펼침)
+                }
+                Column(Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 22.dp, bottom = (20 - tail).dp)) {
                     // 게임 탭 — 호요랜드 일자 탭과 **같은 세그먼트 규격**이다([GldsTabs]).
                     //
                     // 칩 셋을 나란히 두면 서로 독립된 버튼처럼 보여, 지금 어느 게임의 코드를 보고
