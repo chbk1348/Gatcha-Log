@@ -392,7 +392,7 @@ private fun HoyolandMapLegendItem(colors: List<Color>, label: String) {
         Text(
             label,
             // 글꼴 배율을 타지 않게 dp 로 환산 — 판의 라벨과 같은 이유다.
-            fontSize = with(LocalDensity.current) { 10.dp.toSp() },
+            fontSize = with(LocalDensity.current) { 12.dp.toSp() },   // 10 → 12 가독성(10/1)
             color = TextSecondary,
             maxLines = 1,
         )

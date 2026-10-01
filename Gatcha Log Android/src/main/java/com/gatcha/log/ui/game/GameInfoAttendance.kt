@@ -55,7 +55,6 @@ import com.gatcha.log.data.NoteStat
 import com.gatcha.log.data.TaskStats
 import com.gatcha.log.ui.components.GameTagSize
 import com.gatcha.log.ui.components.GlgGameTag
-import com.gatcha.log.ui.components.GlassCard
 import com.gatcha.log.ui.components.SkeletonBox
 import com.gatcha.log.ui.components.GlgTabHeaderHeight
 import com.gatcha.log.ui.components.GldsButton
@@ -610,24 +609,20 @@ internal fun AttendanceDetailContent(
     onCheckIn: (String) -> Unit,
     onCheckInAll: () -> Unit,
 ) {
-    val accent = LocalAccent.current
-    AttendanceTodayCard(summary, checkingIn, onCheckInAll)
-    Spacer(Modifier.height(12.dp))
-    GlassCard(shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
+    // 카드 셋을 걷고 섹션 셋으로(10/1) — 오늘 · 게임별 · 최근 7일, 사이는 GiBand. 달력 판·통계 칸은 내용 묶음이라 둔다.
+    Column(Modifier.fillMaxWidth()) {
+        AttendanceTodayCard(summary, checkingIn, onCheckInAll)
+        GiBand()
+        GiPageSection("게임별 출석") {
             summary.games.forEachIndexed { i, g ->
-                if (i > 0) HorizontalDivider(color = DividerColor)
+                if (i > 0) GiHairline()
                 AttendanceGameRow(g, summary.monthElapsedDays, inProgress = checkingIn == g.gameKey, enabled = checkingIn == null) {
                     onCheckIn(g.gameKey)
                 }
             }
         }
-    }
-    Spacer(Modifier.height(12.dp))
-    GlassCard(shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp)) {
-            Text("최근 7일", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextSecondary)
-            Spacer(Modifier.height(12.dp))
+        GiBand()
+        GiPageSection("최근 7일") {
             WeekAttendanceStrip(history, summary.todayTotal)
             Spacer(Modifier.height(16.dp))
             MonthAttendanceCalendar(history, summary.todayTotal)
@@ -640,33 +635,30 @@ internal fun AttendanceDetailContent(
 private fun AttendanceTodayCard(summary: AttendanceSummary, checkingIn: String?, onCheckInAll: () -> Unit) {
     val accent = LocalAccent.current
     val mark = if (summary.allDone) accent else DangerText
-    GlassCard(shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth()) {
-        Column(Modifier.fillMaxWidth().padding(16.dp)) {
-            Text("오늘", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextSecondary)
-            Spacer(Modifier.height(10.dp))
-            Row(verticalAlignment = Alignment.Bottom) {
-                Text(
-                    "${summary.todayDone}", fontSize = 34.sp, fontWeight = FontWeight.Bold,
-                    color = mark, letterSpacing = (-1).sp,
-                )
-                Text(
-                    " / ${summary.todayTotal} 게임", fontSize = 14.sp, fontWeight = FontWeight.Bold,
-                    color = TextSecondary, modifier = Modifier.padding(bottom = 5.dp),
-                )
-                Spacer(Modifier.weight(1f))
-                if (!summary.allDone) {
-                    GldsButton("전체 출석", onClick = onCheckInAll, size = GldsSize.S, loading = checkingIn != null)
-                }
+    // 카드 면을 걷고 섹션으로(10/1). '오늘' 은 12 회색 라벨 → 17 섹션 제목.
+    GiPageSection("오늘") {
+        Row(verticalAlignment = Alignment.Bottom) {
+            Text(
+                "${summary.todayDone}", fontSize = 34.sp, fontWeight = FontWeight.Bold,
+                color = mark, letterSpacing = (-1).sp,
+            )
+            Text(
+                " / ${summary.todayTotal} 게임", fontSize = 14.sp, fontWeight = FontWeight.Bold,
+                color = TextSecondary, modifier = Modifier.padding(bottom = 5.dp),
+            )
+            Spacer(Modifier.weight(1f))
+            if (!summary.allDone) {
+                GldsButton("전체 출석", onClick = onCheckInAll, size = GldsSize.S, loading = checkingIn != null)
             }
-            Spacer(Modifier.height(14.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                AttendanceStat("연속 기록", if (summary.streak > 0) "${summary.streak}일" else "—", Modifier.weight(1f))
-                AttendanceStat(
-                    "이번 달 전체 출석",
-                    "${summary.monthFullDays}일 / ${summary.monthElapsedDays}일",
-                    Modifier.weight(1f),
-                )
-            }
+        }
+        Spacer(Modifier.height(14.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            AttendanceStat("연속 기록", if (summary.streak > 0) "${summary.streak}일" else "—", Modifier.weight(1f))
+            AttendanceStat(
+                "이번 달 전체 출석",
+                "${summary.monthFullDays}일 / ${summary.monthElapsedDays}일",
+                Modifier.weight(1f),
+            )
         }
     }
 }
@@ -674,10 +666,11 @@ private fun AttendanceTodayCard(summary: AttendanceSummary, checkingIn: String?,
 @Composable
 private fun AttendanceStat(label: String, value: String, modifier: Modifier = Modifier) {
     Surface(color = Color(0xFFF7F8FA), shape = RoundedCornerShape(12.dp), modifier = modifier) {
+        // 라벨 10.5 → 12.5 · 값 13.5 → 15(10/1) — 가독성.
         Column(Modifier.padding(horizontal = 12.dp, vertical = 10.dp)) {
-            Text(label, fontSize = 10.5.sp, color = TextSecondary, maxLines = 1)
+            Text(label, fontSize = 12.5.sp, color = TextSecondary, maxLines = 1)
             Spacer(Modifier.height(3.dp))
-            Text(value, fontSize = 13.5.sp, fontWeight = FontWeight.Bold, color = TextPrimary, maxLines = 1)
+            Text(value, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TextPrimary, maxLines = 1)
         }
     }
 }
@@ -694,11 +687,12 @@ private fun AttendanceGameRow(g: AttendanceGameStat, elapsed: Int, inProgress: B
         Box(Modifier.width(3.dp).height(20.dp).clip(CircleShape).background(g.colorArgb.toColor()))
         Spacer(Modifier.width(10.dp))
         Column(Modifier.weight(1f)) {
-            Text(g.gameShort, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+            // 게임명 13 → 15 · 누계 11 → 13(10/1).
+            Text(g.gameShort, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
             Spacer(Modifier.height(2.dp))
             Text(
                 "이번 달 ${g.monthCount}일" + if (elapsed > 0) " / ${elapsed}일" else "",
-                fontSize = 11.sp, color = TextSecondary,
+                fontSize = 13.sp, color = TextSecondary,
             )
         }
         Spacer(Modifier.width(8.dp))
@@ -707,7 +701,7 @@ private fun AttendanceGameRow(g: AttendanceGameStat, elapsed: Int, inProgress: B
             g.checkedToday -> Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Default.CheckCircle, "완료", tint = accent, modifier = Modifier.size(17.dp))
                 Spacer(Modifier.width(5.dp))
-                Text("완료", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = accent)
+                Text("완료", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = accent)
             }
             else -> GldsButton("출석", onClick = onCheckIn, variant = GldsVariant.Secondary, size = GldsSize.XS, enabled = enabled)
         }
@@ -745,7 +739,7 @@ private fun WeekAttendanceStrip(history: Map<String, Set<String>>, total: Int) {
             val isToday = i == 6
             val level = attendLevel(count, total)
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(dow, fontSize = 10.sp, color = if (isToday) accent else TextSecondary, fontWeight = if (isToday) FontWeight.Bold else FontWeight.Normal)
+                Text(dow, fontSize = 12.sp, color = if (isToday) accent else TextSecondary, fontWeight = if (isToday) FontWeight.Bold else FontWeight.Normal)
                 Spacer(Modifier.height(5.dp))
                 // 날짜는 **항상** 보여준다 — 예전엔 전체 출석한 날을 체크 아이콘으로 덮어버려
                 // 정작 며칠인지 알 수 없었다. 완료 표시는 채움색 + 우상단 작은 체크로 한다.
@@ -829,7 +823,7 @@ private fun MonthAttendanceCalendar(history: Map<String, Set<String>>, total: In
             // 요일 헤더
             Row(Modifier.fillMaxWidth()) {
                 listOf("일", "월", "화", "수", "목", "금", "토").forEach {
-                    Text(it, modifier = Modifier.weight(1f), textAlign = TextAlign.Center, fontSize = 11.sp, color = TextSecondary)
+                    Text(it, modifier = Modifier.weight(1f), textAlign = TextAlign.Center, fontSize = 12.sp, color = TextSecondary)
                 }
             }
             Spacer(Modifier.height(6.dp))
@@ -890,7 +884,7 @@ private fun LegendDot(color: Color, label: String) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         Box(Modifier.size(12.dp).clip(CircleShape).background(color))
         Spacer(Modifier.width(5.dp))
-        Text(label, fontSize = 11.sp, color = TextSecondary)
+        Text(label, fontSize = 12.sp, color = TextSecondary)
     }
 }
 

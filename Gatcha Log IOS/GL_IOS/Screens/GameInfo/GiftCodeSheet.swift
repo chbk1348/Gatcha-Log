@@ -24,30 +24,35 @@ struct GiftCodePage: View {
     private var pending: Int { store.activeCodes.filter { !store.redeemedCodes.contains($0.code) }.count }
 
     var body: some View {
+        // 카드는 걷었다(10/1) — 흰 바탕 · 화면 폭 섹션(좌우 20 · 위 22 · 아래 20), 섹션 사이는 GiBand.
         ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
+            VStack(alignment: .leading, spacing: 0) {
                 if games.isEmpty {
-                    GLGCard(cornerRadius: 20, padding: 16) {
-                        Text("HoYoLAB 연동 후 UID가 있어야 코드를 교환할 수 있어요").font(.pretendard(size: 13)).foregroundStyle(GLGColor.textSecondary)
-                    }
+                    Text("HoYoLAB 연동 후 UID가 있어야 코드를 교환할 수 있어요").font(.pretendard(size: 13)).foregroundStyle(GLGColor.textSecondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, 20).padding(.top, 22).padding(.bottom, 20)
                 } else {
-                    gameTabs
-                    GLGCard(cornerRadius: 20, padding: 16) {
-                        VStack(alignment: .leading, spacing: 0) {
-                            activeHeader
-                            restoreRow
-                            codeList.padding(.top, 10)
-                        }
+                    // 활성 코드 섹션 — 게임 탭 · 코드 목록
+                    VStack(alignment: .leading, spacing: 0) {
+                        gameTabs
+                        activeHeader.padding(.top, 18)
+                        restoreRow
+                        codeList.padding(.top, 8)
                     }
-                    GLGCard(cornerRadius: 20, padding: 16) { directInput }
-                    statusText.padding(.horizontal, 2)
+                    .padding(.horizontal, 20).padding(.top, 22).padding(.bottom, 20)
+                    GiBand()
+                    // 직접 입력 섹션 — GLDS 입력필드 규격 그대로, 상태 문구는 그 아래.
+                    VStack(alignment: .leading, spacing: 12) {
+                        directInput
+                        statusText
+                    }
+                    .padding(.horizontal, 20).padding(.top, 22).padding(.bottom, 20)
                 }
                 Color.clear.frame(height: 12)
             }
-            .padding(16)
         }
         .scrollIndicators(.hidden)
-        .background(GLGBackground { Color.clear })
+        .background(Color.white)
         .glgPageTitle("리딤코드")
         .navigationBarTitleDisplayMode(.inline)
         // 모두 교환 — iOS 는 헤더 시스템 버튼(9/30 사용자 지정). Android 는 코드 카드 아래 GLDS 버튼.
@@ -79,7 +84,7 @@ struct GiftCodePage: View {
 
     private var activeHeader: some View {
         HStack {
-            Text("활성 코드 (자동 수집)").font(.pretendard(size: 13, weight: .bold)).foregroundStyle(GLGColor.textSecondary)
+            Text("활성 코드 (자동 수집)").font(.pretendard(size: 17, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
             Spacer()
             Button { store.loadActiveCodes(selected, force: true) } label: {
                 if store.codesLoading { GldsSpinner(size: 15, lineWidth: 2) }
@@ -93,10 +98,10 @@ struct GiftCodePage: View {
         if !store.unusableCodes.isEmpty {
             HStack(spacing: 8) {
                 Text("가려진 코드 \(store.unusableCodes.count)개")
-                    .font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary)
+                    .font(.pretendard(size: 13)).foregroundStyle(GLGColor.textSecondary)
                 GldsButton(title: "되살리기", variant: .secondary, size: .xs, fullWidth: false) { store.restoreUnusableCodes(selected) }
             }
-            .padding(.vertical, 6)
+            .padding(.top, 8)
         }
     }
 
@@ -106,30 +111,39 @@ struct GiftCodePage: View {
         } else if store.codesFailed && store.activeCodes.isEmpty {
             // 수집 실패는 '코드 없음'과 다르다 — 사유를 밝히고 재시도를 준다. (Android 파리티)
             VStack(alignment: .leading, spacing: 6) {
-                Text("코드를 불러오지 못했어요").font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary)
+                Text("코드를 불러오지 못했어요").font(.pretendard(size: 13)).foregroundStyle(GLGColor.textSecondary)
                 GldsButton(title: "다시 시도", variant: .secondary, size: .s, fullWidth: false) { store.loadActiveCodes(selected, force: true) }
             }
             .padding(.vertical, 6)
         } else if store.activeCodes.isEmpty {
-            Text("지금은 활성 코드가 없어요").font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary).padding(.vertical, 6)
+            Text("지금은 활성 코드가 없어요").font(.pretendard(size: 13)).foregroundStyle(GLGColor.textSecondary).padding(.vertical, 6)
         } else {
             let unredeemed = store.activeCodes.filter { !store.redeemedCodes.contains($0.code) }.sorted { $0.highlight && !$1.highlight }
             let redeemed = store.activeCodes.filter { store.redeemedCodes.contains($0.code) }
             VStack(spacing: 0) {
                 if unredeemed.isEmpty {
-                    Text("받을 수 있는 새 코드가 없어요").font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary).padding(.vertical, 6)
+                    Text("받을 수 있는 새 코드가 없어요").font(.pretendard(size: 13)).foregroundStyle(GLGColor.textSecondary).padding(.vertical, 6)
                 } else {
-                    ForEach(Array(unredeemed.enumerated()), id: \.offset) { _, c in codeRow(c, redeemed: false) }
+                    ForEach(Array(unredeemed.enumerated()), id: \.offset) { i, c in
+                        // 줄 사이는 헤어라인(10/1). 공방 강조 상자 둘레엔 긋지 않는다 — 상자 테두리가 이미 가른다.
+                        if i > 0 && !unredeemed[i - 1].highlight && !c.highlight { giftHair }
+                        codeRow(c, redeemed: false)
+                    }
                 }
                 if !redeemed.isEmpty {
                     Button { showRedeemed.toggle() } label: {
                         HStack(spacing: 4) {
                             Image(systemName: showRedeemed ? "chevron.up" : "chevron.down").font(.pretendard(size: 14)).foregroundStyle(GLGColor.textSecondary)
-                            Text("이미 받은 코드 \(redeemed.count)개").font(.pretendard(size: 12, weight: .medium)).foregroundStyle(GLGColor.textSecondary)
+                            Text("이미 받은 코드 \(redeemed.count)개").font(.pretendard(size: 13, weight: .medium)).foregroundStyle(GLGColor.textSecondary)
                         }
                         .frame(maxWidth: .infinity, alignment: .leading).padding(.vertical, 8)
                     }.buttonStyle(.plain)
-                    if showRedeemed { ForEach(Array(redeemed.enumerated()), id: \.offset) { _, c in codeRow(c, redeemed: true) } }
+                    if showRedeemed {
+                        ForEach(Array(redeemed.enumerated()), id: \.offset) { i, c in
+                            if i > 0 { giftHair }
+                            codeRow(c, redeemed: true)
+                        }
+                    }
                 }
             }
         }
@@ -147,12 +161,12 @@ struct GiftCodePage: View {
                     Text(c.code).font(.pretendard(size: 14, weight: .bold)).foregroundStyle(redeemed ? GLGColor.textSecondary : GLGColor.textPrimary)
                         .strikethrough(redeemed).lineLimit(1)
                 }
-                if !c.rewards.isEmpty { Text(c.rewards).font(.pretendard(size: 11)).foregroundStyle(GLGColor.textSecondary).lineLimit(2) }
+                if !c.rewards.isEmpty { Text(c.rewards).font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary).lineLimit(2) }
             }
             Spacer(minLength: 8)
             CopyCodeButton(code: c.code)
             if redeemed {
-                HStack(spacing: 3) { Image(systemName: "checkmark").font(.pretendard(size: 13)).foregroundStyle(accent.primary); Text("받음").font(.pretendard(size: 11, weight: .bold)).foregroundStyle(accent.primary) }
+                HStack(spacing: 3) { Image(systemName: "checkmark").font(.pretendard(size: 13)).foregroundStyle(accent.primary); Text("받음").font(.pretendard(size: 12, weight: .bold)).foregroundStyle(accent.primary) }
             } else {
                 GldsButton(title: "교환", variant: highlight ? .primary : .secondary, size: .xs, fullWidth: false) {
                     store.redeemGiftCode(gameKey: selected, code: c.code)
@@ -166,7 +180,8 @@ struct GiftCodePage: View {
                     .overlay(RoundedRectangle(cornerRadius: 14).stroke(accent.primary.opacity(0.45), lineWidth: 1.5))
                     .padding(.vertical, 4)
             } else {
-                inner.padding(.vertical, 5)
+                // 보통 줄은 헤어라인 목록이라 위아래를 넉넉히(10/1, 5 → 12).
+                inner.padding(.vertical, 12)
             }
         }
     }
@@ -185,16 +200,19 @@ struct GiftCodePage: View {
 
     @ViewBuilder private var statusText: some View {
         if store.redeemState is RedeemStateLoading {
-            Text("교환 중…").font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary)
+            Text("교환 중…").font(.pretendard(size: 13)).foregroundStyle(GLGColor.textSecondary)
         } else if let done = store.redeemState as? RedeemStateDone {
-            Text(done.message).font(.pretendard(size: 12, weight: .medium)).foregroundStyle(done.success ? accent.primary : GLGColor.dangerText)
+            Text(done.message).font(.pretendard(size: 13, weight: .medium)).foregroundStyle(done.success ? accent.primary : GLGColor.dangerText)
         } else {
             Text(cfg.cookieToken.isEmpty && cfg.webCookie.isEmpty
                  ? "교환하려면 HoYoLAB 재연동(이메일 로그인)이 필요해요. 보상은 게임 우편함으로 와요."
                  : "코드를 눌러 교환하거나 '모두 교환'을 누르세요. 보상은 게임 우편함으로 와요.")
-                .font(.pretendard(size: 11)).foregroundStyle(GLGColor.textSecondary)
+                .font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary)
         }
     }
+
+    /// 코드 줄 사이 헤어라인(10/1) — 마이페이지 · 지출과 같은 색.
+    private var giftHair: some View { Color(hex: 0xFFEEF0F2).frame(height: 1).frame(maxWidth: .infinity) }
 }
 
 // 리딤코드 복사 버튼 — ‘교환’ 버튼과 같은 GLDS XS Secondary. 탭하면 클립보드 저장 + 잠깐 ‘복사됨’ 표시.

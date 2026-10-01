@@ -95,45 +95,51 @@ struct HoyolandFoodView: View {
     var body: some View {
         let list = event.foodPrograms
         ScrollView {
-            VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: 0) {
                 if list.isEmpty {
-                    GLGCard(cornerRadius: 24, padding: 16) {
+                    // 빈 상태도 카드 없이 글만(10/1).
                         VStack(alignment: .leading, spacing: 5) {
                             Text("메뉴는 아직 공개 전이에요")
                                 .font(.pretendard(size: 14, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
                             Text("게임별 푸드존·푸드트럭 메뉴가 나오면 이 자리에 채워져요.")
-                                .font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary)
+                                .font(.pretendard(size: 13)).foregroundStyle(GLGColor.textSecondary)
                                 .fixedSize(horizontal: false, vertical: true)
                         }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    }
+                        .hoyolandSection()
                 } else {
                     if wide {
                         // 넓은 창은 **벽돌쌓기 두 열** — 메뉴 수가 게임마다 달라 카드 높이가 크게
                         // 벌어진다. 행으로 맞추면 짧은 카드 아래가 통째로 빈다.
+                        // 두 열은 칸끼리 경계가 필요해 카드를 그대로 둔다(10/1 — 한 열만 섹션 + 띠).
                         GLGColumnMasonry(cards: list.enumerated().map { i, p in
-                            GLGMasonryCard(id: i, weight: 120 + Double(p.desc.count)) { foodCard(p) }
+                            GLGMasonryCard(id: i, weight: 120 + Double(p.desc.count)) {
+                                GLGCard(cornerRadius: 24, padding: 16) { foodCard(p) }
+                            }
                         })
+                        .padding(.top, 22)
+                        foodNudge.padding(.top, 14).padding(.horizontal, 2)
                     } else {
-                        ForEach(Array(list.enumerated()), id: \.offset) { _, p in
-                            foodCard(p)
+                        // 게임마다 감싸던 카드를 걷고 **한 게임 = 한 섹션**, 사이는 띠로 가른다(10/1).
+                        ForEach(Array(list.enumerated()), id: \.offset) { i, p in
+                            if i > 0 { GiBand() }
+                            VStack(alignment: .leading, spacing: 0) {
+                                foodCard(p)
+                                if i == list.count - 1 { foodNudge.padding(.top, 14) }
+                            }
+                            .hoyolandSection()
                         }
                     }
-                    // 넛지 — 이 화면의 숫자는 **공지 기준**이라는 것만 분명히 한다. 현장 메뉴판과
-                    // 다를 때 "앱이 틀렸다"가 아니라 "바뀌었구나"로 읽히게 하는 한 줄이다.
-                    Text("가격·구성은 공식 공지 기준이에요. 현장 사정으로 바뀔 수 있어요.")
-                        .font(.pretendard(size: 11)).foregroundStyle(GLGFoodTextThird)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .padding(.top, 2).padding(.horizontal, 2)
                 }
                 Color.clear.frame(height: 24)
             }
-            .padding(.horizontal, wide ? 24 : 16)
+            // 한 열은 좌우 여백 없이 화면 폭(섹션이 스스로 20) — 두 열(iPad)만 24(10/1).
+            .padding(.horizontal, wide ? 24 : 0)
             .glgReadableWidth(wide ? HoyolandWideMaxWidth : 720)
         }
         .hoyolandWide($wide)
         .scrollIndicators(.hidden)
-        .background(GLGBackground { Color.clear })
+        // 흰 바탕(10/1).
+        .background(Color.white)
         .glgPageTitle("푸드존")
         .navigationBarTitleDisplayMode(.inline)
         .sheet(item: $viewingFood) { f in
@@ -150,6 +156,15 @@ struct HoyolandFoodView: View {
      제목("푸드트럭 — 붕괴: 스타레일")을 통째로 쓰지 않는다. 게임은 이미 배지로 서 있어
      같은 말이 두 번 나오고, 남는 폭이 그만큼 줄어든다 — 앞쪽 유형만 제목으로 쓴다.
      */
+    // 넛지 — 이 화면의 숫자는 **공지 기준**이라는 것만 분명히 한다. 현장 메뉴판과
+    // 다를 때 "앱이 틀렸다"가 아니라 "바뀌었구나"로 읽히게 하는 한 줄이다.
+    private var foodNudge: some View {
+        Text("가격·구성은 공식 공지 기준이에요. 현장 사정으로 바뀔 수 있어요.")
+            .font(.pretendard(size: 12)).foregroundStyle(GLGFoodTextThird)   // 11 → 12(10/1)
+            .fixedSize(horizontal: false, vertical: true)
+    }
+
+    /// 감싸던 카드를 걷었다(10/1) — 한 열은 섹션(hoyolandSection)이, 두 열은 호출부의 카드가 감싼다.
     @ViewBuilder private func foodCard(_ p: HoyolandProgram) -> some View {
         let game = event.programGame(title: p.title)
         let raw = event.stageColor(game: game)
@@ -159,7 +174,6 @@ struct HoyolandFoodView: View {
             .filter { $0.hasPrefix("· ") && $0.contains(" — ") }.count
         let blocks = hoyolandFoodBlocks(p.desc)
 
-        GLGCard(cornerRadius: 24, padding: 16) {
             VStack(alignment: .leading, spacing: 12) {
                 HStack(spacing: 8) {
                     if !game.isEmpty {
@@ -170,7 +184,7 @@ struct HoyolandFoodView: View {
                                         in: RoundedRectangle(cornerRadius: 6, style: .continuous))
                     }
                     Text(p.title.components(separatedBy: " — ").first ?? p.title)
-                        .font(.pretendard(size: 14, weight: .bold))
+                        .font(.pretendard(size: 17, weight: .bold))   // 섹션 제목 17(10/1)
                         .foregroundStyle(GLGColor.textPrimary)
                     Spacer(minLength: 6)
                     if menuCount > 0 {
@@ -242,7 +256,7 @@ struct HoyolandFoodView: View {
                                         }
                                     }
                                     if !row.sub.isEmpty {
-                                        Text(row.sub).font(.pretendard(size: 11.5))
+                                        Text(row.sub).font(.pretendard(size: 12.5))   // 11.5 → 12.5(10/1)
                                             .foregroundStyle(GLGFoodTextThird)
                                             .lineSpacing(3)
                                             .fixedSize(horizontal: false, vertical: true)
@@ -265,7 +279,6 @@ struct HoyolandFoodView: View {
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-        }
     }
 }
 

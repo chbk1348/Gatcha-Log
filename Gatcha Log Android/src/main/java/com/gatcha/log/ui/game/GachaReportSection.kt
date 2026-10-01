@@ -17,7 +17,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -28,17 +27,14 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.gatcha.log.data.GachaReport
 import com.gatcha.log.data.GachaStats
-import com.gatcha.log.ui.components.GlassCard
 import com.gatcha.log.ui.components.openExternalLink
 import com.gatcha.log.ui.components.GldsButton
-import com.gatcha.log.ui.theme.DividerColor
 import com.gatcha.log.ui.theme.toColor
 import com.gatcha.log.ui.theme.LocalAccent
 import com.gatcha.log.ui.theme.TextPrimary
 import com.gatcha.log.ui.theme.TextSecondary
 import com.gatcha.log.util.gachaAbbr
 import com.gatcha.log.util.num
-import com.gatcha.log.util.won
 import com.gatcha.log.util.wonShort
 
 @Composable
@@ -56,30 +52,50 @@ fun GachaReportSection(
     // MIME 필터를 좁히면 일부 제공자(삼성 SAF·클라우드)가 JSON 을 회색 처리해 선택 불가 → */* 로 전부 허용
     val openPicker = { picker.launch(arrayOf("*/*")) }
 
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("가챠 효율 리포트", fontSize = 16.sp, fontWeight = FontWeight.Bold)
-            Spacer(Modifier.width(6.dp))
-            Surface(color = accent.copy(alpha = 0.12f), shape = RoundedCornerShape(6.dp)) {
-                Text("Beta", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = accent, modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp))
+    // 카드는 걷었다(10/1) — 화면 폭 섹션(좌우 20 · 위 22 · 아래 20), 게임 블록 사이는 GiBand.
+    // 틀(SectionPage flat)이 좌우 0 을 주므로 좌우 20 은 섹션이 스스로 둔다. 첫 섹션 위엔 띠가 없다.
+    val games = stats?.byGame?.keys?.sortedBy { GachaReport.gameOrder.indexOf(it).let { i -> if (i < 0) 99 else i } }.orEmpty()
+    Column(Modifier.fillMaxWidth()) {
+        ReportSection {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(bottom = 18.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("가챠 효율 리포트", fontSize = 17.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+                    Spacer(Modifier.width(6.dp))
+                    Surface(color = accent.copy(alpha = 0.12f), shape = RoundedCornerShape(6.dp)) {
+                        Text("Beta", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = accent, modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp))
+                    }
+                }
+                if (stats != null) {
+                    Text("초기화", fontSize = 12.sp, color = TextSecondary, fontWeight = FontWeight.Bold, modifier = Modifier.clickable { onClear() }.padding(4.dp))
+                }
+            }
+            if (stats == null) {
+                EmptyState(onImport = openPicker)
+            } else {
+                // 첫 게임은 제목과 같은 섹션 — 대시보드 진입은 여기에만(기존과 같다).
+                games.firstOrNull()?.let { gk -> stats.byGame[gk]?.let { GameCard(gk, it, spendByGameKey[gk] ?: 0L, showDash = true, onOpenDashboard) } }
             }
         }
         if (stats != null) {
-            Text("초기화", fontSize = 12.sp, color = TextSecondary, fontWeight = FontWeight.Bold, modifier = Modifier.clickable { onClear() }.padding(4.dp))
+            games.drop(1).forEach { gk ->
+                val g = stats.byGame[gk] ?: return@forEach
+                GiBand()
+                ReportSection { GameCard(gk, g, spendByGameKey[gk] ?: 0L, showDash = false, onOpenDashboard) }
+            }
+            GiBand()
+            ReportSection { GldsButton("기록 추가 가져오기", onClick = openPicker, modifier = Modifier.fillMaxWidth()) }
         }
     }
+}
 
-    if (stats == null) {
-        GlassCard(shape = RoundedCornerShape(24.dp), modifier = Modifier.fillMaxWidth()) {
-            Column(Modifier.padding(16.dp)) { EmptyState(onImport = openPicker) }
-        }
-    } else {
-        ReportContent(stats, spendByGameKey, onImport = openPicker, onOpenDashboard = onOpenDashboard)
-    }
+/** 화면 폭 섹션 — 좌우 20 · 위 22 · 아래 20(10/1, 게임 정보 GiSection 과 같은 규격). */
+@Composable
+private fun ReportSection(content: @Composable ColumnScope.() -> Unit) {
+    Column(Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 22.dp, bottom = 20.dp), content = content)
 }
 
 // 운 분포색
@@ -114,19 +130,8 @@ private fun EmptyState(onImport: () -> Unit) {
     }
 }
 
-@Composable
-private fun ReportContent(stats: GachaStats, spendByGameKey: Map<String, Long>, onImport: () -> Unit, onOpenDashboard: () -> Unit) {
-    val games = stats.byGame.keys.sortedBy { GachaReport.gameOrder.indexOf(it).let { i -> if (i < 0) 99 else i } }
-    Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        games.forEachIndexed { idx, gk ->
-            val g = stats.byGame[gk] ?: return@forEachIndexed
-            GameCard(gk, g, spendByGameKey[gk] ?: 0L, showDash = idx == 0, onOpenDashboard)
-        }
-        GldsButton("기록 추가 가져오기", onClick = onImport, modifier = Modifier.fillMaxWidth())
-    }
-}
-
-// design_gachareport_mockup.html(B) — 게임 카드: 배지+4통계+운분포 바+최근5성, 첫 카드에 대시보드 진입.
+// design_gachareport_mockup.html(B) — 게임 블록: 배지+4통계+운분포 바+최근5성, 첫 블록에 대시보드 진입.
+// 카드 면은 걷었다(10/1) — 섹션(ReportSection) 안에 그대로 그린다.
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun GameCard(gk: String, g: GachaGameStat, spend: Long, showDash: Boolean, onOpenDashboard: () -> Unit) {
@@ -134,17 +139,17 @@ private fun GameCard(gk: String, g: GachaGameStat, spend: Long, showDash: Boolea
     val (shortName, _, color) = GachaReport.gameInfo[gk] ?: Triple(gk, gk, 0xFF888888L)
     val cost = if (spend > 0 && g.five > 0) spend / g.five else 0L
     val dist = g.luckDist
-    GlassCard(shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp)) {
-            // 헤더 — 배지 + 게임명
+    run {
+        Column(Modifier.fillMaxWidth()) {
+            // 헤더 — 배지 + 게임명(섹션 제목 17)
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Surface(color = color.toColor(), shape = RoundedCornerShape(7.dp)) {
                     Text(gachaAbbr(gk), fontSize = 11.sp, fontWeight = FontWeight.Black, color = Color.White, modifier = Modifier.padding(horizontal = 7.dp, vertical = 4.dp))
                 }
                 Spacer(Modifier.width(10.dp))
-                Text(shortName, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+                Text(shortName, fontSize = 17.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
             }
-            Spacer(Modifier.height(10.dp))
+            Spacer(Modifier.height(14.dp))
             // 4 통계
             Row(Modifier.fillMaxWidth()) {
                 StatCol(num(g.total), "총 뽑기", Modifier.weight(1f))
@@ -156,8 +161,8 @@ private fun GameCard(gk: String, g: GachaGameStat, spend: Long, showDash: Boolea
             // 운 분포 바
             if (g.five > 0) {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text("운 분포 (천장 구간)", fontSize = 11.sp, color = TextSecondary)
-                    Text("5성 ${num(g.five)}개", fontSize = 11.sp, color = TextSecondary)
+                    Text("운 분포 (천장 구간)", fontSize = 12.sp, color = TextSecondary)
+                    Text("5성 ${num(g.five)}개", fontSize = 12.sp, color = TextSecondary)
                 }
                 Spacer(Modifier.height(6.dp))
                 Row(Modifier.fillMaxWidth().height(8.dp).clip(CircleShape)) {
@@ -179,9 +184,9 @@ private fun GameCard(gk: String, g: GachaGameStat, spend: Long, showDash: Boolea
                     g.recentFive.forEach { f -> ReportChip(f.name, f.pity) }
                 }
             }
-            // 대시보드 진입 (첫 카드)
+            // 대시보드 진입 (첫 블록) — 구분선은 헤어라인 #EEF0F2(10/1)
             if (showDash) {
-                Spacer(Modifier.height(13.dp)); HorizontalDivider(color = DividerColor)
+                Spacer(Modifier.height(13.dp)); HorizontalDivider(thickness = 1.dp, color = Color(0xFFEEF0F2))
                 Row(
                     Modifier.fillMaxWidth().clickable { onOpenDashboard() }.padding(vertical = 12.dp),
                     verticalAlignment = Alignment.CenterVertically,
@@ -198,9 +203,10 @@ private fun GameCard(gk: String, g: GachaGameStat, spend: Long, showDash: Boolea
 @Composable
 private fun StatCol(value: String, label: String, modifier: Modifier = Modifier, color: Color = TextPrimary) {
     Column(modifier, horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(value, fontSize = 20.sp, fontWeight = FontWeight.Bold, color = color, maxLines = 1)
+        // 값 15 굵게 · 라벨 12(10/1) — 지출 인사이트 지표와 같은 규격.
+        Text(value, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = color, maxLines = 1)
         Spacer(Modifier.height(2.dp))
-        Text(label, fontSize = 10.sp, color = TextSecondary)
+        Text(label, fontSize = 12.sp, color = TextSecondary, maxLines = 1)
     }
 }
 
@@ -209,7 +215,7 @@ private fun Legend(c: Color, text: String) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         Box(Modifier.size(8.dp).clip(RoundedCornerShape(2.dp)).background(c))
         Spacer(Modifier.width(4.dp))
-        Text(text, fontSize = 10.sp, color = TextSecondary)
+        Text(text, fontSize = 12.sp, color = TextSecondary)
     }
 }
 
@@ -218,9 +224,9 @@ private fun ReportChip(name: String, pity: Int) {
     val c = if (pity <= 40) Lucky else if (pity >= 75) Unlucky else TextPrimary
     Surface(color = Color(0xFFF3F4F8), shape = CircleShape) {
         Row(Modifier.padding(horizontal = 9.dp, vertical = 5.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text(name, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+            Text(name, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
             Spacer(Modifier.width(5.dp))
-            Text("$pity", fontSize = 10.sp, fontWeight = FontWeight.Black, color = c)
+            Text("$pity", fontSize = 12.sp, fontWeight = FontWeight.Black, color = c)
         }
     }
 }

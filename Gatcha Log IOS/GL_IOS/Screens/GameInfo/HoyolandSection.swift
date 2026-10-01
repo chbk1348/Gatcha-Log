@@ -367,40 +367,48 @@ struct HoyolandDetailView: View {
                 // 사나(예매)" 순으로 읽는다. 개막하면 첫 질문이 사라진다 — 표는 이미 있고
                 // 라인업도 외웠고, 손에 들고 다니며 여는 건 **현장에서** 하나뿐이라 히어로 바로
                 // 아래로 올라온다. (phase 가 기기 시간의 날짜로 판정하므로 10.2 00:00 에 바뀐다.)
-                Group {
-                    if e.isEventLive(nowMillis: nowMs()) {
-                        onsiteSection(e).padding(.top, 22)
-                        lineupSection(e).padding(.top, 22)
-                        // 예매 섹션은 **내린다.** 개막한 뒤 이 페이지를 여는 사람은 표를 이미
-                        // 들고 있다. 가격·오픈 일시는 지나간 값이고, 그걸 매번 지나쳐 스크롤하게
-                        // 둘 이유가 없다(현장 발권을 받지 않는 행사라 "지금 사는 길" 도 없다).
-                    } else {
-                        lineupSection(e).padding(.top, 22)
-                        onsiteSection(e).padding(.top, 22)
-                        ticketSection(e).padding(.top, 22)
+                //
+                // 카드를 걷은 뒤(10/1)로는 화면 폭 섹션 + 사이 띠(GiBand). 빈 섹션은 띠째 뺀다.
+                // 히어로 바로 아래 첫 섹션 위에는 띠를 두지 않는다(머리판이 끝을 이미 긋는다).
+                // 라인업은 지금 무대 줄의 면이 화면 끝까지 깔려야 해서 좌우 20 을 스스로 둔다.
+                if e.isEventLive(nowMillis: nowMs()) {
+                    onsiteSection(e).hoyolandSection()
+                    if !e.lineup.isEmpty {
+                        GiBand()
+                        lineupSection(e).hoyolandSection(horizontal: 0)
                     }
+                    // 예매 섹션은 **내린다.** 개막한 뒤 이 페이지를 여는 사람은 표를 이미
+                    // 들고 있다. 가격·오픈 일시는 지나간 값이고, 그걸 매번 지나쳐 스크롤하게
+                    // 둘 이유가 없다(현장 발권을 받지 않는 행사라 "지금 사는 길" 도 없다).
+                } else {
+                    if !e.lineup.isEmpty {
+                        lineupSection(e).hoyolandSection(horizontal: 0)
+                        GiBand()
+                    }
+                    onsiteSection(e).hoyolandSection()
+                    GiBand()
+                    ticketSection(e).hoyolandSection()
                 }
-                programSection(e)
-                pastSection(e)
+                if !e.otherPrograms.isEmpty {
+                    GiBand()
+                    programSection(e).hoyolandSection()
                 }
-
-                // 공지가 비면 **자리째 뺀다** — 빈 글자에 위 여백만 남으면 페이지 끝이 이유 없이 떴다(2026-09-28).
-                if !e.notice.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                    Text(e.notice)
-                        .font(.pretendard(size: 11)).foregroundStyle(GLGColor.textSecondary)
-                        .padding(.top, 14).padding(.horizontal, 2)
+                GiBand()
+                pastSection(e).hoyolandSection()
                 }
 
                 Color.clear.frame(height: 24)
             }
-            .padding(.horizontal, wide ? 24 : 16)
+            // 한 열은 좌우 여백 없이 화면 폭(섹션이 스스로 20) — 두 열(iPad)만 24 를 둔다(10/1).
+            .padding(.horizontal, wide ? 24 : 0)
             .glgReadableWidth(wide ? HoyolandWideMaxWidth : 720)
         }
         .hoyolandWide($wide)
         .glgHinge($hinge)
         .onGeometryChange(for: EdgeInsets.self) { $0.safeAreaInsets } action: { pageInsets = $0 }
         .scrollIndicators(.hidden)
-        .background(GLGBackground { Color.clear })
+        // 흰 바탕(10/1) — Android SectionPage(flat) 와 같다.
+        .background(Color.white)
         .glgPageTitle("호요랜드")
         .navigationBarTitleDisplayMode(.inline)
         // 머리판이 내비 바 **뒤로** 이어지므로 바의 바탕을 지운다 — 바탕이 남으면 면 위에
@@ -492,29 +500,42 @@ struct HoyolandDetailView: View {
         // 경첩이 있으면 **왼쪽 열을 경첩 앞까지**로 잡고 빈틈을 경첩 폭만큼 준다 — 카드가 접힌
         // 선 위에 걸치지 않는다. 경첩이 없으면(iPad · 접은 듀오) 반반으로 나눈다.
         let gap: CGFloat = hinge.map { max($0.width, 20) } ?? 20
+        // 열 안에서도 한 열과 같은 규칙 — 섹션 + 사이 띠(10/1). 섹션이 위 22 를 품어 열 머리가 같은 높이에 선다.
         HStack(alignment: .top, spacing: gap) {
             VStack(alignment: .leading, spacing: 0) {
                 if live {
-                    onsiteSection(e)
-                    programSection(e)
+                    onsiteSection(e).hoyolandSection()
+                    if !e.otherPrograms.isEmpty {
+                        GiBand()
+                        programSection(e).hoyolandSection()
+                    }
                 } else {
-                    lineupSection(e)
-                    onsiteSection(e).padding(.top, 22)
+                    if !e.lineup.isEmpty {
+                        lineupSection(e).hoyolandSection(horizontal: 0)
+                        GiBand()
+                    }
+                    onsiteSection(e).hoyolandSection()
                 }
             }
             .modifier(GLGHingeColumnWidth(hinge: hinge, contentInset: 24))
             VStack(alignment: .leading, spacing: 0) {
                 if live {
-                    lineupSection(e)
+                    if !e.lineup.isEmpty {
+                        lineupSection(e).hoyolandSection(horizontal: 0)
+                        GiBand()
+                    }
                 } else {
-                    ticketSection(e)
-                    programSection(e)
+                    ticketSection(e).hoyolandSection()
+                    if !e.otherPrograms.isEmpty {
+                        GiBand()
+                        programSection(e).hoyolandSection()
+                    }
+                    GiBand()
                 }
-                pastSection(e)
+                pastSection(e).hoyolandSection()
             }
             .frame(maxWidth: .infinity, alignment: .topLeading)
         }
-        .padding(.top, 22)
     }
 
     // ── 히어로 — **Game HUD** 패널. (Android `HoyolandHero` 와 파리티)
@@ -645,8 +666,8 @@ struct HoyolandDetailView: View {
                 .padding(.leading, -pageInsets.leading)
                 .padding(.trailing, -pageInsets.trailing)
         }
-        // 본문 좌우 패딩(한 열 16 · 두 열 24)을 되물려 가장자리까지 나간다.
-        .padding(.horizontal, -(wide ? 24 : 16))
+        // 본문 좌우 패딩(한 열 0 · 두 열 24)을 되물려 가장자리까지 나간다(10/1 한 열은 flat 이라 0).
+        .padding(.horizontal, -(wide ? 24 : 0))
     }
 
     /**
@@ -858,26 +879,26 @@ struct HoyolandDetailView: View {
                 // 제목 줄은 다른 섹션(「둘러보기」·「예매」)과 **같은 규격**이다 — 제목 16 +
                 // 오른쪽 보조 문구 11.5. 여기만 영문 소캡스 제목에 설명이 카드 아래 따로
                 // 붙어 있어, 제목이 두 종류로 갈리고 설명도 딴 자리에서 떠 있었다.
+                // 카드를 걷었다(10/1) — 좌우 20 은 여기서 직접 둔다(줄 면이 화면 끝까지 닿도록).
                 HStack(alignment: .lastTextBaseline, spacing: 8) {
-                    Text("라인업").font(.pretendard(size: 16, weight: .bold))
+                    Text("라인업").font(.pretendard(size: 17, weight: .bold))
                         .foregroundStyle(GLGColor.textPrimary)
                     Spacer(minLength: 0)
                     if e.lineup.contains(where: { !$0.url.isEmpty }) {
-                        Text("누르면 게임 공지로 가요").font(.pretendard(size: 11.5))
+                        Text("누르면 게임 공지로 가요").font(.pretendard(size: 12.5))
                             .foregroundStyle(GLGColor.textSecondary)
                     }
                 }
-                .padding(.bottom, 10)
-                GLGCard(cornerRadius: 20, padding: 0) {
-                    VStack(spacing: 0) {
-                        ForEach(Array(e.lineup.enumerated()), id: \.offset) { i, item in
-                            if i > 0 { Divider() }
-                            if let url = hoyoURL(item.url) {
-                                Button { openURL(url) } label: { lineupRow(item, e, liveGame) }
-                                    .buttonStyle(.plain)
-                            } else {
-                                lineupRow(item, e, liveGame)
-                            }
+                .padding(.horizontal, 20)
+                .padding(.bottom, 6)
+                VStack(spacing: 0) {
+                    ForEach(Array(e.lineup.enumerated()), id: \.offset) { i, item in
+                        if i > 0 { HoyolandHairline().padding(.horizontal, 20) }
+                        if let url = hoyoURL(item.url) {
+                            Button { openURL(url) } label: { lineupRow(item, e, liveGame) }
+                                .buttonStyle(.plain)
+                        } else {
+                            lineupRow(item, e, liveGame)
                         }
                     }
                 }
@@ -909,7 +930,7 @@ struct HoyolandDetailView: View {
                     .lineLimit(1)
                 if !caption.isEmpty {
                     Text(caption)
-                        .font(.pretendard(size: 11.5,
+                        .font(.pretendard(size: 12.5,   // 11.5 → 12.5(10/1)
                                           weight: isLive || status.hasSuffix("다음 무대") ? .bold : .regular))
                         .foregroundStyle(isLive ? c
                                          : status.hasSuffix("다음 무대") ? accent.deep
@@ -928,7 +949,7 @@ struct HoyolandDetailView: View {
                     .foregroundStyle(GLGColor.textSecondary.opacity(0.55))
             }
         }
-        .padding(.horizontal, 16).padding(.vertical, 12)
+        .padding(.horizontal, 20).padding(.vertical, 12)   // 섹션 좌우 20 과 맞춘다(10/1)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(isLive ? c.opacity(0.06) : Color.clear)
         .contentShape(Rectangle())
@@ -1140,8 +1161,8 @@ struct HoyolandDetailView: View {
         // 섹션 전체를 하나의 VStack 으로 낸다 — 개막일에 「현장에서」와 자리를 맞바꾸느라
         // 이 함수의 결과에 통째로 여백을 거는데, 여러 뷰를 흩어 내면 그게 걸리지 않는다.
         VStack(alignment: .leading, spacing: 0) {
-            Text("예매").font(.pretendard(size: 16, weight: .bold)).padding(.bottom, 10)
-            GLGCard(cornerRadius: 24, padding: 16) {
+            Text("예매").font(.pretendard(size: 17, weight: .bold)).padding(.bottom, 10)
+            // 감싸던 카드를 걷었다(10/1) — 섹션 자체가 화면 폭 흰 면이다.
                 VStack(alignment: .leading, spacing: 0) {
                     // ── 머리 한 줄 — **상태 · 예매처 · 결제 금액.**
                     //
@@ -1167,13 +1188,13 @@ struct HoyolandDetailView: View {
                         }
                     }
                     if !paid.isEmpty && !breakdown.isEmpty {
-                        Text(breakdown).font(.pretendard(size: 11))
+                        Text(breakdown).font(.pretendard(size: 12))   // 11 → 12(10/1)
                             .foregroundStyle(GLGColor.textSecondary)
                             .frame(maxWidth: .infinity, alignment: .trailing)
                             .padding(.top, 4)
                     }
                     if !firstNoteLine.isEmpty || !e.ticket.openLabel.isEmpty {
-                        Divider().padding(.top, 14).padding(.bottom, 13)
+                        HoyolandHairline().padding(.top, 14).padding(.bottom, 13)
                         Text(firstNoteLine.isEmpty ? "\(e.ticket.openLabel) 오픈" : firstNoteLine)
                             .font(.pretendard(size: 12.5)).foregroundStyle(GLGColor.textSecondary)
                             .fixedSize(horizontal: false, vertical: true)
@@ -1196,7 +1217,7 @@ struct HoyolandDetailView: View {
                     // 예매 버튼은 히어로 하나로 모았다 — 여기와 히어로에 같은 버튼이 두 번 서면
                     // 화면 한 장 안에서 같은 걸 두 번 권하는 셈이라 중복으로 읽힌다.
                 }
-            }
+                .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 
@@ -1212,11 +1233,11 @@ struct HoyolandDetailView: View {
             HStack(alignment: .lastTextBaseline, spacing: 8) {
                 // 「현장에서」 였던 자리 — 개막 전에도 보이는 섹션이라 행사 중에만 맞는 말이었다.
                 // 넷의 공통점은 "이 행사에서 볼 수 있는 것" 이고, 미리 보든 실제로 돌든 같다.
-                Text("둘러보기").font(.pretendard(size: 16, weight: .bold))
+                Text("둘러보기").font(.pretendard(size: 17, weight: .bold))
                 Spacer(minLength: 0)
                 Text(e.isEventLive(nowMillis: nowMs()) ? "행사 중에는 여기가 먼저예요"
                                                         : "개막하면 맨 위로 올라와요")
-                    .font(.pretendard(size: 11.5)).foregroundStyle(GLGColor.textSecondary)
+                    .font(.pretendard(size: 12.5)).foregroundStyle(GLGColor.textSecondary)   // 11.5 → 12.5(10/1)
             }
             .padding(.bottom, 10)
             // 한 줄에 선 두 칸은 **높이를 맞춘다**(`fillHeight` + HStack 의 `fixedSize`). 부제가
@@ -1337,12 +1358,14 @@ struct HoyolandDetailView: View {
     }
 
     // ── 프로그램 — 본편과 별개로 **참여 마감이 따로 있는** 것들이라 날짜를 눈에 띄게 둔다.
+    // 항목당 카드였던 것을 **헤어라인 목록**으로 바꿨다(10/1). 섹션 여백 · 띠는 호출부가 건다.
     @ViewBuilder private func programSection(_ e: HoyolandEvent) -> some View {
         if !e.otherPrograms.isEmpty {
+            VStack(alignment: .leading, spacing: 0) {
             // 제목이 "프로그램" 이었을 때는 시간표·부스·푸드존까지 다 프로그램이라 위 「현장에서」와
             // 경계가 없었다. 푸드존이 빠져나간 지금 이 섹션에 남은 건 **미리 신청하거나(전시존)
             // 받는 것(웰컴 키트)** 뿐이라, 하는 일로 부른다.
-            Text("응모 · 특전").font(.pretendard(size: 16, weight: .bold)).padding(.top, 20).padding(.bottom, 10)
+            Text("응모 · 특전").font(.pretendard(size: 17, weight: .bold)).padding(.bottom, 2)
             // 한 장짜리 카드에 구분선으로 쌓다가 **항목당 카드**로 갈아탔다. 웰컴 키트가 들어오며
             // 항목이 다섯으로 늘고 본문이 여러 줄이 되자, 구분선 하나로는 어디서 끊기는지 안 보여
             // 글자 벽이 됐다. 굿즈·부스가 이미 카드 목록이라 규격도 그쪽에 맞춘다.
@@ -1352,7 +1375,7 @@ struct HoyolandDetailView: View {
             ForEach(Array(e.otherPrograms.enumerated()), id: \.offset) { i, p in
                 let pg = e.programGame(title: p.title)
                 let pc = pg.isEmpty ? GLGColor.textSecondary : programColor(e, pg)
-                GLGCard(cornerRadius: 24, padding: 0) {
+                if i > 0 { HoyolandHairline() }
                     VStack(alignment: .leading, spacing: 0) {
                         HStack(spacing: 8) {
                             if !pg.isEmpty {
@@ -1379,21 +1402,22 @@ struct HoyolandDetailView: View {
                         }
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, 16).padding(.vertical, 14)
-                }
-                .padding(.top, i > 0 ? 10 : 0)
+                    .padding(.vertical, 14)
+            }
             }
         }
     }
 
     // ── 지난 행사 참고 — 실제 개최 이력(최신순). 다음 행사 규모 가늠용.
     // 지나간 정보라 기본은 접어 둔다 — 이 페이지의 본론은 위의 2026 정보다.
+    // 늘 마지막 섹션이라 공지 한 줄도 여기 끝에 붙는다(10/1). 섹션 여백 · 띠는 호출부가 건다.
     @ViewBuilder private func pastSection(_ e: HoyolandEvent) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
         Button {
             withAnimation(.easeInOut(duration: 0.2)) { pastExpanded.toggle() }
         } label: {
             HStack(spacing: 4) {
-                Text("지난 행사").font(.pretendard(size: 16, weight: .bold))
+                Text("지난 행사").font(.pretendard(size: 17, weight: .bold))
                     .foregroundStyle(GLGColor.textPrimary)
                 Spacer(minLength: 0)
                 Text(pastExpanded ? "접기" : "펼치기")
@@ -1405,13 +1429,26 @@ struct HoyolandDetailView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .padding(.top, 20).padding(.bottom, 10)
+        .padding(.vertical, 2)
 
+        // 행사마다 카드였던 것을 헤어라인 목록으로(10/1).
         if pastExpanded {
-            ForEach(Array(e.past.enumerated()), id: \.offset) { i, p in
-                if i > 0 { Spacer().frame(height: 12) }
-                pastEventCard(p.title, p.facts)
+            VStack(alignment: .leading, spacing: 0) {
+                ForEach(Array(e.past.enumerated()), id: \.offset) { i, p in
+                    if i > 0 { HoyolandHairline() }
+                    pastEventCard(p.title, p.facts)
+                }
             }
+            .padding(.top, 2)
+        }
+
+        // 공지가 비면 **자리째 뺀다** — 빈 글자에 위 여백만 남으면 페이지 끝이 이유 없이 떴다(2026-09-28).
+        if !e.notice.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            Text(e.notice)
+                .font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary)   // 11 → 12(10/1)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.top, 14)
+        }
         }
     }
 
@@ -1547,10 +1584,9 @@ struct HoyolandScheduleBanner: View {
     }
 }
 
-/// 지난 행사 1건 카드 — 제목 + "종료" 배지 + 팩트 목록.
+/// 지난 행사 1건 — 제목 + "종료" 배지 + 팩트 목록. 카드를 걷고 헤어라인 목록의 한 줄이 됐다(10/1).
 @MainActor
 @ViewBuilder private func pastEventCard(_ title: String, _ facts: [HoyolandFact]) -> some View {
-    GLGCard(cornerRadius: 24, padding: 16) {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 8) {
                 Text(title).font(.pretendard(size: 15, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
@@ -1562,6 +1598,21 @@ struct HoyolandScheduleBanner: View {
                 factRow(f.label, f.value)
             }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.vertical, 14)
+}
+
+/// 줄 사이 헤어라인 — 카드를 걷은 호요랜드 페이지(10/1)의 공용 구분선. Android `HoyolandHairline` 과 같은 값.
+struct HoyolandHairline: View {
+    var body: some View { Color(hex: 0xFFEEF0F2).frame(height: 1).frame(maxWidth: .infinity) }
+}
+
+extension View {
+    /// 카드 없는 섹션(10/1) — 화면 폭 · 좌우 20 · 위 22 · 아래 20. 섹션 사이는 `GiBand`.
+    /// Android `HoyolandSectionBox` 와 같은 값. 붙박이 탭 바로 아래는 탭이 아래 10 을 두므로 `top` 을 줄인다.
+    func hoyolandSection(top: CGFloat = 22, horizontal: CGFloat = 20) -> some View {
+        self.frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, horizontal).padding(.top, top).padding(.bottom, 20)
     }
 }
 

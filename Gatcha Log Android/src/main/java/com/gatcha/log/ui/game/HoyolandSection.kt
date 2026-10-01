@@ -513,18 +513,23 @@ fun HoyolandDetailPage(
                 SectionPage(
                     "일자별 시간표",
                     onBack = backFromSub,
+                    flat = true,   // 카드 없는 페이지(10/1) — 흰 바탕, 콘텐츠가 좌우 20 을 둔다
                     isRefreshing = refreshing,
                     onRefresh = refresh,
                     stickyTop = if (e.dayYmds.size > 1) {
                         { HoyolandDayTabs(e, stageDay) { stageDay = it } }
                     } else null,
                 ) {
-                    HoyolandTimetableSection(e, entry, stageDay)
+                    // 날짜 탭(붙박이)이 아래 10 을 이미 두므로 위 여백을 줄인다(10/1).
+                    HoyolandSectionBox(top = if (e.dayYmds.size > 1) 12.dp else 22.dp) {
+                        HoyolandTimetableSection(e, entry, stageDay)
+                    }
                 }
             HoyolandSub.Goods -> {
                 SectionPage(
                     "굿즈 목록",
                     onBack = backFromSub,
+                    flat = true,   // (10/1) 굿즈 한 장 한 장은 타일로 남기고 바탕만 흰색
                     bottomBar = { HoyolandGoodsBar(e, cart) { goSub(HoyolandSub.Cart) } },
                     // 게임 탭은 붙박이다 — 100줄짜리 목록에서 같이 밀려 올라가면 지금 무엇으로
                     // 거르고 있는지도, 바꾸는 방법도 화면에서 사라진다.
@@ -558,6 +563,7 @@ fun HoyolandDetailPage(
                 SectionPage(
                     "장바구니",
                     onBack = { navBack = true; page = HoyolandSub.Goods },
+                    flat = true,   // (10/1)
                     actions = {
                         // 비우기는 헤더 우측 — 실수로 누르기 어려운 자리다.
                         if (!cart.isEmpty) {
@@ -572,18 +578,19 @@ fun HoyolandDetailPage(
                         }
                     },
                 ) {
-                    HoyolandCartContent(e, cart) { name, n -> viewModel.setGoodsQuantity(name, n) }
+                    HoyolandSectionBox { HoyolandCartContent(e, cart) { name, n -> viewModel.setGoodsQuantity(name, n) } }
                 }
             HoyolandSub.Booth ->
-                SectionPage("부스 체험", onBack = backFromSub) {
-                    HoyolandBoothContent(e, boothFilter) { boothFilter = it }
+                SectionPage("부스 체험", onBack = backFromSub, flat = true) {
+                    HoyolandSectionBox { HoyolandBoothContent(e, boothFilter) { boothFilter = it } }
                 }
             HoyolandSub.Food ->
-                SectionPage("푸드존", onBack = backFromSub) { HoyolandFoodContent(e) }
+                SectionPage("푸드존", onBack = backFromSub, flat = true) { HoyolandFoodContent(e) }
             HoyolandSub.Map ->
                 SectionPage(
                     e.map.title.ifBlank { "행사장 배치도" },
                     onBack = backFromSub,
+                    flat = true,   // (10/1) 판은 객체로 남긴다 — 좌우 20 은 아래에서 준다
                     // 화면 돌리기 — 가로로 긴 도면을 눕혀 페이지를 꽉 채운다. 돌린 동안은 스크롤하지 않는다.
                     actions = {
                         GlgCircleIconButton(
@@ -596,6 +603,8 @@ fun HoyolandDetailPage(
                     scrollable = !mapRotated,
                 ) {
                     // 구역을 누르면 그 존의 목록으로 간다 — 지도가 목록의 입구가 된다.
+                    // flat 페이지라 좌우 20 · 위 22 를 여기서 준다(10/1). 가로 보기는 화면을 꽉 채우므로 위 여백 없이.
+                    Box(Modifier.padding(start = 20.dp, end = 20.dp, top = if (mapRotated) 0.dp else 22.dp)) {
                     HoyolandMapContent(
                         e,
                         rotated = mapRotated,
@@ -627,11 +636,13 @@ fun HoyolandDetailPage(
                             goSub(target)
                         }
                     }
+                    }
                 }
             HoyolandSub.None ->
                 SectionPage(
                     "호요랜드",
                     onBack,
+                    flat = true,   // (10/1) 히어로는 화면 폭, 아래 섹션은 띠로 나눈다
                     isRefreshing = refreshing,
                     onRefresh = refresh,
                     // 상세 페이지만 — 붙박이 줄이 없어 바탕판이 필요 없다. 다른 상세처럼 콘텐츠가 헤더 밑으로 지나간다.
@@ -731,18 +742,17 @@ fun HoyolandDetailContent(
 
     // ── 참여 게임 — 명세 §4 LINEUP. 히어로 안 구분선 아래 부록처럼 붙어 있던 것을
     // 독립 섹션으로 뺐다. "어느 게임이 오나" 는 이 행사를 볼지 말지를 가르는 정보다.
+    // 비었는지는 아래 섹션 목록이 거른다(10/1) — 빈 섹션에 띠만 남지 않게.
     val lineupSection: @Composable () -> Unit = {
-        if (e.lineup.isNotEmpty()) {
-            HoyolandLineupSection(e) { url -> openExternalLink(ctx, url) }
-        }
+        HoyolandLineupSection(e) { url -> openExternalLink(ctx, url) }
     }
 
     // ── 예매 — **이 페이지에서 유일하게 안 정해진 항목**이라 단독 카드로 세운다.
     // 다른 정보와 같은 목록에 섞어 두면 "미정" 한 줄이 확정 정보들 사이에 묻힌다.
     val ticketSection: @Composable () -> Unit = {
-    Text("예매", fontSize = 16.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 10.dp))
-    GlassCard(modifier = Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp)) {
+    Text("예매", fontSize = 17.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 10.dp))
+    // 감싸던 카드를 걷었다(10/1) — 섹션 자체가 화면 폭 흰 면이다.
+        Column(Modifier.fillMaxWidth()) {
             // 미정일 때 강조색을 쓰면 정해진 것처럼 보인다 — 회색으로 낮춘다.
             val tc = if (e.ticket.isUndecided) TextSecondary else accent
             // ── 머리 한 줄 — **상태 · 예매처 · 결제 금액.**
@@ -784,7 +794,7 @@ fun HoyolandDetailContent(
                 Spacer(Modifier.height(4.dp))
                 Text(
                     breakdown,
-                    fontSize = 11.sp, color = TextSecondary,
+                    fontSize = 12.sp, color = TextSecondary,   // 11 → 12(10/1)
                     modifier = Modifier.fillMaxWidth(),
                     textAlign = androidx.compose.ui.text.style.TextAlign.End,
                 )
@@ -794,7 +804,7 @@ fun HoyolandDetailContent(
             val firstNoteLine = e.ticket.note.lineSequence().map { it.trim() }.firstOrNull { it.isNotBlank() }.orEmpty()
             if (firstNoteLine.isNotBlank() || e.ticket.openLabel.isNotBlank()) {
                 Spacer(Modifier.height(14.dp))
-                Box(Modifier.fillMaxWidth().height(1.dp).background(DividerColor))
+                Box(Modifier.fillMaxWidth().height(1.dp).background(HoyolandHairline))
                 Spacer(Modifier.height(13.dp))
                 Text(
                     firstNoteLine.ifBlank { "${e.ticket.openLabel} 오픈" },
@@ -825,7 +835,6 @@ fun HoyolandDetailContent(
             // 두 번 서면 화면 한 장 안에서 같은 걸 두 번 권하는 셈이라 중복으로 읽힌다.
         }
     }
-    }
 
     // ── 현장에서 — 시간표 · 굿즈 목록 · 부스 체험 · 푸드존.
     //
@@ -839,11 +848,11 @@ fun HoyolandDetailContent(
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
         // 「현장에서」 였던 자리 — 개막 전에도 보이는 섹션이라 행사 중에만 맞는 말이었다.
         // 넷의 공통점은 "이 행사에서 볼 수 있는 것" 이고, 미리 보든 실제로 돌든 같은 말이다.
-        Text("둘러보기", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+        Text("둘러보기", fontSize = 17.sp, fontWeight = FontWeight.Bold)
         Spacer(Modifier.weight(1f))
         Text(
             if (phase.isEventLive) "행사 중에는 여기가 먼저예요" else "개막하면 맨 위로 올라와요",
-            fontSize = 11.5.sp, color = TextSecondary,
+            fontSize = 12.5.sp, color = TextSecondary,   // 11.5 → 12.5(10/1)
         )
     }
     Spacer(Modifier.height(10.dp))
@@ -901,20 +910,20 @@ fun HoyolandDetailContent(
     // 개막 전에는 "어느 게임이 오나(라인업) → 뭘 볼 수 있나(현장에서) → 표는 어떻게 사나(예매)"
     // 순으로 읽는다. 개막하면 첫 질문이 사라진다 — 표는 이미 있고 라인업도 외웠고, 손에 들고
     // 다니며 여는 건 **현장에서** 하나뿐이라 히어로 바로 아래로 올라온다.
-    Spacer(Modifier.height(22.dp))
+    //
+    // 카드를 걷은 뒤(10/1)로는 섹션을 **목록으로 모아** 화면 폭 섹션 + 사이 띠로 그린다. 빈 섹션은 목록에
+    // 들지 않아 띠만 남지 않는다. 히어로 바로 아래 첫 섹션 위에는 띠를 두지 않는다(머리판이 끝을 이미 긋는다).
+    val sections = mutableListOf<@Composable () -> Unit>()
     if (phase.isEventLive) {
-        onsiteSection()
-        Spacer(Modifier.height(22.dp))
-        lineupSection()
+        sections += onsiteSection
+        if (e.lineup.isNotEmpty()) sections += lineupSection
         // 예매 섹션은 **내린다.** 개막한 뒤 이 페이지를 여는 사람은 표를 이미 들고 있다.
         // 가격·오픈 일시는 지나간 값이고, 그걸 매번 지나쳐 스크롤하게 둘 이유가 없다.
         // (현장 발권을 받지 않는 행사라 "지금 사는 길" 도 없다.)
     } else {
-        lineupSection()
-        Spacer(Modifier.height(22.dp))
-        onsiteSection()
-        Spacer(Modifier.height(22.dp))
-        ticketSection()
+        if (e.lineup.isNotEmpty()) sections += lineupSection
+        sections += onsiteSection
+        sections += ticketSection
     }
 
     // ── 프로그램 — 본편과 별개로 **참여 마감이 따로 있는** 것들이라 날짜를 눈에 띄게 둔다.
@@ -925,18 +934,19 @@ fun HoyolandDetailContent(
     //
     // 게임 배지는 [HoyolandEvent.programGame] 이 제목에서 가려낸다 — 웰컴 키트 넷이 나란히
     // 서기 때문에 색이 없으면 내 것을 찾으려고 매번 제목을 읽어야 한다.
-    if (e.otherPrograms.isNotEmpty()) {
-        Spacer(Modifier.height(20.dp))
+    //
+    // 항목당 카드였던 것을 **헤어라인 목록**으로 바꿨다(10/1) — 글 위주로 반복되는 줄이라 카드 대신
+    // 구분선이 끊는 자리를 맡는다(줄 위아래 14 로 덩이를 띄운다).
+    val programSection: @Composable () -> Unit = {
         // 제목이 "프로그램" 이었을 때는 시간표·부스·푸드존까지 다 프로그램이라 위 「현장에서」와
         // 경계가 없었다. 푸드존이 빠져나간 지금 이 섹션에 남은 건 **미리 신청하거나(전시존)
         // 받는 것(웰컴 키트)** 뿐이라, 하는 일로 부른다.
-        Text("응모 · 특전", fontSize = 16.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 10.dp))
+        Text("응모 · 특전", fontSize = 17.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 2.dp))
         e.otherPrograms.forEachIndexed { i, p ->
-            if (i > 0) Spacer(Modifier.height(10.dp))
+            if (i > 0) HoyolandHairlineDivider()
             val pg = e.programGame(p.title)
             val pc = e.stageColor(pg).let { if (it == 0L) TextSecondary else it.toColor() }
-            GlassCard(modifier = Modifier.fillMaxWidth()) {
-                Column(Modifier.padding(start = 16.dp, end = 16.dp, top = 14.dp, bottom = 14.dp)) {
+                Column(Modifier.fillMaxWidth().padding(vertical = 14.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         if (pg.isNotBlank()) {
                             Text(
@@ -961,14 +971,14 @@ fun HoyolandDetailContent(
                         HoyolandInfoBadge(p.deadline, accent)
                     }
                 }
-            }
         }
     }
-
-    Spacer(Modifier.height(20.dp))
+    if (e.otherPrograms.isNotEmpty()) sections += programSection
 
     // ── 지난 행사 참고 — 실제 개최 이력(최신순). 다음 행사 규모 가늠용.
     // 지나간 정보라 기본은 접어 둔다 — 이 페이지의 본론은 위의 2026 정보다.
+    // 늘 마지막 섹션이라 공지 한 줄도 여기 끝에 붙는다(10/1).
+    val pastSection: @Composable () -> Unit = {
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
@@ -977,7 +987,7 @@ fun HoyolandDetailContent(
             .clickable { pastExpanded = !pastExpanded }
             .padding(vertical = 2.dp),
     ) {
-        Text("지난 행사", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+        Text("지난 행사", fontSize = 17.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
         Spacer(Modifier.weight(1f))
         Text(
             if (pastExpanded) "접기" else "펼치기",
@@ -992,10 +1002,11 @@ fun HoyolandDetailContent(
         )
     }
     AnimatedVisibility(visible = pastExpanded) {
+        // 행사마다 카드였던 것을 헤어라인 목록으로(10/1).
         Column {
+            Spacer(Modifier.height(2.dp))
             e.past.forEachIndexed { i, p ->
-                if (i > 0) Spacer(Modifier.height(12.dp))
-                if (i == 0) Spacer(Modifier.height(10.dp))
+                if (i > 0) HoyolandHairlineDivider()
                 HoyolandPastEventCard(p.title, p.facts)
             }
         }
@@ -1004,7 +1015,15 @@ fun HoyolandDetailContent(
     // 공지가 비면 **자리째 뺀다** — 빈 글자에 위 여백만 남으면 페이지 끝이 이유 없이 떴다(2026-09-28).
     if (e.notice.isNotBlank()) {
         Spacer(Modifier.height(14.dp))
-        Text(e.notice, fontSize = 11.sp, color = TextSecondary)
+        Text(e.notice, fontSize = 12.sp, color = TextSecondary, lineHeight = 18.sp)   // 11 → 12(10/1)
+    }
+    }
+    sections += pastSection
+
+    sections.forEachIndexed { i, section ->
+        if (i > 0) GiBand()
+        // 라인업은 줄의 지금 무대 면이 화면 끝까지 깔려야 해서 좌우 20 을 스스로 둔다.
+        HoyolandSectionBox(horizontal = if (section === lineupSection) 0.dp else 20.dp) { section() }
     }
 
     if (ticketNoteOpen) {
@@ -1066,7 +1085,7 @@ fun HoyolandTimetableSection(
                 tint = LocalAccentDeep.current, modifier = Modifier.size(14.dp),
             )
             Spacer(Modifier.width(6.dp))
-            Text(entryNote, fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = LocalAccentDeep.current)
+            Text(entryNote, fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = LocalAccentDeep.current)   // 11.5 → 12.5(10/1)
         }
     }
     Spacer(Modifier.height(10.dp))
@@ -1106,12 +1125,11 @@ fun HoyolandTimetableSection(
     }
 
     val shown = stage.filter { gameFilter == null || it.slot.game == gameFilter }
-    GlassCard(modifier = Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(vertical = 4.dp)) {
-            shown.forEachIndexed { i, item ->
-                if (i > 0) Box(Modifier.fillMaxWidth().height(1.dp).background(DividerColor))
-                StageRow(e, item, live?.slot === item.slot, item.isBeforeEntry(entryMin))
-            }
+    // 감싸던 카드를 걷고 헤어라인 목록으로(10/1) — 페이지 흰 면 위에 줄만 선다.
+    Column(Modifier.fillMaxWidth()) {
+        shown.forEachIndexed { i, item ->
+            if (i > 0) HoyolandHairlineDivider()
+            StageRow(e, item, live?.slot === item.slot, item.isBeforeEntry(entryMin))
         }
     }
 }
@@ -1286,32 +1304,33 @@ internal fun androidx.compose.foundation.lazy.LazyListScope.hoyolandGoodsItems(
     onImage: (HoyolandGoods) -> Unit,
 ) {
     val all = e.visibleGoods
+    // 페이지가 flat(10/1) — 좌우 20 은 항목이 직접 둔다. 게임 탭(붙박이)이 서면 탭이 아래 10 을 이미 둔다.
+    val top = if (e.goodsGames.size > 1) 12.dp else 22.dp
 
     if (all.isEmpty()) {
         item {
-            GlassCard(modifier = Modifier.fillMaxWidth()) {
-                Column(Modifier.padding(16.dp)) {
+            // 빈 상태도 카드 없이 글만(10/1).
+                Column(Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = top, bottom = 20.dp)) {
                     Text("판매 목록은 아직 공개 전이에요", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
                     Spacer(Modifier.height(5.dp))
                     Text(
                         "품목과 가격이 나오면 이 자리에 채워져요.\n지난 행사는 개막 1~2주 전에 나왔어요.",
-                        fontSize = 12.sp, color = TextSecondary, lineHeight = 18.sp,
+                        fontSize = 13.sp, color = TextSecondary, lineHeight = 19.sp,
                     )
                 }
-            }
         }
         return
     }
 
     // ── 가격대 — 목록보다 먼저. 얼마를 들고 갈지가 첫 질문이다.
+    // 감싸던 카드를 걷고 한 섹션으로(10/1) — 아래 굿즈 타일 목록과는 띠로 가른다.
     item(key = "priceRange") {
-        GlassCard(modifier = Modifier.fillMaxWidth()) {
             Row(
-                Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp),
+                Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = top, bottom = 20.dp),
                 verticalAlignment = Alignment.Bottom,
             ) {
                 Column(Modifier.weight(1f)) {
-                    Text("가격대", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = TextSecondary)
+                    Text("가격대", fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = TextSecondary)   // 11.5 → 12.5(10/1)
                     Spacer(Modifier.height(4.dp))
                     Text(
                         e.goodsPriceRange().substringBefore(" · "),
@@ -1321,18 +1340,21 @@ internal fun androidx.compose.foundation.lazy.LazyListScope.hoyolandGoodsItems(
                 }
                 Text(
                     e.goodsPriceRange().substringAfter(" · ", ""),
-                    fontSize = 11.sp, color = TextThird,
+                    fontSize = 12.sp, color = TextThird,   // 11 → 12(10/1)
                 )
             }
-        }
     }
+    item(key = "priceBand") { GiBand() }
+    // 띠 아래 첫 타일 위 — 타일마다 위 10 을 두므로 12 를 더해 섹션 위 22 에 맞춘다.
+    item(key = "listTop") { Spacer(Modifier.height(12.dp)) }
 
     // 게임 탭은 여기 없다 — SectionPage 의 stickyTop 으로 올라가 헤더 밑에 붙박이로 선다
     // ([HoyolandGoodsTabs]). 100줄짜리 목록에서 같이 밀려 올라가면 안 되는 값이라서다.
     val shown = all.filter { gameFilter == null || it.game == gameFilter }
     // 키는 게임 + 이름 — 장패드처럼 두 IP 에 같은 이름이 있다.
     items(shown, key = { "${it.game}|${it.name}" }) { item ->
-        Column {
+        // 굿즈 한 장은 사진이 있는 상품 타일이라 카드로 남긴다(10/1) — 좌우 20 만 여기서 둔다.
+        Column(Modifier.padding(horizontal = 20.dp)) {
             Spacer(Modifier.height(10.dp))
             GlassCard(modifier = Modifier.fillMaxWidth()) {
                 HoyolandGoodsCard(
@@ -1684,11 +1706,12 @@ internal fun HoyolandInfoBadge(label: String, color: Color, modifier: Modifier =
 private fun HoyolandGuideContent(text: String) {
     val groups = remember(text) { parseHoyolandGuide(text) }
     val accent = LocalAccent.current
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        groups.forEach { g ->
+    // 묶음마다 깔던 회색 면을 걷고 헤어라인으로 가른다(10/1).
+    Column {
+        groups.forEachIndexed { i, g ->
+            if (i > 0) HoyolandHairlineDivider()
             Column(
-                Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(CartRowBg)
-                    .padding(horizontal = 14.dp, vertical = 12.dp),
+                Modifier.fillMaxWidth().padding(vertical = 14.dp),
             ) {
                 if (g.title.isNotBlank()) {
                     Text(g.title, fontSize = 12.5.sp, fontWeight = FontWeight.Black, color = accent)
@@ -1943,14 +1966,15 @@ fun HoyolandCartContent(
     val groups = e.cartGroups(cart)
     if (groups.isEmpty()) {
         Column(
-            Modifier.fillMaxWidth().padding(top = 52.dp, bottom = 20.dp),
+            // 섹션 여백(위 22 · 아래 20)이 바깥에 생겨 그만큼 뺀다(10/1).
+            Modifier.fillMaxWidth().padding(top = 30.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Text("담은 굿즈가 없어요", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
             Spacer(Modifier.height(5.dp))
             Text(
                 "굿즈 목록에서 사고 싶은 것을 담으면\n여기서 예상 지출을 볼 수 있어요.",
-                fontSize = 12.sp, color = TextSecondary, lineHeight = 19.sp, textAlign = TextAlign.Center,
+                fontSize = 13.sp, color = TextSecondary, lineHeight = 19.sp, textAlign = TextAlign.Center,
             )
         }
         return
@@ -2011,17 +2035,21 @@ fun HoyolandCartContent(
                     .padding(horizontal = 6.dp, vertical = 2.dp),
             )
             Spacer(Modifier.width(7.dp))
-            Box(Modifier.weight(1f).height(1.dp).background(DividerColor))
+            Box(Modifier.weight(1f).height(1.dp).background(HoyolandHairline))
             Spacer(Modifier.width(7.dp))
             // 게임별 소계가 **부스에서 꺼낼 금액**이다.
             Text(
                 if (g.allUnpriced) "미정" else e.wonLabel(g.subtotal),
-                fontSize = 11.5.sp, fontWeight = FontWeight.Black,
+                fontSize = 12.5.sp, fontWeight = FontWeight.Black,   // 11.5 → 12.5(10/1)
                 color = if (g.allUnpriced) TextThird else TextSecondary,
                 style = LocalTextStyle.current.copy(fontFeatureSettings = "tnum"),
             )
         }
-        g.lines.forEach { line -> HoyolandCartRow(e, line, onQuantity) }
+        // 줄마다 회색 면이던 것을 헤어라인 목록으로(10/1).
+        g.lines.forEachIndexed { i, line ->
+            if (i > 0) HoyolandHairlineDivider()
+            HoyolandCartRow(e, line, onQuantity)
+        }
     }
 
     if (unpriced > 0) {
@@ -2033,11 +2061,11 @@ fun HoyolandCartContent(
                 .background(WarnBg)
                 .padding(horizontal = 12.dp, vertical = 10.dp),
         ) {
-            Text("⚠️", fontSize = 11.sp)
+            Text("⚠️", fontSize = 12.sp)
             Spacer(Modifier.width(7.dp))
             Text(
                 "가격 미정 ${unpriced}종은 합계에 없어요. 값이 공개되면 자동으로 더해져요.",
-                fontSize = 11.sp, color = WarnText, lineHeight = 17.sp,
+                fontSize = 12.sp, color = WarnText, lineHeight = 18.sp,   // 11 → 12(10/1)
             )
         }
     }
@@ -2050,14 +2078,12 @@ fun HoyolandCartContent(
 @Composable
 private fun HoyolandCartRow(e: HoyolandEvent, line: HoyolandCartLine, onQuantity: (String, Int) -> Unit) {
     var expanded by remember(line.goods.name) { mutableStateOf(false) }
+    // 줄마다 깔던 회색 면을 걷었다(10/1) — 줄 사이는 호출부의 헤어라인이 가른다.
     Column(
         Modifier
             .fillMaxWidth()
-            .padding(bottom = 7.dp)
-            .clip(RoundedCornerShape(14.dp))
-            .background(CartRowBg)
             .clickable { expanded = !expanded }
-            .padding(horizontal = 12.dp, vertical = 10.dp),
+            .padding(vertical = 12.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
@@ -2067,7 +2093,7 @@ private fun HoyolandCartRow(e: HoyolandEvent, line: HoyolandCartLine, onQuantity
             )
             Text(
                 "×${line.quantity}",
-                fontSize = 11.sp, fontWeight = FontWeight.Black, color = TextSecondary,
+                fontSize = 12.sp, fontWeight = FontWeight.Black, color = TextSecondary,   // 11 → 12(10/1)
                 modifier = Modifier.padding(end = 9.dp),
             )
             Text(
@@ -2092,7 +2118,7 @@ private fun HoyolandCartRow(e: HoyolandEvent, line: HoyolandCartLine, onQuantity
                 Spacer(Modifier.weight(1f))
                 Text(
                     "빼기",
-                    fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = DangerText,
+                    fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = DangerText,   // 11.5 → 12.5(10/1)
                     modifier = Modifier
                         .clip(RoundedCornerShape(8.dp))
                         .clickable { onQuantity(line.goods.name, 0) }
@@ -2149,16 +2175,15 @@ fun HoyolandBoothContent(
     onGameFilter: (String?) -> Unit = {},
 ) {
     if (e.booths.isEmpty()) {
-        GlassCard(modifier = Modifier.fillMaxWidth()) {
-            Column(Modifier.padding(16.dp)) {
+        // 빈 상태도 카드 없이 글만(10/1).
+            Column(Modifier.fillMaxWidth()) {
                 Text("부스 정보는 아직 공개 전이에요", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
                 Spacer(Modifier.height(5.dp))
                 Text(
                     "게임별 체험존과 위치가 나오면 이 자리에 채워져요.\n부스 배치도는 보통 개막 직전에 나와요.",
-                    fontSize = 12.sp, color = TextSecondary, lineHeight = 18.sp,
+                    fontSize = 13.sp, color = TextSecondary, lineHeight = 19.sp,
                 )
             }
-        }
         return
     }
     // 굿즈 목록과 같은 게임 탭 — 두 화면을 오갈 때 거르는 방법이 달라지면 손이 헷갈린다.
@@ -2271,7 +2296,7 @@ private fun HoyolandPartnerPage(e: HoyolandEvent) {
         Spacer(Modifier.height(20.dp))
         Text(
             "파트너사 부스 관련 자세한 사항은 호요랜드 2026 통합 주의사항에서 확인해 주세요.",
-            fontSize = 11.5.sp, color = TextThird, lineHeight = 17.sp,
+            fontSize = 12.5.sp, color = TextThird, lineHeight = 18.sp,   // 11.5 → 12.5(10/1)
         )
     }
 }
@@ -2354,29 +2379,33 @@ private fun DiyRewardLine(text: String) {
 fun HoyolandFoodContent(e: HoyolandEvent) {
     val list = e.foodPrograms
     if (list.isEmpty()) {
-        GlassCard(modifier = Modifier.fillMaxWidth()) {
-            Column(Modifier.padding(16.dp)) {
+        // 빈 상태도 카드 없이 글만(10/1).
+        HoyolandSectionBox {
                 Text("메뉴는 아직 공개 전이에요", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
                 Spacer(Modifier.height(5.dp))
                 Text(
                     "게임별 푸드존·푸드트럭 메뉴가 나오면 이 자리에 채워져요.",
-                    fontSize = 12.sp, color = TextSecondary, lineHeight = 18.sp,
+                    fontSize = 13.sp, color = TextSecondary, lineHeight = 19.sp,
                 )
-            }
         }
         return
     }
+    // 게임마다 감싸던 카드를 걷고 **한 게임 = 한 섹션**, 사이는 띠로 가른다(10/1).
     list.forEachIndexed { i, p ->
-        if (i > 0) Spacer(Modifier.height(12.dp))
-        HoyolandFoodCard(e, p)
+        if (i > 0) GiBand()
+        HoyolandSectionBox {
+            HoyolandFoodCard(e, p)
+            if (i == list.lastIndex) {
+                Spacer(Modifier.height(14.dp))
+                // 넛지 — 이 화면의 숫자는 **공지 기준**이라는 것만 분명히 한다. 현장 메뉴판과 다를 때
+                // "앱이 틀렸다"가 아니라 "바뀌었구나"로 읽히게 하는 한 줄이다.
+                Text(
+                    "가격·구성은 공식 공지 기준이에요. 현장 사정으로 바뀔 수 있어요.",
+                    fontSize = 12.sp, color = TextThird, lineHeight = 17.sp,   // 11 → 12(10/1)
+                )
+            }
+        }
     }
-    Spacer(Modifier.height(14.dp))
-    // 넛지 — 이 화면의 숫자는 **공지 기준**이라는 것만 분명히 한다. 현장 메뉴판과 다를 때
-    // "앱이 틀렸다"가 아니라 "바뀌었구나"로 읽히게 하는 한 줄이다.
-    Text(
-        "가격·구성은 공식 공지 기준이에요. 현장 사정으로 바뀔 수 있어요.",
-        fontSize = 11.sp, color = TextThird, lineHeight = 16.sp,
-    )
 }
 
 /**
@@ -2400,8 +2429,8 @@ private fun HoyolandFoodCard(e: HoyolandEvent, p: HoyolandProgram) {
             onDismiss = { viewingFood.value = null },
         )
     }
-    GlassCard(modifier = Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp)) {
+    // 감싸던 카드를 걷었다(10/1) — 섹션이 화면 폭 흰 면이다. 메뉴 줄(사진 타일)과 메뉴판 면은 그대로 둔다.
+        Column(Modifier.fillMaxWidth()) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 if (game.isNotBlank()) {
                     Text(
@@ -2416,7 +2445,7 @@ private fun HoyolandFoodCard(e: HoyolandEvent, p: HoyolandProgram) {
                 }
                 Text(
                     p.title.substringBefore(" — "),
-                    fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TextPrimary,
+                    fontSize = 17.sp, fontWeight = FontWeight.Bold, color = TextPrimary,   // 섹션 제목 17(10/1)
                 )
                 Spacer(Modifier.weight(1f))
                 if (menuCount > 0) HoyolandInfoBadge("${menuCount}종", TextSecondary)
@@ -2489,7 +2518,7 @@ private fun HoyolandFoodCard(e: HoyolandEvent, p: HoyolandProgram) {
                                 }
                                 if (row.sub.isNotBlank()) {
                                     Spacer(Modifier.height(3.dp))
-                                    Text(row.sub, fontSize = 11.5.sp, color = TextThird, lineHeight = 16.sp)
+                                    Text(row.sub, fontSize = 12.5.sp, color = TextThird, lineHeight = 17.sp)   // 11.5 → 12.5(10/1)
                                 }
                             }
                             }
@@ -2502,7 +2531,6 @@ private fun HoyolandFoodCard(e: HoyolandEvent, p: HoyolandProgram) {
                 HoyolandInfoBadge(p.deadline, c)
             }
         }
-    }
 }
 
 /** 메뉴판 한 덩이 — 파는 것들의 목록이거나, 그 앞뒤의 문장(소제목·세트 안내)이다. */
@@ -2652,8 +2680,8 @@ private fun HoyolandBoothCard(e: HoyolandEvent, b: HoyolandBooth) {
 /** 시간표가 아직 없는 날 — 빈 카드가 아니라 **언제 채워지는지**를 말한다. */
 @Composable
 private fun StageEmptyCard(e: HoyolandEvent) {
-    GlassCard(modifier = Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp)) {
+    // 빈 상태도 카드 없이 글만(10/1).
+        Column(Modifier.fillMaxWidth()) {
             Text(
                 if (e.hasTimetable) "이 날 무대 편성은 아직이에요" else "무대 편성은 아직 공개 전이에요",
                 fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TextPrimary,
@@ -2661,10 +2689,9 @@ private fun StageEmptyCard(e: HoyolandEvent) {
             Spacer(Modifier.height(5.dp))
             Text(
                 "공개되면 게임별 무대 순서와 시각이 이 자리에 채워져요.\n지난 행사는 개막 2~3주 전에 나왔어요.",
-                fontSize = 12.sp, color = TextSecondary, lineHeight = 18.sp,
+                fontSize = 13.sp, color = TextSecondary, lineHeight = 19.sp,
             )
         }
-    }
 }
 
 /**
@@ -2816,7 +2843,8 @@ private fun StageRow(
             // 지나간 편과 **같은 값으로** 내린다. 둘은 "지금 내가 볼 수 없다" 는 같은 말이고,
             // 단계를 나누면 흐린 줄이 두 종류가 되어 무엇이 더 흐린지 세게 된다.
             .alpha(if (item.state == StageState.DONE || beforeEntry) 0.40f else 1f)
-            .padding(start = 16.dp, end = 14.dp, top = 11.dp, bottom = 11.dp),
+            // 카드 안쪽 여백이던 좌우 16/14 를 뺐다 — 섹션이 좌우 20 을 이미 둔다(10/1).
+            .padding(top = 12.dp, bottom = 12.dp),
     ) {
         // 좌측 열 — 시각 **아래**에 게임 이름. 배지 상자에 넣으면 "스타레일"이 안 들어가
         // 두 자로 잘리는데, 그러면 무슨 게임인지가 오히려 흐려진다. 열을 세로로 쓰면
@@ -2874,14 +2902,14 @@ private fun StageRow(
             if (sub.isNotBlank()) {
                 Spacer(Modifier.height(2.dp))
                 // 설명에 줄바꿈이 들어 있다(조별 입장 시각 · ※ 주의) — 줄간을 준다.
-                Text(sub, fontSize = 11.5.sp, color = TextSecondary, lineHeight = 17.sp)
+                Text(sub, fontSize = 12.5.sp, color = TextSecondary, lineHeight = 18.sp)   // 11.5 → 12.5(10/1)
             }
             // 출연자 — 무대를 고르는 기준이 공연명보다 출연자일 때가 많다(성우 무대가 특히).
             if (item.slot.cast.isNotBlank()) {
                 Spacer(Modifier.height(3.dp))
                 Text(
                     "출연 · ${item.slot.cast}",
-                    fontSize = 11.sp, fontWeight = FontWeight.Medium, color = c,
+                    fontSize = 12.sp, fontWeight = FontWeight.Medium, color = c,   // 11 → 12(10/1)
                 )
             }
         }
@@ -2890,11 +2918,38 @@ private fun StageRow(
 
 
 
-/** 지난 행사 1건 카드 — 제목 + "종료" 배지 + 팩트 목록. */
+/**
+ * 줄 사이 헤어라인 — 카드를 걷은 페이지(10/1)의 공용 구분선 색. 마이페이지 · 지출 · 게임정보 첫 화면과 같은 값.
+ * 라인업 목록(`hoyoland/HoyolandHero.kt`)도 같이 쓴다.
+ */
+internal val HoyolandHairline = Color(0xFFEEF0F2)
+
+@Composable
+private fun HoyolandHairlineDivider() {
+    Box(Modifier.fillMaxWidth().height(1.dp).background(HoyolandHairline))
+}
+
+/**
+ * 카드 없는 섹션(10/1) — 화면 폭 · 좌우 20 · 위 22 · 아래 20. 섹션 사이는 [GiBand].
+ * 게임정보 첫 화면의 `GiSection` 과 같은 규격이다(그건 private 이라 여기 한 벌 둔다).
+ * 붙박이 탭 바로 아래 섹션은 탭이 아래 10 을 이미 두므로 [top] 을 줄인다.
+ */
+@Composable
+private fun HoyolandSectionBox(
+    top: androidx.compose.ui.unit.Dp = 22.dp,
+    horizontal: androidx.compose.ui.unit.Dp = 20.dp,
+    content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit,
+) {
+    Column(
+        Modifier.fillMaxWidth().padding(start = horizontal, end = horizontal, top = top, bottom = 20.dp),
+        content = content,
+    )
+}
+
+/** 지난 행사 1건 — 제목 + "종료" 배지 + 팩트 목록. 카드를 걷고 헤어라인 목록의 한 줄이 됐다(10/1). */
 @Composable
 private fun HoyolandPastEventCard(title: String, facts: List<HoyolandFact>) {
-    GlassCard(modifier = Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp)) {
+        Column(Modifier.fillMaxWidth().padding(vertical = 14.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(title, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
                 Spacer(Modifier.width(8.dp))
@@ -2906,7 +2961,6 @@ private fun HoyolandPastEventCard(title: String, facts: List<HoyolandFact>) {
                 HoyolandFactRow(f.label, f.value)
             }
         }
-    }
 }
 
 /** 참여 게임 1줄 — 게임 태그 + 게임명 + 테마 제목. */

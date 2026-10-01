@@ -51,21 +51,24 @@ struct HoyolandStageView: View {
                     subLabels: ymds.map { event.dayTabWeekday(ymd: $0) },
                     selection: $selectedDay
                 )
-                .padding(.horizontal, 16).padding(.bottom, 10)
+                .padding(.horizontal, 20).padding(.bottom, 10)
                 .glgReadableWidth(720)
                 .onChange(of: selectedDay) { _, _ in stageFilter = nil }
             }
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
-                    timetableSection(event)
+                    // 카드 없는 섹션(10/1) — 좌우 20 · 아래 20. 날짜 탭이 아래 10 을 이미 두므로 위는 12.
+                    // VStack 으로 한 번 감싼다 — 여러 뷰를 내는 함수에 바로 걸면 여백이 줄마다 붙는다.
+                    VStack(alignment: .leading, spacing: 0) { timetableSection(event) }
+                        .hoyolandSection(top: ymds.count > 1 ? 12 : 22)
                     Color.clear.frame(height: 24)
                 }
-                .padding(.horizontal, 16)
                 .glgReadableWidth(720)
             }
             .scrollIndicators(.hidden)
         }
-        .background(GLGBackground { Color.clear })
+        // 흰 바탕(10/1) — Android SectionPage(flat) 와 같다.
+        .background(Color.white)
         .glgPageTitle("일자별 시간표")
         .navigationBarTitleDisplayMode(.inline)
         // 당겨서 새로고침 — 무대 편성은 **행사 당일 현장에서 바뀐다.** 운영 어드민에서 고친
@@ -102,7 +105,7 @@ struct HoyolandStageView: View {
             if !entryNote.isEmpty {
                 HStack(spacing: 6) {
                     Image(systemName: "ticket").font(.system(size: 12, weight: .semibold))
-                    Text(entryNote).font(.pretendard(size: 11.5, weight: .bold))
+                    Text(entryNote).font(.pretendard(size: 12.5, weight: .bold))   // 11.5 → 12.5(10/1)
                 }
                 .foregroundStyle(accent.deep)
                 .padding(.bottom, 10)
@@ -136,15 +139,13 @@ struct HoyolandStageView: View {
                     )
                     .padding(.bottom, 10)
                 }
-                GLGCard(cornerRadius: 24, padding: 0) {
-                    VStack(alignment: .leading, spacing: 0) {
-                        ForEach(Array(shown.enumerated()), id: \.offset) { i, item in
-                            if i > 0 { Divider() }
-                            stageRow(e, item, isLive: item.state == .live,
-                                     beforeEntry: item.isBeforeEntry(entryMin: entryMin))
-                        }
+                // 감싸던 카드를 걷고 헤어라인 목록으로(10/1).
+                VStack(alignment: .leading, spacing: 0) {
+                    ForEach(Array(shown.enumerated()), id: \.offset) { i, item in
+                        if i > 0 { HoyolandHairline() }
+                        stageRow(e, item, isLive: item.state == .live,
+                                 beforeEntry: item.isBeforeEntry(entryMin: entryMin))
                     }
-                    .padding(.vertical, 4)
                 }
             }
         }
@@ -152,16 +153,15 @@ struct HoyolandStageView: View {
 
     /// 시간표가 아직 없는 날 — 빈 카드가 아니라 **언제 채워지는지**를 말한다.
     @ViewBuilder private func stageEmptyCard(_ e: HoyolandEvent) -> some View {
-        GLGCard(cornerRadius: 24, padding: 16) {
+        // 빈 상태도 카드 없이 글만(10/1).
             VStack(alignment: .leading, spacing: 5) {
                 Text(e.hasTimetable ? "이 날 무대 편성은 아직이에요" : "무대 편성은 아직 공개 전이에요")
                     .font(.pretendard(size: 14, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
                 Text("공개되면 게임별 무대 순서와 시각이 이 자리에 채워져요.\n지난 행사는 개막 2~3주 전에 나왔어요.")
-                    .font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary)
+                    .font(.pretendard(size: 13)).foregroundStyle(GLGColor.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
-        }
     }
 
     /// 무대 배지·띠 색 — 참가 게임 목록이 정본. 없으면 회색('전 IP').
@@ -303,7 +303,7 @@ struct HoyolandStageView: View {
                     .fixedSize(horizontal: false, vertical: true)
                 if !sub.isEmpty {
                     // 설명에 줄바꿈이 들어 있다(조별 입장 시각 · ※ 주의) — 줄간을 준다.
-                    Text(sub).font(.pretendard(size: 11.5))
+                    Text(sub).font(.pretendard(size: 12.5))   // 11.5 → 12.5(10/1)
                         .foregroundStyle(GLGColor.textSecondary)
                         .lineSpacing(4)
                         .fixedSize(horizontal: false, vertical: true)
@@ -312,14 +312,14 @@ struct HoyolandStageView: View {
                 // 출연자 — 무대를 고르는 기준이 공연명보다 출연자일 때가 많다(성우 무대가 특히).
                 if !item.slot.cast.isEmpty {
                     Text("출연 · \(item.slot.cast)")
-                        .font(.pretendard(size: 11, weight: .medium))
+                        .font(.pretendard(size: 12, weight: .medium))   // 11 → 12(10/1)
                         .foregroundStyle(c).padding(.top, 3)
                 }
             }
             Spacer(minLength: 0)
         }
-        .padding(.leading, 16).padding(.trailing, 14)
-        .padding(.vertical, 11)
+        // 카드 안쪽 좌우 여백을 뺐다 — 섹션이 좌우 20 을 이미 둔다(10/1).
+        .padding(.vertical, 12)
         // 지나간 편과 **같은 값으로** 내린다. 둘은 "지금 내가 볼 수 없다" 는 같은 말이고,
         // 단계를 나누면 흐린 줄이 두 종류가 되어 무엇이 더 흐린지 세게 된다.
         .opacity(item.state == .done || beforeEntry ? 0.40 : 1)

@@ -437,31 +437,30 @@ struct AttendanceDetailView: View {
 
     var body: some View {
         let s = summary
+        // 카드 셋을 걷고 섹션 셋으로(10/1) — 오늘 · 게임별 · 최근 7일, 사이는 GiBand. 흰 바탕 · 좌우 20 은 섹션이 둔다.
+        // 달력 판 · 통계 칸은 내용 묶음이라 둔다. Android AttendanceDetailContent 와 같다.
         ScrollView {
-            VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: 0) {
                 todayCard(s)
-                GLGCard(cornerRadius: 20, padding: 16) {
-                    VStack(alignment: .leading, spacing: 0) {
-                        ForEach(Array(s.games.enumerated()), id: \.offset) { i, g in
-                            if i > 0 { Divider() }
-                            gameRow(g, elapsed: Int(s.monthElapsedDays))
-                        }
+                GiBand()
+                GiPageSection("게임별 출석") {
+                    ForEach(Array(s.games.enumerated()), id: \.offset) { i, g in
+                        if i > 0 { GiHairline() }
+                        gameRow(g, elapsed: Int(s.monthElapsedDays))
                     }
                 }
-                GLGCard(cornerRadius: 20, padding: 16) {
-                    VStack(alignment: .leading, spacing: 12) {
-                        Text("최근 7일").font(.pretendard(size: 12, weight: .bold))
-                            .foregroundStyle(GLGColor.textSecondary)
-                        WeekAttendanceStrip(history: store.attendanceHistory, total: store.trackedAttendanceGames.count)
-                        MonthAttendanceCalendar(history: store.attendanceHistory, total: store.trackedAttendanceGames.count)
-                    }
+                GiBand()
+                GiPageSection("최근 7일") {
+                    WeekAttendanceStrip(history: store.attendanceHistory, total: store.trackedAttendanceGames.count)
+                    MonthAttendanceCalendar(history: store.attendanceHistory, total: store.trackedAttendanceGames.count)
+                        .padding(.top, 16)
                 }
             }
-            .padding(16)
+            .padding(.bottom, 16)
             .glgReadableWidth(720)
         }
         .scrollIndicators(.hidden)
-        .background(GLGBackground { Color.clear })
+        .background(Color.white)
         .glgPageTitle("출석 체크 현황")
         .navigationBarTitleDisplayMode(.inline)
     }
@@ -469,34 +468,32 @@ struct AttendanceDetailView: View {
     /// 오늘 요약 — 큰 숫자 + 연속·이번 달.
     @ViewBuilder
     private func todayCard(_ s: AttendanceSummary) -> some View {
-        GLGCard(cornerRadius: 20, padding: 16) {
-            VStack(alignment: .leading, spacing: 0) {
-                Text("오늘").font(.pretendard(size: 12, weight: .bold)).foregroundStyle(GLGColor.textSecondary)
-                HStack(alignment: .bottom, spacing: 0) {
-                    Text("\(s.todayDone)").font(.pretendard(size: 34, weight: .bold))
-                        .foregroundStyle(s.allDone ? accent.primary : GLGColor.dangerText)
-                    Text(" / \(s.todayTotal) 게임").font(.pretendard(size: 14, weight: .bold))
-                        .foregroundStyle(GLGColor.textSecondary).padding(.bottom, 5)
-                    Spacer(minLength: 8)
-                    if !s.allDone {
-                        GldsButton(title: "전체 출석", size: .s, fullWidth: false, loading: store.checkingIn != nil) { store.checkInAll() }
-                    }
+        // 카드 면을 걷고 섹션으로(10/1). '오늘' 은 12 회색 라벨 → 17 섹션 제목.
+        GiPageSection("오늘") {
+            HStack(alignment: .bottom, spacing: 0) {
+                Text("\(s.todayDone)").font(.pretendard(size: 34, weight: .bold))
+                    .foregroundStyle(s.allDone ? accent.primary : GLGColor.dangerText)
+                Text(" / \(s.todayTotal) 게임").font(.pretendard(size: 14, weight: .bold))
+                    .foregroundStyle(GLGColor.textSecondary).padding(.bottom, 5)
+                Spacer(minLength: 8)
+                if !s.allDone {
+                    GldsButton(title: "전체 출석", size: .s, fullWidth: false, loading: store.checkingIn != nil) { store.checkInAll() }
                 }
-                .padding(.top, 10)
-                HStack(spacing: 10) {
-                    statBox("연속 기록", s.streak > 0 ? "\(s.streak)일" : "—")
-                    statBox("이번 달 전체 출석", "\(s.monthFullDays)일 / \(s.monthElapsedDays)일")
-                }
-                .padding(.top, 14)
             }
+            HStack(spacing: 10) {
+                statBox("연속 기록", s.streak > 0 ? "\(s.streak)일" : "—")
+                statBox("이번 달 전체 출석", "\(s.monthFullDays)일 / \(s.monthElapsedDays)일")
+            }
+            .padding(.top, 14)
         }
     }
 
     @ViewBuilder
     private func statBox(_ label: String, _ value: String) -> some View {
         VStack(alignment: .leading, spacing: 3) {
-            Text(label).font(.pretendard(size: 10.5)).foregroundStyle(GLGColor.textSecondary).lineLimit(1)
-            Text(value).font(.pretendard(size: 13.5, weight: .bold)).foregroundStyle(GLGColor.textPrimary).lineLimit(1)
+            // 라벨 10.5 → 12.5 · 값 13.5 → 15(10/1) — 가독성.
+            Text(label).font(.pretendard(size: 12.5)).foregroundStyle(GLGColor.textSecondary).lineLimit(1)
+            Text(value).font(.pretendard(size: 15, weight: .bold)).foregroundStyle(GLGColor.textPrimary).lineLimit(1)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 12).padding(.vertical, 10)
@@ -509,9 +506,10 @@ struct AttendanceDetailView: View {
         HStack(spacing: 10) {
             RoundedRectangle(cornerRadius: 2).fill(Color(argb64: g.colorArgb)).frame(width: 3, height: 20)
             VStack(alignment: .leading, spacing: 2) {
-                Text(g.gameShort).font(.pretendard(size: 13, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
+                // 게임명 13 → 15 · 누계 11 → 13(10/1).
+                Text(g.gameShort).font(.pretendard(size: 15, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
                 Text("이번 달 \(g.monthCount)일" + (elapsed > 0 ? " / \(elapsed)일" : ""))
-                    .font(.pretendard(size: 11)).foregroundStyle(GLGColor.textSecondary)
+                    .font(.pretendard(size: 13)).foregroundStyle(GLGColor.textSecondary)
             }
             Spacer(minLength: 8)
             if store.checkingIn == g.gameKey {
@@ -519,7 +517,7 @@ struct AttendanceDetailView: View {
             } else if g.checkedToday {
                 HStack(spacing: 5) {
                     Image(systemName: "checkmark.circle.fill").font(.system(size: 15)).foregroundStyle(accent.primary)
-                    Text("완료").font(.pretendard(size: 11.5, weight: .bold)).foregroundStyle(accent.primary)
+                    Text("완료").font(.pretendard(size: 13, weight: .bold)).foregroundStyle(accent.primary)
                 }
             } else {
                 GldsButton(title: "출석", variant: .secondary, size: .xs, fullWidth: false) { store.attemptCheckIn(g.gameKey) }
@@ -554,7 +552,7 @@ private struct WeekAttendanceStrip: View {
                 let isToday = idx == 6
                 let level = attendLevel(count, total: total)
                 VStack(spacing: 5) {
-                    Text(dow).font(.pretendard(size: 10, weight: isToday ? .bold : .regular))
+                    Text(dow).font(.pretendard(size: 12, weight: isToday ? .bold : .regular))
                         .foregroundStyle(isToday ? accent.primary : GLGColor.textSecondary)
                     // 날짜는 **항상** 보여준다 — 예전엔 전체 출석한 날을 체크 아이콘으로 덮어버려
                     // 정작 며칠인지 알 수 없었다. 완료 표시는 채움색 + 우상단 작은 체크로 한다.
@@ -625,7 +623,7 @@ private struct MonthAttendanceCalendar: View {
                 }.buttonStyle(.plain).disabled(monthOffset >= 0)
             }
             .padding(.bottom, 12)
-            HStack { ForEach(["일","월","화","수","목","금","토"], id: \.self) { Text($0).font(.pretendard(size: 11)).foregroundStyle(GLGColor.textSecondary).frame(maxWidth: .infinity) } }
+            HStack { ForEach(["일","월","화","수","목","금","토"], id: \.self) { Text($0).font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary).frame(maxWidth: .infinity) } }
             .padding(.bottom, 6)
             ForEach(Array(rows.enumerated()), id: \.offset) { _, week in
                 HStack {
@@ -667,7 +665,7 @@ private struct MonthAttendanceCalendar: View {
         switch l { case .full: return accent.primary; case .partial: return accent.primary.opacity(0.30); case .none: return .clear }
     }
     private func legendDot(_ c: Color, _ label: String) -> some View {
-        HStack(spacing: 5) { Circle().fill(c).frame(width: 12, height: 12); Text(label).font(.pretendard(size: 11)).foregroundStyle(GLGColor.textSecondary) }
+        HStack(spacing: 5) { Circle().fill(c).frame(width: 12, height: 12); Text(label).font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary) }
     }
 }
 
