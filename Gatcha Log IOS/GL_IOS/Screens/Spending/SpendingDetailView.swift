@@ -50,11 +50,12 @@ struct SpendingDetailView: View {
                 }
             }
         }
-        .background(GLGBackground { Color.clear }.ignoresSafeArea())
+        // 카드를 걷었으니 바탕은 흰 면 — 띠(F2F4F6)와 헤어라인이 구분을 맡는다(Android 와 같다).
+        .background(Color.white.ignoresSafeArea())
         // 히어로가 상태바까지 올라가므로 막대에 글자를 얹지 않는다 — 그라데이션 위에 겹친다.
         // 어느 화면인지는 히어로의 게임명·금액이 말해 준다. 다만 제목 자체는 채운다 —
         // 비우면 뒤로가기 길게 누르기 메뉴가 공백 줄이 된다.
-        .glgHiddenTitle("지출 상세")
+        .glgHiddenTitle("지출 내역")
         .navigationBarTitleDisplayMode(.inline)
         // 네비게이션 바 배경을 걷어내 히어로 색이 상태바 영역까지 이어지게 한다.
         // iOS 26 은 `toolbarBackground(_:for:)` 가 더 이상 바의 유리를 걷어내지 못한다 —
@@ -68,36 +69,17 @@ struct SpendingDetailView: View {
 
     private func content(_ s: Spending, topInset: CGFloat) -> some View {
         ScrollView {
-            VStack(spacing: 12) {
+            VStack(spacing: 0) {
                 hero(s, topInset: topInset)
+                // 읽는 순서 — 사실(상세 정보) 먼저, 해석(비중 · 이력)은 뒤에.
+                // 히어로 바로 아래엔 띠를 두지 않는다 — 히어로의 둥근 아래 모서리가 회색 띠 위에 떠 보인다.
+                infoSection(s)
                 if let st = stats {
-                    shareCard(s, share: st.share, typical: st.typical)
-                    sameItemCard(s, history: st.same)
+                    detailBand
+                    shareSection(s, share: st.share, typical: st.typical)
+                    // 같은 항목 이력은 조건부라 띠를 스스로 그린다(빠지면 띠도 함께 빠진다).
+                    sameItemSection(s, history: st.same)
                 }
-                // 상세 정보 — 히어로가 금액·재화·날짜·결제를 흡수했으므로 남은 것만.
-                GLGCard(cornerRadius: 24, padding: 20) {
-                    VStack(spacing: 0) {
-                        // 항목은 남긴다 — 히어로의 재화 환산이 어디서 나온 값인지 알려 주는 근거다.
-                        // '구분'은 뺐다(히어로 배지가 이미 정기/일반을 말한다).
-                        detailRow("항목", s.itemName.isEmpty ? "—" : s.itemName)
-                        Divider()
-                        detailRow("결제 수단", s.paymentMethod.isEmpty ? "—" : s.paymentMethod)
-                        if !s.chargePlatform.isEmpty {
-                            Divider()
-                            detailRow("충전 플랫폼", s.chargePlatform)
-                        }
-                        if !s.memo.isEmpty { Divider(); detailRow("메모", s.memo) }
-                        if !s.tags.isEmpty {
-                            Divider()
-                            VStack(alignment: .leading, spacing: 8) {
-                                Text("태그").font(.pretendard(size: 13)).foregroundStyle(GLGColor.textSecondary)
-                                HStack(spacing: 6) { ForEach(s.tags, id: \.self) { TagChip(tag: $0) } }
-                            }
-                            .frame(maxWidth: .infinity, alignment: .leading).padding(.vertical, 12)
-                        }
-                    }
-                }
-                .padding(.horizontal, 16)
                 Color.clear.frame(height: 24)
             }
             .padding(.bottom, 8)
@@ -264,52 +246,95 @@ struct SpendingDetailView: View {
         .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { heroHeight = $0 }
     }
 
+    // ── 섹션 — 카드 없이 흰 바탕, 사이는 10 띠(마이페이지 3.0 · 지출 리스트 2.0 과 같은 규격) ──
+
+    private var detailBand: some View { Color(hex: 0xFFF2F4F6).frame(height: 10).frame(maxWidth: .infinity) }
+    private var detailHair: some View { Color(hex: 0xFFEEF0F2).frame(height: 1).frame(maxWidth: .infinity) }
+
+    /// 섹션 — 좌우 20 · 위 22 · 아래 20, 제목 17 굵게(마이페이지 3.0 섹션 머리와 같은 크기).
+    private func detailSection<C: View>(_ title: String, @ViewBuilder content: () -> C) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text(title).font(.pretendard(size: 17, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
+                .padding(.bottom, 6)
+            content()
+        }
+        .padding(.horizontal, 20).padding(.top, 22).padding(.bottom, 20)
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    /// 상세 정보 — 히어로에 없는 것만. 내용은 재화 환산의 근거라 남긴다.
+    private func infoSection(_ s: Spending) -> some View {
+        // 재화 개수를 못 구하는 상품이면 히어로 칸이 결제 수단 · 충전 플랫폼을 이미 보여 준다 — 여기선 겹치지 않게 뺀다.
+        let heroShowsPayment = GameDataKt.currencyAmountOrNull(gameName: s.gameName, itemName: s.itemName) == nil
+        return detailSection("상세 정보") {
+            detailRow("내용", s.itemName.isEmpty ? "—" : s.itemName)
+            if !heroShowsPayment {
+                detailHair
+                detailRow("결제 수단", s.paymentMethod.isEmpty ? "—" : s.paymentMethod)
+                if !s.chargePlatform.isEmpty { detailHair; detailRow("충전 플랫폼", s.chargePlatform) }
+            }
+            if !s.memo.isEmpty { detailHair; detailRow("메모", s.memo) }
+            if !s.tags.isEmpty {
+                detailHair
+                HStack(alignment: .top) {
+                    Text("태그").font(.pretendard(size: 14)).foregroundStyle(GLGColor.textSecondary)
+                        .frame(width: 88, alignment: .leading)
+                    Spacer(minLength: 0)
+                    HStack(spacing: 6) { ForEach(s.tags, id: \.self) { TagChip(tag: $0) } }
+                }
+                .padding(.vertical, 13)
+            }
+        }
+    }
+
+    private func detailRow(_ label: String, _ value: String) -> some View {
+        HStack(alignment: .top, spacing: 0) {
+            Text(label).font(.pretendard(size: 14)).foregroundStyle(GLGColor.textSecondary)
+                .frame(width: 88, alignment: .leading)
+            Text(value).font(.pretendard(size: 15, weight: .medium)).foregroundStyle(GLGColor.textPrimary)
+                .multilineTextAlignment(.trailing)
+                .frame(maxWidth: .infinity, alignment: .trailing)
+        }
+        .padding(.vertical, 13)
+    }
+
     /**
      '이 지출은' — 월·게임 대비 비중을 **진행바**로, 평소 대비는 한 줄 문장으로.
 
-     히어로 안에 세 숫자를 나란히 넣어 봤는데, 색 위에 작은 글자가 겹쳐 읽는 부담이 컸다.
      비중은 막대로 보면 숫자를 읽지 않아도 대략이 잡힌다.
      */
-    @ViewBuilder
-    private func shareCard(_ s: Spending, share: SpendingShare, typical: SpendingVsTypical?) -> some View {
+    private func shareSection(_ s: Spending, share: SpendingShare, typical: SpendingVsTypical?) -> some View {
         let base = Color(argb64: s.gameColor)
-        GLGCard(cornerRadius: 24, padding: 20) {
-            VStack(alignment: .leading, spacing: 0) {
-                Text("이 지출은")
-                    .font(.pretendard(size: 11.5, weight: .bold))
+        let month = DateUtil.shared.month(millis: s.dateMillis)
+        return detailSection("지출 비중") {
+            bar("\(month)월 지출에서", percent: share.monthPercent, color: base)
+                .padding(.top, 8)
+            bar("\(GameData.shared.byName(name: s.gameName).shortName) \(month)월 지출에서",
+                percent: share.gamePercent, color: base)
+                .padding(.top, 16)
+
+            // 표본이 모자라면(3건 미만) 이 줄 자체가 없다 — 근거 없는 '평소'를 말하지 않는다.
+            if let t = typical {
+                (Text("평소 1회 결제보다 ")
+                    + Text(t.ratioLabel).foregroundColor(t.isNotable ? Color(hex: 0xFFE8634A) : GLGColor.textPrimary).bold()
+                    + Text(t.isNotable ? " 큽니다" : " 수준입니다"))
+                    .font(.pretendard(size: 14))
                     .foregroundStyle(GLGColor.textSecondary)
-                    .padding(.bottom, 12)
-
-                bar("\(DateUtil.shared.month(millis: s.dateMillis))월 지출에서",
-                    percent: share.monthPercent, color: base)
-                bar("\(GameData.shared.byName(name: s.gameName).shortName) \(DateUtil.shared.month(millis: s.dateMillis))월 지출에서",
-                    percent: share.gamePercent, color: base)
-                    .padding(.top, 12)
-
-                // 표본이 모자라면(3건 미만) 이 줄 자체가 없다 — 근거 없는 '평소'를 말하지 않는다.
-                if let t = typical {
-                    (Text("평소 단건보다 ")
-                        + Text(t.ratioLabel).foregroundColor(t.isNotable ? Color(hex: 0xFFE8634A) : GLGColor.textPrimary).bold()
-                        + Text(t.isNotable ? " 큽니다" : " 수준입니다"))
-                        .font(.pretendard(size: 12))
-                        .foregroundStyle(GLGColor.textSecondary)
-                        .padding(.top, 14)
-                    Text("중앙값 \(won(t.median)) · 최근 \(Int(SpendingDetailStats.shared.TYPICAL_MONTHS))개월 \(t.sampleSize)건")
-                        .font(.pretendard(size: 10.5))
-                        .foregroundStyle(GLGColor.textSecondary)
-                        .padding(.top, 3)
-                }
+                    .padding(.top, 18)
+                Text("보통 \(won(t.median)) · 최근 \(Int(SpendingDetailStats.shared.TYPICAL_MONTHS))개월 \(t.sampleSize)건")
+                    .font(.pretendard(size: 12))
+                    .foregroundStyle(GLGColor.textSecondary)
+                    .padding(.top, 4)
             }
         }
-        .padding(.horizontal, 16)
     }
 
     private func bar(_ label: String, percent: Int32, color: Color) -> some View {
-        VStack(spacing: 6) {
+        VStack(spacing: 8) {
             HStack {
-                Text(label).font(.pretendard(size: 11.5)).foregroundStyle(GLGColor.textSecondary)
+                Text(label).font(.pretendard(size: 14)).foregroundStyle(GLGColor.textPrimary)
                 Spacer()
-                Text("\(Int(percent))%").font(.pretendard(size: 12, weight: .bold))
+                Text("\(Int(percent))%").font(.pretendard(size: 15, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
             }
             GeometryReader { geo in
                 ZStack(alignment: .leading) {
@@ -318,7 +343,7 @@ struct SpendingDetailView: View {
                         .frame(width: max(0, min(1, Double(Int(percent)) / 100)) * geo.size.width)
                 }
             }
-            .frame(height: 7)
+            .frame(height: 8)
         }
     }
 
@@ -342,8 +367,8 @@ struct SpendingDetailView: View {
                 let parts = splitCurrency(amt)
                 return [parts, ("뽑기", pulls.map(shortPulls) ?? "—")]
             }
-            return [("결제", s.paymentMethod.isEmpty ? "—" : s.paymentMethod),
-                    ("충전처", s.chargePlatform.isEmpty ? "—" : s.chargePlatform)]
+            return [("결제 수단", s.paymentMethod.isEmpty ? "—" : s.paymentMethod),
+                    ("충전 플랫폼", s.chargePlatform.isEmpty ? "—" : s.chargePlatform)]
         }()
 
         HStack(spacing: 0) {
@@ -394,65 +419,54 @@ struct SpendingDetailView: View {
     }
 
     /**
-     같은 항목을 산 이력 — 횟수·누적·평균 간격 + 목록.
+     같은 항목을 산 이력 — 목록 + 아래 요약 3칸.
 
-     1건뿐이면 **카드를 통째로 감춘다**. "1번 샀어요"는 알려 줄 값어치가 없고,
-     빈 카드를 남기면 화면만 길어진다.
+     1건뿐이면 **섹션을 통째로 감춘다**(띠까지). "1번 샀어요"는 알려 줄 값어치가 없다.
+     요약은 목록 **아래** — 통계를 위에 세우면 정작 읽어야 할 날짜·금액보다 눈이 먼저 그리로 간다.
      */
     @ViewBuilder
-    private func sameItemCard(_ s: Spending, history: SameItemHistory?) -> some View {
+    private func sameItemSection(_ s: Spending, history: SameItemHistory?) -> some View {
         if let h = history, h.count > 1 {
-            GLGCard(cornerRadius: 24, padding: 20) {
-                VStack(alignment: .leading, spacing: 0) {
-                    Text("같은 항목을 산 적")
-                        .font(.pretendard(size: 11.5, weight: .bold))
-                        .foregroundStyle(GLGColor.textSecondary)
-                        .padding(.bottom, 12)
-                    ForEach(Array(h.entries.prefix(5).enumerated()), id: \.offset) { i, e in
-                        if i > 0 { Divider() }
-                        HStack {
-                            Text(DateUtil.shared.shortDate(millis: e.dateMillis))
-                                .font(.pretendard(size: 12.5, weight: e.id == s.id ? .bold : .regular))
-                                .foregroundStyle(e.id == s.id ? GLGColor.textPrimary : GLGColor.textSecondary)
-                            Spacer()
-                            Text(won(e.amount))
-                                .font(.pretendard(size: 12.5, weight: e.id == s.id ? .bold : .medium))
-                            if e.id == s.id {
-                                Text("이번").font(.pretendard(size: 10, weight: .bold))
-                                    .foregroundStyle(Color(argb64: s.gameColor))
-                            }
+            let gameColor = Color(argb64: s.gameColor)
+            detailBand
+            detailSection("같은 내용 구매 내역") {
+                ForEach(Array(h.entries.prefix(5).enumerated()), id: \.offset) { i, e in
+                    let mine = e.id == s.id
+                    if i > 0 { detailHair }
+                    HStack(spacing: 8) {
+                        Text(DateUtil.shared.shortDate(millis: e.dateMillis))
+                            .font(.pretendard(size: 14, weight: mine ? .bold : .regular))
+                            .foregroundStyle(mine ? GLGColor.textPrimary : GLGColor.textSecondary)
+                        if mine {
+                            Text("이번").font(.pretendard(size: 11, weight: .bold)).foregroundStyle(gameColor)
+                                .padding(.horizontal, 7).padding(.vertical, 2)
+                                .background(gameColor.opacity(0.14), in: Capsule())
                         }
-                        .padding(.vertical, 9)
+                        Spacer()
+                        Text(won(e.amount))
+                            .font(.pretendard(size: 15, weight: mine ? .bold : .medium))
+                            .foregroundStyle(GLGColor.textPrimary)
                     }
-                    // A안처럼 요약은 목록 **아래** 한 줄로 — 통계 박스를 위에 세우면
-                    // 정작 읽어야 할 날짜·금액보다 눈이 먼저 그리로 간다.
-                    Divider()
-                    HStack(spacing: 4) {
-                        Text("\(h.ordinal)번째").font(.pretendard(size: 12, weight: .bold))
-                        Text("· 누적 \(won(h.totalAmount))").font(.pretendard(size: 12))
-                        if let d = h.averageIntervalDays?.intValue {
-                            Text("· 평균 \(d)일 간격").font(.pretendard(size: 12))
-                        }
-                    }
-                    .foregroundStyle(GLGColor.textSecondary)
-                    .padding(.top, 11)
+                    .padding(.vertical, 12)
                 }
+                detailHair
+                HStack(spacing: 0) {
+                    summaryCell("\(h.ordinal)번째", "이번 구매")
+                    summaryCell(won(h.totalAmount), "누적")
+                    summaryCell(h.averageIntervalDays.map { "\($0.intValue)일" } ?? "—", "평균 간격")
+                }
+                .padding(.top, 16)
             }
-            .padding(.horizontal, 16)
         }
     }
 
-
-    private func detailRow(_ label: String, _ value: String, sub: String? = nil) -> some View {
-        HStack(alignment: .top) {
-            Text(label).font(.pretendard(size: 13)).foregroundStyle(GLGColor.textSecondary).frame(width: 80, alignment: .leading)
-            Spacer(minLength: 12)
-            VStack(alignment: .trailing, spacing: 2) {
-                Text(value).font(.pretendard(size: 14, weight: .medium)).multilineTextAlignment(.trailing)
-                // 재화양 아래 작게 — 환산 뽑기 수.
-                if let sub { Text(sub).font(.pretendard(size: 11)).foregroundStyle(GLGColor.textSecondary) }
-            }
+    /// 칸 안 가운데 — 왼쪽 정렬이면 세 칸이 왼쪽으로 쏠려 보였다.
+    private func summaryCell(_ value: String, _ label: String) -> some View {
+        VStack(alignment: .center, spacing: 0) {
+            Text(value).font(.pretendard(size: 15, weight: .bold)).foregroundStyle(GLGColor.textPrimary).lineLimit(1)
+            Text(label).font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary).lineLimit(1)
         }
-        .padding(.vertical, 12)
+        .frame(maxWidth: .infinity, alignment: .center)
     }
+
 }

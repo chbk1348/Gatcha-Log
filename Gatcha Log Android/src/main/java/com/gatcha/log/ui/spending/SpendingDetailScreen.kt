@@ -10,7 +10,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.derivedStateOf
@@ -39,14 +38,12 @@ import com.gatcha.log.data.Spending
 import com.gatcha.log.data.SpendingDetailStats
 import com.gatcha.log.data.currencyAmountOrNull
 import com.gatcha.log.data.currencyPullsOrNull
-import com.gatcha.log.ui.components.GlassCard
 import com.gatcha.log.ui.components.GlgCircleIconButton
 import com.gatcha.log.ui.components.GlgDetailHeaderOverlay
 import com.gatcha.log.ui.components.GlgDialog
 import com.gatcha.log.ui.components.GlgDropdownItem
 import com.gatcha.log.ui.components.GlgDropdownMenu
 import com.gatcha.log.ui.components.glgDetailContentTop
-import com.gatcha.log.ui.theme.DividerColor
 import com.gatcha.log.ui.theme.TextPrimary
 import com.gatcha.log.ui.theme.TextSecondary
 import com.gatcha.log.ui.theme.toColor
@@ -83,52 +80,21 @@ fun SpendingDetailScreen(
         derivedStateOf { heroHeightPx > 0 && scrollState.value > heroHeightPx - headerPx }
     }
 
-    Box(Modifier.fillMaxSize()) {
+    // 카드 없이 흰 바탕 — 섹션 사이는 10 띠(마이페이지 3.0 · 지출 리스트 2.0 과 같은 규격).
+    Box(Modifier.fillMaxSize().background(Color.White)) {
         Column(
             // 하단바 미노출 페이지 — 바 높이 여백 대신 시스템 네비 인셋만 확보.
             // 상단 인셋은 주지 않는다. 히어로가 상태바까지 색을 올리고 **스스로** 내려간다.
             Modifier.fillMaxSize().navigationBarsPadding().verticalScroll(scrollState),
-            // 카드 사이 간격은 여기 한 곳에서 준다. Spacer 를 손으로 끼우면 조건부 카드
-            // (같은 항목 이력)가 빠질 때 간격만 남아 빈 자리가 생긴다 — spacedBy 는 실제로
-            // 배치된 자식 사이에만 들어간다.
-            verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Hero(spending, Modifier.onSizeChanged { heroHeightPx = it.height })
-            ShareCard(spending, all)
-            SameItemCard(spending, all)
-            // 상세 정보 — 히어로가 금액·재화·날짜·구분을 흡수했으므로 남은 것만.
-            GlassCard(
-                shape = RoundedCornerShape(24.dp),
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-            ) {
-                Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 6.dp)) {
-                    // 항목은 남긴다 — 히어로의 재화 환산이 어디서 나온 값인지 알려 주는 근거다.
-                    DetailRow("항목", spending.itemName.ifBlank { "—" })
-                    HorizontalDivider(color = DividerColor)
-                    DetailRow("결제 수단", spending.paymentMethod.ifBlank { "—" })
-                    if (spending.chargePlatform.isNotBlank()) {
-                        HorizontalDivider(color = DividerColor)
-                        DetailRow("충전 플랫폼", spending.chargePlatform)
-                    }
-                    if (spending.memo.isNotBlank()) {
-                        HorizontalDivider(color = DividerColor)
-                        DetailRow("메모", spending.memo)
-                    }
-                    if (spending.tags.isNotEmpty()) {
-                        HorizontalDivider(color = DividerColor)
-                        Column(Modifier.fillMaxWidth().padding(vertical = 12.dp)) {
-                            Text("태그", fontSize = 13.sp, color = TextSecondary)
-                            Spacer(Modifier.height(8.dp))
-                            FlowRow(
-                                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                                verticalArrangement = Arrangement.spacedBy(6.dp),
-                            ) {
-                                spending.tags.forEach { tag -> TagChip(tag) }
-                            }
-                        }
-                    }
-                }
-            }
+            // 읽는 순서 — 사실(상세 정보) 먼저, 해석(비중 · 이력)은 뒤에.
+            // 히어로 바로 아래엔 띠를 두지 않는다 — 히어로의 둥근 아래 모서리가 회색 띠 위에 떠 보인다.
+            InfoSection(spending)
+            DetailBand()
+            ShareSection(spending, all)
+            // 같은 항목 이력은 조건부라 띠를 스스로 그린다(빠지면 띠도 함께 빠진다).
+            SameItemSection(spending, all)
             Spacer(Modifier.height(24.dp))
         }
         // 제목은 비운다 — 히어로의 게임명·금액이 어느 화면인지 말해 준다(iOS 와 동일).
@@ -253,8 +219,8 @@ private fun HeroFacts(s: Spending, ink: Color) {
         listOf(currency, "뽑기" to (pulls?.replace(" 가능", "") ?: "—"))
     } else {
         listOf(
-            "결제" to s.paymentMethod.ifBlank { "—" },
-            "충전처" to s.chargePlatform.ifBlank { "—" },
+            "결제 수단" to s.paymentMethod.ifBlank { "—" },
+            "충전 플랫폼" to s.chargePlatform.ifBlank { "—" },
         )
     }
 
@@ -288,46 +254,112 @@ private fun FactDivider(ink: Color) {
     Box(Modifier.width(1.dp).height(24.dp).background(ink.copy(alpha = 0.14f)))
 }
 
+/** 섹션 사이 10 띠 — 마이페이지 3.0 과 같은 색. */
+@Composable
+private fun DetailBand() {
+    Box(Modifier.fillMaxWidth().height(10.dp).background(Color(0xFFF2F4F6)))
+}
+
+@Composable
+private fun DetailHair() {
+    Box(Modifier.fillMaxWidth().height(1.dp).background(DetailHairColor))
+}
+
+private val DetailHairColor = Color(0xFFEEF0F2)
+
+/** 섹션 — 좌우 20 · 위 22 · 아래 20, 제목 17 굵게(마이페이지 3.0 섹션 머리와 같은 크기). */
+@Composable
+private fun DetailSection(title: String, content: @Composable ColumnScope.() -> Unit) {
+    Column(Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 22.dp, bottom = 20.dp)) {
+        Text(title, fontSize = 17.sp, fontWeight = FontWeight.Bold, color = TextPrimary, modifier = Modifier.padding(bottom = 6.dp))
+        content()
+    }
+}
+
+/** 상세 정보 — 히어로에 없는 것만. 내용은 재화 환산의 근거라 남긴다. */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun InfoSection(s: Spending) {
+    // 재화 개수를 못 구하는 상품이면 히어로 칸이 결제 수단 · 충전 플랫폼을 이미 보여 준다 — 여기선 겹치지 않게 뺀다.
+    val heroShowsPayment = currencyAmountOrNull(s.gameName, s.itemName) == null
+    DetailSection("상세 정보") {
+        DetailRow("내용", s.itemName.ifBlank { "—" })
+        if (!heroShowsPayment) {
+            DetailHair()
+            DetailRow("결제 수단", s.paymentMethod.ifBlank { "—" })
+            if (s.chargePlatform.isNotBlank()) {
+                DetailHair()
+                DetailRow("충전 플랫폼", s.chargePlatform)
+            }
+        }
+        if (s.memo.isNotBlank()) {
+            DetailHair()
+            DetailRow("메모", s.memo)
+        }
+        if (s.tags.isNotEmpty()) {
+            DetailHair()
+            Row(Modifier.fillMaxWidth().padding(vertical = 13.dp), verticalAlignment = Alignment.Top) {
+                Text("태그", fontSize = 14.sp, color = TextSecondary, modifier = Modifier.width(88.dp))
+                FlowRow(
+                    modifier = Modifier.weight(1f),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.End),
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    s.tags.forEach { tag -> TagChip(tag) }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun DetailRow(label: String, value: String) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 13.dp),
+        verticalAlignment = Alignment.Top,
+    ) {
+        Text(label, fontSize = 14.sp, color = TextSecondary, modifier = Modifier.width(88.dp))
+        Text(value, fontSize = 15.sp, fontWeight = FontWeight.Medium, color = TextPrimary, textAlign = TextAlign.End, modifier = Modifier.weight(1f))
+    }
+}
+
 /**
  * '이 지출은' — 월·게임 대비 비중을 **진행바**로, 평소 대비는 한 줄 문장으로.
  *
  * 비중을 숫자로만 두면 30%가 큰지 작은지 매번 계산해야 한다. 막대로 보면 읽지 않아도 대략이 잡힌다.
  */
 @Composable
-private fun ShareCard(s: Spending, all: List<Spending>) {
+private fun ShareSection(s: Spending, all: List<Spending>) {
     val share = remember(s, all) { SpendingDetailStats.share(s, all) }
     val typical = remember(s, all) { SpendingDetailStats.vsTypical(s, all) }
     val base = s.gameColor.toColor()
     val month = DateUtil.month(s.dateMillis)
 
-    GlassCard(shape = RoundedCornerShape(24.dp), modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
-        Column(Modifier.fillMaxWidth().padding(20.dp)) {
-            Text("이 지출은", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = TextSecondary)
-            Spacer(Modifier.height(12.dp))
-            ShareBar("${month}월 지출에서", share.monthPercent, base)
-            Spacer(Modifier.height(12.dp))
-            ShareBar("${GameData.byName(s.gameName).shortName} ${month}월 지출에서", share.gamePercent, base)
+    DetailSection("지출 비중") {
+        Spacer(Modifier.height(8.dp))
+        ShareBar("${month}월 지출에서", share.monthPercent, base)
+        Spacer(Modifier.height(16.dp))
+        ShareBar("${GameData.byName(s.gameName).shortName} ${month}월 지출에서", share.gamePercent, base)
 
-            // 표본이 모자라면(3건 미만) 이 줄 자체가 없다 — 근거 없는 '평소'를 말하지 않는다.
-            if (typical != null) {
-                Spacer(Modifier.height(14.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("평소 단건보다 ", fontSize = 12.sp, color = TextSecondary)
-                    Text(
-                        typical.ratioLabel,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = if (typical.isNotable) NotableOrange else TextPrimary,
-                    )
-                    Text(if (typical.isNotable) " 큽니다" else " 수준입니다", fontSize = 12.sp, color = TextSecondary)
-                }
-                Spacer(Modifier.height(3.dp))
+        // 표본이 모자라면(3건 미만) 이 줄 자체가 없다 — 근거 없는 '평소'를 말하지 않는다.
+        if (typical != null) {
+            Spacer(Modifier.height(18.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("평소 1회 결제보다 ", fontSize = 14.sp, color = TextSecondary)
                 Text(
-                    "중앙값 ${won(typical.median)} · 최근 ${SpendingDetailStats.TYPICAL_MONTHS}개월 ${typical.sampleSize}건",
-                    fontSize = 10.5.sp,
-                    color = TextSecondary,
+                    typical.ratioLabel,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = if (typical.isNotable) NotableOrange else TextPrimary,
                 )
+                Text(if (typical.isNotable) " 큽니다" else " 수준입니다", fontSize = 14.sp, color = TextSecondary)
             }
+            Spacer(Modifier.height(4.dp))
+            Text(
+                "보통 ${won(typical.median)} · 최근 ${SpendingDetailStats.TYPICAL_MONTHS}개월 ${typical.sampleSize}건",
+                fontSize = 12.sp,
+                color = TextSecondary,
+            )
         }
     }
 }
@@ -340,12 +372,12 @@ private val BarTrack = Color(0xFFEDEFF3)
 private fun ShareBar(label: String, percent: Int, color: Color) {
     Column(Modifier.fillMaxWidth()) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(label, fontSize = 11.5.sp, color = TextSecondary)
+            Text(label, fontSize = 14.sp, color = TextPrimary)
             Spacer(Modifier.weight(1f))
-            Text("$percent%", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+            Text("$percent%", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
         }
-        Spacer(Modifier.height(6.dp))
-        Box(Modifier.fillMaxWidth().height(7.dp).clip(CircleShape).background(BarTrack)) {
+        Spacer(Modifier.height(8.dp))
+        Box(Modifier.fillMaxWidth().height(8.dp).clip(CircleShape).background(BarTrack)) {
             Box(
                 Modifier
                     .fillMaxWidth(percent.coerceIn(0, 100) / 100f)
@@ -358,69 +390,63 @@ private fun ShareBar(label: String, percent: Int, color: Color) {
 }
 
 /**
- * 같은 항목을 산 이력 — 목록 + 아래 한 줄 요약.
+ * 같은 항목을 산 이력 — 목록 + 아래 요약 3칸.
  *
- * 1건뿐이면 **카드를 통째로 감춘다**. "1번 샀어요"는 알려 줄 값어치가 없고,
- * 빈 카드를 남기면 화면만 길어진다.
+ * 1건뿐이면 **섹션을 통째로 감춘다**(띠까지). "1번 샀어요"는 알려 줄 값어치가 없다.
+ * 요약은 목록 **아래** — 통계를 위에 세우면 정작 읽어야 할 날짜·금액보다 눈이 먼저 그리로 간다.
  */
 @Composable
-private fun SameItemCard(s: Spending, all: List<Spending>) {
+private fun SameItemSection(s: Spending, all: List<Spending>) {
     val h: SameItemHistory = remember(s, all) { SpendingDetailStats.sameItemHistory(s, all) } ?: return
     if (h.count <= 1) return
+    val gameColor = s.gameColor.toColor()
 
-    GlassCard(shape = RoundedCornerShape(24.dp), modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
-        Column(Modifier.fillMaxWidth().padding(20.dp)) {
-            Text("같은 항목을 산 적", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = TextSecondary)
-            Spacer(Modifier.height(12.dp))
-            h.entries.take(5).forEachIndexed { i, e ->
-                if (i > 0) HorizontalDivider(color = DividerColor)
-                val mine = e.id == s.id
-                Row(
-                    Modifier.fillMaxWidth().padding(vertical = 9.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
+    DetailBand()
+    DetailSection("같은 내용 구매 내역") {
+        h.entries.take(5).forEachIndexed { i, e ->
+            if (i > 0) DetailHair()
+            val mine = e.id == s.id
+            Row(
+                Modifier.fillMaxWidth().padding(vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    DateUtil.shortDate(e.dateMillis),
+                    fontSize = 14.sp,
+                    fontWeight = if (mine) FontWeight.Bold else FontWeight.Normal,
+                    color = if (mine) TextPrimary else TextSecondary,
+                )
+                if (mine) {
+                    Spacer(Modifier.width(8.dp))
                     Text(
-                        DateUtil.shortDate(e.dateMillis),
-                        fontSize = 12.5.sp,
-                        fontWeight = if (mine) FontWeight.Bold else FontWeight.Normal,
-                        color = if (mine) TextPrimary else TextSecondary,
+                        "이번",
+                        fontSize = 11.sp, fontWeight = FontWeight.Bold, color = gameColor,
+                        modifier = Modifier.clip(CircleShape).background(gameColor.copy(alpha = 0.14f)).padding(horizontal = 7.dp, vertical = 2.dp),
                     )
-                    Spacer(Modifier.weight(1f))
-                    Text(
-                        won(e.amount),
-                        fontSize = 12.5.sp,
-                        fontWeight = if (mine) FontWeight.Bold else FontWeight.Medium,
-                    )
-                    if (mine) {
-                        Spacer(Modifier.width(6.dp))
-                        Text("이번", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = s.gameColor.toColor())
-                    }
                 }
+                Spacer(Modifier.weight(1f))
+                Text(
+                    won(e.amount),
+                    fontSize = 15.sp,
+                    fontWeight = if (mine) FontWeight.Bold else FontWeight.Medium,
+                    color = TextPrimary,
+                )
             }
-            HorizontalDivider(color = DividerColor)
-            Spacer(Modifier.height(11.dp))
-            // 요약은 목록 **아래** 한 줄로 — 통계를 위에 세우면 정작 읽어야 할 날짜·금액보다
-            // 눈이 먼저 그리로 간다.
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("${h.ordinal}번째", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextSecondary)
-                Text(" · 누적 ${won(h.totalAmount)}", fontSize = 12.sp, color = TextSecondary)
-                h.averageIntervalDays?.let { Text(" · 평균 ${it}일 간격", fontSize = 12.sp, color = TextSecondary) }
-            }
+        }
+        DetailHair()
+        Row(Modifier.fillMaxWidth().padding(top = 16.dp)) {
+            SummaryCell("${h.ordinal}번째", "이번 구매", Modifier.weight(1f))
+            SummaryCell(won(h.totalAmount), "누적", Modifier.weight(1f))
+            SummaryCell(h.averageIntervalDays?.let { "${it}일" } ?: "—", "평균 간격", Modifier.weight(1f))
         }
     }
 }
 
 @Composable
-private fun DetailRow(label: String, value: String, sub: String? = null) {
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp),
-        verticalAlignment = Alignment.Top,
-    ) {
-        Text(label, fontSize = 13.sp, color = TextSecondary, modifier = Modifier.width(80.dp))
-        Spacer(Modifier.width(12.dp))
-        Column(Modifier.weight(1f), horizontalAlignment = Alignment.End) {
-            Text(value, fontSize = 14.sp, fontWeight = FontWeight.Medium, textAlign = TextAlign.End)
-            if (sub != null) Text(sub, fontSize = 11.sp, color = TextSecondary, textAlign = TextAlign.End, modifier = Modifier.padding(top = 2.dp))
-        }
+private fun SummaryCell(value: String, label: String, modifier: Modifier) {
+    // 칸 안 가운데 — 왼쪽 정렬이면 세 칸이 왼쪽으로 쏠려 보였다.
+    Column(modifier, horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(value, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TextPrimary, maxLines = 1)
+        Text(label, fontSize = 12.sp, color = TextSecondary, maxLines = 1)
     }
 }
