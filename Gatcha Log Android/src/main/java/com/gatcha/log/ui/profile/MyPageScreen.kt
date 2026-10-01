@@ -12,14 +12,13 @@ import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ReceiptLong
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -27,26 +26,26 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.Canvas
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Shape
-import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.drawscope.Stroke
 import java.util.Calendar
+import com.gatcha.log.data.ChallengeSummary
+import com.gatcha.log.data.DateUtil
+import com.gatcha.log.data.Game
 import com.gatcha.log.data.Spending
+import com.gatcha.log.data.TaskStats
 import com.gatcha.log.ui.components.GlgTabHeaderHeight
 import com.gatcha.log.ui.components.glgTabContentBottom
-import com.gatcha.log.ui.components.GlassCard
 import com.gatcha.log.ui.components.GlgCircleIconButton
 import com.gatcha.log.ui.components.GlgHeaderTitlePill
 import com.gatcha.log.ui.components.GlgTabHeader
@@ -56,8 +55,6 @@ import com.gatcha.log.data.SpendingViewModel
 import com.gatcha.log.ui.theme.*
 import com.gatcha.log.util.percentShares
 import com.gatcha.log.util.won
-import com.gatcha.log.ui.components.GlgCardSurface
-import com.gatcha.log.ui.savings.SavingsChallengeHomeCard
 import com.gatcha.log.ui.savings.SavingsChallengeScreen
 
 /**
@@ -69,6 +66,10 @@ import com.gatcha.log.ui.savings.SavingsChallengeScreen
  */
 private enum class MyPageSub { Main, Settings, Challenge }
 
+/**
+ * 마이페이지 3.0 — 카드를 걷고 화면 폭 전체 섹션 + 회색 띠 구분(목업 A안).
+ * 게임 정보(가챠·천장·UID)는 게임정보 탭 몫이라 여기 두지 않는다.
+ */
 @Composable
 fun MyPageScreen(
     viewModel: SpendingViewModel,
@@ -79,14 +80,15 @@ fun MyPageScreen(
     val profile by viewModel.profile.collectAsStateWithLifecycle()
     val account by viewModel.account.collectAsStateWithLifecycle()
     val attendanceStreak by viewModel.attendanceStreak.collectAsStateWithLifecycle()
-    val gachaStats by viewModel.gachaStats.collectAsStateWithLifecycle()
+    val attendanceHistory by viewModel.attendanceHistory.collectAsStateWithLifecycle()
+    val trackedGames by viewModel.trackedAttendanceGames.collectAsStateWithLifecycle()
+    val taskStats by viewModel.taskStats.collectAsStateWithLifecycle()
+    val budget by viewModel.budget.collectAsStateWithLifecycle()
     val challenge by viewModel.challenge.collectAsStateWithLifecycle()
 
     val showSettings = remember { mutableStateOf(false) }
-    // 절약 챌린지 — 27.50.0 에서 홈에서 이관했다. 스트릭·배지는 "내가 얼마나 해왔나" 라
-    // 마이페이지의 통계·활동 카드와 같은 묶음이 맞다(홈은 "지금 무엇을 할까" 를 말하는 자리).
+    // 절약 챌린지 — 27.50.0 에서 홈에서 이관했다.
     var showChallenge by remember { mutableStateOf(false) }
-    // 로드인 스태거 — 앱 진입 후 1회만(탭 재진입 재생 방지, 세션 영속).
 
     /**
      * 하위 페이지 갈래. 둘 다 마이페이지 바로 아래 한 층이고 서로 오갈 수 없다
@@ -112,28 +114,26 @@ fun MyPageScreen(
     }
 
     // 이번 달·전월·최근 6개월 합계는 **공유 VM 이 지출을 한 번만 훑어 만들어 둔 값**을 그대로 쓴다.
-    // 예전엔 monthlyTotal(y, m) 을 7번(전월 1 + 최근 6) 불러 지출 전체를 7번 훑었다.
-    // iOS 는 이미 같은 flow 를 쓰고 있었다 — 파리티도 함께 맞춘다.
     val monthlyTotal by viewModel.currentMonthTotal.collectAsStateWithLifecycle()
     val prevMonthly by viewModel.previousMonthTotal.collectAsStateWithLifecycle()
     val recentTotals by viewModel.recentMonthlyTotals.collectAsStateWithLifecycle()
-    // 한 번의 순회로 총액·게임 수를 같이 낸다(예전엔 sumOf + map/distinct 로 두 번).
-    val (total, games) = remember(spendings) {
+    // 한 번의 순회로 누적 총액·이번 달 건수를 같이 낸다.
+    val (total, monthCount) = remember(spendings) {
+        val ym = DateUtil.yearMonthKey(System.currentTimeMillis())
         var sum = 0L
-        val names = HashSet<String>()
-        spendings.forEach { sum += it.amount; names += it.gameName }
-        sum to names.size
+        var n = 0
+        spendings.forEach {
+            sum += it.amount
+            if (DateUtil.yearMonthKey(it.dateMillis) == ym) n++
+        }
+        sum to n
     }
-    val gachaTotal = gachaStats?.total ?: 0
-    // ── 대시보드 파생 지표 (전부 기존 보유 데이터에서 계산) ──
     val dailyAvg = remember(monthlyTotal) { monthlyTotal / currentDayOfMonth().coerceAtLeast(1) }
     val monthlyTrend = remember(recentTotals) {
         // recentMonthlyTotals 는 오래된 달 → 이번 달 순. 표시용 월 번호만 붙인다.
         val months = recentYearMonths(recentTotals.size)
         recentTotals.mapIndexed { i, v -> MonthPoint(months[i].second, v) }
     }
-    val fiveStars = gachaStats?.byGame?.values?.sumOf { it.five } ?: 0
-    val spendCount = spendings.size
 
     AnimatedContent(
         targetState = sub,
@@ -164,77 +164,37 @@ fun MyPageScreen(
         }
 
     val topInset = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
-    // 상단 스크림 — 다른 탭(홈·지출·게임정보)과 동일 규격. 리스트가 헤더 아래로 스크롤될 때만
-    // 나타나 상태바 글자와 콘텐츠가 겹쳐 읽히는 걸 막는다(최상단에선 숨김).
+    // 상단 스크림 — 다른 탭(홈·지출·게임정보)과 동일 규격. 리스트가 헤더 아래로 스크롤될 때만 나타난다.
     val scrolled by remember {
         derivedStateOf { listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 0 }
     }
     val topScrimAlpha by animateFloatAsState(if (scrolled) 0.88f else 0f, label = "topScrim")
-    Box(Modifier.fillMaxSize()) {
+    Box(Modifier.fillMaxSize().background(Color.White)) {
     LazyColumn(
         state = listState,
-        modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
+        modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(top = GlgTabHeaderHeight + topInset, bottom = glgTabContentBottom()),
     ) {
-        // ① 프로필 헤더 (연회색 카드)
         item {
-            Box(Modifier.fillMaxWidth()) {
-                ProfileHeader(
-                    name = if (account.isGuest) "게스트" else profile.name,
-                    photoUrl = if (account.isGuest) null else account.photoUrl,
-                    isGuest = account.isGuest,
-                    onLogin = { viewModel.signIn() },
-                    onLogout = { viewModel.signOut() },
-                )
-            }
+            ProfileSection(
+                name = if (account.isGuest) "게스트" else profile.name,
+                photoUrl = if (account.isGuest) null else account.photoUrl,
+                isGuest = account.isGuest,
+                onLogin = { viewModel.signIn() },
+                onLogout = { viewModel.signOut() },
+            )
         }
-        item { Spacer(Modifier.height(13.dp)) }
-
-        // ② 이번 달 지출 KPI
-        item {
-            Box(Modifier.fillMaxWidth()) {
-                MonthlyKpiCard(
-                    monthly = monthlyTotal,
-                    total = total,
-                    dailyAvg = dailyAvg,
-                    gameCount = games,
-                    prevMonthly = prevMonthly,
-                )
-            }
-        }
-        item { Spacer(Modifier.height(13.dp)) }
-
-        // ③ 월별 지출 추이 (관리 섹션 대체)
-        item { SectionLabel("월별 지출 추이") }
-        item { Box(Modifier.fillMaxWidth()) { MonthlyTrendCard(monthlyTrend) } }
-        item { Spacer(Modifier.height(11.dp)) }
-
-        // ④ 활동 메트릭 2×2
-        item { SectionLabel("활동") }
-        item {
-            Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(11.dp)) {
-                Row(horizontalArrangement = Arrangement.spacedBy(11.dp)) {
-                    MetricTile(Icons.Default.LocalFireDepartment, "${attendanceStreak}일", "연속 출석", Modifier.weight(1f), tint = Color(0xFFFF7A45))
-                    MetricTile(Icons.Default.Casino, "${gachaTotal}회", "가챠 기록", Modifier.weight(1f))
-                }
-                Row(horizontalArrangement = Arrangement.spacedBy(11.dp)) {
-                    MetricTile(Icons.Default.Star, "${fiveStars}회", "5★ 획득", Modifier.weight(1f), tint = Color(0xFFE0A93B))
-                    MetricTile(Icons.AutoMirrored.Filled.ReceiptLong, "${spendCount}건", "지출 기록", Modifier.weight(1f), tint = Color(0xFF16A34A))
-                }
-            }
-        }
-        item { Spacer(Modifier.height(13.dp)) }
-
-        // ⑤ 절약 챌린지 — 홈에서 이관(27.50.0). 「활동」 지표 바로 뒤가 성격이 맞다.
-        item { SectionLabel("절약 챌린지") }
-        item { SavingsChallengeHomeCard(challenge) { showChallenge = true } }
-        item { Spacer(Modifier.height(13.dp)) }
-
-        // ⑥ 게임별 지출 (도넛)
-        item { SectionLabel("게임별 지출") }
-        item { Box(Modifier.fillMaxWidth()) { GameDonutCard(spendings) } }
+        band()
+        item { MonthSection(monthlyTotal, prevMonthly, budget, dailyAvg, total, monthCount, monthlyTrend) }
+        band()
+        item { GameSpendSection(spendings) }
+        band()
+        item { RecordSection(monthlyTrend) }
+        band()
+        item { ActivitySection(attendanceHistory, trackedGames, attendanceStreak, taskStats, spendings.size) }
+        band()
+        item { ChallengeSection(challenge) { showChallenge = true } }
     }
-    // 헤더 오버레이 — 투명 바, 설정 버튼만 불투명. 콘텐츠가 버튼 아래로 지나간다. 상태바 인셋 적용.
     // 상단 스크림 — **상태바 영역만** 덮는다(헤더 버튼 줄은 덮지 않아 콘텐츠가 버튼 아래로 지나가는 연출 유지).
     Box(
         Modifier
@@ -263,220 +223,198 @@ fun MyPageScreen(
     }
 }
 
+// ============================================================
+//  마이페이지 3.0 섹션 — 목업 A안 규격
+//  섹션: 좌우 20 · 위 22 · 아래 20 / 섹션 사이 10dp 회색 띠 / 줄 사이 1dp 헤어라인
+// ============================================================
+
+private val BandColor = Color(0xFFF2F4F6)
+private val HairColor = Color(0xFFEEF0F2)
+private val UpColor = Color(0xFFDC2626)
+private val DownColor = Color(0xFF15803D)
+
+private fun LazyListScope.band() = item { Box(Modifier.fillMaxWidth().height(10.dp).background(BandColor)) }
+
 @Composable
-private fun SectionLabel(text: String) {
-    Text(text, fontSize = 16.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 12.dp))
+private fun Section(
+    modifier: Modifier = Modifier,
+    top: androidx.compose.ui.unit.Dp = 22.dp,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    Column(modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = top, bottom = 20.dp), content = content)
 }
 
-// ============================================================
-//  마이페이지 대시보드 컴포넌트 — 연회색 섹션 카드 (iOS glgGlass 파리티 · F6F7F9)
-// ============================================================
-
-/** 연회색 섹션 카드 — 앱 공통 카드 규격(GlassCard/iOS glgGlass 동일: F6F7F9 · 헤어라인). */
-/**
- * 마이페이지 카드 — [GlassCard] 와 같은 면이지만 `Surface` 기반이다.
- *
- * 이 화면은 카드 안에 도넛·추세 그래프를 얹어 `Surface` 의 클립·엘리베이션 처리를 쓰고 있어
- * [GlassCard](Box 기반)로 갈아타지 않았다. 대신 **표면색은 [GlgCardSurface] 를 공유**한다 —
- * 값을 따로 들고 있었더니 면 체계를 뒤집을 때 이 화면만 연회색으로 남았다.
- */
+/** 섹션 머리 — 제목 17 + 오른쪽 보조 문구(없으면 생략). */
 @Composable
-private fun OutlineCard(
-    modifier: Modifier = Modifier,
-    shape: Shape = RoundedCornerShape(22.dp),
-    content: @Composable () -> Unit,
-) {
-    Surface(
-        modifier = modifier,
-        shape = shape,
-        color = GlgCardSurface,
-        border = BorderStroke(1.dp, Color.Black.copy(alpha = 0.06f)),
-        shadowElevation = 0.dp,
+private fun SectionHead(title: String, trailing: @Composable () -> Unit = {}) {
+    Row(
+        Modifier.fillMaxWidth().padding(bottom = 14.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(title, fontSize = 17.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+        trailing()
+    }
+}
+
+@Composable
+private fun MoreText(text: String) {
+    Text(text, fontSize = 13.sp, color = TextSecondary)
+}
+
+@Composable
+private fun Hair(modifier: Modifier = Modifier) {
+    Box(modifier.fillMaxWidth().height(1.dp).background(HairColor))
+}
+
+@Composable
+private fun SubText(text: String, modifier: Modifier = Modifier, color: Color = TextSecondary, bold: Boolean = false) {
+    Text(text, modifier = modifier, fontSize = 12.sp, color = color, fontWeight = if (bold) FontWeight.Bold else FontWeight.Normal, maxLines = 1)
+}
+
+@Composable
+private fun NumText(text: String, modifier: Modifier = Modifier) {
+    Text(text, modifier = modifier, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TextPrimary, maxLines = 1)
+}
+
+/** 목록 한 줄 — 위아래 11 · 요소 사이 12. */
+@Composable
+private fun ListRow(content: @Composable RowScope.() -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().padding(vertical = 11.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
         content = content,
     )
 }
 
-/** ① 프로필 헤더 — 아바타 + 이름 + 동기화 칩 + 로그아웃/로그인. */
+/** 세 칸 지표 줄 — 값 15 · 라벨 12, 왼쪽 정렬. */
 @Composable
-private fun ProfileHeader(
+private fun StatTriple(vararg cells: Pair<String, String>) {
+    Row(Modifier.fillMaxWidth().padding(top = 18.dp)) {
+        cells.forEach { (value, label) ->
+            Column(Modifier.weight(1f)) {
+                NumText(value)
+                SubText(label)
+            }
+        }
+    }
+}
+
+/** ① 프로필 — 아바타 56 + 이름 + 동기화 상태 + 로그아웃/로그인. */
+@Composable
+private fun ProfileSection(
     name: String,
     photoUrl: String?,
     isGuest: Boolean,
     onLogin: () -> Unit,
     onLogout: () -> Unit,
 ) {
-    val accent = LocalAccent.current
-    OutlineCard(shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(
-                    Modifier.size(52.dp).clip(CircleShape).background(accent),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    ProfileAvatar(photoUrl = photoUrl, size = 52.dp)
-                }
-                Spacer(Modifier.width(12.dp))
-                Column(Modifier.weight(1f)) {
-                    Text(name, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = TextPrimary, maxLines = 1)
-                    Spacer(Modifier.height(4.dp))
-                    val chipColor = if (isGuest) TextSecondary else Color(0xFF15803D)
-                    val chipBg = chipColor.copy(alpha = 0.13f)
-                    Surface(color = chipBg, shape = RoundedCornerShape(20.dp)) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Icon(
-                                if (isGuest) Icons.Default.CloudOff else Icons.Default.CloudDone,
-                                null, tint = chipColor, modifier = Modifier.size(12.dp),
-                            )
-                            Spacer(Modifier.width(4.dp))
-                            Text(
-                                if (isGuest) "게스트 · 동기화 꺼짐" else "구글 계정 동기화",
-                                fontSize = 11.sp, fontWeight = FontWeight.Bold, color = chipColor,
-                            )
-                        }
-                    }
-                }
-                if (!isGuest) {
-                    // 계정 단일화: 로그아웃을 마이페이지 헤더로 일원화 (설정의 중복 계정 카드 제거)
-                    GldsButton("로그아웃", onLogout, variant = GldsVariant.Neutral, size = GldsSize.XS)
-                }
+    Section(top = 12.dp) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            ProfileAvatar(photoUrl = photoUrl, size = 56.dp)
+            Spacer(Modifier.width(14.dp))
+            Column(Modifier.weight(1f)) {
+                Text(name, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = TextPrimary, maxLines = 1)
+                Spacer(Modifier.height(3.dp))
+                SubText(
+                    if (isGuest) "게스트 · 동기화 꺼짐" else "구글 계정 동기화 중",
+                    color = if (isGuest) TextSecondary else DownColor,
+                    bold = true,
+                )
             }
-            if (isGuest) {
-                Spacer(Modifier.height(14.dp))
-                GldsButton("Google로 로그인", onLogin, Modifier.fillMaxWidth())
+            if (!isGuest) {
+                // 계정 단일화: 로그아웃을 마이페이지 헤더로 일원화 (설정의 중복 계정 카드 제거)
+                GldsButton("로그아웃", onLogout, variant = GldsVariant.Neutral, size = GldsSize.XS)
             }
         }
-    }
-}
-
-/** ② 이번 달 지출 KPI — 큰 강조색 숫자 + 추세 + 총지출/일평균/게임수 스트립. */
-@Composable
-private fun MonthlyKpiCard(monthly: Long, total: Long, dailyAvg: Long, gameCount: Int, prevMonthly: Long) {
-    val accent = LocalAccent.current
-    OutlineCard(modifier = Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(18.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text("이번 달 지출", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextSecondary)
-                TrendPill(monthly, prevMonthly)
-            }
-            Spacer(Modifier.height(6.dp))
-            Text(won(monthly), fontSize = 34.sp, fontWeight = FontWeight.Black, color = accent, maxLines = 1)
+        if (isGuest) {
             Spacer(Modifier.height(14.dp))
-            Box(Modifier.fillMaxWidth().height(1.dp).background(Color.Black.copy(alpha = 0.06f)))
-            Spacer(Modifier.height(13.dp))
-            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                KpiCell(won(total), "총 지출", Modifier.weight(1f))
-                KpiDivider()
-                KpiCell(won(dailyAvg), "일 평균", Modifier.weight(1f))
-                KpiDivider()
-                KpiCell("${gameCount}개", "플레이 게임", Modifier.weight(1f))
-            }
+            GldsButton("Google로 로그인", onLogin, Modifier.fillMaxWidth())
         }
     }
 }
 
+/** ② 이번 달 지출 — 금액 + 지난달 대비 + 예산 진행 + 지표 3칸 + 최근 6개월 막대. */
 @Composable
-private fun KpiCell(value: String, label: String, modifier: Modifier) {
-    Column(modifier = modifier, horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(value, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextPrimary, maxLines = 1)
-        Spacer(Modifier.height(2.dp))
-        Text(label, fontSize = 10.sp, color = TextSecondary, maxLines = 1)
-    }
-}
-
-@Composable
-private fun KpiDivider() {
-    Box(Modifier.width(1.dp).height(26.dp).background(Color.Black.copy(alpha = 0.06f)))
-}
-
-/** 지난달 대비 추세 칩 (지출 감소=초록, 증가=빨강). 이전 달 0이면 미표시. */
-@Composable
-private fun TrendPill(monthly: Long, prevMonthly: Long) {
-    if (prevMonthly <= 0L) return
-    val deltaPct = ((monthly - prevMonthly).toFloat() / prevMonthly * 100f).toInt()
-    val down = deltaPct <= 0
-    val color = if (down) Color(0xFF15803D) else Color(0xFFDC2626)
-    Surface(color = color.copy(alpha = 0.12f), shape = RoundedCornerShape(20.dp)) {
-        Text(
-            "${if (down) "▼" else "▲"} ${kotlin.math.abs(deltaPct)}% · 지난달",
-            modifier = Modifier.padding(horizontal = 9.dp, vertical = 3.dp),
-            fontSize = 10.sp, fontWeight = FontWeight.Bold, color = color,
-        )
-    }
-}
-
-/** ③ 월별 지출 추이 — 최근 6개월 바차트(이번 달 강조). */
-@Composable
-private fun MonthlyTrendCard(trend: List<MonthPoint>) {
+private fun MonthSection(
+    monthly: Long,
+    prevMonthly: Long,
+    budget: Long,
+    dailyAvg: Long,
+    total: Long,
+    monthCount: Int,
+    trend: List<MonthPoint>,
+) {
     val accent = LocalAccent.current
-    val maxAmt = remember(trend) { (trend.maxOfOrNull { it.amount } ?: 0L).coerceAtLeast(1L) }
-    OutlineCard(modifier = Modifier.fillMaxWidth()) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(16.dp).height(120.dp),
-            verticalAlignment = Alignment.Bottom,
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            trend.forEachIndexed { i, p ->
-                val isCurrent = i == trend.lastIndex
-                val frac = (p.amount.toFloat() / maxAmt).coerceIn(0f, 1f)
-                val barH = (90f * frac).coerceAtLeast(3f).dp
-                Column(
-                    modifier = Modifier.weight(1f),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Bottom,
-                ) {
-                    Box(
-                        Modifier
-                            .fillMaxWidth(0.58f)
-                            .height(barH)
-                            .clip(RoundedCornerShape(topStart = 6.dp, topEnd = 6.dp))
-                            .background(if (isCurrent) accent else accent.copy(alpha = 0.2f)),
-                    )
-                    Spacer(Modifier.height(7.dp))
-                    Text(
-                        "${p.month}월",
-                        fontSize = 10.sp,
-                        fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Normal,
-                        color = if (isCurrent) accent else TextSecondary,
-                    )
-                }
+    Section {
+        SectionHead("이번 달 지출") {
+            // 지난달 0 이면 비교하지 않는다(예전 TrendPill 과 같은 규칙).
+            if (prevMonthly > 0L) {
+                val deltaPct = ((monthly - prevMonthly).toFloat() / prevMonthly * 100f).toInt()
+                val down = deltaPct <= 0
+                Text(
+                    "${if (down) "▼" else "▲"} ${kotlin.math.abs(deltaPct)}% 지난달보다",
+                    fontSize = 12.sp, fontWeight = FontWeight.Bold, color = if (down) DownColor else UpColor,
+                )
             }
         }
-    }
-}
-
-/** ④ 활동 메트릭 타일 (연회색 카드 · 아이콘+값+라벨). */
-@Composable
-private fun MetricTile(icon: ImageVector, value: String, label: String, modifier: Modifier, tint: Color? = null) {
-    val accent = LocalAccent.current
-    val c = tint ?: accent
-    OutlineCard(shape = RoundedCornerShape(18.dp), modifier = modifier) {
-        Column(Modifier.fillMaxWidth().padding(14.dp)) {
+        Text(won(monthly), fontSize = 32.sp, fontWeight = FontWeight.Black, color = TextPrimary, maxLines = 1)
+        // 예산은 설정했을 때만 — 초과 문구는 홈 예산 카드와 같은 규칙.
+        if (budget > 0) {
+            val over = monthly > budget
+            val pct = (monthly * 100 / budget).toInt()
+            val frac = if (over) 1f else monthly.toFloat() / budget
             Box(
-                Modifier.size(32.dp).clip(RoundedCornerShape(10.dp)).background(c.copy(alpha = 0.12f)),
-                contentAlignment = Alignment.Center,
+                Modifier.padding(top = 12.dp).fillMaxWidth().height(8.dp).clip(RoundedCornerShape(4.dp)).background(HairColor),
             ) {
-                Icon(icon, null, tint = c, modifier = Modifier.size(16.dp))
+                Box(Modifier.fillMaxWidth(frac).fillMaxHeight().background(if (over) UpColor else accent))
             }
-            Spacer(Modifier.height(9.dp))
-            Text(value, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = TextPrimary, maxLines = 1)
-            Spacer(Modifier.height(2.dp))
-            Text(label, fontSize = 11.sp, color = TextSecondary, maxLines = 1)
+            Row(Modifier.fillMaxWidth().padding(top = 6.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+                SubText("예산 ${won(budget)} 중 ${pct}%")
+                if (over) SubText("${won(monthly - budget)} 초과", color = UpColor)
+                else SubText("${won(budget - monthly)} 남음")
+            }
+        }
+        StatTriple(
+            won(dailyAvg) to "일 평균",
+            won(total) to "누적 지출",
+            "${monthCount}건" to "이번 달 기록",
+        )
+        MonthBars(trend, accent)
+    }
+}
+
+/** 최근 6개월 막대 — 막대 최대 70 · 라벨 12, 이번 달만 강조색. */
+@Composable
+private fun MonthBars(trend: List<MonthPoint>, accent: Color) {
+    val maxAmt = remember(trend) { (trend.maxOfOrNull { it.amount } ?: 0L).coerceAtLeast(1L) }
+    Row(
+        Modifier.fillMaxWidth().padding(top = 22.dp).height(96.dp),
+        verticalAlignment = Alignment.Bottom,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        trend.forEachIndexed { i, p ->
+            val isCurrent = i == trend.lastIndex
+            val barH = (70f * (p.amount.toFloat() / maxAmt).coerceIn(0f, 1f)).coerceAtLeast(3f).dp
+            Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
+                Box(
+                    Modifier
+                        .fillMaxWidth()
+                        .height(barH)
+                        .clip(RoundedCornerShape(topStart = 5.dp, topEnd = 5.dp))
+                        .background(if (isCurrent) accent else accent.copy(alpha = 0.2f)),
+                )
+                Spacer(Modifier.height(6.dp))
+                SubText("${p.month}월", color = if (isCurrent) TextPrimary else TextSecondary, bold = isCurrent)
+            }
         }
     }
 }
 
-/** ⑤ 게임별 지출 — 도넛 + 범례. */
+/** ③ 게임별 지출 — 누적 비중 띠 + 게임별 줄(상위 5 + 기타). */
 @Composable
-private fun GameDonutCard(spendings: List<Spending>) {
-    // 도넛·범례가 **같은 조각 목록**을 쓴다.
-    // 예전엔 도넛은 전 게임을 그리는데 범례는 상위 5개만 보여줘서, 6번째부터는 색만 있고 설명이 없었다.
+private fun GameSpendSection(spendings: List<Spending>) {
     // 6개 이상이면 나머지를 '기타'로 묶는다(게임별 월 추이 카드와 같은 규칙).
     val byGame = remember(spendings) {
         val all = spendings.groupBy { it.gameName }
@@ -487,54 +425,177 @@ private fun GameDonutCard(spendings: List<Spending>) {
     }
     val total = remember(byGame) { byGame.sumOf { it.amount } }
     // 퍼센트는 **합이 정확히 100이 되도록** 공유 로직으로 배분한다(최대 잔여법).
-    // 각자 내림하면 조각 수만큼 깎여 3조각일 때 97%처럼 보였다.
     val pcts = remember(byGame) { percentShares(byGame.map { it.amount }) }
-    OutlineCard(modifier = Modifier.fillMaxWidth()) {
+    Section {
+        SectionHead("게임별 지출") { MoreText("전체 기간") }
         if (byGame.isEmpty() || total <= 0L) {
-            Box(Modifier.padding(20.dp)) {
-                Text("아직 지출 기록이 없어요", fontSize = 13.sp, color = TextSecondary)
+            SubText("아직 지출 기록이 없어요")
+            return@Section
+        }
+        Row(
+            Modifier.fillMaxWidth().height(12.dp).clip(RoundedCornerShape(6.dp)),
+            horizontalArrangement = Arrangement.spacedBy(2.dp),
+        ) {
+            byGame.filter { it.amount > 0 }.forEach { slice ->
+                Box(Modifier.weight(slice.amount.toFloat()).fillMaxHeight().background(slice.color))
             }
-        } else {
-            Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                Box(Modifier.size(108.dp), contentAlignment = Alignment.Center) {
-                    Canvas(Modifier.fillMaxSize()) {
-                        val stroke = 18.dp.toPx()
-                        val inset = stroke / 2f
-                        var start = -90f
-                        byGame.forEach { slice ->
-                            val sweep = (slice.amount.toFloat() / total) * 360f
-                            drawArc(
-                                color = slice.color,
-                                startAngle = start,
-                                sweepAngle = sweep,
-                                useCenter = false,
-                                topLeft = Offset(inset, inset),
-                                size = Size(size.width - stroke, size.height - stroke),
-                                style = Stroke(width = stroke, cap = StrokeCap.Butt),
-                            )
-                            start += sweep
-                        }
-                    }
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("총 지출", fontSize = 9.sp, color = TextSecondary)
-                        Text(won(total), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextPrimary, maxLines = 1)
-                    }
-                }
-                Spacer(Modifier.width(16.dp))
-                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(9.dp)) {
-                    byGame.forEachIndexed { i, slice ->
-                        val pct = pcts[i]
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Box(Modifier.size(9.dp).clip(RoundedCornerShape(3.dp)).background(slice.color))
-                            Spacer(Modifier.width(8.dp))
-                            Text(slice.game, fontSize = 12.sp, fontWeight = FontWeight.Medium, maxLines = 1, modifier = Modifier.weight(1f))
-                            Text(won(slice.amount), fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1)
-                            Spacer(Modifier.width(8.dp))
-                            Text("$pct%", fontSize = 10.sp, color = TextSecondary)
-                        }
-                    }
+        }
+        Spacer(Modifier.height(6.dp))
+        byGame.forEachIndexed { i, slice ->
+            if (i > 0) Hair()
+            ListRow {
+                Box(Modifier.size(10.dp).clip(RoundedCornerShape(3.dp)).background(slice.color))
+                Text(slice.game, fontSize = 14.sp, color = TextPrimary, maxLines = 1, modifier = Modifier.weight(1f))
+                NumText(won(slice.amount))
+                SubText("${pcts[i]}%", Modifier.width(34.dp).wrapContentWidth(Alignment.End))
+            }
+        }
+    }
+}
+
+/** ④ 지출 기록 — 최근 6개월 월 평균 · 가장 많이 쓴 달. */
+@Composable
+private fun RecordSection(trend: List<MonthPoint>) {
+    val avg = remember(trend) { if (trend.isEmpty()) 0L else trend.sumOf { it.amount } / trend.size }
+    val peak = remember(trend) { trend.maxByOrNull { it.amount }?.takeIf { it.amount > 0 } }
+    Section {
+        SectionHead("지출 기록")
+        ListRow {
+            LabelWithPeriod("월 평균", Modifier.weight(1f))
+            NumText(won(avg))
+        }
+        Hair()
+        ListRow {
+            LabelWithPeriod("가장 많이 쓴 달", Modifier.weight(1f))
+            if (peak == null) {
+                NumText("—")
+            } else {
+                NumText("${peak.month}월")
+                SubText(won(peak.amount))
+            }
+        }
+    }
+}
+
+@Composable
+private fun LabelWithPeriod(label: String, modifier: Modifier) {
+    Row(modifier, verticalAlignment = Alignment.CenterVertically) {
+        Text(label, fontSize = 14.sp, color = TextPrimary, maxLines = 1)
+        Spacer(Modifier.width(4.dp))
+        SubText("최근 6개월")
+    }
+}
+
+/** ⑤ 활동 — 최근 30일 출석 칸 + 지표 3칸 + 게임별 숙제. */
+@Composable
+private fun ActivitySection(
+    history: Map<String, Set<String>>,
+    tracked: List<Game>,
+    streak: Int,
+    taskStats: List<TaskStats>,
+    spendCount: Int,
+) {
+    val accent = LocalAccent.current
+    // 오래된 날 → 오늘 순 30칸. 출석한 게임 수로 칸 농도를 가른다(전부 = 진하게 · 일부 = 옅게).
+    val days = remember(history, tracked) {
+        val keys = tracked.map { it.key }
+        (29 downTo 0).map { ago ->
+            val done = history[DateUtil.hoyoDayKeyAgo(ago)].orEmpty()
+            when {
+                done.isEmpty() -> AttendLevel.None
+                keys.isNotEmpty() && keys.all { it in done } -> AttendLevel.All
+                else -> AttendLevel.Some
+            }
+        }
+    }
+    // 일일 숙제 완주 — 기록이 있는 게임들의 30일 완주율 평균.
+    val taskRate = remember(taskStats) {
+        taskStats.filter { it.dailyDays > 0 }.takeIf { it.isNotEmpty() }?.let { l -> l.sumOf { it.dailyRate } / l.size }
+    }
+    Section {
+        SectionHead("활동") { MoreText("최근 30일") }
+        days.chunked(15).forEachIndexed { r, rowDays ->
+            if (r > 0) Spacer(Modifier.height(4.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                rowDays.forEachIndexed { c, level ->
+                    val isToday = r == 1 && c == rowDays.lastIndex
+                    Box(
+                        Modifier
+                            .weight(1f)
+                            .aspectRatio(1f)
+                            .drawWithContent {
+                                drawContent()
+                                // 오늘 칸 — 1dp 띄운 2dp 테두리(목업 outline).
+                                if (isToday) {
+                                    val gap = 2.dp.toPx()
+                                    drawRoundRect(
+                                        color = TextPrimary,
+                                        topLeft = Offset(-gap, -gap),
+                                        size = Size(size.width + gap * 2, size.height + gap * 2),
+                                        cornerRadius = CornerRadius(5.dp.toPx()),
+                                        style = Stroke(2.dp.toPx()),
+                                    )
+                                }
+                            }
+                            .clip(RoundedCornerShape(3.dp))
+                            .background(
+                                when (level) {
+                                    AttendLevel.All -> accent
+                                    AttendLevel.Some -> accent.copy(alpha = 0.5f)
+                                    AttendLevel.None -> HairColor
+                                },
+                            ),
+                    )
                 }
             }
+        }
+        SubText("진한 칸 = 모든 게임 출석 · 옅은 칸 = 일부", Modifier.padding(top = 8.dp))
+        StatTriple(
+            "${streak}일" to "연속 출석",
+            (taskRate?.let { "$it%" } ?: "—") to "일일 숙제 완주",
+            "${spendCount}건" to "지출 기록",
+        )
+        if (taskStats.isNotEmpty()) {
+            Hair(Modifier.padding(top = 18.dp))
+            taskStats.forEachIndexed { i, s ->
+                if (i > 0) Hair()
+                ListRow {
+                    Text("${s.gameShort} 숙제", fontSize = 14.sp, color = TextPrimary, maxLines = 1, modifier = Modifier.weight(1f))
+                    // 주간은 주간 기록을 주는 게임만(게임정보 숙제 완주율과 같은 규칙).
+                    val week = if (s.weeklyWeeks > 0) " · 주간 ${if (s.weekDone) "완료" else "미완"}" else ""
+                    SubText(
+                        "오늘 ${if (s.todayDone) "완료" else "미완"}$week",
+                        color = if (s.todayDone) TextSecondary else UpColor,
+                    )
+                    NumText(if (s.isEmpty) "—" else "${s.dailyRate}%", Modifier.width(44.dp).wrapContentWidth(Alignment.End))
+                }
+            }
+        }
+    }
+}
+
+private enum class AttendLevel { None, Some, All }
+
+/** ⑥ 절약 챌린지 — 섹션 전체가 챌린지 화면 진입. */
+@Composable
+private fun ChallengeSection(challenge: ChallengeSummary, onOpen: () -> Unit) {
+    Section(Modifier.clickable(onClick = onOpen)) {
+        SectionHead("절약 챌린지") { MoreText("전체 보기 ›") }
+        ListRow {
+            Text("무지출 스트릭", fontSize = 14.sp, color = TextPrimary, modifier = Modifier.weight(1f))
+            NumText("${challenge.noSpendStreak}일")
+            SubText("최고 ${challenge.bestStreak}일")
+        }
+        Hair()
+        ListRow {
+            Text("진행 중 챌린지", fontSize = 14.sp, color = TextPrimary, modifier = Modifier.weight(1f))
+            NumText("${challenge.challenges.size}개")
+            SubText("달성 ${challenge.challenges.count { it.reached }}개")
+        }
+        Hair()
+        ListRow {
+            Text("획득 배지", fontSize = 14.sp, color = TextPrimary, modifier = Modifier.weight(1f))
+            NumText("${challenge.earnedBadgeCount} / ${challenge.totalBadgeCount}")
         }
     }
 }

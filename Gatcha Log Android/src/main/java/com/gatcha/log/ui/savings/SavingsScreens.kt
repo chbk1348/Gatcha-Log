@@ -257,35 +257,6 @@ private fun BadgeCell(b: BadgeState, modifier: Modifier) {
     }
 }
 
-// ══════════════════════════════════════════════════════════════════ 홈 진입 카드
-
-/** 홈 허브용 컴팩트 진입 카드 — 절약 챌린지. */
-@Composable
-fun SavingsChallengeHomeCard(summary: ChallengeSummary, onOpen: () -> Unit) {
-    val accent = LocalAccent.current
-    GlassCard(modifier = Modifier.fillMaxWidth().clickable { onOpen() }) {
-        Column(Modifier.padding(15.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(Modifier.size(30.dp).clip(RoundedCornerShape(10.dp)).background(accent.copy(alpha = 0.14f)), contentAlignment = Alignment.Center) { Icon(Icons.Default.LocalFireDepartment, null, tint = accent, modifier = Modifier.size(16.dp)) }
-                Spacer(Modifier.width(8.dp))
-                Text("절약 챌린지", fontSize = 13.5.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
-                Spacer(Modifier.weight(1f))
-                Text("열기 ›", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = accent)
-            }
-            Spacer(Modifier.height(11.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.LocalFireDepartment, null, tint = accent, modifier = Modifier.size(20.dp))
-                Spacer(Modifier.width(5.dp))
-                Text("${summary.noSpendStreak}일", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
-                Spacer(Modifier.width(8.dp))
-                Text("연속 무지출", fontSize = 12.sp, color = TextSecondary, fontWeight = FontWeight.Bold)
-                Spacer(Modifier.weight(1f))
-                Text("배지 ${summary.earnedBadgeCount}/${summary.totalBadgeCount}", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = accent)
-            }
-        }
-    }
-}
-
 // ══════════════════════════════════════════════════════════════════ 공용 소품
 
 @Composable

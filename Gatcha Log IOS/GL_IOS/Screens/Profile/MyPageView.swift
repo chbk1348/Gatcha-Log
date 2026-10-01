@@ -2,14 +2,19 @@ import SwiftUI
 import Shared
 
 // ════════════════════════════════════════════════════════════════════════════
-// 마이페이지 2.0 — 대시보드. (Compose MyPageScreen 대응 · 흰 카드+아웃라인)
-// 섹션 6개: ① 프로필 헤더 ② 이번 달 지출 KPI ③ 월별 지출 추이 ④ 활동 메트릭
-//           ⑤ 절약 챌린지(27.50.0 에 홈에서 이관) ⑥ 게임별 지출.
+// 마이페이지 3.0 — 카드를 걷고 화면 폭 전체 섹션 + 회색 띠 구분(목업 A안, Compose MyPageScreen 대응).
+// 섹션: ① 프로필 ② 이번 달 지출 ③ 게임별 지출 ④ 지출 기록 ⑤ 활동 ⑥ 절약 챌린지.
+// 게임 정보(가챠·천장·UID)는 게임정보 탭 몫이라 여기 두지 않는다.
 // 계정 전환·내보내기·테마 등 관리 항목은 ⚙ 설정에서 처리.
 // ════════════════════════════════════════════════════════════════════════════
 
 /// id 는 연-월로 고정한다 — UUID 를 쓰면 body 평가마다 새 id 가 생겨 차트 막대가 전부 재생성된다.
 private struct MonthPoint: Identifiable { let id: String; let month: Int; let amount: Int64 }
+
+private let bandColor = Color(hex: 0xFFF2F4F6)
+private let hairColor = Color(hex: 0xFFEEF0F2)
+private let upColor = Color(hex: 0xFFDC2626)
+private let downColor = Color(hex: 0xFF15803D)
 
 struct MyPageView: View {
     var store: SpendingStore
@@ -18,48 +23,42 @@ struct MyPageView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
-                // ① 프로필 헤더
-                ProfileHeader(store: store).padding(.top, 4)
-
-                // ② 이번 달 지출 KPI
-                Spacer().frame(height: 13)
-                MonthlyKpiCard(monthly: store.monthlyTotal, total: totalSpent,
-                               dailyAvg: dailyAvg, gameCount: gameCount, prevMonthly: prevMonthly)
-
-                // ③ 월별 지출 추이
-                Spacer().frame(height: 13)
-                SectionLabel("월별 지출 추이")
-                MyPageMonthlyTrendCard(points: monthlyTrend)
-
-                // ④ 활동 메트릭 2×2
-                Spacer().frame(height: 11)
-                SectionLabel("활동")
-                metricGrid
-
-                // ⑤ 절약 챌린지 — 홈에서 이관(27.50.0). 「활동」 지표 바로 뒤가 성격이 맞다.
-                Spacer().frame(height: 13)
-                SectionLabel("절약 챌린지")
+                ProfileSection(store: store)
+                Band()
+                MonthSection(monthly: store.monthlyTotal, prevMonthly: store.prevMonthTotal, budget: store.budget,
+                             dailyAvg: dailyAvg, total: totals.amount, monthCount: totals.monthCount, trend: monthlyTrend)
+                Band()
+                GameSpendSection(spendings: store.spendings)
+                Band()
+                RecordSection(trend: monthlyTrend)
+                Band()
+                ActivitySection(history: store.attendanceHistory, tracked: store.trackedAttendanceGames,
+                                streak: store.attendanceStreak, taskStats: store.taskStats, spendCount: store.spendings.count)
+                Band()
                 NavigationLink { SavingsChallengeView(store: store) } label: {
-                    SavingsChallengeHomeCard(store: store)
+                    ChallengeSection(challenge: store.challenge)
                 }
                 .buttonStyle(.plain)
-
-                // ⑥ 게임별 지출
-                Spacer().frame(height: 13)
-                SectionLabel("게임별 지출")
-                GameDonutCard(spendings: store.spendings)
             }
-            .padding(.horizontal, 16)
             .padding(.bottom, 12)
             .glgReadableWidth(720)
         }
         .scrollIndicators(.hidden)
-        .background(GLGBackground { Color.clear })
-        // 프로필 카드가 헤더 역할이라 막대에는 안 보인다. 다만 제목 자체는 채운다 —
-        // 비우면 뒤로가기 길게 누르기 메뉴가 공백 줄이 된다.
+        .background(Color.white)
+        // 제목은 막대에 안 보인다. 다만 제목 자체는 채운다 — 비우면 뒤로가기 길게 누르기 메뉴가 공백 줄이 된다.
         .glgHiddenTitle("마이페이지")
         .navigationBarTitleDisplayMode(.inline)
-        .toolbar { ToolbarItem(placement: .topBarTrailing) { settingsButton } }
+        .toolbar {
+            // 제목 — Android 헤더의 제목 알약과 같은 자리(왼쪽 위). Duo 는 탭 루트 제목을 두지 않는다
+            // (글자 뷰가 레일로 못 가 위쪽에 빈 가로 바를 세운다 — 2026-09-28 지시).
+            if GLGFormFactor.current != .duo {
+                ToolbarItem(placement: .topBarLeading) {
+                    Text("마이페이지").font(.pretendard(size: 16, weight: .bold)).foregroundStyle(accent.primary)
+                        .padding(.horizontal, 6)
+                }
+            }
+            ToolbarItem(placement: .topBarTrailing) { settingsButton }
+        }
         // 설정은 마이페이지의 하위 페이지. 다른 화면이 HoYoLAB 연동을 요청하면(홈 만료 배너 「재연동」) 설정까지
         // 자동으로 들어간다 — 설정이 onAppear 에서 요청을 소비해 연동 페이지를 연다(9/30, Android 와 같은 흐름).
         .navigationDestination(isPresented: $openSettings) { SettingsView(store: store) }
@@ -68,51 +67,32 @@ struct MyPageView: View {
         .task(id: store.spendings) { totals = Self.computeTotals(store.spendings) }
     }
 
-    private var metricGrid: some View {
-        VStack(spacing: 11) {
-            HStack(spacing: 11) {
-                MetricTile(icon: "flame.fill", value: "\(store.attendanceStreak)일", label: "연속 출석", tint: Color(hex: 0xFFFF7A45))
-                MetricTile(icon: "die.face.5.fill", value: "\(gachaTotal)회", label: "가챠 기록")
-            }
-            HStack(spacing: 11) {
-                MetricTile(icon: "star.fill", value: "\(fiveStars)회", label: "5★ 획득", tint: Color(hex: 0xFFE0A93B))
-                MetricTile(icon: "list.bullet.rectangle.portrait.fill", value: "\(spendCount)건", label: "지출 기록", tint: Color(hex: 0xFF16A34A))
-            }
-        }
-    }
-
     private var settingsButton: some View {
         Button { openSettings = true } label: { Image(systemName: "gearshape") }
     }
 
-    // ── 파생 통계 (전부 기존 보유 데이터에서 계산) ──
-    //
-    // totalSpent·gameCount 는 지출 전체를 훑는다. computed 로 두면 body 평가마다 다시 도는데,
-    // 이 화면은 출석 스트릭·가챠 통계·프로필 등 여러 값을 읽어서 재평가가 잦다.
-    // 지출이 바뀔 때만 계산한다.
-    private struct Totals: Equatable { var amount: Int64 = 0; var games: Int = 0 }
+    // 누적 합계·이번 달 건수는 지출 전체를 훑는다 — 지출이 바뀔 때만 계산한다.
+    private struct Totals: Equatable { var amount: Int64 = 0; var monthCount: Int = 0 }
     @State private var totals = Totals()
     @State private var openSettings = false
 
     private static func computeTotals(_ spendings: [Spending]) -> Totals {
+        let du = DateUtil.shared
+        let ym = du.yearMonthKey(millis: Int64(Date().timeIntervalSince1970 * 1000))
         var sum: Int64 = 0
-        var names = Set<String>()
-        for s in spendings { sum += s.amount; names.insert(s.gameName) }   // 순회 1회
-        return Totals(amount: sum, games: names.count)
+        var n = 0
+        for s in spendings {                                   // 순회 1회
+            sum += s.amount
+            if du.yearMonthKey(millis: s.dateMillis) == ym { n += 1 }
+        }
+        return Totals(amount: sum, monthCount: n)
     }
 
-    private var totalSpent: Int64 { totals.amount }
-    private var gameCount: Int { totals.games }
-    private var gachaTotal: Int { Int(store.gachaStats?.total ?? 0) }
-    private var spendCount: Int { store.spendings.count }
-    private var fiveStars: Int { store.gachaStats?.byGame.values.reduce(0) { $0 + Int($1.five) } ?? 0 }
     private var dailyAvg: Int64 {
         let day = Calendar.current.component(.day, from: Date())
         return store.monthlyTotal / Int64(max(day, 1))
     }
-    private var prevMonthly: Int64 { store.prevMonthTotal }
     /// 월별 추이 — 합계는 Kotlin 이 지출을 한 번만 훑어 만들어 둔 값을 그대로 쓴다(오래된 달 → 이번 달 순).
-    /// 예전엔 여기서 monthlyTotal(year:month:) 를 6번 불러 전체 스캔 6회 + 브리지 왕복 6회가 발생했다.
     private var monthlyTrend: [MonthPoint] {
         let totals = store.recentMonthlyTotals
         return totals.indices.map { i in
@@ -128,19 +108,90 @@ struct MyPageView: View {
     }
 }
 
-private struct SectionLabel: View {
-    let text: String
-    init(_ text: String) { self.text = text }
+// ── 공용 소품 — 목업 A안 규격 ─────────────────────────────────────────────────
+// 섹션: 좌우 20 · 위 22 · 아래 20 / 섹션 사이 10pt 회색 띠 / 줄 사이 1pt 헤어라인
+
+private struct Band: View {
+    var body: some View { bandColor.frame(height: 10).frame(maxWidth: .infinity) }
+}
+
+private struct Hair: View {
+    var body: some View { hairColor.frame(height: 1).frame(maxWidth: .infinity) }
+}
+
+private struct MPSection<Content: View>: View {
+    var top: CGFloat = 22
+    @ViewBuilder var content: Content
     var body: some View {
-        Text(text).font(.pretendard(size: 13, weight: .bold))
-            .foregroundStyle(GLGColor.textSecondary)
-            .padding(.top, 4).padding(.bottom, 10).padding(.leading, 2)
+        VStack(alignment: .leading, spacing: 0) { content }
+            .padding(.horizontal, 20).padding(.top, top).padding(.bottom, 20)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
     }
 }
 
-// ── ① 프로필 헤더 ────────────────────────────────────────────────────────────
+/// 섹션 머리 — 제목 17 + 오른쪽 보조 문구.
+private struct SectionHead<Trailing: View>: View {
+    let title: String
+    @ViewBuilder var trailing: Trailing
+    var body: some View {
+        HStack {
+            Text(title).font(.pretendard(size: 17, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
+            Spacer(minLength: 8)
+            trailing
+        }
+        .padding(.bottom, 14)
+    }
+}
 
-private struct ProfileHeader: View {
+private extension SectionHead where Trailing == EmptyView {
+    init(title: String) { self.title = title; self.trailing = EmptyView() }
+}
+
+private func moreText(_ s: String) -> some View {
+    Text(s).font(.pretendard(size: 13)).foregroundStyle(GLGColor.textSecondary)
+}
+
+private func subText(_ s: String, color: Color = GLGColor.textSecondary, bold: Bool = false) -> some View {
+    Text(s).font(.pretendard(size: 12, weight: bold ? .bold : .regular)).foregroundStyle(color).lineLimit(1)
+}
+
+private func numText(_ s: String) -> some View {
+    Text(s).font(.pretendard(size: 15, weight: .bold)).foregroundStyle(GLGColor.textPrimary).lineLimit(1)
+}
+
+private func labelText(_ s: String) -> some View {
+    Text(s).font(.pretendard(size: 14)).foregroundStyle(GLGColor.textPrimary).lineLimit(1)
+}
+
+/// 목록 한 줄 — 위아래 11 · 요소 사이 12.
+private struct ListRow<Content: View>: View {
+    @ViewBuilder var content: Content
+    var body: some View {
+        HStack(spacing: 12) { content }.padding(.vertical, 11)
+    }
+}
+
+/// 세 칸 지표 줄 — 값 15 · 라벨 12, 왼쪽 정렬.
+private struct StatTriple: View {
+    let cells: [(String, String)]
+    var body: some View {
+        HStack(spacing: 0) {
+            ForEach(cells.indices, id: \.self) { i in
+                VStack(alignment: .leading, spacing: 0) {
+                    numText(cells[i].0)
+                    subText(cells[i].1)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+        .padding(.top, 18)
+    }
+}
+
+// ── ① 프로필 ────────────────────────────────────────────────────────────────
+
+private struct ProfileSection: View {
     var store: SpendingStore
     @Environment(\.glgAccent) private var accent
 
@@ -148,194 +199,132 @@ private struct ProfileHeader: View {
     private var isGuest: Bool { account.isGuest }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            HStack(spacing: 12) {
-                ProfileAvatarView(photoUrl: isGuest ? nil : account.photoUrl, size: 52)
+        MPSection(top: 12) {
+            HStack(spacing: 14) {
+                ProfileAvatarView(photoUrl: isGuest ? nil : account.photoUrl, size: 56)
                     .background(accent.primary, in: Circle())
-
-                VStack(alignment: .leading, spacing: 4) {
+                VStack(alignment: .leading, spacing: 3) {
                     Text(isGuest ? "게스트" : store.profile.name)
-                        .font(.pretendard(size: 16, weight: .bold))
+                        .font(.pretendard(size: 18, weight: .bold))
                         .foregroundStyle(GLGColor.textPrimary).lineLimit(1)
-                    syncChip
+                    subText(isGuest ? "게스트 · 동기화 꺼짐" : "구글 계정 동기화 중",
+                            color: isGuest ? GLGColor.textSecondary : downColor, bold: true)
                 }
                 Spacer(minLength: 8)
-
                 if !isGuest {
                     // 계정 단일화: 로그아웃을 마이페이지 헤더로 일원화 (설정의 중복 계정 카드 제거)
                     GldsButton(title: "로그아웃", variant: .neutral, size: .xs, fullWidth: false) { store.signOut() }
                 }
             }
-
             if isGuest {
                 GldsButton(title: "Google로 로그인") { store.signIn() }
                     .padding(.top, 14)
             }
         }
-        .padding(16)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .glgGlass(in: RoundedRectangle(cornerRadius: 20, style: .continuous))
-    }
-
-    private var syncChip: some View {
-        let color: Color = isGuest ? GLGColor.textSecondary : Color(hex: 0xFF15803D)
-        return HStack(spacing: 4) {
-            Image(systemName: isGuest ? "icloud.slash.fill" : "checkmark.icloud.fill")
-                .font(.pretendard(size: 11))
-            Text(isGuest ? "게스트 · 동기화 꺼짐" : "구글 계정 동기화")
-                .font(.pretendard(size: 11, weight: .bold))
-        }
-        .foregroundStyle(color)
-        .padding(.horizontal, 8).padding(.vertical, 3)
-        .background(color.opacity(0.13), in: Capsule())
     }
 }
 
-// ── ② 이번 달 지출 KPI ───────────────────────────────────────────────────────
+// ── ② 이번 달 지출 ───────────────────────────────────────────────────────────
 
-private struct MonthlyKpiCard: View {
+private struct MonthSection: View {
     let monthly: Int64
-    let total: Int64
-    let dailyAvg: Int64
-    let gameCount: Int
     let prevMonthly: Int64
+    let budget: Int64
+    let dailyAvg: Int64
+    let total: Int64
+    let monthCount: Int
+    let trend: [MonthPoint]
     @Environment(\.glgAccent) private var accent
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            HStack {
-                Text("이번 달 지출").font(.pretendard(size: 12, weight: .bold))
-                    .foregroundStyle(GLGColor.textSecondary)
-                Spacer()
-                trendPill
-            }
-            Text(won(monthly)).font(.pretendard(size: 34, weight: .black))
-                .foregroundStyle(accent.primary)
-                .lineLimit(1).minimumScaleFactor(0.6).padding(.top, 6)
-
-            Rectangle().fill(Color.black.opacity(0.06)).frame(height: 1).padding(.top, 14)
-
-            HStack(spacing: 0) {
-                kpiCell(won(total), "총 지출")
-                divider
-                kpiCell(won(dailyAvg), "일 평균")
-                divider
-                kpiCell("\(gameCount)개", "플레이 게임")
-            }.padding(.top, 13)
+        MPSection {
+            SectionHead(title: "이번 달 지출") { trendText }
+            Text(won(monthly)).font(.pretendard(size: 32, weight: .black))
+                .foregroundStyle(GLGColor.textPrimary).lineLimit(1).minimumScaleFactor(0.6)
+            // 예산은 설정했을 때만 — 초과 문구는 홈 예산 카드와 같은 규칙.
+            if budget > 0 { budgetBlock }
+            StatTriple(cells: [
+                (won(dailyAvg), "일 평균"),
+                (won(total), "누적 지출"),
+                ("\(monthCount)건", "이번 달 기록"),
+            ])
+            monthBars
         }
-        .padding(18)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .glgGlass(in: RoundedRectangle(cornerRadius: 22, style: .continuous))
     }
 
-    private func kpiCell(_ v: String, _ k: String) -> some View {
-        VStack(spacing: 2) {
-            Text(v).font(.pretendard(size: 14, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
-                .lineLimit(1).minimumScaleFactor(0.7)
-            Text(k).font(.pretendard(size: 10)).foregroundStyle(GLGColor.textSecondary)
-        }
-        .frame(maxWidth: .infinity)
-    }
-
-    private var divider: some View {
-        Rectangle().fill(Color.black.opacity(0.06)).frame(width: 1, height: 26)
-    }
-
-    @ViewBuilder private var trendPill: some View {
+    /// 지난달 0 이면 비교하지 않는다(예전 추세 알약과 같은 규칙).
+    @ViewBuilder private var trendText: some View {
         if prevMonthly > 0 {
             let delta = Int((Double(monthly - prevMonthly) / Double(prevMonthly)) * 100)
             let down = delta <= 0
-            let color = down ? Color(hex: 0xFF15803D) : Color(hex: 0xFFDC2626)
-            Text("\(down ? "▼" : "▲") \(abs(delta))% · 지난달")
-                .font(.pretendard(size: 10, weight: .bold)).foregroundStyle(color)
-                .padding(.horizontal, 9).padding(.vertical, 3)
-                .background(color.opacity(0.12), in: Capsule())
+            Text("\(down ? "▼" : "▲") \(abs(delta))% 지난달보다")
+                .font(.pretendard(size: 12, weight: .bold)).foregroundStyle(down ? downColor : upColor)
         }
     }
-}
 
-// ── ③ 월별 지출 추이 ─────────────────────────────────────────────────────────
+    private var budgetBlock: some View {
+        let over = monthly > budget
+        let pct = Int(monthly * 100 / budget)
+        let frac = over ? 1 : CGFloat(Double(monthly) / Double(budget))
+        return VStack(spacing: 6) {
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    hairColor
+                    (over ? upColor : accent.primary).frame(width: geo.size.width * frac)
+                }
+            }
+            .frame(height: 8)
+            .clipShape(RoundedRectangle(cornerRadius: 4))
+            HStack {
+                subText("예산 \(won(budget)) 중 \(pct)%")
+                Spacer(minLength: 8)
+                if over { subText("\(won(monthly - budget)) 초과", color: upColor) }
+                else { subText("\(won(budget - monthly)) 남음") }
+            }
+        }
+        .padding(.top, 12)
+    }
 
-private struct MyPageMonthlyTrendCard: View {
-    let points: [MonthPoint]
-    @Environment(\.glgAccent) private var accent
-
-    var body: some View {
-        let maxAmt = max(points.map { $0.amount }.max() ?? 0, 1)
-        HStack(alignment: .bottom, spacing: 8) {
-            ForEach(Array(points.enumerated()), id: \.element.id) { idx, p in
-                let isCurrent = idx == points.count - 1
+    /// 최근 6개월 막대 — 막대 최대 70 · 라벨 12, 이번 달만 강조색.
+    private var monthBars: some View {
+        let maxAmt = max(trend.map { $0.amount }.max() ?? 0, 1)
+        return HStack(alignment: .bottom, spacing: 10) {
+            ForEach(Array(trend.enumerated()), id: \.element.id) { idx, p in
+                let isCurrent = idx == trend.count - 1
                 let frac = CGFloat(Double(p.amount) / Double(maxAmt))
-                VStack(spacing: 0) {
-                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                VStack(spacing: 6) {
+                    UnevenRoundedRectangle(topLeadingRadius: 5, topTrailingRadius: 5)
                         .fill(isCurrent ? accent.primary : accent.primary.opacity(0.2))
-                        .frame(width: 18, height: max(90 * frac, 3))
-                    Spacer().frame(height: 7)
-                    Text("\(p.month)월")
-                        .font(.pretendard(size: 10, weight: isCurrent ? .bold : .regular))
-                        .foregroundStyle(isCurrent ? accent.primary : GLGColor.textSecondary)
+                        .frame(height: max(70 * frac, 3))
+                    subText("\(p.month)월", color: isCurrent ? GLGColor.textPrimary : GLGColor.textSecondary, bold: isCurrent)
                 }
                 .frame(maxWidth: .infinity)
             }
         }
-        .frame(height: 118, alignment: .bottom)
-        .padding(16)
-        .frame(maxWidth: .infinity)
-        .glgGlass(in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+        .frame(height: 96, alignment: .bottom)
+        .padding(.top, 22)
     }
 }
 
-// ── ④ 활동 메트릭 타일 ───────────────────────────────────────────────────────
-
-private struct MetricTile: View {
-    let icon: String
-    let value: String
-    let label: String
-    var tint: Color? = nil
-    @Environment(\.glgAccent) private var accent
-
-    var body: some View {
-        let c = tint ?? accent.primary
-        VStack(alignment: .leading, spacing: 0) {
-            ZStack {
-                RoundedRectangle(cornerRadius: 10).fill(c.opacity(0.12)).frame(width: 32, height: 32)
-                Image(systemName: icon).font(.pretendard(size: 16)).foregroundStyle(c)
-            }
-            Spacer().frame(height: 9)
-            Text(value).font(.pretendard(size: 18, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
-                .lineLimit(1).minimumScaleFactor(0.7)
-            Spacer().frame(height: 2)
-            Text(label).font(.pretendard(size: 11)).foregroundStyle(GLGColor.textSecondary).lineLimit(1)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(14)
-        .glgGlass(in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-    }
-}
-
-// ── ⑤ 게임별 지출 (도넛 + 범례) ──────────────────────────────────────────────
+// ── ③ 게임별 지출 ────────────────────────────────────────────────────────────
 
 /// '기타'(상위 5개 밖) 조각 색 — 게임별 월 추이 카드와 동일 회색.
 private let etcSliceColor = Color(hex: 0xFFB8BDC6)
 
-private struct GameDonutCard: View {
+private struct GameSpendSection: View {
     let spendings: [Spending]
 
-    /// id 는 게임명으로 고정 — 그룹 키라 이미 고유하다. UUID 면 body 평가마다 도넛·범례가 통째로 재생성된다.
+    /// id 는 게임명으로 고정 — 그룹 키라 이미 고유하다.
     private struct Slice: Identifiable {
         var id: String { game }
         let game: String; let amount: Int64; let color: Color
     }
 
-    // 도넛·범례·중앙 금액이 전부 같은 집계를 쓰는데, computed 로 두면 body 를 한 번 그리는 동안
-    // slices 를 3번(빈 판정·범례·세그먼트), total 을 행마다 다시 계산했다 — 그룹핑 3회 + 전체 합산
-    // 8회 이상이었다. 지출이 바뀔 때만 한 번 만든다. (Android MyPageScreen 은 이미 remember 로 캐시)
+    // 띠·목록이 같은 집계를 쓴다 — 지출이 바뀔 때만 한 번 만든다.
     @State private var slices: [Slice] = []
     @State private var total: Int64 = 0
     @State private var pcts: [Int] = []
 
-    /// 도넛·범례가 **같은 조각 목록**을 쓴다.
-    /// 예전엔 도넛은 전 게임을 그리는데 범례는 상위 5개만 보여줘서, 6번째부터는 색만 있고 설명이 없었다.
     /// 6개 이상이면 나머지를 '기타'로 묶는다(게임별 월 추이 카드와 같은 규칙).
     private static func compute(_ spendings: [Spending]) -> (slices: [Slice], total: Int64, pcts: [Int]) {
         var sums: [String: Int64] = [:]
@@ -354,69 +343,193 @@ private struct GameDonutCard: View {
             list = Array(list.prefix(5)) + [Slice(game: "기타", amount: etc, color: etcSliceColor)]
         }
         // 퍼센트는 **합이 정확히 100이 되도록** 공유 로직으로 배분한다(최대 잔여법).
-        // 각자 내림하면 조각 수만큼 깎여 3조각일 때 97%처럼 보였다.
         let pcts = FormatKt.percentShares(values: list.map { KotlinLong(value: $0.amount) }).map { $0.intValue }
         return (list, sum, pcts)
     }
 
     var body: some View {
-        Group {
+        MPSection {
+            SectionHead(title: "게임별 지출") { moreText("전체 기간") }
             if slices.isEmpty || total <= 0 {
-                Text("아직 지출 기록이 없어요")
-                    .font(.pretendard(size: 13)).foregroundStyle(GLGColor.textSecondary)
-                    .frame(maxWidth: .infinity, alignment: .leading).padding(20)
+                subText("아직 지출 기록이 없어요")
             } else {
-                HStack(spacing: 16) {
-                    donut
-                    VStack(spacing: 9) {
-                        ForEach(Array(slices.enumerated()), id: \.element.id) { i, s in
-                            let pct = i < pcts.count ? pcts[i] : 0
-                            HStack(spacing: 8) {
-                                RoundedRectangle(cornerRadius: 3).fill(s.color).frame(width: 9, height: 9)
-                                Text(s.game).font(.pretendard(size: 12, weight: .medium)).lineLimit(1)
-                                Spacer(minLength: 0)
-                                Text(won(s.amount)).font(.pretendard(size: 12, weight: .bold)).lineLimit(1)
-                                Text("\(pct)%").font(.pretendard(size: 10)).foregroundStyle(GLGColor.textSecondary)
-                            }
-                        }
+                shareBar
+                Spacer().frame(height: 6)
+                ForEach(Array(slices.enumerated()), id: \.element.id) { i, s in
+                    if i > 0 { Hair() }
+                    ListRow {
+                        RoundedRectangle(cornerRadius: 3).fill(s.color).frame(width: 10, height: 10)
+                        labelText(s.game).frame(maxWidth: .infinity, alignment: .leading)
+                        numText(won(s.amount))
+                        subText("\(i < pcts.count ? pcts[i] : 0)%").frame(width: 34, alignment: .trailing)
                     }
                 }
-                .padding(16)
             }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .glgGlass(in: RoundedRectangle(cornerRadius: 22, style: .continuous))
         .task(id: spendings) { (slices, total, pcts) = Self.compute(spendings) }
     }
 
-    private var donut: some View {
-        ZStack {
-            ForEach(Array(segments.enumerated()), id: \.offset) { _, seg in
-                Circle().trim(from: seg.start, to: seg.end)
-                    .stroke(seg.color, style: StrokeStyle(lineWidth: 18, lineCap: .butt))
-                    .rotationEffect(.degrees(-90))
-                    .padding(9)
-            }
-            VStack(spacing: 0) {
-                Text("총 지출").font(.pretendard(size: 9)).foregroundStyle(GLGColor.textSecondary)
-                Text(won(total)).font(.pretendard(size: 11, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
-                    .lineLimit(1).minimumScaleFactor(0.6)
+    /// 누적 비중 띠 — 조각 사이 2 틈.
+    private var shareBar: some View {
+        let parts = slices.filter { $0.amount > 0 }
+        return GeometryReader { geo in
+            let avail = geo.size.width - CGFloat(max(parts.count - 1, 0)) * 2
+            HStack(spacing: 2) {
+                ForEach(parts) { s in
+                    s.color.frame(width: avail * CGFloat(Double(s.amount) / Double(total)))
+                }
             }
         }
-        .frame(width: 108, height: 108)
-    }
-
-    private var segments: [(start: CGFloat, end: CGFloat, color: Color)] {
-        var segs: [(start: CGFloat, end: CGFloat, color: Color)] = []
-        var acc: CGFloat = 0
-        for s in slices {
-            let frac = CGFloat(Double(s.amount) / Double(total))
-            segs.append((start: acc, end: acc + frac, color: s.color))
-            acc += frac
-        }
-        return segs
+        .frame(height: 12)
+        .clipShape(RoundedRectangle(cornerRadius: 6))
     }
 }
+
+// ── ④ 지출 기록 ──────────────────────────────────────────────────────────────
+
+private struct RecordSection: View {
+    let trend: [MonthPoint]
+
+    var body: some View {
+        let avg: Int64 = trend.isEmpty ? 0 : trend.reduce(Int64(0)) { $0 + $1.amount } / Int64(trend.count)
+        let peak = trend.max { $0.amount < $1.amount }.flatMap { $0.amount > 0 ? $0 : nil }
+        MPSection {
+            SectionHead(title: "지출 기록")
+            ListRow {
+                labelWithPeriod("월 평균")
+                numText(won(avg))
+            }
+            Hair()
+            ListRow {
+                labelWithPeriod("가장 많이 쓴 달")
+                if let p = peak {
+                    numText("\(p.month)월")
+                    subText(won(p.amount))
+                } else {
+                    numText("—")
+                }
+            }
+        }
+    }
+
+    private func labelWithPeriod(_ label: String) -> some View {
+        HStack(spacing: 4) {
+            labelText(label)
+            subText("최근 6개월")
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+// ── ⑤ 활동 ───────────────────────────────────────────────────────────────────
+
+private enum MyPageAttendLevel { case none, some, all }
+
+private struct ActivitySection: View {
+    let history: [String: Set<String>]
+    let tracked: [Game]
+    let streak: Int
+    let taskStats: [TaskStats]
+    let spendCount: Int
+    @Environment(\.glgAccent) private var accent
+
+    /// 오래된 날 → 오늘 순 30칸. 출석한 게임 수로 칸 농도를 가른다(전부 = 진하게 · 일부 = 옅게).
+    private var days: [MyPageAttendLevel] {
+        let du = DateUtil.shared
+        let keys = tracked.map { $0.key }
+        return (0..<30).reversed().map { ago in
+            let done = history[du.hoyoDayKeyAgoKey(daysAgo: Int32(ago))] ?? []
+            if done.isEmpty { return .none }
+            if !keys.isEmpty && keys.allSatisfy({ done.contains($0) }) { return .all }
+            return .some
+        }
+    }
+
+    /// 일일 숙제 완주 — 기록이 있는 게임들의 30일 완주율 평균.
+    private var taskRate: Int? {
+        let l = taskStats.filter { $0.dailyDays > 0 }
+        return l.isEmpty ? nil : l.reduce(0) { $0 + Int($1.dailyRate) } / l.count
+    }
+
+    var body: some View {
+        let d = days
+        MPSection {
+            SectionHead(title: "활동") { moreText("최근 30일") }
+            VStack(spacing: 4) {
+                ForEach(0..<2, id: \.self) { r in
+                    HStack(spacing: 4) {
+                        ForEach(0..<15, id: \.self) { c in
+                            cell(d[r * 15 + c], isToday: r == 1 && c == 14)
+                        }
+                    }
+                }
+            }
+            subText("진한 칸 = 모든 게임 출석 · 옅은 칸 = 일부").padding(.top, 8)
+            StatTriple(cells: [
+                ("\(streak)일", "연속 출석"),
+                (taskRate.map { "\($0)%" } ?? "—", "일일 숙제 완주"),
+                ("\(spendCount)건", "지출 기록"),
+            ])
+            if !taskStats.isEmpty {
+                Hair().padding(.top, 18)
+                ForEach(Array(taskStats.enumerated()), id: \.offset) { i, s in
+                    if i > 0 { Hair() }
+                    ListRow {
+                        labelText("\(s.gameShort) 숙제").frame(maxWidth: .infinity, alignment: .leading)
+                        // 주간은 주간 기록을 주는 게임만(게임정보 숙제 완주율과 같은 규칙).
+                        let week = s.weeklyWeeks > 0 ? " · 주간 \(s.weekDone ? "완료" : "미완")" : ""
+                        subText("오늘 \(s.todayDone ? "완료" : "미완")\(week)",
+                                color: s.todayDone ? GLGColor.textSecondary : upColor)
+                        numText(s.isEmpty ? "—" : "\(s.dailyRate)%").frame(width: 44, alignment: .trailing)
+                    }
+                }
+            }
+        }
+    }
+
+    private func cell(_ level: MyPageAttendLevel, isToday: Bool) -> some View {
+        RoundedRectangle(cornerRadius: 3)
+            .fill(level == .all ? accent.primary : level == .some ? accent.primary.opacity(0.5) : hairColor)
+            .aspectRatio(1, contentMode: .fit)
+            .frame(maxWidth: .infinity)
+            // 오늘 칸 — 1pt 띄운 2pt 테두리(목업 outline).
+            .overlay {
+                if isToday {
+                    RoundedRectangle(cornerRadius: 5).stroke(GLGColor.textPrimary, lineWidth: 2).padding(-2)
+                }
+            }
+    }
+}
+
+// ── ⑥ 절약 챌린지 ────────────────────────────────────────────────────────────
+
+private struct ChallengeSection: View {
+    let challenge: ChallengeSummary?
+
+    var body: some View {
+        let list = challenge?.challenges ?? []
+        MPSection {
+            SectionHead(title: "절약 챌린지") { moreText("전체 보기 ›") }
+            ListRow {
+                labelText("무지출 스트릭").frame(maxWidth: .infinity, alignment: .leading)
+                numText("\(challenge?.noSpendStreak ?? 0)일")
+                subText("최고 \(challenge?.bestStreak ?? 0)일")
+            }
+            Hair()
+            ListRow {
+                labelText("진행 중 챌린지").frame(maxWidth: .infinity, alignment: .leading)
+                numText("\(list.count)개")
+                subText("달성 \(list.filter { $0.reached }.count)개")
+            }
+            Hair()
+            ListRow {
+                labelText("획득 배지").frame(maxWidth: .infinity, alignment: .leading)
+                numText("\(challenge?.earnedBadgeCount ?? 0) / \(challenge?.totalBadgeCount ?? 0)")
+            }
+        }
+    }
+}
+
 
 // ── 프로필 아바타 (네트워크 이미지 / 폴백) ──────────────────────────────────
 

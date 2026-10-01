@@ -177,33 +177,6 @@ struct SavingsChallengeView: View {
     }
 }
 
-// ══════════════════════════════════════════════════════════════ 홈 진입 카드
-struct SavingsChallengeHomeCard: View {
-    var store: SpendingStore
-    @Environment(\.glgAccent) private var accent
-
-    var body: some View {
-        GLGCard(cornerRadius: 18, padding: 15) {
-            VStack(alignment: .leading, spacing: 0) {
-                HStack(spacing: 8) {
-                    Image(systemName: "flame.fill").font(.system(size: 16)).foregroundStyle(accent.primary).frame(width: 30, height: 30)
-                        .background(accent.primary.opacity(0.14), in: RoundedRectangle(cornerRadius: 10))
-                    Text("절약 챌린지").font(.pretendard(size: 13.5, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
-                    Spacer()
-                    Text("열기 ›").font(.pretendard(size: 12, weight: .bold)).foregroundStyle(accent.primary)
-                }
-                HStack(spacing: 5) {
-                    Image(systemName: "flame.fill").font(.system(size: 17)).foregroundStyle(accent.primary)
-                    Text("\(store.challenge?.noSpendStreak ?? 0)일").font(.pretendard(size: 20, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
-                    Text("연속 무지출").font(.pretendard(size: 12, weight: .bold)).foregroundStyle(GLGColor.textSecondary)
-                    Spacer()
-                    Text("배지 \(store.challenge?.earnedBadgeCount ?? 0)/\(store.challenge?.totalBadgeCount ?? 8)").font(.pretendard(size: 12, weight: .bold)).foregroundStyle(accent.primary)
-                }.padding(.top, 11)
-            }
-        }
-    }
-}
-
 // ══════════════════════════════════════════════════════════════ 공용 소품
 
 @ViewBuilder
