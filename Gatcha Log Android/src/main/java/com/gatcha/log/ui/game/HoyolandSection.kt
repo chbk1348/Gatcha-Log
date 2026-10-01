@@ -1220,66 +1220,6 @@ private fun HoyolandOnsiteWideTile(
     }
 }
 
-@Composable
-private fun HoyolandSubEntryWide(
-    title: String,
-    sub: String,
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    onClick: () -> Unit,
-) {
-    val accent = LocalAccent.current
-    GlassCard(modifier = Modifier.fillMaxWidth().clickable { onClick() }) {
-        Row(
-            Modifier.fillMaxWidth().padding(18.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Box(
-                Modifier.size(44.dp).clip(RoundedCornerShape(13.dp)).background(accent.copy(alpha = 0.12f)),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(icon, contentDescription = null, tint = accent, modifier = Modifier.size(22.dp))
-            }
-            Column(Modifier.weight(1f).padding(start = 13.dp)) {
-                Text(title, fontSize = 15.5.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
-                Spacer(Modifier.height(4.dp))
-                Text(sub, fontSize = 12.sp, color = TextSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            }
-            Icon(
-                Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                contentDescription = null,
-                tint = TextSecondary,
-                modifier = Modifier.size(20.dp),
-            )
-        }
-    }
-}
-
-/** 상세 하단 진입 카드 — 굿즈 목록·부스 체험 두 장을 나란히. */
-@Composable
-private fun HoyolandSubEntry(
-    title: String,
-    sub: String,
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    modifier: Modifier = Modifier,
-    onClick: () -> Unit,
-) {
-    val accent = LocalAccent.current
-    GlassCard(modifier = modifier.clickable { onClick() }) {
-        Column(Modifier.padding(14.dp)) {
-            Box(
-                Modifier.size(34.dp).clip(RoundedCornerShape(10.dp)).background(accent.copy(alpha = 0.12f)),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(icon, contentDescription = null, tint = accent, modifier = Modifier.size(18.dp))
-            }
-            Spacer(Modifier.height(10.dp))
-            Text(title, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
-            Spacer(Modifier.height(3.dp))
-            Text(sub, fontSize = 11.sp, color = TextSecondary, maxLines = 2, lineHeight = 14.sp)
-        }
-    }
-}
-
 /**
  * 굿즈 목록 — 품목과 **가격**.
  *

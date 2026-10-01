@@ -274,17 +274,6 @@ private fun Pill(text: String, color: Color) {
 }
 
 @Composable
-private fun InfoPill(label: String, value: String, modifier: Modifier) {
-    Box(modifier.clip(RoundedCornerShape(14.dp)).background(Color(0xFFF6F7F9)).border(1.dp, Color(0xFFE3E5EA), RoundedCornerShape(14.dp)).padding(horizontal = 12.dp, vertical = 10.dp)) {
-        Column {
-            Text(label, fontSize = 11.sp, color = TextSecondary, fontWeight = FontWeight.Bold)
-            Spacer(Modifier.height(2.dp))
-            Text(value, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
-        }
-    }
-}
-
-@Composable
 private fun SegChip(text: String, on: Boolean, accent: Color, modifier: Modifier, onClick: () -> Unit) {
     Box(
         modifier.clip(RoundedCornerShape(11.dp))
