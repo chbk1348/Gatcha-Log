@@ -32,22 +32,26 @@ struct DeveloperView: View {
 
     var body: some View {
         ScrollView {
-            // 설정과 같은 결(9/30) — 묶음 제목 + 흰 카드 + 색 아이콘 줄.
+            // GLDS 2.0(10/1) — 카드를 걷고 흰 바탕 · 화면 폭 섹션 + 10 띠(설정 화면과 같은 규격).
             VStack(alignment: .leading, spacing: 0) {
                 Text("디버그 빌드에서만 보이는 화면이에요. 여기서 만든 값은 저장되지 않고, 다음 새로고침에 서버 값으로 덮어써집니다.")
-                    .font(.pretendard(size: 11.5)).foregroundStyle(Color(hex: 0xFF7A8784))
-                    .frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 4).padding(.top, 4)
+                    .font(.pretendard(size: 12)).foregroundStyle(Color(hex: 0xFF7A8784)).lineSpacing(2)
+                    .frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 20).padding(.top, 16)
 
                 makeStateSection
+                SetBand()
                 diagnosticsSection
-                if let reportTitle { reportSection(reportTitle) }
+                if let reportTitle {
+                    SetBand()
+                    reportSection(reportTitle)
+                }
+                SetBand()
                 buildSection
             }
-            .padding(16)
             .glgReadableWidth(640)
         }
         .scrollIndicators(.hidden)
-        .background(GLGBackground { Color.clear })
+        .background(Color.white.ignoresSafeArea())
         .glgPageTitle("개발자 메뉴")
         .navigationBarTitleDisplayMode(.inline)
         .onAppear {
@@ -58,7 +62,7 @@ struct DeveloperView: View {
 
     // ── 상태 만들기 — "그 화면"을 지금 보고 싶을 때 ──
     private var makeStateSection: some View {
-        sectionCard("상태 만들기", "그 화면을 지금 보고 싶을 때") {
+        SetSection(title: "상태 만들기", caption: "그 화면을 지금 보고 싶을 때") {
             devRow("bolt.fill", .amber, "행동력 3게임 가득", "행동력 카드의 비상벨이 뜨는 조건을 만든다") {
                 store.debugFillAllResin()
             }
@@ -106,7 +110,7 @@ struct DeveloperView: View {
 
     // ── 진단 — "왜 안 나오지"를 볼 때 ──
     private var diagnosticsSection: some View {
-        sectionCard("진단", "왜 안 나오는지 볼 때") {
+        SetSection(title: "진단", caption: "왜 안 나오는지 볼 때") {
             devRow("alarm", .teal, "예약될 알림 보기", "지금 설정으로 잡히는 예약을 시각 순으로") {
                 show("예약될 알림", store.debugScheduledAlerts())
             }
@@ -138,7 +142,8 @@ struct DeveloperView: View {
     // 진단 결과 — 누른 것만 보여준다
     @ViewBuilder
     private func reportSection(_ title: String) -> some View {
-        sectionCard(title, "누른 시점의 결과") {
+        // 버튼(자체 아래 여백 없음)으로 끝나 섹션 아래 20.
+        SetSection(title: title, caption: "누른 시점의 결과", bottom: 20) {
             VStack(alignment: .leading, spacing: 9) {
                 ForEach(Array(reportLines.enumerated()), id: \.offset) { _, line in
                     Text(line).font(.pretendard(size: 12)).foregroundStyle(GLGColor.textPrimary)
@@ -147,12 +152,12 @@ struct DeveloperView: View {
                 GldsButton(title: "닫기", variant: .secondary, size: .s, fullWidth: false) { reportTitle = nil; reportLines = [] }
                     .padding(.top, 5)
             }
-            .padding(14)
+            .padding(.horizontal, 20)
         }
     }
 
     private var buildSection: some View {
-        sectionCard("빌드", "이 기기에 깔린 앱") {
+        SetSection(title: "빌드", caption: "이 기기에 깔린 앱", bottom: 20) { // 페이지 맨 아래 — 안전 영역 위 여백
             fact("info.circle", "버전", "\(version) (\(build))")
             SetDivider()
             fact("hammer.fill", "빌드 타입", buildTypeLabel)
@@ -176,13 +181,7 @@ struct DeveloperView: View {
         reportLines = lines.isEmpty ? ["표시할 내용이 없습니다"] : lines
     }
 
-    // ── 공용 서브뷰 (설정 줄 키트 SetGroupTitle · SetCard · SetIcon 과 같은 규격) ──
-
-    @ViewBuilder
-    private func sectionCard<C: View>(_ title: String, _ caption: String, @ViewBuilder content: () -> C) -> some View {
-        SetGroupTitle(title: title, caption: caption)
-        SetCard { content() }
-    }
+    // ── 공용 서브뷰 (설정 줄 키트 SetSection · SetIcon 과 같은 규격 — 줄 좌우 20 · 제목 15) ──
 
     /// 색 아이콘 + 제목/설명 한 줄 — 누르면 바로 실행된다(확인 단계 없음, 되돌릴 수 있는 것만 둔다).
     @ViewBuilder
@@ -191,14 +190,14 @@ struct DeveloperView: View {
             HStack(spacing: 12) {
                 SetIcon(symbol: icon, tint: tint)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(title).font(.pretendard(size: 14, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
+                    Text(title).font(.pretendard(size: 15, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
                     Text(subtitle).font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 Spacer(minLength: 0)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 14).padding(.vertical, 12)
+            .padding(.horizontal, 20).padding(.vertical, 12)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -208,10 +207,10 @@ struct DeveloperView: View {
     private func fact(_ icon: String, _ label: String, _ value: String) -> some View {
         HStack(spacing: 12) {
             SetIcon(symbol: icon, tint: .gray)
-            Text(label).font(.pretendard(size: 14, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
+            Text(label).font(.pretendard(size: 15, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
             Spacer(minLength: 8)
             Text(value).font(.pretendard(size: 12.5)).foregroundStyle(GLGColor.textSecondary).lineLimit(1)
         }
-        .padding(.horizontal, 14).padding(.vertical, 12)
+        .padding(.horizontal, 20).padding(.vertical, 12)
     }
 }

@@ -149,10 +149,10 @@ struct HomeView: View {
                 // 히어로 바로 아래 첫 섹션은 띠 없이 — 그라데이션이 옅어지는 자리에 회색 띠가 걸리면 어색하다.
                 let showToday = !store.gameInfoReady || !todayTasks.isEmpty
                 if showToday {
-                    homeSection(band: false) { todayTaskView(titleOutside: true) }
+                    homeSection(band: false) { todayTaskView() }
                 }
                 homeSection(band: showToday, bottom: 8) { RecentSpendCard(spendings: store.spendings, onSeeAll: { onSwitchTab(1) }) }
-                dashboardSlots(titleOutside: true)
+                dashboardSlots()
                 // 절약 챌린지는 **마이페이지**로 옮겼다(27.50.0) — 홈은 "지금 무엇을 할까" 를
                 // 말하는 자리고, 스트릭·배지는 "내가 얼마나 해왔나" 라 성격이 다르다.
             }
@@ -160,30 +160,27 @@ struct HomeView: View {
         }
     }
 
-    // iPad — 히어로 섹션 이전(재구성 전) 대시보드 홈. 지출 카드·오늘 할 일·이번주 일정·게임 소식·저축.
+    // iPad — 지출 게이지 · 오늘 할 일 · 이번주 일정 · 게임 소식. iPhone 과 같은 카드 없는 섹션 + 10 띠(GLDS 2.0, 10/1).
     @ViewBuilder
     private var legacyHomeContent: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: 0) {
             if store.hoyoTokenExpired {
                 TokenExpiredBanner { store.requestOpenHoyolabLink(); onSwitchTab(3) }
             }
-            // 예산이 없으면 카드 문구(「예산을 정하면 페이스를 알려드려요」)대로 예산 관리로(9/30).
-            DashboardSpendCard(monthlyTotal: monthlyTotal, budget: store.budget,
-                               onTap: { if store.budget > 0 { onSwitchTab(1) } else { showBudget = true } })
-            // 호요랜드 — 개막 D-60 이내에만 끼어드는 한시 배너(끝나면 스스로 빠진다).
-            // 히어로 바로 밑이다. 광고 배너라 목록 중간에 두면 다른 카드의 리듬에 묻힌다 —
-            // 첫 화면에서 한 번 눈에 걸리고 지나가는 자리가 맞다.
-            // 스켈레톤을 두지 않는 건 폴백이 늘 유효해서다.
-            HoyolandHomeCard(onTap: { showHoyoland = true })
-            if !store.gameInfoReady || !todayTasks.isEmpty {
-                todayTaskView(titleOutside: false)
+            // 첫 섹션 — 위 띠 없이. 예산이 없으면 문구(「예산을 정하면 페이스를 알려드려요」)대로 예산 관리로(9/30).
+            homeSection(band: false) {
+                DashboardSpendCard(monthlyTotal: monthlyTotal, budget: store.budget,
+                                   onTap: { if store.budget > 0 { onSwitchTab(1) } else { showBudget = true } })
             }
-            dashboardSlots(titleOutside: false)
+            // 호요랜드 입장권 — iPhone 과 같이 지출 바로 밑, 양옆 12 · 아래 여백 없이.
+            HoyolandHomeCard(onTap: { showHoyoland = true })
+                .padding(.horizontal, 12)
+            if !store.gameInfoReady || !todayTasks.isEmpty {
+                homeSection { todayTaskView() }
+            }
+            dashboardSlots()
             // 절약 챌린지 → 마이페이지(27.50.0). 위 newHomeContent 와 같은 이유.
         }
-        .padding(.horizontal, 16)
-        .padding(.top, 4)
-        .padding(.bottom, 16)
         .glgReadableWidth(600)
     }
 
@@ -193,39 +190,37 @@ struct HomeView: View {
     /// 스켈레톤이 곧바로 걷히는데, 정작 이 두 카드는 데이터가 없으면 아무것도 안 그려서
     /// 자리를 비웠다가 응답이 온 뒤 튀어나왔다. 출처가 다르니 게이트도 따로 본다.
     @ViewBuilder
-    private func dashboardSlots(titleOutside: Bool) -> some View {
+    private func dashboardSlots() -> some View {
         if store.scheduleReady && store.newsReady {
-            dashboardSlotBodies(titleOutside: titleOutside)
+            dashboardSlotBodies()
         } else {
             // 스켈레톤이 여러 개 동시에 뜨는 구간 — 시머 클럭을 하나만 돌린다.
-            GLGShimmerClock { dashboardSlotBodies(titleOutside: titleOutside) }
+            GLGShimmerClock { dashboardSlotBodies() }
         }
     }
 
     @ViewBuilder
-    private func dashboardSlotBodies(titleOutside: Bool) -> some View {
-        sectionIf(titleOutside) {
+    private func dashboardSlotBodies() -> some View {
+        homeSection {
             if store.scheduleReady {
                 DashboardScheduleCard(events: store.gameEvents, challenges: store.challenges,
-                                      onTap: { store.requestGameInfoAnchor(.schedule); onSwitchTab(2) },
-                                      titleOutside: titleOutside)
+                                      onTap: { store.requestGameInfoAnchor(.schedule); onSwitchTab(2) })
             } else {
-                DashCardSkeleton(rows: 3, flat: titleOutside)
+                DashCardSkeleton(rows: 3)
             }
         }
-        sectionIf(titleOutside) {
+        homeSection {
             if store.newsReady {
                 DashboardNewsCard(news: store.gameNews,
                                   anniversaries: GameAnniversary.shared.upcoming(nowMillis: nowMs()),
-                                  onTap: { store.requestGameInfoAnchor(.news); onSwitchTab(2) },
-                                  titleOutside: titleOutside)
+                                  onTap: { store.requestGameInfoAnchor(.news); onSwitchTab(2) })
             } else {
-                DashCardSkeleton(rows: 2, flat: titleOutside)
+                DashCardSkeleton(rows: 2)
             }
         }
     }
 
-    /// iPhone 홈 섹션 — 위 10 띠 + 좌우 20 · 위 22 · 아래 20(Android HomeSection 과 같다).
+    /// 홈 섹션(iPhone · iPad) — 위 10 띠 + 좌우 20 · 위 22 · 아래 20(Android HomeSection 과 같다).
     /// `bottom` 은 20 − 마지막 요소의 자체 아래 여백(최근 지출 줄은 vertical 12 라 8).
     @ViewBuilder
     private func homeSection<C: View>(band: Bool = true, bottom: CGFloat = 20, @ViewBuilder _ content: () -> C) -> some View {
@@ -237,18 +232,12 @@ struct HomeView: View {
             .background(Color.white)
     }
 
-    /// iPhone(titleOutside) 이면 섹션으로, iPad 레거시면 카드 그대로.
     @ViewBuilder
-    private func sectionIf<C: View>(_ on: Bool, @ViewBuilder _ content: () -> C) -> some View {
-        if on { homeSection(content) } else { content() }
-    }
-
-    @ViewBuilder
-    private func todayTaskView(titleOutside: Bool) -> some View {
+    private func todayTaskView() -> some View {
         if !store.gameInfoReady {
-            TodayTaskSkeleton(titleOutside: titleOutside)
+            TodayTaskSkeleton()
         } else {
-            TodayTaskCard(tasks: todayTasks, inProgress: store.checkingIn != nil, titleOutside: titleOutside)
+            TodayTaskCard(tasks: todayTasks, inProgress: store.checkingIn != nil)
         }
     }
 

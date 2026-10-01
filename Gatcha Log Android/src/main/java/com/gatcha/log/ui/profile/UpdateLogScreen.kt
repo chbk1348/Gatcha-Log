@@ -2,11 +2,10 @@ package com.gatcha.log.ui.profile
 
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.KeyboardArrowDown
@@ -21,7 +20,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -36,13 +34,13 @@ import com.gatcha.log.ui.components.glgDetailContentTop
 import com.gatcha.log.ui.components.GlgHeaderTitlePill
 import com.gatcha.log.ui.components.GlgChip
 import com.gatcha.log.ui.components.GldsTabs
-import com.gatcha.log.ui.theme.LocalAccentTint
 
 // 목업(06_ChangeLog.html) 색 토큰 — 분류 의미색은 디자인 고정값을 그대로 사용(패리티).
 private val CAccent = Color(0xFF15C7A8)
 private val CAccentSoft = Color(0xFFE5F8F4)
-private val CCard = Color(0xFFF6F7F9)
-private val CLine = Color(0xFFE3E5EA)
+// GLDS 2.0 — 설정 화면과 같은 띠 · 헤어라인 색.
+private val CBand = Color(0xFFF2F4F6)
+private val CHair = Color(0xFFEEF0F2)
 private val CText = Color(0xFF15181C)
 private val CTextSub = Color(0xFF7A828C)
 private val CItemText = Color(0xFF2A2E34)
@@ -58,7 +56,7 @@ private fun styleOf(k: ChangeKind): KindStyle = when (k) {
 
 /**
  * 업데이트 로그 풀스크린 페이지 — 06_ChangeLog.html 목업 디자인.
- * 헤더(뒤로+제목) + 스티키 필터칩(전체·신규·개선·수정·보안) + 최신 featured 카드 + 마일스톤(★) 타임라인.
+ * 헤더(뒤로+제목) + 스티키 필터칩(전체·신규·개선·수정·보안) + 버전별 섹션(GLDS 2.0 — 카드 없이 흰 바탕 · 버전 사이 10 띠).
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -83,14 +81,14 @@ internal fun UpdateLogScreen(onBack: () -> Unit) {
     val scrolled by remember {
         derivedStateOf { listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 0 }
     }
-    Box(Modifier.fillMaxSize().background(LocalAccentTint.current)) {
+    Box(Modifier.fillMaxSize().background(Color.White)) {
     LazyColumn(
         state = listState,
         modifier = Modifier
             .fillMaxSize()
             .padding(top = glgDetailContentTop())
             .navigationBarsPadding(),
-        contentPadding = PaddingValues(bottom = 40.dp),
+        // 맨 아래 여백은 마지막 섹션(아래 20)이 가진다 — 예전 카드 12 + 여기 40 = 52 로 떠 보였다(10/1).
     ) {
 
         // ── 스티키 필터칩 ──
@@ -100,21 +98,18 @@ internal fun UpdateLogScreen(onBack: () -> Unit) {
             // 예전엔 분류색으로 칠한 칩 다섯이었다. 배타 선택인데 독립 버튼처럼 보였고,
             // 선택된 칩의 색이 그때그때 달라 "지금 무엇으로 걸러져 있나"가 한눈에 안 들어왔다.
             // 분류색은 아래 항목의 태그가 이미 말해 준다. (iOS 는 같은 자리에 시스템 세그먼트)
-            // 배경은 **화면 배경과 같은 색**이어야 한다 — 스티키 헤더가 스크롤되는 카드를
-            // 가려 주는 불투명 베이스라서, 흰색으로 두면 27.50.0 면 뒤집기 뒤에 이 띠만 하얗게 뜬다.
-            // 위아래 여백이 다르다 — 위는 고정 헤더에 붙고(4), 아래는 카드 간 간격(12)에 맞춘다.
-            // 예전엔 위아래 10 에 더해 아래 `Spacer(14)` 까지 있어 탭과 첫 카드가 24 로 벌어졌다.
-            Box(
-                Modifier.fillMaxWidth().background(LocalAccentTint.current)
-                    .padding(horizontal = 14.dp)
-                    .padding(top = 4.dp, bottom = 12.dp),
-            ) {
-                val kinds = listOf(null, ChangeKind.NEW, ChangeKind.IMP, ChangeKind.FIX, ChangeKind.SEC)
-                GldsTabs(
-                    labels = listOf("전체", "신규", "개선", "수정", "보안"),
-                    selected = kinds.indexOf(filter).coerceAtLeast(0),
-                    onSelect = { filter = kinds[it] },
-                )
+            // 배경은 화면과 같은 흰색(불투명) — 스크롤되는 섹션을 가려 준다.
+            // GLDS 2.0(10/1) — 좌우 20 · 아래 1 헤어라인(iOS 와 같은 규격). 첫 섹션 위 22 는 섹션이 가진다.
+            Column(Modifier.fillMaxWidth().background(Color.White)) {
+                Box(Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(top = 4.dp, bottom = 10.dp)) {
+                    val kinds = listOf(null, ChangeKind.NEW, ChangeKind.IMP, ChangeKind.FIX, ChangeKind.SEC)
+                    GldsTabs(
+                        labels = listOf("전체", "신규", "개선", "수정", "보안"),
+                        selected = kinds.indexOf(filter).coerceAtLeast(0),
+                        onSelect = { filter = kinds[it] },
+                    )
+                }
+                Box(Modifier.fillMaxWidth().height(1.dp).background(CHair))
             }
         }
 
@@ -129,22 +124,23 @@ internal fun UpdateLogScreen(onBack: () -> Unit) {
             }
         }
 
-        items(supported, key = { it.version }) { entry ->
-            ReleaseCard(entry, filter)
+        // 버전 하나 = 섹션 하나, 사이는 10 띠(첫 섹션 위엔 없다).
+        itemsIndexed(supported, key = { _, e -> e.version }) { i, entry ->
+            if (i > 0) LogBand()
+            ReleaseSection(entry, filter)
         }
 
         // 지원 종료 버전 — 기본 접힘, '펼치기'로 열람.
         if (unsupported.isNotEmpty()) {
             item {
+                if (supported.isNotEmpty()) LogBand()
                 Row(
-                    Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 2.dp)
-                        .clip(RoundedCornerShape(16.dp))
+                    Modifier.fillMaxWidth()
                         .clickable { showOld = !showOld }
-                        .background(CCard)
-                        .padding(horizontal = 16.dp, vertical = 14.dp),
+                        .padding(horizontal = 20.dp, vertical = 20.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Text("지원 종료 버전 ${unsupported.size}개", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = CTextSub)
+                    Text("지원 종료 버전 ${unsupported.size}개", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = CTextSub)
                     Spacer(Modifier.weight(1f))
                     Text(if (showOld) "접기" else "펼치기", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = CAccent)
                     Spacer(Modifier.width(2.dp))
@@ -155,8 +151,9 @@ internal fun UpdateLogScreen(onBack: () -> Unit) {
                 }
             }
             if (showOld) {
-                items(unsupported, key = { it.version }) { entry ->
-                    ReleaseCard(entry, filter)
+                itemsIndexed(unsupported, key = { _, e -> e.version }) { _, entry ->
+                    LogBand()
+                    ReleaseSection(entry, filter)
                 }
             }
         }
@@ -166,20 +163,16 @@ internal fun UpdateLogScreen(onBack: () -> Unit) {
 }
 
 @Composable
-private fun ReleaseCard(entry: ChangeEntry, filter: ChangeKind?) {
+private fun LogBand() {
+    Box(Modifier.fillMaxWidth().height(10.dp).background(CBand))
+}
+
+/** 버전 하나 = 화면 폭 섹션(좌우 20 · 위 22 · 아래 20 — 마지막 항목 글자가 자체 아래 여백이 없어 20 그대로). */
+@Composable
+private fun ReleaseSection(entry: ChangeEntry, filter: ChangeKind?) {
     if (filter != null && entry.itemsOf(filter).isEmpty()) return
 
-    val shape = RoundedCornerShape(24.dp)
-    val base = when {
-        entry.featured -> Modifier.background(Brush.linearGradient(listOf(Color(0xFFF1FBF9), Color.White)), shape)
-            .border(1.dp, CAccentSoft, shape)
-        entry.milestone -> Modifier.background(CCard, shape)
-        else -> Modifier.background(Color.White, shape).border(1.dp, CLine, shape)
-    }
-    Column(
-        Modifier.fillMaxWidth().padding(horizontal = 18.dp).padding(bottom = 12.dp)
-            .then(base).clip(shape).padding(if (entry.featured) 22.dp else 18.dp),
-    ) {
+    Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(top = 22.dp, bottom = 20.dp)) {
         if (entry.featured) {
             Box(
                 Modifier.clip(RoundedCornerShape(50)).background(CAccent)
@@ -191,7 +184,7 @@ private fun ReleaseCard(entry: ChangeEntry, filter: ChangeKind?) {
             if (entry.milestone && !entry.featured) {
                 Text("★ ", color = CAccent, fontSize = 13.sp, fontWeight = FontWeight.Bold)
             }
-            Text("v${entry.version}", fontSize = if (entry.featured) 24.sp else 18.sp, fontWeight = FontWeight.ExtraBold, color = CText)
+            Text("v${entry.version}", fontSize = if (entry.featured) 24.sp else 17.sp, fontWeight = FontWeight.ExtraBold, color = CText)
             Spacer(Modifier.width(10.dp))
             Text(entry.date, fontSize = 12.5.sp, color = CTextSub, fontWeight = FontWeight.Medium, modifier = Modifier.alignByBaseline())
             Spacer(Modifier.weight(1f))
