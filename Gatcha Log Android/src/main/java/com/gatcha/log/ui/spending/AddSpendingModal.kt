@@ -37,8 +37,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import com.gatcha.log.ui.components.GldsChip
-import com.gatcha.log.ui.components.GlassCard
-import com.gatcha.log.ui.components.glgAccentCardBorder
+import com.gatcha.log.ui.components.GldsFieldLabel
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.foundation.interaction.collectIsFocusedAsState
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.FocusRequester
+import com.gatcha.log.ui.components.GlgDropdownItem
+import com.gatcha.log.ui.components.GlgDropdownMenu
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
@@ -244,14 +250,27 @@ fun AddSpendingModal(
             LazyColumn(
                 state = listState,
                 modifier = Modifier.weight(1f).fillMaxWidth(),
-                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = glgDetailContentTop(), bottom = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(14.dp),
+                // 카드 없이 화면 폭 섹션 + 10 띠(지출 상세 · 마이페이지와 같은 규격). 히어로만 좌우 16 을 둔다.
+                contentPadding = PaddingValues(top = glgDetailContentTop(), bottom = 16.dp),
             ) {
                 // ── 금액 히어로 — 게임·금액·상품·재화 환산을 한 덩어리로 ──
                 //
                 // 금액은 지출에서 가장 중요한 값인데 예전엔 '빠른 상품' 카드 안쪽, 그리드 아래
                 // 일반 필드로 있었다. 목록·상세·인사이트는 전부 금액이 히어로인데 입력할 때만 아니었다.
                 item {
+                    val chooseGame: (Game) -> Unit = { g ->
+                        game = g
+                        gameChosen = true
+                        selectedPackage = null
+                        quantity = 1
+                        itemName = ""
+                        if (!editing) chargePlatform = SpendingDefaults.lastPlatform(recentSpendings, g.displayName) ?: ""
+                    }
+                    // 미선택 — 고르기 전에는 금액을 받지 않는다. 히어로 대신 게임 목록이 화면을 연다.
+                    if (!gameChosen) {
+                        GamePickSection(myGames, chooseGame)
+                        return@item
+                    }
                     AmountHero(
                         myGames = myGames,
                         game = game,
@@ -264,14 +283,7 @@ fun AddSpendingModal(
                             quantity = 1
                         },
                         gameChosen = gameChosen,
-                        onGameChange = { g ->
-                            game = g
-                            gameChosen = true
-                            selectedPackage = null
-                            quantity = 1
-                            itemName = ""
-                            if (!editing) chargePlatform = SpendingDefaults.lastPlatform(recentSpendings, g.displayName) ?: ""
-                        },
+                        onGameChange = chooseGame,
                         itemName = itemName,
                         nudge = inlineNudge,
                     )
@@ -286,7 +298,7 @@ fun AddSpendingModal(
                 // ── 상품 ──
                 item {
                     GlgCardReveal(visible = gameChosen, order = 0) {
-                    SectionCard {
+                    FormSection {
                         // 자주 사는 것 — 기록이 없는 게임은 이 블록이 통째로 빠지고 전체 그리드가 바로 열린다
                         // (빈도를 모르는데 임의로 셋을 고르면 그건 추천이 아니다).
                         if (frequent.isNotEmpty()) {
@@ -396,7 +408,7 @@ fun AddSpendingModal(
                 // ── 날짜 ──
                 item {
                     GlgCardReveal(visible = gameChosen, order = 1) {
-                    SectionCard {
+                    FormSection {
                         GldsTextField(
                             value = DateUtil.labelWithWeekday(dateMillis),
                             onValueChange = {},
@@ -416,7 +428,7 @@ fun AddSpendingModal(
                 // 안 보이면 확인하려고 매번 펴게 되고, 그러면 접은 의미가 없다.
                 item {
                     GlgCardReveal(visible = gameChosen, order = 2) {
-                    SectionCard {
+                    FormSection {
                         val tagCount = selectedTags.size + customTags.split(",", " ").count { it.isNotBlank() }
                         val custom = chargePlatform.isNotBlank() || selectedTags.isNotEmpty() ||
                             customTags.isNotBlank() || memo.isNotBlank()
@@ -605,101 +617,93 @@ private fun AmountHero(
 ) {
     val gameColor = if (gameChosen) game.color.toColor() else TextSecondary
     var pickGame by remember { mutableStateOf(false) }
+    // 카드 없이 화면 폭 그대로(좌우 20) — 아래 섹션과 10 띠로 갈린다. 게임색은 알약 · 환산 글자가 맡는다.
     Column(
         Modifier.fillMaxWidth()
-            .clip(RoundedCornerShape(24.dp))
-            .background(gameColor.copy(alpha = 0.07f))
-            .border(1.dp, gameColor.copy(alpha = 0.18f), RoundedCornerShape(24.dp))
-            .padding(horizontal = 16.dp, vertical = 18.dp),
+            .padding(start = 20.dp, end = 20.dp, top = 18.dp, bottom = 20.dp),
     ) {
-        if (!gameChosen) {
-            // 미선택 — 고르기 전에는 금액을 받지 않는다. 첫 할 일이 무엇인지 화면이 말한다.
-            Text("어느 게임인가요?", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
-            Text("게임을 선택해주세요", fontSize = 12.sp, color = TextSecondary, modifier = Modifier.padding(top = 3.dp))
-            Spacer(Modifier.height(12.dp))
-            // **리스트형**이다(27.50.0). 이전에는 칩을 줄바꿈으로 늘어놓았는데, 이름 길이가
-            // 제각각이라(「원신」 vs 「명일방주: 엔드필드」) 줄이 들쭉날쭉해 훑기 어려웠다.
-            // 한 줄에 하나면 눈이 세로로만 움직이고, 게임 수가 늘어도 규격이 흔들리지 않는다.
-            //
-            // 가로 스크롤은 여전히 쓰지 않는다 — 첫 할 일이 "게임 고르기" 인데 접어 두면
-            // 화면 밖 게임은 있는 줄도 모른다. 모달이 세로로 스크롤되므로 전부 닿는다.
-            // 한 덩어리 리스트가 아니라 **낱개 카드**로 떼어 놓는다 — 구분선으로만 나뉜 목록은
-            // "표" 처럼 읽혀 고르는 자리라는 느낌이 약했다. 카드마다 여백이 생기니 누를 대상이
-            // 뚜렷하고, 게임색 테두리가 카드 단위로 서서 구분도 색으로 먼저 온다.
-            // 내 게임(온보딩 ② · 설정 ▸ 내 게임)이 위, 나머지는 「다른 게임」 아래 — 기록할 수 있는 게임은 줄이지 않는다.
-            val (mine, others) = remember(myGames) { GameData.pickerGames(myGames) }
-            Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                mine.forEach { g -> GameSelectRow(game = g) { onGameChange(g) } }
-                if (others.isNotEmpty()) {
-                    Text("다른 게임", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextSecondary, modifier = Modifier.padding(top = 6.dp, start = 2.dp))
-                    others.forEach { g -> GameSelectRow(game = g) { onGameChange(g) } }
-                }
+        // 게임 — 알약을 누르면 **드롭다운 메뉴**로 고른다(iOS Menu 와 같다). 예전엔 칩 줄이 펼쳐졌다.
+        Box {
+            Row(
+                Modifier.clip(CircleShape)
+                    .background(gameColor.copy(alpha = 0.12f))
+                    .clickable { pickGame = true }
+                    .padding(horizontal = 11.dp, vertical = 5.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Box(Modifier.size(7.dp).clip(CircleShape).background(gameColor))
+                Spacer(Modifier.width(6.dp))
+                Text(game.shortName, fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = gameColor)
+                Spacer(Modifier.width(4.dp))
+                // 화살표는 뒤집지 않고 **돌린다** — 글자를 바꾸면 순간이동처럼 보인다.
+                val arrow by animateFloatAsState(if (pickGame) 180f else 0f, glgStandardSpec(), label = "gamePickArrow")
+                Text(
+                    "▾", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = gameColor,
+                    modifier = Modifier.rotate(arrow),
+                )
             }
-            return@Column
-        }
-        // 게임 — 칩 줄을 늘어놓지 않고 접었다(히어로가 금액을 가리면 안 된다).
-        Row(
-            Modifier.clip(CircleShape)
-                .background(gameColor.copy(alpha = 0.12f))
-                .clickable { pickGame = !pickGame }
-                .padding(horizontal = 11.dp, vertical = 5.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Box(Modifier.size(7.dp).clip(CircleShape).background(gameColor))
-            Spacer(Modifier.width(6.dp))
-            Text(game.shortName, fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = gameColor)
-            Spacer(Modifier.width(4.dp))
-            // 화살표는 뒤집지 않고 **돌린다** — 글자를 바꾸면 순간이동처럼 보인다.
-            val arrow by animateFloatAsState(if (pickGame) 180f else 0f, glgStandardSpec(), label = "gamePickArrow")
-            Text(
-                "▾", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = gameColor,
-                modifier = Modifier.rotate(arrow),
-            )
-        }
-        // 칩 줄은 위에서 아래로 펼쳐지고 같은 길로 접힌다 — 갑자기 나타나면 아래 금액이 튄다.
-        AnimatedVisibility(
-            visible = pickGame,
-            enter = expandVertically(glgStandardSpec()) + fadeIn(glgStandardSpec()),
-            exit = shrinkVertically(glgShortSpec()) + fadeOut(glgShortSpec()),
-        ) {
             val pickerOrder = remember(myGames) { GameData.pickerGames(myGames).let { it.first + it.second } }
-            Column {
-                Spacer(Modifier.height(10.dp))
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    items(pickerOrder) { g ->
-                        GameSelectItem(game = g, isSelected = g == game) { onGameChange(g); pickGame = false }
-                    }
+            GlgDropdownMenu(expanded = pickGame, onDismissRequest = { pickGame = false }) {
+                pickerOrder.forEach { g ->
+                    GlgDropdownItem(
+                        text = g.displayName,
+                        selected = g == game,
+                        onClick = { pickGame = false; if (g != game) onGameChange(g) },
+                    )
                 }
             }
         }
         Spacer(Modifier.height(11.dp))
         // 치는 동안에도 **읽는 모양 그대로** — 세 자리 쉼표를 넣고 뒤에 「원」을 붙인다(iOS 와 같이,
         // 2026-09-21 지시). 쉼표는 보이는 글자에만 넣고([ThousandsTransformation]) 값은 숫자뿐이다.
-        Row(verticalAlignment = Alignment.Bottom) {
+        //
+        // 카드를 걷고 나니 **입력하는 곳인지** 안 읽혔다 — GLDS 입력필드 모양으로 둔다
+        // (라벨 · 채운 면 #F5F8F8 · 모서리 14 · 입력 중 흰 면 + 강조색 1.5 테두리). 큰 숫자라 높이만 내용에 맞춘다.
+        // 칸 어디를 눌러도 입력이 시작된다.
+        val accent = LocalAccent.current
+        val amountFocus = remember { FocusRequester() }
+        val amountSource = remember { MutableInteractionSource() }
+        val amountFocused by amountSource.collectIsFocusedAsState()
+        val fieldShape = RoundedCornerShape(14.dp)
+        GldsFieldLabel("금액")
+        Row(
+            Modifier.fillMaxWidth()
+                .clip(fieldShape)
+                .background(if (amountFocused) Color.White else Color(0xFFF5F8F8))
+                .border(1.5.dp, if (amountFocused) accent else Color.Transparent, fieldShape)
+                .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { amountFocus.requestFocus() }
+                .padding(horizontal = 14.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.Bottom,
+        ) {
             BasicTextField(
                 value = amount,
                 onValueChange = onAmountChange,
                 textStyle = LocalTextStyle.current.copy(
-                    fontSize = 34.sp, fontWeight = FontWeight.Black, color = TextPrimary,
+                    fontSize = 30.sp, fontWeight = FontWeight.Black, color = TextPrimary,
                 ),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                 visualTransformation = ThousandsTransformation,
                 singleLine = true,
-                modifier = Modifier.width(IntrinsicSize.Min).alignByBaseline(),
+                interactionSource = amountSource,
+                cursorBrush = SolidColor(accent),
+                modifier = Modifier.width(IntrinsicSize.Min).alignByBaseline().focusRequester(amountFocus),
                 decorationBox = { inner ->
                     if (amount.isEmpty()) {
-                        Text("0", fontSize = 34.sp, fontWeight = FontWeight.Black, color = TextSecondary.copy(alpha = 0.35f))
+                        Text("0", fontSize = 30.sp, fontWeight = FontWeight.Black, color = Color(0xFFA7B1AE))
                     }
                     inner()
                 },
             )
             if (amount.isNotEmpty()) {
                 Text(
-                    "원", fontSize = 24.sp, fontWeight = FontWeight.Black, color = TextSecondary,
+                    "원", fontSize = 22.sp, fontWeight = FontWeight.Black, color = TextSecondary,
                     modifier = Modifier.padding(start = 4.dp).alignByBaseline(),
                 )
             }
+            Spacer(Modifier.weight(1f))
         }
+        // 칸과 아래 안내 · 상품명 · 재화 줄 사이.
+        Spacer(Modifier.height(6.dp))
         // 비어 있으면 무엇을 넣어야 하는지 한 줄로 말한다 — 자리표시자 「0」만으로는
         // 이미 0 원을 적어 둔 것처럼 읽힌다(iOS 와 같이, 2026-09-21 지시).
         if (amount.isEmpty()) {
@@ -756,19 +760,14 @@ private fun FrequentItemRow(item: FrequentItem, selected: Boolean, onClick: () -
 }
 
 /**
- * 그룹 섹션 카드 — 앱 표준 [GlassCard] 규격에 **강조색 테두리**를 입힌다.
- *
- * 목록 화면의 카드는 중립 테두리를 쓰지만(여러 장 늘어서면 색 테두리가 산만하다),
- * 모달은 한 번에 한 흐름이라 테두리에 테마색이 도는 편이 "지금 입력하는 화면" 신호가 된다.
- * 히어로 카드는 예외다 — 그쪽은 **게임색** 테두리라 강조색으로 덮지 않는다.
+ * 입력 섹션 — 카드 없이 화면 폭 그대로, 위에 10 띠를 얹어 앞 묶음과 가른다.
+ * 좌우 20 · 위 22 · 아래 20(지출 상세 섹션과 같은 규격). 띠가 섹션 안에 있어 펼쳐 내려올 때 함께 나타난다.
  */
 @Composable
-private fun SectionCard(content: @Composable ColumnScope.() -> Unit) {
-    GlassCard(
-        modifier = Modifier.fillMaxWidth().animateContentSize(),
-        borderColor = glgAccentCardBorder(),
-    ) {
-        Column(Modifier.padding(16.dp), content = content)
+private fun FormSection(content: @Composable ColumnScope.() -> Unit) {
+    Column(Modifier.fillMaxWidth().animateContentSize()) {
+        Box(Modifier.fillMaxWidth().height(10.dp).background(Color(0xFFF2F4F6)))
+        Column(Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 22.dp, bottom = 20.dp), content = content)
     }
 }
 
@@ -778,39 +777,50 @@ private fun SectionRowLabel(text: String) {
 }
 
 /**
- * 게임 선택 칩 — **선택 후 펼치는 줄**에서만 쓴다(히어로 안이라 자리가 좁다).
- * 미선택 상태의 첫 선택은 [GameSelectRow] 리스트가 받는다.
+ * 게임 고르기 — 지출 추가의 첫 화면. 카드 없이 화면 폭 목록(헤어라인 구분)이다.
+ *
+ * **리스트형**(27.50.0) — 칩을 줄바꿈으로 늘어놓으면 이름 길이가 제각각이라 줄이 들쭉날쭉했다.
+ * 가로 스크롤도 쓰지 않는다 — 접어 두면 화면 밖 게임은 있는 줄도 모른다.
+ * 예전엔 게임마다 낱개 카드였지만 카드형을 걷으며 지출 목록과 같은 헤어라인 목록으로 바꿨다.
+ * 구분은 게임색 배지가 먼저 해 준다.
+ * 내 게임(온보딩 ② · 설정 ▸ 내 게임)이 위, 나머지는 「다른 게임」 아래 — 기록할 수 있는 게임은 줄이지 않는다.
  */
 @Composable
-private fun GameSelectItem(game: Game, isSelected: Boolean, onClick: () -> Unit) {
-    GldsChip(game.shortName, onClick, selected = isSelected, color = game.color.toColor())
+private fun GamePickSection(myGames: Set<String>, onPick: (Game) -> Unit) {
+    val (mine, others) = remember(myGames) { GameData.pickerGames(myGames) }
+    Column(Modifier.fillMaxWidth().padding(top = 12.dp, bottom = 20.dp)) {
+        Text("어느 게임인가요?", fontSize = 17.sp, fontWeight = FontWeight.Bold, color = TextPrimary, modifier = Modifier.padding(horizontal = 20.dp))
+        Text("게임을 선택해주세요", fontSize = 13.sp, color = TextSecondary, modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 3.dp, bottom = 8.dp))
+        GamePickList(mine, onPick)
+        if (others.isNotEmpty()) {
+            Text("다른 게임", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextSecondary, modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 18.dp, bottom = 2.dp))
+            GamePickList(others, onPick)
+        }
+    }
 }
 
-/**
- * 게임 선택 한 줄 — [게임색 썸네일 · 이름 · 화살표].
- *
- * 썸네일과 이름 색에 **게임 대표색**을 쓴다. 강조색을 쓰면 테마에 따라 전부 같은 색이 되어
- * 게임 구분이 사라진다 — 이 목록은 색으로 먼저 읽힌다.
- */
+@Composable
+private fun GamePickList(games: List<Game>, onPick: (Game) -> Unit) {
+    games.forEachIndexed { i, g ->
+        if (i > 0) Box(Modifier.padding(horizontal = 20.dp).fillMaxWidth().height(1.dp).background(Color(0xFFEEF0F2)))
+        GameSelectRow(g) { onPick(g) }
+    }
+}
+
+/** 게임 선택 한 줄 — [게임색 배지 · 이름 · 화살표]. 줄 전체가 눌린다. */
 @Composable
 private fun GameSelectRow(game: Game, onClick: () -> Unit) {
     val c = game.color.toColor()
-    val shape = RoundedCornerShape(14.dp)
     Row(
         Modifier
             .fillMaxWidth()
-            .clip(shape)
-            .background(Color.White)
-            // 테두리는 **게임색**이다 — 강조색을 쓰면 카드 아홉 장이 전부 같은 색이 되어
-            // 게임 구분이 사라진다. 이 목록은 색으로 먼저 읽힌다.
-            .border(1.dp, c.copy(alpha = 0.20f), shape)
             .clickable { onClick() }
-            .padding(horizontal = 12.dp, vertical = 10.dp),
+            .padding(horizontal = 20.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        // 배지는 **영어 약칭**(GI · HSR · ZZZ …)이다 — 지출 목록 행([SpendingRow])과 같은 값을
-        // 써야 한다. 한국어 약칭은 길이가 제각각(「원신」 vs 「엔드필드」)이라 36dp 칸에서
-        // 두 줄로 접히거나 잘렸다. 영어 약칭은 2~3자로 고르다.
+        // 배지는 **영어 약칭**(GI · HSR · ZZZ …)이다 — 지출 목록 행([SpendingRow])과 같은 값.
+        // 한국어 약칭은 길이가 제각각이라 36dp 칸에서 두 줄로 접히거나 잘렸다.
+        // 배지 색은 **게임 대표색** — 강조색을 쓰면 테마에 따라 전부 같은 색이 되어 게임 구분이 사라진다.
         Box(
             Modifier.size(36.dp).clip(RoundedCornerShape(10.dp)).background(c.copy(alpha = 0.12f)),
             contentAlignment = Alignment.Center,
@@ -825,8 +835,8 @@ private fun GameSelectRow(game: Game, onClick: () -> Unit) {
         }
         Text(
             game.displayName,
-            fontSize = 13.5.sp, fontWeight = FontWeight.Bold, color = TextPrimary,
-            modifier = Modifier.weight(1f).padding(start = 11.dp),
+            fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TextPrimary,
+            modifier = Modifier.weight(1f).padding(start = 12.dp),
         )
         Icon(
             Icons.AutoMirrored.Filled.KeyboardArrowRight, null,
