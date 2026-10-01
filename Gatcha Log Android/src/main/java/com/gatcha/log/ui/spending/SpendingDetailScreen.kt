@@ -9,7 +9,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.derivedStateOf
@@ -41,8 +40,6 @@ import com.gatcha.log.data.currencyPullsOrNull
 import com.gatcha.log.ui.components.GlgCircleIconButton
 import com.gatcha.log.ui.components.GlgDetailHeaderOverlay
 import com.gatcha.log.ui.components.GlgDialog
-import com.gatcha.log.ui.components.GlgDropdownItem
-import com.gatcha.log.ui.components.GlgDropdownMenu
 import com.gatcha.log.ui.components.glgDetailContentTop
 import com.gatcha.log.ui.theme.TextPrimary
 import com.gatcha.log.ui.theme.TextSecondary
@@ -111,26 +108,18 @@ fun SpendingDetailScreen(
             "", onBack, scrolled = pastHero,
             buttonTint = heroTint, buttonBackground = heroBg,
         ) {
-            var menuOpen by remember { mutableStateOf(false) }
-            Box {
+            // 수정 · 삭제를 「더보기」 메뉴에 접지 않고 버튼 두 개로 바로 둔다(Android, 10/1 지시).
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 GlgCircleIconButton(
-                    Icons.Default.MoreVert, "더보기",
+                    Icons.Default.Edit, "수정",
                     outlined = true, solidBackground = true,
                     tint = heroTint, background = heroBg,
-                ) { menuOpen = true }
-                GlgDropdownMenu(
-                    expanded = menuOpen, onDismissRequest = { menuOpen = false }, alignEnd = true,
-                    // 버튼 아이콘과 같은 색 계열로 — 메뉴만 강조색 테두리를 두르면 그 선이 먼저 읽힌다.
-                    borderColor = heroTint?.copy(alpha = 0.30f),
-                ) {
-                    GlgDropdownItem(text = "수정", icon = Icons.Default.Edit, onClick = { menuOpen = false; onEdit() })
-                    GlgDropdownItem(
-                        text = "삭제",
-                        icon = Icons.Default.Delete,
-                        danger = true,
-                        onClick = { menuOpen = false; confirmDelete = true },
-                    )
-                }
+                ) { onEdit() }
+                GlgCircleIconButton(
+                    Icons.Default.Delete, "삭제",
+                    outlined = true, solidBackground = true,
+                    tint = heroTint, background = heroBg,
+                ) { confirmDelete = true }
             }
         }
     }
@@ -173,7 +162,8 @@ private fun Hero(s: Spending, modifier: Modifier = Modifier) {
             )
             // 헤더 버튼 줄 아래에서 시작한다 — 상태바 + 헤더 높이. iOS 는 네비 바가 투명 오버레이라
             // 조금 겹쳐도 됐지만, 여기 뒤로가기는 불투명 원형이라 겹치면 게임명을 가린다.
-            .padding(top = glgDetailContentTop(), bottom = 22.dp)
+            // 헤더 버튼 줄 바로 아래에 붙으면 게임명이 버튼에 눌려 보인다 — 12 를 더 띄운다(Android, 10/1 지시).
+            .padding(top = glgDetailContentTop() + 12.dp, bottom = 22.dp)
             .padding(horizontal = 20.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
