@@ -763,7 +763,8 @@ struct GLGDatePickerDialog: View {
         return HStack {
             arrow("chevron.left", "이전 달") { shift(-1) }
             Spacer()
-            Text("\(c.year ?? 0)년 \(c.month ?? 0)월").font(.pretendard(size: 15, weight: .bold))
+            // String(...) 으로 넘긴다 — Text 보간은 숫자에 세 자리 쉼표를 찍어 「2,026년」이 됐다.
+            Text(verbatim: "\(String(c.year ?? 0))년 \(String(c.month ?? 0))월").font(.pretendard(size: 15, weight: .bold))
                 .foregroundStyle(GLGColor.textPrimary)
             Spacer()
             arrow("chevron.right", "다음 달") { shift(1) }
@@ -780,12 +781,16 @@ struct GLGDatePickerDialog: View {
         .accessibilityLabel(label)
     }
 
+    /// 요일 · 날짜는 **같은 7열 격자**에 올린다 — 칸마다 `aspectRatio` 로 크기를 맡겼더니
+    /// 글자 칸과 빈 칸의 폭이 달라져 요일과 날짜 열이 어긋났다(10/1 지적). 칸 높이는 40 고정.
+    private static let gridCols = Array(repeating: GridItem(.flexible(), spacing: 0), count: 7)
+
     private var weekdayRow: some View {
-        HStack(spacing: 0) {
+        LazyVGrid(columns: Self.gridCols, spacing: 0) {
             ForEach(Array(["일", "월", "화", "수", "목", "금", "토"].enumerated()), id: \.offset) { i, d in
                 Text(d).font(.pretendard(size: 11, weight: .semibold))
                     .foregroundStyle(i == 0 ? Color(hex: 0xFFE5484D) : i == 6 ? Color(hex: 0xFF4F8EF7) : GLGColor.textSecondary)
-                    .frame(maxWidth: .infinity)
+                    .frame(maxWidth: .infinity, minHeight: 20)
             }
         }
     }
@@ -795,31 +800,26 @@ struct GLGDatePickerDialog: View {
         let firstDow = c.component(.weekday, from: viewMonth) - 1          // 0 = 일
         let days = c.range(of: .day, in: .month, for: viewMonth)?.count ?? 30
         let ym = c.dateComponents([.year, .month], from: viewMonth)
-        let rows = (firstDow + days + 6) / 7
-        return VStack(spacing: 0) {
-            ForEach(0..<rows, id: \.self) { r in
-                HStack(spacing: 0) {
-                    ForEach(0..<7, id: \.self) { col in
-                        let day = r * 7 + col - firstDow + 1
-                        if day >= 1 && day <= days {
-                            let isSel = selected.year == ym.year && selected.month == ym.month && selected.day == day
-                            Button {
-                                selected = DateComponents(year: ym.year, month: ym.month, day: day)
-                            } label: {
-                                Text("\(day)")
-                                    .font(.pretendard(size: 14, weight: isSel ? .bold : .regular))
-                                    .foregroundStyle(isSel ? Color.white : GLGColor.textPrimary)
-                                    .frame(maxWidth: .infinity)
-                                    .aspectRatio(1, contentMode: .fit)
-                                    .background(isSel ? accent.primary : Color.clear, in: Circle())
-                                    .padding(2)
-                                    .contentShape(Circle())
-                            }
-                            .buttonStyle(.plain)
-                        } else {
-                            Color.clear.frame(maxWidth: .infinity).aspectRatio(1, contentMode: .fit)
-                        }
+        let cells = (firstDow + days + 6) / 7 * 7
+        return LazyVGrid(columns: Self.gridCols, spacing: 0) {
+            ForEach(0..<cells, id: \.self) { idx in
+                let day = idx - firstDow + 1
+                if day >= 1 && day <= days {
+                    let isSel = selected.year == ym.year && selected.month == ym.month && selected.day == day
+                    Button {
+                        selected = DateComponents(year: ym.year, month: ym.month, day: day)
+                    } label: {
+                        Text("\(day)")
+                            .font(.pretendard(size: 14, weight: isSel ? .bold : .regular))
+                            .foregroundStyle(isSel ? Color.white : GLGColor.textPrimary)
+                            .frame(width: 36, height: 36)
+                            .background(isSel ? accent.primary : Color.clear, in: Circle())
+                            .frame(maxWidth: .infinity, minHeight: 40)
+                            .contentShape(Rectangle())
                     }
+                    .buttonStyle(.plain)
+                } else {
+                    Color.clear.frame(maxWidth: .infinity, minHeight: 40)
                 }
             }
         }
