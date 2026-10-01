@@ -114,27 +114,26 @@ struct SpendingView: View {
                 // 선택 모드의 「취소」는 하단 선택 바 안에 있다(Android 와 같이 — 취소 · 삭제 · 일괄 편집).
                 quickFilters
                     .padding(.top, isDuo ? 20 : 0)
+                    .padding(.horizontal, 16)
                 // "N월 지출" 요약 헤더는 지출 인사이트 '월간' 탭으로 이동(MonthSummaryHeader).
                 if listIsEmpty {
-                    emptyState
+                    emptyState.padding(.horizontal, 16)
                 } else {
-                    // 날짜 카드 목록. **iPad 도 1열**이다 — 좌측이 목록 컬럼이 되면서 폭이 좁아졌고,
-                    // 좁은 폭에서 2열 메이슨리는 카드가 잘게 쪼개져 오히려 읽기 어렵다.
-                    // (iPhone 과 같은 한 줄 배치를 유지한다.)
+                    // 지출 리스트 2.0 — 카드를 걷어 화면 폭 그대로 날짜 묶음을 띠로 가른다(마이페이지 3.0 과 같은 규격).
+                    // 묶음 사이: 날짜순은 띠(위 6 여백 포함), 금액순(머리 없음)은 헤어라인만. iPad 도 1열.
                     // 미리 계산된 displayGroups 순회만(매 프레임 재필터·재정렬·재그룹 없음).
-                    GLGColumnMasonry(
-                        cards: displayGroups.enumerated().map { gi, group in
-                            GLGMasonryCard(id: group.key, weight: Double(group.items.count) + 1) {
-                                dayCard(dateLabel: group.dateLabel, total: group.total, items: group.items)
+                    LazyVStack(spacing: 0) {
+                        ForEach(Array(displayGroups.enumerated()), id: \.element.key) { gi, group in
+                            if gi > 0 {
+                                if group.dateLabel == nil { spendingHair }
+                                else { spendingBand.padding(.top, 6) }
                             }
-                        },
-                        columns: 1,
-                        spacing: 8, stackSpacing: 0
-                    )
+                            dayGroup(dateLabel: group.dateLabel, total: group.total, items: group.items)
+                        }
+                    }
                 }
                 Color.clear.frame(height: 8)
             }
-            .padding(.horizontal, 16)
         }
         .scrollIndicators(.hidden)
         // 퀵필터 메뉴가 칩에서 부풀어 열릴 때 스크롤뷰가 그 바깥을 잘랐다(9/30) — 자르지 않는다.
@@ -159,7 +158,8 @@ struct SpendingView: View {
         .onChange(of: sortOrder) { _, _ in recompute(store.spendings) }
         // 앱에 돌아올 때도 — '이번 달/지난 달/올해' 는 오늘 기준이라 달이 넘어가면 캐시가 옛 달에 머문다.
         .onChange(of: scenePhase) { _, phase in if phase == .active { recompute(store.spendings) } }
-        .background(GLGBackground { Color.clear })
+        // 카드를 걷었으니 바탕은 흰 면 — 띠(F2F4F6)와 헤어라인이 구분을 맡는다(Android 와 같다).
+        .background(Color.white)
         // 화면에는 안 보이지만 제목은 채운다 — 비우면 뒤로가기 길게 누르기 메뉴가 공백 줄이 된다.
         .navigationTitle("지출")
         // 제목 자리를 **빈 뷰로 덮는** 수법은 좁은 화면에서만 쓴다. 넓은 창(iPad·펼친 듀오)에서는
@@ -296,32 +296,30 @@ struct SpendingView: View {
     private static let topAnchor = "spendingTop"
 
 
-    /// 같은 날짜 지출을 한 카드로 묶은 그룹 카드 — 상단 날짜·합계 헤더(first-end) + 구분선 + 지출 행들.
-    /// dateLabel 이 nil 이면 헤더 없이 행만(금액순 평면 리스트의 단일 항목 카드).
-    private func dayCard(dateLabel: String?, total: Int64, items: [Spending]) -> some View {
-        GLGCard(cornerRadius: 18, padding: 0) {
-            VStack(spacing: 0) {
-                if let dateLabel {
-                    HStack {
-                        Text(dateLabel).font(.pretendard(size: 12, weight: .bold)).foregroundStyle(GLGColor.textSecondary)
-                        Spacer()
-                        Text(won(total)).font(.pretendard(size: 12, weight: .bold)).foregroundStyle(accent.primary)
-                    }
-                    .padding(.horizontal, 16).padding(.top, 13).padding(.bottom, 9)
-                    Divider()
+    private var spendingBand: some View { Color(hex: 0xFFF2F4F6).frame(height: 10).frame(maxWidth: .infinity) }
+    /// 줄 사이 헤어라인 — 좌우 20 들여서(줄 글자 시작선과 맞춘다).
+    private var spendingHair: some View { Color(hex: 0xFFEEF0F2).frame(height: 1).padding(.horizontal, 20) }
+
+    /// 같은 날짜 지출 묶음 — 날짜·합계 머리(first-end) + 헤어라인으로 가른 줄들. 카드 없이 화면 폭 그대로.
+    /// dateLabel 이 nil 이면 머리 없이 줄만(금액순 평면 리스트의 단일 항목).
+    private func dayGroup(dateLabel: String?, total: Int64, items: [Spending]) -> some View {
+        VStack(spacing: 0) {
+            if let dateLabel {
+                HStack {
+                    Text(dateLabel).font(.pretendard(size: 12, weight: .bold)).foregroundStyle(GLGColor.textSecondary)
+                    Spacer()
+                    Text(won(total)).font(.pretendard(size: 12, weight: .bold)).foregroundStyle(accent.primary)
                 }
-                ForEach(Array(items.enumerated()), id: \.element.id) { idx, s in
-                    if idx > 0 { Divider() }
-                    historyRow(s)
-                }
+                .padding(.horizontal, 20).padding(.top, 18).padding(.bottom, 8)
             }
-            // 줄 선택 면이 카드의 둥근 모서리 밖으로 삐지지 않게 카드 모양으로 자른다(9/30).
-            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+            ForEach(Array(items.enumerated()), id: \.element.id) { idx, s in
+                if idx > 0 { spendingHair }
+                historyRow(s)
+            }
         }
-        .padding(.vertical, store.spendingCompact ? 4 : 6)
     }
 
-    /// 카드 안에 들어가는 지출 한 건 행 — 일반 모드=상세로 NavigationLink, 선택 모드=선택 토글.
+    /// 지출 한 건 행 — 일반 모드=상세로 NavigationLink, 선택 모드=선택 토글.
     @ViewBuilder
     private func historyRow(_ s: Spending) -> some View {
         if selectionMode {
@@ -329,7 +327,7 @@ struct SpendingView: View {
                 if selectedIds.contains(s.id) { selectedIds.remove(s.id) } else { selectedIds.insert(s.id) }
             } label: {
                 SpendingRow(spending: s, selectionMode: true, selected: selectedIds.contains(s.id), compact: store.spendingCompact)
-                    // 고른 줄은 **줄 전체를 꽉 채운 면**으로(9/30) — 카드가 둥근 모서리로 잘라 준다(dayCard).
+                    // 고른 줄은 **줄 전체를 꽉 채운 면**으로(9/30) — 카드가 없어 화면 폭 끝까지 채운다.
                     .background(selectedIds.contains(s.id) ? accent.primary.opacity(0.10) : .clear)
             }
             .buttonStyle(.plain)
@@ -338,7 +336,7 @@ struct SpendingView: View {
             Button { selectedId = s.id } label: {
                 SpendingRow(spending: s, compact: store.spendingCompact)
                     // 고른 행 표시는 **줄 전체를 꽉 채운 면**(9/30 지시). 예전엔 카드가 내용을 자르지 않아
-                    // 첫 줄·마지막 줄에서 둥근 모서리 밖으로 삐져나와 안쪽으로 물렸었다 — 이제 카드(dayCard)가 자른다.
+                    // 첫 줄·마지막 줄에서 둥근 모서리 밖으로 삐져나와 안쪽으로 물렸었다 — 지금은 카드가 없어 화면 폭 그대로.
                     .background(selectedId == s.id ? accent.primary.opacity(0.10) : .clear)
             }
             .buttonStyle(.plain)
@@ -800,7 +798,7 @@ struct SpendingRow: View {
                 }
             }
         }
-        .padding(.horizontal, 16)
+        .padding(.horizontal, 20)
         .padding(.vertical, compact ? 11 : 14)
         .contentShape(Rectangle())
     }
