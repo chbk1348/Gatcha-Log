@@ -439,7 +439,8 @@ fun GameInfoScreen(
                 }
             }
             GiSub.Hoyoland -> HoyolandDetailPage(viewModel, onBack = { subPage = hoyolandReturn }, initialPage = hoyolandInitial)
-            GiSub.Main -> Box(Modifier.fillMaxSize()) {
+            // 흰 바탕 — 앱 공통 배경(강조색 틴트)이 카드 없는 섹션 사이로 비치지 않게(10/1, iOS 와 같다).
+            GiSub.Main -> Box(Modifier.fillMaxSize().background(Color.White)) {
             val topInset = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
             // 상단 스크림 — 콘텐츠가 헤더(버튼) 아래로 스크롤될 때만 배경색 그라데이션으로 살짝 흐린다.
             // 최상단에선 숨겨 화면을 넓게 쓰고, 스크롤 중에는 버튼 뒤로 지나가는 글자가 겹쳐 읽히지 않게 한다.
