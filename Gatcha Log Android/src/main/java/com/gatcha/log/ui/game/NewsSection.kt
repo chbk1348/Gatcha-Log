@@ -196,7 +196,7 @@ private fun NewsRow(
     Row(
         modifier = Modifier.fillMaxWidth()
             .clickable { onOpen(n) }
-            .padding(horizontal = if (page) 20.dp else 0.dp, vertical = 11.dp),
+            .padding(horizontal = if (page) 20.dp else 0.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         GlgGameTag(n.game, size = GameTagSize.Small)

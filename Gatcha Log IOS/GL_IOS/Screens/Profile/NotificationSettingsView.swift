@@ -24,17 +24,21 @@ struct NotificationSettingsView: View {
 
     var body: some View {
         ScrollView {
+            // GLDS 2.0 — 카드를 걷고 화면 폭 섹션 + 회색 띠(마이페이지 3.0 과 같은 규격).
             VStack(alignment: .leading, spacing: 0) {
-                NotifyPreviewCard(status: NotificationCatalog.shared.enabledLabel(onCount: Int32(onCount)))
-                permissionBanner
+                // 첫 섹션 — 미리보기 + 권한 안내(제목 없음 · 헤더 바로 아래라 띠도 없다).
+                SetSection {
+                    NotifyPreviewCard(status: NotificationCatalog.shared.enabledLabel(onCount: Int32(onCount)))
+                        .padding(.horizontal, 20)
+                    permissionBanner.padding(.horizontal, 20)
+                }
                 notificationSection
                 dndSection
             }
-            .padding(16)
             .glgReadableWidth(640)
         }
         .scrollIndicators(.hidden)
-        .background(GLGBackground { Color.clear })
+        .background(Color.white.ignoresSafeArea())
         .glgPageTitle("알림 설정")
         .navigationBarTitleDisplayMode(.inline)
         .onChange(of: scenePhase) { _, phase in
@@ -103,13 +107,16 @@ struct NotificationSettingsView: View {
     @ViewBuilder
     private var notificationSection: some View {
         ForEach(Array(NotificationCatalog.shared.groups.enumerated()), id: \.offset) { _, group in
-            SetGroupTitle(title: group.title, caption: group.caption)
             let entries = NotificationCatalog.shared.itemsIn(group: group)
-            SetCard {
-                ForEach(Array(entries.enumerated()), id: \.offset) { i, entry in
-                    if i > 0 { SetDivider() }
-                    SetToggleRow(symbol: notifyIcon(entry.key), tint: notifyTint(entry.key),
-                                 title: entry.title, desc: entry.desc, isOn: notifyBinding(entry.key))
+            // 빈 묶음은 띠째 뺀다 — 띠만 남지 않게.
+            if !entries.isEmpty {
+                SetBand()
+                SetSection(title: group.title, caption: group.caption) {
+                    ForEach(Array(entries.enumerated()), id: \.offset) { i, entry in
+                        if i > 0 { SetDivider() }
+                        SetToggleRow(symbol: notifyIcon(entry.key), tint: notifyTint(entry.key),
+                                     title: entry.title, desc: entry.desc, isOn: notifyBinding(entry.key))
+                    }
                 }
             }
         }
@@ -146,8 +153,8 @@ struct NotificationSettingsView: View {
     // ── 보내는 방식 — 방해금지(시간대 억제) ──
     @ViewBuilder
     private var dndSection: some View {
-        SetGroupTitle(title: "보내는 방식", caption: "언제 · 어떻게")
-        SetCard {
+        SetBand()
+        SetSection(title: "보내는 방식", caption: "언제 · 어떻게") {
             SetToggleRow(symbol: "moon.fill", tint: .gray, title: "방해 금지 시간", desc: "이 시간대엔 알림을 보내지 않아요",
                          isOn: notifyBind(\.notifyDndEnabled, store.setNotifyDndEnabled))
             if store.notifyDndEnabled {
@@ -155,10 +162,11 @@ struct NotificationSettingsView: View {
                     TimePillMenu(hour: store.notifyDndStartHour) { store.setNotifyDndStartHour($0) }
                     Text("~").font(.pretendard(size: 14, weight: .bold)).foregroundStyle(Color(hex: 0xFF7A8784))
                     TimePillMenu(hour: store.notifyDndEndHour) { store.setNotifyDndEndHour($0) }
-                    Text("기기 시각").font(.pretendard(size: 11.5)).foregroundStyle(Color(hex: 0xFF7A8784)).padding(.leading, 2)
+                    Text("기기 시각").font(.pretendard(size: 12)).foregroundStyle(Color(hex: 0xFF7A8784)).padding(.leading, 2)
                     Spacer()
                 }
-                .padding(.leading, 60).padding(.trailing, 14).padding(.bottom, 14)
+                // 시작 = 행 여백 20 + 아이콘 34 + 간격 12 — 제목 글자선에 맞춘다.
+                .padding(.leading, 66).padding(.trailing, 20).padding(.bottom, 12)
             }
         }
     }
@@ -235,7 +243,11 @@ struct SetCard<Content: View>: View {
 }
 
 struct SetDivider: View {
-    var body: some View { Rectangle().fill(Color(hex: 0xFFF0F3F2)).frame(height: 1) }
+    @Environment(\.setRowFlat) private var flat
+    var body: some View {
+        Rectangle().fill(Color(hex: flat ? 0xFFEEF0F2 : 0xFFF0F3F2)).frame(height: 1)
+            .padding(.horizontal, flat ? 20 : 0)
+    }
 }
 
 /// 색 아이콘 칸(34). SF Symbol 또는 에셋.
@@ -265,18 +277,19 @@ struct SetToggleRow: View {
     let desc: String
     @Binding var isOn: Bool
     @Environment(\.glgAccent) private var accent
+    @Environment(\.setRowFlat) private var flat
     var body: some View {
         Toggle(isOn: $isOn) {
             HStack(spacing: 12) {
                 SetIcon(symbol: symbol, tint: tint)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(title).font(.pretendard(size: 14, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
+                    Text(title).font(.pretendard(size: flat ? 15 : 14, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
                     Text(desc).font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary)
                 }
             }
         }
         .tint(accent.primary)
-        .padding(.horizontal, 14).padding(.vertical, 12)
+        .padding(.horizontal, flat ? 20 : 14).padding(.vertical, 12)
     }
 }
 
@@ -291,11 +304,12 @@ struct SetNavRow<Trailing: View>: View {
     var titleColor: Color = GLGColor.textPrimary
     @ViewBuilder var trailing: Trailing
     let action: () -> Void
+    @Environment(\.setRowFlat) private var flat
     var body: some View {
         Button(action: action) {
             HStack(spacing: 12) {
                 SetIcon(symbol: symbol, asset: asset, tint: tint)
-                Text(title).font(.pretendard(size: 14, weight: .bold)).foregroundStyle(titleColor)
+                Text(title).font(.pretendard(size: flat ? 15 : 14, weight: .bold)).foregroundStyle(titleColor)
                 Spacer(minLength: 8)
                 trailing
                 if let value { Text(value).font(.pretendard(size: 12.5)).foregroundStyle(GLGColor.textSecondary) }
@@ -303,8 +317,8 @@ struct SetNavRow<Trailing: View>: View {
                     Image(systemName: chevron).font(.system(size: 13, weight: .semibold)).foregroundStyle(Color(hex: 0xFFB8C4C1))
                 }
             }
+            .padding(.horizontal, flat ? 20 : 14).padding(.vertical, 12)
             .contentShape(Rectangle())
-            .padding(.horizontal, 14).padding(.vertical, 12)
         }
         .buttonStyle(.plain)
     }
@@ -315,6 +329,60 @@ extension SetNavRow where Trailing == EmptyView {
          chevron: String? = "chevron.right", titleColor: Color = GLGColor.textPrimary, action: @escaping () -> Void) {
         self.init(symbol: symbol, asset: asset, tint: tint, title: title, value: value, chevron: chevron,
                   titleColor: titleColor, trailing: { EmptyView() }, action: action)
+    }
+}
+
+// ── GLDS 2.0 카드 없는 레이아웃 — 마이페이지 3.0 과 같은 규격 ──────────────────────
+// 섹션: 위 22 · 아래 20 · 좌우 20 / 섹션 사이 10pt 회색 띠 / 줄 사이 1pt 헤어라인.
+// 섹션 안에서는 줄(SetNavRow · SetToggleRow · SetDivider)이 좌우 20 · 제목 15 로 바뀐다(setRowFlat).
+// 줄이 여백을 스스로 가져 누르는 면이 화면 폭 전체가 된다. 카드 쪽(SetCard) 쓰임새는 그대로다.
+
+private struct SetRowFlatKey: EnvironmentKey { static let defaultValue = false }
+extension EnvironmentValues {
+    var setRowFlat: Bool {
+        get { self[SetRowFlatKey.self] }
+        set { self[SetRowFlatKey.self] = newValue }
+    }
+}
+
+/// 섹션 사이 10pt 회색 띠.
+struct SetBand: View {
+    var body: some View { Color(hex: 0xFFF2F4F6).frame(height: 10).frame(maxWidth: .infinity) }
+}
+
+/// 화면 폭 섹션 — 제목 17 Bold + 오른쪽 보조 문구 13. 제목이 없으면 머리 없이 내용만.
+struct SetSection<Content: View>: View {
+    var title: String? = nil
+    var caption: String? = nil
+    @ViewBuilder var content: Content
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            if let title {
+                HStack {
+                    Text(title).font(.pretendard(size: 17, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
+                    Spacer(minLength: 8)
+                    if let caption {
+                        Text(caption).font(.pretendard(size: 13)).foregroundStyle(GLGColor.textSecondary)
+                    }
+                }
+                .padding(.horizontal, 20).padding(.bottom, 14)
+            }
+            content
+        }
+        .padding(.top, 22).padding(.bottom, 20)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .environment(\.setRowFlat, true)
+    }
+}
+
+/// 섹션 안 맨 아래 보조 문구 — 12.
+struct SetFootnote: View {
+    let text: String
+    var color: Color = Color(hex: 0xFF7A8784)
+    var top: CGFloat = 10
+    var body: some View {
+        Text(text).font(.pretendard(size: 12)).foregroundStyle(color).lineSpacing(2)
+            .padding(.horizontal, 20).padding(.top, top)
     }
 }
 

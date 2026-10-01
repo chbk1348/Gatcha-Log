@@ -23,59 +23,62 @@ struct HoyolabLinkView: View {
 
     var body: some View {
         ScrollView {
-                // 설정 하위 페이지 다듬기(9/29) — 온보딩 ④와 같은 남색 로그인 카드 + 묶음 제목 + 흰 카드. Android 파리티.
+                // GLDS 2.0(10/1) — 카드 없이 흰 바탕 · 화면 폭 섹션 · 섹션 사이 10 띠. 좌우 여백은 섹션(20)이 갖는다. Android 파리티.
                 VStack(alignment: .leading, spacing: 0) {
-                    // 주의 문구는 맨 위 배너 하나로(9/30) — 흩어져 있던 세 문구를 합쳤다. Android 와 같은 문구.
-                    notice
-                    Button { showEmailGuide = true } label: {
-                        HStack(spacing: 12) {
-                            VStack(alignment: .leading, spacing: 3) {
-                                Text(store.hoyolabConfig.isLinked ? "연동됨 · 다시 가져오기" : "로그인으로 자동 가져오기")
-                                    .font(.pretendard(size: 12, weight: .bold)).foregroundStyle(Color(hex: 0xFF8FE3DA))
-                                Text("HoYoLAB 로그인").font(.pretendard(size: 18, weight: .bold)).foregroundStyle(.white)
-                                Text("ltuid · ltoken · cookie_token · UID 를 자동 입력해요")
-                                    .font(.pretendard(size: 11.5)).foregroundStyle(.white.opacity(0.7))
+                    GiPageSection {
+                        // 주의 문구는 맨 위 배너 하나로(9/30) — 흩어져 있던 세 문구를 합쳤다. Android 와 같은 문구.
+                        notice
+                        // 로그인으로 자동 가져오기 — 온보딩 ④와 같은 남색 히어로.
+                        Button { showEmailGuide = true } label: {
+                            HStack(spacing: 12) {
+                                VStack(alignment: .leading, spacing: 3) {
+                                    Text(store.hoyolabConfig.isLinked ? "연동됨 · 다시 가져오기" : "로그인으로 자동 가져오기")
+                                        .font(.pretendard(size: 12, weight: .bold)).foregroundStyle(Color(hex: 0xFF8FE3DA))
+                                    Text("HoYoLAB 로그인").font(.pretendard(size: 18, weight: .bold)).foregroundStyle(.white)
+                                    Text("ltuid · ltoken · cookie_token · UID 를 자동 입력해요")
+                                        .font(.pretendard(size: 11.5)).foregroundStyle(.white.opacity(0.7))
+                                }
+                                Spacer(minLength: 0)
+                                Image(systemName: "person.badge.key.fill").font(.system(size: 20)).foregroundStyle(.white)
                             }
-                            Spacer(minLength: 0)
-                            Image(systemName: "person.badge.key.fill").font(.system(size: 20)).foregroundStyle(.white)
+                            .padding(.horizontal, 18).padding(.vertical, 16)
+                            .background(LinearGradient(colors: [Color(hex: 0xFF0F1A33), Color(hex: 0xFF23345C)],
+                                                       startPoint: .topLeading, endPoint: .bottomTrailing),
+                                        in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+                            .contentShape(Rectangle())
+                        }.buttonStyle(.plain).padding(.top, 12)
+
+                        if let msg = collectedMsg {
+                            Text(msg).font(.pretendard(size: 12.5, weight: .bold)).foregroundStyle(Color(hex: 0xFF177881))
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(.horizontal, 14).padding(.vertical, 11)
+                                .background(Color(hex: 0xFFEEF8F8), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                                .padding(.top, 8)
                         }
-                        .padding(.horizontal, 18).padding(.vertical, 16)
-                        .background(LinearGradient(colors: [Color(hex: 0xFF0F1A33), Color(hex: 0xFF23345C)],
-                                                   startPoint: .topLeading, endPoint: .bottomTrailing),
-                                    in: RoundedRectangle(cornerRadius: 20, style: .continuous))
-                        .contentShape(Rectangle())
-                    }.buttonStyle(.plain).padding(.top, 12)
-
-                    if let msg = collectedMsg {
-                        Text(msg).font(.pretendard(size: 12.5, weight: .bold)).foregroundStyle(Color(hex: 0xFF177881))
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(.horizontal, 14).padding(.vertical, 11)
-                            .background(Color(hex: 0xFFEEF8F8), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-                            .padding(.top, 8)
                     }
-
-                    SetGroupTitle(title: "계정 토큰", caption: "직접 입력해도 돼요")
-                    SetCard {
+                    GiBand()
+                    GiPageSection {
+                        sectionTitle("계정 토큰", "직접 입력해도 돼요")
                         VStack(spacing: 10) {
                             field("ltuid", $ltuid)
                             field("ltoken", $ltoken)
                             field("cookie_token (리딤코드 교환용·선택)", $cookieToken)
-                        }.padding(14)
+                        }
                     }
-                    SetGroupTitle(title: "게임 UID", caption: "로그인하면 자동으로 채워져요")
-                    SetCard {
+                    GiBand()
+                    GiPageSection {
+                        sectionTitle("게임 UID", "로그인하면 자동으로 채워져요")
                         VStack(spacing: 10) {
                             field("원신 UID", $gi)
                             field("스타레일 UID", $hsr)
                             field("젠레스 UID", $zzz)
-                        }.padding(14)
+                        }
                     }
                 }
-                .padding(.horizontal, 16).padding(.top, 16).padding(.bottom, 8)
             }
             // iOS 는 저장을 헤더 시스템 버튼으로(9/30 사용자 지정). Android 는 하단 고정 GLDS 버튼.
             .toolbar { ToolbarItem(placement: .topBarTrailing) { Button("저장") { save() }.fontWeight(.bold) } }
-            .background(GLGBackground { Color.clear })
+            .background(Color.white)
             .glgPageTitle("HoYoLAB 계정 연동")
             .navigationBarTitleDisplayMode(.inline)
         .onAppear {
@@ -161,6 +164,15 @@ struct HoyolabLinkView: View {
         guard store.updateHoyolabConfig(config) else { return }
         store.refreshGameInfo(force: true)
         onClose()
+    }
+
+    /// 섹션 제목 17 Bold + 보조 13 — Android 와 같은 크기.
+    private func sectionTitle(_ title: String, _ caption: String) -> some View {
+        HStack(alignment: .lastTextBaseline, spacing: 6) {
+            Text(title).font(.pretendard(size: 17, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
+            Text(caption).font(.pretendard(size: 13)).foregroundStyle(Color(hex: 0xFF7A8784))
+        }
+        .padding(.bottom, 12)
     }
 
     private func field(_ label: String, _ text: Binding<String>) -> some View {

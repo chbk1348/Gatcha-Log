@@ -52,7 +52,7 @@ private func newsRow(_ n: NewsItem, selected: Bool = false, page: Bool = false, 
             Image(systemName: "chevron.right").font(.pretendard(size: 13, weight: .semibold))
                 .foregroundStyle(Color(.tertiaryLabel))
         }
-        .padding(.vertical, 11)
+        .padding(.vertical, 14)
         .padding(.horizontal, page ? 20 : 0)
         .contentShape(Rectangle()) // 태그·날짜 사이 빈 여백까지 탭 되게(행 전체가 탭 타깃)
         // iPad 분할에서 "지금 오른쪽에 뜬 공지"를 표시. iPhone(push)에서는 항상 false 라 변화 없음.

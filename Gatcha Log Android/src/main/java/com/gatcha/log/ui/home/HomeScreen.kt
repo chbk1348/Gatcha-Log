@@ -246,17 +246,9 @@ fun HomeScreen(viewModel: SpendingViewModel = viewModel()) {
                 },
             ) { paddingValues ->
                 GlassBackground(modifier = Modifier.fillMaxSize()) {
-                    // 홈 탭 히어로 그라데이션 — 상태바 뒤(edge-to-edge)까지 채우는 '고정' 배경. 홈에서만.
-                    // 상단 인셋 바깥(패딩 Box 이전)에 그려야 상태바 뒤까지 확장된다.
-                    //
-                    // **하위 페이지에서는 끈다.** 홈에서 들어가는 상세(알림·저축 플래너 등)는 탭 인덱스가
-                    // 그대로 0 이라, 예전엔 상세 화면 뒤로도 히어로 그라데이션이 비쳤다. 상세는 흰 배경 고정이다.
+                    // 홈 탭은 흰 바탕(10/1) — 히어로 뒤 강조색 그라데이션을 걷었다. 하위 페이지는 각자 바탕을 둔다.
                     if (selectedTab == 0 && !subPageActive) {
-                        HeroGradientBackground(
-                            Modifier.fillMaxWidth()
-                                .height(paddingValues.calculateTopPadding() + 262.dp)
-                                .align(Alignment.TopCenter),
-                        )
+                        Box(Modifier.matchParentSize().background(Color.White))
                     }
                     // 전 화면 edge-to-edge(상단 인셋 없음). 각 화면이 자기 상단 인셋을 소유한다 —
                     // 메인 탭 헤더/하위 페이지 헤더 모두 statusBarsPadding 으로 직접 처리(전환 중 레이아웃

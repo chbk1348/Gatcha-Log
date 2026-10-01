@@ -39,7 +39,7 @@ struct GiftCodePage: View {
                         restoreRow
                         codeList.padding(.top, 8)
                     }
-                    .padding(.horizontal, 20).padding(.top, 22).padding(.bottom, 20)
+                    .padding(.horizontal, 20).padding(.top, 8).padding(.bottom, 20)
                     GiBand()
                     // 직접 입력 섹션 — GLDS 입력필드 규격 그대로, 상태 문구는 그 아래.
                     VStack(alignment: .leading, spacing: 12) {
