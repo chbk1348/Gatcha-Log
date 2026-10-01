@@ -95,7 +95,7 @@ struct HoyolandGoodsView: View {
                     if all.isEmpty {
                         emptyCard.hoyolandSection(top: sectionTop)
                     } else {
-                        // 가격대 — 감싸던 카드를 걷고 한 섹션으로, 아래 굿즈 타일 목록과는 띠로 가른다(10/1).
+                        // 가격대 — 감싸던 카드를 걷고 한 섹션으로, 아래 굿즈 목록과는 띠로 가른다(10/1).
                         priceRangeCard.hoyolandSection(top: sectionTop)
                         GiBand()
                         if wide {
@@ -106,28 +106,34 @@ struct HoyolandGoodsView: View {
                             // `LazyVStack` 은 행이 화면에 들어올 때마다 높이를 다시 재는데, `fixedSize`
                             // 가 그 자리에서 이웃 카드까지 같이 재게 만든다. 격자는 칸 높이를 서로
                             // 묻지 않는 `LazyVGrid` 에 맡긴다 — 짧은 카드 아래가 조금 비는 대신 흔들리지 않는다.
-                            LazyVGrid(columns: goodsColumns(), alignment: .leading, spacing: 12) {
-                                ForEach(Array(shown.enumerated()), id: \.offset) { _, item in
-                                    GLGCard(cornerRadius: 24, padding: 0) {
-                                        goodsCard(item, quantity: Int(cart.quantityOf(name: item.name)))
+                            //
+                            // 카드를 걷었다(10/1) — 칸마다 위에 헤어라인(첫 행 제외), 위아래 14. 끝 행 아래는 섹션 20 이 맡는다.
+                            let lastRow = shown.count - (shown.count % 2 == 0 ? 2 : 1)
+                            LazyVGrid(columns: goodsColumns(), alignment: .leading, spacing: 0) {
+                                ForEach(Array(shown.enumerated()), id: \.offset) { i, item in
+                                    VStack(spacing: 0) {
+                                        if i >= 2 { HoyolandHairline() }
+                                        goodsCard(item, quantity: Int(cart.quantityOf(name: item.name)),
+                                                  top: i < 2 ? 0 : 14, bottom: i >= lastRow ? 0 : 14)
                                     }
                                 }
                             }
                             .padding(.top, 22)
                         } else {
-                            // 띠 아래 첫 타일 위 — 타일마다 위 10 을 두므로 12 를 더해 섹션 위 22 에 맞춘다(10/1).
-                            Color.clear.frame(height: 12)
-                            // 굿즈 한 장은 사진이 있는 상품 타일이라 카드로 남긴다(10/1) — 좌우 20 만 둔다.
-                            ForEach(Array(shown.enumerated()), id: \.offset) { _, item in
-                                GLGCard(cornerRadius: 24, padding: 0) {
-                                    goodsCard(item, quantity: Int(cart.quantityOf(name: item.name)))
+                            // 타일 카드를 걷고 **헤어라인으로 나눈 목록 줄**로(10/1) — 줄 위아래 14,
+                            // 첫 줄 위 · 끝 줄 아래는 섹션 여백(22 · 20)이 맡는다. 좌우 20.
+                            Color.clear.frame(height: 22)
+                            ForEach(Array(shown.enumerated()), id: \.offset) { i, item in
+                                VStack(spacing: 0) {
+                                    if i > 0 { HoyolandHairline() }
+                                    goodsCard(item, quantity: Int(cart.quantityOf(name: item.name)),
+                                              top: i == 0 ? 0 : 14, bottom: i == shown.count - 1 ? 0 : 14)
                                 }
-                                .padding(.top, 10)
                                 .padding(.horizontal, 20)
                             }
                         }
                     }
-                    // 타일 목록 섹션의 아래 20 — 하단 바는 safeAreaInset 이라 스스로 비킨다(GLDS 2.0, 10/1). 빈 상태는 섹션이 이미 20 을 둔다.
+                    // 목록 섹션의 아래 20 — 하단 바는 safeAreaInset 이라 스스로 비킨다(GLDS 2.0, 10/1). 빈 상태는 섹션이 이미 20 을 둔다.
                     if !all.isEmpty { Color.clear.frame(height: 20) }
                 }
                 // 한 열은 좌우 여백 없이 화면 폭(섹션 · 타일이 스스로 20) — 두 열(iPad)만 24(10/1).
@@ -202,30 +208,30 @@ struct HoyolandGoodsView: View {
     }
 
     /**
-     굿즈 한 장 — [썸네일 48 · 이름·갈래 · 가격/수량] + 구매 제한 띠.
+     굿즈 한 줄 — [썸네일 48 · 이름 · 가격 · 비고 · 시리즈/구매 제한] + 오른쪽 담기.
 
-     한 장짜리 카드에 줄을 Divider 로 쌓다가 **품목당 카드**로 갈아탔다. 줄 목록은 훑기엔 좋지만
-     구매 제한("1인 5개 한정")을 놓을 자리가 없다 — 갈래 옆 회색 줄에 묻으면 현장에서 못 보고
-     계산대에서 되돌아온다. 카드 아래를 띠 한 줄로 비워 그 조건만 세운다.
+     품목당 카드였다가 **헤어라인 목록 줄**로 걷었다(10/1, GLDS 2.0). 카드 아래 경고색 띠에 있던
+     시리즈 배지 · 구매 제한("1인 5개 한정")은 비고 아래 한 줄로 옮겼다 — 면은 없애도 경고색 글자는 남겨
+     계산대에서 되돌아오는 일이 없게 한다. (Android `HoyolandGoodsCard` 와 같은 배치)
 
      수량은 **목록에서 바로** 정한다 — 같은 키링을 두 개 사는 일이 흔한데 담기 토글만 있으면
      장바구니까지 들어가야 했다. 담기 전에는 「담기」 버튼, 담은 뒤에는 스테퍼로 바뀐다.
      */
-    @ViewBuilder private func goodsCard(_ item: HoyolandGoods, quantity: Int) -> some View {
+    @ViewBuilder private func goodsCard(_ item: HoyolandGoods, quantity: Int, top: CGFloat = 14, bottom: CGFloat = 14) -> some View {
         let c = gameColor(item.game)
         let label = item.game.isEmpty ? "공용" : event.stageLabel(game: item.game)
         // 갈래(분류)는 싣지 않는다 — '아크릴 스탠드' 처럼 이름과 거의 같은 말이 한 줄 아래 또
-        // 나오고, 고를 때 실제로 쓰이는 값은 가격과 한정 여부다. 시리즈·구매 제한은 아래 띠로 뺀다.
+        // 나오고, 고를 때 실제로 쓰이는 값은 가격과 한정 여부다. 시리즈·구매 제한은 아래 줄로 뺀다.
         let meta = item.noteRest
-        VStack(spacing: 0) {
-            HStack(spacing: 0) {
+        HStack(spacing: 0) {
             // 썸네일 — 사진이 있으면 사진(흰 바탕 + 확대 표시), 없으면 게임 자리표시.
+            // 흰 바탕 사진이 흰 페이지에 녹지 않게 사진 테두리는 남긴다(카드 면이 아니라 사진 틀이다).
             if !item.imageUrl.isEmpty {
                 GLGRemoteImage(url: URL(string: item.imageUrl), side: 48, contentMode: .fit) { Color.clear }
                     .padding(3)
                     .frame(width: 48, height: 48)
-                    .background(Color.white, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-                    .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .background(Color.white, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous)
                         .stroke(.black.opacity(0.06), lineWidth: 1))
                     .overlay(alignment: .bottomTrailing) {
                         // 확대 표시 — 누르면 크게 볼 수 있다는 것만 알린다.
@@ -242,10 +248,10 @@ struct HoyolandGoodsView: View {
                     .multilineTextAlignment(.center).lineLimit(2)
                     .padding(.horizontal, 3)
                     .frame(width: 48, height: 48)
-                    .background(c.opacity(0.12), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    .background(c.opacity(0.12), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
             }
             VStack(alignment: .leading, spacing: 3) {
-                Text(item.name).font(.pretendard(size: 13, weight: .bold))
+                Text(item.name).font(.pretendard(size: 15, weight: .bold))   // 13 → 15(10/1)
                     .foregroundStyle(GLGColor.textPrimary)
                     .fixedSize(horizontal: false, vertical: true)
                 // 가격은 **이름 바로 아래 왼쪽**이다. 예전엔 오른쪽 담기 버튼 위에 얹혀 있었는데,
@@ -269,7 +275,7 @@ struct HoyolandGoodsView: View {
                     // 담은 뒤에만 단가×수량을 뒤에 받친다 — 소계가 어떻게 나온 값인지 보여준다.
                     if quantity > 0 && item.price > 0 {
                         Text("\(event.wonLabel(v: item.price)) × \(quantity)")
-                            .font(.pretendard(size: 11)).monospacedDigit()
+                            .font(.pretendard(size: 12)).monospacedDigit()   // 11 → 12(10/1)
                             .foregroundStyle(GLGTextThird)
                     }
                 }
@@ -278,14 +284,34 @@ struct HoyolandGoodsView: View {
                 // 글자가 두 번 나온다. 갈래(분류)도 싣지 않는다.
                 if !meta.isEmpty {
                     // 구성품이 긴 품목(테마 패키지)은 note 안에 줄바꿈이 들어 있어 두 줄이 된다.
-                    Text(meta).font(.pretendard(size: 11))
+                    Text(meta).font(.pretendard(size: 12))   // 11 → 12(10/1)
                         .foregroundStyle(c)
                         .lineSpacing(3)
                         .fixedSize(horizontal: false, vertical: true)
                 }
+                // 행사 한정 조건 — 사기 전에 걸리는 값이라 '가격 미정' 안내와 같은 경고색. 둘 다 없는 품목은 줄을 세우지 않는다.
+                // '호요랜드2026 시리즈' 는 **이 행사에서만 파는 물건**이라 배지로 뺀다 — 놓치면 끝이다.
+                // 예전엔 카드 아래 경고색 띠였다 — 카드를 걷으면서 면 없이 글자 줄로(10/1).
+                if !item.limitLabel.isEmpty || !item.seriesLabel.isEmpty {
+                    HStack(spacing: 7) {
+                        if !item.seriesLabel.isEmpty {
+                            Text(item.seriesLabel)
+                                .font(.pretendard(size: 11, weight: .black))
+                                .foregroundStyle(GLGWarnText)
+                                .padding(.horizontal, 7).padding(.vertical, 2)
+                                .background(GLGWarnText.opacity(0.14), in: Capsule())
+                        }
+                        if !item.limitLabel.isEmpty {
+                            Text(item.limitLabel)
+                                .font(.pretendard(size: 12, weight: .bold))
+                                .foregroundStyle(GLGWarnText)
+                        }
+                    }
+                    .padding(.top, 3)
+                }
             }
-            .padding(.leading, 11)
-            Spacer(minLength: 11)
+            .padding(.leading, 12)
+            Spacer(minLength: 12)
             // 오른쪽 열에는 **담기만** 남는다 — 가격이 이름 밑으로 내려가면서 이 열은 누르는
             // 것 하나만 갖는다. 값과 버튼이 좁은 한 열에서 시선을 나눠 갖던 것이 풀린다.
             VStack(alignment: .trailing, spacing: 6) {
@@ -313,44 +339,11 @@ struct HoyolandGoodsView: View {
                 }
                 .animation(GLGMotion.standard(), value: quantity > 0)
             }
-            }
-            .padding(.horizontal, 16).padding(.vertical, 13)
-            // 사진이 있는 카드는 **어디를 눌러도** 크게 보기다(담기·스테퍼 버튼은 자기 탭을 먼저 받는다).
-            .contentShape(Rectangle())
-            .onTapGesture { if !item.imageUrl.isEmpty { viewing = item } }
-            // 행사 한정 조건 띠 — 카드 폭을 꽉 채운 한 줄. 사기 전에 걸리는 값이라 '가격 미정'
-            // 안내와 같은 경고색을 쓴다. 둘 다 없는 품목은 띠 자체를 세우지 않는다
-            // (전부 붙이면 눈이 거른다).
-            //
-            // '호요랜드2026 시리즈' 는 **이 행사에서만 파는 물건**이라는 뜻이라 배지로 뺀다.
-            // 상설 굿즈는 다음에 사면 되지만 이건 놓치면 끝이고, 그 판단이 갈래 옆 회색 줄에
-            // 묻혀 있었다.
-            if !item.limitLabel.isEmpty || !item.seriesLabel.isEmpty {
-                HStack(spacing: 7) {
-                    if !item.seriesLabel.isEmpty {
-                        Text(item.seriesLabel)
-                            .font(.pretendard(size: 10, weight: .black))
-                            .foregroundStyle(GLGWarnText)
-                            .padding(.horizontal, 7).padding(.vertical, 2)
-                            .background(GLGWarnText.opacity(0.14), in: Capsule())
-                    }
-                    if !item.limitLabel.isEmpty {
-                        Text(item.limitLabel)
-                            .font(.pretendard(size: 11, weight: .bold))
-                            .foregroundStyle(GLGWarnText)
-                    }
-                    Spacer(minLength: 0)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, 16).padding(.vertical, 8)
-                .background(GLGWarnBg)
-            }
         }
-        // 띠가 카드 아래 모서리에 그대로 닿는다. `glgGlass` 는 배경과 테두리만 둥글게 그리고
-        // **자식을 자르지 않으므로**(Android `GlassCard` 는 .clip 이 있어 이 문제가 없다),
-        // 여기서 카드와 같은 반경으로 잘라 줘야 띠의 각진 모서리가 삐져나오지 않는다.
-        // 반경 24 는 이 카드를 세우는 GLGCard(cornerRadius: 24) 와 같아야 한다.
-        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .padding(.top, top).padding(.bottom, bottom)
+        // 사진이 있는 줄은 **어디를 눌러도** 크게 보기다(담기·스테퍼 버튼은 자기 탭을 먼저 받는다).
+        .contentShape(Rectangle())
+        .onTapGesture { if !item.imageUrl.isEmpty { viewing = item } }
     }
 
     @ViewBuilder private func stepButton(_ label: String, _ onTap: @escaping () -> Void) -> some View {
@@ -708,22 +701,33 @@ struct HoyolandBoothView: View {
                     if specialShown {
                         EmptyView()
                     } else if wide {
-                        // 넓은 창은 **벽돌쌓기 두 열** — 부스 카드는 설명 길이가 제각각이라 행으로
-                        // 맞추면 짧은 카드가 긴 이웃 높이까지 늘어나 속이 빈다. 짧은 열부터 채운다.
+                        // 넓은 창은 **벽돌쌓기 두 열** — 부스 설명 길이가 제각각이라 행으로
+                        // 맞추면 짧은 줄이 긴 이웃 높이까지 늘어나 속이 빈다. 짧은 열부터 채운다.
+                        // 카드를 걷었다(10/1) — 열 안에서 둘째 줄부터 위에 헤어라인. 처음 두 장은 열마다 첫 줄이다.
                         GLGColumnMasonry(cards: shown.enumerated().map { i, b in
                             GLGMasonryCard(id: i, weight: 120 + Double(b.desc.count + b.reward.count)) {
+                                VStack(spacing: 0) {
+                                    if i >= 2 { HoyolandHairline().padding(.bottom, 20) }
+                                    boothCard(b)
+                                }
+                            }
+                        }, spacing: 20)
+                        .padding(.top, 8)
+                    } else {
+                        // 부스 카드를 걷고 **헤어라인 목록 줄**로(10/1) — 줄 사이 20 · 헤어라인 · 20, DIY 탭과 같은 리듬.
+                        // 칩 아래 20 = VStack 간격 12 + 8.
+                        VStack(alignment: .leading, spacing: 0) {
+                            ForEach(Array(shown.enumerated()), id: \.offset) { i, b in
+                                if i > 0 { HoyolandHairline().padding(.vertical, 20) }
                                 boothCard(b)
                             }
-                        })
-                    } else {
-                        ForEach(Array(shown.enumerated()), id: \.offset) { _, b in
-                            boothCard(b)
                         }
+                        .padding(.top, 8)
                     }
                 }
                 // 아래 여분 없음 — 마지막 섹션이 아래 20 을 둔다(GLDS 2.0, 10/1).
             }
-            // 카드 없는 섹션(10/1) — 좌우 20(두 열은 24) · 위 22 · 아래 20. 부스 카드 한 장 한 장은 타일로 남긴다.
+            // 카드 없는 섹션(10/1) — 좌우 20(두 열은 24) · 위 22 · 아래 20. 부스 한 곳은 헤어라인 목록 한 줄.
             .padding(.horizontal, wide ? 24 : 20).padding(.top, 22).padding(.bottom, 20)
             .glgReadableWidth(wide ? HoyolandWideMaxWidth : 720)
         }
@@ -742,76 +746,62 @@ struct HoyolandBoothView: View {
         .navigationBarTitleDisplayMode(.inline)
     }
 
+    /// 부스 한 줄 — 카드를 걷었다(10/1). 좌우 여백은 섹션이, 줄 사이 구분은 호출부 헤어라인이 맡는다.
+    /// (Android `HoyolandBoothCard` 와 같은 배치)
     @ViewBuilder private func boothCard(_ b: HoyolandBooth) -> some View {
         let c = boothColor(b.game)
-        GLGCard(cornerRadius: 24, padding: 0) {
-            VStack(alignment: .leading, spacing: 0) {
-                HStack(spacing: 8) {
-                    Text(event.stageLabel(game: b.game))
-                        .font(.pretendard(size: 9.5, weight: .black)).foregroundStyle(c)
-                        .padding(.horizontal, 6).padding(.vertical, 3)
-                        .background(c.opacity(0.14), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
-                    Text(b.title).font(.pretendard(size: 14.5, weight: .bold))
-                        .foregroundStyle(GLGColor.textPrimary)
-                    Spacer(minLength: 6)
-                    // 참가비는 제목 줄 오른쪽. 유료 체험존은 회차마다 값이 다르고 무료 부스와
-                    // 섞여 있어서, 설명을 읽기 전에 먼저 갈려야 하는 값이다.
-                    //
-                    // **유료 쪽을 더 세게 칠한다.** 예전에는 무료가 분홍 알약이고 유료는 먹색이라,
-                    // 지출을 다루는 앱에서 정작 돈이 드는 칸이 덜 보였다. 유료는 게임색을 꽉 채우고
-                    // 흰 글자를 얹고, 무료는 테두리만 남겨 물러세운다.
-                    if b.isPaid {
-                        Text(event.wonLabel(v: b.price))
-                            .font(.pretendard(size: 13, weight: .black)).monospacedDigit()
-                            .foregroundStyle(.white)
-                            .padding(.horizontal, 10).padding(.vertical, 4)
-                            .background(c, in: Capsule())
-                            .layoutPriority(1)
-                    } else {
-                        // 무료는 유료와 **같은 알약 규격**을 쓰되 색을 뺀다. 색을 '돈이 든다' 에만
-                        // 쓰면 목록을 훑을 때 유채색 칸만 세면 된다. 분홍은 보상 띠가 가져간다.
-                        Text("무료")
-                            .font(.pretendard(size: 12, weight: .black))
-                            .foregroundStyle(GLGColor.textSecondary)
-                            .padding(.horizontal, 10).padding(.vertical, 4)
-                            .background(GLGTextThird.opacity(0.16), in: Capsule())
-                            .layoutPriority(1)
-                    }
-                }
-                .padding(.horizontal, 14).padding(.top, 13).padding(.bottom, 11)
-                // 보상은 부스를 고르는 기준이라 카드의 **주인공 자리**를 준다 — 폭을 꽉 채운 한 면.
-                if !b.reward.isEmpty {
-                    HStack(spacing: 9) {
-                        Image(systemName: "gift").font(.system(size: 14, weight: .semibold))
-                        Text(b.reward).font(.pretendard(size: 12.5, weight: .bold))
-                            .fixedSize(horizontal: false, vertical: true)
-                        Spacer(minLength: 0)
-                    }
-                    .foregroundStyle(GLGGiftText)
-                    .padding(.horizontal, 14).padding(.vertical, 11)
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 8) {
+                Text(event.stageLabel(game: b.game))
+                    .font(.pretendard(size: 9.5, weight: .black)).foregroundStyle(c)
+                    .padding(.horizontal, 6).padding(.vertical, 3)
+                    .background(c.opacity(0.14), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+                Text(b.title).font(.pretendard(size: 15, weight: .bold))   // 14.5 → 15(10/1)
+                    .foregroundStyle(GLGColor.textPrimary)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(GLGGiftBg)
+                // 참가비는 제목 줄 오른쪽. 유료 체험존은 회차마다 값이 다르고 무료 부스와
+                // 섞여 있어서, 설명을 읽기 전에 먼저 갈려야 하는 값이다.
+                //
+                // **유료 쪽을 더 세게 칠한다.** 유료는 게임색을 꽉 채우고 흰 글자를 얹고,
+                // 무료는 같은 알약 규격에 색을 뺀다 — 목록을 훑을 때 유채색 칸만 세면 된다.
+                if b.isPaid {
+                    Text(event.wonLabel(v: b.price))
+                        .font(.pretendard(size: 13, weight: .black)).monospacedDigit()
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 10).padding(.vertical, 4)
+                        .background(c, in: Capsule())
+                        .layoutPriority(1)
                 } else {
-                    // 빈칸으로 두면 **값이 빠진 것처럼** 읽힌다 — 없다고 적는다.
-                    Text("받는 것 없음").font(.pretendard(size: 12))
-                        .foregroundStyle(GLGTextThird)
-                        .padding(.horizontal, 14).padding(.bottom, 11)
-                }
-                // 설명이 카드 아래 한 면을 통째로 쓴다. 예전엔 제목 밑 회색 한 줄이었고 이 자리에는
-                // '구분'(무료/유료 체험존)이 있었는데, 무료·유료는 **우상단 배지가 이미 말한다** —
-                // 같은 걸 두 번 적느라 정작 무엇을 하는 체험인지가 눌려 있었다. 자리를 맞바꾼다.
-                if !b.desc.isEmpty {
-                    Divider()
-                    Text(b.desc)
-                        .font(.pretendard(size: 13))
+                    Text("무료")
+                        .font(.pretendard(size: 12, weight: .black))
                         .foregroundStyle(GLGColor.textSecondary)
-                        .lineSpacing(4)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.horizontal, 14).padding(.vertical, 13)
+                        .padding(.horizontal, 10).padding(.vertical, 4)
+                        .background(GLGTextThird.opacity(0.16), in: Capsule())
+                        .layoutPriority(1)
                 }
             }
+            // 보상은 부스를 고르는 기준이라 제목 바로 아래 **주인공 자리**를 준다 — DIY · 파트너사 탭과 같은
+            // 선물색 박스(diyReward). 카드 폭을 꽉 채우던 띠는 카드를 걷으면서 이 박스로 바꿨다(10/1).
+            if !b.reward.isEmpty {
+                diyReward(b.reward).padding(.top, 10)
+            } else {
+                // 빈칸으로 두면 **값이 빠진 것처럼** 읽힌다 — 없다고 적는다.
+                Text("받는 것 없음").font(.pretendard(size: 12))
+                    .foregroundStyle(GLGTextThird)
+                    .padding(.top, 6)
+            }
+            // 무엇을 하는 체험인지 — 무료·유료는 제목 줄 알약이 이미 말한다.
+            if !b.desc.isEmpty {
+                Text(b.desc)
+                    .font(.pretendard(size: 13))
+                    .foregroundStyle(GLGColor.textSecondary)
+                    .lineSpacing(4)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.top, 10)
+            }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     /**

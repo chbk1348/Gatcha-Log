@@ -110,12 +110,16 @@ struct HoyolandFoodView: View {
                     if wide {
                         // 넓은 창은 **벽돌쌓기 두 열** — 메뉴 수가 게임마다 달라 카드 높이가 크게
                         // 벌어진다. 행으로 맞추면 짧은 카드 아래가 통째로 빈다.
-                        // 두 열은 칸끼리 경계가 필요해 카드를 그대로 둔다(10/1 — 한 열만 섹션 + 띠).
+                        // 카드를 걷었다(10/1) — 열 안에서 둘째 칸부터 위에 헤어라인으로 가른다.
+                        // 처음 두 장은 열마다 첫 칸이다(짧은 열부터 채우므로 0 → 왼쪽, 1 → 오른쪽).
                         GLGColumnMasonry(cards: list.enumerated().map { i, p in
                             GLGMasonryCard(id: i, weight: 120 + Double(p.desc.count)) {
-                                GLGCard(cornerRadius: 24, padding: 16) { foodCard(p) }
+                                VStack(spacing: 0) {
+                                    if i >= 2 { HoyolandHairline().padding(.bottom, 22) }
+                                    foodCard(p)
+                                }
                             }
-                        })
+                        }, spacing: 20)
                         .padding(.top, 22)
                         foodNudge.padding(.top, 14).padding(.horizontal, 2)
                     } else {
@@ -164,7 +168,7 @@ struct HoyolandFoodView: View {
             .fixedSize(horizontal: false, vertical: true)
     }
 
-    /// 감싸던 카드를 걷었다(10/1) — 한 열은 섹션(hoyolandSection)이, 두 열은 호출부의 카드가 감싼다.
+    /// 감싸던 카드를 걷었다(10/1) — 한 열은 섹션(hoyolandSection)이 감싸고, 두 열은 헤어라인으로 가른다.
     @ViewBuilder private func foodCard(_ p: HoyolandProgram) -> some View {
         let game = event.programGame(title: p.title)
         let raw = event.stageColor(game: game)
@@ -220,55 +224,52 @@ struct HoyolandFoodView: View {
                                 .frame(maxWidth: .infinity, alignment: .leading)
                         }
                     case .menu(let rows):
-                        // 메뉴는 **면 위의 목록**으로 묶는다. 본문과 같은 바닥에 줄만 세우면
-                        // 소제목·안내 문장과 경계가 없어 "어디까지가 파는 것인가"가 안 보였다.
+                        // 메뉴는 **헤어라인으로 나눈 목록**이다(10/1) — 회색 메뉴판 면을 걷었다. 첫 줄 위에도 헤어라인을
+                        // 그어 소제목·안내 문장과 "어디서부터 파는 것인가" 의 경계를 남긴다.
                         VStack(spacing: 0) {
-                            ForEach(Array(rows.enumerated()), id: \.offset) { i, row in
-                                if i > 0 { Divider() }
-                                // 메뉴 사진 — 있으면 줄 왼쪽 52칸(누르면 크게 보기). 없으면 지금처럼 글만.
+                            ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
+                                HoyolandHairline()
+                                // 메뉴 사진 — 있으면 줄 왼쪽 52칸(누르면 크게 보기). 없으면 글만.
                                 let photo = p.menuImageUrl(name: row.name)
-                                HStack(spacing: 0) {
-                                if !photo.isEmpty {
-                                    Button {
-                                        viewingFood = HoyolandFoodPhoto(name: row.name, price: row.price, url: photo, game: game)
-                                    } label: {
-                                        GLGRemoteImage(url: URL(string: photo), side: 52) { Color.white }
-                                            .frame(width: 52, height: 52)
-                                            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                                            .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                                .stroke(.black.opacity(0.06), lineWidth: 1))
+                                HStack(spacing: 12) {
+                                    if !photo.isEmpty {
+                                        Button {
+                                            viewingFood = HoyolandFoodPhoto(name: row.name, price: row.price, url: photo, game: game)
+                                        } label: {
+                                            // 흰 바탕 사진이 흰 페이지에 녹지 않게 사진 테두리는 남긴다(사진 틀).
+                                            GLGRemoteImage(url: URL(string: photo), side: 52) { Color.white }
+                                                .frame(width: 52, height: 52)
+                                                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                                                .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                                    .stroke(.black.opacity(0.06), lineWidth: 1))
+                                        }
+                                        .buttonStyle(.plain)
                                     }
-                                    .buttonStyle(.plain)
-                                    // 위아래 10 — 줄 여백이 글자 칸에만 있으면 사진이 줄 경계에 붙는다.
-                                    .padding(.leading, 12).padding(.vertical, 10)
-                                }
-                                VStack(alignment: .leading, spacing: 3) {
-                                    HStack(spacing: 10) {
-                                        Text(row.name).font(.pretendard(size: 13, weight: .bold))
-                                            .foregroundStyle(GLGColor.textPrimary)
-                                            .fixedSize(horizontal: false, vertical: true)
-                                        Spacer(minLength: 0)
-                                        if !row.price.isEmpty {
-                                            Text(row.price)
-                                                .font(.pretendard(size: 13, weight: .bold)).monospacedDigit()
-                                                .foregroundStyle(c)
-                                                .layoutPriority(1)
+                                    VStack(alignment: .leading, spacing: 3) {
+                                        HStack(spacing: 10) {
+                                            Text(row.name).font(.pretendard(size: 15, weight: .bold))   // 13 → 15(10/1)
+                                                .foregroundStyle(GLGColor.textPrimary)
+                                                .fixedSize(horizontal: false, vertical: true)
+                                            Spacer(minLength: 0)
+                                            if !row.price.isEmpty {
+                                                Text(row.price)
+                                                    .font(.pretendard(size: 15, weight: .bold)).monospacedDigit()   // 13 → 15(10/1)
+                                                    .foregroundStyle(c)
+                                                    .layoutPriority(1)
+                                            }
+                                        }
+                                        if !row.sub.isEmpty {
+                                            Text(row.sub).font(.pretendard(size: 12.5))
+                                                .foregroundStyle(GLGFoodTextThird)
+                                                .lineSpacing(3)
+                                                .fixedSize(horizontal: false, vertical: true)
                                         }
                                     }
-                                    if !row.sub.isEmpty {
-                                        Text(row.sub).font(.pretendard(size: 12.5))   // 11.5 → 12.5(10/1)
-                                            .foregroundStyle(GLGFoodTextThird)
-                                            .lineSpacing(3)
-                                            .fixedSize(horizontal: false, vertical: true)
-                                    }
+                                    .frame(maxWidth: .infinity, alignment: .leading)
                                 }
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .padding(.leading, photo.isEmpty ? 13 : 12).padding(.trailing, 13).padding(.vertical, 11)
-                                }
+                                .padding(.vertical, 12)
                             }
                         }
-                        .background(GLGFoodRowBg,
-                                    in: RoundedRectangle(cornerRadius: 12, style: .continuous))
                     }
                 }
                 if !p.deadline.isEmpty {
