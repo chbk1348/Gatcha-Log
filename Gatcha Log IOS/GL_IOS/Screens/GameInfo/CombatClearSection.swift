@@ -289,11 +289,12 @@ private struct SeasonBody: View {
                         Text("아래 \(rooms.count - visibleFloors)개 층 더 보기")
                             .font(.pretendard(size: 13, weight: .bold))
                             .foregroundStyle(accent.deep)
-                            .frame(maxWidth: .infinity, minHeight: 36, alignment: .leading)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            // Android 와 같은 위 14 · 아래 12(10/1) — 섹션 아래 8 과 합쳐 띠까지 눈에 20.
+                            .padding(.top, 14).padding(.bottom, 12)
                             .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
-                    .padding(.top, 4)
                 }
                 // 편성 상세가 안 오는 층(시유 방어전 1~3층) 안내 — 목록에서 말없이 빠지면 누락처럼 보인다.
                 if !clear.note.isEmpty {
@@ -395,8 +396,9 @@ private struct RoomRow: View {
                     .accessibilityHidden(true)
                     chevron("chevron.down")
                 }
+                // Android RoomCollapsed 와 같은 규격 — 위아래 12 · 전체 최소 44(10/1, 섹션 끝 → 띠 간격을 맞추려고).
+                .padding(.vertical, 12)
                 .frame(minHeight: 44)
-                .padding(.vertical, 2)
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)

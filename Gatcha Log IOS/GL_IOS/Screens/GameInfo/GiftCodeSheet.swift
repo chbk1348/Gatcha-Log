@@ -39,9 +39,8 @@ struct GiftCodePage: View {
                         restoreRow
                         codeList.padding(.top, 8)
                     }
-                    // 아래 12 — 흔히 마지막이 「이미 받은 코드」 줄(위아래 8)이라 띠까지 눈에 20(10/1).
-                    // (Android 는 모두 교환 버튼이 여기 붙을 때 20 — 버튼은 iOS 에선 헤더에 있다.)
-                    .padding(.horizontal, 20).padding(.top, 8).padding(.bottom, 12)
+                    // 아래 여백 = 20 − 마지막 요소 자체 여백 — 띠까지 눈에 20(10/1).
+                    .padding(.horizontal, 20).padding(.top, 8).padding(.bottom, 20 - codeListTail)
                     GiBand()
                     // 직접 입력 섹션 — GLDS 입력필드 규격 그대로, 상태 문구는 그 아래.
                     VStack(alignment: .leading, spacing: 12) {
@@ -105,6 +104,19 @@ struct GiftCodePage: View {
             }
             .padding(.top, 8)
         }
+    }
+
+    /// 코드 목록 마지막 요소가 스스로 가진 아래 여백 — 섹션 아래를 그만큼 줄여 띠까지 눈에 20 을 맞춘다.
+    /// (Android 는 모두 교환 버튼이 목록 아래에 붙어 그때 0 — iOS 는 버튼이 헤더에 있다.)
+    private var codeListTail: CGFloat {
+        if store.activeCodes.isEmpty { return store.codesLoading ? 0 : 6 }  // 뼈대 · 실패/빈 문구(위아래 6)
+        let redeemed = store.activeCodes.filter { store.redeemedCodes.contains($0.code) }
+        if redeemed.isEmpty {
+            let unredeemed = store.activeCodes
+            // 공방 강조 상자가 먼저 정렬되니 마지막이 상자면 전부 상자다(바깥 4 + 안 8 → 테두리까지 4).
+            return unredeemed.allSatisfy(\.highlight) ? 4 : 12
+        }
+        return showRedeemed ? 12 : 8                                        // 받은 코드 줄 · 「이미 받은 코드」 줄
     }
 
     @ViewBuilder private var codeList: some View {
