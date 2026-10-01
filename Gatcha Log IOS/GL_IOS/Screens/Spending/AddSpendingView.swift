@@ -58,6 +58,7 @@ struct AddSpendingView: View {
     /// 필드가 제 글자를 먼저 그리고 그 뒤에야 우리 값이 돌아오기 때문이다(2026-09-21 지적).
     /// 필드가 쥐는 상태를 따로 두고, 바뀔 때마다 그 자리에서 다시 써 넣는다.
     @State private var amountText: String = ""
+    @FocusState private var amountFocused: Bool
 
     /// 금액을 **두 벌 다** 맞춘다 — 저장값(숫자)과 보이는 글자(쉼표).
     private func setAmount(_ value: Int64) {
@@ -77,8 +78,14 @@ struct AddSpendingView: View {
 
     private var form: some View {
         ScrollView {
-            VStack(spacing: 12) {
-                amountHero
+            // 카드 없이 화면 폭 섹션 + 10 띠(지출 상세 · 마이페이지와 같은 규격). 히어로만 좌우 16 을 둔다.
+            VStack(spacing: 0) {
+                // 미선택 — 고르기 전에는 금액을 받지 않는다. 히어로 대신 게임 목록이 화면을 연다.
+                if gameChosen {
+                    amountHero
+                } else {
+                    gamePickSection
+                }
                 // 게임을 고르기 전에는 나머지를 띄우지 않는다 — 상품 목록·기본값이 전부 게임에 묶여 있어
                 // 미선택 상태로 보여주면 어느 게임 것인지 알 수 없는 화면이 된다.
                 if gameChosen {
@@ -87,7 +94,7 @@ struct AddSpendingView: View {
                     detailsCard.transition(cardReveal)
                 }
             }
-            .padding(16)
+            .padding(.bottom, 16)
             .glgReadableWidth(640)
         }
         .background(Color.white)
@@ -129,17 +136,18 @@ struct AddSpendingView: View {
             if initialFingerprint == nil { initialFingerprint = fingerprint }
         }
         .interactiveDismissDisabled(isDirty)
-        .sheet(isPresented: $showDate) {
-            NavigationStack {
-                DatePicker("날짜", selection: Binding(
-                    get: { Date(timeIntervalSince1970: Double(dateMillis) / 1000) },
-                    set: { dateMillis = Int64($0.timeIntervalSince1970 * 1000) }), displayedComponents: .date)
-                    .datePickerStyle(.graphical).padding()
-                    .environment(\.locale, Locale(identifier: "ko_KR"))
-                    .toolbar { ToolbarItem(placement: .confirmationAction) { Button("확인") { showDate = false } } }
+        // 날짜 선택 — Android `GlgDatePickerDialog` 와 같은 가운데 모달(시스템 그래픽 달력 시트 대신).
+        .overlay {
+            if showDate {
+                GLGDatePickerDialog(
+                    initialMillis: dateMillis,
+                    onDismiss: { showDate = false },
+                    onConfirm: { dateMillis = $0; showDate = false }
+                )
+                .transition(.opacity)
             }
-            .presentationDetents([.medium])
         }
+        .animation(GLGMotion.standard(), value: showDate)
         .alert("잠깐, 다시 한 번 볼까요?", isPresented: Binding(get: { nudgeMsg != nil }, set: { if !$0 { nudgeMsg = nil } })) {
             Button("다시 볼게요", role: .cancel) { nudgeMsg = nil }.glgAlertTint()
             Button("그래도 추가") { doSave() }.glgAlertTint()
@@ -175,37 +183,6 @@ struct AddSpendingView: View {
                     .padding(.horizontal, 11).padding(.vertical, 5)
                     .background(gameColor.opacity(0.12), in: Capsule())
                 }
-            } else {
-                // 미선택 — 고르기 전에는 금액을 받지 않는다. 첫 할 일이 무엇인지 화면이 말한다.
-                Text("어느 게임인가요?")
-                    .font(.pretendard(size: 15, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
-                Text("게임을 선택해주세요")
-                    .font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary)
-                    .padding(.top, 3)
-                // **리스트형**이다(27.50.0). 이전에는 칩을 줄바꿈으로 늘어놓았는데, 이름 길이가
-                // 제각각이라(「원신」 vs 「명일방주: 엔드필드」) 줄이 들쭉날쭉해 훑기 어려웠다.
-                // 한 줄에 하나면 눈이 세로로만 움직이고, 게임 수가 늘어도 규격이 흔들리지 않는다.
-                //
-                // 가로 스크롤은 여전히 쓰지 않는다 — 첫 할 일이 "게임 고르기" 인데 접어 두면
-                // 화면 밖 게임은 있는 줄도 모른다. 시트가 세로로 스크롤되므로 전부 닿는다.
-                // 한 덩어리 리스트가 아니라 **낱개 카드**로 떼어 놓는다 — 구분선으로만 나뉜 목록은
-                // "표" 처럼 읽혀 고르는 자리라는 느낌이 약했다.
-                // 내 게임(온보딩 ② · 설정 ▸ 내 게임)이 위, 나머지는 「다른 게임」 아래 — 기록할 수 있는 게임은 줄이지 않는다.
-                VStack(alignment: .leading, spacing: 8) {
-                    ForEach(pickerMine, id: \.key) { g in
-                        Button { selectGame(g.displayName) } label: { gameSelectRow(g) }
-                            .buttonStyle(.plain)
-                    }
-                    if !pickerOthers.isEmpty {
-                        Text("다른 게임").font(.pretendard(size: 12, weight: .bold)).foregroundStyle(GLGColor.textSecondary)
-                            .padding(.top, 6).padding(.leading, 2)
-                        ForEach(pickerOthers, id: \.key) { g in
-                            Button { selectGame(g.displayName) } label: { gameSelectRow(g) }
-                                .buttonStyle(.plain)
-                        }
-                    }
-                }
-                .padding(.top, 12)
             }
 
             if gameChosen {
@@ -214,11 +191,18 @@ struct AddSpendingView: View {
             // 치는 동안에도 **읽는 모양 그대로** 보여 준다 — 세 자리 쉼표를 넣고 뒤에 「원」을
             // 붙인다(2026-09-21 지시). 저장하는 값은 숫자뿐이라, 넣을 때 쉼표를 넣고 받을 때
             // 숫자만 거른다.
+            //
+            // 카드를 걷고 나니 **입력하는 곳인지** 안 읽혔다 — GLDS 입력필드 모양으로 둔다
+            // (라벨 · 채운 면 #F5F8F8 · 모서리 14 · 입력 중 흰 면 + 강조색 1.5 테두리). 큰 숫자라 높이만 내용에 맞춘다.
+            // 칸 어디를 눌러도 입력이 시작된다(Android 와 같다).
+            GldsFieldLabel(text: "금액").padding(.top, 11)
             HStack(alignment: .firstTextBaseline, spacing: 4) {
-                TextField("0", text: $amountText)
+                TextField("", text: $amountText, prompt: Text("0").foregroundStyle(Color(hex: 0xFFA7B1AE)))
                     .textFieldStyle(.plain)
-                    .font(.pretendard(size: 34, weight: .black))
+                    .font(.pretendard(size: 30, weight: .black))
                     .keyboardType(.numberPad)
+                    .focused($amountFocused)
+                    .tint(accent.primary)
                     .fixedSize(horizontal: true, vertical: false)
                     .onChange(of: amountText) { _, newValue in
                         // 11자리(999억)까지만 — 더 긴 붙여넣기는 조용히 0 이 됐다. 상한(100억)은 저장할 때 VM 이 막는다.
@@ -232,12 +216,20 @@ struct AddSpendingView: View {
                         if shown != newValue { amountText = shown }
                     }
                 if !amount.isEmpty {
-                    Text("원").font(.pretendard(size: 24, weight: .black))
+                    Text("원").font(.pretendard(size: 22, weight: .black))
                         .foregroundStyle(GLGColor.textSecondary)
                 }
                 Spacer(minLength: 0)
             }
-            .padding(.top, 11)
+            .padding(.horizontal, 14).padding(.vertical, 10)
+            .background(amountFocused ? Color.white : Color(hex: 0xFFF5F8F8), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .strokeBorder(amountFocused ? accent.primary : .clear, lineWidth: 1.5))
+            .contentShape(Rectangle())
+            .onTapGesture { amountFocused = true }
+            .animation(.easeOut(duration: 0.15), value: amountFocused)
+            // 칸과 아래 안내 · 상품명 · 재화 줄 사이.
+            .padding(.bottom, 6)
 
             // 비어 있으면 **무엇을 넣어야 하는지** 한 줄로 말한다. 자리표시자 「0」만으로는
             // 이미 0 원을 적어 둔 것처럼 읽힌다(2026-09-21 지시).
@@ -266,9 +258,8 @@ struct AddSpendingView: View {
             }   // gameChosen
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, 16).padding(.vertical, 18)
-        .background(gameColor.opacity(0.07), in: RoundedRectangle(cornerRadius: 24))
-        .overlay(RoundedRectangle(cornerRadius: 24).stroke(gameColor.opacity(0.18), lineWidth: 1))
+        // 카드 없이 화면 폭 그대로(좌우 20) — 아래 섹션과 10 띠로 갈린다. 게임색은 알약 · 환산 글자가 맡는다.
+        .padding(.horizontal, 20).padding(.top, 18).padding(.bottom, 20)
         // 입력 도중 매 글자마다 뜨면 방해가 된다 → 손이 멈춘 뒤에만 평가한다.
         .task(id: amount) {
             try? await Task.sleep(nanoseconds: 450_000_000)
@@ -296,15 +287,48 @@ struct AddSpendingView: View {
         .asymmetric(insertion: .opacity.combined(with: .offset(y: 14)), removal: .opacity)
     }
 
-    /// 게임 선택 한 줄 — [게임색 썸네일 · 이름 · 화살표]. Compose `GameSelectRow` 와 패리티.
+    /// 게임 고르기 — 지출 추가의 첫 화면. 카드 없이 화면 폭 목록(헤어라인 구분)이다. Compose `GamePickSection` 과 패리티.
     ///
-    /// 썸네일과 글자에 **게임 대표색**을 쓴다. 강조색을 쓰면 테마에 따라 전부 같은 색이 되어
-    /// 게임 구분이 사라진다 — 이 목록은 색으로 먼저 읽힌다.
+    /// **리스트형**(27.50.0) — 칩을 줄바꿈으로 늘어놓으면 이름 길이가 제각각이라 줄이 들쭉날쭉했다.
+    /// 가로 스크롤도 쓰지 않는다 — 접어 두면 화면 밖 게임은 있는 줄도 모른다.
+    /// 예전엔 게임마다 낱개 카드였지만 카드형을 걷으며 지출 목록과 같은 헤어라인 목록으로 바꿨다.
+    /// 내 게임(온보딩 ② · 설정 ▸ 내 게임)이 위, 나머지는 「다른 게임」 아래 — 기록할 수 있는 게임은 줄이지 않는다.
+    private var gamePickSection: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text("어느 게임인가요?")
+                .font(.pretendard(size: 17, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
+                .padding(.horizontal, 20)
+            Text("게임을 선택해주세요")
+                .font(.pretendard(size: 13)).foregroundStyle(GLGColor.textSecondary)
+                .padding(.horizontal, 20).padding(.top, 3).padding(.bottom, 8)
+            gamePickList(pickerMine)
+            if !pickerOthers.isEmpty {
+                Text("다른 게임").font(.pretendard(size: 12, weight: .bold)).foregroundStyle(GLGColor.textSecondary)
+                    .padding(.horizontal, 20).padding(.top, 18).padding(.bottom, 2)
+                gamePickList(pickerOthers)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.top, 12).padding(.bottom, 20)
+    }
+
+    private func gamePickList(_ games: [Game]) -> some View {
+        VStack(spacing: 0) {
+            ForEach(Array(games.enumerated()), id: \.element.key) { i, g in
+                if i > 0 { Color(hex: 0xFFEEF0F2).frame(height: 1).padding(.horizontal, 20) }
+                Button { selectGame(g.displayName) } label: { gameSelectRow(g) }
+                    .buttonStyle(.plain)
+            }
+        }
+    }
+
+    /// 게임 선택 한 줄 — [게임색 배지 · 이름 · 화살표]. 줄 전체가 눌린다.
     @ViewBuilder private func gameSelectRow(_ g: Game) -> some View {
         let c = Color(argb64: g.color)
         HStack(spacing: 0) {
             // 배지는 **영어 약칭**(GI · HSR · ZZZ …) — 지출 목록 행과 같은 값이다.
             // 한국어 약칭은 길이가 제각각이라 36 칸에서 두 줄로 접혔다.
+            // 배지 색은 **게임 대표색** — 강조색을 쓰면 테마에 따라 전부 같은 색이 되어 게임 구분이 사라진다.
             Text(g.abbr)
                 .font(.pretendard(size: 11, weight: .black))
                 .foregroundStyle(c)
@@ -314,19 +338,16 @@ struct AddSpendingView: View {
                 .frame(width: 36, height: 36)
                 .background(c.opacity(0.12), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
             Text(g.displayName)
-                .font(.pretendard(size: 13.5, weight: .bold))
+                .font(.pretendard(size: 15, weight: .bold))
                 .foregroundStyle(GLGColor.textPrimary)
-                .padding(.leading, 11)
+                .padding(.leading, 12)
             Spacer(minLength: 6)
             Image(systemName: "chevron.right")
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundStyle(GLGColor.textSecondary.opacity(0.6))
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 10)
-        // 테두리는 **게임색**이다 — 강조색을 쓰면 카드 아홉 장이 전부 같은 색이 되어
-        // 게임 구분이 사라진다. 이 목록은 색으로 먼저 읽힌다.
-        .glgGlass(in: RoundedRectangle(cornerRadius: 14, style: .continuous), border: c.opacity(0.20))
+        .padding(.horizontal, 20)
+        .padding(.vertical, 12)
         .contentShape(Rectangle())
     }
 
@@ -518,9 +539,7 @@ struct AddSpendingView: View {
 
             if detailsExpanded { detailFields.padding(.top, 14) }
         }
-        .padding(16).frame(maxWidth: .infinity, alignment: .leading)
-        .glgGlass(in: RoundedRectangle(cornerRadius: 22, style: .continuous),
-                     border: accent.primary.opacity(0.28))
+        .formSection()
     }
 
     /// 접힌 상태에서 보여줄 한 줄 — "카카오페이 · 구글플레이 · 태그 2".
@@ -657,10 +676,7 @@ struct AddSpendingView: View {
 
     // ── 공통 ──
     private func sectionCard<C: View>(@ViewBuilder _ content: () -> C) -> some View {
-        VStack(alignment: .leading, spacing: 0) { content() }
-            .padding(16).frame(maxWidth: .infinity, alignment: .leading)
-            .glgGlass(in: RoundedRectangle(cornerRadius: 22, style: .continuous),
-                     border: accent.primary.opacity(0.28))
+        VStack(alignment: .leading, spacing: 0) { content() }.formSection()
     }
     private func label(_ t: String) -> some View { Text(t).font(.pretendard(size: 14, weight: .bold)).foregroundStyle(GLGColor.textSecondary) }
     private func field(_ label: String, _ ph: String, _ text: Binding<String>) -> some View {
@@ -668,5 +684,155 @@ struct AddSpendingView: View {
     }
     private func chip(_ label: String, _ selected: Bool, _ action: @escaping () -> Void) -> some View {
         GldsChip(label: label, selected: selected, action: action)
+    }
+}
+
+/// 입력 섹션 — 카드 없이 화면 폭 그대로, 위에 10 띠를 얹어 앞 묶음과 가른다.
+/// 좌우 20 · 위 22 · 아래 20(지출 상세 섹션과 같은 규격). 띠가 섹션 안에 있어 펼쳐 내려올 때 함께 나타난다.
+private extension View {
+    func formSection() -> some View {
+        VStack(spacing: 0) {
+            Color(hex: 0xFFF2F4F6).frame(height: 10).frame(maxWidth: .infinity)
+            self.padding(.horizontal, 20).padding(.top, 22).padding(.bottom, 20)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+}
+
+/// 커스텀 달력 날짜 선택 — Android `GlgDatePickerDialog`(GlgDialog 규격) 와 같은 모양 · 동작.
+/// 딤 + 가운데 흰 카드(모서리 24 · 안쪽 22) · 제목 17 · 월 이동 원형 버튼 36 · 요일(일 빨강 · 토 파랑) · 선택일 강조색 원.
+/// 확인하면 고른 날 **낮 12시**로 저장한다(Android 와 같다 — 시간대 경계에서 날짜가 밀리지 않게).
+struct GLGDatePickerDialog: View {
+    let initialMillis: Int64
+    let onDismiss: () -> Void
+    let onConfirm: (Int64) -> Void
+
+    @Environment(\.glgAccent) private var accent
+    @State private var viewMonth: Date
+    @State private var selected: DateComponents
+
+    private static var cal: Calendar {
+        var c = Calendar(identifier: .gregorian)
+        c.locale = Locale(identifier: "ko_KR")
+        return c
+    }
+
+    init(initialMillis: Int64, onDismiss: @escaping () -> Void, onConfirm: @escaping (Int64) -> Void) {
+        self.initialMillis = initialMillis
+        self.onDismiss = onDismiss
+        self.onConfirm = onConfirm
+        let d = Date(timeIntervalSince1970: Double(initialMillis) / 1000)
+        let c = Self.cal
+        _selected = State(initialValue: c.dateComponents([.year, .month, .day], from: d))
+        _viewMonth = State(initialValue: c.date(from: c.dateComponents([.year, .month], from: d)) ?? d)
+    }
+
+    var body: some View {
+        ZStack {
+            Color.black.opacity(0.32).ignoresSafeArea()
+                .onTapGesture { onDismiss() }
+            VStack(alignment: .leading, spacing: 0) {
+                Text("날짜 선택").font(.pretendard(size: 17, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
+                    .padding(.bottom, 16)
+                monthHeader.padding(.bottom, 12)
+                weekdayRow.padding(.bottom, 4)
+                dayGrid
+                GeometryReader { geo in
+                    let w = geo.size.width - 10
+                    HStack(spacing: 10) {
+                        GldsButton(title: "취소", variant: .secondary) { onDismiss() }
+                            .frame(width: w / 2.4)
+                        GldsButton(title: "확인") { confirm() }
+                            .frame(width: w * 1.4 / 2.4)
+                    }
+                }
+                .frame(height: 44)
+                .padding(.top, 20)
+            }
+            .padding(22)
+            .background(Color.white, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 24, style: .continuous).stroke(GLGColor.divider, lineWidth: 1))
+            .shadow(color: .black.opacity(0.18), radius: 24, y: 8)
+            .padding(24)
+            .frame(maxWidth: 480)
+        }
+    }
+
+    private var monthHeader: some View {
+        let c = Self.cal.dateComponents([.year, .month], from: viewMonth)
+        return HStack {
+            arrow("chevron.left", "이전 달") { shift(-1) }
+            Spacer()
+            Text("\(c.year ?? 0)년 \(c.month ?? 0)월").font(.pretendard(size: 15, weight: .bold))
+                .foregroundStyle(GLGColor.textPrimary)
+            Spacer()
+            arrow("chevron.right", "다음 달") { shift(1) }
+        }
+    }
+
+    private func arrow(_ icon: String, _ label: String, _ action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: icon).font(.system(size: 14, weight: .semibold)).foregroundStyle(GLGColor.textSecondary)
+                .frame(width: 36, height: 36)
+                .background(Color(hex: 0xFFF2F2F6), in: Circle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(label)
+    }
+
+    private var weekdayRow: some View {
+        HStack(spacing: 0) {
+            ForEach(Array(["일", "월", "화", "수", "목", "금", "토"].enumerated()), id: \.offset) { i, d in
+                Text(d).font(.pretendard(size: 11, weight: .semibold))
+                    .foregroundStyle(i == 0 ? Color(hex: 0xFFE5484D) : i == 6 ? Color(hex: 0xFF4F8EF7) : GLGColor.textSecondary)
+                    .frame(maxWidth: .infinity)
+            }
+        }
+    }
+
+    private var dayGrid: some View {
+        let c = Self.cal
+        let firstDow = c.component(.weekday, from: viewMonth) - 1          // 0 = 일
+        let days = c.range(of: .day, in: .month, for: viewMonth)?.count ?? 30
+        let ym = c.dateComponents([.year, .month], from: viewMonth)
+        let rows = (firstDow + days + 6) / 7
+        return VStack(spacing: 0) {
+            ForEach(0..<rows, id: \.self) { r in
+                HStack(spacing: 0) {
+                    ForEach(0..<7, id: \.self) { col in
+                        let day = r * 7 + col - firstDow + 1
+                        if day >= 1 && day <= days {
+                            let isSel = selected.year == ym.year && selected.month == ym.month && selected.day == day
+                            Button {
+                                selected = DateComponents(year: ym.year, month: ym.month, day: day)
+                            } label: {
+                                Text("\(day)")
+                                    .font(.pretendard(size: 14, weight: isSel ? .bold : .regular))
+                                    .foregroundStyle(isSel ? Color.white : GLGColor.textPrimary)
+                                    .frame(maxWidth: .infinity)
+                                    .aspectRatio(1, contentMode: .fit)
+                                    .background(isSel ? accent.primary : Color.clear, in: Circle())
+                                    .padding(2)
+                                    .contentShape(Circle())
+                            }
+                            .buttonStyle(.plain)
+                        } else {
+                            Color.clear.frame(maxWidth: .infinity).aspectRatio(1, contentMode: .fit)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private func shift(_ delta: Int) {
+        if let d = Self.cal.date(byAdding: .month, value: delta, to: viewMonth) { viewMonth = d }
+    }
+
+    private func confirm() {
+        var comps = selected
+        comps.hour = 12; comps.minute = 0; comps.second = 0
+        let d = Self.cal.date(from: comps) ?? Date(timeIntervalSince1970: Double(initialMillis) / 1000)
+        onConfirm(Int64(d.timeIntervalSince1970 * 1000))
     }
 }
