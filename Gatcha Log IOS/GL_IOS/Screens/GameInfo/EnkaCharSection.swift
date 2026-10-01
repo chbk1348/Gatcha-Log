@@ -1680,30 +1680,6 @@ struct EnkaStatPageBody: View {
         }
     }
 
-    /// 단계별 효과 카드 — 로딩 스피너 또는 노드 리스트(활성=게임색/비활성=잠금, 탭 펼침).
-    @ViewBuilder
-    private var effectsCard: some View {
-        if effectsLoading {
-            HStack { Spacer(); GldsSpinner(); Spacer() }
-                .padding(.vertical, 18)
-                .frame(maxWidth: .infinity)
-                .glgGlass(in: RoundedRectangle(cornerRadius: 22, style: .continuous))
-        } else {
-            // rank: 원신 명함=0, 비공개=-1 → 활성 0개. index ≤ active 가 활성.
-            let active = max(Int(char.rank), 0)
-            // 조회 실패/빈 결과(예: 젠레스)면 일반 노드 6개로 폴백 — 활성/비활성만이라도 표시.
-            let nodes = effects.isEmpty ? (1...6).map { CharEffect(index: Int32($0), name: "", desc: "") } : effects
-            VStack(spacing: 4) {
-                ForEach(Array(nodes.enumerated()), id: \.offset) { i, e in
-                    effectNode(e, isActive: Int(e.index) <= active, idx: i)
-                }
-            }
-            .padding(7)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .glgGlass(in: RoundedRectangle(cornerRadius: 22, style: .continuous))
-        }
-    }
-
     /// 단계 노드 1개 — 번호 배지(활성=게임색 채움/비활성=잠금) + 효과명 + 탭 펼침 설명.
     @ViewBuilder
     private func effectNode(_ e: CharEffect, isActive: Bool, idx: Int) -> some View {
@@ -1793,37 +1769,6 @@ struct EnkaStatPageBody: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(14)
             .glgGlass(in: RoundedRectangle(cornerRadius: 22, style: .continuous))
-    }
-
-    private func weaponCard(_ w: EnkaWeapon) -> some View {
-        VStack(alignment: .leading, spacing: 0) {
-        HStack(spacing: 11) {
-            VStack(alignment: .leading, spacing: 6) {
-                Text(w.name).font(.pretendard(size: 14, weight: .bold)).lineLimit(1)
-                HStack(spacing: 8) {
-                    miniPill("Lv.\(w.level)")
-                    if let m = w.main { statInline(m) }
-                    if let s = w.sub { statInline(s) }
-                }
-            }
-            Spacer(minLength: 0)
-            Text(w.refinement > 0 ? "R\(w.refinement)" : "—").font(.pretendard(size: 11, weight: .bold)).foregroundStyle(.white)
-                .padding(.horizontal, 8).padding(.vertical, 3).background(accent.primary, in: RoundedRectangle(cornerRadius: 8))
-        }
-        .padding(14).frame(maxWidth: .infinity, alignment: .leading)
-        // 정련 효과 — 이름과 수치만으로는 "이 무기가 무슨 일을 하는가"를 알 수 없다.
-        // 못 받았으면 자리 자체를 만들지 않는다(빈 칸이 고장처럼 보인다).
-        if let r = refinement {
-            Divider()
-            VStack(alignment: .leading, spacing: 4) {
-                Text(r.name).font(.pretendard(size: 12, weight: .bold)).foregroundStyle(accent.primary)
-                Text(r.desc).font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            .padding(14).frame(maxWidth: .infinity, alignment: .leading)
-        }
-        }
-        .glgGlass(in: RoundedRectangle(cornerRadius: 22, style: .continuous))
     }
 
     private func miniPill(_ t: String) -> some View {
@@ -2001,20 +1946,6 @@ struct EnkaStatPageBody: View {
         isKeyStat(s) ? enkaCrit : fallback
     }
 
-    private var statGrid: some View {
-        LazyVGrid(columns: g2, spacing: 0) {
-            ForEach(Array(char.stats.enumerated()), id: \.offset) { _, s in
-                HStack {
-                    Text(s.label).font(.pretendard(size: 11.5)).foregroundStyle(keyLabelColor(s)).lineLimit(1)
-                    Spacer()
-                    Text(s.value).font(.pretendard(size: 13, weight: .bold)).foregroundStyle(isKeyStat(s) ? enkaCrit : GLGColor.textPrimary).lineLimit(1)
-                }.padding(.horizontal, 11).padding(.vertical, 9)
-            }
-        }
-        .padding(4).frame(maxWidth: .infinity)
-        .glgGlass(in: RoundedRectangle(cornerRadius: 22, style: .continuous))
-    }
-
     /// 등급 색 — 상위는 강조색, 중간은 보조 텍스트, 하위는 경고색(교체 후보 신호).
     private func gradeColor(_ grade: ArtifactGrade) -> Color {
         switch grade {
@@ -2022,59 +1953,6 @@ struct EnkaStatPageBody: View {
         case .fair:             return GLGColor.textSecondary
         default:                return enkaWarn
         }
-    }
-
-    /// 유효 점수 요약 — 합계·장당 평균·등급.
-    /// 서브 옵션 중 **이 캐릭터 유효옵션만** 최대 강화량으로 나눠 '유효 롤'로 환산한 값이다.
-    private func artifactCard(_ a: EnkaArtifact, score: ArtifactScore, rank: Int) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(alignment: .top, spacing: 9) {
-                if let icon = a.iconUrl, let u = URL(string: icon) {
-                    GLGRemoteImage(url: u, side: 40, contentMode: .fit)
-                        .frame(width: 40, height: 40).padding(2)
-                        .background(Color(hex: 0xFFF1F1F6), in: RoundedRectangle(cornerRadius: 10))
-                }
-                Text(a.slot).font(.pretendard(size: 11, weight: .bold)).foregroundStyle(GLGColor.textSecondary)
-                    .padding(.horizontal, 8).padding(.vertical, 5).background(Color(hex: 0xFFF1F1F6), in: RoundedRectangle(cornerRadius: 8))
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(a.main.label).font(.pretendard(size: 10.5)).foregroundStyle(keyLabelColor(a.main)).lineLimit(1)
-                    Text(a.main.value).font(.pretendard(size: 16, weight: .heavy)).foregroundStyle(isKeyStat(a.main) ? enkaCrit : accent.primary).lineLimit(1)
-                    if !a.setName.isEmpty {
-                        Text(a.setName).font(.pretendard(size: 9.5)).foregroundStyle(GLGColor.textSecondary).lineLimit(1)
-                    }
-                }
-                Spacer(minLength: 0)
-                VStack(alignment: .trailing, spacing: 4) {
-                    Text("+\(a.level)").font(.pretendard(size: 10, weight: .bold)).foregroundStyle(Color(hex: 0xFF9C6F12))
-                        .padding(.horizontal, 7).padding(.vertical, 2).background(enkaGold.opacity(0.16), in: RoundedRectangle(cornerRadius: 7))
-                    // 유효 점수 — 유효옵션이 하나도 안 붙었으면 순위가 무의미하므로 배지를 숨긴다.
-                    if !score.isEmpty {
-                        let gc = gradeColor(score.grade)
-                        Text("\(rank)위 · \(score.metric.label) \(ArtifactScoring.shared.scoreLabel(value: score.value))")
-                            .font(.pretendard(size: 10, weight: .bold)).foregroundStyle(gc)
-                            .padding(.horizontal, 7).padding(.vertical, 2)
-                            .background(gc.opacity(0.14), in: RoundedRectangle(cornerRadius: 7))
-                    }
-                }
-            }
-            if !a.subs.isEmpty {
-                // 부옵션 — 목업(design_enka_statsheet): 배경 박스 없이 상단 점선 구분선 + 2열 그리드.
-                VStack(spacing: 9) {
-                    DashHLine().stroke(Color.black.opacity(0.08), style: StrokeStyle(lineWidth: 1, dash: [4, 4])).frame(height: 1)
-                    LazyVGrid(columns: g2, spacing: 5) {
-                        ForEach(Array(a.subs.enumerated()), id: \.offset) { _, s in
-                            HStack(spacing: 6) {
-                                Text(s.label).font(.pretendard(size: 11)).foregroundStyle(keyLabelColor(s)).lineLimit(1)
-                                Spacer(minLength: 4)
-                                Text(s.value).font(.pretendard(size: 12, weight: .bold)).foregroundStyle(isKeyStat(s) ? enkaCrit : GLGColor.textPrimary).lineLimit(1)
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        .padding(13).frame(maxWidth: .infinity, alignment: .leading)
-        .glgGlass(in: RoundedRectangle(cornerRadius: 22, style: .continuous))
     }
 
     /// 프로필 속성 1줄 — 라벨(보조색, 좌) : 값(굵게, 우).
