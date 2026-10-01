@@ -118,6 +118,7 @@ struct HoyolandSection: View {
                 }
                 .buttonStyle(.plain)
             }
+            .padding(.horizontal, 20)
             if phase == .ended {
                 // 카드는 걷었다(10/1) — 줄 전체가 눌린다.
                 Button { onOpen(.none) } label: {
@@ -130,6 +131,7 @@ struct HoyolandSection: View {
                             Spacer(minLength: 0)
                             Text("지난 행사 보기").font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary)
                         }
+                        .padding(.horizontal, 20)
                         .contentShape(Rectangle())
                     }
                 }

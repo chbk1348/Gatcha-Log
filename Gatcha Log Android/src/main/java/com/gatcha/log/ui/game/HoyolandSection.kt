@@ -244,7 +244,7 @@ fun HoyolandSection(onOpen: (HoyolandSub) -> Unit) {
     val ctx = LocalContext.current
     val e = rememberHoyolandEvent()
     val phase = e.phase()
-    Row(Modifier.fillMaxWidth().padding(bottom = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, bottom = 10.dp), verticalAlignment = Alignment.CenterVertically) {
         Text("호요랜드", fontSize = 17.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
         Text(
             "전체 보기", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = TicketSubText,
@@ -255,7 +255,7 @@ fun HoyolandSection(onOpen: (HoyolandSub) -> Unit) {
     if (phase == HoyolandPhase.ENDED) {
         // 카드는 걷었다(10/1) — 줄 전체가 눌린다.
         run {
-            Row(Modifier.fillMaxWidth().clickable { onOpen(HoyolandSub.None) }.padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.fillMaxWidth().clickable { onOpen(HoyolandSub.None) }.padding(horizontal = 20.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Outlined.Celebration, null, tint = TextSecondary, modifier = Modifier.size(20.dp))
                 Spacer(Modifier.width(12.dp))
                 Text("${e.edition} · 종료", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = TextPrimary, modifier = Modifier.weight(1f))
