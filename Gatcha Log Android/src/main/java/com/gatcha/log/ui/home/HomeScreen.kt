@@ -547,7 +547,10 @@ fun HomeContent(
     val topScrimAlpha by animateFloatAsState(if (scrolled) 0.88f else 0f, label = "topScrim")
     LazyColumn(
         state = listState,
-        modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
+        // 카드 없이 화면 폭 섹션 + 10 띠(10/1, 다른 탭과 같은 규격) — 좌우 여백은 섹션마다 준다.
+        // 목록 바탕은 투명 — 히어로 뒤 고정 그라데이션 · 글로우가 히어로 자리에서만 보이고,
+        // 아래 섹션은 각자 흰 면([HomeSection])이라 글로우가 섹션 · 띠 뒤로 비치지 않는다.
+        modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(top = GlgTabHeaderHeight + topInset, bottom = glgTabContentBottom()),
     ) {
         // HoYoLAB 토큰 만료 감지 시 최상단 배너.
@@ -561,13 +564,16 @@ fun HomeContent(
         }
         // 히어로 — 이번 달 지출 / 예산 캐러셀 (Figma Make 참고)
         glgCardItem() {
-            HeroBalanceCard(monthlyTotal, prevTotal, budget) { showBudget.value = true }
+            Box(Modifier.padding(horizontal = 20.dp)) {
+                HeroBalanceCard(monthlyTotal, prevTotal, budget) { showBudget.value = true }
+            }
             Spacer(Modifier.height(16.dp))
         }
         // 호요랜드 — 개막 D-60 이내에만 끼어드는 한시 카드(끝나면 스스로 빠진다).
         // 히어로 바로 밑이다. 광고 배너라 목록 중간에 두면 다른 카드의 리듬에 묻힌다 —
         // 첫 화면에서 한 번 눈에 걸리고 지나가는 자리가 맞다.
         featuredHoyoland?.let { hoyoland ->
+            // 입장권은 화면 폭을 꽉 채운다(게임 정보 탭과 같다).
             glgCardItem() {
                 DashHoyolandCard(hoyoland) { showHoyoland = true }
                 Spacer(Modifier.height(16.dp))
@@ -575,22 +581,25 @@ fun HomeContent(
         }
         if (!gameInfoReady || todayTasks.isNotEmpty()) {
             glgCardItem() {
-                if (!gameInfoReady) TodayTaskSkeleton(titleOutside = true)
-                else TodayTaskCard(tasks = todayTasks, inProgress = checkingIn != null, titleOutside = true)
-                Spacer(Modifier.height(16.dp))
+                // 히어로 바로 아래 첫 섹션 — 띠 없이(그라데이션이 옅어지는 자리에 회색 띠가 걸리면 어색하다).
+                HomeSection(band = false) {
+                    if (!gameInfoReady) TodayTaskSkeleton()
+                    else TodayTaskCard(tasks = todayTasks, inProgress = checkingIn != null)
+                }
             }
         }
         // 최근 지출
         glgCardItem() {
-            RecentSpendCard(spendings) { onNavigateToSpending() }
-            Spacer(Modifier.height(16.dp))
+            // 오늘 할 일이 없으면 이게 히어로 바로 아래 첫 섹션 — 그때는 띠 없이.
+            HomeSection(band = !gameInfoReady || todayTasks.isNotEmpty()) { RecentSpendCard(spendings) { onNavigateToSpending() } }
         }
         // 카드마다 자기 데이터가 올 때까지 스켈레톤 — 예전엔 gameInfoReady 하나로 묶여 있어서, 배너·노트가
         // 캐시로 즉시 차면 스켈레톤이 걷히고 이 두 카드만 한동안 자리를 비웠다가 뒤늦게 튀어나왔다.
         glgCardItem() {
-            if (!scheduleReady) DashCardSkeleton(rows = 3)
-            else DashScheduleCard(gameEvents, gameChallenges, titleOutside = true) { viewModel.requestGameInfoAnchor(GameInfoAnchor.SCHEDULE); onNavigateToGameInfo() }
-            Spacer(Modifier.height(16.dp))
+            HomeSection {
+                if (!scheduleReady) DashCardSkeleton(rows = 3)
+                else DashScheduleCard(gameEvents, gameChallenges) { viewModel.requestGameInfoAnchor(GameInfoAnchor.SCHEDULE); onNavigateToGameInfo() }
+            }
         }
         // 절약 챌린지는 **마이페이지**로 옮겼다(27.50.0) — 홈은 "지금 무엇을 할까" 를 말하는
         // 자리고, 스트릭·배지는 "내가 얼마나 해왔나" 라 성격이 다르다. 마이페이지의 통계·활동
@@ -600,8 +609,10 @@ fun HomeContent(
         // 탭바까지의 간격은 contentPadding(glgTabContentBottom)이 전담한다. 여기서 또 더하면
         // 이 탭만 간격이 넓어진다(예전에 24dp 였다).
         glgCardItem() {
-            if (!newsReady) DashCardSkeleton(rows = 2)
-            else DashNewsCard(gameNews, anniversaries, titleOutside = true) { viewModel.requestGameInfoAnchor(GameInfoAnchor.NEWS); onNavigateToGameInfo() }
+            HomeSection {
+                if (!newsReady) DashCardSkeleton(rows = 2)
+                else DashNewsCard(gameNews, anniversaries) { viewModel.requestGameInfoAnchor(GameInfoAnchor.NEWS); onNavigateToGameInfo() }
+            }
         }
     }
     // 상단 스크림 — **상태바 영역만** 덮는다(헤더 버튼 줄은 그대로 투명).
@@ -754,19 +765,31 @@ private fun NotificationCard(alert: HomeAlert, onClick: () -> Unit, onDismiss: (
 @Composable
 private fun TokenExpiredBanner(onReconnect: () -> Unit) {
     val accent = LocalAccent.current
-    GlassCard(shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
+    // 카드 없이 화면 폭 강조색 띠(iOS 와 같다).
+    run {
         Row(
-            modifier = Modifier.fillMaxWidth().background(accent.copy(alpha = 0.10f)).padding(horizontal = 16.dp, vertical = 12.dp),
+            modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp).background(accent.copy(alpha = 0.10f)).padding(horizontal = 20.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Icon(Icons.Default.Warning, null, tint = accent, modifier = Modifier.size(24.dp))
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
-                Text("HoYoLAB 토큰이 만료된 것 같아요", fontSize = 13.sp, fontWeight = FontWeight.Bold)
-                Text("재연동하지 않으면 자동 출석이 안 돼요", fontSize = 11.sp, color = TextSecondary)
+                Text("HoYoLAB 토큰이 만료된 것 같아요", fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                Text("재연동하지 않으면 자동 출석이 안 돼요", fontSize = 12.sp, color = TextSecondary)
             }
             Spacer(Modifier.width(8.dp))
             GldsButton("재연동", onReconnect, size = GldsSize.S)
         }
     }
+}
+
+/**
+ * 홈 섹션 — 위 10 띠 + 좌우 20 · 위 22 · 아래 20(게임 정보 · 지출과 같은 규격).
+ * [band]=false 는 히어로 바로 아래 첫 섹션 — 그라데이션이 옅어지는 자리라 띠를 두지 않는다.
+ */
+@Composable
+private fun HomeSection(band: Boolean = true, content: @Composable ColumnScope.() -> Unit) {
+    if (band) Box(Modifier.fillMaxWidth().height(10.dp).background(Color(0xFFF2F4F6)))
+    // 흰 면 — 히어로 글로우가 고정 배경이라, 투명하면 스크롤할 때 섹션 뒤로 비친다.
+    Column(Modifier.fillMaxWidth().background(Color.White).padding(start = 20.dp, end = 20.dp, top = 22.dp, bottom = 20.dp), content = content)
 }

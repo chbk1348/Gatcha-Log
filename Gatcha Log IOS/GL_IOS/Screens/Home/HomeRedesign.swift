@@ -122,21 +122,21 @@ struct RecentSpendCard: View {
 
     var body: some View {
         let recent = Array(spendings.prefix(4))   // store.spendings 는 이미 날짜 내림차순(VM loadAll)
-        VStack(alignment: .leading, spacing: 10) {
-            // 제목은 카드 바깥 위로(전체보기 액션도 헤더에서)
+        VStack(alignment: .leading, spacing: 6) {
+            // 카드 없이 섹션 머리 + 헤어라인 목록(10/1, Android 와 같다).
             HomeSectionHeader(title: "최근 지출", actionTitle: recent.isEmpty ? nil : "전체보기", action: onSeeAll)
-            GLGCard(cornerRadius: 22, padding: 0) {
+            Group {
                 VStack(spacing: 0) {
                     if recent.isEmpty {
                         VStack(spacing: 6) {
                             Image(systemName: "doc.text").font(.system(size: 30)).foregroundStyle(Color(.systemGray3))
-                            Text("아직 기록된 지출이 없어요").font(.pretendard(size: 13)).foregroundStyle(GLGColor.textSecondary)
-                            Text("+ 지출 추가로 첫 기록을 남겨보세요").font(.pretendard(size: 11)).foregroundStyle(Color(.systemGray3))
+                            Text("아직 기록된 지출이 없어요").font(.pretendard(size: 14)).foregroundStyle(GLGColor.textSecondary)
+                            Text("+ 지출 추가로 첫 기록을 남겨보세요").font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary)
                         }
                         .frame(maxWidth: .infinity).padding(.vertical, 22)
                     } else {
                         ForEach(Array(recent.enumerated()), id: \.element.id) { i, s in
-                            if i > 0 { Divider().padding(.leading, 64) }
+                            if i > 0 { Color(hex: 0xFFEEF0F2).frame(height: 1).padding(.leading, 48) }
                             RecentSpendRow(spending: s)
                         }
                     }
@@ -165,13 +165,13 @@ private struct RecentSpendRow: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(spending.gameName).font(.pretendard(size: 14, weight: .bold)).foregroundStyle(GLGColor.textPrimary).lineLimit(1)
                 if !subtitle.isEmpty {
-                    Text(subtitle).font(.pretendard(size: 11)).foregroundStyle(GLGColor.textSecondary).lineLimit(1)
+                    Text(subtitle).font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary).lineLimit(1)
                 }
             }
             Spacer(minLength: 8)
             Text(won(spending.amount)).font(.pretendard(size: 15, weight: .bold)).foregroundStyle(GLGColor.textPrimary).lineLimit(1)
         }
-        .padding(.horizontal, 16).padding(.vertical, 12)
+        .padding(.vertical, 12)
     }
 }
 
@@ -231,7 +231,7 @@ struct HomeSectionHeader: View {
     @Environment(\.glgAccent) private var accent
     var body: some View {
         HStack(spacing: 7) {
-            Text(title).font(.pretendard(size: 18, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
+            Text(title).font(.pretendard(size: 17, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
             if let count {
                 Text("\(count)").font(.pretendard(size: 12, weight: .bold)).foregroundStyle(accent.primary)
                     .padding(.horizontal, 8).padding(.vertical, 2)
@@ -244,7 +244,6 @@ struct HomeSectionHeader: View {
                 }.buttonStyle(.plain)
             }
         }
-        .padding(.horizontal, 4)
     }
 }
 

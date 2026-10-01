@@ -148,25 +148,28 @@ struct HomeView: View {
             HeroBalanceCard(monthlyTotal: monthlyTotal, prevTotal: prevTotal, budget: store.budget,
                             onBudget: { showBudget = true }, topPad: topInset, showGradient: false)
 
-            VStack(alignment: .leading, spacing: 16) {
+            // 카드 없이 화면 폭 섹션 + 10 띠(10/1, Android · 다른 탭과 같은 규격).
+            VStack(alignment: .leading, spacing: 0) {
                 if store.hoyoTokenExpired {
                     TokenExpiredBanner { store.requestOpenHoyolabLink(); onSwitchTab(3) }
+                        .padding(.bottom, 8)
                 }
                 // 호요랜드 — 개막 D-60 이내에만 끼어드는 한시 배너(끝나면 스스로 빠진다).
                 // 히어로 바로 밑이다. 광고 배너라 목록 중간에 두면 다른 카드의 리듬에 묻힌다 —
-                // 첫 화면에서 한 번 눈에 걸리고 지나가는 자리가 맞다.
+                // 첫 화면에서 한 번 눈에 걸리고 지나가는 자리가 맞다. 입장권은 화면 폭을 꽉 채운다.
                 // 스켈레톤을 두지 않는 건 폴백이 늘 유효해서다.
                 HoyolandHomeCard(onTap: { showHoyoland = true })
-                if !store.gameInfoReady || !todayTasks.isEmpty {
-                    todayTaskView(titleOutside: true)
+                    .padding(.bottom, 16)
+                // 히어로 바로 아래 첫 섹션은 띠 없이 — 그라데이션이 옅어지는 자리에 회색 띠가 걸리면 어색하다.
+                let showToday = !store.gameInfoReady || !todayTasks.isEmpty
+                if showToday {
+                    homeSection(band: false) { todayTaskView(titleOutside: true) }
                 }
-                RecentSpendCard(spendings: store.spendings, onSeeAll: { onSwitchTab(1) })
+                homeSection(band: showToday) { RecentSpendCard(spendings: store.spendings, onSeeAll: { onSwitchTab(1) }) }
                 dashboardSlots(titleOutside: true)
                 // 절약 챌린지는 **마이페이지**로 옮겼다(27.50.0) — 홈은 "지금 무엇을 할까" 를
                 // 말하는 자리고, 스트릭·배지는 "내가 얼마나 해왔나" 라 성격이 다르다.
             }
-            .padding(.horizontal, 16)
-            .padding(.bottom, 16)
             .glgReadableWidth(600)
         }
     }
@@ -215,21 +218,42 @@ struct HomeView: View {
 
     @ViewBuilder
     private func dashboardSlotBodies(titleOutside: Bool) -> some View {
-        if store.scheduleReady {
-            DashboardScheduleCard(events: store.gameEvents, challenges: store.challenges,
-                                  onTap: { store.requestGameInfoAnchor(.schedule); onSwitchTab(2) },
+        sectionIf(titleOutside) {
+            if store.scheduleReady {
+                DashboardScheduleCard(events: store.gameEvents, challenges: store.challenges,
+                                      onTap: { store.requestGameInfoAnchor(.schedule); onSwitchTab(2) },
+                                      titleOutside: titleOutside)
+            } else {
+                DashCardSkeleton(rows: 3, flat: titleOutside)
+            }
+        }
+        sectionIf(titleOutside) {
+            if store.newsReady {
+                DashboardNewsCard(news: store.gameNews,
+                                  anniversaries: GameAnniversary.shared.upcoming(nowMillis: nowMs()),
+                                  onTap: { store.requestGameInfoAnchor(.news); onSwitchTab(2) },
                                   titleOutside: titleOutside)
-        } else {
-            DashCardSkeleton(rows: 3)
+            } else {
+                DashCardSkeleton(rows: 2, flat: titleOutside)
+            }
         }
-        if store.newsReady {
-            DashboardNewsCard(news: store.gameNews,
-                              anniversaries: GameAnniversary.shared.upcoming(nowMillis: nowMs()),
-                              onTap: { store.requestGameInfoAnchor(.news); onSwitchTab(2) },
-                              titleOutside: titleOutside)
-        } else {
-            DashCardSkeleton(rows: 2)
-        }
+    }
+
+    /// iPhone 홈 섹션 — 위 10 띠 + 좌우 20 · 위 22 · 아래 20(Android HomeSection 과 같다).
+    @ViewBuilder
+    private func homeSection<C: View>(band: Bool = true, @ViewBuilder _ content: () -> C) -> some View {
+        if band { Color(hex: 0xFFF2F4F6).frame(height: 10).frame(maxWidth: .infinity) }
+        content()
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 20).padding(.top, 22).padding(.bottom, 20)
+            // 흰 면 — 히어로 그라데이션 · 글로우가 고정 배경이라, 투명하면 섹션 · 띠 뒤로 비친다(10/1).
+            .background(Color.white)
+    }
+
+    /// iPhone(titleOutside) 이면 섹션으로, iPad 레거시면 카드 그대로.
+    @ViewBuilder
+    private func sectionIf<C: View>(_ on: Bool, @ViewBuilder _ content: () -> C) -> some View {
+        if on { homeSection(content) } else { content() }
     }
 
     @ViewBuilder
