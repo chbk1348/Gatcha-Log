@@ -253,7 +253,10 @@ struct GameInfoView: View {
                                  onOpenClears: { showCombatClears = true }).id("NOTES")
                 // 호요랜드 — 「오늘 할 일」 바로 밑(미연동이면 데일리 자리의 연동 안내 밑). 바로가기 4칸이
                 // 하위 페이지로 곧장 들어간다. 폐막 뒤에는 섹션이 한 줄로 줄어든다(HoyolandSection).
-                section { HoyolandSection(onOpen: { sub in hoyolandInitial = sub; showHoyoland = true }) }
+                // 입장권은 화면 폭을 꽉 채운다(10/1) — 좌우 여백 없이, 제목 · 종료 줄만 섹션 안에서 20 을 둔다.
+                GiBand()
+                HoyolandSection(onOpen: { sub in hoyolandInitial = sub; showHoyoland = true })
+                    .padding(.top, 22).padding(.bottom, 20)
                 // 숙제 완주율은 별도 섹션을 두지 않는다 — 데일리의 게임 줄에 완주율까지 들어간다.
                 // 내 캐릭터(보유 전체 로스터) — 데일리 다음 핵심 콘텐츠로 상단 배치
                 // 미연동이면 섹션·상단 여백까지 통째 생략(빈 여백 방지).

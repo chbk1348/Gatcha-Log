@@ -490,7 +490,8 @@ fun GameInfoScreen(
             // 곧장 들어간다. 폐막 뒤에는 섹션이 한 줄로 줄어든다(HoyolandSection).
             item { GiBand() }
             item {
-                GiSection {
+                // 입장권은 화면 폭을 꽉 채운다(10/1) — 좌우 여백 없이, 제목 · 종료 줄만 섹션 안에서 20 을 둔다.
+                Column(Modifier.padding(top = 22.dp, bottom = 20.dp)) {
                     HoyolandSection(onOpen = { sub ->
                         hoyolandReturn = GiSub.Main
                         hoyolandInitial = sub
