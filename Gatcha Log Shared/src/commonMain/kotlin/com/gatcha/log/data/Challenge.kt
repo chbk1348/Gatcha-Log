@@ -27,6 +27,8 @@ data class BadgeState(
     val emoji: String,
     val title: String,
     val earned: Boolean,
+    /** 얻는 방법 — 배지 설명 모달 문구. [SavingsChallenge.evaluate] 의 판정 규칙을 그대로 옮긴 것이라 규칙을 바꾸면 같이 고친다. */
+    val howTo: String = "",
 )
 
 /** 절약 챌린지 화면 전체 상태. */
@@ -58,17 +60,19 @@ object SavingsChallenge {
     const val B_GAME_BUDGET = "game_budget"
     const val B_KING = "king"
 
-    private data class BadgeDef(val id: String, val emoji: String, val title: String)
+    private data class BadgeDef(val id: String, val emoji: String, val title: String, val howTo: String)
+    // howTo 는 아래 evaluate 의 「배지 판정」 규칙을 그대로 옮긴 문구다 — 규칙을 바꾸면 같이 고친다.
+    // 예산 · 절약 배지는 **끝난 달**(첫 지출 달 ~ 지난달)만 본다. 게임별 예산만 이번 달 기준.
     private val catalog = listOf(
-        BadgeDef(B_FIRST, "🌱", "첫 절약"),
-        BadgeDef(B_NOSPEND_7, "🔥", "무지출 7일"),
-        BadgeDef(B_BUDGET, "🎯", "예산 달성"),
-        BadgeDef(B_NOSPEND_30, "💎", "무지출 30일"),
-        BadgeDef(B_BUDGET_3MO, "🏆", "3개월 예산"),
-        BadgeDef(B_NOSPEND_MONTH, "🧊", "한 달 무지출"),
-        BadgeDef(B_SAVE_3MO, "📉", "3개월 절약"),
-        BadgeDef(B_GAME_BUDGET, "🎮", "게임별 예산"),
-        BadgeDef(B_KING, "👑", "절약왕"),
+        BadgeDef(B_FIRST, "🌱", "첫 절약", "하루 동안 지출 없이 지내면 얻어요."),
+        BadgeDef(B_NOSPEND_7, "🔥", "무지출 7일", "7일 연속으로 지출이 없으면 얻어요."),
+        BadgeDef(B_BUDGET, "🎯", "예산 달성", "월 예산을 정해 두고, 지난 달 중 한 달이라도 예산 안에서 쓰면 얻어요."),
+        BadgeDef(B_NOSPEND_30, "💎", "무지출 30일", "30일 연속으로 지출이 없으면 얻어요."),
+        BadgeDef(B_BUDGET_3MO, "🏆", "3개월 예산", "월 예산 안에서 쓴 달이 3개월 연속 이어지면 얻어요."),
+        BadgeDef(B_NOSPEND_MONTH, "🧊", "한 달 무지출", "지난 달 중 한 달을 통째로 지출 없이 보내면 얻어요."),
+        BadgeDef(B_SAVE_3MO, "📉", "3개월 절약", "3개월 연속으로 매달 전달보다 덜 쓰면 얻어요."),
+        BadgeDef(B_GAME_BUDGET, "🎮", "게임별 예산", "게임별 예산을 하나 이상 정하고, 이번 달 그 예산을 모두 지키면 얻어요."),
+        BadgeDef(B_KING, "👑", "절약왕", "나머지 배지 8개를 모두 모으면 얻어요."),
     )
 
     private const val STREAK_CAP = 366
@@ -207,11 +211,11 @@ object SavingsChallenge {
             }
         }
         val earned = (earnedStored + freshly).toMutableSet()
-        // 절약왕 = 나머지 7종 모두 획득
+        // 절약왕 = 나머지 8종 모두 획득
         val others = catalog.map { it.id }.filter { it != B_KING }
         if (others.all { it in earned }) earned += B_KING
 
-        val badges = catalog.map { BadgeState(it.id, it.emoji, it.title, it.id in earned) }
+        val badges = catalog.map { BadgeState(it.id, it.emoji, it.title, it.id in earned, it.howTo) }
 
         return ChallengeSummary(streak, best, challenges, badges)
     }

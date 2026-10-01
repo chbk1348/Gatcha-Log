@@ -677,8 +677,11 @@ fun GlgDialog(
                 modifier = Modifier.fillMaxWidth().heightIn(max = maxDialogHeight),
             ) {
                 Column(Modifier.padding(22.dp)) {
-                    Text(title, fontSize = 17.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
-                    Spacer(Modifier.height(16.dp))
+                    // 제목이 비면 줄째 생략한다 — 본문이 자기 머리를 그리는 모달(배지 설명 등)용.
+                    if (title.isNotEmpty()) {
+                        Text(title, fontSize = 17.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+                        Spacer(Modifier.height(16.dp))
+                    }
                     // 본문은 남는 높이까지만 차지하고(fill=false) 길어지면 스크롤 — 버튼 Row는 항상 하단 고정
                     Column(
                         Modifier
