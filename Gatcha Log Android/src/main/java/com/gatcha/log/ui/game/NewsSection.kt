@@ -74,10 +74,10 @@ fun NewsSection(
     if (news.isEmpty()) {
         // 불러오기 실패는 '소식 없음'과 다르다 — 섹션째 사라지면 사용자는 공지가 없는 줄 안다.
         if (failed) {
-            Text("공지·뉴스", fontSize = 16.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 10.dp))
-            GlassCard(modifier = Modifier.fillMaxWidth()) {
-                Column(Modifier.padding(16.dp)) {
-                    Text("소식을 불러오지 못했어요", fontSize = 12.sp, color = TextSecondary)
+            Text("공지·뉴스", fontSize = 17.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 10.dp))
+            run {
+                Column {
+                    Text("소식을 불러오지 못했어요", fontSize = 14.sp, color = TextSecondary)
                     Spacer(Modifier.height(6.dp))
                     GldsButton("다시 시도", onClick = onRetry, variant = GldsVariant.Secondary, size = GldsSize.S)
                 }
@@ -94,7 +94,7 @@ fun NewsSection(
         modifier = Modifier.fillMaxWidth().padding(bottom = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text("공지·뉴스", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+        Text("공지·뉴스", fontSize = 17.sp, fontWeight = FontWeight.Bold)
         Spacer(Modifier.weight(1f))
         if (news.size > max) {
             Row(
@@ -111,8 +111,9 @@ fun NewsSection(
             }
         }
     }
-    GlassCard(modifier = Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(horizontal = 16.dp, vertical = 16.dp)) {
+    // 카드는 걷었다(10/1) — 줄 사이 헤어라인만.
+    run {
+        Column {
             items.forEachIndexed { i, n ->
                 if (i > 0) Box(Modifier.fillMaxWidth().height(1.dp).background(DividerColor))
                 NewsRow(n, onOpen)

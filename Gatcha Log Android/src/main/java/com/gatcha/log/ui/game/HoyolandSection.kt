@@ -253,8 +253,9 @@ fun HoyolandSection(onOpen: (HoyolandSub) -> Unit) {
         )
     }
     if (phase == HoyolandPhase.ENDED) {
-        GlassCard(modifier = Modifier.fillMaxWidth().clickable { onOpen(HoyolandSub.None) }) {
-            Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+        // 카드는 걷었다(10/1) — 줄 전체가 눌린다.
+        run {
+            Row(Modifier.fillMaxWidth().clickable { onOpen(HoyolandSub.None) }.padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Outlined.Celebration, null, tint = TextSecondary, modifier = Modifier.size(20.dp))
                 Spacer(Modifier.width(12.dp))
                 Text("${e.edition} · 종료", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = TextPrimary, modifier = Modifier.weight(1f))

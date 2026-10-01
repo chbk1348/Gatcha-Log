@@ -488,7 +488,7 @@ fun GameInfoScreen(
             }
             // 호요랜드 — 「오늘 할 일」 바로 밑(미연동이면 데일리 자리의 연동 안내 밑). 바로가기 4칸이 하위 페이지로
             // 곧장 들어간다. 폐막 뒤에는 섹션이 한 줄로 줄어든다(HoyolandSection).
-            item { Spacer(Modifier.height(20.dp)) }
+            item { GiBand() }
             item {
                 GiSection {
                     HoyolandSection(onOpen = { sub ->
@@ -501,7 +501,7 @@ fun GameInfoScreen(
             // 숙제 완주율은 별도 섹션을 두지 않는다 — 데일리의 게임 줄에 완주율까지 함께 들어간다.
             // 내 캐릭터(보유 전체 로스터) — 데일리 다음. 미연동이면 섹션·상단 여백까지 통째 생략(빈 여백 방지).
             if (hoyolab.isLinked) {
-                item { Spacer(Modifier.height(20.dp)) }
+                item { GiBand() }
                 item {
                     GiSection {
                     EnkaCharSection(
@@ -516,11 +516,11 @@ fun GameInfoScreen(
             }
             // 통합 게임 일정 — 게임 구분 없이 전부. 게임별로 좁혀 보는 건 상세 페이지에서 한다.
             if (schedule.isNotEmpty()) {
-                item { Spacer(Modifier.height(20.dp)) }
+                item { GiBand() }
                 item { GiSection { GameScheduleSection(schedule, banners, onSeeAll = { subPage = GiSub.Schedule }) } }
             }
             // 공지·뉴스 — 게임별 최신 공지(탭하면 HoYoLab 열기).
-            item { Spacer(Modifier.height(20.dp)) }
+            item { GiBand() }
             item {
                 GiSection {
                     NewsSection(
@@ -534,7 +534,7 @@ fun GameInfoScreen(
             }
             // 진입 카드 — 다른 섹션과 같은 20dp. 예전엔 [20 · 계산기 · 12 · 리포트] 였는데
             // 계산기를 걷어내면서 두 여백이 붙어 32dp 가 됐다(이 카드만 아래로 떠 보였다).
-            item { Spacer(Modifier.height(20.dp)) }
+            item { GiBand() }
             item { GiSection { NavEntryCard(Icons.Default.BarChart, "가챠 효율 리포트", "UIGF/SRGF 분석 · 단가 · 천장 분포") { subPage = GiSub.Report } } }
             // 목록 끝에는 여백을 두지 않는다 — 탭바까지의 간격은 contentPadding 이 전담(예전엔 32dp).
         }
@@ -591,7 +591,14 @@ private fun GiSection(content: @Composable ColumnScope.() -> Unit) {
     // ⚠️ Column 이어야 한다. Box 로 두면 섹션이 내보내는 형제들(제목 Text · 카드)이 **같은 자리에
     // 겹쳐** 쌓이고, 나중에 그려지는 카드가 제목을 덮는다 — '게임 일정'·'공지·뉴스' 제목이
     // 통째로 안 보이던 원인이다. 섹션 하나가 한 덩어리(Column)만 내보낸다는 보장이 없다.
-    Column(Modifier.padding(horizontal = 16.dp), content = content)
+    // 카드 없이 화면 폭 섹션 — 좌우 20 · 위 22 · 아래 20, 섹션 사이는 [GiBand](마이페이지 · 지출과 같은 규격).
+    Column(Modifier.padding(start = 20.dp, end = 20.dp, top = 22.dp, bottom = 20.dp), content = content)
+}
+
+/** 게임 정보 섹션 사이 10 띠. */
+@Composable
+internal fun GiBand() {
+    Box(Modifier.fillMaxWidth().height(10.dp).background(Color(0xFFF2F4F6)))
 }
 
 /** 페이지로 분류된 섹션 진입 카드 (아이콘 + 제목 + 설명 + 셰브론). */
@@ -603,8 +610,9 @@ private fun NavEntryCard(
     onClick: () -> Unit,
 ) {
     val accent = LocalAccent.current
-    GlassCard(shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth().clickable { onClick() }) {
-        Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+    // 카드 없이 한 줄 — 줄 전체가 눌린다.
+    run {
+        Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).clickable { onClick() }.padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
             Box(
                 Modifier.size(44.dp).clip(RoundedCornerShape(12.dp)).background(accent.copy(alpha = 0.12f)),
                 contentAlignment = Alignment.Center,
@@ -613,8 +621,8 @@ private fun NavEntryCard(
             }
             Spacer(Modifier.width(14.dp))
             Column(Modifier.weight(1f)) {
-                Text(title, fontSize = 15.sp, fontWeight = FontWeight.Bold)
-                Text(sub, fontSize = 12.sp, color = TextSecondary, maxLines = 1)
+                Text(title, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                Text(sub, fontSize = 13.sp, color = TextSecondary, maxLines = 1)
             }
             Spacer(Modifier.width(8.dp))
             Icon(Icons.Default.ChevronRight, null, tint = TextSecondary, modifier = Modifier.size(20.dp))

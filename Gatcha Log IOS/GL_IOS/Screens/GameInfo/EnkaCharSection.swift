@@ -105,16 +105,17 @@ struct EnkaCharSection: View {
         // 미연동(=HoYoLAB 연동 프롬프트가 뜰 상황)이면 '내 캐릭터' 영역 전체를 숨긴다(헤더 포함).
         // 연동 유도는 데일리/프로필 섹션의 프롬프트가 담당하며, 연동되면 자동으로 로스터가 나타난다.
         if store.hoyolabConfig.isLinked {
-            VStack(alignment: .leading, spacing: 11) {
-                Text("내 캐릭터").font(.pretendard(size: 16, weight: .bold))
+            VStack(alignment: .leading, spacing: 4) {
+                Text("내 캐릭터").font(.pretendard(size: 17, weight: .bold))
                     .frame(maxWidth: .infinity, alignment: .leading)
                 // 게임들을 **카드 한 장**에 담는다(2026-09-28 지시). 게임마다 카드를 세우면 세로로 세 번
                 // 끊겨 읽혔다. 대신 게임 사이 구분선은 카드 **가장자리까지** 긋는다 — 안쪽 여백만큼 들여
                 // 그으면 한 목록의 줄 구분처럼 읽혀, 게임이 갈린다는 게 약했다. (Android 와 같은 값)
-                GLGCard(cornerRadius: 24, padding: 0) {
+                // 카드는 걷었다(10/1) — 게임 사이는 헤어라인.
+                Group {
                     VStack(spacing: 0) {
                         ForEach(Array(games.enumerated()), id: \.offset) { i, g in
-                            if i > 0 { Rectangle().fill(Color(hex: 0xFFE3E6EA)).frame(height: 1) }
+                            if i > 0 { Rectangle().fill(Color(hex: 0xFFEEF0F2)).frame(height: 1) }
                             gameBlock(g, showLabel: true)
                         }
                     }
@@ -137,7 +138,7 @@ struct EnkaCharSection: View {
                 HStack(spacing: 7) {
                     // 게임 태그 — 예전엔 닷이 앱 강조색이라 세 게임이 전부 같은 색이었다(구분 불가).
                     GLGGameTag(game: game, size: .small)
-                    Text(enkaGameLabel(game)).font(.pretendard(size: 14, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
+                    Text(enkaGameLabel(game)).font(.pretendard(size: 15, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
                     if !chars.isEmpty {
                         Text("\(chars.count)").font(.pretendard(size: 12, weight: .bold)).foregroundStyle(GLGColor.textSecondary)
                     }
@@ -161,7 +162,7 @@ struct EnkaCharSection: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(16)
+        .padding(.vertical, 16)
     }
 
     /// 로딩 스켈레톤 — 실제 로스터와 **같은 한 줄 배치**(원형 초상 + 이름 두 줄).

@@ -47,16 +47,17 @@ struct DailyHeroSection: View {
             VStack(alignment: .leading, spacing: 0) {
                 headlineHero(headline)
 
-                VStack(alignment: .leading, spacing: 12) {
-                    // 행동력 · 오늘 할 일 · 바로가기를 **카드 한 장**에 담는다(2026-09-28 지시). 셋 다 "오늘 뭘 하나" 라
+                VStack(alignment: .leading, spacing: 0) {
+                    // 행동력 · 오늘 할 일 · 바로가기를 **한 덩어리**에 담는다(2026-09-28 지시). 셋 다 "오늘 뭘 하나" 라
                     // 같은 덩어리인데, 카드 셋으로 갈라져 있어 세로로 세 번 끊겨 읽혔다. 사이는 구분선으로 가른다.
-                    GLGCard(cornerRadius: 20, padding: 16) {
+                    // 카드는 걷었다(10/1) — 화면 폭 섹션(좌우 20)으로 두고 아래 버전 줄과는 띠로 가른다.
+                    Group {
                         VStack(alignment: .leading, spacing: 0) {
                             resinSection(summaries)
                             if !grouped.isEmpty {
                                 Divider().padding(.top, 14).padding(.bottom, 12)
                                 Text("오늘 할 일")
-                                    .font(.pretendard(size: 14, weight: .bold))
+                                    .font(.pretendard(size: 16, weight: .bold))
                                     .foregroundStyle(GLGColor.textPrimary)
                                     .padding(.bottom, 4)
                                 ForEach(Array(grouped.enumerated()), id: \.offset) { i, g in
@@ -72,17 +73,19 @@ struct DailyHeroSection: View {
                                               onOpenClears: onOpenClears)
                                 .padding(.top, 12)
                         }
+                        .padding(.horizontal, 20).padding(.top, 18).padding(.bottom, 20)
                     }
                     // 값이 오면 카드가 **없다가 생기는** 대신 스켈레톤이 내용으로 바뀐다.
                     // 예전엔 로딩이 끝나는 순간 카드 한 장이 통째로 끼어들어 아래가 밀려 내려갔다.
                     // 실패해서 끝내 비면 그때는 줄 자체를 안 그린다.
                     if !store.gameVersions.isEmpty {
+                        GiBand()
                         versionStrip(store.gameVersions)
                     } else if store.gameVersionsLoading {
+                        GiBand()
                         versionStripSkeleton
                     }
                 }
-                .padding(.horizontal, 16)
             }
         }
     }
@@ -115,10 +118,10 @@ struct DailyHeroSection: View {
      무엇인지 먼저 읽히면 채워지는 것이 무엇인지도 같이 읽힌다. (Android `GameVersionStripSkeleton` 파리티)
      */
     private var versionStripSkeleton: some View {
-        GLGCard(cornerRadius: 20, padding: 16) {
-            VStack(alignment: .leading, spacing: 8) {
+        Group {
+            VStack(alignment: .leading, spacing: 10) {
                 Text("현재 버전")
-                    .font(.pretendard(size: 10, weight: .bold))
+                    .font(.pretendard(size: 13, weight: .bold))
                     .foregroundStyle(GLGColor.textSecondary)
                 HStack(spacing: 10) {
                     // 칸 수는 데이터 쪽이 안다(GameVersions.trackedCount) — 여기에 숫자를
@@ -127,22 +130,23 @@ struct DailyHeroSection: View {
                         // 게임명(10.5) · 버전(16) 두 줄과 같은 높이로. 다섯 칸이 한 줄에
                         // 서므로 폭은 칸에 맡기고 비율로 잡는다.
                         VStack(spacing: 5) {
-                            GLGSkeleton().frame(height: 11).padding(.horizontal, 6)
+                            GLGSkeleton().frame(height: 13).padding(.horizontal, 6)
                             GLGSkeleton().frame(height: 17).padding(.horizontal, 12)
                         }
                         .frame(maxWidth: .infinity)
                     }
                 }
             }
+            .padding(.horizontal, 20).padding(.vertical, 18)
         }
     }
 
     @ViewBuilder
     private func versionStrip(_ versions: [GameVersionLine]) -> some View {
-        GLGCard(cornerRadius: 20, padding: 16) {
-            VStack(alignment: .leading, spacing: 8) {
+        Group {
+            VStack(alignment: .leading, spacing: 10) {
                 Text("현재 버전")
-                    .font(.pretendard(size: 10, weight: .bold))
+                    .font(.pretendard(size: 13, weight: .bold))
                     .foregroundStyle(GLGColor.textSecondary)
                 HStack(spacing: 10) {
                     ForEach(Array(versions.enumerated()), id: \.offset) { _, v in
@@ -155,7 +159,7 @@ struct DailyHeroSection: View {
                             // 제각각인 만큼 칸마다 시작점만 같고 덩어리가 왼쪽으로 쏠려 보인다.
                             VStack(alignment: .center, spacing: 1) {
                                 Text(v.gameShort)
-                                    .font(.pretendard(size: 10.5, weight: .medium))
+                                    .font(.pretendard(size: 12, weight: .medium))
                                     .foregroundStyle(GLGColor.textSecondary)
                                     .lineLimit(1)
                                 Text(v.version)
@@ -169,6 +173,7 @@ struct DailyHeroSection: View {
                     }
                 }
             }
+            .padding(.horizontal, 20).padding(.vertical, 18)
         }
     }
 

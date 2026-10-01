@@ -243,13 +243,14 @@ fun EnkaCharSection(
     // 아무 일도 안 일어난다 — '내 캐릭터가 늦게 뜬다'의 정체였다.
 
     Column {
-        Text("내 캐릭터", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
-        Spacer(Modifier.height(11.dp))
+        Text("내 캐릭터", fontSize = 17.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+        Spacer(Modifier.height(4.dp))
 
         // 게임들을 **카드 한 장**에 담는다(2026-09-28 지시). 게임마다 카드를 세우면 세로로 세 번
         // 끊겨 읽혔다. 대신 게임 사이 구분선은 카드 **가장자리까지** 긋는다 — 안쪽 여백만큼 들여
         // 그으면 한 목록의 줄 구분처럼 읽혀, 게임이 갈린다는 게 약했다.
-        GlassCard(shape = RoundedCornerShape(24.dp), modifier = Modifier.fillMaxWidth()) {
+        // 카드는 걷었다(10/1) — 게임 사이는 헤어라인.
+        run {
             Column {
                 games.forEachIndexed { i, g ->
                     if (i > 0) Box(Modifier.fillMaxWidth().height(1.dp).background(RosterGameDivider))
@@ -269,8 +270,8 @@ fun EnkaCharSection(
     }
 }
 
-/** 내 캐릭터 카드의 게임 사이 실선 — 흰 면 위에서 또렷하게 보이는 회색. */
-private val RosterGameDivider = Color(0xFFE3E6EA)
+/** 내 캐릭터의 게임 사이 헤어라인 — 다른 화면 목록 구분선과 같은 색. */
+private val RosterGameDivider = Color(0xFFEEF0F2)
 
 /** '내 캐릭터' 단일 게임 블록 — (라벨) + 한 줄 로스터. 로딩 시 스켈레톤. 카드는 호출부가 한 장으로 감싼다. */
 @Composable
@@ -285,13 +286,13 @@ private fun GameRosterBlock(
     onRetry: () -> Unit,
 ) {
     val chars = result?.profile?.chars.orEmpty()
-    Column(Modifier.fillMaxWidth().padding(16.dp)) {
+    Column(Modifier.fillMaxWidth().padding(vertical = 16.dp)) {
         if (showLabel) {
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 12.dp)) {
                 // 게임 태그 — 예전엔 닷이 앱 강조색이라 세 게임이 전부 같은 색이었다(구분 불가).
                 GlgGameTag(game, size = GameTagSize.Small)
                 Spacer(Modifier.width(8.dp))
-                Text(gameLabel(game), fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+                Text(gameLabel(game), fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
                 if (chars.isNotEmpty()) {
                     Spacer(Modifier.width(6.dp))
                     Text("${chars.size}", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextSecondary)
