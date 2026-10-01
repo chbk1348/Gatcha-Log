@@ -296,25 +296,6 @@ private fun HeroBudgetPage(monthlyTotal: Long, budget: Long, onBudget: () -> Uni
     }
 }
 
-// ── 히어로 고정 그라데이션 배경 ─────────────────────────────────────────────
-/**
- * 스크롤과 무관하게 상단에 '고정'되는 그라데이션. 하단은 완전 투명 페이드.
- * 떠다니던 글로우(원) 애니메이션은 걷었다(10/1) — 카드를 걷은 화면에서 섹션 · 띠와 겹쳐 어색했다.
- */
-@Composable
-fun HeroGradientBackground(modifier: Modifier = Modifier) {
-    val accent2 = LocalAccentSecondary.current
-    // 브러시는 강조색이 바뀔 때만 다시 만든다 — 재구성마다 새로 만들 이유가 없다.
-    val baseBrush = remember(accent2) {
-        Brush.verticalGradient(
-            0.0f to accent2.copy(alpha = 0.45f),
-            0.62f to accent2.copy(alpha = 0.14f),
-            1.0f to accent2.copy(alpha = 0f),
-        )
-    }
-    Box(modifier.background(baseBrush))
-}
-
 // ── 최근 지출 (목업 Transaction 리스트) ──────────────────────────────────────
 // ── 최근 지출 ──────────────────────────────────────────────────────────────
 /** 최근 지출 — 카드 없이 헤어라인 목록(10/1). */
@@ -731,7 +712,8 @@ fun DashHoyolandCard(event: HoyolandEvent, onTap: () -> Unit) {
             .clickable { onTap() },
     ) {
         Column(
-            Modifier.weight(1f).fillMaxHeight().background(Color.White)
+            // 흰 홈 바탕(10/1)과 구분되게 강조색을 옅게 깐다 — 흰 면이면 표 몸통이 바탕에 묻힌다.
+            Modifier.weight(1f).fillMaxHeight().background(Color.White).background(deep.copy(alpha = 0.08f))
                 .padding(horizontal = 16.dp, vertical = 14.dp),
             verticalArrangement = Arrangement.Center,
         ) {

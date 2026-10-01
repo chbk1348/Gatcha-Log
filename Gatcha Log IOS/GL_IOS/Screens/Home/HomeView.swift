@@ -50,22 +50,8 @@ struct HomeView: View {
         // 좁은 화면: 스크롤을 상단바 뒤까지 확장해 '투명해진 내비바' 뒤로 실제 그라데이션을 노출.
         // 넓은 화면: 그라데이션을 아예 끄므로(흰 히어로) 기본 내비바와 자연스럽게 어울린다.
         .modifier(HomeTopBarStyle(isWide: isWide))
-        // 히어로 그라데이션 = ScrollView 고정 배경(스크롤 콘텐츠가 아님) → PTR 당김·스크롤에도 그대로 고정.
-        // 하단은 라운드 클립 대신 '완전 투명'으로 페이드해 흰 배경과의 경계선을 없앤다(부드럽게 사라짐).
-        .background(alignment: .top) {
-            if !isWide {
-                AmbientHeroGradient(secondary: accent.secondary)
-                    // 위쪽 안전영역은 상태바 높이지만, **바가 옆에 서는 기기**(펼친 iPhone Duo)에서는
-                    // 그 값이 거의 0 이고 대신 가로 안전영역이 생긴다. 높이는 둘 중 큰 쪽으로 잡아
-                    // 어느 쪽에 바가 서든 그라데이션이 바 뒤까지 올라간다.
-                    .frame(height: max(geo.safeAreaInsets.top, geo.safeAreaInsets.trailing) + 254)
-                    .clipped()
-                    // 가로도 함께 무시한다 — 세로로 선 상태바·탭바 뒤가 흰 면으로 남아 히어로가
-                    // 오른쪽에서 잘려 보였다(2026-09-21 듀오 지적).
-                    .ignoresSafeArea(edges: [.top, .horizontal])
-            }
-        }
-        .background(GLGBackground { Color.clear })
+        // 흰 바탕(10/1) — 히어로 뒤 강조색 그라데이션을 걷었다.
+        .background(Color.white)
         .refreshable { store.refreshGameInfo(force: true) }
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -146,7 +132,7 @@ struct HomeView: View {
             // 히어로 — 이번 달 지출 / 예산 현황 캐러셀. 그라데이션을 상태바·내비바 뒤까지 확장.
             // 그라데이션은 히어로 자체가 아니라 ScrollView '고정' 배경으로 그린다(PTR·스크롤에도 안 움직이게).
             HeroBalanceCard(monthlyTotal: monthlyTotal, prevTotal: prevTotal, budget: store.budget,
-                            onBudget: { showBudget = true }, topPad: topInset, showGradient: false)
+                            onBudget: { showBudget = true }, topPad: topInset)
 
             // 카드 없이 화면 폭 섹션 + 10 띠(10/1, Android · 다른 탭과 같은 규격).
             VStack(alignment: .leading, spacing: 0) {

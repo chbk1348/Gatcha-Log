@@ -66,7 +66,7 @@ struct CombatClearSection: View {
                     if games.count > 1 {
                         gameChips(games, selected: game)
                             .padding(.horizontal, 20)
-                            .padding(.top, 22)
+                            .padding(.top, 8)
                     }
                     ForEach(Array(shown.enumerated()), id: \.offset) { i, m in
                         if i > 0 { GiBand() }

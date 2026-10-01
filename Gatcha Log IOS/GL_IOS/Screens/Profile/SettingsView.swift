@@ -61,25 +61,30 @@ struct SettingsView: View {
 
     var body: some View {
         ScrollView {
-            // 설정 메인 개편(아티팩트 S0) — 알림 설정과 같은 결: 묶음 제목 + 흰 카드 + 색 아이콘 줄.
+            // GLDS 2.0 — 카드를 걷고 화면 폭 섹션 + 회색 띠(마이페이지 3.0 과 같은 규격).
             // (계정은 마이페이지 히어로로 일원화 — 중복 카드 제거)
             VStack(alignment: .leading, spacing: 0) {
                 notificationLinkSection
+                SetBand()
                 budgetLinkSection
+                SetBand()
                 automationSection
+                SetBand()
                 displaySection
+                SetBand()
                 dataManagementLinkSection
-                // 개발자 메뉴 — 릴리스 빌드에는 이 섹션 자체가 컴파일되지 않는다.
+                // 개발자 메뉴 — 릴리스 빌드에는 이 섹션 자체(띠 포함)가 컴파일되지 않는다.
                 #if DEBUG
+                SetBand()
                 developerLinkSection
                 #endif
+                SetBand()
                 infoSection
             }
-            .padding(16)
             .glgReadableWidth(640)
         }
         .scrollIndicators(.hidden)
-        .background(GLGBackground { Color.clear })
+        .background(Color.white.ignoresSafeArea())
         .glgPageTitle("설정")
         .navigationBarTitleDisplayMode(.inline)
         .onAppear {
@@ -127,8 +132,7 @@ struct SettingsView: View {
     #if DEBUG
     @ViewBuilder
     private var developerLinkSection: some View {
-        SetGroupTitle(title: "개발자", caption: "디버그 빌드 전용")
-        SetCard {
+        SetSection(title: "개발자", caption: "디버그 빌드 전용") {
             SetNavRow(symbol: "ladybug", tint: .red, title: "개발자 메뉴", value: "상태 만들기 · 진단") { showDeveloper = true }
         }
     }
@@ -137,8 +141,7 @@ struct SettingsView: View {
     // ── 화면 — 표시(컴팩트 · 연출) + 테마 ──
     @ViewBuilder
     private var displaySection: some View {
-        SetGroupTitle(title: "화면", caption: "표시 · 테마")
-        SetCard {
+        SetSection(title: "화면", caption: "표시 · 테마") {
             SetToggleRow(symbol: "list.bullet", tint: .slate, title: "지출 내역 컴팩트 보기",
                          desc: "지출 목록을 한 줄로 빽빽하게 (태그 · 결제수단 숨김)",
                          isOn: bind(\.spendingCompact, store.setSpendingCompact))
@@ -156,8 +159,7 @@ struct SettingsView: View {
     // ── 내 게임 · 예산 ──
     @ViewBuilder
     private var budgetLinkSection: some View {
-        SetGroupTitle(title: "내 게임 · 예산", caption: "온보딩에서 고른 값과 같아요")
-        SetCard {
+        SetSection(title: "내 게임 · 예산", caption: "온보딩에서 고른 값과 같아요") {
             SetNavRow(symbol: "gamecontroller", tint: .purple, title: "내 게임", value: myGamesLabel) { showMyGames = true }
             SetDivider()
             SetNavRow(symbol: "banknote", tint: .orange, title: "월 예산",
@@ -195,8 +197,7 @@ struct SettingsView: View {
     // ── 연동 · 자동화 ──
     @ViewBuilder
     private var automationSection: some View {
-        SetGroupTitle(title: "연동 · 자동화", caption: "HoYoLAB")
-        SetCard {
+        SetSection(title: "연동 · 자동화", caption: "HoYoLAB") {
             SetNavRow(symbol: "link", tint: .navy, title: "HoYoLAB 계정 연동",
                       value: store.hoyolabConfig.isLinked ? "연동됨" : "미연동") { showHoyolab = true }
             SetDivider()
@@ -216,8 +217,7 @@ struct SettingsView: View {
     // ── 알림 — 항목별 알림 · 방해금지를 모은 하위 페이지로 진입 ──
     @ViewBuilder
     private var notificationLinkSection: some View {
-        SetGroupTitle(title: "알림", caption: "받을 알림 · 방해 금지", first: true)
-        SetCard {
+        SetSection(title: "알림", caption: "받을 알림 · 방해 금지") {
             SetNavRow(symbol: "bell", tint: .teal, title: "알림 설정",
                       value: NotificationCatalog.shared.enabledLabel(onCount: Int32(notifyOnCount))) { showNotifSettings = true }
         }
@@ -234,8 +234,7 @@ struct SettingsView: View {
     // ── 데이터 관리 — 백업·복원/내보내기/위험 구역을 모은 하위 페이지로 진입 ──
     @ViewBuilder
     private var dataManagementLinkSection: some View {
-        SetGroupTitle(title: "데이터", caption: "백업 · 복원 · 초기화")
-        SetCard {
+        SetSection(title: "데이터", caption: "백업 · 복원 · 초기화") {
             SetNavRow(symbol: "externaldrive", tint: .slate, title: "데이터 관리", value: "백업 · 복원 · 초기화") { showDataManagement = true }
         }
     }
@@ -243,8 +242,7 @@ struct SettingsView: View {
     // ── 정보 ──
     @ViewBuilder
     private var infoSection: some View {
-        SetGroupTitle(title: "앱 정보", caption: "v\(version)")
-        SetCard {
+        SetSection(title: "앱 정보", caption: "v\(version)") {
             // iOS 앱은 업데이트 확인 기능 제거(IPA 사이드로드 배포 — 원격 버전 확인 부적합). 업데이트 로그만 유지.
             SetNavRow(symbol: "sparkles", tint: .blue, title: "업데이트 로그") { showUplog = true }
             SetDivider()
@@ -270,7 +268,7 @@ struct SettingsView: View {
             // 아이콘 칸(34) 가운데에 맞춘다 — .top 이면 제목이 위로 붙어 보였다(9/29 지적).
             HStack(alignment: .center, spacing: 12) {
                 SetIcon(symbol: "checkmark.seal", tint: .teal)
-                Text("서명 만료").font(.pretendard(size: 14, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
+                Text("서명 만료").font(.pretendard(size: 15, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
                 Spacer()
                 VStack(alignment: .trailing, spacing: 2) {
                     Text(SigningInfo.absFormatter.string(from: exp))
@@ -280,7 +278,7 @@ struct SettingsView: View {
                         .foregroundStyle(exp.timeIntervalSince(ctx.date) < 86_400 ? .red : accent.primary)
                 }
             }
-            .padding(.horizontal, 14).padding(.vertical, 11)
+            .padding(.horizontal, 20).padding(.vertical, 12)
         }
     }
 
@@ -337,11 +335,11 @@ struct MyGamesView: View {
                     .font(.pretendard(size: 11.5)).foregroundStyle(Color(hex: 0xFF7A8784))
                     .padding(.horizontal, 4).padding(.top, 4)
             }
-            .padding(16)
+            .padding(.horizontal, 20).padding(.vertical, 16)
             .glgReadableWidth(640)
         }
         .scrollIndicators(.hidden)
-        .background(GLGBackground { Color.clear })
+        .background(Color.white.ignoresSafeArea())
         .glgPageTitle("내 게임")
         .navigationBarTitleDisplayMode(.inline)
     }
@@ -356,17 +354,18 @@ struct ThemeView: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 18) {
-                preview
+            VStack(alignment: .leading, spacing: 0) {
+                SetSection { preview.padding(.horizontal, 20) }
+                SetBand()
                 group("선명", Array(0..<GLGTheme.vividCount))
+                SetBand()
                 group("차분", Array(GLGTheme.vividCount..<GLGTheme.palette.count),
                       footer: "두 벌은 같은 색조 · 다른 채도예요. 게임별 색상과 속성 연출은 테마와 상관없이 그대로예요.")
             }
-            .padding(16)
             .glgReadableWidth(640)
         }
         .scrollIndicators(.hidden)
-        .background(GLGBackground { Color.clear })
+        .background(Color.white.ignoresSafeArea())
         .glgPageTitle("테마")
         .navigationBarTitleDisplayMode(.inline)
         .environment(\.glgAccent, accent)
@@ -403,17 +402,12 @@ struct ThemeView: View {
             .allowsHitTesting(false)
             .padding(.top, 12)
         }
-        .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.white, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).strokeBorder(Color(hex: 0xFFE3E8E6), lineWidth: 1))
     }
 
     private func group(_ title: String, _ indices: [Int], footer: String? = nil) -> some View {
         let cols = Array(repeating: GridItem(.flexible(), spacing: 12), count: 5)
-        return VStack(alignment: .leading, spacing: 7) {
-            // 설정 메인과 같은 묶음 제목(9/29).
-            SetGroupTitle(title: title, caption: "\(indices.count)색").padding(.bottom, -7)
+        return SetSection(title: title, caption: "\(indices.count)색") {
             LazyVGrid(columns: cols, spacing: 16) {
                 ForEach(indices, id: \.self) { i in
                     let opt = GLGTheme.palette[i]
@@ -433,11 +427,10 @@ struct ThemeView: View {
                     .onTapGesture { store.setAccentIndex(i) }
                 }
             }
-            .padding(.horizontal, 10).padding(.vertical, 16)
-            .background(Color.white, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).strokeBorder(Color(hex: 0xFFE3E8E6), lineWidth: 1))
+            // Android ThemeColorGrid 여백(위 8 · 아래 16)과 맞춘다.
+            .padding(.horizontal, 20).padding(.top, 8).padding(.bottom, 16)
             if let footer {
-                Text(footer).font(.pretendard(size: 11)).foregroundStyle(GLGColor.textSecondary).padding(.horizontal, 4)
+                SetFootnote(text: footer, color: GLGColor.textSecondary, top: 0)
             }
         }
     }
@@ -501,19 +494,18 @@ struct BudgetSettingsView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
+                // 금액 편집기는 입력 컨트롤(온보딩 ③ 공용)이라 그대로 두고, 섹션 여백만 준다.
                 BudgetAmountEditor(budget: $amount, custom: $custom)
-                SetGroupTitle(title: "게임별 한도", caption: "선택 · 비워 두면 한도 없음")
-                SetCard {
+                    .padding(.horizontal, 20).padding(.top, 22).padding(.bottom, 20)
+                SetBand()
+                SetSection(title: "게임별 한도", caption: "선택 · 비워 두면 한도 없음") {
                     ForEach(Array(order.enumerated()), id: \.element.key) { i, g in
                         if i > 0 { SetDivider() }
                         limitRow(g)
                     }
+                    SetFootnote(text: "내 게임이 위에 와요. 이번 달 사용액이 한도를 넘으면 주황으로 표시돼요.")
                 }
-                Text("내 게임이 위에 와요. 이번 달 사용액이 한도를 넘으면 주황으로 표시돼요.")
-                    .font(.pretendard(size: 11.5)).foregroundStyle(Color(hex: 0xFF7A8784))
-                    .padding(.horizontal, 4).padding(.top, 10)
             }
-            .padding(16)
             .glgReadableWidth(640)
         }
         // iOS 는 저장을 헤더 시스템 버튼으로(9/30 사용자 지정) — 「월 예산 끄기」 · 「저장」.
@@ -549,7 +541,7 @@ struct BudgetSettingsView: View {
         return HStack(spacing: 12) {
             Circle().fill(Color(argb64: g.color)).frame(width: 10, height: 10)
             VStack(alignment: .leading, spacing: 2) {
-                Text(g.displayName).font(.pretendard(size: 14, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
+                Text(g.displayName).font(.pretendard(size: 15, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
                 Text("이번 달 \(won(spent))" + (over ? " · 한도 초과" : ""))
                     .font(.pretendard(size: 12, weight: over ? .bold : .regular))
                     .foregroundStyle(over ? Color(hex: 0xFFC2410C) : GLGColor.textSecondary)
@@ -563,7 +555,7 @@ struct BudgetSettingsView: View {
                 }), size: .s, suffix: "원", alignment: .trailing, bold: true, keyboard: .numberPad)
                 .frame(width: 118)
         }
-        .padding(.horizontal, 14).padding(.vertical, 11)
+        .padding(.horizontal, 20).padding(.vertical, 11)
     }
 
     private func won0(_ n: Int64) -> String {

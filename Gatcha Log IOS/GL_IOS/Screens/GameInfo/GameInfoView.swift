@@ -604,7 +604,7 @@ struct GameSchedulePage: View {
                 // 페이지 타이틀은 네비게이션 바(뒤로가기 + 타이틀)로 — Android 상세 헤더와 동일 형식.
                 GldsTabs(labels: ["일정", "주년"], selection: $tab)
                 // 카드 없는 페이지(10/1) — 좌우 20 은 섹션마다 스스로 둔다. 탭 아래 22 가 첫 섹션의 위 여백.
-                .padding(.horizontal, 20).padding(.top, 16).padding(.bottom, 22)
+                .padding(.horizontal, 20).padding(.top, 8).padding(.bottom, 22)
 
                 if tab == 1 {
                     AnniversaryContent()

@@ -27,21 +27,20 @@ struct DataManagementView: View {
 
     var body: some View {
         ScrollView {
-            // 설정 메인과 같은 결(9/29) — 묶음 제목 + 흰 카드 + 색 아이콘 줄. Android DataManagementScreen 파리티.
+            // 설정 메인과 같은 결 — GLDS 2.0 화면 폭 섹션 + 회색 띠. Android DataManagementScreen 파리티.
             VStack(alignment: .leading, spacing: 0) {
-                SetGroupTitle(title: "백업 · 복원", caption: "재설치 · 기기 변경 대비", first: true)
-                SetCard {
+                SetSection(title: "백업 · 복원", caption: "재설치 · 기기 변경 대비") {
                     SetNavRow(symbol: "arrow.up.doc", tint: .teal, title: "백업 파일 내보내기", value: "전체 데이터") { exportBackup = true }
                     SetDivider()
                     SetNavRow(symbol: "arrow.down.doc", tint: .blue, title: "백업 파일에서 복원") { confirmImport = true }
+                    SetFootnote(text: "구글 로그인 없이도 전체 데이터(가챠 기록 포함)를 파일로 저장해 두면, 앱을 재설치하거나 기기를 바꿔도 복원할 수 있어요.")
                 }
-                footnote("구글 로그인 없이도 전체 데이터(가챠 기록 포함)를 파일로 저장해 두면, 앱을 재설치하거나 기기를 바꿔도 복원할 수 있어요.")
-                SetGroupTitle(title: "내보내기", caption: "CSV")
-                SetCard {
+                SetBand()
+                SetSection(title: "내보내기", caption: "CSV") {
                     SetNavRow(symbol: "square.and.arrow.down", tint: .slate, title: "지출 내역 내보내기", value: "CSV") { exportCsv = true }
                 }
-                SetGroupTitle(title: "위험 구역", caption: "되돌릴 수 없어요")
-                SetCard {
+                SetBand()
+                SetSection(title: "위험 구역", caption: "되돌릴 수 없어요") {
                     SetNavRow(symbol: "trash", tint: .red, title: "가챠 기록 초기화",
                               value: store.gachaStats.map { "\($0.total)건" } ?? "없음", titleColor: dangerRed) {
                         if store.gachaStats != nil { confirmClearGacha = true }
@@ -51,14 +50,13 @@ struct DataManagementView: View {
                               value: "\(store.spendings.count)건", titleColor: dangerRed) {
                         if !store.spendings.isEmpty { confirmClearSpend = true }
                     }
+                    SetFootnote(text: "되돌릴 수 없는 작업이에요. 먼저 위 ‘백업 파일 내보내기’로 백업을 권장해요.", color: dangerRed)
                 }
-                footnote("되돌릴 수 없는 작업이에요. 먼저 위 ‘백업 파일 내보내기’로 백업을 권장해요.", color: dangerRed)
             }
-            .padding(16)
             .glgReadableWidth(640)
         }
         .scrollIndicators(.hidden)
-        .background(GLGBackground { Color.clear })
+        .background(Color.white.ignoresSafeArea())
         .glgPageTitle("데이터 관리")
         .navigationBarTitleDisplayMode(.inline)
         // 가챠 초기화 — 1단계(백업 권장)
@@ -92,11 +90,6 @@ struct DataManagementView: View {
         .fileImporter(isPresented: $importBackup, allowedContentTypes: [.json]) { result in
             if case .success(let url) = result { readBackup(url) }
         }
-    }
-
-    private func footnote(_ text: String, color: Color = Color(hex: 0xFF7A8784)) -> some View {
-        Text(text).font(.pretendard(size: 11.5)).foregroundStyle(color).lineSpacing(2)
-            .padding(.horizontal, 4).padding(.top, 10)
     }
 
     private func readBackup(_ url: URL) {

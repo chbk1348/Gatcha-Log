@@ -9,8 +9,6 @@ import androidx.compose.foundation.background
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import com.gatcha.log.ui.profile.NotifyCard
-import com.gatcha.log.ui.profile.NotifyGroupTitle
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
@@ -43,6 +41,7 @@ import com.gatcha.log.ui.components.GldsButton
 import com.gatcha.log.ui.components.GldsSize
 import com.gatcha.log.ui.components.GldsTextField
 import com.gatcha.log.ui.theme.LocalAccent
+import com.gatcha.log.ui.theme.TextPrimary
 import com.gatcha.log.ui.theme.TextSecondary
 
 /**
@@ -66,56 +65,66 @@ fun HoyolabLinkScreen(config: HoyolabConfig, onSave: (HoyolabConfig) -> Unit, on
 
     // 탭 페이지와 같은 구조 — 콘텐츠는 상태바 뒤까지 스크롤되고, 헤더는 그 위에 고정된다.
     val scrollState = rememberScrollState()
-    Box(Modifier.fillMaxSize()) {
+    Box(Modifier.fillMaxSize().background(Color.White)) {
         Column(
             // 스크롤 영역은 **저장 바 위에서 끝난다**(bottom 76) — 바 밑까지 두면 포커스된 입력칸이 스크롤로 보이는
             // 자리에 와도 바에 가렸다(9/30). 키보드가 뜨면 루트 imePadding 으로 영역이 줄고 입력칸이 스스로 스크롤돼 온다.
+            // GLDS 2.0(10/1) — 카드 없이 흰 바탕 · 화면 폭 섹션 · 섹션 사이 10 띠. 좌우 여백은 섹션(20)이 갖는다.
             Modifier.fillMaxSize().navigationBarsPadding().padding(bottom = 76.dp).verticalScroll(scrollState)
-                .padding(horizontal = 16.dp)
                 .padding(top = glgDetailContentTop()),
-            verticalArrangement = Arrangement.spacedBy(0.dp),
         ) {
-            // 주의 문구는 맨 위 배너 하나로(9/30) — 흩어져 있던 세 문구를 합쳤다. iOS 와 같은 문구.
-            HoyolabNotice(Modifier.padding(top = 4.dp))
-            // 설정 하위 페이지 다듬기(9/29) — 온보딩 ④와 같은 남색 로그인 카드 + 묶음 제목 + 흰 카드.
-            // 로그인으로 자동 가져오기 (WebView → 쿠키 추출)
-            Row(
-                Modifier.padding(top = 12.dp).fillMaxWidth().clip(RoundedCornerShape(20.dp))
-                    .background(Brush.linearGradient(listOf(Color(0xFF0F1A33), Color(0xFF23345C))))
-                    .clickable { showEmailGuide = true }.padding(horizontal = 18.dp, vertical = 16.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Column(Modifier.weight(1f)) {
-                    Text(if (config.isLinked) "연동됨 · 다시 가져오기" else "로그인으로 자동 가져오기", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFF8FE3DA))
-                    Text("HoYoLAB 로그인", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color.White)
-                    Text("ltuid · ltoken · cookie_token · UID 를 자동 입력해요", fontSize = 11.5.sp, color = Color.White.copy(alpha = 0.7f))
+            GiPageSection {
+                // 주의 문구는 맨 위 배너 하나로(9/30) — 흩어져 있던 세 문구를 합쳤다. iOS 와 같은 문구.
+                HoyolabNotice()
+                // 로그인으로 자동 가져오기 (WebView → 쿠키 추출) — 온보딩 ④와 같은 남색 히어로.
+                Row(
+                    Modifier.padding(top = 12.dp).fillMaxWidth().clip(RoundedCornerShape(20.dp))
+                        .background(Brush.linearGradient(listOf(Color(0xFF0F1A33), Color(0xFF23345C))))
+                        .clickable { showEmailGuide = true }.padding(horizontal = 18.dp, vertical = 16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(Modifier.weight(1f)) {
+                        Text(if (config.isLinked) "연동됨 · 다시 가져오기" else "로그인으로 자동 가져오기", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFF8FE3DA))
+                        Text("HoYoLAB 로그인", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                        Text("ltuid · ltoken · cookie_token · UID 를 자동 입력해요", fontSize = 11.5.sp, color = Color.White.copy(alpha = 0.7f))
+                    }
+                    Icon(Icons.AutoMirrored.Filled.Login, null, tint = Color.White, modifier = Modifier.size(22.dp))
                 }
-                Icon(Icons.AutoMirrored.Filled.Login, null, tint = Color.White, modifier = Modifier.size(22.dp))
+                collectedMsg?.let {
+                    Text(
+                        it, fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = Color(0xFF177881),
+                        modifier = Modifier.padding(top = 8.dp).fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Color(0xFFEEF8F8)).padding(horizontal = 14.dp, vertical = 11.dp),
+                    )
+                }
             }
-            collectedMsg?.let {
-                Text(
-                    it, fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = Color(0xFF177881),
-                    modifier = Modifier.padding(top = 8.dp).fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Color(0xFFEEF8F8)).padding(horizontal = 14.dp, vertical = 11.dp),
-                )
-            }
-
-            NotifyGroupTitle("계정 토큰", "직접 입력해도 돼요")
-            NotifyCard {
-                Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            GiBand()
+            GiPageSection {
+                // 섹션 제목 17 Bold + 보조 13 — iOS 와 같은 크기.
+                Row(Modifier.fillMaxWidth().padding(bottom = 12.dp)) {
+                    Text("계정 토큰", fontSize = 17.sp, fontWeight = FontWeight.Bold, color = TextPrimary, modifier = Modifier.alignByBaseline())
+                    Spacer(Modifier.width(6.dp))
+                    Text("직접 입력해도 돼요", fontSize = 13.sp, color = Color(0xFF7A8784), modifier = Modifier.alignByBaseline())
+                }
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     GldsTextField(ltuid, { ltuid = it }, label = "ltuid", modifier = Modifier.fillMaxWidth())
                     GldsTextField(ltoken, { ltoken = it }, label = "ltoken", modifier = Modifier.fillMaxWidth())
                     GldsTextField(cookieToken, { cookieToken = it }, label = "cookie_token (리딤코드 교환용·선택)", modifier = Modifier.fillMaxWidth())
                 }
             }
-            NotifyGroupTitle("게임 UID", "로그인하면 자동으로 채워져요")
-            NotifyCard {
-                Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            GiBand()
+            GiPageSection {
+                // 섹션 제목 17 Bold + 보조 13 — iOS 와 같은 크기.
+                Row(Modifier.fillMaxWidth().padding(bottom = 12.dp)) {
+                    Text("게임 UID", fontSize = 17.sp, fontWeight = FontWeight.Bold, color = TextPrimary, modifier = Modifier.alignByBaseline())
+                    Spacer(Modifier.width(6.dp))
+                    Text("로그인하면 자동으로 채워져요", fontSize = 13.sp, color = Color(0xFF7A8784), modifier = Modifier.alignByBaseline())
+                }
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     GldsTextField(gi, { gi = it }, label = "원신 UID", modifier = Modifier.fillMaxWidth())
                     GldsTextField(hsr, { hsr = it }, label = "스타레일 UID", modifier = Modifier.fillMaxWidth())
                     GldsTextField(zzz, { zzz = it }, label = "젠레스 UID", modifier = Modifier.fillMaxWidth())
                 }
             }
-            Spacer(Modifier.height(16.dp))
         }
         // 「저장」은 하단에 상시 고정 — 예산 관리와 같은 바(스크롤해도 늘 보인다). iOS 와 같은 자리.
         GldsButton(

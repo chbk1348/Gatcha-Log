@@ -26,6 +26,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -230,7 +231,7 @@ fun SettingsScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
             DataManagementScreen(viewModel, onBack = { showData.value = false })
         } else if (page == 1) {
             NotificationSettingsScreen(viewModel, onBack = { showNotif.value = false })
-        } else Box(Modifier.fillMaxSize()) {
+        } else Box(Modifier.fillMaxSize().background(Color.White)) {
         // 탭 페이지와 같은 구조 — 콘텐츠는 상태바 뒤까지 스크롤되고, 헤더는 그 위에 고정된다.
         // 스크롤 상태는 페이지 전환 **바깥**(settingsListState)에 있다 — 여기서 만들면 하위 페이지를 열 때마다
         // 버려져, 뒤로 돌아오면 맨 위에서 다시 시작했다(2026-09-28 지적).
@@ -241,40 +242,39 @@ fun SettingsScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
         LazyColumn(
             state = listState,
             // 하단바 미노출 페이지 — 바 높이 여백 대신 시스템 네비 인셋만 확보
-            modifier = Modifier.fillMaxSize().navigationBarsPadding().padding(horizontal = 16.dp),
-            contentPadding = PaddingValues(top = glgDetailContentTop(), bottom = 24.dp),
+            modifier = Modifier.fillMaxSize().navigationBarsPadding(),
+            contentPadding = PaddingValues(top = glgDetailContentTop(), bottom = 0.dp),
         ) {
 
-        // 설정 메인 개편(아티팩트 S0) — 알림 설정과 같은 결: 묶음 제목 + 흰 카드 + 색 아이콘 줄.
-        item { NotifyGroupTitle("알림", "받을 알림 · 방해 금지") }
+        // GLDS 2.0 — 카드를 걷고 화면 폭 섹션 + 회색 띠(마이페이지 3.0 과 같은 규격).
         item {
-            NotifyCard {
+            SetSection("알림", "받을 알림 · 방해 금지") {
                 SettingsNavRow(Icons.Default.Notifications, Tint.teal, "알림 설정", NotificationCatalog.enabledLabel(notifyOnCount)) { showNotif.value = true }
             }
         }
 
-        item { NotifyGroupTitle("내 게임 · 예산", "온보딩에서 고른 값과 같아요") }
+        band()
         item {
-            NotifyCard {
+            SetSection("내 게임 · 예산", "온보딩에서 고른 값과 같아요") {
                 SettingsNavRow(Icons.Default.SportsEsports, Tint.purple, "내 게임", myGamesLabel(myGames)) { showMyGames.value = true }
-                HorizontalDivider(color = RowDivider)
+                SetHair()
                 SettingsNavRow(Icons.Default.Savings, Tint.orange, "월 예산", if (budget > 0) won(budget) else "미설정") { showBudget.value = true }
-                HorizontalDivider(color = RowDivider)
+                SetHair()
                 NotifyRow(Icons.Default.Psychology, Tint.amber.first, Tint.amber.second, "과소비 예방 넛지", "예산 · 평소치를 넘으면 저장 전에 한 번 더 확인", nudgeOverspend) {
                     viewModel.setNudgeOverspend(it)
                 }
                 if (nudgeOverspend) {
-                    HorizontalDivider(color = RowDivider)
+                    SetHair()
                     SettingsNavRow(Icons.Default.PriceCheck, Tint.amber, "넛지 기준 금액", won(nudgeThreshold)) { showNudgeThreshold.value = true }
                 }
             }
         }
 
-        item { NotifyGroupTitle("연동 · 자동화", "HoYoLAB") }
+        band()
         item {
-            NotifyCard {
+            SetSection("연동 · 자동화", "HoYoLAB") {
                 SettingsNavRow(Icons.Default.Link, Tint.navy, "HoYoLAB 계정 연동", if (hoyolab.isLinked) "연동됨" else "미연동") { showHoyolab.value = true }
-                HorizontalDivider(color = RowDivider)
+                SetHair()
                 NotifyRow(
                     Icons.Default.EventAvailable, Tint.teal.first, Tint.teal.second, "자동 출석체크",
                     if (hoyolab.isLinked) "매일 자동으로 출석을 챙겨요 (켜면 지금 한 번 바로 시도)" else "HoYoLAB을 연동하면 사용할 수 있어요",
@@ -289,32 +289,31 @@ fun SettingsScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
                     }
                     viewModel.setAutoCheckIn(on)
                 }
-            }
-        }
-        // 배터리 최적화 상태 진단(자동 출석 ON 인데 화이트리스트 미등록이면 안내 + CTA)
-        item {
-            // batteryRefresh 를 키에 넣어야 허용하고 돌아왔을 때 다시 읽는다(위 DisposableEffect 참고).
-            val ignoring = remember(autoCheckIn, batteryRefresh) {
-                com.gatcha.log.data.BatteryOptimization.isIgnoring(context)
-            }
-            if (autoCheckIn && hoyolab.isLinked && !ignoring) {
-                WarnBanner(
-                    "배터리 최적화로 자동 출석이 막힐 수 있어요. 이 앱을 「제한 안함」으로 등록해 주세요.", "허용",
-                ) { (context as? android.app.Activity)?.let { com.gatcha.log.data.BatteryOptimization.request(it) } }
+                // 배터리 최적화 상태 진단(자동 출석 ON 인데 화이트리스트 미등록이면 안내 + CTA) — 섹션 안 맨 아래.
+                // batteryRefresh 를 키에 넣어야 허용하고 돌아왔을 때 다시 읽는다(위 DisposableEffect 참고).
+                val ignoring = remember(autoCheckIn, batteryRefresh) {
+                    com.gatcha.log.data.BatteryOptimization.isIgnoring(context)
+                }
+                if (autoCheckIn && hoyolab.isLinked && !ignoring) {
+                    WarnBanner(
+                        "배터리 최적화로 자동 출석이 막힐 수 있어요. 이 앱을 「제한 안함」으로 등록해 주세요.", "허용",
+                        Modifier.padding(horizontal = 20.dp),
+                    ) { (context as? android.app.Activity)?.let { com.gatcha.log.data.BatteryOptimization.request(it) } }
+                }
             }
         }
 
-        item { NotifyGroupTitle("화면", "표시 · 테마") }
+        band()
         item {
-            NotifyCard {
+            SetSection("화면", "표시 · 테마") {
                 NotifyRow(Icons.Default.ViewAgenda, Tint.slate.first, Tint.slate.second, "지출 내역 컴팩트 보기", "지출 목록을 한 줄로 빽빽하게 (태그 · 결제수단 숨김)", spendingCompact) {
                     viewModel.setSpendingCompact(it)
                 }
-                HorizontalDivider(color = RowDivider)
+                SetHair()
                 NotifyRow(Icons.Default.Bolt, Tint.pink.first, Tint.pink.second, "캐릭터 속성 연출", "캐릭터 상세에 들어갈 때 속성 효과를 한 번 재생", charElementFx) {
                     viewModel.setCharElementFx(it)
                 }
-                HorizontalDivider(color = RowDivider)
+                SetHair()
                 // 20색이 되어 카드 안 그리드로는 길어져 전용 페이지로 옮겼다.
                 SettingsNavRow(
                     Icons.Default.Palette, Tint.purple, "테마",
@@ -323,34 +322,34 @@ fun SettingsScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
             }
         }
 
-        item { NotifyGroupTitle("데이터", "백업 · 복원 · 초기화") }
+        band()
         item {
-            NotifyCard {
+            SetSection("데이터", "백업 · 복원 · 초기화") {
                 SettingsNavRow(Icons.Default.Storage, Tint.slate, "데이터 관리", "백업 · 복원 · 초기화") { showData.value = true }
             }
         }
 
-        // 개발자 메뉴 — **디버그 빌드에서만**. 릴리스에서는 이 블록 자체가 그려지지 않는다.
+        // 개발자 메뉴 — **디버그 빌드에서만**. 릴리스에서는 이 블록 자체(띠 포함)가 그려지지 않는다.
         if (BuildConfig.DEBUG) {
-            item { NotifyGroupTitle("개발자", "디버그 빌드 전용") }
+            band()
             item {
-                NotifyCard {
+                SetSection("개발자", "디버그 빌드 전용") {
                     SettingsNavRow(Icons.Default.BugReport, Tint.red, "개발자 메뉴", "상태 만들기 · 진단") { showDev.value = true }
                 }
             }
         }
 
-        item { NotifyGroupTitle("앱 정보", "v$versionName") }
+        band()
         item {
-            NotifyCard {
+            SetSection("앱 정보", "v$versionName") {
                 SettingsNavRow(Icons.Default.SystemUpdate, Tint.teal, "업데이트 확인", null) { viewModel.checkForUpdate(manual = true) }
-                HorizontalDivider(color = RowDivider)
+                SetHair()
                 SettingsNavRow(Icons.Default.NewReleases, Tint.blue, "업데이트 로그", null) { showUplog.value = true }
-                HorizontalDivider(color = RowDivider)
+                SetHair()
                 SettingsNavRow(Icons.Default.Copyright, Tint.slate, "출처 · 저작권", null) { showCredits.value = true }
-                HorizontalDivider(color = RowDivider)
+                SetHair()
                 SettingsNavRow(ImageVector.vectorResource(R.drawable.ic_github), Tint.navy, "GitHub", null) { openExternalLink(ctx, GITHUB_REPO_URL) }
-                HorizontalDivider(color = RowDivider)
+                SetHair()
                 SettingsNavRow(Icons.Default.Info, Tint.slate, "앱 버전", "v$versionName", trailing = { BuildVariantChip() }, chevron = false) {}
             }
         }
@@ -402,57 +401,48 @@ private fun DataManagementScreen(viewModel: SpendingViewModel, onBack: () -> Uni
     val scrolled by remember {
         derivedStateOf { listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 0 }
     }
-    Box(Modifier.fillMaxSize()) {
+    Box(Modifier.fillMaxSize().background(Color.White)) {
     LazyColumn(
         state = listState,
         // 하단바 미노출 페이지 — 바 높이 여백 대신 시스템 네비 인셋만 확보
-        modifier = Modifier.fillMaxSize().navigationBarsPadding().padding(horizontal = 16.dp),
+        modifier = Modifier.fillMaxSize().navigationBarsPadding(),
         contentPadding = PaddingValues(top = glgDetailContentTop(), bottom = 24.dp),
     ) {
 
-        // 설정 메인과 같은 결(9/29) — 묶음 제목 + 흰 카드 + 색 아이콘 줄.
+        // 설정 메인과 같은 결 — GLDS 2.0 화면 폭 섹션 + 회색 띠.
         // 백업·복원 — 데이터 보호가 가장 중요하므로 맨 위에 (재설치·기기 변경 대비)
-        item { NotifyGroupTitle("백업 · 복원", "재설치 · 기기 변경 대비") }
         item {
-            NotifyCard {
+            SetSection("백업 · 복원", "재설치 · 기기 변경 대비") {
                 SettingsNavRow(Icons.Default.Backup, Tint.teal, "백업 파일 내보내기", "전체 데이터") {
                     val date = java.text.SimpleDateFormat("yyyyMMdd", java.util.Locale.US).format(java.util.Date())
                     exportBackupLauncher.launch("gatchalog-backup-$date.json")
                 }
-                HorizontalDivider(color = RowDivider)
+                SetHair()
                 SettingsNavRow(Icons.Default.Restore, Tint.blue, "백업 파일에서 복원", null) { showImportBackup.value = true }
+                SetFootnote("구글 로그인 없이도 전체 데이터(가챠 기록 포함)를 파일로 저장해 두면, 앱을 재설치하거나 기기를 바꿔도 복원할 수 있어요.")
             }
-            Text(
-                "구글 로그인 없이도 전체 데이터(가챠 기록 포함)를 파일로 저장해 두면, 앱을 재설치하거나 기기를 바꿔도 복원할 수 있어요.",
-                fontSize = 11.5.sp, lineHeight = 17.sp, color = Color(0xFF7A8784),
-                modifier = Modifier.padding(top = 10.dp, start = 4.dp, end = 4.dp),
-            )
         }
 
-        item { NotifyGroupTitle("내보내기", "CSV") }
+        band()
         item {
-            NotifyCard {
+            SetSection("내보내기", "CSV") {
                 SettingsNavRow(Icons.Default.Download, Tint.slate, "지출 내역 내보내기", "CSV") { shareCsvFile(context, viewModel.buildCsv()) }
             }
         }
 
         // 위험 구역 — 되돌릴 수 없는 파괴 작업은 빨간 톤으로 시각 분리
-        item { NotifyGroupTitle("위험 구역", "되돌릴 수 없어요") }
+        band()
         item {
-            NotifyCard {
+            SetSection("위험 구역", "되돌릴 수 없어요") {
                 SettingsNavRow(Icons.Default.DeleteSweep, Tint.red, "가챠 기록 초기화", gachaStats?.let { "${it.total}건" } ?: "없음", titleColor = DangerRed) {
                     if (gachaStats != null) showClearGacha.value = true
                 }
-                HorizontalDivider(color = RowDivider)
+                SetHair()
                 SettingsNavRow(Icons.Default.DeleteForever, Tint.red, "지출 전체 삭제", "${spendings.size}건", titleColor = DangerRed) {
                     if (spendings.isNotEmpty()) showClearSpend.value = true
                 }
+                SetFootnote("되돌릴 수 없는 작업이에요. 먼저 위 ‘백업 파일 내보내기’로 백업을 권장해요.", DangerRed)
             }
-            Text(
-                "되돌릴 수 없는 작업이에요. 먼저 위 ‘백업 파일 내보내기’로 백업을 권장해요.",
-                fontSize = 11.5.sp, lineHeight = 17.sp, color = DangerRed,
-                modifier = Modifier.padding(top = 10.dp, start = 4.dp, end = 4.dp),
-            )
         }
     }
     GlgDetailHeaderOverlay("데이터 관리", onBack, scrolled)
@@ -579,11 +569,11 @@ private fun NotificationSettingsScreen(viewModel: SpendingViewModel, onBack: () 
     val scrolled by remember {
         derivedStateOf { listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 0 }
     }
-    Box(Modifier.fillMaxSize()) {
+    Box(Modifier.fillMaxSize().background(Color.White)) {
     LazyColumn(
         state = listState,
         // 하단바 미노출 페이지 — 바 높이 여백 대신 시스템 네비 인셋만 확보
-        modifier = Modifier.fillMaxSize().navigationBarsPadding().padding(horizontal = 16.dp),
+        modifier = Modifier.fillMaxSize().navigationBarsPadding(),
         contentPadding = PaddingValues(top = glgDetailContentTop(), bottom = 24.dp),
     ) {
 
@@ -616,58 +606,63 @@ private fun NotificationSettingsScreen(viewModel: SpendingViewModel, onBack: () 
 
         // 설정 ▸ 알림 설정 개편(아티팩트 S1) — 온보딩 ⑤와 같은 결: 미리보기 알림 + 묶음별 색 아이콘 줄 + 보내는 방식.
         // 보이는 항목만 센다 — 행사가 끝난 호요랜드는 목록에서 빠진다(NotificationCatalog.hoyolandAlertsActive).
-        item { NotifyPreviewCard(NotificationCatalog.enabledLabel(NotificationCatalog.items.count { notifyState[it.key] == true })) }
+        // 첫 섹션 — 미리보기 + 권한 안내(제목 없음 · 헤더 바로 아래라 띠도 없다).
         item {
-            // 토글은 켰는데 시스템 알림 권한이 꺼져 있으면 안내.
-            // **일곱 개 전부**를 본다 — 예전엔 앞 네 개만 봐서, 픽업·전투·정기결제·공지만 켠 사람에겐
-            // 권한이 막혀 있어도 배너가 뜨지 않았다.
-            val notifOn = notifyState.any { it.value }
-            val notifEnabled = remember(notifyBudget, notifyAttendance, notifyResin, permRefresh) {
-                com.gatcha.log.data.Notifier.notificationsEnabled()
-            }
-            // OS 프롬프트를 아직 띄울 수 있는가 — 띄울 수 있으면 시스템 설정으로 보내지 말고 바로 권한을 요청한다.
-            //
-            // shouldShowRequestPermissionRationale 은 "한 번도 안 물어봄"과 "두 번 거부해서 영구 차단"을
-            // 똑같이 false 로 답한다. notifPermAsked(프롬프트를 실제로 띄운 적 있는지)로 둘을 가른다.
-            // 영구 거부·앱 알림 자체가 꺼진 경우엔 프롬프트가 아예 안 뜨므로 시스템 설정 말고는 방법이 없다.
-            val canPromptNotifPerm = remember(permRefresh) {
-                Build.VERSION.SDK_INT >= 33 && (
-                    !AppSettings().notifPermAsked ||
-                        (activity != null && ActivityCompat.shouldShowRequestPermissionRationale(
-                            activity, android.Manifest.permission.POST_NOTIFICATIONS,
-                        ))
-                    )
-            }
-            if (notifOn && !notifEnabled) {
-                Row(
-                    Modifier.padding(top = 12.dp).fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Color(0xFFFFF4E8))
-                        .border(1.dp, Color(0xFFFED7AA), RoundedCornerShape(14.dp)).padding(horizontal = 14.dp, vertical = 11.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Icon(Icons.Default.WarningAmber, null, tint = NotifyWarn, modifier = Modifier.size(16.dp))
-                    Spacer(Modifier.width(10.dp))
-                    Text(
-                        if (canPromptNotifPerm) "알림 권한이 꺼져 있어요. 허용해야 알림이 와요."
-                        else "권한이 막혀 있어 알림이 표시되지 않아요. 시스템 설정에서 켜 주세요.",
-                        fontSize = 12.5.sp, lineHeight = 18.sp, color = Color(0xFF9A3412), modifier = Modifier.weight(1f),
-                    )
-                    Spacer(Modifier.width(8.dp))
-                    Text(
-                        if (canPromptNotifPerm) "허용" else "설정", fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = Color.White,
-                        modifier = Modifier.clip(RoundedCornerShape(15.dp)).background(NotifyWarn)
-                            .clickable { if (canPromptNotifPerm) ensureNotifPermForAll() else openAppNotificationSettings(context) }
-                            .padding(horizontal = 12.dp, vertical = 6.dp),
-                    )
+            Column(Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 22.dp, bottom = 20.dp)) {
+                NotifyPreviewCard(NotificationCatalog.enabledLabel(NotificationCatalog.items.count { notifyState[it.key] == true }))
+                // 토글은 켰는데 시스템 알림 권한이 꺼져 있으면 안내.
+                // **일곱 개 전부**를 본다 — 예전엔 앞 네 개만 봐서, 픽업·전투·정기결제·공지만 켠 사람에겐
+                // 권한이 막혀 있어도 배너가 뜨지 않았다.
+                val notifOn = notifyState.any { it.value }
+                val notifEnabled = remember(notifyBudget, notifyAttendance, notifyResin, permRefresh) {
+                    com.gatcha.log.data.Notifier.notificationsEnabled()
+                }
+                // OS 프롬프트를 아직 띄울 수 있는가 — 띄울 수 있으면 시스템 설정으로 보내지 말고 바로 권한을 요청한다.
+                //
+                // shouldShowRequestPermissionRationale 은 "한 번도 안 물어봄"과 "두 번 거부해서 영구 차단"을
+                // 똑같이 false 로 답한다. notifPermAsked(프롬프트를 실제로 띄운 적 있는지)로 둘을 가른다.
+                // 영구 거부·앱 알림 자체가 꺼진 경우엔 프롬프트가 아예 안 뜨므로 시스템 설정 말고는 방법이 없다.
+                val canPromptNotifPerm = remember(permRefresh) {
+                    Build.VERSION.SDK_INT >= 33 && (
+                        !AppSettings().notifPermAsked ||
+                            (activity != null && ActivityCompat.shouldShowRequestPermissionRationale(
+                                activity, android.Manifest.permission.POST_NOTIFICATIONS,
+                            ))
+                        )
+                }
+                if (notifOn && !notifEnabled) {
+                    Row(
+                        Modifier.padding(top = 12.dp).fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Color(0xFFFFF4E8))
+                            .border(1.dp, Color(0xFFFED7AA), RoundedCornerShape(14.dp)).padding(horizontal = 14.dp, vertical = 11.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Icon(Icons.Default.WarningAmber, null, tint = NotifyWarn, modifier = Modifier.size(16.dp))
+                        Spacer(Modifier.width(10.dp))
+                        Text(
+                            if (canPromptNotifPerm) "알림 권한이 꺼져 있어요. 허용해야 알림이 와요."
+                            else "권한이 막혀 있어 알림이 표시되지 않아요. 시스템 설정에서 켜 주세요.",
+                            fontSize = 12.5.sp, lineHeight = 18.sp, color = Color(0xFF9A3412), modifier = Modifier.weight(1f),
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            if (canPromptNotifPerm) "허용" else "설정", fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = Color.White,
+                            modifier = Modifier.clip(RoundedCornerShape(15.dp)).background(NotifyWarn)
+                                .clickable { if (canPromptNotifPerm) ensureNotifPermForAll() else openAppNotificationSettings(context) }
+                                .padding(horizontal = 12.dp, vertical = 6.dp),
+                        )
+                    }
                 }
             }
         }
         NotificationCatalog.groups.forEach { group ->
             val groupItems = NotificationCatalog.itemsIn(group)
-            item { NotifyGroupTitle(group.title, group.caption) }
+            // 빈 묶음은 띠째 뺀다 — 띠만 남지 않게.
+            if (groupItems.isEmpty()) return@forEach
+            band()
             item {
-                NotifyCard {
+                SetSection(group.title, group.caption) {
                     groupItems.forEachIndexed { i, entry ->
-                        if (i > 0) HorizontalDivider(color = Color(0xFFF0F3F2))
+                        if (i > 0) SetHair()
                         val (fg, bg) = notifyTint(entry.key)
                         NotifyRow(notifyIcon(entry.key), fg, bg, entry.title, entry.desc, notifyState[entry.key] == true) { on -> setNotify(entry.key, on) }
                     }
@@ -676,18 +671,19 @@ private fun NotificationSettingsScreen(viewModel: SpendingViewModel, onBack: () 
         }
 
         // 보내는 방식 — 방해금지(시간대 억제). 데일리 요약은 9/29 제거.
-        item { NotifyGroupTitle("보내는 방식", "언제 · 어떻게") }
+        band()
         item {
-            NotifyCard {
+            SetSection("보내는 방식", "언제 · 어떻게") {
                 NotifyRow(Icons.Default.Bedtime, Color(0xFF4F5C59), Color(0xFFF5F8F8), "방해 금지 시간", "이 시간대엔 알림을 보내지 않아요", notifyDndEnabled) {
                     viewModel.setNotifyDndEnabled(it)
                 }
                 if (notifyDndEnabled) {
-                    Row(Modifier.padding(start = 60.dp, end = 14.dp, bottom = 14.dp), verticalAlignment = Alignment.CenterVertically) {
+                    // 시작 = 행 여백 20 + 아이콘 34 + 간격 12 — 제목 글자선에 맞춘다.
+                    Row(Modifier.padding(start = 66.dp, end = 20.dp, bottom = 12.dp), verticalAlignment = Alignment.CenterVertically) {
                         TimePill(hourLabel(notifyDndStartHour)) { showDndStartPicker.value = true }
                         Text("~", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color(0xFF7A8784), modifier = Modifier.padding(horizontal = 8.dp))
                         TimePill(hourLabel(notifyDndEndHour)) { showDndEndPicker.value = true }
-                        Text("기기 시각", fontSize = 11.5.sp, color = Color(0xFF7A8784), modifier = Modifier.padding(start = 10.dp))
+                        Text("기기 시각", fontSize = 12.sp, color = Color(0xFF7A8784), modifier = Modifier.padding(start = 10.dp))
                     }
                 }
             }
@@ -709,7 +705,49 @@ private fun NotificationSettingsScreen(viewModel: SpendingViewModel, onBack: () 
 }
 
 private val NotifyWarn = Color(0xFFC2410C)
+/** 개발자 화면(DeveloperScreen)이 같이 쓴다. */
 internal val RowDivider = Color(0xFFF0F3F2)
+
+// ============================================================
+//  GLDS 2.0 카드 없는 레이아웃 — 마이페이지 3.0 과 같은 규격
+//  섹션: 위 22 · 아래 20 · 좌우 20 / 섹션 사이 10dp 회색 띠 / 줄 사이 1dp 헤어라인
+//  줄(SettingsNavRow · NotifyRow)은 좌우 20 을 스스로 가져 누르는 면이 화면 폭 전체가 된다.
+// ============================================================
+
+private val SetBandColor = Color(0xFFF2F4F6)
+private val SetHairColor = Color(0xFFEEF0F2)
+
+private fun LazyListScope.band() = item { Box(Modifier.fillMaxWidth().height(10.dp).background(SetBandColor)) }
+
+/** 화면 폭 섹션 — 제목 17 Bold + 오른쪽 보조 문구 13. */
+@Composable
+private fun SetSection(title: String, caption: String? = null, content: @Composable ColumnScope.() -> Unit) {
+    Column(Modifier.fillMaxWidth().padding(top = 22.dp, bottom = 20.dp)) {
+        Row(
+            Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, bottom = 14.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(title, fontSize = 17.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+            caption?.let { Text(it, fontSize = 13.sp, color = TextSecondary, modifier = Modifier.padding(start = 8.dp)) }
+        }
+        content()
+    }
+}
+
+@Composable
+private fun SetHair() {
+    Box(Modifier.padding(horizontal = 20.dp).fillMaxWidth().height(1.dp).background(SetHairColor))
+}
+
+/** 섹션 안 맨 아래 보조 문구 — 12. */
+@Composable
+private fun SetFootnote(text: String, color: Color = Color(0xFF7A8784), top: androidx.compose.ui.unit.Dp = 10.dp) {
+    Text(
+        text, fontSize = 12.sp, lineHeight = 17.sp, color = color,
+        modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = top),
+    )
+}
 
 /** 설정 줄 아이콘 색 짝(글자색, 옅은 바탕) — 아티팩트 S0 · S1. */
 internal object Tint {
@@ -741,14 +779,14 @@ private fun SettingsNavRow(
     trailing: (@Composable () -> Unit)? = null, chevron: Boolean = true, titleColor: Color = TextPrimary, onClick: () -> Unit,
 ) {
     Row(
-        Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 14.dp, vertical = 12.dp),
+        Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 20.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(Modifier.size(34.dp).clip(RoundedCornerShape(11.dp)).background(tint.second), contentAlignment = Alignment.Center) {
             Icon(icon, null, tint = tint.first, modifier = Modifier.size(18.dp))
         }
         Spacer(Modifier.width(12.dp))
-        Text(title, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = titleColor, modifier = Modifier.weight(1f))
+        Text(title, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = titleColor, modifier = Modifier.weight(1f))
         value?.let { Text(it, fontSize = 12.5.sp, color = TextSecondary) }
         trailing?.let { Spacer(Modifier.width(6.dp)); it() }
         if (chevron) {
@@ -760,9 +798,9 @@ private fun SettingsNavRow(
 
 /** 주황 안내 띠 + 버튼 — 권한 · 배터리 최적화 경고 공용. */
 @Composable
-private fun WarnBanner(text: String, action: String, onAction: () -> Unit) {
+private fun WarnBanner(text: String, action: String, modifier: Modifier = Modifier, onAction: () -> Unit) {
     Row(
-        Modifier.padding(top = 10.dp).fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Color(0xFFFFF4E8))
+        modifier.padding(top = 10.dp).fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Color(0xFFFFF4E8))
             .border(1.dp, Color(0xFFFED7AA), RoundedCornerShape(14.dp)).padding(horizontal = 14.dp, vertical = 11.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -804,23 +842,28 @@ internal fun BudgetScreen(
             state = listState,
             // 목록은 **하단 고정 버튼 위에서 끝난다**(50 + 위아래 18 = 68) — 버튼 밑까지 두면 포커스된
             // 한도 칸이 버튼에 가렸다(9/30). 키보드 여백은 앱 루트 imePadding 이 준다.
-            modifier = Modifier.fillMaxSize().navigationBarsPadding().padding(bottom = 68.dp).padding(horizontal = 16.dp),
+            modifier = Modifier.fillMaxSize().navigationBarsPadding().padding(bottom = 68.dp),
             contentPadding = PaddingValues(top = glgDetailContentTop(), bottom = 16.dp),
         ) {
-            item { com.gatcha.log.ui.onboarding.BudgetAmountEditor(amount, custom) { v: Long, c: Boolean -> amount = v; custom = c } }
-            item { NotifyGroupTitle("게임별 한도", "선택 · 비워 두면 한도 없음") }
+            // 금액 편집기는 입력 컨트롤(온보딩 ③ 공용)이라 그대로 두고, 섹션 여백만 준다.
             item {
-                NotifyCard {
+                Box(Modifier.padding(start = 20.dp, end = 20.dp, top = 22.dp, bottom = 20.dp)) {
+                    com.gatcha.log.ui.onboarding.BudgetAmountEditor(amount, custom) { v: Long, c: Boolean -> amount = v; custom = c }
+                }
+            }
+            band()
+            item {
+                SetSection("게임별 한도", "선택 · 비워 두면 한도 없음") {
                     order.forEachIndexed { i, g ->
-                        if (i > 0) HorizontalDivider(color = RowDivider)
+                        if (i > 0) SetHair()
                         val spent = monthlyTotals[g.key] ?: 0L
                         val limit = limits[g.key] ?: 0L
                         val over = limit > 0 && spent > limit
-                        Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 11.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 11.dp), verticalAlignment = Alignment.CenterVertically) {
                             Box(Modifier.size(10.dp).clip(CircleShape).background(Color(g.color)))
                             Spacer(Modifier.width(12.dp))
                             Column(Modifier.weight(1f)) {
-                                Text(g.displayName, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+                                Text(g.displayName, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
                                 Text(
                                     "이번 달 ${won(spent)}" + if (over) " · 한도 초과" else "",
                                     fontSize = 12.sp, color = if (over) NotifyWarn else TextSecondary,
@@ -841,11 +884,8 @@ internal fun BudgetScreen(
                             )
                         }
                     }
+                    SetFootnote("내 게임이 위에 와요. 이번 달 사용액이 한도를 넘으면 주황으로 표시돼요.")
                 }
-                Text(
-                    "내 게임이 위에 와요. 이번 달 사용액이 한도를 넘으면 주황으로 표시돼요.",
-                    fontSize = 11.5.sp, lineHeight = 17.sp, color = Color(0xFF7A8784), modifier = Modifier.padding(top = 10.dp, start = 4.dp, end = 4.dp),
-                )
             }
         }
         // 「월 예산 끄기」 · 「저장」은 하단에 상시 고정(9/29), **좌우로 나눈다**(9/30 — 보조 1 : 주 1.4, 다이얼로그 짝과 같다).
@@ -872,10 +912,10 @@ internal fun BudgetScreen(
 private fun MyGamesScreen(myGames: Set<String>, onToggle: (String) -> Unit, onBack: () -> Unit) {
     val listState = rememberLazyListState()
     val scrolled by remember { derivedStateOf { listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 0 } }
-    Box(Modifier.fillMaxSize()) {
+    Box(Modifier.fillMaxSize().background(Color.White)) {
         LazyColumn(
             state = listState,
-            modifier = Modifier.fillMaxSize().navigationBarsPadding().padding(horizontal = 16.dp),
+            modifier = Modifier.fillMaxSize().navigationBarsPadding().padding(horizontal = 20.dp),
             contentPadding = PaddingValues(top = glgDetailContentTop(), bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
@@ -931,7 +971,7 @@ private fun notifyTint(key: NotifyKey): Pair<Color, Color> = when (key) {
 @Composable
 private fun NotifyPreviewCard(status: String) {
     Column(
-        Modifier.padding(top = 4.dp).fillMaxWidth().clip(RoundedCornerShape(20.dp))
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp))
             .background(Brush.linearGradient(listOf(Color(0xFFEEF8F8), Color(0xFFDCF0EE))))
             .padding(start = 16.dp, end = 16.dp, top = 14.dp, bottom = 18.dp),
     ) {
@@ -985,7 +1025,7 @@ internal fun NotifyCard(content: @Composable ColumnScope.() -> Unit) {
 @Composable
 private fun NotifyRow(icon: ImageVector, fg: Color, bg: Color, title: String, desc: String, checked: Boolean, onToggle: (Boolean) -> Unit) {
     Row(
-        Modifier.fillMaxWidth().clickable { onToggle(!checked) }.padding(horizontal = 14.dp, vertical = 12.dp),
+        Modifier.fillMaxWidth().clickable { onToggle(!checked) }.padding(horizontal = 20.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(Modifier.size(34.dp).clip(RoundedCornerShape(11.dp)).background(bg), contentAlignment = Alignment.Center) {
@@ -993,7 +1033,7 @@ private fun NotifyRow(icon: ImageVector, fg: Color, bg: Color, title: String, de
         }
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
-            Text(title, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+            Text(title, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
             Text(desc, fontSize = 12.sp, color = TextSecondary)
         }
         Spacer(Modifier.width(8.dp))
@@ -1038,62 +1078,57 @@ private fun ThemeScreen(accentIndex: Int, onSelect: (Int) -> Unit, onBack: () ->
     val scrolled by remember {
         derivedStateOf { listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 0 }
     }
-    Box(Modifier.fillMaxSize()) {
+    Box(Modifier.fillMaxSize().background(Color.White)) {
     LazyColumn(
         state = listState,
-        modifier = Modifier.fillMaxSize().navigationBarsPadding().padding(horizontal = 16.dp),
+        modifier = Modifier.fillMaxSize().navigationBarsPadding(),
         contentPadding = PaddingValues(top = glgDetailContentTop(), bottom = 24.dp),
     ) {
         // 미리보기 — 금액(deep) · 게이지(main) · 칩(옅은 면) · 버튼 쌍. 누르는 곳이 아니라 보여주는 곳이다.
         item {
-            NotifyCard {
-                Column(Modifier.padding(16.dp)) {
-                    Text("미리보기 · ${current.label}", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextSecondary)
-                    Spacer(Modifier.height(4.dp))
-                    Text("428,000원", fontSize = 26.sp, fontWeight = FontWeight.Black, color = deep)
-                    Spacer(Modifier.height(10.dp))
-                    Box(Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(99.dp)).background(Color(0xFFEEEFF3))) {
-                        Box(Modifier.fillMaxWidth(0.62f).fillMaxHeight().clip(RoundedCornerShape(99.dp)).background(accent))
+            Column(Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 22.dp, bottom = 20.dp)) {
+                Text("미리보기 · ${current.label}", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextSecondary)
+                Spacer(Modifier.height(4.dp))
+                Text("428,000원", fontSize = 26.sp, fontWeight = FontWeight.Black, color = deep)
+                Spacer(Modifier.height(10.dp))
+                Box(Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(99.dp)).background(Color(0xFFEEEFF3))) {
+                    Box(Modifier.fillMaxWidth(0.62f).fillMaxHeight().clip(RoundedCornerShape(99.dp)).background(accent))
+                }
+                Spacer(Modifier.height(12.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    listOf("전체", "원신", "스타레일").forEachIndexed { i, label ->
+                        val on = i == 0
+                        Text(
+                            label, fontSize = 11.sp, fontWeight = FontWeight.Bold,
+                            color = if (on) deep else TextSecondary,
+                            modifier = Modifier.clip(RoundedCornerShape(99.dp))
+                                .background(if (on) accent.copy(alpha = 0.14f) else Color(0xFFF4F5F8))
+                                .padding(horizontal = 10.dp, vertical = 5.dp),
+                        )
                     }
-                    Spacer(Modifier.height(12.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        listOf("전체", "원신", "스타레일").forEachIndexed { i, label ->
-                            val on = i == 0
-                            Text(
-                                label, fontSize = 11.sp, fontWeight = FontWeight.Bold,
-                                color = if (on) deep else TextSecondary,
-                                modifier = Modifier.clip(RoundedCornerShape(99.dp))
-                                    .background(if (on) accent.copy(alpha = 0.14f) else Color(0xFFF4F5F8))
-                                    .padding(horizontal = 10.dp, vertical = 5.dp),
-                            )
-                        }
-                    }
-                    Spacer(Modifier.height(12.dp))
-                    // 문구는 버튼 이름이 아니라 모양 이름이다 — 「취소 · 저장하기」는 테마를 저장·되돌리는
-                    // 진짜 버튼으로 읽혔다(2026-09-21 지적).
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        GldsButton("보조 버튼", {}, Modifier.weight(1f), variant = GldsVariant.Secondary)
-                        GldsButton("강조 버튼", {}, Modifier.weight(1f))
-                    }
+                }
+                Spacer(Modifier.height(12.dp))
+                // 문구는 버튼 이름이 아니라 모양 이름이다 — 「취소 · 저장하기」는 테마를 저장·되돌리는
+                // 진짜 버튼으로 읽혔다(2026-09-21 지적).
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    GldsButton("보조 버튼", {}, Modifier.weight(1f), variant = GldsVariant.Secondary)
+                    GldsButton("강조 버튼", {}, Modifier.weight(1f))
                 }
             }
         }
-        item { NotifyGroupTitle("선명", "${ACCENT_VIVID_COUNT}색") }
+        // 그리드 자체 여백(좌우 16)에 4 를 더해 섹션 좌우 20 에 맞춘다.
+        band()
         item {
-            NotifyCard {
-                ThemeColorGrid(accentIndex, 0 until ACCENT_VIVID_COUNT, onSelect)
+            SetSection("선명", "${ACCENT_VIVID_COUNT}색") {
+                Box(Modifier.padding(horizontal = 4.dp)) { ThemeColorGrid(accentIndex, 0 until ACCENT_VIVID_COUNT, onSelect) }
             }
         }
-        item { NotifyGroupTitle("차분", "${AccentPalette.size - ACCENT_VIVID_COUNT}색") }
+        band()
         item {
-            NotifyCard {
-                ThemeColorGrid(accentIndex, ACCENT_VIVID_COUNT until AccentPalette.size, onSelect)
+            SetSection("차분", "${AccentPalette.size - ACCENT_VIVID_COUNT}색") {
+                Box(Modifier.padding(horizontal = 4.dp)) { ThemeColorGrid(accentIndex, ACCENT_VIVID_COUNT until AccentPalette.size, onSelect) }
+                SetFootnote("두 벌은 같은 색조 · 다른 채도예요. 게임별 색상과 속성 연출은 테마와 상관없이 그대로예요.", TextSecondary, top = 0.dp)
             }
-            Text(
-                "두 벌은 같은 색조 · 다른 채도예요. 게임별 색상과 속성 연출은 테마와 상관없이 그대로예요.",
-                fontSize = 11.sp, color = TextSecondary,
-                modifier = Modifier.padding(top = 8.dp, start = 4.dp, end = 4.dp),
-            )
         }
     }
     GlgDetailHeaderOverlay("테마", onBack, scrolled)

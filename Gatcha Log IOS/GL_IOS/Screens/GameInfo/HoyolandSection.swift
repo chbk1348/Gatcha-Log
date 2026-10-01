@@ -1500,6 +1500,8 @@ struct HoyolandHomeCard: View {
                 }
                 .padding(.horizontal, 16).padding(.vertical, 14)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+                // 흰 홈 바탕(10/1)과 구분되게 강조색을 옅게 깐다 — 흰 면이면 표 몸통이 바탕에 묻힌다.
+                .background(deep.opacity(0.08))
                 .background(Color.white)
                 HoyolandTicketStub(cap: count.cap, big: count.big, deep: deep)
             }

@@ -22,8 +22,6 @@ struct HeroBalanceCard: View {
     /// 상단 안전영역(상태바+내비바) 높이 — 그라데이션은 이 위(헤더 뒤)까지 채우고, 안쪽 콘텐츠는 이만큼 내려
     /// 시스템 툴바(프로필·알림)와 겹치지 않게 한다.
     var topPad: CGFloat = 0
-    /// 그라데이션 배경 사용 여부 — iPad(분할뷰 detail)에서는 흰 헤더바 문제로 그라데이션을 끈다.
-    var showGradient: Bool = true
     @Environment(\.glgAccent) private var accent
     @State private var page = 0
 
@@ -50,17 +48,6 @@ struct HeroBalanceCard: View {
         .padding(.top, topPad + 8)   // 콘텐츠를 상태바+내비바 아래로 내림(그라데이션은 그 위까지 채움)
         .padding(.bottom, 26)
         .frame(maxWidth: .infinity)
-        // 풀블리드 — 좌우 화면 끝까지 + 위쪽은 상태바/헤더 뒤까지 채우고, 하단만 라운드.
-        .background(alignment: .top) {
-            if showGradient {
-                LinearGradient(colors: [accent.secondary.opacity(0.45), accent.secondary.opacity(0.04)],
-                               startPoint: .top, endPoint: .bottom)
-                    .clipShape(UnevenRoundedRectangle(bottomLeadingRadius: 30, bottomTrailingRadius: 30, style: .continuous))
-                    // 옆으로도 끝까지 — 펼친 iPhone Duo 는 상태바·탭바가 오른쪽에 서서,
-                    // 위만 무시하면 그 바 뒤가 흰 면으로 남는다(2026-09-21 지적).
-                    .ignoresSafeArea(edges: [.top, .horizontal])
-            }
-        }
     }
 
     // 페이지 1 — 이번 달 지출 + 지난달 대비 + 예산 관리 버튼
@@ -172,20 +159,6 @@ private struct RecentSpendRow: View {
             Text(won(spending.amount)).font(.pretendard(size: 15, weight: .bold)).foregroundStyle(GLGColor.textPrimary).lineLimit(1)
         }
         .padding(.vertical, 12)
-    }
-}
-
-/// 히어로 상단 고정 그라데이션. 하단은 완전 투명으로 페이드해 흰 배경과 경계가 없다.
-/// 떠다니던 글로우(블러 원) 애니메이션은 걷었다(10/1) — 카드를 걷은 화면에서 섹션 · 띠와 겹쳐 어색했다.
-struct AmbientHeroGradient: View {
-    let secondary: Color
-
-    var body: some View {
-        LinearGradient(stops: [
-            .init(color: secondary.opacity(0.45), location: 0.0),
-            .init(color: secondary.opacity(0.14), location: 0.62),
-            .init(color: secondary.opacity(0.0),  location: 1.0)
-        ], startPoint: .top, endPoint: .bottom)
     }
 }
 
