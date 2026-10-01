@@ -175,50 +175,17 @@ private struct RecentSpendRow: View {
     }
 }
 
-/// 히어로 상단 고정 그라데이션 + 은은하게 떠다니는 글로우(느린 좌우 드리프트).
-/// 동작 줄이기(Reduce Motion)가 켜져 있으면 애니메이션 없이 정적으로 표시한다.
+/// 히어로 상단 고정 그라데이션. 하단은 완전 투명으로 페이드해 흰 배경과 경계가 없다.
+/// 떠다니던 글로우(블러 원) 애니메이션은 걷었다(10/1) — 카드를 걷은 화면에서 섹션 · 띠와 겹쳐 어색했다.
 struct AmbientHeroGradient: View {
     let secondary: Color
-    let primary: Color
-    /// 설정에서 끌 수 있다 — 끄면 그라데이션만 남기고 움직이는 글로우 원을 아예 안 그린다.
-    var glow: Bool = true
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    /// 앱이 백그라운드/비활성일 때는 애니메이션을 멈춘다.
-    ///
-    /// 240pt 원에 `blur(radius: 56)` 를 먹인 뒤 5초 주기로 무한 반복하는 구조라, 프레임마다 가우시안
-    /// 블러를 다시 그리는 것과 같다. 홈 뷰는 탭을 옮겨도 살아 있으므로 예전엔 앱이 켜져 있는 내내 돌았다.
-    /// **보일 때의 모습은 그대로 두고**, 화면에 없거나 앱이 내려가 있을 때만 멈춘다.
-    @Environment(\.scenePhase) private var scenePhase
-    @State private var drift = false
-    @State private var onScreen = false
 
     var body: some View {
-        ZStack(alignment: .top) {
-            // 아래로 갈수록 완전 투명으로 페이드(흰 배경과 경계 없음)
-            LinearGradient(stops: [
-                .init(color: secondary.opacity(0.45), location: 0.0),
-                .init(color: secondary.opacity(0.14), location: 0.62),
-                .init(color: secondary.opacity(0.0),  location: 1.0)
-            ], startPoint: .top, endPoint: .bottom)
-
-            // 은은한 글로우 — 흐릿한 원이 상단에서 좌우로 천천히 떠다닌다.
-            if glow {
-                Circle()
-                    .fill(primary.opacity(0.16))
-                    .frame(width: 240, height: 240)
-                    .blur(radius: 56)
-                    .offset(x: drift ? 84 : -84, y: 66)
-                    .animation(animating ? .easeInOut(duration: 5).repeatForever(autoreverses: true) : nil, value: drift)
-            }
-        }
-        // 블러 원을 별도 레이어로 굽는다 — 매 프레임 합성 대신 래스터를 옮기는 형태가 된다.
-        .drawingGroup()
-        .onAppear { onScreen = true; drift = true }
-        .onDisappear { onScreen = false }
-    }
-
-    private var animating: Bool {
-        !reduceMotion && onScreen && scenePhase == .active
+        LinearGradient(stops: [
+            .init(color: secondary.opacity(0.45), location: 0.0),
+            .init(color: secondary.opacity(0.14), location: 0.62),
+            .init(color: secondary.opacity(0.0),  location: 1.0)
+        ], startPoint: .top, endPoint: .bottom)
     }
 }
 

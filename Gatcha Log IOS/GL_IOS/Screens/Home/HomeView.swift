@@ -54,12 +54,12 @@ struct HomeView: View {
         // 하단은 라운드 클립 대신 '완전 투명'으로 페이드해 흰 배경과의 경계선을 없앤다(부드럽게 사라짐).
         .background(alignment: .top) {
             if !isWide {
-                AmbientHeroGradient(secondary: accent.secondary, primary: accent.primary, glow: store.heroGlow)
+                AmbientHeroGradient(secondary: accent.secondary)
                     // 위쪽 안전영역은 상태바 높이지만, **바가 옆에 서는 기기**(펼친 iPhone Duo)에서는
                     // 그 값이 거의 0 이고 대신 가로 안전영역이 생긴다. 높이는 둘 중 큰 쪽으로 잡아
                     // 어느 쪽에 바가 서든 그라데이션이 바 뒤까지 올라간다.
                     .frame(height: max(geo.safeAreaInsets.top, geo.safeAreaInsets.trailing) + 254)
-                    .clipped()   // 글로우가 그라데이션 영역 밖(흰 콘텐츠)으로 새지 않게
+                    .clipped()
                     // 가로도 함께 무시한다 — 세로로 선 상태바·탭바 뒤가 흰 면으로 남아 히어로가
                     // 오른쪽에서 잘려 보였다(2026-09-21 듀오 지적).
                     .ignoresSafeArea(edges: [.top, .horizontal])
@@ -246,7 +246,7 @@ struct HomeView: View {
         content()
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 20).padding(.top, 22).padding(.bottom, 20)
-            // 흰 면 — 히어로 그라데이션 · 글로우가 고정 배경이라, 투명하면 섹션 · 띠 뒤로 비친다(10/1).
+            // 흰 면 — 히어로 그라데이션이 고정 배경이라, 투명하면 섹션 · 띠 뒤로 비친다(10/1).
             .background(Color.white)
     }
 

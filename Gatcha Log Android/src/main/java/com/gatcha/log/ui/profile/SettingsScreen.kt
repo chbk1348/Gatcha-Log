@@ -105,7 +105,6 @@ fun SettingsScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
     val nudgeOverspend by viewModel.nudgeOverspend.collectAsStateWithLifecycle()
     val nudgeThreshold by viewModel.nudgeThreshold.collectAsStateWithLifecycle()
     val spendingCompact by viewModel.spendingCompact.collectAsStateWithLifecycle()
-    val heroGlow by viewModel.heroGlow.collectAsStateWithLifecycle()
     val charElementFx by viewModel.charElementFx.collectAsStateWithLifecycle()
     val myGames by viewModel.myGames.collectAsStateWithLifecycle()
     // 알림 설정 줄 옆 「7개 중 N개 켜짐」
@@ -314,10 +313,6 @@ fun SettingsScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
                 HorizontalDivider(color = RowDivider)
                 NotifyRow(Icons.Default.Bolt, Tint.pink.first, Tint.pink.second, "캐릭터 속성 연출", "캐릭터 상세에 들어갈 때 속성 효과를 한 번 재생", charElementFx) {
                     viewModel.setCharElementFx(it)
-                }
-                HorizontalDivider(color = RowDivider)
-                NotifyRow(Icons.Default.AutoAwesome, Tint.blue.first, Tint.blue.second, "홈 히어로 글로우", "홈 상단에서 은은하게 떠다니는 빛 효과", heroGlow) {
-                    viewModel.setHeroGlow(it)
                 }
                 HorizontalDivider(color = RowDivider)
                 // 20색이 되어 카드 안 그리드로는 길어져 전용 페이지로 옮겼다.

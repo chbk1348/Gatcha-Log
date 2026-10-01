@@ -309,10 +309,6 @@ class SpendingViewModel : ViewModel() {
     val collabBannerExpanded: StateFlow<Boolean> = _collabBannerExpanded.asStateFlow()
     fun setCollabBannerExpanded(v: Boolean) { appSettings.collabBannerExpanded = v; _collabBannerExpanded.value = v }
 
-    /** 홈 히어로 글로우 애니메이션 사용 여부 — 끄면 그라데이션은 그대로, 움직이는 글로우만 사라진다. */
-    private val _heroGlow = MutableStateFlow(appSettings.heroGlow)
-    val heroGlow: StateFlow<Boolean> = _heroGlow.asStateFlow()
-    fun setHeroGlow(v: Boolean) { appSettings.heroGlow = v; _heroGlow.value = v }
 
     /**
      * N6 과소비 넛지 판정 — 지출 저장 직전 호출. 경고가 필요하면 메시지, 아니면 null.

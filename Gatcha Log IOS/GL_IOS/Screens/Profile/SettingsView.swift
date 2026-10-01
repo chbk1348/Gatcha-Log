@@ -147,10 +147,6 @@ struct SettingsView: View {
                          desc: "캐릭터 상세에 들어갈 때 속성 효과를 한 번 재생",
                          isOn: bind(\.charElementFx, store.setCharElementFx))
             SetDivider()
-            SetToggleRow(symbol: "sparkles", tint: .blue, title: "홈 히어로 글로우",
-                         desc: "홈 상단에서 은은하게 떠다니는 빛 효과",
-                         isOn: bind(\.heroGlow, store.setHeroGlow))
-            SetDivider()
             // 20색이 되어 카드 안 그리드로는 길어져 전용 페이지로 옮겼다.
             SetNavRow(symbol: "paintpalette", tint: .purple, title: "테마",
                       value: GLGTheme.accent(store.accentIndex).label) { showTheme = true }
