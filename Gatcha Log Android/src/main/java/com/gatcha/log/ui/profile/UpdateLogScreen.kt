@@ -184,7 +184,7 @@ private fun ReleaseSection(entry: ChangeEntry, filter: ChangeKind?) {
             if (entry.milestone && !entry.featured) {
                 Text("★ ", color = CAccent, fontSize = 13.sp, fontWeight = FontWeight.Bold)
             }
-            Text("v${entry.version}", fontSize = if (entry.featured) 24.sp else 17.sp, fontWeight = FontWeight.ExtraBold, color = CText)
+            Text("v${entry.version}", fontSize = 17.sp, fontWeight = FontWeight.Bold, color = CText)
             Spacer(Modifier.width(10.dp))
             Text(entry.date, fontSize = 12.5.sp, color = CTextSub, fontWeight = FontWeight.Medium, modifier = Modifier.alignByBaseline())
             Spacer(Modifier.weight(1f))

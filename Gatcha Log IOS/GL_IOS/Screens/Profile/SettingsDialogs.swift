@@ -153,7 +153,7 @@ struct UpdateLogPage: View {
                 HStack(alignment: .firstTextBaseline, spacing: 8) {
                     (Text(entry.milestone && !entry.featured ? "★ " : "").foregroundColor(accent.primary)
                         + Text("v\(entry.version)").foregroundColor(cText))
-                        .font(.pretendard(size: entry.featured ? 24 : 17, weight: .heavy))
+                        .font(.pretendard(size: 17, weight: .bold))
                     Text(entry.date).font(.pretendard(size: 12.5, weight: .medium)).foregroundStyle(GLGColor.textSecondary)
                     Spacer()
                     if let pill = entry.pill { pillView(pill, false) }
