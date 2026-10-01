@@ -245,7 +245,8 @@ fun SpendingScreen(
     }
     val topScrimAlpha by animateFloatAsState(if (scrolled) 0.88f else 0f, label = "topScrim")
 
-    Box(Modifier.fillMaxSize()) {
+    // 지출 리스트 2.0 — 카드를 걷어 흰 바탕에 날짜 묶음을 띠로 가른다(마이페이지 3.0 과 같은 규격).
+    Box(Modifier.fillMaxSize().background(Color.White)) {
         GlgPullToRefreshBox(
             isRefreshing = isRefreshing,
             onRefresh = { viewModel.refreshSpending() },
@@ -253,7 +254,7 @@ fun SpendingScreen(
         ) {
             LazyColumn(
                 state = listState,
-                modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
+                modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(bottom = glgTabContentBottom()),
             ) {
                 // 히어로 자리(고정) — 위에 히어로 오버레이가 뜬다.
@@ -264,6 +265,7 @@ fun SpendingScreen(
                 // 선택 모드에서도 치우지 않는다 — 사라지면 리스트가 위로 밀려 올라가 화면이 튄다(iOS 파리티).
                 run {
                     item(contentType = "quickFilters") {
+                        Box(Modifier.padding(horizontal = 16.dp)) {
                         SpendingQuickFilters(
                             period = period,
                             onPeriod = { period = it },
@@ -279,6 +281,7 @@ fun SpendingScreen(
                             paymentFilter = paymentFilter,
                             onPaymentClear = { paymentFilter = null },
                         )
+                        }
                     }
                 }
 
@@ -290,8 +293,10 @@ fun SpendingScreen(
             if (filtered.isEmpty()) {
                 // 기록은 있는데 필터에 다 걸렸으면 "없어요" 가 아니라 필터를 풀 길을 준다.
                 item(contentType = "empty") {
-                    EmptyState(filteredOut = spendings.isNotEmpty()) {
-                        selectedGames = emptySet(); period = PeriodFilter.ALL; paymentFilter = null; sortOrder = SortOrder.DATE_DESC
+                    Box(Modifier.padding(horizontal = 16.dp)) {
+                        EmptyState(filteredOut = spendings.isNotEmpty()) {
+                            selectedGames = emptySet(); period = PeriodFilter.ALL; paymentFilter = null; sortOrder = SortOrder.DATE_DESC
+                        }
                     }
                 }
             } else {
@@ -299,8 +304,13 @@ fun SpendingScreen(
                 dayGroups.forEachIndexed { gi, dayItems ->
                     // contentType 을 나눠 둬야 스크롤 중 날짜 카드끼리만 컴포지션을 재사용한다.
                     item(key = if (amountMode) dayItems.first().id else dayItems.first().dayKey, contentType = "dayCard") {
-                        Box {
-                            SpendingDayCard(
+                        Column {
+                            // 묶음 사이 — 날짜순은 띠(위 6 여백 포함), 금액순은 헤어라인만.
+                            if (gi > 0) {
+                                if (amountMode) SpendingHair()
+                                else Box(Modifier.padding(top = 6.dp).fillMaxWidth().height(10.dp).background(SpendingBandColor))
+                            }
+                            SpendingDayGroup(
                                 dateLabel = if (amountMode) null else dayItems.first().dateLabel,
                                 dayTotal = if (amountMode) 0L else dayItems.sumOf { it.amount },
                                 items = dayItems,
@@ -621,8 +631,21 @@ private fun QuickFilterMenu(
  * 같은 날짜 지출을 한 카드로 묶은 그룹 카드 — 상단에 날짜·합계 헤더(first-end), 아래로 지출 행들(구분선 분리).
  * dateLabel 이 null 이면 헤더 없이 행만(금액순 평면 리스트의 단일 항목 카드).
  */
+private val SpendingBandColor = Color(0xFFF2F4F6)
+private val SpendingHairColor = Color(0xFFEEF0F2)
+
+/** 줄 사이 헤어라인 — 좌우 20 들여서(줄 글자 시작선과 맞춘다). */
 @Composable
-private fun SpendingDayCard(
+private fun SpendingHair() {
+    Box(Modifier.padding(horizontal = 20.dp).fillMaxWidth().height(1.dp).background(SpendingHairColor))
+}
+
+/**
+ * 같은 날짜 지출 묶음 — 날짜·합계 머리(first-end) + 헤어라인으로 가른 줄들. 카드 없이 화면 폭 그대로.
+ * [dateLabel] 이 null 이면 머리 없이 줄만(금액순 평면 리스트의 단일 항목).
+ */
+@Composable
+private fun SpendingDayGroup(
     dateLabel: String?,
     dayTotal: Long,
     items: List<Spending>,
@@ -632,31 +655,25 @@ private fun SpendingDayCard(
     onItemClick: (Spending) -> Unit,
 ) {
     val accent = LocalAccent.current
-    GlassCard(
-        shape = RoundedCornerShape(18.dp),
-        modifier = Modifier.fillMaxWidth().padding(vertical = if (compact) 4.dp else 6.dp),
-    ) {
-        Column {
-            if (dateLabel != null) {
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 13.dp, bottom = 9.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text(dateLabel, fontSize = 12.sp, color = TextSecondary, fontWeight = FontWeight.Bold)
-                    Text(won(dayTotal), fontSize = 12.sp, color = accent, fontWeight = FontWeight.Bold)
-                }
-                HorizontalDivider(color = DividerColor)
+    Column(Modifier.fillMaxWidth()) {
+        if (dateLabel != null) {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 18.dp, bottom = 8.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(dateLabel, fontSize = 12.sp, color = TextSecondary, fontWeight = FontWeight.Bold)
+                Text(won(dayTotal), fontSize = 12.sp, color = accent, fontWeight = FontWeight.Bold)
             }
-            items.forEachIndexed { idx, sp ->
-                if (idx > 0) HorizontalDivider(color = DividerColor)
-                SpendingRow(sp, selectionMode, sp.id in selectedIds, compact) { onItemClick(sp) }
-            }
+        }
+        items.forEachIndexed { idx, sp ->
+            if (idx > 0) SpendingHair()
+            SpendingRow(sp, selectionMode, sp.id in selectedIds, compact) { onItemClick(sp) }
         }
     }
 }
 
-/** 지출 한 건 행(first-end) — 좌측: 재화 아이콘/게임색 + 게임명·아이템·태그, 우측: 금액·셰브론. 카드 안에 들어가는 행. */
+/** 지출 한 건 행(first-end) — 좌측: 재화 아이콘/게임색 + 게임명·아이템·태그, 우측: 금액·셰브론. */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun SpendingRow(spending: Spending, selectionMode: Boolean, selected: Boolean, compact: Boolean, onClick: () -> Unit) {
@@ -665,10 +682,10 @@ private fun SpendingRow(spending: Spending, selectionMode: Boolean, selected: Bo
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            // 고른 줄은 **줄 전체를 꽉 채운 면**으로(9/30) — iOS 와 같다. 카드(GlassCard)가 둥근 모서리로 자른다.
+            // 고른 줄은 **줄 전체를 꽉 채운 면**으로(9/30) — iOS 와 같다. 카드가 없어 화면 폭 끝까지 채운다.
             .background(if (selectionMode && selected) accent.copy(alpha = 0.10f) else Color.Transparent)
             .clickable { onClick() }
-            .padding(horizontal = 16.dp, vertical = if (compact) 10.dp else 13.dp),
+            .padding(horizontal = 20.dp, vertical = if (compact) 10.dp else 13.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (selectionMode) {
