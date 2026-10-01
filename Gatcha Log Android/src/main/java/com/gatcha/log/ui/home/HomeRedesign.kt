@@ -195,12 +195,12 @@ fun HomeHeader(
 }
 
 // ── 섹션 헤더 (카드 바깥 큰 제목) ────────────────────────────────────────────
-/** 카드 '바깥' 위에 놓는 큰 섹션 제목(+옵션 카운트/전체보기). 홈 재구성 공통. */
+/** 섹션 위 큰 제목(+옵션 카운트/전체보기). 카드 없는 화면 폭 섹션의 머리 — 다른 탭 섹션 제목과 같은 17. */
 @Composable
 fun HomeSectionHeader(title: String, count: Int? = null, actionTitle: String? = null, onAction: (() -> Unit)? = null) {
     val accent = LocalAccent.current
-    Row(Modifier.fillMaxWidth().padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-        Text(title, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Text(title, fontSize = 17.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
         if (count != null) {
             Spacer(Modifier.width(7.dp))
             Surface(color = accent.copy(alpha = 0.14f), shape = RoundedCornerShape(999.dp)) {
@@ -346,34 +346,37 @@ fun HeroGradientBackground(modifier: Modifier = Modifier, glow: Boolean = true) 
 }
 
 // ── 최근 지출 (목업 Transaction 리스트) ──────────────────────────────────────
+// ── 최근 지출 ──────────────────────────────────────────────────────────────
+/** 최근 지출 — 카드 없이 헤어라인 목록(10/1). */
 @Composable
 fun RecentSpendCard(spendings: List<Spending>, onSeeAll: () -> Unit) {
     // VM 이 지출을 날짜 내림차순으로 들고 있어 앞 4건이 곧 최근이다 — 정렬할 필요가 없다.
     val recent = remember(spendings) { spendings.take(4) }
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         HomeSectionHeader("최근 지출", actionTitle = if (recent.isEmpty()) null else "전체보기", onAction = onSeeAll)
-        GlassCard(shape = RoundedCornerShape(22.dp), modifier = Modifier.fillMaxWidth()) {
-            Column(Modifier.fillMaxWidth()) {
-                if (recent.isEmpty()) {
-                    Column(
-                        Modifier.fillMaxWidth().padding(vertical = 22.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                    ) {
-                        Icon(Icons.Default.Description, null, tint = Color.LightGray, modifier = Modifier.size(30.dp))
-                        Spacer(Modifier.height(6.dp))
-                        Text("아직 기록된 지출이 없어요", fontSize = 13.sp, color = TextSecondary)
-                        Text("+ 지출 추가로 첫 기록을 남겨보세요", fontSize = 11.sp, color = Color.LightGray)
-                    }
-                } else {
-                    recent.forEachIndexed { i, s ->
-                        if (i > 0) HorizontalDivider(color = DividerColor, modifier = Modifier.padding(start = 64.dp))
-                        RecentSpendRow(s)
-                    }
+        Column(Modifier.fillMaxWidth()) {
+            if (recent.isEmpty()) {
+                Column(
+                    Modifier.fillMaxWidth().padding(vertical = 22.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    Icon(Icons.Default.Description, null, tint = Color.LightGray, modifier = Modifier.size(30.dp))
+                    Spacer(Modifier.height(6.dp))
+                    Text("아직 기록된 지출이 없어요", fontSize = 14.sp, color = TextSecondary)
+                    Text("+ 지출 추가로 첫 기록을 남겨보세요", fontSize = 12.sp, color = TextSecondary)
+                }
+            } else {
+                recent.forEachIndexed { i, s ->
+                    if (i > 0) HorizontalDivider(color = HomeHair, modifier = Modifier.padding(start = 48.dp))
+                    RecentSpendRow(s)
                 }
             }
         }
     }
 }
+
+/** 홈 목록 헤어라인 — 다른 화면 목록 구분선과 같은 색. */
+private val HomeHair = Color(0xFFEEF0F2)
 
 @Composable
 private fun RecentSpendRow(s: Spending) {
@@ -381,7 +384,7 @@ private fun RecentSpendRow(s: Spending) {
     val abbr = GameData.byNameOrNull(s.gameName)?.abbr ?: s.gameName.take(2)
     val subtitle = listOfNotNull(s.dateLabel, s.itemName.ifBlank { null }).joinToString(" · ")
     Row(
-        Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
+        Modifier.fillMaxWidth().padding(vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(
@@ -395,7 +398,7 @@ private fun RecentSpendRow(s: Spending) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(s.gameName, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TextPrimary, maxLines = 1)
             }
-            if (subtitle.isNotEmpty()) Text(subtitle, fontSize = 11.sp, color = TextSecondary, maxLines = 1)
+            if (subtitle.isNotEmpty()) Text(subtitle, fontSize = 12.sp, color = TextSecondary, maxLines = 1)
         }
         Spacer(Modifier.width(8.dp))
         Text(won(s.amount), fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TextPrimary, maxLines = 1)
@@ -548,35 +551,12 @@ fun List<TodayTask>.toTodayItems(
     TodayItem(icon, t.message, t.ctaLabel, t.urgent, t.busyable, action)
 }
 
-/** 오늘 할 일 카드 — 활성 항목을 전부 리스트로. titleOutside=true 면 제목을 카드 바깥 큰 헤더로. */
+/** 오늘 할 일 — 활성 항목을 전부 리스트로. 카드 없이 섹션 머리 + 헤어라인 목록(10/1). */
 @Composable
-fun TodayTaskCard(tasks: List<TodayItem>, inProgress: Boolean, titleOutside: Boolean = false) {
-    val accent = LocalAccent.current
-    if (titleOutside) {
-        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            HomeSectionHeader("오늘 할 일", count = if (tasks.isEmpty()) null else tasks.size)
-            GlassCard(shape = RoundedCornerShape(24.dp), modifier = Modifier.fillMaxWidth()) {
-                Column(Modifier.padding(16.dp)) { TodayTaskBody(tasks, inProgress) }
-            }
-        }
-    } else {
-        GlassCard(shape = RoundedCornerShape(24.dp), modifier = Modifier.fillMaxWidth()) {
-            Column(Modifier.padding(16.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.TaskAlt, null, tint = accent, modifier = Modifier.size(16.dp))
-                    Spacer(Modifier.width(6.dp))
-                    Text("오늘 할 일", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = accent)
-                    if (tasks.isNotEmpty()) {
-                        Spacer(Modifier.width(6.dp))
-                        Surface(color = accent.copy(alpha = 0.14f), shape = RoundedCornerShape(999.dp)) {
-                            Text("${tasks.size}", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = accent, modifier = Modifier.padding(horizontal = 7.dp, vertical = 1.dp))
-                        }
-                    }
-                }
-                Spacer(Modifier.height(12.dp))
-                TodayTaskBody(tasks, inProgress)
-            }
-        }
+fun TodayTaskCard(tasks: List<TodayItem>, inProgress: Boolean) {
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        HomeSectionHeader("오늘 할 일", count = if (tasks.isEmpty()) null else tasks.size)
+        Column { TodayTaskBody(tasks, inProgress) }
     }
 }
 
@@ -621,29 +601,12 @@ private fun TodayRow(t: TodayItem, inProgress: Boolean) {
     }
 }
 
-/** 오늘 할 일 로딩 스켈레톤 — 헤더 + 시머 행 N개. titleOutside=true 면 제목을 카드 바깥으로. */
+/** 오늘 할 일 로딩 스켈레톤 — 섹션 머리 + 시머 행 N개(카드 없음). */
 @Composable
-fun TodayTaskSkeleton(rows: Int = 3, titleOutside: Boolean = false) {
-    val accent = LocalAccent.current
-    if (titleOutside) {
-        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            HomeSectionHeader("오늘 할 일")
-            GlassCard(shape = RoundedCornerShape(24.dp), modifier = Modifier.fillMaxWidth()) {
-                Column(Modifier.padding(16.dp)) { TodaySkeletonRows(rows) }
-            }
-        }
-    } else {
-        GlassCard(shape = RoundedCornerShape(24.dp), modifier = Modifier.fillMaxWidth()) {
-            Column(Modifier.padding(16.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.TaskAlt, null, tint = accent.copy(alpha = 0.5f), modifier = Modifier.size(16.dp))
-                    Spacer(Modifier.width(6.dp))
-                    Text("오늘 할 일", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = accent.copy(alpha = 0.5f))
-                }
-                Spacer(Modifier.height(12.dp))
-                TodaySkeletonRows(rows)
-            }
-        }
+fun TodayTaskSkeleton(rows: Int = 3) {
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        HomeSectionHeader("오늘 할 일")
+        Column { TodaySkeletonRows(rows) }
     }
 }
 
@@ -665,21 +628,19 @@ private fun TodaySkeletonRows(rows: Int) {
     }
 }
 
-/** 대시보드 리스트 카드 로딩 스켈레톤 — 헤더 + 행 N개. '이번 주 일정'·'게임 소식' 카드와 동일 형태. */
+/** 대시보드 목록 로딩 스켈레톤 — 머리 + 행 N개. '이번 주 일정'·'게임 소식' 섹션과 같은 형태(카드 없음). */
 @Composable
 fun DashCardSkeleton(rows: Int = 3) {
-    GlassCard(shape = RoundedCornerShape(22.dp), modifier = Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp)) {
-            SkeletonBox(Modifier.width(90.dp).height(15.dp))
-            repeat(rows) {
-                Spacer(Modifier.height(13.dp))
-                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    SkeletonBox(Modifier.size(28.dp), RoundedCornerShape(9.dp))
-                    Spacer(Modifier.width(9.dp))
-                    SkeletonBox(Modifier.weight(1f).height(13.dp))
-                    Spacer(Modifier.width(8.dp))
-                    SkeletonBox(Modifier.width(34.dp).height(12.dp))
-                }
+    Column {
+        SkeletonBox(Modifier.width(90.dp).height(17.dp))
+        repeat(rows) {
+            Spacer(Modifier.height(13.dp))
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                SkeletonBox(Modifier.size(28.dp), RoundedCornerShape(9.dp))
+                Spacer(Modifier.width(9.dp))
+                SkeletonBox(Modifier.weight(1f).height(13.dp))
+                Spacer(Modifier.width(8.dp))
+                SkeletonBox(Modifier.width(34.dp).height(12.dp))
             }
         }
     }
@@ -705,43 +666,26 @@ private fun PityTier.shortLabel(): String = when (this) {
 // 홈 대시보드 개편(27.32.0) — 깔끔한 KPI 중심 레이아웃
 // ════════════════════════════════════════════════════════════════════════════
 
-/** 이번 주 게임 일정 — titleOutside=true 면 제목을 카드 바깥 큰 헤더로. */
+/** 이번 주 게임 일정 — 카드 없이 섹션 머리 + 목록. 목록 전체가 눌려 게임 정보 일정으로 간다(기능 그대로). */
 @Composable
-fun DashScheduleCard(events: List<GameEvent>, challenges: List<GameChallenge>, titleOutside: Boolean = false, onTap: () -> Unit) {
+fun DashScheduleCard(events: List<GameEvent>, challenges: List<GameChallenge>, onTap: () -> Unit) {
     val accent = LocalAccent.current
     val now = System.currentTimeMillis()
     val items = (events.map { Triple(it.game, it.name, it.endMillis to it.dDayLabel()) } +
         challenges.map { Triple(it.game, it.name, it.endMillis to it.dDayLabel()) })
         .filter { it.third.first > now }.sortedBy { it.third.first }.take(3)
-    // 일정이 없어도 **카드는 남긴다.** 예전엔 여기서 빠져나가 카드가 통째로 사라졌는데,
-    // 그러면 "이번 주가 한가하다"와 "아직 못 불러왔다"가 화면에서 똑같아 보인다
-    // (로딩 스켈레톤도 같은 자리에 뜬다). 비었다는 것도 알려야 할 상태다.
-    if (titleOutside) {
-        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            HomeSectionHeader("이번 주 일정", actionTitle = "전체", onAction = onTap)
-            GlassCard(shape = RoundedCornerShape(22.dp), modifier = Modifier.fillMaxWidth().clickable { onTap() }) {
-                Column(Modifier.padding(16.dp)) { ScheduleRows(items, accent) }
-            }
-        }
-    } else {
-        GlassCard(shape = RoundedCornerShape(22.dp), modifier = Modifier.fillMaxWidth().clickable { onTap() }) {
-            Column(Modifier.padding(16.dp)) {
-                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    Text("이번 주 일정", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
-                    Spacer(Modifier.weight(1f))
-                    Text("전체 ›", fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold, color = accent)
-                }
-                Spacer(Modifier.height(11.dp))
-                ScheduleRows(items, accent)
-            }
-        }
+    // 일정이 없어도 **섹션은 남긴다.** 빠지면 "이번 주가 한가하다"와 "아직 못 불러왔다"가
+    // 화면에서 똑같아 보인다(로딩 스켈레톤도 같은 자리에 뜬다). 비었다는 것도 알려야 할 상태다.
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        HomeSectionHeader("이번 주 일정", actionTitle = "전체", onAction = onTap)
+        Column(Modifier.fillMaxWidth().clickable { onTap() }) { ScheduleRows(items, accent) }
     }
 }
 
 @Composable
 private fun ScheduleRows(items: List<Triple<String, String, Pair<Long, String>>>, accent: Color) {
     if (items.isEmpty()) {
-        Text("이번 주 마감 일정이 없어요", fontSize = 13.sp, color = TextSecondary)
+        Text("이번 주 마감 일정이 없어요", fontSize = 14.sp, color = TextSecondary)
         return
     }
     Column(verticalArrangement = Arrangement.spacedBy(11.dp)) {
@@ -749,41 +693,24 @@ private fun ScheduleRows(items: List<Triple<String, String, Pair<Long, String>>>
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 GlgGameTag(row.first, size = GameTagSize.Small)
                 Spacer(Modifier.width(9.dp))
-                Text(row.second, fontSize = 13.sp, fontWeight = FontWeight.Medium, color = TextPrimary, maxLines = 1, modifier = Modifier.weight(1f))
+                Text(row.second, fontSize = 14.sp, fontWeight = FontWeight.Medium, color = TextPrimary, maxLines = 1, modifier = Modifier.weight(1f))
                 Spacer(Modifier.width(6.dp))
-                Text(row.third.second, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = accent)
+                Text(row.third.second, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = accent)
             }
         }
     }
 }
 
-/** 게임 소식 — titleOutside=true 면 제목을 카드 바깥 큰 헤더로. */
+/** 게임 소식 — 카드 없이 섹션 머리 + 목록. 목록 전체가 눌려 게임 정보 소식으로 간다(기능 그대로). */
 @Composable
-fun DashNewsCard(news: List<NewsItem>, anniversaries: List<AnniversaryInfo>, titleOutside: Boolean = false, onTap: () -> Unit) {
-    val accent = LocalAccent.current
+fun DashNewsCard(news: List<NewsItem>, anniversaries: List<AnniversaryInfo>, onTap: () -> Unit) {
     val anni = anniversaries.firstOrNull { it.daysUntil <= 60 }
     // 홈은 2건뿐이라 최신순으로 자르면 한 게임이 둘 다 먹기 쉽다 — 게임을 번갈아 뽑는다.
     val topNews = NewsLogic.previewTop(news, 2)
     if (anni == null && topNews.isEmpty()) return
-    if (titleOutside) {
-        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            HomeSectionHeader("게임 소식", actionTitle = "전체", onAction = onTap)
-            GlassCard(shape = RoundedCornerShape(22.dp), modifier = Modifier.fillMaxWidth().clickable { onTap() }) {
-                Column(Modifier.padding(16.dp)) { NewsBody(anni, topNews) }
-            }
-        }
-    } else {
-        GlassCard(shape = RoundedCornerShape(22.dp), modifier = Modifier.fillMaxWidth().clickable { onTap() }) {
-            Column(Modifier.padding(16.dp)) {
-                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    Text("게임 소식", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
-                    Spacer(Modifier.weight(1f))
-                    Text("전체 ›", fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold, color = accent)
-                }
-                Spacer(Modifier.height(12.dp))
-                NewsBody(anni, topNews)
-            }
-        }
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        HomeSectionHeader("게임 소식", actionTitle = "전체", onAction = onTap)
+        Column(Modifier.fillMaxWidth().clickable { onTap() }) { NewsBody(anni, topNews) }
     }
 }
 

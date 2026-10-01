@@ -14,9 +14,10 @@ struct TodayTaskCard: View {
     @Environment(\.glgAccent) private var accent
     var body: some View {
         if titleOutside {
-            VStack(alignment: .leading, spacing: 10) {
+            // iPhone 홈 — 카드 없이 섹션 머리 + 헤어라인 목록(10/1, Android 와 같다).
+            VStack(alignment: .leading, spacing: 12) {
                 HomeSectionHeader(title: "오늘 할 일", count: tasks.isEmpty ? nil : tasks.count)
-                GLGCard(cornerRadius: 24, padding: 16) { content }
+                content
             }
         } else {
             GLGCard(cornerRadius: 24, padding: 16) {
@@ -74,9 +75,9 @@ struct TodayTaskSkeleton: View {
     @Environment(\.glgAccent) private var accent
     var body: some View {
         if titleOutside {
-            VStack(alignment: .leading, spacing: 10) {
+            VStack(alignment: .leading, spacing: 12) {
                 HomeSectionHeader(title: "오늘 할 일")
-                GLGCard(cornerRadius: 24, padding: 16) { rows }
+                rows
             }
         } else {
             GLGCard(cornerRadius: 24, padding: 16) {
@@ -107,17 +108,24 @@ struct TodayTaskSkeleton: View {
 /// 대시보드 리스트 카드 로딩 스켈레톤 — 헤더 + 행 N개. '이번 주 일정'·'게임 소식' 카드와 동일 형태. (Android DashCardSkeleton 패리티)
 struct DashCardSkeleton: View {
     var rows: Int = 3
+    /// true 면 카드 없이(iPhone 홈 섹션). false 는 iPad 레거시 카드.
+    var flat: Bool = false
     var body: some View {
-        GLGCard(cornerRadius: 22, padding: 16) {
-            VStack(alignment: .leading, spacing: 0) {
-                GLGSkeleton().frame(width: 90, height: 15)
-                ForEach(0..<rows, id: \.self) { _ in
-                    HStack(spacing: 9) {
-                        GLGSkeleton(cornerRadius: 9).frame(width: 28, height: 28)
-                        GLGSkeleton().frame(maxWidth: .infinity).frame(height: 13)
-                        GLGSkeleton().frame(width: 34, height: 12)
-                    }.padding(.top, 13)
-                }
+        if flat {
+            content
+        } else {
+            GLGCard(cornerRadius: 22, padding: 16) { content }
+        }
+    }
+    private var content: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            GLGSkeleton().frame(width: 90, height: flat ? 17 : 15)
+            ForEach(0..<rows, id: \.self) { _ in
+                HStack(spacing: 9) {
+                    GLGSkeleton(cornerRadius: 9).frame(width: 28, height: 28)
+                    GLGSkeleton().frame(maxWidth: .infinity).frame(height: 13)
+                    GLGSkeleton().frame(width: 34, height: 12)
+                }.padding(.top, 13)
             }
         }
     }
@@ -130,14 +138,16 @@ struct TokenExpiredBanner: View {
         HStack(spacing: 12) {
             Image(systemName: "exclamationmark.triangle.fill").font(.pretendard(size: 22)).foregroundStyle(accent.primary)
             VStack(alignment: .leading, spacing: 0) {
-                Text("HoYoLAB 토큰이 만료된 것 같아요").font(.pretendard(size: 13, weight: .bold))
-                Text("재연동하지 않으면 자동 출석이 안 돼요").font(.pretendard(size: 11)).foregroundStyle(GLGColor.textSecondary)
+                Text("HoYoLAB 토큰이 만료된 것 같아요").font(.pretendard(size: 14, weight: .bold))
+                Text("재연동하지 않으면 자동 출석이 안 돼요").font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary)
             }
             Spacer()
             GldsButton(title: "재연동", size: .s, fullWidth: false, action: onReconnect)
         }
-        .padding(.horizontal, 16).padding(.vertical, 12)
-        .background(accent.primary.opacity(0.10), in: RoundedRectangle(cornerRadius: 20))
+        // 카드 없이 화면 폭 강조색 띠(Android 와 같다).
+        .padding(.horizontal, 20).padding(.vertical, 12)
+        .frame(maxWidth: .infinity)
+        .background(accent.primary.opacity(0.10))
     }
 }
 
@@ -287,9 +297,10 @@ struct DashboardScheduleCard: View {
         // (Android `DashScheduleCard` 와 같이 고쳐야 한다)
         return Group {
             if titleOutside {
-                VStack(alignment: .leading, spacing: 10) {
+                VStack(alignment: .leading, spacing: 12) {
                     HomeSectionHeader(title: "이번 주 일정", actionTitle: "전체", action: onTap)
-                    GLGCard(cornerRadius: 22, padding: 16) { rows(items) }
+                    rows(items)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                         .contentShape(Rectangle()).onTapGesture { onTap() }
                 }
             } else {
@@ -338,9 +349,10 @@ struct DashboardNewsCard: View {
         return Group {
             if anni != nil || !topNews.isEmpty {
                 if titleOutside {
-                    VStack(alignment: .leading, spacing: 10) {
+                    VStack(alignment: .leading, spacing: 12) {
                         HomeSectionHeader(title: "게임 소식", actionTitle: "전체", action: onTap)
-                        GLGCard(cornerRadius: 22, padding: 16) { newsBody(anni: anni, topNews: topNews) }
+                        newsBody(anni: anni, topNews: topNews)
+                            .frame(maxWidth: .infinity, alignment: .leading)
                             .contentShape(Rectangle()).onTapGesture { onTap() }
                     }
                 } else {
