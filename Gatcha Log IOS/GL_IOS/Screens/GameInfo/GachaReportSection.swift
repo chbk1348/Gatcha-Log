@@ -17,7 +17,8 @@ struct GachaReportSection: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             let games = sortedGames
-            reportSection {
+            // 기록이 있으면 마지막이 대시보드 진입 줄(위아래 12)이라 아래 8 — 띠까지 눈에 20(10/1). 빈 상태는 맨 아래라 20.
+            reportSection(bottom: stats != nil ? 8 : 20) {
                 HStack {
                     HStack(spacing: 6) {
                         Text("가챠 효율 리포트").font(.pretendard(size: 17, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
@@ -87,10 +88,10 @@ struct GachaReportSection: View {
     }
 
     /// 화면 폭 섹션 — 좌우 20 · 위 22 · 아래 20(10/1, Android ReportSection 과 같다).
-    private func reportSection<C: View>(@ViewBuilder _ content: () -> C) -> some View {
+    private func reportSection<C: View>(bottom: CGFloat = 20, @ViewBuilder _ content: () -> C) -> some View {
         VStack(alignment: .leading, spacing: 0) { content() }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 20).padding(.top, 22).padding(.bottom, 20)
+            .padding(.horizontal, 20).padding(.top, 22).padding(.bottom, bottom)
     }
 
     // 카드 면은 걷었다(10/1) — 섹션(reportSection) 안에 그대로 그린다.

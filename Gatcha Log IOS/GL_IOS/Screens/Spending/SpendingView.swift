@@ -126,7 +126,8 @@ struct SpendingView: View {
                         ForEach(Array(displayGroups.enumerated()), id: \.element.key) { gi, group in
                             if gi > 0 {
                                 if group.dateLabel == nil { spendingHair }
-                                else { spendingBand.padding(.top, 6) }
+                                // 띠 위 여백은 20 − 줄 vertical(14 · 컴팩트 11) — 마지막 줄 끝 → 띠가 눈으로 20.
+                                else { spendingBand.padding(.top, store.spendingCompact ? 9 : 6) }
                             }
                             dayGroup(dateLabel: group.dateLabel, total: group.total, items: group.items)
                         }

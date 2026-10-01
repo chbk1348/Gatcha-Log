@@ -130,7 +130,8 @@ struct HoyolandFoodView: View {
                                 foodCard(p)
                                 if i == list.count - 1 { foodNudge.padding(.top, 14) }
                             }
-                            .hoyolandSection()
+                            // 메뉴 줄(위아래 12)로 끝나면 아래 8 — 띠까지 눈에 20(10/1). 안내 문장 · 마감 배지로 끝나거나 맨 아래면 20.
+                            .hoyolandSection(bottom: i < list.count - 1 && endsWithMenu(p) ? 8 : 20)
                         }
                     }
                 }
@@ -166,6 +167,12 @@ struct HoyolandFoodView: View {
         Text("가격·구성은 공식 공지 기준이에요. 현장 사정으로 바뀔 수 있어요.")
             .font(.pretendard(size: 12)).foregroundStyle(GLGFoodTextThird)   // 11 → 12(10/1)
             .fixedSize(horizontal: false, vertical: true)
+    }
+
+    /// 마지막이 메뉴 줄인가 — 섹션 아래 여백을 그만큼 덜어 낸다(Android HoyolandFoodContent 와 같은 판정).
+    private func endsWithMenu(_ p: HoyolandProgram) -> Bool {
+        guard p.deadline.isEmpty, case .menu = hoyolandFoodBlocks(p.desc).last else { return false }
+        return true
     }
 
     /// 감싸던 카드를 걷었다(10/1) — 한 열은 섹션(hoyolandSection)이 감싸고, 두 열은 헤어라인으로 가른다.

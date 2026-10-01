@@ -79,7 +79,8 @@ struct SavingsChallengeView: View {
     private var band: some View { bandColor.frame(height: 10).frame(maxWidth: .infinity) }
 
     /// 섹션 — 좌우 20 · 위 22 · 아래 20. 제목 17 굵게 + 오른쪽 보조 12.
-    private func section<C: View>(_ title: String?, _ trailing: String? = nil, top: CGFloat = 22, @ViewBuilder _ content: () -> C) -> some View {
+    /// `bottom` 은 20 − 마지막 요소의 자체 아래 여백(챌린지 줄 vertical 13 → 7, 배지 칸 vertical 4 → 16).
+    private func section<C: View>(_ title: String?, _ trailing: String? = nil, top: CGFloat = 22, bottom: CGFloat = 20, @ViewBuilder _ content: () -> C) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             if let title {
                 HStack {
@@ -92,7 +93,7 @@ struct SavingsChallengeView: View {
             content()
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, 20).padding(.top, top).padding(.bottom, 20)
+        .padding(.horizontal, 20).padding(.top, top).padding(.bottom, bottom)
     }
 
     // ── ① 연속 무지출 + 최근 7일 ──
@@ -142,7 +143,7 @@ struct SavingsChallengeView: View {
 
     // ── ② 이번 달 챌린지 ──
     private func challengeSection(_ s: ChallengeSummary) -> some View {
-        section("이번 달 챌린지", "\(s.challenges.filter { $0.reached }.count) / \(s.challenges.count) 달성") {
+        section("이번 달 챌린지", "\(s.challenges.filter { $0.reached }.count) / \(s.challenges.count) 달성", bottom: 7) {
             ForEach(Array(s.challenges.enumerated()), id: \.offset) { idx, c in
                 if idx > 0 { hairColor.frame(height: 1) }
                 challengeRow(c)
@@ -183,7 +184,7 @@ struct SavingsChallengeView: View {
 
     // ── ③ 배지 컬렉션 ──
     private func badgeSection(_ s: ChallengeSummary) -> some View {
-        section("획득 배지", "\(s.earnedBadgeCount) / \(s.totalBadgeCount)") {
+        section("획득 배지", "\(s.earnedBadgeCount) / \(s.totalBadgeCount)", bottom: 16) {
             Text("배지를 누르면 얻는 방법을 볼 수 있어요")
                 .font(.pretendard(size: 13)).foregroundStyle(GLGColor.textSecondary)
                 .padding(.top, -6).padding(.bottom, 16)

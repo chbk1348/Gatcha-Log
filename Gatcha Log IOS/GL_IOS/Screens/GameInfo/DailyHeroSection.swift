@@ -443,7 +443,8 @@ struct AttendanceDetailView: View {
             VStack(alignment: .leading, spacing: 0) {
                 todayCard(s)
                 GiBand()
-                GiPageSection("게임별 출석") {
+                // 마지막 줄이 위아래 13 을 가져 섹션 아래는 7 — 띠까지 눈에 20(10/1).
+                GiPageSection("게임별 출석", bottom: 7) {
                     ForEach(Array(s.games.enumerated()), id: \.offset) { i, g in
                         if i > 0 { GiHairline() }
                         gameRow(g, elapsed: Int(s.monthElapsedDays))

@@ -343,7 +343,7 @@ fun SettingsScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
 
         band()
         item {
-            SetSection("앱 정보", "v$versionName") {
+            SetSection("앱 정보", "v$versionName", bottom = 20.dp) { // 페이지 맨 아래 — 안전 영역 위로 숨 쉴 여백을 남긴다
                 SettingsNavRow(Icons.Default.SystemUpdate, Tint.teal, "업데이트 확인", null) { viewModel.checkForUpdate(manual = true) }
                 SetHair()
                 SettingsNavRow(Icons.Default.NewReleases, Tint.blue, "업데이트 로그", null) { showUplog.value = true }
@@ -675,7 +675,7 @@ private fun NotificationSettingsScreen(viewModel: SpendingViewModel, onBack: () 
         // 보내는 방식 — 방해금지(시간대 억제). 데일리 요약은 9/29 제거.
         band()
         item {
-            SetSection("보내는 방식", "언제 · 어떻게") {
+            SetSection("보내는 방식", "언제 · 어떻게", bottom = 20.dp) { // 페이지 맨 아래 — 안전 영역 위 여백
                 NotifyRow(Icons.Default.Bedtime, Color(0xFF4F5C59), Color(0xFFF5F8F8), "방해 금지 시간", "이 시간대엔 알림을 보내지 않아요", notifyDndEnabled) {
                     viewModel.setNotifyDndEnabled(it)
                 }

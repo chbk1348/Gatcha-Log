@@ -23,6 +23,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.gatcha.log.data.GachaReport
@@ -56,7 +57,8 @@ fun GachaReportSection(
     // 틀(SectionPage flat)이 좌우 0 을 주므로 좌우 20 은 섹션이 스스로 둔다. 첫 섹션 위엔 띠가 없다.
     val games = stats?.byGame?.keys?.sortedBy { GachaReport.gameOrder.indexOf(it).let { i -> if (i < 0) 99 else i } }.orEmpty()
     Column(Modifier.fillMaxWidth()) {
-        ReportSection {
+        // 기록이 있으면 마지막이 대시보드 진입 줄(위아래 12)이라 아래 8 — 띠까지 눈에 20(10/1). 빈 상태는 맨 아래라 20.
+        ReportSection(bottom = if (stats != null) 8.dp else 20.dp) {
             Row(
                 modifier = Modifier.fillMaxWidth().padding(bottom = 18.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -94,8 +96,8 @@ fun GachaReportSection(
 
 /** 화면 폭 섹션 — 좌우 20 · 위 22 · 아래 20(10/1, 게임 정보 GiSection 과 같은 규격). */
 @Composable
-private fun ReportSection(content: @Composable ColumnScope.() -> Unit) {
-    Column(Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 22.dp, bottom = 20.dp), content = content)
+private fun ReportSection(bottom: Dp = 20.dp, content: @Composable ColumnScope.() -> Unit) {
+    Column(Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 22.dp, bottom = bottom), content = content)
 }
 
 // 운 분포색

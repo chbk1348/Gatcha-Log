@@ -613,7 +613,8 @@ internal fun AttendanceDetailContent(
     Column(Modifier.fillMaxWidth()) {
         AttendanceTodayCard(summary, checkingIn, onCheckInAll)
         GiBand()
-        GiPageSection("게임별 출석") {
+        // 마지막 줄이 위아래 13 을 가져 섹션 아래는 7 — 띠까지 눈에 20(10/1).
+        GiPageSection("게임별 출석", bottom = 7.dp) {
             summary.games.forEachIndexed { i, g ->
                 if (i > 0) GiHairline()
                 AttendanceGameRow(g, summary.monthElapsedDays, inProgress = checkingIn == g.gameKey, enabled = checkingIn == null) {

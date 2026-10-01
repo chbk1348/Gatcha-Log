@@ -111,10 +111,13 @@ private struct Hair: View {
 
 private struct MPSection<Content: View>: View {
     var top: CGFloat = 22
+    /// 20 − 마지막 요소의 자체 아래 여백 — 목록 줄(ListRow vertical 11)로 끝나면 9. 눈에 보이는 끝 → 띠 = 20.
+    /// 페이지 맨 아래 섹션은 줄이지 않는다(안전 영역 위 숨 쉴 여백).
+    var bottom: CGFloat = 20
     @ViewBuilder var content: Content
     var body: some View {
         VStack(alignment: .leading, spacing: 0) { content }
-            .padding(.horizontal, 20).padding(.top, top).padding(.bottom, 20)
+            .padding(.horizontal, 20).padding(.top, top).padding(.bottom, bottom)
             .frame(maxWidth: .infinity, alignment: .leading)
             .contentShape(Rectangle())
     }
@@ -338,7 +341,7 @@ private struct GameSpendSection: View {
     }
 
     var body: some View {
-        MPSection {
+        MPSection(bottom: slices.isEmpty || total <= 0 ? 20 : 9) {
             SectionHead(title: "게임별 지출") { moreText("전체 기간") }
             if slices.isEmpty || total <= 0 {
                 subText("아직 지출 기록이 없어요")
@@ -383,7 +386,7 @@ private struct RecordSection: View {
     var body: some View {
         let avg: Int64 = trend.isEmpty ? 0 : trend.reduce(Int64(0)) { $0 + $1.amount } / Int64(trend.count)
         let peak = trend.max { $0.amount < $1.amount }.flatMap { $0.amount > 0 ? $0 : nil }
-        MPSection {
+        MPSection(bottom: 9) {
             SectionHead(title: "지출 기록")
             ListRow {
                 labelWithPeriod("월 평균")
@@ -443,7 +446,7 @@ private struct ActivitySection: View {
 
     var body: some View {
         let d = days
-        MPSection {
+        MPSection(bottom: taskStats.isEmpty ? 20 : 9) {
             SectionHead(title: "활동") { moreText("최근 30일") }
             VStack(spacing: 4) {
                 ForEach(0..<2, id: \.self) { r in

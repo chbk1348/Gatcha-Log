@@ -154,7 +154,7 @@ struct NotificationSettingsView: View {
     @ViewBuilder
     private var dndSection: some View {
         SetBand()
-        SetSection(title: "보내는 방식", caption: "언제 · 어떻게") {
+        SetSection(title: "보내는 방식", caption: "언제 · 어떻게", bottom: 20) { // 페이지 맨 아래 — 안전 영역 위 여백
             SetToggleRow(symbol: "moon.fill", tint: .gray, title: "방해 금지 시간", desc: "이 시간대엔 알림을 보내지 않아요",
                          isOn: notifyBind(\.notifyDndEnabled, store.setNotifyDndEnabled))
             if store.notifyDndEnabled {

@@ -242,7 +242,7 @@ struct SettingsView: View {
     // ── 정보 ──
     @ViewBuilder
     private var infoSection: some View {
-        SetSection(title: "앱 정보", caption: "v\(version)") {
+        SetSection(title: "앱 정보", caption: "v\(version)", bottom: 20) { // 페이지 맨 아래 — 안전 영역 위로 숨 쉴 여백을 남긴다
             // iOS 앱은 업데이트 확인 기능 제거(IPA 사이드로드 배포 — 원격 버전 확인 부적합). 업데이트 로그만 유지.
             SetNavRow(symbol: "sparkles", tint: .blue, title: "업데이트 로그") { showUplog = true }
             SetDivider()

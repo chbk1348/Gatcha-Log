@@ -1024,7 +1024,17 @@ fun HoyolandDetailContent(
     sections.forEachIndexed { i, section ->
         if (i > 0) GiBand()
         // 라인업은 줄의 지금 무대 면이 화면 끝까지 깔려야 해서 좌우 20 을 스스로 둔다.
-        HoyolandSectionBox(horizontal = if (section === lineupSection) 0.dp else 20.dp) { section() }
+        // 마지막 줄이 스스로 아래 여백을 가진 섹션은 그만큼 덜어 띠까지 눈에 20(10/1) — 라인업 줄 12 → 8,
+        // 응모 · 특전 줄 14 → 6. 지난 행사(늘 맨 아래)는 20.
+        HoyolandSectionBox(
+            horizontal = if (section === lineupSection) 0.dp else 20.dp,
+            bottom = when {
+                i == sections.lastIndex -> 20.dp
+                section === lineupSection -> 8.dp
+                section === programSection -> 6.dp
+                else -> 20.dp
+            },
+        ) { section() }
     }
 
     if (ticketNoteOpen) {
@@ -2391,7 +2401,9 @@ fun HoyolandFoodContent(e: HoyolandEvent) {
     // 게임마다 감싸던 카드를 걷고 **한 게임 = 한 섹션**, 사이는 띠로 가른다(10/1).
     list.forEachIndexed { i, p ->
         if (i > 0) GiBand()
-        HoyolandSectionBox {
+        // 메뉴 줄(위아래 12)로 끝나면 아래 8 — 띠까지 눈에 20(10/1). 안내 문장 · 마감 배지로 끝나거나 맨 아래면 20.
+        val endsWithMenu = i < list.lastIndex && p.deadline.isBlank() && parseFoodBlocks(p.desc).lastOrNull() is FoodBlock.Menu
+        HoyolandSectionBox(bottom = if (endsWithMenu) 8.dp else 20.dp) {
             HoyolandFoodCard(e, p)
             if (i == list.lastIndex) {
                 Spacer(Modifier.height(14.dp))
@@ -2914,10 +2926,12 @@ private fun HoyolandHairlineDivider() {
 private fun HoyolandSectionBox(
     top: androidx.compose.ui.unit.Dp = 22.dp,
     horizontal: androidx.compose.ui.unit.Dp = 20.dp,
+    /** 마지막 내용 끝 → 띠가 눈에 20 이 되게, 20 − (마지막 줄이 스스로 가진 아래 여백)(10/1). 맨 아래 섹션은 20. */
+    bottom: androidx.compose.ui.unit.Dp = 20.dp,
     content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit,
 ) {
     Column(
-        Modifier.fillMaxWidth().padding(start = horizontal, end = horizontal, top = top, bottom = 20.dp),
+        Modifier.fillMaxWidth().padding(start = horizontal, end = horizontal, top = top, bottom = bottom),
         content = content,
     )
 }

@@ -47,6 +47,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -578,7 +579,7 @@ fun HomeContent(
         // 최근 지출
         glgCardItem() {
             // 오늘 할 일이 없으면 이게 히어로 바로 아래 첫 섹션 — 그때는 띠 없이.
-            HomeSection(band = !gameInfoReady || todayTasks.isNotEmpty()) { RecentSpendCard(spendings) { onNavigateToSpending() } }
+            HomeSection(band = !gameInfoReady || todayTasks.isNotEmpty(), bottom = 8.dp) { RecentSpendCard(spendings) { onNavigateToSpending() } }
         }
         // 카드마다 자기 데이터가 올 때까지 스켈레톤 — 예전엔 gameInfoReady 하나로 묶여 있어서, 배너·노트가
         // 캐시로 즉시 차면 스켈레톤이 걷히고 이 두 카드만 한동안 자리를 비웠다가 뒤늦게 튀어나왔다.
@@ -774,10 +775,11 @@ private fun TokenExpiredBanner(onReconnect: () -> Unit) {
 /**
  * 홈 섹션 — 위 10 띠 + 좌우 20 · 위 22 · 아래 20(게임 정보 · 지출과 같은 규격).
  * [band]=false 는 히어로 바로 아래 첫 섹션 — 그라데이션이 옅어지는 자리라 띠를 두지 않는다.
+ * [bottom] 은 20 − 마지막 요소의 자체 아래 여백(최근 지출 줄은 vertical 12 라 8) — 눈에 보이는 끝 → 띠 간격을 20 으로 맞춘다.
  */
 @Composable
-private fun HomeSection(band: Boolean = true, content: @Composable ColumnScope.() -> Unit) {
+private fun HomeSection(band: Boolean = true, bottom: Dp = 20.dp, content: @Composable ColumnScope.() -> Unit) {
     if (band) Box(Modifier.fillMaxWidth().height(10.dp).background(Color(0xFFF2F4F6)))
     // 흰 면 — 히어로 그라데이션이 고정 배경이라, 투명하면 스크롤할 때 섹션 뒤로 비친다.
-    Column(Modifier.fillMaxWidth().background(Color.White).padding(start = 20.dp, end = 20.dp, top = 22.dp, bottom = 20.dp), content = content)
+    Column(Modifier.fillMaxWidth().background(Color.White).padding(start = 20.dp, end = 20.dp, top = 22.dp, bottom = bottom), content = content)
 }

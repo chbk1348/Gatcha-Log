@@ -16,6 +16,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.gatcha.log.data.CombatMode
@@ -57,7 +58,8 @@ fun GameTabbedSection(
                 )
             }
             else -> {
-                if (combatGames.isNotEmpty()) GiPageSection("전투 콘텐츠 진행도") {
+                // 아래에 수입 일지가 이어지면 마지막 줄(위아래 10 + 아래 4)만큼 덜어 띠까지 20(10/1). 맨 아래면 20.
+                if (combatGames.isNotEmpty()) GiPageSection("전투 콘텐츠 진행도", bottom = if (ledgerList.isNotEmpty()) 6.dp else 20.dp) {
                     // 여기 있던 '클리어 편성' 진입 행은 걷어냈다 — 데일리 카드로 꺼내면서
                     // 이 줄을 그대로 두는 바람에 **같은 진입점이 두 화면에 나란히** 보였다.
                     // 진입은 데일리 카드 한 곳(GameInfoAttendance 의 GameContentEntry)으로 모은다.
@@ -105,14 +107,18 @@ private fun GameContentSkeleton() {
 /**
  * 게임정보 하위 페이지 섹션(10/1) — 카드 없이 화면 폭, 좌우 20 · 위 22 · 아래 20. 섹션 사이는 [GiBand].
  * 메인 탭의 GiSection 과 같은 규격이다(그건 GameInfoScreen 안 private 이라 하위 페이지용을 따로 둔다).
+ *
+ * [bottom] — 마지막 내용 끝 → 띠가 눈에 20 이 되게, 20 − (마지막 줄이 스스로 가진 아래 여백)을 넘긴다(10/1).
+ * 페이지 맨 아래 섹션은 20 그대로 둔다.
  */
 @Composable
 internal fun GiPageSection(
     title: String? = null,
     modifier: Modifier = Modifier,
+    bottom: Dp = 20.dp,
     content: @Composable ColumnScope.() -> Unit,
 ) {
-    Column(modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 22.dp, bottom = 20.dp)) {
+    Column(modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 22.dp, bottom = bottom)) {
         if (title != null) {
             Text(title, fontSize = 17.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
             Spacer(Modifier.height(12.dp))
