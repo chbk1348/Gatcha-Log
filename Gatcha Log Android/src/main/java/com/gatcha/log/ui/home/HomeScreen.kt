@@ -116,9 +116,6 @@ fun HomeScreen(viewModel: SpendingViewModel = viewModel()) {
     // 열려 있으면 하단바와 FAB를 숨긴다. 각 탭 콘텐츠가 자신의 하위 페이지 상태를 보고한다.
     var subPageActive by remember { mutableStateOf(false) }
 
-    // 히어로 글로우(움직이는 원) 사용 여부 — 설정에서 끌 수 있다. 끄면 그라데이션만 남는다.
-    val heroGlow by viewModel.heroGlow.collectAsStateWithLifecycle()
-
     // 탭별 스크롤 상태를 끌어올려, 하단바 탭 클릭 시 해당 페이지를 최상단으로 이동.
     val tabListStates = listOf(
         rememberLazyListState(), rememberLazyListState(),
@@ -253,13 +250,12 @@ fun HomeScreen(viewModel: SpendingViewModel = viewModel()) {
                     // 상단 인셋 바깥(패딩 Box 이전)에 그려야 상태바 뒤까지 확장된다.
                     //
                     // **하위 페이지에서는 끈다.** 홈에서 들어가는 상세(알림·저축 플래너 등)는 탭 인덱스가
-                    // 그대로 0 이라, 예전엔 상세 화면 뒤로도 히어로 글로우가 비쳤다. 상세는 흰 배경 고정이다.
+                    // 그대로 0 이라, 예전엔 상세 화면 뒤로도 히어로 그라데이션이 비쳤다. 상세는 흰 배경 고정이다.
                     if (selectedTab == 0 && !subPageActive) {
                         HeroGradientBackground(
                             Modifier.fillMaxWidth()
                                 .height(paddingValues.calculateTopPadding() + 262.dp)
                                 .align(Alignment.TopCenter),
-                            glow = heroGlow,
                         )
                     }
                     // 전 화면 edge-to-edge(상단 인셋 없음). 각 화면이 자기 상단 인셋을 소유한다 —
@@ -548,8 +544,8 @@ fun HomeContent(
     LazyColumn(
         state = listState,
         // 카드 없이 화면 폭 섹션 + 10 띠(10/1, 다른 탭과 같은 규격) — 좌우 여백은 섹션마다 준다.
-        // 목록 바탕은 투명 — 히어로 뒤 고정 그라데이션 · 글로우가 히어로 자리에서만 보이고,
-        // 아래 섹션은 각자 흰 면([HomeSection])이라 글로우가 섹션 · 띠 뒤로 비치지 않는다.
+        // 목록 바탕은 투명 — 히어로 뒤 고정 그라데이션이 히어로 자리에서만 보이고,
+        // 아래 섹션은 각자 흰 면([HomeSection])이라 그라데이션이 섹션 · 띠 뒤로 비치지 않는다.
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(top = GlgTabHeaderHeight + topInset, bottom = glgTabContentBottom()),
     ) {
@@ -790,6 +786,6 @@ private fun TokenExpiredBanner(onReconnect: () -> Unit) {
 @Composable
 private fun HomeSection(band: Boolean = true, content: @Composable ColumnScope.() -> Unit) {
     if (band) Box(Modifier.fillMaxWidth().height(10.dp).background(Color(0xFFF2F4F6)))
-    // 흰 면 — 히어로 글로우가 고정 배경이라, 투명하면 스크롤할 때 섹션 뒤로 비친다.
+    // 흰 면 — 히어로 그라데이션이 고정 배경이라, 투명하면 스크롤할 때 섹션 뒤로 비친다.
     Column(Modifier.fillMaxWidth().background(Color.White).padding(start = 20.dp, end = 20.dp, top = 22.dp, bottom = 20.dp), content = content)
 }

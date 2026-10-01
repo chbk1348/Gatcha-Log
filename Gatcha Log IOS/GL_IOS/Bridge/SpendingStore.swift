@@ -92,8 +92,6 @@ final class SpendingStore {
     /// 호요랜드의 하위 페이지(굿즈 · 부스 · 배치도 …)는 같은 스택 위에 쌓이므로 홈으로 돌아올 때까지 참이다.
     /// 홈에서 하위 페이지(호요랜드 · 예산 관리)가 열려 있는가 — 그동안 '+' 를 감춘다.
     var homeSubpageOpen: Bool = false
-    /// 홈 히어로 글로우 애니메이션 사용 여부 — 끄면 그라데이션만 남는다.
-    private(set) var heroGlow: Bool = true
     /// 캐릭터 상세 속성 연출 — 끄면 움직임 없이 속성 테두리만 남는다.
     private(set) var charElementFx: Bool = true
     private(set) var nudgeThreshold: Int64 = 0
@@ -256,7 +254,6 @@ final class SpendingStore {
         nudgeOverspend = vm.nudgeOverspend.value.boolValue
         spendingCompact = vm.spendingCompact.value.boolValue
         collabBannerExpanded = vm.collabBannerExpanded.value.boolValue
-        heroGlow = vm.heroGlow.value.boolValue
         charElementFx = vm.charElementFx.value.boolValue
         nudgeThreshold = vm.nudgeThreshold.value.int64Value
         notifyNews = vm.notifyNews.value.boolValue
@@ -335,7 +332,6 @@ final class SpendingStore {
         bind(vm.collabBannerExpanded) { [weak self] in self?.collabBannerExpanded = $0.boolValue }
         bind(vm.hoyolandCart) { [weak self] in self?.hoyolandCart = $0 }
         bind(vm.hoyolandEntry) { [weak self] in self?.hoyolandEntry = $0 }
-        bind(vm.heroGlow) { [weak self] in self?.heroGlow = $0.boolValue }
         bind(vm.nudgeThreshold) { [weak self] in self?.nudgeThreshold = $0.int64Value }
         bind(vm.pendingOpenHoyolabLink) { [weak self] in self?.pendingOpenHoyolabLink = $0.boolValue }
         bind(vm.taskStats) { [weak self] in self?.taskStats = $0 }
@@ -431,7 +427,6 @@ final class SpendingStore {
     /// 그날의 조를 정한다. **같은 조를 다시 누르면 해제**되어 안 가는 날로 돌아간다(공유 계층 규칙).
     func setEntryGroup(_ ymd: String, _ group: String) { vm.setEntryGroup(ymd: ymd, group: group) }
     func clearEntry() { vm.clearEntry() }
-    func setHeroGlow(_ v: Bool) { vm.setHeroGlow(v: v) }
     func setCharElementFx(_ v: Bool) { vm.setCharElementFx(v: v) }
     func setNudgeThreshold(_ v: Int64) { vm.setNudgeThreshold(v: v) }
     /// 공지 상세 진입 — 본문 로드. 이탈 시 clearNewsArticle() 로 정리한다.
