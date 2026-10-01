@@ -59,9 +59,8 @@ struct SavingsChallengeView: View {
                 band
                 Text("무지출 스트릭·예산 달성은 지출 기록에서 자동 판정돼요. 배지는 한번 얻으면 유지돼요.")
                     .font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary)
-                    .padding(.horizontal, 20).padding(.vertical, 14)
+                    .padding(.horizontal, 20).padding(.top, 14).padding(.bottom, 20)
             }
-            .padding(.bottom, 16)
         }
         .scrollIndicators(.hidden)
         .background(Color.white)

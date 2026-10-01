@@ -75,7 +75,6 @@ struct SpendingInsightView: View {
                         AnnualReportContent(store: store)
                     }
                 }
-                Color.clear.frame(height: 16)
             }
         }
         .scrollIndicators(.hidden)

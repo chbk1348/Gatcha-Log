@@ -94,7 +94,6 @@ struct AddSpendingView: View {
                     detailsCard.transition(cardReveal)
                 }
             }
-            .padding(.bottom, 16)
             .glgReadableWidth(640)
         }
         .background(Color.white)

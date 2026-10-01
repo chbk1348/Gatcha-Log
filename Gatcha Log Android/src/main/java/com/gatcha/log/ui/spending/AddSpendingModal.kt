@@ -251,7 +251,7 @@ fun AddSpendingModal(
                 state = listState,
                 modifier = Modifier.weight(1f).fillMaxWidth(),
                 // 카드 없이 화면 폭 섹션 + 10 띠(지출 상세 · 마이페이지와 같은 규격). 히어로만 좌우 16 을 둔다.
-                contentPadding = PaddingValues(top = glgDetailContentTop(), bottom = 16.dp),
+                contentPadding = PaddingValues(top = glgDetailContentTop()),
             ) {
                 // ── 금액 히어로 — 게임·금액·상품·재화 환산을 한 덩어리로 ──
                 //

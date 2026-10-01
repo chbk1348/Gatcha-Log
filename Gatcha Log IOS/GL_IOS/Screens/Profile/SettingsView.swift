@@ -335,7 +335,7 @@ struct MyGamesView: View {
                     .font(.pretendard(size: 11.5)).foregroundStyle(Color(hex: 0xFF7A8784))
                     .padding(.horizontal, 4).padding(.top, 4)
             }
-            .padding(.horizontal, 20).padding(.vertical, 16)
+            .padding(.horizontal, 20).padding(.top, 16).padding(.bottom, 20)
             .glgReadableWidth(640)
         }
         .scrollIndicators(.hidden)

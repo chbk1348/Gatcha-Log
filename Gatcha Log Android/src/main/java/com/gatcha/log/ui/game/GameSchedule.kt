@@ -370,7 +370,7 @@ fun GameScheduleFullPage(
                 // contentPadding top 을 무시하고 뷰포트 최상단에 붙으므로, 그러지 않으면
                 // 주간 표가 고정 헤더 뒤로 파고든다.
                 .padding(top = glgDetailContentTop()),
-            contentPadding = PaddingValues(bottom = 24.dp),
+            // 아래 여분 없음 — 마지막 주(섹션)가 아래 20 을 두고, 제스처 바는 위 navigationBarsPadding 이 비킨다(GLDS 2.0, 10/1).
         ) {
             item(key = "tabs") {
                 // 칩이 아니라 세그먼트 탭 — 둘 중 하나만 고르는 자리는 앱 전체가 이 규격이다

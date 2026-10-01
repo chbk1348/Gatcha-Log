@@ -192,7 +192,8 @@ fun GachaDashboardScreen(
                 }
             }
 
-            Spacer(Modifier.navigationBarsPadding().height(8.dp))
+            // 제스처 바를 비키는 만큼만 — 마지막 섹션이 아래 20 을 이미 둔다(GLDS 2.0, 10/1).
+            Spacer(Modifier.navigationBarsPadding())
         }
         }
         GlgDetailHeaderOverlay("가챠 통계", onBack, scrollState = scrollState)

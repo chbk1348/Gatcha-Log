@@ -123,7 +123,7 @@ struct HoyolandMapView: View {
                 board(map)
                     .padding(.bottom, 12)
                 legend
-                Color.clear.frame(height: 24)
+                // 아래 여분 없음 — 마지막 섹션이 아래 20 을 둔다(GLDS 2.0, 10/1).
             }
             // 카드 없는 섹션 여백(10/1) — 좌우 20 · 위 22 · 아래 20.
             .padding(.horizontal, 20).padding(.top, 22).padding(.bottom, 20)

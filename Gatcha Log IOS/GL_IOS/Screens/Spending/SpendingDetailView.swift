@@ -80,9 +80,7 @@ struct SpendingDetailView: View {
                     // 같은 항목 이력은 조건부라 띠를 스스로 그린다(빠지면 띠도 함께 빠진다).
                     sameItemSection(s, history: st.same)
                 }
-                Color.clear.frame(height: 24)
             }
-            .padding(.bottom, 8)
         }
         .scrollIndicators(.hidden)
         // 통계는 지출 목록이 바뀔 때만(편집 · 삭제 · 동기화). 대상 지출도 이 목록에서 다시 찾는다.

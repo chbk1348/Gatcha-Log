@@ -92,7 +92,6 @@ fun SpendingDetailScreen(
             ShareSection(spending, all)
             // 같은 항목 이력은 조건부라 띠를 스스로 그린다(빠지면 띠도 함께 빠진다).
             SameItemSection(spending, all)
-            Spacer(Modifier.height(24.dp))
         }
         // 제목은 비운다 — 히어로의 게임명·금액이 어느 화면인지 말해 준다(iOS 와 동일).
         // 알약을 띄우면 파스텔 위에 흰 알약이 하나 더 얹혀 상단이 어수선해진다.

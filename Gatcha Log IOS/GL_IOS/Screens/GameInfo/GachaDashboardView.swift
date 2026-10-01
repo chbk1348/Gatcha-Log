@@ -120,7 +120,7 @@ struct GachaDashboardView: View {
                         }
                     }
                 }
-                Color.clear.frame(height: 8)
+                // 맨 아래 여분 없음 — 마지막 섹션이 아래 20 을 둔다(GLDS 2.0, 10/1).
             }
         }
         .scrollIndicators(.hidden)

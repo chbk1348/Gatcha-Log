@@ -48,7 +48,7 @@ struct GiftCodePage: View {
                     }
                     .padding(.horizontal, 20).padding(.top, 22).padding(.bottom, 20)
                 }
-                Color.clear.frame(height: 12)
+                // 맨 아래 여분 없음 — 마지막 섹션이 아래 20 을 둔다(GLDS 2.0, 10/1).
             }
         }
         .scrollIndicators(.hidden)

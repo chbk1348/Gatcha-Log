@@ -61,7 +61,7 @@ struct HoyolandStageView: View {
                     // VStack 으로 한 번 감싼다 — 여러 뷰를 내는 함수에 바로 걸면 여백이 줄마다 붙는다.
                     VStack(alignment: .leading, spacing: 0) { timetableSection(event) }
                         .hoyolandSection(top: ymds.count > 1 ? 12 : 22)
-                    Color.clear.frame(height: 24)
+                    // 아래 여분 없음 — 마지막 섹션이 아래 20 을 둔다(GLDS 2.0, 10/1).
                 }
                 .glgReadableWidth(720)
             }

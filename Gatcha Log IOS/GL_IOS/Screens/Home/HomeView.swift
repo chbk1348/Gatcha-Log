@@ -142,10 +142,10 @@ struct HomeView: View {
                 }
                 // 호요랜드 — 개막 D-60 이내에만 끼어드는 한시 배너(끝나면 스스로 빠진다).
                 // 히어로 바로 밑이다. 광고 배너라 목록 중간에 두면 다른 카드의 리듬에 묻힌다 —
-                // 첫 화면에서 한 번 눈에 걸리고 지나가는 자리가 맞다. 입장권은 화면 폭을 꽉 채운다.
+                // 첫 화면에서 한 번 눈에 걸리고 지나가는 자리가 맞다. 입장권은 양옆 12 만 두고 아래 여백 없이 붙인다(10/1).
                 // 스켈레톤을 두지 않는 건 폴백이 늘 유효해서다.
                 HoyolandHomeCard(onTap: { showHoyoland = true })
-                    .padding(.bottom, 16)
+                    .padding(.horizontal, 12)
                 // 히어로 바로 아래 첫 섹션은 띠 없이 — 그라데이션이 옅어지는 자리에 회색 띠가 걸리면 어색하다.
                 let showToday = !store.gameInfoReady || !todayTasks.isEmpty
                 if showToday {

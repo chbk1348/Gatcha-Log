@@ -209,7 +209,7 @@ struct HoyolandSection: View {
             .background(Color.white)
         }
         // 반원 홈은 머리와 본문이 만나는 **절취선 한가운데** 하나 — 카드 안쪽에 뚫린 구멍이다.
-        .clipShape(HoyolandTicketShape(notchAtEdges: false, notchAt: headHeight), style: FillStyle(eoFill: true))
+        .clipShape(HoyolandTicketShape(notchAtEdges: false, notchAt: headHeight, corner: 0), style: FillStyle(eoFill: true))
     }
 
     /// 예매처 열기 — 상세 `ticketSection` 의 「예매하기」와 같은 순서(앱 스킴 → 실패 시 웹). 주소가 없으면 상세로.
@@ -397,7 +397,7 @@ struct HoyolandDetailView: View {
                 pastSection(e).hoyolandSection()
                 }
 
-                Color.clear.frame(height: 24)
+                // 아래 여분 없음 — 마지막 섹션이 아래 20 을 둔다(GLDS 2.0, 10/1).
             }
             // 한 열은 좌우 여백 없이 화면 폭(섹션이 스스로 20) — 두 열(iPad)만 24 를 둔다(10/1).
             .padding(.horizontal, wide ? 24 : 0)
@@ -1711,9 +1711,11 @@ struct HoyolandTicketShape: Shape {
     var notchAtEdges: Bool
     /// 카드 안쪽의 한 높이(게임정보 카드의 가로 절취선).
     var notchAt: CGFloat?
+    /// 모서리 반지름 — 게임정보 섹션은 화면 폭이라 0(10/1).
+    var corner: CGFloat = 20
 
     func path(in rect: CGRect) -> Path {
-        var p = Path(roundedRect: rect, cornerRadius: 20, style: .continuous)
+        var p = Path(roundedRect: rect, cornerRadius: corner, style: .continuous)
         let cx = rect.maxX - HoyolandTicketStubWidth
         var ys: [CGFloat] = notchAtEdges ? [rect.minY, rect.maxY] : []
         if let notchAt { ys.append(rect.minY + notchAt) }

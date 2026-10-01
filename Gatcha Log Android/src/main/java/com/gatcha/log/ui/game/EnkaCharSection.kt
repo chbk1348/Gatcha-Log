@@ -368,7 +368,11 @@ fun EnkaRosterPage(
     LazyColumn(
         state = listState,
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = glgDetailContentTop(), bottom = 30.dp),
+        // 아래 — 마지막 줄 뒤 간격(8|10)과 합쳐 20, 그리고 제스처 바를 비키는 만큼(GLDS 2.0, 10/1).
+        contentPadding = PaddingValues(
+            start = 20.dp, end = 20.dp, top = glgDetailContentTop(),
+            bottom = (if (cols >= 3) 12.dp else 10.dp) + WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding(),
+        ),
     ) {
         item {
             Column {
@@ -1123,8 +1127,8 @@ fun EnkaStatPage(
                 SectionHead(4, "돌파 정보", effectsTitle(game))
                 CharEffectsSection(c, game)
             }
-            // 예전 바닥 여백(30)을 맞춘다 — 섹션 아래 20 + 10.
-            Spacer(Modifier.height(10.dp))
+            // 섹션 아래 20 뒤엔 제스처 바를 비키는 만큼만(GLDS 2.0, 10/1). 예전 +10 은 걷었다.
+            Spacer(Modifier.navigationBarsPadding())
         }
 
         // 히어로가 파스텔이라 헤더 버튼은 ink 색을 받는다(지출 상세와 동일).

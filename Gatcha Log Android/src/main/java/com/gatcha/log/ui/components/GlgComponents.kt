@@ -388,10 +388,14 @@ fun BoxScope.GlgDetailHeaderOverlay(
 }
 
 /**
- * 하단 탭바가 **화면을 가리는 높이** — 바 본체 64 + 위아래 여백 12×2. (기기 내비 인셋은 별도)
+ * 하단 탭바가 **화면을 가리는 높이** — 바 본체 64 + 위아래 여백 4×2. (기기 내비 인셋은 별도)
  * BottomNavBar 의 실제 구성과 같이 움직여야 하므로 바꿀 땐 양쪽을 함께 본다.
+ * (예전 88 은 여백을 12×2 로 잘못 셌다 — 그 16dp 가 네 탭 맨 아래에 남았다)
  */
-val GlgTabBarHeight = 88.dp
+val GlgTabBarHeight = 72.dp
+
+/** 탭바 아래 바닥 몫의 최소값 — BottomNavBar 의 BOTTOM_MIN(20) − 아래 여백(4). 인셋이 이보다 작으면 이만큼 띄운다. */
+private val GlgTabBarFloor = 16.dp
 
 /**
  * 탭 콘텐츠의 하단 여백 — [GlgTabBarHeight] + **기기 내비게이션 바 인셋.**
@@ -403,7 +407,7 @@ val GlgTabBarHeight = 88.dp
  */
 @Composable
 fun glgTabContentBottom(): Dp =
-    GlgTabBarHeight + WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+    GlgTabBarHeight + maxOf(WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding(), GlgTabBarFloor)
 
 /**
  * 상단 스크림이 상태바 **아래로 더 내려가는 높이**.
