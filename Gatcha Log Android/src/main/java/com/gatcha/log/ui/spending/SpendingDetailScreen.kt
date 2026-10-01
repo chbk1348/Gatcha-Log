@@ -28,6 +28,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.gatcha.log.data.DateUtil
@@ -256,10 +257,13 @@ private fun DetailHair() {
 
 private val DetailHairColor = Color(0xFFEEF0F2)
 
-/** 섹션 — 좌우 20 · 위 22 · 아래 20, 제목 17 굵게(마이페이지 3.0 섹션 머리와 같은 크기). */
+/**
+ * 섹션 — 좌우 20 · 위 22 · 아래 20, 제목 17 굵게(마이페이지 3.0 섹션 머리와 같은 크기).
+ * [bottom] 은 20 − 마지막 요소의 자체 아래 여백(상세 정보 줄은 vertical 13 이라 7).
+ */
 @Composable
-private fun DetailSection(title: String, content: @Composable ColumnScope.() -> Unit) {
-    Column(Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 22.dp, bottom = 20.dp)) {
+private fun DetailSection(title: String, bottom: Dp = 20.dp, content: @Composable ColumnScope.() -> Unit) {
+    Column(Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 22.dp, bottom = bottom)) {
         Text(title, fontSize = 17.sp, fontWeight = FontWeight.Bold, color = TextPrimary, modifier = Modifier.padding(bottom = 6.dp))
         content()
     }
@@ -271,7 +275,7 @@ private fun DetailSection(title: String, content: @Composable ColumnScope.() -> 
 private fun InfoSection(s: Spending) {
     // 재화 개수를 못 구하는 상품이면 히어로 칸이 결제 수단 · 충전 플랫폼을 이미 보여 준다 — 여기선 겹치지 않게 뺀다.
     val heroShowsPayment = currencyAmountOrNull(s.gameName, s.itemName) == null
-    DetailSection("상세 정보") {
+    DetailSection("상세 정보", bottom = 7.dp) {
         DetailRow("내용", s.itemName.ifBlank { "—" })
         if (!heroShowsPayment) {
             DetailHair()

@@ -255,13 +255,15 @@ struct GameInfoView: View {
                 // 하위 페이지로 곧장 들어간다. 폐막 뒤에는 섹션이 한 줄로 줄어든다(HoyolandSection).
                 // 입장권은 화면 폭을 꽉 채운다(10/1) — 좌우 여백 없이, 제목 · 종료 줄만 섹션 안에서 20 을 둔다.
                 GiBand()
+                // 아래 6 — 입장권 본문이 스스로 아래 14 를 가져 띠까지 눈에 20(10/1).
                 HoyolandSection(onOpen: { sub in hoyolandInitial = sub; showHoyoland = true })
-                    .padding(.top, 22).padding(.bottom, 20)
+                    .padding(.top, 22).padding(.bottom, 6)
                 // 숙제 완주율은 별도 섹션을 두지 않는다 — 데일리의 게임 줄에 완주율까지 들어간다.
                 // 내 캐릭터(보유 전체 로스터) — 데일리 다음 핵심 콘텐츠로 상단 배치
                 // 미연동이면 섹션·상단 여백까지 통째 생략(빈 여백 방지).
                 if store.hoyolabConfig.isLinked {
-                    section {
+                    // 아래 4 — 게임 블록이 스스로 위아래 16 을 가진다(10/1).
+                    section(bottom: 4) {
                         EnkaCharSection(store: store,
                                         onOpen: { c, g in statChar = c; statGame = g; showStats = true },
                                         onOpenAll: { g in rosterGame = g; showRoster = true },
@@ -271,10 +273,12 @@ struct GameInfoView: View {
                 // 통합 게임 일정 — 패치·이벤트·정기 콘텐츠. 게임 구분 없이 전부 싣는다.
                 // 집계는 원본 3종이 바뀔 때만(아래 .task) — 예전엔 여기서 body 평가마다 다시 만들었다.
                 if !schedule.isEmpty {
-                    section { GameScheduleSection(entries: schedule, banners: store.activeBanners, onSeeAll: { showSchedule = true }) }.id("SCHEDULE")
+                    // 아래 9 — 마지막 게임 줄이 위아래 11 을 가진다(10/1).
+                    section(bottom: 9) { GameScheduleSection(entries: schedule, banners: store.activeBanners, onSeeAll: { showSchedule = true }) }.id("SCHEDULE")
                 }
                 // 공지·뉴스 — 게임별 최신 공지(탭하면 HoYoLab 열기). 더보기로 전체 페이지.
-                section { NewsSection(store: store, onSeeAll: { showNews = true }, onOpenNews: { selectedNews = $0; showNewsDetail = true }) }.id("NEWS")
+                // 아래 6 — 마지막 공지 줄이 위아래 14 를 가진다(10/1).
+                section(bottom: 6) { NewsSection(store: store, onSeeAll: { showNews = true }, onOpenNews: { selectedNews = $0; showNewsDetail = true }) }.id("NEWS")
                 // 진입 카드 — 가챠 도구.
                 entryCards
             }
@@ -331,9 +335,10 @@ struct GameInfoView: View {
     }
 
     /// 카드 없이 화면 폭 섹션 — 앞 섹션과 10 띠로 가르고 좌우 20 · 위 22 · 아래 20(Android GiSection · GiBand 와 같다).
-    @ViewBuilder private func section<C: View>(@ViewBuilder _ content: () -> C) -> some View {
+    /// bottom — 마지막 줄이 스스로 아래 여백을 가지면 그만큼 덜어 띠까지 눈에 20(10/1). 맨 아래 섹션은 20.
+    @ViewBuilder private func section<C: View>(bottom: CGFloat = 20, @ViewBuilder _ content: () -> C) -> some View {
         GiBand()
-        content().padding(.horizontal, 20).padding(.top, 22).padding(.bottom, 20)
+        content().padding(.horizontal, 20).padding(.top, 22).padding(.bottom, bottom)
     }
 
     // 페이지 진입 카드 — 아이콘 + 제목 + 설명 + 셰브론(글래스 카드).

@@ -250,13 +250,14 @@ struct SpendingDetailView: View {
     private var detailHair: some View { Color(hex: 0xFFEEF0F2).frame(height: 1).frame(maxWidth: .infinity) }
 
     /// 섹션 — 좌우 20 · 위 22 · 아래 20, 제목 17 굵게(마이페이지 3.0 섹션 머리와 같은 크기).
-    private func detailSection<C: View>(_ title: String, @ViewBuilder content: () -> C) -> some View {
+    /// `bottom` 은 20 − 마지막 요소의 자체 아래 여백(상세 정보 줄은 vertical 13 이라 7).
+    private func detailSection<C: View>(_ title: String, bottom: CGFloat = 20, @ViewBuilder content: () -> C) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             Text(title).font(.pretendard(size: 17, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
                 .padding(.bottom, 6)
             content()
         }
-        .padding(.horizontal, 20).padding(.top, 22).padding(.bottom, 20)
+        .padding(.horizontal, 20).padding(.top, 22).padding(.bottom, bottom)
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
@@ -264,7 +265,7 @@ struct SpendingDetailView: View {
     private func infoSection(_ s: Spending) -> some View {
         // 재화 개수를 못 구하는 상품이면 히어로 칸이 결제 수단 · 충전 플랫폼을 이미 보여 준다 — 여기선 겹치지 않게 뺀다.
         let heroShowsPayment = GameDataKt.currencyAmountOrNull(gameName: s.gameName, itemName: s.itemName) == nil
-        return detailSection("상세 정보") {
+        return detailSection("상세 정보", bottom: 7) {
             detailRow("내용", s.itemName.isEmpty ? "—" : s.itemName)
             if !heroShowsPayment {
                 detailHair

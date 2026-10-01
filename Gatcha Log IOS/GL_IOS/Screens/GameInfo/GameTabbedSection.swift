@@ -32,7 +32,8 @@ struct GameTabbedSection: View {
                 }
             } else {
                 if !combatGames.isEmpty {
-                    GiPageSection("전투 콘텐츠 진행도") {
+                    // 아래에 수입 일지가 이어지면 마지막 줄(위아래 10 + 아래 4)만큼 덜어 띠까지 20(10/1). 맨 아래면 20.
+                    GiPageSection("전투 콘텐츠 진행도", bottom: ledgers.isEmpty ? 20 : 6) {
                         // 여기 있던 '클리어 편성' 진입 행은 걷어냈다 — 데일리 카드로 꺼내면서
                         // 이 줄을 그대로 두는 바람에 **같은 진입점이 두 화면에 나란히** 보였다.
                         // 진입은 데일리 카드 한 곳(DailyHeroSection 의 GameContentEntry)으로 모은다.
@@ -87,12 +88,16 @@ struct GameTabbedSection: View {
 
 /// 게임정보 하위 페이지 섹션(10/1) — 카드 없이 화면 폭, 좌우 20 · 위 22 · 아래 20. 섹션 사이는 GiBand.
 /// Android `GiPageSection` 과 같다.
+/// bottom — 마지막 내용 끝 → 띠가 눈에 20 이 되게, 20 − (마지막 줄이 스스로 가진 아래 여백)을 넘긴다(10/1).
+/// 페이지 맨 아래 섹션은 20 그대로 둔다.
 struct GiPageSection<Content: View>: View {
     let title: String?
+    let bottom: CGFloat
     let content: Content
 
-    init(_ title: String? = nil, @ViewBuilder content: () -> Content) {
+    init(_ title: String? = nil, bottom: CGFloat = 20, @ViewBuilder content: () -> Content) {
         self.title = title
+        self.bottom = bottom
         self.content = content()
     }
 
@@ -107,7 +112,7 @@ struct GiPageSection<Content: View>: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 20)
         .padding(.top, 22)
-        .padding(.bottom, 20)
+        .padding(.bottom, bottom)
     }
 }
 

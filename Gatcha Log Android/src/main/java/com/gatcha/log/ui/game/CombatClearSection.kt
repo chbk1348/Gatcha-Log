@@ -167,7 +167,7 @@ fun CombatClearContent(
         shown.forEachIndexed { i, m ->
             if (i > 0) GiBand()
             // 첫 모드만 펼쳐 둔다 — 모드마다 12층씩 펼치면 두 번째 모드는 몇 화면 아래로 밀린다.
-            key(m.game, m.mode) { ModeCard(m, initiallyExpanded = i == 0) }
+            key(m.game, m.mode) { ModeCard(m, initiallyExpanded = i == 0, isLast = i == shown.lastIndex) }
         }
     }
 }
@@ -185,7 +185,7 @@ private fun GameFilter(games: List<String>, selected: String?, onSelect: (String
 
 
 @Composable
-private fun ModeCard(m: CombatModeClears, initiallyExpanded: Boolean) {
+private fun ModeCard(m: CombatModeClears, initiallyExpanded: Boolean, isLast: Boolean) {
     var expanded by rememberSaveable(m.game, m.mode) { mutableStateOf(initiallyExpanded) }
     // 지역 변수로 받아야 스마트 캐스트가 된다(모듈이 달라 프로퍼티 직접 참조로는 안 된다).
     val current = m.current
@@ -218,8 +218,13 @@ private fun ModeCard(m: CombatModeClears, initiallyExpanded: Boolean) {
             }
             return@Box
         }
+        // 펼친 모드는 마지막이 층 줄 · 더 보기(아래 약 12)라 섹션 아래 8 — 띠까지 눈에 20(10/1).
+        // 안내 글(note)로 끝나거나 페이지 맨 아래면 20.
         Column(
-            Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 22.dp, bottom = 20.dp),
+            Modifier.fillMaxWidth().padding(
+                start = 20.dp, end = 20.dp, top = 22.dp,
+                bottom = if (isLast || clear.note.isNotBlank()) 20.dp else 8.dp,
+            ),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {

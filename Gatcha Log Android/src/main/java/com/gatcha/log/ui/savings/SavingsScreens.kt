@@ -121,10 +121,13 @@ private fun Band() {
     Box(Modifier.fillMaxWidth().height(10.dp).background(BandColor))
 }
 
-/** 섹션 — 좌우 20 · 위 22 · 아래 20. 제목 17 굵게 + 오른쪽 보조 12. */
+/**
+ * 섹션 — 좌우 20 · 위 22 · 아래 20. 제목 17 굵게 + 오른쪽 보조 12.
+ * [bottom] 은 20 − 마지막 요소의 자체 아래 여백(챌린지 줄 vertical 13 → 7, 배지 칸 vertical 4 → 16).
+ */
 @Composable
-private fun Section(title: String?, trailing: String? = null, top: Dp = 22.dp, content: @Composable ColumnScope.() -> Unit) {
-    Column(Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = top, bottom = 20.dp)) {
+private fun Section(title: String?, trailing: String? = null, top: Dp = 22.dp, bottom: Dp = 20.dp, content: @Composable ColumnScope.() -> Unit) {
+    Column(Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = top, bottom = bottom)) {
         if (title != null) {
             Row(Modifier.fillMaxWidth().padding(bottom = 14.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text(title, fontSize = 17.sp, fontWeight = FontWeight.Bold, color = TextPrimary, modifier = Modifier.weight(1f))
@@ -194,7 +197,7 @@ private fun WeekStrip(viewModel: SpendingViewModel, accent: Color) {
 @Composable
 private fun ChallengeSection(summary: ChallengeSummary, accent: Color) {
     val done = summary.challenges.count { it.reached }
-    Section("이번 달 챌린지", "$done / ${summary.challenges.size} 달성") {
+    Section("이번 달 챌린지", "$done / ${summary.challenges.size} 달성", bottom = 7.dp) {
         summary.challenges.forEachIndexed { i, c ->
             if (i > 0) Box(Modifier.fillMaxWidth().height(1.dp).background(HairColor))
             ChallengeRow(c, accent)
@@ -238,7 +241,7 @@ private fun ChallengeRow(c: ChallengeProgress, accent: Color) {
 // ── ③ 배지 컬렉션 ──
 @Composable
 private fun BadgeSection(summary: ChallengeSummary, onOpen: (BadgeState) -> Unit) {
-    Section("획득 배지", "${summary.earnedBadgeCount} / ${summary.totalBadgeCount}") {
+    Section("획득 배지", "${summary.earnedBadgeCount} / ${summary.totalBadgeCount}", bottom = 16.dp) {
         Text(
             "배지를 누르면 얻는 방법을 볼 수 있어요",
             fontSize = 13.sp, color = TextSecondary, modifier = Modifier.padding(top = 0.dp, bottom = 16.dp).offset(y = (-6).dp),

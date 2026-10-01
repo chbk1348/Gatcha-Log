@@ -97,17 +97,14 @@ fun SpendingInsightScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
                     if (stats.count > 0) add { PaymentStatsSection(stats, month) }
                     if (trend != null) add { MonthlyTrendSection(trend, year) }
                     // 「전체 기간」 묶음 — 첫 섹션 위에 묶음 머리를 단다.
-                    var groupHead = true
-                    listOf(
+                    val breakdowns = listOf(
                         Triple("결제수단별", null as String?, payRows.map { Triple(it.name, it.amount, if (it.total > 0) it.amount.toFloat() / it.total else 0f) }),
                         Triple("충전 플랫폼별", null, platRows.map { Triple(it.name, it.amount, if (it.total > 0) it.amount.toFloat() / it.total else 0f) }),
                         // 태그는 중복 집계라 합계 비율이 100%를 넘을 수 있어, 막대 분모는 최대 태그 금액(total).
                         Triple("태그별", "태그가 여럿이면 중복 집계", tagRows.map { Triple("#${it.name}", it.amount, it.amount.toFloat() / it.total) }),
-                    ).forEach { (title, sub, rows) ->
-                        if (rows.isEmpty()) return@forEach
-                        val head = groupHead
-                        groupHead = false
-                        add { BreakdownSection(title, sub, rows, accent, groupHead = head) }
+                    ).filter { it.third.isNotEmpty() }
+                    breakdowns.forEachIndexed { i, (title, sub, rows) ->
+                        add { BreakdownSection(title, sub, rows, accent, groupHead = i == 0, last = i == breakdowns.lastIndex) }
                     }
                 }
                 sections.forEachIndexed { i, section ->
@@ -131,15 +128,19 @@ internal fun InsightBand() {
     Box(Modifier.fillMaxWidth().height(10.dp).background(Color(0xFFF2F4F6)))
 }
 
-/** 섹션 — 좌우 20 · 위 22 · 아래 20. 제목 17 굵게 + 오른쪽 보조 12. */
+/**
+ * 섹션 — 좌우 20 · 위 22 · 아래 20. 제목 17 굵게 + 오른쪽 보조 12.
+ * [bottom] 은 20 − 마지막 요소의 자체 아래 여백(비중 줄은 vertical 8 이라 12). 페이지 맨 아래 섹션은 20 그대로.
+ */
 @Composable
 internal fun InsightSection(
     title: String?,
     sub: String? = null,
     top: Dp = 22.dp,
+    bottom: Dp = 20.dp,
     content: @Composable ColumnScope.() -> Unit,
 ) {
-    Column(Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = top, bottom = 20.dp)) {
+    Column(Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = top, bottom = bottom)) {
         if (title != null) {
             Row(Modifier.fillMaxWidth().padding(bottom = 14.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text(title, fontSize = 17.sp, fontWeight = FontWeight.Bold, color = TextPrimary, modifier = Modifier.weight(1f))
@@ -320,7 +321,7 @@ private fun MonthlyTrendSection(trend: com.gatcha.log.data.MonthlyTrend, year: I
 
 // ---------------------------------------------------------------- 5) 전체 기간 비중 (결제수단 · 충전 플랫폼 · 태그)
 @Composable
-private fun BreakdownSection(title: String, sub: String?, rows: List<Triple<String, Long, Float>>, accent: Color, groupHead: Boolean) {
+private fun BreakdownSection(title: String, sub: String?, rows: List<Triple<String, Long, Float>>, accent: Color, groupHead: Boolean, last: Boolean) {
     if (groupHead) {
         // 이 아래는 **전체 기간** 값이다 — 위쪽 월간 섹션과 기준이 달라 섞여 읽혔다.
         Text(
@@ -329,7 +330,7 @@ private fun BreakdownSection(title: String, sub: String?, rows: List<Triple<Stri
             modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 22.dp),
         )
     }
-    InsightSection(title, sub, top = if (groupHead) 14.dp else 22.dp) {
+    InsightSection(title, sub, top = if (groupHead) 14.dp else 22.dp, bottom = if (last) 20.dp else 12.dp) {
         rows.forEach { (name, amount, frac) -> InsightShareRow(name, amount, frac, accent) }
     }
 }

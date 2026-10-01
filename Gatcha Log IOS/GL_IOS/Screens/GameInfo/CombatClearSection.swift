@@ -71,7 +71,7 @@ struct CombatClearSection: View {
                     ForEach(Array(shown.enumerated()), id: \.offset) { i, m in
                         if i > 0 { GiBand() }
                         // 필터가 바뀌면 맨 위 모드가 달라진다 — 첫 모드 여부까지 식별자에 넣어 펼침 기본값을 다시 잡는다.
-                        ModeCard(mode: m, initiallyExpanded: i == 0)
+                        ModeCard(mode: m, initiallyExpanded: i == 0, isLast: i == shown.count - 1)
                             .id("\(m.game)|\(m.mode)|\(i == 0)")
                     }
                 }
@@ -113,9 +113,12 @@ private struct ModeCard: View {
     /// 시즌별(키 = 지난 시즌 여부) 펼친 층 이름. 없으면 맨 위 층만 펼친 기본값.
     @State private var openRooms: [Bool: Set<String>] = [:]
     @State private var showAll: Set<Bool> = []
+    /// 페이지 맨 아래 모드인가 — 그때는 아래 20 을 그대로 둔다.
+    let isLast: Bool
 
-    init(mode: CombatModeClears, initiallyExpanded: Bool) {
+    init(mode: CombatModeClears, initiallyExpanded: Bool, isLast: Bool) {
         self.mode = mode
+        self.isLast = isLast
         _expanded = State(initialValue: initiallyExpanded)
     }
 
@@ -142,7 +145,9 @@ private struct ModeCard: View {
                         )
                     )
                 }
-                .padding(.horizontal, 20).padding(.top, 22).padding(.bottom, 20)
+                // 펼친 모드는 마지막이 층 줄 · 더 보기(아래 약 12)라 섹션 아래 8 — 띠까지 눈에 20(10/1).
+                // 안내 글(note)로 끝나거나 페이지 맨 아래면 20.
+                .padding(.horizontal, 20).padding(.top, 22).padding(.bottom, isLast || !clear.note.isEmpty ? 20 : 8)
             } else {
                 // 접힌 줄은 섹션 여백을 버튼 라벨 안에서 준다 — 화면 폭 전체가 눌린다.
                 collapsedRow

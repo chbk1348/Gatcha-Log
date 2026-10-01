@@ -305,10 +305,11 @@ fun SpendingScreen(
                     // contentType 을 나눠 둬야 스크롤 중 날짜 카드끼리만 컴포지션을 재사용한다.
                     item(key = if (amountMode) dayItems.first().id else dayItems.first().dayKey, contentType = "dayCard") {
                         Column {
-                            // 묶음 사이 — 날짜순은 띠(위 6 여백 포함), 금액순은 헤어라인만.
+                            // 묶음 사이 — 날짜순은 띠, 금액순은 헤어라인만.
+                            // 띠 위 여백은 20 − 줄 vertical(13 · 컴팩트 10) — 마지막 줄 끝 → 띠가 눈으로 20.
                             if (gi > 0) {
                                 if (amountMode) SpendingHair()
-                                else Box(Modifier.padding(top = 6.dp).fillMaxWidth().height(10.dp).background(SpendingBandColor))
+                                else Box(Modifier.padding(top = if (compact) 10.dp else 7.dp).fillMaxWidth().height(10.dp).background(SpendingBandColor))
                             }
                             SpendingDayGroup(
                                 dateLabel = if (amountMode) null else dayItems.first().dateLabel,

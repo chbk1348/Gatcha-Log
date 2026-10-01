@@ -35,6 +35,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.gatcha.log.data.DateUtil
@@ -492,7 +493,8 @@ fun GameInfoScreen(
             item { GiBand() }
             item {
                 // 입장권은 화면 폭을 꽉 채운다(10/1) — 좌우 여백 없이, 제목 · 종료 줄만 섹션 안에서 20 을 둔다.
-                Column(Modifier.padding(top = 22.dp, bottom = 20.dp)) {
+                // 아래 6 — 입장권 본문이 스스로 아래 14 를 가져 띠까지 눈에 20(10/1).
+                Column(Modifier.padding(top = 22.dp, bottom = 6.dp)) {
                     HoyolandSection(onOpen = { sub ->
                         hoyolandReturn = GiSub.Main
                         hoyolandInitial = sub
@@ -505,7 +507,8 @@ fun GameInfoScreen(
             if (hoyolab.isLinked) {
                 item { GiBand() }
                 item {
-                    GiSection {
+                    // 아래 4 — 게임 블록이 스스로 위아래 16 을 가져 띠까지 눈에 20(10/1).
+                    GiSection(bottom = 4.dp) {
                     EnkaCharSection(
                         viewModel,
                         onOpenStats = { c, g -> statChar = c; statCharGame = g; statReturn = GiSub.Main; subPage = GiSub.CharStats },
@@ -519,12 +522,14 @@ fun GameInfoScreen(
             // 통합 게임 일정 — 게임 구분 없이 전부. 게임별로 좁혀 보는 건 상세 페이지에서 한다.
             if (schedule.isNotEmpty()) {
                 item { GiBand() }
-                item { GiSection { GameScheduleSection(schedule, banners, onSeeAll = { subPage = GiSub.Schedule }) } }
+                // 아래 9 — 마지막 게임 줄이 위아래 11 을 가진다(10/1).
+                item { GiSection(bottom = 9.dp) { GameScheduleSection(schedule, banners, onSeeAll = { subPage = GiSub.Schedule }) } }
             }
             // 공지·뉴스 — 게임별 최신 공지(탭하면 HoYoLab 열기).
             item { GiBand() }
+            // 아래 6 — 마지막 공지 줄이 위아래 14 를 가진다(10/1).
             item {
-                GiSection {
+                GiSection(bottom = 6.dp) {
                     NewsSection(
                         gameNews,
                         onSeeAll = { subPage = GiSub.News },
@@ -589,12 +594,13 @@ fun GameInfoScreen(
  * 히어로만 이 래퍼 없이 전폭으로 그린다.
  */
 @Composable
-private fun GiSection(content: @Composable ColumnScope.() -> Unit) {
+private fun GiSection(bottom: Dp = 20.dp, content: @Composable ColumnScope.() -> Unit) {
     // ⚠️ Column 이어야 한다. Box 로 두면 섹션이 내보내는 형제들(제목 Text · 카드)이 **같은 자리에
     // 겹쳐** 쌓이고, 나중에 그려지는 카드가 제목을 덮는다 — '게임 일정'·'공지·뉴스' 제목이
     // 통째로 안 보이던 원인이다. 섹션 하나가 한 덩어리(Column)만 내보낸다는 보장이 없다.
     // 카드 없이 화면 폭 섹션 — 좌우 20 · 위 22 · 아래 20, 섹션 사이는 [GiBand](마이페이지 · 지출과 같은 규격).
-    Column(Modifier.padding(start = 20.dp, end = 20.dp, top = 22.dp, bottom = 20.dp), content = content)
+    // [bottom] — 마지막 줄이 스스로 아래 여백을 가지면 그만큼 덜어 띠까지 눈에 20(10/1). 맨 아래 섹션은 20.
+    Column(Modifier.padding(start = 20.dp, end = 20.dp, top = 22.dp, bottom = bottom), content = content)
 }
 
 /** 게임 정보 섹션 사이 10 띠. */

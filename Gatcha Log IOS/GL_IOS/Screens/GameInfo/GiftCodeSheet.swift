@@ -39,7 +39,9 @@ struct GiftCodePage: View {
                         restoreRow
                         codeList.padding(.top, 8)
                     }
-                    .padding(.horizontal, 20).padding(.top, 8).padding(.bottom, 20)
+                    // 아래 12 — 흔히 마지막이 「이미 받은 코드」 줄(위아래 8)이라 띠까지 눈에 20(10/1).
+                    // (Android 는 모두 교환 버튼이 여기 붙을 때 20 — 버튼은 iOS 에선 헤더에 있다.)
+                    .padding(.horizontal, 20).padding(.top, 8).padding(.bottom, 12)
                     GiBand()
                     // 직접 입력 섹션 — GLDS 입력필드 규격 그대로, 상태 문구는 그 아래.
                     VStack(alignment: .leading, spacing: 12) {

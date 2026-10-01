@@ -371,18 +371,19 @@ struct HoyolandDetailView: View {
                 // 카드를 걷은 뒤(10/1)로는 화면 폭 섹션 + 사이 띠(GiBand). 빈 섹션은 띠째 뺀다.
                 // 히어로 바로 아래 첫 섹션 위에는 띠를 두지 않는다(머리판이 끝을 이미 긋는다).
                 // 라인업은 지금 무대 줄의 면이 화면 끝까지 깔려야 해서 좌우 20 을 스스로 둔다.
+                // 라인업 아래 8 — 마지막 줄이 위아래 12 를 가져 띠까지 눈에 20(10/1).
                 if e.isEventLive(nowMillis: nowMs()) {
                     onsiteSection(e).hoyolandSection()
                     if !e.lineup.isEmpty {
                         GiBand()
-                        lineupSection(e).hoyolandSection(horizontal: 0)
+                        lineupSection(e).hoyolandSection(horizontal: 0, bottom: 8)
                     }
                     // 예매 섹션은 **내린다.** 개막한 뒤 이 페이지를 여는 사람은 표를 이미
                     // 들고 있다. 가격·오픈 일시는 지나간 값이고, 그걸 매번 지나쳐 스크롤하게
                     // 둘 이유가 없다(현장 발권을 받지 않는 행사라 "지금 사는 길" 도 없다).
                 } else {
                     if !e.lineup.isEmpty {
-                        lineupSection(e).hoyolandSection(horizontal: 0)
+                        lineupSection(e).hoyolandSection(horizontal: 0, bottom: 8)
                         GiBand()
                     }
                     onsiteSection(e).hoyolandSection()
@@ -391,7 +392,8 @@ struct HoyolandDetailView: View {
                 }
                 if !e.otherPrograms.isEmpty {
                     GiBand()
-                    programSection(e).hoyolandSection()
+                    // 마지막 줄이 위아래 14 라 아래 6 — 띠까지 눈에 20(10/1).
+                    programSection(e).hoyolandSection(bottom: 6)
                 }
                 GiBand()
                 pastSection(e).hoyolandSection()
@@ -511,7 +513,7 @@ struct HoyolandDetailView: View {
                     }
                 } else {
                     if !e.lineup.isEmpty {
-                        lineupSection(e).hoyolandSection(horizontal: 0)
+                        lineupSection(e).hoyolandSection(horizontal: 0, bottom: 8)
                         GiBand()
                     }
                     onsiteSection(e).hoyolandSection()
@@ -521,14 +523,14 @@ struct HoyolandDetailView: View {
             VStack(alignment: .leading, spacing: 0) {
                 if live {
                     if !e.lineup.isEmpty {
-                        lineupSection(e).hoyolandSection(horizontal: 0)
+                        lineupSection(e).hoyolandSection(horizontal: 0, bottom: 8)
                         GiBand()
                     }
                 } else {
                     ticketSection(e).hoyolandSection()
                     if !e.otherPrograms.isEmpty {
                         GiBand()
-                        programSection(e).hoyolandSection()
+                        programSection(e).hoyolandSection(bottom: 6)
                     }
                     GiBand()
                 }
@@ -1612,9 +1614,10 @@ struct HoyolandHairline: View {
 extension View {
     /// 카드 없는 섹션(10/1) — 화면 폭 · 좌우 20 · 위 22 · 아래 20. 섹션 사이는 `GiBand`.
     /// Android `HoyolandSectionBox` 와 같은 값. 붙박이 탭 바로 아래는 탭이 아래 10 을 두므로 `top` 을 줄인다.
-    func hoyolandSection(top: CGFloat = 22, horizontal: CGFloat = 20) -> some View {
+    /// bottom — 마지막 내용 끝 → 띠가 눈에 20 이 되게, 20 − (마지막 줄이 스스로 가진 아래 여백)(10/1). 맨 아래 섹션은 20.
+    func hoyolandSection(top: CGFloat = 22, horizontal: CGFloat = 20, bottom: CGFloat = 20) -> some View {
         self.frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, horizontal).padding(.top, top).padding(.bottom, 20)
+            .padding(.horizontal, horizontal).padding(.top, top).padding(.bottom, bottom)
     }
 }
 

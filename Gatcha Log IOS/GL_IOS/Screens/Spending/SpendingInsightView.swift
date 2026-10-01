@@ -121,7 +121,7 @@ struct SpendingInsightView: View {
                     .font(.pretendard(size: 13, weight: .bold)).foregroundStyle(GLGColor.textSecondary)
                     .padding(.horizontal, 20).padding(.top, 22)
             }
-            InsightSection(title: g.0, sub: g.1, top: i == 0 ? 14 : 22) {
+            InsightSection(title: g.0, sub: g.1, top: i == 0 ? 14 : 22, bottom: i == groups.count - 1 ? 20 : 12) {
                 ForEach(Array(g.2.enumerated()), id: \.offset) { _, row in
                     InsightShareRow(name: row.0, amount: row.1, frac: row.2, color: accent.primary)
                 }
@@ -211,10 +211,12 @@ struct InsightBand: View {
 }
 
 /// 섹션 — 좌우 20 · 위 22 · 아래 20. 제목 17 굵게 + 오른쪽 보조 12.
+/// `bottom` 은 20 − 마지막 요소의 자체 아래 여백(비중 줄은 vertical 8 이라 12). 페이지 맨 아래 섹션은 20 그대로.
 struct InsightSection<Content: View>: View {
     let title: String?
     var sub: String? = nil
     var top: CGFloat = 22
+    var bottom: CGFloat = 20
     @ViewBuilder var content: Content
 
     var body: some View {
@@ -230,7 +232,7 @@ struct InsightSection<Content: View>: View {
             content
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, 20).padding(.top, top).padding(.bottom, 20)
+        .padding(.horizontal, 20).padding(.top, top).padding(.bottom, bottom)
     }
 }
 
