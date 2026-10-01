@@ -35,7 +35,6 @@ import com.gatcha.log.data.api.NewsItem
 import com.gatcha.log.ui.components.GameTagSize
 import com.gatcha.log.ui.components.GlgChip
 import com.gatcha.log.ui.components.GlgGameTag
-import com.gatcha.log.ui.components.GlassCard
 import com.gatcha.log.ui.components.GldsButton
 import com.gatcha.log.ui.components.GldsSize
 import com.gatcha.log.ui.components.GldsVariant
@@ -172,32 +171,39 @@ fun NewsFullContent(news: List<NewsItem>, chip: String, onOpen: (NewsItem) -> Un
     // 필터는 입력이 바뀔 때만 — 재구성마다 전체를 다시 훑을 이유가 없다.
     val all = remember(news, chip) { filterNews(news, chip) }
     if (all.isEmpty()) {
-        Text("공지가 없어요", fontSize = 13.sp, color = TextSecondary, modifier = Modifier.padding(vertical = 24.dp))
+        Text("공지가 없어요", fontSize = 13.sp, color = TextSecondary, modifier = Modifier.padding(horizontal = 20.dp, vertical = 24.dp))
         return
     }
-    GlassCard(modifier = Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp)) {
-            all.forEachIndexed { i, n ->
-                if (i > 0) Box(Modifier.fillMaxWidth().height(1.dp).background(DividerColor))
-                NewsRow(n, onOpen)
-            }
+    // 카드는 걷었다(10/1) — 흰 바탕 화면 폭 목록. 행 위아래 11 을 더해 섹션 위 22 · 아래 20 이 된다.
+    Column(Modifier.fillMaxWidth().padding(top = 11.dp, bottom = 9.dp)) {
+        all.forEachIndexed { i, n ->
+            if (i > 0) Box(Modifier.padding(horizontal = 20.dp).fillMaxWidth().height(1.dp).background(NewsHair))
+            NewsRow(n, onOpen, page = true)
         }
     }
 }
 
+/** 카드 없는 목록의 줄 사이 헤어라인(10/1) — 마이페이지 · 지출과 같은 색. */
+private val NewsHair = Color(0xFFEEF0F2)
+
 @Composable
-private fun NewsRow(n: NewsItem, onOpen: (NewsItem) -> Unit) {
+private fun NewsRow(
+    n: NewsItem,
+    onOpen: (NewsItem) -> Unit,
+    /** 전체 페이지(10/1) — 행이 화면 폭이라 좌우 20 을 스스로 두고 글자를 키운다(제목 14 · 날짜 12). 첫 화면은 그대로. */
+    page: Boolean = false,
+) {
     Row(
         modifier = Modifier.fillMaxWidth()
             .clickable { onOpen(n) }
-            .padding(vertical = 11.dp),
+            .padding(horizontal = if (page) 20.dp else 0.dp, vertical = 11.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         GlgGameTag(n.game, size = GameTagSize.Small)
         Spacer(Modifier.width(10.dp))
         Column(Modifier.weight(1f)) {
-            Text(n.title, fontSize = 13.sp, fontWeight = FontWeight.Medium, color = TextPrimary, maxLines = 2)
-            Text(DateUtil.shortDate(n.createdAtMillis), fontSize = 11.sp, color = TextSecondary)
+            Text(n.title, fontSize = if (page) 14.sp else 13.sp, fontWeight = FontWeight.Medium, color = TextPrimary, maxLines = 2)
+            Text(DateUtil.shortDate(n.createdAtMillis), fontSize = if (page) 12.sp else 11.sp, color = TextSecondary)
         }
         // 썸네일 — 목록에서 **글을 고르는 단서**로 쓴다. 상류가 `tabBanner`/`banner` 로 이미
         // 내려주는데(NewsItem.bannerUrl) 지금까지는 상세 페이지의 **본문 로드 실패 폴백**에서만

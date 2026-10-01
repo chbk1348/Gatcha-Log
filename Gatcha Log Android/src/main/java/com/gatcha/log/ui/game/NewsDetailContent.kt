@@ -41,7 +41,6 @@ import com.gatcha.log.data.api.NewsBlock
 import com.gatcha.log.data.api.NewsItem
 import com.gatcha.log.ui.components.GameTagSize
 import com.gatcha.log.ui.components.GlgGameTag
-import com.gatcha.log.ui.components.GlassCard
 import com.gatcha.log.ui.components.openExternalLink
 import com.gatcha.log.ui.components.GlgImageViewer
 import com.gatcha.log.ui.components.GlgBadge
@@ -83,24 +82,25 @@ fun NewsDetailContent(viewModel: SpendingViewModel, item: NewsItem) {
         )
     }
 
-    Column(Modifier.fillMaxWidth().padding(top = 4.dp)) {
+    // 카드는 걷었다(10/1) — 흰 바탕에 좌우 20 본문. 머리말과 본문 사이는 헤어라인 한 줄로 가른다.
+    Column(Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 22.dp, bottom = 20.dp)) {
         // 머리말 — 게임 배지 · 제목 · 게시일
         Row(verticalAlignment = Alignment.CenterVertically) {
             GlgGameTag(item.game, size = GameTagSize.Small)
             Spacer(Modifier.width(8.dp))
-            Text(DateUtil.shortDate(item.createdAtMillis), fontSize = 11.sp, color = TextSecondary)
+            Text(DateUtil.shortDate(item.createdAtMillis), fontSize = 12.sp, color = TextSecondary)
         }
         Spacer(Modifier.height(10.dp))
         Text(item.title, fontSize = 20.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
         Spacer(Modifier.height(16.dp))
+        Box(Modifier.fillMaxWidth().height(1.dp).background(DetailHair))
+        Spacer(Modifier.height(16.dp))
 
-        GlassCard(modifier = Modifier.fillMaxWidth()) {
-            Column(Modifier.padding(16.dp)) {
-                // 본문은 길게 눌러 드래그 선택·복사할 수 있다(공지의 코드·일정·수치를 옮겨 적을 일이 잦다).
-                // Compose Text 는 기본적으로 선택이 안 되므로 SelectionContainer 로 감싼다.
-                // 감싸는 범위는 본문뿐 — '브라우저에서 보기'까지 넣으면 버튼이 선택 대상이 되어 탭이 무뎌진다.
-                SelectionContainer {
-                Column {
+        // 본문은 길게 눌러 드래그 선택·복사할 수 있다(공지의 코드·일정·수치를 옮겨 적을 일이 잦다).
+        // Compose Text 는 기본적으로 선택이 안 되므로 SelectionContainer 로 감싼다.
+        // 감싸는 범위는 본문뿐 — '브라우저에서 보기'까지 넣으면 버튼이 선택 대상이 되어 탭이 무뎌진다.
+        SelectionContainer {
+            Column {
                 when {
                     loading -> NewsBodySkeleton()
 
@@ -162,22 +162,21 @@ fun NewsDetailContent(viewModel: SpendingViewModel, item: NewsItem) {
                         if (failed && item.summary.isNotBlank()) {
                             Text(
                                 "본문 전체는 브라우저에서 볼 수 있어요.",
-                                fontSize = 11.sp,
+                                fontSize = 12.sp,
                                 color = TextSecondary,
                                 modifier = Modifier.padding(bottom = 12.dp),
                             )
                         }
                     }
                 }
-                }
-                }
-
-                // 원문 링크·공유는 헤더 버튼으로 옮겼다 — 본문 끝까지 스크롤해야 보이던 걸 항상 닿는 자리로.
             }
         }
-        Spacer(Modifier.height(8.dp))
+        // 원문 링크·공유는 헤더 버튼으로 옮겼다 — 본문 끝까지 스크롤해야 보이던 걸 항상 닿는 자리로.
     }
 }
+
+/** 머리말 · 본문 사이 헤어라인(10/1) — 마이페이지 · 지출과 같은 색. */
+private val DetailHair = androidx.compose.ui.graphics.Color(0xFFEEF0F2)
 
 /** 본문 로딩 — 문단 모양 스켈레톤(문단 끝줄만 짧게 해서 진짜 텍스트처럼 보이게). */
 @Composable

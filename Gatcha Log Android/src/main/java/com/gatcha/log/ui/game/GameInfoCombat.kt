@@ -3,10 +3,8 @@ package com.gatcha.log.ui.game
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Star
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Text
@@ -26,8 +24,6 @@ import com.gatcha.log.data.CombatMode
 import com.gatcha.log.data.Game
 import com.gatcha.log.ui.components.GameTagSize
 import com.gatcha.log.ui.components.GlgGameTag
-import com.gatcha.log.ui.components.GlassCard
-import com.gatcha.log.ui.theme.DividerColor
 import com.gatcha.log.ui.theme.LocalAccent
 import com.gatcha.log.ui.theme.ProgressEmpty
 import com.gatcha.log.ui.theme.TextSecondary
@@ -57,20 +53,21 @@ private fun StarCount(label: String, color: Color, description: String, size: Te
     }
 }
 
-/** 게임별 전투 콘텐츠 진행도 카드 (나선 비경·현실 속 환상극 / 혼돈의 기억·허구 이야기·종말의 환영). */
+/**
+ * 게임별 전투 콘텐츠 진행도 블록 (나선 비경·현실 속 환상극 / 혼돈의 기억·허구 이야기·종말의 환영).
+ * 카드 면은 걷었다(10/1) — 게임 사이 구분은 부르는 쪽의 헤어라인이 한다. 위아래 간격은 [modifier] 로 받는다.
+ */
 @Composable
-internal fun CombatGameCard(game: Game, modes: List<CombatMode>) {
-    GlassCard(shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 2.dp)) {
-                GlgGameTag(game.displayName, size = GameTagSize.Small)
-                Spacer(Modifier.width(8.dp))
-                Text(game.shortName, fontWeight = FontWeight.Bold, fontSize = 15.sp)
-            }
-            modes.forEachIndexed { i, m ->
-                CombatRow(m)
-                if (i < modes.lastIndex) HorizontalDivider(color = DividerColor)
-            }
+internal fun CombatGameCard(game: Game, modes: List<CombatMode>, modifier: Modifier = Modifier) {
+    Column(modifier.fillMaxWidth()) {
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 2.dp)) {
+            GlgGameTag(game.displayName, size = GameTagSize.Small)
+            Spacer(Modifier.width(8.dp))
+            Text(game.shortName, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+        }
+        modes.forEachIndexed { i, m ->
+            CombatRow(m)
+            if (i < modes.lastIndex) GiHairline()
         }
     }
 }
@@ -81,8 +78,9 @@ private fun CombatRow(m: CombatMode) {
     Column(Modifier.padding(vertical = 10.dp)) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Top) {
             Column(Modifier.weight(1f)) {
-                Text(m.name, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                Text(m.detail, fontSize = 11.sp, color = TextSecondary, maxLines = 1)
+                Text(m.name, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                // 보조 글자 11 → 13(10/1) — 카드를 걷은 흰 바탕에서 11 은 흐렸다.
+                Text(m.detail, fontSize = 13.sp, color = TextSecondary, maxLines = 1)
             }
             Spacer(Modifier.width(8.dp))
             Column(horizontalAlignment = Alignment.End) {
@@ -97,7 +95,7 @@ private fun CombatRow(m: CombatMode) {
                     m.hasData -> Text("메달 ${m.stars}", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = m.gameColor.toColor())
                 }
                 val d = m.dDay()
-                if (d != null && d >= 0) Text("D-$d", fontSize = 11.sp, color = accent, fontWeight = FontWeight.Bold)
+                if (d != null && d >= 0) Text("D-$d", fontSize = 12.sp, color = accent, fontWeight = FontWeight.Bold)
             }
         }
         if (m.hasData && m.maxStars > 0) {

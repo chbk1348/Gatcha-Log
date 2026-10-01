@@ -17,66 +17,128 @@ struct GameTabbedSection: View {
         let ledgers = games.compactMap { g in store.ledgers.first { $0.game == g.displayName } }
         let allEmpty = combatGames.isEmpty && ledgers.isEmpty
         let linked = store.hoyolabConfig.isLinked
-        return VStack(alignment: .leading, spacing: 20) {
+        // 카드 없이 섹션을 쌓는다(10/1) — 섹션 사이는 GiBand, 반복되던 게임 카드는 헤어라인 목록으로.
+        return VStack(alignment: .leading, spacing: 0) {
             if allEmpty && !linked {
-                EmptyView()   // 호요랩 미연동: 전투/일지 데이터가 없어 빈 상태 카드도 미노출
+                EmptyView()   // 호요랩 미연동: 전투/일지 데이터가 없어 빈 상태도 미노출
+            } else if allEmpty && store.isRefreshing {
+                // 불러오는 중엔 뼈대(10/1) — Android GameContentSkeleton 과 같다(전엔 iOS 만 빈 문구가 먼저 떴다).
+                skeleton
             } else if allEmpty {
-                GLGCard(cornerRadius: 20, padding: 28) {
+                GiPageSection {
                     Text("표시할 게임 정보가 아직 없어요").font(.pretendard(size: 13)).foregroundStyle(GLGColor.textSecondary)
                         .frame(maxWidth: .infinity)
+                        .padding(.vertical, 8)
                 }
             } else {
                 if !combatGames.isEmpty {
-                    contentBlock("전투 콘텐츠 진행도") {
+                    GiPageSection("전투 콘텐츠 진행도") {
                         // 여기 있던 '클리어 편성' 진입 행은 걷어냈다 — 데일리 카드로 꺼내면서
                         // 이 줄을 그대로 두는 바람에 **같은 진입점이 두 화면에 나란히** 보였다.
                         // 진입은 데일리 카드 한 곳(DailyHeroSection 의 GameContentEntry)으로 모은다.
-                        VStack(alignment: .leading, spacing: 12) {
-                            ForEach(Array(combatGames.enumerated()), id: \.offset) { _, p in CombatCard(game: p.0, modes: p.1) }
+                        ForEach(Array(combatGames.enumerated()), id: \.offset) { i, p in
+                            if i > 0 { GiHairline() }
+                            CombatCard(game: p.0, modes: p.1)
+                                .padding(.top, i > 0 ? 14 : 0)
+                                .padding(.bottom, 4)
                         }
                     }
                 }
                 if !ledgers.isEmpty {
-                    contentBlock("이번 달 수입 일지") {
-                        VStack(alignment: .leading, spacing: 12) {
-                            ForEach(Array(ledgers.enumerated()), id: \.offset) { _, l in LedgerCard(ledger: l) }
+                    if !combatGames.isEmpty { GiBand() }
+                    GiPageSection("이번 달 수입 일지") {
+                        ForEach(Array(ledgers.enumerated()), id: \.offset) { i, l in
+                            if i > 0 { GiHairline() }
+                            LedgerCard(ledger: l)
+                                .padding(.top, i > 0 ? 18 : 0)
+                                .padding(.bottom, i < ledgers.count - 1 ? 18 : 0)
                         }
                     }
                 }
             }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    private func contentBlock<C: View>(_ label: String, @ViewBuilder content: () -> C) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(label).font(.pretendard(size: 16, weight: .bold))
-            content()
+    /// 전투 · 수입 일지 로딩 뼈대(10/1) — 카드 없이 섹션 제목 + 게임 블록 2개. Android GameContentSkeleton 과 같다.
+    private var skeleton: some View {
+        GLGShimmerClock {
+            GiPageSection {
+                GLGSkeleton().frame(width: 140, height: 18)
+                ForEach(0..<2, id: \.self) { i in
+                    if i > 0 { GiHairline() }
+                    VStack(alignment: .leading, spacing: 0) {
+                        GLGSkeleton().frame(width: 110, height: 16)
+                        ForEach(0..<2, id: \.self) { _ in
+                            HStack {
+                                GLGSkeleton().frame(width: 90, height: 14)
+                                Spacer()
+                                GLGSkeleton().frame(width: 44, height: 14)
+                            }
+                            .padding(.top, 14)
+                        }
+                    }
+                    .padding(.vertical, 14)
+                }
+            }
         }
     }
+}
+
+/// 게임정보 하위 페이지 섹션(10/1) — 카드 없이 화면 폭, 좌우 20 · 위 22 · 아래 20. 섹션 사이는 GiBand.
+/// Android `GiPageSection` 과 같다.
+struct GiPageSection<Content: View>: View {
+    let title: String?
+    let content: Content
+
+    init(_ title: String? = nil, @ViewBuilder content: () -> Content) {
+        self.title = title
+        self.content = content()
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            if let title {
+                Text(title).font(.pretendard(size: 17, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
+                    .padding(.bottom, 12)
+            }
+            content
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 20)
+        .padding(.top, 22)
+        .padding(.bottom, 20)
+    }
+}
+
+/// 줄 사이 헤어라인(10/1) — 마이페이지 · 지출과 같은 1 · #EEF0F2. Android `GiHairline` 과 같다.
+struct GiHairline: View {
+    var body: some View { Color(hex: 0xFFEEF0F2).frame(height: 1).frame(maxWidth: .infinity) }
 }
 
 private struct CombatCard: View {
     let game: Game
     let modes: [CombatMode]
     @Environment(\.glgAccent) private var accent
+    // 카드 면은 걷었다(10/1) — 게임 사이 구분은 부르는 쪽의 헤어라인이 한다.
     var body: some View {
-        GLGCard(cornerRadius: 20, padding: 16) {
-            VStack(alignment: .leading, spacing: 0) {
-                HStack(spacing: 8) { GLGGameTag(game: game.displayName, size: .small); Text(game.shortName).font(.pretendard(size: 15, weight: .bold)) }
-                    .padding(.bottom, 2)
-                ForEach(Array(modes.enumerated()), id: \.offset) { i, m in
-                    combatRow(m)
-                    if i < modes.count - 1 { Divider() }
-                }
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 8) { GLGGameTag(game: game.displayName, size: .small); Text(game.shortName).font(.pretendard(size: 15, weight: .bold)) }
+                .padding(.bottom, 2)
+            ForEach(Array(modes.enumerated()), id: \.offset) { i, m in
+                combatRow(m)
+                if i < modes.count - 1 { GiHairline() }
             }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
     private func combatRow(_ m: CombatMode) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(m.name).font(.pretendard(size: 14, weight: .bold)).lineLimit(1)
-                    Text(m.detail).font(.pretendard(size: 11)).foregroundStyle(GLGColor.textSecondary).lineLimit(1)
+                    Text(m.name).font(.pretendard(size: 15, weight: .bold)).lineLimit(1)
+                    // 보조 글자 11 → 13(10/1) — 카드를 걷은 흰 바탕에서 11 은 흐렸다.
+                    Text(m.detail).font(.pretendard(size: 13)).foregroundStyle(GLGColor.textSecondary).lineLimit(1)
                 }
                 Spacer(minLength: 8)
                 VStack(alignment: .trailing, spacing: 2) {
@@ -92,7 +154,7 @@ private struct CombatCard: View {
                         Text("메달 \(m.stars)").font(.pretendard(size: 13, weight: .bold)).foregroundStyle(Color(argb64: m.gameColor))
                     }
                     if let d = m.dDay(now: nowMs())?.int32Value, d >= 0 {
-                        Text("D-\(d)").font(.pretendard(size: 11, weight: .bold)).foregroundStyle(accent.primary)
+                        Text("D-\(d)").font(.pretendard(size: 12, weight: .bold)).foregroundStyle(accent.primary)
                     }
                 }
             }
@@ -128,42 +190,43 @@ struct StarCount: View {
 struct LedgerCard: View {
     let ledger: MonthlyLedger
     @Environment(\.glgAccent) private var accent
+    // 카드 면은 걷었다(10/1) — 게임 사이 구분은 부르는 쪽의 헤어라인이 한다.
     var body: some View {
-        GLGCard(cornerRadius: 20, padding: 16) {
-            VStack(alignment: .leading, spacing: 0) {
-                HStack(spacing: 8) {
-                    GLGGameTag(game: ledger.game, size: .small)
-                    Text(GameData.shared.byName(name: ledger.game).shortName).font(.pretendard(size: 15, weight: .bold))
-                    if ledger.month > 0 { Text("\(ledger.month)월").font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary) }
-                }
-                HStack(alignment: .bottom, spacing: 6) {
-                    Text(num(ledger.premium)).font(.pretendard(size: 28, weight: .bold)).foregroundStyle(accent.primary).lineLimit(1)
-                    Text(ledger.premiumLabel).font(.pretendard(size: 13)).foregroundStyle(GLGColor.textSecondary).padding(.bottom, 4)
-                    if let d = ledger.premiumDelta?.int64Value {
-                        let up = d >= 0
-                        Text((up ? "▲ " : "▼ ") + num(abs(d))).font(.pretendard(size: 12, weight: .bold))
-                            .foregroundStyle(up ? Color(hex: 0xFF1FB16B) : Color(hex: 0xFFE5484D)).padding(.bottom, 5)
-                    }
-                }
-                .padding(.top, 12)
-                if ledger.gold > 0 {
-                    Text("\(ledger.goldLabel) \(num(ledger.gold))").font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary).padding(.top, 2)
-                }
-                if !ledger.breakdown.isEmpty {
-                    VStack(spacing: 0) {
-                        ForEach(Array(ledger.breakdown.prefix(5).enumerated()), id: \.offset) { _, e in
-                            HStack {
-                                Text(e.action).font(.pretendard(size: 12)).lineLimit(1).frame(maxWidth: .infinity, alignment: .leading)
-                                Text(num(e.num)).font(.pretendard(size: 12, weight: .medium))
-                                Text("\(e.percent)%").font(.pretendard(size: 11)).foregroundStyle(GLGColor.textSecondary).frame(width: 44, alignment: .trailing)
-                            }
-                            .padding(.top, 8).padding(.bottom, 4)
-                            ProgressView(value: min(max(Double(e.percent)/100.0, 0), 1)).tint(Color(argb64: ledger.gameColor))
-                        }
-                    }
-                    .padding(.top, 14)
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 8) {
+                GLGGameTag(game: ledger.game, size: .small)
+                Text(GameData.shared.byName(name: ledger.game).shortName).font(.pretendard(size: 15, weight: .bold))
+                if ledger.month > 0 { Text("\(ledger.month)월").font(.pretendard(size: 13)).foregroundStyle(GLGColor.textSecondary) }
+            }
+            HStack(alignment: .bottom, spacing: 6) {
+                Text(num(ledger.premium)).font(.pretendard(size: 28, weight: .bold)).foregroundStyle(accent.primary).lineLimit(1)
+                Text(ledger.premiumLabel).font(.pretendard(size: 13)).foregroundStyle(GLGColor.textSecondary).padding(.bottom, 4)
+                if let d = ledger.premiumDelta?.int64Value {
+                    let up = d >= 0
+                    Text((up ? "▲ " : "▼ ") + num(abs(d))).font(.pretendard(size: 12, weight: .bold))
+                        .foregroundStyle(up ? Color(hex: 0xFF1FB16B) : Color(hex: 0xFFE5484D)).padding(.bottom, 5)
                 }
             }
+            .padding(.top, 12)
+            if ledger.gold > 0 {
+                Text("\(ledger.goldLabel) \(num(ledger.gold))").font(.pretendard(size: 13)).foregroundStyle(GLGColor.textSecondary).padding(.top, 2)
+            }
+            if !ledger.breakdown.isEmpty {
+                VStack(spacing: 0) {
+                    ForEach(Array(ledger.breakdown.prefix(5).enumerated()), id: \.offset) { _, e in
+                        HStack {
+                            // 내역 글자 12/11 → 13/12(10/1) — 흰 바탕 전폭에서 읽기 쉽게.
+                            Text(e.action).font(.pretendard(size: 13)).lineLimit(1).frame(maxWidth: .infinity, alignment: .leading)
+                            Text(num(e.num)).font(.pretendard(size: 13, weight: .medium))
+                            Text("\(e.percent)%").font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary).frame(width: 44, alignment: .trailing)
+                        }
+                        .padding(.top, 8).padding(.bottom, 4)
+                        ProgressView(value: min(max(Double(e.percent)/100.0, 0), 1)).tint(Color(argb64: ledger.gameColor))
+                    }
+                }
+                .padding(.top, 14)
+            }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }

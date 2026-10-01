@@ -60,7 +60,8 @@ struct HoyolandMapView: View {
         // 배경은 **전환 바깥의 고정 층**이다. `Group` 에 `.background` 를 걸면 안쪽 화면마다 따로 붙어,
         // 가로 보기가 돌며 들어올 때 배경까지 같이 돌고 줄고 흐려졌다가 뒤늦게 차올랐다(2026-09-28 iOS 18 지적).
         ZStack {
-            GLGBackground { Color.clear }
+            // 흰 바탕(10/1) — 카드 없는 다른 호요랜드 페이지와 같다. 판은 객체로 남긴다.
+            Color.white.ignoresSafeArea()
             if rotated {
                 rotatedPage(map)
                     .transition(.modifier(active: HoyolandMapSpin(angle: -90, scale: 0.6, opacity: 0),
@@ -93,8 +94,9 @@ struct HoyolandMapView: View {
     /// 누르는 자리도 같이 돌린다.
     private func rotatedPage(_ map: HoyolandMap) -> some View {
         GeometryReader { g in
-            let logicalW = g.size.height - 32
-            let logicalH = g.size.width - 32
+            // 좌우 20 — 세로 보기 · Android 와 같은 여백(10/1).
+            let logicalW = g.size.height - 40
+            let logicalH = g.size.width - 40
             let legendH: CGFloat = 34   // 범례 한 줄 + 판과의 간격 12
             let ratio = CGFloat(boardRatio(map))
             let boardW = max(min(logicalW, (logicalH - legendH - 20) * ratio + 20), 160)
@@ -123,7 +125,8 @@ struct HoyolandMapView: View {
                 legend
                 Color.clear.frame(height: 24)
             }
-            .padding(16)
+            // 카드 없는 섹션 여백(10/1) — 좌우 20 · 위 22 · 아래 20.
+            .padding(.horizontal, 20).padding(.top, 22).padding(.bottom, 20)
             .glgReadableWidth(isWide ? .infinity : HoyolandMapReadableWidth)
         }
         .onGeometryChange(for: CGSize.self) { $0.size } action: { viewport = $0 }
@@ -357,7 +360,7 @@ private struct HoyolandMapLegendRow: View {
                                 .fill(c).frame(width: 8, height: 8)
                         }
                     }
-                    Text(it.1).font(.pretendard(size: 10))
+                    Text(it.1).font(.pretendard(size: 12))   // 10 → 12 가독성(10/1)
                         .foregroundStyle(GLGColor.textSecondary)
                         .lineLimit(1)
                         .fixedSize()

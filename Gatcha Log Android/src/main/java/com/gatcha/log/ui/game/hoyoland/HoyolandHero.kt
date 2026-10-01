@@ -40,7 +40,7 @@ import com.gatcha.log.data.HoyolandPhase
 import com.gatcha.log.data.StageSlot
 import com.gatcha.log.data.HoyolandTicketStatus
 import com.gatcha.log.ui.game.LiveRed
-import com.gatcha.log.ui.components.GlassCard
+import com.gatcha.log.ui.game.HoyolandHairline
 import com.gatcha.log.ui.components.glgDetailContentTop
 import com.gatcha.log.ui.components.GldsButton
 import com.gatcha.log.ui.components.GldsSize
@@ -102,9 +102,10 @@ fun HoyolandHero(
     // 헤더·상태바 **뒤까지** 면이 올라간다. 헤더는 이 면 위에 떠 있고, 글자만 그 아래에서
     // 시작한다(`glgDetailContentTop()` = 상태바 + 헤더 높이). 캐릭터 상세와 같은 규칙이다.
     val topInset = glgDetailContentTop()
+    // 페이지가 좌우 여백 없는 흰 바탕(SectionPage flat)이 되어 되물릴 여백이 없다(10/1) — inset 0.
     Box(
         Modifier
-            .heroBleed(top = topInset)
+            .heroBleed(inset = 0.dp, top = topInset)
             .clip(RoundedCornerShape(bottomStart = 30.dp, bottomEnd = 30.dp))
             .background(panel),
     ) {
@@ -528,20 +529,20 @@ fun HoyolandLineupSection(e: HoyolandEvent, onOpenGame: (String) -> Unit) {
     // 제목 줄은 다른 섹션(「둘러보기」·「예매」)과 **같은 규격**이다 — 제목 16sp + 오른쪽
     // 보조 문구 11.5sp. 여기만 영문 소캡스 제목에 설명이 카드 아래 따로 붙어 있어, 한 화면에서
     // 제목이 두 종류로 갈리고 설명도 딴 자리에서 떠 있었다.
-    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
-        Text("라인업", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+    // 카드를 걷었다(10/1) — 섹션이 화면 폭이라 좌우 20 은 여기서 직접 둔다. 줄은 화면 끝까지 닿아야
+    // 지금 무대 줄의 옅은 게임색 면이 가장자리까지 깔린다(호출부는 위아래 여백만 준다).
+    Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp), verticalAlignment = Alignment.Bottom) {
+        Text("라인업", fontSize = 17.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
         Spacer(Modifier.weight(1f))
         if (e.lineup.any { it.url.isNotBlank() }) {
-            Text("누르면 게임 공지로 가요", fontSize = 11.5.sp, color = TextSecondary)
+            Text("누르면 게임 공지로 가요", fontSize = 12.5.sp, color = TextSecondary)
         }
     }
-    Spacer(Modifier.height(10.dp))
-    GlassCard(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp)) {
-        Column(Modifier.fillMaxWidth()) {
-            e.lineup.forEachIndexed { i, item ->
-                if (i > 0) Box(Modifier.fillMaxWidth().height(1.dp).background(DividerColor))
-                HoyolandLineupRow(item, e, liveGame) { onOpenGame(item.url) }
-            }
+    Spacer(Modifier.height(6.dp))
+    Column(Modifier.fillMaxWidth()) {
+        e.lineup.forEachIndexed { i, item ->
+            if (i > 0) Box(Modifier.padding(horizontal = 20.dp).fillMaxWidth().height(1.dp).background(HoyolandHairline))
+            HoyolandLineupRow(item, e, liveGame) { onOpenGame(item.url) }
         }
     }
 }
@@ -570,7 +571,7 @@ private fun HoyolandLineupRow(
             .fillMaxWidth()
             .then(if (linked) Modifier.clickable { onClick() } else Modifier)
             .background(if (live) c.copy(alpha = 0.06f) else Color.Transparent)
-            .padding(horizontal = 16.dp, vertical = 12.dp),
+            .padding(horizontal = 20.dp, vertical = 12.dp),   // 섹션 좌우 20 과 맞춘다(10/1)
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(
@@ -595,7 +596,7 @@ private fun HoyolandLineupRow(
                 Spacer(Modifier.height(1.dp))
                 Text(
                     caption,
-                    fontSize = 11.5.sp,
+                    fontSize = 12.5.sp,   // 11.5 → 12.5 가독성(10/1)
                     fontWeight = if (live || status.endsWith("다음 무대")) FontWeight.Bold else FontWeight.Normal,
                     color = when {
                         live -> c

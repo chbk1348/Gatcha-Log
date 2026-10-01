@@ -5,7 +5,7 @@ import Shared
 // 클리어 편성 — 엔드 콘텐츠를 어떤 캐릭터로 깼는지.
 //
 // 데이터는 나선 비경·혼돈의 기억 응답에 원래 들어 있던 층별 투입 캐릭터다(GL_Shared CombatClear).
-// **모드 하나 = 카드 하나.** 이번/지난 시즌은 카드 안 세그먼트로 바꿔 본다 —
+// **모드 하나 = 섹션 하나**(10/1 카드 면 걷음). 이번/지난 시즌은 섹션 머리의 세그먼트로 바꿔 본다 —
 // 시즌마다 카드를 내면 같은 모드가 두 번 나와 목록이 두 배가 되고 지난 기록이 과대 표시된다.
 // **요약 먼저 · 층 접기** — 별 총합과 진행 막대를 먼저 보이고, 층은 맨 위 층만 펼친다.
 // (Android CombatClearSection 패리티)
@@ -59,19 +59,22 @@ struct CombatClearSection: View {
                 // 고른 게임이 새로고침 뒤 사라졌으면 전체로 본다.
                 let game = selectedGame.flatMap { games.contains($0) ? $0 : nil }
                 let shown = game.map { g in all.filter { $0.game == g } } ?? all
-                // 좌우 여백은 상위 sectionPage 가 준다 — 여기서 또 주면 다른 페이지보다 좁아 보인다.
-                LazyVStack(alignment: .leading, spacing: 14) {
+                // 카드 없이 모드 하나 = 섹션 하나(10/1) — 사이는 GiBand. 좌우 20 은 섹션이 스스로 둔다
+                // (sectionPage flat 은 좌우 0 을 준다).
+                LazyVStack(alignment: .leading, spacing: 0) {
                     // 게임이 하나뿐이면 거를 게 없다 — 칩을 숨긴다.
                     if games.count > 1 {
                         gameChips(games, selected: game)
+                            .padding(.horizontal, 20)
+                            .padding(.top, 22)
                     }
                     ForEach(Array(shown.enumerated()), id: \.offset) { i, m in
-                        // 필터가 바뀌면 맨 위 카드가 달라진다 — 첫 카드 여부까지 식별자에 넣어 펼침 기본값을 다시 잡는다.
+                        if i > 0 { GiBand() }
+                        // 필터가 바뀌면 맨 위 모드가 달라진다 — 첫 모드 여부까지 식별자에 넣어 펼침 기본값을 다시 잡는다.
                         ModeCard(mode: m, initiallyExpanded: i == 0)
                             .id("\(m.game)|\(m.mode)|\(i == 0)")
                     }
                 }
-                .padding(.vertical, 4)
             }
         }
         // 진입할 때 받는다 — 시즌 2개치라 무거워서 게임정보 새로고침에 얹지 않았다.
@@ -121,8 +124,9 @@ private struct ModeCard: View {
     private var usingPrevious: Bool { (showPrevious || !hasCurrent) && mode.hasPrevious }
     private var clear: CombatClear? { usingPrevious ? mode.previous : mode.current }
 
+    // 카드 면을 걷었다(10/1) — 섹션 규격(좌우 20 · 위 22 · 아래 20). 접힘/펼침 · 누르는 자리는 그대로.
     var body: some View {
-        GLGCard(cornerRadius: 22, padding: 16) {
+        Group {
             if expanded, let clear {
                 VStack(alignment: .leading, spacing: 14) {
                     header
@@ -138,16 +142,19 @@ private struct ModeCard: View {
                         )
                     )
                 }
+                .padding(.horizontal, 20).padding(.top, 22).padding(.bottom, 20)
             } else {
+                // 접힌 줄은 섹션 여백을 버튼 라벨 안에서 준다 — 화면 폭 전체가 눌린다.
                 collapsedRow
             }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     /// 게임 태그 — 색 점만으로는 무슨 게임인지 알 수 없다 — 짧은 태그를 함께 둔다(GI·HSR 표기와 동일 체계).
     private var gameTag: some View {
         Text(mode.gameShort)
-            .font(.pretendard(size: 10, weight: .bold))
+            .font(.pretendard(size: 12, weight: .bold)) // 10 → 12(10/1)
             .foregroundStyle(Color(argb64: mode.gameColor))
             .padding(.horizontal, 6)
             .padding(.vertical, 3)
@@ -159,7 +166,7 @@ private struct ModeCard: View {
 
     private var modeTitle: some View {
         Text(mode.mode)
-            .font(.pretendard(size: 16, weight: .bold))
+            .font(.pretendard(size: 17, weight: .bold)) // 섹션 제목 규격 17(10/1)
             .foregroundStyle(GLGColor.textPrimary)
             .lineLimit(1)
     }
@@ -206,6 +213,7 @@ private struct ModeCard: View {
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundStyle(GLGColor.textSecondary)
             }
+            .padding(.horizontal, 20).padding(.top, 22).padding(.bottom, 20)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -244,7 +252,7 @@ private struct SeasonBody: View {
             if !roster.isEmpty {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("이 시즌 주력")
-                        .font(.pretendard(size: 11, weight: .bold))
+                        .font(.pretendard(size: 13, weight: .bold)) // 11 → 13(10/1)
                         .foregroundStyle(GLGColor.textSecondary)
                     // 6명을 좌우 끝까지 벌린다 — 왼쪽에 몰아두면 오른쪽이 통째로 비어 화면이 치우쳐 보인다.
                     // (Compose 패리티: CombatClearSection.kt 의 Arrangement.SpaceBetween)
@@ -260,7 +268,7 @@ private struct SeasonBody: View {
             }
             VStack(alignment: .leading, spacing: 0) {
                 ForEach(Array(visible.enumerated()), id: \.offset) { _, room in
-                    Rectangle().fill(GLGColor.divider).frame(height: 1)
+                    GiHairline()
                     let isOpen = open.contains(room.name)
                     RoomRow(room: room, season: clear.season, expanded: isOpen) {
                         var next = open
@@ -269,12 +277,12 @@ private struct SeasonBody: View {
                     }
                 }
                 if !showAll && rooms.count > visibleFloors {
-                    Rectangle().fill(GLGColor.divider).frame(height: 1)
+                    GiHairline()
                     Button {
                         withAnimation(.easeInOut(duration: 0.2)) { showAll = true }
                     } label: {
                         Text("아래 \(rooms.count - visibleFloors)개 층 더 보기")
-                            .font(.pretendard(size: 12, weight: .bold))
+                            .font(.pretendard(size: 13, weight: .bold))
                             .foregroundStyle(accent.deep)
                             .frame(maxWidth: .infinity, minHeight: 36, alignment: .leading)
                             .contentShape(Rectangle())
@@ -284,9 +292,9 @@ private struct SeasonBody: View {
                 }
                 // 편성 상세가 안 오는 층(시유 방어전 1~3층) 안내 — 목록에서 말없이 빠지면 누락처럼 보인다.
                 if !clear.note.isEmpty {
-                    Rectangle().fill(GLGColor.divider).frame(height: 1)
+                    GiHairline()
                     Text(clear.note)
-                        .font(.pretendard(size: 11))
+                        .font(.pretendard(size: 12))
                         .foregroundStyle(GLGColor.textSecondary)
                         .padding(.top, 12)
                 }
@@ -308,7 +316,7 @@ private struct SeasonBody: View {
                     .minimumScaleFactor(0.7)
             }
             Text(clear.season.isEmpty ? "\(s.rooms)개 층 기록" : "\(clear.season) · \(s.rooms)개 층 기록")
-                .font(.pretendard(size: 12))
+                .font(.pretendard(size: 13))
                 .foregroundStyle(GLGColor.textSecondary)
                 .lineLimit(1)
         }
@@ -354,7 +362,7 @@ private struct RoomRow: View {
                         Spacer(minLength: 8)
                         if !room.detail.isEmpty {
                             Text(room.detail)
-                                .font(.pretendard(size: 10))
+                                .font(.pretendard(size: 12))
                                 .foregroundStyle(GLGColor.textSecondary)
                                 .lineLimit(1)
                         }
@@ -410,7 +418,7 @@ private struct RoomRow: View {
         } else if room.stars > 0 {
             StarCount(label: room.maxStars > 0 ? "\(room.stars)/\(room.maxStars)" : "\(room.stars)",
                       description: room.maxStars > 0 ? "별 \(room.stars) / \(room.maxStars)" : "별 \(room.stars)",
-                      size: 11)
+                      size: 12)
                 .foregroundStyle(starGold)
         }
     }
@@ -471,7 +479,7 @@ private struct HalfRow: View {
         HStack(spacing: 8) {
             if let chip {
                 Text(chip.label)
-                    .font(.pretendard(size: 11, weight: .bold))
+                    .font(.pretendard(size: 12, weight: .bold))
                     .foregroundStyle(chip.text)
                     .frame(width: 38)
                     .padding(.vertical, 4)
@@ -569,9 +577,11 @@ private struct AvatarChip: View {
 private struct CombatClearSkeleton: View {
     var body: some View {
         GLGShimmerClock {
-            VStack(spacing: 12) {
-                ForEach(0..<2, id: \.self) { _ in
-                    GLGCard(cornerRadius: 22, padding: 16) {
+            // 카드 없이 섹션 둘 + GiBand(10/1) — 실물 모드 섹션과 같은 여백.
+            VStack(spacing: 0) {
+                ForEach(0..<2, id: \.self) { i in
+                    if i > 0 { GiBand() }
+                    GiPageSection {
                         VStack(alignment: .leading, spacing: 0) {
                             HStack(spacing: 8) {
                                 GLGSkeleton().frame(width: 40, height: 18)

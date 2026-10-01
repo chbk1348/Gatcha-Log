@@ -65,7 +65,7 @@ struct GameInfoView: View {
         .navigationDestination(isPresented: $showHoyolab) {
             HoyolabLinkView(store: store) { showHoyolab = false }
         }
-        .navigationDestination(isPresented: $showReport) { sectionPage("가챠 리포트") { GachaReportSection(store: store, onOpenDashboard: { showDashboard = true }) } }
+        .navigationDestination(isPresented: $showReport) { sectionPage("가챠 리포트", flat: true) { GachaReportSection(store: store, onOpenDashboard: { showDashboard = true }) } }
         .navigationDestination(isPresented: $showGift) { GiftCodePage(store: store) }
         .navigationDestination(isPresented: $showDashboard) { GachaDashboardView(store: store) }
         .navigationDestination(isPresented: $showSchedule) { GameSchedulePage(store: store) }
@@ -87,7 +87,7 @@ struct GameInfoView: View {
         }
         .navigationDestination(isPresented: $showAttendance) { AttendanceDetailView(store: store) }
         .navigationDestination(isPresented: $showGameContent) {
-            sectionPage("전투 · 수입 일지") {
+            sectionPage("전투 · 수입 일지", flat: true) {
                 GameTabbedSection(store: store)
             }
         }
@@ -95,7 +95,7 @@ struct GameInfoView: View {
         // 있어서, 일지 페이지에 들어가 있을 때만 등록됐다 — 데일리 카드에서 눌러도 아무 일이
         // 일어나지 않던 원인이다(상태만 true 로 바뀌고 push 할 destination 이 없었다).
         .navigationDestination(isPresented: $showCombatClears) {
-            sectionPage("클리어 편성") { CombatClearSection(store: store) }
+            sectionPage("클리어 편성", flat: true) { CombatClearSection(store: store) }
                 // 헤더 새로고침 — 진입할 때 한 번 받는 값이라(10분 안엔 캐시) 방금 깬 층을 보려면 직접 당겨야 한다.
                 .toolbar {
                     ToolbarItem(placement: .topBarTrailing) {
@@ -363,14 +363,16 @@ struct GameInfoView: View {
     }
 
     // 페이지로 분류된 섹션을 감싸는 페이지 래퍼 — 섹션 자체 헤더를 그대로 쓰고 시스템 뒤로가기 제공.
-    @ViewBuilder private func sectionPage<C: View>(_ title: String, @ViewBuilder _ content: () -> C) -> some View {
+    /// flat=true — 카드 없는 페이지(10/1): 흰 바탕 · 좌우 여백 없음(섹션이 스스로 좌우 20). Android SectionPage(flat) 와 같다.
+    @ViewBuilder private func sectionPage<C: View>(_ title: String, flat: Bool = false, @ViewBuilder _ content: () -> C) -> some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) { content() }
-                .padding(16)
+                .padding(flat ? 0 : 16)
+                .padding(.bottom, flat ? 16 : 0)
                 .glgReadableWidth(720)
         }
         .scrollIndicators(.hidden)
-        .background(GLGBackground { Color.clear })
+        .background { if flat { Color.white } else { GLGBackground { Color.clear } } }
         .glgPageTitle(title)
         .navigationBarTitleDisplayMode(.inline)
     }
@@ -424,7 +426,8 @@ private struct GLGSirenPulse: ViewModifier {
     }
 }
 private let glTrack = Color(hex: 0xFFEDEFF3)
-private let glLine = Color(hex: 0xFFE6E7EC)
+/// 카드 없는 일정 페이지의 줄 구분 헤어라인(10/1) — 마이페이지 · 지출과 같은 #EEF0F2. Android `ScheduleHair`.
+private let glHair = Color(hex: 0xFFEEF0F2)
 private let glCollab = Color(hex: 0xFF6D5AE6)
 
 // 콜라보 배너 표식 — 이름 옆 작은 알약. (스타레일 × Fate 등)
@@ -589,7 +592,7 @@ struct GameSchedulePage: View {
 
     private var scheduleTitle: some View {
         Text("시작 · 종료")
-            .font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary).padding(.bottom, 14)
+            .font(.pretendard(size: 13)).foregroundStyle(GLGColor.textSecondary).padding(.bottom, 14)
     }
 
     var body: some View {
@@ -600,11 +603,15 @@ struct GameSchedulePage: View {
             LazyVStack(alignment: .leading, spacing: 0, pinnedViews: [.sectionHeaders]) {
                 // 페이지 타이틀은 네비게이션 바(뒤로가기 + 타이틀)로 — Android 상세 헤더와 동일 형식.
                 GldsTabs(labels: ["일정", "주년"], selection: $tab)
-                .padding(.bottom, 14)
+                // 카드 없는 페이지(10/1) — 좌우 20 은 섹션마다 스스로 둔다. 탭 아래 22 가 첫 섹션의 위 여백.
+                .padding(.horizontal, 20).padding(.top, 16).padding(.bottom, 22)
 
                 if tab == 1 {
                     AnniversaryContent()
                 } else {
+                // 첫 섹션(배너 · 요약)은 헤더 바로 아래라 위에 띠를 두지 않는다(10/1).
+                // 호요랜드 배너는 D-60 밖이면 스스로 사라져서 따로 섹션을 세우면 빈 섹션이 남는다 — 요약과 한 덩어리로 둔다.
+                VStack(alignment: .leading, spacing: 0) {
                 // 오프라인 행사는 **콜라보보다도 위**다. 주간 표는 게임 안에서 벌어지는 일만
                 // 다루는데, 이건 날짜를 비워 두고 움직여야 하는 유일한 일정이다(게다가 나흘 하고
                 // 끝난다). 개막 D-60 안쪽에만 끼어들고 그 밖엔 뷰가 스스로 사라진다.
@@ -622,22 +629,25 @@ struct GameSchedulePage: View {
                 }
                 scheduleTitle
                 if let summary = sched.summary { SummaryStrip(s: summary) }
-                Spacer().frame(height: 16)
-                ForEach(Array(sched.weeks.enumerated()), id: \.offset) { _, w in
+                }
+                .padding(.horizontal, 20).padding(.bottom, 20)
+                if !sched.weeks.isEmpty { GiBand() }
+                ForEach(Array(sched.weeks.enumerated()), id: \.offset) { i, w in
                     Section {
                         WeekEntries(week: w)
-                        Spacer().frame(height: 18)
+                        // 주 사이 띠는 **앞 주의 몸 끝**에 둔다(10/1) — 헤더 앞에 두면 고정 헤더와 같이 붙어 버린다.
+                        if i < sched.weeks.count - 1 { GiBand() }
                     } header: {
                         WeekHeader(week: w)
                     }
                 }
                 }
             }
-            .padding(16)
+            .padding(.bottom, 16)
             .glgReadableWidth(720)
         }
         .scrollIndicators(.hidden)
-        .background(GLGBackground { Color.clear })
+        .background(Color.white)
         // 상세로 들어온 뒤에도 여기서 바로 당겨 받는다 — 게임 정보 탭까지 되돌아가지 않아도 되게.
         // (Android GameScheduleFullPage 의 GlgPullToRefreshBox 와 파리티)
         .refreshable { store.refreshGameInfo(force: true) }
@@ -697,49 +707,34 @@ private struct WeekHeader: View {
     let week: ScheduleWeek
     @Environment(\.glgAccent) private var accent
 
-    /// 지금 **고정돼 있는가.** 붙어 있는 동안만 아웃라인에 강조색을 준다 —
-    /// 흐르는 카드와 붙어 있는 카드를 색 하나로 구분한다.
+    /// 지금 **고정돼 있는가.** 붙어 있는 동안만 아래 헤어라인에 강조색을 준다 —
+    /// 흐르는 헤더와 붙어 있는 헤더를 색 하나로 구분한다.
     @State private var pinned = false
-
-    /// 카드 모양 — 배경·아웃라인·고정 판정이 같은 도형을 써야 어긋나지 않는다.
-    private var shape: RoundedRectangle { RoundedRectangle(cornerRadius: 18, style: .continuous) }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            HStack(alignment: .bottom, spacing: 7) {
-                Text(week.label).font(.pretendard(size: 13, weight: .black))
-                    .foregroundStyle(GLGColor.textPrimary)
-                Text("\(week.rangeLabel) · \(week.entries.isEmpty ? "일정 없음" : "\(week.entries.count)건")")
-                    .font(.pretendard(size: 11)).foregroundStyle(GLGColor.textSecondary)
-            }
-            .padding(.bottom, 8)
+            VStack(alignment: .leading, spacing: 0) {
+                // 주 라벨이 이 섹션의 제목이다 — 섹션 제목 규격 17 굵게, 보조 글자 13(10/1).
+                HStack(alignment: .bottom, spacing: 8) {
+                    Text(week.label).font(.pretendard(size: 17, weight: .bold))
+                        .foregroundStyle(GLGColor.textPrimary)
+                    Text("\(week.rangeLabel) · \(week.entries.isEmpty ? "일정 없음" : "\(week.entries.count)건")")
+                        .font(.pretendard(size: 13)).foregroundStyle(GLGColor.textSecondary)
+                }
+                .padding(.bottom, 10)
 
-            HStack(spacing: 4) {
-                ForEach(Array(week.days.enumerated()), id: \.offset) { _, d in
-                    WeekCell(day: d)
+                HStack(spacing: 4) {
+                    ForEach(Array(week.days.enumerated()), id: \.offset) { _, d in
+                        WeekCell(day: d)
+                    }
                 }
             }
+            .padding(.horizontal, 20).padding(.top, 16).padding(.bottom, 12)
+            // 카드 대신 흰 바탕 + 아래 헤어라인(10/1). 흰 바탕이라 아래 목록이 비치지 않고,
+            // 줄 하나로 고정 헤더와 흐르는 목록의 경계가 선다. Android `WeekHeaderCard` 와 같다.
+            Rectangle().fill(pinned ? accent.primary : glHair).frame(height: 1)
         }
-        // 고정되면 **카드로 떠 있는다.** 헤더바 재질을 따라가려던 것을 접었다 —
-        // 두 OS 의 바가 서로 다른 물건이라(iOS 26+ 유리 / iOS 18 크롬 머티리얼) 어느 한 값으로도
-        // 양쪽에서 이어져 보이질 않았고, 그러느니 앱의 카드 규격을 그대로 쓰는 게 낫다.
-        //
-        // 흰 배경 + 아웃라인(`glgGlassStrong`)이라 아래 목록이 비치지 않고, 좌우 여백으로
-        // 스크롤이 지나가는 게 보여 **떠 있다는 것**이 오히려 분명해진다.
-        // 폭을 꽉 채우려고 넣었던 음수 패딩·하단 구분선은 카드형에서는 필요 없다.
-        .padding(.vertical, 10)
-        .padding(.horizontal, 14)
-        // `glgGlassStrong` 을 직접 펼쳐 쓴다 — 아웃라인 색을 고정 여부에 따라 바꿔야 해서
-        // (그 모디파이어는 검정 10% 고정이다). 흰 배경 + 1px 아웃라인 규격은 그대로다.
-        .background(Color.white, in: shape)
-        .overlay(
-            shape.stroke(pinned ? accent.primary : Color.black.opacity(0.10),
-                         lineWidth: pinned ? 1.5 : 1)
-                .allowsHitTesting(false)
-        )
-        // 카드 **바깥** 여백 — 고정됐을 때 헤더바에 딱 붙지 않고 한 칸 떨어져 뜬다.
-        // (배경 안쪽에 주면 카드만 두꺼워지고 간격은 안 생긴다)
-        .padding(.top, 10)
+        .background(Color.white)
         .background { pinDetector }
     }
 
@@ -768,18 +763,19 @@ private struct WeekEntries: View {
         // (Android `WeekEntries` 와 같이 고쳐야 한다)
         if week.entries.isEmpty {
             Text("예정된 일정이 없어요")
-                .font(.pretendard(size: 12.5))
+                .font(.pretendard(size: 13))
                 .foregroundStyle(GLGColor.textSecondary)
                 .frame(maxWidth: .infinity)
-                .padding(.top, 16).padding(.bottom, 2)
+                .padding(.horizontal, 20).padding(.top, 18).padding(.bottom, 20)
         } else {
+            // 카드 나열 대신 헤어라인 목록(10/1) — 줄 위아래 14 + 끝 6 = 섹션 아래 20.
             VStack(alignment: .leading, spacing: 0) {
-                Spacer().frame(height: 10)
-                ForEach(Array(week.entries.enumerated()), id: \.offset) { _, e in
+                ForEach(Array(week.entries.enumerated()), id: \.offset) { i, e in
+                    if i > 0 { Rectangle().fill(glHair).frame(height: 1) }
                     ScheduleRow(entry: e)
-                    Spacer().frame(height: 7)
                 }
             }
+            .padding(.horizontal, 20).padding(.bottom, 6)
         }
     }
 }
@@ -791,9 +787,10 @@ private struct WeekCell: View {
     var body: some View {
         let dim = day.isPast && !day.isToday
         VStack(spacing: 0) {
-            Text("\(day.day)").font(.pretendard(size: 11, weight: .bold))
+            // 날짜 11 → 12 · 요일 8.5 → 10(10/1 가독성). 칸 높이 46 은 그대로 — 안에 여유가 있다.
+            Text("\(day.day)").font(.pretendard(size: 12, weight: .bold))
                 .foregroundStyle(dim ? GLGColor.textSecondary.opacity(0.45) : GLGColor.textPrimary)
-            Text(day.weekdayKo).font(.pretendard(size: 8.5))
+            Text(day.weekdayKo).font(.pretendard(size: 10))
                 .foregroundStyle(GLGColor.textSecondary.opacity(dim ? 0.35 : 1))
             Spacer().frame(height: 3)
             HStack(spacing: 2) {
@@ -877,7 +874,8 @@ private struct PickupRow: View {
     var showInfo: Bool = false
 
     /// 왼쪽 라벨의 폭 — Android `PickupLabelWidth` 와 같이 고쳐야 한다.
-    private let labelWidth: CGFloat = 42
+    /// 라벨 9.5 → 11 로 키우며 42 → 46(10/1) — 'W-엔진' 이 한 줄에 들어오게.
+    private let labelWidth: CGFloat = 46
 
     var body: some View {
         let shown = Array(list.prefix(pickupSlots))
@@ -887,7 +885,7 @@ private struct PickupRow: View {
             //
             // 라벨도 자르지 않는다. 'W-엔진'처럼 폭에 꽉 차는 말이 있어서 한 줄로 묶으면
             // 게임에 따라 끝이 잘린다 — 무엇을 세운 줄인지 알리는 말이 잘리면 뜻이 없다.
-            Text(label).font(.pretendard(size: 9.5, weight: .bold))
+            Text(label).font(.pretendard(size: 11, weight: .bold))
                 .foregroundStyle(GLGColor.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)
                 .frame(width: labelWidth, alignment: .leading)
@@ -968,7 +966,7 @@ private struct PickupSlot: View {
     private var wideBody: some View {
         HStack(alignment: .center, spacing: 9) {
             avatarView
-            Text(banner.name).font(.pretendard(size: 11, weight: .bold))
+            Text(banner.name).font(.pretendard(size: 12, weight: .bold))
                 .foregroundStyle(GLGColor.textPrimary)
                 .fixedSize(horizontal: false, vertical: true)
             Spacer(minLength: 0)
@@ -983,7 +981,7 @@ private struct PickupSlot: View {
             // 이름은 **끝까지** 보여준다. 자르면 "그림자 사냥꾼의…"처럼 무엇인지 특정할 수 없는
             // 조각만 남는다 — 얼굴 옆 이름은 확인용이라 잘리면 있으나 마나다.
             // 줄 수를 묶지 않는다(광추·W-엔진 이름은 캐릭터명보다 길다). 칸끼리는 위를 맞춘다.
-            Text(banner.name).font(.pretendard(size: 9.5, weight: .bold))
+            Text(banner.name).font(.pretendard(size: 11, weight: .bold))
                 .foregroundStyle(GLGColor.textPrimary)
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
@@ -1039,13 +1037,14 @@ private struct ScheduleRow: View {
             GLGGameTag(game: entry.gameShort, size: .small)
             Spacer().frame(width: 10)
             VStack(alignment: .leading, spacing: 1) {
-                Text(entry.title).font(.pretendard(size: 12.5, weight: .bold))
+                // 글자 크기 10/1 — 제목 12.5 → 14 · 부제 10.5 → 12 · 종류 9 → 11 · 남은 시간 10.5 → 12 · 날짜 9.5 → 12.
+                Text(entry.title).font(.pretendard(size: 14, weight: .bold))
                     .foregroundStyle(GLGColor.textPrimary).lineLimit(1)
                 // 게임명은 배지가 말한다 — 부제에서 중복하지 않는다.
                 // 아이콘이 없는 줄(이벤트·콘텐츠)은 부제를 여기 글자로 둔다. 픽업은 카드 아래
                 // 별도 단으로 내려간다(아래 참고).
                 if entry.pickups.isEmpty && !entry.sub.isEmpty {
-                    Text(entry.sub).font(.pretendard(size: 10.5))
+                    Text(entry.sub).font(.pretendard(size: 12))
                         .foregroundStyle(GLGColor.textSecondary).lineLimit(1)
                         .padding(.top, 2)
                 }
@@ -1064,7 +1063,7 @@ private struct ScheduleRow: View {
                     // 종류는 **남은 시간 바로 앞**에 붙인다. 앞서 게임 배지 옆에 따로 세워 봤는데,
                     // 정작 "무엇까지 얼마 남았나"는 한 덩어리로 읽히는 말이라 줄 양끝으로 갈라
                     // 놓으면 눈이 두 번 움직인다. (그 전엔 ▲▼◆ 였고, 방향만 있고 뜻이 없었다.)
-                    Text(markLabel(mark)).font(.pretendard(size: 9, weight: .semibold))
+                    Text(markLabel(mark)).font(.pretendard(size: 11, weight: .semibold))
                         .foregroundStyle(markColor(mark))
                     TimelineView(.periodic(from: .now, by: isImminent(targetMillis: entry.target, nowMillis: nowMS()) ? 1 : 60)) { ctx in
                         let now = Int64(ctx.date.timeIntervalSince1970 * 1000)
@@ -1073,7 +1072,7 @@ private struct ScheduleRow: View {
                         let hot = imminent || (d >= 0 && d <= 3)
                         Text(imminent ? hmsLabel(targetMillis: entry.target, nowMillis: now)
                                       : (d <= 0 ? "종료" : "D-\(d)"))
-                            .font(.pretendard(size: 10.5, weight: .black))
+                            .font(.pretendard(size: 12, weight: .black))
                             // 임박 색은 **종류 색**을 따른다. 예전엔 무조건 빨강이라, 곧 시작하는 픽업이
                             // 마감 임박과 같은 경고색으로 떴다 — 시작은 다급한 일이 아니다. 앞의
                             // "시작까지" 라벨과도 색이 갈려 한 덩어리로 안 읽혔다.
@@ -1091,7 +1090,7 @@ private struct ScheduleRow: View {
                 // 날짜만으로는 부족하다 — D-1 에서 초를 세기 시작하면 "그래서 몇 시에 끝나나"가
                 // 바로 다음 질문이 된다. 접속 계획은 시각까지 있어야 세울 수 있다.
                 Text(DateUtil.shared.shortDateTime(millis: entry.target))
-                    .font(.pretendard(size: 9.5, weight: .semibold))
+                    .font(.pretendard(size: 12, weight: .semibold))
                     .foregroundStyle(GLGColor.textSecondary.opacity(0.75)).lineLimit(1)
             }
         }
@@ -1105,7 +1104,7 @@ private struct ScheduleRow: View {
         if !entry.pickups.isEmpty {
             // 구분선 — 일정 한 줄과 픽업은 다른 종류의 정보다. 여백만으로 나누면 초상이
             // 그 줄에 딸린 건지 다음 줄로 넘어간 건지 애매하다.
-            Divider().padding(.vertical, 9)
+            Rectangle().fill(glHair).frame(height: 1).padding(.vertical, 9)
             // 캐릭터와 무기는 **다른 줄**로 가른다. 한 줄에 섞으면 어느 쪽이 캐릭터 픽업인지
             // 초상만 보고는 알 수 없다(무기도 같은 원형 초상으로 온다).
             let chars = entry.pickups.filter { $0.type != "weapon" }
@@ -1120,14 +1119,13 @@ private struct ScheduleRow: View {
                 PickupRow(label: "캐릭터", list: chars, showInfo: entry.gameKey == Game.zzz.key)
             }
             if !weapons.isEmpty {
-                if !chars.isEmpty { Divider().opacity(0.7).padding(.vertical, 9) }
+                if !chars.isEmpty { Rectangle().fill(glHair).frame(height: 1).padding(.vertical, 9) }
                 PickupRow(label: GameInfoKt.weaponLabelOf(game: gameOf), list: weapons)
             }
         }
         }
-        .padding(.horizontal, 11).padding(.vertical, 9)
-        .background(Color.white, in: RoundedRectangle(cornerRadius: 12))
-        .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color(hex: 0xFFE0E0E0), lineWidth: 1))
+        // 카드 면을 걷고 헤어라인 목록의 한 줄로(10/1) — 좌우는 섹션 20 이 준다.
+        .padding(.vertical, 14)
     }
 
     private func markLabel(_ m: ScheduleMark) -> String {
@@ -1144,24 +1142,23 @@ private struct SummaryStrip: View {
     var body: some View {
         HStack(spacing: 0) {
             cell(s.weekDeadlines, "이번 주 마감")
-            Rectangle().fill(glLine).frame(width: 1)
+            Rectangle().fill(glHair).frame(width: 1)
             cell(s.activePickups, "진행 중 픽업")
-            Rectangle().fill(glLine).frame(width: 1)
+            Rectangle().fill(glHair).frame(width: 1)
             cell(s.extras, "이벤트 · 콘텐츠")
         }
+        // 카드 테두리는 걷고 칸 사이 세로 헤어라인만 남긴다(10/1).
         .fixedSize(horizontal: false, vertical: true)
-        .background(Color.white, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(glLine, lineWidth: 1))
     }
 
     private func cell(_ value: Int32, _ label: String) -> some View {
         VStack(spacing: 1) {
             Text("\(value)").font(.pretendard(size: 19, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
                 .monospacedDigit()
-            Text(label).font(.pretendard(size: 10.5, weight: .semibold)).foregroundStyle(GLGColor.textSecondary)
+            Text(label).font(.pretendard(size: 12, weight: .semibold)).foregroundStyle(GLGColor.textSecondary)
                 .lineLimit(1)
         }
-        .frame(maxWidth: .infinity).padding(.vertical, 11)
+        .frame(maxWidth: .infinity).padding(.vertical, 6)
     }
 }
 

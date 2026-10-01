@@ -22,14 +22,15 @@ private func filterNews(_ news: [NewsItem], _ filter: String) -> [NewsItem] {
 /// 메인 액터가 맞다.
 @MainActor
 @ViewBuilder
-private func newsRow(_ n: NewsItem, selected: Bool = false, onOpen: @escaping (NewsItem) -> Void) -> some View {
+/// `page` — 전체 페이지(10/1): 행이 화면 폭이라 좌우 20 을 스스로 두고 글자를 키운다(제목 14 · 날짜 12). 첫 화면은 그대로.
+private func newsRow(_ n: NewsItem, selected: Bool = false, page: Bool = false, onOpen: @escaping (NewsItem) -> Void) -> some View {
     Button { onOpen(n) } label: {
         HStack(spacing: 10) {
             GLGGameTag(game: n.game, size: .small)
             VStack(alignment: .leading, spacing: 1) {
-                Text(n.title).font(.pretendard(size: 13, weight: .medium)).foregroundStyle(GLGColor.textPrimary)
+                Text(n.title).font(.pretendard(size: page ? 14 : 13, weight: .medium)).foregroundStyle(GLGColor.textPrimary)
                     .lineLimit(2).multilineTextAlignment(.leading)
-                Text(DateUtil.shared.shortDate(millis: n.createdAtMillis)).font(.pretendard(size: 11)).foregroundStyle(GLGColor.textSecondary)
+                Text(DateUtil.shared.shortDate(millis: n.createdAtMillis)).font(.pretendard(size: page ? 12 : 11)).foregroundStyle(GLGColor.textSecondary)
             }
             .frame(maxWidth: .infinity, alignment: .leading) // 가로 폭 제약 — 긴 제목이 행을 넘쳐 좌우 스크롤되던 문제 방지
             // 썸네일 — 목록에서 **글을 고르는 단서**로 쓴다. 상류가 `tabBanner`/`banner` 로 이미
@@ -52,14 +53,15 @@ private func newsRow(_ n: NewsItem, selected: Bool = false, onOpen: @escaping (N
                 .foregroundStyle(Color(.tertiaryLabel))
         }
         .padding(.vertical, 11)
+        .padding(.horizontal, page ? 20 : 0)
         .contentShape(Rectangle()) // 태그·날짜 사이 빈 여백까지 탭 되게(행 전체가 탭 타깃)
         // iPad 분할에서 "지금 오른쪽에 뜬 공지"를 표시. iPhone(push)에서는 항상 false 라 변화 없음.
         //
-        // 배경만 좌우로 16 넓힌다 — 행은 카드(padding 16) 안에 있어서 그냥 깔면 양옆에 흰 띠가
-        // 남아 **행 전체가 아니라 가운데만 칠해진 것처럼** 보인다.
+        // 전체 페이지(page)는 행이 이미 화면 폭이라 그대로 깐다(10/1). 그 밖에선 배경만 좌우로 16 넓힌다 —
+        // 행이 여백(16) 안에 있어서 그냥 깔면 **행 전체가 아니라 가운데만 칠해진 것처럼** 보인다.
         .background(
             (selected ? GLGColor.textPrimary.opacity(0.05) : Color.clear)
-                .padding(.horizontal, -16)
+                .padding(.horizontal, page ? 0 : -16)
         )
     }
     .buttonStyle(.plain)
@@ -138,6 +140,9 @@ struct NewsSection: View {
     }
 }
 
+/// 카드 없는 목록의 줄 사이 헤어라인(10/1) — 마이페이지 · 지출과 같은 색.
+private let newsHair = Color(hex: 0xFFEEF0F2)
+
 /// 공지·뉴스 전체 페이지.
 struct NewsPage: View {
     var store: SpendingStore
@@ -188,26 +193,24 @@ struct NewsPage: View {
             LazyVStack(alignment: .leading, spacing: 0) {
                 if all.isEmpty {
                     Text("공지가 없어요").font(.pretendard(size: 13))
-                        .foregroundStyle(GLGColor.textSecondary).padding(.vertical, 24)
+                        .foregroundStyle(GLGColor.textSecondary).padding(.horizontal, 20).padding(.vertical, 24)
                 } else {
-                    GLGCard(cornerRadius: 24, padding: 16) {
-                        VStack(spacing: 0) {
-                            ForEach(Array(all.enumerated()), id: \.offset) { i, n in
-                                if i > 0 { Divider() }
-                                // iPad 는 밀어 넣지 않고 우측 본문을 갈아 끼운다.
-                                newsRow(n, selected: isWide && selectedNews?.id == n.id) {
-                                    selectedNews = $0
-                                    if !isWide { showDetail = true }
-                                }
-                            }
+                    // 카드는 걷었다(10/1) — 흰 바탕 화면 폭 목록, 줄 사이 헤어라인(좌우 20 들임).
+                    ForEach(Array(all.enumerated()), id: \.offset) { i, n in
+                        if i > 0 { newsHair.frame(height: 1).padding(.horizontal, 20) }
+                        // iPad 는 밀어 넣지 않고 우측 본문을 갈아 끼운다.
+                        newsRow(n, selected: isWide && selectedNews?.id == n.id, page: true) {
+                            selectedNews = $0
+                            if !isWide { showDetail = true }
                         }
                     }
                 }
             }
-            .padding(16)
+            // 행 위아래 11 을 더해 섹션 위 22 · 아래 20 이 된다(Android NewsFullContent 와 같다).
+            .padding(.top, 11).padding(.bottom, 9)
         }
         .scrollIndicators(.hidden)
-        .background(GLGBackground { Color.clear })
+        .background(Color.white)
         // 갈린 상태에선 타이틀을 비운다 — 오른쪽 본문이 자기 바("공지" + 공유)를 갖고 있어
         // 바가 두 줄로 겹쳐 보이고, 왼쪽은 어차피 목록인 게 한눈에 보인다. 뒤로가기는 남는다.
         .navigationTitle(isWide ? "" : "공지·뉴스")

@@ -359,13 +359,13 @@ fun GameScheduleFullPage(
     GlgPullToRefreshBox(
         isRefreshing = isRefreshing,
         onRefresh = onRefresh,
-        modifier = Modifier.fillMaxSize(),
+        // 카드 없는 페이지(10/1) — 흰 바탕, 좌우 20 은 섹션마다 스스로 둔다(뷰포트 좌우 16 을 걷었다).
+        modifier = Modifier.fillMaxSize().background(Color.White),
     ) {
         LazyColumn(
             state = listState,
             modifier = Modifier.fillMaxSize()
                 .navigationBarsPadding()
-                .padding(horizontal = 16.dp)
                 // **뷰포트 자체를 인셋**한다(contentPadding 이 아니라) — stickyHeader 는
                 // contentPadding top 을 무시하고 뷰포트 최상단에 붙으므로, 그러지 않으면
                 // 주간 표가 고정 헤더 뒤로 파고든다.
@@ -378,7 +378,8 @@ fun GameScheduleFullPage(
                 GldsTabs(
                     labels = listOf("일정", "주년"),
                     selected = tab,
-                    modifier = Modifier.padding(top = 4.dp, bottom = 14.dp),
+                    // 탭 아래 22 가 첫 섹션의 위 여백이다 — 첫 섹션 위에는 띠를 두지 않는다(10/1).
+                    modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 22.dp),
                     onSelect = { tab = it },
                 )
             }
@@ -391,8 +392,11 @@ fun GameScheduleFullPage(
                     // (게다가 나흘 하고 끝난다). 개막 D-60 안쪽에만 끼어들고 그 밖엔 사라진다.
                     hoyoland?.let { h ->
                         item(key = "hoyoland") {
-                            HoyolandScheduleBanner(h, onOpenHoyoland)
-                            Spacer(Modifier.height(16.dp))
+                            // 첫 섹션(배너 · 요약)의 일부 — 개막 D-60 밖이면 빠지므로 따로 섹션을 세우지 않는다(10/1).
+                            Column(Modifier.padding(horizontal = 20.dp)) {
+                                HoyolandScheduleBanner(h, onOpenHoyoland)
+                                Spacer(Modifier.height(16.dp))
+                            }
                         }
                     }
                     // 콜라보는 **맨 위**. 종료 시각이 미공지라 시간 축에 못 올리는데, 맨 아래에 두면
@@ -400,18 +404,22 @@ fun GameScheduleFullPage(
                     // 일정이 가장 늦게 읽혔다.
                     if (undated.isNotEmpty()) {
                         item(key = "collab") {
-                            CollabPromoBanner(undated, collabExpanded, onToggle = onToggleCollab)
-                            Spacer(Modifier.height(16.dp))
+                            Column(Modifier.padding(horizontal = 20.dp)) {
+                                CollabPromoBanner(undated, collabExpanded, onToggle = onToggleCollab)
+                                Spacer(Modifier.height(16.dp))
+                            }
                         }
                     }
                     item(key = "summary") {
-                        Text(
-                            "시작 · 종료",
-                            fontSize = 12.sp, color = TextSecondary,
-                            modifier = Modifier.padding(bottom = 14.dp),
-                        )
-                        SummaryStrip(summary)
-                        Spacer(Modifier.height(16.dp))
+                        Column(Modifier.padding(start = 20.dp, end = 20.dp, bottom = 20.dp)) {
+                            Text(
+                                "시작 · 종료",
+                                fontSize = 13.sp, color = TextSecondary,
+                                modifier = Modifier.padding(bottom = 14.dp),
+                            )
+                            SummaryStrip(summary)
+                        }
+                        if (weeks.isNotEmpty()) GiBand()
                     }
                     weeks.forEachIndexed { i, w ->
                         val key = "week-$i"
@@ -419,7 +427,8 @@ fun GameScheduleFullPage(
                         stickyHeader(key = key) { WeekHeaderCard(w, pinned = pinnedKey == key) }
                         item(key = "$key-body") {
                             WeekEntries(w, now)
-                            Spacer(Modifier.height(18.dp))
+                            // 주 사이 띠는 **앞 주의 몸 끝**에 둔다(10/1) — 헤더 쪽에 두면 고정 헤더와 같이 붙는다.
+                            if (i < weeks.lastIndex) GiBand()
                         }
                     }
                 }
@@ -449,42 +458,37 @@ private val DDayBadgeHeight = 20.dp
  */
 private val WeekCellHeight = 46.dp
 
+/** 카드 없는 일정 페이지의 줄 구분 헤어라인(10/1) — 마이페이지 · 지출과 같은 #EEF0F2. iOS `glHair`. */
+private val ScheduleHair = Color(0xFFEEF0F2)
+
 /**
  * 한 주의 **머리** — 라벨·기간·건수 + 일~토 7칸 그리드. 스크롤 중 상단에 고정된다.
  *
- * 고정되면 **카드로 떠 있는다**(흰 배경 + 아웃라인 + 라운드). 헤더바 재질을 따라가는 방식도
- * 있지만 그러면 OS 버전마다 바 재질이 달라 계속 어긋난다 — 앱 카드 규격을 쓰는 게 낫다.
- * [pinned] 동안에만 아웃라인에 강조색을 줘서 붙어 있다는 걸 알린다. (iOS `WeekHeader` 와 파리티)
+ * 카드 대신 **흰 바탕 + 아래 헤어라인**(10/1). 흰 바탕이라 아래 목록이 비치지 않고, 줄 하나로
+ * 고정 헤더와 흐르는 목록의 경계가 선다. [pinned] 동안에만 그 줄에 강조색을 줘서 붙어 있다는
+ * 걸 알린다. (iOS `WeekHeader` 와 파리티)
  */
 @Composable
 private fun WeekHeaderCard(w: ScheduleWeek, pinned: Boolean) {
     val accent = LocalAccent.current
-    val shape = RoundedCornerShape(18.dp)
-    val border by animateColorAsState(
-        if (pinned) accent else Color.Black.copy(alpha = 0.10f),
-        label = "weekPinBorder",
-    )
-    Column(
-        Modifier.fillMaxWidth()
-            // 카드 **바깥** 여백 — 고정됐을 때 헤더바에 딱 붙지 않고 한 칸 떨어져 뜬다.
-            .padding(top = 10.dp)
-            .clip(shape)
-            .background(Color.White)
-            .border(if (pinned) 1.5.dp else 1.dp, border, shape)
-            .padding(horizontal = 14.dp, vertical = 10.dp),
-    ) {
-        Row(Modifier.fillMaxWidth().padding(bottom = 8.dp), verticalAlignment = Alignment.Bottom) {
-            Text(w.label, fontSize = 13.sp, fontWeight = FontWeight.Black, color = TextPrimary)
-            Spacer(Modifier.width(7.dp))
-            Text(
-                "${w.rangeLabel} · ${if (w.entries.isEmpty()) "일정 없음" else "${w.entries.size}건"}",
-                fontSize = 11.sp, color = TextSecondary,
-            )
+    val line by animateColorAsState(if (pinned) accent else ScheduleHair, label = "weekPinLine")
+    Column(Modifier.fillMaxWidth().background(Color.White)) {
+        Column(Modifier.padding(start = 20.dp, end = 20.dp, top = 16.dp, bottom = 12.dp)) {
+            // 주 라벨이 이 섹션의 제목이다 — 섹션 제목 규격 17 굵게, 보조 글자 13(10/1).
+            Row(Modifier.fillMaxWidth().padding(bottom = 10.dp), verticalAlignment = Alignment.Bottom) {
+                Text(w.label, fontSize = 17.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    "${w.rangeLabel} · ${if (w.entries.isEmpty()) "일정 없음" else "${w.entries.size}건"}",
+                    fontSize = 13.sp, color = TextSecondary,
+                )
+            }
+            // 7칸 그리드 — 칸이 좁아 제목은 못 담는다. 어느 날이 바쁜지만 점으로 알린다.
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                w.days.forEach { d -> WeekCell(d, Modifier.weight(1f)) }
+            }
         }
-        // 7칸 그리드 — 칸이 좁아 제목은 못 담는다. 어느 날이 바쁜지만 점으로 알린다.
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-            w.days.forEach { d -> WeekCell(d, Modifier.weight(1f)) }
-        }
+        Box(Modifier.fillMaxWidth().height(1.dp).background(line))
     }
 }
 
@@ -498,17 +502,17 @@ private fun WeekEntries(w: ScheduleWeek, now: Long) {
     if (w.entries.isEmpty()) {
         Text(
             "예정된 일정이 없어요",
-            fontSize = 12.5.sp, color = TextSecondary,
+            fontSize = 13.sp, color = TextSecondary,
             textAlign = TextAlign.Center,
-            modifier = Modifier.fillMaxWidth().padding(top = 16.dp, bottom = 2.dp),
+            modifier = Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 18.dp, bottom = 20.dp),
         )
         return
     }
-    Column(Modifier.fillMaxWidth()) {
-        Spacer(Modifier.height(10.dp))
-        w.entries.forEach { e ->
+    // 카드 나열 대신 헤어라인 목록(10/1) — 줄 위아래 14 + 끝 6 = 섹션 아래 20.
+    Column(Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, bottom = 6.dp)) {
+        w.entries.forEachIndexed { i, e ->
+            if (i > 0) Box(Modifier.fillMaxWidth().height(1.dp).background(ScheduleHair))
             ScheduleRow(e, now)
-            Spacer(Modifier.height(7.dp))
         }
     }
 }
@@ -529,13 +533,14 @@ private fun WeekCell(d: WeekDay, modifier: Modifier = Modifier) {
         // 날짜·요일은 **줄 상자를 글자에 맞춘** GlgBadgeText 로 그린다. 기본 Text 는 Pretendard 의
         // 큰 top/bottom 메트릭에 폰트 패딩까지 더해 한 줄이 글자보다 훨씬 높아지고, 두 줄이 쌓이면
         // 칸이 iOS 보다 5dp 가까이 부풀었다(칩·세트효과와 같은 원인).
+        // 날짜 11 → 12 · 요일 8.5 → 10(10/1 가독성). 칸 높이 [WeekCellHeight] 는 그대로 — 안에 여유가 있다.
         GlgBadgeText(
-            "${d.day}", 11.sp,
+            "${d.day}", 12.sp,
             if (dim) TextSecondary.copy(alpha = 0.45f) else TextPrimary,
         )
         Spacer(Modifier.height(2.dp))
         GlgBadgeText(
-            d.weekdayKo, 8.5.sp,
+            d.weekdayKo, 10.sp,
             TextSecondary.copy(alpha = if (dim) 0.35f else 1f),
             fontWeight = FontWeight.Normal,
         )
@@ -563,13 +568,9 @@ private fun ScheduleRow(e: ScheduleEntry, now: Long) {
         ScheduleMark.END -> DangerText
     }
     val d = e.dDay(now)
-    Column(
-        Modifier.fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
-            .background(Color.White)
-            .border(1.dp, DividerColor, RoundedCornerShape(12.dp))
-            .padding(horizontal = 11.dp, vertical = 9.dp),
-    ) {
+    // 카드 면을 걷고 헤어라인 목록의 한 줄로(10/1) — 좌우는 섹션 20 이 준다.
+    // 글자 크기 10/1 — 제목 12.5 → 14 · 부제 10.5 → 12 · 종류 9 → 11 · 남은 시간 10.5 → 12 · 날짜 9.5 → 12.
+    Column(Modifier.fillMaxWidth().padding(vertical = 14.dp)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             // 리딩 — 게임색 약칭 배지(지출 행과 같은 규격: 라운드 사각 + 게임색 14% 배경 + 약칭).
             // 일정은 여섯 게임이 한 줄기로 섞여 흐르므로, 어느 게임 건지가 **가장 먼저** 읽혀야 한다.
@@ -585,7 +586,7 @@ private fun ScheduleRow(e: ScheduleEntry, now: Long) {
             Column(Modifier.weight(1f)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        e.title, fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = TextPrimary,
+                        e.title, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TextPrimary,
                         maxLines = 1, overflow = TextOverflow.Ellipsis,
                     )
                 }
@@ -597,7 +598,7 @@ private fun ScheduleRow(e: ScheduleEntry, now: Long) {
                 if (e.pickups.isEmpty() && e.sub.isNotBlank()) {
                     Spacer(Modifier.height(2.dp))
                     Text(
-                        e.sub, fontSize = 10.5.sp, color = TextSecondary,
+                        e.sub, fontSize = 12.sp, color = TextSecondary,
                         maxLines = 1, overflow = TextOverflow.Ellipsis,
                     )
                 }
@@ -623,7 +624,7 @@ private fun ScheduleRow(e: ScheduleEntry, now: Long) {
                             ScheduleMark.START -> "시작까지"
                             ScheduleMark.END -> "종료까지"
                         },
-                        9.sp, markColor, fontWeight = FontWeight.SemiBold,
+                        11.sp, markColor, fontWeight = FontWeight.SemiBold,
                     )
                     Spacer(Modifier.width(4.dp))
                     Box(
@@ -644,7 +645,7 @@ private fun ScheduleRow(e: ScheduleEntry, now: Long) {
                                 d <= 0 -> "종료"
                                 else -> "D-$d"
                             },
-                            10.5.sp,
+                            12.sp,
                             if (hot) markColor else TextSecondary,
                         )
                     }
@@ -653,7 +654,7 @@ private fun ScheduleRow(e: ScheduleEntry, now: Long) {
                 // 날짜만으로는 부족하다 — D-1 에서 초를 세기 시작하면 "그래서 몇 시에 끝나나"가
                 // 바로 다음 질문이 된다. 접속 계획은 시각까지 있어야 세울 수 있다.
                 GlgBadgeText(
-                    DateUtil.shortDateTime(e.target), 9.5.sp,
+                    DateUtil.shortDateTime(e.target), 12.sp,
                     TextSecondary.copy(alpha = 0.75f), fontWeight = FontWeight.SemiBold,
                 )
             }
@@ -667,10 +668,7 @@ private fun ScheduleRow(e: ScheduleEntry, now: Long) {
         if (e.pickups.isNotEmpty()) {
             // 구분선 — 일정 한 줄과 픽업은 다른 종류의 정보다. 여백만으로 나누면 초상이
             // 그 줄에 딸린 건지 다음 줄로 넘어간 건지 애매하다.
-            HorizontalDivider(
-                color = DividerColor,
-                modifier = Modifier.padding(top = 9.dp, bottom = 9.dp),
-            )
+            Box(Modifier.padding(vertical = 9.dp).fillMaxWidth().height(1.dp).background(ScheduleHair))
             // 캐릭터와 무기는 **다른 줄**로 가른다. 한 줄에 섞으면 어느 쪽이 캐릭터 픽업인지
             // 초상만 보고는 알 수 없다(무기도 같은 원형 초상으로 온다).
             val chars = e.pickups.filter { it.type != "weapon" }
@@ -685,10 +683,7 @@ private fun ScheduleRow(e: ScheduleEntry, now: Long) {
             if (chars.isNotEmpty()) PickupRow("캐릭터", chars, showInfo = zzzHidesWEngine)
             if (weapons.isNotEmpty()) {
                 if (chars.isNotEmpty()) {
-                    HorizontalDivider(
-                        color = DividerColor.copy(alpha = 0.7f),
-                        modifier = Modifier.padding(top = 9.dp, bottom = 9.dp),
-                    )
+                    Box(Modifier.padding(vertical = 9.dp).fillMaxWidth().height(1.dp).background(ScheduleHair))
                 }
                 PickupRow(weaponLabelOf(gameOf), weapons)
             }
@@ -808,7 +803,7 @@ private fun PickupRow(label: String, list: List<GachaBanner>, showInfo: Boolean 
         // 게임에 따라 끝이 잘린다 — 무엇을 세운 줄인지 알리는 말이 잘리면 뜻이 없다.
         Text(
             label,
-            fontSize = 9.5.sp, fontWeight = FontWeight.Bold, color = TextSecondary,
+            fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextSecondary,
             modifier = Modifier.width(PickupLabelWidth).padding(top = 12.dp),
         )
         Spacer(Modifier.width(6.dp))
@@ -837,8 +832,8 @@ private fun PickupRow(label: String, list: List<GachaBanner>, showInfo: Boolean 
     }
 }
 
-/** 픽업 줄 왼쪽 라벨의 폭 — iOS `PickupRow.labelWidth` 와 같이 고쳐야 한다. */
-private val PickupLabelWidth = 42.dp
+/** 픽업 줄 왼쪽 라벨의 폭 — iOS `PickupRow.labelWidth` 와 같이 고쳐야 한다. 라벨 9.5 → 11 로 키우며 42 → 46(10/1). */
+private val PickupLabelWidth = 46.dp
 
 /**
  * 초상 지름 — '내 캐릭터' 로스터(44)보다 한 단계 작다.
@@ -867,7 +862,7 @@ private fun PickupSlot(b: GachaBanner, modifier: Modifier = Modifier) {
         // 조각만 남는다 — 얼굴 옆 이름은 확인용이라 잘리면 있으나 마나다.
         // 줄 수를 묶지 않는다(광추·W-엔진 이름은 캐릭터명보다 길다). 칸끼리는 위를 맞춘다.
         Text(
-            b.name, fontSize = 9.5.sp, fontWeight = FontWeight.Bold, color = TextPrimary,
+            b.name, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextPrimary,
             textAlign = TextAlign.Center,
         )
     }
@@ -924,7 +919,7 @@ private fun PickupSlotWide(b: GachaBanner) {
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         PickupAvatar(b)
         Spacer(Modifier.width(9.dp))
-        Text(b.name, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+        Text(b.name, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
     }
 }
 
@@ -968,26 +963,22 @@ private fun rememberScheduleNow(targets: List<Long>): Long {
 // 요약 3칸 — 이번 주 마감 / 진행 중 픽업 / 이벤트·콘텐츠.
 @Composable
 private fun SummaryStrip(s: ScheduleSummary) {
-    Row(
-        Modifier.fillMaxWidth().height(IntrinsicSize.Min)
-            .clip(RoundedCornerShape(16.dp))
-            .background(Color.White)
-            .border(1.dp, DividerColor, RoundedCornerShape(16.dp)),
-    ) {
+    // 카드 테두리는 걷고 칸 사이 세로 헤어라인만 남긴다(10/1).
+    Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
         SummaryCell(s.weekDeadlines, "이번 주 마감", Modifier.weight(1f))
-        Box(Modifier.width(1.dp).fillMaxHeight().background(DividerColor.copy(alpha = 0.7f)))
+        Box(Modifier.width(1.dp).fillMaxHeight().background(ScheduleHair))
         SummaryCell(s.activePickups, "진행 중 픽업", Modifier.weight(1f))
-        Box(Modifier.width(1.dp).fillMaxHeight().background(DividerColor.copy(alpha = 0.7f)))
+        Box(Modifier.width(1.dp).fillMaxHeight().background(ScheduleHair))
         SummaryCell(s.extras, "이벤트 · 콘텐츠", Modifier.weight(1f))
     }
 }
 
 @Composable
 private fun SummaryCell(value: Int, label: String, modifier: Modifier = Modifier) {
-    Column(modifier.padding(vertical = 11.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+    Column(modifier.padding(vertical = 6.dp), horizontalAlignment = Alignment.CenterHorizontally) {
         Text("$value", fontSize = 19.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
         Spacer(Modifier.height(1.dp))
-        Text(label, fontSize = 10.5.sp, fontWeight = FontWeight.SemiBold, color = TextSecondary, maxLines = 1)
+        Text(label, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = TextSecondary, maxLines = 1)
     }
 }
 

@@ -41,7 +41,7 @@ struct NewsDetailView: View {
                 HStack(spacing: 8) {
                     GLGGameTag(game: item.game, size: .small)
                     Text(DateUtil.shared.shortDate(millis: item.createdAtMillis))
-                        .font(.pretendard(size: 11))
+                        .font(.pretendard(size: 12))
                         .foregroundStyle(GLGColor.textSecondary)
                 }
                 Spacer().frame(height: 10)
@@ -57,41 +57,42 @@ struct NewsDetailView: View {
                         )
                     })
                 Spacer().frame(height: 16)
+                // 카드는 걷었다(10/1) — 흰 바탕에 좌우 20 본문. 머리말과 본문 사이는 헤어라인 한 줄로 가른다.
+                Color(hex: 0xFFEEF0F2).frame(height: 1).frame(maxWidth: .infinity)
+                Spacer().frame(height: 16)
 
-                GLGCard(cornerRadius: 24, padding: 16) {
-                    VStack(alignment: .leading, spacing: 12) {
-                        if store.newsArticleLoading {
-                            bodySkeleton
-                        } else if let article = store.newsArticle {
-                            // 본문 로드 성공 — 문단과 이미지를 원문 순서대로.
-                            ForEach(Array(article.blocks.enumerated()), id: \.offset) { _, block in
-                                if let text = block as? NewsBlockText {
-                                    // 길게 눌러 원하는 구간만 드래그 선택 → 복사.
-                                    GLGSelectableText(text: text.text)
-                                } else if let image = block as? NewsBlockImage {
-                                    bodyImage(image.url)
-                                }
-                            }
-                        } else {
-                            // 폴백 — 본문을 못 받았을 때. 배너 + 줄바꿈 없는 평문이라도 보여준다(빈 화면보다 낫다).
-                            if !item.bannerUrl.isEmpty { bodyImage(item.bannerUrl) }
-                            if !item.summary.isEmpty {
-                                GLGSelectableText(text: item.summary)
-                                Text("본문 전체는 브라우저에서 볼 수 있어요.")
-                                    .font(.pretendard(size: 11))
-                                    .foregroundStyle(GLGColor.textSecondary)
-                            } else {
-                                Text("본문을 불러오지 못했어요. 브라우저에서 확인해 주세요.")
-                                    .font(.pretendard(size: 13))
-                                    .foregroundStyle(GLGColor.textSecondary)
+                VStack(alignment: .leading, spacing: 12) {
+                    if store.newsArticleLoading {
+                        bodySkeleton
+                    } else if let article = store.newsArticle {
+                        // 본문 로드 성공 — 문단과 이미지를 원문 순서대로.
+                        ForEach(Array(article.blocks.enumerated()), id: \.offset) { _, block in
+                            if let text = block as? NewsBlockText {
+                                // 길게 눌러 원하는 구간만 드래그 선택 → 복사.
+                                GLGSelectableText(text: text.text)
+                            } else if let image = block as? NewsBlockImage {
+                                bodyImage(image.url)
                             }
                         }
-
-                        // 원문 링크·공유는 헤더 버튼으로 옮겼다 — 본문 끝까지 스크롤해야 보이던 걸 항상 닿는 자리로.
+                    } else {
+                        // 폴백 — 본문을 못 받았을 때. 배너 + 줄바꿈 없는 평문이라도 보여준다(빈 화면보다 낫다).
+                        if !item.bannerUrl.isEmpty { bodyImage(item.bannerUrl) }
+                        if !item.summary.isEmpty {
+                            GLGSelectableText(text: item.summary)
+                            Text("본문 전체는 브라우저에서 볼 수 있어요.")
+                                .font(.pretendard(size: 12))
+                                .foregroundStyle(GLGColor.textSecondary)
+                        } else {
+                            Text("본문을 불러오지 못했어요. 브라우저에서 확인해 주세요.")
+                                .font(.pretendard(size: 13))
+                                .foregroundStyle(GLGColor.textSecondary)
+                        }
                     }
+
+                    // 원문 링크·공유는 헤더 버튼으로 옮겼다 — 본문 끝까지 스크롤해야 보이던 걸 항상 닿는 자리로.
                 }
             }
-            .padding(16)
+            .padding(.horizontal, 20).padding(.top, 22).padding(.bottom, 20)
         }
         .coordinateSpace(name: Self.scrollSpace)
         .onPreferenceChange(NewsTitleOffsetKey.self) { maxY in
@@ -106,7 +107,7 @@ struct NewsDetailView: View {
         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { w in
             if w > 0 { bodyWidth = w }
         }
-        .background(GLGBackground { Color.clear })
+        .background(Color.white)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             // iPhone Duo 는 두지 않는다 — 글자 뷰는 옆 레일로 못 가서 위쪽에 가로 바를 따로 세우고

@@ -83,17 +83,21 @@ struct HoyolandGoodsView: View {
                         set: { gameFilter = $0 == 0 ? nil : games[$0 - 1] }
                     )
                 )
-                .padding(.horizontal, wide ? 24 : 16).padding(.bottom, 10)
+                .padding(.horizontal, wide ? 24 : 20).padding(.bottom, 10)
                 .glgReadableWidth(wide ? HoyolandWideMaxWidth : 720)
             }
+            // 붙박이 탭이 서면 탭이 아래 10 을 이미 두므로 첫 섹션 위를 12 로 줄인다(10/1).
+            let sectionTop: CGFloat = (!all.isEmpty && games.count > 1) ? 12 : 22
             ScrollView {
                 // LazyVStack — 굿즈 105장을 진입할 때 한꺼번에 짓지 않고 보이는 것만 만든다.
                 // (VStack 이면 카드마다 사진 요청 · 담기 전환이 첫 프레임에 몰려 들어갈 때 버벅였다)
                 LazyVStack(alignment: .leading, spacing: 0) {
                     if all.isEmpty {
-                        emptyCard
+                        emptyCard.hoyolandSection(top: sectionTop)
                     } else {
-                        priceRangeCard
+                        // 가격대 — 감싸던 카드를 걷고 한 섹션으로, 아래 굿즈 타일 목록과는 띠로 가른다(10/1).
+                        priceRangeCard.hoyolandSection(top: sectionTop)
+                        GiBand()
                         if wide {
                             // 넓은 창은 **두 칸 격자** — 가격대 카드는 목록 전체의 요약이라 전폭에 둔다.
                             //
@@ -109,19 +113,24 @@ struct HoyolandGoodsView: View {
                                     }
                                 }
                             }
-                            .padding(.top, 12)
+                            .padding(.top, 22)
                         } else {
+                            // 띠 아래 첫 타일 위 — 타일마다 위 10 을 두므로 12 를 더해 섹션 위 22 에 맞춘다(10/1).
+                            Color.clear.frame(height: 12)
+                            // 굿즈 한 장은 사진이 있는 상품 타일이라 카드로 남긴다(10/1) — 좌우 20 만 둔다.
                             ForEach(Array(shown.enumerated()), id: \.offset) { _, item in
                                 GLGCard(cornerRadius: 24, padding: 0) {
                                     goodsCard(item, quantity: Int(cart.quantityOf(name: item.name)))
                                 }
                                 .padding(.top, 10)
+                                .padding(.horizontal, 20)
                             }
                         }
                     }
                     Color.clear.frame(height: 24)
                 }
-                .padding(.horizontal, wide ? 24 : 16)
+                // 한 열은 좌우 여백 없이 화면 폭(섹션 · 타일이 스스로 20) — 두 열(iPad)만 24(10/1).
+                .padding(.horizontal, wide ? 24 : 0)
                 .glgReadableWidth(wide ? HoyolandWideMaxWidth : 720)
             }
             .scrollIndicators(.hidden)
@@ -149,7 +158,8 @@ struct HoyolandGoodsView: View {
         .onAppear { store.hidesAddButton = !cart.isEmpty }
         .onDisappear { store.hidesAddButton = false }
         .onChange(of: cart.isEmpty) { _, empty in store.hidesAddButton = !empty }
-        .background(GLGBackground { Color.clear })
+        // 흰 바탕(10/1) — Android SectionPage(flat) 와 같다.
+        .background(Color.white)
         .glgPageTitle("굿즈 목록")
         .navigationBarTitleDisplayMode(.inline)
         .navigationDestination(isPresented: $showCart) {
@@ -175,10 +185,10 @@ struct HoyolandGoodsView: View {
     // ── 가격대 — 목록보다 먼저. 얼마를 들고 갈지가 첫 질문이다.
     private var priceRangeCard: some View {
         let range = event.goodsPriceRange()
-        return GLGCard(cornerRadius: 24, padding: 0) {
-            HStack(alignment: .bottom, spacing: 8) {
+        // 카드를 걷었다(10/1) — 섹션 여백은 호출부(hoyolandSection)가 건다.
+        return HStack(alignment: .bottom, spacing: 8) {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("가격대").font(.pretendard(size: 11.5, weight: .bold))
+                    Text("가격대").font(.pretendard(size: 12.5, weight: .bold))   // 11.5 → 12.5(10/1)
                         .foregroundStyle(GLGColor.textSecondary)
                     Text(range.components(separatedBy: " · ").first ?? range)
                         .font(.pretendard(size: 16, weight: .black)).monospacedDigit()
@@ -186,10 +196,8 @@ struct HoyolandGoodsView: View {
                 }
                 Spacer(minLength: 0)
                 Text(range.components(separatedBy: " · ").dropFirst().joined(separator: " · "))
-                    .font(.pretendard(size: 11)).foregroundStyle(GLGTextThird)
+                    .font(.pretendard(size: 12)).foregroundStyle(GLGTextThird)   // 11 → 12(10/1)
             }
-            .padding(.horizontal, 16).padding(.vertical, 14)
-        }
     }
 
     /**
@@ -389,17 +397,16 @@ struct HoyolandGoodsView: View {
         return raw == 0 ? GLGColor.textSecondary : Color(argb64: raw)
     }
 
+    // 빈 상태도 카드 없이 글만(10/1). 섹션 여백은 호출부가 건다.
     private var emptyCard: some View {
-        GLGCard(cornerRadius: 24, padding: 16) {
             VStack(alignment: .leading, spacing: 5) {
                 Text("판매 목록은 아직 공개 전이에요")
                     .font(.pretendard(size: 14, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
                 Text("품목과 가격이 나오면 이 자리에 채워져요.\n지난 행사는 개막 1~2주 전에 나왔어요.")
-                    .font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary)
+                    .font(.pretendard(size: 13)).foregroundStyle(GLGColor.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-        }
     }
 }
 
@@ -431,11 +438,12 @@ struct HoyolandCartView: View {
                         Text("담은 굿즈가 없어요")
                             .font(.pretendard(size: 14, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
                         Text("굿즈 목록에서 사고 싶은 것을 담으면\n여기서 예상 지출을 볼 수 있어요.")
-                            .font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary)
+                            .font(.pretendard(size: 13)).foregroundStyle(GLGColor.textSecondary)
                             .multilineTextAlignment(.center)
                     }
                     .frame(maxWidth: .infinity)
-                    .padding(.top, 52).padding(.bottom, 20)
+                    // 섹션 여백(위 22 · 아래 20)이 바깥에 생겨 그만큼 뺀다(10/1).
+                    .padding(.top, 30)
                 } else if wide {
                     // 넓은 창 — **왼쪽 합계 · 오른쪽 품목.** 합계는 품목을 늘리고 줄이는 동안 계속
                     // 봐야 하는 값인데, 한 열이면 품목을 내려 보는 순간 위로 밀려 사라진다.
@@ -457,12 +465,14 @@ struct HoyolandCartView: View {
                 }
                 Color.clear.frame(height: 24)
             }
-            .padding(.horizontal, wide ? 24 : 16)
+            // 카드 없는 섹션(10/1) — 좌우 20(두 열은 24) · 위 22 · 아래 20.
+            .padding(.horizontal, wide ? 24 : 20).padding(.top, 22).padding(.bottom, 20)
             .glgReadableWidth(wide ? HoyolandWideMaxWidth : 720)
         }
         .hoyolandWide($wide)
         .scrollIndicators(.hidden)
-        .background(GLGBackground { Color.clear })
+        // 흰 바탕(10/1).
+        .background(Color.white)
         .glgPageTitle("장바구니")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -482,7 +492,9 @@ struct HoyolandCartView: View {
     @ViewBuilder private func cartGroups(_ groups: [HoyolandCartGroup]) -> some View {
         ForEach(Array(groups.enumerated()), id: \.offset) { _, g in
             groupHeader(g)
-            ForEach(Array(g.lines.enumerated()), id: \.offset) { _, line in
+            // 줄마다 회색 면이던 것을 헤어라인 목록으로(10/1).
+            ForEach(Array(g.lines.enumerated()), id: \.offset) { i, line in
+                if i > 0 { HoyolandHairline() }
                 cartRow(line)
             }
         }
@@ -491,9 +503,9 @@ struct HoyolandCartView: View {
     /// 가격 미정 안내 — 합계에 빠진 것이 있다는 것을 합계 **바로 곁**에서 말한다.
     @ViewBuilder private func unpricedNote(_ unpriced: Int) -> some View {
         HStack(alignment: .top, spacing: 7) {
-            Text("⚠️").font(.pretendard(size: 11))
+            Text("⚠️").font(.pretendard(size: 12))
             Text("가격 미정 \(unpriced)종은 합계에 없어요. 값이 공개되면 자동으로 더해져요.")
-                .font(.pretendard(size: 11)).foregroundStyle(GLGWarnText)
+                .font(.pretendard(size: 12)).foregroundStyle(GLGWarnText)   // 11 → 12(10/1)
                 .fixedSize(horizontal: false, vertical: true)
         }
         .padding(.horizontal, 12).padding(.vertical, 10)
@@ -540,10 +552,10 @@ struct HoyolandCartView: View {
                 .font(.pretendard(size: 9.5, weight: .black)).foregroundStyle(c)
                 .padding(.horizontal, 6).padding(.vertical, 2)
                 .background(c.opacity(0.14), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
-            Rectangle().fill(.black.opacity(0.06)).frame(height: 1)
+            HoyolandHairline()
             // 게임별 소계가 **부스에서 꺼낼 금액**이다.
             Text(g.allUnpriced ? "미정" : event.wonLabel(v: g.subtotal))
-                .font(.pretendard(size: 11.5, weight: .black)).monospacedDigit()
+                .font(.pretendard(size: 12.5, weight: .black)).monospacedDigit()   // 11.5 → 12.5(10/1)
                 .foregroundStyle(g.allUnpriced ? GLGTextThird : GLGColor.textSecondary)
         }
         .padding(.top, 16).padding(.bottom, 8)
@@ -563,7 +575,7 @@ struct HoyolandCartView: View {
                     .fixedSize(horizontal: false, vertical: true)
                 Spacer(minLength: 8)
                 Text("×\(line.quantity)")
-                    .font(.pretendard(size: 11, weight: .black))
+                    .font(.pretendard(size: 12, weight: .black))   // 11 → 12(10/1)
                     .foregroundStyle(GLGColor.textSecondary).padding(.trailing, 9)
                 Text(line.goods.price > 0 ? event.wonLabel(v: line.subtotal) : "—")
                     .font(.pretendard(size: 12.5, weight: .black)).monospacedDigit()
@@ -578,7 +590,7 @@ struct HoyolandCartView: View {
                     stepButton("+") { store.setGoodsQuantity(name, Int(line.quantity) + 1) }
                     Spacer(minLength: 0)
                     Button { store.setGoodsQuantity(name, 0) } label: {
-                        Text("빼기").font(.pretendard(size: 11.5, weight: .bold))
+                        Text("빼기").font(.pretendard(size: 12.5, weight: .bold))   // 11.5 → 12.5(10/1)
                             .foregroundStyle(GLGDanger)
                             .padding(.horizontal, 10).padding(.vertical, 5)
                     }
@@ -587,9 +599,8 @@ struct HoyolandCartView: View {
                 .padding(.top, 10)
             }
         }
-        .padding(.horizontal, 12).padding(.vertical, 10)
-        .background(GLGCartRowBg, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-        .padding(.bottom, 7)
+        // 줄마다 깔던 회색 면을 걷었다(10/1) — 줄 사이는 호출부의 헤어라인이 가른다.
+        .padding(.vertical, 12)
         .contentShape(Rectangle())
         .onTapGesture { withAnimation(.easeInOut(duration: 0.18)) { expanded = isOpen ? nil : name } }
     }
@@ -647,16 +658,15 @@ struct HoyolandBoothView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
                 if event.booths.isEmpty {
-                    GLGCard(cornerRadius: 24, padding: 16) {
+                    // 빈 상태도 카드 없이 글만(10/1).
                         VStack(alignment: .leading, spacing: 5) {
                             Text("부스 정보는 아직 공개 전이에요")
                                 .font(.pretendard(size: 14, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
                             Text("게임별 체험존과 위치가 나오면 이 자리에 채워져요.\n부스 배치도는 보통 개막 직전에 나와요.")
-                                .font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary)
+                                .font(.pretendard(size: 13)).foregroundStyle(GLGColor.textSecondary)
                                 .fixedSize(horizontal: false, vertical: true)
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
-                    }
                 } else {
                     // 굿즈 목록과 같은 게임 탭 — 두 화면을 오갈 때 거르는 방법이 달라지면 손이 헷갈린다.
                     if games.count > 1 || !extras.isEmpty {
@@ -712,12 +722,14 @@ struct HoyolandBoothView: View {
                 }
                 Color.clear.frame(height: 24)
             }
-            .padding(.horizontal, wide ? 24 : 16)
+            // 카드 없는 섹션(10/1) — 좌우 20(두 열은 24) · 위 22 · 아래 20. 부스 카드 한 장 한 장은 타일로 남긴다.
+            .padding(.horizontal, wide ? 24 : 20).padding(.top, 22).padding(.bottom, 20)
             .glgReadableWidth(wide ? HoyolandWideMaxWidth : 720)
         }
         .hoyolandWide($wide)
         .scrollIndicators(.hidden)
-        .background(GLGBackground { Color.clear })
+        // 흰 바탕(10/1).
+        .background(Color.white)
         .glgPageTitle("부스 체험")
         .onAppear {
             // 배치도에서 들어온 경우에만 한 번 — 탭을 직접 바꾼 뒤 돌아와도 덮지 않는다.
@@ -884,7 +896,7 @@ struct HoyolandBoothView: View {
                 if !b.reward.isEmpty { diyReward(b.reward).padding(.top, 12) }
             }
             Text("파트너사 부스 관련 자세한 사항은 호요랜드 2026 통합 주의사항에서 확인해 주세요.")
-                .font(.pretendard(size: 11.5)).foregroundStyle(GLGTextThird)
+                .font(.pretendard(size: 12.5)).foregroundStyle(GLGTextThird)   // 11.5 → 12.5(10/1)
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.top, 20)
         }
@@ -1181,8 +1193,10 @@ struct HoyolandGuideContent: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            ForEach(Array(groups.enumerated()), id: \.offset) { _, g in
+        // 묶음마다 깔던 회색 면을 걷고 헤어라인으로 가른다(10/1).
+        VStack(alignment: .leading, spacing: 0) {
+            ForEach(Array(groups.enumerated()), id: \.offset) { i, g in
+                if i > 0 { HoyolandHairline() }
                 VStack(alignment: .leading, spacing: 9) {
                     if !g.title.isEmpty {
                         Text(g.title).font(.pretendard(size: 12.5, weight: .black)).foregroundStyle(accent.primary)
@@ -1206,9 +1220,8 @@ struct HoyolandGuideContent: View {
                         }
                     }
                 }
-                .padding(.horizontal, 14).padding(.vertical, 12)
+                .padding(.vertical, 14)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .background(GLGCartRowBg, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
             }
         }
     }

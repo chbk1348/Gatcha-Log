@@ -29,13 +29,8 @@ import com.gatcha.log.data.DashFive
 import com.gatcha.log.data.GachaDashboard
 import com.gatcha.log.data.GachaReport
 import com.gatcha.log.ui.components.GldsChip
-import com.gatcha.log.ui.components.GlassCard
-import com.gatcha.log.ui.components.GlgChip
 import com.gatcha.log.ui.components.GlgDetailHeaderOverlay
 import com.gatcha.log.ui.components.glgDetailContentTop
-import com.gatcha.log.ui.components.GlgScreenHeader
-import com.gatcha.log.ui.components.StatTile
-import com.gatcha.log.ui.theme.DividerColor
 import com.gatcha.log.ui.theme.LocalAccent
 import com.gatcha.log.ui.theme.TextPrimary
 import com.gatcha.log.ui.theme.TextSecondary
@@ -72,8 +67,9 @@ fun GachaDashboardScreen(
 
     // 탭 페이지와 같은 구조 — 콘텐츠는 상태바 뒤까지 스크롤되고, 헤더는 그 위에 고정된다.
     val scrollState = rememberScrollState()
-    Box(Modifier.fillMaxSize()) {
-        Column(Modifier.fillMaxSize().padding(horizontal = 16.dp).padding(top = glgDetailContentTop())) {
+    // 카드 없이 흰 바탕(10/1) — 섹션이 스스로 좌우 20, 섹션 사이는 GiBand. 첫 섹션 위엔 띠가 없다.
+    Box(Modifier.fillMaxSize().background(Color.White)) {
+        Column(Modifier.fillMaxSize().padding(top = glgDetailContentTop())) {
 
         val d = selected?.let { dashboard?.byGame?.get(it) }
         if (d == null) {
@@ -81,40 +77,39 @@ fun GachaDashboardScreen(
                 Text(
                     "가챠 기록을 가져오면\n천장 분포·월별 추이·픽업 비율을 분석해 드려요.",
                     fontSize = 13.sp, color = TextSecondary, textAlign = TextAlign.Center,
+                    modifier = Modifier.padding(horizontal = 20.dp),
                 )
             }
             return
         }
 
-        Column(
-            Modifier.weight(1f).verticalScroll(scrollState),
-            verticalArrangement = Arrangement.spacedBy(14.dp),
-        ) {
-            Spacer(Modifier.height(2.dp))
-            // 게임 선택 칩 — 공통 칩 단일 규격, 선택색은 게임별 대표색.
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                games.forEach { gk ->
-                    val (short, _, colorLong) = GachaReport.gameInfo[gk] ?: Triple(gk, gk, 0xFF888888L)
-                    GldsChip(short, { selected = gk }, selected = gk == selected, color = colorLong.toColor())
-                }
-            }
-
+        Column(Modifier.weight(1f).verticalScroll(scrollState)) {
             val gk = selected!!
             val gameColor = GachaReport.gameInfo[gk]?.third?.toColor() ?: accent
             val spend = spendByGameKey[gk] ?: 0L
             val cost = if (spend > 0 && d.five > 0) spend / d.five else 0L
 
-            // 1) 요약
+            // 1) 게임 선택 칩 + 요약 — 페이지 맨 위 첫 섹션(위 띠 없음)
             DashCard() {
+                // 게임 선택 칩 — 공통 칩 단일 규격, 선택색은 게임별 대표색.
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    games.forEach { g ->
+                        val (short, _, colorLong) = GachaReport.gameInfo[g] ?: Triple(g, g, 0xFF888888L)
+                        GldsChip(short, { selected = g }, selected = g == selected, color = colorLong.toColor())
+                    }
+                }
+                Spacer(Modifier.height(18.dp))
+                // 지표는 타일 면 없이 값 15 굵게 · 라벨 12(10/1) — 지출 인사이트와 같은 규격.
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    StatTile(num(d.total), "총 뽑기", Modifier.weight(1f))
-                    StatTile(num(d.five), "획득 5성", Modifier.weight(1f))
-                    StatTile(if (d.avgPity > 0) "${d.avgPity}" else "—", "평균 천장", Modifier.weight(1f), valueColor = accent)
-                    StatTile(if (cost > 0) won(cost) else "—", "5성 단가", Modifier.weight(1f), valueColor = accent)
+                    DashStat(num(d.total), "총 뽑기", Modifier.weight(1f))
+                    DashStat(num(d.five), "획득 5성", Modifier.weight(1f))
+                    DashStat(if (d.avgPity > 0) "${d.avgPity}" else "—", "평균 천장", Modifier.weight(1f), accent)
+                    DashStat(if (cost > 0) won(cost) else "—", "5성 단가", Modifier.weight(1f), accent)
                 }
             }
 
             // 2) 등급 비율
+            GiBand()
             DashCard() {
                 CardTitle("등급 비율", "총 ${num(d.total)}뽑")
                 Spacer(Modifier.height(12.dp))
@@ -133,6 +128,7 @@ fun GachaDashboardScreen(
 
             // 3) 5성 천장 분포
             if (d.five > 0) {
+                GiBand()
                 DashCard() {
                     CardTitle("5성 천장 분포", "최소 ${d.minPity} · 평균 ${d.avgPity} · 최대 ${d.maxPity}")
                     Spacer(Modifier.height(14.dp))
@@ -142,12 +138,13 @@ fun GachaDashboardScreen(
                         barColor = gameColor,
                     )
                     Spacer(Modifier.height(6.dp))
-                    Text("가로축 = 5성이 나온 뽑기 횟수(천장) 구간", fontSize = 10.sp, color = TextSecondary)
+                    Text("가로축 = 5성이 나온 뽑기 횟수(천장) 구간", fontSize = 12.sp, color = TextSecondary)
                 }
             }
 
             // 4) 월별 뽑기 추이
             if (d.monthly.isNotEmpty()) {
+                GiBand()
                 DashCard() {
                     CardTitle("월별 뽑기 추이", "최근 ${d.monthly.size}개월")
                     Spacer(Modifier.height(14.dp))
@@ -161,6 +158,7 @@ fun GachaDashboardScreen(
 
             // 5) 픽업 vs 상시
             if (d.limited + d.standard > 0) {
+                GiBand()
                 DashCard() {
                     CardTitle("픽업 vs 상시", "한정 풀과 상시 풀 비중")
                     Spacer(Modifier.height(12.dp))
@@ -178,17 +176,18 @@ fun GachaDashboardScreen(
 
             // 6) 5성 타임라인
             if (d.fiveStars.isNotEmpty()) {
+                GiBand()
                 DashCard() {
                     CardTitle("5성 타임라인", "최근 획득 순")
                     Spacer(Modifier.height(10.dp))
                     val shown = d.fiveStars.take(30)
                     shown.forEachIndexed { i, f ->
-                        if (i > 0) HorizontalDivider(color = DividerColor.copy(alpha = 0.5f))
+                        if (i > 0) HorizontalDivider(thickness = 1.dp, color = Color(0xFFEEF0F2))
                         FiveRow(f, gk, accent)
                     }
                     if (d.fiveStars.size > shown.size) {
                         Spacer(Modifier.height(8.dp))
-                        Text("외 ${d.fiveStars.size - shown.size}건", fontSize = 11.sp, color = TextSecondary)
+                        Text("외 ${d.fiveStars.size - shown.size}건", fontSize = 12.sp, color = TextSecondary)
                     }
                 }
             }
@@ -200,19 +199,29 @@ fun GachaDashboardScreen(
     }
 }
 
+/** 화면 폭 섹션 — 카드 면은 걷었다(10/1). 좌우 20 · 위 22 · 아래 20, 사이는 GiBand. */
 @Composable
 private fun DashCard(content: @Composable ColumnScope.() -> Unit) {
-    GlassCard(shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp), content = content)
+    Column(Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 22.dp, bottom = 20.dp), content = content)
+}
+
+/** 섹션 제목 17 굵게 · 보조 12(10/1). */
+@Composable
+private fun CardTitle(title: String, sub: String? = null) {
+    Text(title, fontSize = 17.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+    if (sub != null) {
+        Spacer(Modifier.height(2.dp))
+        Text(sub, fontSize = 12.sp, color = TextSecondary)
     }
 }
 
+/** 요약 지표 — 타일 면 없이 값 15 굵게 · 라벨 12(10/1). */
 @Composable
-private fun CardTitle(title: String, sub: String? = null) {
-    Text(title, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
-    if (sub != null) {
+private fun DashStat(value: String, label: String, modifier: Modifier = Modifier, color: Color = TextPrimary) {
+    Column(modifier, horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(value, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = color, maxLines = 1)
         Spacer(Modifier.height(2.dp))
-        Text(sub, fontSize = 11.sp, color = TextSecondary)
+        Text(label, fontSize = 12.sp, color = TextSecondary, maxLines = 1)
     }
 }
 
@@ -223,8 +232,8 @@ private fun RarityLegend(label: String, value: Int, total: Int, color: Color, mo
         Box(Modifier.size(8.dp).clip(CircleShape).background(color))
         Spacer(Modifier.width(6.dp))
         Column {
-            Text("$label ${num(value)}", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextPrimary, maxLines = 1)
-            Text("%.1f%%".format(pct), fontSize = 10.sp, color = TextSecondary, maxLines = 1)
+            Text("$label ${num(value)}", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextPrimary, maxLines = 1)
+            Text("%.1f%%".format(pct), fontSize = 12.sp, color = TextSecondary, maxLines = 1)
         }
     }
 }
@@ -236,7 +245,8 @@ private fun BarRow(values: List<Int>, labels: List<String>, barColor: Color, bar
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(3.dp), verticalAlignment = Alignment.Bottom) {
         values.forEachIndexed { i, v ->
             Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(if (v > 0) "$v" else "", fontSize = 8.sp, color = TextSecondary, maxLines = 1)
+                // 차트 글자는 최소 11(10/1) — 8 은 읽히지 않았다.
+                Text(if (v > 0) "$v" else "", fontSize = 11.sp, color = TextSecondary, maxLines = 1)
                 Spacer(Modifier.height(2.dp))
                 Box(Modifier.fillMaxWidth().height(barH), contentAlignment = Alignment.BottomCenter) {
                     val h = if (v > 0) (v.toFloat() / max).coerceIn(0.04f, 1f) else 0f
@@ -249,7 +259,7 @@ private fun BarRow(values: List<Int>, labels: List<String>, barColor: Color, bar
                     }
                 }
                 Spacer(Modifier.height(3.dp))
-                Text(labels.getOrElse(i) { "" }, fontSize = 8.sp, color = TextSecondary, maxLines = 1)
+                Text(labels.getOrElse(i) { "" }, fontSize = 11.sp, color = TextSecondary, maxLines = 1)
             }
         }
     }
@@ -267,14 +277,14 @@ private fun FiveRow(f: DashFive, gameKey: String, accent: Color) {
             Text(f.name.ifBlank { "(이름 없음)" }, fontSize = 13.sp, fontWeight = FontWeight.Medium, color = TextPrimary, maxLines = 1)
             Text(
                 poolLabel + if (f.time.isNotBlank()) " · ${f.time.take(10)}" else "",
-                fontSize = 10.sp, color = TextSecondary, maxLines = 1,
+                fontSize = 12.sp, color = TextSecondary, maxLines = 1,
             )
         }
         Spacer(Modifier.width(8.dp))
         Surface(color = lc.copy(alpha = 0.14f), shape = RoundedCornerShape(8.dp)) {
             Text(
                 "천장 ${f.pity}",
-                fontSize = 11.sp, fontWeight = FontWeight.Bold, color = lc,
+                fontSize = 12.sp, fontWeight = FontWeight.Bold, color = lc,
                 modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
             )
         }

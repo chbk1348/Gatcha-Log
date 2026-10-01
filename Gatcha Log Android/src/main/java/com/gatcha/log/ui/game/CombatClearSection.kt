@@ -65,7 +65,6 @@ import com.gatcha.log.data.CombatRoom
 import com.gatcha.log.data.GameData
 import com.gatcha.log.ui.components.GldsTabs
 import com.gatcha.log.ui.components.GldsTabsVariant
-import com.gatcha.log.ui.components.GlassCard
 import com.gatcha.log.ui.components.RosterSkeleton
 import com.gatcha.log.ui.components.SkeletonBox
 import com.gatcha.log.ui.components.GlgBadgeText
@@ -82,7 +81,7 @@ import com.gatcha.log.ui.theme.toColor
 // 클리어 편성 — 엔드 콘텐츠를 어떤 캐릭터로 깼는지.
 //
 // 데이터는 나선 비경·혼돈의 기억 응답에 원래 들어 있던 층별 투입 캐릭터다(GL_Shared CombatClear).
-// **모드 하나 = 카드 하나.** 이번/지난 시즌은 카드 머리의 세그먼트로 바꿔 본다 —
+// **모드 하나 = 섹션 하나**(10/1 카드 면 걷음). 이번/지난 시즌은 섹션 머리의 세그먼트로 바꿔 본다 —
 // 시즌마다 카드를 내면 같은 모드가 두 번 나와 목록이 두 배가 되고 지난 기록이 과대 표시된다.
 //
 // 1안「요약 먼저 · 층 접기」(2026-09-29) — 층을 전부 펼쳐 두면 12층 × 8명이 한 화면을 넘겨
@@ -107,7 +106,8 @@ private val SecondHalfBar = Color(0xFFC46A1F)
 private val SecondHalfText = Color(0xFFA8561A)
 private val SecondHalfChipBg = Color(0xFFFBEBDC)
 
-private val RowDivider = Color(0xFFF0F0F0)
+/** 층 줄 사이 헤어라인 — 다른 화면과 같은 #EEF0F2(10/1). */
+private val RowDivider = Color(0xFFEEF0F2)
 private val PanelBg = Color(0xFFF8F8F8)
 private val PanelDivider = Color(0xFFECECEC)
 
@@ -157,16 +157,16 @@ fun CombatClearContent(
     // 높이 제약이 무한이 되어 "Vertically scrollable component was measured with an infinity maximum
     // height" 로 **크래시**한다(2026-08-05 실기기). 항목이 십여 개뿐이라 지연 로딩도 불필요하다.
     //
-    // ⚠️ 좌우 패딩도 주지 않는다 — [SectionPage] 가 이미 16dp 를 준다. 여기서 또 주면 32dp 가 되어
-    // 다른 페이지들보다 눈에 띄게 좁아 보인다(2026-08-05 지적).
-    Column(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp),
-    ) {
+    // 카드 없이 모드 하나 = 섹션 하나(10/1) — 사이는 GiBand. 좌우 20 은 섹션이 스스로 둔다
+    // ([SectionPage] flat 은 좌우 0 을 준다).
+    Column(Modifier.fillMaxWidth()) {
         // 게임이 하나뿐이면 '전체'와 그 게임이 같은 목록이라 칩이 할 일이 없다.
-        if (games.size >= 2) GameFilter(games, selected) { filter = it }
+        if (games.size >= 2) {
+            Box(Modifier.padding(start = 20.dp, end = 20.dp, top = 22.dp)) { GameFilter(games, selected) { filter = it } }
+        }
         shown.forEachIndexed { i, m ->
-            // 첫 카드만 펼쳐 둔다 — 모드마다 12층씩 펼치면 두 번째 카드는 몇 화면 아래로 밀린다.
+            if (i > 0) GiBand()
+            // 첫 모드만 펼쳐 둔다 — 모드마다 12층씩 펼치면 두 번째 모드는 몇 화면 아래로 밀린다.
             key(m.game, m.mode) { ModeCard(m, initiallyExpanded = i == 0) }
         }
     }
@@ -196,16 +196,17 @@ private fun ModeCard(m: CombatModeClears, initiallyExpanded: Boolean) {
     clear ?: return
     val summary = remember(clear) { CombatClearLogic.summary(clear) }
 
-    GlassCard(shape = RoundedCornerShape(22.dp), modifier = Modifier.fillMaxWidth()) {
+    // 카드 면을 걷었다(10/1) — 섹션 규격(좌우 20 · 위 22 · 아래 20). 접힘/펼침 · 누르는 자리는 그대로.
+    Box(Modifier.fillMaxWidth()) {
         if (!expanded) {
-            // 접힌 카드 = 요약 한 줄. 누르면 펼친다.
+            // 접힌 모드 = 요약 한 줄. 줄 전체(화면 폭)가 눌린다.
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier
                     .fillMaxWidth()
                     .clickable(role = Role.Button, onClickLabel = "펼치기") { expanded = true }
                     .semantics { stateDescription = "접힘" }
-                    .padding(16.dp),
+                    .padding(start = 20.dp, end = 20.dp, top = 22.dp, bottom = 20.dp),
             ) {
                 GameTag(m)
                 Spacer(Modifier.width(8.dp))
@@ -215,10 +216,10 @@ private fun ModeCard(m: CombatModeClears, initiallyExpanded: Boolean) {
                 Spacer(Modifier.width(8.dp))
                 Chevron(up = false)
             }
-            return@GlassCard
+            return@Box
         }
         Column(
-            Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 18.dp),
+            Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 22.dp, bottom = 20.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -256,7 +257,7 @@ private fun GameTag(m: CombatModeClears) {
     val color = m.gameColor.toColor()
     Text(
         m.gameShort,
-        fontSize = 10.sp,
+        fontSize = 12.sp, // 10 → 12(10/1)
         fontWeight = FontWeight.Bold,
         color = color,
         modifier = Modifier
@@ -270,7 +271,7 @@ private fun GameTag(m: CombatModeClears) {
 private fun ModeTitle(mode: String, modifier: Modifier) {
     Text(
         mode,
-        fontSize = 16.sp,
+        fontSize = 17.sp, // 섹션 제목 규격 17(10/1)
         fontWeight = FontWeight.Bold,
         color = TextPrimary,
         maxLines = 1,
@@ -328,7 +329,7 @@ private fun SummaryBlock(clear: CombatClear, s: ClearSummary, isPrevious: Boolea
         )
         Text(
             parts.joinToString(" · "),
-            fontSize = 12.sp,
+            fontSize = 13.sp,
             color = TextSecondary,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
@@ -386,7 +387,7 @@ private fun SeasonBody(clear: CombatClear) {
             HorizontalDivider(color = RowDivider)
             Text(
                 "아래 ${rooms.size - visible.size}개 층 더 보기",
-                fontSize = 12.sp,
+                fontSize = 13.sp,
                 fontWeight = FontWeight.Bold,
                 color = LocalAccent.current,
                 modifier = Modifier
@@ -399,7 +400,7 @@ private fun SeasonBody(clear: CombatClear) {
         // 편성 상세가 안 오는 층(시유 방어전 1~3층) 안내 — 목록에서 말없이 빠지면 누락처럼 보인다.
         if (clear.note.isNotBlank()) {
             HorizontalDivider(color = RowDivider)
-            Text(clear.note, fontSize = 11.sp, color = TextSecondary, modifier = Modifier.padding(top = 12.dp))
+            Text(clear.note, fontSize = 12.sp, color = TextSecondary, modifier = Modifier.padding(top = 12.dp))
         }
     }
 }
@@ -505,7 +506,7 @@ private fun RoomExpanded(room: CombatRoom, season: String, onToggle: () -> Unit)
             Chevron(up = true)
         }
         if (room.detail.isNotBlank()) {
-            Text(room.detail, fontSize = 10.sp, color = TextSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(room.detail, fontSize = 12.sp, color = TextSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Spacer(Modifier.height(6.dp))
         }
         // 전반/후반을 한 덩어리로 묶는다 — 옅은 판 위에 올려야 층 경계가 눈에 잡힌다.
@@ -544,7 +545,7 @@ private fun HalfRow(chip: HalfChip?, team: List<CombatAvatar>) {
         chip?.let {
             Text(
                 it.label,
-                fontSize = 11.sp,
+                fontSize = 12.sp,
                 fontWeight = FontWeight.Bold,
                 color = it.text,
                 textAlign = TextAlign.Center,
@@ -583,7 +584,7 @@ private fun StarChip(room: CombatRoom) {
     if (room.rating.isNotBlank()) {
         Text(
             room.rating,
-            fontSize = 11.sp,
+            fontSize = 12.sp,
             fontWeight = FontWeight.Bold,
             color = StarGold,
             modifier = Modifier
@@ -609,8 +610,8 @@ private fun StarChip(room: CombatRoom) {
                 contentDescription = if (room.maxStars > 0) "별 ${room.stars} / ${room.maxStars}" else "별 ${room.stars}"
             },
     ) {
-        Icon(Icons.Default.Star, contentDescription = null, tint = StarGold, modifier = Modifier.size(11.dp))
-        Text(label, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = StarGold)
+        Icon(Icons.Default.Star, contentDescription = null, tint = StarGold, modifier = Modifier.size(12.dp))
+        Text(label, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = StarGold)
     }
 }
 
@@ -724,7 +725,7 @@ private fun BuddyChip(a: CombatAvatar, size: Dp, cell: Dp, nameSize: TextUnit) {
 
 @Composable
 private fun Label(text: String) {
-    Text(text, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextSecondary)
+    Text(text, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextSecondary) // 11 → 13(10/1)
 }
 
 @Composable
@@ -741,27 +742,27 @@ private fun EmptyNote(text: String) {
  */
 @Composable
 private fun CombatClearSkeleton() {
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        repeat(2) {
-            GlassCard(shape = RoundedCornerShape(22.dp), modifier = Modifier.fillMaxWidth()) {
-                Column(Modifier.padding(16.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        SkeletonBox(Modifier.size(width = 40.dp, height = 18.dp))
-                        SkeletonBox(Modifier.size(width = 110.dp, height = 16.dp))
-                    }
-                    Spacer(Modifier.height(12.dp))
-                    SkeletonBox(Modifier.size(width = 180.dp, height = 22.dp))
+    // 카드 없이 섹션 둘 + GiBand(10/1) — 실물 모드 섹션과 같은 여백.
+    Column(Modifier.fillMaxWidth()) {
+        repeat(2) { i ->
+            if (i > 0) GiBand()
+            Column(Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 22.dp, bottom = 20.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    SkeletonBox(Modifier.size(width = 40.dp, height = 18.dp))
+                    SkeletonBox(Modifier.size(width = 110.dp, height = 16.dp))
+                }
+                Spacer(Modifier.height(12.dp))
+                SkeletonBox(Modifier.size(width = 180.dp, height = 22.dp))
+                Spacer(Modifier.height(14.dp))
+                SkeletonBox(Modifier.size(width = 64.dp, height = 10.dp))
+                Spacer(Modifier.height(8.dp))
+                RosterSkeleton()
+                repeat(2) {
                     Spacer(Modifier.height(14.dp))
-                    SkeletonBox(Modifier.size(width = 64.dp, height = 10.dp))
-                    Spacer(Modifier.height(8.dp))
-                    RosterSkeleton()
-                    repeat(2) {
-                        Spacer(Modifier.height(14.dp))
-                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                            SkeletonBox(Modifier.size(width = 90.dp, height = 14.dp))
-                            Spacer(Modifier.weight(1f))
-                            SkeletonBox(Modifier.size(width = 44.dp, height = 18.dp))
-                        }
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        SkeletonBox(Modifier.size(width = 90.dp, height = 14.dp))
+                        Spacer(Modifier.weight(1f))
+                        SkeletonBox(Modifier.size(width = 44.dp, height = 18.dp))
                     }
                 }
             }

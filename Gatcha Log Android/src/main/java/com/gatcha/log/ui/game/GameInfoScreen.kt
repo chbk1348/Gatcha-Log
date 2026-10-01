@@ -322,7 +322,7 @@ fun GameInfoScreen(
                 onBack = { subPage = GiSub.Main },
                 onOpenStats = { c, g -> statChar = c; statCharGame = g; statReturn = GiSub.CharRoster; subPage = GiSub.CharStats },
             )
-            GiSub.Report -> SectionPage("가챠 효율 리포트", onBack = { subPage = GiSub.Main }) {
+            GiSub.Report -> SectionPage("가챠 효율 리포트", onBack = { subPage = GiSub.Main }, flat = true) {
                 GachaReportSection(
                     stats = gachaStats,
                     spendByGameKey = gachaSpendByGame,
@@ -345,7 +345,7 @@ fun GameInfoScreen(
                 onRestoreUnusable = { key -> viewModel.restoreUnusableCodes(key) },
                 onBack = { subPage = GiSub.Main; viewModel.resetRedeem() },
             )
-            GiSub.GameContent -> SectionPage("전투 · 수입 일지", onBack = { subPage = GiSub.Main }) {
+            GiSub.GameContent -> SectionPage("전투 · 수입 일지", onBack = { subPage = GiSub.Main }, flat = true) {
                 GameTabbedSection(
                     banners = banners,
                     combat = combat,
@@ -358,7 +358,7 @@ fun GameInfoScreen(
             // 같은 진입 행이 있어 돌아갈 곳을 기억해야 했는데, 그게 진입점 중복이었다).
             GiSub.CombatClear -> SectionPage(
                 "클리어 편성",
-                onBack = { subPage = GiSub.Main },
+                onBack = { subPage = GiSub.Main }, flat = true,
                 // 헤더 새로고침 — 진입할 때 한 번 받는 값이라(10분 안엔 캐시) 방금 깬 층을 보려면 직접 당겨야 한다.
                 actions = {
                     GlgCircleIconButton(
@@ -380,7 +380,7 @@ fun GameInfoScreen(
                     onRetry = { viewModel.refreshCombatClears(force = true) },
                 )
             }
-            GiSub.Attendance -> SectionPage("출석 체크 현황", onBack = { subPage = GiSub.Main }) {
+            GiSub.Attendance -> SectionPage("출석 체크 현황", onBack = { subPage = GiSub.Main }, flat = true) {
                 AttendanceDetailContent(
                     summary = AttendanceLogic.summary(attendanceHistory, attendanceToday, attendanceStreak, games = attendanceGames),
                     history = attendanceHistory,
@@ -405,7 +405,7 @@ fun GameInfoScreen(
             }
             GiSub.NewsDetail -> SectionPage(
                 "공지",
-                onBack = { subPage = newsReturn; viewModel.clearNewsArticle() },
+                onBack = { subPage = newsReturn; viewModel.clearNewsArticle() }, flat = true,
                 actions = {
                     val n = newsItem
                     if (n != null && n.url.isNotBlank()) {
@@ -432,7 +432,7 @@ fun GameInfoScreen(
                 var newsChip by rememberSaveable { mutableStateOf("all") }
                 SectionPage(
                     "공지·뉴스",
-                    onBack = { subPage = GiSub.Main },
+                    onBack = { subPage = GiSub.Main }, flat = true,
                     actions = { NewsFilterAction(gameNews, newsChip) { newsChip = it } },
                 ) {
                     NewsFullContent(gameNews, newsChip, onOpen = { openNews(it, GiSub.News) })
@@ -694,9 +694,17 @@ internal fun SectionPage(
      * 화면에 꼭 맞춰 그리는 페이지(배치도 가로 보기)에 쓴다. 당겨서 새로고침과 함께 쓰지 않는다.
      */
     scrollable: Boolean = true,
+    /**
+     * 카드 없는 페이지(10/1) — 흰 바탕 · 좌우 여백 없음(섹션이 스스로 좌우 20 을 둔다) · 차오르는 바탕판도 흰색.
+     * 카드를 걷은 페이지부터 하나씩 켠다 — 기본값(false)은 예전 그대로(좌우 16 · 강조색 틴트 바탕).
+     */
+    flat: Boolean = false,
     content: @Composable () -> Unit = {},
 ) {
     BackHandler { onBack() }
+    val sidePad = if (flat) 0.dp else 16.dp
+    val pageBg = if (flat) Color.White else Color.Transparent
+    val backdropColor = if (flat) Color.White else LocalAccentTint.current
     // 탭 페이지와 같은 구조 — 콘텐츠는 상태바 뒤까지 스크롤되고, 헤더는 그 위에 고정된다.
     @Suppress("NAME_SHADOWING")
     val scrollState = scrollState ?: rememberScrollState()
@@ -719,7 +727,7 @@ internal fun SectionPage(
                 .fillMaxWidth()
                 .height(glgDetailContentTop() + stickyHeight)
                 .graphicsLayer { alpha = backdropAlpha }
-                .background(LocalAccentTint.current),
+                .background(backdropColor),
         )
     }
     val stickyBar: (@Composable BoxScope.() -> Unit)? = stickyTop?.let { slot ->
@@ -728,7 +736,7 @@ internal fun SectionPage(
                 Modifier
                     .align(Alignment.TopCenter)
                     .padding(top = glgDetailContentTop())
-                    .padding(horizontal = 16.dp)
+                    .padding(horizontal = if (flat) 20.dp else 16.dp)
                     .onSizeChanged { stickyHeight = with(density) { it.height.toDp() } },
             ) { slot() }
         }
@@ -739,7 +747,7 @@ internal fun SectionPage(
             derivedStateOf { listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 0 }
         }
         val listBackdropAlpha by animateFloatAsState(if (listScrolled) 1f else 0f, label = "sectionBackdropList")
-        Box(Modifier.fillMaxSize()) {
+        Box(Modifier.fillMaxSize().background(pageBg)) {
             // 제스처 바 **밑까지** 스크롤된다(다른 상세 페이지와 같다). 대신 그 높이를 아래 여백에 한 번만 넣는다 —
             // navigationBarsPadding 으로 목록을 잘라 두고 하단 바 여백에 또 더하면 바 위가 제스처 바만큼 더 비었다.
             val navBottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
@@ -747,7 +755,7 @@ internal fun SectionPage(
                 state = listState,
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(
-                    start = 16.dp, end = 16.dp,
+                    start = sidePad, end = sidePad,
                     top = glgDetailContentTop() + stickyHeight, bottom = 24.dp + navBottom,
                 ),
             ) { lazyContent() }
@@ -757,7 +765,7 @@ internal fun SectionPage(
                     .fillMaxWidth()
                     .height(glgDetailContentTop() + stickyHeight)
                     .graphicsLayer { alpha = listBackdropAlpha }
-                    .background(LocalAccentTint.current),
+                    .background(backdropColor),
             )
             GlgDetailHeaderOverlay(title, onBack, listScrolled, actions = actions)
             stickyBar?.invoke(this)
@@ -766,22 +774,22 @@ internal fun SectionPage(
         return
     }
     if (!scrollable) {
-        Box(Modifier.fillMaxSize()) {
+        Box(Modifier.fillMaxSize().background(pageBg)) {
             Column(
                 Modifier.fillMaxSize().navigationBarsPadding()
-                    .padding(horizontal = 16.dp)
+                    .padding(horizontal = sidePad)
                     .padding(top = glgDetailContentTop() + stickyHeight, bottom = 16.dp),
             ) { content() }
             GlgDetailHeaderOverlay(title, onBack, scrollState = scrollState, actions = actions)
         }
         return
     }
-    Box(Modifier.fillMaxSize()) {
+    Box(Modifier.fillMaxSize().background(pageBg)) {
         if (onRefresh != null) {
             GlgPullToRefreshBox(isRefreshing = isRefreshing, onRefresh = onRefresh, modifier = Modifier.fillMaxSize()) {
                 Column(
                     Modifier.fillMaxSize().navigationBarsPadding().verticalScroll(scrollState)
-                        .padding(horizontal = 16.dp)
+                        .padding(horizontal = sidePad)
                         .padding(top = glgDetailContentTop() + stickyHeight),
                 ) {
                     content()
@@ -796,7 +804,7 @@ internal fun SectionPage(
         }
         Column(
             Modifier.fillMaxSize().navigationBarsPadding().verticalScroll(scrollState)
-                .padding(horizontal = 16.dp)
+                .padding(horizontal = sidePad)
                 .padding(top = glgDetailContentTop() + stickyHeight),
         ) {
             content()

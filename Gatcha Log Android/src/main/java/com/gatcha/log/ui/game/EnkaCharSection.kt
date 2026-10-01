@@ -363,11 +363,12 @@ fun EnkaRosterPage(
     val scrolled by remember {
         derivedStateOf { listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 0 }
     }
-    Box(Modifier.fillMaxSize()) {
+    // 카드형 페이지 규격 정리(10/1) — 바탕 흰색 · 좌우 20. 캐릭터 타일은 객체라 그대로.
+    Box(Modifier.fillMaxSize().background(Color.White)) {
     LazyColumn(
         state = listState,
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = glgDetailContentTop(), bottom = 30.dp),
+        contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = glgDetailContentTop(), bottom = 30.dp),
     ) {
         item {
             Column {
@@ -1066,26 +1067,28 @@ fun EnkaStatPage(
         derivedStateOf { heroHeightPx > 0 && scrollState.value > heroHeightPx - headerPx }
     }
 
-    Box(Modifier.fillMaxSize()) {
+    // 카드 없이 화면 폭 섹션 + 10 띠(10/1) — 바탕은 흰색. 히어로 바로 아래엔 띠를 두지 않는다.
+    Box(Modifier.fillMaxSize().background(Color.White)) {
         Column(Modifier.fillMaxSize().verticalScroll(scrollState)) {
 
             // 소속은 도감에서 온다 — 상세에 들어설 때 한 캐릭터만 부른다.
             LaunchedEffect(c.id, game) { onNeedCamp(c.id) }
             CharHero(c, game, artScore, standing, elementFxEnabled, camp, Modifier.onSizeChanged { heroHeightPx = it.height })
 
-            Column(Modifier.padding(horizontal = 16.dp).padding(top = 16.dp, bottom = 30.dp)) {
+            // '이 캐릭터는' 카드(진단 백분위 + 다음 한 걸음)는 여기 있었다. 히어로의 요약 줄이
+            // 이미 같은 값을 말하고 있어(점수·순위·치명 효율) 바로 아래에서 두 번 반복됐다.
 
-                // '이 캐릭터는' 카드(진단 백분위 + 다음 한 걸음)는 여기 있었다. 히어로의 요약 줄이
-                // 이미 같은 값을 말하고 있어(점수·순위·치명 효율) 바로 아래에서 두 번 반복됐다.
-
-                // ① 현재 스탯 — 점수의 기준(유효옵션)은 헤더의 버튼으로 연다.
-                // '기준'(점수 기준) 버튼은 여기 있었다. 섹션 머리말에 두면 그 섹션에 딸린 것으로
-                // 읽히는데, 실제로는 **화면 전체의 점수 규칙**이다. 페이지 헤더로 옮겼다.
+            // ① 현재 스탯 — 점수의 기준(유효옵션)은 헤더의 버튼으로 연다.
+            // '기준'(점수 기준) 버튼은 여기 있었다. 섹션 머리말에 두면 그 섹션에 딸린 것으로
+            // 읽히는데, 실제로는 **화면 전체의 점수 규칙**이다. 페이지 헤더로 옮겼다.
+            EnkaPageSection {
                 SectionHead(1, "현재 스탯")
                 StatList(c.stats, keySet)
-                Spacer(Modifier.height(18.dp))
+            }
+            GiBand()
 
-                // ② 장비 — 무기/광추/W-엔진 + 장비 특성(정련 효과).
+            // ② 장비 — 무기/광추/W-엔진 + 장비 특성(정련 효과).
+            EnkaPageSection {
                 SectionHead(2, "장비", wepLabel)
                 val w = c.weapon
                 LaunchedEffect(w?.id, w?.refinement) {
@@ -1094,9 +1097,11 @@ fun EnkaStatPage(
                 }
                 if (w != null) EquipCard(w, game, refinement)
                 else EmptyEquipNote(if (game == "genshin") "무기가 장착되지 않았습니다." else if (game == "zzz") "W-엔진이 장착되지 않았습니다." else "광추가 장착되지 않았습니다.")
-                Spacer(Modifier.height(18.dp))
+            }
+            GiBand()
 
-                // ③ 성유물 — 슬롯 한 줄로 압축하고 고른 것만 아래에 편다. 세트 효과도 여기 안에.
+            // ③ 성유물 — 슬롯 한 줄로 압축하고 고른 것만 아래에 편다. 세트 효과도 여기 안에.
+            EnkaPageSection {
                 SectionHead(
                     3, artLabel,
                     when {
@@ -1110,12 +1115,16 @@ fun EnkaStatPage(
                 } else {
                     ArtifactSection(c, game, artScore, keySet, accent)
                 }
-                Spacer(Modifier.height(18.dp))
+            }
+            GiBand()
 
-                // ④ 돌파 정보 — 명좌/성혼/형상. 외부 메타 API 비동기 로드.
+            // ④ 돌파 정보 — 명좌/성혼/형상. 외부 메타 API 비동기 로드.
+            EnkaPageSection {
                 SectionHead(4, "돌파 정보", effectsTitle(game))
                 CharEffectsSection(c, game)
             }
+            // 예전 바닥 여백(30)을 맞춘다 — 섹션 아래 20 + 10.
+            Spacer(Modifier.height(10.dp))
         }
 
         // 히어로가 파스텔이라 헤더 버튼은 ink 색을 받는다(지출 상세와 동일).
@@ -3006,10 +3015,8 @@ private fun CharEffectsSection(c: EnkaChar, game: String) {
         loading = false
     }
     if (loading) {
-        GlassCard(modifier = Modifier.fillMaxWidth()) {
-            Box(Modifier.fillMaxWidth().padding(vertical = 18.dp), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator(modifier = Modifier.size(22.dp), strokeWidth = 2.dp, color = LocalAccent.current)
-            }
+        Box(Modifier.fillMaxWidth().padding(vertical = 18.dp), contentAlignment = Alignment.Center) {
+            CircularProgressIndicator(modifier = Modifier.size(22.dp), strokeWidth = 2.dp, color = LocalAccent.current)
         }
         return
     }
@@ -3020,11 +3027,12 @@ private fun CharEffectsSection(c: EnkaChar, game: String) {
     // 설명을 못 받아도(예: ZZZ 의식 소스 미도달) 1~6 단계 노드는 항상 표시한다.
     val nodes = if (effects.isNotEmpty()) effects else (1..CONSTELLATION_STEPS).map { CharEffect(it, "", "") }
 
-    GlassCard(modifier = Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(6.dp)) {
+    // 카드·줄 바탕(속성색 띠)을 걷고 헤어라인 줄로(10/1). 개방 여부는 번호 원 색 · 자물쇠가 말한다.
+    run {
+        Column {
             // 개방 요약 — 히어로의 노드 체인과 같은 문법.
             Row(
-                Modifier.padding(start = 11.dp, end = 11.dp, top = 11.dp, bottom = 6.dp),
+                Modifier.padding(bottom = 4.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 repeat(CONSTELLATION_STEPS) { i ->
@@ -3040,18 +3048,16 @@ private fun CharEffectsSection(c: EnkaChar, game: String) {
                     )
                 }
                 Spacer(Modifier.width(7.dp))
-                Text("$active / $CONSTELLATION_STEPS 개방", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+                Text("$active / $CONSTELLATION_STEPS 개방", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
             }
 
             nodes.forEachIndexed { i, e ->
                 val on = e.index <= active
+                if (i > 0) Box(Modifier.fillMaxWidth().height(1.dp).background(SectionHairline))
                 Row(
                     Modifier
                         .fillMaxWidth()
-                        .padding(bottom = 1.dp)
-                        .clip(RoundedCornerShape(14.dp))
-                        .background(if (on) el.copy(alpha = 0.08f) else Color.Transparent)
-                        .padding(horizontal = 10.dp, vertical = 10.dp),
+                        .padding(vertical = 12.dp),
                     verticalAlignment = Alignment.Top,
                 ) {
                     Box(
@@ -3071,12 +3077,12 @@ private fun CharEffectsSection(c: EnkaChar, game: String) {
                     Column(Modifier.weight(1f)) {
                         Text(
                             e.name.ifBlank { "${effectsTitle(game)} ${e.index}단계" },
-                            fontSize = 12.5.sp, fontWeight = FontWeight.Bold,
+                            fontSize = 14.sp, fontWeight = FontWeight.Bold,
                             color = if (on) TextPrimary else Color(0xFF98A0AB),
                         )
                         if (e.desc.isNotBlank()) {
                             Spacer(Modifier.height(3.dp))
-                            Text(e.desc, fontSize = 11.sp, color = TextSecondary, lineHeight = 17.sp)
+                            Text(e.desc, fontSize = 13.sp, color = TextSecondary, lineHeight = 19.sp)
                         }
                     }
                     if (!on) {
@@ -3164,7 +3170,7 @@ private fun EffectNode(
 
 @Composable
 private fun SetCard(s: EnkaSet, accent: Color) {
-    // ⚠️ 여기서 카드(GlassCard)를 또 두르지 않는다. 이미 성유물 섹션 카드 **안**이라
+    // ⚠️ 여기서 카드(GlassCard)를 또 두르지 않는다. 이미 성유물 섹션 **안**이라
     // 박스 안의 박스가 되어 지저분했다. 구분은 섹션 안의 여백·구분선이 맡는다.
     Box(Modifier.fillMaxWidth()) {
         Column {
@@ -3174,12 +3180,12 @@ private fun SetCard(s: EnkaSet, accent: Color) {
                     if (s.kind.isNotEmpty()) {
                         Spacer(Modifier.width(6.dp))
                         Surface(color = TextSecondary.copy(alpha = 0.12f), shape = RoundedCornerShape(5.dp)) {
-                            Text(s.kind, fontSize = 9.5.sp, fontWeight = FontWeight.Bold, color = TextSecondary, modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp))
+                            Text(s.kind, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextSecondary, modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp))
                         }
                     }
                 }
                 Surface(color = accent.copy(alpha = 0.14f), shape = RoundedCornerShape(999.dp)) {
-                    Text("${s.count}", fontSize = 10.5.sp, fontWeight = FontWeight.Bold, color = accent, modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp))
+                    Text("${s.count}", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = accent, modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp))
                 }
             }
             s.effects.forEach { e ->
@@ -3214,7 +3220,7 @@ private fun SetCard(s: EnkaSet, accent: Color) {
                     // 안 그러면 11sp 줄 상자가 18dp 배지보다 짧아 **숫자만 아래로 치우쳐** 보인다.
                     Text(
                         e.text,
-                        fontSize = 11.sp,
+                        fontSize = 12.5.sp,
                         lineHeight = 18.sp,
                         color = TextSecondary,
                         style = LocalTextStyle.current.copy(
@@ -3233,9 +3239,8 @@ private fun SetCard(s: EnkaSet, accent: Color) {
 
 @Composable
 private fun EmptyEquipNote(text: String) {
-    GlassCard(modifier = Modifier.fillMaxWidth()) {
-        Text(text, fontSize = 12.sp, color = TextSecondary, modifier = Modifier.padding(14.dp))
-    }
+    // 카드 없이 안내 한 줄(10/1).
+    Text(text, fontSize = 13.sp, color = TextSecondary, modifier = Modifier.padding(vertical = 4.dp))
 }
 
 /** 프로필 속성 1줄 — 라벨(보조색, 좌) : 값(굵게, 우). */
@@ -3300,6 +3305,18 @@ private fun gradeColor(grade: ArtifactGrade, accent: Color): Color = when (grade
 // 섹션 순서는 ① 현재 스탯 → ② 장비 → ③ 성유물 → ④ 돌파 다. 전부 같은 머리말 문법
 // (번호 배지 + 제목 + 보조)을 쓴다 — 예전엔 제목만 있어서 어디까지가 한 덩어리인지 흐렸다.
 
+/**
+ * 캐릭터 상세 섹션 — 카드 없이 화면 폭, 좌우 20 · 위 22 · 아래 20(10/1).
+ * 게임정보 첫 화면 GiSection 과 같은 규격이다(그쪽은 파일 전용이라 여기 따로 둔다). 섹션 사이는 [GiBand].
+ */
+@Composable
+private fun EnkaPageSection(content: @Composable ColumnScope.() -> Unit) {
+    Column(Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 22.dp, bottom = 20.dp), content = content)
+}
+
+/** 섹션 안 줄 구분 헤어라인 — 다른 화면 목록 구분선과 같은 색(10/1). */
+private val SectionHairline = Color(0xFFEEF0F2)
+
 /** 섹션 머리 — 번호 배지 + 제목 + (보조 설명) + (우측 액션). */
 @Composable
 private fun SectionHead(
@@ -3308,21 +3325,22 @@ private fun SectionHead(
     sub: String? = null,
     action: @Composable (() -> Unit)? = null,
 ) {
+    // 카드가 걷혀 섹션 제목이 곧 구획이다 — 17 굵게, 보조는 13(10/1).
     Row(
-        Modifier.fillMaxWidth().padding(start = 2.dp, end = 2.dp, top = 2.dp, bottom = 10.dp),
+        Modifier.fillMaxWidth().padding(bottom = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(
-            Modifier.size(19.dp).clip(RoundedCornerShape(6.dp)).background(TextPrimary),
+            Modifier.size(20.dp).clip(RoundedCornerShape(6.dp)).background(TextPrimary),
             contentAlignment = Alignment.Center,
         ) {
-            Text("$no", fontSize = 10.5.sp, fontWeight = FontWeight.Black, color = Color.White)
+            Text("$no", fontSize = 11.5.sp, fontWeight = FontWeight.Black, color = Color.White)
         }
         Spacer(Modifier.width(8.dp))
-        Text(title, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+        Text(title, fontSize = 17.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
         if (sub != null) {
             Spacer(Modifier.width(8.dp))
-            Text(sub, fontSize = 10.5.sp, fontWeight = FontWeight.Bold, color = TextSecondary, maxLines = 1)
+            Text(sub, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextSecondary, maxLines = 1)
         }
         if (action != null) {
             Spacer(Modifier.weight(1f))
@@ -3341,65 +3359,62 @@ private fun SectionHead(
 @Composable
 private fun StatList(stats: List<EnkaStatLine>, keySet: Set<StatTok>) {
     if (stats.isEmpty()) return
-    GlassCard(modifier = Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(6.dp)) {
-            groupStats(stats).forEach { (group, lines) ->
-                Text(
-                    group.label,
-                    fontSize = 9.5.sp, fontWeight = FontWeight.Bold, color = Color(0xFF98A0AB),
-                    modifier = Modifier.padding(start = 10.dp, top = 9.dp, bottom = 5.dp),
-                )
-                lines.forEach { line ->
-                    val key = ArtifactScoring.isEffective(keySet, line.label)
-                    Row(
-                        Modifier
-                            .fillMaxWidth()
-                            .padding(bottom = 1.dp)
-                            .clip(RoundedCornerShape(13.dp))
-                            .background(if (key) CritColor.copy(alpha = 0.06f) else Color.Transparent)
-                            .padding(horizontal = 11.dp, vertical = 9.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        // ⚠️ weight 는 **한 번만** 건다. 라벨과 Spacer 에 각각 걸었더니 남는 폭을
-                        // 반씩 나눠 가져 값이 화면 밖으로 밀렸다.
-                        Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                line.label,
-                                fontSize = 12.sp,
-                                fontWeight = if (key) FontWeight.Bold else FontWeight.SemiBold,
-                                color = if (key) CritColor else TextSecondary,
-                                maxLines = 1, overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier.weight(1f, fill = false),
-                            )
-                            if (key) {
-                                Spacer(Modifier.width(7.dp))
-                                Text(
-                                    "유효",
-                                    fontSize = 9.sp, fontWeight = FontWeight.Bold, color = CritColor,
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(5.dp))
-                                        .background(CritColor.copy(alpha = 0.12f))
-                                        .padding(horizontal = 5.dp, vertical = 1.5.dp),
-                                )
-                            }
-                        }
-                        Spacer(Modifier.width(10.dp))
+    // 카드·줄 바탕(둥근 빨간 띠)을 걷고 헤어라인 줄로(10/1). 유효옵션은 빨간 글자 + '유효' 배지가 말한다.
+    Column {
+        groupStats(stats).forEachIndexed { gi, (group, lines) ->
+            Text(
+                group.label,
+                fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFF98A0AB),
+                modifier = Modifier.padding(top = if (gi > 0) 14.dp else 0.dp, bottom = 2.dp),
+            )
+            lines.forEachIndexed { li, line ->
+                val key = ArtifactScoring.isEffective(keySet, line.label)
+                if (li > 0) Box(Modifier.fillMaxWidth().height(1.dp).background(SectionHairline))
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 11.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    // ⚠️ weight 는 **한 번만** 건다. 라벨과 Spacer 에 각각 걸었더니 남는 폭을
+                    // 반씩 나눠 가져 값이 화면 밖으로 밀렸다.
+                    Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
                         Text(
-                            line.value,
-                            fontSize = 15.sp, fontWeight = FontWeight.Bold,
-                            color = if (key) CritColor else TextPrimary,
-                            maxLines = 1,
+                            line.label,
+                            fontSize = 12.sp,
+                            fontWeight = if (key) FontWeight.Bold else FontWeight.SemiBold,
+                            color = if (key) CritColor else TextSecondary,
+                            maxLines = 1, overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f, fill = false),
                         )
+                        if (key) {
+                            Spacer(Modifier.width(7.dp))
+                            Text(
+                                "유효",
+                                fontSize = 11.sp, fontWeight = FontWeight.Bold, color = CritColor,
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(5.dp))
+                                    .background(CritColor.copy(alpha = 0.12f))
+                                    .padding(horizontal = 5.dp, vertical = 1.5.dp),
+                            )
+                        }
                     }
+                    Spacer(Modifier.width(10.dp))
+                    Text(
+                        line.value,
+                        fontSize = 15.sp, fontWeight = FontWeight.Bold,
+                        color = if (key) CritColor else TextPrimary,
+                        maxLines = 1,
+                    )
                 }
             }
-            if (keySet.isNotEmpty()) {
-                Text(
-                    "빨간 줄은 이 캐릭터의 유효옵션입니다 — 성유물 점수에 들어가는 항목과 같습니다.",
-                    fontSize = 10.5.sp, color = TextSecondary, lineHeight = 15.sp,
-                    modifier = Modifier.padding(start = 11.dp, end = 11.dp, top = 8.dp, bottom = 6.dp),
-                )
-            }
+        }
+        if (keySet.isNotEmpty()) {
+            Text(
+                "빨간 줄은 이 캐릭터의 유효옵션입니다 — 성유물 점수에 들어가는 항목과 같습니다.",
+                fontSize = 12.sp, color = TextSecondary, lineHeight = 17.sp,
+                modifier = Modifier.padding(top = 8.dp),
+            )
         }
     }
 }
@@ -3412,130 +3427,127 @@ private fun StatList(stats: List<EnkaStatLine>, keySet: Set<StatTok>) {
  */
 @Composable
 private fun EquipCard(w: EnkaWeapon, game: String, refinement: WeaponRefinement? = null) {
-    GlassCard(modifier = Modifier.fillMaxWidth()) {
-        Box {
-            Column(Modifier.padding(14.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        Modifier
-                            .size(66.dp)
-                            .clip(RoundedCornerShape(18.dp))
-                            .background(Brush.linearGradient(listOf(Color(0xFFF7E7C2), Color(0xFFFCF6EA))))
-                            .border(2.dp, Gold.copy(alpha = 0.5f), RoundedCornerShape(18.dp)),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        if (w.iconUrl != null) {
-                            AsyncImage(
-                                model = w.iconUrl,
-                                contentDescription = w.name,
-                                contentScale = ContentScale.Fit,
-                                modifier = Modifier.fillMaxSize().padding(5.dp),
-                            )
-                        } else {
-                            GlgBadgeText(w.name.take(1), fontSize = 26.sp, color = Color(0xFF9C6F12))
-                        }
-                    }
-                    Spacer(Modifier.width(12.dp))
-                    Column(Modifier.weight(1f)) {
-                        Text(
-                            w.name,
-                            fontSize = 15.5.sp, fontWeight = FontWeight.Bold, color = TextPrimary,
-                            maxLines = 2, overflow = TextOverflow.Ellipsis, lineHeight = 19.sp,
-                        )
-                        Spacer(Modifier.height(3.dp))
-                        Text("Lv. ${w.level}", fontSize = 10.5.sp, fontWeight = FontWeight.Bold, color = TextSecondary)
-                    }
-                    if (w.refinement > 0) {
-                        Spacer(Modifier.width(10.dp))
-                        Column(horizontalAlignment = Alignment.End) {
-                            Text(
-                                "R${w.refinement}",
-                                fontSize = 13.sp, fontWeight = FontWeight.Black, color = Color(0xFF9C6F12),
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .background(Gold.copy(alpha = 0.16f))
-                                    .padding(horizontal = 9.dp, vertical = 3.dp),
-                            )
-                            Spacer(Modifier.height(5.dp))
-                            Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
-                                repeat(REFINE_TICKS) { i ->
-                                    Box(
-                                        Modifier
-                                            .width(12.dp).height(3.dp)
-                                            .clip(RoundedCornerShape(2.dp))
-                                            .background(if (i < w.refinement) Gold else Color.Black.copy(alpha = 0.10f)),
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-                // 메인/서브 스탯 — 이름 옆에 흐르던 걸 칸으로 갈라 값이 눈에 들어오게 한다.
-                val cells = listOfNotNull(w.main, w.sub)
-                if (cells.isNotEmpty()) {
-                    Spacer(Modifier.height(12.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        cells.forEach { st ->
-                            Column(
-                                Modifier
-                                    .weight(1f)
-                                    .clip(RoundedCornerShape(14.dp))
-                                    .background(Color.White)
-                                    .border(1.dp, CardOutline, RoundedCornerShape(14.dp))
-                                    .padding(horizontal = 11.dp, vertical = 9.dp),
-                            ) {
-                                Text(st.label, fontSize = 10.sp, fontWeight = FontWeight.Bold, color = TextSecondary, maxLines = 1)
-                                Spacer(Modifier.height(2.dp))
-                                Text(
-                                    st.value,
-                                    fontSize = 15.sp, fontWeight = FontWeight.Black,
-                                    color = if (st.crit) CritColor else TextPrimary, maxLines = 1,
-                                )
-                            }
-                        }
-                        if (cells.size == 1) Spacer(Modifier.weight(1f))
-                    }
-                }
-                // 장비 특성 — 이름과 수치만으로는 "이 무기가 무슨 일을 하는가"를 알 수 없다.
-                //
-                // **출처가 둘이다.** 도감([NanokaApi])은 정련 단계별 정확한 문장을 주지만
-                // 원신·스타레일만 지원하고 실패할 수 있다. 응답이 직접 준 설명([EnkaWeapon.traitDesc])은
-                // 단계 구분이 없는 대신 **젠레스까지 있고 실패하지 않는다.** 도감을 우선하고 폴백한다.
-                //
-                // ⚠️ 응답 폴백은 **젠레스에서만** 쓴다. 원신·스타레일의 응답 설명(`desc`)은
-                // 무기 소개문이라 특성이 아니다. 파싱에서 빼도 **캐시에 남은 값이 계속 떴던**
-                // 전례가 있어, 읽는 쪽에서도 게임으로 한 번 더 막는다.
-                val allowResponseTrait = game == "zzz"
-                val traitName = refinement?.name?.ifBlank { null }
-                    ?: w.traitName.takeIf { allowResponseTrait }?.ifBlank { null }
-                val traitDesc = refinement?.desc?.ifBlank { null }
-                    ?: w.traitDesc.takeIf { allowResponseTrait }?.ifBlank { null }
-                // 못 받았으면 자리 자체를 만들지 않는다(빈 칸이 고장처럼 보인다).
-                if (traitDesc != null) {
-                    Spacer(Modifier.height(13.dp))
-                    Box(Modifier.fillMaxWidth().height(1.dp).background(CardOutline))
-                    Spacer(Modifier.height(11.dp))
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("장비 특성", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFF9C6F12))
-                        Spacer(Modifier.width(6.dp))
-                        // 지금 보는 설명이 **몇 정련 기준**인지 밝힌다.
-                        if (refinement != null) Text(
-                            "R${refinement.level.coerceAtLeast(1)} 기준",
-                            fontSize = 9.sp, fontWeight = FontWeight.Bold, color = Color.White,
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(5.dp))
-                                .background(Gold)
-                                .padding(horizontal = 5.dp, vertical = 1.5.dp),
-                        )
-                    }
-                    Spacer(Modifier.height(6.dp))
-                    if (traitName != null) {
-                        Text(traitName, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
-                        Spacer(Modifier.height(3.dp))
-                    }
-                    Text(traitDesc, fontSize = 11.5.sp, color = TextSecondary, lineHeight = 18.sp)
+    // 감싸던 카드는 걷었다(10/1) — 섹션이 곧 구획이다. 아이콘·스탯 칸은 객체 타일이라 그대로.
+    Column {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                Modifier
+                    .size(66.dp)
+                    .clip(RoundedCornerShape(18.dp))
+                    .background(Brush.linearGradient(listOf(Color(0xFFF7E7C2), Color(0xFFFCF6EA))))
+                    .border(2.dp, Gold.copy(alpha = 0.5f), RoundedCornerShape(18.dp)),
+                contentAlignment = Alignment.Center,
+            ) {
+                if (w.iconUrl != null) {
+                    AsyncImage(
+                        model = w.iconUrl,
+                        contentDescription = w.name,
+                        contentScale = ContentScale.Fit,
+                        modifier = Modifier.fillMaxSize().padding(5.dp),
+                    )
+                } else {
+                    GlgBadgeText(w.name.take(1), fontSize = 26.sp, color = Color(0xFF9C6F12))
                 }
             }
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+                Text(
+                    w.name,
+                    fontSize = 15.5.sp, fontWeight = FontWeight.Bold, color = TextPrimary,
+                    maxLines = 2, overflow = TextOverflow.Ellipsis, lineHeight = 19.sp,
+                )
+                Spacer(Modifier.height(3.dp))
+                Text("Lv. ${w.level}", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextSecondary)
+            }
+            if (w.refinement > 0) {
+                Spacer(Modifier.width(10.dp))
+                Column(horizontalAlignment = Alignment.End) {
+                    Text(
+                        "R${w.refinement}",
+                        fontSize = 13.sp, fontWeight = FontWeight.Black, color = Color(0xFF9C6F12),
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(Gold.copy(alpha = 0.16f))
+                            .padding(horizontal = 9.dp, vertical = 3.dp),
+                    )
+                    Spacer(Modifier.height(5.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+                        repeat(REFINE_TICKS) { i ->
+                            Box(
+                                Modifier
+                                    .width(12.dp).height(3.dp)
+                                    .clip(RoundedCornerShape(2.dp))
+                                    .background(if (i < w.refinement) Gold else Color.Black.copy(alpha = 0.10f)),
+                            )
+                        }
+                    }
+                }
+            }
+        }
+        // 메인/서브 스탯 — 이름 옆에 흐르던 걸 칸으로 갈라 값이 눈에 들어오게 한다.
+        val cells = listOfNotNull(w.main, w.sub)
+        if (cells.isNotEmpty()) {
+            Spacer(Modifier.height(12.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                cells.forEach { st ->
+                    Column(
+                        Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(Color.White)
+                            .border(1.dp, CardOutline, RoundedCornerShape(14.dp))
+                            .padding(horizontal = 11.dp, vertical = 9.dp),
+                    ) {
+                        Text(st.label, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextSecondary, maxLines = 1)
+                        Spacer(Modifier.height(2.dp))
+                        Text(
+                            st.value,
+                            fontSize = 15.sp, fontWeight = FontWeight.Black,
+                            color = if (st.crit) CritColor else TextPrimary, maxLines = 1,
+                        )
+                    }
+                }
+                if (cells.size == 1) Spacer(Modifier.weight(1f))
+            }
+        }
+        // 장비 특성 — 이름과 수치만으로는 "이 무기가 무슨 일을 하는가"를 알 수 없다.
+        //
+        // **출처가 둘이다.** 도감([NanokaApi])은 정련 단계별 정확한 문장을 주지만
+        // 원신·스타레일만 지원하고 실패할 수 있다. 응답이 직접 준 설명([EnkaWeapon.traitDesc])은
+        // 단계 구분이 없는 대신 **젠레스까지 있고 실패하지 않는다.** 도감을 우선하고 폴백한다.
+        //
+        // ⚠️ 응답 폴백은 **젠레스에서만** 쓴다. 원신·스타레일의 응답 설명(`desc`)은
+        // 무기 소개문이라 특성이 아니다. 파싱에서 빼도 **캐시에 남은 값이 계속 떴던**
+        // 전례가 있어, 읽는 쪽에서도 게임으로 한 번 더 막는다.
+        val allowResponseTrait = game == "zzz"
+        val traitName = refinement?.name?.ifBlank { null }
+            ?: w.traitName.takeIf { allowResponseTrait }?.ifBlank { null }
+        val traitDesc = refinement?.desc?.ifBlank { null }
+            ?: w.traitDesc.takeIf { allowResponseTrait }?.ifBlank { null }
+        // 못 받았으면 자리 자체를 만들지 않는다(빈 칸이 고장처럼 보인다).
+        if (traitDesc != null) {
+            Spacer(Modifier.height(13.dp))
+            Box(Modifier.fillMaxWidth().height(1.dp).background(SectionHairline))
+            Spacer(Modifier.height(11.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("장비 특성", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color(0xFF9C6F12))
+                Spacer(Modifier.width(6.dp))
+                // 지금 보는 설명이 **몇 정련 기준**인지 밝힌다.
+                if (refinement != null) Text(
+                    "R${refinement.level.coerceAtLeast(1)} 기준",
+                    fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(5.dp))
+                        .background(Gold)
+                        .padding(horizontal = 5.dp, vertical = 1.5.dp),
+                )
+            }
+            Spacer(Modifier.height(6.dp))
+            if (traitName != null) {
+                Text(traitName, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+                Spacer(Modifier.height(3.dp))
+            }
+            Text(traitDesc, fontSize = 13.sp, color = TextSecondary, lineHeight = 19.sp)
         }
     }
 }
@@ -3572,23 +3584,22 @@ private fun ArtifactSection(
     }
     val top = remember(score) { score.ranked.maxOfOrNull { it.score.value } ?: 0.0 }
 
-    GlassCard(modifier = Modifier.fillMaxWidth()) {
-        Column {
-            slots.forEachIndexed { i, (r, rank) ->
-                if (i > 0) Box(Modifier.fillMaxWidth().height(1.dp).background(CardOutline))
-                ArtifactRow(r = r, rank = rank, keySet = keySet, game = game, accent = accent, top = top)
-            }
+    // 감싸던 카드는 걷고 줄 사이 헤어라인만 남긴다(10/1).
+    Column {
+        slots.forEachIndexed { i, (r, rank) ->
+            if (i > 0) Box(Modifier.fillMaxWidth().height(1.dp).background(SectionHairline))
+            ArtifactRow(r = r, rank = rank, keySet = keySet, game = game, accent = accent, top = top)
+        }
 
-            // 세트 효과 — 성유물의 일부다.
-            Box(Modifier.fillMaxWidth().height(1.dp).background(CardOutline))
-            Column(Modifier.padding(14.dp)) {
-                if (c.sets.isEmpty()) {
-                    Text("세트 효과 발동 없음", fontSize = 11.5.sp, color = TextSecondary)
-                } else {
-                    c.sets.forEachIndexed { i, st ->
-                        if (i > 0) Spacer(Modifier.height(12.dp))
-                        SetCard(st, accent)
-                    }
+        // 세트 효과 — 성유물의 일부다.
+        Box(Modifier.fillMaxWidth().height(1.dp).background(SectionHairline))
+        Column(Modifier.padding(top = 16.dp)) {
+            if (c.sets.isEmpty()) {
+                Text("세트 효과 발동 없음", fontSize = 13.sp, color = TextSecondary)
+            } else {
+                c.sets.forEachIndexed { i, st ->
+                    if (i > 0) Spacer(Modifier.height(12.dp))
+                    SetCard(st, accent)
                 }
             }
         }
@@ -3610,7 +3621,8 @@ private fun ArtifactRow(
     accent: Color,
     top: Double,
 ) {
-    Column(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp)) {
+    // 카드 안쪽 여백(14)은 섹션 여백(20)이 대신한다 — 좌우 0(10/1).
+    Column(Modifier.fillMaxWidth().padding(vertical = 14.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Box(contentAlignment = Alignment.Center) {
                 Box(
@@ -3647,19 +3659,19 @@ private fun ArtifactRow(
             Spacer(Modifier.width(13.dp))
             Column(Modifier.weight(1f)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(r.artifact.slot, fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = TextPrimary, maxLines = 1)
+                    Text(r.artifact.slot, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TextPrimary, maxLines = 1)
                     if (r.artifact.setName.isNotBlank()) {
                         Spacer(Modifier.width(6.dp))
                         Text(
                             r.artifact.setName,
-                            fontSize = 10.sp, color = TextSecondary,
+                            fontSize = 12.sp, color = TextSecondary,
                             maxLines = 1, overflow = TextOverflow.Ellipsis,
                         )
                     }
                 }
                 Spacer(Modifier.height(4.dp))
                 Row(verticalAlignment = Alignment.Bottom) {
-                    Text(r.artifact.main.label, fontSize = 10.5.sp, color = keyLabelOr(keySet, r.artifact.main))
+                    Text(r.artifact.main.label, fontSize = 12.sp, color = keyLabelOr(keySet, r.artifact.main))
                     Spacer(Modifier.width(6.dp))
                     Text(
                         r.artifact.main.value,
@@ -3686,7 +3698,7 @@ private fun ArtifactRow(
                 Column(horizontalAlignment = Alignment.End) {
                     Text(
                         "${rank}위 · ${ArtifactScoring.scoreLabel(r.score.value)}",
-                        fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color(0xFF9C6F12),
+                        fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFF9C6F12),
                     )
                     Spacer(Modifier.height(5.dp))
                     Box(Modifier.width(52.dp).height(3.dp).clip(CircleShape).background(BarTrack)) {
@@ -3733,11 +3745,11 @@ private fun SubStatCell(s: EnkaStatLine, keySet: Set<StatTok>, game: String) {
         Row(verticalAlignment = Alignment.Bottom) {
             Text(
                 s.label,
-                fontSize = 11.sp, color = keyLabelOr(keySet, s),
+                fontSize = 12.sp, color = keyLabelOr(keySet, s),
                 maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false),
             )
             Spacer(Modifier.weight(1f))
-            Text(s.value, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = keyOr(keySet, s, TextPrimary))
+            Text(s.value, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = keyOr(keySet, s, TextPrimary))
         }
         if (rolls != null) {
             Spacer(Modifier.height(4.dp))
