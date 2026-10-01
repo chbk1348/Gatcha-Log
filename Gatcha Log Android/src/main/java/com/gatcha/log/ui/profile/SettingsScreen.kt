@@ -47,6 +47,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import android.os.Build
@@ -299,6 +300,7 @@ fun SettingsScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
                         "배터리 최적화로 자동 출석이 막힐 수 있어요. 이 앱을 「제한 안함」으로 등록해 주세요.", "허용",
                         Modifier.padding(horizontal = 20.dp),
                     ) { (context as? android.app.Activity)?.let { com.gatcha.log.data.BatteryOptimization.request(it) } }
+                    Spacer(Modifier.height(12.dp)) // 배너는 아래 여백이 없어 줄과 같은 12 를 채운다
                 }
             }
         }
@@ -412,7 +414,7 @@ private fun DataManagementScreen(viewModel: SpendingViewModel, onBack: () -> Uni
         // 설정 메인과 같은 결 — GLDS 2.0 화면 폭 섹션 + 회색 띠.
         // 백업·복원 — 데이터 보호가 가장 중요하므로 맨 위에 (재설치·기기 변경 대비)
         item {
-            SetSection("백업 · 복원", "재설치 · 기기 변경 대비") {
+            SetSection("백업 · 복원", "재설치 · 기기 변경 대비", bottom = 20.dp) {
                 SettingsNavRow(Icons.Default.Backup, Tint.teal, "백업 파일 내보내기", "전체 데이터") {
                     val date = java.text.SimpleDateFormat("yyyyMMdd", java.util.Locale.US).format(java.util.Date())
                     exportBackupLauncher.launch("gatchalog-backup-$date.json")
@@ -433,7 +435,7 @@ private fun DataManagementScreen(viewModel: SpendingViewModel, onBack: () -> Uni
         // 위험 구역 — 되돌릴 수 없는 파괴 작업은 빨간 톤으로 시각 분리
         band()
         item {
-            SetSection("위험 구역", "되돌릴 수 없어요") {
+            SetSection("위험 구역", "되돌릴 수 없어요", bottom = 20.dp) {
                 SettingsNavRow(Icons.Default.DeleteSweep, Tint.red, "가챠 기록 초기화", gachaStats?.let { "${it.total}건" } ?: "없음", titleColor = DangerRed) {
                     if (gachaStats != null) showClearGacha.value = true
                 }
@@ -721,8 +723,17 @@ private fun LazyListScope.band() = item { Box(Modifier.fillMaxWidth().height(10.
 
 /** 화면 폭 섹션 — 제목 17 Bold + 오른쪽 보조 문구 13. */
 @Composable
-private fun SetSection(title: String, caption: String? = null, content: @Composable ColumnScope.() -> Unit) {
-    Column(Modifier.fillMaxWidth().padding(top = 22.dp, bottom = 20.dp)) {
+private fun SetSection(
+    title: String,
+    caption: String? = null,
+    /**
+     * 섹션 아래 여백 — 기본 8. 마지막 줄이 자체 아래 12 를 가져 띠까지 보이는 간격이 20 이 된다
+     * (20 이면 줄과 띠 사이가 32 로 떠 보였다, 10/1). 각주 · 배너처럼 여백 없는 것으로 끝나면 20 을 넘긴다.
+     */
+    bottom: Dp = 8.dp,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    Column(Modifier.fillMaxWidth().padding(top = 22.dp, bottom = bottom)) {
         Row(
             Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, bottom = 14.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -853,7 +864,7 @@ internal fun BudgetScreen(
             }
             band()
             item {
-                SetSection("게임별 한도", "선택 · 비워 두면 한도 없음") {
+                SetSection("게임별 한도", "선택 · 비워 두면 한도 없음", bottom = 20.dp) {
                     order.forEachIndexed { i, g ->
                         if (i > 0) SetHair()
                         val spent = monthlyTotals[g.key] ?: 0L
@@ -1119,13 +1130,13 @@ private fun ThemeScreen(accentIndex: Int, onSelect: (Int) -> Unit, onBack: () ->
         // 그리드 자체 여백(좌우 16)에 4 를 더해 섹션 좌우 20 에 맞춘다.
         band()
         item {
-            SetSection("선명", "${ACCENT_VIVID_COUNT}색") {
+            SetSection("선명", "${ACCENT_VIVID_COUNT}색", bottom = 20.dp) {
                 Box(Modifier.padding(horizontal = 4.dp)) { ThemeColorGrid(accentIndex, 0 until ACCENT_VIVID_COUNT, onSelect) }
             }
         }
         band()
         item {
-            SetSection("차분", "${AccentPalette.size - ACCENT_VIVID_COUNT}색") {
+            SetSection("차분", "${AccentPalette.size - ACCENT_VIVID_COUNT}색", bottom = 20.dp) {
                 Box(Modifier.padding(horizontal = 4.dp)) { ThemeColorGrid(accentIndex, ACCENT_VIVID_COUNT until AccentPalette.size, onSelect) }
                 SetFootnote("두 벌은 같은 색조 · 다른 채도예요. 게임별 색상과 속성 연출은 테마와 상관없이 그대로예요.", TextSecondary, top = 0.dp)
             }

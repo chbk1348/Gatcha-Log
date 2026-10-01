@@ -29,7 +29,7 @@ struct DataManagementView: View {
         ScrollView {
             // 설정 메인과 같은 결 — GLDS 2.0 화면 폭 섹션 + 회색 띠. Android DataManagementScreen 파리티.
             VStack(alignment: .leading, spacing: 0) {
-                SetSection(title: "백업 · 복원", caption: "재설치 · 기기 변경 대비") {
+                SetSection(title: "백업 · 복원", caption: "재설치 · 기기 변경 대비", bottom: 20) {
                     SetNavRow(symbol: "arrow.up.doc", tint: .teal, title: "백업 파일 내보내기", value: "전체 데이터") { exportBackup = true }
                     SetDivider()
                     SetNavRow(symbol: "arrow.down.doc", tint: .blue, title: "백업 파일에서 복원") { confirmImport = true }
@@ -40,7 +40,7 @@ struct DataManagementView: View {
                     SetNavRow(symbol: "square.and.arrow.down", tint: .slate, title: "지출 내역 내보내기", value: "CSV") { exportCsv = true }
                 }
                 SetBand()
-                SetSection(title: "위험 구역", caption: "되돌릴 수 없어요") {
+                SetSection(title: "위험 구역", caption: "되돌릴 수 없어요", bottom: 20) {
                     SetNavRow(symbol: "trash", tint: .red, title: "가챠 기록 초기화",
                               value: store.gachaStats.map { "\($0.total)건" } ?? "없음", titleColor: dangerRed) {
                         if store.gachaStats != nil { confirmClearGacha = true }

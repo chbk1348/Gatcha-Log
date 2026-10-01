@@ -354,6 +354,9 @@ struct SetBand: View {
 struct SetSection<Content: View>: View {
     var title: String? = nil
     var caption: String? = nil
+    /// 섹션 아래 여백 — 기본 8. 마지막 줄이 자체 아래 12 를 가져 띠까지 보이는 간격이 20 이 된다
+    /// (20 이면 줄과 띠 사이가 32 로 떠 보였다, 10/1). 각주처럼 여백 없는 것으로 끝나면 20 을 넘긴다.
+    var bottom: CGFloat = 8
     @ViewBuilder var content: Content
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -369,7 +372,7 @@ struct SetSection<Content: View>: View {
             }
             content
         }
-        .padding(.top, 22).padding(.bottom, 20)
+        .padding(.top, 22).padding(.bottom, bottom)
         .frame(maxWidth: .infinity, alignment: .leading)
         .environment(\.setRowFlat, true)
     }

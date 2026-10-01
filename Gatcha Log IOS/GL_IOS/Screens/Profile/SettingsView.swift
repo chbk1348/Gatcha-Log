@@ -407,7 +407,7 @@ struct ThemeView: View {
 
     private func group(_ title: String, _ indices: [Int], footer: String? = nil) -> some View {
         let cols = Array(repeating: GridItem(.flexible(), spacing: 12), count: 5)
-        return SetSection(title: title, caption: "\(indices.count)색") {
+        return SetSection(title: title, caption: "\(indices.count)색", bottom: 20) {
             LazyVGrid(columns: cols, spacing: 16) {
                 ForEach(indices, id: \.self) { i in
                     let opt = GLGTheme.palette[i]
@@ -498,7 +498,7 @@ struct BudgetSettingsView: View {
                 BudgetAmountEditor(budget: $amount, custom: $custom)
                     .padding(.horizontal, 20).padding(.top, 22).padding(.bottom, 20)
                 SetBand()
-                SetSection(title: "게임별 한도", caption: "선택 · 비워 두면 한도 없음") {
+                SetSection(title: "게임별 한도", caption: "선택 · 비워 두면 한도 없음", bottom: 20) {
                     ForEach(Array(order.enumerated()), id: \.element.key) { i, g in
                         if i > 0 { SetDivider() }
                         limitRow(g)

@@ -14,7 +14,7 @@ import com.gatcha.log.ui.game.hoyoland.hoyolandTicketDeep
 import com.gatcha.log.ui.game.hoyoland.ticketCountdown
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.calculateZoom
@@ -1346,30 +1346,30 @@ internal fun androidx.compose.foundation.lazy.LazyListScope.hoyolandGoodsItems(
             }
     }
     item(key = "priceBand") { GiBand() }
-    // 띠 아래 첫 타일 위 — 타일마다 위 10 을 두므로 12 를 더해 섹션 위 22 에 맞춘다.
-    item(key = "listTop") { Spacer(Modifier.height(12.dp)) }
+    // 띠 아래 첫 줄 위 — 섹션 위 22. 첫 줄은 위 여백이 없다.
+    item(key = "listTop") { Spacer(Modifier.height(22.dp)) }
 
     // 게임 탭은 여기 없다 — SectionPage 의 stickyTop 으로 올라가 헤더 밑에 붙박이로 선다
     // ([HoyolandGoodsTabs]). 100줄짜리 목록에서 같이 밀려 올라가면 안 되는 값이라서다.
     val shown = all.filter { gameFilter == null || it.game == gameFilter }
     // 키는 게임 + 이름 — 장패드처럼 두 IP 에 같은 이름이 있다.
-    items(shown, key = { "${it.game}|${it.name}" }) { item ->
-        // 굿즈 한 장은 사진이 있는 상품 타일이라 카드로 남긴다(10/1) — 좌우 20 만 여기서 둔다.
+    // 타일 카드를 걷고 **헤어라인으로 나눈 목록 줄**로(10/1) — 줄 위아래 14, 첫 줄 위 · 끝 줄 아래는 섹션 여백이 맡는다.
+    itemsIndexed(shown, key = { _, it -> "${it.game}|${it.name}" }) { i, item ->
         Column(Modifier.padding(horizontal = 20.dp)) {
-            Spacer(Modifier.height(10.dp))
-            GlassCard(modifier = Modifier.fillMaxWidth()) {
-                HoyolandGoodsCard(
-                    e, item, cart.quantityOf(item.name), onQuantity,
-                    onImage = if (item.imageUrl.isNotBlank()) ({ onImage(item) }) else null,
-                )
-            }
+            if (i > 0) HoyolandHairlineDivider()
+            HoyolandGoodsCard(
+                e, item, cart.quantityOf(item.name), onQuantity,
+                onImage = if (item.imageUrl.isNotBlank()) ({ onImage(item) }) else null,
+                top = if (i == 0) 0.dp else 14.dp,
+                bottom = if (i == shown.lastIndex) 0.dp else 14.dp,
+            )
         }
     }
     // 하단 고정 바에 가리지 않게 비워 둔다. 이 바는 콘텐츠를 밀지 않고 **위에 겹치므로**
     // (SectionPage 가 Box.align(BottomCenter) 로 얹는다) 여기서 비운 만큼만 안전해진다.
     //
     // **제스처 바 높이는 여기서 더하지 않는다** — 게으른 목록(flat)의 아래 여백이 이미 [제스처 바] 다.
-    // 여기엔 타일 목록 섹션의 아래 20 + 바 몸통(위 12 + 알약 ≈ 46 + 아래 8 = 66)만 둔다(GLDS 2.0, 10/1).
+    // 여기엔 목록 섹션의 아래 20 + 바 몸통(위 12 + 알약 ≈ 46 + 아래 8 = 66)만 둔다(GLDS 2.0, 10/1).
     // **담은 게 없으면 바도 없다** — 그땐 섹션 아래 20 만.
     item(key = "bottomSpace") {
         Spacer(Modifier.height(if (cart.isEmpty) 20.dp else 86.dp))
@@ -1377,11 +1377,11 @@ internal fun androidx.compose.foundation.lazy.LazyListScope.hoyolandGoodsItems(
 }
 
 /**
- * 굿즈 한 장 — [썸네일 48 · 이름·갈래 · 가격/수량] + 구매 제한 띠.
+ * 굿즈 한 줄 — [썸네일 48 · 이름 · 가격 · 비고 · 시리즈/구매 제한] + 오른쪽 담기.
  *
- * 한 장짜리 카드에 줄을 divider 로 쌓다가 **품목당 카드**로 갈아탔다. 줄 목록은 훑기엔 좋지만
- * 구매 제한("1인 5개 한정")을 놓을 자리가 없다 — 갈래 옆 회색 줄에 묻으면 현장에서 못 보고
- * 계산대에서 되돌아온다. 카드 아래를 띠 한 줄로 비워 그 조건만 세운다.
+ * 품목당 카드였다가 **헤어라인 목록 줄**로 걷었다(10/1, GLDS 2.0). 카드 아래 경고색 띠에 있던
+ * 시리즈 배지 · 구매 제한("1인 5개 한정")은 비고 아래 한 줄로 옮겼다 — 면은 없애도 경고색 글자는 남겨
+ * 계산대에서 되돌아오는 일이 없게 한다.
  *
  * 수량은 **목록에서 바로** 정한다 — 같은 키링을 두 개 사는 일이 흔한데 담기 토글만 있으면
  * 장바구니까지 들어가야 했다. 담기 전에는 「담기」 버튼, 담은 뒤에는 스테퍼로 바뀐다.
@@ -1394,7 +1394,10 @@ private fun HoyolandGoodsCard(
     onQuantity: (String, Int) -> Unit,
     /** 사진을 크게 보기. null 이면 사진이 없는 품목 — 칸은 게임 자리표시로 그린다. */
     onImage: (() -> Unit)? = null,
-) = Column {
+    /** 줄 위아래 여백 — 첫 줄 위 · 끝 줄 아래는 섹션 여백이 맡아 0 이다. */
+    top: androidx.compose.ui.unit.Dp = 14.dp,
+    bottom: androidx.compose.ui.unit.Dp = 14.dp,
+) {
     val accent = LocalAccent.current
     val raw = e.stageColor(item.game)
     val c = if (raw == 0L) TextSecondary else raw.toColor()
@@ -1408,16 +1411,17 @@ private fun HoyolandGoodsCard(
         Modifier
             .fillMaxWidth()
             .then(if (hasImage) Modifier.clickable { onImage?.invoke() } else Modifier)
-            .padding(horizontal = 16.dp, vertical = 13.dp),
+            .padding(top = top, bottom = bottom),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         // 썸네일 — 사진이 있으면 사진(흰 바탕 + 확대 표시), 없으면 게임 자리표시.
+        // 흰 바탕 사진이 흰 페이지에 녹지 않게 사진 테두리는 남긴다(카드 면이 아니라 사진 틀이다).
         Box(
             Modifier
                 .size(48.dp)
-                .clip(RoundedCornerShape(12.dp))
+                .clip(RoundedCornerShape(10.dp))
                 .background(if (hasImage) Color.White else c.copy(alpha = 0.12f))
-                .then(if (hasImage) Modifier.border(1.dp, DividerColor, RoundedCornerShape(12.dp)) else Modifier),
+                .then(if (hasImage) Modifier.border(1.dp, DividerColor, RoundedCornerShape(10.dp)) else Modifier),
             contentAlignment = Alignment.Center,
         ) {
             if (hasImage) {
@@ -1453,8 +1457,8 @@ private fun HoyolandGoodsCard(
                 )
             }
         }
-        Column(Modifier.weight(1f).padding(start = 11.dp)) {
-            Text(item.name, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextPrimary, lineHeight = 18.sp)
+        Column(Modifier.weight(1f).padding(start = 12.dp)) {
+            Text(item.name, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TextPrimary, lineHeight = 20.sp)   // 13 → 15(10/1)
             Spacer(Modifier.height(5.dp))
             // 가격은 **이름 바로 아래 왼쪽**이다. 예전엔 오른쪽 담기 버튼 위에 얹혀 있었는데,
             // 그 열은 버튼 폭(≈26dp 높이의 알약)에 갇혀 있어 값을 키울 자리가 없었고 버튼과
@@ -1484,7 +1488,7 @@ private fun HoyolandGoodsCard(
             Row(verticalAlignment = Alignment.Bottom) {
                 Text(
                     if (item.price <= 0) "미정" else e.wonLabel(shownPrice),
-                    fontSize = if (item.price > 0) 16.sp else 13.sp,
+                    fontSize = if (item.price > 0) 16.sp else 13.sp,   // 「미정」은 값이 아니라 보조 글자 13
                     fontWeight = FontWeight.Black,
                     color = priceColor,
                     style = LocalTextStyle.current.copy(fontFeatureSettings = "tnum"),
@@ -1494,7 +1498,7 @@ private fun HoyolandGoodsCard(
                     Spacer(Modifier.width(6.dp))
                     Text(
                         "${e.wonLabel(item.price)} × $quantity",
-                        fontSize = 11.sp, color = TextThird,
+                        fontSize = 12.sp, color = TextThird,   // 11 → 12(10/1)
                         style = LocalTextStyle.current.copy(fontFeatureSettings = "tnum"),
                     )
                 }
@@ -1502,17 +1506,38 @@ private fun HoyolandGoodsCard(
             // 게임 라벨은 왼쪽 48 칸이 이미 말하고 있다 — 여기 칩까지 두면 한 줄에 같은
             // 글자가 두 번 나온다. 갈래(분류)도 싣지 않는다 — '아크릴 스탠드' 처럼 이름과 거의
             // 같은 말이 한 줄 아래 또 나오고, 고를 때 실제로 쓰이는 값은 가격과 한정 여부다.
-            // 시리즈·구매 제한은 아래 띠에 배지로 빠진다.
             if (item.noteRest.isNotBlank()) {
                 Spacer(Modifier.height(3.dp))
                 // 구성품이 긴 품목(테마 패키지)은 note 안에 줄바꿈이 들어 있어 두 줄이 된다.
-                Text(item.noteRest, fontSize = 11.sp, color = c, lineHeight = 16.sp)
+                Text(item.noteRest, fontSize = 12.sp, color = c, lineHeight = 17.sp)   // 11 → 12(10/1)
+            }
+            // 행사 한정 조건 — 사기 전에 걸리는 값이라 '가격 미정' 안내와 같은 경고색. 둘 다 없는 품목은 줄을 세우지 않는다.
+            // '호요랜드2026 시리즈' 는 **이 행사에서만 파는 물건**이라 배지로 뺀다 — 놓치면 끝이다.
+            // 예전엔 카드 아래 경고색 띠였다 — 카드를 걷으면서 면 없이 글자 줄로(10/1).
+            if (item.limitLabel.isNotBlank() || item.seriesLabel.isNotBlank()) {
+                Spacer(Modifier.height(6.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (item.seriesLabel.isNotBlank()) {
+                        Text(
+                            item.seriesLabel,
+                            fontSize = 11.sp, fontWeight = FontWeight.Black, color = WarnText,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(999.dp))
+                                .background(WarnText.copy(alpha = 0.14f))
+                                .padding(horizontal = 7.dp, vertical = 2.dp),
+                        )
+                        if (item.limitLabel.isNotBlank()) Spacer(Modifier.width(7.dp))
+                    }
+                    if (item.limitLabel.isNotBlank()) {
+                        Text(item.limitLabel, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = WarnText)
+                    }
+                }
             }
         }
         // 오른쪽 열에는 **담기만** 남는다 — 가격이 이름 밑으로 내려가면서 이 열은 누르는
         // 것 하나만 갖는다. 값과 버튼이 좁은 한 열에서 시선을 나눠 갖던 것이 풀린다.
         Column(
-            Modifier.padding(start = 11.dp),
+            Modifier.padding(start = 12.dp),
             horizontalAlignment = Alignment.End,
         ) {
             // 「담기」 ↔ 스테퍼 전환. 값만 갈아 끼우면 버튼이 있던 자리에 스테퍼가 **툭 나타나서**
@@ -1543,38 +1568,6 @@ private fun HoyolandGoodsCard(
                         GoodsStepButton("+") { onQuantity(item.name, quantity + 1) }
                     }
                 }
-            }
-        }
-    }
-    // 행사 한정 조건 띠 — 카드 폭을 꽉 채운 한 줄. 사기 전에 걸리는 값이라 '가격 미정' 안내와
-    // 같은 경고색을 쓴다. 둘 다 없는 품목은 띠 자체를 세우지 않는다(전부 붙이면 눈이 거른다).
-    //
-    // '호요랜드2026 시리즈' 는 **이 행사에서만 파는 물건**이라는 뜻이라 배지로 뺀다. 상설 굿즈는
-    // 다음에 사면 되지만 이건 놓치면 끝이고, 그 판단이 갈래 옆 회색 줄에 묻혀 있었다.
-    if (item.limitLabel.isNotBlank() || item.seriesLabel.isNotBlank()) {
-        Row(
-            Modifier
-                .fillMaxWidth()
-                .background(WarnBg)
-                .padding(horizontal = 16.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            if (item.seriesLabel.isNotBlank()) {
-                Text(
-                    item.seriesLabel,
-                    fontSize = 10.sp, fontWeight = FontWeight.Black, color = WarnText,
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(999.dp))
-                        .background(WarnText.copy(alpha = 0.14f))
-                        .padding(horizontal = 7.dp, vertical = 2.dp),
-                )
-                if (item.limitLabel.isNotBlank()) Spacer(Modifier.width(7.dp))
-            }
-            if (item.limitLabel.isNotBlank()) {
-                Text(
-                    item.limitLabel,
-                    fontSize = 11.sp, fontWeight = FontWeight.Bold, color = WarnText,
-                )
             }
         }
     }
@@ -2223,12 +2216,17 @@ fun HoyolandBoothContent(
             GldsChip(label, { priceFilter = i }, selected = priceFilter == i)
         }
     }
-    Spacer(Modifier.height(12.dp))
+    Spacer(Modifier.height(20.dp))
+    // 부스 카드를 걷고 **헤어라인 목록 줄**로(10/1) — 줄 사이 20 · 헤어라인 · 20, DIY 탭과 같은 리듬.
     e.experienceBooths
         .filter { shownGame == null || it.game == shownGame }
         .filter { when (priceFilter) { 1 -> !it.isPaid; 2 -> it.isPaid; else -> true } }
         .forEachIndexed { i, b ->
-            if (i > 0) Spacer(Modifier.height(12.dp))
+            if (i > 0) {
+                Spacer(Modifier.height(20.dp))
+                HoyolandHairlineDivider()
+                Spacer(Modifier.height(20.dp))
+            }
             HoyolandBoothCard(e, b)
         }
 }
@@ -2429,7 +2427,7 @@ private fun HoyolandFoodCard(e: HoyolandEvent, p: HoyolandProgram) {
             onDismiss = { viewingFood.value = null },
         )
     }
-    // 감싸던 카드를 걷었다(10/1) — 섹션이 화면 폭 흰 면이다. 메뉴 줄(사진 타일)과 메뉴판 면은 그대로 둔다.
+    // 감싸던 카드를 걷었다(10/1) — 섹션이 화면 폭 흰 면이다. 메뉴판 회색 면도 걷고 헤어라인 목록으로.
         Column(Modifier.fillMaxWidth()) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 if (game.isNotBlank()) {
@@ -2471,56 +2469,53 @@ private fun HoyolandFoodCard(e: HoyolandEvent, p: HoyolandProgram) {
                     } else {
                         Text(block.text, fontSize = 12.5.sp, color = TextSecondary, lineHeight = 19.sp)
                     }
-                    // 메뉴는 **면 위의 목록**으로 묶는다. 본문과 같은 바닥에 줄만 세우면
-                    // 소제목·안내 문장과 경계가 없어 "어디까지가 파는 것인가"가 안 보였다.
-                    is FoodBlock.Menu -> Column(
-                        Modifier.fillMaxWidth()
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(CartRowBg),
-                    ) {
-                        block.rows.forEachIndexed { i, row ->
-                            if (i > 0) Box(Modifier.fillMaxWidth().height(1.dp).background(DividerColor))
-                            // 메뉴 사진 — 있으면 줄 왼쪽 52칸(누르면 크게 보기). 없으면 지금처럼 글만.
+                    // 메뉴는 **헤어라인으로 나눈 목록**이다(10/1) — 회색 메뉴판 면을 걷었다. 첫 줄 위에도 헤어라인을
+                    // 그어 소제목·안내 문장과 "어디서부터 파는 것인가" 의 경계를 남긴다.
+                    is FoodBlock.Menu -> Column(Modifier.fillMaxWidth()) {
+                        block.rows.forEach { row ->
+                            HoyolandHairlineDivider()
+                            // 메뉴 사진 — 있으면 줄 왼쪽 52칸(누르면 크게 보기). 없으면 글만.
                             val photo = p.menuImageUrl(row.name)
-                            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                            if (photo.isNotBlank()) {
-                                coil.compose.AsyncImage(
-                                    model = photo,
-                                    contentDescription = row.name,
-                                    contentScale = androidx.compose.ui.layout.ContentScale.Crop,
-                                    filterQuality = androidx.compose.ui.graphics.FilterQuality.High,
-                                    // 위아래 10 — 줄 여백이 글자 칸에만 있으면 사진이 줄 경계에 붙는다.
-                                    modifier = Modifier
-                                        .padding(start = 12.dp, top = 10.dp, bottom = 10.dp)
-                                        .size(52.dp)
-                                        .clip(RoundedCornerShape(10.dp))
-                                        .background(Color.White)
-                                        .border(1.dp, DividerColor, RoundedCornerShape(10.dp))
-                                        .clickable { viewingFood.value = Triple(row.name, row.price, photo) },
-                                )
-                            }
-                            Column(
-                                Modifier.weight(1f).padding(
-                                    start = if (photo.isNotBlank()) 12.dp else 13.dp, end = 13.dp,
-                                    top = 11.dp, bottom = 11.dp,
-                                ),
+                            Row(
+                                Modifier.fillMaxWidth().padding(vertical = 12.dp),
+                                verticalAlignment = Alignment.CenterVertically,
                             ) {
-                                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                                    Text(
-                                        row.name,
-                                        fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextPrimary,
-                                        lineHeight = 18.sp, modifier = Modifier.weight(1f),
+                                if (photo.isNotBlank()) {
+                                    // 흰 바탕 사진이 흰 페이지에 녹지 않게 사진 테두리는 남긴다(사진 틀).
+                                    coil.compose.AsyncImage(
+                                        model = photo,
+                                        contentDescription = row.name,
+                                        contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                                        filterQuality = androidx.compose.ui.graphics.FilterQuality.High,
+                                        modifier = Modifier
+                                            .size(52.dp)
+                                            .clip(RoundedCornerShape(10.dp))
+                                            .background(Color.White)
+                                            .border(1.dp, DividerColor, RoundedCornerShape(10.dp))
+                                            .clickable { viewingFood.value = Triple(row.name, row.price, photo) },
                                     )
-                                    if (row.price.isNotBlank()) {
-                                        Spacer(Modifier.width(10.dp))
-                                        Text(row.price, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = c)
+                                    Spacer(Modifier.width(12.dp))
+                                }
+                                Column(Modifier.weight(1f)) {
+                                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                                        Text(
+                                            row.name,
+                                            fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TextPrimary,   // 13 → 15(10/1)
+                                            lineHeight = 20.sp, modifier = Modifier.weight(1f),
+                                        )
+                                        if (row.price.isNotBlank()) {
+                                            Spacer(Modifier.width(10.dp))
+                                            Text(
+                                                row.price, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = c,   // 13 → 15(10/1)
+                                                style = LocalTextStyle.current.copy(fontFeatureSettings = "tnum"),
+                                            )
+                                        }
+                                    }
+                                    if (row.sub.isNotBlank()) {
+                                        Spacer(Modifier.height(3.dp))
+                                        Text(row.sub, fontSize = 12.5.sp, color = TextThird, lineHeight = 17.sp)
                                     }
                                 }
-                                if (row.sub.isNotBlank()) {
-                                    Spacer(Modifier.height(3.dp))
-                                    Text(row.sub, fontSize = 12.5.sp, color = TextThird, lineHeight = 17.sp)   // 11.5 → 12.5(10/1)
-                                }
-                            }
                             }
                         }
                     }
@@ -2591,12 +2586,9 @@ private fun parseFoodBlocks(desc: String): List<FoodBlock> {
 @Composable
 private fun HoyolandBoothCard(e: HoyolandEvent, b: HoyolandBooth) {
     val c = e.stageColor(b.game).let { if (it == 0L) TextSecondary else it.toColor() }
-    GlassCard(modifier = Modifier.fillMaxWidth()) {
-        Column {
-            Row(
-                Modifier.padding(start = 14.dp, end = 14.dp, top = 13.dp, bottom = 11.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
+    // 카드를 걷었다(10/1) — 목록 한 줄. 좌우 여백은 섹션(20)이, 줄 사이 구분은 호출부 헤어라인이 맡는다.
+        Column(Modifier.fillMaxWidth()) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     e.stageLabel(b.game),
                     fontSize = 9.5.sp, fontWeight = FontWeight.Black, color = c,
@@ -2606,8 +2598,10 @@ private fun HoyolandBoothCard(e: HoyolandEvent, b: HoyolandBooth) {
                         .padding(horizontal = 6.dp, vertical = 3.dp),
                 )
                 Spacer(Modifier.width(8.dp))
-                Text(b.title, fontSize = 14.5.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
-                Spacer(Modifier.weight(1f))
+                Text(
+                    b.title, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TextPrimary,   // 14.5 → 15(10/1)
+                    modifier = Modifier.weight(1f),
+                )
                 // 참가비는 제목 줄 오른쪽. 유료 체험존은 회차마다 값이 다르고 무료 부스와 섞여
                 // 있어서, 설명을 읽기 전에 먼저 갈려야 하는 값이다.
                 //
@@ -2641,40 +2635,22 @@ private fun HoyolandBoothCard(e: HoyolandEvent, b: HoyolandBooth) {
                     )
                 }
             }
-            // 보상은 부스를 고르는 기준이라 카드의 **주인공 자리**를 준다 — 폭을 꽉 채운 한 면.
+            // 보상은 부스를 고르는 기준이라 제목 바로 아래 **주인공 자리**를 준다 — DIY · 파트너사 탭과 같은
+            // 선물색 박스([DiyRewardLine]). 카드 폭을 꽉 채우던 띠는 카드를 걷으면서 이 박스로 바꿨다(10/1).
             if (b.reward.isNotBlank()) {
-                Row(
-                    Modifier
-                        .fillMaxWidth()
-                        .background(GiftBg)
-                        .padding(horizontal = 14.dp, vertical = 11.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Icon(Icons.Outlined.Redeem, null, tint = GiftText, modifier = Modifier.size(16.dp))
-                    Spacer(Modifier.width(9.dp))
-                    Text(b.reward, fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = GiftText)
-                }
+                Spacer(Modifier.height(10.dp))
+                DiyRewardLine(b.reward)
             } else {
                 // 빈칸으로 두면 **값이 빠진 것처럼** 읽힌다 — 없다고 적는다.
-                Text(
-                    "받는 것 없음",
-                    fontSize = 12.sp, color = TextThird,
-                    modifier = Modifier.padding(start = 14.dp, end = 14.dp, bottom = 11.dp),
-                )
+                Spacer(Modifier.height(6.dp))
+                Text("받는 것 없음", fontSize = 12.sp, color = TextThird)
             }
-            // 설명이 카드 아래 한 면을 통째로 쓴다. 예전엔 제목 밑 회색 한 줄이었고 이 자리에는
-            // '구분'(무료/유료 체험존)이 있었는데, 무료·유료는 **우상단 배지가 이미 말한다** —
-            // 같은 걸 두 번 적느라 정작 무엇을 하는 체험인지가 눌려 있었다. 자리를 맞바꾼다.
+            // 무엇을 하는 체험인지 — 무료·유료는 제목 줄 알약이 이미 말한다.
             if (b.desc.isNotBlank()) {
-                Box(Modifier.fillMaxWidth().height(1.dp).background(DividerColor))
-                Text(
-                    b.desc,
-                    fontSize = 13.sp, color = TextSecondary, lineHeight = 20.sp,
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 13.dp),
-                )
+                Spacer(Modifier.height(10.dp))
+                Text(b.desc, fontSize = 13.sp, color = TextSecondary, lineHeight = 20.sp)
             }
         }
-    }
 }
 
 /** 시간표가 아직 없는 날 — 빈 카드가 아니라 **언제 채워지는지**를 말한다. */
