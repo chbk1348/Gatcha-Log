@@ -61,36 +61,26 @@ struct SpendingInsightView: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 14) {
+            VStack(alignment: .leading, spacing: 0) {
                 if spendings.isEmpty {
                     Text("지출 기록이 쌓이면\n예산 페이스·게임별 추이·카테고리 비중을 분석해 드려요.")
-                        .font(.pretendard(size: 13)).foregroundStyle(GLGColor.textSecondary)
-                        .multilineTextAlignment(.center).frame(maxWidth: .infinity).padding(.top, 40)
+                        .font(.pretendard(size: 14)).foregroundStyle(GLGColor.textSecondary)
+                        .multilineTextAlignment(.center).frame(maxWidth: .infinity)
+                        .padding(.horizontal, 20).padding(.top, 40)
                 } else {
-                    insightToggle
+                    insightToggle.padding(.horizontal, 16).padding(.top, 8)
                     if tab == 0 {
-                        // "N월 지출" 요약(지출 목록 상단에서 이동) — 월간 인사이트 맨 위.
-                        MonthSummaryHeader(store: store)
-                        budgetPaceCard
-                        momCard
-                        paymentStatsCard
-                        if let trend = stats.trend {
-                            MonthlyTrendCard(trend: trend, year: store.displayYear)
-                        }
-                        // 이 카드들은 **전체 기간** 값이다 — 위쪽 월간 카드와 기준이 달라 섞여 읽혔다.
-                        breakdownCard("결제수단별 비중", "전체 기간", stats.paymentRows)
-                        breakdownCard("충전 플랫폼별 비중", "전체 기간", stats.platformRows)
-                        breakdownCard("태그별 지출", "전체 기간 · 여러 태그가 달린 지출은 중복 집계돼요", stats.tagRows)
+                        monthlySections
                     } else {
                         AnnualReportContent(store: store)
                     }
                 }
-                Color.clear.frame(height: 8)
+                Color.clear.frame(height: 16)
             }
-            .padding(.horizontal, 16).padding(.vertical, 8)
         }
         .scrollIndicators(.hidden)
-        .background(GLGBackground { Color.clear })
+        // 카드 없이 흰 바탕 — 섹션 사이는 10 띠(마이페이지 · 지출 상세와 같은 규격, Android 와 같다).
+        .background(Color.white)
         .glgPageTitle("지출 인사이트")
         .navigationBarTitleDisplayMode(.inline)
         .task(id: insightKey) {
@@ -98,8 +88,74 @@ struct SpendingInsightView: View {
         }
     }
 
-    // ── 1) 예산 페이스 ──
-    private var budgetPaceCard: some View {
+    /// 월간: 이번 달 요약(옛 「N월 지출」 + 「전월 대비」 합침) → 예산 페이스 → 결제 통계 → 게임별 월 추이
+    /// → 「전체 기간」 묶음(결제수단 · 충전 플랫폼 · 태그). 조건부 섹션 사이에만 띠가 들어간다.
+    @ViewBuilder private var monthlySections: some View {
+        monthSummary
+        InsightBand()
+        budgetPace
+        if let ps = stats.payment, ps.count > 0 {
+            InsightBand()
+            InsightSection(title: "결제 통계", sub: "\(store.displayMonth)월 기준") {
+                InsightStatGrid(cells: [
+                    ("\(ps.count)건", "결제 건수"),
+                    (won(ps.average), "평균 결제액"),
+                    (won(ps.maxAmount), "최고 단건"),
+                    (ps.topWeekday.isEmpty ? "—" : "\(ps.topWeekday)요일", "최다 결제"),
+                ], cols: 2)
+            }
+        }
+        if let trend = stats.trend {
+            InsightBand()
+            MonthlyTrendSection(trend: trend, year: store.displayYear)
+        }
+        // 이 아래는 **전체 기간** 값이다 — 위쪽 월간 섹션과 기준이 달라 섞여 읽혔다. 첫 섹션 위에 묶음 머리.
+        let groups: [(String, String?, [(String, Int64, Double)])] = [
+            ("결제수단별", nil, stats.paymentRows),
+            ("충전 플랫폼별", nil, stats.platformRows),
+            ("태그별", "태그가 여럿이면 중복 집계", stats.tagRows),
+        ].filter { !$0.2.isEmpty }
+        ForEach(Array(groups.enumerated()), id: \.offset) { i, g in
+            InsightBand()
+            if i == 0 {
+                Text("전체 기간 · 지금까지 쓴 돈의 구성")
+                    .font(.pretendard(size: 13, weight: .bold)).foregroundStyle(GLGColor.textSecondary)
+                    .padding(.horizontal, 20).padding(.top, 22)
+            }
+            InsightSection(title: g.0, sub: g.1, top: i == 0 ? 14 : 22) {
+                ForEach(Array(g.2.enumerated()), id: \.offset) { _, row in
+                    InsightShareRow(name: row.0, amount: row.1, frac: row.2, color: accent.primary)
+                }
+            }
+        }
+    }
+
+    // ── 1) 이번 달 요약 ──
+    @ViewBuilder private var monthSummary: some View {
+        let warn = Color(hex: 0xFFF59E0B)
+        InsightSection(title: nil) {
+            Text("\(store.displayMonth)월 지출").font(.pretendard(size: 13, weight: .bold)).foregroundStyle(GLGColor.textSecondary)
+            Text(won(stats.mom?.thisMonth ?? monthTotal)).font(.pretendard(size: 32, weight: .black))
+                .foregroundStyle(GLGColor.textPrimary).lineLimit(1).minimumScaleFactor(0.6).padding(.top, 2)
+            if let mom = stats.mom {
+                let up = mom.delta > 0
+                // 지난달 기록 유무는 금액으로 가른다 — 줄어든 달은 증감률이 음수라 `percent >= 0` 으로는 "기록 없음" 이 떴다.
+                if mom.lastMonth > 0 {
+                    Text("지난달보다 \(up ? "▲" : "▼") \(abs(Int(mom.percent)))% · \(up ? "+" : "-")\(won(abs(mom.delta)))")
+                        .font(.pretendard(size: 14, weight: .bold)).foregroundStyle(up ? warn : accent.primary).padding(.top, 6)
+                } else {
+                    Text("지난달 기록 없음").font(.pretendard(size: 14)).foregroundStyle(GLGColor.textSecondary).padding(.top, 6)
+                }
+                if !mom.topGame.isEmpty && mom.topGameDelta != 0 {
+                    Text("증감 가장 큰 게임 · \(mom.topGame) \(mom.topGameDelta > 0 ? "+" : "-")\(won(abs(mom.topGameDelta)))")
+                        .font(.pretendard(size: 13)).foregroundStyle(GLGColor.textSecondary).padding(.top, 4)
+                }
+            }
+        }
+    }
+
+    // ── 2) 예산 페이스 ──
+    private var budgetPace: some View {
         let cal = Calendar.current
         let now = Date()
         let dayOfMonth = cal.component(.day, from: now)
@@ -108,52 +164,37 @@ struct SpendingInsightView: View {
         // 월말 예상(워밍업 7일 완화 포함)은 GL_Shared SpendingInsightStats 가 단일 소스 — Android 와 동일 수치.
         let pace = SpendingInsightStats.shared.budgetPace(monthTotal: monthTotal, dayOfMonth: Int32(dayOfMonth), daysInMonth: Int32(daysInMonth))
         let projected = pace.projected
-        let dailyAvg = pace.dailyAvg
-        let remainingDays = Int(pace.remainingDays)
-        return GLGCard(cornerRadius: 20, padding: 16) {
-            VStack(alignment: .leading, spacing: 0) {
-                cardTitle("\(store.displayMonth)월 예산 페이스", "\(dayOfMonth)일 경과 · \(remainingDays)일 남음")
-                HStack(alignment: .bottom, spacing: 8) {
-                    Text("월말 예상").font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary)
-                    Text(won(projected)).font(.pretendard(size: 24, weight: .bold)).foregroundStyle(accent.primary)
-                }
-                .padding(.top, 14)
-                HStack(spacing: 8) {
-                    insightTile(won(monthTotal), "현재 지출")
-                    insightTile(won(dailyAvg), "하루 평균")
-                    insightTile(budget > 0 ? won(budget) : "—", "이번 달 예산")
-                }
-                .padding(.top, 12)
-                if budget > 0 {
-                    let over = projected > budget
-                    let frac = min(max(Double(projected)/Double(budget), 0), 1)
-                    GeometryReader { geo in
-                        ZStack(alignment: .leading) {
-                            Capsule().fill(GLGColor.progressEmpty)
-                            Capsule().fill(over ? GLGColor.dangerText : accent.primary).frame(width: geo.size.width * frac)
-                        }
-                    }
-                    .frame(height: 8).padding(.top, 14)
-                    let diff = abs(projected - budget)
-                    Text(over ? "이 페이스면 예산을 \(won(diff)) 초과할 것 같아요"
-                              : "이 페이스면 예산 안에서 \(won(diff)) 여유가 생겨요")
-                        .font(.pretendard(size: 12, weight: .medium))
-                        .foregroundStyle(over ? GLGColor.dangerText : accent.primary).padding(.top, 8)
-                } else {
-                    Text("예산을 설정하면 초과 여부를 예측해 드려요")
-                        .font(.pretendard(size: 11)).foregroundStyle(GLGColor.textSecondary).padding(.top, 10)
-                }
+        return InsightSection(title: "예산 페이스", sub: "\(dayOfMonth)일 경과 · \(Int(pace.remainingDays))일 남음") {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Text("월말 예상").font(.pretendard(size: 13)).foregroundStyle(GLGColor.textSecondary)
+                Text(won(projected)).font(.pretendard(size: 24, weight: .bold)).foregroundStyle(accent.primary)
             }
+            if budget > 0 {
+                let over = projected > budget
+                let frac = min(max(Double(projected) / Double(budget), 0), 1)
+                GeometryReader { geo in
+                    ZStack(alignment: .leading) {
+                        Capsule().fill(Color(hex: 0xFFEDEFF3))
+                        Capsule().fill(over ? GLGColor.dangerText : accent.primary).frame(width: geo.size.width * frac)
+                    }
+                }
+                .frame(height: 8).padding(.top, 12)
+                let diff = abs(projected - budget)
+                Text(over ? "이 페이스면 예산을 \(won(diff)) 초과할 것 같아요"
+                          : "이 페이스면 예산 안에서 \(won(diff)) 여유가 생겨요")
+                    .font(.pretendard(size: 14, weight: .medium))
+                    .foregroundStyle(over ? GLGColor.dangerText : accent.primary).padding(.top, 8)
+            } else {
+                Text("예산을 설정하면 초과 여부를 예측해 드려요")
+                    .font(.pretendard(size: 13)).foregroundStyle(GLGColor.textSecondary).padding(.top, 8)
+            }
+            InsightStatGrid(cells: [
+                (won(monthTotal), "현재 지출"),
+                (won(pace.dailyAvg), "하루 평균"),
+                (budget > 0 ? won(budget) : "—", "이번 달 예산"),
+            ], cols: 3)
+            .padding(.top, 18)
         }
-    }
-
-    private func insightTile(_ value: String, _ label: String) -> some View {
-        VStack(spacing: 3) {
-            Text(value).font(.pretendard(size: 14, weight: .bold)).lineLimit(1).minimumScaleFactor(0.6)
-            Text(label).font(.pretendard(size: 10)).foregroundStyle(GLGColor.textSecondary)
-        }
-        .frame(maxWidth: .infinity).padding(.vertical, 10)
-        .background(accent.primary.opacity(0.06), in: RoundedRectangle(cornerRadius: 12))
     }
 
     // ── 월간 인사이트 / 연간 리포트 세그먼트 토글 ──
@@ -161,191 +202,136 @@ struct SpendingInsightView: View {
         // GLDS 탭 neutral — 같은 데이터의 보기 방식 전환(9/30).
         GldsTabs(labels: ["월간 인사이트", "연간 리포트"], selection: $tab, variant: .neutral)
     }
+}
 
-    // ── 신규) 전월 대비 ──
-    @ViewBuilder private var momCard: some View {
-        if let mom = stats.mom {
-        let up = mom.delta > 0
-        let warn = Color(hex: 0xFFF59E0B)
-        GLGCard(cornerRadius: 20, padding: 16) {
-            VStack(alignment: .leading, spacing: 0) {
-                cardTitle("전월 대비", "이번 달 vs 지난 달 지출")
-                HStack(alignment: .bottom, spacing: 10) {
-                    Text(won(mom.thisMonth)).font(.pretendard(size: 24, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
-                    // 지난달 기록 유무는 금액으로 가른다 — 줄어든 달은 증감률이 음수라 `percent >= 0` 으로는 "기록 없음" 이 떴다.
-                    if mom.lastMonth > 0 {
-                        Text("\(up ? "▲" : "▼") \(abs(Int(mom.percent)))% · \(up ? "+" : "-")\(won(abs(mom.delta)))")
-                            .font(.pretendard(size: 12, weight: .bold)).foregroundStyle(up ? warn : accent.primary)
-                            .padding(.horizontal, 9).padding(.vertical, 4)
-                            .background((up ? warn : accent.primary).opacity(0.12), in: RoundedRectangle(cornerRadius: 9))
-                    } else {
-                        Text("지난달 기록 없음").font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary)
-                    }
-                    Spacer(minLength: 0)
-                }.padding(.top, 12)
-                if !mom.topGame.isEmpty && mom.topGameDelta != 0 {
-                    Text("증감 가장 큰 게임 · \(mom.topGame) \(mom.topGameDelta > 0 ? "+" : "-")\(won(abs(mom.topGameDelta)))")
-                        .font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary).padding(.top, 12)
+// ── 공통 규격 — 연간 리포트도 쓴다 ─────────────────────────────────────────────
+
+/// 섹션 사이 10 띠.
+struct InsightBand: View {
+    var body: some View { Color(hex: 0xFFF2F4F6).frame(height: 10).frame(maxWidth: .infinity) }
+}
+
+/// 섹션 — 좌우 20 · 위 22 · 아래 20. 제목 17 굵게 + 오른쪽 보조 12.
+struct InsightSection<Content: View>: View {
+    let title: String?
+    var sub: String? = nil
+    var top: CGFloat = 22
+    @ViewBuilder var content: Content
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            if let title {
+                HStack(alignment: .center) {
+                    Text(title).font(.pretendard(size: 17, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
+                    Spacer(minLength: 8)
+                    if let sub { Text(sub).font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary) }
                 }
+                .padding(.bottom, 14)
             }
+            content
         }
-        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 20).padding(.top, top).padding(.bottom, 20)
     }
+}
 
-    // ── 신규) 결제 통계 ──
-    @ViewBuilder private var paymentStatsCard: some View {
-        if let ps = stats.payment, ps.count > 0 {
-            GLGCard(cornerRadius: 20, padding: 16) {
-                VStack(alignment: .leading, spacing: 0) {
-                    cardTitle("결제 통계", "\(store.displayMonth)월 기준")
-                    HStack(spacing: 10) {
-                        statTile("\(ps.count)건", "결제 건수")
-                        statTile(won(ps.average), "평균 결제액")
-                    }.padding(.top, 12)
-                    HStack(spacing: 10) {
-                        statTile(won(ps.maxAmount), "최고 단건")
-                        statTile(ps.topWeekday.isEmpty ? "—" : "\(ps.topWeekday)요일", "최다 결제")
-                    }.padding(.top, 8)
-                }
-            }
-        }
-    }
-
-    private func statTile(_ value: String, _ label: String) -> some View {
-        VStack(spacing: 3) {
-            Text(value).font(.pretendard(size: 14, weight: .bold)).foregroundStyle(GLGColor.textPrimary).lineLimit(1)
-            Text(label).font(.pretendard(size: 11)).foregroundStyle(GLGColor.textSecondary)
-        }
-        .frame(maxWidth: .infinity).padding(.vertical, 11)
-        .background(Color.black.opacity(0.03), in: RoundedRectangle(cornerRadius: 12))
-    }
-
-    @ViewBuilder
-    private func breakdownCard(_ title: String, _ sub: String?, _ rows: [(String, Int64, Double)]) -> some View {
-        if !rows.isEmpty {
-            GLGCard(cornerRadius: 20, padding: 16) {
-                VStack(alignment: .leading, spacing: 0) {
-                    cardTitle(title, sub)
-                    ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
-                        BreakdownRow(name: row.0, amount: row.1, frac: row.2).padding(.top, 10)
+/// 값 15 굵게 · 라벨 12 — 타일 면 없이. cols 칸씩 줄바꿈.
+struct InsightStatGrid: View {
+    let cells: [(String, String)]
+    let cols: Int
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            ForEach(Array(stride(from: 0, to: cells.count, by: cols)), id: \.self) { start in
+                HStack(alignment: .top, spacing: 0) {
+                    ForEach(start..<start + cols, id: \.self) { i in
+                        if i < cells.count {
+                            VStack(alignment: .leading, spacing: 0) {
+                                Text(cells[i].0).font(.pretendard(size: 15, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
+                                    .lineLimit(1).minimumScaleFactor(0.7)
+                                Text(cells[i].1).font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary).lineLimit(1)
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        } else {
+                            Color.clear.frame(maxWidth: .infinity, maxHeight: 1)
+                        }
                     }
                 }
             }
-        }
-    }
-
-    private func cardTitle(_ title: String, _ sub: String?) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(title).font(.pretendard(size: 14, weight: .bold))
-            if let sub { Text(sub).font(.pretendard(size: 11)).foregroundStyle(GLGColor.textSecondary) }
         }
     }
 }
 
-struct BreakdownRow: View {
-    let name: String; let amount: Int64; let frac: Double
-    @Environment(\.glgAccent) private var accent
+/// 비중 한 줄 — 이름 14 · 금액 15 굵게 · 비율 12, 아래 막대 6.
+struct InsightShareRow: View {
+    let name: String; let amount: Int64; let frac: Double; let color: Color
+    var dot: Color? = nil
     var body: some View {
-        VStack(spacing: 4) {
-            HStack {
-                Text(name).font(.pretendard(size: 13, weight: .medium)).lineLimit(1)
-                Spacer()
-                Text(won(amount)).font(.pretendard(size: 13, weight: .bold))
-                Text("\(Int(frac*100))%").font(.pretendard(size: 11)).foregroundStyle(GLGColor.textSecondary)
+        VStack(spacing: 6) {
+            HStack(spacing: 0) {
+                if let dot { Circle().fill(dot).frame(width: 8, height: 8).padding(.trailing, 8) }
+                Text(name).font(.pretendard(size: 14)).foregroundStyle(GLGColor.textPrimary).lineLimit(1)
+                Spacer(minLength: 8)
+                Text(won(amount)).font(.pretendard(size: 15, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
+                Text("\(Int(frac * 100))%").font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary)
+                    .frame(width: 40, alignment: .trailing)
             }
             GeometryReader { geo in
                 ZStack(alignment: .leading) {
-                    Capsule().fill(GLGColor.progressEmpty)
-                    Capsule().fill(accent.primary).frame(width: geo.size.width * min(max(frac,0),1))
+                    Capsule().fill(Color(hex: 0xFFEDEFF3))
+                    Capsule().fill(color).frame(width: geo.size.width * min(max(frac, 0), 1))
                 }
             }
-            .frame(height: 5)
+            .frame(height: 6)
         }
+        .padding(.vertical, 8)
     }
 }
 
-// 게임별 월 추이 — 올해, 누적 막대 (상위 5 게임 + 기타)
-//
-// 집계(trend)는 부모가 캐시해 넘긴다 — 예전엔 여기서 body 평가마다 직접 계산하고, 결과가 없을 때를
-// if/else 로 갈라 `AnyView` 로 감쌌다. 부모가 nil 을 걸러 주므로 둘 다 필요 없다.
-struct MonthlyTrendCard: View {
+// 게임별 월 추이 — 올해, 누적 막대 (상위 5 게임 + 기타). 집계(trend)는 부모가 캐시해 넘긴다.
+struct MonthlyTrendSection: View {
     let trend: MonthlyTrend
     let year: Int
-    @Environment(\.glgAccent) private var accent
     private let etcColor = Color(hex: 0xFFB8BDC6)
 
     var body: some View {
         let legend = trend.legend
         let monthGame = trend.monthGame.map { $0.mapValues { $0.int64Value } }
         let maxMonth = trend.maxMonth
+        let now = Calendar.current.dateComponents([.year, .month], from: Date())
         func colorOf(_ g: String) -> Color { g == "기타" ? etcColor : Color(argb64: GameData.shared.colorFor(name: g)) }
 
-        return GLGCard(cornerRadius: 20, padding: 16) {
-                VStack(alignment: .leading, spacing: 0) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("게임별 월 추이").font(.pretendard(size: 14, weight: .bold))
-                        Text(verbatim: "\(year)년 · 누적 막대").font(.pretendard(size: 11)).foregroundStyle(GLGColor.textSecondary)
-                    }
-                    HStack(alignment: .bottom, spacing: 3) {
-                        ForEach(0..<12, id: \.self) { m in
-                            VStack(spacing: 3) {
-                                ZStack(alignment: .bottom) {
-                                    Color.clear.frame(height: 110)
-                                    VStack(spacing: 0) {
-                                        ForEach(legend, id: \.self) { g in
-                                            let amt = monthGame[m][g] ?? 0
-                                            if amt > 0 {
-                                                Rectangle().fill(colorOf(g))
-                                                    .frame(height: 110 * Double(amt)/Double(maxMonth))
-                                            }
-                                        }
+        return InsightSection(title: "게임별 월 추이", sub: "\(String(year))년 · 누적") {
+            HStack(alignment: .bottom, spacing: 4) {
+                ForEach(0..<12, id: \.self) { m in
+                    let isCur = now.year == year && now.month == m + 1
+                    VStack(spacing: 4) {
+                        ZStack(alignment: .bottom) {
+                            Color.clear.frame(height: 120)
+                            VStack(spacing: 0) {
+                                ForEach(legend, id: \.self) { g in
+                                    let amt = monthGame[m][g] ?? 0
+                                    if amt > 0 {
+                                        Rectangle().fill(colorOf(g))
+                                            .frame(height: 120 * Double(amt) / Double(maxMonth))
                                     }
-                                    .frame(maxWidth: .infinity).padding(.horizontal, 2)
-                                    .clipShape(RoundedRectangle(cornerRadius: 3))
                                 }
-                                Text("\(m+1)").font(.pretendard(size: 8)).foregroundStyle(GLGColor.textSecondary)
                             }
-                            .frame(maxWidth: .infinity)
+                            .frame(maxWidth: .infinity).padding(.horizontal, 2)
+                            .clipShape(UnevenRoundedRectangle(topLeadingRadius: 3, topTrailingRadius: 3))
                         }
+                        Text("\(m + 1)").font(.pretendard(size: 11, weight: isCur ? .bold : .regular))
+                            .foregroundStyle(isCur ? GLGColor.textPrimary : GLGColor.textSecondary)
                     }
-                    .padding(.top, 14)
-                    // 범례
-                    FlexibleRow(legend) { g in
-                        HStack(spacing: 5) {
-                            Circle().fill(colorOf(g)).frame(width: 8, height: 8)
-                            Text(g).font(.pretendard(size: 11)).foregroundStyle(GLGColor.textSecondary)
-                        }
-                    }
-                    .padding(.top, 12)
+                    .frame(maxWidth: .infinity)
                 }
-        }
-    }
-}
-
-/// "N월 지출" 요약 헤더 — 이번 달 총 지출 + 지난달 대비. (지출 목록 상단에서 인사이트 월간 탭으로 이동)
-/// SpendingView·SpendingInsightView 양쪽에서 재사용하기 위해 별도 View 로 추출.
-struct MonthSummaryHeader: View {
-    var store: SpendingStore
-    @Environment(\.glgAccent) private var accent
-
-    var body: some View {
-        let total = store.monthlyTotal
-        let prev = store.prevMonthTotal
-        let diff = total - prev
-        return VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 6) {
-                Image(systemName: "chart.pie.fill").font(.pretendard(size: 13)).foregroundStyle(accent.primary)
-                Text("\(store.displayMonth)월 지출").font(.pretendard(size: 13, weight: .medium)).foregroundStyle(GLGColor.textSecondary)
             }
-            Text(won(total)).font(.pretendard(size: 34, weight: .heavy)).foregroundStyle(GLGColor.textPrimary).lineLimit(1)
-            if total > 0 || prev > 0 {
-                Text("지난달 " + (diff == 0 ? "동일" : (diff > 0 ? "+" : "-") + won(abs(diff))))
-                    .font(.pretendard(size: 13, weight: .semibold))
-                    .foregroundStyle(diff > 0 ? GLGColor.dangerText : (diff < 0 ? accent.primary : GLGColor.textSecondary))
+            FlexibleRow(legend) { g in
+                HStack(spacing: 5) {
+                    Circle().fill(colorOf(g)).frame(width: 8, height: 8)
+                    Text(g).font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary)
+                }
             }
+            .padding(.top, 14)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, 20).padding(.vertical, 18)
-        .glgGlass(in: RoundedRectangle(cornerRadius: 24, style: .continuous))
     }
 }

@@ -115,7 +115,7 @@ struct SpendingView: View {
                 quickFilters
                     .padding(.top, isDuo ? 20 : 0)
                     .padding(.horizontal, 16)
-                // "N월 지출" 요약 헤더는 지출 인사이트 '월간' 탭으로 이동(MonthSummaryHeader).
+                // "N월 지출" 요약은 지출 인사이트 월간 탭 맨 위 섹션으로 이동(전월 대비와 합침).
                 if listIsEmpty {
                     emptyState.padding(.horizontal, 16)
                 } else {

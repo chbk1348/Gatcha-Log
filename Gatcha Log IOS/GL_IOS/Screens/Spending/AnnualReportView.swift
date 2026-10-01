@@ -73,8 +73,9 @@ struct AnnualReportContent: View {
         return s
     }
 
+    // 카드 없이 화면 폭 섹션 + 10 띠 — 월간 인사이트와 같은 규격(InsightSection, Android 와 같다).
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: 0) {
             if stats.years.count > 1 {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 8) {
@@ -82,44 +83,37 @@ struct AnnualReportContent: View {
                             GamePill(label: "\(y)년", selected: y == year, accent: accent.primary) { selectedYear = y }
                         }
                     }
+                    .padding(.horizontal, 20)
+                }
+                .padding(.top, 18)
+            }
+            InsightSection(title: "\(String(year))년 요약") {
+                InsightStatGrid(cells: [(won(stats.total), "총 지출"), (won(stats.avg), "월 평균"), ("\(stats.count)회", "총 기록")], cols: 3)
+                if stats.count == 0 {
+                    Text("이 해의 지출 기록이 없어요").font(.pretendard(size: 13)).foregroundStyle(GLGColor.textSecondary).padding(.top, 12)
                 }
             }
-            GLGCard(cornerRadius: 24, padding: 16) {
-                    VStack(alignment: .leading, spacing: 0) {
-                        HStack {
-                            infoCol(won(stats.total), "총 지출")
-                            infoCol(won(stats.avg), "월 평균")
-                            infoCol("\(stats.count)회", "총 기록")
-                        }
-                        Text("월별 지출").font(.pretendard(size: 12, weight: .bold)).foregroundStyle(GLGColor.textSecondary).padding(.top, 18)
-                        MonthlyBars(monthly: stats.monthly, currentMonth: year == store.displayYear ? store.displayMonth : nil)
-                            .padding(.top, 10)
-                        if !stats.byGame.isEmpty {
-                            Text("게임별 지출").font(.pretendard(size: 12, weight: .bold)).foregroundStyle(GLGColor.textSecondary).padding(.top, 18)
-                            let total = stats.total
-                            ForEach(stats.byGame, id: \.0) { (game, amt) in
-                                GameBreakdownRow(game: game, amount: amt, frac: total > 0 ? Double(amt)/Double(total) : 0)
-                                    .padding(.top, 10)
-                            }
-                        }
-                        if stats.count == 0 {
-                            Text("이 해의 지출 기록이 없어요").font(.pretendard(size: 12)).foregroundStyle(Color(.systemGray3)).padding(.top, 8)
+            if stats.count > 0 {
+                InsightBand()
+                InsightSection(title: "월별 지출") {
+                    MonthlyBars(monthly: stats.monthly, currentMonth: year == store.displayYear ? store.displayMonth : nil)
+                }
+                if !stats.byGame.isEmpty {
+                    InsightBand()
+                    InsightSection(title: "게임별 지출") {
+                        let total = stats.total
+                        ForEach(stats.byGame, id: \.0) { (game, amt) in
+                            let color = Color(argb64: GameData.shared.colorFor(name: game))
+                            InsightShareRow(name: game, amount: amt, frac: total > 0 ? Double(amt) / Double(total) : 0, color: color, dot: color)
                         }
                     }
                 }
+            }
         }
         .task(id: statsKey) {
             stats = Self.compute(spendings: store.spendings, selectedYear: selectedYear,
                                  displayYear: store.displayYear, displayMonth: store.displayMonth)
         }
-    }
-
-    private func infoCol(_ value: String, _ label: String) -> some View {
-        VStack(spacing: 3) {
-            Text(value).font(.pretendard(size: 15, weight: .bold)).lineLimit(1).minimumScaleFactor(0.7)
-            Text(label).font(.pretendard(size: 10)).foregroundStyle(GLGColor.textSecondary)
-        }
-        .frame(maxWidth: .infinity)
     }
 }
 
@@ -129,47 +123,26 @@ struct MonthlyBars: View {
     @Environment(\.glgAccent) private var accent
     var body: some View {
         let maxM = max(monthly.max() ?? 0, 1)
-        HStack(alignment: .bottom, spacing: 3) {
+        HStack(alignment: .bottom, spacing: 4) {
             ForEach(0..<12, id: \.self) { m in
-                VStack(spacing: 3) {
+                let isCur = currentMonth == m + 1
+                VStack(spacing: 4) {
                     ZStack(alignment: .bottom) {
-                        Color.clear.frame(height: 56)
+                        Color.clear.frame(height: 100)
                         let frac = min(max(Double(monthly[m]) / Double(maxM), 0), 1)
                         let h = monthly[m] > 0 ? max(frac, 0.05) : 0
                         if h > 0 {
-                            RoundedRectangle(cornerRadius: 3)
-                                .fill(currentMonth == m+1 ? accent.primary : accent.primary.opacity(0.45))
-                                .frame(height: 56 * h)
+                            UnevenRoundedRectangle(topLeadingRadius: 3, topTrailingRadius: 3)
+                                .fill(isCur ? accent.primary : accent.primary.opacity(0.3))
+                                .frame(height: 100 * h)
                                 .frame(maxWidth: .infinity).padding(.horizontal, 2)
                         }
                     }
-                    Text("\(m+1)").font(.pretendard(size: 8)).foregroundStyle(GLGColor.textSecondary)
+                    Text("\(m + 1)").font(.pretendard(size: 11, weight: isCur ? .bold : .regular))
+                        .foregroundStyle(isCur ? GLGColor.textPrimary : GLGColor.textSecondary)
                 }
                 .frame(maxWidth: .infinity)
             }
-        }
-    }
-}
-
-struct GameBreakdownRow: View {
-    let game: String; let amount: Int64; let frac: Double
-    var body: some View {
-        let color = Color(argb64: GameData.shared.colorFor(name: game))
-        VStack(spacing: 4) {
-            HStack {
-                Circle().fill(color).frame(width: 8, height: 8)
-                Text(game).font(.pretendard(size: 13, weight: .medium)).lineLimit(1)
-                Spacer()
-                Text(won(amount)).font(.pretendard(size: 13, weight: .bold))
-                Text("\(Int(frac*100))%").font(.pretendard(size: 11)).foregroundStyle(GLGColor.textSecondary)
-            }
-            GeometryReader { geo in
-                ZStack(alignment: .leading) {
-                    Capsule().fill(GLGColor.progressEmpty)
-                    Capsule().fill(color).frame(width: geo.size.width * min(max(frac,0),1))
-                }
-            }
-            .frame(height: 5)
         }
     }
 }

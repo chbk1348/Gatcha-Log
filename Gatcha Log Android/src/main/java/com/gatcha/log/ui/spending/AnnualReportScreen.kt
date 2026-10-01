@@ -26,14 +26,13 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.gatcha.log.data.DateUtil
 import com.gatcha.log.data.GameData
-import com.gatcha.log.ui.components.GlassCard
 import com.gatcha.log.ui.components.GlgDetailHeaderOverlay
 import com.gatcha.log.ui.components.glgDetailContentTop
 import com.gatcha.log.ui.components.GlgScreenHeader
-import com.gatcha.log.ui.components.InfoColumn
 import com.gatcha.log.ui.theme.LocalAccent
 import com.gatcha.log.ui.theme.toColor
 import com.gatcha.log.ui.theme.ProgressEmpty
+import com.gatcha.log.ui.theme.TextPrimary
 import com.gatcha.log.ui.theme.TextSecondary
 import com.gatcha.log.util.won
 
@@ -58,79 +57,68 @@ fun AnnualReportContent(viewModel: SpendingViewModel) {
     val months = if (selectedYear == viewModel.displayYear) viewModel.displayMonth else monthly.count { it > 0 }.coerceAtLeast(1)
     val avg = if (months > 0) total / months else 0L
 
+    // 카드 없이 화면 폭 섹션 + 10 띠 — 월간 인사이트와 같은 규격([InsightSection]).
     if (years.size > 1) {
-        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        LazyRow(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            contentPadding = PaddingValues(horizontal = 20.dp),
+            modifier = Modifier.padding(top = 18.dp),
+        ) {
             items(years) { y -> FilterPill("${y}년", y == selectedYear, accent) { selectedYear = y } }
         }
     }
-    GlassCard(shape = RoundedCornerShape(24.dp), modifier = Modifier.fillMaxWidth()) {
-                Column(Modifier.padding(16.dp)) {
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        InfoColumn(won(total), "총 지출", Modifier.weight(1f))
-                        InfoColumn(won(avg), "월 평균", Modifier.weight(1f))
-                        InfoColumn("${yearItems.size}회", "총 기록", Modifier.weight(1f))
-                    }
-                    Spacer(Modifier.height(18.dp))
-                    Text("월별 지출", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextSecondary)
-                    Spacer(Modifier.height(10.dp))
-                    MonthlyBars(monthly, viewModel.displayMonth.takeIf { selectedYear == viewModel.displayYear })
-                    if (byGame.isNotEmpty()) {
-                        Spacer(Modifier.height(18.dp))
-                        Text("게임별 지출", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextSecondary)
-                        Spacer(Modifier.height(10.dp))
-                        byGame.forEach { (game, amt) ->
-                            GameBreakdownRow(game, amt, if (total > 0) (amt.toFloat() / total) else 0f)
-                        }
-                    }
-                    if (yearItems.isEmpty()) {
-                        Text("이 해의 지출 기록이 없어요", fontSize = 12.sp, color = Color.LightGray, modifier = Modifier.padding(top = 8.dp))
-                    }
-                }
+    InsightSection("${selectedYear}년 요약") {
+        InsightStatGrid(
+            listOf(won(total) to "총 지출", won(avg) to "월 평균", "${yearItems.size}회" to "총 기록"),
+            cols = 3,
+        )
+        if (yearItems.isEmpty()) {
+            Text("이 해의 지출 기록이 없어요", fontSize = 13.sp, color = TextSecondary, modifier = Modifier.padding(top = 12.dp))
+        }
+    }
+    if (yearItems.isEmpty()) return
+    InsightBand()
+    InsightSection("월별 지출") {
+        MonthlyBars(monthly, viewModel.displayMonth.takeIf { selectedYear == viewModel.displayYear })
+    }
+    if (byGame.isNotEmpty()) {
+        InsightBand()
+        InsightSection("게임별 지출") {
+            byGame.forEach { (game, amt) ->
+                val color = GameData.colorFor(game).toColor()
+                InsightShareRow(game, amt, if (total > 0) amt.toFloat() / total else 0f, color, dot = color)
             }
+        }
+    }
 }
 
 @Composable
 private fun MonthlyBars(monthly: LongArray, currentMonth: Int?) {
     val accent = LocalAccent.current
     val maxM = (monthly.maxOrNull() ?: 0L).coerceAtLeast(1L)
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(3.dp), verticalAlignment = Alignment.Bottom) {
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.Bottom) {
         for (m in 0 until 12) {
             Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
-                Box(Modifier.fillMaxWidth().height(56.dp), contentAlignment = Alignment.BottomCenter) {
+                Box(Modifier.fillMaxWidth().height(100.dp), contentAlignment = Alignment.BottomCenter) {
                     val frac = (monthly[m].toFloat() / maxM).coerceIn(0f, 1f)
                     val h = if (monthly[m] > 0) frac.coerceAtLeast(0.05f) else 0f
                     val isCur = currentMonth != null && (m + 1) == currentMonth
                     if (h > 0f) {
                         Box(
-                            Modifier.fillMaxWidth(0.7f).fillMaxHeight(h).clip(RoundedCornerShape(3.dp))
-                                .background(if (isCur) accent else accent.copy(alpha = 0.45f)),
+                            Modifier.fillMaxWidth(0.7f).fillMaxHeight(h)
+                                .clip(RoundedCornerShape(topStart = 3.dp, topEnd = 3.dp))
+                                .background(if (isCur) accent else accent.copy(alpha = 0.3f)),
                         )
                     }
                 }
-                Spacer(Modifier.height(3.dp))
-                Text("${m + 1}", fontSize = 8.sp, color = TextSecondary)
+                Spacer(Modifier.height(4.dp))
+                val isCur = currentMonth != null && (m + 1) == currentMonth
+                Text(
+                    "${m + 1}", fontSize = 11.sp,
+                    fontWeight = if (isCur) FontWeight.Bold else FontWeight.Normal,
+                    color = if (isCur) TextPrimary else TextSecondary,
+                )
             }
-        }
-    }
-}
-
-@Composable
-private fun GameBreakdownRow(game: String, amount: Long, frac: Float) {
-    val color = GameData.colorFor(game).toColor()
-    Column(Modifier.padding(vertical = 5.dp)) {
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
-                Box(Modifier.size(8.dp).clip(CircleShape).background(color))
-                Spacer(Modifier.width(8.dp))
-                Text(game, fontSize = 13.sp, fontWeight = FontWeight.Medium, maxLines = 1)
-            }
-            Text(won(amount), fontSize = 13.sp, fontWeight = FontWeight.Bold)
-            Spacer(Modifier.width(8.dp))
-            Text("${(frac * 100).toInt()}%", fontSize = 11.sp, color = TextSecondary)
-        }
-        Spacer(Modifier.height(4.dp))
-        Box(Modifier.fillMaxWidth().height(5.dp).clip(CircleShape).background(ProgressEmpty)) {
-            Box(Modifier.fillMaxWidth(frac.coerceIn(0f, 1f)).fillMaxHeight().clip(CircleShape).background(color))
         }
     }
 }
