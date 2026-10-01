@@ -290,7 +290,8 @@ struct GameInfoView: View {
         .onAppear { openPendingNewsIfReady() }
         .onChange(of: store.pendingNewsId) { _, _ in openPendingNewsIfReady() }
         .onChange(of: store.gameNews) { _, _ in openPendingNewsIfReady() }
-        .background(GLGBackground { Color.clear })
+        // 카드를 걷었으니 바탕은 흰 면 — 띠(F2F4F6)와 헤어라인이 구분을 맡는다(Android 와 같다).
+        .background(Color.white)
         .refreshable { store.refreshGameInfo(force: true) }
         // 초기 진입 시 로드 + HoYoLAB 연동(config)이 늦게 링크되면 그 순간 강제 갱신(실시간 노트 표출)
         .task { store.refreshGameInfo() }
@@ -327,28 +328,31 @@ struct GameInfoView: View {
         }
     }
 
+    /// 카드 없이 화면 폭 섹션 — 앞 섹션과 10 띠로 가르고 좌우 20 · 위 22 · 아래 20(Android GiSection · GiBand 와 같다).
     @ViewBuilder private func section<C: View>(@ViewBuilder _ content: () -> C) -> some View {
-        Spacer().frame(height: 20)
-        content().padding(.horizontal, 16)
+        GiBand()
+        content().padding(.horizontal, 20).padding(.top, 22).padding(.bottom, 20)
     }
 
     // 페이지 진입 카드 — 아이콘 + 제목 + 설명 + 셰브론(글래스 카드).
     @ViewBuilder private func navEntry(icon: String, title: String, sub: String,
                                        action: @escaping () -> Void) -> some View {
+        // 카드 없이 한 줄 — 줄 전체가 눌린다.
         Button(action: action) {
-            GLGCard(cornerRadius: 20, padding: 16) {
+            VStack(spacing: 0) {
                 HStack(spacing: 14) {
                     ZStack {
                         RoundedRectangle(cornerRadius: 12, style: .continuous).fill(accent.primary.opacity(0.12)).frame(width: 44, height: 44)
                         Image(systemName: icon).font(.pretendard(size: 18, weight: .semibold)).foregroundStyle(accent.primary)
                     }
                     VStack(alignment: .leading, spacing: 3) {
-                        Text(title).font(.pretendard(size: 15, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
-                        Text(sub).font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary).lineLimit(1).minimumScaleFactor(0.85)
+                        Text(title).font(.pretendard(size: 16, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
+                        Text(sub).font(.pretendard(size: 13)).foregroundStyle(GLGColor.textSecondary).lineLimit(1).minimumScaleFactor(0.85)
                     }
                     Spacer(minLength: 8)
                     Image(systemName: "chevron.right").font(.pretendard(size: 14, weight: .semibold)).foregroundStyle(GLGColor.textSecondary)
                 }
+                .padding(.vertical, 4)
             }
             .contentShape(Rectangle())
         }
@@ -441,9 +445,9 @@ struct GameScheduleSection: View {
         let lines = ScheduleLogic.shared.gameLines(banners: banners, entries: entries, nowMillis: nowMs())
         let summary = ScheduleLogic.shared.summarize(banners: banners, entries: entries, nowMillis: nowMs())
         VStack(alignment: .leading, spacing: 0) {
-            Text("게임 일정").font(.pretendard(size: 16, weight: .bold)).padding(.bottom, 4)
+            Text("게임 일정").font(.pretendard(size: 17, weight: .bold)).padding(.bottom, 4)
             Text("픽업 배너와 이벤트 마감을 한곳에서.")
-                .font(.pretendard(size: 11)).foregroundStyle(GLGColor.textSecondary).padding(.bottom, 12)
+                .font(.pretendard(size: 13)).foregroundStyle(GLGColor.textSecondary).padding(.bottom, 14)
             Button(action: onSeeAll) {
                 VStack(alignment: .leading, spacing: 0) {
                     HStack(spacing: 12) {
@@ -455,20 +459,20 @@ struct GameScheduleSection: View {
                         .frame(width: 44, height: 44)
                         VStack(alignment: .leading, spacing: 2) {
                             Text("픽업 · 이벤트 · 정기 콘텐츠")
-                                .font(.pretendard(size: 14.5, weight: .bold)).foregroundStyle(GLGColor.textPrimary).lineLimit(1)
+                                .font(.pretendard(size: 15, weight: .bold)).foregroundStyle(GLGColor.textPrimary).lineLimit(1)
                             Text(summaryLabel(summary))
-                                .font(.pretendard(size: 11.5)).foregroundStyle(GLGColor.textSecondary).lineLimit(1)
+                                .font(.pretendard(size: 13)).foregroundStyle(GLGColor.textSecondary).lineLimit(1)
                         }
                         Spacer(minLength: 8)
                         Image(systemName: "chevron.right").font(.pretendard(size: 13, weight: .semibold))
                             .foregroundStyle(GLGColor.textSecondary)
                     }
-                    .padding(.horizontal, 16).padding(.top, 15)
+                    .padding(.top, 2)
 
                     if lines.isEmpty {
                         Text("진행 중인 픽업이 없어요.")
-                            .font(.pretendard(size: 11.5)).foregroundStyle(GLGColor.textSecondary)
-                            .padding(.horizontal, 16).padding(.top, 12).padding(.bottom, 15)
+                            .font(.pretendard(size: 13)).foregroundStyle(GLGColor.textSecondary)
+                            .padding(.top, 12)
                     } else {
                         Spacer().frame(height: 13)
                         ForEach(Array(lines.enumerated()), id: \.offset) { i, line in
@@ -477,8 +481,8 @@ struct GameScheduleSection: View {
                         }
                     }
                 }
+                // 카드는 걷었다(10/1) — 덩어리 전체가 눌려 일정 페이지로 간다(기능 그대로).
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .glgGlass(in: RoundedRectangle(cornerRadius: 22, style: .continuous))
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
@@ -501,7 +505,7 @@ private struct GameLineRow: View {
         let c = Color(argb64: line.colorArgb)
         HStack(spacing: 9) {
             RoundedRectangle(cornerRadius: 2).fill(c).frame(width: 3, height: 26)
-            Text(line.shortName).font(.pretendard(size: 12.5, weight: .bold)).foregroundStyle(c).lineLimit(1)
+            Text(line.shortName).font(.pretendard(size: 13.5, weight: .bold)).foregroundStyle(c).lineLimit(1)
             if line.hasCollab { CollabChip() }
             if line.faces.isEmpty {
                 // 픽업이 없는 게임(젠존제·명조)은 얼굴이 없다 — 일정 건수 요약("이벤트 5")이 그 자리를 지킨다.
@@ -523,7 +527,7 @@ private struct GameLineRow: View {
             Text(line.remainLabel).font(.pretendard(size: 12.5, weight: .bold))
                 .foregroundStyle(line.urgent ? glUrgent : GLGColor.textPrimary).lineLimit(1)
         }
-        .padding(.horizontal, 16).padding(.vertical, 11)
+        .padding(.vertical, 11)
     }
 }
 
@@ -1246,4 +1250,9 @@ private struct CollabPromoBanner: View {
         }
         .buttonStyle(.plain)
     }
+}
+
+/// 게임 정보 섹션 사이 10 띠(Android GiBand 와 같다).
+struct GiBand: View {
+    var body: some View { Color(hex: 0xFFF2F4F6).frame(height: 10).frame(maxWidth: .infinity) }
 }

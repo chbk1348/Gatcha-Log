@@ -85,7 +85,7 @@ struct NewsSection: View {
                 // 보이는데, "전체를 보겠다"는 판단은 목록을 읽기 **전에** 서는 쪽이 많다.
                 // 제목 옆이면 섹션에 눈이 닿는 순간 같이 읽힌다.
                 HStack(spacing: 0) {
-                    Text("공지·뉴스").font(.pretendard(size: 16, weight: .bold))
+                    Text("공지·뉴스").font(.pretendard(size: 17, weight: .bold))
                     Spacer(minLength: 8)
                     if all.count > maxCount {
                         Button { onSeeAll() } label: {
@@ -101,7 +101,8 @@ struct NewsSection: View {
                         }.buttonStyle(.plain)
                     }
                 }
-                GLGCard(cornerRadius: 24, padding: 0) {
+                // 카드는 걷었다(10/1) — 줄 사이 헤어라인만.
+                Group {
                     VStack(alignment: .leading, spacing: 0) {
                         if !all.isEmpty {
                             ForEach(Array(items.enumerated()), id: \.offset) { i, n in
@@ -122,16 +123,15 @@ struct NewsSection: View {
                         } else if store.newsFailed {
                             // 수집 실패는 '소식 없음'과 다르다 — 사유를 밝히고 재시도를 준다. (Android 파리티)
                             VStack(alignment: .leading, spacing: 6) {
-                                Text("소식을 불러오지 못했어요").font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary)
+                                Text("소식을 불러오지 못했어요").font(.pretendard(size: 14)).foregroundStyle(GLGColor.textSecondary)
                                 GldsButton(title: "다시 시도", variant: .secondary, size: .s, fullWidth: false) { store.refreshGameInfo(force: true) }
                             }
                             .frame(maxWidth: .infinity, alignment: .leading)
                         } else {
-                            Text("새 소식이 없어요").font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary)
+                            Text("새 소식이 없어요").font(.pretendard(size: 14)).foregroundStyle(GLGColor.textSecondary)
                                 .frame(maxWidth: .infinity, alignment: .leading)
                         }
                     }
-                    .padding(.horizontal, 16).padding(.vertical, 16)
                 }
             }
         }

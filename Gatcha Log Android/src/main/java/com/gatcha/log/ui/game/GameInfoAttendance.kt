@@ -132,11 +132,12 @@ internal fun DailyHeroSection(
     Column {
         DailyHeadlineHero(headline, headTop, streak)
 
-        Column(Modifier.padding(horizontal = 16.dp)) {
-            // 행동력 · 오늘 할 일 · 바로가기를 **카드 한 장**에 담는다(2026-09-28 지시). 셋 다 "오늘 뭘 하나" 라
+        Column {
+            // 행동력 · 오늘 할 일 · 바로가기를 **한 덩어리**에 담는다(2026-09-28 지시). 셋 다 "오늘 뭘 하나" 라
             // 같은 덩어리인데, 카드 셋으로 갈라져 있어 세로로 세 번 끊겨 읽혔다. 사이는 구분선으로 가른다.
-            GlassCard(shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth()) {
-                Column(Modifier.fillMaxWidth().padding(16.dp)) {
+            // 카드는 걷었다(10/1) — 화면 폭 섹션(좌우 20)으로 두고 아래 버전 줄과는 띠로 가른다.
+            run {
+                Column(Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 18.dp, bottom = 20.dp)) {
                     ResinSection(summaries, noteErrors)
                     if (grouped.isNotEmpty()) {
                         Spacer(Modifier.height(14.dp))
@@ -144,7 +145,7 @@ internal fun DailyHeroSection(
                         Spacer(Modifier.height(12.dp))
                         Text(
                             "오늘 할 일",
-                            fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TextPrimary,
+                            fontSize = 16.sp, fontWeight = FontWeight.Bold, color = TextPrimary,
                             modifier = Modifier.padding(bottom = 4.dp),
                         )
                         grouped.forEachIndexed { i, g ->
@@ -167,10 +168,10 @@ internal fun DailyHeroSection(
             // 끝나는 순간 카드 한 장이 통째로 끼어들어 아래 목록이 밀려 내려갔다(2026-09-17 제보).
             // 실패해서 끝내 비면 그때는 줄 자체를 안 그린다 — 없는 값을 빈 카드로 세우지 않는다.
             if (gameVersions.isNotEmpty()) {
-                Spacer(Modifier.height(12.dp))
+                GiBand()
                 GameVersionStrip(gameVersions)
             } else if (gameVersionsLoading) {
-                Spacer(Modifier.height(12.dp))
+                GiBand()
                 GameVersionStripSkeleton()
             }
         }
@@ -467,10 +468,10 @@ private fun DailyQuickButtons(
  */
 @Composable
 private fun GameVersionStrip(versions: List<GameVersionLine>) {
-    GlassCard(shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth()) {
-        Column(Modifier.fillMaxWidth().padding(16.dp)) {
-            Text("현재 버전", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = TextSecondary)
-            Spacer(Modifier.height(8.dp))
+    run {
+        Column(Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 18.dp, bottom = 18.dp)) {
+            Text("현재 버전", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextSecondary)
+            Spacer(Modifier.height(10.dp))
             Row(
                 Modifier.fillMaxWidth().height(IntrinsicSize.Min),
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -491,7 +492,7 @@ private fun GameVersionStrip(versions: List<GameVersionLine>) {
                         ) {
                             Text(
                                 v.gameShort,
-                                fontSize = 10.5.sp,
+                                fontSize = 12.sp,
                                 fontWeight = FontWeight.Medium,
                                 color = TextSecondary,
                                 maxLines = 1,
@@ -520,10 +521,10 @@ private fun GameVersionStrip(versions: List<GameVersionLine>) {
  */
 @Composable
 private fun GameVersionStripSkeleton() {
-    GlassCard(shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth()) {
-        Column(Modifier.fillMaxWidth().padding(16.dp)) {
-            Text("현재 버전", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = TextSecondary)
-            Spacer(Modifier.height(8.dp))
+    run {
+        Column(Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 18.dp, bottom = 18.dp)) {
+            Text("현재 버전", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextSecondary)
+            Spacer(Modifier.height(10.dp))
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 // 칸 수는 데이터 쪽이 안다([GameVersions.trackedCount]) — 여기에 숫자를 박으면
                 // 게임이 늘 때 스켈레톤만 옛 칸 수로 남는다.
@@ -534,7 +535,7 @@ private fun GameVersionStripSkeleton() {
                     ) {
                         // 게임명(10.5sp) · 버전(16sp) 두 줄과 같은 높이로 맞춘다.
                         // 다섯 칸이 한 줄에 서므로 칸 폭(약 58dp)을 넘지 않게 잡는다.
-                        SkeletonBox(Modifier.fillMaxWidth(0.8f).height(11.dp))
+                        SkeletonBox(Modifier.fillMaxWidth(0.8f).height(13.dp))
                         Spacer(Modifier.height(5.dp))
                         SkeletonBox(Modifier.fillMaxWidth(0.6f).height(17.dp))
                     }

@@ -163,20 +163,21 @@ fun GameScheduleSection(
     val accent = LocalAccent.current
     val lines = ScheduleLogic.gameLines(banners, entries)
     val summary = ScheduleLogic.summarize(banners, entries)
-    Text("게임 일정", fontSize = 16.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 4.dp))
-    Text("픽업 배너와 이벤트 마감을 한곳에서.", fontSize = 11.sp, color = TextSecondary, modifier = Modifier.padding(bottom = 12.dp))
-    GlassCard(modifier = Modifier.fillMaxWidth().clickable { onSeeAll() }) {
-        Column(Modifier.fillMaxWidth()) {
-            Row(Modifier.padding(start = 16.dp, end = 16.dp, top = 15.dp), verticalAlignment = Alignment.CenterVertically) {
+    Text("게임 일정", fontSize = 17.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 4.dp))
+    Text("픽업 배너와 이벤트 마감을 한곳에서.", fontSize = 13.sp, color = TextSecondary, modifier = Modifier.padding(bottom = 14.dp))
+    // 카드는 걷었다(10/1) — 덩어리 전체가 눌려 일정 페이지로 간다(기능 그대로).
+    run {
+        Column(Modifier.fillMaxWidth().clickable { onSeeAll() }) {
+            Row(Modifier.padding(top = 2.dp), verticalAlignment = Alignment.CenterVertically) {
                 Box(
                     Modifier.size(44.dp).clip(RoundedCornerShape(13.dp)).background(accent.copy(alpha = 0.12f)),
                     contentAlignment = Alignment.Center,
                 ) { Icon(Icons.Default.CalendarMonth, contentDescription = null, tint = accent, modifier = Modifier.size(22.dp)) }
                 Spacer(Modifier.width(12.dp))
                 Column(Modifier.weight(1f)) {
-                    Text("픽업 · 이벤트 · 정기 콘텐츠", fontSize = 14.5.sp, fontWeight = FontWeight.Bold, color = TextPrimary, maxLines = 1)
+                    Text("픽업 · 이벤트 · 정기 콘텐츠", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TextPrimary, maxLines = 1)
                     Spacer(Modifier.height(2.dp))
-                    Text(summaryLabel(summary), fontSize = 11.5.sp, color = TextSecondary, maxLines = 1)
+                    Text(summaryLabel(summary), fontSize = 13.sp, color = TextSecondary, maxLines = 1)
                 }
                 Spacer(Modifier.width(8.dp))
                 Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null, tint = TextSecondary, modifier = Modifier.size(18.dp))
@@ -184,8 +185,8 @@ fun GameScheduleSection(
             if (lines.isEmpty()) {
                 Text(
                     "진행 중인 픽업이 없어요.",
-                    fontSize = 11.5.sp, color = TextSecondary,
-                    modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 15.dp),
+                    fontSize = 13.sp, color = TextSecondary,
+                    modifier = Modifier.padding(top = 12.dp),
                 )
             } else {
                 Spacer(Modifier.height(13.dp))
@@ -214,12 +215,12 @@ private val LineFaceSize = 22.dp
 private fun GameLineRow(line: GameScheduleLine) {
     val c = line.colorArgb.toColor()
     Row(
-        Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 11.dp),
+        Modifier.fillMaxWidth().padding(vertical = 11.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(9.dp),
     ) {
         Box(Modifier.size(3.dp, 26.dp).clip(RoundedCornerShape(2.dp)).background(c))
-        Text(line.shortName, fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = c, maxLines = 1)
+        Text(line.shortName, fontSize = 13.5.sp, fontWeight = FontWeight.Bold, color = c, maxLines = 1)
         if (line.hasCollab) CollabChip()
         if (line.faces.isEmpty()) {
             // 픽업이 없는 게임(젠존제·명조)은 얼굴이 없다 — 일정 건수 요약("이벤트 5")이 그 자리를 지킨다.

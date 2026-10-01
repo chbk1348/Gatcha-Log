@@ -119,8 +119,9 @@ struct HoyolandSection: View {
                 .buttonStyle(.plain)
             }
             if phase == .ended {
+                // 카드는 걷었다(10/1) — 줄 전체가 눌린다.
                 Button { onOpen(.none) } label: {
-                    GLGCard(cornerRadius: 24, padding: 16) {
+                    Group {
                         HStack(spacing: 12) {
                             Image(systemName: "party.popper").font(.system(size: 17, weight: .regular))
                                 .foregroundStyle(GLGColor.textSecondary)
