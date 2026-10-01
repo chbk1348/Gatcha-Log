@@ -23,6 +23,15 @@ struct MyPageView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
+                // 제목 — Android 헤더의 제목 알약과 같은 모양. 툴바 항목으로 두면 자리가 모자랄 때 iOS 가
+                // 「…」 메뉴로 접어 버렸다(10/1) — 본문 맨 위에 둔다. Duo 는 탭 루트 제목을 두지 않는다.
+                if GLGFormFactor.current != .duo {
+                    Text("마이페이지").font(.pretendard(size: 16, weight: .bold)).foregroundStyle(accent.primary)
+                        .padding(.horizontal, 16).frame(height: 44)
+                        .background(accent.primary.opacity(0.10), in: Capsule())
+                        .overlay(Capsule().strokeBorder(accent.primary.opacity(0.30), lineWidth: 1.5))
+                        .padding(.horizontal, 16).padding(.top, 4)
+                }
                 ProfileSection(store: store)
                 Band()
                 MonthSection(monthly: store.monthlyTotal, prevMonthly: store.prevMonthTotal, budget: store.budget,
@@ -48,17 +57,7 @@ struct MyPageView: View {
         // 제목은 막대에 안 보인다. 다만 제목 자체는 채운다 — 비우면 뒤로가기 길게 누르기 메뉴가 공백 줄이 된다.
         .glgHiddenTitle("마이페이지")
         .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            // 제목 — Android 헤더의 제목 알약과 같은 자리(왼쪽 위). Duo 는 탭 루트 제목을 두지 않는다
-            // (글자 뷰가 레일로 못 가 위쪽에 빈 가로 바를 세운다 — 2026-09-28 지시).
-            if GLGFormFactor.current != .duo {
-                ToolbarItem(placement: .topBarLeading) {
-                    Text("마이페이지").font(.pretendard(size: 16, weight: .bold)).foregroundStyle(accent.primary)
-                        .padding(.horizontal, 6)
-                }
-            }
-            ToolbarItem(placement: .topBarTrailing) { settingsButton }
-        }
+        .toolbar { ToolbarItem(placement: .topBarTrailing) { settingsButton } }
         // 설정은 마이페이지의 하위 페이지. 다른 화면이 HoYoLAB 연동을 요청하면(홈 만료 배너 「재연동」) 설정까지
         // 자동으로 들어간다 — 설정이 onAppear 에서 요청을 소비해 연동 페이지를 연다(9/30, Android 와 같은 흐름).
         .navigationDestination(isPresented: $openSettings) { SettingsView(store: store) }
