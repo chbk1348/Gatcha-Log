@@ -45,7 +45,8 @@ struct CreditsSheet: View {
 
 // ── 업데이트 로그 ─────────────────────────────────────────────────────────────
 
-/// 업데이트 로그 — 06_ChangeLog.html 목업 디자인(필터칩·featured·마일스톤 타임라인·분류 뱃지).
+/// 업데이트 로그 — 06_ChangeLog.html 목업 디자인(필터칩·featured·마일스톤·분류 뱃지).
+/// GLDS 2.0(10/1) — 카드를 걷고 버전 하나 = 화면 폭 섹션, 사이는 10 띠(SetBand).
 /// 데이터는 공통 정본 `ChangeLog`(KMP)에서 읽어 Android와 동일하다.
 struct UpdateLogPage: View {
     let version: String
@@ -55,7 +56,7 @@ struct UpdateLogPage: View {
 
     private let cText = Color(hex: 0xFF15181C)
     private let cItem = Color(hex: 0xFF2A2E34)
-    private let cLine = Color(hex: 0xFFE3E5EA)
+    private let cLine = Color(hex: 0xFFEEF0F2) // GLDS 2.0 헤어라인
 
     private var entries: [ChangeEntry] {
         let all = ChangeLog.shared.entries
@@ -72,28 +73,33 @@ struct UpdateLogPage: View {
             // 반복하면서 첫 화면의 절반을 차지해, 정작 봐야 할 최신 버전이 스크롤 아래로 밀려 있었다.
             LazyVStack(alignment: .leading, spacing: 0, pinnedViews: [.sectionHeaders]) {
                 Section {
-                    Color.clear.frame(height: 14)
-                    ForEach(supported, id: \.version) { entry in releaseCard(entry) }
+                    // 버전 하나 = 섹션 하나, 사이는 띠(첫 섹션 위엔 없다).
+                    ForEach(Array(supported.enumerated()), id: \.element.version) { i, entry in
+                        if i > 0 { SetBand() }
+                        releaseSection(entry)
+                    }
                     // 지원 종료 버전 — 기본 접힘, '펼치기'로 열람.
                     if !unsupported.isEmpty {
+                        if !supported.isEmpty { SetBand() }
                         Button { withAnimation(GLGMotion.standard()) { showOld.toggle() } } label: {
                             HStack(spacing: 2) {
                                 Text("지원 종료 버전 \(unsupported.count)개")
-                                    .font(.pretendard(size: 14, weight: .bold)).foregroundStyle(GLGColor.textSecondary)
+                                    .font(.pretendard(size: 15, weight: .bold)).foregroundStyle(GLGColor.textSecondary)
                                 Spacer()
                                 Text(showOld ? "접기" : "펼치기")
                                     .font(.pretendard(size: 13, weight: .semibold)).foregroundStyle(accent.primary)
                                 Image(systemName: showOld ? "chevron.up" : "chevron.down")
                                     .font(.pretendard(size: 12, weight: .semibold)).foregroundStyle(accent.primary)
                             }
-                            .padding(.horizontal, 16).padding(.vertical, 14)
-                            .background(Color(hex: 0xFFF3F4F7), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-                            .padding(.horizontal, 18).padding(.vertical, 2)
+                            .padding(.horizontal, 20).padding(.vertical, 20)
                             .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
                         if showOld {
-                            ForEach(unsupported, id: \.version) { entry in releaseCard(entry) }
+                            ForEach(unsupported, id: \.version) { entry in
+                                SetBand()
+                                releaseSection(entry)
+                            }
                         }
                     }
                     if entries.isEmpty {
@@ -103,7 +109,7 @@ struct UpdateLogPage: View {
                     }
                 } header: { filterBar }
             }
-            .padding(.bottom, 40)
+            // 맨 아래 여백은 마지막 섹션(아래 20)이 가진다 — 예전 카드 12 + 여기 40 = 52 로 떠 보였다(10/1).
         }
         .background(Color.white)
         // 헤더 타이틀 = 설정 메뉴 항목과 같은 "업데이트 로그"(아래 히어로 제목과 역할이 다르다).
@@ -123,17 +129,18 @@ struct UpdateLogPage: View {
             get: { ["", "new", "imp", "fix", "sec"].firstIndex(of: filter ?? "") ?? 0 },
             set: { i in let k = ["", "new", "imp", "fix", "sec"][i]; filter = k.isEmpty ? nil : k }
         ))
-        .padding(.horizontal, 18)
-        .padding(.vertical, 10)
+        .padding(.horizontal, 20)
+        .padding(.top, 4).padding(.bottom, 10)
         // 흰 면을 **위로 넉넉히** 늘린다(9/30) — 제목 바를 걷은 듀오에서는 붙어 있는 탭 줄 위가 비어,
         // 스크롤한 내용이 탭 위로 비쳐 보였다.
         .background(Color.white.padding(.top, -400))
         .overlay(alignment: .bottom) { Rectangle().fill(cLine).frame(height: 1) }
     }
 
-    // ── 릴리스 카드 ──
+    // ── 릴리스 섹션 ──
+    /// 버전 하나 = 화면 폭 섹션(좌우 20 · 위 22 · 아래 20 — 마지막 항목 글자가 자체 아래 여백이 없어 20 그대로).
     @ViewBuilder
-    private func releaseCard(_ entry: ChangeEntry) -> some View {
+    private func releaseSection(_ entry: ChangeEntry) -> some View {
         // 카드 안을 분류별 묶음으로(9/29 개편) — 신규 기능 · 수정 사항 · 개선 사항. Android ReleaseCard 파리티.
         let kinds: [ChangeKind] = filter == nil ? entry.groupKinds : entry.groupKinds.filter { $0.key == filter }
         if !kinds.isEmpty {
@@ -146,7 +153,7 @@ struct UpdateLogPage: View {
                 HStack(alignment: .firstTextBaseline, spacing: 8) {
                     (Text(entry.milestone && !entry.featured ? "★ " : "").foregroundColor(accent.primary)
                         + Text("v\(entry.version)").foregroundColor(cText))
-                        .font(.pretendard(size: entry.featured ? 24 : 18, weight: .heavy))
+                        .font(.pretendard(size: entry.featured ? 24 : 17, weight: .heavy))
                     Text(entry.date).font(.pretendard(size: 12.5, weight: .medium)).foregroundStyle(GLGColor.textSecondary)
                     Spacer()
                     if let pill = entry.pill { pillView(pill, false) }
@@ -173,31 +180,9 @@ struct UpdateLogPage: View {
                     }
                 }
             }
-            .padding(entry.featured ? 22 : 18)
-            .background(cardBackground(entry))
-            .overlay(cardBorder(entry))
-            .padding(.horizontal, 18)
-            .padding(.bottom, 12)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 20).padding(.top, 22).padding(.bottom, 20)
         }
-    }
-
-    @ViewBuilder
-    private func cardBackground(_ e: ChangeEntry) -> some View {
-        let shape = RoundedRectangle(cornerRadius: 24, style: .continuous)
-        if e.featured {
-            shape.fill(LinearGradient(colors: [Color(hex: 0xFFF1FBF9), .white], startPoint: .topLeading, endPoint: .bottomTrailing))
-        } else if e.milestone {
-            shape.fill(Color(hex: 0xFFF6F7F9))
-        } else {
-            shape.fill(Color.white)
-        }
-    }
-
-    @ViewBuilder
-    private func cardBorder(_ e: ChangeEntry) -> some View {
-        let shape = RoundedRectangle(cornerRadius: 24, style: .continuous)
-        if e.featured { shape.stroke(Color(hex: 0xFFE5F8F4), lineWidth: 1) }
-        else if !e.milestone { shape.stroke(cLine, lineWidth: 1) }
     }
 
     private func pillView(_ text: String, _ sec: Bool) -> some View {

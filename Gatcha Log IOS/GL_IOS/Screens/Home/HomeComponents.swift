@@ -9,31 +9,12 @@ private let dangerText = Color(hex: 0xFFD0021B)
 // ── 오늘 할 일 ──
 struct TodayTaskCard: View {
     let tasks: [TodayItem]; let inProgress: Bool
-    /// true 면 제목을 카드 바깥 위(큰 헤더)로. false(iPad 레거시)면 카드 안 헤더 유지.
-    var titleOutside: Bool = false
     @Environment(\.glgAccent) private var accent
     var body: some View {
-        if titleOutside {
-            // iPhone 홈 — 카드 없이 섹션 머리 + 헤어라인 목록(10/1, Android 와 같다).
-            VStack(alignment: .leading, spacing: 12) {
-                HomeSectionHeader(title: "오늘 할 일", count: tasks.isEmpty ? nil : tasks.count)
-                content
-            }
-        } else {
-            GLGCard(cornerRadius: 24, padding: 16) {
-                VStack(alignment: .leading, spacing: 0) {
-                    HStack(spacing: 6) {
-                        Image(systemName: "checklist").font(.pretendard(size: 15)).foregroundStyle(accent.primary)
-                        Text("오늘 할 일").font(.pretendard(size: 13, weight: .bold)).foregroundStyle(accent.primary)
-                        if !tasks.isEmpty {
-                            Text("\(tasks.count)").font(.pretendard(size: 11, weight: .bold)).foregroundStyle(accent.primary)
-                                .padding(.horizontal, 7).padding(.vertical, 1).background(accent.primary.opacity(0.14), in: Capsule())
-                        }
-                    }
-                    .padding(.bottom, 12)
-                    content
-                }
-            }
+        // 카드 없이 섹션 머리 + 헤어라인 목록(10/1, Android 와 같다).
+        VStack(alignment: .leading, spacing: 12) {
+            HomeSectionHeader(title: "오늘 할 일", count: tasks.isEmpty ? nil : tasks.count)
+            content
         }
     }
     @ViewBuilder private var content: some View {
@@ -71,24 +52,10 @@ struct TodayTaskCard: View {
 }
 
 struct TodayTaskSkeleton: View {
-    var titleOutside: Bool = false
-    @Environment(\.glgAccent) private var accent
     var body: some View {
-        if titleOutside {
-            VStack(alignment: .leading, spacing: 12) {
-                HomeSectionHeader(title: "오늘 할 일")
-                rows
-            }
-        } else {
-            GLGCard(cornerRadius: 24, padding: 16) {
-                VStack(alignment: .leading, spacing: 12) {
-                    HStack(spacing: 6) {
-                        Image(systemName: "checklist").font(.pretendard(size: 15)).foregroundStyle(accent.primary.opacity(0.5))
-                        Text("오늘 할 일").font(.pretendard(size: 13, weight: .bold)).foregroundStyle(accent.primary.opacity(0.5))
-                    }
-                    rows
-                }
-            }
+        VStack(alignment: .leading, spacing: 12) {
+            HomeSectionHeader(title: "오늘 할 일")
+            rows
         }
     }
     private var rows: some View {
@@ -108,18 +75,9 @@ struct TodayTaskSkeleton: View {
 /// 대시보드 리스트 카드 로딩 스켈레톤 — 헤더 + 행 N개. '이번 주 일정'·'게임 소식' 카드와 동일 형태. (Android DashCardSkeleton 패리티)
 struct DashCardSkeleton: View {
     var rows: Int = 3
-    /// true 면 카드 없이(iPhone 홈 섹션). false 는 iPad 레거시 카드.
-    var flat: Bool = false
     var body: some View {
-        if flat {
-            content
-        } else {
-            GLGCard(cornerRadius: 22, padding: 16) { content }
-        }
-    }
-    private var content: some View {
         VStack(alignment: .leading, spacing: 0) {
-            GLGSkeleton().frame(width: 90, height: flat ? 17 : 15)
+            GLGSkeleton().frame(width: 90, height: 17)
             ForEach(0..<rows, id: \.self) { _ in
                 HStack(spacing: 9) {
                     GLGSkeleton(cornerRadius: 9).frame(width: 28, height: 28)
@@ -249,33 +207,33 @@ struct DashboardSpendCard: View {
         let frac = budget > 0 ? min(Double(monthlyTotal) / Double(budget), 1) : 0
         let over = budget > 0 && monthlyTotal > budget
         let danger = Color(hex: 0xFFEF4444)
-        return GLGCard(cornerRadius: 22, padding: 18) {
-            VStack(alignment: .leading, spacing: 0) {
-                Text("\(month)월 지출").font(.pretendard(size: 12, weight: .semibold)).foregroundStyle(GLGColor.textSecondary)
-                HStack(alignment: .firstTextBaseline, spacing: 5) {
-                    Text(won(monthlyTotal)).font(.pretendard(size: 28, weight: .bold))
-                    if budget > 0 {
-                        Text("/ 예산 \(won(budget))").font(.pretendard(size: 13, weight: .semibold)).foregroundStyle(GLGColor.textSecondary)
-                    }
-                }.padding(.top, 2)
+        // 카드 없이 섹션 본문(GLDS 2.0, 10/1) — 홈 섹션이 좌우 20 · 위 22 · 아래 20 을 준다.
+        return VStack(alignment: .leading, spacing: 0) {
+            Text("\(month)월 지출").font(.pretendard(size: 12, weight: .semibold)).foregroundStyle(GLGColor.textSecondary)
+            HStack(alignment: .firstTextBaseline, spacing: 5) {
+                Text(won(monthlyTotal)).font(.pretendard(size: 28, weight: .bold))
                 if budget > 0 {
-                    GeometryReader { geo in
-                        ZStack(alignment: .leading) {
-                            Capsule().fill(GLGColor.progressEmpty)
-                            Capsule().fill(over ? danger : accent.primary).frame(width: geo.size.width * frac)
-                        }
-                    }.frame(height: 9).padding(.top, 12)
-                    HStack {
-                        Text(over ? "예산 \(pct - 100)% 초과" : "예산의 \(pct)% 사용")
-                            .font(.pretendard(size: 11.5, weight: .semibold)).foregroundStyle(over ? danger : accent.primary)
-                        Spacer()
-                        Text("남은 \(remain)일").font(.pretendard(size: 11.5)).foregroundStyle(GLGColor.textSecondary)
-                    }.padding(.top, 8)
-                } else {
-                    Text("예산을 정하면 페이스를 알려드려요").font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary).padding(.top, 10)
+                    Text("/ 예산 \(won(budget))").font(.pretendard(size: 13, weight: .semibold)).foregroundStyle(GLGColor.textSecondary)
                 }
+            }.padding(.top, 2)
+            if budget > 0 {
+                GeometryReader { geo in
+                    ZStack(alignment: .leading) {
+                        Capsule().fill(GLGColor.progressEmpty)
+                        Capsule().fill(over ? danger : accent.primary).frame(width: geo.size.width * frac)
+                    }
+                }.frame(height: 9).padding(.top, 12)
+                HStack {
+                    Text(over ? "예산 \(pct - 100)% 초과" : "예산의 \(pct)% 사용")
+                        .font(.pretendard(size: 11.5, weight: .semibold)).foregroundStyle(over ? danger : accent.primary)
+                    Spacer()
+                    Text("남은 \(remain)일").font(.pretendard(size: 11.5)).foregroundStyle(GLGColor.textSecondary)
+                }.padding(.top, 8)
+            } else {
+                Text("예산을 정하면 페이스를 알려드려요").font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary).padding(.top, 10)
             }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .contentShape(Rectangle())
         .onTapGesture { onTap() }
     }
@@ -284,7 +242,6 @@ struct DashboardSpendCard: View {
 /// 이번 주 게임 일정 — 이벤트·정기콘텐츠 마감 임박(픽업과 별개).
 struct DashboardScheduleCard: View {
     let events: [GameEvent]; let challenges: [GameChallenge]; let onTap: () -> Void
-    var titleOutside: Bool = false
     @Environment(\.glgAccent) private var accent
     var body: some View {
         let now = nowMs()
@@ -295,27 +252,11 @@ struct DashboardScheduleCard: View {
         // 일정이 없어도 **카드는 남긴다.** 예전엔 통째로 숨겨서 "이번 주가 한가하다"와
         // "아직 못 불러왔다"가 화면에서 똑같아 보였다(스켈레톤도 같은 자리에 뜬다).
         // (Android `DashScheduleCard` 와 같이 고쳐야 한다)
-        return Group {
-            if titleOutside {
-                VStack(alignment: .leading, spacing: 12) {
-                    HomeSectionHeader(title: "이번 주 일정", actionTitle: "전체", action: onTap)
-                    rows(items)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .contentShape(Rectangle()).onTapGesture { onTap() }
-                }
-            } else {
-                GLGCard(cornerRadius: 22, padding: 16) {
-                    VStack(alignment: .leading, spacing: 0) {
-                        HStack {
-                            Text("이번 주 일정").font(.pretendard(size: 14, weight: .bold))
-                            Spacer()
-                            Text("전체 ›").font(.pretendard(size: 11.5, weight: .semibold)).foregroundStyle(accent.primary)
-                        }
-                        rows(items).padding(.top, 11)
-                    }
-                }
+        return VStack(alignment: .leading, spacing: 12) {
+            HomeSectionHeader(title: "이번 주 일정", actionTitle: "전체", action: onTap)
+            rows(items)
+                .frame(maxWidth: .infinity, alignment: .leading)
                 .contentShape(Rectangle()).onTapGesture { onTap() }
-            }
         }
     }
     @ViewBuilder private func rows(_ items: [(String, String, Int64, String)]) -> some View {
@@ -340,33 +281,17 @@ struct DashboardScheduleCard: View {
 /// 게임 소식 — 다가오는 주년 + 최신 공지.
 struct DashboardNewsCard: View {
     let news: [NewsItem]; let anniversaries: [AnniversaryInfo]; let onTap: () -> Void
-    var titleOutside: Bool = false
-    @Environment(\.glgAccent) private var accent
     var body: some View {
         let anni = anniversaries.first { $0.daysUntil <= 60 }
         // 홈은 2건뿐이라 최신순으로 자르면 한 게임이 둘 다 먹기 쉽다 — 게임을 번갈아 뽑는다(공용 로직).
         let topNews = NewsLogic.shared.previewTop(news: news, max: 2)
         return Group {
             if anni != nil || !topNews.isEmpty {
-                if titleOutside {
-                    VStack(alignment: .leading, spacing: 12) {
-                        HomeSectionHeader(title: "게임 소식", actionTitle: "전체", action: onTap)
-                        newsBody(anni: anni, topNews: topNews)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .contentShape(Rectangle()).onTapGesture { onTap() }
-                    }
-                } else {
-                    GLGCard(cornerRadius: 22, padding: 16) {
-                        VStack(alignment: .leading, spacing: 0) {
-                            HStack {
-                                Text("게임 소식").font(.pretendard(size: 14, weight: .bold))
-                                Spacer()
-                                Text("전체 ›").font(.pretendard(size: 11.5, weight: .semibold)).foregroundStyle(accent.primary)
-                            }
-                            newsBody(anni: anni, topNews: topNews).padding(.top, 12)
-                        }
-                    }
-                    .contentShape(Rectangle()).onTapGesture { onTap() }
+                VStack(alignment: .leading, spacing: 12) {
+                    HomeSectionHeader(title: "게임 소식", actionTitle: "전체", action: onTap)
+                    newsBody(anni: anni, topNews: topNews)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .contentShape(Rectangle()).onTapGesture { onTap() }
                 }
             }
         }
