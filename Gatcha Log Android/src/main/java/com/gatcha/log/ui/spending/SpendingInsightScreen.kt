@@ -68,7 +68,7 @@ fun SpendingInsightScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
     Box(Modifier.fillMaxSize().background(Color.White)) {
         Column(
             Modifier.fillMaxSize().navigationBarsPadding().verticalScroll(scrollState)
-                .padding(top = glgDetailContentTop(), bottom = 16.dp),
+                .padding(top = glgDetailContentTop()),
         ) {
             if (spendings.isEmpty()) {
                 Spacer(Modifier.height(40.dp))

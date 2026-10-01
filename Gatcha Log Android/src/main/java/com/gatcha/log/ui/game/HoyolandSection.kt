@@ -273,7 +273,8 @@ fun HoyolandSection(onOpen: (HoyolandSub) -> Unit) {
     // 한 화면 절반을 넘게 먹었다(2026-09-28 지적).
     val headHeight = 104.dp
     // 반원 홈은 머리와 본문이 만나는 **절취선 한가운데** 하나 — 카드 안쪽에 뚫린 구멍이다.
-    val shape = remember { HoyolandTicketShape { listOf(headHeight.toPx()) } }
+    // 화면 폭 섹션이라 둥근 모서리 없이(10/1) — 절취선 홈만 남긴다.
+    val shape = remember { HoyolandTicketShape(corner = 0.dp) { listOf(headHeight.toPx()) } }
     Column(Modifier.fillMaxWidth().clip(shape).background(Color.White)) {
         // ── 머리 — 남은 날짜가 주인공이다.
         Row(Modifier.fillMaxWidth().height(headHeight).clickable { onOpen(HoyolandSub.None) }) {
@@ -603,8 +604,8 @@ fun HoyolandDetailPage(
                     scrollable = !mapRotated,
                 ) {
                     // 구역을 누르면 그 존의 목록으로 간다 — 지도가 목록의 입구가 된다.
-                    // flat 페이지라 좌우 20 · 위 22 를 여기서 준다(10/1). 가로 보기는 화면을 꽉 채우므로 위 여백 없이.
-                    Box(Modifier.padding(start = 20.dp, end = 20.dp, top = if (mapRotated) 0.dp else 22.dp)) {
+                    // flat 페이지라 좌우 20 · 위 22 · 아래 20 을 여기서 준다(10/1). 가로 보기는 화면을 꽉 채우므로 위아래 여백 없이.
+                    Box(Modifier.padding(start = 20.dp, end = 20.dp, top = if (mapRotated) 0.dp else 22.dp, bottom = if (mapRotated) 0.dp else 20.dp)) {
                     HoyolandMapContent(
                         e,
                         rotated = mapRotated,
@@ -1367,12 +1368,11 @@ internal fun androidx.compose.foundation.lazy.LazyListScope.hoyolandGoodsItems(
     // 하단 고정 바에 가리지 않게 비워 둔다. 이 바는 콘텐츠를 밀지 않고 **위에 겹치므로**
     // (SectionPage 가 Box.align(BottomCenter) 로 얹는다) 여기서 비운 만큼만 안전해진다.
     //
-    // **제스처 바 높이는 여기서 더하지 않는다** — 게으른 목록의 아래 여백이 이미 [24dp + 제스처 바] 다.
-    // 여기엔 바 몸통(위 12 + 알약 ≈ 46 + 아래 8 = 66)에서 그 24 를 뺀 42 에, 바와 마지막 카드 사이 12 를 더한다.
-    // (예전엔 84 + 제스처 바를 또 더해 바 위가 한 뼘 넘게 비었다 — 3버튼 내비 기기에서 특히 컸다)
-    // **담은 게 없으면 바도 없다** — 그땐 더 비우지 않는다.
+    // **제스처 바 높이는 여기서 더하지 않는다** — 게으른 목록(flat)의 아래 여백이 이미 [제스처 바] 다.
+    // 여기엔 타일 목록 섹션의 아래 20 + 바 몸통(위 12 + 알약 ≈ 46 + 아래 8 = 66)만 둔다(GLDS 2.0, 10/1).
+    // **담은 게 없으면 바도 없다** — 그땐 섹션 아래 20 만.
     item(key = "bottomSpace") {
-        Spacer(Modifier.height(if (cart.isEmpty) 0.dp else 54.dp))
+        Spacer(Modifier.height(if (cart.isEmpty) 20.dp else 86.dp))
     }
 }
 

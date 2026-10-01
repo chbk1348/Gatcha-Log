@@ -39,17 +39,15 @@ struct MyPageView: View {
                 }
                 .buttonStyle(.plain)
             }
-            .padding(.bottom, 12)
             .glgReadableWidth(720)
         }
         .scrollIndicators(.hidden)
         .background(Color.white)
-        // 제목은 막대에 안 보인다. 다만 제목 자체는 채운다 — 비우면 뒤로가기 길게 누르기 메뉴가 공백 줄이 된다.
-        // 제목은 iOS 큰 제목(Large Title) — 스크롤하면 시스템이 가운데 작은 제목으로 접는다(10/1).
-        // 툴바에 글자 뷰를 직접 세우면 자리가 모자랄 때 「…」 로 접혔다. Duo 는 탭 루트 제목을 두지 않는다(9/28).
+        // 제목은 막대에 안 보인다(10/1 요청) — 다만 제목 자체는 채운다. 비우면 뒤로가기 길게 누르기 메뉴가 공백 줄이 된다.
+        // 툴바에 글자 뷰를 직접 세우면 자리가 모자랄 때 「…」 로 접혔다 — 그래서 시스템 제목을 걷는 방식으로 숨긴다.
         .navigationTitle("마이페이지")
-        .navigationBarTitleDisplayMode(.large)
-        .toolbar(removing: GLGFormFactor.current == .duo ? .title : nil)
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar(removing: .title)
         .toolbar { ToolbarItem(placement: .topBarTrailing) { settingsButton } }
         // 설정은 마이페이지의 하위 페이지. 다른 화면이 HoYoLAB 연동을 요청하면(홈 만료 배너 「재연동」) 설정까지
         // 자동으로 들어간다 — 설정이 onAppear 에서 요청을 소비해 연동 페이지를 연다(9/30, Android 와 같은 흐름).

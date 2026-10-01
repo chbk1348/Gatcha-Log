@@ -67,10 +67,10 @@ fun HoyolabLinkScreen(config: HoyolabConfig, onSave: (HoyolabConfig) -> Unit, on
     val scrollState = rememberScrollState()
     Box(Modifier.fillMaxSize().background(Color.White)) {
         Column(
-            // 스크롤 영역은 **저장 바 위에서 끝난다**(bottom 76) — 바 밑까지 두면 포커스된 입력칸이 스크롤로 보이는
+            // 스크롤 영역은 **저장 바 위에서 끝난다**(bottom 68 = 위 10 + 버튼 50 + 아래 8) — 바 밑까지 두면 포커스된 입력칸이 스크롤로 보이는
             // 자리에 와도 바에 가렸다(9/30). 키보드가 뜨면 루트 imePadding 으로 영역이 줄고 입력칸이 스스로 스크롤돼 온다.
             // GLDS 2.0(10/1) — 카드 없이 흰 바탕 · 화면 폭 섹션 · 섹션 사이 10 띠. 좌우 여백은 섹션(20)이 갖는다.
-            Modifier.fillMaxSize().navigationBarsPadding().padding(bottom = 76.dp).verticalScroll(scrollState)
+            Modifier.fillMaxSize().navigationBarsPadding().padding(bottom = 68.dp).verticalScroll(scrollState)
                 .padding(top = glgDetailContentTop()),
         ) {
             GiPageSection {

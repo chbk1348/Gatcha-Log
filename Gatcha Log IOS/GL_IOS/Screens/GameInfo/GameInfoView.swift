@@ -277,7 +277,6 @@ struct GameInfoView: View {
                 section { NewsSection(store: store, onSeeAll: { showNews = true }, onOpenNews: { selectedNews = $0; showNewsDetail = true }) }.id("NEWS")
                 // 진입 카드 — 가챠 도구.
                 entryCards
-                Color.clear.frame(height: 12)
             }
             // 좌우 여백은 **섹션마다** 준다(section 헬퍼). 통짜로 걸면 데일리 히어로가
             // 화면 끝까지 못 간다 — 히어로는 색이 가장자리에 닿아야 한다.
@@ -367,8 +366,8 @@ struct GameInfoView: View {
     @ViewBuilder private func sectionPage<C: View>(_ title: String, flat: Bool = false, @ViewBuilder _ content: () -> C) -> some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) { content() }
+                // flat 은 아래 여분 없음 — 마지막 섹션이 아래 20 을 두고, 홈 인디케이터는 ScrollView 가 비킨다(GLDS 2.0, 10/1).
                 .padding(flat ? 0 : 16)
-                .padding(.bottom, flat ? 16 : 0)
                 .glgReadableWidth(720)
         }
         .scrollIndicators(.hidden)
@@ -643,7 +642,7 @@ struct GameSchedulePage: View {
                 }
                 }
             }
-            .padding(.bottom, 16)
+            // 아래 여분 없음 — 마지막 주(섹션)가 아래 20 을 둔다(GLDS 2.0, 10/1).
             .glgReadableWidth(720)
         }
         .scrollIndicators(.hidden)

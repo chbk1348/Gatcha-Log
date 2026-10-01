@@ -406,7 +406,7 @@ private fun DataManagementScreen(viewModel: SpendingViewModel, onBack: () -> Uni
         state = listState,
         // 하단바 미노출 페이지 — 바 높이 여백 대신 시스템 네비 인셋만 확보
         modifier = Modifier.fillMaxSize().navigationBarsPadding(),
-        contentPadding = PaddingValues(top = glgDetailContentTop(), bottom = 24.dp),
+        contentPadding = PaddingValues(top = glgDetailContentTop(), bottom = 0.dp),
     ) {
 
         // 설정 메인과 같은 결 — GLDS 2.0 화면 폭 섹션 + 회색 띠.
@@ -574,7 +574,7 @@ private fun NotificationSettingsScreen(viewModel: SpendingViewModel, onBack: () 
         state = listState,
         // 하단바 미노출 페이지 — 바 높이 여백 대신 시스템 네비 인셋만 확보
         modifier = Modifier.fillMaxSize().navigationBarsPadding(),
-        contentPadding = PaddingValues(top = glgDetailContentTop(), bottom = 24.dp),
+        contentPadding = PaddingValues(top = glgDetailContentTop(), bottom = 0.dp),
     ) {
 
         // 알림 — 항목별 토글.
@@ -843,7 +843,7 @@ internal fun BudgetScreen(
             // 목록은 **하단 고정 버튼 위에서 끝난다**(50 + 위아래 18 = 68) — 버튼 밑까지 두면 포커스된
             // 한도 칸이 버튼에 가렸다(9/30). 키보드 여백은 앱 루트 imePadding 이 준다.
             modifier = Modifier.fillMaxSize().navigationBarsPadding().padding(bottom = 68.dp),
-            contentPadding = PaddingValues(top = glgDetailContentTop(), bottom = 16.dp),
+            contentPadding = PaddingValues(top = glgDetailContentTop(), bottom = 0.dp),
         ) {
             // 금액 편집기는 입력 컨트롤(온보딩 ③ 공용)이라 그대로 두고, 섹션 여백만 준다.
             item {
@@ -916,7 +916,7 @@ private fun MyGamesScreen(myGames: Set<String>, onToggle: (String) -> Unit, onBa
         LazyColumn(
             state = listState,
             modifier = Modifier.fillMaxSize().navigationBarsPadding().padding(horizontal = 20.dp),
-            contentPadding = PaddingValues(top = glgDetailContentTop(), bottom = 24.dp),
+            contentPadding = PaddingValues(top = glgDetailContentTop(), bottom = 20.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             item {
@@ -1082,7 +1082,7 @@ private fun ThemeScreen(accentIndex: Int, onSelect: (Int) -> Unit, onBack: () ->
     LazyColumn(
         state = listState,
         modifier = Modifier.fillMaxSize().navigationBarsPadding(),
-        contentPadding = PaddingValues(top = glgDetailContentTop(), bottom = 24.dp),
+        contentPadding = PaddingValues(top = glgDetailContentTop(), bottom = 0.dp),
     ) {
         // 미리보기 — 금액(deep) · 게이지(main) · 칩(옅은 면) · 버튼 쌍. 누르는 곳이 아니라 보여주는 곳이다.
         item {

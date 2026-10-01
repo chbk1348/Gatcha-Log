@@ -127,7 +127,8 @@ struct HoyolandGoodsView: View {
                             }
                         }
                     }
-                    Color.clear.frame(height: 24)
+                    // 타일 목록 섹션의 아래 20 — 하단 바는 safeAreaInset 이라 스스로 비킨다(GLDS 2.0, 10/1). 빈 상태는 섹션이 이미 20 을 둔다.
+                    if !all.isEmpty { Color.clear.frame(height: 20) }
                 }
                 // 한 열은 좌우 여백 없이 화면 폭(섹션 · 타일이 스스로 20) — 두 열(iPad)만 24(10/1).
                 .padding(.horizontal, wide ? 24 : 0)
@@ -463,7 +464,7 @@ struct HoyolandCartView: View {
                     cartGroups(groups)
                     if unpriced > 0 { unpricedNote(unpriced) }
                 }
-                Color.clear.frame(height: 24)
+                // 아래 여분 없음 — 마지막 섹션이 아래 20 을 둔다(GLDS 2.0, 10/1).
             }
             // 카드 없는 섹션(10/1) — 좌우 20(두 열은 24) · 위 22 · 아래 20.
             .padding(.horizontal, wide ? 24 : 20).padding(.top, 22).padding(.bottom, 20)
@@ -720,7 +721,7 @@ struct HoyolandBoothView: View {
                         }
                     }
                 }
-                Color.clear.frame(height: 24)
+                // 아래 여분 없음 — 마지막 섹션이 아래 20 을 둔다(GLDS 2.0, 10/1).
             }
             // 카드 없는 섹션(10/1) — 좌우 20(두 열은 24) · 위 22 · 아래 20. 부스 카드 한 장 한 장은 타일로 남긴다.
             .padding(.horizontal, wide ? 24 : 20).padding(.top, 22).padding(.bottom, 20)

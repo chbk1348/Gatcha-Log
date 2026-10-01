@@ -456,7 +456,7 @@ struct AttendanceDetailView: View {
                         .padding(.top, 16)
                 }
             }
-            .padding(.bottom, 16)
+            // 아래 여분 없음 — 마지막 섹션이 아래 20 을 둔다(GLDS 2.0, 10/1).
             .glgReadableWidth(720)
         }
         .scrollIndicators(.hidden)

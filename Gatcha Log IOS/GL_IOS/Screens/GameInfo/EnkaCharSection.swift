@@ -566,7 +566,8 @@ struct EnkaRosterPage: View {
                     .buttonStyle(.plain)
                 }
             }
-            .padding(.horizontal, 20).padding(.vertical, 16)
+            // 아래 20 — 섹션 아래 여백과 같다(GLDS 2.0, 10/1).
+            .padding(.horizontal, 20).padding(.top, 16).padding(.bottom, 20)
         }
         // 검색은 **부를 때만.** 늘 펼쳐 두면 목록보다 먼저 눈에 들어오는데, 정작 이름으로 찾는
         // 일은 드물다(대개 등급·속성으로 좁힌다). 안드로이드는 헤더 돋보기 버튼으로 열고,
@@ -844,8 +845,7 @@ struct EnkaStatPageBody: View {
                     breakthroughCard
                 }
             }
-            // 예전 바닥 여백을 맞춘다 — 섹션 아래 20 + 10(Android 와 같다).
-            .padding(.bottom, 10)
+            // 아래 여분 없음 — 마지막 섹션이 아래 20 을 두고, 홈 인디케이터는 ScrollView 가 비킨다(GLDS 2.0, 10/1).
         }
         .scrollIndicators(.hidden)
         .ignoresSafeArea(.container, edges: .top)

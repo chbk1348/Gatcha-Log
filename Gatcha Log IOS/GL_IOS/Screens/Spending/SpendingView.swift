@@ -132,7 +132,6 @@ struct SpendingView: View {
                         }
                     }
                 }
-                Color.clear.frame(height: 8)
             }
         }
         .scrollIndicators(.hidden)

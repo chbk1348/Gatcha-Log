@@ -94,7 +94,7 @@ fun SavingsChallengeScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
     Box(Modifier.fillMaxSize().background(Color.White)) {
         Column(
             Modifier.fillMaxSize().navigationBarsPadding().verticalScroll(scrollState)
-                .padding(top = glgDetailContentTop(), bottom = 16.dp),
+                .padding(top = glgDetailContentTop()),
         ) {
             StreakSection(viewModel, summary, accent)
             if (summary.challenges.isNotEmpty()) {
@@ -107,7 +107,7 @@ fun SavingsChallengeScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
             Text(
                 "무지출 스트릭·예산 달성은 지출 기록에서 자동 판정돼요. 배지는 한번 얻으면 유지돼요.",
                 fontSize = 12.sp, color = TextSecondary,
-                modifier = Modifier.padding(horizontal = 20.dp, vertical = 14.dp),
+                modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 14.dp, bottom = 20.dp),
             )
         }
         GlgDetailHeaderOverlay("절약 챌린지", onBack, scrollState = scrollState)

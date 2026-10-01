@@ -561,10 +561,9 @@ fun HomeContent(
         // 히어로 바로 밑이다. 광고 배너라 목록 중간에 두면 다른 카드의 리듬에 묻힌다 —
         // 첫 화면에서 한 번 눈에 걸리고 지나가는 자리가 맞다.
         featuredHoyoland?.let { hoyoland ->
-            // 입장권은 화면 폭을 꽉 채운다(게임 정보 탭과 같다).
+            // 입장권 — 양옆 12 만 두고 아래 여백 없이 다음 섹션에 붙인다(10/1).
             glgCardItem() {
-                DashHoyolandCard(hoyoland) { showHoyoland = true }
-                Spacer(Modifier.height(16.dp))
+                Box(Modifier.padding(horizontal = 12.dp)) { DashHoyolandCard(hoyoland) { showHoyoland = true } }
             }
         }
         if (!gameInfoReady || todayTasks.isNotEmpty()) {
@@ -701,7 +700,8 @@ private fun NotificationDetailScreen(
                         onDismiss = { onDismiss(alert) },
                     )
                 }
-                item { Spacer(Modifier.height(24.dp)) }
+                // 맨 아래 = 사이 10 + 2 + 바깥 4 = 16(iOS padding 16 과 같다). 예전 24 는 38 이 됐다.
+                item { Spacer(Modifier.height(2.dp)) }
             }
         }
         }

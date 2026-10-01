@@ -130,7 +130,7 @@ struct HoyolandFoodView: View {
                         }
                     }
                 }
-                Color.clear.frame(height: 24)
+                // 아래 여분 없음 — 마지막 섹션이 아래 20 을 둔다(GLDS 2.0, 10/1).
             }
             // 한 열은 좌우 여백 없이 화면 폭(섹션이 스스로 20) — 두 열(iPad)만 24(10/1).
             .padding(.horizontal, wide ? 24 : 0)

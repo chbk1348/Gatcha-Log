@@ -255,7 +255,7 @@ fun SpendingScreen(
             LazyColumn(
                 state = listState,
                 modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(bottom = glgTabContentBottom()),
+                contentPadding = PaddingValues(bottom = glgTabContentBottom() + if (selectionMode) 60.dp else 0.dp), // 선택 바(탭바 위 80 + 높이 ~56)가 겹치는 만큼 더 비킨다
             ) {
                 // 히어로 자리(고정) — 위에 히어로 오버레이가 뜬다.
                 item(contentType = "heroSpacer") { Spacer(Modifier.height(heroSpacerDp)) }
@@ -375,7 +375,7 @@ fun SpendingScreen(
             exit = fadeOut(glgShortSpec()) + scaleOut(glgShortSpec(), targetScale = 0.8f),
             modifier = Modifier
                 .align(Alignment.BottomEnd)
-                .padding(end = 16.dp, bottom = glgTabContentBottom()),
+                .padding(end = 16.dp, bottom = glgTabContentBottom() + 16.dp), // 탭바 위 16 띄움(헬퍼가 바 높이만 비키게 된 뒤 위치 유지)
         ) {
             GlgCircleIconButton(
                 Icons.Default.KeyboardArrowUp,

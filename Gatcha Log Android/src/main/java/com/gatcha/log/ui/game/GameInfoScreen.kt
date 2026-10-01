@@ -703,6 +703,9 @@ internal fun SectionPage(
 ) {
     BackHandler { onBack() }
     val sidePad = if (flat) 0.dp else 16.dp
+    // 맨 아래 여백 — flat 은 마지막 섹션이 아래 20 을 스스로 두므로 틀은 더하지 않는다(GLDS 2.0, 10/1).
+    // 남는 건 겹쳐 그려지는 것(제스처 바 · 하단 고정 바)을 비키는 만큼뿐이다. 카드형(옛) 페이지는 예전 24 그대로.
+    val endPad = if (flat) 0.dp else 24.dp
     val pageBg = if (flat) Color.White else Color.Transparent
     val backdropColor = if (flat) Color.White else LocalAccentTint.current
     // 탭 페이지와 같은 구조 — 콘텐츠는 상태바 뒤까지 스크롤되고, 헤더는 그 위에 고정된다.
@@ -756,7 +759,7 @@ internal fun SectionPage(
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(
                     start = sidePad, end = sidePad,
-                    top = glgDetailContentTop() + stickyHeight, bottom = 24.dp + navBottom,
+                    top = glgDetailContentTop() + stickyHeight, bottom = endPad + navBottom,
                 ),
             ) { lazyContent() }
             Box(
@@ -793,7 +796,7 @@ internal fun SectionPage(
                         .padding(top = glgDetailContentTop() + stickyHeight),
                 ) {
                     content()
-                    Spacer(Modifier.height(24.dp))
+                    Spacer(Modifier.height(endPad))
                 }
             }
             if (showBackdrop) backdrop()
@@ -808,7 +811,7 @@ internal fun SectionPage(
                 .padding(top = glgDetailContentTop() + stickyHeight),
         ) {
             content()
-            Spacer(Modifier.height(24.dp))
+            Spacer(Modifier.height(endPad))
         }
         if (showBackdrop) backdrop()
         GlgDetailHeaderOverlay(title, onBack, scrollState = scrollState, actions = actions)
