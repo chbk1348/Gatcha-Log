@@ -648,6 +648,8 @@ class GatchaRepository(
                     version = o.optString("version", ""),
                     // 옛 캐시엔 없다 → 빈 문자열(아이콘 없이 이름만 그린다).
                     iconUrl = o.optString("iconUrl", ""),
+                    bannerName = o.optString("bannerName", ""),
+                    lineup = o.optJSONArray("lineup")?.let { a -> (0 until a.length()).map { a.optString(it) } } ?: emptyList(),
                 )
             }
         }.getOrDefault(emptyList())
@@ -661,6 +663,7 @@ class GatchaRepository(
                 put("game", b.game); put("name", b.name); put("type", b.type)
                 put("endMillis", b.endMillis); put("startMillis", b.startMillis); put("version", b.version)
                 put("iconUrl", b.iconUrl)
+                put("bannerName", b.bannerName); put("lineup", JSONArray(b.lineup))
             })
         }
         prefs.putString(KEY_BANNERS, arr.toString())

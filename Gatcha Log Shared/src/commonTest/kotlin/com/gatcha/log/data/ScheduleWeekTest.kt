@@ -101,14 +101,14 @@ class ScheduleWeekTest {
         // 페이즈마다 캐릭터가 둘씩이면 줄이 두 배가 되어 주간 목록이 넘친다.
         val s = now + 3 * day
         val banners = listOf(
-            GachaBanner(game = "원신", name = "에스코피에", startMillis = s, endMillis = s + 20 * day, version = "6.6"),
-            GachaBanner(game = "원신", name = "느비예트", startMillis = s, endMillis = s + 20 * day, version = "6.6"),
+            GachaBanner(game = "원신", name = "에스코피에", startMillis = s, endMillis = s + 20 * day, version = "6.6", lineup = listOf("가")),
+            GachaBanner(game = "원신", name = "느비예트", startMillis = s, endMillis = s + 20 * day, version = "6.6", lineup = listOf("나")),
         )
         val out = buildStartEntries(banners, now)
         assertEquals(1, out.size)
         assertTrue(out[0].isStart)
         assertEquals(ScheduleMark.START, out[0].mark())
-        assertTrue(out[0].sub.contains("에스코피에") && out[0].sub.contains("느비예트"))
+        assertEquals("4성 캐릭터  가 · 나", out[0].sub)
     }
 
     @Test
@@ -122,35 +122,44 @@ class ScheduleWeekTest {
     // ---------------------------------------------------------------- 픽업 캐릭터명
 
     @Test
-    fun 픽업_줄에_캐릭터_이름이_붙는다() {
-        val s0 = now + 3 * day
+    fun 픽업_줄은_5성을_빼고_종류별_한_줄씩() {
+        // 원신 7.1 실측(10/1) 모양 — 배너 셋이 같은 날 끝나고, 4성은 배너끼리 겹친다.
+        // lineup 은 파서가 이미 5성을 뺀 목록이다(5성은 줄의 초상이 보여 준다).
+        val e = now + 10 * day
+        fun g(name: String, banner: String, type: String, lineup: List<String>) = GachaBanner(
+            game = "원신", name = name, type = type, startMillis = now - day, endMillis = e, version = "7.1",
+            bannerName = banner, lineup = lineup,
+        )
         val banners = listOf(
-            GachaBanner(game = "원신", name = "에스코피에", startMillis = s0, endMillis = s0 + 20 * day, version = "6.6"),
-            GachaBanner(game = "원신", name = "느비예트", startMillis = s0, endMillis = s0 + 20 * day, version = "6.6"),
+            g("베스나", "캐릭터 기원", "character", listOf("디오나", "파루잔", "중운")),
+            g("보댜니차", "캐릭터 기원 2", "character", listOf("디오나", "파루잔", "중운")),
+            g("나비의 우화", "무기 기원", "weapon", listOf("새순", "페보니우스 대검")),
         )
-        // 시작 줄
-        assertEquals("에스코피에 · 느비예트", buildStartEntries(banners, now)[0].sub)
-        // 종료 줄 — 예전엔 비어 있어 "무엇이 끝나는지" 알 수 없었다.
-        val end = ScheduleLogic.buildSchedule(banners, emptyList(), emptyList())
-            .first { it.kind == "패치" && !it.isStart }
-        assertTrue(end.sub.contains("에스코피에"), "종료 줄에 캐릭터명이 없다: ${end.sub}")
+        val row = ScheduleLogic.buildSchedule(banners, emptyList(), emptyList()).single { it.kind == "패치" }
+        assertEquals("v7.1 캐릭터 기원 · 캐릭터 기원 2 · 무기 기원", row.title)
+        assertEquals("4성 캐릭터  디오나 · 파루잔 · 중운\n4성 무기  새순 · 페보니우스 대검", row.sub)
     }
 
     @Test
-    fun 이름이_넷_이상이면_외_N_으로_접는다() {
-        val picks = (1..5).map {
-            GachaBanner(game = "원신", name = "캐릭터$it", startMillis = now, endMillis = now + day)
-        }
-        assertEquals("캐릭터1 · 캐릭터2 · 캐릭터3 외 2", pickupNames(picks))
-    }
-
-    @Test
-    fun 이름이_중복이면_한_번만() {
+    fun 젠레스는_A급과_인게임_명칭() {
         val picks = listOf(
-            GachaBanner(game = "원신", name = "같은이름", startMillis = now, endMillis = now + day),
-            GachaBanner(game = "원신", name = "같은이름", startMillis = now, endMillis = now + day),
+            GachaBanner(game = "젠레스 존 제로", name = "록시", type = "character", lineup = listOf("코린", "빌리")),
+            GachaBanner(game = "젠레스 존 제로", name = "엔진", type = "weapon", lineup = listOf("W1")),
         )
-        assertEquals("같은이름", pickupNames(picks))
+        assertEquals("A급 에이전트  코린 · 빌리\nA급 W-엔진  W1", pickupNames(picks))
+    }
+
+    @Test
+    fun 스타레일_무기는_광추() {
+        val picks = listOf(GachaBanner(game = "붕괴: 스타레일", name = "x", type = "weapon", lineup = listOf("광추1")))
+        assertEquals("4성 광추  광추1", pickupNames(picks))
+    }
+
+    @Test
+    fun lineup_이_없으면_줄을_만들지_않는다() {
+        // 옛 캐시(lineup 없음) — 5성 이름만 있으니 부제로 쓰지 않는다.
+        val picks = listOf(GachaBanner(game = "원신", name = "같은이름", startMillis = now, endMillis = now + day))
+        assertEquals("", pickupNames(picks))
     }
 
     @Test

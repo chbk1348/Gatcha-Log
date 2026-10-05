@@ -62,29 +62,30 @@ class PickupPhaseTest {
     }
 
     @Test
-    fun 시작_줄도_종료_줄과_같은_페이즈_이름을_쓴다() {
+    fun 시작_줄도_종료_줄과_같은_배너_이름을_쓴다() {
+        // 게임 일정 제목은 전반/후반 추측 대신 API 배너 이름 — 시작·종료는 행 표식이 가른다.
         val list = listOf(
-            b("A", "6.6", now - 5 * day, now + 5 * day),      // 진행 중 = 전반
-            b("B", "6.6", now + 6 * day, now + 16 * day),     // 다가올 = 후반
+            b("A", "6.6", now - 5 * day, now + 5 * day).copy(bannerName = "캐릭터 기원"),
+            b("B", "6.6", now + 6 * day, now + 16 * day).copy(bannerName = "무기 기원"),
         )
         val starts = buildStartEntries(list, now)
         assertEquals(1, starts.size)
-        assertEquals("v6.6 후반 픽업 시작", starts[0].title)
+        assertEquals("v6.6 무기 기원", starts[0].title)
 
         val ends = ScheduleLogic.buildSchedule(list, emptyList(), emptyList())
             .filter { it.kind == "패치" }
-        assertTrue(ends.any { it.title == "v6.6 후반 픽업 종료" }, ends.map { it.title }.toString())
+        assertEquals(listOf("v6.6 캐릭터 기원", "v6.6 무기 기원"), ends.map { it.title })
     }
 
     @Test
     fun 종료_미정_픽업도_시작_줄은_남는다() {
-        // 페이즈를 만들 수 없어(끝 날짜 없음) 라벨은 없지만, 줄 자체는 사라지면 안 된다.
+        // 끝 날짜가 없어도 시작 줄은 사라지면 안 된다. 배너 이름이 없으면 "픽업".
         val list = listOf(GachaBanner(
             game = Game.GENSHIN.displayName, name = "콜라보", endMillis = 0L,
             startMillis = now + 3 * day, version = "6.7",
         ))
         val starts = buildStartEntries(list, now)
         assertEquals(1, starts.size)
-        assertEquals("v6.7 픽업 시작", starts[0].title)
+        assertEquals("v6.7 픽업", starts[0].title)
     }
 }

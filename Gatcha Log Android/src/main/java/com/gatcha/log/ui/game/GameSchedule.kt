@@ -43,6 +43,10 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -593,14 +597,24 @@ private fun ScheduleRow(e: ScheduleEntry, now: Long) {
                 // 픽업 줄은 **얼굴로** 보여준다 — 이름 나열보다 먼저 알아본다. 상류가 항목마다
                 // `icon` 을 주는데 이름만 읽고 버리고 있었다(3게임 전부 준다).
                 // 규격은 '내 캐릭터' 로스터 칸과 같다(원형 초상 + 이름 아래 한 줄, 5성 금색 바탕).
-                // 아이콘이 없는 줄(이벤트·콘텐츠)은 부제를 여기 글자로 둔다. 픽업은 카드 아래
-                // 별도 단으로 내려간다(아래 참고).
-                if (e.pickups.isEmpty() && e.sub.isNotBlank()) {
+                // 부제는 API 원본 그대로 — 이벤트·콘텐츠는 보상 전부, 픽업은 4성까지 대상 전부.
+                // 초상 단(아래)은 5성만이라 픽업 줄도 글자로 함께 둔다. 길어서 최대 3줄.
+                // 픽업 부제는 종류별 한 줄씩("4성 캐릭터  디오나 · 파루잔") — 머리는 회색 굵게,
+                // 이름은 본문색으로 갈라 한눈에 읽히게 한다(10/1).
+                if (e.sub.isNotBlank()) {
                     Spacer(Modifier.height(2.dp))
-                    Text(
-                        e.sub, fontSize = 12.sp, color = TextSecondary,
-                        maxLines = 1, overflow = TextOverflow.Ellipsis,
-                    )
+                    e.sub.lines().forEach { line ->
+                        val cut = line.indexOf("  ")
+                        Text(
+                            if (cut < 0) AnnotatedString(line) else buildAnnotatedString {
+                                withStyle(SpanStyle(fontWeight = FontWeight.Bold, color = TextSecondary)) { append(line.substring(0, cut)) }
+                                withStyle(SpanStyle(color = TextPrimary)) { append(line.substring(cut)) }
+                            },
+                            fontSize = 12.sp, lineHeight = 17.sp, color = TextSecondary,
+                            maxLines = if (cut < 0) 3 else 2, overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.padding(top = 2.dp),
+                        )
+                    }
                 }
             }
             Spacer(Modifier.width(8.dp))
