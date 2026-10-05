@@ -37,14 +37,9 @@ struct HomeView: View {
       let _ = GLGPerf.event("homeBody")
       GeometryReader { geo in
         ScrollView {
-            if isWide {
-                // 넓은 화면(iPad 전체·폴더블 펼침) — 히어로 섹션 이전(재구성 전) 홈:
-                // 지출 카드·오늘 할 일·일정·소식·저축.
-                legacyHomeContent
-            } else {
-                // 좁은 화면 — Figma Make 재구성 홈(그라데이션 히어로 + 퀵액션 + 최근 지출).
-                newHomeContent(topInset: geo.safeAreaInsets.top)
-            }
+            // 홈 3.0(10/1) — iPhone · iPad 같은 구성. 좁은 화면만 스크롤이 상단바 뒤까지 확장돼 있어
+            // (HomeTopBarStyle) 상태바 + 내비바만큼 내린다.
+            homeContent(topInset: isWide ? 0 : geo.safeAreaInsets.top)
         }
         .scrollIndicators(.hidden)
         // 좁은 화면: 스크롤을 상단바 뒤까지 확장해 '투명해진 내비바' 뒤로 실제 그라데이션을 노출.
@@ -125,63 +120,56 @@ struct HomeView: View {
       }
     }
 
-    // iPhone — Figma Make 재구성 홈(그라데이션 히어로 + 퀵액션 + 최근 지출 + 일정/소식 + 나를 위한).
+    /// 홈 3.0 — 「지출」 묶음 → 10 띠 → 「게임」 묶음. 묶음 안 섹션 사이는 좌우 20 헤어라인(Android HomeContent 와 같다).
     @ViewBuilder
-    private func newHomeContent(topInset: CGFloat) -> some View {
-        VStack(spacing: 16) {
-            // 히어로 — 이번 달 지출 / 예산 현황 캐러셀. 그라데이션을 상태바·내비바 뒤까지 확장.
-            // 그라데이션은 히어로 자체가 아니라 ScrollView '고정' 배경으로 그린다(PTR·스크롤에도 안 움직이게).
-            HeroBalanceCard(monthlyTotal: monthlyTotal, prevTotal: prevTotal, budget: store.budget,
-                            onBudget: { showBudget = true }, topPad: topInset)
-
-            // 카드 없이 화면 폭 섹션 + 10 띠(10/1, Android · 다른 탭과 같은 규격).
-            VStack(alignment: .leading, spacing: 0) {
-                if store.hoyoTokenExpired {
-                    TokenExpiredBanner { store.requestOpenHoyolabLink(); onSwitchTab(3) }
-                        .padding(.bottom, 8)
-                }
-                // 호요랜드 — 개막 D-60 이내에만 끼어드는 한시 배너(끝나면 스스로 빠진다).
-                // 히어로 바로 밑이다. 광고 배너라 목록 중간에 두면 다른 카드의 리듬에 묻힌다 —
-                // 첫 화면에서 한 번 눈에 걸리고 지나가는 자리가 맞다. 입장권은 양옆 12 만 두고 아래 여백 없이 붙인다(10/1).
-                // 스켈레톤을 두지 않는 건 폴백이 늘 유효해서다.
-                HoyolandHomeCard(onTap: { showHoyoland = true })
-                    .padding(.horizontal, 12)
-                // 히어로 바로 아래 첫 섹션은 띠 없이 — 그라데이션이 옅어지는 자리에 회색 띠가 걸리면 어색하다.
-                let showToday = !store.gameInfoReady || !todayTasks.isEmpty
-                if showToday {
-                    homeSection(band: false) { todayTaskView() }
-                }
-                homeSection(band: showToday, bottom: 8) { RecentSpendCard(spendings: store.spendings, onSeeAll: { onSwitchTab(1) }) }
-                dashboardSlots()
-                // 절약 챌린지는 **마이페이지**로 옮겼다(27.50.0) — 홈은 "지금 무엇을 할까" 를
-                // 말하는 자리고, 스트릭·배지는 "내가 얼마나 해왔나" 라 성격이 다르다.
-            }
-            .glgReadableWidth(600)
-        }
-    }
-
-    // iPad — 지출 게이지 · 오늘 할 일 · 이번주 일정 · 게임 소식. iPhone 과 같은 카드 없는 섹션 + 10 띠(GLDS 2.0, 10/1).
-    @ViewBuilder
-    private var legacyHomeContent: some View {
+    private func homeContent(topInset: CGFloat) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             if store.hoyoTokenExpired {
                 TokenExpiredBanner { store.requestOpenHoyolabLink(); onSwitchTab(3) }
+                    .padding(.bottom, 8)
             }
-            // 첫 섹션 — 위 띠 없이. 예산이 없으면 문구(「예산을 정하면 페이스를 알려드려요」)대로 예산 관리로(9/30).
-            homeSection(band: false) {
-                DashboardSpendCard(monthlyTotal: monthlyTotal, budget: store.budget,
-                                   onTap: { if store.budget > 0 { onSwitchTab(1) } else { showBudget = true } })
+            // ── 지출 ──
+            groupHeader("지출", "\(Calendar.current.component(.month, from: Date()))월", top: 4)
+            homeSection {
+                MonthSpendSection(monthlyTotal: monthlyTotal, prevTotal: prevTotal, budget: store.budget,
+                                  onBudget: { showBudget = true })
             }
-            // 호요랜드 입장권 — iPhone 과 같이 지출 바로 밑, 양옆 12 · 아래 여백 없이.
+            sectionLine
+            homeSection(bottom: 8) { RecentSpendCard(spendings: store.spendings, onSeeAll: { onSwitchTab(1) }) }
+            Color(hex: 0xFFF2F4F6).frame(height: 10).frame(maxWidth: .infinity)
+            // ── 게임 ──
+            groupHeader("게임", "오늘 · 이번 주", top: 26)
+            // 호요랜드 — 개막 D-60 이내에만 끼어드는 한시 배너(끝나면 스스로 빠진다). 위 18 · 양옆 12 · 아래 4.
+            // 스켈레톤을 두지 않는 건 폴백이 늘 유효해서다.
             HoyolandHomeCard(onTap: { showHoyoland = true })
-                .padding(.horizontal, 12)
-            if !store.gameInfoReady || !todayTasks.isEmpty {
-                homeSection { todayTaskView() }
+                .padding(.horizontal, 12).padding(.top, 18).padding(.bottom, 4)
+            // 헤어라인은 앞에 섹션이 있을 때만 — 묶음 머리 · 입장권 바로 다음엔 긋지 않는다(빠진 섹션이 선을 남기지 않게).
+            let showToday = !store.gameInfoReady || !todayTasks.isEmpty
+            if showToday {
+                homeSection(bottom: 8) { todayTaskView() }
             }
-            dashboardSlots()
-            // 절약 챌린지 → 마이페이지(27.50.0). 위 newHomeContent 와 같은 이유.
+            dashboardSlots(lineBefore: showToday)
+            // 절약 챌린지는 **마이페이지**로 옮겼다(27.50.0) — 홈은 "지금 무엇을 할까" 를
+            // 말하는 자리고, 스트릭·배지는 "내가 얼마나 해왔나" 라 성격이 다르다.
         }
+        .padding(.top, topInset)
         .glgReadableWidth(600)
+    }
+
+    /// 묶음 머리 — 이름 22 Black + 보조 12 회색. 위 `top`(첫 묶음 4 · 띠 다음 26) · 좌우 20.
+    private func groupHeader(_ title: String, _ sub: String, top: CGFloat) -> some View {
+        HStack(spacing: 8) {
+            Text(title).font(.pretendard(size: 22, weight: .black)).foregroundStyle(GLGColor.textPrimary)
+            Text(sub).font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 20).padding(.top, top)
+        .background(Color.white)
+    }
+
+    /// 묶음 안 섹션 사이 — 좌우 20 들여 쓴 1 헤어라인.
+    private var sectionLine: some View {
+        homeHair.frame(height: 1).padding(.horizontal, 20).frame(maxWidth: .infinity).background(Color.white)
     }
 
     /// 이번 주 일정 · 게임 소식 — **카드마다 자기 데이터가 올 때까지 스켈레톤.**
@@ -190,18 +178,19 @@ struct HomeView: View {
     /// 스켈레톤이 곧바로 걷히는데, 정작 이 두 카드는 데이터가 없으면 아무것도 안 그려서
     /// 자리를 비웠다가 응답이 온 뒤 튀어나왔다. 출처가 다르니 게이트도 따로 본다.
     @ViewBuilder
-    private func dashboardSlots() -> some View {
+    private func dashboardSlots(lineBefore: Bool) -> some View {
         if store.scheduleReady && store.newsReady {
-            dashboardSlotBodies()
+            dashboardSlotBodies(lineBefore: lineBefore)
         } else {
             // 스켈레톤이 여러 개 동시에 뜨는 구간 — 시머 클럭을 하나만 돌린다.
-            GLGShimmerClock { dashboardSlotBodies() }
+            GLGShimmerClock { dashboardSlotBodies(lineBefore: lineBefore) }
         }
     }
 
     @ViewBuilder
-    private func dashboardSlotBodies() -> some View {
-        homeSection {
+    private func dashboardSlotBodies(lineBefore: Bool) -> some View {
+        if lineBefore { sectionLine }
+        homeSection(bottom: 8) {
             if store.scheduleReady {
                 DashboardScheduleCard(events: store.gameEvents, challenges: store.challenges,
                                       onTap: { store.requestGameInfoAnchor(.schedule); onSwitchTab(2) })
@@ -209,26 +198,27 @@ struct HomeView: View {
                 DashCardSkeleton(rows: 3)
             }
         }
-        homeSection {
-            if store.newsReady {
-                DashboardNewsCard(news: store.gameNews,
-                                  anniversaries: GameAnniversary.shared.upcoming(nowMillis: nowMs()),
-                                  onTap: { store.requestGameInfoAnchor(.news); onSwitchTab(2) })
-            } else {
-                DashCardSkeleton(rows: 2)
+        // 소식이 하나도 없으면 DashboardNewsCard 가 아무것도 안 그리므로 섹션 · 헤어라인째 뺀다.
+        let anniversaries = GameAnniversary.shared.upcoming(nowMillis: nowMs())
+        if !store.newsReady || !store.gameNews.isEmpty || anniversaries.contains(where: { $0.daysUntil <= 60 }) {
+            sectionLine
+            homeSection(bottom: 8) {
+                if store.newsReady {
+                    DashboardNewsCard(news: store.gameNews, anniversaries: anniversaries,
+                                      onTap: { store.requestGameInfoAnchor(.news); onSwitchTab(2) })
+                } else {
+                    DashCardSkeleton(rows: 2)
+                }
             }
         }
     }
 
-    /// 홈 섹션(iPhone · iPad) — 위 10 띠 + 좌우 20 · 위 22 · 아래 20(Android HomeSection 과 같다).
-    /// `bottom` 은 20 − 마지막 요소의 자체 아래 여백(최근 지출 줄은 vertical 12 라 8).
-    @ViewBuilder
-    private func homeSection<C: View>(band: Bool = true, bottom: CGFloat = 20, @ViewBuilder _ content: () -> C) -> some View {
-        if band { Color(hex: 0xFFF2F4F6).frame(height: 10).frame(maxWidth: .infinity) }
+    /// 홈 섹션(iPhone · iPad, 홈 3.0) — 좌우 20 · 위 18 · 아래 `bottom`(Android HomeSection 과 같다).
+    /// `bottom` 은 20 − 마지막 요소의 자체 아래 여백(목록 줄은 vertical 12 라 8).
+    private func homeSection<C: View>(bottom: CGFloat = 20, @ViewBuilder _ content: () -> C) -> some View {
         content()
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 20).padding(.top, 22).padding(.bottom, bottom)
-            // 흰 면 — 히어로 그라데이션이 고정 배경이라, 투명하면 섹션 · 띠 뒤로 비친다(10/1).
+            .padding(.horizontal, 20).padding(.top, 18).padding(.bottom, bottom)
             .background(Color.white)
     }
 
