@@ -168,7 +168,9 @@ fun OnboardingScreen(viewModel: SpendingViewModel, loginOnly: Boolean = false, o
     var loginRequested by remember { mutableStateOf(false) }
     // 완료 화면에서 띄운 구글 로그인이 끝나면 온보딩을 마친다(로그인 화면을 거치지 않는다).
     LaunchedEffect(account.isGuest) {
-        if (!account.isGuest && (step == 5 || loginRequested) && !finished) { finished = true; onFinish(false, false) }
+        // 첫 화면 「구글 로그인 하기」(복원)는 ⑤ 알림 단계를 건너뛰므로, 끝날 때 OS 알림 권한을 묻는다(10/6 —
+        // 로그인부터 하면 권한 창이 끝내 안 떴다). ⑤를 거친 경로는 이미 물었으니 다시 묻지 않는다.
+        if (!account.isGuest && (step == 5 || loginRequested) && !finished) { finished = true; onFinish(loginRequested, false) }
     }
     val scope = rememberCoroutineScope()
 
