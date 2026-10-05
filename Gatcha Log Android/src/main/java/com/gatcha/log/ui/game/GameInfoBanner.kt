@@ -26,6 +26,7 @@ import com.gatcha.log.data.Game
 import com.gatcha.log.data.GameData
 import com.gatcha.log.data.MonthlyLedger
 import com.gatcha.log.data.PatchInfo
+import com.gatcha.log.data.combatSummary
 import com.gatcha.log.ui.components.SkeletonBox
 import com.gatcha.log.ui.theme.DividerColor
 import com.gatcha.log.ui.theme.TextPrimary
@@ -58,15 +59,18 @@ fun GameTabbedSection(
                 )
             }
             else -> {
-                // 아래에 수입 일지가 이어지면 마지막 줄(위아래 10 + 아래 4)만큼 덜어 띠까지 20(10/1). 맨 아래면 20.
-                if (combatGames.isNotEmpty()) GiPageSection("전투 콘텐츠 진행도", bottom = if (ledgerList.isNotEmpty()) 6.dp else 20.dp) {
-                    // 여기 있던 '클리어 편성' 진입 행은 걷어냈다 — 데일리 카드로 꺼내면서
-                    // 이 줄을 그대로 두는 바람에 **같은 진입점이 두 화면에 나란히** 보였다.
-                    // 진입은 데일리 카드 한 곳(GameInfoAttendance 의 GameContentEntry)으로 모은다.
-                    combatGames.forEachIndexed { i, (g, c) ->
-                        if (i > 0) GiHairline()
-                        CombatGameCard(g, c, Modifier.padding(top = if (i > 0) 14.dp else 0.dp, bottom = 4.dp))
-                    }
+                // 전투 진행도 2.0 A안(10/1) — 요약 머리 섹션 + 게임마다 섹션 하나, 사이는 띠.
+                // 집계는 화면에 보이는 모드만 넣는다. 셈에 드는 모드가 없으면(메달형·미도전뿐) 머리는 걷는다.
+                val summary = combatSummary(combatGames.flatMap { it.second })
+                if (summary.total > 0) GiPageSection(top = 12.dp) { CombatSummaryHead(summary) }
+                // 여기 있던 '클리어 편성' 진입 행은 걷어냈다 — 데일리 카드로 꺼내면서
+                // 이 줄을 그대로 두는 바람에 **같은 진입점이 두 화면에 나란히** 보였다.
+                // 진입은 데일리 카드 한 곳(GameInfoAttendance 의 GameContentEntry)으로 모은다.
+                combatGames.forEachIndexed { i, (g, c) ->
+                    val first = i == 0 && summary.total == 0
+                    if (!first) GiBand()
+                    // 마지막 줄이 아래 12 를 가져 8 + 12 = 띠까지(맨 아래면 끝까지) 보이는 20.
+                    GiPageSection(top = if (first) 12.dp else 22.dp, bottom = 8.dp) { CombatGameCard(g, c) }
                 }
                 if (ledgerList.isNotEmpty()) {
                     if (combatGames.isNotEmpty()) GiBand()
@@ -109,16 +113,17 @@ private fun GameContentSkeleton() {
  * 메인 탭의 GiSection 과 같은 규격이다(그건 GameInfoScreen 안 private 이라 하위 페이지용을 따로 둔다).
  *
  * [bottom] — 마지막 내용 끝 → 띠가 눈에 20 이 되게, 20 − (마지막 줄이 스스로 가진 아래 여백)을 넘긴다(10/1).
- * 페이지 맨 아래 섹션은 20 그대로 둔다.
+ * 페이지 맨 아래 섹션은 20 그대로 둔다. [top] — 헤더 바로 아래 첫 섹션은 12(전투 진행도 A안).
  */
 @Composable
 internal fun GiPageSection(
     title: String? = null,
     modifier: Modifier = Modifier,
+    top: Dp = 22.dp,
     bottom: Dp = 20.dp,
     content: @Composable ColumnScope.() -> Unit,
 ) {
-    Column(modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 22.dp, bottom = bottom)) {
+    Column(modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = top, bottom = bottom)) {
         if (title != null) {
             Text(title, fontSize = 17.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
             Spacer(Modifier.height(12.dp))

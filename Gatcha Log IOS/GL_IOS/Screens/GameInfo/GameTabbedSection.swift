@@ -31,19 +31,20 @@ struct GameTabbedSection: View {
                         .padding(.vertical, 8)
                 }
             } else {
-                if !combatGames.isEmpty {
-                    // 아래에 수입 일지가 이어지면 마지막 줄(위아래 10 + 아래 4)만큼 덜어 띠까지 20(10/1). 맨 아래면 20.
-                    GiPageSection("전투 콘텐츠 진행도", bottom: ledgers.isEmpty ? 20 : 6) {
-                        // 여기 있던 '클리어 편성' 진입 행은 걷어냈다 — 데일리 카드로 꺼내면서
-                        // 이 줄을 그대로 두는 바람에 **같은 진입점이 두 화면에 나란히** 보였다.
-                        // 진입은 데일리 카드 한 곳(DailyHeroSection 의 GameContentEntry)으로 모은다.
-                        ForEach(Array(combatGames.enumerated()), id: \.offset) { i, p in
-                            if i > 0 { GiHairline() }
-                            CombatCard(game: p.0, modes: p.1)
-                                .padding(.top, i > 0 ? 14 : 0)
-                                .padding(.bottom, 4)
-                        }
-                    }
+                // 전투 진행도 2.0 A안(10/1) — 요약 머리 섹션 + 게임마다 섹션 하나, 사이는 띠. Android 와 같다.
+                // 집계는 화면에 보이는 모드만 넣는다. 셈에 드는 모드가 없으면(메달형·미도전뿐) 머리는 걷는다.
+                let summary = GameInfoKt.combatSummary(modes: combatGames.flatMap { $0.1 }, now: nowMs())
+                if summary.total > 0 {
+                    GiPageSection(top: 12) { CombatSummaryHead(summary: summary) }
+                }
+                // 여기 있던 '클리어 편성' 진입 행은 걷어냈다 — 데일리 카드로 꺼내면서
+                // 이 줄을 그대로 두는 바람에 **같은 진입점이 두 화면에 나란히** 보였다.
+                // 진입은 데일리 카드 한 곳(DailyHeroSection 의 GameContentEntry)으로 모은다.
+                ForEach(Array(combatGames.enumerated()), id: \.offset) { i, p in
+                    let first = i == 0 && summary.total == 0
+                    if !first { GiBand() }
+                    // 마지막 줄이 아래 12 를 가져 8 + 12 = 띠까지(맨 아래면 끝까지) 보이는 20.
+                    GiPageSection(top: first ? 12 : 22, bottom: 8) { CombatCard(game: p.0, modes: p.1) }
                 }
                 if !ledgers.isEmpty {
                     if !combatGames.isEmpty { GiBand() }
@@ -89,14 +90,16 @@ struct GameTabbedSection: View {
 /// 게임정보 하위 페이지 섹션(10/1) — 카드 없이 화면 폭, 좌우 20 · 위 22 · 아래 20. 섹션 사이는 GiBand.
 /// Android `GiPageSection` 과 같다.
 /// bottom — 마지막 내용 끝 → 띠가 눈에 20 이 되게, 20 − (마지막 줄이 스스로 가진 아래 여백)을 넘긴다(10/1).
-/// 페이지 맨 아래 섹션은 20 그대로 둔다.
+/// 페이지 맨 아래 섹션은 20 그대로 둔다. top — 헤더 바로 아래 첫 섹션은 12(전투 진행도 A안).
 struct GiPageSection<Content: View>: View {
     let title: String?
+    let top: CGFloat
     let bottom: CGFloat
     let content: Content
 
-    init(_ title: String? = nil, bottom: CGFloat = 20, @ViewBuilder content: () -> Content) {
+    init(_ title: String? = nil, top: CGFloat = 22, bottom: CGFloat = 20, @ViewBuilder content: () -> Content) {
         self.title = title
+        self.top = top
         self.bottom = bottom
         self.content = content()
     }
@@ -111,7 +114,7 @@ struct GiPageSection<Content: View>: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 20)
-        .padding(.top, 22)
+        .padding(.top, top)
         .padding(.bottom, bottom)
     }
 }
@@ -121,15 +124,61 @@ struct GiHairline: View {
     var body: some View { Color(hex: 0xFFEEF0F2).frame(height: 1).frame(maxWidth: .infinity) }
 }
 
+// 전투 진행도 2.0 A안(10/1) 색 — 급한 마감 · 만점. Android GameInfoCombat 과 같다.
+private let combatUrgent = Color(hex: 0xFFE8634A)
+private let combatUrgentBg = Color(hex: 0xFFFDECE8)
+private let combatDone = Color(hex: 0xFF0F8C77)
+private let combatDoneBg = Color(hex: 0xFFE6F9F5)
+private let combatPillGrayBg = Color(hex: 0xFFF2F4F6)
+private let combatTrack = Color(hex: 0xFFEDEFF3)
+
+/// 요약 머리 — 「만점까지 n개 남았어요」 + 만점 · 가장 급한 마감 두 칸. 집계는 공유 `combatSummary`.
+private struct CombatSummaryHead: View {
+    let summary: CombatSummary
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text("전투 콘텐츠 진행도").font(.pretendard(size: 13, weight: .bold)).foregroundStyle(GLGColor.textSecondary)
+            Group {
+                if summary.remaining > 0 {
+                    Text("만점까지 ") + Text("\(summary.remaining)개").foregroundColor(combatUrgent) + Text(" 남았어요")
+                } else {
+                    Text("모두 만점이에요")
+                }
+            }
+            .font(.pretendard(size: 24, weight: .black)).foregroundStyle(GLGColor.textPrimary)
+            .lineSpacing(8)
+            .padding(.top, 4)
+            HStack(spacing: 10) {
+                chip("만점", "\(summary.full) / \(summary.total)", GLGColor.textPrimary)
+                if let d = summary.urgentDDay?.int32Value {
+                    chip("가장 급한 마감", "D-\(d)", combatUrgent)
+                } else {
+                    chip("가장 급한 마감", "-", GLGColor.textSecondary)
+                }
+            }
+            .fixedSize(horizontal: false, vertical: true)
+            .padding(.top, 16)
+        }
+    }
+    private func chip(_ label: String, _ value: String, _ color: Color) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(label).font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary)
+            Text(value).font(.pretendard(size: 17, weight: .bold)).foregroundStyle(color)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .padding(.horizontal, 14).padding(.vertical, 12)
+        .background(Color(hex: 0xFFF7F8FA), in: RoundedRectangle(cornerRadius: 14))
+    }
+}
+
+/// 게임별 전투 콘텐츠 진행도 블록. 섹션 하나가 게임 하나다 — 게임 사이는 부르는 쪽의 띠(GiBand)가 가른다.
 private struct CombatCard: View {
     let game: Game
     let modes: [CombatMode]
-    @Environment(\.glgAccent) private var accent
-    // 카드 면은 걷었다(10/1) — 게임 사이 구분은 부르는 쪽의 헤어라인이 한다.
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            HStack(spacing: 8) { GLGGameTag(game: game.displayName, size: .small); Text(game.shortName).font(.pretendard(size: 15, weight: .bold)) }
-                .padding(.bottom, 2)
+            HStack(spacing: 8) { GLGGameTag(game: game.displayName, size: .small); Text(game.shortName).font(.pretendard(size: 17, weight: .bold)) }
+                .padding(.bottom, 4)
             ForEach(Array(modes.enumerated()), id: \.offset) { i, m in
                 combatRow(m)
                 if i < modes.count - 1 { GiHairline() }
@@ -138,36 +187,63 @@ private struct CombatCard: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
     private func combatRow(_ m: CombatMode) -> some View {
-        VStack(alignment: .leading, spacing: 0) {
-            HStack(alignment: .top) {
-                VStack(alignment: .leading, spacing: 2) {
+        let color = Color(argb64: m.gameColor)
+        // 집계(combatSummary)와 같은 기준 — 셈에 드는 모드만 만점 · 마감 강조를 받는다.
+        let counted = m.hasData && m.maxStars > 0
+        let full = counted && m.stars >= m.maxStars
+        let d: Int32? = m.dDay(now: nowMs()).map { $0.int32Value }.flatMap { $0 >= 0 ? $0 : nil }
+        return VStack(alignment: .leading, spacing: 0) {
+            HStack(alignment: .center, spacing: 8) {
+                VStack(alignment: .leading, spacing: 0) {
                     Text(m.name).font(.pretendard(size: 15, weight: .bold)).lineLimit(1)
-                    // 보조 글자 11 → 13(10/1) — 카드를 걷은 흰 바탕에서 11 은 흐렸다.
                     Text(m.detail).font(.pretendard(size: 13)).foregroundStyle(GLGColor.textSecondary).lineLimit(1)
                 }
-                Spacer(minLength: 8)
-                VStack(alignment: .trailing, spacing: 2) {
-                    if !m.badge.isEmpty {
-                        // 평가 모드(시유 방어전) — 별 대신 등급. 막대는 점수/만점으로 아래에서 그대로 그린다.
-                        Text(m.badge).font(.pretendard(size: 15, weight: .bold)).foregroundStyle(Color(argb64: m.gameColor))
-                    } else if m.maxStars > 0 {
-                        StarCount(label: "\(m.stars)/\(m.maxStars)",
-                                  description: "별 \(m.stars) / \(m.maxStars)",
-                                  size: 13)
-                            .foregroundStyle(Color(argb64: m.gameColor))
-                    } else if m.hasData {
-                        Text("메달 \(m.stars)").font(.pretendard(size: 13, weight: .bold)).foregroundStyle(Color(argb64: m.gameColor))
+                .frame(maxWidth: .infinity, alignment: .leading)
+                if !m.badge.isEmpty {
+                    // 평가 모드(시유 방어전) — 별 대신 등급. 막대는 점수/만점으로 아래에서 그대로 그린다.
+                    Text(m.badge).font(.pretendard(size: 17, weight: .black)).foregroundStyle(color)
+                } else if m.maxStars > 0 {
+                    HStack(spacing: 3) {
+                        Image(systemName: "star.fill").font(.system(size: 14)).frame(width: 16, height: 16).foregroundStyle(color)
+                        Text("\(m.stars)").font(.pretendard(size: 17, weight: .black)).foregroundColor(color)
+                            + Text("/\(m.maxStars)").font(.pretendard(size: 13, weight: .medium)).foregroundColor(GLGColor.textSecondary)
                     }
-                    if let d = m.dDay(now: nowMs())?.int32Value, d >= 0 {
-                        Text("D-\(d)").font(.pretendard(size: 12, weight: .bold)).foregroundStyle(accent.primary)
-                    }
+                    // 아이콘엔 라벨을 주지 않고 묶음 하나에 준다 — 숫자만 읽히면 무엇의 개수인지 모른다.
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel("별 \(m.stars) / \(m.maxStars)")
+                } else if m.hasData {
+                    Text("메달 \(m.stars)").font(.pretendard(size: 17, weight: .black)).foregroundStyle(color)
                 }
             }
-            if m.hasData && m.maxStars > 0 {
-                ProgressView(value: Double(m.ratio)).tint(Color(argb64: m.gameColor)).padding(.top, 8)
+            if counted {
+                combatTrack.frame(height: 6)
+                    .overlay(alignment: .leading) {
+                        GeometryReader { g in color.frame(width: g.size.width * CGFloat(m.ratio)) }
+                    }
+                    .clipShape(RoundedRectangle(cornerRadius: 3))
+                    .padding(.top, 10)
+            }
+            if full || d != nil {
+                HStack(spacing: 6) {
+                    Spacer(minLength: 0)
+                    if full { pill("✓ 만점", combatDone, combatDoneBg) }
+                    if let d {
+                        if counted && !full && d <= HomeLogic.shared.COMBAT_WARN_DAYS {
+                            pill("D-\(d) 마감", combatUrgent, combatUrgentBg)
+                        } else {
+                            pill("D-\(d)", GLGColor.textSecondary, combatPillGrayBg)
+                        }
+                    }
+                }
+                .padding(.top, 8)
             }
         }
-        .padding(.vertical, 10)
+        .padding(.vertical, 12)
+    }
+    private func pill(_ text: String, _ fg: Color, _ bg: Color) -> some View {
+        Text(text).font(.pretendard(size: 12, weight: .bold)).foregroundStyle(fg)
+            .padding(.horizontal, 8).padding(.vertical, 3)
+            .background(bg, in: RoundedRectangle(cornerRadius: 10))
     }
 }
 

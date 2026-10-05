@@ -52,6 +52,16 @@ data class GachaBanner(
      * 준다(원신 item_icon · 스타레일 item_icon_u47dee · 젠레스 role_square_avatar).
      */
     val iconUrl: String = "",
+    /**
+     * 이 픽업이 속한 **배너 이름**(API `name`, 예: "캐릭터 기원"). 이름이 비면 배열 종류로 만든
+     * 대체 문구("캐릭터 픽업"·"광추 픽업"…). 옛 캐시·수동 JSON 은 빈 문자열. 게임 일정 제목용.
+     */
+    val bannerName: String = "",
+    /**
+     * 그 배너의 픽업 대상 **전체 이름**(4성 포함, API 순서). 이 객체 자체는 5성 하나라
+     * 다른 소비처(홈·천장·콜라보)는 그대로 두고, 게임 일정 부제만 이걸 쓴다.
+     */
+    val lineup: List<String> = emptyList(),
 ) {
     val gameColor: Long get() = GameData.colorFor(game)
 
@@ -349,6 +359,26 @@ data class CombatMode(
     val ratio: Float get() = if (maxStars <= 0) 0f else (stars.toFloat() / maxStars).coerceIn(0f, 1f)
     fun dDay(now: Long = currentTimeMillis()): Int? =
         if (endMillis <= 0) null else ceil((endMillis - now) / (1000.0 * 60 * 60 * 24)).toInt()
+}
+
+/** 전투 진행도 요약 머리 — 만점 [full] / 전체 [total], 만점 아닌 모드 중 가장 급한 마감 [urgentDDay](없으면 null). */
+data class CombatSummary(val full: Int, val total: Int, val urgentDDay: Int?) {
+    val remaining: Int get() = total - full
+}
+
+/**
+ * 셈에 넣는 모드는 `hasData && maxStars > 0` 뿐 — [HomeLogic.combatDeadlines] 와 같은 기준이다.
+ * 메달형(maxStars 0)은 만점 개념이 없고, hasData=false 는 미연동·조회 실패를 '미클리어'로 오해하지 않으려고 뺀다.
+ * 평가 모드(시유 방어전)는 점수/만점으로 센다.
+ */
+fun combatSummary(modes: List<CombatMode>, now: Long = currentTimeMillis()): CombatSummary {
+    val counted = modes.filter { it.hasData && it.maxStars > 0 }
+    val left = counted.filter { it.stars < it.maxStars }
+    return CombatSummary(
+        full = counted.size - left.size,
+        total = counted.size,
+        urgentDDay = left.mapNotNull { it.dDay(now) }.filter { it >= 0 }.minOrNull(),
+    )
 }
 
 /** 월간 수입 일지의 수입원 한 줄 (퀘스트·일일 임무·심연 등 획득 경로별 비중) */
