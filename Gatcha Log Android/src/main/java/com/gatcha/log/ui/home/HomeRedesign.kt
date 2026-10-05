@@ -114,6 +114,7 @@ import com.gatcha.log.ui.theme.LocalReduceMotion
 import com.gatcha.log.ui.theme.ProgressEmpty
 import com.gatcha.log.ui.theme.TextPrimary
 import com.gatcha.log.ui.theme.TextSecondary
+import com.gatcha.log.ui.theme.Urgent
 import com.gatcha.log.ui.theme.WarningText
 import com.gatcha.log.ui.theme.toColor
 import com.gatcha.log.util.won
@@ -228,7 +229,7 @@ fun MonthSpendSection(monthlyTotal: Long, prevTotal: Long, budget: Long, onBudge
                 Text(
                     if (diff == 0L) "지난달과 동일" else "지난달보다 ${won(kotlin.math.abs(diff))} ${if (diff > 0) "↑" else "↓"}",
                     fontSize = 13.sp, fontWeight = FontWeight.Bold, maxLines = 1,
-                    color = if (diff > 0) DangerText else if (diff < 0) accent else TextSecondary,
+                    color = if (diff > 0) Urgent else if (diff < 0) accent else TextSecondary,
                     modifier = Modifier.alignByBaseline(),
                 )
             }
@@ -239,14 +240,14 @@ fun MonthSpendSection(monthlyTotal: Long, prevTotal: Long, budget: Long, onBudge
             val frac = (monthlyTotal.toFloat() / budget).coerceIn(0f, 1f)
             Spacer(Modifier.height(12.dp))
             Box(Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(4.dp)).background(MonthTrack)) {
-                Box(Modifier.fillMaxWidth(frac).fillMaxHeight().clip(RoundedCornerShape(4.dp)).background(if (over) DangerText else accent))
+                Box(Modifier.fillMaxWidth(frac).fillMaxHeight().clip(RoundedCornerShape(4.dp)).background(if (over) Urgent else accent))
             }
             Spacer(Modifier.height(8.dp))
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Text("예산 ${won(budget)}의 ${pct}%", fontSize = 13.sp, color = TextSecondary)
                 Text(
                     if (over) "${won(monthlyTotal - budget)} 초과" else "${won(budget - monthlyTotal)} 남음",
-                    fontSize = 13.sp, color = if (over) DangerText else TextSecondary,
+                    fontSize = 13.sp, color = if (over) Urgent else TextSecondary,
                 )
             }
         } else {
@@ -360,7 +361,7 @@ private fun BudgetBar(ratio: Float, over: Boolean) {
     Box(Modifier.fillMaxWidth().height(9.dp).clip(CircleShape).background(ProgressEmpty)) {
         Box(
             Modifier.fillMaxWidth(if (over) 1f else ratio).fillMaxHeight().clip(CircleShape).background(
-                if (over) Brush.horizontalGradient(listOf(Color(0xFFFF7A7A), DangerText))
+                if (over) Brush.horizontalGradient(listOf(Color(0xFFFF7A7A), Urgent))
                 else Brush.horizontalGradient(listOf(accent2, accent))
             ),
         )
@@ -421,7 +422,7 @@ private fun GameBudgetRow(gs: GameSpend, accent: Color, accent2: Color) {
                 if (hasLimit) "${won(gs.spent)} / ${won(gs.limit)}" else "${won(gs.spent)} · 한도 없음",
                 fontSize = 12.sp,
                 fontWeight = if (gameOver) FontWeight.Bold else FontWeight.Normal,
-                color = if (gameOver) DangerText else TextSecondary,
+                color = if (gameOver) Urgent else TextSecondary,
             )
         }
         Spacer(Modifier.height(5.dp))
@@ -429,7 +430,7 @@ private fun GameBudgetRow(gs: GameSpend, accent: Color, accent2: Color) {
             Box(Modifier.fillMaxWidth().height(7.dp).clip(CircleShape).background(ProgressEmpty)) {
                 Box(
                     Modifier.fillMaxWidth(if (gameOver) 1f else ratio).fillMaxHeight().clip(CircleShape).background(
-                        if (gameOver) Brush.horizontalGradient(listOf(Color(0xFFFF7A7A), DangerText))
+                        if (gameOver) Brush.horizontalGradient(listOf(Color(0xFFFF7A7A), Urgent))
                         else Brush.horizontalGradient(listOf(accent2, accent))
                     ),
                 )
@@ -603,7 +604,6 @@ fun DashScheduleCard(events: List<GameEvent>, challenges: List<GameChallenge>, o
 }
 
 /** 마감 임박(D-0~3) D-day 색 — 게임 정보 일정(ScheduleLogic.urgent)과 같은 기준 · 같은 값. */
-private val ScheduleUrgent = Color(0xFFE8634A)
 
 @Composable
 private fun ScheduleRows(items: List<Triple<String, String, Pair<Long, String>>>, now: Long) {
@@ -619,7 +619,7 @@ private fun ScheduleRows(items: List<Triple<String, String, Pair<Long, String>>>
             Spacer(Modifier.width(12.dp))
             Text(row.second, fontSize = 15.sp, color = TextPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
             Spacer(Modifier.width(12.dp))
-            Text(row.third.second, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = if (dDay in 0..3) ScheduleUrgent else TextPrimary)
+            Text(row.third.second, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = if (dDay in 0..3) Urgent else TextPrimary)
         }
     }
 }

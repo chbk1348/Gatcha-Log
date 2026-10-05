@@ -310,7 +310,7 @@ struct DailyHeroSection: View {
                 }
             }
         }
-        .padding(.vertical, 13)
+        .padding(.vertical, 12)
     }
 
     // ── 미연동 안내 — 좌측 정렬(중앙정렬 4단 스택은 빈 상태의 기본 슬롭이다) ──
@@ -443,8 +443,8 @@ struct AttendanceDetailView: View {
             VStack(alignment: .leading, spacing: 0) {
                 todayCard(s)
                 GiBand()
-                // 마지막 줄이 위아래 13 을 가져 섹션 아래는 7 — 띠까지 눈에 20(10/1).
-                GiPageSection("게임별 출석", bottom: 7) {
+                // 마지막 줄이 위아래 12 를 가져 섹션 아래는 8 — 띠까지 눈에 20(10/1).
+                GiPageSection("게임별 출석", bottom: 8) {
                     ForEach(Array(s.games.enumerated()), id: \.offset) { i, g in
                         if i > 0 { GiHairline() }
                         gameRow(g, elapsed: Int(s.monthElapsedDays))
@@ -458,7 +458,7 @@ struct AttendanceDetailView: View {
                 }
             }
             // 아래 여분 없음 — 마지막 섹션이 아래 20 을 둔다(GLDS 2.0, 10/1).
-            .glgReadableWidth(720)
+            .glgReadableWidth(640)
         }
         .scrollIndicators(.hidden)
         .background(Color.white)
@@ -526,7 +526,7 @@ struct AttendanceDetailView: View {
                 .disabled(store.checkingIn != nil)
             }
         }
-        .padding(.vertical, 13)
+        .padding(.vertical, 12)
     }
 }
 

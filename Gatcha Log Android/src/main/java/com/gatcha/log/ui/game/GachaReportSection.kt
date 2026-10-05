@@ -1,5 +1,6 @@
 package com.gatcha.log.ui.game
 
+import com.gatcha.log.ui.components.GldsSection
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -96,9 +97,7 @@ fun GachaReportSection(
 
 /** 화면 폭 섹션 — 좌우 20 · 위 22 · 아래 20(10/1, 게임 정보 GiSection 과 같은 규격). */
 @Composable
-private fun ReportSection(bottom: Dp = 20.dp, content: @Composable ColumnScope.() -> Unit) {
-    Column(Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 22.dp, bottom = bottom), content = content)
-}
+private fun ReportSection(bottom: Dp = 20.dp, content: @Composable ColumnScope.() -> Unit) = GldsSection(bottom = bottom, content = content)
 
 // 운 분포색
 private val Lucky = Color(0xFF2BB673)

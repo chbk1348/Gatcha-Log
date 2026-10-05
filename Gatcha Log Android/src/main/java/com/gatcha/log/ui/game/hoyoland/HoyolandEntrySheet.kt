@@ -76,8 +76,9 @@ fun HoyolandEntrySheet(
                 Text("내 입장권", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
                 Spacer(Modifier.height(3.dp))
                 Text(
-                    if (entry.isEmpty) "가는 날의 조를 골라 두세요 · 안 가는 날은 비워 두면 돼요"
-                    else "${ymds.size}일 중 ${entry.dayCount}일 · 같은 조를 다시 누르면 취소돼요",
+                    // 기간 안 날짜만 센다 — 지난 회차 날짜가 남아 「4일 중 6일」이 되지 않게.
+                    if (e.entryDayCount(entry) == 0) "가는 날의 조를 골라 두세요 · 안 가는 날은 비워 두면 돼요"
+                    else "${ymds.size}일 중 ${e.entryDayCount(entry)}일 · 같은 조를 다시 누르면 취소돼요",
                     fontSize = 12.sp, color = TextSecondary,
                 )
                 Spacer(Modifier.height(14.dp))

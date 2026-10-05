@@ -89,6 +89,40 @@ class HoyolandCartTest {
     }
 
     @Test
+    fun 담은_종수와_개수는_지금_목록_기준이다() {
+        // 목록에서 빠진 이름만 남으면 원본은 「1종 · 5개」지만 화면에는 아무것도 없다 — 유령 「담은 n종 · 0원」.
+        val ghost = HoyolandCart().withQuantity("이제는 없는 굿즈", 5)
+        assertEquals(1, ghost.kindCount)
+        assertEquals(0, event.cartKindCount(ghost))
+        assertEquals(0, event.cartItemCount(ghost))
+        val cart = ghost.withQuantity("행사 아트북", 2).withQuantity("피노코니 머그컵", 1)
+        assertEquals(2, event.cartKindCount(cart))
+        assertEquals(3, event.cartItemCount(cart))
+    }
+
+    @Test
+    fun 같은_회차면_장바구니를_그대로_둔다() {
+        val dated = event.copy(startYmd = "2026-10-02", endYmd = "2026-10-05")
+        val cart = HoyolandCart().withQuantity("행사 아트북", 1)
+        assertEquals(cart, dated.cartForEdition(cart, savedEdition = "2026-10-02"))
+    }
+
+    @Test
+    fun 회차가_바뀌면_장바구니를_비운다() {
+        val cart = HoyolandCart().withQuantity("행사 아트북", 1)
+        // 2026 → 2027(날짜 미정) 전환. 회차 식별자는 개막일, 없으면 행사명이다.
+        val next = HoyolandDefaults.event
+        assertEquals("호요랜드 2027", next.editionKey)
+        assertTrue(next.cartForEdition(cart, savedEdition = "2026-10-02").isEmpty)
+        // 회차를 적기 전(이 기능 전)의 저장값도 지난 회차로 본다.
+        assertTrue(next.cartForEdition(cart, savedEdition = "").isEmpty)
+        // 다음 회차 날짜가 나와도 식별자가 다시 바뀌므로 2027 미정 시절 장바구니도 비워진다.
+        val dated2027 = next.copy(startYmd = "2027-10-01", endYmd = "2027-10-04")
+        assertEquals("2027-10-01", dated2027.editionKey)
+        assertTrue(dated2027.cartForEdition(cart, savedEdition = next.editionKey).isEmpty)
+    }
+
+    @Test
     fun 깨진_저장값은_버리고_읽을_수_있는_줄만_남긴다() {
         val raw = "정상\t2\n망가진줄\n또다른줄\t숫자아님\n\t3"
         assertEquals(mapOf("정상" to 2), HoyolandCart.parse(raw).items)

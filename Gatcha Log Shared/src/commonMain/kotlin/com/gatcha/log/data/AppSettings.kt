@@ -190,7 +190,9 @@ class AppSettings {
     /** 백그라운드 주기 작업이 필요한지(하나라도 켜져 있으면 스케줄 유지). */
     fun needsPeriodicWork(): Boolean =
         autoCheckIn || notifyResin || notifyAttendance || notifyBudget || notifyPickup ||
-            notifyNews || notifyCombat || notifyHoyoland
+            notifyNews || notifyCombat ||
+            // 호요랜드 토글은 기본 켜짐인데 행사가 끝나면 목록에서 빠져 끌 수가 없다 — 그 뒤엔 세지 않는다.
+            (notifyHoyoland && NotificationCatalog.hoyolandAlertsActive)
 
     /**
      * 마지막 포그라운드 점검 시각 — 앱을 열 때마다 밀린 알림을 정리하되, 전환할 때마다
@@ -221,6 +223,15 @@ class AppSettings {
         set(v) { prefs.putString(KEY_HOYOLAND_ENTRY, v) }
 
     /**
+     * 장바구니 · 입장권이 **어느 회차 것인지**([HoyolandEvent.editionKey]).
+     * 둘 다 회차 구분 없는 키라, 다음 회차 config 가 오면 작년 굿즈 · 날짜가 그대로 남았다.
+     * 읽을 때 지금 회차와 다르면 장바구니는 비우고 입장권은 기간 안 날짜만 남긴다.
+     */
+    var hoyolandEdition: String
+        get() = prefs.getString(KEY_HOYOLAND_EDITION, "") ?: ""
+        set(v) { prefs.putString(KEY_HOYOLAND_EDITION, v) }
+
+    /**
      * 마지막으로 받아 온 호요랜드 설정 원문(JSON).
      *
      * 첫 프레임을 **번들 기본값이 아니라 마지막으로 본 값**으로 그리려고 둔다. 예전엔 켤 때마다
@@ -241,6 +252,7 @@ class AppSettings {
         private const val PREFS = "gatcha_settings"
         private const val KEY_HOYOLAND_CART = "hoyoland_cart"
         private const val KEY_HOYOLAND_ENTRY = "hoyoland_entry"
+        private const val KEY_HOYOLAND_EDITION = "hoyoland_edition"
         private const val KEY_HOYOLAND_CONFIG = "hoyoland_config_raw"
         private const val KEY_AUTO_CHECKIN = "auto_checkin"
         private const val KEY_NOTIFY_RESIN = "notify_resin"

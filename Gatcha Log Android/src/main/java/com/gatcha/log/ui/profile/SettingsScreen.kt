@@ -1,5 +1,8 @@
 package com.gatcha.log.ui.profile
 
+import com.gatcha.log.ui.components.GldsSection
+import com.gatcha.log.ui.components.GldsHairline
+import com.gatcha.log.ui.components.GldsBand
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.foundation.shape.CircleShape
 import com.gatcha.log.data.GameData
@@ -77,6 +80,7 @@ import com.gatcha.log.data.SpendingViewModel
 import com.gatcha.log.util.SafIO
 import kotlinx.coroutines.launch
 import com.gatcha.log.ui.theme.DividerColor
+import com.gatcha.log.ui.theme.Urgent
 import com.gatcha.log.ui.theme.LocalAccent
 import com.gatcha.log.ui.theme.LocalAccentDeep
 import com.gatcha.log.ui.theme.AccentPalette
@@ -716,10 +720,7 @@ internal val RowDivider = Color(0xFFF0F3F2)
 //  줄(SettingsNavRow · NotifyRow)은 좌우 20 을 스스로 가져 누르는 면이 화면 폭 전체가 된다.
 // ============================================================
 
-private val SetBandColor = Color(0xFFF2F4F6)
-private val SetHairColor = Color(0xFFEEF0F2)
-
-private fun LazyListScope.band() = item { Box(Modifier.fillMaxWidth().height(10.dp).background(SetBandColor)) }
+private fun LazyListScope.band() = item { GldsBand() }
 
 /** 화면 폭 섹션 — 제목 17 Bold + 오른쪽 보조 문구 13. */
 @Composable
@@ -733,7 +734,8 @@ private fun SetSection(
     bottom: Dp = 8.dp,
     content: @Composable ColumnScope.() -> Unit,
 ) {
-    Column(Modifier.fillMaxWidth().padding(top = 22.dp, bottom = bottom)) {
+    // 줄이 좌우 20 을 스스로 가져(누르는 면 = 화면 폭) 섹션은 horizontal 0, 머리만 20 들인다.
+    GldsSection(bottom = bottom, horizontal = 0.dp) {
         Row(
             Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, bottom = 14.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -747,9 +749,7 @@ private fun SetSection(
 }
 
 @Composable
-private fun SetHair() {
-    Box(Modifier.padding(horizontal = 20.dp).fillMaxWidth().height(1.dp).background(SetHairColor))
-}
+private fun SetHair() = GldsHairline(inset = 20.dp)
 
 /** 섹션 안 맨 아래 보조 문구 — 12. */
 @Composable
@@ -877,7 +877,7 @@ internal fun BudgetScreen(
                                 Text(g.displayName, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
                                 Text(
                                     "이번 달 ${won(spent)}" + if (over) " · 한도 초과" else "",
-                                    fontSize = 12.sp, color = if (over) NotifyWarn else TextSecondary,
+                                    fontSize = 12.sp, color = if (over) Urgent else TextSecondary,
                                     fontWeight = if (over) FontWeight.Bold else FontWeight.Normal,
                                 )
                             }

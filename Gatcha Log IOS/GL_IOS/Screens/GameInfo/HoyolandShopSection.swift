@@ -64,6 +64,7 @@ struct HoyolandGoodsView: View {
         let all = event.visibleGoods
         let games = event.goodsGames
         let cart = store.hoyolandCart
+        let hasCartLines = event.cartKindCount(cart: cart) > 0   // 지금 목록에 있는 것만
         let shown = all.filter { gameFilter == nil || $0.game == gameFilter }
 
         // 게임 탭은 **스크롤 바깥**이다 — 헤더 밑에 붙박이로 선다(Android 는 SectionPage 의
@@ -84,7 +85,7 @@ struct HoyolandGoodsView: View {
                     )
                 )
                 .padding(.horizontal, wide ? 24 : 20).padding(.bottom, 10)
-                .glgReadableWidth(wide ? HoyolandWideMaxWidth : 720)
+                .glgReadableWidth(wide ? HoyolandWideMaxWidth : 640)
             }
             // 붙박이 탭이 서면 탭이 아래 10 을 이미 두므로 첫 섹션 위를 12 로 줄인다(10/1).
             let sectionTop: CGFloat = (!all.isEmpty && games.count > 1) ? 12 : 22
@@ -138,7 +139,7 @@ struct HoyolandGoodsView: View {
                 }
                 // 한 열은 좌우 여백 없이 화면 폭(섹션 · 타일이 스스로 20) — 두 열(iPad)만 24(10/1).
                 .padding(.horizontal, wide ? 24 : 0)
-                .glgReadableWidth(wide ? HoyolandWideMaxWidth : 720)
+                .glgReadableWidth(wide ? HoyolandWideMaxWidth : 640)
             }
             .scrollIndicators(.hidden)
         }
@@ -154,17 +155,18 @@ struct HoyolandGoodsView: View {
         // overlay 가 아니라 safeAreaInset 인 이유: overlay 는 콘텐츠를 안 밀어 마지막 굿즈가
         // 바에 가려 눌리지 않는다(지출 목록에서 같은 문제를 겪고 고친 자리다).
         .safeAreaInset(edge: .bottom, spacing: 0) {
-            if !cart.isEmpty {
+            // 지금 목록 기준으로 센다 — 목록에서 빠진 이름만 남은 장바구니로 「담은 0종 · 0원」 바가 서지 않게.
+            if hasCartLines {
                 goodsBar(cart).transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
-        .animation(GLGMotion.standard(), value: cart.isEmpty)
+        .animation(GLGMotion.standard(), value: hasCartLines)
         // 하단 바가 떠 있는 동안만 '추가' FAB 를 감춘다 — 자리가 겹쳐 「장바구니」 버튼이
         // '+' 에 가린다(iOS 18~25 는 FAB 가 TabView 바깥 오버레이라 그냥 두면 덮는다).
         // 담은 게 없으면 바가 없으므로 FAB 는 그대로 둔다.
-        .onAppear { store.hidesAddButton = !cart.isEmpty }
+        .onAppear { store.hidesAddButton = hasCartLines }
         .onDisappear { store.hidesAddButton = false }
-        .onChange(of: cart.isEmpty) { _, empty in store.hidesAddButton = !empty }
+        .onChange(of: hasCartLines) { _, shown in store.hidesAddButton = shown }
         // 흰 바탕(10/1) — Android SectionPage(flat) 와 같다.
         .background(Color.white)
         .glgPageTitle("굿즈 목록")
@@ -363,7 +365,7 @@ struct HoyolandGoodsView: View {
     @ViewBuilder private func goodsBar(_ cart: HoyolandCart) -> some View {
         HStack(spacing: 8) {
             VStack(alignment: .leading, spacing: 1) {
-                Text("담은 \(cart.kindCount)종 · \(cart.totalCount)개")
+                Text("담은 \(event.cartKindCount(cart: cart))종 · \(event.cartItemCount(cart: cart))개")
                     .font(.pretendard(size: 11.5, weight: .bold))
                     .foregroundStyle(GLGColor.textSecondary)
                 let total = event.cartTotal(cart: cart)
@@ -461,7 +463,7 @@ struct HoyolandCartView: View {
             }
             // 카드 없는 섹션(10/1) — 좌우 20(두 열은 24) · 위 22 · 아래 20.
             .padding(.horizontal, wide ? 24 : 20).padding(.top, 22).padding(.bottom, 20)
-            .glgReadableWidth(wide ? HoyolandWideMaxWidth : 720)
+            .glgReadableWidth(wide ? HoyolandWideMaxWidth : 640)
         }
         .hoyolandWide($wide)
         .scrollIndicators(.hidden)
@@ -514,7 +516,7 @@ struct HoyolandCartView: View {
             HStack {
                 Text("담은 굿즈").font(.pretendard(size: 12.5)).foregroundStyle(.white.opacity(0.72))
                 Spacer(minLength: 8)
-                Text("\(cart.kindCount)종 · \(cart.totalCount)개")
+                Text("\(event.cartKindCount(cart: cart))종 · \(event.cartItemCount(cart: cart))개")
                     .font(.pretendard(size: 12.5, weight: .bold)).foregroundStyle(.white)
             }
             if unpriced > 0 {
@@ -729,7 +731,7 @@ struct HoyolandBoothView: View {
             }
             // 카드 없는 섹션(10/1) — 좌우 20(두 열은 24) · 위 22 · 아래 20. 부스 한 곳은 헤어라인 목록 한 줄.
             .padding(.horizontal, wide ? 24 : 20).padding(.top, 22).padding(.bottom, 20)
-            .glgReadableWidth(wide ? HoyolandWideMaxWidth : 720)
+            .glgReadableWidth(wide ? HoyolandWideMaxWidth : 640)
         }
         .hoyolandWide($wide)
         .scrollIndicators(.hidden)

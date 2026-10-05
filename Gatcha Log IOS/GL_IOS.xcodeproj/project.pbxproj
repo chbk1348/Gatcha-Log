@@ -30,6 +30,7 @@
 		516633AC40C13ACD8FEE9995 /* ImageViewer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2362CDCB428FA687B73D5535 /* ImageViewer.swift */; };
 		53DA02B1AA33DC0B59A484D3 /* Pretendard-Medium.otf in Resources */ = {isa = PBXBuildFile; fileRef = B0AC89C74883ECB4D4534D65 /* Pretendard-Medium.otf */; };
 		57E3C89A46357C998CEAD839 /* GlassButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 607DE67679739531B7DC4652 /* GlassButton.swift */; };
+		A1B2C3D4E5F60718293A4B5C /* GldsSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60718293A4B5D /* GldsSection.swift */; };
 		5A20E9FA5EC5B018222B4775 /* Pretendard-Bold.otf in Resources */ = {isa = PBXBuildFile; fileRef = EDA6932189E1AD9D46B8D081 /* Pretendard-Bold.otf */; };
 		63BB6DD0D19A0B7E102937BD /* HeaderButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 32BBA1BA7898178C15DF09E1 /* HeaderButton.swift */; };
 		66655B48380F2D5C59045C50 /* PerfSignpost.swift in Sources */ = {isa = PBXBuildFile; fileRef = D784E55E4619CB1F45BC57A8 /* PerfSignpost.swift */; };
@@ -131,6 +132,7 @@
 		5964E551478F1EBAFEFA8CAD /* AnnualReportView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnnualReportView.swift; sourceTree = "<group>"; };
 		5F47E41FAFDD2FD2F4E72EEE /* AdaptiveLayout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdaptiveLayout.swift; sourceTree = "<group>"; };
 		607DE67679739531B7DC4652 /* GlassButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlassButton.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F60718293A4B5D /* GldsSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GldsSection.swift; sourceTree = "<group>"; };
 		6367C84794DC1C3725F7FCD5 /* GL_IOSTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = GL_IOSTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		68D6D7AAE7CA1EEF965F0455 /* GL_IOS.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = GL_IOS.entitlements; sourceTree = "<group>"; };
 		6A7AD50D44CC890634902ADD /* GachaDashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GachaDashboardView.swift; sourceTree = "<group>"; };
@@ -381,6 +383,7 @@
 				439879BBC52F89415C2831E6 /* GameTag.swift */,
 				16692A76093EA64BC84CA502 /* Glass.swift */,
 				607DE67679739531B7DC4652 /* GlassButton.swift */,
+				A1B2C3D4E5F60718293A4B5D /* GldsSection.swift */,
 				CB188D8B07C1771A193CF288 /* GlassCard.swift */,
 				FEA0ECFE89434FBD76D2E252 /* GLGChip.swift */,
 				716CDDC7D2BB3BEC9580864E /* GLGSkeleton.swift */,
@@ -583,6 +586,7 @@
 				B12CF4AFED645198409C9D33 /* GiftCodeSheet.swift in Sources */,
 				D1638799928C16B92E7BA17C /* Glass.swift in Sources */,
 				57E3C89A46357C998CEAD839 /* GlassButton.swift in Sources */,
+				A1B2C3D4E5F60718293A4B5C /* GldsSection.swift in Sources */,
 				76FA3F68B6DA27D846A2CDA7 /* GlassCard.swift in Sources */,
 				9511F660EE1953CE0F6FB9C4 /* GoogleWebOAuth.swift in Sources */,
 				63BB6DD0D19A0B7E102937BD /* HeaderButton.swift in Sources */,

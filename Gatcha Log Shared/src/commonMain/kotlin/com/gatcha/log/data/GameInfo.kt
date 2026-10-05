@@ -188,6 +188,9 @@ fun collabTitle(banner: GachaBanner): String? {
     }
 }
 
+/** 이벤트·정기 콘텐츠 보상 하나 — ennead `rewards[]` 항목. 수량 0 은 '수량 미표기'. */
+data class RewardItem(val name: String, val iconUrl: String, val amount: Int)
+
 /** 진행 중인 게임 이벤트 (ennead.cc) */
 data class GameEvent(
     val game: String,
@@ -203,6 +206,8 @@ data class GameEvent(
      * 콘텐츠 전 건에 `start_time` 이 있다).
      */
     val startMillis: Long = 0L,
+    /** 보상 박스용 항목(API 순서, 대표 보상 맨 앞). 옛 캐시·젠레스 폴리크롬은 빈 목록 — [reward] 글자로 폴백. */
+    val rewardItems: List<RewardItem> = emptyList(),
 ) {
     val gameColor: Long get() = GameData.colorFor(game)
 
@@ -230,6 +235,8 @@ data class GameChallenge(
     val reward: String = "",
     /** 시작 시각. 0 이면 모르는 것 — [GameEvent.startMillis] 와 같은 규칙. */
     val startMillis: Long = 0L,
+    /** [GameEvent.rewardItems] 와 같은 규칙. */
+    val rewardItems: List<RewardItem> = emptyList(),
 ) {
     val gameColor: Long get() = GameData.colorFor(game)
     fun dDayLabel(nowMillis: Long = currentTimeMillis()): String {

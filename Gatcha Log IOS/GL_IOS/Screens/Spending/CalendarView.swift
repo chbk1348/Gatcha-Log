@@ -32,41 +32,47 @@ struct CalendarView: View {
 
     var body: some View {
         let monthTotal = entries.reduce(Int64(0)) { acc, e in if case .active(let d) = e { return acc + d.spendTotal }; return acc }
+        // GLDS 2.0(10/6) — 흰 바탕, 카드 없이 화면 폭 섹션 둘(월 · 총 지출 / 날짜별 활동), 사이는 띠.
+        // 날짜별 활동은 헤어라인으로 나눈 목록이다. Android CalendarScreen 과 같은 수치.
         ScrollView {
             VStack(spacing: 0) {
-                // 월 이동
-                HStack {
-                    monthNav("chevron.left") { shift(-1) }
-                    Spacer()
-                    Text(verbatim: "\(y)년 \(m)월").font(.pretendard(size: 18, weight: .bold))
-                    Spacer()
-                    monthNav("chevron.right") { shift(1) }
+                // 헤더 바로 아래 첫 섹션은 위 12(전투 진행도와 같다).
+                GiPageSection(top: 12) {
+                    // 월 이동
+                    HStack {
+                        monthNav("chevron.left") { shift(-1) }
+                        Spacer()
+                        Text(verbatim: "\(y)년 \(m)월").font(.pretendard(size: 17, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
+                        Spacer()
+                        monthNav("chevron.right") { shift(1) }
+                    }
+                    .padding(.bottom, 16)
+                    // 월 요약(총 지출) — 줄 제목 15 + 값 15 Bold
+                    HStack {
+                        Text("이번 달 총 지출").font(.pretendard(size: 15)).foregroundStyle(GLGColor.textPrimary)
+                        Spacer(minLength: 8)
+                        Text(won(monthTotal)).font(.pretendard(size: 15, weight: .bold)).foregroundStyle(accent.primary)
+                    }
                 }
-                .padding(.vertical, 4)
-                // 요약(총 지출)
-                summaryPill("이번 달 총 지출", won(monthTotal))
-                    .padding(.top, 4).padding(.bottom, 14)
-                // 타임라인
-                if entries.isEmpty {
-                    emptyTimeline
-                } else {
-                    VStack(spacing: 0) {
+                GiBand()
+                // 마지막 줄이 아래 12 를 가져 8 + 12 = 눈에 20. 빈 상태는 자체 여백이 커서 20 그대로.
+                GiPageSection("날짜별 활동", bottom: entries.isEmpty ? 20 : 8) {
+                    if entries.isEmpty {
+                        emptyTimeline
+                    } else {
                         ForEach(Array(entries.enumerated()), id: \.element.id) { idx, e in
+                            if idx > 0 { GiHairline() }
                             switch e {
-                            case .active(let d):
-                                TimelineDayItem(day: d, isFirst: idx == 0, isLast: idx == entries.count - 1, accent: accent.primary)
-                            case .gap(let low, let high):
-                                GapItem(lowDay: low, highDay: high, isLast: idx == entries.count - 1, accent: accent.primary)
+                            case .active(let d): DayRow(day: d, accent: accent.primary)
+                            case .gap(let low, let high): GapRow(lowDay: low, highDay: high)
                             }
                         }
                     }
                 }
-                Color.clear.frame(height: 24)
             }
-            .padding(.horizontal, 16)
         }
         .scrollIndicators(.hidden)
-        .background(GLGBackground { Color.clear })
+        .background(Color.white)
         .glgPageTitle("캘린더")
         .navigationBarTitleDisplayMode(.inline)
         .task(id: entriesKey) {
@@ -91,17 +97,6 @@ struct CalendarView: View {
         .buttonStyle(.plain)
     }
 
-    private func summaryPill(_ label: String, _ value: String) -> some View {
-        GLGCard(cornerRadius: 16, padding: 0) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(label).font(.pretendard(size: 11)).foregroundStyle(GLGColor.textSecondary)
-                Text(value).font(.pretendard(size: 18, weight: .bold)).foregroundStyle(accent.primary)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 14).padding(.vertical, 12)
-        }
-    }
-
     private var emptyTimeline: some View {
         VStack(spacing: 6) {
             Image(systemName: "doc.text").font(.pretendard(size: 44)).foregroundStyle(Color(.systemGray3))
@@ -112,11 +107,13 @@ struct CalendarView: View {
     }
 }
 
-// ── 타임라인 한 노드 — 왼쪽 날짜/레일(점·선) + 오른쪽 그날 활동 카드 ──
-private struct TimelineDayItem: View {
+/// 날짜 칸 폭 + 사이 — 활동 없음 줄도 이만큼 들여 내용 칸에 맞춘다(Android DateColumnWidth · DateContentGap).
+private let dateColumnWidth: CGFloat = 34
+private let dateContentGap: CGFloat = 14
+
+// ── 날짜별 활동 한 줄 — 왼쪽 날짜 + 오른쪽 그날 지출 · 픽업 시작/종료. 카드 없이 위아래 12 ──
+private struct DayRow: View {
     let day: TimelineDay
-    let isFirst: Bool
-    let isLast: Bool
     let accent: Color
 
     private let weekdays = ["일", "월", "화", "수", "목", "금", "토"]
@@ -125,63 +122,45 @@ private struct TimelineDayItem: View {
         let dateColor: Color = day.isToday ? accent : (day.weekdayIndex == 0 ? GLGColor.dangerText : GLGColor.textPrimary)
         HStack(alignment: .top, spacing: 0) {
             VStack(spacing: 0) {
-                Text("\(day.day)").font(.pretendard(size: 18, weight: .bold)).foregroundStyle(dateColor)
-                Text(weekdays[day.weekdayIndex]).font(.pretendard(size: 10)).foregroundStyle(day.isToday ? accent : GLGColor.textSecondary)
+                Text("\(day.day)").font(.pretendard(size: 17, weight: .bold)).foregroundStyle(dateColor)
+                Text(weekdays[day.weekdayIndex]).font(.pretendard(size: 11)).foregroundStyle(day.isToday ? accent : GLGColor.textSecondary)
             }
-            .frame(width: 34)
-            .padding(.top, 2)
-            Spacer().frame(width: 8)
-            // 레일
-            VStack(spacing: 0) {
-                Rectangle().fill(isFirst ? Color.clear : GLGColor.divider).frame(width: 2, height: 10)
-                Circle().fill(day.isToday ? accent : Color.white)
-                    .frame(width: 12, height: 12)
-                    .overlay(Circle().stroke(accent, lineWidth: 2))
-                Rectangle().fill(isLast ? Color.clear : GLGColor.divider).frame(width: 2).frame(maxHeight: .infinity)
-            }
-            .frame(width: 16)
-            Spacer().frame(width: 10)
-            content.padding(.bottom, 14)
+            .frame(width: dateColumnWidth)
+            Spacer().frame(width: dateContentGap)
+            content.padding(.top, 2)
         }
-        .frame(maxWidth: .infinity)
+        .padding(.vertical, 12)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var content: some View {
         let hasSpend = !day.spendings.isEmpty
         let hasBanner = !day.bannerStart.isEmpty || !day.bannerEnd.isEmpty
-        return GLGCard(cornerRadius: 16, padding: 14) {
-            VStack(alignment: .leading, spacing: 0) {
-                if hasSpend {
-                    HStack {
-                        Text("지출 \(day.spendings.count)건").font(.pretendard(size: 11, weight: .bold)).foregroundStyle(GLGColor.textSecondary)
-                        Spacer()
-                        Text(won(day.spendTotal)).font(.pretendard(size: 15, weight: .bold)).foregroundStyle(accent)
-                    }
-                    .padding(.bottom, 8)
-                    ForEach(Array(day.spendings.enumerated()), id: \.element.id) { i, sp in
-                        if i > 0 { Spacer().frame(height: 6) }
-                        spendLine(sp)
-                    }
+        return VStack(alignment: .leading, spacing: 0) {
+            if hasSpend {
+                HStack {
+                    Text("지출 \(day.spendings.count)건").font(.pretendard(size: 15)).foregroundStyle(GLGColor.textPrimary)
+                    Spacer(minLength: 8)
+                    Text(won(day.spendTotal)).font(.pretendard(size: 15, weight: .bold)).foregroundStyle(accent)
                 }
-                if hasBanner {
-                    if hasSpend { sectionDivider }
-                    ForEach(Array(day.bannerStart.enumerated()), id: \.offset) { _, b in bannerLine("▲", "\(b.name) 픽업 시작", b.color) }
-                    ForEach(Array(day.bannerEnd.enumerated()), id: \.offset) { _, b in bannerLine("▼", "\(b.name) 픽업 종료", b.color) }
+                ForEach(day.spendings, id: \.id) { sp in
+                    spendLine(sp).padding(.top, 6)
                 }
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
+            if hasBanner {
+                if hasSpend { Spacer().frame(height: 8) }
+                ForEach(Array(day.bannerStart.enumerated()), id: \.offset) { _, b in bannerLine("▲", "\(b.name) 픽업 시작", b.color) }
+                ForEach(Array(day.bannerEnd.enumerated()), id: \.offset) { _, b in bannerLine("▼", "\(b.name) 픽업 종료", b.color) }
+            }
         }
-    }
-
-    private var sectionDivider: some View {
-        VStack(spacing: 0) { Spacer().frame(height: 10); Divider(); Spacer().frame(height: 10) }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private func spendLine(_ sp: Spending) -> some View {
         HStack(spacing: 8) {
             Circle().fill(Color(argb64: sp.gameColor)).frame(width: 8, height: 8)
             Text([sp.gameName, sp.itemName.isEmpty ? nil : sp.itemName].compactMap { $0 }.joined(separator: " · "))
-                .font(.pretendard(size: 13, weight: .medium)).lineLimit(1)
+                .font(.pretendard(size: 13)).foregroundStyle(GLGColor.textSecondary).lineLimit(1)
             Spacer(minLength: 8)
             Text(won(sp.amount)).font(.pretendard(size: 13, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
         }
@@ -190,36 +169,24 @@ private struct TimelineDayItem: View {
     private func bannerLine(_ marker: String, _ text: String, _ color: Color) -> some View {
         HStack(spacing: 6) {
             Text(marker).font(.pretendard(size: 10, weight: .bold)).foregroundStyle(color)
-            Text(text).font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary).lineLimit(1)
+            Text(text).font(.pretendard(size: 13)).foregroundStyle(GLGColor.textSecondary).lineLimit(1)
             Spacer(minLength: 0)
         }
         .padding(.vertical, 1)
     }
 }
 
-// ── 활동 없는 연속 구간 노드 — 흐린 점 + "활동 없음" ──
-private struct GapItem: View {
-    let lowDay: Int; let highDay: Int; let isLast: Bool; let accent: Color
+// ── 활동 없는 연속 구간을 한 줄로 — 흐린 "활동 없음" 문구, 내용 칸에 맞춰 들인다 ──
+private struct GapRow: View {
+    let lowDay: Int; let highDay: Int
     private var label: String {
         lowDay == highDay ? "\(lowDay)일 · 활동 없음"
             : "\(lowDay)일–\(highDay)일 · 활동 없음 (\(highDay - lowDay + 1)일)"
     }
     var body: some View {
-        HStack(alignment: .top, spacing: 0) {
-            Spacer().frame(width: 34)
-            Spacer().frame(width: 8)
-            VStack(spacing: 0) {
-                Rectangle().fill(GLGColor.divider).frame(width: 2, height: 9)
-                Circle().fill(Color(.systemGray3)).frame(width: 7, height: 7)
-                Rectangle().fill(isLast ? Color.clear : GLGColor.divider).frame(width: 2).frame(maxHeight: .infinity)
-            }
-            .frame(width: 16)
-            Spacer().frame(width: 10)
-            Text(label).font(.pretendard(size: 12, weight: .medium)).foregroundStyle(Color(.systemGray3))
-                .padding(.top, 1).padding(.bottom, 14)
-            Spacer(minLength: 0)
-        }
-        .frame(maxWidth: .infinity)
+        Text(label).font(.pretendard(size: 13, weight: .medium)).foregroundStyle(Color(.systemGray3))
+            .padding(.leading, dateColumnWidth + dateContentGap).padding(.vertical, 12)
+            .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 

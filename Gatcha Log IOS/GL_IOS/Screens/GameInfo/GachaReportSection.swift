@@ -89,9 +89,7 @@ struct GachaReportSection: View {
 
     /// 화면 폭 섹션 — 좌우 20 · 위 22 · 아래 20(10/1, Android ReportSection 과 같다).
     private func reportSection<C: View>(bottom: CGFloat = 20, @ViewBuilder _ content: () -> C) -> some View {
-        VStack(alignment: .leading, spacing: 0) { content() }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 20).padding(.top, 22).padding(.bottom, bottom)
+        GldsSection(bottom: bottom, content: content)
     }
 
     // 카드 면은 걷었다(10/1) — 섹션(reportSection) 안에 그대로 그린다.

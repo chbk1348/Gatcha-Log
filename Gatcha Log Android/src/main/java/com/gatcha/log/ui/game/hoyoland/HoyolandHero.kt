@@ -92,7 +92,8 @@ fun HoyolandHero(
     val panel = LocalAccent.current.copy(alpha = 0.10f)
     val deep = LocalAccentDeep.current
     val phase = e.phase()
-    val ended = phase == HoyolandPhase.ENDED
+    // 종료 · 일정 미정(TBA)은 같은 모양이다 — 회색 배지, 카운트다운 대신 한 마디, 액션 줄 없음.
+    val ended = phase.isOffSeason
 
     // ── 규격은 **캐릭터 상세 히어로와 같다**(`EnkaCharSection.CharHero`).
     //
@@ -138,24 +139,28 @@ fun HoyolandHero(
                 // 틴트 면 위에 글자만 늘어놓았을 때는 카운트다운·게이지와 같은 층에 있어서,
                 // 어디까지가 "지금 상태" 고 어디부터가 "행사 정보" 인지 경계가 없었다. 면을
                 // 하나 올리면 그 경계가 선 하나 없이 생긴다(구분선도 같이 걷힌다).
-                Spacer(Modifier.height(16.dp))
-                Column(
-                    Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(Color.White.copy(alpha = 0.72f))
-                        .padding(horizontal = 14.dp, vertical = 13.dp),
-                ) {
-                    HudField("DATE", e.periodLongLabel)
-                    Spacer(Modifier.height(11.dp))
-                    HudField("PLACE", e.venueShort)
-                    // ── 내 입장권 — **정해 둔 사람에게만** 뜬다. 기간·장소는 누구에게나 같은
-                    // 값이지만 이 줄만 내 값이라, 있으면 제일 먼저 찾게 되는 줄이 된다.
-                    // 고른 날을 **전부** 건다(나흘을 한눈에 봐야 하는 값이다).
-                    val entryLines = e.entryLines(entry)
-                    if (entryLines.isNotEmpty()) {
+                // 일정 미정(TBA)이면 적을 기간 · 장소가 없다 — 박스째 뺀다.
+                if (phase != HoyolandPhase.TBA) {
+                    Spacer(Modifier.height(16.dp))
+                    Column(
+                        Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(Color.White.copy(alpha = 0.72f))
+                            .padding(horizontal = 14.dp, vertical = 13.dp),
+                    ) {
+                        HudField("DATE", e.periodLongLabel)
                         Spacer(Modifier.height(11.dp))
-                        HudField("MY PASS", entryLines.joinToString("\n"), valueColor = deep)
+                        HudField("PLACE", e.venueShort)
+                        // ── 내 입장권 — **정해 둔 사람에게만** 뜬다. 기간·장소는 누구에게나 같은
+                        // 값이지만 이 줄만 내 값이라, 있으면 제일 먼저 찾게 되는 줄이 된다.
+                        // 고른 날을 **전부** 건다(나흘을 한눈에 봐야 하는 값이다).
+                        // 끝난 행사의 표는 더 쓸 데가 없다 — 종료 뒤엔 걷는다.
+                        val entryLines = if (ended) emptyList() else e.entryLines(entry)
+                        if (entryLines.isNotEmpty()) {
+                            Spacer(Modifier.height(11.dp))
+                            HudField("MY PASS", entryLines.joinToString("\n"), valueColor = deep)
+                        }
                     }
                 }
             }
@@ -230,6 +235,7 @@ private fun HudLabelRow(e: HoyolandEvent, phase: HoyolandPhase, ended: Boolean) 
             HoyolandPhase.TODAY -> "TODAY"
             HoyolandPhase.ONGOING -> "ONGOING"
             HoyolandPhase.ENDED -> "ENDED"
+            HoyolandPhase.TBA -> "TBA"
         }
         Text(
             stage,
@@ -329,7 +335,8 @@ private fun HeroLiveStage(e: HoyolandEvent, live: StageSlot) {
 private fun HeroCountdown(e: HoyolandEvent, phase: HoyolandPhase, ended: Boolean) {
     val deep = LocalAccentDeep.current
     if (ended) {
-        Text("EVENT ENDED", fontSize = 24.sp, fontWeight = FontWeight.Black, color = TextSecondary, letterSpacing = 1.sp)
+        // 일정 미정(TBA)도 이 자리 — 셀 날짜가 없으니 숫자 대신 한 마디.
+        Text(if (phase == HoyolandPhase.TBA) e.statusLabel() else "EVENT ENDED", fontSize = 24.sp, fontWeight = FontWeight.Black, color = TextSecondary, letterSpacing = 1.sp)
         return
     }
     val number = if (phase.isEventLive) "${e.dayOrdinal()}" else "${e.daysUntilStart()}"

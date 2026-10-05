@@ -347,7 +347,7 @@ extension EnvironmentValues {
 
 /// 섹션 사이 10pt 회색 띠.
 struct SetBand: View {
-    var body: some View { Color(hex: 0xFFF2F4F6).frame(height: 10).frame(maxWidth: .infinity) }
+    var body: some View { GldsBand() }
 }
 
 /// 화면 폭 섹션 — 제목 17 Bold + 오른쪽 보조 문구 13. 제목이 없으면 머리 없이 내용만.
@@ -359,7 +359,8 @@ struct SetSection<Content: View>: View {
     var bottom: CGFloat = 8
     @ViewBuilder var content: Content
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
+        // 줄이 좌우 20 을 스스로 가져(누르는 면 = 화면 폭) 섹션은 horizontal 0, 머리만 20 들인다.
+        GldsSection(bottom: bottom, horizontal: 0) {
             if let title {
                 HStack {
                     Text(title).font(.pretendard(size: 17, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
@@ -372,8 +373,6 @@ struct SetSection<Content: View>: View {
             }
             content
         }
-        .padding(.top, 22).padding(.bottom, bottom)
-        .frame(maxWidth: .infinity, alignment: .leading)
         .environment(\.setRowFlat, true)
     }
 }

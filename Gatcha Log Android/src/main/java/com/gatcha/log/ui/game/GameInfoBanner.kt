@@ -1,11 +1,12 @@
 package com.gatcha.log.ui.game
 
+import com.gatcha.log.ui.components.GldsSection
+import com.gatcha.log.ui.components.GldsHairline
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -123,20 +124,12 @@ internal fun GiPageSection(
     bottom: Dp = 20.dp,
     content: @Composable ColumnScope.() -> Unit,
 ) {
-    Column(modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = top, bottom = bottom)) {
-        if (title != null) {
-            Text(title, fontSize = 17.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
-            Spacer(Modifier.height(12.dp))
-        }
-        content()
-    }
+    GldsSection(modifier, title = title, top = top, bottom = bottom, titleGap = 12.dp, content = content)
 }
 
 /** 줄 사이 헤어라인(10/1) — 마이페이지 · 지출과 같은 1 · #EEF0F2. */
 @Composable
-internal fun GiHairline(modifier: Modifier = Modifier) {
-    HorizontalDivider(modifier, thickness = 1.dp, color = Color(0xFFEEF0F2))
-}
+internal fun GiHairline(modifier: Modifier = Modifier) = GldsHairline(modifier)
 
 // '클리어 편성' 진입 행(ClearEntryRow)은 여기 있었다. 진입점을 데일리 카드 한 곳으로 모으면서
 // 호출부가 사라졌고, iOS 도 같은 이유로 걷어냈다(GameTabbedSection.swift).

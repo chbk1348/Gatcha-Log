@@ -16,9 +16,18 @@ import kotlin.test.assertTrue
  */
 class HoyolandEntryTest {
 
+    // 번들 기본값은 2027(일정 · 조 편성 없음)로 넘어가서, 2026 의 기간 · 조 편성을 여기서 채운다.
     private val event = HoyolandDefaults.event.copy(
         startYmd = "2026-10-02",
         endYmd = "2026-10-05",
+        entryGroups = listOf(
+            HoyolandEntryGroup("A", "10:00"),
+            HoyolandEntryGroup("B", "10:00"),
+            HoyolandEntryGroup("C", "11:00"),
+            HoyolandEntryGroup("D", "11:00"),
+            HoyolandEntryGroup("E", "12:00"),
+            HoyolandEntryGroup("F", "12:00"),
+        ),
     )
 
     @Test
@@ -146,6 +155,40 @@ class HoyolandEntryTest {
         assertEquals(listOf("10.2(금) A조 · 10:00"), event.entryLines(entry))
         assertEquals(2, entry.dayCount, "저장된 값은 건드리지 않는다")
         assertEquals("2026-10-02", event.nextEntryYmd(entry, ymdMillis("2026-10-01")))
+    }
+
+    @Test
+    fun 가는_날_수는_기간_안_날짜만_센다() {
+        // 헤더 「n일」 · 시트 「4일 중 n일」 — 지난 회차 날짜가 섞여 「4일 중 6일」이 되면 안 된다.
+        val entry = HoyolandEntry()
+            .withGroup("2025-10-09", "A")
+            .withGroup("2026-10-02", "A")
+            .withGroup("2026-10-04", "E")
+        assertEquals(3, entry.dayCount, "저장된 값은 셋")
+        assertEquals(2, event.entryDayCount(entry))
+    }
+
+    @Test
+    fun 같은_회차면_입장권을_그대로_둔다() {
+        val entry = HoyolandEntry().withGroup("2025-10-09", "A").withGroup("2026-10-02", "B")
+        assertEquals(entry, event.entryForEdition(entry, savedEdition = event.editionKey))
+    }
+
+    @Test
+    fun 회차가_바뀌면_기간_밖_날짜를_정리한다() {
+        val entry = HoyolandEntry().withGroup("2025-10-09", "A").withGroup("2026-10-02", "B")
+        val rolled = event.entryForEdition(entry, savedEdition = "2025-10-09")
+        assertEquals(mapOf("2026-10-02" to "B"), rolled.groups)
+    }
+
+    @Test
+    fun 일정_미정_회차로_넘어가면_입장권이_비워진다() {
+        // 2026 → 2027(날짜 없음) 전환 — 새 기간이 없으니 남길 날짜도 없다.
+        val entry = HoyolandEntry().withGroup("2026-10-02", "A").withGroup("2026-10-05", "F")
+        val next = HoyolandDefaults.event
+        assertEquals("호요랜드 2027", next.editionKey, "날짜가 없으면 행사명이 회차 식별자다")
+        assertTrue(next.entryForEdition(entry, savedEdition = event.editionKey).isEmpty)
+        assertEquals(0, next.entryDayCount(entry))
     }
 
     /** 그 날짜 정오(KST)의 epoch millis — 날짜 경계에 걸리지 않게 한낮을 쓴다. */

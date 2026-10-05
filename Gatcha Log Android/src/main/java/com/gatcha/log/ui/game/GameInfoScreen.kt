@@ -1,5 +1,7 @@
 package com.gatcha.log.ui.game
 
+import com.gatcha.log.ui.components.GldsSection
+import com.gatcha.log.ui.components.GldsBand
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -493,8 +495,9 @@ fun GameInfoScreen(
             item { GiBand() }
             item {
                 // 입장권은 화면 폭을 꽉 채운다(10/1) — 좌우 여백 없이, 제목 · 종료 줄만 섹션 안에서 20 을 둔다.
-                // 아래 6 — 입장권 본문이 스스로 아래 14 를 가져 띠까지 눈에 20(10/1).
-                Column(Modifier.padding(top = 22.dp, bottom = 6.dp)) {
+                // 아래 20 — 입장권 안쪽 14 는 **면 안쪽** 여백이라 띠와의 간격에 셈하지 않는다.
+                // 6 으로 줄였더니 입장권 테두리가 띠에 붙어 보였다(10/6).
+                Column(Modifier.padding(top = 22.dp, bottom = 20.dp)) {
                     HoyolandSection(onOpen = { sub ->
                         hoyolandReturn = GiSub.Main
                         hoyolandInitial = sub
@@ -522,14 +525,14 @@ fun GameInfoScreen(
             // 통합 게임 일정 — 게임 구분 없이 전부. 게임별로 좁혀 보는 건 상세 페이지에서 한다.
             if (schedule.isNotEmpty()) {
                 item { GiBand() }
-                // 아래 9 — 마지막 게임 줄이 위아래 11 을 가진다(10/1).
-                item { GiSection(bottom = 9.dp) { GameScheduleSection(schedule, banners, onSeeAll = { subPage = GiSub.Schedule }) } }
+                // 아래 8 — 마지막 게임 줄이 위아래 12 를 가진다(10/1).
+                item { GiSection(bottom = 8.dp) { GameScheduleSection(schedule, banners, onSeeAll = { subPage = GiSub.Schedule }) } }
             }
             // 공지·뉴스 — 게임별 최신 공지(탭하면 HoYoLab 열기).
             item { GiBand() }
-            // 아래 6 — 마지막 공지 줄이 위아래 14 를 가진다(10/1).
+            // 아래 8 — 마지막 공지 줄이 위아래 12 를 가진다(10/1).
             item {
-                GiSection(bottom = 6.dp) {
+                GiSection(bottom = 8.dp) {
                     NewsSection(
                         gameNews,
                         onSeeAll = { subPage = GiSub.News },
@@ -600,14 +603,12 @@ private fun GiSection(bottom: Dp = 20.dp, content: @Composable ColumnScope.() ->
     // 통째로 안 보이던 원인이다. 섹션 하나가 한 덩어리(Column)만 내보낸다는 보장이 없다.
     // 카드 없이 화면 폭 섹션 — 좌우 20 · 위 22 · 아래 20, 섹션 사이는 [GiBand](마이페이지 · 지출과 같은 규격).
     // [bottom] — 마지막 줄이 스스로 아래 여백을 가지면 그만큼 덜어 띠까지 눈에 20(10/1). 맨 아래 섹션은 20.
-    Column(Modifier.padding(start = 20.dp, end = 20.dp, top = 22.dp, bottom = bottom), content = content)
+    GldsSection(bottom = bottom, content = content)
 }
 
 /** 게임 정보 섹션 사이 10 띠. */
 @Composable
-internal fun GiBand() {
-    Box(Modifier.fillMaxWidth().height(10.dp).background(Color(0xFFF2F4F6)))
-}
+internal fun GiBand() = GldsBand()
 
 /** 페이지로 분류된 섹션 진입 카드 (아이콘 + 제목 + 설명 + 셰브론). */
 @Composable

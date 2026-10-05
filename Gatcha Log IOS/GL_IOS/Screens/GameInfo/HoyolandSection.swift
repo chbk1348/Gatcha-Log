@@ -119,23 +119,17 @@ struct HoyolandSection: View {
                 .buttonStyle(.plain)
             }
             .padding(.horizontal, 20)
-            if phase == .ended {
-                // 카드는 걷었다(10/1) — 줄 전체가 눌린다.
-                Button { onOpen(.none) } label: {
-                    Group {
-                        HStack(spacing: 12) {
-                            Image(systemName: "party.popper").font(.system(size: 17, weight: .regular))
-                                .foregroundStyle(GLGColor.textSecondary)
-                            Text("\(e.edition) · 종료").font(.pretendard(size: 14, weight: .semibold))
-                                .foregroundStyle(GLGColor.textPrimary)
-                            Spacer(minLength: 0)
-                            Text("지난 행사 보기").font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary)
-                        }
-                        .padding(.horizontal, 20)
-                        .contentShape(Rectangle())
-                    }
+            if phase.isOffSeason {
+                // 종료 · 일정 미정 — 한 줄로 줄인다. 들어가는 문은 헤더 「전체 보기」 하나다
+                // (「지난 행사 보기」가 같은 곳으로 가는 버튼이라 둘이 겹쳤다). (Android 와 파리티)
+                HStack(spacing: 12) {
+                    Image(systemName: "party.popper").font(.system(size: 17, weight: .regular))
+                        .foregroundStyle(GLGColor.textSecondary)
+                    Text("\(e.edition) · \(e.statusLabel(nowMillis: now))").font(.pretendard(size: 14, weight: .semibold))
+                        .foregroundStyle(GLGColor.textPrimary)
+                    Spacer(minLength: 0)
                 }
-                .buttonStyle(.plain)
+                .padding(.horizontal, 20)
             } else {
                 card(e, status: e.statusLabel(nowMillis: now), ongoing: e.isEventLive(nowMillis: now), now: now)
             }
@@ -372,7 +366,16 @@ struct HoyolandDetailView: View {
                 // 히어로 바로 아래 첫 섹션 위에는 띠를 두지 않는다(머리판이 끝을 이미 긋는다).
                 // 라인업은 지금 무대 줄의 면이 화면 끝까지 깔려야 해서 좌우 20 을 스스로 둔다.
                 // 라인업 아래 8 — 마지막 줄이 위아래 12 를 가져 띠까지 눈에 20(10/1).
-                if e.isEventLive(nowMillis: nowMs()) {
+                //
+                // 종료 · 일정 미정이면 예매는 지나갔거나 아직 없다 — 「예매 안내 전체 보기」까지 섹션째
+                // 뺀다. 일정 미정(TBA)은 채울 게 없으면 둘러보기도 뺀다. 위에 선 섹션이 없으면 다음 섹션도
+                // 띠 없이 선다([hasAbove]) — 빠진 섹션이 띠만 남기지 않게. (Android 와 파리티)
+                let phase = e.phase(nowMillis: nowMs())
+                let live = phase.isEventLive
+                let showOnsite = live || phase != .tba || e.hasOnsiteContent
+                let showTicket = !phase.isOffSeason
+                let hasAbove = live || !e.lineup.isEmpty || showOnsite
+                if live {
                     onsiteSection(e).hoyolandSection()
                     if !e.lineup.isEmpty {
                         GiBand()
@@ -384,18 +387,22 @@ struct HoyolandDetailView: View {
                 } else {
                     if !e.lineup.isEmpty {
                         lineupSection(e).hoyolandSection(horizontal: 0, bottom: 8)
-                        GiBand()
                     }
-                    onsiteSection(e).hoyolandSection()
-                    GiBand()
-                    ticketSection(e).hoyolandSection()
+                    if showOnsite {
+                        if !e.lineup.isEmpty { GiBand() }
+                        onsiteSection(e).hoyolandSection()
+                    }
+                    if showTicket {
+                        GiBand()
+                        ticketSection(e).hoyolandSection()
+                    }
                 }
                 if !e.otherPrograms.isEmpty {
-                    GiBand()
+                    if hasAbove { GiBand() }
                     // 마지막 줄이 위아래 14 라 아래 6 — 띠까지 눈에 20(10/1).
                     programSection(e).hoyolandSection(bottom: 6)
                 }
-                GiBand()
+                if hasAbove || !e.otherPrograms.isEmpty { GiBand() }
                 pastSection(e).hoyolandSection()
                 }
 
@@ -403,7 +410,7 @@ struct HoyolandDetailView: View {
             }
             // 한 열은 좌우 여백 없이 화면 폭(섹션이 스스로 20) — 두 열(iPad)만 24 를 둔다(10/1).
             .padding(.horizontal, wide ? 24 : 0)
-            .glgReadableWidth(wide ? HoyolandWideMaxWidth : 720)
+            .glgReadableWidth(wide ? HoyolandWideMaxWidth : 640)
         }
         .hoyolandWide($wide)
         .glgHinge($hinge)
@@ -431,18 +438,19 @@ struct HoyolandDetailView: View {
             // 뿐이라, 정해 둔 값은 히어로 `MY ENTRY` 줄이 답하고 고치는 자리만 여기 둔다.
             // 조 편성이 공개되기 전에는 버튼부터 서지 않는다. (Android 와 파리티)
             // 넓은 화면에서는 히어로 액션 줄이 대신 맡는다(→ [heroActions]).
-            if e.hasEntryGroups && !wide {
+            // 종료 · 일정 미정이면 고를 날이 없다 — 버튼째 걷는다. 개수는 기간 안 날짜만 센다.
+            if e.hasEntryGroups && !wide && !e.phase(nowMillis: nowMs()).isOffSeason {
+                let days = Int(e.entryDayCount(entry: store.hoyolandEntry))
                 ToolbarItem(placement: .topBarTrailing) {
                     Button { entrySheetOpen = true } label: {
                         HStack(spacing: 5) {
                             Image(systemName: "ticket").font(.system(size: 13, weight: .semibold))
-                            Text(store.hoyolandEntry.isEmpty ? "내 입장권"
-                                                             : "\(Int(store.hoyolandEntry.dayCount))일")
+                            Text(days == 0 ? "내 입장권" : "\(days)일")
                                 .font(.pretendard(size: 12, weight: .black))
                         }
-                        .foregroundStyle(store.hoyolandEntry.isEmpty ? GLGColor.textPrimary : accent.deep)
+                        .foregroundStyle(days == 0 ? GLGColor.textPrimary : accent.deep)
                     }
-                    .tint(store.hoyolandEntry.isEmpty ? GLGColor.textPrimary : accent.deep)
+                    .tint(days == 0 ? GLGColor.textPrimary : accent.deep)
                 }
             }
         }
@@ -498,7 +506,11 @@ struct HoyolandDetailView: View {
      보낸다. 두 열의 첫 섹션은 모두 **제목에 윗여백을 품지 않은** 것이라 머리 줄이 같은 높이에서 선다.
      */
     @ViewBuilder private func wideColumns(_ e: HoyolandEvent) -> some View {
-        let live = e.isEventLive(nowMillis: nowMs())
+        let phase = e.phase(nowMillis: nowMs())
+        let live = phase.isEventLive
+        // 종료 · 일정 미정이면 예매를 빼고, 일정 미정(TBA)은 채울 게 없으면 둘러보기도 뺀다(한 열과 같은 규칙).
+        let showOnsite = phase != .tba || e.hasOnsiteContent
+        let showTicket = !phase.isOffSeason
         // 경첩이 있으면 **왼쪽 열을 경첩 앞까지**로 잡고 빈틈을 경첩 폭만큼 준다 — 카드가 접힌
         // 선 위에 걸치지 않는다. 경첩이 없으면(iPad · 접은 듀오) 반반으로 나눈다.
         let gap: CGFloat = hinge.map { max($0.width, 20) } ?? 20
@@ -514,9 +526,11 @@ struct HoyolandDetailView: View {
                 } else {
                     if !e.lineup.isEmpty {
                         lineupSection(e).hoyolandSection(horizontal: 0, bottom: 8)
-                        GiBand()
                     }
-                    onsiteSection(e).hoyolandSection()
+                    if showOnsite {
+                        if !e.lineup.isEmpty { GiBand() }
+                        onsiteSection(e).hoyolandSection()
+                    }
                 }
             }
             .modifier(GLGHingeColumnWidth(hinge: hinge, contentInset: 24))
@@ -527,12 +541,12 @@ struct HoyolandDetailView: View {
                         GiBand()
                     }
                 } else {
-                    ticketSection(e).hoyolandSection()
+                    if showTicket { ticketSection(e).hoyolandSection() }
                     if !e.otherPrograms.isEmpty {
-                        GiBand()
+                        if showTicket { GiBand() }
                         programSection(e).hoyolandSection(bottom: 6)
                     }
-                    GiBand()
+                    if showTicket || !e.otherPrograms.isEmpty { GiBand() }
                 }
                 pastSection(e).hoyolandSection()
             }
@@ -550,10 +564,11 @@ struct HoyolandDetailView: View {
     @ViewBuilder private func heroCard(_ e: HoyolandEvent) -> some View {
         let now = nowMs()
         let phase = e.phase(nowMillis: now)
-        let ended = phase == .ended
+        // 종료 · 일정 미정(TBA)은 같은 모양이다 — 회색 배지, 카운트다운 대신 한 마디, 액션 줄 없음.
+        let ended = phase.isOffSeason
         let live = e.isEventLive(nowMillis: now)
-        // 고른 날을 **전부** 건다(나흘을 한눈에 봐야 하는 값이다).
-        let entryLine = e.entryLines(entry: store.hoyolandEntry).joined(separator: "\n")
+        // 고른 날을 **전부** 건다(나흘을 한눈에 봐야 하는 값이다). 끝난 행사의 표는 걷는다.
+        let entryLine = ended ? "" : e.entryLines(entry: store.hoyolandEntry).joined(separator: "\n")
 
         VStack(alignment: .leading, spacing: 0) {
             // 행사명 줄 — 왼쪽은 이름, 오른쪽은 지금 어느 단계인지.
@@ -591,7 +606,8 @@ struct HoyolandDetailView: View {
             } else {
             // 남은 날짜 — **숫자 그 자체**가 패널의 주인공이다.
             if ended {
-                Text("EVENT ENDED")
+                // 일정 미정(TBA)도 이 자리 — 셀 날짜가 없으니 숫자 대신 한 마디.
+                Text(phase == .tba ? e.statusLabel(nowMillis: now) : "EVENT ENDED")
                     .font(.pretendard(size: 24, weight: .black)).kerning(1)
                     .foregroundStyle(GLGColor.textSecondary)
             } else {
@@ -621,6 +637,8 @@ struct HoyolandDetailView: View {
             // 틴트 면 위에 글자만 늘어놓았을 때는 카운트다운·게이지와 같은 층에 있어서,
             // 어디까지가 "지금 상태" 고 어디부터가 "행사 정보" 인지 경계가 없었다. 면을
             // 하나 올리면 그 경계가 선 하나 없이 생긴다(구분선도 같이 걷힌다).
+            // 일정 미정(TBA)이면 적을 기간 · 장소가 없다 — 박스째 뺀다.
+            if phase != .tba {
             VStack(alignment: .leading, spacing: 0) {
                 hudField("DATE", e.periodLongLabel)
                 hudField("PLACE", e.venueShort).padding(.top, 11)
@@ -635,6 +653,7 @@ struct HoyolandDetailView: View {
             .background(Color.white.opacity(0.72),
                         in: RoundedRectangle(cornerRadius: 16, style: .continuous))
             .padding(.top, 16)
+            }
             }
             // ── 액션은 패널 **안쪽**이다. 밖에 두면 패널이 끝난 자리에 버튼 줄이 따로 떠서
             // 머리판과 본문 사이에 층이 하나 더 생겼다.
@@ -746,6 +765,7 @@ struct HoyolandDetailView: View {
         case .today: return "TODAY"
         case .ongoing: return "ONGOING"
         case .ended: return "ENDED"
+        case .tba: return "TBA"
         default: return "UPCOMING"
         }
     }
@@ -836,8 +856,8 @@ struct HoyolandDetailView: View {
             if mapURL != nil || officialURL != nil || (wide && e.hasEntryGroups) {
                 HStack(spacing: 8) {
                     if wide && e.hasEntryGroups {
-                        heroActionButton(store.hoyolandEntry.isEmpty ? "내 입장권"
-                                                                     : "\(Int(store.hoyolandEntry.dayCount))일",
+                        let days = Int(e.entryDayCount(entry: store.hoyolandEntry))   // 기간 안 날짜만
+                        heroActionButton(days == 0 ? "내 입장권" : "\(days)일",
                                          "ticket", primary: false) { entrySheetOpen = true }
                     }
                     if let mapURL {
@@ -978,8 +998,10 @@ struct HoyolandDetailView: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
-                    Text(entry.isEmpty ? "가는 날의 조를 골라 두세요 · 안 가는 날은 비워 두면 돼요"
-                                       : "\(ymds.count)일 중 \(Int(entry.dayCount))일 · 같은 조를 다시 누르면 취소돼요")
+                    // 기간 안 날짜만 센다 — 지난 회차 날짜가 남아 「4일 중 6일」이 되지 않게.
+                    let days = Int(e.entryDayCount(entry: entry))
+                    Text(days == 0 ? "가는 날의 조를 골라 두세요 · 안 가는 날은 비워 두면 돼요"
+                                   : "\(ymds.count)일 중 \(days)일 · 같은 조를 다시 누르면 취소돼요")
                         .font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary)
                         .padding(.bottom, 14)
                     ForEach(Array(ymds.enumerated()), id: \.offset) { i, ymd in
@@ -1114,18 +1136,6 @@ struct HoyolandDetailView: View {
         return "예매 \(t.statusLabel)"
     }
 
-    /// 카운트다운 문구 — 단계마다 세는 대상이 다르다(남은 날 → 며칠째).
-    private func countCaption(_ e: HoyolandEvent) -> String {
-        if e.isEventLive(nowMillis: nowMs()) { return "진행 중" }
-        if e.phase(nowMillis: nowMs()) == .tomorrow { return "내일 개막" }
-        return "개막까지"
-    }
-
-    private func countUnit(_ e: HoyolandEvent) -> String {
-        if e.dayOrdinal(nowMillis: nowMs()) > 0 { return "일차" }
-        return e.daysUntilStart(nowMillis: nowMs()) == 0 ? "일 · 오늘" : "일 남음"
-    }
-
     /// "10.2(금)" — 기간 라벨 앞부분에서 연도만 뗀다.
     private func openDayLabel(_ e: HoyolandEvent) -> String {
         let head = e.periodLabel.components(separatedBy: " ~ ").first ?? e.periodLabel
@@ -1237,9 +1247,12 @@ struct HoyolandDetailView: View {
                 // 넷의 공통점은 "이 행사에서 볼 수 있는 것" 이고, 미리 보든 실제로 돌든 같다.
                 Text("둘러보기").font(.pretendard(size: 17, weight: .bold))
                 Spacer(minLength: 0)
-                Text(e.isEventLive(nowMillis: nowMs()) ? "행사 중에는 여기가 먼저예요"
-                                                        : "개막하면 맨 위로 올라와요")
-                    .font(.pretendard(size: 12.5)).foregroundStyle(GLGColor.textSecondary)   // 11.5 → 12.5(10/1)
+                // 종료 · 일정 미정이면 올라올 개막이 없다 — 부제를 뺀다.
+                if !e.phase(nowMillis: nowMs()).isOffSeason {
+                    Text(e.isEventLive(nowMillis: nowMs()) ? "행사 중에는 여기가 먼저예요"
+                                                            : "개막하면 맨 위로 올라와요")
+                        .font(.pretendard(size: 12.5)).foregroundStyle(GLGColor.textSecondary)   // 11.5 → 12.5(10/1)
+                }
             }
             .padding(.bottom, 10)
             // 한 줄에 선 두 칸은 **높이를 맞춘다**(`fillHeight` + HStack 의 `fixedSize`). 부제가
@@ -1400,7 +1413,9 @@ struct HoyolandDetailView: View {
                                 .padding(.top, 9)
                         }
                         if !p.deadline.isEmpty {
-                            hoyoBadge(p.deadline, accent.primary).padding(.top, 10)
+                            // 이미 지난 마감은 회색 — 강조색이면 아직 응모할 수 있는 것처럼 읽힌다.
+                            hoyoBadge(p.deadline, e.isDeadlinePast(deadline: p.deadline, nowMillis: nowMs())
+                                      ? GLGColor.textSecondary : accent.primary).padding(.top, 10)
                         }
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -1480,10 +1495,16 @@ struct HoyolandHomeCard: View {
     var body: some View {
         // 노출 판정을 호출부에 맡기지 않는다 — 홈과 일정 탭이 각자 조건을 쓰면 한쪽만 D-60 이
         // 되는 식으로 갈라진다. 띄울 때가 아니면 이 뷰가 스스로 아무것도 그리지 않는다.
-        Group {
-            if event.isFeatured(nowMillis: nowMs()) { card }
+        //
+        // 로더는 **늘 있는 크기 0 뷰**에 건다. `Group { if … }` 에 걸면 숨은 동안엔 붙을 뷰가 없어
+        // `.task`/`.onChange` 가 안 돌고, 그러면 D-60 이 되어도 앱을 새로 켜기 전엔 안 뜬다.
+        // 바깥 여백(위 18 · 양옆 12 · 아래 4)도 카드 쪽에 둔다 — 홈에서 걸면 숨은 날에도 빈 22 가 남는다.
+        VStack(spacing: 0) {
+            Color.clear.frame(height: 0).loadHoyoland(into: $event)
+            if event.isFeatured(nowMillis: nowMs()) {
+                card.padding(.horizontal, 12).padding(.top, 18).padding(.bottom, 4)
+            }
         }
-        .loadHoyoland(into: $event)
     }
 
     /// 입장권 배너 — 디자인 정본은 아티팩트 「호요랜드 배너 시안」 C안(2026-09-28 확정).
@@ -1528,38 +1549,44 @@ struct HoyolandScheduleBanner: View {
     @State private var event: HoyolandEvent = HoyolandApi.shared.current
 
     var body: some View {
-        Group {
+        // 로더는 **늘 있는 크기 0 뷰**에 건다 — 숨은 동안에도 재로딩이 돌아야 D-60 에 스스로 나타난다
+        // (`Group { if … }` 에 걸면 붙을 뷰가 없다). 바깥 간격이 없는 자리라 0 높이는 흔적을 남기지 않는다.
+        VStack(spacing: 0) {
+            Color.clear.frame(height: 0).loadHoyoland(into: $event)
             // 아래 여백을 **배너 안에서** 준다. 이 뷰는 D-60 밖이면 스스로 사라지는데,
             // 간격을 바깥(일정 페이지)에 두면 배너가 없는 날에도 빈 16pt 가 남는다.
             // 반대로 간격을 아예 빼 두면 다음 줄("시작 · 종료")과 맞붙는다
             // (일정 페이지의 LazyVStack 은 spacing 이 0 이라 사이를 벌려 주지 않는다).
-            if event.isFeatured(nowMillis: nowMs()) { banner.padding(.bottom, 16) }
+            // 카드 없이 한 줄 + 아래 헤어라인(10/6) — 줄이 아래 14 를 갖고, 헤어라인 뒤 16 은 예전 카드 아래 간격(Android 와 같다).
+            if event.isFeatured(nowMillis: nowMs()) {
+                VStack(spacing: 0) { banner; GiHairline() }.padding(.bottom, 16)
+            }
         }
-        .loadHoyoland(into: $event)
     }
 
     private var banner: some View {
+        // 카드 면 없이 섹션 안의 한 줄 — 아이콘 칸 + 제목 · 기간 + 상태. 위는 탭 아래 22 가 대신한다.
         Button(action: onOpen) {
-            GLGCard(cornerRadius: 24, padding: 14) {
-                HStack(spacing: 11) {
-                    ZStack {
-                        RoundedRectangle(cornerRadius: 10, style: .continuous)
-                            .fill(accent.primary.opacity(0.12)).frame(width: 34, height: 34)
-                        Image(systemName: "party.popper.fill").font(.system(size: 16, weight: .semibold))
-                            .foregroundStyle(accent.primary)
-                    }
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(event.edition).font(.pretendard(size: 13.5, weight: .bold))
-                            .foregroundStyle(GLGColor.textPrimary).lineLimit(1)
-                        Text(event.periodLongLabel).font(.pretendard(size: 12))
-                            .foregroundStyle(GLGColor.textSecondary).lineLimit(1).minimumScaleFactor(0.85)
-                    }
-                    Spacer(minLength: 8)
-                    Text(event.statusLabel(nowMillis: nowMs()))
-                        .font(.pretendard(size: 11.5, weight: .bold)).foregroundStyle(accent.primary)
+            HStack(spacing: 0) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .fill(accent.primary.opacity(0.12)).frame(width: 34, height: 34)
+                    Image(systemName: "party.popper.fill").font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(accent.primary)
                 }
-                .contentShape(Rectangle())
+                .padding(.trailing, 12)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(event.edition).font(.pretendard(size: 15, weight: .bold))
+                        .foregroundStyle(GLGColor.textPrimary).lineLimit(1)
+                    Text(event.periodLongLabel).font(.pretendard(size: 13))
+                        .foregroundStyle(GLGColor.textSecondary).lineLimit(1).minimumScaleFactor(0.85)
+                }
+                Spacer(minLength: 8)
+                Text(event.statusLabel(nowMillis: nowMs()))
+                    .font(.pretendard(size: 13, weight: .bold)).foregroundStyle(accent.primary)
             }
+            .padding(.bottom, 14)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
     }
@@ -1608,7 +1635,7 @@ struct HoyolandScheduleBanner: View {
 
 /// 줄 사이 헤어라인 — 카드를 걷은 호요랜드 페이지(10/1)의 공용 구분선. Android `HoyolandHairline` 과 같은 값.
 struct HoyolandHairline: View {
-    var body: some View { Color(hex: 0xFFEEF0F2).frame(height: 1).frame(maxWidth: .infinity) }
+    var body: some View { GldsHairline() }
 }
 
 extension View {
@@ -1699,6 +1726,7 @@ func hoyolandTicketDeep(_ accent: Color) -> Color { glgMix(accent, Color(hex: 0x
 func hoyolandTicketCountdown(_ e: HoyolandEvent, now: Int64) -> (cap: String, big: String) {
     let phase = e.phase(nowMillis: now)
     if phase == .ended { return ("다음을 기다려요", "종료") }
+    if phase == .tba { return ("다음을 기다려요", "미정") }
     if phase == .ongoing { return ("진행 중", "\(Int(e.dayOrdinal(nowMillis: now)))일차") }
     if phase == .today { return ("오늘 개막", "TODAY") }
     if phase == .tomorrow { return ("내일 개막", "D-1") }

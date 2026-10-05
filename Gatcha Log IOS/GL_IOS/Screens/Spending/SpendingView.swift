@@ -296,9 +296,9 @@ struct SpendingView: View {
     private static let topAnchor = "spendingTop"
 
 
-    private var spendingBand: some View { Color(hex: 0xFFF2F4F6).frame(height: 10).frame(maxWidth: .infinity) }
+    private var spendingBand: some View { GldsBand() }
     /// 줄 사이 헤어라인 — 좌우 20 들여서(줄 글자 시작선과 맞춘다).
-    private var spendingHair: some View { Color(hex: 0xFFEEF0F2).frame(height: 1).padding(.horizontal, 20) }
+    private var spendingHair: some View { GldsHairline(inset: 20) }
 
     /// 같은 날짜 지출 묶음 — 날짜·합계 머리(first-end) + 헤어라인으로 가른 줄들. 카드 없이 화면 폭 그대로.
     /// dateLabel 이 nil 이면 머리 없이 줄만(금액순 평면 리스트의 단일 항목).

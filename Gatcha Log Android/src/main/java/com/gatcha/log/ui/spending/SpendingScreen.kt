@@ -1,5 +1,6 @@
 package com.gatcha.log.ui.spending
 
+import com.gatcha.log.ui.components.GldsHairline
 import com.gatcha.log.ui.components.LightSystemBarsInWindow
 import com.gatcha.log.data.SpendingViewModel
 
@@ -601,12 +602,11 @@ private fun QuickFilterMenu(
  * dateLabel 이 null 이면 헤더 없이 행만(금액순 평면 리스트의 단일 항목 카드).
  */
 private val SpendingBandColor = Color(0xFFF2F4F6)
-private val SpendingHairColor = Color(0xFFEEF0F2)
 
 /** 줄 사이 헤어라인 — 좌우 20 들여서(줄 글자 시작선과 맞춘다). */
 @Composable
 private fun SpendingHair() {
-    Box(Modifier.padding(horizontal = 20.dp).fillMaxWidth().height(1.dp).background(SpendingHairColor))
+    GldsHairline(inset = 20.dp)
 }
 
 /**

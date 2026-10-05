@@ -226,7 +226,7 @@ struct GiftCodePage: View {
     }
 
     /// 코드 줄 사이 헤어라인(10/1) — 마이페이지 · 지출과 같은 색.
-    private var giftHair: some View { Color(hex: 0xFFEEF0F2).frame(height: 1).frame(maxWidth: .infinity) }
+    private var giftHair: some View { GldsHairline() }
 }
 
 // 리딤코드 복사 버튼 — ‘교환’ 버튼과 같은 GLDS XS Secondary. 탭하면 클립보드 저장 + 잠깐 ‘복사됨’ 표시.

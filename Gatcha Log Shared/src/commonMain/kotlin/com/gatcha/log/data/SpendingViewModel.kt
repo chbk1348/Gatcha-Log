@@ -275,6 +275,7 @@ class SpendingViewModel : ViewModel() {
     fun clearGoodsCart() = updateCart { it.cleared() }
 
     private inline fun updateCart(edit: (HoyolandCart) -> HoyolandCart) {
+        rollHoyolandEdition()
         val next = edit(_hoyolandCart.value)
         appSettings.hoyolandCartRaw = next.serialize()
         _hoyolandCart.value = next
@@ -298,11 +299,36 @@ class SpendingViewModel : ViewModel() {
     fun clearEntry() = updateEntry { it.cleared() }
 
     private inline fun updateEntry(edit: (HoyolandEntry) -> HoyolandEntry) {
+        rollHoyolandEdition()
         val next = edit(_hoyolandEntry.value)
         appSettings.hoyolandEntryRaw = next.serialize()
         _hoyolandEntry.value = next
         // 입장 알림은 가는 날 · 조에서 시각이 나온다 — 바꾼 즉시 다시 걸어야 옛 조의 알림이 남지 않는다.
         rescheduleTimedAlerts()
+    }
+
+    init { rollHoyolandEdition() }
+
+    /**
+     * 저장된 장바구니 · 입장권이 **지난 회차 것이면** 정리한다 — 장바구니는 비우고, 입장권은 새 기간 안
+     * 날짜만 남긴다([HoyolandEvent.cartForEdition] · [HoyolandEvent.entryForEdition]).
+     *
+     * 켤 때 한 번, 그리고 담거나 고칠 때마다 다시 본다 — 앱을 켜 둔 채 다음 회차 config 가 들어와도
+     * 작년 값 위에 덧붙이지 않게. 회차가 같으면 아무것도 하지 않는다.
+     */
+    private fun rollHoyolandEdition() {
+        // 개발자 단계 목업은 개막일을 옮겨 회차가 바뀐 것처럼 보인다 — 그걸로 실제 값을 지우지 않는다.
+        if (HoyolandApi.isStageMock) return
+        val event = HoyolandApi.current
+        val saved = appSettings.hoyolandEdition
+        if (saved == event.editionKey) return
+        val cart = event.cartForEdition(_hoyolandCart.value, saved)
+        val entry = event.entryForEdition(_hoyolandEntry.value, saved)
+        appSettings.hoyolandCartRaw = cart.serialize()
+        appSettings.hoyolandEntryRaw = entry.serialize()
+        appSettings.hoyolandEdition = event.editionKey
+        _hoyolandCart.value = cart
+        _hoyolandEntry.value = entry
     }
 
     private val _collabBannerExpanded = MutableStateFlow(appSettings.collabBannerExpanded)
@@ -379,7 +405,10 @@ class SpendingViewModel : ViewModel() {
                 NotifyKey.PICKUP -> { appSettings.notifyPickup = true; _notifyPickup.value = true }
                 NotifyKey.COMBAT -> { appSettings.notifyCombat = true; _notifyCombat.value = true }
                 NotifyKey.NEWS -> { appSettings.notifyNews = true; _notifyNews.value = true }
-                NotifyKey.HOYOLAND -> { appSettings.notifyHoyoland = true; _notifyHoyoland.value = true }
+                // 행사가 끝나 목록에서 빠진 토글은 건드리지 않는다 — 켜 두면 끌 자리가 없는 값이 된다.
+                NotifyKey.HOYOLAND -> if (NotificationCatalog.hoyolandAlertsActive) {
+                    appSettings.notifyHoyoland = true; _notifyHoyoland.value = true
+                }
             }
         }
         applyNativeAfterNotifyChange(true)
@@ -393,8 +422,8 @@ class SpendingViewModel : ViewModel() {
 
     /**
      * 확정 시각 알림(픽업·시즌 마감·정기결제·재화 가득참·데일리 요약) 사전 예약 갱신.
-     * iOS 는 이 예약 덕분에 앱을 안 열어도 정시에 알림이 오고, Android 는 주기 워커가 이미
-     * 커버하므로 no-op 이다([AlertScheduler]).
+     * 두 플랫폼 다 OS 예약으로 건다(iOS 캘린더 트리거 · Android AlarmManager — [AlertScheduler]).
+     * 그래서 앱을 안 열어도 정시에 온다.
      *
      * 예약 등록이 끝날 때까지 중단하는 suspend 라 스코프에 띄운다(호출부는 전부 non-suspend).
      * 여기는 앱이 떠 있는 포그라운드라 결과를 기다릴 필요가 없다 — 기다려야 하는 쪽은 iOS BGTask 다.

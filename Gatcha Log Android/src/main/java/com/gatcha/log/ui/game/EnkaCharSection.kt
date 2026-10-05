@@ -1,5 +1,7 @@
 package com.gatcha.log.ui.game
 
+import com.gatcha.log.ui.components.GldsSection
+import com.gatcha.log.ui.components.GldsHairline
 import com.gatcha.log.ui.components.LightSystemBarsInWindow
 import android.app.Activity
 import androidx.core.view.WindowCompat
@@ -3057,7 +3059,7 @@ private fun CharEffectsSection(c: EnkaChar, game: String) {
 
             nodes.forEachIndexed { i, e ->
                 val on = e.index <= active
-                if (i > 0) Box(Modifier.fillMaxWidth().height(1.dp).background(SectionHairline))
+                if (i > 0) GldsHairline()
                 Row(
                     Modifier
                         .fillMaxWidth()
@@ -3314,12 +3316,8 @@ private fun gradeColor(grade: ArtifactGrade, accent: Color): Color = when (grade
  * 게임정보 첫 화면 GiSection 과 같은 규격이다(그쪽은 파일 전용이라 여기 따로 둔다). 섹션 사이는 [GiBand].
  */
 @Composable
-private fun EnkaPageSection(content: @Composable ColumnScope.() -> Unit) {
-    Column(Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 22.dp, bottom = 20.dp), content = content)
-}
+private fun EnkaPageSection(content: @Composable ColumnScope.() -> Unit) = GldsSection(content = content)
 
-/** 섹션 안 줄 구분 헤어라인 — 다른 화면 목록 구분선과 같은 색(10/1). */
-private val SectionHairline = Color(0xFFEEF0F2)
 
 /** 섹션 머리 — 번호 배지 + 제목 + (보조 설명) + (우측 액션). */
 @Composable
@@ -3373,7 +3371,7 @@ private fun StatList(stats: List<EnkaStatLine>, keySet: Set<StatTok>) {
             )
             lines.forEachIndexed { li, line ->
                 val key = ArtifactScoring.isEffective(keySet, line.label)
-                if (li > 0) Box(Modifier.fillMaxWidth().height(1.dp).background(SectionHairline))
+                if (li > 0) GldsHairline()
                 Row(
                     Modifier
                         .fillMaxWidth()
@@ -3531,7 +3529,7 @@ private fun EquipCard(w: EnkaWeapon, game: String, refinement: WeaponRefinement?
         // 못 받았으면 자리 자체를 만들지 않는다(빈 칸이 고장처럼 보인다).
         if (traitDesc != null) {
             Spacer(Modifier.height(13.dp))
-            Box(Modifier.fillMaxWidth().height(1.dp).background(SectionHairline))
+            GldsHairline()
             Spacer(Modifier.height(11.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("장비 특성", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color(0xFF9C6F12))
@@ -3591,12 +3589,12 @@ private fun ArtifactSection(
     // 감싸던 카드는 걷고 줄 사이 헤어라인만 남긴다(10/1).
     Column {
         slots.forEachIndexed { i, (r, rank) ->
-            if (i > 0) Box(Modifier.fillMaxWidth().height(1.dp).background(SectionHairline))
+            if (i > 0) GldsHairline()
             ArtifactRow(r = r, rank = rank, keySet = keySet, game = game, accent = accent, top = top)
         }
 
         // 세트 효과 — 성유물의 일부다.
-        Box(Modifier.fillMaxWidth().height(1.dp).background(SectionHairline))
+        GldsHairline()
         Column(Modifier.padding(top = 16.dp)) {
             if (c.sets.isEmpty()) {
                 Text("세트 효과 발동 없음", fontSize = 13.sp, color = TextSecondary)

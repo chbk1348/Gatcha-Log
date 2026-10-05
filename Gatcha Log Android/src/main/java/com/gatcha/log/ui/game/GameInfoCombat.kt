@@ -27,11 +27,11 @@ import com.gatcha.log.ui.components.GameTagSize
 import com.gatcha.log.ui.components.GlgGameTag
 import com.gatcha.log.ui.theme.TextPrimary
 import com.gatcha.log.ui.theme.TextSecondary
+import com.gatcha.log.ui.theme.Urgent
+import com.gatcha.log.ui.theme.UrgentBg
 import com.gatcha.log.ui.theme.toColor
 
 // 전투 진행도 2.0 A안(10/1) 색 — 급한 마감 · 만점.
-private val UrgentRed = Color(0xFFE8634A)
-private val UrgentBg = Color(0xFFFDECE8)
 private val DoneGreen = Color(0xFF0F8C77)
 private val DoneBg = Color(0xFFE6F9F5)
 private val PillGrayBg = Color(0xFFF2F4F6)
@@ -44,7 +44,7 @@ internal fun CombatSummaryHead(s: CombatSummary) {
     Text(
         if (s.remaining > 0) buildAnnotatedString {
             append("만점까지 ")
-            withStyle(SpanStyle(color = UrgentRed)) { append("${s.remaining}개") }
+            withStyle(SpanStyle(color = Urgent)) { append("${s.remaining}개") }
             append(" 남았어요")
         } else buildAnnotatedString { append("모두 만점이에요") },
         fontSize = 24.sp, fontWeight = FontWeight.Black, color = TextPrimary, lineHeight = 32.sp,
@@ -53,7 +53,7 @@ internal fun CombatSummaryHead(s: CombatSummary) {
     Row(Modifier.padding(top = 16.dp).height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         SummaryChip("만점", "${s.full} / ${s.total}", TextPrimary)
         val d = s.urgentDDay
-        SummaryChip("가장 급한 마감", if (d != null) "D-$d" else "-", if (d != null) UrgentRed else TextSecondary)
+        SummaryChip("가장 급한 마감", if (d != null) "D-$d" else "-", if (d != null) Urgent else TextSecondary)
     }
 }
 
@@ -131,7 +131,7 @@ private fun CombatRow(m: CombatMode) {
             Row(Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.End)) {
                 if (full) Pill("✓ 만점", DoneGreen, DoneBg)
                 if (d != null) {
-                    if (counted && !full && d <= HomeLogic.COMBAT_WARN_DAYS) Pill("D-$d 마감", UrgentRed, UrgentBg)
+                    if (counted && !full && d <= HomeLogic.COMBAT_WARN_DAYS) Pill("D-$d 마감", Urgent, UrgentBg)
                     else Pill("D-$d", TextSecondary, PillGrayBg)
                 }
             }

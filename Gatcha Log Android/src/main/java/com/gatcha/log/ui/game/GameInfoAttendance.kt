@@ -380,7 +380,7 @@ private fun ResinCell(s: DailyGameSummary, error: String?, modifier: Modifier = 
 private fun GameTaskRow(g: DailyGameTasks, inProgress: Boolean, enabled: Boolean, onCheckIn: () -> Unit) {
     val accent = LocalAccent.current
     Row(
-        Modifier.fillMaxWidth().padding(vertical = 13.dp),
+        Modifier.fillMaxWidth().padding(vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(Modifier.width(3.dp).height(16.dp).clip(CircleShape).background(g.colorArgb.toColor()))
@@ -613,8 +613,8 @@ internal fun AttendanceDetailContent(
     Column(Modifier.fillMaxWidth()) {
         AttendanceTodayCard(summary, checkingIn, onCheckInAll)
         GiBand()
-        // 마지막 줄이 위아래 13 을 가져 섹션 아래는 7 — 띠까지 눈에 20(10/1).
-        GiPageSection("게임별 출석", bottom = 7.dp) {
+        // 마지막 줄이 위아래 12 를 가져 섹션 아래는 8 — 띠까지 눈에 20(10/1).
+        GiPageSection("게임별 출석", bottom = 8.dp) {
             summary.games.forEachIndexed { i, g ->
                 if (i > 0) GiHairline()
                 AttendanceGameRow(g, summary.monthElapsedDays, inProgress = checkingIn == g.gameKey, enabled = checkingIn == null) {
@@ -682,7 +682,7 @@ private fun AttendanceStat(label: String, value: String, modifier: Modifier = Mo
 private fun AttendanceGameRow(g: AttendanceGameStat, elapsed: Int, inProgress: Boolean, enabled: Boolean, onCheckIn: () -> Unit) {
     val accent = LocalAccent.current
     Row(
-        Modifier.fillMaxWidth().padding(vertical = 13.dp),
+        Modifier.fillMaxWidth().padding(vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(Modifier.width(3.dp).height(20.dp).clip(CircleShape).background(g.colorArgb.toColor()))

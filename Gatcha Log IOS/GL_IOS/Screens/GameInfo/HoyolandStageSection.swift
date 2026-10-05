@@ -52,7 +52,7 @@ struct HoyolandStageView: View {
                     selection: $selectedDay
                 )
                 .padding(.horizontal, 20).padding(.bottom, 10)
-                .glgReadableWidth(720)
+                .glgReadableWidth(640)
                 .onChange(of: selectedDay) { _, _ in stageFilter = nil }
             }
             ScrollView {
@@ -63,7 +63,7 @@ struct HoyolandStageView: View {
                         .hoyolandSection(top: ymds.count > 1 ? 12 : 22)
                     // 아래 여분 없음 — 마지막 섹션이 아래 20 을 둔다(GLDS 2.0, 10/1).
                 }
-                .glgReadableWidth(720)
+                .glgReadableWidth(640)
             }
             .scrollIndicators(.hidden)
         }

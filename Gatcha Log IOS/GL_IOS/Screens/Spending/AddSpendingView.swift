@@ -691,7 +691,7 @@ struct AddSpendingView: View {
 private extension View {
     func formSection() -> some View {
         VStack(spacing: 0) {
-            Color(hex: 0xFFF2F4F6).frame(height: 10).frame(maxWidth: .infinity)
+            GldsBand()
             self.padding(.horizontal, 20).padding(.top, 22).padding(.bottom, 20)
                 .frame(maxWidth: .infinity, alignment: .leading)
         }

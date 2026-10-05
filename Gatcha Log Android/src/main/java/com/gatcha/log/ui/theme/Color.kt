@@ -15,7 +15,10 @@ val TextPrimary = Color(0xFF1A1C1E)
 val TextSecondary = Color(0xFF6C727A)
 val WarningText = Color(0xFFB37400)
 val DangerBackground = Color(0xFFFFE5E5)
-val DangerText = Color(0xFFD0021B)
+val DangerText = Color(0xFFD0021B)   // 파괴적 동작(삭제 · 위험 구역 · GLDS danger)과 오류 문구 전용
+// 경고(urgent) — 마감 임박 · 예산 초과 · 지출 증가 · 한도 초과. iOS GLGColor.urgent / urgentBg 와 같다.
+val Urgent = Color(0xFFE8634A)
+val UrgentBg = Color(0xFFFDECE8)
 val ProgressEmpty = Color(0xFFE0E0E0)
 val DividerColor = Color(0xFFF0F0F0)
 

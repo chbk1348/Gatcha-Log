@@ -4,6 +4,7 @@ import com.gatcha.log.data.GachaBanner
 import com.gatcha.log.data.Game
 import com.gatcha.log.data.GameChallenge
 import com.gatcha.log.data.GameEvent
+import com.gatcha.log.data.RewardItem
 import com.gatcha.log.util.currentTimeMillis
 import com.gatcha.log.json.JSONArray
 import com.gatcha.log.json.JSONObject
@@ -133,9 +134,11 @@ object EnneadApi {
             if (endMillis <= now) continue
             // `start_time` 은 처음부터 왔는데 안 읽고 버렸다 — 그래서 타임라인이 이벤트를
             // 기간이 아니라 마감 지점으로만 그렸다. 배너와 같은 자리에 같은 형식으로 온다.
+            val items = rewardItemsOf(e)
             events += GameEvent(
-                game.displayName, e.optString("name"), endMillis, rewardOf(e),
+                game.displayName, e.optString("name"), endMillis, rewardOf(e, items),
                 startMillis = e.optLong("start_time") * 1000,
+                rewardItems = items,
             )
         }
         events.sortBy { it.endMillis }
@@ -146,7 +149,8 @@ object EnneadApi {
             val c = chArr.optJSONObject(i) ?: continue
             val endMillis = c.optLong("end_time") * 1000
             if (endMillis <= now) continue
-            val reward = rewardOf(c)
+            val items = rewardItemsOf(c)
+            val reward = rewardOf(c, items)
             challenges += GameChallenge(
                 game = game.displayName,
                 name = c.optString("name"),
@@ -154,6 +158,7 @@ object EnneadApi {
                 endMillis = endMillis,
                 reward = reward,
                 startMillis = c.optLong("start_time") * 1000,
+                rewardItems = items,
             )
         }
         challenges.sortBy { it.endMillis }
@@ -162,27 +167,28 @@ object EnneadApi {
     }
 
     /**
-     * 이벤트/도전 보상 표기 — API `rewards` 를 **순서대로 전부** "이름 ×수량"(수량 0 이면 이름만)으로 잇는다.
+     * 이벤트/도전 보상 항목 — API `rewards` 를 **순서대로 전부**.
      * `rewards` 엔 대표 보상(special_reward, 원신의 원석 등)이 빠져 있을 때가 있어, 목록에 없으면 맨 앞에 둔다.
-     * `rewards` 가 없으면 예전처럼 special_reward(원신·스타레일) → polychrome(젠레스 정수 필드).
+     * `rewards` 가 비면 special_reward 하나만. 젠레스(polychrome 정수 필드)는 아이콘이 없어 빈 목록.
      */
-    private fun rewardOf(o: JSONObject): String {
-        val special = o.optJSONObject("special_reward")
-            ?.let { spaced(it.optString("name")) to it.optInt("amount", 0) }
-            ?.takeIf { it.first.isNotBlank() }
+    internal fun rewardItemsOf(o: JSONObject): List<RewardItem> {
+        val special = o.optJSONObject("special_reward")?.let(::rewardItemOf)
         val arr = o.optJSONArray("rewards")
-        val list = (0 until (arr?.length() ?: 0))
-            .mapNotNull { arr?.optJSONObject(it) }
-            .map { spaced(it.optString("name")) to it.optInt("amount", 0) }
-            .filter { it.first.isNotBlank() }
-        if (list.isNotEmpty()) {
-            val all = if (special != null && list.none { it.first == special.first }) listOf(special) + list else list
-            return all.joinToString(" · ") { (n, amt) -> if (amt > 0) "$n ×$amt" else n }
-        }
-        special?.let { (n, amt) -> return if (amt > 0) "$n ×$amt" else n }
+        val list = (0 until (arr?.length() ?: 0)).mapNotNull { arr?.optJSONObject(it)?.let(::rewardItemOf) }
+        return if (special != null && list.none { it.name == special.name }) listOf(special) + list else list
+    }
+
+    private fun rewardItemOf(o: JSONObject): RewardItem? {
+        val name = spaced(o.optString("name"))
+        if (name.isBlank()) return null
+        return RewardItem(name, o.optString("icon"), o.optInt("amount", 0))
+    }
+
+    /** 보상 글자 표기 — 항목을 "이름 ×수량"(수량 0 이면 이름만)으로 잇고, 없으면 polychrome(젠레스). */
+    private fun rewardOf(o: JSONObject, items: List<RewardItem>): String {
+        if (items.isNotEmpty()) return items.joinToString(" · ") { if (it.amount > 0) "${it.name} ×${it.amount}" else it.name }
         val poly = o.optInt("polychrome", 0)
-        if (poly > 0) return "폴리크롬 ×$poly"
-        return ""
+        return if (poly > 0) "폴리크롬 ×$poly" else ""
     }
 
     /** NBSP 를 일반 공백으로 — 상류(특히 스타레일)가 이름에 섞어 보내 줄바꿈이 안 된다. */

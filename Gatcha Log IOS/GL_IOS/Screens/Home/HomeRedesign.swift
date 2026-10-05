@@ -3,8 +3,6 @@ import Shared
 
 // 홈 3.0(10/1) — 이번 달 지출 · 최근 지출 · 섹션 머리 · 게임 태그. (Compose HomeRedesign 대응)
 
-private let dangerRed = Color(hex: 0xFFEF4444)
-
 /// 이번 달 지출(홈 3.0 — 히어로 대신 일반 섹션). 금액 · 지난달 대비 · 예산 막대.
 /// 예산이 없으면 옛 히어로처럼 「미설정」 + 예산 설정하기. (Android `MonthSpendSection` 과 같은 값)
 struct MonthSpendSection: View {
@@ -23,7 +21,7 @@ struct MonthSpendSection: View {
                 if monthlyTotal > 0 || prevTotal > 0 {
                     Text(diff == 0 ? "지난달과 동일" : "지난달보다 \(won(abs(diff))) \(diff > 0 ? "↑" : "↓")")
                         .font(.pretendard(size: 13, weight: .bold)).lineLimit(1)
-                        .foregroundStyle(diff > 0 ? dangerRed : (diff < 0 ? accent.primary : GLGColor.textSecondary))
+                        .foregroundStyle(diff > 0 ? GLGColor.urgent : (diff < 0 ? accent.primary : GLGColor.textSecondary))
                 }
             }
             .padding(.top, 10)
@@ -34,7 +32,7 @@ struct MonthSpendSection: View {
                 GeometryReader { geo in
                     ZStack(alignment: .leading) {
                         RoundedRectangle(cornerRadius: 4).fill(Color(hex: 0xFFEDEFF3))
-                        RoundedRectangle(cornerRadius: 4).fill(over ? dangerRed : accent.primary).frame(width: geo.size.width * frac)
+                        RoundedRectangle(cornerRadius: 4).fill(over ? GLGColor.urgent : accent.primary).frame(width: geo.size.width * frac)
                     }
                 }
                 .frame(height: 8).padding(.top, 12)
@@ -42,7 +40,7 @@ struct MonthSpendSection: View {
                     Text("예산 \(won(budget))의 \(pct)%").foregroundStyle(GLGColor.textSecondary)
                     Spacer(minLength: 8)
                     Text(over ? "\(won(monthlyTotal - budget)) 초과" : "\(won(budget - monthlyTotal)) 남음")
-                        .foregroundStyle(over ? dangerRed : GLGColor.textSecondary)
+                        .foregroundStyle(over ? GLGColor.urgent : GLGColor.textSecondary)
                 }
                 .font(.pretendard(size: 13)).lineLimit(1)
                 .padding(.top, 8)

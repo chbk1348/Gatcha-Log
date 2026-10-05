@@ -1,5 +1,8 @@
 package com.gatcha.log.ui.profile
 
+import com.gatcha.log.ui.components.GldsSection
+import com.gatcha.log.ui.components.GldsHairline
+import com.gatcha.log.ui.components.GldsBand
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -221,17 +224,15 @@ fun DeveloperScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
 private val DevGray = Color(0xFF4F5C59) to Color(0xFFF5F8F8)
 
 // GLDS 2.0 섹션 · 띠 · 헤어라인 — SettingsScreen 의 private SetSection · band · SetHair 와 같은 규격.
-private fun LazyListScope.devBand() = item { Box(Modifier.fillMaxWidth().height(10.dp).background(Color(0xFFF2F4F6))) }
+private fun LazyListScope.devBand() = item { GldsBand() }
 
 @Composable
-private fun DevHair() {
-    Box(Modifier.padding(horizontal = 20.dp).fillMaxWidth().height(1.dp).background(Color(0xFFEEF0F2)))
-}
+private fun DevHair() = GldsHairline(inset = 20.dp)
 
 /** 화면 폭 섹션 — 제목 17 Bold + 오른쪽 보조 13. 아래 기본 8(마지막 줄 자체 아래 12 와 합쳐 띠까지 20). */
 @Composable
 private fun DevSection(title: String, caption: String, bottom: Dp = 8.dp, content: @Composable ColumnScope.() -> Unit) {
-    Column(Modifier.fillMaxWidth().padding(top = 22.dp, bottom = bottom)) {
+    GldsSection(bottom = bottom, horizontal = 0.dp) {
         Row(
             Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, bottom = 14.dp),
             horizontalArrangement = Arrangement.SpaceBetween,

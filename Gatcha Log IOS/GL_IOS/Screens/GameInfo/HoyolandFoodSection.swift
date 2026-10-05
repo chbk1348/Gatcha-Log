@@ -139,7 +139,7 @@ struct HoyolandFoodView: View {
             }
             // 한 열은 좌우 여백 없이 화면 폭(섹션이 스스로 20) — 두 열(iPad)만 24(10/1).
             .padding(.horizontal, wide ? 24 : 0)
-            .glgReadableWidth(wide ? HoyolandWideMaxWidth : 720)
+            .glgReadableWidth(wide ? HoyolandWideMaxWidth : 640)
         }
         .hoyolandWide($wide)
         .scrollIndicators(.hidden)

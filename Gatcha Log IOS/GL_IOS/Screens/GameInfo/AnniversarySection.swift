@@ -36,7 +36,7 @@ struct AnniversaryContent: View {
                                 Text("D-\(a.daysUntil)").font(.pretendard(size: 14, weight: .bold)).foregroundStyle(accent.primary)
                             }
                         }
-                        .padding(.vertical, 14)
+                        .padding(.vertical, 12)
                     }
                 }
             }
