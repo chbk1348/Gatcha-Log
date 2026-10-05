@@ -12,19 +12,19 @@ struct TodayTaskCard: View {
     @Environment(\.glgAccent) private var accent
     var body: some View {
         // 카드 없이 섹션 머리 + 헤어라인 목록(10/1, Android 와 같다).
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 2) {
             HomeSectionHeader(title: "오늘 할 일", count: tasks.isEmpty ? nil : tasks.count)
             content
         }
     }
     @ViewBuilder private var content: some View {
         if tasks.isEmpty {
-            Text("오늘 챙길 건 다 끝냈어요 🎉 여유롭게 즐기세요").font(.pretendard(size: 14))
-                .frame(maxWidth: .infinity, alignment: .leading)
+            Text("오늘 챙길 건 다 끝냈어요 🎉 여유롭게 즐기세요").font(.pretendard(size: 15))
+                .frame(maxWidth: .infinity, alignment: .leading).padding(.vertical, 12)
         } else {
             VStack(alignment: .leading, spacing: 0) {
                 ForEach(Array(tasks.enumerated()), id: \.element.id) { i, t in
-                    if i > 0 { Divider().padding(.vertical, 10) }
+                    if i > 0 { homeHair.frame(height: 1) }
                     row(t)
                 }
             }
@@ -34,39 +34,40 @@ struct TodayTaskCard: View {
         let tint = t.urgent ? warnText : accent.primary
         let busy = t.busyable && inProgress
         return Button(action: t.action) {
-            HStack(spacing: 10) {
+            // 태그 자리 — 할 일은 게임이 없는 줄(전체 출석 · 예산)이 있어 종류 아이콘을 둔다.
+            HStack(spacing: 12) {
                 Image(systemName: t.icon).font(.pretendard(size: 18)).foregroundStyle(tint)
-                Text(t.message).font(.pretendard(size: 14)).foregroundStyle(GLGColor.textPrimary).frame(maxWidth: .infinity, alignment: .leading).lineLimit(2)
+                Text(t.message).font(.pretendard(size: 15)).foregroundStyle(GLGColor.textPrimary).frame(maxWidth: .infinity, alignment: .leading).lineLimit(2)
                 if busy { GldsSpinner(size: 13, lineWidth: 2, color: tint) }
                 else {
-                    HStack(spacing: 2) {
-                        Text(t.cta).font(.pretendard(size: 11, weight: .bold)).foregroundStyle(tint)
-                        Image(systemName: "chevron.right").font(.pretendard(size: 11)).foregroundStyle(tint)
-                    }
-                    .padding(.leading, 10).padding(.trailing, 7).padding(.vertical, 4)
-                    .background(tint.opacity(0.12), in: Capsule())
+                    Text(t.cta).font(.pretendard(size: 13, weight: .bold)).foregroundStyle(tint)
+                        .padding(.horizontal, 12).padding(.vertical, 6)
+                        .background(tint.opacity(0.12), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
                 }
             }
+            .padding(.vertical, 12)
+            .contentShape(Rectangle())
         }.buttonStyle(.plain).disabled(busy)
     }
 }
 
 struct TodayTaskSkeleton: View {
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 2) {
             HomeSectionHeader(title: "오늘 할 일")
             rows
         }
     }
     private var rows: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 0) {
             ForEach(0..<3, id: \.self) { i in
-                if i > 0 { Divider() }
-                HStack(spacing: 10) {
+                if i > 0 { homeHair.frame(height: 1) }
+                HStack(spacing: 12) {
                     Circle().fill(Color.black.opacity(0.06)).frame(width: 18, height: 18)
-                    RoundedRectangle(cornerRadius: 4).fill(Color.black.opacity(0.06)).frame(height: 13).frame(maxWidth: .infinity)
-                    RoundedRectangle(cornerRadius: 999).fill(Color.black.opacity(0.06)).frame(width: 56, height: 22)
+                    RoundedRectangle(cornerRadius: 4).fill(Color.black.opacity(0.06)).frame(height: 15).frame(maxWidth: .infinity)
+                    RoundedRectangle(cornerRadius: 14).fill(Color.black.opacity(0.06)).frame(width: 64, height: 28)
                 }
+                .padding(.vertical, 12)
             }
         }
     }
@@ -86,6 +87,8 @@ struct DashCardSkeleton: View {
                 }.padding(.top, 13)
             }
         }
+        // 아래 12 — 목록 섹션 아래 8 과 합쳐 보이는 20(홈 3.0).
+        .padding(.bottom, 12)
     }
 }
 
@@ -189,60 +192,9 @@ struct NotificationDetailView: View {
 // 홈 대시보드 개편(27.32.0) — 깔끔한 KPI 중심 레이아웃
 // ════════════════════════════════════════════════════════════════════════════
 
-/// 히어로 — 이번 달 지출/예산 게이지.
-struct DashboardSpendCard: View {
-    let monthlyTotal: Int64
-    let budget: Int64
-    let onTap: () -> Void
-    @Environment(\.glgAccent) private var accent
-
-    var body: some View {
-        let cal = Calendar.current
-        let now = Date()
-        let month = cal.component(.month, from: now)
-        let day = cal.component(.day, from: now)
-        let days = cal.range(of: .day, in: .month, for: now)?.count ?? 30
-        let remain = max(days - day, 0)
-        let pct = budget > 0 ? Int(monthlyTotal * 100 / budget) : 0
-        let frac = budget > 0 ? min(Double(monthlyTotal) / Double(budget), 1) : 0
-        let over = budget > 0 && monthlyTotal > budget
-        let danger = Color(hex: 0xFFEF4444)
-        // 카드 없이 섹션 본문(GLDS 2.0, 10/1) — 홈 섹션이 좌우 20 · 위 22 · 아래 20 을 준다.
-        return VStack(alignment: .leading, spacing: 0) {
-            Text("\(month)월 지출").font(.pretendard(size: 12, weight: .semibold)).foregroundStyle(GLGColor.textSecondary)
-            HStack(alignment: .firstTextBaseline, spacing: 5) {
-                Text(won(monthlyTotal)).font(.pretendard(size: 28, weight: .bold))
-                if budget > 0 {
-                    Text("/ 예산 \(won(budget))").font(.pretendard(size: 13, weight: .semibold)).foregroundStyle(GLGColor.textSecondary)
-                }
-            }.padding(.top, 2)
-            if budget > 0 {
-                GeometryReader { geo in
-                    ZStack(alignment: .leading) {
-                        Capsule().fill(GLGColor.progressEmpty)
-                        Capsule().fill(over ? danger : accent.primary).frame(width: geo.size.width * frac)
-                    }
-                }.frame(height: 9).padding(.top, 12)
-                HStack {
-                    Text(over ? "예산 \(pct - 100)% 초과" : "예산의 \(pct)% 사용")
-                        .font(.pretendard(size: 11.5, weight: .semibold)).foregroundStyle(over ? danger : accent.primary)
-                    Spacer()
-                    Text("남은 \(remain)일").font(.pretendard(size: 11.5)).foregroundStyle(GLGColor.textSecondary)
-                }.padding(.top, 8)
-            } else {
-                Text("예산을 정하면 페이스를 알려드려요").font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary).padding(.top, 10)
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .contentShape(Rectangle())
-        .onTapGesture { onTap() }
-    }
-}
-
 /// 이번 주 게임 일정 — 이벤트·정기콘텐츠 마감 임박(픽업과 별개).
 struct DashboardScheduleCard: View {
     let events: [GameEvent]; let challenges: [GameChallenge]; let onTap: () -> Void
-    @Environment(\.glgAccent) private var accent
     var body: some View {
         let now = nowMs()
         let raw: [(String, String, Int64, String)] =
@@ -252,26 +204,32 @@ struct DashboardScheduleCard: View {
         // 일정이 없어도 **카드는 남긴다.** 예전엔 통째로 숨겨서 "이번 주가 한가하다"와
         // "아직 못 불러왔다"가 화면에서 똑같아 보였다(스켈레톤도 같은 자리에 뜬다).
         // (Android `DashScheduleCard` 와 같이 고쳐야 한다)
-        return VStack(alignment: .leading, spacing: 12) {
-            HomeSectionHeader(title: "이번 주 일정", actionTitle: "전체", action: onTap)
-            rows(items)
+        return VStack(alignment: .leading, spacing: 2) {
+            HomeSectionHeader(title: "이번 주 일정", actionTitle: "전체 ›", action: onTap)
+            rows(items, now: now)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .contentShape(Rectangle()).onTapGesture { onTap() }
         }
     }
-    @ViewBuilder private func rows(_ items: [(String, String, Int64, String)]) -> some View {
+    @ViewBuilder private func rows(_ items: [(String, String, Int64, String)], now: Int64) -> some View {
         if items.isEmpty {
             Text("이번 주 마감 일정이 없어요")
                 .font(.pretendard(size: 13)).foregroundStyle(GLGColor.textSecondary)
+                .padding(.vertical, 12)
         } else {
-            VStack(alignment: .leading, spacing: 11) {
-                ForEach(Array(items.enumerated()), id: \.offset) { _, it in
-                    HStack(spacing: 9) {
-                        GLGGameTag(game: it.0, size: .small)
-                        Text(it.1).font(.pretendard(size: 13, weight: .medium)).foregroundStyle(GLGColor.textPrimary).lineLimit(1)
-                        Spacer(minLength: 6)
-                        Text(it.3).font(.pretendard(size: 11, weight: .bold)).foregroundStyle(accent.primary)
+            VStack(alignment: .leading, spacing: 0) {
+                ForEach(Array(items.enumerated()), id: \.offset) { i, it in
+                    if i > 0 { homeHair.frame(height: 1) }
+                    // 마감 임박(D-0~3)만 강조 — 게임 정보 일정(ScheduleLogic.urgent)과 같은 기준 · 같은 색.
+                    let dDay = Int((Double(it.2 - now) / 86_400_000).rounded(.up))
+                    HStack(spacing: 12) {
+                        HomeGameTag(game: it.0)
+                        Text(it.1).font(.pretendard(size: 15)).foregroundStyle(GLGColor.textPrimary).lineLimit(1)
+                        Spacer(minLength: 0)
+                        Text(it.3).font(.pretendard(size: 13, weight: .bold))
+                            .foregroundStyle((0...3).contains(dDay) ? Color(hex: 0xFFE8634A) : GLGColor.textPrimary)
                     }
+                    .padding(.vertical, 12)
                 }
             }
         }
@@ -287,8 +245,8 @@ struct DashboardNewsCard: View {
         let topNews = NewsLogic.shared.previewTop(news: news, max: 2)
         return Group {
             if anni != nil || !topNews.isEmpty {
-                VStack(alignment: .leading, spacing: 12) {
-                    HomeSectionHeader(title: "게임 소식", actionTitle: "전체", action: onTap)
+                VStack(alignment: .leading, spacing: 2) {
+                    HomeSectionHeader(title: "게임 소식", actionTitle: "전체 ›", action: onTap)
                     newsBody(anni: anni, topNews: topNews)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .contentShape(Rectangle()).onTapGesture { onTap() }
@@ -298,7 +256,7 @@ struct DashboardNewsCard: View {
     }
     @ViewBuilder private func newsBody(anni: AnniversaryInfo?, topNews: [NewsItem]) -> some View {
         let amber = Color(hex: 0xFFF59E0B)
-        VStack(alignment: .leading, spacing: 11) {
+        VStack(alignment: .leading, spacing: 0) {
             if let a = anni {
                 HStack(spacing: 8) {
                     Image(systemName: "party.popper.fill").font(.system(size: 13)).foregroundStyle(amber)
@@ -308,12 +266,23 @@ struct DashboardNewsCard: View {
                 }
                 .padding(11).frame(maxWidth: .infinity)
                 .background(amber.opacity(0.10), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .padding(.vertical, 12)
             }
-            ForEach(Array(topNews.enumerated()), id: \.offset) { _, n in
-                HStack(spacing: 9) {
-                    GLGGameTag(game: n.game, size: .small)
-                    Text(n.title).font(.pretendard(size: 13, weight: .medium)).foregroundStyle(GLGColor.textPrimary).lineLimit(1)
+            ForEach(Array(topNews.enumerated()), id: \.offset) { i, n in
+                if i > 0 || anni != nil { homeHair.frame(height: 1) }
+                HStack(spacing: 12) {
+                    HomeGameTag(game: n.game)
+                    VStack(alignment: .leading, spacing: 0) {
+                        Text(n.title).font(.pretendard(size: 15)).foregroundStyle(GLGColor.textPrimary).lineLimit(1)
+                        // 「10.01」 — 게시일(공용 dayKey "2026-10-01" 의 월 · 일).
+                        if n.createdAtMillis > 0 {
+                            Text(String(DateUtil.shared.dayKey(millis: n.createdAtMillis).suffix(5)).replacingOccurrences(of: "-", with: "."))
+                                .font(.pretendard(size: 13)).foregroundStyle(GLGColor.textSecondary)
+                        }
+                    }
+                    Spacer(minLength: 0)
                 }
+                .padding(.vertical, 12)
             }
         }
     }

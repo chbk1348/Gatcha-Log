@@ -56,6 +56,7 @@ import kotlinx.coroutines.launch
 import com.gatcha.log.data.HomeAlert
 import com.gatcha.log.data.HomeAlertKind
 import com.gatcha.log.data.HomeLogic
+import com.gatcha.log.data.DateUtil
 import com.gatcha.log.data.GachaReport
 import com.gatcha.log.data.GachaStats
 import com.gatcha.log.data.HoyolabConfig
@@ -536,9 +537,7 @@ fun HomeContent(
     val topScrimAlpha by animateFloatAsState(if (scrolled) 0.88f else 0f, label = "topScrim")
     LazyColumn(
         state = listState,
-        // 카드 없이 화면 폭 섹션 + 10 띠(10/1, 다른 탭과 같은 규격) — 좌우 여백은 섹션마다 준다.
-        // 목록 바탕은 투명 — 히어로 뒤 고정 그라데이션이 히어로 자리에서만 보이고,
-        // 아래 섹션은 각자 흰 면([HomeSection])이라 그라데이션이 섹션 · 띠 뒤로 비치지 않는다.
+        // 카드 없이 화면 폭 섹션 — 묶음 사이 10 띠 · 섹션 사이 헤어라인(홈 3.0). 좌우 여백은 섹션마다 준다.
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(top = GlgTabHeaderHeight + topInset, bottom = glgTabContentBottom()),
     ) {
@@ -551,55 +550,52 @@ fun HomeContent(
                 })
             }
         }
-        // 히어로 — 이번 달 지출 / 예산 캐러셀 (Figma Make 참고)
+        // 홈 3.0(10/1) — 「지출」 묶음 → 10 띠 → 「게임」 묶음. 묶음 안 섹션 사이는 좌우 20 헤어라인.
+        // ── 지출 ──
         glgCardItem() {
-            Box(Modifier.padding(horizontal = 20.dp)) {
-                HeroBalanceCard(monthlyTotal, prevTotal, budget) { showBudget.value = true }
-            }
-            Spacer(Modifier.height(16.dp))
+            HomeGroupHeader("지출", "${DateUtil.month(System.currentTimeMillis())}월", top = 4.dp)
+            HomeSection { MonthSpendSection(monthlyTotal, prevTotal, budget) { showBudget.value = true } }
+            HomeSectionLine()
+            HomeSection(bottom = 8.dp) { RecentSpendCard(spendings) { onNavigateToSpending() } }
+            HomeBand()
         }
-        // 호요랜드 — 개막 D-60 이내에만 끼어드는 한시 카드(끝나면 스스로 빠진다).
-        // 히어로 바로 밑이다. 광고 배너라 목록 중간에 두면 다른 카드의 리듬에 묻힌다 —
-        // 첫 화면에서 한 번 눈에 걸리고 지나가는 자리가 맞다.
+        // ── 게임 ──
+        glgCardItem() { HomeGroupHeader("게임", "오늘 · 이번 주", top = 26.dp) }
+        // 호요랜드 — 개막 D-60 이내에만 끼어드는 한시 카드(끝나면 스스로 빠진다). 위 18 · 양옆 12 · 아래 4.
         featuredHoyoland?.let { hoyoland ->
-            // 입장권 — 양옆 12 만 두고 아래 여백 없이 다음 섹션에 붙인다(10/1).
             glgCardItem() {
-                Box(Modifier.padding(horizontal = 12.dp)) { DashHoyolandCard(hoyoland) { showHoyoland = true } }
+                Box(Modifier.padding(start = 12.dp, end = 12.dp, top = 18.dp, bottom = 4.dp)) { DashHoyolandCard(hoyoland) { showHoyoland = true } }
             }
         }
-        if (!gameInfoReady || todayTasks.isNotEmpty()) {
+        // 헤어라인은 앞에 섹션이 있을 때만 — 묶음 머리 · 입장권 바로 다음엔 긋지 않는다(빠진 섹션이 선을 남기지 않게).
+        val showToday = !gameInfoReady || todayTasks.isNotEmpty()
+        if (showToday) {
             glgCardItem() {
-                // 히어로 바로 아래 첫 섹션 — 띠 없이(그라데이션이 옅어지는 자리에 회색 띠가 걸리면 어색하다).
-                HomeSection(band = false) {
+                HomeSection(bottom = 8.dp) {
                     if (!gameInfoReady) TodayTaskSkeleton()
                     else TodayTaskCard(tasks = todayTasks, inProgress = checkingIn != null)
                 }
             }
         }
-        // 최근 지출
-        glgCardItem() {
-            // 오늘 할 일이 없으면 이게 히어로 바로 아래 첫 섹션 — 그때는 띠 없이.
-            HomeSection(band = !gameInfoReady || todayTasks.isNotEmpty(), bottom = 8.dp) { RecentSpendCard(spendings) { onNavigateToSpending() } }
-        }
         // 카드마다 자기 데이터가 올 때까지 스켈레톤 — 예전엔 gameInfoReady 하나로 묶여 있어서, 배너·노트가
         // 캐시로 즉시 차면 스켈레톤이 걷히고 이 두 카드만 한동안 자리를 비웠다가 뒤늦게 튀어나왔다.
         glgCardItem() {
-            HomeSection {
+            if (showToday) HomeSectionLine()
+            HomeSection(bottom = 8.dp) {
                 if (!scheduleReady) DashCardSkeleton(rows = 3)
                 else DashScheduleCard(gameEvents, gameChallenges) { viewModel.requestGameInfoAnchor(GameInfoAnchor.SCHEDULE); onNavigateToGameInfo() }
             }
         }
-        // 절약 챌린지는 **마이페이지**로 옮겼다(27.50.0) — 홈은 "지금 무엇을 할까" 를 말하는
-        // 자리고, 스트릭·배지는 "내가 얼마나 해왔나" 라 성격이 다르다. 마이페이지의 통계·활동
-        // 카드들과 같은 묶음에 있는 편이 찾기도 쉽다.
-        //
-        // 그래서 **소식 카드가 마지막**이다. 마지막 카드 뒤에는 여백을 두지 않는다 —
-        // 탭바까지의 간격은 contentPadding(glgTabContentBottom)이 전담한다. 여기서 또 더하면
-        // 이 탭만 간격이 넓어진다(예전에 24dp 였다).
-        glgCardItem() {
-            HomeSection {
-                if (!newsReady) DashCardSkeleton(rows = 2)
-                else DashNewsCard(gameNews, anniversaries) { viewModel.requestGameInfoAnchor(GameInfoAnchor.NEWS); onNavigateToGameInfo() }
+        // 절약 챌린지는 **마이페이지**로 옮겼다(27.50.0). 그래서 **소식이 마지막**이다 —
+        // 탭바까지의 간격은 contentPadding(glgTabContentBottom)이 전담한다.
+        // 소식이 하나도 없으면 DashNewsCard 가 아무것도 안 그리므로 섹션 · 헤어라인째 뺀다.
+        if (!newsReady || gameNews.isNotEmpty() || anniversaries.any { it.daysUntil <= 60 }) {
+            glgCardItem() {
+                HomeSectionLine()
+                HomeSection(bottom = 8.dp) {
+                    if (!newsReady) DashCardSkeleton(rows = 2)
+                    else DashNewsCard(gameNews, anniversaries) { viewModel.requestGameInfoAnchor(GameInfoAnchor.NEWS); onNavigateToGameInfo() }
+                }
             }
         }
     }
@@ -773,13 +769,35 @@ private fun TokenExpiredBanner(onReconnect: () -> Unit) {
 }
 
 /**
- * 홈 섹션 — 위 10 띠 + 좌우 20 · 위 22 · 아래 20(게임 정보 · 지출과 같은 규격).
- * [band]=false 는 히어로 바로 아래 첫 섹션 — 그라데이션이 옅어지는 자리라 띠를 두지 않는다.
- * [bottom] 은 20 − 마지막 요소의 자체 아래 여백(최근 지출 줄은 vertical 12 라 8) — 눈에 보이는 끝 → 띠 간격을 20 으로 맞춘다.
+ * 홈 섹션(홈 3.0) — 좌우 20 · 위 18 · 아래 [bottom].
+ * [bottom] 은 20 − 마지막 요소의 자체 아래 여백(목록 줄은 vertical 12 라 8) — 보이는 끝 → 구분선 간격을 20 으로 맞춘다.
  */
 @Composable
-private fun HomeSection(band: Boolean = true, bottom: Dp = 20.dp, content: @Composable ColumnScope.() -> Unit) {
-    if (band) Box(Modifier.fillMaxWidth().height(10.dp).background(Color(0xFFF2F4F6)))
-    // 흰 면 — 히어로 그라데이션이 고정 배경이라, 투명하면 스크롤할 때 섹션 뒤로 비친다.
-    Column(Modifier.fillMaxWidth().background(Color.White).padding(start = 20.dp, end = 20.dp, top = 22.dp, bottom = bottom), content = content)
+private fun HomeSection(bottom: Dp = 20.dp, content: @Composable ColumnScope.() -> Unit) {
+    Column(Modifier.fillMaxWidth().background(Color.White).padding(start = 20.dp, end = 20.dp, top = 18.dp, bottom = bottom), content = content)
+}
+
+/** 묶음 머리 — 이름 22 Black + 보조 12 회색. 위 [top](첫 묶음 4 · 띠 다음 26) · 좌우 20. */
+@Composable
+private fun HomeGroupHeader(title: String, sub: String, top: Dp) {
+    Row(
+        Modifier.fillMaxWidth().background(Color.White).padding(start = 20.dp, end = 20.dp, top = top),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(title, fontSize = 22.sp, fontWeight = FontWeight.Black, color = TextPrimary)
+        Spacer(Modifier.width(8.dp))
+        Text(sub, fontSize = 12.sp, color = TextSecondary)
+    }
+}
+
+/** 묶음 안 섹션 사이 — 좌우 20 들여 쓴 1 헤어라인. */
+@Composable
+private fun HomeSectionLine() {
+    Box(Modifier.fillMaxWidth().background(Color.White).padding(horizontal = 20.dp).height(1.dp).background(HomeHair))
+}
+
+/** 묶음 사이 — 10 띠. */
+@Composable
+private fun HomeBand() {
+    Box(Modifier.fillMaxWidth().height(10.dp).background(Color(0xFFF2F4F6)))
 }
