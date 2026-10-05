@@ -663,7 +663,8 @@ struct EnkaStatPage: View {
     var camp: String? = nil
     var onNeedCamp: (Int32) -> Void = { _ in }
     /// 속성 연출 재생 여부(설정). 끄면 움직임 없이 속성 테두리만 남는다.
-    var elementFxEnabled: Bool = true
+    /// 기본값을 두지 않는다 — 게임정보 첫 화면 진입점이 빠뜨려 설정을 꺼도 재생됐다(10/1).
+    var elementFxEnabled: Bool
 
     var body: some View {
         EnkaStatPageBody(

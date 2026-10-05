@@ -316,23 +316,24 @@ class ScheduleLogicTest {
         assertEquals(0L, ScheduleLogic.buildVersionGroups(list, "all").single().start)
     }
 
-    // ── 통합 일정 (전반/후반 판정) ────────────────────────────────────────────
+    // ── 통합 일정 (픽업 줄 제목) ────────────────────────────────────────────
     //
-    // 아래 검사들은 **픽업 페이즈 라벨**만 본다 — kind 로 거른다.
+    // 종료일로 끊는 건 그대로지만, 제목은 전반/후반 추측 대신 버전 + API 배너 이름이다.
+    // 배너 이름이 없는(옛 캐시) 픽업은 "픽업". kind 로 거른다.
 
     @Test
     fun buildScheduleLabelsTwoPhasesOfSameVersion() {
         // 한 버전에 페이즈 2개 → 종료 이른 쪽이 전반, 늦은 쪽이 후반.
         val banners = listOf(banner("전", 3, "6.6"), banner("후", 24, "6.6"))
         val titles = ScheduleLogic.buildSchedule(banners, emptyList(), emptyList()).filter { it.kind == "패치" }.map { it.title }
-        assertEquals(listOf("v6.6 전반 픽업 종료", "v6.6 후반 픽업 종료"), titles)
+        assertEquals(listOf("v6.6 픽업", "v6.6 픽업"), titles)
     }
 
     @Test
     fun buildScheduleLabelsThirdPhaseNumerically() {
         val banners = listOf(banner("1", 3, "6.6"), banner("2", 24, "6.6"), banner("3", 45, "6.6"))
         val titles = ScheduleLogic.buildSchedule(banners, emptyList(), emptyList()).filter { it.kind == "패치" }.map { it.title }
-        assertEquals(listOf("v6.6 전반 픽업 종료", "v6.6 후반 픽업 종료", "v6.6 3페이즈 픽업 종료"), titles)
+        assertEquals(listOf("v6.6 픽업", "v6.6 픽업", "v6.6 픽업"), titles)
     }
 
     @Test
@@ -340,13 +341,13 @@ class ScheduleLogicTest {
         // 버전당 페이즈가 1개씩일 때: 최신 버전 = 전반(후반 미게시), 이전 버전 = 후반(전반 종료됨).
         val banners = listOf(banner("구", 3, "6.5"), banner("신", 24, "6.6"))
         val titles = ScheduleLogic.buildSchedule(banners, emptyList(), emptyList()).filter { it.kind == "패치" }.map { it.title }
-        assertEquals(listOf("v6.5 후반 픽업 종료", "v6.6 전반 픽업 종료"), titles)
+        assertEquals(listOf("v6.5 픽업", "v6.6 픽업"), titles)
     }
 
     @Test
     fun buildScheduleOmitsVersionPrefixWhenBlank() {
         val titles = ScheduleLogic.buildSchedule(listOf(banner("무버전", 3, "")), emptyList(), emptyList()).filter { it.kind == "패치" }.map { it.title }
-        assertEquals(listOf("전반 픽업 종료"), titles)
+        assertEquals(listOf("픽업"), titles)
     }
 
     @Test
@@ -358,7 +359,7 @@ class ScheduleLogicTest {
         )
         val merged = entries
         assertEquals(listOf("이벤트", "패치", "콘텐츠"), merged.map { it.kind })
-        assertEquals(listOf("이벤트", "v6.6 전반 픽업 종료", "심경"), merged.map { it.title })
+        assertEquals(listOf("이벤트", "v6.6 픽업", "심경"), merged.map { it.title })
         assertEquals(gi.key, merged.first().gameKey)
         assertEquals(gi.color, merged.first().colorArgb)   // 색은 ARGB Long 으로만 전달(플랫폼이 변환)
     }

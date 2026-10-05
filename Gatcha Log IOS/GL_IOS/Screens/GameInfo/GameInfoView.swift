@@ -122,7 +122,10 @@ struct GameInfoView: View {
                              refinement: store.weaponRefinement[refinementKey(c)],
                              onNeedRefinement: { id, lv in
                                  store.loadWeaponRefinement(game: statGame, weaponId: id, level: lv)
-                             })
+                             },
+                             camp: store.charCamp["\(statGame):\(c.id)"],
+                             onNeedCamp: { id in store.loadCharCamp(statGame, id) },
+                             elementFxEnabled: store.charElementFx)
                     // 캐릭터가 바뀌면 **다른 뷰**로 취급한다.
                     // navigationDestination 은 같은 자리의 목적지를 재사용해서, A 를 보고 나온 뒤 B 로
                     // 들어가면 A 의 유효옵션 칩이 한 번 그려졌다가 B 로 바뀌었다. id 를 걸면 새로 만든다.
@@ -1045,12 +1048,24 @@ private struct ScheduleRow: View {
                 Text(entry.title).font(.pretendard(size: 14, weight: .bold))
                     .foregroundStyle(GLGColor.textPrimary).lineLimit(1)
                 // 게임명은 배지가 말한다 — 부제에서 중복하지 않는다.
-                // 아이콘이 없는 줄(이벤트·콘텐츠)은 부제를 여기 글자로 둔다. 픽업은 카드 아래
-                // 별도 단으로 내려간다(아래 참고).
-                if entry.pickups.isEmpty && !entry.sub.isEmpty {
-                    Text(entry.sub).font(.pretendard(size: 12))
-                        .foregroundStyle(GLGColor.textSecondary).lineLimit(1)
-                        .padding(.top, 2)
+                // 부제는 API 원본 그대로 — 이벤트·콘텐츠는 보상 전부, 픽업은 4성까지 대상 전부.
+                // 초상 단(아래)은 5성만이라 픽업 줄도 글자로 함께 둔다. 길어서 최대 3줄.
+                // 픽업 부제는 종류별 한 줄씩("4성 캐릭터  디오나 · 파루잔") — 머리는 회색 굵게,
+                // 이름은 본문색으로 갈라 한눈에 읽히게 한다(10/1, Android 와 같다).
+                if !entry.sub.isEmpty {
+                    VStack(alignment: .leading, spacing: 2) {
+                        ForEach(Array(entry.sub.components(separatedBy: "\n").enumerated()), id: \.offset) { _, line in
+                            if let cut = line.range(of: "  ") {
+                                (Text(line[..<cut.lowerBound]).font(.pretendard(size: 12, weight: .bold)).foregroundColor(GLGColor.textSecondary)
+                                 + Text(line[cut.lowerBound...]).font(.pretendard(size: 12)).foregroundColor(GLGColor.textPrimary))
+                                    .lineLimit(2)
+                            } else {
+                                Text(line).font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary).lineLimit(3)
+                            }
+                        }
+                    }
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.top, 2)
                 }
             }
             Spacer(minLength: 8)

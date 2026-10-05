@@ -96,10 +96,20 @@ object EnneadApi {
             if (endMillis <= 0L && (startMillis <= 0L || now - startMillis > UNKNOWN_END_MAX_DAYS * DAY_MS)) continue
             val version = b.optString("version")
 
-            val (items, isWeapon) = firstItems(b)
+            val (itemsKey, items) = firstItems(b)
+            val isWeapon = itemsKey in WEAPON_KEYS
             val picks = fiveStarPicks(items).ifEmpty {
                 b.optString("name").takeIf { it.isNotBlank() }?.let { listOf(PickupItem(it, "")) } ?: emptyList()
             }
+            // 게임 일정 줄용 — 배너 이름과 **5성을 뺀** 픽업 대상(API 순서). 5성은 줄의 초상이
+            // 이미 보여 주므로 글자로 또 늘어놓지 않는다(10/1). 5성 항목([picks])은 다른 소비처
+            // (홈·천장·콜라보) 기준이라 그대로 둔다.
+            val bannerName = bannerNameOf(b, itemsKey)
+            val lineup = (0 until items.length())
+                .mapNotNull { items.optJSONObject(it) }
+                .filterNot { isFiveStar(it) }
+                .map { spaced(it.optString("name")) }
+                .filter { it.isNotBlank() }
             picks.forEach { pick ->
                 banners += GachaBanner(
                     game = game.displayName,
@@ -109,6 +119,8 @@ object EnneadApi {
                     startMillis = startMillis,
                     version = version,
                     iconUrl = pick.icon,
+                    bannerName = bannerName,
+                    lineup = lineup,
                 )
             }
         }
@@ -149,35 +161,69 @@ object EnneadApi {
         return EnneadResult(banners, events, challenges)
     }
 
-    /** 이벤트/도전 보상 표기 — special_reward(원신·스타레일) 우선, 없으면 polychrome(젠레스 정수 필드). */
+    /**
+     * 이벤트/도전 보상 표기 — API `rewards` 를 **순서대로 전부** "이름 ×수량"(수량 0 이면 이름만)으로 잇는다.
+     * `rewards` 엔 대표 보상(special_reward, 원신의 원석 등)이 빠져 있을 때가 있어, 목록에 없으면 맨 앞에 둔다.
+     * `rewards` 가 없으면 예전처럼 special_reward(원신·스타레일) → polychrome(젠레스 정수 필드).
+     */
     private fun rewardOf(o: JSONObject): String {
-        o.optJSONObject("special_reward")?.let { r ->
-            val n = r.optString("name")
-            val amt = r.optInt("amount", 0)
-            if (n.isNotBlank()) return if (amt > 0) "$n ×$amt" else n
+        val special = o.optJSONObject("special_reward")
+            ?.let { spaced(it.optString("name")) to it.optInt("amount", 0) }
+            ?.takeIf { it.first.isNotBlank() }
+        val arr = o.optJSONArray("rewards")
+        val list = (0 until (arr?.length() ?: 0))
+            .mapNotNull { arr?.optJSONObject(it) }
+            .map { spaced(it.optString("name")) to it.optInt("amount", 0) }
+            .filter { it.first.isNotBlank() }
+        if (list.isNotEmpty()) {
+            val all = if (special != null && list.none { it.first == special.first }) listOf(special) + list else list
+            return all.joinToString(" · ") { (n, amt) -> if (amt > 0) "$n ×$amt" else n }
         }
+        special?.let { (n, amt) -> return if (amt > 0) "$n ×$amt" else n }
         val poly = o.optInt("polychrome", 0)
         if (poly > 0) return "폴리크롬 ×$poly"
         return ""
     }
 
-    /** 캐릭터(characters/agents/items) 우선, 없으면 무기(weapons=원신 / light_cones=스타레일 광추) + 무기 여부 */
-    private fun firstItems(b: JSONObject): Pair<JSONArray, Boolean> {
-        for (key in listOf("characters", "agents", "items")) {
-            val arr = b.optJSONArray(key)
-            if (arr != null && arr.length() > 0) return arr to false
+    /** NBSP 를 일반 공백으로 — 상류(특히 스타레일)가 이름에 섞어 보내 줄바꿈이 안 된다. */
+    private fun spaced(s: String): String = s.replace('\u00A0', ' ')
+
+    private val WEAPON_KEYS = setOf("weapons", "light_cones", "w_engines")
+
+    /**
+     * 배너 이름 — API `name` 그대로("캐릭터 기원"). 스타레일은 빈 문자열, 젠레스는 필드가 없어서
+     * 그때만 항목 배열 종류로 인게임 명칭을 대신 쓴다.
+     */
+    private fun bannerNameOf(b: JSONObject, itemsKey: String): String =
+        spaced(b.optString("name")).trim().ifBlank {
+            when (itemsKey) {
+                "characters", "agents", "items" -> "캐릭터 픽업"
+                "light_cones" -> "광추 픽업"
+                "w_engines" -> "W-엔진 픽업"
+                "weapons" -> "무기 픽업"
+                else -> ""
+            }
         }
-        for (key in listOf("weapons", "light_cones", "w_engines")) {
+
+    /** 캐릭터(characters/agents/items) 우선, 없으면 무기(weapons=원신 / light_cones=스타레일 광추 / w_engines). 키와 배열. */
+    private fun firstItems(b: JSONObject): Pair<String, JSONArray> {
+        for (key in listOf("characters", "agents", "items") + WEAPON_KEYS) {
             val arr = b.optJSONArray(key)
-            if (arr != null && arr.length() > 0) return arr to true
+            if (arr != null && arr.length() > 0) return key to arr
         }
-        return JSONArray() to false
+        return "" to JSONArray()
     }
 
     /** 픽업 한 건 — 이름과 아이콘. 아이콘은 없을 수 있다. */
     private data class PickupItem(val name: String, val icon: String)
 
     /** 5성(또는 S급) 아이템. 없으면 첫 아이템. */
+    /** 5성(젠레스 S급) 항목인가 — 게임마다 필드 이름·표기가 다르다(rarity 5 · rank S 등). */
+    private fun isFiveStar(c: JSONObject): Boolean {
+        val r = (c.opt("rarity") ?: c.opt("rank") ?: c.opt("grade") ?: "").toString().uppercase()
+        return r == "5" || r == "S" || (r.toIntOrNull() ?: 0) >= 5
+    }
+
     private fun fiveStarPicks(items: JSONArray): List<PickupItem> {
         if (items.length() == 0) return emptyList()
         val fiveStar = mutableListOf<PickupItem>()
@@ -188,8 +234,7 @@ object EnneadApi {
             if (name.isBlank()) continue
             val item = PickupItem(name, c.optString("icon"))
             all += item
-            val r = (c.opt("rarity") ?: c.opt("rank") ?: c.opt("grade") ?: "").toString().uppercase()
-            if (r == "5" || r == "S" || (r.toIntOrNull() ?: 0) >= 5) fiveStar += item
+            if (isFiveStar(c)) fiveStar += item
         }
         return when {
             fiveStar.isNotEmpty() -> fiveStar

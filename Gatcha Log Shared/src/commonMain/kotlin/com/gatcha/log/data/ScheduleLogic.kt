@@ -134,8 +134,9 @@ object ScheduleLogic {
                 // **누가 끝나는지**를 부제에 적는다. 예전엔 비워 두고 픽업 목록을 `pickups` 로만
                 // 실어 보냈는데(타임라인 칩용), 일정 줄에는 "v6.6 전반 픽업 종료"만 남아
                 // 정작 무엇을 놓치는지 알 수 없었다 — 픽업은 캐릭터가 곧 내용이다.
+                // 제목은 API 배너 이름 그대로([pickupTitle]) — 전반/후반은 앱의 추측이라 일정 제목에선 뺐다.
                 out += ScheduleEntry(
-                    game.key, game.shortName, game.color, "패치", ph.title("픽업 종료"),
+                    game.key, game.shortName, game.color, "패치", pickupTitle(ph.banners),
                     pickupNames(ph.banners), ph.endMillis, false, ph.banners,
                 )
             }
@@ -347,16 +348,44 @@ object ScheduleLogic {
 // ════════════════════════════════════════════════════════════════════════════
 
 /**
- * 픽업 줄의 부제 — 그 페이즈에 걸린 캐릭터·무기 이름.
- *
- * 셋을 넘으면 뒤를 "외 N"으로 접는다. 한 페이즈에 캐릭터 둘 + 무기 둘이 흔한데
- * 전부 나열하면 한 줄을 넘겨 카드 높이가 들쭉날쭉해진다.
+ * 픽업 줄의 부제 — 5성을 뺀 픽업 대상(API 순서, 중복 제거)을 **종류별 한 줄씩**.
+ * 예: "4성 캐릭터  디오나 · 파루잔 · 중운\n4성 무기  새순 · 페보니우스 대검"(젠레스는 "A급 에이전트").
+ * 5성은 줄의 초상이 보여 주므로 뺀다. 한 줄에 다 이어 붙였더니 캐릭터와 무기가 섞여 읽기 어려웠다(10/1).
+ * [GachaBanner.lineup] 이 없는 항목(옛 캐시)은 줄을 만들지 않는다.
  */
-fun pickupNames(pickups: List<GachaBanner>, max: Int = 3): String {
-    val names = pickups.map { it.name }.filter { it.isNotBlank() }.distinct()
-    if (names.isEmpty()) return ""
-    if (names.size <= max) return names.joinToString(" · ")
-    return names.take(max).joinToString(" · ") + " 외 ${names.size - max}"
+fun pickupNames(pickups: List<GachaBanner>): String =
+    pickups.groupBy { it.type == "weapon" }.entries.sortedBy { it.key }   // 캐릭터 → 무기
+        .mapNotNull { (weapon, list) ->
+            val names = list.flatMap { it.lineup }.filter { it.isNotBlank() }.distinct()
+            if (names.isEmpty()) return@mapNotNull null
+            val game = list.first().game
+            "${lineupKindLabel(game, weapon)}  ${names.joinToString(" · ")}"
+        }
+        .joinToString("\n")
+
+/** 픽업 대상 줄 머리 — 등급 표기(젠레스는 A급)와 종류의 인게임 명칭. 무기는 게임마다 이름이 다르다. */
+private fun lineupKindLabel(game: String, weapon: Boolean): String {
+    val key = GameData.byNameOrNull(game)?.key
+    val grade = if (key == "zzz") "A급" else "4성"
+    val kind = when {
+        !weapon -> if (key == "zzz") "에이전트" else "캐릭터"
+        key == "hsr" -> "광추"
+        key == "zzz" -> "W-엔진"
+        else -> "무기"
+    }
+    return "$grade $kind"
+}
+
+/**
+ * 픽업 줄의 제목 — 버전 + API 배너 이름(중복 제거, " · "). 예: "v7.1 캐릭터 기원 · 무기 기원".
+ * 시작/종료는 행의 표식([ScheduleMark], "시작까지"/"종료까지")이 가르므로 접미어를 붙이지 않는다.
+ * 배너 이름이 하나도 없으면(옛 캐시·수동 JSON) "픽업".
+ */
+fun pickupTitle(pickups: List<GachaBanner>): String {
+    val v = pickups.firstOrNull { it.version.isNotBlank() }?.version.orEmpty()
+    val names = pickups.map { it.bannerName }.filter { it.isNotBlank() }.distinct()
+        .joinToString(" · ").ifBlank { "픽업" }
+    return if (v.isBlank()) names else "v$v $names"
 }
 
 /** 일정 한 줄의 표식 — 시작과 마감을 가른다. */
@@ -395,22 +424,13 @@ fun buildStartEntries(banners: List<GachaBanner>, nowMillis: Long = currentTimeM
         .groupBy { it.game to it.startMillis }
         .mapNotNull { (key, list) ->
             val game = GameData.byNameOrNull(key.first) ?: return@mapNotNull null
-            val v = list.firstOrNull { it.version.isNotBlank() }?.version.orEmpty()
-            // 전반/후반은 **종료 줄과 같은 판정**을 쓴다([pickupPhases]) — 같은 페이즈인데
-            // 시작 줄만 "v6.6 픽업 시작", 종료 줄은 "v6.6 후반 픽업 종료" 로 갈리면
-            // 둘이 같은 것을 가리키는지 알 수 없다.
-            //
-            // 종료 미정 픽업은 페이즈를 못 만들지만(날짜가 없다) 시작 줄은 세워야 하므로,
-            // 못 찾으면 라벨 없이 그대로 둔다.
-            val phase = pickupPhases(banners.filter { it.game == key.first && !it.isEndUnknown })
-                .firstOrNull { it.startMillis == key.second }
+            // 종료 줄과 같은 규칙([pickupTitle]) — API 배너 이름 그대로라 시작·종료 줄이 같은 이름으로 읽힌다.
             ScheduleEntry(
                 gameKey = game.key,
                 gameShort = game.shortName,
                 colorArgb = game.color,
                 kind = "패치",
-                title = phase?.title("픽업 시작")
-                    ?: if (v.isBlank()) "픽업 시작" else "v$v 픽업 시작",
+                title = pickupTitle(list),
                 sub = pickupNames(list),
                 target = key.second,
                 isStart = true,
