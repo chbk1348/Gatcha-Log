@@ -46,7 +46,19 @@ enum class HoyolandPhase {
     /** 2일차 이후 ~ 폐막일. */
     ONGOING,
     /** 폐막일이 지났다. */
-    ENDED;
+    ENDED,
+    /**
+     * 다음 회차가 발표만 됐고 **날짜가 아직 없다**(개막일 · 폐막일이 비었거나 못 읽는다).
+     * 정상 상태다 — 지난 회차가 끝나고 다음 회차 일정이 나오기 전까지 늘 이 자리다.
+     * 셀 날짜가 없으니 D-day · 게이지 · 예매 · 알림이 전부 서지 않는다.
+     */
+    TBA;
+
+    /**
+     * 행사 기간 바깥이라 **할 일이 없는 단계**(종료 · 일정 미정). 예매 · 내 입장권 · 액션 줄 ·
+     * 알림이 이 값 하나로 같이 빠진다.
+     */
+    val isOffSeason: Boolean get() = this == ENDED || this == TBA
 
     /** 개막 전인가 — 옛 `BEFORE` 자리. */
     val isBeforeEvent: Boolean get() = this == UPCOMING || this == TOMORROW
@@ -654,11 +666,12 @@ data class HoyolandEvent(
      * 지금이 개최 전인지·중인지·끝났는지.
      *
      * 판정 순서가 곧 우선순위다 — 폐막을 먼저 걸러야 기간이 하루인 행사에서 TODAY 와 ENDED 가
-     * 겹치지 않는다. 날짜를 못 읽으면 [HoyolandPhase.UPCOMING] 으로 본다(옛 BEFORE 와 같은 자리).
+     * 겹치지 않는다. 날짜가 비었거나 못 읽으면 [HoyolandPhase.TBA](일정 미정)다 — 예전엔 UPCOMING 으로
+     * 봐서 「D-0」 이 섰다.
      */
     fun phase(nowMillis: Long = currentTimeMillis()): HoyolandPhase {
-        val s = start ?: return HoyolandPhase.UPCOMING
-        val e = end ?: return HoyolandPhase.UPCOMING
+        val s = start ?: return HoyolandPhase.TBA
+        val e = end ?: return HoyolandPhase.TBA
         val t = today(nowMillis)
         return when {
             t > e -> HoyolandPhase.ENDED
@@ -698,6 +711,7 @@ data class HoyolandEvent(
         HoyolandPhase.TOMORROW -> "내일 개막"
         HoyolandPhase.TODAY, HoyolandPhase.ONGOING -> "${dayOrdinal(nowMillis)}일차"
         HoyolandPhase.ENDED -> "종료"
+        HoyolandPhase.TBA -> "일정 미정"
     }
 
     /**
@@ -745,6 +759,14 @@ data class HoyolandEvent(
 
     /** 한 칸이라도 공개된 시간표가 있는지 — 없으면 화면이 '공개 전' 안내로 갈린다. */
     val hasTimetable: Boolean get() = days.any { it.slots.isNotEmpty() }
+
+    /**
+     * 「둘러보기」에 채울 게 하나라도 있는가 — 시간표 · 굿즈 · 부스 · 푸드 · 맵스.
+     * 일정 미정(TBA) 회차는 넷이 다 비어 「공개되면…」 칸만 남으므로, 그땐 섹션째 뺀다.
+     */
+    val hasOnsiteContent: Boolean
+        get() = hasTimetable || visibleGoods.isNotEmpty() || booths.isNotEmpty() ||
+            foodPrograms.isNotEmpty() || hasMap
 
     /**
      * 그날 무대 편성 + **지금 기준 상태**.
@@ -903,6 +925,42 @@ data class HoyolandEvent(
         return entry.goingYmds.filter { it in inRange }
             .map { entryLine(entry, it) }
             .filter { it.isNotEmpty() }
+    }
+
+    /** 내 입장권의 가는 날 수 — **이 행사 기간 안 날짜만** 센다(헤더 「n일」 · 시트 「4일 중 n일」). */
+    fun entryDayCount(entry: HoyolandEntry): Int = dayYmds.count { entry.isGoing(it) }
+
+    /**
+     * 회차 식별자 — 장바구니 · 입장권이 **어느 행사 것인지** 적어 두는 값.
+     * 개막일이 회차마다 다르고 어드민이 손으로 고칠 일도 없어 이걸 쓴다. 비면 행사명.
+     */
+    val editionKey: String get() = startYmd.ifBlank { edition }
+
+    /** 저장된 장바구니를 이 회차로 읽는다 — 다른 회차 것이면 비운다(작년 굿즈 이름이 남지 않게). */
+    fun cartForEdition(cart: HoyolandCart, savedEdition: String): HoyolandCart =
+        if (savedEdition == editionKey) cart else HoyolandCart()
+
+    /** 저장된 입장권을 이 회차로 읽는다 — 다른 회차 것이면 **기간 안 날짜만** 남긴다. */
+    fun entryForEdition(entry: HoyolandEntry, savedEdition: String): HoyolandEntry {
+        if (savedEdition == editionKey) return entry
+        val inRange = dayYmds.toSet()
+        return HoyolandEntry(entry.groups.filterKeys { it in inRange })
+    }
+
+    /**
+     * 「응모 · 특전」 마감 안내가 이미 지났는가 — 지났으면 배지를 회색으로 내린다.
+     *
+     * 안내는 "모집 9.13(일) 23:59 마감 · 결과 9.15(화) 발표" 같은 자유 문장이라, 안에 든 `월.일` 중
+     * **가장 늦은 날**이 오늘보다 앞이면 지난 것으로 본다(연도는 개막 연도). 날짜를 못 찾으면
+     * 행사가 끝났는지로 가른다.
+     * ponytail: 개막 연도 고정 — 연말 마감 · 연초 개막처럼 해를 넘기는 안내는 틀린다.
+     */
+    fun isDeadlinePast(deadline: String, nowMillis: Long = currentTimeMillis()): Boolean {
+        val year = start?.year ?: return false
+        val last = MonthDayRegex.findAll(deadline).mapNotNull { m ->
+            runCatching { LocalDate(year, m.groupValues[1].toInt(), m.groupValues[2].toInt()) }.getOrNull()
+        }.maxOrNull() ?: return phase(nowMillis) == HoyolandPhase.ENDED
+        return last < today(nowMillis)
     }
 
     // ── 「현장에서」 네 칸의 부제 ─────────────────────────────────────────────
@@ -1155,6 +1213,14 @@ data class HoyolandEvent(
             cart.quantityOf(g.name).takeIf { it > 0 }?.let { HoyolandCartLine(g, it) }
         }
 
+    /**
+     * 담은 종류 수 · 개수 — **지금 목록 기준**([cartLines]).
+     * [HoyolandCart.kindCount] 는 목록에서 빠진 이름까지 세서 「담은 3종 · 0원」 같은 유령 줄을 만든다.
+     */
+    fun cartKindCount(cart: HoyolandCart): Int = cartLines(cart).size
+
+    fun cartItemCount(cart: HoyolandCart): Int = cartLines(cart).sumOf { it.quantity }
+
     /** 장바구니 합계(원). 가격 미정 품목은 0 으로 더해진다. */
     fun cartTotal(cart: HoyolandCart): Int = cartLines(cart).sumOf { it.subtotal }
 
@@ -1277,16 +1343,23 @@ data class HoyolandEvent(
         if (ticket.openYmd.isBlank()) 0L
         else millisAt(runCatching { LocalDate.parse(ticket.openYmd) }.getOrNull(), ticket.openHour)
 
-    /** 홈·일정 탭에 노출할 값어치가 있는 기간인지 — 개막 60일 전부터 폐막일까지. */
+    /**
+     * 홈·일정 탭에 노출할 값어치가 있는 기간인지 — 개막 60일 전부터 폐막일까지.
+     *
+     * 날짜가 없으면([HoyolandPhase.TBA]) false 다 — 셀 날짜가 없는데 띄우면 「D-0」 배너가 선다.
+     */
     fun isFeatured(nowMillis: Long = currentTimeMillis()): Boolean = when (phase(nowMillis)) {
         HoyolandPhase.UPCOMING, HoyolandPhase.TOMORROW -> daysUntilStart(nowMillis) <= FEATURE_WINDOW_DAYS
         HoyolandPhase.TODAY, HoyolandPhase.ONGOING -> true
-        HoyolandPhase.ENDED -> false
+        HoyolandPhase.ENDED, HoyolandPhase.TBA -> false
     }
 
     companion object {
         /** 푸드존 메뉴 글에서 "7,000원" 같은 값을 긁는다 — [foodEntryLine] 의 가격대. */
         private val PriceRegex = Regex("""([\d,]+)원""")
+
+        /** 마감 안내 속 "9.13" — 앞뒤에 숫자 · 점이 붙은 것(1.25배 · 2026.9.13)은 건너뛴다. */
+        private val MonthDayRegex = Regex("""(?<![\d.])(\d{1,2})\.(\d{1,2})(?![\d.])""")
 
         /** 홈·일정 탭 노출을 시작하는 시점(개막 D-60). 그 전엔 게임정보 탭에서만 보인다. */
         const val FEATURE_WINDOW_DAYS = 60
@@ -1316,86 +1389,46 @@ data class HoyolandEvent(
 }
 
 /**
- * 번들 폴백 — 2026-08-31 개최 발표 + 2026-09-03 확인 기준.
+ * 번들 폴백 — **2027 회차 · 일정 미정**(2026-10-06 전환).
  *
- * **예매만 미정이고 나머지는 전부 확정이다.** 원격 JSON 이 이 값을 덮어쓰므로,
- * 여기는 "네트워크 없이 앱을 처음 켰을 때 보여도 틀리지 않은 내용"만 둔다.
+ * 2026 회차(10.2~10.5)가 끝나 지난 행사 목록 맨 앞으로 옮겼다. 2027 은 아직 날짜도 장소도 없어서
+ * 행사명과 지난 행사만 둔다 — 날짜가 비면 [HoyolandPhase.TBA] 로 읽혀 D-day · 예매 · 알림이 서지 않는다.
+ * 원격 JSON 이 이 값을 덮어쓰므로, 여기는 "네트워크 없이 앱을 처음 켰을 때 보여도 틀리지 않은 내용"만 둔다.
+ *
+ * 라인업 · 조 편성 · 배치도는 **비워 둬야 한다.** 원격에서 빈 배열이 오면 번들로 폴백하는 값이라
+ * ([HoyolandApi] 파서), 여기에 2026 값이 남아 있으면 2027 화면에 작년 라인업이 되살아난다.
  */
 object HoyolandDefaults {
 
     val event: HoyolandEvent = HoyolandEvent(
-        edition = "호요랜드 2026",
-        // 개천절(10.3 토) 대체공휴일 10.5(월)까지 이어지는 연휴 4일.
-        startYmd = "2026-10-02",
-        endYmd = "2026-10-05",
-        // 지난 2024·2025 와 같은 곳. 2026 은 후면광장까지 쓴다.
-        venueName = "일산 킨텍스 제2전시장",
-        venueHall = "7·8홀 · 후면광장",
-        venueAddress = "경기도 고양시 일산서구 킨텍스로 217-60",
-        mapUrl = "https://map.naver.com/p/search/%ED%82%A8%ED%85%8D%EC%8A%A4%20%EC%A0%9C2%EC%A0%84%EC%8B%9C%EC%9E%A5",
-        mapFallbackUrl = "https://www.google.com/maps/search/%EC%9D%BC%EC%82%B0+%ED%82%A8%ED%85%8D%EC%8A%A4+%EC%A0%9C2%EC%A0%84%EC%8B%9C%EC%9E%A5",
-        officialUrl = "https://sites.google.com/mihoyo.com/hoyoland2026/hoyoland2026",
-        announceYmd = "2026-08-31",
-        ticket = HoyolandTicket(
-            status = HoyolandTicketStatus.UNDECIDED,
-            note = "예매 일정·가격은 아직 공개 전입니다. 공개되면 여기에서 바로 업데이트됩니다.",
-        ),
-        lineup = listOf(
-            HoyolandLineup("원신", "달빛에 전하는 세레나데"),
-            HoyolandLineup("붕괴: 스타레일", "환락, 상상 그 이상으로"),
-            HoyolandLineup("젠레스 존 제로", "구름 너머로 내려앉은 시"),
-            // 색은 원신 파랑·스타레일 보라와 섞이지 않게 고른 시안/로즈.
-            HoyolandLineup("붕괴3rd", "환야의 숨바꼭질", abbr = "HI3", colorArgb = 0xFF30C6E8L),
-            HoyolandLineup("미해결사건부", "미림 장터·사계절의 러브레터", abbr = "ToT", colorArgb = 0xFFE0557BL),
-        ),
-        programs = listOf(
-            HoyolandProgram(
-                title = "2차 창작물 전시존",
-                desc = "원신 · 붕괴: 스타레일 · 젠레스 존 제로 대상 팬아트 전시",
-                deadline = "모집 9.13(일) 23:59 마감 · 결과 9.15(화) 발표",
-            ),
-        ),
-        editionEn = "HOYOLAND 2026",
-        // 공식 BOOTH MAP(2026-09-16 공개분) — 좌표는 도면에서 잰 비율이다. 어드민에서 고치면
-        // 그쪽이 이긴다. 번들에 두는 이유는 네트워크 없이도 현장에서 길을 찾을 수 있어야 해서다.
-        map = HoyolandMap(
-            title = "행사장 내부 배치도",
-            note = "공식 배치도 기준입니다. 현장 사정으로 바뀔 수 있어요.",
-            zones = listOf(
-                HoyolandMapZone("goods", "굿즈존", "goods", x = 7.9f, y = 15.6f, w = 7.9f, h = 43.9f),
-                HoyolandMapZone("hsr", "붕괴: 스타레일", "game", "붕괴: 스타레일", 17.2f, 15.6f, 20.8f, 25.6f, accent = true),
-                HoyolandMapZone("stage", "무대존", "stage", x = 39.1f, y = 15.6f, w = 22.3f, h = 8.8f),
-                HoyolandMapZone("genshin", "원신", "game", "원신", 62.5f, 15.6f, 30.3f, 25.6f),
-                HoyolandMapZone("googleplay", "구글플레이", "booth", x = 80.8f, y = 48.5f, w = 12f, h = 13f),
-                HoyolandMapZone("galaxy", "갤럭시 스토어", "booth", x = 31.2f, y = 58f, w = 7.2f, h = 9.7f),
-                HoyolandMapZone("fanart-l", "2차 창작 전시존", "booth", x = 31.2f, y = 70.6f, w = 14.2f, h = 6.4f),
-                HoyolandMapZone("reception-l", "입장 접수", "entry", x = 31.2f, y = 78f, w = 14.2f, h = 13.5f),
-                HoyolandMapZone("gate", "입장 게이트", "entry", x = 46.3f, y = 67.7f, w = 7.9f, h = 9.2f),
-                HoyolandMapZone("fanart-r", "2차 창작 전시존", "booth", x = 55.2f, y = 70.6f, w = 14f, h = 6.4f),
-                HoyolandMapZone("reception-r", "입장 접수", "entry", x = 55.2f, y = 78f, w = 14f, h = 13.5f),
-                HoyolandMapZone("zzz", "젠레스 존 제로", "game", "젠레스 존 제로", 7.9f, 66f, 17.5f, 25.5f),
-                HoyolandMapZone("diy", "DIY존", "booth", x = 75.3f, y = 66f, w = 17.5f, h = 25.5f),
-                // 동선 — 공식 도면의 화살표. 구역이 아니라 **지나는 방향**이라 면도 글자도 없다.
-                HoyolandMapZone("flow-out-l", "퇴장", "flow-out", x = 27.2f, y = 71.2f, w = 2.2f, h = 20.3f),
-                HoyolandMapZone("flow-in", "입장", "flow-in", x = 49.2f, y = 77.7f, w = 2.1f, h = 13.8f),
-                HoyolandMapZone("flow-out-r", "퇴장", "flow-out", x = 71.15f, y = 71.2f, w = 2.2f, h = 20.3f),
-            ),
-        ),
-        notice = "일정 · 장소 · 참여 게임이 모두 확정됐습니다. 예매와 일자별 시간표는 아직 공개 전입니다.",
-        // 조 편성은 예매 안내와 함께 확정됐다 — 네트워크 없이도 「내 입장권」을 고를 수 있어야
-        // 현장에서 쓸모가 있다(들어가는 순간이 가장 안 터지는 자리다).
-        entryGroups = listOf(
-            HoyolandEntryGroup("A", "10:00"),
-            HoyolandEntryGroup("B", "10:00"),
-            HoyolandEntryGroup("C", "11:00"),
-            HoyolandEntryGroup("D", "11:00"),
-            HoyolandEntryGroup("E", "12:00"),
-            HoyolandEntryGroup("F", "12:00"),
-        ),
-        // 공식 시간표 미공개 — 날짜 탭은 기간에서 만들어지므로 여기는 비워 둔다.
-        // 공개되면 config/hoyoland.json 의 days 를 채우는 것만으로 화면이 찬다(앱 업데이트 불필요).
+        edition = "호요랜드 2027",
+        startYmd = "",
+        endYmd = "",
+        venueName = "",
+        venueHall = "",
+        venueAddress = "",
+        mapUrl = "",
+        mapFallbackUrl = "",
+        officialUrl = "",
+        announceYmd = "",
+        ticket = HoyolandTicket(status = HoyolandTicketStatus.UNDECIDED),
+        lineup = emptyList(),
+        programs = emptyList(),
+        editionEn = "HOYOLAND 2027",
+        notice = "",
         days = emptyList(),
         past = listOf(
+            // 2026 — config 에서 확인되는 값만(관람객 · 규모는 공식 발표가 없어 비운다).
+            HoyolandPastEvent(
+                "호요랜드 2026",
+                listOf(
+                    HoyolandFact("기간", "2026.10.2 ~ 10.5 (4일)"),
+                    HoyolandFact("장소", "일산 킨텍스 제2전시장 7·8홀 · 후면광장"),
+                    HoyolandFact("티켓", "30,000원(수수료 포함) · 매진 · 조별 입장(A~F)"),
+                    HoyolandFact("참여 IP", "원신 · 붕괴3rd · 스타레일 · 젠레스 · 미해결사건부"),
+                    HoyolandFact("구성", "체험존 · 굿즈 · 푸드 · 창작전시/DIY · 무대"),
+                ),
+            ),
             HoyolandPastEvent(
                 "호요랜드 2025",
                 listOf(

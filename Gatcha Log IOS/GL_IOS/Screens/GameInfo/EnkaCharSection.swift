@@ -1224,9 +1224,7 @@ struct EnkaStatPageBody: View {
 
     /// 캐릭터 상세 섹션 — 카드 없이 화면 폭, 좌우 20 · 위 22 · 아래 20(10/1). 섹션 사이는 `GiBand`.
     private func enkaPageSection<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
-        VStack(alignment: .leading, spacing: 0) { content() }
-            .padding(.horizontal, 20).padding(.top, 22).padding(.bottom, 20)
-            .frame(maxWidth: .infinity, alignment: .leading)
+        GldsSection(content: content)
     }
 
     /// 섹션 머리 — 번호 배지 + 제목 + (보조) + (우측 액션).

@@ -36,7 +36,10 @@ enum GLGColor {
     static let warningBackground = Color(hex: 0xFFFFF4E5)
     static let warningText = Color(hex: 0xFFB37400)
     static let dangerBackground = Color(hex: 0xFFFFE5E5)
-    static let dangerText = Color(hex: 0xFFD0021B)
+    static let dangerText = Color(hex: 0xFFD0021B)   // 파괴적 동작(삭제 · 위험 구역 · GLDS danger)과 오류 문구 전용
+    // 경고 — 마감 임박 · 예산 초과 · 지출 증가 · 한도 초과. Android Urgent / UrgentBg 와 같다.
+    static let urgent = Color(hex: 0xFFE8634A)
+    static let urgentBg = Color(hex: 0xFFFDECE8)
     static let progressEmpty = Color(hex: 0xFFE0E0E0)
     static let divider = Color(hex: 0xFFF0F0F0)
 

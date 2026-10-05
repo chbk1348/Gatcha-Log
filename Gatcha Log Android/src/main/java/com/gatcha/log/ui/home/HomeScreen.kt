@@ -1,5 +1,8 @@
 package com.gatcha.log.ui.home
 
+import com.gatcha.log.ui.components.GldsSection
+import com.gatcha.log.ui.components.GldsHairline
+import com.gatcha.log.ui.components.GldsBand
 import com.gatcha.log.ui.components.GldsButton
 import com.gatcha.log.ui.components.GldsSize
 import android.app.Activity
@@ -25,7 +28,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -63,6 +66,7 @@ import com.gatcha.log.data.HoyolabConfig
 import com.gatcha.log.data.LiveNote
 import com.gatcha.log.data.Spending
 import com.gatcha.log.ui.game.GameInfoScreen
+import com.gatcha.log.ui.game.GiHairline
 import com.gatcha.log.ui.game.HoyolandDetailPage
 import com.gatcha.log.ui.game.rememberFeaturedHoyoland
 import com.gatcha.log.ui.profile.MyPageScreen
@@ -72,7 +76,6 @@ import com.gatcha.log.ui.spending.SpendingScreen
 import com.gatcha.log.data.SpendingViewModel
 import com.gatcha.log.util.SafIO
 import com.gatcha.log.ui.components.GlassBackground
-import com.gatcha.log.ui.components.GlassCard
 import com.gatcha.log.ui.components.GlgDetailHeaderOverlay
 import com.gatcha.log.ui.components.glgDetailContentTop
 import com.gatcha.log.ui.components.GlgScreenHeader
@@ -83,7 +86,6 @@ import com.gatcha.log.ui.profile.BudgetScreen
 import com.gatcha.log.ui.components.BottomNavBar
 import com.gatcha.log.ui.theme.*
 import com.gatcha.log.util.num
-import com.gatcha.log.ui.theme.LocalAccentTint
 
 /**
  * 지출 에디터 페이지의 대상. 홀더 자체의 존재(null 아님)가 곧 "에디터가 열려 있다"이고,
@@ -634,7 +636,7 @@ fun HomeContent(
 }
 
 // 알림 목록 산출(AlertKind/HomeAlert/buildAlerts)은 GL_Shared HomeLogic 으로 이관 — iOS 와 단일 소스.
-// 아이콘·색·이동 동작 매핑만 아래 NotificationCard 에 남는다.
+// 아이콘·색·이동 동작 매핑만 아래 NotificationRow 에 남는다.
 // (시간대별 인사말 greetingForNow 는 양 플랫폼 모두 호출부가 없어 함께 제거)
 
 /** 알림 상세 페이지 (홈) — 액션형: 알림 탭 시 관련 화면으로 이동. 각 알림은 삭제(X) 가능. */
@@ -652,7 +654,8 @@ private fun NotificationDetailScreen(
     val scrolled by remember {
         derivedStateOf { listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 0 }
     }
-    Box(Modifier.fillMaxSize().background(LocalAccentTint.current)) {
+    // GLDS 2.0(10/6) — 흰 바탕, 알림 하나 = 헤어라인으로 나눈 한 줄(카드 없음). iOS NotificationDetailView 와 같다.
+    Box(Modifier.fillMaxSize().background(Color.White)) {
         Column(Modifier.fillMaxSize().padding(top = glgDetailContentTop())) {
         if (alerts.isEmpty()) {
             Column(
@@ -668,7 +671,8 @@ private fun NotificationDetailScreen(
         } else {
             // 우측 정렬 '모두 지우기' — 한 번에 전체 dismiss
             Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+                // 글자 끝이 섹션 좌우 20 에 맞게 12(+ 글자 안쪽 8). 헤더 바로 밑이라 위 8.
+                modifier = Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, top = 8.dp),
                 horizontalArrangement = Arrangement.End,
             ) {
                 Text(
@@ -682,11 +686,13 @@ private fun NotificationDetailScreen(
             LazyColumn(
                 state = listState,
                 // 하단바 미노출 페이지 — 시스템 네비 인셋만 확보
-                modifier = Modifier.fillMaxSize().navigationBarsPadding().padding(horizontal = 16.dp, vertical = 4.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
+                modifier = Modifier.fillMaxSize().navigationBarsPadding(),
+                // 줄이 위아래 12 를 스스로 가져 위 10 · 아래 8 → 눈에 22 · 20(GLDS 2.0 섹션 규격).
+                contentPadding = PaddingValues(top = 10.dp, bottom = 8.dp),
             ) {
-                items(alerts, key = { it.key }) { alert ->
-                    NotificationCard(
+                itemsIndexed(alerts, key = { _, a -> a.key }) { i, alert ->
+                    if (i > 0) GiHairline(Modifier.padding(horizontal = 20.dp))
+                    NotificationRow(
                         alert,
                         onClick = {
                             when (alert.kind) {
@@ -697,8 +703,6 @@ private fun NotificationDetailScreen(
                         onDismiss = { onDismiss(alert) },
                     )
                 }
-                // 맨 아래 = 사이 10 + 2 + 바깥 4 = 16(iOS padding 16 과 같다). 예전 24 는 38 이 됐다.
-                item { Spacer(Modifier.height(2.dp)) }
             }
         }
         }
@@ -707,20 +711,21 @@ private fun NotificationDetailScreen(
 }
 
 @Composable
-private fun NotificationCard(alert: HomeAlert, onClick: () -> Unit, onDismiss: () -> Unit) {
+private fun NotificationRow(alert: HomeAlert, onClick: () -> Unit, onDismiss: () -> Unit) {
     val accent = LocalAccent.current
     // 종류별 아이콘·색·이동 안내문
     val icon: ImageVector; val tint: Color; val hint: String
     when (alert.kind) {
-        HomeAlertKind.BUDGET_OVER -> { icon = Icons.Default.Savings; tint = DangerText; hint = "예산 설정하기" }
+        HomeAlertKind.BUDGET_OVER -> { icon = Icons.Default.Savings; tint = Urgent; hint = "예산 설정하기" }
         HomeAlertKind.BUDGET_NEAR -> { icon = Icons.Default.Savings; tint = WarningText; hint = "예산 설정하기" }
-        HomeAlertKind.BUDGET_GAME_OVER -> { icon = Icons.Default.Savings; tint = DangerText; hint = "예산 설정하기" }
+        HomeAlertKind.BUDGET_GAME_OVER -> { icon = Icons.Default.Savings; tint = Urgent; hint = "예산 설정하기" }
         HomeAlertKind.BANNER -> { icon = Icons.Default.Bolt; tint = accent; hint = "게임 정보 보기" }
         HomeAlertKind.ATTENDANCE -> { icon = Icons.Default.CheckCircleOutline; tint = accent; hint = "출석하러 가기" }
     }
-    GlassCard(shape = RoundedCornerShape(18.dp), modifier = Modifier.fillMaxWidth()) {
+    run {
         Row(
-            modifier = Modifier.fillMaxWidth().clickable { onClick() }.padding(start = 16.dp, top = 12.dp, bottom = 12.dp, end = 6.dp),
+            // 카드 없이 한 줄 — 좌 20 · 위아래 12. 우측은 X 버튼(36) 안쪽 여백이 있어 12.
+            modifier = Modifier.fillMaxWidth().clickable { onClick() }.padding(start = 20.dp, top = 12.dp, bottom = 12.dp, end = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Box(
@@ -731,9 +736,9 @@ private fun NotificationCard(alert: HomeAlert, onClick: () -> Unit, onDismiss: (
             }
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
-                Text(alert.message, fontSize = 13.sp, fontWeight = FontWeight.Medium, color = TextPrimary)
+                Text(alert.message, fontSize = 15.sp, fontWeight = FontWeight.Medium, color = TextPrimary)
                 Spacer(Modifier.height(3.dp))
-                Text(hint, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = accent)
+                Text(hint, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = accent)
             }
             // 삭제(X) — 탭하면 이 알림만 지움(다시 안 뜸). 행 클릭(이동)과 분리.
             IconButton(onClick = onDismiss, modifier = Modifier.size(36.dp)) {
@@ -774,7 +779,7 @@ private fun TokenExpiredBanner(onReconnect: () -> Unit) {
  */
 @Composable
 private fun HomeSection(bottom: Dp = 20.dp, content: @Composable ColumnScope.() -> Unit) {
-    Column(Modifier.fillMaxWidth().background(Color.White).padding(start = 20.dp, end = 20.dp, top = 18.dp, bottom = bottom), content = content)
+    GldsSection(Modifier.background(Color.White), top = 18.dp, bottom = bottom, content = content)
 }
 
 /** 묶음 머리 — 이름 22 Black + 보조 12 회색. 위 [top](첫 묶음 4 · 띠 다음 26) · 좌우 20. */
@@ -793,11 +798,9 @@ private fun HomeGroupHeader(title: String, sub: String, top: Dp) {
 /** 묶음 안 섹션 사이 — 좌우 20 들여 쓴 1 헤어라인. */
 @Composable
 private fun HomeSectionLine() {
-    Box(Modifier.fillMaxWidth().background(Color.White).padding(horizontal = 20.dp).height(1.dp).background(HomeHair))
+    GldsHairline(Modifier.background(Color.White), inset = 20.dp)
 }
 
 /** 묶음 사이 — 10 띠. */
 @Composable
-private fun HomeBand() {
-    Box(Modifier.fillMaxWidth().height(10.dp).background(Color(0xFFF2F4F6)))
-}
+private fun HomeBand() = GldsBand()

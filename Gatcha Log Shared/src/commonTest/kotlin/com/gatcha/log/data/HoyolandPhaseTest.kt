@@ -131,10 +131,58 @@ class HoyolandPhaseTest {
     }
 
     @Test
-    fun 날짜를_못_읽으면_개막_전으로_본다() {
-        // 어드민이 날짜를 지우거나 꼴을 깨도 화면은 서야 한다.
+    fun 날짜가_없으면_일정_미정이다() {
+        // 다음 회차가 발표만 되고 날짜가 없는 동안(또는 어드민이 꼴을 깨도) 화면은 서야 한다.
+        for (broken in listOf(e.copy(startYmd = "", endYmd = ""), e.copy(startYmd = "2027-??", endYmd = "2027-10-04"))) {
+            val t = at("2026-10-03")
+            assertEquals(HoyolandPhase.TBA, broken.phase(t))
+            assertFalse(broken.isBeforeEvent(t), "게이지 · D-day 가 서면 안 된다")
+            assertFalse(broken.isEventLive(t))
+            assertTrue(broken.phase(t).isOffSeason, "예매 · 내 입장권 · 액션 줄 · 알림이 같이 빠진다")
+            assertEquals("일정 미정", broken.statusLabel(t))
+            assertTrue(broken.dayYmds.isEmpty())
+        }
+    }
+
+    @Test
+    fun 날짜가_없으면_홈_배너가_뜨지_않는다() {
+        // 예전엔 UPCOMING · daysUntilStart 0 으로 읽혀 정체 모를 「D-0」 배너가 섰다.
         val broken = e.copy(startYmd = "", endYmd = "")
-        assertEquals(HoyolandPhase.UPCOMING, broken.phase(at("2026-10-03")))
+        assertFalse(broken.isFeatured(at("2026-10-03")))
+    }
+
+    @Test
+    fun 종료와_일정_미정만_할_일이_없는_단계다() {
+        assertTrue(HoyolandPhase.ENDED.isOffSeason)
+        assertTrue(HoyolandPhase.TBA.isOffSeason)
+        for (p in listOf(HoyolandPhase.UPCOMING, HoyolandPhase.TOMORROW, HoyolandPhase.TODAY, HoyolandPhase.ONGOING)) {
+            assertFalse(p.isOffSeason, p.name)
+        }
+    }
+
+    @Test
+    fun 번들_기본값은_2027_일정_미정이고_2026_은_지난_행사로_간다() {
+        val d = HoyolandDefaults.event
+        assertEquals(HoyolandPhase.TBA, d.phase(at("2026-10-06")))
+        assertFalse(d.isFeatured(at("2026-10-06")))
+        // 원격이 빈 배열을 주면 번들로 폴백하는 값들 — 2026 값이 남아 있으면 2027 화면에 되살아난다.
+        assertTrue(d.lineup.isEmpty())
+        assertFalse(d.hasEntryGroups)
+        assertFalse(d.hasMap)
+        assertFalse(d.hasOnsiteContent, "둘러보기도 섹션째 빠진다")
+        assertEquals("호요랜드 2026", d.past.first().title)
+    }
+
+    @Test
+    fun 지난_마감은_회색으로_내린다() {
+        val deadline = "모집 9.13(일) 23:59 마감 · 결과 9.15(화) 발표"
+        // 가장 늦은 날(9.15)까지는 아직 살아 있는 안내다.
+        assertFalse(e.isDeadlinePast(deadline, at("2026-09-14")))
+        assertFalse(e.isDeadlinePast(deadline, at("2026-09-15")))
+        assertTrue(e.isDeadlinePast(deadline, at("2026-09-16")))
+        // 날짜를 못 찾으면 행사가 끝났는지로 가른다.
+        assertFalse(e.isDeadlinePast("상시 접수", at("2026-10-05")))
+        assertTrue(e.isDeadlinePast("상시 접수", at("2026-10-06")))
     }
 
     /** 그 날짜 그 시각(KST)의 epoch millis. 기본은 한낮 — 날짜 경계에 걸리지 않게. */

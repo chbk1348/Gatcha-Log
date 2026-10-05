@@ -91,6 +91,7 @@ fun HoyolandEvent.ticketCountdown(): Pair<String, String> = when (phase()) {
     HoyolandPhase.TODAY -> "오늘 개막" to "TODAY"
     HoyolandPhase.ONGOING -> "진행 중" to "${dayOrdinal()}일차"
     HoyolandPhase.ENDED -> "다음을 기다려요" to "종료"
+    HoyolandPhase.TBA -> "다음을 기다려요" to "미정"
 }
 
 /**

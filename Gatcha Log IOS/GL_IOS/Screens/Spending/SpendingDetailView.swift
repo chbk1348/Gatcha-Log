@@ -246,26 +246,20 @@ struct SpendingDetailView: View {
 
     // ── 섹션 — 카드 없이 흰 바탕, 사이는 10 띠(마이페이지 3.0 · 지출 리스트 2.0 과 같은 규격) ──
 
-    private var detailBand: some View { Color(hex: 0xFFF2F4F6).frame(height: 10).frame(maxWidth: .infinity) }
-    private var detailHair: some View { Color(hex: 0xFFEEF0F2).frame(height: 1).frame(maxWidth: .infinity) }
+    private var detailBand: some View { GldsBand() }
+    private var detailHair: some View { GldsHairline() }
 
     /// 섹션 — 좌우 20 · 위 22 · 아래 20, 제목 17 굵게(마이페이지 3.0 섹션 머리와 같은 크기).
-    /// `bottom` 은 20 − 마지막 요소의 자체 아래 여백(상세 정보 줄은 vertical 13 이라 7).
+    /// `bottom` 은 20 − 마지막 요소의 자체 아래 여백(상세 정보 줄은 vertical 12 라 8).
     private func detailSection<C: View>(_ title: String, bottom: CGFloat = 20, @ViewBuilder content: () -> C) -> some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Text(title).font(.pretendard(size: 17, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
-                .padding(.bottom, 6)
-            content()
-        }
-        .padding(.horizontal, 20).padding(.top, 22).padding(.bottom, bottom)
-        .frame(maxWidth: .infinity, alignment: .leading)
+        GldsSection(title, bottom: bottom, titleGap: 6, content: content)
     }
 
     /// 상세 정보 — 히어로에 없는 것만. 내용은 재화 환산의 근거라 남긴다.
     private func infoSection(_ s: Spending) -> some View {
         // 재화 개수를 못 구하는 상품이면 히어로 칸이 결제 수단 · 충전 플랫폼을 이미 보여 준다 — 여기선 겹치지 않게 뺀다.
         let heroShowsPayment = GameDataKt.currencyAmountOrNull(gameName: s.gameName, itemName: s.itemName) == nil
-        return detailSection("상세 정보", bottom: 7) {
+        return detailSection("상세 정보", bottom: 8) {
             detailRow("내용", s.itemName.isEmpty ? "—" : s.itemName)
             if !heroShowsPayment {
                 detailHair
@@ -281,7 +275,7 @@ struct SpendingDetailView: View {
                     Spacer(minLength: 0)
                     HStack(spacing: 6) { ForEach(s.tags, id: \.self) { TagChip(tag: $0) } }
                 }
-                .padding(.vertical, 13)
+                .padding(.vertical, 12)
             }
         }
     }
@@ -294,7 +288,7 @@ struct SpendingDetailView: View {
                 .multilineTextAlignment(.trailing)
                 .frame(maxWidth: .infinity, alignment: .trailing)
         }
-        .padding(.vertical, 13)
+        .padding(.vertical, 12)
     }
 
     /**
@@ -315,7 +309,7 @@ struct SpendingDetailView: View {
             // 표본이 모자라면(3건 미만) 이 줄 자체가 없다 — 근거 없는 '평소'를 말하지 않는다.
             if let t = typical {
                 (Text("평소 1회 결제보다 ")
-                    + Text(t.ratioLabel).foregroundColor(t.isNotable ? Color(hex: 0xFFE8634A) : GLGColor.textPrimary).bold()
+                    + Text(t.ratioLabel).foregroundColor(t.isNotable ? GLGColor.urgent : GLGColor.textPrimary).bold()
                     + Text(t.isNotable ? " 큽니다" : " 수준입니다"))
                     .font(.pretendard(size: 14))
                     .foregroundStyle(GLGColor.textSecondary)

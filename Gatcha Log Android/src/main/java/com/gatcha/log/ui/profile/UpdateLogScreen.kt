@@ -1,5 +1,7 @@
 package com.gatcha.log.ui.profile
 
+import com.gatcha.log.ui.components.GldsSection
+import com.gatcha.log.ui.components.GldsBand
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -39,7 +41,6 @@ import com.gatcha.log.ui.components.GldsTabs
 private val CAccent = Color(0xFF15C7A8)
 private val CAccentSoft = Color(0xFFE5F8F4)
 // GLDS 2.0 — 설정 화면과 같은 띠 · 헤어라인 색.
-private val CBand = Color(0xFFF2F4F6)
 private val CHair = Color(0xFFEEF0F2)
 private val CText = Color(0xFF15181C)
 private val CTextSub = Color(0xFF7A828C)
@@ -163,16 +164,14 @@ internal fun UpdateLogScreen(onBack: () -> Unit) {
 }
 
 @Composable
-private fun LogBand() {
-    Box(Modifier.fillMaxWidth().height(10.dp).background(CBand))
-}
+private fun LogBand() = GldsBand()
 
 /** 버전 하나 = 화면 폭 섹션(좌우 20 · 위 22 · 아래 20 — 마지막 항목 글자가 자체 아래 여백이 없어 20 그대로). */
 @Composable
 private fun ReleaseSection(entry: ChangeEntry, filter: ChangeKind?) {
     if (filter != null && entry.itemsOf(filter).isEmpty()) return
 
-    Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(top = 22.dp, bottom = 20.dp)) {
+    GldsSection {
         if (entry.featured) {
             Box(
                 Modifier.clip(RoundedCornerShape(50)).background(CAccent)

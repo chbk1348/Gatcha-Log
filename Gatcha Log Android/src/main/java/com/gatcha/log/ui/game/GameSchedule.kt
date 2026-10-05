@@ -63,6 +63,11 @@ import kotlinx.coroutines.delay
 import com.gatcha.log.data.GameScheduleLine
 import com.gatcha.log.data.GameData
 import com.gatcha.log.data.ScheduleEntry
+import com.gatcha.log.data.RewardItem
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import com.gatcha.log.data.ScheduleLogic
 import com.gatcha.log.data.ScheduleMark
 import com.gatcha.log.data.ScheduleWeek
@@ -75,14 +80,13 @@ import com.gatcha.log.data.collabTitle
 import com.gatcha.log.data.isCollabBanner
 import com.gatcha.log.ui.components.GlgBadgeText
 import com.gatcha.log.data.HoyolandEvent
-import com.gatcha.log.ui.components.GlassCard
 import com.gatcha.log.ui.components.GldsTabs
 import com.gatcha.log.ui.theme.DividerColor
 import com.gatcha.log.ui.theme.LocalAccent
 import com.gatcha.log.ui.theme.TextPrimary
-import com.gatcha.log.ui.theme.DangerText
 import com.gatcha.log.ui.theme.ProgressEmpty
 import com.gatcha.log.ui.theme.TextSecondary
+import com.gatcha.log.ui.theme.Urgent
 import com.gatcha.log.ui.theme.toColor
 import androidx.compose.ui.layout.ContentScale
 import coil.compose.AsyncImage
@@ -136,7 +140,6 @@ private fun Modifier.sirenPulse(): Modifier {
     return this.alpha(alpha)
 }
 
-private val Urgent = Color(0xFFE8634A)
 private val CollabBadge = Color(0xFF6D5AE6)
 /** 콜라보 배너 그라데이션 끝색 — 한 색 평면보다 배너가 앞으로 나와 보인다. */
 private val CollabGradientEnd = Color(0xFF9B5DE5)
@@ -219,7 +222,7 @@ private val LineFaceSize = 22.dp
 private fun GameLineRow(line: GameScheduleLine) {
     val c = line.colorArgb.toColor()
     Row(
-        Modifier.fillMaxWidth().padding(vertical = 11.dp),
+        Modifier.fillMaxWidth().padding(vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(9.dp),
     ) {
@@ -397,8 +400,10 @@ fun GameScheduleFullPage(
                     hoyoland?.let { h ->
                         item(key = "hoyoland") {
                             // 첫 섹션(배너 · 요약)의 일부 — 개막 D-60 밖이면 빠지므로 따로 섹션을 세우지 않는다(10/1).
+                            // 카드 없이 한 줄 + 아래 헤어라인(10/6) — 줄이 아래 14 를 갖고, 헤어라인 뒤 16 은 예전 카드 아래 간격.
                             Column(Modifier.padding(horizontal = 20.dp)) {
                                 HoyolandScheduleBanner(h, onOpenHoyoland)
+                                GiHairline()
                                 Spacer(Modifier.height(16.dp))
                             }
                         }
@@ -512,8 +517,8 @@ private fun WeekEntries(w: ScheduleWeek, now: Long) {
         )
         return
     }
-    // 카드 나열 대신 헤어라인 목록(10/1) — 줄 위아래 14 + 끝 6 = 섹션 아래 20.
-    Column(Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, bottom = 6.dp)) {
+    // 카드 나열 대신 헤어라인 목록(10/1) — 줄 위아래 12 + 끝 8 = 섹션 아래 20.
+    Column(Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, bottom = 8.dp)) {
         w.entries.forEachIndexed { i, e ->
             if (i > 0) Box(Modifier.fillMaxWidth().height(1.dp).background(ScheduleHair))
             ScheduleRow(e, now)
@@ -569,12 +574,12 @@ private fun ScheduleRow(e: ScheduleEntry, now: Long) {
     val mark = e.mark()
     val markColor = when (mark) {
         ScheduleMark.START -> LocalAccent.current
-        ScheduleMark.END -> DangerText
+        ScheduleMark.END -> Urgent
     }
     val d = e.dDay(now)
     // 카드 면을 걷고 헤어라인 목록의 한 줄로(10/1) — 좌우는 섹션 20 이 준다.
     // 글자 크기 10/1 — 제목 12.5 → 14 · 부제 10.5 → 12 · 종류 9 → 11 · 남은 시간 10.5 → 12 · 날짜 9.5 → 12.
-    Column(Modifier.fillMaxWidth().padding(vertical = 14.dp)) {
+    Column(Modifier.fillMaxWidth().padding(vertical = 12.dp)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             // 리딩 — 게임색 약칭 배지(지출 행과 같은 규격: 라운드 사각 + 게임색 14% 배경 + 약칭).
             // 일정은 여섯 게임이 한 줄기로 섞여 흐르므로, 어느 게임 건지가 **가장 먼저** 읽혀야 한다.
@@ -601,7 +606,8 @@ private fun ScheduleRow(e: ScheduleEntry, now: Long) {
                 // 초상 단(아래)은 5성만이라 픽업 줄도 글자로 함께 둔다. 길어서 최대 3줄.
                 // 픽업 부제는 종류별 한 줄씩("4성 캐릭터  디오나 · 파루잔") — 머리는 회색 굵게,
                 // 이름은 본문색으로 갈라 한눈에 읽히게 한다(10/1).
-                if (e.sub.isNotBlank()) {
+                // 보상 박스가 있으면 같은 내용의 글자 부제는 숨긴다(박스가 이름을 접근성 라벨로 갖는다).
+                if (e.sub.isNotBlank() && e.rewardItems.isEmpty()) {
                     Spacer(Modifier.height(2.dp))
                     e.sub.lines().forEach { line ->
                         val cut = line.indexOf("  ")
@@ -673,6 +679,7 @@ private fun ScheduleRow(e: ScheduleEntry, now: Long) {
                 )
             }
         }
+        if (e.rewardItems.isNotEmpty()) RewardBoxes(e.rewardItems)
         // 픽업은 **한 단 아래**로 내린다. 제목 칸 안에 두면 초상 44dp 가 제목·D-day 와 같은
         // 줄에 얹혀 카드가 세로로 눌린 것처럼 보이고, 얼굴이 글자 사이에 끼여 잘 안 읽힌다.
         //
@@ -704,6 +711,40 @@ private fun ScheduleRow(e: ScheduleEntry, now: Long) {
         }
     }
 }
+
+/**
+ * 이벤트·콘텐츠 보상 — 박스 하나 = 보상 하나, API 순서로 가로 한 줄(넘치면 가로 스크롤).
+ * 시작선은 제목 글자(게임 배지 30 + 간격 10). 이름은 글자로 넣지 않고 접근성 라벨로만 단다.
+ * 수치는 iOS `RewardBoxes` 와 같다 — 박스 52 · 모서리 10 · 아이콘 32 · 수량 11 SemiBold · 사이 6 · 위 8.
+ */
+@Composable
+private fun RewardBoxes(items: List<RewardItem>) {
+    Row(
+        Modifier.padding(top = 8.dp).fillMaxWidth().horizontalScroll(rememberScrollState()).padding(start = 40.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        items.forEach { r ->
+            Column(
+                Modifier.size(52.dp).clip(RoundedCornerShape(10.dp)).background(RewardBoxBg)
+                    .semantics(mergeDescendants = true) {
+                        contentDescription = if (r.amount > 0) "${r.name} ${r.amount}개" else r.name
+                    },
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center,
+            ) {
+                AsyncImage(r.iconUrl, null, Modifier.size(32.dp), contentScale = ContentScale.Fit)
+                if (r.amount > 0) {
+                    Text(
+                        "×${r.amount}", fontSize = 11.sp, lineHeight = 13.sp, fontWeight = FontWeight.SemiBold,
+                        color = TextPrimary, maxLines = 1,
+                    )
+                }
+            }
+        }
+    }
+}
+
+private val RewardBoxBg = Color(0xFFF7F8FA)
 
 /** 5성 픽업 바탕색 — '내 캐릭터' 로스터와 같은 값. */
 private val PickupGold = Color(0xFFD8A12E)
@@ -1116,20 +1157,21 @@ private fun GlgBadgeTextPadded(text: String, size: androidx.compose.ui.unit.Text
 @Composable
 private fun HoyolandScheduleBanner(event: HoyolandEvent, onOpen: () -> Unit) {
     val accent = LocalAccent.current
-    GlassCard(modifier = Modifier.fillMaxWidth().clickable { onOpen() }) {
-        Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+    // 카드 면 없이 섹션 안의 한 줄(10/6) — 아이콘 칸 + 제목 · 기간 + 상태. 위는 탭 아래 22 가 대신한다.
+    run {
+        Row(Modifier.fillMaxWidth().clickable { onOpen() }.padding(bottom = 14.dp), verticalAlignment = Alignment.CenterVertically) {
             Box(
                 Modifier.size(34.dp).clip(RoundedCornerShape(10.dp)).background(accent.copy(alpha = 0.12f)),
                 contentAlignment = Alignment.Center,
             ) { Icon(Icons.Default.Celebration, null, tint = accent, modifier = Modifier.size(18.dp)) }
-            Spacer(Modifier.width(11.dp))
+            Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
-                Text(event.edition, fontSize = 13.5.sp, fontWeight = FontWeight.Bold, color = TextPrimary, maxLines = 1)
+                Text(event.edition, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TextPrimary, maxLines = 1)
                 Spacer(Modifier.height(2.dp))
-                Text(event.periodLongLabel, fontSize = 12.sp, color = TextSecondary, maxLines = 1)
+                Text(event.periodLongLabel, fontSize = 13.sp, color = TextSecondary, maxLines = 1)
             }
             Spacer(Modifier.width(8.dp))
-            Text(event.statusLabel(), fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = accent)
+            Text(event.statusLabel(), fontSize = 13.sp, fontWeight = FontWeight.Bold, color = accent)
         }
     }
 }

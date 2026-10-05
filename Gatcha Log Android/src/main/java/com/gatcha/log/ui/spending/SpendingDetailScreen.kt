@@ -1,5 +1,8 @@
 package com.gatcha.log.ui.spending
 
+import com.gatcha.log.ui.components.GldsSection
+import com.gatcha.log.ui.components.GldsHairline
+import com.gatcha.log.ui.components.GldsBand
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -44,6 +47,7 @@ import com.gatcha.log.ui.components.GlgDialog
 import com.gatcha.log.ui.components.glgDetailContentTop
 import com.gatcha.log.ui.theme.TextPrimary
 import com.gatcha.log.ui.theme.TextSecondary
+import com.gatcha.log.ui.theme.Urgent
 import com.gatcha.log.ui.theme.toColor
 import com.gatcha.log.util.won
 
@@ -246,27 +250,18 @@ private fun FactDivider(ink: Color) {
 
 /** 섹션 사이 10 띠 — 마이페이지 3.0 과 같은 색. */
 @Composable
-private fun DetailBand() {
-    Box(Modifier.fillMaxWidth().height(10.dp).background(Color(0xFFF2F4F6)))
-}
+private fun DetailBand() = GldsBand()
 
 @Composable
-private fun DetailHair() {
-    Box(Modifier.fillMaxWidth().height(1.dp).background(DetailHairColor))
-}
-
-private val DetailHairColor = Color(0xFFEEF0F2)
+private fun DetailHair() = GldsHairline()
 
 /**
  * 섹션 — 좌우 20 · 위 22 · 아래 20, 제목 17 굵게(마이페이지 3.0 섹션 머리와 같은 크기).
- * [bottom] 은 20 − 마지막 요소의 자체 아래 여백(상세 정보 줄은 vertical 13 이라 7).
+ * [bottom] 은 20 − 마지막 요소의 자체 아래 여백(상세 정보 줄은 vertical 12 라 8).
  */
 @Composable
 private fun DetailSection(title: String, bottom: Dp = 20.dp, content: @Composable ColumnScope.() -> Unit) {
-    Column(Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 22.dp, bottom = bottom)) {
-        Text(title, fontSize = 17.sp, fontWeight = FontWeight.Bold, color = TextPrimary, modifier = Modifier.padding(bottom = 6.dp))
-        content()
-    }
+    GldsSection(title = title, bottom = bottom, titleGap = 6.dp, content = content)
 }
 
 /** 상세 정보 — 히어로에 없는 것만. 내용은 재화 환산의 근거라 남긴다. */
@@ -275,7 +270,7 @@ private fun DetailSection(title: String, bottom: Dp = 20.dp, content: @Composabl
 private fun InfoSection(s: Spending) {
     // 재화 개수를 못 구하는 상품이면 히어로 칸이 결제 수단 · 충전 플랫폼을 이미 보여 준다 — 여기선 겹치지 않게 뺀다.
     val heroShowsPayment = currencyAmountOrNull(s.gameName, s.itemName) == null
-    DetailSection("상세 정보", bottom = 7.dp) {
+    DetailSection("상세 정보", bottom = 8.dp) {
         DetailRow("내용", s.itemName.ifBlank { "—" })
         if (!heroShowsPayment) {
             DetailHair()
@@ -291,7 +286,7 @@ private fun InfoSection(s: Spending) {
         }
         if (s.tags.isNotEmpty()) {
             DetailHair()
-            Row(Modifier.fillMaxWidth().padding(vertical = 13.dp), verticalAlignment = Alignment.Top) {
+            Row(Modifier.fillMaxWidth().padding(vertical = 12.dp), verticalAlignment = Alignment.Top) {
                 Text("태그", fontSize = 14.sp, color = TextSecondary, modifier = Modifier.width(88.dp))
                 FlowRow(
                     modifier = Modifier.weight(1f),
@@ -308,7 +303,7 @@ private fun InfoSection(s: Spending) {
 @Composable
 private fun DetailRow(label: String, value: String) {
     Row(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 13.dp),
+        modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp),
         verticalAlignment = Alignment.Top,
     ) {
         Text(label, fontSize = 14.sp, color = TextSecondary, modifier = Modifier.width(88.dp))
@@ -343,7 +338,7 @@ private fun ShareSection(s: Spending, all: List<Spending>) {
                     typical.ratioLabel,
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Bold,
-                    color = if (typical.isNotable) NotableOrange else TextPrimary,
+                    color = if (typical.isNotable) Urgent else TextPrimary,
                 )
                 Text(if (typical.isNotable) " 큽니다" else " 수준입니다", fontSize = 14.sp, color = TextSecondary)
             }
@@ -357,8 +352,6 @@ private fun ShareSection(s: Spending, all: List<Spending>) {
     }
 }
 
-/** 평소보다 큰 지출을 짚는 색 — iOS 와 같은 값(0xFFE8634A). */
-private val NotableOrange = Color(0xFFE8634A)
 private val BarTrack = Color(0xFFEDEFF3)
 
 @Composable

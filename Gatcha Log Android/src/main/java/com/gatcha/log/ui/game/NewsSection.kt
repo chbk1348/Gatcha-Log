@@ -174,8 +174,8 @@ fun NewsFullContent(news: List<NewsItem>, chip: String, onOpen: (NewsItem) -> Un
         Text("공지가 없어요", fontSize = 13.sp, color = TextSecondary, modifier = Modifier.padding(horizontal = 20.dp, vertical = 24.dp))
         return
     }
-    // 카드는 걷었다(10/1) — 흰 바탕 화면 폭 목록. 행 위아래 11 을 더해 섹션 위 22 · 아래 20 이 된다.
-    Column(Modifier.fillMaxWidth().padding(top = 11.dp, bottom = 9.dp)) {
+    // 카드는 걷었다(10/1) — 흰 바탕 화면 폭 목록. 행 위아래 12 를 더해 섹션 위 22 · 아래 20 이 된다.
+    Column(Modifier.fillMaxWidth().padding(top = 10.dp, bottom = 8.dp)) {
         all.forEachIndexed { i, n ->
             if (i > 0) Box(Modifier.padding(horizontal = 20.dp).fillMaxWidth().height(1.dp).background(NewsHair))
             NewsRow(n, onOpen, page = true)
@@ -196,7 +196,7 @@ private fun NewsRow(
     Row(
         modifier = Modifier.fillMaxWidth()
             .clickable { onOpen(n) }
-            .padding(horizontal = if (page) 20.dp else 0.dp, vertical = 14.dp),
+            .padding(horizontal = if (page) 20.dp else 0.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         GlgGameTag(n.game, size = GameTagSize.Small)

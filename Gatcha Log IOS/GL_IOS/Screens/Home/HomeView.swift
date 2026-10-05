@@ -136,13 +136,12 @@ struct HomeView: View {
             }
             sectionLine
             homeSection(bottom: 8) { RecentSpendCard(spendings: store.spendings, onSeeAll: { onSwitchTab(1) }) }
-            Color(hex: 0xFFF2F4F6).frame(height: 10).frame(maxWidth: .infinity)
+            GldsBand()
             // ── 게임 ──
             groupHeader("게임", "오늘 · 이번 주", top: 26)
-            // 호요랜드 — 개막 D-60 이내에만 끼어드는 한시 배너(끝나면 스스로 빠진다). 위 18 · 양옆 12 · 아래 4.
-            // 스켈레톤을 두지 않는 건 폴백이 늘 유효해서다.
+            // 호요랜드 — 개막 D-60 이내에만 끼어드는 한시 배너(끝나면 스스로 빠진다). 위 18 · 양옆 12 · 아래 4 는
+            // 카드 안에서 준다(숨은 날 빈 여백이 남지 않게). 스켈레톤을 두지 않는 건 폴백이 늘 유효해서다.
             HoyolandHomeCard(onTap: { showHoyoland = true })
-                .padding(.horizontal, 12).padding(.top, 18).padding(.bottom, 4)
             // 헤어라인은 앞에 섹션이 있을 때만 — 묶음 머리 · 입장권 바로 다음엔 긋지 않는다(빠진 섹션이 선을 남기지 않게).
             let showToday = !store.gameInfoReady || !todayTasks.isEmpty
             if showToday {
@@ -153,7 +152,7 @@ struct HomeView: View {
             // 말하는 자리고, 스트릭·배지는 "내가 얼마나 해왔나" 라 성격이 다르다.
         }
         .padding(.top, topInset)
-        .glgReadableWidth(600)
+        .glgReadableWidth(640)
     }
 
     /// 묶음 머리 — 이름 22 Black + 보조 12 회색. 위 `top`(첫 묶음 4 · 띠 다음 26) · 좌우 20.
@@ -169,7 +168,7 @@ struct HomeView: View {
 
     /// 묶음 안 섹션 사이 — 좌우 20 들여 쓴 1 헤어라인.
     private var sectionLine: some View {
-        homeHair.frame(height: 1).padding(.horizontal, 20).frame(maxWidth: .infinity).background(Color.white)
+        GldsHairline(inset: 20).background(Color.white)
     }
 
     /// 이번 주 일정 · 게임 소식 — **카드마다 자기 데이터가 올 때까지 스켈레톤.**
@@ -216,9 +215,7 @@ struct HomeView: View {
     /// 홈 섹션(iPhone · iPad, 홈 3.0) — 좌우 20 · 위 18 · 아래 `bottom`(Android HomeSection 과 같다).
     /// `bottom` 은 20 − 마지막 요소의 자체 아래 여백(목록 줄은 vertical 12 라 8).
     private func homeSection<C: View>(bottom: CGFloat = 20, @ViewBuilder _ content: () -> C) -> some View {
-        content()
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 20).padding(.top, 18).padding(.bottom, bottom)
+        GldsSection(top: 18, bottom: bottom, content: content)
             .background(Color.white)
     }
 

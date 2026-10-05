@@ -1,5 +1,7 @@
 package com.gatcha.log.ui.spending
 
+import com.gatcha.log.ui.components.GldsSection
+import com.gatcha.log.ui.components.GldsBand
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.expandVertically
@@ -766,8 +768,8 @@ private fun FrequentItemRow(item: FrequentItem, selected: Boolean, onClick: () -
 @Composable
 private fun FormSection(content: @Composable ColumnScope.() -> Unit) {
     Column(Modifier.fillMaxWidth().animateContentSize()) {
-        Box(Modifier.fillMaxWidth().height(10.dp).background(Color(0xFFF2F4F6)))
-        Column(Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 22.dp, bottom = 20.dp), content = content)
+        GldsBand()
+        GldsSection(content = content)
     }
 }
 

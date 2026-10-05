@@ -174,7 +174,7 @@ struct SpendingInsightView: View {
                 GeometryReader { geo in
                     ZStack(alignment: .leading) {
                         Capsule().fill(Color(hex: 0xFFEDEFF3))
-                        Capsule().fill(over ? GLGColor.dangerText : accent.primary).frame(width: geo.size.width * frac)
+                        Capsule().fill(over ? GLGColor.urgent : accent.primary).frame(width: geo.size.width * frac)
                     }
                 }
                 .frame(height: 8).padding(.top, 12)
@@ -182,7 +182,7 @@ struct SpendingInsightView: View {
                 Text(over ? "이 페이스면 예산을 \(won(diff)) 초과할 것 같아요"
                           : "이 페이스면 예산 안에서 \(won(diff)) 여유가 생겨요")
                     .font(.pretendard(size: 14, weight: .medium))
-                    .foregroundStyle(over ? GLGColor.dangerText : accent.primary).padding(.top, 8)
+                    .foregroundStyle(over ? GLGColor.urgent : accent.primary).padding(.top, 8)
             } else {
                 Text("예산을 설정하면 초과 여부를 예측해 드려요")
                     .font(.pretendard(size: 13)).foregroundStyle(GLGColor.textSecondary).padding(.top, 8)
@@ -207,7 +207,7 @@ struct SpendingInsightView: View {
 
 /// 섹션 사이 10 띠.
 struct InsightBand: View {
-    var body: some View { Color(hex: 0xFFF2F4F6).frame(height: 10).frame(maxWidth: .infinity) }
+    var body: some View { GldsBand() }
 }
 
 /// 섹션 — 좌우 20 · 위 22 · 아래 20. 제목 17 굵게 + 오른쪽 보조 12.
@@ -220,19 +220,11 @@ struct InsightSection<Content: View>: View {
     @ViewBuilder var content: Content
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            if let title {
-                HStack(alignment: .center) {
-                    Text(title).font(.pretendard(size: 17, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
-                    Spacer(minLength: 8)
-                    if let sub { Text(sub).font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary) }
-                }
-                .padding(.bottom, 14)
-            }
+        GldsSection(title, top: top, bottom: bottom) {
             content
+        } trailing: {
+            if let sub { Text(sub).font(.pretendard(size: 12)).foregroundStyle(GLGColor.textSecondary) }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, 20).padding(.top, top).padding(.bottom, bottom)
     }
 }
 

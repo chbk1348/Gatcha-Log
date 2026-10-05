@@ -76,24 +76,14 @@ struct SavingsChallengeView: View {
         .animation(GLGMotion.standard(), value: openBadge?.id)
     }
 
-    private var band: some View { bandColor.frame(height: 10).frame(maxWidth: .infinity) }
+    private var band: some View { GldsBand() }
 
     /// 섹션 — 좌우 20 · 위 22 · 아래 20. 제목 17 굵게 + 오른쪽 보조 12.
-    /// `bottom` 은 20 − 마지막 요소의 자체 아래 여백(챌린지 줄 vertical 13 → 7, 배지 칸 vertical 4 → 16).
+    /// `bottom` 은 20 − 마지막 요소의 자체 아래 여백(챌린지 줄 vertical 12 → 8, 배지 칸 vertical 4 → 16).
     private func section<C: View>(_ title: String?, _ trailing: String? = nil, top: CGFloat = 22, bottom: CGFloat = 20, @ViewBuilder _ content: () -> C) -> some View {
-        VStack(alignment: .leading, spacing: 0) {
-            if let title {
-                HStack {
-                    Text(title).font(.pretendard(size: 17, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
-                    Spacer(minLength: 8)
-                    if let trailing { Text(trailing).font(.pretendard(size: 12, weight: .bold)).foregroundStyle(GLGColor.textSecondary) }
-                }
-                .padding(.bottom, 14)
-            }
-            content()
+        GldsSection(title, top: top, bottom: bottom, content: content) {
+            if let trailing { Text(trailing).font(.pretendard(size: 12, weight: .bold)).foregroundStyle(GLGColor.textSecondary) }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, 20).padding(.top, top).padding(.bottom, bottom)
     }
 
     // ── ① 연속 무지출 + 최근 7일 ──
@@ -143,7 +133,7 @@ struct SavingsChallengeView: View {
 
     // ── ② 이번 달 챌린지 ──
     private func challengeSection(_ s: ChallengeSummary) -> some View {
-        section("이번 달 챌린지", "\(s.challenges.filter { $0.reached }.count) / \(s.challenges.count) 달성", bottom: 7) {
+        section("이번 달 챌린지", "\(s.challenges.filter { $0.reached }.count) / \(s.challenges.count) 달성", bottom: 8) {
             ForEach(Array(s.challenges.enumerated()), id: \.offset) { idx, c in
                 if idx > 0 { hairColor.frame(height: 1) }
                 challengeRow(c)
@@ -179,7 +169,7 @@ struct SavingsChallengeView: View {
             }
             progressBar(Double(c.ratio), c.warn ? warnAmber : tone).padding(.top, 10)
         }
-        .padding(.vertical, 13)
+        .padding(.vertical, 12)
     }
 
     // ── ③ 배지 컬렉션 ──

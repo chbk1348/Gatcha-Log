@@ -28,6 +28,8 @@ data class ScheduleEntry(
     val isStart: Boolean,
     /** 이 줄이 픽업 페이즈 종료일 때 그 페이즈의 픽업들(타임라인 칩용). 그 외엔 빈 목록. */
     val pickups: List<GachaBanner> = emptyList(),
+    /** 이벤트·콘텐츠 줄의 보상 박스 항목. 비면 [sub] 글자로 보여 준다. 픽업 줄은 늘 빈 목록. */
+    val rewardItems: List<RewardItem> = emptyList(),
 ) {
     /** 남은 일수(올림). 음수면 지남. */
     fun dDay(nowMillis: Long = currentTimeMillis()): Int =
@@ -144,12 +146,12 @@ object ScheduleLogic {
         // ② 진행 중인 이벤트
         for (ev in events) {
             val g = GameData.byNameOrNull(ev.game)
-            out += ScheduleEntry(g?.key ?: ev.game, g?.shortName ?: ev.game, ev.gameColor, "이벤트", ev.name, ev.reward, ev.endMillis, false)
+            out += ScheduleEntry(g?.key ?: ev.game, g?.shortName ?: ev.game, ev.gameColor, "이벤트", ev.name, ev.reward, ev.endMillis, false, rewardItems = ev.rewardItems)
         }
         // ③ 정기 콘텐츠
         for (ch in challenges) {
             val g = GameData.byNameOrNull(ch.game)
-            out += ScheduleEntry(g?.key ?: ch.game, g?.shortName ?: ch.game, ch.gameColor, "콘텐츠", ch.name, ch.reward, ch.endMillis, false)
+            out += ScheduleEntry(g?.key ?: ch.game, g?.shortName ?: ch.game, ch.gameColor, "콘텐츠", ch.name, ch.reward, ch.endMillis, false, rewardItems = ch.rewardItems)
         }
         return out.sortedBy { it.target }
     }

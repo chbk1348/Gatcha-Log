@@ -376,7 +376,8 @@ object ScheduledAlerts {
 /**
  * 플랫폼 알림 예약기.
  * - iOS: UNCalendarNotificationTrigger 로 미리 등록 → 앱 실행과 무관하게 정시 발송.
- * - Android: WorkManager 주기 작업(4시간)이 이미 커버하므로 no-op.
+ * - Android: AlarmManager 비정확 알람(setAndAllowWhileIdle)으로 미리 등록 → 수신부가 깨어나 발송.
+ *   WorkManager 주기 작업은 예약을 다시 깔고, 예약이 담지 못하는 알림(새 공지 · 예산 초과)을 맡는다.
  */
 expect object AlertScheduler {
     /**
@@ -384,7 +385,7 @@ expect object AlertScheduler {
      *
      * true(iOS)면 픽업·시즌 마감·재화 가득참·정기결제·데일리 요약은 예약으로만 나가고,
      * [NotificationChecker] 는 그 종류를 건너뛴다 — 둘 다 쏘면 같은 알림이 두 번 온다.
-     * false(Android)면 반대로 주기 워커의 즉시 점검이 전담한다.
+     * false 면 반대로 주기 워커의 즉시 점검이 전담한다(지금은 두 플랫폼 다 true).
      */
     val schedulesAhead: Boolean
 

@@ -4,7 +4,6 @@ import Shared
 // 홈 서브컴포넌트 — (Compose HomeRedesign/HomeScreen 대응)
 
 private let warnText = Color(hex: 0xFFB37400)
-private let dangerText = Color(hex: 0xFFD0021B)
 
 // ── 오늘 할 일 ──
 struct TodayTaskCard: View {
@@ -130,14 +129,20 @@ struct NotificationDetailView: View {
                     Text("예산·픽업 배너·출석 알림이 여기에 모여요").font(.pretendard(size: 12)).foregroundStyle(Color(.systemGray3))
                 }.frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
+                // GLDS 2.0(10/6) — 흰 바탕, 알림 하나 = 헤어라인으로 나눈 한 줄(카드 없음). Android NotificationDetailScreen 과 같다.
+                // 줄이 위아래 12 를 스스로 가져 위 10 · 아래 8 → 눈에 22 · 20.
                 ScrollView {
-                    VStack(spacing: 10) {
-                        ForEach(alerts) { a in card(a) }
-                    }.padding(16)
+                    VStack(spacing: 0) {
+                        ForEach(Array(alerts.enumerated()), id: \.element.id) { i, a in
+                            if i > 0 { GiHairline().padding(.horizontal, 20) }
+                            row(a)
+                        }
+                    }
+                    .padding(.top, 10).padding(.bottom, 8)
                 }
             }
         }
-        .background(GLGBackground { Color.clear })
+        .background(Color.white)
         .glgPageTitle("알림").navigationBarTitleDisplayMode(.inline)
         .navigationDestination(isPresented: $showBudget) { BudgetSettingsView(store: store) }
         .toolbar {
@@ -151,37 +156,37 @@ struct NotificationDetailView: View {
             }
         }
     }
-    private func card(_ a: HomeAlert) -> some View {
+    private func row(_ a: HomeAlert) -> some View {
         let (icon, tint, hint): (String, Color, String) = {
             switch a.kind {
-            case .budgetOver: return ("banknote", dangerText, "예산 설정하기")
+            case .budgetOver: return ("banknote", GLGColor.urgent, "예산 설정하기")
             case .budgetNear: return ("banknote", warnText, "예산 설정하기")
-            case .budgetGameOver: return ("banknote", dangerText, "예산 설정하기")
+            case .budgetGameOver: return ("banknote", GLGColor.urgent, "예산 설정하기")
             case .banner: return ("bolt.fill", accent.primary, "게임 정보 보기")
             case .attendance: return ("checkmark.circle", accent.primary, "출석하러 가기")
             }
         }()
-        return GLGCard(cornerRadius: 18, padding: 16) {
-            HStack(spacing: 12) {
-                // 본문 탭 → 관련 화면 이동
-                Button { switch a.kind { case .banner, .attendance: onGameInfo(); default: showBudget = true } } label: {
-                    HStack(spacing: 12) {
-                        ZStack { Circle().fill(tint.opacity(0.12)).frame(width: 38, height: 38); Image(systemName: icon).font(.pretendard(size: 18)).foregroundStyle(tint) }
-                        VStack(alignment: .leading, spacing: 3) {
-                            Text(a.message).font(.pretendard(size: 13, weight: .medium))
-                            Text(hint).font(.pretendard(size: 11, weight: .semibold)).foregroundStyle(accent.primary)
-                        }
-                        Spacer(minLength: 0)
+        // 카드 없이 한 줄 — 좌 20 · 위아래 12. 우측은 X 버튼(36) 안쪽 여백이 있어 12(Android 와 같다).
+        return HStack(spacing: 0) {
+            // 본문 탭 → 관련 화면 이동
+            Button { switch a.kind { case .banner, .attendance: onGameInfo(); default: showBudget = true } } label: {
+                HStack(spacing: 12) {
+                    ZStack { Circle().fill(tint.opacity(0.12)).frame(width: 38, height: 38); Image(systemName: icon).font(.pretendard(size: 18)).foregroundStyle(tint) }
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(a.message).font(.pretendard(size: 15, weight: .medium)).foregroundStyle(GLGColor.textPrimary)
+                        Text(hint).font(.pretendard(size: 13, weight: .semibold)).foregroundStyle(accent.primary)
                     }
-                    .contentShape(Rectangle())
-                }.buttonStyle(.plain)
-                // 삭제(X) — 이 알림만 지움(다시 안 뜸). 본문 탭(이동)과 분리.
-                Button { onDismiss(a) } label: {
-                    Image(systemName: "xmark").font(.pretendard(size: 14, weight: .semibold))
-                        .foregroundStyle(Color(.systemGray3)).frame(width: 28, height: 28)
-                }.buttonStyle(.plain)
-            }
+                    Spacer(minLength: 0)
+                }
+                .contentShape(Rectangle())
+            }.buttonStyle(.plain)
+            // 삭제(X) — 이 알림만 지움(다시 안 뜸). 본문 탭(이동)과 분리.
+            Button { onDismiss(a) } label: {
+                Image(systemName: "xmark").font(.pretendard(size: 14, weight: .semibold))
+                    .foregroundStyle(Color(.systemGray3)).frame(width: 36, height: 36)
+            }.buttonStyle(.plain)
         }
+        .padding(.leading, 20).padding(.trailing, 12).padding(.vertical, 12)
     }
 }
 
@@ -227,7 +232,7 @@ struct DashboardScheduleCard: View {
                         Text(it.1).font(.pretendard(size: 15)).foregroundStyle(GLGColor.textPrimary).lineLimit(1)
                         Spacer(minLength: 0)
                         Text(it.3).font(.pretendard(size: 13, weight: .bold))
-                            .foregroundStyle((0...3).contains(dDay) ? Color(hex: 0xFFE8634A) : GLGColor.textPrimary)
+                            .foregroundStyle((0...3).contains(dDay) ? GLGColor.urgent : GLGColor.textPrimary)
                     }
                     .padding(.vertical, 12)
                 }

@@ -1,5 +1,6 @@
 package com.gatcha.log.ui.game
 
+import com.gatcha.log.ui.components.GldsHairline
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -221,9 +222,7 @@ internal fun GiftCodePage(
 
 /** 코드 줄 사이 헤어라인(10/1) — 마이페이지 · 지출과 같은 색. */
 @Composable
-private fun GiftHairline() {
-    Box(Modifier.fillMaxWidth().height(1.dp).background(Color(0xFFEEF0F2)))
-}
+private fun GiftHairline() = GldsHairline()
 
 /** 활성 코드 한 줄 — 코드 + 보상 + (교환/받음). 공방(공식방송) 코드는 강조 카드로 꾸민다. */
 @Composable

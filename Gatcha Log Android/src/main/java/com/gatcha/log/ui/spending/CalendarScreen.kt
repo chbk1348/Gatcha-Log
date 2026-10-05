@@ -9,12 +9,10 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ReceiptLong
 import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.ChevronRight
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -26,8 +24,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -37,13 +33,13 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.gatcha.log.data.DateUtil
 import com.gatcha.log.data.GachaBanner
 import com.gatcha.log.data.Spending
-import com.gatcha.log.ui.components.GlassCard
 import com.gatcha.log.ui.components.GlgDetailHeaderOverlay
+import com.gatcha.log.ui.game.GiBand
+import com.gatcha.log.ui.game.GiHairline
+import com.gatcha.log.ui.game.GiPageSection
 import com.gatcha.log.ui.components.glgDetailContentTop
-import com.gatcha.log.ui.components.GlgScreenHeader
 import com.gatcha.log.ui.theme.DangerText
 import com.gatcha.log.ui.theme.toColor
-import com.gatcha.log.ui.theme.DividerColor
 import com.gatcha.log.ui.theme.LocalAccent
 import com.gatcha.log.ui.theme.TextPrimary
 import com.gatcha.log.ui.theme.TextSecondary
@@ -80,140 +76,110 @@ fun CalendarScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
     val scrolled by remember {
         derivedStateOf { listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 0 }
     }
-    Box(Modifier.fillMaxSize()) {
+    // GLDS 2.0(10/6) — 흰 바탕, 카드 없이 화면 폭 섹션 둘(월 · 총 지출 / 날짜별 활동), 사이는 띠.
+    // 날짜별 활동은 헤어라인으로 나눈 목록이다. iOS CalendarView 와 같은 수치.
+    Box(Modifier.fillMaxSize().background(Color.White)) {
     LazyColumn(
         state = listState,
-        modifier = Modifier.fillMaxSize().navigationBarsPadding().padding(horizontal = 16.dp),
-        contentPadding = PaddingValues(top = glgDetailContentTop(), bottom = 24.dp),
+        modifier = Modifier.fillMaxSize().navigationBarsPadding(),
+        contentPadding = PaddingValues(top = glgDetailContentTop()),
     ) {
-        item {
-            // 월 이동 헤더
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                MonthNavButton(Icons.Default.ChevronLeft, "이전 달") { shift(-1) }
-                Text("${year}년 ${month}월", fontSize = 18.sp, fontWeight = FontWeight.Bold)
-                MonthNavButton(Icons.Default.ChevronRight, "다음 달") { shift(1) }
+        item(key = "month") {
+            // 헤더 바로 아래 첫 섹션은 위 12(전투 진행도와 같다).
+            GiPageSection(top = 12.dp) {
+                // 월 이동
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    MonthNavButton(Icons.Default.ChevronLeft, "이전 달") { shift(-1) }
+                    Text("${year}년 ${month}월", fontSize = 17.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+                    MonthNavButton(Icons.Default.ChevronRight, "다음 달") { shift(1) }
+                }
+                Spacer(Modifier.height(16.dp))
+                // 월 요약(총 지출) — 줄 제목 15 + 값 15 Bold
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Text("이번 달 총 지출", fontSize = 15.sp, color = TextPrimary, modifier = Modifier.weight(1f))
+                    Text(won(monthTotal), fontSize = 15.sp, fontWeight = FontWeight.Bold, color = accent)
+                }
             }
+            GiBand()
         }
-        item {
-            // 월 요약(총 지출)
-            SummaryPill("이번 달 총 지출", won(monthTotal), accent, Modifier.fillMaxWidth().padding(top = 4.dp, bottom = 14.dp))
+        item(key = "title") {
+            // 마지막 줄이 아래 12 를 가져 8 + 12 = 눈에 20. 빈 상태는 자체 여백이 커서 20 그대로.
+            GiPageSection("날짜별 활동", bottom = 0.dp) {}
         }
         if (entries.isEmpty()) {
-            item { EmptyTimeline() }
+            item(key = "empty") { Box(Modifier.padding(horizontal = 20.dp)) { EmptyTimeline() } }
         } else {
             itemsIndexed(entries, key = { _, e -> if (e is ActiveDay) "a${e.day}" else "g${(e as GapDays).highDay}" }) { idx, e ->
-                when (e) {
-                    is ActiveDay -> TimelineDayItem(e, isFirst = idx == 0, isLast = idx == entries.lastIndex, accent = accent)
-                    is GapDays -> GapDaysItem(e, isLast = idx == entries.lastIndex)
+                Column(Modifier.padding(horizontal = 20.dp)) {
+                    if (idx > 0) GiHairline()
+                    when (e) {
+                        is ActiveDay -> DayRow(e, accent = accent)
+                        is GapDays -> GapRow(e)
+                    }
                 }
             }
         }
+        item(key = "bottom") { Spacer(Modifier.height(if (entries.isEmpty()) 20.dp else 8.dp)) }
     }
     GlgDetailHeaderOverlay("캘린더", onBack, scrolled)
     }
 }
 
-/** 타임라인 한 노드 — 왼쪽 날짜/레일(점·선) + 오른쪽 그날 활동 카드. */
+/** 날짜 칸 폭 + 사이 — 활동 없음 줄도 이만큼 들여 내용 칸에 맞춘다. */
+private val DateColumnWidth = 34.dp
+private val DateContentGap = 14.dp
+
+/** 날짜별 활동 한 줄 — 왼쪽 날짜 + 오른쪽 그날 지출 · 픽업 시작/종료. 카드 없이 위아래 12. */
 @Composable
-private fun TimelineDayItem(day: ActiveDay, isFirst: Boolean, isLast: Boolean, accent: Color) {
+private fun DayRow(day: ActiveDay, accent: Color) {
     val weekdayKo = arrayOf("일", "월", "화", "수", "목", "금", "토")[day.weekdayIndex]
     val dateColor = when {
         day.isToday -> accent
         day.weekdayIndex == 0 -> DangerText
         else -> TextPrimary
     }
-    Row(modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
+    Row(Modifier.fillMaxWidth().padding(vertical = 12.dp)) {
         // 날짜
-        Column(
-            modifier = Modifier.width(34.dp).padding(top = 2.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            Text("${day.day}", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = dateColor)
-            Text(weekdayKo, fontSize = 10.sp, color = if (day.isToday) accent else TextSecondary)
+        Column(Modifier.width(DateColumnWidth), horizontalAlignment = Alignment.CenterHorizontally) {
+            Text("${day.day}", fontSize = 17.sp, fontWeight = FontWeight.Bold, color = dateColor)
+            Text(weekdayKo, fontSize = 11.sp, color = if (day.isToday) accent else TextSecondary)
         }
-        Spacer(Modifier.width(8.dp))
-        TimelineRail(isFirst = isFirst, isLast = isLast, accent = accent, today = day.isToday)
-        Spacer(Modifier.width(10.dp))
-        // 활동 카드
-        Column(Modifier.weight(1f).padding(bottom = 14.dp)) {
-            GlassCard(shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth()) {
-                Column(Modifier.fillMaxWidth().padding(14.dp)) {
-                    // 지출
-                    if (day.spendings.isNotEmpty()) {
-                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                            Text("지출 ${day.spendings.size}건", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextSecondary)
-                            Text(won(day.spendTotal), fontSize = 15.sp, fontWeight = FontWeight.Bold, color = accent)
-                        }
-                        Spacer(Modifier.height(8.dp))
-                        day.spendings.forEachIndexed { i, sp ->
-                            if (i > 0) Spacer(Modifier.height(6.dp))
-                            SpendLine(sp)
-                        }
-                    }
-                    // 배너 시작/종료
-                    if (day.bannerStart.isNotEmpty() || day.bannerEnd.isNotEmpty()) {
-                        if (day.spendings.isNotEmpty()) { Spacer(Modifier.height(10.dp)); HorizontalDivider(color = DividerColor); Spacer(Modifier.height(10.dp)) }
-                        day.bannerStart.forEach { BannerLine("▲", "${it.name} 픽업 시작", it.gameColor.toColor()) }
-                        day.bannerEnd.forEach { BannerLine("▼", "${it.name} 픽업 종료", it.gameColor.toColor()) }
-                    }
+        Spacer(Modifier.width(DateContentGap))
+        Column(Modifier.weight(1f).padding(top = 2.dp)) {
+            // 지출
+            if (day.spendings.isNotEmpty()) {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Text("지출 ${day.spendings.size}건", fontSize = 15.sp, color = TextPrimary, modifier = Modifier.weight(1f))
+                    Text(won(day.spendTotal), fontSize = 15.sp, fontWeight = FontWeight.Bold, color = accent)
                 }
+                day.spendings.forEach { sp ->
+                    Spacer(Modifier.height(6.dp))
+                    SpendLine(sp)
+                }
+            }
+            // 배너 시작/종료
+            if (day.bannerStart.isNotEmpty() || day.bannerEnd.isNotEmpty()) {
+                if (day.spendings.isNotEmpty()) Spacer(Modifier.height(8.dp))
+                day.bannerStart.forEach { BannerLine("▲", "${it.name} 픽업 시작", it.gameColor.toColor()) }
+                day.bannerEnd.forEach { BannerLine("▼", "${it.name} 픽업 종료", it.gameColor.toColor()) }
             }
         }
     }
 }
 
-/** 활동 없는 연속 구간을 한 노드로 — 흐린 점 + "활동 없음" 텍스트. */
+/** 활동 없는 연속 구간을 한 줄로 — 흐린 "활동 없음" 문구, 내용 칸에 맞춰 들인다. */
 @Composable
-private fun GapDaysItem(gap: GapDays, isLast: Boolean) {
+private fun GapRow(gap: GapDays) {
     val label = if (gap.lowDay == gap.highDay) "${gap.lowDay}일 · 활동 없음"
     else "${gap.lowDay}일–${gap.highDay}일 · 활동 없음 (${gap.highDay - gap.lowDay + 1}일)"
-    Row(modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
-        Spacer(Modifier.width(34.dp))
-        Spacer(Modifier.width(8.dp))
-        // 레일 — 흐린 작은 점(활동 없는 구간은 노드 사이라 선은 위/아래 모두 연결)
-        Box(
-            modifier = Modifier.width(16.dp).fillMaxHeight().drawBehind {
-                val cx = size.width / 2
-                drawLine(DividerColor, Offset(cx, 0f), Offset(cx, if (isLast) 11.dp.toPx() else size.height), strokeWidth = 2.dp.toPx())
-            },
-            contentAlignment = Alignment.TopCenter,
-        ) {
-            Box(Modifier.padding(top = 5.dp).size(7.dp).clip(CircleShape).background(Color.LightGray))
-        }
-        Spacer(Modifier.width(10.dp))
-        Column(Modifier.weight(1f).padding(top = 2.dp, bottom = 14.dp)) {
-            Text(label, fontSize = 12.sp, color = Color.LightGray, fontWeight = FontWeight.Medium)
-        }
-    }
-}
-
-/** 타임라인 레일 — 점(노드) + 연결선(점 위/아래로 이어 연속). */
-@Composable
-private fun TimelineRail(isFirst: Boolean, isLast: Boolean, accent: Color, today: Boolean) {
-    Box(
-        modifier = Modifier.width(16.dp).fillMaxHeight().drawBehind {
-            val cx = size.width / 2
-            val dotY = 10.dp.toPx()
-            drawLine(
-                color = DividerColor,
-                start = Offset(cx, if (isFirst) dotY else 0f),
-                end = Offset(cx, if (isLast) dotY else size.height),
-                strokeWidth = 2.dp.toPx(),
-            )
-        },
-        contentAlignment = Alignment.TopCenter,
-    ) {
-        Box(
-            Modifier.padding(top = 4.dp).size(12.dp).clip(CircleShape).background(if (today) accent else Color.White)
-                .drawBehind {
-                    drawCircle(color = accent, radius = size.minDimension / 2, style = androidx.compose.ui.graphics.drawscope.Stroke(width = 2.dp.toPx()))
-                },
-        )
-    }
+    Text(
+        label, fontSize = 13.sp, color = Color.LightGray, fontWeight = FontWeight.Medium,
+        modifier = Modifier.padding(start = DateColumnWidth + DateContentGap, top = 12.dp, bottom = 12.dp),
+    )
 }
 
 /** 지출 한 줄 — 게임색 점 + 게임·아이템 + 금액 (first-end). */
@@ -224,7 +190,7 @@ private fun SpendLine(sp: Spending) {
         Spacer(Modifier.width(8.dp))
         Text(
             listOfNotNull(sp.gameName, sp.itemName.ifBlank { null }).joinToString(" · "),
-            fontSize = 13.sp, fontWeight = FontWeight.Medium,
+            fontSize = 13.sp, color = TextSecondary,
             maxLines = 1, overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f),
         )
@@ -239,7 +205,7 @@ private fun BannerLine(marker: String, text: String, color: Color) {
     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 1.dp)) {
         Text(marker, fontSize = 10.sp, color = color, fontWeight = FontWeight.Bold)
         Spacer(Modifier.width(6.dp))
-        Text(text, fontSize = 12.sp, color = TextSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(text, fontSize = 13.sp, color = TextSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
 
@@ -251,16 +217,6 @@ private fun MonthNavButton(icon: androidx.compose.ui.graphics.vector.ImageVector
         contentAlignment = Alignment.Center,
     ) {
         Icon(icon, desc, tint = accent, modifier = Modifier.size(20.dp))
-    }
-}
-
-@Composable
-private fun SummaryPill(label: String, value: String, accent: Color, modifier: Modifier = Modifier) {
-    GlassCard(shape = RoundedCornerShape(16.dp), modifier = modifier) {
-        Column(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp)) {
-            Text(label, fontSize = 11.sp, color = TextSecondary)
-            Text(value, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = accent)
-        }
     }
 }
 

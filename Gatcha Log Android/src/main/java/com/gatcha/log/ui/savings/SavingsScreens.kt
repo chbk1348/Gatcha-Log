@@ -1,5 +1,8 @@
 package com.gatcha.log.ui.savings
 
+import com.gatcha.log.ui.components.GldsSection
+import com.gatcha.log.ui.components.GldsHairline
+import com.gatcha.log.ui.components.GldsBand
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -55,7 +58,6 @@ private val WarnAmber = Color(0xFFF59E0B)
 private val GoldEarn = Color(0xFFF2B441)
 private val SpentRed = Color(0xFFEF6A6A)
 private val BandColor = Color(0xFFF2F4F6)
-private val HairColor = Color(0xFFEEF0F2)
 private val BarTrack = Color(0xFFEDEFF3)
 private val LockedIcon = Color(0xFFB8BDC6)
 
@@ -117,25 +119,19 @@ fun SavingsChallengeScreen(viewModel: SpendingViewModel, onBack: () -> Unit) {
 }
 
 @Composable
-private fun Band() {
-    Box(Modifier.fillMaxWidth().height(10.dp).background(BandColor))
-}
+private fun Band() = GldsBand()
 
 /**
  * 섹션 — 좌우 20 · 위 22 · 아래 20. 제목 17 굵게 + 오른쪽 보조 12.
- * [bottom] 은 20 − 마지막 요소의 자체 아래 여백(챌린지 줄 vertical 13 → 7, 배지 칸 vertical 4 → 16).
+ * [bottom] 은 20 − 마지막 요소의 자체 아래 여백(챌린지 줄 vertical 12 → 8, 배지 칸 vertical 4 → 16).
  */
 @Composable
 private fun Section(title: String?, trailing: String? = null, top: Dp = 22.dp, bottom: Dp = 20.dp, content: @Composable ColumnScope.() -> Unit) {
-    Column(Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = top, bottom = bottom)) {
-        if (title != null) {
-            Row(Modifier.fillMaxWidth().padding(bottom = 14.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text(title, fontSize = 17.sp, fontWeight = FontWeight.Bold, color = TextPrimary, modifier = Modifier.weight(1f))
-                if (trailing != null) Text(trailing, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextSecondary)
-            }
-        }
-        content()
-    }
+    GldsSection(
+        title = title, top = top, bottom = bottom,
+        trailing = trailing?.let { t -> @Composable { Text(t, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextSecondary) } },
+        content = content,
+    )
 }
 
 // ── ① 연속 무지출 + 최근 7일 ──
@@ -197,9 +193,9 @@ private fun WeekStrip(viewModel: SpendingViewModel, accent: Color) {
 @Composable
 private fun ChallengeSection(summary: ChallengeSummary, accent: Color) {
     val done = summary.challenges.count { it.reached }
-    Section("이번 달 챌린지", "$done / ${summary.challenges.size} 달성", bottom = 7.dp) {
+    Section("이번 달 챌린지", "$done / ${summary.challenges.size} 달성", bottom = 8.dp) {
         summary.challenges.forEachIndexed { i, c ->
-            if (i > 0) Box(Modifier.fillMaxWidth().height(1.dp).background(HairColor))
+            if (i > 0) GldsHairline()
             ChallengeRow(c, accent)
         }
     }
@@ -212,7 +208,7 @@ private fun ChallengeRow(c: ChallengeProgress, accent: Color) {
     val gameColor = c.game.takeIf { it.isNotBlank() }
         ?.let { GameData.byNameOrNull(it)?.color?.toColor() }
     val tone = gameColor ?: accent
-    Column(Modifier.fillMaxWidth().padding(vertical = 13.dp)) {
+    Column(Modifier.fillMaxWidth().padding(vertical = 12.dp)) {
         Row(verticalAlignment = Alignment.Top) {
             if (gameColor != null) {
                 Box(Modifier.padding(top = 7.dp).size(8.dp).clip(CircleShape).background(gameColor))

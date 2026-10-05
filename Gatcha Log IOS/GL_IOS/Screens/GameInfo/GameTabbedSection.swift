@@ -105,28 +105,16 @@ struct GiPageSection<Content: View>: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            if let title {
-                Text(title).font(.pretendard(size: 17, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
-                    .padding(.bottom, 12)
-            }
-            content
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, 20)
-        .padding(.top, top)
-        .padding(.bottom, bottom)
+        GldsSection(title, top: top, bottom: bottom, titleGap: 12) { content }
     }
 }
 
 /// 줄 사이 헤어라인(10/1) — 마이페이지 · 지출과 같은 1 · #EEF0F2. Android `GiHairline` 과 같다.
 struct GiHairline: View {
-    var body: some View { Color(hex: 0xFFEEF0F2).frame(height: 1).frame(maxWidth: .infinity) }
+    var body: some View { GldsHairline() }
 }
 
-// 전투 진행도 2.0 A안(10/1) 색 — 급한 마감 · 만점. Android GameInfoCombat 과 같다.
-private let combatUrgent = Color(hex: 0xFFE8634A)
-private let combatUrgentBg = Color(hex: 0xFFFDECE8)
+// 전투 진행도 2.0 A안(10/1) 색 — 만점(급한 마감은 GLGColor.urgent). Android GameInfoCombat 과 같다.
 private let combatDone = Color(hex: 0xFF0F8C77)
 private let combatDoneBg = Color(hex: 0xFFE6F9F5)
 private let combatPillGrayBg = Color(hex: 0xFFF2F4F6)
@@ -140,7 +128,7 @@ private struct CombatSummaryHead: View {
             Text("전투 콘텐츠 진행도").font(.pretendard(size: 13, weight: .bold)).foregroundStyle(GLGColor.textSecondary)
             Group {
                 if summary.remaining > 0 {
-                    Text("만점까지 ") + Text("\(summary.remaining)개").foregroundColor(combatUrgent) + Text(" 남았어요")
+                    Text("만점까지 ") + Text("\(summary.remaining)개").foregroundColor(GLGColor.urgent) + Text(" 남았어요")
                 } else {
                     Text("모두 만점이에요")
                 }
@@ -151,7 +139,7 @@ private struct CombatSummaryHead: View {
             HStack(spacing: 10) {
                 chip("만점", "\(summary.full) / \(summary.total)", GLGColor.textPrimary)
                 if let d = summary.urgentDDay?.int32Value {
-                    chip("가장 급한 마감", "D-\(d)", combatUrgent)
+                    chip("가장 급한 마감", "D-\(d)", GLGColor.urgent)
                 } else {
                     chip("가장 급한 마감", "-", GLGColor.textSecondary)
                 }
@@ -229,7 +217,7 @@ private struct CombatCard: View {
                     if full { pill("✓ 만점", combatDone, combatDoneBg) }
                     if let d {
                         if counted && !full && d <= HomeLogic.shared.COMBAT_WARN_DAYS {
-                            pill("D-\(d) 마감", combatUrgent, combatUrgentBg)
+                            pill("D-\(d) 마감", GLGColor.urgent, GLGColor.urgentBg)
                         } else {
                             pill("D-\(d)", GLGColor.textSecondary, combatPillGrayBg)
                         }

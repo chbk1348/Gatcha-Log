@@ -11,7 +11,6 @@ import Shared
 /// id 는 연-월로 고정한다 — UUID 를 쓰면 body 평가마다 새 id 가 생겨 차트 막대가 전부 재생성된다.
 private struct MonthPoint: Identifiable { let id: String; let month: Int; let amount: Int64 }
 
-private let bandColor = Color(hex: 0xFFF2F4F6)
 private let hairColor = Color(hex: 0xFFEEF0F2)
 private let upColor = Color(hex: 0xFFDC2626)
 private let downColor = Color(hex: 0xFF15803D)
@@ -39,7 +38,7 @@ struct MyPageView: View {
                 }
                 .buttonStyle(.plain)
             }
-            .glgReadableWidth(720)
+            .glgReadableWidth(640)
         }
         .scrollIndicators(.hidden)
         .background(Color.white)
@@ -102,23 +101,21 @@ struct MyPageView: View {
 // 섹션: 좌우 20 · 위 22 · 아래 20 / 섹션 사이 10pt 회색 띠 / 줄 사이 1pt 헤어라인
 
 private struct Band: View {
-    var body: some View { bandColor.frame(height: 10).frame(maxWidth: .infinity) }
+    var body: some View { GldsBand() }
 }
 
 private struct Hair: View {
-    var body: some View { hairColor.frame(height: 1).frame(maxWidth: .infinity) }
+    var body: some View { GldsHairline() }
 }
 
 private struct MPSection<Content: View>: View {
     var top: CGFloat = 22
-    /// 20 − 마지막 요소의 자체 아래 여백 — 목록 줄(ListRow vertical 11)로 끝나면 9. 눈에 보이는 끝 → 띠 = 20.
+    /// 20 − 마지막 요소의 자체 아래 여백 — 목록 줄(ListRow vertical 12)로 끝나면 8. 눈에 보이는 끝 → 띠 = 20.
     /// 페이지 맨 아래 섹션은 줄이지 않는다(안전 영역 위 숨 쉴 여백).
     var bottom: CGFloat = 20
     @ViewBuilder var content: Content
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) { content }
-            .padding(.horizontal, 20).padding(.top, top).padding(.bottom, bottom)
-            .frame(maxWidth: .infinity, alignment: .leading)
+        GldsSection(top: top, bottom: bottom) { content }
             .contentShape(Rectangle())
     }
 }
@@ -157,11 +154,11 @@ private func labelText(_ s: String) -> some View {
     Text(s).font(.pretendard(size: 14)).foregroundStyle(GLGColor.textPrimary).lineLimit(1)
 }
 
-/// 목록 한 줄 — 위아래 11 · 요소 사이 12.
+/// 목록 한 줄 — 위아래 12(GLDS 기본 줄) · 요소 사이 12.
 private struct ListRow<Content: View>: View {
     @ViewBuilder var content: Content
     var body: some View {
-        HStack(spacing: 12) { content }.padding(.vertical, 11)
+        HStack(spacing: 12) { content }.padding(.vertical, 12)
     }
 }
 
@@ -251,7 +248,7 @@ private struct MonthSection: View {
             let delta = Int((Double(monthly - prevMonthly) / Double(prevMonthly)) * 100)
             let down = delta <= 0
             Text("\(down ? "▼" : "▲") \(abs(delta))% 지난달보다")
-                .font(.pretendard(size: 12, weight: .bold)).foregroundStyle(down ? downColor : upColor)
+                .font(.pretendard(size: 12, weight: .bold)).foregroundStyle(down ? downColor : GLGColor.urgent)
         }
     }
 
@@ -263,7 +260,7 @@ private struct MonthSection: View {
             GeometryReader { geo in
                 ZStack(alignment: .leading) {
                     hairColor
-                    (over ? upColor : accent.primary).frame(width: geo.size.width * frac)
+                    (over ? GLGColor.urgent : accent.primary).frame(width: geo.size.width * frac)
                 }
             }
             .frame(height: 8)
@@ -271,7 +268,7 @@ private struct MonthSection: View {
             HStack {
                 subText("예산 \(won(budget)) 중 \(pct)%")
                 Spacer(minLength: 8)
-                if over { subText("\(won(monthly - budget)) 초과", color: upColor) }
+                if over { subText("\(won(monthly - budget)) 초과", color: GLGColor.urgent) }
                 else { subText("\(won(budget - monthly)) 남음") }
             }
         }
@@ -341,7 +338,7 @@ private struct GameSpendSection: View {
     }
 
     var body: some View {
-        MPSection(bottom: slices.isEmpty || total <= 0 ? 20 : 9) {
+        MPSection(bottom: slices.isEmpty || total <= 0 ? 20 : 8) {
             SectionHead(title: "게임별 지출") { moreText("전체 기간") }
             if slices.isEmpty || total <= 0 {
                 subText("아직 지출 기록이 없어요")
@@ -386,7 +383,7 @@ private struct RecordSection: View {
     var body: some View {
         let avg: Int64 = trend.isEmpty ? 0 : trend.reduce(Int64(0)) { $0 + $1.amount } / Int64(trend.count)
         let peak = trend.max { $0.amount < $1.amount }.flatMap { $0.amount > 0 ? $0 : nil }
-        MPSection(bottom: 9) {
+        MPSection(bottom: 8) {
             SectionHead(title: "지출 기록")
             ListRow {
                 labelWithPeriod("월 평균")
@@ -446,7 +443,7 @@ private struct ActivitySection: View {
 
     var body: some View {
         let d = days
-        MPSection(bottom: taskStats.isEmpty ? 20 : 9) {
+        MPSection(bottom: taskStats.isEmpty ? 20 : 8) {
             SectionHead(title: "활동") { moreText("최근 30일") }
             VStack(spacing: 4) {
                 ForEach(0..<2, id: \.self) { r in

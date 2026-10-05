@@ -544,7 +544,7 @@ struct BudgetSettingsView: View {
                 Text(g.displayName).font(.pretendard(size: 15, weight: .bold)).foregroundStyle(GLGColor.textPrimary)
                 Text("이번 달 \(won(spent))" + (over ? " · 한도 초과" : ""))
                     .font(.pretendard(size: 12, weight: over ? .bold : .regular))
-                    .foregroundStyle(over ? Color(hex: 0xFFC2410C) : GLGColor.textSecondary)
+                    .foregroundStyle(over ? GLGColor.urgent : GLGColor.textSecondary)
             }
             Spacer(minLength: 8)
             GldsTextField(placeholder: "한도 없음", text: Binding(

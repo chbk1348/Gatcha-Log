@@ -1,5 +1,7 @@
 package com.gatcha.log.ui.game
 
+import com.gatcha.log.ui.components.GldsSection
+import com.gatcha.log.ui.components.GldsHairline
 import com.gatcha.log.ui.components.LightSystemBarsInWindow
 import com.gatcha.log.ui.game.hoyoland.HoyolandTicketKicker
 import com.gatcha.log.ui.game.hoyoland.HoyolandTicketRule
@@ -252,15 +254,13 @@ fun HoyolandSection(onOpen: (HoyolandSub) -> Unit) {
                 .padding(horizontal = 6.dp, vertical = 4.dp),
         )
     }
-    if (phase == HoyolandPhase.ENDED) {
-        // 카드는 걷었다(10/1) — 줄 전체가 눌린다.
-        run {
-            Row(Modifier.fillMaxWidth().clickable { onOpen(HoyolandSub.None) }.padding(horizontal = 20.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Outlined.Celebration, null, tint = TextSecondary, modifier = Modifier.size(20.dp))
-                Spacer(Modifier.width(12.dp))
-                Text("${e.edition} · 종료", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = TextPrimary, modifier = Modifier.weight(1f))
-                Text("지난 행사 보기", fontSize = 12.sp, color = TextSecondary)
-            }
+    if (phase.isOffSeason) {
+        // 종료 · 일정 미정 — 한 줄로 줄인다. 들어가는 문은 헤더 「전체 보기」 하나다
+        // (「지난 행사 보기」가 같은 곳으로 가는 버튼이라 둘이 겹쳤다).
+        Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+            Icon(Icons.Outlined.Celebration, null, tint = TextSecondary, modifier = Modifier.size(20.dp))
+            Spacer(Modifier.width(12.dp))
+            Text("${e.edition} · ${e.statusLabel()}", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = TextPrimary, modifier = Modifier.weight(1f))
         }
         return
     }
@@ -658,8 +658,10 @@ fun HoyolandDetailPage(
                         // 글자를 쓰는 이유는 아이콘 하나로 "내 입장권"이 안 읽히기 때문이다. 면·테두리·
                         // 높이는 헤더 원형 버튼([GlgCircleIconButton])과 같은 값이라 같은 줄에서 따로
                         // 놀지 않는다(흰 배경 · 1.5dp 테두리 · 44dp).
-                        if (e.hasEntryGroups) {
-                            val goingLabel = if (entry.isEmpty) "내 입장권" else "${entry.dayCount}일"
+                        // 종료 · 일정 미정이면 고를 날이 없다 — 버튼째 걷는다.
+                        val entryDays = e.entryDayCount(entry)   // 기간 안 날짜만
+                        if (e.hasEntryGroups && !e.phase().isOffSeason) {
+                            val goingLabel = if (entryDays == 0) "내 입장권" else "${entryDays}일"
                             Row(
                                 Modifier
                                     .height(44.dp)
@@ -667,7 +669,7 @@ fun HoyolandDetailPage(
                                     .background(Color.White)
                                     .border(
                                         1.5.dp,
-                                        if (entry.isEmpty) Color.Black.copy(alpha = 0.12f) else accent.copy(alpha = 0.55f),
+                                        if (entryDays == 0) Color.Black.copy(alpha = 0.12f) else accent.copy(alpha = 0.55f),
                                         RoundedCornerShape(22.dp),
                                     )
                                     .clickable { entrySheetOpen = true }
@@ -677,14 +679,14 @@ fun HoyolandDetailPage(
                                 Icon(
                                     Icons.Default.ConfirmationNumber,
                                     contentDescription = null,
-                                    tint = if (entry.isEmpty) TextSecondary else accentDeep,
+                                    tint = if (entryDays == 0) TextSecondary else accentDeep,
                                     modifier = Modifier.size(17.dp),
                                 )
                                 Spacer(Modifier.width(5.dp))
                                 Text(
                                     goingLabel,
                                     fontSize = 12.sp, fontWeight = FontWeight.Black,
-                                    color = if (entry.isEmpty) TextPrimary else accentDeep,
+                                    color = if (entryDays == 0) TextPrimary else accentDeep,
                                 )
                             }
                         }
@@ -851,10 +853,13 @@ fun HoyolandDetailContent(
         // 넷의 공통점은 "이 행사에서 볼 수 있는 것" 이고, 미리 보든 실제로 돌든 같은 말이다.
         Text("둘러보기", fontSize = 17.sp, fontWeight = FontWeight.Bold)
         Spacer(Modifier.weight(1f))
-        Text(
-            if (phase.isEventLive) "행사 중에는 여기가 먼저예요" else "개막하면 맨 위로 올라와요",
-            fontSize = 12.5.sp, color = TextSecondary,   // 11.5 → 12.5(10/1)
-        )
+        // 종료 · 일정 미정이면 올라올 개막이 없다 — 부제를 뺀다.
+        if (!phase.isOffSeason) {
+            Text(
+                if (phase.isEventLive) "행사 중에는 여기가 먼저예요" else "개막하면 맨 위로 올라와요",
+                fontSize = 12.5.sp, color = TextSecondary,   // 11.5 → 12.5(10/1)
+            )
+        }
     }
     Spacer(Modifier.height(10.dp))
     // **넷이 같은 크기의 네 칸.** 예전엔 시간표·푸드존만 전체 폭이고 굿즈·부스가 반 폭이라
@@ -923,8 +928,10 @@ fun HoyolandDetailContent(
         // (현장 발권을 받지 않는 행사라 "지금 사는 길" 도 없다.)
     } else {
         if (e.lineup.isNotEmpty()) sections += lineupSection
-        sections += onsiteSection
-        sections += ticketSection
+        // 일정 미정(TBA)은 채울 게 없으면 둘러보기째 뺀다(빈 「공개되면…」 칸 넷만 남는다).
+        if (phase != HoyolandPhase.TBA || e.hasOnsiteContent) sections += onsiteSection
+        // 종료 · 일정 미정이면 예매는 지나갔거나 아직 없다 — 「예매 안내 전체 보기」까지 섹션째 뺀다.
+        if (!phase.isOffSeason) sections += ticketSection
     }
 
     // ── 프로그램 — 본편과 별개로 **참여 마감이 따로 있는** 것들이라 날짜를 눈에 띄게 둔다.
@@ -969,7 +976,8 @@ fun HoyolandDetailContent(
                     }
                     if (p.deadline.isNotBlank()) {
                         Spacer(Modifier.height(10.dp))
-                        HoyolandInfoBadge(p.deadline, accent)
+                        // 이미 지난 마감은 회색 — 강조색이면 아직 응모할 수 있는 것처럼 읽힌다.
+                        HoyolandInfoBadge(p.deadline, if (e.isDeadlinePast(p.deadline)) TextSecondary else accent)
                     }
                 }
         }
@@ -1382,7 +1390,7 @@ internal fun androidx.compose.foundation.lazy.LazyListScope.hoyolandGoodsItems(
     // 여기엔 목록 섹션의 아래 20 + 바 몸통(위 12 + 알약 ≈ 46 + 아래 8 = 66)만 둔다(GLDS 2.0, 10/1).
     // **담은 게 없으면 바도 없다** — 그땐 섹션 아래 20 만.
     item(key = "bottomSpace") {
-        Spacer(Modifier.height(if (cart.isEmpty) 20.dp else 86.dp))
+        Spacer(Modifier.height(if (e.cartKindCount(cart) == 0) 20.dp else 86.dp))
     }
 }
 
@@ -1908,7 +1916,9 @@ private fun GoodsStepButton(label: String, onClick: () -> Unit) {
  */
 @Composable
 fun HoyolandGoodsBar(e: HoyolandEvent, cart: HoyolandCart, onOpenCart: () -> Unit) {
-    if (cart.isEmpty) return
+    // 지금 목록 기준으로 센다 — 목록에서 빠진 이름만 남은 장바구니로 「담은 0종 · 0원」 바가 서지 않게.
+    val kinds = e.cartKindCount(cart)
+    if (kinds == 0) return
     // 알약 뒤에 흰 판을 깔지 않는다. 판이 있으면 화면 아래 한 뼘이 통째로 막힌 것처럼 보여
     // 목록이 거기서 끝난 줄 알게 된다 — 실제로는 계속 스크롤된다. 알약 자체가 불투명해
     // 합계는 그대로 읽히고, iOS 도 알약만 띄운다(SystemGlassBar).
@@ -1929,7 +1939,7 @@ fun HoyolandGoodsBar(e: HoyolandEvent, cart: HoyolandCart, onOpenCart: () -> Uni
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
-                "담은 ${cart.kindCount}종 · ${cart.totalCount}개",
+                "담은 ${kinds}종 · ${e.cartItemCount(cart)}개",
                 fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = Color.White.copy(alpha = 0.72f),
             )
             Spacer(Modifier.weight(1f))
@@ -1997,7 +2007,7 @@ fun HoyolandCartContent(
             Text("담은 굿즈", fontSize = 12.5.sp, color = Color.White.copy(alpha = 0.72f))
             Spacer(Modifier.weight(1f))
             Text(
-                "${cart.kindCount}종 · ${cart.totalCount}개",
+                "${e.cartKindCount(cart)}종 · ${e.cartItemCount(cart)}개",
                 fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = Color.White,
             )
         }
@@ -2913,9 +2923,7 @@ private fun StageRow(
 internal val HoyolandHairline = Color(0xFFEEF0F2)
 
 @Composable
-private fun HoyolandHairlineDivider() {
-    Box(Modifier.fillMaxWidth().height(1.dp).background(HoyolandHairline))
-}
+private fun HoyolandHairlineDivider() = GldsHairline()
 
 /**
  * 카드 없는 섹션(10/1) — 화면 폭 · 좌우 20 · 위 22 · 아래 20. 섹션 사이는 [GiBand].
@@ -2930,10 +2938,7 @@ private fun HoyolandSectionBox(
     bottom: androidx.compose.ui.unit.Dp = 20.dp,
     content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit,
 ) {
-    Column(
-        Modifier.fillMaxWidth().padding(start = horizontal, end = horizontal, top = top, bottom = bottom),
-        content = content,
-    )
+    GldsSection(top = top, bottom = bottom, horizontal = horizontal, content = content)
 }
 
 /** 지난 행사 1건 — 제목 + "종료" 배지 + 팩트 목록. 카드를 걷고 헤어라인 목록의 한 줄이 됐다(10/1). */

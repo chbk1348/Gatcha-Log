@@ -1,5 +1,8 @@
 package com.gatcha.log.ui.profile
 
+import com.gatcha.log.ui.components.GldsSection
+import com.gatcha.log.ui.components.GldsHairline
+import com.gatcha.log.ui.components.GldsBand
 import com.gatcha.log.ui.components.GldsButton
 import com.gatcha.log.ui.components.GldsSize
 import com.gatcha.log.ui.components.GldsVariant
@@ -228,23 +231,22 @@ fun MyPageScreen(
 //  섹션: 좌우 20 · 위 22 · 아래 20 / 섹션 사이 10dp 회색 띠 / 줄 사이 1dp 헤어라인
 // ============================================================
 
-private val BandColor = Color(0xFFF2F4F6)
 private val HairColor = Color(0xFFEEF0F2)
 private val UpColor = Color(0xFFDC2626)
 private val DownColor = Color(0xFF15803D)
 
-private fun LazyListScope.band() = item { Box(Modifier.fillMaxWidth().height(10.dp).background(BandColor)) }
+private fun LazyListScope.band() = item { GldsBand() }
 
 @Composable
 private fun Section(
     modifier: Modifier = Modifier,
     top: androidx.compose.ui.unit.Dp = 22.dp,
-    // 20 − 마지막 요소의 자체 아래 여백 — 목록 줄(ListRow vertical 11)로 끝나면 9. 눈에 보이는 끝 → 띠 = 20.
+    // 20 − 마지막 요소의 자체 아래 여백 — 목록 줄(ListRow vertical 12)로 끝나면 8. 눈에 보이는 끝 → 띠 = 20.
     // 페이지 맨 아래 섹션은 줄이지 않는다(안전 영역 위 숨 쉴 여백).
     bottom: androidx.compose.ui.unit.Dp = 20.dp,
     content: @Composable ColumnScope.() -> Unit,
 ) {
-    Column(modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = top, bottom = bottom), content = content)
+    GldsSection(modifier, top = top, bottom = bottom, content = content)
 }
 
 /** 섹션 머리 — 제목 17 + 오른쪽 보조 문구(없으면 생략). */
@@ -266,9 +268,7 @@ private fun MoreText(text: String) {
 }
 
 @Composable
-private fun Hair(modifier: Modifier = Modifier) {
-    Box(modifier.fillMaxWidth().height(1.dp).background(HairColor))
-}
+private fun Hair(modifier: Modifier = Modifier) = GldsHairline(modifier)
 
 @Composable
 private fun SubText(text: String, modifier: Modifier = Modifier, color: Color = TextSecondary, bold: Boolean = false) {
@@ -280,11 +280,11 @@ private fun NumText(text: String, modifier: Modifier = Modifier) {
     Text(text, modifier = modifier, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TextPrimary, maxLines = 1)
 }
 
-/** 목록 한 줄 — 위아래 11 · 요소 사이 12. */
+/** 목록 한 줄 — 위아래 12(GLDS 기본 줄) · 요소 사이 12. */
 @Composable
 private fun ListRow(content: @Composable RowScope.() -> Unit) {
     Row(
-        Modifier.fillMaxWidth().padding(vertical = 11.dp),
+        Modifier.fillMaxWidth().padding(vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         content = content,
@@ -358,7 +358,7 @@ private fun MonthSection(
                 val down = deltaPct <= 0
                 Text(
                     "${if (down) "▼" else "▲"} ${kotlin.math.abs(deltaPct)}% 지난달보다",
-                    fontSize = 12.sp, fontWeight = FontWeight.Bold, color = if (down) DownColor else UpColor,
+                    fontSize = 12.sp, fontWeight = FontWeight.Bold, color = if (down) DownColor else Urgent,
                 )
             }
         }
@@ -371,11 +371,11 @@ private fun MonthSection(
             Box(
                 Modifier.padding(top = 12.dp).fillMaxWidth().height(8.dp).clip(RoundedCornerShape(4.dp)).background(HairColor),
             ) {
-                Box(Modifier.fillMaxWidth(frac).fillMaxHeight().background(if (over) UpColor else accent))
+                Box(Modifier.fillMaxWidth(frac).fillMaxHeight().background(if (over) Urgent else accent))
             }
             Row(Modifier.fillMaxWidth().padding(top = 6.dp), horizontalArrangement = Arrangement.SpaceBetween) {
                 SubText("예산 ${won(budget)} 중 ${pct}%")
-                if (over) SubText("${won(monthly - budget)} 초과", color = UpColor)
+                if (over) SubText("${won(monthly - budget)} 초과", color = Urgent)
                 else SubText("${won(budget - monthly)} 남음")
             }
         }
@@ -429,7 +429,7 @@ private fun GameSpendSection(spendings: List<Spending>) {
     val total = remember(byGame) { byGame.sumOf { it.amount } }
     // 퍼센트는 **합이 정확히 100이 되도록** 공유 로직으로 배분한다(최대 잔여법).
     val pcts = remember(byGame) { percentShares(byGame.map { it.amount }) }
-    Section(bottom = if (byGame.isEmpty() || total <= 0L) 20.dp else 9.dp) {
+    Section(bottom = if (byGame.isEmpty() || total <= 0L) 20.dp else 8.dp) {
         SectionHead("게임별 지출") { MoreText("전체 기간") }
         if (byGame.isEmpty() || total <= 0L) {
             SubText("아직 지출 기록이 없어요")
@@ -461,7 +461,7 @@ private fun GameSpendSection(spendings: List<Spending>) {
 private fun RecordSection(trend: List<MonthPoint>) {
     val avg = remember(trend) { if (trend.isEmpty()) 0L else trend.sumOf { it.amount } / trend.size }
     val peak = remember(trend) { trend.maxByOrNull { it.amount }?.takeIf { it.amount > 0 } }
-    Section(bottom = 9.dp) {
+    Section(bottom = 8.dp) {
         SectionHead("지출 기록")
         ListRow {
             LabelWithPeriod("월 평균", Modifier.weight(1f))
@@ -515,7 +515,7 @@ private fun ActivitySection(
     val taskRate = remember(taskStats) {
         taskStats.filter { it.dailyDays > 0 }.takeIf { it.isNotEmpty() }?.let { l -> l.sumOf { it.dailyRate } / l.size }
     }
-    Section(bottom = if (taskStats.isNotEmpty()) 9.dp else 20.dp) {
+    Section(bottom = if (taskStats.isNotEmpty()) 8.dp else 20.dp) {
         SectionHead("활동") { MoreText("최근 30일") }
         days.chunked(15).forEachIndexed { r, rowDays ->
             if (r > 0) Spacer(Modifier.height(4.dp))

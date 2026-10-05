@@ -40,12 +40,12 @@ data class NotifyItem(
 object NotificationCatalog {
 
     /**
-     * 호요랜드 알림을 아직 보여 줄 때인가 — 행사가 끝나면(폐막일 다음 날부터) 설정 목록에서 빠지고
+     * 호요랜드 알림을 아직 보여 줄 때인가 — 행사가 끝나거나(폐막일 다음 날부터) 다음 회차 날짜가 아직 없으면 설정 목록에서 빠지고
      * 예약도 멈춘다([ScheduledAlerts]). 기준 날짜는 호요랜드 설정(config/hoyoland — 어드민에서 관리)의 폐막일이다.
      * TODO(호요랜드 종료): 2026 행사가 끝나면 다음 업데이트에서 호요랜드 알림 기능을 통째로 제거할 예정.
      */
     val hoyolandAlertsActive: Boolean
-        get() = HoyolandApi.current.phase() != HoyolandPhase.ENDED
+        get() = !HoyolandApi.current.phase().isOffSeason   // 종료 · 일정 미정이면 알릴 날짜가 없다
 
     /** 전체 항목 — 묶음 순서대로. 호요랜드는 행사 중일 때만([hoyolandAlertsActive]). */
     val items: List<NotifyItem>

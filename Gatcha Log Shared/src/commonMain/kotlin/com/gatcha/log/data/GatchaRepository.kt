@@ -885,6 +885,8 @@ class GatchaRepository(
             reward = o.optString("reward", ""),
             // 옛 캐시엔 이 키가 없다 → 0(모름). 타임라인이 0 을 '시작 미상'으로 따로 그린다.
             startMillis = o.optLong("startMillis", 0L),
+            // 옛 캐시엔 없다 → 빈 목록, 일정 줄이 글자 부제로 폴백한다.
+            rewardItems = readRewardItems(o),
         )
     }
 
@@ -893,6 +895,7 @@ class GatchaRepository(
             put("game", e.game); put("name", e.name)
             put("endMillis", e.endMillis); put("reward", e.reward)
             put("startMillis", e.startMillis)
+            putRewardItems(e.rewardItems)
         }
     }
 
@@ -904,6 +907,7 @@ class GatchaRepository(
             endMillis = o.optLong("endMillis", 0L),
             reward = o.optString("reward", ""),
             startMillis = o.optLong("startMillis", 0L),
+            rewardItems = readRewardItems(o),
         )
     }
 
@@ -912,7 +916,22 @@ class GatchaRepository(
             put("game", c.game); put("name", c.name); put("typeName", c.typeName)
             put("endMillis", c.endMillis); put("reward", c.reward)
             put("startMillis", c.startMillis)
+            putRewardItems(c.rewardItems)
         }
+    }
+
+    private fun readRewardItems(o: JSONObject): List<RewardItem> = o.optJSONArray("rewardItems")?.let { arr ->
+        (0 until arr.length()).mapNotNull { i ->
+            val r = arr.optJSONObject(i) ?: return@mapNotNull null
+            RewardItem(r.optString("n"), r.optString("i"), r.optInt("a", 0)).takeIf { it.name.isNotBlank() }
+        }
+    }.orEmpty()
+
+    private fun JSONObject.putRewardItems(items: List<RewardItem>) {
+        if (items.isEmpty()) return
+        put("rewardItems", JSONArray().apply {
+            items.forEach { put(JSONObject().apply { put("n", it.name); put("i", it.iconUrl); put("a", it.amount) }) }
+        })
     }
 
     fun loadGameNews(): List<NewsItem> = readList(KEY_NEWS) { o ->

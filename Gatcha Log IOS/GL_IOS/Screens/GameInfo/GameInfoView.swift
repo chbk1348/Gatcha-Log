@@ -258,9 +258,10 @@ struct GameInfoView: View {
                 // 하위 페이지로 곧장 들어간다. 폐막 뒤에는 섹션이 한 줄로 줄어든다(HoyolandSection).
                 // 입장권은 화면 폭을 꽉 채운다(10/1) — 좌우 여백 없이, 제목 · 종료 줄만 섹션 안에서 20 을 둔다.
                 GiBand()
-                // 아래 6 — 입장권 본문이 스스로 아래 14 를 가져 띠까지 눈에 20(10/1).
+                // 아래 20 — 입장권 안쪽 14 는 **면 안쪽** 여백이라 띠와의 간격에 셈하지 않는다.
+                // 6 으로 줄였더니 입장권 테두리가 띠에 붙어 보였다(10/6).
                 HoyolandSection(onOpen: { sub in hoyolandInitial = sub; showHoyoland = true })
-                    .padding(.top, 22).padding(.bottom, 6)
+                    .padding(.top, 22).padding(.bottom, 20)
                 // 숙제 완주율은 별도 섹션을 두지 않는다 — 데일리의 게임 줄에 완주율까지 들어간다.
                 // 내 캐릭터(보유 전체 로스터) — 데일리 다음 핵심 콘텐츠로 상단 배치
                 // 미연동이면 섹션·상단 여백까지 통째 생략(빈 여백 방지).
@@ -276,19 +277,19 @@ struct GameInfoView: View {
                 // 통합 게임 일정 — 패치·이벤트·정기 콘텐츠. 게임 구분 없이 전부 싣는다.
                 // 집계는 원본 3종이 바뀔 때만(아래 .task) — 예전엔 여기서 body 평가마다 다시 만들었다.
                 if !schedule.isEmpty {
-                    // 아래 9 — 마지막 게임 줄이 위아래 11 을 가진다(10/1).
-                    section(bottom: 9) { GameScheduleSection(entries: schedule, banners: store.activeBanners, onSeeAll: { showSchedule = true }) }.id("SCHEDULE")
+                    // 아래 8 — 마지막 게임 줄이 위아래 12 를 가진다(10/1).
+                    section(bottom: 8) { GameScheduleSection(entries: schedule, banners: store.activeBanners, onSeeAll: { showSchedule = true }) }.id("SCHEDULE")
                 }
                 // 공지·뉴스 — 게임별 최신 공지(탭하면 HoYoLab 열기). 더보기로 전체 페이지.
-                // 아래 6 — 마지막 공지 줄이 위아래 14 를 가진다(10/1).
-                section(bottom: 6) { NewsSection(store: store, onSeeAll: { showNews = true }, onOpenNews: { selectedNews = $0; showNewsDetail = true }) }.id("NEWS")
+                // 아래 8 — 마지막 공지 줄이 위아래 12 를 가진다(10/1).
+                section(bottom: 8) { NewsSection(store: store, onSeeAll: { showNews = true }, onOpenNews: { selectedNews = $0; showNewsDetail = true }) }.id("NEWS")
                 // 진입 카드 — 가챠 도구.
                 entryCards
             }
             // 좌우 여백은 **섹션마다** 준다(section 헬퍼). 통짜로 걸면 데일리 히어로가
             // 화면 끝까지 못 간다 — 히어로는 색이 가장자리에 닿아야 한다.
             // 넓은 화면(iPad)에서 섹션이 끝까지 늘어나지 않도록 최대폭 제한+중앙정렬(iPhone 영향 없음).
-            .glgReadableWidth(720)
+            .glgReadableWidth(640)
         }
         .scrollIndicators(.hidden)
         // 홈 카드 딥링크 — 진입 시점(onAppear)·이미 떠 있는 상태에서 재요청(onChange) 모두 처리.
@@ -376,7 +377,7 @@ struct GameInfoView: View {
             VStack(alignment: .leading, spacing: 0) { content() }
                 // flat 은 아래 여분 없음 — 마지막 섹션이 아래 20 을 두고, 홈 인디케이터는 ScrollView 가 비킨다(GLDS 2.0, 10/1).
                 .padding(flat ? 0 : 16)
-                .glgReadableWidth(720)
+                .glgReadableWidth(640)
         }
         .scrollIndicators(.hidden)
         .background { if flat { Color.white } else { GLGBackground { Color.clear } } }
@@ -397,7 +398,6 @@ extension ScheduleEntry: @retroactive Identifiable {
 
 private let glChar = Color(hex: 0xFF5B8DEF)
 private let glWeap = Color(hex: 0xFFE0883B)
-private let glUrgent = Color(hex: 0xFFE8634A)
 
 /// 현재 시각(ms) — 공유 로직(`isImminent`·`hmsLabel`)과 같은 단위로 맞춘다.
 private func nowMS() -> Int64 { Int64(Date().timeIntervalSince1970 * 1000) }
@@ -538,9 +538,9 @@ private struct GameLineRow: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
             Text(line.remainLabel).font(.pretendard(size: 12.5, weight: .bold))
-                .foregroundStyle(line.urgent ? glUrgent : GLGColor.textPrimary).lineLimit(1)
+                .foregroundStyle(line.urgent ? GLGColor.urgent : GLGColor.textPrimary).lineLimit(1)
         }
-        .padding(.vertical, 11)
+        .padding(.vertical, 12)
     }
 }
 
@@ -651,7 +651,7 @@ struct GameSchedulePage: View {
                 }
             }
             // 아래 여분 없음 — 마지막 주(섹션)가 아래 20 을 둔다(GLDS 2.0, 10/1).
-            .glgReadableWidth(720)
+            .glgReadableWidth(640)
         }
         .scrollIndicators(.hidden)
         .background(Color.white)
@@ -775,14 +775,14 @@ private struct WeekEntries: View {
                 .frame(maxWidth: .infinity)
                 .padding(.horizontal, 20).padding(.top, 18).padding(.bottom, 20)
         } else {
-            // 카드 나열 대신 헤어라인 목록(10/1) — 줄 위아래 14 + 끝 6 = 섹션 아래 20.
+            // 카드 나열 대신 헤어라인 목록(10/1) — 줄 위아래 12 + 끝 8 = 섹션 아래 20.
             VStack(alignment: .leading, spacing: 0) {
                 ForEach(Array(week.entries.enumerated()), id: \.offset) { i, e in
                     if i > 0 { Rectangle().fill(glHair).frame(height: 1) }
                     ScheduleRow(entry: e)
                 }
             }
-            .padding(.horizontal, 20).padding(.bottom, 6)
+            .padding(.horizontal, 20).padding(.bottom, 8)
         }
     }
 }
@@ -1052,7 +1052,8 @@ private struct ScheduleRow: View {
                 // 초상 단(아래)은 5성만이라 픽업 줄도 글자로 함께 둔다. 길어서 최대 3줄.
                 // 픽업 부제는 종류별 한 줄씩("4성 캐릭터  디오나 · 파루잔") — 머리는 회색 굵게,
                 // 이름은 본문색으로 갈라 한눈에 읽히게 한다(10/1, Android 와 같다).
-                if !entry.sub.isEmpty {
+                // 보상 박스가 있으면 같은 내용의 글자 부제는 숨긴다(박스가 이름을 접근성 라벨로 갖는다).
+                if !entry.sub.isEmpty && entry.rewardItems.isEmpty {
                     VStack(alignment: .leading, spacing: 2) {
                         ForEach(Array(entry.sub.components(separatedBy: "\n").enumerated()), id: \.offset) { _, line in
                             if let cut = line.range(of: "  ") {
@@ -1113,6 +1114,7 @@ private struct ScheduleRow: View {
                     .foregroundStyle(GLGColor.textSecondary.opacity(0.75)).lineLimit(1)
             }
         }
+        if !entry.rewardItems.isEmpty { RewardBoxes(items: entry.rewardItems) }
         // 픽업은 **한 단 아래**로 내린다(카드는 하나 그대로다 — 구분선으로만 가른다).
         // 제목 칸 안에 두면 초상 44 가 제목·D-day 와 같은 줄에 얹혀 카드가 세로로 눌린 것처럼
         // 보이고, 얼굴이 글자 사이에 끼여 잘 안 읽힌다.
@@ -1144,14 +1146,48 @@ private struct ScheduleRow: View {
         }
         }
         // 카드 면을 걷고 헤어라인 목록의 한 줄로(10/1) — 좌우는 섹션 20 이 준다.
-        .padding(.vertical, 14)
+        .padding(.vertical, 12)
     }
 
     private func markLabel(_ m: ScheduleMark) -> String {
         m == .start ? "시작까지" : "종료까지"
     }
     private func markColor(_ m: ScheduleMark) -> Color {
-        m == .start ? accent.primary : GLGColor.dangerText
+        m == .start ? accent.primary : GLGColor.urgent
+    }
+}
+
+/// 이벤트·콘텐츠 보상 — 박스 하나 = 보상 하나, API 순서로 가로 한 줄(넘치면 가로 스크롤).
+/// 시작선은 제목 글자(게임 배지 + 간격 10). 이름은 글자로 넣지 않고 접근성 라벨로만 단다.
+/// 수치는 Android `RewardBoxes` 와 같다 — 박스 52 · 모서리 10 · 아이콘 32 · 수량 11 SemiBold · 사이 6 · 위 8.
+private struct RewardBoxes: View {
+    let items: [RewardItem]
+
+    var body: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 6) {
+                ForEach(Array(items.enumerated()), id: \.offset) { _, r in
+                    VStack(spacing: 0) {
+                        AsyncImage(url: URL(string: r.iconUrl)) { phase in
+                            if case .success(let img) = phase { img.resizable().aspectRatio(contentMode: .fit) } else { Color.clear }
+                        }
+                        .frame(width: 32, height: 32)
+                        if r.amount > 0 {
+                            Text("×\(r.amount)").font(.pretendard(size: 11, weight: .semibold))
+                                .foregroundStyle(GLGColor.textPrimary).lineLimit(1)
+                                .frame(height: 13)
+                        }
+                    }
+                    .frame(width: 52, height: 52)
+                    .background(Color(hex: 0xFFF7F8FA), in: RoundedRectangle(cornerRadius: 10))
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel(r.amount > 0 ? "\(r.name) \(r.amount)개" : r.name)
+                }
+            }
+            // 제목 시작선 = 배지 + 10. iOS 일정 줄 배지는 small(28)이라 38 — Android 는 30 배지라 40.
+            .padding(.leading, GameTagSize.small.box + 10)
+        }
+        .padding(.top, 8)
     }
 }
 
@@ -1273,5 +1309,5 @@ private struct CollabPromoBanner: View {
 
 /// 게임 정보 섹션 사이 10 띠(Android GiBand 와 같다).
 struct GiBand: View {
-    var body: some View { Color(hex: 0xFFF2F4F6).frame(height: 10).frame(maxWidth: .infinity) }
+    var body: some View { GldsBand() }
 }

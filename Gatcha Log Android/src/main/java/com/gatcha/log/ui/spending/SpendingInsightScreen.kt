@@ -1,5 +1,7 @@
 package com.gatcha.log.ui.spending
 
+import com.gatcha.log.ui.components.GldsSection
+import com.gatcha.log.ui.components.GldsBand
 import com.gatcha.log.data.SpendingViewModel
 
 import androidx.activity.compose.BackHandler
@@ -34,7 +36,7 @@ import com.gatcha.log.ui.components.GldsTabsVariant
 import com.gatcha.log.ui.components.GlgDetailHeaderOverlay
 import com.gatcha.log.ui.components.glgDetailContentTop
 import com.gatcha.log.ui.components.GlgScreenHeader
-import com.gatcha.log.ui.theme.DangerText
+import com.gatcha.log.ui.theme.Urgent
 import com.gatcha.log.ui.theme.toColor
 import com.gatcha.log.ui.theme.LocalAccent
 import com.gatcha.log.ui.theme.ProgressEmpty
@@ -124,9 +126,7 @@ private val InsightHair = Color(0xFFEEF0F2)
 private val BarTrack = Color(0xFFEDEFF3)
 
 @Composable
-internal fun InsightBand() {
-    Box(Modifier.fillMaxWidth().height(10.dp).background(Color(0xFFF2F4F6)))
-}
+internal fun InsightBand() = GldsBand()
 
 /**
  * 섹션 — 좌우 20 · 위 22 · 아래 20. 제목 17 굵게 + 오른쪽 보조 12.
@@ -140,15 +140,11 @@ internal fun InsightSection(
     bottom: Dp = 20.dp,
     content: @Composable ColumnScope.() -> Unit,
 ) {
-    Column(Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = top, bottom = bottom)) {
-        if (title != null) {
-            Row(Modifier.fillMaxWidth().padding(bottom = 14.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text(title, fontSize = 17.sp, fontWeight = FontWeight.Bold, color = TextPrimary, modifier = Modifier.weight(1f))
-                if (sub != null) Text(sub, fontSize = 12.sp, color = TextSecondary)
-            }
-        }
-        content()
-    }
+    GldsSection(
+        title = title, top = top, bottom = bottom,
+        trailing = sub?.let { t -> @Composable { Text(t, fontSize = 12.sp, color = TextSecondary) } },
+        content = content,
+    )
 }
 
 /** 값 15 굵게 · 라벨 12 — 타일 면 없이. [cols] 칸씩 줄바꿈. */
@@ -238,14 +234,14 @@ private fun BudgetPaceSection(monthTotal: Long, budget: Long, accent: Color) {
             val over = projected > budget
             val frac = (projected.toFloat() / budget).coerceIn(0f, 1f)
             Box(Modifier.padding(top = 12.dp).fillMaxWidth().height(8.dp).clip(CircleShape).background(BarTrack)) {
-                Box(Modifier.fillMaxWidth(frac).fillMaxHeight().clip(CircleShape).background(if (over) DangerText else accent))
+                Box(Modifier.fillMaxWidth(frac).fillMaxHeight().clip(CircleShape).background(if (over) Urgent else accent))
             }
             val diff = kotlin.math.abs(projected - budget)
             Text(
                 if (over) "이 페이스면 예산을 ${won(diff)} 초과할 것 같아요"
                 else "이 페이스면 예산 안에서 ${won(diff)} 여유가 생겨요",
                 fontSize = 14.sp, fontWeight = FontWeight.Medium,
-                color = if (over) DangerText else accent,
+                color = if (over) Urgent else accent,
                 modifier = Modifier.padding(top = 8.dp),
             )
         } else {

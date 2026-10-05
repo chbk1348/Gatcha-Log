@@ -49,7 +49,7 @@ fun AnniversaryContent() {
         items.forEachIndexed { i, a ->
             if (i > 0) Box(Modifier.fillMaxWidth().height(1.dp).background(Color(0xFFEEF0F2)))
             Row(
-                modifier = Modifier.fillMaxWidth().padding(vertical = 14.dp),
+                modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 GlgGameTag(a.game.displayName, size = GameTagSize.Small)
