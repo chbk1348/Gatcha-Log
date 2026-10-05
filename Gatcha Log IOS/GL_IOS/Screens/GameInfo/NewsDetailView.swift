@@ -127,11 +127,10 @@ struct NewsDetailView: View {
                 ToolbarItem(placement: .topBarTrailing) {
                     // ⚠️ **공유 대상은 URL 이어야 한다.** 제목까지 담으려고 String 을 넘겼더니
                     // `public.plain-text` 로 나가서 카카오톡이 "공유할 수 없는 형식"으로 거부했다.
-                    // URL(`public.url`)은 어느 메신저든 받는다.
-                    // 제목은 message 로 딸려 보낸다 — 받는 앱이 쓰면 본문에 들어가고, 무시해도
-                    // 링크 공유 자체는 깨지지 않는다.
-                    ShareLink(item: u, message: Text(item.title),
-                              preview: SharePreview(item.title)) {
+                    // SwiftUI ShareLink(URL + message · SharePreview)는 Transferable 로 감싸 넘겨서
+                    // 카카오톡 공유 확장이 "Failed to load URL" 로 실패했다(10/1) — UIKit 공유 창에
+                    // NSURL 하나만 그대로 넘긴다.
+                    Button { shareNewsURL(u) } label: {
                         Image(systemName: "square.and.arrow.up")
                     }
                 }
@@ -200,4 +199,20 @@ private struct NewsTitleOffsetKey: PreferenceKey {
     static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
         value = min(value, nextValue())
     }
+}
+
+/// 공지 링크 공유 — UIKit 공유 창에 URL 하나만 넘긴다(카카오톡 공유 확장 호환, 10/1).
+@MainActor
+private func shareNewsURL(_ url: URL) {
+    guard let root = UIApplication.shared.connectedScenes
+        .compactMap({ ($0 as? UIWindowScene)?.keyWindow }).first?.rootViewController else { return }
+    var top = root
+    while let next = top.presentedViewController { top = next }
+    let vc = UIActivityViewController(activityItems: [url], applicationActivities: nil)
+    // iPad 는 팝오버 기준점이 없으면 크래시 — 화면 오른쪽 위(툴바 공유 버튼 자리)에 띄운다.
+    if let pop = vc.popoverPresentationController {
+        pop.sourceView = top.view
+        pop.sourceRect = CGRect(x: top.view.bounds.maxX - 60, y: top.view.safeAreaInsets.top, width: 1, height: 1)
+    }
+    top.present(vc, animated: true)
 }
