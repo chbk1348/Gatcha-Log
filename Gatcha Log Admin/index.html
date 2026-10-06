@@ -44,12 +44,16 @@
     <!-- 되돌리기 — 세션 안에서만 산다. 창을 닫으면 사라지므로 초안(localStorage)과는 다른 물건이다. -->
     <button id="btn-undo" class="btn" disabled><span class="t-long">되돌리기</span><span class="t-short" aria-hidden="true">↶</span></button>
     <button id="btn-redo" class="btn" disabled><span class="t-long">다시 하기</span><span class="t-short" aria-hidden="true">↷</span></button>
-    <span id="who" class="badge badge-clean" hidden></span>
     <button id="btn-load-remote" class="btn">불러오기</button>
     <label class="btn" for="file-input">파일 열기</label>
     <input id="file-input" type="file" accept=".json,application/json" hidden>
     <button id="btn-export" class="btn">내보내기</button>
     <button id="btn-publish" class="btn btn-primary">라이브 반영</button>
+    <!-- 로그인한 계정 — 프로필 사진 + 이름. 헤더 맨 오른쪽에 선다(앱 홈 헤더와 같은 꼴: 사진 32 · 이름 15 Bold). -->
+    <span id="who" class="who" hidden>
+      <span class="who-avatar"><img id="who-photo" alt="" referrerpolicy="no-referrer" hidden><span id="who-initial" aria-hidden="true"></span></span>
+      <span id="who-name" class="who-name"></span>
+    </span>
   </div>
   </div>
 </header>

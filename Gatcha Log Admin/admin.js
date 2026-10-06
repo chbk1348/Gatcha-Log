@@ -4727,7 +4727,20 @@ function init() {
     const c = window.cloud;
     const who = document.getElementById('who');
     who.hidden = !c.user;
-    if (c.user) who.textContent = c.user.email || c.user.name || '로그인됨';
+    if (c.user) {
+      // 이름이 없는 계정은 이메일 앞부분으로 부른다. 사진이 없거나 못 받으면 첫 글자를 둥근 면에 적는다.
+      const name = c.user.name || String(c.user.email || '').split('@')[0] || '로그인됨';
+      document.getElementById('who-name').textContent = name;
+      who.title = c.user.email || name;
+      const photo = document.getElementById('who-photo');
+      const initial = document.getElementById('who-initial');
+      initial.textContent = name.slice(0, 1).toUpperCase();
+      photo.onload = () => { photo.hidden = false; initial.hidden = true; };
+      photo.onerror = () => { photo.hidden = true; initial.hidden = false; };
+      photo.hidden = true;
+      initial.hidden = false;
+      if (c.user.photo) photo.src = c.user.photo; else photo.removeAttribute('src');
+    }
     // 버튼은 authReady 를 기다리지 않는다 — 인증 복원이 느리거나 실패해도 로그인 경로는 남아야 한다.
     // (이미 로그인돼 있으면 곧 도착하는 authReady 콜백에서 사라진다.)
     // 모달은 반대로 확정된 뒤에만 띄운다. 이미 로그인한 사람에게 뜨면 그게 더 나쁘다.

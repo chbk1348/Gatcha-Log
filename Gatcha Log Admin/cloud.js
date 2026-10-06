@@ -155,7 +155,7 @@ async function boot() {
 
   authMod.onAuthStateChanged(auth, (u) => {
     cloud.authReady = true;
-    cloud.user = u ? { uid: u.uid, email: u.email, name: u.displayName } : null;
+    cloud.user = u ? { uid: u.uid, email: u.email, name: u.displayName, photo: u.photoURL } : null;
     notify();
   });
 
