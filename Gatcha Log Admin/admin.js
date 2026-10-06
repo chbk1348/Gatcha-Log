@@ -1163,7 +1163,8 @@ const EXTERNAL_APIS = [
     use: '캐릭터 · 무기 메타 · 연출 데이터', auth: '없음', onFail: '연출 정보 생략',
     probe: 'https://gi.yatta.moe/api/v2/kr/avatar' },
   { name: 'Nanoka', host: 'static.nanoka.cc', path: '{game}/{version}/{lang}/{type}/{id}.json',
-    use: 'ZZZ 캐릭터 데이터', auth: '없음', onFail: 'jsDelivr 미러로 폴백', probe: 'https://static.nanoka.cc/' },
+    // 루트(/)는 원래 404 다 — 앱이 맨 먼저 받는 manifest.json 을 잰다(10/6, 루트로 재면 늘 「실패」였다).
+    use: 'ZZZ 캐릭터 데이터', auth: '없음', onFail: 'jsDelivr 미러로 폴백', probe: 'https://static.nanoka.cc/manifest.json' },
   { name: 'Ennead', host: 'api.ennead.cc', path: 'mihoyo/{game}/calendar · news',
     use: '게임 일정 · 공지', auth: '없음', onFail: '일정 섹션 비움',
     probe: 'https://api.ennead.cc/mihoyo/genshin/calendar?lang=ko-kr' },
@@ -1189,7 +1190,7 @@ const PROBE_TIMEOUT_MS = 8000;
  */
 async function probe(api) {
   const url = api.probe + (api.probe.includes('?') ? '&' : '?') + '_t=' + Date.now();
-  const t0 = performance.now();
+  let t0 = performance.now();
   const ctl = new AbortController();
   const timer = setTimeout(() => ctl.abort(), PROBE_TIMEOUT_MS);
   const done = (kind, detail) => {
@@ -1201,6 +1202,9 @@ async function probe(api) {
     done(res.ok ? 'ok' : 'fail', 'HTTP ' + res.status);
   } catch (e) {
     if (e.name === 'AbortError') { done('fail', `${PROBE_TIMEOUT_MS / 1000}초 초과`); return; }
+    // CORS 로 막힌 첫 요청도 왕복은 다 했다 — 그 시간은 버리고 no-cors 한 번만 잰다
+    // (10/6, 예전엔 두 왕복을 합쳐 적어 「응답만」 줄이 실제의 두 배로 보였다). 시간 제한은 둘을 합쳐 그대로다.
+    t0 = performance.now();
     try {
       await fetch(url, { mode: 'no-cors', cache: 'no-store', signal: ctl.signal });
       done('opaque', '응답만 확인(CORS 로 상태코드 비공개)');
@@ -4263,9 +4267,9 @@ function median(xs) {
 async function probeAll() {
   const btn = document.getElementById('btn-probe-all');
   if (btn) { btn.disabled = true; btn.textContent = '측정 중…'; }
-  const queue = [...EXTERNAL_APIS];
-  const worker = async () => { while (queue.length) await probe(queue.shift()); };
-  await Promise.all([worker(), worker(), worker(), worker()]);
+  // 한꺼번에 던진다(10/6) — 넷씩 줄 세우면 8초 걸리는 곳 하나가 뒤 순서를 통째로 붙잡았다.
+  // 호스트가 대부분 서로 달라 서로의 시간을 밀지 않는다(같은 raw.githubusercontent 는 HTTP/2 한 연결로 간다).
+  await Promise.all(EXTERNAL_APIS.map(probe));
   render();
   toast('전체 측정을 마쳤습니다.');
 }
