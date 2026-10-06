@@ -92,7 +92,7 @@ fun HoyolandHero(
     val panel = LocalAccent.current.copy(alpha = 0.10f)
     val deep = LocalAccentDeep.current
     val phase = e.phase()
-    // 종료 · 일정 미정(TBA)은 같은 모양이다 — 회색 배지, 카운트다운 대신 한 마디, 액션 줄 없음.
+    // 종료 · 일정 미정(TBA)은 같은 모양이다 — 진한 회색 배지에 흰 글자, 카운트다운 대신 한 마디, 액션 줄 없음.
     val ended = phase.isOffSeason
 
     // ── 규격은 **캐릭터 상세 히어로와 같다**(`EnkaCharSection.CharHero`).
@@ -243,8 +243,7 @@ private fun HudLabelRow(e: HoyolandEvent, phase: HoyolandPhase, ended: Boolean) 
             // 이 배지가 답하는 건 "지금 어느 단계인가" 라 행사명 다음으로 먼저 읽혀야 한다.
             fontSize = 12.sp, fontWeight = FontWeight.Black,
             color = when {
-                phase.isEventLive -> Color.White
-                ended -> TextSecondary
+                phase.isEventLive || ended -> Color.White
                 else -> deep
             },
             letterSpacing = 1.2.sp,
@@ -255,7 +254,9 @@ private fun HudLabelRow(e: HoyolandEvent, phase: HoyolandPhase, ended: Boolean) 
                         // 진행 중만 **면이 찬 빨강**이다 — 다른 단계와 같은 옅은 배지로 두면
                         // "지금 열리고 있다" 가 배지에서 안 읽힌다.
                         phase.isEventLive -> LiveRed
-                        ended -> DividerColor
+                        // 종료 · 일정 미정은 **진한 회색 채움**에 흰 글자 — 옅은 회색 면(#F0F0F0)은 패널의 옅은
+                        // 강조색과 밝기가 같아 배지가 면으로 서지 않았다(10/6 지적). 진행 중(빨강 채움)과 같은 결이다.
+                        ended -> TextSecondary
                         else -> accent.copy(alpha = 0.16f)
                     },
                 )

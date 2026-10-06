@@ -574,7 +574,7 @@ struct HoyolandDetailView: View {
     @ViewBuilder private func heroCard(_ e: HoyolandEvent) -> some View {
         let now = nowMs()
         let phase = e.phase(nowMillis: now)
-        // 종료 · 일정 미정(TBA)은 같은 모양이다 — 회색 배지, 카운트다운 대신 한 마디, 액션 줄 없음.
+        // 종료 · 일정 미정(TBA)은 같은 모양이다 — 진한 회색 배지에 흰 글자, 카운트다운 대신 한 마디, 액션 줄 없음.
         let ended = phase.isOffSeason
         let live = e.isEventLive(nowMillis: now)
         // 고른 날을 **전부** 건다(나흘을 한눈에 봐야 하는 값이다). 끝난 행사의 표는 걷는다.
@@ -597,11 +597,13 @@ struct HoyolandDetailView: View {
                     // 머리줄(17) 옆에 서는 배지 — 9.5 로는 같은 줄에서 곁다리처럼 읽혔다.
                     // 이 배지가 답하는 건 "지금 어느 단계인가" 라 행사명 다음으로 먼저 읽혀야 한다.
                     .font(.pretendard(size: 12, weight: .black)).kerning(1.2)
-                    .foregroundStyle(live ? Color.white : (ended ? GLGColor.textSecondary : accent.deep))
+                    .foregroundStyle(live || ended ? Color.white : accent.deep)
                     // 진행 중만 **면이 찬 빨강**이다 — 다른 단계와 같은 옅은 배지로 두면
                     // "지금 열리고 있다" 가 배지에서 안 읽힌다.
+                    // 종료 · 일정 미정은 **진한 회색 채움**에 흰 글자 — 옅은 회색 면(#F0F0F0)은 패널의 옅은
+                    // 강조색과 밝기가 같아 배지가 면으로 서지 않았다(10/6 지적). 진행 중(빨강 채움)과 같은 결이다.
                     .padding(.horizontal, 9).padding(.vertical, 4.5)
-                    .background(live ? GLGLiveRed : (ended ? GLGColor.divider : accent.primary.opacity(0.16)),
+                    .background(live ? GLGLiveRed : (ended ? GLGColor.textSecondary : accent.primary.opacity(0.16)),
                                 in: RoundedRectangle(cornerRadius: 4, style: .continuous))
             }
             .padding(.bottom, 10)
@@ -1446,10 +1448,18 @@ struct HoyolandDetailView: View {
     }
 
     // ── 지난 행사 참고 — 실제 개최 이력(최신순). 다음 행사 규모 가늠용.
-    // 지나간 정보라 기본은 접어 둔다 — 이 페이지의 본론은 위의 2026 정보다.
+    // 지나간 정보라 기본은 접어 둔다 — 이 페이지의 본론은 위의 이번 회차 정보다.
+    // **종료 · 일정 미정이면 접지 않는다**(10/6) — 본론이 비어 이 목록이 페이지에서 읽을 전부라,
+    // 접기 · 펼치기는 한 번 더 누르게 할 뿐이다. 머리줄은 누를 수 없는 제목이 된다. (Android 와 같다)
     // 공지 한 줄은 여기 끝에 붙이지 않는다 — 상단(히어로)에만 선다(10/6, `topNotice`). 섹션 여백 · 띠는 호출부가 건다.
     @ViewBuilder private func pastSection(_ e: HoyolandEvent) -> some View {
+        let alwaysOpen = e.phase(nowMillis: nowMs()).isOffSeason
         VStack(alignment: .leading, spacing: 0) {
+        if alwaysOpen {
+            Text("지난 행사").font(.pretendard(size: 17, weight: .bold))
+                .foregroundStyle(GLGColor.textPrimary)
+                .padding(.vertical, 2)
+        } else {
         Button {
             withAnimation(.easeInOut(duration: 0.2)) { pastExpanded.toggle() }
         } label: {
@@ -1467,9 +1477,10 @@ struct HoyolandDetailView: View {
         }
         .buttonStyle(.plain)
         .padding(.vertical, 2)
+        }
 
         // 행사마다 카드였던 것을 헤어라인 목록으로(10/1).
-        if pastExpanded {
+        if alwaysOpen || pastExpanded {
             VStack(alignment: .leading, spacing: 0) {
                 ForEach(Array(e.past.enumerated()), id: \.offset) { i, p in
                     if i > 0 { HoyolandHairline() }
