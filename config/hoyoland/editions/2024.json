@@ -27,15 +27,18 @@
   "lineup": [
     {
       "game": "원신",
-      "theme": "연극! 추리? 폰타인 탐정단"
+      "theme": "연극! 추리? 폰타인 탐정단",
+      "colorArgb": "0xFF4F8EF7"
     },
     {
       "game": "붕괴: 스타레일",
-      "theme": "【꿈세계로의 초대】 ~ 황금의 순간~"
+      "theme": "【꿈세계로의 초대】 ~ 황금의 순간~",
+      "colorArgb": "0xFFB06BFF"
     },
     {
       "game": "젠레스 존 제로",
-      "theme": "뉴에리두 가든파티"
+      "theme": "뉴에리두 가든파티",
+      "colorArgb": "0xFFF5A623"
     },
     {
       "game": "붕괴3rd",
