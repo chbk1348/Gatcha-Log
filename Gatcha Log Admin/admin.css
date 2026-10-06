@@ -245,16 +245,38 @@ a.badge { text-decoration: none; cursor: pointer; }
  * 띠가 없다(상단바 바로 아래).
  */
 #main > .card,
-#main > :not(.card) > * { padding: 22px var(--inset) 20px; margin: 0; }
+#main > :not(.card):not(.editions) > * { padding: 22px var(--inset) 20px; margin: 0; }
 /* 띠는 **콘텐츠 너비만큼만** 긋는다(2026-10-06 결정 — 앱은 화면 폭이지만 어드민은 본문 좌우 여백 안쪽까지).
    섹션 위에 10 띠를 배경으로 그리고 그만큼 위 여백을 늘린다 — 테두리로 그으면 화면 끝까지 닿는다. */
-#main > :not(.card) > * + * {
+#main > :not(.card):not(.editions) > * + * {
   padding-top: 32px;
   background: linear-gradient(var(--band), var(--band)) center top / calc(100% - 2 * var(--inset)) 10px no-repeat;
 }
 /* 줄 목록으로 끝나는 섹션 — 마지막 줄의 아래 여백 12 를 빼 띠까지 보이는 간격을 20 으로 맞춘다. */
-#main > :not(.card) > .rows-sec { padding-bottom: 8px; }
-#main > :not(.card) > .rows-sec.last { padding-bottom: 20px; }
+#main > :not(.card):not(.editions) > .rows-sec { padding-bottom: 8px; }
+#main > :not(.card):not(.editions) > .rows-sec.last { padding-bottom: 20px; }
+
+
+/* ── 회차 탭 줄 — 본문 위에 선다(시안 「회차 탭 · 안 A」) ──
+ * GLDS 탭: 흰 트랙(안쪽 1 테두리 · 반경 14 · 안쪽 3) 위에 칸(높이 46 · 반경 11 · 12.5 SemiBold),
+ * 고른 칸만 강조색 면. 칸마다 보조 한 줄(10 Medium)이 회차의 상태를 적는다 — 보관 · 앱에 게시 중 · 게시 전.
+ * 줄은 섹션이 아니다 — 위 8 만 띄우고 띠도 긋지 않는다(바로 아래 첫 섹션이 제 여백 22 를 갖는다). */
+#main > .editions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 8px var(--inset) 0; }
+.gl-tabs {
+  display: flex; max-width: 100%; padding: 3px; border-radius: 14px;
+  background: var(--bg); box-shadow: inset 0 0 0 1px var(--chip-line);
+}
+.gl-tab {
+  flex: 1; min-width: 0; height: 46px; padding: 0 4px; border: 0; border-radius: 11px;
+  background: transparent; color: var(--muted);
+  font-family: inherit; font-size: 12.5px; font-weight: 600; line-height: 1.2; white-space: nowrap;
+  cursor: pointer; transition: background .12s, color .12s;
+}
+.gl-tab small { display: block; font-size: 10px; font-weight: 500; opacity: .75; }
+.gl-tab:not(.on):hover { background: var(--panel-2); }
+.gl-tab.on { background: var(--accent); color: #fff; }
+.gl-tab.on small { opacity: .85; }
+.btn-ico { line-height: 0; }
 
 .card { background: none; border: 0; border-radius: 0; box-shadow: none; min-width: 0; }
 /* h2 는 로그인·권한 안내와 이력 비교에만 남았다 — 섹션 제목은 붙박이 상단바가 든다(`card()` 주석). */
@@ -280,7 +302,7 @@ a.badge { text-decoration: none; cursor: pointer; }
 .rows.cols-reach { display: grid; grid-template-columns: minmax(200px, 1fr) minmax(260px, 2fr) max-content; column-gap: 16px; }
 .rows.cols-fill { display: grid; grid-template-columns: minmax(150px, 1fr) minmax(180px, 1fr) minmax(0, 3fr) max-content; column-gap: 16px; }
 .rows.cols-reach > .row, .rows.cols-fill > .row { grid-column: 1 / -1; display: grid; grid-template-columns: subgrid; }
-.rows.cols-reach > .row > .pill { justify-self: end; }
+.rows.cols-reach > .row > .pill, .rows.cols-reach > .row > .btn { justify-self: end; }
 .rows.cols-fill > .row > .btn { grid-column: 4; }
 .rows.cols-fill .row-now.wide { grid-column: 2 / 4; }
 .row.top { align-items: flex-start; gap: 10px; }
@@ -361,6 +383,7 @@ p.note { margin-bottom: 0; }
 .field > label { font-size: 13px; font-weight: 600; color: var(--muted); }
 .field > label .req { color: var(--err); }
 .field .note { font-size: 12px; color: var(--muted); }
+.field .note.err { color: var(--err); }
 .field.wide { grid-column: 1 / -1; }
 
 /* ── GLDS 입력필드 ────────────────────────────────────
