@@ -103,8 +103,8 @@ function foodRowsFromPrograms(programs) {
       const line = raw.trim();
       if (!line) { note = null; return; }
       if (deep(raw) && item) {
-        const sub = line.replace(/^· /, '');
-        item.desc = item.desc ? `${item.desc}\n${sub}` : sub;
+        // 목록 머리(「· 」)는 지우지 않는다 — 설명 안에 적은 목록이 앱에서도 목록으로 선다.
+        item.desc = item.desc ? `${item.desc}\n${line}` : line;
         return;
       }
       if (line.startsWith('· ')) {

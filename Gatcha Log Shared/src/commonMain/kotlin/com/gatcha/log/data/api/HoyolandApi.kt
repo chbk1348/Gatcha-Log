@@ -388,7 +388,7 @@ object HoyolandApi {
         if (zones.none { it.isDrawable }) return d
         return HoyolandMap(
             title = o.optString("title", d.title),
-            note = o.optString("note", d.note),
+            note = HoyolandText.normalize(o.optString("note", d.note)),
             ratio = o.optDouble("ratio", d.ratio.toDouble()).toFloat().takeIf { it > 0f } ?: d.ratio,
             zones = zones,
         )

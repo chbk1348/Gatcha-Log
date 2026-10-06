@@ -116,10 +116,8 @@ struct HoyolandMapView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
                 if !map.note.isEmpty {
-                    Text(map.note)
-                        .font(.pretendard(size: 12))
+                    HoyolandListText(text: map.note, size: 12, lineSpacing: 0)
                         .foregroundStyle(GLGColor.textSecondary)
-                        .fixedSize(horizontal: false, vertical: true)
                         .padding(.bottom, 12)
                 }
                 board(map)

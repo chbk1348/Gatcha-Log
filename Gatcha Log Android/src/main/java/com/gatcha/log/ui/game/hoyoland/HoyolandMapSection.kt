@@ -178,7 +178,7 @@ fun HoyolandMapContent(
     }
     Column(Modifier.fillMaxWidth().graphicsLayer { alpha = appear.value }) {
         if (map.note.isNotBlank()) {
-            Text(map.note, fontSize = 12.sp, color = TextSecondary, lineHeight = 18.sp)
+            HoyolandListText(map.note, fontSize = 12.sp, color = TextSecondary, lineHeight = 18.sp)
             Spacer(Modifier.height(12.dp))
         }
         BoxWithConstraints(Modifier.fillMaxWidth()) {
