@@ -502,6 +502,17 @@ final class SpendingStore {
     // ── Phase 4 액션 ──────────────────────────────────────────────────────
     // Kotlin 기본 인자는 Swift 로 안 넘어온다 — silent 를 명시해야 한다(사용자가 부른 새로고침이므로 false).
     func refreshGameInfo(force: Bool = false) { vm.refreshGameInfo(force: force, silent: false) }
+    /// 당겨서 새로고침용 — 게임 정보 갱신을 걸고 **끝날 때까지** 기다린다(최대 10초).
+    /// `.refreshable` 은 이 함수가 돌아오는 순간 스피너를 걷는다 — 바로 돌아오면 당기자마자 걷혀 갱신이 안 된 것처럼 보인다.
+    /// 미러링된 `isRefreshing` 이 아니라 **vm 값을 직접** 본다. 미러는 콜렉터를 한 번 거쳐 한 박자 늦을 수 있어,
+    /// 그 사이에 보면 아직 false 라 기다리지 않고 빠져나온다.
+    func refreshGameInfoAndWait() async {
+        vm.refreshGameInfo(force: true, silent: false)
+        for _ in 0..<100 {
+            try? await Task.sleep(nanoseconds: 100_000_000)
+            if !vm.isRefreshing.value.boolValue { break }
+        }
+    }
     /// 앱 복귀 — 오래 떠나 있었으면 데이터 갱신 + 밀린 알림 1회 점검(BGTask 가 OS 재량이라 그것만으론 구멍이 크다).
     func onAppForeground() { vm.onAppForeground() }
     func setRootReady(_ ready: Bool) { vm.setRootReady(ready: ready) }

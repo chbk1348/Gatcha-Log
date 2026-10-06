@@ -302,7 +302,7 @@ struct GameInfoView: View {
         .onChange(of: store.gameNews) { _, _ in openPendingNewsIfReady() }
         // 카드를 걷었으니 바탕은 흰 면 — 띠(F2F4F6)와 헤어라인이 구분을 맡는다(Android 와 같다).
         .background(Color.white)
-        .refreshable { store.refreshGameInfo(force: true) }
+        .refreshable { await store.refreshGameInfoAndWait() }
         // 초기 진입 시 로드 + HoYoLAB 연동(config)이 늦게 링크되면 그 순간 강제 갱신(실시간 노트 표출)
         .task { store.refreshGameInfo() }
         // 내 캐릭터(Enka) — 탭에 들어오는 순간 시작한다. 섹션에 맡기면 스크롤로 그 항목이
@@ -657,7 +657,7 @@ struct GameSchedulePage: View {
         .background(Color.white)
         // 상세로 들어온 뒤에도 여기서 바로 당겨 받는다 — 게임 정보 탭까지 되돌아가지 않아도 되게.
         // (Android GameScheduleFullPage 의 GlgPullToRefreshBox 와 파리티)
-        .refreshable { store.refreshGameInfo(force: true) }
+        .refreshable { await store.refreshGameInfoAndWait() }
         .glgPageTitle("게임 일정")
         .navigationBarTitleDisplayMode(.inline)
         .navigationDestination(isPresented: $showHoyoland) { HoyolandDetailView(store: store) }
