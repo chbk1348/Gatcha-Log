@@ -589,6 +589,17 @@ function glColor(cfg) {
  * 라이브 반영)은 무엇이 사라지는지 보여야 해서 본문을 따로 받는다.
  * ═════════════════════════════════════════════════════════════ */
 
+/**
+ * 모달 본문을 **문장마다 한 줄**로 세운다 — 줄들(<span>)을 돌려준다.
+ *
+ * 반영 확인 창은 바뀌는 것 · 구버전 문서 · 정본 커밋을 한 문단에 이어 적어, 어디서 한 가지가 끝나는지 눈으로
+ * 끊어 읽어야 했다. 문장 끝(. ! ?) 뒤의 공백과 직접 넣은 줄바꿈에서 가른다. 버전(27.51.0) · 파일명(v2.json)처럼
+ * 뒤에 공백이 없는 점은 문장 끝이 아니다.
+ */
+function glLines(text) {
+  return String(text ?? '').split(/\n+|(?<=[.!?])\s+/).map((t) => t.trim()).filter(Boolean).map((t) => el('span', { text: t }));
+}
+
 function glConfirm(message, opts = {}) {
   return new Promise((resolve) => {
     closePop();
@@ -596,8 +607,8 @@ function glConfirm(message, opts = {}) {
     const cancel = el('button', { class: 'btn' }, [opts.cancel || '취소']);
     const card = el('div', { class: 'gl-modal', role: 'alertdialog', 'aria-modal': 'true' }, [
       el('h3', { text: opts.title || '확인' }),
-      el('p', { text: message }),
-      opts.note ? el('p', { class: 'gl-note', text: opts.note }) : null,
+      el('p', {}, glLines(message)),
+      opts.note ? el('p', { class: 'gl-note' }, glLines(opts.note)) : null,
       el('div', { class: 'gl-modal-act' }, [cancel, ok]),
     ]);
     const back = el('div', { class: 'gl-backdrop' }, [card]);

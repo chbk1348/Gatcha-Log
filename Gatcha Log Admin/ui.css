@@ -211,6 +211,11 @@ td .gl-num-b { width: 22px; }
 }
 .gl-modal h3 { margin: 0 0 16px; font-size: 17px; font-weight: 700; color: var(--text); }
 .gl-modal p { margin: 0; font-size: 14px; color: var(--muted); line-height: 1.6; }
+/* 본문은 문장마다 한 줄(ui.js glLines). 줄 안에서는 **낱말 중간에서 끊지 않는다** — 좁은 창에서 「다/음」 · 「구/버전」처럼
+   갈라져 읽기 어려웠다. 띄어쓰기가 없는 긴 경로(config/hoyoland_v2.json)만 넘칠 때 끊는다. */
+.gl-modal p { word-break: keep-all; overflow-wrap: anywhere; }
+.gl-modal p > span { display: block; }
+.gl-modal p > span + span { margin-top: 4px; }
 .gl-modal .gl-note { margin-top: 10px; font-size: 13px; color: var(--muted); }
 .gl-modal-act { display: flex; gap: 10px; margin-top: 20px; }
 .gl-modal-act .btn { height: 44px; padding: 0 18px; border-radius: 16px; font-size: 15px; min-width: 0; }
